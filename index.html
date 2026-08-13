@@ -105,27 +105,13 @@ function card(lab,val,sub,cls){ return `<div class="kpi ${cls||''}"><div class="
 async function boot(){
   pintarUsuario(S); renderCards(S);
   // dispara tudo em paralelo (login, KPIs e contagem de atividades) — antes era sequencial e demorava mais
-  // leitura estática (dist/) — mesmo motivo do site da RAS ser rápido
-  const [vd, atvR]=await Promise.all([ lerEstatico("vendas.json","vendas"), ler({action:"atividades"},"atividades") ]);
-  pintarAtividades(atvR); pintarKpis(calcularKpis(vd));
+  // leitura estática (dist/) — mesmo motivo do site da RAS ser rápido.
+  // portal.json já vem com os KPIs calculados (mesma fórmula do antigo
+  // portal_() do Code.gs, só que rodada uma vez no build).
+  const [kpiR, atvR]=await Promise.all([ lerEstatico("portal.json","portal"), ler({action:"atividades"},"atividades") ]);
+  pintarAtividades(atvR); pintarKpis(kpiR);
 }
 function pintarAtividades(r){ const el=document.getElementById("cnt-VENDAS"); if(el&&r&&r.ok)el.textContent=r.total; }
-/* KPIs calculados no navegador a partir do vendas.json publicado.
-   Antes vinham do Apps Script (endpoint "portal"), que lia o Notion ao vivo. */
-function calcularKpis(vd){
-  if(!vd || !vd.ok) return { ok:false, erro:(vd&&vd.erro)||"SEM_DADOS_PUBLICADOS" };
-  const ano=String(new Date().getFullYear());
-  const g=(o,n)=>getV(o,n);
-  const doAno=vd.vendas.filter(v=>String(g(v.valores,"DATA DA VENDA")||"").slice(0,4)===ano);
-  const vgv=doAno.reduce((s,v)=>s+(Number(g(v.valores,"VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)"))||0),0);
-  const meses=new Set(doAno.map(v=>String(g(v.valores,"DATA DA VENDA")).slice(0,7))).size||1;
-  const lotes=vd.vendas.filter(v=>{ const d=g(v.valores,"DATA DA COMPRA DO LOTE")||g(v.valores,"DATA AQUISIÇÃO LOTE");
-    return String(d||"").slice(0,4)===ano; }).length;
-  return { ok:true, ano:ano, offline:vd.offline, _ts:vd._ts,
-    vendaCasas:{ total:doAno.length, vgv:vgv, meses:meses, mediaMes:doAno.length/meses, ticket:doAno.length?vgv/doAno.length:0 },
-    inicioObras:{ iniciadas:0, meses:meses, mediaMes:0, meta:0, pct:0, indisponivel:true },
-    lotes:{ total:lotes } };
-}
 function pintarKpis(r){
   if(!r.ok){ document.getElementById("kpi-vendas").innerHTML=card("Indisponível","—",erroTexto(r.erro)); return; }
   const vc=r.vendaCasas, io=r.inicioObras, lo=r.lotes;
@@ -134,12 +120,11 @@ function pintarKpis(r){
     card("VGV (Contratos)",brl(vc.vgv),"soma dos contratos","verde")+
     card("Média/mês",(vc.mediaMes||0).toLocaleString("pt-BR",{maximumFractionDigits:1}),vc.meses+" meses")+
     card("Ticket Médio",brl(vc.ticket),"por casa");
-  document.getElementById("kpi-obras").innerHTML= io.indisponivel
-    ? card("Casas Iniciadas","—","precisa do secret DOCUMENTOS_DB_ID")
-    : card("Casas Iniciadas",num(io.iniciadas),"morais + investidores","hero")+
-      card("Média/mês",(io.mediaMes||0).toLocaleString("pt-BR",{maximumFractionDigits:1}),io.meses+" meses")+
-      card("Meta "+r.ano,num(io.meta),"casas no ano")+
-      card("% da Meta",((io.pct||0)*100).toLocaleString("pt-BR",{maximumFractionDigits:0})+"%","iniciadas ÷ meta","verde");
+  document.getElementById("kpi-obras").innerHTML=
+    card("Casas Iniciadas",num(io.iniciadas),"morais + investidores","hero")+
+    card("Média/mês",(io.mediaMes||0).toLocaleString("pt-BR",{maximumFractionDigits:1}),io.meses+" meses")+
+    card("Meta "+r.ano,num(io.meta),"casas no ano")+
+    card("% da Meta",((io.pct||0)*100).toLocaleString("pt-BR",{maximumFractionDigits:0})+"%","iniciadas ÷ meta","verde");
   document.getElementById("kpi-lotes").innerHTML=card("Lotes Comprados",num(lo.total),"morais + investidores","hero");
   const nota=document.getElementById("nota");
   if(r.offline){ nota.style.display="block"; nota.textContent="Sem internet — últimos dados salvos ("+new Date(r._ts).toLocaleString("pt-BR")+")."; } else nota.style.display="none";

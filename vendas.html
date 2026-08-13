@@ -347,7 +347,7 @@ function campoPorFragmento(frag){ const alvo=normNome(frag); return SCHEMA.find(
 
 /* ---------- marcadores SIM/NÃO ---------- */
 function ehSimNao(opcoes){ if(!Array.isArray(opcoes)||!opcoes.length||opcoes.length>2) return false; return opcoes.every(o=>o==="SIM"||o==="NÃO"); }
-function ehMarcador(c){ return c.tipo==="select" && Array.isArray(c.opcoes) && c.opcoes.indexOf("SIM")>=0; }
+function ehMarcador(c){ return (c.tipo==="select"||c.tipo==="status") && Array.isArray(c.opcoes) && c.opcoes.indexOf("SIM")>=0; }
 function processoCompleto(valores){
   const marcadores=SCHEMA.filter(c=>ehMarcador(c) && !nomeExcluido(c.nome));
   if(!marcadores.length) return false;
@@ -503,7 +503,7 @@ function editavelNaCelula(c){ return c && c.editavel && TIPOS_CELULA.indexOf(c.t
 function celulaHtml(c,val){
   const editavel=editavelNaCelula(c);
   const attrs=editavel?` class="edt" data-col="${esc(c.nome)}" title="Clique para editar"`:"";
-  if(c.tipo==="select" && (val==="SIM"||val==="NÃO")) return `<td${attrs}>${tagSimNao(val)}</td>`;
+  if((c.tipo==="select"||c.tipo==="status") && (val==="SIM"||val==="NÃO")) return `<td${attrs}>${tagSimNao(val)}</td>`;
   const txt=celulaTexto(c,val);
   return editavel?`<td${attrs}>${esc(txt)}</td>`:`<td title="${esc(txt)}">${esc(txt)}</td>`;
 }
@@ -686,7 +686,7 @@ async function abrirObra(pageId){
 /* controle de entrada por tipo — usado tanto no resumo quanto no formulário de preenchimento */
 function inputControl(c,valor,pageId){
   const on=`onchange='editar(${JSON.stringify(pageId)},${JSON.stringify(c.nome)},${JSON.stringify(c.tipo)},this.value,this)'`;
-  if(c.tipo==="select"){
+  if(c.tipo==="select"||c.tipo==="status"){
     if(ehSimNao(c.opcoes)) return toggleSimNao(c,valor,pageId);
     return `<select ${on}><option value=""></option>${(c.opcoes||[]).map(o=>`<option${o===valor?" selected":""}>${esc(o)}</option>`).join("")}</select>`;
   }
