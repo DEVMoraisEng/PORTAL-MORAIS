@@ -68,11 +68,86 @@ function agendarBuild() {
 
 ---
 
+## 2b. Dados sensíveis não vão para o `dist/`
+
+O `dist/` é servido pelo GitHub Pages **sem login** — quem souber a URL baixa o
+arquivo. Deixar o repositório privado **não** muda isso (repositório privado e
+site privado são coisas separadas; site privado de verdade só em Enterprise Cloud).
+
+Por isso o `fetch_vendas.py` não publica as colunas pessoais. Como funciona:
+
+1. No build, toda coluna cujo nome bata com `CAMPOS_SENSIVEIS` (topo do
+   `fetch_vendas.py`) é marcada como `"sensivel": true` no `schema.json` e tem
+   o **valor descartado** — não entra no `vendas.json`, nem vazio, nem mascarado.
+2. Na planilha, essas colunas aparecem como `•••` e não são editáveis na célula.
+3. Ao **abrir a obra**, o painel busca só esses campos no Apps Script, que
+   confere o token da sessão antes de responder. Aí sim aparece o valor real e
+   fica editável. Nada disso é guardado no cache do navegador.
+
+Lista padrão (palavra inteira, tolerando plural, sem acento e sem caixa):
+`CLIENTE, COMPRADOR, NOME DO CLIENTE, NOME DO COMPRADOR, CPF, CNPJ, RG,
+IDENTIDADE, TELEFONE, CELULAR, WHATSAPP, CONTATO, E-MAIL, EMAIL, PARCELA,
+FGTS, AGENCIA, CONTA CORRENTE, PIX, NASCIMENTO, ESTADO CIVIL, PROFISSAO,
+RENDA, ENDERECO DO CLIENTE, ENDERECO RESIDENCIAL`
+
+Além dessa lista, **toda coluna do tipo anexo (`files`) é oculta automaticamente**
+(`OCULTAR_ANEXOS`). O Notion devolve URL assinada do S3: publicar isso no `dist/`
+entregaria contrato e RG escaneado a quem tivesse o link do JSON, sem login.
+
+Para mudar sem editar o código, defina a variável `CAMPOS_SENSIVEIS` no
+workflow (separada por vírgula) — ela substitui a lista inteira.
+
+**Confira no log do Actions** a linha `colunas NÃO publicadas em
+dist/vendas.json`. Se alguma coluna que você queria esconder não estiver ali,
+o nome real no Notion não bateu — me mande a linha que eu ajusto o fragmento.
+
+### O que a planilha ainda mostra
+
+Cada registro leva um resumo `sens` com **apenas "preenchido ou não"** (e, em
+anexo, a quantidade). Nunca o conteúdo. Com isso a coluna oculta aparece como:
+
+| Situação | Célula |
+|---|---|
+| Preenchido | `•••` |
+| Anexo com 3 arquivos | `3 arq.` |
+| Em branco | célula hachurada (dá pra ver o que falta preencher) |
+
+É esse resumo que mantém o marcador de **obra vendida** funcionando mesmo com a
+coluna `CLIENTES` oculta — o site pergunta "tem cliente?", não "quem é".
+
+### Consequências esperadas
+
+- A busca da planilha **não acha mais por cliente nem por CPF** (o dado não está
+  no navegador). Passou a buscar por endereço, setor e cidade.
+- As colunas ocultas **não são editáveis na célula** — só no painel da obra,
+  depois que o valor real chega. Editar na célula sobrescreveria com vazio.
+- Abrir a obra tem uma pequena espera nesses campos (`••• carregando…`), travados
+  até o valor chegar.
+- `VALOR NA MÃO` continua publicado: alimenta o marcador "disponível" e não é
+  dado pessoal.
+
+---
+
+## 2c. Anexos e tema
+
+- **Visualizar sem baixar:** PDF abre em iframe e imagem (jpg, png, webp, gif,
+  bmp, avif) abre em `<img>` dentro do próprio site. `.docx` e `.zip` continuam
+  só como link — navegador nenhum renderiza.
+- **Nunca abre no escuro:** as três páginas trazem `color-scheme: light only`
+  (meta + CSS) e o `manifest.json` tem fundo branco. Sem isso, o celular em modo
+  escuro inverte os controles nativos (inputs, selects, seletor de data) e o
+  formulário fica preto sobre layout claro.
+
+---
+
 ## 3. O que o Apps Script ainda faz
 
 - `login` / `me` — autenticação e sessão
 - `updateVenda`, `baixa`, `upload`, `excluirVenda` — escrita
-- `atividades` — lista de atividades em aberto (continua ao vivo)
+- `atividades` — lista de atividades em aberto (continua ao vivo, mas agora
+  carrega em segundo plano: não segura mais a tela)
+- `obra` — traz os campos sensíveis de UMA obra, sob demanda, quando o usuário
+  logado abre o painel. É o único caminho para esses dados.
 
 Os endpoints `vendas`, `vendasSchema` e `portal` **não são mais chamados** pelo
 site. Pode deixá-los no `Code.gs` sem problema.

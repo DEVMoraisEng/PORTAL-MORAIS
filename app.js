@@ -38,6 +38,22 @@ async function lerEstatico(arquivo, chaveCache){
   }
 }
 
+/* ---------- LEITURA ESTÁTICA "instantânea" (stale-while-revalidate) ----------
+   Pinta NA HORA com a última cópia salva no localStorage (0 ms, sem rede) e
+   repinta sozinha quando o dist/ chegar. É isto que tira o "Carregando…".
+   `pintar` é chamada 1x (só rede, primeiro acesso) ou 2x (cache e depois rede).
+   Devolve a resposta da REDE, pra quem precisar esperar o dado definitivo. */
+function lerEstaticoJa(arquivo, chaveCache, pintar){
+  if(chaveCache && typeof pintar==="function"){
+    const c=cacheGet(chaveCache);
+    if(c) { try{ pintar(Object.assign({online:navigator.onLine, doCache:true, _ts:c.t}, c.v)); }catch(e){} }
+  }
+  return lerEstatico(arquivo, chaveCache).then(r=>{
+    if(typeof pintar==="function"){ try{ pintar(r); }catch(e){} }
+    return r;
+  });
+}
+
 /* ---------- chamada crua ao backend (lança em erro de rede ou timeout) ---------- */
 async function chamar(payload, timeoutMs){
   const s=sessao(); if(s&&s.token&&!payload.token) payload.token=s.token;

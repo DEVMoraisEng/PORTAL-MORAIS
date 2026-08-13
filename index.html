@@ -2,6 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
+<meta name="color-scheme" content="light only">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#295778">
 <link rel="manifest" href="manifest.json">
@@ -9,6 +10,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
+/* Tema claro fixo. Sem isto, o Android/iOS em modo escuro inverte controles
+   nativos (inputs, selects, datas, scrollbar) e o site fica com campos pretos
+   sobre o layout claro. "light only" recusa a inversão em vez de só sugerir. */
+:root{color-scheme:light only}
+html{background:#fff}
+
 :root{
   --azul:#295778;--azul-esc:#1e3f58;--teal:#8FDCD2;--verde:#2a9d5c;--verde-btn:#4cd964;--verde-esc:#1a6b40;
   --bg:#EAF1F3;--bg2:#F5F9FA;--bg3:#dceaef;--border:#b8d0da;--border2:#d0e4ec;
@@ -101,14 +108,23 @@ function renderCards(s){
 }
 function card(lab,val,sub,cls){ return `<div class="kpi ${cls||''}"><div class="lab">${lab}</div><div class="val">${val}</div><div class="sub">${sub||''}</div></div>`; }
 
-async function boot(){
+function boot(){
   pintarUsuario(S); renderCards(S);
-  // dispara tudo em paralelo (login, KPIs e contagem de atividades) — antes era sequencial e demorava mais
-  // leitura estática (dist/) — mesmo motivo do site da RAS ser rápido.
-  // portal.json já vem com os KPIs calculados (mesma fórmula do antigo
-  // portal_() do Code.gs, só que rodada uma vez no build).
-  const [kpiR, atvR]=await Promise.all([ lerEstatico("portal.json","portal"), ler({action:"atividades"},"atividades") ]);
-  pintarAtividades(atvR); pintarKpis(kpiR);
+
+  // 1) KPIs: pinta NA HORA com a cópia salva e repinta quando o dist/portal.json
+  //    chegar. Nada aqui espera o Apps Script — era ele que segurava a tela.
+  //    portal.json já vem com os KPIs calculados (mesma fórmula do antigo
+  //    portal_() do Code.gs, só que rodada uma vez no build).
+  lerEstaticoJa("portal.json","portal", pintarKpis);
+
+  // 2) contagem de atividades: é só um numerinho no botão. Vai em segundo
+  //    plano; se o Apps Script demorar ou falhar, o resto da tela não sofre.
+  ler({action:"atividades"},"atividades").then(pintarAtividades).catch(()=>{});
+
+  // 3) validação da sessão em segundo plano. O redirecionamento do login virou
+  //    otimista (entra na hora); quem confere o token de verdade é o Apps
+  //    Script — aqui e em toda escrita. Token velho/revogado cai pra fora.
+  ler({action:"me"}).then(r=>{ if(r && r.ok===false && r.erro==="NAO_AUTORIZADO") sair(); }).catch(()=>{});
 }
 function pintarAtividades(r){ const el=document.getElementById("cnt-VENDAS"); if(el&&r&&r.ok)el.textContent=r.total; }
 function pintarKpis(r){

@@ -2,12 +2,19 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
+<meta name="color-scheme" content="light only">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Acesso · Morais Engenharia</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
+/* Tema claro fixo. Sem isto, o Android/iOS em modo escuro inverte controles
+   nativos (inputs, selects, datas, scrollbar) e o site fica com campos pretos
+   sobre o layout claro. "light only" recusa a inversão em vez de só sugerir. */
+:root{color-scheme:light only}
+html{background:#fff}
+
 :root{
   --navy:#2A285F; --petroleo:#1B5173; --verde:#81C9C0; --menta:#CCE8E6;
   --ink:#20263B; --muted:#68727E; --line:#DCE6E5; --card:#FFFFFF;
@@ -162,16 +169,15 @@ async function entrar(){
   }
 }
 
-/* Auto-login: se já há sessão válida salva, valida no backend e entra direto. */
-(async function(){
+/* Auto-login OTIMISTA: se já há sessão salva, entra na hora e o index.html
+   confere o token em segundo plano (se estiver inválido, ele devolve pra cá).
+   Antes esta tela esperava a resposta do "me" do Apps Script antes de deixar
+   entrar — em cold start dava vários segundos de tela branca a cada acesso.
+   Não afrouxa nada: o token nunca foi validado no navegador, sempre no
+   Apps Script, que continua conferindo em toda leitura e escrita real. */
+(function(){
   const s = sessaoSalva();
-  if(s && s.token && API.indexOf("COLE_AQUI") !== 0){
-    try{
-      const res = await api({ action:"me", token: s.token });
-      if(res.ok){ location.href = DESTINO; return; }
-    }catch(e){}
-    localStorage.removeItem(KEY); sessionStorage.removeItem(KEY);
-  }
+  if(s && s.token && API.indexOf("COLE_AQUI") !== 0){ location.href = DESTINO; return; }
   document.getElementById("login").focus();
 })();
 </script>

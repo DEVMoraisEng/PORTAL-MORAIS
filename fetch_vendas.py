@@ -21,13 +21,21 @@ Dá pra sobrescrever por variável de ambiente se algum dia mudar de base.
 
 Saídas:
   dist/schema.json      -> definição das colunas (nome, tipo, opções, editável)
-  dist/vendas.json      -> todos os registros de VENDAS
+  dist/vendas.json      -> registros de VENDAS SEM as colunas sensíveis
+                           (ver CAMPOS_SENSIVEIS logo abaixo). O dist/ é servido
+                           pelo GitHub Pages sem token nenhum: tudo que entra
+                           aqui é público na prática. Dado sensível fica de fora
+                           e o site busca sob demanda, pelo Apps Script, quando
+                           o usuário logado abre a obra. Cada registro leva um
+                           "sens" com apenas "preenchido sim/não" (e a contagem
+                           de anexos) das colunas ocultas.
   dist/documentos.json  -> índice endereço -> {habite, obra_iniciada}
   dist/updated.json     -> carimbo de data/hora da última atualização
 """
 
 import json
 import os
+import re
 import sys
 import time
 import unicodedata
@@ -53,6 +61,49 @@ DB_METAS = (os.environ.get("METAS_DB_ID") or ID_METAS_PADRAO).strip()
 
 SAIDA = "dist"
 
+# --------------------------------------------------------------------------
+# CAMPOS SENSÍVEIS — nunca vão para dist/vendas.json
+#
+# O GitHub Pages serve dist/ para qualquer um que saiba a URL, sem login.
+# Por isso o dado pessoal não é publicado: o schema marca a coluna como
+# "sensivel", a planilha mostra "•••", e o valor real só chega quando o
+# usuário LOGADO abre a obra (aí a leitura vai pelo Apps Script, que confere
+# o token). Fora do portal, o dado simplesmente não existe.
+#
+# A comparação é por PEDAÇO do nome, sem acento e sem caixa — "CPF" pega
+# "CPF ", "CPF DO CLIENTE", "Cpf/Cnpj" etc. Para incluir outra coluna, basta
+# acrescentar um fragmento aqui (ou definir CAMPOS_SENSIVEIS no workflow,
+# separado por vírgula, que substitui esta lista).
+#
+# ATENÇÃO ao esconder colunas usadas em REGRA de negócio, não só em exibição:
+# "CLIENTES" alimenta o marcador de obra vendida (situacoesDe) e "VALOR NA MÃO"
+# alimenta o de disponível, no vendas.html. Se você escondê-las, esses
+# marcadores param de funcionar na planilha. Por isso ficam de fora por padrão.
+# --------------------------------------------------------------------------
+CAMPOS_SENSIVEIS_PADRAO = [
+    # identificação do comprador
+    "CLIENTE", "COMPRADOR", "NOME DO CLIENTE", "NOME DO COMPRADOR",
+    "CPF", "CNPJ", "RG", "IDENTIDADE",
+    # contato
+    "TELEFONE", "CELULAR", "WHATSAPP", "CONTATO", "E-MAIL", "EMAIL",
+    # financeiro pessoal
+    "PARCELA", "FGTS",
+    "AGENCIA", "CONTA CORRENTE", "PIX",   # "BANCO" fica de fora: é o banco
+                                          # financiador da obra, não conta bancária
+    "NASCIMENTO", "ESTADO CIVIL", "PROFISSAO", "RENDA",
+    "ENDERECO DO CLIENTE", "ENDERECO RESIDENCIAL",
+]
+# Além da lista acima, TODA coluna do tipo "files" é tratada como sensível:
+# o Notion devolve URLs assinadas do S3, e publicá-las em dist/ entregaria o
+# anexo (contrato, RG escaneado…) a quem tivesse a URL do JSON, sem login.
+OCULTAR_ANEXOS = True
+_env_sens = os.environ.get("CAMPOS_SENSIVEIS", "").strip()
+CAMPOS_SENSIVEIS = (
+    [x.strip() for x in _env_sens.split(",") if x.strip()]
+    if _env_sens else CAMPOS_SENSIVEIS_PADRAO
+)
+_SENS_NORM = None  # preenchido em main(), depois que norm() existe
+
 # Tipos que o usuário pode editar pelo site. rollup/formula/relation são
 # calculados no Notion — mostramos, mas não deixamos escrever.
 TIPOS_EDITAVEIS = {
@@ -68,6 +119,18 @@ def norm(s):
     s = unicodedata.normalize("NFD", str(s or ""))
     s = "".join(c for c in s if unicodedata.category(c) != "Mn")
     return " ".join(s.upper().split())
+
+
+def eh_sensivel(nome):
+    """True se o nome da coluna casar com algum fragmento de CAMPOS_SENSIVEIS.
+    Compara sobre o nome normalizado (sem acento, sem caixa, sem espaço
+    sobrando — a base VENDAS tem colunas como "CPF "), exigindo PALAVRA
+    INTEIRA. Substring solto daria falso positivo feio: "RG" casaria com
+    "ENCARGOS" e a coluna sumiria da planilha sem ninguém entender por quê.
+    Palavra inteira ainda pega "CPF/CNPJ", "TELEFONE 1", "E-mail do cliente"."""
+    n = norm(nome)
+    # S? no fim: "PARCELA" pega "PARCELAS", "CLIENTE" pega "CLIENTES"
+    return any(re.search(r"\b" + re.escape(frag) + r"S?\b", n) for frag in _SENS_NORM)
 
 
 def getV_py(valores, nome):
@@ -180,7 +243,10 @@ def valor(prop):
     return None
 
 
-def montar_schema(db_id):
+def montar_schema(db_id, marcar_sensiveis=False):
+    """marcar_sensiveis=True só para VENDAS: acrescenta "sensivel": true nas
+    colunas cujo valor NÃO é publicado. O front-end usa essa marca para exibir
+    "•••" na planilha e buscar o valor real ao abrir a obra."""
     r = api("GET", f"/databases/{db_id}")
     campos = []
     for nome, d in (r.get("properties") or {}).items():
@@ -189,12 +255,15 @@ def montar_schema(db_id):
         if t in ("select", "status", "multi_select"):
             bloco = d.get(t) or {}
             opcoes = [o.get("name") for o in bloco.get("options", [])]
-        campos.append({
+        c = {
             "nome": nome,
             "tipo": t,
             "opcoes": opcoes,
             "editavel": t in TIPOS_EDITAVEIS,
-        })
+        }
+        if marcar_sensiveis and (eh_sensivel(nome) or (OCULTAR_ANEXOS and t == "files")):
+            c["sensivel"] = True
+        campos.append(c)
     # ordem alfabética só pra saída ficar estável entre execuções;
     # a ordem de exibição é decidida no front-end
     campos.sort(key=lambda c: norm(c["nome"]))
@@ -235,19 +304,64 @@ def main():
     os.makedirs(SAIDA, exist_ok=True)
     agora = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime())
 
+    global _SENS_NORM
+    _SENS_NORM = [norm(x) for x in CAMPOS_SENSIVEIS if norm(x)]
+
     print("Lendo schema de VENDAS…", flush=True)
-    campos = montar_schema(DB_VENDAS)
+    campos = montar_schema(DB_VENDAS, marcar_sensiveis=True)
+
+    # Nomes exatos das colunas que NÃO serão publicadas. Guardamos o nome real
+    # (com o espaço sobrando que às vezes vem do Notion) pra descartar por
+    # chave, sem depender de normalizar de novo lá embaixo.
+    ocultas = {c["nome"] for c in campos if c.get("sensivel")}
+    if ocultas:
+        print("  colunas NÃO publicadas em dist/vendas.json ("
+              + str(len(ocultas)) + "): "
+              + ", ".join(sorted(repr(n) for n in ocultas)), flush=True)
+        print("    (o site mostra '•••' e busca o valor pelo Apps Script ao "
+              "abrir a obra, com o token do usuário logado)", flush=True)
+    else:
+        print("  ! nenhuma coluna sensível encontrada. Confira se os nomes reais "
+              "da base batem com CAMPOS_SENSIVEIS (topo do arquivo) — se a base "
+              "tem CPF e nada apareceu aqui, algo está errado.", flush=True)
+
     gravar("schema.json", {"ok": True, "campos": campos, "updated_at": agora})
 
     print("Lendo registros de VENDAS…", flush=True)
     paginas = ler_banco(DB_VENDAS, "VENDAS")
     vendas = []
+    vazios = 0
     for p in paginas:
-        vals = {nome: valor(prop) for nome, prop in (p.get("properties") or {}).items()}
-        vendas.append({"id": p["id"], "valores": vals})
+        vals = {}
+        # "sens": resumo NÃO identificável das colunas ocultas. Só diz se o campo
+        # está preenchido (e, em anexo, quantos arquivos existem) — nunca o
+        # conteúdo. É o que mantém a planilha útil: o marcador de obra vendida,
+        # o "3 arq." e a noção de "falta preencher" continuam funcionando sem
+        # que o dado em si saia do Notion.
+        sens = {}
+        for nome, prop in (p.get("properties") or {}).items():
+            if nome in ocultas:
+                vazios += 1
+                v = valor(prop)
+                if isinstance(v, list):
+                    if v:
+                        sens[nome] = len(v)          # nº de anexos / itens
+                elif v is not None and v != "":
+                    sens[nome] = True                # preenchido, e só
+                continue  # o valor nunca entra no arquivo — nem vazio, nem mascarado
+            vals[nome] = valor(prop)
+        reg = {"id": p["id"], "valores": vals}
+        if sens:
+            reg["sens"] = sens
+        vendas.append(reg)
     gravar("vendas.json", {
-        "ok": True, "total": len(vendas), "vendas": vendas, "updated_at": agora,
+        "ok": True, "total": len(vendas), "vendas": vendas,
+        # o front usa isto pra saber que a planilha veio "podada" de propósito
+        # (e não que o build quebrou e esqueceu colunas)
+        "ocultas": sorted(ocultas), "updated_at": agora,
     })
+    if vazios:
+        print(f"  {vazios} valores sensíveis descartados antes de gravar.", flush=True)
 
     # DOCUMENTOS: índice endereço -> flags (contadores "em breve"/"em construção")
     # + lista completa (docs_full) usada pra calcular o dashboard (portal.json):
