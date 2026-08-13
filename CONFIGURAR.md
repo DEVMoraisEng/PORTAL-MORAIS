@@ -28,6 +28,25 @@ o Actions falha com 404.
 No log, confira: `colunas: endereço=... habite=... obra=...`. Se vier `None`,
 me manda essa linha que eu ajusto a busca do nome.
 
+## 1b. Fonte do Pages — SE ISTO ESTIVER ERRADO, NADA FUNCIONA
+
+`Settings > Pages > Build and deployment > Source` tem que estar em
+**GitHub Actions**. Se estiver em "Deploy from a branch", o GitHub roda **também**
+o workflow próprio dele (`pages-build-deployment`, com Jekyll), que publica o
+repositório como está commitado — **sem o `dist/`**, porque o `dist/` só nasce
+durante o nosso build.
+
+Os dois publicam o mesmo commit com segundos de diferença, e **o último ganha**.
+Quando o do Jekyll chega por último, o site sobe sem `dist/` e mostra
+"os dados ainda não foram publicados" — mesmo com o nosso workflow verde.
+
+Como conferir: em `Actions`, se existir um workflow chamado
+**pages-build-deployment** rodando junto do "Publicar site", é este o problema.
+Trocar a Source para GitHub Actions desliga ele.
+
+O arquivo `.nojekyll` na raiz é cinto de segurança: impede o Jekyll de mexer no
+conteúdo caso ele rode de novo.
+
 ## 2. Com que frequência atualiza
 
 Três gatilhos, todos já configurados em `.github/workflows/pages.yml`:

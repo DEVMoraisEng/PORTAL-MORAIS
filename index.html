@@ -133,17 +133,17 @@ function pintarKpis(r){
   // item 6 (rodada 2): média por trimestre FIXO (Jan-Mar/Abr-Jun/Jul-Set/Out-Dez),
   // não janela móvel — vem pronta do portal.json (fetch_vendas.py).
   document.getElementById("kpi-vendas").innerHTML=
-    card("Casas Vendidas",num(vc.total),"com data de venda","hero")+
+    card("Casas Vendidas",num(vc.total),"com data de venda em "+r.ano,"hero")+
     card("VGV (Contratos)",brl(vc.vgv),"soma dos contratos","verde")+
     card("Média/mês",(vc.mediaMes||0).toLocaleString("pt-BR",{maximumFractionDigits:1}),vc.meses+" meses")+
-    card("Média/trimestre",(vc.mediaTrimestre||0).toLocaleString("pt-BR",{maximumFractionDigits:1}),vc.trimestres+" trim. (fixos)")+
+    (vc.trimestres?card("Média/trimestre",(vc.mediaTrimestre||0).toLocaleString("pt-BR",{maximumFractionDigits:1}),vc.trimestres+" trim. (fixos)"):"")+
     card("Ticket Médio",brl(vc.ticket),"por casa");
   // item 6 (rodada 2): tirou a divisão Morais/Investidor daqui (não precisa mostrar
   // dividido) — "Casas Iniciadas" já soma as duas (n_casas, não lotes)
   document.getElementById("kpi-obras").innerHTML=
-    card("Casas Iniciadas",num(io.iniciadas),"morais + investidores","hero")+
+    card("Casas Iniciadas",num(io.iniciadas),"morais + investidores · "+r.ano,"hero")+
     card("Média/mês",(io.mediaMes||0).toLocaleString("pt-BR",{maximumFractionDigits:1}),io.meses+" meses")+
-    card("Média/trimestre",(io.mediaTrimestre||0).toLocaleString("pt-BR",{maximumFractionDigits:1}),io.trimestres+" trim. (fixos)")+
+    (io.trimestres?card("Média/trimestre",(io.mediaTrimestre||0).toLocaleString("pt-BR",{maximumFractionDigits:1}),io.trimestres+" trim. (fixos)"):"")+
     (io.meta!=null?card("Meta "+r.ano,num(io.meta),"casas no ano"):"")+
     (io.meta!=null?card("% da Meta",((io.pct||0)*100).toLocaleString("pt-BR",{maximumFractionDigits:0})+"%","iniciadas ÷ meta","verde"):"");
   const nota=document.getElementById("nota");

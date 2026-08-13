@@ -4,7 +4,10 @@ const API   = "https://script.google.com/macros/s/AKfycbwvMnVHZd7y5k-GP8_Dg9zkWy
 const LOGIN = "login.html";
 const KEY   = "morais_sessao";
 const FILA  = "morais_fila";
-const CPRE  = "morais_cache_";
+/* v2: o formato dos dados mudou (dist/*.json em vez do endpoint do Apps
+   Script). Trocar o prefixo descarta o cache antigo em vez de pintar a tela
+   com campos que não existem mais — era o "undefined trim." do dashboard. */
+const CPRE  = "morais_cache_v2_";
 
 /* ---------- sessão ---------- */
 function sessao(){ try{ return JSON.parse(localStorage.getItem(KEY)||sessionStorage.getItem(KEY)||"null"); }catch(e){ return null; } }
