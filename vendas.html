@@ -191,6 +191,15 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
 .sens{color:var(--text4);letter-spacing:2px;user-select:none}
 .sens.vazia{background:repeating-linear-gradient(45deg,transparent,transparent 5px,rgba(0,0,0,.03) 5px,rgba(0,0,0,.03) 10px)}
 .arq-vazio{color:var(--text4);font-size:12px;padding:2px 0}
+/* tópicos suspensos (alertas e atividades agrupados) */
+.grupo{border:1px solid var(--linha);border-radius:10px;background:#fff;margin-bottom:10px;overflow:hidden}
+.grupo>summary{cursor:pointer;padding:12px 14px;font-weight:700;font-size:13px;color:var(--text1);display:flex;align-items:center;gap:10px;list-style:none}
+.grupo>summary::-webkit-details-marker{display:none}
+.grupo>summary::before{content:"▸";font-size:11px;color:var(--text3);transition:transform .15s}
+.grupo[open]>summary::before{transform:rotate(90deg)}
+.grupo[open]>summary{border-bottom:1px solid var(--linha)}
+.grupo .qtd{margin-left:auto;background:var(--linha);color:var(--text2);border-radius:999px;padding:2px 9px;font-size:12px;font-weight:700}
+.grupo .corpo{padding:8px 10px}
 .sens-ro{padding:7px 9px;border:1px dashed var(--linha);border-radius:7px;color:var(--text3);font-size:13px}
 
 /* marcadores SIM/NÃO (toggle) */
@@ -309,6 +318,9 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
       <!-- CASAS MODELO: só as obras com MODELO? = SIM -->
       <div id="st-modelo" style="display:none">
         <div class="toolbar">
+          <select id="mod-setor" onchange="renderCasasModelo()"><option value="">Todos os setores</option></select>
+          <select id="mod-cidade" onchange="renderCasasModelo()"><option value="">Todas as cidades</option></select>
+          <select id="mod-tipo" onchange="renderCasasModelo()"><option value="">Todos os tipos</option></select>
           <input class="busca" id="mod-busca" placeholder="Buscar por endereço…" oninput="renderCasasModelo()">
           <span class="count" id="mod-count"></span>
         </div>
@@ -376,17 +388,22 @@ const CAMPOS_EXCLUIDOS=["ARQUIVOS E MIDIA"]; // excluído no Notion (item 6 do p
    São FRAGMENTOS do nome, normalizados. Para reverter qualquer item, basta
    apagar a linha correspondente. */
 const CAMPOS_OCULTOS_SETOR={
-  "Secretária de Vendas":[
-    "REF", "CIDADE", "SETOR", "CASA",
-    // "arquivo de reparos": os anexos e campos do bloco de reparo/vistoria
-    "ANEXAR AQUIVO", "ANEXAR ARQUIVO", "REPARO"
-  ]
+  "Secretária de Vendas":{
+    // palavra inteira — "CASA" não derruba "CASAS COMPORTADAS", "REF" não derruba "REFORMA"
+    campos:["REF","CIDADE","SETOR","CASA"],
+    // bloco inteiro de Reparos e Vistoria. Usa o MESMO padrão que desenha o
+    // subtítulo no painel (BLOCO_REPARO), então o que sai daqui é exatamente o
+    // que aparecia sob "REPAROS E VISTORIA": reparos pré-vistoria, análise de
+    // reparos, titularidades e os anexos de vistoria.
+    blocoReparo:true
+  }
 };
+const BLOCO_REPARO=/REPARO|ANEXAR AQUIVO|ANEXAR ARQUIVO|TITULARIDADES/;
 function ocultoNoSetor(nome){
-  const lista=CAMPOS_OCULTOS_SETOR[SETOR_ATUAL]; if(!lista) return false;
+  const cfg=CAMPOS_OCULTOS_SETOR[SETOR_ATUAL]; if(!cfg) return false;
   const n=normNome(nome);
-  // palavra inteira: "CASA" não pode derrubar "CASAS COMPORTADAS" nem "REF" derrubar "REFORMA"
-  return lista.some(f=>new RegExp("\\b"+normNome(f).replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\b").test(n));
+  if(cfg.blocoReparo && BLOCO_REPARO.test(n)) return true;
+  return (cfg.campos||[]).some(f=>new RegExp("\\b"+normNome(f).replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\b").test(n));
 }
 function nomeExcluido(nome){ const n=normNome(nome); if(CAMPOS_EXCLUIDOS.indexOf(n)>=0) return true; if(ocultoNoSetor(nome)) return true; return /\bAUTO\b|ALERTA|ELERTA/.test(n); } // item 9: nada com AUTO/ALERTA entra na planilha/obra
 
@@ -560,15 +577,38 @@ async function abrirCasasModelo(){
   if(!DADOS.hub.length && !DADOS.set.length){ await carregarPlanilha("set"); }
   renderCasasModelo();
 }
+/* preenche um <select> com os valores que existem de fato, preservando a escolha atual */
+function popularSelect(id, valores, rotulo){
+  const sel=document.getElementById(id); if(!sel) return;
+  const atual=sel.value;
+  sel.innerHTML=`<option value="">${rotulo}</option>`+
+    [...valores].filter(Boolean).sort((a,b)=>String(a).localeCompare(String(b),"pt-BR",{numeric:true}))
+      .map(v=>`<option${String(v)===atual?" selected":""}>${esc(v)}</option>`).join("");
+}
 function renderCasasModelo(){
   const wrap=document.getElementById("mod-wrap");
   const cols=COLS_MODELO.map(campoExatoOuFrag).filter(Boolean);
   if(!cols.length){ wrap.innerHTML='<div class="vazio">Schema ainda não carregado.</div>'; return; }
-  const busca=(document.getElementById("mod-busca").value||"").toLowerCase();
+  const cTipo=campoExatoOuFrag("TIPO");
   const base=(DADOS.hub.length?DADOS.hub:DADOS.set).filter(v=>ehModelo(v.valores));
-  const lista=busca
-    ? base.filter(v=>String(getV(v.valores,"ENDEREÇO")||"").toLowerCase().indexOf(busca)>=0)
-    : base;
+
+  // filtros montados a partir das próprias casas modelo — setor e cidade
+  // continuam no registro mesmo escondidos como coluna neste setor
+  popularSelect("mod-setor",  new Set(base.map(v=>getV(v.valores,"SETOR"))),  "Todos os setores");
+  popularSelect("mod-cidade", new Set(base.map(v=>getV(v.valores,"CIDADE"))), "Todas as cidades");
+  if(cTipo) popularSelect("mod-tipo", new Set(base.map(v=>getV(v.valores,cTipo.nome))), "Todos os tipos");
+
+  const busca=(document.getElementById("mod-busca").value||"").toLowerCase();
+  const fSetor=document.getElementById("mod-setor").value;
+  const fCidade=document.getElementById("mod-cidade").value;
+  const fTipo=document.getElementById("mod-tipo").value;
+  const lista=base.filter(v=>{
+    if(fSetor  && String(getV(v.valores,"SETOR")||"")!==fSetor) return false;
+    if(fCidade && String(getV(v.valores,"CIDADE")||"")!==fCidade) return false;
+    if(fTipo && cTipo && String(getV(v.valores,cTipo.nome)||"")!==fTipo) return false;
+    if(busca && String(getV(v.valores,"ENDEREÇO")||"").toLowerCase().indexOf(busca)<0) return false;
+    return true;
+  });
   document.getElementById("mod-count").textContent=lista.length+" casa(s) modelo";
   if(!lista.length){
     wrap.innerHTML=`<div class="vazio">Nenhuma casa com MODELO? = SIM${busca?" para esta busca":""}.</div>`;
@@ -586,7 +626,12 @@ function renderCasasModelo(){
         if(r===undefined) return `<td class="sens vazia"></td>`;
         return `<td class="sens">•••</td>`;
       }
-      return celulaHtml(c,getV(v.valores,c.nome),v);
+      const val=getV(v.valores,c.nome);
+      // LAYOUT e FOTOS aqui são links do Drive: URL crua ocupa a linha toda e
+      // não dá pra ler. Vira botão.
+      if(typeof val==="string" && /^https?:\/\//i.test(val))
+        return `<td><a class="bt ghost bt-mini" href="${esc(val)}" target="_blank" rel="noopener">🔗 Abrir</a></td>`;
+      return celulaHtml(c,val,v);
     }).join("")+'</tr>';
   });
   wrap.innerHTML=html+'</tbody></table>';
@@ -606,7 +651,16 @@ async function carregarAtividades(){
   const badge=document.getElementById("scnt-"+iSetor); if(badge) badge.textContent=ATIV.length;
   document.getElementById("atv-count").textContent = ATIV.length+" atividade(s) em aberto — "+SETOR_ATUAL;
   if(!ATIV.length){ box.innerHTML='<div class="vazio">Nenhuma atividade em aberto. 🎉</div>'; return; }
+  // agrupa por TIPO de atividade, mesmo formato dos alertas
   box.innerHTML="";
+  const porTipo=new Map();
+  ATIV.forEach(a=>{ const k=a.tipo||"Sem tipo"; if(!porTipo.has(k)) porTipo.set(k,[]); porTipo.get(k).push(a); });
+  const caixas=new Map();
+  [...porTipo.entries()].sort((x,y)=>y[1].length-x[1].length).forEach(([tipo,itens])=>{
+    const det=document.createElement("details"); det.className="grupo";
+    det.innerHTML=`<summary>${esc(tipo)}<span class="qtd">${itens.length}</span></summary><div class="corpo"></div>`;
+    box.appendChild(det); caixas.set(tipo, det.querySelector(".corpo"));
+  });
   ATIV.forEach(a=>{
     const c=a.coluna?campoPorNome(a.coluna):null; const ops=(c&&c.opcoes)?c.opcoes:["SIM","NÃO"];
     // item 5 (rodada 2): pré-seleciona o valor REAL atual da obra (quando dá pra saber),
@@ -621,7 +675,7 @@ async function carregarAtividades(){
     const sel=d.querySelector("select"), btn=d.querySelector("button");
     if(!a.obraId){ btn.disabled=true; btn.textContent="Sem obra"; sel.disabled=true; }
     btn.onclick=()=>darBaixa(a,sel.value,d,btn);
-    box.appendChild(d);
+    (caixas.get(a.tipo||"Sem tipo")||box).appendChild(d);
   });
 }
 async function darBaixa(a,valor,d,btn){
@@ -630,7 +684,15 @@ async function darBaixa(a,valor,d,btn){
   if(r.ok){
     d.classList.add("feita"); toast(r.enfileirado?"Baixa na fila ✓":"Baixa registrada ✓");
     setTimeout(()=>{
+      const grupo=d.closest("details.grupo");
       d.remove();
+      // o contador do tópico e o próprio tópico têm que acompanhar a baixa,
+      // senão sobra um grupo dizendo "3" com uma atividade dentro (ou vazio)
+      if(grupo){
+        const restam=grupo.querySelectorAll(".atv").length;
+        if(!restam) grupo.remove();
+        else grupo.querySelector(".qtd").textContent=restam;
+      }
       ATIV_ALL=ATIV_ALL.filter(x=>x.id!==a.id); // tira da base local pra badges/contagens ficarem certos
       const n=document.querySelectorAll("#atv-lista .atv").length;
       document.getElementById("atv-count").textContent=n+" atividade(s) em aberto — "+SETOR_ATUAL;
@@ -672,14 +734,21 @@ function renderAlertas(){
   // item 4 (rodada 2): 3 colunas — Endereço / Alerta / Campo de preenchimento (editável ali mesmo,
   // sem precisar abrir a obra). O campo-alvo é descoberto pelo próprio texto do alerta
   // (ex.: "PREENCHER VALIDADE" -> coluna que contenha "VALIDADE").
-  box.innerHTML = '<div class="al al3 al-cab"><span>Endereço</span><span>Alerta</span><span>Preencher</span></div>' +
-    linhas.map(l=>{
+  // agrupa por TIPO de alerta: um tópico suspenso por título, com a quantidade
+  // ao lado. Abrir a seta mostra as obras daquele alerta.
+  const grupos=new Map();
+  linhas.forEach(l=>{ const k=l.txt; if(!grupos.has(k)) grupos.set(k,[]); grupos.get(k).push(l); });
+  const ordenados=[...grupos.entries()].sort((a,b)=>b[1].length-a[1].length); // maior primeiro
+  box.innerHTML = ordenados.map(([titulo,itens])=>
+    `<details class="grupo"><summary>${esc(titulo)}<span class="qtd">${itens.length}</span></summary><div class="corpo">`+
+    '<div class="al al3 al-cab"><span>Endereço</span><span>Alerta</span><span>Preencher</span></div>'+
+    itens.map(l=>{
       const alvo=campoAlvoDoAlerta(l.txt);
       const preench = alvo
         ? `<span class="campo-inline">${inputControl(alvo, getV(l.v.valores,alvo.nome), l.v.id)}</span>`
         : `<button type="button" class="bt ghost bt-mini" onclick='abrirObra(${JSON.stringify(l.v.id)})'>Abrir obra</button>`;
       return `<div class="al al3"><span class="end" onclick='abrirObra(${JSON.stringify(l.v.id)})'>${esc(l.end)}</span><span class="txt">${esc(l.txt)}</span><span class="preench">${preench}</span></div>`;
-    }).join("");
+    }).join("")+'</div></details>').join("");
 }
 /* acha a coluna que o alerta está pedindo pra preencher, a partir do próprio texto dele
    (ex.: "PREENCHER VALIDADE" -> coluna "VALIDADE"). 3 tentativas, da mais certeira à mais
@@ -1104,7 +1173,6 @@ function renderPainel(V,pageId,sensPendente){
   // Agora ele liga só nos campos do bloco de reparo e desliga assim que sai desse bloco.
   html+=`<div class="grp">Preenchimento</div>`;
   let entrouReparo=false;
-  const BLOCO_REPARO=/REPARO|ANEXAR AQUIVO|ANEXAR ARQUIVO|TITULARIDADES/;
   ordemFormulario().forEach(nome=>{
     const c=campoPorNome(nome); if(!c) return;
     if(BLOCO_REPARO.test(normNome(nome))){
