@@ -3,218 +3,167 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1B5173">
+<link rel="manifest" href="manifest.json">
 <title>Portal Central · Morais Engenharia</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root{
-  --navy:#2A285F; --petroleo:#1B5173; --verde:#81C9C0; --menta:#CCE8E6;
-  --ink:#20263B; --muted:#68727E; --line:#DCE6E5; --bg:#F4F9F8; --card:#FFFFFF;
-}
+:root{--navy:#2A285F;--petroleo:#1B5173;--verde:#81C9C0;--menta:#CCE8E6;
+  --ink:#20263B;--muted:#68727E;--line:#DCE6E5;--bg:#F4F9F8;--card:#FFF}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);
-  font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.45}
-h1,h2,h3,.disp{font-family:Sora,Inter,sans-serif}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.45}
+.disp,h1,h2,h3{font-family:Sora,Inter,sans-serif}
 .wrap{max-width:1240px;margin:0 auto;padding:0 22px}
-
-header{background:linear-gradient(135deg,var(--navy) 0%,var(--petroleo) 100%);position:relative}
+header{background:linear-gradient(135deg,var(--navy),var(--petroleo));position:relative}
 header::after{content:"";display:block;height:4px;background:linear-gradient(90deg,var(--verde),var(--menta))}
-.hbar{display:flex;align-items:center;gap:16px;padding:16px 0}
-.hbar .logo{background:#fff;border-radius:10px;padding:5px 10px;display:inline-flex;box-shadow:0 1px 4px rgba(0,0,0,.18)}
-.hbar .logo img{height:40px;display:block}
+.hbar{display:flex;align-items:center;gap:14px;padding:14px 0}
+.logo{background:#fff;border-radius:10px;padding:5px 10px;display:inline-flex;box-shadow:0 1px 4px rgba(0,0,0,.18)}
+.logo img{height:38px;display:block}
 .htitle{font-family:Sora;font-weight:700;font-size:18px;color:#fff}
 .hsub{color:rgba(255,255,255,.72);font-size:12px}
 .hspace{flex:1}
+.net{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;padding:3px 8px;border-radius:20px}
+.net.on{background:rgba(129,201,192,.25);color:#CFF3EE} .net.off{background:rgba(255,180,120,.28);color:#FFE2C6}
 .user{display:flex;align-items:center;gap:10px;color:#fff}
-.user .nome{font-weight:600;font-size:13.5px}
-.badge{font-size:10px;font-weight:800;letter-spacing:.6px;padding:3px 8px;border-radius:20px;
-  background:rgba(255,255,255,.18);color:#fff;text-transform:uppercase}
+.nome{font-weight:600;font-size:13.5px}
+.badge{font-size:10px;font-weight:800;letter-spacing:.6px;padding:3px 8px;border-radius:20px;background:rgba(255,255,255,.18);color:#fff;text-transform:uppercase}
 .badge.adm{background:var(--verde);color:#0E3B37}
-.sair{appearance:none;border:1px solid rgba(255,255,255,.5);background:rgba(255,255,255,.12);
-  color:#fff;border-radius:8px;padding:7px 12px;font:inherit;font-weight:700;font-size:12.5px;cursor:pointer}
+.sair{border:1px solid rgba(255,255,255,.5);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;padding:7px 12px;font:inherit;font-weight:700;font-size:12.5px;cursor:pointer}
 .sair:hover{background:rgba(255,255,255,.24)}
-
-main{padding:30px 22px 60px}
-.grid{display:grid;grid-template-columns:340px 1fr;gap:24px;align-items:start}
+main{padding:28px 22px 60px}
+.grid{display:grid;grid-template-columns:330px 1fr;gap:24px;align-items:start}
 @media(max-width:900px){.grid{grid-template-columns:1fr}}
-
-.sec-title{font-size:13px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;
-  color:var(--petroleo);margin:0 0 14px}
-
-/* cards de acesso */
+.sec-title{font-size:12.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--petroleo);margin:0 0 12px}
 .cards{display:flex;flex-direction:column;gap:14px}
-.acard{display:flex;align-items:center;gap:14px;background:var(--card);border:1px solid var(--line);
-  border-radius:14px;padding:16px 18px;text-decoration:none;color:inherit;cursor:pointer;
-  transition:transform .1s,box-shadow .15s,border-color .15s}
+.acard{display:flex;align-items:center;gap:14px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;text-decoration:none;color:inherit;cursor:pointer;transition:transform .1s,box-shadow .15s,border-color .15s}
 .acard:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(27,81,115,.12);border-color:var(--verde)}
-.acard .ico{width:46px;height:46px;border-radius:12px;flex:none;display:flex;align-items:center;
-  justify-content:center;background:linear-gradient(135deg,var(--petroleo),var(--navy));color:#fff;
-  font-family:Sora;font-weight:800;font-size:18px}
-.acard .txt{flex:1;min-width:0}
-.acard .nome{font-family:Sora;font-weight:700;font-size:15px}
-.acard .desc{color:var(--muted);font-size:12px;margin-top:1px}
+.acard .ico{width:46px;height:46px;border-radius:12px;flex:none;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--petroleo),var(--navy));color:#fff;font-family:Sora;font-weight:800;font-size:18px}
+.acard .txt{flex:1;min-width:0}.acard .nome2{font-family:Sora;font-weight:700;font-size:15px}.acard .desc{color:var(--muted);font-size:12px;margin-top:1px}
 .acard .cont{display:flex;flex-direction:column;align-items:center;min-width:52px}
 .acard .cont b{font-family:Sora;font-size:22px;line-height:1;color:var(--petroleo)}
 .acard .cont span{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
-.vazio{background:#fff;border:1px dashed var(--line);border-radius:12px;padding:22px;
-  color:var(--muted);text-align:center;font-size:13px}
-
-/* KPIs */
-.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.vazio{background:#fff;border:1px dashed var(--line);border-radius:12px;padding:20px;color:var(--muted);text-align:center;font-size:13px}
+.bloco{margin-bottom:22px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:13px}
 @media(max-width:700px){.kpis{grid-template-columns:repeat(2,1fr)}}
-.kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 16px 14px}
-.kpi .lab{font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);font-weight:700}
-.kpi .val{font-family:Sora;font-size:27px;font-weight:700;line-height:1.05;margin-top:8px;color:var(--navy)}
-.kpi .sub{font-size:11.5px;color:var(--muted);margin-top:5px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:15px 15px 13px}
+.kpi .lab{font-size:10px;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);font-weight:700}
+.kpi .val{font-family:Sora;font-size:25px;font-weight:700;line-height:1.05;margin-top:7px;color:var(--navy)}
+.kpi .sub{font-size:11px;color:var(--muted);margin-top:5px}
 .kpi.hero{background:linear-gradient(135deg,var(--petroleo),var(--navy));border:0}
-.kpi.hero .lab{color:rgba(255,255,255,.85)} .kpi.hero .val{color:#fff} .kpi.hero .sub{color:rgba(255,255,255,.75)}
-
-.nota{color:var(--muted);font-size:12px;margin-top:16px}
-.load{display:inline-block;width:14px;height:14px;border:2px solid var(--line);
-  border-top-color:var(--petroleo);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px}
+.kpi.hero .lab{color:rgba(255,255,255,.85)}.kpi.hero .val{color:#fff}.kpi.hero .sub{color:rgba(255,255,255,.75)}
+.aviso{background:#FFF7ED;border:1px solid #FED7AA;color:#9A3412;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:16px;display:none}
+.updated{color:var(--muted);font-size:11px;margin-top:8px;text-align:right}
+.load{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--petroleo);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px}
 @keyframes spin{to{transform:rotate(360deg)}}
-.updated{color:var(--muted);font-size:11px;margin-top:22px;text-align:right}
 </style>
 </head>
 <body>
   <header>
     <div class="wrap hbar">
       <span class="logo"><img src="logo.png" alt="Morais" onerror="this.parentNode.style.display='none'"></span>
-      <div>
-        <div class="htitle">Portal Central</div>
-        <div class="hsub">Morais Engenharia e Construção</div>
-      </div>
+      <div><div class="htitle">Portal Central</div><div class="hsub">Morais Engenharia e Construção</div></div>
       <div class="hspace"></div>
+      <span class="net on" id="net-status">online</span>
       <div class="user">
-        <div style="text-align:right">
-          <div class="nome" id="u-nome">—</div>
-          <span class="badge" id="u-tipo">—</span>
-        </div>
+        <div style="text-align:right"><div class="nome" id="u-nome">—</div><span class="badge" id="u-tipo">—</span></div>
         <button class="sair" onclick="sair()">Sair</button>
       </div>
     </div>
   </header>
 
   <main class="wrap">
+    <div class="aviso" id="aviso"></div>
     <div class="grid">
-      <!-- ESQUERDA: acessos -->
       <section>
         <div class="sec-title">Sistemas</div>
         <div class="cards" id="cards"><div class="vazio"><span class="load"></span> Carregando…</div></div>
       </section>
-
-      <!-- DIREITA: KPIs -->
       <section>
-        <div class="sec-title">Venda de Casas</div>
-        <div class="kpis" id="kpis">
-          <div class="kpi"><div class="lab">Carregando</div><div class="val"><span class="load"></span></div></div>
+        <div class="bloco">
+          <div class="sec-title">Venda de Casas</div>
+          <div class="kpis" id="kpi-vendas"><div class="kpi"><div class="lab">Carregando</div><div class="val"><span class="load"></span></div></div></div>
         </div>
-        <div class="nota" id="nota"></div>
+        <div class="bloco">
+          <div class="sec-title">Início de Obras</div>
+          <div class="kpis" id="kpi-obras"></div>
+        </div>
+        <div class="bloco">
+          <div class="sec-title">Lotes Comprados</div>
+          <div class="kpis" id="kpi-lotes"></div>
+        </div>
         <div class="updated" id="updated"></div>
       </section>
     </div>
   </main>
 
+<script src="app.js"></script>
 <script>
-/* ================== CONFIG ================== */
-const API = "https://script.google.com/macros/s/AKfycbwvMnVHZd7y5k-GP8_Dg9zkWyD2fqqH8UI4gaXsQ0iJnm9QNSsyyUhODFMyMW6BfAk/exec";
-const LOGIN = "login.html";
-
-/* Catálogo de sistemas do portal. A "chave" tem que bater com uma opção do
-   campo ACESSOS no Notion. ADM vê todos. Conforme criar novos sites, é só
-   adicionar aqui e criar a opção no ACESSOS. */
 const SISTEMAS = [
-  { chave:"VENDAS", nome:"Gestão de Vendas", desc:"Atividades, planilhas e processo de vendas",
-    ico:"V", link:"vendas.html", contaAtividades:true }
+  { chave:"VENDAS", nome:"Gestão de Vendas", desc:"Atividades, planilhas e processo de vendas", ico:"V", link:"vendas.html", conta:true }
 ];
-/* =========================================== */
 
-const KEY = "morais_sessao";
-function sessao(){ try{ return JSON.parse(localStorage.getItem(KEY)||sessionStorage.getItem(KEY)||"null"); }catch(e){ return null; } }
-function sair(){ localStorage.removeItem(KEY); sessionStorage.removeItem(KEY); location.href = LOGIN; }
+const S = exigirSessao();
+atualizarStatus();
 
-async function api(payload){
-  const r = await fetch(API, { method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, body: JSON.stringify(payload) });
-  return await r.json();
+function pintarUsuario(s){
+  document.getElementById("u-nome").textContent = s.nome || s.login;
+  const tb=document.getElementById("u-tipo"); tb.textContent=s.tipo; tb.className="badge"+(s.tipo==="ADM"?" adm":"");
 }
-const brl = n => (n||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL",maximumFractionDigits:0});
-const num = n => (n||0).toLocaleString("pt-BR");
-
-/* ---- guarda de sessão ---- */
-const S = sessao();
-if(!S || !S.token){ location.href = LOGIN; }
+function renderCards(s){
+  const vis=SISTEMAS.filter(x=>podeAcessar(s,x.chave));
+  const box=document.getElementById("cards");
+  box.innerHTML = vis.length ? vis.map(x=>`
+    <a class="acard" href="${x.link}">
+      <div class="ico">${x.ico}</div>
+      <div class="txt"><div class="nome2">${esc(x.nome)}</div><div class="desc">${esc(x.desc)}</div></div>
+      ${x.conta?`<div class="cont"><b id="cnt-${x.chave}">·</b><span>em aberto</span></div>`:``}
+    </a>`).join("") : '<div class="vazio">Você ainda não tem sistemas liberados. Fale com o ADM.</div>';
+}
+function card(lab,val,sub,hero){ return `<div class="kpi${hero?' hero':''}"><div class="lab">${lab}</div><div class="val">${val}</div><div class="sub">${sub||''}</div></div>`; }
 
 async function boot(){
-  // valida a sessão no backend
-  let me;
-  try { me = await api({ action:"me", token:S.token }); }
-  catch(e){ document.getElementById("nota").textContent = "Sem conexão com o servidor."; return; }
-  if(!me.ok){ sair(); return; }
+  pintarUsuario(S);                 // já renderiza do que está salvo (funciona offline)
+  renderCards(S);
 
-  const s = me.sessao;
-  document.getElementById("u-nome").textContent = s.nome || s.login;
-  const tb = document.getElementById("u-tipo");
-  tb.textContent = s.tipo; tb.className = "badge" + (s.tipo==="ADM" ? " adm" : "");
+  // valida a sessão só quando online (não desloga por falta de internet)
+  if(navigator.onLine){ try{ const me=await chamar({action:"me",token:S.token}); if(me && me.ok===false && me.erro==="NAO_AUTORIZADO"){ sair(); return; } }catch(e){} }
 
-  renderCards(s);
   carregarAtividades();
   carregarKpis();
 }
 
-function podeAcessar(s, chave){ return s.tipo === "ADM" || (s.acessos||[]).indexOf(chave) >= 0; }
-
-function renderCards(s){
-  const visiveis = SISTEMAS.filter(x => podeAcessar(s, x.chave));
-  const box = document.getElementById("cards");
-  if(!visiveis.length){ box.innerHTML = '<div class="vazio">Você ainda não tem sistemas liberados. Fale com o ADM.</div>'; return; }
-  box.innerHTML = visiveis.map(x => `
-    <a class="acard" href="${x.link}">
-      <div class="ico">${x.ico}</div>
-      <div class="txt"><div class="nome">${x.nome}</div><div class="desc">${x.desc}</div></div>
-      ${x.contaAtividades ? `<div class="cont"><b id="cnt-${x.chave}">·</b><span>em aberto</span></div>` : ``}
-    </a>`).join("");
-}
-
 async function carregarAtividades(){
-  try{
-    const r = await api({ action:"atividades", token:S.token });
-    if(r.ok){ const el = document.getElementById("cnt-VENDAS"); if(el) el.textContent = r.total; }
-  }catch(e){}
+  const r=await ler({action:"atividades"},"atividades");
+  const el=document.getElementById("cnt-VENDAS"); if(el && r.ok) el.textContent=r.total;
 }
 
 async function carregarKpis(){
-  const box = document.getElementById("kpis");
-  try{
-    const r = await api({ action:"vendas", token:S.token });
-    if(!r.ok){ box.innerHTML = card("Vendas","—",r.erro||""); return; }
+  const r=await ler({action:"portal"},"portal");
+  if(!r.ok){ document.getElementById("kpi-vendas").innerHTML=card("Indisponível","—",r.erro||"sem dados"); return; }
 
-    const V = r.vendas.map(v => v.valores);
-    const vendidas = V.filter(v => v["DATA DA VENDA"]);
-    const totalCasas = vendidas.length;
-    const vgv = vendidas.reduce((a,v)=> a + (Number(v["VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)"])||0), 0);
-    // meses distintos com venda
-    const meses = new Set(vendidas.map(v => (v["DATA DA VENDA"]||"").slice(0,7)).filter(Boolean));
-    const media = meses.size ? (totalCasas / meses.size) : 0;
-    const ticket = totalCasas ? (vgv / totalCasas) : 0;
+  const vc=r.vendaCasas, io=r.inicioObras, lo=r.lotes;
+  document.getElementById("kpi-vendas").innerHTML =
+    card("Casas Vendidas", num(vc.total), "com data de venda", true) +
+    card("VGV (Contratos)", brl(vc.vgv), "soma dos contratos") +
+    card("Média/mês", (vc.mediaMes||0).toLocaleString("pt-BR",{maximumFractionDigits:1}), vc.meses+" meses") +
+    card("Ticket Médio", brl(vc.ticket), "por casa");
+  document.getElementById("kpi-obras").innerHTML =
+    card("Casas Iniciadas", num(io.iniciadas), "morais + investidores", true) +
+    card("Média/mês", (io.mediaMes||0).toLocaleString("pt-BR",{maximumFractionDigits:1}), io.meses+" meses") +
+    card("Meta "+r.ano, num(io.meta), "casas no ano") +
+    card("% da Meta", ((io.pct||0)*100).toLocaleString("pt-BR",{maximumFractionDigits:0})+"%", "iniciadas ÷ meta");
+  document.getElementById("kpi-lotes").innerHTML =
+    card("Lotes Comprados", num(lo.total), "morais + investidores", true);
 
-    box.innerHTML =
-      card("Casas Vendidas", num(totalCasas), "com data de venda", true) +
-      card("VGV (Contratos)", brl(vgv), "soma dos contratos") +
-      card("Média por Mês", media.toLocaleString("pt-BR",{maximumFractionDigits:1}), meses.size + " meses com venda") +
-      card("Ticket Médio", brl(ticket), "por casa");
-
-    document.getElementById("nota").innerHTML =
-      "Início de obras, lotes e custos entram na próxima etapa (dependem dos bancos de Documentos/Metas e do ERP).";
-    document.getElementById("updated").textContent = "Fonte: banco de Vendas (Notion) · " + new Date().toLocaleString("pt-BR");
-  }catch(e){
-    box.innerHTML = card("Vendas","—","sem conexão");
-  }
-}
-function card(lab,val,sub,hero){
-  return `<div class="kpi${hero?' hero':''}"><div class="lab">${lab}</div><div class="val">${val}</div><div class="sub">${sub||''}</div></div>`;
+  const av=document.getElementById("aviso");
+  if(r.offline){ av.style.display="block"; av.textContent="Sem internet — mostrando os últimos dados salvos ("+new Date(r._ts).toLocaleString("pt-BR")+")."; }
+  else av.style.display="none";
+  document.getElementById("updated").textContent = "Custos (escritório/obra/pós-obra) entram quando ligarmos o ERP. Atualizado: "+new Date().toLocaleString("pt-BR");
 }
 
+window.aoSincronizar = ()=>{ carregarAtividades(); };
 boot();
 </script>
 </body>

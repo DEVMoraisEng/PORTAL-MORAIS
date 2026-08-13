@@ -123,6 +123,7 @@ const MENSAGENS = {
   LOGIN_NAO_ENCONTRADO: "Login não encontrado.",
   SENHA_INCORRETA:      "Senha incorreta.",
   INFORME_LOGIN:        "Digite o login.",
+  BLOQUEADO:            "Muitas tentativas. Aguarde alguns minutos e tente de novo.",
   NAO_AUTORIZADO:       "Sessão expirada. Entre novamente."
 };
 
@@ -139,7 +140,11 @@ async function entrar(){
   btn.disabled = true; btn.innerHTML = '<span class="load"></span>Entrando...';
   try{
     const res = await api({ action:"login", login, senha });
-    if(!res.ok){ mostrarErro(MENSAGENS[res.erro] || ("Erro: " + res.erro)); return; }
+    if(!res.ok){
+      let msg = MENSAGENS[res.erro] || ("Erro: " + res.erro);
+      if(res.erro==="SENHA_INCORRETA" && typeof res.restantes==="number") msg += " ("+res.restantes+" tentativa(s) restante(s))";
+      mostrarErro(msg); return;
+    }
 
     const dados = JSON.stringify({ token: res.token, ...res.sessao });
     sessionStorage.removeItem(KEY); localStorage.removeItem(KEY);

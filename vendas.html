@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1B5173">
+<link rel="manifest" href="manifest.json">
+<title>Gestão de Vendas · Morais</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#2A285F;--petroleo:#1B5173;--verde:#81C9C0;--menta:#CCE8E6;
+  --ink:#20263B;--muted:#68727E;--line:#DCE6E5;--bg:#F4F9F8;--card:#FFF;--orange:#E67E22}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.45}
+.disp,h1,h2,h3{font-family:Sora,Inter,sans-serif}
+.wrap{max-width:1280px;margin:0 auto;padding:0 20px}
+header{background:linear-gradient(135deg,var(--navy),var(--petroleo));position:relative}
+header::after{content:"";display:block;height:4px;background:linear-gradient(90deg,var(--verde),var(--menta))}
+.hbar{display:flex;align-items:center;gap:12px;padding:13px 0;flex-wrap:wrap}
+.logo{background:#fff;border-radius:9px;padding:4px 9px;display:inline-flex}.logo img{height:34px;display:block}
+.htitle{font-family:Sora;font-weight:700;font-size:17px;color:#fff}
+.hlink{color:rgba(255,255,255,.85);font-size:12px;text-decoration:none}.hlink:hover{color:#fff}
+.hspace{flex:1}
+.net{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;padding:3px 8px;border-radius:20px}
+.net.on{background:rgba(129,201,192,.25);color:#CFF3EE}.net.off{background:rgba(255,180,120,.28);color:#FFE2C6}
+.pill{position:relative;display:inline-flex;align-items:center;gap:6px}
+.filabadge{display:none;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;border-radius:20px;background:var(--orange);color:#fff;font-size:11px;font-weight:800}
+.btn-sync{display:none;align-items:center;gap:5px;border:1px solid rgba(255,255,255,.5);background:rgba(255,255,255,.14);color:#fff;border-radius:8px;padding:6px 10px;font:inherit;font-weight:700;font-size:12px;cursor:pointer}
+.user{display:flex;align-items:center;gap:9px;color:#fff}.nome{font-weight:600;font-size:13px}
+.badge{font-size:10px;font-weight:800;letter-spacing:.6px;padding:3px 8px;border-radius:20px;background:rgba(255,255,255,.18);color:#fff;text-transform:uppercase}.badge.adm{background:var(--verde);color:#0E3B37}
+.sair{border:1px solid rgba(255,255,255,.5);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;padding:6px 11px;font:inherit;font-weight:700;font-size:12px;cursor:pointer}
+
+.tabs{display:flex;gap:6px;border-bottom:2px solid var(--line);margin:22px 0 20px}
+.tab{border:0;background:none;font:inherit;font-weight:700;font-size:14px;color:var(--muted);padding:10px 16px;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px}
+.tab.on{color:var(--petroleo);border-bottom-color:var(--petroleo)}
+main{padding:0 20px 70px}
+.aviso{background:#FFF7ED;border:1px solid #FED7AA;color:#9A3412;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:14px;display:none}
+
+/* atividades */
+.atv{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-bottom:11px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.atv.feita{opacity:.5}
+.atv .tipo{font-size:10px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:#fff;background:var(--petroleo);padding:3px 9px;border-radius:20px}
+.atv .nome2{font-weight:600;flex:1;min-width:200px;font-size:13.5px}
+.atv .datas{font-size:11.5px;color:var(--muted)}
+.atv .baixa{display:flex;align-items:center;gap:7px}
+select,input[type=text],input[type=number],input[type=date],input[type=url],input[type=email],input[type=tel]{
+  border:1.5px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;background:#fff;max-width:100%}
+select:focus,input:focus{outline:none;border-color:var(--verde);box-shadow:0 0 0 3px rgba(129,201,192,.22)}
+.bt{border:0;border-radius:8px;padding:8px 13px;font:inherit;font-weight:700;font-size:12.5px;color:#fff;background:linear-gradient(135deg,var(--petroleo),var(--navy));cursor:pointer}
+.bt:hover{filter:brightness(1.08)} .bt.ghost{background:#EEF4F3;color:var(--petroleo)} .bt.danger{background:#C0392B}
+.bt:disabled{opacity:.55;cursor:default}
+
+/* planilha */
+.toolbar{display:flex;gap:12px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.tabela-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;background:#fff}
+table{border-collapse:collapse;width:100%;font-size:13px;min-width:760px}
+th{background:#F0F6F5;text-align:left;padding:9px 11px;font-size:10.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--petroleo);position:sticky;top:0;white-space:nowrap}
+td{padding:6px 9px;border-top:1px solid var(--line);vertical-align:middle;white-space:nowrap}
+td input,td select{padding:5px 7px;font-size:12.5px;min-width:90px}
+tr.vendida td{background:rgba(230,126,34,.10)}
+.abrir{color:var(--petroleo);font-weight:700;cursor:pointer;text-decoration:underline;background:none;border:0;font:inherit;font-size:12.5px}
+.count{color:var(--muted);font-size:12.5px}
+
+/* painel obra */
+.overlay{position:fixed;inset:0;background:rgba(20,26,40,.55);display:none;z-index:40}
+.painel{position:fixed;top:0;right:0;height:100%;width:min(560px,100%);background:#fff;z-index:41;box-shadow:-12px 0 40px rgba(0,0,0,.28);display:none;flex-direction:column}
+.painel.on,.overlay.on{display:flex}
+.ph{background:linear-gradient(135deg,var(--navy),var(--petroleo));color:#fff;padding:16px 20px}
+.ph .t{font-family:Sora;font-weight:700;font-size:16px}.ph .s{font-size:12px;color:rgba(255,255,255,.8);margin-top:2px}
+.pfechar{position:absolute;top:14px;right:16px;background:rgba(255,255,255,.16);border:0;color:#fff;width:30px;height:30px;border-radius:8px;font-size:17px;cursor:pointer}
+.pbody{padding:18px 20px;overflow:auto;flex:1}
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:16px}
+.chip{font-size:11.5px;font-weight:600;padding:5px 10px;border-radius:20px;background:#EEF4F3;color:var(--petroleo)}
+.chip.alerta{background:#FFF3E0;color:#B45309;border:1px solid #FCD9A8}
+.grp{font-size:11px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin:18px 0 10px;border-top:1px solid var(--line);padding-top:14px}
+.campo{margin-bottom:13px}
+.campo label{display:block;font-size:11px;font-weight:700;color:var(--petroleo);margin-bottom:5px}
+.campo .est{font-size:10.5px;margin-left:8px;color:var(--muted);font-weight:500}
+.campo input,.campo select{width:100%}
+.arq{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12.5px;padding:6px 0;border-bottom:1px dashed var(--line)}
+.arq a{color:var(--petroleo)}
+.load{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--petroleo);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#20263B;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:60;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+.semacesso{max-width:460px;margin:80px auto;text-align:center;color:var(--muted)}
+</style>
+</head>
+<body>
+  <header>
+    <div class="wrap hbar">
+      <span class="logo"><img src="logo.png" alt="Morais" onerror="this.parentNode.style.display='none'"></span>
+      <div><div class="htitle">Gestão de Vendas</div><a class="hlink" href="index.html">← Portal Central</a></div>
+      <div class="hspace"></div>
+      <span class="net on" id="net-status">online</span>
+      <button class="btn-sync" id="btn-sync" onclick="sincronizar()">↻ Sincronizar <span class="filabadge" id="fila-badge">0</span></button>
+      <div class="user">
+        <div style="text-align:right"><div class="nome" id="u-nome">—</div><span class="badge" id="u-tipo">—</span></div>
+        <button class="sair" onclick="sair()">Sair</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="tabs" id="tabs" style="display:none">
+      <button class="tab on" data-tab="atividades" onclick="trocarAba('atividades')">Atividades</button>
+      <button class="tab" data-tab="planilha" onclick="trocarAba('planilha')">Planilha de Vendas</button>
+    </div>
+  </div>
+
+  <main class="wrap">
+    <div class="aviso" id="aviso"></div>
+    <div id="sem-acesso" class="semacesso" style="display:none">
+      <h2>Sem acesso</h2>
+      <p>Seu login não tem o acesso <b>VENDAS</b>. Fale com um ADM para liberar.</p>
+      <a class="bt" href="index.html">Voltar ao portal</a>
+    </div>
+
+    <section id="pane-atividades">
+      <div class="count" id="atv-count" style="margin-bottom:12px"></div>
+      <div id="atv-lista"><div class="count"><span class="load"></span> Carregando…</div></div>
+    </section>
+
+    <section id="pane-planilha" style="display:none">
+      <div class="toolbar">
+        <label style="font-weight:700;color:var(--petroleo);font-size:12px">SETOR</label>
+        <select id="sel-setor" onchange="carregarPlanilha(this.value)"><option value="">Selecione…</option></select>
+        <span class="count" id="pl-count"></span>
+        <div style="flex:1"></div>
+        <button class="bt ghost" onclick="novaObra()">＋ Nova obra</button>
+      </div>
+      <div class="tabela-wrap" id="pl-wrap"><div style="padding:20px" class="count">Escolha um setor para ver as obras.</div></div>
+    </section>
+  </main>
+
+  <!-- painel da obra -->
+  <div class="overlay" id="overlay" onclick="fecharObra()"></div>
+  <aside class="painel" id="painel">
+    <div class="ph" style="position:relative">
+      <div class="t" id="pn-titulo">Obra</div><div class="s" id="pn-sub"></div>
+      <button class="pfechar" onclick="fecharObra()">×</button>
+    </div>
+    <div class="pbody" id="pn-body"></div>
+  </aside>
+
+  <div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+<script>
+/* ============ estado ============ */
+const S = exigirSessao();
+atualizarStatus(); atualizarBadge();
+let SCHEMA=[], SCAMPO={}, ATIV=[], OBRA_ATUAL=null;
+const KEYS=["ENDEREÇO","CASA","SETOR","DATA DA VENDA","CLIENTES","CORRETOR","PROCESSO CONFORME?"];
+
+function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("on"); setTimeout(()=>t.classList.remove("on"),1900); }
+function pintarUsuario(s){ document.getElementById("u-nome").textContent=s.nome||s.login; const tb=document.getElementById("u-tipo"); tb.textContent=s.tipo; tb.className="badge"+(s.tipo==="ADM"?" adm":""); }
+function campoPorNome(nome){ if(SCAMPO[nome]) return SCAMPO[nome]; const a=nome.trim().toUpperCase(); for(const k in SCAMPO){ if(k.trim().toUpperCase()===a) return SCAMPO[k]; } return null; }
+
+/* ============ init ============ */
+async function boot(){
+  pintarUsuario(S);
+  if(!podeAcessar(S,"VENDAS")){ document.getElementById("sem-acesso").style.display="block"; document.getElementById("pane-atividades").style.display="none"; return; }
+  document.getElementById("tabs").style.display="flex";
+
+  if(navigator.onLine){ try{ const me=await chamar({action:"me",token:S.token}); if(me&&me.ok===false&&me.erro==="NAO_AUTORIZADO"){ sair(); return; } }catch(e){} }
+
+  const sc=await ler({action:"vendasSchema"},"schema");
+  if(sc.ok){ SCHEMA=sc.campos; SCAMPO={}; SCHEMA.forEach(c=>SCAMPO[c.nome]=c); montarSetores(); mostrarOffline(sc); }
+
+  carregarAtividades();
+}
+function mostrarOffline(r){
+  const av=document.getElementById("aviso");
+  if(r.offline){ av.style.display="block"; av.textContent="Sem internet — mostrando dados salvos ("+new Date(r._ts).toLocaleString("pt-BR")+"). O que você preencher entra na fila e sobe quando reconectar."; }
+  else av.style.display="none";
+}
+function montarSetores(){
+  const c=campoPorNome("SETOR"); const sel=document.getElementById("sel-setor");
+  if(!c||!c.opcoes) return;
+  sel.innerHTML='<option value="">Selecione…</option>'+c.opcoes.map(o=>`<option>${esc(o)}</option>`).join("");
+}
+
+/* ============ abas ============ */
+function trocarAba(t){
+  document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on",b.dataset.tab===t));
+  document.getElementById("pane-atividades").style.display = t==="atividades"?"block":"none";
+  document.getElementById("pane-planilha").style.display  = t==="planilha"?"block":"none";
+}
+
+/* ============ ATIVIDADES ============ */
+async function carregarAtividades(){
+  const r=await ler({action:"atividades"},"atividades");
+  mostrarOffline(r);
+  if(!r.ok){ document.getElementById("atv-lista").innerHTML='<div class="count">Não foi possível carregar.</div>'; return; }
+  ATIV=r.atividades;
+  document.getElementById("atv-count").textContent = ATIV.length+" atividade(s) em aberto"+(S.tipo==="ADM"?" (todas — ADM)":" para você");
+  const box=document.getElementById("atv-lista");
+  if(!ATIV.length){ box.innerHTML='<div class="count">Nenhuma atividade em aberto. 🎉</div>'; return; }
+  box.innerHTML="";
+  ATIV.forEach(a=>{
+    const c = a.coluna ? campoPorNome(a.coluna) : null;
+    const opcoes = (c&&c.opcoes)?c.opcoes:["SIM","NÃO"];
+    const div=document.createElement("div"); div.className="atv"; div.id="atv-"+a.id;
+    div.innerHTML=`
+      <span class="tipo">${esc(a.tipo||"—")}</span>
+      <span class="nome2">${esc(a.nome||"(sem nome)")}</span>
+      <span class="datas">prazo: ${a.dataFinal?fmt(a.dataFinal):"—"}</span>
+      <span class="baixa">
+        <select>${opcoes.map(o=>`<option${o==="SIM"?" selected":""}>${esc(o)}</option>`).join("")}</select>
+        <button class="bt">Dar baixa</button>
+      </span>`;
+    const sel=div.querySelector("select"); const btn=div.querySelector("button");
+    if(!a.obraId){ btn.disabled=true; btn.textContent="Sem obra"; sel.disabled=true; }
+    btn.onclick=()=>darBaixa(a,sel.value,div,btn);
+    box.appendChild(div);
+  });
+}
+async function darBaixa(a,valor,div,btn){
+  btn.disabled=true; btn.innerHTML='<span class="load"></span>';
+  const r=await escrever({action:"baixa",atividadeId:a.id,valor:valor},"Baixa: "+a.nome);
+  if(r.ok){ div.classList.add("feita"); toast(r.enfileirado?"Baixa na fila (sobe ao reconectar)":"Baixa registrada ✓"); setTimeout(()=>{ div.remove(); const n=document.querySelectorAll("#atv-lista .atv").length; document.getElementById("atv-count").textContent=n+" atividade(s) em aberto"+(S.tipo==="ADM"?" (todas — ADM)":" para você"); },700); }
+  else { btn.disabled=false; btn.textContent="Dar baixa"; toast("Erro: "+r.erro); }
+}
+function fmt(d){ if(!d) return "—"; const p=String(d).slice(0,10).split("-"); return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:d; }
+
+/* ============ PLANILHA ============ */
+async function carregarPlanilha(setor){
+  const wrap=document.getElementById("pl-wrap");
+  if(!setor){ wrap.innerHTML='<div style="padding:20px" class="count">Escolha um setor.</div>'; document.getElementById("pl-count").textContent=""; return; }
+  wrap.innerHTML='<div style="padding:20px" class="count"><span class="load"></span> Carregando…</div>';
+  const r=await ler({action:"vendas",setor:setor},"vendas_"+setor);
+  mostrarOffline(r);
+  if(!r.ok){ wrap.innerHTML='<div style="padding:20px" class="count">Erro ao carregar.</div>'; return; }
+  document.getElementById("pl-count").textContent=r.total+" obra(s)";
+  const keys=KEYS.map(campoPorNome).filter(Boolean);
+  let html='<table><thead><tr>'+keys.map(c=>`<th>${esc(c.nome.trim())}</th>`).join("")+'<th></th></tr></thead><tbody>';
+  r.vendas.forEach(v=>{
+    const vendida = !!getV(v.valores,"DATA DA VENDA");
+    html+='<tr class="'+(vendida?"vendida":"")+'">'+keys.map(c=>`<td>${celula(v.id,c,getV(v.valores,c.nome))}</td>`).join("")
+        +`<td><button class="abrir" onclick='abrirObra(${JSON.stringify(v.id)})'>abrir ▸</button></td></tr>`;
+  });
+  html+='</tbody></table>';
+  wrap.innerHTML=html;
+}
+function celula(pageId,campo,valor){
+  const id="c_"+pageId+"_"+campo.nome.replace(/[^a-z0-9]/gi,"");
+  const onch=`onchange='editar(${JSON.stringify(pageId)},${JSON.stringify(campo.nome)},${JSON.stringify(campo.tipo)},this.value,this)'`;
+  if(campo.tipo==="select"){
+    const ops='<option value=""></option>'+(campo.opcoes||[]).map(o=>`<option${o===valor?" selected":""}>${esc(o)}</option>`).join("");
+    return `<select ${onch}>${ops}</select>`;
+  }
+  if(campo.tipo==="date")   return `<input type="date" value="${valor?String(valor).slice(0,10):""}" ${onch}>`;
+  if(campo.tipo==="number") return `<input type="number" value="${valor==null?"":valor}" ${onch}>`;
+  return `<input type="text" value="${esc(valor==null?"":valor)}" ${onch}>`;
+}
+async function editar(pageId,prop,tipo,valor,el){
+  if(el){ el.style.borderColor="#F0C36D"; }
+  const r=await escrever({action:"updateVenda",pageId:pageId,prop:prop,tipo:tipo,valor:valor},"Editar "+prop);
+  if(el){ el.style.borderColor = r.ok ? (r.enfileirado?"#E67E22":"#81C9C0") : "#C0392B"; }
+  toast(r.ok ? (r.enfileirado?"Na fila (offline) ✓":"Salvo ✓") : ("Erro: "+r.erro));
+}
+
+/* ============ NOVA OBRA ============ */
+async function novaObra(){
+  const end=prompt("Endereço da nova obra (ex.: TB 21 QD 50 LT 39):"); if(!end) return;
+  const setor=document.getElementById("sel-setor").value;
+  const props=[{prop:"ENDEREÇO",tipo:"title",valor:end}];
+  if(setor) props.push({prop:"SETOR",tipo:"select",valor:setor});
+  const r=await escrever({action:"criarVenda",props:props},"Nova obra: "+end);
+  toast(r.ok?(r.enfileirado?"Criada na fila (offline)":"Obra criada ✓"):("Erro: "+r.erro));
+  if(r.ok && !r.enfileirado && setor) carregarPlanilha(setor);
+}
+
+/* ============ PAINEL DA OBRA ============ */
+async function abrirObra(pageId){
+  document.getElementById("overlay").classList.add("on");
+  document.getElementById("painel").classList.add("on");
+  const body=document.getElementById("pn-body"); body.innerHTML='<div class="count"><span class="load"></span> Carregando…</div>';
+  const r=await ler({action:"obra",pageId:pageId},"obra_"+pageId);
+  if(!r.ok){ body.innerHTML='<div class="count">Não foi possível abrir.</div>'; return; }
+  OBRA_ATUAL=pageId;
+  const V=r.valores;
+  document.getElementById("pn-titulo").textContent = getV(V,"ENDEREÇO") || "(sem endereço)";
+  document.getElementById("pn-sub").textContent = (getV(V,"SETOR")||"")+(getV(V,"CASA")?(" · Casa "+getV(V,"CASA")):"");
+  renderPainel(V,pageId);
+}
+function renderPainel(V,pageId){
+  const body=document.getElementById("pn-body");
+  // 1) alertas / situação (fórmulas)
+  const chips=[];
+  SCHEMA.filter(c=>c.tipo==="formula").forEach(c=>{
+    const val=getV(V,c.nome); if(val==null||val===""||val==="-") return;
+    const s=String(val); const alerta=/PREENCHER|⚠️|🔴|🚨/.test(s)||/^ALERTA|^ELERTA/.test(c.nome);
+    chips.push(`<span class="chip${alerta?" alerta":""}">${esc(s)}</span>`);
+  });
+  let html = chips.length?`<div class="chips">${chips.join("")}</div>`:"";
+
+  // 2) campos editáveis (menos arquivos)
+  html += `<div class="grp">Preenchimento</div>`;
+  SCHEMA.filter(c=>c.editavel && c.tipo!=="files").forEach(c=>{
+    html += campoHtml(c, getV(V,c.nome), pageId);
+  });
+
+  // 3) arquivos
+  const files=SCHEMA.filter(c=>c.tipo==="files");
+  if(files.length){
+    html += `<div class="grp">Arquivos</div>`;
+    files.forEach(c=>{
+      const lista=(getV(V,c.nome)||[]);
+      html += `<div class="campo"><label>${esc(c.nome.trim())}</label>`;
+      lista.forEach(f=>{ html+=`<div class="arq"><a href="${f.url||'#'}" target="_blank">${esc(f.name||'arquivo')}</a></div>`; });
+      html += `<input type="file" onchange='enviarArquivo(${JSON.stringify(pageId)},${JSON.stringify(c.nome)},this)'></div>`;
+    });
+  }
+
+  // 4) excluir (ADM)
+  if(S.tipo==="ADM"){
+    html += `<div class="grp">Administração</div><button class="bt danger" onclick='excluirObra(${JSON.stringify(pageId)})'>Excluir esta obra</button>`;
+  }
+  body.innerHTML=html;
+}
+function campoHtml(c,valor,pageId){
+  const on=`onchange='editar(${JSON.stringify(pageId)},${JSON.stringify(c.nome)},${JSON.stringify(c.tipo)},valorDoInput(this),this)'`;
+  let input="";
+  if(c.tipo==="select"){
+    input=`<select ${on}><option value=""></option>${(c.opcoes||[]).map(o=>`<option${o===valor?" selected":""}>${esc(o)}</option>`).join("")}</select>`;
+  } else if(c.tipo==="multi_select"){
+    const arr=Array.isArray(valor)?valor:[];
+    input=(c.opcoes||[]).map(o=>`<label style="display:inline-flex;gap:5px;margin:0 10px 6px 0;font-weight:500;font-size:12.5px"><input type="checkbox" ${arr.indexOf(o)>=0?"checked":""} onchange='editarMulti(${JSON.stringify(pageId)},${JSON.stringify(c.nome)},this)'> ${esc(o)}</label>`).join("");
+  } else if(c.tipo==="date"){
+    input=`<input type="date" value="${valor?String(valor).slice(0,10):""}" ${on}>`;
+  } else if(c.tipo==="number"){
+    input=`<input type="number" value="${valor==null?"":valor}" ${on}>`;
+  } else if(c.tipo==="checkbox"){
+    input=`<input type="checkbox" ${valor?"checked":""} onchange='editar(${JSON.stringify(pageId)},${JSON.stringify(c.nome)},"checkbox",this.checked,this)'>`;
+  } else if(c.tipo==="url"){ input=`<input type="url" value="${esc(valor||"")}" ${on}>`;
+  } else if(c.tipo==="email"){ input=`<input type="email" value="${esc(valor||"")}" ${on}>`;
+  } else if(c.tipo==="phone_number"){ input=`<input type="tel" value="${esc(valor||"")}" ${on}>`;
+  } else { input=`<input type="text" value="${esc(valor==null?"":valor)}" ${on}>`; }
+  return `<div class="campo"><label>${esc(c.nome.trim())}</label>${input}</div>`;
+}
+function valorDoInput(el){ return el.value; }
+async function editarMulti(pageId,prop,el){
+  const box=el.closest(".campo"); const marcados=[...box.querySelectorAll("input[type=checkbox]:checked")].map(i=>i.parentNode.textContent.trim());
+  const r=await escrever({action:"updateVenda",pageId:pageId,prop:prop,tipo:"multi_select",valor:marcados},"Editar "+prop);
+  toast(r.ok?(r.enfileirado?"Na fila ✓":"Salvo ✓"):("Erro: "+r.erro));
+}
+async function enviarArquivo(pageId,prop,input){
+  const f=input.files[0]; if(!f) return;
+  toast("Enviando "+f.name+"…");
+  try{
+    const b64=await new Promise((res,rej)=>{ const rd=new FileReader(); rd.onload=()=>res(rd.result.split(",")[1]); rd.onerror=rej; rd.readAsDataURL(f); });
+    const r=await escrever({action:"upload",pageId:pageId,prop:prop,filename:f.name,mimeType:f.type||"application/octet-stream",dataBase64:b64},"Arquivo: "+f.name);
+    toast(r.ok?(r.enfileirado?"Arquivo na fila (sobe ao reconectar)":"Arquivo enviado ✓"):("Erro: "+r.erro));
+  }catch(e){ toast("Falha ao ler o arquivo"); }
+}
+async function excluirObra(pageId){
+  if(!confirm("Excluir esta obra do Notion? (arquiva a página)")) return;
+  const r=await escrever({action:"excluirVenda",pageId:pageId},"Excluir obra");
+  toast(r.ok?(r.enfileirado?"Exclusão na fila":"Obra excluída ✓"):("Erro: "+r.erro));
+  if(r.ok){ fecharObra(); const setor=document.getElementById("sel-setor").value; if(setor && !r.enfileirado) carregarPlanilha(setor); }
+}
+function fecharObra(){ document.getElementById("overlay").classList.remove("on"); document.getElementById("painel").classList.remove("on"); }
+
+window.aoSincronizar = ()=>{ toast("Sincronizado ✓"); carregarAtividades(); };
+boot();
+</script>
+</body>
+</html>
