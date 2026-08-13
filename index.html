@@ -95,7 +95,7 @@ main{padding:26px 20px 60px}
 <script src="app.js"></script>
 <script>
 const SISTEMAS=[{chave:"VENDAS",nome:"Gestão de Vendas",desc:"Atividades, alertas e planilhas",ico:"V",link:"vendas.html",conta:true}];
-const S=exigirSessao(); atualizarStatus();
+let S=exigirSessao(); atualizarStatus();
 
 function pintarUsuario(s){ document.getElementById("u-nome").textContent=s.nome||s.login; const tb=document.getElementById("u-tipo"); tb.textContent=s.tipo; tb.className="badge"+(s.tipo==="ADM"?" adm":""); }
 function renderCards(s){
@@ -105,12 +105,13 @@ function renderCards(s){
 function card(lab,val,sub,cls){ return `<div class="kpi ${cls||''}"><div class="lab">${lab}</div><div class="val">${val}</div><div class="sub">${sub||''}</div></div>`; }
 
 async function boot(){
+  pintarUsuario(S); renderCards(S); // primeiro pinta com o que já tem em cache local, sem esperar rede
+  // atualiza tipo/acessos direto do servidor — sem isso, um acesso liberado agora
+  // no Notion só apareceria depois que a pessoa deslogasse e logasse de novo
+  S=await sincronizarSessao();
   pintarUsuario(S); renderCards(S);
-  // dispara tudo em paralelo (login, KPIs e contagem de atividades) — antes era sequencial e demorava mais
-  const tarefas=[ ler({action:"portal"},"portal"), ler({action:"atividades"},"atividades") ];
-  if(navigator.onLine) tarefas.push(chamar({action:"me",token:S.token}).catch(()=>null));
-  const [kpiR, atvR, me]=await Promise.all(tarefas);
-  if(me && me.ok===false && me.erro==="NAO_AUTORIZADO"){ sair(); return; }
+  // dispara tudo em paralelo (KPIs e contagem de atividades) — antes era sequencial e demorava mais
+  const [kpiR, atvR]=await Promise.all([ ler({action:"portal"},"portal"), ler({action:"atividades"},"atividades") ]);
   pintarAtividades(atvR); pintarKpis(kpiR);
 }
 function pintarAtividades(r){ const el=document.getElementById("cnt-VENDAS"); if(el&&r&&r.ok)el.textContent=r.total; }

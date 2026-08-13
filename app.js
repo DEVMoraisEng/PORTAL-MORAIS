@@ -10,7 +10,40 @@ const CPRE  = "morais_cache_";
 function sessao(){ try{ return JSON.parse(localStorage.getItem(KEY)||sessionStorage.getItem(KEY)||"null"); }catch(e){ return null; } }
 function sair(){ localStorage.removeItem(KEY); sessionStorage.removeItem(KEY); location.href = LOGIN; }
 function exigirSessao(){ const s=sessao(); if(!s||!s.token){ location.href=LOGIN; } return s; }
-function podeAcessar(s, chave){ return s && (s.tipo==="ADM" || (s.acessos||[]).indexOf(chave)>=0); }
+
+/* normaliza texto de acesso pra comparar sem acento/maiúscula/espaço sobrando
+   (ex.: "Vendas ", "SECRETARIA DE VENDAS" e "VENDAS" devem contar como a mesma coisa) */
+function _normAcesso(s){ return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim().toUpperCase(); }
+function podeAcessar(s, chave){
+  if(!s) return false;
+  if(_normAcesso(s.tipo)==="ADM") return true;
+  const alvo=_normAcesso(chave);
+  return (s.acessos||[]).some(a=>{ const an=_normAcesso(a); return an===alvo || an.indexOf(alvo)>=0 || alvo.indexOf(an)>=0; });
+}
+
+/* Atualiza a sessão local (tipo/acessos) com o que está fresco no servidor.
+   Corrige o caso clássico: ADM libera um acesso novo no Notion, mas o
+   navegador da pessoa já estava logado com um token de até 30 dias, e o
+   objeto salvo no localStorage nunca era atualizado — então a tela de
+   "Sem acesso" continuava aparecendo mesmo com a permissão já liberada.
+   Chamar isso no boot() de cada página, antes de checar podeAcessar(). */
+async function sincronizarSessao(){
+  const atual=sessao(); if(!atual||!atual.token) return atual;
+  if(!navigator.onLine) return atual;
+  try{
+    const r=await chamar({action:"me", token:atual.token});
+    if(r && r.ok===false && r.erro==="NAO_AUTORIZADO"){ sair(); return atual; }
+    if(r && r.ok && r.sessao){
+      const nova=Object.assign({}, atual, r.sessao);
+      try{
+        if(localStorage.getItem(KEY)!==null) localStorage.setItem(KEY, JSON.stringify(nova));
+        else sessionStorage.setItem(KEY, JSON.stringify(nova));
+      }catch(e){}
+      return nova;
+    }
+  }catch(e){ /* rede caiu — segue com o que já estava salvo */ }
+  return atual;
+}
 
 /* ---------- cache de dados (para leitura offline) ---------- */
 function cacheSet(k,v){ try{ localStorage.setItem(CPRE+k, JSON.stringify({t:Date.now(), v:v})); }catch(e){} }
