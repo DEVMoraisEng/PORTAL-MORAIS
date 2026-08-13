@@ -10,40 +10,7 @@ const CPRE  = "morais_cache_";
 function sessao(){ try{ return JSON.parse(localStorage.getItem(KEY)||sessionStorage.getItem(KEY)||"null"); }catch(e){ return null; } }
 function sair(){ localStorage.removeItem(KEY); sessionStorage.removeItem(KEY); location.href = LOGIN; }
 function exigirSessao(){ const s=sessao(); if(!s||!s.token){ location.href=LOGIN; } return s; }
-
-/* normaliza texto de acesso pra comparar sem acento/maiúscula/espaço sobrando
-   (ex.: "Vendas ", "SECRETARIA DE VENDAS" e "VENDAS" devem contar como a mesma coisa) */
-function _normAcesso(s){ return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim().toUpperCase(); }
-function podeAcessar(s, chave){
-  if(!s) return false;
-  if(_normAcesso(s.tipo)==="ADM") return true;
-  const alvo=_normAcesso(chave);
-  return (s.acessos||[]).some(a=>{ const an=_normAcesso(a); return an===alvo || an.indexOf(alvo)>=0 || alvo.indexOf(an)>=0; });
-}
-
-/* Atualiza a sessão local (tipo/acessos) com o que está fresco no servidor.
-   Corrige o caso clássico: ADM libera um acesso novo no Notion, mas o
-   navegador da pessoa já estava logado com um token de até 30 dias, e o
-   objeto salvo no localStorage nunca era atualizado — então a tela de
-   "Sem acesso" continuava aparecendo mesmo com a permissão já liberada.
-   Chamar isso no boot() de cada página, antes de checar podeAcessar(). */
-async function sincronizarSessao(){
-  const atual=sessao(); if(!atual||!atual.token) return atual;
-  if(!navigator.onLine) return atual;
-  try{
-    const r=await chamar({action:"me", token:atual.token});
-    if(r && r.ok===false && r.erro==="NAO_AUTORIZADO"){ sair(); return atual; }
-    if(r && r.ok && r.sessao){
-      const nova=Object.assign({}, atual, r.sessao);
-      try{
-        if(localStorage.getItem(KEY)!==null) localStorage.setItem(KEY, JSON.stringify(nova));
-        else sessionStorage.setItem(KEY, JSON.stringify(nova));
-      }catch(e){}
-      return nova;
-    }
-  }catch(e){ /* rede caiu — segue com o que já estava salvo */ }
-  return atual;
-}
+function podeAcessar(s, chave){ return s && (s.tipo==="ADM" || (s.acessos||[]).indexOf(chave)>=0); }
 
 /* ---------- cache de dados (para leitura offline) ---------- */
 function cacheSet(k,v){ try{ localStorage.setItem(CPRE+k, JSON.stringify({t:Date.now(), v:v})); }catch(e){} }
@@ -53,6 +20,23 @@ function cacheGet(k){ try{ return JSON.parse(localStorage.getItem(CPRE+k)); }cat
 function fila(){ try{ return JSON.parse(localStorage.getItem(FILA)||"[]"); }catch(e){ return []; } }
 function filaSet(a){ try{ localStorage.setItem(FILA, JSON.stringify(a)); }catch(e){ return false; } return true; }
 function enfileirar(item){ const a=fila(); a.push(item); const ok=filaSet(a); atualizarBadge(); return ok; }
+
+/* ---------- LEITURA ESTÁTICA (dist/*.json publicado pelo GitHub Actions) ----------
+   É o caminho rápido: arquivo pronto, sem esperar o Apps Script paginar o Notion.
+   Só as ESCRITAS continuam indo pro Apps Script. */
+async function lerEstatico(arquivo, chaveCache){
+  try{
+    // cache-busting leve: o Pages serve com cache agressivo e seguraria dado velho
+    const r=await fetch("dist/"+arquivo+"?v="+Math.floor(Date.now()/60000), {cache:"no-cache"});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const j=await r.json();
+    if(chaveCache) cacheSet(chaveCache, j);
+    return Object.assign({online:true}, j);
+  }catch(e){
+    if(chaveCache){ const c=cacheGet(chaveCache); if(c) return Object.assign({online:false,offline:true,_ts:c.t}, c.v); }
+    return { online:navigator.onLine, ok:false, erro: navigator.onLine ? "SEM_DADOS_PUBLICADOS" : "OFFLINE_SEM_CACHE" };
+  }
+}
 
 /* ---------- chamada crua ao backend (lança em erro de rede ou timeout) ---------- */
 async function chamar(payload, timeoutMs){
@@ -131,6 +115,7 @@ window.addEventListener("offline", atualizarStatus);
 /* ---------- textos de erro amigáveis ---------- */
 const ERROS_TEXTO = {
   OFFLINE_SEM_CACHE: "sem internet e sem dados salvos ainda",
+  SEM_DADOS_PUBLICADOS: "os dados ainda não foram publicados — rode o workflow 'Publicar site' no GitHub",
   ERRO_API: "não consegui falar com o servidor (confira se o Apps Script está publicado)",
   TEMPO_ESGOTADO: "o servidor demorou demais pra responder — tente de novo",
   NAO_AUTORIZADO: "sessão expirada"
@@ -147,6 +132,13 @@ function getV(obj, nome){
   const alvo=nome.trim().toUpperCase();
   for(const k in obj){ if(k.trim().toUpperCase()===alvo) return obj[k]; }
   return undefined;
+}
+/* grava no MESMO nome de chave que já existe (não cria chave duplicada com espaço) */
+function setV(obj, nome, valor){
+  if(obj[nome]!==undefined){ obj[nome]=valor; return; }
+  const alvo=nome.trim().toUpperCase();
+  for(const k in obj){ if(k.trim().toUpperCase()===alvo){ obj[k]=valor; return; } }
+  obj[nome]=valor;
 }
 
 /* ---------- service worker (abre offline) ---------- */

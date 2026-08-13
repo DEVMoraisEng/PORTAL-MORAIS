@@ -43,21 +43,15 @@ main{padding:24px 20px 70px}
 .sec .cond{font-size:19px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--azul-esc)}
 .sec:first-of-type{margin-top:6px}
 
-/* Setores — mesmo componente "sysbar/sysbtn" do Portal Central (index.html).
-   Repetido aqui em vez do card verde antigo pra manter os botões de sistema
-   com o layout único de referência em vez de reinventar um estilo novo. */
-.setores{background:linear-gradient(165deg,var(--azul-esc),#12293a);border-radius:14px;padding:14px 10px;display:flex;flex-direction:column;gap:9px;box-shadow:0 6px 18px rgba(20,45,60,.25)}
-.sysbtn{position:relative;display:flex;align-items:center;gap:12px;border:1px solid rgba(255,255,255,.10);border-radius:10px;padding:13px 14px;text-decoration:none;cursor:pointer;color:#fff;background:rgba(255,255,255,.06);transition:background .15s,transform .1s;text-align:left;font:inherit;width:100%}
-.sysbtn:hover{background:rgba(255,255,255,.14);transform:translateX(2px)}
-.sysbtn:disabled,.sysbtn.soon{cursor:default;background:transparent;border:1px dashed rgba(255,255,255,.28);opacity:.75}
-.sysbtn:disabled:hover,.sysbtn.soon:hover{transform:none;background:transparent}
-.sysbtn .ico{width:36px;height:36px;border-radius:9px;flex:none;display:flex;align-items:center;justify-content:center;background:var(--verde-btn);color:#0c3f22;font-family:'Barlow Condensed';font-weight:800;font-size:16px}
-.sysbtn.soon .ico{background:rgba(255,255,255,.14);color:#fff}
-.sysbtn .txt{flex:1;min-width:0}
-.sysbtn .nm{font-family:'Barlow Condensed';font-weight:800;font-size:14.5px;text-transform:uppercase;letter-spacing:.3px;line-height:1.15}
-.sysbtn .d{font-size:10.5px;color:var(--teal);opacity:.9;margin-top:2px}
-.sysbtn .cnt{background:#fff;color:var(--verde-esc);min-width:26px;height:26px;border-radius:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;font-size:13px;padding:0 7px}
-.sysbtn .cnt span{font-size:7px;text-transform:uppercase;letter-spacing:.3px;opacity:.8;font-weight:700;line-height:1}
+/* cards de setor (verde) */
+.setores{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+.scard{position:relative;border:0;border-radius:14px;padding:18px 18px 16px;cursor:pointer;text-align:left;color:#fff;
+  background:linear-gradient(135deg,var(--verde),var(--verde-esc));box-shadow:0 6px 18px rgba(42,157,92,.25);transition:transform .1s,box-shadow .15s;font:inherit}
+.scard:hover{transform:translateY(-3px);box-shadow:0 12px 26px rgba(42,157,92,.32)}
+.scard.soon{background:linear-gradient(135deg,#7fa0b3,#5a7a8c);box-shadow:none;opacity:.9}
+.scard .cond{font-size:18px;font-weight:800;text-transform:uppercase;line-height:1.05}
+.scard .d{font-size:11.5px;opacity:.92;margin-top:4px}
+.scard .cnt{position:absolute;top:14px;right:14px;background:#fff;color:var(--verde-esc);min-width:26px;height:26px;border-radius:20px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;padding:0 7px}
 
 /* abas do setor */
 .tabs{display:flex;gap:4px;border-bottom:2px solid var(--border);margin:8px 0 18px}
@@ -100,38 +94,37 @@ select:focus,input:focus{outline:none;border-color:var(--verde);box-shadow:0 0 0
 .tabela-wrap{overflow:auto;max-height:70vh;border:1px solid var(--border2);border-radius:0 0 10px 10px;background:#fff}
 table{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;font-size:12.5px}
 thead th{background:var(--azul);color:#fff;text-align:center;padding:9px 11px;font-size:10px;letter-spacing:.4px;text-transform:uppercase;position:sticky;top:0;white-space:nowrap;z-index:2;font-weight:700;border-right:1px solid rgba(255,255,255,.22)}
-thead th:last-child{border-right:0}
 thead th.stick{left:0;z-index:3}
 tbody td{padding:7px 11px;border-top:1px solid var(--border2);border-right:1px solid var(--border2);white-space:nowrap;color:var(--text);max-width:280px;overflow:hidden;text-overflow:ellipsis}
-tbody td:last-child{border-right:0}
-tbody td.stick{position:sticky;left:0;background:#fff;font-weight:700;z-index:1;border-right:1px solid var(--border)}
+tbody td.stick{position:sticky;left:0;background:#fff;font-weight:700;z-index:1;border-right:2px solid var(--border)}
 tbody tr:nth-child(even) td{background:var(--bg2)} tbody tr:nth-child(even) td.stick{background:#eef5f7}
 tbody tr:hover td{background:#e9f6ef} tbody tr:hover td.stick{background:#dff2e6}
+tr.vendida td.stick{color:var(--verde-esc)}
 .obralink{color:var(--azul);font-weight:800;cursor:pointer}.obralink:hover{text-decoration:underline}
+.casanum{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:20px;background:var(--azul);color:#fff;font-size:10px;font-weight:800;vertical-align:middle}
 .tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700}
 .tag.sim{background:rgba(42,157,92,.14);color:var(--verde-esc)}.tag.nao{background:#f1e0e0;color:#9b2c2c}
+td.edt{cursor:cell}
+td.edt:hover{outline:2px solid var(--verde);outline-offset:-2px;background:#f0fbf4!important}
 
-/* cor da linha = Situação do Processo (⏳/⚠️/🚨). Substitui o esquema antigo
-   de vendida/disponível/em breve — a pedido, agora é só isso que colore a linha. */
-tbody tr.sit-proc-20 td{background:#FFF6DE}
-tbody tr.sit-proc-20 td.stick{background:#FCEDBB;color:#8a6d10}
-tbody tr.sit-proc-45 td{background:#FDEAD6}
-tbody tr.sit-proc-45 td.stick{background:#FAD9B4;color:#9a4b0d}
-tbody tr.sit-proc-45nr td{background:#FBE1DE}
-tbody tr.sit-proc-45nr td.stick{background:#F6C4BE;color:#9b2c2c}
-tbody tr.sit-proc-20:hover td{filter:brightness(.97)}
-tbody tr.sit-proc-45:hover td{filter:brightness(.97)}
-tbody tr.sit-proc-45nr:hover td{filter:brightness(.97)}
+/* cor das linhas = SITUAÇÃO DO PROCESSO (fórmula do Notion) */
+tbody tr.sit1 td{background:#FFFBEA}
+tbody tr.sit1 td.stick{background:#FDF3D0}
+tbody tr.sit2 td{background:#FFF3E6}
+tbody tr.sit2 td.stick{background:#FCE3C6}
+tbody tr.sit3 td{background:#FDECEC}
+tbody tr.sit3 td.stick{background:#F9D9D9}
+tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brightness(.96)}
 .chkcompleto{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--verde);color:#fff;font-size:9px;font-weight:900;margin-left:7px;vertical-align:middle}
-.chkproc{display:inline-flex;margin-left:6px;font-size:12px;vertical-align:middle;cursor:default}
 
 /* legenda das cores */
 .legenda{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:12px;font-size:11.5px;color:var(--text3)}
 .legenda .sw{display:inline-flex;align-items:center;gap:6px}
 .legenda .dot{width:13px;height:13px;border-radius:4px;display:inline-block;border:1px solid rgba(20,50,65,.12)}
-.legenda .dot.sproc-20{background:#FFF6DE;border-color:#F0D989}
-.legenda .dot.sproc-45{background:#FDEAD6;border-color:#F0B679}
-.legenda .dot.sproc-45nr{background:#FBE1DE;border-color:#EDA097}
+.legenda .dot.sit1{background:#FFFBEA;border-color:#EDD9A0}
+.legenda .dot.sit2{background:#FFF3E6;border-color:#F3C99B}
+.legenda .dot.sit3{background:#FDECEC;border-color:#EFB6B6}
+.legenda .dot.sit0{background:#fff;border-color:var(--border)}
 
 /* painel obra */
 .overlay{position:fixed;inset:0;background:rgba(20,40,55,.55);display:none;z-index:40}
@@ -218,21 +211,16 @@ tbody tr.sit-proc-45nr:hover td{filter:brightness(.97)}
           <option value="disponivel">Casas disponíveis</option>
           <option value="completo">Processo de vendas completo</option>
         </select>
-        <select id="hub-processo" onchange="aplicarFiltros('hub')">
-          <option value="">Situação do processo: todas</option>
-          <option value="20">⏳ Tempo corrido maior que 20 dias</option>
-          <option value="45">⚠️ Tempo corrido maior que 45 dias</option>
-          <option value="45nr">🚨 Tempo corrido maior que 45 dias e não recebeu</option>
-        </select>
         <select id="hub-ano" onchange="aplicarFiltros('hub')"><option value="">Todos os anos</option></select>
         <input class="busca" id="hub-busca" placeholder="Buscar por endereço, cliente, CPF…" oninput="aplicarFiltros('hub')">
         <span class="count" id="hub-count"></span>
       </div>
       <div class="info-bar" id="hub-info"></div>
       <div class="legenda">
-        <span class="sw"><span class="dot sproc-20"></span> ⏳ Tempo corrido &gt; 20 dias</span>
-        <span class="sw"><span class="dot sproc-45"></span> ⚠️ Tempo corrido &gt; 45 dias</span>
-        <span class="sw"><span class="dot sproc-45nr"></span> 🚨 &gt; 45 dias e não recebeu</span>
+        <span class="sw"><span class="dot sit0"></span> Sem pendência de prazo</span>
+        <span class="sw"><span class="dot sit1"></span> ⏳ Tempo corrido &gt; 20 dias</span>
+        <span class="sw"><span class="dot sit2"></span> ⚠️ Tempo corrido &gt; 45 dias</span>
+        <span class="sw"><span class="dot sit3"></span> 🚨 &gt; 45 dias e não recebeu</span>
         <span class="sw"><span class="chkcompleto" style="margin-left:0">✓</span> Processo de vendas completo</span>
       </div>
       <div class="scroll-top" id="hub-stop"><div></div></div>
@@ -268,21 +256,16 @@ tbody tr.sit-proc-45nr:hover td{filter:brightness(.97)}
             <option value="disponivel">Casas disponíveis</option>
             <option value="completo">Processo de vendas completo</option>
           </select>
-          <select id="set-processo" onchange="aplicarFiltros('set')">
-            <option value="">Situação do processo: todas</option>
-            <option value="20">⏳ Tempo corrido maior que 20 dias</option>
-            <option value="45">⚠️ Tempo corrido maior que 45 dias</option>
-            <option value="45nr">🚨 Tempo corrido maior que 45 dias e não recebeu</option>
-          </select>
           <select id="set-ano" onchange="aplicarFiltros('set')"><option value="">Todos os anos</option></select>
           <input class="busca" id="set-busca" placeholder="Buscar…" oninput="aplicarFiltros('set')">
           <span class="count" id="set-count"></span>
         </div>
         <div class="info-bar" id="set-info"></div>
         <div class="legenda">
-          <span class="sw"><span class="dot sproc-20"></span> ⏳ Tempo corrido &gt; 20 dias</span>
-          <span class="sw"><span class="dot sproc-45"></span> ⚠️ Tempo corrido &gt; 45 dias</span>
-          <span class="sw"><span class="dot sproc-45nr"></span> 🚨 &gt; 45 dias e não recebeu</span>
+          <span class="sw"><span class="dot sit0"></span> Sem pendência de prazo</span>
+          <span class="sw"><span class="dot sit1"></span> ⏳ Tempo corrido &gt; 20 dias</span>
+          <span class="sw"><span class="dot sit2"></span> ⚠️ Tempo corrido &gt; 45 dias</span>
+          <span class="sw"><span class="dot sit3"></span> 🚨 &gt; 45 dias e não recebeu</span>
           <span class="sw"><span class="chkcompleto" style="margin-left:0">✓</span> Processo de vendas completo</span>
         </div>
         <div class="scroll-top" id="set-stop"><div></div></div>
@@ -309,12 +292,9 @@ tbody tr.sit-proc-45nr:hover td{filter:brightness(.97)}
 
 <script src="app.js"></script>
 <script>
-let S = exigirSessao();
+const S = exigirSessao();
 atualizarStatus(); atualizarBadge();
 let SCHEMA=[], SCAMPO={}, ATIV=[], DADOS={hub:[], set:[]}, SETOR_ATUAL="Secretária de Vendas";
-/* base DOCUMENTOS — usada só pra descobrir Obra Iniciada / Habite-se (item 4),
-   colunas que não existem na base VENDAS */
-let DOC_SCHEMA=[], DOC_POR_ENDERECO={}, CDOC_END=null, CDOC_OBRAINICIADA=null, CDOC_HABITE=null;
 const RESUMO=["CLIENTES","CPF","DATA DA VENDA","VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)","CORRETOR","IMOBILIÁRIA","CORRESPONDENTE","Nº Whatsapp","Email","BANCO"];
 
 /* Departamentos da área de vendas — "Gestores de Vendas" virou "Secretária de Vendas"
@@ -375,82 +355,41 @@ function processoCompleto(valores){
     const s=normNome(v); return s==="SIM" || s.indexOf("AGIO")>=0; });
 }
 
-/* ---------- base DOCUMENTOS: Obra Iniciada / Habite-se, cruzados pelo ENDEREÇO (item 4) ---------- */
-function chaveEnd(s){ return normNome(s).replace(/[^A-Z0-9]/g,""); }
-function montarLookupDocumentos(dschema, ddados){
-  DOC_SCHEMA = (dschema && dschema.ok) ? dschema.campos : [];
-  CDOC_END = DOC_SCHEMA.find(c=>c.tipo==="title") || null;
-  CDOC_OBRAINICIADA = DOC_SCHEMA.find(c=>{ const n=normNome(c.nome); return n.indexOf("OBRA INICIADA")>=0 || n.indexOf("OBRA INCIADA")>=0; }) || null;
-  CDOC_HABITE = DOC_SCHEMA.find(c=>normNome(c.nome).indexOf("HABITE")>=0) || null;
-  DOC_POR_ENDERECO = {};
-  if(ddados && ddados.ok && CDOC_END){
-    (ddados.documentos||[]).forEach(d=>{
-      const end=getV(d.valores, CDOC_END.nome);
-      if(end) DOC_POR_ENDERECO[chaveEnd(end)]=d;
-    });
-  }
+/* índice endereço -> {habite, obra_iniciada}, vindo de DOCUMENTOS OBRAS */
+let DOCS={}, DOCS_OK=false;
+async function carregarDocumentos(){
+  const r=await lerEstatico("documentos.json","documentos");
+  if(r&&r.ok&&r.docs){ DOCS=r.docs; DOCS_OK=true; }
+  return r;
 }
-function statusObraDoEndereco(endereco){
-  const doc = endereco ? DOC_POR_ENDERECO[chaveEnd(endereco)] : null;
-  if(!doc) return {construcao:false, breve:false};
-  let construcao=false;
-  if(CDOC_OBRAINICIADA){ const oi=normNome(getV(doc.valores,CDOC_OBRAINICIADA.nome)); construcao = (oi==="SIM"||oi==="SIM SEM PRAZO"); }
-  let breve=false;
-  if(CDOC_HABITE){
-    const hv=getV(doc.valores,CDOC_HABITE.nome);
-    breve = (CDOC_HABITE.tipo==="checkbox") ? !!hv : normNome(hv)==="SIM";
-  }
-  return {construcao, breve};
-}
-
-/* ---------- Situação do Processo (item 2) — mesma lógica da fórmula do Notion:
-   if(SITUAÇÃO DO PROCESSO==1,"⏳ ...20 DIAS", if(==2,"⚠️ ...45 DIAS", if(==3,"🚨 ...45 DIAS E NÃO RECEBEU","-"))) */
-const SITUACAO_PROCESSO_MAP = {
-  "1": {chave:"20",   icone:"⏳", texto:"Tempo corrido maior que 20 dias"},
-  "2": {chave:"45",   icone:"⚠️", texto:"Tempo corrido maior que 45 dias"},
-  "3": {chave:"45nr", icone:"🚨", texto:"Tempo corrido maior que 45 dias e não recebeu"}
-};
-function situacaoProcesso(valores){
-  const c=campoPorFragmento("SITUAÇÃO DO PROCESSO")||campoPorFragmento("SITUACAO DO PROCESSO");
-  if(!c) return null;
-  const v=getV(valores,c.nome);
-  if(v==null||v===""||v==="-") return null;
-  const n=Number(v);
-  if(!isNaN(n) && SITUACAO_PROCESSO_MAP[String(n)]) return SITUACAO_PROCESSO_MAP[String(n)];
-  const s=String(v); // caso o próprio campo já venha formatado como texto pela fórmula do Notion
-  if(/NAO RECEBEU|NÃO RECEBEU|🚨/i.test(s)) return {chave:"45nr", icone:"🚨", texto:s};
-  if(/45|⚠️/.test(s)) return {chave:"45", icone:"⚠️", texto:s};
-  if(/20|⏳/.test(s)) return {chave:"20", icone:"⏳", texto:s};
-  return null;
-}
+function docDe(endereco){ return DOCS[normNome(endereco)]||null; }
 
 async function boot(){
   pintarUsuario(S);
-  renderSetores(); // pinta a tela já, sem esperar a rede
-  // atualiza tipo/acessos direto do servidor — sem isso, um acesso liberado agora
-  // no Notion (LOGINS) só valeria depois que a pessoa deslogasse e logasse de novo
-  S = await sincronizarSessao();
-  pintarUsuario(S);
   if(!podeAcessar(S,"VENDAS")){ document.getElementById("sem-acesso").style.display="block"; document.getElementById("view-hub").style.display="none"; return; }
-  const [sc, dsc, ddados] = await Promise.all([
-    ler({action:"vendasSchema"},"schema"),
-    ler({action:"documentosSchema"},"docschema"),
-    ler({action:"documentos"},"docdados")
-  ]);
+  renderSetores(); // pinta a tela já, sem esperar a rede
+  const tarefas=[ lerEstatico("schema.json","schema"), carregarDocumentos() ];
+  const [sc]=await Promise.all(tarefas); // schema + documentos em paralelo
   if(sc.ok){ SCHEMA=sc.campos; SCAMPO={}; SCHEMA.forEach(c=>SCAMPO[c.nome]=c); mostrarOffline(sc); }
-  montarLookupDocumentos(dsc, ddados);
   montarSetorSelects();
   carregarPlanilha("hub");
 }
 
 /* ---------- HUB ---------- */
 function renderSetores(){
-  document.getElementById("setores").innerHTML = SETORES_AREA.map((s,i)=>`
-    <button class="sysbtn ${s.ativo?"":"soon"}" onclick="${s.ativo?`abrirSetor(${JSON.stringify(s.nome)})`:`toast('Setor em alinhamento — falamos disso na próxima etapa')`}">
-      <div class="ico">${esc((s.nome||"?").trim().charAt(0).toUpperCase())}</div>
-      <div class="txt"><div class="nm">${esc(s.nome)}</div><div class="d">${esc(s.d)}</div></div>
-      ${s.ativo?`<div class="cnt"><b id="scnt-${i}">·</b><span>aberto</span></div>`:""}
+  const box=document.getElementById("setores");
+  box.innerHTML = SETORES_AREA.map((s,i)=>`
+    <button class="scard ${s.ativo?"":"soon"}" data-i="${i}">
+      ${s.ativo?`<span class="cnt" id="scnt-${i}">·</span>`:""}
+      <div class="cond">${esc(s.nome)}</div><div class="d">${esc(s.d)}</div>
     </button>`).join("");
+  // listener em vez de onclick inline: nome com acento/aspas quebrava o atributo e o clique morria
+  box.querySelectorAll(".scard").forEach(b=>{
+    b.addEventListener("click",()=>{
+      const s=SETORES_AREA[+b.dataset.i];
+      if(s.ativo) abrirSetor(s.nome); else toast("Setor em alinhamento — falamos disso na próxima etapa");
+    });
+  });
 }
 function montarSetorSelects(){
   const c=campoPorNome("SETOR"); if(!c||!c.opcoes)return;
@@ -528,17 +467,22 @@ function renderAlertas(){
 function ordenarPorEndereco(arr){
   return arr.slice().sort((a,b)=>{
     const ea=String(getV(a.valores,"ENDEREÇO")||""), eb=String(getV(b.valores,"ENDEREÇO")||"");
-    return ea.localeCompare(eb,"pt-BR",{numeric:true,sensitivity:"base"});
+    const c=ea.localeCompare(eb,"pt-BR",{numeric:true,sensitivity:"base"});
+    if(c!==0) return c;
+    // mesmo endereço = várias casas; ordena pelo nº da casa (1, 2, 3…)
+    return (Number(getV(a.valores,"CASA"))||0)-(Number(getV(b.valores,"CASA"))||0);
   });
 }
 async function carregarPlanilha(ctx){
   const setor = document.getElementById(ctx+"-setor").value;
   const wrap=document.getElementById(ctx+"-wrap");
   wrap.innerHTML='<div class="vazio"><span class="load"></span> Carregando…</div>';
-  const r=await ler({action:"vendas",setor:setor},"vendas_"+(setor||"all")); mostrarOffline(r);
+  const r=await lerEstatico("vendas.json","vendas"); mostrarOffline(r);
   if(!r.ok){ wrap.innerHTML='<div class="vazio">Erro ao carregar: '+esc(erroTexto(r.erro))+'</div>'; return; }
-  DADOS[ctx]=ordenarPorEndereco(r.vendas); // item 1: endereços em ordem natural (52 QD 81 LT 11, LT 12… em vez da ordem crua do Notion)
-  document.getElementById(ctx+"-count").textContent=r.total+" obra(s)";
+  // o filtro de setor agora é no cliente — os dados já vieram todos de uma vez
+  const base = setor ? r.vendas.filter(v=>getV(v.valores,"SETOR")===setor) : r.vendas;
+  DADOS[ctx]=ordenarPorEndereco(base);
+  document.getElementById(ctx+"-count").textContent=DADOS[ctx].length+" obra(s)";
   popularFiltrosDinamicos(ctx);
   renderTabela(ctx);
   aplicarFiltros(ctx);
@@ -552,6 +496,17 @@ function celulaTexto(campo,valor){
   if(campo.tipo==="number"){ const s=campo.nome.toUpperCase(); if(/VALOR|COMISS|FGTS|PARCELA/.test(s)) return brl(valor); return num(valor); }
   return String(valor);
 }
+/* tipos que dá pra editar direto na célula da planilha.
+   multi_select / checkbox / files ficam só no painel da obra (controle melhor lá). */
+const TIPOS_CELULA=["title","rich_text","select","status","date","number","url","email","phone_number"];
+function editavelNaCelula(c){ return c && c.editavel && TIPOS_CELULA.indexOf(c.tipo)>=0 && c.nome!=="ENDEREÇO"; }
+function celulaHtml(c,val){
+  const editavel=editavelNaCelula(c);
+  const attrs=editavel?` class="edt" data-col="${esc(c.nome)}" title="Clique para editar"`:"";
+  if(c.tipo==="select" && (val==="SIM"||val==="NÃO")) return `<td${attrs}>${tagSimNao(val)}</td>`;
+  const txt=celulaTexto(c,val);
+  return editavel?`<td${attrs}>${esc(txt)}</td>`:`<td title="${esc(txt)}">${esc(txt)}</td>`;
+}
 function tagSimNao(v){ if(v==="SIM")return `<span class="tag sim">SIM</span>`; if(v==="NÃO")return `<span class="tag nao">NÃO</span>`; return esc(v); }
 function situacoesDe(valores){
   const arr=[];
@@ -561,37 +516,101 @@ function situacoesDe(valores){
   return arr;
 }
 function anoDe(valores){ const d=getV(valores,"DATA DA VENDA"); return d?String(d).slice(0,4):""; }
-/* cor da linha = Situação do Processo, não mais vendida/disponível/em breve (a pedido) */
-function classeSituacaoLinha(valores){
-  const proc=situacaoProcesso(valores);
-  return proc ? "sit-proc-"+proc.chave : "";
+/* cor da linha vem da fórmula SITUAÇÃO DO PROCESSO do Notion:
+   1 = ⏳ >20 dias | 2 = ⚠️ >45 dias | 3 = 🚨 >45 dias e não recebeu | "-" = sem cor */
+function corSituacao(valores){
+  const c=campoPorFragmento("SITUACAO"); if(!c) return "";
+  const bruto=getV(valores,c.nome);
+  if(bruto==null||bruto==="") return "";
+  const s=String(bruto);
+  if(s.trim()==="-") return "";
+  if(s.indexOf("🚨")>=0 || /NAO RECEBEU/.test(normNome(s))) return "sit3";
+  if(s.indexOf("⚠")>=0 || /45 DIAS/.test(normNome(s))) return "sit2";
+  if(s.indexOf("⏳")>=0 || /20 DIAS/.test(normNome(s))) return "sit1";
+  // fórmula pode devolver o número cru (1/2/3) em vez do texto
+  const n=parseInt(s,10);
+  if(n===3) return "sit3"; if(n===2) return "sit2"; if(n===1) return "sit1";
+  return "";
 }
 function renderTabela(ctx){
   const cols=ordemColunas().map(campoPorNome).filter(Boolean);
   let html='<table><thead><tr>'+cols.map((c,i)=>`<th class="${i===0?"stick":""}">${esc(c.nome.trim())}</th>`).join("")+'</tr></thead><tbody>';
   DADOS[ctx].forEach(v=>{
+    const vendida=!!getV(v.valores,"DATA DA VENDA");
     const completo=processoCompleto(v.valores);
-    const endereco=getV(v.valores,"ENDEREÇO");
-    const busca=[endereco,getV(v.valores,"CLIENTES"),getV(v.valores,"CPF")].join(" ").toLowerCase();
+    const busca=[getV(v.valores,"ENDEREÇO"),getV(v.valores,"CLIENTES"),getV(v.valores,"CPF")].join(" ").toLowerCase();
     const cidade=getV(v.valores,"CIDADE")||"";
     const sit=situacoesDe(v.valores).join(",");
     const ano=anoDe(v.valores);
-    const st=statusObraDoEndereco(endereco); // vem da base DOCUMENTOS (item 4)
-    const breve = st.breve ? "1":"0";
-    const constr = st.construcao ? "1":"0";
-    const proc = situacaoProcesso(v.valores); // item 2 — situação do processo (⏳/⚠️/🚨)
-    const classe=classeSituacaoLinha(v.valores);
-    html+=`<tr class="${classe}" data-b="${esc(busca)}" data-cidade="${esc(cidade)}" data-sit="${esc(sit)}" data-ano="${esc(ano)}" data-breve="${breve}" data-obra="${constr}" data-proc="${proc?proc.chave:""}">`+cols.map((c,i)=>{
+    const dc=docDe(getV(v.valores,"ENDEREÇO"));
+    const breve = (dc && normNome(dc.habite)==="SIM") ? "1":"0";
+    const constr = (dc && /SIM/.test(normNome(dc.obra_iniciada))) ? "1":"0";
+    const classe=[vendida?"vendida":"",corSituacao(v.valores)].filter(Boolean).join(" ");
+    html+=`<tr class="${classe}" data-id="${esc(v.id)}" data-b="${esc(busca)}" data-cidade="${esc(cidade)}" data-sit="${esc(sit)}" data-ano="${esc(ano)}" data-breve="${breve}" data-obra="${constr}">`+cols.map((c,i)=>{
       const val=getV(v.valores,c.nome);
-      if(i===0) return `<td class="stick"><span class="obralink" onclick='abrirObra(${JSON.stringify(v.id)})'>${esc(val||"(sem endereço)")}</span>${completo?'<span class="chkcompleto" title="Processo de vendas completo">✓</span>':''}${proc?`<span class="chkproc" title="${esc(proc.texto)}">${proc.icone}</span>`:''}</td>`;
-      let txt=celulaTexto(c,val);
-      if(c.tipo==="select" && (val==="SIM"||val==="NÃO")) return `<td>${tagSimNao(val)}</td>`;
-      return `<td title="${esc(txt)}">${esc(txt)}</td>`;
+      if(i===0){ const casa=getV(v.valores,"CASA");
+        return `<td class="stick"><span class="obralink" data-obra="${esc(v.id)}">${esc(val||"(sem endereço)")}</span>`+
+          (casa!=null&&casa!==""?`<span class="casanum" title="Número da casa">CASA ${esc(casa)}</span>`:``)+
+          (completo?`<span class="chkcompleto" title="Processo de vendas completo">✓</span>`:``)+`</td>`; }
+      return celulaHtml(c,val);
     }).join("")+'</tr>';
   });
   html+='</tbody></table>';
   const wrap=document.getElementById(ctx+"-wrap"); wrap.innerHTML=html;
   sincronizarScroll(ctx);
+  ligarTabela(ctx);
+}
+
+/* clique na tabela: abre a obra (coluna de endereço) ou edita a célula */
+function ligarTabela(ctx){
+  const wrap=document.getElementById(ctx+"-wrap");
+  wrap.onclick=(ev)=>{
+    const link=ev.target.closest(".obralink");
+    if(link){ abrirObra(link.dataset.obra); return; }
+    const td=ev.target.closest("td.edt");
+    if(td && !td.querySelector("input,select")) editarCelula(ctx,td);
+  };
+}
+function editarCelula(ctx,td){
+  const tr=td.closest("tr"), id=tr.dataset.id, col=td.dataset.col;
+  const c=campoPorNome(col); if(!c) return;
+  const reg=(DADOS[ctx]||[]).find(v=>v.id===id); if(!reg) return;
+  const atual=getV(reg.valores,col);
+  const antigo=td.innerHTML;
+  let el;
+  if(c.tipo==="select"||c.tipo==="status"){
+    el=document.createElement("select");
+    el.innerHTML=`<option value=""></option>`+(c.opcoes||[]).map(o=>`<option${o===atual?" selected":""}>${esc(o)}</option>`).join("");
+  }else{
+    el=document.createElement("input");
+    el.type = c.tipo==="date"?"date" : c.tipo==="number"?"number" : "text";
+    el.value = (c.tipo==="date"&&atual)?String(atual).slice(0,10) : (atual==null?"":atual);
+  }
+  el.style.cssText="width:100%;min-width:130px;padding:4px 7px;font-size:12.5px";
+  td.innerHTML=""; td.appendChild(el);
+  el.focus(); if(el.tagName==="SELECT"&&el.showPicker){ try{el.showPicker();}catch(e){} }
+
+  let encerrado=false;
+  const encerrar=async(salvar)=>{
+    if(encerrado) return; encerrado=true;
+    if(!salvar){ td.innerHTML=antigo; return; }
+    const novo=el.value;
+    const igual = String(atual==null?"":(c.tipo==="date"&&atual?String(atual).slice(0,10):atual))===String(novo);
+    if(igual){ td.innerHTML=antigo; return; }
+    td.innerHTML='<span class="load"></span>';
+    const r=await escrever({action:"updateVenda",pageId:id,prop:col,tipo:c.tipo,valor:novo},"Editar "+col);
+    if(r.ok){
+      setV(reg.valores,col,novo);
+      td.outerHTML=celulaHtml(c,novo);   // repinta a célula com o valor novo
+      toast(r.enfileirado?"Na fila ✓":"Salvo ✓");
+    }else{ td.innerHTML=antigo; toast("Erro: "+erroTexto(r.erro)); }
+  };
+  el.addEventListener("change",()=>encerrar(true));
+  el.addEventListener("blur",()=>encerrar(true));
+  el.addEventListener("keydown",e=>{
+    if(e.key==="Escape"){ encerrar(false); }
+    if(e.key==="Enter"&&el.tagName!=="SELECT"){ encerrar(true); }
+  });
 }
 function sincronizarScroll(ctx){
   const top=document.getElementById(ctx+"-stop"), wrap=document.getElementById(ctx+"-wrap");
@@ -615,14 +634,12 @@ function aplicarFiltros(ctx){
   const q=(document.getElementById(ctx+"-busca").value||"").toLowerCase();
   const cid=document.getElementById(ctx+"-cidade").value;
   const sit=document.getElementById(ctx+"-situacao").value;
-  const proc=document.getElementById(ctx+"-processo").value;
   const ano=document.getElementById(ctx+"-ano").value;
   let visiveis=0;
   document.querySelectorAll("#"+ctx+"-wrap tbody tr").forEach(tr=>{
     let ok = tr.dataset.b.indexOf(q)>=0;
     if(ok && cid) ok = tr.dataset.cidade===cid;
     if(ok && sit) ok = (","+tr.dataset.sit+",").indexOf(","+sit+",")>=0;
-    if(ok && proc) ok = tr.dataset.proc===proc;
     if(ok && ano) ok = tr.dataset.ano===ano;
     tr.style.display = ok?"":"none";
     if(ok) visiveis++;
@@ -633,7 +650,7 @@ function aplicarFiltros(ctx){
 function infoCard(lab,val){ return `<div class="icard"><div class="ival">${val}</div><div class="ilab">${esc(lab)}</div></div>`; }
 function atualizarInformativo(ctx){
   const box=document.getElementById(ctx+"-info"); if(!box) return;
-  let vendidas=0, disponiveis=0, breve=0, construcao=0, p20=0, p45=0, p45nr=0;
+  let vendidas=0, disponiveis=0, breve=0, construcao=0;
   // conta só as linhas visíveis (respeita os filtros aplicados agora) — reaproveita os data-* já marcados no render
   document.querySelectorAll("#"+ctx+"-wrap tbody tr").forEach(tr=>{
     if(tr.style.display==="none") return;
@@ -642,18 +659,9 @@ function atualizarInformativo(ctx){
     if(sit.indexOf(",disponivel,")>=0) disponiveis++;
     if(tr.dataset.breve==="1") breve++;
     if(tr.dataset.obra==="1") construcao++;
-    if(tr.dataset.proc==="20") p20++;
-    if(tr.dataset.proc==="45") p45++;
-    if(tr.dataset.proc==="45nr") p45nr++;
   });
-  let html = infoCard("Vendidas",vendidas)+infoCard("Disponíveis",disponiveis)
-    +infoCard("Em breve",CDOC_HABITE?breve:"—")+infoCard("Em construção",CDOC_OBRAINICIADA?construcao:"—")
-    +infoCard("⏳ >20 dias",p20)+infoCard("⚠️ >45 dias",p45)+infoCard("🚨 >45 dias s/ receber",p45nr);
-  // esses dois agora vêm da base DOCUMENTOS (item 4) — só avisa se nem lá eu achei a coluna
-  if(!CDOC_OBRAINICIADA || !CDOC_HABITE){
-    const faltando=[!CDOC_OBRAINICIADA?"Obra Iniciada":null, !CDOC_HABITE?"Habite-se":null].filter(Boolean).join(" e ");
-    html += `<div class="inote">Não encontrei a coluna de <b>${esc(faltando)}</b> na base <b>DOCUMENTOS</b> do Notion — confirme o nome exato dessa coluna pra eu ligar certinho (ela não fica na base VENDAS).</div>`;
-  }
+  let html = infoCard("Vendidas",vendidas)+infoCard("Disponíveis",disponiveis)+infoCard("Em breve",DOCS_OK?breve:"—")+infoCard("Em construção",DOCS_OK?construcao:"—");
+  if(!DOCS_OK) html += `<div class="inote">Contadores de "em breve"/"em construção" precisam do secret DOCUMENTOS_DB_ID configurado no GitHub — sem ele o pipeline não publica documentos.json.</div>`;
   box.innerHTML = html;
 }
 
@@ -661,11 +669,17 @@ function atualizarInformativo(ctx){
 async function abrirObra(pageId){
   document.getElementById("overlay").classList.add("on"); document.getElementById("painel").classList.add("on");
   const body=document.getElementById("pn-body"); body.innerHTML='<div class="vazio"><span class="load"></span> Carregando…</div>';
-  const r=await ler({action:"obra",pageId:pageId},"obra_"+pageId);
-  if(!r.ok){ body.innerHTML='<div class="vazio">Não foi possível abrir.</div>'; return; }
-  const V=r.valores;
+  // o registro já está em memória (veio do vendas.json) — abre na hora, sem ida ao servidor
+  const local=(DADOS.set||[]).concat(DADOS.hub||[]).find(v=>v.id===pageId);
+  let V=local?local.valores:null;
+  if(!V){
+    const r=await ler({action:"obra",pageId:pageId},"obra_"+pageId);
+    if(!r.ok){ body.innerHTML='<div class="vazio">Não foi possível abrir.</div>'; return; }
+    V=r.valores;
+  }
   document.getElementById("pn-end").textContent=getV(V,"ENDEREÇO")||"(sem endereço)";
-  document.getElementById("pn-loc").textContent=(getV(V,"SETOR")||"")+(getV(V,"CASA")?(" · Casa "+getV(V,"CASA")):"");
+  const casaP=getV(V,"CASA");
+  document.getElementById("pn-loc").textContent=(getV(V,"SETOR")||"")+(casaP!=null&&casaP!==""?(" · Casa "+casaP):"");
   renderPainel(V,pageId);
 }
 

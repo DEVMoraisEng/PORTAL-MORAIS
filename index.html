@@ -29,24 +29,25 @@ header::after{content:"";display:block;height:4px;background:linear-gradient(90d
 .user{display:flex;align-items:center;gap:10px;color:#fff}.nome{font-weight:600;font-size:13.5px}
 .badge{font-size:10px;font-weight:800;letter-spacing:.5px;padding:3px 8px;border-radius:20px;background:rgba(255,255,255,.18);color:#fff;text-transform:uppercase}.badge.adm{background:var(--verde-btn);color:#0c3f22}
 .sair{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;padding:7px 12px;font:inherit;font-weight:700;font-size:12.5px;cursor:pointer}
-main{padding:26px 20px 60px}
-.grid{display:grid;grid-template-columns:320px 1fr;gap:24px;align-items:start}
-@media(max-width:900px){.grid{grid-template-columns:1fr}}
+@media(max-width:820px){.shell{flex-direction:column}.dash-nav{width:100%;flex-direction:row;flex-wrap:wrap;border-right:0;padding:14px}.nav-btn{width:auto;flex:1 1 180px}}
 .sec{display:flex;align-items:center;gap:10px;background:var(--bg3);border-left:4px solid var(--verde);border-radius:8px;padding:9px 14px;margin:0 0 15px}
 .sec .cond{font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--azul-esc)}
 .bloco{margin-bottom:22px}
 
-/* barra de sistemas — fundo azul, botões colados à esquerda */
-.sysbar{background:linear-gradient(165deg,var(--azul-esc),#12293a);border-radius:14px;padding:14px 10px;display:flex;flex-direction:column;gap:9px;box-shadow:0 6px 18px rgba(20,45,60,.25)}
-.sysbtn{position:relative;display:flex;align-items:center;gap:12px;border:1px solid rgba(255,255,255,.10);border-radius:10px;padding:13px 14px;text-decoration:none;cursor:pointer;color:#fff;background:rgba(255,255,255,.06);transition:background .15s,transform .1s;text-align:left;font:inherit;width:100%}
-.sysbtn:hover{background:rgba(255,255,255,.14);transform:translateX(2px)}
-.sysbtn .ico{width:36px;height:36px;border-radius:9px;flex:none;display:flex;align-items:center;justify-content:center;background:var(--verde-btn);color:#0c3f22;font-family:'Barlow Condensed';font-weight:800;font-size:16px}
-.sysbtn .txt{flex:1;min-width:0}
-.sysbtn .nm{font-family:'Barlow Condensed';font-weight:800;font-size:14.5px;text-transform:uppercase;letter-spacing:.3px;line-height:1.15}
-.sysbtn .d{font-size:10.5px;color:var(--teal);opacity:.9;margin-top:2px}
-.sysbtn .cnt{background:#fff;color:var(--verde-esc);min-width:26px;height:26px;border-radius:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;font-size:13px;padding:0 7px}
-.sysbtn .cnt span{font-size:7px;text-transform:uppercase;letter-spacing:.3px;opacity:.8;font-weight:700;line-height:1}
-.sysbar .vazio{background:transparent;border:1px dashed rgba(255,255,255,.28);color:rgba(255,255,255,.75)}
+/* layout com coluna lateral de altura total — igual ao analise.html */
+body{display:flex;flex-direction:column;min-height:100vh}
+.shell{flex:1;display:flex;min-height:0}
+.dash-nav{width:220px;flex-shrink:0;background:var(--azul-esc);border-right:2px solid rgba(143,220,210,.2);
+  display:flex;flex-direction:column;padding:24px 14px;gap:8px}
+.nav-btn{position:relative;display:flex;align-items:center;gap:10px;width:100%;padding:14px 16px;
+  font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;color:#fff;letter-spacing:.09em;
+  text-transform:uppercase;text-align:left;cursor:pointer;border:2px solid rgba(76,217,100,.55);
+  border-radius:8px;background:var(--verde);transition:all .18s;line-height:1.2;text-decoration:none;font-family:'Barlow Condensed'}
+.nav-btn:hover{background:var(--verde-btn);border-color:var(--verde-btn);color:#0c3f22}
+.nav-btn .cnt{margin-left:auto;background:#fff;color:var(--verde-esc);min-width:24px;height:22px;border-radius:20px;
+  display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;padding:0 7px}
+.dash-main{flex:1;min-width:0;padding:24px 28px 40px;overflow-y:auto}
+.dash-nav .vazio{background:transparent;border:1px dashed rgba(255,255,255,.28);color:rgba(255,255,255,.75);padding:14px;font-size:12px}
 .vazio{background:#fff;border:1px dashed var(--border);border-radius:12px;padding:20px;color:var(--text3);text-align:center;font-size:13px}
 
 /* KPIs — cartões emoldurados */
@@ -76,45 +77,55 @@ main{padding:26px 20px 60px}
     </div>
   </header>
 
-  <main class="wrap">
-    <div class="nota" id="nota"></div>
-    <div class="grid">
-      <section>
-        <div class="sec"><span class="cond">Sistemas</span></div>
-        <div class="sysbar" id="cards"><div class="vazio"><span class="load"></span> Carregando…</div></div>
-      </section>
-      <section>
-        <div class="bloco"><div class="sec"><span class="cond">Venda de Casas</span></div><div class="kpis" id="kpi-vendas"><div class="kpi"><div class="lab">Carregando</div><div class="val"><span class="load"></span></div></div></div></div>
-        <div class="bloco"><div class="sec"><span class="cond">Início de Obras</span></div><div class="kpis" id="kpi-obras"></div></div>
-        <div class="bloco"><div class="sec"><span class="cond">Lotes Comprados</span></div><div class="kpis" id="kpi-lotes"></div></div>
-        <div class="updated" id="updated"></div>
-      </section>
-    </div>
-  </main>
+  <div class="shell">
+    <nav class="dash-nav" id="cards"><div class="vazio"><span class="load"></span> Carregando…</div></nav>
+    <main class="dash-main">
+      <div class="nota" id="nota"></div>
+      <div class="bloco"><div class="sec"><span class="cond">Venda de Casas</span></div><div class="kpis" id="kpi-vendas"><div class="kpi"><div class="lab">Carregando</div><div class="val"><span class="load"></span></div></div></div></div>
+      <div class="bloco"><div class="sec"><span class="cond">Início de Obras</span></div><div class="kpis" id="kpi-obras"></div></div>
+      <div class="bloco"><div class="sec"><span class="cond">Lotes Comprados</span></div><div class="kpis" id="kpi-lotes"></div></div>
+      <div class="updated" id="updated"></div>
+    </main>
+  </div>
 
 <script src="app.js"></script>
 <script>
 const SISTEMAS=[{chave:"VENDAS",nome:"Gestão de Vendas",desc:"Atividades, alertas e planilhas",ico:"V",link:"vendas.html",conta:true}];
-let S=exigirSessao(); atualizarStatus();
+const S=exigirSessao(); atualizarStatus();
 
 function pintarUsuario(s){ document.getElementById("u-nome").textContent=s.nome||s.login; const tb=document.getElementById("u-tipo"); tb.textContent=s.tipo; tb.className="badge"+(s.tipo==="ADM"?" adm":""); }
 function renderCards(s){
   const vis=SISTEMAS.filter(x=>podeAcessar(s,x.chave)); const box=document.getElementById("cards");
-  box.innerHTML=vis.length?vis.map(x=>`<a class="sysbtn" href="${x.link}"><div class="ico">${x.ico}</div><div class="txt"><div class="nm">${esc(x.nome)}</div><div class="d">${esc(x.desc)}</div></div>${x.conta?`<div class="cnt"><b id="cnt-${x.chave}">·</b><span>aberto</span></div>`:``}</a>`).join(""):'<div class="vazio">Sem sistemas liberados. Fale com o ADM.</div>';
+  box.innerHTML=vis.length
+    ? vis.map(x=>`<a class="nav-btn" href="${x.link}">${esc(x.nome)}${x.conta?`<span class="cnt" id="cnt-${x.chave}">·</span>`:``}</a>`).join("")
+    : '<div class="vazio">Sem sistemas liberados. Fale com o ADM.</div>';
 }
 function card(lab,val,sub,cls){ return `<div class="kpi ${cls||''}"><div class="lab">${lab}</div><div class="val">${val}</div><div class="sub">${sub||''}</div></div>`; }
 
 async function boot(){
-  pintarUsuario(S); renderCards(S); // primeiro pinta com o que já tem em cache local, sem esperar rede
-  // atualiza tipo/acessos direto do servidor — sem isso, um acesso liberado agora
-  // no Notion só apareceria depois que a pessoa deslogasse e logasse de novo
-  S=await sincronizarSessao();
   pintarUsuario(S); renderCards(S);
-  // dispara tudo em paralelo (KPIs e contagem de atividades) — antes era sequencial e demorava mais
-  const [kpiR, atvR]=await Promise.all([ ler({action:"portal"},"portal"), ler({action:"atividades"},"atividades") ]);
-  pintarAtividades(atvR); pintarKpis(kpiR);
+  // dispara tudo em paralelo (login, KPIs e contagem de atividades) — antes era sequencial e demorava mais
+  // leitura estática (dist/) — mesmo motivo do site da RAS ser rápido
+  const [vd, atvR]=await Promise.all([ lerEstatico("vendas.json","vendas"), ler({action:"atividades"},"atividades") ]);
+  pintarAtividades(atvR); pintarKpis(calcularKpis(vd));
 }
 function pintarAtividades(r){ const el=document.getElementById("cnt-VENDAS"); if(el&&r&&r.ok)el.textContent=r.total; }
+/* KPIs calculados no navegador a partir do vendas.json publicado.
+   Antes vinham do Apps Script (endpoint "portal"), que lia o Notion ao vivo. */
+function calcularKpis(vd){
+  if(!vd || !vd.ok) return { ok:false, erro:(vd&&vd.erro)||"SEM_DADOS_PUBLICADOS" };
+  const ano=String(new Date().getFullYear());
+  const g=(o,n)=>getV(o,n);
+  const doAno=vd.vendas.filter(v=>String(g(v.valores,"DATA DA VENDA")||"").slice(0,4)===ano);
+  const vgv=doAno.reduce((s,v)=>s+(Number(g(v.valores,"VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)"))||0),0);
+  const meses=new Set(doAno.map(v=>String(g(v.valores,"DATA DA VENDA")).slice(0,7))).size||1;
+  const lotes=vd.vendas.filter(v=>{ const d=g(v.valores,"DATA DA COMPRA DO LOTE")||g(v.valores,"DATA AQUISIÇÃO LOTE");
+    return String(d||"").slice(0,4)===ano; }).length;
+  return { ok:true, ano:ano, offline:vd.offline, _ts:vd._ts,
+    vendaCasas:{ total:doAno.length, vgv:vgv, meses:meses, mediaMes:doAno.length/meses, ticket:doAno.length?vgv/doAno.length:0 },
+    inicioObras:{ iniciadas:0, meses:meses, mediaMes:0, meta:0, pct:0, indisponivel:true },
+    lotes:{ total:lotes } };
+}
 function pintarKpis(r){
   if(!r.ok){ document.getElementById("kpi-vendas").innerHTML=card("Indisponível","—",erroTexto(r.erro)); return; }
   const vc=r.vendaCasas, io=r.inicioObras, lo=r.lotes;
@@ -123,15 +134,16 @@ function pintarKpis(r){
     card("VGV (Contratos)",brl(vc.vgv),"soma dos contratos","verde")+
     card("Média/mês",(vc.mediaMes||0).toLocaleString("pt-BR",{maximumFractionDigits:1}),vc.meses+" meses")+
     card("Ticket Médio",brl(vc.ticket),"por casa");
-  document.getElementById("kpi-obras").innerHTML=
-    card("Casas Iniciadas",num(io.iniciadas),"morais + investidores","hero")+
-    card("Média/mês",(io.mediaMes||0).toLocaleString("pt-BR",{maximumFractionDigits:1}),io.meses+" meses")+
-    card("Meta "+r.ano,num(io.meta),"casas no ano")+
-    card("% da Meta",((io.pct||0)*100).toLocaleString("pt-BR",{maximumFractionDigits:0})+"%","iniciadas ÷ meta","verde");
+  document.getElementById("kpi-obras").innerHTML= io.indisponivel
+    ? card("Casas Iniciadas","—","precisa do secret DOCUMENTOS_DB_ID")
+    : card("Casas Iniciadas",num(io.iniciadas),"morais + investidores","hero")+
+      card("Média/mês",(io.mediaMes||0).toLocaleString("pt-BR",{maximumFractionDigits:1}),io.meses+" meses")+
+      card("Meta "+r.ano,num(io.meta),"casas no ano")+
+      card("% da Meta",((io.pct||0)*100).toLocaleString("pt-BR",{maximumFractionDigits:0})+"%","iniciadas ÷ meta","verde");
   document.getElementById("kpi-lotes").innerHTML=card("Lotes Comprados",num(lo.total),"morais + investidores","hero");
   const nota=document.getElementById("nota");
   if(r.offline){ nota.style.display="block"; nota.textContent="Sem internet — últimos dados salvos ("+new Date(r._ts).toLocaleString("pt-BR")+")."; } else nota.style.display="none";
-  document.getElementById("updated").textContent="Custos (ERP) entram na próxima etapa. Atualizado: "+new Date().toLocaleString("pt-BR");
+  document.getElementById("updated").textContent="Dados publicados em: "+(r._ts?new Date(r._ts).toLocaleString("pt-BR"):new Date().toLocaleString("pt-BR"));
 }
 window.aoSincronizar=async()=>{ pintarAtividades(await ler({action:"atividades"},"atividades")); };
 boot();
