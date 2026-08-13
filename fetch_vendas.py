@@ -340,21 +340,30 @@ def main():
         c = d.get("cota_empresa")
         return 1.0 if c is None else float(c)
 
+    def trimestre_de(data_str):
+        """Trimestre FIXO do calendário (Jan-Mar=1, Abr-Jun=2, Jul-Set=3, Out-Dez=4).
+        Pedido item 6 (rodada 2): 'dividindo o ano em 4 trimestres fixos' — não é
+        janela móvel (isso era do CONTROLES-INTERNOS, sistema diferente)."""
+        mes = int(str(data_str)[5:7])
+        return (mes - 1) // 3 + 1
+
     # Casas Vendidas (ano vigente) — não mudou de lógica, só reescrito em Python
-    casas_vend, vgv, meses_v = 0, 0.0, set()
+    casas_vend, vgv, meses_v, trimestres_v = 0, 0.0, set(), set()
     for v in vendas:
         val = v["valores"]
         dv = getV_py(val, "DATA DA VENDA")
         if dv and str(dv)[:4] == str(ano_atual):
             casas_vend += 1
             meses_v.add(str(dv)[:7])
+            trimestres_v.add(trimestre_de(dv))
             vlr = getV_py(val, "VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)")
             if isinstance(vlr, (int, float)):
                 vgv += vlr
     n_meses_v = len(meses_v) or 1
+    n_trim_v = len(trimestres_v) or 1
 
     # Início de Obras — CORREÇÃO item 2: soma n_casas, não conta lotes
-    casas_inic_m, casas_inic_i, meses_o = 0.0, 0.0, set()
+    casas_inic_m, casas_inic_i, meses_o, trimestres_o = 0.0, 0.0, set(), set()
     for d in docs_full:
         oi = norm(d.get("obra_iniciada") or "")
         di = d.get("data_inicio_obra")
@@ -364,8 +373,10 @@ def main():
             casas_inic_m += n * cm
             casas_inic_i += n * (1 - cm)
             meses_o.add(str(di)[:7])
+            trimestres_o.add(trimestre_de(di))
     casas_inic_total = casas_inic_m + casas_inic_i
     n_meses_o = len(meses_o) or 1
+    n_trim_o = len(trimestres_o) or 1
     meta_casas = metas_por_ano.get(ano_atual)
 
     # Lotes Comprados — mantém a contagem por LOTE (não por casa, isso já
@@ -387,6 +398,7 @@ def main():
         "vendaCasas": {
             "total": casas_vend, "vgv": vgv,
             "mediaMes": casas_vend / n_meses_v, "meses": n_meses_v,
+            "mediaTrimestre": casas_vend / n_trim_v, "trimestres": n_trim_v,
             "ticket": (vgv / casas_vend) if casas_vend else 0,
         },
         "inicioObras": {
@@ -394,6 +406,7 @@ def main():
             "iniciadasMorais": round(casas_inic_m, 2),
             "iniciadasInvestidores": round(casas_inic_i, 2),
             "mediaMes": casas_inic_total / n_meses_o, "meses": n_meses_o,
+            "mediaTrimestre": casas_inic_total / n_trim_o, "trimestres": n_trim_o,
             "meta": meta_casas,
             "pct": (casas_inic_total / meta_casas) if meta_casas else None,
         },

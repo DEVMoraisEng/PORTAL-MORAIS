@@ -72,6 +72,7 @@ main{padding:24px 20px 70px}
 .atv .nm{font-weight:600;flex:1;min-width:210px;font-size:13.5px}
 .atv .dt{font-size:11.5px;color:var(--text3)}
 .atv .bx{display:flex;align-items:center;gap:7px}
+.atv .bxlab{font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;letter-spacing:.3px}
 select,input[type=text],input[type=number],input[type=date],input[type=url],input[type=email],input[type=tel]{
   border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;background:#fff;max-width:100%;color:var(--text)}
 select:focus,input:focus{outline:none;border-color:var(--verde);box-shadow:0 0 0 3px rgba(76,217,100,.2)}
@@ -85,6 +86,11 @@ select:focus,input:focus{outline:none;border-color:var(--verde);box-shadow:0 0 0
 .al{background:#fff;border:1px solid var(--border2);border-left:4px solid var(--orange);border-radius:10px;padding:11px 14px;margin-bottom:9px;display:flex;justify-content:space-between;align-items:center;gap:12px}
 .al .end{font-weight:700;font-size:13.5px;color:var(--azul)}.al .txt{color:#B45309;font-size:12.5px}
 .al .end:hover{text-decoration:underline;cursor:pointer}
+/* item 4 (rodada 2): alertas em 3 colunas — Endereço / Alerta / campo pra preencher ali mesmo */
+.al3{display:grid;grid-template-columns:minmax(140px,1fr) minmax(180px,1.6fr) minmax(160px,1fr);align-items:center;gap:14px}
+.al-cab{background:transparent;border:0;box-shadow:none;padding:0 14px;margin-bottom:6px;color:var(--text3);font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px}
+.al3 .preench{display:flex;align-items:center}
+.campo-inline select,.campo-inline input{width:100%;max-width:220px}
 
 /* filtros + informativo */
 .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
@@ -158,6 +164,13 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
 .campo{padding:0 22px;margin-bottom:13px}
 .campo label{display:block;font-size:11px;font-weight:700;color:var(--text3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px}
 .campo input,.campo select{width:100%}
+/* checkboxes de multi_select (ex.: Análise de Reparos) — item "marcadores bugados":
+   cada opção numa célula de grid própria, com o checkbox sempre colado ao texto
+   mesmo quando o rótulo é longo e quebra linha. */
+.msgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 14px;margin-top:2px}
+.mschk{display:flex;align-items:flex-start;gap:7px;font-weight:500;font-size:12.5px;color:var(--text);cursor:pointer;line-height:1.3}
+.mschk input{flex:none;margin-top:2px;accent-color:var(--verde)}
+.mschk span{flex:1}
 .ro{padding:9px 11px;background:#eef3f5;border-radius:8px;color:var(--text3);font-size:13px}
 .arq{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;padding:6px 22px;border-bottom:1px dashed var(--border2)}
 .arq a{color:var(--azul);font-weight:600}
@@ -240,7 +253,7 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
       <div class="tabs-outer"><div class="tabs">
         <button class="tab on" data-t="atividades" onclick="abaSetor('atividades')">Atividades</button>
         <button class="tab" data-t="alertas" onclick="abaSetor('alertas')">Alertas</button>
-        <button class="tab" data-t="atrasados" onclick="abaSetor('atrasados')">Atrasados</button>
+        <button class="tab" data-t="atrasados" onclick="abaSetor('atrasados')">Situação do Processo</button>
         <button class="tab" data-t="planilha" onclick="abaSetor('planilha')">Planilha</button>
       </div></div>
 
@@ -253,9 +266,11 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
         <div id="al-lista"><div class="vazio">Carregando…</div></div>
       </div>
 
-      <!-- item 8: processos em atraso (>45 dias), separado dos alertas gerais -->
+      <!-- item 1 (rodada 2): renomeado "Atrasados" -> "Situação do Processo" e passou
+           a incluir também ⏳ (sit1, >20 dias) — antes só mostrava sit2/sit3 e por isso
+           parecia "não mostrar todos" comparado à Planilha com os 3 filtros marcados -->
       <div id="st-atrasados" style="display:none">
-        <div id="at-lista"><div class="vazio">Abra a Planilha uma vez pra carregar os atrasados.</div></div>
+        <div id="at-lista"><div class="vazio">Abra a Planilha uma vez pra carregar a situação do processo.</div></div>
       </div>
 
       <div id="st-planilha" style="display:none">
@@ -383,19 +398,40 @@ async function boot(){
   const tarefas=[ lerEstatico("schema.json","schema"), carregarDocumentos(), ler({action:"atividades"},"atividades") ];
   const [sc,,atvR]=await Promise.all(tarefas); // schema + documentos + atividades em paralelo
   if(sc.ok){ SCHEMA=sc.campos; SCAMPO={}; SCHEMA.forEach(c=>SCAMPO[c.nome]=c); mostrarOffline(sc); }
-  if(atvR&&atvR.ok){ ATIV_ALL=atvR.atividades; atualizarBadgesSetores(); }
+  if(atvR&&atvR.ok) ATIV_ALL=atvR.atividades;
   montarSetorSelects();
-  carregarPlanilha("hub");
+  // item 5/7 (rodada 2): espera a Planilha carregar ANTES de calcular os badges/contagens
+  // de atividades, porque agora elas cruzam com o valor real da obra (vendaPorId) —
+  // sem isso o primeiro cálculo caía sempre no "sem como conferir" (mantém tudo).
+  await carregarPlanilha("hub");
+  atualizarBadgesSetores();
 }
 /* item 7: cada atividade só conta pro setor cujo "responsavel" bate com o
    RESPONSÁVEL da atividade (ver SETORES_AREA). Setor sem "responsavel"
    definido mostra tudo (comportamento antigo), até informar o valor certo. */
+/* vendaPorId: acha o registro completo da obra a partir do id (DADOS.hub tem
+   sempre tudo, já que carregarPlanilha("hub") roda cedo no boot()). */
+function vendaPorId(id){
+  if(!id) return null;
+  return DADOS.hub.find(v=>v.id===id) || DADOS.set.find(v=>v.id===id) || null;
+}
+/* item 5/7 (rodada 2): "em aberto" passa a exigir que o campo real da obra (a.coluna)
+   ainda não esteja SIM — antes contava só pelo ATIVIDADE FINALIZADA do Notion, que
+   inflava a contagem (as "100 atividades") e fazia o dropdown sempre nascer em "SIM",
+   dando a impressão de que já estava tudo feito. Regra pedida: "em aberto são apenas
+   as que estão como não no serviço que deveria ter sido executado". */
+function atividadeRealmenteAberta(a){
+  if(!a.coluna || !a.obraId) return true; // sem como conferir contra a obra, mantém como veio do servidor
+  const vd=vendaPorId(a.obraId); if(!vd) return true; // planilha ainda não carregou — não filtra por engano
+  const c=campoPorNome(a.coluna); if(!c) return true;
+  return normNome(getV(vd.valores,c.nome))!=="SIM";
+}
 function atividadesDoSetor(nome){
   const info=SETORES_AREA.find(s=>s.nome===nome);
   const alvo=info&&info.responsavel;
-  if(!alvo) return ATIV_ALL;
-  const alvoN=normNome(alvo);
-  return ATIV_ALL.filter(a=>(a.responsavel||[]).some(n=>normNome(n)===alvoN));
+  const alvoN=alvo?normNome(alvo):null;
+  const base = alvoN ? ATIV_ALL.filter(a=>(a.responsavel||[]).some(n=>normNome(n)===alvoN)) : ATIV_ALL;
+  return base.filter(atividadeRealmenteAberta);
 }
 function atualizarBadgesSetores(){
   SETORES_AREA.forEach((s,i)=>{ const el=document.getElementById("scnt-"+i); if(el) el.textContent=atividadesDoSetor(s.nome).length; });
@@ -462,11 +498,15 @@ async function carregarAtividades(){
   box.innerHTML="";
   ATIV.forEach(a=>{
     const c=a.coluna?campoPorNome(a.coluna):null; const ops=(c&&c.opcoes)?c.opcoes:["SIM","NÃO"];
+    // item 5 (rodada 2): pré-seleciona o valor REAL atual da obra (quando dá pra saber),
+    // em vez de sempre nascer em "SIM" — isso confundia, parecia que já estava tudo feito.
+    const vd=a.obraId?vendaPorId(a.obraId):null;
+    const atual=(vd&&c)?getV(vd.valores,c.nome):null;
     const d=document.createElement("div"); d.className="atv";
     d.innerHTML=`<span class="tipo">${esc(a.tipo||"—")}</span>
       <span class="nm">${esc(a.nome||"(sem nome)")}</span>
       <span class="dt">prazo: ${fmt(a.dataFinal)}</span>
-      <span class="bx"><select>${ops.map(o=>`<option${o==="SIM"?" selected":""}>${esc(o)}</option>`).join("")}</select><button class="bt">Dar baixa</button></span>`;
+      <span class="bx"><span class="bxlab">Marcar como</span><select>${ops.map(o=>`<option${(atual!=null?o===atual:o==="SIM")?" selected":""}>${esc(o)}</option>`).join("")}</select><button class="bt">Dar baixa</button></span>`;
     const sel=d.querySelector("select"), btn=d.querySelector("button");
     if(!a.obraId){ btn.disabled=true; btn.textContent="Sem obra"; sel.disabled=true; }
     btn.onclick=()=>darBaixa(a,sel.value,d,btn);
@@ -515,23 +555,57 @@ function renderAlertas(){
   const alertaCampos = camposAlertaDoSetor(SETOR_ATUAL);
   const linhas=[];
   dados.forEach(v=>{
-    alertaCampos.forEach(c=>{ const val=getV(v.valores,c.nome); if(val && val!=="-" && /PREENCHER|⚠️/.test(String(val))) linhas.push({id:v.id, end:getV(v.valores,"ENDEREÇO")||"(sem endereço)", txt:String(val)}); });
+    alertaCampos.forEach(c=>{ const val=getV(v.valores,c.nome); if(val && val!=="-" && /PREENCHER|⚠️/.test(String(val))) linhas.push({v, end:getV(v.valores,"ENDEREÇO")||"(sem endereço)", txt:String(val)}); });
   });
   if(!linhas.length){ box.innerHTML='<div class="vazio">Nenhum alerta pendente. 🎉</div>'; return; }
-  box.innerHTML=linhas.map(l=>`<div class="al"><span class="end" onclick='abrirObra(${JSON.stringify(l.id)})'>${esc(l.end)}</span><span class="txt">${esc(l.txt)}</span></div>`).join("");
+  // item 4 (rodada 2): 3 colunas — Endereço / Alerta / Campo de preenchimento (editável ali mesmo,
+  // sem precisar abrir a obra). O campo-alvo é descoberto pelo próprio texto do alerta
+  // (ex.: "PREENCHER VALIDADE" -> coluna que contenha "VALIDADE").
+  box.innerHTML = '<div class="al al3 al-cab"><span>Endereço</span><span>Alerta</span><span>Preencher</span></div>' +
+    linhas.map(l=>{
+      const alvo=campoAlvoDoAlerta(l.txt);
+      const preench = alvo
+        ? `<span class="campo-inline">${inputControl(alvo, getV(l.v.valores,alvo.nome), l.v.id)}</span>`
+        : `<button type="button" class="bt ghost bt-mini" onclick='abrirObra(${JSON.stringify(l.v.id)})'>Abrir obra</button>`;
+      return `<div class="al al3"><span class="end" onclick='abrirObra(${JSON.stringify(l.v.id)})'>${esc(l.end)}</span><span class="txt">${esc(l.txt)}</span><span class="preench">${preench}</span></div>`;
+    }).join("");
+}
+/* acha a coluna que o alerta está pedindo pra preencher, a partir do próprio texto dele
+   (ex.: "PREENCHER VALIDADE" -> coluna "VALIDADE"). 3 tentativas, da mais certeira à mais
+   tolerante; se nenhuma bater com confiança, devolve null e a linha cai no botão "Abrir obra". */
+function campoAlvoDoAlerta(textoAlerta){
+  let t=normNome(textoAlerta).replace(/^PREENCHER\s+/,"").replace(/[⚠️🚨🔴]/g,"").trim();
+  if(!t) return null;
+  let c=SCHEMA.find(x=>x.editavel && normNome(x.nome).indexOf(t)>=0);
+  if(c) return c;
+  c=SCHEMA.find(x=>x.editavel && normNome(x.nome).length>3 && t.indexOf(normNome(x.nome))>=0);
+  if(c) return c;
+  const palavrasAlerta=new Set(t.split(" ").filter(w=>w.length>2));
+  let melhor=null, melhorScore=0;
+  SCHEMA.forEach(x=>{
+    if(!x.editavel) return;
+    const score=normNome(x.nome).split(" ").filter(w=>w.length>2 && palavrasAlerta.has(w)).length;
+    if(score>melhorScore){ melhorScore=score; melhor=x; }
+  });
+  return melhorScore>=2 ? melhor : null;
 }
 
-/* ---------- ATRASADOS (item 8: destaque separado, >45 dias) ---------- */
+/* ---------- SITUAÇÃO DO PROCESSO (ex-"Atrasados") ----------
+   item 1 (rodada 2): agora inclui as 3 severidades (sit1/sit2/sit3), não só >45 dias —
+   por isso antes parecia "não mostrar todos" comparado à Planilha filtrada pelas 3 chips. */
 function renderAtrasados(){
   const box=document.getElementById("at-lista");
   const dados = DADOS.set.length?DADOS.set:DADOS.hub;
-  if(!dados.length){ box.innerHTML='<div class="vazio">Abra a Planilha uma vez para carregar os atrasados.</div>'; return; }
-  const linhas=dados.map(v=>({v, prazo:corSituacao(v.valores)})).filter(x=>x.prazo==="sit2"||x.prazo==="sit3");
-  if(!linhas.length){ box.innerHTML='<div class="vazio">Nenhum processo em atraso. 🎉</div>'; return; }
-  box.innerHTML=linhas.map(({v,prazo})=>{
-    const txt = prazo==="sit3" ? "🚨 Tempo corrido > 45 dias e não recebeu" : "⚠️ Tempo corrido > 45 dias";
-    return `<div class="al" style="border-left-color:${prazo==="sit3"?"#c0392b":"#E67E22"}"><span class="end" onclick='abrirObra(${JSON.stringify(v.id)})'>${esc(getV(v.valores,"ENDEREÇO")||"(sem endereço)")}</span><span class="txt">${txt}</span></div>`;
-  }).join("");
+  if(!dados.length){ box.innerHTML='<div class="vazio">Abra a Planilha uma vez para carregar a situação do processo.</div>'; return; }
+  const ORDEM={sit3:0, sit2:1, sit1:2}; // mais urgente primeiro
+  const COR={sit1:"#E8CE5A", sit2:"#E67E22", sit3:"#c0392b"};
+  const TXT={sit1:"⏳ Tempo corrido > 20 dias", sit2:"⚠️ Tempo corrido > 45 dias", sit3:"🚨 Tempo corrido > 45 dias e não recebeu"};
+  const linhas=dados.map(v=>({v, prazo:corSituacao(v.valores)})).filter(x=>ORDEM[x.prazo]!==undefined);
+  linhas.sort((a,b)=>ORDEM[a.prazo]-ORDEM[b.prazo]);
+  if(!linhas.length){ box.innerHTML='<div class="vazio">Nenhum processo com pendência de prazo. 🎉</div>'; return; }
+  box.innerHTML=linhas.map(({v,prazo})=>
+    `<div class="al" style="border-left-color:${COR[prazo]}"><span class="end" onclick='abrirObra(${JSON.stringify(v.id)})'>${esc(getV(v.valores,"ENDEREÇO")||"(sem endereço)")}</span><span class="txt">${TXT[prazo]}</span></div>`
+  ).join("");
 }
 
 /* ---------- PLANILHA (todas as colunas, rolagem em cima e embaixo) ---------- */
@@ -636,13 +710,21 @@ function renderTabela(ctx){
   renumerarTabela(ctx);
 }
 /* item 6: numera só as linhas VISÍVEIS (respeita os filtros aplicados, inclusive
-   o de ano) e só as vendidas, na ordem da DATA DA VENDA (mais antiga = 1) */
+   o de ano) e só as vendidas, na ordem da DATA DA VENDA (mais antiga = 1).
+   item 3 (rodada 2): antes só rotulava, mas não reordenava — a tabela ficava
+   com "-" misturado antes dos números. Agora reordena o DOM de verdade,
+   numeradas em ordem crescente primeiro, "-" (não vendidas) depois. */
 function renumerarTabela(ctx){
-  const linhas=[...document.querySelectorAll("#"+ctx+"-wrap tbody tr")]
-    .filter(tr=>tr.style.display!=="none" && tr.dataset.dv);
-  linhas.sort((a,b)=>a.dataset.dv.localeCompare(b.dataset.dv));
-  document.querySelectorAll("#"+ctx+"-wrap tbody tr .numcol").forEach(td=>td.textContent="—");
-  linhas.forEach((tr,i)=>{ tr.querySelector(".numcol").textContent=i+1; });
+  const tbody=document.querySelector("#"+ctx+"-wrap tbody"); if(!tbody) return;
+  const todas=[...tbody.querySelectorAll("tr")];
+  const visiveis=todas.filter(tr=>tr.style.display!=="none" && tr.dataset.dv);
+  visiveis.sort((a,b)=>a.dataset.dv.localeCompare(b.dataset.dv));
+  todas.forEach(td=>{ const c=td.querySelector(".numcol"); if(c) c.textContent="—"; });
+  visiveis.forEach((tr,i)=>{ tr.querySelector(".numcol").textContent=i+1; });
+  // reordena o DOM: numeradas em ordem crescente primeiro, resto (sem número) mantém a ordem que já tinha
+  const numeradas=new Set(visiveis);
+  const resto=todas.filter(tr=>!numeradas.has(tr));
+  [...visiveis, ...resto].forEach(tr=>tbody.appendChild(tr));
 }
 
 /* clique na tabela: abre a obra (coluna de endereço) ou edita a célula */
@@ -793,7 +875,8 @@ function inputControl(c,valor,pageId){
     if(ehSimNao(c.opcoes)) return toggleSimNao(c,valor,pageId);
     return `<select ${on}><option value=""></option>${(c.opcoes||[]).map(o=>`<option${o===valor?" selected":""}>${esc(o)}</option>`).join("")}</select>`;
   }
-  if(c.tipo==="multi_select"){ const arr=Array.isArray(valor)?valor:[]; return (c.opcoes||[]).map(o=>`<label style="display:inline-flex;gap:5px;margin:0 12px 6px 0;font-weight:500;font-size:12.5px;text-transform:none;color:var(--text)"><input type="checkbox" ${arr.indexOf(o)>=0?"checked":""} onchange='editarMulti(${JSON.stringify(pageId)},${JSON.stringify(c.nome)},this)'> ${esc(o)}</label>`).join(""); }
+  if(c.tipo==="multi_select"){ const arr=Array.isArray(valor)?valor:[];
+    return `<div class="msgrid">`+(c.opcoes||[]).map(o=>`<label class="mschk"><input type="checkbox" ${arr.indexOf(o)>=0?"checked":""} onchange='editarMulti(${JSON.stringify(pageId)},${JSON.stringify(c.nome)},this)'><span>${esc(o)}</span></label>`).join("")+`</div>`; }
   if(c.tipo==="date") return `<input type="date" value="${valor?String(valor).slice(0,10):""}" ${on}>`;
   if(c.tipo==="number") return `<input type="number" value="${valor==null?"":valor}" ${on}>`;
   if(c.tipo==="checkbox") return `<input type="checkbox" ${valor?"checked":""} onchange='editar(${JSON.stringify(pageId)},${JSON.stringify(c.nome)},"checkbox",this.checked,this)'>`;
@@ -842,12 +925,20 @@ function renderPainel(V,pageId){
   const chips=[]; SCHEMA.filter(c=>c.tipo==="formula").forEach(c=>{ const val=getV(V,c.nome); if(val==null||val===""||val==="-")return; const s=String(val); const al=/PREENCHER|⚠️|🔴|🚨/.test(s)||/^ALERTA|^ELERTA/.test(c.nome); chips.push(`<span class="chip${al?" alerta":""}">${esc(s)}</span>`); });
   if(chips.length) html+=`<div class="chips">${chips.join("")}</div>`;
 
-  // campos editáveis, na ordem pedida — com um subtítulo especial quando entra no bloco de reparos/vistoria (item 3)
+  // campos editáveis, na ordem pedida — com um subtítulo especial quando entra no bloco de reparos/vistoria
+  // item 2 (rodada 2): o subtítulo "Reparos e Vistoria" não desligava mais depois de ligado — REF, CIDADE,
+  // SETOR e outros campos sem nada a ver ficavam presos ali embaixo dele (bug real, visto no print).
+  // Agora ele liga só nos campos do bloco de reparo e desliga assim que sai desse bloco.
   html+=`<div class="grp">Preenchimento</div>`;
   let entrouReparo=false;
+  const BLOCO_REPARO=/REPARO|ANEXAR AQUIVO|ANEXAR ARQUIVO|TITULARIDADES/;
   ordemFormulario().forEach(nome=>{
     const c=campoPorNome(nome); if(!c) return;
-    if(!entrouReparo && /REPARO/.test(normNome(nome))){ html+=`<div class="grp sub">Reparos e Vistoria</div>`; entrouReparo=true; }
+    if(BLOCO_REPARO.test(normNome(nome))){
+      if(!entrouReparo){ html+=`<div class="grp sub">Reparos e Vistoria</div>`; entrouReparo=true; }
+    } else if(entrouReparo){
+      html+=`<div class="grp">Preenchimento</div>`; entrouReparo=false; // volta ao normal — nada mais herda o subtítulo por engano
+    }
     html+=campoHtml(c,getV(V,nome),pageId);
   });
 
@@ -876,7 +967,7 @@ async function editar(pageId,prop,tipo,valor,el){
   toast(r.ok?(r.enfileirado?"Na fila ✓":"Salvo ✓"):("Erro: "+r.erro));
 }
 async function editarMulti(pageId,prop,el){
-  const box=el.closest(".campo"); const marc=[...box.querySelectorAll("input[type=checkbox]:checked")].map(i=>i.parentNode.textContent.trim());
+  const box=el.closest(".campo,.campo-inline"); const marc=[...box.querySelectorAll("input[type=checkbox]:checked")].map(i=>i.parentNode.textContent.trim());
   const r=await escrever({action:"updateVenda",pageId:pageId,prop:prop,tipo:"multi_select",valor:marc},"Editar "+prop);
   toast(r.ok?(r.enfileirado?"Na fila ✓":"Salvo ✓"):("Erro: "+r.erro));
 }
