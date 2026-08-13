@@ -267,6 +267,7 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
         <button class="tab" data-t="alertas" onclick="abaSetor('alertas')">Alertas</button>
         <button class="tab" data-t="atrasados" onclick="abaSetor('atrasados')">Situação do Processo</button>
         <button class="tab" data-t="planilha" onclick="abaSetor('planilha')">Planilha</button>
+        <button class="tab" data-t="modelo" onclick="abaSetor('modelo')">Casas Modelo</button>
       </div></div>
 
       <div id="st-atividades">
@@ -303,6 +304,15 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
         <div class="legenda" id="set-legenda"></div>
         <div class="scroll-top" id="set-stop"><div></div></div>
         <div class="tabela-wrap" id="set-wrap"><div class="vazio">Carregando…</div></div>
+      </div>
+
+      <!-- CASAS MODELO: só as obras com MODELO? = SIM -->
+      <div id="st-modelo" style="display:none">
+        <div class="toolbar">
+          <input class="busca" id="mod-busca" placeholder="Buscar por endereço…" oninput="renderCasasModelo()">
+          <span class="count" id="mod-count"></span>
+        </div>
+        <div class="tabela-wrap" id="mod-wrap"><div class="vazio">Carregando…</div></div>
       </div>
     </section>
   </main>
@@ -359,7 +369,26 @@ function fmt(d){ if(!d)return "—"; const p=String(d).slice(0,10).split("-"); r
 /* ---------- normalização / ordem custom dos campos do Notion ---------- */
 function normNome(s){ return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/\s+/g," ").trim(); }
 const CAMPOS_EXCLUIDOS=["ARQUIVOS E MIDIA"]; // excluído no Notion (item 6 do pedido)
-function nomeExcluido(nome){ const n=normNome(nome); if(CAMPOS_EXCLUIDOS.indexOf(n)>=0) return true; return /\bAUTO\b|ALERTA|ELERTA/.test(n); } // item 9: nada com AUTO/ALERTA entra na planilha/obra
+
+/* Colunas que somem só em DETERMINADO setor — o dado continua no registro (os
+   filtros de cidade/setor/casa seguem funcionando), só não aparece na planilha
+   nem no painel daquele setor.
+   São FRAGMENTOS do nome, normalizados. Para reverter qualquer item, basta
+   apagar a linha correspondente. */
+const CAMPOS_OCULTOS_SETOR={
+  "Secretária de Vendas":[
+    "REF", "CIDADE", "SETOR", "CASA",
+    // "arquivo de reparos": os anexos e campos do bloco de reparo/vistoria
+    "ANEXAR AQUIVO", "ANEXAR ARQUIVO", "REPARO"
+  ]
+};
+function ocultoNoSetor(nome){
+  const lista=CAMPOS_OCULTOS_SETOR[SETOR_ATUAL]; if(!lista) return false;
+  const n=normNome(nome);
+  // palavra inteira: "CASA" não pode derrubar "CASAS COMPORTADAS" nem "REF" derrubar "REFORMA"
+  return lista.some(f=>new RegExp("\\b"+normNome(f).replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\b").test(n));
+}
+function nomeExcluido(nome){ const n=normNome(nome); if(CAMPOS_EXCLUIDOS.indexOf(n)>=0) return true; if(ocultoNoSetor(nome)) return true; return /\bAUTO\b|ALERTA|ELERTA/.test(n); } // item 9: nada com AUTO/ALERTA entra na planilha/obra
 
 /* ordem pedida pelo usuário (item 5), como prefixos — casa com o nome real do campo
    assim que o schema chega do Notion, mesmo que aqui o texto esteja cortado igual ao print */
@@ -380,7 +409,12 @@ function ordenarPorPrefixo(campos){
   campos.forEach(c=>{ if(!usados.has(c.nome)){ usados.add(c.nome); out.push(c); } }); // sobras: rede de segurança, não perde nenhuma coluna
   return out;
 }
-function camposBase(){ return SCHEMA.filter(c=>c.tipo!=="rollup"&&c.tipo!=="relation"&&!nomeExcluido(c.nome)&&c.nome!=="ENDEREÇO"&&RESUMO.indexOf(c.nome)<0); }
+/* BUG do "CLIENTES e CPF repetidos": no Notion as colunas chamam "CLIENTES " e
+   "CPF " — com espaço no fim. RESUMO.indexOf(c.nome) comparava string crua e não
+   achava, então o campo entrava DE NOVO na lista geral, além do bloco de resumo.
+   Comparar normalizado resolve para qualquer coluna com espaço/acento sobrando. */
+const RESUMO_NORM=RESUMO.map(normNome);
+function camposBase(){ return SCHEMA.filter(c=>c.tipo!=="rollup"&&c.tipo!=="relation"&&!nomeExcluido(c.nome)&&c.nome!=="ENDEREÇO"&&RESUMO_NORM.indexOf(normNome(c.nome))<0); }
 function ordemColunas(){ return ["ENDEREÇO",...RESUMO,...ordenarPorPrefixo(camposBase()).map(c=>c.nome)]; }
 function ordemFormulario(){ return ordenarPorPrefixo(camposBase().filter(c=>c.editavel && c.tipo!=="files")).map(c=>c.nome); }
 function campoPorFragmento(frag){ const alvo=normNome(frag); return SCHEMA.find(c=>normNome(c.nome).indexOf(alvo)>=0)||null; }
@@ -495,10 +529,68 @@ function abrirSetor(nome){
 }
 function abaSetor(t){
   document.querySelectorAll("#view-setor .tab").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
-  ["atividades","alertas","atrasados","planilha"].forEach(x=>document.getElementById("st-"+x).style.display = x===t?"block":"none");
+  ["atividades","alertas","atrasados","planilha","modelo"].forEach(x=>document.getElementById("st-"+x).style.display = x===t?"block":"none");
   if(t==="planilha" && !DADOS.set.length) carregarPlanilha("set");
   if(t==="alertas") renderAlertas();
   if(t==="atrasados") renderAtrasados();
+  if(t==="modelo") abrirCasasModelo();
+}
+
+/* ---------- CASAS MODELO ---------- */
+/* Página própria dentro do setor: lista só as obras com MODELO? = SIM, com as
+   colunas pedidas. Independente do CAMPOS_OCULTOS_SETOR — aqui CASA é uma das
+   colunas solicitadas, mesmo estando escondida na Planilha deste setor. */
+const COLS_MODELO=["ENDEREÇO","CASA","MODELO","TIPO","LOCALIZACAO","LAYOUT","FOTOS"];
+/* Nome exato ganha do fragmento: "CASA" tem que achar a coluna CASA, não
+   "CASAS COMPORTADAS"; "TIPO" não pode cair em "TIPO DE PAGAMENTO". */
+function campoExatoOuFrag(f){
+  const alvo=normNome(f);
+  return SCHEMA.find(c=>normNome(c.nome)===alvo) || campoPorFragmento(f);
+}
+function ehModelo(valores){
+  const c=campoExatoOuFrag("MODELO"); if(!c) return false;
+  const v=getV(valores,c.nome);
+  if(v===true) return true;                       // checkbox
+  return normNome(v)==="SIM";                     // select/status
+}
+async function abrirCasasModelo(){
+  // reaproveita o vendas.json que a Planilha já usa — sem ida extra à rede
+  // hub primeiro: é a base sem filtro. DADOS.set pode estar restrito ao setor
+  // escolhido na Planilha, e aí sumiriam casas modelo de outros setores.
+  if(!DADOS.hub.length && !DADOS.set.length){ await carregarPlanilha("set"); }
+  renderCasasModelo();
+}
+function renderCasasModelo(){
+  const wrap=document.getElementById("mod-wrap");
+  const cols=COLS_MODELO.map(campoExatoOuFrag).filter(Boolean);
+  if(!cols.length){ wrap.innerHTML='<div class="vazio">Schema ainda não carregado.</div>'; return; }
+  const busca=(document.getElementById("mod-busca").value||"").toLowerCase();
+  const base=(DADOS.hub.length?DADOS.hub:DADOS.set).filter(v=>ehModelo(v.valores));
+  const lista=busca
+    ? base.filter(v=>String(getV(v.valores,"ENDEREÇO")||"").toLowerCase().indexOf(busca)>=0)
+    : base;
+  document.getElementById("mod-count").textContent=lista.length+" casa(s) modelo";
+  if(!lista.length){
+    wrap.innerHTML=`<div class="vazio">Nenhuma casa com MODELO? = SIM${busca?" para esta busca":""}.</div>`;
+    return;
+  }
+  let html='<table><thead><tr>'+cols.map((c,i)=>`<th class="${i===0?"stick":""}">${esc(c.nome.trim())}</th>`).join("")+'</tr></thead><tbody>';
+  lista.forEach(v=>{
+    html+=`<tr data-id="${esc(v.id)}">`+cols.map((c,i)=>{
+      if(i===0) return `<td class="stick"><span class="obralink" data-obra="${esc(v.id)}">${esc(getV(v.valores,c.nome)||"(sem endereço)")}</span></td>`;
+      // anexo (LAYOUT / FOTOS): o arquivo não vem no dist/ público — mostra a
+      // contagem publicada e abre a obra pra ver, que aí passa pelo Apps Script
+      if(c.tipo==="files" || c.sensivel){
+        const r=sensDe(v,c);
+        if(typeof r==="number") return `<td><button type="button" class="bt ghost bt-mini" onclick='abrirObra(${JSON.stringify(v.id)})'>👁 ${r} arq.</button></td>`;
+        if(r===undefined) return `<td class="sens vazia"></td>`;
+        return `<td class="sens">•••</td>`;
+      }
+      return celulaHtml(c,getV(v.valores,c.nome),v);
+    }).join("")+'</tr>';
+  });
+  wrap.innerHTML=html+'</tbody></table>';
+  wrap.querySelectorAll(".obralink").forEach(el=>el.onclick=()=>abrirObra(el.dataset.obra));
 }
 
 /* ---------- ATIVIDADES ---------- */

@@ -159,6 +159,33 @@ coluna `CLIENTES` oculta — o site pergunta "tem cliente?", não "quem é".
 
 ---
 
+## 2d. Ajustes por setor e página "Casas Modelo"
+
+**Colunas escondidas em "Secretária de Vendas"** — lista `CAMPOS_OCULTOS_SETOR`
+no `vendas.html`: `REF`, `CIDADE`, `SETOR`, `CASA` e o bloco de reparo
+(`ANEXAR AQUIVO`, `ANEXAR ARQUIVO`, `REPARO`). O dado continua no registro — os
+filtros de cidade/setor/casa seguem funcionando —, só não aparece na planilha
+nem no painel **desse** setor. Para reverter, apague a linha correspondente.
+A comparação é por palavra inteira: `CASA` não derruba `CASAS COMPORTADAS`, nem
+`REF` derruba `REFORMA`.
+
+**CLIENTES e CPF apareciam duas vezes** porque no Notion as colunas se chamam
+`"CLIENTES "` e `"CPF "`, com espaço no fim: a comparação com a lista `RESUMO`
+era por string crua e falhava, então o campo entrava no bloco de resumo **e** na
+lista geral. Agora compara normalizado — vale para qualquer coluna com espaço
+ou acento sobrando.
+
+**Aba "Casas Modelo"** — nova página dentro do setor. Mostra só as obras com
+`MODELO? = SIM` (aceita coluna do tipo select ou checkbox) e as colunas
+`ENDEREÇO, CASA, MODELO?, TIPO, LOCALIZAÇÃO, LAYOUT, FOTOS`. Usa o mesmo
+`vendas.json` já carregado — não faz requisição nova. `CASA` aparece aqui mesmo
+estando oculta na Planilha do setor, porque foi pedida nesta lista.
+
+`LAYOUT` e `FOTOS` são anexos: não vêm no `dist/` público. A célula mostra
+`👁 N arq.` e abre a obra, onde os arquivos chegam pelo Apps Script.
+
+---
+
 ## 3. O que o Apps Script ainda faz
 
 - `login` / `me` — autenticação e sessão
