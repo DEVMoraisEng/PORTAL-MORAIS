@@ -21,11 +21,15 @@ function fila(){ try{ return JSON.parse(localStorage.getItem(FILA)||"[]"); }catc
 function filaSet(a){ try{ localStorage.setItem(FILA, JSON.stringify(a)); }catch(e){ return false; } return true; }
 function enfileirar(item){ const a=fila(); a.push(item); const ok=filaSet(a); atualizarBadge(); return ok; }
 
-/* ---------- chamada crua ao backend (lança em erro de rede) ---------- */
-async function chamar(payload){
+/* ---------- chamada crua ao backend (lança em erro de rede ou timeout) ---------- */
+async function chamar(payload, timeoutMs){
   const s=sessao(); if(s&&s.token&&!payload.token) payload.token=s.token;
-  const r=await fetch(API,{ method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, body:JSON.stringify(payload) });
-  return await r.json();
+  const ctrl=new AbortController();
+  const timer=setTimeout(()=>ctrl.abort(), timeoutMs||25000); // evita "Carregando…" travado pra sempre
+  try{
+    const r=await fetch(API,{ method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, body:JSON.stringify(payload), signal:ctrl.signal });
+    return await r.json();
+  } finally { clearTimeout(timer); }
 }
 
 /* ---------- LEITURA com cache (online → salva cache; offline → usa cache) ---------- */
@@ -36,7 +40,9 @@ async function ler(payload, chaveCache){
     return Object.assign({ online:true }, r);
   }catch(e){
     if(chaveCache){ const c=cacheGet(chaveCache); if(c) return Object.assign({ online:false, offline:true, _ts:c.t }, c.v); }
-    return { online:false, ok:false, erro:"OFFLINE_SEM_CACHE" };
+    // distingue "sem internet de verdade" de "API não respondeu/erro/timeout" — ajuda a diagnosticar
+    const motivo = navigator.onLine ? (e && e.name==="AbortError" ? "TEMPO_ESGOTADO" : "ERRO_API") : "OFFLINE_SEM_CACHE";
+    return { online:false, ok:false, erro:motivo };
   }
 }
 
@@ -88,6 +94,15 @@ function atualizarStatus(){
 }
 window.addEventListener("online",  ()=>{ atualizarStatus(); sincronizar(); });
 window.addEventListener("offline", atualizarStatus);
+
+/* ---------- textos de erro amigáveis ---------- */
+const ERROS_TEXTO = {
+  OFFLINE_SEM_CACHE: "sem internet e sem dados salvos ainda",
+  ERRO_API: "não consegui falar com o servidor (confira se o Apps Script está publicado)",
+  TEMPO_ESGOTADO: "o servidor demorou demais pra responder — tente de novo",
+  NAO_AUTORIZADO: "sessão expirada"
+};
+function erroTexto(codigo){ return ERROS_TEXTO[codigo] || codigo || "erro desconhecido"; }
 
 /* ---------- utilidades ---------- */
 const brl = n => (Number(n)||0).toLocaleString("pt-BR",{ style:"currency", currency:"BRL", maximumFractionDigits:0 });

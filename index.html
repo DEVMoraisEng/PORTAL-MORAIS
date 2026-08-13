@@ -36,15 +36,17 @@ main{padding:26px 20px 60px}
 .sec .cond{font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--azul-esc)}
 .bloco{margin-bottom:22px}
 
-/* cards de sistema — verdes */
-.cards{display:flex;flex-direction:column;gap:13px}
-.scard{position:relative;display:flex;align-items:center;gap:14px;border:0;border-radius:14px;padding:16px 18px;text-decoration:none;cursor:pointer;color:#fff;
-  background:linear-gradient(135deg,var(--verde),var(--verde-esc));box-shadow:0 6px 18px rgba(42,157,92,.25);transition:transform .1s,box-shadow .15s}
-.scard:hover{transform:translateY(-2px);box-shadow:0 12px 26px rgba(42,157,92,.32)}
-.scard .ico{width:44px;height:44px;border-radius:11px;flex:none;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.2);color:#fff;font-family:'Barlow Condensed';font-weight:800;font-size:20px}
-.scard .txt{flex:1;min-width:0}.scard .nm{font-family:'Barlow Condensed';font-weight:800;font-size:17px;text-transform:uppercase;line-height:1}.scard .d{font-size:11.5px;opacity:.92;margin-top:2px}
-.scard .cnt{background:#fff;color:var(--verde-esc);min-width:28px;height:28px;border-radius:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;font-size:14px;padding:0 8px}
-.scard .cnt span{font-size:7.5px;text-transform:uppercase;letter-spacing:.3px;opacity:.8;font-weight:700;line-height:1}
+/* barra de sistemas — fundo azul, botões colados à esquerda */
+.sysbar{background:linear-gradient(165deg,var(--azul-esc),#12293a);border-radius:14px;padding:14px 10px;display:flex;flex-direction:column;gap:9px;box-shadow:0 6px 18px rgba(20,45,60,.25)}
+.sysbtn{position:relative;display:flex;align-items:center;gap:12px;border:1px solid rgba(255,255,255,.10);border-radius:10px;padding:13px 14px;text-decoration:none;cursor:pointer;color:#fff;background:rgba(255,255,255,.06);transition:background .15s,transform .1s;text-align:left;font:inherit;width:100%}
+.sysbtn:hover{background:rgba(255,255,255,.14);transform:translateX(2px)}
+.sysbtn .ico{width:36px;height:36px;border-radius:9px;flex:none;display:flex;align-items:center;justify-content:center;background:var(--verde-btn);color:#0c3f22;font-family:'Barlow Condensed';font-weight:800;font-size:16px}
+.sysbtn .txt{flex:1;min-width:0}
+.sysbtn .nm{font-family:'Barlow Condensed';font-weight:800;font-size:14.5px;text-transform:uppercase;letter-spacing:.3px;line-height:1.15}
+.sysbtn .d{font-size:10.5px;color:var(--teal);opacity:.9;margin-top:2px}
+.sysbtn .cnt{background:#fff;color:var(--verde-esc);min-width:26px;height:26px;border-radius:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;font-size:13px;padding:0 7px}
+.sysbtn .cnt span{font-size:7px;text-transform:uppercase;letter-spacing:.3px;opacity:.8;font-weight:700;line-height:1}
+.sysbar .vazio{background:transparent;border:1px dashed rgba(255,255,255,.28);color:rgba(255,255,255,.75)}
 .vazio{background:#fff;border:1px dashed var(--border);border-radius:12px;padding:20px;color:var(--text3);text-align:center;font-size:13px}
 
 /* KPIs — cartões emoldurados */
@@ -66,7 +68,7 @@ main{padding:26px 20px 60px}
 <body>
   <header>
     <div class="wrap hbar">
-      <span class="logo"><img src="img/logo.png" alt="Morais" onerror="this.parentNode.style.display='none'"></span>
+      <span class="logo"><img src="img/logo.png" alt="Morais" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-block'"><b class="logo-fallback" style="display:none;font-family:'Barlow Condensed';font-weight:800;font-size:18px;color:var(--azul-esc);padding:0 4px">MORAIS</b></span>
       <div><div class="htitle">Portal Central</div><div class="hsub">Morais Engenharia · Controle Interno</div></div>
       <div class="hspace"></div>
       <span class="net on" id="net-status">online</span>
@@ -79,7 +81,7 @@ main{padding:26px 20px 60px}
     <div class="grid">
       <section>
         <div class="sec"><span class="cond">Sistemas</span></div>
-        <div class="cards" id="cards"><div class="vazio"><span class="load"></span> Carregando…</div></div>
+        <div class="sysbar" id="cards"><div class="vazio"><span class="load"></span> Carregando…</div></div>
       </section>
       <section>
         <div class="bloco"><div class="sec"><span class="cond">Venda de Casas</span></div><div class="kpis" id="kpi-vendas"><div class="kpi"><div class="lab">Carregando</div><div class="val"><span class="load"></span></div></div></div></div>
@@ -98,19 +100,22 @@ const S=exigirSessao(); atualizarStatus();
 function pintarUsuario(s){ document.getElementById("u-nome").textContent=s.nome||s.login; const tb=document.getElementById("u-tipo"); tb.textContent=s.tipo; tb.className="badge"+(s.tipo==="ADM"?" adm":""); }
 function renderCards(s){
   const vis=SISTEMAS.filter(x=>podeAcessar(s,x.chave)); const box=document.getElementById("cards");
-  box.innerHTML=vis.length?vis.map(x=>`<a class="scard" href="${x.link}"><div class="ico">${x.ico}</div><div class="txt"><div class="nm">${esc(x.nome)}</div><div class="d">${esc(x.desc)}</div></div>${x.conta?`<div class="cnt"><b id="cnt-${x.chave}">·</b><span>aberto</span></div>`:``}</a>`).join(""):'<div class="vazio">Sem sistemas liberados. Fale com o ADM.</div>';
+  box.innerHTML=vis.length?vis.map(x=>`<a class="sysbtn" href="${x.link}"><div class="ico">${x.ico}</div><div class="txt"><div class="nm">${esc(x.nome)}</div><div class="d">${esc(x.desc)}</div></div>${x.conta?`<div class="cnt"><b id="cnt-${x.chave}">·</b><span>aberto</span></div>`:``}</a>`).join(""):'<div class="vazio">Sem sistemas liberados. Fale com o ADM.</div>';
 }
 function card(lab,val,sub,cls){ return `<div class="kpi ${cls||''}"><div class="lab">${lab}</div><div class="val">${val}</div><div class="sub">${sub||''}</div></div>`; }
 
 async function boot(){
   pintarUsuario(S); renderCards(S);
-  if(navigator.onLine){ try{ const me=await chamar({action:"me",token:S.token}); if(me&&me.ok===false&&me.erro==="NAO_AUTORIZADO"){ sair(); return; } }catch(e){} }
-  carregarAtividades(); carregarKpis();
+  // dispara tudo em paralelo (login, KPIs e contagem de atividades) — antes era sequencial e demorava mais
+  const tarefas=[ ler({action:"portal"},"portal"), ler({action:"atividades"},"atividades") ];
+  if(navigator.onLine) tarefas.push(chamar({action:"me",token:S.token}).catch(()=>null));
+  const [kpiR, atvR, me]=await Promise.all(tarefas);
+  if(me && me.ok===false && me.erro==="NAO_AUTORIZADO"){ sair(); return; }
+  pintarAtividades(atvR); pintarKpis(kpiR);
 }
-async function carregarAtividades(){ const r=await ler({action:"atividades"},"atividades"); const el=document.getElementById("cnt-VENDAS"); if(el&&r.ok)el.textContent=r.total; }
-async function carregarKpis(){
-  const r=await ler({action:"portal"},"portal");
-  if(!r.ok){ document.getElementById("kpi-vendas").innerHTML=card("Indisponível","—",r.erro||"sem dados"); return; }
+function pintarAtividades(r){ const el=document.getElementById("cnt-VENDAS"); if(el&&r&&r.ok)el.textContent=r.total; }
+function pintarKpis(r){
+  if(!r.ok){ document.getElementById("kpi-vendas").innerHTML=card("Indisponível","—",erroTexto(r.erro)); return; }
   const vc=r.vendaCasas, io=r.inicioObras, lo=r.lotes;
   document.getElementById("kpi-vendas").innerHTML=
     card("Casas Vendidas",num(vc.total),"com data de venda","hero")+
@@ -127,7 +132,7 @@ async function carregarKpis(){
   if(r.offline){ nota.style.display="block"; nota.textContent="Sem internet — últimos dados salvos ("+new Date(r._ts).toLocaleString("pt-BR")+")."; } else nota.style.display="none";
   document.getElementById("updated").textContent="Custos (ERP) entram na próxima etapa. Atualizado: "+new Date().toLocaleString("pt-BR");
 }
-window.aoSincronizar=()=>carregarAtividades();
+window.aoSincronizar=async()=>{ pintarAtividades(await ler({action:"atividades"},"atividades")); };
 boot();
 </script>
 </body>

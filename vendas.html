@@ -23,7 +23,7 @@ a{color:inherit}
 header{background:linear-gradient(120deg,var(--azul-esc),var(--azul));position:relative}
 header::after{content:"";display:block;height:4px;background:linear-gradient(90deg,var(--verde-btn),var(--teal))}
 .hbar{display:flex;align-items:center;gap:12px;padding:13px 0;flex-wrap:wrap}
-.logo{background:#fff;border-radius:9px;padding:4px 9px;display:inline-flex}.logo img{height:34px;display:block}
+.logo{background:#fff;border-radius:9px;padding:4px 9px;display:inline-flex;align-items:center}.logo img{height:34px;display:block}
 .htitle{font-family:'Barlow Condensed';font-weight:800;font-size:22px;color:#fff;letter-spacing:.5px;text-transform:uppercase;line-height:1}
 .hsub{color:var(--teal);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
 .hspace{flex:1}
@@ -71,16 +71,24 @@ select:focus,input:focus{outline:none;border-color:var(--verde);box-shadow:0 0 0
 .bt{border:0;border-radius:8px;padding:8px 13px;font:inherit;font-weight:700;font-size:12.5px;color:#fff;background:var(--verde);cursor:pointer}
 .bt:hover{filter:brightness(1.06)}.bt.az{background:var(--azul)}.bt.ghost{background:#e7f0f3;color:var(--azul)}.bt.danger{background:#C0392B}
 .bt:disabled{opacity:.5;cursor:default}
-.busca{border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;font:inherit;font-size:13px;min-width:230px}
+.bt-mini{padding:4px 10px;font-size:11px}
+.busca{border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;font:inherit;font-size:13px;min-width:210px}
 
 /* alertas */
 .al{background:#fff;border:1px solid var(--border2);border-left:4px solid var(--orange);border-radius:10px;padding:11px 14px;margin-bottom:9px;display:flex;justify-content:space-between;align-items:center;gap:12px}
 .al .end{font-weight:700;font-size:13.5px;color:var(--azul)}.al .txt{color:#B45309;font-size:12.5px}
 .al .end:hover{text-decoration:underline;cursor:pointer}
 
-/* planilha */
+/* filtros + informativo */
 .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
 .count{color:var(--text3);font-size:12.5px}
+.info-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.icard{background:#fff;border:1px solid var(--border2);border-radius:10px;padding:9px 16px;min-width:104px;text-align:center}
+.ival{font-family:'Barlow Condensed';font-weight:800;font-size:21px;color:var(--azul-esc);line-height:1}
+.ilab{font-size:10px;text-transform:uppercase;letter-spacing:.3px;color:var(--text3);font-weight:700;margin-top:3px}
+.inote{width:100%;font-size:11px;color:#9A3412;background:#FFF7ED;border:1px solid #FED7AA;border-radius:8px;padding:6px 10px}
+
+/* planilha */
 .scroll-top{overflow-x:auto;overflow-y:hidden;height:14px;border:1px solid var(--border2);border-bottom:0;border-radius:10px 10px 0 0;background:var(--bg2)}
 .scroll-top>div{height:1px}
 .tabela-wrap{overflow:auto;max-height:70vh;border:1px solid var(--border2);border-radius:0 0 10px 10px;background:#fff}
@@ -96,6 +104,26 @@ tr.vendida td.stick{color:var(--verde-esc)}
 .tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700}
 .tag.sim{background:rgba(42,157,92,.14);color:var(--verde-esc)}.tag.nao{background:#f1e0e0;color:#9b2c2c}
 
+/* cores das linhas conforme a situação da casa */
+tbody tr.sit-vendida td{background:#EAF7EF}
+tbody tr.sit-vendida td.stick{background:#DFF2E6}
+tbody tr.sit-disponivel td{background:#EAF2F8}
+tbody tr.sit-disponivel td.stick{background:#DCEAF3}
+tbody tr.sit-breve td{background:#FFF6EA}
+tbody tr.sit-breve td.stick{background:#FDEDD3}
+tbody tr.sit-vendida:hover td{filter:brightness(.97)}
+tbody tr.sit-disponivel:hover td{filter:brightness(.97)}
+tbody tr.sit-breve:hover td{filter:brightness(.97)}
+.chkcompleto{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--verde);color:#fff;font-size:9px;font-weight:900;margin-left:7px;vertical-align:middle}
+
+/* legenda das cores */
+.legenda{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:12px;font-size:11.5px;color:var(--text3)}
+.legenda .sw{display:inline-flex;align-items:center;gap:6px}
+.legenda .dot{width:13px;height:13px;border-radius:4px;display:inline-block;border:1px solid rgba(20,50,65,.12)}
+.legenda .dot.vendida{background:#EAF7EF;border-color:#BFE5CC}
+.legenda .dot.disponivel{background:#EAF2F8;border-color:#BFD8EA}
+.legenda .dot.breve{background:#FFF6EA;border-color:#F6D9A8}
+
 /* painel obra */
 .overlay{position:fixed;inset:0;background:rgba(20,40,55,.55);display:none;z-index:40}
 .painel{position:fixed;top:0;right:0;height:100%;width:min(620px,100%);background:var(--bg2);z-index:41;box-shadow:-14px 0 44px rgba(0,0,0,.3);display:none;flex-direction:column}
@@ -106,17 +134,18 @@ tr.vendida td.stick{color:var(--verde-esc)}
 .pfechar{position:absolute;top:16px;right:18px;background:rgba(255,255,255,.16);border:0;color:#fff;width:30px;height:30px;border-radius:8px;font-size:18px;cursor:pointer}
 .pbody{padding:0 0 24px;overflow:auto;flex:1}
 .resumo{background:#fff;margin:0;padding:16px 22px;border-bottom:1px solid var(--border2);display:grid;grid-template-columns:repeat(2,1fr);gap:12px 18px}
-.ri .k{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--text4);font-weight:700}
-.ri .v{font-size:13.5px;font-weight:600;margin-top:1px}
+.ri .k{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--text4);font-weight:700;margin-bottom:5px}
+.ri input,.ri select{width:100%}
 .chips{display:flex;flex-wrap:wrap;gap:7px;padding:14px 22px 0}
 .chip{font-size:11.5px;font-weight:600;padding:5px 10px;border-radius:20px;background:#e7f0f3;color:var(--azul)}
 .chip.alerta{background:#FFF3E0;color:#B45309;border:1px solid #FCD9A8}
 .grp{font-family:'Barlow Condensed';font-size:15px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--azul);margin:20px 22px 12px;padding-bottom:7px;border-bottom:2px solid var(--verde)}
+.grp.sub{color:var(--orange);border-bottom-color:var(--orange);font-size:13.5px}
 .campo{padding:0 22px;margin-bottom:13px}
 .campo label{display:block;font-size:11px;font-weight:700;color:var(--text3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px}
 .campo input,.campo select{width:100%}
 .ro{padding:9px 11px;background:#eef3f5;border-radius:8px;color:var(--text3);font-size:13px}
-.arq{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12.5px;padding:6px 22px;border-bottom:1px dashed var(--border2)}
+.arq{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;padding:6px 22px;border-bottom:1px dashed var(--border2)}
 .arq a{color:var(--azul);font-weight:600}
 .load{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--verde);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -124,12 +153,27 @@ tr.vendida td.stick{color:var(--verde-esc)}
 .toast.on{opacity:1}
 .semacesso{max-width:460px;margin:80px auto;text-align:center;color:var(--text3)}
 .vazio{padding:26px;text-align:center;color:var(--text3);font-size:13px}
+
+/* marcadores SIM/NÃO (toggle) */
+.tgwrap{display:flex;gap:6px}
+.tg{border:1.5px solid var(--border);background:#fff;border-radius:20px;padding:7px 16px;font:inherit;font-weight:800;font-size:12px;cursor:pointer;color:var(--text3);transition:background .12s,border-color .12s,color .12s}
+.tg:hover{border-color:var(--text3)}
+.tg.sim.on{background:rgba(42,157,92,.14);border-color:var(--verde);color:var(--verde-esc)}
+.tg.nao.on{background:#f6dede;border-color:#C0392B;color:#9b2c2c}
+
+/* visualizador de PDF/arquivo */
+.pdfoverlay{position:fixed;inset:0;background:rgba(15,30,40,.72);display:none;align-items:center;justify-content:center;z-index:70;padding:26px}
+.pdfoverlay.on{display:flex}
+.pdfmodal{background:#fff;border-radius:14px;width:min(920px,100%);height:min(88vh,920px);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.pdfhead{background:linear-gradient(120deg,var(--azul-esc),var(--azul));color:#fff;padding:12px 18px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.pdfhead b{font-weight:700;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pdffoot{padding:10px 18px;border-top:1px solid var(--border2);text-align:right}
 </style>
 </head>
 <body>
   <header>
     <div class="wrap hbar">
-      <span class="logo"><img src="img/logo.png" alt="Morais" onerror="this.parentNode.style.display='none'"></span>
+      <span class="logo"><img src="img/logo.png" alt="Morais" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-block'"><b style="display:none;font-family:'Barlow Condensed';font-weight:800;font-size:16px;color:var(--azul-esc);padding:0 4px">MORAIS</b></span>
       <div><div class="htitle">Gestão de Vendas</div><div class="hsub">Morais Engenharia</div></div>
       <div class="hspace"></div>
       <span class="net on" id="net-status">online</span>
@@ -158,8 +202,23 @@ tr.vendida td.stick{color:var(--verde-esc)}
       <div class="sec"><span class="cond">Planilha Geral de Vendas</span></div>
       <div class="toolbar">
         <select id="hub-setor" onchange="carregarPlanilha('hub')"><option value="">Todos os setores</option></select>
-        <input class="busca" id="hub-busca" placeholder="Buscar por endereço, cliente, CPF…" oninput="filtrarTabela('hub')">
+        <select id="hub-cidade" onchange="aplicarFiltros('hub')"><option value="">Todas as cidades</option></select>
+        <select id="hub-situacao" onchange="aplicarFiltros('hub')">
+          <option value="">Todas as casas</option>
+          <option value="vendida">Casas vendidas</option>
+          <option value="disponivel">Casas disponíveis</option>
+          <option value="completo">Processo de vendas completo</option>
+        </select>
+        <select id="hub-ano" onchange="aplicarFiltros('hub')"><option value="">Todos os anos</option></select>
+        <input class="busca" id="hub-busca" placeholder="Buscar por endereço, cliente, CPF…" oninput="aplicarFiltros('hub')">
         <span class="count" id="hub-count"></span>
+      </div>
+      <div class="info-bar" id="hub-info"></div>
+      <div class="legenda">
+        <span class="sw"><span class="dot vendida"></span> Vendida (tem cliente)</span>
+        <span class="sw"><span class="dot disponivel"></span> Disponível (tem valor na mão)</span>
+        <span class="sw"><span class="dot breve"></span> Em breve (sem cliente e sem valor)</span>
+        <span class="sw"><span class="chkcompleto" style="margin-left:0">✓</span> Processo de vendas completo</span>
       </div>
       <div class="scroll-top" id="hub-stop"><div></div></div>
       <div class="tabela-wrap" id="hub-wrap"><div class="vazio"><span class="load"></span> Carregando…</div></div>
@@ -187,8 +246,23 @@ tr.vendida td.stick{color:var(--verde-esc)}
       <div id="st-planilha" style="display:none">
         <div class="toolbar">
           <select id="set-setor" onchange="carregarPlanilha('set')"><option value="">Todos os setores</option></select>
-          <input class="busca" id="set-busca" placeholder="Buscar…" oninput="filtrarTabela('set')">
+          <select id="set-cidade" onchange="aplicarFiltros('set')"><option value="">Todas as cidades</option></select>
+          <select id="set-situacao" onchange="aplicarFiltros('set')">
+            <option value="">Todas as casas</option>
+            <option value="vendida">Casas vendidas</option>
+            <option value="disponivel">Casas disponíveis</option>
+            <option value="completo">Processo de vendas completo</option>
+          </select>
+          <select id="set-ano" onchange="aplicarFiltros('set')"><option value="">Todos os anos</option></select>
+          <input class="busca" id="set-busca" placeholder="Buscar…" oninput="aplicarFiltros('set')">
           <span class="count" id="set-count"></span>
+        </div>
+        <div class="info-bar" id="set-info"></div>
+        <div class="legenda">
+          <span class="sw"><span class="dot vendida"></span> Vendida (tem cliente)</span>
+          <span class="sw"><span class="dot disponivel"></span> Disponível (tem valor na mão)</span>
+          <span class="sw"><span class="dot breve"></span> Em breve (sem cliente e sem valor)</span>
+          <span class="sw"><span class="chkcompleto" style="margin-left:0">✓</span> Processo de vendas completo</span>
         </div>
         <div class="scroll-top" id="set-stop"><div></div></div>
         <div class="tabela-wrap" id="set-wrap"><div class="vazio">Carregando…</div></div>
@@ -201,16 +275,31 @@ tr.vendida td.stick{color:var(--verde-esc)}
     <div class="ph"><div class="end" id="pn-end">Obra</div><div class="loc" id="pn-loc"></div><button class="pfechar" onclick="fecharObra()">×</button></div>
     <div class="pbody" id="pn-body"></div>
   </aside>
+
+  <div class="pdfoverlay" id="pdfoverlay" onclick="fecharVisualizador()">
+    <div class="pdfmodal" onclick="event.stopPropagation()">
+      <div class="pdfhead"><b id="pdf-titulo">Arquivo</b><button class="pfechar" style="position:static" onclick="fecharVisualizador()">×</button></div>
+      <iframe id="pdf-frame" src="" style="border:0;width:100%;flex:1;background:#525659"></iframe>
+      <div class="pdffoot"><a id="pdf-abrir" href="#" target="_blank" class="bt az">Abrir em nova aba</a></div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 
 <script src="app.js"></script>
 <script>
 const S = exigirSessao();
 atualizarStatus(); atualizarBadge();
-let SCHEMA=[], SCAMPO={}, ATIV=[], DADOS={hub:[], set:[]}, SETOR_ATUAL="Gestores de Vendas";
+let SCHEMA=[], SCAMPO={}, ATIV=[], DADOS={hub:[], set:[]}, SETOR_ATUAL="Secretária de Vendas";
 const RESUMO=["CLIENTES","CPF","DATA DA VENDA","VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)","CORRETOR","IMOBILIÁRIA","CORRESPONDENTE","Nº Whatsapp","Email","BANCO"];
+
+/* Departamentos da área de vendas — "Gestores de Vendas" virou "Secretária de Vendas"
+   e foi criado o novo departamento "Gestor de Vendas" (item 8 do pedido). Os dois usam
+   a mesma base de dados/atividades por enquanto — quando cada um tiver uma visão própria,
+   é só diferenciar aqui. */
 const SETORES_AREA=[
-  {nome:"Gestores de Vendas", d:"Atividades, alertas e planilha", ativo:true},
+  {nome:"Secretária de Vendas", d:"Atividades, alertas e planilha", ativo:true, banner:"img/gestores-vendas.jpg"},
+  {nome:"Gestor de Vendas", d:"Atividades, alertas e planilha", ativo:true, banner:"img/gestores-vendas.jpg"},
   {nome:"Departamento de Projetos", d:"Em alinhamento", ativo:false},
   {nome:"Júlio César", d:"Em alinhamento", ativo:false},
   {nome:"Ana Paula", d:"Em alinhamento", ativo:false},
@@ -220,17 +309,58 @@ const SETORES_AREA=[
 function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("on"); setTimeout(()=>t.classList.remove("on"),1900); }
 function pintarUsuario(s){ document.getElementById("u-nome").textContent=s.nome||s.login; const tb=document.getElementById("u-tipo"); tb.textContent=s.tipo; tb.className="badge"+(s.tipo==="ADM"?" adm":""); }
 function campoPorNome(n){ if(SCAMPO[n])return SCAMPO[n]; const a=n.trim().toUpperCase(); for(const k in SCAMPO)if(k.trim().toUpperCase()===a)return SCAMPO[k]; return null; }
-function mostrarOffline(r){ const av=document.getElementById("aviso"); if(r&&r.offline){ av.style.display="block"; av.textContent="Sem internet — dados salvos em "+new Date(r._ts).toLocaleString("pt-BR")+". O que preencher entra na fila e sobe ao reconectar."; } else av.style.display="none"; }
+function mostrarOffline(r){ const av=document.getElementById("aviso"); if(r&&r.offline){ av.style.display="block"; av.textContent="Sem internet — dados salvos em "+new Date(r._ts).toLocaleString("pt-BR")+". O que preencher entra na fila e sobe ao reconectar."; } else if(r&&r.online===false&&!r.ok){ av.style.display="block"; av.textContent="Não consegui carregar agora: "+erroTexto(r.erro)+"."; } else av.style.display="none"; }
 function fmt(d){ if(!d)return "—"; const p=String(d).slice(0,10).split("-"); return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:d; }
+
+/* ---------- normalização / ordem custom dos campos do Notion ---------- */
+function normNome(s){ return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/\s+/g," ").trim(); }
+const CAMPOS_EXCLUIDOS=["ARQUIVOS E MIDIA"]; // excluído no Notion (item 6 do pedido)
+function nomeExcluido(nome){ const n=normNome(nome); if(CAMPOS_EXCLUIDOS.indexOf(n)>=0) return true; return /\bAUTO\b|ALERTA|ELERTA/.test(n); } // item 9: nada com AUTO/ALERTA entra na planilha/obra
+
+/* ordem pedida pelo usuário (item 5), como prefixos — casa com o nome real do campo
+   assim que o schema chega do Notion, mesmo que aqui o texto esteja cortado igual ao print */
+const ORDEM_PREFIXOS=[
+  "AVALIACAO","VALIDADE","VALOR NA MAO","VALOR DE COMP","COMISSAO","ARMAZENOU CO","EMITIU RCPM","MANDOU TODO",
+  "DATA DE ENVIO","MANDOU P/ CO","PROCESSO CON","ASSINOU E ARM","DATA DE ASSINA","VALOR DA PARCE","TEVE FGTS","VALOR DO FGTS",
+  "TEM PROTOCOL","PROTOCOLO DE","TEM PROTOCOL","PROTOCOLO DE","RECEBEU TAXA VI","AGENCIA","TEM NUMERO DE","CADASTR",
+  "ITBI GERADO","ITBI PAGO","DEU ENTRADA","FICOU PRONTO","DEVOLVEU NO B","RECEBEU?","CASA APTA","AGENDOU PRE VI","DATA DA PRE-VIS",
+  "TEM MANUAL DE","AGUA TRANSFER","ENERGIA TRANSF","ENTEGOU A CAS","DATA DA ENTREGA","PREENCHEU A PE","GEROU E ARMAZ",
+  "PAGOU GCAP","REPAROS PRE VIS","ANEXAR AQUIVO","ANALISE DE REPA","TITULARIDADES","SITUACAO","REF","CIDADE","SETOR",
+  "ENG. RESPONS","MODELO?","TIPO","LAYOUT","FOTOS","LOCALIZACAO"
+];
+function ordenarPorPrefixo(campos){
+  const usados=new Set(), out=[];
+  ORDEM_PREFIXOS.forEach(pref=>{ const alvo=normNome(pref);
+    const achou=campos.find(c=>!usados.has(c.nome) && normNome(c.nome).indexOf(alvo)>=0);
+    if(achou){ usados.add(achou.nome); out.push(achou); } });
+  campos.forEach(c=>{ if(!usados.has(c.nome)){ usados.add(c.nome); out.push(c); } }); // sobras: rede de segurança, não perde nenhuma coluna
+  return out;
+}
+function camposBase(){ return SCHEMA.filter(c=>c.tipo!=="rollup"&&c.tipo!=="relation"&&!nomeExcluido(c.nome)&&c.nome!=="ENDEREÇO"&&RESUMO.indexOf(c.nome)<0); }
+function ordemColunas(){ return ["ENDEREÇO",...RESUMO,...ordenarPorPrefixo(camposBase()).map(c=>c.nome)]; }
+function ordemFormulario(){ return ordenarPorPrefixo(camposBase().filter(c=>c.editavel && c.tipo!=="files")).map(c=>c.nome); }
+function campoPorFragmento(frag){ const alvo=normNome(frag); return SCHEMA.find(c=>normNome(c.nome).indexOf(alvo)>=0)||null; }
+
+/* ---------- marcadores SIM/NÃO ---------- */
+function ehSimNao(opcoes){ if(!Array.isArray(opcoes)||!opcoes.length||opcoes.length>2) return false; return opcoes.every(o=>o==="SIM"||o==="NÃO"); }
+function ehMarcador(c){ return c.tipo==="select" && Array.isArray(c.opcoes) && c.opcoes.indexOf("SIM")>=0; }
+function processoCompleto(valores){
+  const marcadores=SCHEMA.filter(c=>ehMarcador(c) && !nomeExcluido(c.nome));
+  if(!marcadores.length) return false;
+  return marcadores.every(c=>{ const v=getV(valores,c.nome); if(v==null||v==="") return true;
+    const s=normNome(v); return s==="SIM" || s.indexOf("AGIO")>=0; });
+}
 
 async function boot(){
   pintarUsuario(S);
   if(!podeAcessar(S,"VENDAS")){ document.getElementById("sem-acesso").style.display="block"; document.getElementById("view-hub").style.display="none"; return; }
-  if(navigator.onLine){ try{ const me=await chamar({action:"me",token:S.token}); if(me&&me.ok===false&&me.erro==="NAO_AUTORIZADO"){ sair(); return; } }catch(e){} }
-  const sc=await ler({action:"vendasSchema"},"schema");
+  renderSetores(); // pinta a tela já, sem esperar a rede
+  const tarefas=[ ler({action:"vendasSchema"},"schema") ];
+  if(navigator.onLine) tarefas.push(chamar({action:"me",token:S.token}).catch(()=>null));
+  const [sc, me]=await Promise.all(tarefas); // schema e verificação de sessão em paralelo — mais rápido
+  if(me && me.ok===false && me.erro==="NAO_AUTORIZADO"){ sair(); return; }
   if(sc.ok){ SCHEMA=sc.campos; SCAMPO={}; SCHEMA.forEach(c=>SCAMPO[c.nome]=c); mostrarOffline(sc); }
   montarSetorSelects();
-  renderSetores();
   carregarPlanilha("hub");
 }
 
@@ -255,7 +385,8 @@ function abrirSetor(nome){
   SETOR_ATUAL=nome;
   document.getElementById("setor-nome").textContent=nome;
   var ban=document.getElementById("setor-banner");
-  var arq=({"Gestores de Vendas":"img/gestores-vendas.jpg"})[nome];
+  var info=SETORES_AREA.find(s=>s.nome===nome);
+  var arq=info&&info.banner;
   if(arq){ ban.src=arq; ban.style.display="block"; ban.onerror=()=>{ban.style.display="none";}; } else ban.style.display="none";
   document.getElementById("view-hub").style.display="none";
   document.getElementById("view-setor").style.display="block";
@@ -275,7 +406,7 @@ async function carregarAtividades(){
   const box=document.getElementById("atv-lista");
   if(!r.ok){ box.innerHTML='<div class="vazio">Não foi possível carregar.</div>'; return; }
   ATIV=r.atividades;
-  const sc=document.getElementById("scnt-0"); if(sc) sc.textContent=ATIV.length;
+  document.querySelectorAll('[id^="scnt-"]').forEach(el=>el.textContent=ATIV.length);
   document.getElementById("atv-count").textContent = ATIV.length+" atividade(s) em aberto"+(S.tipo==="ADM"?" (todas — ADM)":" para você");
   if(!ATIV.length){ box.innerHTML='<div class="vazio">Nenhuma atividade em aberto. 🎉</div>'; return; }
   box.innerHTML="";
@@ -295,7 +426,7 @@ async function carregarAtividades(){
 async function darBaixa(a,valor,d,btn){
   btn.disabled=true; btn.innerHTML='<span class="load"></span>';
   const r=await escrever({action:"baixa",atividadeId:a.id,valor:valor},"Baixa: "+a.nome);
-  if(r.ok){ d.classList.add("feita"); toast(r.enfileirado?"Baixa na fila ✓":"Baixa registrada ✓"); setTimeout(()=>{ d.remove(); const n=document.querySelectorAll("#atv-lista .atv").length; document.getElementById("atv-count").textContent=n+" atividade(s) em aberto"+(S.tipo==="ADM"?" (todas — ADM)":" para você"); const sc=document.getElementById("scnt-0"); if(sc)sc.textContent=n; },650); }
+  if(r.ok){ d.classList.add("feita"); toast(r.enfileirado?"Baixa na fila ✓":"Baixa registrada ✓"); setTimeout(()=>{ d.remove(); const n=document.querySelectorAll("#atv-lista .atv").length; document.getElementById("atv-count").textContent=n+" atividade(s) em aberto"+(S.tipo==="ADM"?" (todas — ADM)":" para você"); document.querySelectorAll('[id^="scnt-"]').forEach(el=>el.textContent=n); },650); }
   else { btn.disabled=false; btn.textContent="Dar baixa"; toast("Erro: "+r.erro); }
 }
 
@@ -314,20 +445,23 @@ function renderAlertas(){
 }
 
 /* ---------- PLANILHA (todas as colunas, rolagem em cima e embaixo) ---------- */
+function ordenarPorEndereco(arr){
+  return arr.slice().sort((a,b)=>{
+    const ea=String(getV(a.valores,"ENDEREÇO")||""), eb=String(getV(b.valores,"ENDEREÇO")||"");
+    return ea.localeCompare(eb,"pt-BR",{numeric:true,sensitivity:"base"});
+  });
+}
 async function carregarPlanilha(ctx){
   const setor = document.getElementById(ctx+"-setor").value;
   const wrap=document.getElementById(ctx+"-wrap");
   wrap.innerHTML='<div class="vazio"><span class="load"></span> Carregando…</div>';
   const r=await ler({action:"vendas",setor:setor},"vendas_"+(setor||"all")); mostrarOffline(r);
-  if(!r.ok){ wrap.innerHTML='<div class="vazio">Erro ao carregar.</div>'; return; }
-  DADOS[ctx]=r.vendas;
+  if(!r.ok){ wrap.innerHTML='<div class="vazio">Erro ao carregar: '+esc(erroTexto(r.erro))+'</div>'; return; }
+  DADOS[ctx]=ordenarPorEndereco(r.vendas); // item 1: endereços em ordem natural (52 QD 81 LT 11, LT 12… em vez da ordem crua do Notion)
   document.getElementById(ctx+"-count").textContent=r.total+" obra(s)";
+  popularFiltrosDinamicos(ctx);
   renderTabela(ctx);
-}
-function ordemColunas(){
-  // ENDEREÇO primeiro (fixa), depois as demais na ordem do schema (menos rollup/relation)
-  const nomes=SCHEMA.filter(c=>c.tipo!=="rollup"&&c.tipo!=="relation"&&c.nome!=="ENDEREÇO").map(c=>c.nome);
-  return ["ENDEREÇO",...nomes];
+  aplicarFiltros(ctx);
 }
 function celulaTexto(campo,valor){
   if(valor==null||valor==="") return "";
@@ -339,15 +473,37 @@ function celulaTexto(campo,valor){
   return String(valor);
 }
 function tagSimNao(v){ if(v==="SIM")return `<span class="tag sim">SIM</span>`; if(v==="NÃO")return `<span class="tag nao">NÃO</span>`; return esc(v); }
+function situacoesDe(valores){
+  const arr=[];
+  if(getV(valores,"CLIENTES")) arr.push("vendida");
+  const vm=getV(valores,"VALOR NA MÃO"); if(vm!=null && vm!=="") arr.push("disponivel");
+  if(processoCompleto(valores)) arr.push("completo");
+  return arr;
+}
+function anoDe(valores){ const d=getV(valores,"DATA DA VENDA"); return d?String(d).slice(0,4):""; }
+function corSituacao(valores){
+  if(getV(valores,"CLIENTES")) return "sit-vendida";
+  const vm=getV(valores,"VALOR NA MÃO"); if(vm!=null && vm!=="") return "sit-disponivel";
+  return "sit-breve";
+}
 function renderTabela(ctx){
   const cols=ordemColunas().map(campoPorNome).filter(Boolean);
+  const cHabite=campoPorFragmento("HABITE");
+  const cObraIni=campoPorFragmento("OBRA INICIADA")||campoPorFragmento("OBRA INCIADA");
   let html='<table><thead><tr>'+cols.map((c,i)=>`<th class="${i===0?"stick":""}">${esc(c.nome.trim())}</th>`).join("")+'</tr></thead><tbody>';
   DADOS[ctx].forEach(v=>{
     const vendida=!!getV(v.valores,"DATA DA VENDA");
+    const completo=processoCompleto(v.valores);
     const busca=[getV(v.valores,"ENDEREÇO"),getV(v.valores,"CLIENTES"),getV(v.valores,"CPF")].join(" ").toLowerCase();
-    html+=`<tr class="${vendida?"vendida":""}" data-b="${esc(busca)}">`+cols.map((c,i)=>{
+    const cidade=getV(v.valores,"CIDADE")||"";
+    const sit=situacoesDe(v.valores).join(",");
+    const ano=anoDe(v.valores);
+    const breve = (cHabite && normNome(getV(v.valores,cHabite.nome))==="SIM") ? "1":"0";
+    const constr = (cObraIni && /SIM/.test(normNome(getV(v.valores,cObraIni.nome)))) ? "1":"0";
+    const classe=(vendida?"vendida ":"")+corSituacao(v.valores);
+    html+=`<tr class="${classe}" data-b="${esc(busca)}" data-cidade="${esc(cidade)}" data-sit="${esc(sit)}" data-ano="${esc(ano)}" data-breve="${breve}" data-obra="${constr}">`+cols.map((c,i)=>{
       const val=getV(v.valores,c.nome);
-      if(i===0) return `<td class="stick"><span class="obralink" onclick='abrirObra(${JSON.stringify(v.id)})'>${esc(val||"(sem endereço)")}</span></td>`;
+      if(i===0) return `<td class="stick"><span class="obralink" onclick='abrirObra(${JSON.stringify(v.id)})'>${esc(val||"(sem endereço)")}</span>${completo?'<span class="chkcompleto" title="Processo de vendas completo">✓</span>':''}</td>`;
       let txt=celulaTexto(c,val);
       if(c.tipo==="select" && (val==="SIM"||val==="NÃO")) return `<td>${tagSimNao(val)}</td>`;
       return `<td title="${esc(txt)}">${esc(txt)}</td>`;
@@ -365,9 +521,51 @@ function sincronizarScroll(ctx){
   top.onscroll=()=>{ if(lock)return; lock=true; wrap.scrollLeft=top.scrollLeft; lock=false; };
   wrap.onscroll=()=>{ if(lock)return; lock=true; top.scrollLeft=wrap.scrollLeft; lock=false; };
 }
-function filtrarTabela(ctx){
-  const q=document.getElementById(ctx+"-busca").value.toLowerCase();
-  document.querySelectorAll("#"+ctx+"-wrap tbody tr").forEach(tr=>{ tr.style.display = tr.dataset.b.indexOf(q)>=0?"":"none"; });
+
+/* ---------- filtros (item 10) + informativo (item 11) ---------- */
+function popularFiltrosDinamicos(ctx){
+  const cidades=new Set(), anos=new Set();
+  DADOS[ctx].forEach(v=>{ const c=getV(v.valores,"CIDADE"); if(c) cidades.add(c); const a=anoDe(v.valores); if(a) anos.add(a); });
+  const selC=document.getElementById(ctx+"-cidade"); const atualC=selC.value;
+  selC.innerHTML='<option value="">Todas as cidades</option>'+[...cidades].sort().map(c=>`<option${c===atualC?" selected":""}>${esc(c)}</option>`).join("");
+  const selA=document.getElementById(ctx+"-ano"); const atualA=selA.value;
+  selA.innerHTML='<option value="">Todos os anos</option>'+[...anos].sort().reverse().map(a=>`<option${a===atualA?" selected":""}>${esc(a)}</option>`).join("");
+}
+function aplicarFiltros(ctx){
+  const q=(document.getElementById(ctx+"-busca").value||"").toLowerCase();
+  const cid=document.getElementById(ctx+"-cidade").value;
+  const sit=document.getElementById(ctx+"-situacao").value;
+  const ano=document.getElementById(ctx+"-ano").value;
+  let visiveis=0;
+  document.querySelectorAll("#"+ctx+"-wrap tbody tr").forEach(tr=>{
+    let ok = tr.dataset.b.indexOf(q)>=0;
+    if(ok && cid) ok = tr.dataset.cidade===cid;
+    if(ok && sit) ok = (","+tr.dataset.sit+",").indexOf(","+sit+",")>=0;
+    if(ok && ano) ok = tr.dataset.ano===ano;
+    tr.style.display = ok?"":"none";
+    if(ok) visiveis++;
+  });
+  document.getElementById(ctx+"-count").textContent = visiveis+" obra(s)";
+  atualizarInformativo(ctx);
+}
+function infoCard(lab,val){ return `<div class="icard"><div class="ival">${val}</div><div class="ilab">${esc(lab)}</div></div>`; }
+function atualizarInformativo(ctx){
+  const box=document.getElementById(ctx+"-info"); if(!box) return;
+  const cHabite=campoPorFragmento("HABITE");
+  const cObraIni=campoPorFragmento("OBRA INICIADA")||campoPorFragmento("OBRA INCIADA");
+  let vendidas=0, disponiveis=0, breve=0, construcao=0;
+  // conta só as linhas visíveis (respeita os filtros aplicados agora) — reaproveita os data-* já marcados no render
+  document.querySelectorAll("#"+ctx+"-wrap tbody tr").forEach(tr=>{
+    if(tr.style.display==="none") return;
+    const sit=","+(tr.dataset.sit||"")+",";
+    if(sit.indexOf(",vendida,")>=0) vendidas++;
+    if(sit.indexOf(",disponivel,")>=0) disponiveis++;
+    if(tr.dataset.breve==="1") breve++;
+    if(tr.dataset.obra==="1") construcao++;
+  });
+  let html = infoCard("Vendidas",vendidas)+infoCard("Disponíveis",disponiveis)+infoCard("Em breve",cHabite?breve:"—")+infoCard("Em construção",cObraIni?construcao:"—");
+  if(!cHabite || !cObraIni) html += `<div class="inote">Contadores de "em breve"/"em construção" dependem de colunas ligadas à obra (Habite-se / Obra Iniciada) que não encontrei no schema da base VENDAS — confirme o nome exato dessas colunas no Notion para eu ligar certinho.</div>`;
+  box.innerHTML = html;
 }
 
 /* ---------- PAINEL DA OBRA ---------- */
@@ -381,53 +579,89 @@ async function abrirObra(pageId){
   document.getElementById("pn-loc").textContent=(getV(V,"SETOR")||"")+(getV(V,"CASA")?(" · Casa "+getV(V,"CASA")):"");
   renderPainel(V,pageId);
 }
-function valorResumo(nome,val){
-  const c=campoPorNome(nome); if(!c)return esc(val);
-  return esc(celulaTexto(c,val));
+
+/* controle de entrada por tipo — usado tanto no resumo quanto no formulário de preenchimento */
+function inputControl(c,valor,pageId){
+  const on=`onchange='editar(${JSON.stringify(pageId)},${JSON.stringify(c.nome)},${JSON.stringify(c.tipo)},this.value,this)'`;
+  if(c.tipo==="select"){
+    if(ehSimNao(c.opcoes)) return toggleSimNao(c,valor,pageId);
+    return `<select ${on}><option value=""></option>${(c.opcoes||[]).map(o=>`<option${o===valor?" selected":""}>${esc(o)}</option>`).join("")}</select>`;
+  }
+  if(c.tipo==="multi_select"){ const arr=Array.isArray(valor)?valor:[]; return (c.opcoes||[]).map(o=>`<label style="display:inline-flex;gap:5px;margin:0 12px 6px 0;font-weight:500;font-size:12.5px;text-transform:none;color:var(--text)"><input type="checkbox" ${arr.indexOf(o)>=0?"checked":""} onchange='editarMulti(${JSON.stringify(pageId)},${JSON.stringify(c.nome)},this)'> ${esc(o)}</label>`).join(""); }
+  if(c.tipo==="date") return `<input type="date" value="${valor?String(valor).slice(0,10):""}" ${on}>`;
+  if(c.tipo==="number") return `<input type="number" value="${valor==null?"":valor}" ${on}>`;
+  if(c.tipo==="checkbox") return `<input type="checkbox" ${valor?"checked":""} onchange='editar(${JSON.stringify(pageId)},${JSON.stringify(c.nome)},"checkbox",this.checked,this)'>`;
+  if(c.tipo==="url") return `<input type="url" value="${esc(valor||"")}" ${on}>`;
+  if(c.tipo==="email") return `<input type="email" value="${esc(valor||"")}" ${on}>`;
+  if(c.tipo==="phone_number") return `<input type="tel" value="${esc(valor||"")}" ${on}>`;
+  return `<input type="text" value="${esc(valor==null?"":valor)}" ${on}>`;
+}
+function toggleSimNao(c,valor,pageId){
+  const mk=(v,cls)=>`<button type="button" class="tg ${cls}${valor===v?" on":""}" onclick='editarToggle(${JSON.stringify(pageId)},${JSON.stringify(c.nome)},this)'>${v}</button>`;
+  return `<div class="tgwrap">${mk("SIM","sim")}${mk("NÃO","nao")}</div>`;
+}
+async function editarToggle(pageId,prop,btn){
+  const wrap=btn.closest(".tgwrap"); const valor=btn.textContent.trim();
+  wrap.querySelectorAll(".tg").forEach(b=>b.classList.remove("on")); btn.classList.add("on");
+  const r=await escrever({action:"updateVenda",pageId:pageId,prop:prop,tipo:"select",valor:valor},"Editar "+prop);
+  toast(r.ok?(r.enfileirado?"Na fila ✓":"Salvo ✓"):("Erro: "+r.erro));
+}
+function campoHtml(c,valor,pageId){
+  // Endereço (nome da obra): só ADM edita — sempre mostrado, independente do campo vir marcado como "editável" no schema
+  if(c.nome==="ENDEREÇO"){
+    if(S.tipo!=="ADM") return `<div class="campo"><label>${esc(c.nome.trim())} <span style="color:var(--text4);font-weight:500">(só ADM edita)</span></label><div class="ro">${esc(valor||"—")}</div></div>`;
+    const on=`onchange='editar(${JSON.stringify(pageId)},"ENDEREÇO","text",this.value,this); document.getElementById("pn-end").textContent=this.value||"(sem endereço)";'`;
+    return `<div class="campo"><label>${esc(c.nome.trim())}</label><input type="text" value="${esc(valor||"")}" ${on}></div>`;
+  }
+  return `<div class="campo"><label>${esc(c.nome.trim())}</label>${inputControl(c,valor,pageId)}</div>`;
+}
+function campoResumoHtml(c,valor,pageId){
+  return `<div class="ri"><div class="k">${esc(c.nome.trim())}</div>${inputControl(c,valor,pageId)}</div>`;
 }
 function renderPainel(V,pageId){
   const body=document.getElementById("pn-body");
-  // resumo venda/cliente
-  let html='<div class="resumo">'+RESUMO.map(n=>{ const c=campoPorNome(n); if(!c)return ""; const val=getV(V,n);
-    return `<div class="ri"><div class="k">${esc(n.trim())}</div><div class="v">${(val==null||val==="")?"—":valorResumo(n,val)}</div></div>`; }).join("")+'</div>';
+  let html="";
+
+  // identificação — endereço editável (ADM) — corrige bug "sou ADM mas não consigo editar o endereço"
+  const cEnd=campoPorNome("ENDEREÇO");
+  if(cEnd){ html+=campoHtml(cEnd,getV(V,"ENDEREÇO"),pageId); }
+
+  // resumo venda/cliente — agora editável/selecionável igual ao Notion (item 4)
+  html+='<div class="grp" style="margin-top:14px">Dados da Venda</div><div class="resumo">'+RESUMO.map(n=>{
+    const c=campoPorNome(n); if(!c)return ""; const val=getV(V,n);
+    return campoResumoHtml(c,val,pageId);
+  }).join("")+'</div>';
 
   // alertas / situação
   const chips=[]; SCHEMA.filter(c=>c.tipo==="formula").forEach(c=>{ const val=getV(V,c.nome); if(val==null||val===""||val==="-")return; const s=String(val); const al=/PREENCHER|⚠️|🔴|🚨/.test(s)||/^ALERTA|^ELERTA/.test(c.nome); chips.push(`<span class="chip${al?" alerta":""}">${esc(s)}</span>`); });
   if(chips.length) html+=`<div class="chips">${chips.join("")}</div>`;
 
-  // campos editáveis
+  // campos editáveis, na ordem pedida — com um subtítulo especial quando entra no bloco de reparos/vistoria (item 3)
   html+=`<div class="grp">Preenchimento</div>`;
-  SCHEMA.filter(c=>c.editavel && c.tipo!=="files").forEach(c=>{ html+=campoHtml(c,getV(V,c.nome),pageId); });
+  let entrouReparo=false;
+  ordemFormulario().forEach(nome=>{
+    const c=campoPorNome(nome); if(!c) return;
+    if(!entrouReparo && /REPARO/.test(normNome(nome))){ html+=`<div class="grp sub">Reparos e Vistoria</div>`; entrouReparo=true; }
+    html+=campoHtml(c,getV(V,nome),pageId);
+  });
 
-  // arquivos
-  const files=SCHEMA.filter(c=>c.tipo==="files");
+  // arquivos — com opção de visualizar PDFs sem sair da página (item 2 do pedido extra)
+  const files=SCHEMA.filter(c=>c.tipo==="files" && !nomeExcluido(c.nome));
   if(files.length){ html+=`<div class="grp">Arquivos</div>`;
     files.forEach(c=>{ const lista=getV(V,c.nome)||[];
       html+=`<div class="campo"><label>${esc(c.nome.trim())}</label>`;
-      lista.forEach(f=>{ html+=`<div class="arq"><a href="${f.url||'#'}" target="_blank">${esc(f.name||'arquivo')}</a></div>`; });
+      lista.forEach(f=>{
+        const nome=f.name||"arquivo", url=f.url||"#";
+        const ehPdf=/\.pdf(\?|$)/i.test(nome)||/\.pdf(\?|$)/i.test(url);
+        html+=`<div class="arq"><a href="${url}" target="_blank">${esc(nome)}</a>`+
+          (ehPdf?` <button type="button" class="bt ghost bt-mini" onclick='visualizarArquivo(${JSON.stringify(url)},${JSON.stringify(nome)})'>👁 Visualizar</button>`:``)+
+          `</div>`;
+      });
       html+=`<input type="file" onchange='enviarArquivo(${JSON.stringify(pageId)},${JSON.stringify(c.nome)},this)'></div>`; });
   }
 
   if(S.tipo==="ADM"){ html+=`<div class="grp">Administração</div><div class="campo"><button class="bt danger" onclick='excluirObra(${JSON.stringify(pageId)})'>Excluir esta obra</button></div>`; }
   body.innerHTML=html;
-}
-function campoHtml(c,valor,pageId){
-  // Nome da obra (ENDEREÇO) só o ADM edita
-  if(c.nome==="ENDEREÇO" && S.tipo!=="ADM"){
-    return `<div class="campo"><label>${esc(c.nome.trim())} <span style="color:var(--text4);font-weight:500">(só ADM edita)</span></label><div class="ro">${esc(valor||"—")}</div></div>`;
-  }
-  const on=`onchange='editar(${JSON.stringify(pageId)},${JSON.stringify(c.nome)},${JSON.stringify(c.tipo)},this.value,this)'`;
-  let input="";
-  if(c.tipo==="select"){ input=`<select ${on}><option value=""></option>${(c.opcoes||[]).map(o=>`<option${o===valor?" selected":""}>${esc(o)}</option>`).join("")}</select>`; }
-  else if(c.tipo==="multi_select"){ const arr=Array.isArray(valor)?valor:[]; input=(c.opcoes||[]).map(o=>`<label style="display:inline-flex;gap:5px;margin:0 12px 6px 0;font-weight:500;font-size:12.5px;text-transform:none;color:var(--text)"><input type="checkbox" ${arr.indexOf(o)>=0?"checked":""} onchange='editarMulti(${JSON.stringify(pageId)},${JSON.stringify(c.nome)},this)'> ${esc(o)}</label>`).join(""); }
-  else if(c.tipo==="date"){ input=`<input type="date" value="${valor?String(valor).slice(0,10):""}" ${on}>`; }
-  else if(c.tipo==="number"){ input=`<input type="number" value="${valor==null?"":valor}" ${on}>`; }
-  else if(c.tipo==="checkbox"){ input=`<input type="checkbox" ${valor?"checked":""} onchange='editar(${JSON.stringify(pageId)},${JSON.stringify(c.nome)},"checkbox",this.checked,this)'>`; }
-  else if(c.tipo==="url"){ input=`<input type="url" value="${esc(valor||"")}" ${on}>`; }
-  else if(c.tipo==="email"){ input=`<input type="email" value="${esc(valor||"")}" ${on}>`; }
-  else if(c.tipo==="phone_number"){ input=`<input type="tel" value="${esc(valor||"")}" ${on}>`; }
-  else { input=`<input type="text" value="${esc(valor==null?"":valor)}" ${on}>`; }
-  return `<div class="campo"><label>${esc(c.nome.trim())}</label>${input}</div>`;
 }
 async function editar(pageId,prop,tipo,valor,el){
   if(el)el.style.borderColor="#F0C36D";
@@ -454,6 +688,15 @@ async function excluirObra(pageId){
   if(r.ok&&!r.enfileirado){ fecharObra(); carregarPlanilha(document.getElementById("view-setor").style.display!=="none"?"set":"hub"); }
 }
 function fecharObra(){ document.getElementById("overlay").classList.remove("on"); document.getElementById("painel").classList.remove("on"); }
+
+/* ---------- visualizador de PDF anexado (item 2 do pedido extra) ---------- */
+function visualizarArquivo(url,nome){
+  document.getElementById("pdf-titulo").textContent=nome||"Arquivo";
+  document.getElementById("pdf-frame").src=url;
+  document.getElementById("pdf-abrir").href=url;
+  document.getElementById("pdfoverlay").classList.add("on");
+}
+function fecharVisualizador(){ document.getElementById("pdfoverlay").classList.remove("on"); document.getElementById("pdf-frame").src=""; }
 
 window.aoSincronizar=()=>{ toast("Sincronizado ✓"); if(document.getElementById("st-atividades").style.display!=="none") carregarAtividades(); };
 boot();
