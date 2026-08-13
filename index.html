@@ -44,7 +44,7 @@ body{display:flex;flex-direction:column;min-height:100vh}
   text-transform:uppercase;text-align:left;cursor:pointer;border:2px solid rgba(76,217,100,.55);
   border-radius:8px;background:var(--verde);transition:all .18s;line-height:1.2;text-decoration:none;font-family:'Barlow Condensed'}
 .nav-btn:hover{background:var(--verde-btn);border-color:var(--verde-btn);color:#0c3f22}
-.nav-btn .cnt{margin-left:auto;background:#fff;color:var(--verde-esc);min-width:24px;height:22px;border-radius:20px;
+.nav-btn .cnt{margin-left:auto;background:#c0392b;color:#fff;min-width:24px;height:22px;border-radius:20px;
   display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;padding:0 7px}
 .dash-main{flex:1;min-width:0;padding:24px 28px 40px;overflow-y:auto}
 .dash-nav .vazio{background:transparent;border:1px dashed rgba(255,255,255,.28);color:rgba(255,255,255,.75);padding:14px;font-size:12px}
@@ -122,10 +122,16 @@ function pintarKpis(r){
     card("Ticket Médio",brl(vc.ticket),"por casa");
   document.getElementById("kpi-obras").innerHTML=
     card("Casas Iniciadas",num(io.iniciadas),"morais + investidores","hero")+
+    card("Casas Morais",num(io.iniciadasMorais),"por cota de empresa")+
+    card("Casas Investidores",num(io.iniciadasInvestidores),"por cota (1−cota)")+
     card("Média/mês",(io.mediaMes||0).toLocaleString("pt-BR",{maximumFractionDigits:1}),io.meses+" meses")+
-    card("Meta "+r.ano,num(io.meta),"casas no ano")+
-    card("% da Meta",((io.pct||0)*100).toLocaleString("pt-BR",{maximumFractionDigits:0})+"%","iniciadas ÷ meta","verde");
-  document.getElementById("kpi-lotes").innerHTML=card("Lotes Comprados",num(lo.total),"morais + investidores","hero");
+    (io.meta!=null?card("Meta "+r.ano,num(io.meta),"casas no ano"):"")+
+    (io.meta!=null?card("% da Meta",((io.pct||0)*100).toLocaleString("pt-BR",{maximumFractionDigits:0})+"%","iniciadas ÷ meta","verde"):"");
+  document.getElementById("kpi-lotes").innerHTML=
+    card("Lotes Comprados",num(lo.total),"morais + investidores","hero")+
+    card("Lotes Morais",num(lo.morais),"com participação Morais")+
+    card("Lotes Investidores",num(lo.investidores),"com participação investidor")+
+    (lo.meta!=null?card("Meta de Casas "+r.ano,num(lo.meta),"banco METAS · Notion"):"");
   const nota=document.getElementById("nota");
   if(r.offline){ nota.style.display="block"; nota.textContent="Sem internet — últimos dados salvos ("+new Date(r._ts).toLocaleString("pt-BR")+")."; } else nota.style.display="none";
   document.getElementById("updated").textContent="Dados publicados em: "+(r._ts?new Date(r._ts).toLocaleString("pt-BR"):new Date().toLocaleString("pt-BR"));

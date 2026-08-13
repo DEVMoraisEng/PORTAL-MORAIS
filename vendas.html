@@ -37,8 +37,12 @@ header::after{content:"";display:block;height:4px;background:linear-gradient(90d
 
 main{padding:24px 20px 70px}
 .aviso{background:#FFF7ED;border:1px solid #FED7AA;color:#9A3412;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:16px;display:none}
-.crumb{display:flex;align-items:center;gap:8px;margin-bottom:16px;color:var(--text3);font-size:13px}
-.crumb button{background:none;border:0;color:var(--azul);font:inherit;font-weight:700;cursor:pointer;padding:0}
+.crumb{display:flex;align-items:center;gap:10px;margin-bottom:16px;color:var(--text3);font-size:13px}
+/* item 11: botão "voltar" em pílula azul-escura, igual ao padrão do analise.html */
+.btn-voltar{display:inline-flex;align-items:center;gap:6px;background:var(--azul-esc);border:1px solid rgba(143,220,210,.4);
+  border-radius:8px;padding:9px 16px;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;
+  color:var(--teal);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;text-decoration:none;transition:background .15s}
+.btn-voltar:hover{background:#16303f}
 .sec{display:flex;align-items:center;gap:10px;background:var(--bg3);border-left:4px solid var(--verde);border-radius:8px;padding:9px 14px;margin:26px 0 16px}
 .sec .cond{font-size:19px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--azul-esc)}
 .sec:first-of-type{margin-top:6px}
@@ -51,12 +55,15 @@ main{padding:24px 20px 70px}
 .scard.soon{background:linear-gradient(135deg,#7fa0b3,#5a7a8c);box-shadow:none;opacity:.9}
 .scard .cond{font-size:18px;font-weight:800;text-transform:uppercase;line-height:1.05}
 .scard .d{font-size:11.5px;opacity:.92;margin-top:4px}
-.scard .cnt{position:absolute;top:14px;right:14px;background:#fff;color:var(--verde-esc);min-width:26px;height:26px;border-radius:20px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;padding:0 7px}
+.scard .cnt{position:absolute;top:14px;right:14px;background:#c0392b;color:#fff;min-width:26px;height:26px;border-radius:20px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;padding:0 7px}
 
-/* abas do setor */
-.tabs{display:flex;gap:4px;border-bottom:2px solid var(--border);margin:8px 0 18px}
-.tab{border:0;background:none;font:inherit;font-weight:700;font-size:14px;color:var(--text3);padding:10px 16px;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px}
-.tab.on{color:var(--azul);border-bottom-color:var(--verde)}
+/* abas do setor — item 10: estilo "pílula" centralizado, igual ao analise.html */
+.tabs-outer{background:var(--bg2);border:1.5px solid var(--border);border-radius:14px;padding:12px;margin:8px 0 20px;display:flex;justify-content:center}
+.tabs{display:flex;gap:6px;padding:6px;border:2.5px solid var(--verde-btn);border-radius:12px;background:rgba(76,217,100,.06)}
+.tab{padding:11px 30px;font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;border-radius:8px;border:2px solid transparent;background:none;transition:all .2s}
+.tab:hover{color:var(--azul-esc);background:rgba(76,217,100,.15);border-color:rgba(76,217,100,.4)}
+.tab.on{background:var(--verde-btn);color:#1a3347;border-color:var(--verde-btn);box-shadow:0 3px 10px rgba(76,217,100,.35)}
+@media(max-width:560px){.tab{padding:10px 16px;font-size:13px}}
 
 /* atividades */
 .atv{background:#fff;border:1px solid var(--border2);border-radius:12px;padding:12px 15px;margin-bottom:10px;display:flex;gap:13px;align-items:center;flex-wrap:wrap}
@@ -101,29 +108,34 @@ tbody tr:nth-child(even) td{background:var(--bg2)} tbody tr:nth-child(even) td.s
 tbody tr:hover td{background:#e9f6ef} tbody tr:hover td.stick{background:#dff2e6}
 tr.vendida td.stick{color:var(--verde-esc)}
 .obralink{color:var(--azul);font-weight:800;cursor:pointer}.obralink:hover{text-decoration:underline}
+/* item 6: coluna de numeração (só casas vendidas, ordem por data da venda) */
+.numcol{text-align:center;font-weight:800;color:var(--text4);width:34px}
 .casanum{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:20px;background:var(--azul);color:#fff;font-size:10px;font-weight:800;vertical-align:middle}
 .tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700}
 .tag.sim{background:rgba(42,157,92,.14);color:var(--verde-esc)}.tag.nao{background:#f1e0e0;color:#9b2c2c}
 td.edt{cursor:cell}
 td.edt:hover{outline:2px solid var(--verde);outline-offset:-2px;background:#f0fbf4!important}
 
-/* cor das linhas = SITUAÇÃO DO PROCESSO (fórmula do Notion) */
-tbody tr.sit1 td{background:#FFFBEA}
-tbody tr.sit1 td.stick{background:#FDF3D0}
-tbody tr.sit2 td{background:#FFF3E6}
-tbody tr.sit2 td.stick{background:#FCE3C6}
-tbody tr.sit3 td{background:#FDECEC}
-tbody tr.sit3 td.stick{background:#F9D9D9}
+/* cor das linhas = SITUAÇÃO DO PROCESSO (fórmula do Notion) — item 5: cores mais distintas entre si */
+tbody tr.sit1 td{background:#FFF3AD}
+tbody tr.sit1 td.stick{background:#FCE87F}
+tbody tr.sit2 td{background:#FFD8A0}
+tbody tr.sit2 td.stick{background:#FDC06E}
+tbody tr.sit3 td{background:#FFB3B3}
+tbody tr.sit3 td.stick{background:#FF8F8F}
 tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brightness(.96)}
 .chkcompleto{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--verde);color:#fff;font-size:9px;font-weight:900;margin-left:7px;vertical-align:middle}
 
-/* legenda das cores */
-.legenda{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:12px;font-size:11.5px;color:var(--text3)}
-.legenda .sw{display:inline-flex;align-items:center;gap:6px}
-.legenda .dot{width:13px;height:13px;border-radius:4px;display:inline-block;border:1px solid rgba(20,50,65,.12)}
-.legenda .dot.sit1{background:#FFFBEA;border-color:#EDD9A0}
-.legenda .dot.sit2{background:#FFF3E6;border-color:#F3C99B}
-.legenda .dot.sit3{background:#FDECEC;border-color:#EFB6B6}
+/* legenda / filtro das cores — item 5: viraram chips clicáveis (checkbox) que filtram a tabela */
+.legenda{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px;font-size:11.5px}
+.legenda .sw{display:inline-flex;align-items:center;gap:6px;cursor:pointer;background:#fff;border:1.5px solid var(--border);border-radius:20px;padding:5px 12px 5px 8px;color:var(--text3);font-weight:600;transition:all .12s;user-select:none}
+.legenda .sw:hover{border-color:var(--text3)}
+.legenda .sw.on{border-color:var(--azul);color:var(--azul);background:#e7f0f3}
+.legenda .sw input{margin:0;accent-color:var(--azul)}
+.legenda .dot{width:13px;height:13px;border-radius:4px;display:inline-block;border:1px solid rgba(20,50,65,.18)}
+.legenda .dot.sit1{background:#FFF3AD;border-color:#E8CE5A}
+.legenda .dot.sit2{background:#FFD8A0;border-color:#EDA344}
+.legenda .dot.sit3{background:#FFB3B3;border-color:#E05252}
 .legenda .dot.sit0{background:#fff;border-color:var(--border)}
 
 /* painel obra */
@@ -197,7 +209,7 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
 
     <!-- HUB -->
     <section id="view-hub">
-      <div class="crumb"><a href="index.html" style="color:var(--azul);font-weight:700;text-decoration:none">← Portal Central</a></div>
+      <div class="crumb"><a class="btn-voltar" href="index.html">← Voltar para o Dashboard</a></div>
       <div class="sec"><span class="cond">Setores</span></div>
       <div class="setores" id="setores"></div>
 
@@ -216,26 +228,21 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
         <span class="count" id="hub-count"></span>
       </div>
       <div class="info-bar" id="hub-info"></div>
-      <div class="legenda">
-        <span class="sw"><span class="dot sit0"></span> Sem pendência de prazo</span>
-        <span class="sw"><span class="dot sit1"></span> ⏳ Tempo corrido &gt; 20 dias</span>
-        <span class="sw"><span class="dot sit2"></span> ⚠️ Tempo corrido &gt; 45 dias</span>
-        <span class="sw"><span class="dot sit3"></span> 🚨 &gt; 45 dias e não recebeu</span>
-        <span class="sw"><span class="chkcompleto" style="margin-left:0">✓</span> Processo de vendas completo</span>
-      </div>
+      <div class="legenda" id="hub-legenda"></div>
       <div class="scroll-top" id="hub-stop"><div></div></div>
       <div class="tabela-wrap" id="hub-wrap"><div class="vazio"><span class="load"></span> Carregando…</div></div>
     </section>
 
     <!-- SETOR -->
     <section id="view-setor" style="display:none">
-      <div class="crumb"><button onclick="irHub()">← Gestão de Vendas</button> <span>/</span> <b id="setor-nome">Setor</b></div>
+      <div class="crumb"><button class="btn-voltar" onclick="irHub()">← Voltar para Gestão de Vendas</button> <span>/</span> <b id="setor-nome">Setor</b></div>
       <img id="setor-banner" style="display:none;width:100%;max-height:150px;object-fit:cover;border-radius:12px;margin-bottom:16px" alt="">
-      <div class="tabs">
+      <div class="tabs-outer"><div class="tabs">
         <button class="tab on" data-t="atividades" onclick="abaSetor('atividades')">Atividades</button>
         <button class="tab" data-t="alertas" onclick="abaSetor('alertas')">Alertas</button>
+        <button class="tab" data-t="atrasados" onclick="abaSetor('atrasados')">Atrasados</button>
         <button class="tab" data-t="planilha" onclick="abaSetor('planilha')">Planilha</button>
-      </div>
+      </div></div>
 
       <div id="st-atividades">
         <div class="count" id="atv-count" style="margin-bottom:12px"></div>
@@ -244,6 +251,11 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
 
       <div id="st-alertas" style="display:none">
         <div id="al-lista"><div class="vazio">Carregando…</div></div>
+      </div>
+
+      <!-- item 8: processos em atraso (>45 dias), separado dos alertas gerais -->
+      <div id="st-atrasados" style="display:none">
+        <div id="at-lista"><div class="vazio">Abra a Planilha uma vez pra carregar os atrasados.</div></div>
       </div>
 
       <div id="st-planilha" style="display:none">
@@ -261,13 +273,7 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
           <span class="count" id="set-count"></span>
         </div>
         <div class="info-bar" id="set-info"></div>
-        <div class="legenda">
-          <span class="sw"><span class="dot sit0"></span> Sem pendência de prazo</span>
-          <span class="sw"><span class="dot sit1"></span> ⏳ Tempo corrido &gt; 20 dias</span>
-          <span class="sw"><span class="dot sit2"></span> ⚠️ Tempo corrido &gt; 45 dias</span>
-          <span class="sw"><span class="dot sit3"></span> 🚨 &gt; 45 dias e não recebeu</span>
-          <span class="sw"><span class="chkcompleto" style="margin-left:0">✓</span> Processo de vendas completo</span>
-        </div>
+        <div class="legenda" id="set-legenda"></div>
         <div class="scroll-top" id="set-stop"><div></div></div>
         <div class="tabela-wrap" id="set-wrap"><div class="vazio">Carregando…</div></div>
       </div>
@@ -294,16 +300,22 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
 <script>
 const S = exigirSessao();
 atualizarStatus(); atualizarBadge();
-let SCHEMA=[], SCAMPO={}, ATIV=[], DADOS={hub:[], set:[]}, SETOR_ATUAL="Secretária de Vendas";
-const RESUMO=["CLIENTES","CPF","DATA DA VENDA","VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)","CORRETOR","IMOBILIÁRIA","CORRESPONDENTE","Nº Whatsapp","Email","BANCO"];
+let SCHEMA=[], SCAMPO={}, ATIV=[], ATIV_ALL=[], DADOS={hub:[], set:[]}, SETOR_ATUAL="Secretária de Vendas";
+/* item 9: Nº Whatsapp e Email vêm logo depois do CPF (antes ficavam perto de CORRESPONDENTE) */
+const RESUMO=["CLIENTES","CPF","Nº Whatsapp","Email","DATA DA VENDA","VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)","CORRETOR","IMOBILIÁRIA","CORRESPONDENTE","BANCO"];
 
 /* Departamentos da área de vendas — "Gestores de Vendas" virou "Secretária de Vendas"
-   e foi criado o novo departamento "Gestor de Vendas" (item 8 do pedido). Os dois usam
-   a mesma base de dados/atividades por enquanto — quando cada um tiver uma visão própria,
-   é só diferenciar aqui. */
+   e foi criado o novo departamento "Gestor de Vendas".
+   item 7 do pedido: cada setor só deve ver as atividades/alertas que são "dele".
+   O campo "responsavel" abaixo é o valor exato da coluna RESPONSÁVEL (no Notion,
+   ATIVIDADES DE VENDAS) que identifica as atividades daquele setor — confirmado
+   por print para "Secretária de Vendas" (= "Construtora Morais").
+   PENDENTE: qual é o valor de RESPONSÁVEL que identifica "Gestor de Vendas"?
+   Enquanto não informar, esse setor continua mostrando todas as atividades
+   (mesmo comportamento de antes), pra não esconder nada por engano. */
 const SETORES_AREA=[
-  {nome:"Secretária de Vendas", d:"Atividades, alertas e planilha", ativo:true, banner:"img/gestores-vendas.jpg"},
-  {nome:"Gestor de Vendas", d:"Atividades, alertas e planilha", ativo:true, banner:"img/gestores-vendas.jpg"},
+  {nome:"Secretária de Vendas", d:"Atividades, alertas e planilha", ativo:true, banner:"img/gestores-vendas.jpg", responsavel:"Construtora Morais"},
+  {nome:"Gestor de Vendas", d:"Atividades, alertas e planilha", ativo:true, banner:"img/gestores-vendas.jpg", responsavel:null},
   {nome:"Departamento de Projetos", d:"Em alinhamento", ativo:false},
   {nome:"Júlio César", d:"Em alinhamento", ativo:false},
   {nome:"Ana Paula", d:"Em alinhamento", ativo:false},
@@ -368,11 +380,25 @@ async function boot(){
   pintarUsuario(S);
   if(!podeAcessar(S,"VENDAS")){ document.getElementById("sem-acesso").style.display="block"; document.getElementById("view-hub").style.display="none"; return; }
   renderSetores(); // pinta a tela já, sem esperar a rede
-  const tarefas=[ lerEstatico("schema.json","schema"), carregarDocumentos() ];
-  const [sc]=await Promise.all(tarefas); // schema + documentos em paralelo
+  const tarefas=[ lerEstatico("schema.json","schema"), carregarDocumentos(), ler({action:"atividades"},"atividades") ];
+  const [sc,,atvR]=await Promise.all(tarefas); // schema + documentos + atividades em paralelo
   if(sc.ok){ SCHEMA=sc.campos; SCAMPO={}; SCHEMA.forEach(c=>SCAMPO[c.nome]=c); mostrarOffline(sc); }
+  if(atvR&&atvR.ok){ ATIV_ALL=atvR.atividades; atualizarBadgesSetores(); }
   montarSetorSelects();
   carregarPlanilha("hub");
+}
+/* item 7: cada atividade só conta pro setor cujo "responsavel" bate com o
+   RESPONSÁVEL da atividade (ver SETORES_AREA). Setor sem "responsavel"
+   definido mostra tudo (comportamento antigo), até informar o valor certo. */
+function atividadesDoSetor(nome){
+  const info=SETORES_AREA.find(s=>s.nome===nome);
+  const alvo=info&&info.responsavel;
+  if(!alvo) return ATIV_ALL;
+  const alvoN=normNome(alvo);
+  return ATIV_ALL.filter(a=>(a.responsavel||[]).some(n=>normNome(n)===alvoN));
+}
+function atualizarBadgesSetores(){
+  SETORES_AREA.forEach((s,i)=>{ const el=document.getElementById("scnt-"+i); if(el) el.textContent=atividadesDoSetor(s.nome).length; });
 }
 
 /* ---------- HUB ---------- */
@@ -414,19 +440,24 @@ function abrirSetor(nome){
 }
 function abaSetor(t){
   document.querySelectorAll("#view-setor .tab").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
-  ["atividades","alertas","planilha"].forEach(x=>document.getElementById("st-"+x).style.display = x===t?"block":"none");
+  ["atividades","alertas","atrasados","planilha"].forEach(x=>document.getElementById("st-"+x).style.display = x===t?"block":"none");
   if(t==="planilha" && !DADOS.set.length) carregarPlanilha("set");
   if(t==="alertas") renderAlertas();
+  if(t==="atrasados") renderAtrasados();
 }
 
 /* ---------- ATIVIDADES ---------- */
 async function carregarAtividades(){
-  const r=await ler({action:"atividades"},"atividades"); mostrarOffline(r);
   const box=document.getElementById("atv-lista");
-  if(!r.ok){ box.innerHTML='<div class="vazio">Não foi possível carregar.</div>'; return; }
-  ATIV=r.atividades;
-  document.querySelectorAll('[id^="scnt-"]').forEach(el=>el.textContent=ATIV.length);
-  document.getElementById("atv-count").textContent = ATIV.length+" atividade(s) em aberto"+(S.tipo==="ADM"?" (todas — ADM)":" para você");
+  if(!ATIV_ALL.length){
+    const r=await ler({action:"atividades"},"atividades"); mostrarOffline(r);
+    if(!r.ok){ box.innerHTML='<div class="vazio">Não foi possível carregar.</div>'; return; }
+    ATIV_ALL=r.atividades; atualizarBadgesSetores();
+  }
+  ATIV=atividadesDoSetor(SETOR_ATUAL); // item 7: só as atividades do setor aberto
+  const iSetor=SETORES_AREA.findIndex(s=>s.nome===SETOR_ATUAL);
+  const badge=document.getElementById("scnt-"+iSetor); if(badge) badge.textContent=ATIV.length;
+  document.getElementById("atv-count").textContent = ATIV.length+" atividade(s) em aberto — "+SETOR_ATUAL;
   if(!ATIV.length){ box.innerHTML='<div class="vazio">Nenhuma atividade em aberto. 🎉</div>'; return; }
   box.innerHTML="";
   ATIV.forEach(a=>{
@@ -445,22 +476,62 @@ async function carregarAtividades(){
 async function darBaixa(a,valor,d,btn){
   btn.disabled=true; btn.innerHTML='<span class="load"></span>';
   const r=await escrever({action:"baixa",atividadeId:a.id,valor:valor},"Baixa: "+a.nome);
-  if(r.ok){ d.classList.add("feita"); toast(r.enfileirado?"Baixa na fila ✓":"Baixa registrada ✓"); setTimeout(()=>{ d.remove(); const n=document.querySelectorAll("#atv-lista .atv").length; document.getElementById("atv-count").textContent=n+" atividade(s) em aberto"+(S.tipo==="ADM"?" (todas — ADM)":" para você"); document.querySelectorAll('[id^="scnt-"]').forEach(el=>el.textContent=n); },650); }
-  else { btn.disabled=false; btn.textContent="Dar baixa"; toast("Erro: "+r.erro); }
+  if(r.ok){
+    d.classList.add("feita"); toast(r.enfileirado?"Baixa na fila ✓":"Baixa registrada ✓");
+    setTimeout(()=>{
+      d.remove();
+      ATIV_ALL=ATIV_ALL.filter(x=>x.id!==a.id); // tira da base local pra badges/contagens ficarem certos
+      const n=document.querySelectorAll("#atv-lista .atv").length;
+      document.getElementById("atv-count").textContent=n+" atividade(s) em aberto — "+SETOR_ATUAL;
+      atualizarBadgesSetores();
+    },650);
+  } else { btn.disabled=false; btn.textContent="Dar baixa"; toast("Erro: "+r.erro); }
 }
 
 /* ---------- ALERTAS ---------- */
+/* item 8: lista de alertas específica por setor (fragmentos do nome da coluna
+   fórmula no Notion — tolerante a ALERTA/ELERTA e espaço sobrando).
+   PENDENTE: confirmar se "Gestor de Vendas" usa esta mesma lista ou nenhuma;
+   por ora ele cai no fallback (mostra qualquer coluna ALERTA/ELERTA, igual antes). */
+const ALERTAS_SETOR={
+  "Secretária de Vendas":[
+    "PREENCHER INFORMACOES DE VENDA",
+    "ALERTA DATA PRE-VISTORIA","ELERTA DATA PRE-VISTORIA",
+    "ALERTA ENVIO CONFORMIDADE","ELERTA ENVIO CONFORMIDADE",
+    "ALERTA ASSINATURA BANCO","ELERTA ASSINATURA BANCO",
+    "ALERTA DATA DA ENTREGA","ELERTA DATA DA ENTREGA"
+  ]
+};
+function camposAlertaDoSetor(nome){
+  const lista=ALERTAS_SETOR[nome];
+  if(!lista) return SCHEMA.filter(c=>c.tipo==="formula" && /^ALERTA|^ELERTA/.test(c.nome)); // fallback: comportamento antigo
+  const alvo=lista.map(normNome);
+  return SCHEMA.filter(c=>c.tipo==="formula" && alvo.some(a=>normNome(c.nome).indexOf(a)>=0));
+}
 function renderAlertas(){
   const box=document.getElementById("al-lista");
   const dados = DADOS.set.length?DADOS.set:DADOS.hub;
   if(!dados.length){ box.innerHTML='<div class="vazio">Abra a Planilha uma vez para carregar os alertas do setor.</div>'; return; }
-  const alertaCampos = SCHEMA.filter(c=>c.tipo==="formula" && /^ALERTA|^ELERTA/.test(c.nome));
+  const alertaCampos = camposAlertaDoSetor(SETOR_ATUAL);
   const linhas=[];
   dados.forEach(v=>{
     alertaCampos.forEach(c=>{ const val=getV(v.valores,c.nome); if(val && val!=="-" && /PREENCHER|⚠️/.test(String(val))) linhas.push({id:v.id, end:getV(v.valores,"ENDEREÇO")||"(sem endereço)", txt:String(val)}); });
   });
   if(!linhas.length){ box.innerHTML='<div class="vazio">Nenhum alerta pendente. 🎉</div>'; return; }
   box.innerHTML=linhas.map(l=>`<div class="al"><span class="end" onclick='abrirObra(${JSON.stringify(l.id)})'>${esc(l.end)}</span><span class="txt">${esc(l.txt)}</span></div>`).join("");
+}
+
+/* ---------- ATRASADOS (item 8: destaque separado, >45 dias) ---------- */
+function renderAtrasados(){
+  const box=document.getElementById("at-lista");
+  const dados = DADOS.set.length?DADOS.set:DADOS.hub;
+  if(!dados.length){ box.innerHTML='<div class="vazio">Abra a Planilha uma vez para carregar os atrasados.</div>'; return; }
+  const linhas=dados.map(v=>({v, prazo:corSituacao(v.valores)})).filter(x=>x.prazo==="sit2"||x.prazo==="sit3");
+  if(!linhas.length){ box.innerHTML='<div class="vazio">Nenhum processo em atraso. 🎉</div>'; return; }
+  box.innerHTML=linhas.map(({v,prazo})=>{
+    const txt = prazo==="sit3" ? "🚨 Tempo corrido > 45 dias e não recebeu" : "⚠️ Tempo corrido > 45 dias";
+    return `<div class="al" style="border-left-color:${prazo==="sit3"?"#c0392b":"#E67E22"}"><span class="end" onclick='abrirObra(${JSON.stringify(v.id)})'>${esc(getV(v.valores,"ENDEREÇO")||"(sem endereço)")}</span><span class="txt">${txt}</span></div>`;
+  }).join("");
 }
 
 /* ---------- PLANILHA (todas as colunas, rolagem em cima e embaixo) ---------- */
@@ -534,9 +605,10 @@ function corSituacao(valores){
 }
 function renderTabela(ctx){
   const cols=ordemColunas().map(campoPorNome).filter(Boolean);
-  let html='<table><thead><tr>'+cols.map((c,i)=>`<th class="${i===0?"stick":""}">${esc(c.nome.trim())}</th>`).join("")+'</tr></thead><tbody>';
+  let html='<table><thead><tr><th>Nº</th>'+cols.map((c,i)=>`<th class="${i===0?"stick":""}">${esc(c.nome.trim())}</th>`).join("")+'</tr></thead><tbody>';
   DADOS[ctx].forEach(v=>{
-    const vendida=!!getV(v.valores,"DATA DA VENDA");
+    const dv=getV(v.valores,"DATA DA VENDA");
+    const vendida=!!dv;
     const completo=processoCompleto(v.valores);
     const busca=[getV(v.valores,"ENDEREÇO"),getV(v.valores,"CLIENTES"),getV(v.valores,"CPF")].join(" ").toLowerCase();
     const cidade=getV(v.valores,"CIDADE")||"";
@@ -545,8 +617,9 @@ function renderTabela(ctx){
     const dc=docDe(getV(v.valores,"ENDEREÇO"));
     const breve = (dc && normNome(dc.habite)==="SIM") ? "1":"0";
     const constr = (dc && /SIM/.test(normNome(dc.obra_iniciada))) ? "1":"0";
+    const prazo=corSituacao(v.valores)||"sit0";
     const classe=[vendida?"vendida":"",corSituacao(v.valores)].filter(Boolean).join(" ");
-    html+=`<tr class="${classe}" data-id="${esc(v.id)}" data-b="${esc(busca)}" data-cidade="${esc(cidade)}" data-sit="${esc(sit)}" data-ano="${esc(ano)}" data-breve="${breve}" data-obra="${constr}">`+cols.map((c,i)=>{
+    html+=`<tr class="${classe}" data-id="${esc(v.id)}" data-b="${esc(busca)}" data-cidade="${esc(cidade)}" data-sit="${esc(sit)}" data-ano="${esc(ano)}" data-breve="${breve}" data-obra="${constr}" data-prazo="${prazo}" data-dv="${esc(vendida?String(dv).slice(0,10):"")}"><td class="numcol"></td>`+cols.map((c,i)=>{
       const val=getV(v.valores,c.nome);
       if(i===0){ const casa=getV(v.valores,"CASA");
         return `<td class="stick"><span class="obralink" data-obra="${esc(v.id)}">${esc(val||"(sem endereço)")}</span>`+
@@ -559,6 +632,17 @@ function renderTabela(ctx){
   const wrap=document.getElementById(ctx+"-wrap"); wrap.innerHTML=html;
   sincronizarScroll(ctx);
   ligarTabela(ctx);
+  renderLegenda(ctx);
+  renumerarTabela(ctx);
+}
+/* item 6: numera só as linhas VISÍVEIS (respeita os filtros aplicados, inclusive
+   o de ano) e só as vendidas, na ordem da DATA DA VENDA (mais antiga = 1) */
+function renumerarTabela(ctx){
+  const linhas=[...document.querySelectorAll("#"+ctx+"-wrap tbody tr")]
+    .filter(tr=>tr.style.display!=="none" && tr.dataset.dv);
+  linhas.sort((a,b)=>a.dataset.dv.localeCompare(b.dataset.dv));
+  document.querySelectorAll("#"+ctx+"-wrap tbody tr .numcol").forEach(td=>td.textContent="—");
+  linhas.forEach((tr,i)=>{ tr.querySelector(".numcol").textContent=i+1; });
 }
 
 /* clique na tabela: abre a obra (coluna de endereço) ou edita a célula */
@@ -630,22 +714,41 @@ function popularFiltrosDinamicos(ctx){
   const selA=document.getElementById(ctx+"-ano"); const atualA=selA.value;
   selA.innerHTML='<option value="">Todos os anos</option>'+[...anos].sort().reverse().map(a=>`<option${a===atualA?" selected":""}>${esc(a)}</option>`).join("");
 }
+/* item 5: legenda virou filtro — chips clicáveis (checkbox) por situação de prazo */
+function renderLegenda(ctx){
+  const box=document.getElementById(ctx+"-legenda"); if(!box) return;
+  const on=`onchange="this.parentNode.classList.toggle('on',this.checked); aplicarFiltros('${ctx}')"`;
+  box.innerHTML=
+    `<label class="sw"><input type="checkbox" data-v="sit0" ${on}><span class="dot sit0"></span> Sem pendência de prazo</label>`+
+    `<label class="sw"><input type="checkbox" data-v="sit1" ${on}><span class="dot sit1"></span> ⏳ Tempo corrido &gt; 20 dias</label>`+
+    `<label class="sw"><input type="checkbox" data-v="sit2" ${on}><span class="dot sit2"></span> ⚠️ Tempo corrido &gt; 45 dias</label>`+
+    `<label class="sw"><input type="checkbox" data-v="sit3" ${on}><span class="dot sit3"></span> 🚨 &gt; 45 dias e não recebeu</label>`+
+    `<label class="sw"><input type="checkbox" data-v="completo" ${on}><span class="chkcompleto" style="margin-left:0">✓</span> Processo de vendas completo</label>`;
+}
 function aplicarFiltros(ctx){
   const q=(document.getElementById(ctx+"-busca").value||"").toLowerCase();
   const cid=document.getElementById(ctx+"-cidade").value;
   const sit=document.getElementById(ctx+"-situacao").value;
   const ano=document.getElementById(ctx+"-ano").value;
+  // chips de prazo/pendência marcados (vazio = sem filtro, mostra tudo)
+  const legBox=document.getElementById(ctx+"-legenda");
+  const marcados=legBox?[...legBox.querySelectorAll("input[data-v]:checked")].map(i=>i.dataset.v):[];
+  const prazoFiltro=marcados.filter(v=>v!=="completo");
+  const completoOn=marcados.indexOf("completo")>=0;
   let visiveis=0;
   document.querySelectorAll("#"+ctx+"-wrap tbody tr").forEach(tr=>{
     let ok = tr.dataset.b.indexOf(q)>=0;
     if(ok && cid) ok = tr.dataset.cidade===cid;
     if(ok && sit) ok = (","+tr.dataset.sit+",").indexOf(","+sit+",")>=0;
     if(ok && ano) ok = tr.dataset.ano===ano;
+    if(ok && prazoFiltro.length) ok = prazoFiltro.indexOf(tr.dataset.prazo)>=0;
+    if(ok && completoOn) ok = (","+tr.dataset.sit+",").indexOf(",completo,")>=0;
     tr.style.display = ok?"":"none";
     if(ok) visiveis++;
   });
   document.getElementById(ctx+"-count").textContent = visiveis+" obra(s)";
   atualizarInformativo(ctx);
+  renumerarTabela(ctx);
 }
 function infoCard(lab,val){ return `<div class="icard"><div class="ival">${val}</div><div class="ilab">${esc(lab)}</div></div>`; }
 function atualizarInformativo(ctx){

@@ -42,10 +42,14 @@ API = "https://api.notion.com/v1"
 # Notion (o bloco de 32 caracteres depois de /p/ ou do nome do workspace).
 ID_VENDAS_PADRAO = "33cc5ab532d38047ae3aee8b87ac1f4d"  # base VENDAS
 ID_DOCUMENTOS_PADRAO = "32fc5ab532d380a0900dd7f4bfc619bd"
+# Mesma base METAS já usada pelo Code.gs (CONFIG.DB.METAS) — reaproveitada
+# aqui pra calcular o card "Meta de Casas" do dashboard (portal.json).
+ID_METAS_PADRAO = "358c5ab532d3804fbcbfebc3656b1220"
 
 TOKEN = os.environ.get("NOTION_TOKEN", "").strip()
 DB_VENDAS = (os.environ.get("VENDAS_DB_ID") or ID_VENDAS_PADRAO).strip()
 DB_DOCS = (os.environ.get("DOCUMENTOS_DB_ID") or ID_DOCUMENTOS_PADRAO).strip()
+DB_METAS = (os.environ.get("METAS_DB_ID") or ID_METAS_PADRAO).strip()
 
 SAIDA = "dist"
 
@@ -64,6 +68,18 @@ def norm(s):
     s = unicodedata.normalize("NFD", str(s or ""))
     s = "".join(c for c in s if unicodedata.category(c) != "Mn")
     return " ".join(s.upper().split())
+
+
+def getV_py(valores, nome):
+    """Leitura tolerante (mesmo espírito do getV() do app.js): a base VENDAS
+    às vezes tem espaço sobrando no fim do nome da coluna no Notion."""
+    if nome in valores:
+        return valores[nome]
+    alvo = norm(nome)
+    for k, v in valores.items():
+        if norm(k) == alvo:
+            return v
+    return None
 
 
 def api(method, path, body=None, tentativas=4):
@@ -233,9 +249,11 @@ def main():
         "ok": True, "total": len(vendas), "vendas": vendas, "updated_at": agora,
     })
 
-    # DOCUMENTOS: usado só pelos contadores "em breve" e "em construção".
-    # Publicamos um índice enxuto endereço -> flags, não a base inteira.
+    # DOCUMENTOS: índice endereço -> flags (contadores "em breve"/"em construção")
+    # + lista completa (docs_full) usada pra calcular o dashboard (portal.json):
+    # precisa de n_casas/cota/datas, não só habite/obra_iniciada.
     docs_idx = {}
+    docs_full = []
     if DB_DOCS:
         print("Lendo DOCUMENTOS OBRAS…", flush=True)
         cd = montar_schema(DB_DOCS)
@@ -243,17 +261,44 @@ def main():
         c_end = achar(cn, "ENDERECO", "OBRA", "NOME")
         c_hab = achar(cn, "APROVOU HABITE", "HABITE")
         c_obr = achar(cn, "OBRA INICIADA", "OBRA INCIADA")
-        print(f"  colunas: endereço={c_end!r} habite={c_hab!r} obra={c_obr!r}", flush=True)
+        # CORREÇÃO item 2/3: campos extras pra distinguir CASAS de LOTES e
+        # separar Morais/Investidor. Busca tolerante (fragmento) — se algum
+        # nome não bater, o card correspondente cai em valor-padrão seguro
+        # (1 casa, 100% Morais) em vez de quebrar o build.
+        c_ncasas = achar(cn, "NUMERO DE CASAS", "N DE CASAS", "QTD DE CASAS", "QTD CASAS", "CASAS COMPORTADAS", "N CASAS")
+        c_cota = achar(cn, "COTA DA EMPRESA", "COTA EMPRESA", "COTA")
+        c_dini = achar(cn, "DATA DE INICIO DA OBRA", "DATA INICIO DA OBRA", "INICIO DA OBRA")
+        c_daq = achar(cn, "DATA DE AQUISICAO DO LOTE", "DATA AQUISICAO DO LOTE", "AQUISICAO DO LOTE", "AQUISICAO LOTE")
+        c_impl = achar(cn, "IMPLANTACAO")
+        print(f"  colunas: endereço={c_end!r} habite={c_hab!r} obra={c_obr!r} "
+              f"n_casas={c_ncasas!r} cota={c_cota!r} data_inicio_obra={c_dini!r} "
+              f"data_aquisicao_lote={c_daq!r} implantacao={c_impl!r}", flush=True)
+        if not c_ncasas:
+            print("  ! coluna de 'número de casas' não encontrada — cada lote conta "
+                  "como 1 casa (mesmo bug do item 2 do pedido). Confira o nome exato "
+                  "da coluna no Notion e ajuste os fragmentos em achar(cn, ...).", flush=True)
+
+        def pega(props, col):
+            return valor(props[col]) if col and col in props else None
 
         for p in ler_banco(DB_DOCS, "DOCUMENTOS"):
             props = p.get("properties") or {}
             end = valor(props[c_end]) if c_end and c_end in props else None
             if not end:
                 continue
-            docs_idx[norm(end)] = {
-                "habite": valor(props[c_hab]) if c_hab and c_hab in props else None,
-                "obra_iniciada": valor(props[c_obr]) if c_obr and c_obr in props else None,
-            }
+            habite = pega(props, c_hab)
+            obra_iniciada = pega(props, c_obr)
+            docs_idx[norm(end)] = {"habite": habite, "obra_iniciada": obra_iniciada}
+            cota = pega(props, c_cota)
+            docs_full.append({
+                "endereco": end,
+                "n_casas": pega(props, c_ncasas) or 1,
+                "cota_empresa": cota if cota is not None else 1.0,
+                "data_inicio_obra": pega(props, c_dini),
+                "data_aquisicao_lote": pega(props, c_daq),
+                "obra_iniciada": obra_iniciada,
+                "implantacao": pega(props, c_impl),
+            })
         gravar("documentos.json", {
             "ok": True, "total": len(docs_idx), "docs": docs_idx,
             "colunas": {"endereco": c_end, "habite": c_hab, "obra_iniciada": c_obr},
@@ -262,6 +307,103 @@ def main():
     else:
         print("DOCUMENTOS_DB_ID não definido — pulando (contadores ficarão em '—').", flush=True)
         gravar("documentos.json", {"ok": False, "docs": {}, "updated_at": agora})
+
+    # METAS: só ANO e META DE CASAS por enquanto (mesmos campos que o antigo
+    # portal_() do Code.gs já lia). Metas mensais por tipo/proprietário
+    # (cs_rua_morais etc., como no EXEMPLO_METAS) ficam de fora até
+    # confirmar o nome exato dessas colunas no Notion.
+    metas_por_ano = {}
+    if DB_METAS:
+        print("Lendo METAS…", flush=True)
+        cm = montar_schema(DB_METAS)
+        cmn = [(c["nome"], norm(c["nome"])) for c in cm]
+        c_ano = achar(cmn, "ANO")
+        c_metac = achar(cmn, "META DE CASAS", "META CASAS")
+        print(f"  colunas: ano={c_ano!r} meta_casas={c_metac!r}", flush=True)
+        for p in ler_banco(DB_METAS, "METAS"):
+            props = p.get("properties") or {}
+            ano_v = valor(props[c_ano]) if c_ano and c_ano in props else None
+            try:
+                ano_i = int(str(ano_v).strip())
+            except (TypeError, ValueError):
+                continue
+            meta_v = valor(props[c_metac]) if c_metac and c_metac in props else None
+            metas_por_ano[ano_i] = meta_v
+
+    # ---- portal.json: KPIs do Dashboard (Portal Central) ----------------
+    # É o que faltava publicar (item 1: dashboard nunca atualizava porque
+    # dist/portal.json não existia e o site sempre caía no cache antigo).
+    print("Calculando portal.json…", flush=True)
+    ano_atual = int(time.strftime("%Y", time.gmtime()))
+
+    def cota_m(d):
+        c = d.get("cota_empresa")
+        return 1.0 if c is None else float(c)
+
+    # Casas Vendidas (ano vigente) — não mudou de lógica, só reescrito em Python
+    casas_vend, vgv, meses_v = 0, 0.0, set()
+    for v in vendas:
+        val = v["valores"]
+        dv = getV_py(val, "DATA DA VENDA")
+        if dv and str(dv)[:4] == str(ano_atual):
+            casas_vend += 1
+            meses_v.add(str(dv)[:7])
+            vlr = getV_py(val, "VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)")
+            if isinstance(vlr, (int, float)):
+                vgv += vlr
+    n_meses_v = len(meses_v) or 1
+
+    # Início de Obras — CORREÇÃO item 2: soma n_casas, não conta lotes
+    casas_inic_m, casas_inic_i, meses_o = 0.0, 0.0, set()
+    for d in docs_full:
+        oi = norm(d.get("obra_iniciada") or "")
+        di = d.get("data_inicio_obra")
+        if oi in ("SIM", "SIM SEM PRAZO") and di and str(di)[:4] == str(ano_atual):
+            n = float(d.get("n_casas") or 1)
+            cm = cota_m(d)
+            casas_inic_m += n * cm
+            casas_inic_i += n * (1 - cm)
+            meses_o.add(str(di)[:7])
+    casas_inic_total = casas_inic_m + casas_inic_i
+    n_meses_o = len(meses_o) or 1
+    meta_casas = metas_por_ano.get(ano_atual)
+
+    # Lotes Comprados — mantém a contagem por LOTE (não por casa, isso já
+    # estava certo), só adiciona a divisão Morais/Investidor + a meta (item 3)
+    lotes_m, lotes_i = 0, 0
+    for d in docs_full:
+        da = d.get("data_aquisicao_lote")
+        if da and str(da)[:4] == str(ano_atual):
+            cm = cota_m(d)
+            if cm > 0:
+                lotes_m += 1
+            if cm < 1:
+                lotes_i += 1
+    lotes_total = lotes_m + lotes_i
+
+    portal = {
+        "ok": True,
+        "ano": ano_atual,
+        "vendaCasas": {
+            "total": casas_vend, "vgv": vgv,
+            "mediaMes": casas_vend / n_meses_v, "meses": n_meses_v,
+            "ticket": (vgv / casas_vend) if casas_vend else 0,
+        },
+        "inicioObras": {
+            "iniciadas": round(casas_inic_total, 2),
+            "iniciadasMorais": round(casas_inic_m, 2),
+            "iniciadasInvestidores": round(casas_inic_i, 2),
+            "mediaMes": casas_inic_total / n_meses_o, "meses": n_meses_o,
+            "meta": meta_casas,
+            "pct": (casas_inic_total / meta_casas) if meta_casas else None,
+        },
+        "lotes": {
+            "total": lotes_total, "morais": lotes_m, "investidores": lotes_i,
+            "meta": meta_casas,
+        },
+        "updated_at": agora,
+    }
+    gravar("portal.json", portal)
 
     gravar("updated.json", {"updated_at": agora})
     print(f"OK — {len(vendas)} vendas, {len(docs_idx)} documentos.", flush=True)
