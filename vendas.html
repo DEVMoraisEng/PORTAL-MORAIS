@@ -216,6 +216,7 @@ tr.tot td{font-weight:800;background:var(--bg3)}
 .preench-item{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .preench-item>label{font-size:10px;font-weight:700;color:var(--text4);text-transform:uppercase;min-width:78px}
 .preench-item .campo-inline{flex:1;min-width:120px}
+.cola.falta{background:#fdf1e7;color:#b26a2b}
 .cola{font-size:11px;color:var(--text3);background:var(--bg3);border-radius:6px;padding:2px 7px;white-space:nowrap}
 .lapis{border:0;background:none;cursor:pointer;color:var(--text3);font-size:13px;padding:0 3px}
 .lapis:hover{color:var(--text)}
@@ -1399,7 +1400,9 @@ function renderAlertas(){
               `<label>${esc(a.campo.nome.trim())}</label>`+
               `<span class="campo-inline">${inputControl(a.campo, getV(l.v.valores,a.campo.nome), l.v.id)}</span>`+
               // a "cola": valor automático ao lado, só leitura, pra conferir/copiar
-              (a.cola?`<span class="cola" title="${esc(a.cola.nome.trim())} (automático)">${esc(cola==null||cola===""?"—":cola)}</span>`:``)+
+              (a.cola
+                ? `<span class="cola" title="${esc(a.cola.nome.trim())} (automático)">${esc(cola==null||cola===""?"—":cola)}</span>`
+                : (a.colaEsperada?`<span class="cola falta" title="Não existe no Notion uma coluna chamada ${esc(a.colaEsperada)}">sem ${esc(a.colaEsperada)}</span>`:``))+
             `</span>`;
           }).join("")+`</span>`
         : `<button type="button" class="bt ghost bt-mini" onclick='abrirObra(${JSON.stringify(l.v.id)})'>Abrir obra</button>`;
@@ -1414,23 +1417,38 @@ function renderAlertas(){
    lado, só leitura, para a pessoa conferir e copiar.
    Fora deste mapa, continua valendo a descoberta automática pelo texto. */
 const CAMPOS_DO_ALERTA=[
+  // "cola" aceita vários nomes possíveis: só CASA-AUTO batia, os outros três
+  // se chamam diferente no Notion e a coluna simplesmente não aparecia.
   { quando:"PREENCHER ENDERECO E NUMERO DA CASA E SETOR", campos:[
-      {nome:"ENDEREÇO",         cola:"OBRA-AUTO"},
-      {nome:"CASA",             cola:"CASA-AUTO"},
-      {nome:"SETOR",            cola:"SETOR-AUTO"},
-      {nome:"ENG. RESPONSÁEL",  cola:"ENGENHEIRO-AUTO"}
+      {nome:"ENDEREÇO",         cola:["OBRA-AUTO","ENDEREÇO-AUTO","ENDERECO-AUTO","OBRA AUTO"]},
+      {nome:"CASA",             cola:["CASA-AUTO","CASA AUTO"]},
+      {nome:"SETOR",            cola:["SETOR-AUTO","SETOR AUTO"]},
+      {nome:"ENG. RESPONSÁEL",  cola:["ENGENHEIRO-AUTO","ENG-AUTO","ENG. RESPONSÁEL-AUTO","ENGENHEIRO AUTO"]}
   ]},
   { quando:"PREENCHER REFERENCIA PBI", campos:[{nome:"REF"}] },
   { quando:"PREENCHER TIPO",           campos:[{nome:"TIPO"}] },
   // era descoberto pelo texto e caía na coluna do banco; o campo certo é a data
   { quando:"ASSINATURA",               campos:[{nome:"DATA DE ASSINATURA DO CONTRATO"}] },
 ];
+/* Acha a coluna "cola": tenta os nomes candidatos e, se nenhum existir,
+   procura qualquer coluna que tenha AUTO junto da palavra-chave.
+   Devolve também os candidatos, pra tela poder dizer o que não encontrou. */
+function acharCola(cands){
+  if(!cands) return null;
+  const lista=Array.isArray(cands)?cands:[cands];
+  for(const nome of lista){ const c=campoExatoOuFrag(nome); if(c) return c; }
+  const chave=normNome(lista[0]).replace(/[-\s]*AUTO$/,"").split(/[\s-]/)[0];
+  return SCHEMA.find(c=>{ const n=normNome(c.nome); return n.indexOf("AUTO")>=0 && n.indexOf(chave)>=0; }) || null;
+}
 function camposDoAlerta(texto){
   const t=normNome(texto);
   const reg=CAMPOS_DO_ALERTA.find(x=>t.indexOf(normNome(x.quando))>=0);
   if(reg){
-    const out=reg.campos.map(f=>({campo:campoExatoOuFrag(f.nome), cola:f.cola?campoExatoOuFrag(f.cola):null}))
-                        .filter(x=>x.campo);
+    const out=reg.campos.map(f=>({
+      campo:campoExatoOuFrag(f.nome),
+      cola:acharCola(f.cola),
+      colaEsperada:f.cola?(Array.isArray(f.cola)?f.cola[0]:f.cola):null
+    })).filter(x=>x.campo);
     if(out.length) return out;
   }
   const c=campoAlvoDoAlerta(texto);
