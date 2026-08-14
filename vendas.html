@@ -204,6 +204,17 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
 .grupo[open]>summary{border-bottom:1px solid var(--linha)}
 .grupo .qtd{margin-left:auto;background:var(--linha);color:var(--text2);border-radius:999px;padding:2px 9px;font-size:12px;font-weight:700}
 .grupo .corpo{padding:8px 10px}
+.lapis{border:0;background:none;cursor:pointer;color:var(--text3);font-size:13px;padding:0 3px}
+.lapis:hover{color:var(--text1)}
+#distoverlay .modal{background:#fff;border-radius:14px;padding:20px;width:min(420px,92vw);box-shadow:0 18px 50px rgba(0,0,0,.25)}
+#distoverlay h3{margin:0 0 6px;font-size:16px;color:var(--text1)}
+.dist-obra{margin:0 0 10px;font-weight:700;color:var(--text1);font-size:14px}
+.dist-aviso{margin:0 0 14px;font-size:12.5px;color:var(--text2);line-height:1.5}
+.dist-lab{display:block;font-size:12px;font-weight:700;color:var(--text2);margin-bottom:5px}
+#dist-senha{width:100%;padding:9px 11px;border:1px solid var(--linha);border-radius:8px;font-size:14px;box-sizing:border-box}
+.dist-erro{color:#c0392b;font-size:12.5px;min-height:18px;margin-top:6px}
+.dist-acoes{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
+.ajuda{font-size:12px;color:var(--text3);margin-top:6px;line-height:1.45}
 .sens-ro{padding:7px 9px;border:1px dashed var(--linha);border-radius:7px;color:var(--text3);font-size:13px}
 
 /* marcadores SIM/NÃO (toggle) */
@@ -338,6 +349,21 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
     <div class="ph"><div class="end" id="pn-end">Obra</div><div class="loc" id="pn-loc"></div><button class="pfechar" onclick="fecharObra()">×</button></div>
     <div class="pbody" id="pn-body"></div>
   </aside>
+
+  <div class="pdfoverlay" id="distoverlay" onclick="if(event.target===this)fecharDistrato()">
+    <div class="modal">
+      <h3>Confirmar distrato</h3>
+      <p class="dist-obra" id="dist-end"></p>
+      <p class="dist-aviso">Isto <b>apaga os dados da venda</b> e as atividades desta obra, e volta os campos de marcação para NÃO. Permanecem apenas: <span id="dist-mantem"></span>.<br><b>Não tem como desfazer pelo site.</b></p>
+      <label class="dist-lab">Sua senha</label>
+      <input type="password" id="dist-senha" autocomplete="current-password" onkeydown="if(event.key==='Enter')document.getElementById('dist-ok').click()">
+      <div class="dist-erro" id="dist-erro"></div>
+      <div class="dist-acoes">
+        <button type="button" class="bt ghost" onclick="fecharDistrato()">Cancelar</button>
+        <button type="button" class="bt danger" id="dist-ok">Confirmar distrato</button>
+      </div>
+    </div>
+  </div>
 
   <div class="pdfoverlay" id="pdfoverlay" onclick="fecharVisualizador()">
     <div class="pdfmodal" onclick="event.stopPropagation()">
@@ -632,9 +658,12 @@ function renderCasasModelo(){
       }
       const val=getV(v.valores,c.nome);
       // LAYOUT e FOTOS aqui são links do Drive: URL crua ocupa a linha toda e
-      // não dá pra ler. Vira botão.
+      // não dá pra ler. Vira botão + lápis pra trocar o link sem sair da tabela.
       if(typeof val==="string" && /^https?:\/\//i.test(val))
-        return `<td><a class="bt ghost bt-mini" href="${esc(val)}" target="_blank" rel="noopener">🔗 Abrir</a></td>`;
+        return `<td class="${editavelNaCelula(c)?"edt":""}" data-col="${esc(c.nome)}">`+
+               `<a class="bt ghost bt-mini" href="${esc(val)}" target="_blank" rel="noopener">🔗 Abrir</a>`+
+               (editavelNaCelula(c)?` <button type="button" class="lapis" title="Trocar link">✎</button>`:``)+
+               `</td>`;
       return celulaHtml(c,val,v);
     }).join("")+'</tr>';
   });
@@ -946,6 +975,7 @@ function ligarTabela(ctx){
   wrap.onclick=(ev)=>{
     const link=ev.target.closest(".obralink");
     if(link){ abrirObra(link.dataset.obra); return; }
+    if(ev.target.closest("a")) return;   // clicou no "🔗 Abrir": deixa navegar
     const td=ev.target.closest("td.edt");
     if(td && !td.querySelector("input,select")) editarCelula(ctx,td);
   };
@@ -980,7 +1010,10 @@ function editarCelula(ctx,td){
     const r=await escrever({action:"updateVenda",pageId:id,prop:col,tipo:c.tipo,valor:novo},"Editar "+col);
     if(r.ok){
       setV(reg.valores,col,novo);
-      td.outerHTML=celulaHtml(c,novo);   // repinta a célula com o valor novo
+      // na Casas Modelo a célula de link tem formatação própria (botão + lápis),
+      // que o celulaHtml não sabe montar — redesenha a tabela inteira
+      if(ctx==="mod"){ renderCasasModelo(); }
+      else td.outerHTML=celulaHtml(c,novo);   // repinta a célula com o valor novo
       toast(r.enfileirado?"Na fila ✓":"Salvo ✓");
     }else{ td.innerHTML=antigo; toast("Erro: "+erroTexto(r.erro)); }
   };
@@ -1212,6 +1245,14 @@ function renderPainel(V,pageId,sensPendente){
       html+=`<input type="file" onchange='enviarArquivo(${JSON.stringify(pageId)},${JSON.stringify(c.nome)},this)'></div>`; });
   }
 
+  // DISTRATO: só no setor da Secretária de Vendas e só para quem tem o acesso.
+  // A permissão de verdade é conferida no Apps Script — isto aqui só evita
+  // mostrar um botão que a pessoa não conseguiria usar.
+  if(SETOR_ATUAL==="Secretária de Vendas" && podeAcessar(S,"VENDAS")){
+    html+=`<div class="grp">Distrato</div><div class="campo">`+
+      `<button class="bt danger" onclick='pedirDistrato(${JSON.stringify(pageId)})'>DISTRATO</button>`+
+      `<div class="ajuda">Desistência do cliente: limpa os dados da venda e apaga as atividades desta obra. Pede sua senha.</div></div>`;
+  }
   if(S.tipo==="ADM"){ html+=`<div class="grp">Administração</div><div class="campo"><button class="bt danger" onclick='excluirObra(${JSON.stringify(pageId)})'>Excluir esta obra</button></div>`; }
   body.innerHTML=html;
 }
@@ -1239,6 +1280,50 @@ async function excluirObra(pageId){
   toast(r.ok?(r.enfileirado?"Na fila ✓":"Excluída ✓"):("Erro: "+r.erro));
   if(r.ok&&!r.enfileirado){ fecharObra(); carregarPlanilha(document.getElementById("view-setor").style.display!=="none"?"set":"hub"); }
 }
+/* ---------- DISTRATO ---------- */
+/* O que fica na obra é decidido no Apps Script (lista CAMPOS_MANTIDOS lá), não
+   aqui: se a decisão morasse no navegador, bastaria abrir o DevTools pra mudar. */
+const DISTRATO_MANTEM="ENDEREÇO, CASA, TIPO, MODELO?, REF, SETOR, CIDADE, ENG. RESPONSÁVEL e SITUAÇÃO";
+function pedirDistrato(pageId){
+  const v=vendaPorId(pageId);
+  const end=v?(getV(v.valores,"ENDEREÇO")||"esta obra"):"esta obra";
+  document.getElementById("dist-end").textContent=end;
+  document.getElementById("dist-mantem").textContent=DISTRATO_MANTEM;
+  const senha=document.getElementById("dist-senha");
+  senha.value=""; document.getElementById("dist-erro").textContent="";
+  document.getElementById("dist-ok").disabled=false;
+  document.getElementById("dist-ok").onclick=()=>confirmarDistrato(pageId);
+  document.getElementById("distoverlay").classList.add("on");
+  setTimeout(()=>senha.focus(),50);
+}
+function fecharDistrato(){ document.getElementById("distoverlay").classList.remove("on"); document.getElementById("dist-senha").value=""; }
+async function confirmarDistrato(pageId){
+  const erro=document.getElementById("dist-erro");
+  const btn=document.getElementById("dist-ok");
+  const senha=document.getElementById("dist-senha").value;
+  if(!senha){ erro.textContent="Digite sua senha."; return; }
+  if(!navigator.onLine){ erro.textContent="Sem internet. O distrato não entra na fila — precisa ser feito online."; return; }
+  erro.textContent=""; btn.disabled=true; btn.innerHTML='<span class="load"></span>';
+  // chamar() direto, NÃO escrever(): escrever() enfileira no localStorage quando
+  // falha, e isso guardaria a senha em texto puro no navegador.
+  let r;
+  try{ r=await chamar({action:"distrato", pageId:pageId, senha:senha}); }
+  catch(e){ r={ok:false,erro:"REDE"}; }
+  document.getElementById("dist-senha").value="";
+  btn.disabled=false; btn.textContent="Confirmar distrato";
+  if(r && r.ok){
+    fecharDistrato(); fecharObra();
+    toast("Distrato registrado ✓"+(r.atividadesApagadas?(" — "+r.atividadesApagadas+" atividade(s) apagada(s)"):""));
+    ler({action:"atividades"},"atividades").then(x=>{ if(x&&x.ok){ ATIV_ALL=x.atividades; atualizarBadgesSetores(); if(document.getElementById("st-atividades").style.display!=="none") carregarAtividades(); } });
+    carregarPlanilha(document.getElementById("view-setor").style.display!=="none"?"set":"hub");
+  } else {
+    const e=(r&&r.erro)||"REDE";
+    erro.textContent = e==="SENHA_INVALIDA" ? "Senha incorreta."
+      : e==="SEM_PERMISSAO" ? "Seu usuário não tem permissão para dar distrato."
+      : "Não foi possível: "+erroTexto(e);
+  }
+}
+
 function fecharObra(){ document.getElementById("overlay").classList.remove("on"); document.getElementById("painel").classList.remove("on"); }
 
 /* ---------- visualizador de PDF anexado (item 2 do pedido extra) ---------- */
