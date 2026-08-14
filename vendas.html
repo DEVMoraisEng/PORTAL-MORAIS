@@ -431,7 +431,7 @@ const SETORES_AREA=[
 const ABAS_SETOR={
   "Secretária de Vendas":  ["atividades","alertas","atrasados","planilha","modelo"],
   // Gestor de Vendas: sem alerta e sem atividade — a página dele é dado de venda
-  "Gestor de Vendas":      ["vendidas","estoque","planilha","modelo"],
+  "Gestor de Vendas":      ["vendidas","estoque","planilha","modelo"],  // vendidas primeiro
   "Departamento de Projetos":["atividades","alertas","planilha","modelo"],
   // Júlio: todas menos Casas Modelo
   "Júlio César":           ["atividades","alertas","atrasados","planilha"]
@@ -541,6 +541,7 @@ let DOCS={}, DOCS_OK=false;
    se a linha não estiver relacionada, cai no texto do título
    ("TB 18 QD 49 LT 31 CS 1" = ENDEREÇO + " CS " + CASA). */
 let LIG=[], LIG_OK=false;
+let DOCS_LISTA=[];
 async function carregarLigacoes(){
   const r=await lerEstatico("ligacoes.json","ligacoes");
   if(r&&r.ok&&r.ligacoes){ LIG=r.ligacoes; LIG_OK=true; }
@@ -560,7 +561,7 @@ function ligacoesDaObra(pageId, endereco, casa){
 
 async function carregarDocumentos(){
   const r=await lerEstatico("documentos.json","documentos");
-  if(r&&r.ok&&r.docs){ DOCS=r.docs; DOCS_OK=true; }
+  if(r&&r.ok&&r.docs){ DOCS=r.docs; DOCS_OK=true; DOCS_LISTA=r.lista||[]; }
   return r;
 }
 function docDe(endereco){ return DOCS[normNome(endereco)]||null; }
@@ -616,7 +617,13 @@ function atividadesDoSetor(nome){
   return base.filter(atividadeRealmenteAberta);
 }
 function atualizarBadgesSetores(){
-  SETORES_AREA.forEach((s,i)=>{ const el=document.getElementById("scnt-"+i); if(el) el.textContent=atividadesDoSetor(s.nome).length; });
+  SETORES_AREA.forEach((s,i)=>{
+    const el=document.getElementById("scnt-"+i); if(!el) return;
+    // setor sem aba de atividades não tem o que contar — o Gestor de Vendas
+    // estava mostrando 99 porque, sem responsável definido, caía em "todas"
+    if(abasDoSetor(s.nome).indexOf("atividades")<0){ el.style.display="none"; return; }
+    el.style.display=""; el.textContent=atividadesDoSetor(s.nome).length;
+  });
 }
 
 /* ---------- HUB ---------- */
@@ -654,10 +661,17 @@ function abrirSetor(nome){
   document.getElementById("view-hub").style.display="none";
   document.getElementById("view-setor").style.display="block";
 
-  // esconde os botões das abas que este setor não usa e abre a primeira
-  const abas=abasDoSetor(nome);
-  document.querySelectorAll("#view-setor .tab").forEach(b=>{
-    b.style.display = abas.indexOf(b.dataset.t)>=0 ? "" : "none";
+  // Mostra, NA ORDEM da configuração, só as abas deste setor. Antes eu só
+  // escondia os botões — a ordem continuava a do HTML, e por isso "Casas
+  // Vendidas" aparecia por último mesmo estando em primeiro na config.
+  // (As abas são por SETOR. O que o MASTER tem a mais é acesso a todos os
+  //  SISTEMAS do hub — isso é resolvido no podeAcessar do app.js.)
+  const abas = abasDoSetor(nome);
+  const barra=document.querySelector("#view-setor .tabs");
+  document.querySelectorAll("#view-setor .tab").forEach(b=>{ b.style.display="none"; });
+  abas.forEach(t=>{
+    const b=document.querySelector('#view-setor .tab[data-t="'+t+'"]');
+    if(b){ b.style.display=""; barra.appendChild(b); }   // reordena de fato
   });
   abaSetor(abas[0]);
   if(abas.indexOf("atividades")>=0) carregarAtividades();
@@ -1233,9 +1247,12 @@ function nCasas(d){ const v=valDoc(d,"Nº DE CASAS"); const n=Number(v); return 
 
 function renderEstoque(){
   const wrap=document.getElementById("est-wrap");
-  const lista=Object.values(DOCS||{});
-  if(!DOCS_OK || !lista.length){
-    wrap.innerHTML='<div class="vazio">Base de documentos ainda não carregada. Abra a Planilha uma vez e volte aqui.</div>';
+  // DOCS é o índice por endereço e só tem habite/obra_iniciada — não serve
+  // aqui. O que a aba precisa (setor, nº de casas, obra finalizada) vem da
+  // lista completa, publicada em documentos.json > "lista".
+  const lista=DOCS_LISTA||[];
+  if(!lista.length){
+    wrap.innerHTML='<div class="vazio">Ainda sem a lista de documentos publicada — rode o workflow \'Publicar site\' com a versão nova do fetch_vendas.py.</div>';
     return;
   }
   const porSetor={}, tot={estoque:0, iniciadas:0, finalizadas:0};
@@ -1398,8 +1415,11 @@ function renderPainel(V,pageId,sensPendente){
           `<span class="lig-uc">${(l.uc&&String(l.uc).trim()&&l.uc!=="-")?("UC "+esc(l.uc)):"<i>sem UC</i>"}</span>`+
           (l.status?`<span class="lig-s ${/NAO/.test(normNome(l.status))?"off":""}">${esc(l.status)}</span>`:"")+
         `</div>`).join("")+`</div></div>`;
-    } else if(LIG_OK){
-      html+=`<div class="grp">Ligações de água e energia</div><div class="campo"><div class="arq-vazio">Nenhuma ligação cadastrada para esta casa.</div></div>`;
+    } else {
+      html+=`<div class="grp">Ligações de água e energia</div><div class="campo"><div class="arq-vazio">`+
+        (LIG_OK ? "Nenhuma ligação cadastrada para esta casa."
+                : "Base de ligações ainda não publicada — rode o workflow 'Publicar site'.")+
+        `</div></div>`;
     }
   }
 
@@ -1427,7 +1447,7 @@ function renderPainel(V,pageId,sensPendente){
   // DISTRATO: só no setor da Secretária de Vendas e só para quem tem o acesso.
   // A permissão de verdade é conferida no Apps Script — isto aqui só evita
   // mostrar um botão que a pessoa não conseguiria usar.
-  if(SETOR_ATUAL==="Secretária de Vendas" && podeAcessar(S,"VENDAS")){
+  if(SETOR_ATUAL==="Secretária de Vendas" && podeAcessar(S,"VENDAS") && !ehMaster(S)){
     html+=`<div class="grp">Distrato</div><div class="campo">`+
       `<button class="bt danger" onclick='pedirDistrato(${JSON.stringify(pageId)})'>DISTRATO</button>`+
       `<div class="ajuda">Desistência do cliente: limpa os dados da venda e apaga as atividades desta obra. Pede sua senha.</div></div>`;

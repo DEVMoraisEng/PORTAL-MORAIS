@@ -13,7 +13,15 @@ const CPRE  = "morais_cache_v2_";
 function sessao(){ try{ return JSON.parse(localStorage.getItem(KEY)||sessionStorage.getItem(KEY)||"null"); }catch(e){ return null; } }
 function sair(){ localStorage.removeItem(KEY); sessionStorage.removeItem(KEY); location.href = LOGIN; }
 function exigirSessao(){ const s=sessao(); if(!s||!s.token){ location.href=LOGIN; } return s; }
-function podeAcessar(s, chave){ return s && (s.tipo==="ADM" || (s.acessos||[]).indexOf(chave)>=0); }
+/* MASTER vê TODOS os sistemas do hub (Vendas etc.), como o ADM — é um perfil
+   de diretor. O que ele não pode é MEXER: não edita endereço nem dá baixa em
+   atividade (ver ehMaster no vendas.html). GERAL continua limitado ao que
+   estiver na coluna ACESSOS do LOGINS. */
+function podeAcessar(s, chave){
+  if(!s) return false;
+  const t=String(s.tipo||"").toUpperCase();
+  return t==="ADM" || t==="MASTER" || (s.acessos||[]).indexOf(chave)>=0;
+}
 
 /* ---------- cache de dados (para leitura offline) ---------- */
 function cacheSet(k,v){ try{ localStorage.setItem(CPRE+k, JSON.stringify({t:Date.now(), v:v})); }catch(e){} }

@@ -395,6 +395,9 @@ def main():
         c_impl = achar(cn, "IMPLANTACAO")
         # usada só pelo painel do Gestor (prazo médio certidões -> venda)
         c_cert = achar(cn, "DATA DAS CERTIDOES", "DATA CERTIDOES", "CERTIDOES")
+        # usadas pela aba Estoque de Casas
+        c_setor = achar(cn, "SETOR")
+        c_fim   = achar(cn, "OBRA FINALIZADA?", "OBRA FINALIZADA")
         print(f"  colunas: endereço={c_end!r} habite={c_hab!r} obra={c_obr!r} "
               f"n_casas={c_ncasas!r} cota={c_cota!r} data_inicio_obra={c_dini!r} "
               f"data_aquisicao_lote={c_daq!r} implantacao={c_impl!r}", flush=True)
@@ -424,10 +427,18 @@ def main():
                 "obra_iniciada": obra_iniciada,
                 "implantacao": pega(props, c_impl),
                 "data_certidoes": pega(props, c_cert),
+                # estoque: setor, habite-se e obra finalizada
+                "setor": pega(props, c_setor),
+                "habite": habite,
+                "obra_finalizada": pega(props, c_fim),
             })
+        # "lista" é o que a aba Estoque de Casas consome. O "docs" (índice por
+        # endereço) continua igual, pra não quebrar quem já usa.
         gravar("documentos.json", {
             "ok": True, "total": len(docs_idx), "docs": docs_idx,
-            "colunas": {"endereco": c_end, "habite": c_hab, "obra_iniciada": c_obr},
+            "lista": docs_full,
+            "colunas": {"endereco": c_end, "habite": c_hab, "obra_iniciada": c_obr,
+                        "setor": c_setor, "obra_finalizada": c_fim, "n_casas": c_ncasas},
             "updated_at": agora,
         })
     else:
