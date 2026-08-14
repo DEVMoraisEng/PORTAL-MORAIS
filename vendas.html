@@ -344,6 +344,7 @@ tr.tot td{font-weight:800;background:var(--bg3)}
            Em iframe de propósito: ela traz CSS e canvas próprios, e embutir
            no meio do vendas.html misturaria as duas folhas de estilo. -->
       <div id="st-vendidas" style="display:none">
+        <div id="vend-erro" class="vazio" style="display:none;line-height:1.6"></div>
         <iframe id="fr-vendidas" src="" style="border:0;width:100%;height:calc(100vh - 220px);min-height:520px;background:transparent"></iframe>
       </div>
 
@@ -440,13 +441,13 @@ const ABAS_PADRAO=["atividades","alertas","atrasados","planilha","modelo"];
 function abasDoSetor(nome){ return ABAS_SETOR[nome]||ABAS_PADRAO; }
 
 function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("on"); setTimeout(()=>t.classList.remove("on"),1900); }
-/* MASTER: vê todas as páginas, mas não dá baixa/exclui atividade nem edita
-   ENDEREÇO. É um "diretor observador" — abaixo de ADM, acima de GERAL.
+/* MASTER: vê tudo o que o ADM vê, mas não edita
+   ENDEREÇO nem apaga nada do banco (obra, atividade, distrato). No resto ele
+   enxerga e edita como ADM — é um diretor, não um observador.
    O front esconde os controles; quem precisa impedir de verdade é o Apps
    Script (ver nota no fim deste arquivo). */
 function ehMaster(s){ return String((s&&s.tipo)||"").toUpperCase()==="MASTER"; }
 function podeEditarEndereco(s){ return !ehMaster(s); }
-function podeBaixarAtividade(s){ return !ehMaster(s); }
 function pintarUsuario(s){ document.getElementById("u-nome").textContent=s.nome||s.login; const tb=document.getElementById("u-tipo"); tb.textContent=s.tipo; tb.className="badge"+(s.tipo==="ADM"||ehMaster(s)?" adm":""); }
 function campoPorNome(n){ if(SCAMPO[n])return SCAMPO[n]; const a=n.trim().toUpperCase(); for(const k in SCAMPO)if(k.trim().toUpperCase()===a)return SCAMPO[k]; return null; }
 function mostrarOffline(r){ const av=document.getElementById("aviso"); if(r&&r.offline){ av.style.display="block"; av.textContent="Sem internet — dados salvos em "+new Date(r._ts).toLocaleString("pt-BR")+". O que preencher entra na fila e sobe ao reconectar."; } else if(r&&r.online===false&&!r.ok){ av.style.display="block"; av.textContent="Não consegui carregar agora: "+erroTexto(r.erro)+"."; } else av.style.display="none"; }
@@ -686,7 +687,7 @@ function abaSetor(t){
   if(t==="atrasados") renderAtrasados();
   if(t==="modelo") abrirCasasModelo();
   if(t==="estoque"){ if(DOCS_OK) renderEstoque(); else carregarDocumentos().then(renderEstoque); }
-  if(t==="vendidas"){ const fr=document.getElementById("fr-vendidas"); if(!fr.src) fr.src="casas-vendidas.html"; }
+  if(t==="vendidas") abrirVendidas();
 }
 
 /* ---------- CASAS MODELO ---------- */
@@ -816,7 +817,7 @@ async function carregarAtividades(){
       <span class="bx"><span class="bxlab">Marcar como</span><select>${ops.map(o=>`<option${(atual!=null?o===atual:o==="SIM")?" selected":""}>${esc(o)}</option>`).join("")}</select><button class="bt">Dar baixa</button></span>`;
     const sel=d.querySelector("select"), btn=d.querySelector("button");
     if(!a.obraId){ btn.disabled=true; btn.textContent="Sem obra"; sel.disabled=true; }
-    else if(!podeBaixarAtividade(S)){ btn.disabled=true; btn.textContent="Somente leitura"; sel.disabled=true; }
+
     btn.onclick=()=>darBaixa(a,sel.value,d,btn);
     (caixas.get(a.tipo||"Sem tipo")||box).appendChild(d);
   });
@@ -1276,6 +1277,31 @@ function renderEstoque(){
     '</tbody></table>';
 }
 
+/* A aba ficava branca quando o casas-vendidas.html não estava publicado —
+   iframe apontando pro nada não avisa ninguém. Agora conferimos o arquivo
+   antes e dizemos o que houve. */
+async function abrirVendidas(){
+  const box=document.getElementById("st-vendidas");
+  const fr=document.getElementById("fr-vendidas");
+  if(fr.getAttribute("src")) return;                 // já carregado
+  const erro=document.getElementById("vend-erro");
+  erro.textContent="Verificando…"; erro.style.display="block"; fr.style.display="none";
+  try{
+    const r=await fetch("casas-vendidas.html?v="+Date.now(),{cache:"no-cache"});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const txt=await r.text();
+    if(!/id=["']sub-vendas["']/.test(txt)) throw new Error("ARQUIVO_ERRADO");
+    erro.style.display="none"; fr.style.display=""; fr.setAttribute("src","casas-vendidas.html");
+  }catch(e){
+    const m=String(e.message||e);
+    erro.innerHTML = m.indexOf("404")>=0
+      ? "<b>casas-vendidas.html não está publicado.</b><br>O arquivo é novo — confira se ele foi enviado pro repositório junto do resto e se o workflow rodou depois."
+      : m==="ARQUIVO_ERRADO"
+        ? "<b>O arquivo publicado não é a página do gestor.</b> Talvez o GitHub esteja servindo uma versão antiga — rode o workflow 'Publicar site' de novo."
+        : "<b>Não consegui carregar a página.</b> "+esc(m);
+  }
+}
+
 function temSensiveis(){ return SCHEMA.some(c=>c.sensivel); }
 
 async function abrirObra(pageId){
@@ -1359,7 +1385,7 @@ function campoHtml(c,valor,pageId,sensPendente){
   if(bloqueadoParaMim(c)) return `<div class="campo"><label>${esc(c.nome.trim())} <span style="color:var(--text4);font-weight:500">(somente leitura)</span></label><div class="ro">${esc(valor||"—")}</div></div>`;
   // Endereço (nome da obra): só ADM edita — sempre mostrado, independente do campo vir marcado como "editável" no schema
   if(c.nome==="ENDEREÇO"){
-    if(S.tipo!=="ADM") return `<div class="campo"><label>${esc(c.nome.trim())} <span style="color:var(--text4);font-weight:500">(só ADM edita)</span></label><div class="ro">${esc(valor||"—")}</div></div>`;
+    if(S.tipo!=="ADM" && !ehMaster(S)) return `<div class="campo"><label>${esc(c.nome.trim())} <span style="color:var(--text4);font-weight:500">(só ADM edita)</span></label><div class="ro">${esc(valor||"—")}</div></div>`;
     const on=`onchange='editar(${JSON.stringify(pageId)},"ENDEREÇO","text",this.value,this); document.getElementById("pn-end").textContent=this.value||"(sem endereço)";'`;
     return `<div class="campo"><label>${esc(c.nome.trim())}</label><input type="text" value="${esc(valor||"")}" ${on}></div>`;
   }
