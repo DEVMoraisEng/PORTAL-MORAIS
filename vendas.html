@@ -14,7 +14,11 @@
    nativos (inputs, selects, datas, scrollbar) e o site fica com campos pretos
    sobre o layout claro. "light only" recusa a inversão em vez de só sugerir. */
 :root{color-scheme:light only}
-html{background:#fff}
+/* O fundo do body só cobre a altura do conteúdo. Sem repetir a cor aqui,
+   o resto da tela cai no branco do html — foi o que deixou a faixa branca
+   embaixo em páginas curtas. min-height garante a tela toda. */
+html{background:var(--bg);min-height:100%}
+body{min-height:100vh}
 
 :root{
   --azul:#295778;--azul-esc:#1e3f58;--teal:#8FDCD2;--verde:#2a9d5c;--verde-btn:#4cd964;--verde-esc:#1a6b40;
@@ -350,7 +354,7 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
 <script>
 const S = exigirSessao();
 atualizarStatus(); atualizarBadge();
-let SCHEMA=[], SCAMPO={}, ATIV=[], ATIV_ALL=[], DADOS={hub:[], set:[]}, SETOR_ATUAL="Secretária de Vendas";
+let SCHEMA=[], SCAMPO={}, ATIV=[], ATIV_ALL=[], DADOS={hub:[], set:[], mod:[]}, SETOR_ATUAL="Secretária de Vendas";
 /* item 9: Nº Whatsapp e Email vêm logo depois do CPF (antes ficavam perto de CORRESPONDENTE) */
 const RESUMO=["CLIENTES","CPF","Nº Whatsapp","Email","DATA DA VENDA","VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)","CORRETOR","IMOBILIÁRIA","CORRESPONDENTE","BANCO"];
 
@@ -635,7 +639,10 @@ function renderCasasModelo(){
     }).join("")+'</tr>';
   });
   wrap.innerHTML=html+'</tbody></table>';
-  wrap.querySelectorAll(".obralink").forEach(el=>el.onclick=()=>abrirObra(el.dataset.obra));
+  // DADOS.mod é o que editarCelula usa pra achar o registro pelo id da linha.
+  // Sem isto o clique na célula não fazia nada — era o "não consigo editar aqui".
+  DADOS.mod=lista;
+  ligarTabela("mod");
 }
 
 /* ---------- ATIVIDADES ---------- */
