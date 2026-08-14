@@ -661,6 +661,7 @@ body{display:flex;flex-direction:column;min-height:100vh}
 <div class="metas-body">
     <!-- CASAS VENDIDAS -->
     <div class="sub-pg active" id="sub-vendas">
+      <div class="updated" id="updated-at"></div>
       <div class="controles">
         <span class="sel-lbl">Ano:</span><select id="sel-ano-v" onchange="buildVendas()"></select>
         <select id="sel-per-v" onchange="buildVendas()">
@@ -669,6 +670,7 @@ body{display:flex;flex-direction:column;min-height:100vh}
           <option value="tri">Último trimestre</option>
           <option value="mes">Mês (escolher)</option>
           <option value="semana">Últimas 7 semanas</option>
+          <option value="dias7">Últimos 7 dias</option>
         </select>
         <select id="sel-mes-v" onchange="buildVendas()" style="display:none"></select>
         <span class="sel-lbl">Cidade:</span>
@@ -846,7 +848,24 @@ const CAMPOS_OCULTOS_SETOR={
   }
 };
 const BLOCO_REPARO=/REPARO|ANEXAR AQUIVO|ANEXAR ARQUIVO|TITULARIDADES/;
+/* Setor com COLUNAS_SETOR usa a lista como LISTA BRANCA: o que não está nela
+   não aparece nem na planilha nem no painel da obra. Antes ela valia só para a
+   planilha, e ao abrir a obra voltava tudo. */
+function noWhitelistDoSetor(nome){
+  const lista=COLUNAS_SETOR[SETOR_ATUAL]; if(!lista) return true;   // setor sem lista: mostra tudo
+  const n=normNome(nome);
+  if(n==="ENDERECO") return true;
+  return lista.some(f=>{
+    const a=normNome(f);
+    if(n===a) return true;
+    // prefixo só para nomes longos, que são os que aparecem truncados no print
+    // ("GEROU E ARMAZENOU ..."). Com nome curto, "CASA" liberaria também
+    // "CASA APTA PARA A VISTORIA", que não é para aparecer.
+    return a.length>=10 && n.indexOf(a)===0;
+  });
+}
 function ocultoNoSetor(nome){
+  if(!noWhitelistDoSetor(nome)) return true;
   const cfg=CAMPOS_OCULTOS_SETOR[SETOR_ATUAL]; if(!cfg) return false;
   const n=normNome(nome);
   if(cfg.blocoReparo && BLOCO_REPARO.test(n)) return true;
@@ -1242,10 +1261,13 @@ const ALERTAS_SETOR={
 /* Colunas da PLANILHA por setor (fragmentos, nome exato tem prioridade).
    Setor sem entrada aqui mostra a planilha completa, como antes. */
 const COLUNAS_SETOR={
+  // ordem conforme o print da visibilidade no Notion, + as colunas do alerta
+  // PREENCHER ENDEREÇO (as "-AUTO"), que o PDF pediu para acrescentar
   "Departamento de Projetos":[
-    "ENDEREÇO","OBRA-AUTO","CASA","CASA-AUTO","SETOR","SETOR-AUTO",
-    "ENG. RESPONSÁEL","ENG. RESPONSÁVEL","ENGENHEIRO-AUTO","REF",
-    "TIPO","MODELO?","TEM MANUAL DE OBRA?","LAYOUT","FOTOS"
+    "ENDEREÇO","OBRA-AUTO","TEM MANUAL DE OBRA?","CASA","CASA-AUTO",
+    "TIPO","MODELO?","SETOR","SETOR-AUTO",
+    "ENG. RESPONSÁEL","ENG. RESPONSÁVEL","ENGENHEIRO-AUTO",
+    "LAYOUT","FOTOS"
   ],
   "Júlio César":[
     "ENDEREÇO","CASA","AVALIAÇÃO","VALIDADE","VALOR NA MÃO","COMISSÃO",
@@ -1752,7 +1774,9 @@ function renderPainel(V,pageId,sensPendente){
 
   // resumo venda/cliente — agora editável/selecionável igual ao Notion (item 4)
   html+='<div class="grp" style="margin-top:14px">Dados da Venda</div><div class="resumo">'+RESUMO.map(n=>{
-    const c=campoPorNome(n); if(!c)return ""; const val=getV(V,n);
+    const c=campoPorNome(n); if(!c)return "";
+    if(nomeExcluido(c.nome)) return "";   // respeita a lista branca do setor
+    const val=getV(V,n);
     return campoResumoHtml(c,val,pageId,sensPendente);
   }).join("")+'</div>';
 
@@ -2015,6 +2039,15 @@ function segundaDe(d){
 }
 function chaveSemana(iso){ if(!iso) return null; const s=segundaDe(iso);
   return `${s.getFullYear()}-${String(s.getMonth()+1).padStart(2,'0')}-${String(s.getDate()).padStart(2,'0')}`; }
+/* "Últimos 7 dias" ignora o seletor de ano: é sempre uma janela que termina
+   hoje. Se o ano escolhido não for o corrente, o gráfico vem vazio — por isso
+   o filtro de ano não entra aqui. */
+function ultimosDias(n){
+  const out=[]; const hoje=new Date(); hoje.setHours(0,0,0,0);
+  for(let i=n-1;i>=0;i--){ const d=new Date(hoje); d.setDate(d.getDate()-i);
+    out.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`); }
+  return out;
+}
 function semanasRecentes(n){
   const out=[]; const base=segundaDe(new Date());
   for(let i=n-1;i>=0;i--){ const d=new Date(base); d.setDate(d.getDate()-i*7);
@@ -2236,9 +2269,12 @@ function buildVendas(){
   // (chave do agrupamento) e o rótulo virem de funções, em vez de mesD/fmtM
   // fixos — o resto do cálculo abaixo continua idêntico.
   const semanal = per==='semana';
-  const ms = semanal ? semanasRecentes(7) : mesesPeriodo(ano,per);
-  const balde = x => semanal ? chaveSemana(x.data_venda) : mesD(x.data_venda);
-  const rotulo = k => semanal ? fmtSem(k) : fmtM(k);
+  const diario  = per==='dias7';
+  const ms = diario ? ultimosDias(7) : (semanal ? semanasRecentes(7) : mesesPeriodo(ano,per));
+  const balde = x => diario ? String(x.data_venda||'').slice(0,10)
+                            : (semanal ? chaveSemana(x.data_venda) : mesD(x.data_venda));
+  const rotulo = k => diario ? (k.slice(8,10)+'/'+k.slice(5,7))
+                             : (semanal ? fmtSem(k) : fmtM(k));
 
   let v=vendas.filter(x=>x.clientes&&x.data_venda&&ms.includes(balde(x)));
   if(cid)v=v.filter(x=>x.cidade===cid);
@@ -2263,7 +2299,7 @@ function buildVendas(){
   const metaTot=metaAnoAnt?metaAnoAnt.meta_casas:0;
   const metaMes=metaTot?metaTot/12:0;
   // no modo semanal todas as 7 semanas já são passadas — divisor é o próprio total
-  const nMeses=semanal?ms.length:mesesEfetivos(ms);
+  const nMeses=(semanal||diario)?ms.length:mesesEfetivos(ms);
   const mediaMes=nMeses?tQ/nMeses:0;
   // Cores: verde >= meta, vermelho < meta
   const corTot=metaTot>0?(tQ>=metaTot?'g':'r'):'';
@@ -2316,7 +2352,7 @@ function buildVendas(){
       <td class="nr">${fmtBRL(pm[m]?.vgvMao||0)}</td><td class="nr">${fmtBRL(pm[m]?.vgvCont||0)}</td></tr>`;
   }).join('');
   document.getElementById('tbl-vendas').innerHTML=`<table>
-    <thead><tr><th class="left">${semanal?"Semana":"Mês"}</th><th>Qt Casas</th><th>VGV (na Mão)</th><th>VGV (Contrato)</th></tr></thead>
+    <thead><tr><th class="left">${diario?"Dia":semanal?"Semana":"Mês"}</th><th>Qt Casas</th><th>VGV (na Mão)</th><th>VGV (Contrato)</th></tr></thead>
     <tbody>${body||'<tr><td colspan="4" style="color:var(--text4);padding:14px;text-align:center">Sem dados</td></tr>'}</tbody>
     <tfoot><tr><td>TOTAL</td><td class="nr">${tQ}</td><td class="nr">${fmtBRL(tVmao)}</td><td class="nr">${fmtBRL(tVcont)}</td></tr></tfoot>
   </table>`;
@@ -2399,9 +2435,12 @@ async function init(){
     buildVendas();
     document.getElementById('loading').classList.add('hidden');
   }catch(e){
-    document.getElementById('loading').innerHTML=
-      `<div style="color:#c0392b;font-size:13px;padding:20px;text-align:center">
-        Erro ao carregar dados:<br><code>${e.message}</code></div>`;
+    const cx=document.getElementById('sub-vendas');
+    const d=document.createElement('div');
+    d.style.cssText="margin:16px 0;padding:14px 16px;border:1px solid #e0b4b4;background:#fff5f5;border-radius:10px;color:#8a2b2b;font-size:13px";
+    d.textContent="Erro ao carregar o painel: "+(e&&e.message||e);
+    cx.insertBefore(d, cx.firstChild);
+    document.getElementById('loading').classList.add('hidden');
   }
 }
 /* Antes esta página era um arquivo separado e se iniciava sozinha. Agora é uma
