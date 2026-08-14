@@ -75,6 +75,7 @@ body{display:flex;flex-direction:column;min-height:100vh}
 .updated{color:var(--text4);font-size:11px;margin-top:8px;text-align:right}
 .load{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--verde);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px}
 @keyframes spin{to{transform:rotate(360deg)}}
+.nav-btn .ext{font-size:11px;opacity:.65;margin-left:2px}
 </style>
 </head>
 <body>
@@ -100,14 +101,21 @@ body{display:flex;flex-direction:column;min-height:100vh}
 
 <script src="app.js"></script>
 <script>
-const SISTEMAS=[{chave:"VENDAS",nome:"Gestão de Vendas",desc:"Atividades, alertas e planilhas",ico:"V",link:"vendas.html",conta:true}];
+/* "chave" tem que bater com o valor na coluna ACESSOS do banco LOGINS.
+   externo:true = mora em outro repositório/site; o card só abre o link, e o
+   controle de acesso do portal NÃO protege a página de destino (ver
+   CONFIGURAR.md, seção "RAS"). */
+const SISTEMAS=[
+  {chave:"VENDAS",nome:"Gestão de Vendas",desc:"Atividades, alertas e planilhas",ico:"V",link:"vendas.html",conta:true},
+  {chave:"RAS LÍDERES",nome:"RAS Semanal",desc:"Reunião de alinhamento semanal",ico:"R",link:"https://devmoraiseng.github.io/RAS-SEMANAL/",externo:true}
+];
 const S=exigirSessao(); atualizarStatus();
 
 function pintarUsuario(s){ document.getElementById("u-nome").textContent=s.nome||s.login; const tb=document.getElementById("u-tipo"); tb.textContent=s.tipo; tb.className="badge"+(s.tipo==="ADM"?" adm":""); }
 function renderCards(s){
   const vis=SISTEMAS.filter(x=>podeAcessar(s,x.chave)); const box=document.getElementById("cards");
   box.innerHTML=vis.length
-    ? vis.map(x=>`<a class="nav-btn" href="${x.link}">${esc(x.nome)}${x.conta?`<span class="cnt" id="cnt-${x.chave}">·</span>`:``}</a>`).join("")
+    ? vis.map(x=>`<a class="nav-btn" href="${x.link}"${x.externo?' target="_blank" rel="noopener"':''}>${esc(x.nome)}${x.externo?' <span class="ext">↗</span>':''}${x.conta?`<span class="cnt" id="cnt-${x.chave}">·</span>`:``}</a>`).join("")
     : '<div class="vazio">Sem sistemas liberados. Fale com o ADM.</div>';
 }
 function card(lab,val,sub,cls){ return `<div class="kpi ${cls||''}"><div class="lab">${lab}</div><div class="val">${val}</div><div class="sub">${sub||''}</div></div>`; }

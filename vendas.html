@@ -239,6 +239,319 @@ tr.tot td{font-weight:800;background:var(--bg3)}
 .pdfhead{background:linear-gradient(120deg,var(--azul-esc),var(--azul));color:#fff;padding:12px 18px;display:flex;align-items:center;justify-content:space-between;gap:10px}
 .pdfhead b{font-weight:700;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pdffoot{padding:10px 18px;border-top:1px solid var(--border2);text-align:right}
+
+/* ===== Painel Casas Vendidas (era casas-vendidas.html) — escopado em #st-vendidas ===== */
+#st-vendidas *, #st-vendidas *::before, #st-vendidas *::after{box-sizing:border-box;margin:0;padding:0}
+#st-vendidas{
+  --azul:#295778;--azul-esc:#1e3f58;--teal:#8FDCD2;
+  --verde:#2a9d5c;--verde-btn:#4cd964;
+  --bg:#EAF1F3;--bg2:#F5F9FA;--bg3:#dceaef;
+  --border:#b8d0da;--border2:#d0e4ec;
+  --text:#1a3347;--text3:#5a8099;--text4:#8aacbb;--branco:#fff;
+}
+#st-vendidas{background:var(--bg);font-family:'Barlow',sans-serif;min-height:100vh;
+     display:flex;flex-direction:column;overflow-x:hidden}
+#st-vendidas .header{background:var(--azul);border-bottom:3px solid var(--teal);padding:0 28px;
+        height:68px;display:flex;align-items:center;gap:14px;
+        position:sticky;top:0;z-index:200;flex-shrink:0}
+#st-vendidas .hdr-back{background:rgba(143,220,210,.18);border:1px solid rgba(143,220,210,.4);
+          border-radius:7px;padding:7px 16px;font-family:'Barlow Condensed',sans-serif;
+          font-size:14px;font-weight:700;color:var(--teal);letter-spacing:.06em;
+          text-transform:uppercase;cursor:pointer;transition:background .15s;flex-shrink:0}
+#st-vendidas .hdr-back:hover{background:rgba(143,220,210,.32)}
+#st-vendidas .hdr-logo{height:38px;flex-shrink:0;object-fit:contain}
+#st-vendidas .hdr-info{display:flex;flex-direction:column;flex:1}
+#st-vendidas .hdr-sup{font-size:11px;font-weight:700;color:var(--teal);letter-spacing:.12em;
+         text-transform:uppercase;opacity:.85}
+#st-vendidas .hdr-title{font-family:'Barlow Condensed',sans-serif;font-size:26px;font-weight:800;
+           color:#fff;letter-spacing:.02em}
+#st-vendidas .hdr-right{display:flex;align-items:center;gap:12px;flex-shrink:0}
+#st-vendidas .updated{font-size:11px;color:rgba(255,255,255,.4);font-family:monospace;white-space:nowrap}
+#st-vendidas .hdr-fechar{background:rgba(143,220,210,.18);border:1px solid rgba(143,220,210,.4);
+            border-radius:7px;padding:7px 16px;font-family:'Barlow Condensed',sans-serif;
+            font-size:14px;font-weight:700;color:var(--teal);letter-spacing:.06em;
+            cursor:pointer;transition:background .15s;flex-shrink:0}
+#st-vendidas .hdr-fechar:hover{background:rgba(143,220,210,.32)}
+#st-vendidas #loading{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;
+         justify-content:center;z-index:500;flex-direction:column;gap:12px}
+#st-vendidas #loading.hidden{display:none}
+#st-vendidas .spin{width:36px;height:36px;border:3px solid var(--border);
+      border-top-color:var(--teal);border-radius:50%;animation:spin .7s linear infinite}
+to{transform:rotate(360deg)}
+#st-vendidas .main-wrap{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+#st-vendidas .page{display:none;flex:1;min-height:0;overflow-y:auto;flex-direction:column}
+#st-vendidas .page.active{display:flex}
+#st-vendidas /* Modo standalone — scroll normal quando aberto direto */
+body.standalone{overflow-y:auto}
+#st-vendidas body.standalone .main-wrap{overflow:visible;height:auto}
+#st-vendidas body.standalone .page{overflow:visible;height:auto}
+#st-vendidas body.standalone .page.active{display:flex}
+#st-vendidas body.standalone #page-dash{flex-direction:row}
+#st-vendidas body.standalone .dash-main{overflow-y:visible}
+#st-vendidas body.standalone .metas-body{overflow-y:visible}
+#st-vendidas body.standalone .pg-body{overflow-y:visible}
+#st-vendidas /* DASHBOARD */
+#page-dash{flex-direction:row}
+#st-vendidas .dash-nav{width:220px;flex-shrink:0;background:var(--azul-esc);
+          border-right:2px solid rgba(143,220,210,.2);
+          display:flex;flex-direction:column;padding:24px 14px;gap:8px}
+#st-vendidas .nav-btn{display:block;width:100%;padding:14px 16px;
+         font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;
+         color:rgba(255,255,255,.55);letter-spacing:.09em;text-transform:uppercase;
+         text-align:left;cursor:pointer;border:2px solid transparent;
+         border-radius:8px;background:rgba(255,255,255,.04);transition:all .18s;line-height:1.2}
+#st-vendidas .nav-btn:hover{color:#fff;background:rgba(143,220,210,.14);border-color:rgba(143,220,210,.3)}
+#st-vendidas .nav-btn:disabled{opacity:.3;cursor:not-allowed}
+#st-vendidas .nav-btn.active-nav{color:var(--teal);border-color:rgba(143,220,210,.5);background:rgba(143,220,210,.1)}
+#st-vendidas .dash-main{flex:1;padding:24px 28px 40px;overflow-y:auto}
+#st-vendidas .sel-bar{display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+#st-vendidas .sel-lbl{font-size:13px;font-weight:700;color:var(--text3);
+         text-transform:uppercase;letter-spacing:.07em}
+#st-vendidas select{background:var(--branco);border:1px solid var(--border);border-radius:7px;
+       padding:7px 14px;font-family:'Barlow',sans-serif;font-size:13px;
+       color:var(--text);cursor:pointer;outline:none}
+#st-vendidas select:focus{border-color:var(--teal)}
+#st-vendidas .blk-title{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:800;
+           color:var(--azul);text-transform:uppercase;letter-spacing:.08em;
+           padding:9px 18px;background:var(--bg3);
+           border:2px solid rgba(76,217,100,.45);border-left:5px solid var(--verde-btn);
+           border-radius:7px;margin-bottom:16px;margin-top:10px}
+#st-vendidas .kpi-row{display:grid;gap:12px;margin-bottom:14px}
+#st-vendidas .r4{grid-template-columns:repeat(4,1fr)}
+#st-vendidas .r3{grid-template-columns:repeat(3,1fr)}
+#st-vendidas .r2{grid-template-columns:repeat(2,1fr)}
+#st-vendidas .kpi-card{background:var(--branco);border:1.5px solid var(--border);border-radius:10px;
+          padding:16px 18px;box-shadow:0 2px 8px rgba(41,87,120,.07);transition:border-color .15s}
+#st-vendidas .kpi-card:hover{border-color:rgba(76,217,100,.5)}
+#st-vendidas .kpi-lbl{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;
+         letter-spacing:.08em;margin-bottom:7px}
+#st-vendidas .kpi-val{font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:800;
+         color:var(--azul);line-height:1}
+#st-vendidas .kpi-val.g{color:var(--verde)}
+#st-vendidas .kpi-val.r{color:#c0392b}
+#st-vendidas .kpi-sub2{font-size:11px;color:var(--text4);margin-top:4px}
+#st-vendidas /* KPI EXPANDIDO — múltiplas estatísticas (12m/anual/média/mês) */
+.kpi-ext-row{display:grid;gap:12px;margin-bottom:14px}
+#st-vendidas .kpi-ext-row.r1{grid-template-columns:1fr}
+#st-vendidas .kpi-ext-row.r2{grid-template-columns:repeat(2,1fr)}
+#st-vendidas .kpi-ext-row.r3{grid-template-columns:repeat(3,1fr)}
+#st-vendidas .kpi-ext-row.r4{grid-template-columns:repeat(4,1fr)}
+#st-vendidas .kpi-ext-card{background:var(--branco);border:1.5px solid var(--border);border-radius:10px;
+              padding:16px 18px;box-shadow:0 2px 8px rgba(41,87,120,.07);
+              display:flex;flex-direction:column;gap:10px;min-width:0}
+#st-vendidas .kpi-ext-title{font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;
+               color:var(--azul);text-transform:uppercase;letter-spacing:.07em;
+               padding-bottom:8px;border-bottom:1.5px solid var(--border2)}
+#st-vendidas .kpi-ext-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#st-vendidas .kpi-ext-grid.cols4{grid-template-columns:repeat(4,1fr)}
+#st-vendidas .kpi-ext-grid.cols5{grid-template-columns:repeat(5,1fr)}
+#st-vendidas .kpi-ext-item{display:flex;flex-direction:column;gap:2px;min-width:0}
+#st-vendidas .kpi-ext-lbl{font-size:10px;font-weight:700;color:var(--text3);
+             text-transform:uppercase;letter-spacing:.07em}
+#st-vendidas .kpi-ext-val{font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;
+             color:var(--azul);line-height:1;word-break:break-word}
+#st-vendidas .kpi-ext-val.g{color:var(--verde)}
+#st-vendidas .kpi-ext-val.r{color:#c0392b}
+#st-vendidas .kpi-ext-extra{font-size:10.5px;color:var(--text3);line-height:1.25;margin-top:2px}
+#st-vendidas .kpi-ext-extra strong{color:var(--text)}
+#st-vendidas .kpi-ext-alert{background:rgba(192,57,43,.08);border-left:3px solid #c0392b;
+               border-radius:4px;padding:6px 9px;font-size:11px;color:#8a1f15;
+               margin-top:4px;line-height:1.3}
+#st-vendidas /* Alerta de divergência ERP × Notion */
+.diverg-box{background:#fff8e1;border:1px solid #e0c068;border-left:5px solid #d4a017;
+            border-radius:8px;padding:10px 14px;font-size:12.5px;color:#5a4810;display:flex;
+            flex-direction:column;gap:6px}
+#st-vendidas .diverg-box .diverg-title{font-family:'Barlow Condensed',sans-serif;font-weight:800;
+            font-size:14px;color:#8a6d10;text-transform:uppercase;letter-spacing:.06em;
+            display:flex;align-items:center;gap:6px;cursor:pointer}
+#st-vendidas .diverg-box .diverg-title .chev{transition:transform .15s}
+#st-vendidas .diverg-box .diverg-title.open .chev{transform:rotate(90deg)}
+#st-vendidas .diverg-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+#st-vendidas .diverg-col h5{font-size:11.5px;color:#5a4810;text-transform:uppercase;
+               letter-spacing:.06em;margin-bottom:4px;font-weight:800}
+#st-vendidas .diverg-list{max-height:160px;overflow-y:auto;font-family:'DM Mono',monospace;
+             font-size:11px;line-height:1.5;color:#3a2e08;background:#fffdf2;
+             border:1px solid #e8d49a;border-radius:5px;padding:6px 9px}
+#st-vendidas .diverg-list span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#st-vendidas /* METAS */
+#page-metas{flex-direction:column;overflow:hidden}
+#st-vendidas .metas-hdr{background:var(--azul-esc);border-bottom:2px solid rgba(143,220,210,.2);
+           padding:14px 28px;display:flex;align-items:center;gap:14px}
+#st-vendidas .metas-hdr-title{font-family:'Barlow Condensed',sans-serif;font-size:22px;
+                 font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.06em;flex:1}
+#st-vendidas .btn-volta-dash{background:rgba(143,220,210,.18);border:1px solid rgba(143,220,210,.4);
+                border-radius:7px;padding:6px 14px;font-family:'Barlow Condensed',sans-serif;
+                font-size:13px;font-weight:700;color:var(--teal);letter-spacing:.06em;
+                text-transform:uppercase;cursor:pointer;transition:background .15s}
+#st-vendidas .btn-volta-dash:hover{background:rgba(143,220,210,.32)}
+#st-vendidas .sub-tabs-outer{background:var(--bg2);border-bottom:2px solid var(--border);
+                padding:18px 28px;display:flex;justify-content:center}
+#st-vendidas .sub-tabs-box{display:flex;gap:6px;padding:6px;
+              border:2.5px solid var(--verde-btn);border-radius:12px;
+              background:rgba(76,217,100,.06)}
+#st-vendidas .sub-tab{padding:12px 36px;font-family:'Barlow Condensed',sans-serif;font-size:16px;
+         font-weight:800;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;
+         cursor:pointer;border-radius:8px;border:2px solid transparent;
+         background:none;transition:all .2s}
+#st-vendidas .sub-tab:hover{color:var(--azul-esc);background:rgba(76,217,100,.15);border-color:rgba(76,217,100,.4)}
+#st-vendidas .sub-tab.active{background:var(--verde-btn);color:#1a3347;border-color:var(--verde-btn);
+                box-shadow:0 3px 10px rgba(76,217,100,.35)}
+#st-vendidas .metas-body{padding-top:0;flex:1;padding:24px 28px 40px;overflow-y:auto}
+#st-vendidas .sub-pg{display:none}
+#st-vendidas .sub-pg.active{display:block}
+#st-vendidas .controles{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+#st-vendidas .graf-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:22px}
+#st-vendidas .graf-card{background:var(--branco);border:1.5px solid var(--border);border-radius:10px;
+           overflow:hidden;box-shadow:0 2px 8px rgba(41,87,120,.06)}
+#st-vendidas .graf-hdr{padding:11px 16px 9px;border-bottom:1px solid var(--border2)}
+#st-vendidas .graf-hdr-title{font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;
+                color:var(--azul);text-transform:uppercase;letter-spacing:.06em}
+#st-vendidas .graf-hdr-sub{font-size:11px;color:var(--text3);margin-top:2px}
+#st-vendidas .graf-body{padding:14px 16px}
+#st-vendidas .legenda{display:flex;gap:14px;margin-bottom:10px;flex-wrap:wrap;align-items:center}
+#st-vendidas .leg{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text3)}
+#st-vendidas .leg-cor{width:12px;height:12px;border-radius:2px;flex-shrink:0}
+#st-vendidas .leg-metas{display:flex;gap:14px;margin-left:8px;flex-wrap:wrap}
+#st-vendidas .leg-meta{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;
+          padding:3px 10px;border-radius:12px;background:rgba(41,87,120,.05);
+          border:1px dashed currentColor;letter-spacing:.02em}
+#st-vendidas .leg-meta-line{width:14px;height:2px;border-top:2px dashed currentColor;flex-shrink:0}
+#st-vendidas .chart-wrap{position:relative;width:100%;overflow-x:auto}
+#st-vendidas .chart-wrap canvas{max-width:100%;box-sizing:border-box}
+#st-vendidas canvas{display:block}
+#st-vendidas .tbl-outer{display:flex;justify-content:center;margin-bottom:22px}
+#st-vendidas .tbl-wrap{border-radius:8px;border:1.5px solid var(--border);overflow:hidden;
+          width:100%;max-width:860px}
+#st-vendidas table{width:100%;border-collapse:collapse;font-size:12.5px}
+#st-vendidas thead th{background:var(--azul);color:#fff;padding:10px 14px;text-align:center;
+         font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;
+         text-transform:uppercase;letter-spacing:.07em;white-space:nowrap;
+         border-right:1px solid rgba(255,255,255,.15)}
+#st-vendidas thead th:last-child{border-right:none}
+#st-vendidas thead th.left{text-align:left}
+#st-vendidas tbody tr:nth-child(even){background:var(--bg2)}
+#st-vendidas tbody tr:hover{background:var(--bg3)}
+#st-vendidas tbody td{padding:7px 14px;color:var(--text);border-bottom:1px solid var(--border2);
+         border-right:1px solid var(--border2);white-space:nowrap;text-align:center}
+#st-vendidas tbody td:first-child{text-align:left}
+#st-vendidas tbody td:last-child{border-right:none}
+#st-vendidas tfoot td{background:var(--azul-esc);color:#fff;padding:8px 14px;text-align:center;
+         font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;
+         border-right:1px solid rgba(255,255,255,.12)}
+#st-vendidas tfoot td:first-child{text-align:left}
+#st-vendidas tfoot td:last-child{border-right:none}
+#st-vendidas .nr{text-align:right!important;font-family:'DM Mono',monospace}
+#st-vendidas .det-bloco{margin-bottom:0}
+#st-vendidas .det-mes-hdr{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:800;
+             color:#fff;background:var(--azul);padding:9px 16px;
+             border-radius:8px 8px 0 0;text-align:center;letter-spacing:.04em;
+             border-bottom:3px solid var(--verde-btn)}
+#st-vendidas .det-mes-body{border:1.5px solid var(--border);border-top:none;
+              border-radius:0 0 8px 8px;overflow:hidden}
+#st-vendidas .det-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+#st-vendidas .aviso{background:rgba(201,162,39,.1);border:1px solid rgba(201,162,39,.4);
+       border-radius:7px;padding:10px 16px;font-size:12px;color:#7a5e0a;margin-bottom:16px}
+#st-vendidas .det-footer{background:rgba(76,217,100,.12);border-top:2px solid rgba(76,217,100,.4)}
+#st-vendidas .det-footer td{color:var(--verde)!important;font-weight:700!important;
+               font-family:'Barlow Condensed',sans-serif!important;font-size:13px!important;
+               background:rgba(76,217,100,.1)!important;border-top:none!important}
+#st-vendidas .rank-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:24px}
+#st-vendidas .rank-card{background:var(--branco);border:1.5px solid var(--border);border-radius:10px;overflow:hidden}
+#st-vendidas .rank-hdr{background:var(--azul);padding:11px 16px}
+#st-vendidas .rank-hdr-title{font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;
+                color:#fff;text-transform:uppercase;letter-spacing:.06em}
+#st-vendidas .rank-row{display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid var(--border2)}
+#st-vendidas .rank-row:last-child{border-bottom:none}
+#st-vendidas .rank-pos{font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:var(--text4);width:24px;flex-shrink:0}
+#st-vendidas .rank-pos.top3{color:#c9a227}
+#st-vendidas .rank-nome{flex:1;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#st-vendidas .alert-badge{position:relative;display:inline-flex;align-items:center;
+              justify-content:center;width:22px;height:22px;border-radius:50%;
+              background:#c0392b;color:#fff;font-size:11px;font-weight:800;
+              cursor:pointer;flex-shrink:0;transition:transform .15s;user-select:none;
+              margin-left:6px;vertical-align:middle}
+#st-vendidas .alert-badge:hover{transform:scale(1.15)}
+#st-vendidas .alert-modal{position:fixed;inset:0;z-index:600;display:flex;align-items:center;
+             justify-content:center;background:rgba(0,0,0,.45)}
+#st-vendidas .alert-modal-box{background:var(--branco);border-radius:12px;padding:24px;
+                 max-width:520px;width:90%;max-height:70vh;overflow-y:auto;
+                 box-shadow:0 12px 48px rgba(0,0,0,.22)}
+#st-vendidas .alert-modal-title{font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;
+                   color:#c0392b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px}
+#st-vendidas .alert-item{padding:7px 0;border-bottom:1px solid var(--border2);font-size:12px;
+            color:var(--text);display:flex;align-items:center;gap:8px}
+#st-vendidas .alert-item:last-child{border-bottom:none}
+#st-vendidas .alert-item::before{content:'⚠';font-size:14px;flex-shrink:0}
+#st-vendidas .alert-modal-close{margin-top:16px;padding:8px 20px;background:var(--azul);color:#fff;
+                   border:none;border-radius:7px;font-family:'Barlow Condensed',sans-serif;
+                   font-size:14px;font-weight:700;cursor:pointer;letter-spacing:.06em}
+#st-vendidas .rank-qt{font-family:'DM Mono',monospace;font-size:12px;color:var(--azul);font-weight:700}
+#st-vendidas /* PRAZOS + SETORIZADAS — páginas de coluna única */
+#page-prazos, #st-vendidas #page-setor{flex-direction:column;overflow:hidden}
+#st-vendidas .pg-hdr{background:var(--azul-esc);border-bottom:2px solid rgba(143,220,210,.2);
+        padding:14px 28px;display:flex;align-items:center;gap:14px;
+        position:sticky;top:0;z-index:10;flex-shrink:0}
+#st-vendidas .pg-hdr-title{font-family:'Barlow Condensed',sans-serif;font-size:22px;
+              font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.06em;flex:1}
+#st-vendidas .pg-body{flex:1;padding:24px 28px 40px}
+#st-vendidas /* Comparativo de barras horizontal */
+.comp-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:22px}
+#st-vendidas .comp-card{background:var(--branco);border:1.5px solid var(--border);border-radius:10px;overflow:hidden}
+#st-vendidas .comp-hdr{background:var(--azul);padding:10px 16px}
+#st-vendidas .comp-hdr-title{font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;
+                color:#fff;text-transform:uppercase;letter-spacing:.06em}
+#st-vendidas .comp-body{padding:14px 16px}
+#st-vendidas .comp-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+#st-vendidas .comp-lbl{font-size:12px;color:var(--text);min-width:80px;font-weight:600}
+#st-vendidas .comp-bar-wrap{flex:1;background:var(--bg3);border-radius:4px;height:20px;overflow:hidden}
+#st-vendidas .comp-bar{height:100%;border-radius:4px;transition:width .4s}
+#st-vendidas .comp-val{font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);min-width:40px;text-align:right}
+#st-vendidas /* TIR/ROI cards */
+.roi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+#st-vendidas .roi-card{background:var(--branco);border:1.5px solid var(--border);border-radius:10px;padding:14px 16px}
+#st-vendidas .roi-lbl{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px}
+#st-vendidas .roi-val{font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:800;color:var(--azul)}
+#st-vendidas .roi-sub{font-size:10px;color:var(--text4);margin-top:3px}
+#st-vendidas .roi-val.g{color:var(--verde)}
+#st-vendidas /* MTIR config box */
+.mtir-box{background:var(--bg2);border:1.5px solid var(--border2);border-radius:10px;
+          padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+#st-vendidas .mtir-box-title{font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;
+                letter-spacing:.07em;flex-shrink:0}
+#st-vendidas .mtir-field{display:flex;align-items:center;gap:8px}
+#st-vendidas .mtir-field label{font-size:12px;color:var(--text3)}
+#st-vendidas .mtir-field input{width:80px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;
+                  font-size:13px;font-family:'DM Mono',monospace;color:var(--text)}
+#st-vendidas .mtir-field input:focus{border-color:var(--teal);outline:none}
+#st-vendidas .mtir-badge{font-size:10px;background:rgba(76,217,100,.15);color:var(--verde);
+            border-radius:4px;padding:2px 7px;font-weight:700;letter-spacing:.05em}
+#st-vendidas /* Tabela exposição */
+.exp-table-wrap{border-radius:8px;border:1.5px solid var(--border);overflow:hidden;margin-bottom:20px}
+#st-vendidas /* Gráfico exposição de caixa */
+.graf-card-full{background:var(--branco);border:1.5px solid var(--border);border-radius:10px;
+                overflow:hidden;box-shadow:0 2px 8px rgba(41,87,120,.06);margin-bottom:20px}
+#st-vendidas /* Linha de média no gráfico */
+.media-line{stroke-dasharray:6 4}
+#st-vendidas .obra-search-wrap{position:relative;display:flex;flex-direction:column;gap:4px}
+#st-vendidas .obra-tag{display:flex;align-items:center;gap:5px;background:var(--azul);color:#fff;
+          border-radius:5px;padding:3px 8px;font-size:11px;font-weight:600}
+#st-vendidas .obra-tag-x{cursor:pointer;opacity:.7;font-size:13px;line-height:1}
+#st-vendidas .obra-tag-x:hover{opacity:1}
+#st-vendidas .obra-check-item{display:flex;align-items:center;gap:8px;padding:7px 14px;cursor:pointer;
+                 font-size:12px;color:var(--text);transition:background .12s}
+#st-vendidas .obra-check-item:hover{background:var(--bg3)}
+#st-vendidas .obra-check-item input[type=checkbox]{accent-color:var(--azul);width:14px;height:14px;cursor:pointer}
+#st-vendidas #page-dash{flex-direction:column}
+#st-vendidas .dash-nav{width:100%;flex-direction:row;flex-wrap:wrap;padding:10px;gap:6px}
+#st-vendidas .nav-btn{width:auto;padding:8px 12px;font-size:13px}
+#st-vendidas .graf-row, #st-vendidas .comp-grid, #st-vendidas .roi-grid{grid-template-columns:1fr}
+#st-vendidas .kpi-row.r4{grid-template-columns:1fr 1fr}
+#st-vendidas .rank-grid, #st-vendidas .det-grid{grid-template-columns:1fr}
+#st-vendidas .sub-tab{padding:10px 20px;font-size:14px}
+#st-vendidas /* ajustes desta página (versão standalone da aba CASAS VENDIDAS) */
+body{display:flex;flex-direction:column;min-height:100vh}
+#st-vendidas .metas-body{flex:1}
+#st-vendidas .rank-grid{grid-template-columns:1fr}
 </style>
 </head>
 <body>
@@ -344,8 +657,67 @@ tr.tot td{font-weight:800;background:var(--bg3)}
            Em iframe de propósito: ela traz CSS e canvas próprios, e embutir
            no meio do vendas.html misturaria as duas folhas de estilo. -->
       <div id="st-vendidas" style="display:none">
-        <div id="vend-erro" class="vazio" style="display:none;line-height:1.6"></div>
-        <iframe id="fr-vendidas" src="" style="border:0;width:100%;height:calc(100vh - 220px);min-height:520px;background:transparent"></iframe>
+<div id="loading" class="hidden"><div class="spin"></div></div>
+<div class="metas-body">
+    <!-- CASAS VENDIDAS -->
+    <div class="sub-pg active" id="sub-vendas">
+      <div class="controles">
+        <span class="sel-lbl">Ano:</span><select id="sel-ano-v" onchange="buildVendas()"></select>
+        <select id="sel-per-v" onchange="buildVendas()">
+          <option value="ano">Ano completo</option>
+          <option value="sem">Último semestre</option>
+          <option value="tri">Último trimestre</option>
+          <option value="mes">Mês (escolher)</option>
+          <option value="semana">Últimas 7 semanas</option>
+        </select>
+        <select id="sel-mes-v" onchange="buildVendas()" style="display:none"></select>
+        <span class="sel-lbl">Cidade:</span>
+        <select id="sel-cid-v" onchange="buildVendas()"><option value="">Todas</option></select>
+        <span class="sel-lbl">Setor:</span>
+        <select id="sel-set-v" onchange="buildVendas()"><option value="">Todos</option></select>
+      </div>
+      <div class="kpi-row r4" id="kpi-v-res" style="margin-bottom:16px"></div>
+      <div class="kpi-row r3" style="margin-bottom:20px">
+        <div class="kpi-card"><div class="kpi-lbl">VGV Médio (Valor na Mão)</div><div class="kpi-val" id="kv-vgv-mao">—</div></div>
+        <div class="kpi-card"><div class="kpi-lbl">VGV Médio (Contrato)</div><div class="kpi-val" id="kv-vgv-cont">—</div></div>
+        <div class="kpi-card"><div class="kpi-lbl">Prazo Médio Certidões→Venda</div><div class="kpi-val" id="kv-prazo">—</div></div>
+      </div>
+      <div id="vgv-alert-vendas"></div>
+      <div id="soma-alert-vendas"></div>
+      <div class="blk-title">Casas Vendidas por Mês</div>
+      <div class="graf-card" style="margin-bottom:20px">
+        <div class="graf-body">
+          <div class="legenda" id="leg-ch-vv">
+            <div class="leg"><div class="leg-cor" style="background:#295778"></div>Casas/mês</div>
+            <span class="leg-metas" data-cid="ch-vv"></span>
+          </div>
+          <div class="chart-wrap"><canvas id="ch-vv" height="240"></canvas></div>
+        </div>
+      </div>
+      <div class="blk-title">VGV por Mês (Valor na Mão)</div>
+      <div class="graf-card" style="margin-bottom:20px">
+        <div class="graf-body">
+          <div class="legenda">
+            <div class="leg"><div class="leg-cor" style="background:#295778"></div>VGV mensal (Valor na Mão)</div>
+          </div>
+          <div class="chart-wrap"><canvas id="ch-vgv-mes" height="240"></canvas></div>
+        </div>
+      </div>
+      <div class="blk-title">VGV Acumulado (Valor na Mão)</div>
+      <div class="graf-card" style="margin-bottom:20px">
+        <div class="graf-body">
+          <div class="legenda">
+            <div class="leg"><div class="leg-cor" style="background:#1a6b40"></div>VGV acumulado no período</div>
+          </div>
+          <div class="chart-wrap"><canvas id="ch-vgv-acum" height="240"></canvas></div>
+        </div>
+      </div>
+      <div class="blk-title">Tabela por Mês</div>
+      <div class="tbl-outer"><div class="tbl-wrap" id="tbl-vendas"></div></div>
+      <div class="blk-title">Rankings</div>
+      <div class="rank-grid" id="rankings"></div>
+    </div>
+</div>
       </div>
 
       <!-- ESTOQUE DE CASAS: contagem por setor, vinda do documentos.json -->
@@ -1277,31 +1649,6 @@ function renderEstoque(){
     '</tbody></table>';
 }
 
-/* A aba ficava branca quando o casas-vendidas.html não estava publicado —
-   iframe apontando pro nada não avisa ninguém. Agora conferimos o arquivo
-   antes e dizemos o que houve. */
-async function abrirVendidas(){
-  const box=document.getElementById("st-vendidas");
-  const fr=document.getElementById("fr-vendidas");
-  if(fr.getAttribute("src")) return;                 // já carregado
-  const erro=document.getElementById("vend-erro");
-  erro.textContent="Verificando…"; erro.style.display="block"; fr.style.display="none";
-  try{
-    const r=await fetch("casas-vendidas.html?v="+Date.now(),{cache:"no-cache"});
-    if(!r.ok) throw new Error("HTTP "+r.status);
-    const txt=await r.text();
-    if(!/id=["']sub-vendas["']/.test(txt)) throw new Error("ARQUIVO_ERRADO");
-    erro.style.display="none"; fr.style.display=""; fr.setAttribute("src","casas-vendidas.html");
-  }catch(e){
-    const m=String(e.message||e);
-    erro.innerHTML = m.indexOf("404")>=0
-      ? "<b>casas-vendidas.html não está publicado.</b><br>O arquivo é novo — confira se ele foi enviado pro repositório junto do resto e se o workflow rodou depois."
-      : m==="ARQUIVO_ERRADO"
-        ? "<b>O arquivo publicado não é a página do gestor.</b> Talvez o GitHub esteja servindo uma versão antiga — rode o workflow 'Publicar site' de novo."
-        : "<b>Não consegui carregar a página.</b> "+esc(m);
-  }
-}
-
 function temSensiveis(){ return SCHEMA.some(c=>c.sensivel); }
 
 async function abrirObra(pageId){
@@ -1584,6 +1931,485 @@ function fecharVisualizador(){
 
 window.aoSincronizar=()=>{ toast("Sincronizado ✓"); if(document.getElementById("st-atividades").style.display!=="none") carregarAtividades(); };
 boot();
+
+/* ===== Painel Casas Vendidas ===== */
+
+/* Rede de segurança: qualquer erro não tratado vira mensagem na tela.
+   Sem isto a página fica branca dentro do iframe e não dá pra saber se o
+   problema é o JSON que faltou, um nome de coluna ou um bug do script. */
+window.addEventListener("error", function(ev){
+  var d=document.createElement("div");
+  d.style.cssText="margin:24px;padding:16px;border:1px solid #e0b4b4;background:#fff5f5;border-radius:10px;font:13px system-ui;color:#8a2b2b";
+  d.textContent="Erro nesta página: "+(ev.message||ev.error)+"  ("+(ev.filename||"").split("/").pop()+":"+ev.lineno+")";
+  document.body.insertBefore(d, document.body.firstChild);
+});
+window.addEventListener("unhandledrejection", function(ev){
+  var d=document.createElement("div");
+  d.style.cssText="margin:24px;padding:16px;border:1px solid #e0b4b4;background:#fff5f5;border-radius:10px;font:13px system-ui;color:#8a2b2b";
+  d.textContent="Falha ao carregar os dados: "+(ev.reason&&ev.reason.message||ev.reason);
+  document.body.insertBefore(d, document.body.firstChild);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Extraído de analise.html (aba METAS → CASAS VENDIDAS), sem alterações de
+//  lógica. Fonte de dados: data_vendas.json (gerado pelo workflow).
+// ═══════════════════════════════════════════════════════════════════════════
+let docs=[],vendas=[],metas=[];
+
+// ── UTILS ──
+const MPT=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const MFU=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const fmtM=ym=>{if(!ym)return'—';const[y,m]=ym.split('-');return MPT[+m-1]+'/'+y.slice(2);};
+const fmtBRL=v=>v==null||isNaN(v)?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
+const fmtBRL2=v=>v==null||isNaN(v)?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtN=(v,d=1)=>v==null||isNaN(v)?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fmtPct=(v,d=2)=>v==null||isNaN(v)?'—':fmtN(v,d)+'%';
+const mesD=d=>d?d.slice(0,7):null;
+const anoD=d=>d?d.slice(0,4):null;
+function diasDiff(a,b){if(!a||!b)return null;const d=Math.round((new Date(b)-new Date(a))/86400000);return d>0&&d<3000?d:null;}
+function mediaDias(arr,c1,c2){const v=arr.map(d=>diasDiff(d[c1],d[c2])).filter(Boolean);return v.length?Math.round(v.reduce((a,b)=>a+b)/v.length):null;}
+const normS=s=>(s||'').trim().toUpperCase().replace(/\s+/g,' ');
+const cotaM=doc=>{const c=doc.cota_empresa;return c==null?1:Number(c);};
+const kpi=(lbl,val,sub='',cls='')=>
+  `<div class="kpi-card"><div class="kpi-lbl">${lbl}</div>
+   <div class="kpi-val ${cls}">${val}</div>
+   ${sub?`<div class="kpi-sub2">${sub}</div>`:''}</div>`;
+const meses12=ano=>Array.from({length:12},(_,i)=>`${ano}-${String(i+1).padStart(2,'0')}`);
+
+function mesesPeriodo(ano,per){
+  if(per==='ano')return meses12(ano);
+  // mês escolhido: um mês só. O seletor ao lado é preenchido em sincMesSel().
+  if(per==='mes'){
+    const el=document.getElementById('sel-mes-v');
+    return [ (el&&el.value) || `${ano}-01` ];
+  }
+  // semana não é mês: buildVendas trata à parte (ver semanasRecentes)
+  if(per==='semana') return meses12(ano);
+  // tri/sem: conta a partir do mês ANTERIOR ao atual (exclui mês corrente)
+  const hoje=new Date();
+  const n=per==='tri'?3:6;
+  const ms=[];
+  for(let i=n;i>=1;i--){
+    const d=new Date(hoje.getFullYear(),hoje.getMonth()-i,1);
+    ms.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+  }
+  return ms;
+}
+// Retorna nº de meses já transcorridos dentro do array ms.
+// Para ano passado: retorna ms.length. Para ano corrente: até mês atual.
+// Para ano futuro ou meses sem dados: ms.length como fallback.
+function mesesEfetivos(ms){
+  if(!ms||!ms.length)return 1;
+  const hoje=new Date();
+  const mesHoje=`${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
+  const tr=ms.filter(m=>m<=mesHoje).length;
+  return tr||ms.length;
+}
+/* ---- recorte semanal ----
+   Semana ISO (segunda a domingo), rotulada pelo dia da segunda. Uso as 7
+   últimas semanas fechadas + a corrente: dá pra ver tendência sem o gráfico
+   virar um borrão de 52 colunas. */
+function segundaDe(d){
+  const x=new Date(d); const dia=(x.getDay()+6)%7;   // 0 = segunda
+  x.setDate(x.getDate()-dia); x.setHours(0,0,0,0); return x;
+}
+function chaveSemana(iso){ if(!iso) return null; const s=segundaDe(iso);
+  return `${s.getFullYear()}-${String(s.getMonth()+1).padStart(2,'0')}-${String(s.getDate()).padStart(2,'0')}`; }
+function semanasRecentes(n){
+  const out=[]; const base=segundaDe(new Date());
+  for(let i=n-1;i>=0;i--){ const d=new Date(base); d.setDate(d.getDate()-i*7);
+    out.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`); }
+  return out;
+}
+const fmtSem=k=>{ const[,m,d]=k.split('-'); return d+'/'+m; };
+
+/* mostra/esconde o seletor de mês conforme o período escolhido */
+function sincMesSel(ano){
+  const per=document.getElementById('sel-per-v').value;
+  const el=document.getElementById('sel-mes-v');
+  if(!el) return;
+  el.style.display = per==='mes' ? '' : 'none';
+  if(per!=='mes') return;
+  const atual=el.value;
+  el.innerHTML=meses12(ano).map(m=>`<option value="${m}">${MFU[+m.split('-')[1]-1]}</option>`).join('');
+  if(atual && atual.slice(0,4)===String(ano)) el.value=atual;
+  else {
+    const hoje=new Date();
+    el.value = String(hoje.getFullYear())===String(ano)
+      ? `${ano}-${String(hoje.getMonth()+1).padStart(2,'0')}` : `${ano}-12`;
+  }
+}
+
+function initSel(id,items,def,fn){
+  const el=document.getElementById(id);if(!el)return;
+  el.innerHTML='';
+  items.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;el.appendChild(o);});
+  if(def&&items.includes(String(def)))el.value=String(def);
+  else if(el.options.length)el.value=el.options[el.options.length-1].value;
+  el.onchange=fn;
+}
+function anosDisp(arr,campo){
+  const anos=[...new Set(arr.map(d=>anoD(d[campo])).filter(Boolean))];
+  // Garante que o ano corrente sempre aparece como opção
+  const anoCorrente=String(new Date().getFullYear());
+  if(!anos.includes(anoCorrente))anos.push(anoCorrente);
+  return anos.sort();
+}
+
+
+// Atualiza a legenda HTML com os valores das metas (Morais e Investidor)
+function _updateLegendaMetas(canvasId, mediaM, mediaI, fmtV, mediaRealM, mediaRealI){
+  const span = document.querySelector(`.leg-metas[data-cid="${canvasId}"]`);
+  if(!span) return;
+  const f = (v)=> fmtV ? fmtV(v) : (v>=10? Math.round(v).toString() : v.toFixed(1));
+  let html = '';
+  if(mediaM!=null && mediaM>0){
+    html += `<span class="leg-meta" style="color:#295778"><span class="leg-meta-line"></span>Meta Morais: ${f(mediaM)}</span>`;
+  }
+  if(mediaI!=null && mediaI>0){
+    html += `<span class="leg-meta" style="color:#c0392b"><span class="leg-meta-line" style="border-top:2px dashed #c0392b"></span>Meta Inv.: ${f(mediaI)}</span>`;
+  }
+  if(mediaRealM!=null && mediaRealM>0){
+    html += `<span class="leg-meta" style="color:#295778"><span class="leg-meta-line" style="border-top:2px dotted #295778;background:none"></span>Média Morais: ${f(mediaRealM)}</span>`;
+  }
+  if(mediaRealI!=null && mediaRealI>0){
+    html += `<span class="leg-meta" style="color:#c0392b"><span class="leg-meta-line" style="border-top:2px dotted #c0392b;background:none"></span>Média Inv.: ${f(mediaRealI)}</span>`;
+  }
+  span.innerHTML = html;
+}
+
+// ── CANVAS: BARRAS ──
+function drawBars(id,labels,datasets,fmtV,mediaM,mediaI,mediaRealM,mediaRealI){
+  _updateLegendaMetas(id, mediaM, mediaI, fmtV, mediaRealM, mediaRealI);
+  const c=document.getElementById(id);if(!c)return;
+  c.style.width='';c.style.height='';
+  const pw=c.parentElement.clientWidth||500;
+  if(pw<20)return;
+  const idxComDados=labels.map((_,i)=>datasets.some(d=>d.data[i]>0)?i:-1).filter(i=>i>=0);
+  if(!idxComDados.length){c.style.display='none';return;}
+  c.style.display='block';
+  const labelsF=idxComDados.map(i=>labels[i]);
+  const datasetsF=datasets.map(ds=>({...ds,data:idxComDados.map(i=>ds.data[i]||0)}));
+
+  const H=parseInt(c.dataset.h||c.getAttribute('height'))||280;
+  if(!c.dataset.h)c.dataset.h=H;
+  const dpr=Math.max(window.devicePixelRatio||1,2);
+  c.width=pw*dpr;c.height=H*dpr;
+  c.style.width=pw+'px';c.style.height=H+'px';
+  const ctx=c.getContext('2d');ctx.scale(dpr,dpr);
+  const W=pw,P={t:30,r:14,b:44,l:62},cW=W-P.l-P.r,cH=H-P.t-P.b,n=labelsF.length;
+  if(!n)return;
+  const allM=[mediaM,mediaI,mediaRealM,mediaRealI].filter(v=>v!=null&&v>0);
+  const allVals=datasetsF.flatMap(d=>d.data).concat(allM).filter(v=>v>0);
+  const mx=Math.max(...allVals,0.01);
+  const mag=Math.pow(10,Math.floor(Math.log10(mx/4||1)));
+  const niceStep=Math.ceil((mx/4)/mag)*mag||1;
+  const yMax=niceStep*5;
+
+  ctx.clearRect(0,0,W,H);
+
+  // Grade
+  ctx.strokeStyle='#d0e4ec';ctx.lineWidth=1;
+  ctx.fillStyle='#5a8099';ctx.font="500 10px 'Barlow',sans-serif";ctx.textAlign='right';
+  for(let i=0;i<=4;i++){
+    const v=niceStep*i,y=P.t+cH*(1-v/yMax);
+    ctx.beginPath();ctx.moveTo(P.l,y);ctx.lineTo(P.l+cW,y);ctx.stroke();
+    ctx.fillText(fmtV?fmtV(v):fmtN(v,v<10?1:0),P.l-5,y+3.5);
+  }
+  ctx.fillStyle='#5a8099';ctx.font="600 10.5px 'Barlow',sans-serif";ctx.textAlign='center';
+  labelsF.forEach((lb,i)=>{ctx.fillText(lb,P.l+(i+.5)*(cW/n),H-P.b+16);});
+
+  const gW=cW/n,nD=datasetsF.length,bW=Math.min((gW*0.78)/nD,38),gPad=(gW-bW*nD)/2;
+  datasetsF.forEach((ds,di)=>{
+    ds.data.forEach((v,i)=>{
+      if(!v)return;
+      const bH=(v/yMax)*cH,x=P.l+i*gW+gPad+di*bW,y=P.t+cH-bH;
+      ctx.fillStyle=ds.color||'#295778';
+      ctx.beginPath();
+      if(ctx.roundRect)ctx.roundRect(x,y,bW-1,bH,[3,3,0,0]);
+      else ctx.rect(x,y,bW-1,bH);
+      ctx.fill();
+      ctx.fillStyle='#1a3347';ctx.font="600 10px 'DM Mono',monospace";ctx.textAlign='center';
+      ctx.fillText(fmtV?fmtV(v):fmtN(v,v<10?1:0),x+(bW-1)/2,y-5);
+    });
+  });
+
+  // Linhas tracejadas — METAS (dash longo)
+  function linhaTrac(valor,cor,dash){
+    if(valor==null||valor<=0)return;
+    const y=P.t+cH*(1-valor/yMax);
+    ctx.save();
+    ctx.strokeStyle=cor;ctx.lineWidth=2;ctx.setLineDash(dash);
+    ctx.beginPath();ctx.moveTo(P.l,y);ctx.lineTo(P.l+cW,y);ctx.stroke();
+    ctx.restore();
+  }
+  linhaTrac(mediaM,'#295778',[6,4]);
+  linhaTrac(mediaI,'#c0392b',[6,4]);
+  // Linhas pontilhadas — MÉDIA REAL (pontos finos)
+  linhaTrac(mediaRealM,'#295778',[2,4]);
+  linhaTrac(mediaRealI,'#c0392b',[2,4]);
+}
+
+// ── CANVAS: LINHAS ──
+function drawLines(id,labels,datasets,fmtV,mediaLinha){
+  const c=document.getElementById(id);if(!c)return;
+  c.style.width='';c.style.height='';
+  const pw=c.parentElement.clientWidth||500;
+  if(pw<20)return;
+  const idxComDados=labels.map((_,i)=>datasets.some(d=>(d.data[i]||0)!==0)?i:-1).filter(i=>i>=0);
+  if(!idxComDados.length){c.style.display='none';return;}
+  c.style.display='block';
+  const labelsF=idxComDados.map(i=>labels[i]);
+  const datasetsF=datasets.map(ds=>({...ds,data:idxComDados.map(i=>ds.data[i]||0)}));
+
+  const H=parseInt(c.dataset.h||c.getAttribute('height'))||280;
+  if(!c.dataset.h)c.dataset.h=H;
+  const dpr=Math.max(window.devicePixelRatio||1,2);
+  c.width=pw*dpr;c.height=H*dpr;
+  c.style.width=pw+'px';c.style.height=H+'px';
+  const ctx=c.getContext('2d');ctx.scale(dpr,dpr);
+  const W=pw,P={t:28,r:12,b:44,l:62},cW=W-P.l-P.r,cH=H-P.t-P.b,n=labelsF.length;
+  if(!n)return;
+
+  const allVals=datasetsF.flatMap(d=>d.data).concat(mediaLinha!=null?[mediaLinha]:[]);
+  const minV=Math.min(...allVals),maxV=Math.max(...allVals,0.01);
+  const range=maxV-minV||maxV;
+  const pad=range*0.15;
+  const yMin=minV<0?minV-pad:0,yMax=maxV+pad;
+
+  ctx.clearRect(0,0,W,H);
+  ctx.strokeStyle='#d0e4ec';ctx.lineWidth=1;
+  const steps=4;
+  for(let i=0;i<=steps;i++){
+    const v=yMin+(yMax-yMin)*i/steps,y=P.t+cH*(1-(v-yMin)/(yMax-yMin));
+    ctx.beginPath();ctx.moveTo(P.l,y);ctx.lineTo(P.l+cW,y);ctx.stroke();
+    ctx.fillStyle='#5a8099';ctx.font="500 10px 'Barlow',sans-serif";ctx.textAlign='right';
+    ctx.fillText(fmtV?fmtV(v):fmtN(v,v<10?1:0),P.l-5,y+3.5);
+  }
+  if(yMin<0){
+    const y0=P.t+cH*(1-(0-yMin)/(yMax-yMin));
+    ctx.save();ctx.strokeStyle='#295778';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(P.l,y0);ctx.lineTo(P.l+cW,y0);ctx.stroke();ctx.restore();
+  }
+  ctx.fillStyle='#5a8099';ctx.font="600 10.5px 'Barlow',sans-serif";ctx.textAlign='center';
+  labelsF.forEach((lb,i)=>{ctx.fillText(lb,P.l+(i+.5)*(cW/n),H-P.b+16);});
+
+  const xOf=i=>P.l+(i+.5)*(cW/n);
+  const yOf=v=>P.t+cH*(1-(v-yMin)/(yMax-yMin));
+
+  datasetsF.forEach(ds=>{
+    if(ds.data.every(v=>!v))return;
+    ctx.beginPath();ctx.strokeStyle=ds.color||'#295778';ctx.lineWidth=2.5;
+    ds.data.forEach((v,i)=>{
+      const x=xOf(i),y=yOf(v);
+      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+    ds.data.forEach((v,i)=>{
+      const x=xOf(i),y=yOf(v);
+      ctx.beginPath();ctx.arc(x,y,4,0,Math.PI*2);
+      ctx.fillStyle=ds.color||'#295778';ctx.fill();
+      ctx.fillStyle='#1a3347';ctx.font="600 10px 'DM Mono',monospace";ctx.textAlign='center';
+      ctx.fillText(fmtV?fmtV(v):fmtN(v,v<10?1:0),x,y-10);
+    });
+  });
+
+  if(mediaLinha!=null&&mediaLinha>0){
+    const y=yOf(mediaLinha);
+    ctx.save();ctx.strokeStyle='#c9a227';ctx.lineWidth=2;ctx.setLineDash([6,4]);
+    ctx.beginPath();ctx.moveTo(P.l,y);ctx.lineTo(P.l+cW,y);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='#c9a227';ctx.font="bold 10px 'Barlow',sans-serif";ctx.textAlign='left';
+    ctx.fillText('Meta: '+(fmtV?fmtV(mediaLinha):fmtN(mediaLinha,1)),P.l+4,y-5);
+    ctx.restore();
+  }
+}
+
+// ── CASAS VENDIDAS ──
+function buildVendas(){
+  const ano=document.getElementById('sel-ano-v')?.value;if(!ano)return;
+  const per=document.getElementById('sel-per-v')?.value||'ano';
+  const cid=document.getElementById('sel-cid-v')?.value;
+  const set=document.getElementById('sel-set-v')?.value;
+  sincMesSel(ano);
+
+  // No modo semanal o eixo deixa de ser mês e passa a ser semana. Daí o "bucket"
+  // (chave do agrupamento) e o rótulo virem de funções, em vez de mesD/fmtM
+  // fixos — o resto do cálculo abaixo continua idêntico.
+  const semanal = per==='semana';
+  const ms = semanal ? semanasRecentes(7) : mesesPeriodo(ano,per);
+  const balde = x => semanal ? chaveSemana(x.data_venda) : mesD(x.data_venda);
+  const rotulo = k => semanal ? fmtSem(k) : fmtM(k);
+
+  let v=vendas.filter(x=>x.clientes&&x.data_venda&&ms.includes(balde(x)));
+  if(cid)v=v.filter(x=>x.cidade===cid);
+  if(set)v=v.filter(x=>x.setor===set);
+  const pm={};
+  v.forEach(x=>{
+    const m=balde(x);if(!m)return;
+    if(!pm[m])pm[m]={qt:0,vgvMao:0,vgvCont:0};
+    pm[m].qt++;pm[m].vgvMao+=(x.valor_na_mao||0);pm[m].vgvCont+=(x.valor_venda_contrato||0);
+  });
+  const dQ=ms.map(m=>pm[m]?.qt||0),lb=ms.map(rotulo);
+  const tQ=v.length,tVmao=v.reduce((s,x)=>s+(x.valor_na_mao||0),0),tVcont=v.reduce((s,x)=>s+(x.valor_venda_contrato||0),0);
+  const dArr=[];
+  v.forEach(vn=>{
+    const d=docs.find(d=>normS(d.endereco)===normS(vn.endereco));
+    if(d?.data_certidoes){const x=diasDiff(d.data_certidoes,vn.data_venda);if(x)dArr.push(x);}
+  });
+  const prazo=dArr.length?Math.round(dArr.reduce((a,b)=>a+b)/dArr.length):null;
+
+  // Meta de casas vendidas: meta do ano ANTERIOR (do banco METAS)
+  const metaAnoAnt=metas.find(m=>m.ano===+ano-1);
+  const metaTot=metaAnoAnt?metaAnoAnt.meta_casas:0;
+  const metaMes=metaTot?metaTot/12:0;
+  // no modo semanal todas as 7 semanas já são passadas — divisor é o próprio total
+  const nMeses=semanal?ms.length:mesesEfetivos(ms);
+  const mediaMes=nMeses?tQ/nMeses:0;
+  // Cores: verde >= meta, vermelho < meta
+  const corTot=metaTot>0?(tQ>=metaTot?'g':'r'):'';
+  const corMed=metaMes>0?(mediaMes>=metaMes?'g':'r'):'';
+
+  // KPI principal expandido — Total Casas Vendidas com meta + média + meta mensal
+  const subAlerta=metaTot>0
+    ? `${tQ}/${metaTot} casas · ${tQ>=metaTot?'<span style="color:var(--verde);font-weight:700">✓ meta atingida</span>':'<span style="color:#c0392b;font-weight:700">⚠ '+fmtN((tQ/metaTot)*100,0)+'% da meta</span>'}`
+    : 'Meta do ano anterior não cadastrada';
+  const subMed=metaMes>0
+    ? `Meta mensal: ${fmtN(metaMes,1)} · ${mediaMes>=metaMes?'<span style="color:var(--verde);font-weight:700">✓ acima da meta</span>':'<span style="color:#c0392b;font-weight:700">⚠ '+fmtN((mediaMes/metaMes)*100,0)+'% da meta mensal</span>'}`
+    : '';
+  document.getElementById('kpi-v-res').innerHTML=[
+    kpi('Total Casas Vendidas',tQ,subAlerta,corTot),
+    kpi('Média/Mês',fmtN(mediaMes,1),subMed,corMed),
+    kpi('VGV Total (Valor na Mão)',fmtBRL(tVmao),''),
+    kpi('VGV Total (Contrato)',fmtBRL(tVcont),''),
+  ].join('');
+  document.getElementById('kv-vgv-mao').textContent=tQ?fmtBRL(tVmao/tQ):'—';
+  document.getElementById('kv-vgv-cont').textContent=tQ?fmtBRL(tVcont/tQ):'—';
+  document.getElementById('kv-prazo').textContent=prazo!=null?prazo+'d':'—';
+
+  // Gráfico mensal: barras + linhas meta mensal + média mensal
+  // Usar drawBars com mediaM=metaMes (linha tracejada longa) e mediaRealM=mediaMes (pontilhada)
+  // Para conseguir legendas corretas — uso labels custom no HTML acima
+  drawBars('ch-vv',lb,[{data:dQ,color:'#295778'}],v=>String(v),
+           metaMes>0?metaMes:null,null,
+           mediaMes>0?mediaMes:null,null);
+  // Sobrescrever legenda do ch-vv com texto correto (não Morais/Inv)
+  const legSpan=document.querySelector('.leg-metas[data-cid="ch-vv"]');
+  if(legSpan){
+    let lh='';
+    if(metaMes>0) lh += `<span class="leg-meta" style="color:#295778"><span class="leg-meta-line"></span>Meta mensal: ${fmtN(metaMes,1)}</span>`;
+    if(mediaMes>0) lh += `<span class="leg-meta" style="color:#295778"><span class="leg-meta-line" style="border-top:2px dotted #295778;background:none"></span>Média: ${fmtN(mediaMes,1)}</span>`;
+    legSpan.innerHTML=lh;
+  }
+
+  // Gráfico VGV mensal (Valor na Mão) — linha, igual ao acumulado
+  const dataVgvMes=ms.map(m=>pm[m]?.vgvMao||0);
+  drawLines('ch-vgv-mes',lb,[{data:dataVgvMes,color:'#295778'}],v=>fmtBRL(v));
+
+  // Gráfico VGV acumulado (valor na mão) ao longo do tempo
+  let acum=0;
+  const dataAcum=ms.map(m=>{ acum+=(pm[m]?.vgvMao||0); return acum; });
+  drawLines('ch-vgv-acum',lb,[{data:dataAcum,color:'#1a6b40'}],v=>fmtBRL(v));
+
+  const body=ms.map((m,i)=>{
+    if(!dQ[i])return'';
+    return`<tr><td><strong>${rotulo(m)}</strong></td><td class="nr">${dQ[i]}</td>
+      <td class="nr">${fmtBRL(pm[m]?.vgvMao||0)}</td><td class="nr">${fmtBRL(pm[m]?.vgvCont||0)}</td></tr>`;
+  }).join('');
+  document.getElementById('tbl-vendas').innerHTML=`<table>
+    <thead><tr><th class="left">${semanal?"Semana":"Mês"}</th><th>Qt Casas</th><th>VGV (na Mão)</th><th>VGV (Contrato)</th></tr></thead>
+    <tbody>${body||'<tr><td colspan="4" style="color:var(--text4);padding:14px;text-align:center">Sem dados</td></tr>'}</tbody>
+    <tfoot><tr><td>TOTAL</td><td class="nr">${tQ}</td><td class="nr">${fmtBRL(tVmao)}</td><td class="nr">${fmtBRL(tVcont)}</td></tr></tfoot>
+  </table>`;
+  // Ajuste 6: Alerta VGV — casas vendidas sem valor_venda_contrato
+  const semVgvVendas=v.filter(x=>!x.valor_venda_contrato);
+  const alertaVgvVendas=semVgvVendas.length>0
+    ?`<div style="background:rgba(192,57,43,.08);border:1px solid rgba(192,57,43,.3);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#c0392b">
+       <strong>⚠ ${semVgvVendas.length} venda(s) sem VALOR DE CONTRATO preenchido:</strong><br>
+       ${semVgvVendas.map(x=>`${x.endereco||'?'} casa ${x.casa||'?'}`).join(' · ')}
+     </div>`
+    :'';
+  const vgvAlert=document.getElementById('vgv-alert-vendas');
+  if(vgvAlert) vgvAlert.innerHTML=alertaVgvVendas;
+
+  // Alerta de conferência: COMISSÃO + VALOR NA MÃO ≠ VALOR DE CONTRATO
+  const EPS=0.01; // tolerância para arredondamento de centavos
+  const somaErrada=v.filter(x=>{
+    const mao=x.valor_na_mao||0;
+    const com=x.comissao||0;
+    const cont=x.valor_venda_contrato||0;
+    // só verifica quando todos os três campos estão preenchidos
+    if(!mao&&!com&&!cont)return false;
+    return Math.abs((mao+com)-cont)>EPS;
+  });
+  const alertaSoma=somaErrada.length>0
+    ?`<div style="background:rgba(212,106,26,.08);border:1px solid rgba(212,106,26,.35);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#d46a1a">
+       <strong>⚠ ${somaErrada.length} venda(s) com COMISSÃO + VALOR NA MÃO ≠ VALOR DE CONTRATO:</strong><br>
+       ${somaErrada.map(x=>`${x.endereco||'?'} casa ${x.casa||'?'}`).join(' · ')}
+     </div>`
+    :'';
+  const somaAlert=document.getElementById('soma-alert-vendas');
+  if(somaAlert) somaAlert.innerHTML=alertaSoma;
+
+  const rC={},rR={},rI={};
+  v.forEach(x=>{
+    if(x.corretor)rC[x.corretor]=(rC[x.corretor]||0)+1;
+    if(x.correspondente)rR[x.correspondente]=(rR[x.correspondente]||0)+1;
+    if(x.imobiliaria)rI[x.imobiliaria]=(rI[x.imobiliaria]||0)+1;
+  });
+  const sR=o=>Object.entries(o).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  function rCard(t,d){
+    return`<div class="rank-card"><div class="rank-hdr"><div class="rank-hdr-title">${t}</div></div>
+      <div>${d.map(([n,q],i)=>`<div class="rank-row">
+        <div class="rank-pos ${i<3?'top3':''}">${i+1}º</div>
+        <div class="rank-nome">${n||'—'}</div>
+        <div class="rank-qt">${q}</div></div>`).join('')||'<div style="color:var(--text4);font-size:12px;padding:12px">Sem dados</div>'}
+      </div></div>`;
+  }
+  document.getElementById('rankings').innerHTML=rCard('Corretores com mais vendas',sR(rC))+rCard('Correspondentes com mais vendas',sR(rR))+rCard('Imobiliárias com mais vendas',sR(rI));
+}
+
+// ── REDESENHAR GRÁFICOS AO REDIMENSIONAR ──
+let _rt=null;
+window.addEventListener('resize',()=>{clearTimeout(_rt);_rt=setTimeout(buildVendas,180)});
+
+// ── INIT ──
+async function init(){
+  try{
+    const r=await fetch('dist/data_vendas.json?v='+Math.floor(Date.now()/60000),{cache:'no-cache'});
+    if(!r.ok) throw new Error('HTTP '+r.status+' — rode o workflow \'Publicar site\' no GitHub');
+    const data=await r.json();
+    docs   = data.documentos || [];
+    vendas = data.vendas     || [];
+    metas  = data.metas      || [];
+
+    if(data.updated_at)
+      document.getElementById('updated-at').textContent=
+        'Atualizado: '+new Date(data.updated_at).toLocaleString('pt-BR');
+
+    const anoAtual=String(new Date().getFullYear());
+    initSel('sel-ano-v',anosDisp(vendas.filter(v=>v.clientes),'data_venda'),anoAtual,buildVendas);
+
+    const sC=document.getElementById('sel-cid-v');
+    [...new Set(vendas.map(v=>v.cidade).filter(Boolean))].sort()
+      .forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sC.appendChild(o);});
+    const sS=document.getElementById('sel-set-v');
+    [...new Set(vendas.map(v=>v.setor).filter(Boolean))].sort()
+      .forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;sS.appendChild(o);});
+
+    buildVendas();
+    document.getElementById('loading').classList.add('hidden');
+  }catch(e){
+    document.getElementById('loading').innerHTML=
+      `<div style="color:#c0392b;font-size:13px;padding:20px;text-align:center">
+        Erro ao carregar dados:<br><code>${e.message}</code></div>`;
+  }
+}
+/* Antes esta página era um arquivo separado e se iniciava sozinha. Agora é uma
+   aba do vendas.html: quem dispara é o abaSetor, na primeira vez que a aba é
+   aberta — carregar o JSON no boot atrasaria o resto à toa. */
+let VEND_INICIADA=false;
+window.abrirVendidas=function(){ if(VEND_INICIADA) return; VEND_INICIADA=true; init(); };
+
 </script>
 </body>
 </html>
