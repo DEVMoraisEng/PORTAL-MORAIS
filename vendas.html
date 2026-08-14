@@ -1236,14 +1236,14 @@ function atualizarInformativo(ctx){
      APROVOU HABITE-SE? = SIM -> conta em ESTOQUE (e sai de INICIADAS)
      OBRA INCIADA = SIM       -> conta em INICIADAS
    Uma obra nunca entra nas duas: a ordem dos testes garante isso. */
-function valDoc(d,frag){
-  const alvo=normNome(frag);
-  for(const k in d){ if(normNome(k)===alvo) return d[k]; }
-  for(const k in d){ if(normNome(k).indexOf(alvo)>=0) return d[k]; }
-  return null;
-}
+/* ERRO QUE ESTAVA AQUI: eu procurava pelos nomes das colunas do Notion
+   ("APROVOU HABITE-SE", "OBRA INCIADA", "Nº DE CASAS"), mas o
+   fetch_vendas.py publica os campos já traduzidos, em snake_case:
+   habite, obra_iniciada, obra_finalizada, n_casas, setor.
+   Só "setor" batia por coincidência — por isso os setores apareciam
+   na tabela e todos os números davam zero. */
 function ehSim(v){ if(v===true) return true; const n=normNome(v); return n==="SIM"||n.indexOf("SIM")===0; }
-function nCasas(d){ const v=valDoc(d,"Nº DE CASAS"); const n=Number(v); return (v!=null && !isNaN(n) && n>0) ? n : 1; }
+function nCasas(d){ const n=Number(d.n_casas); return (!isNaN(n)&&n>0)?n:1; }
 
 function renderEstoque(){
   const wrap=document.getElementById("est-wrap");
@@ -1257,12 +1257,12 @@ function renderEstoque(){
   }
   const porSetor={}, tot={estoque:0, iniciadas:0, finalizadas:0};
   lista.forEach(d=>{
-    const setor=valDoc(d,"SETOR")||"(sem setor)";
+    const setor=d.setor||"(sem setor)";
     const q=nCasas(d);
     const linha = porSetor[setor] || (porSetor[setor]={estoque:0, iniciadas:0, finalizadas:0});
-    if(ehSim(valDoc(d,"OBRA FINALIZADA"))){ linha.finalizadas+=q; tot.finalizadas+=q; return; }
-    if(ehSim(valDoc(d,"APROVOU HABITE-SE"))){ linha.estoque+=q; tot.estoque+=q; return; }
-    if(ehSim(valDoc(d,"OBRA INCIADA"))){ linha.iniciadas+=q; tot.iniciadas+=q; }
+    if(ehSim(d.obra_finalizada)){ linha.finalizadas+=q; tot.finalizadas+=q; return; }
+    if(ehSim(d.habite))        { linha.estoque+=q;     tot.estoque+=q;     return; }
+    if(ehSim(d.obra_iniciada)) { linha.iniciadas+=q;   tot.iniciadas+=q; }
   });
   const setores=Object.keys(porSetor).sort((a,b)=>a.localeCompare(b,"pt-BR"));
   document.getElementById("est-count").textContent=

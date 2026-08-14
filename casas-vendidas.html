@@ -417,6 +417,22 @@ body{display:flex;flex-direction:column;min-height:100vh}
 </div>
 
 <script>
+/* Rede de segurança: qualquer erro não tratado vira mensagem na tela.
+   Sem isto a página fica branca dentro do iframe e não dá pra saber se o
+   problema é o JSON que faltou, um nome de coluna ou um bug do script. */
+window.addEventListener("error", function(ev){
+  var d=document.createElement("div");
+  d.style.cssText="margin:24px;padding:16px;border:1px solid #e0b4b4;background:#fff5f5;border-radius:10px;font:13px system-ui;color:#8a2b2b";
+  d.textContent="Erro nesta página: "+(ev.message||ev.error)+"  ("+(ev.filename||"").split("/").pop()+":"+ev.lineno+")";
+  document.body.insertBefore(d, document.body.firstChild);
+});
+window.addEventListener("unhandledrejection", function(ev){
+  var d=document.createElement("div");
+  d.style.cssText="margin:24px;padding:16px;border:1px solid #e0b4b4;background:#fff5f5;border-radius:10px;font:13px system-ui;color:#8a2b2b";
+  d.textContent="Falha ao carregar os dados: "+(ev.reason&&ev.reason.message||ev.reason);
+  document.body.insertBefore(d, document.body.firstChild);
+});
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  Extraído de analise.html (aba METAS → CASAS VENDIDAS), sem alterações de
 //  lógica. Fonte de dados: data_vendas.json (gerado pelo workflow).

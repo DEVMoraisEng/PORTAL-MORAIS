@@ -4,15 +4,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-  # Cron de segurança: cobre edições feitas direto no Notion, fora do site.
-  # A cada 15 min, mesma janela do RAS-SEMANAL.
-  schedule:
-    - cron: '*/15 * * * *'
-  # Disparo vindo do Apps Script depois de uma escrita.
-  # ATENÇÃO: se este bloco sair daqui, o repository_dispatch é ignorado
-  # silenciosamente pelo GitHub (sem erro nenhum).
-  repository_dispatch:
-    types: [portal_update]
 
 permissions:
   contents: read
@@ -32,20 +23,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Configurar Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      # Gera dist/*.json lendo o Notion. É isto que deixa o site rápido:
-      # o navegador baixa JSON pronto em vez de esperar o Apps Script.
-      - name: Buscar dados do Notion
-        env:
-          # Único secret necessário. Os IDs das bases ficam fixos no
-          # fetch_vendas.py — ID do Notion não é credencial.
-          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
-        run: python fetch_vendas.py
 
       - name: Configurar Pages
         uses: actions/configure-pages@v5
