@@ -76,6 +76,14 @@ body{display:flex;flex-direction:column;min-height:100vh}
 .load{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--verde);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px}
 @keyframes spin{to{transform:rotate(360deg)}}
 .nav-btn .ext{font-size:11px;opacity:.65;margin-left:2px}
+
+@media(max-width:680px){
+  input,select,textarea{font-size:16px}
+  .nav-btn{width:100%;min-height:44px}
+  .kpis{grid-template-columns:1fr}
+  .sec-title{font-size:14px}
+  .topo,.hdr{flex-wrap:wrap;gap:8px;padding:10px 12px}
+}
 </style>
 </head>
 <body>

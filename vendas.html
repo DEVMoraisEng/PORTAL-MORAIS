@@ -212,6 +212,11 @@ tr.tot td{font-weight:800;background:var(--bg3)}
 .lig-uc{color:var(--text3);font-variant-numeric:tabular-nums}
 .lig-s{margin-left:auto;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--verde-esc)}
 .lig-s.off{color:var(--orange)}
+.preench-multi{display:flex;flex-direction:column;gap:6px;width:100%}
+.preench-item{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.preench-item>label{font-size:10px;font-weight:700;color:var(--text4);text-transform:uppercase;min-width:78px}
+.preench-item .campo-inline{flex:1;min-width:120px}
+.cola{font-size:11px;color:var(--text3);background:var(--bg3);border-radius:6px;padding:2px 7px;white-space:nowrap}
 .lapis{border:0;background:none;cursor:pointer;color:var(--text3);font-size:13px;padding:0 3px}
 .lapis:hover{color:var(--text)}
 #distoverlay .modal{background:#fff;border-radius:14px;padding:20px;width:min(420px,92vw);box-shadow:0 18px 50px rgba(0,0,0,.25)}
@@ -552,6 +557,71 @@ body.standalone{overflow-y:auto}
 body{display:flex;flex-direction:column;min-height:100vh}
 #st-vendidas .metas-body{flex:1}
 #st-vendidas .rank-grid{grid-template-columns:1fr}
+
+/* ==================== CELULAR ====================
+   Regras concentradas aqui, no fim, pra sobrepor o que vem antes sem precisar
+   mexer no layout de desktop — que está bom e não deve mudar. */
+@media(max-width:680px){
+  /* toque: nada de alvo menor que ~40px, e fonte 16px nos inputs (abaixo
+     disso o iOS dá zoom sozinho ao focar o campo) */
+  input,select,textarea{font-size:16px}
+  .bt,.bt-mini,button{min-height:40px}
+  .bt-mini{min-height:34px}
+
+  /* cabeçalho */
+  .topo,.hdr{flex-wrap:wrap;gap:8px;padding:10px 12px}
+  .crumb{font-size:12px}
+
+  /* abas: rolagem horizontal em vez de quebrar linha e virar um bloco alto */
+  .tabs-outer{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .tabs{flex-wrap:nowrap;width:max-content;min-width:100%}
+  .tab{white-space:nowrap;padding:10px 14px;font-size:12.5px}
+
+  /* barra de filtros: cada controle ocupa a linha inteira */
+  .toolbar{flex-direction:column;align-items:stretch;gap:8px}
+  .toolbar select,.toolbar input,.busca{width:100%}
+  .count{text-align:right;font-size:12px}
+
+  /* planilha: rolagem lateral com a 1ª coluna fixa, que já existe no desktop */
+  .tabela-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{font-size:12px}
+  th,td{padding:8px 9px;white-space:nowrap}
+  td.stick,th.stick{position:sticky;left:0;z-index:2}
+
+  /* alertas e atividades: as 3 colunas viram blocos empilhados */
+  .al.al3{grid-template-columns:1fr;gap:6px;padding:10px 12px}
+  .al.al3.al-cab{display:none}
+  .al .txt{font-size:12px}
+  .preench-item{flex-direction:column;align-items:stretch}
+  .preench-item>label{min-width:0}
+  .atv{flex-direction:column;align-items:stretch;gap:8px}
+  .atv .bt{width:100%}
+
+  /* painel da obra: tela cheia, é o único jeito de caber */
+  .painel{width:100vw;max-width:100vw;right:0;border-radius:0}
+  .pn-body,.corpo{padding:12px}
+  .campo input,.campo select,.campo textarea{width:100%}
+  .grupo>summary{padding:12px}
+
+  /* cards de setor e KPIs em uma coluna */
+  .setores,.kpis,.rank-grid{grid-template-columns:1fr}
+
+  /* painel de vendas embutido */
+  #st-vendidas .controles{flex-direction:column;align-items:stretch;gap:8px}
+  #st-vendidas .controles select{width:100%}
+  #st-vendidas .kpi-grid{grid-template-columns:1fr 1fr}
+  #st-vendidas .chart-box{height:260px}
+  #st-vendidas canvas{max-width:100%}
+
+  /* modal do distrato e visualizador de arquivo */
+  #distoverlay .modal{width:94vw;padding:16px}
+  .pdfoverlay{padding:0}
+  .pdfoverlay .visor,.pdfoverlay iframe,.pdfoverlay img{width:100vw;height:100vh;border-radius:0}
+}
+@media(max-width:420px){
+  #st-vendidas .kpi-grid{grid-template-columns:1fr}
+  .tab{padding:9px 11px;font-size:12px}
+}
 </style>
 </head>
 <body>
@@ -851,6 +921,10 @@ const BLOCO_REPARO=/REPARO|ANEXAR AQUIVO|ANEXAR ARQUIVO|TITULARIDADES/;
 /* Setor com COLUNAS_SETOR usa a lista como LISTA BRANCA: o que não está nela
    não aparece nem na planilha nem no painel da obra. Antes ela valia só para a
    planilha, e ao abrir a obra voltava tudo. */
+/* A lista branca do setor vale na PLANILHA. No painel da obra, o pedido é o
+   contrário: aparece tudo, menos as colunas automáticas ("-AUTO"). Por isso
+   ocultoNoSetor recebe onde está sendo chamado. */
+function ehAuto(nome){ return /(^|[\s-])AUTO$|-AUTO\b/.test(normNome(nome)); }
 function noWhitelistDoSetor(nome){
   const lista=COLUNAS_SETOR[SETOR_ATUAL]; if(!lista) return true;   // setor sem lista: mostra tudo
   const n=normNome(nome);
@@ -864,14 +938,17 @@ function noWhitelistDoSetor(nome){
     return a.length>=10 && n.indexOf(a)===0;
   });
 }
-function ocultoNoSetor(nome){
-  if(!noWhitelistDoSetor(nome)) return true;
+function ocultoNoSetor(nome, ondeEstou){
+  if(ondeEstou==="painel"){
+    // Secretária mantém as regras dela (bloco de reparos etc.)
+    if(SETOR_ATUAL!=="Secretária de Vendas" && COLUNAS_SETOR[SETOR_ATUAL]) return ehAuto(nome);
+  } else if(!noWhitelistDoSetor(nome)) return true;
   const cfg=CAMPOS_OCULTOS_SETOR[SETOR_ATUAL]; if(!cfg) return false;
   const n=normNome(nome);
   if(cfg.blocoReparo && BLOCO_REPARO.test(n)) return true;
   return (cfg.campos||[]).some(f=>new RegExp("\\b"+normNome(f).replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\b").test(n));
 }
-function nomeExcluido(nome){ const n=normNome(nome); if(CAMPOS_EXCLUIDOS.indexOf(n)>=0) return true; if(ocultoNoSetor(nome)) return true; return /\bAUTO\b|ALERTA|ELERTA/.test(n); } // item 9: nada com AUTO/ALERTA entra na planilha/obra
+function nomeExcluido(nome, ondeEstou){ const n=normNome(nome); if(CAMPOS_EXCLUIDOS.indexOf(n)>=0) return true; if(ocultoNoSetor(nome, ondeEstou)) return true; return /\bAUTO\b|ALERTA|ELERTA/.test(n); } // item 9: nada com AUTO/ALERTA entra na planilha/obra
 
 /* ordem pedida pelo usuário (item 5), como prefixos — casa com o nome real do campo
    assim que o schema chega do Notion, mesmo que aqui o texto esteja cortado igual ao print */
@@ -897,7 +974,7 @@ function ordenarPorPrefixo(campos){
    achava, então o campo entrava DE NOVO na lista geral, além do bloco de resumo.
    Comparar normalizado resolve para qualquer coluna com espaço/acento sobrando. */
 const RESUMO_NORM=RESUMO.map(normNome);
-function camposBase(){ return SCHEMA.filter(c=>c.tipo!=="rollup"&&c.tipo!=="relation"&&!nomeExcluido(c.nome)&&c.nome!=="ENDEREÇO"&&RESUMO_NORM.indexOf(normNome(c.nome))<0); }
+function camposBase(onde){ return SCHEMA.filter(c=>c.tipo!=="rollup"&&c.tipo!=="relation"&&!nomeExcluido(c.nome,onde)&&c.nome!=="ENDEREÇO"&&RESUMO_NORM.indexOf(normNome(c.nome))<0); }
 function ordemColunas(){
   // Setor com lista própria (COLUNAS_SETOR): mostra só aquilo, na ordem pedida.
   // Nome exato primeiro; se não achar, tenta fragmento — assim "ENG. RESPONSÁEL"
@@ -913,7 +990,7 @@ function ordemColunas(){
   }
   return ["ENDEREÇO",...RESUMO,...ordenarPorPrefixo(camposBase()).map(c=>c.nome)];
 }
-function ordemFormulario(){ return ordenarPorPrefixo(camposBase().filter(c=>c.editavel && c.tipo!=="files")).map(c=>c.nome); }
+function ordemFormulario(){ return ordenarPorPrefixo(camposBase("painel").filter(c=>c.editavel && c.tipo!=="files")).map(c=>c.nome); }
 function campoPorFragmento(frag){ const alvo=normNome(frag); return SCHEMA.find(c=>normNome(c.nome).indexOf(alvo)>=0)||null; }
 
 /* ---------- marcadores SIM/NÃO ---------- */
@@ -1290,8 +1367,16 @@ function renderAlertas(){
   if(!dados.length){ box.innerHTML='<div class="vazio">Abra a Planilha uma vez para carregar os alertas do setor.</div>'; return; }
   const alertaCampos = camposAlertaDoSetor(SETOR_ATUAL);
   const linhas=[];
+  // alerta calculado no site (não existe como fórmula no Notion): casa
+  // disponível — VALOR NA MÃO preenchido — e ainda sem TIPO.
+  const cTipo=campoExatoOuFrag("TIPO");
+  const querTipo=["Secretária de Vendas","Departamento de Projetos"].indexOf(SETOR_ATUAL)>=0;
   dados.forEach(v=>{
     alertaCampos.forEach(c=>{ const val=getV(v.valores,c.nome); if(val && val!=="-" && /PREENCHER|⚠️/.test(String(val))) linhas.push({v, end:getV(v.valores,"ENDEREÇO")||"(sem endereço)", txt:String(val)}); });
+    if(querTipo && cTipo){
+      const vm=getV(v.valores,"VALOR NA MÃO"), tp=getV(v.valores,cTipo.nome);
+      if(vm!=null && vm!=="" && (tp==null||tp==="")) linhas.push({v, end:getV(v.valores,"ENDEREÇO")||"(sem endereço)", txt:"PREENCHER TIPO"});
+    }
   });
   if(!linhas.length){ box.innerHTML='<div class="vazio">Nenhum alerta pendente. 🎉</div>'; return; }
   // item 4 (rodada 2): 3 colunas — Endereço / Alerta / Campo de preenchimento (editável ali mesmo,
@@ -1306,9 +1391,17 @@ function renderAlertas(){
     `<details class="grupo"><summary>${esc(titulo)}<span class="qtd">${itens.length}</span></summary><div class="corpo">`+
     '<div class="al al3 al-cab"><span>Endereço</span><span>Alerta</span><span>Preencher</span></div>'+
     itens.map(l=>{
-      const alvo=campoAlvoDoAlerta(l.txt);
-      const preench = alvo
-        ? `<span class="campo-inline">${inputControl(alvo, getV(l.v.valores,alvo.nome), l.v.id)}</span>`
+      const alvos=camposDoAlerta(l.txt);
+      const preench = alvos.length
+        ? `<span class="preench-multi">`+alvos.map(a=>{
+            const cola = a.cola ? getV(l.v.valores, a.cola.nome) : null;
+            return `<span class="preench-item">`+
+              `<label>${esc(a.campo.nome.trim())}</label>`+
+              `<span class="campo-inline">${inputControl(a.campo, getV(l.v.valores,a.campo.nome), l.v.id)}</span>`+
+              // a "cola": valor automático ao lado, só leitura, pra conferir/copiar
+              (a.cola?`<span class="cola" title="${esc(a.cola.nome.trim())} (automático)">${esc(cola==null||cola===""?"—":cola)}</span>`:``)+
+            `</span>`;
+          }).join("")+`</span>`
         : `<button type="button" class="bt ghost bt-mini" onclick='abrirObra(${JSON.stringify(l.v.id)})'>Abrir obra</button>`;
       return `<div class="al al3"><span class="end" onclick='abrirObra(${JSON.stringify(l.v.id)})'>${esc(l.end)}</span><span class="txt">${esc(l.txt)}</span><span class="preench">${preench}</span></div>`;
     }).join("")+'</div></details>').join("");
@@ -1316,6 +1409,34 @@ function renderAlertas(){
 /* acha a coluna que o alerta está pedindo pra preencher, a partir do próprio texto dele
    (ex.: "PREENCHER VALIDADE" -> coluna "VALIDADE"). 3 tentativas, da mais certeira à mais
    tolerante; se nenhuma bater com confiança, devolve null e a linha cai no botão "Abrir obra". */
+/* Campos que cada alerta abre para preenchimento. A chave é um trecho do
+   TEXTO do alerta (sem acento/caixa). "cola" é a coluna automática que fica ao
+   lado, só leitura, para a pessoa conferir e copiar.
+   Fora deste mapa, continua valendo a descoberta automática pelo texto. */
+const CAMPOS_DO_ALERTA=[
+  { quando:"PREENCHER ENDERECO E NUMERO DA CASA E SETOR", campos:[
+      {nome:"ENDEREÇO",         cola:"OBRA-AUTO"},
+      {nome:"CASA",             cola:"CASA-AUTO"},
+      {nome:"SETOR",            cola:"SETOR-AUTO"},
+      {nome:"ENG. RESPONSÁEL",  cola:"ENGENHEIRO-AUTO"}
+  ]},
+  { quando:"PREENCHER REFERENCIA PBI", campos:[{nome:"REF"}] },
+  { quando:"PREENCHER TIPO",           campos:[{nome:"TIPO"}] },
+  // era descoberto pelo texto e caía na coluna do banco; o campo certo é a data
+  { quando:"ASSINATURA",               campos:[{nome:"DATA DE ASSINATURA DO CONTRATO"}] },
+];
+function camposDoAlerta(texto){
+  const t=normNome(texto);
+  const reg=CAMPOS_DO_ALERTA.find(x=>t.indexOf(normNome(x.quando))>=0);
+  if(reg){
+    const out=reg.campos.map(f=>({campo:campoExatoOuFrag(f.nome), cola:f.cola?campoExatoOuFrag(f.cola):null}))
+                        .filter(x=>x.campo);
+    if(out.length) return out;
+  }
+  const c=campoAlvoDoAlerta(texto);
+  return c?[{campo:c, cola:null}]:[];
+}
+
 function campoAlvoDoAlerta(textoAlerta){
   let t=normNome(textoAlerta).replace(/^PREENCHER\s+/,"").replace(/[⚠️🚨🔴]/g,"").trim();
   if(!t) return null;
@@ -1718,7 +1839,13 @@ function inputControl(c,valor,pageId){
   const on=`onchange='editar(${JSON.stringify(pageId)},${JSON.stringify(c.nome)},${JSON.stringify(c.tipo)},this.value,this)'`;
   if(c.tipo==="select"||c.tipo==="status"){
     if(ehSimNao(c.opcoes)) return toggleSimNao(c,valor,pageId);
-    return `<select ${on}><option value=""></option>${(c.opcoes||[]).map(o=>`<option${o===valor?" selected":""}>${esc(o)}</option>`).join("")}</select>`;
+    // campos de cadastro (corretor, imobiliária...) ganham "+ Novo…" no fim
+    const criavel = c.tipo==="select" && podeCriarOpcao(c.nome);
+    const onSel = criavel
+      ? `onchange='aoTrocarSelect(${JSON.stringify(pageId)},${JSON.stringify(c.nome)},${JSON.stringify(c.tipo)},this)'`
+      : on;
+    return `<select ${onSel} data-anterior="${esc(valor||"")}"><option value=""></option>${(c.opcoes||[]).map(o=>`<option${o===valor?" selected":""}>${esc(o)}</option>`).join("")}`+
+      (criavel?`<option value="__novo__">+ Novo…</option>`:``)+`</select>`;
   }
   if(c.tipo==="multi_select"){ const arr=Array.isArray(valor)?valor:[];
     return `<div class="msgrid">`+(c.opcoes||[]).map(o=>`<label class="mschk"><input type="checkbox" ${arr.indexOf(o)>=0?"checked":""} onchange='editarMulti(${JSON.stringify(pageId)},${JSON.stringify(c.nome)},this)'><span>${esc(o)}</span></label>`).join("")+`</div>`; }
@@ -1730,6 +1857,40 @@ function inputControl(c,valor,pageId){
   if(c.tipo==="phone_number") return `<input type="tel" value="${esc(valor||"")}" ${on}>`;
   return `<input type="text" value="${esc(valor==null?"":valor)}" ${on}>`;
 }
+/* Colunas em que o usuário pode cadastrar uma opção nova pelo site.
+   Precisa bater com CAMPOS_OPCAO_LIVRE no Code.gs — a lista do navegador só
+   decide se o "+ Novo…" aparece; quem autoriza de fato é o Apps Script. */
+const CAMPOS_OPCAO_LIVRE=["CORRETOR","IMOBILIÁRIA","BANCO","CORRESPONDENTE"];
+function podeCriarOpcao(nome){
+  const n=normNome(nome);
+  return CAMPOS_OPCAO_LIVRE.some(c=>normNome(c)===n);
+}
+async function aoTrocarSelect(pageId,prop,tipo,el){
+  if(el.value!=="__novo__"){ el.dataset.anterior=el.value; editar(pageId,prop,tipo,el.value,el); return; }
+  const anterior=el.dataset.anterior||"";
+  const nome=(window.prompt("Novo "+prop.trim().toLowerCase()+":")||"").trim();
+  if(!nome){ el.value=anterior; return; }
+  if(nome.indexOf(",")>=0){ toast("Nome não pode ter vírgula."); el.value=anterior; return; }
+  el.disabled=true;
+  const r=await chamar({action:"novaOpcao", prop:prop, valor:nome});
+  el.disabled=false;
+  if(!r||!r.ok){ toast("Não criou: "+erroTexto((r&&r.erro)||"REDE")); el.value=anterior; return; }
+  // insere a opção antes do "+ Novo…" em TODOS os selects desta coluna já na
+  // tela, e no SCHEMA em memória — senão só apareceria no próximo carregamento
+  const campo=campoPorNome(prop);
+  if(campo && (campo.opcoes||[]).indexOf(r.nome)<0){ campo.opcoes=(campo.opcoes||[]).concat([r.nome]); }
+  document.querySelectorAll("select").forEach(sel=>{
+    const marc=[...sel.options].find(o=>o.value==="__novo__");
+    if(!marc) return;
+    if([...sel.options].some(o=>o.text===r.nome)) return;
+    const o=document.createElement("option"); o.text=r.nome; o.value=r.nome;
+    sel.insertBefore(o, marc);
+  });
+  el.value=r.nome; el.dataset.anterior=r.nome;
+  toast(r.jaExistia?"Já existia — selecionado.":"Criado ✓");
+  editar(pageId,prop,tipo,r.nome,el);
+}
+
 function toggleSimNao(c,valor,pageId){
   const mk=(v,cls)=>`<button type="button" class="tg ${cls}${valor===v?" on":""}" onclick='editarToggle(${JSON.stringify(pageId)},${JSON.stringify(c.nome)},this)'>${v}</button>`;
   return `<div class="tgwrap">${mk("SIM","sim")}${mk("NÃO","nao")}</div>`;
@@ -1775,7 +1936,7 @@ function renderPainel(V,pageId,sensPendente){
   // resumo venda/cliente — agora editável/selecionável igual ao Notion (item 4)
   html+='<div class="grp" style="margin-top:14px">Dados da Venda</div><div class="resumo">'+RESUMO.map(n=>{
     const c=campoPorNome(n); if(!c)return "";
-    if(nomeExcluido(c.nome)) return "";   // respeita a lista branca do setor
+    if(nomeExcluido(c.nome,"painel")) return "";
     const val=getV(V,n);
     return campoResumoHtml(c,val,pageId,sensPendente);
   }).join("")+'</div>';
@@ -1822,7 +1983,7 @@ function renderPainel(V,pageId,sensPendente){
 
   // Anexos: as URLs do Notion são links assinados do S3 — não vão pro dist/
   // público. Chegam junto com os outros campos protegidos, ao abrir a obra.
-  const files=SCHEMA.filter(c=>c.tipo==="files" && !nomeExcluido(c.nome));
+  const files=SCHEMA.filter(c=>c.tipo==="files" && !nomeExcluido(c.nome,"painel"));
   if(files.length){ html+=`<div class="grp">Arquivos</div>`;
     files.forEach(c=>{
       html+=`<div class="campo"><label>${esc(c.nome.trim())}</label>`;
