@@ -204,6 +204,14 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
 .grupo[open]>summary{border-bottom:1px solid var(--border2)}
 .grupo .qtd{margin-left:auto;background:var(--border2);color:var(--text3);border-radius:999px;padding:2px 9px;font-size:12px;font-weight:700}
 .grupo .corpo{padding:8px 10px}
+.thsub{font-weight:500;font-size:9.5px;opacity:.75;text-transform:none;letter-spacing:0}
+tr.tot td{font-weight:800;background:var(--bg3)}
+.ligs{display:flex;flex-direction:column;gap:6px}
+.lig{display:flex;align-items:center;gap:10px;padding:7px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12.5px}
+.lig-c{font-weight:700;color:var(--text);min-width:92px}
+.lig-uc{color:var(--text3);font-variant-numeric:tabular-nums}
+.lig-s{margin-left:auto;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--verde-esc)}
+.lig-s.off{color:var(--orange)}
 .lapis{border:0;background:none;cursor:pointer;color:var(--text3);font-size:13px;padding:0 3px}
 .lapis:hover{color:var(--text)}
 #distoverlay .modal{background:#fff;border-radius:14px;padding:20px;width:min(420px,92vw);box-shadow:0 18px 50px rgba(0,0,0,.25)}
@@ -292,6 +300,8 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
         <button class="tab" data-t="atrasados" onclick="abaSetor('atrasados')">Situação do Processo</button>
         <button class="tab" data-t="planilha" onclick="abaSetor('planilha')">Planilha</button>
         <button class="tab" data-t="modelo" onclick="abaSetor('modelo')">Casas Modelo</button>
+        <button class="tab" data-t="estoque" onclick="abaSetor('estoque')">Estoque de Casas</button>
+        <button class="tab" data-t="vendidas" onclick="abaSetor('vendidas')">Casas Vendidas</button>
       </div></div>
 
       <div id="st-atividades">
@@ -328,6 +338,19 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
         <div class="legenda" id="set-legenda"></div>
         <div class="scroll-top" id="set-stop"><div></div></div>
         <div class="tabela-wrap" id="set-wrap"><div class="vazio">Carregando…</div></div>
+      </div>
+
+      <!-- CASAS VENDIDAS: página própria (casas-vendidas.html) em iframe.
+           Em iframe de propósito: ela traz CSS e canvas próprios, e embutir
+           no meio do vendas.html misturaria as duas folhas de estilo. -->
+      <div id="st-vendidas" style="display:none">
+        <iframe id="fr-vendidas" src="" style="border:0;width:100%;height:calc(100vh - 220px);min-height:520px;background:transparent"></iframe>
+      </div>
+
+      <!-- ESTOQUE DE CASAS: contagem por setor, vinda do documentos.json -->
+      <div id="st-estoque" style="display:none">
+        <div class="toolbar"><span class="count" id="est-count"></span></div>
+        <div class="tabela-wrap" id="est-wrap"><div class="vazio">Carregando…</div></div>
       </div>
 
       <!-- CASAS MODELO: só as obras com MODELO? = SIM -->
@@ -393,17 +416,38 @@ const RESUMO=["CLIENTES","CPF","Nº Whatsapp","Email","DATA DA VENDA","VALOR DE 
    PENDENTE: qual é o valor de RESPONSÁVEL que identifica "Gestor de Vendas"?
    Enquanto não informar, esse setor continua mostrando todas as atividades
    (mesmo comportamento de antes), pra não esconder nada por engano. */
+/* responsavel: um nome | responsaveis: vários — filtram as atividades do setor
+   pelo campo RESPONSÁVEL da atividade. null = todas. */
 const SETORES_AREA=[
   {nome:"Secretária de Vendas", d:"Atividades, alertas e planilha", ativo:true, banner:"img/gestores-vendas.jpg", responsavel:"Construtora Morais"},
-  {nome:"Gestor de Vendas", d:"Atividades, alertas e planilha", ativo:true, banner:"img/gestores-vendas.jpg", responsavel:null},
-  {nome:"Departamento de Projetos", d:"Em alinhamento", ativo:false},
-  {nome:"Júlio César", d:"Em alinhamento", ativo:false},
-  {nome:"Ana Paula", d:"Em alinhamento", ativo:false},
-  {nome:"Controle de Entregas e Reparos", d:"Em alinhamento", ativo:false}
+  {nome:"Gestor de Vendas", d:"Vendas, estoque e planilha", ativo:true, banner:"img/gestores-vendas.jpg", responsavel:null},
+  {nome:"Departamento de Projetos", d:"Atividades, alertas e planilha", ativo:true, responsaveis:["José Arthur","felipe berçan"]},
+  {nome:"Júlio César", d:"Atividades, alertas e planilha", ativo:true, responsavel:"Júlio César Gomes de Morais Filho"}
 ];
 
+/* Quais abas cada setor mostra, na ordem. A primeira da lista é a que abre.
+   Chaves: atividades | alertas | atrasados (Situação do Processo) | planilha |
+   modelo (Casas Modelo) | estoque (Estoque de Casas). */
+const ABAS_SETOR={
+  "Secretária de Vendas":  ["atividades","alertas","atrasados","planilha","modelo"],
+  // Gestor de Vendas: sem alerta e sem atividade — a página dele é dado de venda
+  "Gestor de Vendas":      ["vendidas","estoque","planilha","modelo"],
+  "Departamento de Projetos":["atividades","alertas","planilha","modelo"],
+  // Júlio: todas menos Casas Modelo
+  "Júlio César":           ["atividades","alertas","atrasados","planilha"]
+};
+const ABAS_PADRAO=["atividades","alertas","atrasados","planilha","modelo"];
+function abasDoSetor(nome){ return ABAS_SETOR[nome]||ABAS_PADRAO; }
+
 function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("on"); setTimeout(()=>t.classList.remove("on"),1900); }
-function pintarUsuario(s){ document.getElementById("u-nome").textContent=s.nome||s.login; const tb=document.getElementById("u-tipo"); tb.textContent=s.tipo; tb.className="badge"+(s.tipo==="ADM"?" adm":""); }
+/* MASTER: vê todas as páginas, mas não dá baixa/exclui atividade nem edita
+   ENDEREÇO. É um "diretor observador" — abaixo de ADM, acima de GERAL.
+   O front esconde os controles; quem precisa impedir de verdade é o Apps
+   Script (ver nota no fim deste arquivo). */
+function ehMaster(s){ return String((s&&s.tipo)||"").toUpperCase()==="MASTER"; }
+function podeEditarEndereco(s){ return !ehMaster(s); }
+function podeBaixarAtividade(s){ return !ehMaster(s); }
+function pintarUsuario(s){ document.getElementById("u-nome").textContent=s.nome||s.login; const tb=document.getElementById("u-tipo"); tb.textContent=s.tipo; tb.className="badge"+(s.tipo==="ADM"||ehMaster(s)?" adm":""); }
 function campoPorNome(n){ if(SCAMPO[n])return SCAMPO[n]; const a=n.trim().toUpperCase(); for(const k in SCAMPO)if(k.trim().toUpperCase()===a)return SCAMPO[k]; return null; }
 function mostrarOffline(r){ const av=document.getElementById("aviso"); if(r&&r.offline){ av.style.display="block"; av.textContent="Sem internet — dados salvos em "+new Date(r._ts).toLocaleString("pt-BR")+". O que preencher entra na fila e sobe ao reconectar."; } else if(r&&r.online===false&&!r.ok){ av.style.display="block"; av.textContent="Não consegui carregar agora: "+erroTexto(r.erro)+"."; } else av.style.display="none"; }
 function fmt(d){ if(!d)return "—"; const p=String(d).slice(0,10).split("-"); return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:d; }
@@ -462,7 +506,21 @@ function ordenarPorPrefixo(campos){
    Comparar normalizado resolve para qualquer coluna com espaço/acento sobrando. */
 const RESUMO_NORM=RESUMO.map(normNome);
 function camposBase(){ return SCHEMA.filter(c=>c.tipo!=="rollup"&&c.tipo!=="relation"&&!nomeExcluido(c.nome)&&c.nome!=="ENDEREÇO"&&RESUMO_NORM.indexOf(normNome(c.nome))<0); }
-function ordemColunas(){ return ["ENDEREÇO",...RESUMO,...ordenarPorPrefixo(camposBase()).map(c=>c.nome)]; }
+function ordemColunas(){
+  // Setor com lista própria (COLUNAS_SETOR): mostra só aquilo, na ordem pedida.
+  // Nome exato primeiro; se não achar, tenta fragmento — assim "ENG. RESPONSÁEL"
+  // com typo e "GEROU E ARMAZENOU ..." abreviado continuam casando.
+  const lista=COLUNAS_SETOR[SETOR_ATUAL];
+  if(lista){
+    const vistos={}, saida=[];
+    lista.forEach(f=>{
+      const c=campoExatoOuFrag(f);
+      if(c && !vistos[c.nome]){ vistos[c.nome]=1; saida.push(c.nome); }
+    });
+    if(saida.length) return saida;
+  }
+  return ["ENDEREÇO",...RESUMO,...ordenarPorPrefixo(camposBase()).map(c=>c.nome)];
+}
 function ordemFormulario(){ return ordenarPorPrefixo(camposBase().filter(c=>c.editavel && c.tipo!=="files")).map(c=>c.nome); }
 function campoPorFragmento(frag){ const alvo=normNome(frag); return SCHEMA.find(c=>normNome(c.nome).indexOf(alvo)>=0)||null; }
 
@@ -478,6 +536,28 @@ function processoCompleto(valores){
 
 /* índice endereço -> {habite, obra_iniciada}, vindo de DOCUMENTOS OBRAS */
 let DOCS={}, DOCS_OK=false;
+/* ---------- LIGAÇÕES DE ÁGUA E ENERGIA ----------
+   Uma linha por casa e concessionária. Casa com a obra pelo id da relação;
+   se a linha não estiver relacionada, cai no texto do título
+   ("TB 18 QD 49 LT 31 CS 1" = ENDEREÇO + " CS " + CASA). */
+let LIG=[], LIG_OK=false;
+async function carregarLigacoes(){
+  const r=await lerEstatico("ligacoes.json","ligacoes");
+  if(r&&r.ok&&r.ligacoes){ LIG=r.ligacoes; LIG_OK=true; }
+  return r;
+}
+function chaveCasa(endereco,casa){
+  const c=(casa==null||casa==="")?"":(" CS "+casa);
+  return normNome(String(endereco||"")+c);
+}
+function ligacoesDaObra(pageId, endereco, casa){
+  if(!LIG.length) return [];
+  const porId=LIG.filter(l=>(l.obraIds||[]).indexOf(pageId)>=0);
+  if(porId.length) return porId;
+  const alvo=chaveCasa(endereco,casa);
+  return LIG.filter(l=>normNome(l.obra)===alvo);
+}
+
 async function carregarDocumentos(){
   const r=await lerEstatico("documentos.json","documentos");
   if(r&&r.ok&&r.docs){ DOCS=r.docs; DOCS_OK=true; }
@@ -497,7 +577,7 @@ async function boot(){
     .then(r=>{ if(r&&r.ok){ ATIV_ALL=r.atividades; atualizarBadgesSetores(); } })
     .catch(()=>{});
 
-  const [sc]=await Promise.all([ lerEstatico("schema.json","schema"), carregarDocumentos() ]); // só dist/ — rápido
+  const [sc]=await Promise.all([ lerEstatico("schema.json","schema"), carregarDocumentos(), carregarLigacoes() ]); // só dist/ — rápido
   if(sc.ok){ SCHEMA=sc.campos; SCAMPO={}; SCHEMA.forEach(c=>SCAMPO[c.nome]=c); mostrarOffline(sc); }
   montarSetorSelects();
   // item 5/7 (rodada 2): espera a Planilha carregar ANTES de calcular os badges/contagens
@@ -528,9 +608,11 @@ function atividadeRealmenteAberta(a){
 }
 function atividadesDoSetor(nome){
   const info=SETORES_AREA.find(s=>s.nome===nome);
-  const alvo=info&&info.responsavel;
-  const alvoN=alvo?normNome(alvo):null;
-  const base = alvoN ? ATIV_ALL.filter(a=>(a.responsavel||[]).some(n=>normNome(n)===alvoN)) : ATIV_ALL;
+  const alvos=(info&&info.responsaveis)||((info&&info.responsavel)?[info.responsavel]:null);
+  const alvosN=alvos?alvos.map(normNome):null;
+  const base = alvosN
+    ? ATIV_ALL.filter(a=>(a.responsavel||[]).some(n=>alvosN.indexOf(normNome(n))>=0))
+    : ATIV_ALL;
   return base.filter(atividadeRealmenteAberta);
 }
 function atualizarBadgesSetores(){
@@ -571,16 +653,26 @@ function abrirSetor(nome){
   if(arq){ ban.src=arq; ban.style.display="block"; ban.onerror=()=>{ban.style.display="none";}; } else ban.style.display="none";
   document.getElementById("view-hub").style.display="none";
   document.getElementById("view-setor").style.display="block";
-  abaSetor("atividades");
-  carregarAtividades();
+
+  // esconde os botões das abas que este setor não usa e abre a primeira
+  const abas=abasDoSetor(nome);
+  document.querySelectorAll("#view-setor .tab").forEach(b=>{
+    b.style.display = abas.indexOf(b.dataset.t)>=0 ? "" : "none";
+  });
+  abaSetor(abas[0]);
+  if(abas.indexOf("atividades")>=0) carregarAtividades();
 }
 function abaSetor(t){
   document.querySelectorAll("#view-setor .tab").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
-  ["atividades","alertas","atrasados","planilha","modelo"].forEach(x=>document.getElementById("st-"+x).style.display = x===t?"block":"none");
+  ["atividades","alertas","atrasados","planilha","modelo","estoque","vendidas"].forEach(x=>{
+    const el=document.getElementById("st-"+x); if(el) el.style.display = x===t?"block":"none";
+  });
   if(t==="planilha" && !DADOS.set.length) carregarPlanilha("set");
   if(t==="alertas") renderAlertas();
   if(t==="atrasados") renderAtrasados();
   if(t==="modelo") abrirCasasModelo();
+  if(t==="estoque"){ if(DOCS_OK) renderEstoque(); else carregarDocumentos().then(renderEstoque); }
+  if(t==="vendidas"){ const fr=document.getElementById("fr-vendidas"); if(!fr.src) fr.src="casas-vendidas.html"; }
 }
 
 /* ---------- CASAS MODELO ---------- */
@@ -710,6 +802,7 @@ async function carregarAtividades(){
       <span class="bx"><span class="bxlab">Marcar como</span><select>${ops.map(o=>`<option${(atual!=null?o===atual:o==="SIM")?" selected":""}>${esc(o)}</option>`).join("")}</select><button class="bt">Dar baixa</button></span>`;
     const sel=d.querySelector("select"), btn=d.querySelector("button");
     if(!a.obraId){ btn.disabled=true; btn.textContent="Sem obra"; sel.disabled=true; }
+    else if(!podeBaixarAtividade(S)){ btn.disabled=true; btn.textContent="Somente leitura"; sel.disabled=true; }
     btn.onclick=()=>darBaixa(a,sel.value,d,btn);
     (caixas.get(a.tipo||"Sem tipo")||box).appendChild(d);
   });
@@ -749,6 +842,31 @@ const ALERTAS_SETOR={
     "ALERTA ENVIO CONFORMIDADE","ELERTA ENVIO CONFORMIDADE",
     "ALERTA ASSINATURA BANCO","ELERTA ASSINATURA BANCO",
     "ALERTA DATA DA ENTREGA","ELERTA DATA DA ENTREGA"
+  ],
+  "Departamento de Projetos":[
+    "PREENCHER ENDERECO","ALERTA REFERENCIA","ELERTA REFERENCIA"
+  ],
+  "Júlio César":[
+    "ALERTA Nº CADASTRO","ALERTA N CADASTRO","ELERTA Nº CADASTRO",
+    "ALERTA DATA VALIDADE","ELERTA DATA VALIDADE"
+  ]
+};
+
+/* Colunas da PLANILHA por setor (fragmentos, nome exato tem prioridade).
+   Setor sem entrada aqui mostra a planilha completa, como antes. */
+const COLUNAS_SETOR={
+  "Departamento de Projetos":[
+    "ENDEREÇO","OBRA-AUTO","CASA","CASA-AUTO","SETOR","SETOR-AUTO",
+    "ENG. RESPONSÁEL","ENG. RESPONSÁVEL","ENGENHEIRO-AUTO","REF",
+    "TIPO","MODELO?","TEM MANUAL DE OBRA?","LAYOUT","FOTOS"
+  ],
+  "Júlio César":[
+    "ENDEREÇO","CASA","AVALIAÇÃO","VALIDADE","VALOR NA MÃO","COMISSÃO",
+    "VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)","EMITIU RCPM?",
+    "RECEBEU TAXA VISTORIA?","TEM NUMERO DE CADASTRO?",
+    "Nº DE CADASTRO PREFEITURA","DEU ENTRADA NO CARTÓRIO?",
+    "FICOU PRONTO O REGISTRO?","RECEBEU?","GEROU E ARMAZENOU",
+    "PAGOU GCAP?"
   ]
 };
 function camposAlertaDoSetor(nome){
@@ -868,6 +986,7 @@ const TIPOS_CELULA=["title","rich_text","select","status","date","number","url",
    Não dá pra editar na célula porque o valor atual nem está no navegador —
    editar ali sobrescreveria o dado real com vazio. Edita-se no painel da obra. */
 function editavelNaCelula(c){ return c && c.editavel && !c.sensivel && TIPOS_CELULA.indexOf(c.tipo)>=0 && c.nome!=="ENDEREÇO"; }
+function bloqueadoParaMim(c){ return ehMaster(S) && normNome(c.nome)==="ENDERECO"; }
 /* Resumo publicado da coluna oculta: true (preenchido), número (nº de anexos)
    ou undefined (vazio). Nunca o conteúdo. */
 function sensDe(rec,c){ return rec && rec.sens ? rec.sens[c.nome] : undefined; }
@@ -1097,6 +1216,49 @@ function atualizarInformativo(ctx){
 }
 
 /* ---------- PAINEL DA OBRA ---------- */
+/* ---------- ESTOQUE DE CASAS ----------
+   Regra (base DOCUMENTOS, por SETOR), contando Nº DE CASAS — não lotes:
+     OBRA FINALIZADA? = SIM   -> sai das duas contagens
+     APROVOU HABITE-SE? = SIM -> conta em ESTOQUE (e sai de INICIADAS)
+     OBRA INCIADA = SIM       -> conta em INICIADAS
+   Uma obra nunca entra nas duas: a ordem dos testes garante isso. */
+function valDoc(d,frag){
+  const alvo=normNome(frag);
+  for(const k in d){ if(normNome(k)===alvo) return d[k]; }
+  for(const k in d){ if(normNome(k).indexOf(alvo)>=0) return d[k]; }
+  return null;
+}
+function ehSim(v){ if(v===true) return true; const n=normNome(v); return n==="SIM"||n.indexOf("SIM")===0; }
+function nCasas(d){ const v=valDoc(d,"Nº DE CASAS"); const n=Number(v); return (v!=null && !isNaN(n) && n>0) ? n : 1; }
+
+function renderEstoque(){
+  const wrap=document.getElementById("est-wrap");
+  const lista=Object.values(DOCS||{});
+  if(!DOCS_OK || !lista.length){
+    wrap.innerHTML='<div class="vazio">Base de documentos ainda não carregada. Abra a Planilha uma vez e volte aqui.</div>';
+    return;
+  }
+  const porSetor={}, tot={estoque:0, iniciadas:0, finalizadas:0};
+  lista.forEach(d=>{
+    const setor=valDoc(d,"SETOR")||"(sem setor)";
+    const q=nCasas(d);
+    const linha = porSetor[setor] || (porSetor[setor]={estoque:0, iniciadas:0, finalizadas:0});
+    if(ehSim(valDoc(d,"OBRA FINALIZADA"))){ linha.finalizadas+=q; tot.finalizadas+=q; return; }
+    if(ehSim(valDoc(d,"APROVOU HABITE-SE"))){ linha.estoque+=q; tot.estoque+=q; return; }
+    if(ehSim(valDoc(d,"OBRA INCIADA"))){ linha.iniciadas+=q; tot.iniciadas+=q; }
+  });
+  const setores=Object.keys(porSetor).sort((a,b)=>a.localeCompare(b,"pt-BR"));
+  document.getElementById("est-count").textContent=
+    tot.estoque+" em estoque · "+tot.iniciadas+" em obra";
+  wrap.innerHTML='<table><thead><tr><th class="stick">Setor</th>'+
+    '<th>Em estoque<br><span class="thsub">habite-se aprovado</span></th>'+
+    '<th>Em obra<br><span class="thsub">obra iniciada</span></th>'+
+    '<th>Finalizadas</th></tr></thead><tbody>'+
+    setores.map(st=>`<tr><td class="stick">${esc(st)}</td><td>${porSetor[st].estoque||"—"}</td><td>${porSetor[st].iniciadas||"—"}</td><td>${porSetor[st].finalizadas||"—"}</td></tr>`).join("")+
+    `<tr class="tot"><td class="stick">Total</td><td>${tot.estoque}</td><td>${tot.iniciadas}</td><td>${tot.finalizadas}</td></tr>`+
+    '</tbody></table>';
+}
+
 function temSensiveis(){ return SCHEMA.some(c=>c.sensivel); }
 
 async function abrirObra(pageId){
@@ -1177,6 +1339,7 @@ function sensPendenteResumoHtml(c){
 }
 function campoHtml(c,valor,pageId,sensPendente){
   if(c.sensivel && sensPendente) return sensPendenteHtml(c);
+  if(bloqueadoParaMim(c)) return `<div class="campo"><label>${esc(c.nome.trim())} <span style="color:var(--text4);font-weight:500">(somente leitura)</span></label><div class="ro">${esc(valor||"—")}</div></div>`;
   // Endereço (nome da obra): só ADM edita — sempre mostrado, independente do campo vir marcado como "editável" no schema
   if(c.nome==="ENDEREÇO"){
     if(S.tipo!=="ADM") return `<div class="campo"><label>${esc(c.nome.trim())} <span style="color:var(--text4);font-weight:500">(só ADM edita)</span></label><div class="ro">${esc(valor||"—")}</div></div>`;
@@ -1224,6 +1387,22 @@ function renderPainel(V,pageId,sensPendente){
   });
 
   // arquivos — com opção de visualizar PDFs sem sair da página (item 2 do pedido extra)
+  // Ligações de água e energia: leitura, não edição — o cadastro continua
+  // sendo feito no Notion. Só na Secretária de Vendas, que foi onde foi pedido.
+  if(SETOR_ATUAL==="Secretária de Vendas"){
+    const ligs=ligacoesDaObra(pageId, getV(V,"ENDEREÇO"), getV(V,"CASA"));
+    if(ligs.length){
+      html+=`<div class="grp">Ligações de água e energia</div><div class="campo"><div class="ligs">`+
+        ligs.map(l=>`<div class="lig">`+
+          `<span class="lig-c">${esc(l.concessionaria||"—")}</span>`+
+          `<span class="lig-uc">${(l.uc&&String(l.uc).trim()&&l.uc!=="-")?("UC "+esc(l.uc)):"<i>sem UC</i>"}</span>`+
+          (l.status?`<span class="lig-s ${/NAO/.test(normNome(l.status))?"off":""}">${esc(l.status)}</span>`:"")+
+        `</div>`).join("")+`</div></div>`;
+    } else if(LIG_OK){
+      html+=`<div class="grp">Ligações de água e energia</div><div class="campo"><div class="arq-vazio">Nenhuma ligação cadastrada para esta casa.</div></div>`;
+    }
+  }
+
   // Anexos: as URLs do Notion são links assinados do S3 — não vão pro dist/
   // público. Chegam junto com os outros campos protegidos, ao abrir a obra.
   const files=SCHEMA.filter(c=>c.tipo==="files" && !nomeExcluido(c.nome));

@@ -30,6 +30,11 @@ Saídas:
                            "sens" com apenas "preenchido sim/não" (e a contagem
                            de anexos) das colunas ocultas.
   dist/documentos.json  -> índice endereço -> {habite, obra_iniciada}
+  dist/ligacoes.json    -> UC por concessionária, por casa (água e energia)
+  dist/data_vendas.json -> recorte achatado para o painel do Gestor de Vendas
+                           (casas-vendidas.html). NÃO leva nome de cliente:
+                           "clientes" vai como true/false, que é o único uso
+                           que a página faz do campo.
   dist/updated.json     -> carimbo de data/hora da última atualização
 """
 
@@ -53,11 +58,15 @@ ID_DOCUMENTOS_PADRAO = "32fc5ab532d380a0900dd7f4bfc619bd"
 # Mesma base METAS já usada pelo Code.gs (CONFIG.DB.METAS) — reaproveitada
 # aqui pra calcular o card "Meta de Casas" do dashboard (portal.json).
 ID_METAS_PADRAO = "358c5ab532d3804fbcbfebc3656b1220"
+# LIGAÇÕES DE ÁGUA E ENERGIA — uma linha por casa, com a UC de cada
+# concessionária (SANEAGO/SANESC para água, EQUATORIAL para energia).
+ID_LIGACOES_PADRAO = "313c5ab532d3801e974ced0bb656c9d5"
 
 TOKEN = os.environ.get("NOTION_TOKEN", "").strip()
 DB_VENDAS = (os.environ.get("VENDAS_DB_ID") or ID_VENDAS_PADRAO).strip()
 DB_DOCS = (os.environ.get("DOCUMENTOS_DB_ID") or ID_DOCUMENTOS_PADRAO).strip()
 DB_METAS = (os.environ.get("METAS_DB_ID") or ID_METAS_PADRAO).strip()
+DB_LIGACOES = (os.environ.get("LIGACOES_DB_ID") or ID_LIGACOES_PADRAO).strip()
 
 SAIDA = "dist"
 
@@ -384,6 +393,8 @@ def main():
         c_dini = achar(cn, "DATA DE INICIO DA OBRA", "DATA INICIO DA OBRA", "INICIO DA OBRA")
         c_daq = achar(cn, "DATA DE AQUISICAO DO LOTE", "DATA AQUISICAO DO LOTE", "AQUISICAO DO LOTE", "AQUISICAO LOTE")
         c_impl = achar(cn, "IMPLANTACAO")
+        # usada só pelo painel do Gestor (prazo médio certidões -> venda)
+        c_cert = achar(cn, "DATA DAS CERTIDOES", "DATA CERTIDOES", "CERTIDOES")
         print(f"  colunas: endereço={c_end!r} habite={c_hab!r} obra={c_obr!r} "
               f"n_casas={c_ncasas!r} cota={c_cota!r} data_inicio_obra={c_dini!r} "
               f"data_aquisicao_lote={c_daq!r} implantacao={c_impl!r}", flush=True)
@@ -412,6 +423,7 @@ def main():
                 "data_aquisicao_lote": pega(props, c_daq),
                 "obra_iniciada": obra_iniciada,
                 "implantacao": pega(props, c_impl),
+                "data_certidoes": pega(props, c_cert),
             })
         gravar("documentos.json", {
             "ok": True, "total": len(docs_idx), "docs": docs_idx,
@@ -421,6 +433,54 @@ def main():
     else:
         print("DOCUMENTOS_DB_ID não definido — pulando (contadores ficarão em '—').", flush=True)
         gravar("documentos.json", {"ok": False, "docs": {}, "updated_at": agora})
+
+    # LIGAÇÕES DE ÁGUA E ENERGIA -----------------------------------------
+    # Uma linha por casa e por concessionária. Publicamos os dois jeitos de
+    # casar com a obra: o id da relação (preciso) e o texto do título
+    # (ex.: "TB 18 QD 49 LT 31 CS 1"), que serve de plano B quando a linha
+    # não estiver relacionada. O front tenta o id primeiro.
+    if DB_LIGACOES:
+        print("Lendo LIGAÇÕES DE ÁGUA E ENERGIA…", flush=True)
+        try:
+            lig_rows = ler_banco(DB_LIGACOES, "LIGAÇÕES")
+        except Exception as e:
+            print("  ! falhou: " + str(e), flush=True)
+            lig_rows = None
+
+        if lig_rows is None:
+            gravar("ligacoes.json", {"ok": False, "ligacoes": [], "updated_at": agora})
+        else:
+            ligacoes = []
+            for r in lig_rows:
+                props = r.get("properties") or {}
+                obra_ids, obra_txt = [], None
+                for nome, prop in props.items():
+                    if prop.get("type") == "relation" and norm(nome).startswith("OBRA"):
+                        obra_ids = [x.get("id") for x in (prop.get("relation") or [])]
+                    if prop.get("type") == "title":
+                        obra_txt = valor(prop)
+                item = {
+                    "obraIds": obra_ids,
+                    "obra": obra_txt,
+                    "uc": None, "concessionaria": None, "status": None,
+                }
+                for nome, prop in props.items():
+                    n = norm(nome)
+                    if n == "UC":
+                        item["uc"] = valor(prop)
+                    elif n.startswith("CONCESSIONARIA"):
+                        item["concessionaria"] = valor(prop)
+                    elif n == "STATUS":
+                        item["status"] = valor(prop)
+                # linha sem nenhuma âncora não serve pra nada no site
+                if item["obraIds"] or item["obra"]:
+                    ligacoes.append(item)
+            gravar("ligacoes.json", {
+                "ok": True, "total": len(ligacoes), "ligacoes": ligacoes, "updated_at": agora,
+            })
+            print("  " + str(len(ligacoes)) + " ligações publicadas.", flush=True)
+    else:
+        gravar("ligacoes.json", {"ok": False, "ligacoes": [], "updated_at": agora})
 
     # METAS: só ANO e META DE CASAS por enquanto (mesmos campos que o antigo
     # portal_() do Code.gs já lia). Metas mensais por tipo/proprietário
@@ -531,6 +591,54 @@ def main():
         "updated_at": agora,
     }
     gravar("portal.json", portal)
+
+    # ---- data_vendas.json: recorte achatado do painel do Gestor ----------
+    # A página casas-vendidas.html espera nomes em snake_case e uma lista só.
+    # "clientes" vai como BOOLEANO: a página só usa o campo pra saber se a casa
+    # foi vendida (x.clientes && x.data_venda) e nunca exibe o nome — então dá
+    # pra atender sem publicar dado pessoal num arquivo que é público.
+    def campo(v, *frags):
+        for frag in frags:
+            alvo = norm(frag)
+            for k in v:
+                if norm(k) == alvo:
+                    return v[k]
+        for frag in frags:
+            alvo = norm(frag)
+            for k in v:
+                if alvo in norm(k):
+                    return v[k]
+        return None
+
+    dv = []
+    for reg in vendas:
+        v = reg["valores"]
+        sens = reg.get("sens") or {}
+        # a coluna CLIENTES não é publicada; o resumo "sens" diz se está preenchida
+        vendida = any(norm(k).startswith("CLIENTE") and sens[k] for k in sens)
+        dv.append({
+            "endereco": campo(v, "ENDEREÇO"),
+            "casa": campo(v, "CASA"),
+            "cidade": campo(v, "CIDADE"),
+            "setor": campo(v, "SETOR"),
+            "clientes": bool(vendida),
+            "data_venda": campo(v, "DATA DA VENDA"),
+            "valor_na_mao": campo(v, "VALOR NA MÃO"),
+            "valor_venda_contrato": campo(v, "VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)", "VALOR DE COMPRA E VENDA"),
+            "comissao": campo(v, "COMISSÃO"),
+            "corretor": campo(v, "CORRETOR"),
+            "imobiliaria": campo(v, "IMOBILIÁRIA"),
+            "correspondente": campo(v, "CORRESPONDENTE"),
+        })
+    gravar("data_vendas.json", {
+        "ok": True,
+        "vendas": dv,
+        "documentos": docs_full,
+        "metas": [{"ano": a, "meta_casas": m} for a, m in sorted(metas_por_ano.items())],
+        "updated_at": agora,
+    })
+    print("  data_vendas.json: " + str(len(dv)) + " linhas ("
+          + str(sum(1 for x in dv if x["clientes"])) + " vendidas).", flush=True)
 
     gravar("updated.json", {"updated_at": agora})
     print(f"OK — {len(vendas)} vendas, {len(docs_idx)} documentos.", flush=True)
