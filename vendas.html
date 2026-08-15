@@ -1339,13 +1339,11 @@ const ALERTAS_SETOR={
 /* Colunas da PLANILHA por setor (fragmentos, nome exato tem prioridade).
    Setor sem entrada aqui mostra a planilha completa, como antes. */
 const COLUNAS_SETOR={
-  // ordem conforme o print da visibilidade no Notion, + as colunas do alerta
-  // PREENCHER ENDEREÇO (as "-AUTO"), que o PDF pediu para acrescentar
+  // Só estas, na ordem do print. As colunas "-AUTO", SETOR e ENG. RESPONSÁEL
+  // NÃO entram aqui: elas aparecem como campos do alerta PREENCHER ENDEREÇO
+  // (ver CAMPOS_DO_ALERTA), que é onde são preenchidas.
   "Departamento de Projetos":[
-    "ENDEREÇO","OBRA-AUTO","TEM MANUAL DE OBRA?","CASA","CASA-AUTO",
-    "TIPO","MODELO?","SETOR","SETOR-AUTO",
-    "ENG. RESPONSÁEL","ENG. RESPONSÁVEL","ENGENHEIRO-AUTO",
-    "LAYOUT","FOTOS"
+    "ENDEREÇO","CASA","TIPO","MODELO?","TEM MANUAL DE OBRA?","REF","LAYOUT","FOTOS"
   ],
   "Júlio César":[
     "ENDEREÇO","CASA","AVALIAÇÃO","VALIDADE","VALOR NA MÃO","COMISSÃO",
