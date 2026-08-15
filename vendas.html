@@ -1343,7 +1343,8 @@ const COLUNAS_SETOR={
   // NÃO entram aqui: elas aparecem como campos do alerta PREENCHER ENDEREÇO
   // (ver CAMPOS_DO_ALERTA), que é onde são preenchidas.
   "Departamento de Projetos":[
-    "ENDEREÇO","CASA","TIPO","MODELO?","TEM MANUAL DE OBRA?","REF","LAYOUT","FOTOS"
+    "ENDEREÇO","OBRA-AUTO","CASA","CASA-AUTO","SETOR","SETOR-AUTO",
+    "TIPO","MODELO?","TEM MANUAL DE OBRA?","FOTOS","LAYOUT","LOCALIZAÇÃO"
   ],
   "Júlio César":[
     "ENDEREÇO","CASA","AVALIAÇÃO","VALIDADE","VALOR NA MÃO","COMISSÃO",
@@ -1423,6 +1424,15 @@ const CAMPOS_DO_ALERTA=[
       {nome:"SETOR",            cola:["SETOR-AUTO","SETOR AUTO"]},
       {nome:"ENG. RESPONSÁEL",  cola:["ENGENHEIRO-AUTO","ENG-AUTO","ENG. RESPONSÁEL-AUTO","ENGENHEIRO AUTO"]}
   ]},
+  // variantes de um campo só do mesmo alerta — cada uma com a sua cola.
+  // Vêm DEPOIS da combinada acima de propósito: a busca pega a primeira que
+  // casa, e o texto da combinada não contém nenhuma destas.
+  { quando:"PREENCHER ENDERECO", campos:[
+      {nome:"ENDEREÇO", cola:["OBRA-AUTO","ENDEREÇO-AUTO","ENDERECO-AUTO","OBRA AUTO"]} ]},
+  { quando:"PREENCHER NUMERO DA CASA", campos:[
+      {nome:"CASA", cola:["CASA-AUTO","CASA AUTO"]} ]},
+  { quando:"PREENCHER SETOR", campos:[
+      {nome:"SETOR", cola:["SETOR-AUTO","SETOR AUTO"]} ]},
   { quando:"PREENCHER REFERENCIA PBI", campos:[{nome:"REF"}] },
   { quando:"PREENCHER TIPO",           campos:[{nome:"TIPO"}] },
   // era descoberto pelo texto e caía na coluna do banco; o campo certo é a data
