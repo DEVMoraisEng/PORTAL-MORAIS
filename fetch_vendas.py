@@ -236,6 +236,10 @@ def valor(prop):
             url = (f.get("file") or {}).get("url") or (f.get("external") or {}).get("url")
             saida.append({"name": f.get("name"), "url": url})
         return saida
+    if t == "relation":
+        # a relação em si não tem texto; devolvemos os ids. Serve pra saber se
+        # está preenchida (é o caso do OBRA-AUTO) sem puxar a outra base.
+        return [x.get("id") for x in prop.get("relation", [])]
     if t == "formula":
         f = prop.get("formula", {})
         return f.get(f.get("type"))
@@ -334,10 +338,38 @@ def main():
               "da base batem com CAMPOS_SENSIVEIS (topo do arquivo) — se a base "
               "tem CPF e nada apareceu aqui, algo está errado.", flush=True)
 
-    gravar("schema.json", {"ok": True, "campos": campos, "updated_at": agora})
-
     print("Lendo registros de VENDAS…", flush=True)
     paginas = ler_banco(DB_VENDAS, "VENDAS")
+
+    # O endpoint /databases às vezes NÃO devolve colunas de relation e rollup —
+    # acontece quando a integração não tem acesso à base do outro lado da
+    # relação. As páginas, porém, trazem essas propriedades. Então completamos
+    # o schema com o que aparece nos registros e avisamos no log.
+    nomes_schema = {norm(c["nome"]) for c in campos}
+    extras = {}
+    for pg in paginas:
+        for nome, prop in (pg.get("properties") or {}).items():
+            if norm(nome) in nomes_schema or norm(nome) in extras:
+                continue
+            extras[norm(nome)] = (nome, prop.get("type"))
+    if extras:
+        print("  ! " + str(len(extras)) + " coluna(s) não vieram do schema do banco "
+              "e foram recuperadas das páginas:", flush=True)
+        for _, (nome, tipo) in sorted(extras.items()):
+            print("      " + repr(nome) + "  (" + str(tipo) + ")", flush=True)
+        print("      Se forem relation/rollup, o motivo é a integração do Notion não "
+              "ter acesso à base relacionada. Compartilhe aquela base com a "
+              "integração para o dado (não só o nome) vir preenchido.", flush=True)
+        for _, (nome, tipo) in sorted(extras.items()):
+            c = {"nome": nome, "tipo": tipo, "opcoes": None,
+                 "editavel": tipo in TIPOS_EDITAVEIS}
+            if eh_sensivel(nome) or (OCULTAR_ANEXOS and tipo == "files"):
+                c["sensivel"] = True
+            campos.append(c)
+        campos.sort(key=lambda c: norm(c["nome"]))
+        ocultas = {c["nome"] for c in campos if c.get("sensivel")}
+
+    gravar("schema.json", {"ok": True, "campos": campos, "updated_at": agora})
     vendas = []
     vazios = 0
     for p in paginas:

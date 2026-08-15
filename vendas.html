@@ -216,6 +216,7 @@ tr.tot td{font-weight:800;background:var(--bg3)}
 .preench-item{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .preench-item>label{font-size:10px;font-weight:700;color:var(--text4);text-transform:uppercase;min-width:78px}
 .preench-item .campo-inline{flex:1;min-width:120px}
+.ro-inline{flex:1;min-width:120px;padding:7px 9px;border:1px dashed var(--border2);border-radius:7px;color:var(--text3);font-size:13px}
 .cola.falta{background:#fdf1e7;color:#b26a2b}
 .cola{font-size:11px;color:var(--text3);background:var(--bg3);border-radius:6px;padding:2px 7px;white-space:nowrap}
 .lapis{border:0;background:none;cursor:pointer;color:var(--text3);font-size:13px;padding:0 3px}
@@ -1344,7 +1345,9 @@ const COLUNAS_SETOR={
   // (ver CAMPOS_DO_ALERTA), que é onde são preenchidas.
   "Departamento de Projetos":[
     "ENDEREÇO","OBRA-AUTO","CASA","CASA-AUTO","SETOR","SETOR-AUTO",
-    "TIPO","MODELO?","TEM MANUAL DE OBRA?","FOTOS","LAYOUT","LOCALIZAÇÃO"
+    "TIPO","MODELO?","TEM MANUAL DE OBRA?",
+    "ENG. RESPONSÁEL","ENGENHEIRO-AUTO",
+    "FOTOS","LAYOUT","LOCALIZAÇÃO","REF"
   ],
   "Júlio César":[
     "ENDEREÇO","CASA","AVALIAÇÃO","VALIDADE","VALOR NA MÃO","COMISSÃO",
@@ -1395,9 +1398,17 @@ function renderAlertas(){
       const preench = alvos.length
         ? `<span class="preench-multi">`+alvos.map(a=>{
             const cola = a.cola ? getV(l.v.valores, a.cola.nome) : null;
+            const val=getV(l.v.valores,a.campo.nome);
+            // campo não editável pela API (ex.: ENG. RESPONSÁEL é do tipo
+            // "people", que o Notion não deixa gravar por nome) vira leitura —
+            // antes virava uma caixa de texto que aceitava digitar e falhava
+            // depois, sem o usuário entender por quê
+            const ctrl = a.campo.editavel
+              ? `<span class="campo-inline">${inputControl(a.campo, val, l.v.id)}</span>`
+              : `<span class="ro-inline" title="Preencher direto no Notion — este campo não é editável pela API">${esc(Array.isArray(val)?val.join(", "):(val||"—"))}</span>`;
             return `<span class="preench-item">`+
               `<label>${esc(a.campo.nome.trim())}</label>`+
-              `<span class="campo-inline">${inputControl(a.campo, getV(l.v.valores,a.campo.nome), l.v.id)}</span>`+
+              ctrl+
               // a "cola": valor automático ao lado, só leitura, pra conferir/copiar
               (a.cola
                 ? `<span class="cola" title="${esc(a.cola.nome.trim())} (automático)">${esc(cola==null||cola===""?"—":cola)}</span>`
