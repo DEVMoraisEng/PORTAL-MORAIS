@@ -67,6 +67,9 @@ main{padding:24px 20px 70px}
 .scard .cond{font-size:18px;font-weight:800;text-transform:uppercase;line-height:1.05}
 .scard .d{font-size:11.5px;opacity:.92;margin-top:4px}
 .scard .cnt{position:absolute;top:14px;right:14px;background:#c0392b;color:#fff;min-width:26px;height:26px;border-radius:20px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;padding:0 7px}
+/* item 4: reserva espaço à direita quando o card tem o número da bolinha —
+   sem isto, nome de setor comprido (2 linhas) passava por baixo do badge */
+.scard.tem-cnt{padding-right:46px}
 
 /* abas do setor — item 10: estilo "pílula" centralizado, igual ao analise.html */
 .tabs-outer{background:var(--bg2);border:1.5px solid var(--border);border-radius:14px;padding:12px;margin:8px 0 20px;display:flex;justify-content:center}
@@ -206,6 +209,17 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
 .grupo .corpo{padding:8px 10px}
 .thsub{font-weight:500;font-size:9.5px;opacity:.75;text-transform:none;letter-spacing:0}
 tr.tot td{font-weight:800;background:var(--bg3)}
+
+/* item 7: expandir setor no Estoque de Casas para ver os endereços */
+.exp-toggle{background:none;border:0;padding:0;font:inherit;font-weight:700;color:var(--azul-esc);cursor:pointer;display:flex;align-items:center;gap:6px;text-align:left}
+.exp-toggle .seta{color:var(--verde);font-size:11px;transition:transform .1s}
+tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
+.est-detalhe{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.est-col b{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--text3);margin-bottom:6px}
+.est-col ul{margin:0;padding:0;list-style:none;max-height:220px;overflow-y:auto}
+.est-col li{font-size:12.5px;padding:4px 0;border-bottom:1px dashed var(--border2)}
+.est-vazio{font-size:12px;color:var(--text4)}
+@media(max-width:680px){.est-detalhe{grid-template-columns:1fr}}
 .ligs{display:flex;flex-direction:column;gap:6px}
 .lig{display:flex;align-items:center;gap:10px;padding:7px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12.5px}
 .lig-c{font-weight:700;color:var(--text);min-width:92px}
@@ -1100,11 +1114,16 @@ function atualizarBadgesSetores(){
 /* ---------- HUB ---------- */
 function renderSetores(){
   const box=document.getElementById("setores");
-  box.innerHTML = SETORES_AREA.map((s,i)=>`
-    <button class="scard ${s.ativo?"":"soon"}" data-i="${i}">
+  box.innerHTML = SETORES_AREA.map((s,i)=>{
+    // só reserva o espaço da bolinha para quem de fato mostra contador
+    // (setor sem aba "atividades" nunca pinta o número — ver atualizarBadgesSetores)
+    const temBadge = s.ativo && abasDoSetor(s.nome).indexOf("atividades")>=0;
+    return `
+    <button class="scard ${!s.ativo?"soon":(temBadge?"tem-cnt":"")}" data-i="${i}">
       ${s.ativo?`<span class="cnt" id="scnt-${i}">·</span>`:""}
       <div class="cond">${esc(s.nome)}</div><div class="d">${esc(s.d)}</div>
-    </button>`).join("");
+    </button>`;
+  }).join("");
   // listener em vez de onclick inline: nome com acento/aspas quebrava o atributo e o clique morria
   box.querySelectorAll(".scard").forEach(b=>{
     b.addEventListener("click",()=>{
@@ -1280,15 +1299,23 @@ async function carregarAtividades(){
     // em vez de sempre nascer em "SIM" — isso confundia, parecia que já estava tudo feito.
     const vd=a.obraId?vendaPorId(a.obraId):null;
     const atual=(vd&&c)?getV(vd.valores,c.nome):null;
+    // item 6: só pré-seleciona quando o valor atual da obra bate com uma das
+    // opções de verdade. Antes, "atual" vazio (obra sem esse campo respondido
+    // ainda, ou sem como conferir) caía no ":" o==='SIM'" e nascia marcado —
+    // parecia que a atividade já tinha sido feita sem ninguém ter escolhido nada.
+    const temAtual = atual!=null && atual!=="" && ops.indexOf(atual)>=0;
     const d=document.createElement("div"); d.className="atv";
     d.innerHTML=`<span class="tipo">${esc(a.tipo||"—")}</span>
       <span class="nm">${esc(a.nome||"(sem nome)")}</span>
       <span class="dt">prazo: ${fmt(a.dataFinal)}</span>
-      <span class="bx"><span class="bxlab">Marcar como</span><select>${ops.map(o=>`<option${(atual!=null?o===atual:o==="SIM")?" selected":""}>${esc(o)}</option>`).join("")}</select><button class="bt">Dar baixa</button></span>`;
+      <span class="bx"><span class="bxlab">Marcar como</span><select>${temAtual?"":'<option value="" selected disabled>Selecione…</option>'}${ops.map(o=>`<option${(temAtual&&o===atual)?" selected":""}>${esc(o)}</option>`).join("")}</select><button class="bt">Dar baixa</button></span>`;
     const sel=d.querySelector("select"), btn=d.querySelector("button");
     if(!a.obraId){ btn.disabled=true; btn.textContent="Sem obra"; sel.disabled=true; }
 
-    btn.onclick=()=>darBaixa(a,sel.value,d,btn);
+    btn.onclick=()=>{
+      if(!sel.value){ toast("Selecione um valor antes de dar baixa."); return; }
+      darBaixa(a,sel.value,d,btn);
+    };
     (caixas.get(a.tipo||"Sem tipo")||box).appendChild(d);
   });
 }
@@ -1798,6 +1825,13 @@ function atualizarInformativo(ctx){
 function ehSim(v){ if(v===true) return true; const n=normNome(v); return n==="SIM"||n.indexOf("SIM")===0; }
 function nCasas(d){ const n=Number(d.n_casas); return (!isNaN(n)&&n>0)?n:1; }
 
+/* item 7: expandir o setor mostra os endereços de cada coluna (estoque/em
+   obra/finalizadas). Guarda os endereços junto da contagem — cada "casa" do
+   nCasas(d) diferente de 1 aparece com "(x2)" etc. em vez de repetir a linha. */
+function addEnd_(arr, endereco, q){
+  const nome=endereco||"(sem endereço)";
+  arr.push(q>1?`${nome} (x${q})`:nome);
+}
 function renderEstoque(){
   const wrap=document.getElementById("est-wrap");
   // DOCS é o índice por endereço e só tem habite/obra_iniciada — não serve
@@ -1812,21 +1846,42 @@ function renderEstoque(){
   lista.forEach(d=>{
     const setor=d.setor||"(sem setor)";
     const q=nCasas(d);
-    const linha = porSetor[setor] || (porSetor[setor]={estoque:0, iniciadas:0, finalizadas:0});
-    if(ehSim(d.obra_finalizada)){ linha.finalizadas+=q; tot.finalizadas+=q; return; }
-    if(ehSim(d.habite))        { linha.estoque+=q;     tot.estoque+=q;     return; }
-    if(ehSim(d.obra_iniciada)) { linha.iniciadas+=q;   tot.iniciadas+=q; }
+    const linha = porSetor[setor] || (porSetor[setor]={estoque:0, iniciadas:0, finalizadas:0,
+      endEstoque:[], endIniciadas:[], endFinalizadas:[]});
+    if(ehSim(d.obra_finalizada)){ linha.finalizadas+=q; tot.finalizadas+=q; addEnd_(linha.endFinalizadas,d.endereco,q); return; }
+    if(ehSim(d.habite))        { linha.estoque+=q;     tot.estoque+=q;     addEnd_(linha.endEstoque,d.endereco,q);     return; }
+    if(ehSim(d.obra_iniciada)) { linha.iniciadas+=q;   tot.iniciadas+=q;   addEnd_(linha.endIniciadas,d.endereco,q); }
   });
   const setores=Object.keys(porSetor).sort((a,b)=>a.localeCompare(b,"pt-BR"));
   document.getElementById("est-count").textContent=
     tot.estoque+" em estoque · "+tot.iniciadas+" em obra";
+  const colDetalhe=(titulo,lista)=>`<div class="est-col"><b>${esc(titulo)} (${lista.length})</b>`+
+    (lista.length?'<ul>'+lista.slice().sort((a,b)=>a.localeCompare(b,"pt-BR")).map(e=>`<li>${esc(e)}</li>`).join("")+'</ul>':'<div class="est-vazio">nenhuma</div>')+
+    `</div>`;
   wrap.innerHTML='<table><thead><tr><th class="stick">Setor</th>'+
     '<th>Em estoque<br><span class="thsub">habite-se aprovado</span></th>'+
     '<th>Em obra<br><span class="thsub">obra iniciada</span></th>'+
     '<th>Finalizadas</th></tr></thead><tbody>'+
-    setores.map(st=>`<tr><td class="stick">${esc(st)}</td><td>${porSetor[st].estoque||"—"}</td><td>${porSetor[st].iniciadas||"—"}</td><td>${porSetor[st].finalizadas||"—"}</td></tr>`).join("")+
+    setores.map((st,i)=>{
+      const s=porSetor[st];
+      return `<tr class="setor-linha" data-alvo="est-det-${i}">`+
+        `<td class="stick"><button type="button" class="exp-toggle"><span class="seta">▸</span> ${esc(st)}</button></td>`+
+        `<td>${s.estoque||"—"}</td><td>${s.iniciadas||"—"}</td><td>${s.finalizadas||"—"}</td></tr>`+
+        `<tr class="setor-detalhe" id="est-det-${i}" style="display:none"><td colspan="4"><div class="est-detalhe">`+
+        colDetalhe("Em estoque",s.endEstoque)+colDetalhe("Em obra",s.endIniciadas)+colDetalhe("Finalizadas",s.endFinalizadas)+
+        `</div></td></tr>`;
+    }).join("")+
     `<tr class="tot"><td class="stick">Total</td><td>${tot.estoque}</td><td>${tot.iniciadas}</td><td>${tot.finalizadas}</td></tr>`+
     '</tbody></table>';
+  // um listener só, delegado — mais simples do que religar botão por botão a cada render
+  wrap.querySelectorAll(".exp-toggle").forEach(b=>{
+    b.onclick=()=>{
+      const tr=b.closest("tr"); const det=document.getElementById(tr.dataset.alvo);
+      const aberto=det.style.display!=="none";
+      det.style.display=aberto?"none":"table-row";
+      b.querySelector(".seta").textContent=aberto?"▸":"▾";
+    };
+  });
 }
 
 function temSensiveis(){ return SCHEMA.some(c=>c.sensivel); }
