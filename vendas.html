@@ -99,6 +99,8 @@ select:focus,input:focus{outline:none;border-color:var(--verde);box-shadow:0 0 0
 /* alertas */
 .al{background:#fff;border:1px solid var(--border2);border-left:4px solid var(--orange);border-radius:10px;padding:11px 14px;margin-bottom:9px;display:flex;justify-content:space-between;align-items:center;gap:12px}
 .al .end{font-weight:700;font-size:13.5px;color:var(--azul)}.al .txt{color:#B45309;font-size:12.5px}
+/* rótulo ainda sem nome de obra resolvido — some sozinho quando o Notion responde */
+.al .end.end-vazio{color:var(--text4);font-weight:600;font-style:italic}
 .al .end:hover{text-decoration:underline;cursor:pointer}
 /* item 4 (rodada 2): alertas em 3 colunas — Endereço / Alerta / campo pra preencher ali mesmo */
 .al3{display:grid;grid-template-columns:minmax(140px,1fr) minmax(180px,1.6fr) minmax(160px,1fr);align-items:center;gap:14px}
@@ -1482,13 +1484,47 @@ function renderAlertas(){
               ctrl+
               // a "cola": valor automático ao lado, só leitura, pra conferir/copiar
               (a.cola
-                ? `<span class="cola" title="${esc(a.cola.nome.trim())} (automático)">${esc(textoDaCola(cola))}</span>`
+                ? colaHtml(cola, a.cola.nome.trim()+" (automático)").html
                 : (a.colaEsperada?`<span class="cola falta" title="Não existe no Notion uma coluna chamada ${esc(a.colaEsperada)}">sem ${esc(a.colaEsperada)}</span>`:``))+
             `</span>`;
           }).join("")+`</span>`
         : `<button type="button" class="bt ghost bt-mini" onclick='abrirObra(${jsArg(l.v.id)})'>Abrir obra</button>`;
-      return `<div class="al al3"><span class="end" onclick='abrirObra(${jsArg(l.v.id)})'>${esc(l.end)}</span><span class="txt">${esc(l.txt)}</span><span class="preench">${preench}</span></div>`;
+      // item 3: a coluna da esquerda não precisa ficar em "(sem endereço)".
+      // Se a venda ainda não tem endereço próprio mas está ligada a uma obra,
+      // usa o nome dela como rótulo — é o que identifica a linha pra quem vai
+      // preencher. O id vira data-ids e o resolverIdsPendentes() troca pelo
+      // nome assim que o Notion responder.
+      let endHtml=`<span class="end" onclick='abrirObra(${jsArg(l.v.id)})'>${esc(l.end)}</span>`;
+      if(!getV(l.v.valores,"ENDEREÇO")){
+        const rot=rotuloAlternativo(l.v, alvos);
+        if(rot.pendentes.length){
+          endHtml=`<span class="end end-vazio" data-ids="${esc(rot.pendentes.join(","))}" onclick='abrirObra(${jsArg(l.v.id)})'>${esc(l.end)}</span>`;
+        } else if(rot.texto){
+          endHtml=`<span class="end" onclick='abrirObra(${jsArg(l.v.id)})'>${esc(rot.texto)}</span>`;
+        }
+      }
+      return `<div class="al al3">${endHtml}<span class="txt">${esc(l.txt)}</span><span class="preench">${preench}</span></div>`;
     }).join("")+'</div></details>').join("");
+  resolverIdsPendentes().catch(()=>{});   // segundo plano: não segura a tela
+}
+/* Rótulo de uma linha de alerta cuja venda ainda não tem ENDEREÇO.
+   Usa, na ordem: a obra ligada (OBRA-AUTO) e depois qualquer outra coluna
+   "-AUTO" já preenchida (setor, casa) — melhor "RAVENA · Casa 2" do que
+   quatro linhas idênticas escritas "(sem endereço)". */
+function rotuloAlternativo(v, alvos){
+  const pendentes=[], textos=[];
+  (alvos||[]).forEach(a=>{
+    if(!a.cola) return;
+    const val=getV(v.valores, a.cola.nome);
+    if(val==null||val==="") return;
+    (Array.isArray(val)?val:[val]).forEach(x=>{
+      if(ehIdNotion(x)){
+        const n=nomeDeIdLocal(x);
+        if(n) textos.push(n); else pendentes.push(String(x));
+      } else textos.push(String(x));
+    });
+  });
+  return {texto:textos.join(" · "), pendentes};
 }
 /* acha a coluna que o alerta está pedindo pra preencher, a partir do próprio texto dele
    (ex.: "PREENCHER VALIDADE" -> coluna "VALIDADE"). 3 tentativas, da mais certeira à mais
@@ -1531,6 +1567,7 @@ const CAMPOS_DO_ALERTA=[
 const RX_UUID=/^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i;
 function ehIdNotion(v){ return typeof v==="string" && RX_UUID.test(v.trim()); }
 let _mapaObraId=null;
+const TITULOS={};   // id -> nome, preenchido sob demanda pela ação "titulos"
 function mapaObraPorId(){
   if(_mapaObraId) return _mapaObraId;
   _mapaObraId={};
@@ -1541,17 +1578,56 @@ function mapaObraPorId(){
   }));
   return _mapaObraId;
 }
-/* Deixa qualquer valor de "cola" pronto pra exibir: resolve id(s) de relation
-   para nome, junta listas e devolve "—" quando não há nada. */
-function textoDaCola(v){
-  if(v==null||v==="") return "—";
-  const arr=Array.isArray(v)?v:[v];
-  const mapa=mapaObraPorId();
-  const nomes=arr.map(x=>{
+/* Tenta resolver um id só com o que já está na memória (documentos + vendas +
+   o que a ação "titulos" já trouxe). Devolve null quando ninguém sabe — e é
+   esse null que dispara a busca no Notion. */
+function nomeDeIdLocal(id){
+  const chave=String(id).replace(/-/g,"");
+  return mapaObraPorId()[chave] || TITULOS[chave] || null;
+}
+/* Devolve {html, pendentes}: o texto pronto pra exibir e os ids que ainda
+   precisam ser buscados no Notion. O <span> guarda os ids em data-ids para
+   ser repintado depois, sem precisar redesenhar a tela toda. */
+function colaHtml(cola, titulo){
+  const arr=(cola==null||cola==="")?[]:(Array.isArray(cola)?cola:[cola]);
+  const pendentes=[];
+  const partes=arr.map(x=>{
     if(!ehIdNotion(x)) return x;
-    return mapa[String(x).replace(/-/g,"")] || "(obra ligada)";
+    const n=nomeDeIdLocal(x);
+    if(n) return n;
+    pendentes.push(String(x));
+    return "…";
   }).filter(x=>x!=null&&x!=="");
-  return nomes.length?nomes.join(", "):"—";
+  const txt=partes.length?partes.join(", "):"—";
+  return {
+    html:`<span class="cola"${pendentes.length?` data-ids="${esc(pendentes.join(","))}"`:``} title="${esc(titulo)}">${esc(txt)}</span>`,
+    pendentes
+  };
+}
+/* Busca no Notion, em UMA chamada, todos os ids que sobraram na tela e
+   repinta só os <span> correspondentes. */
+async function resolverIdsPendentes(){
+  const spans=[...document.querySelectorAll("span.cola[data-ids]")];
+  if(!spans.length) return;
+  const ids=[...new Set(spans.flatMap(s=>s.dataset.ids.split(",")).filter(Boolean))];
+  if(!ids.length) return;
+  const r=await ler({action:"titulos", ids:JSON.stringify(ids)},"titulos:"+ids.length);
+  if(!r||!r.ok||!r.titulos) return;
+  Object.keys(r.titulos).forEach(id=>{
+    if(r.titulos[id]) TITULOS[String(id).replace(/-/g,"")]=r.titulos[id];
+  });
+  spans.forEach(s=>{
+    const nomes=s.dataset.ids.split(",").map(id=>nomeDeIdLocal(id)||"(obra ligada)");
+    s.textContent=nomes.join(", ");
+    s.removeAttribute("data-ids");
+  });
+  // o nome da obra também serve de rótulo da linha, quando a venda ainda não
+  // tem endereço próprio (ver renderAlertas)
+  document.querySelectorAll("span.end[data-ids]").forEach(s=>{
+    const nomes=s.dataset.ids.split(",").map(id=>nomeDeIdLocal(id)).filter(Boolean);
+    if(nomes.length){ s.textContent=nomes.join(", "); s.classList.remove("end-vazio"); }
+    s.removeAttribute("data-ids");
+  });
 }
 /* Acha a coluna "cola": tenta os nomes candidatos e, se nenhum existir,
    procura qualquer coluna que tenha AUTO junto da palavra-chave.
