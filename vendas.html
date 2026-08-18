@@ -1102,6 +1102,10 @@ async function boot(){
     .then(r=>{ if(r&&r.ok){ ATIV_ALL=r.atividades; atualizarBadgesSetores(); } })
     .catch(()=>{});
 
+  // lista de pessoas do Notion (para os campos "people"): segundo plano, não
+  // segura a tela. Se falhar, o campo continua só leitura — nada quebra.
+  carregarUsuarios().catch(()=>{});
+
   const [sc]=await Promise.all([ lerEstatico("schema.json","schema"), carregarDocumentos(), carregarLigacoes() ]); // só dist/ — rápido
   if(sc.ok){ SCHEMA=sc.campos; SCAMPO={}; SCHEMA.forEach(c=>SCAMPO[c.nome]=c); mostrarOffline(sc); }
   montarSetorSelects();
@@ -1109,6 +1113,7 @@ async function boot(){
   // de atividades, porque agora elas cruzam com o valor real da obra (vendaPorId) —
   // sem isso o primeiro cálculo caía sempre no "sem como conferir" (mantém tudo).
   await carregarPlanilha("hub");
+  _mapaObraId=null;          // documentos e vendas já carregaram: refaz o índice id -> nome da obra
   atualizarBadgesSetores(); // 1ª passada (sem atividades ainda); a promise acima repinta
 }
 /* item 7: cada atividade só conta pro setor cujo "responsavel" bate com o
@@ -1477,7 +1482,7 @@ function renderAlertas(){
               ctrl+
               // a "cola": valor automático ao lado, só leitura, pra conferir/copiar
               (a.cola
-                ? `<span class="cola" title="${esc(a.cola.nome.trim())} (automático)">${esc(cola==null||cola===""?"—":cola)}</span>`
+                ? `<span class="cola" title="${esc(a.cola.nome.trim())} (automático)">${esc(textoDaCola(cola))}</span>`
                 : (a.colaEsperada?`<span class="cola falta" title="Não existe no Notion uma coluna chamada ${esc(a.colaEsperada)}">sem ${esc(a.colaEsperada)}</span>`:``))+
             `</span>`;
           }).join("")+`</span>`
@@ -1515,6 +1520,39 @@ const CAMPOS_DO_ALERTA=[
   // era descoberto pelo texto e caía na coluna do banco; o campo certo é a data
   { quando:"ASSINATURA",               campos:[{nome:"DATA DE ASSINATURA DO CONTRATO"}] },
 ];
+/* Uma coluna do tipo RELATION no Notion não guarda texto: guarda o ID da
+   página ligada. A API devolve isso como lista de ids, e era esse id cru que
+   aparecia na cola OBRA-AUTO ("34ac5ab5-32d3-802d-..." no lugar do endereço).
+   Aqui o id é traduzido: primeiro contra a lista de DOCUMENTOS (o lote/obra,
+   que é para onde OBRA-AUTO aponta), depois contra as próprias vendas, caso
+   a relação aponte para outra linha da mesma base.
+   Se não achar o id em lugar nenhum, devolve um texto curto em vez do UUID —
+   mostrar 36 caracteres de id não ajuda ninguém a preencher o campo. */
+const RX_UUID=/^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i;
+function ehIdNotion(v){ return typeof v==="string" && RX_UUID.test(v.trim()); }
+let _mapaObraId=null;
+function mapaObraPorId(){
+  if(_mapaObraId) return _mapaObraId;
+  _mapaObraId={};
+  (DOCS_LISTA||[]).forEach(d=>{ if(d.id&&d.endereco) _mapaObraId[String(d.id).replace(/-/g,"")]=d.endereco; });
+  [DADOS.hub,DADOS.set].forEach(arr=>(arr||[]).forEach(v=>{
+    const e=getV(v.valores,"ENDEREÇO");
+    if(v.id&&e) _mapaObraId[String(v.id).replace(/-/g,"")]=e;
+  }));
+  return _mapaObraId;
+}
+/* Deixa qualquer valor de "cola" pronto pra exibir: resolve id(s) de relation
+   para nome, junta listas e devolve "—" quando não há nada. */
+function textoDaCola(v){
+  if(v==null||v==="") return "—";
+  const arr=Array.isArray(v)?v:[v];
+  const mapa=mapaObraPorId();
+  const nomes=arr.map(x=>{
+    if(!ehIdNotion(x)) return x;
+    return mapa[String(x).replace(/-/g,"")] || "(obra ligada)";
+  }).filter(x=>x!=null&&x!=="");
+  return nomes.length?nomes.join(", "):"—";
+}
 /* Acha a coluna "cola": tenta os nomes candidatos e, se nenhum existir,
    procura qualquer coluna que tenha AUTO junto da palavra-chave.
    Devolve também os candidatos, pra tela poder dizer o que não encontrou. */
@@ -2051,6 +2089,31 @@ function cabecalhoObra(V){
 }
 
 /* controle de entrada por tipo — usado tanto no resumo quanto no formulário de preenchimento */
+/* ---------- pessoas do Notion (campos "people", ex.: ENG. RESPONSÁEL) ----------
+   Carregada uma vez por sessão. O <select> mostra o nome, mas o que viaja pro
+   Notion é o UUID — é a única forma que a API aceita gravar esse tipo. */
+let USUARIOS=[], USUARIOS_ERRO="";
+async function carregarUsuarios(){
+  const r=await ler({action:"usuarios"},"usuarios");
+  if(r&&r.ok&&r.usuarios){ USUARIOS=r.usuarios; USUARIOS_ERRO=""; }
+  else {
+    USUARIOS=[];
+    USUARIOS_ERRO = (r&&r.erro==="SEM_LEITURA_DE_USUARIOS")
+      ? "Para escolher a pessoa aqui, marque a capacidade \"Read user information\" na integração do Notion."
+      : "Não consegui carregar a lista de pessoas do Notion — preencha direto no Notion.";
+  }
+}
+async function editarPessoa(pageId,prop,sel){
+  const id=sel.value;
+  const nome=id?(sel.options[sel.selectedIndex].textContent||""):"";
+  sel.style.borderColor="#F0C36D";
+  // no Notion vai o UUID; na cópia local guarda o NOME, que é o formato que o
+  // vendas.json publica pra esse tipo (senão a tela passaria a mostrar o id)
+  aplicarLocal(pageId,prop,nome?[nome]:[]);
+  const r=await escrever({action:"updateVenda",pageId:pageId,prop:prop,tipo:"people",valor:id?[id]:[]},"Editar "+prop);
+  sel.style.borderColor=r.ok?(r.enfileirado?"#E67E22":"#4cd964"):"#C0392B";
+  toast(r.ok?(r.enfileirado?"Salvo aqui ✓ — sobe quando reconectar":"Salvo ✓"):("Erro: "+erroTexto(r.erro)));
+}
 function inputControl(c,valor,pageId){
   const on=`onchange='editar(${jsArg(pageId)},${jsArg(c.nome)},${jsArg(c.tipo)},this.value,this)'`;
   if(c.tipo==="select"||c.tipo==="status"){
@@ -2065,6 +2128,20 @@ function inputControl(c,valor,pageId){
   }
   if(c.tipo==="multi_select"){ const arr=Array.isArray(valor)?valor:[];
     return `<div class="msgrid">`+(c.opcoes||[]).map(o=>`<label class="mschk"><input type="checkbox" ${arr.indexOf(o)>=0?"checked":""} onchange='editarMulti(${jsArg(pageId)},${jsArg(c.nome)},this)'><span>${esc(o)}</span></label>`).join("")+`</div>`; }
+  if(c.tipo==="people"){
+    // "people" grava por UUID, nunca por nome — a lista vem da ação
+    // "usuarios" do Code.gs. Enquanto não carregar (ou se a integração não
+    // tiver a capacidade "Read user information"), fica só leitura em vez de
+    // uma caixa que aceita digitar e falha depois sem explicação.
+    const atual=Array.isArray(valor)?valor.join(", "):(valor||"");
+    if(!USUARIOS.length){
+      return `<span class="ro-inline" title="${esc(USUARIOS_ERRO||'Carregando a lista de pessoas do Notion…')}">${esc(atual||"—")}</span>`;
+    }
+    return `<select onchange='editarPessoa(${jsArg(pageId)},${jsArg(c.nome)},this)'>`+
+      `<option value="">—</option>`+
+      USUARIOS.map(u=>`<option value="${esc(u.id)}"${normNome(u.nome)===normNome(atual)?" selected":""}>${esc(u.nome)}</option>`).join("")+
+      `</select>`;
+  }
   if(c.tipo==="date") return `<input type="date" value="${valor?String(valor).slice(0,10):""}" ${on}>`;
   if(c.tipo==="number") return `<input type="number" value="${valor==null?"":valor}" ${on}>`;
   if(c.tipo==="checkbox") return `<input type="checkbox" ${valor?"checked":""} onchange='editar(${jsArg(pageId)},${jsArg(c.nome)},"checkbox",this.checked,this)'>`;

@@ -118,6 +118,10 @@ _SENS_NORM = None  # preenchido em main(), depois que norm() existe
 TIPOS_EDITAVEIS = {
     "title", "rich_text", "select", "status", "multi_select", "date",
     "checkbox", "number", "url", "email", "phone_number",
+    # "people" é editável, mas SÓ pela lista de usuários do Notion (a API
+    # exige o UUID da pessoa, não o nome) — o site monta um <select> com a
+    # ação "usuarios" do Code.gs. Precisa bater com o EDITAVEL_ de lá.
+    "people",
 }
 
 
@@ -475,6 +479,11 @@ def main():
             docs_idx[norm(end)] = {"habite": habite, "obra_iniciada": obra_iniciada}
             cota = pega(props, c_cota)
             docs_full.append({
+                # O id da página é o que permite traduzir uma coluna de
+                # RELATION (que a API devolve como lista de ids) para um nome
+                # legível no site — sem ele, a "cola" OBRA-AUTO aparecia como
+                # "34ac5ab5-32d3-802d-..." em vez do endereço da obra.
+                "id": p.get("id"),
                 "endereco": end,
                 "n_casas": pega(props, c_ncasas) or 1,
                 "cota_empresa": cota if cota is not None else 1.0,
