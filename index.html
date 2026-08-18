@@ -124,7 +124,9 @@ const SISTEMAS=[
   {chave:"VENDAS",nome:"Gestão de Vendas",desc:"Atividades, alertas e planilhas",ico:"V",link:"vendas.html",conta:true,grupo:"SETORES"},
   {chave:"RAS LÍDERES",nome:"RAS Semanal",desc:"Reunião de alinhamento semanal",ico:"R",link:"https://devmoraiseng.github.io/RAS-SEMANAL/",externo:true,grupo:"REUNIÕES"},
   {chave:"RAS FINANCEIRO",nome:"RAS Financeiro",desc:"Reunião de alinhamento — Financeiro",ico:"R",link:"https://devmoraiseng.github.io/RAS-FINANCEIRO/",externo:true,grupo:"REUNIÕES"},
-  {chave:"RAS PROJETOS",nome:"RAS Projetos",desc:"Reunião de alinhamento — Projetos",ico:"R",link:"https://devmoraiseng.github.io/RAS-PROJETOS/",externo:true,grupo:"REUNIÕES"}
+  {chave:"RAS PROJETOS",nome:"RAS Projetos",desc:"Reunião de alinhamento — Projetos",ico:"R",link:"https://devmoraiseng.github.io/RAS-PROJETOS/",externo:true,grupo:"REUNIÕES"},
+  {chave:"RAS PÓS OBRAS",nome:"RAS Pós-Obra",desc:"Reunião de alinhamento — Pós-Obra",ico:"R",link:"https://devmoraiseng.github.io/RAS-POS-OBRAS/",externo:true,grupo:"REUNIÕES"},
+  {chave:"RAS COMPRAS",nome:"RAS Compras",desc:"Reunião de alinhamento — Compras",ico:"R",link:"https://devmoraiseng.github.io/RAS-COMPRAS/",externo:true,grupo:"REUNIÕES"}
 ];
 const GRUPOS_ORDEM=["SETORES","REUNIÕES"]; // setores primeiro, reuniões depois — pedido do item 2
 const S=exigirSessao(); atualizarStatus();
@@ -156,9 +158,15 @@ function boot(){
   //    portal_() do Code.gs, só que rodada uma vez no build).
   lerEstaticoJa("portal.json","portal", pintarKpis);
 
-  // 2) contagem de atividades: é só um numerinho no botão. Vai em segundo
-  //    plano; se o Apps Script demorar ou falhar, o resto da tela não sofre.
-  ler({action:"atividades"},"atividades").then(pintarAtividades).catch(()=>{});
+  // 2) contagem de atividades: é só um numerinho no botão de Vendas. Vai em
+  //    segundo plano; se o Apps Script demorar ou falhar, o resto da tela não
+  //    sofre. Só é chamada por quem TEM acesso a VENDAS: para os demais
+  //    (ex.: quem só participa das RAS) o backend recusaria com SEM_PERMISSAO
+  //    — sem quebrar nada, mas enchendo o log de bloqueio a cada visita e
+  //    escondendo uma tentativa real de acesso indevido no meio do ruído.
+  if(podeAcessar(S,"VENDAS")){
+    ler({action:"atividades"},"atividades").then(pintarAtividades).catch(()=>{});
+  }
 
   // 3) validação da sessão em segundo plano. O redirecionamento do login virou
   //    otimista (entra na hora); quem confere o token de verdade é o Apps
@@ -189,7 +197,7 @@ function pintarKpis(r){
   if(r.offline){ nota.style.display="block"; nota.textContent="Sem internet — últimos dados salvos ("+new Date(r._ts).toLocaleString("pt-BR")+")."; } else nota.style.display="none";
   document.getElementById("updated").textContent="Dados publicados em: "+(r._ts?new Date(r._ts).toLocaleString("pt-BR"):new Date().toLocaleString("pt-BR"));
 }
-window.aoSincronizar=async()=>{ pintarAtividades(await ler({action:"atividades"},"atividades")); };
+window.aoSincronizar=async()=>{ if(podeAcessar(S,"VENDAS")) pintarAtividades(await ler({action:"atividades"},"atividades")); };
 boot();
 </script>
 </body>

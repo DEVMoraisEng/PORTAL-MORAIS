@@ -218,6 +218,7 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 .est-col b{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--text3);margin-bottom:6px}
 .est-col ul{margin:0;padding:0;list-style:none;max-height:220px;overflow-y:auto}
 .est-col li{font-size:12.5px;padding:4px 0;border-bottom:1px dashed var(--border2)}
+.est-extra{display:block;font-size:11px;color:var(--text4);font-weight:600;margin-top:1px}
 .est-vazio{font-size:12px;color:var(--text4)}
 @media(max-width:680px){.est-detalhe{grid-template-columns:1fr}}
 .ligs{display:flex;flex-direction:column;gap:6px}
@@ -692,7 +693,8 @@ body{display:flex;flex-direction:column;min-height:100vh}
           <option value="completo">Processo de vendas completo</option>
         </select>
         <select id="hub-ano" onchange="aplicarFiltros('hub')"><option value="">Todos os anos</option></select>
-        <input class="busca" id="hub-busca" placeholder="Buscar por endereço, setor ou cidade…" oninput="aplicarFiltros('hub')">
+          <select id="hub-periodo" onchange="aoTrocarPeriodo('hub')"><option value="">Qualquer período</option><option value="7d">Últimos 7 dias</option><option value="30d">Últimos 30 dias</option><option value="mes">Mês (escolher)</option><option value="intervalo">Intervalo (escolher)</option></select><select id="hub-mes" style="display:none" onchange="aplicarFiltros('hub')"><option value="">Mês…</option><option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option><option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option><option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select><input type="date" id="hub-de" style="display:none" title="Data inicial" onchange="aplicarFiltros('hub')"><input type="date" id="hub-ate" style="display:none" title="Data final" onchange="aplicarFiltros('hub')">
+        <input class="busca" type="search" id="hub-busca" name="q_planilha_hub" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Buscar por endereço, setor ou cidade…" oninput="aplicarFiltros('hub')">
         <span class="count" id="hub-count"></span>
       </div>
       <div class="info-bar" id="hub-info"></div>
@@ -742,7 +744,8 @@ body{display:flex;flex-direction:column;min-height:100vh}
             <option value="completo">Processo de vendas completo</option>
           </select>
           <select id="set-ano" onchange="aplicarFiltros('set')"><option value="">Todos os anos</option></select>
-          <input class="busca" id="set-busca" placeholder="Buscar…" oninput="aplicarFiltros('set')">
+          <select id="set-periodo" onchange="aoTrocarPeriodo('set')"><option value="">Qualquer período</option><option value="7d">Últimos 7 dias</option><option value="30d">Últimos 30 dias</option><option value="mes">Mês (escolher)</option><option value="intervalo">Intervalo (escolher)</option></select><select id="set-mes" style="display:none" onchange="aplicarFiltros('set')"><option value="">Mês…</option><option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option><option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option><option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select><input type="date" id="set-de" style="display:none" title="Data inicial" onchange="aplicarFiltros('set')"><input type="date" id="set-ate" style="display:none" title="Data final" onchange="aplicarFiltros('set')">
+          <input class="busca" type="search" id="set-busca" name="q_planilha_set" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Buscar…" oninput="aplicarFiltros('set')">
           <span class="count" id="set-count"></span>
         </div>
         <div class="info-bar" id="set-info"></div>
@@ -832,7 +835,7 @@ body{display:flex;flex-direction:column;min-height:100vh}
           <select id="mod-setor" onchange="renderCasasModelo()"><option value="">Todos os setores</option></select>
           <select id="mod-cidade" onchange="renderCasasModelo()"><option value="">Todas as cidades</option></select>
           <select id="mod-tipo" onchange="renderCasasModelo()"><option value="">Todos os tipos</option></select>
-          <input class="busca" id="mod-busca" placeholder="Buscar por endereço…" oninput="renderCasasModelo()">
+          <input class="busca" type="search" id="mod-busca" name="q_modelo" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Buscar por endereço…" oninput="renderCasasModelo()">
           <span class="count" id="mod-count"></span>
         </div>
         <div class="tabela-wrap" id="mod-wrap"><div class="vazio">Carregando…</div></div>
@@ -852,7 +855,14 @@ body{display:flex;flex-direction:column;min-height:100vh}
       <p class="dist-obra" id="dist-end"></p>
       <p class="dist-aviso">Isto <b>apaga os dados da venda</b> e as atividades desta obra, e volta os campos de marcação para NÃO. Permanecem apenas: <span id="dist-mantem"></span>.<br><b>Não tem como desfazer pelo site.</b></p>
       <label class="dist-lab">Sua senha</label>
-      <input type="password" id="dist-senha" autocomplete="current-password" onkeydown="if(event.key==='Enter')document.getElementById('dist-ok').click()">
+      <!-- item 4: campo isca. O gerenciador de senhas procura um campo de
+           texto para casar com o campo de senha abaixo; sem esta isca ele
+           elegia a caixa de BUSCA da planilha e preenchia com o login
+           (o "Moraisengenharialtda" que aparecia lá e zerava a tabela).
+           Fica fora da tela e nunca é enviado. -->
+      <input type="text" name="username" autocomplete="username" tabindex="-1" aria-hidden="true"
+             style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
+      <input type="password" id="dist-senha" name="dist-senha" autocomplete="current-password" onkeydown="if(event.key==='Enter')document.getElementById('dist-ok').click()">
       <div class="dist-erro" id="dist-erro"></div>
       <div class="dist-acoes">
         <button type="button" class="bt ghost" onclick="fecharDistrato()">Cancelar</button>
@@ -927,6 +937,19 @@ function fmt(d){ if(!d)return "—"; const p=String(d).slice(0,10).split("-"); r
 
 /* ---------- normalização / ordem custom dos campos do Notion ---------- */
 function normNome(s){ return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/\s+/g," ").trim(); }
+/* Argumento seguro para handler inline (onclick='fn(...)').
+   FALHA CORRIGIDA: usava-se JSON.stringify() cru dentro de um atributo entre
+   ASPAS SIMPLES. JSON.stringify escapa " mas NÃO escapa ' — então um valor
+   com apóstrofo (nome de arquivo anexado no Notion, nome de coluna) fechava
+   o atributo antes da hora e o resto virava HTML: dava pra injetar outro
+   atributo (onmouseover=...) e executar script na sessão de quem abrisse a
+   obra. Aqui o JSON é escapado como HTML; o navegador desfaz as entidades
+   antes de entregar ao JS, então o valor chega igual do outro lado. */
+function jsArg(v){
+  return JSON.stringify(v).replace(/[&<>"']/g, c => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
+  }[c]));
+}
 const CAMPOS_EXCLUIDOS=["ARQUIVOS E MIDIA"]; // excluído no Notion (item 6 do pedido)
 
 /* Colunas que somem só em DETERMINADO setor — o dado continua no registro (os
@@ -1260,7 +1283,7 @@ function renderCasasModelo(){
       // contagem publicada e abre a obra pra ver, que aí passa pelo Apps Script
       if(c.tipo==="files" || c.sensivel){
         const r=sensDe(v,c);
-        if(typeof r==="number") return `<td><button type="button" class="bt ghost bt-mini" onclick='abrirObra(${JSON.stringify(v.id)})'>👁 ${r} arq.</button></td>`;
+        if(typeof r==="number") return `<td><button type="button" class="bt ghost bt-mini" onclick='abrirObra(${jsArg(v.id)})'>👁 ${r} arq.</button></td>`;
         if(r===undefined) return `<td class="sens vazia"></td>`;
         return `<td class="sens">•••</td>`;
       }
@@ -1454,8 +1477,8 @@ function renderAlertas(){
                 : (a.colaEsperada?`<span class="cola falta" title="Não existe no Notion uma coluna chamada ${esc(a.colaEsperada)}">sem ${esc(a.colaEsperada)}</span>`:``))+
             `</span>`;
           }).join("")+`</span>`
-        : `<button type="button" class="bt ghost bt-mini" onclick='abrirObra(${JSON.stringify(l.v.id)})'>Abrir obra</button>`;
-      return `<div class="al al3"><span class="end" onclick='abrirObra(${JSON.stringify(l.v.id)})'>${esc(l.end)}</span><span class="txt">${esc(l.txt)}</span><span class="preench">${preench}</span></div>`;
+        : `<button type="button" class="bt ghost bt-mini" onclick='abrirObra(${jsArg(l.v.id)})'>Abrir obra</button>`;
+      return `<div class="al al3"><span class="end" onclick='abrirObra(${jsArg(l.v.id)})'>${esc(l.end)}</span><span class="txt">${esc(l.txt)}</span><span class="preench">${preench}</span></div>`;
     }).join("")+'</div></details>').join("");
 }
 /* acha a coluna que o alerta está pedindo pra preencher, a partir do próprio texto dele
@@ -1544,7 +1567,7 @@ function renderAtrasados(){
   linhas.sort((a,b)=>ORDEM[a.prazo]-ORDEM[b.prazo]);
   if(!linhas.length){ box.innerHTML='<div class="vazio">Nenhum processo com pendência de prazo. 🎉</div>'; return; }
   box.innerHTML=linhas.map(({v,prazo})=>
-    `<div class="al" style="border-left-color:${COR[prazo]}"><span class="end" onclick='abrirObra(${JSON.stringify(v.id)})'>${esc(getV(v.valores,"ENDEREÇO")||"(sem endereço)")}</span><span class="txt">${TXT[prazo]}</span></div>`
+    `<div class="al" style="border-left-color:${COR[prazo]}"><span class="end" onclick='abrirObra(${jsArg(v.id)})'>${esc(getV(v.valores,"ENDEREÇO")||"(sem endereço)")}</span><span class="txt">${TXT[prazo]}</span></div>`
   ).join("");
 }
 
@@ -1618,10 +1641,22 @@ function temCliente(rec){
   if(c && rec && rec.sens) return !!rec.sens[c.nome];
   return !!getV(rec&&rec.valores||{},"CLIENTES");
 }
+/* Regra (confirmada com o Morais): TEM CLIENTE = vendida. VALOR NA MÃO
+   preenchido = disponível. Mas vendida GANHA de disponível — a partir do
+   momento que vendeu, não está mais disponível.
+   Era esse o motivo do filtro "parecer que não faz nada": quase toda obra
+   vendida também tem VALOR NA MÃO preenchido, então caía nas DUAS listas e
+   trocar de "Casas vendidas" pra "Casas disponíveis" mostrava praticamente
+   as mesmas linhas (e os dois contadores do informativo somavam a mesma
+   obra duas vezes). */
 function situacoesDe(valores,rec){
   const arr=[];
-  if(temCliente(rec||{valores:valores})) arr.push("vendida");
-  const vm=getV(valores,"VALOR NA MÃO"); if(vm!=null && vm!=="") arr.push("disponivel");
+  const vendida=temCliente(rec||{valores:valores});
+  if(vendida){ arr.push("vendida"); }
+  else {
+    const vm=getV(valores,"VALOR NA MÃO");
+    if(vm!=null && vm!=="") arr.push("disponivel");
+  }
   if(processoCompleto(valores)) arr.push("completo");
   return arr;
 }
@@ -1778,11 +1813,51 @@ function renderLegenda(ctx){
     `<label class="sw"><input type="checkbox" data-v="sit3" ${on}><span class="dot sit3"></span> 🚨 &gt; 45 dias e não recebeu</label>`+
     `<label class="sw"><input type="checkbox" data-v="completo" ${on}><span class="chkcompleto" style="margin-left:0">✓</span> Processo de vendas completo</label>`;
 }
+/* ---------- filtro de período (pedido: mês, 7 dias e intervalo livre) ----------
+   Filtra pela DATA DA VENDA (a mesma que já alimenta o filtro de ano) — é a
+   data que define quando a obra virou venda. Obra sem data da venda fica de
+   fora assim que qualquer período é escolhido: ela não aconteceu no intervalo.
+   "Mês" usa o ano selecionado no filtro de ano; sem ano escolhido, usa o ano
+   corrente (senão "Março" sozinho não quer dizer nada). */
+function aoTrocarPeriodo(ctx){
+  const modo=document.getElementById(ctx+"-periodo").value;
+  const mostrar=(id,on)=>{ const el=document.getElementById(id); if(el) el.style.display=on?"":"none"; };
+  mostrar(ctx+"-mes", modo==="mes");
+  mostrar(ctx+"-de",  modo==="intervalo");
+  mostrar(ctx+"-ate", modo==="intervalo");
+  aplicarFiltros(ctx);
+}
+function hojeISO(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function menosDias(n){
+  const d=new Date(); d.setDate(d.getDate()-n);
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+/* Devolve {de, ate} em "yyyy-mm-dd" (comparação por string funciona nesse
+   formato) ou null quando não há filtro de período ativo. */
+function intervaloDoPeriodo(ctx){
+  const sel=document.getElementById(ctx+"-periodo"); if(!sel) return null;
+  const modo=sel.value; if(!modo) return null;
+  if(modo==="7d")  return {de:menosDias(7),  ate:hojeISO()};
+  if(modo==="30d") return {de:menosDias(30), ate:hojeISO()};
+  if(modo==="mes"){
+    const m=document.getElementById(ctx+"-mes").value; if(!m) return null;
+    const ano=document.getElementById(ctx+"-ano").value || String(new Date().getFullYear());
+    const ultimo=new Date(Number(ano), Number(m), 0).getDate();  // dia 0 do mês seguinte = último deste
+    return {de:`${ano}-${m}-01`, ate:`${ano}-${m}-${String(ultimo).padStart(2,"0")}`};
+  }
+  if(modo==="intervalo"){
+    const de=document.getElementById(ctx+"-de").value, ate=document.getElementById(ctx+"-ate").value;
+    if(!de && !ate) return null;
+    return {de:de||"0000-01-01", ate:ate||"9999-12-31"};
+  }
+  return null;
+}
 function aplicarFiltros(ctx){
   const q=(document.getElementById(ctx+"-busca").value||"").toLowerCase();
   const cid=document.getElementById(ctx+"-cidade").value;
   const sit=document.getElementById(ctx+"-situacao").value;
   const ano=document.getElementById(ctx+"-ano").value;
+  const per=intervaloDoPeriodo(ctx);
   // chips de prazo/pendência marcados (vazio = sem filtro, mostra tudo)
   const legBox=document.getElementById(ctx+"-legenda");
   const marcados=legBox?[...legBox.querySelectorAll("input[data-v]:checked")].map(i=>i.dataset.v):[];
@@ -1794,6 +1869,7 @@ function aplicarFiltros(ctx){
     if(ok && cid) ok = tr.dataset.cidade===cid;
     if(ok && sit) ok = (","+tr.dataset.sit+",").indexOf(","+sit+",")>=0;
     if(ok && ano) ok = tr.dataset.ano===ano;
+    if(ok && per){ const dv=tr.dataset.dv||""; ok = !!dv && dv>=per.de && dv<=per.ate; }
     if(ok && prazoFiltro.length) ok = prazoFiltro.indexOf(tr.dataset.prazo)>=0;
     if(ok && completoOn) ok = (","+tr.dataset.sit+",").indexOf(",completo,")>=0;
     tr.style.display = ok?"":"none";
@@ -1839,10 +1915,33 @@ function nCasas(d){ const n=Number(d.n_casas); return (!isNaN(n)&&n>0)?n:1; }
 
 /* item 7: expandir o setor mostra os endereços de cada coluna (estoque/em
    obra/finalizadas). Guarda os endereços junto da contagem — cada "casa" do
-   nCasas(d) diferente de 1 aparece com "(x2)" etc. em vez de repetir a linha. */
-function addEnd_(arr, endereco, q){
+   nCasas(d) diferente de 1 aparece com "(x2)" etc. em vez de repetir a linha.
+   item 2 (rodada 3): na coluna "Em estoque" vai junto a DATA DE APROVAÇÃO
+   DO HABITE-SE, publicada em documentos.json como data_habite. */
+function addEnd_(arr, endereco, q, extra){
   const nome=endereco||"(sem endereço)";
-  arr.push(q>1?`${nome} (x${q})`:nome);
+  arr.push({nome:nome+(q>1?` (x${q})`:""), extra:extra||""});
+}
+/* item 1 (rodada 3): quantas casas DESTE endereço já estão vendidas.
+   Vendida = tem cliente (mesma regra do situacoesDe/temCliente da planilha).
+   Depende do vendas.json já carregado — se a Planilha ainda não tiver sido
+   aberta, devolve 0 e nada é removido (melhor não remover do que remover
+   errado por falta de dado). */
+function casasVendidasNoEndereco(endereco){
+  const alvo=normNome(endereco);
+  if(!alvo) return 0;
+  const base=(DADOS.hub&&DADOS.hub.length)?DADOS.hub:(DADOS.set||[]);
+  let n=0;
+  base.forEach(v=>{
+    if(normNome(getV(v.valores,"ENDEREÇO"))!==alvo) return;
+    if(temCliente(v)) n++;
+  });
+  return n;
+}
+function fmtDataBR(d){
+  if(!d) return "";
+  const s=String(d).slice(0,10), p=s.split("-");
+  return p.length===3 ? `${p[2]}/${p[1]}/${p[0]}` : s;
 }
 function renderEstoque(){
   const wrap=document.getElementById("est-wrap");
@@ -1855,20 +1954,29 @@ function renderEstoque(){
     return;
   }
   const porSetor={}, tot={estoque:0, iniciadas:0, finalizadas:0};
+  let lotesOcultos=0;
   lista.forEach(d=>{
     const setor=d.setor||"(sem setor)";
     const q=nCasas(d);
     const linha = porSetor[setor] || (porSetor[setor]={estoque:0, iniciadas:0, finalizadas:0,
       endEstoque:[], endIniciadas:[], endFinalizadas:[]});
-    if(ehSim(d.obra_finalizada)){ linha.finalizadas+=q; tot.finalizadas+=q; addEnd_(linha.endFinalizadas,d.endereco,q); return; }
-    if(ehSim(d.habite))        { linha.estoque+=q;     tot.estoque+=q;     addEnd_(linha.endEstoque,d.endereco,q);     return; }
+    if(ehSim(d.obra_finalizada)){
+      // item 1: lote com TODAS as casas já vendidas sai das finalizadas —
+      // não é mais estoque nem carteira, já saiu da empresa.
+      if(casasVendidasNoEndereco(d.endereco) >= q){ lotesOcultos++; return; }
+      linha.finalizadas+=q; tot.finalizadas+=q; addEnd_(linha.endFinalizadas,d.endereco,q); return;
+    }
+    if(ehSim(d.habite))        { linha.estoque+=q;     tot.estoque+=q;
+      addEnd_(linha.endEstoque,d.endereco,q, d.data_habite?("habite-se: "+fmtDataBR(d.data_habite)):"habite-se: sem data"); return; }
     if(ehSim(d.obra_iniciada)) { linha.iniciadas+=q;   tot.iniciadas+=q;   addEnd_(linha.endIniciadas,d.endereco,q); }
   });
   const setores=Object.keys(porSetor).sort((a,b)=>a.localeCompare(b,"pt-BR"));
   document.getElementById("est-count").textContent=
     tot.estoque+" em estoque · "+tot.iniciadas+" em obra";
   const colDetalhe=(titulo,lista)=>`<div class="est-col"><b>${esc(titulo)} (${lista.length})</b>`+
-    (lista.length?'<ul>'+lista.slice().sort((a,b)=>a.localeCompare(b,"pt-BR")).map(e=>`<li>${esc(e)}</li>`).join("")+'</ul>':'<div class="est-vazio">nenhuma</div>')+
+    (lista.length?'<ul>'+lista.slice().sort((a,b)=>a.nome.localeCompare(b.nome,"pt-BR")).map(e=>
+      `<li>${esc(e.nome)}${e.extra?`<span class="est-extra">${esc(e.extra)}</span>`:""}</li>`).join("")+'</ul>'
+      :'<div class="est-vazio">nenhuma</div>')+
     `</div>`;
   wrap.innerHTML='<table><thead><tr><th class="stick">Setor</th>'+
     '<th>Em estoque<br><span class="thsub">habite-se aprovado</span></th>'+
@@ -1940,22 +2048,22 @@ function cabecalhoObra(V){
 
 /* controle de entrada por tipo — usado tanto no resumo quanto no formulário de preenchimento */
 function inputControl(c,valor,pageId){
-  const on=`onchange='editar(${JSON.stringify(pageId)},${JSON.stringify(c.nome)},${JSON.stringify(c.tipo)},this.value,this)'`;
+  const on=`onchange='editar(${jsArg(pageId)},${jsArg(c.nome)},${jsArg(c.tipo)},this.value,this)'`;
   if(c.tipo==="select"||c.tipo==="status"){
     if(ehSimNao(c.opcoes)) return toggleSimNao(c,valor,pageId);
     // campos de cadastro (corretor, imobiliária...) ganham "+ Novo…" no fim
     const criavel = c.tipo==="select" && podeCriarOpcao(c.nome);
     const onSel = criavel
-      ? `onchange='aoTrocarSelect(${JSON.stringify(pageId)},${JSON.stringify(c.nome)},${JSON.stringify(c.tipo)},this)'`
+      ? `onchange='aoTrocarSelect(${jsArg(pageId)},${jsArg(c.nome)},${jsArg(c.tipo)},this)'`
       : on;
     return `<select ${onSel} data-anterior="${esc(valor||"")}"><option value=""></option>${(c.opcoes||[]).map(o=>`<option${o===valor?" selected":""}>${esc(o)}</option>`).join("")}`+
       (criavel?`<option value="__novo__">+ Novo…</option>`:``)+`</select>`;
   }
   if(c.tipo==="multi_select"){ const arr=Array.isArray(valor)?valor:[];
-    return `<div class="msgrid">`+(c.opcoes||[]).map(o=>`<label class="mschk"><input type="checkbox" ${arr.indexOf(o)>=0?"checked":""} onchange='editarMulti(${JSON.stringify(pageId)},${JSON.stringify(c.nome)},this)'><span>${esc(o)}</span></label>`).join("")+`</div>`; }
+    return `<div class="msgrid">`+(c.opcoes||[]).map(o=>`<label class="mschk"><input type="checkbox" ${arr.indexOf(o)>=0?"checked":""} onchange='editarMulti(${jsArg(pageId)},${jsArg(c.nome)},this)'><span>${esc(o)}</span></label>`).join("")+`</div>`; }
   if(c.tipo==="date") return `<input type="date" value="${valor?String(valor).slice(0,10):""}" ${on}>`;
   if(c.tipo==="number") return `<input type="number" value="${valor==null?"":valor}" ${on}>`;
-  if(c.tipo==="checkbox") return `<input type="checkbox" ${valor?"checked":""} onchange='editar(${JSON.stringify(pageId)},${JSON.stringify(c.nome)},"checkbox",this.checked,this)'>`;
+  if(c.tipo==="checkbox") return `<input type="checkbox" ${valor?"checked":""} onchange='editar(${jsArg(pageId)},${jsArg(c.nome)},"checkbox",this.checked,this)'>`;
   if(c.tipo==="url") return `<input type="url" value="${esc(valor||"")}" ${on}>`;
   if(c.tipo==="email") return `<input type="email" value="${esc(valor||"")}" ${on}>`;
   if(c.tipo==="phone_number") return `<input type="tel" value="${esc(valor||"")}" ${on}>`;
@@ -1996,14 +2104,15 @@ async function aoTrocarSelect(pageId,prop,tipo,el){
 }
 
 function toggleSimNao(c,valor,pageId){
-  const mk=(v,cls)=>`<button type="button" class="tg ${cls}${valor===v?" on":""}" onclick='editarToggle(${JSON.stringify(pageId)},${JSON.stringify(c.nome)},this)'>${v}</button>`;
+  const mk=(v,cls)=>`<button type="button" class="tg ${cls}${valor===v?" on":""}" onclick='editarToggle(${jsArg(pageId)},${jsArg(c.nome)},this)'>${v}</button>`;
   return `<div class="tgwrap">${mk("SIM","sim")}${mk("NÃO","nao")}</div>`;
 }
 async function editarToggle(pageId,prop,btn){
   const wrap=btn.closest(".tgwrap"); const valor=btn.textContent.trim();
   wrap.querySelectorAll(".tg").forEach(b=>b.classList.remove("on")); btn.classList.add("on");
+  aplicarLocal(pageId,prop,valor);
   const r=await escrever({action:"updateVenda",pageId:pageId,prop:prop,tipo:"select",valor:valor},"Editar "+prop);
-  toast(r.ok?(r.enfileirado?"Na fila ✓":"Salvo ✓"):("Erro: "+r.erro));
+  toast(r.ok?(r.enfileirado?"Salvo aqui ✓ — sobe quando reconectar":"Salvo ✓"):("Erro: "+r.erro));
 }
 /* Enquanto o valor sensível não chega do Apps Script, mostra um campo travado.
    Travado de propósito: input vazio e editável convidaria a digitar por cima e
@@ -2020,7 +2129,7 @@ function campoHtml(c,valor,pageId,sensPendente){
   // Endereço (nome da obra): só ADM edita — sempre mostrado, independente do campo vir marcado como "editável" no schema
   if(c.nome==="ENDEREÇO"){
     if(S.tipo!=="ADM" && !ehMaster(S)) return `<div class="campo"><label>${esc(c.nome.trim())} <span style="color:var(--text4);font-weight:500">(só ADM edita)</span></label><div class="ro">${esc(valor||"—")}</div></div>`;
-    const on=`onchange='editar(${JSON.stringify(pageId)},"ENDEREÇO","text",this.value,this); document.getElementById("pn-end").textContent=this.value||"(sem endereço)";'`;
+    const on=`onchange='editar(${jsArg(pageId)},"ENDEREÇO","text",this.value,this); document.getElementById("pn-end").textContent=this.value||"(sem endereço)";'`;
     return `<div class="campo"><label>${esc(c.nome.trim())}</label><input type="text" value="${esc(valor||"")}" ${on}></div>`;
   }
   return `<div class="campo"><label>${esc(c.nome.trim())}</label>${inputControl(c,valor,pageId)}</div>`;
@@ -2099,11 +2208,11 @@ function renderPainel(V,pageId,sensPendente){
         lista.forEach(f=>{
           const nome=f.name||"arquivo", url=f.url||"#";
           html+=`<div class="arq"><a href="${url}" target="_blank">${esc(nome)}</a>`+
-            (visualizavel(nome,url)?` <button type="button" class="bt ghost bt-mini" onclick='visualizarArquivo(${JSON.stringify(url)},${JSON.stringify(nome)})'>👁 Visualizar</button>`:``)+
+            (visualizavel(nome,url)?` <button type="button" class="bt ghost bt-mini" onclick='visualizarArquivo(${jsArg(url)},${jsArg(nome)})'>👁 Visualizar</button>`:``)+
             `</div>`;
         });
       }
-      html+=`<input type="file" onchange='enviarArquivo(${JSON.stringify(pageId)},${JSON.stringify(c.nome)},this)'></div>`; });
+      html+=`<input type="file" onchange='enviarArquivo(${jsArg(pageId)},${jsArg(c.nome)},this)'></div>`; });
   }
 
   // COMENTÁRIOS (item 3): a mesma caixa de discussão do Notion, lida e
@@ -2113,7 +2222,7 @@ function renderPainel(V,pageId,sensPendente){
   html+=`<div class="grp">Comentários</div><div class="campo">`+
     `<div class="coment-lista" id="coment-lista"><div class="coment-vazio"><span class="load"></span> Carregando…</div></div>`+
     `<div class="coment-novo"><textarea id="coment-texto" placeholder="Escrever um comentário..." rows="2"></textarea>`+
-    `<button type="button" class="bt az bt-mini" id="coment-btn" onclick='enviarComentario(${JSON.stringify(pageId)})'>Enviar</button></div>`+
+    `<button type="button" class="bt az bt-mini" id="coment-btn" onclick='enviarComentario(${jsArg(pageId)})'>Enviar</button></div>`+
     `</div>`;
 
   // DISTRATO: só no setor da Secretária de Vendas e só para quem tem o acesso.
@@ -2121,10 +2230,10 @@ function renderPainel(V,pageId,sensPendente){
   // mostrar um botão que a pessoa não conseguiria usar.
   if(SETOR_ATUAL==="Secretária de Vendas" && podeAcessar(S,"VENDAS") && !ehMaster(S)){
     html+=`<div class="grp">Distrato</div><div class="campo">`+
-      `<button class="bt danger" onclick='pedirDistrato(${JSON.stringify(pageId)})'>DISTRATO</button>`+
+      `<button class="bt danger" onclick='pedirDistrato(${jsArg(pageId)})'>DISTRATO</button>`+
       `<div class="ajuda">Desistência do cliente: limpa os dados da venda e apaga as atividades desta obra. Pede sua senha.</div></div>`;
   }
-  if(S.tipo==="ADM"){ html+=`<div class="grp">Administração</div><div class="campo"><button class="bt danger" onclick='excluirObra(${JSON.stringify(pageId)})'>Excluir esta obra</button></div>`; }
+  if(S.tipo==="ADM"){ html+=`<div class="grp">Administração</div><div class="campo"><button class="bt danger" onclick='excluirObra(${jsArg(pageId)})'>Excluir esta obra</button></div>`; }
   body.innerHTML=html;
   carregarComentarios(pageId);
 }
@@ -2175,14 +2284,43 @@ async function enviarComentario(pageId){
   toast("Comentário enviado ✓");
   carregarComentarios(pageId); // recarrega pra já mostrar na lista, com o formato final do servidor
 }
+/* ---------- item 7: gravação local otimista ----------
+   O que estava acontecendo: escrever() salva na fila quando está offline e
+   reenvia depois — isso já funcionava. Só que a cópia em memória (DADOS,
+   vinda do vendas.json) continuava com o valor ANTIGO. Então bastava fechar
+   e reabrir a obra, ou trocar de aba, pra tudo voltar como estava e parecer
+   que não tinha salvo nada.
+   Agora o valor entra na cópia local na hora, e a planilha/painel passam a
+   mostrar o que a pessoa digitou — mesmo antes da fila subir. No próximo
+   build do vendas.json (a cada 15 min) o valor real do Notion assume. */
+function aplicarLocal(pageId,prop,valor){
+  [DADOS.hub,DADOS.set].forEach(arr=>{
+    const r=(arr||[]).find(x=>x.id===pageId);
+    if(r&&r.valores) setV(r.valores,prop,valor);
+  });
+  // reflete na célula da planilha, se essa coluna estiver visível agora
+  const campo=campoPorNome(prop);
+  document.querySelectorAll('tbody tr[data-id]').forEach(tr=>{
+    if(tr.dataset.id!==pageId) return;
+    const td=[...tr.querySelectorAll('td[data-col]')].find(t=>t.dataset.col===prop);
+    if(!td) return;
+    if(campo&&(campo.tipo==="select"||campo.tipo==="status")&&(valor==="SIM"||valor==="NÃO")){
+      td.innerHTML=tagSimNao(valor);
+    } else {
+      td.textContent=campo?celulaTexto(campo,valor):String(valor==null?"":valor);
+    }
+  });
+}
 async function editar(pageId,prop,tipo,valor,el){
   if(el)el.style.borderColor="#F0C36D";
+  aplicarLocal(pageId,prop,valor);
   const r=await escrever({action:"updateVenda",pageId:pageId,prop:prop,tipo:tipo,valor:valor},"Editar "+prop);
   if(el)el.style.borderColor=r.ok?(r.enfileirado?"#E67E22":"#4cd964"):"#C0392B";
-  toast(r.ok?(r.enfileirado?"Na fila ✓":"Salvo ✓"):("Erro: "+r.erro));
+  toast(r.ok?(r.enfileirado?"Salvo aqui ✓ — sobe quando reconectar":"Salvo ✓"):("Erro: "+r.erro));
 }
 async function editarMulti(pageId,prop,el){
   const box=el.closest(".campo,.campo-inline"); const marc=[...box.querySelectorAll("input[type=checkbox]:checked")].map(i=>i.parentNode.textContent.trim());
+  aplicarLocal(pageId,prop,marc);
   const r=await escrever({action:"updateVenda",pageId:pageId,prop:prop,tipo:"multi_select",valor:marc},"Editar "+prop);
   toast(r.ok?(r.enfileirado?"Na fila ✓":"Salvo ✓"):("Erro: "+r.erro));
 }

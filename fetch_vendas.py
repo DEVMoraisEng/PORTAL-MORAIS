@@ -430,6 +430,11 @@ def main():
         # usadas pela aba Estoque de Casas
         c_setor = achar(cn, "SETOR")
         c_fim   = achar(cn, "OBRA FINALIZADA?", "OBRA FINALIZADA")
+        # item 2 (pedido): data em que o habite-se foi aprovado, exibida ao
+        # expandir o setor na coluna "Em estoque".
+        c_dhab  = achar(cn, "DATA DE APROVACAO DO HABITE-SE", "DATA DE APROVACAO DO HABITE",
+                        "DATA APROVACAO HABITE", "DATA DO HABITE", "DATA HABITE",
+                        "APROVACAO DO HABITE")
         print(f"  colunas: endereço={c_end!r} habite={c_hab!r} obra={c_obr!r} "
               f"n_casas={c_ncasas!r} cota={c_cota!r} data_inicio_obra={c_dini!r} "
               f"data_aquisicao_lote={c_daq!r} implantacao={c_impl!r}", flush=True)
@@ -462,6 +467,7 @@ def main():
                 # estoque: setor, habite-se e obra finalizada
                 "setor": pega(props, c_setor),
                 "habite": habite,
+                "data_habite": pega(props, c_dhab),
                 "obra_finalizada": pega(props, c_fim),
             })
         # "lista" é o que a aba Estoque de Casas consome. O "docs" (índice por
@@ -470,7 +476,8 @@ def main():
             "ok": True, "total": len(docs_idx), "docs": docs_idx,
             "lista": docs_full,
             "colunas": {"endereco": c_end, "habite": c_hab, "obra_iniciada": c_obr,
-                        "setor": c_setor, "obra_finalizada": c_fim, "n_casas": c_ncasas},
+                        "setor": c_setor, "obra_finalizada": c_fim, "n_casas": c_ncasas,
+                        "data_habite": c_dhab},
             "updated_at": agora,
         })
     else:
