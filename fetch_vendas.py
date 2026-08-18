@@ -252,9 +252,16 @@ def valor(prop):
             saida.append({"name": f.get("name"), "url": url})
         return saida
     if t == "relation":
-        # a relação em si não tem texto; devolvemos os ids. Serve pra saber se
-        # está preenchida (é o caso do OBRA-AUTO) sem puxar a outra base.
-        return [x.get("id") for x in prop.get("relation", [])]
+        # Devolve o NOME da página ligada quando já foi resolvido (ver
+        # resolver_titulos_relacao, chamado antes de montar as linhas); cai no
+        # id só se a base ligada não estiver compartilhada com a integração.
+        # Antes daqui saía sempre o id cru, e era ele que aparecia na tela.
+        saida = []
+        for x in prop.get("relation", []):
+            pid = x.get("id")
+            nome = _TITULOS_RELACAO.get(_chave_id(pid))
+            saida.append(nome if nome else pid)
+        return saida
     if t == "formula":
         f = prop.get("formula", {})
         return f.get(f.get("type"))
@@ -264,11 +271,80 @@ def valor(prop):
         if tr == "array":
             return [valor(x) for x in r.get("array", [])]
         return r.get(tr)
-    if t == "relation":
-        return [x.get("id") for x in prop.get("relation", [])]
+    # (o "relation" acima já tratou este tipo — este bloco era inalcançável)
     if t in ("created_time", "last_edited_time"):
         return prop.get(t)
     return None
+
+
+_TITULOS_RELACAO: dict = {}      # id da página (sem hífen) -> título
+_BASES_JA_LIDAS: set = set()     # database_id já varrido, pra não repetir
+
+
+def _chave_id(page_id) -> str:
+    return str(page_id or "").replace("-", "")
+
+
+def resolver_titulos_relacao(ids) -> None:
+    """Descobre o NOME das páginas ligadas por colunas do tipo relation.
+
+    Uma coluna relation no Notion guarda só o id da página ligada — foi por
+    isso que a "cola" OBRA-AUTO aparecia como '34ac5ab5-32d3-...' no site em
+    vez de 'RR 02 QD 01 LT 23'. E resolver isso em tempo real, pelo Apps
+    Script, saiu caro: era um GET /pages por id, sequencial, competindo com as
+    outras chamadas do site (o Apps Script atende uma por vez por usuário) —
+    o que atrasava a tela e derrubava a contagem de atividades por timeout.
+    Aqui, no build, o custo não incomoda: roda no GitHub Actions.
+
+    Truque pra não precisar configurar nada: a gente NÃO sabe de antemão para
+    qual base a relation aponta (no caso do OBRA-AUTO é uma base de projetos,
+    não a de documentos). Então pega UM id, pergunta ao Notion quem é o pai
+    dele e, de posse do database_id, varre a base inteira de uma vez — poucas
+    chamadas paginadas em vez de uma por linha.
+    """
+    pendentes = [i for i in {_chave_id(x): x for x in ids if x}.values()
+                 if _chave_id(x) not in _TITULOS_RELACAO]
+    if not pendentes:
+        return
+
+    voltas = 0
+    while pendentes and voltas < 6:      # teto: no máximo 6 bases diferentes
+        voltas += 1
+        amostra = pendentes[0]
+        try:
+            pg = api("GET", f"/pages/{amostra}")
+        except Exception as e:
+            print(f"  ! não consegui ler a página ligada {amostra}: {e}", flush=True)
+            _TITULOS_RELACAO[_chave_id(amostra)] = None
+            pendentes = [p for p in pendentes if _chave_id(p) not in _TITULOS_RELACAO]
+            continue
+
+        db_id = ((pg.get("parent") or {}).get("database_id") or "").replace("-", "")
+        # guarda o título da própria amostra, sirva ou não a varredura
+        _TITULOS_RELACAO[_chave_id(amostra)] = _titulo_de_pagina(pg)
+
+        if db_id and db_id not in _BASES_JA_LIDAS:
+            _BASES_JA_LIDAS.add(db_id)
+            try:
+                paginas = ler_banco(db_id, f"RELAÇÃO {db_id[:8]}")
+                for p in paginas:
+                    _TITULOS_RELACAO[_chave_id(p.get("id"))] = _titulo_de_pagina(p)
+                print(f"  relação: base {db_id[:8]}… lida "
+                      f"({len(paginas)} páginas com nome)", flush=True)
+            except Exception as e:
+                print(f"  ! não consegui varrer a base ligada {db_id[:8]}…: {e}", flush=True)
+
+        pendentes = [p for p in pendentes if _chave_id(p) not in _TITULOS_RELACAO]
+
+    for p in pendentes:                  # sobrou algo: marca pra não tentar de novo
+        _TITULOS_RELACAO[_chave_id(p)] = None
+
+
+def _titulo_de_pagina(pg) -> str:
+    for _, prop in (pg.get("properties") or {}).items():
+        if prop.get("type") == "title":
+            return "".join(t.get("plain_text", "") for t in (prop.get("title") or [])).strip()
+    return ""
 
 
 def montar_schema(db_id, marcar_sensiveis=False):
@@ -355,6 +431,26 @@ def main():
 
     print("Lendo registros de VENDAS…", flush=True)
     paginas = ler_banco(DB_VENDAS, "VENDAS")
+
+    # Nomes das páginas ligadas por relation (ex.: OBRA-AUTO). Precisa rodar
+    # ANTES de montar as linhas, porque é o valor() que consulta o resultado.
+    ids_relacao = []
+    for pg in paginas:
+        for _, prop in (pg.get("properties") or {}).items():
+            if prop.get("type") == "relation":
+                ids_relacao += [x.get("id") for x in (prop.get("relation") or []) if x.get("id")]
+    if ids_relacao:
+        print(f"Resolvendo nomes de {len({_chave_id(i) for i in ids_relacao})} "
+              f"página(s) ligada(s) por relation…", flush=True)
+        resolver_titulos_relacao(ids_relacao)
+        achados = sum(1 for i in {_chave_id(x) for x in ids_relacao}
+                      if _TITULOS_RELACAO.get(i))
+        total = len({_chave_id(i) for i in ids_relacao})
+        print(f"  nomes resolvidos: {achados}/{total}", flush=True)
+        if achados < total:
+            print("  ! os que faltaram continuam aparecendo como id no site — "
+                  "compartilhe a base ligada com a integração no Notion "
+                  "(base > ... > Conexões).", flush=True)
 
     # O endpoint /databases às vezes NÃO devolve colunas de relation e rollup —
     # acontece quando a integração não tem acesso à base do outro lado da

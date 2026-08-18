@@ -1104,10 +1104,6 @@ async function boot(){
     .then(r=>{ if(r&&r.ok){ ATIV_ALL=r.atividades; atualizarBadgesSetores(); } })
     .catch(()=>{});
 
-  // lista de pessoas do Notion (para os campos "people"): segundo plano, não
-  // segura a tela. Se falhar, o campo continua só leitura — nada quebra.
-  carregarUsuarios().catch(()=>{});
-
   const [sc]=await Promise.all([ lerEstatico("schema.json","schema"), carregarDocumentos(), carregarLigacoes() ]); // só dist/ — rápido
   if(sc.ok){ SCHEMA=sc.campos; SCAMPO={}; SCHEMA.forEach(c=>SCAMPO[c.nome]=c); mostrarOffline(sc); }
   montarSetorSelects();
@@ -1115,7 +1111,7 @@ async function boot(){
   // de atividades, porque agora elas cruzam com o valor real da obra (vendaPorId) —
   // sem isso o primeiro cálculo caía sempre no "sem como conferir" (mantém tudo).
   await carregarPlanilha("hub");
-  _mapaObraId=null;          // documentos e vendas já carregaram: refaz o índice id -> nome da obra
+  _mapaObraId=null; _vendidasPorEnd=null;   // dados novos: refaz os índices derivados
   atualizarBadgesSetores(); // 1ª passada (sem atividades ainda); a promise acima repinta
 }
 /* item 7: cada atividade só conta pro setor cujo "responsavel" bate com o
@@ -1505,7 +1501,7 @@ function renderAlertas(){
       }
       return `<div class="al al3">${endHtml}<span class="txt">${esc(l.txt)}</span><span class="preench">${preench}</span></div>`;
     }).join("")+'</div></details>').join("");
-  resolverIdsPendentes().catch(()=>{});   // segundo plano: não segura a tela
+  resolverIdsPendentes();   // só troca texto já em memória: não vai à rede
 }
 /* Rótulo de uma linha de alerta cuja venda ainda não tem ENDEREÇO.
    Usa, na ordem: a obra ligada (OBRA-AUTO) e depois qualquer outra coluna
@@ -1604,28 +1600,19 @@ function colaHtml(cola, titulo){
     pendentes
   };
 }
-/* Busca no Notion, em UMA chamada, todos os ids que sobraram na tela e
-   repinta só os <span> correspondentes. */
-async function resolverIdsPendentes(){
-  const spans=[...document.querySelectorAll("span.cola[data-ids]")];
-  if(!spans.length) return;
-  const ids=[...new Set(spans.flatMap(s=>s.dataset.ids.split(",")).filter(Boolean))];
-  if(!ids.length) return;
-  const r=await ler({action:"titulos", ids:JSON.stringify(ids)},"titulos:"+ids.length);
-  if(!r||!r.ok||!r.titulos) return;
-  Object.keys(r.titulos).forEach(id=>{
-    if(r.titulos[id]) TITULOS[String(id).replace(/-/g,"")]=r.titulos[id];
-  });
-  spans.forEach(s=>{
-    const nomes=s.dataset.ids.split(",").map(id=>nomeDeIdLocal(id)||"(obra ligada)");
-    s.textContent=nomes.join(", ");
-    s.removeAttribute("data-ids");
-  });
-  // o nome da obra também serve de rótulo da linha, quando a venda ainda não
-  // tem endereço próprio (ver renderAlertas)
-  document.querySelectorAll("span.end[data-ids]").forEach(s=>{
+/* O nome das páginas ligadas por relation agora chega PRONTO no vendas.json —
+   resolvido no build pelo fetch_vendas.py (resolver_titulos_relacao). Antes
+   isto era feito aqui, em tempo real, com um GET por id via Apps Script: como
+   o Apps Script atende uma chamada por vez por usuário, aquelas 12+ chamadas
+   sequenciais entravam na fila à frente de "atividades" e o estouro dos 25 s
+   de timeout fazia a contagem por setor desaparecer da tela.
+   Se ainda sobrar algum id não resolvido (base ligada não compartilhada com a
+   integração), ele é mostrado como texto curto — sem ida à rede. */
+function resolverIdsPendentes(){
+  document.querySelectorAll("span.cola[data-ids], span.end[data-ids]").forEach(s=>{
     const nomes=s.dataset.ids.split(",").map(id=>nomeDeIdLocal(id)).filter(Boolean);
     if(nomes.length){ s.textContent=nomes.join(", "); s.classList.remove("end-vazio"); }
+    else if(s.classList.contains("cola")){ s.textContent="(obra ligada)"; }
     s.removeAttribute("data-ids");
   });
 }
@@ -2045,16 +2032,25 @@ function addEnd_(arr, endereco, q, extra){
    Depende do vendas.json já carregado — se a Planilha ainda não tiver sido
    aberta, devolve 0 e nada é removido (melhor não remover do que remover
    errado por falta de dado). */
-function casasVendidasNoEndereco(endereco){
-  const alvo=normNome(endereco);
-  if(!alvo) return 0;
+let _vendidasPorEnd=null;
+/* Índice endereço -> nº de casas vendidas, montado em UMA passada pelas vendas.
+   Antes esta contagem varria a lista inteira de vendas para CADA documento
+   (166 x 423 = ~70 mil comparações, cada uma normalizando texto). Agora é
+   uma passada só; o índice é descartado quando a planilha recarrega. */
+function indiceVendidasPorEndereco(){
+  if(_vendidasPorEnd) return _vendidasPorEnd;
+  _vendidasPorEnd={};
   const base=(DADOS.hub&&DADOS.hub.length)?DADOS.hub:(DADOS.set||[]);
-  let n=0;
   base.forEach(v=>{
-    if(normNome(getV(v.valores,"ENDEREÇO"))!==alvo) return;
-    if(temCliente(v)) n++;
+    if(!temCliente(v)) return;
+    const k=normNome(getV(v.valores,"ENDEREÇO"));
+    if(k) _vendidasPorEnd[k]=(_vendidasPorEnd[k]||0)+1;
   });
-  return n;
+  return _vendidasPorEnd;
+}
+function casasVendidasNoEndereco(endereco){
+  const k=normNome(endereco);
+  return k ? (indiceVendidasPorEndereco()[k]||0) : 0;
 }
 function fmtDataBR(d){
   if(!d) return "";
@@ -2124,7 +2120,9 @@ function renderEstoque(){
 
 function temSensiveis(){ return SCHEMA.some(c=>c.sensivel); }
 
+let OBRA_ABERTA=null;   // id da obra no painel aberto (null = painel fechado)
 async function abrirObra(pageId){
+  OBRA_ABERTA=pageId;
   document.getElementById("overlay").classList.add("on"); document.getElementById("painel").classList.add("on");
   const body=document.getElementById("pn-body"); body.innerHTML='<div class="vazio"><span class="load"></span> Carregando…</div>';
   // o registro já está em memória (veio do vendas.json) — abre na hora, sem ida ao servidor
@@ -2168,7 +2166,27 @@ function cabecalhoObra(V){
 /* ---------- pessoas do Notion (campos "people", ex.: ENG. RESPONSÁEL) ----------
    Carregada uma vez por sessão. O <select> mostra o nome, mas o que viaja pro
    Notion é o UUID — é a única forma que a API aceita gravar esse tipo. */
-let USUARIOS=[], USUARIOS_ERRO="";
+let USUARIOS=[], USUARIOS_ERRO="", _usuariosPromise=null;
+/* Sob demanda, uma vez por sessão. Fora do boot de propósito: o Apps Script
+   atende uma chamada por vez por usuário, então tudo que entra no boot
+   atrasa o resto (foi o que derrubou a contagem de atividades). Só é
+   disparada quando aparece um campo do tipo "people" na tela; quando a
+   resposta chega, os selects já desenhados são repintados. */
+function garantirUsuarios(){
+  if(_usuariosPromise) return _usuariosPromise;
+  _usuariosPromise = carregarUsuarios().then(()=>{
+    // repinta o que foi desenhado como só leitura enquanto a lista não existia
+    if(USUARIOS.length && typeof repintarPessoasPendentes==="function") repintarPessoasPendentes();
+  }).catch(()=>{});
+  return _usuariosPromise;
+}
+/* Redesenha o painel da obra aberto, se houver — é onde ficam os selects de
+   pessoa. Barato: só roda uma vez, quando a lista chega. */
+function repintarPessoasPendentes(){
+  if(document.querySelectorAll(".pessoa-ro").length===0) return;
+  if(OBRA_ABERTA){ abrirObra(OBRA_ABERTA); }
+  else if(typeof renderAlertas==="function" && SETOR_ATUAL){ try{ renderAlertas(); }catch(e){} }
+}
 async function carregarUsuarios(){
   const r=await ler({action:"usuarios"},"usuarios");
   if(r&&r.ok&&r.usuarios){ USUARIOS=r.usuarios; USUARIOS_ERRO=""; }
@@ -2211,7 +2229,8 @@ function inputControl(c,valor,pageId){
     // uma caixa que aceita digitar e falha depois sem explicação.
     const atual=Array.isArray(valor)?valor.join(", "):(valor||"");
     if(!USUARIOS.length){
-      return `<span class="ro-inline" title="${esc(USUARIOS_ERRO||'Carregando a lista de pessoas do Notion…')}">${esc(atual||"—")}</span>`;
+      garantirUsuarios();   // dispara a busca; a tela é repintada quando chegar
+      return `<span class="ro-inline pessoa-ro" title="${esc(USUARIOS_ERRO||'Carregando a lista de pessoas do Notion…')}">${esc(atual||"—")}</span>`;
     }
     return `<select onchange='editarPessoa(${jsArg(pageId)},${jsArg(c.nome)},this)'>`+
       `<option value="">—</option>`+
@@ -2540,7 +2559,7 @@ async function confirmarDistrato(pageId){
   }
 }
 
-function fecharObra(){ document.getElementById("overlay").classList.remove("on"); document.getElementById("painel").classList.remove("on"); }
+function fecharObra(){ OBRA_ABERTA=null; document.getElementById("overlay").classList.remove("on"); document.getElementById("painel").classList.remove("on"); }
 
 /* ---------- visualizador de PDF anexado (item 2 do pedido extra) ---------- */
 /* Abre no site sem baixar: PDF vai no iframe, imagem vai num <img> (iframe com
