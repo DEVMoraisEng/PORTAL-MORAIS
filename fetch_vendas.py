@@ -124,8 +124,19 @@ TIPOS_EDITAVEIS = {
 def norm(s):
     """Maiúsculas sem acento — pra comparar nomes de coluna com segurança.
     A base VENDAS tem typo real ('ENG. RESPONSÁEL'), então nunca comparamos
-    string crua."""
-    s = unicodedata.normalize("NFD", str(s or ""))
+    string crua.
+
+    CORREÇÃO: NFD tira acento, mas NÃO mexe no indicador ordinal 'º' (nem no
+    'ª', nem no grau '°', que muita gente digita no lugar do ordinal). Era por
+    isso que a coluna real 'Nº DE CASAS' nunca casava com o fragmento
+    'N DE CASAS' e todo lote acabava contado como 1 casa — o aviso
+    "coluna de 'número de casas' não encontrada" no log do GitHub Actions.
+    Aqui esses três caracteres somem antes da comparação, então
+    'Nº DE CASAS' -> 'N DE CASAS'."""
+    s = str(s or "")
+    for c in ("º", "ª", "°"):
+        s = s.replace(c, "")
+    s = unicodedata.normalize("NFD", s)
     s = "".join(c for c in s if unicodedata.category(c) != "Mn")
     return " ".join(s.upper().split())
 
@@ -420,7 +431,11 @@ def main():
         # separar Morais/Investidor. Busca tolerante (fragmento) — se algum
         # nome não bater, o card correspondente cai em valor-padrão seguro
         # (1 casa, 100% Morais) em vez de quebrar o build.
-        c_ncasas = achar(cn, "NUMERO DE CASAS", "N DE CASAS", "QTD DE CASAS", "QTD CASAS", "CASAS COMPORTADAS", "N CASAS")
+        # "Nº DE CASAS" vira "N DE CASAS" depois do norm() (ver correção lá).
+        # As variantes cobrem quem escrever com ponto, por extenso ou "QTD".
+        c_ncasas = achar(cn, "N DE CASAS", "NO DE CASAS", "N. DE CASAS",
+                         "NUMERO DE CASAS", "QUANTIDADE DE CASAS",
+                         "QTD DE CASAS", "QTD CASAS", "CASAS COMPORTADAS", "N CASAS")
         c_cota = achar(cn, "COTA DA EMPRESA", "COTA EMPRESA", "COTA")
         c_dini = achar(cn, "DATA DE INICIO DA OBRA", "DATA INICIO DA OBRA", "INICIO DA OBRA")
         c_daq = achar(cn, "DATA DE AQUISICAO DO LOTE", "DATA AQUISICAO DO LOTE", "AQUISICAO DO LOTE", "AQUISICAO LOTE")
@@ -437,7 +452,11 @@ def main():
                         "APROVACAO DO HABITE")
         print(f"  colunas: endereço={c_end!r} habite={c_hab!r} obra={c_obr!r} "
               f"n_casas={c_ncasas!r} cota={c_cota!r} data_inicio_obra={c_dini!r} "
-              f"data_aquisicao_lote={c_daq!r} implantacao={c_impl!r}", flush=True)
+              f"data_aquisicao_lote={c_daq!r} implantacao={c_impl!r} "
+              f"data_habite={c_dhab!r}", flush=True)
+        if not c_dhab:
+            print("  ! coluna 'DATA DE APROVAÇÃO DO HABITE-SE' não encontrada — a data "
+                  "não vai aparecer ao expandir o setor na aba Estoque de Casas.", flush=True)
         if not c_ncasas:
             print("  ! coluna de 'número de casas' não encontrada — cada lote conta "
                   "como 1 casa (mesmo bug do item 2 do pedido). Confira o nome exato "
