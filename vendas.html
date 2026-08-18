@@ -160,7 +160,11 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
 
 /* painel obra */
 .overlay{position:fixed;inset:0;background:rgba(20,40,55,.55);display:none;z-index:40}
-.painel{position:fixed;top:0;right:0;height:100%;width:min(620px,100%);background:var(--bg2);z-index:41;box-shadow:-14px 0 44px rgba(0,0,0,.3);display:none;flex-direction:column}
+/* Painel da obra: metade da tela. Era largura fixa (620px), que em monitor
+   grande virava uma faixa estreita de ~25%. O clamp mantém o piso de 620px
+   (abaixo disso os campos lado a lado ficam apertados) e o teto na largura
+   da janela. Abaixo de 680px o media query lá embaixo assume e vira tela cheia. */
+.painel{position:fixed;top:0;right:0;height:100%;width:clamp(620px,50vw,100vw);background:var(--bg2);z-index:41;box-shadow:-14px 0 44px rgba(0,0,0,.3);display:none;flex-direction:column}
 .painel.on,.overlay.on{display:flex}
 .ph{background:linear-gradient(120deg,var(--azul-esc),var(--azul));color:#fff;padding:18px 22px;position:relative}
 .ph .end{font-family:'Barlow Condensed';font-weight:800;font-size:24px;text-transform:uppercase;line-height:1;letter-spacing:.5px}
