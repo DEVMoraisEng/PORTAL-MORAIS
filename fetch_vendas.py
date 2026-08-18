@@ -302,8 +302,11 @@ def resolver_titulos_relacao(ids) -> None:
     dele e, de posse do database_id, varre a base inteira de uma vez — poucas
     chamadas paginadas em vez de uma por linha.
     """
-    pendentes = [i for i in {_chave_id(x): x for x in ids if x}.values()
-                 if _chave_id(x) not in _TITULOS_RELACAO]
+    # dedup por id (sem hífen), mantendo um exemplar de cada, e descarta o que
+    # já foi resolvido numa chamada anterior
+    unicos = {_chave_id(x): x for x in ids if x}
+    pendentes = [pid for chave, pid in unicos.items()
+                 if chave not in _TITULOS_RELACAO]
     if not pendentes:
         return
 
@@ -314,7 +317,11 @@ def resolver_titulos_relacao(ids) -> None:
         try:
             pg = api("GET", f"/pages/{amostra}")
         except Exception as e:
-            print(f"  ! não consegui ler a página ligada {amostra}: {e}", flush=True)
+            # só a 1ª falha vira log: quando a base não está compartilhada com
+            # a integração, TODAS falham pelo mesmo motivo e repetir 6 vezes a
+            # mesma linha só atrapalha quem lê o log depois.
+            if voltas == 1:
+                print(f"  ! não consegui ler a página ligada {amostra}: {e}", flush=True)
             _TITULOS_RELACAO[_chave_id(amostra)] = None
             pendentes = [p for p in pendentes if _chave_id(p) not in _TITULOS_RELACAO]
             continue
