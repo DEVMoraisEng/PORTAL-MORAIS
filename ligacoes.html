@@ -80,15 +80,33 @@ select,input.busca,input[type=date],input[type=text],textarea{border:1px solid v
 input.busca{min-width:230px;flex:1}
 .count{font-size:12px;color:var(--text3);font-weight:600;white-space:nowrap}
 .tabela-wrap{background:#fff;border:1px solid var(--border2);border-radius:12px;overflow:auto;max-height:70vh}
-table.grade{border-collapse:separate;border-spacing:0;width:100%;font-size:12.5px}
+/* width:auto + min-width:100% em vez de width:100%: com width:100% o
+   navegador ESPREMIA as colunas pra caber na tela, e a última (a de alerta)
+   sobrava com ~100px — o texto do alerta era cortado e ficava só o emoji
+   aparecendo, o que parecia "o alerta não veio". Agora cada coluna recebe a
+   largura que precisa e a tabela rola na horizontal. */
+table.grade{border-collapse:separate;border-spacing:0;width:auto;min-width:100%;font-size:12.5px}
 table.grade th{position:sticky;top:0;z-index:2;background:var(--azul-esc);color:#fff;font-family:'Barlow Condensed';font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;padding:9px 10px;text-align:left;white-space:nowrap}
 table.grade td{padding:8px 10px;border-bottom:1px solid var(--border2);white-space:nowrap;max-width:340px;overflow:hidden;text-overflow:ellipsis}
 table.grade tr:hover td{background:var(--bg2)}
 table.grade tbody tr{cursor:pointer}
+/* célula editável: o pontilhado avisa que dá pra clicar e preencher ali mesmo */
+table.grade td.edit{border-bottom:1px dashed var(--border);cursor:text}
+table.grade td.edit:hover{background:#EFF8FB !important;box-shadow:inset 0 0 0 1px var(--verde)}
+table.grade td .cel-ed{width:100%;min-width:112px;padding:4px 6px;font-size:12.5px;border:1px solid var(--verde);border-radius:6px}
+/* o alerta fica numa linha só e a coluna cresce até caber (ver width:auto
+   acima). Quebrar em várias linhas era pior: a célula tem altura fixa e
+   escondia tudo menos a primeira linha. */
+table.grade td .pill{white-space:nowrap}
+table.grade td:last-child{max-width:none}
 .pill{display:inline-block;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:800;letter-spacing:.3px}
 .pill.sim{background:#DCFCE7;color:#166534}.pill.nao{background:#FEE2E2;color:#991B1B}
 .pill.neutro{background:var(--bg3);color:var(--azul-esc)}
-.pill.aviso{background:#FEF3C7;color:#92400E}.pill.grave{background:#FEE2E2;color:#991B1B}
+/* NÃO chamar estas classes de "aviso"/"grave": ".aviso" já existe neste
+   arquivo como o banner de offline, que nasce com display:none — e a regra do
+   banner vencia a da pilha, deixando TODO alerta amarelo invisível na tabela
+   (era o "alguns alertas não estão vindo"). Nome próprio resolve de vez. */
+.pill.alerta{background:#FEF3C7;color:#92400E}.pill.critico{background:#FEE2E2;color:#991B1B}
 .vazio{background:#fff;border:1px dashed var(--border);border-radius:12px;padding:22px;color:var(--text3);text-align:center;font-size:13px}
 .load{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--verde);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -366,7 +384,7 @@ const SETORES_LIG = [
   {
     nome: "CONTROLE DE CONTAS",
     d: "Vencimentos, UC e casas vendidas não transferidas",
-    abas: ["vencidas", "semUcContas", "contasGeral", "vendidas"],
+    abas: ["vencidas", "semUcContas", "contasGeral", "vendidas", "alertaTransf"],
     filtroBase: null
   }
 ];
@@ -389,7 +407,7 @@ const ABAS = {
     colunas: [C.OBRA, C.CONC, C.APROVADA, C.DT_SOL, C.DT_APROV, C.ALERTA_SOL, C.OBS],
     filtros: [C.CONC],
     base: l => sel(l, C.FEZ) === "SIM"
-            && txt(getL(l, C.VERIF_SOL)) !== "-"
+            && temAlerta(l, C.VERIF_SOL)
             && sel(l, C.STATUS) === "NÃO LIGADO"
   },
   planilha: {
@@ -406,8 +424,7 @@ const ABAS = {
     filtros: [C.CONC, C.RESP],
     sensiveis: true,
     pdf: true,
-    base: l => sel(l, C.LIBERADO) === "SIM"
-            && txt(getL(l, C.ALERTA_INFO)).trim() !== "-"
+    base: l => sel(l, C.LIBERADO) === "SIM" && temAlerta(l, C.ALERTA_INFO)
   },
   conferencias: {
     titulo: "Conferências de ligações solicitadas",
@@ -415,8 +432,7 @@ const ABAS = {
     filtros: [C.CONC, C.RESP],
     sensiveis: true,
     pdf: true,
-    base: l => sel(l, C.FEZ) === "SIM"
-            && txt(getL(l, C.ALERTA_INFO1)).trim() !== "-"
+    base: l => sel(l, C.FEZ) === "SIM" && temAlerta(l, C.ALERTA_INFO1)
   },
   semUc: {
     titulo: "Ligações sem UC (ligadas mas sem UC)",
@@ -424,8 +440,7 @@ const ABAS = {
     filtros: [C.CONC, C.RESP],
     sensiveis: true,
     pdf: true,
-    base: l => sel(l, C.STATUS) === "LIGADO"
-            && txt(getL(l, C.ALERTA_UC)).trim() !== "-"
+    base: l => sel(l, C.STATUS) === "LIGADO" && temAlerta(l, C.ALERTA_UC)
   },
 
   /* ---------- setor CONTROLE DE CONTAS ---------- */
@@ -455,7 +470,7 @@ const ABAS = {
     sensiveis: true,
     pdf: true,
     base: l => ["LIGADO", "ENTREGUE NAO TRANSFERIDO"].indexOf(normN(sel(l, C.STATUS))) >= 0
-            && txt(getL(l, C.ALERTA_UC)).trim() !== "-"
+            && temAlerta(l, C.ALERTA_UC)
   },
   contasGeral: {
     titulo: "Controle de contas geral (tudo)",
@@ -475,11 +490,21 @@ const ABAS = {
     filtros: [V.TITULARIDADES, V.ENER_TRANSF, V.AGUA_TRANSF, V.SETOR],
     sensiveis: true,
     pdf: true,
-    atividades: true,        // mostra o alerta de assinatura/transferência
     // "todas as casas vendidas" = tem cliente E tem data de venda. CLIENTES
     // não é publicado no arquivo público, então o teste usa o marcador
     // "tem valor sim/não" que o fetch_vendas.py publica no lugar.
     base: l => temSens(l, V.CLIENTES) && !!dataReal(l, V.DT_VENDA)
+  },
+  alertaTransf: {
+    titulo: "Alerta de transferência",
+    // Aba só das atividades — separada da planilha de casas vendidas a pedido:
+    // são duas leituras diferentes (uma é fila de trabalho, a outra é consulta)
+    // e juntas uma empurrava a outra pra fora da tela.
+    somenteAtividades: true,
+    atividades: true,
+    colunas: [],
+    filtros: [],
+    base: () => false
   }
 };
 
@@ -516,6 +541,15 @@ function getL(linha, nome){
   return undefined;
 }
 function sel(linha, nome){ const v=getL(linha,nome); return v==null?null:String(v).trim(); }
+
+/* Alerta "de verdade": tem texto E não é o traço de "nada a fazer".
+   CORRIGIDO: antes eu comparava só `!== "-"`, e alerta VAZIO também passa
+   nesse teste — então linha sem alerta nenhum entrava nas abas de
+   acompanhamento e aparecia com a coluna em branco. */
+function temAlerta(l, coluna){
+  const s = txt(getL(l, coluna)).trim();
+  return s !== "" && s !== "-" && s !== "—";
+}
 
 /* Data "de verdade": descarta vazio e o marcador 01/01/2000. */
 function dataReal(linha, nome){
@@ -729,6 +763,7 @@ function linhasDaAba(chave){
 function contarAba(chave){
   const def = ABAS[chave];
   if (!def) return 0;
+  if (def.somenteAtividades) return (ATV_TRANSF || []).length;
   const fonte = fonteDaAba(chave);
   const arr = fonte === "vendas" ? VEN : LIG;
   const doSetor = (SETOR_ATUAL && SETOR_ATUAL.filtroBase && fonte === "ligacoes")
@@ -1173,7 +1208,7 @@ function celula(l, nome, fonte){
     return `<span class="pill ${cls}">${esc(s)}</span>`;
   }
   if (tipo === "formula" && (s.indexOf("🚨")>=0 || s.indexOf("⚠️")>=0 || s.indexOf("⏳")>=0)){
-    const cls = s.indexOf("🚨")>=0 ? "grave" : "aviso";
+    const cls = s.indexOf("🚨")>=0 ? "critico" : "alerta";
     return `<span class="pill ${cls}">${esc(s)}</span>`;
   }
   return esc(s);
@@ -1185,17 +1220,127 @@ function tabelaHtml(linhas, colunas, extras, fonte, corDe){
   const th = cols.map(c=>`<th>${esc(c)}</th>`).join("") +
              (extras ? '<th>Dias p/ ligar</th><th>Dias p/ aprovar</th>' : "");
   const tr = linhas.map(l => {
-    const tds = cols.map(c=>`<td>${celula(l,c,fonte)}</td>`).join("");
+    const tds = cols.map(c => {
+      // Célula editável guarda a linha e a coluna no próprio <td>. O clique é
+      // tratado por UM handler na tabela toda (ver ligarCliquesTabela) e troca
+      // o texto pelo controle. É clique-para-editar, e não um <select> em cada
+      // célula, porque com centenas de linhas o navegador engasgaria só de
+      // montar a tela.
+      const ed = podeEditarNaTabela(c, fonte);
+      return `<td${ed ? ` class="edit" data-id="${esc(l.id)}" data-col="${esc(c)}" title="clique para editar"` : ""}>` +
+             celula(l,c,fonte) + `</td>`;
+    }).join("");
     const ex = extras
       ? `<td>${diasLigacao(l)==null?"—":diasLigacao(l)}</td><td>${diasAprovacao(l)==null?"—":diasAprovacao(l)}</td>`
       : "";
     const cls = corDe ? corDe(l) : "";
-    // linha da aba de vendas não abre o painel de edição: quem edita venda é o
-    // sistema de Vendas, não este. Aqui ela é só leitura.
-    const clique = (fonte === "vendas") ? "" : ` onclick="abrirLinha('${esc(l.id)}')"`;
-    return `<tr class="${cls}"${clique}>${tds}${ex}</tr>`;
+    // linha da aba de vendas não abre o painel: quem edita venda é o sistema
+    // de Vendas, não este. Aqui ela é só leitura.
+    const abrir = (fonte === "vendas") ? "" : ` data-abrir="${esc(l.id)}"`;
+    return `<tr class="${cls}"${abrir}>${tds}${ex}</tr>`;
   }).join("");
   return `<table class="grade"><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table>`;
+}
+
+/* ---------- edição direto na tabela ----------
+   Só nas colunas que o Code.gs aceita escrever (a lista de lá é a que vale) e
+   só na base de ligações — venda se edita no sistema de Vendas. */
+function podeEditarNaTabela(coluna, fonte){
+  if (fonte === "vendas") return false;
+  if (!ehEditavel(coluna)) return false;
+  const campo = campoDe(coluna, fonte);
+  if (!campo) return false;
+  return ["select","status","date","rich_text","title","url","number"].indexOf(campo.tipo) >= 0;
+}
+
+/* Um handler por tabela, não um por célula: com centenas de linhas é a
+   diferença entre a aba abrir na hora e travar. Célula editável abre o
+   controle; o resto da linha abre o painel lateral. */
+function ligarCliquesTabela(idBox){
+  const box = document.getElementById(idBox);
+  if (!box || box._ligado) return;
+  box._ligado = true;
+  box.addEventListener("click", ev => {
+    const td = ev.target.closest("td.edit");
+    if (td){
+      if (!td.querySelector("select,input")) { ev.stopPropagation(); abrirEditor(td); }
+      return;                                   // já está editando: não faz nada
+    }
+    const tr = ev.target.closest("tr[data-abrir]");
+    if (tr) abrirLinha(tr.dataset.abrir);
+  });
+}
+
+function abrirEditor(td){
+  const id = td.dataset.id, col = td.dataset.col;
+  const linha = linhaPorId(id);
+  const campo = campoDe(col);
+  if (!linha || !campo) return;
+  const tipo = campo.tipo;
+  const atual = getL(linha, col);
+  const antes = (tipo === "date") ? (dataReal(linha, col) || "") : (atual == null ? "" : String(atual));
+
+  let html;
+  if (tipo === "select" || tipo === "status"){
+    const ops = campo.opcoes || [];
+    html = `<select class="cel-ed"><option value="">(vazio)</option>` +
+      ops.map(o=>`<option value="${esc(o)}" ${String(atual)===String(o)?"selected":""}>${esc(o)}</option>`).join("") +
+      `</select>`;
+  } else if (tipo === "date"){
+    html = `<input class="cel-ed" type="date" value="${esc(antes)}">`;
+  } else if (tipo === "number"){
+    html = `<input class="cel-ed" type="number" value="${esc(antes)}">`;
+  } else {
+    html = `<input class="cel-ed" type="text" value="${esc(antes)}">`;
+  }
+  td.innerHTML = html;
+  const el = td.querySelector(".cel-ed");
+  el.focus();
+  if (el.select) { try { el.select(); } catch(e){} }
+
+  let feito = false;
+  const fechar = () => {
+    document.removeEventListener("mousedown", cliqueFora, true);
+    td.innerHTML = celula(linhaPorId(id), col, "ligacoes");
+  };
+  const confirmar = async () => {
+    if (feito) return;
+    feito = true;
+    const valorNovo = el.value;
+    if (String(valorNovo) === antes){ fechar(); return; }   // nada mudou: não grava
+    await salvarCampo(linha, col, tipo, valorNovo);
+    fechar();
+    // a mudança pode tirar a linha da aba (ex.: preencher a UC que faltava),
+    // então a lista é refeita — depois de fechar, nunca no meio da digitação
+    renderAba();
+  };
+  /* Fecha quando o clique acontece FORA da célula.
+     NÃO uso o blur: ele dispara também quando o navegador reajusta o foco no
+     instante em que o campo aparece, e aí o editor se fechava sozinho antes de
+     a pessoa digitar — o que foi digitado ia parar num campo já descartado e
+     nada era gravado. Este caminho depende de um clique de verdade. */
+  function cliqueFora(ev){
+    if (td.contains(ev.target)) return;
+    // Se o clique foi em OUTRA célula editável, guarda qual é: depois de
+    // gravar, a tabela é redesenhada e o clique original se perderia — a
+    // pessoa teria que clicar duas vezes pra editar a célula seguinte.
+    const alvo = ev.target.closest ? ev.target.closest("td.edit") : null;
+    const proximo = (alvo && alvo !== td) ? { id: alvo.dataset.id, col: alvo.dataset.col } : null;
+    Promise.resolve(confirmar()).then(() => {
+      if (!proximo) return;
+      const sel = '#set-wrap td.edit[data-id="' + CSS.escape(proximo.id) + '"][data-col="' + CSS.escape(proximo.col) + '"]';
+      const outro = document.querySelector(sel);
+      if (outro && !outro.querySelector("select,input")) abrirEditor(outro);
+    });
+  }
+  setTimeout(() => document.addEventListener("mousedown", cliqueFora, true), 0);
+
+  el.addEventListener("change", confirmar);
+  el.addEventListener("keydown", e => {
+    if (e.key === "Escape"){ feito = true; fechar(); }
+    if (e.key === "Enter" && el.tagName === "INPUT"){ e.preventDefault(); confirmar(); }
+    if (e.key === "Tab") confirmar();
+  });
 }
 
 /* ---------- vencimento: classificação, cor e legenda ----------
@@ -1232,7 +1377,8 @@ function renderPlanilha(){
 
   document.getElementById("hub-count").textContent =
     linhas.length + " de " + (RECORTE ? doRecorte.length : LIG.length) + " linhas";
-  document.getElementById("hub-wrap").innerHTML = tabelaHtml(linhas, colunasVisiveis(), true);
+  document.getElementById("hub-wrap").innerHTML = tabelaHtml(linhas, colunasVisiveis(), true, "ligacoes", null);
+  ligarCliquesTabela("hub-wrap");
 }
 
 /* Linhas que a aba está mostrando agora (base + filtros + busca + vencimento).
@@ -1259,6 +1405,19 @@ function renderAba(){
   // arquivo público, é buscado agora — uma vez por sessão, por fonte
   if (def.sensiveis) carregarSensiveis(fonte);
   if (def.atividades) carregarAtividades();
+
+  // aba que só tem a fila de atividades: sem tabela, sem filtro, sem busca
+  if (def.somenteAtividades){
+    document.getElementById("filtros-setor").innerHTML = "";
+    document.getElementById("filtros-setor").dataset.aba = ABA_ATUAL;
+    document.getElementById("set-busca").style.display = "none";
+    const n = (ATV_TRANSF || []).length;
+    document.getElementById("set-count").textContent = ATV_TRANSF ? (n + " pendência" + (n===1?"":"s")) : "";
+    document.getElementById("set-wrap").innerHTML = blocoAtividades();
+    renderTabs();
+    return;
+  }
+  document.getElementById("set-busca").style.display = "";
 
   // (re)monta os filtros só quando a aba muda
   const box = document.getElementById("filtros-setor");
@@ -1288,7 +1447,6 @@ function renderAba(){
   const cols = def.colunas || colunasVisiveis();
   let html = "";
   if (def.vencimento) html += LEGENDA_VENC;
-  if (def.atividades) html += blocoAtividades();
   if (def.sensiveis && !(fonte === "vendas" ? SENS_VEN : SENS_LIG)){
     html += SENS_ERRO
       ? `<div class="aviso-inline">Não consegui buscar os dados protegidos (${esc(erroTexto(SENS_ERRO))}) — as colunas de CPF, nascimento, cliente e WhatsApp aparecem como •••.</div>`
@@ -1296,6 +1454,7 @@ function renderAba(){
   }
   html += tabelaHtml(linhas, cols, false, fonte, def.vencimento ? corVenc : null);
   document.getElementById("set-wrap").innerHTML = html;
+  ligarCliquesTabela("set-wrap");
   renderTabs();   // as contagens das abas mudam quando o dado chega
 }
 
@@ -1622,26 +1781,61 @@ async function verSensiveis(){
 /* Escrita: tenta agora; sem internet, entra na fila do app.js e sobe sozinha.
    O valor também é atualizado na memória, senão a tabela continuaria
    mostrando o valor antigo até o próximo dist/ (que sai a cada 15 min). */
-async function salvar(prop, tipo, valor){
-  if (!LINHA_ABERTA) return;
-  const l = LINHA_ABERTA, real = nomeReal(prop);
+/* Grava um campo de UMA linha. Vale tanto para o painel lateral quanto para a
+   edição direto na tabela — uma função só, senão as duas telas iam divergir
+   no que gravam e no que fazem quando o servidor recusa. */
+async function salvarCampo(l, prop, tipo, valor){
+  if (!l) return { ok:false, erro:"SEM_LINHA" };
+  const real = nomeReal(prop);
   const antes = getL(l, prop);
   const novo = (tipo === "number") ? (valor === "" ? null : Number(valor)) : (valor || "");
-  if (l.v) l.v[real] = novo;
+  if (l.v) l.v[real] = novo;              // pinta na hora; desfaz se der erro
 
   const r = await escrever(
     {action:"ligUpdate", pageId: l.id, prop: real, tipo: tipo, valor: novo},
     "ligação: " + real
   );
-  if (r.ok && r.enfileirado){ toast("Sem internet — salvo na fila."); }
-  else if (r.ok){ toast("Salvo."); }
+  if (r.ok && r.enfileirado) toast("Sem internet — salvo na fila.");
+  else if (r.ok) toast("Salvo.");
   else {
-    if (l.v) l.v[real] = antes;          // rejeitado pelo servidor: desfaz
+    if (l.v) l.v[real] = antes;           // rejeitado pelo servidor: desfaz
     toast("Não salvou: " + erroTexto(r.erro));
-    document.getElementById("pn-body").innerHTML = corpoPainel(l);
+    renderKpis(); renderGraficos(); renderPlanilha(); renderSetores();
+    return r;
   }
-  renderKpis(); renderGraficos(); renderPlanilha();
-  if (SETOR_ATUAL) { renderAba(); renderSetores(); }
+
+  // ---- automatismo: aprovou a solicitação -> STATUS vira LIGADO ----
+  // Só dispara quando foi ESTA coluna que acabou de ser marcada como SIM, e
+  // só se o status ainda não passou desse ponto — assim uma obra já
+  // TRANSFERIDA não volta pra LIGADO por causa de uma correção na aprovação.
+  if (normN(real) === normN(C.APROVADA) && normN(novo) === "SIM"){
+    const statusAtual = normN(sel(l, C.STATUS));
+    if (["LIGADO", "TRANSFERIDO", "ENTREGUE NAO TRANSFERIDO"].indexOf(statusAtual) < 0){
+      const campoStatus = campoDe(C.STATUS);
+      const nomeStatus = campoStatus ? campoStatus.nome : C.STATUS;
+      const statusAntes = getL(l, nomeStatus);
+      if (l.v) l.v[nomeStatus] = "LIGADO";
+      const r2 = await escrever(
+        {action:"ligUpdate", pageId: l.id, prop: nomeStatus,
+         tipo: (campoStatus && campoStatus.tipo) || "select", valor: "LIGADO"},
+        "ligação: STATUS"
+      );
+      if (r2.ok) toast("Aprovada — STATUS mudou para LIGADO.");
+      else if (l.v) l.v[nomeStatus] = statusAntes;
+    }
+  }
+
+  renderKpis(); renderGraficos(); renderPlanilha(); renderSetores();
+  return r;
+}
+
+/* Chamado pelos campos do painel lateral. */
+async function salvar(prop, tipo, valor){
+  if (!LINHA_ABERTA) return;
+  const l = LINHA_ABERTA;
+  const r = await salvarCampo(l, prop, tipo, valor);
+  if (!r.ok) document.getElementById("pn-body").innerHTML = corpoPainel(l);
+  if (SETOR_ATUAL) renderAba();
 }
 
 /* Depois que a fila sobe, recarrega o dist/ pra pegar o que os outros
