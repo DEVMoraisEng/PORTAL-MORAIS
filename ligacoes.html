@@ -98,6 +98,31 @@ table.grade tbody tr{cursor:pointer}
 .tabs{display:inline-flex;gap:6px;background:var(--bg3);padding:5px;border-radius:10px}
 .tab{border:0;background:transparent;color:var(--azul-esc);font:inherit;font-family:'Barlow Condensed';font-weight:800;font-size:14px;text-transform:uppercase;letter-spacing:.5px;padding:9px 14px;border-radius:8px;cursor:pointer;white-space:nowrap}
 .tab.on{background:var(--azul-esc);color:#fff}
+.tab-n{display:inline-flex;align-items:center;justify-content:center;margin-left:8px;background:var(--vermelho);
+  color:#fff;border-radius:20px;font-size:11px;font-weight:800;padding:1px 7px;font-family:Inter,sans-serif}
+.tab.on .tab-n{background:#fff;color:var(--azul-esc)}
+/* pintura das linhas por vencimento (aba de contas) */
+tr.lin-vencida td{background:#FEF2F2 !important}
+tr.lin-emdia td{background:#F0FDF4 !important}
+tr.lin-sem td{background:#fff !important}
+tr.lin-vencida:hover td,tr.lin-emdia:hover td,tr.lin-sem:hover td{filter:brightness(.97)}
+.legenda{display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--text3);margin-bottom:10px}
+.legenda .pt{display:inline-block;width:12px;height:12px;border-radius:3px;border:1px solid var(--border);vertical-align:-2px;margin-right:5px}
+.legenda .pt.lin-vencida{background:#FEF2F2;border-color:#FCA5A5}
+.legenda .pt.lin-emdia{background:#F0FDF4;border-color:#86EFAC}
+.legenda .pt.lin-sem{background:#fff}
+.aviso-inline{background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:9px 12px;
+  font-size:12.5px;color:var(--text3);margin-bottom:10px}
+.aviso-inline.ok{background:#F0FDF4;border-color:#BBF7D0;color:#166534}
+/* alerta de transferência (atividades) */
+.atv-bloco{background:#fff;border:1px solid var(--border2);border-radius:12px;padding:14px;margin-bottom:14px}
+.atv-titulo{font-family:'Barlow Condensed';font-weight:800;font-size:15px;text-transform:uppercase;
+  color:var(--azul-esc);letter-spacing:.4px;margin-bottom:10px}
+.atv{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:9px 11px;border:1px solid var(--border2);
+  border-left:4px solid var(--verde);border-radius:9px;margin-bottom:7px}
+.atv.atrasada{border-left-color:var(--vermelho);background:#FEF2F2}
+.atv-nome{font-weight:600;flex:1;min-width:200px}
+.atv-meta{font-size:11.5px;color:var(--text3)}
 /* painel lateral de edição — mesma ideia do vendas.html */
 .overlay{display:none;position:fixed;inset:0;background:rgba(20,40,55,.42);z-index:40}
 .overlay.on{display:block}
@@ -263,7 +288,41 @@ const C = {
   ALERTA_SOL: "ALERTA VER. SOLICITAÇÃO",
   ALERTA_LIG: "ALERTA VER. LIGAÇÃO",
   VERIF_SOL:  "VERIFICAÇÃO SOLICITAÇÃO",
-  ALERTA_UC:  "ALERTA UC"
+  ALERTA_UC:  "ALERTA UC",
+  // as duas colunas de alerta com nome parecido são DIFERENTES no Notion:
+  //   "Alerta Informações"     -> olha FEZ A SOLICITAÇÃO? + DATA DE SOLICITAÇÃO
+  //   "Elerta Informações (1)" -> olha STATUS + Data de Ligação  (o "E" é typo
+  //                               da base mesmo; escrito errado aqui de
+  //                               propósito, senão a coluna não é encontrada)
+  ALERTA_INFO:  "Alerta Informações",
+  ALERTA_INFO1: "Elerta Informações (1)",
+  // sensíveis: não vêm no arquivo público, chegam sob demanda pelo Apps Script
+  CPF:        "CPF/CNPJ",
+  CPF_V1:     "CPF/CNPJ V1",
+  NASC:       "DATA DE NASCIMENTO"      // no Notion tem espaço no fim; o getL resolve
+};
+
+/* ---------- colunas da base VENDAS (aba "Casas vendidas") ----------
+   Também conferidas pelo inspetor. Repare nos espaços: "CLIENTES " tem
+   espaço no FIM e " PROTOCOLO DE TRANS. ÁGUA" tem espaço no COMEÇO — é
+   assim que estão no Notion, e é por isso que nada aqui é comparado como
+   texto cru (tudo passa pelo getL, que normaliza). */
+const V = {
+  ENDERECO:      "ENDEREÇO",
+  CASA:          "CASA",
+  OBRA_CASA:     "ENDEREÇO + CASA",      // coluna montada aqui, não existe no Notion
+  DT_VENDA:      "DATA DA VENDA",
+  DT_ASSIN:      "DATA DE ASSINATURA DO CONTRATO",
+  CLIENTES:      "CLIENTES ",
+  WHATS:         "Nº Whatsapp",
+  TEM_PROT_AGUA: "TEM PROTOCOLO DE TRANS. ÁGUA",
+  PROT_AGUA:     " PROTOCOLO DE TRANS. ÁGUA",
+  TEM_PROT_ENER: "TEM PROTOCOLO DE TRANS. ENERGIA",
+  PROT_ENER:     " PROTOCOLO DE TRANS. ENERGIA",
+  ENER_TRANSF:   "ENERGIA TRANSFERIDA",
+  AGUA_TRANSF:   "AGUA TRANSFERIDA",      // sem acento na base, mesmo
+  TITULARIDADES: "TITULARIDADES TRANSFERIDAS?",
+  SETOR:         "SETOR"
 };
 
 /* Data-lixo: o Notion não aceita campo de data "meio preenchido", então a
@@ -297,9 +356,19 @@ const SETORES_LIG = [
     d: "Aptidão para solicitar e acompanhamento das solicitações",
     abas: ["aptas", "acompanhamento"],
     filtroBase: null
+  },
+  {
+    nome: "ACOMPANHAMENTO DE LIGAÇÕES",
+    d: "Liberadas para solicitar, conferências e ligações sem UC",
+    abas: ["liberadas", "conferencias", "semUc"],
+    filtroBase: null
+  },
+  {
+    nome: "CONTROLE DE CONTAS",
+    d: "Vencimentos, UC e casas vendidas não transferidas",
+    abas: ["vencidas", "semUcContas", "contasGeral", "vendidas"],
+    filtroBase: null
   }
-  // Exemplo de setor novo (é só descomentar e ajustar):
-  // { nome:"CONTROLE DE CONTAS", d:"Vencimentos e UC", abas:["planilha"], filtroBase:null }
 ];
 
 /* Definição de cada aba: título, colunas da tabela e o filtro fixo.
@@ -328,6 +397,89 @@ const ABAS = {
     colunas: null,           // null = todas as colunas visíveis
     filtros: [C.CONC, C.LIBERADO, C.FEZ, C.APROVADA, C.STATUS, C.RESP],
     base: () => true
+  },
+
+  /* ---------- setor ACOMPANHAMENTO DE LIGAÇÕES ---------- */
+  liberadas: {
+    titulo: "Obras liberadas para solicitar a ligação",
+    colunas: [C.OBRA, C.CONC, C.DT_SOL, C.FEZ, C.OBS, C.CPF, C.ALERTA_INFO],
+    filtros: [C.CONC, C.RESP],
+    sensiveis: true,
+    pdf: true,
+    base: l => sel(l, C.LIBERADO) === "SIM"
+            && txt(getL(l, C.ALERTA_INFO)).trim() !== "-"
+  },
+  conferencias: {
+    titulo: "Conferências de ligações solicitadas",
+    colunas: [C.OBRA, C.CONC, C.CPF_V1, C.DT_SOL, C.APROVADA, C.DT_APROV, C.DT_LIG, C.STATUS, C.ALERTA_LIG],
+    filtros: [C.CONC, C.RESP],
+    sensiveis: true,
+    pdf: true,
+    base: l => sel(l, C.FEZ) === "SIM"
+            && txt(getL(l, C.ALERTA_INFO1)).trim() !== "-"
+  },
+  semUc: {
+    titulo: "Ligações sem UC (ligadas mas sem UC)",
+    colunas: [C.OBRA, C.CONC, C.CPF, C.NASC, C.UC, C.UC_OK, C.DT_LIG, C.OBS_CONTAS, C.ALERTA_UC],
+    filtros: [C.CONC, C.RESP],
+    sensiveis: true,
+    pdf: true,
+    base: l => sel(l, C.STATUS) === "LIGADO"
+            && txt(getL(l, C.ALERTA_UC)).trim() !== "-"
+  },
+
+  /* ---------- setor CONTROLE DE CONTAS ---------- */
+  vencidas: {
+    titulo: "Controle de contas vencidas no sistema",
+    colunas: [C.OBRA, C.CONC, C.UC, C.VENC, C.NASC, C.CPF, C.STATUS, C.OBS_CONTAS],
+    filtros: [C.CONC],
+    sensiveis: true,
+    pdf: true,
+    vencimento: true,        // liga o filtro e a pintura por vencimento
+    ordenar: (a, b) => {     // vencidas primeiro, da mais antiga para a mais nova
+      const x = dataReal(a, C.VENC), y = dataReal(b, C.VENC);
+      if (!x && !y) return 0;
+      if (!x) return 1;      // sem data vai pro fim
+      if (!y) return -1;
+      return x < y ? -1 : (x > y ? 1 : 0);
+    },
+    // "todas as contas, coloridas": o corte é o do Notion menos o de data —
+    // status que ainda geram conta e UC já preenchida.
+    base: l => ["NAO LIGADO", "TRANSFERIDO"].indexOf(normN(sel(l, C.STATUS))) < 0
+            && sel(l, C.UC_OK) === "SIM"
+  },
+  semUcContas: {
+    titulo: "Ligações sem UC (ligadas sem UC)",
+    colunas: [C.OBRA, C.CONC, C.CPF, C.NASC, C.UC, C.UC_OK, C.ALERTA_UC, C.STATUS],
+    filtros: [C.CONC, C.RESP],
+    sensiveis: true,
+    pdf: true,
+    base: l => ["LIGADO", "ENTREGUE NAO TRANSFERIDO"].indexOf(normN(sel(l, C.STATUS))) >= 0
+            && txt(getL(l, C.ALERTA_UC)).trim() !== "-"
+  },
+  contasGeral: {
+    titulo: "Controle de contas geral (tudo)",
+    colunas: [C.OBRA, C.CONC, C.UC, C.CPF, C.NASC, C.STATUS, C.VENC, C.OBS_CONTAS],
+    filtros: [C.CONC],
+    sensiveis: true,
+    pdf: true,
+    base: l => sel(l, C.UC_OK) === "SIM" && sel(l, C.STATUS) === "LIGADO"
+  },
+  vendidas: {
+    titulo: "Casas vendidas e não transferidas",
+    // Esta aba NÃO vem da base de ligações: vem de VENDAS (dist/vendas.json).
+    fonte: "vendas",
+    colunas: [V.OBRA_CASA, V.DT_ASSIN, V.CLIENTES, V.WHATS,
+              V.TEM_PROT_AGUA, V.PROT_AGUA, V.TEM_PROT_ENER, V.PROT_ENER,
+              V.ENER_TRANSF, V.AGUA_TRANSF, V.TITULARIDADES],
+    filtros: [V.TITULARIDADES, V.ENER_TRANSF, V.AGUA_TRANSF, V.SETOR],
+    sensiveis: true,
+    pdf: true,
+    atividades: true,        // mostra o alerta de assinatura/transferência
+    // "todas as casas vendidas" = tem cliente E tem data de venda. CLIENTES
+    // não é publicado no arquivo público, então o teste usa o marcador
+    // "tem valor sim/não" que o fetch_vendas.py publica no lugar.
+    base: l => temSens(l, V.CLIENTES) && !!dataReal(l, V.DT_VENDA)
   }
 };
 
@@ -335,7 +487,16 @@ const ABAS = {
 const FILTROS_HUB = [C.CONC, C.LIBERADO, C.FEZ, C.APROVADA, C.STATUS, C.RESP];
 
 let LIG = [], SCHEMA = [], SCAMPO = {};
+let VEN = [], VSCHEMA = [], VSCAMPO = {}, VEN_OK = false;
 let SETOR_ATUAL = null, ABA_ATUAL = null, LINHA_ABERTA = null;
+
+/* Valores sensíveis: NÃO vêm no arquivo público (que o GitHub Pages serve sem
+   login nenhum). São buscados no Apps Script — que confere a sessão — quando
+   você abre uma aba que precisa deles, e ficam só na memória desta aba: nada
+   é gravado no disco do navegador, então fechar a página apaga.
+   Efeito colateral assumido: sem internet essas colunas mostram •••. */
+let SENS_LIG = null, SENS_VEN = null;
+let _promSensLig = null, _promSensVen = null, SENS_ERRO = null;
 
 /* ===================== utilidades ===================== */
 function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("on"); setTimeout(()=>t.classList.remove("on"),1900); }
@@ -424,8 +585,103 @@ function boot(){
   renderSetores();
   // pinta na hora com a cópia salva e repinta quando o dist/ chegar
   lerEstaticoJa("ligacoes.json", "ligacoes", pintarTudo);
+  // VENDAS entra em segundo plano: só a aba "Casas vendidas" precisa dela,
+  // e é um arquivo grande — não pode segurar o resto da tela. O schema dela
+  // mora em outro arquivo (schema.json), publicado pelo mesmo fetch.
+  lerEstaticoJa("schema.json", "schema_lig", pintarSchemaVendas);
+  lerEstaticoJa("vendas.json", "vendas_lig", pintarVendas);
   // valida a sessão em segundo plano — token velho cai fora
   ler({action:"me"}).then(r=>{ if(r && r.ok===false && r.erro==="NAO_AUTORIZADO") sair(); }).catch(()=>{});
+}
+
+/* Converte os registros de vendas.json ({id, valores, sens}) para o MESMO
+   formato das linhas de ligação ({id, obra, v, sens}) — assim getL, celula,
+   filtros, PDF e o resto funcionam igual nas duas fontes, sem um segundo
+   conjunto de funções só para vendas. */
+function pintarSchemaVendas(r){
+  if (!r || !r.ok || !r.campos) return;
+  VSCHEMA = r.campos.slice();
+  // coluna montada aqui (não existe no Notion): endereço + casa numa célula só
+  VSCHEMA.push({ nome: V.OBRA_CASA, tipo: "rich_text", editavel: false });
+  VSCAMPO = {}; VSCHEMA.forEach(c => VSCAMPO[c.nome] = c);
+  if (SETOR_ATUAL && ABAS[ABA_ATUAL] && ABAS[ABA_ATUAL].fonte === "vendas") renderAba();
+}
+
+function pintarVendas(r){
+  if (!r || !r.ok || !r.vendas) return;
+  VEN = r.vendas.map(x => {
+    const vals = x.valores || {};
+    const end = vals[V.ENDERECO] != null ? vals[V.ENDERECO] : "";
+    const casa = vals[V.CASA];
+    const linha = { id: x.id, v: vals, sens: x.sens || {},
+                    obra: end + (casa != null && casa !== "" ? (" CS " + casa) : "") };
+    linha.v[V.OBRA_CASA] = linha.obra;   // coluna montada, para a tabela e o PDF
+    return linha;
+  });
+  VEN_OK = true;
+  if (SETOR_ATUAL && ABAS[ABA_ATUAL] && ABAS[ABA_ATUAL].fonte === "vendas") renderAba();
+  renderSetores();
+}
+
+/* ---------- valores sensíveis, sob demanda ---------- */
+function temSens(l, nome){
+  const s = (l && l.sens) || {};
+  if (s[nome] !== undefined) return !!s[nome];
+  const alvo = normN(nome);
+  for (const k in s) if (normN(k) === alvo) return !!s[k];
+  return false;
+}
+function sensDe(l, nome, fonte){
+  const mapa = (fonte === "vendas" ? SENS_VEN : SENS_LIG);
+  const reg = mapa && mapa[l.id];
+  if (!reg) return undefined;
+  if (reg[nome] !== undefined) return reg[nome];
+  const alvo = normN(nome);
+  for (const k in reg) if (normN(k) === alvo) return reg[k];
+  return undefined;
+}
+function carregarSensiveis(fonte){
+  const jaTem = fonte === "vendas" ? SENS_VEN : SENS_LIG;
+  if (jaTem) return Promise.resolve(jaTem);
+  const emCurso = fonte === "vendas" ? _promSensVen : _promSensLig;
+  if (emCurso) return emCurso;
+  const acao = fonte === "vendas" ? "ligVendasSensiveis" : "ligSensiveis";
+  // sem chave de cache de propósito: dado pessoal não fica no localStorage
+  const p = ler({action: acao}).then(r => {
+    if (r && r.ok) {
+      if (fonte === "vendas") SENS_VEN = r.valores; else SENS_LIG = r.valores;
+      SENS_ERRO = null;
+    } else {
+      SENS_ERRO = (r && r.erro) || "ERRO_API";
+    }
+    if (fonte === "vendas") _promSensVen = null; else _promSensLig = null;
+    if (SETOR_ATUAL) renderAba();
+    return r;
+  }).catch(() => {
+    SENS_ERRO = "ERRO_API";
+    if (fonte === "vendas") _promSensVen = null; else _promSensLig = null;
+    if (SETOR_ATUAL) renderAba();
+  });
+  if (fonte === "vendas") _promSensVen = p; else _promSensLig = p;
+  return p;
+}
+
+/* ---------- atividades de transferência (aba Casas vendidas) ----------
+   São as atividades TIPO=TRANSFERÊNCIA da Ana Paula ainda não finalizadas,
+   lidas ao vivo no Apps Script (atividade muda o tempo todo; não faz sentido
+   esperar o dist/ de 15 em 15 minutos). A baixa daqui escreve
+   TITULARIDADES TRANSFERIDAS? na obra — o mesmo caminho do vendas.html. */
+let ATV_TRANSF = null, _promAtv = null;
+function carregarAtividades(){
+  if (ATV_TRANSF) return Promise.resolve(ATV_TRANSF);
+  if (_promAtv) return _promAtv;
+  _promAtv = ler({action:"ligAtividades"}, "lig_atividades").then(r => {
+    ATV_TRANSF = (r && r.ok) ? r.atividades : [];
+    _promAtv = null;
+    if (SETOR_ATUAL) renderAba();
+    return ATV_TRANSF;
+  }).catch(() => { _promAtv = null; });
+  return _promAtv;
 }
 
 function pintarTudo(r){
@@ -443,23 +699,50 @@ function pintarTudo(r){
   renderKpis(); renderGraficos(); renderPlanilha(); renderSetores();
   if (SETOR_ATUAL) renderAba();
 }
-/* campo do schema, tolerando diferença de acento/caixa/espaço */
-function campoDe(nome){
-  if (SCAMPO[nome]) return SCAMPO[nome];
+/* campo do schema, tolerando diferença de acento/caixa/espaço.
+   "fonte" escolhe o schema: as abas de conta leem a base de ligações, a aba
+   "Casas vendidas" lê a de vendas. */
+function campoDe(nome, fonte){
+  const mapa = (fonte === "vendas") ? VSCAMPO : SCAMPO;
+  if (mapa[nome]) return mapa[nome];
   const alvo = normN(nome);
-  for (const k in SCAMPO) if (normN(k) === alvo) return SCAMPO[k];
+  for (const k in mapa) if (normN(k) === alvo) return mapa[k];
   return null;
 }
-function nomeReal(nome){ const c = campoDe(nome); return c ? c.nome : nome; }
+function nomeReal(nome, fonte){ const c = campoDe(nome, fonte); return c ? c.nome : nome; }
 
 /* ===================== setores ===================== */
+/* Linhas da fonte certa: a maioria das abas lê LIG; "Casas vendidas" lê VEN. */
+function fonteDaAba(chave){ return (ABAS[chave] && ABAS[chave].fonte) || "ligacoes"; }
+function linhasFonte(fonte){ return fonte === "vendas" ? VEN : LIG; }
+function linhasDaAba(chave){
+  const def = ABAS[chave];
+  if (!def) return [];
+  const base = linhasFonte(fonteDaAba(chave));
+  const doSetor = (SETOR_ATUAL && SETOR_ATUAL.filtroBase && fonteDaAba(chave) === "ligacoes")
+    ? base.filter(SETOR_ATUAL.filtroBase) : base;
+  const out = doSetor.filter(def.base);
+  return def.ordenar ? out.slice().sort(def.ordenar) : out;
+}
+/* Quantas pendências cada aba tem — usado no cartão do setor, no botão da aba
+   e no cabeçalho do PDF (o "mostrar quantas pendências tem em cada item"). */
+function contarAba(chave){
+  const def = ABAS[chave];
+  if (!def) return 0;
+  const fonte = fonteDaAba(chave);
+  const arr = fonte === "vendas" ? VEN : LIG;
+  const doSetor = (SETOR_ATUAL && SETOR_ATUAL.filtroBase && fonte === "ligacoes")
+    ? arr.filter(SETOR_ATUAL.filtroBase) : arr;
+  return doSetor.filter(def.base).length;
+}
+
 function renderSetores(){
   const box = document.getElementById("setores");
   box.innerHTML = SETORES_LIG.map((s,i) => {
-    const linhas = linhasDoSetor(s);
-    // pendências do setor = soma das linhas das abas de trabalho
+    // pendências do setor = soma das abas de trabalho (a planilha não conta:
+    // ela mostra tudo, não é uma fila de pendência)
     let n = 0;
-    (s.abas||[]).forEach(a => { if (ABAS[a] && a !== "planilha") n += linhas.filter(ABAS[a].base).length; });
+    (s.abas||[]).forEach(a => { if (ABAS[a] && a !== "planilha") n += contarAba(a); });
     const temDado = LIG.length > 0;
     return `<button class="setor" onclick="abrirSetor(${i})">
       <div class="t">${esc(s.nome)}</div>
@@ -486,9 +769,13 @@ function irHub(){
   window.scrollTo(0,0);
 }
 function renderTabs(){
-  document.getElementById("tabs").innerHTML = SETOR_ATUAL.abas.map(a =>
-    `<button class="tab ${a===ABA_ATUAL?'on':''}" onclick="trocarAba('${a}')">${esc(ABAS[a].titulo)}</button>`
-  ).join("");
+  // o número na aba é a contagem de pendências daquela lista — pedido do PDF
+  // ("mostrar também quantas pendências tem em cada item")
+  document.getElementById("tabs").innerHTML = SETOR_ATUAL.abas.map(a => {
+    const n = (a === "planilha") ? null : contarAba(a);
+    return `<button class="tab ${a===ABA_ATUAL?'on':''}" onclick="trocarAba('${a}')">${esc(ABAS[a].titulo)}` +
+           (n === null ? "" : `<span class="tab-n">${num(n)}</span>`) + `</button>`;
+  }).join("");
 }
 function trocarAba(a){
   ABA_ATUAL = a;
@@ -500,15 +787,16 @@ function trocarAba(a){
 /* Monta um <select> por coluna, com as opções vindas do schema (select) ou
    dos valores que existem de fato (people, texto). "(vazio)" entra como
    opção porque linha sem valor é justamente o que costuma precisar de ação. */
-function montarFiltros(idBox, colunas, prefixo, aoMudar){
+function montarFiltros(idBox, colunas, prefixo, aoMudar, fonte){
   const box = document.getElementById(idBox);
   if (!box) return;
+  const universo = linhasFonte(fonte);
   box.innerHTML = colunas.map(nome => {
-    const campo = campoDe(nome);
+    const campo = campoDe(nome, fonte);
     let ops = (campo && campo.opcoes) ? campo.opcoes.slice() : null;
     if (!ops){
       const set = {};
-      LIG.forEach(l => { const v = getL(l, nome); (Array.isArray(v)?v:[v]).forEach(x => { if(x!=null && x!=="") set[x]=1; }); });
+      universo.forEach(l => { const v = getL(l, nome); (Array.isArray(v)?v:[v]).forEach(x => { if(x!=null && x!=="") set[x]=1; }); });
       ops = Object.keys(set).sort((a,b)=>String(a).localeCompare(String(b),"pt-BR"));
     }
     const id = prefixo + "-f-" + normN(nome).replace(/[^A-Z0-9]/g,"");
@@ -523,7 +811,10 @@ function valoresFiltro(idBox){
   const box = document.getElementById(idBox);
   const out = [];
   if (!box) return out;
-  box.querySelectorAll("select").forEach(s => { if (s.value) out.push({col:s.dataset.col, val:s.value}); });
+  // só os selects que representam UMA COLUNA. O seletor de vencimento mora na
+  // mesma barra mas não é filtro de coluna — sem este teste ele entraria aqui
+  // como coluna "undefined" e zeraria a tabela inteira.
+  box.querySelectorAll("select[data-col]").forEach(s => { if (s.value) out.push({col:s.dataset.col, val:s.value}); });
   return out;
 }
 function passaFiltros(l, filtros){
@@ -834,14 +1125,43 @@ function colunasVisiveis(){
   return usadas.concat(resto);
 }
 
-function celula(l, nome){
-  const campo = campoDe(nome);
+/* Texto puro de uma célula — é o que vai pro PDF, e o que a versão HTML usa
+   por baixo. Separado do celula() porque o PDF não entende marcação. */
+function celulaTexto(l, nome, fonte){
+  const campo = campoDe(nome, fonte);
+  const tipo = campo ? campo.tipo : "rich_text";
+  if (campo && campo.sensivel){
+    const val = sensDe(l, campo.nome, fonte);
+    if (val !== undefined && val !== null && val !== "") return txt(val);
+    if (tipo === "files"){
+      const n = (l.sens || {})[campo.nome];
+      return (typeof n === "number" && n > 0) ? (n + (n===1 ? " arquivo" : " arquivos")) : "—";
+    }
+    return temSens(l, campo.nome) ? "•••" : "—";
+  }
+  if (tipo === "date"){ const d = dataReal(l, nome); return d ? fmtData(d) : "—"; }
+  const v = getL(l, nome);
+  if (v == null || v === "" || (Array.isArray(v) && !v.length)) return "—";
+  return txt(v);
+}
+
+function celula(l, nome, fonte){
+  const campo = campoDe(nome, fonte);
   const tipo = campo ? campo.tipo : "rich_text";
   const v = getL(l, nome);
   if (campo && campo.sensivel){
-    // valor sensível não é publicado no dist/ — só o "tem/não tem"
-    const tem = l.sens && l.sens[campo.nome];
-    return tem ? '<span class="pill neutro" title="abra a linha para ver">•••</span>' : "—";
+    // Valor sensível não é publicado no arquivo do site. Se já veio do Apps
+    // Script (sob demanda), mostra; senão mostra ••• pra deixar claro que
+    // existe valor ali, e não que o campo está vazio.
+    const val = sensDe(l, campo.nome, fonte);
+    if (val !== undefined && val !== null && val !== "") return esc(txt(val));
+    if (tipo === "files"){
+      const n = (l.sens || {})[campo.nome];
+      return (typeof n === "number" && n > 0)
+        ? `<span class="pill sim">${n} arquivo${n===1?"":"s"}</span>` : "—";
+    }
+    return temSens(l, campo.nome)
+      ? '<span class="pill neutro" title="protegido — carrega ao abrir a aba">•••</span>' : "—";
   }
   if (tipo === "date") { const d = dataReal(l, nome); return d ? fmtData(d) : "—"; }
   if (tipo === "url")  { return v ? `<a href="${esc(v)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">abrir ↗</a>` : "—"; }
@@ -859,20 +1179,43 @@ function celula(l, nome){
   return esc(s);
 }
 
-function tabelaHtml(linhas, colunas, extras){
+function tabelaHtml(linhas, colunas, extras, fonte, corDe){
   if (!linhas.length) return '<div class="vazio">Nenhuma linha com esses filtros.</div>';
   const cols = colunas.slice();
   const th = cols.map(c=>`<th>${esc(c)}</th>`).join("") +
              (extras ? '<th>Dias p/ ligar</th><th>Dias p/ aprovar</th>' : "");
   const tr = linhas.map(l => {
-    const tds = cols.map(c=>`<td>${celula(l,c)}</td>`).join("");
+    const tds = cols.map(c=>`<td>${celula(l,c,fonte)}</td>`).join("");
     const ex = extras
       ? `<td>${diasLigacao(l)==null?"—":diasLigacao(l)}</td><td>${diasAprovacao(l)==null?"—":diasAprovacao(l)}</td>`
       : "";
-    return `<tr onclick="abrirLinha('${esc(l.id)}')">${tds}${ex}</tr>`;
+    const cls = corDe ? corDe(l) : "";
+    // linha da aba de vendas não abre o painel de edição: quem edita venda é o
+    // sistema de Vendas, não este. Aqui ela é só leitura.
+    const clique = (fonte === "vendas") ? "" : ` onclick="abrirLinha('${esc(l.id)}')"`;
+    return `<tr class="${cls}"${clique}>${tds}${ex}</tr>`;
   }).join("");
   return `<table class="grade"><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table>`;
 }
+
+/* ---------- vencimento: classificação, cor e legenda ----------
+   Regra pedida: verde = não vencida, vermelho = vencida, branca = sem data.
+   O 01/01/2000 do Notion conta como "sem data" (é o marcador de vazio). */
+function hojeISO(){
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+}
+function situacaoVenc(l){
+  const d = dataReal(l, C.VENC);
+  if (!d) return "sem";
+  return d <= hojeISO() ? "vencida" : "emdia";
+}
+function corVenc(l){ return "lin-" + situacaoVenc(l); }
+const LEGENDA_VENC = `<div class="legenda">
+  <span><i class="pt lin-emdia"></i> não vencida</span>
+  <span><i class="pt lin-vencida"></i> vencida</span>
+  <span><i class="pt lin-sem"></i> sem data de vencimento</span>
+</div>`;
 
 function renderPlanilha(){
   const filtros = valoresFiltro("filtros-hub");
@@ -892,22 +1235,295 @@ function renderPlanilha(){
   document.getElementById("hub-wrap").innerHTML = tabelaHtml(linhas, colunasVisiveis(), true);
 }
 
+/* Linhas que a aba está mostrando agora (base + filtros + busca + vencimento).
+   Uma função só, porque a tabela, a contagem e o PDF precisam EXATAMENTE do
+   mesmo conjunto — se cada um refizesse a conta, um dia divergiriam. */
+function linhasVisiveisAba(){
+  const def = ABAS[ABA_ATUAL];
+  const filtros = valoresFiltro("filtros-setor");
+  const termo = document.getElementById("set-busca").value;
+  let linhas = linhasDaAba(ABA_ATUAL).filter(l => passaFiltros(l,filtros) && passaBusca(l,termo));
+  if (def.vencimento){
+    const v = document.getElementById("set-venc");
+    if (v && v.value) linhas = linhas.filter(l => situacaoVenc(l) === v.value);
+  }
+  return linhas;
+}
+
 function renderAba(){
   if (!SETOR_ATUAL || !ABA_ATUAL) return;
   const def = ABAS[ABA_ATUAL];
-  // (re)monta os filtros só quando a aba muda de conjunto de filtros
+  const fonte = fonteDaAba(ABA_ATUAL);
+
+  // dado sensível desta aba (CPF, nascimento, cliente, WhatsApp): não vem no
+  // arquivo público, é buscado agora — uma vez por sessão, por fonte
+  if (def.sensiveis) carregarSensiveis(fonte);
+  if (def.atividades) carregarAtividades();
+
+  // (re)monta os filtros só quando a aba muda
   const box = document.getElementById("filtros-setor");
   if (box.dataset.aba !== ABA_ATUAL){
-    montarFiltros("filtros-setor", def.filtros, "set", renderAba);
+    montarFiltros("filtros-setor", def.filtros, "set", renderAba, fonte);
+    if (def.vencimento){
+      box.insertAdjacentHTML("beforeend",
+        `<select id="set-venc" onchange="renderAba()">
+           <option value="">Vencimento: todos</option>
+           <option value="vencida">Só vencidas</option>
+           <option value="emdia">Só não vencidas</option>
+           <option value="sem">Sem data de vencimento</option>
+         </select>`);
+    }
+    if (def.pdf){
+      box.insertAdjacentHTML("beforeend",
+        `<button class="bt az" onclick="baixarRelatorio()">Baixar relatório PDF</button>`);
+    }
     box.dataset.aba = ABA_ATUAL;
   }
-  const filtros = valoresFiltro("filtros-setor");
-  const termo = document.getElementById("set-busca").value;
-  const base = linhasDoSetor(SETOR_ATUAL).filter(def.base);
-  const linhas = base.filter(l => passaFiltros(l,filtros) && passaBusca(l,termo));
-  document.getElementById("set-count").textContent = linhas.length + " de " + base.length + " linhas";
+
+  const total = contarAba(ABA_ATUAL);
+  const linhas = linhasVisiveisAba();
+  document.getElementById("set-count").textContent =
+    linhas.length + " de " + total + " pendência" + (total===1?"":"s");
+
   const cols = def.colunas || colunasVisiveis();
-  document.getElementById("set-wrap").innerHTML = tabelaHtml(linhas, cols, ABA_ATUAL === "planilha");
+  let html = "";
+  if (def.vencimento) html += LEGENDA_VENC;
+  if (def.atividades) html += blocoAtividades();
+  if (def.sensiveis && !(fonte === "vendas" ? SENS_VEN : SENS_LIG)){
+    html += SENS_ERRO
+      ? `<div class="aviso-inline">Não consegui buscar os dados protegidos (${esc(erroTexto(SENS_ERRO))}) — as colunas de CPF, nascimento, cliente e WhatsApp aparecem como •••.</div>`
+      : `<div class="aviso-inline"><span class="load"></span> buscando CPF, nascimento e contato… (não ficam no arquivo público do site)</div>`;
+  }
+  html += tabelaHtml(linhas, cols, false, fonte, def.vencimento ? corVenc : null);
+  document.getElementById("set-wrap").innerHTML = html;
+  renderTabs();   // as contagens das abas mudam quando o dado chega
+}
+
+/* ---------- alerta de assinatura/transferência (aba Casas vendidas) ---------- */
+function blocoAtividades(){
+  if (!ATV_TRANSF) return `<div class="aviso-inline"><span class="load"></span> buscando as atividades de transferência…</div>`;
+  if (!ATV_TRANSF.length) return `<div class="aviso-inline ok">Nenhuma transferência pendente da Ana Paula.</div>`;
+  const hoje = hojeISO();
+  return `<div class="atv-bloco">
+    <div class="atv-titulo">Alerta de transferência · ${num(ATV_TRANSF.length)} pendente${ATV_TRANSF.length===1?"":"s"}</div>
+    ${ATV_TRANSF.map(a => {
+      const atrasada = a.dataFinal && a.dataFinal < hoje;
+      return `<div class="atv ${atrasada?"atrasada":""}">
+        <div class="atv-nome">${esc(a.nome||"(sem nome)")}</div>
+        <div class="atv-meta">prazo ${fmtData(a.dataFinal)}${atrasada?" · atrasada":""}</div>
+        <button class="bt vd" onclick="darBaixa('${esc(a.id)}')">Dar baixa</button>
+      </div>`;
+    }).join("")}
+  </div>`;
+}
+async function darBaixa(id){
+  const r = await escrever({action:"ligBaixa", atividadeId:id}, "baixa de transferência");
+  if (r.ok && r.enfileirado) toast("Sem internet — baixa na fila.");
+  else if (r.ok) toast("Baixa registrada.");
+  else { toast("Não deu baixa: " + erroTexto(r.erro)); return; }
+  // tira da lista na hora; o Notion leva alguns segundos pra refletir
+  ATV_TRANSF = (ATV_TRANSF||[]).filter(a => a.id !== id);
+  renderAba();
+}
+
+/* ===================== RELATÓRIO EM PDF =====================
+ * Gerador escrito à mão, dentro deste arquivo. Não uso biblioteca de CDN de
+ * propósito: um <script src> externo é a primeira coisa que falha sem
+ * internet, e este setor precisa funcionar offline. São ~150 linhas porque
+ * um PDF de tabela é só texto posicionado — não precisa de mais que isso.
+ *
+ * Formato: PDF 1.4, uma fonte padrão (Helvetica, que todo leitor já tem, sem
+ * precisar embutir arquivo de fonte) com codificação WinAnsi — que cobre os
+ * acentos do português. Página A4 deitada (842 x 595 pt).
+ * =================================================================== */
+
+/* WinAnsi (Latin-1) só vai até 0xFF. Caractere fora disso (emoji dos alertas
+   do Notion, por exemplo) viraria lixo no PDF, então é trocado por um sinal
+   legível em vez de sumir sem explicação. */
+function pdfTexto(s){
+  return String(s == null ? "" : s)
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, "!")
+    // pontuação que o site usa mas que não existe em Latin-1: troca por um
+    // equivalente em vez de virar "?" (o travessão do "—" das células vazias
+    // saía como interrogação e parecia dado corrompido no relatório)
+    .replace(/[—–]/g, "-").replace(/…/g, "...").replace(/[•·]/g, "-")
+    .replace(/[“”]/g, '"').replace(/[‘’]/g, "'")
+    .replace(/[^\x00-\xFF]/g, "?")
+    .replace(/([\\()])/g, "\\$1");     // \ ( ) são especiais dentro do PDF
+}
+/* Largura aproximada do texto em Helvetica, caractere a caractere.
+   Uma média única não serve: MAIÚSCULA ocupa ~25% mais que minúscula, e os
+   títulos das colunas são todos em caixa alta — com média única eles eram
+   subestimados e vazavam por cima da coluna vizinha no relatório. */
+function pdfLarguraChar(c){
+  if (c === " " || c === "." || c === "," || c === ":" || c === ";" || c === "'") return 0.28;
+  if (c === "I" || c === "i" || c === "l" || c === "j" || c === "|") return 0.26;
+  if (c >= "A" && c <= "Z") return 0.68;
+  if (c >= "0" && c <= "9") return 0.56;
+  if (c === "M" || c === "W" || c === "m" || c === "w") return 0.85;
+  return 0.52;
+}
+function pdfLargura(s, tam){
+  s = String(s == null ? "" : s);
+  let w = 0;
+  for (let i = 0; i < s.length; i++) w += pdfLarguraChar(s[i]);
+  return w * tam;
+}
+function pdfCortar(s, tam, max){
+  s = String(s == null ? "" : s);
+  if (pdfLargura(s, tam) <= max) return s;
+  let w = 0;
+  const reticencias = pdfLargura("…", tam);
+  for (let i = 0; i < s.length; i++){
+    w += pdfLarguraChar(s[i]) * tam;
+    if (w + reticencias > max) return s.slice(0, Math.max(1, i)) + "…";
+  }
+  return s;
+}
+
+function gerarPdf(titulo, subtitulos, colunas, linhas, coresLinha){
+  const L = 842, A = 595, M = 28;             // A4 deitado + margem
+  const larguraUtil = L - M*2;
+
+  // largura de cada coluna, proporcional ao conteúdo (com teto e piso)
+  const pesos = colunas.map((c, i) => {
+    let max = pdfLargura(c, 8);
+    linhas.forEach(r => { const w = pdfLargura(r[i] || "", 8); if (w > max) max = w; });
+    return Math.min(Math.max(max, 40), 200);
+  });
+  const somaPesos = pesos.reduce((a,b)=>a+b, 0) || 1;
+  const larguras = pesos.map(p => p / somaPesos * larguraUtil);
+
+  const paginas = [];
+  let corpo = [], y = 0;
+
+  function novaPagina(){
+    corpo = [];
+    y = A - M;
+    // cabeçalho
+    corpo.push(`BT /F2 15 Tf 1 0 0 1 ${M} ${y-12} Tm (${pdfTexto("MORAIS ENGENHARIA E CONSTRUCAO")}) Tj ET`);
+    y -= 20;
+    corpo.push(`BT /F2 12 Tf 1 0 0 1 ${M} ${y-10} Tm (${pdfTexto(titulo)}) Tj ET`);
+    y -= 17;
+    subtitulos.forEach(s => {
+      corpo.push(`BT /F1 8.5 Tf 1 0 0 1 ${M} ${y-8} Tm (${pdfTexto(s)}) Tj ET`);
+      y -= 11;
+    });
+    y -= 4;
+    corpo.push(`0.72 0.82 0.86 RG 0.7 w ${M} ${y} m ${L-M} ${y} l S`);
+    y -= 13;
+    // cabeçalho da tabela
+    corpo.push(`0.12 0.25 0.35 rg ${M} ${y-3} ${larguraUtil} 14 re f`);
+    let x = M;
+    colunas.forEach((c, i) => {
+      corpo.push(`BT /F2 7.5 Tf 1 1 1 rg 1 0 0 1 ${x+3} ${y+1} Tm (${pdfTexto(pdfCortar(c, 7.5, larguras[i]-6))}) Tj ET`);
+      x += larguras[i];
+    });
+    corpo.push("0 0 0 rg");
+    y -= 4;
+    paginas.push(corpo);
+  }
+  novaPagina();
+
+  linhas.forEach((r, idx) => {
+    if (y < M + 26){ novaPagina(); }
+    const alt = 13;
+    y -= alt;
+    const cor = coresLinha ? coresLinha[idx] : null;
+    if (cor) corpo.push(`${cor} rg ${M} ${y-3} ${larguraUtil} ${alt} re f`);
+    else if (idx % 2) corpo.push(`0.96 0.98 0.99 rg ${M} ${y-3} ${larguraUtil} ${alt} re f`);
+    let x = M;
+    r.forEach((celula, i) => {
+      corpo.push(`BT /F1 7.5 Tf 0.1 0.2 0.28 rg 1 0 0 1 ${x+3} ${y+1} Tm (${pdfTexto(pdfCortar(celula, 7.5, larguras[i]-6))}) Tj ET`);
+      x += larguras[i];
+    });
+    corpo.push("0 0 0 rg");
+  });
+
+  // rodapé com numeração (feito no fim, quando já se sabe o total)
+  const agora = new Date().toLocaleString("pt-BR");
+  paginas.forEach((p, i) => {
+    p.push(`BT /F1 7 Tf 0.45 0.55 0.62 rg 1 0 0 1 ${M} ${M-10} Tm ` +
+           `(${pdfTexto("Gerado em " + agora + " pelo Portal Morais")}) Tj ET`);
+    p.push(`BT /F1 7 Tf 0.45 0.55 0.62 rg 1 0 0 1 ${L-M-60} ${M-10} Tm ` +
+           `(${pdfTexto("Pagina " + (i+1) + " de " + paginas.length)}) Tj ET`);
+  });
+
+  // ---- monta o arquivo ----
+  // A tabela xref precisa do deslocamento EM BYTES de cada objeto. Como cada
+  // caractere daqui vira exatamente 1 byte (tudo <= 0xFF), a posição no texto
+  // já é a posição no arquivo — por isso a conversão final é byte a byte.
+  const objs = [];
+  objs.push("<< /Type /Catalog /Pages 2 0 R >>");
+  const idsPaginas = paginas.map((_, i) => 3 + i*2);
+  objs.push(`<< /Type /Pages /Count ${paginas.length} /Kids [${idsPaginas.map(id=>id+" 0 R").join(" ")}] >>`);
+  paginas.forEach((p, i) => {
+    const idConteudo = idsPaginas[i] + 1;
+    objs.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${L} ${A}] ` +
+              `/Resources << /Font << /F1 ${3+paginas.length*2} 0 R /F2 ${4+paginas.length*2} 0 R >> >> ` +
+              `/Contents ${idConteudo} 0 R >>`);
+    const fluxo = p.join("\n");
+    objs.push(`<< /Length ${fluxo.length} >>\nstream\n${fluxo}\nendstream`);
+  });
+  objs.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+  objs.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
+
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+  objs.forEach((o, i) => {
+    offsets.push(pdf.length);
+    pdf += `${i+1} 0 obj\n${o}\nendobj\n`;
+  });
+  const inicioXref = pdf.length;
+  pdf += `xref\n0 ${objs.length+1}\n0000000000 65535 f \n`;
+  for (let i = 1; i <= objs.length; i++){
+    pdf += String(offsets[i]).padStart(10, "0") + " 00000 n \n";
+  }
+  pdf += `trailer\n<< /Size ${objs.length+1} /Root 1 0 R >>\nstartxref\n${inicioXref}\n%%EOF`;
+
+  const bytes = new Uint8Array(pdf.length);
+  for (let i = 0; i < pdf.length; i++) bytes[i] = pdf.charCodeAt(i) & 0xFF;
+  return new Blob([bytes], { type: "application/pdf" });
+}
+
+/* Cores de fundo das linhas no PDF, na mesma lógica da tela. */
+const PDF_COR = { vencida: "0.99 0.89 0.89", emdia: "0.88 0.97 0.90", sem: null };
+
+function baixarRelatorio(){
+  const def = ABAS[ABA_ATUAL];
+  const fonte = fonteDaAba(ABA_ATUAL);
+  const cols = def.colunas || colunasVisiveis();
+  const linhas = linhasVisiveisAba();
+  if (!linhas.length){ toast("Nada para imprimir com esses filtros."); return; }
+
+  // os filtros aplicados entram no cabeçalho: um relatório impresso sem dizer
+  // de que recorte ele veio é impossível de conferir depois
+  const aplicados = [];
+  document.querySelectorAll("#filtros-setor select").forEach(s => {
+    if (!s.value) return;
+    const rot = s.options[s.selectedIndex].text;
+    aplicados.push(s.dataset.col ? (s.dataset.col + ": " + s.value) : rot);
+  });
+  const termo = document.getElementById("set-busca").value;
+  if (termo) aplicados.push('busca: "' + termo + '"');
+
+  const sub = [
+    SETOR_ATUAL.nome + " · " + def.titulo,
+    linhas.length + " de " + contarAba(ABA_ATUAL) + " pendências" +
+      (aplicados.length ? "   |   filtros — " + aplicados.join("   ") : "   |   sem filtros")
+  ];
+  const dados = linhas.map(l => cols.map(c => celulaTexto(l, c, fonte)));
+  const cores = def.vencimento ? linhas.map(l => PDF_COR[situacaoVenc(l)]) : null;
+
+  const blob = gerarPdf(def.titulo, sub, cols, dados, cores);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "relatorio-" + normN(def.titulo).toLowerCase().replace(/[^a-z0-9]+/g,"-") +
+               "-" + hojeISO() + ".pdf";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  toast("Relatório baixado.");
 }
 
 /* ===================== painel de edição ===================== */
