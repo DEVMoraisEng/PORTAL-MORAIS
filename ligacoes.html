@@ -60,6 +60,13 @@ main{padding-bottom:50px}
 .kpi.hero{background:linear-gradient(135deg,var(--azul),var(--azul-esc));border:0}
 .kpi.hero .lab{color:rgba(255,255,255,.85)}.kpi.hero .val{color:#fff}.kpi.hero .sub{color:var(--teal)}
 .kpi.alerta .val{color:var(--vermelho)}
+/* o cartão é clicável (leva pra lista das obras daquele número) */
+.kpi[role=button]{cursor:pointer;transition:.15s}
+.kpi[role=button]:hover{border-color:var(--verde);box-shadow:0 3px 12px rgba(41,87,120,.12);transform:translateY(-1px)}
+.kpi.hero[role=button]:hover{box-shadow:0 5px 16px rgba(30,63,88,.28)}
+.recorte{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--bg3);border:1px solid var(--border2);
+  border-left:4px solid var(--azul);border-radius:10px;padding:9px 13px;margin-bottom:12px;font-size:13px}
+.tab-resumo tbody tr:hover td{background:var(--bg2)}
 .graf{background:#fff;border:1px solid var(--border2);border-radius:12px;padding:16px;margin-bottom:18px}
 .graf .gt{font-family:'Barlow Condensed';font-weight:800;font-size:16px;text-transform:uppercase;color:var(--azul-esc);letter-spacing:.4px}
 .graf .gd{font-size:11.5px;color:var(--text3);margin:4px 0 12px}
@@ -155,6 +162,13 @@ table.grade tbody tr{cursor:pointer}
       <div class="sec"><span class="cond">Andamento das Ligações</span></div>
       <div class="toolbar">
         <select id="g-ano" onchange="renderGraficos()"><option value="">Todos os anos</option></select>
+        <select id="g-mes" onchange="renderGraficos()">
+          <option value="">Todos os meses</option>
+          <option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option>
+          <option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option>
+          <option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option>
+          <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+        </select>
         <span class="count" id="g-info"></span>
       </div>
 
@@ -167,12 +181,13 @@ table.grade tbody tr{cursor:pointer}
 
       <div class="graf">
         <div class="gt">Tempo de aprovação · só SANESC</div>
-        <div class="gd">Dias entre a <b>DATA DE SOLICITAÇÃO</b> e a <b>DATA DA APROVAÇÃO DA LIGAÇÃO</b>, por mês da solicitação.</div>
+        <div class="gd" id="gd-apr">Dias entre a <b>DATA DE SOLICITAÇÃO</b> e a <b>DATA DA APROVAÇÃO DA LIGAÇÃO</b>, por ano da solicitação. Escolha um ano acima para abrir mês a mês.</div>
         <div class="chart-wrap"><canvas id="ch-apr" height="240"></canvas></div>
         <div id="tab-apr"></div>
       </div>
 
-      <div class="sec"><span class="cond">Planilha Geral</span></div>
+      <div class="sec" id="sec-planilha"><span class="cond">Planilha Geral</span></div>
+      <div class="recorte" id="recorte" style="display:none"></div>
       <div class="toolbar" id="filtros-hub"></div>
       <div class="toolbar">
         <input class="busca" type="search" id="hub-busca" name="q_lig" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Buscar por obra, UC ou observação…" oninput="renderPlanilha()">
@@ -539,21 +554,63 @@ function montarAnos(){
 }
 
 /* ===================== KPIs ===================== */
-function kpi(lab,val,sub,cls){ return `<div class="kpi ${cls||''}"><div class="lab">${lab}</div><div class="val">${val}</div><div class="sub">${sub||''}</div></div>`; }
+/* Cada KPI é um RECORTE: rótulo + o teste que define quais linhas ele conta.
+   Guardar o teste junto do número é o que permite clicar no cartão e ver
+   exatamente as obras que entraram naquela conta — em vez de o usuário ter
+   que remontar o filtro na mão e torcer pra bater. */
+const RECORTES = {
+  todas:     { lab:"Linhas de ligação",    sub:"uma por casa e concessionária", teste: () => true },
+  ligadas:   { lab:"Já ligadas",           sub:"",                              teste: l => ["LIGADO","TRANSFERIDO","ENTREGUE NAO TRANSFERIDO"].indexOf(normN(sel(l,C.STATUS))) >= 0 },
+  naolib:    { lab:"Não liberadas",        sub:"aguardando liberação p/ solicitar", teste: l => sel(l,C.LIBERADO) === "NÃO" },
+  aprov:     { lab:"Aguardando aprovação", sub:"solicitação feita, sem aprovação",  teste: l => sel(l,C.FEZ)==="SIM" && sel(l,C.APROVADA)==="NÃO" },
+  atrasadas: { lab:"Atrasadas",            sub:"alerta do Notion apontando atraso", teste: l => normN(getL(l,C.ALERTA_SOL)).indexOf("ATRASADO") >= 0 || normN(getL(l,C.ALERTA_LIG)).indexOf("ATRASADO") >= 0 }
+};
+
+function kpi(chave,val,sub,cls){
+  const r = RECORTES[chave];
+  return `<div class="kpi ${cls||''}" role="button" tabindex="0" title="clique para ver as obras"
+    onclick="verObras('${chave}')" onkeydown="if(event.key==='Enter')verObras('${chave}')">
+    <div class="lab">${esc(r.lab)}</div><div class="val">${val}</div><div class="sub">${sub||''}</div></div>`;
+}
 function renderKpis(){
-  const total = LIG.length;
-  const ligadas = LIG.filter(l => ["LIGADO","TRANSFERIDO","ENTREGUE NAO TRANSFERIDO"].indexOf(normN(sel(l,C.STATUS))) >= 0).length;
-  const naoLib  = LIG.filter(l => sel(l,C.LIBERADO) === "NÃO").length;
-  const aguardaAprov = LIG.filter(l => sel(l,C.FEZ)==="SIM" && sel(l,C.APROVADA)==="NÃO").length;
-  const atrasadas = LIG.filter(l =>
-    normN(getL(l,C.ALERTA_SOL)).indexOf("ATRASADO") >= 0 ||
-    normN(getL(l,C.ALERTA_LIG)).indexOf("ATRASADO") >= 0).length;
+  const conta = k => LIG.filter(RECORTES[k].teste).length;
+  const total = conta("todas"), ligadas = conta("ligadas");
   document.getElementById("kpis").innerHTML =
-    kpi("Linhas de ligação", num(total), "uma por casa e concessionária", "hero") +
-    kpi("Já ligadas", num(ligadas), total? Math.round(ligadas/total*100)+"% do total" : "") +
-    kpi("Não liberadas", num(naoLib), "aguardando liberação p/ solicitar") +
-    kpi("Aguardando aprovação", num(aguardaAprov), "solicitação feita, sem aprovação") +
-    kpi("Atrasadas", num(atrasadas), "alerta do Notion apontando atraso", atrasadas?"alerta":"");
+    kpi("todas", num(total), RECORTES.todas.sub, "hero") +
+    kpi("ligadas", num(ligadas), total ? Math.round(ligadas/total*100)+"% do total" : "") +
+    kpi("naolib", num(conta("naolib")), RECORTES.naolib.sub) +
+    kpi("aprov", num(conta("aprov")), RECORTES.aprov.sub) +
+    kpi("atrasadas", num(conta("atrasadas")), RECORTES.atrasadas.sub, conta("atrasadas")?"alerta":"");
+}
+
+/* ===================== RECORTE (clicar e ver as obras) =====================
+ * Clicar num KPI, numa barra do gráfico ou numa linha da tabela de resumo
+ * joga aquele conjunto de obras na Planilha Geral e desce a tela até ela.
+ * Reaproveita a planilha de propósito, em vez de abrir uma janela nova: a
+ * pessoa continua com busca, filtros e o clique na linha pra editar. */
+let RECORTE = null;   // { rotulo, teste }
+
+function aplicarRecorte(rotulo, teste){
+  RECORTE = { rotulo: rotulo, teste: teste };
+  // limpa os filtros da planilha, senão o recorte some atrás de um filtro
+  // antigo e o usuário vê uma lista menor do que o número em que clicou
+  document.querySelectorAll("#filtros-hub select").forEach(s => s.value = "");
+  document.getElementById("hub-busca").value = "";
+  renderPlanilha();
+  irParaPlanilha();
+}
+function limparRecorte(){ RECORTE = null; renderPlanilha(); }
+function verObras(chave){
+  const r = RECORTES[chave];
+  if (!r) return;
+  if (chave === "todas") { limparRecorte(); irParaPlanilha(); return; }
+  aplicarRecorte(r.lab, r.teste);
+}
+/* Âncora estável pro scroll. Antes eu pegava ".sec:last-of-type", que muda
+   de lugar se alguém acrescentar uma seção depois. */
+function irParaPlanilha(){
+  const el = document.getElementById("sec-planilha");
+  if (el) el.scrollIntoView({behavior:"smooth", block:"start"});
 }
 
 /* ===================== gráficos (canvas puro) =====================
@@ -600,25 +657,65 @@ function barras(idCanvas, itens, sufixo){
     ctx.fillStyle = "#8aacbb"; ctx.font = "500 10px Inter,sans-serif";
     ctx.fillText(it.casos + (it.casos===1?" caso":" casos"), P.l + i*gW + gW/2, H-P.b+28);
   });
+
+  // Guarda a geometria no próprio canvas pra saber, no clique, em qual barra
+  // a pessoa acertou. O canvas não tem "elementos" — sem isto não há como
+  // ligar um clique a um grupo.
+  c._itens = itens; c._geo = { l:P.l, gW:gW, larguraCss:pw };
+  c.style.cursor = "pointer";
+  c.title = "clique numa barra para ver as obras";
+  if (!c._clique){
+    c._clique = true;
+    c.addEventListener("click", ev => {
+      if (!c._itens || !c._geo) return;
+      const r = c.getBoundingClientRect();
+      const x = (ev.clientX - r.left) * (c._geo.larguraCss / r.width);   // zoom/responsivo
+      const i = Math.floor((x - c._geo.l) / c._geo.gW);
+      const it = c._itens[i];
+      if (it && it.teste) aplicarRecorte(it.rotuloCompleto || it.rotulo, it.teste);
+    });
+  }
 }
 
 const COR_CONC = { EQUATORIAL:"#b7791f", SANEAGO:"#2a9d5c", SANESC:"#295778" };
 
-function linhasDoAno(){
-  const ano = document.getElementById("g-ano").value;
-  if (!ano) return LIG;
+/* Período escolhido em cima dos gráficos: ano e/ou mês. Uma linha entra se
+   QUALQUER uma das três datas dela cair no período — é o que faz sentido
+   aqui, porque cada gráfico usa um par de datas diferente. */
+function periodoAtual(){
+  return { ano: document.getElementById("g-ano").value, mes: document.getElementById("g-mes").value };
+}
+function noPeriodo(d, per){
+  if (!d) return false;
+  if (per.ano && d.slice(0,4) !== per.ano) return false;
+  if (per.mes && d.slice(5,7) !== per.mes) return false;
+  return true;
+}
+function linhasDoPeriodo(){
+  const per = periodoAtual();
+  if (!per.ano && !per.mes) return LIG;
   return LIG.filter(l =>
-    (dataReal(l,C.DT_SOL)||"").slice(0,4) === ano ||
-    (dataReal(l,C.DT_LIG)||"").slice(0,4) === ano ||
-    (dataReal(l,C.DT_APROV)||"").slice(0,4) === ano);
+    noPeriodo(dataReal(l,C.DT_SOL), per) ||
+    noPeriodo(dataReal(l,C.DT_LIG), per) ||
+    noPeriodo(dataReal(l,C.DT_APROV), per));
+}
+function rotuloPeriodo(){
+  const per = periodoAtual();
+  const MES = ["","janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
+  if (per.ano && per.mes) return MES[Number(per.mes)] + "/" + per.ano;
+  if (per.ano) return per.ano;
+  if (per.mes) return MES[Number(per.mes)] + " (todos os anos)";
+  return "todo o período";
 }
 
+/* A tabela de resumo é clicável pela mesma razão das barras: ver quem são as
+   obras por trás do número. É o alvo mais fácil de acertar no celular. */
 function tabelaResumo(grupos){
   if (!grupos.length) return '<div class="vazio">Sem dados suficientes no período — faltam datas preenchidas.</div>';
   return `<table class="tab-resumo"><thead><tr>
       <th>Grupo</th><th>Casos</th><th>Média (dias)</th><th>Mediana</th><th>Mín.</th><th>Máx.</th>
     </tr></thead><tbody>` +
-    grupos.map(g=>`<tr>
+    grupos.map((g,i)=>`<tr ${g.teste?`style="cursor:pointer" title="clique para ver as obras" onclick="verGrupo('${esc(g.fonte)}',${i})"`:""}>
       <td>${esc(g.rotulo)}</td>
       <td class="n">${num(g.casos)}</td>
       <td class="n">${n1(g.valor)}</td>
@@ -627,53 +724,98 @@ function tabelaResumo(grupos){
       <td class="n">${num(g.max)}</td>
     </tr>`).join("") + `</tbody></table>`;
 }
+/* Os grupos ficam guardados aqui pra que o onclick da tabela precise carregar
+   só um índice — função não sobrevive a virar texto dentro de um atributo. */
+let GRUPOS = { lig: [], apr: [] };
+function verGrupo(fonte, i){
+  const g = (GRUPOS[fonte] || [])[i];
+  if (g && g.teste) aplicarRecorte(g.rotuloCompleto || g.rotulo, g.teste);
+}
+
+/* Monta um grupo do gráfico a partir de uma lista de dias + o teste que
+   define quais linhas ele representa (é o teste que faz o clique funcionar). */
+function grupo(rotulo, dias, teste, fonte, cor, rotuloCompleto){
+  return { rotulo:rotulo, rotuloCompleto:rotuloCompleto||rotulo, valor:media(dias),
+           mediana:mediana(dias), casos:dias.length, min:Math.min(...dias), max:Math.max(...dias),
+           cor:cor, teste:teste, fonte:fonte };
+}
 
 function renderGraficos(){
-  const base = linhasDoAno();
+  const per = periodoAtual();
+  const temPeriodo = !!(per.ano || per.mes);
+
+  /* Cada gráfico tem a SUA data de referência para o período — senão uma
+     linha solicitada em 12/2025 e ligada em 01/2026 apareceria como "12/25"
+     dentro do ano 2026, que foi o que aconteceu no primeiro teste.
+       tempo de ligação  -> quando a ligação foi feita
+       tempo de aprovação-> quando a solicitação foi feita (o gráfico é "por
+                            mês da solicitação") */
+  const okLig = l => diasLigacao(l)   != null && (!temPeriodo || noPeriodo(dataReal(l,C.DT_LIG), per));
+  const okApr = l => diasAprovacao(l) != null && (!temPeriodo || noPeriodo(dataReal(l,C.DT_SOL), per));
 
   // --- Tempo de ligação: uma barra por concessionária ---
+  const concDe = l => sel(l, C.CONC) || "(sem concessionária)";
   const porConc = {};
-  base.forEach(l => {
-    const d = diasLigacao(l);
-    if (d == null) return;
-    const k = sel(l, C.CONC) || "(sem concessionária)";
-    (porConc[k] = porConc[k] || []).push(d);
-  });
-  const gLig = Object.keys(porConc).sort().map(k => {
-    const a = porConc[k];
-    return { rotulo:k, valor:media(a), mediana:mediana(a), casos:a.length,
-             min:Math.min(...a), max:Math.max(...a), cor:COR_CONC[normN(k)] };
-  });
-  barras("ch-lig", gLig, "d");
-  document.getElementById("tab-lig").innerHTML = tabelaResumo(gLig);
+  LIG.forEach(l => { if (okLig(l)) (porConc[concDe(l)] = porConc[concDe(l)] || []).push(diasLigacao(l)); });
+  GRUPOS.lig = Object.keys(porConc).sort().map(k =>
+    grupo(k, porConc[k],
+      // só as linhas que ENTRARAM na conta — não a concessionária inteira.
+      // Se fosse a concessionária inteira, clicar em "95 casos" traria 344
+      // obras e o número da tela não bateria com a lista.
+      l => okLig(l) && concDe(l) === k,
+      "lig", COR_CONC[normN(k)],
+      "tempo de ligação · " + k + " · " + rotuloPeriodo())
+  );
+  barras("ch-lig", GRUPOS.lig, "d");
+  document.getElementById("tab-lig").innerHTML = tabelaResumo(GRUPOS.lig);
 
-  // --- Tempo de aprovação (SANESC): uma barra por mês da solicitação ---
-  const porMes = {};
-  base.forEach(l => {
-    const d = diasAprovacao(l);
-    if (d == null) return;
-    const m = (dataReal(l, C.DT_SOL)||"").slice(0,7);
-    if (!m) return;
-    (porMes[m] = porMes[m] || []).push(d);
+  // --- Tempo de aprovação (SANESC) ---
+  // Por ANO quando nenhum ano está escolhido; escolhendo um ano, abre mês a
+  // mês daquele ano. Era só por mês antes, e com 14 meses na tela as barras
+  // viravam risquinhos — além de misturar 2025 e 2026 sem deixar claro.
+  const porAno = !!per.ano;                  // ano escolhido = detalhar por mês
+  const chaveDe = l => (dataReal(l, C.DT_SOL)||"").slice(0, porAno ? 7 : 4);
+  const grupos = {};
+  LIG.forEach(l => {
+    if (!okApr(l)) return;
+    const k = chaveDe(l);
+    if (k) (grupos[k] = grupos[k] || []).push(diasAprovacao(l));
   });
-  const meses = Object.keys(porMes).sort().slice(-12);   // últimos 12 com dado
-  const gApr = meses.map(m => {
-    const a = porMes[m];
-    const p = m.split("-");
-    return { rotulo:p[1]+"/"+p[0].slice(2), valor:media(a), mediana:mediana(a), casos:a.length,
-             min:Math.min(...a), max:Math.max(...a), cor:COR_CONC.SANESC };
+  const chaves = Object.keys(grupos).sort().slice(porAno ? -12 : -8);
+  GRUPOS.apr = chaves.map(k => {
+    const rot = porAno ? (k.slice(5,7) + "/" + k.slice(2,4)) : k;
+    return grupo(rot, grupos[k],
+      l => okApr(l) && chaveDe(l) === k,
+      "apr", COR_CONC.SANESC,
+      "tempo de aprovação SANESC · " + (porAno ? rot : "ano " + k));
   });
-  barras("ch-apr", gApr, "d");
-  const todosApr = Object.values(porMes).flat();
-  document.getElementById("tab-apr").innerHTML =
-    (todosApr.length
-      ? tabelaResumo(gApr.concat([{rotulo:"TOTAL do período", valor:media(todosApr), mediana:mediana(todosApr),
-          casos:todosApr.length, min:Math.min(...todosApr), max:Math.max(...todosApr)}]))
-      : '<div class="vazio">Nenhuma aprovação da SANESC com as duas datas preenchidas no período.</div>');
+  barras("ch-apr", GRUPOS.apr.slice(), "d");   // cópia: o TOTAL entra no array
+                                               // depois e não deve virar barra
 
-  const comLig = base.filter(l => diasLigacao(l) != null).length;
+  const todosApr = Object.values(grupos).flat();
+  if (todosApr.length){
+    // O TOTAL entra na tabela mas NÃO vira barra — por isso ele é acrescentado
+    // ao fim do array (o índice das barras continua o mesmo, e o onclick da
+    // tabela, que usa índice, continua apontando pro grupo certo).
+    GRUPOS.apr.push(grupo("TOTAL do período", todosApr,
+      l => okApr(l) && !!chaveDe(l),
+      "apr", COR_CONC.SANESC,
+      "tempo de aprovação SANESC · " + rotuloPeriodo()));
+    document.getElementById("tab-apr").innerHTML = tabelaResumo(GRUPOS.apr);
+  } else {
+    document.getElementById("tab-apr").innerHTML =
+      '<div class="vazio">Nenhuma aprovação da SANESC com as duas datas preenchidas no período.</div>';
+  }
+  document.getElementById("gd-apr").innerHTML =
+    "Dias entre a <b>DATA DE SOLICITAÇÃO</b> e a <b>DATA DA APROVAÇÃO DA LIGAÇÃO</b>, por " +
+    (porAno ? ("mês de " + per.ano + ". Volte para “Todos os anos” para ver ano a ano.")
+            : "ano da solicitação. Escolha um ano acima para abrir mês a mês.");
+
+  const base = linhasDoPeriodo();
   document.getElementById("g-info").textContent =
-    comLig + " de " + base.length + " linhas têm as duas datas preenchidas para o cálculo";
+    LIG.filter(okLig).length + " ligações e " + LIG.filter(okApr).length +
+    " aprovações com as duas datas preenchidas · " + rotuloPeriodo() +
+    " (" + base.length + " linhas no período)";
 }
 window.addEventListener("resize", () => { clearTimeout(window._rz); window._rz = setTimeout(renderGraficos, 200); });
 
@@ -735,8 +877,18 @@ function tabelaHtml(linhas, colunas, extras){
 function renderPlanilha(){
   const filtros = valoresFiltro("filtros-hub");
   const termo = document.getElementById("hub-busca").value;
-  const linhas = LIG.filter(l => passaFiltros(l,filtros) && passaBusca(l,termo));
-  document.getElementById("hub-count").textContent = linhas.length + " de " + LIG.length + " linhas";
+  const doRecorte = RECORTE ? LIG.filter(RECORTE.teste) : LIG;
+  const linhas = doRecorte.filter(l => passaFiltros(l,filtros) && passaBusca(l,termo));
+
+  const chip = document.getElementById("recorte");
+  if (RECORTE){
+    chip.style.display = "flex";
+    chip.innerHTML = `<span>Mostrando: <b>${esc(RECORTE.rotulo)}</b> — ${num(doRecorte.length)} obra${doRecorte.length===1?"":"s"}</span>
+      <button class="bt ghost" onclick="limparRecorte()">Ver todas de novo ×</button>`;
+  } else chip.style.display = "none";
+
+  document.getElementById("hub-count").textContent =
+    linhas.length + " de " + (RECORTE ? doRecorte.length : LIG.length) + " linhas";
   document.getElementById("hub-wrap").innerHTML = tabelaHtml(linhas, colunasVisiveis(), true);
 }
 
