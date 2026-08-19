@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light only">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#295778">
+<link rel="manifest" href="manifest.json">
+<title>Ligações de Água e Energia · Morais</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Tema claro fixo — mesmo motivo do index.html: sem isto o Android/iOS em modo
+   escuro inverte inputs e selects nativos e a tela fica com campos pretos. */
+:root{color-scheme:light only}
+html{background:var(--bg);min-height:100%}
+:root{
+  --azul:#295778;--azul-esc:#1e3f58;--teal:#8FDCD2;--verde:#2a9d5c;--verde-btn:#4cd964;--verde-esc:#1a6b40;
+  --bg:#EAF1F3;--bg2:#F5F9FA;--bg3:#dceaef;--border:#b8d0da;--border2:#d0e4ec;
+  --text:#1a3347;--text3:#5a8099;--text4:#8aacbb;--branco:#fff;
+  --vermelho:#c0392b;--amarelo:#b7791f;--amarelo-bg:#FFF7ED;--amarelo-bd:#FED7AA}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.45;min-height:100vh}
+.cond{font-family:'Barlow Condensed',Inter,sans-serif}
+.wrap{max-width:1400px;margin:0 auto;padding:0 20px}
+header{background:linear-gradient(120deg,var(--azul-esc),var(--azul));position:relative}
+header::after{content:"";display:block;height:4px;background:linear-gradient(90deg,var(--verde-btn),var(--teal))}
+.hbar{display:flex;align-items:center;gap:13px;padding:14px 0;flex-wrap:wrap}
+.logo{background:#fff;border-radius:9px;padding:5px 10px;display:inline-flex}.logo img{height:38px;display:block}
+.htitle{font-family:'Barlow Condensed';font-weight:800;font-size:23px;color:#fff;text-transform:uppercase;letter-spacing:.5px;line-height:1}
+.hsub{color:var(--teal);font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase}
+.hspace{flex:1}
+.net{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;padding:3px 9px;border-radius:20px}
+.net.on{background:rgba(76,217,100,.22);color:#CFF9DC}.net.off{background:rgba(255,180,120,.28);color:#FFE2C6}
+.user{display:flex;align-items:center;gap:10px;color:#fff}.nome{font-weight:600;font-size:13.5px}
+.badge{font-size:10px;font-weight:800;letter-spacing:.5px;padding:3px 8px;border-radius:20px;background:rgba(255,255,255,.18);color:#fff;text-transform:uppercase}
+.badge.adm{background:var(--verde-btn);color:#0c3f22}
+.sair,.btn-sync{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;padding:7px 12px;font:inherit;font-weight:700;font-size:12.5px;cursor:pointer}
+.btn-sync{display:none;align-items:center;gap:6px}
+.filabadge{background:var(--vermelho);border-radius:20px;padding:0 6px;font-size:11px;display:none}
+main{padding-bottom:50px}
+.crumb{display:flex;align-items:center;gap:8px;margin:16px 0 14px;font-size:12.5px;color:var(--text3)}
+.btn-voltar{border:1px solid var(--border);background:#fff;color:var(--azul);border-radius:8px;padding:7px 12px;font:inherit;font-weight:700;font-size:12.5px;cursor:pointer;text-decoration:none}
+.sec{display:flex;align-items:center;gap:10px;background:var(--bg3);border-left:4px solid var(--verde);border-radius:8px;padding:9px 14px;margin:22px 0 14px}
+.sec .cond{font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--azul-esc)}
+.setores{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:13px}
+.setor{background:#fff;border:1px solid var(--border2);border-radius:12px;padding:16px;cursor:pointer;text-align:left;font:inherit;transition:.15s}
+.setor:hover{border-color:var(--verde);box-shadow:0 3px 12px rgba(41,87,120,.10)}
+.setor .t{font-family:'Barlow Condensed';font-weight:800;font-size:17px;text-transform:uppercase;color:var(--azul-esc);letter-spacing:.4px;line-height:1.15}
+.setor .d{font-size:12px;color:var(--text3);margin-top:6px}
+.setor .n{display:inline-flex;align-items:center;justify-content:center;margin-top:10px;background:var(--vermelho);color:#fff;border-radius:20px;font-size:12px;font-weight:800;padding:2px 9px}
+.setor .n.zero{background:var(--verde)}
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:13px}
+@media(max-width:1000px){.kpis{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:520px){.kpis{grid-template-columns:1fr}}
+.kpi{background:#fff;border:1px solid var(--border2);border-radius:12px;padding:15px 16px 14px}
+.kpi .lab{font-size:10px;letter-spacing:.4px;text-transform:uppercase;color:var(--text3);font-weight:700}
+.kpi .val{font-family:'Barlow Condensed';font-size:30px;font-weight:800;line-height:1;margin-top:8px;color:var(--azul-esc)}
+.kpi .sub{font-size:11px;color:var(--text4);margin-top:6px}
+.kpi.hero{background:linear-gradient(135deg,var(--azul),var(--azul-esc));border:0}
+.kpi.hero .lab{color:rgba(255,255,255,.85)}.kpi.hero .val{color:#fff}.kpi.hero .sub{color:var(--teal)}
+.kpi.alerta .val{color:var(--vermelho)}
+.graf{background:#fff;border:1px solid var(--border2);border-radius:12px;padding:16px;margin-bottom:18px}
+.graf .gt{font-family:'Barlow Condensed';font-weight:800;font-size:16px;text-transform:uppercase;color:var(--azul-esc);letter-spacing:.4px}
+.graf .gd{font-size:11.5px;color:var(--text3);margin:4px 0 12px}
+.chart-wrap{width:100%;overflow:hidden}
+.tab-resumo{width:100%;border-collapse:collapse;margin-top:12px;font-size:12.5px}
+.tab-resumo th{background:var(--bg3);color:var(--azul-esc);font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;padding:6px 9px;text-align:left;border:1px solid var(--border2)}
+.tab-resumo td{padding:6px 9px;border:1px solid var(--border2);background:#fff}
+.tab-resumo td.n{text-align:right;font-variant-numeric:tabular-nums}
+.toolbar{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-bottom:12px}
+select,input.busca,input[type=date],input[type=text],textarea{border:1px solid var(--border);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;background:#fff;color:var(--text);max-width:100%}
+input.busca{min-width:230px;flex:1}
+.count{font-size:12px;color:var(--text3);font-weight:600;white-space:nowrap}
+.tabela-wrap{background:#fff;border:1px solid var(--border2);border-radius:12px;overflow:auto;max-height:70vh}
+table.grade{border-collapse:separate;border-spacing:0;width:100%;font-size:12.5px}
+table.grade th{position:sticky;top:0;z-index:2;background:var(--azul-esc);color:#fff;font-family:'Barlow Condensed';font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;padding:9px 10px;text-align:left;white-space:nowrap}
+table.grade td{padding:8px 10px;border-bottom:1px solid var(--border2);white-space:nowrap;max-width:340px;overflow:hidden;text-overflow:ellipsis}
+table.grade tr:hover td{background:var(--bg2)}
+table.grade tbody tr{cursor:pointer}
+.pill{display:inline-block;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:800;letter-spacing:.3px}
+.pill.sim{background:#DCFCE7;color:#166534}.pill.nao{background:#FEE2E2;color:#991B1B}
+.pill.neutro{background:var(--bg3);color:var(--azul-esc)}
+.pill.aviso{background:#FEF3C7;color:#92400E}.pill.grave{background:#FEE2E2;color:#991B1B}
+.vazio{background:#fff;border:1px dashed var(--border);border-radius:12px;padding:22px;color:var(--text3);text-align:center;font-size:13px}
+.load{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--verde);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.aviso{display:none;background:var(--amarelo-bg);border:1px solid var(--amarelo-bd);color:#9A3412;border-radius:10px;padding:9px 12px;font-size:12.5px;margin:14px 0}
+.semacesso{background:#fff;border:1px solid var(--border2);border-radius:12px;padding:26px;text-align:center;margin-top:24px}
+.tabs-outer{overflow-x:auto;margin-bottom:16px}
+.tabs{display:inline-flex;gap:6px;background:var(--bg3);padding:5px;border-radius:10px}
+.tab{border:0;background:transparent;color:var(--azul-esc);font:inherit;font-family:'Barlow Condensed';font-weight:800;font-size:14px;text-transform:uppercase;letter-spacing:.5px;padding:9px 14px;border-radius:8px;cursor:pointer;white-space:nowrap}
+.tab.on{background:var(--azul-esc);color:#fff}
+/* painel lateral de edição — mesma ideia do vendas.html */
+.overlay{display:none;position:fixed;inset:0;background:rgba(20,40,55,.42);z-index:40}
+.overlay.on{display:block}
+.painel{position:fixed;top:0;right:0;height:100%;width:min(520px,100%);background:var(--bg2);z-index:41;transform:translateX(102%);transition:transform .22s;display:flex;flex-direction:column;box-shadow:-6px 0 26px rgba(20,40,55,.20)}
+.painel.on{transform:none}
+.ph{background:var(--azul-esc);color:#fff;padding:16px 46px 16px 18px;position:relative}
+.ph .end{font-family:'Barlow Condensed';font-weight:800;font-size:19px;text-transform:uppercase;line-height:1.15}
+.ph .loc{color:var(--teal);font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-top:3px}
+.pfechar{position:absolute;top:12px;right:12px;border:0;background:rgba(255,255,255,.16);color:#fff;width:30px;height:30px;border-radius:8px;font-size:19px;cursor:pointer;line-height:1}
+.pbody{flex:1;overflow-y:auto;padding:16px 18px 40px}
+.campo{margin-bottom:13px}
+.campo label{display:block;font-size:10.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--text3);margin-bottom:4px}
+.campo select,.campo input,.campo textarea{width:100%}
+.campo .ro{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;font-size:13px;color:var(--text)}
+.campo .dica{font-size:11px;color:var(--text4);margin-top:3px}
+.bt{border:0;border-radius:8px;padding:9px 14px;font:inherit;font-weight:700;font-size:13px;cursor:pointer;text-decoration:none;display:inline-block}
+.bt.az{background:var(--azul);color:#fff}.bt.vd{background:var(--verde);color:#fff}
+.bt.ghost{background:#fff;border:1px solid var(--border);color:var(--azul)}
+.toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);background:var(--azul-esc);color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;font-weight:600;opacity:0;pointer-events:none;transition:.2s;z-index:60}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+@media(max-width:680px){
+  input,select,textarea{font-size:16px}
+  .wrap{padding:0 12px}
+  table.grade td{max-width:200px}
+}
+</style>
+</head>
+<body>
+  <header>
+    <div class="wrap hbar">
+      <span class="logo"><img src="img/logo.png" alt="Morais" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-block'"><b style="display:none;font-family:'Barlow Condensed';font-weight:800;font-size:16px;color:var(--azul-esc);padding:0 4px">MORAIS</b></span>
+      <div><div class="htitle">Ligações de Água e Energia</div><div class="hsub">Morais Engenharia</div></div>
+      <div class="hspace"></div>
+      <span class="net on" id="net-status">online</span>
+      <button class="btn-sync" id="btn-sync" onclick="sincronizar()">↻ Sincronizar <span class="filabadge" id="fila-badge">0</span></button>
+      <div class="user">
+        <div style="text-align:right"><div class="nome" id="u-nome">—</div><span class="badge" id="u-tipo">—</span></div>
+        <button class="sair" onclick="sair()">Sair</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="aviso" id="aviso"></div>
+
+    <div id="sem-acesso" class="semacesso" style="display:none">
+      <h2>Sem acesso</h2>
+      <p>Seu login não tem o acesso <b>LIGAÇÕES</b>. Fale com um ADM.</p>
+      <a class="bt az" href="index.html">Voltar ao portal</a>
+    </div>
+
+    <!-- ===================== HUB ===================== -->
+    <section id="view-hub">
+      <div class="crumb"><a class="btn-voltar" href="index.html">← Voltar para o Dashboard</a></div>
+
+      <div class="sec"><span class="cond">Setores</span></div>
+      <div class="setores" id="setores"></div>
+
+      <div class="sec"><span class="cond">Panorama</span></div>
+      <div class="kpis" id="kpis"><div class="kpi"><div class="lab">Carregando</div><div class="val"><span class="load"></span></div></div></div>
+
+      <div class="sec"><span class="cond">Andamento das Ligações</span></div>
+      <div class="toolbar">
+        <select id="g-ano" onchange="renderGraficos()"><option value="">Todos os anos</option></select>
+        <span class="count" id="g-info"></span>
+      </div>
+
+      <div class="graf">
+        <div class="gt">Tempo de ligação</div>
+        <div class="gd">Dias entre a <b>DATA DE SOLICITAÇÃO</b> e a <b>Data de Ligação</b>, por concessionária. Datas em 01/01/2000 e resultados negativos ficam de fora da conta.</div>
+        <div class="chart-wrap"><canvas id="ch-lig" height="240"></canvas></div>
+        <div id="tab-lig"></div>
+      </div>
+
+      <div class="graf">
+        <div class="gt">Tempo de aprovação · só SANESC</div>
+        <div class="gd">Dias entre a <b>DATA DE SOLICITAÇÃO</b> e a <b>DATA DA APROVAÇÃO DA LIGAÇÃO</b>, por mês da solicitação.</div>
+        <div class="chart-wrap"><canvas id="ch-apr" height="240"></canvas></div>
+        <div id="tab-apr"></div>
+      </div>
+
+      <div class="sec"><span class="cond">Planilha Geral</span></div>
+      <div class="toolbar" id="filtros-hub"></div>
+      <div class="toolbar">
+        <input class="busca" type="search" id="hub-busca" name="q_lig" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Buscar por obra, UC ou observação…" oninput="renderPlanilha()">
+        <span class="count" id="hub-count"></span>
+      </div>
+      <div class="tabela-wrap" id="hub-wrap"><div class="vazio"><span class="load"></span> Carregando…</div></div>
+    </section>
+
+    <!-- ===================== SETOR ===================== -->
+    <section id="view-setor" style="display:none">
+      <div class="crumb"><button class="btn-voltar" onclick="irHub()">← Voltar para Ligações</button> <span>/</span> <b id="setor-nome">Setor</b></div>
+      <div class="tabs-outer"><div class="tabs" id="tabs"></div></div>
+      <div class="toolbar" id="filtros-setor"></div>
+      <div class="toolbar">
+        <input class="busca" type="search" id="set-busca" name="q_lig_set" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Buscar por obra…" oninput="renderAba()">
+        <span class="count" id="set-count"></span>
+      </div>
+      <div class="tabela-wrap" id="set-wrap"><div class="vazio">Carregando…</div></div>
+    </section>
+  </main>
+
+  <div class="overlay" id="overlay" onclick="fecharLinha()"></div>
+  <aside class="painel" id="painel">
+    <div class="ph"><div class="end" id="pn-obra">Obra</div><div class="loc" id="pn-sub"></div><button class="pfechar" onclick="fecharLinha()">×</button></div>
+    <div class="pbody" id="pn-body"></div>
+  </aside>
+
+  <div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+<script>
+/* =====================================================================
+ * LIGAÇÕES DE ÁGUA E ENERGIA — Morais Engenharia
+ * ---------------------------------------------------------------------
+ * Mesma arquitetura do vendas.html:
+ *   LEITURA  -> dist/ligacoes.json, publicado pelo fetch_vendas.py (rápido e
+ *               offline: o app.js guarda a última cópia no localStorage).
+ *   ESCRITA  -> Apps Script (Code.gs), que é quem tem o token do Notion e
+ *               confere a sessão. Sem internet, a escrita entra na fila e
+ *               sobe sozinha ao reconectar.
+ *
+ * ACESSO: exige "LIGAÇÕES" na coluna ACESSOS do banco LOGINS (ADM e MASTER
+ * veem tudo). Esconder a tela aqui NÃO protege nada — a trava que vale é a
+ * do Code.gs (ACOES_LIGACOES); esta serve só pra não mostrar tela quebrada.
+ * ===================================================================== */
+
+const S = exigirSessao();
+atualizarStatus(); atualizarBadge();
+
+/* ---------- nomes EXATOS das colunas no Notion ----------
+   Conferidos pelo inspecionar_ligacoes.py (690 linhas / 29 colunas).
+   Repare em "Data de Ligação" (caixa mista) e em "DATA DE NASCIMENTO "
+   (espaço sobrando no fim) — por isso toda leitura passa pelo getL(),
+   que compara sem acento, sem caixa e sem espaço. */
+const C = {
+  OBRA:       "OBRA",
+  CONC:       "CONCESSIONÁRIA",
+  LIBERADO:   "LIBERADO PARA SOLICITAÇÃO",
+  FEZ:        "FEZ A SOLICITAÇÃO?",
+  DT_SOL:     "DATA DE SOLICITAÇÃO",
+  APROVADA:   "SOLICITAÇÃO APROVADA?",
+  DT_APROV:   "DATA DA APROVAÇÃO DA LIGAÇÃO",
+  DT_LIG:     "Data de Ligação",
+  STATUS:     "STATUS",
+  RESP:       "RESPONSÁVEL",
+  UC:         "UC",
+  UC_OK:      "UC PREENCHIDA",
+  OBS:        "OBS. LIGAÇÕES",
+  OBS_CONTAS: "OBS. CONTAS",
+  LINK:       "LINK DE ACOMPANHAMENTO",
+  VENC:       "VENCIMENTO",
+  SISTEMA:    "SISTEMA",
+  ALERTA_SOL: "ALERTA VER. SOLICITAÇÃO",
+  ALERTA_LIG: "ALERTA VER. LIGAÇÃO",
+  VERIF_SOL:  "VERIFICAÇÃO SOLICITAÇÃO",
+  ALERTA_UC:  "ALERTA UC"
+};
+
+/* Data-lixo: o Notion não aceita campo de data "meio preenchido", então a
+   equipe usa 01/01/2000 como marcador de "ainda não tem data". Entra em
+   TODA leitura de data — sem isto o tempo médio de ligação daria -9500 dias
+   (é exatamente o que está acontecendo na coluna TEMPO DE PROCESSO). */
+const DATA_LIXO = "2000-01-01";
+
+/* Colunas que NÃO aparecem na planilha geral (pedido do PDF). As de alerta
+   continuam vivas: são usadas nos filtros das abas do setor e no painel. */
+const OCULTAS = [
+  "Alerta Informações", "Elerta Informações (1)",
+  "CPF/CNPJ", "CPF/CNPJ V1", "CPF/CNPJ V2", "DATA DE NASCIMENTO",
+  C.ALERTA_SOL, C.ALERTA_LIG, C.VERIF_SOL, C.ALERTA_UC,
+  "Vínculo Obra",
+  // TEMPO DE PROCESSO fica de fora porque a fórmula no Notion está com os
+  // dias errados (conta a partir do 01/01/2000 e, no SANESC, mede
+  // Ligação−Aprovação em vez de Solicitação−Aprovação). No lugar dela a
+  // planilha mostra as colunas DIAS P/ LIGAR e DIAS P/ APROVAR, calculadas
+  // aqui. Ver o arquivo FORMULA_TEMPO_DE_PROCESSO.md pra corrigir no Notion.
+  "TEMPO DE PROCESSO"
+];
+
+/* Setores da área. Hoje só um; a lista está pronta pra crescer — é o mesmo
+   molde do SETORES_AREA do vendas.html.
+     abas: quais abas o setor mostra, na ordem (a primeira é a que abre).
+     filtroBase: quais linhas o setor enxerga (null = todas). */
+const SETORES_LIG = [
+  {
+    nome: "LIBERAÇÃO E CONTROLE DE SOLICITAÇÕES",
+    d: "Aptidão para solicitar e acompanhamento das solicitações",
+    abas: ["aptas", "acompanhamento"],
+    filtroBase: null
+  }
+  // Exemplo de setor novo (é só descomentar e ajustar):
+  // { nome:"CONTROLE DE CONTAS", d:"Vencimentos e UC", abas:["planilha"], filtroBase:null }
+];
+
+/* Definição de cada aba: título, colunas da tabela e o filtro fixo.
+   Os filtros fixos são exatamente os das views do Notion que você mandou
+   por print — ficam aqui, no código, e não em opção de tela, pra que a aba
+   signifique sempre a mesma coisa pra todo mundo que abrir. */
+const ABAS = {
+  aptas: {
+    titulo: "Verificar se a obra está apta para a solicitação",
+    colunas: [C.OBRA, C.CONC, C.LIBERADO, C.OBS],
+    filtros: [C.CONC],
+    base: l => sel(l, C.LIBERADO) === "NÃO"
+            && sel(l, C.FEZ) === "NÃO"
+            && sel(l, C.STATUS) === "NÃO LIGADO"
+  },
+  acompanhamento: {
+    titulo: "Acompanhamento de solicitação",
+    colunas: [C.OBRA, C.CONC, C.APROVADA, C.DT_SOL, C.DT_APROV, C.ALERTA_SOL, C.OBS],
+    filtros: [C.CONC],
+    base: l => sel(l, C.FEZ) === "SIM"
+            && txt(getL(l, C.VERIF_SOL)) !== "-"
+            && sel(l, C.STATUS) === "NÃO LIGADO"
+  },
+  planilha: {
+    titulo: "Planilha do setor",
+    colunas: null,           // null = todas as colunas visíveis
+    filtros: [C.CONC, C.LIBERADO, C.FEZ, C.APROVADA, C.STATUS, C.RESP],
+    base: () => true
+  }
+};
+
+/* Filtros da planilha geral — os seis pedidos no PDF. */
+const FILTROS_HUB = [C.CONC, C.LIBERADO, C.FEZ, C.APROVADA, C.STATUS, C.RESP];
+
+let LIG = [], SCHEMA = [], SCAMPO = {};
+let SETOR_ATUAL = null, ABA_ATUAL = null, LINHA_ABERTA = null;
+
+/* ===================== utilidades ===================== */
+function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("on"); setTimeout(()=>t.classList.remove("on"),1900); }
+/* Sem acento, sem caixa, sem espaço sobrando — é assim que TODA comparação de
+   nome de coluna é feita aqui (o Notion tem "DATA DE NASCIMENTO " com espaço
+   no fim e "Data de Ligação" em caixa mista). */
+function normN(s){ return String(s==null?"":s).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/\s+/g," ").trim(); }
+function txt(v){ return Array.isArray(v) ? v.join(", ") : String(v==null?"":v); }
+
+/* Leitura tolerante de uma coluna da linha: aceita diferença de acento, de
+   caixa e de espaço no fim (o Notion tem "DATA DE NASCIMENTO " com espaço). */
+function getL(linha, nome){
+  const v = (linha && linha.v) || {};
+  if (v[nome] !== undefined) return v[nome];
+  const alvo = normN(nome);
+  for (const k in v) if (normN(k) === alvo) return v[k];
+  return undefined;
+}
+function sel(linha, nome){ const v=getL(linha,nome); return v==null?null:String(v).trim(); }
+
+/* Data "de verdade": descarta vazio e o marcador 01/01/2000. */
+function dataReal(linha, nome){
+  const v = getL(linha, nome);
+  if (!v) return null;
+  const d = String(v).slice(0,10);
+  if (d === DATA_LIXO) return null;
+  return d;
+}
+function fmtData(d){ if(!d) return "—"; const p=String(d).slice(0,10).split("-"); return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:d; }
+/* Diferença em dias entre duas datas ISO. Aritmética em UTC de propósito:
+   "new Date('2026-03-02')" é lido como meia-noite UTC e, no fuso -3, virar
+   local devolveria o dia anterior — o mesmo bug de fuso que o fetch_vendas.py
+   já teve. Como as duas pontas usam a mesma régua, a diferença sai exata. */
+function diasEntre(ini, fim){
+  if(!ini || !fim) return null;
+  const a = Date.parse(ini + "T00:00:00Z"), b = Date.parse(fim + "T00:00:00Z");
+  if (isNaN(a) || isNaN(b)) return null;
+  return Math.round((b - a) / 86400000);
+}
+/* Tempo de ligação: solicitação -> ligação. */
+function diasLigacao(l){
+  const d = diasEntre(dataReal(l, C.DT_SOL), dataReal(l, C.DT_LIG));
+  return (d == null || d < 0) ? null : d;   // negativo = data digitada trocada
+}
+/* Tempo de aprovação: solicitação -> aprovação (só SANESC, como pedido). */
+function diasAprovacao(l){
+  if (normN(sel(l, C.CONC)) !== "SANESC") return null;
+  const d = diasEntre(dataReal(l, C.DT_SOL), dataReal(l, C.DT_APROV));
+  return (d == null || d < 0) ? null : d;
+}
+function media(a){ return a.length ? a.reduce((s,x)=>s+x,0)/a.length : null; }
+function mediana(a){
+  if(!a.length) return null;
+  const b=[...a].sort((x,y)=>x-y), m=Math.floor(b.length/2);
+  return b.length%2 ? b[m] : (b[m-1]+b[m])/2;
+}
+function n1(v){ return v==null ? "—" : Number(v).toLocaleString("pt-BR",{maximumFractionDigits:1}); }
+
+/* ===================== carregamento ===================== */
+function pintarUsuario(s){
+  document.getElementById("u-nome").textContent = s.nome || s.login;
+  const tb = document.getElementById("u-tipo");
+  tb.textContent = s.tipo;
+  const t = String(s.tipo||"").toUpperCase();
+  tb.className = "badge" + (t==="ADM"||t==="MASTER" ? " adm" : "");
+}
+function mostrarOffline(r){
+  const av = document.getElementById("aviso");
+  if (r && r.offline){
+    av.style.display="block";
+    av.textContent = "Sem internet — dados salvos em " + new Date(r._ts).toLocaleString("pt-BR") +
+                     ". O que você preencher entra na fila e sobe ao reconectar.";
+  } else if (r && r.ok === false){
+    av.style.display="block";
+    av.textContent = "Não consegui carregar agora: " + erroTexto(r.erro) + ".";
+  } else av.style.display="none";
+}
+
+function boot(){
+  pintarUsuario(S);
+  if (!podeAcessar(S, "LIGAÇÕES")){
+    document.getElementById("sem-acesso").style.display = "block";
+    document.getElementById("view-hub").style.display = "none";
+    return;
+  }
+  renderSetores();
+  // pinta na hora com a cópia salva e repinta quando o dist/ chegar
+  lerEstaticoJa("ligacoes.json", "ligacoes", pintarTudo);
+  // valida a sessão em segundo plano — token velho cai fora
+  ler({action:"me"}).then(r=>{ if(r && r.ok===false && r.erro==="NAO_AUTORIZADO") sair(); }).catch(()=>{});
+}
+
+function pintarTudo(r){
+  mostrarOffline(r);
+  if (!r || !r.ok || !r.ligacoes) {
+    document.getElementById("hub-wrap").innerHTML =
+      '<div class="vazio">Sem dados publicados ainda. Rode o workflow “Publicar site” no GitHub.</div>';
+    return;
+  }
+  LIG = r.ligacoes;
+  SCHEMA = r.schema || [];
+  SCAMPO = {}; SCHEMA.forEach(c => SCAMPO[c.nome] = c);
+  montarFiltros("filtros-hub", FILTROS_HUB, "hub", renderPlanilha);
+  montarAnos();
+  renderKpis(); renderGraficos(); renderPlanilha(); renderSetores();
+  if (SETOR_ATUAL) renderAba();
+}
+/* campo do schema, tolerando diferença de acento/caixa/espaço */
+function campoDe(nome){
+  if (SCAMPO[nome]) return SCAMPO[nome];
+  const alvo = normN(nome);
+  for (const k in SCAMPO) if (normN(k) === alvo) return SCAMPO[k];
+  return null;
+}
+function nomeReal(nome){ const c = campoDe(nome); return c ? c.nome : nome; }
+
+/* ===================== setores ===================== */
+function renderSetores(){
+  const box = document.getElementById("setores");
+  box.innerHTML = SETORES_LIG.map((s,i) => {
+    const linhas = linhasDoSetor(s);
+    // pendências do setor = soma das linhas das abas de trabalho
+    let n = 0;
+    (s.abas||[]).forEach(a => { if (ABAS[a] && a !== "planilha") n += linhas.filter(ABAS[a].base).length; });
+    const temDado = LIG.length > 0;
+    return `<button class="setor" onclick="abrirSetor(${i})">
+      <div class="t">${esc(s.nome)}</div>
+      <div class="d">${esc(s.d||"")}</div>
+      ${temDado ? `<span class="n ${n?'':'zero'}">${n} pendência${n===1?'':'s'}</span>` : ``}
+    </button>`;
+  }).join("");
+}
+function linhasDoSetor(s){ return s && s.filtroBase ? LIG.filter(s.filtroBase) : LIG; }
+
+function abrirSetor(i){
+  SETOR_ATUAL = SETORES_LIG[i];
+  ABA_ATUAL = SETOR_ATUAL.abas[0];
+  document.getElementById("view-hub").style.display = "none";
+  document.getElementById("view-setor").style.display = "";
+  document.getElementById("setor-nome").textContent = SETOR_ATUAL.nome;
+  renderTabs(); renderAba();
+  window.scrollTo(0,0);
+}
+function irHub(){
+  SETOR_ATUAL = null;
+  document.getElementById("view-setor").style.display = "none";
+  document.getElementById("view-hub").style.display = "";
+  window.scrollTo(0,0);
+}
+function renderTabs(){
+  document.getElementById("tabs").innerHTML = SETOR_ATUAL.abas.map(a =>
+    `<button class="tab ${a===ABA_ATUAL?'on':''}" onclick="trocarAba('${a}')">${esc(ABAS[a].titulo)}</button>`
+  ).join("");
+}
+function trocarAba(a){
+  ABA_ATUAL = a;
+  document.getElementById("set-busca").value = "";
+  renderTabs(); renderAba();
+}
+
+/* ===================== filtros ===================== */
+/* Monta um <select> por coluna, com as opções vindas do schema (select) ou
+   dos valores que existem de fato (people, texto). "(vazio)" entra como
+   opção porque linha sem valor é justamente o que costuma precisar de ação. */
+function montarFiltros(idBox, colunas, prefixo, aoMudar){
+  const box = document.getElementById(idBox);
+  if (!box) return;
+  box.innerHTML = colunas.map(nome => {
+    const campo = campoDe(nome);
+    let ops = (campo && campo.opcoes) ? campo.opcoes.slice() : null;
+    if (!ops){
+      const set = {};
+      LIG.forEach(l => { const v = getL(l, nome); (Array.isArray(v)?v:[v]).forEach(x => { if(x!=null && x!=="") set[x]=1; }); });
+      ops = Object.keys(set).sort((a,b)=>String(a).localeCompare(String(b),"pt-BR"));
+    }
+    const id = prefixo + "-f-" + normN(nome).replace(/[^A-Z0-9]/g,"");
+    return `<select id="${id}" data-col="${esc(nome)}" onchange="${aoMudar.name}()">
+      <option value="">${esc(nome)}: todos</option>
+      ${ops.map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join("")}
+      <option value="__VAZIO__">(vazio)</option>
+    </select>`;
+  }).join("");
+}
+function valoresFiltro(idBox){
+  const box = document.getElementById(idBox);
+  const out = [];
+  if (!box) return out;
+  box.querySelectorAll("select").forEach(s => { if (s.value) out.push({col:s.dataset.col, val:s.value}); });
+  return out;
+}
+function passaFiltros(l, filtros){
+  return filtros.every(f => {
+    const v = getL(l, f.col);
+    if (f.val === "__VAZIO__") return v==null || v==="" || (Array.isArray(v) && !v.length);
+    if (Array.isArray(v)) return v.map(String).indexOf(f.val) >= 0;
+    return String(v==null?"":v) === f.val;
+  });
+}
+function passaBusca(l, termo){
+  if (!termo) return true;
+  const t = normN(termo);
+  const alvo = normN([l.obra, getL(l,C.UC), getL(l,C.OBS), getL(l,C.OBS_CONTAS), txt(getL(l,C.RESP))].join(" "));
+  return alvo.indexOf(t) >= 0;
+}
+
+function montarAnos(){
+  const anos = {};
+  LIG.forEach(l => {
+    [dataReal(l,C.DT_SOL), dataReal(l,C.DT_LIG), dataReal(l,C.DT_APROV)].forEach(d => { if(d) anos[d.slice(0,4)]=1; });
+  });
+  const sel = document.getElementById("g-ano");
+  const atual = sel.value;
+  sel.innerHTML = '<option value="">Todos os anos</option>' +
+    Object.keys(anos).sort().reverse().map(a=>`<option value="${a}">${a}</option>`).join("");
+  sel.value = atual;
+}
+
+/* ===================== KPIs ===================== */
+function kpi(lab,val,sub,cls){ return `<div class="kpi ${cls||''}"><div class="lab">${lab}</div><div class="val">${val}</div><div class="sub">${sub||''}</div></div>`; }
+function renderKpis(){
+  const total = LIG.length;
+  const ligadas = LIG.filter(l => ["LIGADO","TRANSFERIDO","ENTREGUE NAO TRANSFERIDO"].indexOf(normN(sel(l,C.STATUS))) >= 0).length;
+  const naoLib  = LIG.filter(l => sel(l,C.LIBERADO) === "NÃO").length;
+  const aguardaAprov = LIG.filter(l => sel(l,C.FEZ)==="SIM" && sel(l,C.APROVADA)==="NÃO").length;
+  const atrasadas = LIG.filter(l =>
+    normN(getL(l,C.ALERTA_SOL)).indexOf("ATRASADO") >= 0 ||
+    normN(getL(l,C.ALERTA_LIG)).indexOf("ATRASADO") >= 0).length;
+  document.getElementById("kpis").innerHTML =
+    kpi("Linhas de ligação", num(total), "uma por casa e concessionária", "hero") +
+    kpi("Já ligadas", num(ligadas), total? Math.round(ligadas/total*100)+"% do total" : "") +
+    kpi("Não liberadas", num(naoLib), "aguardando liberação p/ solicitar") +
+    kpi("Aguardando aprovação", num(aguardaAprov), "solicitação feita, sem aprovação") +
+    kpi("Atrasadas", num(atrasadas), "alerta do Notion apontando atraso", atrasadas?"alerta":"");
+}
+
+/* ===================== gráficos (canvas puro) =====================
+   Sem biblioteca externa de propósito: o site precisa abrir offline, e um
+   <script src> de CDN é a primeira coisa que falha sem internet. Mesmo
+   caminho que o casas-vendidas.html já seguia. */
+function barras(idCanvas, itens, sufixo){
+  const c = document.getElementById(idCanvas);
+  if (!c) return;
+  const pw = (c.parentElement.clientWidth || 500);
+  if (pw < 20) return;
+  if (!itens.length){ c.style.display="none"; return; }
+  c.style.display = "block";
+  const H = 240;
+  const dpr = Math.max(window.devicePixelRatio||1, 2);
+  c.width = pw*dpr; c.height = H*dpr;
+  c.style.width = pw+"px"; c.style.height = H+"px";
+  const ctx = c.getContext("2d"); ctx.setTransform(dpr,0,0,dpr,0,0);
+  const P = {t:26,r:14,b:40,l:52}, cW = pw-P.l-P.r, cH = H-P.t-P.b, n = itens.length;
+  const mx = Math.max(...itens.map(i=>i.valor), 1);
+  const passo = Math.max(1, Math.ceil(mx/4));
+  const yMax = passo*4;
+
+  ctx.clearRect(0,0,pw,H);
+  ctx.strokeStyle = "#d0e4ec"; ctx.lineWidth = 1;
+  ctx.fillStyle = "#5a8099"; ctx.font = "500 10px Inter,sans-serif"; ctx.textAlign = "right";
+  for (let i=0;i<=4;i++){
+    const v = passo*i, y = P.t + cH*(1-v/yMax);
+    ctx.beginPath(); ctx.moveTo(P.l,y); ctx.lineTo(P.l+cW,y); ctx.stroke();
+    ctx.fillText(String(v), P.l-6, y+3.5);
+  }
+  const gW = cW/n, bW = Math.min(gW*0.6, 74);
+  itens.forEach((it,i) => {
+    const x = P.l + i*gW + (gW-bW)/2;
+    const bH = (it.valor/yMax)*cH, y = P.t + cH - bH;
+    ctx.fillStyle = it.cor || "#295778";
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, bW, Math.max(bH,1), [4,4,0,0]); else ctx.rect(x, y, bW, Math.max(bH,1));
+    ctx.fill();
+    ctx.fillStyle = "#1a3347"; ctx.font = "700 11px Inter,sans-serif"; ctx.textAlign = "center";
+    ctx.fillText(n1(it.valor) + (sufixo||""), x+bW/2, y-6);
+    ctx.fillStyle = "#5a8099"; ctx.font = "600 10.5px Inter,sans-serif";
+    ctx.fillText(it.rotulo, P.l + i*gW + gW/2, H-P.b+15);
+    ctx.fillStyle = "#8aacbb"; ctx.font = "500 10px Inter,sans-serif";
+    ctx.fillText(it.casos + (it.casos===1?" caso":" casos"), P.l + i*gW + gW/2, H-P.b+28);
+  });
+}
+
+const COR_CONC = { EQUATORIAL:"#b7791f", SANEAGO:"#2a9d5c", SANESC:"#295778" };
+
+function linhasDoAno(){
+  const ano = document.getElementById("g-ano").value;
+  if (!ano) return LIG;
+  return LIG.filter(l =>
+    (dataReal(l,C.DT_SOL)||"").slice(0,4) === ano ||
+    (dataReal(l,C.DT_LIG)||"").slice(0,4) === ano ||
+    (dataReal(l,C.DT_APROV)||"").slice(0,4) === ano);
+}
+
+function tabelaResumo(grupos){
+  if (!grupos.length) return '<div class="vazio">Sem dados suficientes no período — faltam datas preenchidas.</div>';
+  return `<table class="tab-resumo"><thead><tr>
+      <th>Grupo</th><th>Casos</th><th>Média (dias)</th><th>Mediana</th><th>Mín.</th><th>Máx.</th>
+    </tr></thead><tbody>` +
+    grupos.map(g=>`<tr>
+      <td>${esc(g.rotulo)}</td>
+      <td class="n">${num(g.casos)}</td>
+      <td class="n">${n1(g.valor)}</td>
+      <td class="n">${n1(g.mediana)}</td>
+      <td class="n">${num(g.min)}</td>
+      <td class="n">${num(g.max)}</td>
+    </tr>`).join("") + `</tbody></table>`;
+}
+
+function renderGraficos(){
+  const base = linhasDoAno();
+
+  // --- Tempo de ligação: uma barra por concessionária ---
+  const porConc = {};
+  base.forEach(l => {
+    const d = diasLigacao(l);
+    if (d == null) return;
+    const k = sel(l, C.CONC) || "(sem concessionária)";
+    (porConc[k] = porConc[k] || []).push(d);
+  });
+  const gLig = Object.keys(porConc).sort().map(k => {
+    const a = porConc[k];
+    return { rotulo:k, valor:media(a), mediana:mediana(a), casos:a.length,
+             min:Math.min(...a), max:Math.max(...a), cor:COR_CONC[normN(k)] };
+  });
+  barras("ch-lig", gLig, "d");
+  document.getElementById("tab-lig").innerHTML = tabelaResumo(gLig);
+
+  // --- Tempo de aprovação (SANESC): uma barra por mês da solicitação ---
+  const porMes = {};
+  base.forEach(l => {
+    const d = diasAprovacao(l);
+    if (d == null) return;
+    const m = (dataReal(l, C.DT_SOL)||"").slice(0,7);
+    if (!m) return;
+    (porMes[m] = porMes[m] || []).push(d);
+  });
+  const meses = Object.keys(porMes).sort().slice(-12);   // últimos 12 com dado
+  const gApr = meses.map(m => {
+    const a = porMes[m];
+    const p = m.split("-");
+    return { rotulo:p[1]+"/"+p[0].slice(2), valor:media(a), mediana:mediana(a), casos:a.length,
+             min:Math.min(...a), max:Math.max(...a), cor:COR_CONC.SANESC };
+  });
+  barras("ch-apr", gApr, "d");
+  const todosApr = Object.values(porMes).flat();
+  document.getElementById("tab-apr").innerHTML =
+    (todosApr.length
+      ? tabelaResumo(gApr.concat([{rotulo:"TOTAL do período", valor:media(todosApr), mediana:mediana(todosApr),
+          casos:todosApr.length, min:Math.min(...todosApr), max:Math.max(...todosApr)}]))
+      : '<div class="vazio">Nenhuma aprovação da SANESC com as duas datas preenchidas no período.</div>');
+
+  const comLig = base.filter(l => diasLigacao(l) != null).length;
+  document.getElementById("g-info").textContent =
+    comLig + " de " + base.length + " linhas têm as duas datas preenchidas para o cálculo";
+}
+window.addEventListener("resize", () => { clearTimeout(window._rz); window._rz = setTimeout(renderGraficos, 200); });
+
+/* ===================== tabelas ===================== */
+/* Colunas visíveis da planilha geral: tudo que o schema traz, menos as
+   ocultas do PDF, na ordem que faz sentido pra quem trabalha na tela. */
+function colunasVisiveis(){
+  const ocultas = OCULTAS.map(normN);
+  const doSchema = SCHEMA.map(c=>c.nome).filter(n => ocultas.indexOf(normN(n)) < 0);
+  const ordem = [C.OBRA, C.CONC, C.SISTEMA, C.STATUS, C.LIBERADO, C.FEZ, C.DT_SOL,
+                 C.APROVADA, C.DT_APROV, C.DT_LIG, C.UC, C.UC_OK, C.VENC,
+                 C.RESP, C.LINK, C.OBS, C.OBS_CONTAS];
+  const usadas = [], resto = [];
+  ordem.forEach(n => { const r = doSchema.find(x => normN(x)===normN(n)); if (r) usadas.push(r); });
+  doSchema.forEach(n => { if (usadas.indexOf(n) < 0) resto.push(n); });
+  return usadas.concat(resto);
+}
+
+function celula(l, nome){
+  const campo = campoDe(nome);
+  const tipo = campo ? campo.tipo : "rich_text";
+  const v = getL(l, nome);
+  if (campo && campo.sensivel){
+    // valor sensível não é publicado no dist/ — só o "tem/não tem"
+    const tem = l.sens && l.sens[campo.nome];
+    return tem ? '<span class="pill neutro" title="abra a linha para ver">•••</span>' : "—";
+  }
+  if (tipo === "date") { const d = dataReal(l, nome); return d ? fmtData(d) : "—"; }
+  if (tipo === "url")  { return v ? `<a href="${esc(v)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">abrir ↗</a>` : "—"; }
+  if (v == null || v === "" || (Array.isArray(v) && !v.length)) return "—";
+  const s = txt(v);
+  if (tipo === "select" || tipo === "status"){
+    const n = normN(s);
+    const cls = n==="SIM" ? "sim" : (n==="NAO" ? "nao" : "neutro");
+    return `<span class="pill ${cls}">${esc(s)}</span>`;
+  }
+  if (tipo === "formula" && (s.indexOf("🚨")>=0 || s.indexOf("⚠️")>=0 || s.indexOf("⏳")>=0)){
+    const cls = s.indexOf("🚨")>=0 ? "grave" : "aviso";
+    return `<span class="pill ${cls}">${esc(s)}</span>`;
+  }
+  return esc(s);
+}
+
+function tabelaHtml(linhas, colunas, extras){
+  if (!linhas.length) return '<div class="vazio">Nenhuma linha com esses filtros.</div>';
+  const cols = colunas.slice();
+  const th = cols.map(c=>`<th>${esc(c)}</th>`).join("") +
+             (extras ? '<th>Dias p/ ligar</th><th>Dias p/ aprovar</th>' : "");
+  const tr = linhas.map(l => {
+    const tds = cols.map(c=>`<td>${celula(l,c)}</td>`).join("");
+    const ex = extras
+      ? `<td>${diasLigacao(l)==null?"—":diasLigacao(l)}</td><td>${diasAprovacao(l)==null?"—":diasAprovacao(l)}</td>`
+      : "";
+    return `<tr onclick="abrirLinha('${esc(l.id)}')">${tds}${ex}</tr>`;
+  }).join("");
+  return `<table class="grade"><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table>`;
+}
+
+function renderPlanilha(){
+  const filtros = valoresFiltro("filtros-hub");
+  const termo = document.getElementById("hub-busca").value;
+  const linhas = LIG.filter(l => passaFiltros(l,filtros) && passaBusca(l,termo));
+  document.getElementById("hub-count").textContent = linhas.length + " de " + LIG.length + " linhas";
+  document.getElementById("hub-wrap").innerHTML = tabelaHtml(linhas, colunasVisiveis(), true);
+}
+
+function renderAba(){
+  if (!SETOR_ATUAL || !ABA_ATUAL) return;
+  const def = ABAS[ABA_ATUAL];
+  // (re)monta os filtros só quando a aba muda de conjunto de filtros
+  const box = document.getElementById("filtros-setor");
+  if (box.dataset.aba !== ABA_ATUAL){
+    montarFiltros("filtros-setor", def.filtros, "set", renderAba);
+    box.dataset.aba = ABA_ATUAL;
+  }
+  const filtros = valoresFiltro("filtros-setor");
+  const termo = document.getElementById("set-busca").value;
+  const base = linhasDoSetor(SETOR_ATUAL).filter(def.base);
+  const linhas = base.filter(l => passaFiltros(l,filtros) && passaBusca(l,termo));
+  document.getElementById("set-count").textContent = linhas.length + " de " + base.length + " linhas";
+  const cols = def.colunas || colunasVisiveis();
+  document.getElementById("set-wrap").innerHTML = tabelaHtml(linhas, cols, ABA_ATUAL === "planilha");
+}
+
+/* ===================== painel de edição ===================== */
+/* Só estas colunas podem ser editadas pelo site. A mesma lista existe no
+   Code.gs — e é LÁ que ela vale: esconder o campo aqui não impede ninguém de
+   chamar a ação pelo DevTools. Fórmula e rollup ficam de fora porque quem
+   calcula é o Notion. */
+const EDITAVEIS = [
+  C.OBRA, C.CONC, C.SISTEMA, C.STATUS, C.LIBERADO, C.FEZ, C.DT_SOL,
+  C.APROVADA, C.DT_APROV, C.DT_LIG, C.UC, C.UC_OK, C.VENC,
+  C.LINK, C.OBS, C.OBS_CONTAS
+];
+function ehEditavel(nome){ return EDITAVEIS.some(n => normN(n) === normN(nome)); }
+
+function linhaPorId(id){ return LIG.find(l => l.id === id) || null; }
+
+function abrirLinha(id){
+  const l = linhaPorId(id);
+  if (!l) return;
+  LINHA_ABERTA = l;
+  document.getElementById("pn-obra").textContent = l.obra || "(sem nome)";
+  document.getElementById("pn-sub").textContent =
+    [sel(l,C.CONC), sel(l,C.STATUS)].filter(Boolean).join(" · ");
+  document.getElementById("pn-body").innerHTML = corpoPainel(l);
+  document.getElementById("overlay").classList.add("on");
+  document.getElementById("painel").classList.add("on");
+}
+function fecharLinha(){
+  LINHA_ABERTA = null;
+  document.getElementById("overlay").classList.remove("on");
+  document.getElementById("painel").classList.remove("on");
+}
+
+function corpoPainel(l){
+  const cols = colunasVisiveis();
+  let html = "";
+  cols.forEach(nome => {
+    const campo = campoDe(nome);
+    if (!campo) return;
+    const tipo = campo.tipo;
+    const v = getL(l, nome);
+    const idc = "c_" + normN(nome).replace(/[^A-Z0-9]/g,"");
+    html += `<div class="campo"><label>${esc(nome)}</label>`;
+    if (!ehEditavel(nome) || ["formula","rollup","relation","created_time","last_edited_time"].indexOf(tipo) >= 0){
+      html += `<div class="ro">${celula(l,nome)}</div>`;
+      if (tipo === "formula") html += `<div class="dica">calculado pelo Notion</div>`;
+    } else if (tipo === "select" || tipo === "status"){
+      const ops = campo.opcoes || [];
+      html += `<select id="${idc}" onchange="salvar('${esc(nome)}','${tipo}',this.value)">
+        <option value="">(vazio)</option>
+        ${ops.map(o=>`<option value="${esc(o)}" ${String(v)===String(o)?"selected":""}>${esc(o)}</option>`).join("")}
+      </select>`;
+    } else if (tipo === "date"){
+      const d = dataReal(l, nome) || "";
+      html += `<input type="date" id="${idc}" value="${esc(d)}" onchange="salvar('${esc(nome)}','date',this.value)">`;
+      if (!d && v) html += `<div class="dica">no Notion está 01/01/2000 (marcador de “sem data”)</div>`;
+    } else if (tipo === "url"){
+      html += `<input type="text" id="${idc}" value="${esc(v||"")}" placeholder="https://…" onchange="salvar('${esc(nome)}','url',this.value)">`;
+    } else if (tipo === "rich_text" || tipo === "title"){
+      html += `<textarea id="${idc}" rows="2" onchange="salvar('${esc(nome)}','${tipo}',this.value)">${esc(v||"")}</textarea>`;
+    } else if (tipo === "number"){
+      html += `<input type="number" id="${idc}" value="${esc(v==null?"":v)}" onchange="salvar('${esc(nome)}','number',this.value)">`;
+    } else {
+      html += `<div class="ro">${celula(l,nome)}</div>`;
+    }
+    html += `</div>`;
+  });
+
+  // colunas sensíveis: não vêm no dist/, chegam sob demanda pelo Apps Script
+  const sens = Object.keys(l.sens||{}).filter(k => l.sens[k]);
+  if (sens.length){
+    html += `<div class="campo"><label>Dados sensíveis</label>
+      <div class="ro" id="pn-sens">${sens.map(esc).join(" · ")} — não publicados no site.</div>
+      <div class="dica">Ficam fora do arquivo público e só são buscados quando você pede.</div>
+      <button class="bt ghost" style="margin-top:8px" onclick="verSensiveis()">Ver dados sensíveis</button>
+    </div>`;
+  }
+  return html;
+}
+
+/* Busca os campos sensíveis (CPF/CNPJ, nascimento) direto no Apps Script,
+   que confere a sessão antes de responder. Nada disso está no dist/. */
+async function verSensiveis(){
+  if (!LINHA_ABERTA) return;
+  const box = document.getElementById("pn-sens");
+  box.innerHTML = '<span class="load"></span> buscando…';
+  const r = await ler({action:"ligacao", pageId: LINHA_ABERTA.id});
+  if (!r || !r.ok){ box.textContent = "não consegui buscar: " + erroTexto(r && r.erro); return; }
+  const v = r.valores || {};
+  const linhas = Object.keys(LINHA_ABERTA.sens||{})
+    .filter(k => LINHA_ABERTA.sens[k])
+    .map(k => `<div><b>${esc(k)}:</b> ${esc(txt(v[k]) || "—")}</div>`);
+  box.innerHTML = linhas.join("") || "—";
+}
+
+/* Escrita: tenta agora; sem internet, entra na fila do app.js e sobe sozinha.
+   O valor também é atualizado na memória, senão a tabela continuaria
+   mostrando o valor antigo até o próximo dist/ (que sai a cada 15 min). */
+async function salvar(prop, tipo, valor){
+  if (!LINHA_ABERTA) return;
+  const l = LINHA_ABERTA, real = nomeReal(prop);
+  const antes = getL(l, prop);
+  const novo = (tipo === "number") ? (valor === "" ? null : Number(valor)) : (valor || "");
+  if (l.v) l.v[real] = novo;
+
+  const r = await escrever(
+    {action:"ligUpdate", pageId: l.id, prop: real, tipo: tipo, valor: novo},
+    "ligação: " + real
+  );
+  if (r.ok && r.enfileirado){ toast("Sem internet — salvo na fila."); }
+  else if (r.ok){ toast("Salvo."); }
+  else {
+    if (l.v) l.v[real] = antes;          // rejeitado pelo servidor: desfaz
+    toast("Não salvou: " + erroTexto(r.erro));
+    document.getElementById("pn-body").innerHTML = corpoPainel(l);
+  }
+  renderKpis(); renderGraficos(); renderPlanilha();
+  if (SETOR_ATUAL) { renderAba(); renderSetores(); }
+}
+
+/* Depois que a fila sobe, recarrega o dist/ pra pegar o que os outros
+   também mexeram. */
+window.aoSincronizar = () => { lerEstaticoJa("ligacoes.json","ligacoes", pintarTudo); };
+
+document.addEventListener("keydown", e => { if (e.key === "Escape") fecharLinha(); });
+boot();
+</script>
+</body>
+</html>

@@ -631,33 +631,62 @@ def main():
         if lig_rows is None:
             gravar("ligacoes.json", {"ok": False, "ligacoes": [], "updated_at": agora})
         else:
+            # Schema da base: é com ele que o ligacoes.html monta os filtros e
+            # os campos de edição sem adivinhar tipo nem lista de opções.
+            lig_schema = montar_schema(DB_LIGACOES, marcar_sensiveis=True)
+
             ligacoes = []
             for r in lig_rows:
                 props = r.get("properties") or {}
                 obra_ids, obra_txt = [], None
                 for nome, prop in props.items():
-                    if prop.get("type") == "relation" and norm(nome).startswith("OBRA"):
+                    # CORRIGIDO: era startswith("OBRA"), e a coluna de relação
+                    # nesta base chama "Vínculo Obra" — nunca casava, então
+                    # obraIds saía SEMPRE vazio e o vendas.html acabava sempre
+                    # no plano B (casar pelo texto do título). Agora basta
+                    # conter "OBRA" no nome.
+                    if prop.get("type") == "relation" and "OBRA" in norm(nome):
                         obra_ids = [x.get("id") for x in (prop.get("relation") or [])]
                     if prop.get("type") == "title":
                         obra_txt = valor(prop)
                 item = {
+                    # id da página: é o que o site manda pro Apps Script na hora
+                    # de escrever (e de pedir o valor sensível sob demanda).
+                    "id": r.get("id"),
                     "obraIds": obra_ids,
                     "obra": obra_txt,
+                    # uc/concessionaria/status ficam duplicados aqui de
+                    # propósito: o vendas.html já os consome em
+                    # ligacoesDaObra(). Tirar daqui quebraria a aba de Vendas
+                    # sem nenhum aviso.
                     "uc": None, "concessionaria": None, "status": None,
+                    # todas as colunas NÃO sensíveis, pelo nome exato do Notion
+                    "v": {},
+                    # colunas sensíveis: só "tem valor sim/não". O dist/ é
+                    # servido pelo GitHub Pages sem login nenhum, então CPF/CNPJ
+                    # e data de nascimento não entram aqui — o site pede sob
+                    # demanda ao Apps Script quando o usuário logado abre a linha.
+                    "sens": {},
                 }
                 for nome, prop in props.items():
                     n = norm(nome)
+                    v = valor(prop)
+                    if eh_sensivel(nome) or (OCULTAR_ANEXOS and prop.get("type") == "files"):
+                        item["sens"][nome] = bool(v)
+                    else:
+                        item["v"][nome] = v
                     if n == "UC":
-                        item["uc"] = valor(prop)
+                        item["uc"] = v
                     elif n.startswith("CONCESSIONARIA"):
-                        item["concessionaria"] = valor(prop)
+                        item["concessionaria"] = v
                     elif n == "STATUS":
-                        item["status"] = valor(prop)
+                        item["status"] = v
                 # linha sem nenhuma âncora não serve pra nada no site
                 if item["obraIds"] or item["obra"]:
                     ligacoes.append(item)
             gravar("ligacoes.json", {
-                "ok": True, "total": len(ligacoes), "ligacoes": ligacoes, "updated_at": agora,
+                "ok": True, "total": len(ligacoes), "ligacoes": ligacoes,
+                "schema": lig_schema, "titulo": "OBRA", "updated_at": agora,
             })
             print("  " + str(len(ligacoes)) + " ligações publicadas.", flush=True)
     else:

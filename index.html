@@ -122,6 +122,10 @@ body{display:flex;flex-direction:column;min-height:100vh}
    blocos é fixa (ver GRUPOS_ORDEM), não a ordem aqui no array. */
 const SISTEMAS=[
   {chave:"VENDAS",nome:"Gestão de Vendas",desc:"Atividades, alertas e planilhas",ico:"V",link:"vendas.html",conta:true,grupo:"SETORES"},
+  /* "LIGAÇÕES" tem que ser IGUAL à opção da coluna ACESSOS no banco LOGINS —
+     com acento e em maiúsculas. Se não bater, o botão simplesmente não
+     aparece pra quem tem o acesso, e sem mensagem de erro nenhuma. */
+  {chave:"LIGAÇÕES",nome:"Ligações de Água e Energia",desc:"Solicitações, prazos e planilha",ico:"L",link:"ligacoes.html",grupo:"SETORES"},
   {chave:"RAS LÍDERES",nome:"RAS Líderes",desc:"Reunião de alinhamento — Líderes",ico:"R",link:"https://devmoraiseng.github.io/RAS-SEMANAL/",externo:true,grupo:"REUNIÕES"},
   {chave:"RAS FINANCEIRO",nome:"RAS Financeiro",desc:"Reunião de alinhamento — Financeiro",ico:"R",link:"https://devmoraiseng.github.io/RAS-FINANCEIRO/",externo:true,grupo:"REUNIÕES"},
   {chave:"RAS PROJETOS",nome:"RAS Projetos",desc:"Reunião de alinhamento — Projetos",ico:"R",link:"https://devmoraiseng.github.io/RAS-PROJETOS/",externo:true,grupo:"REUNIÕES"},

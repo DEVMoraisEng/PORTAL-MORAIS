@@ -1,8 +1,12 @@
 /* Service worker — abre o site offline.
    dist/*.json NUNCA vai pro cache do SW: é o dado vivo, e o app.js já guarda
    a última cópia no localStorage. Cachear aqui mostraria dado velho pra sempre. */
-const CACHE = "portal-morais-v3";
-const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./app.js","./manifest.json"];
+/* A versão do CACHE precisa MUDAR sempre que esta lista mudar: o navegador
+   só baixa os arquivos novos quando o nome do cache é outro. Sem trocar o
+   número, quem já visitou o site continuaria com a lista antiga (e a
+   ligacoes.html não abriria offline). v3 -> v4 por causa dela. */
+const CACHE = "portal-morais-v4";
+const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html","./app.js","./manifest.json"];
 
 self.addEventListener("install", e=>{
   e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ARQUIVOS)).then(()=>self.skipWaiting()));
