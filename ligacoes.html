@@ -204,6 +204,14 @@ tbody tr.lin-vencida:hover td,tbody tr.lin-emdia:hover td,tbody tr.lin-sem:hover
 .colitem input{width:16px;height:16px}
 .modal-acoes{display:flex;justify-content:flex-end;gap:9px;margin-top:14px}
 .sem-lig{color:var(--text4);font-style:italic;font-size:11.5px}
+/* endereço clicável na planilha — mesmo comportamento do vendas.html */
+.obralink{color:var(--azul);font-weight:800;cursor:pointer}
+.obralink:hover{text-decoration:underline}
+/* ligações da casa, dentro do painel da venda */
+.lig-mini{border:1px solid var(--border2);border-left:4px solid var(--azul);border-radius:9px;padding:9px 11px;margin-bottom:7px;cursor:pointer;background:#fff}
+.lig-mini:hover{border-left-color:var(--verde);background:var(--bg2)}
+.lm-conc{font-family:'Barlow Condensed';font-weight:800;font-size:14px;text-transform:uppercase;color:var(--azul-esc);letter-spacing:.4px}
+.lm-dados{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--text3);margin-top:3px}
 .toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);background:var(--azul-esc);color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;font-weight:600;opacity:0;pointer-events:none;transition:.2s;z-index:60}
 .toast.on{opacity:1;transform:translate(-50%,0)}
 @media(max-width:680px){
@@ -499,7 +507,7 @@ const ABAS = {
   liberadas: {
     titulo: "Obras liberadas para solicitar a ligação",
     colunas: [C.OBRA, C.CONC, C.DT_SOL, C.FEZ, C.OBS, C.CPF, C.ALERTA_INFO],
-    filtros: [C.CONC, C.RESP],
+    filtros: [C.CONC, C.RESP, C.FEZ],
     sensiveis: true,
     pdf: true,
     base: l => sel(l, C.LIBERADO) === "SIM" && temAlerta(l, C.ALERTA_INFO)
@@ -507,7 +515,7 @@ const ABAS = {
   conferencias: {
     titulo: "Conferências de ligações solicitadas",
     colunas: [C.OBRA, C.CONC, C.CPF_V1, C.DT_SOL, C.APROVADA, C.DT_APROV, C.DT_LIG, C.STATUS, C.ALERTA_LIG],
-    filtros: [C.CONC, C.RESP],
+    filtros: [C.CONC, C.RESP, C.APROVADA],
     sensiveis: true,
     pdf: true,
     base: l => sel(l, C.FEZ) === "SIM" && temAlerta(l, C.ALERTA_INFO1)
@@ -515,7 +523,7 @@ const ABAS = {
   semUc: {
     titulo: "Ligações sem UC (ligadas mas sem UC)",
     colunas: [C.OBRA, C.CONC, C.CPF, C.NASC, C.UC, C.UC_OK, C.DT_LIG, C.OBS_CONTAS, C.ALERTA_UC],
-    filtros: [C.CONC, C.RESP],
+    filtros: [C.CONC, C.RESP, C.UC_OK],
     sensiveis: true,
     pdf: true,
     base: l => sel(l, C.STATUS) === "LIGADO" && temAlerta(l, C.ALERTA_UC)
@@ -544,7 +552,7 @@ const ABAS = {
   semUcContas: {
     titulo: "Ligações sem UC (ligadas sem UC)",
     colunas: [C.OBRA, C.CONC, C.CPF, C.NASC, C.UC, C.UC_OK, C.ALERTA_UC, C.STATUS],
-    filtros: [C.CONC, C.RESP],
+    filtros: [C.CONC, C.RESP, C.UC_OK],
     sensiveis: true,
     pdf: true,
     base: l => ["LIGADO", "ENTREGUE NAO TRANSFERIDO"].indexOf(normN(sel(l, C.STATUS))) >= 0
@@ -996,8 +1004,8 @@ function montarFiltros(idBox, colunas, prefixo, aoMudar, fonte){
     const id = prefixo + "-f-" + normN(nome).replace(/[^A-Z0-9]/g,"");
     return `<select id="${id}" data-col="${esc(nome)}" onchange="${aoMudar.name}()">
       <option value="">${esc(nome)}: todos</option>
-      ${ops.map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join("")}
-      <option value="__VAZIO__">(vazio)</option>
+      ${ops.map(o=>`<option value="${esc(o)}">${esc(nome)}: ${esc(o)}</option>`).join("")}
+      <option value="__VAZIO__">${esc(nome)}: (vazio)</option>
     </select>`;
   }).join("");
 }
@@ -1407,7 +1415,11 @@ function tabelaHtml(linhas, colunas, extras, fonte, corDe){
       const cls = [i===0?"stick":"", ed?"edt":""].filter(Boolean).join(" ");
       const attrs = (cls ? ` class="${cls}"` : "") +
                     (ed ? ` data-col="${esc(c)}" title="Clique para editar"` : "");
-      return `<td${attrs}>${celula(l,c,fonte)}</td>`;
+      // a primeira coluna (o endereço) é o link que abre a obra
+      const conteudo = (i === 0)
+        ? `<span class="obralink" data-obra="${esc(l.id)}" title="Abrir a obra">${celula(l,c,fonte)}</span>`
+        : celula(l,c,fonte);
+      return `<td${attrs}>${conteudo}</td>`;
     }).join("");
     const ex = extras
       ? `<td>${diasLigacao(l)==null?"—":diasLigacao(l)}</td><td>${diasAprovacao(l)==null?"—":diasAprovacao(l)}</td>`
@@ -1460,6 +1472,9 @@ function ehEditavelVendas(coluna){
 function podeEditarNaTabela(coluna, fonte){
   const campo = campoDe(coluna, fonte);
   if (!campo) return false;
+  /* O endereço não se edita na célula: o clique nele ABRE a obra, como no
+     vendas.html. Continua editável dentro do painel lateral. */
+  if (normN(coluna) === normN(C.OBRA) || normN(coluna) === normN(V.OBRA_CASA)) return false;
   // coluna protegida: o valor nem está publicado no navegador, então editar
   // aqui gravaria vazio por cima do dado real. Só pelo painel/Notion.
   if (campo.sensivel) return false;
@@ -1474,6 +1489,14 @@ function ligarCliquesTabela(idBox){
   // um handler por tabela (não um por célula): com centenas de linhas é a
   // diferença entre a aba abrir na hora e travar
   box.addEventListener("click", ev => {
+    const link = ev.target.closest(".obralink");
+    if (link){
+      const tr = link.closest("tr[data-id]");
+      ev.stopPropagation();
+      if (tr && tr.dataset.fonte === "vendas") abrirObraVenda(link.dataset.obra);
+      else abrirLinha(link.dataset.obra);
+      return;
+    }
     const td = ev.target.closest("td.edt");
     if (td){ if (!td.querySelector("input,select")) editarCelula(td); return; }
     if (ev.target.closest("a")) return;              // deixa o link navegar
@@ -2236,6 +2259,79 @@ function corpoPainel(l){
     </div>`;
   }
   return html;
+}
+
+/* ---------- painel da obra na aba de casas vendidas ----------
+   Aqui a "obra" é uma VENDA, não uma linha de ligação. O painel mostra os
+   dados da venda (os campos liberados dão pra editar, os demais são leitura)
+   e, embaixo, as LIGAÇÕES daquela casa — que é o motivo de a aba existir:
+   dá pra ver água e energia lado a lado sem sair da tela. */
+function abrirObraVenda(id){
+  const v = VEN.find(x => x.id === id);
+  if (!v) return;
+  LINHA_ABERTA = v;
+  document.getElementById("pn-obra").textContent = v.obra || "(sem endereço)";
+  document.getElementById("pn-sub").textContent = "Venda · contrato de " + fmtData(dataReal(v, V.DT_ASSIN));
+  document.getElementById("pn-body").innerHTML = corpoPainelVenda(v);
+  document.getElementById("overlay").classList.add("on");
+  document.getElementById("painel").classList.add("on");
+}
+
+function corpoPainelVenda(v){
+  const cols = colunasDaAba("vendidas").filter(c => normN(c) !== normN(V.OBRA_CASA));
+  let html = "";
+  cols.forEach(nome => {
+    if (ehColunaUc(nome)) return;                    // as UCs vêm no bloco de ligações
+    const campo = campoDe(nome, "vendas");
+    if (!campo) return;
+    const editavel = ehEditavelVendas(nome) &&
+      ["select","status","date","rich_text","title","url","number"].indexOf(campo.tipo) >= 0;
+    const valor = getL(v, nome);
+    html += `<div class="campo"><label>${esc(nome)}</label>`;
+    if (!editavel){
+      html += `<div class="ro">${celula(v, nome, "vendas")}</div>`;
+    } else if (campo.tipo === "select" || campo.tipo === "status"){
+      html += `<select onchange="salvarVenda('${esc(nome)}','${campo.tipo}',this.value)">
+        <option value="">(vazio)</option>
+        ${(campo.opcoes||[]).map(o=>`<option value="${esc(o)}" ${String(valor)===String(o)?"selected":""}>${esc(o)}</option>`).join("")}
+      </select>`;
+    } else if (campo.tipo === "date"){
+      html += `<input type="date" value="${esc(dataReal(v,nome)||"")}" onchange="salvarVenda('${esc(nome)}','date',this.value)">`;
+    } else {
+      html += `<input type="text" value="${esc(valor==null?"":valor)}" onchange="salvarVenda('${esc(nome)}','${campo.tipo}',this.value)">`;
+    }
+    html += `</div>`;
+  });
+
+  // ligações daquela casa
+  const linhas = indiceLigacoes()[chaveObraVenda(v)] || [];
+  html += `<div class="campo"><label>Ligações desta casa</label>`;
+  if (!linhas.length){
+    html += `<div class="ro">Nenhuma linha de ligação com este endereço. Confira se o endereço bate com o da base de ligações.</div>`;
+  } else {
+    html += linhas.map(l => {
+      const uc = txt(getL(l, C.UC)).trim();
+      return `<div class="lig-mini" onclick="abrirLinha('${esc(l.id)}')" title="Abrir esta ligação">
+        <div class="lm-conc">${esc(sel(l, C.CONC) || "—")}</div>
+        <div class="lm-dados">
+          <span>status: <b>${esc(sel(l, C.STATUS) || "—")}</b></span>
+          <span>UC: <b>${esc(uc && uc !== "-" ? uc : "—")}</b></span>
+          <span>ligada em: <b>${fmtData(dataReal(l, C.DT_LIG))}</b></span>
+        </div>
+      </div>`;
+    }).join("");
+  }
+  html += `</div>`;
+  return html;
+}
+
+/* Gravação a partir do painel da venda — mesmo caminho da célula. */
+async function salvarVenda(prop, tipo, valor){
+  if (!LINHA_ABERTA) return;
+  const v = LINHA_ABERTA;
+  const r = await salvarCampo(v, prop, tipo, valor, "vendas");
+  if (!r.ok) document.getElementById("pn-body").innerHTML = corpoPainelVenda(v);
+  if (SETOR_ATUAL) renderAba();
 }
 
 /* Busca os campos sensíveis (CPF/CNPJ, nascimento) direto no Apps Script,
