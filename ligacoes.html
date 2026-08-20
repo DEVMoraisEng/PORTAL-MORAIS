@@ -411,12 +411,14 @@ const V = {
   UC_ENERGIA:    "UC EQUATORIAL",
   UC_AGUA:       "UC ÁGUA",
   ASSINOU:       "ASSINOU E ARMAZENOU CONTRATO DO BANCO?",
-  /* Coluna nova da base de vendas. O nome aqui é só o palpite inicial: o
-     verdadeiro é descoberto no schema publicado (ver acharColunaVerificacao),
-     porque no Notion ela pode estar escrita "DATA DE ERIFICAÇÃO DAS CONTAS" —
-     e nome de coluna errado no código não dá erro, só mostra a coluna vazia
-     pra sempre, que é o pior tipo de falha. */
-  DT_VERIF:      "DATA DE VERIFICAÇÃO DAS CONTAS"
+  /* Data de verificação das contas: o nome REAL vem do arquivo publicado
+     (ver resolverColunaVerificacao). Na lista de colunas da aba entra este
+     MARCADOR, trocado pelo nome real na hora de desenhar.
+     Por que marcador e não o nome direto: a tela é pintada duas vezes (a
+     cópia salva primeiro, o arquivo novo depois). Na primeira pintura a
+     coluna ainda não existia, eu a removia da lista — e na segunda, já sem
+     ela na lista, não tinha como devolvê-la. A coluna sumia de vez. */
+  DT_VERIF:      "\u0000VERIFICACAO"
 };
 
 /* Data-lixo: o Notion não aceita campo de data "meio preenchido", então a
@@ -701,41 +703,47 @@ function boot(){
    formato das linhas de ligação ({id, obra, v, sens}) — assim getL, celula,
    filtros, PDF e o resto funcionam igual nas duas fontes, sem um segundo
    conjunto de funções só para vendas. */
-/* Acha a coluna de verificação das contas pelo PEDAÇO do nome: casa tanto
-   "DATA DE VERIFICAÇÃO DAS CONTAS" quanto a grafia sem o V. Se um dia o nome
-   mudar de novo, continua achando — e se não achar, a coluna simplesmente não
-   entra na tela, em vez de aparecer vazia sem explicação. */
-function acharColunaVerificacao(campos){
-  const achado = campos.find(c => {
-    const n = normN(c.nome);
-    return n.indexOf("ERIFICA") >= 0 && n.indexOf("CONTA") >= 0;
-  });
-  return achado ? achado.nome : null;
+/* Nome real da coluna de verificação das contas, ou null se ela ainda não
+   chegou no arquivo publicado. Recalculado a cada pintura — nunca guardado
+   de um jeito que impeça a coluna de voltar. */
+let COL_VERIF = null;
+
+/* Acha a coluna pelo PEDAÇO do nome, no schema E nos dados. Casa tanto
+   "DATA DE VERIFICAÇÃO DAS CONTAS" quanto a grafia antiga sem o V, e ainda
+   funciona se o schema estiver velho mas os dados já trouxerem a coluna. */
+function ehNomeVerificacao(nome){
+  const n = normN(nome);
+  return n.indexOf("ERIFICA") >= 0 && n.indexOf("CONTA") >= 0;
+}
+function resolverColunaVerificacao(){
+  const noSchema = VSCHEMA.find(c => ehNomeVerificacao(c.nome));
+  if (noSchema) return noSchema.nome;
+  // plano B: o schema pode estar de uma publicação anterior à criação da
+  // coluna, mas os registros já virem com ela
+  for (let i = 0; i < VEN.length && i < 50; i++){
+    for (const k in (VEN[i].v || {})) if (ehNomeVerificacao(k)) return k;
+  }
+  return null;
+}
+/* Garante que a coluna resolvida tenha um tipo no schema (é uma data). */
+function registrarColunaVerificacao(){
+  COL_VERIF = resolverColunaVerificacao();
+  if (COL_VERIF && !campoDe(COL_VERIF, "vendas")){
+    VSCHEMA.push({ nome: COL_VERIF, tipo: "date", editavel: true });
+    VSCAMPO[COL_VERIF] = VSCHEMA[VSCHEMA.length-1];
+  }
 }
 
 function pintarSchemaVendas(r){
   if (!r || !r.ok || !r.campos) return;
   VSCHEMA = r.campos.slice();
-  // troca o palpite pelo nome real da coluna, nas colunas da aba e nos filtros
-  const real = acharColunaVerificacao(VSCHEMA);
-  if (real && real !== V.DT_VERIF){
-    const cols = ABAS.vendidas.colunas;
-    const i = cols.indexOf(V.DT_VERIF);
-    V.DT_VERIF = real;
-    if (i >= 0) cols[i] = real;
-  } else if (!real){
-    // a coluna ainda não existe no arquivo publicado: tira da tela em vez de
-    // mostrar uma coluna sempre vazia
-    const cols = ABAS.vendidas.colunas;
-    const i = cols.indexOf(V.DT_VERIF);
-    if (i >= 0) cols.splice(i, 1);
-  }
   // colunas montadas aqui (não existem no Notion): endereço+casa numa célula
   // só, e as UCs vindas da base de ligações
   VSCHEMA.push({ nome: V.OBRA_CASA,  tipo: "rich_text", editavel: false });
   VSCHEMA.push({ nome: V.UC_ENERGIA, tipo: "rich_text", editavel: false });
   VSCHEMA.push({ nome: V.UC_AGUA,    tipo: "rich_text", editavel: false });
   VSCAMPO = {}; VSCHEMA.forEach(c => VSCAMPO[c.nome] = c);
+  registrarColunaVerificacao();
   if (SETOR_ATUAL && ABAS[ABA_ATUAL] && ABAS[ABA_ATUAL].fonte === "vendas") renderAba();
 }
 
@@ -786,6 +794,7 @@ function pintarVendas(r){
     return linha;
   });
   VEN_OK = true;
+  registrarColunaVerificacao();
   if (SETOR_ATUAL && ABAS[ABA_ATUAL] && ABAS[ABA_ATUAL].fonte === "vendas") renderAba();
   renderSetores();
 }
@@ -882,6 +891,16 @@ function nomeReal(nome, fonte){ const c = campoDe(nome, fonte); return c ? c.nom
 /* Linhas da fonte certa: a maioria das abas lê LIG; "Casas vendidas" lê VEN. */
 function fonteDaAba(chave){ return (ABAS[chave] && ABAS[chave].fonte) || "ligacoes"; }
 function linhasFonte(fonte){ return fonte === "vendas" ? VEN : LIG; }
+/* Colunas da aba, com o marcador da coluna de verificação trocado pelo nome
+   real (ou removido, se a coluna ainda não existe). Todo lugar que precisa da
+   lista de colunas passa por aqui — tabela, PDF e escolha de colunas —, senão
+   um deles mostraria o marcador cru. */
+function colunasDaAba(chave){
+  const def = ABAS[chave];
+  const base = (def && def.colunas) ? def.colunas : colunasVisiveis();
+  return base.map(c => c === V.DT_VERIF ? COL_VERIF : c).filter(Boolean);
+}
+
 function linhasDaAba(chave){
   const def = ABAS[chave];
   if (!def) return [];
@@ -1431,8 +1450,8 @@ const VENDAS_EDITAVEIS = [
 function ehEditavelVendas(coluna){
   const alvo = normN(coluna);
   // a data de verificação das contas é preenchida por quem confere, então
-  // ela é editável aqui (o nome real vem do schema — ver V.DT_VERIF)
-  if (alvo === normN(V.DT_VERIF)) return true;
+  // ela é editável aqui (o nome real vem do arquivo publicado — ver COL_VERIF)
+  if (COL_VERIF && alvo === normN(COL_VERIF)) return true;
   return VENDAS_EDITAVEIS.some(n => normN(n) === alvo);
 }
 
@@ -1561,7 +1580,7 @@ function filtrosVendidas(){
   const anos = {}, anosVer = {};
   VEN.forEach(v => {
     const d = dataReal(v, V.DT_ASSIN); if (d) anos[d.slice(0,4)] = 1;
-    const dv = dataReal(v, V.DT_VERIF); if (dv) anosVer[dv.slice(0,4)] = 1;
+    const dv = COL_VERIF ? dataReal(v, COL_VERIF) : null; if (dv) anosVer[dv.slice(0,4)] = 1;
   });
   if (!Object.keys(anosVer).length) anosVer[String(new Date().getFullYear())] = 1;
   const MES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -1587,6 +1606,7 @@ function filtrosVendidas(){
       <option value="SANESC">Senador Canedo</option>
       <option value="SANEAGO">Goiânia</option>
     </select>
+    ${!COL_VERIF ? "" : `
     <select id="vd-ver" onchange="aoTrocarVerificacao()">
       <option value="">Verificação: todas</option>
       <option value="vazias">Sem data de verificação</option>
@@ -1604,7 +1624,7 @@ function filtrosVendidas(){
       ${Object.keys(anosVer).sort().reverse().map(a=>`<option value="${a}">${a}</option>`).join("")}
     </select>
     <input type="date" id="vd-vde" style="display:none" title="Verificada a partir de" onchange="renderAba()">
-    <input type="date" id="vd-vate" style="display:none" title="Verificada até" onchange="renderAba()">`;
+    <input type="date" id="vd-vate" style="display:none" title="Verificada até" onchange="renderAba()">`}`;
 }
 /* Mostra só os campos que o período escolhido usa — deixar os cinco sempre
    visíveis vira uma barra de filtros que ninguém entende. */
@@ -1630,8 +1650,8 @@ function aoTrocarVerificacao(){
    no dia a dia: é a fila do que ainda não foi conferido. */
 function passaVerificacao(v){
   const el = document.getElementById("vd-ver");
-  if (!el || !el.value) return true;
-  const d = dataReal(v, V.DT_VERIF);
+  if (!el || !el.value || !COL_VERIF) return true;
+  const d = dataReal(v, COL_VERIF);
   const per = el.value;
   if (per === "vazias") return !d;
   if (!d) return false;
@@ -1774,7 +1794,7 @@ function renderAba(){
   document.getElementById("set-count").textContent =
     linhas.length + " de " + total + " pendência" + (total===1?"":"s");
 
-  const cols = def.colunas || colunasVisiveis();
+  const cols = colunasDaAba(ABA_ATUAL);
   let html = "";
   if (def.vencimento) html += LEGENDA_VENC;
   if (def.sensiveis && !(fonte === "vendas" ? SENS_VEN : SENS_LIG)){
@@ -2067,7 +2087,7 @@ const COLS_PDF = {};
 function abrirEscolhaColunas(){
   const def = ABAS[ABA_ATUAL];
   const fonte = fonteDaAba(ABA_ATUAL);
-  const cols = def.colunas || colunasVisiveis();
+  const cols = colunasDaAba(ABA_ATUAL);
   const marcadas = COLS_PDF[ABA_ATUAL] || cols.slice();
   document.getElementById("cols-titulo").textContent = def.titulo;
   document.getElementById("cols-lista").innerHTML = cols.map((c,i) =>
@@ -2091,7 +2111,7 @@ function confirmarColunas(){
 function baixarRelatorio(){
   const def = ABAS[ABA_ATUAL];
   const fonte = fonteDaAba(ABA_ATUAL);
-  const todas = def.colunas || colunasVisiveis();
+  const todas = colunasDaAba(ABA_ATUAL);
   const cols = (COLS_PDF[ABA_ATUAL] || todas).filter(c => todas.indexOf(c) >= 0);
   const linhas = linhasVisiveisAba();
   if (!linhas.length){ toast("Nada para imprimir com esses filtros."); return; }
