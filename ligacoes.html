@@ -191,6 +191,19 @@ tbody tr.lin-vencida:hover td,tbody tr.lin-emdia:hover td,tbody tr.lin-sem:hover
 .bt{border:0;border-radius:8px;padding:9px 14px;font:inherit;font-weight:700;font-size:13px;cursor:pointer;text-decoration:none;display:inline-block}
 .bt.az{background:var(--azul);color:#fff}.bt.vd{background:var(--verde);color:#fff}
 .bt.ghost{background:#fff;border:1px solid var(--border);color:var(--azul)}
+/* modal de escolha de colunas do relatório */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(20,40,55,.45);z-index:50;align-items:center;justify-content:center;padding:18px}
+.modal-overlay.on{display:flex}
+.modal-cx{background:#fff;border-radius:14px;width:min(560px,100%);max-height:86vh;display:flex;flex-direction:column;padding:18px;box-shadow:0 18px 40px rgba(20,40,55,.3)}
+.modal-tit{font-family:'Barlow Condensed';font-weight:800;font-size:20px;text-transform:uppercase;color:var(--azul-esc);letter-spacing:.4px}
+.modal-sub{font-size:12.5px;color:var(--text3);margin:2px 0 12px}
+.modal-acoes-topo{display:flex;gap:8px;margin-bottom:10px}
+.modal-lista{overflow-y:auto;border:1px solid var(--border2);border-radius:10px;padding:8px;flex:1}
+.colitem{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;font-size:13px;cursor:pointer}
+.colitem:hover{background:var(--bg2)}
+.colitem input{width:16px;height:16px}
+.modal-acoes{display:flex;justify-content:flex-end;gap:9px;margin-top:14px}
+.sem-lig{color:var(--text4);font-style:italic;font-size:11.5px}
 .toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);background:var(--azul-esc);color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;font-weight:600;opacity:0;pointer-events:none;transition:.2s;z-index:60}
 .toast.on{opacity:1;transform:translate(-50%,0)}
 @media(max-width:680px){
@@ -292,6 +305,23 @@ tbody tr.lin-vencida:hover td,tbody tr.lin-emdia:hover td,tbody tr.lin-sem:hover
     <div class="pbody" id="pn-body"></div>
   </aside>
 
+  <!-- escolha das colunas do relatório -->
+  <div class="modal-overlay" id="cols-overlay" onclick="if(event.target===this)fecharEscolhaColunas()">
+    <div class="modal-cx">
+      <div class="modal-tit">Colunas do relatório</div>
+      <div class="modal-sub" id="cols-titulo"></div>
+      <div class="modal-acoes-topo">
+        <button class="bt ghost" onclick="marcarTodasColunas(true)">Marcar todas</button>
+        <button class="bt ghost" onclick="marcarTodasColunas(false)">Desmarcar todas</button>
+      </div>
+      <div class="modal-lista" id="cols-lista"></div>
+      <div class="modal-acoes">
+        <button class="bt ghost" onclick="fecharEscolhaColunas()">Cancelar</button>
+        <button class="bt az" onclick="confirmarColunas()">Gerar PDF</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 
 <script src="app.js"></script>
@@ -374,7 +404,12 @@ const V = {
   ENER_TRANSF:   "ENERGIA TRANSFERIDA",
   AGUA_TRANSF:   "AGUA TRANSFERIDA",      // sem acento na base, mesmo
   TITULARIDADES: "TITULARIDADES TRANSFERIDAS?",
-  SETOR:         "SETOR"
+  SETOR:         "SETOR",
+  // colunas montadas AQUI a partir da base de ligações (não existem em VENDAS):
+  // a UC daquela casa em cada concessionária. Energia é a EQUATORIAL; água é
+  // a SANESC ou a SANEAGO, conforme a que atende a obra.
+  UC_ENERGIA:    "UC EQUATORIAL",
+  UC_AGUA:       "UC ÁGUA"
 };
 
 /* Data-lixo: o Notion não aceita campo de data "meio preenchido", então a
@@ -418,7 +453,7 @@ const SETORES_LIG = [
   {
     nome: "CONTROLE DE CONTAS",
     d: "Vencimentos, UC e casas vendidas não transferidas",
-    abas: ["vencidas", "semUcContas", "contasGeral", "vendidas", "alertaTransf"],
+    abas: ["vencidas", "semUcContas", "contasGeral", "vendidas"],
     filtroBase: null
   }
 ];
@@ -520,25 +555,14 @@ const ABAS = {
     fonte: "vendas",
     colunas: [V.OBRA_CASA, V.DT_ASSIN, V.CLIENTES, V.WHATS,
               V.TEM_PROT_AGUA, V.PROT_AGUA, V.TEM_PROT_ENER, V.PROT_ENER,
-              V.ENER_TRANSF, V.AGUA_TRANSF, V.TITULARIDADES],
-    filtros: [V.TITULARIDADES, V.ENER_TRANSF, V.AGUA_TRANSF, V.SETOR],
+              V.ENER_TRANSF, V.UC_ENERGIA, V.AGUA_TRANSF, V.UC_AGUA],
+    filtros: [V.ENER_TRANSF, V.AGUA_TRANSF, V.SETOR],
     sensiveis: true,
     pdf: true,
     // "todas as casas vendidas" = tem cliente E tem data de venda. CLIENTES
     // não é publicado no arquivo público, então o teste usa o marcador
     // "tem valor sim/não" que o fetch_vendas.py publica no lugar.
     base: l => temSens(l, V.CLIENTES) && !!dataReal(l, V.DT_VENDA)
-  },
-  alertaTransf: {
-    titulo: "Alerta de transferência",
-    // Aba só das atividades — separada da planilha de casas vendidas a pedido:
-    // são duas leituras diferentes (uma é fila de trabalho, a outra é consulta)
-    // e juntas uma empurrava a outra pra fora da tela.
-    somenteAtividades: true,
-    atividades: true,
-    colunas: [],
-    filtros: [],
-    base: () => false
   }
 };
 
@@ -669,10 +693,48 @@ function boot(){
 function pintarSchemaVendas(r){
   if (!r || !r.ok || !r.campos) return;
   VSCHEMA = r.campos.slice();
-  // coluna montada aqui (não existe no Notion): endereço + casa numa célula só
-  VSCHEMA.push({ nome: V.OBRA_CASA, tipo: "rich_text", editavel: false });
+  // colunas montadas aqui (não existem no Notion): endereço+casa numa célula
+  // só, e as UCs vindas da base de ligações
+  VSCHEMA.push({ nome: V.OBRA_CASA,  tipo: "rich_text", editavel: false });
+  VSCHEMA.push({ nome: V.UC_ENERGIA, tipo: "rich_text", editavel: false });
+  VSCHEMA.push({ nome: V.UC_AGUA,    tipo: "rich_text", editavel: false });
   VSCAMPO = {}; VSCHEMA.forEach(c => VSCAMPO[c.nome] = c);
   if (SETOR_ATUAL && ABAS[ABA_ATUAL] && ABAS[ABA_ATUAL].fonte === "vendas") renderAba();
+}
+
+/* ---------- casar VENDA com LIGAÇÃO pelo endereço ----------
+   O título da ligação é ENDEREÇO + " CS " + CASA ("TB 19 QD 51 LT 19 CS 2").
+   A comparação é exata (sem acento/caixa/espaço) de propósito: casar só pelo
+   endereço misturaria a CS 1 com a CS 2 da mesma quadra. */
+let _idxLig = null, _idxLigRef = null;
+function indiceLigacoes(){
+  if (_idxLigRef === LIG && _idxLig) return _idxLig;
+  const idx = {};
+  LIG.forEach(l => {
+    const k = normN(l.obra);
+    if (!k) return;
+    (idx[k] = idx[k] || []).push(l);
+  });
+  _idxLig = idx; _idxLigRef = LIG;
+  return idx;
+}
+function chaveObraVenda(v){
+  const end = getL(v, V.ENDERECO) || "";
+  const casa = getL(v, V.CASA);
+  return normN(end + (casa != null && casa !== "" ? (" CS " + casa) : ""));
+}
+/* UC daquela casa na concessionária pedida ("energia" = EQUATORIAL,
+   "agua" = SANESC/SANEAGO). Devolve null quando não existe linha de ligação
+   correspondente — que é diferente de existir e estar em branco. */
+const CONC_ENERGIA = ["EQUATORIAL"];
+const CONC_AGUA = ["SANESC", "SANEAGO"];
+function ucDaVenda(v, tipo){
+  const linhas = indiceLigacoes()[chaveObraVenda(v)] || [];
+  const quais = (tipo === "energia" ? CONC_ENERGIA : CONC_AGUA).map(normN);
+  const achou = linhas.filter(l => quais.indexOf(normN(sel(l, C.CONC))) >= 0);
+  if (!achou.length) return null;
+  const ucs = achou.map(l => txt(getL(l, C.UC)).trim()).filter(x => x && x !== "-");
+  return ucs.length ? ucs.join(" / ") : "";
 }
 
 function pintarVendas(r){
@@ -1201,7 +1263,19 @@ function colunasVisiveis(){
 
 /* Texto puro de uma célula — é o que vai pro PDF, e o que a versão HTML usa
    por baixo. Separado do celula() porque o PDF não entende marcação. */
+/* Texto das colunas de UC (só existem na aba de casas vendidas). */
+function textoUc(l, nome){
+  const uc = ucDaVenda(l, normN(nome) === normN(V.UC_ENERGIA) ? "energia" : "agua");
+  if (uc === null) return "sem ligação cadastrada";
+  return uc || "—";
+}
+function ehColunaUc(nome){
+  const n = normN(nome);
+  return n === normN(V.UC_ENERGIA) || n === normN(V.UC_AGUA);
+}
+
 function celulaTexto(l, nome, fonte){
+  if (fonte === "vendas" && ehColunaUc(nome)) return textoUc(l, nome);
   const campo = campoDe(nome, fonte);
   const tipo = campo ? campo.tipo : "rich_text";
   if (campo && campo.sensivel){
@@ -1220,6 +1294,12 @@ function celulaTexto(l, nome, fonte){
 }
 
 function celula(l, nome, fonte){
+  if (fonte === "vendas" && ehColunaUc(nome)){
+    const t = textoUc(l, nome);
+    return t === "sem ligação cadastrada"
+      ? '<span class="sem-lig" title="Nenhuma linha desta concessionária para esta obra na base de ligações">sem ligação</span>'
+      : esc(t);
+  }
   const campo = campoDe(nome, fonte);
   const tipo = campo ? campo.tipo : "rich_text";
   const v = getL(l, nome);
@@ -1485,7 +1565,7 @@ function renderAba(){
     }
     if (def.pdf){
       box.insertAdjacentHTML("beforeend",
-        `<button class="bt az" onclick="baixarRelatorio()">Baixar relatório PDF</button>`);
+        `<button class="bt az" onclick="abrirEscolhaColunas()">Baixar relatório PDF</button>`);
     }
     box.dataset.aba = ABA_ATUAL;
   }
@@ -1700,10 +1780,40 @@ function gerarPdf(titulo, subtitulos, colunas, linhas, coresLinha){
 /* Cores de fundo das linhas no PDF, na mesma lógica da tela. */
 const PDF_COR = { vencida: "0.99 0.89 0.89", emdia: "0.88 0.97 0.90", sem: null };
 
-function baixarRelatorio(){
+/* ---------- escolher as colunas do relatório ----------
+   Guardo a escolha por aba (só na memória da sessão): quem imprime o mesmo
+   relatório toda semana não quer remarcar as caixinhas toda vez. */
+const COLS_PDF = {};
+
+function abrirEscolhaColunas(){
   const def = ABAS[ABA_ATUAL];
   const fonte = fonteDaAba(ABA_ATUAL);
   const cols = def.colunas || colunasVisiveis();
+  const marcadas = COLS_PDF[ABA_ATUAL] || cols.slice();
+  document.getElementById("cols-titulo").textContent = def.titulo;
+  document.getElementById("cols-lista").innerHTML = cols.map((c,i) =>
+    `<label class="colitem"><input type="checkbox" value="${esc(c)}" ${marcadas.indexOf(c)>=0?"checked":""}> ${esc(c)}</label>`
+  ).join("");
+  document.getElementById("cols-overlay").classList.add("on");
+}
+function fecharEscolhaColunas(){ document.getElementById("cols-overlay").classList.remove("on"); }
+function marcarTodasColunas(marcar){
+  document.querySelectorAll("#cols-lista input").forEach(i => i.checked = marcar);
+}
+function confirmarColunas(){
+  const escolhidas = [];
+  document.querySelectorAll("#cols-lista input:checked").forEach(i => escolhidas.push(i.value));
+  if (!escolhidas.length){ toast("Escolha pelo menos uma coluna."); return; }
+  COLS_PDF[ABA_ATUAL] = escolhidas;
+  fecharEscolhaColunas();
+  baixarRelatorio();
+}
+
+function baixarRelatorio(){
+  const def = ABAS[ABA_ATUAL];
+  const fonte = fonteDaAba(ABA_ATUAL);
+  const todas = def.colunas || colunasVisiveis();
+  const cols = (COLS_PDF[ABA_ATUAL] || todas).filter(c => todas.indexOf(c) >= 0);
   const linhas = linhasVisiveisAba();
   if (!linhas.length){ toast("Nada para imprimir com esses filtros."); return; }
 
@@ -1723,6 +1833,11 @@ function baixarRelatorio(){
     linhas.length + " de " + contarAba(ABA_ATUAL) + " pendências" +
       (aplicados.length ? "   |   filtros — " + aplicados.join("   ") : "   |   sem filtros")
   ];
+  // quando o relatório sai com menos colunas que a tela, o cabeçalho diz —
+  // senão, meses depois, ninguém sabe se faltou coluna ou faltou dado
+  if (cols.length < todas.length){
+    sub.push("Colunas escolhidas: " + cols.length + " de " + todas.length);
+  }
   const dados = linhas.map(l => cols.map(c => celulaTexto(l, c, fonte)));
   const cores = def.vencimento ? linhas.map(l => PDF_COR[situacaoVenc(l)]) : null;
 
@@ -1852,7 +1967,14 @@ async function salvarCampo(l, prop, tipo, valor, fonte){
     (fonte === "vendas" ? "venda: " : "ligação: ") + real
   );
   if (r.ok && r.enfileirado) toast("Sem internet — salvo na fila.");
-  else if (r.ok) toast("Salvo.");
+  else if (r.ok){
+    // o servidor devolve o que fez na base de ligações (ver ligBaixaTransferencia_)
+    const cz = r.resposta && r.resposta.cruzada;
+    if (cz && cz.ok && cz.mudadas) toast("Salvo — ligação de " + (normN(real).indexOf("ENERGIA")>=0 ? "energia" : "água") + " marcada como TRANSFERIDO.");
+    else if (cz && !cz.ok && cz.motivo === "SEM_LIGACAO_CORRESPONDENTE")
+      toast("Salvo, mas não achei a ligação de \"" + (cz.obra||"") + "\" — confira o endereço.");
+    else toast("Salvo.");
+  }
   else {
     if (l.v) l.v[real] = antes;           // rejeitado pelo servidor: desfaz
     toast("Não salvou: " + erroTexto(r.erro));
@@ -1898,7 +2020,11 @@ async function salvar(prop, tipo, valor){
    também mexeram. */
 window.aoSincronizar = () => { lerEstaticoJa("ligacoes.json","ligacoes", pintarTudo); };
 
-document.addEventListener("keydown", e => { if (e.key === "Escape") fecharLinha(); });
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  if (document.getElementById("cols-overlay").classList.contains("on")) fecharEscolhaColunas();
+  else fecharLinha();
+});
 boot();
 </script>
 </body>

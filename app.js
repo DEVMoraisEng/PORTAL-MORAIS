@@ -95,7 +95,11 @@ async function escrever(payload, rotulo){
   if(navigator.onLine){
     try{
       const r=await chamar(payload);
-      if(r && r.ok) return { ok:true, enviado:true };
+      // "resposta" leva o corpo devolvido pelo backend. Sem isto, quem chama
+      // escrever() só sabe que deu certo — e algumas ações precisam do que
+      // veio junto (ex.: a baixa cruzada das ligações informa qual obra foi
+      // marcada como TRANSFERIDO, ou que não achou o endereço).
+      if(r && r.ok) return { ok:true, enviado:true, resposta:r };
       if(r && r.erro && r.erro!=="NAO_AUTORIZADO") return { ok:false, erro:r.erro }; // rejeição lógica: não enfileira
       // NAO_AUTORIZADO ou resposta estranha: cai pra fila
     }catch(e){ /* rede caiu: enfileira */ }
