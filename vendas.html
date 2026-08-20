@@ -179,6 +179,7 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
 .chips{display:flex;flex-wrap:wrap;gap:7px;padding:14px 22px 0}
 .chip{font-size:11.5px;font-weight:600;padding:5px 10px;border-radius:20px;background:#e7f0f3;color:var(--azul)}
 .chip.alerta{background:#FFF3E0;color:#B45309;border:1px solid #FCD9A8}
+.chip.ok{background:rgba(42,157,92,.14);color:var(--verde-esc);border:1px solid rgba(42,157,92,.3)}
 .grp{font-family:'Barlow Condensed';font-size:15px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--azul);margin:20px 22px 12px;padding-bottom:7px;border-bottom:2px solid var(--verde)}
 .grp.sub{color:var(--orange);border-bottom-color:var(--orange);font-size:13.5px}
 .campo{padding:0 22px;margin-bottom:13px}
@@ -2332,6 +2333,22 @@ function renderPainel(V,pageId,sensPendente){
 
   // alertas / situação
   const chips=[]; SCHEMA.filter(c=>c.tipo==="formula").forEach(c=>{ const val=getV(V,c.nome); if(val==null||val===""||val==="-")return; const s=String(val); const al=/PREENCHER|⚠️|🔴|🚨/.test(s)||/^ALERTA|^ELERTA/.test(c.nome); chips.push(`<span class="chip${al?" alerta":""}">${esc(s)}</span>`); });
+  /* Transferência de titularidade nos informativos do topo.
+     Estas duas colunas não são fórmula, então não entravam no laço acima — e
+     o painel dizia "PROCESSO DE ENTREGA FINALIZADO" sem contar a água e a
+     energia, que continuam pendentes depois da entrega. Aqui elas aparecem
+     junto: verde quando transferida, laranja quando ainda não. Vazio não vira
+     etiqueta, senão toda obra antiga ganharia dois avisos do nada. */
+  [["AGUA TRANSFERIDA","ÁGUA"],["ENERGIA TRANSFERIDA","ENERGIA"]].forEach(([alvo,rot])=>{
+    // acha a coluna pelo nome SEM acento: na base ela está como
+    // "AGUA TRANSFERIDA" (sem o Á), e o getV compara com acento
+    const campo=SCHEMA.find(c=>normNome(c.nome)===alvo);
+    if(!campo) return;
+    const val=getV(V,campo.nome);
+    if(val==null||val==="") return;
+    const sim=normNome(val)==="SIM";
+    chips.push(`<span class="chip${sim?" ok":" alerta"}">${esc(rot)} ${sim?"TRANSFERIDA":"NÃO TRANSFERIDA"}</span>`);
+  });
   if(chips.length) html+=`<div class="chips">${chips.join("")}</div>`;
 
   // campos editáveis, na ordem pedida — com um subtítulo especial quando entra no bloco de reparos/vistoria

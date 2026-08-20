@@ -409,7 +409,14 @@ const V = {
   // a UC daquela casa em cada concessionária. Energia é a EQUATORIAL; água é
   // a SANESC ou a SANEAGO, conforme a que atende a obra.
   UC_ENERGIA:    "UC EQUATORIAL",
-  UC_AGUA:       "UC ÁGUA"
+  UC_AGUA:       "UC ÁGUA",
+  ASSINOU:       "ASSINOU E ARMAZENOU CONTRATO DO BANCO?",
+  /* Coluna nova da base de vendas. O nome aqui é só o palpite inicial: o
+     verdadeiro é descoberto no schema publicado (ver acharColunaVerificacao),
+     porque no Notion ela pode estar escrita "DATA DE ERIFICAÇÃO DAS CONTAS" —
+     e nome de coluna errado no código não dá erro, só mostra a coluna vazia
+     pra sempre, que é o pior tipo de falha. */
+  DT_VERIF:      "DATA DE VERIFICAÇÃO DAS CONTAS"
 };
 
 /* Data-lixo: o Notion não aceita campo de data "meio preenchido", então a
@@ -555,14 +562,18 @@ const ABAS = {
     fonte: "vendas",
     colunas: [V.OBRA_CASA, V.DT_ASSIN, V.CLIENTES, V.WHATS,
               V.TEM_PROT_AGUA, V.PROT_AGUA, V.TEM_PROT_ENER, V.PROT_ENER,
-              V.ENER_TRANSF, V.UC_ENERGIA, V.AGUA_TRANSF, V.UC_AGUA],
-    filtros: [V.ENER_TRANSF, V.AGUA_TRANSF, V.SETOR],
+              V.ENER_TRANSF, V.UC_ENERGIA, V.AGUA_TRANSF, V.UC_AGUA,
+              V.DT_VERIF],
+    // esta aba tem filtros próprios (período do contrato + cidade), montados
+    // por filtrosVendidas() — não são filtros de coluna como nas outras
+    filtros: [],
+    filtrosProprios: true,
     sensiveis: true,
     pdf: true,
-    // "todas as casas vendidas" = tem cliente E tem data de venda. CLIENTES
-    // não é publicado no arquivo público, então o teste usa o marcador
-    // "tem valor sim/não" que o fetch_vendas.py publica no lugar.
-    base: l => temSens(l, V.CLIENTES) && !!dataReal(l, V.DT_VENDA)
+    // O corte agora é o CONTRATO DO BANCO assinado e guardado, não mais
+    // "tem cliente e data de venda": é esse o momento a partir do qual a
+    // transferência de titularidade passa a ser cobrável.
+    base: l => normN(getL(l, V.ASSINOU)) === "SIM"
   }
 };
 
@@ -690,9 +701,35 @@ function boot(){
    formato das linhas de ligação ({id, obra, v, sens}) — assim getL, celula,
    filtros, PDF e o resto funcionam igual nas duas fontes, sem um segundo
    conjunto de funções só para vendas. */
+/* Acha a coluna de verificação das contas pelo PEDAÇO do nome: casa tanto
+   "DATA DE VERIFICAÇÃO DAS CONTAS" quanto a grafia sem o V. Se um dia o nome
+   mudar de novo, continua achando — e se não achar, a coluna simplesmente não
+   entra na tela, em vez de aparecer vazia sem explicação. */
+function acharColunaVerificacao(campos){
+  const achado = campos.find(c => {
+    const n = normN(c.nome);
+    return n.indexOf("ERIFICA") >= 0 && n.indexOf("CONTA") >= 0;
+  });
+  return achado ? achado.nome : null;
+}
+
 function pintarSchemaVendas(r){
   if (!r || !r.ok || !r.campos) return;
   VSCHEMA = r.campos.slice();
+  // troca o palpite pelo nome real da coluna, nas colunas da aba e nos filtros
+  const real = acharColunaVerificacao(VSCHEMA);
+  if (real && real !== V.DT_VERIF){
+    const cols = ABAS.vendidas.colunas;
+    const i = cols.indexOf(V.DT_VERIF);
+    V.DT_VERIF = real;
+    if (i >= 0) cols[i] = real;
+  } else if (!real){
+    // a coluna ainda não existe no arquivo publicado: tira da tela em vez de
+    // mostrar uma coluna sempre vazia
+    const cols = ABAS.vendidas.colunas;
+    const i = cols.indexOf(V.DT_VERIF);
+    if (i >= 0) cols.splice(i, 1);
+  }
   // colunas montadas aqui (não existem no Notion): endereço+casa numa célula
   // só, e as UCs vindas da base de ligações
   VSCHEMA.push({ nome: V.OBRA_CASA,  tipo: "rich_text", editavel: false });
@@ -1393,6 +1430,9 @@ const VENDAS_EDITAVEIS = [
 ];
 function ehEditavelVendas(coluna){
   const alvo = normN(coluna);
+  // a data de verificação das contas é preenchida por quem confere, então
+  // ela é editável aqui (o nome real vem do schema — ver V.DT_VERIF)
+  if (alvo === normN(V.DT_VERIF)) return true;
   return VENDAS_EDITAVEIS.some(n => normN(n) === alvo);
 }
 
@@ -1511,6 +1551,161 @@ function renderPlanilha(){
   sincronizarScroll("hub-stop", "hub-wrap");
 }
 
+/* ---------- filtros próprios da aba "Casas vendidas" ----------
+   Período pela DATA DE ASSINATURA DO CONTRATO e cidade pela concessionária de
+   água da obra. O nome da cidade existe só aqui, no filtro: no dado continua
+   SANESC / SANEAGO, que é como o Notion guarda. */
+const CIDADE_POR_CONC = { SANESC: "SENADOR CANEDO", SANEAGO: "GOIÂNIA" };
+
+function filtrosVendidas(){
+  const anos = {}, anosVer = {};
+  VEN.forEach(v => {
+    const d = dataReal(v, V.DT_ASSIN); if (d) anos[d.slice(0,4)] = 1;
+    const dv = dataReal(v, V.DT_VERIF); if (dv) anosVer[dv.slice(0,4)] = 1;
+  });
+  if (!Object.keys(anosVer).length) anosVer[String(new Date().getFullYear())] = 1;
+  const MES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+  return `
+    <select id="vd-per" onchange="aoTrocarPeriodoVendidas()">
+      <option value="">Contrato: qualquer data</option>
+      <option value="7d">Últimos 7 dias</option>
+      <option value="30d">Últimos 30 dias</option>
+      <option value="mes">Mês (escolher)</option>
+      <option value="ano">Ano (escolher)</option>
+      <option value="intervalo">Intervalo (escolher)</option>
+    </select>
+    <select id="vd-mes" style="display:none" onchange="renderAba()">
+      ${MES.map((m,i)=>`<option value="${String(i+1).padStart(2,"0")}">${m}</option>`).join("")}
+    </select>
+    <select id="vd-ano" style="display:none" onchange="renderAba()">
+      ${Object.keys(anos).sort().reverse().map(a=>`<option value="${a}">${a}</option>`).join("")}
+    </select>
+    <input type="date" id="vd-de" style="display:none" title="Assinado a partir de" onchange="renderAba()">
+    <input type="date" id="vd-ate" style="display:none" title="Assinado até" onchange="renderAba()">
+    <select id="vd-cidade" onchange="renderAba()">
+      <option value="">Todas as cidades</option>
+      <option value="SANESC">Senador Canedo</option>
+      <option value="SANEAGO">Goiânia</option>
+    </select>
+    <select id="vd-ver" onchange="aoTrocarVerificacao()">
+      <option value="">Verificação: todas</option>
+      <option value="vazias">Sem data de verificação</option>
+      <option value="preenchidas">Com data de verificação</option>
+      <option value="7d">Verificadas nos últimos 7 dias</option>
+      <option value="30d">Verificadas nos últimos 30 dias</option>
+      <option value="mes">Verificadas no mês (escolher)</option>
+      <option value="ano">Verificadas no ano (escolher)</option>
+      <option value="intervalo">Verificadas no intervalo (escolher)</option>
+    </select>
+    <select id="vd-vmes" style="display:none" onchange="renderAba()">
+      ${MES.map((m,i)=>`<option value="${String(i+1).padStart(2,"0")}">${m}</option>`).join("")}
+    </select>
+    <select id="vd-vano" style="display:none" onchange="renderAba()">
+      ${Object.keys(anosVer).sort().reverse().map(a=>`<option value="${a}">${a}</option>`).join("")}
+    </select>
+    <input type="date" id="vd-vde" style="display:none" title="Verificada a partir de" onchange="renderAba()">
+    <input type="date" id="vd-vate" style="display:none" title="Verificada até" onchange="renderAba()">`;
+}
+/* Mostra só os campos que o período escolhido usa — deixar os cinco sempre
+   visíveis vira uma barra de filtros que ninguém entende. */
+function aoTrocarPeriodoVendidas(){
+  const per = document.getElementById("vd-per").value;
+  const mostrar = (id, on) => { const e = document.getElementById(id); if (e) e.style.display = on ? "" : "none"; };
+  mostrar("vd-mes", per === "mes");
+  mostrar("vd-ano", per === "mes" || per === "ano");
+  mostrar("vd-de", per === "intervalo");
+  mostrar("vd-ate", per === "intervalo");
+  renderAba();
+}
+function aoTrocarVerificacao(){
+  const per = document.getElementById("vd-ver").value;
+  const mostrar = (id, on) => { const e = document.getElementById(id); if (e) e.style.display = on ? "" : "none"; };
+  mostrar("vd-vmes", per === "mes");
+  mostrar("vd-vano", per === "mes" || per === "ano");
+  mostrar("vd-vde", per === "intervalo");
+  mostrar("vd-vate", per === "intervalo");
+  renderAba();
+}
+/* Filtro da DATA DE VERIFICAÇÃO DAS CONTAS. "vazias" é a opção que interessa
+   no dia a dia: é a fila do que ainda não foi conferido. */
+function passaVerificacao(v){
+  const el = document.getElementById("vd-ver");
+  if (!el || !el.value) return true;
+  const d = dataReal(v, V.DT_VERIF);
+  const per = el.value;
+  if (per === "vazias") return !d;
+  if (!d) return false;
+  if (per === "preenchidas") return true;
+  if (per === "7d")  return d >= diasAtras(7)  && d <= hojeISO();
+  if (per === "30d") return d >= diasAtras(30) && d <= hojeISO();
+  if (per === "ano") return d.slice(0,4) === document.getElementById("vd-vano").value;
+  if (per === "mes"){
+    return d.slice(0,4) === document.getElementById("vd-vano").value &&
+           d.slice(5,7) === document.getElementById("vd-vmes").value;
+  }
+  if (per === "intervalo"){
+    const de = document.getElementById("vd-vde").value, ate = document.getElementById("vd-vate").value;
+    if (de && d < de) return false;
+    if (ate && d > ate) return false;
+    return true;
+  }
+  return true;
+}
+
+function diasAtras(n){
+  const d = new Date(); d.setDate(d.getDate() - n);
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+}
+function passaPeriodoVendidas(v){
+  const el = document.getElementById("vd-per");
+  if (!el || !el.value) return true;
+  const d = dataReal(v, V.DT_ASSIN);
+  if (!d) return false;                       // sem data não entra em recorte de data
+  const per = el.value;
+  if (per === "7d")  return d >= diasAtras(7)  && d <= hojeISO();
+  if (per === "30d") return d >= diasAtras(30) && d <= hojeISO();
+  if (per === "ano") return d.slice(0,4) === document.getElementById("vd-ano").value;
+  if (per === "mes"){
+    return d.slice(0,4) === document.getElementById("vd-ano").value &&
+           d.slice(5,7) === document.getElementById("vd-mes").value;
+  }
+  if (per === "intervalo"){
+    const de = document.getElementById("vd-de").value, ate = document.getElementById("vd-ate").value;
+    if (de && d < de) return false;
+    if (ate && d > ate) return false;
+    return true;
+  }
+  return true;
+}
+function passaCidadeVendidas(v){
+  const el = document.getElementById("vd-cidade");
+  if (!el || !el.value) return true;
+  const linhas = indiceLigacoes()[chaveObraVenda(v)] || [];
+  return linhas.some(l => normN(sel(l, C.CONC)) === normN(el.value));
+}
+/* Rótulo do recorte para o cabeçalho do PDF. */
+function resumoFiltrosVendidas(){
+  const out = [];
+  const per = document.getElementById("vd-per");
+  if (per && per.value){
+    const txtPer = per.options[per.selectedIndex].text;
+    if (per.value === "mes") out.push("contrato: " + document.getElementById("vd-mes").selectedOptions[0].text + "/" + document.getElementById("vd-ano").value);
+    else if (per.value === "ano") out.push("contrato: " + document.getElementById("vd-ano").value);
+    else if (per.value === "intervalo") out.push("contrato: " + (document.getElementById("vd-de").value||"…") + " a " + (document.getElementById("vd-ate").value||"…"));
+    else out.push("contrato: " + txtPer);
+  }
+  const cid = document.getElementById("vd-cidade");
+  if (cid && cid.value) out.push("cidade: " + cid.options[cid.selectedIndex].text);
+  const ver = document.getElementById("vd-ver");
+  if (ver && ver.value){
+    if (ver.value === "mes") out.push("verificação: " + document.getElementById("vd-vmes").selectedOptions[0].text + "/" + document.getElementById("vd-vano").value);
+    else if (ver.value === "ano") out.push("verificação: " + document.getElementById("vd-vano").value);
+    else if (ver.value === "intervalo") out.push("verificação: " + (document.getElementById("vd-vde").value||"…") + " a " + (document.getElementById("vd-vate").value||"…"));
+    else out.push(ver.options[ver.selectedIndex].text.toLowerCase());
+  }
+  return out;
+}
+
 /* Linhas que a aba está mostrando agora (base + filtros + busca + vencimento).
    Uma função só, porque a tabela, a contagem e o PDF precisam EXATAMENTE do
    mesmo conjunto — se cada um refizesse a conta, um dia divergiriam. */
@@ -1519,6 +1714,9 @@ function linhasVisiveisAba(){
   const filtros = valoresFiltro("filtros-setor");
   const termo = document.getElementById("set-busca").value;
   let linhas = linhasDaAba(ABA_ATUAL).filter(l => passaFiltros(l,filtros) && passaBusca(l,termo));
+  if (def.filtrosProprios){
+    linhas = linhas.filter(l => passaPeriodoVendidas(l) && passaCidadeVendidas(l) && passaVerificacao(l));
+  }
   if (def.vencimento){
     const v = document.getElementById("set-venc");
     if (v && v.value) linhas = linhas.filter(l => situacaoVenc(l) === v.value);
@@ -1553,7 +1751,8 @@ function renderAba(){
   // (re)monta os filtros só quando a aba muda
   const box = document.getElementById("filtros-setor");
   if (box.dataset.aba !== ABA_ATUAL){
-    montarFiltros("filtros-setor", def.filtros, "set", renderAba, fonte);
+    if (def.filtrosProprios) box.innerHTML = filtrosVendidas();
+    else montarFiltros("filtros-setor", def.filtros, "set", renderAba, fonte);
     if (def.vencimento){
       box.insertAdjacentHTML("beforeend",
         `<select id="set-venc" onchange="renderAba()">
@@ -1672,72 +1871,158 @@ function pdfCortar(s, tam, max){
   return s;
 }
 
-function gerarPdf(titulo, subtitulos, colunas, linhas, coresLinha){
-  const L = 842, A = 595, M = 28;             // A4 deitado + margem
-  const larguraUtil = L - M*2;
+/* Quebra o texto em VÁRIAS LINHAS que cabem na largura da coluna, em vez de
+   cortar com "…". É o que faz o relatório parar de esconder informação: nome
+   de cliente, UC dupla e título de coluna longo agora descem uma linha.
+   Palavra que sozinha não cabe (uma UC de 20 dígitos, por exemplo) é partida
+   no meio — melhor partida do que sumida. */
+function pdfQuebrar(texto, tam, larguraMax, maxLinhas){
+  texto = String(texto == null ? "" : texto).trim();
+  if (!texto) return [""];
+  if (pdfLargura(texto, tam) <= larguraMax) return [texto];
+  const linhas = [];
+  let atual = "";
+  const empurra = () => { if (atual){ linhas.push(atual); atual = ""; } };
 
-  // largura de cada coluna, proporcional ao conteúdo (com teto e piso)
-  const pesos = colunas.map((c, i) => {
-    let max = pdfLargura(c, 8);
-    linhas.forEach(r => { const w = pdfLargura(r[i] || "", 8); if (w > max) max = w; });
-    return Math.min(Math.max(max, 40), 200);
+  texto.split(/\s+/).forEach(palavra => {
+    // palavra maior que a coluna inteira: parte em pedaços do tamanho que cabe
+    while (pdfLargura(palavra, tam) > larguraMax){
+      let corte = "";
+      for (let i = 0; i < palavra.length; i++){
+        if (pdfLargura(corte + palavra[i], tam) > larguraMax) break;
+        corte += palavra[i];
+      }
+      if (!corte) break;
+      empurra();
+      linhas.push(corte);
+      palavra = palavra.slice(corte.length);
+    }
+    const teste = atual ? (atual + " " + palavra) : palavra;
+    if (pdfLargura(teste, tam) <= larguraMax) atual = teste;
+    else { empurra(); atual = palavra; }
   });
-  const somaPesos = pesos.reduce((a,b)=>a+b, 0) || 1;
-  const larguras = pesos.map(p => p / somaPesos * larguraUtil);
+  empurra();
+  if (maxLinhas && linhas.length > maxLinhas){
+    const cortadas = linhas.slice(0, maxLinhas);
+    cortadas[maxLinhas-1] = pdfCortar(cortadas[maxLinhas-1] + "…", tam, larguraMax);
+    return cortadas;
+  }
+  return linhas.length ? linhas : [""];
+}
+
+function gerarPdf(titulo, subtitulos, colunas, linhas, coresLinha){
+  const L = 842, A = 595, M = 24;             // A4 deitado + margem
+  const larguraUtil = L - M*2;
+  const FT = 7.5;                             // corpo
+  const FH = 7.5;                             // cabeçalho da tabela
+  const ALT_LINHA = 10;                       // altura de UMA linha de texto
+  const MAX_LINHAS = 4;                       // teto por célula (evita 1 linha por página)
+
+  /* Largura de cada coluna. O que não couber vira mais LINHAS, não
+     reticências — mas cada coluna tem um PISO: a maior palavra do título.
+     Sem esse piso, uma coluna cujo conteúdo é curto (ex.: só "-") ficava
+     estreitíssima e o título quebrava no meio da palavra ("ENDEREÇ/O",
+     "What/sapp"), que é feio e difícil de ler. */
+  const maiorPalavra = (texto, tam) =>
+    Math.max(...String(texto).split(/\s+/).map(w => pdfLargura(w, tam)), 0);
+  const pisos = colunas.map(c => maiorPalavra(c, FH) + 8);
+  const desejadas = colunas.map((c, i) => {
+    let max = 0;
+    linhas.forEach(r => { const w = pdfLargura(r[i] || "", FT); if (w > max) max = w; });
+    return Math.max(pisos[i], Math.min(Math.max(max, 46), 230));
+  });
+
+  const somaDesejada = desejadas.reduce((a,b)=>a+b, 0) || 1;
+  let larguras;
+  if (somaDesejada <= larguraUtil){
+    // sobra espaço: distribui proporcionalmente, ninguém fica apertado à toa
+    const sobra = larguraUtil - somaDesejada;
+    larguras = desejadas.map(d => d + sobra * (d / somaDesejada));
+  } else {
+    // falta espaço: encolhe SÓ o que passa do piso, para o título continuar
+    // inteiro mesmo quando a tabela está cheia de colunas
+    const somaPisos = pisos.reduce((a,b)=>a+b, 0);
+    if (somaPisos >= larguraUtil){
+      larguras = pisos.map(pp => pp / somaPisos * larguraUtil);   // colunas demais: não há o que fazer
+    } else {
+      const disponivel = larguraUtil - somaPisos;
+      const somaExtra = somaDesejada - somaPisos || 1;
+      larguras = desejadas.map((d, i) => pisos[i] + (d - pisos[i]) / somaExtra * disponivel);
+    }
+  }
+
+  // quebra tudo ANTES de paginar: é a altura de cada linha que decide onde a
+  // página termina
+  // o título pode ocupar até 5 linhas: ele aparece uma vez por página, e é
+  // preferível um cabeçalho alto a um título cortado com "…"
+  const cabecalho = colunas.map((c,i) => pdfQuebrar(c, FH, larguras[i]-6, 5));
+  const altCabecalho = Math.max(...cabecalho.map(l=>l.length)) * ALT_LINHA + 6;
+  const corpoLinhas = linhas.map(r => {
+    const celulas = r.map((v,i) => pdfQuebrar(v, FT, larguras[i]-6, MAX_LINHAS));
+    return { celulas: celulas, alt: Math.max(...celulas.map(c=>c.length)) * ALT_LINHA + 5 };
+  });
 
   const paginas = [];
-  let corpo = [], y = 0;
+  let fluxo = [], y = 0;
 
-  function novaPagina(){
-    corpo = [];
-    y = A - M;
-    // cabeçalho
-    corpo.push(`BT /F2 15 Tf 1 0 0 1 ${M} ${y-12} Tm (${pdfTexto("MORAIS ENGENHARIA E CONSTRUCAO")}) Tj ET`);
-    y -= 20;
-    corpo.push(`BT /F2 12 Tf 1 0 0 1 ${M} ${y-10} Tm (${pdfTexto(titulo)}) Tj ET`);
-    y -= 17;
-    subtitulos.forEach(s => {
-      corpo.push(`BT /F1 8.5 Tf 1 0 0 1 ${M} ${y-8} Tm (${pdfTexto(s)}) Tj ET`);
-      y -= 11;
-    });
-    y -= 4;
-    corpo.push(`0.72 0.82 0.86 RG 0.7 w ${M} ${y} m ${L-M} ${y} l S`);
-    y -= 13;
-    // cabeçalho da tabela
-    corpo.push(`0.12 0.25 0.35 rg ${M} ${y-3} ${larguraUtil} 14 re f`);
+  function desenharCabecalhoTabela(){
+    fluxo.push(`0.12 0.25 0.35 rg ${M} ${y-altCabecalho+4} ${larguraUtil} ${altCabecalho} re f`);
     let x = M;
-    colunas.forEach((c, i) => {
-      corpo.push(`BT /F2 7.5 Tf 1 1 1 rg 1 0 0 1 ${x+3} ${y+1} Tm (${pdfTexto(pdfCortar(c, 7.5, larguras[i]-6))}) Tj ET`);
+    cabecalho.forEach((linhasTexto, i) => {
+      linhasTexto.forEach((t, n) => {
+        fluxo.push(`BT /F2 ${FH} Tf 1 1 1 rg 1 0 0 1 ${x+3} ${y - (n+1)*ALT_LINHA + 3} Tm (${pdfTexto(t)}) Tj ET`);
+      });
       x += larguras[i];
     });
-    corpo.push("0 0 0 rg");
-    y -= 4;
-    paginas.push(corpo);
+    fluxo.push("0 0 0 rg");
+    y -= altCabecalho;
   }
-  novaPagina();
 
-  linhas.forEach((r, idx) => {
-    if (y < M + 26){ novaPagina(); }
-    const alt = 13;
-    y -= alt;
+  function novaPagina(primeira){
+    fluxo = [];
+    y = A - M;
+    if (primeira !== false){
+      fluxo.push(`BT /F2 14 Tf 1 0 0 1 ${M} ${y-11} Tm (${pdfTexto("MORAIS ENGENHARIA E CONSTRUCAO")}) Tj ET`);
+      y -= 19;
+      fluxo.push(`BT /F2 11.5 Tf 1 0 0 1 ${M} ${y-9} Tm (${pdfTexto(titulo)}) Tj ET`);
+      y -= 16;
+      subtitulos.forEach(sub => {
+        fluxo.push(`BT /F1 8.5 Tf 1 0 0 1 ${M} ${y-8} Tm (${pdfTexto(sub)}) Tj ET`);
+        y -= 11;
+      });
+      y -= 4;
+      fluxo.push(`0.72 0.82 0.86 RG 0.7 w ${M} ${y} m ${L-M} ${y} l S`);
+      y -= 10;
+    }
+    paginas.push(fluxo);
+    desenharCabecalhoTabela();
+  }
+  novaPagina(true);
+
+  corpoLinhas.forEach((linha, idx) => {
+    if (y - linha.alt < M + 16){ novaPagina(false); }   // repete o cabeçalho
+    y -= linha.alt;
     const cor = coresLinha ? coresLinha[idx] : null;
-    if (cor) corpo.push(`${cor} rg ${M} ${y-3} ${larguraUtil} ${alt} re f`);
-    else if (idx % 2) corpo.push(`0.96 0.98 0.99 rg ${M} ${y-3} ${larguraUtil} ${alt} re f`);
+    if (cor) fluxo.push(`${cor} rg ${M} ${y-2} ${larguraUtil} ${linha.alt} re f`);
+    else if (idx % 2) fluxo.push(`0.96 0.98 0.99 rg ${M} ${y-2} ${larguraUtil} ${linha.alt} re f`);
     let x = M;
-    r.forEach((celula, i) => {
-      corpo.push(`BT /F1 7.5 Tf 0.1 0.2 0.28 rg 1 0 0 1 ${x+3} ${y+1} Tm (${pdfTexto(pdfCortar(celula, 7.5, larguras[i]-6))}) Tj ET`);
+    linha.celulas.forEach((texto, i) => {
+      texto.forEach((t, n) => {
+        fluxo.push(`BT /F1 ${FT} Tf 0.1 0.2 0.28 rg 1 0 0 1 ${x+3} ${y + linha.alt - (n+1)*ALT_LINHA} Tm (${pdfTexto(t)}) Tj ET`);
+      });
       x += larguras[i];
     });
-    corpo.push("0 0 0 rg");
+    fluxo.push(`0.85 0.9 0.93 RG 0.4 w ${M} ${y-2} m ${L-M} ${y-2} l S`);   // risco entre linhas
+    fluxo.push("0 0 0 rg");
   });
 
-  // rodapé com numeração (feito no fim, quando já se sabe o total)
+  // rodapé com numeração (no fim, quando já se sabe o total)
   const agora = new Date().toLocaleString("pt-BR");
-  paginas.forEach((p, i) => {
-    p.push(`BT /F1 7 Tf 0.45 0.55 0.62 rg 1 0 0 1 ${M} ${M-10} Tm ` +
-           `(${pdfTexto("Gerado em " + agora + " pelo Portal Morais")}) Tj ET`);
-    p.push(`BT /F1 7 Tf 0.45 0.55 0.62 rg 1 0 0 1 ${L-M-60} ${M-10} Tm ` +
-           `(${pdfTexto("Pagina " + (i+1) + " de " + paginas.length)}) Tj ET`);
+  paginas.forEach((pg, i) => {
+    pg.push(`BT /F1 7 Tf 0.45 0.55 0.62 rg 1 0 0 1 ${M} ${M-10} Tm ` +
+            `(${pdfTexto("Gerado em " + agora + " pelo Portal Morais")}) Tj ET`);
+    pg.push(`BT /F1 7 Tf 0.45 0.55 0.62 rg 1 0 0 1 ${L-M-62} ${M-10} Tm ` +
+            `(${pdfTexto("Pagina " + (i+1) + " de " + paginas.length)}) Tj ET`);
   });
 
   // ---- monta o arquivo ----
@@ -1748,28 +2033,22 @@ function gerarPdf(titulo, subtitulos, colunas, linhas, coresLinha){
   objs.push("<< /Type /Catalog /Pages 2 0 R >>");
   const idsPaginas = paginas.map((_, i) => 3 + i*2);
   objs.push(`<< /Type /Pages /Count ${paginas.length} /Kids [${idsPaginas.map(id=>id+" 0 R").join(" ")}] >>`);
-  paginas.forEach((p, i) => {
-    const idConteudo = idsPaginas[i] + 1;
+  paginas.forEach((pg, i) => {
     objs.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${L} ${A}] ` +
               `/Resources << /Font << /F1 ${3+paginas.length*2} 0 R /F2 ${4+paginas.length*2} 0 R >> >> ` +
-              `/Contents ${idConteudo} 0 R >>`);
-    const fluxo = p.join("\n");
-    objs.push(`<< /Length ${fluxo.length} >>\nstream\n${fluxo}\nendstream`);
+              `/Contents ${idsPaginas[i]+1} 0 R >>`);
+    const conteudo = pg.join("\n");
+    objs.push(`<< /Length ${conteudo.length} >>\nstream\n${conteudo}\nendstream`);
   });
   objs.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
   objs.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
 
   let pdf = "%PDF-1.4\n";
   const offsets = [0];
-  objs.forEach((o, i) => {
-    offsets.push(pdf.length);
-    pdf += `${i+1} 0 obj\n${o}\nendobj\n`;
-  });
+  objs.forEach((o, i) => { offsets.push(pdf.length); pdf += `${i+1} 0 obj\n${o}\nendobj\n`; });
   const inicioXref = pdf.length;
   pdf += `xref\n0 ${objs.length+1}\n0000000000 65535 f \n`;
-  for (let i = 1; i <= objs.length; i++){
-    pdf += String(offsets[i]).padStart(10, "0") + " 00000 n \n";
-  }
+  for (let i = 1; i <= objs.length; i++) pdf += String(offsets[i]).padStart(10, "0") + " 00000 n \n";
   pdf += `trailer\n<< /Size ${objs.length+1} /Root 1 0 R >>\nstartxref\n${inicioXref}\n%%EOF`;
 
   const bytes = new Uint8Array(pdf.length);
@@ -1827,6 +2106,7 @@ function baixarRelatorio(){
   });
   const termo = document.getElementById("set-busca").value;
   if (termo) aplicados.push('busca: "' + termo + '"');
+  if (def.filtrosProprios) resumoFiltrosVendidas().forEach(x => aplicados.push(x));
 
   const sub = [
     SETOR_ATUAL.nome + " · " + def.titulo,
