@@ -572,10 +572,12 @@ const ABAS = {
     filtrosProprios: true,
     sensiveis: true,
     pdf: true,
-    // O corte agora é o CONTRATO DO BANCO assinado e guardado, não mais
-    // "tem cliente e data de venda": é esse o momento a partir do qual a
-    // transferência de titularidade passa a ser cobrável.
-    base: l => normN(getL(l, V.ASSINOU)) === "SIM"
+    // O corte é o CONTRATO DO BANCO assinado e guardado — é esse o momento a
+    // partir do qual a transferência passa a ser cobrável. E some da lista
+    // quando ÁGUA e ENERGIA já estão as duas transferidas: aí não é mais
+    // "não transferida", e deixar na tela só faz a fila parecer maior do que é.
+    base: l => normN(getL(l, V.ASSINOU)) === "SIM" &&
+               !(normN(getL(l, V.ENER_TRANSF)) === "SIM" && normN(getL(l, V.AGUA_TRANSF)) === "SIM")
   }
 };
 
@@ -1770,7 +1772,12 @@ function renderAba(){
 
   // (re)monta os filtros só quando a aba muda
   const box = document.getElementById("filtros-setor");
-  if (box.dataset.aba !== ABA_ATUAL){
+  /* A barra é remontada quando a aba muda E quando a coluna de verificação
+     passa a existir. Sem a segunda condição, abrir a aba antes de o arquivo
+     de vendas chegar deixava a barra montada SEM o filtro de verificação —
+     e ela só era refeita ao trocar de aba e voltar. */
+  const marcaVerif = COL_VERIF ? "1" : "0";
+  if (box.dataset.aba !== ABA_ATUAL || box.dataset.verif !== marcaVerif){
     if (def.filtrosProprios) box.innerHTML = filtrosVendidas();
     else montarFiltros("filtros-setor", def.filtros, "set", renderAba, fonte);
     if (def.vencimento){
@@ -1787,6 +1794,7 @@ function renderAba(){
         `<button class="bt az" onclick="abrirEscolhaColunas()">Baixar relatório PDF</button>`);
     }
     box.dataset.aba = ABA_ATUAL;
+    box.dataset.verif = marcaVerif;
   }
 
   const total = contarAba(ABA_ATUAL);
