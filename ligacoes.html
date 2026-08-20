@@ -39,17 +39,30 @@ header::after{content:"";display:block;height:4px;background:linear-gradient(90d
 .btn-sync{display:none;align-items:center;gap:6px}
 .filabadge{background:var(--vermelho);border-radius:20px;padding:0 6px;font-size:11px;display:none}
 main{padding-bottom:50px}
-.crumb{display:flex;align-items:center;gap:8px;margin:16px 0 14px;font-size:12.5px;color:var(--text3)}
-.btn-voltar{border:1px solid var(--border);background:#fff;color:var(--azul);border-radius:8px;padding:7px 12px;font:inherit;font-weight:700;font-size:12.5px;cursor:pointer;text-decoration:none}
+.crumb{display:flex;align-items:center;gap:10px;margin:16px 0 14px;font-size:13px;color:var(--text3)}
+/* botão "voltar" em pílula azul-escura, igual ao vendas.html */
+.btn-voltar{display:inline-flex;align-items:center;gap:6px;background:var(--azul-esc);border:1px solid rgba(143,220,210,.4);
+  border-radius:8px;padding:9px 16px;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;
+  color:var(--teal);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;text-decoration:none;transition:background .15s}
+.btn-voltar:hover{background:#16303f}
 .sec{display:flex;align-items:center;gap:10px;background:var(--bg3);border-left:4px solid var(--verde);border-radius:8px;padding:9px 14px;margin:22px 0 14px}
 .sec .cond{font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--azul-esc)}
-.setores{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:13px}
-.setor{background:#fff;border:1px solid var(--border2);border-radius:12px;padding:16px;cursor:pointer;text-align:left;font:inherit;transition:.15s}
-.setor:hover{border-color:var(--verde);box-shadow:0 3px 12px rgba(41,87,120,.10)}
-.setor .t{font-family:'Barlow Condensed';font-weight:800;font-size:17px;text-transform:uppercase;color:var(--azul-esc);letter-spacing:.4px;line-height:1.15}
-.setor .d{font-size:12px;color:var(--text3);margin-top:6px}
-.setor .n{display:inline-flex;align-items:center;justify-content:center;margin-top:10px;background:var(--vermelho);color:#fff;border-radius:20px;font-size:12px;font-weight:800;padding:2px 9px}
-.setor .n.zero{background:var(--verde)}
+/* cartões de setor — os mesmos do vendas.html, pra os dois sistemas terem a
+   mesma cara (verde em degradê, número da pendência na bolinha do canto) */
+.setores{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+.scard{position:relative;border:0;border-radius:14px;padding:18px 18px 16px;cursor:pointer;text-align:left;color:#fff;
+  background:linear-gradient(135deg,var(--verde),var(--verde-esc));box-shadow:0 6px 18px rgba(42,157,92,.25);transition:transform .1s,box-shadow .15s;font:inherit}
+.scard:hover{transform:translateY(-3px);box-shadow:0 12px 26px rgba(42,157,92,.32)}
+/* overflow-wrap: os setores daqui têm nome comprido ("ACOMPANHAMENTO DE
+   LIGAÇÕES") e uma palavra que não cabe passava por baixo da bolinha do
+   número — no vendas.html isso nunca apareceu porque lá os nomes são curtos */
+.scard .cond{font-size:17px;font-weight:800;text-transform:uppercase;line-height:1.08;overflow-wrap:anywhere}
+.scard .d{font-size:11.5px;opacity:.92;margin-top:4px}
+.scard .cnt{position:absolute;top:14px;right:14px;background:#c0392b;color:#fff;min-width:26px;height:26px;border-radius:20px;
+  display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;padding:0 7px}
+/* reserva espaço à direita quando o card tem bolinha: sem isto, nome de setor
+   comprido passa por baixo do número (mesma correção do vendas.html) */
+.scard.tem-cnt{padding-right:46px}
 .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:13px}
 @media(max-width:1000px){.kpis{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:520px){.kpis{grid-template-columns:1fr}}
@@ -79,26 +92,33 @@ main{padding-bottom:50px}
 select,input.busca,input[type=date],input[type=text],textarea{border:1px solid var(--border);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;background:#fff;color:var(--text);max-width:100%}
 input.busca{min-width:230px;flex:1}
 .count{font-size:12px;color:var(--text3);font-weight:600;white-space:nowrap}
-.tabela-wrap{background:#fff;border:1px solid var(--border2);border-radius:12px;overflow:auto;max-height:70vh}
-/* width:auto + min-width:100% em vez de width:100%: com width:100% o
-   navegador ESPREMIA as colunas pra caber na tela, e a última (a de alerta)
-   sobrava com ~100px — o texto do alerta era cortado e ficava só o emoji
-   aparecendo, o que parecia "o alerta não veio". Agora cada coluna recebe a
-   largura que precisa e a tabela rola na horizontal. */
-table.grade{border-collapse:separate;border-spacing:0;width:auto;min-width:100%;font-size:12.5px}
-table.grade th{position:sticky;top:0;z-index:2;background:var(--azul-esc);color:#fff;font-family:'Barlow Condensed';font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;padding:9px 10px;text-align:left;white-space:nowrap}
-table.grade td{padding:8px 10px;border-bottom:1px solid var(--border2);white-space:nowrap;max-width:340px;overflow:hidden;text-overflow:ellipsis}
-table.grade tr:hover td{background:var(--bg2)}
-table.grade tbody tr{cursor:pointer}
-/* célula editável: o pontilhado avisa que dá pra clicar e preencher ali mesmo */
-table.grade td.edit{border-bottom:1px dashed var(--border);cursor:text}
-table.grade td.edit:hover{background:#EFF8FB !important;box-shadow:inset 0 0 0 1px var(--verde)}
-table.grade td .cel-ed{width:100%;min-width:112px;padding:4px 6px;font-size:12.5px;border:1px solid var(--verde);border-radius:6px}
-/* o alerta fica numa linha só e a coluna cresce até caber (ver width:auto
-   acima). Quebrar em várias linhas era pior: a célula tem altura fixa e
-   escondia tudo menos a primeira linha. */
+/* ---------- planilha: mesma estrutura visual do vendas.html ----------
+   width:max-content + min-width:100%: cada coluna toma a largura que precisa
+   e a tabela rola na horizontal. Com width:100% o navegador espremia as
+   colunas e cortava o texto das últimas (era o "o alerta não veio"). */
+.scroll-top{overflow-x:auto;overflow-y:hidden;height:14px;border:1px solid var(--border2);border-bottom:0;border-radius:10px 10px 0 0;background:var(--bg2)}
+.scroll-top>div{height:1px}
+.tabela-wrap{overflow:auto;max-height:70vh;border:1px solid var(--border2);border-radius:0 0 10px 10px;background:#fff}
+table.grade{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;font-size:12.5px}
+table.grade thead th{background:var(--azul);color:#fff;text-align:center;padding:9px 11px;font-size:10px;letter-spacing:.4px;
+  text-transform:uppercase;position:sticky;top:0;white-space:nowrap;z-index:2;font-weight:700;border-right:1px solid rgba(255,255,255,.22)}
+table.grade thead th.stick{left:0;z-index:3}
+table.grade tbody td{padding:7px 11px;border-top:1px solid var(--border2);border-right:1px solid var(--border2);
+  white-space:nowrap;color:var(--text);max-width:280px;overflow:hidden;text-overflow:ellipsis}
+table.grade tbody td.stick{position:sticky;left:0;background:#fff;font-weight:700;z-index:1;border-right:2px solid var(--border)}
+table.grade tbody tr:nth-child(even) td{background:var(--bg2)}
+table.grade tbody tr:nth-child(even) td.stick{background:#eef5f7}
+table.grade tbody tr:hover td{background:#e9f6ef}
+table.grade tbody tr:hover td.stick{background:#dff2e6}
+/* célula que dá pra editar: cursor de planilha e contorno verde no hover —
+   exatamente o td.edt do vendas.html */
+td.edt{cursor:cell}
+td.edt:hover{outline:2px solid var(--verde);outline-offset:-2px;background:#f0fbf4 !important}
+td.sens{color:var(--text4)}
+.tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700}
+.tag.sim{background:rgba(42,157,92,.14);color:var(--verde-esc)}
+.tag.nao{background:#f1e0e0;color:#9b2c2c}
 table.grade td .pill{white-space:nowrap}
-table.grade td:last-child{max-width:none}
 .pill{display:inline-block;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:800;letter-spacing:.3px}
 .pill.sim{background:#DCFCE7;color:#166534}.pill.nao{background:#FEE2E2;color:#991B1B}
 .pill.neutro{background:var(--bg3);color:var(--azul-esc)}
@@ -112,22 +132,34 @@ table.grade td:last-child{max-width:none}
 @keyframes spin{to{transform:rotate(360deg)}}
 .aviso{display:none;background:var(--amarelo-bg);border:1px solid var(--amarelo-bd);color:#9A3412;border-radius:10px;padding:9px 12px;font-size:12.5px;margin:14px 0}
 .semacesso{background:#fff;border:1px solid var(--border2);border-radius:12px;padding:26px;text-align:center;margin-top:24px}
-.tabs-outer{overflow-x:auto;margin-bottom:16px}
-.tabs{display:inline-flex;gap:6px;background:var(--bg3);padding:5px;border-radius:10px}
-.tab{border:0;background:transparent;color:var(--azul-esc);font:inherit;font-family:'Barlow Condensed';font-weight:800;font-size:14px;text-transform:uppercase;letter-spacing:.5px;padding:9px 14px;border-radius:8px;cursor:pointer;white-space:nowrap}
-.tab.on{background:var(--azul-esc);color:#fff}
+/* abas do setor — "pílula" centralizada, igual ao vendas.html */
+/* display:block + text-align:center (em vez de flex + justify-content:center):
+   com flex centralizado, quando as abas passam da largura da tela o começo da
+   primeira fica CORTADO e não dá pra rolar até ele. Assim, centraliza quando
+   cabe e rola normalmente quando não cabe. */
+.tabs-outer{background:var(--bg2);border:1.5px solid var(--border);border-radius:14px;padding:12px;margin:8px 0 20px;display:block;text-align:center;overflow-x:auto}
+.tabs{display:inline-flex;gap:6px;padding:6px;border:2.5px solid var(--verde-btn);border-radius:12px;background:rgba(76,217,100,.06)}
+.tab{padding:11px 22px;font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;color:var(--text3);
+  letter-spacing:.08em;text-transform:uppercase;cursor:pointer;border-radius:8px;border:2px solid transparent;
+  background:none;transition:all .2s;white-space:nowrap}
+.tab:hover{color:var(--azul-esc);background:rgba(76,217,100,.15);border-color:rgba(76,217,100,.4)}
+.tab.on{background:var(--verde-btn);color:#1a3347;border-color:var(--verde-btn);box-shadow:0 3px 10px rgba(76,217,100,.35)}
 .tab-n{display:inline-flex;align-items:center;justify-content:center;margin-left:8px;background:var(--vermelho);
   color:#fff;border-radius:20px;font-size:11px;font-weight:800;padding:1px 7px;font-family:Inter,sans-serif}
-.tab.on .tab-n{background:#fff;color:var(--azul-esc)}
-/* pintura das linhas por vencimento (aba de contas) */
-tr.lin-vencida td{background:#FEF2F2 !important}
-tr.lin-emdia td{background:#F0FDF4 !important}
-tr.lin-sem td{background:#fff !important}
-tr.lin-vencida:hover td,tr.lin-emdia:hover td,tr.lin-sem:hover td{filter:brightness(.97)}
+.tab.on .tab-n{background:var(--azul-esc);color:#fff}
+@media(max-width:560px){.tab{padding:10px 14px;font-size:13px}}
+/* pintura das linhas por vencimento (aba de contas) — mesma ideia das cores
+   por SITUAÇÃO do vendas.html, inclusive na coluna congelada */
+tbody tr.lin-vencida td{background:#FFB3B3}
+tbody tr.lin-vencida td.stick{background:#FF8F8F}
+tbody tr.lin-emdia td{background:#DFF2E6}
+tbody tr.lin-emdia td.stick{background:#C7E9D4}
+tbody tr.lin-sem td{background:#fff}
+tbody tr.lin-vencida:hover td,tbody tr.lin-emdia:hover td,tbody tr.lin-sem:hover td{filter:brightness(.96)}
 .legenda{display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--text3);margin-bottom:10px}
 .legenda .pt{display:inline-block;width:12px;height:12px;border-radius:3px;border:1px solid var(--border);vertical-align:-2px;margin-right:5px}
-.legenda .pt.lin-vencida{background:#FEF2F2;border-color:#FCA5A5}
-.legenda .pt.lin-emdia{background:#F0FDF4;border-color:#86EFAC}
+.legenda .pt.lin-vencida{background:#FFB3B3;border-color:#FF8F8F}
+.legenda .pt.lin-emdia{background:#DFF2E6;border-color:#86EFAC}
 .legenda .pt.lin-sem{background:#fff}
 .aviso-inline{background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:9px 12px;
   font-size:12.5px;color:var(--text3);margin-bottom:10px}
@@ -236,6 +268,7 @@ tr.lin-vencida:hover td,tr.lin-emdia:hover td,tr.lin-sem:hover td{filter:brightn
         <input class="busca" type="search" id="hub-busca" name="q_lig" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Buscar por obra, UC ou observação…" oninput="renderPlanilha()">
         <span class="count" id="hub-count"></span>
       </div>
+      <div class="scroll-top" id="hub-stop"><div></div></div>
       <div class="tabela-wrap" id="hub-wrap"><div class="vazio"><span class="load"></span> Carregando…</div></div>
     </section>
 
@@ -248,6 +281,7 @@ tr.lin-vencida:hover td,tr.lin-emdia:hover td,tr.lin-sem:hover td{filter:brightn
         <input class="busca" type="search" id="set-busca" name="q_lig_set" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Buscar por obra…" oninput="renderAba()">
         <span class="count" id="set-count"></span>
       </div>
+      <div class="scroll-top" id="set-stop"><div></div></div>
       <div class="tabela-wrap" id="set-wrap"><div class="vazio">Carregando…</div></div>
     </section>
   </main>
@@ -779,12 +813,17 @@ function renderSetores(){
     let n = 0;
     (s.abas||[]).forEach(a => { if (ABAS[a] && a !== "planilha") n += contarAba(a); });
     const temDado = LIG.length > 0;
-    return `<button class="setor" onclick="abrirSetor(${i})">
-      <div class="t">${esc(s.nome)}</div>
+    return `<button class="scard ${temDado?"tem-cnt":""}" data-i="${i}">
+      ${temDado ? `<span class="cnt">${num(n)}</span>` : ``}
+      <div class="cond">${esc(s.nome)}</div>
       <div class="d">${esc(s.d||"")}</div>
-      ${temDado ? `<span class="n ${n?'':'zero'}">${n} pendência${n===1?'':'s'}</span>` : ``}
     </button>`;
   }).join("");
+  // listener em vez de onclick inline — mesmo motivo do vendas.html: nome de
+  // setor com acento ou aspas quebrava o atributo e o clique morria
+  box.querySelectorAll(".scard").forEach(btn => {
+    btn.addEventListener("click", () => abrirSetor(+btn.dataset.i));
+  });
 }
 function linhasDoSetor(s){ return s && s.filtroBase ? LIG.filter(s.filtroBase) : LIG; }
 
@@ -1193,10 +1232,10 @@ function celula(l, nome, fonte){
     if (tipo === "files"){
       const n = (l.sens || {})[campo.nome];
       return (typeof n === "number" && n > 0)
-        ? `<span class="pill sim">${n} arquivo${n===1?"":"s"}</span>` : "—";
+        ? `<span class="tag sim" title="Abra a obra no sistema de Vendas para ver">${n} arq.</span>` : "—";
     }
     return temSens(l, campo.nome)
-      ? '<span class="pill neutro" title="protegido — carrega ao abrir a aba">•••</span>' : "—";
+      ? '<span title="Dado protegido — carrega ao abrir a aba">•••</span>' : "—";
   }
   if (tipo === "date") { const d = dataReal(l, nome); return d ? fmtData(d) : "—"; }
   if (tipo === "url")  { return v ? `<a href="${esc(v)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">abrir ↗</a>` : "—"; }
@@ -1204,8 +1243,11 @@ function celula(l, nome, fonte){
   const s = txt(v);
   if (tipo === "select" || tipo === "status"){
     const n = normN(s);
-    const cls = n==="SIM" ? "sim" : (n==="NAO" ? "nao" : "neutro");
-    return `<span class="pill ${cls}">${esc(s)}</span>`;
+    // SIM/NÃO viram a mesma etiqueta do vendas.html; o resto fica texto puro,
+    // senão a planilha vira um mural de pílulas coloridas sem hierarquia
+    if (n === "SIM") return `<span class="tag sim">${esc(s)}</span>`;
+    if (n === "NAO") return `<span class="tag nao">${esc(s)}</span>`;
+    return esc(s);
   }
   if (tipo === "formula" && (s.indexOf("🚨")>=0 || s.indexOf("⚠️")>=0 || s.indexOf("⏳")>=0)){
     const cls = s.indexOf("🚨")>=0 ? "critico" : "alerta";
@@ -1217,129 +1259,136 @@ function celula(l, nome, fonte){
 function tabelaHtml(linhas, colunas, extras, fonte, corDe){
   if (!linhas.length) return '<div class="vazio">Nenhuma linha com esses filtros.</div>';
   const cols = colunas.slice();
-  const th = cols.map(c=>`<th>${esc(c)}</th>`).join("") +
+  // a 1ª coluna fica congelada à esquerda (class "stick"), como na planilha de
+  // vendas: rolando pro lado, você nunca perde de vista de que obra é a linha
+  const th = cols.map((c,i)=>`<th class="${i===0?"stick":""}">${esc(c)}</th>`).join("") +
              (extras ? '<th>Dias p/ ligar</th><th>Dias p/ aprovar</th>' : "");
   const tr = linhas.map(l => {
-    const tds = cols.map(c => {
-      // Célula editável guarda a linha e a coluna no próprio <td>. O clique é
-      // tratado por UM handler na tabela toda (ver ligarCliquesTabela) e troca
-      // o texto pelo controle. É clique-para-editar, e não um <select> em cada
-      // célula, porque com centenas de linhas o navegador engasgaria só de
-      // montar a tela.
+    const tds = cols.map((c,i) => {
       const ed = podeEditarNaTabela(c, fonte);
-      return `<td${ed ? ` class="edit" data-id="${esc(l.id)}" data-col="${esc(c)}" title="clique para editar"` : ""}>` +
-             celula(l,c,fonte) + `</td>`;
+      const cls = [i===0?"stick":"", ed?"edt":""].filter(Boolean).join(" ");
+      const attrs = (cls ? ` class="${cls}"` : "") +
+                    (ed ? ` data-col="${esc(c)}" title="Clique para editar"` : "");
+      return `<td${attrs}>${celula(l,c,fonte)}</td>`;
     }).join("");
     const ex = extras
       ? `<td>${diasLigacao(l)==null?"—":diasLigacao(l)}</td><td>${diasAprovacao(l)==null?"—":diasAprovacao(l)}</td>`
       : "";
-    const cls = corDe ? corDe(l) : "";
-    // linha da aba de vendas não abre o painel: quem edita venda é o sistema
-    // de Vendas, não este. Aqui ela é só leitura.
-    const abrir = (fonte === "vendas") ? "" : ` data-abrir="${esc(l.id)}"`;
-    return `<tr class="${cls}"${abrir}>${tds}${ex}</tr>`;
+    const corLinha = corDe ? corDe(l) : "";
+    return `<tr class="${corLinha}" data-id="${esc(l.id)}" data-fonte="${fonte||"ligacoes"}">${tds}${ex}</tr>`;
   }).join("");
   return `<table class="grade"><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table>`;
 }
 
-/* ---------- edição direto na tabela ----------
-   Só nas colunas que o Code.gs aceita escrever (a lista de lá é a que vale) e
-   só na base de ligações — venda se edita no sistema de Vendas. */
-function podeEditarNaTabela(coluna, fonte){
-  if (fonte === "vendas") return false;
-  if (!ehEditavel(coluna)) return false;
-  const campo = campoDe(coluna, fonte);
-  if (!campo) return false;
-  return ["select","status","date","rich_text","title","url","number"].indexOf(campo.tipo) >= 0;
+/* barra de rolagem horizontal ACIMA da tabela, espelhando a de baixo — copiada
+   do vendas.html: sem ela, numa tabela com 11 colunas você só descobre que dá
+   pra rolar depois de chegar ao fim da página. */
+function sincronizarScroll(idTopo, idWrap){
+  const topo = document.getElementById(idTopo), wrap = document.getElementById(idWrap);
+  if (!topo || !wrap) return;
+  const tbl = wrap.querySelector("table");
+  if (!tbl){ topo.style.display = "none"; return; }
+  topo.style.display = "";
+  topo.firstElementChild.style.width = tbl.scrollWidth + "px";
+  let trava = false;
+  topo.onscroll = () => { if (trava) return; trava = true; wrap.scrollLeft = topo.scrollLeft; trava = false; };
+  wrap.onscroll = () => { if (trava) return; trava = true; topo.scrollLeft = wrap.scrollLeft; trava = false; };
 }
 
-/* Um handler por tabela, não um por célula: com centenas de linhas é a
-   diferença entre a aba abrir na hora e travar. Célula editável abre o
-   controle; o resto da linha abre o painel lateral. */
+/* ---------- edição direto na célula ----------
+   Mesmo mecanismo do vendas.html (que já está rodando há tempos): clica na
+   célula, ela vira campo, salva no change/blur/Enter e volta a ser texto.
+   Escape cancela. */
+
+/* Tipos que dá pra editar na própria célula. multi_select, checkbox e arquivo
+   ficam de fora — têm controle melhor no painel lateral. */
+const TIPOS_CELULA = ["title","rich_text","select","status","date","number","url","email","phone_number"];
+
+/* Colunas de VENDAS que ESTE sistema pode gravar (aba Casas vendidas).
+   Endereço, data do contrato e os dados do cliente ficam de fora de propósito:
+   quem manda nesses campos é o sistema de Vendas. A mesma lista existe no
+   Code.gs — e é a de lá que vale. */
+const VENDAS_EDITAVEIS = [
+  V.TEM_PROT_AGUA, V.TEM_PROT_ENER, V.ENER_TRANSF, V.AGUA_TRANSF, V.TITULARIDADES
+];
+function ehEditavelVendas(coluna){
+  const alvo = normN(coluna);
+  return VENDAS_EDITAVEIS.some(n => normN(n) === alvo);
+}
+
+function podeEditarNaTabela(coluna, fonte){
+  const campo = campoDe(coluna, fonte);
+  if (!campo) return false;
+  // coluna protegida: o valor nem está publicado no navegador, então editar
+  // aqui gravaria vazio por cima do dado real. Só pelo painel/Notion.
+  if (campo.sensivel) return false;
+  if (TIPOS_CELULA.indexOf(campo.tipo) < 0) return false;
+  return (fonte === "vendas") ? ehEditavelVendas(coluna) : ehEditavel(coluna);
+}
+
 function ligarCliquesTabela(idBox){
   const box = document.getElementById(idBox);
   if (!box || box._ligado) return;
   box._ligado = true;
+  // um handler por tabela (não um por célula): com centenas de linhas é a
+  // diferença entre a aba abrir na hora e travar
   box.addEventListener("click", ev => {
-    const td = ev.target.closest("td.edit");
-    if (td){
-      if (!td.querySelector("select,input")) { ev.stopPropagation(); abrirEditor(td); }
-      return;                                   // já está editando: não faz nada
-    }
-    const tr = ev.target.closest("tr[data-abrir]");
-    if (tr) abrirLinha(tr.dataset.abrir);
+    const td = ev.target.closest("td.edt");
+    if (td){ if (!td.querySelector("input,select")) editarCelula(td); return; }
+    if (ev.target.closest("a")) return;              // deixa o link navegar
+    const tr = ev.target.closest("tr[data-id]");
+    if (tr && tr.dataset.fonte !== "vendas") abrirLinha(tr.dataset.id);
   });
 }
 
-function abrirEditor(td){
-  const id = td.dataset.id, col = td.dataset.col;
-  const linha = linhaPorId(id);
-  const campo = campoDe(col);
-  if (!linha || !campo) return;
-  const tipo = campo.tipo;
+function editarCelula(td){
+  const tr = td.closest("tr");
+  const id = tr.dataset.id, fonte = tr.dataset.fonte || "ligacoes", col = td.dataset.col;
+  const campo = campoDe(col, fonte);
+  const linha = (fonte === "vendas" ? VEN : LIG).find(x => x.id === id);
+  if (!campo || !linha) return;
+
   const atual = getL(linha, col);
-  const antes = (tipo === "date") ? (dataReal(linha, col) || "") : (atual == null ? "" : String(atual));
-
-  let html;
-  if (tipo === "select" || tipo === "status"){
-    const ops = campo.opcoes || [];
-    html = `<select class="cel-ed"><option value="">(vazio)</option>` +
-      ops.map(o=>`<option value="${esc(o)}" ${String(atual)===String(o)?"selected":""}>${esc(o)}</option>`).join("") +
-      `</select>`;
-  } else if (tipo === "date"){
-    html = `<input class="cel-ed" type="date" value="${esc(antes)}">`;
-  } else if (tipo === "number"){
-    html = `<input class="cel-ed" type="number" value="${esc(antes)}">`;
+  const antigo = td.innerHTML;
+  let el;
+  if (campo.tipo === "select" || campo.tipo === "status"){
+    el = document.createElement("select");
+    el.innerHTML = `<option value=""></option>` +
+      (campo.opcoes||[]).map(o=>`<option${o===atual?" selected":""}>${esc(o)}</option>`).join("");
   } else {
-    html = `<input class="cel-ed" type="text" value="${esc(antes)}">`;
+    el = document.createElement("input");
+    el.type = campo.tipo==="date" ? "date" : (campo.tipo==="number" ? "number" : "text");
+    el.value = (campo.tipo==="date" && atual) ? String(atual).slice(0,10) : (atual==null ? "" : atual);
   }
-  td.innerHTML = html;
-  const el = td.querySelector(".cel-ed");
+  el.style.cssText = "width:100%;min-width:130px;padding:4px 7px;font-size:12.5px";
+  td.innerHTML = ""; td.appendChild(el);
   el.focus();
-  if (el.select) { try { el.select(); } catch(e){} }
+  if (el.tagName === "SELECT" && el.showPicker){ try { el.showPicker(); } catch(e){} }
 
-  let feito = false;
-  const fechar = () => {
-    document.removeEventListener("mousedown", cliqueFora, true);
-    td.innerHTML = celula(linhaPorId(id), col, "ligacoes");
+  let encerrado = false;
+  const encerrar = async (salvar) => {
+    if (encerrado) return;
+    encerrado = true;
+    if (!salvar){ td.innerHTML = antigo; return; }
+    const novo = el.value;
+    const antesTxt = String(atual==null ? "" : (campo.tipo==="date" && atual ? String(atual).slice(0,10) : atual));
+    if (antesTxt === String(novo)){ td.innerHTML = antigo; return; }
+    td.innerHTML = '<span class="load"></span>';
+    const r = await salvarCampo(linha, col, campo.tipo, novo, fonte);
+    if (r.ok){
+      td.innerHTML = celula(linha, col, fonte);
+      // a mudança pode tirar a linha da aba (ex.: preencher a UC que faltava),
+      // então a lista é refeita — só depois de a célula voltar ao normal
+      renderAba();
+    } else {
+      td.innerHTML = antigo;
+    }
   };
-  const confirmar = async () => {
-    if (feito) return;
-    feito = true;
-    const valorNovo = el.value;
-    if (String(valorNovo) === antes){ fechar(); return; }   // nada mudou: não grava
-    await salvarCampo(linha, col, tipo, valorNovo);
-    fechar();
-    // a mudança pode tirar a linha da aba (ex.: preencher a UC que faltava),
-    // então a lista é refeita — depois de fechar, nunca no meio da digitação
-    renderAba();
-  };
-  /* Fecha quando o clique acontece FORA da célula.
-     NÃO uso o blur: ele dispara também quando o navegador reajusta o foco no
-     instante em que o campo aparece, e aí o editor se fechava sozinho antes de
-     a pessoa digitar — o que foi digitado ia parar num campo já descartado e
-     nada era gravado. Este caminho depende de um clique de verdade. */
-  function cliqueFora(ev){
-    if (td.contains(ev.target)) return;
-    // Se o clique foi em OUTRA célula editável, guarda qual é: depois de
-    // gravar, a tabela é redesenhada e o clique original se perderia — a
-    // pessoa teria que clicar duas vezes pra editar a célula seguinte.
-    const alvo = ev.target.closest ? ev.target.closest("td.edit") : null;
-    const proximo = (alvo && alvo !== td) ? { id: alvo.dataset.id, col: alvo.dataset.col } : null;
-    Promise.resolve(confirmar()).then(() => {
-      if (!proximo) return;
-      const sel = '#set-wrap td.edit[data-id="' + CSS.escape(proximo.id) + '"][data-col="' + CSS.escape(proximo.col) + '"]';
-      const outro = document.querySelector(sel);
-      if (outro && !outro.querySelector("select,input")) abrirEditor(outro);
-    });
-  }
-  setTimeout(() => document.addEventListener("mousedown", cliqueFora, true), 0);
-
-  el.addEventListener("change", confirmar);
+  el.addEventListener("change", () => encerrar(true));
+  el.addEventListener("blur",   () => encerrar(true));
   el.addEventListener("keydown", e => {
-    if (e.key === "Escape"){ feito = true; fechar(); }
-    if (e.key === "Enter" && el.tagName === "INPUT"){ e.preventDefault(); confirmar(); }
-    if (e.key === "Tab") confirmar();
+    if (e.key === "Escape") encerrar(false);
+    if (e.key === "Enter" && el.tagName !== "SELECT") encerrar(true);
   });
 }
 
@@ -1379,6 +1428,7 @@ function renderPlanilha(){
     linhas.length + " de " + (RECORTE ? doRecorte.length : LIG.length) + " linhas";
   document.getElementById("hub-wrap").innerHTML = tabelaHtml(linhas, colunasVisiveis(), true, "ligacoes", null);
   ligarCliquesTabela("hub-wrap");
+  sincronizarScroll("hub-stop", "hub-wrap");
 }
 
 /* Linhas que a aba está mostrando agora (base + filtros + busca + vencimento).
@@ -1414,6 +1464,7 @@ function renderAba(){
     const n = (ATV_TRANSF || []).length;
     document.getElementById("set-count").textContent = ATV_TRANSF ? (n + " pendência" + (n===1?"":"s")) : "";
     document.getElementById("set-wrap").innerHTML = blocoAtividades();
+    document.getElementById("set-stop").style.display = "none";
     renderTabs();
     return;
   }
@@ -1455,6 +1506,7 @@ function renderAba(){
   html += tabelaHtml(linhas, cols, false, fonte, def.vencimento ? corVenc : null);
   document.getElementById("set-wrap").innerHTML = html;
   ligarCliquesTabela("set-wrap");
+  sincronizarScroll("set-stop", "set-wrap");
   renderTabs();   // as contagens das abas mudam quando o dado chega
 }
 
@@ -1784,16 +1836,20 @@ async function verSensiveis(){
 /* Grava um campo de UMA linha. Vale tanto para o painel lateral quanto para a
    edição direto na tabela — uma função só, senão as duas telas iam divergir
    no que gravam e no que fazem quando o servidor recusa. */
-async function salvarCampo(l, prop, tipo, valor){
+async function salvarCampo(l, prop, tipo, valor, fonte){
   if (!l) return { ok:false, erro:"SEM_LINHA" };
-  const real = nomeReal(prop);
+  fonte = fonte || "ligacoes";
+  const real = nomeReal(prop, fonte);
   const antes = getL(l, prop);
   const novo = (tipo === "number") ? (valor === "" ? null : Number(valor)) : (valor || "");
   if (l.v) l.v[real] = novo;              // pinta na hora; desfaz se der erro
 
+  // a aba de casas vendidas grava na base de VENDAS, por uma ação separada e
+  // com lista branca própria no Code.gs
+  const acao = (fonte === "vendas") ? "ligVendaUpdate" : "ligUpdate";
   const r = await escrever(
-    {action:"ligUpdate", pageId: l.id, prop: real, tipo: tipo, valor: novo},
-    "ligação: " + real
+    {action: acao, pageId: l.id, prop: real, tipo: tipo, valor: novo},
+    (fonte === "vendas" ? "venda: " : "ligação: ") + real
   );
   if (r.ok && r.enfileirado) toast("Sem internet — salvo na fila.");
   else if (r.ok) toast("Salvo.");
@@ -1808,7 +1864,7 @@ async function salvarCampo(l, prop, tipo, valor){
   // Só dispara quando foi ESTA coluna que acabou de ser marcada como SIM, e
   // só se o status ainda não passou desse ponto — assim uma obra já
   // TRANSFERIDA não volta pra LIGADO por causa de uma correção na aprovação.
-  if (normN(real) === normN(C.APROVADA) && normN(novo) === "SIM"){
+  if (fonte !== "vendas" && normN(real) === normN(C.APROVADA) && normN(novo) === "SIM"){
     const statusAtual = normN(sel(l, C.STATUS));
     if (["LIGADO", "TRANSFERIDO", "ENTREGUE NAO TRANSFERIDO"].indexOf(statusAtual) < 0){
       const campoStatus = campoDe(C.STATUS);
