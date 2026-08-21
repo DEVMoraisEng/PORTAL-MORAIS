@@ -214,10 +214,95 @@ tbody tr.lin-vencida:hover td,tbody tr.lin-emdia:hover td,tbody tr.lin-sem:hover
 .lm-dados{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--text3);margin-top:3px}
 .toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);background:var(--azul-esc);color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;font-weight:600;opacity:0;pointer-events:none;transition:.2s;z-index:60}
 .toast.on{opacity:1;transform:translate(-50%,0)}
+/* ==================== CELULAR ====================
+   Tudo junto aqui no fim, sobrepondo o que veio antes — assim o desktop, que
+   já está do jeito que a equipe usa, não muda em nada. As regras são as mesmas
+   do vendas.html, adaptadas às classes desta página. */
 @media(max-width:680px){
+  /* 16px nos campos: abaixo disso o iOS dá zoom sozinho ao focar e não volta */
   input,select,textarea{font-size:16px}
   .wrap{padding:0 12px}
-  table.grade td{max-width:200px}
+  /* nada de alvo de toque menor que ~40px */
+  .bt,button.tab,.btn-voltar,.sair,.btn-sync{min-height:40px}
+
+  /* cabeçalho: cabia em uma linha no computador, no celular virava meia tela */
+  .hbar{gap:9px;padding:10px 0;flex-wrap:nowrap}
+  .logo{padding:4px 7px}.logo img{height:26px}
+  .htitle{font-size:15px;line-height:1.05}
+  .hsub{display:none}
+  .net{display:none}                      /* o aviso de offline já aparece no corpo */
+  .user{gap:7px;margin-left:auto}
+  .user .nome{display:none}               /* o tipo (ADM) basta; o nome ocupa demais */
+  .sair{padding:8px 10px;font-size:12px}
+  .crumb{font-size:12px;margin:12px 0 10px;gap:7px;flex-wrap:wrap}
+  .btn-voltar{padding:8px 11px;font-size:11.5px;white-space:nowrap;letter-spacing:.04em}
+  .sec{padding:8px 11px;margin:16px 0 10px}
+  .sec .cond{font-size:15px}
+
+  /* cartões e KPIs: uma coluna só */
+  .setores{grid-template-columns:1fr;gap:11px}
+  .scard{padding:15px 15px 13px}
+  .scard .cond{font-size:15px}
+  .kpis{grid-template-columns:1fr;gap:10px}
+  .kpi{padding:12px 13px}
+  .kpi .val{font-size:26px}
+
+  /* abas: rolam de lado em vez de virar um bloco alto */
+  .tabs-outer{padding:8px;margin:6px 0 14px;-webkit-overflow-scrolling:touch}
+  .tabs{gap:5px;padding:5px}
+  .tab{padding:10px 13px;font-size:12.5px}
+
+  /* filtros: cada controle ocupa a linha inteira, senão fica aquele mosaico
+     de selects de larguras diferentes */
+  .toolbar{flex-direction:column;align-items:stretch;gap:8px;margin-bottom:10px}
+  .toolbar>select,.toolbar>input,.toolbar>button,.toolbar>.bt,.busca{width:100%;min-width:0}
+  .count{text-align:right;white-space:normal}   /* nowrap aqui estourava a tela */
+
+  /* gráficos */
+  .graf{padding:12px}
+  .graf .gt{font-size:14px}
+  .graf .gd{font-size:11px}
+  .chart-wrap{overflow-x:auto}
+  /* a tabela de resumo tem um mínimo de largura que não cabe em tela estreita:
+     ela rola dentro da própria caixa em vez de empurrar a página inteira */
+  #tab-lig,#tab-apr{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .tab-resumo{font-size:11.5px;width:max-content;min-width:100%}
+  .tab-resumo th,.tab-resumo td{padding:5px 7px}
+
+  /* planilha: rola de lado com a 1ª coluna fixa (igual ao computador),
+     e um pouco mais alta porque na vertical sobra pouco espaço */
+  .tabela-wrap{max-height:66vh;-webkit-overflow-scrolling:touch}
+  table.grade{font-size:12px}
+  table.grade thead th{padding:8px 9px}
+  table.grade tbody td{padding:9px 9px;max-width:190px}
+  /* o endereço é o que identifica a linha: em vez de cortar com "…", ele
+     quebra em duas linhas dentro da coluna congelada */
+  table.grade tbody td.stick{white-space:normal;max-width:43vw;min-width:120px;line-height:1.25}
+
+  /* recorte (o "mostrando: ...") e legendas */
+  .recorte{font-size:12px;padding:8px 10px}
+  .legenda{gap:10px;font-size:11.5px}
+
+  /* painel da obra: tela cheia — é o único jeito de caber */
+  .painel{width:100vw;max-width:100vw}
+  .ph{padding:14px 44px 14px 14px}
+  .ph .end{font-size:16px}
+  .pbody{padding:13px 14px 40px}
+
+  /* modal das colunas do PDF */
+  .modal-overlay{padding:10px}
+  .modal-cx{padding:14px;max-height:92vh}
+  .modal-acoes-topo,.modal-acoes{flex-wrap:wrap}
+  .colitem{padding:10px 8px;font-size:14px}   /* dedo, não mouse */
+  .colitem input{width:20px;height:20px}
+
+  .toast{left:12px;right:12px;bottom:14px;transform:translateY(20px);text-align:center}
+  .toast.on{transform:none}
+}
+@media(max-width:420px){
+  .htitle{font-size:13.5px}
+  .tab{padding:9px 11px;font-size:12px}
+  table.grade tbody td{max-width:160px}
 }
 </style>
 </head>
@@ -514,7 +599,9 @@ const ABAS = {
   },
   conferencias: {
     titulo: "Conferências de ligações solicitadas",
-    colunas: [C.OBRA, C.CONC, C.CPF_V1, C.DT_SOL, C.APROVADA, C.DT_APROV, C.DT_LIG, C.STATUS, C.ALERTA_LIG],
+    /* CPF/CNPJ (a fórmula que já junta V1 e V2) em vez de "CPF/CNPJ V1": na
+       base real a V1 vinha vazia e a coluna aparecia só com "—". */
+    colunas: [C.OBRA, C.CONC, C.CPF, C.DT_SOL, C.APROVADA, C.DT_APROV, C.DT_LIG, C.STATUS, C.ALERTA_LIG],
     filtros: [C.CONC, C.RESP, C.APROVADA],
     sensiveis: true,
     pdf: true,
@@ -796,8 +883,12 @@ function pintarVendas(r){
   if (!r || !r.ok || !r.vendas) return;
   VEN = r.vendas.map(x => {
     const vals = x.valores || {};
-    const end = vals[V.ENDERECO] != null ? vals[V.ENDERECO] : "";
-    const casa = vals[V.CASA];
+    /* leitura tolerante (nome sem acento/caixa/espaço sobrando), como no resto
+       do arquivo: ler a chave crua já quebrou antes, quando uma coluna do
+       Notion ganhou um espaço no fim do nome ("CLIENTES "). */
+    const bruto = { v: vals };
+    const end = getL(bruto, V.ENDERECO) != null ? getL(bruto, V.ENDERECO) : "";
+    const casa = getL(bruto, V.CASA);
     const linha = { id: x.id, v: vals, sens: x.sens || {},
                     obra: end + (casa != null && casa !== "" ? (" CS " + casa) : "") };
     linha.v[V.OBRA_CASA] = linha.obra;   // coluna montada, para a tabela e o PDF
@@ -826,31 +917,48 @@ function sensDe(l, nome, fonte){
   for (const k in reg) if (normN(k) === alvo) return reg[k];
   return undefined;
 }
+/* Tentativa que já falhou. Sem isto o erro vira LAÇO INFINITO: o ler() nunca
+   rejeita (devolve {ok:false}), então o .then zerava a promessa e chamava
+   renderAba(), que pedia de novo — offline, isso é uma requisição atrás da
+   outra e a aba travada. Só volta a tentar quando a pessoa troca de aba/setor
+   ou aperta Sincronizar. */
+let SENS_FALHOU = { ligacoes:false, vendas:false };
 function carregarSensiveis(fonte){
+  const chave = (fonte === "vendas") ? "vendas" : "ligacoes";
   const jaTem = fonte === "vendas" ? SENS_VEN : SENS_LIG;
   if (jaTem) return Promise.resolve(jaTem);
+  if (SENS_FALHOU[chave]) return Promise.resolve(null);
   const emCurso = fonte === "vendas" ? _promSensVen : _promSensLig;
   if (emCurso) return emCurso;
   const acao = fonte === "vendas" ? "ligVendasSensiveis" : "ligSensiveis";
   // sem chave de cache de propósito: dado pessoal não fica no localStorage
+  const encerra = (deuCerto) => {
+    if (fonte === "vendas") _promSensVen = null; else _promSensLig = null;
+    SENS_FALHOU[chave] = !deuCerto;
+    if (SETOR_ATUAL) renderAba();
+  };
   const p = ler({action: acao}).then(r => {
-    if (r && r.ok) {
+    // "valores" ausente conta como falha: sem isso jaTem ficaria undefined e a
+    // próxima pintura pediria tudo de novo, mesmo com ok:true.
+    if (r && r.ok && r.valores) {
       if (fonte === "vendas") SENS_VEN = r.valores; else SENS_LIG = r.valores;
       SENS_ERRO = null;
+      encerra(true);
     } else {
       SENS_ERRO = (r && r.erro) || "ERRO_API";
+      encerra(false);
     }
-    if (fonte === "vendas") _promSensVen = null; else _promSensLig = null;
-    if (SETOR_ATUAL) renderAba();
     return r;
   }).catch(() => {
     SENS_ERRO = "ERRO_API";
-    if (fonte === "vendas") _promSensVen = null; else _promSensLig = null;
-    if (SETOR_ATUAL) renderAba();
+    encerra(false);
   });
   if (fonte === "vendas") _promSensVen = p; else _promSensLig = p;
   return p;
 }
+/* Nova tentativa de buscar os dados protegidos — chamada ao trocar de aba e ao
+   sincronizar, que é quando faz sentido tentar de novo. */
+function permitirNovaTentativaSensiveis(){ SENS_FALHOU = { ligacoes:false, vendas:false }; }
 
 /* ---------- atividades de transferência (aba Casas vendidas) ----------
    São as atividades TIPO=TRANSFERÊNCIA da Ana Paula ainda não finalizadas,
@@ -908,7 +1016,15 @@ function linhasFonte(fonte){ return fonte === "vendas" ? VEN : LIG; }
 function colunasDaAba(chave){
   const def = ABAS[chave];
   const base = (def && def.colunas) ? def.colunas : colunasVisiveis();
-  return base.map(c => c === V.DT_VERIF ? COL_VERIF : c).filter(Boolean);
+  const fonte = fonteDaAba(chave);
+  const schema = (fonte === "vendas") ? VSCHEMA : SCHEMA;
+  return base.map(c => c === V.DT_VERIF ? COL_VERIF : c)
+    .filter(Boolean)
+    /* coluna que não existe (mais) na base sai da tabela em vez de virar uma
+       fileira de "—": se alguém renomear a coluna no Notion, o site mostra o
+       que existe, não uma coluna fantasma. Enquanto o schema não chegou
+       (schema vazio), não filtra nada. */
+    .filter(c => !schema.length || !!campoDe(c, fonte));
 }
 
 function linhasDaAba(chave){
@@ -958,6 +1074,9 @@ function linhasDoSetor(s){ return s && s.filtroBase ? LIG.filter(s.filtroBase) :
 function abrirSetor(i){
   SETOR_ATUAL = SETORES_LIG[i];
   ABA_ATUAL = SETOR_ATUAL.abas[0];
+  // busca do setor anterior não pode continuar filtrando a lista nova
+  document.getElementById("set-busca").value = "";
+  permitirNovaTentativaSensiveis();
   document.getElementById("view-hub").style.display = "none";
   document.getElementById("view-setor").style.display = "";
   document.getElementById("setor-nome").textContent = SETOR_ATUAL.nome;
@@ -968,6 +1087,9 @@ function irHub(){
   SETOR_ATUAL = null;
   document.getElementById("view-setor").style.display = "none";
   document.getElementById("view-hub").style.display = "";
+  // os gráficos não são desenhados enquanto o hub está escondido: agora que
+  // ele voltou, redesenha com a largura certa
+  renderGraficos();
   window.scrollTo(0,0);
 }
 function renderTabs(){
@@ -982,6 +1104,7 @@ function renderTabs(){
 function trocarAba(a){
   ABA_ATUAL = a;
   document.getElementById("set-busca").value = "";
+  permitirNovaTentativaSensiveis();   // trocar de aba é uma chance de tentar de novo
   renderTabs(); renderAba();
 }
 
@@ -993,6 +1116,11 @@ function montarFiltros(idBox, colunas, prefixo, aoMudar, fonte){
   const box = document.getElementById(idBox);
   if (!box) return;
   const universo = linhasFonte(fonte);
+  /* O que a pessoa já tinha escolhido. A página pinta DUAS vezes (cache e
+     rede): sem guardar isto, o filtro que ela acabou de escolher voltava
+     sozinho para "todos" quando o arquivo da rede chegava. */
+  const antes = {};
+  box.querySelectorAll("select[data-col]").forEach(s => { if (s.value) antes[s.dataset.col] = s.value; });
   box.innerHTML = colunas.map(nome => {
     const campo = campoDe(nome, fonte);
     let ops = (campo && campo.opcoes) ? campo.opcoes.slice() : null;
@@ -1008,6 +1136,11 @@ function montarFiltros(idBox, colunas, prefixo, aoMudar, fonte){
       <option value="__VAZIO__">${esc(nome)}: (vazio)</option>
     </select>`;
   }).join("");
+  // devolve a escolha anterior (só se a opção ainda existir nos dados novos)
+  box.querySelectorAll("select[data-col]").forEach(s => {
+    const v = antes[s.dataset.col];
+    if (v && [...s.options].some(o => o.value === v)) s.value = v;
+  });
 }
 function valoresFiltro(idBox){
   const box = document.getElementById(idBox);
@@ -1113,10 +1246,18 @@ function irParaPlanilha(){
 function barras(idCanvas, itens, sufixo){
   const c = document.getElementById(idCanvas);
   if (!c) return;
-  const pw = (c.parentElement.clientWidth || 500);
-  if (pw < 20) return;
+  /* "sem dado com esse filtro" é decidido ANTES de qualquer medida: se ficasse
+     depois, um gráfico escondido por falta de dado nunca voltaria a aparecer
+     quando o filtro fosse afrouxado. */
   if (!itens.length){ c.style.display="none"; return; }
   c.style.display = "block";
+  /* Se a tela do gráfico está escondida (a pessoa está dentro de um setor),
+     não dá pra medir a largura: desenhar agora deixaria o canvas com uma
+     largura de chute, desalinhado ao voltar. O irHub() redesenha. */
+  const pai = c.parentElement;
+  if (!pai || !pai.offsetParent) return;
+  const pw = pai.clientWidth;
+  if (pw < 20) return;
   const H = 240;
   const dpr = Math.max(window.devicePixelRatio||1, 2);
   c.width = pw*dpr; c.height = H*dpr;
@@ -1402,6 +1543,23 @@ function celula(l, nome, fonte){
   return esc(s);
 }
 
+/* Troca o conteúdo de uma planilha SEM atrapalhar quem está usando:
+   1) se há um editor de célula aberto ali dentro, a repintura é adiada — senão
+      o campo some com o que a pessoa acabou de digitar (acontecia ao pular de
+      uma célula para a outra: o salvamento da primeira repintava tudo);
+   2) devolve a rolagem para onde estava — sem isso, cada gravação jogava a
+      pessoa de volta ao canto superior esquerdo de uma tabela de 17 colunas. */
+function pintarTabela(idWrap, html){
+  const wrap = document.getElementById(idWrap);
+  if (!wrap) return false;
+  const foco = document.activeElement;
+  if (foco && wrap.contains(foco) && /^(INPUT|SELECT|TEXTAREA)$/.test(foco.tagName)) return false;
+  const x = wrap.scrollLeft, y = wrap.scrollTop;
+  wrap.innerHTML = html;
+  wrap.scrollLeft = x; wrap.scrollTop = y;
+  return true;
+}
+
 function tabelaHtml(linhas, colunas, extras, fonte, corDe){
   if (!linhas.length) return '<div class="vazio">Nenhuma linha com esses filtros.</div>';
   const cols = colunas.slice();
@@ -1524,7 +1682,11 @@ function editarCelula(td){
     el.type = campo.tipo==="date" ? "date" : (campo.tipo==="number" ? "number" : "text");
     el.value = (campo.tipo==="date" && atual) ? String(atual).slice(0,10) : (atual==null ? "" : atual);
   }
-  el.style.cssText = "width:100%;min-width:130px;padding:4px 7px;font-size:12.5px";
+  /* 16px no celular: abaixo disso o iOS dá zoom sozinho ao focar o campo e
+     não volta — a planilha ficava ampliada a cada edição. O estilo é inline,
+     então ele vence a media query do CSS: a conta tem que ser feita aqui. */
+  const emCelular = window.matchMedia && window.matchMedia("(max-width:680px)").matches;
+  el.style.cssText = "width:100%;min-width:130px;padding:4px 7px;font-size:" + (emCelular ? "16px" : "12.5px");
   td.innerHTML = ""; td.appendChild(el);
   el.focus();
   if (el.tagName === "SELECT" && el.showPicker){ try { el.showPicker(); } catch(e){} }
@@ -1590,7 +1752,7 @@ function renderPlanilha(){
 
   document.getElementById("hub-count").textContent =
     linhas.length + " de " + (RECORTE ? doRecorte.length : LIG.length) + " linhas";
-  document.getElementById("hub-wrap").innerHTML = tabelaHtml(linhas, colunasVisiveis(), true, "ligacoes", null);
+  if (!pintarTabela("hub-wrap", tabelaHtml(linhas, colunasVisiveis(), true, "ligacoes", null))) return;
   ligarCliquesTabela("hub-wrap");
   sincronizarScroll("hub-stop", "hub-wrap");
 }
@@ -1607,6 +1769,10 @@ function filtrosVendidas(){
     const d = dataReal(v, V.DT_ASSIN); if (d) anos[d.slice(0,4)] = 1;
     const dv = COL_VERIF ? dataReal(v, COL_VERIF) : null; if (dv) anosVer[dv.slice(0,4)] = 1;
   });
+  // fallback nos DOIS: sem ele, montar a barra antes de o arquivo de vendas
+  // chegar deixava o select de ano sem opção nenhuma, e escolher "Ano" não
+  // filtrava nada (comparava com string vazia)
+  if (!Object.keys(anos).length)    anos[String(new Date().getFullYear())] = 1;
   if (!Object.keys(anosVer).length) anosVer[String(new Date().getFullYear())] = 1;
   const MES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
   return `
@@ -1799,8 +1965,14 @@ function renderAba(){
      passa a existir. Sem a segunda condição, abrir a aba antes de o arquivo
      de vendas chegar deixava a barra montada SEM o filtro de verificação —
      e ela só era refeita ao trocar de aba e voltar. */
+  /* E também quando a FONTE sai do zero: dá pra clicar num setor antes de o
+     arquivo chegar (rede lenta, primeiro acesso). Nesse instante os selects
+     seriam montados sem nenhuma opção — e ficariam assim, mortos, porque a
+     aba não mudou. */
   const marcaVerif = COL_VERIF ? "1" : "0";
-  if (box.dataset.aba !== ABA_ATUAL || box.dataset.verif !== marcaVerif){
+  const marcaDados = linhasFonte(fonte).length ? "1" : "0";
+  if (box.dataset.aba !== ABA_ATUAL || box.dataset.verif !== marcaVerif || box.dataset.temdados !== marcaDados){
+    box.dataset.temdados = marcaDados;
     if (def.filtrosProprios) box.innerHTML = filtrosVendidas();
     else montarFiltros("filtros-setor", def.filtros, "set", renderAba, fonte);
     if (def.vencimento){
@@ -1834,7 +2006,7 @@ function renderAba(){
       : `<div class="aviso-inline"><span class="load"></span> buscando CPF, nascimento e contato… (não ficam no arquivo público do site)</div>`;
   }
   html += tabelaHtml(linhas, cols, false, fonte, def.vencimento ? corVenc : null);
-  document.getElementById("set-wrap").innerHTML = html;
+  if (!pintarTabela("set-wrap", html)){ renderTabs(); return; }
   ligarCliquesTabela("set-wrap");
   sincronizarScroll("set-stop", "set-wrap");
   renderTabs();   // as contagens das abas mudam quando o dado chega
@@ -2360,8 +2532,20 @@ async function salvarCampo(l, prop, tipo, valor, fonte){
   fonte = fonte || "ligacoes";
   const real = nomeReal(prop, fonte);
   const antes = getL(l, prop);
-  const novo = (tipo === "number") ? (valor === "" ? null : Number(valor)) : (valor || "");
+  let novo = (tipo === "number") ? (valor === "" ? null : Number(valor)) : (valor || "");
+  // número inválido não vai pro Notion: JSON.stringify(NaN) vira null e o
+  // campo seria APAGADO na base sem ninguém perceber
+  if (tipo === "number" && novo !== null && !isFinite(novo)){
+    toast("Valor numérico inválido.");
+    return { ok:false, erro:"VALOR_INVALIDO" };
+  }
+  const eraObra = normN(real) === normN(C.OBRA) || normN(real) === normN(V.OBRA_CASA);
+  const obraAntes = l.obra;
   if (l.v) l.v[real] = novo;              // pinta na hora; desfaz se der erro
+  /* o endereço é guardado DUAS vezes na linha (em l.v e em l.obra, que é o que
+     a busca, o índice venda↔ligação e o título do painel usam). Sem atualizar
+     os dois, a casa corrigida sumia da busca até o próximo dist/. */
+  if (eraObra){ l.obra = txt(novo); _idxLigRef = null; }
 
   // a aba de casas vendidas grava na base de VENDAS, por uma ação separada e
   // com lista branca própria no Code.gs
@@ -2381,6 +2565,7 @@ async function salvarCampo(l, prop, tipo, valor, fonte){
   }
   else {
     if (l.v) l.v[real] = antes;           // rejeitado pelo servidor: desfaz
+    if (eraObra){ l.obra = obraAntes; _idxLigRef = null; }
     toast("Não salvou: " + erroTexto(r.erro));
     renderKpis(); renderGraficos(); renderPlanilha(); renderSetores();
     return r;
@@ -2422,7 +2607,10 @@ async function salvar(prop, tipo, valor){
 
 /* Depois que a fila sobe, recarrega o dist/ pra pegar o que os outros
    também mexeram. */
-window.aoSincronizar = () => { lerEstaticoJa("ligacoes.json","ligacoes", pintarTudo); };
+window.aoSincronizar = () => {
+  permitirNovaTentativaSensiveis();
+  lerEstaticoJa("ligacoes.json","ligacoes", pintarTudo);
+};
 
 document.addEventListener("keydown", e => {
   if (e.key !== "Escape") return;
