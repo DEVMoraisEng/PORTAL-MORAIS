@@ -158,9 +158,18 @@ const SISTEMAS=[
   {chave:"RAS FINANCEIRO",nome:"RAS Financeiro",desc:"Reunião de alinhamento — Financeiro",ico:"R",link:"https://devmoraiseng.github.io/RAS-FINANCEIRO/",externo:true,grupo:"REUNIÕES"},
   {chave:"RAS PROJETOS",nome:"RAS Projetos",desc:"Reunião de alinhamento — Projetos",ico:"R",link:"https://devmoraiseng.github.io/RAS-PROJETOS/",externo:true,grupo:"REUNIÕES"},
   {chave:"RAS PÓS OBRAS",nome:"RAS Pós-Obra",desc:"Reunião de alinhamento — Pós-Obra",ico:"R",link:"https://devmoraiseng.github.io/RAS-POS-OBRAS/",externo:true,grupo:"REUNIÕES"},
-  {chave:"RAS COMPRAS",nome:"RAS Compras",desc:"Reunião de alinhamento — Compras",ico:"R",link:"https://devmoraiseng.github.io/RAS-COMPRAS/",externo:true,grupo:"REUNIÕES"}
+  {chave:"RAS COMPRAS",nome:"RAS Compras",desc:"Reunião de alinhamento — Compras",ico:"R",link:"https://devmoraiseng.github.io/RAS-COMPRAS/",externo:true,grupo:"REUNIÕES"},
+
+  /* ---------- AUTOMAÇÕES ----------
+     Mesma regra dos RAS: cada automação mora no PRÓPRIO repositório e entra
+     aqui só como link (externo:true). O portal NÃO protege a página de
+     destino — quem precisa de acesso restrito tem que ter login próprio.
+     Lembrete que já custou caro uma vez: "chave" tem que ser IGUAL à opção da
+     coluna ACESSOS no banco LOGINS do Notion, com acento e em maiúsculas.
+     Se não bater, o botão não aparece e não dá erro nenhum. */
+  {chave:"PRANCHA HUMANIZADA",nome:"Prancha Humanizada",desc:"Planta do Revit → prancha de venda no timbrado",ico:"A",link:"https://devmoraiseng.github.io/AUT-PRANCHA-HUMANIZADA/",externo:true,grupo:"AUTOMAÇÕES"}
 ];
-const GRUPOS_ORDEM=["SETORES","REUNIÕES"]; // setores primeiro, reuniões depois — pedido do item 2
+const GRUPOS_ORDEM=["SETORES","REUNIÕES","AUTOMAÇÕES"]; // setores, reuniões e automações — nessa ordem
 const S=exigirSessao(); atualizarStatus();
 
 function pintarUsuario(s){ document.getElementById("u-nome").textContent=s.nome||s.login; const tb=document.getElementById("u-tipo"); tb.textContent=s.tipo; tb.className="badge"+(s.tipo==="ADM"?" adm":""); }

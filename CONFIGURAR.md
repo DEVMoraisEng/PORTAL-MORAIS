@@ -219,3 +219,57 @@ Continua manual no banco **LOGINS** do Notion:
 
 Não existe tela de cadastro nem "esqueci minha senha" — se quiser, é a próxima
 coisa que eu monto.
+
+---
+
+## 6. Automações (seção "AUTOMAÇÕES")
+
+### Onde mora o código
+
+Cada automação fica no **próprio repositório**, exatamente como os RAS.
+Ela entra no portal só como link (`externo:true` no array `SISTEMAS` do
+`index.html`), no grupo `"AUTOMAÇÕES"`.
+
+Por que não uma pasta dentro do PORTAL-MORAIS:
+
+- o workflow do Pages empacota a **raiz do repositório inteiro** (`path: '.'`).
+  Código de automação, dependências e arquivos de teste iriam para o ar junto;
+- cada automação tem dependência própria (a Prancha Humanizada usa numpy,
+  scipy, scikit-image e PyMuPDF — centenas de MB). Isso deixaria o build do
+  portal lento e quebradiço;
+- histórico, issues e deploy ficam separados: mexer numa automação não
+  arrisca derrubar o portal.
+
+Convenção de nome sugerida: `AUT-<NOME>` (ex.: `AUT-PRANCHA-HUMANIZADA`),
+para os repositórios de automação ficarem agrupados na listagem do GitHub.
+
+### Como adicionar uma automação no menu
+
+1. Cria o repositório da automação e publica a página dela (Pages ou outro).
+2. No `index.html`, acrescenta uma linha no array `SISTEMAS` com
+   `grupo:"AUTOMAÇÕES"` e `externo:true`.
+3. No Notion, banco **LOGINS**, adiciona a mesma `chave` como opção da coluna
+   **ACESSOS** — igual, com acento e em maiúsculas. Se não bater, o botão
+   simplesmente não aparece, sem mensagem de erro.
+
+### ONDE COLOCA O TOKEN
+
+**Nunca** no `index.html`, no `app.js`, em qualquer `.js`/`.html`, nem
+commitado no repositório. O portal é um site estático: tudo que está no
+arquivo chega no navegador de quem abre, e tudo que entra no Git fica no
+histórico mesmo depois de apagado.
+
+Onde o token vai depende de **onde o código roda**:
+
+| onde o código roda | onde vai o token |
+|---|---|
+| GitHub Actions (build/rotina) | **Settings → Secrets and variables → Actions**, igual ao `NOTION_TOKEN` de hoje. No workflow: `env: OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}` |
+| Backend próprio (FastAPI, Render, Railway, Cloud Run) | variável de ambiente do serviço, no painel do provedor |
+| Máquina do escritório | arquivo `.env` **listado no `.gitignore`**, ou variável de ambiente do Windows |
+| Navegador | **em lugar nenhum** — não existe forma segura |
+
+Consequência prática: a página no navegador **não chama a API da OpenAI
+direto**. Ela chama o backend/Action, e é o backend que tem a chave.
+
+Se um token vazar (ou na dúvida): revoga e gera outro no painel do provedor.
+Apagar o arquivo do repositório **não** basta, porque o histórico do Git guarda.
