@@ -632,7 +632,7 @@ const ABAS = {
   aptas: {
     titulo: "Verificar se a obra está apta para a solicitação",
     colunas: [C.OBRA, C.CONC, C.LIBERADO, C.DT_LIBER, C.NF_MEDIDOR, C.RESP, C.OBS],
-    filtros: [C.CONC, C.LIBERADO],
+    filtros: [C.CONC, C.LIBERADO, C.RESP],
     sensiveis: true,        // NF MEDIDOR é coluna de arquivo: não vem no público
     pdf: true,
     /* Sai da lista só quando as TRÊS coisas estiverem prontas: liberado,
@@ -647,7 +647,7 @@ const ABAS = {
        de concessionária saiu — seria a mesma palavra em todas as linhas. */
     colunas: [C.OBRA, C.APROVADA, C.DT_LIBER, C.DT_SOL, C.DT_APROV,
               CALC.PROC_SANESC, C.RESP, C.ALERTA_SOL, C.OBS],
-    filtros: [],
+    filtros: [C.RESP],
     pdf: true,
     base: l => normN(sel(l, C.CONC)) === "SANESC"
             && sel(l, C.FEZ) === "SIM"
@@ -657,7 +657,7 @@ const ABAS = {
   planilha: {
     titulo: "Planilha do setor",
     colunas: null,           // null = todas as colunas visíveis
-    filtros: [C.CONC, C.LIBERADO, C.FEZ, C.APROVADA, C.STATUS],
+    filtros: [C.CONC, C.LIBERADO, C.FEZ, C.APROVADA, C.STATUS, C.RESP],
     base: () => true
   },
 
@@ -665,7 +665,7 @@ const ABAS = {
   liberadas: {
     titulo: "Obras liberadas para solicitar a ligação",
     colunas: [C.OBRA, C.CONC, C.DT_SOL, C.FEZ, C.NF_MEDIDOR, C.RESP, C.OBS, C.CPF, C.ALERTA_INFO],
-    filtros: [C.CONC, C.FEZ],
+    filtros: [C.CONC, C.RESP, C.FEZ],
     sensiveis: true,
     pdf: true,
     /* Continua aqui enquanto o alerta do Notion apontar pendência OU enquanto
@@ -681,7 +681,7 @@ const ABAS = {
        base real a V1 vinha vazia e a coluna aparecia só com "—". */
     colunas: [C.OBRA, C.CONC, C.CPF, C.DT_SOL, C.DT_LIG,
               CALC.LIG_CORRIDO, C.RESP, C.STATUS, C.ALERTA_LIG],
-    filtros: [C.CONC],
+    filtros: [C.CONC, C.RESP],
     sensiveis: true,
     pdf: true,
     base: l => sel(l, C.FEZ) === "SIM" && temAlerta(l, C.ALERTA_INFO1)
@@ -689,7 +689,7 @@ const ABAS = {
   semUc: {
     titulo: "Ligações sem UC (ligadas mas sem UC)",
     colunas: [C.OBRA, C.CONC, C.CPF, C.NASC, C.DT_UC, C.UC, C.UC_OK, C.DT_LIG, C.RESP, C.OBS_CONTAS, C.ALERTA_UC],
-    filtros: [C.CONC, C.UC_OK],
+    filtros: [C.CONC, C.RESP, C.UC_OK],
     sensiveis: true,
     pdf: true,
     base: l => sel(l, C.STATUS) === "LIGADO" && temAlerta(l, C.ALERTA_UC)
@@ -718,7 +718,7 @@ const ABAS = {
   semUcContas: {
     titulo: "Ligações sem UC (ligadas sem UC)",
     colunas: [C.OBRA, C.CONC, C.CPF, C.NASC, C.DT_UC, C.UC, C.UC_OK, C.ALERTA_UC, C.STATUS],
-    filtros: [C.CONC, C.UC_OK],
+    filtros: [C.CONC, C.RESP, C.UC_OK],
     sensiveis: true,
     pdf: true,
     base: l => ["LIGADO", "ENTREGUE NAO TRANSFERIDO"].indexOf(normN(sel(l, C.STATUS))) >= 0
@@ -758,7 +758,7 @@ const ABAS = {
 /* Filtros da planilha geral — os seis pedidos no PDF. */
 /* RESPONSÁVEL saiu daqui: virou o seletor global do topo, que vale para a
    página toda (inclusive para os números dos cartões e das abas). */
-const FILTROS_HUB = [C.CONC, C.LIBERADO, C.FEZ, C.APROVADA, C.STATUS];
+const FILTROS_HUB = [C.CONC, C.LIBERADO, C.FEZ, C.APROVADA, C.STATUS, C.RESP];
 
 let LIG = [], SCHEMA = [], SCAMPO = {};
 let VEN = [], VSCHEMA = [], VSCAMPO = {}, VEN_OK = false;
@@ -1257,6 +1257,8 @@ function montarSeletorResp(){
 function trocarFiltroResp(v){
   FILTRO_RESP = v;
   montarSeletorResp();
+  // espelha nas barras de filtro: o de cima e o da aba são o mesmo controle
+  document.querySelectorAll('select[data-resp]').forEach(s => { s.value = FILTRO_RESP; });
   renderKpis(); renderGraficos(); renderPlanilha(); renderSetores();
   if (SETOR_ATUAL) renderAba();
 }
@@ -1320,6 +1322,16 @@ function montarFiltros(idBox, colunas, prefixo, aoMudar, fonte){
       ops = Object.keys(set).sort((a,b)=>String(a).localeCompare(String(b),"pt-BR"));
     }
     const id = prefixo + "-f-" + normN(nome).replace(/[^A-Z0-9]/g,"");
+    /* RESPONSÁVEL é o MESMO filtro do seletor do topo: escolher aqui muda os
+       contadores (cartões de setor, número das abas, KPIs, gráficos) e vice-
+       versa. São dois lugares para mexer no mesmo estado, não dois filtros. */
+    if (normN(nome) === normN(C.RESP)){
+      return `<select id="${id}" data-col="${esc(nome)}" data-resp="1" onchange="trocarFiltroResp(this.value)">
+        <option value="">${esc(nome)}: todos</option>
+        ${responsaveisConhecidos().map(o=>`<option value="${esc(o)}" ${o===FILTRO_RESP?"selected":""}>${esc(nome)}: ${esc(o)}</option>`).join("")}
+        <option value="__VAZIO__" ${FILTRO_RESP==="__VAZIO__"?"selected":""}>${esc(nome)}: (vazio)</option>
+      </select>`;
+    }
     return `<select id="${id}" data-col="${esc(nome)}" onchange="${aoMudar.name}()">
       <option value="">${esc(nome)}: todos</option>
       ${ops.map(o=>`<option value="${esc(o)}">${esc(nome)}: ${esc(o)}</option>`).join("")}
@@ -1339,7 +1351,10 @@ function valoresFiltro(idBox){
   // só os selects que representam UMA COLUNA. O seletor de vencimento mora na
   // mesma barra mas não é filtro de coluna — sem este teste ele entraria aqui
   // como coluna "undefined" e zeraria a tabela inteira.
-  box.querySelectorAll("select[data-col]").forEach(s => { if (s.value) out.push({col:s.dataset.col, val:s.value}); });
+  // o de RESPONSÁVEL fica de fora: ele é o filtro global, já aplicado no LIGF()
+  box.querySelectorAll("select[data-col]:not([data-resp])").forEach(s => {
+    if (s.value) out.push({col:s.dataset.col, val:s.value});
+  });
   return out;
 }
 function passaFiltros(l, filtros){
@@ -1941,8 +1956,14 @@ function editarCelula(td){
       td.innerHTML = antigo;
     }
   };
-  el.addEventListener("change", () => encerrar(true));
-  el.addEventListener("blur",   () => encerrar(true));
+  /* Campo de DATA não salva no "change".
+     Digitando 01/01/2026, o navegador considera a data completa assim que o
+     ano ganha quatro dígitos — e "0002" já conta. O change disparava ali, o
+     salvamento repintava a tabela e o campo sumia no meio da digitação (além
+     de gravar o ano errado no Notion). Para data, o salvamento é no Enter ou
+     ao sair do campo, quando o valor está fechado. */
+  if (campo.tipo !== "date") el.addEventListener("change", () => encerrar(true));
+  el.addEventListener("blur", () => encerrar(true));
   el.addEventListener("keydown", e => {
     if (e.key === "Escape") encerrar(false);
     if (e.key === "Enter" && el.tagName !== "SELECT") encerrar(true);
@@ -2665,7 +2686,9 @@ function corpoPainel(l){
       </select>`;
     } else if (tipo === "date"){
       const d = dataReal(l, nome) || "";
-      html += `<input type="date" id="${idc}" value="${esc(d)}" onchange="salvar('${esc(nome)}','date',this.value)">`;
+      /* onblur, não onchange: ver o comentário do editor de célula — no
+         onchange o navegador avisa com a data ainda pela metade. */
+      html += `<input type="date" id="${idc}" value="${esc(d)}" onblur="salvar('${esc(nome)}','date',this.value)">`;
       if (!d && v) html += `<div class="dica">no Notion está 01/01/2000 (marcador de “sem data”)</div>`;
     } else if (tipo === "url"){
       html += `<input type="text" id="${idc}" value="${esc(v||"")}" placeholder="https://…" onchange="salvar('${esc(nome)}','url',this.value)">`;
@@ -2876,7 +2899,7 @@ function corpoPainelVenda(v){
         ${(campo.opcoes||[]).map(o=>`<option value="${esc(o)}" ${String(valor)===String(o)?"selected":""}>${esc(o)}</option>`).join("")}
       </select>`;
     } else if (campo.tipo === "date"){
-      html += `<input type="date" value="${esc(dataReal(v,nome)||"")}" onchange="salvarVenda('${esc(nome)}','date',this.value)">`;
+      html += `<input type="date" value="${esc(dataReal(v,nome)||"")}" onblur="salvarVenda('${esc(nome)}','date',this.value)">`;
     } else {
       html += `<input type="text" value="${esc(valor==null?"":valor)}" onchange="salvarVenda('${esc(nome)}','${campo.tipo}',this.value)">`;
     }
@@ -2964,6 +2987,17 @@ async function salvarCampo(l, prop, tipo, valor, fonte){
     montarSeletorResp();
     renderKpis(); renderGraficos(); renderPlanilha(); renderSetores();
     return rp;
+  }
+
+  /* Data com ano absurdo é digitação pela metade (o "0002" de quem ainda está
+     escrevendo 2026). Não vai para o Notion — melhor perder o salvamento do
+     que gravar 01/01/0002 numa obra. */
+  if (tipo === "date" && valor){
+    const ano = parseInt(String(valor).slice(0,4), 10);
+    if (!(ano >= 1900 && ano <= 2200)){
+      toast("Data incompleta — termine de digitar o ano.");
+      return { ok:false, erro:"DATA_INCOMPLETA" };
+    }
   }
 
   let novo = (tipo === "number") ? (valor === "" ? null : Number(valor)) : (valor || "");
