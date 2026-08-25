@@ -672,7 +672,10 @@ def main():
                     n = norm(nome)
                     v = valor(prop)
                     if eh_sensivel(nome) or (OCULTAR_ANEXOS and prop.get("type") == "files"):
-                        item["sens"][nome] = bool(v)
+                        # Anexo publica a QUANTIDADE (o site mostra "2 arq." e
+                        # decide se cobra a NF do medidor); o resto publica só
+                        # sim/não, que é o bastante pra mostrar "•••".
+                        item["sens"][nome] = (len(v or []) if prop.get("type") == "files" else bool(v))
                     else:
                         item["v"][nome] = v
                     if n == "UC":

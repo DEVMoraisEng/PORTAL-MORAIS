@@ -115,6 +115,26 @@ table.grade tbody tr:hover td.stick{background:#dff2e6}
 td.edt{cursor:cell}
 td.edt:hover{outline:2px solid var(--verde);outline-offset:-2px;background:#f0fbf4 !important}
 td.sens{color:var(--text4)}
+/* coluna de alerta: sem limite de largura e sem reticências — o texto inteiro
+   é o recado ("ATRASADO! VERIFICAR SE A LIGAÇÃO FOI FEITA") */
+table.grade tbody td.wide{max-width:none;overflow:visible;text-overflow:clip}
+/* anexo (NF do medidor): a URL do arquivo é buscada no clique */
+.anexo{display:inline-block;background:rgba(41,87,120,.10);color:var(--azul);border:1px solid var(--border2);
+  border-radius:20px;padding:2px 10px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap}
+.anexo:hover{background:var(--azul);color:#fff;border-color:var(--azul)}
+.sem-anexo{color:var(--text4);font-size:11.5px;font-style:italic}
+/* visualizador de arquivo — mesma ideia do vendas.html */
+.arqoverlay{position:fixed;inset:0;background:rgba(15,30,40,.72);display:none;align-items:center;justify-content:center;z-index:70;padding:26px}
+.arqoverlay.on{display:flex}
+.arqbox{background:#fff;border-radius:14px;width:min(1000px,100%);height:min(88vh,100%);display:flex;flex-direction:column;overflow:hidden}
+.arqtopo{display:flex;align-items:center;gap:10px;padding:11px 14px;background:var(--azul-esc);color:#fff}
+.arqtopo .nm{font-weight:700;font-size:14px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arqtopo a,.arqtopo button{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;
+  border-radius:8px;padding:6px 11px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;text-decoration:none}
+.arqcorpo{flex:1;background:var(--bg2);display:flex;align-items:center;justify-content:center;overflow:auto}
+.arqcorpo iframe{width:100%;height:100%;border:0}
+.arqcorpo img{max-width:100%;max-height:100%;display:block}
+.arqlista{padding:14px;display:flex;flex-direction:column;gap:8px;width:100%}
 .tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700}
 .tag.sim{background:rgba(42,157,92,.14);color:var(--verde-esc)}
 .tag.nao{background:#f1e0e0;color:#9b2c2c}
@@ -362,7 +382,7 @@ tbody tr.lin-vencida:hover td,tbody tr.lin-emdia:hover td,tbody tr.lin-sem:hover
 
       <div class="graf">
         <div class="gt">Tempo de aprovação · só SANESC</div>
-        <div class="gd" id="gd-apr">Dias entre a <b>DATA DE SOLICITAÇÃO</b> e a <b>DATA DA APROVAÇÃO DA LIGAÇÃO</b>, por ano da solicitação. Escolha um ano acima para abrir mês a mês.</div>
+        <div class="gd" id="gd-apr">Dias entre a <b>DATA DE SOLICITAÇÃO</b> e a <b>DATA DA APROVAÇÃO SANESC</b>, por ano da solicitação. Escolha um ano acima para abrir mês a mês.</div>
         <div class="chart-wrap"><canvas id="ch-apr" height="240"></canvas></div>
         <div id="tab-apr"></div>
       </div>
@@ -415,6 +435,18 @@ tbody tr.lin-vencida:hover td,tbody tr.lin-emdia:hover td,tbody tr.lin-sem:hover
     </div>
   </div>
 
+  <!-- visualizador do anexo (NF do medidor) -->
+  <div class="arqoverlay" id="arqoverlay" onclick="if(event.target===this)fecharArquivo()">
+    <div class="arqbox">
+      <div class="arqtopo">
+        <span class="nm" id="arq-nome">Arquivo</span>
+        <a id="arq-baixar" href="#" target="_blank" rel="noopener" download>Baixar</a>
+        <button onclick="fecharArquivo()">Fechar</button>
+      </div>
+      <div class="arqcorpo" id="arq-corpo"></div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 
 <script src="app.js"></script>
@@ -448,8 +480,10 @@ const C = {
   LIBERADO:   "LIBERADO PARA SOLICITAÇÃO",
   FEZ:        "FEZ A SOLICITAÇÃO?",
   DT_SOL:     "DATA DE SOLICITAÇÃO",
-  APROVADA:   "SOLICITAÇÃO APROVADA?",
-  DT_APROV:   "DATA DA APROVAÇÃO DA LIGAÇÃO",
+  /* renomeadas no Notion em 24/08/2026: a aprovação só existe na SANESC,
+     e o nome da coluna passou a dizer isso. */
+  APROVADA:   "SOLICITAÇÃO SANESC APROVADA?",
+  DT_APROV:   "DATA DA APROVAÇÃO SANESC",
   DT_LIG:     "Data de Ligação",
   STATUS:     "STATUS",
   RESP:       "RESPONSÁVEL",
@@ -458,6 +492,13 @@ const C = {
   OBS:        "OBS. LIGAÇÕES",
   OBS_CONTAS: "OBS. CONTAS",
   LINK:       "LINK DE ACOMPANHAMENTO",
+  /* Colunas do controle de liberação (agosto/2026).
+     DATA DE LIBERAÇÃO é carimbada pelo próprio site quando alguém marca
+     LIBERADO PARA SOLICITAÇÃO = SIM — é ela que separa o que entrou no
+     controle novo do que já estava liberado antes (esses ficam de fora da
+     fila, porque não há como saber quando foram liberados). */
+  DT_LIBER:   "DATA DE LIBERAÇÃO",
+  NF_MEDIDOR: "NF MEDIDOR",
   VENC:       "VENCIMENTO",
   SISTEMA:    "SISTEMA",
   ALERTA_SOL: "ALERTA VER. SOLICITAÇÃO",
@@ -560,6 +601,20 @@ const SETORES_LIG = [
   }
 ];
 
+/* ---------- colunas calculadas ----------
+   Não existem no Notion: são contas feitas aqui. Entram na lista de colunas
+   da aba como um MARCADOR (mesma ideia da coluna de verificação das contas),
+   para atravessarem tabela, PDF e escolha de colunas sem virar caso especial
+   em cada lugar. */
+const CALC = { PROC_SANESC: "\u0000TEMPO_SANESC", LIG_CORRIDO: "\u0000TEMPO_LIGACAO" };
+const CALC_DEF = {};
+CALC_DEF[CALC.PROC_SANESC] = { titulo: "Tempo de processo (dias)", valor: diasProcessoSanesc,
+  dica: "da DATA DE LIBERAÇÃO até a DATA DA APROVAÇÃO SANESC (ou até hoje, se ainda não aprovou)" };
+CALC_DEF[CALC.LIG_CORRIDO] = { titulo: "Tempo corrido (dias)", valor: diasCorridosLigacao,
+  dica: "da DATA DE SOLICITAÇÃO até a Data de Ligação (ou até hoje, se ainda não ligou)" };
+function ehCalculada(nome){ return !!CALC_DEF[nome]; }
+function tituloColuna(nome){ return ehCalculada(nome) ? CALC_DEF[nome].titulo : nome; }
+
 /* Definição de cada aba: título, colunas da tabela e o filtro fixo.
    Os filtros fixos são exatamente os das views do Notion que você mandou
    por print — ficam aqui, no código, e não em opção de tela, pra que a aba
@@ -567,17 +622,26 @@ const SETORES_LIG = [
 const ABAS = {
   aptas: {
     titulo: "Verificar se a obra está apta para a solicitação",
-    colunas: [C.OBRA, C.CONC, C.LIBERADO, C.OBS],
-    filtros: [C.CONC],
-    base: l => sel(l, C.LIBERADO) === "NÃO"
+    colunas: [C.OBRA, C.CONC, C.LIBERADO, C.DT_LIBER, C.NF_MEDIDOR, C.OBS],
+    filtros: [C.CONC, C.LIBERADO],
+    sensiveis: true,        // NF MEDIDOR é coluna de arquivo: não vem no público
+    pdf: true,
+    /* Sai da lista só quando as TRÊS coisas estiverem prontas: liberado,
+       data de liberação e NF do medidor anexada (ver pendenteLiberacao). */
+    base: l => sel(l, C.STATUS) === "NÃO LIGADO"
             && sel(l, C.FEZ) === "NÃO"
-            && sel(l, C.STATUS) === "NÃO LIGADO"
+            && pendenteLiberacao(l)
   },
   acompanhamento: {
     titulo: "Acompanhamento de solicitação",
-    colunas: [C.OBRA, C.CONC, C.APROVADA, C.DT_SOL, C.DT_APROV, C.ALERTA_SOL, C.OBS],
-    filtros: [C.CONC],
-    base: l => sel(l, C.FEZ) === "SIM"
+    /* Só SANESC: a aprovação da solicitação só existe nela. Por isso a coluna
+       de concessionária saiu — seria a mesma palavra em todas as linhas. */
+    colunas: [C.OBRA, C.APROVADA, C.DT_LIBER, C.DT_SOL, C.DT_APROV,
+              CALC.PROC_SANESC, C.ALERTA_SOL, C.OBS],
+    filtros: [C.APROVADA, C.RESP],
+    pdf: true,
+    base: l => normN(sel(l, C.CONC)) === "SANESC"
+            && sel(l, C.FEZ) === "SIM"
             && temAlerta(l, C.VERIF_SOL)
             && sel(l, C.STATUS) === "NÃO LIGADO"
   },
@@ -591,17 +655,23 @@ const ABAS = {
   /* ---------- setor ACOMPANHAMENTO DE LIGAÇÕES ---------- */
   liberadas: {
     titulo: "Obras liberadas para solicitar a ligação",
-    colunas: [C.OBRA, C.CONC, C.DT_SOL, C.FEZ, C.OBS, C.CPF, C.ALERTA_INFO],
+    colunas: [C.OBRA, C.CONC, C.DT_SOL, C.FEZ, C.NF_MEDIDOR, C.OBS, C.CPF, C.ALERTA_INFO],
     filtros: [C.CONC, C.RESP, C.FEZ],
     sensiveis: true,
     pdf: true,
-    base: l => sel(l, C.LIBERADO) === "SIM" && temAlerta(l, C.ALERTA_INFO)
+    /* Continua aqui enquanto o alerta do Notion apontar pendência OU enquanto
+       faltar a NF do medidor. A cobrança da NF só vale para as obras que
+       entraram no controle novo (as que têm DATA DE LIBERAÇÃO). */
+    base: l => sel(l, C.LIBERADO) === "SIM"
+            && (temAlerta(l, C.ALERTA_INFO)
+                || (temData(l, C.DT_LIBER) && !temAnexo(l, C.NF_MEDIDOR)))
   },
   conferencias: {
     titulo: "Conferências de ligações solicitadas",
     /* CPF/CNPJ (a fórmula que já junta V1 e V2) em vez de "CPF/CNPJ V1": na
        base real a V1 vinha vazia e a coluna aparecia só com "—". */
-    colunas: [C.OBRA, C.CONC, C.CPF, C.DT_SOL, C.APROVADA, C.DT_APROV, C.DT_LIG, C.STATUS, C.ALERTA_LIG],
+    colunas: [C.OBRA, C.CONC, C.CPF, C.DT_SOL, C.APROVADA, C.DT_APROV, C.DT_LIG,
+              CALC.LIG_CORRIDO, C.STATUS, C.ALERTA_LIG],
     filtros: [C.CONC, C.RESP, C.APROVADA],
     sensiveis: true,
     pdf: true,
@@ -739,6 +809,56 @@ function diasEntre(ini, fim){
   return Math.round((b - a) / 86400000);
 }
 /* Tempo de ligação: solicitação -> ligação. */
+/* ---------- controle de liberação (NF do medidor) ----------
+   O conteúdo do anexo não vem no arquivo público (coluna de arquivo é tratada
+   como sensível). O que vem é só QUANTOS arquivos existem, e é isso que estas
+   funções olham. */
+function temAnexo(l, nome){
+  const campo = campoDe(nome);
+  const chave = campo ? campo.nome : nome;
+  const s = (l && l.sens) || {};
+  let n = s[chave];
+  if (n === undefined){
+    const alvo = normN(chave);
+    for (const k in s) if (normN(k) === alvo){ n = s[k]; break; }
+  }
+  return (typeof n === "number") ? n > 0 : !!n;
+}
+function temData(l, nome){ return !!dataReal(l, nome); }
+
+/* A obra continua na fila de "apta para solicitação" enquanto faltar algo.
+   Regra combinada:
+     - ainda não liberada .................. fica na fila
+     - liberada, com data, sem a NF ........ fica na fila
+     - liberada, com data e com a NF ....... sai
+     - liberada SEM data ................... sai (é anterior a este controle:
+       não dá pra saber quando foi liberada, então não faz sentido cobrar) */
+function pendenteLiberacao(l){
+  if (sel(l, C.LIBERADO) !== "SIM") return true;
+  if (!temData(l, C.DT_LIBER)) return false;
+  return !temAnexo(l, C.NF_MEDIDOR);
+}
+
+/* Dias entre duas datas; quando a segunda ainda não existe, conta até HOJE —
+   é o "tempo corrido" que a reunião acompanha. */
+function diasAte(ini, fim){
+  if (!ini) return null;
+  const d = diasEntre(ini, fim || hojeISO());
+  return (d == null || d < 0) ? null : d;
+}
+/* SANESC: da liberação até a aprovação. Enquanto não estiver aprovada, o
+   relógio continua correndo (conta até hoje). */
+function diasProcessoSanesc(l){
+  const ini = dataReal(l, C.DT_LIBER);
+  if (!ini) return null;
+  const fim = (sel(l, C.APROVADA) === "SIM") ? dataReal(l, C.DT_APROV) : null;
+  return diasAte(ini, fim);
+}
+/* Da solicitação até a ligação (qualquer concessionária), também correndo. */
+function diasCorridosLigacao(l){
+  return diasAte(dataReal(l, C.DT_SOL), dataReal(l, C.DT_LIG));
+}
+
 function diasLigacao(l){
   const d = diasEntre(dataReal(l, C.DT_SOL), dataReal(l, C.DT_LIG));
   return (d == null || d < 0) ? null : d;   // negativo = data digitada trocada
@@ -1024,7 +1144,7 @@ function colunasDaAba(chave){
        fileira de "—": se alguém renomear a coluna no Notion, o site mostra o
        que existe, não uma coluna fantasma. Enquanto o schema não chegou
        (schema vazio), não filtra nada. */
-    .filter(c => !schema.length || !!campoDe(c, fonte));
+    .filter(c => ehCalculada(c) || !schema.length || !!campoDe(c, fonte));
 }
 
 function linhasDaAba(chave){
@@ -1441,7 +1561,7 @@ function renderGraficos(){
       '<div class="vazio">Nenhuma aprovação da SANESC com as duas datas preenchidas no período.</div>';
   }
   document.getElementById("gd-apr").innerHTML =
-    "Dias entre a <b>DATA DE SOLICITAÇÃO</b> e a <b>DATA DA APROVAÇÃO DA LIGAÇÃO</b>, por " +
+    "Dias entre a <b>DATA DE SOLICITAÇÃO</b> e a <b>DATA DA APROVAÇÃO SANESC</b>, por " +
     (porAno ? ("mês de " + per.ano + ". Volte para “Todos os anos” para ver ano a ano.")
             : "ano da solicitação. Escolha um ano acima para abrir mês a mês.");
 
@@ -1459,8 +1579,8 @@ window.addEventListener("resize", () => { clearTimeout(window._rz); window._rz =
 function colunasVisiveis(){
   const ocultas = OCULTAS.map(normN);
   const doSchema = SCHEMA.map(c=>c.nome).filter(n => ocultas.indexOf(normN(n)) < 0);
-  const ordem = [C.OBRA, C.CONC, C.SISTEMA, C.STATUS, C.LIBERADO, C.FEZ, C.DT_SOL,
-                 C.APROVADA, C.DT_APROV, C.DT_LIG, C.UC, C.UC_OK, C.VENC,
+  const ordem = [C.OBRA, C.CONC, C.SISTEMA, C.STATUS, C.LIBERADO, C.DT_LIBER, C.NF_MEDIDOR,
+                 C.FEZ, C.DT_SOL, C.APROVADA, C.DT_APROV, C.DT_LIG, C.UC, C.UC_OK, C.VENC,
                  C.RESP, C.LINK, C.OBS, C.OBS_CONTAS];
   const usadas = [], resto = [];
   ordem.forEach(n => { const r = doSchema.find(x => normN(x)===normN(n)); if (r) usadas.push(r); });
@@ -1482,6 +1602,7 @@ function ehColunaUc(nome){
 }
 
 function celulaTexto(l, nome, fonte){
+  if (ehCalculada(nome)){ const d = CALC_DEF[nome].valor(l); return d == null ? "—" : String(d); }
   if (fonte === "vendas" && ehColunaUc(nome)) return textoUc(l, nome);
   const campo = campoDe(nome, fonte);
   const tipo = campo ? campo.tipo : "rich_text";
@@ -1501,6 +1622,10 @@ function celulaTexto(l, nome, fonte){
 }
 
 function celula(l, nome, fonte){
+  if (ehCalculada(nome)){
+    const d = CALC_DEF[nome].valor(l);
+    return d == null ? "—" : `<b>${d}</b>`;
+  }
   if (fonte === "vendas" && ehColunaUc(nome)){
     const t = textoUc(l, nome);
     return t === "sem ligação cadastrada"
@@ -1517,9 +1642,14 @@ function celula(l, nome, fonte){
     const val = sensDe(l, campo.nome, fonte);
     if (val !== undefined && val !== null && val !== "") return esc(txt(val));
     if (tipo === "files"){
+      /* O arquivo em si não vem no dist/ (público). Aqui mostramos só que
+         existe; o link busca a URL assinada no Apps Script na hora do clique
+         — ela expira, então não faria sentido publicar. */
+      if (!temAnexo(l, campo.nome)) return '<span class="sem-anexo">sem anexo</span>';
       const n = (l.sens || {})[campo.nome];
-      return (typeof n === "number" && n > 0)
-        ? `<span class="tag sim" title="Abra a obra no sistema de Vendas para ver">${n} arq.</span>` : "—";
+      const qtd = (typeof n === "number" && n > 1) ? (n + " arq.") : "ver arquivo";
+      return `<span class="anexo" data-anexo="${esc(l.id)}" data-col="${esc(campo.nome)}"
+                title="Abrir o arquivo anexado">📎 ${esc(qtd)}</span>`;
     }
     return temSens(l, campo.nome)
       ? '<span title="Dado protegido — carrega ao abrir a aba">•••</span>' : "—";
@@ -1565,12 +1695,16 @@ function tabelaHtml(linhas, colunas, extras, fonte, corDe){
   const cols = colunas.slice();
   // a 1ª coluna fica congelada à esquerda (class "stick"), como na planilha de
   // vendas: rolando pro lado, você nunca perde de vista de que obra é a linha
-  const th = cols.map((c,i)=>`<th class="${i===0?"stick":""}">${esc(c)}</th>`).join("") +
+  /* Coluna de alerta não pode ser cortada: o texto ("ATRASADO! VERIFICAR SE A
+     SOLICITAÇÃO FOI APROVADA") é a informação em si. Ela ganha uma classe que
+     desliga o limite de largura — a tabela rola de lado, como já rolava. */
+  const ehAlerta = c => /ALERTA|ELERTA/.test(normN(c));
+  const th = cols.map((c,i)=>`<th class="${[i===0?"stick":"", ehAlerta(c)?"wide":""].filter(Boolean).join(" ")}">${esc(tituloColuna(c))}</th>`).join("") +
              (extras ? '<th>Dias p/ ligar</th><th>Dias p/ aprovar</th>' : "");
   const tr = linhas.map(l => {
     const tds = cols.map((c,i) => {
       const ed = podeEditarNaTabela(c, fonte);
-      const cls = [i===0?"stick":"", ed?"edt":""].filter(Boolean).join(" ");
+      const cls = [i===0?"stick":"", ed?"edt":"", ehAlerta(c)?"wide":""].filter(Boolean).join(" ");
       const attrs = (cls ? ` class="${cls}"` : "") +
                     (ed ? ` data-col="${esc(c)}" title="Clique para editar"` : "");
       // a primeira coluna (o endereço) é o link que abre a obra
@@ -1647,6 +1781,8 @@ function ligarCliquesTabela(idBox){
   // um handler por tabela (não um por célula): com centenas de linhas é a
   // diferença entre a aba abrir na hora e travar
   box.addEventListener("click", ev => {
+    const anexo = ev.target.closest(".anexo");
+    if (anexo){ ev.stopPropagation(); verArquivo(anexo.dataset.anexo, anexo.dataset.col); return; }
     const link = ev.target.closest(".obralink");
     if (link){
       const tr = link.closest("tr[data-id]");
@@ -2178,7 +2314,7 @@ function gerarPdf(titulo, subtitulos, colunas, linhas, coresLinha){
   // página termina
   // o título pode ocupar até 5 linhas: ele aparece uma vez por página, e é
   // preferível um cabeçalho alto a um título cortado com "…"
-  const cabecalho = colunas.map((c,i) => pdfQuebrar(c, FH, larguras[i]-6, 5));
+  const cabecalho = colunas.map((c,i) => pdfQuebrar(tituloColuna(c), FH, larguras[i]-6, 5));
   const altCabecalho = Math.max(...cabecalho.map(l=>l.length)) * ALT_LINHA + 6;
   const corpoLinhas = linhas.map(r => {
     const celulas = r.map((v,i) => pdfQuebrar(v, FT, larguras[i]-6, MAX_LINHAS));
@@ -2293,8 +2429,11 @@ function abrirEscolhaColunas(){
   const cols = colunasDaAba(ABA_ATUAL);
   const marcadas = COLS_PDF[ABA_ATUAL] || cols.slice();
   document.getElementById("cols-titulo").textContent = def.titulo;
+  /* O valor da caixinha é o ÍNDICE, não o nome: as colunas calculadas têm um
+     caractere invisível no nome (o marcador) que o HTML come, e aí a coluna
+     escolhida não era reconhecida na hora de gerar o PDF. */
   document.getElementById("cols-lista").innerHTML = cols.map((c,i) =>
-    `<label class="colitem"><input type="checkbox" value="${esc(c)}" ${marcadas.indexOf(c)>=0?"checked":""}> ${esc(c)}</label>`
+    `<label class="colitem"><input type="checkbox" data-i="${i}" ${marcadas.indexOf(c)>=0?"checked":""}> ${esc(tituloColuna(c))}</label>`
   ).join("");
   document.getElementById("cols-overlay").classList.add("on");
 }
@@ -2303,8 +2442,12 @@ function marcarTodasColunas(marcar){
   document.querySelectorAll("#cols-lista input").forEach(i => i.checked = marcar);
 }
 function confirmarColunas(){
+  const cols = colunasDaAba(ABA_ATUAL);
   const escolhidas = [];
-  document.querySelectorAll("#cols-lista input:checked").forEach(i => escolhidas.push(i.value));
+  document.querySelectorAll("#cols-lista input:checked").forEach(i => {
+    const c = cols[+i.dataset.i];
+    if (c) escolhidas.push(c);
+  });
   if (!escolhidas.length){ toast("Escolha pelo menos uma coluna."); return; }
   COLS_PDF[ABA_ATUAL] = escolhidas;
   fecharEscolhaColunas();
@@ -2361,7 +2504,7 @@ function baixarRelatorio(){
    chamar a ação pelo DevTools. Fórmula e rollup ficam de fora porque quem
    calcula é o Notion. */
 const EDITAVEIS = [
-  C.OBRA, C.CONC, C.SISTEMA, C.STATUS, C.LIBERADO, C.FEZ, C.DT_SOL,
+  C.OBRA, C.CONC, C.SISTEMA, C.STATUS, C.LIBERADO, C.DT_LIBER, C.FEZ, C.DT_SOL,
   C.APROVADA, C.DT_APROV, C.DT_LIG, C.UC, C.UC_OK, C.VENC,
   C.LINK, C.OBS, C.OBS_CONTAS
 ];
@@ -2431,6 +2574,60 @@ function corpoPainel(l){
     </div>`;
   }
   return html;
+}
+
+/* ---------- visualizador do anexo (NF do medidor) ----------
+   A URL de um arquivo do Notion é assinada e EXPIRA (mais ou menos uma hora),
+   por isso ela não vai para o arquivo publicado: é buscada no Apps Script na
+   hora do clique, com a sessão conferida do outro lado. PDF e imagem abrem
+   aqui mesmo; o resto vira link de download. */
+const EXT_IMG = /\.(jpe?g|png|webp|gif|bmp|avif)(\?|$)/i;
+const EXT_PDF = /\.pdf(\?|$)/i;
+function ehImagem(nome, url){ return EXT_IMG.test(nome||"") || EXT_IMG.test(url||""); }
+function ehPdf(nome, url){ return EXT_PDF.test(nome||"") || EXT_PDF.test(url||""); }
+
+async function verArquivo(pageId, coluna){
+  const corpo = document.getElementById("arq-corpo");
+  document.getElementById("arq-nome").textContent = coluna;
+  document.getElementById("arq-baixar").style.display = "none";
+  corpo.innerHTML = '<div class="arqlista"><span class="load"></span> buscando o arquivo…</div>';
+  document.getElementById("arqoverlay").classList.add("on");
+
+  const r = await ler({action:"ligacao", pageId: pageId});   // sem cache: a URL expira
+  if (!r || !r.ok || !r.valores){
+    corpo.innerHTML = `<div class="arqlista"><div class="aviso-inline">Não consegui buscar o arquivo (${esc(erroTexto(r && r.erro))}).</div></div>`;
+    return;
+  }
+  // acha a coluna sem depender de acento/caixa/espaço
+  let arquivos = r.valores[coluna];
+  if (arquivos === undefined){
+    const alvo = normN(coluna);
+    for (const k in r.valores) if (normN(k) === alvo){ arquivos = r.valores[k]; break; }
+  }
+  arquivos = (arquivos || []).filter(a => a && a.url);
+  if (!arquivos.length){
+    corpo.innerHTML = '<div class="arqlista"><div class="aviso-inline">Nenhum arquivo anexado nesta coluna.</div></div>';
+    return;
+  }
+  if (arquivos.length === 1) return mostrarArquivo(arquivos[0]);
+  // mais de um: lista pra escolher
+  corpo.innerHTML = '<div class="arqlista">' + arquivos.map((a,i)=>
+    `<button class="bt ghost" onclick="mostrarArquivo(ARQ_ATUAIS[${i}])">📎 ${esc(a.name||("arquivo "+(i+1)))}</button>`
+  ).join("") + '</div>';
+  window.ARQ_ATUAIS = arquivos;
+}
+function mostrarArquivo(a){
+  const corpo = document.getElementById("arq-corpo");
+  const baixar = document.getElementById("arq-baixar");
+  document.getElementById("arq-nome").textContent = a.name || "Arquivo";
+  baixar.href = a.url; baixar.style.display = "";
+  if (ehImagem(a.name, a.url))      corpo.innerHTML = `<img src="${esc(a.url)}" alt="${esc(a.name||"")}">`;
+  else if (ehPdf(a.name, a.url))    corpo.innerHTML = `<iframe src="${esc(a.url)}"></iframe>`;
+  else corpo.innerHTML = `<div class="arqlista"><div class="aviso-inline">Este tipo de arquivo o navegador não abre aqui dentro — use o botão <b>Baixar</b> ali em cima.</div></div>`;
+}
+function fecharArquivo(){
+  document.getElementById("arqoverlay").classList.remove("on");
+  document.getElementById("arq-corpo").innerHTML = "";
 }
 
 /* ---------- painel da obra na aba de casas vendidas ----------
@@ -2571,24 +2768,27 @@ async function salvarCampo(l, prop, tipo, valor, fonte){
     return r;
   }
 
-  // ---- automatismo: aprovou a solicitação -> STATUS vira LIGADO ----
-  // Só dispara quando foi ESTA coluna que acabou de ser marcada como SIM, e
-  // só se o status ainda não passou desse ponto — assim uma obra já
-  // TRANSFERIDA não volta pra LIGADO por causa de uma correção na aprovação.
-  if (fonte !== "vendas" && normN(real) === normN(C.APROVADA) && normN(novo) === "SIM"){
-    const statusAtual = normN(sel(l, C.STATUS));
-    if (["LIGADO", "TRANSFERIDO", "ENTREGUE NAO TRANSFERIDO"].indexOf(statusAtual) < 0){
-      const campoStatus = campoDe(C.STATUS);
-      const nomeStatus = campoStatus ? campoStatus.nome : C.STATUS;
-      const statusAntes = getL(l, nomeStatus);
-      if (l.v) l.v[nomeStatus] = "LIGADO";
+  /* O automatismo que mudava o STATUS para LIGADO quando a solicitação era
+     aprovada foi REMOVIDO em 24/08/2026 a pedido: o status passou a ser
+     controlado à mão, e a mudança automática atropelava quem estava
+     acompanhando a obra. */
+
+  // ---- automatismo: liberou a obra -> carimba a DATA DE LIBERAÇÃO ----
+  // É esta data que separa o que entrou no controle novo do que já estava
+  // liberado antes; por isso ela é preenchida sozinha, e só quando ainda
+  // estiver vazia (corrigir a data na mão continua valendo).
+  if (fonte !== "vendas" && normN(real) === normN(C.LIBERADO) && normN(novo) === "SIM"
+      && !temData(l, C.DT_LIBER)){
+    const campoData = campoDe(C.DT_LIBER);
+    if (campoData){
+      const hoje = hojeISO();
+      if (l.v) l.v[campoData.nome] = hoje;
       const r2 = await escrever(
-        {action:"ligUpdate", pageId: l.id, prop: nomeStatus,
-         tipo: (campoStatus && campoStatus.tipo) || "select", valor: "LIGADO"},
-        "ligação: STATUS"
+        {action:"ligUpdate", pageId: l.id, prop: campoData.nome, tipo: "date", valor: hoje},
+        "ligação: DATA DE LIBERAÇÃO"
       );
-      if (r2.ok) toast("Aprovada — STATUS mudou para LIGADO.");
-      else if (l.v) l.v[nomeStatus] = statusAntes;
+      if (r2.ok) toast("Liberada — data de liberação preenchida com hoje.");
+      else if (l.v) l.v[campoData.nome] = null;
     }
   }
 
@@ -2614,6 +2814,7 @@ window.aoSincronizar = () => {
 
 document.addEventListener("keydown", e => {
   if (e.key !== "Escape") return;
+  if (document.getElementById("arqoverlay").classList.contains("on")){ fecharArquivo(); return; }
   if (document.getElementById("cols-overlay").classList.contains("on")) fecharEscolhaColunas();
   else fecharLinha();
 });
