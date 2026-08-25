@@ -140,6 +140,10 @@ table.grade tbody td.wide{max-width:none;overflow:visible;text-overflow:clip}
 .arqcorpo iframe{width:100%;height:100%;border:0}
 .arqcorpo img{max-width:100%;max-height:100%;display:block}
 .arqlista{padding:14px;display:flex;flex-direction:column;gap:8px;width:100%}
+/* valor salvo por aqui que o arquivo publicado ainda não trouxe de volta —
+   o pontinho evita a dúvida de "será que salvou mesmo?" */
+.aguarda{border-bottom:1px dashed var(--azul,#295778)}
+.aguarda::after{content:"•";color:#2a9d5c;font-weight:700;margin-left:4px}
 .tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700}
 .tag.sim{background:rgba(42,157,92,.14);color:var(--verde-esc)}
 .tag.nao{background:#f1e0e0;color:#9b2c2c}
@@ -1073,6 +1077,9 @@ function pintarVendas(r){
     return linha;
   });
   VEN_OK = true;
+  // mesma ponte das ligações: o que foi salvo aqui na aba "Casas vendidas"
+  // volta por cima da cópia publicada até o dist/vendas.json alcançar
+  reaplicarEdicoes("vendas", r.updated_at);
   registrarColunaVerificacao();
   if (SETOR_ATUAL && ABAS[ABA_ATUAL] && ABAS[ABA_ATUAL].fonte === "vendas") renderAba();
   renderSetores();
@@ -1166,12 +1173,46 @@ function pintarTudo(r){
   LIG = r.ligacoes;
   SCHEMA = r.schema || [];
   SCAMPO = {}; SCHEMA.forEach(c => SCAMPO[c.nome] = c);
+  reaplicarEdicoes("ligacoes", r.updated_at);
   montarFiltros("filtros-hub", FILTROS_HUB, "hub", renderPlanilha);
   montarAnos();
   montarSeletorResp();
   renderKpis(); renderGraficos(); renderPlanilha(); renderSetores();
   if (SETOR_ATUAL) renderAba();
 }
+/* ---------- edições locais x cópia publicada ----------
+   A tela pinta a partir do dist/*.json, que só é regerado quando o workflow
+   roda. A escrita vai pro Notion na hora, mas o arquivo publicado continua
+   com o valor ANTIGO até a próxima publicação — então toda pintura nova
+   (recarregar a página, voltar pra ela, ou a resposta da rede chegando depois
+   da pintura do cache) apagava da TELA o que a pessoa tinha acabado de
+   digitar. Era o caso das DATAS desta aba, e valia pra qualquer campo.
+   Aqui o que foi salvo é reaplicado por cima da cópia nova até o dist/
+   alcançar (ver aplicarEdicoesLocais no app.js). */
+function reaplicarEdicoes(base, updatedAt){
+  const lista = (base === "vendas") ? VEN : LIG;
+  const acha  = id => lista.find(x => x.id === id) || null;
+  const n = aplicarEdicoesLocais(
+    base, updatedAt,
+    (id, prop) => {                       // valor publicado
+      const l = acha(id);
+      if (!l) return undefined;           // linha não está nesta cópia
+      const v = getL(l, prop);
+      return v === undefined ? null : v;
+    },
+    (id, prop, valor) => {                // grava o valor local na linha
+      const l = acha(id);
+      if (!l || !l.v) return;
+      setV(l.v, prop, valor);
+      // o endereço mora em dois lugares na linha (l.v e l.obra, que é o que a
+      // busca e o cruzamento venda<->ligação usam)
+      if (base === "ligacoes" && normN(prop) === normN(C.OBRA)) l.obra = txt(valor);
+    }
+  );
+  if (base === "ligacoes") _idxLigRef = null;   // o índice por endereço envelheceu
+  return n;
+}
+
 /* campo do schema, tolerando diferença de acento/caixa/espaço.
    "fonte" escolhe o schema: as abas de conta leem a base de ligações, a aba
    "Casas vendidas" lê a de vendas. */
@@ -1760,6 +1801,18 @@ function celulaTexto(l, nome, fonte){
   return txt(v);
 }
 
+/* Célula da tabela + o aviso de "salvo, esperando a próxima publicação".
+   Serve pra quem preencheu não ficar na dúvida se o dado foi mesmo gravado
+   enquanto o dist/ não é regerado. Só na tela: o PDF usa celulaTexto(). */
+function celulaMarcada(l, nome, fonte){
+  const html = celula(l, nome, fonte);
+  const campo = campoDe(nome, fonte);
+  if (!campo) return html;
+  const base = (fonte === "vendas") ? "vendas" : "ligacoes";
+  if (!temEdicaoLocal(base, l.id, campo.nome)) return html;
+  return `<span class="aguarda" title="Salvo no Notion. O site só relê este valor do arquivo publicado na próxima atualização.">${html}</span>`;
+}
+
 function celula(l, nome, fonte){
   if (ehCalculada(nome)){
     const d = CALC_DEF[nome].valor(l);
@@ -1851,8 +1904,8 @@ function tabelaHtml(linhas, colunas, extras, fonte, corDe){
                     (ed ? ` data-col="${esc(c)}" title="Clique para editar"` : "");
       // a primeira coluna (o endereço) é o link que abre a obra
       const conteudo = (i === 0)
-        ? `<span class="obralink" data-obra="${esc(l.id)}" title="Abrir a obra">${celula(l,c,fonte)}</span>`
-        : celula(l,c,fonte);
+        ? `<span class="obralink" data-obra="${esc(l.id)}" title="Abrir a obra">${celulaMarcada(l,c,fonte)}</span>`
+        : celulaMarcada(l,c,fonte);
       return `<td${attrs}>${conteudo}</td>`;
     }).join("");
     const ex = extras
@@ -2009,7 +2062,7 @@ function editarCelula(td){
     td.innerHTML = '<span class="load"></span>';
     const r = await salvarCampo(linha, col, campo.tipo, novo, fonte);
     if (r.ok){
-      td.innerHTML = celula(linha, col, fonte);
+      td.innerHTML = celulaMarcada(linha, col, fonte);
       // a mudança pode tirar a linha da aba (ex.: preencher a UC que faltava),
       // então a lista é refeita — só depois de a célula voltar ao normal
       renderAba();
@@ -2788,7 +2841,22 @@ function abrirLinha(id){
   document.getElementById("overlay").classList.add("on");
   document.getElementById("painel").classList.add("on");
 }
+/* SEGUNDA CAUSA DO SUMIÇO DAS DATAS — campo de data (e de texto) só entrega o
+   que foi digitado quando PERDE O FOCO: o painel usa onblur/onchange
+   justamente pra não gravar a data pela metade (ver o comentário do editor de
+   célula). Só que fechar o painel pelo Esc não tira o foco de ninguém — o
+   painel some, LINHA_ABERTA vira null e o salvar() seguinte desiste no
+   "if (!LINHA_ABERTA) return". A data digitada ia embora sem nunca ter sido
+   enviada. Aqui o campo é obrigado a perder o foco ANTES de fechar: o onblur
+   roda com a linha ainda aberta e o valor vai pro Notion. */
+function encerrarEdicaoPainel(){
+  const el = document.activeElement;
+  if (!el || typeof el.blur !== "function") return;
+  const painel = document.getElementById("painel");
+  if (painel && painel.contains(el)) el.blur();
+}
 function fecharLinha(){
+  encerrarEdicaoPainel();
   LINHA_ABERTA = null;
   document.getElementById("overlay").classList.remove("on");
   document.getElementById("painel").classList.remove("on");
@@ -3102,6 +3170,9 @@ async function salvarCampo(l, prop, tipo, valor, fonte){
   if (!l) return { ok:false, erro:"SEM_LINHA" };
   fonte = fonte || "ligacoes";
   const real = nomeReal(prop, fonte);
+  // "base" da ponte de edições locais: a aba Casas vendidas grava na base de
+  // VENDAS, o resto na de LIGAÇÕES (ver aplicarEdicoesLocais no app.js)
+  const baseEd = (fonte === "vendas") ? "vendas" : "ligacoes";
   const antes = getL(l, prop);
   /* people: na tela circula o NOME (é o que aparece na coluna e o que o
      arquivo publicado traz), mas o Notion só aceita o ID do usuário. Aqui as
@@ -3116,6 +3187,9 @@ async function salvarCampo(l, prop, tipo, valor, fonte){
     }
     const antesResp = l.v ? l.v[real] : null;
     if (l.v) l.v[real] = nome ? [nome] : [];
+    /* registra ANTES de enviar: se a resposta do dist/ chegar no meio do
+       caminho e repintar a tela, o valor digitado volta por cima */
+    registrarEdicao(baseEd, l.id, real, nome ? [nome] : []);
     const rp = await escrever(
       {action: (fonte === "vendas") ? "ligVendaUpdate" : "ligUpdate",
        pageId: l.id, prop: real, tipo: "people", valor: id ? [id] : []},
@@ -3123,7 +3197,7 @@ async function salvarCampo(l, prop, tipo, valor, fonte){
     );
     if (rp.ok && rp.enfileirado) toast("Sem internet — salvo na fila.");
     else if (rp.ok) toast("Salvo.");
-    else { if (l.v) l.v[real] = antesResp; toast("Não salvou: " + erroTexto(rp.erro)); }
+    else { if (l.v) l.v[real] = antesResp; esquecerEdicao(baseEd, l.id, real); toast("Não salvou: " + erroTexto(rp.erro)); }
     montarSeletorResp();
     renderKpis(); renderGraficos(); renderPlanilha(); renderSetores();
     return rp;
@@ -3150,6 +3224,10 @@ async function salvarCampo(l, prop, tipo, valor, fonte){
   const eraObra = normN(real) === normN(C.OBRA) || normN(real) === normN(V.OBRA_CASA);
   const obraAntes = l.obra;
   if (l.v) l.v[real] = novo;              // pinta na hora; desfaz se der erro
+  /* e guarda a edição: é ela que segura o valor na tela até o dist/ ser
+     republicado com o dado do Notion (sem isto, recarregar a página trazia
+     de volta o valor antigo — o sumiço das datas) */
+  registrarEdicao(baseEd, l.id, real, novo);
   /* o endereço é guardado DUAS vezes na linha (em l.v e em l.obra, que é o que
      a busca, o índice venda↔ligação e o título do painel usam). Sem atualizar
      os dois, a casa corrigida sumia da busca até o próximo dist/. */
@@ -3173,6 +3251,7 @@ async function salvarCampo(l, prop, tipo, valor, fonte){
   }
   else {
     if (l.v) l.v[real] = antes;           // rejeitado pelo servidor: desfaz
+    esquecerEdicao(baseEd, l.id, real);   // e não segura na tela o que não foi aceito
     if (eraObra){ l.obra = obraAntes; _idxLigRef = null; }
     toast("Não salvou: " + erroTexto(r.erro), 8);
     renderKpis(); renderGraficos(); renderPlanilha(); renderSetores();
@@ -3194,12 +3273,13 @@ async function salvarCampo(l, prop, tipo, valor, fonte){
     if (campoData){
       const hoje = hojeISO();
       if (l.v) l.v[campoData.nome] = hoje;
+      registrarEdicao("ligacoes", l.id, campoData.nome, hoje);
       const r2 = await escrever(
         {action:"ligUpdate", pageId: l.id, prop: campoData.nome, tipo: "date", valor: hoje},
         "ligação: DATA DE LIBERAÇÃO"
       );
       if (r2.ok) toast("Liberada — data de liberação preenchida com hoje.");
-      else if (l.v) l.v[campoData.nome] = null;
+      else { if (l.v) l.v[campoData.nome] = null; esquecerEdicao("ligacoes", l.id, campoData.nome); }
     }
   }
 

@@ -866,8 +866,12 @@ async function init(){
     metas  = data.metas      || [];
 
     if(data.updated_at)
+      /* Esta página não carrega o app.js, então a correção de fuso vai inline:
+         o fetch_vendas.py grava updated_at em UTC SEM o "Z" e o JS leria a
+         string como hora LOCAL — em UTC-3 o rótulo aparecia 3 h no futuro. */
       document.getElementById('updated-at').textContent=
-        'Atualizado: '+new Date(data.updated_at).toLocaleString('pt-BR');
+        'Atualizado: '+new Date(/(Z|[+\-]\d{2}:?\d{2})$/.test(String(data.updated_at).trim())
+          ? data.updated_at : String(data.updated_at).trim()+'Z').toLocaleString('pt-BR');
 
     const anoAtual=String(new Date().getFullYear());
     initSel('sel-ano-v',anosDisp(vendas.filter(v=>v.clientes),'data_venda'),anoAtual,buildVendas);

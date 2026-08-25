@@ -172,5 +172,105 @@ function setV(obj, nome, valor){
   obj[nome]=valor;
 }
 
+/* ---------- EDIÇÕES LOCAIS (o que você acabou de salvar) ----------
+   PROBLEMA QUE ISTO RESOLVE: as telas pintam a partir do dist/*.json, que só
+   é regerado quando o workflow roda. A escrita vai pro Notion na hora, mas o
+   arquivo publicado continua com o valor ANTIGO até a próxima publicação.
+   As páginas atualizavam só a cópia em memória — então bastava recarregar a
+   página (ou voltar pra ela pela navegação, ou a pintura da rede chegar
+   depois da pintura do cache) pra o valor digitado sumir da tela e parecer
+   que não tinha salvo. Era exatamente o caso das DATAS da aba de ligações,
+   mas valia pra QUALQUER campo editável (UC, status, observação, responsável).
+
+   Aqui o que foi salvo fica guardado no localStorage e é reaplicado por cima
+   de toda cópia nova que chegar do dist/, até uma destas coisas acontecer:
+     - o arquivo publicado já vier com aquele valor (o Notion assumiu);
+     - o arquivo tiver sido publicado DEPOIS da edição e vier diferente
+       (alguém mudou no Notion, ou a escrita foi recusada) — o Notion manda;
+     - passar o prazo de segurança (EDITS_TTL).
+   Ou seja: é uma ponte para cobrir a janela entre salvar e republicar, não
+   um banco paralelo. */
+const EDITS       = "morais_edits_v1";
+const EDITS_TTL   = 7*24*3600*1000;   // teto de segurança: 7 dias
+const EDITS_FOLGA = 3*60*1000;        // publicação só "vence" a edição 3 min depois
+
+/* O fetch_vendas.py grava updated_at em UTC SEM o "Z" ("2026-08-25T13:04:00").
+   String de data-hora sem fuso é lida pelo JS como hora LOCAL: em UTC-3 a
+   publicação vinha 3 h no futuro, o que sozinho já descartaria toda edição
+   feita nas últimas 3 h. Por isso o "Z" é acrescentado quando falta. */
+function tsPublicacao(iso){
+  if(!iso) return 0;
+  const s = String(iso).trim();
+  const t = Date.parse(/(Z|[+\-]\d{2}:?\d{2})$/.test(s) ? s : s+"Z");
+  return isNaN(t) ? 0 : t;
+}
+/* Mesma correção para exibir "Atualizado em ..." na tela. */
+function dataPublicacao(iso){ const t=tsPublicacao(iso); return t?new Date(t):null; }
+
+let _EDITS=null;
+function edicoes(){
+  if(_EDITS) return _EDITS;
+  try{ _EDITS=JSON.parse(localStorage.getItem(EDITS)||"{}"); }catch(e){ _EDITS={}; }
+  return _EDITS;
+}
+function edicoesGravar(o){ _EDITS=o; try{ localStorage.setItem(EDITS, JSON.stringify(o)); }catch(e){} }
+// outra aba do mesmo navegador salvou: joga fora a cópia em memória
+window.addEventListener("storage", e => { if(e.key===EDITS) _EDITS=null; });
+
+function chaveEdicao(base,pageId,prop){ return base+"\u0001"+pageId+"\u0001"+prop; }
+
+/* Chamar SEMPRE com o nome REAL da coluna (o do schema), o mesmo que vai pro
+   Apps Script — senão a reaplicação erra a coluna. */
+function registrarEdicao(base,pageId,prop,valor){
+  if(!pageId||!prop) return;
+  const o=edicoes();
+  o[chaveEdicao(base,pageId,prop)]={b:base,id:pageId,p:prop,v:valor,ts:Date.now()};
+  edicoesGravar(o);
+}
+/* Servidor recusou: a edição não existe: tirar da ponte, senão a tela ficaria
+   mostrando pra sempre um valor que o Notion nunca aceitou. */
+function esquecerEdicao(base,pageId,prop){
+  const o=edicoes(), k=chaveEdicao(base,pageId,prop);
+  if(o[k]!==undefined){ delete o[k]; edicoesGravar(o); }
+}
+function temEdicaoLocal(base,pageId,prop){ return edicoes()[chaveEdicao(base,pageId,prop)]!==undefined; }
+
+/* Comparação tolerante: data do Notion às vezes volta com hora
+   ("2026-08-25T00:00:00.000-03:00") e vazio ora é "", ora null. */
+function _valEdicao(v){
+  if(v===undefined||v===null) return "";
+  if(Array.isArray(v)) return v.map(x=>String(x==null?"":x)).join("|");
+  if(typeof v==="number") return String(v);
+  if(typeof v==="boolean") return v?"SIM":"";
+  const s=String(v);
+  return /^\d{4}-\d{2}-\d{2}T/.test(s) ? s.slice(0,10) : s.trim();
+}
+function iguaisEdicao(a,b){ return _valEdicao(a)===_valEdicao(b); }
+
+/* Aplica (e faz a faxina) das edições de uma base sobre a cópia recém-chegada.
+     base      -> "ligacoes" | "vendas" (a mesma string usada ao registrar)
+     updatedAt -> updated_at do JSON publicado
+     ler(id,prop)          -> valor publicado; undefined = a linha não está
+                              nesta tela (ex.: edição de vendas numa cópia só
+                              de ligações) — nesse caso não mexe nem apaga
+     gravar(id,prop,valor) -> escreve o valor na linha em memória
+   Devolve quantas edições continuaram valendo. */
+function aplicarEdicoesLocais(base, updatedAt, ler, gravar){
+  const pub=tsPublicacao(updatedAt), agora=Date.now();
+  const o=edicoes(); let mudou=false, aplicadas=0;
+  for(const k in o){
+    const e=o[k];
+    if(!e||e.b!==base) continue;
+    if(agora-e.ts>EDITS_TTL){ delete o[k]; mudou=true; continue; }
+    const publicado=ler(e.id,e.p);
+    if(publicado===undefined) continue;                       // linha não está aqui
+    if(iguaisEdicao(publicado,e.v)){ delete o[k]; mudou=true; continue; }   // já publicou
+    if(pub && pub>e.ts+EDITS_FOLGA){ delete o[k]; mudou=true; continue; }   // publicou depois e veio diferente
+    gravar(e.id,e.p,e.v); aplicadas++;
+  }
+  if(mudou) edicoesGravar(o);
+  return aplicadas;
+}
+
 /* ---------- service worker (abre offline) ---------- */
 if("serviceWorker" in navigator){ window.addEventListener("load", ()=>navigator.serviceWorker.register("sw.js").catch(()=>{})); }

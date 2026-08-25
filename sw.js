@@ -7,8 +7,11 @@
    ligacoes.html não abriria offline). v3 -> v4 por causa dela.
    v4 -> v5: index.html e ligacoes.html mudaram (layout de celular e correções);
    trocar o número faz o navegador rebaixar os dois na hora, em vez de deixar a
-   cópia velha valendo pra quem abrir sem internet. */
-const CACHE = "portal-morais-v5";
+   cópia velha valendo pra quem abrir sem internet.
+   v5 -> v6: app.js, ligacoes.html e vendas.html mudaram (correção do sumiço
+   dos valores salvos — edições locais). Sem trocar o número, quem abrisse
+   offline continuaria com o código antigo e o problema voltaria. */
+const CACHE = "portal-morais-v6";
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html","./app.js","./manifest.json"];
 
 self.addEventListener("install", e=>{

@@ -1698,6 +1698,11 @@ async function carregarPlanilha(ctx){
     // o filtro de setor agora é no cliente — os dados já vieram todos de uma vez
     const base = setor ? r.vendas.filter(v=>getV(v.valores,"SETOR")===setor) : r.vendas;
     DADOS[ctx]=ordenarPorEndereco(base);
+    // o que foi salvo e o dist/ ainda não trouxe volta por cima da cópia nova
+    aplicarEdicoesLocais("vendas", r.updated_at,
+      (id,prop)=>{ const x=DADOS[ctx].find(o=>o.id===id); if(!x||!x.valores) return undefined;
+                   const v=getV(x.valores,prop); return v===undefined?null:v; },
+      (id,prop,valor)=>{ const x=DADOS[ctx].find(o=>o.id===id); if(x&&x.valores) setV(x.valores,prop,valor); });
     document.getElementById(ctx+"-count").textContent=DADOS[ctx].length+" obra(s)";
     popularFiltrosDinamicos(ctx);
     renderTabela(ctx);
@@ -2487,6 +2492,12 @@ async function enviarComentario(pageId){
    mostrar o que a pessoa digitou — mesmo antes da fila subir. No próximo
    build do vendas.json (a cada 15 min) o valor real do Notion assume. */
 function aplicarLocal(pageId,prop,valor){
+  /* ...só que a cópia em memória morre quando a página recarrega: bastava
+     sair e voltar (ou a resposta do dist/ chegar depois da pintura do cache)
+     pra tudo aparecer como antes de novo. Agora a edição também é guardada no
+     localStorage e reaplicada em cada pintura até o vendas.json vir com ela
+     (ver aplicarEdicoesLocais no app.js). */
+  registrarEdicao("vendas",pageId,prop,valor);
   [DADOS.hub,DADOS.set].forEach(arr=>{
     const r=(arr||[]).find(x=>x.id===pageId);
     if(r&&r.valores) setV(r.valores,prop,valor);
@@ -3073,8 +3084,10 @@ async function init(){
     metas  = data.metas      || [];
 
     if(data.updated_at)
+      // dataPublicacao(): o fetch grava a hora em UTC SEM o "Z" e o JS leria
+      // como hora local — em UTC-3 o rótulo aparecia 3 h no futuro (ver app.js)
       document.getElementById('updated-at').textContent=
-        'Atualizado: '+new Date(data.updated_at).toLocaleString('pt-BR');
+        'Atualizado: '+(dataPublicacao(data.updated_at)||new Date(data.updated_at)).toLocaleString('pt-BR');
 
     const anoAtual=String(new Date().getFullYear());
     initSel('sel-ano-v',anosDisp(vendas.filter(v=>v.clientes),'data_venda'),anoAtual,buildVendas);
