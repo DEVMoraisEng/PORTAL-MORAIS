@@ -1293,6 +1293,56 @@ function pintarTudo(r){
   montarSeletorResp();
   renderKpis(); renderGraficos(); renderPlanilha(); renderSetores();
   if (SETOR_ATUAL) renderAba();
+  atualizarAoVivo();
+}
+
+/* ---------- LEITURA AO VIVO (parar de depender do arquivo estático) --------
+   O dist/ligacoes.json é um retrato do Notion do momento em que o workflow
+   rodou. Ele entra primeiro porque é instantâneo e funciona offline, mas não
+   pode ser a última palavra: entre uma publicação e outra ele está velho, e
+   era ele que voltava por cima do que a equipe tinha acabado de preencher.
+   Logo depois de pintar, a página pede a base AO VIVO pelo Apps Script (ação
+   "ligacoes", que já existia no Code.gs) e sobrepõe os valores. O que está no
+   Notion aparece em segundos, sem esperar publicação nenhuma.
+   Se a chamada falhar, não faz mal: fica o arquivo publicado mais as edições
+   locais, exatamente como antes. */
+let _aoVivoEm = 0;
+async function atualizarAoVivo(forcar){
+  if (!navigator.onLine) return;
+  // no máximo uma leitura por minuto: o Apps Script atende poucas execuções
+  // ao mesmo tempo, e a resposta do servidor já vem com cache de 5 min
+  if (!forcar && Date.now() - _aoVivoEm < 60000) return;
+  _aoVivoEm = Date.now();
+  try {
+    const r = await chamar({ action: "ligacoes" });
+    if (!r || !r.ok || !Array.isArray(r.ligacoes)) return;
+
+    const porId = {};
+    LIG.forEach(l => { porId[l.id] = l; });
+    let tocadas = 0;
+    r.ligacoes.forEach(viva => {
+      const l = porId[viva.id];
+      if (!l || !l.v || !viva.valores) return;
+      // o ao vivo traz TUDO, inclusive colunas que o dist/ esconde por serem
+      // sensíveis — aqui o token da sessão já foi conferido pelo servidor
+      for (const nome in viva.valores) setV(l.v, nome, viva.valores[nome]);
+      tocadas++;
+    });
+    if (!tocadas) return;
+
+    /* Chegou do Notion: o que já bate com o ao vivo deixa de ser edição
+       pendente. O descarte aqui é SÓ por igualdade, nunca por tempo — a
+       resposta pode vir do cache de 5 min do servidor e ainda não conter uma
+       gravação de segundos atrás. */
+    aplicarEdicoesLocais("ligacoes", null,
+      (id, prop) => { const l = porId[id]; if (!l) return undefined;
+                      const v = getLBruto(l, prop); return v === undefined ? null : v; },
+      (id, prop, valor) => { const l = porId[id]; if (l && l.v) setV(l.v, prop, valor); });
+
+    _idxLigRef = null;
+    renderKpis(); renderGraficos(); renderPlanilha(); renderSetores();
+    if (SETOR_ATUAL) renderAba();
+  } catch (e) { /* sem rede ou backend fora: fica o publicado */ }
 }
 /* ---------- edições locais x cópia publicada ----------
    A tela pinta a partir do dist/*.json, que só é regerado quando o workflow
@@ -2649,7 +2699,7 @@ function blocoAtividades(){
 }
 async function darBaixa(id){
   const r = await escrever({action:"ligBaixa", atividadeId:id}, "baixa de transferência");
-  if (r.ok && r.enfileirado) toast("Sem internet — baixa na fila.");
+  if (r.ok && r.enfileirado) toast("Ainda não subiu — baixa na fila. O envio é refeito sozinho.");
   else if (r.ok) toast("Baixa registrada.");
   else { toast("Não deu baixa: " + erroTexto(r.erro)); return; }
   // tira da lista na hora; o Notion leva alguns segundos pra refletir
@@ -3373,7 +3423,7 @@ async function salvarCampo(l, prop, tipo, valor, fonte){
        pageId: l.id, prop: real, tipo: "people", valor: id ? [id] : []},
       "ligação: " + real
     );
-    if (rp.ok && rp.enfileirado) toast("Sem internet — salvo na fila.");
+    if (rp.ok && rp.enfileirado) toast("Ainda não subiu — ficou na fila. O envio é refeito sozinho.");
     else if (rp.ok) toast("Salvo.");
     else { if (l.v) setV(l.v, real, antesResp); esquecerEdicao(baseEd, l.id, real); toast("Não salvou: " + erroTexto(rp.erro)); }
     montarSeletorResp();
@@ -3418,7 +3468,7 @@ async function salvarCampo(l, prop, tipo, valor, fonte){
     {action: acao, pageId: l.id, prop: real, tipo: tipo, valor: novo},
     (fonte === "vendas" ? "venda: " : "ligação: ") + real
   );
-  if (r.ok && r.enfileirado) toast("Sem internet — salvo na fila.");
+  if (r.ok && r.enfileirado) toast("Ainda não subiu — ficou na fila. O envio é refeito sozinho; o ↻ no topo mostra quanto falta.");
   else if (r.ok){
     // o servidor devolve o que fez na base de ligações (ver ligBaixaTransferencia_)
     const cz = r.resposta && r.resposta.cruzada;
@@ -3478,7 +3528,10 @@ async function salvar(prop, tipo, valor){
    também mexeram. */
 window.aoSincronizar = () => {
   permitirNovaTentativaSensiveis();
-  lerEstaticoJa("ligacoes.json","ligacoes", pintarTudo);
+  /* A fila acabou de subir: o Notion já tem o que estava preso nela. Relê ao
+     vivo NA HORA (sem esperar o intervalo) pra confirmar na tela o que foi
+     gravado — é o que fecha o ciclo do "preenchi, sumiu, preenchi de novo". */
+  lerEstaticoJa("ligacoes.json","ligacoes", pintarTudo).then(() => atualizarAoVivo(true));
 };
 
 document.addEventListener("keydown", e => {

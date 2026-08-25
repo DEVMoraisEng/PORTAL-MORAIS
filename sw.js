@@ -11,7 +11,7 @@
    v5 -> v6: app.js, ligacoes.html e vendas.html mudaram (correção do sumiço
    dos valores salvos — edições locais). Sem trocar o número, quem abrisse
    offline continuaria com o código antigo e o problema voltaria. */
-const CACHE = "portal-morais-v6";
+const CACHE = "portal-morais-v7";
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html","./app.js","./manifest.json"];
 
 self.addEventListener("install", e=>{

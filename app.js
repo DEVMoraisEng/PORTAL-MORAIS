@@ -101,7 +101,11 @@ async function escrever(payload, rotulo){
       // marcada como TRANSFERIDO, ou que não achou o endereço).
       if(r && r.ok) return { ok:true, enviado:true, resposta:r };
       if(r && r.erro && r.erro!=="NAO_AUTORIZADO") return { ok:false, erro:r.erro }; // rejeição lógica: não enfileira
-      // NAO_AUTORIZADO ou resposta estranha: cai pra fila
+      /* Sessão expirada NÃO pode virar "salvo": enfileirar aqui só empurra o
+         problema — a fila vai bater na mesma recusa pra sempre e a pessoa
+         segue achando que gravou. Melhor avisar na hora pra ela relogar. */
+      if(r && r.erro==="NAO_AUTORIZADO") return { ok:false, erro:"NAO_AUTORIZADO" };
+      // resposta estranha (sem ok e sem erro): cai pra fila
     }catch(e){ /* rede caiu: enfileira */ }
   }
   const ok=enfileirar({ id:Date.now()+"_"+Math.random().toString(36).slice(2,7), payload:payload, rotulo:rotulo||payload.action, ts:Date.now() });
@@ -142,6 +146,25 @@ function atualizarStatus(){
 }
 window.addEventListener("online",  ()=>{ atualizarStatus(); sincronizar(); });
 window.addEventListener("offline", atualizarStatus);
+
+/* CAUSA DO "PREENCHI E SUMIU DE NOVO": quando a chamada ao Apps Script falha
+   uma vez (tempo esgotado, oscilação, aba em segundo plano), o item vai pra
+   fila e escrever() devolve ok — a pessoa vê "salvo". Só que o reenvio
+   dependia do evento "online", que só dispara se o navegador tiver ficado
+   OFFLINE. Estando online o tempo todo, o evento nunca vinha: a fila ficava
+   parada pra sempre, o Notion nunca recebia a data e cada publicação do site
+   apagava o que tinha sido digitado. Daí o ciclo de preencher de novo.
+   Agora a fila é reenviada sozinha: ao abrir a página, a cada 20 s enquanto
+   houver item, e toda vez que a aba volta pro primeiro plano. */
+function tentarSincronizar(){ if(fila().length) sincronizar(); }
+setInterval(tentarSincronizar, 20000);
+document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) tentarSincronizar(); });
+window.addEventListener("load", tentarSincronizar);
+
+/* Tem escrita esperando envio? Enquanto tiver, nenhuma edição local pode ser
+   descartada por tempo — ela ainda não chegou ao Notion, então o arquivo
+   publicado vir sem ela não significa nada (ver aplicarEdicoesLocais). */
+function filaPendente(){ return fila().length > 0; }
 
 /* ---------- textos de erro amigáveis ---------- */
 const ERROS_TEXTO = {
@@ -298,7 +321,10 @@ function aplicarEdicoesLocais(base, updatedAt, ler, gravar){
     const publicado=ler(e.id,e.p);
     if(publicado===undefined) continue;                       // linha não está aqui
     if(iguaisEdicao(publicado,e.v)){ delete o[k]; mudou=true; continue; }   // já publicou
-    if(pub && pub>e.ts+EDITS_FOLGA){ delete o[k]; mudou=true; continue; }   // publicou depois e veio diferente
+    // publicou depois e veio diferente -> o Notion mandou. MENOS se ainda
+    // houver escrita na fila: nesse caso o valor sequer chegou ao Notion, e
+    // descartar aqui apagaria da tela um trabalho que ainda vai ser enviado.
+    if(pub && pub>e.ts+EDITS_FOLGA && !filaPendente()){ delete o[k]; mudou=true; continue; }
     gravar(e.id,e.p,e.v); aplicadas++;
   }
   if(mudou) edicoesGravar(o);
