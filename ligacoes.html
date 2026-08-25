@@ -122,6 +122,8 @@ table.grade tbody td.wide{max-width:none;overflow:visible;text-overflow:clip}
 .anexo{display:inline-block;background:rgba(41,87,120,.10);color:var(--azul);border:1px solid var(--border2);
   border-radius:20px;padding:2px 10px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap}
 .anexo:hover{background:var(--azul);color:#fff;border-color:var(--azul)}
+.anexo.novo{background:transparent;color:var(--text3);border-style:dashed;font-weight:700}
+.anexo.novo:hover{background:var(--verde);border-color:var(--verde);color:#fff}
 .sem-anexo{color:var(--text4);font-size:11.5px;font-style:italic}
 /* visualizador de arquivo — mesma ideia do vendas.html */
 .arqoverlay{position:fixed;inset:0;background:rgba(15,30,40,.72);display:none;align-items:center;justify-content:center;z-index:70;padding:26px}
@@ -225,6 +227,9 @@ tbody tr.lin-vencida:hover td,tbody tr.lin-emdia:hover td,tbody tr.lin-sem:hover
 .modal-acoes{display:flex;justify-content:flex-end;gap:9px;margin-top:14px}
 .sem-lig{color:var(--text4);font-style:italic;font-size:11.5px}
 /* endereço clicável na planilha — mesmo comportamento do vendas.html */
+.resp-global{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.4px;color:var(--text3)}
+.resp-global select{font-size:12.5px;padding:5px 8px}
 .obralink{color:var(--azul);font-weight:800;cursor:pointer}
 .obralink:hover{text-decoration:underline}
 /* ligações da casa, dentro do painel da venda */
@@ -354,7 +359,7 @@ tbody tr.lin-vencida:hover td,tbody tr.lin-emdia:hover td,tbody tr.lin-sem:hover
     <section id="view-hub">
       <div class="crumb"><a class="btn-voltar" href="index.html">← Voltar para o Dashboard</a></div>
 
-      <div class="sec"><span class="cond">Setores</span></div>
+      <div class="sec"><span class="cond">Setores</span><span class="hspace" style="flex:1"></span><span id="resp-hub"></span></div>
       <div class="setores" id="setores"></div>
 
       <div class="sec"><span class="cond">Panorama</span></div>
@@ -400,7 +405,7 @@ tbody tr.lin-vencida:hover td,tbody tr.lin-emdia:hover td,tbody tr.lin-sem:hover
 
     <!-- ===================== SETOR ===================== -->
     <section id="view-setor" style="display:none">
-      <div class="crumb"><button class="btn-voltar" onclick="irHub()">← Voltar para Ligações</button> <span>/</span> <b id="setor-nome">Setor</b></div>
+      <div class="crumb"><button class="btn-voltar" onclick="irHub()">← Voltar para Ligações</button> <span>/</span> <b id="setor-nome">Setor</b><span style="flex:1"></span><span id="resp-setor"></span></div>
       <div class="tabs-outer"><div class="tabs" id="tabs"></div></div>
       <div class="toolbar" id="filtros-setor"></div>
       <div class="toolbar">
@@ -441,11 +446,14 @@ tbody tr.lin-vencida:hover td,tbody tr.lin-emdia:hover td,tbody tr.lin-sem:hover
       <div class="arqtopo">
         <span class="nm" id="arq-nome">Arquivo</span>
         <a id="arq-baixar" href="#" target="_blank" rel="noopener" download>Baixar</a>
+        <button id="arq-mais" onclick="anexarMais()">Anexar outro</button>
         <button onclick="fecharArquivo()">Fechar</button>
       </div>
       <div class="arqcorpo" id="arq-corpo"></div>
     </div>
   </div>
+
+  <input type="file" id="arq-input" style="display:none" onchange="enviarArquivo(this)">
 
   <div class="toast" id="toast"></div>
 
@@ -499,6 +507,7 @@ const C = {
      fila, porque não há como saber quando foram liberados). */
   DT_LIBER:   "DATA DE LIBERAÇÃO",
   NF_MEDIDOR: "NF MEDIDOR",
+  DT_UC:      "DATA DE PREENCHIMENTO UC",
   VENC:       "VENCIMENTO",
   SISTEMA:    "SISTEMA",
   ALERTA_SOL: "ALERTA VER. SOLICITAÇÃO",
@@ -622,7 +631,7 @@ function tituloColuna(nome){ return ehCalculada(nome) ? CALC_DEF[nome].titulo : 
 const ABAS = {
   aptas: {
     titulo: "Verificar se a obra está apta para a solicitação",
-    colunas: [C.OBRA, C.CONC, C.LIBERADO, C.DT_LIBER, C.NF_MEDIDOR, C.OBS],
+    colunas: [C.OBRA, C.CONC, C.LIBERADO, C.DT_LIBER, C.NF_MEDIDOR, C.RESP, C.OBS],
     filtros: [C.CONC, C.LIBERADO],
     sensiveis: true,        // NF MEDIDOR é coluna de arquivo: não vem no público
     pdf: true,
@@ -637,8 +646,8 @@ const ABAS = {
     /* Só SANESC: a aprovação da solicitação só existe nela. Por isso a coluna
        de concessionária saiu — seria a mesma palavra em todas as linhas. */
     colunas: [C.OBRA, C.APROVADA, C.DT_LIBER, C.DT_SOL, C.DT_APROV,
-              CALC.PROC_SANESC, C.ALERTA_SOL, C.OBS],
-    filtros: [C.APROVADA, C.RESP],
+              CALC.PROC_SANESC, C.RESP, C.ALERTA_SOL, C.OBS],
+    filtros: [],
     pdf: true,
     base: l => normN(sel(l, C.CONC)) === "SANESC"
             && sel(l, C.FEZ) === "SIM"
@@ -648,15 +657,15 @@ const ABAS = {
   planilha: {
     titulo: "Planilha do setor",
     colunas: null,           // null = todas as colunas visíveis
-    filtros: [C.CONC, C.LIBERADO, C.FEZ, C.APROVADA, C.STATUS, C.RESP],
+    filtros: [C.CONC, C.LIBERADO, C.FEZ, C.APROVADA, C.STATUS],
     base: () => true
   },
 
   /* ---------- setor ACOMPANHAMENTO DE LIGAÇÕES ---------- */
   liberadas: {
     titulo: "Obras liberadas para solicitar a ligação",
-    colunas: [C.OBRA, C.CONC, C.DT_SOL, C.FEZ, C.NF_MEDIDOR, C.OBS, C.CPF, C.ALERTA_INFO],
-    filtros: [C.CONC, C.RESP, C.FEZ],
+    colunas: [C.OBRA, C.CONC, C.DT_SOL, C.FEZ, C.NF_MEDIDOR, C.RESP, C.OBS, C.CPF, C.ALERTA_INFO],
+    filtros: [C.CONC, C.FEZ],
     sensiveis: true,
     pdf: true,
     /* Continua aqui enquanto o alerta do Notion apontar pendência OU enquanto
@@ -670,17 +679,17 @@ const ABAS = {
     titulo: "Conferências de ligações solicitadas",
     /* CPF/CNPJ (a fórmula que já junta V1 e V2) em vez de "CPF/CNPJ V1": na
        base real a V1 vinha vazia e a coluna aparecia só com "—". */
-    colunas: [C.OBRA, C.CONC, C.CPF, C.DT_SOL, C.APROVADA, C.DT_APROV, C.DT_LIG,
-              CALC.LIG_CORRIDO, C.STATUS, C.ALERTA_LIG],
-    filtros: [C.CONC, C.RESP, C.APROVADA],
+    colunas: [C.OBRA, C.CONC, C.CPF, C.DT_SOL, C.DT_LIG,
+              CALC.LIG_CORRIDO, C.RESP, C.STATUS, C.ALERTA_LIG],
+    filtros: [C.CONC],
     sensiveis: true,
     pdf: true,
     base: l => sel(l, C.FEZ) === "SIM" && temAlerta(l, C.ALERTA_INFO1)
   },
   semUc: {
     titulo: "Ligações sem UC (ligadas mas sem UC)",
-    colunas: [C.OBRA, C.CONC, C.CPF, C.NASC, C.UC, C.UC_OK, C.DT_LIG, C.OBS_CONTAS, C.ALERTA_UC],
-    filtros: [C.CONC, C.RESP, C.UC_OK],
+    colunas: [C.OBRA, C.CONC, C.CPF, C.NASC, C.DT_UC, C.UC, C.UC_OK, C.DT_LIG, C.RESP, C.OBS_CONTAS, C.ALERTA_UC],
+    filtros: [C.CONC, C.UC_OK],
     sensiveis: true,
     pdf: true,
     base: l => sel(l, C.STATUS) === "LIGADO" && temAlerta(l, C.ALERTA_UC)
@@ -689,7 +698,7 @@ const ABAS = {
   /* ---------- setor CONTROLE DE CONTAS ---------- */
   vencidas: {
     titulo: "Controle de contas vencidas no sistema",
-    colunas: [C.OBRA, C.CONC, C.UC, C.VENC, C.NASC, C.CPF, C.STATUS, C.OBS_CONTAS],
+    colunas: [C.OBRA, C.CONC, C.DT_UC, C.UC, C.VENC, C.NASC, C.CPF, C.STATUS, C.OBS_CONTAS],
     filtros: [C.CONC],
     sensiveis: true,
     pdf: true,
@@ -708,8 +717,8 @@ const ABAS = {
   },
   semUcContas: {
     titulo: "Ligações sem UC (ligadas sem UC)",
-    colunas: [C.OBRA, C.CONC, C.CPF, C.NASC, C.UC, C.UC_OK, C.ALERTA_UC, C.STATUS],
-    filtros: [C.CONC, C.RESP, C.UC_OK],
+    colunas: [C.OBRA, C.CONC, C.CPF, C.NASC, C.DT_UC, C.UC, C.UC_OK, C.ALERTA_UC, C.STATUS],
+    filtros: [C.CONC, C.UC_OK],
     sensiveis: true,
     pdf: true,
     base: l => ["LIGADO", "ENTREGUE NAO TRANSFERIDO"].indexOf(normN(sel(l, C.STATUS))) >= 0
@@ -747,7 +756,9 @@ const ABAS = {
 };
 
 /* Filtros da planilha geral — os seis pedidos no PDF. */
-const FILTROS_HUB = [C.CONC, C.LIBERADO, C.FEZ, C.APROVADA, C.STATUS, C.RESP];
+/* RESPONSÁVEL saiu daqui: virou o seletor global do topo, que vale para a
+   página toda (inclusive para os números dos cartões e das abas). */
+const FILTROS_HUB = [C.CONC, C.LIBERADO, C.FEZ, C.APROVADA, C.STATUS];
 
 let LIG = [], SCHEMA = [], SCAMPO = {};
 let VEN = [], VSCHEMA = [], VSCAMPO = {}, VEN_OK = false;
@@ -1110,6 +1121,7 @@ function pintarTudo(r){
   SCAMPO = {}; SCHEMA.forEach(c => SCAMPO[c.nome] = c);
   montarFiltros("filtros-hub", FILTROS_HUB, "hub", renderPlanilha);
   montarAnos();
+  montarSeletorResp();
   renderKpis(); renderGraficos(); renderPlanilha(); renderSetores();
   if (SETOR_ATUAL) renderAba();
 }
@@ -1128,7 +1140,7 @@ function nomeReal(nome, fonte){ const c = campoDe(nome, fonte); return c ? c.nom
 /* ===================== setores ===================== */
 /* Linhas da fonte certa: a maioria das abas lê LIG; "Casas vendidas" lê VEN. */
 function fonteDaAba(chave){ return (ABAS[chave] && ABAS[chave].fonte) || "ligacoes"; }
-function linhasFonte(fonte){ return fonte === "vendas" ? VEN : LIG; }
+function linhasFonte(fonte){ return fonte === "vendas" ? VEN : LIGF(); }
 /* Colunas da aba, com o marcador da coluna de verificação trocado pelo nome
    real (ou removido, se a coluna ainda não existe). Todo lugar que precisa da
    lista de colunas passa por aqui — tabela, PDF e escolha de colunas —, senão
@@ -1163,7 +1175,7 @@ function contarAba(chave){
   if (!def) return 0;
   if (def.somenteAtividades) return (ATV_TRANSF || []).length;
   const fonte = fonteDaAba(chave);
-  const arr = fonte === "vendas" ? VEN : LIG;
+  const arr = fonte === "vendas" ? VEN : LIGF();
   const doSetor = (SETOR_ATUAL && SETOR_ATUAL.filtroBase && fonte === "ligacoes")
     ? arr.filter(SETOR_ATUAL.filtroBase) : arr;
   return doSetor.filter(def.base).length;
@@ -1175,7 +1187,15 @@ function renderSetores(){
     // pendências do setor = soma das abas de trabalho (a planilha não conta:
     // ela mostra tudo, não é uma fila de pendência)
     let n = 0;
-    (s.abas||[]).forEach(a => { if (ABAS[a] && a !== "planilha") n += contarAba(a); });
+    (s.abas||[]).forEach(a => {
+      if (!ABAS[a] || a === "planilha") return;
+      /* Com um responsável escolhido, as abas que vêm da base de VENDAS ficam
+         de fora da conta: elas não têm responsável de ligação, e somá-las
+         inteiras faria o cartão dizer "120 pendências" para alguém que não
+         tem nenhuma. */
+      if (FILTRO_RESP && fonteDaAba(a) === "vendas") return;
+      n += contarAba(a);
+    });
     const temDado = LIG.length > 0;
     return `<button class="scard ${temDado?"tem-cnt":""}" data-i="${i}">
       ${temDado ? `<span class="cnt">${num(n)}</span>` : ``}
@@ -1189,7 +1209,57 @@ function renderSetores(){
     btn.addEventListener("click", () => abrirSetor(+btn.dataset.i));
   });
 }
-function linhasDoSetor(s){ return s && s.filtroBase ? LIG.filter(s.filtroBase) : LIG; }
+function linhasDoSetor(s){ return s && s.filtroBase ? LIGF().filter(s.filtroBase) : LIGF(); }
+
+/* ===================== filtro global de RESPONSÁVEL =====================
+   Um seletor só, no topo, que vale para a página inteira: KPIs, gráficos,
+   planilha, número dos cartões de setor e número das abas. É isso que
+   responde "quantas pendências tem cada um" — escolhendo a pessoa, todos os
+   contadores passam a falar dela.
+
+   A aba "Casas vendidas" fica de fora de propósito: ela vem da base de VENDAS,
+   que não tem responsável de ligação — filtrar ali zeraria a lista sem motivo. */
+let FILTRO_RESP = "";
+function respDaLinha(l){
+  const v = getL(l, C.RESP);
+  if (v == null || v === "") return [];
+  return (Array.isArray(v) ? v : [v]).map(x => String(x));
+}
+function passaResp(l){
+  if (!FILTRO_RESP) return true;
+  if (FILTRO_RESP === "__VAZIO__") return respDaLinha(l).length === 0;
+  return respDaLinha(l).some(n => normN(n) === normN(FILTRO_RESP));
+}
+/* LIG já com o filtro de responsável aplicado. Onde o código precisa da base
+   inteira (o índice que casa venda com ligação, por exemplo), continua LIG. */
+function LIGF(){ return FILTRO_RESP ? LIG.filter(passaResp) : LIG; }
+
+/* Lista de responsáveis vinda dos próprios dados — quem entrar na equipe
+   aparece aqui sozinho, sem mexer no código. */
+function responsaveisConhecidos(){
+  const set = {};
+  LIG.forEach(l => respDaLinha(l).forEach(n => { if (n) set[n] = 1; }));
+  return Object.keys(set).sort((a,b)=>a.localeCompare(b,"pt-BR"));
+}
+function montarSeletorResp(){
+  const nomes = responsaveisConhecidos();
+  const html = `<label class="resp-global">Responsável:
+    <select onchange="trocarFiltroResp(this.value)">
+      <option value="">todos</option>
+      ${nomes.map(n=>`<option value="${esc(n)}" ${n===FILTRO_RESP?"selected":""}>${esc(n)}</option>`).join("")}
+      <option value="__VAZIO__" ${FILTRO_RESP==="__VAZIO__"?"selected":""}>sem responsável</option>
+    </select></label>`;
+  ["resp-hub","resp-setor"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = html;
+  });
+}
+function trocarFiltroResp(v){
+  FILTRO_RESP = v;
+  montarSeletorResp();
+  renderKpis(); renderGraficos(); renderPlanilha(); renderSetores();
+  if (SETOR_ATUAL) renderAba();
+}
 
 function abrirSetor(i){
   SETOR_ATUAL = SETORES_LIG[i];
@@ -1319,7 +1389,7 @@ function kpi(chave,val,sub,cls){
     <div class="lab">${esc(r.lab)}</div><div class="val">${val}</div><div class="sub">${sub||''}</div></div>`;
 }
 function renderKpis(){
-  const conta = k => LIG.filter(RECORTES[k].teste).length;
+  const conta = k => LIGF().filter(RECORTES[k].teste).length;
   const total = conta("todas"), ligadas = conta("ligadas");
   document.getElementById("kpis").innerHTML =
     kpi("todas", num(total), RECORTES.todas.sub, "hero") +
@@ -1447,8 +1517,8 @@ function noPeriodo(d, per){
 }
 function linhasDoPeriodo(){
   const per = periodoAtual();
-  if (!per.ano && !per.mes) return LIG;
-  return LIG.filter(l =>
+  if (!per.ano && !per.mes) return LIGF();
+  return LIGF().filter(l =>
     noPeriodo(dataReal(l,C.DT_SOL), per) ||
     noPeriodo(dataReal(l,C.DT_LIG), per) ||
     noPeriodo(dataReal(l,C.DT_APROV), per));
@@ -1510,7 +1580,7 @@ function renderGraficos(){
   // --- Tempo de ligação: uma barra por concessionária ---
   const concDe = l => sel(l, C.CONC) || "(sem concessionária)";
   const porConc = {};
-  LIG.forEach(l => { if (okLig(l)) (porConc[concDe(l)] = porConc[concDe(l)] || []).push(diasLigacao(l)); });
+  LIGF().forEach(l => { if (okLig(l)) (porConc[concDe(l)] = porConc[concDe(l)] || []).push(diasLigacao(l)); });
   GRUPOS.lig = Object.keys(porConc).sort().map(k =>
     grupo(k, porConc[k],
       // só as linhas que ENTRARAM na conta — não a concessionária inteira.
@@ -1530,7 +1600,7 @@ function renderGraficos(){
   const porAno = !!per.ano;                  // ano escolhido = detalhar por mês
   const chaveDe = l => (dataReal(l, C.DT_SOL)||"").slice(0, porAno ? 7 : 4);
   const grupos = {};
-  LIG.forEach(l => {
+  LIGF().forEach(l => {
     if (!okApr(l)) return;
     const k = chaveDe(l);
     if (k) (grupos[k] = grupos[k] || []).push(diasAprovacao(l));
@@ -1567,7 +1637,7 @@ function renderGraficos(){
 
   const base = linhasDoPeriodo();
   document.getElementById("g-info").textContent =
-    LIG.filter(okLig).length + " ligações e " + LIG.filter(okApr).length +
+    LIGF().filter(okLig).length + " ligações e " + LIGF().filter(okApr).length +
     " aprovações com as duas datas preenchidas · " + rotuloPeriodo() +
     " (" + base.length + " linhas no período)";
 }
@@ -1580,7 +1650,7 @@ function colunasVisiveis(){
   const ocultas = OCULTAS.map(normN);
   const doSchema = SCHEMA.map(c=>c.nome).filter(n => ocultas.indexOf(normN(n)) < 0);
   const ordem = [C.OBRA, C.CONC, C.SISTEMA, C.STATUS, C.LIBERADO, C.DT_LIBER, C.NF_MEDIDOR,
-                 C.FEZ, C.DT_SOL, C.APROVADA, C.DT_APROV, C.DT_LIG, C.UC, C.UC_OK, C.VENC,
+                 C.FEZ, C.DT_SOL, C.APROVADA, C.DT_APROV, C.DT_LIG, C.DT_UC, C.UC, C.UC_OK, C.VENC,
                  C.RESP, C.LINK, C.OBS, C.OBS_CONTAS];
   const usadas = [], resto = [];
   ordem.forEach(n => { const r = doSchema.find(x => normN(x)===normN(n)); if (r) usadas.push(r); });
@@ -1645,7 +1715,10 @@ function celula(l, nome, fonte){
       /* O arquivo em si não vem no dist/ (público). Aqui mostramos só que
          existe; o link busca a URL assinada no Apps Script na hora do clique
          — ela expira, então não faria sentido publicar. */
-      if (!temAnexo(l, campo.nome)) return '<span class="sem-anexo">sem anexo</span>';
+      if (!temAnexo(l, campo.nome)){
+        return `<span class="anexo novo" data-anexar="${esc(l.id)}" data-col="${esc(campo.nome)}"
+                  title="Escolher o arquivo para anexar">+ anexar</span>`;
+      }
       const n = (l.sens || {})[campo.nome];
       const qtd = (typeof n === "number" && n > 1) ? (n + " arq.") : "ver arquivo";
       return `<span class="anexo" data-anexo="${esc(l.id)}" data-col="${esc(campo.nome)}"
@@ -1744,7 +1817,7 @@ function sincronizarScroll(idTopo, idWrap){
 
 /* Tipos que dá pra editar na própria célula. multi_select, checkbox e arquivo
    ficam de fora — têm controle melhor no painel lateral. */
-const TIPOS_CELULA = ["title","rich_text","select","status","date","number","url","email","phone_number"];
+const TIPOS_CELULA = ["title","rich_text","select","status","date","number","url","email","phone_number","people"];
 
 /* Colunas de VENDAS que ESTE sistema pode gravar (aba Casas vendidas).
    Endereço, data do contrato e os dados do cliente ficam de fora de propósito:
@@ -1782,7 +1855,12 @@ function ligarCliquesTabela(idBox){
   // diferença entre a aba abrir na hora e travar
   box.addEventListener("click", ev => {
     const anexo = ev.target.closest(".anexo");
-    if (anexo){ ev.stopPropagation(); verArquivo(anexo.dataset.anexo, anexo.dataset.col); return; }
+    if (anexo){
+      ev.stopPropagation();
+      if (anexo.dataset.anexar) escolherArquivo(anexo.dataset.anexar, anexo.dataset.col);
+      else verArquivo(anexo.dataset.anexo, anexo.dataset.col);
+      return;
+    }
     const link = ev.target.closest(".obralink");
     if (link){
       const tr = link.closest("tr[data-id]");
@@ -1809,7 +1887,22 @@ function editarCelula(td){
   const atual = getL(linha, col);
   const antigo = td.innerHTML;
   let el;
-  if (campo.tipo === "select" || campo.tipo === "status"){
+  if (campo.tipo === "people"){
+    /* Sem a lista de pessoas não dá para gravar (precisa do ID). Se ela ainda
+       não chegou, avisa e não abre o editor — melhor do que abrir um seletor
+       vazio que grava em branco. */
+    if (!RESPONSAVEIS){
+      td.innerHTML = antigo;
+      carregarResponsaveis().then(() => toast("Lista de responsáveis carregada — clique de novo."));
+      return;
+    }
+    const atuaisNomes = Array.isArray(atual) ? atual.map(String) : (atual ? [String(atual)] : []);
+    el = document.createElement("select");
+    el.innerHTML = `<option value="">(sem responsável)</option>` +
+      opcoesResponsavel(atuaisNomes).map(n =>
+        `<option value="${esc(n)}"${atuaisNomes.some(a=>normN(a)===normN(n))?" selected":""}>${esc(n)}</option>`
+      ).join("");
+  } else if (campo.tipo === "select" || campo.tipo === "status"){
     el = document.createElement("select");
     el.innerHTML = `<option value=""></option>` +
       (campo.opcoes||[]).map(o=>`<option${o===atual?" selected":""}>${esc(o)}</option>`).join("");
@@ -1833,7 +1926,9 @@ function editarCelula(td){
     encerrado = true;
     if (!salvar){ td.innerHTML = antigo; return; }
     const novo = el.value;
-    const antesTxt = String(atual==null ? "" : (campo.tipo==="date" && atual ? String(atual).slice(0,10) : atual));
+    const antesTxt = campo.tipo === "people"
+      ? (Array.isArray(atual) ? atual.join(", ") : String(atual==null ? "" : atual))
+      : String(atual==null ? "" : (campo.tipo==="date" && atual ? String(atual).slice(0,10) : atual));
     if (antesTxt === String(novo)){ td.innerHTML = antigo; return; }
     td.innerHTML = '<span class="load"></span>';
     const r = await salvarCampo(linha, col, campo.tipo, novo, fonte);
@@ -1876,7 +1971,7 @@ const LEGENDA_VENC = `<div class="legenda">
 function renderPlanilha(){
   const filtros = valoresFiltro("filtros-hub");
   const termo = document.getElementById("hub-busca").value;
-  const doRecorte = RECORTE ? LIG.filter(RECORTE.teste) : LIG;
+  const doRecorte = RECORTE ? LIGF().filter(RECORTE.teste) : LIGF();
   const linhas = doRecorte.filter(l => passaFiltros(l,filtros) && passaBusca(l,termo));
 
   const chip = document.getElementById("recorte");
@@ -1887,7 +1982,7 @@ function renderPlanilha(){
   } else chip.style.display = "none";
 
   document.getElementById("hub-count").textContent =
-    linhas.length + " de " + (RECORTE ? doRecorte.length : LIG.length) + " linhas";
+    linhas.length + " de " + (RECORTE ? doRecorte.length : LIGF().length) + " linhas";
   if (!pintarTabela("hub-wrap", tabelaHtml(linhas, colunasVisiveis(), true, "ligacoes", null))) return;
   ligarCliquesTabela("hub-wrap");
   sincronizarScroll("hub-stop", "hub-wrap");
@@ -2505,16 +2600,25 @@ function baixarRelatorio(){
    calcula é o Notion. */
 const EDITAVEIS = [
   C.OBRA, C.CONC, C.SISTEMA, C.STATUS, C.LIBERADO, C.DT_LIBER, C.FEZ, C.DT_SOL,
-  C.APROVADA, C.DT_APROV, C.DT_LIG, C.UC, C.UC_OK, C.VENC,
-  C.LINK, C.OBS, C.OBS_CONTAS
+  C.APROVADA, C.DT_APROV, C.DT_LIG, C.UC, C.UC_OK, C.DT_UC, C.VENC,
+  C.LINK, C.OBS, C.OBS_CONTAS, C.RESP
 ];
 function ehEditavel(nome){ return EDITAVEIS.some(n => normN(n) === normN(nome)); }
 
 function linhaPorId(id){ return LIG.find(l => l.id === id) || null; }
 
+/* Busca a lista de pessoas e redesenha o painel já com o seletor. */
+function prepararResponsaveis(){
+  carregarResponsaveis().then(() => {
+    if (LINHA_ABERTA) document.getElementById("pn-body").innerHTML = corpoPainel(LINHA_ABERTA);
+    else toast("Lista de responsáveis carregada.");
+  });
+}
+
 function abrirLinha(id){
   const l = linhaPorId(id);
   if (!l) return;
+  carregarResponsaveis();   // chega antes de a pessoa rolar até o campo
   LINHA_ABERTA = l;
   document.getElementById("pn-obra").textContent = l.obra || "(sem nome)";
   document.getElementById("pn-sub").textContent =
@@ -2542,6 +2646,17 @@ function corpoPainel(l){
     if (!ehEditavel(nome) || ["formula","rollup","relation","created_time","last_edited_time"].indexOf(tipo) >= 0){
       html += `<div class="ro">${celula(l,nome)}</div>`;
       if (tipo === "formula") html += `<div class="dica">calculado pelo Notion</div>`;
+    } else if (tipo === "people"){
+      const atuais = Array.isArray(v) ? v.map(String) : (v ? [String(v)] : []);
+      if (!RESPONSAVEIS){
+        html += `<div class="ro">${celula(l,nome)}</div>
+                 <button class="bt ghost" style="margin-top:6px" onclick="prepararResponsaveis()">Carregar lista para trocar</button>`;
+      } else {
+        html += `<select id="${idc}" onchange="salvar('${esc(nome)}','people',this.value)">
+          <option value="">(sem responsável)</option>
+          ${opcoesResponsavel(atuais).map(n=>`<option value="${esc(n)}" ${atuais.some(a=>normN(a)===normN(n))?"selected":""}>${esc(n)}</option>`).join("")}
+        </select>`;
+      }
     } else if (tipo === "select" || tipo === "status"){
       const ops = campo.opcoes || [];
       html += `<select id="${idc}" onchange="salvar('${esc(nome)}','${tipo}',this.value)">
@@ -2586,7 +2701,103 @@ const EXT_PDF = /\.pdf(\?|$)/i;
 function ehImagem(nome, url){ return EXT_IMG.test(nome||"") || EXT_IMG.test(url||""); }
 function ehPdf(nome, url){ return EXT_PDF.test(nome||"") || EXT_PDF.test(url||""); }
 
+/* ---------- pessoas que podem ser responsáveis ----------
+   A coluna RESPONSÁVEL é do tipo Pessoa: para gravar é preciso o ID do
+   usuário no Notion, que não vem no arquivo publicado. A lista é buscada uma
+   vez por sessão no Apps Script (ver ligResponsaveis_) e serve para montar o
+   <select> da célula e do painel. */
+let RESPONSAVEIS = null, _promResp = null;
+function carregarResponsaveis(){
+  if (RESPONSAVEIS) return Promise.resolve(RESPONSAVEIS);
+  if (_promResp) return _promResp;
+  _promResp = ler({action:"ligResponsaveis"}, "lig_responsaveis").then(r => {
+    RESPONSAVEIS = (r && r.ok && r.responsaveis) ? r.responsaveis : [];
+    _promResp = null;
+    return RESPONSAVEIS;
+  }).catch(() => { _promResp = null; RESPONSAVEIS = []; return RESPONSAVEIS; });
+  return _promResp;
+}
+function idDoResponsavel(nome){
+  const alvo = normN(nome);
+  const achado = (RESPONSAVEIS || []).find(p => normN(p.nome) === alvo);
+  return achado ? achado.id : null;
+}
+function nomeDoResponsavel(id){
+  const achado = (RESPONSAVEIS || []).find(p => p.id === id);
+  return achado ? achado.nome : "";
+}
+/* Opções do <select>: quem o Notion devolveu + quem já está na linha (para o
+   nome atual nunca sumir do próprio seletor). */
+function opcoesResponsavel(atuais){
+  const nomes = (RESPONSAVEIS || []).map(p => p.nome);
+  (atuais || []).forEach(n => { if (n && !nomes.some(x => normN(x) === normN(n))) nomes.push(n); });
+  return nomes;
+}
+
+/* ---------- anexar a NF do medidor pela própria tela ----------
+   O arquivo vai pro Notion pela API de File Upload, que roda no Apps Script
+   (é lá que mora o token). O navegador só lê o arquivo e manda os bytes em
+   base64 — por isso o limite de tamanho abaixo: acima disso a chamada fica
+   pesada e, se estiver sem internet, a fila de escrita não caberia no
+   armazenamento do navegador. */
+const LIMITE_ANEXO_MB = 8;
+let _anexoAlvo = null;
+
+function escolherArquivo(pageId, coluna){
+  _anexoAlvo = { pageId: pageId, coluna: coluna };
+  const inp = document.getElementById("arq-input");
+  inp.value = "";              // permite reenviar o mesmo arquivo
+  inp.click();
+}
+function anexarMais(){
+  if (!_anexoAtual) return;
+  escolherArquivo(_anexoAtual.pageId, _anexoAtual.coluna);
+}
+async function enviarArquivo(input){
+  const f = input.files && input.files[0];
+  if (!f || !_anexoAlvo) return;
+  if (f.size > LIMITE_ANEXO_MB * 1024 * 1024){
+    toast(`Arquivo muito grande (máximo ${LIMITE_ANEXO_MB} MB).`);
+    return;
+  }
+  const { pageId, coluna } = _anexoAlvo;
+  toast("Enviando " + f.name + "…");
+  let b64;
+  try {
+    b64 = await new Promise((ok, erro) => {
+      const rd = new FileReader();
+      rd.onload = () => ok(String(rd.result).split(",")[1]);
+      rd.onerror = erro;
+      rd.readAsDataURL(f);
+    });
+  } catch(e){ toast("Não consegui ler o arquivo."); return; }
+
+  const r = await escrever(
+    {action:"ligAnexar", pageId: pageId, prop: coluna, filename: f.name,
+     mimeType: f.type || "application/octet-stream", dataBase64: b64},
+    "ligação: " + coluna + " (" + f.name + ")"
+  );
+  if (!r.ok){ toast("Não anexou: " + erroTexto(r.erro)); return; }
+  toast(r.enfileirado ? "Sem internet — o arquivo sobe quando reconectar." : "Arquivo anexado.");
+
+  /* Atualiza a contagem na memória para a linha sair da fila na hora, sem
+     esperar o próximo dist/ — é o mesmo que já fazemos ao gravar um campo. */
+  const l = linhaPorId(pageId);
+  if (l && !r.enfileirado){
+    const campo = campoDe(coluna);
+    const chave = campo ? campo.nome : coluna;
+    l.sens = l.sens || {};
+    const atual = l.sens[chave];
+    l.sens[chave] = (typeof atual === "number" ? atual : 0) + 1;
+  }
+  renderKpis(); renderPlanilha(); renderSetores();
+  if (SETOR_ATUAL) renderAba();
+  if (document.getElementById("arqoverlay").classList.contains("on")) verArquivo(pageId, coluna);
+}
+
+let _anexoAtual = null;         // {pageId, coluna} do visualizador aberto
 async function verArquivo(pageId, coluna){
+  _anexoAtual = { pageId: pageId, coluna: coluna };
   const corpo = document.getElementById("arq-corpo");
   document.getElementById("arq-nome").textContent = coluna;
   document.getElementById("arq-baixar").style.display = "none";
@@ -2729,6 +2940,32 @@ async function salvarCampo(l, prop, tipo, valor, fonte){
   fonte = fonte || "ligacoes";
   const real = nomeReal(prop, fonte);
   const antes = getL(l, prop);
+  /* people: na tela circula o NOME (é o que aparece na coluna e o que o
+     arquivo publicado traz), mas o Notion só aceita o ID do usuário. Aqui as
+     duas coisas andam juntas: "novo" é o que fica na memória do site, e
+     "paraEnviar" é o que vai para o Apps Script. */
+  if (tipo === "people"){
+    const nome = String(valor || "").trim();
+    const id = nome ? idDoResponsavel(nome) : null;
+    if (nome && !id){
+      toast("Não achei essa pessoa no Notion — recarregue a página e tente de novo.");
+      return { ok:false, erro:"PESSOA_DESCONHECIDA" };
+    }
+    const antesResp = l.v ? l.v[real] : null;
+    if (l.v) l.v[real] = nome ? [nome] : [];
+    const rp = await escrever(
+      {action: (fonte === "vendas") ? "ligVendaUpdate" : "ligUpdate",
+       pageId: l.id, prop: real, tipo: "people", valor: id ? [id] : []},
+      "ligação: " + real
+    );
+    if (rp.ok && rp.enfileirado) toast("Sem internet — salvo na fila.");
+    else if (rp.ok) toast("Salvo.");
+    else { if (l.v) l.v[real] = antesResp; toast("Não salvou: " + erroTexto(rp.erro)); }
+    montarSeletorResp();
+    renderKpis(); renderGraficos(); renderPlanilha(); renderSetores();
+    return rp;
+  }
+
   let novo = (tipo === "number") ? (valor === "" ? null : Number(valor)) : (valor || "");
   // número inválido não vai pro Notion: JSON.stringify(NaN) vira null e o
   // campo seria APAGADO na base sem ninguém perceber
