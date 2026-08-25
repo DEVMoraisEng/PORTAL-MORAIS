@@ -228,6 +228,14 @@ tbody tr.lin-vencida:hover td,tbody tr.lin-emdia:hover td,tbody tr.lin-sem:hover
 .colitem:hover{background:var(--bg2)}
 .colitem input{width:16px;height:16px}
 .modal-acoes{display:flex;justify-content:flex-end;gap:9px;margin-top:14px}
+/* quadro de observações: campo grande, com quebra de linha de verdade */
+.txt-sub{font-size:12.5px;color:var(--cinza-txt,#5b7488);margin:2px 0 10px}
+.txt-area{width:100%;min-height:210px;max-height:52vh;resize:vertical;padding:11px 12px;
+  border:1px solid var(--border);border-radius:10px;font:inherit;font-size:14px;line-height:1.5;
+  color:var(--azul-esc);background:#fff;white-space:pre-wrap}
+.txt-area:focus{outline:2px solid var(--azul);outline-offset:-1px}
+.txt-dica{font-size:11.5px;color:var(--cinza-txt,#5b7488);margin-top:7px}
+@media(max-width:680px){ .txt-area{font-size:16px;min-height:170px} }
 .sem-lig{color:var(--text4);font-style:italic;font-size:11.5px}
 /* endereço clicável na planilha — mesmo comportamento do vendas.html */
 .resp-global{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;
@@ -425,6 +433,20 @@ tbody tr.lin-vencida:hover td,tbody tr.lin-emdia:hover td,tbody tr.lin-sem:hover
     <div class="ph"><div class="end" id="pn-obra">Obra</div><div class="loc" id="pn-sub"></div><button class="pfechar" onclick="fecharLinha()">×</button></div>
     <div class="pbody" id="pn-body"></div>
   </aside>
+
+  <!-- quadro de texto longo (observações): digitar com quebra de linha -->
+  <div class="modal-overlay" id="txt-overlay" onclick="if(event.target===this)fecharCaixaTexto()">
+    <div class="modal-cx">
+      <div class="modal-tit" id="txt-tit">Observações</div>
+      <div class="txt-sub" id="txt-sub"></div>
+      <textarea class="txt-area" id="txt-area" placeholder="Escreva aqui. Enter pula de linha."></textarea>
+      <div class="txt-dica">Enter pula de linha · Ctrl+Enter salva · Esc fecha</div>
+      <div class="modal-acoes">
+        <button class="bt ghost" onclick="fecharCaixaTexto()">Cancelar</button>
+        <button class="bt az" id="txt-salvar" onclick="salvarCaixaTexto()">Salvar</button>
+      </div>
+    </div>
+  </div>
 
   <!-- escolha das colunas do relatório -->
   <div class="modal-overlay" id="cols-overlay" onclick="if(event.target===this)fecharEscolhaColunas()">
@@ -852,22 +874,99 @@ function getLBruto(linha, nome){
 }
 function sel(linha, nome){ const v=getL(linha,nome); return v==null?null:String(v).trim(); }
 
+/* ===================== ALERTAS CALCULADOS AQUI =====================
+   Até aqui os alertas eram colunas de FÓRMULA do Notion, copiadas pro
+   dist/*.json. Fórmula do Notion só é recalculada no Notion — então, depois
+   de preencher a data pela tela, a coluna de alerta continuava dizendo
+   "PREENCHER DATA" até a próxima publicação, e a obra NÃO SAÍA da fila mesmo
+   com tudo preenchido. Era o mesmo atraso das datas, um degrau adiante.
+
+   Agora a regra mora aqui e responde na hora. O texto do Notion vira o plano
+   B: quando a situação da linha não cai em nenhuma regra abaixo (por exemplo
+   os alertas de PRAZO, que dependem de contas que só o Notion faz), o que a
+   tela mostra continua sendo o que veio publicado.
+
+   COMO AJUSTAR: cada entrada devolve
+     ""      -> pendência resolvida (a obra sai da fila)
+     "texto" -> pendência, com este texto na coluna
+     null    -> "não sei opinar": vale o texto do Notion
+   Se algum texto ou alguma condição estiver diferente do que a fórmula do
+   Notion faz, o ajuste é só aqui dentro — nada mais no arquivo precisa mudar. */
+const TXT_PREENCHER_DATA = "⚠️ PREENCHER DATA";
+const TXT_PREENCHER_UC   = "⚠️ PREENCHER UC";
+
+const REGRAS_ALERTA = {};
+/* "Alerta Informações": olha FEZ A SOLICITAÇÃO? + DATA DE SOLICITAÇÃO.
+   Solicitou e não anotou quando -> cobra a data. Anotou -> resolvido. */
+REGRAS_ALERTA[normN(C.ALERTA_INFO)] = l => {
+  if (sel(l, C.FEZ) !== "SIM") return null;          // ainda não solicitou: quem manda é o Notion
+  return temData(l, C.DT_SOL) ? "" : TXT_PREENCHER_DATA;
+};
+/* "Elerta Informações (1)" (o "E" é typo da base): STATUS + Data de Ligação.
+   Ligou e não anotou quando -> cobra a data. */
+REGRAS_ALERTA[normN(C.ALERTA_INFO1)] = l => {
+  if (normN(sel(l, C.STATUS)) !== "LIGADO") return null;
+  return temData(l, C.DT_LIG) ? "" : TXT_PREENCHER_DATA;
+};
+/* ALERTA UC: a fila só se fecha com UC PREENCHIDA = SIM, a UC escrita e a
+   data de preenchimento — a mesma regra do ucCompleta(), pra tabela e filtro
+   nunca discordarem. */
+REGRAS_ALERTA[normN(C.ALERTA_UC)] = l => {
+  if (ucCompleta(l)) return "";
+  if (sel(l, C.UC_OK) !== "SIM") return null;
+  const uc = String(txt(getL(l, C.UC) || "")).trim();
+  if (!uc || uc === "-") return TXT_PREENCHER_UC;
+  return TXT_PREENCHER_DATA;
+};
+/* Verificação/alerta da solicitação SANESC: o texto de ATRASO é do Notion (é
+   ele que conta o prazo). O que a tela resolve na hora é o fim da pendência:
+   aprovou e datou -> some da fila, sem esperar publicação. */
+const _aprovouSanesc = l => sel(l, C.APROVADA) === "SIM" && temData(l, C.DT_APROV);
+REGRAS_ALERTA[normN(C.VERIF_SOL)]  = l => _aprovouSanesc(l) ? "" : null;
+REGRAS_ALERTA[normN(C.ALERTA_SOL)] = l => _aprovouSanesc(l) ? "" : null;
+/* Idem para a conferência da ligação: ligou e datou -> resolvido. */
+REGRAS_ALERTA[normN(C.ALERTA_LIG)] = l =>
+  (normN(sel(l, C.STATUS)) === "LIGADO" && temData(l, C.DT_LIG)) ? "" : null;
+
+function temRegraAlerta(coluna){ return !!REGRAS_ALERTA[normN(coluna)]; }
+
+/* Valor do alerta: a regra daqui quando ela sabe responder, senão o Notion.
+   É por aqui que passam a tabela, o PDF, os filtros e as regras das abas —
+   um valor só, sem dois donos da verdade. */
+function alertaDe(l, coluna){
+  const regra = REGRAS_ALERTA[normN(coluna)];
+  if (regra){
+    try { const r = regra(l); if (r !== null && r !== undefined) return r; }
+    catch (e) { /* linha estranha: cai no texto do Notion */ }
+  }
+  return getL(l, coluna);
+}
+
 /* Alerta "de verdade": tem texto E não é o traço de "nada a fazer".
    CORRIGIDO: antes eu comparava só `!== "-"`, e alerta VAZIO também passa
    nesse teste — então linha sem alerta nenhum entrava nas abas de
    acompanhamento e aparecia com a coluna em branco. */
 function temAlerta(l, coluna){
-  const s = txt(getL(l, coluna)).trim();
+  const s = txt(alertaDe(l, coluna)).trim();
   return s !== "" && s !== "-" && s !== "—";
 }
 
-/* Data "de verdade": descarta vazio e o marcador 01/01/2000. */
+/* Data "de verdade": descarta vazio e o marcador 01/01/2000.
+   EXCEÇÃO: 01/01/2000 digitado AQUI vale como data normal. O 01/01/2000 é
+   marcador de "ainda não tem data" só quando veio assim do Notion; quem
+   escolhe essa data na tela está dizendo que o fato aconteceu nesse dia, e
+   antes o campo simplesmente não mostrava nada depois de salvo. */
 function dataReal(linha, nome){
   const v = getL(linha, nome);
   if (!v) return null;
   const d = String(v).slice(0,10);
-  if (d === DATA_LIXO) return null;
+  if (d === DATA_LIXO && !digitadaAqui(linha, nome)) return null;
   return d;
+}
+/* Esta coluna desta linha tem edição feita na tela e ainda não republicada? */
+function digitadaAqui(linha, nome){
+  return !!(linha && linha.id &&
+            edicaoLocal(linha._base || "ligacoes", linha.id, nome, normN));
 }
 function fmtData(d){ if(!d) return "—"; const p=String(d).slice(0,10).split("-"); return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:d; }
 /* Diferença em dias entre duas datas ISO. Aritmética em UTC de propósito:
@@ -1507,7 +1606,7 @@ const RECORTES = {
   ligadas:   { lab:"Já ligadas",           sub:"",                              teste: l => ["LIGADO","TRANSFERIDO","ENTREGUE NAO TRANSFERIDO"].indexOf(normN(sel(l,C.STATUS))) >= 0 },
   naolib:    { lab:"Não liberadas",        sub:"aguardando liberação p/ solicitar", teste: l => sel(l,C.LIBERADO) === "NÃO" },
   aprov:     { lab:"Aguardando aprovação", sub:"solicitação feita, sem aprovação",  teste: l => sel(l,C.FEZ)==="SIM" && sel(l,C.APROVADA)==="NÃO" },
-  atrasadas: { lab:"Atrasadas",            sub:"alerta do Notion apontando atraso", teste: l => normN(getL(l,C.ALERTA_SOL)).indexOf("ATRASADO") >= 0 || normN(getL(l,C.ALERTA_LIG)).indexOf("ATRASADO") >= 0 }
+  atrasadas: { lab:"Atrasadas",            sub:"alerta do Notion apontando atraso", teste: l => normN(alertaDe(l,C.ALERTA_SOL)).indexOf("ATRASADO") >= 0 || normN(alertaDe(l,C.ALERTA_LIG)).indexOf("ATRASADO") >= 0 }
 };
 
 function kpi(chave,val,sub,cls){
@@ -1814,7 +1913,9 @@ function celulaTexto(l, nome, fonte){
     return temSens(l, campo.nome) ? "•••" : "—";
   }
   if (tipo === "date"){ const d = dataReal(l, nome); return d ? fmtData(d) : "—"; }
-  const v = getL(l, nome);
+  // coluna de alerta: o valor é o calculado aqui (ver REGRAS_ALERTA), não a
+  // fórmula publicada — senão o PDF sairia dizendo o contrário da tela
+  const v = temRegraAlerta(nome) ? alertaDe(l, nome) : getL(l, nome);
   if (v == null || v === "" || (Array.isArray(v) && !v.length)) return "—";
   return txt(v);
 }
@@ -1832,7 +1933,7 @@ function celula(l, nome, fonte){
   }
   const campo = campoDe(nome, fonte);
   const tipo = campo ? campo.tipo : "rich_text";
-  const v = getL(l, nome);
+  const v = temRegraAlerta(nome) ? alertaDe(l, nome) : getL(l, nome);
   if (campo && campo.sensivel){
     // Valor sensível não é publicado no arquivo do site. Se já veio do Apps
     // Script (sob demanda), mostra; senão mostra ••• pra deixar claro que
@@ -1867,7 +1968,8 @@ function celula(l, nome, fonte){
     if (n === "NAO") return `<span class="tag nao">${esc(s)}</span>`;
     return esc(s);
   }
-  if (tipo === "formula" && (s.indexOf("🚨")>=0 || s.indexOf("⚠️")>=0 || s.indexOf("⏳")>=0)){
+  if ((tipo === "formula" || temRegraAlerta(nome)) &&
+      (s.indexOf("🚨")>=0 || s.indexOf("⚠️")>=0 || s.indexOf("⏳")>=0)){
     const cls = s.indexOf("🚨")>=0 ? "critico" : "alerta";
     return `<span class="pill ${cls}">${esc(s)}</span>`;
   }
@@ -2005,6 +2107,69 @@ function ligarCliquesTabela(idBox){
   });
 }
 
+/* ---------- quadro de texto longo (observações) ----------
+   Observação em campo de uma linha só é ruim de escrever e impossível de ler:
+   não dava pra pular linha (Enter fechava a edição) e o texto ficava cortado
+   na largura da coluna. Clicar numa coluna de observação passa a abrir este
+   quadro, com o texto inteiro à vista e quebra de linha de verdade. */
+let CX_TEXTO = null;   // {linha, col, fonte, tipo}
+
+/* Coluna que merece o quadro: as de observação da base, e qualquer campo de
+   texto livre com nome começando em OBS (se amanhã criarem "OBS. MEDIDOR",
+   já entra sozinha). */
+function ehTextoLongo(col, campo){
+  if (!campo) return false;
+  if (campo.tipo !== "rich_text") return false;
+  const n = normN(col);
+  return n === normN(C.OBS) || n === normN(C.OBS_CONTAS) || n.indexOf("OBS") === 0;
+}
+
+function abrirCaixaTexto(linha, col, fonte, campo){
+  CX_TEXTO = { linha: linha, col: col, fonte: fonte || "ligacoes", tipo: campo.tipo };
+  document.getElementById("txt-tit").textContent = col;
+  document.getElementById("txt-sub").textContent = linha.obra || "";
+  const ta = document.getElementById("txt-area");
+  const atual = getL(linha, col);
+  ta.value = (atual == null ? "" : String(atual));
+  document.getElementById("txt-overlay").style.display = "flex";
+  document.getElementById("txt-salvar").disabled = false;
+  setTimeout(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 30);
+}
+
+function fecharCaixaTexto(){
+  document.getElementById("txt-overlay").style.display = "none";
+  CX_TEXTO = null;
+}
+
+async function salvarCaixaTexto(){
+  if (!CX_TEXTO) return;
+  const { linha, col, fonte, tipo } = CX_TEXTO;
+  const novo = document.getElementById("txt-area").value;
+  const atual = getL(linha, col);
+  if (String(atual == null ? "" : atual) === novo){ fecharCaixaTexto(); return; }
+  const bt = document.getElementById("txt-salvar");
+  bt.disabled = true; bt.textContent = "Salvando…";
+  const r = await salvarCampo(linha, col, tipo, novo, fonte);
+  bt.textContent = "Salvar";
+  if (r.ok){ fecharCaixaTexto(); renderAba(); }
+  else { bt.disabled = false; toast("Não salvou: " + erroTexto(r.erro)); }
+}
+
+/* Ctrl+Enter salva, Esc fecha. Enter puro NÃO é interceptado: ele tem que
+   pular de linha, que é o motivo deste quadro existir. */
+document.addEventListener("keydown", e => {
+  if (!CX_TEXTO) return;
+  if (e.key === "Escape"){ e.stopPropagation(); fecharCaixaTexto(); }
+  else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)){ e.preventDefault(); salvarCaixaTexto(); }
+}, true);
+
+/* Atalho do painel para o mesmo quadro grande da tabela. */
+function abrirCampoTextoDoPainel(nome){
+  if (!LINHA_ABERTA) return;
+  const campo = campoDe(nome, LINHA_ABERTA._base || "ligacoes");
+  if (campo) abrirCaixaTexto(LINHA_ABERTA, nome, LINHA_ABERTA._base || "ligacoes", campo);
+}
+
 function editarCelula(td){
   const tr = td.closest("tr");
   const id = tr.dataset.id, fonte = tr.dataset.fonte || "ligacoes", col = td.dataset.col;
@@ -2013,6 +2178,8 @@ function editarCelula(td){
   if (!campo || !linha) return;
 
   const atual = getL(linha, col);
+  // observação abre em quadro próprio, com espaço e quebra de linha
+  if (ehTextoLongo(col, campo)){ abrirCaixaTexto(linha, col, fonte, campo); return; }
   const antigo = td.innerHTML;
   let el;
   if (campo.tipo === "people"){
@@ -2907,7 +3074,11 @@ function corpoPainel(l){
     } else if (tipo === "url"){
       html += `<input type="text" id="${idc}" value="${esc(v||"")}" placeholder="https://…" onchange="salvar('${esc(nome)}','url',this.value)">`;
     } else if (tipo === "rich_text" || tipo === "title"){
-      html += `<textarea id="${idc}" rows="2" onchange="salvar('${esc(nome)}','${tipo}',this.value)">${esc(v||"")}</textarea>`;
+      /* rows=6 e nowrap desligado: observação é texto de vários parágrafos.
+         O botão abre o mesmo quadro grande da tabela, pra quem preferir. */
+      html += `<textarea id="${idc}" rows="${ehTextoLongo(nome, campo) ? 6 : 2}" onchange="salvar('${esc(nome)}','${tipo}',this.value)">${esc(v||"")}</textarea>`;
+      if (ehTextoLongo(nome, campo))
+        html += `<div class="dica"><a href="#" onclick="event.preventDefault();abrirCampoTextoDoPainel('${esc(nome)}')">abrir em quadro grande</a> · Enter pula de linha</div>`;
     } else if (tipo === "number"){
       html += `<input type="number" id="${idc}" value="${esc(v==null?"":v)}" onchange="salvar('${esc(nome)}','number',this.value)">`;
     } else {
