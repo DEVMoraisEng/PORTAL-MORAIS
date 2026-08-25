@@ -5,6 +5,12 @@
 <meta name="color-scheme" content="light only">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#295778">
+<!-- Tema (claro/escuro) ANTES do CSS: se ficasse no fim da página, quem
+     escolheu escuro veria a tela piscar branca a cada abertura. Sem escolha
+     salva, segue o tema do próprio aparelho. -->
+<script>(function(){try{var t=localStorage.getItem("morais_tema");
+  if(t!=="claro"&&t!=="escuro") t=(window.matchMedia&&window.matchMedia("(prefers-color-scheme:dark)").matches)?"escuro":"claro";
+  document.documentElement.dataset.tema=t;}catch(e){}})();</script>
 <link rel="manifest" href="manifest.json">
 <title>Ligações de Água e Energia · Morais</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12,13 +18,16 @@
 <style>
 /* Tema claro fixo — mesmo motivo do index.html: sem isto o Android/iOS em modo
    escuro inverte inputs e selects nativos e a tela fica com campos pretos. */
-:root{color-scheme:light only}
+:root{color-scheme:light}
 html{background:var(--bg);min-height:100%}
 :root{
   --azul:#295778;--azul-esc:#1e3f58;--teal:#8FDCD2;--verde:#2a9d5c;--verde-btn:#4cd964;--verde-esc:#1a6b40;
   --bg:#EAF1F3;--bg2:#F5F9FA;--bg3:#dceaef;--border:#b8d0da;--border2:#d0e4ec;
   --text:#1a3347;--text3:#5a8099;--text4:#8aacbb;--branco:#fff;
-  --vermelho:#c0392b;--amarelo:#b7791f;--amarelo-bg:#FFF7ED;--amarelo-bd:#FED7AA}
+  --vermelho:#c0392b;--amarelo:#b7791f;--amarelo-bg:#FFF7ED;--amarelo-bd:#FED7AA;
+  /* superfícies: o branco das tabelas, cartões e caixas. Viraram variável para
+     o modo escuro trocar tudo de uma vez, sem caçar #fff pelo arquivo. */
+  --sup:#fff;--sup-stick:#eef5f7;--hover:#e9f6ef;--hover-stick:#dff2e6;--sombra:rgba(20,40,55,.3)}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.45;min-height:100vh}
 .cond{font-family:'Barlow Condensed',Inter,sans-serif}
@@ -66,7 +75,7 @@ main{padding-bottom:50px}
 .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:13px}
 @media(max-width:1000px){.kpis{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:520px){.kpis{grid-template-columns:1fr}}
-.kpi{background:#fff;border:1px solid var(--border2);border-radius:12px;padding:15px 16px 14px}
+.kpi{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:15px 16px 14px}
 .kpi .lab{font-size:10px;letter-spacing:.4px;text-transform:uppercase;color:var(--text3);font-weight:700}
 .kpi .val{font-family:'Barlow Condensed';font-size:30px;font-weight:800;line-height:1;margin-top:8px;color:var(--azul-esc)}
 .kpi .sub{font-size:11px;color:var(--text4);margin-top:6px}
@@ -80,16 +89,16 @@ main{padding-bottom:50px}
 .recorte{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--bg3);border:1px solid var(--border2);
   border-left:4px solid var(--azul);border-radius:10px;padding:9px 13px;margin-bottom:12px;font-size:13px}
 .tab-resumo tbody tr:hover td{background:var(--bg2)}
-.graf{background:#fff;border:1px solid var(--border2);border-radius:12px;padding:16px;margin-bottom:18px}
+.graf{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:16px;margin-bottom:18px}
 .graf .gt{font-family:'Barlow Condensed';font-weight:800;font-size:16px;text-transform:uppercase;color:var(--azul-esc);letter-spacing:.4px}
 .graf .gd{font-size:11.5px;color:var(--text3);margin:4px 0 12px}
 .chart-wrap{width:100%;overflow:hidden}
 .tab-resumo{width:100%;border-collapse:collapse;margin-top:12px;font-size:12.5px}
 .tab-resumo th{background:var(--bg3);color:var(--azul-esc);font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;padding:6px 9px;text-align:left;border:1px solid var(--border2)}
-.tab-resumo td{padding:6px 9px;border:1px solid var(--border2);background:#fff}
+.tab-resumo td{padding:6px 9px;border:1px solid var(--border2);background:var(--sup)}
 .tab-resumo td.n{text-align:right;font-variant-numeric:tabular-nums}
 .toolbar{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-bottom:12px}
-select,input.busca,input[type=date],input[type=text],textarea{border:1px solid var(--border);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;background:#fff;color:var(--text);max-width:100%}
+select,input.busca,input[type=date],input[type=text],textarea{border:1px solid var(--border);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;background:var(--sup);color:var(--text);max-width:100%}
 input.busca{min-width:230px;flex:1}
 .count{font-size:12px;color:var(--text3);font-weight:600;white-space:nowrap}
 /* ---------- planilha: mesma estrutura visual do vendas.html ----------
@@ -98,18 +107,18 @@ input.busca{min-width:230px;flex:1}
    colunas e cortava o texto das últimas (era o "o alerta não veio"). */
 .scroll-top{overflow-x:auto;overflow-y:hidden;height:14px;border:1px solid var(--border2);border-bottom:0;border-radius:10px 10px 0 0;background:var(--bg2)}
 .scroll-top>div{height:1px}
-.tabela-wrap{overflow:auto;max-height:70vh;border:1px solid var(--border2);border-radius:0 0 10px 10px;background:#fff}
+.tabela-wrap{overflow:auto;max-height:70vh;border:1px solid var(--border2);border-radius:0 0 10px 10px;background:var(--sup)}
 table.grade{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;font-size:12.5px}
 table.grade thead th{background:var(--azul);color:#fff;text-align:center;padding:9px 11px;font-size:10px;letter-spacing:.4px;
   text-transform:uppercase;position:sticky;top:0;white-space:nowrap;z-index:2;font-weight:700;border-right:1px solid rgba(255,255,255,.22)}
 table.grade thead th.stick{left:0;z-index:3}
 table.grade tbody td{padding:7px 11px;border-top:1px solid var(--border2);border-right:1px solid var(--border2);
   white-space:nowrap;color:var(--text);max-width:280px;overflow:hidden;text-overflow:ellipsis}
-table.grade tbody td.stick{position:sticky;left:0;background:#fff;font-weight:700;z-index:1;border-right:2px solid var(--border)}
+table.grade tbody td.stick{position:sticky;left:0;background:var(--sup);font-weight:700;z-index:1;border-right:2px solid var(--border)}
 table.grade tbody tr:nth-child(even) td{background:var(--bg2)}
-table.grade tbody tr:nth-child(even) td.stick{background:#eef5f7}
-table.grade tbody tr:hover td{background:#e9f6ef}
-table.grade tbody tr:hover td.stick{background:#dff2e6}
+table.grade tbody tr:nth-child(even) td.stick{background:var(--sup-stick)}
+table.grade tbody tr:hover td{background:var(--hover)}
+table.grade tbody tr:hover td.stick{background:var(--hover-stick)}
 /* célula que dá pra editar: cursor de planilha e contorno verde no hover —
    exatamente o td.edt do vendas.html */
 td.edt{cursor:cell}
@@ -131,7 +140,7 @@ table.grade tbody td.wide{max-width:none;overflow:visible;text-overflow:clip}
 /* visualizador de arquivo — mesma ideia do vendas.html */
 .arqoverlay{position:fixed;inset:0;background:rgba(15,30,40,.72);display:none;align-items:center;justify-content:center;z-index:70;padding:26px}
 .arqoverlay.on{display:flex}
-.arqbox{background:#fff;border-radius:14px;width:min(1000px,100%);height:min(88vh,100%);display:flex;flex-direction:column;overflow:hidden}
+.arqbox{background:var(--sup);border-radius:14px;width:min(1000px,100%);height:min(88vh,100%);display:flex;flex-direction:column;overflow:hidden}
 .arqtopo{display:flex;align-items:center;gap:10px;padding:11px 14px;background:var(--azul-esc);color:#fff}
 .arqtopo .nm{font-weight:700;font-size:14px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .arqtopo a,.arqtopo button{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;
@@ -152,11 +161,11 @@ table.grade td .pill{white-space:nowrap}
    banner vencia a da pilha, deixando TODO alerta amarelo invisível na tabela
    (era o "alguns alertas não estão vindo"). Nome próprio resolve de vez. */
 .pill.alerta{background:#FEF3C7;color:#92400E}.pill.critico{background:#FEE2E2;color:#991B1B}
-.vazio{background:#fff;border:1px dashed var(--border);border-radius:12px;padding:22px;color:var(--text3);text-align:center;font-size:13px}
+.vazio{background:var(--sup);border:1px dashed var(--border);border-radius:12px;padding:22px;color:var(--text3);text-align:center;font-size:13px}
 .load{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--verde);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px}
 @keyframes spin{to{transform:rotate(360deg)}}
 .aviso{display:none;background:var(--amarelo-bg);border:1px solid var(--amarelo-bd);color:#9A3412;border-radius:10px;padding:9px 12px;font-size:12.5px;margin:14px 0}
-.semacesso{background:#fff;border:1px solid var(--border2);border-radius:12px;padding:26px;text-align:center;margin-top:24px}
+.semacesso{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:26px;text-align:center;margin-top:24px}
 /* abas do setor — "pílula" centralizada, igual ao vendas.html */
 /* display:block + text-align:center (em vez de flex + justify-content:center):
    com flex centralizado, quando as abas passam da largura da tela o começo da
@@ -179,18 +188,18 @@ tbody tr.lin-vencida td{background:#FFB3B3}
 tbody tr.lin-vencida td.stick{background:#FF8F8F}
 tbody tr.lin-emdia td{background:#DFF2E6}
 tbody tr.lin-emdia td.stick{background:#C7E9D4}
-tbody tr.lin-sem td{background:#fff}
+tbody tr.lin-sem td{background:var(--sup)}
 tbody tr.lin-vencida:hover td,tbody tr.lin-emdia:hover td,tbody tr.lin-sem:hover td{filter:brightness(.96)}
 .legenda{display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--text3);margin-bottom:10px}
 .legenda .pt{display:inline-block;width:12px;height:12px;border-radius:3px;border:1px solid var(--border);vertical-align:-2px;margin-right:5px}
 .legenda .pt.lin-vencida{background:#FFB3B3;border-color:#FF8F8F}
 .legenda .pt.lin-emdia{background:#DFF2E6;border-color:#86EFAC}
-.legenda .pt.lin-sem{background:#fff}
+.legenda .pt.lin-sem{background:var(--sup)}
 .aviso-inline{background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:9px 12px;
   font-size:12.5px;color:var(--text3);margin-bottom:10px}
 .aviso-inline.ok{background:#F0FDF4;border-color:#BBF7D0;color:#166534}
 /* alerta de transferência (atividades) */
-.atv-bloco{background:#fff;border:1px solid var(--border2);border-radius:12px;padding:14px;margin-bottom:14px}
+.atv-bloco{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:14px;margin-bottom:14px}
 .atv-titulo{font-family:'Barlow Condensed';font-weight:800;font-size:15px;text-transform:uppercase;
   color:var(--azul-esc);letter-spacing:.4px;margin-bottom:10px}
 .atv{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:9px 11px;border:1px solid var(--border2);
@@ -215,11 +224,11 @@ tbody tr.lin-vencida:hover td,tbody tr.lin-emdia:hover td,tbody tr.lin-sem:hover
 .campo .dica{font-size:11px;color:var(--text4);margin-top:3px}
 .bt{border:0;border-radius:8px;padding:9px 14px;font:inherit;font-weight:700;font-size:13px;cursor:pointer;text-decoration:none;display:inline-block}
 .bt.az{background:var(--azul);color:#fff}.bt.vd{background:var(--verde);color:#fff}
-.bt.ghost{background:#fff;border:1px solid var(--border);color:var(--azul)}
+.bt.ghost{background:var(--sup);border:1px solid var(--border);color:var(--azul)}
 /* modal de escolha de colunas do relatório */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(20,40,55,.45);z-index:50;align-items:center;justify-content:center;padding:18px}
 .modal-overlay.on{display:flex}
-.modal-cx{background:#fff;border-radius:14px;width:min(560px,100%);max-height:86vh;display:flex;flex-direction:column;padding:18px;box-shadow:0 18px 40px rgba(20,40,55,.3)}
+.modal-cx{background:var(--sup);border-radius:14px;width:min(560px,100%);max-height:86vh;display:flex;flex-direction:column;padding:18px;box-shadow:0 18px 40px var(--sombra)}
 .modal-tit{font-family:'Barlow Condensed';font-weight:800;font-size:20px;text-transform:uppercase;color:var(--azul-esc);letter-spacing:.4px}
 .modal-sub{font-size:12.5px;color:var(--text3);margin:2px 0 12px}
 .modal-acoes-topo{display:flex;gap:8px;margin-bottom:10px}
@@ -232,11 +241,16 @@ tbody tr.lin-vencida:hover td,tbody tr.lin-emdia:hover td,tbody tr.lin-sem:hover
 .txt-sub{font-size:12.5px;color:var(--cinza-txt,#5b7488);margin:2px 0 10px}
 .txt-area{width:100%;min-height:210px;max-height:52vh;resize:vertical;padding:11px 12px;
   border:1px solid var(--border);border-radius:10px;font:inherit;font-size:14px;line-height:1.5;
-  color:var(--azul-esc);background:#fff;white-space:pre-wrap}
+  color:var(--text);background:var(--sup);white-space:pre-wrap}
 .txt-area:focus{outline:2px solid var(--azul);outline-offset:-1px}
 .txt-dica{font-size:11.5px;color:var(--cinza-txt,#5b7488);margin-top:7px}
 @media(max-width:680px){ .txt-area{font-size:16px;min-height:170px} }
 .sem-lig{color:var(--text4);font-style:italic;font-size:11.5px}
+/* cabeçalho que ordena ao clique */
+th.ord{cursor:pointer;user-select:none;-webkit-user-select:none}
+th.ord:hover{background:rgba(255,255,255,.12)}
+th .seta{margin-left:5px;font-size:10px;opacity:.55}
+th.ord.on .seta{opacity:1}
 /* data que no Notion está como 01/01/2000 (o marcador de "sem data"):
    aparece na tela, apagadinha, para ninguém achar que o site perdeu o
    valor — mas continua fora de toda conta de prazo. */
@@ -248,7 +262,7 @@ tbody tr.lin-vencida:hover td,tbody tr.lin-emdia:hover td,tbody tr.lin-sem:hover
 .obralink{color:var(--azul);font-weight:800;cursor:pointer}
 .obralink:hover{text-decoration:underline}
 /* ligações da casa, dentro do painel da venda */
-.lig-mini{border:1px solid var(--border2);border-left:4px solid var(--azul);border-radius:9px;padding:9px 11px;margin-bottom:7px;cursor:pointer;background:#fff}
+.lig-mini{border:1px solid var(--border2);border-left:4px solid var(--azul);border-radius:9px;padding:9px 11px;margin-bottom:7px;cursor:pointer;background:var(--sup)}
 .lig-mini:hover{border-left-color:var(--verde);background:var(--bg2)}
 .lm-conc{font-family:'Barlow Condensed';font-weight:800;font-size:14px;text-transform:uppercase;color:var(--azul-esc);letter-spacing:.4px}
 .lm-dados{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--text3);margin-top:3px}
@@ -344,6 +358,69 @@ tbody tr.lin-vencida:hover td,tbody tr.lin-emdia:hover td,tbody tr.lin-sem:hover
   .tab{padding:9px 11px;font-size:12px}
   table.grade tbody td{max-width:160px}
 }
+
+/* ===================== MODO ESCURO =====================
+   Liga pelo atributo data-tema no <html> (ver trocarTema()). Só troca cores:
+   nenhuma medida, nenhuma regra de layout muda aqui — assim o que foi ajustado
+   para o celular continua valendo igual nos dois temas.
+   As superfícies já são variáveis (--sup e companhia); o que sobra neste bloco
+   são as cores que estavam escritas à mão em regras específicas (zebra da
+   tabela, linhas coloridas do vencimento, etiquetas). */
+html[data-tema="escuro"]{
+  color-scheme:dark;
+  --azul:#2f6e93;--azul-esc:#122430;--teal:#79c8bf;--verde:#2f9e63;--verde-btn:#3cbf5d;--verde-esc:#17603a;
+  --bg:#0e1920;--bg2:#15222c;--bg3:#1a2c38;--border:#2d4757;--border2:#243a4a;
+  --text:#e7eff5;--text3:#9db4c4;--text4:#7794a6;--branco:#15222c;
+  --vermelho:#e0604f;--amarelo:#e3ab3f;--amarelo-bg:#2a2113;--amarelo-bd:#57431f;
+  --sup:#15222c;--sup-stick:#1a2934;--hover:#1d3a2c;--hover-stick:#234634;--sombra:rgba(0,0,0,.6);
+}
+html[data-tema="escuro"] body{background:var(--bg)}
+html[data-tema="escuro"] table.grade tbody tr:nth-child(even) td{background:#121e27}
+html[data-tema="escuro"] td.edt:hover{background:#1c3d2c !important}
+html[data-tema="escuro"] td.recusado{background:#4a2020 !important}
+html[data-tema="escuro"] tbody tr.lin-vencida td{background:#4a2222}
+html[data-tema="escuro"] tbody tr.lin-vencida td.stick{background:#5c2a2a}
+html[data-tema="escuro"] tbody tr.lin-emdia td{background:#1b3a2a}
+html[data-tema="escuro"] tbody tr.lin-emdia td.stick{background:#234a34}
+html[data-tema="escuro"] .legenda .pt.lin-vencida{background:#5c2a2a;border-color:#7a3a3a}
+html[data-tema="escuro"] .legenda .pt.lin-emdia{background:#234a34;border-color:#2f6b48}
+html[data-tema="escuro"] .tag.sim,html[data-tema="escuro"] .pill.sim{background:#16341f;color:#8ce0a5}
+html[data-tema="escuro"] .tag.nao,html[data-tema="escuro"] .pill.nao{background:#3a1e1e;color:#f3a29a}
+html[data-tema="escuro"] .pill.alerta{background:#3a2d12;color:#f0c95f}
+html[data-tema="escuro"] .pill.critico{background:#3a1e1e;color:#f3a29a}
+html[data-tema="escuro"] .aviso{color:#f0c95f}
+html[data-tema="escuro"] .aviso-inline.ok{background:#16341f;border-color:#2a6b43;color:#8ce0a5}
+html[data-tema="escuro"] .atv.atrasada{background:#3a1e1e}
+html[data-tema="escuro"] .painel{box-shadow:-6px 0 26px rgba(0,0,0,.55)}
+html[data-tema="escuro"] .kpi.hero .val{color:#fff}
+/* Títulos e números que no claro são azul-escuro: no escuro esse azul vira
+   quase a cor do fundo e o texto some. Todos passam para o tom claro do tema.
+   (Descoberto na conferência da tela, não no código: "SETORES", "PANORAMA" e
+   os números dos KPIs tinham sumido.) */
+html[data-tema="escuro"] .sec .cond,
+html[data-tema="escuro"] .kpi .val,
+html[data-tema="escuro"] .graf .gt,
+html[data-tema="escuro"] .modal-tit,
+html[data-tema="escuro"] .atv-titulo,
+html[data-tema="escuro"] .lm-conc,
+html[data-tema="escuro"] .tab-resumo th,
+html[data-tema="escuro"] .pill.neutro,
+html[data-tema="escuro"] .tab:hover{color:var(--teal)}
+html[data-tema="escuro"] .obralink,
+html[data-tema="escuro"] .bt.ghost,
+html[data-tema="escuro"] .anexo{color:#8fd3ee}
+html[data-tema="escuro"] .anexo{background:rgba(143,211,238,.10);border-color:var(--border)}
+html[data-tema="escuro"] .anexo:hover,
+html[data-tema="escuro"] .anexo.novo:hover{color:#08131a}
+html[data-tema="escuro"] .d-marc{color:var(--text4)}
+html[data-tema="escuro"] .btn-voltar:hover{background:#1c3b4d}
+/* o logo é uma imagem clara: fica na plaquinha branca nos dois temas */
+html[data-tema="escuro"] .logo{background:#fff}
+/* botão de tema no cabeçalho */
+.btema{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;
+  padding:6px 10px;font:inherit;font-size:15px;line-height:1;cursor:pointer}
+.btema:hover{background:rgba(255,255,255,.22)}
+@media(max-width:680px){ .btema{padding:5px 8px;font-size:14px} }
 </style>
 </head>
 <body>
@@ -356,6 +433,7 @@ tbody tr.lin-vencida:hover td,tbody tr.lin-emdia:hover td,tbody tr.lin-sem:hover
       <button class="btn-sync" id="btn-sync" onclick="sincronizar()">↻ Sincronizar <span class="filabadge" id="fila-badge">0</span></button>
       <div class="user">
         <div style="text-align:right"><div class="nome" id="u-nome">—</div><span class="badge" id="u-tipo">—</span></div>
+        <button class="btema" id="btema" onclick="trocarTema()" title="Alternar claro/escuro" aria-label="Alternar claro/escuro">🌙</button>
         <button class="sair" onclick="sair()">Sair</button>
       </div>
     </div>
@@ -898,6 +976,17 @@ function sel(linha, nome){ const v=getL(linha,nome); return v==null?null:String(
      null    -> "não sei opinar": vale o texto do Notion
    Se algum texto ou alguma condição estiver diferente do que a fórmula do
    Notion faz, o ajuste é só aqui dentro — nada mais no arquivo precisa mudar. */
+/* Pendência de data encerrada = VALIDAÇÃO + DATA, as duas coisas.
+   Validação é o SIM do seletor da etapa (FEZ A SOLICITAÇÃO?, SOLICITAÇÃO
+   SANESC APROVADA?) ou o STATUS em LIGADO. A data sozinha NÃO encerra: foi
+   pedido assim em 25/08 ("não é para a data validar automaticamente; tem que
+   ser data mais validação"). Faz sentido — data digitada por engano numa obra
+   que ninguém ligou não pode tirá-la da fila.
+   Com a validação feita, a data preenchida vale, inclusive o 01/01/2000 (quem
+   escreve o marcador está dizendo "não sei o dia, mas está resolvido"). */
+function etapaFechada(l, col, validou){
+  return !!validou && dataPreenchida(l, col);
+}
 const TXT_PREENCHER_DATA = "⚠️ PREENCHER DATA";
 const TXT_PREENCHER_UC   = "⚠️ PREENCHER UC";
 
@@ -905,14 +994,23 @@ const REGRAS_ALERTA = {};
 /* "Alerta Informações": olha FEZ A SOLICITAÇÃO? + DATA DE SOLICITAÇÃO.
    Solicitou e não anotou quando -> cobra a data. Anotou -> resolvido. */
 REGRAS_ALERTA[normN(C.ALERTA_INFO)] = l => {
-  if (sel(l, C.FEZ) !== "SIM") return null;          // ainda não solicitou: quem manda é o Notion
-  return dataPreenchida(l, C.DT_SOL) ? "" : TXT_PREENCHER_DATA;
+  /* ORDEM IMPORTA: a data vem primeiro. Quem anota a DATA DE SOLICITAÇÃO está
+     dizendo que solicitou — mesmo que o "FEZ A SOLICITAÇÃO?" ainda esteja em
+     NÃO. Antes eu exigia o SIM antes de olhar a data, então preencher só a
+     data deixava a linha na fila com o alerta velho do Notion. Era o
+     "preenchi a data e o alerta continuou". */
+  const fez = sel(l, C.FEZ) === "SIM";
+  if (etapaFechada(l, C.DT_SOL, fez)) return "";
+  if (fez) return TXT_PREENCHER_DATA;
+  return null;                                        // nem solicitou: quem manda é o Notion
 };
 /* "Elerta Informações (1)" (o "E" é typo da base): STATUS + Data de Ligação.
    Ligou e não anotou quando -> cobra a data. */
 REGRAS_ALERTA[normN(C.ALERTA_INFO1)] = l => {
-  if (normN(sel(l, C.STATUS)) !== "LIGADO") return null;
-  return dataPreenchida(l, C.DT_LIG) ? "" : TXT_PREENCHER_DATA;
+  const ligou = normN(sel(l, C.STATUS)) === "LIGADO";
+  if (etapaFechada(l, C.DT_LIG, ligou)) return "";      // ligou E datou: acabou a pendência
+  if (ligou) return TXT_PREENCHER_DATA;
+  return null;
 };
 /* ALERTA UC: a fila só se fecha com UC PREENCHIDA = SIM, a UC escrita e a
    data de preenchimento — a mesma regra do ucCompleta(), pra tabela e filtro
@@ -927,12 +1025,26 @@ REGRAS_ALERTA[normN(C.ALERTA_UC)] = l => {
 /* Verificação/alerta da solicitação SANESC: o texto de ATRASO é do Notion (é
    ele que conta o prazo). O que a tela resolve na hora é o fim da pendência:
    aprovou e datou -> some da fila, sem esperar publicação. */
-const _aprovouSanesc = l => sel(l, C.APROVADA) === "SIM" && dataPreenchida(l, C.DT_APROV);
-REGRAS_ALERTA[normN(C.VERIF_SOL)]  = l => _aprovouSanesc(l) ? "" : null;
-REGRAS_ALERTA[normN(C.ALERTA_SOL)] = l => _aprovouSanesc(l) ? "" : null;
+/* A DATA DA APROVAÇÃO SANESC é a prova de que a solicitação foi aprovada:
+   preenchida, a pendência acabou, esteja o "SOLICITAÇÃO SANESC APROVADA?" em
+   SIM ou não. Marcado SIM e sem data, a tela cobra a data em vez de repetir o
+   texto de atraso do Notion. Sem nenhum dos dois, quem fala é o Notion — é
+   ele que conta os dias de atraso. */
+const _regraSanesc = l => {
+  const aprovou = sel(l, C.APROVADA) === "SIM";
+  if (etapaFechada(l, C.DT_APROV, aprovou)) return "";
+  if (aprovou) return TXT_PREENCHER_DATA;
+  return null;
+};
+REGRAS_ALERTA[normN(C.VERIF_SOL)]  = _regraSanesc;
+REGRAS_ALERTA[normN(C.ALERTA_SOL)] = _regraSanesc;
 /* Idem para a conferência da ligação: ligou e datou -> resolvido. */
-REGRAS_ALERTA[normN(C.ALERTA_LIG)] = l =>
-  (normN(sel(l, C.STATUS)) === "LIGADO" && dataPreenchida(l, C.DT_LIG)) ? "" : null;
+REGRAS_ALERTA[normN(C.ALERTA_LIG)] = l => {
+  const ligou = normN(sel(l, C.STATUS)) === "LIGADO";
+  if (etapaFechada(l, C.DT_LIG, ligou)) return "";
+  if (ligou) return TXT_PREENCHER_DATA;
+  return null;
+};
 
 function temRegraAlerta(coluna){ return !!REGRAS_ALERTA[normN(coluna)]; }
 
@@ -1140,7 +1252,42 @@ function conferirBackend(){
   }).catch(()=>{});
 }
 
+/* ---------- claro / escuro ----------
+   A escolha fica no navegador de quem clicou (localStorage), então cada pessoa
+   decide a sua e ela vale nas próximas visitas — sem mexer no Notion nem em
+   nada compartilhado. Quem nunca escolheu segue o tema do aparelho.
+   O <html> carrega data-tema; todo o resto é CSS (ver o bloco MODO ESCURO). */
+const TEMA_KEY = "morais_tema";
+function temaAtual(){ return document.documentElement.dataset.tema === "escuro" ? "escuro" : "claro"; }
+function aplicarTema(t){
+  const escuro = (t === "escuro");
+  document.documentElement.dataset.tema = escuro ? "escuro" : "claro";
+  const b = document.getElementById("btema");
+  if (b){
+    b.textContent = escuro ? "☀" : "🌙";
+    b.title = escuro ? "Voltar para o tema claro" : "Mudar para o tema escuro";
+  }
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", escuro ? "#122430" : "#295778");
+  // os gráficos são desenhados em canvas: as cores não vêm do CSS sozinhas
+  try { renderGraficos(); } catch(e){}
+}
+function trocarTema(){
+  const novo = temaAtual() === "escuro" ? "claro" : "escuro";
+  try { localStorage.setItem(TEMA_KEY, novo); } catch(e){}
+  aplicarTema(novo);
+}
+/* Só segue o aparelho quem nunca escolheu — quem escolheu mandou, e a escolha
+   não pode ser desfeita porque anoiteceu no celular. */
+if (window.matchMedia){
+  const mq = window.matchMedia("(prefers-color-scheme:dark)");
+  const ouvir = e => { let salvo = null; try { salvo = localStorage.getItem(TEMA_KEY); } catch(_){}
+                       if (salvo !== "claro" && salvo !== "escuro") aplicarTema(e.matches ? "escuro" : "claro"); };
+  if (mq.addEventListener) mq.addEventListener("change", ouvir);
+}
+
 function boot(){
+  aplicarTema(temaAtual());
   pintarUsuario(S);
   if (!podeAcessar(S, "LIGAÇÕES")){
     document.getElementById("sem-acesso").style.display = "block";
@@ -1820,8 +1967,16 @@ function barras(idCanvas, itens, sufixo){
   const yMax = passo*4;
 
   ctx.clearRect(0,0,pw,H);
-  ctx.strokeStyle = "#d0e4ec"; ctx.lineWidth = 1;
-  ctx.fillStyle = "#5a8099"; ctx.font = "500 10px Inter,sans-serif"; ctx.textAlign = "right";
+  /* cores do tema, lidas na hora de desenhar: canvas não enxerga CSS, então
+     sem isto o gráfico continuaria claro no modo escuro */
+  const corVar = (nome, padrao) => {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(nome).trim();
+    return v || padrao;
+  };
+  const C_LINHA = corVar("--border2", "#d0e4ec"), C_EIXO = corVar("--text3", "#5a8099");
+  const C_TEXTO = corVar("--text", "#1a3347"), C_FRACO = corVar("--text4", "#8aacbb");
+  ctx.strokeStyle = C_LINHA; ctx.lineWidth = 1;
+  ctx.fillStyle = C_EIXO; ctx.font = "500 10px Inter,sans-serif"; ctx.textAlign = "right";
   for (let i=0;i<=4;i++){
     const v = passo*i, y = P.t + cH*(1-v/yMax);
     ctx.beginPath(); ctx.moveTo(P.l,y); ctx.lineTo(P.l+cW,y); ctx.stroke();
@@ -1831,15 +1986,15 @@ function barras(idCanvas, itens, sufixo){
   itens.forEach((it,i) => {
     const x = P.l + i*gW + (gW-bW)/2;
     const bH = (it.valor/yMax)*cH, y = P.t + cH - bH;
-    ctx.fillStyle = it.cor || "#295778";
+    ctx.fillStyle = it.cor || corVar("--azul", "#295778");
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(x, y, bW, Math.max(bH,1), [4,4,0,0]); else ctx.rect(x, y, bW, Math.max(bH,1));
     ctx.fill();
-    ctx.fillStyle = "#1a3347"; ctx.font = "700 11px Inter,sans-serif"; ctx.textAlign = "center";
+    ctx.fillStyle = C_TEXTO; ctx.font = "700 11px Inter,sans-serif"; ctx.textAlign = "center";
     ctx.fillText(n1(it.valor) + (sufixo||""), x+bW/2, y-6);
-    ctx.fillStyle = "#5a8099"; ctx.font = "600 10.5px Inter,sans-serif";
+    ctx.fillStyle = C_EIXO; ctx.font = "600 10.5px Inter,sans-serif";
     ctx.fillText(it.rotulo, P.l + i*gW + gW/2, H-P.b+15);
-    ctx.fillStyle = "#8aacbb"; ctx.font = "500 10px Inter,sans-serif";
+    ctx.fillStyle = C_FRACO; ctx.font = "500 10px Inter,sans-serif";
     ctx.fillText(it.casos + (it.casos===1?" caso":" casos"), P.l + i*gW + gW/2, H-P.b+28);
   });
 
@@ -2128,18 +2283,113 @@ function celula(l, nome, fonte){
       uma célula para a outra: o salvamento da primeira repintava tudo);
    2) devolve a rolagem para onde estava — sem isso, cada gravação jogava a
       pessoa de volta ao canto superior esquerdo de uma tabela de 17 colunas. */
+function editorAberto(wrap){
+  const foco = document.activeElement;
+  return !!(foco && wrap.contains(foco) && /^(INPUT|SELECT|TEXTAREA)$/.test(foco.tagName));
+}
+/* Repinta a tabela, MENOS quando há um campo aberto dentro dela — repintar ali
+   apagaria o que a pessoa está digitando.
+
+   O QUE FALTAVA (era o "preenchi a data e a linha só sumiu depois do F5"):
+   quem preenche uma data e clica direto na célula seguinte abre um campo novo
+   ANTES de a gravação anterior terminar. A repintura era descartada por causa
+   desse campo aberto — e ninguém pedia outra. A linha resolvida continuava na
+   tela até a próxima atualização ou até recarregar a página.
+   Agora a repintura fica MARCADA como pendente e acontece sozinha assim que o
+   campo aberto sai de cena. */
 function pintarTabela(idWrap, html){
   const wrap = document.getElementById(idWrap);
   if (!wrap) return false;
-  const foco = document.activeElement;
-  if (foco && wrap.contains(foco) && /^(INPUT|SELECT|TEXTAREA)$/.test(foco.tagName)) return false;
+  if (editorAberto(wrap)){
+    wrap.dataset.pendente = "1";
+    const foco = document.activeElement;
+    if (!foco._repintaDepois){
+      foco._repintaDepois = true;
+      foco.addEventListener("blur", () => setTimeout(() => repintarSePendente(idWrap), 80), { once: true });
+    }
+    return false;
+  }
+  wrap.dataset.pendente = "";
   const x = wrap.scrollLeft, y = wrap.scrollTop;
   wrap.innerHTML = html;
   wrap.scrollLeft = x; wrap.scrollTop = y;
   return true;
 }
+function repintarSePendente(idWrap){
+  const wrap = document.getElementById(idWrap);
+  if (!wrap || wrap.dataset.pendente !== "1") return;
+  if (editorAberto(wrap)) return;            // ainda tem campo aberto: espera o próximo blur
+  wrap.dataset.pendente = "";
+  if (idWrap === "set-wrap") renderAba(); else renderPlanilha();
+}
 
-function tabelaHtml(linhas, colunas, extras, fonte, corDe){
+/* ---------- ordenar clicando no cabeçalho ----------
+   Um clique ordena, o segundo desfaz e volta à ordem natural (a que vem do
+   arquivo). O estado é guardado por tabela: a planilha
+   geral ("hub") e a aba do setor ("set") ordenam cada uma do seu jeito, e a
+   escolha sobrevive às repinturas — a tela pinta duas vezes (cache e rede),
+   então perder isso a cada pintura daria a impressão de que o clique falhou.
+   Na aba, a ordem guarda também QUAL aba era: cada aba tem colunas
+   diferentes, e o índice da coluna não valeria para a seguinte. */
+const ORD_DIAS_LIG = "\u0001DIAS_LIG", ORD_DIAS_APR = "\u0001DIAS_APR";
+let ORDEM = { hub: null, set: null };
+const COLS_ORD = { hub: [], set: [] };
+
+/* Valor pelo qual a coluna é comparada. Não é o texto da tela: data ordena
+   como data, número como número — senão "10/08" viria antes de "9/08" e
+   "12 dias" antes de "9 dias". */
+function valorOrdem(l, col, fonte){
+  if (col === ORD_DIAS_LIG) return diasLigacao(l);
+  if (col === ORD_DIAS_APR) return diasAprovacao(l);
+  if (ehCalculada(col)) return CALC_DEF[col].valor(l);
+  const campo = campoDe(col, fonte);
+  const tipo = campo ? campo.tipo : "rich_text";
+  if (tipo === "date"){
+    const d = dataReal(l, col);
+    if (d) return d;
+    return dataMarcador(l, col) ? DATA_LIXO : null;   // 01/01/2000 fica junto, no começo
+  }
+  if (tipo === "number"){
+    const v = getL(l, col);
+    return (v === "" || v == null) ? null : Number(v);
+  }
+  const t = celulaTexto(l, col, fonte);
+  return (t === "—" || t === "") ? null : normN(t);
+}
+/* Vazio SEMPRE no fim, nos dois sentidos: inverter a ordem para achar o
+   primeiro preenchido e receber uma tela de "—" não ajuda ninguém. */
+function compararPor(col, fonte, dir){
+  return (a, b) => {
+    const x = valorOrdem(a, col, fonte), y = valorOrdem(b, col, fonte);
+    const vx = (x === null || x === undefined || x === ""), vy = (y === null || y === undefined || y === "");
+    if (vx && vy) return 0;
+    if (vx) return 1;
+    if (vy) return -1;
+    let c;
+    if (typeof x === "number" && typeof y === "number") c = x - y;
+    else c = String(x).localeCompare(String(y), "pt-BR", { numeric: true });
+    return dir === "desc" ? -c : c;
+  };
+}
+function ordemDe(ctx){
+  const o = ORDEM[ctx];
+  if (!o) return null;
+  if (ctx === "set" && o.aba !== ABA_ATUAL) return null;   // outra aba, outras colunas
+  return o;
+}
+/* Clique no cabeçalho: ordena / desordena. Dois estados só, a pedido — o
+   terceiro clique (decrescente) confundia mais do que ajudava. */
+function ordenarPor(ctx, i){
+  const col = COLS_ORD[ctx][i];
+  if (col === undefined) return;
+  const o = ordemDe(ctx);
+  let novo = (o && o.col === col) ? null : { col: col, dir: "asc" };
+  if (novo && ctx === "set") novo.aba = ABA_ATUAL;
+  ORDEM[ctx] = novo;
+  if (ctx === "hub") renderPlanilha(); else renderAba();
+}
+
+function tabelaHtml(linhas, colunas, extras, fonte, corDe, ctx){
   if (!linhas.length) return '<div class="vazio">Nenhuma linha com esses filtros.</div>';
   const cols = colunas.slice();
   // a 1ª coluna fica congelada à esquerda (class "stick"), como na planilha de
@@ -2148,8 +2398,18 @@ function tabelaHtml(linhas, colunas, extras, fonte, corDe){
      SOLICITAÇÃO FOI APROVADA") é a informação em si. Ela ganha uma classe que
      desliga o limite de largura — a tabela rola de lado, como já rolava. */
   const ehAlerta = c => /ALERTA|ELERTA/.test(normN(c));
-  const th = cols.map((c,i)=>`<th class="${[i===0?"stick":"", ehAlerta(c)?"wide":""].filter(Boolean).join(" ")}">${esc(tituloColuna(c))}</th>`).join("") +
-             (extras ? '<th>Dias p/ ligar</th><th>Dias p/ aprovar</th>' : "");
+  ctx = ctx || "hub";
+  COLS_ORD[ctx] = cols.concat(extras ? [ORD_DIAS_LIG, ORD_DIAS_APR] : []);
+  const ord = ordemDe(ctx);
+  if (ord){
+    // cópia: a lista que chega aqui é usada em outros lugares (contagem, PDF)
+    linhas = linhas.slice().sort(compararPor(ord.col, fonte, ord.dir));
+  }
+  const seta = c => ord && ord.col === c ? `<span class="seta">${ord.dir==="asc"?"▲":"▼"}</span>` : '<span class="seta">↕</span>';
+  const clsOrd = c => "ord" + (ord && ord.col === c ? " on" : "");
+  const th = cols.map((c,i)=>`<th class="${[i===0?"stick":"", ehAlerta(c)?"wide":"", clsOrd(c)].filter(Boolean).join(" ")}" data-i="${i}" title="Clique para ordenar">${esc(tituloColuna(c))}${seta(c)}</th>`).join("") +
+             (extras ? `<th class="${clsOrd(ORD_DIAS_LIG)}" data-i="${cols.length}" title="Clique para ordenar">Dias p/ ligar${seta(ORD_DIAS_LIG)}</th>`
+                     + `<th class="${clsOrd(ORD_DIAS_APR)}" data-i="${cols.length+1}" title="Clique para ordenar">Dias p/ aprovar${seta(ORD_DIAS_APR)}</th>` : "");
   const tr = linhas.map(l => {
     const tds = cols.map((c,i) => {
       const ed = podeEditarNaTabela(c, fonte);
@@ -2229,7 +2489,10 @@ function ligarCliquesTabela(idBox){
   box._ligado = true;
   // um handler por tabela (não um por célula): com centenas de linhas é a
   // diferença entre a aba abrir na hora e travar
+  const ctxTabela = idBox.indexOf("set") === 0 ? "set" : "hub";
   box.addEventListener("click", ev => {
+    const cab = ev.target.closest("th[data-i]");
+    if (cab){ ordenarPor(ctxTabela, Number(cab.dataset.i)); return; }
     const anexo = ev.target.closest(".anexo");
     if (anexo){
       ev.stopPropagation();
@@ -2443,7 +2706,7 @@ function renderPlanilha(){
 
   document.getElementById("hub-count").textContent =
     linhas.length + " de " + (RECORTE ? doRecorte.length : LIGF().length) + " linhas";
-  if (!pintarTabela("hub-wrap", tabelaHtml(linhas, colunasVisiveis(), true, "ligacoes", null))) return;
+  if (!pintarTabela("hub-wrap", tabelaHtml(linhas, colunasVisiveis(), true, "ligacoes", null, "hub"))) return;
   ligarCliquesTabela("hub-wrap");
   sincronizarScroll("hub-stop", "hub-wrap");
 }
@@ -2769,7 +3032,7 @@ function renderAba(){
       ? `<div class="aviso-inline">Não consegui buscar os dados protegidos (${esc(erroTexto(SENS_ERRO))}) — as colunas de CPF, nascimento, cliente e WhatsApp aparecem como •••.</div>`
       : `<div class="aviso-inline"><span class="load"></span> buscando CPF, nascimento e contato… (não ficam no arquivo público do site)</div>`;
   }
-  html += tabelaHtml(linhas, cols, false, fonte, def.vencimento ? corVenc : null);
+  html += tabelaHtml(linhas, cols, false, fonte, def.vencimento ? corVenc : null, "set");
   if (!pintarTabela("set-wrap", html)){ renderTabs(); return; }
   ligarCliquesTabela("set-wrap");
   sincronizarScroll("set-stop", "set-wrap");
@@ -3087,8 +3350,12 @@ function baixarRelatorio(){
   const fonte = fonteDaAba(ABA_ATUAL);
   const todas = colunasDaAba(ABA_ATUAL);
   const cols = (COLS_PDF[ABA_ATUAL] || todas).filter(c => todas.indexOf(c) >= 0);
-  const linhas = linhasVisiveisAba();
+  let linhas = linhasVisiveisAba();
   if (!linhas.length){ toast("Nada para imprimir com esses filtros."); return; }
+  /* o relatório sai na MESMA ordem da tela: quem ordenou por vencimento antes
+     de imprimir espera achar o papel na mesma sequência */
+  const ordPdf = ordemDe("set");
+  if (ordPdf) linhas = linhas.slice().sort(compararPor(ordPdf.col, fonte, ordPdf.dir));
 
   // os filtros aplicados entram no cabeçalho: um relatório impresso sem dizer
   // de que recorte ele veio é impossível de conferir depois
@@ -3101,6 +3368,8 @@ function baixarRelatorio(){
   const termo = document.getElementById("set-busca").value;
   if (termo) aplicados.push('busca: "' + termo + '"');
   if (def.filtrosProprios) resumoFiltrosVendidas().forEach(x => aplicados.push(x));
+  if (ordPdf) aplicados.push("ordenado por " + tituloColuna(ordPdf.col) +
+                             (ordPdf.dir === "asc" ? " (crescente)" : " (decrescente)"));
 
   const sub = [
     SETOR_ATUAL.nome + " · " + def.titulo,

@@ -5,6 +5,10 @@
 <meta name="color-scheme" content="light only">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#295778">
+<!-- tema antes da pintura: sem isto a tela pisca branca pra quem usa escuro -->
+<script>(function(){try{var t=localStorage.getItem("morais_tema");
+  if(t!=="claro"&&t!=="escuro") t=(window.matchMedia&&window.matchMedia("(prefers-color-scheme:dark)").matches)?"escuro":"claro";
+  document.documentElement.dataset.tema=t;}catch(e){}})();</script>
 <link rel="manifest" href="manifest.json">
 <title>Portal Central · Morais Engenharia</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,7 +17,7 @@
 /* Tema claro fixo. Sem isto, o Android/iOS em modo escuro inverte controles
    nativos (inputs, selects, datas, scrollbar) e o site fica com campos pretos
    sobre o layout claro. "light only" recusa a inversão em vez de só sugerir. */
-:root{color-scheme:light only}
+:root{color-scheme:light}
 /* O fundo do body só cobre a altura do conteúdo. Sem repetir a cor aqui,
    o resto da tela cai no branco do html — foi o que deixou a faixa branca
    embaixo em páginas curtas. min-height garante a tela toda. */
@@ -23,7 +27,8 @@ body{min-height:100vh}
 :root{
   --azul:#295778;--azul-esc:#1e3f58;--teal:#8FDCD2;--verde:#2a9d5c;--verde-btn:#4cd964;--verde-esc:#1a6b40;
   --bg:#EAF1F3;--bg2:#F5F9FA;--bg3:#dceaef;--border:#b8d0da;--border2:#d0e4ec;
-  --text:#1a3347;--text3:#5a8099;--text4:#8aacbb;--branco:#fff}
+  --text:#1a3347;--text3:#5a8099;--text4:#8aacbb;--branco:#fff;
+  --sup:#fff}   /* superfície dos cartões — o modo escuro troca só isto */
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.45}
 .cond{font-family:'Barlow Condensed',Inter,sans-serif}
@@ -68,12 +73,12 @@ body{display:flex;flex-direction:column;min-height:100vh}
 .nav-grupo:first-child{margin-top:0;padding-top:0;border-top:0}
 .dash-main{flex:1;min-width:0;padding:24px 28px 40px;overflow-y:auto}
 .dash-nav .vazio{background:transparent;border:1px dashed rgba(255,255,255,.28);color:rgba(255,255,255,.75);padding:14px;font-size:12px}
-.vazio{background:#fff;border:1px dashed var(--border);border-radius:12px;padding:20px;color:var(--text3);text-align:center;font-size:13px}
+.vazio{background:var(--sup);border:1px dashed var(--border);border-radius:12px;padding:20px;color:var(--text3);text-align:center;font-size:13px}
 
 /* KPIs — cartões emoldurados */
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:13px}
 @media(max-width:700px){.kpis{grid-template-columns:repeat(2,1fr)}}
-.kpi{background:#fff;border:1px solid var(--border2);border-radius:12px;padding:15px 16px 14px}
+.kpi{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:15px 16px 14px}
 .kpi .lab{font-size:10px;letter-spacing:.4px;text-transform:uppercase;color:var(--text3);font-weight:700}
 .kpi .val{font-family:'Barlow Condensed';font-size:30px;font-weight:800;line-height:1;margin-top:8px;color:var(--azul-esc)}
 .kpi .sub{font-size:11px;color:var(--text4);margin-top:6px}
@@ -117,6 +122,25 @@ body{display:flex;flex-direction:column;min-height:100vh}
   .sec .cond{font-size:15px}
   .bloco{margin-bottom:16px}
 }
+
+/* ===================== MODO ESCURO =====================
+   Mesma paleta do ligacoes.html e a MESMA chave no navegador (morais_tema):
+   quem escolhe escuro numa página encontra a outra já escura. */
+html[data-tema="escuro"]{
+  color-scheme:dark;
+  --azul:#2f6e93;--azul-esc:#122430;--teal:#79c8bf;--verde:#2f9e63;--verde-btn:#3cbf5d;--verde-esc:#17603a;
+  --bg:#0e1920;--bg2:#15222c;--bg3:#1a2c38;--border:#2d4757;--border2:#243a4a;
+  --text:#e7eff5;--text3:#9db4c4;--text4:#7794a6;--branco:#15222c;--sup:#15222c;
+}
+html[data-tema="escuro"] body{background:var(--bg)}
+html[data-tema="escuro"] .sec .cond,
+html[data-tema="escuro"] .kpi .val{color:var(--teal)}
+html[data-tema="escuro"] .kpi.hero .val{color:#fff}
+html[data-tema="escuro"] .nota{background:#2a2113;border-color:#57431f;color:#f0c95f}
+html[data-tema="escuro"] .logo{background:#fff}
+.btema{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;
+  padding:6px 10px;font:inherit;font-size:15px;line-height:1;cursor:pointer}
+.btema:hover{background:rgba(255,255,255,.22)}
 </style>
 </head>
 <body>
@@ -126,7 +150,7 @@ body{display:flex;flex-direction:column;min-height:100vh}
       <div><div class="htitle">Portal Central</div><div class="hsub">Morais Engenharia · Controle Interno</div></div>
       <div class="hspace"></div>
       <span class="net on" id="net-status">online</span>
-      <div class="user"><div style="text-align:right"><div class="nome" id="u-nome">—</div><span class="badge" id="u-tipo">—</span></div><button class="sair" onclick="sair()">Sair</button></div>
+      <div class="user"><div style="text-align:right"><div class="nome" id="u-nome">—</div><span class="badge" id="u-tipo">—</span></div><button class="btema" id="btema" onclick="trocarTema()" title="Alternar claro/escuro" aria-label="Alternar claro/escuro">🌙</button><button class="sair" onclick="sair()">Sair</button></div>
     </div>
   </header>
 
@@ -141,6 +165,26 @@ body{display:flex;flex-direction:column;min-height:100vh}
   </div>
 
 <script src="app.js"></script>
+<script>
+/* claro/escuro — a escolha vale só para quem clicou, no navegador dele */
+const TEMA_KEY = "morais_tema";
+function temaAtual(){ return document.documentElement.dataset.tema === "escuro" ? "escuro" : "claro"; }
+function aplicarTema(t){
+  const escuro = (t === "escuro");
+  document.documentElement.dataset.tema = escuro ? "escuro" : "claro";
+  const b = document.getElementById("btema");
+  if (b){ b.textContent = escuro ? "☀" : "🌙";
+          b.title = escuro ? "Voltar para o tema claro" : "Mudar para o tema escuro"; }
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", escuro ? "#122430" : "#295778");
+}
+function trocarTema(){
+  const novo = temaAtual() === "escuro" ? "claro" : "escuro";
+  try { localStorage.setItem(TEMA_KEY, novo); } catch(e){}
+  aplicarTema(novo);
+}
+document.addEventListener("DOMContentLoaded", () => aplicarTema(temaAtual()));
+</script>
 <script>
 /* "chave" tem que bater com o valor na coluna ACESSOS do banco LOGINS.
    externo:true = mora em outro repositório/site; o card só abre o link, e o

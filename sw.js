@@ -13,8 +13,12 @@
    offline continuaria com o código antigo e o problema voltaria.
    v7 -> v8: ligacoes.html (as datas em 01/01/2000 voltaram a aparecer na tela)
    e vendas.html (a edição pela célula da planilha agora também fica guardada
-   no navegador até o site republicar). */
-const CACHE = "portal-morais-v8";
+   no navegador até o site republicar).
+   v8 -> v9: ligacoes.html e index.html ganharam o tema claro/escuro, a
+   ordenação por clique no cabeçalho e a correção da linha que só sumia depois
+   do F5. Sem trocar o número, quem abrisse offline ficaria com a versão
+   anterior. */
+const CACHE = "portal-morais-v9";
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html","./app.js","./manifest.json"];
 
 self.addEventListener("install", e=>{
