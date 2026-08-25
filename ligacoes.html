@@ -237,6 +237,10 @@ tbody tr.lin-vencida:hover td,tbody tr.lin-emdia:hover td,tbody tr.lin-sem:hover
 .txt-dica{font-size:11.5px;color:var(--cinza-txt,#5b7488);margin-top:7px}
 @media(max-width:680px){ .txt-area{font-size:16px;min-height:170px} }
 .sem-lig{color:var(--text4);font-style:italic;font-size:11.5px}
+/* data que no Notion está como 01/01/2000 (o marcador de "sem data"):
+   aparece na tela, apagadinha, para ninguém achar que o site perdeu o
+   valor — mas continua fora de toda conta de prazo. */
+.d-marc{color:var(--text4);font-style:italic;border-bottom:1px dotted var(--border);cursor:help}
 /* endereço clicável na planilha — mesmo comportamento do vendas.html */
 .resp-global{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;
   text-transform:uppercase;letter-spacing:.4px;color:var(--text3)}
@@ -359,6 +363,8 @@ tbody tr.lin-vencida:hover td,tbody tr.lin-emdia:hover td,tbody tr.lin-sem:hover
 
   <main class="wrap">
     <div class="aviso" id="aviso"></div>
+    <!-- Apps Script salvo mas não republicado: ver conferirBackend() -->
+    <div class="aviso" id="aviso-gs"></div>
 
     <div id="sem-acesso" class="semacesso" style="display:none">
       <h2>Sem acesso</h2>
@@ -642,7 +648,7 @@ const SETORES_LIG = [
    O "-" é o vazio da base, não um valor. */
 function ucCompleta(l){
   const uc = String(txt(getL(l, C.UC) || "")).trim();
-  return sel(l, C.UC_OK) === "SIM" && !!uc && uc !== "-" && temData(l, C.DT_UC);
+  return sel(l, C.UC_OK) === "SIM" && !!uc && uc !== "-" && dataPreenchida(l, C.DT_UC);
 }
 
 /* Obra que já foi entregue ou transferida saiu do fluxo de ligação: não faz
@@ -900,13 +906,13 @@ const REGRAS_ALERTA = {};
    Solicitou e não anotou quando -> cobra a data. Anotou -> resolvido. */
 REGRAS_ALERTA[normN(C.ALERTA_INFO)] = l => {
   if (sel(l, C.FEZ) !== "SIM") return null;          // ainda não solicitou: quem manda é o Notion
-  return temData(l, C.DT_SOL) ? "" : TXT_PREENCHER_DATA;
+  return dataPreenchida(l, C.DT_SOL) ? "" : TXT_PREENCHER_DATA;
 };
 /* "Elerta Informações (1)" (o "E" é typo da base): STATUS + Data de Ligação.
    Ligou e não anotou quando -> cobra a data. */
 REGRAS_ALERTA[normN(C.ALERTA_INFO1)] = l => {
   if (normN(sel(l, C.STATUS)) !== "LIGADO") return null;
-  return temData(l, C.DT_LIG) ? "" : TXT_PREENCHER_DATA;
+  return dataPreenchida(l, C.DT_LIG) ? "" : TXT_PREENCHER_DATA;
 };
 /* ALERTA UC: a fila só se fecha com UC PREENCHIDA = SIM, a UC escrita e a
    data de preenchimento — a mesma regra do ucCompleta(), pra tabela e filtro
@@ -921,12 +927,12 @@ REGRAS_ALERTA[normN(C.ALERTA_UC)] = l => {
 /* Verificação/alerta da solicitação SANESC: o texto de ATRASO é do Notion (é
    ele que conta o prazo). O que a tela resolve na hora é o fim da pendência:
    aprovou e datou -> some da fila, sem esperar publicação. */
-const _aprovouSanesc = l => sel(l, C.APROVADA) === "SIM" && temData(l, C.DT_APROV);
+const _aprovouSanesc = l => sel(l, C.APROVADA) === "SIM" && dataPreenchida(l, C.DT_APROV);
 REGRAS_ALERTA[normN(C.VERIF_SOL)]  = l => _aprovouSanesc(l) ? "" : null;
 REGRAS_ALERTA[normN(C.ALERTA_SOL)] = l => _aprovouSanesc(l) ? "" : null;
 /* Idem para a conferência da ligação: ligou e datou -> resolvido. */
 REGRAS_ALERTA[normN(C.ALERTA_LIG)] = l =>
-  (normN(sel(l, C.STATUS)) === "LIGADO" && temData(l, C.DT_LIG)) ? "" : null;
+  (normN(sel(l, C.STATUS)) === "LIGADO" && dataPreenchida(l, C.DT_LIG)) ? "" : null;
 
 function temRegraAlerta(coluna){ return !!REGRAS_ALERTA[normN(coluna)]; }
 
@@ -968,6 +974,14 @@ function digitadaAqui(linha, nome){
   return !!(linha && linha.id &&
             edicaoLocal(linha._base || "ligacoes", linha.id, nome, normN));
 }
+/* A data publicada é exatamente o marcador 01/01/2000? Só para MOSTRAR:
+   nenhuma conta usa esta função — prazos, filas, médias e gráficos
+   continuam enxergando "sem data", como sempre enxergaram. */
+function dataMarcador(linha, nome){
+  const v = getL(linha, nome);
+  return !!v && String(v).slice(0,10) === DATA_LIXO && !digitadaAqui(linha, nome);
+}
+const DICA_MARC = "No Notion esta data está preenchida como 01/01/2000. A equipe usa esse valor para dizer “ainda não tem data”, então ela aparece aqui apagada e fica fora das contas de prazo e das filas. Para valer como data de verdade, é só digitar a data certa por cima.";
 function fmtData(d){ if(!d) return "—"; const p=String(d).slice(0,10).split("-"); return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:d; }
 /* Diferença em dias entre duas datas ISO. Aritmética em UTC de propósito:
    "new Date('2026-03-02')" é lido como meia-noite UTC e, no fuso -3, virar
@@ -984,6 +998,21 @@ function diasEntre(ini, fim){
    O conteúdo do anexo não vem no arquivo público (coluna de arquivo é tratada
    como sensível). O que vem é só QUANTOS arquivos existem, e é isso que estas
    funções olham. */
+/* Anexo não é coluna publicada (o arquivo nunca vai pro dist/, que é público):
+   o que vem é só a CONTAGEM, em l.sens. Por isso a edição local dele é
+   guardada com um nome que nenhuma coluna tem — o "\u0000ANEXO:" — e vale a
+   mesma regra das outras: segura na tela até o dist/ novo trazer a contagem. */
+const PREFIXO_ANEXO = "\u0000ANEXO:";
+function chaveAnexo(nome){ const c = campoDe(nome); return PREFIXO_ANEXO + (c ? c.nome : nome); }
+function contagemAnexoPublicada(l, chave){
+  const s = (l && l.sens) || {};
+  let n = s[chave];
+  if (n === undefined){
+    const alvo = normN(chave);
+    for (const k in s) if (normN(k) === alvo){ n = s[k]; break; }
+  }
+  return (typeof n === "number") ? n : (n ? 1 : 0);
+}
 function temAnexo(l, nome){
   const campo = campoDe(nome);
   const chave = campo ? campo.nome : nome;
@@ -996,6 +1025,19 @@ function temAnexo(l, nome){
   return (typeof n === "number") ? n > 0 : !!n;
 }
 function temData(l, nome){ return !!dataReal(l, nome); }
+/* "A pessoa já preencheu esta data?" — para efeito de ALERTA e de FILA.
+   Aqui o 01/01/2000 CONTA como preenchida: foi assim que a equipe usou o
+   marcador (e é o que as fórmulas do Notion faziam, já que elas só olhavam se
+   a célula tinha alguma coisa). Quem preenche 01/01/2000 está dizendo "essa
+   data eu não tenho, mas está resolvido" — e a obra tem que sumir da tela.
+
+   Para CONTA de dias (prazo, tempo de processo, médias, cor do vencimento,
+   filtro por período) continua valendo o temData()/dataReal(), que ignora o
+   marcador — senão o prazo sairia em milhares de dias. É esta a única
+   diferença entre as duas funções. */
+function dataPreenchida(l, nome){
+  return !!dataReal(l, nome) || dataMarcador(l, nome);
+}
 
 /* A obra continua na fila de "apta para solicitação" enquanto faltar algo.
    Regra combinada:
@@ -1073,6 +1115,31 @@ function mostrarOffline(r){
   } else av.style.display="none";
 }
 
+/* ---------- o backend publicado é o mesmo que esta tela espera? ----------
+   Colar o Code.gs no editor do Apps Script NÃO publica: enquanto ninguém faz
+   "Nova versão", a URL /exec continua servindo o código antigo — e aí uma
+   coluna nova é recusada com CAMPO_NAO_LIBERADO, que na tela vira "gravei e
+   não salvou". Aqui a tela pergunta a versão ao próprio backend (action ping,
+   que não precisa de sessão) e avisa quando não bate.
+   Backend antigo não conhece VERSAO_GS e responde sem o campo — o que também
+   é resposta: é sinal de que a publicação ficou para trás. */
+const GS_ESPERADO = "2026-08-25 r6";
+function conferirBackend(){
+  chamar({action:"ping"}, 15000).then(r => {
+    if (!r || r.ok !== true) return;                 // sem rede: não é assunto daqui
+    const v = r.versao || "";
+    if (v === GS_ESPERADO) return;
+    const cx = document.getElementById("aviso-gs");
+    cx.innerHTML =
+      "<b>O Apps Script publicado está atrasado.</b> No ar: " +
+      (v ? esc(v) : "versão anterior a 25/08") + " · esta tela espera: " + esc(GS_ESPERADO) +
+      ".<br>Enquanto isso, gravar em colunas novas pode ser recusado " +
+      "(a célula fica vermelha e diz CAMPO_NAO_LIBERADO). Para publicar: " +
+      "Implantar → Gerenciar implantações → lápis da implantação Ativa → Versão: Nova versão → Implantar.";
+    cx.style.display = "block";
+  }).catch(()=>{});
+}
+
 function boot(){
   pintarUsuario(S);
   if (!podeAcessar(S, "LIGAÇÕES")){
@@ -1090,6 +1157,7 @@ function boot(){
   lerEstaticoJa("vendas.json", "vendas_lig", pintarVendas);
   // valida a sessão em segundo plano — token velho cai fora
   ler({action:"me"}).then(r=>{ if(r && r.ok===false && r.erro==="NAO_AUTORIZADO") sair(); }).catch(()=>{});
+  conferirBackend();
 }
 
 /* Converte os registros de vendas.json ({id, valores, sens}) para o MESMO
@@ -1336,8 +1404,15 @@ async function atualizarAoVivo(forcar){
        gravação de segundos atrás. */
     aplicarEdicoesLocais("ligacoes", null,
       (id, prop) => { const l = porId[id]; if (!l) return undefined;
+                      if (String(prop).indexOf(PREFIXO_ANEXO) === 0)
+                        return contagemAnexoPublicada(l, String(prop).slice(PREFIXO_ANEXO.length));
                       const v = getLBruto(l, prop); return v === undefined ? null : v; },
-      (id, prop, valor) => { const l = porId[id]; if (l && l.v) setV(l.v, prop, valor); });
+      (id, prop, valor) => { const l = porId[id]; if (!l) return;
+                      if (String(prop).indexOf(PREFIXO_ANEXO) === 0){
+                        l.sens = l.sens || {};
+                        l.sens[String(prop).slice(PREFIXO_ANEXO.length)] = valor; return;
+                      }
+                      if (l.v) setV(l.v, prop, valor); });
 
     _idxLigRef = null;
     renderKpis(); renderGraficos(); renderPlanilha(); renderSetores();
@@ -1364,12 +1439,21 @@ function reaplicarEdicoes(base, updatedAt){
     (id, prop) => {                       // valor publicado (sem a edição por cima)
       const l = acha(id);
       if (!l) return undefined;           // linha não está nesta cópia
+      // anexo: o publicado é a contagem que veio em l.sens
+      if (String(prop).indexOf(PREFIXO_ANEXO) === 0)
+        return contagemAnexoPublicada(l, String(prop).slice(PREFIXO_ANEXO.length));
       const v = getLBruto(l, prop);
       return v === undefined ? null : v;
     },
     (id, prop, valor) => {                // grava o valor local na linha
       const l = acha(id);
-      if (!l || !l.v) return;
+      if (!l) return;
+      if (String(prop).indexOf(PREFIXO_ANEXO) === 0){
+        l.sens = l.sens || {};
+        l.sens[String(prop).slice(PREFIXO_ANEXO.length)] = valor;
+        return;
+      }
+      if (!l.v) return;
       setV(l.v, prop, valor);
       // o endereço mora em dois lugares na linha (l.v e l.obra, que é o que a
       // busca e o cruzamento venda<->ligação usam)
@@ -1962,7 +2046,10 @@ function celulaTexto(l, nome, fonte){
     }
     return temSens(l, campo.nome) ? "•••" : "—";
   }
-  if (tipo === "date"){ const d = dataReal(l, nome); return d ? fmtData(d) : "—"; }
+  if (tipo === "date"){
+    const d = dataReal(l, nome);
+    return d ? fmtData(d) : (dataMarcador(l, nome) ? "01/01/2000" : "—");
+  }
   // coluna de alerta: o valor é o calculado aqui (ver REGRAS_ALERTA), não a
   // fórmula publicada — senão o PDF sairia dizendo o contrário da tela
   const v = temRegraAlerta(nome) ? alertaDe(l, nome) : getL(l, nome);
@@ -2006,7 +2093,16 @@ function celula(l, nome, fonte){
     return temSens(l, campo.nome)
       ? '<span title="Dado protegido — carrega ao abrir a aba">•••</span>' : "—";
   }
-  if (tipo === "date") { const d = dataReal(l, nome); return d ? fmtData(d) : "—"; }
+  if (tipo === "date") {
+    const d = dataReal(l, nome);
+    if (d) return fmtData(d);
+    /* Sem data de verdade, mas com o 01/01/2000 gravado: mostrar o que
+       está no Notion. O "—" fazia parecer que a tela tinha perdido o
+       preenchimento — era a dúvida de 25/08. */
+    return dataMarcador(l, nome)
+      ? `<span class="d-marc" title="${esc(DICA_MARC)}">01/01/2000</span>`
+      : "—";
+  }
   if (tipo === "url")  { return v ? `<a href="${esc(v)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">abrir ↗</a>` : "—"; }
   if (v == null || v === "" || (Array.isArray(v) && !v.length)) return "—";
   const s = txt(v);
@@ -3120,7 +3216,7 @@ function corpoPainel(l){
       /* onblur, não onchange: ver o comentário do editor de célula — no
          onchange o navegador avisa com a data ainda pela metade. */
       html += `<input type="date" id="${idc}" value="${esc(d)}" onblur="salvar('${esc(nome)}','date',this.value)">`;
-      if (!d && v) html += `<div class="dica">no Notion está 01/01/2000 (marcador de “sem data”)</div>`;
+      if (!d && v) html += `<div class="dica">no Notion está <b>01/01/2000</b> — o marcador de “sem data”. Digitando a data certa aqui, ela passa por cima.</div>`;
     } else if (tipo === "url"){
       html += `<input type="text" id="${idc}" value="${esc(v||"")}" placeholder="https://…" onchange="salvar('${esc(nome)}','url',this.value)">`;
     } else if (tipo === "rich_text" || tipo === "title"){
@@ -3247,6 +3343,10 @@ async function enviarArquivo(input){
     l.sens = l.sens || {};
     const atual = l.sens[chave];
     l.sens[chave] = (typeof atual === "number" ? atual : 0) + 1;
+    /* e guarda no navegador: sem isto, recarregar a página antes da próxima
+       publicação trazia a obra de volta pra fila mostrando "+ anexar", como
+       se o arquivo não tivesse subido */
+    registrarEdicao("ligacoes", pageId, PREFIXO_ANEXO + chave, l.sens[chave]);
   }
   renderKpis(); renderPlanilha(); renderSetores();
   if (SETOR_ATUAL) renderAba();
@@ -3496,7 +3596,7 @@ async function salvarCampo(l, prop, tipo, valor, fonte){
   // liberado antes; por isso ela é preenchida sozinha, e só quando ainda
   // estiver vazia (corrigir a data na mão continua valendo).
   if (fonte !== "vendas" && normN(real) === normN(C.LIBERADO) && normN(novo) === "SIM"
-      && !temData(l, C.DT_LIBER)){
+      && !dataPreenchida(l, C.DT_LIBER)){   // 01/01/2000 já é preenchimento: não sobrescreve
     const campoData = campoDe(C.DT_LIBER);
     if (campoData){
       const hoje = hojeISO();

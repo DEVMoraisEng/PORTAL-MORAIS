@@ -10,8 +10,11 @@
    cópia velha valendo pra quem abrir sem internet.
    v5 -> v6: app.js, ligacoes.html e vendas.html mudaram (correção do sumiço
    dos valores salvos — edições locais). Sem trocar o número, quem abrisse
-   offline continuaria com o código antigo e o problema voltaria. */
-const CACHE = "portal-morais-v7";
+   offline continuaria com o código antigo e o problema voltaria.
+   v7 -> v8: ligacoes.html (as datas em 01/01/2000 voltaram a aparecer na tela)
+   e vendas.html (a edição pela célula da planilha agora também fica guardada
+   no navegador até o site republicar). */
+const CACHE = "portal-morais-v8";
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html","./app.js","./manifest.json"];
 
 self.addEventListener("install", e=>{

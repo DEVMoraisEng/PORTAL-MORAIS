@@ -1878,6 +1878,11 @@ function editarCelula(ctx,td){
     const igual = String(atual==null?"":(c.tipo==="date"&&atual?String(atual).slice(0,10):atual))===String(novo);
     if(igual){ td.innerHTML=antigo; return; }
     td.innerHTML='<span class="load"></span>';
+    /* Guarda a edição ANTES de enviar: é ela que segura o valor na tela até o
+       vendas.json ser republicado com o dado do Notion. Sem isto, editar pela
+       célula da planilha e recarregar a página trazia o valor antigo de volta
+       (no painel isso já estava resolvido pelo aplicarLocal; aqui faltava). */
+    registrarEdicao("vendas",id,col,novo);
     const r=await escrever({action:"updateVenda",pageId:id,prop:col,tipo:c.tipo,valor:novo},"Editar "+col);
     if(r.ok){
       setV(reg.valores,col,novo);
@@ -1886,7 +1891,11 @@ function editarCelula(ctx,td){
       if(ctx==="mod"){ renderCasasModelo(); }
       else td.outerHTML=celulaHtml(c,novo);   // repinta a célula com o valor novo
       toast(r.enfileirado?"Na fila ✓":"Salvo ✓");
-    }else{ td.innerHTML=antigo; toast("Erro: "+erroTexto(r.erro)); }
+    }else{
+      // recusado pelo servidor: a edição não existe, não pode ficar na tela
+      esquecerEdicao("vendas",id,col);
+      td.innerHTML=antigo; toast("Erro: "+erroTexto(r.erro));
+    }
   };
   el.addEventListener("change",()=>encerrar(true));
   el.addEventListener("blur",()=>encerrar(true));
