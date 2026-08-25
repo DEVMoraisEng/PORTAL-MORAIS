@@ -213,9 +213,42 @@ function edicoes(){
   try{ _EDITS=JSON.parse(localStorage.getItem(EDITS)||"{}"); }catch(e){ _EDITS={}; }
   return _EDITS;
 }
-function edicoesGravar(o){ _EDITS=o; try{ localStorage.setItem(EDITS, JSON.stringify(o)); }catch(e){} }
+function edicoesGravar(o){ _EDITS=o; _EDITS_IDX=null; try{ localStorage.setItem(EDITS, JSON.stringify(o)); }catch(e){} }
 // outra aba do mesmo navegador salvou: joga fora a cópia em memória
-window.addEventListener("storage", e => { if(e.key===EDITS) _EDITS=null; });
+window.addEventListener("storage", e => { if(e.key===EDITS){ _EDITS=null; _EDITS_IDX=null; } });
+
+/* Índice base+linha -> edições daquela linha. Existe por causa da LEITURA:
+   getL() consulta as edições a cada célula, filtro e cálculo — varrer o mapa
+   inteiro toda vez custaria caro numa tabela de centenas de linhas. */
+let _EDITS_IDX=null;
+function _indiceEdicoes(){
+  if(_EDITS_IDX) return _EDITS_IDX;
+  const o=edicoes(), idx={};
+  for(const k in o){
+    const e=o[k]; if(!e||!e.id) continue;
+    const ch=e.b+"\u0001"+e.id;
+    (idx[ch]=idx[ch]||[]).push(e);
+  }
+  _EDITS_IDX=idx; return idx;
+}
+
+/* Edição pendente de UMA coluna de UMA linha, ou undefined.
+   `norm` é opcional: quando vem, o nome da coluna é comparado normalizado
+   (sem acento/caixa/espaço sobrando). Isso é essencial porque quem GRAVA usa
+   o nome do schema e quem LÊ costuma usar o nome fixo no código da tela —
+   as duas grafias precisam casar. Devolve o registro inteiro (e.v é o valor)
+   pra dar pra distinguir "não tem edição" de "edição com valor vazio". */
+function edicaoLocal(base,pageId,prop,norm){
+  if(!pageId||!prop) return undefined;
+  const lista=_indiceEdicoes()[base+"\u0001"+pageId];
+  if(!lista) return undefined;
+  for(let i=0;i<lista.length;i++) if(lista[i].p===prop) return lista[i];
+  if(typeof norm==="function"){
+    const alvo=norm(prop);
+    for(let i=0;i<lista.length;i++) if(norm(lista[i].p)===alvo) return lista[i];
+  }
+  return undefined;
+}
 
 function chaveEdicao(base,pageId,prop){ return base+"\u0001"+pageId+"\u0001"+prop; }
 

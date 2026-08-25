@@ -140,10 +140,6 @@ table.grade tbody td.wide{max-width:none;overflow:visible;text-overflow:clip}
 .arqcorpo iframe{width:100%;height:100%;border:0}
 .arqcorpo img{max-width:100%;max-height:100%;display:block}
 .arqlista{padding:14px;display:flex;flex-direction:column;gap:8px;width:100%}
-/* valor salvo por aqui que o arquivo publicado ainda não trouxe de volta —
-   o pontinho evita a dúvida de "será que salvou mesmo?" */
-.aguarda{border-bottom:1px dashed var(--azul,#295778)}
-.aguarda::after{content:"•";color:#2a9d5c;font-weight:700;margin-left:4px}
 .tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700}
 .tag.sim{background:rgba(42,157,92,.14);color:var(--verde-esc)}
 .tag.nao{background:#f1e0e0;color:#9b2c2c}
@@ -827,8 +823,27 @@ function normN(s){ return String(s==null?"":s).normalize("NFD").replace(/[\u0300
 function txt(v){ return Array.isArray(v) ? v.join(", ") : String(v==null?"":v); }
 
 /* Leitura tolerante de uma coluna da linha: aceita diferença de acento, de
-   caixa e de espaço no fim (o Notion tem "DATA DE NASCIMENTO " com espaço). */
+   caixa e de espaço no fim (o Notion tem "DATA DE NASCIMENTO " com espaço).
+
+   E, ANTES DE TUDO, o que a pessoa acabou de salvar. Motivo: escrever o valor
+   dentro de linha.v dependia de acertar exatamente a mesma chave que veio do
+   JSON publicado — e quando a grafia usada na gravação (nome do schema) não
+   era idêntica à do arquivo, nascia uma chave repetida e esta função devolvia
+   a ANTIGA, a que estava vazia. Era o "—" que aparecia no lugar da data que
+   tinha acabado de ser digitada. Lendo a edição primeiro, o valor certo vale
+   para TODO MUNDO de uma vez: tabela, painel, filtros, KPIs, gráficos e PDF —
+   sem depender de casar chave nenhuma. */
 function getL(linha, nome){
+  if (linha && linha.id){
+    const e = edicaoLocal(linha._base || "ligacoes", linha.id, nome, normN);
+    if (e) return e.v;
+  }
+  return getLBruto(linha, nome);
+}
+/* Só o que veio do arquivo publicado, ignorando edição pendente. Serve para
+   comparar um com o outro — é assim que a edição é descartada quando o dist/
+   finalmente traz o valor (ver reaplicarEdicoes). */
+function getLBruto(linha, nome){
   const v = (linha && linha.v) || {};
   if (v[nome] !== undefined) return v[nome];
   const alvo = normN(nome);
@@ -1071,7 +1086,7 @@ function pintarVendas(r){
     const bruto = { v: vals };
     const end = getL(bruto, V.ENDERECO) != null ? getL(bruto, V.ENDERECO) : "";
     const casa = getL(bruto, V.CASA);
-    const linha = { id: x.id, v: vals, sens: x.sens || {},
+    const linha = { id: x.id, v: vals, sens: x.sens || {}, _base: "vendas",
                     obra: end + (casa != null && casa !== "" ? (" CS " + casa) : "") };
     linha.v[V.OBRA_CASA] = linha.obra;   // coluna montada, para a tabela e o PDF
     return linha;
@@ -1191,13 +1206,16 @@ function pintarTudo(r){
    alcançar (ver aplicarEdicoesLocais no app.js). */
 function reaplicarEdicoes(base, updatedAt){
   const lista = (base === "vendas") ? VEN : LIG;
+  // marca a base em cada linha: é o que o getL usa pra saber em qual conjunto
+  // de edições procurar (ligações e vendas são bancos diferentes)
+  lista.forEach(l => { l._base = base; });
   const acha  = id => lista.find(x => x.id === id) || null;
   const n = aplicarEdicoesLocais(
     base, updatedAt,
-    (id, prop) => {                       // valor publicado
+    (id, prop) => {                       // valor publicado (sem a edição por cima)
       const l = acha(id);
       if (!l) return undefined;           // linha não está nesta cópia
-      const v = getL(l, prop);
+      const v = getLBruto(l, prop);
       return v === undefined ? null : v;
     },
     (id, prop, valor) => {                // grava o valor local na linha
@@ -1801,18 +1819,6 @@ function celulaTexto(l, nome, fonte){
   return txt(v);
 }
 
-/* Célula da tabela + o aviso de "salvo, esperando a próxima publicação".
-   Serve pra quem preencheu não ficar na dúvida se o dado foi mesmo gravado
-   enquanto o dist/ não é regerado. Só na tela: o PDF usa celulaTexto(). */
-function celulaMarcada(l, nome, fonte){
-  const html = celula(l, nome, fonte);
-  const campo = campoDe(nome, fonte);
-  if (!campo) return html;
-  const base = (fonte === "vendas") ? "vendas" : "ligacoes";
-  if (!temEdicaoLocal(base, l.id, campo.nome)) return html;
-  return `<span class="aguarda" title="Salvo no Notion. O site só relê este valor do arquivo publicado na próxima atualização.">${html}</span>`;
-}
-
 function celula(l, nome, fonte){
   if (ehCalculada(nome)){
     const d = CALC_DEF[nome].valor(l);
@@ -1904,8 +1910,8 @@ function tabelaHtml(linhas, colunas, extras, fonte, corDe){
                     (ed ? ` data-col="${esc(c)}" title="Clique para editar"` : "");
       // a primeira coluna (o endereço) é o link que abre a obra
       const conteudo = (i === 0)
-        ? `<span class="obralink" data-obra="${esc(l.id)}" title="Abrir a obra">${celulaMarcada(l,c,fonte)}</span>`
-        : celulaMarcada(l,c,fonte);
+        ? `<span class="obralink" data-obra="${esc(l.id)}" title="Abrir a obra">${celula(l,c,fonte)}</span>`
+        : celula(l,c,fonte);
       return `<td${attrs}>${conteudo}</td>`;
     }).join("");
     const ex = extras
@@ -2062,7 +2068,7 @@ function editarCelula(td){
     td.innerHTML = '<span class="load"></span>';
     const r = await salvarCampo(linha, col, campo.tipo, novo, fonte);
     if (r.ok){
-      td.innerHTML = celulaMarcada(linha, col, fonte);
+      td.innerHTML = celula(linha, col, fonte);
       // a mudança pode tirar a linha da aba (ex.: preencher a UC que faltava),
       // então a lista é refeita — só depois de a célula voltar ao normal
       renderAba();
@@ -3185,8 +3191,9 @@ async function salvarCampo(l, prop, tipo, valor, fonte){
       toast("Não achei essa pessoa no Notion — recarregue a página e tente de novo.");
       return { ok:false, erro:"PESSOA_DESCONHECIDA" };
     }
-    const antesResp = l.v ? l.v[real] : null;
-    if (l.v) l.v[real] = nome ? [nome] : [];
+    const antesResp = l.v ? getLBruto(l, real) : null;
+    // setV grava na chave que JÁ existe (não cria uma repetida com outra grafia)
+    if (l.v) setV(l.v, real, nome ? [nome] : []);
     /* registra ANTES de enviar: se a resposta do dist/ chegar no meio do
        caminho e repintar a tela, o valor digitado volta por cima */
     registrarEdicao(baseEd, l.id, real, nome ? [nome] : []);
@@ -3197,7 +3204,7 @@ async function salvarCampo(l, prop, tipo, valor, fonte){
     );
     if (rp.ok && rp.enfileirado) toast("Sem internet — salvo na fila.");
     else if (rp.ok) toast("Salvo.");
-    else { if (l.v) l.v[real] = antesResp; esquecerEdicao(baseEd, l.id, real); toast("Não salvou: " + erroTexto(rp.erro)); }
+    else { if (l.v) setV(l.v, real, antesResp); esquecerEdicao(baseEd, l.id, real); toast("Não salvou: " + erroTexto(rp.erro)); }
     montarSeletorResp();
     renderKpis(); renderGraficos(); renderPlanilha(); renderSetores();
     return rp;
@@ -3223,7 +3230,7 @@ async function salvarCampo(l, prop, tipo, valor, fonte){
   }
   const eraObra = normN(real) === normN(C.OBRA) || normN(real) === normN(V.OBRA_CASA);
   const obraAntes = l.obra;
-  if (l.v) l.v[real] = novo;              // pinta na hora; desfaz se der erro
+  if (l.v) setV(l.v, real, novo);         // pinta na hora; desfaz se der erro
   /* e guarda a edição: é ela que segura o valor na tela até o dist/ ser
      republicado com o dado do Notion (sem isto, recarregar a página trazia
      de volta o valor antigo — o sumiço das datas) */
@@ -3250,7 +3257,7 @@ async function salvarCampo(l, prop, tipo, valor, fonte){
     else toast("Salvo.");
   }
   else {
-    if (l.v) l.v[real] = antes;           // rejeitado pelo servidor: desfaz
+    if (l.v) setV(l.v, real, antes);      // rejeitado pelo servidor: desfaz
     esquecerEdicao(baseEd, l.id, real);   // e não segura na tela o que não foi aceito
     if (eraObra){ l.obra = obraAntes; _idxLigRef = null; }
     toast("Não salvou: " + erroTexto(r.erro), 8);
@@ -3272,14 +3279,14 @@ async function salvarCampo(l, prop, tipo, valor, fonte){
     const campoData = campoDe(C.DT_LIBER);
     if (campoData){
       const hoje = hojeISO();
-      if (l.v) l.v[campoData.nome] = hoje;
+      if (l.v) setV(l.v, campoData.nome, hoje);
       registrarEdicao("ligacoes", l.id, campoData.nome, hoje);
       const r2 = await escrever(
         {action:"ligUpdate", pageId: l.id, prop: campoData.nome, tipo: "date", valor: hoje},
         "ligação: DATA DE LIBERAÇÃO"
       );
       if (r2.ok) toast("Liberada — data de liberação preenchida com hoje.");
-      else { if (l.v) l.v[campoData.nome] = null; esquecerEdicao("ligacoes", l.id, campoData.nome); }
+      else { if (l.v) setV(l.v, campoData.nome, null); esquecerEdicao("ligacoes", l.id, campoData.nome); }
     }
   }
 
