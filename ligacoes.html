@@ -610,17 +610,27 @@ const SETORES_LIG = [
   }
 ];
 
+/* Obra que já foi entregue ou transferida saiu do fluxo de ligação: não faz
+   sentido cobrá-la nas filas de acompanhamento. */
+const STATUS_FORA_DO_FLUXO = ["TRANSFERIDO", "ENTREGUE NAO TRANSFERIDO"];
+function noFluxo(l){
+  return STATUS_FORA_DO_FLUXO.indexOf(normN(sel(l, C.STATUS))) < 0;
+}
+
 /* ---------- colunas calculadas ----------
    Não existem no Notion: são contas feitas aqui. Entram na lista de colunas
    da aba como um MARCADOR (mesma ideia da coluna de verificação das contas),
    para atravessarem tabela, PDF e escolha de colunas sem virar caso especial
    em cada lugar. */
-const CALC = { PROC_SANESC: "\u0000TEMPO_SANESC", LIG_CORRIDO: "\u0000TEMPO_LIGACAO" };
+const CALC = { PROC_SANESC: "\u0000TEMPO_SANESC", LIG_CORRIDO: "\u0000TEMPO_LIGACAO",
+               PRAZO_LIBER: "\u0000PRAZO_LIBERACAO" };
 const CALC_DEF = {};
 CALC_DEF[CALC.PROC_SANESC] = { titulo: "Tempo de processo (dias)", valor: diasProcessoSanesc,
   dica: "da DATA DE LIBERAÇÃO até a DATA DA APROVAÇÃO SANESC (ou até hoje, se ainda não aprovou)" };
 CALC_DEF[CALC.LIG_CORRIDO] = { titulo: "Tempo corrido (dias)", valor: diasCorridosLigacao,
   dica: "da DATA DE SOLICITAÇÃO até a Data de Ligação (ou até hoje, se ainda não ligou)" };
+CALC_DEF[CALC.PRAZO_LIBER] = { titulo: "Prazo corrido (dias)", valor: prazoDesdeLiberacao,
+  dica: "da DATA DE LIBERAÇÃO até a DATA DE SOLICITAÇÃO (ou até hoje, se ainda não solicitou)" };
 function ehCalculada(nome){ return !!CALC_DEF[nome]; }
 function tituloColuna(nome){ return ehCalculada(nome) ? CALC_DEF[nome].titulo : nome; }
 
@@ -633,6 +643,7 @@ const ABAS = {
     titulo: "Verificar se a obra está apta para a solicitação",
     colunas: [C.OBRA, C.CONC, C.LIBERADO, C.DT_LIBER, C.NF_MEDIDOR, C.RESP, C.OBS],
     filtros: [C.CONC, C.LIBERADO, C.RESP],
+    filtroData: [C.DT_LIBER],
     sensiveis: true,        // NF MEDIDOR é coluna de arquivo: não vem no público
     pdf: true,
     /* Sai da lista só quando as TRÊS coisas estiverem prontas: liberado,
@@ -648,6 +659,7 @@ const ABAS = {
     colunas: [C.OBRA, C.APROVADA, C.DT_LIBER, C.DT_SOL, C.DT_APROV,
               CALC.PROC_SANESC, C.RESP, C.ALERTA_SOL, C.OBS],
     filtros: [C.RESP],
+    filtroData: [C.DT_LIBER, C.DT_SOL, C.DT_APROV],
     pdf: true,
     base: l => normN(sel(l, C.CONC)) === "SANESC"
             && sel(l, C.FEZ) === "SIM"
@@ -664,14 +676,19 @@ const ABAS = {
   /* ---------- setor ACOMPANHAMENTO DE LIGAÇÕES ---------- */
   liberadas: {
     titulo: "Obras liberadas para solicitar a ligação",
-    colunas: [C.OBRA, C.CONC, C.DT_SOL, C.FEZ, C.NF_MEDIDOR, C.RESP, C.OBS, C.CPF, C.ALERTA_INFO],
+    /* DATA DE LIBERAÇÃO como 3ª coluna e o prazo corrido logo depois do
+       alerta, como pedido. */
+    colunas: [C.OBRA, C.CONC, C.DT_LIBER, C.DT_SOL, C.FEZ, C.NF_MEDIDOR, C.RESP,
+              C.OBS, C.CPF, C.ALERTA_INFO, CALC.PRAZO_LIBER],
     filtros: [C.CONC, C.RESP, C.FEZ],
+    filtroData: [C.DT_LIBER, C.DT_SOL],
     sensiveis: true,
     pdf: true,
     /* Continua aqui enquanto o alerta do Notion apontar pendência OU enquanto
        faltar a NF do medidor. A cobrança da NF só vale para as obras que
        entraram no controle novo (as que têm DATA DE LIBERAÇÃO). */
     base: l => sel(l, C.LIBERADO) === "SIM"
+            && noFluxo(l)
             && (temAlerta(l, C.ALERTA_INFO)
                 || (temData(l, C.DT_LIBER) && !temAnexo(l, C.NF_MEDIDOR)))
   },
@@ -682,17 +699,19 @@ const ABAS = {
     colunas: [C.OBRA, C.CONC, C.CPF, C.DT_SOL, C.DT_LIG,
               CALC.LIG_CORRIDO, C.RESP, C.STATUS, C.ALERTA_LIG],
     filtros: [C.CONC, C.RESP],
+    filtroData: [C.DT_SOL, C.DT_LIG, C.DT_LIBER],
     sensiveis: true,
     pdf: true,
-    base: l => sel(l, C.FEZ) === "SIM" && temAlerta(l, C.ALERTA_INFO1)
+    base: l => sel(l, C.FEZ) === "SIM" && noFluxo(l) && temAlerta(l, C.ALERTA_INFO1)
   },
   semUc: {
     titulo: "Ligações sem UC (ligadas mas sem UC)",
     colunas: [C.OBRA, C.CONC, C.CPF, C.NASC, C.DT_UC, C.UC, C.UC_OK, C.DT_LIG, C.RESP, C.OBS_CONTAS, C.ALERTA_UC],
     filtros: [C.CONC, C.RESP, C.UC_OK],
+    filtroData: [C.DT_LIG, C.DT_UC],
     sensiveis: true,
     pdf: true,
-    base: l => sel(l, C.STATUS) === "LIGADO" && temAlerta(l, C.ALERTA_UC)
+    base: l => sel(l, C.STATUS) === "LIGADO" && noFluxo(l) && temAlerta(l, C.ALERTA_UC)
   },
 
   /* ---------- setor CONTROLE DE CONTAS ---------- */
@@ -868,6 +887,11 @@ function diasProcessoSanesc(l){
 /* Da solicitação até a ligação (qualquer concessionária), também correndo. */
 function diasCorridosLigacao(l){
   return diasAte(dataReal(l, C.DT_SOL), dataReal(l, C.DT_LIG));
+}
+/* Da liberação até a solicitação: é o tempo que a obra está esperando alguém
+   solicitar. Enquanto não solicitar, conta até hoje. */
+function prazoDesdeLiberacao(l){
+  return diasAte(dataReal(l, C.DT_LIBER), dataReal(l, C.DT_SOL));
 }
 
 function diasLigacao(l){
@@ -1145,6 +1169,13 @@ function linhasFonte(fonte){ return fonte === "vendas" ? VEN : LIGF(); }
    real (ou removido, se a coluna ainda não existe). Todo lugar que precisa da
    lista de colunas passa por aqui — tabela, PDF e escolha de colunas —, senão
    um deles mostraria o marcador cru. */
+/* Das datas que a aba pediu, só as que existem no schema — se alguém
+   renomear a coluna no Notion, ela some do seletor em vez de virar um filtro
+   que não filtra nada. */
+function colunasDeDataDaAba(def){
+  return (def.filtroData || []).filter(c => !!campoDe(c));
+}
+
 function colunasDaAba(chave){
   const def = ABAS[chave];
   const base = (def && def.colunas) ? def.colunas : colunasVisiveis();
@@ -2069,6 +2100,73 @@ function filtrosVendidas(){
     <input type="date" id="vd-vde" style="display:none" title="Verificada a partir de" onchange="renderAba()">
     <input type="date" id="vd-vate" style="display:none" title="Verificada até" onchange="renderAba()">`}`;
 }
+/* ---------- filtro por DATA (abas comuns) ----------
+   Duas escolhas: QUAL data (as datas que aquela aba mostra) e QUAL período
+   (últimos 7/30 dias, mês, ano ou um intervalo escolhido). Os campos do
+   período só aparecem quando são usados — cinco campos sempre visíveis viram
+   uma barra que ninguém entende.
+
+   "Sem a data" é uma opção de propósito: em fila de pendência, a linha que
+   está sem data preenchida costuma ser justamente a que interessa. */
+const MESES_PT = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho",
+                  "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+function filtroDataHtml(colunas){
+  if (!colunas || !colunas.length) return "";
+  const anos = {};
+  LIG.forEach(l => colunas.forEach(c => { const d = dataReal(l, c); if (d) anos[d.slice(0,4)] = 1; }));
+  if (!Object.keys(anos).length) anos[String(new Date().getFullYear())] = 1;
+  return `
+    <select id="dt-col" onchange="renderAba()" title="Qual data filtrar">
+      ${colunas.map((c,i)=>`<option value="${esc(c)}" ${i===0?"selected":""}>${esc(c)}</option>`).join("")}
+    </select>
+    <select id="dt-per" onchange="aoTrocarPeriodoData()">
+      <option value="">Qualquer data</option>
+      <option value="7d">Últimos 7 dias</option>
+      <option value="30d">Últimos 30 dias</option>
+      <option value="mes">Mês (escolher)</option>
+      <option value="ano">Ano (escolher)</option>
+      <option value="intervalo">Intervalo (escolher)</option>
+      <option value="vazias">Sem a data preenchida</option>
+    </select>
+    <select id="dt-mes" style="display:none" onchange="renderAba()">
+      ${MESES_PT.map((m,i)=>`<option value="${String(i+1).padStart(2,"0")}">${m}</option>`).join("")}
+    </select>
+    <select id="dt-ano" style="display:none" onchange="renderAba()">
+      ${Object.keys(anos).sort().reverse().map(a=>`<option value="${a}">${a}</option>`).join("")}
+    </select>
+    <input type="date" id="dt-de"  style="display:none" title="A partir de" onchange="renderAba()">
+    <input type="date" id="dt-ate" style="display:none" title="Até"        onchange="renderAba()">`;
+}
+function aoTrocarPeriodoData(){
+  const per = (document.getElementById("dt-per")||{}).value || "";
+  const mostrar = (id, sim) => { const e = document.getElementById(id); if (e) e.style.display = sim ? "" : "none"; };
+  mostrar("dt-mes", per === "mes");
+  mostrar("dt-ano", per === "mes" || per === "ano");
+  mostrar("dt-de",  per === "intervalo");
+  mostrar("dt-ate", per === "intervalo");
+  renderAba();
+}
+function passaFiltroData(l){
+  const selCol = document.getElementById("dt-col"), selPer = document.getElementById("dt-per");
+  if (!selCol || !selPer || !selPer.value) return true;
+  const d = dataReal(l, selCol.value);
+  const per = selPer.value;
+  if (per === "vazias") return !d;
+  if (!d) return false;                       // sem data não entra em recorte de data
+  if (per === "7d")  return d >= diasAtras(7)  && d <= hojeISO();
+  if (per === "30d") return d >= diasAtras(30) && d <= hojeISO();
+  if (per === "ano") return d.slice(0,4) === document.getElementById("dt-ano").value;
+  if (per === "mes") return d.slice(0,4) === document.getElementById("dt-ano").value &&
+                            d.slice(5,7) === document.getElementById("dt-mes").value;
+  if (per === "intervalo"){
+    const de = document.getElementById("dt-de").value, ate = document.getElementById("dt-ate").value;
+    if (de && d < de) return false;
+    if (ate && d > ate) return false;
+    return true;
+  }
+  return true;
+}
+
 /* Mostra só os campos que o período escolhido usa — deixar os cinco sempre
    visíveis vira uma barra de filtros que ninguém entende. */
 function aoTrocarPeriodoVendidas(){
@@ -2180,6 +2278,9 @@ function linhasVisiveisAba(){
   if (def.filtrosProprios){
     linhas = linhas.filter(l => passaPeriodoVendidas(l) && passaCidadeVendidas(l) && passaVerificacao(l));
   }
+  if (def.filtroData && def.filtroData.length){
+    linhas = linhas.filter(passaFiltroData);
+  }
   if (def.vencimento){
     const v = document.getElementById("set-venc");
     if (v && v.value) linhas = linhas.filter(l => situacaoVenc(l) === v.value);
@@ -2227,6 +2328,9 @@ function renderAba(){
     box.dataset.temdados = marcaDados;
     if (def.filtrosProprios) box.innerHTML = filtrosVendidas();
     else montarFiltros("filtros-setor", def.filtros, "set", renderAba, fonte);
+    if (def.filtroData && def.filtroData.length){
+      box.insertAdjacentHTML("beforeend", filtroDataHtml(colunasDeDataDaAba(def)));
+    }
     if (def.vencimento){
       box.insertAdjacentHTML("beforeend",
         `<select id="set-venc" onchange="renderAba()">
