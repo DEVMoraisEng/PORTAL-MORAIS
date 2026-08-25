@@ -114,6 +114,9 @@ table.grade tbody tr:hover td.stick{background:#dff2e6}
    exatamente o td.edt do vendas.html */
 td.edt{cursor:cell}
 td.edt:hover{outline:2px solid var(--verde);outline-offset:-2px;background:#f0fbf4 !important}
+/* gravação recusada pelo servidor: a célula pisca em vermelho por alguns
+   segundos — o toast some rápido demais para um erro que precisa de ação */
+td.recusado{background:#FEE2E2 !important;outline:2px solid var(--vermelho);outline-offset:-2px}
 td.sens{color:var(--text4)}
 /* coluna de alerta: sem limite de largura e sem reticências — o texto inteiro
    é o recado ("ATRASADO! VERIFICAR SE A LIGAÇÃO FOI FEITA") */
@@ -610,6 +613,16 @@ const SETORES_LIG = [
   }
 ];
 
+/* UC "fechada": as três coisas combinadas com a equipe —
+     UC PREENCHIDA = SIM, a UC escrita e a DATA DE PREENCHIMENTO UC.
+   O conteúdo da UC não é conferido de propósito: às vezes ela é uma
+   observação ("casa entregue em julho") e isso conta como preenchida.
+   O "-" é o vazio da base, não um valor. */
+function ucCompleta(l){
+  const uc = String(txt(getL(l, C.UC) || "")).trim();
+  return sel(l, C.UC_OK) === "SIM" && !!uc && uc !== "-" && temData(l, C.DT_UC);
+}
+
 /* Obra que já foi entregue ou transferida saiu do fluxo de ligação: não faz
    sentido cobrá-la nas filas de acompanhamento. */
 const STATUS_FORA_DO_FLUXO = ["TRANSFERIDO", "ENTREGUE NAO TRANSFERIDO"];
@@ -711,7 +724,10 @@ const ABAS = {
     filtroData: [C.DT_LIG, C.DT_UC],
     sensiveis: true,
     pdf: true,
-    base: l => sel(l, C.STATUS) === "LIGADO" && noFluxo(l) && temAlerta(l, C.ALERTA_UC)
+    /* Fica na fila enquanto faltar qualquer uma das três: UC PREENCHIDA = SIM,
+       a UC escrita e a data de preenchimento. Antes dependia só do alerta do
+       Notion, e a obra continuava aqui mesmo com tudo preenchido. */
+    base: l => sel(l, C.STATUS) === "LIGADO" && noFluxo(l) && !ucCompleta(l)
   },
 
   /* ---------- setor CONTROLE DE CONTAS ---------- */
@@ -741,7 +757,7 @@ const ABAS = {
     sensiveis: true,
     pdf: true,
     base: l => ["LIGADO", "ENTREGUE NAO TRANSFERIDO"].indexOf(normN(sel(l, C.STATUS))) >= 0
-            && temAlerta(l, C.ALERTA_UC)
+            && !ucCompleta(l)
   },
   contasGeral: {
     titulo: "Controle de contas geral (tudo)",
@@ -792,7 +808,14 @@ let SENS_LIG = null, SENS_VEN = null;
 let _promSensLig = null, _promSensVen = null, SENS_ERRO = null;
 
 /* ===================== utilidades ===================== */
-function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("on"); setTimeout(()=>t.classList.remove("on"),1900); }
+/* segundos: aviso de erro fica mais tempo — 1,9s some antes de a pessoa ler. */
+let _toastT = null;
+function toast(m, segundos){
+  const t = document.getElementById("toast");
+  t.textContent = m; t.classList.add("on");
+  clearTimeout(_toastT);
+  _toastT = setTimeout(() => t.classList.remove("on"), (segundos || 1.9) * 1000);
+}
 /* Sem acento, sem caixa, sem espaço sobrando — é assim que TODA comparação de
    nome de coluna é feita aqui (o Notion tem "DATA DE NASCIMENTO " com espaço
    no fim e "Data de Ligação" em caixa mista). */
@@ -1955,7 +1978,13 @@ function editarCelula(td){
   } else {
     el = document.createElement("input");
     el.type = campo.tipo==="date" ? "date" : (campo.tipo==="number" ? "number" : "text");
-    el.value = (campo.tipo==="date" && atual) ? String(atual).slice(0,10) : (atual==null ? "" : atual);
+    /* Para data, o valor inicial vem do dataReal(): a célula que mostra "—"
+       abre o campo VAZIO, e não com o 01/01/2000 que a equipe usa como
+       marcador de "sem data" — que confundia e ainda deixava o ano errado
+       para quem trocava só o dia e o mês. */
+    el.value = campo.tipo === "date"
+      ? (dataReal(linha, col) || "")
+      : (atual==null ? "" : atual);
   }
   /* 16px no celular: abaixo disso o iOS dá zoom sozinho ao focar o campo e
      não volta — a planilha ficava ampliada a cada edição. O estilo é inline,
@@ -1974,7 +2003,8 @@ function editarCelula(td){
     const novo = el.value;
     const antesTxt = campo.tipo === "people"
       ? (Array.isArray(atual) ? atual.join(", ") : String(atual==null ? "" : atual))
-      : String(atual==null ? "" : (campo.tipo==="date" && atual ? String(atual).slice(0,10) : atual));
+      : (campo.tipo === "date" ? (dataReal(linha, col) || "")
+                               : String(atual==null ? "" : atual));
     if (antesTxt === String(novo)){ td.innerHTML = antigo; return; }
     td.innerHTML = '<span class="load"></span>';
     const r = await salvarCampo(linha, col, campo.tipo, novo, fonte);
@@ -1984,7 +2014,13 @@ function editarCelula(td){
       // então a lista é refeita — só depois de a célula voltar ao normal
       renderAba();
     } else {
+      /* Recusa do servidor (campo fora da lista branca, opção inexistente,
+         Apps Script não republicado...). O toast some e a pessoa fica achando
+         que salvou — então a célula também avisa, e o motivo fica no title. */
       td.innerHTML = antigo;
+      td.classList.add("recusado");
+      td.title = "Não salvou: " + erroTexto(r.erro);
+      setTimeout(() => td.classList.remove("recusado"), 6000);
     }
   };
   /* Campo de DATA não salva no "change".
@@ -3138,7 +3174,7 @@ async function salvarCampo(l, prop, tipo, valor, fonte){
   else {
     if (l.v) l.v[real] = antes;           // rejeitado pelo servidor: desfaz
     if (eraObra){ l.obra = obraAntes; _idxLigRef = null; }
-    toast("Não salvou: " + erroTexto(r.erro));
+    toast("Não salvou: " + erroTexto(r.erro), 8);
     renderKpis(); renderGraficos(); renderPlanilha(); renderSetores();
     return r;
   }
