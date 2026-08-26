@@ -426,6 +426,14 @@ html[data-tema="escuro"] .logo{background:#fff}
 .tarja-teste b{font-weight:800;letter-spacing:.03em}
 html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;color:#f0c95f}
 .updated{color:var(--text4);font-size:11px;margin-top:16px;text-align:right}
+/* Hora da última publicação, no cabeçalho de todas as páginas. No rodapé ela
+   existia mas ficava depois de uma tela inteira de conteúdo — na prática
+   ninguém via. Aqui fica sempre à vista. No celular some (o cabeçalho já é
+   apertado) e a cópia do rodapé cobre. */
+.hupd{font-size:10.5px;color:rgba(255,255,255,.72);white-space:nowrap;
+  text-align:right;margin:0;line-height:1.2;max-width:210px}
+@media(max-width:900px){ .hupd{display:none} }
+
 
 /* botão de tema no cabeçalho */
 .btema{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;
@@ -442,6 +450,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
       <div class="hspace"></div>
       <span class="net on" id="net-status">online</span>
       <button class="btn-sync" id="btn-sync" onclick="sincronizar()">↻ Sincronizar <span class="filabadge" id="fila-badge">0</span></button>
+      <span class="hupd updated" id="updated"></span>
       <div class="user">
         <div style="text-align:right"><div class="nome" id="u-nome">—</div><span class="badge" id="u-tipo">—</span></div>
         <button class="btema" id="btema" onclick="trocarTema()" title="Alternar claro/escuro" aria-label="Alternar claro/escuro">🌙</button>
@@ -525,7 +534,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
       <div class="scroll-top" id="set-stop"><div></div></div>
       <div class="tabela-wrap" id="set-wrap"><div class="vazio">Carregando…</div></div>
     </section>
-    <div class="updated" id="updated"></div>
+    <div class="updated"></div>
   </main>
 
   <div class="overlay" id="overlay" onclick="fecharLinha()"></div>
@@ -1791,20 +1800,28 @@ function abrirSetor(i){
 }
 function irHub(){
   SETOR_ATUAL = null;
-  /* Item 1 do pedido: voltar para a principal zera os filtros. Antes eles
-     ficavam pendurados da visita anterior, e a pessoa reabria a planilha
-     achando que tinha sumido obra — quando era só um filtro esquecido de
-     dez minutos atrás. Vale para os selects, a busca e o recorte dos cartões.
-     O filtro de RESPONSÁVEL é o único que sobrevive: ele é global (vale para
-     KPIs, gráficos e setores) e está no seletor do topo, à vista. */
+  /* Item 1 do pedido: voltar para a principal zera TODOS os filtros. Antes
+     eles ficavam pendurados da visita anterior, e a pessoa reabria a planilha
+     achando que tinha sumido obra — quando era só um filtro esquecido de dez
+     minutos atrás.
+     Zera os selects de coluna, a busca, o recorte dos cartões E o filtro de
+     RESPONSÁVEL. O de responsável entrou aqui na segunda rodada: eu tinha
+     deixado ele sobreviver por ser um filtro global (mexe em KPIs, gráficos e
+     cards de setor), mas é justamente por ser global que ele engana mais —
+     voltando ao hub com "RESPONSÁVEL: Fulano" ainda ligado, TODO número da
+     tela inicial fica menor do que a realidade. */
   RECORTE = null;
   limparFiltrosPlanilha();
   document.getElementById("view-setor").style.display = "none";
   document.getElementById("view-hub").style.display = "";
-  renderPlanilha();
-  // os gráficos não são desenhados enquanto o hub está escondido: agora que
-  // ele voltou, redesenha com a largura certa
-  renderGraficos();
+  /* trocarFiltroResp("") já faz o pacote inteiro: espelha o valor vazio nos
+     dois seletores (o do topo e o da barra de filtros) e repinta KPIs,
+     gráficos, planilha e setores. Chamado DEPOIS de mostrar o hub porque os
+     gráficos precisam da largura real do container para desenhar — com o hub
+     escondido eles sairiam com 0 px.
+     Se o filtro já estava vazio, evita o repinte à toa. */
+  if (FILTRO_RESP) trocarFiltroResp("");
+  else { renderPlanilha(); renderGraficos(); }
   window.scrollTo(0,0);
 }
 function renderTabs(){

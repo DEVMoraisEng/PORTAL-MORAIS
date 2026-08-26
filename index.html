@@ -87,6 +87,14 @@ body{display:flex;flex-direction:column;min-height:100vh}
 .kpi.verde .val{color:var(--verde-esc)}
 .nota{background:#FFF7ED;border:1px solid #FED7AA;color:#9A3412;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:16px;display:none}
 .updated{color:var(--text4);font-size:11px;margin-top:8px;text-align:right}
+/* Hora da última publicação, no cabeçalho de todas as páginas. No rodapé ela
+   existia mas ficava depois de uma tela inteira de conteúdo — na prática
+   ninguém via. Aqui fica sempre à vista. No celular some (o cabeçalho já é
+   apertado) e a cópia do rodapé cobre. */
+.hupd{font-size:10.5px;color:rgba(255,255,255,.72);white-space:nowrap;
+  text-align:right;margin:0;line-height:1.2;max-width:210px}
+@media(max-width:900px){ .hupd{display:none} }
+
 .load{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--verde);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px}
 @keyframes spin{to{transform:rotate(360deg)}}
 .nav-btn .ext{font-size:11px;opacity:.65;margin-left:2px}
@@ -181,6 +189,7 @@ html[data-tema="escuro"] .logo{background:#fff}
       <div><div class="htitle">Portal Central</div><div class="hsub">Morais Engenharia · Controle Interno</div></div>
       <div class="hspace"></div>
       <span class="net on" id="net-status">online</span>
+      <span class="hupd updated" id="updated"></span>
       <div class="user"><div style="text-align:right"><div class="nome" id="u-nome">—</div><span class="badge" id="u-tipo">—</span></div><button class="btema" id="btema" onclick="trocarTema()" title="Alternar claro/escuro" aria-label="Alternar claro/escuro">🌙</button><button class="sair" onclick="sair()">Sair</button></div>
     </div>
   </header>
@@ -207,7 +216,7 @@ html[data-tema="escuro"] .logo{background:#fff}
         <div class="kpis" id="kpi-lotes"></div>
         <div class="graf-box" id="g-lotes"></div>
       </div>
-      <div class="updated" id="updated"></div>
+      <div class="updated"></div>
     </main>
   </div>
 

@@ -736,6 +736,14 @@ html[data-tema="escuro"] .logo{background:#fff}
 .tarja-teste b{font-weight:800;letter-spacing:.03em}
 html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;color:#f0c95f}
 .updated{color:var(--text4);font-size:11px;margin-top:14px;text-align:right}
+/* Hora da última publicação, no cabeçalho de todas as páginas. No rodapé ela
+   existia mas ficava depois de uma tela inteira de conteúdo — na prática
+   ninguém via. Aqui fica sempre à vista. No celular some (o cabeçalho já é
+   apertado) e a cópia do rodapé cobre. */
+.hupd{font-size:10.5px;color:rgba(255,255,255,.72);white-space:nowrap;
+  text-align:right;margin:0;line-height:1.2;max-width:210px}
+@media(max-width:900px){ .hupd{display:none} }
+
 </style>
 </head>
 <body>
@@ -746,6 +754,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
       <div class="hspace"></div>
       <span class="net on" id="net-status">online</span>
       <button class="btn-sync" id="btn-sync" onclick="sincronizar()">↻ Sincronizar <span class="filabadge" id="fila-badge">0</span></button>
+      <span class="hupd updated" id="updated"></span>
       <div class="user">
         <div style="text-align:right"><div class="nome" id="u-nome">—</div><span class="badge" id="u-tipo">—</span></div>
         <button class="btema" id="btema" onclick="trocarTema()" title="Alternar claro/escuro" aria-label="Alternar claro/escuro">🌙</button>
@@ -931,7 +940,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
         <div class="tabela-wrap" id="mod-wrap"><div class="vazio">Carregando…</div></div>
       </div>
     </section>
-    <div class="updated" id="updated"></div>
+    <div class="updated"></div>
   </main>
 
   <div class="overlay" id="overlay" onclick="fecharObra()"></div>
