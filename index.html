@@ -198,6 +198,12 @@ const SISTEMAS=[
      com acento e em maiúsculas. Se não bater, o botão simplesmente não
      aparece pra quem tem o acesso, e sem mensagem de erro nenhuma. */
   {chave:"LIGAÇÕES",nome:"Ligações de Água e Energia",desc:"Solicitações, prazos e planilha",ico:"L",link:"ligacoes.html",grupo:"SETORES"},
+
+  /* "MAPA DE VENDAS" é público: publico:true faz o botão aparecer pra
+     qualquer usuário logado, sem precisar de liberação na coluna ACESSOS
+     do banco LOGINS (diferente dos outros itens, que exigem a chave lá). */
+  {chave:"MAPA DE VENDAS",nome:"Mapa de Vendas",desc:"Disponibilidade e mapas por setor",ico:"M",link:"https://devmoraiseng.github.io/SITE-DE-VENDAS/",externo:true,grupo:"MAPAS",publico:true},
+
   {chave:"RAS LÍDERES",nome:"RAS Líderes",desc:"Reunião de alinhamento — Líderes",ico:"R",link:"https://devmoraiseng.github.io/RAS-SEMANAL/",externo:true,grupo:"REUNIÕES"},
   {chave:"RAS FINANCEIRO",nome:"RAS Financeiro",desc:"Reunião de alinhamento — Financeiro",ico:"R",link:"https://devmoraiseng.github.io/RAS-FINANCEIRO/",externo:true,grupo:"REUNIÕES"},
   {chave:"RAS PROJETOS",nome:"RAS Projetos",desc:"Reunião de alinhamento — Projetos",ico:"R",link:"https://devmoraiseng.github.io/RAS-PROJETOS/",externo:true,grupo:"REUNIÕES"},
@@ -213,7 +219,7 @@ const SISTEMAS=[
      Se não bater, o botão não aparece e não dá erro nenhum. */
   {chave:"PRANCHA HUMANIZADA",nome:"Prancha Humanizada",desc:"Planta do Revit → prancha de venda no timbrado",ico:"A",link:"https://devmoraiseng.github.io/AUT-PRANCHA-HUMANIZADA/",externo:true,grupo:"AUTOMAÇÕES"}
 ];
-const GRUPOS_ORDEM=["SETORES","REUNIÕES","AUTOMAÇÕES"]; // setores, reuniões e automações — nessa ordem
+const GRUPOS_ORDEM=["SETORES","MAPAS","REUNIÕES","AUTOMAÇÕES"]; // setores, mapas, reuniões e automações — nessa ordem
 const S=exigirSessao(); atualizarStatus();
 
 function pintarUsuario(s){ document.getElementById("u-nome").textContent=s.nome||s.login; const tb=document.getElementById("u-tipo"); tb.textContent=s.tipo; tb.className="badge"+(s.tipo==="ADM"?" adm":""); }
@@ -221,7 +227,7 @@ function botaoSistemaHtml(x){
   return `<a class="nav-btn" href="${x.link}"${x.externo?' target="_blank" rel="noopener"':''}>${esc(x.nome)}${x.externo?' <span class="ext">↗</span>':''}${x.conta?`<span class="cnt" id="cnt-${x.chave}">·</span>`:``}</a>`;
 }
 function renderCards(s){
-  const vis=SISTEMAS.filter(x=>podeAcessar(s,x.chave)); const box=document.getElementById("cards");
+  const vis=SISTEMAS.filter(x=>x.publico||podeAcessar(s,x.chave)); const box=document.getElementById("cards");
   if(!vis.length){ box.innerHTML='<div class="vazio">Sem sistemas liberados. Fale com o ADM.</div>'; return; }
   // agrupa por "grupo" (SETORES / REUNIÕES), na ordem fixa de GRUPOS_ORDEM —
   // um sistema sem nenhum acesso liberado simplesmente não aparece, e um
