@@ -4,7 +4,13 @@
 <meta charset="UTF-8">
 <meta name="robots" content="noindex,nofollow">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#295778">
 <title>Casas Vendidas · Painel de Vendas · Morais Engenharia</title>
+<!-- tema antes da pintura: sem isto a tela pisca branca pra quem usa escuro.
+     Mesma chave (morais_tema) do resto do portal. -->
+<script>(function(){try{var t=localStorage.getItem("morais_tema");
+  if(t!=="claro"&&t!=="escuro") t=(window.matchMedia&&window.matchMedia("(prefers-color-scheme:dark)").matches)?"escuro":"claro";
+  document.documentElement.dataset.tema=t;}catch(e){}})();</script>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -14,6 +20,10 @@
   --bg:#EAF1F3;--bg2:#F5F9FA;--bg3:#dceaef;
   --border:#b8d0da;--border2:#d0e4ec;
   --text:#1a3347;--text3:#5a8099;--text4:#8aacbb;--branco:#fff;
+  /* superfície dos cartões: o modo escuro troca só esta variável em vez de
+     reescrever dezenas de regras (mesmo padrão do ligacoes.html) */
+  --sup:#fff;--sup2:#f7fbfc;
+  color-scheme:light;
 }
 body{background:var(--bg);font-family:'Barlow',sans-serif;min-height:100vh;
      display:flex;flex-direction:column;overflow-x:hidden}
@@ -334,6 +344,34 @@ tfoot td:last-child{border-right:none}
 body{display:flex;flex-direction:column;min-height:100vh}
 .metas-body{flex:1}
 @media(max-width:900px){.rank-grid{grid-template-columns:1fr}}
+
+/* botão de tema no cabeçalho, no mesmo estilo do "Voltar" desta página */
+.btema{background:rgba(143,220,210,.18);border:1px solid rgba(143,220,210,.4);border-radius:7px;
+  padding:7px 11px;font:inherit;font-size:15px;line-height:1;color:var(--teal);cursor:pointer;flex-shrink:0}
+.btema:hover{background:rgba(143,220,210,.32)}
+
+/* ===================== MODO ESCURO =====================
+   Mesma paleta e a MESMA chave (morais_tema) do resto do portal. Só troca cor:
+   nenhuma medida nem regra de layout muda aqui. */
+html[data-tema="escuro"]{
+  color-scheme:dark;
+  --azul:#2f6e93;--azul-esc:#122430;--teal:#79c8bf;--verde:#2f9e63;--verde-btn:#3cbf5d;
+  --bg:#0e1920;--bg2:#15222c;--bg3:#1a2c38;--border:#2d4757;--border2:#243a4a;
+  --text:#e7eff5;--text3:#9db4c4;--text4:#7794a6;--branco:#15222c;
+  --sup:#15222c;--sup2:#1a2934;
+}
+html[data-tema="escuro"] body{background:var(--bg)}
+html[data-tema="escuro"] table tbody tr:nth-child(even) td{background:#121e27}
+html[data-tema="escuro"] thead th{background:var(--azul-esc);color:var(--teal)}
+/* textos azul-escuros somem no fundo escuro: passam para o tom claro do tema */
+html[data-tema="escuro"] .metas-hdr-title,
+html[data-tema="escuro"] .kpi-val,
+html[data-tema="escuro"] .kpi .val,
+html[data-tema="escuro"] .card-tit,
+html[data-tema="escuro"] .graf-tit{color:var(--teal)}
+html[data-tema="escuro"] input,html[data-tema="escuro"] select,html[data-tema="escuro"] textarea{
+  background:var(--sup2);color:var(--text);border-color:var(--border)}
+html[data-tema="escuro"] .hdr-logo{background:#fff;border-radius:5px;padding:2px}
 </style>
 </head>
 <body>
@@ -347,6 +385,7 @@ body{display:flex;flex-direction:column;min-height:100vh}
   </div>
   <div class="hdr-right">
     <div class="updated" id="updated-at"></div>
+    <button class="btema" id="btema" onclick="trocarTema()" title="Alternar claro/escuro" aria-label="Alternar claro/escuro">🌙</button>
     <a href="index.html" class="hdr-back" style="text-decoration:none">&larr; Voltar</a>
   </div>
 </header>
@@ -417,6 +456,27 @@ body{display:flex;flex-direction:column;min-height:100vh}
 </div>
 
 <script>
+/* claro/escuro. Esta página não carrega o app.js, então a lógica vai inline —
+   mas a CHAVE é a mesma (morais_tema) das outras, então a escolha acompanha
+   o usuário de página em página. */
+const TEMA_KEY="morais_tema";
+function temaAtual(){ return document.documentElement.dataset.tema==="escuro"?"escuro":"claro"; }
+function aplicarTema(t){
+  const escuro=(t==="escuro");
+  document.documentElement.dataset.tema=escuro?"escuro":"claro";
+  const b=document.getElementById("btema");
+  if(b){ b.textContent=escuro?"☀":"🌙";
+         b.title=escuro?"Voltar para o tema claro":"Mudar para o tema escuro"; }
+  const meta=document.querySelector('meta[name="theme-color"]');
+  if(meta) meta.setAttribute("content", escuro?"#122430":"#295778");
+}
+function trocarTema(){
+  const novo=temaAtual()==="escuro"?"claro":"escuro";
+  try{ localStorage.setItem(TEMA_KEY,novo); }catch(e){}
+  aplicarTema(novo);
+}
+document.addEventListener("DOMContentLoaded",()=>aplicarTema(temaAtual()));
+
 /* Rede de segurança: qualquer erro não tratado vira mensagem na tela.
    Sem isto a página fica branca dentro do iframe e não dá pra saber se o
    problema é o JSON que faltou, um nome de coluna ou um bug do script. */
@@ -870,7 +930,7 @@ async function init(){
          o fetch_vendas.py grava updated_at em UTC SEM o "Z" e o JS leria a
          string como hora LOCAL — em UTC-3 o rótulo aparecia 3 h no futuro. */
       document.getElementById('updated-at').textContent=
-        'Atualizado: '+new Date(/(Z|[+\-]\d{2}:?\d{2})$/.test(String(data.updated_at).trim())
+        'Última atualização: '+new Date(/(Z|[+\-]\d{2}:?\d{2})$/.test(String(data.updated_at).trim())
           ? data.updated_at : String(data.updated_at).trim()+'Z').toLocaleString('pt-BR');
 
     const anoAtual=String(new Date().getFullYear());

@@ -91,6 +91,37 @@ body{display:flex;flex-direction:column;min-height:100vh}
 @keyframes spin{to{transform:rotate(360deg)}}
 .nav-btn .ext{font-size:11px;opacity:.65;margin-left:2px}
 
+/* ---------- bloco recolhível com o gráfico de evolução ----------
+   Fica FECHADO por padrão (pedido): o dashboard abre com os números e quem
+   quiser o histórico expande. O conteúdo não é renderizado até a primeira
+   abertura — desenhar três gráficos que ninguém olhou só atrasaria a tela. */
+.sec{justify-content:space-between}
+.bt-graf{margin-left:auto;display:inline-flex;align-items:center;gap:7px;background:transparent;
+  border:1px solid var(--border);color:var(--text3);border-radius:7px;padding:5px 11px;
+  font:inherit;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;cursor:pointer}
+.bt-graf:hover{background:var(--sup);color:var(--azul-esc)}
+.bt-graf .seta{display:inline-block;transition:transform .18s;font-size:10px}
+.bt-graf[aria-expanded="true"] .seta{transform:rotate(90deg)}
+.graf-box{display:none;background:var(--sup);border:1px solid var(--border2);border-radius:12px;
+  padding:14px 16px 10px;margin-top:13px}
+.graf-box.aberto{display:block}
+.graf-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.graf-tit{font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;
+  text-transform:uppercase;letter-spacing:.06em;color:var(--azul-esc)}
+.graf-box select{margin-left:auto;padding:5px 9px;border:1px solid var(--border);border-radius:7px;
+  background:var(--sup);color:var(--text);font:inherit;font-size:12.5px}
+.graf-svg{width:100%;height:auto;display:block;overflow:visible}
+.graf-leg{display:flex;gap:15px;flex-wrap:wrap;margin-top:8px;font-size:11px;color:var(--text3)}
+.graf-leg i{display:inline-block;width:16px;height:0;border-top:2px solid currentColor;
+  vertical-align:middle;margin-right:5px}
+.graf-leg .bloco-cor{display:inline-block;width:11px;height:11px;border-radius:2px;
+  vertical-align:-1px;margin-right:5px}
+.graf-vazio{padding:22px;text-align:center;color:var(--text4);font-size:12.5px}
+@media(max-width:680px){ .graf-box{padding:12px 10px 8px} .graf-box select{margin-left:0} }
+
+html[data-tema="escuro"] .graf-tit{color:var(--teal)}
+html[data-tema="escuro"] .bt-graf:hover{color:var(--teal)}
+
 /* ==================== TELA ESTREITA / CELULAR ====================
    Tem que ficar no FIM: as regras do menu lateral aparecem lá em cima e, com a
    mesma especificidade, ganha a última. */
@@ -158,8 +189,24 @@ html[data-tema="escuro"] .logo{background:#fff}
     <nav class="dash-nav" id="cards"><div class="vazio"><span class="load"></span> Carregando…</div></nav>
     <main class="dash-main">
       <div class="nota" id="nota"></div>
-      <div class="bloco"><div class="sec"><span class="cond">Venda de Casas</span></div><div class="kpis" id="kpi-vendas"><div class="kpi"><div class="lab">Carregando</div><div class="val"><span class="load"></span></div></div></div></div>
-      <div class="bloco"><div class="sec"><span class="cond">Início de Obras</span></div><div class="kpis" id="kpi-obras"></div></div>
+      <div class="bloco">
+        <div class="sec"><span class="cond">Venda de Casas</span>
+          <button class="bt-graf" id="bt-g-vendas" aria-expanded="false" onclick="alternarGrafico('vendas')"><span class="seta">▶</span> Evolução anual</button></div>
+        <div class="kpis" id="kpi-vendas"><div class="kpi"><div class="lab">Carregando</div><div class="val"><span class="load"></span></div></div></div>
+        <div class="graf-box" id="g-vendas"></div>
+      </div>
+      <div class="bloco">
+        <div class="sec"><span class="cond">Início de Obras</span>
+          <button class="bt-graf" id="bt-g-obras" aria-expanded="false" onclick="alternarGrafico('obras')"><span class="seta">▶</span> Evolução anual</button></div>
+        <div class="kpis" id="kpi-obras"></div>
+        <div class="graf-box" id="g-obras"></div>
+      </div>
+      <div class="bloco">
+        <div class="sec"><span class="cond">Lotes Comprados</span>
+          <button class="bt-graf" id="bt-g-lotes" aria-expanded="false" onclick="alternarGrafico('lotes')"><span class="seta">▶</span> Evolução anual</button></div>
+        <div class="kpis" id="kpi-lotes"></div>
+        <div class="graf-box" id="g-lotes"></div>
+      </div>
       <div class="updated" id="updated"></div>
     </main>
   </div>
@@ -240,6 +287,136 @@ function renderCards(s){
 }
 function card(lab,val,sub,cls){ return `<div class="kpi ${cls||''}"><div class="lab">${lab}</div><div class="val">${val}</div><div class="sub">${sub||''}</div></div>`; }
 
+/* ======================= NÚMEROS E METAS =======================
+   REGRA DAS MÉDIAS (combinada):
+     média/mês       = total do ano ÷ MESES DECORRIDOS (não ÷ meses que tiveram
+                       movimento — contar só os meses com venda escondia os
+                       zerados e inflava a média)
+     média/trimestre = total do trimestre ATUAL ÷ 3 meses
+     meta mensal     = meta do ano ÷ 12   (comparável com as duas médias acima)
+     meta trimestral = meta do ano ÷ 4
+   Os dois vêm prontos do portal.json (fetch_vendas.py) — aqui é só exibição. */
+
+/* Meta de CASAS VENDIDAS: o analise.html usa a meta do ano ANTERIOR (a lógica
+   é que o que se vende hoje foi iniciado no ano passado). Deixei ligado porque
+   é o que já está em uso lá, mas isto ficou SEM confirmação sua — se a meta de
+   venda tiver que ser a do próprio ano, troque para false e republique.
+   Início de obras e lotes usam sempre a meta do ano corrente. */
+const META_VENDAS_ANO_ANTERIOR = true;
+
+const MESES_ABREV=["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+const MESES_NOME=["janeiro","fevereiro","março","abril","maio","junho","julho",
+                  "agosto","setembro","outubro","novembro","dezembro"];
+const dec = (v,c) => (Number(v)||0).toLocaleString("pt-BR",{maximumFractionDigits:c==null?1:c});
+/* "12 / 20" + a cor. Verde quando bate a meta, vermelho quando não —
+   sem meta cadastrada, nem cor nem percentual (não invento comparação). */
+function vsMeta(valor,meta){
+  if(!meta) return {sub:"sem meta cadastrada", cls:""};
+  const pct=(Number(valor)||0)/meta*100;
+  return { sub:`${dec(valor)} / ${dec(meta)} · ${dec(pct,0)}% da meta`,
+           cls:(Number(valor)||0)>=meta?"verde":"" };
+}
+
+/* ======================= GRÁFICO DE EVOLUÇÃO =======================
+   SVG montado à mão, sem biblioteca: são 12 barras e duas linhas. Puxar
+   Chart.js para isso custaria mais download do que a página inteira.
+   Barras = mês a mês; linha tracejada = meta mensal; pontilhada = média real
+   do ano exibido. Mesma leitura dos gráficos do analise.html. */
+function graficoSVG(valores, opts){
+  opts=opts||{};
+  const L=46, R=14, T=16, B=26, W=680, H=210;      // margens e área útil
+  const gw=W-L-R, gh=H-T-B;
+  const vals=(valores||[]).map(v=>Number(v)||0);
+  const meta=opts.meta||0;
+  const media=opts.media||0;
+  const topo=Math.max(...vals, meta, media, 1)*1.15;
+  const y=v=>T+gh-(v/topo)*gh;
+  const passo=gw/12, larg=Math.min(passo*0.62, 34);
+  const fmt=opts.fmt||(v=>dec(v));
+
+  // linhas-guia horizontais (4 faixas) — dão referência sem poluir
+  let grade="";
+  for(let i=0;i<=4;i++){
+    const v=topo*i/4, yy=y(v);
+    grade+=`<line x1="${L}" y1="${yy.toFixed(1)}" x2="${L+gw}" y2="${yy.toFixed(1)}" stroke="var(--border2)" stroke-width="1"/>`;
+    grade+=`<text x="${L-7}" y="${(yy+4).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--text4)">${fmt(v)}</text>`;
+  }
+  let barras="";
+  vals.forEach((v,i)=>{
+    const cx=L+passo*i+passo/2, alt=Math.max(0,T+gh-y(v));
+    if(v>0){
+      barras+=`<rect x="${(cx-larg/2).toFixed(1)}" y="${y(v).toFixed(1)}" width="${larg.toFixed(1)}" height="${alt.toFixed(1)}" rx="3" fill="var(--azul)"><title>${MESES_NOME[i]}: ${fmt(v)}</title></rect>`;
+      barras+=`<text x="${cx.toFixed(1)}" y="${(y(v)-4).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="var(--text3)">${fmt(v)}</text>`;
+    }
+    barras+=`<text x="${cx.toFixed(1)}" y="${H-8}" text-anchor="middle" font-size="10" fill="var(--text4)">${MESES_ABREV[i]}</text>`;
+  });
+  let linhas="";
+  if(meta>0) linhas+=`<line x1="${L}" y1="${y(meta).toFixed(1)}" x2="${L+gw}" y2="${y(meta).toFixed(1)}" stroke="var(--verde-esc)" stroke-width="2" stroke-dasharray="9 5"/>`;
+  if(media>0) linhas+=`<line x1="${L}" y1="${y(media).toFixed(1)}" x2="${L+gw}" y2="${y(media).toFixed(1)}" stroke="var(--text3)" stroke-width="1.5" stroke-dasharray="2 4"/>`;
+
+  return `<svg class="graf-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Evolução mensal">${grade}${barras}${linhas}</svg>`;
+}
+
+/* Estado dos três gráficos: qual está aberto e que ano cada um mostra. */
+const GRAF={vendas:{aberto:false,ano:null},obras:{aberto:false,ano:null},lotes:{aberto:false,ano:null}};
+const GRAF_CFG={
+  vendas:{serie:"vendas", titulo:"Casas vendidas por mês", comMeta:true,  fmt:v=>dec(v,0)},
+  obras: {serie:"obras",  titulo:"Casas iniciadas por mês", comMeta:true, fmt:v=>dec(v)},
+  lotes: {serie:"lotes",  titulo:"Lotes adquiridos por mês", comMeta:false,fmt:v=>dec(v,0)}
+};
+let PORTAL=null;   // último portal.json pintado (o gráfico lê daqui)
+
+function alternarGrafico(qual){
+  const g=GRAF[qual]; g.aberto=!g.aberto;
+  document.getElementById("g-"+qual).classList.toggle("aberto",g.aberto);
+  document.getElementById("bt-g-"+qual).setAttribute("aria-expanded",g.aberto?"true":"false");
+  if(g.aberto) desenharGrafico(qual);
+}
+function trocarAnoGrafico(qual,ano){ GRAF[qual].ano=Number(ano); desenharGrafico(qual); }
+
+function desenharGrafico(qual){
+  const box=document.getElementById("g-"+qual); if(!box) return;
+  const cfg=GRAF_CFG[qual];
+  if(!PORTAL||!PORTAL.ok||!PORTAL.series){
+    box.innerHTML='<div class="graf-vazio">Sem dados publicados ainda — rode o workflow “Publicar site” no GitHub.</div>';
+    return;
+  }
+  const serie=PORTAL.series[cfg.serie]||{};
+  // anos com movimento neste indicador; se não houver nenhum, cai no ano atual
+  const anos=Object.keys(serie).filter(a=>(serie[a]||[]).some(v=>v>0)).map(Number).sort((a,b)=>b-a);
+  if(!anos.length) anos.push(PORTAL.ano);
+  if(GRAF[qual].ano==null || anos.indexOf(GRAF[qual].ano)<0) GRAF[qual].ano=anos[0];
+  const ano=GRAF[qual].ano;
+  const vals=serie[String(ano)]||new Array(12).fill(0);
+
+  // meta mensal do ano EXIBIDO (não do ano corrente) — senão, olhar 2024 com a
+  // linha de meta de 2026 daria uma leitura errada do passado
+  const metas=PORTAL.metas||{};
+  let metaAno=0;
+  if(cfg.comMeta){
+    const alvo = (qual==="vendas" && META_VENDAS_ANO_ANTERIOR) ? (ano-1) : ano;
+    metaAno=Number(metas[String(alvo)])||0;
+  }
+  const metaMes=metaAno?metaAno/12:0;
+  // média real: no ano corrente divide pelos meses decorridos; nos anos
+  // fechados, por 12
+  const mesesAno = (ano===PORTAL.ano) ? (PORTAL.mesesDecorridos||12) : 12;
+  const total=vals.reduce((a,b)=>a+(Number(b)||0),0);
+  const media=total/(mesesAno||12);
+
+  const opcoes=anos.map(a=>`<option value="${a}"${a===ano?" selected":""}>${a}</option>`).join("");
+  box.innerHTML=
+    `<div class="graf-top"><span class="graf-tit">${esc(cfg.titulo)}</span>`+
+    `<select onchange="trocarAnoGrafico('${qual}',this.value)" aria-label="Ano do gráfico">${opcoes}</select></div>`+
+    graficoSVG(vals,{meta:metaMes,media:media,fmt:cfg.fmt})+
+    `<div class="graf-leg">`+
+      `<span><span class="bloco-cor" style="background:var(--azul)"></span>${esc(cfg.titulo.split(" por ")[0])}</span>`+
+      (metaMes?`<span style="color:var(--verde-esc)"><i></i>Meta mensal: ${dec(metaMes)}</span>`:``)+
+      `<span style="color:var(--text3)"><i style="border-top-style:dotted"></i>Média do ano: ${dec(media)}</span>`+
+      `<span style="color:var(--text4)">Total em ${ano}: <b>${cfg.fmt(total)}</b></span>`+
+    `</div>`;
+}
+
 function boot(){
   pintarUsuario(S); renderCards(S);
 
@@ -266,27 +443,57 @@ function boot(){
 }
 function pintarAtividades(r){ const el=document.getElementById("cnt-VENDAS"); if(el&&r&&r.ok)el.textContent=r.total; }
 function pintarKpis(r){
-  if(!r.ok){ document.getElementById("kpi-vendas").innerHTML=card("Indisponível","—",erroTexto(r.erro)); return; }
-  const vc=r.vendaCasas, io=r.inicioObras;
-  // item 6 (rodada 2): média por trimestre FIXO (Jan-Mar/Abr-Jun/Jul-Set/Out-Dez),
-  // não janela móvel — vem pronta do portal.json (fetch_vendas.py).
+  PORTAL=r;
+  if(!r.ok){
+    document.getElementById("kpi-vendas").innerHTML=card("Indisponível","—",erroTexto(r.erro));
+    document.getElementById("kpi-obras").innerHTML="";
+    document.getElementById("kpi-lotes").innerHTML="";
+    pintarAtualizado(null, r.offline, r._ts);
+    return;
+  }
+  const vc=r.vendaCasas||{}, io_=r.inicioObras||{}, lt=r.lotes||{};
+  const mesNome=MESES_NOME[(r.mesAtual||1)-1]||"";
+  const tri=r.trimestreAtual||1;
+  const rotTri=["Jan–Mar","Abr–Jun","Jul–Set","Out–Dez"][tri-1];
+
+  /* ---------- VENDA DE CASAS ----------
+     Pedido: total do ano, vendas do último mês, média do trimestre, média/mês
+     do ano e ticket médio — com as metas ao lado. */
+  const metaVendas = META_VENDAS_ANO_ANTERIOR ? (vc.metaAnoAnterior||0) : (vc.meta||0);
+  const metaVMes = metaVendas?metaVendas/12:0;
+  const mTotal=vsMeta(vc.total,metaVendas), mMes=vsMeta(vc.mediaMes,metaVMes), mTri=vsMeta(vc.mediaTrimestre,metaVMes);
   document.getElementById("kpi-vendas").innerHTML=
-    card("Casas Vendidas",num(vc.total),"com data de venda em "+r.ano,"hero")+
-    card("VGV (Contratos)",brl(vc.vgv),"soma dos contratos","verde")+
-    card("Média/mês",(vc.mediaMes||0).toLocaleString("pt-BR",{maximumFractionDigits:1}),vc.meses+" meses")+
-    (vc.trimestres?card("Média/trimestre",(vc.mediaTrimestre||0).toLocaleString("pt-BR",{maximumFractionDigits:1}),vc.trimestres+" trim. (fixos)"):"")+
-    card("Ticket Médio",brl(vc.ticket),"por casa");
-  // item 6 (rodada 2): tirou a divisão Morais/Investidor daqui (não precisa mostrar
-  // dividido) — "Casas Iniciadas" já soma as duas (n_casas, não lotes)
+    card("Casas Vendidas em "+r.ano,num(vc.total),mTotal.sub,"hero")+
+    card("Vendas em "+mesNome,dec(vc.mesCorrente,0),"mês anterior: "+dec(vc.mesAnterior,0),"")+
+    card("Média/mês (no ano)",dec(vc.mediaMes),mMes.sub,mMes.cls)+
+    card("Média/mês do trimestre",dec(vc.mediaTrimestre),rotTri+" · "+mTri.sub,mTri.cls)+
+    card("Ticket Médio",brl(vc.ticket),"VGV "+brl(vc.vgv),"verde");
+
+  /* ---------- INÍCIO DE OBRAS ----------
+     Pedido: SOMENTE três números (iniciadas, média/mês, média do trimestre),
+     os três relacionados com a meta. */
+  const metaOMes=io_.metaMes||0;
+  const oTotal=vsMeta(io_.iniciadas,io_.meta), oMes=vsMeta(io_.mediaMes,metaOMes), oTri=vsMeta(io_.mediaTrimestre,metaOMes);
   document.getElementById("kpi-obras").innerHTML=
-    card("Casas Iniciadas",num(io.iniciadas),"morais + investidores · "+r.ano,"hero")+
-    card("Média/mês",(io.mediaMes||0).toLocaleString("pt-BR",{maximumFractionDigits:1}),io.meses+" meses")+
-    (io.trimestres?card("Média/trimestre",(io.mediaTrimestre||0).toLocaleString("pt-BR",{maximumFractionDigits:1}),io.trimestres+" trim. (fixos)"):"")+
-    (io.meta!=null?card("Meta "+r.ano,num(io.meta),"casas no ano"):"")+
-    (io.meta!=null?card("% da Meta",((io.pct||0)*100).toLocaleString("pt-BR",{maximumFractionDigits:0})+"%","iniciadas ÷ meta","verde"):"");
+    card("Casas Iniciadas em "+r.ano,dec(io_.iniciadas),oTotal.sub,"hero")+
+    card("Média/mês (no ano)",dec(io_.mediaMes),oMes.sub,oMes.cls)+
+    card("Média/mês do trimestre",dec(io_.mediaTrimestre),rotTri+" · "+oTri.sub,oTri.cls);
+
+  /* ---------- LOTES COMPRADOS ----------
+     Mesma lógica das casas iniciadas, mas SEM meta (confirmado: não existe
+     coluna de meta de lotes no banco METAS). */
+  document.getElementById("kpi-lotes").innerHTML=
+    card("Lotes Adquiridos em "+r.ano,num(lt.total),"morais: "+num(lt.morais)+" · investidores: "+num(lt.investidores),"hero")+
+    card("Média/mês (no ano)",dec(lt.mediaMes),(r.mesesDecorridos||12)+" meses decorridos")+
+    card("Média/mês do trimestre",dec(lt.mediaTrimestre),rotTri+" · "+dec(lt.trimestreTotal,0)+" lotes no trimestre");
+
   const nota=document.getElementById("nota");
-  if(r.offline){ nota.style.display="block"; nota.textContent="Sem internet — últimos dados salvos ("+new Date(r._ts).toLocaleString("pt-BR")+")."; } else nota.style.display="none";
-  document.getElementById("updated").textContent="Dados publicados em: "+(r._ts?new Date(r._ts).toLocaleString("pt-BR"):new Date().toLocaleString("pt-BR"));
+  if(r.offline){ nota.style.display="block"; nota.textContent="Sem internet — últimos dados salvos ("+new Date(r._ts).toLocaleString("pt-BR")+")."; }
+  else nota.style.display="none";
+  pintarAtualizado(r.updated_at, r.offline, r._ts);
+
+  // gráfico já aberto: repinta com os dados novos
+  Object.keys(GRAF).forEach(q=>{ if(GRAF[q].aberto) desenharGrafico(q); });
 }
 window.aoSincronizar=async()=>{ if(podeAcessar(S,"VENDAS")) pintarAtividades(await ler({action:"atividades"},"atividades")); };
 boot();

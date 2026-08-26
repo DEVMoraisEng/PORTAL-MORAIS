@@ -5,15 +5,24 @@
 <meta name="color-scheme" content="light only">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#295778">
+<!-- tema antes da pintura: sem isto a tela pisca branca pra quem usa escuro -->
+<script>(function(){try{var t=localStorage.getItem("morais_tema");
+  if(t!=="claro"&&t!=="escuro") t=(window.matchMedia&&window.matchMedia("(prefers-color-scheme:dark)").matches)?"escuro":"claro";
+  document.documentElement.dataset.tema=t;}catch(e){}})();</script>
 <link rel="manifest" href="manifest.json">
 <title>Gestão de Vendas · Morais</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-/* Tema claro fixo. Sem isto, o Android/iOS em modo escuro inverte controles
-   nativos (inputs, selects, datas, scrollbar) e o site fica com campos pretos
-   sobre o layout claro. "light only" recusa a inversão em vez de só sugerir. */
-:root{color-scheme:light only}
+/* O tema agora é escolhido no botão do cabeçalho e gravado em morais_tema
+   (a MESMA chave do index.html e do ligacoes.html — quem escolhe escuro numa
+   página encontra as outras já escuras).
+   O "light only" saiu daqui de propósito: ele existia para impedir o
+   Android/iOS de inverter os controles nativos por conta própria. Agora quem
+   manda é o data-tema do <html>, e o color-scheme acompanha a escolha (ver o
+   bloco MODO ESCURO no fim deste <style>) — assim input, select e calendário
+   nativos ficam coerentes com o tema em vez de brigar com ele. */
+:root{color-scheme:light}
 /* O fundo do body só cobre a altura do conteúdo. Sem repetir a cor aqui,
    o resto da tela cai no branco do html — foi o que deixou a faixa branca
    embaixo em páginas curtas. min-height garante a tela toda. */
@@ -23,7 +32,11 @@ body{min-height:100vh}
 :root{
   --azul:#295778;--azul-esc:#1e3f58;--teal:#8FDCD2;--verde:#2a9d5c;--verde-btn:#4cd964;--verde-esc:#1a6b40;
   --bg:#EAF1F3;--bg2:#F5F9FA;--bg3:#dceaef;--border:#b8d0da;--border2:#d0e4ec;
-  --text:#1a3347;--text3:#5a8099;--text4:#8aacbb;--branco:#fff;--orange:#E67E22}
+  --text:#1a3347;--text3:#5a8099;--text4:#8aacbb;--branco:#fff;--orange:#E67E22;
+  /* superfície dos cartões/painéis. Existe para o modo escuro trocar UMA
+     variável em vez de reescrever dezenas de regras — mesmo padrão do
+     ligacoes.html, que já usa --sup. */
+  --sup:#fff;--sup2:#f7fbfc;--sombra:rgba(20,50,70,.18)}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.45}
 .cond{font-family:'Barlow Condensed',Inter,sans-serif}
@@ -34,7 +47,7 @@ a{color:inherit}
 header{background:linear-gradient(120deg,var(--azul-esc),var(--azul));position:relative}
 header::after{content:"";display:block;height:4px;background:linear-gradient(90deg,var(--verde-btn),var(--teal))}
 .hbar{display:flex;align-items:center;gap:12px;padding:13px 0;flex-wrap:wrap}
-.logo{background:#fff;border-radius:9px;padding:4px 9px;display:inline-flex;align-items:center}.logo img{height:34px;display:block}
+.logo{background:var(--sup);border-radius:9px;padding:4px 9px;display:inline-flex;align-items:center}.logo img{height:34px;display:block}
 .htitle{font-family:'Barlow Condensed';font-weight:800;font-size:22px;color:#fff;letter-spacing:.5px;text-transform:uppercase;line-height:1}
 .hsub{color:var(--teal);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
 .hspace{flex:1}
@@ -80,7 +93,7 @@ main{padding:24px 20px 70px}
 @media(max-width:560px){.tab{padding:10px 16px;font-size:13px}}
 
 /* atividades */
-.atv{background:#fff;border:1px solid var(--border2);border-radius:12px;padding:12px 15px;margin-bottom:10px;display:flex;gap:13px;align-items:center;flex-wrap:wrap}
+.atv{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:12px 15px;margin-bottom:10px;display:flex;gap:13px;align-items:center;flex-wrap:wrap}
 .atv.feita{opacity:.45}
 .atv .tipo{font-size:10px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:#fff;background:var(--azul);padding:3px 9px;border-radius:20px}
 .atv .nm{font-weight:600;flex:1;min-width:210px;font-size:13.5px}
@@ -88,7 +101,7 @@ main{padding:24px 20px 70px}
 .atv .bx{display:flex;align-items:center;gap:7px}
 .atv .bxlab{font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;letter-spacing:.3px}
 select,input[type=text],input[type=number],input[type=date],input[type=url],input[type=email],input[type=tel]{
-  border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;background:#fff;max-width:100%;color:var(--text)}
+  border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;background:var(--sup);max-width:100%;color:var(--text)}
 select:focus,input:focus{outline:none;border-color:var(--verde);box-shadow:0 0 0 3px rgba(76,217,100,.2)}
 .bt{border:0;border-radius:8px;padding:8px 13px;font:inherit;font-weight:700;font-size:12.5px;color:#fff;background:var(--verde);cursor:pointer}
 .bt:hover{filter:brightness(1.06)}.bt.az{background:var(--azul)}.bt.ghost{background:#e7f0f3;color:var(--azul)}.bt.danger{background:#C0392B}
@@ -97,7 +110,7 @@ select:focus,input:focus{outline:none;border-color:var(--verde);box-shadow:0 0 0
 .busca{border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;font:inherit;font-size:13px;min-width:210px}
 
 /* alertas */
-.al{background:#fff;border:1px solid var(--border2);border-left:4px solid var(--orange);border-radius:10px;padding:11px 14px;margin-bottom:9px;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.al{background:var(--sup);border:1px solid var(--border2);border-left:4px solid var(--orange);border-radius:10px;padding:11px 14px;margin-bottom:9px;display:flex;justify-content:space-between;align-items:center;gap:12px}
 .al .end{font-weight:700;font-size:13.5px;color:var(--azul)}.al .txt{color:#B45309;font-size:12.5px}
 /* rótulo ainda sem nome de obra resolvido — some sozinho quando o Notion responde */
 .al .end.end-vazio{color:var(--text4);font-weight:600;font-style:italic}
@@ -112,7 +125,7 @@ select:focus,input:focus{outline:none;border-color:var(--verde);box-shadow:0 0 0
 .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
 .count{color:var(--text3);font-size:12.5px}
 .info-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
-.icard{background:#fff;border:1px solid var(--border2);border-radius:10px;padding:9px 16px;min-width:104px;text-align:center}
+.icard{background:var(--sup);border:1px solid var(--border2);border-radius:10px;padding:9px 16px;min-width:104px;text-align:center}
 .ival{font-family:'Barlow Condensed';font-weight:800;font-size:21px;color:var(--azul-esc);line-height:1}
 .ilab{font-size:10px;text-transform:uppercase;letter-spacing:.3px;color:var(--text3);font-weight:700;margin-top:3px}
 .inote{width:100%;font-size:11px;color:#9A3412;background:#FFF7ED;border:1px solid #FED7AA;border-radius:8px;padding:6px 10px}
@@ -120,12 +133,12 @@ select:focus,input:focus{outline:none;border-color:var(--verde);box-shadow:0 0 0
 /* planilha */
 .scroll-top{overflow-x:auto;overflow-y:hidden;height:14px;border:1px solid var(--border2);border-bottom:0;border-radius:10px 10px 0 0;background:var(--bg2)}
 .scroll-top>div{height:1px}
-.tabela-wrap{overflow:auto;max-height:70vh;border:1px solid var(--border2);border-radius:0 0 10px 10px;background:#fff}
+.tabela-wrap{overflow:auto;max-height:70vh;border:1px solid var(--border2);border-radius:0 0 10px 10px;background:var(--sup)}
 table{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;font-size:12.5px}
 thead th{background:var(--azul);color:#fff;text-align:center;padding:9px 11px;font-size:10px;letter-spacing:.4px;text-transform:uppercase;position:sticky;top:0;white-space:nowrap;z-index:2;font-weight:700;border-right:1px solid rgba(255,255,255,.22)}
 thead th.stick{left:0;z-index:3}
 tbody td{padding:7px 11px;border-top:1px solid var(--border2);border-right:1px solid var(--border2);white-space:nowrap;color:var(--text);max-width:280px;overflow:hidden;text-overflow:ellipsis}
-tbody td.stick{position:sticky;left:0;background:#fff;font-weight:700;z-index:1;border-right:2px solid var(--border)}
+tbody td.stick{position:sticky;left:0;background:var(--sup);font-weight:700;z-index:1;border-right:2px solid var(--border)}
 tbody tr:nth-child(even) td{background:var(--bg2)} tbody tr:nth-child(even) td.stick{background:#eef5f7}
 tbody tr:hover td{background:#e9f6ef} tbody tr:hover td.stick{background:#dff2e6}
 tr.vendida td.stick{color:var(--verde-esc)}
@@ -150,7 +163,7 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
 
 /* legenda / filtro das cores — item 5: viraram chips clicáveis (checkbox) que filtram a tabela */
 .legenda{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px;font-size:11.5px}
-.legenda .sw{display:inline-flex;align-items:center;gap:6px;cursor:pointer;background:#fff;border:1.5px solid var(--border);border-radius:20px;padding:5px 12px 5px 8px;color:var(--text3);font-weight:600;transition:all .12s;user-select:none}
+.legenda .sw{display:inline-flex;align-items:center;gap:6px;cursor:pointer;background:var(--sup);border:1.5px solid var(--border);border-radius:20px;padding:5px 12px 5px 8px;color:var(--text3);font-weight:600;transition:all .12s;user-select:none}
 .legenda .sw:hover{border-color:var(--text3)}
 .legenda .sw.on{border-color:var(--azul);color:var(--azul);background:#e7f0f3}
 .legenda .sw input{margin:0;accent-color:var(--azul)}
@@ -158,7 +171,7 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
 .legenda .dot.sit1{background:#FFF3AD;border-color:#E8CE5A}
 .legenda .dot.sit2{background:#FFD8A0;border-color:#EDA344}
 .legenda .dot.sit3{background:#FFB3B3;border-color:#E05252}
-.legenda .dot.sit0{background:#fff;border-color:var(--border)}
+.legenda .dot.sit0{background:var(--sup);border-color:var(--border)}
 
 /* painel obra */
 .overlay{position:fixed;inset:0;background:rgba(20,40,55,.55);display:none;z-index:40}
@@ -173,7 +186,7 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
 .ph .loc{color:var(--teal);font-size:12px;font-weight:700;margin-top:4px}
 .pfechar{position:absolute;top:16px;right:18px;background:rgba(255,255,255,.16);border:0;color:#fff;width:30px;height:30px;border-radius:8px;font-size:18px;cursor:pointer}
 .pbody{padding:0 0 24px;overflow:auto;flex:1}
-.resumo{background:#fff;margin:0;padding:16px 22px;border-bottom:1px solid var(--border2);display:grid;grid-template-columns:repeat(2,1fr);gap:12px 18px}
+.resumo{background:var(--sup);margin:0;padding:16px 22px;border-bottom:1px solid var(--border2);display:grid;grid-template-columns:repeat(2,1fr);gap:12px 18px}
 .ri .k{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--text4);font-weight:700;margin-bottom:5px}
 .ri input,.ri select{width:100%}
 .chips{display:flex;flex-wrap:wrap;gap:7px;padding:14px 22px 0}
@@ -206,7 +219,7 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
 .sens.vazia{background:repeating-linear-gradient(45deg,transparent,transparent 5px,rgba(0,0,0,.03) 5px,rgba(0,0,0,.03) 10px)}
 .arq-vazio{color:var(--text4);font-size:12px;padding:2px 0}
 /* tópicos suspensos (alertas e atividades agrupados) */
-.grupo{border:1px solid var(--border2);border-radius:10px;background:#fff;margin-bottom:10px;overflow:hidden}
+.grupo{border:1px solid var(--border2);border-radius:10px;background:var(--sup);margin-bottom:10px;overflow:hidden}
 .grupo>summary{cursor:pointer;padding:12px 14px;font-weight:700;font-size:13px;color:var(--text);display:flex;align-items:center;gap:10px;list-style:none}
 .grupo>summary::-webkit-details-marker{display:none}
 .grupo>summary::before{content:"▸";font-size:11px;color:var(--text3);transition:transform .15s}
@@ -243,12 +256,12 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 .cola{font-size:11px;color:var(--text3);background:var(--bg3);border-radius:6px;padding:2px 7px;white-space:nowrap}
 .lapis{border:0;background:none;cursor:pointer;color:var(--text3);font-size:13px;padding:0 3px}
 .lapis:hover{color:var(--text)}
-#distoverlay .modal{background:#fff;border-radius:14px;padding:20px;width:min(420px,92vw);box-shadow:0 18px 50px rgba(0,0,0,.25)}
+#distoverlay .modal{background:var(--sup);border-radius:14px;padding:20px;width:min(420px,92vw);box-shadow:0 18px 50px rgba(0,0,0,.25)}
 #distoverlay h3{margin:0 0 6px;font-size:16px;color:var(--text)}
 .dist-obra{margin:0 0 10px;font-weight:700;color:var(--text);font-size:14px}
 .dist-aviso{margin:0 0 14px;font-size:12.5px;color:var(--text3);line-height:1.5}
 .dist-lab{display:block;font-size:12px;font-weight:700;color:var(--text3);margin-bottom:5px}
-#dist-senha{width:100%;padding:9px 11px;border:1.5px solid var(--border);background:#fff;border-radius:8px;font-size:14px;box-sizing:border-box}
+#dist-senha{width:100%;padding:9px 11px;border:1.5px solid var(--border);background:var(--sup);border-radius:8px;font-size:14px;box-sizing:border-box}
 .dist-erro{color:#c0392b;font-size:12.5px;min-height:18px;margin-top:6px}
 .dist-acoes{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
 .ajuda{font-size:12px;color:var(--text3);margin-top:6px;line-height:1.45}
@@ -256,7 +269,7 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 
 /* item 3: comentários do Notion no painel da obra */
 .coment-lista{display:flex;flex-direction:column;gap:8px;margin-bottom:10px;max-height:280px;overflow-y:auto}
-.coment-item{background:#fff;border:1px solid var(--border2);border-radius:10px;padding:8px 11px}
+.coment-item{background:var(--sup);border:1px solid var(--border2);border-radius:10px;padding:8px 11px}
 .coment-autor{font-weight:800;font-size:12px;color:var(--azul-esc)}
 .coment-data{font-size:10.5px;color:var(--text4);margin-left:6px;font-weight:600}
 .coment-txt{font-size:13px;color:var(--text);margin-top:3px;white-space:pre-wrap;word-break:break-word}
@@ -268,7 +281,7 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 
 /* marcadores SIM/NÃO (toggle) */
 .tgwrap{display:flex;gap:6px}
-.tg{border:1.5px solid var(--border);background:#fff;border-radius:20px;padding:7px 16px;font:inherit;font-weight:800;font-size:12px;cursor:pointer;color:var(--text3);transition:background .12s,border-color .12s,color .12s}
+.tg{border:1.5px solid var(--border);background:var(--sup);border-radius:20px;padding:7px 16px;font:inherit;font-weight:800;font-size:12px;cursor:pointer;color:var(--text3);transition:background .12s,border-color .12s,color .12s}
 .tg:hover{border-color:var(--text3)}
 .tg.sim.on{background:rgba(42,157,92,.14);border-color:var(--verde);color:var(--verde-esc)}
 .tg.nao.on{background:#f6dede;border-color:#C0392B;color:#9b2c2c}
@@ -276,7 +289,7 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 /* visualizador de PDF/arquivo */
 .pdfoverlay{position:fixed;inset:0;background:rgba(15,30,40,.72);display:none;align-items:center;justify-content:center;z-index:70;padding:26px}
 .pdfoverlay.on{display:flex}
-.pdfmodal{background:#fff;border-radius:14px;width:min(920px,100%);height:min(88vh,920px);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.pdfmodal{background:var(--sup);border-radius:14px;width:min(920px,100%);height:min(88vh,920px);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4)}
 .pdfhead{background:linear-gradient(120deg,var(--azul-esc),var(--azul));color:#fff;padding:12px 18px;display:flex;align-items:center;justify-content:space-between;gap:10px}
 .pdfhead b{font-weight:700;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pdffoot{padding:10px 18px;border-top:1px solid var(--border2);text-align:right}
@@ -658,6 +671,71 @@ body{display:flex;flex-direction:column;min-height:100vh}
   #st-vendidas .kpi-grid{grid-template-columns:1fr}
   .tab{padding:9px 11px;font-size:12px}
 }
+
+/* ===================== MODO ESCURO =====================
+   Mesma paleta e a MESMA chave (morais_tema) do index.html e do ligacoes.html.
+   Só troca COR: nenhuma medida nem regra de layout muda aqui, então tudo o
+   que foi ajustado para o celular continua valendo igual nos dois temas.
+   As superfícies já viraram variáveis (--sup, --sup2, --branco); o que sobra
+   neste bloco são as cores que estavam escritas à mão em regras específicas
+   (zebra da tabela, etiquetas, avisos) e os textos azul-escuros, que no fundo
+   escuro ficariam da cor do próprio fundo e sumiriam da tela. */
+html[data-tema="escuro"]{
+  color-scheme:dark;
+  --azul:#2f6e93;--azul-esc:#122430;--teal:#79c8bf;--verde:#2f9e63;--verde-btn:#3cbf5d;--verde-esc:#17603a;
+  --bg:#0e1920;--bg2:#15222c;--bg3:#1a2c38;--border:#2d4757;--border2:#243a4a;
+  --text:#e7eff5;--text3:#9db4c4;--text4:#7794a6;--branco:#15222c;--orange:#d9843c;
+  --sup:#15222c;--sup2:#1a2934;--sombra:rgba(0,0,0,.6);
+}
+html[data-tema="escuro"] body{background:var(--bg)}
+/* zebra e realce de linha da planilha */
+html[data-tema="escuro"] table tbody tr:nth-child(even) td{background:#121e27}
+html[data-tema="escuro"] tbody tr:hover td{background:#1b2f3c}
+html[data-tema="escuro"] td.edt:hover{background:#1c3d2c !important}
+html[data-tema="escuro"] thead th{background:var(--azul-esc);color:var(--teal)}
+/* etiquetas SIM/NÃO e chips */
+html[data-tema="escuro"] .tag.sim,html[data-tema="escuro"] .chip.ok{background:#16341f;color:#8ce0a5}
+html[data-tema="escuro"] .tag.nao{background:#3a1e1e;color:#f3a29a}
+html[data-tema="escuro"] .chip{background:var(--bg3);color:var(--text3)}
+html[data-tema="escuro"] .chip.alerta{background:#3a2d12;color:#f0c95f}
+html[data-tema="escuro"] .aviso{background:#2a2113;border-color:#57431f;color:#f0c95f}
+html[data-tema="escuro"] .atv.atrasada{background:#3a1e1e}
+html[data-tema="escuro"] .painel{box-shadow:-6px 0 26px rgba(0,0,0,.55)}
+/* Títulos e números que no claro são azul-escuro: no escuro esse azul fica
+   quase igual ao fundo e o texto some. Passam todos para o tom claro do tema.
+   (Mesma correção que já tinha sido feita no ligacoes.html.) */
+html[data-tema="escuro"] .sec .cond,
+html[data-tema="escuro"] .kpi .val,
+html[data-tema="escuro"] .modal-tit,
+html[data-tema="escuro"] .grp,
+html[data-tema="escuro"] .pn-tit,
+html[data-tema="escuro"] .atv-titulo{color:var(--teal)}
+html[data-tema="escuro"] .kpi.hero .val{color:#fff}
+html[data-tema="escuro"] .obralink,
+html[data-tema="escuro"] .bt.ghost,
+html[data-tema="escuro"] .anexo{color:#8fd3ee}
+html[data-tema="escuro"] .btn-voltar:hover{background:#1c3b4d}
+/* campos de formulário: sem isto o input fica branco no painel escuro */
+html[data-tema="escuro"] input,html[data-tema="escuro"] select,html[data-tema="escuro"] textarea{
+  background:var(--sup2);color:var(--text);border-color:var(--border)}
+/* o logo é uma imagem clara: fica na plaquinha branca nos dois temas */
+html[data-tema="escuro"] .logo{background:#fff}
+
+/* botão de tema no cabeçalho (mesmo visual das outras páginas) */
+.btema{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;
+  padding:6px 10px;font:inherit;font-size:15px;line-height:1;cursor:pointer}
+.btema:hover{background:rgba(255,255,255,.22)}
+
+/* ===================== TARJA DO MODO SOMENTE LEITURA =====================
+   Perfil TESTES: os campos continuam abrindo (é justamente o que se quer
+   conferir), então precisa ficar MUITO claro na tela que nada é gravado —
+   senão a pessoa testa, vê "erro" e acha que o sistema quebrou. */
+.tarja-teste{display:none;align-items:center;gap:9px;background:#FFF7ED;border:1px solid #FED7AA;
+  color:#9A3412;border-radius:10px;padding:9px 13px;font-size:12.5px;font-weight:600;margin-bottom:14px}
+.tarja-teste.on{display:flex}
+.tarja-teste b{font-weight:800;letter-spacing:.03em}
+html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;color:#f0c95f}
+.updated{color:var(--text4);font-size:11px;margin-top:14px;text-align:right}
 </style>
 </head>
 <body>
@@ -670,12 +748,17 @@ body{display:flex;flex-direction:column;min-height:100vh}
       <button class="btn-sync" id="btn-sync" onclick="sincronizar()">↻ Sincronizar <span class="filabadge" id="fila-badge">0</span></button>
       <div class="user">
         <div style="text-align:right"><div class="nome" id="u-nome">—</div><span class="badge" id="u-tipo">—</span></div>
+        <button class="btema" id="btema" onclick="trocarTema()" title="Alternar claro/escuro" aria-label="Alternar claro/escuro">🌙</button>
         <button class="sair" onclick="sair()">Sair</button>
       </div>
     </div>
   </header>
 
   <main class="wrap">
+    <div class="tarja-teste" id="tarja-teste">
+      <span>🔍</span><span><b>MODO TESTE</b> — este login enxerga tudo, mas nenhuma alteração é gravada.
+      Pode clicar nos campos à vontade para conferir o que fica liberado para cada perfil.</span>
+    </div>
     <div class="aviso" id="aviso"></div>
 
     <div id="sem-acesso" class="semacesso" style="display:none">
@@ -848,6 +931,7 @@ body{display:flex;flex-direction:column;min-height:100vh}
         <div class="tabela-wrap" id="mod-wrap"><div class="vazio">Carregando…</div></div>
       </div>
     </section>
+    <div class="updated" id="updated"></div>
   </main>
 
   <div class="overlay" id="overlay" onclick="fecharObra()"></div>
@@ -891,7 +975,38 @@ body{display:flex;flex-direction:column;min-height:100vh}
 
 <script src="app.js"></script>
 <script>
+/* claro/escuro — a escolha vale só para quem clicou, no navegador dele.
+   Mesma chave (morais_tema) das outras páginas do portal. */
+const TEMA_KEY="morais_tema";
+function temaAtual(){ return document.documentElement.dataset.tema==="escuro"?"escuro":"claro"; }
+function aplicarTema(t){
+  const escuro=(t==="escuro");
+  document.documentElement.dataset.tema=escuro?"escuro":"claro";
+  const b=document.getElementById("btema");
+  if(b){ b.textContent=escuro?"☀":"🌙";
+         b.title=escuro?"Voltar para o tema claro":"Mudar para o tema escuro"; }
+  const meta=document.querySelector('meta[name="theme-color"]');
+  if(meta) meta.setAttribute("content", escuro?"#122430":"#295778");
+}
+function trocarTema(){
+  const novo=temaAtual()==="escuro"?"claro":"escuro";
+  try{ localStorage.setItem(TEMA_KEY,novo); }catch(e){}
+  aplicarTema(novo);
+}
+document.addEventListener("DOMContentLoaded",()=>aplicarTema(temaAtual()));
+
 const S = exigirSessao();
+/* MODO TESTE (perfil TESTES do banco LOGINS): enxerga tudo, grava nada.
+   Aqui é SÓ o aviso na tela e a mensagem amigável — quem recusa de verdade é
+   o Apps Script (ACOES_ESCRITA no Code.gs). Deixar os campos abertos é
+   proposital: o objetivo do perfil é justamente clicar e ver o que apareceria
+   como editável para os outros usuários. */
+const SO_LEITURA = ehSomenteLeitura(S);
+if(SO_LEITURA){
+  document.addEventListener("DOMContentLoaded",()=>{
+    const t=document.getElementById("tarja-teste"); if(t) t.classList.add("on");
+  });
+}
 atualizarStatus(); atualizarBadge();
 let SCHEMA=[], SCAMPO={}, ATIV=[], ATIV_ALL=[], DADOS={hub:[], set:[], mod:[]}, SETOR_ATUAL="Secretária de Vendas";
 /* item 9: Nº Whatsapp e Email vêm logo depois do CPF (antes ficavam perto de CORRESPONDENTE) */
@@ -1694,6 +1809,7 @@ async function carregarPlanilha(ctx){
   // pinta na hora com a cópia salva e repinta sozinha quando o dist/ chegar
   const pintar = r => {
     mostrarOffline(r);
+    pintarAtualizado(r.updated_at, r.offline, r._ts);   // rodapé "Última atualização"
     if(!r.ok){ if(!DADOS[ctx].length) wrap.innerHTML='<div class="vazio">Erro ao carregar: '+esc(erroTexto(r.erro))+'</div>'; return; }
     // o filtro de setor agora é no cliente — os dados já vieram todos de uma vez
     const base = setor ? r.vendas.filter(v=>getV(v.valores,"SETOR")===setor) : r.vendas;
@@ -1716,7 +1832,12 @@ function celulaTexto(campo,valor){
   if(campo.tipo==="files") return Array.isArray(valor)?(valor.length+" arq."):"";
   if(campo.tipo==="people") return Array.isArray(valor)?valor.join(", "):valor;
   if(campo.tipo==="date") return fmt(valor);
-  if(campo.tipo==="number"){ const s=campo.nome.toUpperCase(); if(/VALOR|COMISS|FGTS|PARCELA/.test(s)) return brl(valor); return num(valor); }
+  /* Antes a lista de colunas de dinheiro estava escrita SÓ aqui
+     (/VALOR|COMISS|FGTS|PARCELA/), diferente da usada na edição — então uma
+     coluna como AVALIAÇÃO aparecia sem R$ na planilha e abria como campo de
+     moeda no painel. Agora as duas usam ehColunaMoeda (app.js), e o valor
+     aparece com centavos, igual ao que se digita. */
+  if(campo.tipo==="number"){ return ehColunaMoeda(campo.nome,campo.tipo) ? moedaFormatar(valor) : num(valor); }
   return String(valor);
 }
 /* tipos que dá pra editar direto na célula da planilha.
@@ -1863,8 +1984,17 @@ function editarCelula(ctx,td){
     el.innerHTML=`<option value=""></option>`+(c.opcoes||[]).map(o=>`<option${o===atual?" selected":""}>${esc(o)}</option>`).join("");
   }else{
     el=document.createElement("input");
-    el.type = c.tipo==="date"?"date" : c.tipo==="number"?"number" : "text";
-    el.value = (c.tipo==="date"&&atual)?String(atual).slice(0,10) : (atual==null?"":atual);
+    /* Mesma correção do painel: coluna de dinheiro abre como TEXTO com a
+       máscara de reais. Com <input type="number">, digitar/colar "350.000"
+       fazia o navegador ler o ponto como decimal e gravar 350 no Notion. */
+    if(ehColunaMoeda(c.nome,c.tipo)){
+      el.type="text"; el.className="moeda";
+      el.value=moedaFormatar(atual);
+      ligarMascaraMoeda(el);
+    }else{
+      el.type = c.tipo==="date"?"date" : c.tipo==="number"?"number" : "text";
+      el.value = (c.tipo==="date"&&atual)?String(atual).slice(0,10) : (atual==null?"":atual);
+    }
   }
   el.style.cssText="width:100%;min-width:130px;padding:4px 7px;font-size:12.5px";
   td.innerHTML=""; td.appendChild(el);
@@ -1874,8 +2004,15 @@ function editarCelula(ctx,td){
   const encerrar=async(salvar)=>{
     if(encerrado) return; encerrado=true;
     if(!salvar){ td.innerHTML=antigo; return; }
-    const novo=el.value;
-    const igual = String(atual==null?"":(c.tipo==="date"&&atual?String(atual).slice(0,10):atual))===String(novo);
+    /* Dinheiro: o que sai do campo é texto mascarado ("R$ 350.000,00"); o que
+       vai pro Notion tem que ser número puro. A comparação de "não mudou nada"
+       também é feita no número, senão reabrir a célula e sair já contaria como
+       edição (e gastaria uma escrita à toa). */
+    const eMoeda=ehColunaMoeda(c.nome,c.tipo);
+    const novo = eMoeda ? (moedaParse(el.value)===null?"":moedaParse(el.value)) : el.value;
+    const igual = eMoeda
+      ? (Number(atual||0)===Number(novo||0))
+      : String(atual==null?"":(c.tipo==="date"&&atual?String(atual).slice(0,10):atual))===String(novo);
     if(igual){ td.innerHTML=antigo; return; }
     td.innerHTML='<span class="load"></span>';
     /* Guarda a edição ANTES de enviar: é ela que segura o valor na tela até o
@@ -1889,7 +2026,7 @@ function editarCelula(ctx,td){
       // na Casas Modelo a célula de link tem formatação própria (botão + lápis),
       // que o celulaHtml não sabe montar — redesenha a tabela inteira
       if(ctx==="mod"){ renderCasasModelo(); }
-      else td.outerHTML=celulaHtml(c,novo);   // repinta a célula com o valor novo
+      else td.outerHTML=celulaHtml(c,novo);   // repinta a célula com o valor novo (celulaTexto formata o R$)
       toast(r.enfileirado?"Na fila ✓":"Salvo ✓");
     }else{
       // recusado pelo servidor: a edição não existe, não pode ficar na tela
@@ -2253,6 +2390,17 @@ function inputControl(c,valor,pageId){
       `</select>`;
   }
   if(c.tipo==="date") return `<input type="date" value="${valor?String(valor).slice(0,10):""}" ${on}>`;
+  /* DINHEIRO: campo de TEXTO com o formato de reais já visível, em vez de
+     <input type="number">. Era daí que vinha o "preenchi 350000 e virou
+     R$ 350,00": num campo numérico, "350.000" é lido com o PONTO como
+     separador DECIMAL e o Notion recebia 350.
+     Agora a máscara põe o ponto de milhar sozinha enquanto se digita, e o
+     centavo só existe se a pessoa escrever a vírgula (350000,25). Na hora de
+     salvar, moedaParse devolve número puro — ver editarMoeda. */
+  if(ehColunaMoeda(c.nome,c.tipo)){
+    return `<input type="text" class="moeda" inputmode="decimal" value="${esc(moedaFormatar(valor))}" `+
+           `placeholder="R$ 0,00" onchange='editarMoeda(${jsArg(pageId)},${jsArg(c.nome)},this)'>`;
+  }
   if(c.tipo==="number") return `<input type="number" value="${valor==null?"":valor}" ${on}>`;
   if(c.tipo==="checkbox") return `<input type="checkbox" ${valor?"checked":""} onchange='editar(${jsArg(pageId)},${jsArg(c.nome)},"checkbox",this.checked,this)'>`;
   if(c.tipo==="url") return `<input type="url" value="${esc(valor||"")}" ${on}>`;
@@ -2297,6 +2445,19 @@ async function aoTrocarSelect(pageId,prop,tipo,el){
 function toggleSimNao(c,valor,pageId){
   const mk=(v,cls)=>`<button type="button" class="tg ${cls}${valor===v?" on":""}" onclick='editarToggle(${jsArg(pageId)},${jsArg(c.nome)},this)'>${v}</button>`;
   return `<div class="tgwrap">${mk("SIM","sim")}${mk("NÃO","nao")}</div>`;
+}
+/* Grava um campo de dinheiro: converte o texto mascarado em número puro e
+   reaproveita o editar() normal (que já cuida de fila offline, edição local e
+   mensagem de erro). Repinta o campo formatado pra pessoa ver o que ficou. */
+async function editarMoeda(pageId,prop,el){
+  const n=moedaParse(el.value);
+  el.value = n===null?"":moedaFormatar(n);
+  return editar(pageId,prop,"number",n===null?"":n,el);
+}
+/* Liga a máscara nos campos de dinheiro recém-inseridos no DOM. Precisa ser
+   chamado DEPOIS de cada innerHTML: um listener não sobrevive à repintura. */
+function ligarMoedas(raiz){
+  (raiz||document).querySelectorAll("input.moeda").forEach(ligarMascaraMoeda);
 }
 async function editarToggle(pageId,prop,btn){
   const wrap=btn.closest(".tgwrap"); const valor=btn.textContent.trim();
@@ -2435,13 +2596,18 @@ function renderPainel(V,pageId,sensPendente){
   // DISTRATO: só no setor da Secretária de Vendas e só para quem tem o acesso.
   // A permissão de verdade é conferida no Apps Script — isto aqui só evita
   // mostrar um botão que a pessoa não conseguiria usar.
-  if(SETOR_ATUAL==="Secretária de Vendas" && podeAcessar(S,"VENDAS") && !ehMaster(S)){
+  /* !SO_LEITURA: o perfil TESTES passa no podeAcessar (ele enxerga tudo), mas
+     distrato é destrutivo — nem o botão deve aparecer pra ele. O Apps Script
+     recusaria de qualquer forma (MODO_TESTE), mas mostrar um botão vermelho
+     que só dá erro é pedir pra alguém tentar. */
+  if(SETOR_ATUAL==="Secretária de Vendas" && podeAcessar(S,"VENDAS") && !ehMaster(S) && !SO_LEITURA){
     html+=`<div class="grp">Distrato</div><div class="campo">`+
       `<button class="bt danger" onclick='pedirDistrato(${jsArg(pageId)})'>DISTRATO</button>`+
       `<div class="ajuda">Desistência do cliente: limpa os dados da venda e apaga as atividades desta obra. Pede sua senha.</div></div>`;
   }
   if(S.tipo==="ADM"){ html+=`<div class="grp">Administração</div><div class="campo"><button class="bt danger" onclick='excluirObra(${jsArg(pageId)})'>Excluir esta obra</button></div>`; }
   body.innerHTML=html;
+  ligarMoedas(body);          // máscara de R$ nos campos de valor
   carregarComentarios(pageId);
 }
 
@@ -3096,7 +3262,7 @@ async function init(){
       // dataPublicacao(): o fetch grava a hora em UTC SEM o "Z" e o JS leria
       // como hora local — em UTC-3 o rótulo aparecia 3 h no futuro (ver app.js)
       document.getElementById('updated-at').textContent=
-        'Atualizado: '+(dataPublicacao(data.updated_at)||new Date(data.updated_at)).toLocaleString('pt-BR');
+        'Última atualização: '+(dataPublicacao(data.updated_at)||new Date(data.updated_at)).toLocaleString('pt-BR');
 
     const anoAtual=String(new Date().getFullYear());
     initSel('sel-ano-v',anosDisp(vendas.filter(v=>v.clientes),'data_venda'),anoAtual,buildVendas);

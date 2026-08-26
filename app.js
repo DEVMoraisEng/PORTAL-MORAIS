@@ -16,12 +16,22 @@ function exigirSessao(){ const s=sessao(); if(!s||!s.token){ location.href=LOGIN
 /* MASTER vê TODOS os sistemas do hub (Vendas etc.), como o ADM — é um perfil
    de diretor. O que ele não pode é MEXER: não edita endereço nem dá baixa em
    atividade (ver ehMaster no vendas.html). GERAL continua limitado ao que
-   estiver na coluna ACESSOS do LOGINS. */
+   estiver na coluna ACESSOS do LOGINS.
+
+   TESTES: perfil de conferência. Enxerga tudo, como o ADM, e a coluna ACESSOS
+   pode ficar vazia — é justamente pra dar a volta na tela inteira. O que ele
+   NÃO faz é gravar: os campos abrem normalmente (a ideia é ver o que apareceria
+   como editável para cada perfil), mas o Apps Script recusa toda escrita com
+   MODO_TESTE. A trava de verdade é lá no servidor; aqui é só o aviso. */
+const TIPOS_VEEM_TUDO = ["ADM","MASTER","TESTES"];
+function tipoDe(s){ return String((s&&s.tipo)||"").toUpperCase(); }
 function podeAcessar(s, chave){
   if(!s) return false;
-  const t=String(s.tipo||"").toUpperCase();
-  return t==="ADM" || t==="MASTER" || (s.acessos||[]).indexOf(chave)>=0;
+  return TIPOS_VEEM_TUDO.indexOf(tipoDe(s))>=0 || (s.acessos||[]).indexOf(chave)>=0;
 }
+/* Perfil que só olha. Usado pelas telas pra mostrar a tarja de aviso e para
+   dar uma mensagem clara em vez de deixar o usuário achando que salvou. */
+function ehSomenteLeitura(s){ return tipoDe(s)==="TESTES"; }
 
 /* ---------- cache de dados (para leitura offline) ---------- */
 function cacheSet(k,v){ try{ localStorage.setItem(CPRE+k, JSON.stringify({t:Date.now(), v:v})); }catch(e){} }
@@ -172,14 +182,120 @@ const ERROS_TEXTO = {
   SEM_DADOS_PUBLICADOS: "os dados ainda não foram publicados — rode o workflow 'Publicar site' no GitHub",
   ERRO_API: "não consegui falar com o servidor (confira se o Apps Script está publicado)",
   TEMPO_ESGOTADO: "o servidor demorou demais pra responder — tente de novo",
-  NAO_AUTORIZADO: "sessão expirada"
+  NAO_AUTORIZADO: "sessão expirada",
+  /* devolvidos pelo Code.gs quando a ação existe mas o perfil não pode */
+  MODO_TESTE: "modo teste — este login só visualiza, nada é gravado",
+  SEM_PERMISSAO: "seu login não tem permissão para esta ação",
+  APENAS_ADM: "só um ADM pode fazer isso",
+  MASTER_NAO_EDITA_ENDERECO: "o perfil MASTER não edita o endereço"
 };
-function erroTexto(codigo){ return ERROS_TEXTO[codigo] || codigo || "erro desconhecido"; }
+function erroTexto(codigo){
+  if(!codigo) return "erro desconhecido";
+  if(ERROS_TEXTO[codigo]) return ERROS_TEXTO[codigo];
+  /* o backend às vezes devolve o código com um detalhe colado
+     ("APENAS_ADM: RESPONSÁVEL", "CAMPO_NAO_LIBERADO: OBRA") — sem isto a tela
+     mostrava o código cru, que não diz nada pra quem está usando */
+  const i=String(codigo).indexOf(":");
+  if(i>0){
+    const base=String(codigo).slice(0,i).trim(), det=String(codigo).slice(i+1).trim();
+    if(ERROS_TEXTO[base]) return ERROS_TEXTO[base]+(det?" ("+det+")":"");
+  }
+  return codigo;
+}
 
 /* ---------- utilidades ---------- */
 const brl = n => (Number(n)||0).toLocaleString("pt-BR",{ style:"currency", currency:"BRL", maximumFractionDigits:0 });
 const num = n => (Number(n)||0).toLocaleString("pt-BR");
 function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g, c=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c])); }
+/* ---------- DINHEIRO EM REAIS (máscara ao digitar) ----------
+   O bug: o campo era <input type="number"> e a pessoa digitava "350000"
+   esperando R$ 350.000,00. Quando o valor era colado ou digitado com ponto
+   ("350.000"), o navegador lia o ponto como separador DECIMAL e gravava 350
+   no Notion — daí o "R$ 350,00".
+   Solução: campo de TEXTO com máscara visível. Regra combinada:
+     - o ponto de milhar entra sozinho enquanto digita;
+     - centavos só se a pessoa escrever a vírgula: 350000,25 -> R$ 350.000,25.
+   O que vai pro Notion é sempre número puro (moedaParse). */
+const MOEDA_FRAG = ["VALOR","VGV","COMISS","AVALIA","PRECO","PREÇO","CUSTO",
+                    "ENTRADA","SUBSIDIO","SUBSÍDIO","FGTS","SALDO","TOTAL",
+                    "PARCELA","FINANCIAMENT","RECURSO","TAXA","GCAP","ITBI","MULTA"];
+/* Coluna de dinheiro? Só faz sentido para colunas numéricas — uma coluna de
+   texto chamada "OBS. VALOR" não deve virar campo de moeda. */
+function ehColunaMoeda(nome, tipo){
+  if(tipo && tipo!=="number") return false;
+  const n=String(nome||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
+  return MOEDA_FRAG.some(f=>n.indexOf(f.normalize("NFD").replace(/[\u0300-\u036f]/g,""))>=0);
+}
+/* Número -> "R$ 350.000,00" (para mostrar). Vazio continua vazio: forçar
+   "R$ 0,00" num campo em branco faria a pessoa gravar zero sem querer. */
+function moedaFormatar(v){
+  if(v===null||v===undefined||v==="") return "";
+  const n=Number(v); if(isNaN(n)) return "";
+  return n.toLocaleString("pt-BR",{style:"currency",currency:"BRL",minimumFractionDigits:2,maximumFractionDigits:2});
+}
+/* Texto digitado -> número. Aceita o que a pessoa escrever: "350000",
+   "350.000", "R$ 350.000,25", "350000,25". A VÍRGULA é o decimal; ponto é
+   sempre milhar (é assim que se escreve dinheiro em português). */
+function moedaParse(txt){
+  if(txt===null||txt===undefined) return null;
+  let s=String(txt).replace(/[^\d,.-]/g,"").trim();
+  if(!s) return null;
+  const neg = s.indexOf("-")===0;
+  s=s.replace(/-/g,"");
+  const iv=s.lastIndexOf(",");
+  if(iv>=0){ s=s.slice(0,iv).replace(/[.,]/g,"")+"."+s.slice(iv+1).replace(/[^\d]/g,""); }
+  else{ s=s.replace(/\./g,""); }
+  const n=parseFloat(s);
+  if(isNaN(n)) return null;
+  return neg?-n:n;
+}
+/* Máscara enquanto digita: põe o ponto de milhar na parte inteira e deixa a
+   vírgula (e o que vier depois dela) como a pessoa escreveu — sem isso, o
+   cursor pularia e não daria pra digitar os centavos. */
+function moedaMascara(txt){
+  let s=String(txt==null?"":txt).replace(/[^\d,]/g,"");
+  if(!s) return "";
+  const iv=s.indexOf(",");
+  let inteiro = iv<0 ? s : s.slice(0,iv);
+  let dec     = iv<0 ? null : s.slice(iv+1).replace(/,/g,"").slice(0,2);
+  inteiro=inteiro.replace(/^0+(?=\d)/,"");
+  const milhar=inteiro.replace(/\B(?=(\d{3})+(?!\d))/g,".");
+  return "R$ "+(milhar||"0")+(dec===null?"":","+dec);
+}
+/* Liga a máscara num <input> já criado. Devolve o próprio input. */
+function ligarMascaraMoeda(el){
+  if(!el||el.dataset.moeda==="1") return el;
+  el.dataset.moeda="1";
+  el.setAttribute("inputmode","decimal");
+  el.addEventListener("input",()=>{
+    const fim = el.selectionStart===el.value.length;
+    el.value=moedaMascara(el.value);
+    if(fim){ try{ el.setSelectionRange(el.value.length,el.value.length); }catch(e){} }
+  });
+  el.addEventListener("blur",()=>{
+    const n=moedaParse(el.value);
+    el.value = n===null?"":moedaFormatar(n);
+  });
+  return el;
+}
+
+/* ---------- "última atualização" (todas as páginas) ----------
+   Preenche qualquer elemento com id="updated" ou classe .updated. Recebe o
+   updated_at publicado no dist/*.json; quando não vier, mostra a hora local
+   e avisa que é a hora da leitura, não a da publicação. */
+function pintarAtualizado(updatedAt, offline, tsCache){
+  const alvos=[];
+  const byId=document.getElementById("updated"); if(byId) alvos.push(byId);
+  document.querySelectorAll(".updated").forEach(el=>{ if(alvos.indexOf(el)<0) alvos.push(el); });
+  if(!alvos.length) return;
+  const d=dataPublicacao(updatedAt) || (tsCache?new Date(tsCache):null);
+  let txt;
+  if(offline && tsCache) txt="Sem internet — últimos dados salvos em "+new Date(tsCache).toLocaleString("pt-BR");
+  else if(d)             txt="Última atualização: "+d.toLocaleString("pt-BR");
+  else                   txt="Última atualização: "+new Date().toLocaleString("pt-BR")+" (hora desta consulta)";
+  alvos.forEach(el=>{ el.textContent=txt; });
+}
+
 /* lookup tolerante (nomes do Notion às vezes têm espaço no fim, ex.: "CPF ") */
 function getV(obj, nome){
   if(obj[nome]!==undefined) return obj[nome];

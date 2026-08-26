@@ -416,6 +416,17 @@ html[data-tema="escuro"] .d-marc{color:var(--text4)}
 html[data-tema="escuro"] .btn-voltar:hover{background:#1c3b4d}
 /* o logo é uma imagem clara: fica na plaquinha branca nos dois temas */
 html[data-tema="escuro"] .logo{background:#fff}
+/* ===================== TARJA DO MODO SOMENTE LEITURA =====================
+   Perfil TESTES: os campos continuam abrindo (é justamente o que se quer
+   conferir), então precisa ficar MUITO claro na tela que nada é gravado —
+   senão a pessoa testa, vê "erro" e acha que o sistema quebrou. */
+.tarja-teste{display:none;align-items:center;gap:9px;background:#FFF7ED;border:1px solid #FED7AA;
+  color:#9A3412;border-radius:10px;padding:9px 13px;font-size:12.5px;font-weight:600;margin-bottom:14px}
+.tarja-teste.on{display:flex}
+.tarja-teste b{font-weight:800;letter-spacing:.03em}
+html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;color:#f0c95f}
+.updated{color:var(--text4);font-size:11px;margin-top:16px;text-align:right}
+
 /* botão de tema no cabeçalho */
 .btema{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;
   padding:6px 10px;font:inherit;font-size:15px;line-height:1;cursor:pointer}
@@ -440,6 +451,10 @@ html[data-tema="escuro"] .logo{background:#fff}
   </header>
 
   <main class="wrap">
+    <div class="tarja-teste" id="tarja-teste">
+      <span>🔍</span><span><b>MODO TESTE</b> — este login enxerga tudo, mas nenhuma alteração é gravada.
+      Pode clicar nos campos à vontade para conferir o que fica liberado para cada perfil.</span>
+    </div>
     <div class="aviso" id="aviso"></div>
     <!-- Apps Script salvo mas não republicado: ver conferirBackend() -->
     <div class="aviso" id="aviso-gs"></div>
@@ -510,6 +525,7 @@ html[data-tema="escuro"] .logo{background:#fff}
       <div class="scroll-top" id="set-stop"><div></div></div>
       <div class="tabela-wrap" id="set-wrap"><div class="vazio">Carregando…</div></div>
     </section>
+    <div class="updated" id="updated"></div>
   </main>
 
   <div class="overlay" id="overlay" onclick="fecharLinha()"></div>
@@ -1494,6 +1510,11 @@ function carregarAtividades(){
 
 function pintarTudo(r){
   mostrarOffline(r);
+  pintarAtualizado(r && r.updated_at, r && r.offline, r && r._ts);   // rodapé "Última atualização"
+  if (SO_LEITURA){
+    const t = document.getElementById("tarja-teste");
+    if (t) t.classList.add("on");
+  }
   if (!r || !r.ok || !r.ligacoes) {
     document.getElementById("hub-wrap").innerHTML =
       '<div class="vazio">Sem dados publicados ainda. Rode o workflow “Publicar site” no GitHub.</div>';
@@ -1770,8 +1791,17 @@ function abrirSetor(i){
 }
 function irHub(){
   SETOR_ATUAL = null;
+  /* Item 1 do pedido: voltar para a principal zera os filtros. Antes eles
+     ficavam pendurados da visita anterior, e a pessoa reabria a planilha
+     achando que tinha sumido obra — quando era só um filtro esquecido de
+     dez minutos atrás. Vale para os selects, a busca e o recorte dos cartões.
+     O filtro de RESPONSÁVEL é o único que sobrevive: ele é global (vale para
+     KPIs, gráficos e setores) e está no seletor do topo, à vista. */
+  RECORTE = null;
+  limparFiltrosPlanilha();
   document.getElementById("view-setor").style.display = "none";
   document.getElementById("view-hub").style.display = "";
+  renderPlanilha();
   // os gráficos não são desenhados enquanto o hub está escondido: agora que
   // ele voltou, redesenha com a largura certa
   renderGraficos();
@@ -1882,12 +1912,27 @@ function montarAnos(){
    Guardar o teste junto do número é o que permite clicar no cartão e ver
    exatamente as obras que entraram naquela conta — em vez de o usuário ter
    que remontar o filtro na mão e torcer pra bater. */
+/* "filtros": como este recorte se escreve nos SELECTS da planilha.
+   PROBLEMA QUE ISTO RESOLVE (item 2 do pedido): clicar num cartão filtrava a
+   tabela mas deixava todos os selects em "todos" — então não havia como
+   desfazer o filtro pelos próprios filtros, só pelo "Ver todas de novo ×".
+   Quando o recorte cabe em select (uma ou mais colunas com valor exato), ele
+   agora é APLICADO NOS SELECTS e o RECORTE nem chega a existir: a pessoa vê
+   de onde veio o filtro e desfaz mexendo nele.
+   filtros:null = recorte que NÃO cabe em select ("Já ligadas" são três status
+   diferentes; "Atrasadas" vem de uma fórmula do Notion). Esses continuam pelo
+   RECORTE, com a tarja de "Mostrando:" — que é removível no × . */
 const RECORTES = {
-  todas:     { lab:"Linhas de ligação",    sub:"uma por casa e concessionária", teste: () => true },
-  ligadas:   { lab:"Já ligadas",           sub:"",                              teste: l => ["LIGADO","TRANSFERIDO","ENTREGUE NAO TRANSFERIDO"].indexOf(normN(sel(l,C.STATUS))) >= 0 },
-  naolib:    { lab:"Não liberadas",        sub:"aguardando liberação p/ solicitar", teste: l => sel(l,C.LIBERADO) === "NÃO" },
-  aprov:     { lab:"Aguardando aprovação", sub:"solicitação feita, sem aprovação",  teste: l => sel(l,C.FEZ)==="SIM" && sel(l,C.APROVADA)==="NÃO" },
-  atrasadas: { lab:"Atrasadas",            sub:"alerta do Notion apontando atraso", teste: l => normN(alertaDe(l,C.ALERTA_SOL)).indexOf("ATRASADO") >= 0 || normN(alertaDe(l,C.ALERTA_LIG)).indexOf("ATRASADO") >= 0 }
+  todas:     { lab:"Linhas de ligação",    sub:"uma por casa e concessionária", teste: () => true,
+               filtros: [] },
+  ligadas:   { lab:"Já ligadas",           sub:"",                              teste: l => ["LIGADO","TRANSFERIDO","ENTREGUE NAO TRANSFERIDO"].indexOf(normN(sel(l,C.STATUS))) >= 0,
+               filtros: null },
+  naolib:    { lab:"Não liberadas",        sub:"aguardando liberação p/ solicitar", teste: l => sel(l,C.LIBERADO) === "NÃO",
+               filtros: [[C.LIBERADO, "NÃO"]] },
+  aprov:     { lab:"Aguardando aprovação", sub:"solicitação feita, sem aprovação",  teste: l => sel(l,C.FEZ)==="SIM" && sel(l,C.APROVADA)==="NÃO",
+               filtros: [[C.FEZ, "SIM"], [C.APROVADA, "NÃO"]] },
+  atrasadas: { lab:"Atrasadas",            sub:"alerta do Notion apontando atraso", teste: l => normN(alertaDe(l,C.ALERTA_SOL)).indexOf("ATRASADO") >= 0 || normN(alertaDe(l,C.ALERTA_LIG)).indexOf("ATRASADO") >= 0,
+               filtros: null }
 };
 
 function kpi(chave,val,sub,cls){
@@ -1914,12 +1959,33 @@ function renderKpis(){
  * pessoa continua com busca, filtros e o clique na linha pra editar. */
 let RECORTE = null;   // { rotulo, teste }
 
+/* Zera os selects e a busca da planilha. Sempre chamado antes de aplicar um
+   recorte novo — senão o recorte some atrás de um filtro antigo e a lista fica
+   menor do que o número em que a pessoa clicou. */
+function limparFiltrosPlanilha(){
+  document.querySelectorAll("#filtros-hub select:not([data-resp])").forEach(s => s.value = "");
+  const b = document.getElementById("hub-busca");
+  if (b) b.value = "";
+}
+/* Escreve pares [coluna, valor] nos selects da planilha. Devolve false quando
+   alguma coluna não tem select (ou a opção não existe naquele conjunto de
+   dados) — nesse caso quem chamou volta para o RECORTE, em vez de aplicar um
+   filtro pela metade e mostrar uma lista errada. */
+function definirFiltrosPlanilha(pares){
+  const box = document.getElementById("filtros-hub");
+  if (!box) return false;
+  const selects = [...box.querySelectorAll("select[data-col]:not([data-resp])")];
+  for (const [col, val] of pares){
+    const s = selects.find(x => normN(x.dataset.col) === normN(col));
+    if (!s) return false;
+    if (![...s.options].some(o => o.value === val)) return false;
+    s.value = val;
+  }
+  return true;
+}
 function aplicarRecorte(rotulo, teste){
   RECORTE = { rotulo: rotulo, teste: teste };
-  // limpa os filtros da planilha, senão o recorte some atrás de um filtro
-  // antigo e o usuário vê uma lista menor do que o número em que clicou
-  document.querySelectorAll("#filtros-hub select").forEach(s => s.value = "");
-  document.getElementById("hub-busca").value = "";
+  limparFiltrosPlanilha();
   renderPlanilha();
   irParaPlanilha();
 }
@@ -1927,7 +1993,18 @@ function limparRecorte(){ RECORTE = null; renderPlanilha(); }
 function verObras(chave){
   const r = RECORTES[chave];
   if (!r) return;
-  if (chave === "todas") { limparRecorte(); irParaPlanilha(); return; }
+  if (chave === "todas"){ limparRecorte(); limparFiltrosPlanilha(); renderPlanilha(); irParaPlanilha(); return; }
+  /* Cabe nos selects? Então vai pelos selects — e o RECORTE sai de cena, pra
+     não existirem dois filtros sobrepostos fazendo a mesma coisa. */
+  if (r.filtros && r.filtros.length){
+    limparFiltrosPlanilha();
+    if (definirFiltrosPlanilha(r.filtros)){
+      RECORTE = null;
+      renderPlanilha();
+      irParaPlanilha();
+      return;
+    }
+  }
   aplicarRecorte(r.lab, r.teste);
 }
 /* Âncora estável pro scroll. Antes eu pegava ".sec:last-of-type", que muda
@@ -2480,7 +2557,9 @@ function podeEditarNaTabela(coluna, fonte){
   // aqui gravaria vazio por cima do dado real. Só pelo painel/Notion.
   if (campo.sensivel) return false;
   if (TIPOS_CELULA.indexOf(campo.tipo) < 0) return false;
-  return (fonte === "vendas") ? ehEditavelVendas(coluna) : ehEditavel(coluna);
+  /* podeEditarCampo: além da lista branca, aplica a trava das colunas de
+     identidade (CONCESSIONÁRIA e RESPONSÁVEL só ADM — item 4 do pedido). */
+  return (fonte === "vendas") ? ehEditavelVendas(coluna) : podeEditarCampo(coluna);
 }
 
 function ligarCliquesTabela(idBox){
@@ -3407,6 +3486,31 @@ const EDITAVEIS = [
 ];
 function ehEditavel(nome){ return EDITAVEIS.some(n => normN(n) === normN(nome)); }
 
+/* ===================== QUEM PODE MEXER EM QUÊ =====================
+ * Item 4 do pedido: OBRA (o endereço da linha), CONCESSIONÁRIA e RESPONSÁVEL
+ * só podem ser trocados por ADM. Não é frescura de permissão: essas três
+ * definem a IDENTIDADE da linha, e trocar uma delas por engano faz a baixa
+ * cruzada de transferência (ligVendaUpdate -> ligBaixaTransferencia_) casar
+ * com a casa errada — dá baixa numa ligação que não é aquela.
+ * O RESPONSÁVEL continua liberado para o ADM (era o que estava faltando).
+ *
+ * Como no resto do sistema: esconder o campo aqui NÃO protege nada — quem
+ * recusa de verdade é o Code.gs (LIG_SO_ADM). Isto aqui é só para a tela não
+ * oferecer um campo que vai dar erro. */
+const SO_ADM = [C.OBRA, C.CONC, C.RESP];
+function ehAdmLig(){ return String((S && S.tipo) || "").toUpperCase() === "ADM"; }
+function soAdmEdita(nome){ return SO_ADM.some(n => normN(n) === normN(nome)); }
+/* MODO TESTE: o perfil TESTES enxerga tudo, mas o Apps Script recusa toda
+   escrita (MODO_TESTE). Os campos continuam ABRINDO de propósito — a razão de
+   existir do perfil é justamente conferir o que aparece como editável. */
+const SO_LEITURA = ehSomenteLeitura(S);
+/* Campo liberado para ESTE usuário? */
+function podeEditarCampo(nome){
+  if (!ehEditavel(nome)) return false;
+  if (soAdmEdita(nome) && !ehAdmLig()) return false;
+  return true;
+}
+
 function linhaPorId(id){ return LIG.find(l => l.id === id) || null; }
 
 /* Busca a lista de pessoas e redesenha o painel já com o seletor. */
@@ -3463,6 +3567,11 @@ function corpoPainel(l){
     if (!ehEditavel(nome) || ["formula","rollup","relation","created_time","last_edited_time"].indexOf(tipo) >= 0){
       html += `<div class="ro">${celula(l,nome)}</div>`;
       if (tipo === "formula") html += `<div class="dica">calculado pelo Notion</div>`;
+    } else if (soAdmEdita(nome) && !ehAdmLig()){
+      /* Item 4: OBRA, CONCESSIONÁRIA e RESPONSÁVEL só ADM. Mostra o valor e
+         diz POR QUE está travado — campo cinza sem explicação vira chamado. */
+      html += `<div class="ro">${celula(l,nome)}</div>
+               <div class="dica">só um ADM pode alterar (define a identidade da linha)</div>`;
     } else if (tipo === "people"){
       const atuais = Array.isArray(v) ? v.map(String) : (v ? [String(v)] : []);
       if (!RESPONSAVEIS){
@@ -3511,7 +3620,41 @@ function corpoPainel(l){
       <button class="bt ghost" style="margin-top:8px" onclick="verSensiveis()">Ver dados sensíveis</button>
     </div>`;
   }
+
+  /* Item 5 do pedido: ADM pode tirar a linha do banco. É ARQUIVAR, não apagar
+     — no Notion a página vai para a lixeira e dá para restaurar em até 30
+     dias. O Code.gs registra o endereço no log da execução, então dá para
+     achar o que foi arquivado sem vasculhar a lixeira inteira.
+     Só aparece para ADM: o Apps Script recusa os outros (APENAS_ADM), e botão
+     vermelho que só dá erro é convite pra alguém tentar. */
+  if (ehAdmLig() && !SO_LEITURA){
+    html += `<div class="campo" style="margin-top:22px;border-top:1px solid var(--border);padding-top:16px">
+      <label>Administração</label>
+      <button class="bt danger" onclick="arquivarLigacao()">Arquivar esta linha</button>
+      <div class="dica">Tira a linha da base. Vai para a lixeira do Notion e pode ser restaurada lá em até 30 dias.</div>
+    </div>`;
+  }
   return html;
+}
+
+/* Arquiva a linha aberta no painel. Duas confirmações de propósito: some da
+   tela de todo mundo, e a segunda pede o endereço digitado — em lista longa
+   é fácil ter aberto a linha errada. */
+async function arquivarLigacao(){
+  const l = LINHA_ABERTA;
+  if (!l) return;
+  const nome = l.obra || "(sem endereço)";
+  if (!confirm("Arquivar a linha \"" + nome + "\"?\n\nEla some da base para todos. Dá para restaurar pela lixeira do Notion em até 30 dias.")) return;
+  const r = await escrever({action:"ligExcluir", pageId: l.id}, "Arquivar ligação: " + nome);
+  if (!r.ok){ toast("Não arquivou: " + erroTexto(r.erro)); return; }
+  if (r.enfileirado){ toast("Sem internet — vai ser arquivada quando reconectar."); return; }
+  // tira da lista em memória para a tela não continuar mostrando uma linha
+  // que não existe mais (o dist/ só some com ela na próxima publicação)
+  const i = LIG.findIndex(x => x.id === l.id);
+  if (i >= 0) LIG.splice(i, 1);
+  fecharLinha();
+  renderKpis(); renderGraficos(); renderPlanilha(); renderSetores();
+  toast("Linha arquivada.");
 }
 
 /* ---------- visualizador do anexo (NF do medidor) ----------

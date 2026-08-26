@@ -779,31 +779,145 @@ def main():
                 lotes_i += 1
     lotes_total = lotes_m + lotes_i
 
+    # ---- SÉRIES MENSAIS POR ANO (gráficos de evolução do dashboard) -----
+    # Um vetor de 12 posições (Jan..Dez) por ano, para cada indicador. É o que
+    # alimenta os gráficos ocultos do index.html e o seletor de ano.
+    # Calculado AQUI e não no navegador de propósito: o vendas.json publicado
+    # é podado (colunas sensíveis fora), e o documentos.json é grande — varrer
+    # tudo no celular a cada abertura da tela custaria caro à toa.
+    def _serie_nova():
+        return [0.0] * 12
+
+    serie_vendas, serie_vgv, serie_obras, serie_lotes = {}, {}, {}, {}
+
+    def _acumular(dest, data_str, quanto):
+        """Soma `quanto` no mês/ano de data_str ('yyyy-mm-dd'). Ignora data
+        malformada em vez de derrubar o build inteiro por causa de uma linha."""
+        try:
+            ano_i = int(str(data_str)[:4])
+            mes_i = int(str(data_str)[5:7])
+        except (TypeError, ValueError):
+            return
+        if not (1 <= mes_i <= 12) or not (2000 <= ano_i <= 2100):
+            return
+        dest.setdefault(ano_i, _serie_nova())[mes_i - 1] += quanto
+
+    for v in vendas:
+        val = v["valores"]
+        dv = getV_py(val, "DATA DA VENDA")
+        if not dv:
+            continue
+        _acumular(serie_vendas, dv, 1)
+        vlr = getV_py(val, "VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)")
+        if isinstance(vlr, (int, float)):
+            _acumular(serie_vgv, dv, float(vlr))
+
+    for d in docs_full:
+        oi = norm(d.get("obra_iniciada") or "")
+        di = d.get("data_inicio_obra")
+        if oi in ("SIM", "SIM SEM PRAZO") and di:
+            _acumular(serie_obras, di, float(d.get("n_casas") or 1))
+        da = d.get("data_aquisicao_lote")
+        if da:
+            _acumular(serie_lotes, da, 1)
+
+    def _arredondar(serie):
+        return {str(a): [round(x, 2) for x in vet] for a, vet in sorted(serie.items())}
+
+    anos_disponiveis = sorted(
+        set(serie_vendas) | set(serie_obras) | set(serie_lotes) | set(metas_por_ano)
+    )
+
+    # ---- recortes do ANO VIGENTE ---------------------------------------
+    # mês/trimestre corrente pela hora de Brasília (o runner do GitHub roda em
+    # UTC; nos primeiros dias do mês, à noite, UTC já virou e São Paulo não).
+    mes_atual = int(time.strftime("%m", time.localtime(time.time() - 3 * 3600)))
+    tri_atual = (mes_atual - 1) // 3 + 1
+    mes_ini_tri = (tri_atual - 1) * 3          # índice 0-based do 1º mês do trimestre
+
+    def _recorte(serie, ano):
+        """Números do ano pedido: vetor mensal, mês corrente, mês anterior e
+        total do trimestre corrente."""
+        vet = serie.get(ano) or _serie_nova()
+        return {
+            "mensal": [round(x, 2) for x in vet],
+            "mesCorrente": round(vet[mes_atual - 1], 2),
+            "mesAnterior": round(vet[mes_atual - 2], 2) if mes_atual > 1 else 0,
+            "trimestreTotal": round(sum(vet[mes_ini_tri:mes_ini_tri + 3]), 2),
+        }
+
+    rv = _recorte(serie_vendas, ano_atual)
+    ro = _recorte(serie_obras, ano_atual)
+    rl = _recorte(serie_lotes, ano_atual)
+
+    # "Média por mês no ano" = total ÷ MESES DECORRIDOS, não ÷ meses que
+    # tiveram movimento. Contar só os meses com venda escondia os meses zerados
+    # e inflava a média — um ano com 10 casas em 2 meses aparecia como média 5,
+    # quando a média real do ano até aqui é bem menor. É essa média que dá pra
+    # comparar de igual pra igual com a meta mensal (meta do ano ÷ 12).
+    meses_decorridos = mes_atual
+    meta_anterior = metas_por_ano.get(ano_atual - 1)
+
+    def _metas(meta):
+        if not meta:
+            return {"meta": meta, "metaMes": None, "metaTrimestre": None}
+        return {"meta": meta, "metaMes": meta / 12.0, "metaTrimestre": meta / 4.0}
+
     portal = {
         "ok": True,
         "ano": ano_atual,
-        "vendaCasas": {
-            "total": casas_vend, "vgv": vgv,
-            "mediaMes": casas_vend / n_meses_v, "meses": n_meses_v,
-            "mediaTrimestre": casas_vend / n_trim_v, "trimestres": n_trim_v,
-            "ticket": (vgv / casas_vend) if casas_vend else 0,
+        "mesAtual": mes_atual,
+        "trimestreAtual": tri_atual,
+        "mesesDecorridos": meses_decorridos,
+        # metas por ano, pro front escolher (venda de casas usa a do ano
+        # anterior no analise.html — ver META_VENDAS_ANO_ANTERIOR no index.html)
+        "metas": {str(a): m for a, m in sorted(metas_por_ano.items()) if m},
+        "anos": anos_disponiveis,
+        "series": {
+            "vendas": _arredondar(serie_vendas),
+            "vgv": _arredondar(serie_vgv),
+            "obras": _arredondar(serie_obras),
+            "lotes": _arredondar(serie_lotes),
         },
-        "inicioObras": {
+        "vendaCasas": dict({
+            "total": casas_vend, "vgv": vgv,
+            "mediaMes": casas_vend / meses_decorridos, "meses": meses_decorridos,
+            "mesesComVenda": n_meses_v,
+            # média do trimestre CORRENTE ÷ 3 meses (combinado: /3, não /4) —
+            # comparável direto com a meta mensal
+            "mediaTrimestre": rv["trimestreTotal"] / 3.0,
+            "trimestreTotal": rv["trimestreTotal"], "trimestres": n_trim_v,
+            "mesCorrente": rv["mesCorrente"], "mesAnterior": rv["mesAnterior"],
+            "ticket": (vgv / casas_vend) if casas_vend else 0,
+            "metaAnoAnterior": meta_anterior,
+        }, **_metas(meta_casas)),
+        "inicioObras": dict({
             "iniciadas": round(casas_inic_total, 2),
             "iniciadasMorais": round(casas_inic_m, 2),
             "iniciadasInvestidores": round(casas_inic_i, 2),
-            "mediaMes": casas_inic_total / n_meses_o, "meses": n_meses_o,
-            "mediaTrimestre": casas_inic_total / n_trim_o, "trimestres": n_trim_o,
-            "meta": meta_casas,
+            "mediaMes": casas_inic_total / meses_decorridos, "meses": meses_decorridos,
+            "mesesComObra": n_meses_o,
+            "mediaTrimestre": ro["trimestreTotal"] / 3.0,
+            "trimestreTotal": ro["trimestreTotal"], "trimestres": n_trim_o,
+            "mesCorrente": ro["mesCorrente"], "mesAnterior": ro["mesAnterior"],
             "pct": (casas_inic_total / meta_casas) if meta_casas else None,
-        },
+        }, **_metas(meta_casas)),
+        # LOTES COMPRADOS fica SEM meta (confirmado): não existe coluna de meta
+        # de lotes no banco METAS, e usar a meta de casas como aproximação
+        # produziria um percentual que não quer dizer nada.
         "lotes": {
             "total": lotes_total, "morais": lotes_m, "investidores": lotes_i,
-            "meta": meta_casas,
+            "mediaMes": lotes_total / meses_decorridos, "meses": meses_decorridos,
+            "mediaTrimestre": rl["trimestreTotal"] / 3.0,
+            "trimestreTotal": rl["trimestreTotal"],
+            "mesCorrente": rl["mesCorrente"], "mesAnterior": rl["mesAnterior"],
+            "meta": None, "metaMes": None, "metaTrimestre": None,
         },
         "updated_at": agora,
     }
     gravar("portal.json", portal)
+    print(f"  portal.json: mes={mes_atual} tri={tri_atual} "
+          f"anos com série={anos_disponiveis}", flush=True)
 
     # ---- data_vendas.json: recorte achatado do painel do Gestor ----------
     # A página casas-vendidas.html espera nomes em snake_case e uma lista só.
