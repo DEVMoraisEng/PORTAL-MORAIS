@@ -9,7 +9,7 @@
      escolheu escuro veria a tela piscar branca a cada abertura. Sem escolha
      salva, segue o tema do próprio aparelho. -->
 <script>(function(){try{var t=localStorage.getItem("morais_tema");
-  if(t!=="claro"&&t!=="escuro") t=(window.matchMedia&&window.matchMedia("(prefers-color-scheme:dark)").matches)?"escuro":"claro";
+  if(t!=="claro"&&t!=="escuro") t="claro";   // padrão do portal: CLARO
   document.documentElement.dataset.tema=t;}catch(e){}})();</script>
 <link rel="manifest" href="manifest.json">
 <title>Ligações de Água e Energia · Morais</title>
@@ -1302,14 +1302,11 @@ function trocarTema(){
   try { localStorage.setItem(TEMA_KEY, novo); } catch(e){}
   aplicarTema(novo);
 }
-/* Só segue o aparelho quem nunca escolheu — quem escolheu mandou, e a escolha
-   não pode ser desfeita porque anoiteceu no celular. */
-if (window.matchMedia){
-  const mq = window.matchMedia("(prefers-color-scheme:dark)");
-  const ouvir = e => { let salvo = null; try { salvo = localStorage.getItem(TEMA_KEY); } catch(_){}
-                       if (salvo !== "claro" && salvo !== "escuro") aplicarTema(e.matches ? "escuro" : "claro"); };
-  if (mq.addEventListener) mq.addEventListener("change", ouvir);
-}
+/* O portal NÃO segue mais o tema do sistema operacional.
+   Motivo (item 6 do pedido): vários PCs da empresa estão com o Windows em modo
+   escuro, e o site abria escuro de saída — as pessoas achavam que era erro.
+   Agora o padrão é sempre CLARO; escuro só existe se a pessoa clicar no botão
+   da lua, e aí fica gravado no navegador dela. */
 
 function boot(){
   aplicarTema(temaAtual());

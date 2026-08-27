@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#295778">
 <!-- tema antes da pintura: sem isto a tela pisca branca pra quem usa escuro -->
 <script>(function(){try{var t=localStorage.getItem("morais_tema");
-  if(t!=="claro"&&t!=="escuro") t=(window.matchMedia&&window.matchMedia("(prefers-color-scheme:dark)").matches)?"escuro":"claro";
+  if(t!=="claro"&&t!=="escuro") t="claro";   // padrão do portal: CLARO
   document.documentElement.dataset.tema=t;}catch(e){}})();</script>
 <link rel="manifest" href="manifest.json">
 <title>Portal Central · Morais Engenharia</title>
@@ -85,6 +85,63 @@ body{display:flex;flex-direction:column;min-height:100vh}
 .kpi.hero{background:linear-gradient(135deg,var(--azul),var(--azul-esc));border:0}
 .kpi.hero .lab{color:rgba(255,255,255,.85)}.kpi.hero .val{color:#fff}.kpi.hero .sub{color:var(--teal)}
 .kpi.verde .val{color:var(--verde-esc)}
+
+/* ---------- META EM DESTAQUE ----------
+   Antes a meta ia junto do subtítulo miúdo cinza (11px), do mesmo tamanho de
+   "8 meses decorridos" — ou seja, a informação mais importante do cartão
+   tinha o mesmo peso visual do rodapé dele. Agora vira barra + percentual
+   grande e colorido: dá pra ler o cartão de longe e saber se está no azul
+   ou no vermelho sem precisar interpretar número nenhum. */
+.mbar{height:7px;border-radius:20px;background:var(--bg3);margin-top:11px;overflow:hidden}
+.mbar i{display:block;height:100%;border-radius:20px;background:var(--verde);transition:width .45s ease}
+.mbar i.medio{background:#E67E22}
+.mbar i.baixo{background:#c0392b}
+.msub{display:flex;align-items:baseline;gap:7px;margin-top:8px;flex-wrap:wrap}
+.msub .pct{font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;line-height:1}
+.msub .txt{font-size:12px;color:var(--text3);font-weight:600}
+.pct.ok{color:var(--verde-esc)}.pct.medio{color:#c9741a}.pct.baixo{color:#c0392b}
+/* no cartão escuro (hero) as mesmas cores não teriam contraste */
+.kpi.hero .mbar{background:rgba(255,255,255,.20)}
+.kpi.hero .msub .txt{color:var(--teal)}
+.kpi.hero .pct.ok{color:#8ce0a5}.kpi.hero .pct.medio{color:#f0c95f}.kpi.hero .pct.baixo{color:#f3a29a}
+html[data-tema="escuro"] .pct.ok{color:#8ce0a5}
+html[data-tema="escuro"] .pct.medio{color:#f0c95f}
+html[data-tema="escuro"] .pct.baixo{color:#f3a29a}
+html[data-tema="escuro"] .mbar{background:#22323f}
+
+/* ---------- comparação com o mês anterior ---------- */
+.kpi .ant{display:flex;align-items:baseline;gap:6px;margin-top:7px;font-size:12px;color:var(--text3);font-weight:600}
+.kpi .delta{font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;line-height:1}
+.delta.sobe{color:var(--verde-esc)}.delta.desce{color:#c0392b}.delta.igual{color:var(--text4)}
+.kpi.hero .ant{color:var(--teal)}
+.kpi.hero .delta.sobe{color:#8ce0a5}.kpi.hero .delta.desce{color:#f3a29a}
+html[data-tema="escuro"] .delta.sobe{color:#8ce0a5}
+html[data-tema="escuro"] .delta.desce{color:#f3a29a}
+
+/* ---------- LEVANTAMENTO TRIMESTRAL (os 4 trimestres do ano) ----------
+   Antes existia um cartão só, do trimestre corrente. Com os quatro lado a
+   lado dá pra ver a curva do ano inteiro sem abrir o gráfico. */
+.tri-wrap{margin-top:15px}
+.tri-tit{font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:800;
+  text-transform:uppercase;letter-spacing:.07em;color:var(--text3);margin-bottom:9px}
+.tri-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:11px}
+.tri{background:var(--sup);border:1px solid var(--border2);border-radius:11px;padding:13px 14px}
+.tri.corrente{border-color:var(--verde);box-shadow:0 0 0 1px var(--verde) inset}
+.tri.futuro{opacity:.5}
+.tri-lab{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--text3);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.tri-lab .agora{background:var(--verde);color:#fff;border-radius:4px;padding:1px 6px;
+  font-size:9.5px;letter-spacing:.04em}
+.tri-val{font-family:'Barlow Condensed',sans-serif;font-size:33px;font-weight:800;
+  line-height:1.05;color:var(--azul-esc);margin-top:4px}
+.tri .mbar{margin-top:9px}
+.tri .msub{margin-top:6px}
+.tri .msub .pct{font-size:17px}
+.tri .msub .txt{font-size:11px}
+.tri-nota{font-size:11px;color:var(--text4);font-weight:600;margin-top:7px}
+html[data-tema="escuro"] .tri-val{color:var(--teal)}
+@media(max-width:900px){ .tri-grid{grid-template-columns:repeat(2,1fr)} }
+@media(max-width:440px){ .tri-grid{grid-template-columns:1fr} }
 .nota{background:#FFF7ED;border:1px solid #FED7AA;color:#9A3412;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:16px;display:none}
 .updated{color:var(--text4);font-size:11px;margin-top:8px;text-align:right}
 /* Hora da última publicação, no cabeçalho de todas as páginas. No rodapé ela
@@ -202,18 +259,21 @@ html[data-tema="escuro"] .logo{background:#fff}
         <div class="sec"><span class="cond">Venda de Casas</span>
           <button class="bt-graf" id="bt-g-vendas" aria-expanded="false" onclick="alternarGrafico('vendas')"><span class="seta">▶</span> Evolução anual</button></div>
         <div class="kpis" id="kpi-vendas"><div class="kpi"><div class="lab">Carregando</div><div class="val"><span class="load"></span></div></div></div>
+        <div class="tri-wrap" id="tri-vendas"></div>
         <div class="graf-box" id="g-vendas"></div>
       </div>
       <div class="bloco">
         <div class="sec"><span class="cond">Início de Obras</span>
           <button class="bt-graf" id="bt-g-obras" aria-expanded="false" onclick="alternarGrafico('obras')"><span class="seta">▶</span> Evolução anual</button></div>
         <div class="kpis" id="kpi-obras"></div>
+        <div class="tri-wrap" id="tri-obras"></div>
         <div class="graf-box" id="g-obras"></div>
       </div>
       <div class="bloco">
         <div class="sec"><span class="cond">Lotes Comprados</span>
           <button class="bt-graf" id="bt-g-lotes" aria-expanded="false" onclick="alternarGrafico('lotes')"><span class="seta">▶</span> Evolução anual</button></div>
         <div class="kpis" id="kpi-lotes"></div>
+        <div class="tri-wrap" id="tri-lotes"></div>
         <div class="graf-box" id="g-lotes"></div>
       </div>
       <div class="updated"></div>
@@ -317,13 +377,36 @@ const MESES_ABREV=["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","
 const MESES_NOME=["janeiro","fevereiro","março","abril","maio","junho","julho",
                   "agosto","setembro","outubro","novembro","dezembro"];
 const dec = (v,c) => (Number(v)||0).toLocaleString("pt-BR",{maximumFractionDigits:c==null?1:c});
-/* "12 / 20" + a cor. Verde quando bate a meta, vermelho quando não —
-   sem meta cadastrada, nem cor nem percentual (não invento comparação). */
-function vsMeta(valor,meta){
-  if(!meta) return {sub:"sem meta cadastrada", cls:""};
+/* Faixa de desempenho — decide a cor da barra e do percentual.
+   Três faixas em vez de duas (só verde/vermelho): sem o laranja, quem está a
+   5% de bater a meta ficava pintado igual a quem está na metade dela. */
+function faixaMeta(pct){ return pct>=100?"ok" : pct>=80?"medio" : "baixo"; }
+
+/* Cartão com meta: valor grande + barra de progresso + percentual em destaque.
+   `extra` é o texto pequeno que acompanha (ex.: o rótulo do trimestre).
+   SEM meta cadastrada não inventa comparação: some a barra e o percentual, e
+   fica só o aviso — melhor um cartão sem meta do que um 0% que parece
+   desempenho ruim quando na verdade é meta não preenchida no Notion. */
+function cardMeta(lab,val,valor,meta,extra,cls){
+  /* Valor indisponível (ex.: média em janeiro, quando nenhum mês fechou ainda)
+     não vira 0%. Um "0% da meta" em vermelho diz que o desempenho foi péssimo;
+     o certo é dizer que ainda não dá pra medir. */
+  if(valor==null){
+    return card(lab,val,extra||"sem base de cálculo ainda",cls);
+  }
+  if(!meta){
+    return card(lab,val,(extra?extra+" · ":"")+"sem meta cadastrada",cls);
+  }
   const pct=(Number(valor)||0)/meta*100;
-  return { sub:`${dec(valor)} / ${dec(meta)} · ${dec(pct,0)}% da meta`,
-           cls:(Number(valor)||0)>=meta?"verde":"" };
+  const f=faixaMeta(pct);
+  const larg=Math.max(2,Math.min(100,pct));   // 2% mínimo: barra zerada some
+  return `<div class="kpi ${cls||''}">
+    <div class="lab">${lab}</div>
+    <div class="val">${val}</div>
+    <div class="mbar"><i class="${f}" style="width:${larg.toFixed(1)}%"></i></div>
+    <div class="msub"><b class="pct ${f}">${dec(pct,0)}%</b>
+      <span class="txt">de ${dec(meta)}${extra?" · "+extra:""}</span></div>
+  </div>`;
 }
 
 /* ======================= GRÁFICO DE EVOLUÇÃO =======================
@@ -364,6 +447,53 @@ function graficoSVG(valores, opts){
   if(media>0) linhas+=`<line x1="${L}" y1="${y(media).toFixed(1)}" x2="${L+gw}" y2="${y(media).toFixed(1)}" stroke="var(--text3)" stroke-width="1.5" stroke-dasharray="2 4"/>`;
 
   return `<svg class="graf-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Evolução mensal">${grade}${barras}${linhas}</svg>`;
+}
+
+/* Cartão "mês corrente + mês anterior embaixo" (itens 3 e 4 do pedido).
+   O número do mês em curso, sozinho, não diz nada — 11 é bom ou ruim? Só com
+   o mês anterior do lado é que vira informação. A seta é só o sinal da
+   diferença; o mês corrente está incompleto, então NÃO entra em média nenhuma
+   (ver mesesCheios), aqui é comparação bruta mesmo. */
+function cardMes(lab,valor,anterior,nomeAnterior,fmt,cls){
+  fmt = fmt || (v=>dec(v,0));
+  const a=Number(valor)||0, b=Number(anterior)||0;
+  const d=a-b;
+  const f = d>0?"sobe" : d<0?"desce" : "igual";
+  const seta = d>0?"▲" : d<0?"▼" : "=";
+  const sinal = d>0?"+":"";
+  return `<div class="kpi ${cls||''}">
+    <div class="lab">${lab}</div>
+    <div class="val">${fmt(a)}</div>
+    <div class="ant"><b class="delta ${f}">${seta} ${sinal}${fmt(Math.abs(d))}</b>
+      <span>vs ${esc(nomeAnterior||"mês anterior")}: ${fmt(b)}</span></div>
+  </div>`;
+}
+
+/* Os QUATRO trimestres do ano (item 2 do pedido), no lugar do cartão único do
+   trimestre corrente. "total" é a contagem cheia do trimestre; a média e o
+   percentual usam só os meses FECHADOS — trimestre em andamento com um mês
+   só teria média enganosa se contasse o mês pela metade. */
+function faixaTrimestral(tris, metaMes, ano, unidade){
+  if(!tris || !tris.length) return "";
+  const cel = t => {
+    const cls = t.futuro?"futuro":(t.corrente?"corrente":"");
+    let barra="", sub="";
+    if(t.media==null){
+      sub = `<div class="tri-nota">${t.futuro?"ainda não começou":"nenhum mês fechado"}</div>`;
+    }else if(metaMes){
+      const pct=t.media/metaMes*100, f=faixaMeta(pct);
+      barra=`<div class="mbar"><i class="${f}" style="width:${Math.max(2,Math.min(100,pct)).toFixed(1)}%"></i></div>`;
+      sub=`<div class="msub"><b class="pct ${f}">${dec(pct,0)}%</b>
+             <span class="txt">${dec(t.media)}/mês de ${dec(metaMes)}</span></div>`;
+    }else{
+      sub=`<div class="tri-nota">média ${dec(t.media)} por mês fechado</div>`;
+    }
+    return `<div class="tri ${cls}">
+      <div class="tri-lab">T${t.n} · ${esc(t.rotulo)}${t.corrente?'<span class="agora">agora</span>':''}</div>
+      <div class="tri-val">${dec(t.total,0)}</div>${barra}${sub}</div>`;
+  };
+  return `<div class="tri-tit">Levantamento trimestral · ${ano}${unidade?" · "+esc(unidade):""}</div>
+          <div class="tri-grid">${tris.map(cel).join("")}</div>`;
 }
 
 /* Estado dos três gráficos: qual está aberto e que ano cada um mostra. */
@@ -407,11 +537,17 @@ function desenharGrafico(qual){
     metaAno=Number(metas[String(alvo)])||0;
   }
   const metaMes=metaAno?metaAno/12:0;
-  // média real: no ano corrente divide pelos meses decorridos; nos anos
-  // fechados, por 12
-  const mesesAno = (ano===PORTAL.ano) ? (PORTAL.mesesDecorridos||12) : 12;
+  /* Média real do ano exibido. No ano corrente conta só os meses FECHADOS
+     (mesma regra dos cartões — o mês em curso está pela metade e puxaria a
+     linha pra baixo); nos anos já fechados, os 12. */
   const total=vals.reduce((a,b)=>a+(Number(b)||0),0);
-  const media=total/(mesesAno||12);
+  let media;
+  if(ano===PORTAL.ano){
+    const ch=PORTAL.mesesCheios||0;
+    media = ch ? vals.slice(0,ch).reduce((a,b)=>a+(Number(b)||0),0)/ch : 0;
+  }else{
+    media = total/12;
+  }
 
   const opcoes=anos.map(a=>`<option value="${a}"${a===ano?" selected":""}>${a}</option>`).join("");
   box.innerHTML=
@@ -421,7 +557,7 @@ function desenharGrafico(qual){
     `<div class="graf-leg">`+
       `<span><span class="bloco-cor" style="background:var(--azul)"></span>${esc(cfg.titulo.split(" por ")[0])}</span>`+
       (metaMes?`<span style="color:var(--verde-esc)"><i></i>Meta mensal: ${dec(metaMes)}</span>`:``)+
-      `<span style="color:var(--text3)"><i style="border-top-style:dotted"></i>Média do ano: ${dec(media)}</span>`+
+      (media?`<span style="color:var(--text3)"><i style="border-top-style:dotted"></i>Média/mês fechado: ${dec(media)}</span>`:``)+
       `<span style="color:var(--text4)">Total em ${ano}: <b>${cfg.fmt(total)}</b></span>`+
     `</div>`;
 }
@@ -453,55 +589,56 @@ function boot(){
 function pintarAtividades(r){ const el=document.getElementById("cnt-VENDAS"); if(el&&r&&r.ok)el.textContent=r.total; }
 function pintarKpis(r){
   PORTAL=r;
+  const sec = id => document.getElementById(id);
   if(!r.ok){
-    document.getElementById("kpi-vendas").innerHTML=card("Indisponível","—",erroTexto(r.erro));
-    document.getElementById("kpi-obras").innerHTML="";
-    document.getElementById("kpi-lotes").innerHTML="";
+    sec("kpi-vendas").innerHTML=card("Indisponível","—",erroTexto(r.erro));
+    ["kpi-obras","kpi-lotes","tri-vendas","tri-obras","tri-lotes"].forEach(id=>sec(id).innerHTML="");
     pintarAtualizado(null, r.offline, r._ts);
     return;
   }
-  const vc=r.vendaCasas||{}, io_=r.inicioObras||{}, lt=r.lotes||{};
-  const mesNome=MESES_NOME[(r.mesAtual||1)-1]||"";
-  const tri=r.trimestreAtual||1;
-  const rotTri=["Jan–Mar","Abr–Jun","Jul–Set","Out–Dez"][tri-1];
+  const vc=r.vendaCasas||{}, ob=r.inicioObras||{}, lt=r.lotes||{};
+  const mesNome = r.mesAtualNome || MESES_NOME[(r.mesAtual||1)-1] || "";
+  const antNome = r.mesAnteriorNome || "mês anterior";
+  const cheios  = r.mesesCheios||0;
+  /* Toda média por mês usa só meses FECHADOS. Este rodapé explica o divisor —
+     sem ele, quem confere na mão acha que a conta está errada. */
+  const notaCheios = cheios ? `${cheios} ${cheios===1?"mês fechado":"meses fechados"} (${mesNome} não entra)`
+                            : `nenhum mês fechado em ${r.ano} ainda`;
+  const mediaTxt = v => (v==null? "—" : dec(v));
 
-  /* ---------- VENDA DE CASAS ----------
-     Pedido: total do ano, vendas do último mês, média do trimestre, média/mês
-     do ano e ticket médio — com as metas ao lado. */
+  /* ---------- VENDA DE CASAS ---------- */
   const metaVendas = META_VENDAS_ANO_ANTERIOR ? (vc.metaAnoAnterior||0) : (vc.meta||0);
   const metaVMes = metaVendas?metaVendas/12:0;
-  const mTotal=vsMeta(vc.total,metaVendas), mMes=vsMeta(vc.mediaMes,metaVMes), mTri=vsMeta(vc.mediaTrimestre,metaVMes);
-  document.getElementById("kpi-vendas").innerHTML=
-    card("Casas Vendidas em "+r.ano,num(vc.total),mTotal.sub,"hero")+
-    card("Vendas em "+mesNome,dec(vc.mesCorrente,0),"mês anterior: "+dec(vc.mesAnterior,0),"")+
-    card("Média/mês (no ano)",dec(vc.mediaMes),mMes.sub,mMes.cls)+
-    card("Média/mês do trimestre",dec(vc.mediaTrimestre),rotTri+" · "+mTri.sub,mTri.cls)+
-    card("Ticket Médio",brl(vc.ticket),"VGV "+brl(vc.vgv),"verde");
+  sec("kpi-vendas").innerHTML=
+    cardMeta("Casas Vendidas em "+r.ano, num(vc.total), vc.total, metaVendas, null, "hero")+
+    cardMes("Vendas em "+mesNome, vc.mesCorrente, vc.mesAnterior, antNome)+
+    cardMeta("Média/mês (meses fechados)", mediaTxt(vc.mediaMes), vc.mediaMes, metaVMes, notaCheios)+
+    cardMes("VGV em "+mesNome, vc.vgvMes, vc.vgvMesAnterior, antNome, brl)+
+    card("VGV no ano", brl(vc.vgv), num(vc.total)+" casas")+
+    card("Ticket Médio", brl(vc.ticket), vc.ticketMes?("em "+mesNome+": "+brl(vc.ticketMes)):"média do ano","verde");
+  sec("tri-vendas").innerHTML=faixaTrimestral(vc.trimestres, metaVMes, r.ano, "casas vendidas");
 
-  /* ---------- INÍCIO DE OBRAS ----------
-     Pedido: SOMENTE três números (iniciadas, média/mês, média do trimestre),
-     os três relacionados com a meta. */
-  const metaOMes=io_.metaMes||0;
-  const oTotal=vsMeta(io_.iniciadas,io_.meta), oMes=vsMeta(io_.mediaMes,metaOMes), oTri=vsMeta(io_.mediaTrimestre,metaOMes);
-  document.getElementById("kpi-obras").innerHTML=
-    card("Casas Iniciadas em "+r.ano,dec(io_.iniciadas),oTotal.sub,"hero")+
-    card("Média/mês (no ano)",dec(io_.mediaMes),oMes.sub,oMes.cls)+
-    card("Média/mês do trimestre",dec(io_.mediaTrimestre),rotTri+" · "+oTri.sub,oTri.cls);
+  /* ---------- INÍCIO DE OBRAS ---------- */
+  const metaOMes=ob.metaMes||0;
+  sec("kpi-obras").innerHTML=
+    cardMeta("Casas Iniciadas em "+r.ano, dec(ob.iniciadas), ob.iniciadas, ob.meta, null, "hero")+
+    cardMes("Iniciadas em "+mesNome, ob.mesCorrente, ob.mesAnterior, antNome, v=>dec(v))+
+    cardMeta("Média/mês (meses fechados)", mediaTxt(ob.mediaMes), ob.mediaMes, metaOMes, notaCheios);
+  sec("tri-obras").innerHTML=faixaTrimestral(ob.trimestres, metaOMes, r.ano, "casas iniciadas");
 
-  /* ---------- LOTES COMPRADOS ----------
-     Mesma lógica das casas iniciadas, mas SEM meta (confirmado: não existe
-     coluna de meta de lotes no banco METAS). */
-  document.getElementById("kpi-lotes").innerHTML=
-    card("Lotes Adquiridos em "+r.ano,num(lt.total),"morais: "+num(lt.morais)+" · investidores: "+num(lt.investidores),"hero")+
-    card("Média/mês (no ano)",dec(lt.mediaMes),(r.mesesDecorridos||12)+" meses decorridos")+
-    card("Média/mês do trimestre",dec(lt.mediaTrimestre),rotTri+" · "+dec(lt.trimestreTotal,0)+" lotes no trimestre");
+  /* ---------- LOTES COMPRADOS (sem meta, confirmado) ---------- */
+  sec("kpi-lotes").innerHTML=
+    card("Lotes Adquiridos em "+r.ano, num(lt.total),
+         "morais: "+num(lt.morais)+" · investidores: "+num(lt.investidores), "hero")+
+    cardMes("Lotes em "+mesNome, lt.mesCorrente, lt.mesAnterior, antNome)+
+    card("Média/mês (meses fechados)", mediaTxt(lt.mediaMes), notaCheios);
+  sec("tri-lotes").innerHTML=faixaTrimestral(lt.trimestres, 0, r.ano, "lotes");
 
-  const nota=document.getElementById("nota");
+  const nota=sec("nota");
   if(r.offline){ nota.style.display="block"; nota.textContent="Sem internet — últimos dados salvos ("+new Date(r._ts).toLocaleString("pt-BR")+")."; }
   else nota.style.display="none";
   pintarAtualizado(r.updated_at, r.offline, r._ts);
 
-  // gráfico já aberto: repinta com os dados novos
   Object.keys(GRAF).forEach(q=>{ if(GRAF[q].aberto) desenharGrafico(q); });
 }
 window.aoSincronizar=async()=>{ if(podeAcessar(S,"VENDAS")) pintarAtividades(await ler({action:"atividades"},"atividades")); };

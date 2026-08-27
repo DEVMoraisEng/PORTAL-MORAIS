@@ -296,6 +296,32 @@ function pintarAtualizado(updatedAt, offline, tsCache){
   alvos.forEach(el=>{ el.textContent=txt; });
 }
 
+/* Carimbo automático, em TODA página que tenha um elemento #updated ou .updated.
+   POR QUE ISTO EXISTE: antes cada tela carimbava a hora dentro da sua própria
+   rotina de pintura — e essas rotinas nem sempre rodam. No vendas.html, por
+   exemplo, a hora só era escrita dentro de carregarPlanilha(), então quem
+   ficasse na tela inicial (cards de setor) nunca via hora nenhuma.
+   Aqui a hora vem do dist/updated.json, que o fetch_vendas.py grava em toda
+   publicação e é minúsculo. Roda uma vez ao abrir, independente de qual
+   view está aberta. Quem tiver dado mais específico depois sobrescreve — é o
+   mesmo instante do mesmo build, então não conflita. */
+async function carimbarAtualizacao(){
+  if(!document.getElementById("updated") && !document.querySelector(".updated")) return;
+  try{
+    const r=await fetch("dist/updated.json?v="+Math.floor(Date.now()/60000),{cache:"no-cache"});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const j=await r.json();
+    cacheSet("updated", j);
+    pintarAtualizado(j.updated_at, false, null);
+  }catch(e){
+    // sem rede: mostra a última que foi vista, em vez de ficar em branco
+    const c=cacheGet("updated");
+    if(c && c.v && c.v.updated_at) pintarAtualizado(c.v.updated_at, true, c.t);
+    else pintarAtualizado(null, false, null);
+  }
+}
+window.addEventListener("load", carimbarAtualizacao);
+
 /* lookup tolerante (nomes do Notion às vezes têm espaço no fim, ex.: "CPF ") */
 function getV(obj, nome){
   if(obj[nome]!==undefined) return obj[nome];

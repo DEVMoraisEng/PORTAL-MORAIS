@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#295778">
 <!-- tema antes da pintura: sem isto a tela pisca branca pra quem usa escuro -->
 <script>(function(){try{var t=localStorage.getItem("morais_tema");
-  if(t!=="claro"&&t!=="escuro") t=(window.matchMedia&&window.matchMedia("(prefers-color-scheme:dark)").matches)?"escuro":"claro";
+  if(t!=="claro"&&t!=="escuro") t="claro";   // padrão do portal: CLARO
   document.documentElement.dataset.tema=t;}catch(e){}})();</script>
 <link rel="manifest" href="manifest.json">
 <title>Gestão de Vendas · Morais</title>

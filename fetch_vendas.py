@@ -785,6 +785,9 @@ def main():
     # Calculado AQUI e não no navegador de propósito: o vendas.json publicado
     # é podado (colunas sensíveis fora), e o documentos.json é grande — varrer
     # tudo no celular a cada abertura da tela custaria caro à toa.
+    MESES_PT = ["janeiro", "fevereiro", "março", "abril", "maio", "junho",
+                "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"]
+
     def _serie_nova():
         return [0.0] * 12
 
@@ -835,29 +838,77 @@ def main():
     tri_atual = (mes_atual - 1) // 3 + 1
     mes_ini_tri = (tri_atual - 1) * 3          # índice 0-based do 1º mês do trimestre
 
-    def _recorte(serie, ano):
-        """Números do ano pedido: vetor mensal, mês corrente, mês anterior e
-        total do trimestre corrente."""
+    # MESES CHEIOS: o mês corrente NUNCA entra em média (pedido do usuário).
+    # Sem isto, no dia 3 de agosto a "média/mês" caía de penhasco — dividia o
+    # ano por 8 meses tendo só 2 dias do oitavo. Agora só conta mês fechado.
+    # Em janeiro não existe mês fechado no ano: as médias saem como None e a
+    # tela mostra "—" em vez de um número inventado.
+    meses_cheios = mes_atual - 1
+    ROT_TRI = ["Jan–Mar", "Abr–Jun", "Jul–Set", "Out–Dez"]
+
+    def _media(soma, n):
+        return (soma / n) if n else None
+
+    def _trimestres(vet, meta_mes):
+        """Os QUATRO trimestres do ano, não só o corrente (pedido do usuário).
+        total  = tudo que aconteceu no trimestre, inclusive o mês em curso —
+                 é uma contagem, e esconder o mês corrente daria a impressão
+                 de que o trimestre está mais vazio do que está.
+        media  = só os meses FECHADOS do trimestre, pela regra acima. É ela que
+                 se compara com a meta mensal."""
+        out = []
+        for t in range(4):
+            ini = t * 3
+            meses_t = vet[ini:ini + 3]
+            cheios_t = max(0, min(3, meses_cheios - ini))
+            soma_cheios = sum(meses_t[:cheios_t])
+            media_t = _media(soma_cheios, cheios_t)
+            out.append({
+                "n": t + 1,
+                "rotulo": ROT_TRI[t],
+                "total": round(sum(meses_t), 2),
+                "mesesCheios": cheios_t,
+                "media": round(media_t, 2) if media_t is not None else None,
+                "pct": round(media_t / meta_mes * 100, 1) if (media_t is not None and meta_mes) else None,
+                "corrente": (t + 1) == tri_atual,
+                "futuro": ini >= mes_atual,          # trimestre que nem começou
+            })
+        return out
+
+    def _recorte(serie, ano, meta_mes=None):
+        """Números do ano pedido: vetor mensal, mês corrente, mês anterior,
+        média dos meses fechados e os quatro trimestres."""
         vet = serie.get(ano) or _serie_nova()
+        soma_cheios = sum(vet[:meses_cheios])
+        media = _media(soma_cheios, meses_cheios)
         return {
             "mensal": [round(x, 2) for x in vet],
+            "total": round(sum(vet), 2),
             "mesCorrente": round(vet[mes_atual - 1], 2),
             "mesAnterior": round(vet[mes_atual - 2], 2) if mes_atual > 1 else 0,
+            "mesCorrenteNome": MESES_PT[mes_atual - 1],
+            "mesAnteriorNome": MESES_PT[mes_atual - 2] if mes_atual > 1 else "",
+            "totalMesesCheios": round(soma_cheios, 2),
+            "mediaMes": round(media, 2) if media is not None else None,
             "trimestreTotal": round(sum(vet[mes_ini_tri:mes_ini_tri + 3]), 2),
+            "trimestres": _trimestres(vet, meta_mes),
         }
 
-    rv = _recorte(serie_vendas, ano_atual)
-    ro = _recorte(serie_obras, ano_atual)
-    rl = _recorte(serie_lotes, ano_atual)
-
-    # "Média por mês no ano" = total ÷ MESES DECORRIDOS, não ÷ meses que
-    # tiveram movimento. Contar só os meses com venda escondia os meses zerados
-    # e inflava a média — um ano com 10 casas em 2 meses aparecia como média 5,
-    # quando a média real do ano até aqui é bem menor. É essa média que dá pra
-    # comparar de igual pra igual com a meta mensal (meta do ano ÷ 12).
-    meses_decorridos = mes_atual
     meta_anterior = metas_por_ano.get(ano_atual - 1)
+    # a meta de VENDAS é a do ano anterior (mesma regra do analise.html);
+    # obras e lotes usam a do ano corrente
+    meta_vendas = meta_anterior
+    rv  = _recorte(serie_vendas, ano_atual, (meta_vendas / 12.0) if meta_vendas else None)
+    rvg = _recorte(serie_vgv,    ano_atual)
+    ro  = _recorte(serie_obras,  ano_atual, (meta_casas / 12.0) if meta_casas else None)
+    rl  = _recorte(serie_lotes,  ano_atual)   # lotes ficam sem meta (confirmado)
 
+    # "Média por mês no ano" = total dos MESES FECHADOS ÷ nº de meses fechados.
+    # Duas correções em cima da conta original:
+    #  1) não conta "meses que tiveram movimento" — isso escondia os meses
+    #     zerados e inflava a média (10 casas em 2 meses virava média 5);
+    #  2) não conta o mês CORRENTE, que está pela metade e derrubava a média
+    #     todo início de mês. Ver meses_cheios lá em cima.
     def _metas(meta):
         if not meta:
             return {"meta": meta, "metaMes": None, "metaTrimestre": None}
@@ -867,10 +918,13 @@ def main():
         "ok": True,
         "ano": ano_atual,
         "mesAtual": mes_atual,
+        "mesAtualNome": MESES_PT[mes_atual - 1],
+        "mesAnteriorNome": MESES_PT[mes_atual - 2] if mes_atual > 1 else "",
         "trimestreAtual": tri_atual,
-        "mesesDecorridos": meses_decorridos,
-        # metas por ano, pro front escolher (venda de casas usa a do ano
-        # anterior no analise.html — ver META_VENDAS_ANO_ANTERIOR no index.html)
+        # meses do ano que JÁ FECHARAM. É o divisor de toda média por mês —
+        # o mês corrente nunca entra (pedido do usuário).
+        "mesesCheios": meses_cheios,
+        "mesesDecorridos": mes_atual,
         "metas": {str(a): m for a, m in sorted(metas_por_ano.items()) if m},
         "anos": anos_disponiveis,
         "series": {
@@ -880,26 +934,29 @@ def main():
             "lotes": _arredondar(serie_lotes),
         },
         "vendaCasas": dict({
-            "total": casas_vend, "vgv": vgv,
-            "mediaMes": casas_vend / meses_decorridos, "meses": meses_decorridos,
-            "mesesComVenda": n_meses_v,
-            # média do trimestre CORRENTE ÷ 3 meses (combinado: /3, não /4) —
-            # comparável direto com a meta mensal
-            "mediaTrimestre": rv["trimestreTotal"] / 3.0,
-            "trimestreTotal": rv["trimestreTotal"], "trimestres": n_trim_v,
+            "total": casas_vend,
             "mesCorrente": rv["mesCorrente"], "mesAnterior": rv["mesAnterior"],
+            # média só dos meses fechados (None em janeiro, quando não há
+            # nenhum mês fechado no ano — a tela mostra "—")
+            "mediaMes": rv["mediaMes"], "meses": meses_cheios,
+            "totalMesesCheios": rv["totalMesesCheios"],
+            "trimestres": rv["trimestres"],
+            # VGV: total do ano, do mês corrente e do mês anterior
+            "vgv": vgv,
+            "vgvMes": rvg["mesCorrente"], "vgvMesAnterior": rvg["mesAnterior"],
             "ticket": (vgv / casas_vend) if casas_vend else 0,
+            # ticket do mês = VGV do mês ÷ casas vendidas no mês
+            "ticketMes": (rvg["mesCorrente"] / rv["mesCorrente"]) if rv["mesCorrente"] else 0,
             "metaAnoAnterior": meta_anterior,
-        }, **_metas(meta_casas)),
+        }, **_metas(meta_vendas)),
         "inicioObras": dict({
             "iniciadas": round(casas_inic_total, 2),
             "iniciadasMorais": round(casas_inic_m, 2),
             "iniciadasInvestidores": round(casas_inic_i, 2),
-            "mediaMes": casas_inic_total / meses_decorridos, "meses": meses_decorridos,
-            "mesesComObra": n_meses_o,
-            "mediaTrimestre": ro["trimestreTotal"] / 3.0,
-            "trimestreTotal": ro["trimestreTotal"], "trimestres": n_trim_o,
             "mesCorrente": ro["mesCorrente"], "mesAnterior": ro["mesAnterior"],
+            "mediaMes": ro["mediaMes"], "meses": meses_cheios,
+            "totalMesesCheios": ro["totalMesesCheios"],
+            "trimestres": ro["trimestres"],
             "pct": (casas_inic_total / meta_casas) if meta_casas else None,
         }, **_metas(meta_casas)),
         # LOTES COMPRADOS fica SEM meta (confirmado): não existe coluna de meta
@@ -907,17 +964,17 @@ def main():
         # produziria um percentual que não quer dizer nada.
         "lotes": {
             "total": lotes_total, "morais": lotes_m, "investidores": lotes_i,
-            "mediaMes": lotes_total / meses_decorridos, "meses": meses_decorridos,
-            "mediaTrimestre": rl["trimestreTotal"] / 3.0,
-            "trimestreTotal": rl["trimestreTotal"],
             "mesCorrente": rl["mesCorrente"], "mesAnterior": rl["mesAnterior"],
+            "mediaMes": rl["mediaMes"], "meses": meses_cheios,
+            "totalMesesCheios": rl["totalMesesCheios"],
+            "trimestres": rl["trimestres"],
             "meta": None, "metaMes": None, "metaTrimestre": None,
         },
         "updated_at": agora,
     }
     gravar("portal.json", portal)
-    print(f"  portal.json: mes={mes_atual} tri={tri_atual} "
-          f"anos com série={anos_disponiveis}", flush=True)
+    print(f"  portal.json: mes={mes_atual} ({MESES_PT[mes_atual-1]}) tri={tri_atual} "
+          f"meses cheios={meses_cheios} anos com série={anos_disponiveis}", flush=True)
 
     # ---- data_vendas.json: recorte achatado do painel do Gestor ----------
     # A página casas-vendidas.html espera nomes em snake_case e uma lista só.
