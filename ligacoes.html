@@ -2188,7 +2188,23 @@ function barras(idCanvas, itens, sufixo){
   }
 }
 
-const COR_CONC = { EQUATORIAL:"#b7791f", SANEAGO:"#2a9d5c", SANESC:"#295778" };
+/* Cor de cada concessionária no gráfico de tempo de ligação.
+   A chave é o nome NORMALIZADO (sem acento, maiúsculas, espaço colapsado) —
+   ver COR_CONC[normN(k)] no renderGraficos.
+   "SANEAGO ESGOTO" é uma opção própria da coluna CONCESSIONÁRIA, então ela
+   ganha barra separada da SANEAGO — e é assim que deve ser: o prazo do esgoto
+   só começa a correr DEPOIS que a água foi ligada, então somar os dois numa
+   média só misturaria dois processos de duração diferente.
+   O tom é um verde mais escuro de propósito: fica visualmente irmão da
+   SANEAGO (mesma concessionária) sem se confundir com ela na leitura.
+   Sem esta linha a barra sairia na cor padrão, igual a qualquer valor
+   desconhecido. */
+const COR_CONC = {
+  EQUATORIAL:       "#b7791f",
+  SANEAGO:          "#2a9d5c",
+  "SANEAGO ESGOTO": "#1a6b40",
+  SANESC:           "#295778"
+};
 
 /* Período escolhido em cima dos gráficos: ano e/ou mês. Uma linha entra se
    QUALQUER uma das três datas dela cair no período — é o que faz sentido
