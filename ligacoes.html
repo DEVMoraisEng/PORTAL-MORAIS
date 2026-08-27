@@ -857,7 +857,21 @@ const ABAS = {
     filtroData: [C.DT_SOL, C.DT_LIG, C.DT_LIBER],
     sensiveis: true,
     pdf: true,
-    base: l => sel(l, C.FEZ) === "SIM" && noFluxo(l) && temAlerta(l, C.ALERTA_INFO1)
+    /* A fila olha os DOIS alertas da etapa, não só o primeiro.
+       BUG QUE ISTO CORRIGE: as duas colunas do Notion são estágios seguidos da
+       MESMA pendência — "Elerta Informações (1)" mostra ⏳ AGUARDANDO enquanto
+       está dentro do prazo e, quando o prazo estoura, ela volta para "-" e
+       quem acende é a "ALERTA VER. LIGAÇÃO", com 🚨 ATRASADO.
+       Filtrando só pela primeira, a obra caía fora da aba EXATAMENTE quando
+       virava a mais urgente. Na base de hoje são 12 linhas nessa situação
+       (6 SANEAGO, 4 EQUATORIAL, 2 SANESC) — todas atrasadas, todas invisíveis.
+       As duas colunas já têm regra local que zera quando a pessoa marca
+       LIGADO + Data de Ligação, então incluir a segunda não segura ninguém
+       na fila depois de resolvido. */
+    base: l => sel(l, C.FEZ) === "SIM" && noFluxo(l)
+            && (temAlerta(l, C.ALERTA_INFO1) || temAlerta(l, C.ALERTA_LIG)),
+    /* Atrasada primeiro: é a razão de a pessoa abrir esta aba. */
+    ordenar: (a, b) => (temAlerta(b, C.ALERTA_LIG) ? 1 : 0) - (temAlerta(a, C.ALERTA_LIG) ? 1 : 0)
   },
   semUc: {
     titulo: "Ligações sem UC (ligadas mas sem UC)",
@@ -1292,19 +1306,47 @@ function mostrarOffline(r){
    que não precisa de sessão) e avisa quando não bate.
    Backend antigo não conhece VERSAO_GS e responde sem o campo — o que também
    é resposta: é sinal de que a publicação ficou para trás. */
-const GS_ESPERADO = "2026-08-27 r7";
+const GS_ESPERADO = "2026-08-27 r8";
+
+/* Compara "2026-08-27 r8" com "2026-08-27 r7" e diz QUEM está atrás.
+   Comparação por data + número, nunca de texto: como texto, "r10" viria antes
+   de "r9" e o aviso passaria a mentir na décima versão. Formato estranho
+   devolve null e a tela simplesmente não opina. */
+function versaoGS(v){
+  const m = String(v || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})\s*r(\d+)$/i);
+  return m ? (Number(m[1]+m[2]+m[3]) * 1000 + Number(m[4])) : null;
+}
+
 function conferirBackend(){
   chamar({action:"ping"}, 15000).then(r => {
     if (!r || r.ok !== true) return;                 // sem rede: não é assunto daqui
     const v = r.versao || "";
     if (v === GS_ESPERADO) return;
     const cx = document.getElementById("aviso-gs");
-    cx.innerHTML =
-      "<b>O Apps Script publicado está atrasado.</b> No ar: " +
-      (v ? esc(v) : "versão anterior a 25/08") + " · esta tela espera: " + esc(GS_ESPERADO) +
-      ".<br>Enquanto isso, gravar em colunas novas pode ser recusado " +
-      "(a célula fica vermelha e diz CAMPO_NAO_LIBERADO). Para publicar: " +
-      "Implantar → Gerenciar implantações → lápis da implantação Ativa → Versão: Nova versão → Implantar.";
+    const noAr = versaoGS(v), esperada = versaoGS(GS_ESPERADO);
+
+    /* DOIS problemas diferentes, e antes os dois davam a MESMA mensagem
+       ("o Apps Script está atrasado") — que na segunda situação é o contrário
+       do que está acontecendo e manda a pessoa reimplantar um backend que já
+       está certo. */
+    if (noAr !== null && esperada !== null && noAr > esperada){
+      // backend À FRENTE: quem ficou para trás é ESTA PÁGINA (cache do
+      // navegador, ou o arquivo novo ainda não publicado no GitHub Pages).
+      // Não quebra nada: o backend novo continua atendendo a tela antiga.
+      cx.innerHTML =
+        "<b>Esta página está desatualizada.</b> O Apps Script já está no " + esc(v) +
+        " e esta tela é a do " + esc(GS_ESPERADO) +
+        ".<br>Recarregue com <b>Ctrl+F5</b> (ou Cmd+Shift+R no Mac). Se continuar, " +
+        "o arquivo novo ainda não subiu para o GitHub Pages — confira se o workflow terminou.";
+    } else {
+      // backend ATRASADO: é o caso original — colar o Code.gs não publica.
+      cx.innerHTML =
+        "<b>O Apps Script publicado está atrasado.</b> No ar: " +
+        (v ? esc(v) : "versão anterior a 25/08") + " · esta tela espera: " + esc(GS_ESPERADO) +
+        ".<br>Enquanto isso, gravar em colunas novas pode ser recusado " +
+        "(a célula fica vermelha e diz CAMPO_NAO_LIBERADO). Para publicar: " +
+        "Implantar → Gerenciar implantações → lápis da implantação Ativa → Versão: Nova versão → Implantar.";
+    }
     cx.style.display = "block";
   }).catch(()=>{});
 }
@@ -1604,11 +1646,17 @@ async function atualizarAoVivo(forcar){
     });
     if (!tocadas) return;
 
-    /* Chegou do Notion: o que já bate com o ao vivo deixa de ser edição
-       pendente. O descarte aqui é SÓ por igualdade, nunca por tempo — a
-       resposta pode vir do cache de 5 min do servidor e ainda não conter uma
-       gravação de segundos atrás. */
-    aplicarEdicoesLocais("ligacoes", null,
+    /* Chegou do Notion: reconcilia as edições locais com o que veio.
+       Descarta por igualdade (já publicou) E por tempo, usando o `lidoEm` que
+       o backend agora manda — a hora em que os dados saíram do Notion de fato,
+       preservada mesmo quando a resposta vem do cache de 5 minutos.
+       POR QUE ISSO IMPORTA: antes o descarte era SÓ por igualdade. Quem
+       alterasse a coluna direto no Notion, para um valor diferente do que
+       tinha sido digitado na tela, ficava com a edição local grudada por até
+       7 dias — a tela continuava mostrando o valor velho e a linha não voltava
+       para as filas de acompanhamento. Com o lidoEm, edição anterior à leitura
+       perde para o Notion, que é quem manda. */
+    aplicarEdicoesLocais("ligacoes", r.lidoEm || null,
       (id, prop) => { const l = porId[id]; if (!l) return undefined;
                       if (String(prop).indexOf(PREFIXO_ANEXO) === 0)
                         return contagemAnexoPublicada(l, String(prop).slice(PREFIXO_ANEXO.length));
