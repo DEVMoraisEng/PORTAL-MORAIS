@@ -749,7 +749,18 @@ const SETORES_LIG = [
    O conteúdo da UC não é conferido de propósito: às vezes ela é uma
    observação ("casa entregue em julho") e isso conta como preenchida.
    O "-" é o vazio da base, não um valor. */
+/* UC PREENCHIDA = INEXISTE é como as ligações de ESGOTO são marcadas: elas
+   percorrem o fluxo de liberação e de solicitação normalmente, mas não têm
+   unidade consumidora nem conta para conferir. Tratar INEXISTE como "resolvido"
+   tira essas linhas de TODAS as filas de UC e de contas de uma vez só — as
+   quatro abas dependem de ucCompleta ou de UC PREENCHIDA = SIM. */
 function ucCompleta(l){
+  const marca = normN(sel(l, C.UC_OK));
+  if (marca === "INEXISTE") return true;       // esgoto: não tem UC, e está certo
+  /* Rede de segurança: linha de esgoto ainda não marcada como INEXISTE também
+     sai das filas de UC e de contas. Sem isto, toda linha de esgoto nova
+     apareceria em "ligações sem UC" até alguém marcar INEXISTE na mão. */
+  if (ehLinhaEsgoto(l)) return true;
   const uc = String(txt(getL(l, C.UC) || "")).trim();
   return sel(l, C.UC_OK) === "SIM" && !!uc && uc !== "-" && dataPreenchida(l, C.DT_UC);
 }
@@ -834,7 +845,7 @@ const ABAS = {
     base: l => sel(l, C.LIBERADO) === "SIM"
             && noFluxo(l)
             && (temAlerta(l, C.ALERTA_INFO)
-                || (temData(l, C.DT_LIBER) && !temAnexo(l, C.NF_MEDIDOR)))
+                || (exigeNfMedidor(l) && temData(l, C.DT_LIBER) && !temAnexo(l, C.NF_MEDIDOR)))
   },
   conferencias: {
     titulo: "Conferências de ligações solicitadas",
@@ -1183,9 +1194,30 @@ function dataPreenchida(l, nome){
      - liberada, com data e com a NF ....... sai
      - liberada SEM data ................... sai (é anterior a este controle:
        não dá pra saber quando foi liberada, então não faz sentido cobrar) */
+/* A NF do medidor só é cobrada da SANESC. Para SANEAGO e EQUATORIAL, liberado
+   = SIM + DATA DE LIBERAÇÃO preenchida já basta — essas duas não pedem anexo
+   nenhum, e cobrar um arquivo que não existe deixava a obra presa na fila
+   "apta para a solicitação" para sempre.
+   Comparação por PEDAÇO do nome, não exata: "SANEAGO ESGOTO" é uma opção
+   distinta de "SANEAGO" na coluna CONCESSIONÁRIA, e com comparação exata a
+   linha de esgoto continuaria presa esperando uma NF de medidor que ela nunca
+   vai ter (esgoto não tem medidor). */
+const CONC_SEM_NF = ["SANEAGO", "EQUATORIAL"];
+function exigeNfMedidor(l){
+  const c = normN(sel(l, C.CONC));
+  return !CONC_SEM_NF.some(x => c.indexOf(normN(x)) >= 0);
+}
+
+/* Linha de ligação de ESGOTO. Vale a mesma regra do backend (ligEhEsgoto_ no
+   Code.gs): é a opção "SANEAGO ESGOTO" da coluna CONCESSIONÁRIA. */
+function ehLinhaEsgoto(l){
+  const c = normN(sel(l, C.CONC));
+  return c.indexOf("SANEAGO") >= 0 && c.indexOf("ESGOTO") >= 0;
+}
 function pendenteLiberacao(l){
   if (sel(l, C.LIBERADO) !== "SIM") return true;
   if (!temData(l, C.DT_LIBER)) return false;
+  if (!exigeNfMedidor(l)) return false;          // SANEAGO / EQUATORIAL: pronto
   return !temAnexo(l, C.NF_MEDIDOR);
 }
 
@@ -1260,7 +1292,7 @@ function mostrarOffline(r){
    que não precisa de sessão) e avisa quando não bate.
    Backend antigo não conhece VERSAO_GS e responde sem o campo — o que também
    é resposta: é sinal de que a publicação ficou para trás. */
-const GS_ESPERADO = "2026-08-25 r6";
+const GS_ESPERADO = "2026-08-27 r7";
 function conferirBackend(){
   chamar({action:"ping"}, 15000).then(r => {
     if (!r || r.ok !== true) return;                 // sem rede: não é assunto daqui

@@ -479,14 +479,14 @@ function faixaTrimestral(tris, metaMes, ano, unidade){
     const cls = t.futuro?"futuro":(t.corrente?"corrente":"");
     let barra="", sub="";
     if(t.media==null){
-      sub = `<div class="tri-nota">${t.futuro?"ainda não começou":"nenhum mês fechado"}</div>`;
+      sub = `<div class="tri-nota">${t.futuro?"ainda não começou":"sem movimento"}</div>`;
     }else if(metaMes){
       const pct=t.media/metaMes*100, f=faixaMeta(pct);
       barra=`<div class="mbar"><i class="${f}" style="width:${Math.max(2,Math.min(100,pct)).toFixed(1)}%"></i></div>`;
       sub=`<div class="msub"><b class="pct ${f}">${dec(pct,0)}%</b>
-             <span class="txt">${dec(t.media)}/mês de ${dec(metaMes)}</span></div>`;
+             <span class="txt">${dec(t.media)}/mês de ${dec(metaMes)}${t.corrente?" · mês em curso incluído":""}</span></div>`;
     }else{
-      sub=`<div class="tri-nota">média ${dec(t.media)} por mês fechado</div>`;
+      sub=`<div class="tri-nota">média ${dec(t.media)} por mês</div>`;
     }
     return `<div class="tri ${cls}">
       <div class="tri-lab">T${t.n} · ${esc(t.rotulo)}${t.corrente?'<span class="agora">agora</span>':''}</div>

@@ -850,24 +850,29 @@ def main():
         return (soma / n) if n else None
 
     def _trimestres(vet, meta_mes):
-        """Os QUATRO trimestres do ano, não só o corrente (pedido do usuário).
-        total  = tudo que aconteceu no trimestre, inclusive o mês em curso —
-                 é uma contagem, e esconder o mês corrente daria a impressão
-                 de que o trimestre está mais vazio do que está.
-        media  = só os meses FECHADOS do trimestre, pela regra acima. É ela que
-                 se compara com a meta mensal."""
+        """Os QUATRO trimestres do ano, não só o corrente.
+
+        AQUI A REGRA É DIFERENTE da média anual, a pedido: o trimestre divide
+        pelos meses INICIADOS, incluindo o mês vigente. Motivo prático — no
+        primeiro mês de um trimestre não existiria nenhum mês fechado, e o
+        card apareceria vazio o tempo todo. Em agosto, T3 divide por 2
+        (julho + agosto), não por 1.
+        A média ANUAL continua só com meses fechados (ver meses_cheios): lá o
+        mês pela metade dilui um total grande e distorce muito mais."""
         out = []
         for t in range(4):
             ini = t * 3
             meses_t = vet[ini:ini + 3]
-            cheios_t = max(0, min(3, meses_cheios - ini))
-            soma_cheios = sum(meses_t[:cheios_t])
-            media_t = _media(soma_cheios, cheios_t)
+            # meses do trimestre que já COMEÇARAM (o vigente conta)
+            iniciados_t = max(0, min(3, mes_atual - ini))
+            soma_t = sum(meses_t[:iniciados_t])
+            media_t = _media(soma_t, iniciados_t)
             out.append({
                 "n": t + 1,
                 "rotulo": ROT_TRI[t],
                 "total": round(sum(meses_t), 2),
-                "mesesCheios": cheios_t,
+                "mesesContados": iniciados_t,
+                "temMesEmCurso": (t + 1) == tri_atual,
                 "media": round(media_t, 2) if media_t is not None else None,
                 "pct": round(media_t / meta_mes * 100, 1) if (media_t is not None and meta_mes) else None,
                 "corrente": (t + 1) == tri_atual,

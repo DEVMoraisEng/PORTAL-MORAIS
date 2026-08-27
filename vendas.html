@@ -2757,8 +2757,24 @@ async function confirmarDistrato(pageId){
   document.getElementById("dist-senha").value="";
   btn.disabled=false; btn.textContent="Confirmar distrato";
   if(r && r.ok){
+    /* Mostra o resultado NA HORA, sem esperar a próxima publicação.
+       O site lê o dist/vendas.json, que só é regerado pelo GitHub Actions —
+       até lá a planilha continuaria mostrando a obra intacta e a pessoa
+       acharia que o distrato não funcionou. O backend devolve `zerados`
+       ({coluna: valorNovo}); cada um vira uma edição local, o mesmo mecanismo
+       que já sustenta as edições de célula entre uma publicação e outra.
+       Quando o JSON novo chegar com os campos já limpos, o aplicarEdicoesLocais
+       percebe que o publicado bate com o local e descarta sozinho. */
+    const zerados = (r && r.zerados) || {};
+    let marcados = 0;
+    for(const col in zerados){ registrarEdicao("vendas", pageId, col, zerados[col]); marcados++; }
+    if(marcados){
+      const v = vendaPorId(pageId);
+      if(v && v.valores) for(const col in zerados) v.valores[col] = zerados[col];
+    }
     fecharDistrato(); fecharObra();
-    toast("Distrato registrado ✓"+(r.atividadesApagadas?(" — "+r.atividadesApagadas+" atividade(s) apagada(s)"):""));
+    toast("Distrato registrado ✓ — "+(r.camposLimpos||marcados)+" campo(s) limpo(s)"+
+          (r.atividadesApagadas?(" e "+r.atividadesApagadas+" atividade(s) apagada(s)"):""));
     ler({action:"atividades"},"atividades").then(x=>{ if(x&&x.ok){ ATIV_ALL=x.atividades; atualizarBadgesSetores(); if(document.getElementById("st-atividades").style.display!=="none") carregarAtividades(); } });
     carregarPlanilha(document.getElementById("view-setor").style.display!=="none"?"set":"hub");
   } else {
