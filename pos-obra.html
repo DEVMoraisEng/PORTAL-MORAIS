@@ -139,17 +139,28 @@ th.ord.on .seta{opacity:1}
 .cal-grade{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
 .cal-dia-cab{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;
   color:var(--text3);text-align:center;padding:4px 0}
-.cal-dia{min-height:82px;border:1px solid var(--border2);border-radius:9px;background:var(--bg2);padding:5px 6px;overflow:hidden}
+/* A célula NÃO tem mais altura fixa nem overflow:hidden (pedido 1): o dia
+   cheio estica a linha inteira da grade e mostra todos os serviços, em vez
+   de cortar em 3 e esconder o resto atrás de um "+N". */
+.cal-dia{min-height:96px;border:1px solid var(--border2);border-radius:9px;background:var(--bg2);padding:5px 6px}
 .cal-dia.fora{opacity:.4}
 .cal-dia.hoje{border-color:var(--verde);box-shadow:0 0 0 1px var(--verde) inset}
 .cal-num{font-size:11.5px;font-weight:800;color:var(--text3);margin-bottom:3px}
 .cal-dia.hoje .cal-num{color:var(--verde-esc)}
-.cal-mc{display:block;width:100%;text-align:left;border:0;border-left:3px solid var(--azul);border-radius:5px;
-  padding:3px 6px;margin-bottom:3px;font:inherit;font-size:10.5px;font-weight:700;line-height:1.25;cursor:pointer;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(41,87,120,.10);color:var(--azul)}
-.cal-mc:hover{background:var(--azul);color:#fff}
+/* Etiqueta do dia: três linhas (endereço+casa / responsável / horário).
+   Sem nowrap — o endereço quebra em vez de virar reticências. */
+.cal-mc{display:block;width:100%;text-align:left;border:0;border-left:3px solid var(--azul);border-radius:6px;
+  padding:5px 7px;margin-bottom:4px;font:inherit;font-size:10.5px;line-height:1.3;cursor:pointer;
+  background:rgba(41,87,120,.10);color:var(--azul)}
+.cal-mc .e{font-weight:800;font-size:11px;overflow-wrap:anywhere;display:block}
+.cal-mc .r{font-weight:700;opacity:.9;overflow-wrap:anywhere;display:block}
+.cal-mc .h{font-weight:800;display:block;opacity:.8}
+.cal-mc .st{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.3px;margin-top:2px;
+  padding:0 5px;border-radius:20px;background:rgba(255,255,255,.55)}
+.cal-mc:hover{filter:brightness(.94)}
 .cal-mc.rm{background:#FEF3C7;color:#92400E;border-left-color:#92400E}
-.cal-mc.rm:hover{background:#92400E;color:#fff}
+/* Pedido 5: evento concluído fica verde no calendário. */
+.cal-mc.ok{background:#DCFCE7;color:#166534;border-left-color:var(--verde)}
 .cal-mais{font-size:10px;color:var(--text4);font-weight:700;padding-left:5px}
 .cal-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--text3);margin-top:10px}
 .cal-leg i{display:inline-block;width:11px;height:11px;border-radius:3px;vertical-align:-1px;margin-right:5px}
@@ -164,6 +175,27 @@ th.ord.on .seta{opacity:1}
 .mcard{background:var(--sup);border:1px solid var(--border2);border-left:4px solid var(--azul);border-radius:9px;
   padding:8px 9px;margin-bottom:7px;font-size:11.5px;line-height:1.4}
 .mcard.rm{border-left-color:#b7791f}
+.mcard.ok{border-left-color:var(--verde);background:#F0FDF4}
+
+/* ---------- visão LISTA (pedido 6): tudo que está em aberto, por data ----------
+   Nasceu porque o calendário responde "o que tem no dia X" e ninguém
+   conseguia responder "o que ainda está aberto", que é a pergunta do dia a
+   dia. Os atrasados vêm primeiro de propósito. */
+.lst-grupo{margin-bottom:14px}
+.lst-cab{font-family:'Barlow Condensed';font-weight:800;font-size:14px;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--azul-esc);display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.lst-cab .n{background:var(--azul);color:#fff;border-radius:20px;min-width:21px;height:19px;font-family:Inter;
+  display:inline-flex;align-items:center;justify-content:center;font-size:11px;padding:0 6px}
+.lst-cab.atras{color:#991B1B}.lst-cab.atras .n{background:#991B1B}
+.litem{display:flex;gap:11px;align-items:flex-start;background:var(--sup);border:1px solid var(--border2);
+  border-left:4px solid var(--azul);border-radius:9px;padding:9px 11px;margin-bottom:6px;cursor:pointer}
+.litem:hover{background:var(--bg3)}
+.litem.atras{border-left-color:#991B1B}
+.litem .dt{flex:0 0 92px;font-size:11.5px;font-weight:800;color:var(--azul-esc);line-height:1.3}
+.litem .dt small{display:block;font-size:10.5px;font-weight:700;color:var(--text3)}
+.litem .co{flex:1;min-width:0}
+.litem .e{font-size:12.5px;font-weight:800;overflow-wrap:anywhere}
+.litem .m{font-size:11.5px;color:var(--text3);margin-top:2px;overflow-wrap:anywhere}
 .mcard .end{font-weight:800;font-size:12px;overflow-wrap:anywhere}
 .mcard .ln{color:var(--text3);overflow-wrap:anywhere}
 .mcard .acoes{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
@@ -331,11 +363,13 @@ th.ord.on .seta{opacity:1}
 .graf{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:15px 16px}
 .graf .gt{font-family:'Barlow Condensed';font-weight:800;font-size:16px;text-transform:uppercase;
   color:var(--azul-esc);letter-spacing:.4px}
-.graf .gd{font-size:11.5px;color:var(--text3);margin:3px 0 12px}
+/* Pedido 3: o texto de apoio estava quase invisível. Subiu de tamanho, ganhou
+   peso e passou a usar a cor de texto normal em vez da apagada. */
+.graf .gd{font-size:12.5px;font-weight:600;color:var(--text);opacity:.82;margin:4px 0 13px;line-height:1.4}
 .graf svg{width:100%;height:auto;display:block;overflow:visible}
 .graf .eixo{stroke:var(--border2);stroke-width:1}
-.graf .rot{font-size:10px;fill:var(--text3);font-family:Inter,sans-serif}
-.graf .valor{font-size:10.5px;fill:var(--text3);font-weight:700;font-family:Inter,sans-serif}
+.graf .rot{font-size:11px;font-weight:600;fill:var(--text3);font-family:Inter,sans-serif}
+.graf .valor{font-size:11px;fill:var(--azul-esc);font-weight:800;font-family:Inter,sans-serif}
 .graf .barra{fill:var(--barra)}
 .graf .vaziog{padding:26px;text-align:center;color:var(--text4);font-size:12.5px}
 .hero-num{display:flex;align-items:baseline;gap:9px;margin-bottom:4px}
@@ -368,8 +402,11 @@ th.ord.on .seta{opacity:1}
   table.grade tbody td{padding:9px 9px;max-width:190px}
   table.grade tbody td.stick{white-space:normal;max-width:43vw;min-width:120px;line-height:1.25}
   .obra-nome{font-size:18px}
-  .cal-dia{min-height:56px;padding:4px}
-  .cal-mc{font-size:9.5px}
+  .cal-dia{min-height:64px;padding:4px}
+  .cal-mc{font-size:9.5px;padding:4px 5px}
+  .cal-mc .e{font-size:10px}
+  .litem{flex-direction:column;gap:4px}
+  .litem .dt{flex:0 0 auto}
   .cal-mes{font-size:15px;min-width:0}
   .gar-resumo{grid-template-columns:1fr}
   .painel{width:100vw;max-width:100vw}
@@ -414,6 +451,11 @@ html[data-tema="escuro"] .gr.fora{background:#3a1e1e;border-color:#7a3a3a}
 html[data-tema="escuro"] .gr.fora .s{color:#f3a29a}
 html[data-tema="escuro"] .cal-mc{background:rgba(143,211,238,.12);color:#8fd3ee}
 html[data-tema="escuro"] .cal-mc.rm{background:#3a2d12;color:#f0c95f}
+html[data-tema="escuro"] .cal-mc.ok{background:#16341f;color:#8ce0a5}
+html[data-tema="escuro"] .cal-mc .st{background:rgba(0,0,0,.25)}
+html[data-tema="escuro"] .mcard.ok{background:#16341f}
+html[data-tema="escuro"] .lst-cab,html[data-tema="escuro"] .litem .dt{color:#8fd3ee}
+html[data-tema="escuro"] .lst-cab.atras{color:#f3a29a}
 html[data-tema="escuro"] .painel{box-shadow:-6px 0 26px rgba(0,0,0,.55)}
 html[data-tema="escuro"] .kpi.hero .val{color:#fff}
 html[data-tema="escuro"] .sec .cond,
@@ -532,6 +574,13 @@ html[data-tema="escuro"] .logo{background:#fff}
 
       <div class="sec"><span class="cond">Serviços de Pós Obra</span><span style="flex:1"></span><span class="count" id="kanban-info"></span></div>
       <div class="kanban" id="kanban"></div>
+
+      <!-- Pedido 4: os mesmos indicadores da tela geral, só que desta obra.
+           Fica no fim da página porque é leitura de fechamento, não de
+           operação — quem abre a obra vem atrás do histórico e dos serviços. -->
+      <div class="sec"><span class="cond">Indicadores desta obra</span><span style="flex:1"></span><span class="count" id="ind-obra-info"></span></div>
+      <div class="kpis" id="ind-obra-kpis"></div>
+      <div class="ind-grid" id="ind-obra-graficos" style="margin-top:16px"></div>
     </section>
 
     <!-- ===================== INDICADORES ===================== -->
@@ -770,11 +819,63 @@ const GARANTIAS = [
 const S = exigirSessao();
 atualizarStatus(); atualizarBadge();
 
-const GS_ESPERADO = "2026-08-28 r13";
+const GS_ESPERADO = "2026-08-28 r14";
 
 const ANDAMENTOS = ["MARCANDO SERVIÇO","SERVIÇO MARCADO","REMARCADO 1","REMARCADO 2",
                     "REMARCADO 3","REMARCADO 4","REMARCADO 5","SERVIÇO FINALIZADO"];
 const FINALIZADO = "SERVIÇO FINALIZADO";
+
+/* ===================== ANDAMENTO POR EVENTO (pedido 5) =====================
+ * ANDAMENTO DA SOLICITAÇÃO continua sendo o estado do CHAMADO INTEIRO — é ele
+ * que manda no kanban e no status da obra. O que mudou: cada EVENTO (a data do
+ * serviço, a data de cada remarcação) passou a ter estado próprio, nas colunas
+ * novas ANDAMENTO DO SERVIÇO e ANDAMENTO DA REMARCAÇÃO N.
+ *
+ * Sem isso o histórico repetia a mesma etiqueta ("REMARCADO 1") nas três
+ * linhas do mesmo chamado, e não dava pra saber qual parte já tinha sido
+ * feita.
+ *
+ * As colunas são achadas por PEDAÇO do nome, nunca por grafia exata — mesmo
+ * critério que o Code.gs já usa em posObraInfoDaColuna_. Assim, criar
+ * ANDAMENTO DA REMARCAÇÃO 6 no Notion funciona sem mexer aqui.
+ * =================================================================== */
+function ehFinalizado(v){
+  const n = normN(v);
+  return !!n && (n.indexOf("FINALIZ")>=0 || n.indexOf("FEITO")>=0 || n.indexOf("CONCLU")>=0);
+}
+/* Descobre o andamento do evento a partir dos valores do chamado.
+   "ANDAMENTO DA SOLICITAÇÃO" não contém "SERVICO" depois de normalizado, então
+   ela nunca é confundida com "ANDAMENTO DO SERVIÇO" — foi por isso que a
+   comparação ficou por pedaço e não por prefixo. */
+function andamentoDoEvento(val, col, andamentoGeral){
+  val = val || {};
+  const n = normN(col);
+  const nivel = (String(col).match(/(\d+)\s*$/)||[])[1];
+  if(n.indexOf("REMARCA")>=0 && nivel){
+    for(const k in val){
+      const kn = normN(k);
+      if(kn.indexOf("ANDAMENTO")>=0 && kn.indexOf("REMARCA")>=0 && kn.indexOf(nivel)>=0) return val[k];
+    }
+    return null;                       // coluna ainda não criada no Notion
+  }
+  if(n.indexOf("DATA")===0 && n.indexOf("SERVICO")>=0){
+    for(const k in val){
+      const kn = normN(k);
+      if(kn.indexOf("ANDAMENTO")>=0 && kn.indexOf("SERVICO")>=0 && kn.indexOf("REMARCA")<0) return val[k];
+    }
+    return null;
+  }
+  return andamentoGeral || null;       // chamado, conclusão e outras datas
+}
+/* Andamento de uma MARCAÇÃO do calendário. O Code.gs r14 passou a mandar isto
+   pronto em andamentoEvento; o `undefined` cobre o intervalo entre publicar
+   esta tela e publicar a nova versão do Apps Script. */
+function andEvento(m){
+  return (m && m.andamentoEvento !== undefined) ? m.andamentoEvento : (m ? m.andamento : null);
+}
+/* Etiqueta curta: concluído vira FEITO; sem valor vira EM ABERTO. */
+function rotuloEvento(a){ return ehFinalizado(a) ? "FEITO" : (a || "EM ABERTO"); }
+function classeEvento(a){ return ehFinalizado(a) ? "sim" : "alerta"; }
 
 /* Ordem dos campos no painel do serviço (pedido 5). O que não estiver aqui
    vai para o fim, em ordem alfabética — coluna nova no Notion aparece sozinha
@@ -1042,6 +1143,7 @@ function aplicarTema(t){
   // os gráficos usam a cor da barra via CSS var, mas o texto do rótulo é
   // desenhado: repinta pra não ficar com a cor do tema anterior
   if(document.getElementById("view-ind").style.display !== "none") renderIndicadores();
+  if(OBRA && document.getElementById("view-obra").style.display !== "none") renderIndicadoresObra();
 }
 function trocarTema(){
   const novo = temaAtual() === "escuro" ? "claro" : "escuro";
@@ -1089,7 +1191,10 @@ function calcularAlertas(obraId){
   const doDia = [], material = [];
   AGENDA.forEach(m=>{
     if(obraId && semHifen(m.obraId) !== semHifen(obraId)) return;
-    if(normN(m.andamento) === normN(FINALIZADO)) return;
+    /* Passou a olhar o andamento DAQUELE evento (pedido 5): antes, uma
+       remarcação já executada continuava avisando enquanto o chamado inteiro
+       não fosse fechado. */
+    if(ehFinalizado(andEvento(m))) return;
     if(!ehColunaServico(m.coluna)) return;
     const d = soData(m.data);
     if(d === amanha) doDia.push(m);
@@ -1270,12 +1375,18 @@ function renderCalendario(){
     for(let i=0;i<42;i++){
       const d = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate()+i);
       const iso = isoDe(d), fora = d.getMonth()!==mes, marc = porDia[iso] || [];
-      const mostra = marc.slice(0,3).map(m=>etiquetaCal(m)).join("");
-      const mais = marc.length>3 ? '<div class="cal-mais">+'+(marc.length-3)+' marcações</div>' : "";
+      // sem slice: a célula estica e mostra todos os serviços do dia (pedido 1)
+      const mostra = marc.map(m=>etiquetaCal(m)).join("");
       corpo += '<div class="cal-dia'+(fora?" fora":"")+(iso===hoje?" hoje":"")+'">'+
-               '<div class="cal-num">'+d.getDate()+'</div>'+mostra+mais+'</div>';
+               '<div class="cal-num">'+d.getDate()+'</div>'+mostra+'</div>';
     }
     corpo += '</div>';
+  } else if(CAL_MODO === "lista"){
+    /* Pedido 6: nem mês nem semana — tudo que está EM ABERTO, ordenado por
+       data, com os atrasados primeiro. */
+    const r = listaAbertos(lista);
+    titulo = "Serviços em aberto";
+    corpo = r.html;
   } else {
     const ini = new Date(CAL_REF.getFullYear(), CAL_REF.getMonth(), CAL_REF.getDate()-CAL_REF.getDay());
     const fim = new Date(ini.getFullYear(), ini.getMonth(), ini.getDate()+6);
@@ -1293,36 +1404,99 @@ function renderCalendario(){
     corpo += '</div>';
   }
 
-  document.getElementById("cal-box").innerHTML =
-    '<div class="cal-topo">'+
+  // no modo lista não existe "mês anterior": a navegação some em vez de ficar
+  // ali sem fazer nada
+  const nav = CAL_MODO==="lista" ? "" :
       '<button class="cal-nav" onclick="mudarCal(-1)" title="Anterior">‹</button>'+
-      '<button class="cal-nav" onclick="mudarCal(1)" title="Próximo">›</button>'+
-      '<span class="cal-mes">'+esc(titulo)+'</span>'+
-      '<button class="bt ghost peq" onclick="calHoje()">Hoje</button>'+
+      '<button class="cal-nav" onclick="mudarCal(1)" title="Próximo">›</button>';
+  const btHoje = CAL_MODO==="lista" ? "" : '<button class="bt ghost peq" onclick="calHoje()">Hoje</button>';
+  const legenda = CAL_MODO==="lista"
+    ? '<span>Só o que ainda não foi concluído. Clique numa linha para abrir os dados do serviço.</span>'
+    : '<span><i style="background:rgba(41,87,120,.35)"></i>Serviço marcado</span>'+
+      '<span><i style="background:#FEF3C7;border:1px solid #92400E"></i>Remarcação</span>'+
+      '<span><i style="background:#DCFCE7;border:1px solid #2a9d5c"></i>Concluído</span>'+
+      '<span>Clique num card para ver os dados, copiar para o WhatsApp ou abrir o serviço.</span>';
+
+  document.getElementById("cal-box").innerHTML =
+    '<div class="cal-topo">'+ nav +
+      '<span class="cal-mes">'+esc(titulo)+'</span>'+ btHoje +
       '<span class="seg"><button class="'+(CAL_MODO==="mes"?"on":"")+'" onclick="calModo(\'mes\')">Mês</button>'+
-      '<button class="'+(CAL_MODO==="semana"?"on":"")+'" onclick="calModo(\'semana\')">Semana</button></span>'+
+      '<button class="'+(CAL_MODO==="semana"?"on":"")+'" onclick="calModo(\'semana\')">Semana</button>'+
+      '<button class="'+(CAL_MODO==="lista"?"on":"")+'" onclick="calModo(\'lista\')">Em aberto</button></span>'+
       selResp+
     '</div>'+corpo+
-    '<div class="cal-leg">'+
-      '<span><i style="background:rgba(41,87,120,.35)"></i>Serviço / chamado</span>'+
-      '<span><i style="background:#FEF3C7;border:1px solid #92400E"></i>Remarcação</span>'+
-      '<span>Clique num card para ver os dados, copiar para o WhatsApp ou abrir o serviço.</span>'+
-    '</div>';
+    '<div class="cal-leg">'+legenda+'</div>';
 
-  const cont = CAL_MODO==="mes"
-    ? lista.filter(m=>{ const p=soData(m.data).split("-"); return Number(p[0])===CAL_REF.getFullYear() && Number(p[1])===CAL_REF.getMonth()+1; }).length
-    : lista.filter(m=>{ const ini=new Date(CAL_REF.getFullYear(),CAL_REF.getMonth(),CAL_REF.getDate()-CAL_REF.getDay());
-                        const d=soData(m.data); return d>=isoDe(ini) && d<=isoDe(new Date(ini.getFullYear(),ini.getMonth(),ini.getDate()+6)); }).length;
-  document.getElementById("cal-info").textContent = cont + (cont===1?" marcação":" marcações") +
-    (CAL_RESP ? " · "+CAL_RESP : "");
+  let cont, rotulo;
+  if(CAL_MODO==="lista"){
+    cont = eventosAbertos(lista).length; rotulo = cont===1 ? " serviço em aberto" : " serviços em aberto";
+  } else if(CAL_MODO==="mes"){
+    cont = lista.filter(m=>{ const p=soData(m.data).split("-"); return Number(p[0])===CAL_REF.getFullYear() && Number(p[1])===CAL_REF.getMonth()+1; }).length;
+    rotulo = cont===1 ? " marcação" : " marcações";
+  } else {
+    const ini=new Date(CAL_REF.getFullYear(),CAL_REF.getMonth(),CAL_REF.getDate()-CAL_REF.getDay());
+    cont = lista.filter(m=>{ const d=soData(m.data); return d>=isoDe(ini) && d<=isoDe(new Date(ini.getFullYear(),ini.getMonth(),ini.getDate()+6)); }).length;
+    rotulo = cont===1 ? " marcação" : " marcações";
+  }
+  document.getElementById("cal-info").textContent = cont + rotulo + (CAL_RESP ? " · "+CAL_RESP : "");
+}
+
+/* ---------- visão "Em aberto" (pedido 6) ----------
+ * Entram só as datas que representam EXECUÇÃO (data do serviço e das
+ * remarcações) cujo andamento próprio ainda não está concluído. DATA DO
+ * CHAMADO e DATA CONCLUSÃO ficam de fora: a primeira é registro de abertura,
+ * a segunda só existe quando já acabou. */
+function eventosAbertos(lista){
+  return (lista || agendaVisivel()).filter(m=>
+    ehColunaServico(m.coluna) && !ehFinalizado(andEvento(m))
+  ).sort((a,b)=> a.data < b.data ? -1 : (a.data > b.data ? 1 : 0));
+}
+function listaAbertos(lista){
+  const itens = eventosAbertos(lista), hoje = hojeISO();
+  if(!itens.length){
+    return { html:'<div class="vazio">Nenhum serviço em aberto'+(CAL_RESP?" para "+esc(CAL_RESP):"")+'. Tudo concluído.</div>' };
+  }
+  const grupos = [
+    ["Atrasados", itens.filter(m=>soData(m.data) <  hoje), true],
+    ["Hoje",      itens.filter(m=>soData(m.data) === hoje), false],
+    ["Próximos",  itens.filter(m=>soData(m.data) >  hoje), false]
+  ];
+  const html = grupos.filter(g=>g[1].length).map(([tit,ls,atras])=>
+    '<div class="lst-grupo"><div class="lst-cab'+(atras?" atras":"")+'">'+tit+
+      '<span class="n">'+ls.length+'</span></div>'+
+    ls.map(m=>linhaAberto(m, atras)).join("")+'</div>').join("");
+  return { html:html };
+}
+function linhaAberto(m, atras){
+  const and = andEvento(m);
+  const dias = diasEntre(soData(m.data), hojeISO());
+  const atrasoTxt = (atras && dias) ? " · "+dias+(dias===1?" dia atrasado":" dias atrasados") : "";
+  const meta = [m.responsavel, (m.servico||[]).join(", "), rotuloColuna(m.coluna)]
+                 .filter(Boolean).join(" · ");
+  return '<div class="litem'+(atras?" atras":"")+'" onclick="abrirCard(\''+m.atividadeId+'\',\''+
+      esc(m.coluna).replace(/'/g,"&#39;")+'\')">'+
+    '<div class="dt">'+esc(dbr(m.data))+(temHora(m.data)?'<small>'+esc(hhmm(m.data))+'</small>':"")+'</div>'+
+    '<div class="co"><div class="e">'+esc(m.nome)+'</div>'+
+      '<div class="m">'+esc(meta + atrasoTxt)+'</div></div>'+
+    '<span class="pill '+classeEvento(and)+'">'+esc(rotuloEvento(and))+'</span></div>';
 }
 function rotuloColuna(col){ return String(col).replace(/^DATA\s+(DE\s+|DO\s+|DA\s+)?/i,""); }
+/* Etiqueta do dia (pedido 1): ENDEREÇO + CASA, responsável e horário, cada um
+   na sua linha. m.nome já vem do Notion como "ENDEREÇO CS N" — é o título da
+   atividade, montado assim na criação (ver posObraServicoNovo_ no Code.gs).
+   Verde = evento concluído (pedido 5). */
 function etiquetaCal(m){
   const rm = normN(m.coluna).indexOf("REMARCA")>=0;
-  const hora = temHora(m.data) ? hhmm(m.data)+" " : "";
-  return '<button class="cal-mc'+(rm?" rm":"")+'" title="'+esc(m.nome+" · "+m.coluna)+
+  const and = andEvento(m), ok = ehFinalizado(and);
+  const hora = temHora(m.data) ? hhmm(m.data) : "";
+  const cls = ok ? " ok" : (rm ? " rm" : "");
+  return '<button class="cal-mc'+cls+'" title="'+esc(m.nome+" · "+m.coluna+" · "+rotuloEvento(and))+
          '" onclick="abrirCard(\''+m.atividadeId+'\',\''+esc(m.coluna).replace(/'/g,"&#39;")+'\')">'+
-         esc(hora + m.nome)+'</button>';
+         '<span class="e">'+esc(m.nome)+'</span>'+
+         (m.responsavel ? '<span class="r">'+esc(m.responsavel)+'</span>' : '<span class="r">sem responsável</span>')+
+         (hora ? '<span class="h">'+esc(hora)+'</span>' : "")+
+         (rm || ok ? '<span class="st">'+esc(ok ? "FEITO" : rotuloColuna(m.coluna))+'</span>' : "")+
+         '</button>';
 }
 /* Card cheio (semana e modal) — os 6 campos do pedido 12. */
 function dadosCard(m){
@@ -1343,8 +1517,10 @@ function dadosCard(m){
 }
 function cardCal(m){
   const d = dadosCard(m);
-  return '<div class="mcard'+(d.rm?" rm":"")+'">'+
+  const and = andEvento(m), ok = ehFinalizado(and);
+  return '<div class="mcard'+(ok?" ok":(d.rm?" rm":""))+'">'+
     '<div class="end">'+esc(d.endereco)+'</div>'+
+    '<div class="ln"><span class="pill '+classeEvento(and)+'">'+esc(rotuloEvento(and))+'</span></div>'+
     '<div class="ln">'+esc(rotuloColuna(d.coluna))+' · '+esc(d.dataHora)+'</div>'+
     (d.cliente ? '<div class="ln">👤 '+esc(d.cliente)+'</div>' : "")+
     (d.telefone ? '<div class="ln">📞 '+esc(d.telefone)+'</div>' : "")+
@@ -1476,6 +1652,7 @@ function pintarObra(){
   renderGarantias();
   renderHistorico();
   renderKanban();
+  renderIndicadoresObra();   // pedido 4: bloco no fim da página
 }
 function od(l, v, bruto){
   return '<div class="od"><div class="l">'+esc(l)+'</div><div class="v">'+(bruto?v:esc(v))+'</div></div>';
@@ -1583,11 +1760,16 @@ function renderHistorico(){
       if(!bruto || typeof bruto !== "string") continue;
       if(!/^\d{4}-\d{2}-\d{2}/.test(bruto)) continue;
       const n = normN(col);
+      /* Pedido 2: a abertura do chamado não é um acontecimento do histórico —
+         ela duplicava toda linha de serviço com a mesma informação. */
+      if(n.indexOf("CHAMADO")>=0) continue;
       const rm = n.indexOf("REMARCA")>=0;
       const nivel = (String(col).match(/(\d+)\s*$/)||[])[1];
       const texto = rm && nivel ? (acharInfoRm(val, nivel) || "") : (val["INFORMAÇÕES SERVIÇO"] || "");
       eventos.push({ data:bruto, col:col, rm:rm, nome:a.nome, texto:texto,
-                     andamento:a.andamento, id:a.id, serv:serv, resp:resp });
+                     /* pedido 5: o estado DESTE evento, não o do chamado todo */
+                     andamento:andamentoDoEvento(val, col, a.andamento),
+                     id:a.id, serv:serv, resp:resp });
     }
   });
   eventos.sort((a,b)=> a.data < b.data ? 1 : (a.data > b.data ? -1 : 0));
@@ -1607,8 +1789,7 @@ function renderHistorico(){
       const cor = e.resp ? corDe(e.resp) : "var(--azul)";
       return '<div class="hev'+(e.rm?" rm":"")+'" style="border-left-color:'+cor+'" onclick="abrirChamado(\''+e.id+'\')">'+
         '<div class="top"><span class="d">'+esc(dbrh(e.data))+' · '+esc(rotuloColuna(e.col))+'</span>'+
-        '<span class="pill '+(normN(e.andamento)===normN(FINALIZADO)?"sim":"alerta")+'">'+
-          esc(e.andamento || "SEM ANDAMENTO")+'</span></div>'+
+        '<span class="pill '+classeEvento(e.andamento)+'">'+esc(rotuloEvento(e.andamento))+'</span></div>'+
         (e.texto ? '<div class="t">'+esc(e.texto)+'</div>'
                  : '<div class="t" style="color:var(--text4);font-style:italic">Sem descrição</div>')+
         '<div class="chips">'+ (e.resp?chip(e.resp):"") + e.serv.map(s=>chip(s)).join("") +'</div>'+
@@ -2042,7 +2223,9 @@ function renderIndicadores(){
   // 4) serviços por tipo
   const porTipo = {};
   atvs.forEach(a=>(a.servico||[]).forEach(s=>{ porTipo[s] = (porTipo[s]||0)+1; }));
-  const tipos = Object.keys(porTipo).map(k=>({rot:k, v:porTipo[k]})).sort((a,b)=>b.v-a.v).slice(0,10);
+  // cor por tipo (pedido 3) — mesma paleta dos chips, via corDe()
+  const tipos = Object.keys(porTipo).map(k=>({rot:k, v:porTipo[k], cor:corDe(k)}))
+                  .sort((a,b)=>b.v-a.v).slice(0,10);
 
   document.getElementById("ind-graficos").innerHTML =
     caixaGrafico("Serviços abertos por mês", "Pelo DATA DO CHAMADO (ou a data do serviço, quando não houver chamado). Últimos 12 meses com registro.",
@@ -2057,6 +2240,96 @@ function renderIndicadores(){
     caixaGrafico("Serviços por tipo", "O que mais aparece nos chamados (campo SERVIÇO).",
       barrasH(tipos));
 }
+/* ===================== INDICADORES DA OBRA (pedido 4) =====================
+ * Mesma leitura da tela geral, recortada nesta obra. Usa OBRA.atividades — que
+ * já traz `valores` completo (posObra_ no Code.gs) — em vez da AGENDA: assim o
+ * bloco funciona também para chamado sem nenhuma data preenchida, que não
+ * aparece na agenda.
+ * =================================================================== */
+/* Acha o valor de uma coluna de data pelo PEDAÇO do nome (mesma tolerância do
+   resto da tela: a grafia varia entre bases). */
+function dataPorPedaco(val, frags){
+  for(const k in val){
+    const n = normN(k);
+    if(!frags.every(f=>n.indexOf(normN(f))>=0)) continue;
+    const v = val[k];
+    if(typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v)) return v;
+  }
+  return null;
+}
+function renderIndicadoresObra(){
+  const atvs = (OBRA && OBRA.atividades) || [];
+  const info = document.getElementById("ind-obra-info");
+  const cxKpis = document.getElementById("ind-obra-kpis");
+  const cxGraf = document.getElementById("ind-obra-graficos");
+  if(!info || !cxKpis || !cxGraf) return;
+
+  info.textContent = atvs.length + (atvs.length===1 ? " serviço" : " serviços");
+  if(!atvs.length){
+    cxKpis.innerHTML = "";
+    cxGraf.innerHTML = '<div class="vazio">Nenhum serviço registrado nesta obra ainda.</div>';
+    return;
+  }
+
+  const finalizados = atvs.filter(a=>ehFinalizado(a.andamento)).length;
+  const remarcados  = atvs.filter(a=>normN(a.andamento).indexOf("REMARCADO")===0).length;
+
+  // tempo de execução: só entra quem tem as DUAS datas preenchidas
+  const durs = [];
+  atvs.forEach(a=>{
+    const val = a.valores || {};
+    const ini = dataPorPedaco(val, ["DATA","SERVIÇO"]);
+    const fim = dataPorPedaco(val, ["DATA","CONCLUS"]);
+    if(!ini || !fim) return;
+    const d = diasEntre(ini, fim);
+    if(d !== null && d >= 0) durs.push(d);
+  });
+  const media = durs.length ? (durs.reduce((s,x)=>s+x,0)/durs.length) : null;
+
+  cxKpis.innerHTML =
+    kpi("Serviços registrados", atvs.length, "chamados desta obra", "hero") +
+    kpi("Finalizados", finalizados, Math.round(finalizados/atvs.length*100)+"% do total") +
+    kpi("Em remarcação", remarcados, "precisaram voltar", remarcados?"alerta":"") +
+    kpi("Tempo médio", media===null ? "—" : media.toFixed(1).replace(".",",") + " d",
+        durs.length ? "em "+durs.length+" serviço(s) concluído(s)" : "sem serviço com as duas datas");
+
+  // por tipo de serviço
+  const porTipo = {};
+  atvs.forEach(a=>{
+    const v = (a.valores||{})["SERVIÇO"];
+    (Array.isArray(v) ? v : (v ? [v] : [])).forEach(s=>{ porTipo[s] = (porTipo[s]||0)+1; });
+  });
+  const tipos = Object.keys(porTipo).map(k=>({rot:k, v:porTipo[k], cor:corDe(k)})).sort((a,b)=>b.v-a.v);
+
+  // por responsável
+  const porResp = {};
+  atvs.forEach(a=>{
+    const r = (a.valores||{})["RESPONSÁVEL"];
+    const nome = Array.isArray(r) ? r.join(", ") : (r || "");
+    if(nome) porResp[nome] = (porResp[nome]||0)+1;
+  });
+  const resps = Object.keys(porResp).map(k=>({rot:k, v:porResp[k], cor:corDe(k)})).sort((a,b)=>b.v-a.v);
+
+  // por mês de abertura
+  const porMes = {};
+  atvs.forEach(a=>{
+    const val = a.valores || {};
+    const d = dataPorPedaco(val, ["DATA","CHAMADO"]) || dataPorPedaco(val, ["DATA","SERVIÇO"]);
+    if(!d) return;
+    const k = soData(d).slice(0,7);
+    porMes[k] = (porMes[k]||0)+1;
+  });
+  const meses = Object.keys(porMes).sort().slice(-12);
+
+  cxGraf.innerHTML =
+    caixaGrafico("Serviços por tipo", "O que mais apareceu nos chamados desta obra (campo SERVIÇO).",
+      barrasH(tipos)) +
+    caixaGrafico("Serviços por responsável", "Quem executou os chamados desta obra.",
+      barrasH(resps)) +
+    caixaGrafico("Serviços abertos por mês", "Pela DATA DO CHAMADO (ou a data do serviço, quando não houver chamado).",
+      barrasV(meses.map(m=>({rot:rotuloMes(m), v:porMes[m]}))));
+}
+
 function rotuloMes(k){
   const p = String(k).split("-");
   return ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"][Number(p[1])-1]+"/"+String(p[0]).slice(2);
@@ -2090,21 +2363,52 @@ function barrasV(dados, sufixo){
   });
   return s+'</svg>';
 }
-/* Barras horizontais — para nomes longos (endereço, tipo de serviço). */
+/* Quebra um rótulo em até `maxLinhas` linhas de no máximo `larg` caracteres,
+   sempre no espaço entre palavras. Só a última linha ganha reticências — e
+   apenas se ainda sobrar texto (pedido 3: nome da obra sem corte). */
+function quebrarRotulo(txt, larg, maxLinhas){
+  const palavras = String(txt||"").split(/\s+/).filter(Boolean);
+  const linhas = []; let atual = "";
+  palavras.forEach(p=>{
+    if(!atual){ atual = p; return; }
+    if((atual+" "+p).length <= larg){ atual += " " + p; }
+    else { linhas.push(atual); atual = p; }
+  });
+  if(atual) linhas.push(atual);
+  if(linhas.length <= maxLinhas) return linhas.length ? linhas : [""];
+  const cortadas = linhas.slice(0, maxLinhas);
+  const resto = linhas.slice(maxLinhas).join(" ");
+  let ultima = cortadas[maxLinhas-1] + " " + resto;
+  if(ultima.length > larg) ultima = ultima.slice(0, larg-1) + "…";
+  cortadas[maxLinhas-1] = ultima;
+  return cortadas;
+}
+/* Barras horizontais — para nomes longos (endereço, tipo de serviço).
+   Pedido 3: o nome da obra não é mais cortado em 25 caracteres (quebra em até
+   2 linhas) e cada barra pode ter cor própria — a mesma cor que o nome recebe
+   nos chips do histórico (corDe), então o tipo de serviço é reconhecível de
+   uma tela pra outra. A cor é APOIO: o nome está sempre escrito ao lado. */
 function barrasH(dados){
   if(!dados.length) return '<div class="vaziog">Sem dados ainda.</div>';
-  const L=170, R=34, larg=560, lh=26, T=6;
+  const L=200, R=40, larg=560, T=8;
   const max = Math.max.apply(null, dados.map(d=>d.v)) || 1;
+  const partidos = dados.map(d=>quebrarRotulo(d.rot, 30, 2));
+  const duasLinhas = partidos.some(l=>l.length>1);
+  const lh = duasLinhas ? 38 : 28;
   const alt = T*2 + dados.length*lh;
   const areaL = larg-L-R;
   let s = '<svg viewBox="0 0 '+larg+' '+alt+'" role="img" aria-label="'+esc(dados.map(d=>d.rot+": "+d.v).join("; "))+'">';
   dados.forEach((d,i)=>{
     const y = T + i*lh, w = Math.max(2, areaL*(d.v/max));
-    const rot = d.rot.length>26 ? d.rot.slice(0,25)+"…" : d.rot;
-    s += '<text class="rot" x="'+(L-8)+'" y="'+(y+lh/2+3)+'" text-anchor="end">'+esc(rot)+'<title>'+esc(d.rot)+'</title></text>';
-    s += '<rect class="barra" x="'+L+'" y="'+(y+4)+'" width="'+w+'" height="'+(lh-10)+'" rx="4" ry="4">'+
+    const linhas = partidos[i], meio = y + lh/2;
+    const y0 = meio - (linhas.length-1)*6 + 3;   // centraliza o bloco de texto
+    const cor = d.cor ? ' fill="'+d.cor+'"' : "";
+    s += '<text class="rot" x="'+(L-10)+'" y="'+y0+'" text-anchor="end">'+
+         linhas.map((t,k)=>'<tspan x="'+(L-10)+'" dy="'+(k?12:0)+'">'+esc(t)+'</tspan>').join("")+
+         '<title>'+esc(d.rot)+'</title></text>';
+    s += '<rect class="barra" x="'+L+'" y="'+(meio-8)+'" width="'+w+'" height="16" rx="4" ry="4"'+cor+'>'+
          '<title>'+esc(d.rot+": "+d.v)+'</title></rect>';
-    s += '<text class="valor" x="'+(L+w+6)+'" y="'+(y+lh/2+3)+'">'+esc(String(d.v))+'</text>';
+    s += '<text class="valor" x="'+(L+w+7)+'" y="'+(meio+4)+'">'+esc(String(d.v))+'</text>';
   });
   return s+'</svg>';
 }
