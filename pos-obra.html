@@ -5,7 +5,6 @@
 <meta name="color-scheme" content="light only">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#295778">
-<!-- tema antes da pintura: sem isto a tela pisca branca pra quem usa escuro -->
 <script>(function(){try{var t=localStorage.getItem("morais_tema");
   if(t!=="claro"&&t!=="escuro") t="claro";
   document.documentElement.dataset.tema=t;}catch(e){}})();</script>
@@ -14,8 +13,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-/* Tema claro fixo — mesmo motivo do index.html/ligacoes.html: sem isto o
-   Android/iOS em modo escuro inverte inputs e selects nativos. */
 :root{color-scheme:light}
 html{background:var(--bg);min-height:100%}
 :root{
@@ -23,7 +20,10 @@ html{background:var(--bg);min-height:100%}
   --bg:#EAF1F3;--bg2:#F5F9FA;--bg3:#dceaef;--border:#b8d0da;--border2:#d0e4ec;
   --text:#1a3347;--text3:#5a8099;--text4:#8aacbb;--branco:#fff;
   --vermelho:#c0392b;--amarelo:#b7791f;--amarelo-bg:#FFF7ED;--amarelo-bd:#FED7AA;
-  --sup:#fff;--sup-stick:#eef5f7;--hover:#e9f6ef;--hover-stick:#dff2e6;--sombra:rgba(20,40,55,.3)}
+  --sup:#fff;--sup-stick:#eef5f7;--hover:#e9f6ef;--hover-stick:#dff2e6;--sombra:rgba(20,40,55,.3);
+  /* barra dos gráficos: uma cor só, porque toda série é única (magnitude, não
+     categoria). Contraste conferido contra a superfície nos dois temas. */
+  --barra:#295778}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.45;min-height:100vh}
 .cond{font-family:'Barlow Condensed',Inter,sans-serif}
@@ -64,10 +64,8 @@ main{padding-bottom:50px}
 .kpi.hero{background:linear-gradient(135deg,var(--azul),var(--azul-esc));border:0}
 .kpi.hero .lab{color:rgba(255,255,255,.85)}.kpi.hero .val{color:#fff}.kpi.hero .sub{color:var(--teal)}
 .kpi.alerta .val{color:var(--vermelho)}
-.kpi[role=button]{cursor:pointer;transition:.15s}
-.kpi[role=button]:hover{border-color:var(--verde);box-shadow:0 3px 12px rgba(41,87,120,.12);transform:translateY(-1px)}
 .toolbar{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-bottom:12px}
-select,input.busca,input[type=date],input[type=text],textarea{border:1px solid var(--border);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;background:var(--sup);color:var(--text);max-width:100%}
+select,input.busca,input[type=date],input[type=datetime-local],input[type=text],textarea{border:1px solid var(--border);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;background:var(--sup);color:var(--text);max-width:100%}
 input.busca{min-width:230px;flex:1}
 .count{font-size:12px;color:var(--text3);font-weight:600;white-space:nowrap}
 .scroll-top{overflow-x:auto;overflow-y:hidden;height:14px;border:1px solid var(--border2);border-bottom:0;border-radius:10px 10px 0 0;background:var(--bg2)}
@@ -94,6 +92,7 @@ th.ord.on .seta{opacity:1}
 .pill.sim{background:#DCFCE7;color:#166534}.pill.nao{background:#FEE2E2;color:#991B1B}
 .pill.neutro{background:var(--bg3);color:var(--azul-esc)}
 .pill.alerta{background:#FEF3C7;color:#92400E}.pill.critico{background:#FEE2E2;color:#991B1B}
+.pill.novo{background:#DBEAFE;color:#1E40AF}
 .vazio{background:var(--sup);border:1px dashed var(--border);border-radius:12px;padding:22px;color:var(--text3);text-align:center;font-size:13px}
 .load{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--verde);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -103,6 +102,7 @@ th.ord.on .seta{opacity:1}
 .bt.az{background:var(--azul);color:#fff}.bt.vd{background:var(--verde);color:#fff}
 .bt.ghost{background:var(--sup);border:1px solid var(--border);color:var(--azul)}
 .bt[disabled]{opacity:.55;cursor:default}
+.bt.peq{padding:6px 10px;font-size:12px}
 .tarja-teste{display:none;align-items:center;gap:9px;background:#FFF7ED;border:1px solid #FED7AA;
   color:#9A3412;border-radius:10px;padding:9px 13px;font-size:12.5px;font-weight:600;margin-bottom:14px}
 .tarja-teste.on{display:flex}
@@ -113,100 +113,136 @@ th.ord.on .seta{opacity:1}
 .toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);background:var(--azul-esc);color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;font-weight:600;opacity:0;pointer-events:none;transition:.2s;z-index:60}
 .toast.on{opacity:1;transform:translate(-50%,0)}
 
-/* ===================== CALENDÁRIO (página principal) =====================
-   Um mês por vez, com as marcações dos chamados. Cada dia mostra até 3
-   etiquetas e um "+N" quando passa disso — sem isso, um dia cheio estica a
-   linha inteira e o mês perde a forma de calendário. */
+/* ===================== ALERTAS (item 13) ===================== */
+.alertas{display:flex;flex-direction:column;gap:9px;margin:14px 0}
+.al{display:flex;gap:11px;align-items:flex-start;border-radius:11px;padding:11px 13px;border:1px solid;font-size:13px}
+.al .ic{font-size:17px;line-height:1.1}
+.al .co{flex:1;min-width:0}
+.al .ti{font-weight:800;font-size:12.5px;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
+.al .li{font-size:12.5px;line-height:1.55}
+.al .li b{cursor:pointer;text-decoration:underline}
+.al.amanha{background:#EFF6FF;border-color:#BFDBFE;color:#1E40AF}
+.al.material{background:var(--amarelo-bg);border-color:var(--amarelo-bd);color:#9A3412}
+
+/* ===================== CALENDÁRIO ===================== */
 .cal-box{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:14px}
-.cal-topo{display:flex;align-items:center;gap:10px;margin-bottom:11px;flex-wrap:wrap}
+.cal-topo{display:flex;align-items:center;gap:9px;margin-bottom:11px;flex-wrap:wrap}
 .cal-mes{font-family:'Barlow Condensed';font-weight:800;font-size:18px;text-transform:uppercase;
-  letter-spacing:.4px;color:var(--azul-esc);min-width:190px}
+  letter-spacing:.4px;color:var(--azul-esc);min-width:200px}
 .cal-nav{border:1px solid var(--border);background:var(--sup);color:var(--azul);border-radius:8px;
   width:34px;height:34px;font:inherit;font-size:15px;font-weight:800;cursor:pointer;line-height:1}
 .cal-nav:hover{background:var(--bg3)}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:var(--sup);color:var(--text3);font:inherit;font-size:12.5px;font-weight:700;
+  padding:8px 13px;cursor:pointer}
+.seg button.on{background:var(--azul);color:#fff}
 .cal-grade{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
 .cal-dia-cab{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;
   color:var(--text3);text-align:center;padding:4px 0}
-.cal-dia{min-height:78px;border:1px solid var(--border2);border-radius:9px;background:var(--bg2);padding:5px 6px;overflow:hidden}
+.cal-dia{min-height:82px;border:1px solid var(--border2);border-radius:9px;background:var(--bg2);padding:5px 6px;overflow:hidden}
 .cal-dia.fora{opacity:.4}
 .cal-dia.hoje{border-color:var(--verde);box-shadow:0 0 0 1px var(--verde) inset}
 .cal-num{font-size:11.5px;font-weight:800;color:var(--text3);margin-bottom:3px}
 .cal-dia.hoje .cal-num{color:var(--verde-esc)}
-.cal-mc{display:block;width:100%;text-align:left;border:0;border-radius:5px;padding:2px 5px;margin-bottom:2px;
-  font:inherit;font-size:10.5px;font-weight:700;line-height:1.25;cursor:pointer;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(41,87,120,.12);color:var(--azul)}
+.cal-mc{display:block;width:100%;text-align:left;border:0;border-left:3px solid var(--azul);border-radius:5px;
+  padding:3px 6px;margin-bottom:3px;font:inherit;font-size:10.5px;font-weight:700;line-height:1.25;cursor:pointer;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(41,87,120,.10);color:var(--azul)}
 .cal-mc:hover{background:var(--azul);color:#fff}
-.cal-mc.rm{background:#FEF3C7;color:#92400E}
+.cal-mc.rm{background:#FEF3C7;color:#92400E;border-left-color:#92400E}
 .cal-mc.rm:hover{background:#92400E;color:#fff}
 .cal-mais{font-size:10px;color:var(--text4);font-weight:700;padding-left:5px}
 .cal-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--text3);margin-top:10px}
 .cal-leg i{display:inline-block;width:11px;height:11px;border-radius:3px;vertical-align:-1px;margin-right:5px}
-@media(max-width:760px){
-  .cal-dia{min-height:56px;padding:4px}
-  .cal-mc{font-size:9.5px}
-  .cal-mes{font-size:15px;min-width:0}
-}
+/* semana: cabe o card inteiro, então mostra tudo em vez da etiqueta curta */
+.sem-grade{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+@media(max-width:900px){ .sem-grade{grid-template-columns:1fr} }
+.sem-col{border:1px solid var(--border2);border-radius:10px;background:var(--bg2);padding:8px;min-height:110px}
+.sem-col.hoje{border-color:var(--verde);box-shadow:0 0 0 1px var(--verde) inset}
+.sem-cab{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);
+  margin-bottom:7px;text-align:center}
+.sem-col.hoje .sem-cab{color:var(--verde-esc)}
+.mcard{background:var(--sup);border:1px solid var(--border2);border-left:4px solid var(--azul);border-radius:9px;
+  padding:8px 9px;margin-bottom:7px;font-size:11.5px;line-height:1.4}
+.mcard.rm{border-left-color:#b7791f}
+.mcard .end{font-weight:800;font-size:12px;overflow-wrap:anywhere}
+.mcard .ln{color:var(--text3);overflow-wrap:anywhere}
+.mcard .acoes{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.mcard .acoes button{border:1px solid var(--border);background:var(--sup);color:var(--azul);border-radius:7px;
+  padding:4px 8px;font:inherit;font-size:11px;font-weight:700;cursor:pointer}
+.mcard .acoes button:hover{background:var(--azul);color:#fff;border-color:var(--azul)}
 
 /* ===================== PÁGINA DA OBRA ===================== */
 .obra-topo{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:15px 17px;margin-bottom:16px}
 .obra-nome{font-family:'Barlow Condensed';font-weight:800;font-size:24px;text-transform:uppercase;
   letter-spacing:.4px;color:var(--azul-esc);line-height:1.1}
 .obra-dados{display:flex;gap:22px;flex-wrap:wrap;margin-top:9px}
-.od{min-width:130px}
+.od{min-width:120px}
 .od .l{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--text3)}
 .od .v{font-size:13.5px;font-weight:600;margin-top:2px}
-/* o telefone é um link (abre o discador no celular): sem cor própria ele
-   herdava o roxo de "link visitado" do navegador, que no tema escuro fica
-   quase ilegível */
 .od .v a{color:var(--azul);font-weight:700;text-decoration:none;border-bottom:1px solid var(--border2)}
 .od .v a:hover{color:var(--verde-esc);border-bottom-color:var(--verde)}
 .obra-acoes{display:flex;gap:9px;flex-wrap:wrap;margin-top:13px}
-.colunas{display:grid;grid-template-columns:1fr 400px;gap:16px;align-items:start}
+/* item 9: o histórico é a coluna grande; a garantia é a estreita */
+.colunas{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start}
 @media(max-width:1050px){ .colunas{grid-template-columns:1fr} }
 .painel-cx{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:15px 16px}
 .painel-tit{font-family:'Barlow Condensed';font-weight:800;font-size:16px;text-transform:uppercase;
   color:var(--azul-esc);letter-spacing:.4px;margin-bottom:4px}
 .painel-sub{font-size:11.5px;color:var(--text3);margin-bottom:11px}
 
-/* ---------- garantias ---------- */
-.gar-resumo{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:14px}
-@media(max-width:760px){ .gar-resumo{grid-template-columns:repeat(2,1fr)} }
-.gr{border:1px solid var(--border2);border-radius:10px;padding:10px 11px;background:var(--bg2)}
+/* ---------- garantias (recolhidas por padrão — item 2) ---------- */
+.gar-toggle{display:flex;align-items:center;gap:8px;width:100%;border:1px solid var(--border);background:var(--bg2);
+  border-radius:9px;padding:9px 11px;font:inherit;font-size:12.5px;font-weight:700;color:var(--text);cursor:pointer;text-align:left}
+.gar-toggle:hover{background:var(--bg3)}
+.gar-toggle .seta{font-size:10px;color:var(--text4);transition:transform .15s}
+.gar-corpo{display:none;margin-top:11px}
+.gar-corpo.aberto{display:block}
+.gar-toggle.aberto .seta{transform:rotate(90deg)}
+.gar-resumo{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:11px}
+.gr{border:1px solid var(--border2);border-radius:10px;padding:9px 10px;background:var(--bg2)}
 .gr.na{border-color:#86EFAC;background:#F0FDF4}
 .gr.fora{border-color:#FCA5A5;background:#FEF2F2}
-.gr .p{font-family:'Barlow Condensed';font-weight:800;font-size:19px;text-transform:uppercase;line-height:1;color:var(--azul-esc)}
-.gr .s{font-size:11px;font-weight:700;margin-top:5px}
+.gr .p{font-family:'Barlow Condensed';font-weight:800;font-size:17px;text-transform:uppercase;line-height:1;color:var(--azul-esc)}
+.gr .s{font-size:10.5px;font-weight:800;margin-top:4px}
 .gr.na .s{color:#166534}.gr.fora .s{color:#991B1B}
-.gr .d{font-size:10.5px;color:var(--text3);margin-top:3px}
-.gar-grupo{border:1px solid var(--border2);border-radius:10px;margin-bottom:7px;overflow:hidden}
-.gar-cab{display:flex;align-items:center;gap:9px;width:100%;padding:9px 11px;background:var(--bg2);
-  border:0;font:inherit;font-size:13px;font-weight:700;color:var(--text);cursor:pointer;text-align:left}
+.gr .d{font-size:10px;color:var(--text3);margin-top:2px}
+.gar-grupo{border:1px solid var(--border2);border-radius:10px;margin-bottom:6px;overflow:hidden}
+/* flex-wrap + nm ocupando a linha inteira: na coluna estreita da direita, o
+   nome da categoria fica numa linha e as etiquetas na seguinte. Sem isso o
+   texto era espremido e quebrava no meio da palavra ("COBE / RTUR / A"). */
+.gar-cab{display:flex;align-items:center;gap:8px;flex-wrap:wrap;width:100%;padding:8px 10px;background:var(--bg2);
+  border:0;font:inherit;font-size:12px;font-weight:700;color:var(--text);cursor:pointer;text-align:left}
 .gar-cab:hover{background:var(--bg3)}
-.gar-cab .seta{font-size:10px;color:var(--text4);transition:transform .15s}
+.gar-cab .seta{font-size:9px;color:var(--text4);transition:transform .15s}
 .gar-grupo.aberto .gar-cab .seta{transform:rotate(90deg)}
-.gar-cab .nm{flex:1;overflow-wrap:anywhere}
-.gar-itens{display:none;padding:4px 11px 9px}
+.gar-cab .nm{flex:1 1 calc(100% - 20px);min-width:0;overflow-wrap:break-word}
+.gar-itens{display:none;padding:3px 10px 8px}
 .gar-grupo.aberto .gar-itens{display:block}
-.gi{display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-top:1px solid var(--border2)}
+.gi{padding:7px 0;border-top:1px solid var(--border2);font-size:12px;line-height:1.4}
 .gi:first-child{border-top:0}
-.gi .txt{flex:1;font-size:12.5px;line-height:1.4}
 .gi .it{font-weight:700}
 .gi .fa{color:var(--text3);font-size:11.5px}
-.gi .pz{font-size:11px;color:var(--text4);font-weight:700;white-space:nowrap}
-.gi .st{white-space:nowrap}
-.fonte-tag{display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:.4px;padding:1px 6px;
-  border-radius:20px;background:var(--bg3);color:var(--text3);margin-left:6px;vertical-align:1px}
+.gi .pz{font-size:10.5px;color:var(--text4);font-weight:700;margin-top:2px}
+.gi .st{margin-top:4px}
+.fonte-tag{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.4px;padding:1px 5px;
+  border-radius:20px;background:var(--bg3);color:var(--text3);margin-left:5px;vertical-align:1px}
 
 /* ---------- histórico ---------- */
 .hist-fix{border:1px solid var(--verde);background:#F0FDF4;border-radius:10px;padding:11px 12px;margin-bottom:11px}
 .hist-fix .l{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--verde-esc);margin-bottom:4px}
 .hist-fix .t{font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere}
 .hist-fix .vazia{color:var(--text4);font-style:italic}
-.hev{border-left:3px solid var(--azul);background:var(--bg2);border-radius:0 9px 9px 0;padding:9px 11px;margin-bottom:8px}
-.hev.rm{border-left-color:#b7791f}
-.hev .d{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text3)}
-.hev .t{font-size:12.5px;margin-top:3px;white-space:pre-wrap;overflow-wrap:anywhere}
-.hev .q{font-size:11px;color:var(--text4);margin-top:4px}
+.hev{border-left:4px solid var(--azul);background:var(--bg2);border-radius:0 9px 9px 0;padding:10px 12px;margin-bottom:8px;cursor:pointer}
+.hev:hover{background:var(--bg3)}
+.hev .top{display:flex;gap:9px;align-items:baseline;flex-wrap:wrap}
+.hev .d{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text3)}
+.hev .t{font-size:13px;margin-top:5px;white-space:pre-wrap;overflow-wrap:anywhere}
+.hev .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+/* a cor é um APOIO: o nome do serviço/responsável está sempre escrito na
+   etiqueta, então quem não distingue a cor não perde informação nenhuma */
+.chip{display:inline-flex;align-items:center;gap:5px;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:700;
+  background:var(--bg3);color:var(--text)}
+.chip i{width:8px;height:8px;border-radius:50%;display:inline-block;flex:0 0 auto}
 
 /* ---------- kanban ---------- */
 .kanban{display:flex;gap:11px;overflow-x:auto;padding-bottom:8px;-webkit-overflow-scrolling:touch}
@@ -215,13 +251,13 @@ th.ord.on .seta{opacity:1}
   letter-spacing:.5px;color:var(--azul-esc);display:flex;align-items:center;gap:7px;margin-bottom:9px;line-height:1.15}
 .kcol-tit .n{margin-left:auto;background:var(--azul);color:#fff;border-radius:20px;
   min-width:21px;height:19px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;padding:0 6px;font-family:Inter}
-.kcard{background:var(--sup);border:1px solid var(--border2);border-radius:9px;padding:9px 10px;margin-bottom:7px;cursor:pointer;transition:.13s}
+.kcard{background:var(--sup);border:1px solid var(--border2);border-left:4px solid var(--azul);border-radius:9px;
+  padding:9px 10px;margin-bottom:7px;cursor:pointer;transition:.13s}
 .kcard:hover{border-color:var(--verde);transform:translateY(-1px);box-shadow:0 3px 10px rgba(41,87,120,.10)}
 .kcard .sv{font-size:12.5px;font-weight:700;line-height:1.25;overflow-wrap:anywhere}
 .kcard .mt{font-size:11px;color:var(--text3);margin-top:4px}
-.kcol .vaziok{font-size:11.5px;color:var(--text4);text-align:center;padding:10px 0;font-style:italic}
 
-/* ---------- painel lateral (chamado) ---------- */
+/* ---------- painel lateral ---------- */
 .overlay{display:none;position:fixed;inset:0;background:rgba(20,40,55,.42);z-index:40}
 .overlay.on{display:block}
 .painel{position:fixed;top:0;right:0;height:100%;width:min(540px,100%);background:var(--bg2);z-index:41;
@@ -245,12 +281,21 @@ th.ord.on .seta{opacity:1}
 .ms-cx{border:1px solid var(--border);border-radius:8px;background:var(--sup);padding:7px 9px;max-height:150px;overflow-y:auto}
 .ms-item{display:flex;align-items:center;gap:8px;padding:4px 2px;font-size:13px;cursor:pointer}
 .ms-item input{width:16px;height:16px}
-.arqs{display:flex;flex-direction:column;gap:6px}
-.anexo{display:inline-block;background:rgba(41,87,120,.10);color:var(--azul);border:1px solid var(--border2);
-  border-radius:20px;padding:3px 11px;font-size:11.5px;font-weight:800;cursor:pointer;white-space:nowrap;text-decoration:none}
+/* item 6: o anexo virou uma caixa própria, com contagem e botão grande —
+   antes era uma pílula pequena que se perdia no meio dos campos */
+.arqbox2{border:1.5px dashed var(--border);border-radius:10px;background:var(--bg2);padding:10px 11px}
+.arqbox2.tem{border-style:solid;border-color:var(--verde);background:#F0FDF4}
+.arq-cab{display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:800;
+  text-transform:uppercase;letter-spacing:.4px;color:var(--text3);margin-bottom:8px}
+.arqbox2.tem .arq-cab{color:var(--verde-esc)}
+.arq-cab .qtd{margin-left:auto;background:var(--verde);color:#fff;border-radius:20px;padding:1px 8px;font-size:11px}
+.arq-lista{display:flex;flex-direction:column;gap:6px;margin-bottom:9px}
+.anexo{display:flex;align-items:center;gap:7px;background:var(--sup);color:var(--azul);border:1px solid var(--border2);
+  border-radius:8px;padding:7px 10px;font-size:12.5px;font-weight:700;cursor:pointer;text-decoration:none;overflow-wrap:anywhere}
 .anexo:hover{background:var(--azul);color:#fff;border-color:var(--azul)}
-.anexo.novo{background:transparent;color:var(--text3);border-style:dashed;font-weight:700;align-self:flex-start}
-.anexo.novo:hover{background:var(--verde);border-color:var(--verde);color:#fff}
+.bt-anexar{display:block;width:100%;border:0;border-radius:8px;background:var(--verde);color:#fff;
+  padding:10px;font:inherit;font-size:13px;font-weight:800;cursor:pointer}
+.bt-anexar:hover{background:var(--verde-esc)}
 .arqoverlay{position:fixed;inset:0;background:rgba(15,30,40,.72);display:none;align-items:center;justify-content:center;z-index:70;padding:26px}
 .arqoverlay.on{display:flex}
 .arqbox{background:var(--sup);border-radius:14px;width:min(1000px,100%);height:min(88vh,100%);display:flex;flex-direction:column;overflow:hidden}
@@ -261,18 +306,41 @@ th.ord.on .seta{opacity:1}
 .arqcorpo{flex:1;background:var(--bg2);display:flex;align-items:center;justify-content:center;overflow:auto}
 .arqcorpo iframe{width:100%;height:100%;border:0}
 .arqcorpo img{max-width:100%;max-height:100%;display:block}
-/* modal de texto longo */
+/* modais */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(20,40,55,.45);z-index:50;align-items:center;justify-content:center;padding:18px}
 .modal-overlay.on{display:flex}
 .modal-cx{background:var(--sup);border-radius:14px;width:min(560px,100%);max-height:86vh;display:flex;flex-direction:column;padding:18px;box-shadow:0 18px 40px var(--sombra)}
 .modal-tit{font-family:'Barlow Condensed';font-weight:800;font-size:20px;text-transform:uppercase;color:var(--azul-esc);letter-spacing:.4px}
 .modal-sub{font-size:12.5px;color:var(--text3);margin:2px 0 12px}
-.modal-acoes{display:flex;justify-content:flex-end;gap:9px;margin-top:14px}
+.modal-acoes{display:flex;justify-content:flex-end;gap:9px;margin-top:14px;flex-wrap:wrap}
 .txt-area{width:100%;min-height:210px;max-height:52vh;resize:vertical;padding:11px 12px;
   border:1px solid var(--border);border-radius:10px;font:inherit;font-size:14px;line-height:1.5;
   color:var(--text);background:var(--sup);white-space:pre-wrap}
 .txt-area:focus{outline:2px solid var(--azul);outline-offset:-1px}
 .txt-dica{font-size:11.5px;color:var(--text3);margin-top:7px}
+.det{overflow-y:auto}
+.det .li{display:flex;gap:9px;padding:7px 0;border-top:1px solid var(--border2);font-size:13px}
+.det .li:first-child{border-top:0}
+.det .li .k{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;
+  color:var(--text3);min-width:118px;flex:0 0 118px;padding-top:2px}
+.det .li .v{flex:1;overflow-wrap:anywhere;white-space:pre-wrap}
+
+/* ===================== INDICADORES ===================== */
+.ind-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:900px){ .ind-grid{grid-template-columns:1fr} }
+.graf{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:15px 16px}
+.graf .gt{font-family:'Barlow Condensed';font-weight:800;font-size:16px;text-transform:uppercase;
+  color:var(--azul-esc);letter-spacing:.4px}
+.graf .gd{font-size:11.5px;color:var(--text3);margin:3px 0 12px}
+.graf svg{width:100%;height:auto;display:block;overflow:visible}
+.graf .eixo{stroke:var(--border2);stroke-width:1}
+.graf .rot{font-size:10px;fill:var(--text3);font-family:Inter,sans-serif}
+.graf .valor{font-size:10.5px;fill:var(--text3);font-weight:700;font-family:Inter,sans-serif}
+.graf .barra{fill:var(--barra)}
+.graf .vaziog{padding:26px;text-align:center;color:var(--text4);font-size:12.5px}
+.hero-num{display:flex;align-items:baseline;gap:9px;margin-bottom:4px}
+.hero-num .n{font-family:'Barlow Condensed';font-weight:800;font-size:44px;line-height:1;color:var(--azul-esc)}
+.hero-num .u{font-size:14px;font-weight:700;color:var(--text3)}
 
 /* ==================== CELULAR ==================== */
 @media(max-width:680px){
@@ -300,6 +368,10 @@ th.ord.on .seta{opacity:1}
   table.grade tbody td{padding:9px 9px;max-width:190px}
   table.grade tbody td.stick{white-space:normal;max-width:43vw;min-width:120px;line-height:1.25}
   .obra-nome{font-size:18px}
+  .cal-dia{min-height:56px;padding:4px}
+  .cal-mc{font-size:9.5px}
+  .cal-mes{font-size:15px;min-width:0}
+  .gar-resumo{grid-template-columns:1fr}
   .painel{width:100vw;max-width:100vw}
   .ph{padding:14px 44px 14px 14px}.ph .end{font-size:16px}
   .pbody{padding:13px 14px 40px}
@@ -308,6 +380,8 @@ th.ord.on .seta{opacity:1}
   .toast.on{transform:none}
   .modal-overlay{padding:10px}.modal-cx{padding:14px;max-height:92vh}
   .txt-area{font-size:16px;min-height:170px}
+  .det .li{flex-direction:column;gap:2px}
+  .det .li .k{min-width:0;flex:none}
 }
 
 /* ===================== MODO ESCURO ===================== */
@@ -318,20 +392,26 @@ html[data-tema="escuro"]{
   --text:#e7eff5;--text3:#9db4c4;--text4:#7794a6;--branco:#15222c;
   --vermelho:#e0604f;--amarelo:#e3ab3f;--amarelo-bg:#2a2113;--amarelo-bd:#57431f;
   --sup:#15222c;--sup-stick:#1a2934;--hover:#1d3a2c;--hover-stick:#234634;--sombra:rgba(0,0,0,.6);
+  /* passo próprio do escuro (não é o claro invertido) — conferido contra a
+     superfície #15222c */
+  --barra:#5aa0c8;
 }
 html[data-tema="escuro"] body{background:var(--bg)}
 html[data-tema="escuro"] table.grade tbody tr:nth-child(even) td{background:#121e27}
 html[data-tema="escuro"] .pill.sim{background:#16341f;color:#8ce0a5}
 html[data-tema="escuro"] .pill.nao,html[data-tema="escuro"] .pill.critico{background:#3a1e1e;color:#f3a29a}
 html[data-tema="escuro"] .pill.alerta{background:#3a2d12;color:#f0c95f}
+html[data-tema="escuro"] .pill.novo{background:#16283f;color:#93c5fd}
 html[data-tema="escuro"] .aviso{color:#f0c95f}
 html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;color:#f0c95f}
-html[data-tema="escuro"] .gr.na{background:#16341f;border-color:#2a6b43}
-html[data-tema="escuro"] .gr.na .s{color:#8ce0a5}
+html[data-tema="escuro"] .al.amanha{background:#16283f;border-color:#1e3a5f;color:#93c5fd}
+html[data-tema="escuro"] .al.material{background:#2a2113;border-color:#57431f;color:#f0c95f}
+html[data-tema="escuro"] .gr.na,html[data-tema="escuro"] .hist-fix,
+html[data-tema="escuro"] .arqbox2.tem{background:#16341f;border-color:#2a6b43}
+html[data-tema="escuro"] .gr.na .s,html[data-tema="escuro"] .hist-fix .l,
+html[data-tema="escuro"] .arqbox2.tem .arq-cab{color:#8ce0a5}
 html[data-tema="escuro"] .gr.fora{background:#3a1e1e;border-color:#7a3a3a}
 html[data-tema="escuro"] .gr.fora .s{color:#f3a29a}
-html[data-tema="escuro"] .hist-fix{background:#16341f;border-color:#2a6b43}
-html[data-tema="escuro"] .hist-fix .l{color:#8ce0a5}
 html[data-tema="escuro"] .cal-mc{background:rgba(143,211,238,.12);color:#8fd3ee}
 html[data-tema="escuro"] .cal-mc.rm{background:#3a2d12;color:#f0c95f}
 html[data-tema="escuro"] .painel{box-shadow:-6px 0 26px rgba(0,0,0,.55)}
@@ -343,14 +423,16 @@ html[data-tema="escuro"] .painel-tit,
 html[data-tema="escuro"] .modal-tit,
 html[data-tema="escuro"] .cal-mes,
 html[data-tema="escuro"] .kcol-tit,
+html[data-tema="escuro"] .graf .gt,
+html[data-tema="escuro"] .hero-num .n,
 html[data-tema="escuro"] .gr .p,
 html[data-tema="escuro"] .pill.neutro{color:var(--teal)}
 html[data-tema="escuro"] .obralink,
 html[data-tema="escuro"] .bt.ghost,
 html[data-tema="escuro"] .od .v a,
 html[data-tema="escuro"] .anexo{color:#8fd3ee}
-html[data-tema="escuro"] .anexo{background:rgba(143,211,238,.10);border-color:var(--border)}
-html[data-tema="escuro"] .anexo:hover,html[data-tema="escuro"] .anexo.novo:hover{color:#08131a}
+html[data-tema="escuro"] .anexo{background:var(--sup);border-color:var(--border)}
+html[data-tema="escuro"] .anexo:hover{color:#08131a}
 html[data-tema="escuro"] .btn-voltar:hover{background:#1c3b4d}
 html[data-tema="escuro"] .logo{background:#fff}
 </style>
@@ -387,7 +469,13 @@ html[data-tema="escuro"] .logo{background:#fff}
 
     <!-- ===================== LISTA DE OBRAS ===================== -->
     <section id="view-hub">
-      <div class="crumb"><a class="btn-voltar" href="index.html">← Voltar para o Dashboard</a></div>
+      <div class="crumb">
+        <a class="btn-voltar" href="index.html">← Voltar para o Dashboard</a>
+        <span style="flex:1"></span>
+        <button class="bt az" onclick="irIndicadores()">📊 Indicadores</button>
+      </div>
+
+      <div class="alertas" id="alertas-hub"></div>
 
       <div class="sec"><span class="cond">Panorama</span></div>
       <div class="kpis" id="kpis"><div class="kpi"><div class="lab">Carregando</div><div class="val"><span class="load"></span></div></div></div>
@@ -412,35 +500,46 @@ html[data-tema="escuro"] .logo{background:#fff}
     <!-- ===================== UMA OBRA ===================== -->
     <section id="view-obra" style="display:none">
       <div class="crumb"><button class="btn-voltar" onclick="irHub()">← Voltar para Pós Obra</button></div>
-
       <div class="obra-topo" id="obra-topo"></div>
+      <div class="alertas" id="alertas-obra"></div>
 
       <div class="colunas">
-        <div class="painel-cx">
-          <div class="painel-tit">Status das garantias</div>
-          <div class="painel-sub" id="gar-sub"></div>
-          <div id="gar-resumo"></div>
-          <div class="toolbar" style="margin:12px 0 10px">
-            <input class="busca" type="search" id="gar-busca" placeholder="Buscar item de garantia (pisos, pintura, esquadrias…)" oninput="renderGarantias()">
-            <select id="gar-filtro" onchange="renderGarantias()">
-              <option value="">Todos</option>
-              <option value="na">Só NA GARANTIA</option>
-              <option value="fora">Só FORA DA GARANTIA</option>
-            </select>
-          </div>
-          <div id="gar-lista"></div>
-        </div>
-
         <div class="painel-cx">
           <div class="painel-tit">Histórico</div>
           <div class="painel-sub">Observação da obra fixada no topo; abaixo, os serviços em ordem de data.</div>
           <div id="historico"></div>
         </div>
+
+        <div class="painel-cx">
+          <div class="painel-tit">Garantias</div>
+          <div class="painel-sub" id="gar-sub"></div>
+          <button class="gar-toggle" id="gar-toggle" onclick="alternarGarantias()">
+            <span class="seta">▶</span><span id="gar-toggle-txt">Ver status das garantias</span></button>
+          <div class="gar-corpo" id="gar-corpo">
+            <div id="gar-resumo"></div>
+            <div class="toolbar" style="margin:10px 0 9px">
+              <input class="busca" type="search" id="gar-busca" placeholder="Buscar item…" oninput="renderGarantiasLista()">
+              <select id="gar-filtro" onchange="renderGarantiasLista()">
+                <option value="">Todos</option>
+                <option value="na">Só NA GARANTIA</option>
+                <option value="fora">Só FORA DA GARANTIA</option>
+              </select>
+            </div>
+            <div id="gar-lista"></div>
+          </div>
+        </div>
       </div>
 
       <div class="sec"><span class="cond">Serviços de Pós Obra</span><span style="flex:1"></span><span class="count" id="kanban-info"></span></div>
       <div class="kanban" id="kanban"></div>
-      <div class="updated"></div>
+    </section>
+
+    <!-- ===================== INDICADORES ===================== -->
+    <section id="view-ind" style="display:none">
+      <div class="crumb"><button class="btn-voltar" onclick="irHub()">← Voltar para Pós Obra</button></div>
+      <div class="sec"><span class="cond">Indicadores de Pós Obra</span><span style="flex:1"></span><span class="count" id="ind-info"></span></div>
+      <div class="kpis" id="ind-kpis"></div>
+      <div class="ind-grid" id="ind-graficos" style="margin-top:16px"></div>
     </section>
     <div class="updated"></div>
   </main>
@@ -464,6 +563,20 @@ html[data-tema="escuro"] .logo{background:#fff}
     </div>
   </div>
 
+  <!-- card do serviço no calendário (item 12) -->
+  <div class="modal-overlay" id="mc-overlay" onclick="if(event.target===this)fecharCard()">
+    <div class="modal-cx">
+      <div class="modal-tit" id="mc-tit">Serviço</div>
+      <div class="modal-sub" id="mc-sub"></div>
+      <div class="det" id="mc-det"></div>
+      <div class="modal-acoes">
+        <button class="bt ghost" onclick="fecharCard()">Fechar</button>
+        <button class="bt ghost" id="mc-copiar" onclick="copiarCard()">📋 Copiar para WhatsApp</button>
+        <button class="bt az" onclick="abrirServicoDoCard()">Abrir serviço</button>
+      </div>
+    </div>
+  </div>
+
   <div class="arqoverlay" id="arqoverlay" onclick="if(event.target===this)fecharArquivo()">
     <div class="arqbox">
       <div class="arqtopo">
@@ -481,16 +594,12 @@ html[data-tema="escuro"] .logo{background:#fff}
 <script src="app.js"></script>
 <script>
 /* ===================== TABELA DE GARANTIAS =====================
- * Transcrita do "Manual do Proprietário" (mesma fonte do documento
- * "Garantias e Prazos" entregue em 27/08/2026). São as DUAS listas do manual,
- * como combinado: os prazos específicos dos itens da casa (marcados "M") e a
- * tabela técnica completa da NBR 15575 (marcados "N").
+ * Transcrita do "Manual do Proprietário" — as DUAS listas, como combinado:
+ * os prazos específicos dos itens da casa (fonte "M") e a tabela técnica da
+ * NBR 15575 (fonte "N"). Formato: [grupo, item, falha, prazo, fonte].
  *
- * Formato de cada linha: [grupo, item, falha, prazo, fonte]
- *
- * Fica AQUI, na página, e não no Apps Script, de propósito: é tabela fixa e a
- * conta é pura aritmética de data. Mandar isso pro servidor só gastaria cota
- * e deixaria a tela mais lenta, sem ganhar nada.
+ * Fica AQUI, na página, e não no Apps Script: é tabela fixa e a conta é pura
+ * aritmética de data. Mandar pro servidor só gastaria cota.
  * =================================================================== */
 const GARANTIAS = [
 ["Estrutura","","Problemas em lajes, vigas, pilares, fundações, contenções e arrimos que comprometam a solidez/segurança da edificação","5 anos","M"],
@@ -649,37 +758,44 @@ const GARANTIAS = [
 /* =====================================================================
  * PÓS OBRA — Morais Engenharia
  * ---------------------------------------------------------------------
- * LEITURA e ESCRITA passam pelo Apps Script (Code.gs), diferente do
- * vendas.html/ligacoes.html, que leem do dist/*.json publicado pelo
- * fetch_vendas.py. Motivo: as bases PÓS OBRA e ATIVIDADES PÓS OBRA ainda
- * não entram naquele build. O backend cacheia 2 min por conta própria, e a
- * tela guarda a última cópia no localStorage (app.js) — então reabrir a
- * página pinta na hora e só depois confere com o servidor.
- * Se um dia essas bases entrarem no fetch_vendas.py, é só trocar as chamadas
- * ler({action:"posObras"}) por lerEstaticoJa("pos-obra.json", ...).
+ * LEITURA e ESCRITA passam pelo Apps Script (Code.gs). As outras telas leem
+ * do dist/*.json publicado pelo fetch_vendas.py; estas duas bases ainda não
+ * entram naquele build. O backend cacheia 2 min e a tela guarda a última
+ * cópia no localStorage (app.js), então reabrir pinta na hora.
  *
  * ACESSO: exige "PÓS OBRA" na coluna ACESSOS do banco LOGINS (ADM, MASTER e
- * TESTES veem tudo). Esconder a tela aqui NÃO protege nada — a trava que vale
- * é a do Code.gs (ACOES_POS_OBRA); esta serve só pra não mostrar tela quebrada.
+ * TESTES veem tudo). A trava que vale é a do Code.gs (ACOES_POS_OBRA).
  * ===================================================================== */
 
 const S = exigirSessao();
 atualizarStatus(); atualizarBadge();
 
-/* Versão do Code.gs que esta tela espera — ver conferirBackend(). */
-const GS_ESPERADO = "2026-08-28 r12";
+const GS_ESPERADO = "2026-08-28 r13";
 
 const ANDAMENTOS = ["MARCANDO SERVIÇO","SERVIÇO MARCADO","REMARCADO 1","REMARCADO 2",
                     "REMARCADO 3","REMARCADO 4","REMARCADO 5","SERVIÇO FINALIZADO"];
 const FINALIZADO = "SERVIÇO FINALIZADO";
 
+/* Ordem dos campos no painel do serviço (pedido 5). O que não estiver aqui
+   vai para o fim, em ordem alfabética — coluna nova no Notion aparece sozinha
+   em vez de sumir. */
+const ORDEM_CAMPOS = ["SERVIÇO","RESPONSÁVEL","DATA DO CHAMADO","DATA DO SERVIÇO",
+                      "INFORMAÇÕES SERVIÇO","FOTOS DOS PROBLEMAS",
+                      "ANDAMENTO DA SOLICITAÇÃO","STATUS MATERIAL","DATA CONCLUSÃO"];
+/* Dentro de cada bloco de remarcação: data, informações, fotos. */
+const ORDEM_RM = ["DATA","INFORMA","FOTO"];
+/* Colunas de data que também guardam HORA (pedido 5). Comparação por pedaço:
+   "DATA DO SERVIÇO" e qualquer "DATA REMARCAÇÃO N". */
+function campoComHora(nome){
+  const n = normN(nome);
+  return (n.indexOf("DATA")===0 && n.indexOf("SERVICO")>=0) || n.indexOf("REMARCA")>=0;
+}
+
 let OBRAS = [], AGENDA = [], SCHEMA = null;
-let OBRA = null;            // detalhe da obra aberta
-let CHAMADO = null;         // chamado aberto no painel lateral
-let CAL_MES = new Date();   // mês mostrado no calendário
+let OBRA = null, CHAMADO = null, CARD = null;
+let CAL_REF = new Date(), CAL_MODO = "mes", CAL_RESP = "";
 let ORD = { col:"titulo", dir:1 };
-let CTX_TXT = null;         // o que a caixa de texto grande está editando
-let CTX_ARQ = null;         // em que campo o próximo arquivo será anexado
+let CTX_TXT = null, CTX_ARQ = null;
 
 /* ===================== utilidades ===================== */
 let _toastT = null;
@@ -691,24 +807,38 @@ function toast(m, segundos){
 }
 function normN(s){ return String(s==null?"":s).normalize("NFD").replace(/[̀-ͯ]/g,"").toUpperCase().replace(/\s+/g," ").trim(); }
 function soLeitura(){ return ehSomenteLeitura(S); }
+function semHifen(id){ return String(id==null?"":id).replace(/-/g,""); }
 
-/* Data ISO ("2024-03-15") -> "15/03/2024". Nunca uso new Date(iso) para
-   exibir: em GMT-3 a string sem fuso é lida como UTC e volta o dia anterior
-   (o mesmo problema já documentado no fetch_vendas.py). */
+/* Data ISO -> "15/03/2024". Nunca uso new Date(iso) para exibir: em GMT-3 a
+   string sem fuso é lida como UTC e volta o dia anterior. */
 function dbr(iso){
   if(!iso) return "";
   const s = String(iso).slice(0,10).split("-");
   return s.length===3 ? s[2]+"/"+s[1]+"/"+s[0] : String(iso);
 }
+function temHora(iso){ return /T\d{2}:\d{2}/.test(String(iso||"")); }
+function hhmm(iso){ const m = String(iso||"").match(/T(\d{2}:\d{2})/); return m ? m[1] : ""; }
+function dbrh(iso){ return dbr(iso) + (temHora(iso) ? " às " + hhmm(iso) : ""); }
+function soData(iso){ return String(iso||"").slice(0,10); }
 function hojeISO(){
   const d = new Date();
   return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 }
-/* Soma meses a uma data ISO, por número (nunca por objeto Date somado em
-   milissegundos — 6 meses não são 180 dias). Dia 31 + 1 mês cai no último dia
-   do mês seguinte, que é o comportamento esperado para prazo. */
+function isoMaisDias(iso, n){
+  const p = soData(iso).split("-").map(Number);
+  const d = new Date(p[0], p[1]-1, p[2]+n);
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+function diasEntre(a, b){
+  const pa = soData(a).split("-").map(Number), pb = soData(b).split("-").map(Number);
+  if(pa.length!==3 || pb.length!==3 || !pa[0] || !pb[0]) return null;
+  const da = Date.UTC(pa[0],pa[1]-1,pa[2]), db = Date.UTC(pb[0],pb[1]-1,pb[2]);
+  return Math.round((db-da)/86400000);
+}
+/* Soma meses por número (6 meses não são 180 dias). Dia 31 + 1 mês cai no
+   último dia do mês seguinte. */
 function somarMeses(iso, meses){
-  const p = String(iso).slice(0,10).split("-").map(Number);
+  const p = soData(iso).split("-").map(Number);
   if(p.length!==3 || !p[0]) return null;
   let ano = p[0], mes = p[1]-1 + meses, dia = p[2];
   ano += Math.floor(mes/12); mes = ((mes%12)+12)%12;
@@ -716,28 +846,109 @@ function somarMeses(iso, meses){
   if(dia>ultimo) dia = ultimo;
   return ano+"-"+String(mes+1).padStart(2,"0")+"-"+String(dia).padStart(2,"0");
 }
+/* "2 anos e 5 meses" a partir de uma data até hoje (pedido 3). */
+function tempoDesde(iso){
+  if(!iso) return "";
+  const p = soData(iso).split("-").map(Number);
+  if(p.length!==3 || !p[0]) return "";
+  const h = new Date();
+  let meses = (h.getFullYear()-p[0])*12 + (h.getMonth()+1-p[1]);
+  if(h.getDate() < p[2]) meses--;
+  if(meses < 0) return "contrato futuro";
+  const a = Math.floor(meses/12), m = meses%12;
+  const pa = a ? a+(a===1?" ano":" anos") : "";
+  const pm = m ? m+(m===1?" mês":" meses") : "";
+  if(!a && !m) return "menos de 1 mês";
+  return [pa, pm].filter(Boolean).join(" e ");
+}
 
-/* ===================== GARANTIA: prazo -> meses =====================
-   Só existem 4 prazos com data no manual (6 meses, 1 ano, 3 anos, 5 anos).
-   Os outros dois — "No ato da vistoria do imóvel" e "Especificado pelo
-   fabricante" — NÃO são contagem de tempo: o primeiro vale na entrega e o
-   segundo depende do fabricante do produto. Esses ficam fora da conta de
-   vencimento e aparecem com etiqueta própria, em vez de serem chutados como
-   vencidos (que seria mentira). */
+/* ===================== GARANTIA ===================== */
 function prazoMeses(prazo){
   const p = normN(prazo);
   const m = p.match(/^(\d+)\s*(ANO|ANOS|MES|MESES)/);
   if(!m) return null;
-  const n = Number(m[1]);
-  return m[2].indexOf("ANO")===0 ? n*12 : n;
+  return m[2].indexOf("ANO")===0 ? Number(m[1])*12 : Number(m[1]);
 }
+/* "No ato da vistoria do imóvel" e "Especificado pelo fabricante" NÃO são
+   contagem de tempo: ficam fora do vencimento, com etiqueta própria, em vez
+   de serem chutados como vencidos. */
 function statusGarantia(prazo, dataAssin){
   const meses = prazoMeses(prazo);
-  if(meses===null) return { tipo:"na_vistoria", venc:null };   // não é prazo de tempo
+  if(meses===null) return { tipo:"na_vistoria", venc:null };
   if(!dataAssin)   return { tipo:"sem_data", venc:null };
   const venc = somarMeses(dataAssin, meses);
   if(!venc) return { tipo:"sem_data", venc:null };
-  return { tipo: (hojeISO() <= venc ? "na" : "fora"), venc: venc, meses: meses };
+  return { tipo:(hojeISO() <= venc ? "na" : "fora"), venc:venc, meses:meses };
+}
+/* Item 2: os 46 grupos do manual viram 10 categorias. Sem isso a coluna da
+   direita fica com 46 acordeões e ninguém acha nada.
+   A ordem dos testes importa: "infraestrutura" contém "estrutura", então
+   cabeamento é resolvido ANTES. */
+function catGarantia(grupo){
+  const n = normN(grupo);
+  if(n.indexOf("ELETRIC")>=0 || n.indexOf("COMUNICA")>=0 || n.indexOf("CABEAMENTO")>=0 ||
+     n.indexOf("AR-CONDICIONADO")>=0 || n.indexOf("EXAUSTAO")>=0 || n.indexOf("COMPLEMENTARES")>=0)
+    return "ELÉTRICA E COMPLEMENTARES";
+  if(n.indexOf("HIDR")>=0 || n.indexOf("PISCINA")>=0 || n.indexOf("GASES")>=0 || n.indexOf("INCENDIO")>=0)
+    return "HIDRÁULICA, GÁS E INCÊNDIO";
+  if(n.indexOf("ESQUADRIA")>=0 || n.indexOf("PORTA")>=0 || n.indexOf("PORTOE")>=0 ||
+     n.indexOf("JANELA")>=0 || n.indexOf("GRADIL")>=0 || n.indexOf("PROTECAO")>=0)
+    return "ESQUADRIAS, PORTAS E PORTÕES";
+  if(n.indexOf("ALVENARIA")>=0 || n.indexOf("VEDACO")>=0 || n.indexOf("MURO")>=0)
+    return "ALVENARIAS, VEDAÇÕES E MUROS";
+  if(n.indexOf("VIDRO")>=0) return "VIDROS";
+  if(n.indexOf("PISO")>=0 || n.indexOf("RODAPE")>=0 || n.indexOf("PAVIMENTA")>=0)
+    return "PISOS E PAVIMENTAÇÃO";
+  if(n.indexOf("REVESTIMENTO")>=0 || n.indexOf("PINTURA")>=0 || n.indexOf("REJUNTE")>=0)
+    return "REVESTIMENTOS, PINTURA E REJUNTE";
+  if(n.indexOf("COBERTURA")>=0 || n.indexOf("TELHA")>=0 || n.indexOf("FORRO")>=0 || n.indexOf("IMPERMEABILIZ")>=0)
+    return "COBERTURA, FORRO E IMPERMEABILIZAÇÃO";
+  if(n.indexOf("ESTRUTURA")>=0) return "ESTRUTURA E FUNDAÇÕES";
+  return "OUTROS";
+}
+
+/* ===================== SERVIÇOS CRIADOS AGORA (item 1) =====================
+ * O que o botão cria só aparece na lista depois que o servidor devolve os
+ * dados de novo — e a lista tem 2 min de cache no backend. No meio do
+ * caminho a pessoa voltava pra tela e não via nada, achando que não tinha
+ * funcionado. Aqui o serviço recém-criado fica guardado NO NAVEGADOR de quem
+ * criou e é mesclado em toda pintura, até o servidor passar a trazê-lo (ou
+ * até vencer o prazo de segurança). Mesma ideia das "edições locais" do
+ * app.js, aplicada a criação em vez de edição.
+ * =================================================================== */
+const NOVOS_KEY = "morais_pos_novos_v1";
+const NOVOS_TTL = 3*24*3600*1000;   // 3 dias: teto de segurança
+
+function novos(){
+  try{ return JSON.parse(localStorage.getItem(NOVOS_KEY) || "{}"); }catch(e){ return {}; }
+}
+function novosGravar(o){ try{ localStorage.setItem(NOVOS_KEY, JSON.stringify(o)); }catch(e){} }
+function registrarNovo(atv){
+  const o = novos();
+  o[atv.id] = { id:atv.id, obraId:atv.obraId, nome:atv.nome, ts:Date.now() };
+  novosGravar(o);
+}
+function esquecerNovo(id){ const o = novos(); if(o[id]){ delete o[id]; novosGravar(o); } }
+/* Faxina: some com o que o servidor já traz e com o que passou do prazo. */
+function limparNovos(idsDoServidor){
+  const o = novos(); let mudou = false;
+  const vistos = {}; (idsDoServidor||[]).forEach(i=>vistos[i]=true);
+  for(const k in o){
+    if(vistos[k] || Date.now()-o[k].ts > NOVOS_TTL){ delete o[k]; mudou = true; }
+  }
+  if(mudou) novosGravar(o);
+  return o;
+}
+function novosDaObra(obraId){
+  const o = novos(), l = [];
+  for(const k in o) if(semHifen(o[k].obraId) === semHifen(obraId)) l.push(o[k]);
+  return l;
+}
+/* Um serviço pendente vira uma atividade "de mentira" com os campos vazios —
+   o suficiente pra aparecer no kanban e abrir o painel. */
+function atividadeDoNovo(n){
+  return { id:n.id, nome:n.nome, andamento:null, pendente:true,
+           valores:{ "Nome":n.nome, "ANDAMENTO DA SOLICITAÇÃO":null } };
 }
 
 /* ===================== BOOT ===================== */
@@ -756,21 +967,30 @@ function boot(){
 }
 
 function carregar(){
-  // pinta na hora com a última cópia salva e repinta quando o servidor responder
   const c = cacheGet("pos_obras");
-  if(c && c.v && c.v.obras){ OBRAS = c.v.obras; pintarHub(true); }
+  if(c && c.v && c.v.obras){ OBRAS = c.v.obras; pintarHub(); }
   const ca = cacheGet("pos_agenda");
-  if(ca && ca.v && ca.v.marcacoes){ AGENDA = ca.v.marcacoes; renderCalendario(); }
+  if(ca && ca.v && ca.v.marcacoes){ AGENDA = ca.v.marcacoes; renderCalendario(); renderAlertas(); }
 
   ler({action:"posObras"}, "pos_obras").then(r=>{
-    if(r && r.ok){ OBRAS = r.obras || []; pintarHub(false); }
+    if(r && r.ok){ OBRAS = r.obras || []; pintarHub(); }
     else mostrarAviso(r);
   });
   ler({action:"posObraAgenda"}, "pos_agenda").then(r=>{
-    if(r && r.ok){ AGENDA = r.marcacoes || []; renderCalendario(); }
+    if(r && r.ok){
+      AGENDA = r.marcacoes || [];
+      limparNovos(AGENDA.map(m=>m.atividadeId));
+      renderCalendario(); renderAlertas(); pintarHub();
+    }
   });
-  // schema dos chamados: usado só quando alguém abre um serviço
   ler({action:"posObraSchema"}, "pos_schema").then(r=>{ if(r && r.ok) SCHEMA = r; });
+}
+function recarregarTudo(){
+  // depois de gravar: derruba o cache local e relê, pra lista, calendário e
+  // alertas não ficarem contando o estado antigo
+  try{ localStorage.removeItem("morais_cache_v2_pos_obras");
+       localStorage.removeItem("morais_cache_v2_pos_agenda"); }catch(e){}
+  carregar();
 }
 
 function mostrarAviso(r){
@@ -779,14 +999,12 @@ function mostrarAviso(r){
   cx.style.display = "block";
   document.getElementById("obras-wrap").innerHTML = '<div class="vazio">Sem dados para mostrar.</div>';
 }
-
 function pintarUsuario(s){
   document.getElementById("u-nome").textContent = s.nome || s.login;
   const tb = document.getElementById("u-tipo");
   tb.textContent = s.tipo; tb.className = "badge" + (s.tipo==="ADM" ? " adm" : "");
 }
 
-/* ---------- o backend publicado é o mesmo que esta tela espera? ---------- */
 function versaoGS(v){
   const m = String(v || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})\s*r(\d+)$/i);
   return m ? (Number(m[1]+m[2]+m[3]) * 1000 + Number(m[4])) : null;
@@ -804,14 +1022,13 @@ function conferirBackend(){
     } else {
       cx.innerHTML = "<b>O Apps Script publicado está atrasado.</b> No ar: " +
         (v ? esc(v) : "versão anterior") + " · esta tela espera: " + esc(GS_ESPERADO) +
-        ".<br>Enquanto isso, esta tela não funciona. Para publicar: Implantar → Gerenciar " +
-        "implantações → lápis da implantação Ativa → Versão: Nova versão → Implantar.";
+        ".<br>Para publicar: Implantar → Gerenciar implantações → lápis da implantação Ativa → " +
+        "Versão: Nova versão → Implantar.";
     }
     cx.style.display = "block";
   }).catch(()=>{});
 }
 
-/* ---------- claro / escuro ---------- */
 const TEMA_KEY = "morais_tema";
 function temaAtual(){ return document.documentElement.dataset.tema === "escuro" ? "escuro" : "claro"; }
 function aplicarTema(t){
@@ -822,6 +1039,9 @@ function aplicarTema(t){
          b.title = escuro ? "Voltar para o tema claro" : "Mudar para o tema escuro"; }
   const meta = document.querySelector('meta[name="theme-color"]');
   if(meta) meta.setAttribute("content", escuro ? "#122430" : "#295778");
+  // os gráficos usam a cor da barra via CSS var, mas o texto do rótulo é
+  // desenhado: repinta pra não ficar com a cor do tema anterior
+  if(document.getElementById("view-ind").style.display !== "none") renderIndicadores();
 }
 function trocarTema(){
   const novo = temaAtual() === "escuro" ? "claro" : "escuro";
@@ -829,14 +1049,117 @@ function trocarTema(){
   aplicarTema(novo);
 }
 
+/* ===================== cor por entidade (serviço / responsável) =====================
+ * Item 9. A cor é SEMPRE acompanhada do nome escrito na etiqueta — ela ajuda
+ * a bater o olho, não carrega informação sozinha. Por isso repetir a cor
+ * depois de 8 nomes não atrapalha ninguém.
+ * O índice vem do nome (hash), não da ordem de aparição: assim a mesma pessoa
+ * tem a mesma cor em qualquer tela e em qualquer filtro. */
+const CORES = ["#295778","#2a9d5c","#b7791f","#7c3aed","#0891b2","#be123c","#4d7c0f","#c2410c"];
+function corDe(nome){
+  const s = normN(nome);
+  if(!s) return "#8aacbb";
+  let h = 0;
+  for(let i=0;i<s.length;i++){ h = (h*31 + s.charCodeAt(i)) >>> 0; }
+  return CORES[h % CORES.length];
+}
+function chip(nome){
+  if(!nome) return "";
+  return '<span class="chip"><i style="background:'+corDe(nome)+'"></i>'+esc(nome)+'</span>';
+}
+
+/* ===================== ALERTAS (item 13) ===================== */
+/* Material ainda pendente: não está entregue e não é "sem necessidade".
+   Comparo por pedaço porque a lista de opções de STATUS MATERIAL pode
+   ganhar variações ("MATERIAL COMPRADO", "COMPRADO", "A COMPRAR"). */
+function materialPendente(st){
+  const n = normN(st);
+  if(!n) return false;
+  if(n.indexOf("ENTREGUE")>=0) return false;
+  if(n.indexOf("SEM NECESSIDADE")>=0) return false;
+  return true;
+}
+function ehColunaServico(col){
+  const n = normN(col);
+  return (n.indexOf("DATA")===0 && n.indexOf("SERVICO")>=0) || n.indexOf("REMARCA")>=0;
+}
+function calcularAlertas(obraId){
+  const amanha = isoMaisDias(hojeISO(), 1), hoje = hojeISO();
+  const limite = isoMaisDias(hoje, 7);
+  const doDia = [], material = [];
+  AGENDA.forEach(m=>{
+    if(obraId && semHifen(m.obraId) !== semHifen(obraId)) return;
+    if(normN(m.andamento) === normN(FINALIZADO)) return;
+    if(!ehColunaServico(m.coluna)) return;
+    const d = soData(m.data);
+    if(d === amanha) doDia.push(m);
+    // material: da semana anterior à data do serviço até ela ser entregue —
+    // inclui data já passada, senão o pendente some justo quando mais importa
+    if(materialPendente(m.statusMaterial) && d <= limite) material.push(m);
+  });
+  return { doDia:doDia, material:material };
+}
+function renderAlertas(){
+  document.getElementById("alertas-hub").innerHTML = htmlAlertas(calcularAlertas(null), true);
+  if(OBRA){
+    document.getElementById("alertas-obra").innerHTML = htmlAlertas(calcularAlertas(OBRA.id), false);
+  }
+}
+function htmlAlertas(a, comObra){
+  let h = "";
+  if(a.doDia.length){
+    h += '<div class="al amanha"><span class="ic">📅</span><div class="co">'+
+      '<div class="ti">Amanhã tem '+a.doDia.length+(a.doDia.length===1?' serviço marcado':' serviços marcados')+'</div>'+
+      a.doDia.map(m=>linhaAlerta(m, comObra)).join("")+'</div></div>';
+  }
+  if(a.material.length){
+    h += '<div class="al material"><span class="ic">📦</span><div class="co">'+
+      '<div class="ti">Material a conferir — '+a.material.length+(a.material.length===1?' serviço':' serviços')+'</div>'+
+      '<div class="li" style="margin-bottom:5px">Confira se o pedido foi feito e se já chegou. O aviso some quando o '+
+      '<b style="cursor:default;text-decoration:none">STATUS MATERIAL</b> virar <b style="cursor:default;text-decoration:none">MATERIAL ENTREGUE</b>.</div>'+
+      a.material.map(m=>linhaAlerta(m, comObra, true)).join("")+'</div></div>';
+  }
+  return h;
+}
+function linhaAlerta(m, comObra, comStatus){
+  const quem = m.responsavel ? " · " + m.responsavel : "";
+  const serv = (m.servico && m.servico.length) ? " · " + m.servico.join(", ") : "";
+  const st = comStatus && m.statusMaterial ? " · " + m.statusMaterial : "";
+  const alvo = comObra
+    ? '<b onclick="abrirObra(\''+m.obraId+'\')">'+esc(m.nome)+'</b>'
+    : '<b onclick="abrirChamado(\''+m.atividadeId+'\')">'+esc(m.nome)+'</b>';
+  return '<div class="li">• '+alvo+' — '+esc(dbrh(m.data))+esc(quem)+esc(serv)+esc(st)+'</div>';
+}
+
 /* ===================== LISTA DE OBRAS ===================== */
-function pintarHub(doCache){
-  const total = OBRAS.length;
-  const andamento = OBRAS.filter(o=>o.status==="PÓS OBRA EM ANDAMENTO").length;
-  const abertos = OBRAS.reduce((a,o)=>a+(o.servicosAbertos||0),0);
-  const servicos = OBRAS.reduce((a,o)=>a+(o.servicos||0),0);
+/* Junta os serviços recém-criados que o servidor ainda não devolveu, pra
+   contagem e status não regredirem na volta pra tela (item 1). */
+function obrasComPendentes(){
+  const pend = {};
+  const o = novos();
+  for(const k in o){
+    const id = semHifen(o[k].obraId);
+    pend[id] = (pend[id]||0) + 1;
+  }
+  return OBRAS.map(x=>{
+    const n = pend[semHifen(x.id)] || 0;
+    if(!n) return x;
+    const y = Object.assign({}, x);
+    y.servicos = (y.servicos||0) + n;
+    y.servicosAbertos = (y.servicosAbertos||0) + n;
+    y.status = "PÓS OBRA EM ANDAMENTO";
+    y.pendentes = n;
+    return y;
+  });
+}
+function pintarHub(){
+  const l = obrasComPendentes();
+  const total = l.length;
+  const andamento = l.filter(o=>o.status==="PÓS OBRA EM ANDAMENTO").length;
+  const abertos = l.reduce((a,o)=>a+(o.servicosAbertos||0),0);
+  const servicos = l.reduce((a,o)=>a+(o.servicos||0),0);
   document.getElementById("kpis").innerHTML =
-    kpi("Obras cadastradas", total, "vindas do banco de vendas", "hero") +
+    kpi("Obras com cliente", total, "vindas do banco de vendas", "hero") +
     kpi("Pós obra em andamento", andamento, "obras com serviço não finalizado", andamento?"alerta":"") +
     kpi("Serviços abertos", abertos, "chamados sem baixa") +
     kpi("Serviços registrados", servicos, "total, incluindo finalizados");
@@ -846,11 +1169,10 @@ function kpi(lab, val, sub, cls){
   return '<div class="kpi '+(cls||"")+'"><div class="lab">'+esc(lab)+'</div><div class="val">'+
          num(val)+'</div><div class="sub">'+esc(sub||"")+'</div></div>';
 }
-
 function obrasFiltradas(){
   const q = normN(document.getElementById("busca").value);
   const st = document.getElementById("f-status").value;
-  let l = OBRAS.slice();
+  let l = obrasComPendentes();
   if(st) l = l.filter(o=>o.status===st);
   if(q) l = l.filter(o => normN(o.titulo).indexOf(q)>=0 || normN(o.clientes).indexOf(q)>=0);
   const c = ORD.col, d = ORD.dir;
@@ -866,26 +1188,28 @@ function ordenar(col){
   renderObras();
 }
 function renderObras(){
-  const l = obrasFiltradas();
+  const l = obrasFiltradas(), tot = obrasComPendentes().length;
   document.getElementById("obras-count").textContent =
-    l.length + (l.length===1?" obra":" obras") + (l.length!==OBRAS.length ? " de "+OBRAS.length : "");
+    l.length + (l.length===1?" obra":" obras") + (l.length!==tot ? " de "+tot : "");
   if(!l.length){
     document.getElementById("obras-wrap").innerHTML = '<div class="vazio">Nenhuma obra encontrada com esse filtro.</div>';
     return;
   }
   const cols = [["titulo","Endereço + Casa"],["clientes","Cliente"],["telefone","Telefone"],
-                ["dataAssinatura","Assinatura do contrato"],["status","Status"],["servicosAbertos","Serviços abertos"]];
+                ["dataAssinatura","Assinatura"],["status","Status"],["servicosAbertos","Abertos"]];
   const th = cols.map((c,i)=>'<th class="ord'+(ORD.col===c[0]?" on":"")+(i===0?" stick":"")+'" onclick="ordenar(\''+c[0]+'\')">'+
       esc(c[1])+'<span class="seta">'+(ORD.col===c[0]?(ORD.dir>0?"▲":"▼"):"⇅")+'</span></th>').join("");
   const tr = l.map(o=>{
     const st = o.status==="PÓS OBRA EM ANDAMENTO"
       ? '<span class="pill alerta">PÓS OBRA EM ANDAMENTO</span>'
       : '<span class="pill neutro">SEM PÓS OBRA</span>';
+    const nv = o.pendentes ? ' <span class="pill novo" title="criado agora, ainda subindo">+'+o.pendentes+' novo</span>' : "";
+    const tempo = o.dataAssinatura ? '<div style="font-size:10.5px;color:var(--text4)">há '+esc(tempoDesde(o.dataAssinatura))+'</div>' : "";
     return '<tr>'+
-      '<td class="stick"><span class="obralink" onclick="abrirObra(\''+o.id+'\')">'+esc(o.titulo)+'</span></td>'+
+      '<td class="stick"><span class="obralink" onclick="abrirObra(\''+o.id+'\')">'+esc(o.titulo)+'</span>'+nv+'</td>'+
       '<td>'+esc(o.clientes||"—")+'</td>'+
       '<td>'+esc(o.telefone||"—")+'</td>'+
-      '<td>'+esc(dbr(o.dataAssinatura)||"—")+'</td>'+
+      '<td>'+esc(dbr(o.dataAssinatura)||"—")+tempo+'</td>'+
       '<td>'+st+'</td>'+
       '<td style="text-align:center">'+(o.servicosAbertos||0)+'</td>'+
     '</tr>';
@@ -894,7 +1218,6 @@ function renderObras(){
     '<table class="grade"><thead><tr>'+th+'</tr></thead><tbody>'+tr+'</tbody></table>';
   sincronizarBarraTopo();
 }
-/* a barrinha de rolagem de cima acompanha a tabela (mesma ideia do ligacoes) */
 function sincronizarBarraTopo(){
   const wrap = document.getElementById("obras-wrap"), top = document.getElementById("obras-stop");
   const tab = wrap.querySelector("table");
@@ -905,68 +1228,206 @@ function sincronizarBarraTopo(){
 }
 
 /* ===================== CALENDÁRIO ===================== */
-function mudarMes(n){ CAL_MES = new Date(CAL_MES.getFullYear(), CAL_MES.getMonth()+n, 1); renderCalendario(); }
-function calHoje(){ CAL_MES = new Date(); renderCalendario(); }
+function mudarCal(n){
+  const d = new Date(CAL_REF);
+  if(CAL_MODO==="mes") d.setMonth(d.getMonth()+n); else d.setDate(d.getDate()+7*n);
+  CAL_REF = d; renderCalendario();
+}
+function calHoje(){ CAL_REF = new Date(); renderCalendario(); }
+function calModo(m){ CAL_MODO = m; renderCalendario(); }
+function calResp(v){ CAL_RESP = v; renderCalendario(); }
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const DIAS = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
 
+function agendaVisivel(){
+  return CAL_RESP ? AGENDA.filter(m=>normN(m.responsavel)===normN(CAL_RESP)) : AGENDA;
+}
+function responsaveisDaAgenda(){
+  const s = {};
+  AGENDA.forEach(m=>{ if(m.responsavel) s[m.responsavel]=1; });
+  return Object.keys(s).sort((a,b)=>a.localeCompare(b,"pt-BR"));
+}
+function isoDe(d){
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
 function renderCalendario(){
-  const ano = CAL_MES.getFullYear(), mes = CAL_MES.getMonth();
-  const primeiro = new Date(ano, mes, 1);
-  const inicio = new Date(ano, mes, 1 - primeiro.getDay());   // começa no domingo
+  const lista = agendaVisivel();
+  const porDia = {};
+  lista.forEach(m=>{ const k = soData(m.data); (porDia[k] = porDia[k] || []).push(m); });
   const hoje = hojeISO();
 
-  const porDia = {};
-  AGENDA.forEach(m=>{ (porDia[String(m.data).slice(0,10)] = porDia[String(m.data).slice(0,10)] || []).push(m); });
+  const resps = responsaveisDaAgenda();
+  const selResp = '<select onchange="calResp(this.value)"><option value="">Todos os responsáveis</option>'+
+    resps.map(r=>'<option value="'+esc(r)+'"'+(r===CAL_RESP?" selected":"")+'>'+esc(r)+'</option>').join("")+'</select>';
 
-  let html = '<div class="cal-topo">'+
-    '<button class="cal-nav" onclick="mudarMes(-1)" title="Mês anterior">‹</button>'+
-    '<button class="cal-nav" onclick="mudarMes(1)" title="Próximo mês">›</button>'+
-    '<span class="cal-mes">'+MESES[mes]+" "+ano+'</span>'+
-    '<button class="bt ghost" onclick="calHoje()">Hoje</button></div>'+
-    '<div class="cal-grade">'+DIAS.map(d=>'<div class="cal-dia-cab">'+d+'</div>').join("");
-
-  for(let i=0;i<42;i++){
-    const d = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate()+i);
-    const iso = d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
-    const fora = d.getMonth()!==mes;
-    const marc = porDia[iso] || [];
-    const mostra = marc.slice(0,3).map(m=>{
-      const rm = normN(m.coluna).indexOf("REMARCA")>=0;
-      const rot = String(m.coluna).replace(/^DATA (DE |DO |DA )?/i,"");
-      return '<button class="cal-mc'+(rm?" rm":"")+'" title="'+esc(m.nome+" · "+m.coluna)+
-             '" onclick="abrirObra(\''+(m.obraId||"")+'\')">'+esc(rot)+" · "+esc(m.nome)+'</button>';
-    }).join("");
-    const mais = marc.length>3 ? '<div class="cal-mais">+'+(marc.length-3)+' marcações</div>' : "";
-    html += '<div class="cal-dia'+(fora?" fora":"")+(iso===hoje?" hoje":"")+'">'+
-            '<div class="cal-num">'+d.getDate()+'</div>'+mostra+mais+'</div>';
+  let titulo, corpo;
+  if(CAL_MODO === "mes"){
+    const ano = CAL_REF.getFullYear(), mes = CAL_REF.getMonth();
+    titulo = MESES[mes]+" "+ano;
+    const primeiro = new Date(ano, mes, 1);
+    const inicio = new Date(ano, mes, 1 - primeiro.getDay());
+    corpo = '<div class="cal-grade">'+DIAS.map(d=>'<div class="cal-dia-cab">'+d+'</div>').join("");
+    for(let i=0;i<42;i++){
+      const d = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate()+i);
+      const iso = isoDe(d), fora = d.getMonth()!==mes, marc = porDia[iso] || [];
+      const mostra = marc.slice(0,3).map(m=>etiquetaCal(m)).join("");
+      const mais = marc.length>3 ? '<div class="cal-mais">+'+(marc.length-3)+' marcações</div>' : "";
+      corpo += '<div class="cal-dia'+(fora?" fora":"")+(iso===hoje?" hoje":"")+'">'+
+               '<div class="cal-num">'+d.getDate()+'</div>'+mostra+mais+'</div>';
+    }
+    corpo += '</div>';
+  } else {
+    const ini = new Date(CAL_REF.getFullYear(), CAL_REF.getMonth(), CAL_REF.getDate()-CAL_REF.getDay());
+    const fim = new Date(ini.getFullYear(), ini.getMonth(), ini.getDate()+6);
+    titulo = dbr(isoDe(ini))+" a "+dbr(isoDe(fim));
+    corpo = '<div class="sem-grade">';
+    for(let i=0;i<7;i++){
+      const d = new Date(ini.getFullYear(), ini.getMonth(), ini.getDate()+i);
+      const iso = isoDe(d), marc = porDia[iso] || [];
+      corpo += '<div class="sem-col'+(iso===hoje?" hoje":"")+'">'+
+        '<div class="sem-cab">'+DIAS[d.getDay()]+" "+d.getDate()+"/"+String(d.getMonth()+1).padStart(2,"0")+'</div>'+
+        (marc.length ? marc.map(m=>cardCal(m)).join("")
+                     : '<div style="font-size:11px;color:var(--text4);text-align:center;font-style:italic">—</div>')+
+      '</div>';
+    }
+    corpo += '</div>';
   }
-  html += '</div><div class="cal-leg">'+
-    '<span><i style="background:rgba(41,87,120,.35)"></i>Serviço / chamado</span>'+
-    '<span><i style="background:#FEF3C7;border:1px solid #92400E"></i>Remarcação</span>'+
-    '<span>Clique numa marcação para abrir a obra.</span></div>';
 
-  document.getElementById("cal-box").innerHTML = html;
-  const doMes = AGENDA.filter(m=>{
-    const p = String(m.data).slice(0,10).split("-");
-    return Number(p[0])===ano && Number(p[1])===mes+1;
-  }).length;
-  document.getElementById("cal-info").textContent = doMes + (doMes===1?" marcação neste mês":" marcações neste mês");
+  document.getElementById("cal-box").innerHTML =
+    '<div class="cal-topo">'+
+      '<button class="cal-nav" onclick="mudarCal(-1)" title="Anterior">‹</button>'+
+      '<button class="cal-nav" onclick="mudarCal(1)" title="Próximo">›</button>'+
+      '<span class="cal-mes">'+esc(titulo)+'</span>'+
+      '<button class="bt ghost peq" onclick="calHoje()">Hoje</button>'+
+      '<span class="seg"><button class="'+(CAL_MODO==="mes"?"on":"")+'" onclick="calModo(\'mes\')">Mês</button>'+
+      '<button class="'+(CAL_MODO==="semana"?"on":"")+'" onclick="calModo(\'semana\')">Semana</button></span>'+
+      selResp+
+    '</div>'+corpo+
+    '<div class="cal-leg">'+
+      '<span><i style="background:rgba(41,87,120,.35)"></i>Serviço / chamado</span>'+
+      '<span><i style="background:#FEF3C7;border:1px solid #92400E"></i>Remarcação</span>'+
+      '<span>Clique num card para ver os dados, copiar para o WhatsApp ou abrir o serviço.</span>'+
+    '</div>';
+
+  const cont = CAL_MODO==="mes"
+    ? lista.filter(m=>{ const p=soData(m.data).split("-"); return Number(p[0])===CAL_REF.getFullYear() && Number(p[1])===CAL_REF.getMonth()+1; }).length
+    : lista.filter(m=>{ const ini=new Date(CAL_REF.getFullYear(),CAL_REF.getMonth(),CAL_REF.getDate()-CAL_REF.getDay());
+                        const d=soData(m.data); return d>=isoDe(ini) && d<=isoDe(new Date(ini.getFullYear(),ini.getMonth(),ini.getDate()+6)); }).length;
+  document.getElementById("cal-info").textContent = cont + (cont===1?" marcação":" marcações") +
+    (CAL_RESP ? " · "+CAL_RESP : "");
+}
+function rotuloColuna(col){ return String(col).replace(/^DATA\s+(DE\s+|DO\s+|DA\s+)?/i,""); }
+function etiquetaCal(m){
+  const rm = normN(m.coluna).indexOf("REMARCA")>=0;
+  const hora = temHora(m.data) ? hhmm(m.data)+" " : "";
+  return '<button class="cal-mc'+(rm?" rm":"")+'" title="'+esc(m.nome+" · "+m.coluna)+
+         '" onclick="abrirCard(\''+m.atividadeId+'\',\''+esc(m.coluna).replace(/'/g,"&#39;")+'\')">'+
+         esc(hora + m.nome)+'</button>';
+}
+/* Card cheio (semana e modal) — os 6 campos do pedido 12. */
+function dadosCard(m){
+  const obra = OBRAS.find(o=>semHifen(o.id)===semHifen(m.obraId)) || {};
+  return {
+    endereco: obra.titulo || m.nome,
+    cliente: obra.clientes || "",
+    telefone: obra.telefone || "",
+    dataHora: dbrh(m.data),
+    responsavel: m.responsavel || "",
+    info: m.info || "",
+    servicos: (m.servico||[]).join(", "),
+    coluna: m.coluna,
+    rm: normN(m.coluna).indexOf("REMARCA")>=0,
+    atividadeId: m.atividadeId,
+    obraId: m.obraId
+  };
+}
+function cardCal(m){
+  const d = dadosCard(m);
+  return '<div class="mcard'+(d.rm?" rm":"")+'">'+
+    '<div class="end">'+esc(d.endereco)+'</div>'+
+    '<div class="ln">'+esc(rotuloColuna(d.coluna))+' · '+esc(d.dataHora)+'</div>'+
+    (d.cliente ? '<div class="ln">👤 '+esc(d.cliente)+'</div>' : "")+
+    (d.telefone ? '<div class="ln">📞 '+esc(d.telefone)+'</div>' : "")+
+    (d.responsavel ? '<div class="ln">👷 '+esc(d.responsavel)+'</div>' : "")+
+    (d.servicos ? '<div class="ln">🔧 '+esc(d.servicos)+'</div>' : "")+
+    (d.info ? '<div class="ln">📝 '+esc(d.info)+'</div>' : "")+
+    '<div class="acoes">'+
+      '<button onclick="copiarMarcacao(\''+d.atividadeId+'\',\''+esc(d.coluna).replace(/'/g,"&#39;")+'\')">📋 Copiar</button>'+
+      '<button onclick="abrirObra(\''+d.obraId+'\')">Abrir obra</button>'+
+    '</div></div>';
+}
+/* Texto pronto pro WhatsApp. Asterisco simples é o negrito do WhatsApp. */
+function textoWhats(d){
+  const l = [];
+  l.push("*"+d.endereco+"*");
+  if(d.cliente || d.telefone) l.push("👤 "+[d.cliente, d.telefone].filter(Boolean).join(" — 📞 "));
+  l.push("📅 "+rotuloColuna(d.coluna)+": "+d.dataHora);
+  if(d.responsavel) l.push("👷 Responsável: "+d.responsavel);
+  if(d.servicos) l.push("🔧 Serviço: "+d.servicos);
+  if(d.info) l.push("📝 "+d.info);
+  return l.join("\n");
+}
+function acharMarcacao(atividadeId, coluna){
+  return AGENDA.find(m=>m.atividadeId===atividadeId && m.coluna===coluna);
+}
+function copiarTexto(txt){
+  const ok = ()=>toast("Copiado — é só colar no WhatsApp.", 2.5);
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(ok).catch(()=>copiarFallback(txt, ok));
+  } else copiarFallback(txt, ok);
+}
+/* Sem a API de área de transferência (http, navegador antigo): textarea
+   temporária + execCommand, que ainda funciona em todo lugar. */
+function copiarFallback(txt, ok){
+  try{
+    const t = document.createElement("textarea");
+    t.value = txt; t.style.position="fixed"; t.style.opacity="0";
+    document.body.appendChild(t); t.select(); document.execCommand("copy");
+    document.body.removeChild(t); ok();
+  }catch(e){ toast("Não consegui copiar sozinho — selecione o texto do card.", 4); }
+}
+function copiarMarcacao(atividadeId, coluna){
+  const m = acharMarcacao(atividadeId, coluna);
+  if(!m) return;
+  copiarTexto(textoWhats(dadosCard(m)));
+}
+function abrirCard(atividadeId, coluna){
+  const m = acharMarcacao(atividadeId, coluna);
+  if(!m) return;
+  CARD = dadosCard(m);
+  document.getElementById("mc-tit").textContent = CARD.endereco;
+  document.getElementById("mc-sub").textContent = rotuloColuna(CARD.coluna) + " · " + CARD.dataHora;
+  const li = (k,v)=> v ? '<div class="li"><div class="k">'+esc(k)+'</div><div class="v">'+esc(v)+'</div></div>' : "";
+  document.getElementById("mc-det").innerHTML =
+    li("Endereço", CARD.endereco) + li("Cliente", CARD.cliente) + li("Telefone", CARD.telefone) +
+    li("Data e hora", CARD.dataHora) + li("Responsável", CARD.responsavel) +
+    li("Serviços", CARD.servicos) + li("Informação", CARD.info);
+  document.getElementById("mc-overlay").classList.add("on");
+}
+function fecharCard(){ document.getElementById("mc-overlay").classList.remove("on"); CARD = null; }
+function copiarCard(){ if(CARD) copiarTexto(textoWhats(CARD)); }
+function abrirServicoDoCard(){
+  if(!CARD) return;
+  const obraId = CARD.obraId, atv = CARD.atividadeId;
+  fecharCard();
+  abrirObra(obraId, ()=>abrirChamado(atv));
 }
 
 /* ===================== PÁGINA DA OBRA ===================== */
-function irHub(){
-  document.getElementById("view-obra").style.display = "none";
-  document.getElementById("view-hub").style.display = "";
-  OBRA = null;
+function mostrarView(qual){
+  ["view-hub","view-obra","view-ind"].forEach(v=>{
+    document.getElementById(v).style.display = (v===qual ? "" : "none");
+  });
   window.scrollTo(0,0);
 }
-function abrirObra(id){
+function irHub(){ OBRA = null; mostrarView("view-hub"); renderAlertas(); }
+function irIndicadores(){ mostrarView("view-ind"); renderIndicadores(); }
+
+function abrirObra(id, depois){
   if(!id) return;
-  document.getElementById("view-hub").style.display = "none";
-  document.getElementById("view-obra").style.display = "";
-  window.scrollTo(0,0);
+  mostrarView("view-obra");
   document.getElementById("obra-topo").innerHTML = '<div class="vazio"><span class="load"></span> Carregando obra…</div>';
+  document.getElementById("alertas-obra").innerHTML = "";
   document.getElementById("gar-lista").innerHTML = "";
   document.getElementById("historico").innerHTML = "";
   document.getElementById("kanban").innerHTML = "";
@@ -977,7 +1438,14 @@ function abrirObra(id){
       return;
     }
     OBRA = r;
+    // mescla os serviços criados agora que o servidor ainda não devolveu
+    const vindos = (OBRA.atividades||[]).map(a=>a.id);
+    limparNovos(vindos);
+    novosDaObra(OBRA.id).forEach(n=>{
+      if(vindos.indexOf(n.id) < 0) OBRA.atividades.push(atividadeDoNovo(n));
+    });
     pintarObra();
+    if(typeof depois === "function") depois();
   });
 }
 
@@ -986,13 +1454,17 @@ function pintarObra(){
   const abertos = (OBRA.atividades||[]).filter(a=>normN(a.andamento)!==normN(FINALIZADO)).length;
   const st = abertos>0 ? '<span class="pill alerta">PÓS OBRA EM ANDAMENTO</span>'
                        : '<span class="pill neutro">SEM PÓS OBRA</span>';
-  const tel = (v["TELEFONE"]||"");
+  const tel = v["TELEFONE"] || "";
+  const assin = v["DATA DE ASSINATURA DO CONTRATO"];
   document.getElementById("obra-topo").innerHTML =
     '<div class="obra-nome">'+esc(OBRA.titulo)+'</div>'+
     '<div class="obra-dados">'+
       od("Cliente", v["CLIENTES"] || "—") +
       od("Telefone", tel ? '<a href="tel:'+esc(String(tel).replace(/[^\d+]/g,""))+'">'+esc(tel)+'</a>' : "—", true) +
-      od("Assinatura do contrato", dbr(v["DATA DE ASSINATURA DO CONTRATO"]) || "—") +
+      od("Assinatura do contrato", dbr(assin) || "—") +
+      /* item 3: o tempo desde a compra, que é o que responde na hora se a
+         casa ainda é nova ou se já passou da maioria dos prazos */
+      od("Tempo de compra", assin ? tempoDesde(assin) : "—") +
       od("Status", st, true) +
       od("Serviços", (OBRA.atividades||[]).length + " (" + abertos + " abertos)") +
     '</div>'+
@@ -1000,6 +1472,7 @@ function pintarObra(){
       '<button class="bt vd" onclick="criarServico()"'+(soLeitura()?" disabled":"")+'>+ Serviço de Pós Obra</button>'+
       '<button class="bt ghost" onclick="editarObs()">Editar observação da obra</button>'+
     '</div>';
+  renderAlertas();
   renderGarantias();
   renderHistorico();
   renderKanban();
@@ -1008,31 +1481,45 @@ function od(l, v, bruto){
   return '<div class="od"><div class="l">'+esc(l)+'</div><div class="v">'+(bruto?v:esc(v))+'</div></div>';
 }
 
-/* ---------- garantias ---------- */
+/* ---------- garantias (item 2: recolhidas, agrupadas) ---------- */
+function alternarGarantias(){
+  const b = document.getElementById("gar-toggle"), c = document.getElementById("gar-corpo");
+  const abrir = !c.classList.contains("aberto");
+  c.classList.toggle("aberto", abrir);
+  b.classList.toggle("aberto", abrir);
+  document.getElementById("gar-toggle-txt").textContent =
+    abrir ? "Esconder status das garantias" : "Ver status das garantias";
+  if(abrir) renderGarantiasLista();
+}
 function renderGarantias(){
   const data = (OBRA && OBRA.valores) ? OBRA.valores["DATA DE ASSINATURA DO CONTRATO"] : null;
   const sub = document.getElementById("gar-sub");
   if(!data){
-    sub.innerHTML = "Esta obra ainda não tem <b>DATA DE ASSINATURA DO CONTRATO</b> preenchida em Vendas, " +
-                    "então não dá para contar prazo nenhum.";
+    sub.innerHTML = "Sem <b>DATA DE ASSINATURA DO CONTRATO</b> em Vendas — não dá para contar prazo.";
     document.getElementById("gar-resumo").innerHTML = "";
     document.getElementById("gar-lista").innerHTML = '<div class="vazio">Sem data de assinatura.</div>';
     return;
   }
-  sub.innerHTML = "Contado a partir da assinatura do contrato (<b>"+esc(dbr(data))+"</b>). " +
-                  "O manual conta do Habite-se ou da entrega — aqui é da assinatura, conforme combinado.";
-
-  // resumo: só existem 4 prazos com data no manual; é isso que responde
-  // "o que ainda está na garantia" sem precisar ler 150 linhas
+  // resumo: só existem 4 prazos com data no manual, e é isso que responde
+  // "o que ainda está na garantia" sem abrir as 150 linhas
   const prazos = [[6,"6 meses"],[12,"1 ano"],[36,"3 anos"],[60,"5 anos"]];
-  document.getElementById("gar-resumo").innerHTML = '<div class="gar-resumo">' + prazos.map(([m,rot])=>{
+  const cartoes = prazos.map(([m,rot])=>{
     const venc = somarMeses(data, m);
     const na = hojeISO() <= venc;
-    return '<div class="gr '+(na?"na":"fora")+'"><div class="p">'+esc(rot)+'</div>'+
-           '<div class="s">'+(na?"NA GARANTIA":"FORA DA GARANTIA")+'</div>'+
-           '<div class="d">'+(na?"até ":"venceu em ")+esc(dbr(venc))+'</div></div>';
-  }).join("") + '</div>';
-
+    return { rot:rot, na:na, venc:venc };
+  });
+  const vigentes = cartoes.filter(c=>c.na).length;
+  sub.innerHTML = "A partir de <b>"+esc(dbr(data))+"</b> · <b>"+vigentes+" de 4</b> prazos ainda vigentes. "+
+                  "O manual conta do Habite-se; aqui é da assinatura, conforme combinado.";
+  document.getElementById("gar-resumo").innerHTML = '<div class="gar-resumo">' + cartoes.map(c=>
+    '<div class="gr '+(c.na?"na":"fora")+'"><div class="p">'+esc(c.rot)+'</div>'+
+    '<div class="s">'+(c.na?"NA GARANTIA":"FORA")+'</div>'+
+    '<div class="d">'+(c.na?"até ":"venceu ")+esc(dbr(c.venc))+'</div></div>').join("") + '</div>';
+  if(document.getElementById("gar-corpo").classList.contains("aberto")) renderGarantiasLista();
+}
+function renderGarantiasLista(){
+  const data = (OBRA && OBRA.valores) ? OBRA.valores["DATA DE ASSINATURA DO CONTRATO"] : null;
+  if(!data) return;
   const q = normN(document.getElementById("gar-busca").value);
   const filtro = document.getElementById("gar-filtro").value;
 
@@ -1042,12 +1529,12 @@ function renderGarantias(){
     if(filtro==="na" && s.tipo!=="na") return;
     if(filtro==="fora" && s.tipo!=="fora") return;
     if(q && normN(grupo+" "+item+" "+falha).indexOf(q)<0) return;
-    (grupos[grupo] = grupos[grupo] || []).push({item,falha,prazo,fonte,s});
+    const cat = catGarantia(grupo);
+    (grupos[cat] = grupos[cat] || []).push({grupo,item,falha,prazo,fonte,s});
   });
-
-  const nomes = Object.keys(grupos);
+  const nomes = Object.keys(grupos).sort((a,b)=>a.localeCompare(b,"pt-BR"));
   if(!nomes.length){
-    document.getElementById("gar-lista").innerHTML = '<div class="vazio">Nenhum item de garantia com esse filtro.</div>';
+    document.getElementById("gar-lista").innerHTML = '<div class="vazio">Nenhum item com esse filtro.</div>';
     return;
   }
   document.getElementById("gar-lista").innerHTML = nomes.map((g,i)=>{
@@ -1057,71 +1544,79 @@ function renderGarantias(){
     const outros = itens.length - na - fora;
     const resumo = [na?'<span class="pill sim">'+na+' na garantia</span>':"",
                     fora?'<span class="pill nao">'+fora+' fora</span>':"",
-                    outros?'<span class="pill neutro">'+outros+' na vistoria</span>':""].join(" ");
+                    outros?'<span class="pill neutro">'+outros+' vistoria</span>':""].join(" ");
     const linhas = itens.map(x=>{
       let et;
       if(x.s.tipo==="na")        et = '<span class="pill sim">NA GARANTIA</span>';
       else if(x.s.tipo==="fora") et = '<span class="pill nao">FORA DA GARANTIA</span>';
       else                       et = '<span class="pill neutro">'+esc(x.prazo)+'</span>';
-      const venc = x.s.venc ? '<div class="pz">'+(x.s.tipo==="na"?"até ":"venceu em ")+esc(dbr(x.s.venc))+'</div>' : "";
-      return '<div class="gi"><div class="txt">'+
-        (x.item ? '<span class="it">'+esc(x.item)+'</span> — ' : "")+
-        '<span class="fa">'+esc(x.falha)+'</span>'+
-        '<span class="fonte-tag" title="'+(x.fonte==="M"?"Prazo específico do manual da casa":"Tabela NBR 15575 do manual")+'">'+
-        (x.fonte==="M"?"MANUAL":"NBR")+'</span>'+
-        '<div class="pz">Prazo: '+esc(x.prazo)+'</div></div>'+
-        '<div class="st">'+et+venc+'</div></div>';
+      const venc = x.s.venc ? " · "+(x.s.tipo==="na"?"até ":"venceu ")+dbr(x.s.venc) : "";
+      return '<div class="gi">'+
+        '<div><span class="it">'+esc(x.item || x.grupo)+'</span>'+
+        '<span class="fonte-tag" title="'+(x.fonte==="M"?"Prazo do manual da casa":"Tabela NBR 15575")+'">'+
+        (x.fonte==="M"?"MANUAL":"NBR")+'</span></div>'+
+        '<div class="fa">'+esc(x.falha)+'</div>'+
+        '<div class="pz">Prazo: '+esc(x.prazo)+esc(venc)+'</div>'+
+        '<div class="st">'+et+'</div></div>';
     }).join("");
-    // o primeiro grupo abre; os outros ficam fechados, senão a coluna vira
-    // uma parede de 150 linhas e ninguém acha nada
-    return '<div class="gar-grupo'+(i===0?" aberto":"")+'" id="garg-'+i+'">'+
+    return '<div class="gar-grupo" id="garg-'+i+'">'+
       '<button class="gar-cab" onclick="document.getElementById(\'garg-'+i+'\').classList.toggle(\'aberto\')">'+
         '<span class="seta">▶</span><span class="nm">'+esc(g)+'</span>'+resumo+'</button>'+
       '<div class="gar-itens">'+linhas+'</div></div>';
   }).join("");
 }
 
-/* ---------- histórico ---------- */
+/* ---------- histórico (itens 9 e 16) ---------- */
 function renderHistorico(){
   const v = OBRA.valores || {};
   const obs = v["OBSERVAÇÕES"] || "";
   let html = '<div class="hist-fix"><div class="l">Observação da obra (fixada)</div>'+
     '<div class="t'+(obs?"":" vazia")+'">'+esc(obs || "Sem observação. Use o botão acima para escrever.")+'</div></div>';
 
-  // cada data preenchida de cada chamado vira um evento; ordena do mais
-  // recente para o mais antigo
   const eventos = [];
   (OBRA.atividades||[]).forEach(a=>{
     const val = a.valores || {};
+    const serv = Array.isArray(val["SERVIÇO"]) ? val["SERVIÇO"] : (val["SERVIÇO"] ? [val["SERVIÇO"]] : []);
+    const resp = val["RESPONSÁVEL"] || "";
     for(const col in val){
       const bruto = val[col];
       if(!bruto || typeof bruto !== "string") continue;
-      if(!/^\d{4}-\d{2}-\d{2}/.test(bruto)) continue;   // é uma data
+      if(!/^\d{4}-\d{2}-\d{2}/.test(bruto)) continue;
       const n = normN(col);
       const rm = n.indexOf("REMARCA")>=0;
       const nivel = (String(col).match(/(\d+)\s*$/)||[])[1];
-      const texto = rm && nivel ? (val["INFORMAÇÕES REMARCAÇÃO "+nivel] || acharInfoRm(val, nivel) || "")
-                                : (val["INFORMAÇÕES SERVIÇO"] || "");
-      eventos.push({ data:bruto.slice(0,10), col:col, rm:rm, nome:a.nome,
-                     texto:texto, andamento:a.andamento, id:a.id });
+      const texto = rm && nivel ? (acharInfoRm(val, nivel) || "") : (val["INFORMAÇÕES SERVIÇO"] || "");
+      eventos.push({ data:bruto, col:col, rm:rm, nome:a.nome, texto:texto,
+                     andamento:a.andamento, id:a.id, serv:serv, resp:resp });
     }
   });
   eventos.sort((a,b)=> a.data < b.data ? 1 : (a.data > b.data ? -1 : 0));
 
-  if(!eventos.length){
+  const pend = (OBRA.atividades||[]).filter(a=>a.pendente && !Object.keys(a.valores||{}).some(k=>/^\d{4}-/.test(a.valores[k])));
+  if(pend.length){
+    html += pend.map(a=>'<div class="hev" style="border-left-color:var(--text4)" onclick="abrirChamado(\''+a.id+'\')">'+
+      '<div class="top"><span class="d">Criado agora</span><span class="pill novo">ainda sem data</span></div>'+
+      '<div class="t" style="color:var(--text4);font-style:italic">Serviço novo — preencha os dados.</div></div>').join("");
+  }
+  if(!eventos.length && !pend.length){
     html += '<div class="vazio">Nenhum serviço com data ainda.</div>';
   } else {
-    html += eventos.map(e=>
-      '<div class="hev'+(e.rm?" rm":"")+'" onclick="abrirChamado(\''+e.id+'\')" style="cursor:pointer">'+
-        '<div class="d">'+esc(dbr(e.data))+' · '+esc(e.col)+'</div>'+
-        (e.texto ? '<div class="t">'+esc(e.texto)+'</div>' : '<div class="t" style="color:var(--text4);font-style:italic">Sem descrição</div>')+
-        '<div class="q">'+esc(e.andamento || "sem andamento")+'</div>'+
-      '</div>').join("");
+    html += eventos.map(e=>{
+      // a cor da barra segue o RESPONSÁVEL; as etiquetas repetem o nome, então
+      // a cor nunca é a única forma de identificar
+      const cor = e.resp ? corDe(e.resp) : "var(--azul)";
+      return '<div class="hev'+(e.rm?" rm":"")+'" style="border-left-color:'+cor+'" onclick="abrirChamado(\''+e.id+'\')">'+
+        '<div class="top"><span class="d">'+esc(dbrh(e.data))+' · '+esc(rotuloColuna(e.col))+'</span>'+
+        '<span class="pill '+(normN(e.andamento)===normN(FINALIZADO)?"sim":"alerta")+'">'+
+          esc(e.andamento || "SEM ANDAMENTO")+'</span></div>'+
+        (e.texto ? '<div class="t">'+esc(e.texto)+'</div>'
+                 : '<div class="t" style="color:var(--text4);font-style:italic">Sem descrição</div>')+
+        '<div class="chips">'+ (e.resp?chip(e.resp):"") + e.serv.map(s=>chip(s)).join("") +'</div>'+
+      '</div>';
+    }).join("");
   }
   document.getElementById("historico").innerHTML = html;
 }
-/* A grafia exata de "INFORMAÇÕES REMARCAÇÃO N" pode variar na base; procura
-   pelo pedaço em vez de exigir o nome cravado. */
 function acharInfoRm(val, nivel){
   for(const col in val){
     const n = normN(col);
@@ -1130,45 +1625,58 @@ function acharInfoRm(val, nivel){
   return "";
 }
 
-/* ---------- kanban ---------- */
+/* ---------- kanban (item 7: só colunas com item) ---------- */
 function renderKanban(){
   const atvs = OBRA.atividades || [];
   document.getElementById("kanban-info").textContent =
     atvs.length + (atvs.length===1 ? " serviço" : " serviços");
-  const colunas = ANDAMENTOS.slice();
-  // um chamado recém-criado ainda não tem andamento: precisa aparecer em
-  // algum lugar, senão some da tela e a pessoa acha que o botão não funcionou
+  const blocos = [];
   const semStatus = atvs.filter(a=>!a.andamento);
-  let html = "";
-  if(semStatus.length) html += colunaKanban("SEM ANDAMENTO", semStatus);
-  colunas.forEach(c=>{
+  if(semStatus.length) blocos.push(["SEM ANDAMENTO", semStatus]);
+  ANDAMENTOS.forEach(c=>{
     const doGrupo = atvs.filter(a=>normN(a.andamento)===normN(c));
-    html += colunaKanban(c, doGrupo);
+    if(doGrupo.length) blocos.push([c, doGrupo]);   // coluna zerada fica oculta
   });
-  document.getElementById("kanban").innerHTML = html || '<div class="vazio">Nenhum serviço nesta obra.</div>';
+  document.getElementById("kanban").innerHTML = blocos.length
+    ? blocos.map(([t,l])=>colunaKanban(t,l)).join("")
+    : '<div class="vazio">Nenhum serviço nesta obra. Use o botão "+ Serviço de Pós Obra".</div>';
 }
 function colunaKanban(titulo, lista){
-  const cards = lista.length ? lista.map(a=>{
+  const cards = lista.map(a=>{
     const v = a.valores || {};
     const serv = Array.isArray(v["SERVIÇO"]) ? v["SERVIÇO"].join(", ") : (v["SERVIÇO"] || "");
     const dt = v["DATA DO SERVIÇO"] || v["DATA DO CHAMADO"] || "";
     const resp = v["RESPONSÁVEL"] || "";
-    return '<div class="kcard" onclick="abrirChamado(\''+a.id+'\')">'+
-      '<div class="sv">'+esc(serv || "Serviço sem tipo")+'</div>'+
-      '<div class="mt">'+[dbr(dt), resp].filter(Boolean).map(esc).join(" · ")+'</div></div>';
-  }).join("") : '<div class="vaziok">vazio</div>';
+    const cor = resp ? corDe(resp) : "var(--azul)";
+    return '<div class="kcard" style="border-left-color:'+cor+'" onclick="abrirChamado(\''+a.id+'\')">'+
+      '<div class="sv">'+esc(serv || "Serviço sem tipo")+(a.pendente?' <span class="pill novo">novo</span>':"")+'</div>'+
+      '<div class="mt">'+[dbrh(dt), resp].filter(Boolean).map(esc).join(" · ")+'</div></div>';
+  }).join("");
   return '<div class="kcol"><div class="kcol-tit">'+esc(titulo)+'<span class="n">'+lista.length+'</span></div>'+cards+'</div>';
 }
 
-/* ---------- criar serviço ---------- */
+/* ---------- criar serviço (itens 1 e 4) ---------- */
 function criarServico(){
   if(soLeitura()){ toast("Modo teste: nada é gravado.", 3); return; }
   if(!OBRA) return;
-  escrever({action:"posObraServicoNovo", pageId:OBRA.id}, "criar serviço pós obra").then(r=>{
+  const obraId = OBRA.id, titulo = OBRA.titulo;
+  escrever({action:"posObraServicoNovo", pageId:obraId}, "criar serviço pós obra").then(r=>{
     if(!r.ok){ toast("Não deu para criar: "+erroTexto(r.erro), 4); return; }
-    if(r.enfileirado){ toast("Sem internet — o serviço será criado quando reconectar.", 3.5); return; }
-    toast("Serviço criado.");
-    abrirObra(OBRA.id);            // relê para trazer o chamado novo
+    if(r.enfileirado){
+      toast("Sem internet — o serviço será criado quando reconectar.", 4);
+      return;
+    }
+    const id = r.resposta && r.resposta.id;
+    if(!id){ toast("Serviço criado."); abrirObra(obraId); return; }
+    // guarda no navegador de quem criou até o servidor passar a devolvê-lo
+    registrarNovo({ id:id, obraId:obraId, nome:(r.resposta.nome || titulo) });
+    const nova = atividadeDoNovo({ id:id, obraId:obraId, nome:(r.resposta.nome || titulo) });
+    OBRA.atividades = OBRA.atividades || [];
+    OBRA.atividades.push(nova);
+    pintarObra();
+    recarregarTudo();
+    toast("Serviço criado — preencha os dados.");
+    abrirChamado(id);              // item 4: já abre a aba dele pra editar
   });
 }
 
@@ -1181,17 +1689,14 @@ function editarObs(){
     valor: v["OBSERVAÇÕES"] || "",
     salvar: function(txt){
       return escrever({action:"posObraUpdate", pageId:OBRA.id, prop:"OBSERVAÇÕES", valor:txt}, "observação pós obra")
-        .then(r=>{
-          if(r.ok){ OBRA.valores["OBSERVAÇÕES"] = txt; renderHistorico(); }
-          return r;
-        });
+        .then(r=>{ if(r.ok){ OBRA.valores["OBSERVAÇÕES"] = txt; renderHistorico(); } return r; });
     }
   });
 }
 
 /* ===================== PAINEL DO CHAMADO ===================== */
 function abrirChamado(id){
-  const a = (OBRA.atividades||[]).find(x=>x.id===id);
+  const a = (OBRA && OBRA.atividades || []).find(x=>x.id===id);
   if(!a) return;
   CHAMADO = a;
   document.getElementById("pn-nome").textContent = a.nome || "Serviço";
@@ -1205,21 +1710,36 @@ function fecharChamado(){
   document.getElementById("painel").classList.remove("on");
   CHAMADO = null;
 }
-
-/* Nível de remarcação que um campo pertence: "DATA REMARCAÇÃO 2" -> 2.
-   Campo sem "REMARCA" no nome (ou sem número) -> 0, ou seja, sempre visível. */
+/* Nível de remarcação de um campo: "DATA REMARCAÇÃO 2" -> 2; campo comum -> 0. */
 function nivelCampo(nome){
   const n = normN(nome);
   if(n.indexOf("REMARCA")<0 && n.indexOf(" RM ")<0 && !/\bRM\d/.test(n)) return 0;
   const m = n.match(/(\d+)\s*$/);
   return m ? Number(m[1]) : 0;
 }
-/* Nível atual do chamado: "REMARCADO 3" -> 3; qualquer outro andamento -> 0. */
 function nivelAtual(andamento){
   const m = normN(andamento).match(/^REMARCADO\s*(\d+)$/);
   return m ? Number(m[1]) : 0;
 }
-
+/* Ordena pela lista pedida; o que não estiver nela vai pro fim, em ordem
+   alfabética (coluna nova no Notion aparece sozinha em vez de sumir).
+   `exato` existe por causa de uma armadilha real: "DATA DO SERVIÇO" CONTÉM
+   "SERVIÇO", então casar por pedaço jogava a data para a primeira posição e
+   embaralhava a ordem inteira. Nos campos principais a comparação é por nome
+   exato; só dentro do bloco de remarcação é por pedaço ("DATA", "INFORMA",
+   "FOTO"), onde os nomes variam de base pra base. */
+function ordenarCampos(lista, ordem, exato){
+  const pos = c => {
+    const n = normN(c.nome);
+    const i = ordem.findIndex(o => exato ? n === normN(o) : n.indexOf(normN(o))>=0);
+    return i<0 ? 999 : i;
+  };
+  return lista.slice().sort((a,b)=>{
+    const pa = pos(a), pb = pos(b);
+    if(pa!==pb) return pa-pb;
+    return String(a.nome).localeCompare(String(b.nome), "pt-BR");
+  });
+}
 function renderPainelChamado(){
   const body = document.getElementById("pn-body");
   if(!SCHEMA || !SCHEMA.campos){
@@ -1232,26 +1752,23 @@ function renderPainelChamado(){
   }
   const v = CHAMADO.valores || {};
   const nivel = nivelAtual(CHAMADO.andamento);
-
-  // campos base (nível 0) e, depois, um bloco por nível de remarcação já
-  // atingido — cumulativo, como combinado: REMARCADO 2 mostra o 1 e o 2
   const base = [], porNivel = {};
   SCHEMA.campos.forEach(c=>{
-    if(c.tipo === "title") return;                 // o nome vem da obra
-    if(normN(c.nome) === normN("PÓS OBRA")) return; // o vínculo não se edita aqui
+    if(c.tipo === "title") return;
+    if(normN(c.nome) === normN("PÓS OBRA")) return;
     const n = nivelCampo(c.nome);
     if(n === 0) base.push(c);
     else if(n <= nivel) (porNivel[n] = porNivel[n] || []).push(c);
   });
 
-  let html = base.map(c=>campoHtml(c, v)).join("");
+  let html = ordenarCampos(base, ORDEM_CAMPOS, true).map(c=>campoHtml(c, v)).join("");
   Object.keys(porNivel).sort((a,b)=>a-b).forEach(n=>{
     html += '<div class="grupo-rm"><div class="gt">Remarcação '+n+'</div>'+
-            porNivel[n].map(c=>campoHtml(c, v)).join("") + '</div>';
+            ordenarCampos(porNivel[n], ORDEM_RM, false).map(c=>campoHtml(c, v)).join("") + '</div>';
   });
   const escondidos = SCHEMA.campos.filter(c=>nivelCampo(c.nome)>nivel).length;
   if(escondidos){
-    html += '<div class="campo"><div class="dica">'+escondidos+' campo(s) de remarcação ficam ocultos até o '+
+    html += '<div class="campo"><div class="dica">'+escondidos+' campo(s) de remarcação aparecem quando o '+
             'ANDAMENTO DA SOLICITAÇÃO virar REMARCADO '+(nivel+1)+'.</div></div>';
   }
   body.innerHTML = html;
@@ -1262,6 +1779,7 @@ function campoHtml(c, v){
   const id = "f_" + btoa(unescape(encodeURIComponent(c.nome))).replace(/[^A-Za-z0-9]/g,"");
   const lab = '<label>'+esc(c.nome)+'</label>';
   const ro = soLeitura() ? " disabled" : "";
+  const jsNome = JSON.stringify(c.nome).replace(/"/g,"&quot;");
 
   if(!c.editavel && c.tipo !== "files"){
     const txt = Array.isArray(val) ? val.join(", ") : (val==null?"":String(val));
@@ -1269,14 +1787,18 @@ function campoHtml(c, v){
            '<div class="dica">calculado pelo Notion — não dá para editar aqui</div></div>';
   }
 
+  /* item 6: arquivo virou uma caixa própria, com contagem e botão largo */
   if(c.tipo === "files"){
     const arqs = Array.isArray(val) ? val : [];
-    const lista = arqs.map(f=>'<a class="anexo" href="'+esc(f.url||"#")+'" target="_blank" rel="noopener" '+
-      'onclick="event.preventDefault();verArquivo('+JSON.stringify(esc(f.name||"arquivo")).replace(/"/g,"&quot;")+
-      ','+JSON.stringify(f.url||"").replace(/"/g,"&quot;")+')">'+esc(f.name||"arquivo")+'</a>').join("");
-    return '<div class="campo">'+lab+'<div class="arqs">'+
-      (lista || '<span style="font-size:11.5px;color:var(--text4);font-style:italic">nenhum arquivo</span>')+
-      (soLeitura()?"":'<button class="anexo novo" onclick="anexarEm('+JSON.stringify(c.nome).replace(/"/g,"&quot;")+')">+ Anexar arquivo</button>')+
+    const lista = arqs.map(f=>'<a class="anexo" onclick="verArquivo('+
+      JSON.stringify(f.name||"arquivo").replace(/"/g,"&quot;")+','+
+      JSON.stringify(f.url||"").replace(/"/g,"&quot;")+')">📎 '+esc(f.name||"arquivo")+'</a>').join("");
+    return '<div class="campo">'+lab+
+      '<div class="arqbox2'+(arqs.length?" tem":"")+'">'+
+        '<div class="arq-cab">📎 '+(arqs.length?"Arquivos anexados":"Nenhum arquivo ainda")+
+          (arqs.length?'<span class="qtd">'+arqs.length+'</span>':"")+'</div>'+
+        (lista ? '<div class="arq-lista">'+lista+'</div>' : "")+
+        (soLeitura()?"":'<button class="bt-anexar" onclick="anexarEm('+jsNome+')">+ Anexar arquivo</button>')+
       '</div></div>';
   }
 
@@ -1284,37 +1806,50 @@ function campoHtml(c, v){
     const ops = ['<option value="">—</option>'].concat((c.opcoes||[]).map(o=>
       '<option value="'+esc(o)+'"'+(normN(o)===normN(val)?" selected":"")+'>'+esc(o)+'</option>')).join("");
     return '<div class="campo" id="cx_'+id+'">'+lab+'<select id="'+id+'"'+ro+
-      ' onchange="salvarCampo('+JSON.stringify(c.nome).replace(/"/g,"&quot;")+', this.value, \''+id+'\')">'+ops+'</select></div>';
+      ' onchange="salvarCampo('+jsNome+', this.value, \''+id+'\')">'+ops+'</select></div>';
   }
   if(c.tipo === "multi_select"){
     const sel = Array.isArray(val) ? val.map(normN) : [];
     const itens = (c.opcoes||[]).map(o=>
       '<label class="ms-item"><input type="checkbox" value="'+esc(o)+'"'+(sel.indexOf(normN(o))>=0?" checked":"")+ro+
-      ' onchange="salvarMulti('+JSON.stringify(c.nome).replace(/"/g,"&quot;")+', \''+id+'\')"> '+esc(o)+'</label>').join("");
+      ' onchange="salvarMulti('+jsNome+', \''+id+'\')"> '+esc(o)+'</label>').join("");
     return '<div class="campo" id="cx_'+id+'">'+lab+'<div class="ms-cx" id="'+id+'">'+
       (itens || '<span style="font-size:12px;color:var(--text4)">sem opções cadastradas</span>')+'</div></div>';
   }
   if(c.tipo === "date"){
-    return '<div class="campo" id="cx_'+id+'">'+lab+'<input type="date" id="'+id+'" value="'+esc(String(val||"").slice(0,10))+'"'+ro+
-      ' onchange="salvarCampo('+JSON.stringify(c.nome).replace(/"/g,"&quot;")+', this.value, \''+id+'\')"></div>';
+    /* item 5: DATA DO SERVIÇO e as de remarcação também guardam HORA.
+       datetime-local trabalha em hora local; o que vai pro Notion leva o fuso
+       -03:00 escrito (ver valorData), senão o Notion assume UTC e a hora
+       aparece 3 h adiantada no app dele. */
+    if(campoComHora(c.nome)){
+      const vv = String(val||"").slice(0,16);
+      return '<div class="campo" id="cx_'+id+'">'+lab+'<input type="datetime-local" id="'+id+'" value="'+esc(vv)+'"'+ro+
+        ' onchange="salvarCampo('+jsNome+', valorData(this.value, true), \''+id+'\')">'+
+        '<div class="dica">data e hora</div></div>';
+    }
+    return '<div class="campo" id="cx_'+id+'">'+lab+'<input type="date" id="'+id+'" value="'+esc(soData(val))+'"'+ro+
+      ' onchange="salvarCampo('+jsNome+', valorData(this.value, false), \''+id+'\')"></div>';
   }
   if(c.tipo === "checkbox"){
     return '<div class="campo" id="cx_'+id+'">'+lab+'<label class="ms-item"><input type="checkbox" id="'+id+'"'+(val?" checked":"")+ro+
-      ' onchange="salvarCampo('+JSON.stringify(c.nome).replace(/"/g,"&quot;")+', this.checked, \''+id+'\')"> marcar</label></div>';
+      ' onchange="salvarCampo('+jsNome+', this.checked, \''+id+'\')"> marcar</label></div>';
   }
   if(c.tipo === "rich_text"){
     const txt = String(val||"");
-    const curto = txt.length<=60 && txt.indexOf("\n")<0;
-    // texto longo abre no quadro grande: digitar parágrafo dentro de um input
-    // de uma linha é o que fazia todo mundo escrever tudo colado
     return '<div class="campo" id="cx_'+id+'">'+lab+
       '<div class="ro" style="cursor:'+(soLeitura()?"default":"text")+';min-height:38px;white-space:pre-wrap"'+
-      (soLeitura()?"":' onclick="editarTexto('+JSON.stringify(c.nome).replace(/"/g,"&quot;")+')"')+'>'+
+      (soLeitura()?"":' onclick="editarTexto('+jsNome+')"')+'>'+
       esc(txt || "—")+'</div>'+(soLeitura()?"":'<div class="dica">clique para escrever</div>')+'</div>';
   }
-  // number, url, email, phone_number e o resto: campo de texto simples
   return '<div class="campo" id="cx_'+id+'">'+lab+'<input type="text" id="'+id+'" value="'+esc(val==null?"":String(val))+'"'+ro+
-    ' onchange="salvarCampo('+JSON.stringify(c.nome).replace(/"/g,"&quot;")+', this.value, \''+id+'\')"></div>';
+    ' onchange="salvarCampo('+jsNome+', this.value, \''+id+'\')"></div>';
+}
+/* Valor de data pro Notion. Com hora, carimba o fuso de Brasília; sem hora,
+   manda só "aaaa-mm-dd" (data pura, sem fuso, que é como o resto do sistema
+   já grava). Campo vazio vira null e limpa a coluna. */
+function valorData(v, comHora){
+  if(!v) return "";
+  return comHora ? v + ":00-03:00" : v;
 }
 
 function salvarCampo(prop, valor, id){
@@ -1327,15 +1862,17 @@ function salvarCampo(prop, valor, id){
       return;
     }
     if(cx) cx.classList.remove("recusado");
-    // guarda na cópia em memória pra tela não voltar ao valor antigo
     CHAMADO.valores[prop] = valor;
+    // o serviço deixou de ser "só criado": já tem conteúdo no servidor
+    if(CHAMADO.pendente){ CHAMADO.pendente = false; esquecerNovo(CHAMADO.id); }
     if(normN(prop) === normN("ANDAMENTO DA SOLICITAÇÃO")){
       CHAMADO.andamento = valor;
       document.getElementById("pn-sub").textContent = valor || "sem andamento";
-      renderPainelChamado();     // mudou o nível: revela/esconde as remarcações
+      renderPainelChamado();
       renderKanban();
     }
     renderHistorico();
+    recarregarTudo();
     toast(r.enfileirado ? "Sem internet — vai subir quando reconectar." : "Salvo.");
   });
 }
@@ -1369,10 +1906,7 @@ function abrirCaixaTexto(cfg){
   document.getElementById("txt-overlay").classList.add("on");
   setTimeout(()=>a.focus(), 60);
 }
-function fecharCaixaTexto(){
-  document.getElementById("txt-overlay").classList.remove("on");
-  CTX_TXT = null;
-}
+function fecharCaixaTexto(){ document.getElementById("txt-overlay").classList.remove("on"); CTX_TXT = null; }
 function salvarCaixaTexto(){
   if(!CTX_TXT) return;
   if(soLeitura()){ toast("Modo teste: nada é gravado.", 3); fecharCaixaTexto(); return; }
@@ -1389,6 +1923,7 @@ function salvarCaixaTexto(){
 document.addEventListener("keydown", e=>{
   if(e.key === "Escape"){
     if(document.getElementById("txt-overlay").classList.contains("on")) fecharCaixaTexto();
+    else if(document.getElementById("mc-overlay").classList.contains("on")) fecharCard();
     else if(document.getElementById("arqoverlay").classList.contains("on")) fecharArquivo();
     else if(document.getElementById("painel").classList.contains("on")) fecharChamado();
   }
@@ -1420,24 +1955,158 @@ function enviarArquivo(input){
   const f = input.files && input.files[0];
   input.value = "";
   if(!f || !CTX_ARQ || !CHAMADO) return;
-  // 8 MB: acima disso o base64 estoura o limite de payload do Apps Script e o
-  // erro que volta não explica nada — melhor barrar aqui com uma mensagem clara
+  // 8 MB: acima disso o base64 estoura o payload do Apps Script e o erro que
+  // volta não explica nada
   if(f.size > 8*1024*1024){ toast("Arquivo muito grande (máx. 8 MB).", 4); return; }
-  const prop = CTX_ARQ;
+  const prop = CTX_ARQ, chamadoId = CHAMADO.id, obraId = OBRA.id;
   toast("Enviando "+f.name+"…", 4);
   const fr = new FileReader();
   fr.onload = ()=>{
     const b64 = String(fr.result).split(",")[1] || "";
-    escrever({action:"posObraAnexar", pageId:CHAMADO.id, prop:prop,
+    escrever({action:"posObraAnexar", pageId:chamadoId, prop:prop,
               filename:f.name, mimeType:f.type||"application/octet-stream", dataBase64:b64}, "anexo")
       .then(r=>{
         if(!r.ok){ toast("Não anexou: "+erroTexto(r.erro), 5); return; }
         toast("Arquivo anexado.");
-        abrirObra(OBRA.id);   // relê para trazer a URL do anexo novo
+        abrirObra(obraId, ()=>abrirChamado(chamadoId));
       });
   };
   fr.onerror = ()=> toast("Não consegui ler o arquivo.", 4);
   fr.readAsDataURL(f);
+}
+
+/* ===================== INDICADORES (itens 10 e 11) =====================
+ * Tudo é calculado do que a tela já tem em memória (lista de obras +
+ * agenda) — nenhuma consulta a mais ao Apps Script.
+ * Cada gráfico tem UMA série, então não há legenda: o título diz o que é, e
+ * o valor vai escrito na ponta da barra.
+ * =================================================================== */
+function servicosPorAtividade(){
+  // a agenda vem por marcação (uma linha por data); aqui volta a ser por serviço
+  const mapa = {};
+  AGENDA.forEach(m=>{
+    const a = mapa[m.atividadeId] || (mapa[m.atividadeId] = {
+      id:m.atividadeId, obraId:m.obraId, nome:m.nome, andamento:m.andamento,
+      responsavel:m.responsavel, servico:m.servico||[], datas:{} });
+    a.datas[normN(m.coluna)] = m.data;
+  });
+  return Object.keys(mapa).map(k=>mapa[k]);
+}
+function renderIndicadores(){
+  const atvs = servicosPorAtividade();
+  const obras = obrasComPendentes();
+
+  // tempo médio entre DATA DO SERVIÇO e DATA CONCLUSÃO
+  const durs = [];
+  atvs.forEach(a=>{
+    const ini = a.datas["DATA DO SERVICO"], fim = a.datas["DATA CONCLUSAO"];
+    if(!ini || !fim) return;
+    const d = diasEntre(ini, fim);
+    if(d !== null && d >= 0) durs.push({dias:d, mes:soData(fim).slice(0,7)});
+  });
+  const media = durs.length ? (durs.reduce((s,x)=>s+x.dias,0)/durs.length) : null;
+  const finalizados = atvs.filter(a=>normN(a.andamento)===normN(FINALIZADO)).length;
+  const remarcados = atvs.filter(a=>normN(a.andamento).indexOf("REMARCADO")===0).length;
+
+  document.getElementById("ind-info").textContent =
+    atvs.length + (atvs.length===1?" serviço":" serviços") + " com data · " + obras.length + " obras";
+  document.getElementById("ind-kpis").innerHTML =
+    kpi("Serviços registrados", atvs.length, "com pelo menos uma data", "hero") +
+    kpi("Finalizados", finalizados, atvs.length ? Math.round(finalizados/atvs.length*100)+"% do total" : "—") +
+    kpi("Em remarcação", remarcados, "serviços que precisaram voltar", remarcados?"alerta":"") +
+    kpi("Obras com serviço", new Set(atvs.map(a=>semHifen(a.obraId))).size, "de "+obras.length+" obras");
+
+  // 1) serviços por mês (pelo primeiro registro do serviço)
+  const porMes = {};
+  atvs.forEach(a=>{
+    const d = a.datas["DATA DO CHAMADO"] || a.datas["DATA DO SERVICO"];
+    if(!d) return;
+    const k = soData(d).slice(0,7);
+    porMes[k] = (porMes[k]||0)+1;
+  });
+  const meses = Object.keys(porMes).sort().slice(-12);
+
+  // 2) tempo médio por mês de conclusão
+  const durMes = {};
+  durs.forEach(x=>{ (durMes[x.mes] = durMes[x.mes] || []).push(x.dias); });
+  const mesesDur = Object.keys(durMes).sort().slice(-12);
+
+  // 3) obras com mais serviços
+  const porObra = {};
+  atvs.forEach(a=>{ const k = semHifen(a.obraId); porObra[k] = (porObra[k]||0)+1; });
+  const ranking = Object.keys(porObra).map(k=>{
+    const o = obras.find(x=>semHifen(x.id)===k);
+    return { rot: o ? o.titulo : "(obra fora da lista)", v: porObra[k] };
+  }).sort((a,b)=>b.v-a.v).slice(0,10);
+
+  // 4) serviços por tipo
+  const porTipo = {};
+  atvs.forEach(a=>(a.servico||[]).forEach(s=>{ porTipo[s] = (porTipo[s]||0)+1; }));
+  const tipos = Object.keys(porTipo).map(k=>({rot:k, v:porTipo[k]})).sort((a,b)=>b.v-a.v).slice(0,10);
+
+  document.getElementById("ind-graficos").innerHTML =
+    caixaGrafico("Serviços abertos por mês", "Pelo DATA DO CHAMADO (ou a data do serviço, quando não houver chamado). Últimos 12 meses com registro.",
+      barrasV(meses.map(m=>({rot:rotuloMes(m), v:porMes[m]})))) +
+    caixaGrafico("Tempo médio de execução", "Dias entre a DATA DO SERVIÇO e a DATA CONCLUSÃO. Só entram serviços com as duas datas preenchidas.",
+      (media===null
+        ? '<div class="vaziog">Nenhum serviço tem as duas datas preenchidas ainda.</div>'
+        : '<div class="hero-num"><span class="n">'+media.toFixed(1).replace(".",",")+'</span><span class="u">dias em média · '+durs.length+' serviço(s)</span></div>'+
+          barrasV(mesesDur.map(m=>({rot:rotuloMes(m), v:+(durMes[m].reduce((s,d)=>s+d,0)/durMes[m].length).toFixed(1)})), " d"))) +
+    caixaGrafico("Obras com mais serviços", "As 10 com mais chamados registrados — onde vale olhar de perto.",
+      barrasH(ranking)) +
+    caixaGrafico("Serviços por tipo", "O que mais aparece nos chamados (campo SERVIÇO).",
+      barrasH(tipos));
+}
+function rotuloMes(k){
+  const p = String(k).split("-");
+  return ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"][Number(p[1])-1]+"/"+String(p[0]).slice(2);
+}
+function caixaGrafico(tit, desc, corpo){
+  return '<div class="graf"><div class="gt">'+esc(tit)+'</div><div class="gd">'+esc(desc)+'</div>'+corpo+'</div>';
+}
+/* Barras verticais. Uma série só -> sem legenda; o valor vai escrito em cima
+   da barra, então dá pra ler o número sem passar o mouse. */
+function barrasV(dados, sufixo){
+  if(!dados.length) return '<div class="vaziog">Sem dados ainda.</div>';
+  const L=34, R=8, T=18, B=26, larg=560, alt=200;
+  const max = Math.max.apply(null, dados.map(d=>d.v)) || 1;
+  const areaL = larg-L-R, areaA = alt-T-B;
+  const passo = areaL/dados.length, bw = Math.max(6, Math.min(46, passo-10));
+  let s = '<svg viewBox="0 0 '+larg+' '+alt+'" role="img" aria-label="'+esc(dados.map(d=>d.rot+": "+d.v).join("; "))+'">';
+  s += '<line class="eixo" x1="'+L+'" y1="'+(T+areaA)+'" x2="'+(larg-R)+'" y2="'+(T+areaA)+'"/>';
+  // com poucos itens, meia unidade não existe ("0,5 serviço") — só 0 e o topo
+  (max>=4 ? [0,.5,1] : [0,1]).forEach(f=>{
+    const y = T+areaA-areaA*f;
+    if(f>0) s += '<line class="eixo" x1="'+L+'" y1="'+y+'" x2="'+(larg-R)+'" y2="'+y+'" opacity=".45"/>';
+    s += '<text class="rot" x="'+(L-6)+'" y="'+(y+3)+'" text-anchor="end">'+(Math.round(max*f*10)/10)+'</text>';
+  });
+  dados.forEach((d,i)=>{
+    const h = Math.max(2, areaA*(d.v/max));
+    const x = L + passo*i + (passo-bw)/2, y = T+areaA-h;
+    s += '<rect class="barra" x="'+x+'" y="'+y+'" width="'+bw+'" height="'+h+'" rx="4" ry="4">'+
+         '<title>'+esc(d.rot+": "+d.v+(sufixo||""))+'</title></rect>';
+    s += '<text class="valor" x="'+(x+bw/2)+'" y="'+(y-4)+'" text-anchor="middle">'+esc(String(d.v).replace(".",","))+'</text>';
+    s += '<text class="rot" x="'+(x+bw/2)+'" y="'+(T+areaA+15)+'" text-anchor="middle">'+esc(d.rot)+'</text>';
+  });
+  return s+'</svg>';
+}
+/* Barras horizontais — para nomes longos (endereço, tipo de serviço). */
+function barrasH(dados){
+  if(!dados.length) return '<div class="vaziog">Sem dados ainda.</div>';
+  const L=170, R=34, larg=560, lh=26, T=6;
+  const max = Math.max.apply(null, dados.map(d=>d.v)) || 1;
+  const alt = T*2 + dados.length*lh;
+  const areaL = larg-L-R;
+  let s = '<svg viewBox="0 0 '+larg+' '+alt+'" role="img" aria-label="'+esc(dados.map(d=>d.rot+": "+d.v).join("; "))+'">';
+  dados.forEach((d,i)=>{
+    const y = T + i*lh, w = Math.max(2, areaL*(d.v/max));
+    const rot = d.rot.length>26 ? d.rot.slice(0,25)+"…" : d.rot;
+    s += '<text class="rot" x="'+(L-8)+'" y="'+(y+lh/2+3)+'" text-anchor="end">'+esc(rot)+'<title>'+esc(d.rot)+'</title></text>';
+    s += '<rect class="barra" x="'+L+'" y="'+(y+4)+'" width="'+w+'" height="'+(lh-10)+'" rx="4" ry="4">'+
+         '<title>'+esc(d.rot+": "+d.v)+'</title></rect>';
+    s += '<text class="valor" x="'+(L+w+6)+'" y="'+(y+lh/2+3)+'">'+esc(String(d.v))+'</text>';
+  });
+  return s+'</svg>';
 }
 
 boot();

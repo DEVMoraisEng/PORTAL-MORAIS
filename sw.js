@@ -20,8 +20,10 @@
    anterior.
    v9 -> v10: entrou a pos-obra.html (setor novo) e o index.html ganhou o card
    dela. Sem trocar o número, o navegador de quem já visitou continuaria sem a
-   página nova na lista e ela não abriria offline. */
-const CACHE = "portal-morais-v10";
+   página nova na lista e ela não abriria offline.
+   v10 -> v11: a pos-obra.html mudou bastante (alertas, calendário por semana,
+   indicadores) e a ligacoes.html teve o aviso de versão atualizado. */
+const CACHE = "portal-morais-v11";
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html","./pos-obra.html","./app.js","./manifest.json"];
 
 self.addEventListener("install", e=>{
