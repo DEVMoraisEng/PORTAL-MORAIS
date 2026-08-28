@@ -1,0 +1,1446 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light only">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#295778">
+<!-- tema antes da pintura: sem isto a tela pisca branca pra quem usa escuro -->
+<script>(function(){try{var t=localStorage.getItem("morais_tema");
+  if(t!=="claro"&&t!=="escuro") t="claro";
+  document.documentElement.dataset.tema=t;}catch(e){}})();</script>
+<link rel="manifest" href="manifest.json">
+<title>Pós Obra · Morais Engenharia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Tema claro fixo — mesmo motivo do index.html/ligacoes.html: sem isto o
+   Android/iOS em modo escuro inverte inputs e selects nativos. */
+:root{color-scheme:light}
+html{background:var(--bg);min-height:100%}
+:root{
+  --azul:#295778;--azul-esc:#1e3f58;--teal:#8FDCD2;--verde:#2a9d5c;--verde-btn:#4cd964;--verde-esc:#1a6b40;
+  --bg:#EAF1F3;--bg2:#F5F9FA;--bg3:#dceaef;--border:#b8d0da;--border2:#d0e4ec;
+  --text:#1a3347;--text3:#5a8099;--text4:#8aacbb;--branco:#fff;
+  --vermelho:#c0392b;--amarelo:#b7791f;--amarelo-bg:#FFF7ED;--amarelo-bd:#FED7AA;
+  --sup:#fff;--sup-stick:#eef5f7;--hover:#e9f6ef;--hover-stick:#dff2e6;--sombra:rgba(20,40,55,.3)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.45;min-height:100vh}
+.cond{font-family:'Barlow Condensed',Inter,sans-serif}
+.wrap{max-width:1400px;margin:0 auto;padding:0 20px}
+header{background:linear-gradient(120deg,var(--azul-esc),var(--azul));position:relative}
+header::after{content:"";display:block;height:4px;background:linear-gradient(90deg,var(--verde-btn),var(--teal))}
+.hbar{display:flex;align-items:center;gap:13px;padding:14px 0;flex-wrap:wrap}
+.logo{background:#fff;border-radius:9px;padding:5px 10px;display:inline-flex}.logo img{height:38px;display:block}
+.htitle{font-family:'Barlow Condensed';font-weight:800;font-size:23px;color:#fff;text-transform:uppercase;letter-spacing:.5px;line-height:1}
+.hsub{color:var(--teal);font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase}
+.hspace{flex:1}
+.net{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;padding:3px 9px;border-radius:20px}
+.net.on{background:rgba(76,217,100,.22);color:#CFF9DC}.net.off{background:rgba(255,180,120,.28);color:#FFE2C6}
+.user{display:flex;align-items:center;gap:10px;color:#fff}.nome{font-weight:600;font-size:13.5px}
+.badge{font-size:10px;font-weight:800;letter-spacing:.5px;padding:3px 8px;border-radius:20px;background:rgba(255,255,255,.18);color:#fff;text-transform:uppercase}
+.badge.adm{background:var(--verde-btn);color:#0c3f22}
+.sair,.btn-sync{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;padding:7px 12px;font:inherit;font-weight:700;font-size:12.5px;cursor:pointer}
+.btn-sync{display:none;align-items:center;gap:6px}
+.filabadge{background:var(--vermelho);border-radius:20px;padding:0 6px;font-size:11px;display:none}
+.btema{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;
+  padding:6px 10px;font:inherit;font-size:15px;line-height:1;cursor:pointer}
+.btema:hover{background:rgba(255,255,255,.22)}
+main{padding-bottom:50px}
+.crumb{display:flex;align-items:center;gap:10px;margin:16px 0 14px;font-size:13px;color:var(--text3);flex-wrap:wrap}
+.btn-voltar{display:inline-flex;align-items:center;gap:6px;background:var(--azul-esc);border:1px solid rgba(143,220,210,.4);
+  border-radius:8px;padding:9px 16px;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;
+  color:var(--teal);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;text-decoration:none;transition:background .15s}
+.btn-voltar:hover{background:#16303f}
+.sec{display:flex;align-items:center;gap:10px;background:var(--bg3);border-left:4px solid var(--verde);border-radius:8px;padding:9px 14px;margin:22px 0 14px;flex-wrap:wrap}
+.sec .cond{font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--azul-esc)}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:13px}
+@media(max-width:1000px){.kpis{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:520px){.kpis{grid-template-columns:1fr}}
+.kpi{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:15px 16px 14px}
+.kpi .lab{font-size:10px;letter-spacing:.4px;text-transform:uppercase;color:var(--text3);font-weight:700}
+.kpi .val{font-family:'Barlow Condensed';font-size:30px;font-weight:800;line-height:1;margin-top:8px;color:var(--azul-esc)}
+.kpi .sub{font-size:11px;color:var(--text4);margin-top:6px}
+.kpi.hero{background:linear-gradient(135deg,var(--azul),var(--azul-esc));border:0}
+.kpi.hero .lab{color:rgba(255,255,255,.85)}.kpi.hero .val{color:#fff}.kpi.hero .sub{color:var(--teal)}
+.kpi.alerta .val{color:var(--vermelho)}
+.kpi[role=button]{cursor:pointer;transition:.15s}
+.kpi[role=button]:hover{border-color:var(--verde);box-shadow:0 3px 12px rgba(41,87,120,.12);transform:translateY(-1px)}
+.toolbar{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-bottom:12px}
+select,input.busca,input[type=date],input[type=text],textarea{border:1px solid var(--border);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;background:var(--sup);color:var(--text);max-width:100%}
+input.busca{min-width:230px;flex:1}
+.count{font-size:12px;color:var(--text3);font-weight:600;white-space:nowrap}
+.scroll-top{overflow-x:auto;overflow-y:hidden;height:14px;border:1px solid var(--border2);border-bottom:0;border-radius:10px 10px 0 0;background:var(--bg2)}
+.scroll-top>div{height:1px}
+.tabela-wrap{overflow:auto;max-height:70vh;border:1px solid var(--border2);border-radius:0 0 10px 10px;background:var(--sup)}
+table.grade{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;font-size:12.5px}
+table.grade thead th{background:var(--azul);color:#fff;text-align:center;padding:9px 11px;font-size:10px;letter-spacing:.4px;
+  text-transform:uppercase;position:sticky;top:0;white-space:nowrap;z-index:2;font-weight:700;border-right:1px solid rgba(255,255,255,.22)}
+table.grade thead th.stick{left:0;z-index:3}
+table.grade tbody td{padding:7px 11px;border-top:1px solid var(--border2);border-right:1px solid var(--border2);
+  white-space:nowrap;color:var(--text);max-width:280px;overflow:hidden;text-overflow:ellipsis}
+table.grade tbody td.stick{position:sticky;left:0;background:var(--sup);font-weight:700;z-index:1;border-right:2px solid var(--border)}
+table.grade tbody tr:nth-child(even) td{background:var(--bg2)}
+table.grade tbody tr:nth-child(even) td.stick{background:var(--sup-stick)}
+table.grade tbody tr:hover td{background:var(--hover)}
+table.grade tbody tr:hover td.stick{background:var(--hover-stick)}
+th.ord{cursor:pointer;user-select:none;-webkit-user-select:none}
+th.ord:hover{background:rgba(255,255,255,.12)}
+th .seta{margin-left:5px;font-size:10px;opacity:.55}
+th.ord.on .seta{opacity:1}
+.obralink{color:var(--azul);font-weight:800;cursor:pointer}
+.obralink:hover{text-decoration:underline}
+.pill{display:inline-block;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:800;letter-spacing:.3px;white-space:nowrap}
+.pill.sim{background:#DCFCE7;color:#166534}.pill.nao{background:#FEE2E2;color:#991B1B}
+.pill.neutro{background:var(--bg3);color:var(--azul-esc)}
+.pill.alerta{background:#FEF3C7;color:#92400E}.pill.critico{background:#FEE2E2;color:#991B1B}
+.vazio{background:var(--sup);border:1px dashed var(--border);border-radius:12px;padding:22px;color:var(--text3);text-align:center;font-size:13px}
+.load{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--verde);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.aviso{display:none;background:var(--amarelo-bg);border:1px solid var(--amarelo-bd);color:#9A3412;border-radius:10px;padding:9px 12px;font-size:12.5px;margin:14px 0}
+.semacesso{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:26px;text-align:center;margin-top:24px}
+.bt{border:0;border-radius:8px;padding:9px 14px;font:inherit;font-weight:700;font-size:13px;cursor:pointer;text-decoration:none;display:inline-block}
+.bt.az{background:var(--azul);color:#fff}.bt.vd{background:var(--verde);color:#fff}
+.bt.ghost{background:var(--sup);border:1px solid var(--border);color:var(--azul)}
+.bt[disabled]{opacity:.55;cursor:default}
+.tarja-teste{display:none;align-items:center;gap:9px;background:#FFF7ED;border:1px solid #FED7AA;
+  color:#9A3412;border-radius:10px;padding:9px 13px;font-size:12.5px;font-weight:600;margin-bottom:14px}
+.tarja-teste.on{display:flex}
+.tarja-teste b{font-weight:800;letter-spacing:.03em}
+.updated{color:var(--text4);font-size:11px;margin-top:16px;text-align:right}
+.hupd{font-size:10.5px;color:rgba(255,255,255,.72);white-space:nowrap;text-align:right;margin:0;line-height:1.2;max-width:210px}
+@media(max-width:900px){ .hupd{display:none} }
+.toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);background:var(--azul-esc);color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;font-weight:600;opacity:0;pointer-events:none;transition:.2s;z-index:60}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* ===================== CALENDÁRIO (página principal) =====================
+   Um mês por vez, com as marcações dos chamados. Cada dia mostra até 3
+   etiquetas e um "+N" quando passa disso — sem isso, um dia cheio estica a
+   linha inteira e o mês perde a forma de calendário. */
+.cal-box{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:14px}
+.cal-topo{display:flex;align-items:center;gap:10px;margin-bottom:11px;flex-wrap:wrap}
+.cal-mes{font-family:'Barlow Condensed';font-weight:800;font-size:18px;text-transform:uppercase;
+  letter-spacing:.4px;color:var(--azul-esc);min-width:190px}
+.cal-nav{border:1px solid var(--border);background:var(--sup);color:var(--azul);border-radius:8px;
+  width:34px;height:34px;font:inherit;font-size:15px;font-weight:800;cursor:pointer;line-height:1}
+.cal-nav:hover{background:var(--bg3)}
+.cal-grade{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.cal-dia-cab{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--text3);text-align:center;padding:4px 0}
+.cal-dia{min-height:78px;border:1px solid var(--border2);border-radius:9px;background:var(--bg2);padding:5px 6px;overflow:hidden}
+.cal-dia.fora{opacity:.4}
+.cal-dia.hoje{border-color:var(--verde);box-shadow:0 0 0 1px var(--verde) inset}
+.cal-num{font-size:11.5px;font-weight:800;color:var(--text3);margin-bottom:3px}
+.cal-dia.hoje .cal-num{color:var(--verde-esc)}
+.cal-mc{display:block;width:100%;text-align:left;border:0;border-radius:5px;padding:2px 5px;margin-bottom:2px;
+  font:inherit;font-size:10.5px;font-weight:700;line-height:1.25;cursor:pointer;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(41,87,120,.12);color:var(--azul)}
+.cal-mc:hover{background:var(--azul);color:#fff}
+.cal-mc.rm{background:#FEF3C7;color:#92400E}
+.cal-mc.rm:hover{background:#92400E;color:#fff}
+.cal-mais{font-size:10px;color:var(--text4);font-weight:700;padding-left:5px}
+.cal-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--text3);margin-top:10px}
+.cal-leg i{display:inline-block;width:11px;height:11px;border-radius:3px;vertical-align:-1px;margin-right:5px}
+@media(max-width:760px){
+  .cal-dia{min-height:56px;padding:4px}
+  .cal-mc{font-size:9.5px}
+  .cal-mes{font-size:15px;min-width:0}
+}
+
+/* ===================== PÁGINA DA OBRA ===================== */
+.obra-topo{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:15px 17px;margin-bottom:16px}
+.obra-nome{font-family:'Barlow Condensed';font-weight:800;font-size:24px;text-transform:uppercase;
+  letter-spacing:.4px;color:var(--azul-esc);line-height:1.1}
+.obra-dados{display:flex;gap:22px;flex-wrap:wrap;margin-top:9px}
+.od{min-width:130px}
+.od .l{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--text3)}
+.od .v{font-size:13.5px;font-weight:600;margin-top:2px}
+/* o telefone é um link (abre o discador no celular): sem cor própria ele
+   herdava o roxo de "link visitado" do navegador, que no tema escuro fica
+   quase ilegível */
+.od .v a{color:var(--azul);font-weight:700;text-decoration:none;border-bottom:1px solid var(--border2)}
+.od .v a:hover{color:var(--verde-esc);border-bottom-color:var(--verde)}
+.obra-acoes{display:flex;gap:9px;flex-wrap:wrap;margin-top:13px}
+.colunas{display:grid;grid-template-columns:1fr 400px;gap:16px;align-items:start}
+@media(max-width:1050px){ .colunas{grid-template-columns:1fr} }
+.painel-cx{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:15px 16px}
+.painel-tit{font-family:'Barlow Condensed';font-weight:800;font-size:16px;text-transform:uppercase;
+  color:var(--azul-esc);letter-spacing:.4px;margin-bottom:4px}
+.painel-sub{font-size:11.5px;color:var(--text3);margin-bottom:11px}
+
+/* ---------- garantias ---------- */
+.gar-resumo{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:14px}
+@media(max-width:760px){ .gar-resumo{grid-template-columns:repeat(2,1fr)} }
+.gr{border:1px solid var(--border2);border-radius:10px;padding:10px 11px;background:var(--bg2)}
+.gr.na{border-color:#86EFAC;background:#F0FDF4}
+.gr.fora{border-color:#FCA5A5;background:#FEF2F2}
+.gr .p{font-family:'Barlow Condensed';font-weight:800;font-size:19px;text-transform:uppercase;line-height:1;color:var(--azul-esc)}
+.gr .s{font-size:11px;font-weight:700;margin-top:5px}
+.gr.na .s{color:#166534}.gr.fora .s{color:#991B1B}
+.gr .d{font-size:10.5px;color:var(--text3);margin-top:3px}
+.gar-grupo{border:1px solid var(--border2);border-radius:10px;margin-bottom:7px;overflow:hidden}
+.gar-cab{display:flex;align-items:center;gap:9px;width:100%;padding:9px 11px;background:var(--bg2);
+  border:0;font:inherit;font-size:13px;font-weight:700;color:var(--text);cursor:pointer;text-align:left}
+.gar-cab:hover{background:var(--bg3)}
+.gar-cab .seta{font-size:10px;color:var(--text4);transition:transform .15s}
+.gar-grupo.aberto .gar-cab .seta{transform:rotate(90deg)}
+.gar-cab .nm{flex:1;overflow-wrap:anywhere}
+.gar-itens{display:none;padding:4px 11px 9px}
+.gar-grupo.aberto .gar-itens{display:block}
+.gi{display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-top:1px solid var(--border2)}
+.gi:first-child{border-top:0}
+.gi .txt{flex:1;font-size:12.5px;line-height:1.4}
+.gi .it{font-weight:700}
+.gi .fa{color:var(--text3);font-size:11.5px}
+.gi .pz{font-size:11px;color:var(--text4);font-weight:700;white-space:nowrap}
+.gi .st{white-space:nowrap}
+.fonte-tag{display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:.4px;padding:1px 6px;
+  border-radius:20px;background:var(--bg3);color:var(--text3);margin-left:6px;vertical-align:1px}
+
+/* ---------- histórico ---------- */
+.hist-fix{border:1px solid var(--verde);background:#F0FDF4;border-radius:10px;padding:11px 12px;margin-bottom:11px}
+.hist-fix .l{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--verde-esc);margin-bottom:4px}
+.hist-fix .t{font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere}
+.hist-fix .vazia{color:var(--text4);font-style:italic}
+.hev{border-left:3px solid var(--azul);background:var(--bg2);border-radius:0 9px 9px 0;padding:9px 11px;margin-bottom:8px}
+.hev.rm{border-left-color:#b7791f}
+.hev .d{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text3)}
+.hev .t{font-size:12.5px;margin-top:3px;white-space:pre-wrap;overflow-wrap:anywhere}
+.hev .q{font-size:11px;color:var(--text4);margin-top:4px}
+
+/* ---------- kanban ---------- */
+.kanban{display:flex;gap:11px;overflow-x:auto;padding-bottom:8px;-webkit-overflow-scrolling:touch}
+.kcol{flex:0 0 240px;background:var(--bg2);border:1px solid var(--border2);border-radius:11px;padding:10px;min-height:90px}
+.kcol-tit{font-family:'Barlow Condensed';font-weight:800;font-size:13px;text-transform:uppercase;
+  letter-spacing:.5px;color:var(--azul-esc);display:flex;align-items:center;gap:7px;margin-bottom:9px;line-height:1.15}
+.kcol-tit .n{margin-left:auto;background:var(--azul);color:#fff;border-radius:20px;
+  min-width:21px;height:19px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;padding:0 6px;font-family:Inter}
+.kcard{background:var(--sup);border:1px solid var(--border2);border-radius:9px;padding:9px 10px;margin-bottom:7px;cursor:pointer;transition:.13s}
+.kcard:hover{border-color:var(--verde);transform:translateY(-1px);box-shadow:0 3px 10px rgba(41,87,120,.10)}
+.kcard .sv{font-size:12.5px;font-weight:700;line-height:1.25;overflow-wrap:anywhere}
+.kcard .mt{font-size:11px;color:var(--text3);margin-top:4px}
+.kcol .vaziok{font-size:11.5px;color:var(--text4);text-align:center;padding:10px 0;font-style:italic}
+
+/* ---------- painel lateral (chamado) ---------- */
+.overlay{display:none;position:fixed;inset:0;background:rgba(20,40,55,.42);z-index:40}
+.overlay.on{display:block}
+.painel{position:fixed;top:0;right:0;height:100%;width:min(540px,100%);background:var(--bg2);z-index:41;
+  transform:translateX(102%);transition:transform .22s;display:flex;flex-direction:column;box-shadow:-6px 0 26px rgba(20,40,55,.20)}
+.painel.on{transform:none}
+.ph{background:var(--azul-esc);color:#fff;padding:16px 46px 16px 18px;position:relative}
+.ph .end{font-family:'Barlow Condensed';font-weight:800;font-size:19px;text-transform:uppercase;line-height:1.15}
+.ph .loc{color:var(--teal);font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-top:3px}
+.pfechar{position:absolute;top:12px;right:12px;border:0;background:rgba(255,255,255,.16);color:#fff;width:30px;height:30px;border-radius:8px;font-size:19px;cursor:pointer;line-height:1}
+.pbody{flex:1;overflow-y:auto;padding:16px 18px 40px}
+.campo{margin-bottom:13px}
+.campo label{display:block;font-size:10.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--text3);margin-bottom:4px}
+.campo select,.campo input,.campo textarea{width:100%}
+.campo .ro{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;font-size:13px;color:var(--text)}
+.campo .dica{font-size:11px;color:var(--text4);margin-top:3px}
+.campo.recusado input,.campo.recusado select,.campo.recusado textarea{outline:2px solid var(--vermelho);outline-offset:-1px}
+.grupo-rm{border:1px solid var(--border2);border-left:4px solid var(--amarelo);border-radius:10px;
+  padding:11px 12px 2px;margin:14px 0;background:var(--sup)}
+.grupo-rm .gt{font-family:'Barlow Condensed';font-weight:800;font-size:13.5px;text-transform:uppercase;
+  letter-spacing:.5px;color:var(--amarelo);margin-bottom:9px}
+.ms-cx{border:1px solid var(--border);border-radius:8px;background:var(--sup);padding:7px 9px;max-height:150px;overflow-y:auto}
+.ms-item{display:flex;align-items:center;gap:8px;padding:4px 2px;font-size:13px;cursor:pointer}
+.ms-item input{width:16px;height:16px}
+.arqs{display:flex;flex-direction:column;gap:6px}
+.anexo{display:inline-block;background:rgba(41,87,120,.10);color:var(--azul);border:1px solid var(--border2);
+  border-radius:20px;padding:3px 11px;font-size:11.5px;font-weight:800;cursor:pointer;white-space:nowrap;text-decoration:none}
+.anexo:hover{background:var(--azul);color:#fff;border-color:var(--azul)}
+.anexo.novo{background:transparent;color:var(--text3);border-style:dashed;font-weight:700;align-self:flex-start}
+.anexo.novo:hover{background:var(--verde);border-color:var(--verde);color:#fff}
+.arqoverlay{position:fixed;inset:0;background:rgba(15,30,40,.72);display:none;align-items:center;justify-content:center;z-index:70;padding:26px}
+.arqoverlay.on{display:flex}
+.arqbox{background:var(--sup);border-radius:14px;width:min(1000px,100%);height:min(88vh,100%);display:flex;flex-direction:column;overflow:hidden}
+.arqtopo{display:flex;align-items:center;gap:10px;padding:11px 14px;background:var(--azul-esc);color:#fff}
+.arqtopo .nm{font-weight:700;font-size:14px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arqtopo a,.arqtopo button{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;
+  border-radius:8px;padding:6px 11px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;text-decoration:none}
+.arqcorpo{flex:1;background:var(--bg2);display:flex;align-items:center;justify-content:center;overflow:auto}
+.arqcorpo iframe{width:100%;height:100%;border:0}
+.arqcorpo img{max-width:100%;max-height:100%;display:block}
+/* modal de texto longo */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(20,40,55,.45);z-index:50;align-items:center;justify-content:center;padding:18px}
+.modal-overlay.on{display:flex}
+.modal-cx{background:var(--sup);border-radius:14px;width:min(560px,100%);max-height:86vh;display:flex;flex-direction:column;padding:18px;box-shadow:0 18px 40px var(--sombra)}
+.modal-tit{font-family:'Barlow Condensed';font-weight:800;font-size:20px;text-transform:uppercase;color:var(--azul-esc);letter-spacing:.4px}
+.modal-sub{font-size:12.5px;color:var(--text3);margin:2px 0 12px}
+.modal-acoes{display:flex;justify-content:flex-end;gap:9px;margin-top:14px}
+.txt-area{width:100%;min-height:210px;max-height:52vh;resize:vertical;padding:11px 12px;
+  border:1px solid var(--border);border-radius:10px;font:inherit;font-size:14px;line-height:1.5;
+  color:var(--text);background:var(--sup);white-space:pre-wrap}
+.txt-area:focus{outline:2px solid var(--azul);outline-offset:-1px}
+.txt-dica{font-size:11.5px;color:var(--text3);margin-top:7px}
+
+/* ==================== CELULAR ==================== */
+@media(max-width:680px){
+  input,select,textarea{font-size:16px}
+  .wrap{padding:0 12px}
+  .bt,.btn-voltar,.sair,.btn-sync{min-height:40px}
+  .hbar{gap:9px;padding:10px 0;flex-wrap:nowrap}
+  .logo{padding:4px 7px}.logo img{height:26px}
+  .htitle{font-size:15px;line-height:1.05}
+  .hsub{display:none}.net{display:none}
+  .user{gap:7px;margin-left:auto}.user .nome{display:none}
+  .sair{padding:8px 10px;font-size:12px}
+  .crumb{font-size:12px;margin:12px 0 10px;gap:7px}
+  .btn-voltar{padding:8px 11px;font-size:11.5px;white-space:nowrap;letter-spacing:.04em}
+  .sec{padding:8px 11px;margin:16px 0 10px}
+  .sec .cond{font-size:15px}
+  .kpis{grid-template-columns:1fr;gap:10px}
+  .kpi{padding:12px 13px}.kpi .val{font-size:26px}
+  .toolbar{flex-direction:column;align-items:stretch;gap:8px}
+  .toolbar>select,.toolbar>input,.toolbar>button,.toolbar>.bt,.busca{width:100%;min-width:0}
+  .count{text-align:right;white-space:normal}
+  .tabela-wrap{max-height:66vh;-webkit-overflow-scrolling:touch}
+  table.grade{font-size:12px}
+  table.grade thead th{padding:8px 9px}
+  table.grade tbody td{padding:9px 9px;max-width:190px}
+  table.grade tbody td.stick{white-space:normal;max-width:43vw;min-width:120px;line-height:1.25}
+  .obra-nome{font-size:18px}
+  .painel{width:100vw;max-width:100vw}
+  .ph{padding:14px 44px 14px 14px}.ph .end{font-size:16px}
+  .pbody{padding:13px 14px 40px}
+  .kcol{flex:0 0 82vw}
+  .toast{left:12px;right:12px;bottom:14px;transform:translateY(20px);text-align:center}
+  .toast.on{transform:none}
+  .modal-overlay{padding:10px}.modal-cx{padding:14px;max-height:92vh}
+  .txt-area{font-size:16px;min-height:170px}
+}
+
+/* ===================== MODO ESCURO ===================== */
+html[data-tema="escuro"]{
+  color-scheme:dark;
+  --azul:#2f6e93;--azul-esc:#122430;--teal:#79c8bf;--verde:#2f9e63;--verde-btn:#3cbf5d;--verde-esc:#17603a;
+  --bg:#0e1920;--bg2:#15222c;--bg3:#1a2c38;--border:#2d4757;--border2:#243a4a;
+  --text:#e7eff5;--text3:#9db4c4;--text4:#7794a6;--branco:#15222c;
+  --vermelho:#e0604f;--amarelo:#e3ab3f;--amarelo-bg:#2a2113;--amarelo-bd:#57431f;
+  --sup:#15222c;--sup-stick:#1a2934;--hover:#1d3a2c;--hover-stick:#234634;--sombra:rgba(0,0,0,.6);
+}
+html[data-tema="escuro"] body{background:var(--bg)}
+html[data-tema="escuro"] table.grade tbody tr:nth-child(even) td{background:#121e27}
+html[data-tema="escuro"] .pill.sim{background:#16341f;color:#8ce0a5}
+html[data-tema="escuro"] .pill.nao,html[data-tema="escuro"] .pill.critico{background:#3a1e1e;color:#f3a29a}
+html[data-tema="escuro"] .pill.alerta{background:#3a2d12;color:#f0c95f}
+html[data-tema="escuro"] .aviso{color:#f0c95f}
+html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;color:#f0c95f}
+html[data-tema="escuro"] .gr.na{background:#16341f;border-color:#2a6b43}
+html[data-tema="escuro"] .gr.na .s{color:#8ce0a5}
+html[data-tema="escuro"] .gr.fora{background:#3a1e1e;border-color:#7a3a3a}
+html[data-tema="escuro"] .gr.fora .s{color:#f3a29a}
+html[data-tema="escuro"] .hist-fix{background:#16341f;border-color:#2a6b43}
+html[data-tema="escuro"] .hist-fix .l{color:#8ce0a5}
+html[data-tema="escuro"] .cal-mc{background:rgba(143,211,238,.12);color:#8fd3ee}
+html[data-tema="escuro"] .cal-mc.rm{background:#3a2d12;color:#f0c95f}
+html[data-tema="escuro"] .painel{box-shadow:-6px 0 26px rgba(0,0,0,.55)}
+html[data-tema="escuro"] .kpi.hero .val{color:#fff}
+html[data-tema="escuro"] .sec .cond,
+html[data-tema="escuro"] .kpi .val,
+html[data-tema="escuro"] .obra-nome,
+html[data-tema="escuro"] .painel-tit,
+html[data-tema="escuro"] .modal-tit,
+html[data-tema="escuro"] .cal-mes,
+html[data-tema="escuro"] .kcol-tit,
+html[data-tema="escuro"] .gr .p,
+html[data-tema="escuro"] .pill.neutro{color:var(--teal)}
+html[data-tema="escuro"] .obralink,
+html[data-tema="escuro"] .bt.ghost,
+html[data-tema="escuro"] .od .v a,
+html[data-tema="escuro"] .anexo{color:#8fd3ee}
+html[data-tema="escuro"] .anexo{background:rgba(143,211,238,.10);border-color:var(--border)}
+html[data-tema="escuro"] .anexo:hover,html[data-tema="escuro"] .anexo.novo:hover{color:#08131a}
+html[data-tema="escuro"] .btn-voltar:hover{background:#1c3b4d}
+html[data-tema="escuro"] .logo{background:#fff}
+</style>
+</head>
+<body>
+  <header>
+    <div class="wrap hbar">
+      <span class="logo"><img src="img/logo.png" alt="Morais" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-block'"><b style="display:none;font-family:'Barlow Condensed';font-weight:800;font-size:16px;color:var(--azul-esc);padding:0 4px">MORAIS</b></span>
+      <div><div class="htitle">Pós Obra</div><div class="hsub">Morais Engenharia</div></div>
+      <div class="hspace"></div>
+      <span class="net on" id="net-status">online</span>
+      <button class="btn-sync" id="btn-sync" onclick="sincronizar()">↻ Sincronizar <span class="filabadge" id="fila-badge">0</span></button>
+      <span class="hupd updated" id="updated"></span>
+      <div class="user">
+        <div style="text-align:right"><div class="nome" id="u-nome">—</div><span class="badge" id="u-tipo">—</span></div>
+        <button class="btema" id="btema" onclick="trocarTema()" title="Alternar claro/escuro" aria-label="Alternar claro/escuro">🌙</button>
+        <button class="sair" onclick="sair()">Sair</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="tarja-teste" id="tarja-teste">
+      <span>🔍</span><span><b>MODO TESTE</b> — este login enxerga tudo, mas nenhuma alteração é gravada.</span>
+    </div>
+    <div class="aviso" id="aviso"></div>
+    <div class="aviso" id="aviso-gs"></div>
+
+    <div id="sem-acesso" class="semacesso" style="display:none">
+      <h2>Sem acesso</h2>
+      <p>Seu login não tem o acesso <b>PÓS OBRA</b>. Fale com um ADM.</p>
+      <a class="bt az" href="index.html">Voltar ao portal</a>
+    </div>
+
+    <!-- ===================== LISTA DE OBRAS ===================== -->
+    <section id="view-hub">
+      <div class="crumb"><a class="btn-voltar" href="index.html">← Voltar para o Dashboard</a></div>
+
+      <div class="sec"><span class="cond">Panorama</span></div>
+      <div class="kpis" id="kpis"><div class="kpi"><div class="lab">Carregando</div><div class="val"><span class="load"></span></div></div></div>
+
+      <div class="sec"><span class="cond">Calendário de Serviços</span><span style="flex:1"></span><span class="count" id="cal-info"></span></div>
+      <div class="cal-box" id="cal-box"><div class="vazio"><span class="load"></span> Carregando…</div></div>
+
+      <div class="sec"><span class="cond">Obras</span></div>
+      <div class="toolbar">
+        <input class="busca" type="search" id="busca" name="q_pos" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Buscar por endereço ou cliente…" oninput="renderObras()">
+        <select id="f-status" onchange="renderObras()">
+          <option value="">Todos os status</option>
+          <option value="PÓS OBRA EM ANDAMENTO">PÓS OBRA EM ANDAMENTO</option>
+          <option value="SEM PÓS OBRA">SEM PÓS OBRA</option>
+        </select>
+        <span class="count" id="obras-count"></span>
+      </div>
+      <div class="scroll-top" id="obras-stop"><div></div></div>
+      <div class="tabela-wrap" id="obras-wrap"><div class="vazio"><span class="load"></span> Carregando…</div></div>
+    </section>
+
+    <!-- ===================== UMA OBRA ===================== -->
+    <section id="view-obra" style="display:none">
+      <div class="crumb"><button class="btn-voltar" onclick="irHub()">← Voltar para Pós Obra</button></div>
+
+      <div class="obra-topo" id="obra-topo"></div>
+
+      <div class="colunas">
+        <div class="painel-cx">
+          <div class="painel-tit">Status das garantias</div>
+          <div class="painel-sub" id="gar-sub"></div>
+          <div id="gar-resumo"></div>
+          <div class="toolbar" style="margin:12px 0 10px">
+            <input class="busca" type="search" id="gar-busca" placeholder="Buscar item de garantia (pisos, pintura, esquadrias…)" oninput="renderGarantias()">
+            <select id="gar-filtro" onchange="renderGarantias()">
+              <option value="">Todos</option>
+              <option value="na">Só NA GARANTIA</option>
+              <option value="fora">Só FORA DA GARANTIA</option>
+            </select>
+          </div>
+          <div id="gar-lista"></div>
+        </div>
+
+        <div class="painel-cx">
+          <div class="painel-tit">Histórico</div>
+          <div class="painel-sub">Observação da obra fixada no topo; abaixo, os serviços em ordem de data.</div>
+          <div id="historico"></div>
+        </div>
+      </div>
+
+      <div class="sec"><span class="cond">Serviços de Pós Obra</span><span style="flex:1"></span><span class="count" id="kanban-info"></span></div>
+      <div class="kanban" id="kanban"></div>
+      <div class="updated"></div>
+    </section>
+    <div class="updated"></div>
+  </main>
+
+  <div class="overlay" id="overlay" onclick="fecharChamado()"></div>
+  <aside class="painel" id="painel">
+    <div class="ph"><div class="end" id="pn-nome">Serviço</div><div class="loc" id="pn-sub"></div><button class="pfechar" onclick="fecharChamado()">×</button></div>
+    <div class="pbody" id="pn-body"></div>
+  </aside>
+
+  <div class="modal-overlay" id="txt-overlay" onclick="if(event.target===this)fecharCaixaTexto()">
+    <div class="modal-cx">
+      <div class="modal-tit" id="txt-tit">Observações</div>
+      <div class="modal-sub" id="txt-sub"></div>
+      <textarea class="txt-area" id="txt-area" placeholder="Escreva aqui. Enter pula de linha."></textarea>
+      <div class="txt-dica">Enter pula de linha · Ctrl+Enter salva · Esc fecha</div>
+      <div class="modal-acoes">
+        <button class="bt ghost" onclick="fecharCaixaTexto()">Cancelar</button>
+        <button class="bt az" id="txt-salvar" onclick="salvarCaixaTexto()">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="arqoverlay" id="arqoverlay" onclick="if(event.target===this)fecharArquivo()">
+    <div class="arqbox">
+      <div class="arqtopo">
+        <span class="nm" id="arq-nome">Arquivo</span>
+        <a id="arq-baixar" href="#" target="_blank" rel="noopener" download>Baixar</a>
+        <button onclick="fecharArquivo()">Fechar</button>
+      </div>
+      <div class="arqcorpo" id="arq-corpo"></div>
+    </div>
+  </div>
+
+  <input type="file" id="arq-input" style="display:none" onchange="enviarArquivo(this)">
+  <div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+<script>
+/* ===================== TABELA DE GARANTIAS =====================
+ * Transcrita do "Manual do Proprietário" (mesma fonte do documento
+ * "Garantias e Prazos" entregue em 27/08/2026). São as DUAS listas do manual,
+ * como combinado: os prazos específicos dos itens da casa (marcados "M") e a
+ * tabela técnica completa da NBR 15575 (marcados "N").
+ *
+ * Formato de cada linha: [grupo, item, falha, prazo, fonte]
+ *
+ * Fica AQUI, na página, e não no Apps Script, de propósito: é tabela fixa e a
+ * conta é pura aritmética de data. Mandar isso pro servidor só gastaria cota
+ * e deixaria a tela mais lenta, sem ganhar nada.
+ * =================================================================== */
+const GARANTIAS = [
+["Estrutura","","Problemas em lajes, vigas, pilares, fundações, contenções e arrimos que comprometam a solidez/segurança da edificação","5 anos","M"],
+["Alvenarias — paredes internas","","Fissuras perceptíveis a mais de 1 metro de distância","6 meses","M"],
+["Alvenarias — paredes externas/fachada","","Fissuras que possam gerar infiltração","6 meses","M"],
+["Alvenarias","","Problemas que comprometam a solidez/segurança da edificação (vedações)","5 anos","M"],
+["Esquadrias de madeira (portas)","","Lascadas, trincadas, riscadas ou manchadas","No ato da vistoria do imóvel","M"],
+["Esquadrias de madeira (portas)","","Dobradiças — desempenho do sistema","1 ano","M"],
+["Esquadrias de alumínio (janelas)","","Perfis riscados, amassados ou manchados","No ato da vistoria do imóvel","M"],
+["Esquadrias de alumínio (janelas)","","Folhas móveis — desencaixe e descolamento","1 ano","M"],
+["Vidros","","Quebrados, trincados ou riscados","No ato da vistoria do imóvel","M"],
+["Vidros","","Delaminação","1 ano","M"],
+["Piso cerâmico","","Peças quebradas, trincadas, riscadas, manchadas ou com tonalidade diferente","No ato da vistoria do imóvel","M"],
+["Piso cerâmico","","Perda de aderência, desgaste","1 ano","M"],
+["Rejunte","","Falhas ou manchas","No ato da vistoria do imóvel","M"],
+["Pintura","","Sujeira ou mau acabamento","No ato da vistoria do imóvel","M"],
+["Forro de gesso corrido","","Sujeira, fissura ou mau acabamento","No ato da vistoria do imóvel","M"],
+["Telhado","","Telhas quebradas ou mau acabamento","No ato da vistoria do imóvel","M"],
+["Instalações hidrossanitárias — louças, caixa de descarga e bancadas","","Quebrados, trincados, manchados ou entupidos","No ato da vistoria do imóvel","M"],
+["Instalações hidrossanitárias — metais sanitários, sifões e ralos","","Quebrados, trincados, manchados ou entupidos","No ato da vistoria do imóvel","M"],
+["Instalações hidrossanitárias","","Falha dos produtos","1 ano","M"],
+["Instalações hidrossanitárias","","Falha de instalação","3 anos","M"],
+["Instalações elétricas — tomadas, interruptores e disjuntores","","Espelhos danificados ou mal colocados","No ato da vistoria do imóvel","M"],
+["Instalações elétricas — tomadas, interruptores e disjuntores","","Desempenho do material e isolamento térmico","Especificado pelo fabricante","M"],
+["Instalações elétricas — tomadas, interruptores e disjuntores","","Problemas com a instalação","6 meses","M"],
+["Instalações elétricas — fios, cabos e tubulação","","Desempenho do material e isolamento térmico","Especificado pelo fabricante","M"],
+["Instalações elétricas — fios, cabos e tubulação","","Problemas com a instalação","3 anos","M"],
+["Instalações complementares (telefone, interfone e televisão)","","Falha dos produtos","1 ano","M"],
+["Pisos de ambientes internos","Camada de regularização (contrapiso)","Dessolidarização; desagregação/pulverulência na superfície","3 anos","N"],
+["Pisos de ambientes internos","Camada de revestimento/acabamento e sua fixação","Perda de aderência, desgaste","1 ano","N"],
+["Pisos de ambientes internos","Rejuntamento e juntas de sistemas de componentes de piso","Desgaste; dessolidarização","1 ano","N"],
+["Pisos de ambientes internos","Pisos de estacionamentos/garagens cobertos","Desgaste; dessolidarização","3 anos","N"],
+["Pisos de ambientes internos","Selantes, juntas de dilatação","Descolamento, ressecamento","1 ano","N"],
+["Pisos de ambientes externos","Camada de regularização (contrapiso)","Dessolidarização; desagregação/pulverulência na superfície","3 anos","N"],
+["Pisos de ambientes externos","Camada de revestimento/acabamento e sua fixação","Dessolidarização, empenamento, ruptura, desgaste, deterioração por umidade","1 ano","N"],
+["Pisos de ambientes externos","Rejuntamento de componentes de piso","Desgaste; dessolidarização","1 ano","N"],
+["Pisos de ambientes externos","Selantes, juntas de dilatação","Descolamento, ressecamento","1 ano","N"],
+["Pisos de ambientes externos","Pisos cobertos e descobertos de estacionamentos/garagens externos","Desgaste; dessolidarização; ruptura; deterioração por umidade","3 anos","N"],
+["Pavimentação externa à edificação","Pavimentos de acesso de pedestres à edificação","Desgaste; dessolidarização","3 anos","N"],
+["Pavimentação externa à edificação","Pavimentos de acesso de automóveis à edificação","Desgaste; dessolidarização","1 ano","N"],
+["Rodapés","Rodapés de quaisquer naturezas","Desgaste; dessolidarização; ruptura; deterioração por umidade","1 ano","N"],
+["Vedações verticais externas","Vedações das fachadas (alvenaria, pele de vidro, painéis de concreto ou outros)","Perda de integridade, dessolidarização de materiais/componentes","5 anos","N"],
+["Vedações verticais externas","Selantes, juntas de dilatação","Perda de estanqueidade","3 anos","N"],
+["Revestimentos de vedações verticais externas","Camada de revestimento (ex.: argamassado sobre alvenaria)","Dessolidarização","5 anos","N"],
+["Revestimentos de vedações verticais externas","Camada de revestimento (ex.: argamassado sobre alvenaria)","Desgaste, empolamento, descascamento, esfarelamento, perda de estanqueidade","3 anos","N"],
+["Revestimentos de vedações verticais externas","Camada de acabamento decorativo aderido (cerâmicos, pedras naturais)","Dessolidarização","5 anos","N"],
+["Revestimentos de vedações verticais externas","Acabamento decorativo — tinta látex standard","Perda de integridade da película, eflorescência, bolhas, bolor, fungo, mofo, algas","1 ano","N"],
+["Revestimentos de vedações verticais externas","Acabamento decorativo — tinta látex premium e super premium","Mesmas falhas acima","3 anos","N"],
+["Revestimentos de vedações verticais externas","Acabamento decorativo — esmalte sintético e tinta a óleo base solvente","Enrugamento, bolhas, perda de integridade da película","1 ano","N"],
+["Revestimentos de vedações verticais externas","Acabamento decorativo — textura","Perda de integridade da película, bolhas","3 anos","N"],
+["Revestimentos de vedações verticais externas","Rejuntamento","Desgaste; dessolidarização","1 ano","N"],
+["Revestimentos de vedações verticais externas","Selantes, juntas de dilatação","Perda de aderência","3 anos","N"],
+["Vedações verticais internas (áreas comuns e privativas)","Vedações verticais em ambientes internos, de quaisquer materiais/componentes","Perda de integridade, dessolidarização","5 anos","N"],
+["Revestimentos de vedações verticais internas","Camada de revestimento (ex.: argamassado sobre alvenaria)","Desgaste, empolamento, dessolidarização, descascamento, esfarelamento, perda de estanqueidade","3 anos","N"],
+["Revestimentos de vedações verticais internas","Camada de acabamento decorativo aderido","Desgaste, dessolidarização","3 anos","N"],
+["Esquadrias internas e externas — janelas e portas entre vãos (aço, alumínio, madeira e PVC)","Os perfis que compõem as esquadrias","Falha no tratamento superficial (pintura, alteração de cor, descascamento, perda de brilho)","3 anos","N"],
+["Esquadrias internas e externas — janelas e portas entre vãos (aço, alumínio, madeira e PVC)","Mecanismos automatizados de persianas/venezianas/vidros","Mau funcionamento","1 ano","N"],
+["Esquadrias internas e externas — janelas e portas entre vãos (aço, alumínio, madeira e PVC)","Perfil de palheta de persianas/venezianas","Desencaixe ou deformação permanente da palheta","1 ano","N"],
+["Esquadrias internas e externas — janelas e portas entre vãos (aço, alumínio, madeira e PVC)","Perfil de palheta de persianas/venezianas","Ruptura, deformação, flexão, amarelamento","5 anos","N"],
+["Esquadrias internas e externas — janelas e portas entre vãos (aço, alumínio, madeira e PVC)","Vidros","Delaminação","1 ano","N"],
+["Esquadrias internas e externas — janelas e portas entre vãos (aço, alumínio, madeira e PVC)","Vidros","Dessolidarização em relação à esquadria","5 anos","N"],
+["Esquadrias internas e externas — janelas e portas entre vãos (aço, alumínio, madeira e PVC)","Perfis das esquadrias de madeira","Falha no tratamento superficial (fissuras na pintura ou verniz)","1 ano","N"],
+["Esquadrias internas e externas — janelas e portas entre vãos (aço, alumínio, madeira e PVC)","Reforço metálico de perfis principais de PVC (aço ou alumínio)","Corrosão, ruptura, deformação, flexão","5 anos","N"],
+["Esquadrias internas e externas — janelas e portas entre vãos (aço, alumínio, madeira e PVC)","Perfis principais que constituem a estrutura da esquadria de PVC","Amarelamento","5 anos","N"],
+["Esquadrias internas e externas — janelas e portas entre vãos (aço, alumínio, madeira e PVC)","Vedação da interface vertical e horizontal da esquadria","Perda de estanqueidade por falta de aderência/vedação","1 ano","N"],
+["Esquadrias internas e externas — janelas e portas entre vãos (aço, alumínio, madeira e PVC)","Vedação entre componente da esquadria","Perda de estanqueidade por falta de aderência/vedação","3 anos","N"],
+["Elementos e componentes construtivos de proteção","Peitoris e guarda-corpos, ancoragem de equipamentos de segurança","Ruptura ou perda de estabilidade","5 anos","N"],
+["Elementos e componentes construtivos de proteção","Peitoris e guarda-corpos, ancoragem de equipamentos de segurança","Oxidação que não acarrete perda de seção/estabilidade","1 ano","N"],
+["Elementos e componentes construtivos de proteção","Corrimãos","Ruptura ou perda de estabilidade","3 anos","N"],
+["Elementos e componentes construtivos de proteção","Corrimãos","Oxidação que não acarrete perda de seção/estabilidade","1 ano","N"],
+["Portas de acesso às edificações, unidades e portas internas","Guarnições, escovas, elementos de vedação","Desencaixe, deslocamento","1 ano","N"],
+["Portas de acesso às edificações, unidades e portas internas","Guarnições, escovas, elementos de vedação","Perda de vedação","3 anos","N"],
+["Portas de acesso às edificações, unidades e portas internas","Componentes de movimentação/fechamento (fechos, roldanas, parafusos, articulações, braços)","Desencaixe, deslocamento","1 ano","N"],
+["Portas de acesso às edificações, unidades e portas internas","Componentes de movimentação/fechamento (fechos, roldanas, parafusos, articulações, braços)","Deformação, oxidação, ruptura, dessolidarização, falha de funcionamento","3 anos","N"],
+["Portas de acesso às edificações, unidades e portas internas","Folhas móveis (incl. persianas/venezianas)","Desencaixe, deslocamento","1 ano","N"],
+["Portas de acesso às edificações, unidades e portas internas","Folhas móveis (incl. persianas/venezianas)","Folgas na vedação, encaixe e fixação","3 anos","N"],
+["Portas de acesso às edificações, unidades e portas internas","Folhas móveis (incl. persianas/venezianas)","Deformação, corrosão, ruptura, dessolidarização","5 anos","N"],
+["Portas de acesso às edificações, unidades e portas internas","Perfis principais que constituem a estrutura da esquadria","Ruptura, deformação, flexão, trincas ou cavidades","5 anos","N"],
+["Portas de acesso às edificações, unidades e portas internas","Mecanismos automatizados de persianas/venezianas/vidros","Mau funcionamento","1 ano","N"],
+["Portas de acesso às edificações, unidades e portas internas","Marcos e folhas das esquadrias de madeira","Empenamento, descolamento de camadas, falha no tratamento superficial (manchas, amarelamento, fissuras)","1 ano","N"],
+["Portas de acesso às edificações, unidades e portas internas","Marcos e folhas das esquadrias de madeira","Ruptura, flexão","3 anos","N"],
+["Portas de acesso às edificações, unidades e portas internas","Perfis principais da esquadria de PVC","Amarelamento","5 anos","N"],
+["Portas de acesso às edificações, unidades e portas internas","Interface entre vedação vertical e esquadria","Perda de aderência e vedação","3 anos","N"],
+["Portas de acesso às edificações, unidades e portas internas","Vidros","Delaminação","1 ano","N"],
+["Portas de acesso às edificações, unidades e portas internas","Vidros","Dessolidarização em relação à esquadria","5 anos","N"],
+["Portões, gradis, grades, portinholas e alçapões","Perfis principais e folhas móveis (incl. venezianas)","Mau funcionamento; oxidação sem perda de seção","1 ano","N"],
+["Portões, gradis, grades, portinholas e alçapões","Perfis principais e folhas móveis (incl. venezianas)","Folgas quanto à vedação, encaixe e fixação","3 anos","N"],
+["Portões, gradis, grades, portinholas e alçapões","Perfis principais e folhas móveis (incl. venezianas)","Ruptura, deformação, corrosão, dessolidarização, trincas ou cavidades","5 anos","N"],
+["Muros externos","Muros de quaisquer tipos de materiais e componentes","Ruptura/tombamento","5 anos","N"],
+["Muros externos","Muros de quaisquer tipos de materiais e componentes","Fissuração","3 anos","N"],
+["Muros externos","Muros de quaisquer tipos de materiais e componentes","Deterioração por umidade","1 ano","N"],
+["Coberturas — forros","Forros de quaisquer materiais/componentes, sancas","Dessolidarização ou ruptura","3 anos","N"],
+["Coberturas — forros","Forros de quaisquer materiais/componentes, sancas","Deformações, empenamento e fissuras além dos limites normativos","1 ano","N"],
+["Telhamento","Telhamento de qualquer tipo e suas fixações","Dessolidarização ou ruptura","3 anos","N"],
+["Telhamento","Telhamento de qualquer tipo e suas fixações","Deformações e permeabilidade além dos limites normativos","1 ano","N"],
+["Telhamento","Telhamento de qualquer tipo e suas fixações","Perda de estanqueidade","1 ano","N"],
+["Telhamento","Rufos e calhas","Falha de fixação e perda de estanqueidade","1 ano","N"],
+["Impermeabilização","Sistemas aplicados em qualquer elemento ou sistema construtivo","Perda de estanqueidade de produtos e instalação (quando não decorrente de intervenção indevida)","5 anos","N"],
+["Sistemas hidráulicos","Tubos e conexões em prumadas/colunas de água, esgoto, reservatórios, estações de tratamento","Ruptura/dessolidarização; perda de integridade; perda de estanqueidade","5 anos","N"],
+["Sistemas hidráulicos","Ramais e sub-ramais de tubulações internos e externos","Falhas dos produtos","1 ano","N"],
+["Sistemas hidráulicos","Ramais e sub-ramais de tubulações internos e externos","Falhas de instalação","3 anos","N"],
+["Sistemas hidráulicos","Engate flexível, sifão, válvulas, ralos e acabamentos","Falhas dos produtos e instalação","1 ano","N"],
+["Sistemas hidráulicos","Louças sanitárias (lavatórios, bacias sanitárias, caixas de descarga, tanques)","Falhas dos produtos","1 ano","N"],
+["Sistemas hidráulicos","Louças sanitárias (lavatórios, bacias sanitárias, caixas de descarga, tanques)","Falhas de instalação","3 anos","N"],
+["Sistemas hidráulicos","Bancadas de pias e cubas","Falhas dos produtos","1 ano","N"],
+["Sistemas hidráulicos","Bancadas de pias e cubas","Perda de estanqueidade entre bancada/frontão e na fixação de cubas","1 ano","N"],
+["Sistemas hidráulicos","Bancadas de pias e cubas","Falhas de instalação","3 anos","N"],
+["Sistemas hidráulicos","Chuveiros, duchas, torneiras, misturadores e monocomandos","Falhas dos produtos","1 ano","N"],
+["Sistemas hidráulicos","Chuveiros, duchas, torneiras, misturadores e monocomandos","Falhas de instalação","3 anos","N"],
+["Sistemas hidráulicos","Motobombas, medidores, hidrômetros, torneira boia p/ caixa d'água","Falhas dos produtos","1 ano","N"],
+["Sistemas hidráulicos","Motobombas, medidores, hidrômetros, torneira boia p/ caixa d'água","Falhas de instalação","3 anos","N"],
+["Sistemas de prevenção e combate a incêndio","Prumadas de combate a incêndio, incluindo comandos setoriais","Falhas de produtos e de instalação","5 anos","N"],
+["Sistemas de prevenção e combate a incêndio","Tubos e conexões em ramais e sub-ramais","Falhas de produtos e de instalação","3 anos","N"],
+["Sistemas de prevenção e combate a incêndio","Extração/detecção de fumaça, alarme, hidrantes e proteção passiva","Falhas dos produtos","1 ano","N"],
+["Sistemas de prevenção e combate a incêndio","Extração/detecção de fumaça, alarme, hidrantes e proteção passiva","Falhas de instalação","3 anos","N"],
+["Sistemas de distribuição de gases e fluidos","Prumadas ou colunas de gás","Falhas dos produtos e de instalação quanto à estanqueidade","5 anos","N"],
+["Sistemas de distribuição de gases e fluidos","Ramais e sub-ramais de gás","Falhas dos produtos com instalação aparente","1 ano","N"],
+["Sistemas de distribuição de gases e fluidos","Ramais e sub-ramais de gás","Falhas de produtos não acessíveis e da instalação","3 anos","N"],
+["Sistemas elétricos","Prumadas de distribuição","Falhas de produto","3 anos","N"],
+["Sistemas elétricos","Prumadas de distribuição","Falhas de instalação","5 anos","N"],
+["Sistemas elétricos","Componentes dos circuitos (eletrodutos, disjuntores, tomadas, interruptores, fios, cabos, quadros, SPDA etc.)","Falhas dos produtos","1 ano","N"],
+["Sistemas elétricos","Componentes dos circuitos (eletrodutos, disjuntores, tomadas, interruptores, fios, cabos, quadros, SPDA etc.)","Falhas de instalação","3 anos","N"],
+["Sistemas elétricos","Geradores, transformadores, blocos autônomos, sistemas fotovoltaicos","Falhas de instalação","3 anos","N"],
+["Sistemas elétricos","Luminárias de ambientes internos (exceto lâmpadas)","Falhas dos produtos e de instalação","1 ano","N"],
+["Sistemas elétricos","Luminárias de ambientes externos (exceto lâmpadas)","Falhas dos produtos e de instalação","1 ano","N"],
+["Sistemas elétricos","Canalização/acomodação de condutores (eletrodutos, eletrocalhas, caixas de passagem)","Falhas dos produtos/materiais","1 ano","N"],
+["Sistemas elétricos","Canalização/acomodação de condutores (eletrodutos, eletrocalhas, caixas de passagem)","Falhas de instalação","3 anos","N"],
+["Sistemas elétricos","Entrada de energia, câmaras/cabines de transformação","Falhas dos produtos/materiais","1 ano","N"],
+["Sistemas elétricos","Entrada de energia, câmaras/cabines de transformação","Falhas de instalação","3 anos","N"],
+["Sistemas de ar-condicionado","Infraestrutura do sistema","Falhas dos produtos","1 ano","N"],
+["Sistemas de ar-condicionado","Infraestrutura do sistema","Falhas de instalação da infraestrutura","3 anos","N"],
+["Sistemas de ar-condicionado","Equipamentos e acessórios","Falhas dos produtos e de instalação","1 ano","N"],
+["Sistemas de comunicação interna e externa","Infraestrutura do sistema de interfone e telefone","Falhas dos produtos","1 ano","N"],
+["Sistemas de comunicação interna e externa","Infraestrutura do sistema de interfone e telefone","Falhas de instalação","3 anos","N"],
+["Sistemas de comunicação interna e externa","Equipamentos e acessórios (interfones ou outros)","Falhas dos produtos e de instalação","1 ano","N"],
+["Sistemas de cabeamento, infraestrutura e equipamentos de áudio, imagem e dados","Cabos, caixas, quadros e infraestrutura","Falhas dos produtos","1 ano","N"],
+["Sistemas de cabeamento, infraestrutura e equipamentos de áudio, imagem e dados","Cabos, caixas, quadros e infraestrutura","Falhas de instalação","3 anos","N"],
+["Sistemas de cabeamento, infraestrutura e equipamentos de áudio, imagem e dados","Equipamentos e acessórios","Falhas dos produtos e de instalação","1 ano","N"],
+["Sistemas de exaustão, pressurização e ventilação","Infraestrutura do sistema","Falhas dos produtos","1 ano","N"],
+["Piscinas, espelho d'água e fontes","Tanque","Falhas de instalação","3 anos","N"],
+["Piscinas, espelho d'água e fontes","Componentes e equipamentos","Falhas dos produtos e de instalação","1 ano","N"],
+["Piscinas, espelho d'água e fontes","Rejuntamento e juntas de sistemas de componentes de piso","Desgaste; dessolidarização","1 ano","N"],
+["Piscinas, espelho d'água e fontes","Instalações hidráulicas","Falhas dos produtos e de instalação","1 ano","N"],
+["Piscinas, espelho d'água e fontes","Filtros e bombas","Falhas dos produtos e de instalação","1 ano","N"],
+["Piscinas, espelho d'água e fontes","Acessórios como escadas e barras de apoio","Falhas dos produtos ou de instalação","3 anos","N"],
+["Piscinas, espelho d'água e fontes","Equipamento de acesso a pessoas com necessidades especiais","Falhas dos produtos ou de instalação","1 ano","N"],
+["Piscinas, espelho d'água e fontes","Sistema de iluminação (exceto lâmpadas)","Falhas dos produtos ou de instalação","1 ano","N"],
+["Componentes e acessórios para acessibilidade (tecnologias assistivas)","Barras de apoio, maçanetas/puxadores específicos, pisos podotáteis, assentos especiais, sinalização visual/tátil, alarmes e sinais sonoros","Falhas dos produtos ou de instalação","1 ano","N"],
+["Churrasqueiras (áreas de uso comum ou privativo)","Equipamento do sistema de exaustão, dampers e churrasqueira","Falha de produto/falha de instalação","1 ano","N"],
+["Churrasqueiras (áreas de uso comum ou privativo)","Dutos","Perda de integridade","3 anos","N"],
+["Portões de acesso à edificação","Portões e motores/dispositivos de controle de abertura e fechamento","Falhas dos produtos","1 ano","N"],
+["Portões de acesso à edificação","Portões e motores/dispositivos de controle de abertura e fechamento","Falhas de instalação","1 ano","N"]
+];
+</script>
+<script>
+/* =====================================================================
+ * PÓS OBRA — Morais Engenharia
+ * ---------------------------------------------------------------------
+ * LEITURA e ESCRITA passam pelo Apps Script (Code.gs), diferente do
+ * vendas.html/ligacoes.html, que leem do dist/*.json publicado pelo
+ * fetch_vendas.py. Motivo: as bases PÓS OBRA e ATIVIDADES PÓS OBRA ainda
+ * não entram naquele build. O backend cacheia 2 min por conta própria, e a
+ * tela guarda a última cópia no localStorage (app.js) — então reabrir a
+ * página pinta na hora e só depois confere com o servidor.
+ * Se um dia essas bases entrarem no fetch_vendas.py, é só trocar as chamadas
+ * ler({action:"posObras"}) por lerEstaticoJa("pos-obra.json", ...).
+ *
+ * ACESSO: exige "PÓS OBRA" na coluna ACESSOS do banco LOGINS (ADM, MASTER e
+ * TESTES veem tudo). Esconder a tela aqui NÃO protege nada — a trava que vale
+ * é a do Code.gs (ACOES_POS_OBRA); esta serve só pra não mostrar tela quebrada.
+ * ===================================================================== */
+
+const S = exigirSessao();
+atualizarStatus(); atualizarBadge();
+
+/* Versão do Code.gs que esta tela espera — ver conferirBackend(). */
+const GS_ESPERADO = "2026-08-28 r12";
+
+const ANDAMENTOS = ["MARCANDO SERVIÇO","SERVIÇO MARCADO","REMARCADO 1","REMARCADO 2",
+                    "REMARCADO 3","REMARCADO 4","REMARCADO 5","SERVIÇO FINALIZADO"];
+const FINALIZADO = "SERVIÇO FINALIZADO";
+
+let OBRAS = [], AGENDA = [], SCHEMA = null;
+let OBRA = null;            // detalhe da obra aberta
+let CHAMADO = null;         // chamado aberto no painel lateral
+let CAL_MES = new Date();   // mês mostrado no calendário
+let ORD = { col:"titulo", dir:1 };
+let CTX_TXT = null;         // o que a caixa de texto grande está editando
+let CTX_ARQ = null;         // em que campo o próximo arquivo será anexado
+
+/* ===================== utilidades ===================== */
+let _toastT = null;
+function toast(m, segundos){
+  const t = document.getElementById("toast");
+  t.textContent = m; t.classList.add("on");
+  clearTimeout(_toastT);
+  _toastT = setTimeout(() => t.classList.remove("on"), (segundos || 1.9) * 1000);
+}
+function normN(s){ return String(s==null?"":s).normalize("NFD").replace(/[̀-ͯ]/g,"").toUpperCase().replace(/\s+/g," ").trim(); }
+function soLeitura(){ return ehSomenteLeitura(S); }
+
+/* Data ISO ("2024-03-15") -> "15/03/2024". Nunca uso new Date(iso) para
+   exibir: em GMT-3 a string sem fuso é lida como UTC e volta o dia anterior
+   (o mesmo problema já documentado no fetch_vendas.py). */
+function dbr(iso){
+  if(!iso) return "";
+  const s = String(iso).slice(0,10).split("-");
+  return s.length===3 ? s[2]+"/"+s[1]+"/"+s[0] : String(iso);
+}
+function hojeISO(){
+  const d = new Date();
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+/* Soma meses a uma data ISO, por número (nunca por objeto Date somado em
+   milissegundos — 6 meses não são 180 dias). Dia 31 + 1 mês cai no último dia
+   do mês seguinte, que é o comportamento esperado para prazo. */
+function somarMeses(iso, meses){
+  const p = String(iso).slice(0,10).split("-").map(Number);
+  if(p.length!==3 || !p[0]) return null;
+  let ano = p[0], mes = p[1]-1 + meses, dia = p[2];
+  ano += Math.floor(mes/12); mes = ((mes%12)+12)%12;
+  const ultimo = new Date(ano, mes+1, 0).getDate();
+  if(dia>ultimo) dia = ultimo;
+  return ano+"-"+String(mes+1).padStart(2,"0")+"-"+String(dia).padStart(2,"0");
+}
+
+/* ===================== GARANTIA: prazo -> meses =====================
+   Só existem 4 prazos com data no manual (6 meses, 1 ano, 3 anos, 5 anos).
+   Os outros dois — "No ato da vistoria do imóvel" e "Especificado pelo
+   fabricante" — NÃO são contagem de tempo: o primeiro vale na entrega e o
+   segundo depende do fabricante do produto. Esses ficam fora da conta de
+   vencimento e aparecem com etiqueta própria, em vez de serem chutados como
+   vencidos (que seria mentira). */
+function prazoMeses(prazo){
+  const p = normN(prazo);
+  const m = p.match(/^(\d+)\s*(ANO|ANOS|MES|MESES)/);
+  if(!m) return null;
+  const n = Number(m[1]);
+  return m[2].indexOf("ANO")===0 ? n*12 : n;
+}
+function statusGarantia(prazo, dataAssin){
+  const meses = prazoMeses(prazo);
+  if(meses===null) return { tipo:"na_vistoria", venc:null };   // não é prazo de tempo
+  if(!dataAssin)   return { tipo:"sem_data", venc:null };
+  const venc = somarMeses(dataAssin, meses);
+  if(!venc) return { tipo:"sem_data", venc:null };
+  return { tipo: (hojeISO() <= venc ? "na" : "fora"), venc: venc, meses: meses };
+}
+
+/* ===================== BOOT ===================== */
+function boot(){
+  aplicarTema(temaAtual());
+  pintarUsuario(S);
+  if(soLeitura()) document.getElementById("tarja-teste").classList.add("on");
+  if(!podeAcessar(S, "PÓS OBRA")){
+    document.getElementById("sem-acesso").style.display = "block";
+    document.getElementById("view-hub").style.display = "none";
+    return;
+  }
+  carregar();
+  ler({action:"me"}).then(r=>{ if(r && r.ok===false && r.erro==="NAO_AUTORIZADO") sair(); }).catch(()=>{});
+  conferirBackend();
+}
+
+function carregar(){
+  // pinta na hora com a última cópia salva e repinta quando o servidor responder
+  const c = cacheGet("pos_obras");
+  if(c && c.v && c.v.obras){ OBRAS = c.v.obras; pintarHub(true); }
+  const ca = cacheGet("pos_agenda");
+  if(ca && ca.v && ca.v.marcacoes){ AGENDA = ca.v.marcacoes; renderCalendario(); }
+
+  ler({action:"posObras"}, "pos_obras").then(r=>{
+    if(r && r.ok){ OBRAS = r.obras || []; pintarHub(false); }
+    else mostrarAviso(r);
+  });
+  ler({action:"posObraAgenda"}, "pos_agenda").then(r=>{
+    if(r && r.ok){ AGENDA = r.marcacoes || []; renderCalendario(); }
+  });
+  // schema dos chamados: usado só quando alguém abre um serviço
+  ler({action:"posObraSchema"}, "pos_schema").then(r=>{ if(r && r.ok) SCHEMA = r; });
+}
+
+function mostrarAviso(r){
+  const cx = document.getElementById("aviso");
+  cx.innerHTML = "Não consegui carregar as obras: <b>" + esc(erroTexto(r && r.erro)) + "</b>";
+  cx.style.display = "block";
+  document.getElementById("obras-wrap").innerHTML = '<div class="vazio">Sem dados para mostrar.</div>';
+}
+
+function pintarUsuario(s){
+  document.getElementById("u-nome").textContent = s.nome || s.login;
+  const tb = document.getElementById("u-tipo");
+  tb.textContent = s.tipo; tb.className = "badge" + (s.tipo==="ADM" ? " adm" : "");
+}
+
+/* ---------- o backend publicado é o mesmo que esta tela espera? ---------- */
+function versaoGS(v){
+  const m = String(v || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})\s*r(\d+)$/i);
+  return m ? (Number(m[1]+m[2]+m[3]) * 1000 + Number(m[4])) : null;
+}
+function conferirBackend(){
+  chamar({action:"ping"}, 15000).then(r => {
+    if (!r || r.ok !== true) return;
+    const v = r.versao || "";
+    if (v === GS_ESPERADO) return;
+    const cx = document.getElementById("aviso-gs");
+    const noAr = versaoGS(v), esperada = versaoGS(GS_ESPERADO);
+    if (noAr !== null && esperada !== null && noAr > esperada){
+      cx.innerHTML = "<b>Esta página está desatualizada.</b> O Apps Script já está no " + esc(v) +
+        " e esta tela é a do " + esc(GS_ESPERADO) + ".<br>Recarregue com <b>Ctrl+F5</b>.";
+    } else {
+      cx.innerHTML = "<b>O Apps Script publicado está atrasado.</b> No ar: " +
+        (v ? esc(v) : "versão anterior") + " · esta tela espera: " + esc(GS_ESPERADO) +
+        ".<br>Enquanto isso, esta tela não funciona. Para publicar: Implantar → Gerenciar " +
+        "implantações → lápis da implantação Ativa → Versão: Nova versão → Implantar.";
+    }
+    cx.style.display = "block";
+  }).catch(()=>{});
+}
+
+/* ---------- claro / escuro ---------- */
+const TEMA_KEY = "morais_tema";
+function temaAtual(){ return document.documentElement.dataset.tema === "escuro" ? "escuro" : "claro"; }
+function aplicarTema(t){
+  const escuro = (t === "escuro");
+  document.documentElement.dataset.tema = escuro ? "escuro" : "claro";
+  const b = document.getElementById("btema");
+  if(b){ b.textContent = escuro ? "☀" : "🌙";
+         b.title = escuro ? "Voltar para o tema claro" : "Mudar para o tema escuro"; }
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if(meta) meta.setAttribute("content", escuro ? "#122430" : "#295778");
+}
+function trocarTema(){
+  const novo = temaAtual() === "escuro" ? "claro" : "escuro";
+  try{ localStorage.setItem(TEMA_KEY, novo); }catch(e){}
+  aplicarTema(novo);
+}
+
+/* ===================== LISTA DE OBRAS ===================== */
+function pintarHub(doCache){
+  const total = OBRAS.length;
+  const andamento = OBRAS.filter(o=>o.status==="PÓS OBRA EM ANDAMENTO").length;
+  const abertos = OBRAS.reduce((a,o)=>a+(o.servicosAbertos||0),0);
+  const servicos = OBRAS.reduce((a,o)=>a+(o.servicos||0),0);
+  document.getElementById("kpis").innerHTML =
+    kpi("Obras cadastradas", total, "vindas do banco de vendas", "hero") +
+    kpi("Pós obra em andamento", andamento, "obras com serviço não finalizado", andamento?"alerta":"") +
+    kpi("Serviços abertos", abertos, "chamados sem baixa") +
+    kpi("Serviços registrados", servicos, "total, incluindo finalizados");
+  renderObras();
+}
+function kpi(lab, val, sub, cls){
+  return '<div class="kpi '+(cls||"")+'"><div class="lab">'+esc(lab)+'</div><div class="val">'+
+         num(val)+'</div><div class="sub">'+esc(sub||"")+'</div></div>';
+}
+
+function obrasFiltradas(){
+  const q = normN(document.getElementById("busca").value);
+  const st = document.getElementById("f-status").value;
+  let l = OBRAS.slice();
+  if(st) l = l.filter(o=>o.status===st);
+  if(q) l = l.filter(o => normN(o.titulo).indexOf(q)>=0 || normN(o.clientes).indexOf(q)>=0);
+  const c = ORD.col, d = ORD.dir;
+  l.sort((a,b)=>{
+    let x = a[c], y = b[c];
+    if(typeof x === "number" || typeof y === "number"){ x=Number(x)||0; y=Number(y)||0; return (x-y)*d; }
+    return String(x==null?"":x).localeCompare(String(y==null?"":y), "pt-BR") * d;
+  });
+  return l;
+}
+function ordenar(col){
+  if(ORD.col===col) ORD.dir = -ORD.dir; else { ORD.col = col; ORD.dir = 1; }
+  renderObras();
+}
+function renderObras(){
+  const l = obrasFiltradas();
+  document.getElementById("obras-count").textContent =
+    l.length + (l.length===1?" obra":" obras") + (l.length!==OBRAS.length ? " de "+OBRAS.length : "");
+  if(!l.length){
+    document.getElementById("obras-wrap").innerHTML = '<div class="vazio">Nenhuma obra encontrada com esse filtro.</div>';
+    return;
+  }
+  const cols = [["titulo","Endereço + Casa"],["clientes","Cliente"],["telefone","Telefone"],
+                ["dataAssinatura","Assinatura do contrato"],["status","Status"],["servicosAbertos","Serviços abertos"]];
+  const th = cols.map((c,i)=>'<th class="ord'+(ORD.col===c[0]?" on":"")+(i===0?" stick":"")+'" onclick="ordenar(\''+c[0]+'\')">'+
+      esc(c[1])+'<span class="seta">'+(ORD.col===c[0]?(ORD.dir>0?"▲":"▼"):"⇅")+'</span></th>').join("");
+  const tr = l.map(o=>{
+    const st = o.status==="PÓS OBRA EM ANDAMENTO"
+      ? '<span class="pill alerta">PÓS OBRA EM ANDAMENTO</span>'
+      : '<span class="pill neutro">SEM PÓS OBRA</span>';
+    return '<tr>'+
+      '<td class="stick"><span class="obralink" onclick="abrirObra(\''+o.id+'\')">'+esc(o.titulo)+'</span></td>'+
+      '<td>'+esc(o.clientes||"—")+'</td>'+
+      '<td>'+esc(o.telefone||"—")+'</td>'+
+      '<td>'+esc(dbr(o.dataAssinatura)||"—")+'</td>'+
+      '<td>'+st+'</td>'+
+      '<td style="text-align:center">'+(o.servicosAbertos||0)+'</td>'+
+    '</tr>';
+  }).join("");
+  document.getElementById("obras-wrap").innerHTML =
+    '<table class="grade"><thead><tr>'+th+'</tr></thead><tbody>'+tr+'</tbody></table>';
+  sincronizarBarraTopo();
+}
+/* a barrinha de rolagem de cima acompanha a tabela (mesma ideia do ligacoes) */
+function sincronizarBarraTopo(){
+  const wrap = document.getElementById("obras-wrap"), top = document.getElementById("obras-stop");
+  const tab = wrap.querySelector("table");
+  if(!tab) return;
+  top.firstElementChild.style.width = tab.scrollWidth + "px";
+  top.onscroll = ()=>{ wrap.scrollLeft = top.scrollLeft; };
+  wrap.onscroll = ()=>{ top.scrollLeft = wrap.scrollLeft; };
+}
+
+/* ===================== CALENDÁRIO ===================== */
+function mudarMes(n){ CAL_MES = new Date(CAL_MES.getFullYear(), CAL_MES.getMonth()+n, 1); renderCalendario(); }
+function calHoje(){ CAL_MES = new Date(); renderCalendario(); }
+const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+const DIAS = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+
+function renderCalendario(){
+  const ano = CAL_MES.getFullYear(), mes = CAL_MES.getMonth();
+  const primeiro = new Date(ano, mes, 1);
+  const inicio = new Date(ano, mes, 1 - primeiro.getDay());   // começa no domingo
+  const hoje = hojeISO();
+
+  const porDia = {};
+  AGENDA.forEach(m=>{ (porDia[String(m.data).slice(0,10)] = porDia[String(m.data).slice(0,10)] || []).push(m); });
+
+  let html = '<div class="cal-topo">'+
+    '<button class="cal-nav" onclick="mudarMes(-1)" title="Mês anterior">‹</button>'+
+    '<button class="cal-nav" onclick="mudarMes(1)" title="Próximo mês">›</button>'+
+    '<span class="cal-mes">'+MESES[mes]+" "+ano+'</span>'+
+    '<button class="bt ghost" onclick="calHoje()">Hoje</button></div>'+
+    '<div class="cal-grade">'+DIAS.map(d=>'<div class="cal-dia-cab">'+d+'</div>').join("");
+
+  for(let i=0;i<42;i++){
+    const d = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate()+i);
+    const iso = d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+    const fora = d.getMonth()!==mes;
+    const marc = porDia[iso] || [];
+    const mostra = marc.slice(0,3).map(m=>{
+      const rm = normN(m.coluna).indexOf("REMARCA")>=0;
+      const rot = String(m.coluna).replace(/^DATA (DE |DO |DA )?/i,"");
+      return '<button class="cal-mc'+(rm?" rm":"")+'" title="'+esc(m.nome+" · "+m.coluna)+
+             '" onclick="abrirObra(\''+(m.obraId||"")+'\')">'+esc(rot)+" · "+esc(m.nome)+'</button>';
+    }).join("");
+    const mais = marc.length>3 ? '<div class="cal-mais">+'+(marc.length-3)+' marcações</div>' : "";
+    html += '<div class="cal-dia'+(fora?" fora":"")+(iso===hoje?" hoje":"")+'">'+
+            '<div class="cal-num">'+d.getDate()+'</div>'+mostra+mais+'</div>';
+  }
+  html += '</div><div class="cal-leg">'+
+    '<span><i style="background:rgba(41,87,120,.35)"></i>Serviço / chamado</span>'+
+    '<span><i style="background:#FEF3C7;border:1px solid #92400E"></i>Remarcação</span>'+
+    '<span>Clique numa marcação para abrir a obra.</span></div>';
+
+  document.getElementById("cal-box").innerHTML = html;
+  const doMes = AGENDA.filter(m=>{
+    const p = String(m.data).slice(0,10).split("-");
+    return Number(p[0])===ano && Number(p[1])===mes+1;
+  }).length;
+  document.getElementById("cal-info").textContent = doMes + (doMes===1?" marcação neste mês":" marcações neste mês");
+}
+
+/* ===================== PÁGINA DA OBRA ===================== */
+function irHub(){
+  document.getElementById("view-obra").style.display = "none";
+  document.getElementById("view-hub").style.display = "";
+  OBRA = null;
+  window.scrollTo(0,0);
+}
+function abrirObra(id){
+  if(!id) return;
+  document.getElementById("view-hub").style.display = "none";
+  document.getElementById("view-obra").style.display = "";
+  window.scrollTo(0,0);
+  document.getElementById("obra-topo").innerHTML = '<div class="vazio"><span class="load"></span> Carregando obra…</div>';
+  document.getElementById("gar-lista").innerHTML = "";
+  document.getElementById("historico").innerHTML = "";
+  document.getElementById("kanban").innerHTML = "";
+  ler({action:"posObra", pageId:id}).then(r=>{
+    if(!r || !r.ok){
+      document.getElementById("obra-topo").innerHTML =
+        '<div class="vazio">Não consegui abrir esta obra: '+esc(erroTexto(r && r.erro))+'</div>';
+      return;
+    }
+    OBRA = r;
+    pintarObra();
+  });
+}
+
+function pintarObra(){
+  const v = OBRA.valores || {};
+  const abertos = (OBRA.atividades||[]).filter(a=>normN(a.andamento)!==normN(FINALIZADO)).length;
+  const st = abertos>0 ? '<span class="pill alerta">PÓS OBRA EM ANDAMENTO</span>'
+                       : '<span class="pill neutro">SEM PÓS OBRA</span>';
+  const tel = (v["TELEFONE"]||"");
+  document.getElementById("obra-topo").innerHTML =
+    '<div class="obra-nome">'+esc(OBRA.titulo)+'</div>'+
+    '<div class="obra-dados">'+
+      od("Cliente", v["CLIENTES"] || "—") +
+      od("Telefone", tel ? '<a href="tel:'+esc(String(tel).replace(/[^\d+]/g,""))+'">'+esc(tel)+'</a>' : "—", true) +
+      od("Assinatura do contrato", dbr(v["DATA DE ASSINATURA DO CONTRATO"]) || "—") +
+      od("Status", st, true) +
+      od("Serviços", (OBRA.atividades||[]).length + " (" + abertos + " abertos)") +
+    '</div>'+
+    '<div class="obra-acoes">'+
+      '<button class="bt vd" onclick="criarServico()"'+(soLeitura()?" disabled":"")+'>+ Serviço de Pós Obra</button>'+
+      '<button class="bt ghost" onclick="editarObs()">Editar observação da obra</button>'+
+    '</div>';
+  renderGarantias();
+  renderHistorico();
+  renderKanban();
+}
+function od(l, v, bruto){
+  return '<div class="od"><div class="l">'+esc(l)+'</div><div class="v">'+(bruto?v:esc(v))+'</div></div>';
+}
+
+/* ---------- garantias ---------- */
+function renderGarantias(){
+  const data = (OBRA && OBRA.valores) ? OBRA.valores["DATA DE ASSINATURA DO CONTRATO"] : null;
+  const sub = document.getElementById("gar-sub");
+  if(!data){
+    sub.innerHTML = "Esta obra ainda não tem <b>DATA DE ASSINATURA DO CONTRATO</b> preenchida em Vendas, " +
+                    "então não dá para contar prazo nenhum.";
+    document.getElementById("gar-resumo").innerHTML = "";
+    document.getElementById("gar-lista").innerHTML = '<div class="vazio">Sem data de assinatura.</div>';
+    return;
+  }
+  sub.innerHTML = "Contado a partir da assinatura do contrato (<b>"+esc(dbr(data))+"</b>). " +
+                  "O manual conta do Habite-se ou da entrega — aqui é da assinatura, conforme combinado.";
+
+  // resumo: só existem 4 prazos com data no manual; é isso que responde
+  // "o que ainda está na garantia" sem precisar ler 150 linhas
+  const prazos = [[6,"6 meses"],[12,"1 ano"],[36,"3 anos"],[60,"5 anos"]];
+  document.getElementById("gar-resumo").innerHTML = '<div class="gar-resumo">' + prazos.map(([m,rot])=>{
+    const venc = somarMeses(data, m);
+    const na = hojeISO() <= venc;
+    return '<div class="gr '+(na?"na":"fora")+'"><div class="p">'+esc(rot)+'</div>'+
+           '<div class="s">'+(na?"NA GARANTIA":"FORA DA GARANTIA")+'</div>'+
+           '<div class="d">'+(na?"até ":"venceu em ")+esc(dbr(venc))+'</div></div>';
+  }).join("") + '</div>';
+
+  const q = normN(document.getElementById("gar-busca").value);
+  const filtro = document.getElementById("gar-filtro").value;
+
+  const grupos = {};
+  GARANTIAS.forEach(([grupo,item,falha,prazo,fonte])=>{
+    const s = statusGarantia(prazo, data);
+    if(filtro==="na" && s.tipo!=="na") return;
+    if(filtro==="fora" && s.tipo!=="fora") return;
+    if(q && normN(grupo+" "+item+" "+falha).indexOf(q)<0) return;
+    (grupos[grupo] = grupos[grupo] || []).push({item,falha,prazo,fonte,s});
+  });
+
+  const nomes = Object.keys(grupos);
+  if(!nomes.length){
+    document.getElementById("gar-lista").innerHTML = '<div class="vazio">Nenhum item de garantia com esse filtro.</div>';
+    return;
+  }
+  document.getElementById("gar-lista").innerHTML = nomes.map((g,i)=>{
+    const itens = grupos[g];
+    const na = itens.filter(x=>x.s.tipo==="na").length;
+    const fora = itens.filter(x=>x.s.tipo==="fora").length;
+    const outros = itens.length - na - fora;
+    const resumo = [na?'<span class="pill sim">'+na+' na garantia</span>':"",
+                    fora?'<span class="pill nao">'+fora+' fora</span>':"",
+                    outros?'<span class="pill neutro">'+outros+' na vistoria</span>':""].join(" ");
+    const linhas = itens.map(x=>{
+      let et;
+      if(x.s.tipo==="na")        et = '<span class="pill sim">NA GARANTIA</span>';
+      else if(x.s.tipo==="fora") et = '<span class="pill nao">FORA DA GARANTIA</span>';
+      else                       et = '<span class="pill neutro">'+esc(x.prazo)+'</span>';
+      const venc = x.s.venc ? '<div class="pz">'+(x.s.tipo==="na"?"até ":"venceu em ")+esc(dbr(x.s.venc))+'</div>' : "";
+      return '<div class="gi"><div class="txt">'+
+        (x.item ? '<span class="it">'+esc(x.item)+'</span> — ' : "")+
+        '<span class="fa">'+esc(x.falha)+'</span>'+
+        '<span class="fonte-tag" title="'+(x.fonte==="M"?"Prazo específico do manual da casa":"Tabela NBR 15575 do manual")+'">'+
+        (x.fonte==="M"?"MANUAL":"NBR")+'</span>'+
+        '<div class="pz">Prazo: '+esc(x.prazo)+'</div></div>'+
+        '<div class="st">'+et+venc+'</div></div>';
+    }).join("");
+    // o primeiro grupo abre; os outros ficam fechados, senão a coluna vira
+    // uma parede de 150 linhas e ninguém acha nada
+    return '<div class="gar-grupo'+(i===0?" aberto":"")+'" id="garg-'+i+'">'+
+      '<button class="gar-cab" onclick="document.getElementById(\'garg-'+i+'\').classList.toggle(\'aberto\')">'+
+        '<span class="seta">▶</span><span class="nm">'+esc(g)+'</span>'+resumo+'</button>'+
+      '<div class="gar-itens">'+linhas+'</div></div>';
+  }).join("");
+}
+
+/* ---------- histórico ---------- */
+function renderHistorico(){
+  const v = OBRA.valores || {};
+  const obs = v["OBSERVAÇÕES"] || "";
+  let html = '<div class="hist-fix"><div class="l">Observação da obra (fixada)</div>'+
+    '<div class="t'+(obs?"":" vazia")+'">'+esc(obs || "Sem observação. Use o botão acima para escrever.")+'</div></div>';
+
+  // cada data preenchida de cada chamado vira um evento; ordena do mais
+  // recente para o mais antigo
+  const eventos = [];
+  (OBRA.atividades||[]).forEach(a=>{
+    const val = a.valores || {};
+    for(const col in val){
+      const bruto = val[col];
+      if(!bruto || typeof bruto !== "string") continue;
+      if(!/^\d{4}-\d{2}-\d{2}/.test(bruto)) continue;   // é uma data
+      const n = normN(col);
+      const rm = n.indexOf("REMARCA")>=0;
+      const nivel = (String(col).match(/(\d+)\s*$/)||[])[1];
+      const texto = rm && nivel ? (val["INFORMAÇÕES REMARCAÇÃO "+nivel] || acharInfoRm(val, nivel) || "")
+                                : (val["INFORMAÇÕES SERVIÇO"] || "");
+      eventos.push({ data:bruto.slice(0,10), col:col, rm:rm, nome:a.nome,
+                     texto:texto, andamento:a.andamento, id:a.id });
+    }
+  });
+  eventos.sort((a,b)=> a.data < b.data ? 1 : (a.data > b.data ? -1 : 0));
+
+  if(!eventos.length){
+    html += '<div class="vazio">Nenhum serviço com data ainda.</div>';
+  } else {
+    html += eventos.map(e=>
+      '<div class="hev'+(e.rm?" rm":"")+'" onclick="abrirChamado(\''+e.id+'\')" style="cursor:pointer">'+
+        '<div class="d">'+esc(dbr(e.data))+' · '+esc(e.col)+'</div>'+
+        (e.texto ? '<div class="t">'+esc(e.texto)+'</div>' : '<div class="t" style="color:var(--text4);font-style:italic">Sem descrição</div>')+
+        '<div class="q">'+esc(e.andamento || "sem andamento")+'</div>'+
+      '</div>').join("");
+  }
+  document.getElementById("historico").innerHTML = html;
+}
+/* A grafia exata de "INFORMAÇÕES REMARCAÇÃO N" pode variar na base; procura
+   pelo pedaço em vez de exigir o nome cravado. */
+function acharInfoRm(val, nivel){
+  for(const col in val){
+    const n = normN(col);
+    if(n.indexOf("INFORMAC")>=0 && n.indexOf("REMARCA")>=0 && n.indexOf(String(nivel))>=0) return val[col];
+  }
+  return "";
+}
+
+/* ---------- kanban ---------- */
+function renderKanban(){
+  const atvs = OBRA.atividades || [];
+  document.getElementById("kanban-info").textContent =
+    atvs.length + (atvs.length===1 ? " serviço" : " serviços");
+  const colunas = ANDAMENTOS.slice();
+  // um chamado recém-criado ainda não tem andamento: precisa aparecer em
+  // algum lugar, senão some da tela e a pessoa acha que o botão não funcionou
+  const semStatus = atvs.filter(a=>!a.andamento);
+  let html = "";
+  if(semStatus.length) html += colunaKanban("SEM ANDAMENTO", semStatus);
+  colunas.forEach(c=>{
+    const doGrupo = atvs.filter(a=>normN(a.andamento)===normN(c));
+    html += colunaKanban(c, doGrupo);
+  });
+  document.getElementById("kanban").innerHTML = html || '<div class="vazio">Nenhum serviço nesta obra.</div>';
+}
+function colunaKanban(titulo, lista){
+  const cards = lista.length ? lista.map(a=>{
+    const v = a.valores || {};
+    const serv = Array.isArray(v["SERVIÇO"]) ? v["SERVIÇO"].join(", ") : (v["SERVIÇO"] || "");
+    const dt = v["DATA DO SERVIÇO"] || v["DATA DO CHAMADO"] || "";
+    const resp = v["RESPONSÁVEL"] || "";
+    return '<div class="kcard" onclick="abrirChamado(\''+a.id+'\')">'+
+      '<div class="sv">'+esc(serv || "Serviço sem tipo")+'</div>'+
+      '<div class="mt">'+[dbr(dt), resp].filter(Boolean).map(esc).join(" · ")+'</div></div>';
+  }).join("") : '<div class="vaziok">vazio</div>';
+  return '<div class="kcol"><div class="kcol-tit">'+esc(titulo)+'<span class="n">'+lista.length+'</span></div>'+cards+'</div>';
+}
+
+/* ---------- criar serviço ---------- */
+function criarServico(){
+  if(soLeitura()){ toast("Modo teste: nada é gravado.", 3); return; }
+  if(!OBRA) return;
+  escrever({action:"posObraServicoNovo", pageId:OBRA.id}, "criar serviço pós obra").then(r=>{
+    if(!r.ok){ toast("Não deu para criar: "+erroTexto(r.erro), 4); return; }
+    if(r.enfileirado){ toast("Sem internet — o serviço será criado quando reconectar.", 3.5); return; }
+    toast("Serviço criado.");
+    abrirObra(OBRA.id);            // relê para trazer o chamado novo
+  });
+}
+
+/* ---------- observação da obra ---------- */
+function editarObs(){
+  const v = (OBRA && OBRA.valores) || {};
+  abrirCaixaTexto({
+    titulo: "Observação da obra",
+    sub: OBRA.titulo + " · aparece fixada no topo do histórico",
+    valor: v["OBSERVAÇÕES"] || "",
+    salvar: function(txt){
+      return escrever({action:"posObraUpdate", pageId:OBRA.id, prop:"OBSERVAÇÕES", valor:txt}, "observação pós obra")
+        .then(r=>{
+          if(r.ok){ OBRA.valores["OBSERVAÇÕES"] = txt; renderHistorico(); }
+          return r;
+        });
+    }
+  });
+}
+
+/* ===================== PAINEL DO CHAMADO ===================== */
+function abrirChamado(id){
+  const a = (OBRA.atividades||[]).find(x=>x.id===id);
+  if(!a) return;
+  CHAMADO = a;
+  document.getElementById("pn-nome").textContent = a.nome || "Serviço";
+  document.getElementById("pn-sub").textContent = a.andamento || "sem andamento";
+  document.getElementById("overlay").classList.add("on");
+  document.getElementById("painel").classList.add("on");
+  renderPainelChamado();
+}
+function fecharChamado(){
+  document.getElementById("overlay").classList.remove("on");
+  document.getElementById("painel").classList.remove("on");
+  CHAMADO = null;
+}
+
+/* Nível de remarcação que um campo pertence: "DATA REMARCAÇÃO 2" -> 2.
+   Campo sem "REMARCA" no nome (ou sem número) -> 0, ou seja, sempre visível. */
+function nivelCampo(nome){
+  const n = normN(nome);
+  if(n.indexOf("REMARCA")<0 && n.indexOf(" RM ")<0 && !/\bRM\d/.test(n)) return 0;
+  const m = n.match(/(\d+)\s*$/);
+  return m ? Number(m[1]) : 0;
+}
+/* Nível atual do chamado: "REMARCADO 3" -> 3; qualquer outro andamento -> 0. */
+function nivelAtual(andamento){
+  const m = normN(andamento).match(/^REMARCADO\s*(\d+)$/);
+  return m ? Number(m[1]) : 0;
+}
+
+function renderPainelChamado(){
+  const body = document.getElementById("pn-body");
+  if(!SCHEMA || !SCHEMA.campos){
+    body.innerHTML = '<div class="vazio"><span class="load"></span> Carregando os campos…</div>';
+    ler({action:"posObraSchema"}, "pos_schema").then(r=>{
+      if(r && r.ok){ SCHEMA = r; renderPainelChamado(); }
+      else body.innerHTML = '<div class="vazio">Não consegui carregar os campos: '+esc(erroTexto(r&&r.erro))+'</div>';
+    });
+    return;
+  }
+  const v = CHAMADO.valores || {};
+  const nivel = nivelAtual(CHAMADO.andamento);
+
+  // campos base (nível 0) e, depois, um bloco por nível de remarcação já
+  // atingido — cumulativo, como combinado: REMARCADO 2 mostra o 1 e o 2
+  const base = [], porNivel = {};
+  SCHEMA.campos.forEach(c=>{
+    if(c.tipo === "title") return;                 // o nome vem da obra
+    if(normN(c.nome) === normN("PÓS OBRA")) return; // o vínculo não se edita aqui
+    const n = nivelCampo(c.nome);
+    if(n === 0) base.push(c);
+    else if(n <= nivel) (porNivel[n] = porNivel[n] || []).push(c);
+  });
+
+  let html = base.map(c=>campoHtml(c, v)).join("");
+  Object.keys(porNivel).sort((a,b)=>a-b).forEach(n=>{
+    html += '<div class="grupo-rm"><div class="gt">Remarcação '+n+'</div>'+
+            porNivel[n].map(c=>campoHtml(c, v)).join("") + '</div>';
+  });
+  const escondidos = SCHEMA.campos.filter(c=>nivelCampo(c.nome)>nivel).length;
+  if(escondidos){
+    html += '<div class="campo"><div class="dica">'+escondidos+' campo(s) de remarcação ficam ocultos até o '+
+            'ANDAMENTO DA SOLICITAÇÃO virar REMARCADO '+(nivel+1)+'.</div></div>';
+  }
+  body.innerHTML = html;
+}
+
+function campoHtml(c, v){
+  const val = v[c.nome];
+  const id = "f_" + btoa(unescape(encodeURIComponent(c.nome))).replace(/[^A-Za-z0-9]/g,"");
+  const lab = '<label>'+esc(c.nome)+'</label>';
+  const ro = soLeitura() ? " disabled" : "";
+
+  if(!c.editavel && c.tipo !== "files"){
+    const txt = Array.isArray(val) ? val.join(", ") : (val==null?"":String(val));
+    return '<div class="campo">'+lab+'<div class="ro">'+esc(txt || "—")+'</div>'+
+           '<div class="dica">calculado pelo Notion — não dá para editar aqui</div></div>';
+  }
+
+  if(c.tipo === "files"){
+    const arqs = Array.isArray(val) ? val : [];
+    const lista = arqs.map(f=>'<a class="anexo" href="'+esc(f.url||"#")+'" target="_blank" rel="noopener" '+
+      'onclick="event.preventDefault();verArquivo('+JSON.stringify(esc(f.name||"arquivo")).replace(/"/g,"&quot;")+
+      ','+JSON.stringify(f.url||"").replace(/"/g,"&quot;")+')">'+esc(f.name||"arquivo")+'</a>').join("");
+    return '<div class="campo">'+lab+'<div class="arqs">'+
+      (lista || '<span style="font-size:11.5px;color:var(--text4);font-style:italic">nenhum arquivo</span>')+
+      (soLeitura()?"":'<button class="anexo novo" onclick="anexarEm('+JSON.stringify(c.nome).replace(/"/g,"&quot;")+')">+ Anexar arquivo</button>')+
+      '</div></div>';
+  }
+
+  if(c.tipo === "select" || c.tipo === "status"){
+    const ops = ['<option value="">—</option>'].concat((c.opcoes||[]).map(o=>
+      '<option value="'+esc(o)+'"'+(normN(o)===normN(val)?" selected":"")+'>'+esc(o)+'</option>')).join("");
+    return '<div class="campo" id="cx_'+id+'">'+lab+'<select id="'+id+'"'+ro+
+      ' onchange="salvarCampo('+JSON.stringify(c.nome).replace(/"/g,"&quot;")+', this.value, \''+id+'\')">'+ops+'</select></div>';
+  }
+  if(c.tipo === "multi_select"){
+    const sel = Array.isArray(val) ? val.map(normN) : [];
+    const itens = (c.opcoes||[]).map(o=>
+      '<label class="ms-item"><input type="checkbox" value="'+esc(o)+'"'+(sel.indexOf(normN(o))>=0?" checked":"")+ro+
+      ' onchange="salvarMulti('+JSON.stringify(c.nome).replace(/"/g,"&quot;")+', \''+id+'\')"> '+esc(o)+'</label>').join("");
+    return '<div class="campo" id="cx_'+id+'">'+lab+'<div class="ms-cx" id="'+id+'">'+
+      (itens || '<span style="font-size:12px;color:var(--text4)">sem opções cadastradas</span>')+'</div></div>';
+  }
+  if(c.tipo === "date"){
+    return '<div class="campo" id="cx_'+id+'">'+lab+'<input type="date" id="'+id+'" value="'+esc(String(val||"").slice(0,10))+'"'+ro+
+      ' onchange="salvarCampo('+JSON.stringify(c.nome).replace(/"/g,"&quot;")+', this.value, \''+id+'\')"></div>';
+  }
+  if(c.tipo === "checkbox"){
+    return '<div class="campo" id="cx_'+id+'">'+lab+'<label class="ms-item"><input type="checkbox" id="'+id+'"'+(val?" checked":"")+ro+
+      ' onchange="salvarCampo('+JSON.stringify(c.nome).replace(/"/g,"&quot;")+', this.checked, \''+id+'\')"> marcar</label></div>';
+  }
+  if(c.tipo === "rich_text"){
+    const txt = String(val||"");
+    const curto = txt.length<=60 && txt.indexOf("\n")<0;
+    // texto longo abre no quadro grande: digitar parágrafo dentro de um input
+    // de uma linha é o que fazia todo mundo escrever tudo colado
+    return '<div class="campo" id="cx_'+id+'">'+lab+
+      '<div class="ro" style="cursor:'+(soLeitura()?"default":"text")+';min-height:38px;white-space:pre-wrap"'+
+      (soLeitura()?"":' onclick="editarTexto('+JSON.stringify(c.nome).replace(/"/g,"&quot;")+')"')+'>'+
+      esc(txt || "—")+'</div>'+(soLeitura()?"":'<div class="dica">clique para escrever</div>')+'</div>';
+  }
+  // number, url, email, phone_number e o resto: campo de texto simples
+  return '<div class="campo" id="cx_'+id+'">'+lab+'<input type="text" id="'+id+'" value="'+esc(val==null?"":String(val))+'"'+ro+
+    ' onchange="salvarCampo('+JSON.stringify(c.nome).replace(/"/g,"&quot;")+', this.value, \''+id+'\')"></div>';
+}
+
+function salvarCampo(prop, valor, id){
+  if(soLeitura()){ toast("Modo teste: nada é gravado.", 3); return; }
+  const cx = document.getElementById("cx_"+id);
+  escrever({action:"posObraAtvUpdate", pageId:CHAMADO.id, prop:prop, valor:valor}, prop).then(r=>{
+    if(!r.ok){
+      if(cx) cx.classList.add("recusado");
+      toast("Não gravou "+prop+": "+erroTexto(r.erro), 5);
+      return;
+    }
+    if(cx) cx.classList.remove("recusado");
+    // guarda na cópia em memória pra tela não voltar ao valor antigo
+    CHAMADO.valores[prop] = valor;
+    if(normN(prop) === normN("ANDAMENTO DA SOLICITAÇÃO")){
+      CHAMADO.andamento = valor;
+      document.getElementById("pn-sub").textContent = valor || "sem andamento";
+      renderPainelChamado();     // mudou o nível: revela/esconde as remarcações
+      renderKanban();
+    }
+    renderHistorico();
+    toast(r.enfileirado ? "Sem internet — vai subir quando reconectar." : "Salvo.");
+  });
+}
+function salvarMulti(prop, id){
+  const cx = document.getElementById(id);
+  const vals = Array.from(cx.querySelectorAll("input:checked")).map(i=>i.value);
+  salvarCampo(prop, vals, id);
+}
+
+/* ---------- quadro de texto grande ---------- */
+function editarTexto(prop){
+  const v = (CHAMADO && CHAMADO.valores) || {};
+  abrirCaixaTexto({
+    titulo: prop,
+    sub: (CHAMADO && CHAMADO.nome) || "",
+    valor: String(v[prop]||""),
+    salvar: function(txt){
+      return escrever({action:"posObraAtvUpdate", pageId:CHAMADO.id, prop:prop, valor:txt}, prop).then(r=>{
+        if(r.ok){ CHAMADO.valores[prop] = txt; renderPainelChamado(); renderHistorico(); }
+        return r;
+      });
+    }
+  });
+}
+function abrirCaixaTexto(cfg){
+  CTX_TXT = cfg;
+  document.getElementById("txt-tit").textContent = cfg.titulo;
+  document.getElementById("txt-sub").textContent = cfg.sub || "";
+  const a = document.getElementById("txt-area");
+  a.value = cfg.valor || "";
+  document.getElementById("txt-overlay").classList.add("on");
+  setTimeout(()=>a.focus(), 60);
+}
+function fecharCaixaTexto(){
+  document.getElementById("txt-overlay").classList.remove("on");
+  CTX_TXT = null;
+}
+function salvarCaixaTexto(){
+  if(!CTX_TXT) return;
+  if(soLeitura()){ toast("Modo teste: nada é gravado.", 3); fecharCaixaTexto(); return; }
+  const txt = document.getElementById("txt-area").value;
+  const bt = document.getElementById("txt-salvar");
+  bt.disabled = true; bt.textContent = "Salvando…";
+  CTX_TXT.salvar(txt).then(r=>{
+    bt.disabled = false; bt.textContent = "Salvar";
+    if(!r.ok){ toast("Não gravou: "+erroTexto(r.erro), 5); return; }
+    toast(r.enfileirado ? "Sem internet — vai subir quando reconectar." : "Salvo.");
+    fecharCaixaTexto();
+  });
+}
+document.addEventListener("keydown", e=>{
+  if(e.key === "Escape"){
+    if(document.getElementById("txt-overlay").classList.contains("on")) fecharCaixaTexto();
+    else if(document.getElementById("arqoverlay").classList.contains("on")) fecharArquivo();
+    else if(document.getElementById("painel").classList.contains("on")) fecharChamado();
+  }
+  if(e.key === "Enter" && (e.ctrlKey || e.metaKey) &&
+     document.getElementById("txt-overlay").classList.contains("on")) salvarCaixaTexto();
+});
+
+/* ---------- arquivos ---------- */
+function verArquivo(nome, url){
+  if(!url){ toast("Este arquivo não tem link.", 3); return; }
+  document.getElementById("arq-nome").textContent = nome;
+  document.getElementById("arq-baixar").href = url;
+  const corpo = document.getElementById("arq-corpo");
+  corpo.innerHTML = /\.(png|jpe?g|gif|webp|bmp)(\?|$)/i.test(url)
+    ? '<img src="'+esc(url)+'" alt="'+esc(nome)+'">'
+    : '<iframe src="'+esc(url)+'"></iframe>';
+  document.getElementById("arqoverlay").classList.add("on");
+}
+function fecharArquivo(){
+  document.getElementById("arqoverlay").classList.remove("on");
+  document.getElementById("arq-corpo").innerHTML = "";
+}
+function anexarEm(prop){
+  if(soLeitura()){ toast("Modo teste: nada é gravado.", 3); return; }
+  CTX_ARQ = prop;
+  document.getElementById("arq-input").click();
+}
+function enviarArquivo(input){
+  const f = input.files && input.files[0];
+  input.value = "";
+  if(!f || !CTX_ARQ || !CHAMADO) return;
+  // 8 MB: acima disso o base64 estoura o limite de payload do Apps Script e o
+  // erro que volta não explica nada — melhor barrar aqui com uma mensagem clara
+  if(f.size > 8*1024*1024){ toast("Arquivo muito grande (máx. 8 MB).", 4); return; }
+  const prop = CTX_ARQ;
+  toast("Enviando "+f.name+"…", 4);
+  const fr = new FileReader();
+  fr.onload = ()=>{
+    const b64 = String(fr.result).split(",")[1] || "";
+    escrever({action:"posObraAnexar", pageId:CHAMADO.id, prop:prop,
+              filename:f.name, mimeType:f.type||"application/octet-stream", dataBase64:b64}, "anexo")
+      .then(r=>{
+        if(!r.ok){ toast("Não anexou: "+erroTexto(r.erro), 5); return; }
+        toast("Arquivo anexado.");
+        abrirObra(OBRA.id);   // relê para trazer a URL do anexo novo
+      });
+  };
+  fr.onerror = ()=> toast("Não consegui ler o arquivo.", 4);
+  fr.readAsDataURL(f);
+}
+
+boot();
+</script>
+</body>
+</html>

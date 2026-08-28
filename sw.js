@@ -17,9 +17,12 @@
    v8 -> v9: ligacoes.html e index.html ganharam o tema claro/escuro, a
    ordenação por clique no cabeçalho e a correção da linha que só sumia depois
    do F5. Sem trocar o número, quem abrisse offline ficaria com a versão
-   anterior. */
-const CACHE = "portal-morais-v9";
-const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html","./app.js","./manifest.json"];
+   anterior.
+   v9 -> v10: entrou a pos-obra.html (setor novo) e o index.html ganhou o card
+   dela. Sem trocar o número, o navegador de quem já visitou continuaria sem a
+   página nova na lista e ela não abriria offline. */
+const CACHE = "portal-morais-v10";
+const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html","./pos-obra.html","./app.js","./manifest.json"];
 
 self.addEventListener("install", e=>{
   e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ARQUIVOS)).then(()=>self.skipWaiting()));
