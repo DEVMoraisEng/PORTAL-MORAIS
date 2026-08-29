@@ -22,9 +22,15 @@
    dela. Sem trocar o número, o navegador de quem já visitou continuaria sem a
    página nova na lista e ela não abriria offline.
    v10 -> v11: a pos-obra.html mudou bastante (alertas, calendário por semana,
-   indicadores) e a ligacoes.html teve o aviso de versão atualizado. */
-const CACHE = "portal-morais-v11";
-const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html","./pos-obra.html","./app.js","./manifest.json"];
+   indicadores) e a ligacoes.html teve o aviso de versão atualizado.
+   v11 -> v12: pos-obra.html (cor por responsável, horário flexível, cadastro
+   de serviço/responsável), vendas.html e app.js (correção do cadastro de
+   corretor). Entrou também a casas-vendidas.html, que estava FALTANDO nesta
+   lista desde que virou página própria — a vendas.html a abre num iframe, e
+   sem internet o iframe caía no index.html em vez do painel. */
+const CACHE = "portal-morais-v12";
+const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
+                  "./pos-obra.html","./casas-vendidas.html","./app.js","./manifest.json"];
 
 self.addEventListener("install", e=>{
   e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ARQUIVOS)).then(()=>self.skipWaiting()));

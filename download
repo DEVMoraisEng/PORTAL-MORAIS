@@ -1,0 +1,16 @@
+# credenciais — NUNCA versionar
+.env
+.env.*
+*.key
+*.pem
+segredos.json
+credentials.json
+
+# ambiente local
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# saída gerada pelo workflow
+dist/

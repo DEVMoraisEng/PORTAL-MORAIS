@@ -187,7 +187,22 @@ const ERROS_TEXTO = {
   MODO_TESTE: "modo teste — este login só visualiza, nada é gravado",
   SEM_PERMISSAO: "seu login não tem permissão para esta ação",
   APENAS_ADM: "só um ADM pode fazer isso",
-  MASTER_NAO_EDITA_ENDERECO: "o perfil MASTER não edita o endereço"
+  MASTER_NAO_EDITA_ENDERECO: "o perfil MASTER não edita o endereço",
+  /* cadastro de opção nova (corretor, tipo de serviço, responsável) — antes
+     estes códigos apareciam crus na tela, e ninguém entendia o que fazer */
+  SEM_VIRGULA: "o nome não pode ter vírgula (o Notion separa opções por vírgula)",
+  NOME_MUITO_LONGO: "o nome passou de 60 caracteres",
+  CAMPO_NAO_LIBERADO: "esta coluna não aceita cadastro de item novo pelo site",
+  CAMPO_INEXISTENTE: "esta coluna não existe mais no Notion",
+  CAMPO_NAO_EDITAVEL: "esta coluna é calculada pelo Notion — não dá para gravar",
+  TIPO_NAO_SUPORTA_OPCAO: "só colunas do tipo Seleção aceitam item novo",
+  STATUS_NAO_ACEITA_NOVA_OPCAO: "coluna do tipo Status é fechada — crie a opção no próprio Notion",
+  OPCAO_INEXISTENTE: "essa opção não existe na coluna",
+  BASE_DESCONHECIDA: "erro interno: base não reconhecida pelo servidor",
+  USE_UPLOAD_PARA_ARQUIVOS: "use o botão de anexar para colunas de arquivo",
+  SEM_PAGINA: "erro interno: a tela não informou qual registro gravar",
+  FALTA_PARAM: "erro interno: faltou informação na chamada",
+  FILA_CHEIA: "a fila de envios offline está cheia — reconecte para esvaziar"
 };
 function erroTexto(codigo){
   if(!codigo) return "erro desconhecido";

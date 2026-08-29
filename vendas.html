@@ -2432,7 +2432,10 @@ async function aoTrocarSelect(pageId,prop,tipo,el){
   if(!nome){ el.value=anterior; return; }
   if(nome.indexOf(",")>=0){ toast("Nome não pode ter vírgula."); el.value=anterior; return; }
   el.disabled=true;
-  const r=await chamar({action:"novaOpcao", prop:prop, valor:nome});
+  /* base:"VENDAS" — o novaOpcao do Code.gs passou a servir dois setores
+     (vendas e pós obra), então a base agora é explícita. Sem ela o backend
+     assume VENDAS por retrocompatibilidade, mas mandar é mais claro. */
+  const r=await chamar({action:"novaOpcao", base:"VENDAS", prop:prop, valor:nome});
   el.disabled=false;
   if(!r||!r.ok){ toast("Não criou: "+erroTexto((r&&r.erro)||"REDE")); el.value=anterior; return; }
   // insere a opção antes do "+ Novo…" em TODOS os selects desta coluna já na
@@ -2447,7 +2450,12 @@ async function aoTrocarSelect(pageId,prop,tipo,el){
     sel.insertBefore(o, marc);
   });
   el.value=r.nome; el.dataset.anterior=r.nome;
-  toast(r.jaExistia?"Já existia — selecionado.":"Criado ✓");
+  /* r.pendente: a coluna passou de 100 opções e o Notion recusa alterar o
+     schema (era exatamente o erro do CORRETOR: "options.length should be
+     <= 100, instead was 109"). O item já dá pra usar normalmente — ele nasce
+     de verdade no Notion assim que esta venda for salva. */
+  toast(r.jaExistia ? "Já existia — selecionado."
+      : (r.pendente ? "Criado ✓ — aparece no Notion ao salvar a venda." : "Criado ✓"), r.pendente?5:3);
   editar(pageId,prop,tipo,r.nome,el);
 }
 

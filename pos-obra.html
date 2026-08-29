@@ -158,12 +158,20 @@ th.ord.on .seta{opacity:1}
 .cal-mc .st{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.3px;margin-top:2px;
   padding:0 5px;border-radius:20px;background:rgba(255,255,255,.55)}
 .cal-mc:hover{filter:brightness(.94)}
-.cal-mc.rm{background:#FEF3C7;color:#92400E;border-left-color:#92400E}
-/* Pedido 5: evento concluído fica verde no calendário. */
-.cal-mc.ok{background:#DCFCE7;color:#166534;border-left-color:var(--verde)}
+/* Pedido 1 (CORREÇÕES ago/26): a COR do card agora identifica o RESPONSÁVEL —
+   barra lateral e fundo saem de corDe(resp), aplicados inline. As classes .rm
+   e .ok só ajustam contorno/opacidade; o estado do evento (REMARCAÇÃO/FEITO)
+   continua ESCRITO na etiqueta .st, para não depender de cor. */
+.cal-mc.rm{border-left-style:dashed}
+.cal-mc.ok{opacity:.62}
+.cal-mc.ok .e{text-decoration:line-through}
 .cal-mais{font-size:10px;color:var(--text4);font-weight:700;padding-left:5px}
 .cal-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--text3);margin-top:10px}
 .cal-leg i{display:inline-block;width:11px;height:11px;border-radius:3px;vertical-align:-1px;margin-right:5px}
+/* pedido 3: filtro e selo de HORÁRIO FLEXÍVEL */
+.cal-flex{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--azul-esc);
+  border:1px solid var(--border);border-radius:8px;padding:5px 9px;cursor:pointer;background:var(--sup)}
+.pill.flex{background:#EDE9FE;color:#5B21B6;border:1px solid #C4B5FD}
 /* semana: cabe o card inteiro, então mostra tudo em vez da etiqueta curta */
 .sem-grade{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
 @media(max-width:900px){ .sem-grade{grid-template-columns:1fr} }
@@ -190,7 +198,9 @@ th.ord.on .seta{opacity:1}
 .litem{display:flex;gap:11px;align-items:flex-start;background:var(--sup);border:1px solid var(--border2);
   border-left:4px solid var(--azul);border-radius:9px;padding:9px 11px;margin-bottom:6px;cursor:pointer}
 .litem:hover{background:var(--bg3)}
-.litem.atras{border-left-color:#991B1B}
+/* a barra da esquerda é a cor do responsável (inline). Atraso não rouba mais
+   a cor: vira o anel vermelho abaixo + o texto "N dias atrasados". */
+.litem.atras{box-shadow:inset 0 0 0 1px #FCA5A5}
 .litem .dt{flex:0 0 92px;font-size:11.5px;font-weight:800;color:var(--azul-esc);line-height:1.3}
 .litem .dt small{display:block;font-size:10.5px;font-weight:700;color:var(--text3)}
 .litem .co{flex:1;min-width:0}
@@ -312,6 +322,10 @@ th.ord.on .seta{opacity:1}
   letter-spacing:.5px;color:var(--amarelo);margin-bottom:9px}
 .ms-cx{border:1px solid var(--border);border-radius:8px;background:var(--sup);padding:7px 9px;max-height:150px;overflow-y:auto}
 .ms-item{display:flex;align-items:center;gap:8px;padding:4px 2px;font-size:13px;cursor:pointer}
+/* botão de cadastrar tipo de serviço novo, abaixo da lista de checkboxes */
+.bt-novaopc{margin-top:7px;width:100%;border:1px dashed var(--border);background:var(--bg2);color:var(--azul);
+  border-radius:8px;padding:7px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.bt-novaopc:hover{background:var(--azul);color:#fff;border-color:var(--azul);border-style:solid}
 .ms-item input{width:16px;height:16px}
 /* item 6: o anexo virou uma caixa própria, com contagem e botão grande —
    antes era uma pílula pequena que se perdia no meio dos campos */
@@ -819,7 +833,7 @@ const GARANTIAS = [
 const S = exigirSessao();
 atualizarStatus(); atualizarBadge();
 
-const GS_ESPERADO = "2026-08-28 r14";
+const GS_ESPERADO = "2026-08-29 r15";
 
 const ANDAMENTOS = ["MARCANDO SERVIÇO","SERVIÇO MARCADO","REMARCADO 1","REMARCADO 2",
                     "REMARCADO 3","REMARCADO 4","REMARCADO 5","SERVIÇO FINALIZADO"];
@@ -895,6 +909,12 @@ function campoComHora(nome){
 let OBRAS = [], AGENDA = [], SCHEMA = null;
 let OBRA = null, CHAMADO = null, CARD = null;
 let CAL_REF = new Date(), CAL_MODO = "mes", CAL_RESP = "";
+/* Pedido 3: filtro "só clientes com horário flexível" na visão Em aberto. */
+let CAL_FLEX = false;
+/* Como desenhar o controle de HORÁRIO FLEXÍVEL (checkbox ou select + opções).
+   Vem do posObras; null = a coluna ainda não existe no Notion e a tela
+   simplesmente não mostra nada. */
+let FLEX_CAMPO = null;
 let ORD = { col:"titulo", dir:1 };
 let CTX_TXT = null, CTX_ARQ = null;
 
@@ -1069,12 +1089,12 @@ function boot(){
 
 function carregar(){
   const c = cacheGet("pos_obras");
-  if(c && c.v && c.v.obras){ OBRAS = c.v.obras; pintarHub(); }
+  if(c && c.v && c.v.obras){ OBRAS = c.v.obras; FLEX_CAMPO = c.v.flexCampo || null; pintarHub(); }
   const ca = cacheGet("pos_agenda");
   if(ca && ca.v && ca.v.marcacoes){ AGENDA = ca.v.marcacoes; renderCalendario(); renderAlertas(); }
 
   ler({action:"posObras"}, "pos_obras").then(r=>{
-    if(r && r.ok){ OBRAS = r.obras || []; pintarHub(); }
+    if(r && r.ok){ OBRAS = r.obras || []; FLEX_CAMPO = r.flexCampo || null; pintarHub(); }
     else mostrarAviso(r);
   });
   ler({action:"posObraAgenda"}, "pos_agenda").then(r=>{
@@ -1165,6 +1185,20 @@ function corDe(nome){
   for(let i=0;i<s.length;i++){ h = (h*31 + s.charCodeAt(i)) >>> 0; }
   return CORES[h % CORES.length];
 }
+/* ---------- HORÁRIO FLEXÍVEL (pedido 3) ----------
+   O backend devolve o valor bruto (checkbox vira "SIM", select vira o nome da
+   opção). "Flexível" = tem valor e esse valor não é NÃO/NAO. Assim funciona
+   igual se a coluna for checkbox, select ou texto. */
+function ehFlexivel(v){
+  const n = normN(v);
+  return !!n && n !== "NAO" && n !== "NÃO";
+}
+function obraPorId(id){ return OBRAS.find(o=>semHifen(o.id)===semHifen(id)) || null; }
+function flexDaObra(id){ const o = obraPorId(id); return o ? o.horarioFlexivel : null; }
+function selo(v){
+  return ehFlexivel(v) ? '<span class="pill flex" title="Cliente aceita horário flexível">🕘 HORÁRIO FLEXÍVEL</span>' : "";
+}
+
 function chip(nome){
   if(!nome) return "";
   return '<span class="chip"><i style="background:'+corDe(nome)+'"></i>'+esc(nome)+'</span>';
@@ -1341,6 +1375,7 @@ function mudarCal(n){
 function calHoje(){ CAL_REF = new Date(); renderCalendario(); }
 function calModo(m){ CAL_MODO = m; renderCalendario(); }
 function calResp(v){ CAL_RESP = v; renderCalendario(); }
+function calFlex(on){ CAL_FLEX = !!on; renderCalendario(); }
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const DIAS = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
 
@@ -1364,6 +1399,12 @@ function renderCalendario(){
   const resps = responsaveisDaAgenda();
   const selResp = '<select onchange="calResp(this.value)"><option value="">Todos os responsáveis</option>'+
     resps.map(r=>'<option value="'+esc(r)+'"'+(r===CAL_RESP?" selected":"")+'>'+esc(r)+'</option>').join("")+'</select>';
+  /* pedido 3: só faz sentido na visão "Em aberto" (é a lista de quem ainda
+     precisa ser agendado/atendido). Some se a coluna não existir no Notion. */
+  const chkFlex = (CAL_MODO==="lista" && FLEX_CAMPO)
+    ? '<label class="cal-flex"><input type="checkbox"'+(CAL_FLEX?" checked":"")+
+      ' onchange="calFlex(this.checked)"> só horário flexível</label>'
+    : "";
 
   let titulo, corpo;
   if(CAL_MODO === "mes"){
@@ -1412,9 +1453,12 @@ function renderCalendario(){
   const btHoje = CAL_MODO==="lista" ? "" : '<button class="bt ghost peq" onclick="calHoje()">Hoje</button>';
   const legenda = CAL_MODO==="lista"
     ? '<span>Só o que ainda não foi concluído. Clique numa linha para abrir os dados do serviço.</span>'
-    : '<span><i style="background:rgba(41,87,120,.35)"></i>Serviço marcado</span>'+
-      '<span><i style="background:#FEF3C7;border:1px solid #92400E"></i>Remarcação</span>'+
-      '<span><i style="background:#DCFCE7;border:1px solid #2a9d5c"></i>Concluído</span>'+
+    : (resps.length
+        ? '<span><b>Cor = responsável:</b></span>'+resps.map(r=>
+            '<span><i style="background:'+corDe(r)+'"></i>'+esc(r)+'</span>').join("")
+        : '')+
+      '<span><i style="background:#8aacbb"></i>sem responsável</span>'+
+      '<span>Borda tracejada = remarcação · card apagado e riscado = concluído.</span>'+
       '<span>Clique num card para ver os dados, copiar para o WhatsApp ou abrir o serviço.</span>';
 
   document.getElementById("cal-box").innerHTML =
@@ -1423,7 +1467,7 @@ function renderCalendario(){
       '<span class="seg"><button class="'+(CAL_MODO==="mes"?"on":"")+'" onclick="calModo(\'mes\')">Mês</button>'+
       '<button class="'+(CAL_MODO==="semana"?"on":"")+'" onclick="calModo(\'semana\')">Semana</button>'+
       '<button class="'+(CAL_MODO==="lista"?"on":"")+'" onclick="calModo(\'lista\')">Em aberto</button></span>'+
-      selResp+
+      selResp + chkFlex +
     '</div>'+corpo+
     '<div class="cal-leg">'+legenda+'</div>';
 
@@ -1438,7 +1482,8 @@ function renderCalendario(){
     cont = lista.filter(m=>{ const d=soData(m.data); return d>=isoDe(ini) && d<=isoDe(new Date(ini.getFullYear(),ini.getMonth(),ini.getDate()+6)); }).length;
     rotulo = cont===1 ? " marcação" : " marcações";
   }
-  document.getElementById("cal-info").textContent = cont + rotulo + (CAL_RESP ? " · "+CAL_RESP : "");
+  document.getElementById("cal-info").textContent = cont + rotulo +
+    (CAL_RESP ? " · "+CAL_RESP : "") + (CAL_MODO==="lista" && CAL_FLEX ? " · só horário flexível" : "");
 }
 
 /* ---------- visão "Em aberto" (pedido 6) ----------
@@ -1448,13 +1493,17 @@ function renderCalendario(){
  * a segunda só existe quando já acabou. */
 function eventosAbertos(lista){
   return (lista || agendaVisivel()).filter(m=>
-    ehColunaServico(m.coluna) && !ehFinalizado(andEvento(m))
+    ehColunaServico(m.coluna) && !ehFinalizado(andEvento(m)) &&
+    /* pedido 3: filtro por cliente com horário flexível. Só age na visão
+       "Em aberto" — no mês e na semana o CAL_FLEX fica sempre false. */
+    (!CAL_FLEX || ehFlexivel(flexDaObra(m.obraId)))
   ).sort((a,b)=> a.data < b.data ? -1 : (a.data > b.data ? 1 : 0));
 }
 function listaAbertos(lista){
   const itens = eventosAbertos(lista), hoje = hojeISO();
   if(!itens.length){
-    return { html:'<div class="vazio">Nenhum serviço em aberto'+(CAL_RESP?" para "+esc(CAL_RESP):"")+'. Tudo concluído.</div>' };
+    return { html:'<div class="vazio">Nenhum serviço em aberto'+(CAL_RESP?" para "+esc(CAL_RESP):"")+
+      (CAL_FLEX?" com horário flexível":"")+'.</div>' };
   }
   const grupos = [
     ["Atrasados", itens.filter(m=>soData(m.data) <  hoje), true],
@@ -1473,10 +1522,12 @@ function linhaAberto(m, atras){
   const atrasoTxt = (atras && dias) ? " · "+dias+(dias===1?" dia atrasado":" dias atrasados") : "";
   const meta = [m.responsavel, (m.servico||[]).join(", "), rotuloColuna(m.coluna)]
                  .filter(Boolean).join(" · ");
-  return '<div class="litem'+(atras?" atras":"")+'" onclick="abrirCard(\''+m.atividadeId+'\',\''+
+  const cor = m.responsavel ? corDe(m.responsavel) : "#8aacbb";   // pedido 1
+  return '<div class="litem'+(atras?" atras":"")+'" style="border-left-color:'+cor+'" '+
+      'onclick="abrirCard(\''+m.atividadeId+'\',\''+
       esc(m.coluna).replace(/'/g,"&#39;")+'\')">'+
     '<div class="dt">'+esc(dbr(m.data))+(temHora(m.data)?'<small>'+esc(hhmm(m.data))+'</small>':"")+'</div>'+
-    '<div class="co"><div class="e">'+esc(m.nome)+'</div>'+
+    '<div class="co"><div class="e">'+esc(m.nome)+' '+selo(flexDaObra(m.obraId))+'</div>'+
       '<div class="m">'+esc(meta + atrasoTxt)+'</div></div>'+
     '<span class="pill '+classeEvento(and)+'">'+esc(rotuloEvento(and))+'</span></div>';
 }
@@ -1489,13 +1540,20 @@ function etiquetaCal(m){
   const rm = normN(m.coluna).indexOf("REMARCA")>=0;
   const and = andEvento(m), ok = ehFinalizado(and);
   const hora = temHora(m.data) ? hhmm(m.data) : "";
-  const cls = ok ? " ok" : (rm ? " rm" : "");
-  return '<button class="cal-mc'+cls+'" title="'+esc(m.nome+" · "+m.coluna+" · "+rotuloEvento(and))+
+  const cls = (ok ? " ok" : "") + (rm ? " rm" : "");
+  /* Pedido 1: a cor vem do RESPONSÁVEL (corDe), a mesma dos chips do histórico
+     e das barras do kanban — a mesma pessoa tem a mesma cor em toda a tela.
+     Sem responsável = cinza neutro. O estado (REMARCAÇÃO/FEITO) segue escrito
+     na etiqueta .st, então nada de informação depende só da cor. */
+  const cor = m.responsavel ? corDe(m.responsavel) : "#8aacbb";
+  const est = ok ? "FEITO" : (rm ? rotuloColuna(m.coluna) : "");
+  return '<button class="cal-mc'+cls+'" style="border-left-color:'+cor+';background:'+cor+'1F;color:'+cor+'" '+
+         'title="'+esc(m.nome+" · "+m.coluna+" · "+rotuloEvento(and)+(m.responsavel?" · "+m.responsavel:""))+
          '" onclick="abrirCard(\''+m.atividadeId+'\',\''+esc(m.coluna).replace(/'/g,"&#39;")+'\')">'+
          '<span class="e">'+esc(m.nome)+'</span>'+
          (m.responsavel ? '<span class="r">'+esc(m.responsavel)+'</span>' : '<span class="r">sem responsável</span>')+
          (hora ? '<span class="h">'+esc(hora)+'</span>' : "")+
-         (rm || ok ? '<span class="st">'+esc(ok ? "FEITO" : rotuloColuna(m.coluna))+'</span>' : "")+
+         (est ? '<span class="st">'+esc(est)+'</span>' : "")+
          '</button>';
 }
 /* Card cheio (semana e modal) — os 6 campos do pedido 12. */
@@ -1518,8 +1576,10 @@ function dadosCard(m){
 function cardCal(m){
   const d = dadosCard(m);
   const and = andEvento(m), ok = ehFinalizado(and);
-  return '<div class="mcard'+(ok?" ok":(d.rm?" rm":""))+'">'+
-    '<div class="end">'+esc(d.endereco)+'</div>'+
+  // pedido 1: barra do card na cor do responsável
+  const cor = d.responsavel ? corDe(d.responsavel) : "#8aacbb";
+  return '<div class="mcard'+(ok?" ok":(d.rm?" rm":""))+'" style="border-left:4px solid '+cor+'">'+
+    '<div class="end">'+esc(d.endereco)+' '+selo(flexDaObra(m.obraId))+'</div>'+
     '<div class="ln"><span class="pill '+classeEvento(and)+'">'+esc(rotuloEvento(and))+'</span></div>'+
     '<div class="ln">'+esc(rotuloColuna(d.coluna))+' · '+esc(d.dataHora)+'</div>'+
     (d.cliente ? '<div class="ln">👤 '+esc(d.cliente)+'</div>' : "")+
@@ -1643,6 +1703,8 @@ function pintarObra(){
       od("Tempo de compra", assin ? tempoDesde(assin) : "—") +
       od("Status", st, true) +
       od("Serviços", (OBRA.atividades||[]).length + " (" + abertos + " abertos)") +
+      /* pedido 3: o horário flexível fica no card do cliente, ao lado do resto */
+      (FLEX_CAMPO ? od("Horário flexível", controleFlex(), true) : "") +
     '</div>'+
     '<div class="obra-acoes">'+
       '<button class="bt vd" onclick="criarServico()"'+(soLeitura()?" disabled":"")+'>+ Serviço de Pós Obra</button>'+
@@ -1656,6 +1718,43 @@ function pintarObra(){
 }
 function od(l, v, bruto){
   return '<div class="od"><div class="l">'+esc(l)+'</div><div class="v">'+(bruto?v:esc(v))+'</div></div>';
+}
+
+/* ---------- HORÁRIO FLEXÍVEL da obra (pedido 3) ----------
+   Fica no PRÓPRIO card do cliente (foi o pedido), e o controle se adapta ao
+   tipo real da coluna no Notion — FLEX_CAMPO vem do posObras. Se você criar a
+   coluna como caixa de seleção, sai um checkbox; como seleção, sai a lista de
+   opções. Trocar o tipo no Notion não exige mexer aqui. */
+function controleFlex(){
+  const atual = OBRA.horarioFlexivel || "";
+  const ro = soLeitura() ? " disabled" : "";
+  if(FLEX_CAMPO.tipo === "checkbox"){
+    return '<label class="ms-item" style="padding:0"><input type="checkbox"'+
+      (ehFlexivel(atual)?" checked":"")+ro+' onchange="gravarFlex(this.checked)"> '+
+      (ehFlexivel(atual) ? '<span class="pill flex">🕘 SIM</span>' : 'não')+'</label>';
+  }
+  if(FLEX_CAMPO.tipo === "select" || FLEX_CAMPO.tipo === "status"){
+    const ops = FLEX_CAMPO.opcoes || [];
+    return '<select'+ro+' onchange="gravarFlex(this.value)"><option value="">—</option>'+
+      ops.map(o=>'<option'+(normN(o)===normN(atual)?" selected":"")+'>'+esc(o)+'</option>').join("")+
+      '</select>';
+  }
+  // qualquer outro tipo (texto): mostra o valor, sem editar por aqui
+  return ehFlexivel(atual) ? '<span class="pill flex">🕘 '+esc(atual)+'</span>'
+                           : '<span style="color:var(--text4)">não</span>';
+}
+function gravarFlex(valor){
+  if(soLeitura()){ toast("Modo teste: nada é gravado.", 3); return; }
+  return escrever({action:"posObraUpdate", pageId:OBRA.id, prop:FLEX_CAMPO.nome, valor:valor},
+                  FLEX_CAMPO.nome).then(r=>{
+    if(!r.ok){ toast("Não gravou: "+erroTexto(r.erro), 5); return r; }
+    // valor local no mesmo formato que o backend devolve (checkbox -> "SIM")
+    OBRA.horarioFlexivel = (FLEX_CAMPO.tipo === "checkbox") ? (valor ? "SIM" : null) : (valor || null);
+    const o = obraPorId(OBRA.id); if(o) o.horarioFlexivel = OBRA.horarioFlexivel;
+    pintarObra();
+    toast(r.enfileirado ? "Sem internet — vai subir quando reconectar." : "Salvo.");
+    return r;
+  });
 }
 
 /* ---------- garantias (item 2: recolhidas, agrupadas) ---------- */
@@ -1984,18 +2083,25 @@ function campoHtml(c, v){
   }
 
   if(c.tipo === "select" || c.tipo === "status"){
+    // status é fechado no Notion: só select ganha o "+ Novo…" (ver novaOpcao_)
+    const criavel = c.tipo === "select" && podeCriarOpcao(c.nome) && !soLeitura();
     const ops = ['<option value="">—</option>'].concat((c.opcoes||[]).map(o=>
       '<option value="'+esc(o)+'"'+(normN(o)===normN(val)?" selected":"")+'>'+esc(o)+'</option>')).join("");
     return '<div class="campo" id="cx_'+id+'">'+lab+'<select id="'+id+'"'+ro+
-      ' onchange="salvarCampo('+jsNome+', this.value, \''+id+'\')">'+ops+'</select></div>';
+      ' data-anterior="'+esc(val==null?"":String(val))+'"'+
+      ' onchange="'+(criavel?'aoTrocarSelect':'salvarCampo')+'('+jsNome+', this.value, \''+id+'\', this)">'+
+      ops+(criavel?'<option value="__novo__">+ Novo…</option>':'')+'</select></div>';
   }
   if(c.tipo === "multi_select"){
     const sel = Array.isArray(val) ? val.map(normN) : [];
+    const criavel = podeCriarOpcao(c.nome) && !soLeitura();
     const itens = (c.opcoes||[]).map(o=>
       '<label class="ms-item"><input type="checkbox" value="'+esc(o)+'"'+(sel.indexOf(normN(o))>=0?" checked":"")+ro+
       ' onchange="salvarMulti('+jsNome+', \''+id+'\')"> '+esc(o)+'</label>').join("");
     return '<div class="campo" id="cx_'+id+'">'+lab+'<div class="ms-cx" id="'+id+'">'+
-      (itens || '<span style="font-size:12px;color:var(--text4)">sem opções cadastradas</span>')+'</div></div>';
+      (itens || '<span style="font-size:12px;color:var(--text4)">sem opções cadastradas</span>')+'</div>'+
+      (criavel ? '<button class="bt-novaopc" onclick="novaOpcaoMulti('+jsNome+', \''+id+'\')">+ Novo tipo de serviço</button>' : "")+
+      '</div>';
   }
   if(c.tipo === "date"){
     /* item 5: DATA DO SERVIÇO e as de remarcação também guardam HORA.
@@ -2033,7 +2139,7 @@ function valorData(v, comHora){
   return comHora ? v + ":00-03:00" : v;
 }
 
-function salvarCampo(prop, valor, id){
+function salvarCampo(prop, valor, id, _el){
   if(soLeitura()){ toast("Modo teste: nada é gravado.", 3); return; }
   const cx = document.getElementById("cx_"+id);
   escrever({action:"posObraAtvUpdate", pageId:CHAMADO.id, prop:prop, valor:valor}, prop).then(r=>{
@@ -2061,6 +2167,65 @@ function salvarMulti(prop, id){
   const cx = document.getElementById(id);
   const vals = Array.from(cx.querySelectorAll("input:checked")).map(i=>i.value);
   salvarCampo(prop, vals, id);
+}
+
+/* ===================== CADASTRAR OPÇÃO NOVA (serviço / responsável) =========
+ * Mesmo mecanismo que o vendas.html já usa para corretor e imobiliária: a
+ * ação "novaOpcao" do Code.gs, agora com base:"POS_OBRA".
+ * A lista abaixo só decide se o botão APARECE — quem autoriza de verdade é o
+ * CAMPOS_OPCAO_LIVRE.POS_OBRA do Code.gs. Mudou lá, muda aqui. */
+const CAMPOS_OPCAO_LIVRE = ["SERVIÇO", "RESPONSÁVEL"];
+function podeCriarOpcao(nome){
+  const n = normN(nome);
+  return CAMPOS_OPCAO_LIVRE.some(c => normN(c) === n);
+}
+
+/* Pede o nome, manda criar e devolve o nome REAL gravado (o backend corrige a
+   grafia se a opção já existia com outro acento/caixa). null = desistiu ou
+   deu erro — quem chama decide o que fazer com a tela. */
+async function pedirOpcaoNova(prop){
+  const nome = (window.prompt("Novo item para " + prop + ":") || "").trim();
+  if(!nome) return null;
+  // vírgula quebra a API de select do Notion — barra antes de gastar a chamada
+  if(nome.indexOf(",") >= 0){ toast("O nome não pode ter vírgula.", 4); return null; }
+
+  const r = await escrever({action:"novaOpcao", base:"POS_OBRA", prop:prop, valor:nome}, "criar opção");
+  if(!r || !r.ok){ toast("Não criou: " + erroTexto((r && r.erro) || "REDE"), 5); return null; }
+  if(r.enfileirado){ toast("Sem internet — não dá para cadastrar opção offline.", 4); return null; }
+
+  const real = (r.resposta && r.resposta.nome) || r.nome || nome;
+  // guarda no SCHEMA em memória para o campo já aparecer sem recarregar a tela
+  const campo = (SCHEMA && SCHEMA.campos || []).find(c => normN(c.nome) === normN(prop));
+  if(campo){
+    campo.opcoes = campo.opcoes || [];
+    if(!campo.opcoes.some(o => normN(o) === normN(real))) campo.opcoes.push(real);
+  }
+  const jaTinha = (r.resposta && r.resposta.jaExistia) || r.jaExistia;
+  toast(jaTinha ? "Já existia — selecionado." : "Criado ✓");
+  return real;
+}
+
+/* select com "+ Novo…": ou grava o valor escolhido, ou cria e grava o novo. */
+async function aoTrocarSelect(prop, valor, id, el){
+  if(valor !== "__novo__"){ if(el) el.dataset.anterior = valor; salvarCampo(prop, valor, id); return; }
+  const anterior = el ? (el.dataset.anterior || "") : "";
+  if(el) el.disabled = true;
+  const novo = await pedirOpcaoNova(prop);
+  if(el) el.disabled = false;
+  if(!novo){ if(el) el.value = anterior; return; }
+  renderPainelChamado();          // repinta com a opção nova já na lista
+  salvarCampo(prop, novo, id);    // e já deixa selecionada
+}
+
+/* multi_select: cria e marca, preservando o que já estava marcado. */
+async function novaOpcaoMulti(prop, id){
+  const cx = document.getElementById(id);
+  const marcados = cx ? Array.from(cx.querySelectorAll("input:checked")).map(i=>i.value) : [];
+  const novo = await pedirOpcaoNova(prop);
+  if(!novo) return;
+  if(!marcados.some(v => normN(v) === normN(novo))) marcados.push(novo);
+  renderPainelChamado();
+  salvarCampo(prop, marcados, id);
 }
 
 /* ---------- quadro de texto grande ---------- */
