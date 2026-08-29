@@ -21,8 +21,9 @@ html{background:var(--bg);min-height:100%}
   --text:#1a3347;--text3:#5a8099;--text4:#8aacbb;--branco:#fff;
   --vermelho:#c0392b;--amarelo:#b7791f;--amarelo-bg:#FFF7ED;--amarelo-bd:#FED7AA;
   --sup:#fff;--sup-stick:#eef5f7;--hover:#e9f6ef;--hover-stick:#dff2e6;--sombra:rgba(20,40,55,.3);
-  /* barra dos gráficos: uma cor só, porque toda série é única (magnitude, não
-     categoria). Contraste conferido contra a superfície nos dois temas. */
+  /* cor PADRÃO da barra. Séries por categoria (serviço, responsável) mandam
+     a própria cor via corDe() e sobrescrevem esta — ver barrasH/barrasV.
+     Contraste conferido contra a superfície nos dois temas. */
   --barra:#295778}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.45;min-height:100vh}
@@ -1313,7 +1314,10 @@ function obrasFiltradas(){
   const st = document.getElementById("f-status").value;
   let l = obrasComPendentes();
   if(st) l = l.filter(o=>o.status===st);
-  if(q) l = l.filter(o => normN(o.titulo).indexOf(q)>=0 || normN(o.clientes).indexOf(q)>=0);
+  /* a busca também casa o telefone — pelos dígitos crus e pelo formatado,
+     então "62993" e "(62) 99363" encontram a mesma obra */
+  if(q) l = l.filter(o => normN(o.titulo).indexOf(q)>=0 || normN(o.clientes).indexOf(q)>=0
+                       || telDigitos(o.telefone).indexOf(q.replace(/\D/g,""))>=0 && /\d/.test(q));
   const c = ORD.col, d = ORD.dir;
   l.sort((a,b)=>{
     let x = a[c], y = b[c];
@@ -1347,7 +1351,7 @@ function renderObras(){
     return '<tr>'+
       '<td class="stick"><span class="obralink" onclick="abrirObra(\''+o.id+'\')">'+esc(o.titulo)+'</span>'+nv+'</td>'+
       '<td>'+esc(o.clientes||"—")+'</td>'+
-      '<td>'+esc(o.telefone||"—")+'</td>'+
+      '<td>'+esc(fmtTel(o.telefone)||"—")+'</td>'+
       '<td>'+esc(dbr(o.dataAssinatura)||"—")+tempo+'</td>'+
       '<td>'+st+'</td>'+
       '<td style="text-align:center">'+(o.servicosAbertos||0)+'</td>'+
@@ -1562,7 +1566,7 @@ function dadosCard(m){
   return {
     endereco: obra.titulo || m.nome,
     cliente: obra.clientes || "",
-    telefone: obra.telefone || "",
+    telefone: fmtTel(obra.telefone) || "",
     dataHora: dbrh(m.data),
     responsavel: m.responsavel || "",
     info: m.info || "",
@@ -1690,13 +1694,13 @@ function pintarObra(){
   const abertos = (OBRA.atividades||[]).filter(a=>normN(a.andamento)!==normN(FINALIZADO)).length;
   const st = abertos>0 ? '<span class="pill alerta">PÓS OBRA EM ANDAMENTO</span>'
                        : '<span class="pill neutro">SEM PÓS OBRA</span>';
-  const tel = v["TELEFONE"] || "";
+  const tel = v["TELEFONE"] || "";   // formatado por fmtTel logo abaixo
   const assin = v["DATA DE ASSINATURA DO CONTRATO"];
   document.getElementById("obra-topo").innerHTML =
     '<div class="obra-nome">'+esc(OBRA.titulo)+'</div>'+
     '<div class="obra-dados">'+
       od("Cliente", v["CLIENTES"] || "—") +
-      od("Telefone", tel ? '<a href="tel:'+esc(String(tel).replace(/[^\d+]/g,""))+'">'+esc(tel)+'</a>' : "—", true) +
+      od("Telefone", tel ? '<a href="tel:'+esc(telLink(tel))+'">'+esc(fmtTel(tel))+'</a>' : "—", true) +
       od("Assinatura do contrato", dbr(assin) || "—") +
       /* item 3: o tempo desde a compra, que é o que responde na hora se a
          casa ainda é nova ou se já passou da maioria dos prazos */
@@ -2521,7 +2525,8 @@ function barrasV(dados, sufixo){
   dados.forEach((d,i)=>{
     const h = Math.max(2, areaA*(d.v/max));
     const x = L + passo*i + (passo-bw)/2, y = T+areaA-h;
-    s += '<rect class="barra" x="'+x+'" y="'+y+'" width="'+bw+'" height="'+h+'" rx="4" ry="4">'+
+    const cor = d.cor ? ' style="fill:'+d.cor+'"' : "";
+    s += '<rect class="barra" x="'+x+'" y="'+y+'" width="'+bw+'" height="'+h+'" rx="4" ry="4"'+cor+'>'+
          '<title>'+esc(d.rot+": "+d.v+(sufixo||""))+'</title></rect>';
     s += '<text class="valor" x="'+(x+bw/2)+'" y="'+(y-4)+'" text-anchor="middle">'+esc(String(d.v).replace(".",","))+'</text>';
     s += '<text class="rot" x="'+(x+bw/2)+'" y="'+(T+areaA+15)+'" text-anchor="middle">'+esc(d.rot)+'</text>';
@@ -2567,7 +2572,11 @@ function barrasH(dados){
     const y = T + i*lh, w = Math.max(2, areaL*(d.v/max));
     const linhas = partidos[i], meio = y + lh/2;
     const y0 = meio - (linhas.length-1)*6 + 3;   // centraliza o bloco de texto
-    const cor = d.cor ? ' fill="'+d.cor+'"' : "";
+    /* CORRIGIDO: era fill="..." (atributo de apresentação SVG). O CSS
+       ".graf .barra{fill:var(--barra)}" tem precedência sobre atributo, então
+       a cor por serviço/responsável era calculada e jogada fora — todas as
+       barras saíam no mesmo azul. style= é declaração inline e ganha do CSS. */
+    const cor = d.cor ? ' style="fill:'+d.cor+'"' : "";
     s += '<text class="rot" x="'+(L-10)+'" y="'+y0+'" text-anchor="end">'+
          linhas.map((t,k)=>'<tspan x="'+(L-10)+'" dy="'+(k?12:0)+'">'+esc(t)+'</tspan>').join("")+
          '<title>'+esc(d.rot)+'</title></text>';

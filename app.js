@@ -218,6 +218,40 @@ function erroTexto(codigo){
   return codigo;
 }
 
+/* ---------- TELEFONE BRASILEIRO ----------
+   O Notion devolve o número como a pessoa digitou: "62993636381", "62 99363
+   6381", "+5562993636381". Na tela isso virava uma tira de dígitos ilegível.
+   fmtTel normaliza para (DDD) XXXXX-XXXX (celular, 11 dígitos) ou
+   (DDD) XXXX-XXXX (fixo, 10 dígitos).
+
+   Regras de borda que importam:
+   - "+55" / "0055" na frente é código do país e é descartado antes de contar
+     os dígitos, senão 5562993636381 (13) não casaria com nenhum formato;
+   - "0" de operadora na frente (0xx) também sai;
+   - o que NÃO for 10 nem 11 dígitos volta como veio. Número estrangeiro,
+     ramal ou campo com anotação ("62 99363-6381 (recado)") não pode ser
+     mutilado só porque não coube na máscara — melhor exibir o original. */
+function telDigitos(v){
+  let d = String(v==null?"":v).replace(/\D/g,"");
+  if(d.length > 11 && d.indexOf("00") === 0) d = d.slice(2);   // 00 + país
+  if(d.length > 11 && d.indexOf("55") === 0) d = d.slice(2);   // +55
+  if(d.length === 11 && d.charAt(0) === "0") d = d.slice(1);   // 0 de operadora
+  if(d.length === 12 && d.charAt(0) === "0") d = d.slice(1);
+  return d;
+}
+function fmtTel(v){
+  if(v == null || v === "") return "";
+  const d = telDigitos(v);
+  if(d.length === 11) return "(" + d.slice(0,2) + ") " + d.slice(2,7) + "-" + d.slice(7);
+  if(d.length === 10) return "(" + d.slice(0,2) + ") " + d.slice(2,6) + "-" + d.slice(6);
+  return String(v);   // não reconhecido: devolve como está, sem estragar
+}
+/* Só os dígitos, para href="tel:" e para o WhatsApp (que exige o 55). */
+function telLink(v){
+  const d = telDigitos(v);
+  return d ? "+55" + d : String(v||"").replace(/[^\d+]/g,"");
+}
+
 /* ---------- utilidades ---------- */
 const brl = n => (Number(n)||0).toLocaleString("pt-BR",{ style:"currency", currency:"BRL", maximumFractionDigits:0 });
 const num = n => (Number(n)||0).toLocaleString("pt-BR");
