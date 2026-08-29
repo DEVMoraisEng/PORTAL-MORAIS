@@ -371,6 +371,11 @@ th.ord.on .seta{opacity:1}
 .det .li .k{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;
   color:var(--text3);min-width:118px;flex:0 0 118px;padding-top:2px}
 .det .li .v{flex:1;overflow-wrap:anywhere;white-space:pre-wrap}
+/* edição da data pelo card do calendário */
+.mc-data{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.mc-data input{flex:1;min-width:170px}
+.mc-dica{font-size:11px;color:var(--text4);margin-top:4px;white-space:normal}
+.bt.peq{padding:6px 11px;font-size:12px}
 
 /* ===================== INDICADORES ===================== */
 .ind-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
@@ -1568,6 +1573,7 @@ function dadosCard(m){
     cliente: obra.clientes || "",
     telefone: fmtTel(obra.telefone) || "",
     dataHora: dbrh(m.data),
+    dataISO: m.data,          // valor cru — é o que o <input> e o Notion usam
     responsavel: m.responsavel || "",
     info: m.info || "",
     servicos: (m.servico||[]).join(", "),
@@ -1635,14 +1641,75 @@ function abrirCard(atividadeId, coluna){
   const m = acharMarcacao(atividadeId, coluna);
   if(!m) return;
   CARD = dadosCard(m);
+  pintarCard();
+  document.getElementById("mc-overlay").classList.add("on");
+}
+/* Separado do abrirCard para poder repintar depois de salvar a data sem
+   fechar e reabrir o modal. */
+function pintarCard(){
   document.getElementById("mc-tit").textContent = CARD.endereco;
   document.getElementById("mc-sub").textContent = rotuloColuna(CARD.coluna) + " · " + CARD.dataHora;
-  const li = (k,v)=> v ? '<div class="li"><div class="k">'+esc(k)+'</div><div class="v">'+esc(v)+'</div></div>' : "";
+  const li = (k,v,bruto)=> v ? '<div class="li"><div class="k">'+esc(k)+'</div><div class="v">'+(bruto?v:esc(v))+'</div></div>' : "";
   document.getElementById("mc-det").innerHTML =
     li("Endereço", CARD.endereco) + li("Cliente", CARD.cliente) + li("Telefone", CARD.telefone) +
-    li("Data e hora", CARD.dataHora) + li("Responsável", CARD.responsavel) +
+    li(rotuloColuna(CARD.coluna), campoDataCard(), true) +
+    li("Responsável", CARD.responsavel) +
     li("Serviços", CARD.servicos) + li("Informação", CARD.info);
-  document.getElementById("mc-overlay").classList.add("on");
+}
+
+/* ---------- remarcar pelo próprio card do calendário ----------
+   Sem isto, mudar um horário custava: fechar o card, abrir a obra, abrir o
+   chamado, achar a coluna. A coluna editada é a MESMA que gerou o card
+   (CARD.coluna), então remarcação 1, 2, 3... cada uma edita a sua.
+   O tipo (com ou sem hora) segue o campoComHora, igual ao painel do chamado. */
+function campoDataCard(){
+  const comHora = campoComHora(CARD.coluna);
+  const v = comHora ? String(CARD.dataISO||"").slice(0,16) : soData(CARD.dataISO);
+  if(soLeitura()){
+    return esc(CARD.dataHora)+' <span class="mc-dica">modo teste — não edita</span>';
+  }
+  return '<div class="mc-data">'+
+    '<input type="'+(comHora?"datetime-local":"date")+'" id="mc-dt" value="'+esc(v)+'">'+
+    '<button class="bt az peq" id="mc-dt-bt" onclick="salvarDataCard()">Salvar</button>'+
+    '</div><div class="mc-dica">'+(comHora?"data e hora":"data")+' · altera <b>'+esc(CARD.coluna)+'</b> no chamado</div>';
+}
+function salvarDataCard(){
+  if(!CARD || soLeitura()) return;
+  const inp = document.getElementById("mc-dt"), bt = document.getElementById("mc-dt-bt");
+  if(!inp) return;
+  const comHora = campoComHora(CARD.coluna);
+  const novo = valorData(inp.value, comHora);
+  if(novo === (comHora ? String(CARD.dataISO||"").slice(0,16)+":00-03:00" : soData(CARD.dataISO))){
+    toast("A data não mudou."); return;
+  }
+  if(!novo && !window.confirm("Apagar a data de "+CARD.coluna+"?\n\nO serviço sai do calendário até receber uma data nova.")) return;
+
+  bt.disabled = inp.disabled = true;
+  escrever({action:"posObraAtvUpdate", pageId:CARD.atividadeId, prop:CARD.coluna, valor:novo}, CARD.coluna)
+    .then(r=>{
+      bt.disabled = inp.disabled = false;
+      if(!r.ok){ toast("Não gravou: "+erroTexto(r.erro), 5); return; }
+
+      /* Atualiza a marcação em memória para o calendário se mexer na hora, sem
+         esperar o recarregarTudo (que leva alguns segundos). acharMarcacao usa
+         atividadeId + coluna, e a coluna não muda — só a data. */
+      const m = acharMarcacao(CARD.atividadeId, CARD.coluna);
+      if(m) m.data = novo;
+      CARD.dataISO = novo;
+      CARD.dataHora = dbrh(novo);
+
+      if(!novo){ fecharCard(); renderCalendario(); recarregarTudo(); toast("Data apagada."); return; }
+      pintarCard();
+      renderCalendario();
+      if(OBRA && semHifen(OBRA.id) === semHifen(CARD.obraId)){
+        // a obra está aberta atrás do modal: histórico e kanban também mudam
+        const a = (OBRA.atividades||[]).find(x=>x.id===CARD.atividadeId);
+        if(a && a.valores) a.valores[CARD.coluna] = novo;
+        renderHistorico(); renderKanban();
+      }
+      recarregarTudo();
+      toast(r.enfileirado ? "Sem internet — vai subir quando reconectar." : "Data salva.");
+    });
 }
 function fecharCard(){ document.getElementById("mc-overlay").classList.remove("on"); CARD = null; }
 function copiarCard(){ if(CARD) copiarTexto(textoWhats(CARD)); }
