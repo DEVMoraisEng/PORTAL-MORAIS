@@ -831,10 +831,14 @@ const ABAS = {
   /* ---------- setor ACOMPANHAMENTO DE LIGAÇÕES ---------- */
   liberadas: {
     titulo: "Obras liberadas para solicitar a ligação",
-    /* DATA DE LIBERAÇÃO como 3ª coluna e o prazo corrido logo depois do
-       alerta, como pedido. */
-    colunas: [C.OBRA, C.CONC, C.DT_LIBER, C.DT_SOL, C.FEZ, C.NF_MEDIDOR, C.RESP,
-              C.OBS, C.CPF, C.ALERTA_INFO, CALC.PRAZO_LIBER],
+    /* DATA DE LIBERAÇÃO como 3ª coluna e o PRAZO CORRIDO COLADO NELA.
+       Antes o prazo ficava no fim da linha, depois do alerta: como o prazo é
+       contado A PARTIR da data de liberação, ler os dois exigia atravessar a
+       tabela inteira com o rolamento horizontal — e na prática a coluna nem
+       aparecia na tela sem rolar. Agora a data e os dias que correram desde
+       ela ficam lado a lado. */
+    colunas: [C.OBRA, C.CONC, C.DT_LIBER, CALC.PRAZO_LIBER, C.DT_SOL, C.FEZ,
+              C.NF_MEDIDOR, C.RESP, C.OBS, C.CPF, C.ALERTA_INFO],
     filtros: [C.CONC, C.RESP, C.FEZ],
     filtroData: [C.DT_LIBER, C.DT_SOL],
     sensiveis: true,
