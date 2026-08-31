@@ -202,7 +202,10 @@ const ERROS_TEXTO = {
   USE_UPLOAD_PARA_ARQUIVOS: "use o botão de anexar para colunas de arquivo",
   SEM_PAGINA: "erro interno: a tela não informou qual registro gravar",
   FALTA_PARAM: "erro interno: faltou informação na chamada",
-  FILA_CHEIA: "a fila de envios offline está cheia — reconecte para esvaziar"
+  FILA_CHEIA: "a fila de envios offline está cheia — reconecte para esvaziar",
+  // MELHORIAS item 7: chamado com SERVIÇO FINALIZADO só o ADM reescreve
+  CHAMADO_FINALIZADO: "este chamado está FINALIZADO — só um ADM pode alterá-lo. "
+    + "Para reabrir, mude o ANDAMENTO DA SOLICITAÇÃO"
 };
 function erroTexto(codigo){
   if(!codigo) return "erro desconhecido";

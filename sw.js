@@ -33,8 +33,11 @@
    estar aqui: é a tela que mais roda na rua, com sinal ruim — em cache, ela
    abre offline e mostra a última lista salva em vez de tela branca.
    v13 -> v14: pos-obra.html (botão do link da agenda) e ligacoes.html
-   (GS_ESPERADO alinhado ao r17). */
-const CACHE = "portal-morais-v14";
+   (GS_ESPERADO alinhado ao r17).
+   v14 -> v15: MELHORIAS do pós obra (RETORNO, retorno que não some, chamado
+   finalizado congelado, WhatsApp com data em destaque, dois avisos de
+   material, arrastar no calendário, CIDADE/SETOR/TELEFONE editáveis). */
+const CACHE = "portal-morais-v15";
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./app.js","./manifest.json"];

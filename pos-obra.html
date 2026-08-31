@@ -166,6 +166,10 @@ th.ord.on .seta{opacity:1}
 .cal-mc.rm{border-left-style:dashed}
 .cal-mc.ok{opacity:.62}
 .cal-mc.ok .e{text-decoration:line-through}
+/* item 11: arrastar para outro dia */
+.cal-mc[draggable="true"]{cursor:grab}
+.cal-mc.arrastando{opacity:.4;cursor:grabbing}
+.cal-dia.alvo{outline:2px dashed var(--azul);outline-offset:-3px;background:rgba(41,87,120,.10)}
 .cal-mais{font-size:10px;color:var(--text4);font-weight:700;padding-left:5px}
 .cal-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--text3);margin-top:10px}
 .cal-leg i{display:inline-block;width:11px;height:11px;border-radius:3px;vertical-align:-1px;margin-right:5px}
@@ -324,6 +328,11 @@ th.ord.on .seta{opacity:1}
 .ms-cx{border:1px solid var(--border);border-radius:8px;background:var(--sup);padding:7px 9px;max-height:150px;overflow-y:auto}
 .ms-item{display:flex;align-items:center;gap:8px;padding:4px 2px;font-size:13px;cursor:pointer}
 /* botão de cadastrar tipo de serviço novo, abaixo da lista de checkboxes */
+.grupo-rm.arquivado{opacity:.9;border-style:dashed}
+.bt-lapis{border:none;background:transparent;cursor:pointer;font-size:13px;padding:0 3px;opacity:.55}
+.bt-lapis:hover{opacity:1}
+.gt-trava{margin-left:8px;font-size:11px;font-weight:800;color:var(--amarelo);letter-spacing:0}
+.gt-nota{margin-left:8px;font-size:11px;font-weight:600;color:var(--text4);letter-spacing:0;text-transform:none}
 .bt-novaopc{margin-top:7px;width:100%;border:1px dashed var(--border);background:var(--bg2);color:var(--azul);
   border-radius:8px;padding:7px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
 .bt-novaopc:hover{background:var(--azul);color:#fff;border-color:var(--azul);border-style:solid}
@@ -856,7 +865,7 @@ const GARANTIAS = [
 const S = exigirSessao();
 atualizarStatus(); atualizarBadge();
 
-const GS_ESPERADO = "2026-08-31 r17";
+const GS_ESPERADO = "2026-08-31 r18";
 
 const ANDAMENTOS = ["MARCANDO SERVIÇO","SERVIÇO MARCADO","REMARCADO 1","REMARCADO 2",
                     "REMARCADO 3","REMARCADO 4","REMARCADO 5","SERVIÇO FINALIZADO"];
@@ -888,17 +897,17 @@ function andamentoDoEvento(val, col, andamentoGeral){
   val = val || {};
   const n = normN(col);
   const nivel = (String(col).match(/(\d+)\s*$/)||[])[1];
-  if(n.indexOf("REMARCA")>=0 && nivel){
+  if(ehRetorno(n) && nivel){
     for(const k in val){
       const kn = normN(k);
-      if(kn.indexOf("ANDAMENTO")>=0 && kn.indexOf("REMARCA")>=0 && kn.indexOf(nivel)>=0) return val[k];
+      if(kn.indexOf("ANDAMENTO")>=0 && ehRetorno(kn) && kn.indexOf(nivel)>=0) return val[k];
     }
     return null;                       // coluna ainda não criada no Notion
   }
   if(n.indexOf("DATA")===0 && n.indexOf("SERVICO")>=0){
     for(const k in val){
       const kn = normN(k);
-      if(kn.indexOf("ANDAMENTO")>=0 && kn.indexOf("SERVICO")>=0 && kn.indexOf("REMARCA")<0) return val[k];
+      if(kn.indexOf("ANDAMENTO")>=0 && kn.indexOf("SERVICO")>=0 && !ehRetorno(kn)) return val[k];
     }
     return null;
   }
@@ -926,7 +935,7 @@ const ORDEM_RM = ["DATA","INFORMA","FOTO"];
    "DATA DO SERVIÇO" e qualquer "DATA REMARCAÇÃO N". */
 function campoComHora(nome){
   const n = normN(nome);
-  return (n.indexOf("DATA")===0 && n.indexOf("SERVICO")>=0) || n.indexOf("REMARCA")>=0;
+  return (n.indexOf("DATA")===0 && n.indexOf("SERVICO")>=0) || ehRetorno(n);
 }
 
 let OBRAS = [], AGENDA = [], SCHEMA = null;
@@ -1237,21 +1246,40 @@ function chip(nome){
 /* Material ainda pendente: não está entregue e não é "sem necessidade".
    Comparo por pedaço porque a lista de opções de STATUS MATERIAL pode
    ganhar variações ("MATERIAL COMPRADO", "COMPRADO", "A COMPRAR"). */
-function materialPendente(st){
+/* ---------- MELHORIAS item 9: dois avisos de material, com prazos ----------
+   COMPRAR MATERIAL  -> avisa 7 dias antes do serviço (tem que comprar)
+   MATERIAL COMPRADO -> avisa 3 dias antes (comprou, falta chegar)
+   MATERIAL ENTREGUE / SEM NECESSIDADE -> não avisa nunca.
+   Os prazos ficam nesta tabela e não espalhados no código: mudar de 7 para 10
+   é mexer num número só. A comparação é por PEDAÇO do nome porque a lista de
+   opções do Notion varia ("A COMPRAR", "COMPRAR MATERIAL"…). */
+const MATERIAL_AVISOS = [
+  { chave:"COMPRAR",  dias:7, titulo:"Material a comprar",
+    texto:'Falta comprar. O aviso aparece 7 dias antes do serviço e some quando o '+
+          '<b style="cursor:default;text-decoration:none">STATUS MATERIAL</b> mudar.' },
+  { chave:"COMPRADO", dias:3, titulo:"Material comprado — conferir entrega",
+    texto:'Já foi comprado; confira se chegou. Aparece 3 dias antes do serviço e some quando o '+
+          '<b style="cursor:default;text-decoration:none">STATUS MATERIAL</b> virar '+
+          '<b style="cursor:default;text-decoration:none">MATERIAL ENTREGUE</b>.' }
+];
+/* Qual aviso este status dispara (ou null). "MATERIAL COMPRADO" contém as
+   duas palavras, então ENTREGUE e COMPRADO são testados ANTES de COMPRAR —
+   a ordem aqui importa. */
+function avisoMaterial(st){
   const n = normN(st);
-  if(!n) return false;
-  if(n.indexOf("ENTREGUE")>=0) return false;
-  if(n.indexOf("SEM NECESSIDADE")>=0) return false;
-  return true;
+  if(!n) return null;
+  if(n.indexOf("ENTREGUE")>=0 || n.indexOf("SEM NECESSIDADE")>=0) return null;
+  if(n.indexOf("COMPRADO")>=0 || n.indexOf("COMPRADA")>=0) return MATERIAL_AVISOS[1];
+  if(n.indexOf("COMPRAR")>=0)  return MATERIAL_AVISOS[0];
+  return MATERIAL_AVISOS[0];   // status desconhecido: trata como o mais urgente
 }
 function ehColunaServico(col){
   const n = normN(col);
-  return (n.indexOf("DATA")===0 && n.indexOf("SERVICO")>=0) || n.indexOf("REMARCA")>=0;
+  return (n.indexOf("DATA")===0 && n.indexOf("SERVICO")>=0) || ehRetorno(n);
 }
 function calcularAlertas(obraId){
-  const amanha = isoMaisDias(hojeISO(), 1), hoje = hojeISO();
-  const limite = isoMaisDias(hoje, 7);
-  const doDia = [], material = [];
+  const hoje = hojeISO(), amanha = isoMaisDias(hoje, 1);
+  const doDia = [], material = [[], []];   // um balde por aviso de MATERIAL_AVISOS
   AGENDA.forEach(m=>{
     if(obraId && semHifen(m.obraId) !== semHifen(obraId)) return;
     /* Passou a olhar o andamento DAQUELE evento (pedido 5): antes, uma
@@ -1261,9 +1289,12 @@ function calcularAlertas(obraId){
     if(!ehColunaServico(m.coluna)) return;
     const d = soData(m.data);
     if(d === amanha) doDia.push(m);
-    // material: da semana anterior à data do serviço até ela ser entregue —
-    // inclui data já passada, senão o pendente some justo quando mais importa
-    if(materialPendente(m.statusMaterial) && d <= limite) material.push(m);
+
+    /* item 9: cada status tem a sua antecedência. Data já passada continua
+       entrando (d <= limite), senão o pendente sumiria justo quando mais
+       importa — que é depois de o serviço ter chegado sem material. */
+    const av = avisoMaterial(m.statusMaterial);
+    if(av && d <= isoMaisDias(hoje, av.dias)) material[MATERIAL_AVISOS.indexOf(av)].push(m);
   });
   return { doDia:doDia, material:material };
 }
@@ -1280,13 +1311,15 @@ function htmlAlertas(a, comObra){
       '<div class="ti">Amanhã tem '+a.doDia.length+(a.doDia.length===1?' serviço marcado':' serviços marcados')+'</div>'+
       a.doDia.map(m=>linhaAlerta(m, comObra)).join("")+'</div></div>';
   }
-  if(a.material.length){
+  // item 9: um bloco por tipo de aviso, cada um com o seu prazo e explicação
+  MATERIAL_AVISOS.forEach((av, i)=>{
+    const lista = a.material[i] || [];
+    if(!lista.length) return;
     h += '<div class="al material"><span class="ic">📦</span><div class="co">'+
-      '<div class="ti">Material a conferir — '+a.material.length+(a.material.length===1?' serviço':' serviços')+'</div>'+
-      '<div class="li" style="margin-bottom:5px">Confira se o pedido foi feito e se já chegou. O aviso some quando o '+
-      '<b style="cursor:default;text-decoration:none">STATUS MATERIAL</b> virar <b style="cursor:default;text-decoration:none">MATERIAL ENTREGUE</b>.</div>'+
-      a.material.map(m=>linhaAlerta(m, comObra, true)).join("")+'</div></div>';
-  }
+      '<div class="ti">'+esc(av.titulo)+' — '+lista.length+(lista.length===1?' serviço':' serviços')+'</div>'+
+      '<div class="li" style="margin-bottom:5px">'+av.texto+'</div>'+
+      lista.map(m=>linhaAlerta(m, comObra, true)).join("")+'</div></div>';
+  });
   return h;
 }
 function linhaAlerta(m, comObra, comStatus){
@@ -1406,6 +1439,77 @@ function mudarCal(n){
 }
 function calHoje(){ CAL_REF = new Date(); renderCalendario(); }
 function calModo(m){ CAL_MODO = m; renderCalendario(); }
+/* ===================== ARRASTAR PARA OUTRO DIA (item 11) ==================
+ * Arrastar a etiqueta de um dia para outro grava a data nova no Notion.
+ * A HORA É PRESERVADA: um serviço das 16:00 arrastado de 31/08 para 02/09
+ * continua às 16:00. Mudar o dia e zerar a hora seria uma perda silenciosa
+ * de informação — a hora só se mexe pelo card, onde ela está à vista.
+ * Confirmação sempre: arrastar é fácil de fazer sem querer, e aqui um deslize
+ * remarca um compromisso com cliente. */
+let ARRASTANDO = null;
+
+function podeArrastar(m){
+  if(soLeitura()) return false;
+  // finalizado é histórico: não se remarca o que já foi feito (item 7)
+  if(ehFinalizado(andEvento(m)) && !ehAdmTela()) return false;
+  return true;
+}
+function arrastarInicio(ev, atividadeId, coluna){
+  ARRASTANDO = { atividadeId:atividadeId, coluna:coluna };
+  try{
+    ev.dataTransfer.effectAllowed = "move";
+    // Firefox só inicia o arrasto se houver algum dado no dataTransfer
+    ev.dataTransfer.setData("text/plain", atividadeId);
+  }catch(e){}
+  if(ev.target && ev.target.classList) ev.target.classList.add("arrastando");
+}
+function arrastarFim(){
+  ARRASTANDO = null;
+  document.querySelectorAll(".cal-mc.arrastando").forEach(e=>e.classList.remove("arrastando"));
+  document.querySelectorAll(".cal-dia.alvo").forEach(e=>e.classList.remove("alvo"));
+}
+function arrastarSobre(ev, cel){
+  if(!ARRASTANDO) return;
+  ev.preventDefault();                       // sem isto o "soltar" não dispara
+  ev.dataTransfer.dropEffect = "move";
+  cel.classList.add("alvo");
+}
+function arrastarSai(cel){ cel.classList.remove("alvo"); }
+
+function arrastarSolta(ev, cel, iso){
+  ev.preventDefault();
+  cel.classList.remove("alvo");
+  const alvo = ARRASTANDO;
+  arrastarFim();
+  if(!alvo) return;
+
+  const m = acharMarcacao(alvo.atividadeId, alvo.coluna);
+  if(!m) return;
+  const diaAtual = soData(m.data);
+  if(diaAtual === iso) return;               // soltou no mesmo dia: nada a fazer
+
+  const comHora = campoComHora(alvo.coluna);
+  const hora = temHora(m.data) ? String(m.data).slice(11,16) : "";
+  const novo = comHora && hora ? valorData(iso+"T"+hora, true) : iso;
+
+  if(!confirm("Mover para "+dbr(iso)+(hora?" às "+hora:"")+"?\n\n"+
+              m.nome+"\n"+rotuloColuna(alvo.coluna)+": "+dbr(diaAtual)+(hora?" às "+hora:"")))
+    return;
+
+  escrever({action:"posObraAtvUpdate", pageId:alvo.atividadeId, prop:alvo.coluna, valor:novo}, alvo.coluna)
+    .then(r=>{
+      if(!r.ok){ toast("Não movi: "+erroTexto(r.erro), 5); return; }
+      m.data = novo;                          // calendário reage na hora
+      if(CARD && CARD.atividadeId === alvo.atividadeId && CARD.coluna === alvo.coluna){
+        CARD.dataISO = novo; CARD.dataHora = dbrh(novo); pintarCard();
+      }
+      renderCalendario(); renderAlertas();
+      recarregarTudo();
+      toast(r.enfileirado ? "Sem internet — vai subir quando reconectar."
+                          : "Movido para "+dbr(iso)+(hora?" às "+hora:"")+".");
+    });
+}
+
 function calResp(v){ CAL_RESP = v; renderCalendario(); }
 function calFlex(on){ CAL_FLEX = !!on; renderCalendario(); }
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -1450,7 +1554,10 @@ function renderCalendario(){
       const iso = isoDe(d), fora = d.getMonth()!==mes, marc = porDia[iso] || [];
       // sem slice: a célula estica e mostra todos os serviços do dia (pedido 1)
       const mostra = marc.map(m=>etiquetaCal(m)).join("");
-      corpo += '<div class="cal-dia'+(fora?" fora":"")+(iso===hoje?" hoje":"")+'">'+
+      // item 11: cada dia do mês é alvo de soltura
+      corpo += '<div class="cal-dia'+(fora?" fora":"")+(iso===hoje?" hoje":"")+'" data-dia="'+iso+'"'+
+               ' ondragover="arrastarSobre(event,this)" ondragleave="arrastarSai(this)"'+
+               ' ondrop="arrastarSolta(event,this,\''+iso+'\')">'+
                '<div class="cal-num">'+d.getDate()+'</div>'+mostra+'</div>';
     }
     corpo += '</div>';
@@ -1563,13 +1670,46 @@ function linhaAberto(m, atras){
       '<div class="m">'+esc(meta + atrasoTxt)+'</div></div>'+
     '<span class="pill '+classeEvento(and)+'">'+esc(rotuloEvento(and))+'</span></div>';
 }
-function rotuloColuna(col){ return String(col).replace(/^DATA\s+(DE\s+|DO\s+|DA\s+)?/i,""); }
+/* ---------- MELHORIAS itens 3 e 5: REMARCAÇÃO virou RETORNO ----------
+   Você renomeou as colunas no Notion. Em vez de trocar a palavra no código e
+   torcer para TODAS as colunas terem sido renomeadas, ehRetorno() reconhece
+   as DUAS — "REMARCAÇÃO 2" e "RETORNO 02" caem no mesmo lugar. Assim uma
+   coluna esquecida com o nome antigo continua funcionando, e a base pode ser
+   renomeada aos poucos sem quebrar nada no meio do caminho. */
+function ehRetorno(nome){
+  const n = normN(nome);
+  return n.indexOf("REMARCA")>=0 || n.indexOf("RETORNO")>=0 ||
+         n.indexOf(" RM ")>=0 || /\bRM\d/.test(n);
+}
+/* Número do retorno: "DATA REMARCAÇÃO 2" e "DATA RETORNO 02" -> 2. */
+function numRetorno(nome){
+  const m = normN(nome).match(/(\d+)\s*$/);
+  return m ? Number(m[1]) : 0;
+}
+/* Rótulo humano: "1º SERVIÇO", "RETORNO 01", "RETORNO 02"… */
+function rotuloRetorno(n){
+  return n > 0 ? "RETORNO " + String(n).padStart(2,"0") : "1º SERVIÇO";
+}
+/* Tira o "DATA DE/DO/DA" e, sendo coluna de agenda, devolve o rótulo novo. */
+function rotuloColuna(col){
+  const n = numeroDeAgenda(col);
+  if(n !== null) return rotuloRetorno(n);
+  return String(col).replace(/^DATA\s+(DE\s+|DO\s+|DA\s+)?/i,"");
+}
+/* Devolve 0 para a coluna do 1º serviço, N para o retorno N, e null para
+   qualquer coluna que não seja de agenda (DATA CONCLUSÃO, DATA DO CHAMADO). */
+function numeroDeAgenda(col){
+  const n = normN(col);
+  if(ehRetorno(n)) return numRetorno(n) || 1;
+  if(n.indexOf("DATA")===0 && n.indexOf("SERVICO")>=0) return 0;
+  return null;
+}
 /* Etiqueta do dia (pedido 1): ENDEREÇO + CASA, responsável e horário, cada um
    na sua linha. m.nome já vem do Notion como "ENDEREÇO CS N" — é o título da
    atividade, montado assim na criação (ver posObraServicoNovo_ no Code.gs).
    Verde = evento concluído (pedido 5). */
 function etiquetaCal(m){
-  const rm = normN(m.coluna).indexOf("REMARCA")>=0;
+  const rm = ehRetorno(m.coluna);
   const and = andEvento(m), ok = ehFinalizado(and);
   const hora = temHora(m.data) ? hhmm(m.data) : "";
   const cls = (ok ? " ok" : "") + (rm ? " rm" : "");
@@ -1579,7 +1719,12 @@ function etiquetaCal(m){
      na etiqueta .st, então nada de informação depende só da cor. */
   const cor = m.responsavel ? corDe(m.responsavel) : "#8aacbb";
   const est = ok ? "FEITO" : (rm ? rotuloColuna(m.coluna) : "");
-  return '<button class="cal-mc'+cls+'" style="border-left-color:'+cor+';background:'+cor+'1F;color:'+cor+'" '+
+  /* MELHORIAS item 11: arrastar para outro dia. Só quem pode gravar arrasta —
+     em modo teste ou com o chamado finalizado a etiqueta fica fixa. */
+  const arr = podeArrastar(m)
+    ? ' draggable="true" ondragstart="arrastarInicio(event,\''+m.atividadeId+'\',\''+esc(m.coluna).replace(/'/g,"&#39;")+'\')" ondragend="arrastarFim()"'
+    : "";
+  return '<button class="cal-mc'+cls+'"'+arr+' style="border-left-color:'+cor+';background:'+cor+'1F;color:'+cor+'" '+
          'title="'+esc(m.nome+" · "+m.coluna+" · "+rotuloEvento(and)+(m.responsavel?" · "+m.responsavel:""))+
          '" onclick="abrirCard(\''+m.atividadeId+'\',\''+esc(m.coluna).replace(/'/g,"&#39;")+'\')">'+
          '<span class="e">'+esc(m.nome)+'</span>'+
@@ -1601,7 +1746,7 @@ function dadosCard(m){
     info: m.info || "",
     servicos: (m.servico||[]).join(", "),
     coluna: m.coluna,
-    rm: normN(m.coluna).indexOf("REMARCA")>=0,
+    rm: ehRetorno(m.coluna),
     atividadeId: m.atividadeId,
     obraId: m.obraId
   };
@@ -1626,15 +1771,44 @@ function cardCal(m){
     '</div></div>';
 }
 /* Texto pronto pro WhatsApp. Asterisco simples é o negrito do WhatsApp. */
+/* MELHORIAS item 2 — a data e a hora vão para o TOPO, em negrito e sozinhas
+   na linha. Antes ficavam na terceira linha, no meio do texto, e no WhatsApp
+   quem lê rápido no celular não achava. Endereço agora é
+   ENDEREÇO + CASA + SETOR + CIDADE (ver enderecoCompleto). */
 function textoWhats(d){
   const l = [];
-  l.push("*"+d.endereco+"*");
+  const dia = soData(d.dataISO), hora = temHora(d.dataISO) ? hhmm(d.dataISO) : "";
+  l.push("📅 *"+dbr(dia)+"*"+(hora ? "  ⏰ *"+hora+"*" : ""));
+  l.push(diaDaSemana(dia)+" · "+rotuloColuna(d.coluna));
+  l.push("");
+  l.push("📍 *"+enderecoCompleto(d.obraId, d.endereco)+"*");
   if(d.cliente || d.telefone) l.push("👤 "+[d.cliente, d.telefone].filter(Boolean).join(" — 📞 "));
-  l.push("📅 "+rotuloColuna(d.coluna)+": "+d.dataHora);
   if(d.responsavel) l.push("👷 Responsável: "+d.responsavel);
   if(d.servicos) l.push("🔧 Serviço: "+d.servicos);
   if(d.info) l.push("📝 "+d.info);
   return l.join("\n");
+}
+const DIAS_SEM = ["Domingo","Segunda-feira","Terça-feira","Quarta-feira","Quinta-feira","Sexta-feira","Sábado"];
+function diaDaSemana(iso){
+  const [a,m,d] = String(iso||"").slice(0,10).split("-").map(Number);
+  if(!a) return "";
+  // componentes locais: new Date("YYYY-MM-DD") seria UTC e voltaria um dia
+  return DIAS_SEM[new Date(a, m-1, d).getDay()];
+}
+/* ENDEREÇO + CASA + SETOR + CIDADE (item 2). O título da atividade já traz
+   "ENDEREÇO CS N"; SETOR e CIDADE vêm da obra (item 1). Cada pedaço só entra
+   se existir e se ainda não estiver no texto — obra antiga sem SETOR/CIDADE
+   preenchidos continua saindo com o endereço puro, sem sobra de separador. */
+function enderecoCompleto(obraId, base){
+  const o = obraPorId(obraId);
+  const partes = [String(base||"").trim()];
+  if(o){
+    [o.setor, o.cidade].forEach(x=>{
+      const t = String(x||"").trim();
+      if(t && normN(partes.join(" ")).indexOf(normN(t)) < 0) partes.push(t);
+    });
+  }
+  return partes.filter(Boolean).join(" · ");
 }
 function acharMarcacao(atividadeId, coluna){
   return AGENDA.find(m=>m.atividadeId===atividadeId && m.coluna===coluna);
@@ -1670,7 +1844,7 @@ function abrirCard(atividadeId, coluna){
 /* Separado do abrirCard para poder repintar depois de salvar a data sem
    fechar e reabrir o modal. */
 function pintarCard(){
-  document.getElementById("mc-tit").textContent = CARD.endereco;
+  document.getElementById("mc-tit").textContent = enderecoCompleto(CARD.obraId, CARD.endereco);
   document.getElementById("mc-sub").textContent = rotuloColuna(CARD.coluna) + " · " + CARD.dataHora;
   const li = (k,v,bruto)=> v ? '<div class="li"><div class="k">'+esc(k)+'</div><div class="v">'+(bruto?v:esc(v))+'</div></div>' : "";
   document.getElementById("mc-det").innerHTML =
@@ -1790,7 +1964,19 @@ function pintarObra(){
     '<div class="obra-nome">'+esc(OBRA.titulo)+'</div>'+
     '<div class="obra-dados">'+
       od("Cliente", v["CLIENTES"] || "—") +
-      od("Telefone", tel ? '<a href="tel:'+esc(telLink(tel))+'">'+esc(fmtTel(tel))+'</a>' : "—", true) +
+      /* MELHORIAS item 4: o telefone agora é editável AQUI. Ele grava no PÓS
+         OBRA e espelha em VENDAS (posObraUpdate_), que é o que impede a
+         sincronia de trazer o valor antigo de volta na passada seguinte. */
+      od("Telefone",
+        (tel ? '<a href="tel:'+esc(telLink(tel))+'">'+esc(fmtTel(tel))+'</a>' : '<span style="color:var(--text4)">—</span>')+
+        (soLeitura() ? "" : ' <button class="bt-lapis" title="Editar telefone" onclick="editarEspelho(\'TELEFONE\',\'Telefone\')">✏️</button>'), true) +
+      // item 1: CIDADE e SETOR, vindos de VENDAS e corrigíveis por aqui
+      od("Setor",
+        esc(OBRA.setor || "—")+
+        (soLeitura() ? "" : ' <button class="bt-lapis" title="Editar setor" onclick="editarEspelho(\'SETOR\',\'Setor\')">✏️</button>'), true) +
+      od("Cidade",
+        esc(OBRA.cidade || "—")+
+        (soLeitura() ? "" : ' <button class="bt-lapis" title="Editar cidade" onclick="editarEspelho(\'CIDADE\',\'Cidade\')">✏️</button>'), true) +
       od("Assinatura do contrato", dbr(assin) || "—") +
       /* item 3: o tempo desde a compra, que é o que responde na hora se a
          casa ainda é nova ou se já passou da maioria dos prazos */
@@ -1837,6 +2023,33 @@ function controleFlex(){
   return ehFlexivel(atual) ? '<span class="pill flex">🕘 '+esc(atual)+'</span>'
                            : '<span style="color:var(--text4)">não</span>';
 }
+/* MELHORIAS itens 1 e 4 — TELEFONE, CIDADE e SETOR.
+   Estes três são espelho de VENDAS. Gravar só no PÓS OBRA não adiantava: a
+   sincronia seguinte trazia o valor antigo de volta (era o "não consigo
+   preencher o telefone"). O posObraUpdate_ agora grava nos DOIS lados, então
+   editar aqui vale de verdade e vale também na venda. */
+function editarEspelho(coluna, rotulo){
+  if(soLeitura()){ toast("Modo teste: nada é gravado.", 3); return; }
+  if(!OBRA) return;
+  const mapa = { TELEFONE:"telefone", CIDADE:"cidade", SETOR:"setor" };
+  const chave = mapa[coluna];
+  const atual = (coluna === "TELEFONE") ? fmtTel(OBRA[chave]) : (OBRA[chave] || "");
+  const novo = window.prompt(rotulo + " de " + OBRA.titulo + ":", atual);
+  if(novo === null) return;                      // cancelou
+  const limpo = String(novo).trim();
+  if(limpo === String(atual).trim()) return;     // não mudou: não gasta chamada
+
+  escrever({action:"posObraUpdate", pageId:OBRA.id, prop:coluna, valor:limpo}, rotulo).then(r=>{
+    if(!r.ok){ toast("Não gravou: "+erroTexto(r.erro), 5); return; }
+    OBRA[chave] = limpo || null;
+    const o = obraPorId(OBRA.id); if(o) o[chave] = OBRA[chave];
+    pintarObra();
+    const esp = r.resposta && r.resposta.espelhado;
+    toast(r.enfileirado ? "Sem internet — vai subir quando reconectar."
+        : (esp ? "Salvo aqui e na venda." : "Salvo. (Sem venda correspondente para espelhar.)"), 4);
+  });
+}
+
 function gravarFlex(valor){
   if(soLeitura()){ toast("Modo teste: nada é gravado.", 3); return; }
   return escrever({action:"posObraUpdate", pageId:OBRA.id, prop:FLEX_CAMPO.nome, valor:valor},
@@ -1999,7 +2212,7 @@ function renderHistorico(){
       /* Pedido 2: a abertura do chamado não é um acontecimento do histórico —
          ela duplicava toda linha de serviço com a mesma informação. */
       if(n.indexOf("CHAMADO")>=0) continue;
-      const rm = n.indexOf("REMARCA")>=0;
+      const rm = ehRetorno(n);
       const nivel = (String(col).match(/(\d+)\s*$/)||[])[1];
       const texto = rm && nivel ? (acharInfoRm(val, nivel) || "") : (val["INFORMAÇÕES SERVIÇO"] || "");
       eventos.push({ data:bruto, col:col, rm:rm, nome:a.nome, texto:texto,
@@ -2037,7 +2250,7 @@ function renderHistorico(){
 function acharInfoRm(val, nivel){
   for(const col in val){
     const n = normN(col);
-    if(n.indexOf("INFORMAC")>=0 && n.indexOf("REMARCA")>=0 && n.indexOf(String(nivel))>=0) return val[col];
+    if(n.indexOf("INFORMAC")>=0 && ehRetorno(n) && n.indexOf(String(nivel))>=0) return val[col];
   }
   return "";
 }
@@ -2129,13 +2342,11 @@ function fecharChamado(){
 }
 /* Nível de remarcação de um campo: "DATA REMARCAÇÃO 2" -> 2; campo comum -> 0. */
 function nivelCampo(nome){
-  const n = normN(nome);
-  if(n.indexOf("REMARCA")<0 && n.indexOf(" RM ")<0 && !/\bRM\d/.test(n)) return 0;
-  const m = n.match(/(\d+)\s*$/);
-  return m ? Number(m[1]) : 0;
+  return ehRetorno(nome) ? (numRetorno(nome) || 1) : 0;
 }
 function nivelAtual(andamento){
-  const m = normN(andamento).match(/^REMARCADO\s*(\d+)$/);
+  // aceita "REMARCADO 2" (nome antigo) e "RETORNO 02" (nome novo)
+  const m = normN(andamento).match(/^(?:REMARCADO|RETORNO)\s*(\d+)$/);
   return m ? Number(m[1]) : 0;
 }
 /* Ordena pela lista pedida; o que não estiver nela vai pro fim, em ordem
@@ -2169,33 +2380,78 @@ function renderPainelChamado(){
   }
   const v = CHAMADO.valores || {};
   const nivel = nivelAtual(CHAMADO.andamento);
+  const fim = chamadoFinalizado();
   const base = [], porNivel = {};
   SCHEMA.campos.forEach(c=>{
     if(c.tipo === "title") return;
     if(normN(c.nome) === normN("PÓS OBRA")) return;
+    /* MELHORIAS item 10: ENDEREÇO BASE é rollup do Notion — só ocupava
+       espaço com "(rollup)" e o aviso de não-editável. */
+    if(normN(c.nome).indexOf("ENDERECO BASE")>=0) return;
     const n = nivelCampo(c.nome);
     if(n === 0) base.push(c);
-    else if(n <= nivel) (porNivel[n] = porNivel[n] || []).push(c);
+    else (porNivel[n] = porNivel[n] || []).push(c);
   });
 
   let html = ordenarCampos(base, ORDEM_CAMPOS, true).map(c=>campoHtml(c, v)).join("");
-  Object.keys(porNivel).sort((a,b)=>a-b).forEach(n=>{
-    html += '<div class="grupo-rm"><div class="gt">Remarcação '+n+'</div>'+
-            ordenarCampos(porNivel[n], ORDEM_RM, false).map(c=>campoHtml(c, v)).join("") + '</div>';
+
+  /* ===== MELHORIAS item 6 — o retorno não some mais =====================
+     O BUG: o bloco do retorno N só era desenhado se nivelAtual(andamento) >= N.
+     Como "SERVIÇO FINALIZADO" não casa com /REMARCADO (\d+)/, nivelAtual caía
+     para 0 e TODOS os retornos desapareciam da tela de uma vez — o mesmo
+     acontecia ao voltar de RETORNO 2 para RETORNO 1. Os dados nunca foram
+     apagados; a tela é que deixava de desenhá-los.
+     A REGRA AGORA: um bloco aparece se TEM VALOR PREENCHIDO, sempre. O
+     andamento só decide qual bloco AINDA VAZIO fica visível para ser
+     preenchido — nunca esconde o que já foi registrado. */
+  const niveis = Object.keys(porNivel).map(Number).sort((a,b)=>a-b);
+  let ocultos = 0;
+  niveis.forEach(n=>{
+    const campos = porNivel[n];
+    const temValor = campos.some(c=>{
+      const x = v[c.nome];
+      return Array.isArray(x) ? x.length > 0 : (x !== null && x !== undefined && x !== "");
+    });
+    // vazio e ainda não liberado pelo andamento: fica escondido
+    if(!temValor && n > nivel){ ocultos++; return; }
+    const trava = fim && !ehAdmTela()
+      ? '<span class="gt-trava" title="Chamado finalizado — só o ADM edita">🔒 finalizado</span>' : "";
+    html += '<div class="grupo-rm'+(temValor && n > nivel ? " arquivado" : "")+'">'+
+            '<div class="gt">'+esc(rotuloRetorno(n))+trava+
+            (temValor && n > nivel ? '<span class="gt-nota">registrado — mantido no histórico</span>' : "")+
+            '</div>'+
+            ordenarCampos(campos, ORDEM_RM, false).map(c=>campoHtml(c, v)).join("") + '</div>';
   });
-  const escondidos = SCHEMA.campos.filter(c=>nivelCampo(c.nome)>nivel).length;
-  if(escondidos){
-    html += '<div class="campo"><div class="dica">'+escondidos+' campo(s) de remarcação aparecem quando o '+
-            'ANDAMENTO DA SOLICITAÇÃO virar REMARCADO '+(nivel+1)+'.</div></div>';
+
+  if(ocultos){
+    html += '<div class="campo"><div class="dica">'+ocultos+' bloco(s) de retorno ainda vazios. '+
+            'Aparecem quando o <b>ANDAMENTO DA SOLICITAÇÃO</b> virar <b>'+
+            esc(rotuloRetorno(nivel+1))+'</b>.</div></div>';
   }
   body.innerHTML = html;
+}
+
+/* MELHORIAS item 7 — chamado finalizado fica congelado.
+   Depois de SERVIÇO FINALIZADO ninguém abre retorno novo nem reescreve o que
+   já ficou registrado; o ADM passa. O ANDAMENTO DA SOLICITAÇÃO segue livre
+   para todos: é ele que reabre o chamado finalizado por engano.
+   Mesma regra no servidor (posObraAtvUpdate_) — isto aqui é só não oferecer
+   um campo que a gravação vai recusar. */
+function ehAdmTela(){ return S && String(S.tipo||"").toUpperCase() === "ADM"; }
+function chamadoFinalizado(){
+  return !!CHAMADO && normN(CHAMADO.andamento).indexOf("FINALIZ") >= 0;
+}
+function campoCongelado(nome){
+  if(!chamadoFinalizado() || ehAdmTela()) return false;
+  return normN(nome).indexOf("ANDAMENTO DA SOLICITACAO") < 0;
 }
 
 function campoHtml(c, v){
   const val = v[c.nome];
   const id = "f_" + btoa(unescape(encodeURIComponent(c.nome))).replace(/[^A-Za-z0-9]/g,"");
   const lab = '<label>'+esc(c.nome)+'</label>';
-  const ro = soLeitura() ? " disabled" : "";
+  // item 7: finalizado trava tudo menos o próprio ANDAMENTO (e o ADM)
+  const ro = (soLeitura() || campoCongelado(c.nome)) ? " disabled" : "";
   const jsNome = JSON.stringify(c.nome).replace(/"/g,"&quot;");
 
   if(!c.editavel && c.tipo !== "files"){
@@ -2489,7 +2745,7 @@ function renderIndicadores(){
   });
   const media = durs.length ? (durs.reduce((s,x)=>s+x.dias,0)/durs.length) : null;
   const finalizados = atvs.filter(a=>normN(a.andamento)===normN(FINALIZADO)).length;
-  const remarcados = atvs.filter(a=>normN(a.andamento).indexOf("REMARCADO")===0).length;
+  const remarcados = atvs.filter(a=>nivelAtual(a.andamento)>0).length;
 
   document.getElementById("ind-info").textContent =
     atvs.length + (atvs.length===1?" serviço":" serviços") + " com data · " + obras.length + " obras";
@@ -2574,7 +2830,7 @@ function renderIndicadoresObra(){
   }
 
   const finalizados = atvs.filter(a=>ehFinalizado(a.andamento)).length;
-  const remarcados  = atvs.filter(a=>normN(a.andamento).indexOf("REMARCADO")===0).length;
+  const remarcados  = atvs.filter(a=>nivelAtual(a.andamento)>0).length;
 
   // tempo de execução: só entra quem tem as DUAS datas preenchidas
   const durs = [];
