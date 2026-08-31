@@ -73,6 +73,8 @@ header::after{content:"";display:block;height:4px;background:linear-gradient(90d
   text-transform:uppercase;line-height:1.15;margin:10px 0 12px;color:var(--text)}
 
 /* cada linha: ícone fixo à esquerda, sempre na mesma coluna */
+/* setor e cidade logo abaixo do endereço (item 2) */
+.local{font-size:17px;font-weight:600;color:var(--text3);margin:-6px 0 12px}
 .ln{display:flex;gap:11px;align-items:flex-start;margin-bottom:9px;font-size:18px}
 .ln .ic{font-size:22px;line-height:1.25;flex:0 0 28px;text-align:center}
 .ln .tx{flex:1;overflow-wrap:anywhere}
@@ -157,16 +159,39 @@ function porExtenso(iso){
 }
 function hhmm(iso){ const m = String(iso||"").match(/T(\d{2}):(\d{2})/); return m ? m[1]+":"+m[2] : ""; }
 
+/* MELHORIAS item 2 — o endereço passa a levar SETOR e CIDADE.
+   Ele vai dirigir até o lugar: "APOLO LYKEIOS QD 01 LT 33 CS 1" sozinho não
+   diz em que bairro nem em que cidade fica, e o mesmo nome de quadra se
+   repete entre loteamentos.
+   Cada pedaço só entra se existir e se ainda não estiver escrito no endereço,
+   para não sair "... PQ DOS BURITIS · PQ DOS BURITIS" quando o título já
+   trouxer o setor. */
+function enderecoCompleto(it){
+  const partes = [String(it.endereco||"").trim()];
+  const jaTem = t => partes.join(" ").toUpperCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .indexOf(String(t).toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")) >= 0;
+  [it.setor, it.cidade].forEach(x=>{
+    const t = String(x||"").trim();
+    if(t && !jaTem(t)) partes.push(t);
+  });
+  return partes.filter(Boolean).join(" · ");
+}
+
 function cartao(it){
   const hora = hhmm(it.data);
   const servicos = (it.servicos||[]).join(", ");
   const tel = fmtTel(it.telefone);
-  const rota = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(it.endereco);
+  const endereco = enderecoCompleto(it);
+  // a rota usa o endereço COMPLETO: com cidade o Google acerta o lugar certo
+  const rota = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(endereco);
   return '<div class="card'+(it.remarcacao?" rm":"")+'">'+
     '<div class="hora">'+ (hora ? esc(hora) : '<small style="margin:0">Sem hora marcada</small>') +
       (hora ? '<small>horas</small>' : "") +
       (it.remarcacao ? '<span class="tagrm">REMARCADO</span>' : "") + '</div>'+
     '<div class="end">'+esc(it.endereco)+'</div>'+
+    ((it.setor || it.cidade)
+      ? '<div class="local">📍 '+esc([it.setor, it.cidade].filter(Boolean).join(" · "))+'</div>' : "")+
     (it.cliente  ? '<div class="ln"><span class="ic">👤</span><span class="tx"><b>'+esc(it.cliente)+'</b></span></div>' : "")+
     (tel         ? '<div class="ln"><span class="ic">📞</span><span class="tx">'+esc(tel)+'</span></div>' : "")+
     (servicos    ? '<div class="ln"><span class="ic">🔧</span><span class="tx">'+esc(servicos)+'</span></div>' : "")+

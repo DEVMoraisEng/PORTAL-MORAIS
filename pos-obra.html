@@ -329,6 +329,16 @@ th.ord.on .seta{opacity:1}
 .ms-item{display:flex;align-items:center;gap:8px;padding:4px 2px;font-size:13px;cursor:pointer}
 /* botão de cadastrar tipo de serviço novo, abaixo da lista de checkboxes */
 .grupo-rm.arquivado{opacity:.9;border-style:dashed}
+.grupo-rm .gt{display:flex;align-items:center;gap:4px}
+/* item 4: cores próprias para cada aviso de material */
+.al.material.comprar{background:#FEF2F2;border-color:#FCA5A5}
+.al.material.comprar .ti{color:#991B1B}
+.al.material.comprado{background:#EFF6FF;border-color:#93C5FD}
+.al.material.comprado .ti{color:#1E40AF}
+/* item 3: botão de apagar um retorno */
+.gt-excluir{margin-left:auto;border:1px solid #FCA5A5;background:#FEF2F2;color:#991B1B;
+  border-radius:7px;padding:3px 9px;font:inherit;font-size:11px;font-weight:800;cursor:pointer;letter-spacing:0}
+.gt-excluir:hover{background:#991B1B;color:#fff;border-color:#991B1B}
 .bt-lapis{border:none;background:transparent;cursor:pointer;font-size:13px;padding:0 3px;opacity:.55}
 .bt-lapis:hover{opacity:1}
 .gt-trava{margin-left:8px;font-size:11px;font-weight:800;color:var(--amarelo);letter-spacing:0}
@@ -865,7 +875,7 @@ const GARANTIAS = [
 const S = exigirSessao();
 atualizarStatus(); atualizarBadge();
 
-const GS_ESPERADO = "2026-08-31 r18";
+const GS_ESPERADO = "2026-08-31 r19";
 
 const ANDAMENTOS = ["MARCANDO SERVIÇO","SERVIÇO MARCADO","REMARCADO 1","REMARCADO 2",
                     "REMARCADO 3","REMARCADO 4","REMARCADO 5","SERVIÇO FINALIZADO"];
@@ -1254,10 +1264,10 @@ function chip(nome){
    é mexer num número só. A comparação é por PEDAÇO do nome porque a lista de
    opções do Notion varia ("A COMPRAR", "COMPRAR MATERIAL"…). */
 const MATERIAL_AVISOS = [
-  { chave:"COMPRAR",  dias:7, titulo:"Material a comprar",
+  { chave:"COMPRAR",  dias:7, titulo:"Material a comprar", cls:"comprar",
     texto:'Falta comprar. O aviso aparece 7 dias antes do serviço e some quando o '+
           '<b style="cursor:default;text-decoration:none">STATUS MATERIAL</b> mudar.' },
-  { chave:"COMPRADO", dias:3, titulo:"Material comprado — conferir entrega",
+  { chave:"COMPRADO", dias:3, titulo:"Material comprado — conferir entrega", cls:"comprado",
     texto:'Já foi comprado; confira se chegou. Aparece 3 dias antes do serviço e some quando o '+
           '<b style="cursor:default;text-decoration:none">STATUS MATERIAL</b> virar '+
           '<b style="cursor:default;text-decoration:none">MATERIAL ENTREGUE</b>.' }
@@ -1315,7 +1325,10 @@ function htmlAlertas(a, comObra){
   MATERIAL_AVISOS.forEach((av, i)=>{
     const lista = a.material[i] || [];
     if(!lista.length) return;
-    h += '<div class="al material"><span class="ic">📦</span><div class="co">'+
+    /* item 4: cada aviso com a sua cor. Vermelho = falta comprar (o que ainda
+       depende de uma ação sua). Azul = comprado, só conferir a entrega.
+       Antes os dois saíam no mesmo laranja e pareciam o mesmo aviso. */
+    h += '<div class="al material '+av.cls+'"><span class="ic">'+(av.cls==="comprar"?"🛒":"📦")+'</span><div class="co">'+
       '<div class="ti">'+esc(av.titulo)+' — '+lista.length+(lista.length===1?' serviço':' serviços')+'</div>'+
       '<div class="li" style="margin-bottom:5px">'+av.texto+'</div>'+
       lista.map(m=>linhaAlerta(m, comObra, true)).join("")+'</div></div>';
@@ -2416,9 +2429,15 @@ function renderPainelChamado(){
     if(!temValor && n > nivel){ ocultos++; return; }
     const trava = fim && !ehAdmTela()
       ? '<span class="gt-trava" title="Chamado finalizado — só o ADM edita">🔒 finalizado</span>' : "";
+    /* MELHORIAS item 3: apagar um retorno passa a ser um ATO EXPLÍCITO, com
+       botão e confirmação. Mudar o ANDAMENTO nunca apaga nada — antes da r18
+       parecia que apagava, mas era só a tela deixando de desenhar o bloco. */
+    const btExcluir = (temValor && ehAdmTela() && !soLeitura())
+      ? '<button class="gt-excluir" title="Apagar este retorno" onclick="excluirRetorno('+n+')">🗑 Excluir</button>' : "";
     html += '<div class="grupo-rm'+(temValor && n > nivel ? " arquivado" : "")+'">'+
             '<div class="gt">'+esc(rotuloRetorno(n))+trava+
             (temValor && n > nivel ? '<span class="gt-nota">registrado — mantido no histórico</span>' : "")+
+            btExcluir+
             '</div>'+
             ordenarCampos(campos, ORDEM_RM, false).map(c=>campoHtml(c, v)).join("") + '</div>';
   });
@@ -2438,6 +2457,30 @@ function renderPainelChamado(){
    Mesma regra no servidor (posObraAtvUpdate_) — isto aqui é só não oferecer
    um campo que a gravação vai recusar. */
 function ehAdmTela(){ return S && String(S.tipo||"").toUpperCase() === "ADM"; }
+
+/* Apaga todos os campos de um retorno (data, informações, andamento, fotos).
+   Só ADM, e o servidor confere de novo (posObraRetornoExcluir_). Duas
+   confirmações de propósito: é a única ação do pós obra que destrói
+   histórico, e não tem desfazer. */
+function excluirRetorno(nivel){
+  if(!CHAMADO || !ehAdmTela() || soLeitura()) return;
+  const rot = rotuloRetorno(nivel);
+  if(!confirm("Apagar o "+rot+" deste chamado?\n\n"+CHAMADO.nome+
+              "\n\nData, informações, andamento e fotos DESTE retorno serão apagados no Notion. "+
+              "Os outros retornos não são tocados.\n\nNão tem como desfazer.")) return;
+  if(!confirm("Confirma mesmo apagar o "+rot+"?")) return;
+
+  escrever({action:"posObraRetornoExcluir", pageId:CHAMADO.id, nivel:nivel}, "excluir "+rot).then(r=>{
+    if(!r.ok){ toast("Não excluí: "+erroTexto(r.erro), 5); return; }
+    if(r.enfileirado){ toast("Sem internet — não dá para excluir offline.", 4); return; }
+    // limpa em memória para o painel refletir sem esperar o recarregarTudo
+    const campos = (r.resposta && r.resposta.campos) || [];
+    campos.forEach(c=>{ if(CHAMADO.valores) CHAMADO.valores[c] = Array.isArray(CHAMADO.valores[c]) ? [] : null; });
+    renderPainelChamado();
+    recarregarTudo();
+    toast(rot+" apagado.");
+  });
+}
 function chamadoFinalizado(){
   return !!CHAMADO && normN(CHAMADO.andamento).indexOf("FINALIZ") >= 0;
 }

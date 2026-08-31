@@ -36,8 +36,10 @@
    (GS_ESPERADO alinhado ao r17).
    v14 -> v15: MELHORIAS do pós obra (RETORNO, retorno que não some, chamado
    finalizado congelado, WhatsApp com data em destaque, dois avisos de
-   material, arrastar no calendário, CIDADE/SETOR/TELEFONE editáveis). */
-const CACHE = "portal-morais-v15";
+   material, arrastar no calendário, CIDADE/SETOR/TELEFONE editáveis).
+   v15 -> v16: CIDADE lida de fórmula, botão de excluir retorno, cores dos
+   avisos de material e endereço com setor/cidade na servicos.html. */
+const CACHE = "portal-morais-v16";
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./app.js","./manifest.json"];
