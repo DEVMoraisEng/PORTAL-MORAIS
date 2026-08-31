@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<title>Meus serviços</title>
+<link rel="icon" href="img/logo-192.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1e3f58">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ===================================================================
+   TELA DO JORCINEIDE — "SERVIÇOS DE HOJE"
+   ---------------------------------------------------------------
+   Regra de projeto desta página, diferente do resto do portal: quem usa
+   tem pouca leitura. Então, de propósito:
+     - nada de menu, aba, filtro, busca ou configuração;
+     - só duas seções fixas, HOJE e AMANHÃ, sempre nessa ordem;
+     - fonte grande (18-22px) e alvo de toque de 48px+;
+     - cada informação com um ícone SEMPRE no mesmo lugar, para ele
+       reconhecer pela POSIÇÃO e pelo desenho, sem precisar ler;
+     - dois botões por card, com verbo e ícone: LIGAR e ROTA;
+     - nenhuma ação que escreva ou apague nada.
+   =================================================================== */
+:root{
+  --azul:#295778;--azul-esc:#1e3f58;--verde:#2a9d5c;--teal:#3aa7a0;
+  --bg:#EAF1F3;--sup:#fff;--border:#b8d0da;--border2:#d0e4ec;
+  --text:#1a3347;--text3:#5a8099;--text4:#8aacbb;
+  --amarelo-bg:#FFF7ED;--amarelo-bd:#FED7AA;--amarelo:#b7791f;--vermelho:#c0392b;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--text);
+  font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:17px;line-height:1.5;
+  padding-bottom:env(safe-area-inset-bottom)}
+.cond{font-family:'Barlow Condensed',Inter,sans-serif}
+
+header{background:linear-gradient(120deg,var(--azul-esc),var(--azul));color:#fff;
+  padding:18px 16px calc(18px + env(safe-area-inset-top)) 16px;padding-top:calc(18px + env(safe-area-inset-top))}
+header .oi{font-size:15px;opacity:.85;font-weight:600}
+header .nome{font-family:'Barlow Condensed',Inter,sans-serif;font-size:30px;font-weight:700;
+  letter-spacing:.5px;text-transform:uppercase;line-height:1.1;margin-top:2px}
+header::after{content:"";display:block;height:4px;background:linear-gradient(90deg,var(--verde),var(--teal));
+  margin:16px -16px -18px}
+
+.wrap{max-width:640px;margin:0 auto;padding:16px 14px 40px}
+
+/* título de seção: bem grande, com a data escrita por extra */
+.sec{margin:22px 0 12px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.sec:first-child{margin-top:6px}
+.sec .t{font-family:'Barlow Condensed',Inter,sans-serif;font-size:28px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.5px;color:var(--azul-esc)}
+.sec .d{font-size:15px;color:var(--text3);font-weight:600}
+.sec .n{margin-left:auto;background:var(--azul);color:#fff;border-radius:999px;
+  padding:3px 12px;font-size:15px;font-weight:800}
+
+.card{background:var(--sup);border:1px solid var(--border2);border-radius:14px;
+  padding:16px;margin-bottom:14px;box-shadow:0 2px 6px rgba(20,40,55,.06);
+  border-left:6px solid var(--azul)}
+.card.rm{border-left-color:var(--amarelo);background:var(--amarelo-bg)}
+
+/* a HORA é a primeira coisa e a maior de todas — é o que ele procura */
+.hora{font-family:'Barlow Condensed',Inter,sans-serif;font-size:40px;font-weight:700;
+  line-height:1;color:var(--azul);letter-spacing:.5px}
+.hora small{font-size:16px;font-weight:600;color:var(--text3);letter-spacing:0;
+  font-family:Inter,sans-serif;margin-left:8px}
+.tagrm{display:inline-block;background:var(--amarelo);color:#fff;border-radius:6px;
+  padding:2px 9px;font-size:13px;font-weight:800;vertical-align:6px;margin-left:8px}
+
+.end{font-family:'Barlow Condensed',Inter,sans-serif;font-size:24px;font-weight:700;
+  text-transform:uppercase;line-height:1.15;margin:10px 0 12px;color:var(--text)}
+
+/* cada linha: ícone fixo à esquerda, sempre na mesma coluna */
+.ln{display:flex;gap:11px;align-items:flex-start;margin-bottom:9px;font-size:18px}
+.ln .ic{font-size:22px;line-height:1.25;flex:0 0 28px;text-align:center}
+.ln .tx{flex:1;overflow-wrap:anywhere}
+.ln b{font-weight:800}
+
+.acoes{display:flex;gap:10px;margin-top:14px}
+.acoes a{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;
+  min-height:54px;border-radius:12px;text-decoration:none;font-size:18px;font-weight:800;
+  font-family:'Barlow Condensed',Inter,sans-serif;text-transform:uppercase;letter-spacing:.6px}
+.acoes .lig{background:var(--verde);color:#fff}
+.acoes .rota{background:var(--sup);color:var(--azul);border:2px solid var(--azul)}
+.acoes a:active{transform:scale(.98)}
+
+.vazio{background:var(--sup);border:1px dashed var(--border);border-radius:14px;
+  padding:26px 18px;text-align:center;font-size:19px;color:var(--text3);font-weight:600}
+.vazio .em{font-size:44px;display:block;margin-bottom:8px}
+
+.aviso{background:#FEF2F2;border:1px solid #FCA5A5;color:#991B1B;border-radius:12px;
+  padding:18px;font-size:18px;font-weight:600;text-align:center}
+.carregando{text-align:center;padding:50px 16px;font-size:19px;color:var(--text3);font-weight:600}
+
+/* botão de atualizar: grande, no fim, com texto — não um ícone solto */
+.recarregar{display:block;width:100%;min-height:54px;margin-top:22px;border:2px solid var(--border);
+  background:var(--sup);color:var(--azul);border-radius:12px;font:inherit;font-size:18px;font-weight:800;
+  font-family:'Barlow Condensed',Inter,sans-serif;text-transform:uppercase;letter-spacing:.6px;cursor:pointer}
+.rodape{text-align:center;color:var(--text4);font-size:13px;margin-top:16px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="oi">Olá,</div>
+  <div class="nome" id="quem">…</div>
+</header>
+
+<div class="wrap" id="tela">
+  <div class="carregando">Carregando seus serviços…</div>
+</div>
+
+<script>
+/* URL do Apps Script — a mesma do app.js. Esta página é PROPOSITALMENTE
+   independente do app.js: ele carrega login, fila offline e sessão, coisas que
+   aqui não existem e que só criariam chance de erro. */
+const API = "https://script.google.com/macros/s/AKfycbwvMnVHZd7y5k-GP8_Dg9zkWyD2fqqH8UI4gaXsQ0iJnm9QNSsyyUhODFMyMW6BfAk/exec";
+
+/* A chave vem do link (?k=...). É ela que diz ao servidor de quem é a agenda —
+   não existe parâmetro de responsável, então mexer na URL não mostra a agenda
+   de outra pessoa. */
+const CHAVE = new URLSearchParams(location.search).get("k") || "";
+const CACHE_KEY = "morais_agenda_dia";
+
+const esc = t => String(t==null?"":t).replace(/[&<>"']/g, c =>
+  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+/* ---------- telefone: (DDD) XXXXX-XXXX ----------
+   Mesma regra do app.js, copiada de propósito para esta página não depender
+   dele. Se um dia divergirem, a referência é o app.js. */
+function telDigitos(v){
+  let d = String(v==null?"":v).replace(/\D/g,"");
+  if(d.length > 11 && d.indexOf("00") === 0) d = d.slice(2);
+  if(d.length > 11 && d.indexOf("55") === 0) d = d.slice(2);
+  if((d.length === 11 || d.length === 12) && d.charAt(0) === "0") d = d.slice(1);
+  return d;
+}
+function fmtTel(v){
+  if(!v) return "";
+  const d = telDigitos(v);
+  if(d.length === 11) return "("+d.slice(0,2)+") "+d.slice(2,7)+"-"+d.slice(7);
+  if(d.length === 10) return "("+d.slice(0,2)+") "+d.slice(2,6)+"-"+d.slice(6);
+  return String(v);
+}
+function telLink(v){ const d = telDigitos(v); return d ? "+55"+d : ""; }
+
+const DIAS = ["Domingo","Segunda-feira","Terça-feira","Quarta-feira","Quinta-feira","Sexta-feira","Sábado"];
+const MESES = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
+/* Data por extenso ("segunda-feira, 31 de agosto"): ele reconhece o nome do
+   dia da semana com mais facilidade do que 31/08. */
+function porExtenso(iso){
+  const [a,m,d] = String(iso).slice(0,10).split("-").map(Number);
+  const dt = new Date(a, m-1, d);                 // componentes locais: sem pulo de fuso
+  return DIAS[dt.getDay()] + ", " + d + " de " + MESES[m-1];
+}
+function hhmm(iso){ const m = String(iso||"").match(/T(\d{2}):(\d{2})/); return m ? m[1]+":"+m[2] : ""; }
+
+function cartao(it){
+  const hora = hhmm(it.data);
+  const servicos = (it.servicos||[]).join(", ");
+  const tel = fmtTel(it.telefone);
+  const rota = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(it.endereco);
+  return '<div class="card'+(it.remarcacao?" rm":"")+'">'+
+    '<div class="hora">'+ (hora ? esc(hora) : '<small style="margin:0">Sem hora marcada</small>') +
+      (hora ? '<small>horas</small>' : "") +
+      (it.remarcacao ? '<span class="tagrm">REMARCADO</span>' : "") + '</div>'+
+    '<div class="end">'+esc(it.endereco)+'</div>'+
+    (it.cliente  ? '<div class="ln"><span class="ic">👤</span><span class="tx"><b>'+esc(it.cliente)+'</b></span></div>' : "")+
+    (tel         ? '<div class="ln"><span class="ic">📞</span><span class="tx">'+esc(tel)+'</span></div>' : "")+
+    (servicos    ? '<div class="ln"><span class="ic">🔧</span><span class="tx">'+esc(servicos)+'</span></div>' : "")+
+    (it.info     ? '<div class="ln"><span class="ic">📝</span><span class="tx">'+esc(it.info)+'</span></div>' : "")+
+    '<div class="acoes">'+
+      (tel ? '<a class="lig" href="tel:'+esc(telLink(it.telefone))+'">📞 Ligar</a>' : "")+
+      '<a class="rota" href="'+esc(rota)+'" target="_blank" rel="noopener">📍 Rota</a>'+
+    '</div></div>';
+}
+
+function secao(titulo, iso, itens){
+  return '<div class="sec"><span class="t">'+esc(titulo)+'</span>'+
+         '<span class="d">'+esc(porExtenso(iso))+'</span>'+
+         (itens.length ? '<span class="n">'+itens.length+'</span>' : "")+'</div>'+
+    (itens.length ? itens.map(cartao).join("")
+      : '<div class="vazio"><span class="em">☕</span>Nenhum serviço marcado</div>');
+}
+
+function pintar(d){
+  document.getElementById("quem").textContent = (d.responsavel||"").replace(/\s*\(.*\)\s*$/,"");
+  const hoje = d.itens.filter(i=>i.dia===d.hoje);
+  const amanha = d.itens.filter(i=>i.dia===d.amanha);
+  document.getElementById("tela").innerHTML =
+    secao("Hoje", d.hoje, hoje) +
+    secao("Amanhã", d.amanha, amanha) +
+    '<button class="recarregar" onclick="carregar()">🔄 Atualizar</button>'+
+    '<div class="rodape">Morais Engenharia · Pós Obra</div>';
+}
+
+function erro(msg){
+  document.getElementById("tela").innerHTML =
+    '<div class="aviso">'+esc(msg)+'</div>'+
+    '<button class="recarregar" onclick="carregar()">🔄 Tentar de novo</button>';
+}
+
+async function carregar(){
+  if(!CHAVE){ erro("Este link está incompleto. Peça o link certo no escritório."); return; }
+  document.getElementById("tela").innerHTML = '<div class="carregando">Carregando seus serviços…</div>';
+  try{
+    /* text/plain evita o pedido de permissão (preflight) que o Apps Script
+       recusa — mesmo motivo do app.js. */
+    const r = await fetch(API, {
+      method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body: JSON.stringify({action:"agendaDia", chave:CHAVE})
+    });
+    const d = await r.json();
+    if(!d.ok){
+      erro(d.erro === "CHAVE_INVALIDA"
+        ? "Este link não vale mais. Peça um link novo no escritório."
+        : "Não consegui carregar agora. Tente de novo em instantes.");
+      return;
+    }
+    try{ localStorage.setItem(CACHE_KEY, JSON.stringify(d)); }catch(e){}
+    pintar(d);
+  }catch(e){
+    /* Sem internet: mostra a última lista que deu certo, avisando a data.
+       Melhor uma lista de ontem, sinalizada, do que uma tela em branco no
+       meio da rua. */
+    let c = null;
+    try{ c = JSON.parse(localStorage.getItem(CACHE_KEY) || "null"); }catch(_){}
+    if(c && c.itens){
+      pintar(c);
+      document.getElementById("tela").insertAdjacentHTML("afterbegin",
+        '<div class="aviso">📵 Sem internet — esta lista foi salva em '+
+        esc(porExtenso(c.hoje))+'. Pode ter mudado.</div>');
+    } else {
+      erro("Sem internet. Conecte e toque em Tentar de novo.");
+    }
+  }
+}
+carregar();
+</script>
+</body>
+</html>

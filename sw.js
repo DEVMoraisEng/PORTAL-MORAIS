@@ -25,12 +25,17 @@
    indicadores) e a ligacoes.html teve o aviso de versão atualizado.
    v11 -> v12: pos-obra.html (cor por responsável, horário flexível, cadastro
    de serviço/responsável, cor por serviço nos gráficos e telefone formatado),
-   vendas.html e app.js (cadastro de corretor + fmtTel). Entrou também a casas-vendidas.html, que estava FALTANDO nesta
-   lista desde que virou página própria — a vendas.html a abre num iframe, e
-   sem internet o iframe caía no index.html em vez do painel. */
-const CACHE = "portal-morais-v12";
+   vendas.html e app.js (cadastro de corretor + fmtTel). Entrou também a
+   casas-vendidas.html, que estava FALTANDO nesta lista desde que virou página
+   própria — a vendas.html a abre num iframe, e sem internet o iframe caía no
+   index.html em vez do painel.
+   v12 -> v13: entrou a servicos.html (agenda do dia, sem login). Ela precisa
+   estar aqui: é a tela que mais roda na rua, com sinal ruim — em cache, ela
+   abre offline e mostra a última lista salva em vez de tela branca. */
+const CACHE = "portal-morais-v13";
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
-                  "./pos-obra.html","./casas-vendidas.html","./app.js","./manifest.json"];
+                  "./pos-obra.html","./casas-vendidas.html","./servicos.html",
+                  "./app.js","./manifest.json"];
 
 self.addEventListener("install", e=>{
   e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ARQUIVOS)).then(()=>self.skipWaiting()));
