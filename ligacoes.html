@@ -1306,7 +1306,10 @@ function mostrarOffline(r){
    que não precisa de sessão) e avisa quando não bate.
    Backend antigo não conhece VERSAO_GS e responde sem o campo — o que também
    é resposta: é sinal de que a publicação ficou para trás. */
-const GS_ESPERADO = "2026-08-28 r13";
+/* Sobe junto com o VERSAO_GS do Code.gs. Estava travado em r13 desde o fim de
+   agosto, então esta tela vinha mostrando "página desatualizada" sem que nada
+   dela tivesse mudado — o r14..r17 foi tudo em vendas e pós obra. */
+const GS_ESPERADO = "2026-08-31 r17";
 
 /* Compara "2026-08-27 r8" com "2026-08-27 r7" e diz QUEM está atrás.
    Comparação por data + número, nunca de texto: como texto, "r10" viria antes

@@ -376,6 +376,10 @@ th.ord.on .seta{opacity:1}
 .mc-data input{flex:1;min-width:170px}
 .mc-dica{font-size:11px;color:var(--text4);margin-top:4px;white-space:normal}
 .bt.peq{padding:6px 11px;font-size:12px}
+.ag-url{margin-top:8px;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;
+  padding:8px 10px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;overflow-wrap:anywhere}
+.ag-bts{display:flex;gap:7px;margin-top:8px;flex-wrap:wrap}
+.ag-erro{margin-top:8px;color:var(--vermelho);font-size:12.5px;font-weight:700}
 
 /* ===================== INDICADORES ===================== */
 .ind-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
@@ -534,6 +538,7 @@ html[data-tema="escuro"] .logo{background:#fff}
       <div class="crumb">
         <a class="btn-voltar" href="index.html">← Voltar para o Dashboard</a>
         <span style="flex:1"></span>
+        <button class="bt ghost" id="bt-agenda" onclick="abrirLinksAgenda()" style="display:none">🔗 Link dos responsáveis</button>
         <button class="bt az" onclick="irIndicadores()">📊 Indicadores</button>
       </div>
 
@@ -628,6 +633,18 @@ html[data-tema="escuro"] .logo{background:#fff}
       <div class="modal-acoes">
         <button class="bt ghost" onclick="fecharCaixaTexto()">Cancelar</button>
         <button class="bt az" id="txt-salvar" onclick="salvarCaixaTexto()">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- link da agenda do dia (tela servicos.html) -->
+  <div class="modal-overlay" id="ag-overlay" onclick="if(event.target===this)fecharLinksAgenda()">
+    <div class="modal-cx">
+      <div class="modal-tit">Link dos serviços do dia</div>
+      <div class="modal-sub">Abre a agenda de hoje e amanhã no celular, sem login.</div>
+      <div id="ag-corpo"></div>
+      <div class="modal-acoes">
+        <button class="bt ghost" onclick="fecharLinksAgenda()">Fechar</button>
       </div>
     </div>
   </div>
@@ -839,7 +856,7 @@ const GARANTIAS = [
 const S = exigirSessao();
 atualizarStatus(); atualizarBadge();
 
-const GS_ESPERADO = "2026-08-29 r15";
+const GS_ESPERADO = "2026-08-31 r17";
 
 const ANDAMENTOS = ["MARCANDO SERVIÇO","SERVIÇO MARCADO","REMARCADO 1","REMARCADO 2",
                     "REMARCADO 3","REMARCADO 4","REMARCADO 5","SERVIÇO FINALIZADO"];
@@ -1130,6 +1147,12 @@ function pintarUsuario(s){
   document.getElementById("u-nome").textContent = s.nome || s.login;
   const tb = document.getElementById("u-tipo");
   tb.textContent = s.tipo; tb.className = "badge" + (s.tipo==="ADM" ? " adm" : "");
+  /* O link da agenda abre dado de cliente SEM login. Quem decide quem recebe
+     esse link é o ADM — por isso o botão só aparece para ele. A trava real
+     está no agendaLink_ do servidor; isto aqui é só não mostrar o que a
+     pessoa não pode usar. */
+  const ba = document.getElementById("bt-agenda");
+  if(ba) ba.style.display = (s.tipo==="ADM" ? "" : "none");
 }
 
 function versaoGS(v){
@@ -1825,6 +1848,49 @@ function gravarFlex(valor){
     pintarObra();
     toast(r.enfileirado ? "Sem internet — vai subir quando reconectar." : "Salvo.");
     return r;
+  });
+}
+
+/* ===================== LINK DA AGENDA DO DIA (servicos.html) =============
+ * A servicos.html é a tela do funcionário em campo: sem login, só hoje e
+ * amanhã, só os serviços dele. Quem entrega o acesso é este painel — antes
+ * era preciso abrir o Apps Script e rodar uma função na mão, o que na prática
+ * significava que ninguém ia usar.
+ * Só ADM enxerga o botão, e o servidor confere de novo (agendaLink_). */
+function abrirLinksAgenda(){
+  const resps = responsaveisDaAgenda();
+  document.getElementById("ag-corpo").innerHTML = resps.length
+    ? '<div class="det">'+resps.map(r=>
+        '<div class="li"><div class="k" style="flex:0 0 150px;min-width:150px">'+esc(r)+'</div>'+
+        '<div class="v"><button class="bt az peq" onclick="gerarLinkAgenda(\''+esc(r).replace(/'/g,"&#39;")+'\')">Gerar link</button>'+
+        '<div class="ag-saida"></div></div></div>').join("")+'</div>'+
+      '<div class="mc-dica">Quem receber o link vê nome e telefone dos clientes desses dois dias. '+
+      'Mande só para a pessoa certa. Gerar de novo derruba o link anterior na hora.</div>'
+    : '<div class="vazio">Nenhum responsável com serviço marcado ainda.</div>';
+  document.getElementById("ag-overlay").classList.add("on");
+}
+function fecharLinksAgenda(){ document.getElementById("ag-overlay").classList.remove("on"); }
+
+function gerarLinkAgenda(resp, regerar){
+  const bt = event && event.target;
+  const cx = bt ? bt.parentElement.querySelector(".ag-saida") : null;
+  if(bt) bt.disabled = true;
+  chamar({action:"agendaLink", resp:resp, regerar: regerar?1:0}).then(r=>{
+    if(bt) bt.disabled = false;
+    if(!r || !r.ok){ if(cx) cx.innerHTML = '<div class="ag-erro">Não deu: '+esc(erroTexto(r&&r.erro))+'</div>'; return; }
+    // a URL é montada AQUI a partir do endereço da própria página: se o site
+    // mudar de domínio ou de pasta, o link continua certo sem tocar no backend
+    const url = location.href.replace(/[^/]*$/, "") + "servicos.html?k=" + r.chave;
+    if(!cx) return;
+    cx.innerHTML =
+      '<div class="ag-url" id="agu_'+r.chave.slice(0,8)+'">'+esc(url)+'</div>'+
+      '<div class="ag-bts">'+
+        '<button class="bt vd peq" onclick="copiarTexto(\''+esc(url)+'\')">📋 Copiar</button>'+
+        '<a class="bt ghost peq" href="https://wa.me/?text='+encodeURIComponent("Seus serviços de hoje e amanhã:\n"+url)+'" target="_blank" rel="noopener">Enviar no WhatsApp</a>'+
+        '<button class="bt ghost peq" onclick="if(confirm(\'Gerar um link novo?\\n\\nO link atual para de funcionar na hora.\'))gerarLinkAgenda(\''+esc(resp).replace(/'/g,"&#39;")+'\',1)">Gerar outro</button>'+
+      '</div>'+
+      (r.regerado ? '<div class="mc-dica">Link novo. O anterior parou de funcionar.</div>'
+       : (r.novo ? '' : '<div class="mc-dica">Este é o link que já existia — é o mesmo que ele tem.</div>'));
   });
 }
 

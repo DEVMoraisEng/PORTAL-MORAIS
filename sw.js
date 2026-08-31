@@ -31,8 +31,10 @@
    index.html em vez do painel.
    v12 -> v13: entrou a servicos.html (agenda do dia, sem login). Ela precisa
    estar aqui: é a tela que mais roda na rua, com sinal ruim — em cache, ela
-   abre offline e mostra a última lista salva em vez de tela branca. */
-const CACHE = "portal-morais-v13";
+   abre offline e mostra a última lista salva em vez de tela branca.
+   v13 -> v14: pos-obra.html (botão do link da agenda) e ligacoes.html
+   (GS_ESPERADO alinhado ao r17). */
+const CACHE = "portal-morais-v14";
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./app.js","./manifest.json"];
