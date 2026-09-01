@@ -292,7 +292,9 @@ function pctPill(v){
   const sinal = n>0 ? "+" : "";
   return `<span class="pill ${cls}">${sinal}${n.toFixed(1)}%</span>`;
 }
-const esc = s => String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+/* esc() vem do app.js (mesma função) — não redeclarar aqui, senão o
+   JavaScript quebra com "Identifier 'esc' has already been declared" e a
+   página inteira não carrega. */
 
 /* ---------- estado ---------- */
 let RESUMO=null, OBRAS=[], INSUMOS=[], DETALHE=[];
