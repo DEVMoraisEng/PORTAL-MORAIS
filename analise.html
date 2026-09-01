@@ -28,7 +28,7 @@ html[data-tema="escuro"]{
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.45;display:flex;flex-direction:column;min-height:100vh}
 .cond{font-family:'Barlow Condensed',Inter,sans-serif}
-.wrap{max-width:1300px;margin:0 auto;padding:0 20px;width:100%}
+.wrap{max-width:1400px;margin:0 auto;padding:0 20px;width:100%}
 header{background:linear-gradient(120deg,var(--azul-esc),var(--azul));position:relative}
 header::after{content:"";display:block;height:4px;background:linear-gradient(90deg,var(--verde-btn),var(--teal))}
 .hbar{display:flex;align-items:center;gap:13px;padding:14px 0;flex-wrap:wrap}
@@ -45,10 +45,11 @@ header::after{content:"";display:block;height:4px;background:linear-gradient(90d
 .btema{padding:7px 10px}
 
 main{flex:1;width:100%;padding:22px 0 50px}
-.crumb{display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
-.btn-voltar{display:inline-flex;align-items:center;gap:6px;background:var(--sup);border:1px solid var(--border);color:var(--azul);
-  border-radius:8px;padding:8px 14px;font:inherit;font-weight:700;font-size:13px;cursor:pointer;text-decoration:none}
-.btn-voltar:hover{background:var(--bg3)}
+.crumb{display:flex;align-items:center;gap:10px;margin:16px 0 18px;font-size:13px;color:var(--text3);flex-wrap:wrap}
+.btn-voltar{display:inline-flex;align-items:center;gap:6px;background:var(--azul-esc);border:1px solid rgba(143,220,210,.4);
+  border-radius:8px;padding:9px 16px;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;
+  color:var(--teal);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;text-decoration:none;transition:background .15s}
+.btn-voltar:hover{background:#16303f}
 
 .sec{display:flex;align-items:center;gap:10px;background:var(--bg3);border-left:4px solid var(--verde);border-radius:8px;padding:9px 14px;margin:0 0 15px}
 .sec .cond{font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--azul-esc)}
@@ -148,7 +149,7 @@ html[data-tema="escuro"] .pill.neg{background:rgba(140,224,165,.16);color:#8ce0a
 
   <main class="wrap">
     <div class="crumb">
-      <a class="btn-voltar" href="index.html">← Voltar para o Portal</a>
+      <a class="btn-voltar" href="index.html">← Voltar para o Dashboard</a>
       <span style="flex:1"></span>
       <span id="data-extr" style="font-size:12px;color:var(--text3)"></span>
     </div>

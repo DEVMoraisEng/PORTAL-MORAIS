@@ -325,7 +325,7 @@ const SISTEMAS=[
      página (analise.html) mora no próprio portal e lê o Supabase do Orçado x
      Realizado pelo Apps Script (ações analise*). Se a chave não bater, o
      botão não aparece e não dá erro nenhum. */
-  {chave:"ANÁLISES",nome:"Análises",desc:"Orçado × Realizado por obra e insumo",ico:"A",link:"analise.html",grupo:"SETORES"},
+  {chave:"ANÁLISES",nome:"Análises",desc:"Orçado × Realizado por obra e insumo",ico:"A",link:"analise.html",grupo:"ANÁLISES"},
 
   /* "MAPA DE VENDAS" é público: publico:true faz o botão aparecer pra
      qualquer usuário logado, sem precisar de liberação na coluna ACESSOS
@@ -347,7 +347,7 @@ const SISTEMAS=[
      Se não bater, o botão não aparece e não dá erro nenhum. */
   {chave:"PRANCHA HUMANIZADA",nome:"Prancha Humanizada",desc:"Planta do Revit → prancha de venda no timbrado",ico:"A",link:"https://devmoraiseng.github.io/AUT-PRANCHA-HUMANIZADA/",externo:true,grupo:"AUTOMAÇÕES"}
 ];
-const GRUPOS_ORDEM=["SETORES","MAPAS","REUNIÕES","AUTOMAÇÕES"]; // setores, mapas, reuniões e automações — nessa ordem
+const GRUPOS_ORDEM=["SETORES","ANÁLISES","MAPAS","REUNIÕES","AUTOMAÇÕES"]; // setores, análises, mapas, reuniões e automações — nessa ordem
 const S=exigirSessao(); atualizarStatus();
 
 function pintarUsuario(s){ document.getElementById("u-nome").textContent=s.nome||s.login; const tb=document.getElementById("u-tipo"); tb.textContent=s.tipo; tb.className="badge"+(s.tipo==="ADM"?" adm":""); }
