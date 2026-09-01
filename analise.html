@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light only">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#295778">
+<script>(function(){try{var t=localStorage.getItem("morais_tema");
+  if(t!=="claro"&&t!=="escuro") t="claro";
+  document.documentElement.dataset.tema=t;}catch(e){}})();</script>
+<link rel="manifest" href="manifest.json">
+<title>Análises · Orçado x Realizado · Morais Engenharia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{color-scheme:light}
+html{background:var(--bg);min-height:100%}
+body{min-height:100vh}
+:root{
+  --azul:#295778;--azul-esc:#1e3f58;--teal:#8FDCD2;--verde:#2a9d5c;--verde-btn:#4cd964;--verde-esc:#1a6b40;
+  --bg:#EAF1F3;--bg2:#F5F9FA;--bg3:#dceaef;--border:#b8d0da;--border2:#d0e4ec;
+  --text:#1a3347;--text3:#5a8099;--text4:#8aacbb;--branco:#fff;
+  --vermelho:#c0392b;--laranja:#d46a1a;--amarelo:#c9a227;
+  --sup:#fff}
+html[data-tema="escuro"]{
+  --bg:#0f1a22;--bg2:#16242e;--bg3:#1c2f3b;--border:#2a4553;--border2:#22323f;
+  --text:#e6f0f4;--text3:#9fc0cf;--text4:#6d8a99;--sup:#16242e}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.45;display:flex;flex-direction:column;min-height:100vh}
+.cond{font-family:'Barlow Condensed',Inter,sans-serif}
+.wrap{max-width:1300px;margin:0 auto;padding:0 20px;width:100%}
+header{background:linear-gradient(120deg,var(--azul-esc),var(--azul));position:relative}
+header::after{content:"";display:block;height:4px;background:linear-gradient(90deg,var(--verde-btn),var(--teal))}
+.hbar{display:flex;align-items:center;gap:13px;padding:14px 0;flex-wrap:wrap}
+.logo{background:#fff;border-radius:9px;padding:5px 10px;display:inline-flex}.logo img{height:38px;display:block}
+.htitle{font-family:'Barlow Condensed';font-weight:800;font-size:23px;color:#fff;text-transform:uppercase;letter-spacing:.5px;line-height:1}
+.hsub{color:var(--teal);font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase}
+.hspace{flex:1}
+.net{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;padding:3px 9px;border-radius:20px}
+.net.on{background:rgba(76,217,100,.22);color:#CFF9DC}.net.off{background:rgba(255,180,120,.28);color:#FFE2C6}
+.hupd{font-size:11px;color:var(--teal);font-weight:600}
+.user{display:flex;align-items:center;gap:10px;color:#fff}.nome{font-weight:600;font-size:13.5px}
+.badge{font-size:10px;font-weight:800;letter-spacing:.5px;padding:3px 8px;border-radius:20px;background:rgba(255,255,255,.18);color:#fff;text-transform:uppercase}.badge.adm{background:var(--verde-btn);color:#0c3f22}
+.sair,.btema{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;padding:7px 12px;font:inherit;font-weight:700;font-size:12.5px;cursor:pointer}
+.btema{padding:7px 10px}
+
+main{flex:1;width:100%;padding:22px 0 50px}
+.crumb{display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+.btn-voltar{display:inline-flex;align-items:center;gap:6px;background:var(--sup);border:1px solid var(--border);color:var(--azul);
+  border-radius:8px;padding:8px 14px;font:inherit;font-weight:700;font-size:13px;cursor:pointer;text-decoration:none}
+.btn-voltar:hover{background:var(--bg3)}
+
+.sec{display:flex;align-items:center;gap:10px;background:var(--bg3);border-left:4px solid var(--verde);border-radius:8px;padding:9px 14px;margin:0 0 15px}
+.sec .cond{font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--azul-esc)}
+html[data-tema="escuro"] .sec .cond{color:var(--teal)}
+
+/* abas internas */
+.tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+.tab{font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+  padding:11px 20px;border-radius:8px;border:2px solid var(--border);background:var(--sup);color:var(--text3);cursor:pointer}
+.tab.on{background:var(--azul);border-color:var(--azul);color:#fff}
+.tab:hover:not(.on){border-color:var(--azul);color:var(--azul)}
+
+/* KPIs */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-bottom:22px}
+@media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.kpi{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:15px 16px 14px}
+.kpi .lab{font-size:10px;letter-spacing:.4px;text-transform:uppercase;color:var(--text3);font-weight:700}
+.kpi .val{font-family:'Barlow Condensed';font-size:30px;font-weight:800;line-height:1;margin-top:8px;color:var(--azul-esc)}
+html[data-tema="escuro"] .kpi .val{color:var(--teal)}
+.kpi .sub{font-size:11px;color:var(--text4);margin-top:6px}
+.kpi.hero{background:linear-gradient(135deg,var(--azul),var(--azul-esc));border:0}
+.kpi.hero .lab{color:rgba(255,255,255,.85)}.kpi.hero .val{color:#fff}.kpi.hero .sub{color:var(--teal)}
+.kpi .val.vermelho{color:var(--vermelho)}.kpi .val.verde{color:var(--verde-esc)}
+html[data-tema="escuro"] .kpi .val.vermelho{color:#f3a29a}
+html[data-tema="escuro"] .kpi .val.verde{color:#8ce0a5}
+
+/* cartões de tabela */
+.card{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:16px 18px;margin-bottom:20px}
+.card h3{font-family:'Barlow Condensed';font-size:17px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;
+  color:var(--azul-esc);margin:0 0 4px}
+html[data-tema="escuro"] .card h3{color:var(--teal)}
+.card .desc{font-size:12px;color:var(--text3);margin:0 0 14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:900px){.grid2{grid-template-columns:1fr}}
+
+/* tabela */
+.tbl-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--border2)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:9px 12px;text-align:left;white-space:nowrap}
+thead th{background:var(--bg3);color:var(--azul-esc);font-family:'Barlow Condensed';font-weight:800;font-size:13px;
+  text-transform:uppercase;letter-spacing:.3px;position:sticky;top:0;cursor:pointer;user-select:none}
+html[data-tema="escuro"] thead th{color:var(--teal)}
+thead th .arr{opacity:.4;font-size:11px;margin-left:3px}
+thead th.sortA .arr,thead th.sortD .arr{opacity:1}
+tbody tr:nth-child(even){background:var(--bg2)}
+tbody tr:hover{background:var(--bg3)}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+.pill{display:inline-block;font-size:11px;font-weight:800;padding:2px 8px;border-radius:20px}
+.pill.pos{background:rgba(192,57,43,.14);color:var(--vermelho)}
+.pill.neg{background:rgba(26,107,64,.14);color:var(--verde-esc)}
+.pill.zero{background:rgba(90,128,153,.15);color:var(--text3)}
+html[data-tema="escuro"] .pill.pos{background:rgba(243,162,154,.16);color:#f3a29a}
+html[data-tema="escuro"] .pill.neg{background:rgba(140,224,165,.16);color:#8ce0a5}
+
+/* filtros */
+.filtros{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px}
+.fcampo{display:flex;flex-direction:column;gap:4px}
+.fcampo label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--text3)}
+.fcampo input,.fcampo select{font:inherit;font-size:13px;padding:8px 11px;border:1px solid var(--border);border-radius:8px;
+  background:var(--sup);color:var(--text);min-width:150px}
+.fcampo input:focus,.fcampo select:focus{outline:none;border-color:var(--verde);box-shadow:0 0 0 3px rgba(129,201,192,.25)}
+.bt{font:inherit;font-weight:700;font-size:13px;padding:8px 14px;border-radius:8px;cursor:pointer;border:1px solid transparent}
+.bt.az{background:var(--azul);color:#fff}.bt.az:hover{background:var(--azul-esc)}
+.bt.ghost{background:var(--sup);border-color:var(--border);color:var(--text3)}.bt.ghost:hover{background:var(--bg3)}
+
+/* seletor de obras (grupo) */
+.obras-box{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;max-height:280px;overflow-y:auto;
+  padding:12px;border:1px solid var(--border2);border-radius:10px;background:var(--bg2);margin-bottom:6px}
+.obra-check{display:flex;align-items:center;gap:8px;font-size:13px;padding:6px 8px;border-radius:6px;cursor:pointer}
+.obra-check:hover{background:var(--bg3)}
+.obra-check input{width:16px;height:16px;accent-color:var(--verde)}
+.sel-info{font-size:12px;color:var(--text3);margin-bottom:14px}
+
+.vazio{background:var(--sup);border:1px dashed var(--border);border-radius:12px;padding:26px;color:var(--text3);text-align:center;font-size:13px}
+.semacesso{background:var(--sup);border:1px solid var(--border);border-radius:14px;padding:34px;text-align:center;max-width:460px;margin:40px auto}
+.semacesso h2{font-family:'Barlow Condensed';color:var(--vermelho);margin:0 0 10px}
+.load{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--azul);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.hide{display:none!important}
+</style>
+</head>
+<body>
+  <header>
+    <div class="wrap hbar">
+      <span class="logo"><img src="img/logo.png" alt="Morais" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-block'"><b style="display:none;font-family:'Barlow Condensed';font-weight:800;font-size:16px;color:var(--azul-esc);padding:0 4px">MORAIS</b></span>
+      <div><div class="htitle">Análises</div><div class="hsub">Orçado × Realizado</div></div>
+      <div class="hspace"></div>
+      <span class="net on" id="net-status">online</span>
+      <span class="hupd" id="updated"></span>
+      <div class="user">
+        <div style="text-align:right"><div class="nome" id="u-nome">—</div><span class="badge" id="u-tipo">—</span></div>
+        <button class="btema" id="btema" onclick="trocarTema()" title="Alternar claro/escuro" aria-label="Alternar claro/escuro">🌙</button>
+        <button class="sair" onclick="sair()">Sair</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="crumb">
+      <a class="btn-voltar" href="index.html">← Voltar para o Portal</a>
+      <span style="flex:1"></span>
+      <span id="data-extr" style="font-size:12px;color:var(--text3)"></span>
+    </div>
+
+    <div id="sem-acesso" class="semacesso hide">
+      <h2>Sem acesso</h2>
+      <p>Seu login não tem o acesso <b>ANÁLISES</b>. Fale com um ADM.</p>
+      <a class="bt az" href="index.html" style="display:inline-block;margin-top:10px;text-decoration:none">Voltar ao portal</a>
+    </div>
+
+    <div id="conteudo" class="hide">
+      <div class="tabs">
+        <button class="tab on" data-tab="principal" onclick="trocarTab('principal')">Visão Geral</button>
+        <button class="tab" data-tab="obra" onclick="trocarTab('obra')">Por Obra / Grupo</button>
+        <button class="tab" data-tab="insumos" onclick="trocarTab('insumos')">Todos os Insumos</button>
+      </div>
+
+      <!-- ==================== ABA PRINCIPAL ==================== -->
+      <section id="tab-principal">
+        <div class="kpis" id="kpis"><div class="vazio" style="grid-column:1/-1"><span class="load"></span> Carregando…</div></div>
+
+        <div class="grid2">
+          <div class="card">
+            <h3>Top 20 · Maiores estouros (%)</h3>
+            <p class="desc">Insumos onde o realizado mais passou do orçado, em percentual.</p>
+            <div id="t-estouro" class="tbl-wrap"></div>
+          </div>
+          <div class="card">
+            <h3>Top 20 · Maiores economias (%)</h3>
+            <p class="desc">Insumos onde o realizado ficou mais abaixo do orçado.</p>
+            <div id="t-economia" class="tbl-wrap"></div>
+          </div>
+        </div>
+
+        <div class="grid2">
+          <div class="card">
+            <h3>Top 20 · Mais exatos</h3>
+            <p class="desc">Insumos cujo realizado mais se aproximou do orçado (diferença perto de zero).</p>
+            <div id="t-exatos" class="tbl-wrap"></div>
+          </div>
+          <div class="card">
+            <h3>Top 20 · Maior impacto em R$</h3>
+            <p class="desc">Onde o dinheiro mais se desviou em valor absoluto — independe do percentual.</p>
+            <div id="t-impacto" class="tbl-wrap"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== ABA POR OBRA ==================== -->
+      <section id="tab-obra" class="hide">
+        <div class="card">
+          <h3>Selecione uma obra ou um grupo de obras</h3>
+          <p class="desc">Marque uma ou várias obras (ex.: lotes vizinhos) para analisar em conjunto. Os totais somam todas as selecionadas.</p>
+          <div class="filtros">
+            <div class="fcampo">
+              <label>Buscar obra</label>
+              <input type="text" id="busca-obra" placeholder="digite parte do nome…" oninput="filtrarListaObras()">
+            </div>
+            <button class="bt ghost" onclick="marcarTodasObras(true)">Marcar todas</button>
+            <button class="bt ghost" onclick="marcarTodasObras(false)">Limpar seleção</button>
+            <button class="bt az" onclick="analisarSelecao()">Analisar seleção →</button>
+          </div>
+          <div class="obras-box" id="obras-box"><div class="vazio" style="grid-column:1/-1"><span class="load"></span> Carregando obras…</div></div>
+          <div class="sel-info" id="sel-info">Nenhuma obra selecionada.</div>
+        </div>
+
+        <div id="resultado-obra" class="hide">
+          <div class="kpis" id="kpis-obra"></div>
+          <div class="card">
+            <h3 id="titulo-detalhe">Insumos</h3>
+            <p class="desc">Clique nos títulos das colunas para ordenar. Use os filtros para refinar.</p>
+            <div class="filtros">
+              <div class="fcampo">
+                <label>Buscar insumo</label>
+                <input type="text" id="busca-insumo-obra" placeholder="nome ou código…" oninput="renderDetalheObra()">
+              </div>
+              <div class="fcampo">
+                <label>Mostrar</label>
+                <select id="filtro-status-obra" onchange="renderDetalheObra()">
+                  <option value="todos">Todos</option>
+                  <option value="estouro">Só estouros (realizado &gt; orçado)</option>
+                  <option value="economia">Só economias (realizado &lt; orçado)</option>
+                  <option value="semreal">Sem realizado ainda</option>
+                </select>
+              </div>
+            </div>
+            <div id="t-detalhe" class="tbl-wrap"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== ABA INSUMOS ==================== -->
+      <section id="tab-insumos" class="hide">
+        <div class="card">
+          <h3>Consolidado por insumo — todas as obras</h3>
+          <p class="desc">Cada insumo somado em todas as obras. Clique nos títulos para ordenar.</p>
+          <div class="filtros">
+            <div class="fcampo">
+              <label>Buscar insumo</label>
+              <input type="text" id="busca-insumo" placeholder="nome do insumo…" oninput="renderInsumos()">
+            </div>
+            <div class="fcampo">
+              <label>Mostrar</label>
+              <select id="filtro-status-insumo" onchange="renderInsumos()">
+                <option value="todos">Todos</option>
+                <option value="estouro">Só estouros</option>
+                <option value="economia">Só economias</option>
+              </select>
+            </div>
+          </div>
+          <div id="t-insumos" class="tbl-wrap"></div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+<script src="app.js"></script>
+<script>
+/* ============ Análises · Orçado x Realizado ============
+   ACESSO: exige "ANÁLISES" na coluna ACESSOS do banco LOGINS
+   (ADM, MASTER e TESTES passam sempre). Dados vêm do Supabase via
+   proxy no Apps Script (ações analise*). */
+const S = exigirSessao();
+
+/* ---------- tema ---------- */
+function trocarTema(){
+  const novo = document.documentElement.dataset.tema==="escuro" ? "claro":"escuro";
+  document.documentElement.dataset.tema = novo;
+  try{ localStorage.setItem("morais_tema", novo); }catch(e){}
+  document.getElementById("btema").textContent = novo==="escuro" ? "☀️":"🌙";
+}
+
+/* ---------- utils de formatação ---------- */
+const fmtBRL = v => (Number(v)||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+const fmtNum = v => (Number(v)||0).toLocaleString("pt-BR",{maximumFractionDigits:2});
+function pctPill(v){
+  if(v===null||v===undefined||isNaN(v)) return '<span class="pill zero">—</span>';
+  const n=Number(v);
+  const cls = n>0.5 ? "pos" : n<-0.5 ? "neg" : "zero";
+  const sinal = n>0 ? "+" : "";
+  return `<span class="pill ${cls}">${sinal}${n.toFixed(1)}%</span>`;
+}
+const esc = s => String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ---------- estado ---------- */
+let RESUMO=null, OBRAS=[], INSUMOS=[], DETALHE=[];
+let ordInsumos={col:"diferenca",dir:-1};
+let ordDetalhe={col:"ct_orcado",dir:-1};
+
+/* ---------- boot ---------- */
+function pintarUsuario(){
+  document.getElementById("u-nome").textContent = (S&&S.u)||(S&&S.nome)||"—";
+  const tipo=String((S&&S.tipo)||"").toUpperCase();
+  const b=document.getElementById("u-tipo"); b.textContent=tipo||"—";
+  if(tipo==="ADM") b.classList.add("adm");
+}
+
+function iniciar(){
+  pintarUsuario();
+  document.getElementById("btema").textContent =
+    document.documentElement.dataset.tema==="escuro" ? "☀️":"🌙";
+
+  if(!podeAcessar(S,"ANÁLISES")){
+    document.getElementById("sem-acesso").classList.remove("hide");
+    return;
+  }
+  document.getElementById("conteudo").classList.remove("hide");
+  carregarResumo();
+  carregarObras();
+}
+
+/* ---------- carregamento ---------- */
+async function carregarResumo(){
+  const r = await ler({action:"analiseResumo"}, "analise_resumo");
+  if(!r || r.ok===false){ document.getElementById("kpis").innerHTML =
+    `<div class="vazio" style="grid-column:1/-1">Não foi possível carregar (${esc(r&&r.erro||"erro")}).</div>`; return; }
+  RESUMO = r;
+  if(r.data_extracao){
+    const d = r.data_extracao.slice(0,10).split("-");
+    if(d.length===3) document.getElementById("data-extr").textContent = "Foto de "+d[2]+"/"+d[1]+"/"+d[0];
+  }
+  pintarKpis(); pintarTops();
+}
+
+async function carregarObras(){
+  const r = await ler({action:"analiseObras"}, "analise_obras");
+  if(r && r.ok!==false && r.obras){ OBRAS = r.obras; renderListaObras(); }
+}
+
+/* ---------- KPIs principais ---------- */
+function pintarKpis(){
+  const k = RESUMO.kpis;
+  const difCls = k.diferenca>0 ? "vermelho" : k.diferenca<0 ? "verde" : "";
+  document.getElementById("kpis").innerHTML = `
+    <div class="kpi hero"><div class="lab">Obras analisadas</div>
+      <div class="val">${fmtNum(k.obras)}</div>
+      <div class="sub">${fmtNum(k.itens_distintos)} insumos distintos</div></div>
+    <div class="kpi"><div class="lab">Total orçado</div>
+      <div class="val">${fmtBRL(k.total_orcado)}</div></div>
+    <div class="kpi"><div class="lab">Total realizado</div>
+      <div class="val">${fmtBRL(k.total_realizado)}</div></div>
+    <div class="kpi"><div class="lab">Diferença</div>
+      <div class="val ${difCls}">${k.diferenca>0?"+":""}${fmtBRL(k.diferenca)}</div>
+      <div class="sub">${k.diferenca_pct>0?"+":""}${(Number(k.diferenca_pct)||0).toFixed(1)}% sobre o orçado</div></div>`;
+}
+
+/* ---------- tabelas de ranking (Top 20) ---------- */
+function linhasInsumo(arr){
+  if(!arr||!arr.length) return '<div class="vazio">Sem dados.</div>';
+  let h='<table><thead><tr><th>Insumo</th><th>Un</th><th style="text-align:right">Orçado</th>'+
+        '<th style="text-align:right">Realizado</th><th style="text-align:right">Dif R$</th>'+
+        '<th style="text-align:right">Dif %</th></tr></thead><tbody>';
+  arr.forEach(it=>{
+    h+=`<tr><td>${esc(it.insumo)}</td><td>${esc(it.unidade||"")}</td>`+
+       `<td class="num">${fmtBRL(it.total_orcado)}</td>`+
+       `<td class="num">${fmtBRL(it.total_realizado)}</td>`+
+       `<td class="num">${it.diferenca>0?"+":""}${fmtBRL(it.diferenca)}</td>`+
+       `<td class="num">${pctPill(it.diferenca_pct)}</td></tr>`;
+  });
+  return h+'</tbody></table>';
+}
+function pintarTops(){
+  document.getElementById("t-estouro").innerHTML  = linhasInsumo(RESUMO.top_estouro);
+  document.getElementById("t-economia").innerHTML = linhasInsumo(RESUMO.top_economia);
+  document.getElementById("t-exatos").innerHTML   = linhasInsumo(RESUMO.mais_exatos);
+  document.getElementById("t-impacto").innerHTML  = linhasInsumo(RESUMO.maior_impacto);
+}
+
+/* ==================== ABA POR OBRA ==================== */
+function renderListaObras(){
+  const termo = (document.getElementById("busca-obra").value||"").toLowerCase();
+  const box = document.getElementById("obras-box");
+  const vis = OBRAS.filter(o=>!termo || String(o.obra_nome).toLowerCase().includes(termo));
+  if(!vis.length){ box.innerHTML='<div class="vazio" style="grid-column:1/-1">Nenhuma obra.</div>'; return; }
+  box.innerHTML = vis.map(o=>{
+    const marc = _sel.has(o.obra_id) ? "checked":"";
+    return `<label class="obra-check"><input type="checkbox" value="${esc(o.obra_id)}" ${marc}
+      onchange="toggleObra('${esc(o.obra_id)}',this.checked)"> ${esc(o.obra_nome)}</label>`;
+  }).join("");
+}
+function filtrarListaObras(){ renderListaObras(); }
+const _sel = new Set();
+function toggleObra(id,on){ if(on) _sel.add(id); else _sel.delete(id); atualizarSelInfo(); }
+function marcarTodasObras(on){
+  const termo=(document.getElementById("busca-obra").value||"").toLowerCase();
+  OBRAS.filter(o=>!termo||String(o.obra_nome).toLowerCase().includes(termo))
+       .forEach(o=>{ if(on) _sel.add(o.obra_id); else _sel.delete(o.obra_id); });
+  renderListaObras(); atualizarSelInfo();
+}
+function atualizarSelInfo(){
+  const n=_sel.size;
+  document.getElementById("sel-info").textContent =
+    n===0 ? "Nenhuma obra selecionada." : n+" obra"+(n>1?"s":"")+" selecionada"+(n>1?"s":"")+".";
+}
+async function analisarSelecao(){
+  if(_sel.size===0){ alert("Marque ao menos uma obra."); return; }
+  document.getElementById("resultado-obra").classList.remove("hide");
+  document.getElementById("kpis-obra").innerHTML='<div class="vazio" style="grid-column:1/-1"><span class="load"></span> Carregando…</div>';
+  document.getElementById("t-detalhe").innerHTML='';
+  const ids=[..._sel].join(",");
+  const r = await ler({action:"analiseDetalheObra", obra_ids:ids});
+  if(!r || r.ok===false){ document.getElementById("kpis-obra").innerHTML=
+    `<div class="vazio" style="grid-column:1/-1">Erro: ${esc(r&&r.erro||"—")}</div>`; return; }
+  DETALHE = r.linhas||[];
+  pintarKpisObra(); renderDetalheObra();
+  document.getElementById("resultado-obra").scrollIntoView({behavior:"smooth",block:"start"});
+}
+function pintarKpisObra(){
+  let orc=0,real=0; const insumosUnicos=new Set();
+  DETALHE.forEach(l=>{ orc+=Number(l.ct_orcado)||0; real+=Number(l.ct_realizado)||0; insumosUnicos.add(l.insumo); });
+  const dif=real-orc, pct=orc?(dif/orc*100):0;
+  const difCls = dif>0?"vermelho":dif<0?"verde":"";
+  const nomes=[...new Set(DETALHE.map(l=>l.obra_nome))];
+  document.getElementById("titulo-detalhe").textContent =
+    nomes.length===1 ? "Insumos · "+nomes[0] : "Insumos · "+nomes.length+" obras somadas";
+  document.getElementById("kpis-obra").innerHTML = `
+    <div class="kpi hero"><div class="lab">Obras no grupo</div><div class="val">${nomes.length}</div>
+      <div class="sub">${insumosUnicos.size} insumos distintos</div></div>
+    <div class="kpi"><div class="lab">Orçado</div><div class="val">${fmtBRL(orc)}</div></div>
+    <div class="kpi"><div class="lab">Realizado</div><div class="val">${fmtBRL(real)}</div></div>
+    <div class="kpi"><div class="lab">Diferença</div><div class="val ${difCls}">${dif>0?"+":""}${fmtBRL(dif)}</div>
+      <div class="sub">${pct>0?"+":""}${pct.toFixed(1)}% sobre o orçado</div></div>`;
+}
+
+function renderDetalheObra(){
+  const termo=(document.getElementById("busca-insumo-obra").value||"").toLowerCase();
+  const filtro=document.getElementById("filtro-status-obra").value;
+  let linhas = DETALHE.slice();
+
+  // agrega por insumo+código (o mesmo insumo pode vir de várias obras do grupo)
+  const mapa={};
+  linhas.forEach(l=>{
+    const ch=(l.codigo||"")+"|"+l.insumo;
+    if(!mapa[ch]) mapa[ch]={codigo:l.codigo,insumo:l.insumo,unidade:l.unidade,
+      qtd_orcada:0,qtd_realizada:0,ct_orcado:0,ct_realizado:0,obras:new Set()};
+    const m=mapa[ch];
+    m.qtd_orcada+=Number(l.qtd_orcada)||0; m.qtd_realizada+=Number(l.qtd_realizada)||0;
+    m.ct_orcado+=Number(l.ct_orcado)||0; m.ct_realizado+=Number(l.ct_realizado)||0;
+    m.obras.add(l.obra_nome);
+  });
+  let arr=Object.values(mapa).map(m=>{
+    m.diferenca=m.ct_realizado-m.ct_orcado;
+    m.diferenca_pct=m.ct_orcado?(m.diferenca/m.ct_orcado*100):null;
+    m.nobras=m.obras.size; return m;
+  });
+
+  if(termo) arr=arr.filter(m=>String(m.insumo).toLowerCase().includes(termo)||String(m.codigo||"").includes(termo));
+  if(filtro==="estouro")  arr=arr.filter(m=>m.diferenca>0.005);
+  if(filtro==="economia") arr=arr.filter(m=>m.diferenca<-0.005);
+  if(filtro==="semreal")  arr=arr.filter(m=>(Number(m.ct_realizado)||0)===0);
+
+  const c=ordDetalhe.col, d=ordDetalhe.dir;
+  arr.sort((a,b)=>{
+    let va=a[c], vb=b[c];
+    if(typeof va==="string"){ va=va||""; vb=vb||""; return va.localeCompare(vb)*d; }
+    return ((Number(va)||0)-(Number(vb)||0))*d;
+  });
+
+  const cols=[
+    ["insumo","Insumo",false],["codigo","Cód",false],["unidade","Un",false],
+    ["qtd_orcada","Qtd orç",true],["qtd_realizada","Qtd real",true],
+    ["ct_orcado","Orçado R$",true],["ct_realizado","Realizado R$",true],
+    ["diferenca","Dif R$",true],["diferenca_pct","Dif %",true]
+  ];
+  let h='<table><thead><tr>';
+  cols.forEach(([k,rot,n])=>{
+    const s=ordDetalhe.col===k?(ordDetalhe.dir<0?"sortD":"sortA"):"";
+    const arrIco=ordDetalhe.col===k?(ordDetalhe.dir<0?"▼":"▲"):"↕";
+    h+=`<th class="${s}" style="${n?'text-align:right':''}" onclick="sortDetalhe('${k}')">${rot}<span class="arr">${arrIco}</span></th>`;
+  });
+  h+='</tr></thead><tbody>';
+  if(!arr.length) h+='<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:22px">Nada encontrado.</td></tr>';
+  arr.forEach(m=>{
+    h+=`<tr><td>${esc(m.insumo)}</td><td>${esc(m.codigo||"")}</td><td>${esc(m.unidade||"")}</td>`+
+       `<td class="num">${fmtNum(m.qtd_orcada)}</td><td class="num">${fmtNum(m.qtd_realizada)}</td>`+
+       `<td class="num">${fmtBRL(m.ct_orcado)}</td><td class="num">${fmtBRL(m.ct_realizado)}</td>`+
+       `<td class="num">${m.diferenca>0?"+":""}${fmtBRL(m.diferenca)}</td>`+
+       `<td class="num">${pctPill(m.diferenca_pct)}</td></tr>`;
+  });
+  document.getElementById("t-detalhe").innerHTML = h+'</tbody></table>';
+}
+function sortDetalhe(col){
+  if(ordDetalhe.col===col) ordDetalhe.dir*=-1; else { ordDetalhe.col=col; ordDetalhe.dir=(col==="insumo"||col==="codigo"||col==="unidade")?1:-1; }
+  renderDetalheObra();
+}
+
+/* ==================== ABA INSUMOS ==================== */
+async function carregarInsumos(){
+  if(INSUMOS.length){ renderInsumos(); return; }
+  document.getElementById("t-insumos").innerHTML='<div class="vazio"><span class="load"></span> Carregando…</div>';
+  const r = await ler({action:"analiseInsumos"}, "analise_insumos");
+  if(r && r.ok!==false && r.insumos){ INSUMOS=r.insumos; renderInsumos(); }
+  else document.getElementById("t-insumos").innerHTML=`<div class="vazio">Erro ao carregar.</div>`;
+}
+function renderInsumos(){
+  const termo=(document.getElementById("busca-insumo").value||"").toLowerCase();
+  const filtro=document.getElementById("filtro-status-insumo").value;
+  let arr=INSUMOS.slice();
+  if(termo) arr=arr.filter(m=>String(m.insumo).toLowerCase().includes(termo));
+  if(filtro==="estouro")  arr=arr.filter(m=>(Number(m.diferenca)||0)>0.005);
+  if(filtro==="economia") arr=arr.filter(m=>(Number(m.diferenca)||0)<-0.005);
+
+  const c=ordInsumos.col, d=ordInsumos.dir;
+  arr.sort((a,b)=>{
+    let va=a[c],vb=b[c];
+    if(typeof va==="string"){ va=va||"";vb=vb||""; return va.localeCompare(vb)*d; }
+    return ((Number(va)||0)-(Number(vb)||0))*d;
+  });
+
+  const cols=[
+    ["insumo","Insumo",false],["unidade","Un",false],["obras","Obras",true],
+    ["qtd_orcada","Qtd orç",true],["qtd_realizada","Qtd real",true],
+    ["total_orcado","Orçado R$",true],["total_realizado","Realizado R$",true],
+    ["diferenca","Dif R$",true],["diferenca_pct","Dif %",true]
+  ];
+  let h='<table><thead><tr>';
+  cols.forEach(([k,rot,n])=>{
+    const s=ordInsumos.col===k?(ordInsumos.dir<0?"sortD":"sortA"):"";
+    const arrIco=ordInsumos.col===k?(ordInsumos.dir<0?"▼":"▲"):"↕";
+    h+=`<th class="${s}" style="${n?'text-align:right':''}" onclick="sortInsumos('${k}')">${rot}<span class="arr">${arrIco}</span></th>`;
+  });
+  h+='</tr></thead><tbody>';
+  if(!arr.length) h+='<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:22px">Nada encontrado.</td></tr>';
+  arr.forEach(m=>{
+    h+=`<tr><td>${esc(m.insumo)}</td><td>${esc(m.unidade||"")}</td><td class="num">${fmtNum(m.obras)}</td>`+
+       `<td class="num">${fmtNum(m.qtd_orcada)}</td><td class="num">${fmtNum(m.qtd_realizada)}</td>`+
+       `<td class="num">${fmtBRL(m.total_orcado)}</td><td class="num">${fmtBRL(m.total_realizado)}</td>`+
+       `<td class="num">${m.diferenca>0?"+":""}${fmtBRL(m.diferenca)}</td>`+
+       `<td class="num">${pctPill(m.diferenca_pct)}</td></tr>`;
+  });
+  document.getElementById("t-insumos").innerHTML=h+'</tbody></table>';
+}
+function sortInsumos(col){
+  if(ordInsumos.col===col) ordInsumos.dir*=-1; else { ordInsumos.col=col; ordInsumos.dir=(col==="insumo"||col==="unidade")?1:-1; }
+  renderInsumos();
+}
+
+/* ---------- abas ---------- */
+function trocarTab(nome){
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t.dataset.tab===nome));
+  ["principal","obra","insumos"].forEach(n=>
+    document.getElementById("tab-"+n).classList.toggle("hide", n!==nome));
+  if(nome==="insumos") carregarInsumos();
+}
+
+iniciar();
+</script>
+</body>
+</html>

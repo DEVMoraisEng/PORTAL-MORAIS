@@ -320,6 +320,13 @@ const SISTEMAS=[
      botão simplesmente não aparece — e sem erro nenhum na tela. */
   {chave:"PÓS OBRA",nome:"Pós Obra",desc:"Garantias, chamados e serviços de assistência",ico:"P",link:"pos-obra.html",grupo:"SETORES"},
 
+  /* "ANÁLISES" precisa existir, com acento e em maiúsculas, como opção da
+     coluna ACESSOS no banco LOGINS — mesma regra dos outros setores. A
+     página (analise.html) mora no próprio portal e lê o Supabase do Orçado x
+     Realizado pelo Apps Script (ações analise*). Se a chave não bater, o
+     botão não aparece e não dá erro nenhum. */
+  {chave:"ANÁLISES",nome:"Análises",desc:"Orçado × Realizado por obra e insumo",ico:"A",link:"analise.html",grupo:"SETORES"},
+
   /* "MAPA DE VENDAS" é público: publico:true faz o botão aparecer pra
      qualquer usuário logado, sem precisar de liberação na coluna ACESSOS
      do banco LOGINS (diferente dos outros itens, que exigem a chave lá). */
