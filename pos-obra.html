@@ -571,7 +571,7 @@ html[data-tema="escuro"] .logo{background:#fff}
 
       <div class="sec"><span class="cond">Obras</span></div>
       <div class="toolbar">
-        <input class="busca" type="search" id="busca" name="q_pos" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Buscar por endereço ou cliente…" oninput="renderObras()">
+        <input class="busca" type="search" readonly onfocus="this.removeAttribute('readonly')" id="busca" name="q_pos" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Buscar por endereço ou cliente…" oninput="renderObras()">
         <select id="f-status" onchange="renderObras()">
           <option value="">Todos os status</option>
           <option value="PÓS OBRA EM ANDAMENTO">PÓS OBRA EM ANDAMENTO</option>
@@ -604,7 +604,7 @@ html[data-tema="escuro"] .logo{background:#fff}
           <div class="gar-corpo" id="gar-corpo">
             <div id="gar-resumo"></div>
             <div class="toolbar" style="margin:10px 0 9px">
-              <input class="busca" type="search" id="gar-busca" placeholder="Buscar item…" oninput="renderGarantiasLista()">
+              <input class="busca" type="search" readonly onfocus="this.removeAttribute('readonly')" id="gar-busca" placeholder="Buscar item…" oninput="renderGarantiasLista()">
               <select id="gar-filtro" onchange="renderGarantiasLista()">
                 <option value="">Todos</option>
                 <option value="na">Só NA GARANTIA</option>
@@ -1828,35 +1828,20 @@ function textoWhats(d){
  * pro cliente — saudação de acordo com a hora, "hoje"/"amanhã" calculado, o
  * texto de INFORMAÇÕES SERVIÇO (não o multi-select de tipos) e o aviso de
  * remarcação que você pediu. */
-function saudacaoAgora(){
-  const h = new Date().getHours();
-  if(h < 12) return "Bom dia";
-  if(h < 18) return "Boa tarde";
-  return "Boa noite";
-}
-/* "hoje" / "amanhã" / "no dia dd/mm" — comparando só a parte da data, sem
-   fuso (mesmo cuidado do diaDaSemana, componentes locais). */
-function quandoRelativo(iso){
-  const dia = soData(iso);
-  const hj = new Date(); const hojeISO = hj.getFullYear()+"-"+String(hj.getMonth()+1).padStart(2,"0")+"-"+String(hj.getDate()).padStart(2,"0");
-  if(dia === hojeISO) return "hoje";
-  const am = new Date(hj); am.setDate(am.getDate()+1);
-  const amanhaISO = am.getFullYear()+"-"+String(am.getMonth()+1).padStart(2,"0")+"-"+String(am.getDate()).padStart(2,"0");
-  if(dia === amanhaISO) return "amanhã";
-  return "no dia "+dbr(dia);
-}
 function textoWhatsCliente(d){
-  const quando = quandoRelativo(d.dataISO);
-  const hora = temHora(d.dataISO) ? (", às *"+hhmm(d.dataISO)+"*") : "";
+  /* MELHORIAS item 4 (set/26): formato exato pedido. Sem saudacao e sem
+     "hoje/amanha" — data e hora absolutas, porque a mensagem costuma ser
+     enviada na vespera e o "amanha" envelhecia se o cliente lesse no dia
+     seguinte. O texto do servico vem de INFORMACOES SERVICO (o que foi
+     digitado), nao do multi-select de tipos. */
+  const dia = soData(d.dataISO);
+  const horaTxt = temHora(d.dataISO) ? ("  \u23F0 "+hhmm(d.dataISO)) : "";
   const l = [];
-  l.push(saudacaoAgora()+"! 😊");
-  l.push("");
-  l.push("Passando para confirmar o serviço de *"+quando+"*"+hora+", em *"+enderecoCompleto(d.obraId, d.endereco)+"*.");
-  l.push("");
-  if(d.info) l.push("🔧 Serviço a ser realizado: "+d.info);
-  if(d.responsavel) l.push("👷 Responsável: "+d.responsavel);
-  l.push("");
-  l.push("⚠️ Caso seja necessário remarcar, o serviço será reagendado para a próxima data disponível na nossa agenda — nesse caso, pedimos que entre em contato com a gente pra combinarmos o novo horário. 🙏");
+  l.push("Agendamento confirmado \u2705");
+  l.push("\uD83D\uDCC5 "+dbr(dia)+horaTxt);
+  l.push("\uD83D\uDCCD "+enderecoCompleto(d.obraId, d.endereco));
+  if(d.info) l.push("\uD83D\uDD27 Servi\u00E7o a ser realizado: "+d.info);
+  l.push("\u26A0\uFE0F Caso, ap\u00F3s a realiza\u00E7\u00E3o do servi\u00E7o, seja necess\u00E1rio retorno, pedimos que entre em contato com a gente pra combinarmos o novo dia e hor\u00E1rio. \uD83D\uDE4F");
   return l.join("\n");
 }
 function copiarMarcacaoCliente(atividadeId, coluna){

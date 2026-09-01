@@ -793,7 +793,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
         </select>
         <select id="hub-ano" onchange="aplicarFiltros('hub')"><option value="">Todos os anos</option></select>
           <select id="hub-periodo" onchange="aoTrocarPeriodo('hub')"><option value="">Qualquer período</option><option value="7d">Últimos 7 dias</option><option value="30d">Últimos 30 dias</option><option value="mes">Mês (escolher)</option><option value="intervalo">Intervalo (escolher)</option></select><select id="hub-mes" style="display:none" onchange="aplicarFiltros('hub')"><option value="">Mês…</option><option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option><option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option><option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select><input type="date" id="hub-de" style="display:none" title="Data inicial" onchange="aplicarFiltros('hub')"><input type="date" id="hub-ate" style="display:none" title="Data final" onchange="aplicarFiltros('hub')">
-        <input class="busca" type="search" id="hub-busca" name="q_planilha_hub" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Buscar por endereço, setor ou cidade…" oninput="aplicarFiltros('hub')">
+        <input class="busca" type="search" readonly onfocus="this.removeAttribute('readonly')" id="hub-busca" name="q_planilha_hub" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Buscar por endereço, setor ou cidade…" oninput="aplicarFiltros('hub')">
         <span class="count" id="hub-count"></span>
       </div>
       <div class="info-bar" id="hub-info"></div>
@@ -844,7 +844,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
           </select>
           <select id="set-ano" onchange="aplicarFiltros('set')"><option value="">Todos os anos</option></select>
           <select id="set-periodo" onchange="aoTrocarPeriodo('set')"><option value="">Qualquer período</option><option value="7d">Últimos 7 dias</option><option value="30d">Últimos 30 dias</option><option value="mes">Mês (escolher)</option><option value="intervalo">Intervalo (escolher)</option></select><select id="set-mes" style="display:none" onchange="aplicarFiltros('set')"><option value="">Mês…</option><option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option><option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option><option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select><input type="date" id="set-de" style="display:none" title="Data inicial" onchange="aplicarFiltros('set')"><input type="date" id="set-ate" style="display:none" title="Data final" onchange="aplicarFiltros('set')">
-          <input class="busca" type="search" id="set-busca" name="q_planilha_set" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Buscar…" oninput="aplicarFiltros('set')">
+          <input class="busca" type="search" readonly onfocus="this.removeAttribute('readonly')" id="set-busca" name="q_planilha_set" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Buscar…" oninput="aplicarFiltros('set')">
           <span class="count" id="set-count"></span>
         </div>
         <div class="info-bar" id="set-info"></div>
@@ -934,7 +934,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
           <select id="mod-setor" onchange="renderCasasModelo()"><option value="">Todos os setores</option></select>
           <select id="mod-cidade" onchange="renderCasasModelo()"><option value="">Todas as cidades</option></select>
           <select id="mod-tipo" onchange="renderCasasModelo()"><option value="">Todos os tipos</option></select>
-          <input class="busca" type="search" id="mod-busca" name="q_modelo" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Buscar por endereço…" oninput="renderCasasModelo()">
+          <input class="busca" type="search" readonly onfocus="this.removeAttribute('readonly')" id="mod-busca" name="q_modelo" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Buscar por endereço…" oninput="renderCasasModelo()">
           <span class="count" id="mod-count"></span>
         </div>
         <div class="tabela-wrap" id="mod-wrap"><div class="vazio">Carregando…</div></div>
@@ -2168,7 +2168,15 @@ function aplicarFiltros(ctx){
   document.querySelectorAll("#"+ctx+"-wrap tbody tr").forEach(tr=>{
     let ok = tr.dataset.b.indexOf(q)>=0;
     if(ok && cid) ok = tr.dataset.cidade===cid;
-    if(ok && sit) ok = (","+tr.dataset.sit+",").indexOf(","+sit+",")>=0;
+    if(ok && sit){
+      const tags=","+tr.dataset.sit+",";
+      ok = tags.indexOf(","+sit+",")>=0;
+      /* MELHORIAS VENDAS 1 (set/26): "Vendas em Andamento" nao mostra quem ja
+         esta com o processo completo — senao a mesma obra caia nas duas
+         listas e o filtro parecia nao fazer nada. O contador "Vendidas" do
+         informativo continua somando todas; so o FILTRO ficou mais estreito. */
+      if(ok && sit==="vendida") ok = tags.indexOf(",completo,")<0;
+    }
     if(ok && ano) ok = tr.dataset.ano===ano;
     if(ok && per){ const dv=tr.dataset.dv||""; ok = !!dv && dv>=per.de && dv<=per.ate; }
     if(ok && prazoFiltro.length) ok = prazoFiltro.indexOf(tr.dataset.prazo)>=0;

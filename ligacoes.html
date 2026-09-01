@@ -544,7 +544,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
       <div class="toolbar" id="filtros-hub"></div>
       <div id="legenda-hub"></div>
       <div class="toolbar">
-        <input class="busca" type="search" id="hub-busca" name="q_lig" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Buscar por obra, UC ou observação…" oninput="renderPlanilha()">
+        <input class="busca" type="search" readonly onfocus="this.removeAttribute('readonly')" id="hub-busca" name="q_lig" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Buscar por obra, UC ou observação…" oninput="renderPlanilha()">
         <span class="count" id="hub-count"></span>
       </div>
       <div class="scroll-top" id="hub-stop"><div></div></div>
@@ -557,7 +557,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
       <div class="tabs-outer"><div class="tabs" id="tabs"></div></div>
       <div class="toolbar" id="filtros-setor"></div>
       <div class="toolbar">
-        <input class="busca" type="search" id="set-busca" name="q_lig_set" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Buscar por obra…" oninput="renderAba()">
+        <input class="busca" type="search" readonly onfocus="this.removeAttribute('readonly')" id="set-busca" name="q_lig_set" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Buscar por obra…" oninput="renderAba()">
         <span class="count" id="set-count"></span>
       </div>
       <div class="scroll-top" id="set-stop"><div></div></div>
@@ -961,7 +961,7 @@ const ABAS = {
   },
   semUc: {
     titulo: "Ligações sem UC (ligadas mas sem UC)",
-    colunas: [C.OBRA, C.CONC, C.CPF, C.NASC, C.DT_UC, C.UC, C.UC_OK, C.DT_LIG, CALC.PRAZO_UC, C.RESP, C.OBS_CONTAS, C.ALERTA_UC],
+    colunas: [C.OBRA, C.CONC, C.CPF, C.NASC, CALC.PRAZO_UC, C.DT_UC, C.UC, C.UC_OK, C.DT_LIG, C.RESP, C.OBS_CONTAS, C.ALERTA_UC],
     filtros: [C.CONC, C.RESP, C.UC_OK],
     filtroData: [C.DT_LIG, C.DT_UC],
     sensiveis: true,
@@ -3023,11 +3023,17 @@ const LEGENDA_VENC = `<div class="legenda">
    ALERTA_COLS_TODAS já foi declarada lá em cima, perto do C (as ABAS
    precisam dela antes deste ponto do arquivo). */
 function situacaoAlertaLinha(l, colunas){
+  /* MELHORIAS item 2 (set/26): a decisao e pelo TEXTO, nao pelo emoji.
+     "AGUARDANDO INFORMACAO" tambem usa o mesmo ampulheta dos alertas de
+     prazo, entao pintava a linha de amarelo a toa — e ela nao e alerta,
+     e um estado normal do fluxo. Agora so pintam os dois alertas de prazo
+     de verdade: ATRASADO (vermelho) e VERIFICACAO PREVIA DE LIGACAO
+     (amarelo). Qualquer outro texto nao pinta nada. */
   let aviso = false;
   for (let i = 0; i < colunas.length; i++){
-    const s = txt(alertaDe(l, colunas[i]));
-    if (s.indexOf("🚨") >= 0) return "atraso";
-    if (s.indexOf("⚠️") >= 0 || s.indexOf("⏳") >= 0) aviso = true;
+    const s = normN(txt(alertaDe(l, colunas[i])));
+    if (s.indexOf("ATRASADO") >= 0) return "atraso";
+    if (s.indexOf("VERIFICACAO PREVIA DE LIGACAO") >= 0) aviso = true;
   }
   return aviso ? "alerta" : "";
 }
