@@ -82,11 +82,16 @@ html[data-tema="escuro"] .kpi .val.verde{color:#8ce0a5}
   color:var(--azul-esc);margin:0 0 4px}
 html[data-tema="escuro"] .card h3{color:var(--teal)}
 .card .desc{font-size:12px;color:var(--text3);margin:0 0 14px}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
-@media(max-width:900px){.grid2{grid-template-columns:1fr}}
+/* MELHORIAS #7 (set/26): as 4 tabelas Top 20 ficavam em 2 colunas. Com 6-11
+   colunas de dados cada, sobrava ~300px por tabela e TUDO espremia: o nome do
+   insumo quebrava em 4 linhas, os numeros colavam. Uma tabela por linha, na
+   largura toda, e o que resolve — a pagina fica mais alta, mas legivel. */
+.grid2{display:grid;grid-template-columns:1fr;gap:20px}
 
 /* tabela */
-.tbl-wrap{overflow:auto;border-radius:10px;border:1px solid var(--border2);max-height:430px}
+/* #2/#7: a rolagem interna cortava as linhas no meio e o scrollbar aparecia
+   "picotado". Altura maior + rolagem so no vertical resolve os dois. */
+.tbl-wrap{overflow-y:auto;overflow-x:auto;border-radius:10px;border:1px solid var(--border2);max-height:520px}
 /* As tabelas principais (detalhe da obra e todos os insumos) são a razão de
    ser da tela — ganham mais altura que os Top 20, que são só resumo. */
 .tbl-wrap.alta{max-height:68vh}
@@ -95,9 +100,14 @@ table{border-collapse:collapse;width:100%;font-size:13px}
 th,td{padding:9px 12px;text-align:left;white-space:nowrap;border-right:1px solid var(--border2)}
 th:last-child,td:last-child{border-right:0}
 tbody td{border-bottom:1px solid var(--border2)}
-thead th{background:var(--bg3);color:var(--azul-esc);font-family:'Barlow Condensed';font-weight:800;font-size:13px;
-  text-transform:uppercase;letter-spacing:.3px;position:sticky;top:0;z-index:2;cursor:pointer;user-select:none;
-  text-align:center;vertical-align:middle;box-shadow:inset 0 -1px 0 var(--border2)}
+/* MELHORIAS #4: cabecalho maior, com o nome inteiro (nada de "QTD ORC"
+   cortado) e com mais peso visual. white-space:normal deixa quebrar em duas
+   linhas em vez de espremer a coluna. */
+thead th{background:var(--bg3);color:var(--azul-esc);font-family:'Barlow Condensed';font-weight:800;font-size:14.5px;
+  text-transform:uppercase;letter-spacing:.4px;position:sticky;top:0;z-index:2;cursor:pointer;user-select:none;
+  text-align:center;vertical-align:middle;white-space:normal;line-height:1.2;padding:11px 12px;
+  border-bottom:2px solid var(--azul);box-shadow:none}
+thead th:hover{background:var(--border2)}
 thead th:first-child{text-align:left}
 html[data-tema="escuro"] thead th{color:var(--teal)}
 thead th .arr{opacity:.4;font-size:11px;margin-left:3px}
@@ -112,7 +122,7 @@ td.num{text-align:right;font-variant-numeric:tabular-nums}
 /* MELHORIAS item 7 (set/26): nada de informacao cortada. O nome do insumo
    agora QUEBRA em ate duas linhas em vez de virar reticencias — o nome
    inteiro fica legivel sem precisar do mouse em cima. */
-td.insumo{max-width:340px;white-space:normal;word-break:break-word;line-height:1.35}
+td.insumo{max-width:none;min-width:230px;white-space:normal;word-break:break-word;line-height:1.35}
 th.col-un,td.col-un{width:1%;color:var(--text3);font-size:12px}
 /* colunas de dinheiro com largura previsível, pra as 4 tabelas do topo
    ficarem alinhadas entre si mesmo tendo conteúdos diferentes */
@@ -155,6 +165,26 @@ html[data-tema="escuro"] td.num.abaixo{color:#8ce0a5}
 .load{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--azul);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
 @keyframes sp{to{transform:rotate(360deg)}}
 .hide{display:none!important}
+/* alternador quantidade/preco — mesmo desenho das abas, em tamanho menor */
+.seg{display:inline-flex;border:2px solid var(--border);border-radius:8px;overflow:hidden;background:var(--sup)}
+.seg-bt{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:800;letter-spacing:.05em;
+  text-transform:uppercase;padding:7px 14px;border:0;background:transparent;color:var(--text3);cursor:pointer}
+.seg-bt.on{background:var(--azul);color:#fff}
+.seg-bt:hover:not(.on){color:var(--azul)}
+/* MELHORIAS #8: barras horizontais em HTML puro (sem canvas/biblioteca) */
+.barras{display:flex;flex-direction:column;gap:7px}
+.bl{display:grid;grid-template-columns:minmax(180px,26%) 1fr minmax(120px,auto);gap:12px;align-items:center;font-size:12.5px}
+.bl-nome{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.bl-un{color:var(--text4);font-weight:400;font-size:11px}
+.bl-trilho{background:var(--bg3);border-radius:6px;height:19px;overflow:hidden}
+.bl-barra{height:100%;border-radius:6px}
+.bl-barra.pos{background:var(--vermelho)}
+.bl-barra.neg{background:var(--verde-esc)}
+.bl-val{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}
+@media(max-width:700px){.bl{grid-template-columns:1fr;gap:2px}.bl-val{text-align:left}}
+/* linha clicavel do ranking */
+tbody tr.clicavel{cursor:pointer}
+tbody tr.clicavel:hover td{background:var(--bg3)}
 /* chip da data da extração — antes era um texto solto no canto, que não
    parecia parte de nada. Mesmo formato do "Última atualização" das outras
    telas. */
@@ -207,6 +237,31 @@ section > .sec:first-child{margin-top:0}
         <div class="sec"><span class="cond">Panorama</span></div>
         <div class="kpis" id="kpis"><div class="vazio" style="grid-column:1/-1"><span class="load"></span> Carregando…</div></div>
 
+        <div class="sec"><span class="cond">Análise de insumos</span>
+          <span style="flex:1"></span>
+          <!-- MELHORIAS #3 (set/26): quantidade e o padrao. A pergunta que o
+               engenheiro faz primeiro e "gastei mais material do que previ?",
+               nao "gastei mais dinheiro?". -->
+          <div class="seg" id="seg-modo">
+            <button class="seg-bt on" data-modo="qtd"   onclick="trocarModo('qtd')">Por quantidade</button>
+            <button class="seg-bt"    data-modo="valor" onclick="trocarModo('valor')">Por preço</button>
+          </div>
+        </div>
+        <!-- MELHORIAS #8 (set/26): barras dos insumos mais estourados. Segue o
+             alternador quantidade/preco do cabecalho da secao. -->
+        <div class="card">
+          <h3 id="g-tit">Top 12 · Insumos mais estourados</h3>
+          <p class="desc" id="g-desc">Barras proporcionais ao maior estouro da lista.</p>
+          <div id="g-top"></div>
+        </div>
+
+        <!-- MELHORIAS #9: ranking das obras com maior discrepancia. -->
+        <div class="sec"><span class="cond">Obras com maior discrepância</span></div>
+        <div class="card">
+          <p class="desc">Diferença entre o realizado e o orçado de cada obra. Clique numa obra para abrir a análise dela.</p>
+          <div id="t-ranking" class="tbl-wrap"></div>
+        </div>
+
         <div class="sec"><span class="cond">Destaques por insumo</span></div>
         <div class="grid2">
           <div class="card">
@@ -257,6 +312,17 @@ section > .sec:first-child{margin-top:0}
         <div id="resultado-obra" class="hide">
           <div class="sec"><span class="cond">Resultado da seleção</span></div>
           <div class="kpis" id="kpis-obra"></div>
+
+          <!-- MELHORIAS #9 (set/26): ao escolher a obra, o top 5 mais
+               discrepante + o grafico aparecem ANTES da tabela cheia — e o
+               resumo que responde "onde essa obra fugiu do orcamento". -->
+          <div class="card">
+            <h3 id="top5-tit">Top 5 · Maiores discrepâncias desta seleção</h3>
+            <p class="desc" id="top5-desc"></p>
+            <div id="t-top5"></div>
+            <div id="g-obra" style="margin-top:16px"></div>
+          </div>
+
           <div class="card">
             <h3 id="titulo-detalhe">Insumos</h3>
             <p class="desc">Clique nos títulos das colunas para ordenar. Use os filtros para refinar.</p>
@@ -398,7 +464,14 @@ async function carregarResumo(){
 
 async function carregarObras(){
   const r = await ler({action:"analiseObras"}, "analise_obras");
-  if(r && r.ok!==false && r.obras){ OBRAS = r.obras; renderListaObras(); }
+  if(r && r.ok!==false && r.obras){
+    OBRAS = r.obras;
+    renderListaObras();
+    /* MELHORIAS #9: o ranking vive na aba principal mas depende desta
+       chamada, que costuma chegar DEPOIS do resumo. Repinta aqui, senao o
+       card fica em "Carregando obras..." pra sempre. */
+    pintarRankingObras();
+  }
 }
 
 /* ---------- KPIs principais ---------- */
@@ -419,29 +492,181 @@ function pintarKpis(){
 }
 
 /* ---------- tabelas de ranking (Top 20) ---------- */
-function linhasInsumo(arr){
+/* MELHORIAS #3 (set/26): o modo decide se as tabelas de destaque falam em
+   QUANTIDADE de material ou em dinheiro. Quantidade e o padrao. */
+let MODO = "qtd";
+function trocarModo(m){
+  MODO = m;
+  document.querySelectorAll("#seg-modo .seg-bt").forEach(b=>b.classList.toggle("on", b.dataset.modo===m));
+  if(RESUMO) pintarTops();
+  /* a aba "Por obra" tem o mesmo par top5+grafico; se estiver aberta com uma
+     selecao, repinta junto pra nao ficar mostrando o modo antigo */
+  const ro = document.getElementById("resultado-obra");
+  if(ro && !ro.classList.contains("hide") && DETALHE.length) renderDetalheObra();
+}
+/* Os Top 20 vem do backend ja ordenados por VALOR. No modo quantidade a
+   ordem tem que mudar — senao a tabela mostra colunas de quantidade numa
+   ordem que so faz sentido em dinheiro. Como o backend manda so 20 linhas,
+   a reordenacao aqui e sobre essas 20; e o suficiente pro destaque. */
+function ordenarPorModo(arr, tipo){
+  const l = (arr||[]).slice();
+  if(MODO !== "qtd") return l;
+  if(tipo==="estouro")  return l.sort((a,b)=>(difQtdPct(b)??-1e9)-(difQtdPct(a)??-1e9));
+  if(tipo==="economia") return l.sort((a,b)=>(difQtdPct(a)??1e9)-(difQtdPct(b)??1e9));
+  if(tipo==="exatos")   return l.sort((a,b)=>Math.abs(difQtd(a))-Math.abs(difQtd(b)));
+  if(tipo==="impacto")  return l.sort((a,b)=>Math.abs(difQtd(b))-Math.abs(difQtd(a)));
+  return l;
+}
+function linhasInsumo(arr, tipo){
+  arr = ordenarPorModo(arr, tipo);
   if(!arr||!arr.length) return '<div class="vazio">Sem dados.</div>';
-  let h='<table><thead><tr><th>Insumo</th><th class="col-un">Un</th><th class="col-num">Orçado</th>'+
-        '<th class="col-num">Realizado</th><th class="col-num">Dif R$</th>'+
-        '<th class="col-num">Dif %</th></tr></thead><tbody>';
+  const qtd = (MODO === "qtd");
+  const cab = qtd
+    ? '<th class="col-num">Qtd orçada</th><th class="col-num">Qtd realizada</th>'+
+      '<th class="col-num">Dif quantidade</th><th class="col-num">Dif %</th>'
+    : '<th class="col-num">Orçado</th><th class="col-num">Realizado</th>'+
+      '<th class="col-num">Dif R$</th><th class="col-num">Dif %</th>';
+  let h='<table><thead><tr><th>Insumo</th><th class="col-un">Un</th>'+cab+'</tr></thead><tbody>';
   arr.forEach(it=>{
-    /* cor no valor da diferença, não só no pill: quem bate o olho na coluna
-       de dinheiro entende o sinal sem ler o "+" nem o percentual ao lado */
-    const cls = it.diferenca>0 ? " acima" : (it.diferenca<0 ? " abaixo" : "");
+    /* cor no valor da diferenca, nao so no pill: quem bate o olho na coluna
+       entende o sinal sem ler o "+" nem o percentual ao lado */
+    let cels;
+    if(qtd){
+      const dq = difQtd(it), cls = dq>0 ? " acima" : (dq<0 ? " abaixo" : "");
+      cels = `<td class="num">${fmtNum(it.qtd_orcada)}</td>`+
+             `<td class="num">${fmtNum(it.qtd_realizada)}</td>`+
+             `<td class="num${cls}">${dq>0?"+":""}${fmtNum(dq)}</td>`+
+             `<td class="num">${pctPill(difQtdPct(it))}</td>`;
+    } else {
+      const cls = it.diferenca>0 ? " acima" : (it.diferenca<0 ? " abaixo" : "");
+      cels = `<td class="num">${fmtBRL(it.total_orcado)}</td>`+
+             `<td class="num">${fmtBRL(it.total_realizado)}</td>`+
+             `<td class="num${cls}">${it.diferenca>0?"+":""}${fmtBRL(it.diferenca)}</td>`+
+             `<td class="num">${pctPill(it.diferenca_pct)}</td>`;
+    }
     h+=`<tr><td class="insumo" title="${esc(it.insumo)}">${esc(it.insumo)}</td>`+
-       `<td class="col-un">${esc(it.unidade||"")}</td>`+
-       `<td class="num">${fmtBRL(it.total_orcado)}</td>`+
-       `<td class="num">${fmtBRL(it.total_realizado)}</td>`+
-       `<td class="num${cls}">${it.diferenca>0?"+":""}${fmtBRL(it.diferenca)}</td>`+
-       `<td class="num">${pctPill(it.diferenca_pct)}</td></tr>`;
+       `<td class="col-un">${esc(it.unidade||"")}</td>`+cels+`</tr>`;
   });
   return h+'</tbody></table>';
 }
 function pintarTops(){
-  document.getElementById("t-estouro").innerHTML  = linhasInsumo(RESUMO.top_estouro);
-  document.getElementById("t-economia").innerHTML = linhasInsumo(RESUMO.top_economia);
-  document.getElementById("t-exatos").innerHTML   = linhasInsumo(RESUMO.mais_exatos);
-  document.getElementById("t-impacto").innerHTML  = linhasInsumo(RESUMO.maior_impacto);
+  document.getElementById("t-estouro").innerHTML  = linhasInsumo(RESUMO.top_estouro,   "estouro");
+  document.getElementById("t-economia").innerHTML = linhasInsumo(RESUMO.top_economia,  "economia");
+  document.getElementById("t-exatos").innerHTML   = linhasInsumo(RESUMO.mais_exatos,   "exatos");
+  document.getElementById("t-impacto").innerHTML  = linhasInsumo(RESUMO.maior_impacto, "impacto");
+  pintarGraficoTop();
+  pintarRankingObras();
+}
+
+/* MELHORIAS #9: top 5 da obra selecionada + grafico. Usa o mesmo MODO
+   (quantidade por padrao) das demais telas. DETALHE ja vem agregado por
+   insumo pela renderDetalheObra. */
+function pintarTop5Obra(linhas){
+  const box = document.getElementById("t-top5");
+  if(!box) return;
+  const qtd = (MODO === "qtd");
+  const valor = m => qtd ? difQtd(m) : (Number(m.diferenca)||0);
+  const l = (linhas||[]).slice()
+    .filter(m => valor(m) !== 0)
+    .sort((a,b)=>Math.abs(valor(b))-Math.abs(valor(a)))
+    .slice(0,5);
+  document.getElementById("top5-tit").textContent =
+    "Top 5 · Maiores discrepâncias " + (qtd ? "(quantidade)" : "(preço)");
+  document.getElementById("top5-desc").textContent = qtd
+    ? "Insumos em que a quantidade usada mais fugiu da orçada nesta seleção."
+    : "Insumos em que o valor mais fugiu do orçado nesta seleção.";
+  if(!l.length){ box.innerHTML='<div class="vazio">Sem discrepância registrada.</div>';
+                 document.getElementById("g-obra").innerHTML=""; return; }
+  let h='<table><thead><tr><th>Insumo</th><th class="col-un">Un</th>'+
+        (qtd ? '<th class="col-num">Qtd orçada</th><th class="col-num">Qtd realizada</th><th class="col-num">Dif quantidade</th>'
+             : '<th class="col-num">Orçado</th><th class="col-num">Realizado</th><th class="col-num">Dif R$</th>')+
+        '<th class="col-num">Dif %</th></tr></thead><tbody>';
+  l.forEach(m=>{
+    const v = valor(m), cls = v>0 ? " acima" : (v<0 ? " abaixo" : "");
+    h += `<tr><td class="insumo">${esc(m.insumo)}</td><td class="col-un">${esc(m.unidade||"")}</td>`+
+      (qtd
+        ? `<td class="num">${fmtNum(m.qtd_orcada)}</td><td class="num">${fmtNum(m.qtd_realizada)}</td>`+
+          `<td class="num${cls}">${v>0?"+":""}${fmtNum(v)}</td><td class="num">${pctPill(difQtdPct(m))}</td>`
+        : `<td class="num">${fmtBRL(m.ct_orcado)}</td><td class="num">${fmtBRL(m.ct_realizado)}</td>`+
+          `<td class="num${cls}">${v>0?"+":""}${fmtBRL(v)}</td><td class="num">${pctPill(m.diferenca_pct)}</td>`)+
+      `</tr>`;
+  });
+  box.innerHTML = h+'</tbody></table>';
+  document.getElementById("g-obra").innerHTML = barrasHtml(l, valor,
+    m => qtd ? ((valor(m)>0?"+":"")+fmtNum(valor(m))+" "+(m.unidade||""))
+             : ((valor(m)>0?"+":"")+fmtBRL(valor(m))));
+}
+
+/* ===== MELHORIAS #8 (set/26): grafico de barras dos mais estourados =====
+   Barra horizontal em HTML puro (div com width em %), sem canvas e sem
+   biblioteca: e proporcional, funciona no tema escuro e imprime bem. Segue o
+   MODO (quantidade ou preco), como o resto da secao. */
+function barrasHtml(itens, valorDe, rotuloDe){
+  if(!itens.length) return '<div class="vazio">Sem dados.</div>';
+  const max = Math.max(...itens.map(i=>Math.abs(valorDe(i)))) || 1;
+  return '<div class="barras">' + itens.map(i=>{
+    const v = valorDe(i), pct = Math.abs(v)/max*100;
+    return '<div class="bl">'+
+      '<div class="bl-nome" title="'+esc(i.insumo)+'">'+esc(i.insumo)+
+        (i.unidade?' <span class="bl-un">'+esc(i.unidade)+'</span>':'')+'</div>'+
+      '<div class="bl-trilho"><div class="bl-barra'+(v>0?" pos":" neg")+'" style="width:'+pct.toFixed(1)+'%"></div></div>'+
+      '<div class="bl-val">'+esc(rotuloDe(i))+'</div>'+
+    '</div>';
+  }).join("") + '</div>';
+}
+function pintarGraficoTop(){
+  const box = document.getElementById("g-top");
+  if(!box || !RESUMO) return;
+  const qtd = (MODO === "qtd");
+  /* Fonte: o top_estouro que o backend ja manda. No modo quantidade a lista
+     e reordenada por diferenca de quantidade (ver ordenarPorModo). */
+  const base = ordenarPorModo(RESUMO.top_estouro, "estouro").slice(0, 12);
+  document.getElementById("g-tit").textContent =
+    "Top 12 · Insumos mais estourados " + (qtd ? "(quantidade)" : "(preço)");
+  document.getElementById("g-desc").textContent = qtd
+    ? "Quanto material foi gasto a mais do que o previsto. Barras proporcionais ao maior estouro da lista."
+    : "Quanto dinheiro passou do previsto. Barras proporcionais ao maior estouro da lista.";
+  box.innerHTML = barrasHtml(base,
+    i => qtd ? difQtd(i) : (Number(i.diferenca)||0),
+    i => qtd ? ((difQtd(i)>0?"+":"")+fmtNum(difQtd(i))+" "+(i.unidade||""))
+             : ((Number(i.diferenca)>0?"+":"")+fmtBRL(i.diferenca)));
+}
+
+/* ===== MELHORIAS #9: ranking das obras por discrepancia =====
+   A view vw_resumo_obra_atual so traz totais em DINHEIRO por obra (nao ha
+   quantidade agregada por obra), entao o ranking e por valor. Para ver a
+   discrepancia de QUANTIDADE de uma obra, e so clicar nela: a aba "Por
+   obra / grupo" abre com o top 5 por quantidade (ver analisarSelecao). */
+function pintarRankingObras(){
+  const box = document.getElementById("t-ranking");
+  if(!box) return;
+  if(!OBRAS.length){ box.innerHTML='<div class="vazio">Carregando obras…</div>'; return; }
+  const l = OBRAS.map(o=>{
+    const orc = Number(o.total_orcado)||0, real = Number(o.total_realizado)||0;
+    return { id:o.obra_id, nome:o.obra_nome, orc:orc, real:real,
+             dif: real-orc, pct: orc ? (real-orc)/orc*100 : null };
+  }).filter(o=>o.orc>0 || o.real>0)
+    .sort((a,b)=>Math.abs(b.dif)-Math.abs(a.dif))
+    .slice(0,15);
+  let h='<table><thead><tr><th>Obra</th><th class="col-num">Orçado</th>'+
+        '<th class="col-num">Realizado</th><th class="col-num">Diferença</th>'+
+        '<th class="col-num">Dif %</th></tr></thead><tbody>';
+  l.forEach(o=>{
+    const cls = o.dif>0 ? " acima" : (o.dif<0 ? " abaixo" : "");
+    h+=`<tr class="clicavel" onclick="abrirObraDoRanking('${esc(o.id)}')" title="Abrir a análise desta obra">`+
+       `<td class="insumo">${esc(o.nome)}</td>`+
+       `<td class="num">${fmtBRL(o.orc)}</td><td class="num">${fmtBRL(o.real)}</td>`+
+       `<td class="num${cls}">${o.dif>0?"+":""}${fmtBRL(o.dif)}</td>`+
+       `<td class="num">${pctPill(o.pct)}</td></tr>`;
+  });
+  box.innerHTML = h+'</tbody></table>';
+}
+/* Clique no ranking: marca so aquela obra e abre a aba de analise dela. */
+function abrirObraDoRanking(id){
+  _sel.clear(); _sel.add(id);
+  trocarTab("obra");
+  renderListaObras(); atualizarSelInfo();
+  analisarSelecao();
 }
 
 /* ==================== ABA POR OBRA ==================== */
@@ -565,6 +790,9 @@ function renderDetalheObra(){
        `<td class="num">${pctPill(m.diferenca_pct)}</td></tr>`;
   });
   document.getElementById("t-detalhe").innerHTML = h+'</tbody></table>';
+  /* MELHORIAS #9: o top 5 e o grafico usam a MESMA lista ja agregada e
+     filtrada — assim o resumo nunca discorda da tabela logo abaixo. */
+  pintarTop5Obra(arr);
 }
 function sortDetalhe(col){
   if(ordDetalhe.col===col) ordDetalhe.dir*=-1; else { ordDetalhe.col=col; ordDetalhe.dir=(col==="insumo"||col==="codigo"||col==="unidade")?1:-1; }

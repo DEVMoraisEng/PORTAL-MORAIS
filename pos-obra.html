@@ -180,6 +180,8 @@ th.ord.on .seta{opacity:1}
 /* MELHORIAS item 3: aviso de campo obrigatorio em branco. Mesma familia
    visual do aviso de material (laranja), pra ser lido como "pendencia sua",
    e nao como erro do sistema. */
+.al.falta{background:#FEF3C7;border-color:#FCD34D;color:#92400E}
+html[data-tema="escuro"] .al.falta{background:#3a2d12;border-color:#6b5320;color:#f0c95f}
 .falta-box{background:#FEF3C7;border:1px solid #FCD34D;border-radius:10px;padding:10px 12px;
   font-size:12.5px;color:#92400E;margin-bottom:14px;line-height:1.7}
 .falta-tag{display:inline-block;background:#fff;border:1px solid #FCD34D;border-radius:20px;
@@ -1342,7 +1344,27 @@ function calcularAlertas(obraId){
     const av = avisoMaterial(m.statusMaterial);
     if(av && d <= isoMaisDias(hoje, av.dias)) material[MATERIAL_AVISOS.indexOf(av)].push(m);
   });
-  return { doDia:doDia, material:material };
+  /* MELHORIAS #1 (set/26): os chamados com campo obrigatorio em branco entram
+     no MESMO bloco de alertas do topo, junto com "amanha tem servico" e os
+     avisos de material — era o lugar que faltava (o KPI e o selo da lista ja
+     mostravam, mas aqui e onde a pessoa olha primeiro).
+     Vem da AGENDA quando ha marcacao, e das atividades da obra quando o
+     contexto e a pagina de uma obra so. */
+  const faltando = [];
+  const vistos = {};
+  if(obraId){
+    (OBRA && OBRA.atividades || []).forEach(a=>{
+      if((a.faltando||[]).length) faltando.push({ atividadeId:a.id, nome:a.nome, faltas:a.faltando });
+    });
+  } else {
+    AGENDA.forEach(m=>{
+      if(!(m.faltando||[]).length) return;
+      if(vistos[m.atividadeId]) return;         // um chamado tem varias datas
+      vistos[m.atividadeId] = 1;
+      faltando.push({ atividadeId:m.atividadeId, obraId:m.obraId, nome:m.nome, faltas:m.faltando });
+    });
+  }
+  return { doDia:doDia, material:material, faltando:faltando };
 }
 function renderAlertas(){
   document.getElementById("alertas-hub").innerHTML = htmlAlertas(calcularAlertas(null), true);
@@ -1369,6 +1391,19 @@ function htmlAlertas(a, comObra){
       '<div class="li" style="margin-bottom:5px">'+av.texto+'</div>'+
       lista.map(m=>linhaAlerta(m, comObra, true)).join("")+'</div></div>';
   });
+  /* MELHORIAS #1: bloco proprio, amarelo, no mesmo padrao dos demais. */
+  if(a.faltando && a.faltando.length){
+    h += '<div class="al falta"><span class="ic">\u26A0\uFE0F</span><div class="co">'+
+      '<div class="ti">Falta preencher \u2014 '+a.faltando.length+
+      (a.faltando.length===1?' servi\u00E7o':' servi\u00E7os')+'</div>'+
+      '<div class="li" style="margin-bottom:5px">Chamados abertos com campo obrigat\u00F3rio em branco. Clique para abrir e completar.</div>'+
+      a.faltando.map(f=>{
+        const alvo = comObra
+          ? '<b onclick="abrirObra(\''+f.obraId+'\')">'+esc(f.nome)+'</b>'
+          : '<b onclick="abrirChamado(\''+f.atividadeId+'\')">'+esc(f.nome)+'</b>';
+        return '<div class="li">\u2022 '+alvo+' \u2014 '+esc(f.faltas.join(", "))+'</div>';
+      }).join("")+'</div></div>';
+  }
   return h;
 }
 function linhaAlerta(m, comObra, comStatus){
