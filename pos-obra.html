@@ -656,6 +656,25 @@ html[data-tema="escuro"] .logo{background:#fff}
     </div>
   </div>
 
+  <!-- MELHORIAS (ago/26): marcar agendamento num sábado exige a senha de um
+       ADM. O login/senha digitados aqui NUNCA passam pela fila offline (ver
+       confirmarSenhaAdmSabado) — se a internet cair no meio, a gravação
+       falha e pede pra tentar de novo, em vez de guardar a senha no
+       navegador esperando reconectar. -->
+  <div class="modal-overlay" id="adm-overlay" onclick="if(event.target===this)fecharSenhaAdmSabado()">
+    <div class="modal-cx">
+      <div class="modal-tit">Sábado precisa de um ADM</div>
+      <div class="modal-sub" id="adm-sub">Essa data cai num sábado. Peça pra um ADM digitar o login e a senha dele aqui pra liberar.</div>
+      <div class="campo"><label>Login do ADM</label><input type="text" id="adm-login" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      <div class="campo"><label>Senha do ADM</label><input type="password" id="adm-senha" autocomplete="off"></div>
+      <div class="modal-sub" id="adm-erro" style="display:none;color:#c0392b"></div>
+      <div class="modal-acoes">
+        <button class="bt ghost" onclick="fecharSenhaAdmSabado()">Cancelar</button>
+        <button class="bt az" id="adm-confirmar" onclick="confirmarSenhaAdmSabado()">Confirmar e gravar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- link da agenda do dia (tela servicos.html) -->
   <div class="modal-overlay" id="ag-overlay" onclick="if(event.target===this)fecharLinksAgenda()">
     <div class="modal-cx">
@@ -676,7 +695,8 @@ html[data-tema="escuro"] .logo{background:#fff}
       <div class="det" id="mc-det"></div>
       <div class="modal-acoes">
         <button class="bt ghost" onclick="fecharCard()">Fechar</button>
-        <button class="bt ghost" id="mc-copiar" onclick="copiarCard()">📋 Copiar para WhatsApp</button>
+        <button class="bt ghost" id="mc-copiar" onclick="copiarCard()">📋 Copiar (equipe)</button>
+        <button class="bt ghost" id="mc-copiar-cliente" onclick="copiarCardCliente()">📋 Copiar p/ cliente</button>
         <button class="bt az" onclick="abrirServicoDoCard()">Abrir serviço</button>
       </div>
     </div>
@@ -936,13 +956,13 @@ function classeEvento(a){ return ehFinalizado(a) ? "sim" : "alerta"; }
 /* Ordem dos campos no painel do serviço (pedido 5). O que não estiver aqui
    vai para o fim, em ordem alfabética — coluna nova no Notion aparece sozinha
    em vez de sumir. */
-const ORDEM_CAMPOS = ["SERVIÇO","RESPONSÁVEL","DATA DO CHAMADO","DATA DO SERVIÇO",
+const ORDEM_CAMPOS = ["SERVIÇO","RESPONSÁVEL","DATA DO CHAMADO","DATA AGENDAMENTO SERVIÇO",
                       "INFORMAÇÕES SERVIÇO","FOTOS DOS PROBLEMAS",
                       "ANDAMENTO DA SOLICITAÇÃO","STATUS MATERIAL","DATA CONCLUSÃO"];
 /* Dentro de cada bloco de remarcação: data, informações, fotos. */
 const ORDEM_RM = ["DATA","INFORMA","FOTO"];
 /* Colunas de data que também guardam HORA (pedido 5). Comparação por pedaço:
-   "DATA DO SERVIÇO" e qualquer "DATA REMARCAÇÃO N". */
+   "DATA AGENDAMENTO SERVIÇO" e qualquer "DATA REMARCAÇÃO N". */
 function campoComHora(nome){
   const n = normN(nome);
   return (n.indexOf("DATA")===0 && n.indexOf("SERVICO")>=0) || ehRetorno(n);
@@ -1779,7 +1799,8 @@ function cardCal(m){
     (d.servicos ? '<div class="ln">🔧 '+esc(d.servicos)+'</div>' : "")+
     (d.info ? '<div class="ln">📝 '+esc(d.info)+'</div>' : "")+
     '<div class="acoes">'+
-      '<button onclick="copiarMarcacao(\''+d.atividadeId+'\',\''+esc(d.coluna).replace(/'/g,"&#39;")+'\')">📋 Copiar</button>'+
+      '<button onclick="copiarMarcacao(\''+d.atividadeId+'\',\''+esc(d.coluna).replace(/'/g,"&#39;")+'\')">📋 Equipe</button>'+
+      '<button onclick="copiarMarcacaoCliente(\''+d.atividadeId+'\',\''+esc(d.coluna).replace(/'/g,"&#39;")+'\')">📋 Cliente</button>'+
       '<button onclick="abrirObra(\''+d.obraId+'\')">Abrir obra</button>'+
     '</div></div>';
 }
@@ -1801,6 +1822,49 @@ function textoWhats(d){
   if(d.info) l.push("📝 "+d.info);
   return l.join("\n");
 }
+
+/* ===================== MENSAGEM PRO CLIENTE (pedido ago/26) =====================
+ * Mesma ideia da mensagem da equipe (textoWhats), mas em tom de confirmação
+ * pro cliente — saudação de acordo com a hora, "hoje"/"amanhã" calculado, o
+ * texto de INFORMAÇÕES SERVIÇO (não o multi-select de tipos) e o aviso de
+ * remarcação que você pediu. */
+function saudacaoAgora(){
+  const h = new Date().getHours();
+  if(h < 12) return "Bom dia";
+  if(h < 18) return "Boa tarde";
+  return "Boa noite";
+}
+/* "hoje" / "amanhã" / "no dia dd/mm" — comparando só a parte da data, sem
+   fuso (mesmo cuidado do diaDaSemana, componentes locais). */
+function quandoRelativo(iso){
+  const dia = soData(iso);
+  const hj = new Date(); const hojeISO = hj.getFullYear()+"-"+String(hj.getMonth()+1).padStart(2,"0")+"-"+String(hj.getDate()).padStart(2,"0");
+  if(dia === hojeISO) return "hoje";
+  const am = new Date(hj); am.setDate(am.getDate()+1);
+  const amanhaISO = am.getFullYear()+"-"+String(am.getMonth()+1).padStart(2,"0")+"-"+String(am.getDate()).padStart(2,"0");
+  if(dia === amanhaISO) return "amanhã";
+  return "no dia "+dbr(dia);
+}
+function textoWhatsCliente(d){
+  const quando = quandoRelativo(d.dataISO);
+  const hora = temHora(d.dataISO) ? (", às *"+hhmm(d.dataISO)+"*") : "";
+  const l = [];
+  l.push(saudacaoAgora()+"! 😊");
+  l.push("");
+  l.push("Passando para confirmar o serviço de *"+quando+"*"+hora+", em *"+enderecoCompleto(d.obraId, d.endereco)+"*.");
+  l.push("");
+  if(d.info) l.push("🔧 Serviço a ser realizado: "+d.info);
+  if(d.responsavel) l.push("👷 Responsável: "+d.responsavel);
+  l.push("");
+  l.push("⚠️ Caso seja necessário remarcar, o serviço será reagendado para a próxima data disponível na nossa agenda — nesse caso, pedimos que entre em contato com a gente pra combinarmos o novo horário. 🙏");
+  return l.join("\n");
+}
+function copiarMarcacaoCliente(atividadeId, coluna){
+  const m = acharMarcacao(atividadeId, coluna);
+  if(!m) return;
+  copiarTexto(textoWhatsCliente(dadosCard(m)));
+}
+function copiarCardCliente(){ if(CARD) copiarTexto(textoWhatsCliente(CARD)); }
 const DIAS_SEM = ["Domingo","Segunda-feira","Terça-feira","Quarta-feira","Quinta-feira","Sexta-feira","Sábado"];
 function diaDaSemana(iso){
   const [a,m,d] = String(iso||"").slice(0,10).split("-").map(Number);
@@ -1998,6 +2062,13 @@ function pintarObra(){
       od("Serviços", (OBRA.atividades||[]).length + " (" + abertos + " abertos)") +
       /* pedido 3: o horário flexível fica no card do cliente, ao lado do resto */
       (FLEX_CAMPO ? od("Horário flexível", controleFlex(), true) : "") +
+      /* item 5 (MELHORIAS ago/26): ÁGIO, ao lado do horário flexível — só
+         aparece a partir do momento que a sincronia (posObraAplicar_ no
+         Code.gs) grava SIM ou NÃO. Antes disso (ainda não armazenou o
+         contrato, ou armazenou como NÃO) o campo fica vazio de propósito,
+         então o selo não aparece — é o "nada fazer" pedido. */
+      (OBRA.agio ? od("Ágio", '<span class="pill '+(normN(OBRA.agio)==="SIM"?"sim":"nao")+'">'+
+        (normN(OBRA.agio)==="SIM"?"💰 ÁGIO":esc(OBRA.agio))+'</span>', true) : "") +
     '</div>'+
     '<div class="obra-acoes">'+
       '<button class="bt vd" onclick="criarServico()"'+(soLeitura()?" disabled":"")+'>+ Serviço de Pós Obra</button>'+
@@ -2288,7 +2359,7 @@ function colunaKanban(titulo, lista){
   const cards = lista.map(a=>{
     const v = a.valores || {};
     const serv = Array.isArray(v["SERVIÇO"]) ? v["SERVIÇO"].join(", ") : (v["SERVIÇO"] || "");
-    const dt = v["DATA DO SERVIÇO"] || v["DATA DO CHAMADO"] || "";
+    const dt = v["DATA AGENDAMENTO SERVIÇO"] || v["DATA DO CHAMADO"] || "";
     const resp = v["RESPONSÁVEL"] || "";
     const cor = resp ? corDe(resp) : "var(--azul)";
     return '<div class="kcard" style="border-left-color:'+cor+'" onclick="abrirChamado(\''+a.id+'\')">'+
@@ -2364,7 +2435,7 @@ function nivelAtual(andamento){
 }
 /* Ordena pela lista pedida; o que não estiver nela vai pro fim, em ordem
    alfabética (coluna nova no Notion aparece sozinha em vez de sumir).
-   `exato` existe por causa de uma armadilha real: "DATA DO SERVIÇO" CONTÉM
+   `exato` existe por causa de uma armadilha real: "DATA AGENDAMENTO SERVIÇO" CONTÉM
    "SERVIÇO", então casar por pedaço jogava a data para a primeira posição e
    embaralhava a ordem inteira. Nos campos principais a comparação é por nome
    exato; só dentro do bloco de remarcação é por pedaço ("DATA", "INFORMA",
@@ -2540,18 +2611,18 @@ function campoHtml(c, v){
       '</div>';
   }
   if(c.tipo === "date"){
-    /* item 5: DATA DO SERVIÇO e as de remarcação também guardam HORA.
+    /* item 5: DATA AGENDAMENTO SERVIÇO e as de remarcação também guardam HORA.
        datetime-local trabalha em hora local; o que vai pro Notion leva o fuso
        -03:00 escrito (ver valorData), senão o Notion assume UTC e a hora
        aparece 3 h adiantada no app dele. */
     if(campoComHora(c.nome)){
       const vv = String(val||"").slice(0,16);
       return '<div class="campo" id="cx_'+id+'">'+lab+'<input type="datetime-local" id="'+id+'" value="'+esc(vv)+'"'+ro+
-        ' onchange="salvarCampo('+jsNome+', valorData(this.value, true), \''+id+'\')">'+
+        ' onchange="salvarCampoData('+jsNome+', valorData(this.value, true), \''+id+'\')">'+
         '<div class="dica">data e hora</div></div>';
     }
     return '<div class="campo" id="cx_'+id+'">'+lab+'<input type="date" id="'+id+'" value="'+esc(soData(val))+'"'+ro+
-      ' onchange="salvarCampo('+jsNome+', valorData(this.value, false), \''+id+'\')"></div>';
+      ' onchange="salvarCampoData('+jsNome+', valorData(this.value, false), \''+id+'\')"></div>';
   }
   if(c.tipo === "checkbox"){
     return '<div class="campo" id="cx_'+id+'">'+lab+'<label class="ms-item"><input type="checkbox" id="'+id+'"'+(val?" checked":"")+ro+
@@ -2599,6 +2670,126 @@ function salvarCampo(prop, valor, id, _el){
     toast(r.enfileirado ? "Sem internet — vai subir quando reconectar." : "Salvo.");
   });
 }
+
+/* ===================== AGENDAMENTO: sábado/feriado (pedido ago/26) =========
+ * Espelha checarDataAgendamento_ do Code.gs — mesma lista de feriados, mesmo
+ * cálculo de Páscoa. Isto aqui é só pra dar feedback NA HORA; quem VALE de
+ * verdade é sempre o servidor (burlar esta tela com F12 não adianta, o
+ * Code.gs recusa a gravação do mesmo jeito).
+ * =================================================================== */
+const FERIADOS_GOIANIA_FIXOS = ["01-01","04-21","05-01","05-24","09-07","10-12","10-24","11-02","11-15","11-20","12-25"];
+function pascoaData(ano){
+  const a=ano%19,b=Math.floor(ano/100),c=ano%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),
+    g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,
+    l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),
+    mes=Math.floor((h+l-7*m+114)/31),dia=((h+l-7*m+114)%31)+1;
+  return new Date(ano,mes-1,dia);
+}
+function feriadosMoveisGoiania(ano){
+  const pas=pascoaData(ano);
+  const soma=d=>{ const x=new Date(pas.getTime()); x.setDate(x.getDate()+d); return x; };
+  // Carnaval (segunda e terça), Sexta-Feira Santa, Corpus Christi
+  return [soma(-48),soma(-47),soma(-2),soma(60)].map(d=>
+    d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"));
+}
+function ehFeriadoGoiania(dataStr){
+  const d=String(dataStr).slice(0,10);
+  if(FERIADOS_GOIANIA_FIXOS.indexOf(d.slice(5,10))>=0) return true;
+  return feriadosMoveisGoiania(Number(d.slice(0,4))).indexOf(d)>=0;
+}
+function diaDaSemanaData(dataStr){
+  const p=String(dataStr).slice(0,10).split("-");
+  return new Date(Number(p[0]),Number(p[1])-1,Number(p[2])).getDay();   // 0=domingo … 6=sábado
+}
+/* "CHAMADO" fica de fora de propósito — é abertura, não visita marcada,
+   mesma exclusão que o resto do sistema já faz pro calendário. */
+function ehDataAgendamento(nome){
+  const n=normN(nome);
+  if(n.indexOf("CHAMADO")>=0) return false;
+  if(n.indexOf("DATA")<0) return false;
+  return n.indexOf("SERVICO")>=0 || n.indexOf("RETORNO")>=0 || n.indexOf("REMARCA")>=0;
+}
+
+let SABADO_PENDENTE = null;   // { prop, valor, id } aguardando senha do ADM
+
+/* Ponto único por onde toda data de agendamento passa. Domingo e feriado:
+   bloqueia na hora. Sábado: abre o modal pedindo login+senha de um ADM.
+   Qualquer outro dia (ou campo que não é de agendamento): segue o caminho
+   normal, com fila offline (salvarCampo). */
+function salvarCampoData(prop, valorBruto, id){
+  const dataPura = String(valorBruto||"").slice(0,10);
+  if(!dataPura || !ehDataAgendamento(prop)){ salvarCampo(prop, valorBruto, id); return; }
+
+  if(ehFeriadoGoiania(dataPura)){
+    toast("Essa data é feriado em Goiânia — escolha outro dia.", 5);
+    renderPainelChamado();
+    return;
+  }
+  const dw = diaDaSemanaData(dataPura);
+  if(dw === 0){
+    toast("Domingo não pode ser marcado — escolha outro dia.", 5);
+    renderPainelChamado();
+    return;
+  }
+  if(dw === 6){
+    SABADO_PENDENTE = { prop:prop, valor:valorBruto, id:id };
+    document.getElementById("adm-login").value = "";
+    document.getElementById("adm-senha").value = "";
+    document.getElementById("adm-erro").style.display = "none";
+    document.getElementById("adm-overlay").classList.add("on");
+    document.getElementById("adm-login").focus();
+    return;
+  }
+  salvarCampo(prop, valorBruto, id);
+}
+function fecharSenhaAdmSabado(){
+  document.getElementById("adm-overlay").classList.remove("on");
+  SABADO_PENDENTE = null;
+  renderPainelChamado();   // sem confirmação, o campo volta pro valor salvo
+}
+/* Chamada DIRETA (chamar, não escrever): nunca cai na fila offline — a senha
+   do ADM não pode ficar guardada no navegador esperando reconectar. Se a
+   rede cair no meio, a gravação falha e pede pra tentar de novo. */
+async function confirmarSenhaAdmSabado(){
+  if(!SABADO_PENDENTE) return fecharSenhaAdmSabado();
+  const login = document.getElementById("adm-login").value.trim();
+  const senha = document.getElementById("adm-senha").value;
+  const erroEl = document.getElementById("adm-erro");
+  const btn = document.getElementById("adm-confirmar");
+  if(!login || !senha){ erroEl.textContent = "Preenche login e senha."; erroEl.style.display = ""; return; }
+  btn.disabled = true; btn.textContent = "Confirmando…";
+  try{
+    const v = await chamar({ action:"posObraValidarAdm", admLogin:login, admSenha:senha });
+    if(!v || !v.ok){
+      erroEl.textContent = "Não deu: " + erroTexto(v && v.erro);
+      erroEl.style.display = "";
+      btn.disabled = false; btn.textContent = "Confirmar e gravar";
+      return;
+    }
+    const alvo = SABADO_PENDENTE;
+    const r = await chamar({ action:"posObraAtvUpdate", pageId:CHAMADO.id, prop:alvo.prop, valor:alvo.valor, admLogin:login, admSenha:senha });
+    if(!r || !r.ok){
+      erroEl.textContent = "Não gravou: " + erroTexto(r && r.erro);
+      erroEl.style.display = "";
+      btn.disabled = false; btn.textContent = "Confirmar e gravar";
+      return;
+    }
+    CHAMADO.valores[alvo.prop] = alvo.valor;
+    if(CHAMADO.pendente){ CHAMADO.pendente = false; esquecerNovo(CHAMADO.id); }
+    SABADO_PENDENTE = null;
+    document.getElementById("adm-overlay").classList.remove("on");
+    btn.disabled = false; btn.textContent = "Confirmar e gravar";
+    renderHistorico();
+    recarregarTudo();
+    renderPainelChamado();
+    toast("Salvo — liberado por " + login + ".");
+  }catch(e){
+    erroEl.textContent = "Sem conexão — tenta de novo.";
+    erroEl.style.display = "";
+    btn.disabled = false; btn.textContent = "Confirmar e gravar";
+  }
+}
+
 function salvarMulti(prop, id){
   const cx = document.getElementById(id);
   const vals = Array.from(cx.querySelectorAll("input:checked")).map(i=>i.value);
@@ -2778,10 +2969,10 @@ function renderIndicadores(){
   const atvs = servicosPorAtividade();
   const obras = obrasComPendentes();
 
-  // tempo médio entre DATA DO SERVIÇO e DATA CONCLUSÃO
+  // tempo médio entre DATA AGENDAMENTO SERVIÇO e DATA CONCLUSÃO
   const durs = [];
   atvs.forEach(a=>{
-    const ini = a.datas["DATA DO SERVICO"], fim = a.datas["DATA CONCLUSAO"];
+    const ini = a.datas["DATA AGENDAMENTO SERVICO"], fim = a.datas["DATA CONCLUSAO"];
     if(!ini || !fim) return;
     const d = diasEntre(ini, fim);
     if(d !== null && d >= 0) durs.push({dias:d, mes:soData(fim).slice(0,7)});
@@ -2801,7 +2992,7 @@ function renderIndicadores(){
   // 1) serviços por mês (pelo primeiro registro do serviço)
   const porMes = {};
   atvs.forEach(a=>{
-    const d = a.datas["DATA DO CHAMADO"] || a.datas["DATA DO SERVICO"];
+    const d = a.datas["DATA DO CHAMADO"] || a.datas["DATA AGENDAMENTO SERVICO"];
     if(!d) return;
     const k = soData(d).slice(0,7);
     porMes[k] = (porMes[k]||0)+1;
@@ -2829,9 +3020,9 @@ function renderIndicadores(){
                   .sort((a,b)=>b.v-a.v).slice(0,10);
 
   document.getElementById("ind-graficos").innerHTML =
-    caixaGrafico("Serviços abertos por mês", "Pelo DATA DO CHAMADO (ou a data do serviço, quando não houver chamado). Últimos 12 meses com registro.",
+    caixaGrafico("Serviços abertos por mês", "Pelo DATA DO CHAMADO (ou a data de agendamento do serviço, quando não houver chamado). Últimos 12 meses com registro.",
       barrasV(meses.map(m=>({rot:rotuloMes(m), v:porMes[m]})))) +
-    caixaGrafico("Tempo médio de execução", "Dias entre a DATA DO SERVIÇO e a DATA CONCLUSÃO. Só entram serviços com as duas datas preenchidas.",
+    caixaGrafico("Tempo médio de execução", "Dias entre a DATA AGENDAMENTO SERVIÇO e a DATA CONCLUSÃO. Só entram serviços com as duas datas preenchidas.",
       (media===null
         ? '<div class="vaziog">Nenhum serviço tem as duas datas preenchidas ainda.</div>'
         : '<div class="hero-num"><span class="n">'+media.toFixed(1).replace(".",",")+'</span><span class="u">dias em média · '+durs.length+' serviço(s)</span></div>'+
@@ -2927,7 +3118,7 @@ function renderIndicadoresObra(){
       barrasH(tipos)) +
     caixaGrafico("Serviços por responsável", "Quem executou os chamados desta obra.",
       barrasH(resps)) +
-    caixaGrafico("Serviços abertos por mês", "Pela DATA DO CHAMADO (ou a data do serviço, quando não houver chamado).",
+    caixaGrafico("Serviços abertos por mês", "Pela DATA DO CHAMADO (ou a data de agendamento do serviço, quando não houver chamado).",
       barrasV(meses.map(m=>({rot:rotuloMes(m), v:porMes[m]}))));
 }
 

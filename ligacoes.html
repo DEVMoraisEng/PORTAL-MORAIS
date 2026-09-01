@@ -152,6 +152,7 @@ table.grade tbody td.wide{max-width:none;overflow:visible;text-overflow:clip}
 .tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700}
 .tag.sim{background:rgba(42,157,92,.14);color:var(--verde-esc)}
 .tag.nao{background:#f1e0e0;color:#9b2c2c}
+.tag.info{background:#dbeafe;color:#1d4ed8}
 table.grade td .pill{white-space:nowrap}
 .pill{display:inline-block;border-radius:20px;padding:2px 9px;font-size:11px;font-weight:800;letter-spacing:.3px}
 .pill.sim{background:#DCFCE7;color:#166534}.pill.nao{background:#FEE2E2;color:#991B1B}
@@ -190,11 +191,19 @@ tbody tr.lin-emdia td{background:#DFF2E6}
 tbody tr.lin-emdia td.stick{background:#C7E9D4}
 tbody tr.lin-sem td{background:var(--sup)}
 tbody tr.lin-vencida:hover td,tbody tr.lin-emdia:hover td,tbody tr.lin-sem:hover td{filter:brightness(.96)}
+/* pintura por alerta (atraso/aviso) — mesma família visual do vencimento */
+tbody tr.lin-atraso td{background:#FFB3B3}
+tbody tr.lin-atraso td.stick{background:#FF8F8F}
+tbody tr.lin-alerta td{background:#FFE9B3}
+tbody tr.lin-alerta td.stick{background:#FFDD8F}
+tbody tr.lin-atraso:hover td,tbody tr.lin-alerta:hover td{filter:brightness(.96)}
 .legenda{display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--text3);margin-bottom:10px}
 .legenda .pt{display:inline-block;width:12px;height:12px;border-radius:3px;border:1px solid var(--border);vertical-align:-2px;margin-right:5px}
 .legenda .pt.lin-vencida{background:#FFB3B3;border-color:#FF8F8F}
 .legenda .pt.lin-emdia{background:#DFF2E6;border-color:#86EFAC}
 .legenda .pt.lin-sem{background:var(--sup)}
+.legenda .pt.lin-atraso{background:#FFB3B3;border-color:#FF8F8F}
+.legenda .pt.lin-alerta{background:#FFE9B3;border-color:#F5C563}
 .aviso-inline{background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:9px 12px;
   font-size:12.5px;color:var(--text3);margin-bottom:10px}
 .aviso-inline.ok{background:#F0FDF4;border-color:#BBF7D0;color:#166534}
@@ -384,8 +393,15 @@ html[data-tema="escuro"] tbody tr.lin-emdia td{background:#1b3a2a}
 html[data-tema="escuro"] tbody tr.lin-emdia td.stick{background:#234a34}
 html[data-tema="escuro"] .legenda .pt.lin-vencida{background:#5c2a2a;border-color:#7a3a3a}
 html[data-tema="escuro"] .legenda .pt.lin-emdia{background:#234a34;border-color:#2f6b48}
+html[data-tema="escuro"] tbody tr.lin-atraso td{background:#4a2222}
+html[data-tema="escuro"] tbody tr.lin-atraso td.stick{background:#5c2a2a}
+html[data-tema="escuro"] tbody tr.lin-alerta td{background:#4a3a1b}
+html[data-tema="escuro"] tbody tr.lin-alerta td.stick{background:#5c4823}
+html[data-tema="escuro"] .legenda .pt.lin-atraso{background:#5c2a2a;border-color:#7a3a3a}
+html[data-tema="escuro"] .legenda .pt.lin-alerta{background:#5c4823;border-color:#7a5f2f}
 html[data-tema="escuro"] .tag.sim,html[data-tema="escuro"] .pill.sim{background:#16341f;color:#8ce0a5}
 html[data-tema="escuro"] .tag.nao,html[data-tema="escuro"] .pill.nao{background:#3a1e1e;color:#f3a29a}
+html[data-tema="escuro"] .tag.info{background:#1e3a5f;color:#93c5fd}
 html[data-tema="escuro"] .pill.alerta{background:#3a2d12;color:#f0c95f}
 html[data-tema="escuro"] .pill.critico{background:#3a1e1e;color:#f3a29a}
 html[data-tema="escuro"] .aviso{color:#f0c95f}
@@ -514,6 +530,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
       <div class="sec" id="sec-planilha"><span class="cond">Planilha Geral</span></div>
       <div class="recorte" id="recorte" style="display:none"></div>
       <div class="toolbar" id="filtros-hub"></div>
+      <div id="legenda-hub"></div>
       <div class="toolbar">
         <input class="busca" type="search" id="hub-busca" name="q_lig" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Buscar por obra, UC ou observação…" oninput="renderPlanilha()">
         <span class="count" id="hub-count"></span>
@@ -661,6 +678,13 @@ const C = {
   NASC:       "DATA DE NASCIMENTO"      // no Notion tem espaço no fim; o getL resolve
 };
 
+/* Todas as colunas de alerta que existem no sistema — usada pela "Planilha
+   do setor", que olha todas de uma vez (as outras abas usam só as que
+   aparecem nas colunas dela, ver "alertaCor" em cada aba). Precisa vir logo
+   depois de C: a pintura por alerta (mais abaixo) e as ABAS (logo a seguir)
+   dependem dela. */
+const ALERTA_COLS_TODAS = [C.ALERTA_SOL, C.VERIF_SOL, C.ALERTA_LIG, C.ALERTA_UC, C.ALERTA_INFO, C.ALERTA_INFO1];
+
 /* ---------- colunas da base VENDAS (aba "Casas vendidas") ----------
    Também conferidas pelo inspetor. Repare nos espaços: "CLIENTES " tem
    espaço no FIM e " PROTOCOLO DE TRANS. ÁGUA" tem espaço no COMEÇO — é
@@ -725,15 +749,23 @@ const OCULTAS = [
      filtroBase: quais linhas o setor enxerga (null = todas). */
 const SETORES_LIG = [
   {
-    nome: "LIBERAÇÃO E CONTROLE DE SOLICITAÇÕES",
-    d: "Aptidão para solicitar e acompanhamento das solicitações",
-    abas: ["aptas", "acompanhamento"],
+    /* Renomeado (pedido ago/26): a aba "Acompanhamento de solicitação" saiu
+       daqui e foi para o setor ACOMPANHAMENTO DE LIGAÇÕES (ver abaixo), então
+       o "E CONTROLE DE" não fazia mais sentido no nome — este setor agora só
+       cuida da aptidão pra solicitar. Só o rótulo mudou; a coluna do Notion
+       (LIBERADO PARA SOLICITAÇÃO) continua com o nome de sempre. */
+    nome: "LIBERAÇÃO DE SOLICITAÇÕES",
+    d: "Aptidão para solicitar a ligação",
+    abas: ["aptas"],
     filtroBase: null
   },
   {
     nome: "ACOMPANHAMENTO DE LIGAÇÕES",
-    d: "Liberadas para solicitar, conferências e ligações sem UC",
-    abas: ["liberadas", "conferencias", "semUc"],
+    d: "Liberadas para solicitar, acompanhamento SANESC, conferências e ligações sem UC",
+    /* "acompanhamento" (Acompanhamento de solicitação SANESC) entra logo após
+       "liberadas" (Obras liberadas para solicitar a ligação) — pedido ago/26,
+       ela morava no setor LIBERAÇÃO DE SOLICITAÇÕES antes. */
+    abas: ["liberadas", "acompanhamento", "conferencias", "semUc"],
     filtroBase: null
   },
   {
@@ -778,16 +810,30 @@ function noFluxo(l){
    para atravessarem tabela, PDF e escolha de colunas sem virar caso especial
    em cada lugar. */
 const CALC = { PROC_SANESC: "\u0000TEMPO_SANESC", LIG_CORRIDO: "\u0000TEMPO_LIGACAO",
-               PRAZO_LIBER: "\u0000PRAZO_LIBERACAO" };
+               PRAZO_LIBER: "\u0000PRAZO_LIBERACAO", PRAZO_UC: "\u0000PRAZO_SEM_UC" };
 const CALC_DEF = {};
 CALC_DEF[CALC.PROC_SANESC] = { titulo: "Tempo de processo (dias)", valor: diasProcessoSanesc,
   dica: "da DATA DE LIBERAÇÃO até a DATA DA APROVAÇÃO SANESC (ou até hoje, se ainda não aprovou)" };
-CALC_DEF[CALC.LIG_CORRIDO] = { titulo: "Tempo corrido (dias)", valor: diasCorridosLigacao,
+/* Renomeadas (pedido ago/26) pros nomes que a equipe já usa na reunião —
+   os títulos antigos ("Prazo corrido"/"Tempo corrido") ficam só no dica/comentário
+   pra quem for procurar no histórico. */
+CALC_DEF[CALC.LIG_CORRIDO] = { titulo: "PRAZO SEM LIGAÇÃO", valor: diasCorridosLigacao,
   dica: "da DATA DE SOLICITAÇÃO até a Data de Ligação (ou até hoje, se ainda não ligou)" };
-CALC_DEF[CALC.PRAZO_LIBER] = { titulo: "Prazo corrido (dias)", valor: prazoDesdeLiberacao,
+CALC_DEF[CALC.PRAZO_LIBER] = { titulo: "PRAZO SEM SOLICITAÇÃO", valor: prazoDesdeLiberacao,
   dica: "da DATA DE LIBERAÇÃO até a DATA DE SOLICITAÇÃO (ou até hoje, se ainda não solicitou)" };
+CALC_DEF[CALC.PRAZO_UC] = { titulo: "PRAZO SEM UC", valor: prazoSemUc,
+  dica: "da Data de Ligação até hoje — ou até a DATA DE PREENCHIMENTO UC, quando UC PREENCHIDA = SIM" };
 function ehCalculada(nome){ return !!CALC_DEF[nome]; }
-function tituloColuna(nome){ return ehCalculada(nome) ? CALC_DEF[nome].titulo : nome; }
+/* Rótulos que mudam só NA TELA, sem tocar no nome da coluna no Notion — a
+   API continua lendo/escrevendo em C.LIBERADO ("LIBERADO PARA SOLICITAÇÃO")
+   normalmente, só o texto mostrado ao usuário muda (pedido ago/26). */
+const RENOMEADAS_TELA = {};
+RENOMEADAS_TELA[normN(C.LIBERADO)] = "MEDIDOR COMPRADO";
+function tituloColuna(nome){
+  if (ehCalculada(nome)) return CALC_DEF[nome].titulo;
+  const r = RENOMEADAS_TELA[normN(nome)];
+  return r || nome;
+}
 
 /* Definição de cada aba: título, colunas da tabela e o filtro fixo.
    Os filtros fixos são exatamente os das views do Notion que você mandou
@@ -808,7 +854,7 @@ const ABAS = {
             && pendenteLiberacao(l)
   },
   acompanhamento: {
-    titulo: "Acompanhamento de solicitação",
+    titulo: "Acompanhamento de solicitação SANESC",
     /* Só SANESC: a aprovação da solicitação só existe nela. Por isso a coluna
        de concessionária saiu — seria a mesma palavra em todas as linhas. */
     colunas: [C.OBRA, C.APROVADA, C.DT_LIBER, C.DT_SOL, C.DT_APROV,
@@ -816,6 +862,7 @@ const ABAS = {
     filtros: [C.RESP],
     filtroData: [C.DT_LIBER, C.DT_SOL, C.DT_APROV],
     pdf: true,
+    alertaCor: [C.ALERTA_SOL, C.VERIF_SOL],
     base: l => normN(sel(l, C.CONC)) === "SANESC"
             && sel(l, C.FEZ) === "SIM"
             && temAlerta(l, C.VERIF_SOL)
@@ -825,6 +872,7 @@ const ABAS = {
     titulo: "Planilha do setor",
     colunas: null,           // null = todas as colunas visíveis
     filtros: [C.CONC, C.LIBERADO, C.FEZ, C.APROVADA, C.STATUS, C.RESP],
+    alertaCor: ALERTA_COLS_TODAS,
     base: () => true
   },
 
@@ -843,6 +891,7 @@ const ABAS = {
     filtroData: [C.DT_LIBER, C.DT_SOL],
     sensiveis: true,
     pdf: true,
+    alertaCor: [C.ALERTA_INFO],
     /* Continua aqui enquanto o alerta do Notion apontar pendência OU enquanto
        faltar a NF do medidor. A cobrança da NF só vale para as obras que
        entraram no controle novo (as que têm DATA DE LIBERAÇÃO). */
@@ -861,6 +910,7 @@ const ABAS = {
     filtroData: [C.DT_SOL, C.DT_LIG, C.DT_LIBER],
     sensiveis: true,
     pdf: true,
+    alertaCor: [C.ALERTA_INFO1, C.ALERTA_LIG],
     /* A fila olha os DOIS alertas da etapa, não só o primeiro.
        BUG QUE ISTO CORRIGE: as duas colunas do Notion são estágios seguidos da
        MESMA pendência — "Elerta Informações (1)" mostra ⏳ AGUARDANDO enquanto
@@ -879,11 +929,12 @@ const ABAS = {
   },
   semUc: {
     titulo: "Ligações sem UC (ligadas mas sem UC)",
-    colunas: [C.OBRA, C.CONC, C.CPF, C.NASC, C.DT_UC, C.UC, C.UC_OK, C.DT_LIG, C.RESP, C.OBS_CONTAS, C.ALERTA_UC],
+    colunas: [C.OBRA, C.CONC, C.CPF, C.NASC, C.DT_UC, C.UC, C.UC_OK, C.DT_LIG, CALC.PRAZO_UC, C.RESP, C.OBS_CONTAS, C.ALERTA_UC],
     filtros: [C.CONC, C.RESP, C.UC_OK],
     filtroData: [C.DT_LIG, C.DT_UC],
     sensiveis: true,
     pdf: true,
+    alertaCor: [C.ALERTA_UC],
     /* Fica na fila enquanto faltar qualquer uma das três: UC PREENCHIDA = SIM,
        a UC escrita e a data de preenchimento. Antes dependia só do alerta do
        Notion, e a obra continuava aqui mesmo com tudo preenchido. */
@@ -1263,6 +1314,15 @@ function diasCorridosLigacao(l){
 function prazoDesdeLiberacao(l){
   return diasAte(dataReal(l, C.DT_LIBER), dataReal(l, C.DT_SOL));
 }
+/* PRAZO SEM UC (pedido ago/26): da Data de Ligação até hoje, mas "congela"
+   na DATA DE PREENCHIMENTO UC assim que UC PREENCHIDA vira SIM — depois
+   disso o relógio parou de correr, não faz sentido continuar somando. */
+function prazoSemUc(l){
+  const ini = dataReal(l, C.DT_LIG);
+  if (!ini) return null;
+  const fim = (sel(l, C.UC_OK) === "SIM") ? dataReal(l, C.DT_UC) : null;
+  return diasAte(ini, fim);
+}
 
 function diasLigacao(l){
   const d = diasEntre(dataReal(l, C.DT_SOL), dataReal(l, C.DT_LIG));
@@ -1313,7 +1373,7 @@ function mostrarOffline(r){
 /* Sobe junto com o VERSAO_GS do Code.gs. Estava travado em r13 desde o fim de
    agosto, então esta tela vinha mostrando "página desatualizada" sem que nada
    dela tivesse mudado — o r14..r17 foi tudo em vendas e pós obra. */
-const GS_ESPERADO = "2026-08-31 r17";
+const GS_ESPERADO = "2026-09-01 r20";
 
 /* Compara "2026-08-27 r8" com "2026-08-27 r7" e diz QUEM está atrás.
    Comparação por data + número, nunca de texto: como texto, "r10" viria antes
@@ -1752,9 +1812,14 @@ function colunasDeDataDaAba(def){
   return (def.filtroData || []).filter(c => !!campoDe(c));
 }
 
+/* Pedido ago/26: os 3 prazos já calculados (sem solicitação, sem ligação,
+   sem UC) entram também na Planilha do setor, pra dar pra conferir todas as
+   obras de uma vez — sem isso só apareciam nas abas de fila específicas. */
+const PRAZOS_NA_PLANILHA = [CALC.PRAZO_LIBER, CALC.LIG_CORRIDO, CALC.PRAZO_UC];
 function colunasDaAba(chave){
   const def = ABAS[chave];
-  const base = (def && def.colunas) ? def.colunas : colunasVisiveis();
+  let base = (def && def.colunas) ? def.colunas : colunasVisiveis();
+  if (chave === "planilha") base = base.concat(PRAZOS_NA_PLANILHA);
   const fonte = fonteDaAba(chave);
   const schema = (fonte === "vendas") ? VSCHEMA : SCHEMA;
   return base.map(c => c === V.DT_VERIF ? COL_VERIF : c)
@@ -1949,17 +2014,18 @@ function montarFiltros(idBox, colunas, prefixo, aoMudar, fonte){
     /* RESPONSÁVEL é o MESMO filtro do seletor do topo: escolher aqui muda os
        contadores (cartões de setor, número das abas, KPIs, gráficos) e vice-
        versa. São dois lugares para mexer no mesmo estado, não dois filtros. */
+    const rotulo = tituloColuna(nome);
     if (normN(nome) === normN(C.RESP)){
       return `<select id="${id}" data-col="${esc(nome)}" data-resp="1" onchange="trocarFiltroResp(this.value)">
-        <option value="">${esc(nome)}: todos</option>
-        ${responsaveisConhecidos().map(o=>`<option value="${esc(o)}" ${o===FILTRO_RESP?"selected":""}>${esc(nome)}: ${esc(o)}</option>`).join("")}
-        <option value="__VAZIO__" ${FILTRO_RESP==="__VAZIO__"?"selected":""}>${esc(nome)}: (vazio)</option>
+        <option value="">${esc(rotulo)}: todos</option>
+        ${responsaveisConhecidos().map(o=>`<option value="${esc(o)}" ${o===FILTRO_RESP?"selected":""}>${esc(rotulo)}: ${esc(o)}</option>`).join("")}
+        <option value="__VAZIO__" ${FILTRO_RESP==="__VAZIO__"?"selected":""}>${esc(rotulo)}: (vazio)</option>
       </select>`;
     }
     return `<select id="${id}" data-col="${esc(nome)}" onchange="${aoMudar.name}()">
-      <option value="">${esc(nome)}: todos</option>
-      ${ops.map(o=>`<option value="${esc(o)}">${esc(nome)}: ${esc(o)}</option>`).join("")}
-      <option value="__VAZIO__">${esc(nome)}: (vazio)</option>
+      <option value="">${esc(rotulo)}: todos</option>
+      ${ops.map(o=>`<option value="${esc(o)}">${esc(rotulo)}: ${esc(o)}</option>`).join("")}
+      <option value="__VAZIO__">${esc(rotulo)}: (vazio)</option>
     </select>`;
   }).join("");
   // devolve a escolha anterior (só se a opção ainda existir nos dados novos)
@@ -2028,8 +2094,14 @@ const RECORTES = {
                filtros: [] },
   ligadas:   { lab:"Já ligadas",           sub:"",                              teste: l => ["LIGADO","TRANSFERIDO","ENTREGUE NAO TRANSFERIDO"].indexOf(normN(sel(l,C.STATUS))) >= 0,
                filtros: null },
-  naolib:    { lab:"Não liberadas",        sub:"aguardando liberação p/ solicitar", teste: l => sel(l,C.LIBERADO) === "NÃO",
-               filtros: [[C.LIBERADO, "NÃO"]] },
+  /* naolib: pedido ago/26 — com a opção nova AGUARDANDO NF em LIBERADO PARA
+     SOLICITAÇÃO (MEDIDOR COMPRADO), essa obra também conta aqui, junto com
+     NÃO. Como agora são DOIS valores possíveis, não cabe mais num único
+     select (por isso filtros:null, igual "ligadas"/"atrasadas" — o clique
+     usa o RECORTE com a tarja "Mostrando:" em vez de marcar um filtro só). */
+  naolib:    { lab:"Não liberadas",        sub:"aguardando liberação p/ solicitar (inclui aguardando NF)",
+               teste: l => { const v=normN(sel(l,C.LIBERADO)); return v==="NAO" || v==="AGUARDANDO NF"; },
+               filtros: null },
   aprov:     { lab:"Aguardando aprovação", sub:"solicitação feita, sem aprovação",  teste: l => sel(l,C.FEZ)==="SIM" && sel(l,C.APROVADA)==="NÃO",
                filtros: [[C.FEZ, "SIM"], [C.APROVADA, "NÃO"]] },
   atrasadas: { lab:"Atrasadas",            sub:"alerta do Notion apontando atraso", teste: l => normN(alertaDe(l,C.ALERTA_SOL)).indexOf("ATRASADO") >= 0 || normN(alertaDe(l,C.ALERTA_LIG)).indexOf("ATRASADO") >= 0,
@@ -2458,9 +2530,12 @@ function celula(l, nome, fonte){
   if (tipo === "select" || tipo === "status"){
     const n = normN(s);
     // SIM/NÃO viram a mesma etiqueta do vendas.html; o resto fica texto puro,
-    // senão a planilha vira um mural de pílulas coloridas sem hierarquia
+    // senão a planilha vira um mural de pílulas coloridas sem hierarquia.
+    // AGUARDANDO NF (opção nova de LIBERADO PARA SOLICITAÇÃO) é exceção
+    // pedida: mesma cor azul que o Notion já usa pra ela.
     if (n === "SIM") return `<span class="tag sim">${esc(s)}</span>`;
     if (n === "NAO") return `<span class="tag nao">${esc(s)}</span>`;
+    if (n === "AGUARDANDO NF") return `<span class="tag info">${esc(s)}</span>`;
     return esc(s);
   }
   if ((tipo === "formula" || temRegraAlerta(nome)) &&
@@ -2887,6 +2962,34 @@ const LEGENDA_VENC = `<div class="legenda">
   <span><i class="pt lin-sem"></i> sem data de vencimento</span>
 </div>`;
 
+/* ---------- pintura por ALERTA (pedido ago/26) ----------
+   Vermelho = algum alerta relevante da linha está ATRASADO (🚨).
+   Amarelo  = nenhum atrasado, mas algum está em aviso (⚠️/⏳).
+   Sem cor  = nenhum alerta aceso. Mesma técnica da pintura por vencimento
+   (corVenc), só que olhando as colunas de alerta em vez de uma data.
+   ALERTA_COLS_TODAS já foi declarada lá em cima, perto do C (as ABAS
+   precisam dela antes deste ponto do arquivo). */
+function situacaoAlertaLinha(l, colunas){
+  let aviso = false;
+  for (let i = 0; i < colunas.length; i++){
+    const s = txt(alertaDe(l, colunas[i]));
+    if (s.indexOf("🚨") >= 0) return "atraso";
+    if (s.indexOf("⚠️") >= 0 || s.indexOf("⏳") >= 0) aviso = true;
+  }
+  return aviso ? "alerta" : "";
+}
+/* Fábrica: devolve a função corDe(l) já presa às colunas de alerta que fazem
+   sentido pra aquela aba — cada aba só tem alguns alertas nas suas colunas
+   visíveis, e não faz sentido pintar por um alerta que nem aparece ali. */
+function corPorAlertas(colunas){
+  return l => { const s = situacaoAlertaLinha(l, colunas); return s ? "lin-" + s : ""; };
+}
+const corAlertaPlanilha = corPorAlertas(ALERTA_COLS_TODAS);
+const LEGENDA_ALERTA = `<div class="legenda">
+  <span><i class="pt lin-atraso"></i> atrasado</span>
+  <span><i class="pt lin-alerta"></i> alerta</span>
+</div>`;
+
 function renderPlanilha(){
   const filtros = valoresFiltro("filtros-hub");
   const termo = document.getElementById("hub-busca").value;
@@ -2902,7 +3005,9 @@ function renderPlanilha(){
 
   document.getElementById("hub-count").textContent =
     linhas.length + " de " + (RECORTE ? doRecorte.length : LIGF().length) + " linhas";
-  if (!pintarTabela("hub-wrap", tabelaHtml(linhas, colunasVisiveis(), true, "ligacoes", null, "hub"))) return;
+  const legHub = document.getElementById("legenda-hub");
+  if (legHub && !legHub.innerHTML) legHub.innerHTML = LEGENDA_ALERTA;
+  if (!pintarTabela("hub-wrap", tabelaHtml(linhas, colunasVisiveis().concat(PRAZOS_NA_PLANILHA), true, "ligacoes", corAlertaPlanilha, "hub"))) return;
   ligarCliquesTabela("hub-wrap");
   sincronizarScroll("hub-stop", "hub-wrap");
 }
@@ -2982,6 +3087,14 @@ function filtroDataHtml(colunas){
   const anos = {};
   LIG.forEach(l => colunas.forEach(c => { const d = dataReal(l, c); if (d) anos[d.slice(0,4)] = 1; }));
   if (!Object.keys(anos).length) anos[String(new Date().getFullYear())] = 1;
+  /* "Ligações sem UC" é fila de atraso, não de recência: o que interessa ali
+     é achar quem está PARADO há mais tempo, não quem mexeu recentemente. Por
+     isso só nesta aba a opção de 30 dias vira "mais de 30 dias" (ver
+     passaFiltroData) — nas outras abas continua "últimos 30 dias" como
+     sempre. Pedido ago/26. */
+  const opcao30 = (ABA_ATUAL === "semUc")
+    ? `<option value="mais30d">Mais de 30 dias</option>`
+    : `<option value="30d">Últimos 30 dias</option>`;
   return `
     <select id="dt-col" onchange="renderAba()" title="Qual data filtrar">
       ${colunas.map((c,i)=>`<option value="${esc(c)}" ${i===0?"selected":""}>${esc(c)}</option>`).join("")}
@@ -2989,7 +3102,7 @@ function filtroDataHtml(colunas){
     <select id="dt-per" onchange="aoTrocarPeriodoData()">
       <option value="">Qualquer data</option>
       <option value="7d">Últimos 7 dias</option>
-      <option value="30d">Últimos 30 dias</option>
+      ${opcao30}
       <option value="mes">Mês (escolher)</option>
       <option value="ano">Ano (escolher)</option>
       <option value="intervalo">Intervalo (escolher)</option>
@@ -3022,6 +3135,7 @@ function passaFiltroData(l){
   if (!d) return false;                       // sem data não entra em recorte de data
   if (per === "7d")  return d >= diasAtras(7)  && d <= hojeISO();
   if (per === "30d") return d >= diasAtras(30) && d <= hojeISO();
+  if (per === "mais30d") return d <= diasAtras(30);   // só na aba "Ligações sem UC"
   if (per === "ano") return d.slice(0,4) === document.getElementById("dt-ano").value;
   if (per === "mes") return d.slice(0,4) === document.getElementById("dt-ano").value &&
                             d.slice(5,7) === document.getElementById("dt-mes").value;
@@ -3223,12 +3337,14 @@ function renderAba(){
   const cols = colunasDaAba(ABA_ATUAL);
   let html = "";
   if (def.vencimento) html += LEGENDA_VENC;
+  else if (def.alertaCor) html += LEGENDA_ALERTA;
   if (def.sensiveis && !(fonte === "vendas" ? SENS_VEN : SENS_LIG)){
     html += SENS_ERRO
       ? `<div class="aviso-inline">Não consegui buscar os dados protegidos (${esc(erroTexto(SENS_ERRO))}) — as colunas de CPF, nascimento, cliente e WhatsApp aparecem como •••.</div>`
       : `<div class="aviso-inline"><span class="load"></span> buscando CPF, nascimento e contato… (não ficam no arquivo público do site)</div>`;
   }
-  html += tabelaHtml(linhas, cols, false, fonte, def.vencimento ? corVenc : null, "set");
+  const corLinha = def.vencimento ? corVenc : (def.alertaCor ? corPorAlertas(def.alertaCor) : null);
+  html += tabelaHtml(linhas, cols, false, fonte, corLinha, "set");
   if (!pintarTabela("set-wrap", html)){ renderTabs(); return; }
   ligarCliquesTabela("set-wrap");
   sincronizarScroll("set-stop", "set-wrap");
@@ -3503,7 +3619,8 @@ function gerarPdf(titulo, subtitulos, colunas, linhas, coresLinha){
 }
 
 /* Cores de fundo das linhas no PDF, na mesma lógica da tela. */
-const PDF_COR = { vencida: "0.99 0.89 0.89", emdia: "0.88 0.97 0.90", sem: null };
+const PDF_COR = { vencida: "0.99 0.89 0.89", emdia: "0.88 0.97 0.90", sem: null,
+                   atraso: "0.99 0.89 0.89", alerta: "0.99 0.94 0.83" };
 
 /* ---------- escolher as colunas do relatório ----------
    Guardo a escolha por aba (só na memória da sessão): quem imprime o mesmo
@@ -3578,7 +3695,9 @@ function baixarRelatorio(){
     sub.push("Colunas escolhidas: " + cols.length + " de " + todas.length);
   }
   const dados = linhas.map(l => cols.map(c => celulaTexto(l, c, fonte)));
-  const cores = def.vencimento ? linhas.map(l => PDF_COR[situacaoVenc(l)]) : null;
+  const cores = def.vencimento ? linhas.map(l => PDF_COR[situacaoVenc(l)])
+              : def.alertaCor  ? linhas.map(l => PDF_COR[situacaoAlertaLinha(l, def.alertaCor)] || null)
+              : null;
 
   const blob = gerarPdf(def.titulo, sub, cols, dados, cores);
   const url = URL.createObjectURL(blob);

@@ -787,8 +787,8 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
         <select id="hub-cidade" onchange="aplicarFiltros('hub')"><option value="">Todas as cidades</option></select>
         <select id="hub-situacao" onchange="aplicarFiltros('hub')">
           <option value="">Todas as casas</option>
-          <option value="vendida">Casas vendidas</option>
-          <option value="disponivel">Casas disponíveis</option>
+          <option value="vendida">Vendas em Andamento</option>
+          <option value="disponivel">Casas Disponíveis (Com avaliação)</option>
           <option value="completo">Processo de vendas completo</option>
         </select>
         <select id="hub-ano" onchange="aplicarFiltros('hub')"><option value="">Todos os anos</option></select>
@@ -838,8 +838,8 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
           <select id="set-cidade" onchange="aplicarFiltros('set')"><option value="">Todas as cidades</option></select>
           <select id="set-situacao" onchange="aplicarFiltros('set')">
             <option value="">Todas as casas</option>
-            <option value="vendida">Casas vendidas</option>
-            <option value="disponivel">Casas disponíveis</option>
+            <option value="vendida">Vendas em Andamento</option>
+            <option value="disponivel">Casas Disponíveis (Com avaliação)</option>
             <option value="completo">Processo de vendas completo</option>
           </select>
           <select id="set-ano" onchange="aplicarFiltros('set')"><option value="">Todos os anos</option></select>
@@ -1178,8 +1178,43 @@ function campoPorFragmento(frag){ const alvo=normNome(frag); return SCHEMA.find(
 /* ---------- marcadores SIM/NÃO ---------- */
 function ehSimNao(opcoes){ if(!Array.isArray(opcoes)||!opcoes.length||opcoes.length>2) return false; return opcoes.every(o=>o==="SIM"||o==="NÃO"); }
 function ehMarcador(c){ return (c.tipo==="select"||c.tipo==="status") && Array.isArray(c.opcoes) && c.opcoes.indexOf("SIM")>=0; }
+
+/* Colunas que decidem "Processo de vendas completo" (pedido do usuário,
+   ago/26). ANTES era automático: toda coluna SIM/NÃO do schema (ehMarcador)
+   contava, o que incluía qualquer marcador novo criado no Notion sem
+   ninguém decidir isso — e coluna vazia valia como "ok", então uma casa sem
+   nada preenchido também batia como completa.
+   AGORA é esta lista fixa, escolhida por você. Duas entradas usam PREFIXO
+   (marcadas abaixo) em vez de nome exato, porque a base tem mais de uma
+   coluna parecida (documentos/correspondente e GCAP) e o texto exato pode
+   variar um pouco — mesma técnica já usada em ORDEM_PREFIXOS/COLUNAS_SETOR
+   pra não quebrar se a grafia no Notion não bater 100%.
+   MANTIVE a mesma regra de aprovação de antes (não pedida pra mudar):
+   vazio conta como "ok" (ainda não chegou a vez daquele campo) e só SIM ou
+   ÁGIO aprovam — NÃO e qualquer outro valor reprovam. Se quiser mudar isso
+   (por ex. vazio passar a reprovar), me avisa que ajusto. */
+const PROCESSO_COMPLETO_COLS=[
+  "ENTEGOU A CASA E PEGOU TERMO DE ENTREGA?",
+  "ARMAZENOU CONTRATO COMPRA E VENDA?",
+  "EMITIU RCPM?",
+  "MANDOU TODO",          // prefixo: "MANDOU TODOS OS DOCUMENTOS...?"
+  "MANDOU P/ CO",         // prefixo: "MANDOU P/ CORRESPONDENTE?"
+  "PROCESSO CONFORME?",
+  "TEM MANUAL DE OBRA?",
+  "FICOU PRONTO O REGISTRO?",
+  "RECEBEU?",
+  "GEROU E ARMAZ",        // prefixo: "GEROU E ARMAZENOU GCAP?"
+  "PAGOU GCAP?"
+];
+function ehColProcessoCompleto(nome){
+  const n=normNome(nome);
+  return PROCESSO_COMPLETO_COLS.some(f=>{
+    const a=normNome(f);
+    return n===a || (a.length>=10 && n.indexOf(a)===0);
+  });
+}
 function processoCompleto(valores){
-  const marcadores=SCHEMA.filter(c=>ehMarcador(c) && !nomeExcluido(c.nome));
+  const marcadores=SCHEMA.filter(c=>ehColProcessoCompleto(c.nome));
   if(!marcadores.length) return false;
   return marcadores.every(c=>{ const v=getV(valores,c.nome); if(v==null||v==="") return true;
     const s=normNome(v); return s==="SIM" || s.indexOf("AGIO")>=0; });
