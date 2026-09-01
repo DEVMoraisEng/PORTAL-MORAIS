@@ -165,6 +165,20 @@ html[data-tema="escuro"] td.num.abaixo{color:#8ce0a5}
 .load{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--azul);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
 @keyframes sp{to{transform:rotate(360deg)}}
 .hide{display:none!important}
+/* modal "quais obras usam este insumo" */
+.modal-ov{position:fixed;inset:0;background:rgba(15,26,34,.55);z-index:60;display:flex;
+  align-items:center;justify-content:center;padding:20px}
+.modal-cx{background:var(--sup);border-radius:14px;padding:20px 22px;width:100%;max-width:720px;
+  max-height:82vh;overflow:auto;box-shadow:0 18px 50px rgba(0,0,0,.3)}
+.modal-tit{font-family:'Barlow Condensed';font-size:19px;font-weight:800;text-transform:uppercase;
+  letter-spacing:.4px;color:var(--azul-esc)}
+html[data-tema="escuro"] .modal-tit{color:var(--teal)}
+.modal-sub{font-size:12px;color:var(--text3);margin:2px 0 14px}
+/* nome do insumo clicavel */
+td.insumo.link{cursor:pointer;color:var(--azul);text-decoration:underline;text-decoration-style:dotted;
+  text-underline-offset:3px}
+html[data-tema="escuro"] td.insumo.link{color:var(--teal)}
+td.insumo.link:hover{background:var(--bg3)}
 /* alternador quantidade/preco — mesmo desenho das abas, em tamanho menor */
 .seg{display:inline-flex;border:2px solid var(--border);border-radius:8px;overflow:hidden;background:var(--sup)}
 .seg-bt{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:800;letter-spacing:.05em;
@@ -372,6 +386,19 @@ section > .sec:first-child{margin-top:0}
     </div>
   </main>
 
+  <!-- MELHORIAS #6 (set/26): quais obras usam um insumo. Abre ao clicar no
+       nome do insumo em qualquer tabela. -->
+  <div class="modal-ov hide" id="ins-ov" onclick="if(event.target===this)fecharObrasInsumo()">
+    <div class="modal-cx">
+      <div class="modal-tit" id="ins-tit">Obras</div>
+      <div class="modal-sub" id="ins-sub"></div>
+      <div id="ins-body"><div class="vazio"><span class="load"></span> Buscando…</div></div>
+      <div style="text-align:right;margin-top:14px">
+        <button class="bt ghost" onclick="fecharObrasInsumo()">Fechar</button>
+      </div>
+    </div>
+  </div>
+
 <script src="app.js"></script>
 <script>
 /* ============ Análises · Orçado x Realizado ============
@@ -544,7 +571,7 @@ function linhasInsumo(arr, tipo){
              `<td class="num${cls}">${it.diferenca>0?"+":""}${fmtBRL(it.diferenca)}</td>`+
              `<td class="num">${pctPill(it.diferenca_pct)}</td>`;
     }
-    h+=`<tr><td class="insumo" title="${esc(it.insumo)}">${esc(it.insumo)}</td>`+
+    h+=`<tr><td class="insumo link" title="Ver em quais obras" onclick="verObrasDoInsumo(this.dataset.i)" data-i="${esc(it.insumo)}">${esc(it.insumo)}</td>`+
        `<td class="col-un">${esc(it.unidade||"")}</td>`+cels+`</tr>`;
   });
   return h+'</tbody></table>';
@@ -556,6 +583,56 @@ function pintarTops(){
   document.getElementById("t-impacto").innerHTML  = linhasInsumo(RESUMO.maior_impacto, "impacto");
   pintarGraficoTop();
   pintarRankingObras();
+}
+
+/* ===== MELHORIAS #6 (set/26): quais obras usam este insumo =====
+   O consolidado (vw_insumo_consolidado) so traz o total somado, sem dizer de
+   onde veio. A quebra por obra existe na vw_insumos_atual — o backend
+   (analiseInsumoObras) consulta ela filtrando por insumo.
+   Cache por insumo: reabrir o mesmo nao custa outra ida ao servidor. */
+const _cacheInsObras = {};
+function fecharObrasInsumo(){ document.getElementById("ins-ov").classList.add("hide"); }
+async function verObrasDoInsumo(nome){
+  if(!nome) return;
+  const ov = document.getElementById("ins-ov");
+  document.getElementById("ins-tit").textContent = nome;
+  document.getElementById("ins-sub").textContent = "Obras que usam este insumo";
+  const body = document.getElementById("ins-body");
+  ov.classList.remove("hide");
+
+  let r = _cacheInsObras[nome];
+  if(!r){
+    body.innerHTML = '<div class="vazio"><span class="load"></span> Buscando…</div>';
+    r = await chamar({action:"analiseInsumoObras", insumo:nome});
+    if(r && r.ok!==false) _cacheInsObras[nome] = r;
+  }
+  if(!r || r.ok===false){
+    body.innerHTML = '<div class="vazio">Não consegui buscar ('+esc(r&&r.erro||"erro")+').</div>';
+    return;
+  }
+  const l = r.obras || [];
+  if(!l.length){ body.innerHTML = '<div class="vazio">Nenhuma obra encontrada.</div>'; return; }
+  document.getElementById("ins-sub").textContent =
+    l.length + (l.length===1 ? " obra usa este insumo" : " obras usam este insumo");
+  const qtd = (MODO === "qtd");
+  let h = '<div class="tbl-wrap"><table><thead><tr><th>Obra</th>'+
+    (qtd ? '<th class="col-num">Qtd orçada</th><th class="col-num">Qtd realizada</th><th class="col-num">Dif</th>'
+         : '<th class="col-num">Orçado</th><th class="col-num">Realizado</th><th class="col-num">Dif</th>')+
+    '</tr></thead><tbody>';
+  l.forEach(o=>{
+    const dq = difQtd(o);
+    const dv = (Number(o.ct_realizado)||0) - (Number(o.ct_orcado)||0);
+    const v = qtd ? dq : dv;
+    const cls = v>0 ? " acima" : (v<0 ? " abaixo" : "");
+    h += '<tr><td class="insumo">'+esc(o.obra_nome||"—")+'</td>'+
+      (qtd
+        ? '<td class="num">'+fmtNum(o.qtd_orcada)+'</td><td class="num">'+fmtNum(o.qtd_realizada)+'</td>'+
+          '<td class="num'+cls+'">'+(dq>0?"+":"")+fmtNum(dq)+'</td>'
+        : '<td class="num">'+fmtBRL(o.ct_orcado)+'</td><td class="num">'+fmtBRL(o.ct_realizado)+'</td>'+
+          '<td class="num'+cls+'">'+(dv>0?"+":"")+fmtBRL(dv)+'</td>')+
+      '</tr>';
+  });
+  body.innerHTML = h+'</tbody></table></div>';
 }
 
 /* MELHORIAS #9: top 5 da obra selecionada + grafico. Usa o mesmo MODO
@@ -780,7 +857,7 @@ function renderDetalheObra(){
   arr.forEach(m=>{
     const cls = m.diferenca>0 ? " acima" : (m.diferenca<0 ? " abaixo" : "");
     const dq = difQtd(m), clsQ = dq>0 ? " acima" : (dq<0 ? " abaixo" : "");
-    h+=`<tr><td class="insumo" title="${esc(m.insumo)}">${esc(m.insumo)}</td>`+
+    h+=`<tr><td class="insumo link" title="Ver em quais obras" onclick="verObrasDoInsumo(this.dataset.i)" data-i="${esc(m.insumo)}">${esc(m.insumo)}</td>`+
        `<td class="col-un">${esc(m.codigo||"")}</td><td class="col-un">${esc(m.unidade||"")}</td>`+
        `<td class="num">${fmtNum(m.qtd_orcada)}</td><td class="num">${fmtNum(m.qtd_realizada)}</td>`+
        `<td class="num${clsQ}">${dq>0?"+":""}${fmtNum(dq)}</td>`+
@@ -841,7 +918,7 @@ function renderInsumos(){
   arr.forEach(m=>{
     const cls = m.diferenca>0 ? " acima" : (m.diferenca<0 ? " abaixo" : "");
     const dq = difQtd(m), clsQ = dq>0 ? " acima" : (dq<0 ? " abaixo" : "");
-    h+=`<tr><td class="insumo" title="${esc(m.insumo)}">${esc(m.insumo)}</td>`+
+    h+=`<tr><td class="insumo link" title="Ver em quais obras" onclick="verObrasDoInsumo(this.dataset.i)" data-i="${esc(m.insumo)}">${esc(m.insumo)}</td>`+
        `<td class="col-un">${esc(m.unidade||"")}</td><td class="num">${fmtNum(m.obras)}</td>`+
        `<td class="num">${fmtNum(m.qtd_orcada)}</td><td class="num">${fmtNum(m.qtd_realizada)}</td>`+
        `<td class="num${clsQ}">${dq>0?"+":""}${fmtNum(dq)}</td>`+
