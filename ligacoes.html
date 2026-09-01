@@ -94,9 +94,16 @@ main{padding-bottom:50px}
 .graf .gd{font-size:11.5px;color:var(--text3);margin:4px 0 12px}
 .chart-wrap{width:100%;overflow:hidden}
 .tab-resumo{width:100%;border-collapse:collapse;margin-top:12px;font-size:12.5px}
-.tab-resumo th{background:var(--bg3);color:var(--azul-esc);font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;padding:6px 9px;text-align:left;border:1px solid var(--border2)}
+.tab-resumo th{background:var(--bg3);color:var(--azul-esc);font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;padding:8px 10px;text-align:center;border:1px solid var(--border2)}
+/* MELHORIAS item 2/7 (set/26): cabecalho centralizado e primeira coluna
+   alinhada a esquerda (nome nao fica bem centralizado). */
+.tab-resumo th:first-child{text-align:left}
 .tab-resumo td{padding:6px 9px;border:1px solid var(--border2);background:var(--sup)}
 .tab-resumo td.n{text-align:right;font-variant-numeric:tabular-nums}
+/* MELHORIAS item 1 (set/26): bolinha da cor da concessionaria na primeira
+   coluna. O COR_CONC ja existia (era a cor das barras dos graficos, que
+   sairam) — reaproveitado aqui pra tabela nao perder essa leitura rapida. */
+.pt-conc{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:1px}
 /* MELHORIAS item 1: nome da obra do extremo, ao lado do número. Fica menor e
    em bloco separado pra não competir com o valor em si. */
 .obra-extremo{display:block;font-size:10.5px;font-weight:600;color:var(--text3);
@@ -1417,35 +1424,26 @@ function versaoGS(v){
 }
 
 function conferirBackend(){
-  chamar({action:"ping"}, 15000).then(r => {
-    if (!r || r.ok !== true) return;                 // sem rede: não é assunto daqui
-    const v = r.versao || "";
-    if (v === GS_ESPERADO) return;
-    const cx = document.getElementById("aviso-gs");
-    const noAr = versaoGS(v), esperada = versaoGS(GS_ESPERADO);
+  /* MELHORIAS item 4 (set/26): esta checagem SO avisa quando o backend esta
+     ATRASADO — ou seja, quando falta publicar o Code.gs.
 
-    /* DOIS problemas diferentes, e antes os dois davam a MESMA mensagem
-       ("o Apps Script está atrasado") — que na segunda situação é o contrário
-       do que está acontecendo e manda a pessoa reimplantar um backend que já
-       está certo. */
-    if (noAr !== null && esperada !== null && noAr > esperada){
-      // backend À FRENTE: quem ficou para trás é ESTA PÁGINA (cache do
-      // navegador, ou o arquivo novo ainda não publicado no GitHub Pages).
-      // Não quebra nada: o backend novo continua atendendo a tela antiga.
-      cx.innerHTML =
-        "<b>Esta página está desatualizada.</b> O Apps Script já está no " + esc(v) +
-        " e esta tela é a do " + esc(GS_ESPERADO) +
-        ".<br>Recarregue com <b>Ctrl+F5</b> (ou Cmd+Shift+R no Mac). Se continuar, " +
-        "o arquivo novo ainda não subiu para o GitHub Pages — confira se o workflow terminou.";
-    } else {
-      // backend ATRASADO: é o caso original — colar o Code.gs não publica.
-      cx.innerHTML =
-        "<b>O Apps Script publicado está atrasado.</b> No ar: " +
-        (v ? esc(v) : "versão anterior a 25/08") + " · esta tela espera: " + esc(GS_ESPERADO) +
-        ".<br>Enquanto isso, gravar em colunas novas pode ser recusado " +
-        "(a célula fica vermelha e diz CAMPO_NAO_LIBERADO). Para publicar: " +
-        "Implantar → Gerenciar implantações → lápis da implantação Ativa → Versão: Nova versão → Implantar.";
-    }
+     O que saiu: o aviso de "esta pagina esta desatualizada". Ele comparava o
+     numero da versao do backend com um numero escrito a mao aqui no HTML, e
+     disparava toda vez que eu publicava o Code.gs antes do GitHub Pages
+     trocar o HTML (ou enquanto o navegador servia o arquivo do cache). Na
+     pratica: alarme pelo relogio, com o sistema 100% funcionando. Como o
+     backend e compativel pra tras, tela mais velha que o backend nao quebra
+     nada — nao havia o que avisar. */
+  chamar({action:"ping"}, 15000).then(r => {
+    if (!r || r.ok !== true) return;
+    const noAr = versaoGS(r.versao || ""), esperada = versaoGS(GS_ESPERADO);
+    if (noAr === null || esperada === null) return;
+    if (noAr >= esperada) return;              // em dia (ou a frente): silencio
+    const cx = document.getElementById("aviso-gs");
+    cx.innerHTML = "<b>O Apps Script publicado esta atrasado.</b> No ar: " +
+      esc(r.versao || "versao anterior") + " \u00B7 esta tela espera: " + esc(GS_ESPERADO) +
+      ".<br>Para publicar: Implantar \u2192 Gerenciar implanta\u00E7\u00F5es \u2192 l\u00E1pis da implanta\u00E7\u00E3o Ativa \u2192 " +
+      "Vers\u00E3o: Nova vers\u00E3o \u2192 Implantar.";
     cx.style.display = "block";
   }).catch(()=>{});
 }
@@ -2367,7 +2365,7 @@ function tabelaResumo(grupos){
       <th>Grupo</th><th>Casos</th><th>Média (dias)</th><th>Mediana</th><th>Mín. (obra)</th><th>Máx. (obra)</th>
     </tr></thead><tbody>` +
     grupos.map((g,i)=>`<tr ${g.teste?`style="cursor:pointer" title="clique para ver as obras" onclick="verGrupo('${esc(g.fonte)}',${i})"`:""}>
-      <td>${esc(g.rotulo)}</td>
+      <td>${g.cor?`<span class="pt-conc" style="background:${esc(g.cor)}"></span>`:""}${esc(g.rotulo)}</td>
       <td class="n">${num(g.casos)}</td>
       <td class="n">${n1(g.valor)}</td>
       <td class="n">${n1(g.mediana)}</td>

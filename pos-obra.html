@@ -177,6 +177,17 @@ th.ord.on .seta{opacity:1}
 .cal-flex{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--azul-esc);
   border:1px solid var(--border);border-radius:8px;padding:5px 9px;cursor:pointer;background:var(--sup)}
 .pill.flex{background:#EDE9FE;color:#5B21B6;border:1px solid #C4B5FD}
+/* MELHORIAS item 3: aviso de campo obrigatorio em branco. Mesma familia
+   visual do aviso de material (laranja), pra ser lido como "pendencia sua",
+   e nao como erro do sistema. */
+.falta-box{background:#FEF3C7;border:1px solid #FCD34D;border-radius:10px;padding:10px 12px;
+  font-size:12.5px;color:#92400E;margin-bottom:14px;line-height:1.7}
+.falta-tag{display:inline-block;background:#fff;border:1px solid #FCD34D;border-radius:20px;
+  padding:1px 9px;font-size:11px;font-weight:700;margin:0 4px 0 0}
+.pill.falta{background:#FEF3C7;color:#92400E;border:1px solid #FCD34D}
+html[data-tema="escuro"] .falta-box{background:#3a2d12;border-color:#6b5320;color:#f0c95f}
+html[data-tema="escuro"] .falta-tag{background:#221a08;border-color:#6b5320;color:#f0c95f}
+html[data-tema="escuro"] .pill.falta{background:#3a2d12;color:#f0c95f;border-color:#6b5320}
 /* semana: cabe o card inteiro, então mostra tudo em vez da etiqueta curta */
 .sem-grade{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
 @media(max-width:900px){ .sem-grade{grid-template-columns:1fr} }
@@ -895,7 +906,7 @@ const GARANTIAS = [
 const S = exigirSessao();
 atualizarStatus(); atualizarBadge();
 
-const GS_ESPERADO = "2026-08-31 r19";
+const GS_ESPERADO = "2026-09-01 r20";
 
 const ANDAMENTOS = ["MARCANDO SERVIÇO","SERVIÇO MARCADO","REMARCADO 1","REMARCADO 2",
                     "REMARCADO 3","REMARCADO 4","REMARCADO 5","SERVIÇO FINALIZADO"];
@@ -1199,21 +1210,26 @@ function versaoGS(v){
   return m ? (Number(m[1]+m[2]+m[3]) * 1000 + Number(m[4])) : null;
 }
 function conferirBackend(){
+  /* MELHORIAS item 4 (set/26): esta checagem SO avisa quando o backend esta
+     ATRASADO — ou seja, quando falta publicar o Code.gs.
+
+     O que saiu: o aviso de "esta pagina esta desatualizada". Ele comparava o
+     numero da versao do backend com um numero escrito a mao aqui no HTML, e
+     disparava toda vez que eu publicava o Code.gs antes do GitHub Pages
+     trocar o HTML (ou enquanto o navegador servia o arquivo do cache). Na
+     pratica: alarme pelo relogio, com o sistema 100% funcionando. Como o
+     backend e compativel pra tras, tela mais velha que o backend nao quebra
+     nada — nao havia o que avisar. */
   chamar({action:"ping"}, 15000).then(r => {
     if (!r || r.ok !== true) return;
-    const v = r.versao || "";
-    if (v === GS_ESPERADO) return;
+    const noAr = versaoGS(r.versao || ""), esperada = versaoGS(GS_ESPERADO);
+    if (noAr === null || esperada === null) return;
+    if (noAr >= esperada) return;              // em dia (ou a frente): silencio
     const cx = document.getElementById("aviso-gs");
-    const noAr = versaoGS(v), esperada = versaoGS(GS_ESPERADO);
-    if (noAr !== null && esperada !== null && noAr > esperada){
-      cx.innerHTML = "<b>Esta página está desatualizada.</b> O Apps Script já está no " + esc(v) +
-        " e esta tela é a do " + esc(GS_ESPERADO) + ".<br>Recarregue com <b>Ctrl+F5</b>.";
-    } else {
-      cx.innerHTML = "<b>O Apps Script publicado está atrasado.</b> No ar: " +
-        (v ? esc(v) : "versão anterior") + " · esta tela espera: " + esc(GS_ESPERADO) +
-        ".<br>Para publicar: Implantar → Gerenciar implantações → lápis da implantação Ativa → " +
-        "Versão: Nova versão → Implantar.";
-    }
+    cx.innerHTML = "<b>O Apps Script publicado esta atrasado.</b> No ar: " +
+      esc(r.versao || "versao anterior") + " \u00B7 esta tela espera: " + esc(GS_ESPERADO) +
+      ".<br>Para publicar: Implantar \u2192 Gerenciar implanta\u00E7\u00F5es \u2192 l\u00E1pis da implanta\u00E7\u00E3o Ativa \u2192 " +
+      "Vers\u00E3o: Nova vers\u00E3o \u2192 Implantar.";
     cx.style.display = "block";
   }).catch(()=>{});
 }
@@ -1392,11 +1408,15 @@ function pintarHub(){
   const andamento = l.filter(o=>o.status==="PÓS OBRA EM ANDAMENTO").length;
   const abertos = l.reduce((a,o)=>a+(o.servicosAbertos||0),0);
   const servicos = l.reduce((a,o)=>a+(o.servicos||0),0);
+  /* MELHORIAS item 3 (set/26): quantos chamados abertos, no sistema inteiro,
+     estao com campo obrigatorio em branco. Substitui o KPI de "Servicos
+     registrados", que era so um total informativo — este aqui e acionavel. */
+  const incompletos = l.reduce((a,o)=>a+(o.servicosIncompletos||0),0);
   document.getElementById("kpis").innerHTML =
     kpi("Obras com cliente", total, "vindas do banco de vendas", "hero") +
     kpi("Pós obra em andamento", andamento, "obras com serviço não finalizado", andamento?"alerta":"") +
     kpi("Serviços abertos", abertos, "chamados sem baixa") +
-    kpi("Serviços registrados", servicos, "total, incluindo finalizados");
+    kpi("Falta preencher", incompletos, incompletos ? "chamados com campo em branco" : "tudo preenchido", incompletos?"alerta":"");
   renderObras();
 }
 function kpi(lab, val, sub, cls){
@@ -1441,9 +1461,13 @@ function renderObras(){
       ? '<span class="pill alerta">PÓS OBRA EM ANDAMENTO</span>'
       : '<span class="pill neutro">SEM PÓS OBRA</span>';
     const nv = o.pendentes ? ' <span class="pill novo" title="criado agora, ainda subindo">+'+o.pendentes+' novo</span>' : "";
+    /* MELHORIAS item 3: selo na propria linha da obra, pra dar pra varrer a
+       lista e ver onde falta preencher sem abrir uma por uma. */
+    const inc = o.servicosIncompletos
+      ? ' <span class="pill falta" title="chamados com campo obrigatorio em branco">\u26A0\uFE0F '+o.servicosIncompletos+'</span>' : "";
     const tempo = o.dataAssinatura ? '<div style="font-size:10.5px;color:var(--text4)">há '+esc(tempoDesde(o.dataAssinatura))+'</div>' : "";
     return '<tr>'+
-      '<td class="stick"><span class="obralink" onclick="abrirObra(\''+o.id+'\')">'+esc(o.titulo)+'</span>'+nv+'</td>'+
+      '<td class="stick"><span class="obralink" onclick="abrirObra(\''+o.id+'\')">'+esc(o.titulo)+'</span>'+nv+inc+'</td>'+
       '<td>'+esc(o.clientes||"—")+'</td>'+
       '<td>'+esc(fmtTel(o.telefone)||"—")+'</td>'+
       '<td>'+esc(dbr(o.dataAssinatura)||"—")+tempo+'</td>'+
@@ -2045,6 +2069,11 @@ function pintarObra(){
       od("Tempo de compra", assin ? tempoDesde(assin) : "—") +
       od("Status", st, true) +
       od("Serviços", (OBRA.atividades||[]).length + " (" + abertos + " abertos)") +
+      /* MELHORIAS item 3 (set/26): quantos chamados desta obra estao com
+         campo obrigatorio em branco. Some quando esta tudo preenchido — so
+         aparece quando ha algo a fazer. */
+      (incompletosDaObra() ? od("Preenchimento",
+        '<span class="pill falta">\u26A0\uFE0F '+incompletosDaObra()+' incompleto(s)</span>', true) : "") +
       /* pedido 3: o horário flexível fica no card do cliente, ao lado do resto */
       (FLEX_CAMPO ? od("Horário flexível", controleFlex(), true) : "") +
       /* item 5 (MELHORIAS ago/26): ÁGIO, ao lado do horário flexível — só
@@ -2262,6 +2291,11 @@ function renderGarantiasLista(){
 }
 
 /* ---------- histórico (itens 9 e 16) ---------- */
+/* MELHORIAS item 3: quantos chamados ABERTOS da obra tem campo obrigatorio
+   em branco. A lista de faltas vem pronta do backend (posObraFaltando_). */
+function incompletosDaObra(){
+  return (OBRA && OBRA.atividades || []).filter(a => (a.faltando||[]).length).length;
+}
 function renderHistorico(){
   const v = OBRA.valores || {};
   const obs = v["OBSERVAÇÕES"] || "";
@@ -2462,7 +2496,17 @@ function renderPainelChamado(){
     else (porNivel[n] = porNivel[n] || []).push(c);
   });
 
-  let html = ordenarCampos(base, ORDEM_CAMPOS, true).map(c=>campoHtml(c, v)).join("");
+  /* MELHORIAS item 3 (set/26): faixa no topo do painel listando o que falta
+     preencher NESTE chamado. Quem calcula é o backend (posObraFaltando_) —
+     assim a regra do que e obrigatorio existe num lugar so, e a tela nunca
+     discorda da lista de obras nem do painel inicial. */
+  let html = "";
+  const faltas = (CHAMADO.faltando || []);
+  if(faltas.length && !fim){
+    html += '<div class="falta-box"><b>\u26A0\uFE0F Falta preencher:</b> ' +
+            faltas.map(x=>'<span class="falta-tag">'+esc(x)+'</span>').join("") + '</div>';
+  }
+  html += ordenarCampos(base, ORDEM_CAMPOS, true).map(c=>campoHtml(c, v)).join("");
 
   /* ===== MELHORIAS item 6 — o retorno não some mais =====================
      O BUG: o bloco do retorno N só era desenhado se nivelAtual(andamento) >= N.

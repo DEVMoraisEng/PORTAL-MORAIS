@@ -1310,9 +1310,10 @@ function posObraOpcaoReal_(campo, valor) {
 function posObraLimparCaches_() {
   try {
     var c = _cache_();
-    c.remove("pos_obra_lista_v2");
-    c.remove("pos_obra_atv_por_obra");
-    c.remove("pos_obra_agenda_v2");
+    c.remove("pos_obra_lista_v3"); c.remove("pos_obra_lista_v2");
+    c.remove("pos_obra_atv_por_obra_v3");
+    c.remove("pos_obra_atv_por_obra");   // chave antiga
+    c.remove("pos_obra_agenda_v3"); c.remove("pos_obra_agenda_v2");
     c.remove("pos_obra_lista"); c.remove("pos_obra_agenda");   // chaves antigas
   } catch (e) {}
 }
@@ -1323,17 +1324,70 @@ function posObraLimparCaches_() {
    "Aberto" = ANDAMENTO DA SOLICITAÇÃO diferente de "SERVIÇO FINALIZADO",
    INCLUSIVE vazio: chamado recém-criado pelo botão nasce sem andamento e já
    deve contar como pós obra em andamento. */
+/* ===== CAMPOS OBRIGATÓRIOS DO CHAMADO (MELHORIAS item 3, set/26) =====
+ * Quais campos um chamado precisa ter preenchido para ser considerado
+ * completo. Anexos ficam de fora, como você pediu.
+ *
+ * A comparação é por PEDAÇO do nome (normalizado), e não por nome exato, pelo
+ * mesmo motivo do resto do arquivo: renomear a coluna no Notion (como já
+ * aconteceu com "DATA DO SERVIÇO" -> "DATA AGENDAMENTO SERVIÇO") não pode
+ * quebrar a checagem em silêncio.
+ *
+ * DATA DO CHAMADO fica de fora de propósito: ela é registro de abertura e o
+ * chamado criado pelo botão nasce sem ela — cobrar isso acusaria todo chamado
+ * novo no segundo seguinte à criação. */
+var POS_OBRA_OBRIGATORIOS = [
+  { chave: "SERVICO",          rotulo: "Serviço",              tipo: "multi" },
+  { chave: "RESPONSAVEL",      rotulo: "Responsável",          tipo: "sel"   },
+  { chave: "DATA AGENDAMENTO", rotulo: "Data de agendamento",  tipo: "data"  },
+  { chave: "INFORMACOES SERVICO", rotulo: "Informações serviço", tipo: "texto" },
+  { chave: "ANDAMENTO DA SOLICITACAO", rotulo: "Andamento da solicitação", tipo: "sel" },
+  { chave: "STATUS MATERIAL",  rotulo: "Status material",      tipo: "sel"   }
+];
+/* Devolve a lista de RÓTULOS que faltam num chamado. Lista vazia = completo.
+   Procura a coluna pelo pedaço do nome; se a coluna não existir na base, o
+   campo é simplesmente ignorado (não vira "faltando" fantasma). */
+function posObraFaltando_(props) {
+  var faltas = [];
+  POS_OBRA_OBRIGATORIOS.forEach(function (req) {
+    var achou = false, preenchido = false;
+    for (var nome in props) {
+      var n = normDist_(nome);
+      if (n.indexOf(req.chave) < 0) continue;
+      /* "DATA AGENDAMENTO" casaria também com uma eventual coluna de
+         remarcação; as de retorno têm número no fim e são opcionais. */
+      if (req.chave === "DATA AGENDAMENTO" && /\d\s*$/.test(n)) continue;
+      achou = true;
+      var pp = props[nome];
+      if (req.tipo === "multi") preenchido = ((pp.multi_select || []).length > 0);
+      else if (req.tipo === "data") preenchido = !!dt_(pp);
+      else if (req.tipo === "texto") preenchido = !!texto_(pp);
+      else preenchido = !!sel_(pp);
+      if (preenchido) break;   // achou preenchido: para de procurar variantes
+    }
+    if (achou && !preenchido) faltas.push(req.rotulo);
+  });
+  return faltas;
+}
+
 function posObraAtvPorObra_() {
-  return comCache_("pos_obra_atv_por_obra", 120, function () {
+  /* chave "_v3": passou a devolver "incompletos" — o cache antigo não tem
+     esse campo e deixaria a tela sem os avisos até expirar sozinho. */
+  return comCache_("pos_obra_atv_por_obra_v3", 120, function () {
     var mapa = {}, finalizado = normDist_("SERVIÇO FINALIZADO");
     queryAll_(CONFIG.DB.ATIVIDADES_POS_OBRA, {}).forEach(function (a) {
       var rel = (a.properties["PÓS OBRA"] && a.properties["PÓS OBRA"].relation) || [];
       var aberta = normDist_(sel_(getTol_(a.properties, "ANDAMENTO DA SOLICITAÇÃO"))) !== finalizado;
+      /* Só chamado ABERTO entra na conta de incompleto. Chamado finalizado
+         com campo em branco é histórico — cobrar agora não muda nada e
+         encheria a tela de aviso que ninguém pode resolver. */
+      var faltas = aberta ? posObraFaltando_(a.properties) : [];
       rel.forEach(function (o) {
         var k = semHifen_(o.id);
-        var m = mapa[k] || (mapa[k] = { total: 0, abertas: 0 });
+        var m = mapa[k] || (mapa[k] = { total: 0, abertas: 0, incompletos: 0 });
         m.total++;
         if (aberta) m.abertas++;
+        if (faltas.length) m.incompletos++;
       });
     });
     return mapa;
@@ -1391,7 +1445,7 @@ function posObraAgio_(pr) {
 /* Aba "Obras": a lista inteira, com o STATUS calculado aqui (não existe essa
    coluna no Notion). A tela filtra e pesquisa em cima disto. */
 function posObras_(sess, p) {
-  return comCache_("pos_obra_lista_v2", 120, function () {
+  return comCache_("pos_obra_lista_v3", 120, function () {
     var atv = posObraAtvPorObra_();
     /* Só entram obras COM cliente preenchido. Obra sem cliente ainda não foi
        vendida/entregue, então não existe pós obra pra ela — e são ~165 linhas
@@ -1423,6 +1477,10 @@ function posObras_(sess, p) {
         setor:  posObraTextoLivre_(getTol_(pr, "SETOR")),
         servicos: c.total,
         servicosAbertos: c.abertas,
+        /* item 3: quantos chamados ABERTOS desta obra estão com campo
+           obrigatório em branco. A tela usa isto pro selo na lista e pro
+           card de aviso do painel inicial. */
+        servicosIncompletos: c.incompletos || 0,
         status: c.abertas > 0 ? "PÓS OBRA EM ANDAMENTO" : "SEM PÓS OBRA"
       };
     });
@@ -1451,10 +1509,15 @@ function posObra_(sess, p) {
   var atividades = queryAll_(CONFIG.DB.ATIVIDADES_POS_OBRA, {
     filter: { property: "PÓS OBRA", relation: { contains: p.pageId } }
   }).map(function (a) {
+    var andAtv = sel_(getTol_(a.properties, "ANDAMENTO DA SOLICITAÇÃO"));
+    var fin = normDist_(andAtv) === normDist_("SERVIÇO FINALIZADO");
     return {
       id: a.id,
       nome: tituloDe_(a.properties),
-      andamento: sel_(getTol_(a.properties, "ANDAMENTO DA SOLICITAÇÃO")),
+      andamento: andAtv,
+      /* item 3: o que falta preencher NESTE chamado. Chamado finalizado não
+         é cobrado (ver posObraAtvPorObra_ pelo mesmo motivo). */
+      faltando: fin ? [] : posObraFaltando_(a.properties),
       valores: resolver_(a.properties)
     };
   });
@@ -1502,7 +1565,7 @@ function posObraInfoDaColuna_(pr, col) {
    copiado pro WhatsApp sem uma segunda consulta por card. */
 function posObraAgenda_(sess, p) {
   // chave "_v2": a regra do DATA DO CHAMADO mudou, o cache antigo tem de morrer
-  return comCache_("pos_obra_agenda_v2", 120, function () {
+  return comCache_("pos_obra_agenda_v3", 120, function () {
     var marcacoes = [];
     queryAll_(CONFIG.DB.ATIVIDADES_POS_OBRA, {}).forEach(function (a) {
       var pr = a.properties;
@@ -1515,7 +1578,11 @@ function posObraAgenda_(sess, p) {
         andamento: sel_(getTol_(pr, "ANDAMENTO DA SOLICITAÇÃO")),
         responsavel: sel_(getTol_(pr, "RESPONSÁVEL")),
         servico: (msProp.multi_select || []).map(function (o) { return o.name; }),
-        statusMaterial: sel_(getTol_(pr, "STATUS MATERIAL"))
+        statusMaterial: sel_(getTol_(pr, "STATUS MATERIAL")),
+        /* item 3: o card do calendário mostra o aviso de campo faltando sem
+           precisar abrir o chamado */
+        faltando: normDist_(sel_(getTol_(pr, "ANDAMENTO DA SOLICITAÇÃO"))) === normDist_("SERVIÇO FINALIZADO")
+                  ? [] : posObraFaltando_(pr)
       };
       for (var col in pr) {
         if (pr[col].type !== "date") continue;
@@ -1532,6 +1599,7 @@ function posObraAgenda_(sess, p) {
           atividadeId: base.atividadeId, obraId: base.obraId, nome: base.nome,
           andamento: base.andamento, responsavel: base.responsavel,
           servico: base.servico, statusMaterial: base.statusMaterial,
+          faltando: base.faltando,
           coluna: col, data: d, info: posObraInfoDaColuna_(pr, col)
         });
       }

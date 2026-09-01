@@ -91,10 +91,14 @@ html[data-tema="escuro"] .card h3{color:var(--teal)}
    ser da tela — ganham mais altura que os Top 20, que são só resumo. */
 .tbl-wrap.alta{max-height:68vh}
 table{border-collapse:collapse;width:100%;font-size:13px}
-th,td{padding:9px 12px;text-align:left;white-space:nowrap}
+/* item 7: linhas verticais separando as colunas + cabecalho centralizado */
+th,td{padding:9px 12px;text-align:left;white-space:nowrap;border-right:1px solid var(--border2)}
+th:last-child,td:last-child{border-right:0}
+tbody td{border-bottom:1px solid var(--border2)}
 thead th{background:var(--bg3);color:var(--azul-esc);font-family:'Barlow Condensed';font-weight:800;font-size:13px;
   text-transform:uppercase;letter-spacing:.3px;position:sticky;top:0;z-index:2;cursor:pointer;user-select:none;
-  box-shadow:inset 0 -1px 0 var(--border2)}
+  text-align:center;vertical-align:middle;box-shadow:inset 0 -1px 0 var(--border2)}
+thead th:first-child{text-align:left}
 html[data-tema="escuro"] thead th{color:var(--teal)}
 thead th .arr{opacity:.4;font-size:11px;margin-left:3px}
 thead th.sortA .arr,thead th.sortD .arr{opacity:1}
@@ -105,7 +109,10 @@ td.num{text-align:right;font-variant-numeric:tabular-nums}
    longos ("ELETRODUTO CORRUGADO 3/4\" PVC ANTICHAMA…") empurravam as colunas
    de dinheiro pra fora da tela e cada linha ficava com uma altura. Agora ela
    tem largura máxima e corta com reticências; o nome inteiro fica no title. */
-td.insumo{max-width:290px;overflow:hidden;text-overflow:ellipsis}
+/* MELHORIAS item 7 (set/26): nada de informacao cortada. O nome do insumo
+   agora QUEBRA em ate duas linhas em vez de virar reticencias — o nome
+   inteiro fica legivel sem precisar do mouse em cima. */
+td.insumo{max-width:340px;white-space:normal;word-break:break-word;line-height:1.35}
 th.col-un,td.col-un{width:1%;color:var(--text3);font-size:12px}
 /* colunas de dinheiro com largura previsível, pra as 4 tabelas do topo
    ficarem alinhadas entre si mesmo tendo conteúdos diferentes */
@@ -318,6 +325,26 @@ function trocarTema(){
 /* ---------- utils de formatação ---------- */
 const fmtBRL = v => (Number(v)||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 const fmtNum = v => (Number(v)||0).toLocaleString("pt-BR",{maximumFractionDigits:2});
+/* MELHORIAS item 9 (set/26): diferenca de QUANTIDADE. As views do Supabase
+   mandam so as quantidades orcada e realizada, entao a diferenca e derivada
+   aqui. Os nomes de quantidade sao iguais nas duas tabelas (qtd_orcada /
+   qtd_realizada), por isso a mesma funcao serve pras duas. */
+function difQtd(m){
+  return (Number(m.qtd_realizada)||0) - (Number(m.qtd_orcada)||0);
+}
+function difQtdPct(m){
+  const orc = Number(m.qtd_orcada)||0;
+  if(!orc) return null;                 // sem orcado nao existe percentual
+  return difQtd(m) / orc * 100;
+}
+/* dif_qtd e dif_qtd_pct nao existem no objeto vindo do servidor — sao
+   colunas derivadas. O comparador le a[col] direto, entao a resolucao das
+   colunas virtuais acontece aqui. */
+function valorOrd(m, col){
+  if(col==="dif_qtd") return difQtd(m);
+  if(col==="dif_qtd_pct"){ const p = difQtdPct(m); return p===null ? -Infinity : p; }
+  return m[col];
+}
 function pctPill(v){
   if(v===null||v===undefined||isNaN(v)) return '<span class="pill zero">—</span>';
   const n=Number(v);
@@ -502,14 +529,18 @@ function renderDetalheObra(){
 
   const c=ordDetalhe.col, d=ordDetalhe.dir;
   arr.sort((a,b)=>{
-    let va=a[c], vb=b[c];
+    let va=valorOrd(a,c), vb=valorOrd(b,c);
     if(typeof va==="string"){ va=va||""; vb=vb||""; return va.localeCompare(vb)*d; }
     return ((Number(va)||0)-(Number(vb)||0))*d;
   });
 
+  /* MELHORIAS item 9 (set/26): a diferenca de QUANTIDADE (material) vem
+     primeiro, antes da de valor — e a pergunta que mais importa: gastou mais
+     material do que o previsto? O dinheiro vem logo depois. */
   const cols=[
     ["insumo","Insumo",false],["codigo","Cód",false],["unidade","Un",false],
     ["qtd_orcada","Qtd orç",true],["qtd_realizada","Qtd real",true],
+    ["dif_qtd","Dif qtd",true],["dif_qtd_pct","Dif qtd %",true],
     ["ct_orcado","Orçado R$",true],["ct_realizado","Realizado R$",true],
     ["diferenca","Dif R$",true],["diferenca_pct","Dif %",true]
   ];
@@ -520,12 +551,15 @@ function renderDetalheObra(){
     h+=`<th class="${s}" style="${n?'text-align:right':''}" onclick="sortDetalhe('${k}')">${rot}<span class="arr">${arrIco}</span></th>`;
   });
   h+='</tr></thead><tbody>';
-  if(!arr.length) h+='<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:22px">Nada encontrado.</td></tr>';
+  if(!arr.length) h+='<tr><td colspan="11" style="text-align:center;color:var(--text3);padding:22px">Nada encontrado.</td></tr>';
   arr.forEach(m=>{
     const cls = m.diferenca>0 ? " acima" : (m.diferenca<0 ? " abaixo" : "");
+    const dq = difQtd(m), clsQ = dq>0 ? " acima" : (dq<0 ? " abaixo" : "");
     h+=`<tr><td class="insumo" title="${esc(m.insumo)}">${esc(m.insumo)}</td>`+
        `<td class="col-un">${esc(m.codigo||"")}</td><td class="col-un">${esc(m.unidade||"")}</td>`+
        `<td class="num">${fmtNum(m.qtd_orcada)}</td><td class="num">${fmtNum(m.qtd_realizada)}</td>`+
+       `<td class="num${clsQ}">${dq>0?"+":""}${fmtNum(dq)}</td>`+
+       `<td class="num">${pctPill(difQtdPct(m))}</td>`+
        `<td class="num">${fmtBRL(m.ct_orcado)}</td><td class="num">${fmtBRL(m.ct_realizado)}</td>`+
        `<td class="num${cls}">${m.diferenca>0?"+":""}${fmtBRL(m.diferenca)}</td>`+
        `<td class="num">${pctPill(m.diferenca_pct)}</td></tr>`;
@@ -555,14 +589,16 @@ function renderInsumos(){
 
   const c=ordInsumos.col, d=ordInsumos.dir;
   arr.sort((a,b)=>{
-    let va=a[c],vb=b[c];
+    let va=valorOrd(a,c),vb=valorOrd(b,c);
     if(typeof va==="string"){ va=va||"";vb=vb||""; return va.localeCompare(vb)*d; }
     return ((Number(va)||0)-(Number(vb)||0))*d;
   });
 
+  /* item 9: diferenca de QUANTIDADE antes da de valor, aqui tambem */
   const cols=[
     ["insumo","Insumo",false],["unidade","Un",false],["obras","Obras",true],
     ["qtd_orcada","Qtd orç",true],["qtd_realizada","Qtd real",true],
+    ["dif_qtd","Dif qtd",true],["dif_qtd_pct","Dif qtd %",true],
     ["total_orcado","Orçado R$",true],["total_realizado","Realizado R$",true],
     ["diferenca","Dif R$",true],["diferenca_pct","Dif %",true]
   ];
@@ -573,12 +609,15 @@ function renderInsumos(){
     h+=`<th class="${s}" style="${n?'text-align:right':''}" onclick="sortInsumos('${k}')">${rot}<span class="arr">${arrIco}</span></th>`;
   });
   h+='</tr></thead><tbody>';
-  if(!arr.length) h+='<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:22px">Nada encontrado.</td></tr>';
+  if(!arr.length) h+='<tr><td colspan="11" style="text-align:center;color:var(--text3);padding:22px">Nada encontrado.</td></tr>';
   arr.forEach(m=>{
     const cls = m.diferenca>0 ? " acima" : (m.diferenca<0 ? " abaixo" : "");
+    const dq = difQtd(m), clsQ = dq>0 ? " acima" : (dq<0 ? " abaixo" : "");
     h+=`<tr><td class="insumo" title="${esc(m.insumo)}">${esc(m.insumo)}</td>`+
        `<td class="col-un">${esc(m.unidade||"")}</td><td class="num">${fmtNum(m.obras)}</td>`+
        `<td class="num">${fmtNum(m.qtd_orcada)}</td><td class="num">${fmtNum(m.qtd_realizada)}</td>`+
+       `<td class="num${clsQ}">${dq>0?"+":""}${fmtNum(dq)}</td>`+
+       `<td class="num">${pctPill(difQtdPct(m))}</td>`+
        `<td class="num">${fmtBRL(m.total_orcado)}</td><td class="num">${fmtBRL(m.total_realizado)}</td>`+
        `<td class="num${cls}">${m.diferenca>0?"+":""}${fmtBRL(m.diferenca)}</td>`+
        `<td class="num">${pctPill(m.diferenca_pct)}</td></tr>`;
