@@ -86,23 +86,42 @@ html[data-tema="escuro"] .card h3{color:var(--teal)}
 @media(max-width:900px){.grid2{grid-template-columns:1fr}}
 
 /* tabela */
-.tbl-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--border2)}
+.tbl-wrap{overflow:auto;border-radius:10px;border:1px solid var(--border2);max-height:430px}
+/* As tabelas principais (detalhe da obra e todos os insumos) são a razão de
+   ser da tela — ganham mais altura que os Top 20, que são só resumo. */
+.tbl-wrap.alta{max-height:68vh}
 table{border-collapse:collapse;width:100%;font-size:13px}
 th,td{padding:9px 12px;text-align:left;white-space:nowrap}
 thead th{background:var(--bg3);color:var(--azul-esc);font-family:'Barlow Condensed';font-weight:800;font-size:13px;
-  text-transform:uppercase;letter-spacing:.3px;position:sticky;top:0;cursor:pointer;user-select:none}
+  text-transform:uppercase;letter-spacing:.3px;position:sticky;top:0;z-index:2;cursor:pointer;user-select:none;
+  box-shadow:inset 0 -1px 0 var(--border2)}
 html[data-tema="escuro"] thead th{color:var(--teal)}
 thead th .arr{opacity:.4;font-size:11px;margin-left:3px}
 thead th.sortA .arr,thead th.sortD .arr{opacity:1}
 tbody tr:nth-child(even){background:var(--bg2)}
 tbody tr:hover{background:var(--bg3)}
 td.num{text-align:right;font-variant-numeric:tabular-nums}
+/* Nome do insumo: era a coluna que mais desalinhava a tabela — nomes muito
+   longos ("ELETRODUTO CORRUGADO 3/4\" PVC ANTICHAMA…") empurravam as colunas
+   de dinheiro pra fora da tela e cada linha ficava com uma altura. Agora ela
+   tem largura máxima e corta com reticências; o nome inteiro fica no title. */
+td.insumo{max-width:290px;overflow:hidden;text-overflow:ellipsis}
+th.col-un,td.col-un{width:1%;color:var(--text3);font-size:12px}
+/* colunas de dinheiro com largura previsível, pra as 4 tabelas do topo
+   ficarem alinhadas entre si mesmo tendo conteúdos diferentes */
+th.col-num{text-align:right}
 .pill{display:inline-block;font-size:11px;font-weight:800;padding:2px 8px;border-radius:20px}
 .pill.pos{background:rgba(192,57,43,.14);color:var(--vermelho)}
 .pill.neg{background:rgba(26,107,64,.14);color:var(--verde-esc)}
 .pill.zero{background:rgba(90,128,153,.15);color:var(--text3)}
 html[data-tema="escuro"] .pill.pos{background:rgba(243,162,154,.16);color:#f3a29a}
 html[data-tema="escuro"] .pill.neg{background:rgba(140,224,165,.16);color:#8ce0a5}
+/* valores em dinheiro: o que está acima do orçado puxa vermelho, o que está
+   abaixo puxa verde — mesma leitura de cor dos pills, sem precisar ler o sinal */
+td.num.acima{color:var(--vermelho);font-weight:600}
+td.num.abaixo{color:var(--verde-esc);font-weight:600}
+html[data-tema="escuro"] td.num.acima{color:#f3a29a}
+html[data-tema="escuro"] td.num.abaixo{color:#8ce0a5}
 
 /* filtros */
 .filtros{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px}
@@ -129,6 +148,15 @@ html[data-tema="escuro"] .pill.neg{background:rgba(140,224,165,.16);color:#8ce0a
 .load{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--azul);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
 @keyframes sp{to{transform:rotate(360deg)}}
 .hide{display:none!important}
+/* chip da data da extração — antes era um texto solto no canto, que não
+   parecia parte de nada. Mesmo formato do "Última atualização" das outras
+   telas. */
+.chip-extr{font-size:11px;font-weight:700;color:var(--text3);background:var(--bg3);
+  border:1px solid var(--border2);border-radius:20px;padding:4px 11px;white-space:nowrap}
+/* O .sec já vem com margem embaixo; dentro de uma aba ele precisa de um
+   respiro em cima também, pra separar do bloco anterior. */
+section > .sec{margin-top:26px}
+section > .sec:first-child{margin-top:0}
 </style>
 </head>
 <body>
@@ -151,7 +179,7 @@ html[data-tema="escuro"] .pill.neg{background:rgba(140,224,165,.16);color:#8ce0a
     <div class="crumb">
       <a class="btn-voltar" href="index.html">← Voltar para o Dashboard</a>
       <span style="flex:1"></span>
-      <span id="data-extr" style="font-size:12px;color:var(--text3)"></span>
+      <span class="chip-extr" id="data-extr"></span>
     </div>
 
     <div id="sem-acesso" class="semacesso hide">
@@ -169,8 +197,10 @@ html[data-tema="escuro"] .pill.neg{background:rgba(140,224,165,.16);color:#8ce0a
 
       <!-- ==================== ABA PRINCIPAL ==================== -->
       <section id="tab-principal">
+        <div class="sec"><span class="cond">Panorama</span></div>
         <div class="kpis" id="kpis"><div class="vazio" style="grid-column:1/-1"><span class="load"></span> Carregando…</div></div>
 
+        <div class="sec"><span class="cond">Destaques por insumo</span></div>
         <div class="grid2">
           <div class="card">
             <h3>Top 20 · Maiores estouros (%)</h3>
@@ -200,6 +230,7 @@ html[data-tema="escuro"] .pill.neg{background:rgba(140,224,165,.16);color:#8ce0a
 
       <!-- ==================== ABA POR OBRA ==================== -->
       <section id="tab-obra" class="hide">
+        <div class="sec"><span class="cond">Seleção de obras</span></div>
         <div class="card">
           <h3>Selecione uma obra ou um grupo de obras</h3>
           <p class="desc">Marque uma ou várias obras (ex.: lotes vizinhos) para analisar em conjunto. Os totais somam todas as selecionadas.</p>
@@ -217,6 +248,7 @@ html[data-tema="escuro"] .pill.neg{background:rgba(140,224,165,.16);color:#8ce0a
         </div>
 
         <div id="resultado-obra" class="hide">
+          <div class="sec"><span class="cond">Resultado da seleção</span></div>
           <div class="kpis" id="kpis-obra"></div>
           <div class="card">
             <h3 id="titulo-detalhe">Insumos</h3>
@@ -236,13 +268,14 @@ html[data-tema="escuro"] .pill.neg{background:rgba(140,224,165,.16);color:#8ce0a
                 </select>
               </div>
             </div>
-            <div id="t-detalhe" class="tbl-wrap"></div>
+            <div id="t-detalhe" class="tbl-wrap alta"></div>
           </div>
         </div>
       </section>
 
       <!-- ==================== ABA INSUMOS ==================== -->
       <section id="tab-insumos" class="hide">
+        <div class="sec"><span class="cond">Todos os insumos</span></div>
         <div class="card">
           <h3>Consolidado por insumo — todas as obras</h3>
           <p class="desc">Cada insumo somado em todas as obras. Clique nos títulos para ordenar.</p>
@@ -260,7 +293,7 @@ html[data-tema="escuro"] .pill.neg{background:rgba(140,224,165,.16);color:#8ce0a
               </select>
             </div>
           </div>
-          <div id="t-insumos" class="tbl-wrap"></div>
+          <div id="t-insumos" class="tbl-wrap alta"></div>
         </div>
       </section>
     </div>
@@ -331,7 +364,7 @@ async function carregarResumo(){
   RESUMO = r;
   if(r.data_extracao){
     const d = r.data_extracao.slice(0,10).split("-");
-    if(d.length===3) document.getElementById("data-extr").textContent = "Foto de "+d[2]+"/"+d[1]+"/"+d[0];
+    if(d.length===3) document.getElementById("data-extr").textContent = "📸 Dados de "+d[2]+"/"+d[1]+"/"+d[0];
   }
   pintarKpis(); pintarTops();
 }
@@ -361,14 +394,18 @@ function pintarKpis(){
 /* ---------- tabelas de ranking (Top 20) ---------- */
 function linhasInsumo(arr){
   if(!arr||!arr.length) return '<div class="vazio">Sem dados.</div>';
-  let h='<table><thead><tr><th>Insumo</th><th>Un</th><th style="text-align:right">Orçado</th>'+
-        '<th style="text-align:right">Realizado</th><th style="text-align:right">Dif R$</th>'+
-        '<th style="text-align:right">Dif %</th></tr></thead><tbody>';
+  let h='<table><thead><tr><th>Insumo</th><th class="col-un">Un</th><th class="col-num">Orçado</th>'+
+        '<th class="col-num">Realizado</th><th class="col-num">Dif R$</th>'+
+        '<th class="col-num">Dif %</th></tr></thead><tbody>';
   arr.forEach(it=>{
-    h+=`<tr><td>${esc(it.insumo)}</td><td>${esc(it.unidade||"")}</td>`+
+    /* cor no valor da diferença, não só no pill: quem bate o olho na coluna
+       de dinheiro entende o sinal sem ler o "+" nem o percentual ao lado */
+    const cls = it.diferenca>0 ? " acima" : (it.diferenca<0 ? " abaixo" : "");
+    h+=`<tr><td class="insumo" title="${esc(it.insumo)}">${esc(it.insumo)}</td>`+
+       `<td class="col-un">${esc(it.unidade||"")}</td>`+
        `<td class="num">${fmtBRL(it.total_orcado)}</td>`+
        `<td class="num">${fmtBRL(it.total_realizado)}</td>`+
-       `<td class="num">${it.diferenca>0?"+":""}${fmtBRL(it.diferenca)}</td>`+
+       `<td class="num${cls}">${it.diferenca>0?"+":""}${fmtBRL(it.diferenca)}</td>`+
        `<td class="num">${pctPill(it.diferenca_pct)}</td></tr>`;
   });
   return h+'</tbody></table>';
@@ -485,10 +522,12 @@ function renderDetalheObra(){
   h+='</tr></thead><tbody>';
   if(!arr.length) h+='<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:22px">Nada encontrado.</td></tr>';
   arr.forEach(m=>{
-    h+=`<tr><td>${esc(m.insumo)}</td><td>${esc(m.codigo||"")}</td><td>${esc(m.unidade||"")}</td>`+
+    const cls = m.diferenca>0 ? " acima" : (m.diferenca<0 ? " abaixo" : "");
+    h+=`<tr><td class="insumo" title="${esc(m.insumo)}">${esc(m.insumo)}</td>`+
+       `<td class="col-un">${esc(m.codigo||"")}</td><td class="col-un">${esc(m.unidade||"")}</td>`+
        `<td class="num">${fmtNum(m.qtd_orcada)}</td><td class="num">${fmtNum(m.qtd_realizada)}</td>`+
        `<td class="num">${fmtBRL(m.ct_orcado)}</td><td class="num">${fmtBRL(m.ct_realizado)}</td>`+
-       `<td class="num">${m.diferenca>0?"+":""}${fmtBRL(m.diferenca)}</td>`+
+       `<td class="num${cls}">${m.diferenca>0?"+":""}${fmtBRL(m.diferenca)}</td>`+
        `<td class="num">${pctPill(m.diferenca_pct)}</td></tr>`;
   });
   document.getElementById("t-detalhe").innerHTML = h+'</tbody></table>';
@@ -536,10 +575,12 @@ function renderInsumos(){
   h+='</tr></thead><tbody>';
   if(!arr.length) h+='<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:22px">Nada encontrado.</td></tr>';
   arr.forEach(m=>{
-    h+=`<tr><td>${esc(m.insumo)}</td><td>${esc(m.unidade||"")}</td><td class="num">${fmtNum(m.obras)}</td>`+
+    const cls = m.diferenca>0 ? " acima" : (m.diferenca<0 ? " abaixo" : "");
+    h+=`<tr><td class="insumo" title="${esc(m.insumo)}">${esc(m.insumo)}</td>`+
+       `<td class="col-un">${esc(m.unidade||"")}</td><td class="num">${fmtNum(m.obras)}</td>`+
        `<td class="num">${fmtNum(m.qtd_orcada)}</td><td class="num">${fmtNum(m.qtd_realizada)}</td>`+
        `<td class="num">${fmtBRL(m.total_orcado)}</td><td class="num">${fmtBRL(m.total_realizado)}</td>`+
-       `<td class="num">${m.diferenca>0?"+":""}${fmtBRL(m.diferenca)}</td>`+
+       `<td class="num${cls}">${m.diferenca>0?"+":""}${fmtBRL(m.diferenca)}</td>`+
        `<td class="num">${pctPill(m.diferenca_pct)}</td></tr>`;
   });
   document.getElementById("t-insumos").innerHTML=h+'</tbody></table>';

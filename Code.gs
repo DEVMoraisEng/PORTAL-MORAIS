@@ -169,7 +169,9 @@ var ACOES_LIGACOES = [
   // lista de pessoas para o <select> de RESPONSÁVEL (rodada 4)
   "ligResponsaveis",
   // arquivar uma linha da base (só ADM — ver ligExcluir_)
-  "ligExcluir"
+  "ligExcluir",
+  // criar linha nova na base de ligações pela tela — só ADM (ver ligCriar_)
+  "ligCriar"
 ];
 
 /* Ações do sistema de PÓS OBRA (a futura pos-obra.html). Mesma regra dos
@@ -194,8 +196,16 @@ var ACOES_POS_OBRA = [
 var ACOES_ESCRITA = [
   "baixa", "updateVenda", "criarVenda", "excluirVenda", "distrato", "novaOpcao",
   "upload", "comentarioNovo", "gerarAtividadesGcap",
-  "ligUpdate", "ligAnexar", "ligBaixa", "ligVendaUpdate", "ligExcluir",
+  "ligUpdate", "ligAnexar", "ligBaixa", "ligVendaUpdate", "ligExcluir", "ligCriar",
   "posObraServicoNovo", "posObraAtvUpdate", "posObraUpdate", "posObraAnexar"
+];
+
+/* Ações do sistema de ANÁLISES (analise.html). Exigem "ANÁLISES" na coluna
+   ACESSOS do banco LOGINS (ADM, MASTER e TESTES passam sempre). Todas só
+   LEEM o Supabase — não gravam nada, então de propósito NÃO entram em
+   ACOES_ESCRITA. */
+var ACOES_ANALISE = [
+  "analiseResumo", "analiseObras", "analiseInsumos", "analiseDetalheObra"
 ];
 
 /* ===================== ROTEADOR ===================== */
@@ -230,6 +240,10 @@ function handle_(e) {
     }
     if (ACOES_POS_OBRA.indexOf(action) >= 0 && !temAcesso_(sess, "PÓS OBRA")) {
       console.log("BLOQUEADO por falta de acesso PÓS OBRA: " + sess.u + " -> " + action);
+      return out_({ ok: false, erro: "SEM_PERMISSAO" });
+    }
+    if (ACOES_ANALISE.indexOf(action) >= 0 && !temAcesso_(sess, "ANÁLISES")) {
+      console.log("BLOQUEADO por falta de acesso ANÁLISES: " + sess.u + " -> " + action);
       return out_({ ok: false, erro: "SEM_PERMISSAO" });
     }
 
@@ -269,6 +283,7 @@ function handle_(e) {
       case "ligacao":           return out_(ligacao_(sess, p));
       case "ligUpdate":         return out_(ligUpdate_(sess, p));
       case "ligExcluir":        return out_(ligExcluir_(sess, p));
+      case "ligCriar":          return out_(ligCriar_(sess, p));
       case "ligAnexar":         return out_(ligAnexar_(sess, p));
       case "ligResponsaveis":   return out_(ligResponsaveis_(sess, p));
       case "ligSensiveis":      return out_(ligSensiveis_(sess, p));
@@ -288,6 +303,11 @@ function handle_(e) {
       case "posObraRetornoExcluir": return out_(posObraRetornoExcluir_(sess, p));
       case "posObraValidarAdm": return out_(posObraValidarAdm_(sess, p));
       case "posObraAnexar":     return out_(posObraAnexar_(sess, p));
+      // ANÁLISES — Orçado x Realizado (analise.html) — só leitura do Supabase
+      case "analiseResumo":       return out_(analiseResumo_(sess, p));
+      case "analiseObras":        return out_(analiseObras_(sess, p));
+      case "analiseInsumos":      return out_(analiseInsumos_(sess, p));
+      case "analiseDetalheObra":  return out_(analiseDetalheObra_(sess, p));
       case "gerarAtividadesGcap":
         if (!ehAdm_(sess)) return out_({ ok: false, erro: "APENAS_ADM" });
         return out_(criarAtividadesGcap_());
@@ -3017,6 +3037,87 @@ function ligSoAdm_(nome) {
 /* Item 5: arquivar a linha. ARQUIVAR, não apagar — no Notion dá pra
    restaurar pela lixeira em até 30 dias. O título vai pro log justamente pra
    você conseguir achar o que foi arquivado sem caçar na lixeira inteira. */
+/* MELHORIAS item 6 (set/26): criar uma linha nova na base de LIGAÇÕES pela
+ * própria tela, sem abrir o Notion.
+ *
+ * Só ADM, pelo mesmo motivo do ligExcluir_: uma linha a mais (ou com a obra
+ * escrita diferente) desalinha a baixa cruzada de transferência e a liberação
+ * automática do esgoto, que casam por TÍTULO EXATO da obra. Criar errado é
+ * tão ruim quanto apagar errado.
+ *
+ * Nasce com o mínimo: OBRA (título) + CONCESSIONÁRIA + SISTEMA e STATUS
+ * quando vierem. O resto a pessoa preenche na planilha, como em qualquer
+ * outra linha. A CONCESSIONÁRIA é validada contra o schema ao vivo — sem
+ * isso, um erro de digitação criaria uma opção nova no Notion e a linha
+ * ficaria invisível pros índices (que comparam por nome normalizado).
+ *
+ * DUPLICATA: recusa se já existir linha com a MESMA obra e a MESMA
+ * concessionária. É exatamente o par que o ligIndicePorObra_ usa pra casar,
+ * então duas linhas iguais fariam a baixa cruzada escrever em ambas.
+ */
+function ligCriar_(sess, p) {
+  if (!ehAdm_(sess)) return { ok: false, erro: "APENAS_ADM" };
+  var obra = String(p.obra || "").trim();
+  var conc = String(p.conc || "").trim();
+  if (!obra || !conc) return { ok: false, erro: "FALTA_PARAM" };
+
+  var db = notion_("GET", "/databases/" + CONFIG.DB.LIGACOES, null);
+  var props = db.properties || {};
+
+  // nome real da coluna de título (a base usa "OBRA", mas não fixo isso aqui)
+  var colTitulo = null;
+  for (var nome in props) if (props[nome].type === "title") { colTitulo = nome; break; }
+  if (!colTitulo) return { ok: false, erro: "BASE_SEM_TITULO" };
+
+  // CONCESSIONÁRIA precisa ser uma opção que existe de verdade
+  var defConc = null, colConc = null;
+  for (nome in props) if (normDist_(nome) === normDist_("CONCESSIONÁRIA")) { colConc = nome; defConc = props[nome]; break; }
+  if (!defConc) return { ok: false, erro: "CAMPO_INEXISTENTE: CONCESSIONÁRIA" };
+  var tConc = defConc.type;
+  var opsConc = (defConc[tConc] && defConc[tConc].options) || [], concReal = null;
+  for (var i = 0; i < opsConc.length; i++) {
+    if (normDist_(opsConc[i].name) === normDist_(conc)) { concReal = opsConc[i].name; break; }
+  }
+  if (!concReal) return { ok: false, erro: "OPCAO_INEXISTENTE: " + conc };
+
+  // já existe essa obra nessa concessionária?
+  var jaTem = (ligIndicePorObra_()[normDist_(obra)] || []).some(function (l) {
+    return l.conc === normDist_(concReal);
+  });
+  if (jaTem) return { ok: false, erro: "JA_EXISTE" };
+
+  var novo = {};
+  novo[colTitulo] = buildValue_("title", obra);
+  novo[colConc] = buildValue_(tConc, concReal);
+
+  // SISTEMA e STATUS são opcionais: só entram se vierem e se existirem mesmo
+  [["SISTEMA", p.sistema], ["STATUS", p.status]].forEach(function (par) {
+    var alvo = par[0], valor = String(par[1] || "").trim();
+    if (!valor) return;
+    for (var k in props) {
+      if (normDist_(k) !== normDist_(alvo)) continue;
+      var t = props[k].type;
+      var ops = (props[k][t] && props[k][t].options) || [];
+      for (var j = 0; j < ops.length; j++) {
+        if (normDist_(ops[j].name) === normDist_(valor)) { novo[k] = buildValue_(t, ops[j].name); return; }
+      }
+    }
+  });
+
+  var pg = notion_("POST", "/pages", {
+    parent: { database_id: CONFIG.DB.LIGACOES }, properties: novo
+  });
+  // os índices guardam a base antiga; sem limpar, a linha nova só apareceria
+  // depois dos 5 min de cache — e a checagem de duplicata acima erraria
+  try {
+    _cache_().remove("lig_indice_obra");
+    _cache_().remove("ligacoes_vivo");
+    _cache_().remove("lig_sens");
+  } catch (e) {}
+  console.log("LIGAÇÕES: " + sess.u + " CRIOU linha " + obra + " (" + concReal + ") -> " + pg.id);
+  return { ok: true, id: pg.id, obra: obra, conc: concReal };
+}
+
 function ligExcluir_(sess, p) {
   if (!ehAdm_(sess)) return { ok: false, erro: "APENAS_ADM" };
   if (!p.pageId) return { ok: false, erro: "SEM_PAGINA" };
@@ -3634,4 +3735,157 @@ function conferirAndamentoEvento() {
   exemplos.forEach(function (e) { Logger.log(e); });
   Logger.log("3) Das " + totalDatas + " datas preenchidas, " + comEvento +
              " já resolvem um andamento. Chamados na base: " + linhas.length + ".");
+}
+
+/* ===================================================================
+ * ANÁLISES — Orçado x Realizado (proxy do Supabase)
+ * -------------------------------------------------------------------
+ * Tudo o que a página analise.html consome. Lê o Supabase do projeto
+ * ORÇADO/REALIZADO. A service_role key NUNCA vai para o navegador: fica
+ * nas Propriedades do Script (SUPABASE_URL / SUPABASE_SERVICE_KEY) e só
+ * este backend a usa.
+ *
+ * PRÉ-REQUISITO (uma vez só): em Configurações do projeto > Propriedades
+ * do script, criar:
+ *     SUPABASE_URL         = https://mgxjmqanrpomvqkzulbe.supabase.co
+ *     SUPABASE_SERVICE_KEY = (a service_role key — a mesma dos Secrets do
+ *                             GitHub do repositório OR-ADO-REALIZADO)
+ *
+ * O roteador (handle_) e a lista de acesso (ACOES_ANALISE) já apontam pra
+ * cá — ver os blocos correspondentes lá em cima. Acesso exigido no LOGINS:
+ * a opção "ANÁLISES" na coluna ACESSOS.
+ * =================================================================== */
+
+/* Config do Supabase (lida das Propriedades do Script). */
+function supaCfg_() {
+  var url = prop_("SUPABASE_URL");
+  var key = prop_("SUPABASE_SERVICE_KEY");
+  if (!url || !key) {
+    throw new Error("FALTA CONFIGURAR: Propriedades SUPABASE_URL e/ou SUPABASE_SERVICE_KEY");
+  }
+  return { url: url.replace(/\/+$/, ""), key: key };
+}
+
+/* Consulta genérica a uma view/tabela do Supabase via PostgREST.
+ * caminho: nome da view + querystring (ex.: "vw_resumo_obra_atual?select=*").
+ * Devolve o array já parseado. */
+function supaGet_(caminho) {
+  var cfg = supaCfg_();
+  var resp = UrlFetchApp.fetch(cfg.url + "/rest/v1/" + caminho, {
+    method: "get",
+    muteHttpExceptions: true,
+    headers: {
+      "apikey": cfg.key,
+      "Authorization": "Bearer " + cfg.key,
+      "Accept": "application/json"
+    }
+  });
+  var code = resp.getResponseCode();
+  var texto = resp.getContentText();
+  if (code >= 300) {
+    throw new Error("Supabase HTTP " + code + ": " + texto.slice(0, 300));
+  }
+  return JSON.parse(texto);
+}
+
+/* KPIs gerais + rankings da aba principal. Uma chamada só, tudo mastigado. */
+function analiseResumo_(sess, p) {
+  var obras   = supaGet_("vw_resumo_obra_atual?select=*");
+  var insumos = supaGet_("vw_insumo_consolidado?select=*");
+
+  // Totais gerais
+  var totOrc = 0, totReal = 0, nObras = obras.length, dataExtr = "";
+  obras.forEach(function (o) {
+    totOrc  += Number(o.total_orcado)    || 0;
+    totReal += Number(o.total_realizado) || 0;
+    if (o.data_extracao && o.data_extracao > dataExtr) dataExtr = o.data_extracao;
+  });
+  var difTot = totReal - totOrc;
+  var difPct = totOrc ? (difTot / totOrc * 100) : 0;
+
+  // Enriquece cada insumo com diferença % (a view já traz diferenca em R$)
+  insumos.forEach(function (it) {
+    var orc  = Number(it.total_orcado)    || 0;
+    var real = Number(it.total_realizado) || 0;
+    it.diferenca_pct = orc ? ((real - orc) / orc * 100) : null;
+  });
+
+  // Só insumos com orçado > 0 (sem base de comparação não faz sentido rankear)
+  var comBase = insumos.filter(function (it) {
+    return (Number(it.total_orcado) || 0) > 0;
+  });
+
+  // Maior discrepância = maior diferença % — Top 20 estouros (positivo)
+  var topEstouro = comBase.slice().sort(function (a, b) {
+    return (b.diferenca_pct || 0) - (a.diferenca_pct || 0);
+  }).slice(0, 20);
+
+  // Maior economia = diferença % mais negativa — Top 20
+  var topEconomia = comBase.slice().sort(function (a, b) {
+    return (a.diferenca_pct || 0) - (b.diferenca_pct || 0);
+  }).slice(0, 20);
+
+  // Mais exatos = |diferença %| mais perto de zero — Top 20
+  var maisExatos = comBase.slice().sort(function (a, b) {
+    return Math.abs(a.diferenca_pct || 0) - Math.abs(b.diferenca_pct || 0);
+  }).slice(0, 20);
+
+  // Maior impacto em R$ (independe de %): onde o dinheiro realmente foge
+  var maiorImpacto = insumos.slice().sort(function (a, b) {
+    return Math.abs(Number(b.diferenca) || 0) - Math.abs(Number(a.diferenca) || 0);
+  }).slice(0, 20);
+
+  return {
+    ok: true,
+    data_extracao: dataExtr,
+    kpis: {
+      obras: nObras,
+      total_orcado: totOrc,
+      total_realizado: totReal,
+      diferenca: difTot,
+      diferenca_pct: difPct,
+      itens_distintos: insumos.length
+    },
+    top_estouro: topEstouro,
+    top_economia: topEconomia,
+    mais_exatos: maisExatos,
+    maior_impacto: maiorImpacto
+  };
+}
+
+/* Uma linha por obra — alimenta o seletor de obras e a tabela "por obra". */
+function analiseObras_(sess, p) {
+  var obras = supaGet_("vw_resumo_obra_atual?select=*&order=obra_nome.asc");
+  return { ok: true, obras: obras };
+}
+
+/* Consolidado por insumo (todas as obras) — tabela completa filtrável. */
+function analiseInsumos_(sess, p) {
+  var insumos = supaGet_("vw_insumo_consolidado?select=*");
+  insumos.forEach(function (it) {
+    var orc  = Number(it.total_orcado)    || 0;
+    var real = Number(it.total_realizado) || 0;
+    it.diferenca_pct = orc ? ((real - orc) / orc * 100) : null;
+  });
+  return { ok: true, insumos: insumos };
+}
+
+/* Insumos de UMA obra ou de um GRUPO de obras (seleção livre no front).
+ * Recebe p.obra_ids = "id1,id2,id3". Devolve as linhas cruas das obras
+ * pedidas; o front soma/agrega por insumo. */
+function analiseDetalheObra_(sess, p) {
+  var ids = String(p.obra_ids || "").split(",").map(function (s) {
+    return s.trim();
+  }).filter(Boolean);
+
+  if (!ids.length) return { ok: false, erro: "SEM_OBRAS" };
+
+  // PostgREST: obra_id=in.("id1","id2",...) — filtra a foto atual pelas obras dadas
+  var lista = ids.map(function (id) { return '"' + id + '"'; }).join(",");
+  var linhas = supaGet_(
+    "vw_insumos_atual?select=obra_id,obra_nome,codigo,insumo,unidade," +
+    "qtd_orcada,qtd_realizada,ct_orcado,ct_realizado,cu_orcado,cu_realizado" +
+    "&obra_id=in.(" + encodeURIComponent(lista) + ")"
+  );
+  return { ok: true, linhas: linhas, obra_ids: ids };
 }

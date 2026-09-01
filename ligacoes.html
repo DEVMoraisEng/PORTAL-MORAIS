@@ -97,6 +97,11 @@ main{padding-bottom:50px}
 .tab-resumo th{background:var(--bg3);color:var(--azul-esc);font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;padding:6px 9px;text-align:left;border:1px solid var(--border2)}
 .tab-resumo td{padding:6px 9px;border:1px solid var(--border2);background:var(--sup)}
 .tab-resumo td.n{text-align:right;font-variant-numeric:tabular-nums}
+/* MELHORIAS item 1: nome da obra do extremo, ao lado do número. Fica menor e
+   em bloco separado pra não competir com o valor em si. */
+.obra-extremo{display:block;font-size:10.5px;font-weight:600;color:var(--text3);
+  font-variant-numeric:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px;margin-left:auto}
+html[data-tema="escuro"] .obra-extremo{color:var(--text4)}
 .toolbar{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-bottom:12px}
 select,input.busca,input[type=date],input[type=text],textarea{border:1px solid var(--border);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;background:var(--sup);color:var(--text);max-width:100%}
 input.busca{min-width:230px;flex:1}
@@ -232,6 +237,7 @@ tbody tr.lin-atraso:hover td,tbody tr.lin-alerta:hover td{filter:brightness(.96)
 .campo .ro{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;font-size:13px;color:var(--text)}
 .campo .dica{font-size:11px;color:var(--text4);margin-top:3px}
 .bt{border:0;border-radius:8px;padding:9px 14px;font:inherit;font-weight:700;font-size:13px;cursor:pointer;text-decoration:none;display:inline-block}
+.bt.peq{padding:6px 11px;font-size:12px}
 .bt.az{background:var(--azul);color:#fff}.bt.vd{background:var(--verde);color:#fff}
 .bt.ghost{background:var(--sup);border:1px solid var(--border);color:var(--azul)}
 /* modal de escolha de colunas do relatório */
@@ -513,21 +519,27 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
         <span class="count" id="g-info"></span>
       </div>
 
+      <!-- MELHORIAS item 1 (set/26): os gráficos de barra saíram. O que
+           interessa aqui é a TABELA (casos, média, mediana, mín. e máx.) e,
+           nos extremos, QUAL obra é — ver colunaObraExtremo no render. -->
       <div class="graf">
         <div class="gt">Tempo de ligação</div>
         <div class="gd">Dias entre a <b>DATA DE SOLICITAÇÃO</b> e a <b>Data de Ligação</b>, por concessionária. Datas em 01/01/2000 e resultados negativos ficam de fora da conta.</div>
-        <div class="chart-wrap"><canvas id="ch-lig" height="240"></canvas></div>
         <div id="tab-lig"></div>
       </div>
 
       <div class="graf">
         <div class="gt">Tempo de aprovação · só SANESC</div>
         <div class="gd" id="gd-apr">Dias entre a <b>DATA DE SOLICITAÇÃO</b> e a <b>DATA DA APROVAÇÃO SANESC</b>, por ano da solicitação. Escolha um ano acima para abrir mês a mês.</div>
-        <div class="chart-wrap"><canvas id="ch-apr" height="240"></canvas></div>
         <div id="tab-apr"></div>
       </div>
 
-      <div class="sec" id="sec-planilha"><span class="cond">Planilha Geral</span></div>
+      <div class="sec" id="sec-planilha"><span class="cond">Planilha Geral</span>
+        <span style="flex:1"></span>
+        <!-- MELHORIAS item 6 (set/26): só ADM enxerga. A trava real é no
+             backend (ligCriar_) — este botão só decide se aparece. -->
+        <button class="bt az peq" id="bt-nova-lig" style="display:none" onclick="abrirNovaLigacao()">+ Nova ligação</button>
+      </div>
       <div class="recorte" id="recorte" style="display:none"></div>
       <div class="toolbar" id="filtros-hub"></div>
       <div id="legenda-hub"></div>
@@ -570,6 +582,26 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
       <div class="modal-acoes">
         <button class="bt ghost" onclick="fecharCaixaTexto()">Cancelar</button>
         <button class="bt az" id="txt-salvar" onclick="salvarCaixaTexto()">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MELHORIAS item 6 (set/26): criar linha nova na base de ligações.
+       Só ADM — o botão que abre isto fica escondido pros demais e o
+       ligCriar_ recusa no servidor de qualquer jeito. -->
+  <div class="modal-overlay" id="nova-overlay" onclick="if(event.target===this)fecharNovaLigacao()">
+    <div class="modal-cx">
+      <div class="modal-tit">Nova linha de ligação</div>
+      <div class="txt-sub">Cria uma linha na base de LIGAÇÕES. O endereço precisa estar escrito <b>exatamente</b> como nas outras linhas da mesma casa (ex.: <i>TB 19 QD 51 LT 19 CS 2</i>) — é por esse texto que a baixa de transferência e a liberação do esgoto encontram a obra.</div>
+      <div class="campo"><label>Obra (endereço + casa)</label>
+        <input type="text" id="nv-obra" autocomplete="off" spellcheck="false" placeholder="TB 19 QD 51 LT 19 CS 2"></div>
+      <div class="campo"><label>Concessionária</label><select id="nv-conc"></select></div>
+      <div class="campo"><label>Sistema (opcional)</label><select id="nv-sist"></select></div>
+      <div class="campo"><label>Status (opcional)</label><select id="nv-status"></select></div>
+      <div class="txt-sub" id="nv-erro" style="display:none;color:#c0392b"></div>
+      <div class="modal-acoes">
+        <button class="bt ghost" onclick="fecharNovaLigacao()">Cancelar</button>
+        <button class="bt az" id="nv-criar" onclick="criarNovaLigacao()">Criar linha</button>
       </div>
     </div>
   </div>
@@ -982,7 +1014,7 @@ const ABAS = {
     titulo: "Casas vendidas e não transferidas",
     // Esta aba NÃO vem da base de ligações: vem de VENDAS (dist/vendas.json).
     fonte: "vendas",
-    colunas: [V.OBRA_CASA, V.DT_ASSIN, V.CLIENTES, V.WHATS,
+    colunas: [V.OBRA_CASA, V.DT_VENDA, V.DT_ASSIN, V.CLIENTES, V.WHATS,
               V.TEM_PROT_AGUA, V.PROT_AGUA, V.TEM_PROT_ENER, V.PROT_ENER,
               V.ENER_TRANSF, V.UC_ENERGIA, V.AGUA_TRANSF, V.UC_AGUA,
               V.DT_VERIF],
@@ -1458,6 +1490,13 @@ function boot(){
     return;
   }
   renderSetores();
+  /* MELHORIAS item 6: o botao de criar linha so existe pra ADM. A trava real
+     e o ligCriar_ no servidor; isto aqui so evita oferecer o que a pessoa nao
+     pode fazer. SO_LEITURA (perfil TESTES) tambem nao cria. */
+  if (ehAdmLig() && !SO_LEITURA){
+    const btNova = document.getElementById("bt-nova-lig");
+    if (btNova) btNova.style.display = "";
+  }
   // pinta na hora com a cópia salva e repinta quando o dist/ chegar
   lerEstaticoJa("ligacoes.json", "ligacoes", pintarTudo);
   // VENDAS entra em segundo plano: só a aba "Casas vendidas" precisa dela,
@@ -2315,19 +2354,25 @@ function rotuloPeriodo(){
 }
 
 /* A tabela de resumo é clicável pela mesma razão das barras: ver quem são as
-   obras por trás do número. É o alvo mais fácil de acertar no celular. */
+   obras por trás do número.
+   MELHORIAS item 1 (set/26): como os gráficos saíram, esta tabela virou a
+   visualização principal — e os extremos (mín. e máx.) agora mostram QUAL
+   obra é, que era justamente o que faltava pra investigar um outlier. */
 function tabelaResumo(grupos){
   if (!grupos.length) return '<div class="vazio">Sem dados suficientes no período — faltam datas preenchidas.</div>';
+  const obraCel = (dias, obra) => (obra
+    ? `${num(dias)} <span class="obra-extremo" title="${esc(obra)}">${esc(obra)}</span>`
+    : num(dias));
   return `<table class="tab-resumo"><thead><tr>
-      <th>Grupo</th><th>Casos</th><th>Média (dias)</th><th>Mediana</th><th>Mín.</th><th>Máx.</th>
+      <th>Grupo</th><th>Casos</th><th>Média (dias)</th><th>Mediana</th><th>Mín. (obra)</th><th>Máx. (obra)</th>
     </tr></thead><tbody>` +
     grupos.map((g,i)=>`<tr ${g.teste?`style="cursor:pointer" title="clique para ver as obras" onclick="verGrupo('${esc(g.fonte)}',${i})"`:""}>
       <td>${esc(g.rotulo)}</td>
       <td class="n">${num(g.casos)}</td>
       <td class="n">${n1(g.valor)}</td>
       <td class="n">${n1(g.mediana)}</td>
-      <td class="n">${num(g.min)}</td>
-      <td class="n">${num(g.max)}</td>
+      <td class="n">${obraCel(g.min, g.obraMin)}</td>
+      <td class="n">${obraCel(g.max, g.obraMax)}</td>
     </tr>`).join("") + `</tbody></table>`;
 }
 /* Os grupos ficam guardados aqui pra que o onclick da tabela precise carregar
@@ -2338,11 +2383,21 @@ function verGrupo(fonte, i){
   if (g && g.teste) aplicarRecorte(g.rotuloCompleto || g.rotulo, g.teste);
 }
 
-/* Monta um grupo do gráfico a partir de uma lista de dias + o teste que
-   define quais linhas ele representa (é o teste que faz o clique funcionar). */
-function grupo(rotulo, dias, teste, fonte, cor, rotuloCompleto){
+/* Monta um grupo do resumo a partir de uma lista de casos + o teste que
+   define quais linhas ele representa (é o teste que faz o clique funcionar).
+   "casos" é um array de {d, obra} — o nome da obra vem junto porque é ele
+   que a tabela mostra ao lado do mínimo e do máximo (item 1). */
+function grupo(rotulo, casos, teste, fonte, cor, rotuloCompleto){
+  const dias = casos.map(c => c.d);
+  let iMin = 0, iMax = 0;
+  casos.forEach((c, i) => {
+    if (c.d < casos[iMin].d) iMin = i;
+    if (c.d > casos[iMax].d) iMax = i;
+  });
   return { rotulo:rotulo, rotuloCompleto:rotuloCompleto||rotulo, valor:media(dias),
-           mediana:mediana(dias), casos:dias.length, min:Math.min(...dias), max:Math.max(...dias),
+           mediana:mediana(dias), casos:dias.length,
+           min:casos.length?casos[iMin].d:0, max:casos.length?casos[iMax].d:0,
+           obraMin:casos.length?casos[iMin].obra:"", obraMax:casos.length?casos[iMax].obra:"",
            cor:cor, teste:teste, fonte:fonte };
 }
 
@@ -2359,10 +2414,13 @@ function renderGraficos(){
   const okLig = l => diasLigacao(l)   != null && (!temPeriodo || noPeriodo(dataReal(l,C.DT_LIG), per));
   const okApr = l => diasAprovacao(l) != null && (!temPeriodo || noPeriodo(dataReal(l,C.DT_SOL), per));
 
-  // --- Tempo de ligação: uma barra por concessionária ---
+  // --- Tempo de ligação: uma linha por concessionária ---
   const concDe = l => sel(l, C.CONC) || "(sem concessionária)";
   const porConc = {};
-  LIGF().forEach(l => { if (okLig(l)) (porConc[concDe(l)] = porConc[concDe(l)] || []).push(diasLigacao(l)); });
+  LIGF().forEach(l => {
+    if (!okLig(l)) return;
+    (porConc[concDe(l)] = porConc[concDe(l)] || []).push({ d: diasLigacao(l), obra: getL(l, C.OBRA) || "" });
+  });
   GRUPOS.lig = Object.keys(porConc).sort().map(k =>
     grupo(k, porConc[k],
       // só as linhas que ENTRARAM na conta — não a concessionária inteira.
@@ -2372,7 +2430,6 @@ function renderGraficos(){
       "lig", COR_CONC[normN(k)],
       "tempo de ligação · " + k + " · " + rotuloPeriodo())
   );
-  barras("ch-lig", GRUPOS.lig, "d");
   document.getElementById("tab-lig").innerHTML = tabelaResumo(GRUPOS.lig);
 
   // --- Tempo de aprovação (SANESC) ---
@@ -2385,7 +2442,7 @@ function renderGraficos(){
   LIGF().forEach(l => {
     if (!okApr(l)) return;
     const k = chaveDe(l);
-    if (k) (grupos[k] = grupos[k] || []).push(diasAprovacao(l));
+    if (k) (grupos[k] = grupos[k] || []).push({ d: diasAprovacao(l), obra: getL(l, C.OBRA) || "" });
   });
   const chaves = Object.keys(grupos).sort().slice(porAno ? -12 : -8);
   GRUPOS.apr = chaves.map(k => {
@@ -2395,14 +2452,10 @@ function renderGraficos(){
       "apr", COR_CONC.SANESC,
       "tempo de aprovação SANESC · " + (porAno ? rot : "ano " + k));
   });
-  barras("ch-apr", GRUPOS.apr.slice(), "d");   // cópia: o TOTAL entra no array
-                                               // depois e não deve virar barra
-
   const todosApr = Object.values(grupos).flat();
   if (todosApr.length){
-    // O TOTAL entra na tabela mas NÃO vira barra — por isso ele é acrescentado
-    // ao fim do array (o índice das barras continua o mesmo, e o onclick da
-    // tabela, que usa índice, continua apontando pro grupo certo).
+    // O TOTAL do período fecha a tabela — com os gráficos removidos (item 1),
+    // ele é só mais uma linha do resumo, sem tratamento especial.
     GRUPOS.apr.push(grupo("TOTAL do período", todosApr,
       l => okApr(l) && !!chaveDe(l),
       "apr", COR_CONC.SANESC,
@@ -3019,16 +3072,18 @@ function renderPlanilha(){
 const CIDADE_POR_CONC = { SANESC: "SENADOR CANEDO", SANEAGO: "GOIÂNIA" };
 
 function filtrosVendidas(){
-  const anos = {}, anosVer = {};
+  const anos = {}, anosVer = {}, anosVenda = {};
   VEN.forEach(v => {
     const d = dataReal(v, V.DT_ASSIN); if (d) anos[d.slice(0,4)] = 1;
     const dv = COL_VERIF ? dataReal(v, COL_VERIF) : null; if (dv) anosVer[dv.slice(0,4)] = 1;
+    const dvd = dataReal(v, V.DT_VENDA); if (dvd) anosVenda[dvd.slice(0,4)] = 1;
   });
   // fallback nos DOIS: sem ele, montar a barra antes de o arquivo de vendas
   // chegar deixava o select de ano sem opção nenhuma, e escolher "Ano" não
   // filtrava nada (comparava com string vazia)
   if (!Object.keys(anos).length)    anos[String(new Date().getFullYear())] = 1;
   if (!Object.keys(anosVer).length) anosVer[String(new Date().getFullYear())] = 1;
+  if (!Object.keys(anosVenda).length) anosVenda[String(new Date().getFullYear())] = 1;
   const MES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
   return `
     <select id="vd-per" onchange="aoTrocarPeriodoVendidas()">
@@ -3047,6 +3102,26 @@ function filtrosVendidas(){
     </select>
     <input type="date" id="vd-de" style="display:none" title="Assinado a partir de" onchange="renderAba()">
     <input type="date" id="vd-ate" style="display:none" title="Assinado até" onchange="renderAba()">
+    <!-- MELHORIAS item 4 (set/26): filtro pela DATA DA VENDA. É uma data
+         DIFERENTE da DATA DE ASSINATURA DO CONTRATO (o filtro acima) — a
+         venda acontece antes, a assinatura depois. IDs próprios "vd-dv*"
+         pra não colidir com os de contrato nem com os de verificação. -->
+    <select id="vd-dvper" onchange="aoTrocarPeriodoDataVenda()">
+      <option value="">Venda: qualquer data</option>
+      <option value="7d">Vendida nos últimos 7 dias</option>
+      <option value="30d">Vendida nos últimos 30 dias</option>
+      <option value="mes">Vendida no mês (escolher)</option>
+      <option value="ano">Vendida no ano (escolher)</option>
+      <option value="intervalo">Vendida no intervalo (escolher)</option>
+    </select>
+    <select id="vd-dvmes" style="display:none" onchange="renderAba()">
+      ${MES.map((m,i)=>`<option value="${String(i+1).padStart(2,"0")}">${m}</option>`).join("")}
+    </select>
+    <select id="vd-dvano" style="display:none" onchange="renderAba()">
+      ${Object.keys(anosVenda).sort().reverse().map(a=>`<option value="${a}">${a}</option>`).join("")}
+    </select>
+    <input type="date" id="vd-dvde" style="display:none" title="Vendida a partir de" onchange="renderAba()">
+    <input type="date" id="vd-dvate" style="display:none" title="Vendida até" onchange="renderAba()">
     <select id="vd-cidade" onchange="renderAba()">
       <option value="">Todas as cidades</option>
       <option value="SANESC">Senador Canedo</option>
@@ -3219,6 +3294,41 @@ function passaPeriodoVendidas(v){
   }
   return true;
 }
+/* MELHORIAS item 4 (set/26): mesmo desenho do passaPeriodoVendidas, mas
+   olhando a DATA DA VENDA. Os dois filtros são independentes e se somam —
+   dá pra pedir "vendida em 2025 e com contrato assinado em 2026". */
+function passaPeriodoDataVenda(v){
+  const el = document.getElementById("vd-dvper");
+  if (!el || !el.value) return true;
+  const d = dataReal(v, V.DT_VENDA);
+  if (!d) return false;                       // sem data não entra em recorte de data
+  const per = el.value;
+  if (per === "7d")  return d >= diasAtras(7)  && d <= hojeISO();
+  if (per === "30d") return d >= diasAtras(30) && d <= hojeISO();
+  if (per === "ano") return d.slice(0,4) === document.getElementById("vd-dvano").value;
+  if (per === "mes"){
+    return d.slice(0,4) === document.getElementById("vd-dvano").value &&
+           d.slice(5,7) === document.getElementById("vd-dvmes").value;
+  }
+  if (per === "intervalo"){
+    const de = document.getElementById("vd-dvde").value, ate = document.getElementById("vd-dvate").value;
+    if (de && d < de) return false;
+    if (ate && d > ate) return false;
+    return true;
+  }
+  return true;
+}
+/* Mostra só os campos que o período escolhido usa — mesma lógica do
+   aoTrocarPeriodoVendidas, nos controles "vd-dv*". */
+function aoTrocarPeriodoDataVenda(){
+  const per = document.getElementById("vd-dvper").value;
+  const mostrar = (id, on) => { const e = document.getElementById(id); if (e) e.style.display = on ? "" : "none"; };
+  mostrar("vd-dvmes", per === "mes");
+  mostrar("vd-dvano", per === "mes" || per === "ano");
+  mostrar("vd-dvde", per === "intervalo");
+  mostrar("vd-dvate", per === "intervalo");
+  renderAba();
+}
 function passaCidadeVendidas(v){
   const el = document.getElementById("vd-cidade");
   if (!el || !el.value) return true;
@@ -3235,6 +3345,13 @@ function resumoFiltrosVendidas(){
     else if (per.value === "ano") out.push("contrato: " + document.getElementById("vd-ano").value);
     else if (per.value === "intervalo") out.push("contrato: " + (document.getElementById("vd-de").value||"…") + " a " + (document.getElementById("vd-ate").value||"…"));
     else out.push("contrato: " + txtPer);
+  }
+  const dvp = document.getElementById("vd-dvper");
+  if (dvp && dvp.value){
+    if (dvp.value === "mes") out.push("venda: " + document.getElementById("vd-dvmes").selectedOptions[0].text + "/" + document.getElementById("vd-dvano").value);
+    else if (dvp.value === "ano") out.push("venda: " + document.getElementById("vd-dvano").value);
+    else if (dvp.value === "intervalo") out.push("venda: " + (document.getElementById("vd-dvde").value||"…") + " a " + (document.getElementById("vd-dvate").value||"…"));
+    else out.push("venda: " + dvp.options[dvp.selectedIndex].text);
   }
   const cid = document.getElementById("vd-cidade");
   if (cid && cid.value) out.push("cidade: " + cid.options[cid.selectedIndex].text);
@@ -3257,7 +3374,7 @@ function linhasVisiveisAba(){
   const termo = document.getElementById("set-busca").value;
   let linhas = linhasDaAba(ABA_ATUAL).filter(l => passaFiltros(l,filtros) && passaBusca(l,termo));
   if (def.filtrosProprios){
-    linhas = linhas.filter(l => passaPeriodoVendidas(l) && passaCidadeVendidas(l) && passaVerificacao(l));
+    linhas = linhas.filter(l => passaPeriodoVendidas(l) && passaPeriodoDataVenda(l) && passaCidadeVendidas(l) && passaVerificacao(l));
   }
   if (def.filtroData && def.filtroData.length){
     linhas = linhas.filter(passaFiltroData);
@@ -3735,6 +3852,68 @@ function ehEditavel(nome){ return EDITAVEIS.some(n => normN(n) === normN(nome));
  * oferecer um campo que vai dar erro. */
 const SO_ADM = [C.OBRA, C.CONC, C.RESP];
 function ehAdmLig(){ return String((S && S.tipo) || "").toUpperCase() === "ADM"; }
+
+/* ===================== NOVA LINHA DE LIGAÇÃO (MELHORIAS item 6) ==========
+ * Só ADM. As opções dos três selects saem do SCHEMA ao vivo (o mesmo que a
+ * planilha já usa pra editar célula), não de uma lista fixa — se você criar
+ * uma concessionária nova no Notion, ela aparece aqui sozinha. */
+function opcoesDaColuna(nomeCol){
+  const c = campoDe(nomeCol);
+  return (c && c.opcoes) ? c.opcoes : [];
+}
+function abrirNovaLigacao(){
+  if (!ehAdmLig()) return;
+  const enche = (id, col, vazio) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = (vazio ? '<option value="">— não definir agora —</option>' : "") +
+      opcoesDaColuna(col).map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join("");
+  };
+  enche("nv-conc", C.CONC, false);
+  enche("nv-sist", C.SISTEMA, true);
+  enche("nv-status", C.STATUS, true);
+  document.getElementById("nv-obra").value = "";
+  document.getElementById("nv-erro").style.display = "none";
+  document.getElementById("nova-overlay").classList.add("on");
+  document.getElementById("nv-obra").focus();
+}
+function fecharNovaLigacao(){
+  document.getElementById("nova-overlay").classList.remove("on");
+}
+async function criarNovaLigacao(){
+  const obra = document.getElementById("nv-obra").value.trim();
+  const conc = document.getElementById("nv-conc").value;
+  const erroEl = document.getElementById("nv-erro");
+  const btn = document.getElementById("nv-criar");
+  const falhar = m => { erroEl.textContent = m; erroEl.style.display = ""; btn.disabled = false; btn.textContent = "Criar linha"; };
+  if (!obra) return falhar("Escreve o endereço da obra.");
+  if (!conc) return falhar("Escolhe a concessionária.");
+
+  btn.disabled = true; btn.textContent = "Criando…";
+  try{
+    const r = await chamar({
+      action: "ligCriar", obra: obra, conc: conc,
+      sistema: document.getElementById("nv-sist").value,
+      status:  document.getElementById("nv-status").value
+    });
+    if (!r || !r.ok){
+      /* JA_EXISTE tem mensagem própria: é o erro que mais vai acontecer no dia
+         a dia (a pessoa não achou a linha na busca e tentou criar de novo). */
+      return falhar(r && r.erro === "JA_EXISTE"
+        ? "Já existe uma linha dessa obra nessa concessionária."
+        : "Não deu: " + erroTexto(r && r.erro));
+    }
+    fecharNovaLigacao();
+    btn.disabled = false; btn.textContent = "Criar linha";
+    toast("Linha criada. Ela aparece na planilha na próxima publicação da base.");
+    /* A base que a tela lê é o dist/ligacoes.json, republicado pelo GitHub
+       Actions — a linha nova não aparece na hora. Repuxar o arquivo é o mais
+       perto de "atualizar agora" que dá pra fazer sem esperar o build. */
+    lerEstaticoJa("ligacoes.json", "ligacoes", pintarTudo);
+  }catch(e){
+    falhar("Sem conexão — tenta de novo.");
+  }
+}
 function soAdmEdita(nome){ return SO_ADM.some(n => normN(n) === normN(nome)); }
 /* MODO TESTE: o perfil TESTES enxerga tudo, mas o Apps Script recusa toda
    escrita (MODO_TESTE). Os campos continuam ABRINDO de propósito — a razão de
