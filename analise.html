@@ -602,17 +602,21 @@ const TTL = RECARGA_MIN*60*1000;
  * carregar" do PANORAMA. Nada disso precisava acontecer: estes números mudam
  * UMA VEZ POR DIA, quando o pipeline do OR-ADO-REALIZADO roda.
  *
- * AGORA: o próprio pipeline grava o resultado pronto e o publica no Pages do
- * repositório dele (ver src/exportar_json.py lá). Esta tela baixa arquivo
- * estático do CDN — sem fila, sem Apps Script.
+ * AGORA: o pipeline do OR-ADO-REALIZADO grava o resultado pronto e o commita
+ * no dist/analise/ DESTE repositório (ver src/exportar_json.py lá). Esta tela
+ * baixa arquivo estático do CDN — sem fila, sem Apps Script.
  *
- * Mesmo host (devmoraiseng.github.io), então não há questão de CORS.
+ * SÓ a abertura vem daqui: resumo, obras e consolidado por insumo. O detalhe
+ * por obra e o "quais obras usam este insumo" continuam indo ao Apps Script,
+ * de propósito — eles são acionados por CLIQUE, não na abertura, então nunca
+ * foram o gargalo, e assim o custo unitário por obra fica atrás do login em
+ * vez de público por URL no Pages.
  *
- * O Apps Script continua existindo como PLANO B, para o caso de o Pages do
- * outro repositório ainda não ter sido ligado ou de um build falhar: a tela
- * não pode ficar em branco por causa disso.
+ * O Apps Script continua existindo como PLANO B para estes três também: se o
+ * arquivo ainda não foi publicado ou um build falhou, a tela não pode ficar
+ * em branco por causa disso.
  * =================================================================== */
-const ANALISE_DIST = "../OR-ADO-REALIZADO/";
+const ANALISE_DIST = "dist/analise/";
 
 async function lerAnalise(arquivo, acao, chaveCache, opcoes){
   opcoes = opcoes || {};
