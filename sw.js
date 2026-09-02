@@ -32,6 +32,14 @@
    v12 -> v13: entrou a servicos.html (agenda do dia, sem login). Ela precisa
    estar aqui: é a tela que mais roda na rua, com sinal ruim — em cache, ela
    abre offline e mostra a última lista salva em vez de tela branca.
+   v16 -> v17: DESEMPENHO (set/26). Mudaram app.js (fila de requisições,
+   dedupe e o store de sessão), analise.html e pos-obra.html. ESTE número
+   PRECISAVA mudar junto: o service worker entrega os arquivos do cache
+   "portal-morais-v16" enquanto o nome do cache for o mesmo, e nem Ctrl+F5
+   derruba isso de forma confiável. Foi por isso que a janela anônima ficou
+   rápida (não tem service worker registrado) e o navegador de sempre
+   continuou lento com exatamente o mesmo site publicado — ele estava
+   rodando o app.js ANTIGO.
    v13 -> v14: pos-obra.html (botão do link da agenda) e ligacoes.html
    (GS_ESPERADO alinhado ao r17).
    v14 -> v15: MELHORIAS do pós obra (RETORNO, retorno que não some, chamado
@@ -39,7 +47,7 @@
    material, arrastar no calendário, CIDADE/SETOR/TELEFONE editáveis).
    v15 -> v16: CIDADE lida de fórmula, botão de excluir retorno, cores dos
    avisos de material e endereço com setor/cidade na servicos.html. */
-const CACHE = "portal-morais-v16";
+const CACHE = "portal-morais-v17";
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./app.js","./manifest.json"];
