@@ -117,8 +117,18 @@ input.busca{min-width:230px;flex:1}
    width:max-content + min-width:100%: cada coluna toma a largura que precisa
    e a tabela rola na horizontal. Com width:100% o navegador espremia as
    colunas e cortava o texto das últimas (era o "o alerta não veio"). */
-.scroll-top{overflow-x:auto;overflow-y:hidden;height:14px;border:1px solid var(--border2);border-bottom:0;border-radius:10px 10px 0 0;background:var(--bg2)}
+/* CORREÇÃO (set/26): a barra ficava CORTADA. O height era 14px fixo, mas a
+   barra de rolagem do Chrome no Windows mede ~15-17px — sobrava o miolo dela
+   pra fora do elemento, e por isso ela parecia diferente da de baixo (que
+   rola dentro do .tabela-wrap, sem altura forcada).
+   height:auto + o filho com 1px deixa o navegador dimensionar sozinho, do
+   tamanho exato da barra que ELE desenha, seja qual for o sistema. */
+.scroll-top{overflow-x:auto;overflow-y:hidden;border:1px solid var(--border2);border-bottom:0;
+  border-radius:10px 10px 0 0;background:var(--bg2)}
 .scroll-top>div{height:1px}
+/* Firefox esconde a barra fina por padrao; sem isto a de cima sumia e so a
+   de baixo aparecia — a mesma incoerencia, pelo motivo oposto. */
+@supports (scrollbar-width: auto){ .scroll-top{scrollbar-width:auto} }
 .tabela-wrap{overflow:auto;max-height:70vh;border:1px solid var(--border2);border-radius:0 0 10px 10px;background:var(--sup)}
 table.grade{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;font-size:12.5px}
 table.grade thead th{background:var(--azul);color:#fff;text-align:center;padding:9px 11px;font-size:10px;letter-spacing:.4px;
