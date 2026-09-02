@@ -33,13 +33,60 @@ function podeAcessar(s, chave){
    dar uma mensagem clara em vez de deixar o usuário achando que salvou. */
 function ehSomenteLeitura(s){ return tipoDe(s)==="TESTES"; }
 
-/* ---------- cache de dados (para leitura offline) ---------- */
-function cacheSet(k,v){ try{ localStorage.setItem(CPRE+k, JSON.stringify({t:Date.now(), v:v})); }catch(e){} }
+/* ---------- cache de dados (para leitura offline) ----------
+ * FALHA QUE ESTAVA AQUI (set/26): o catch vazio engolia o estouro de cota do
+ * localStorage. O celular enchia (o dist/pos_obra.json e as páginas de obra
+ * são grandes), toda gravação passava a falhar em silêncio e NINGUÉM ficava
+ * sabendo — até a hora em que a FILA DE ENVIOS também não coube mais e o
+ * usuário viu "a fila de envios offline está cheia" no meio de criar um
+ * serviço. Era esse o print do erro.
+ *
+ * Agora, ao estourar, o cache de LEITURA é podado (ele é descartável — dá
+ * para rebaixar do servidor) e a gravação é tentada de novo. A fila de
+ * escritas nunca é podada: ela é a única coisa aqui que não dá para
+ * recuperar de lugar nenhum. */
+function cacheSet(k,v){
+  const texto = JSON.stringify({t:Date.now(), v:v});
+  try{ localStorage.setItem(CPRE+k, texto); return true; }
+  catch(e){
+    podarCache(CPRE+k);
+    try{ localStorage.setItem(CPRE+k, texto); return true; }
+    catch(e2){ console.warn("cache: não coube nem depois da poda —", k); return false; }
+  }
+}
 function cacheGet(k){ try{ return JSON.parse(localStorage.getItem(CPRE+k)); }catch(e){ return null; } }
+
+/* Joga fora as cópias de leitura mais VELHAS até liberar espaço. Nunca
+   encosta na FILA nem na sessão. "menos a chave que estou gravando agora",
+   senão a poda apagaria justamente o que se quer guardar. */
+function podarCache(exceto){
+  const itens = [];
+  for(let i=0;i<localStorage.length;i++){
+    const k = localStorage.key(i);
+    if(!k || k.indexOf(CPRE)!==0 || k===exceto) continue;
+    let t = 0;
+    try{ t = (JSON.parse(localStorage.getItem(k))||{}).t || 0; }catch(e){}
+    itens.push({k:k, t:t});
+  }
+  itens.sort((a,b)=>a.t-b.t);                 // mais velho primeiro
+  const quantos = Math.max(1, Math.ceil(itens.length/2));
+  for(let i=0;i<quantos;i++){ try{ localStorage.removeItem(itens[i].k); }catch(e){} }
+  console.warn("cache: podei "+quantos+" cópias antigas para abrir espaço.");
+}
 
 /* ---------- fila offline (escritas pendentes) ---------- */
 function fila(){ try{ return JSON.parse(localStorage.getItem(FILA)||"[]"); }catch(e){ return []; } }
-function filaSet(a){ try{ localStorage.setItem(FILA, JSON.stringify(a)); }catch(e){ return false; } return true; }
+function filaSet(a){
+  try{ localStorage.setItem(FILA, JSON.stringify(a)); return true; }
+  catch(e){
+    /* A fila é a última coisa que pode ficar sem espaço: perder um item aqui
+       é perder uma gravação que a pessoa acha que fez. Antes de desistir,
+       abre espaço jogando fora cópias de LEITURA, que são recuperáveis. */
+    podarCache(null);
+    try{ localStorage.setItem(FILA, JSON.stringify(a)); return true; }
+    catch(e2){ return false; }
+  }
+}
 function enfileirar(item){ const a=fila(); a.push(item); const ok=filaSet(a); atualizarBadge(); return ok; }
 
 /* ---------- LEITURA ESTÁTICA (dist/*.json publicado pelo GitHub Actions) ----------
@@ -253,8 +300,29 @@ async function revalidarStore(){
 setInterval(revalidarStore, 60000);
 document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) revalidarStore(); });
 
-/* ---------- ESCRITA com fila (tenta agora; senão enfileira) ---------- */
+/* ---------- ESCRITA com fila (tenta agora; senão enfileira) ----------
+ * IDEMPOTÊNCIA (set/26) — a correção do "serviço em looping de criação".
+ *
+ * O Apps Script é POST -> 302 -> GET: ele EXECUTA (grava no Notion) e só
+ * depois o navegador busca o resultado. Se a rede engasgar nesse meio, ou se
+ * bater o timeout de 45 s do chamar(), a gravação ACONTECEU e esta função
+ * cai no catch achando que falhou. Aí o item entra na fila e o sincronizar()
+ * reenvia o MESMO payload — e, numa ação de criar, cada reenvio criava outra
+ * página. Era o looping infinito.
+ *
+ * Agora toda escrita carrega um opId: um identificador da OPERAÇÃO, gerado
+ * UMA vez aqui e preservado em todos os reenvios daquele mesmo item. O
+ * backend lembra o que já fez com aquele opId e devolve o mesmo resultado em
+ * vez de gravar de novo (ver opIdLer_/opIdGravar_ no Code.gs).
+ *
+ * Repare que o opId nasce ANTES da primeira tentativa e vai junto para a
+ * fila. Gerar um novo a cada reenvio não resolveria nada — seria o mesmo
+ * bug com outro nome. */
+function novoOpId(){
+  return Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,10);
+}
 async function escrever(payload, rotulo){
+  if(!payload.opId) payload.opId = novoOpId();
   if(navigator.onLine){
     try{
       const r=await chamar(payload);
@@ -287,8 +355,13 @@ async function sincronizar(){
       const item=a[0];
       try{
         const r=await chamar(item.payload);
-        if(r && (r.ok || (r.erro && r.erro!=="NAO_AUTORIZADO"))){ a.shift(); filaSet(a); atualizarBadge(); }
-        else break;              // NAO_AUTORIZADO → precisa relogar; para
+        /* BACKEND_SEM_CONFIG é o servidor engasgado (SESSION_SECRET
+           indisponível na execução), não uma recusa da gravação. Descartar o
+           item aqui perderia a escrita de vez; melhor parar e tentar depois,
+           igual ao NAO_AUTORIZADO. */
+        const transitorio = r && r.erro && (r.erro==="NAO_AUTORIZADO" || r.erro==="BACKEND_SEM_CONFIG");
+        if(r && (r.ok || (r.erro && !transitorio))){ a.shift(); filaSet(a); atualizarBadge(); }
+        else break;
       }catch(e){ break; }        // rede caiu de novo → para
     }
   } finally {

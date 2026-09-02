@@ -587,7 +587,9 @@ html[data-tema="escuro"] .logo{background:#fff}
       <div class="sec"><span class="cond">Calendário de Serviços</span><span style="flex:1"></span><span class="count" id="cal-info"></span></div>
       <div class="cal-box" id="cal-box"><div class="vazio"><span class="load"></span> Carregando…</div></div>
 
-      <div class="sec"><span class="cond">Obras</span></div>
+      <div class="sec"><span class="cond">Obras</span><span style="flex:1"></span>
+        <button class="bt az" id="bt-nova-obra" onclick="abrirNovaObra()" style="display:none">+ Nova obra de Pós Obra</button>
+      </div>
       <div class="toolbar">
         <input class="busca" type="search" readonly onfocus="this.removeAttribute('readonly')" id="busca" name="q_pos" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Buscar por endereço ou cliente…" oninput="renderObras()">
         <select id="f-status" onchange="renderObras()">
@@ -657,7 +659,9 @@ html[data-tema="escuro"] .logo{background:#fff}
 
   <div class="overlay" id="overlay" onclick="fecharChamado()"></div>
   <aside class="painel" id="painel">
-    <div class="ph"><div class="end" id="pn-nome">Serviço</div><div class="loc" id="pn-sub"></div><button class="pfechar" onclick="fecharChamado()">×</button></div>
+    <div class="ph"><div class="end" id="pn-nome">Serviço</div><div class="loc" id="pn-sub"></div>
+      <button class="gt-excluir" id="pn-excluir" onclick="excluirServico()" title="Apagar este serviço" style="display:none">🗑 Excluir serviço</button>
+      <button class="pfechar" onclick="fecharChamado()">×</button></div>
     <div class="pbody" id="pn-body"></div>
   </aside>
 
@@ -709,6 +713,29 @@ html[data-tema="escuro"] .logo{background:#fff}
        Motivo: gente clicava sem querer, saía da tela e sobrava um chamado em
        branco no Notion. Agora o formulário é local; o chamado só nasce, já
        preenchido e numa única gravação, quando a pessoa confirma. -->
+  <!-- item 3: nova obra de pós obra (só ADM) -->
+  <div class="modal-overlay" id="no-overlay" onclick="if(event.target===this)fecharNovaObra()">
+    <div class="modal-cx">
+      <div class="modal-tit">Nova obra de Pós Obra</div>
+      <div class="modal-sub">A obra passa a aparecer na lista e já aceita serviços.</div>
+      <div id="no-campos">
+        <div class="campo"><label>ENDEREÇO</label>
+          <input type="text" id="no-endereco" placeholder="ATALANTA QD 01 LT 21" autocomplete="off"></div>
+        <div class="campo"><label>CASA</label>
+          <input type="number" id="no-casa" placeholder="2" autocomplete="off"></div>
+        <div class="campo"><label>CLIENTE</label>
+          <input type="text" id="no-clientes" placeholder="Nome do cliente" autocomplete="off"></div>
+        <div class="campo"><label>TELEFONE</label>
+          <input type="text" id="no-telefone" placeholder="(62) 99999-9999" autocomplete="off"></div>
+      </div>
+      <div class="modal-sub" id="no-erro" style="display:none;color:#c0392b"></div>
+      <div class="modal-acoes">
+        <button class="bt ghost" onclick="fecharNovaObra()">Cancelar</button>
+        <button class="bt az" id="no-criar" onclick="confirmarNovaObra()">Criar obra</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="ns-overlay" onclick="if(event.target===this)fecharNovoServico()">
     <div class="modal-cx">
       <div class="modal-tit">Novo serviço</div>
@@ -930,7 +957,7 @@ const GARANTIAS = [
 const S = exigirSessao();
 atualizarStatus(); atualizarBadge();
 
-const GS_ESPERADO = "2026-09-02 r24";
+const GS_ESPERADO = "2026-09-02 r25";
 
 const ANDAMENTOS = ["MARCANDO SERVIÇO","SERVIÇO MARCADO","REMARCADO 1","REMARCADO 2",
                     "REMARCADO 3","REMARCADO 4","REMARCADO 5","SERVIÇO FINALIZADO"];
@@ -1173,12 +1200,38 @@ function atualizarNovo(id, prop, valor){
   return true;
 }
 function esquecerNovo(id){ const o = novos(); if(o[id]){ delete o[id]; novosGravar(o); } }
-/* Faxina: some com o que o servidor já traz e com o que passou do prazo. */
-function limparNovos(idsDoServidor){
+/* Faxina: some com o que o servidor já traz e com o que passou do prazo.
+ *
+ * FALHA QUE ESTAVA AQUI (o item 4: "apaguei dois serviços de teste no banco e
+ * eles não saíram da tela, mesmo rodando o workflow várias vezes").
+ *
+ * Um registro local só era descartado quando o SERVIDOR trazia aquele id. Só
+ * que um chamado APAGADO no Notion nunca mais vai ser trazido por ninguém —
+ * então a condição jamais se cumpria e o fantasma ficava pintado na tela
+ * pelos 3 dias inteiros do NOVOS_TTL. Rodar o workflow de novo não adiantava:
+ * o problema não estava no arquivo publicado, estava nesta cópia local.
+ *
+ * A correção usa o carimbo do arquivo (updated_at do dist/pos_obra.json).
+ * O raciocínio é: se o build rodou DEPOIS de eu ter criado este serviço e
+ * mesmo assim o arquivo não o traz, então ele não existe mais (foi apagado,
+ * ou nem chegou a ser criado). Aí pode sumir da ponte.
+ *
+ * A margem de 2 min existe porque o build lê o Notion no começo e grava o
+ * arquivo no fim: um chamado criado no meio dessa janela é legítimo e ainda
+ * não aparece. Sem a margem, ele seria descartado por engano.
+ */
+const NOVOS_MARGEM_MS = 2*60*1000;
+function limparNovos(idsDoServidor, publicadoEm){
   const o = novos(); let mudou = false;
   const vistos = {}; (idsDoServidor||[]).forEach(i=>{ vistos[i]=true; vistos[semHifen(i)]=true; });
+  const carimbo = publicadoEm ? Date.parse(publicadoEm) : 0;
   for(const k in o){
-    if(vistos[k] || vistos[semHifen(k)] || Date.now()-o[k].ts > NOVOS_TTL){ delete o[k]; mudou = true; }
+    const r = o[k];
+    const jaVeio   = vistos[k] || vistos[semHifen(k)];
+    const venceu   = Date.now()-r.ts > NOVOS_TTL;
+    /* o build é mais novo que a criação e continua sem trazer o chamado */
+    const sumiu    = !!carimbo && carimbo > (r.ts + NOVOS_MARGEM_MS);
+    if(jaVeio || venceu || sumiu){ delete o[k]; mudou = true; }
   }
   if(mudou) novosGravar(o);
   return o;
@@ -1300,7 +1353,9 @@ function aplicarBoot(r){
      O dist manda a lista de ids ("chamados"); a resposta do Apps Script não
      tem esse campo, e aí valem os ids que aparecem no calendário — que é
      como funcionava antes. */
-  limparNovos((r.chamados || []).concat(AGENDA_SRV.map(m=>m.atividadeId)));
+  /* o carimbo do arquivo publicado entra aqui: é ele que permite descartar
+     um serviço que foi APAGADO no Notion (ver limparNovos) */
+  limparNovos((r.chamados || []).concat(AGENDA_SRV.map(m=>m.atividadeId)), r.updated_at);
   remontarAgenda();
   aplicarSensEmObras();
   pintarHub(); renderCalendario(); renderAlertas();
@@ -1379,6 +1434,11 @@ function pintarUsuario(s){
      pessoa não pode usar. */
   const ba = document.getElementById("bt-agenda");
   if(ba) ba.style.display = (s.tipo==="ADM" ? "" : "none");
+  /* item 3: criar obra nova é a mesma regra — só ADM. A trava real está no
+     posObraNovo_ do servidor; isto aqui é só não mostrar o que a pessoa não
+     pode usar. */
+  const bn = document.getElementById("bt-nova-obra");
+  if(bn) bn.style.display = (s.tipo==="ADM" ? "" : "none");
 }
 
 function versaoGS(v){
@@ -2659,6 +2719,79 @@ function colunaKanban(titulo, lista){
   return '<div class="kcol"><div class="kcol-tit">'+esc(titulo)+'<span class="n">'+lista.length+'</span></div>'+cards+'</div>';
 }
 
+/* ===================== NOVA OBRA DE PÓS OBRA (item 3) ====================
+ * Cria uma linha na base PÓS OBRA sem abrir o Notion. Só ADM — o botão fica
+ * escondido para os outros e o servidor recusa de novo (posObraNovo_).
+ *
+ * CLIENTE É OBRIGATÓRIO e isso não é capricho: a lista da tela só mostra
+ * obras COM cliente preenchido (é o filtro do posObraListaCalc_). Uma obra
+ * criada sem cliente seria gravada no Notion e não apareceria aqui — o mesmo
+ * "criou no banco mas ficou perdido" que já deu trabalho. Melhor cobrar o
+ * campo do que entregar um fantasma.
+ *
+ * O ENDEREÇO vai puro, sem " CS N": a coluna CASA é separada, e é assim que
+ * a sincronia com VENDAS casa as duas bases.
+ * =================================================================== */
+let NO_OPID = null;
+function abrirNovaObra(){
+  if(!ehAdmTela() || soLeitura()) return;
+  NO_OPID = novoOpId();
+  ["no-endereco","no-casa","no-clientes","no-telefone"].forEach(id=>{
+    const el = document.getElementById(id); if(el) el.value = "";
+  });
+  document.getElementById("no-erro").style.display = "none";
+  document.getElementById("no-overlay").classList.add("on");
+  setTimeout(()=>{ const e=document.getElementById("no-endereco"); if(e) e.focus(); }, 50);
+}
+function fecharNovaObra(){ document.getElementById("no-overlay").classList.remove("on"); }
+
+function confirmarNovaObra(){
+  const erro = document.getElementById("no-erro");
+  const endereco = String(document.getElementById("no-endereco").value||"").trim();
+  const clientes = String(document.getElementById("no-clientes").value||"").trim();
+  const casa     = String(document.getElementById("no-casa").value||"").trim();
+  const telefone = String(document.getElementById("no-telefone").value||"").trim();
+
+  function falha(t){ erro.textContent = t; erro.style.display = "block"; }
+  if(!endereco) return falha("Informe o endereço da obra.");
+  if(!clientes) return falha("Informe o cliente — sem ele a obra não aparece na lista.");
+  if(/\bCS\b|\bCASA\b/i.test(endereco))
+    return falha("Tire o \"CS\" do endereço: o número da casa vai no campo ao lado.");
+
+  /* já existe? a checagem definitiva é do servidor (que olha a base inteira),
+     esta aqui só evita a ida quando dá para ver daqui mesmo */
+  const chave = normN(endereco) + "|" + (casa||"");
+  if((OBRAS||[]).some(o => normN(o.endereco)+"|"+(o.casa==null?"":String(o.casa)) === chave))
+    return falha("Essa obra já está cadastrada no Pós Obra.");
+
+  erro.style.display = "none";
+  const bt = document.getElementById("no-criar"); if(bt) bt.disabled = true;
+
+  escrever({action:"posObraNovo", endereco:endereco, casa:casa,
+            clientes:clientes, telefone:telefone, opId: NO_OPID || novoOpId()},
+           "criar obra pós obra").then(r=>{
+    if(bt) bt.disabled = false;
+    if(!r.ok){ falha("Não deu para criar: " + erroTexto(r.erro)); return; }
+    if(r.enfileirado){ fecharNovaObra(); toast("Sem internet — a obra será criada quando reconectar.", 4); return; }
+    fecharNovaObra();
+    toast("Obra criada.");
+    const id = r.resposta && r.resposta.id;
+    /* a lista vem do arquivo publicado e só terá a obra no próximo build;
+       enquanto isso ela entra aqui para a pessoa já conseguir usar */
+    if(id){
+      OBRAS = OBRAS || [];
+      OBRAS.push({ id:id, endereco:endereco, casa: casa===""?null:Number(casa),
+                   titulo:(r.resposta.titulo||endereco), clientes:clientes,
+                   telefone:telefone||null, dataAssinatura:null, observacoes:"",
+                   horarioFlexivel:null, agio:null, cidade:"", setor:"",
+                   servicos:0, servicosAbertos:0, servicosIncompletos:0,
+                   status:"SEM PÓS OBRA" });
+      pintarHub();
+      abrirObra(id);
+    } else recarregarTudo();
+  });
+}
+
 /* ---------- criar serviço (itens 1 e 4) ---------- */
 /* ===================== NOVO SERVIÇO (r24) =================================
  * DOIS PROBLEMAS QUE ISTO RESOLVE, e eles eram o mesmo problema:
@@ -2678,18 +2811,47 @@ function colunaKanban(titulo, lista){
  * no Notion não quebra o formulário calado, do mesmo jeito que no resto da
  * tela. Se algum deles não existir na base, ele simplesmente não é desenhado.
  * =================================================================== */
+/* Os cinco primeiros aparecem NESTA ordem, que é a ordem em que a pessoa
+   pensa ao abrir um chamado. O resto do formulário vem do schema (ver
+   camposNovoServico) — pedido: "colocar todos os campos preenchíveis quando
+   clico em criar serviço para facilitar". */
 const NS_CAMPOS = ["SERVIÇO", "RESPONSÁVEL", "DATA AGENDAMENTO SERVIÇO",
                    "INFORMAÇÕES SERVIÇO", "STATUS MATERIAL"];
+
+/* O que NÃO entra no formulário de criação, por mais que exista no schema:
+   - campos de RETORNO/REMARCAÇÃO: não existe retorno num chamado que está
+     nascendo; oferecê-los só confunde e ainda passaria pela trava de
+     agendamento sem necessidade;
+   - anexos: têm fluxo próprio (upload), não dá para mandar junto;
+   - ENDEREÇO BASE: é rollup, nem é gravável;
+   - DATA DO CHAMADO: registro de abertura, preenchido depois no painel. */
+function nsCampoEscondido(nome){
+  const n = normN(nome);
+  return n.indexOf("REMARCA") >= 0 || n.indexOf("RETORNO") >= 0 ||
+         n.indexOf("ENDERECO BASE") >= 0 || n.indexOf("FOTO") >= 0 ||
+         n === normN("PÓS OBRA");
+}
 let NS_OBRA = null;
+let NS_OPID = null;   // identificador da OPERAÇÃO — ver escrever() no app.js
 
 function camposNovoServico(){
   const campos = (SCHEMA && SCHEMA.campos) || [];
   const achar = nome => campos.find(c => normN(c.nome) === normN(nome)) ||
                         campos.find(c => normN(c.nome).indexOf(normN(nome)) >= 0);
   const fora = [];
+  // 1) os principais, na ordem definida acima
   NS_CAMPOS.forEach(n=>{
     const c = achar(n);
     if(c && c.editavel && !fora.some(x=>x.nome===c.nome)) fora.push(c);
+  });
+  // 2) todo o resto que dá para gravar — é isto que atende o pedido de ter
+  //    "todos os campos preenchíveis" na criação, sem virar lista fixa que
+  //    quebra calada quando você renomeia uma coluna no Notion
+  campos.forEach(c=>{
+    if(!c.editavel || c.tipo === "title" || c.tipo === "files") return;
+    if(nsCampoEscondido(c.nome)) return;
+    if(fora.some(x=>x.nome===c.nome)) return;
+    fora.push(c);
   });
   return fora;
 }
@@ -2698,6 +2860,10 @@ function criarServico(){
   if(soLeitura()){ toast("Modo teste: nada é gravado.", 3); return; }
   if(!OBRA) return;
   NS_OBRA = { id: OBRA.id, titulo: OBRA.titulo };
+  /* nasce UMA vez por abertura do formulário e acompanha todos os reenvios
+     daquele envio. Se a rede engasgar depois de o servidor já ter criado, o
+     reenvio devolve o mesmo chamado em vez de criar outro. */
+  NS_OPID = novoOpId();
   document.getElementById("ns-sub").textContent = OBRA.titulo;
   document.getElementById("ns-erro").style.display = "none";
 
@@ -2796,7 +2962,8 @@ function gravarNovoServico(props){
 
   /* "nome" vai daqui: a tela já tem o título da obra, e assim o servidor não
      precisa de um GET só pra descobrir o texto do rótulo do chamado. */
-  escrever({action:"posObraServicoNovo", pageId:obraId, nome:titulo, props:props},
+  escrever({action:"posObraServicoNovo", pageId:obraId, nome:titulo,
+            props:props, opId: NS_OPID || novoOpId()},
            "criar serviço pós obra").then(r=>{
     if(bt) bt.disabled = false;
     if(!r.ok){
@@ -2851,6 +3018,8 @@ function abrirChamado(id){
   CHAMADO = a;
   document.getElementById("pn-nome").textContent = a.nome || "Serviço";
   document.getElementById("pn-sub").textContent = a.andamento || "sem andamento";
+  const btEx = document.getElementById("pn-excluir");
+  if(btEx) btEx.style.display = (ehAdmTela() && !soLeitura()) ? "" : "none";
   document.getElementById("overlay").classList.add("on");
   document.getElementById("painel").classList.add("on");
   renderPainelChamado();
@@ -3000,6 +3169,43 @@ function excluirRetorno(nivel){
     toast(rot+" apagado.");
   });
 }
+/* ---------- item 2: apagar o SERVIÇO inteiro (só ADM) ----------
+ * Diferente do excluirRetorno, que apaga um nível e mantém o chamado: aqui
+ * o chamado sai da base. No Notion isso é ARQUIVAR — dá para restaurar pela
+ * lixeira em até 30 dias.
+ *
+ * Duas confirmações, de propósito, igual ao distrato e ao excluirRetorno: é
+ * a única ação da tela que remove histórico de serviço.
+ *
+ * Quem recusa de verdade é o servidor (posObraAtvExcluir_ exige ADM). Esta
+ * checagem aqui é só para não mostrar um botão que vai falhar.
+ */
+function excluirServico(){
+  if(!CHAMADO || !ehAdmTela() || soLeitura()) return;
+  const nome = CHAMADO.nome || "este serviço";
+  if(!confirm("Apagar o serviço inteiro?\n\n"+nome+
+              "\n\nO chamado sai da base de PÓS OBRA com todos os campos, datas e "+
+              "retornos. No Notion ele vai para a lixeira e pode ser restaurado por 30 dias."))
+    return;
+  if(!confirm("Confirma mesmo apagar \""+nome+"\"?")) return;
+
+  const id = CHAMADO.id;
+  escrever({action:"posObraAtvExcluir", pageId:id}, "excluir serviço pós obra").then(r=>{
+    if(!r.ok){ toast("Não excluí: "+erroTexto(r.erro), 5); return; }
+    if(r.enfileirado){ toast("Sem internet — não dá para excluir offline.", 4); return; }
+    /* tira da tela na hora: o arquivo publicado só vai refletir no próximo
+       build, e esperar por ele é justamente o que fazia parecer que a
+       exclusão não tinha funcionado (item 4) */
+    esquecerNovo(id);
+    if(OBRA && OBRA.atividades) OBRA.atividades = OBRA.atividades.filter(a=>a.id !== id);
+    AGENDA_SRV = (AGENDA_SRV||[]).filter(m=>m.atividadeId !== id);
+    fecharChamado();
+    remontarAgenda(); pintarObra(); pintarHub(); renderCalendario(); renderAlertas();
+    recarregarTudo();
+    toast("Serviço apagado.");
+  });
+}
+
 function chamadoFinalizado(){
   return !!CHAMADO && normN(CHAMADO.andamento).indexOf("FINALIZ") >= 0;
 }

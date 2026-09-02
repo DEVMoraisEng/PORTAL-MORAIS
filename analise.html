@@ -569,7 +569,7 @@ function iniciar(){
      Aqui ela e buscada em segundo plano, depois das duas primeiras (a fila do
      app.js garante que ela nao disputa lugar com elas). Quando a pessoa
      clicar na aba, o dado ja esta na memoria e a troca e instantanea. */
-  setTimeout(()=>{ lerStore({action:"analiseInsumos"}, "analise_insumos", { ttl:TTL })
+  setTimeout(()=>{ lerAnalise("analise_insumos.json", "analiseInsumos", "analise_insumos")
     .then(r=>{ if(r && r.ok!==false && r.insumos && !INSUMOS.length) INSUMOS = r.insumos; })
     .catch(()=>{}); }, 300);
 }
@@ -592,8 +592,50 @@ function iniciar(){
 const RECARGA_MIN = 10;
 const TTL = RECARGA_MIN*60*1000;
 
+/* ===================== FONTE DOS DADOS (set/26) ==========================
+ * ANTES: toda leitura desta tela era uma execução do Apps Script com uma
+ * consulta pesada ao Supabase dentro. Como o Web App é publicado como
+ * "Executar como: Eu", ele atende as requisições de TODO MUNDO como se
+ * fossem do mesmo usuário, e o Google enfileira execuções simultâneas desse
+ * usuário. Ou seja: esta aba disputava fila com Vendas, Ligações e Pós Obra,
+ * e as consultas do fim da fila estouravam o tempo — era o "não foi possível
+ * carregar" do PANORAMA. Nada disso precisava acontecer: estes números mudam
+ * UMA VEZ POR DIA, quando o pipeline do OR-ADO-REALIZADO roda.
+ *
+ * AGORA: o próprio pipeline grava o resultado pronto e o publica no Pages do
+ * repositório dele (ver src/exportar_json.py lá). Esta tela baixa arquivo
+ * estático do CDN — sem fila, sem Apps Script.
+ *
+ * Mesmo host (devmoraiseng.github.io), então não há questão de CORS.
+ *
+ * O Apps Script continua existindo como PLANO B, para o caso de o Pages do
+ * outro repositório ainda não ter sido ligado ou de um build falhar: a tela
+ * não pode ficar em branco por causa disso.
+ * =================================================================== */
+const ANALISE_DIST = "../OR-ADO-REALIZADO/";
+
+async function lerAnalise(arquivo, acao, chaveCache, opcoes){
+  opcoes = opcoes || {};
+  try{
+    const r = await fetch(ANALISE_DIST + arquivo + "?v=" + Math.floor(Date.now()/3600000),
+                          {cache:"no-cache"});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const j = await r.json();
+    if(j && j.ok !== false){
+      cacheSet(chaveCache, j);
+      if(opcoes.pintar) opcoes.pintar(j);
+      return Object.assign({online:true, estatico:true}, j);
+    }
+    throw new Error("arquivo sem dados");
+  }catch(e){
+    /* Pages ainda não ligado, build do dia falhou, ou sem internet: cai no
+       caminho antigo em vez de deixar a tela vazia. */
+    return lerStore({action:acao}, chaveCache, { ttl:TTL, pintar:opcoes.pintar });
+  }
+}
+
 function carregarResumo(){
-  return lerStore({action:"analiseResumo"}, "analise_resumo", { ttl:TTL, pintar:aplicarResumo });
+  return lerAnalise("analise_resumo.json", "analiseResumo", "analise_resumo", { pintar:aplicarResumo });
 }
 function aplicarResumo(r){
   if(!r || r.ok===false){ document.getElementById("kpis").innerHTML =
@@ -607,7 +649,7 @@ function aplicarResumo(r){
 }
 
 function carregarObras(){
-  return lerStore({action:"analiseObras"}, "analise_obras", { ttl:TTL, pintar:aplicarObras });
+  return lerAnalise("analise_obras.json", "analiseObras", "analise_obras", { pintar:aplicarObras });
 }
 function aplicarObras(r){
   if(r && r.ok!==false && r.obras){
@@ -1090,7 +1132,7 @@ function sortDetalhe(col){
 async function carregarInsumos(){
   if(INSUMOS.length){ renderInsumos(); return; }
   document.getElementById("t-insumos").innerHTML='<div class="vazio"><span class="load"></span> Carregando…</div>';
-  const r = await lerStore({action:"analiseInsumos"}, "analise_insumos", { ttl:TTL });
+  const r = await lerAnalise("analise_insumos.json", "analiseInsumos", "analise_insumos");
   if(r && r.ok!==false && r.insumos){ INSUMOS=r.insumos; renderInsumos(); }
   else document.getElementById("t-insumos").innerHTML=
     `<div class="vazio">Não foi possível carregar (${esc(erroTexto(r&&r.erro))}).</div>`;
@@ -1154,7 +1196,7 @@ let ABC = [];
 async function carregarCurvaAbc(){
   if(!INSUMOS.length){
     document.getElementById("kpis-abc").innerHTML = '<div class="vazio" style="grid-column:1/-1"><span class="load"></span> Carregando…</div>';
-    const r = await lerStore({action:"analiseInsumos"}, "analise_insumos", { ttl:TTL });
+    const r = await lerAnalise("analise_insumos.json", "analiseInsumos", "analise_insumos");
     if(!r || r.ok===false || !r.insumos){
       document.getElementById("kpis-abc").innerHTML =
         '<div class="vazio" style="grid-column:1/-1">Não foi possível carregar ('+esc(erroTexto(r&&r.erro))+').</div>';
