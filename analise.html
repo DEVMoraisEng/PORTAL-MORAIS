@@ -91,6 +91,16 @@ html[data-tema="escuro"] .card h3{color:var(--teal)}
 /* tabela */
 /* #2/#7: a rolagem interna cortava as linhas no meio e o scrollbar aparecia
    "picotado". Altura maior + rolagem so no vertical resolve os dois. */
+/* MELHORIAS #2 (set/26): barra de rolagem TAMBEM em cima, igual as outras
+   abas — nas tabelas largas nao dava pra rolar sem descer ate o fim.
+   Sem height fixo de proposito: a barra do Chrome mede ~15-17px e um valor
+   cravado a cortava (era o defeito que voce viu em ligacoes). */
+.scroll-top{overflow-x:auto;overflow-y:hidden;border:1px solid var(--border2);border-bottom:0;
+  border-radius:10px 10px 0 0;background:var(--bg2)}
+.scroll-top>div{height:1px}
+@supports (scrollbar-width: auto){ .scroll-top{scrollbar-width:auto} }
+/* com a barra em cima, o cantinho arredondado passa pra ela */
+.scroll-top + .tbl-wrap{border-radius:0 0 10px 10px}
 .tbl-wrap{overflow-y:auto;overflow-x:auto;border-radius:10px;border:1px solid var(--border2);max-height:520px}
 /* As tabelas principais (detalhe da obra e todos os insumos) são a razão de
    ser da tela — ganham mais altura que os Top 20, que são só resumo. */
@@ -99,19 +109,25 @@ table{border-collapse:collapse;width:100%;font-size:13px}
 /* item 7: linhas verticais separando as colunas + cabecalho centralizado */
 th,td{padding:9px 12px;text-align:left;white-space:nowrap;border-right:1px solid var(--border2)}
 th:last-child,td:last-child{border-right:0}
-tbody td{border-bottom:1px solid var(--border2)}
+tbody td{border-top:1px solid var(--border2);border-bottom:0}
+tbody tr:nth-child(even) td{background:var(--bg2)}
+tbody tr:hover td{background:var(--bg3)}
 /* MELHORIAS #4: cabecalho maior, com o nome inteiro (nada de "QTD ORC"
    cortado) e com mais peso visual. white-space:normal deixa quebrar em duas
    linhas em vez de espremer a coluna. */
-thead th{background:var(--bg3);color:var(--azul-esc);font-family:'Barlow Condensed';font-weight:800;font-size:14.5px;
-  text-transform:uppercase;letter-spacing:.4px;position:sticky;top:0;z-index:2;cursor:pointer;user-select:none;
-  text-align:center;vertical-align:middle;white-space:normal;line-height:1.2;padding:11px 12px;
-  border-bottom:2px solid var(--azul);box-shadow:none}
-thead th:hover{background:var(--border2)}
-thead th:first-child{text-align:left}
-html[data-tema="escuro"] thead th{color:var(--teal)}
-thead th .arr{opacity:.4;font-size:11px;margin-left:3px}
+/* MELHORIAS #3/#5 (set/26): o cabecalho aqui era claro (fundo bg3, texto
+   escuro) e destoava do resto do portal. Agora e o MESMO da .grade das
+   outras abas: azul solido, texto branco, centralizado, com divisoria
+   clarinha entre as colunas. */
+thead th{background:var(--azul);color:#fff;text-align:center;padding:9px 11px;font-size:10px;
+  letter-spacing:.4px;text-transform:uppercase;position:sticky;top:0;z-index:2;font-weight:700;
+  white-space:nowrap;cursor:pointer;user-select:none;border-right:1px solid rgba(255,255,255,.22);
+  font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.3}
+thead th:last-child{border-right:0}
+thead th:hover{background:var(--azul-esc)}
+thead th .arr{opacity:.55;font-size:10px;margin-left:3px;color:#fff}
 thead th.sortA .arr,thead th.sortD .arr{opacity:1}
+thead th:first-child{text-align:left}
 tbody tr:nth-child(even){background:var(--bg2)}
 tbody tr:hover{background:var(--bg3)}
 td.num{text-align:right;font-variant-numeric:tabular-nums}
@@ -280,7 +296,7 @@ section > .sec:first-child{margin-top:0}
         <div class="sec"><span class="cond">Obras com maior discrepância</span></div>
         <div class="card">
           <p class="desc">Diferença entre o realizado e o orçado de cada obra. Clique numa obra para abrir a análise dela.</p>
-          <div id="t-ranking" class="tbl-wrap"></div>
+          <div id="t-ranking"></div>
         </div>
 
         <div class="sec"><span class="cond">Destaques por insumo</span></div>
@@ -593,7 +609,40 @@ function pintarTops(){
   document.getElementById("t-impacto").innerHTML  = linhasInsumo(RESUMO.maior_impacto, "impacto");
   pintarGraficoTop();
   pintarRankingObras();
+  atualizarScrollsTopo();
 }
+
+/* ===== MELHORIAS #2 (set/26): barra de rolagem espelho no topo =====
+   Mesma solucao das outras telas: uma div que rola junto com a tabela. Ela e
+   criada sozinha na frente de cada .tbl-wrap que tenha tabela mais larga que
+   a caixa — assim nao precisa mexer no HTML de cada tabela. */
+function ligarScrollTopo(wrap){
+  if(!wrap) return;
+  const tbl = wrap.querySelector("table");
+  let topo = wrap.previousElementSibling;
+  const tem = topo && topo.classList && topo.classList.contains("scroll-top");
+  // tabela cabe na tela: nao precisa de barra nenhuma
+  if(!tbl || tbl.scrollWidth <= wrap.clientWidth + 2){
+    if(tem) topo.remove();
+    return;
+  }
+  if(!tem){
+    topo = document.createElement("div");
+    topo.className = "scroll-top";
+    topo.appendChild(document.createElement("div"));
+    wrap.parentNode.insertBefore(topo, wrap);
+  }
+  topo.firstElementChild.style.width = tbl.scrollWidth + "px";
+  let trava = false;
+  topo.onscroll = () => { if(trava) return; trava = true; wrap.scrollLeft = topo.scrollLeft; trava = false; };
+  wrap.onscroll  = () => { if(trava) return; trava = true; topo.scrollLeft = wrap.scrollLeft; trava = false; };
+}
+/* Roda depois de QUALQUER repintura de tabela. O setTimeout(0) e proposital:
+   a largura real so existe depois que o navegador desenha o HTML novo. */
+function atualizarScrollsTopo(){
+  setTimeout(()=>{ document.querySelectorAll(".tbl-wrap").forEach(ligarScrollTopo); }, 0);
+}
+window.addEventListener("resize", atualizarScrollsTopo);
 
 /* ===== MELHORIAS #6 (set/26): quais obras usam este insumo =====
    O consolidado (vw_insumo_consolidado) so traz o total somado, sem dizer de
@@ -643,6 +692,7 @@ async function verObrasDoInsumo(nome){
       '</tr>';
   });
   body.innerHTML = h+'</tbody></table></div>';
+  atualizarScrollsTopo();
 }
 
 /* MELHORIAS #9: top 5 da obra selecionada + grafico. Usa o mesmo MODO
@@ -691,10 +741,12 @@ function pintarTop5Obra(linhas){
     ? `<tr class="sep"><td colspan="${n}">${tit}</td></tr>` + arr.map(linha).join("")
     : "";
   const nCols = qtd ? 6 : 6;
-  box.innerHTML = '<table><thead><tr>'+cab+'</tr></thead><tbody>'+
+  /* embrulhado em .tbl-wrap pra ganhar a barra de rolagem em cima e embaixo,
+     igual as demais tabelas (ver atualizarScrollsTopo) */
+  box.innerHTML = '<div class="tbl-wrap"><table><thead><tr>'+cab+'</tr></thead><tbody>'+
     grupo("▲ Acima do orçado", acima, nCols)+
     grupo("▼ Abaixo do orçado", abaixo, nCols)+
-    '</tbody></table>';
+    '</tbody></table></div>';
 
   /* o grafico mostra os dois grupos juntos, ordenados por modulo — assim da
      pra comparar o tamanho do estouro com o da sobra na mesma escala */
@@ -777,12 +829,13 @@ function pintarRankingObras(){
   const grupo = (tit, arr) => arr.length
     ? '<tr class="sep"><td colspan="5">'+tit+'</td></tr>' + arr.map(linha).join("")
     : "";
-  box.innerHTML = '<table><thead><tr><th>Obra</th><th class="col-num">Orçado</th>'+
+  box.innerHTML = '<div class="tbl-wrap"><table><thead><tr><th>Obra</th><th class="col-num">Orçado</th>'+
     '<th class="col-num">Realizado</th><th class="col-num">Diferença</th>'+
     '<th class="col-num">Dif %</th></tr></thead><tbody>'+
     grupo("▲ Acima do orçado — gastou mais que o previsto", acima)+
     grupo("▼ Abaixo do orçado — ainda não gastou tudo", abaixo)+
-    '</tbody></table>';
+    '</tbody></table></div>';
+  atualizarScrollsTopo();
 }
 /* Clique no ranking: marca so aquela obra e abre a aba de analise dela. */
 function abrirObraDoRanking(id){
@@ -913,6 +966,7 @@ function renderDetalheObra(){
        `<td class="num">${pctPill(m.diferenca_pct)}</td></tr>`;
   });
   document.getElementById("t-detalhe").innerHTML = h+'</tbody></table>';
+  atualizarScrollsTopo();
   /* MELHORIAS #9: o top 5 e o grafico usam a MESMA lista ja agregada e
      filtrada — assim o resumo nunca discorda da tabela logo abaixo. */
   pintarTop5Obra(arr);
@@ -974,6 +1028,7 @@ function renderInsumos(){
        `<td class="num">${pctPill(m.diferenca_pct)}</td></tr>`;
   });
   document.getElementById("t-insumos").innerHTML=h+'</tbody></table>';
+  atualizarScrollsTopo();
 }
 function sortInsumos(col){
   if(ordInsumos.col===col) ordInsumos.dir*=-1; else { ordInsumos.col=col; ordInsumos.dir=(col==="insumo"||col==="unidade")?1:-1; }
