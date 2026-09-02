@@ -565,11 +565,30 @@ function iniciar(){
   carregarObras();
 }
 
-/* ---------- carregamento ---------- */
-async function carregarResumo(){
-  const r = await ler({action:"analiseResumo"}, "analise_resumo");
+/* ---------- carregamento ----------
+ * O QUE MUDOU (set/26): estas leituras passaram a usar lerStore em vez de
+ * ler. Na pratica: os dados sao buscados UMA vez, ficam guardados enquanto a
+ * pessoa navega e so sao renovados quando passam de RECARGA_MIN minutos.
+ *
+ * Antes, cada abertura de aba (e cada volta para uma aba ja vista) disparava
+ * uma execucao nova no Apps Script, com uma consulta pesada ao Supabase
+ * dentro. Como o Apps Script enfileira as requisicoes de todos os usuarios
+ * como se fossem do mesmo dono, essas execucoes se acumulavam e as ultimas
+ * estouravam o tempo — era o "Nao foi possivel carregar" do PANORAMA.
+ *
+ * O Supabase so muda quando o pipeline do ORCADO x REALIZADO publica uma
+ * extracao nova, o que acontece uma vez por dia. Guardar por 10 minutos nao
+ * atrasa numero nenhum.
+ * =================================================================== */
+const RECARGA_MIN = 10;
+const TTL = RECARGA_MIN*60*1000;
+
+function carregarResumo(){
+  return lerStore({action:"analiseResumo"}, "analise_resumo", { ttl:TTL, pintar:aplicarResumo });
+}
+function aplicarResumo(r){
   if(!r || r.ok===false){ document.getElementById("kpis").innerHTML =
-    `<div class="vazio" style="grid-column:1/-1">Não foi possível carregar (${esc(r&&r.erro||"erro")}).</div>`; return; }
+    `<div class="vazio" style="grid-column:1/-1">Não foi possível carregar (${esc(erroTexto(r&&r.erro))}).</div>`; return; }
   RESUMO = r;
   if(r.data_extracao){
     const d = r.data_extracao.slice(0,10).split("-");
@@ -578,8 +597,10 @@ async function carregarResumo(){
   pintarKpis(); pintarTops();
 }
 
-async function carregarObras(){
-  const r = await ler({action:"analiseObras"}, "analise_obras");
+function carregarObras(){
+  return lerStore({action:"analiseObras"}, "analise_obras", { ttl:TTL, pintar:aplicarObras });
+}
+function aplicarObras(r){
   if(r && r.ok!==false && r.obras){
     OBRAS = r.obras;
     renderListaObras();
@@ -954,7 +975,10 @@ async function analisarSelecao(){
   document.getElementById("kpis-obra").innerHTML='<div class="vazio" style="grid-column:1/-1"><span class="load"></span> Carregando…</div>';
   document.getElementById("t-detalhe").innerHTML='';
   const ids=[..._sel].join(",");
-  const r = await ler({action:"analiseDetalheObra", obra_ids:ids});
+  /* guarda por combinacao de obras escolhida: reabrir o mesmo grupo nao
+     gera execucao nova no Apps Script */
+  const r = await lerStore({action:"analiseDetalheObra", obra_ids:ids},
+                           "analise_detalhe_"+ids, { ttl:TTL });
   if(!r || r.ok===false){ document.getElementById("kpis-obra").innerHTML=
     `<div class="vazio" style="grid-column:1/-1">Erro: ${esc(r&&r.erro||"—")}</div>`; return; }
   DETALHE = r.linhas||[];
@@ -1057,9 +1081,10 @@ function sortDetalhe(col){
 async function carregarInsumos(){
   if(INSUMOS.length){ renderInsumos(); return; }
   document.getElementById("t-insumos").innerHTML='<div class="vazio"><span class="load"></span> Carregando…</div>';
-  const r = await ler({action:"analiseInsumos"}, "analise_insumos");
+  const r = await lerStore({action:"analiseInsumos"}, "analise_insumos", { ttl:TTL });
   if(r && r.ok!==false && r.insumos){ INSUMOS=r.insumos; renderInsumos(); }
-  else document.getElementById("t-insumos").innerHTML=`<div class="vazio">Erro ao carregar.</div>`;
+  else document.getElementById("t-insumos").innerHTML=
+    `<div class="vazio">Não foi possível carregar (${esc(erroTexto(r&&r.erro))}).</div>`;
 }
 function renderInsumos(){
   const termo=(document.getElementById("busca-insumo").value||"").toLowerCase();
@@ -1120,9 +1145,10 @@ let ABC = [];
 async function carregarCurvaAbc(){
   if(!INSUMOS.length){
     document.getElementById("kpis-abc").innerHTML = '<div class="vazio" style="grid-column:1/-1"><span class="load"></span> Carregando…</div>';
-    const r = await ler({action:"analiseInsumos"}, "analise_insumos");
+    const r = await lerStore({action:"analiseInsumos"}, "analise_insumos", { ttl:TTL });
     if(!r || r.ok===false || !r.insumos){
-      document.getElementById("kpis-abc").innerHTML = '<div class="vazio" style="grid-column:1/-1">Erro ao carregar.</div>';
+      document.getElementById("kpis-abc").innerHTML =
+        '<div class="vazio" style="grid-column:1/-1">Não foi possível carregar ('+esc(erroTexto(r&&r.erro))+').</div>';
       return;
     }
     INSUMOS = r.insumos;

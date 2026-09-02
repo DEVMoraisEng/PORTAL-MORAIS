@@ -913,7 +913,7 @@ const GARANTIAS = [
 const S = exigirSessao();
 atualizarStatus(); atualizarBadge();
 
-const GS_ESPERADO = "2026-09-02 r21";
+const GS_ESPERADO = "2026-09-02 r22";
 
 const ANDAMENTOS = ["MARCANDO SERVIÇO","SERVIÇO MARCADO","REMARCADO 1","REMARCADO 2",
                     "REMARCADO 3","REMARCADO 4","REMARCADO 5","SERVIÇO FINALIZADO"];
@@ -1152,7 +1152,23 @@ function atividadeDoNovo(n){
            valores:{ "Nome":n.nome, "ANDAMENTO DA SOLICITAÇÃO":null } };
 }
 
-/* ===================== BOOT ===================== */
+/* ===================== BOOT =====================
+ * COMO ERA (e por que travava): o boot disparava CINCO chamadas ao Apps
+ * Script de uma vez — posObras, posObraAgenda, posObraSchema, "me" e "ping".
+ * O Apps Script publicado como "Executar como: Eu" trata as requisições de
+ * todo mundo como se fossem do mesmo usuário e as ENFILEIRA; as últimas
+ * esperavam as primeiras e estouravam o tempo. Era exatamente isso que
+ * deixava o calendário pintado e a lista em "0 obras" na mesma tela.
+ *
+ * COMO É AGORA: UMA chamada (posObraBoot) traz lista, calendário, schema, a
+ * versão do backend e a sessão. E ela passa pelo lerStore, então o dado fica
+ * guardado durante toda a navegação e só é buscado de novo quando envelhece
+ * (RECARGA_MIN) — trocar de tela, abrir e fechar uma obra ou voltar pro hub
+ * não gera requisição nenhuma.
+ * =================================================================== */
+const CH_BOOT = "pos_obra_boot";
+const RECARGA_MIN = 10;   // de quantos em quantos minutos os dados são renovados
+
 function boot(){
   aplicarTema(temaAtual());
   pintarUsuario(S);
@@ -1163,35 +1179,31 @@ function boot(){
     return;
   }
   carregar();
-  ler({action:"me"}).then(r=>{ if(r && r.ok===false && r.erro==="NAO_AUTORIZADO") sair(); }).catch(()=>{});
-  conferirBackend();
 }
 
-function carregar(){
-  const c = cacheGet("pos_obras");
-  if(c && c.v && c.v.obras){ OBRAS = c.v.obras; FLEX_CAMPO = c.v.flexCampo || null; pintarHub(); }
-  const ca = cacheGet("pos_agenda");
-  if(ca && ca.v && ca.v.marcacoes){ AGENDA = ca.v.marcacoes; renderCalendario(); renderAlertas(); }
+function aplicarBoot(r){
+  if(!r || r.ok===false){ mostrarAviso(r); return; }
+  OBRAS = r.obras || [];
+  FLEX_CAMPO = r.flexCampo || null;
+  AGENDA = r.marcacoes || [];
+  if(r.schema && r.schema.ok) SCHEMA = r.schema;
+  limparNovos(AGENDA.map(m=>m.atividadeId));
+  pintarHub(); renderCalendario(); renderAlertas();
+  const cx = document.getElementById("aviso"); if(cx) cx.style.display = "none";
+  /* a versão do backend vem junto agora — não custa mais uma chamada de ping */
+  if(r.versao && !r.doCache) conferirBackend(r.versao);
+}
 
-  ler({action:"posObras"}, "pos_obras").then(r=>{
-    if(r && r.ok){ OBRAS = r.obras || []; FLEX_CAMPO = r.flexCampo || null; pintarHub(); }
-    else mostrarAviso(r);
-  });
-  ler({action:"posObraAgenda"}, "pos_agenda").then(r=>{
-    if(r && r.ok){
-      AGENDA = r.marcacoes || [];
-      limparNovos(AGENDA.map(m=>m.atividadeId));
-      renderCalendario(); renderAlertas(); pintarHub();
-    }
-  });
-  ler({action:"posObraSchema"}, "pos_schema").then(r=>{ if(r && r.ok) SCHEMA = r; });
+function carregar(forcar){
+  lerStore({action:"posObraBoot"}, CH_BOOT,
+           { ttl: RECARGA_MIN*60*1000, forcar: !!forcar, pintar: aplicarBoot });
 }
 function recarregarTudo(){
-  // depois de gravar: derruba o cache local e relê, pra lista, calendário e
-  // alertas não ficarem contando o estado antigo
-  try{ localStorage.removeItem("morais_cache_v2_pos_obras");
-       localStorage.removeItem("morais_cache_v2_pos_agenda"); }catch(e){}
-  carregar();
+  /* depois de GRAVAR: o dado guardado ficou velho na hora, então é descartado
+     e buscado de novo — senão a lista, o calendário e os alertas continuariam
+     contando o estado anterior. */
+  storeInvalidar(CH_BOOT);
+  carregar(true);
 }
 
 function mostrarAviso(r){
@@ -1216,7 +1228,7 @@ function versaoGS(v){
   const m = String(v || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})\s*r(\d+)$/i);
   return m ? (Number(m[1]+m[2]+m[3]) * 1000 + Number(m[4])) : null;
 }
-function conferirBackend(){
+function conferirBackend(versao){
   /* MELHORIAS item 4 (set/26): esta checagem SO avisa quando o backend esta
      ATRASADO — ou seja, quando falta publicar o Code.gs.
 
@@ -1227,18 +1239,17 @@ function conferirBackend(){
      pratica: alarme pelo relogio, com o sistema 100% funcionando. Como o
      backend e compativel pra tras, tela mais velha que o backend nao quebra
      nada — nao havia o que avisar. */
-  chamar({action:"ping"}, 15000).then(r => {
-    if (!r || r.ok !== true) return;
-    const noAr = versaoGS(r.versao || ""), esperada = versaoGS(GS_ESPERADO);
-    if (noAr === null || esperada === null) return;
-    if (noAr >= esperada) return;              // em dia (ou a frente): silencio
-    const cx = document.getElementById("aviso-gs");
-    cx.innerHTML = "<b>O Apps Script publicado esta atrasado.</b> No ar: " +
-      esc(r.versao || "versao anterior") + " \u00B7 esta tela espera: " + esc(GS_ESPERADO) +
-      ".<br>Para publicar: Implantar \u2192 Gerenciar implanta\u00E7\u00F5es \u2192 l\u00E1pis da implanta\u00E7\u00E3o Ativa \u2192 " +
-      "Vers\u00E3o: Nova vers\u00E3o \u2192 Implantar.";
-    cx.style.display = "block";
-  }).catch(()=>{});
+  /* r22: a versao ja chega dentro do posObraBoot. Este "ping" separado era
+     uma execucao inteira do Apps Script gasta so pra ler uma string. */
+  const noAr = versaoGS(versao || ""), esperada = versaoGS(GS_ESPERADO);
+  if (noAr === null || esperada === null) return;
+  if (noAr >= esperada) return;              // em dia (ou a frente): silencio
+  const cx = document.getElementById("aviso-gs");
+  cx.innerHTML = "<b>O Apps Script publicado esta atrasado.</b> No ar: " +
+    esc(versao || "versao anterior") + " \u00B7 esta tela espera: " + esc(GS_ESPERADO) +
+    ".<br>Para publicar: Implantar \u2192 Gerenciar implanta\u00E7\u00F5es \u2192 l\u00E1pis da implanta\u00E7\u00E3o Ativa \u2192 " +
+    "Vers\u00E3o: Nova vers\u00E3o \u2192 Implantar.";
+  cx.style.display = "block";
 }
 
 const TEMA_KEY = "morais_tema";
@@ -2515,6 +2526,8 @@ function renderPainelChamado(){
   const body = document.getElementById("pn-body");
   if(!SCHEMA || !SCHEMA.campos){
     body.innerHTML = '<div class="vazio"><span class="load"></span> Carregando os campos…</div>';
+    /* r22: o schema ja vem no posObraBoot; esta chamada so acontece se, por
+       algum motivo, ele nao tiver chegado. */
     ler({action:"posObraSchema"}, "pos_schema").then(r=>{
       if(r && r.ok){ SCHEMA = r; renderPainelChamado(); }
       else body.innerHTML = '<div class="vazio">Não consegui carregar os campos: '+esc(erroTexto(r&&r.erro))+'</div>';

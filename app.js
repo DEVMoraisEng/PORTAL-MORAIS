@@ -75,30 +75,177 @@ function lerEstaticoJa(arquivo, chaveCache, pintar){
   });
 }
 
+/* ===================== FILA DE REQUISIÇÕES AO APPS SCRIPT =====================
+ * CAUSA DA LENTIDÃO E DAS FALHAS (set/26): o Apps Script publicado como
+ * "Executar como: Eu" atende as requisições de TODO MUNDO como se fossem do
+ * mesmo usuário — e o Google enfileira execuções simultâneas do mesmo usuário.
+ * Abrir uma tela que dispara 5 chamadas de uma vez não deixa o carregamento
+ * 5x mais rápido: deixa 5 execuções empilhadas, cada uma esperando a
+ * anterior, e as do fim da fila estouram o tempo (era o "Em execução" que
+ * ficava aparecendo na tela de Execuções).
+ *
+ * Aqui a fila passa a ser explícita e do lado do NAVEGADOR: no máximo
+ * MAX_SIMULTANEAS pedidos em voo. O tempo total é o mesmo (o servidor já
+ * serializava), mas nada mais estoura o tempo e a ordem fica previsível.
+ * =================================================================== */
+const MAX_SIMULTANEAS = 1;
+let _emVoo = 0;
+const _naFila = [];
+
+function _proximoDaFila(){
+  if(_emVoo >= MAX_SIMULTANEAS || !_naFila.length) return;
+  _emVoo++;
+  const tarefa = _naFila.shift();
+  tarefa().then(
+    v => { _emVoo--; _proximoDaFila(); return v; },
+    e => { _emVoo--; _proximoDaFila(); throw e; }
+  );
+}
+function _enfileirarPedido(fn){
+  return new Promise((ok, falha)=>{
+    _naFila.push(()=> fn().then(ok, falha));
+    _proximoDaFila();
+  });
+}
+
 /* ---------- chamada crua ao backend (lança em erro de rede ou timeout) ---------- */
 async function chamar(payload, timeoutMs){
+  return _enfileirarPedido(()=>_chamarDireto(payload, timeoutMs));
+}
+async function _chamarDireto(payload, timeoutMs){
   const s=sessao(); if(s&&s.token&&!payload.token) payload.token=s.token;
   const ctrl=new AbortController();
-  const timer=setTimeout(()=>ctrl.abort(), timeoutMs||25000); // evita "Carregando…" travado pra sempre
+  const timer=setTimeout(()=>ctrl.abort(), timeoutMs||45000); // evita "Carregando…" travado pra sempre
   try{
     const r=await fetch(API,{ method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, body:JSON.stringify(payload), signal:ctrl.signal });
     return await r.json();
   } finally { clearTimeout(timer); }
 }
 
+/* ---------- DEDUPE: dois pedidos iguais em voo viram um só ----------
+   Duas partes da tela pedindo a mesma coisa ao mesmo tempo (o calendário e a
+   lista pedindo a agenda, por exemplo) gastavam duas execuções do Apps
+   Script para trazer exatamente o mesmo JSON. Agora a segunda espera na
+   promessa da primeira. Vale só para LEITURA — escrita nunca é deduplicada. */
+const _pedidosEmVoo = new Map();
+function _assinatura(payload){
+  const c = Object.assign({}, payload); delete c.token;
+  return JSON.stringify(c);
+}
+
 /* ---------- LEITURA com cache (online → salva cache; offline → usa cache) ---------- */
 async function ler(payload, chaveCache){
+  const chave = _assinatura(payload);
+  if(_pedidosEmVoo.has(chave)) return _pedidosEmVoo.get(chave);
+  const pr = (async ()=>{
+    try{
+      const r=await chamar(payload);
+      if(r && r.ok && chaveCache) cacheSet(chaveCache, r);
+      return Object.assign({ online:true }, r);
+    }catch(e){
+      if(chaveCache){ const c=cacheGet(chaveCache); if(c) return Object.assign({ online:false, offline:true, _ts:c.t }, c.v); }
+      // distingue "sem internet de verdade" de "API não respondeu/erro/timeout" — ajuda a diagnosticar
+      const motivo = navigator.onLine ? (e && e.name==="AbortError" ? "TEMPO_ESGOTADO" : "ERRO_API") : "OFFLINE_SEM_CACHE";
+      return { online:false, ok:false, erro:motivo };
+    } finally {
+      _pedidosEmVoo.delete(chave);
+    }
+  })();
+  _pedidosEmVoo.set(chave, pr);
+  return pr;
+}
+
+/* ===================== STORE DE SESSÃO (carrega 1x, revalida sozinho) ======
+ * É o que você pediu: os dados são carregados uma vez, ficam guardados
+ * enquanto a pessoa navega pelas abas (sem NENHUMA chamada nova ao servidor)
+ * e são recarregados sozinhos de tempos em tempos.
+ *
+ * Diferença para o cacheGet/cacheSet que já existia: aquele é uma cópia de
+ * segurança para funcionar offline — a tela pintava com ele e MESMO ASSIM
+ * pedia tudo de novo ao servidor. Aqui o pedido só sai quando o dado está
+ * VELHO (passou do ttl). Trocar de aba, voltar pro hub, abrir e fechar uma
+ * obra: zero requisição.
+ *
+ * Quem chama passa `pintar`, que roda com o dado do cache na hora e de novo
+ * quando a rede trouxer coisa nova — a tela nunca fica em branco esperando.
+ * =================================================================== */
+const STORE_PRE = "morais_store_v1_";
+const STORE_TTL_PADRAO = 10*60*1000;    // 10 min: o "a cada x minutos"
+const _storeMem = new Map();            // evita reler/reparsear o localStorage
+const _storeReg = new Map();            // o que precisa ser revalidado sozinho
+
+function storeLer(chave){
+  if(_storeMem.has(chave)) return _storeMem.get(chave);
   try{
-    const r=await chamar(payload);
-    if(r && r.ok && chaveCache) cacheSet(chaveCache, r);
-    return Object.assign({ online:true }, r);
-  }catch(e){
-    if(chaveCache){ const c=cacheGet(chaveCache); if(c) return Object.assign({ online:false, offline:true, _ts:c.t }, c.v); }
-    // distingue "sem internet de verdade" de "API não respondeu/erro/timeout" — ajuda a diagnosticar
-    const motivo = navigator.onLine ? (e && e.name==="AbortError" ? "TEMPO_ESGOTADO" : "ERRO_API") : "OFFLINE_SEM_CACHE";
-    return { online:false, ok:false, erro:motivo };
+    const o=JSON.parse(localStorage.getItem(STORE_PRE+chave)||"null");
+    if(o && o.v){ _storeMem.set(chave,o); return o; }
+  }catch(e){}
+  return null;
+}
+function storeGravar(chave, valor){
+  const o={t:Date.now(), v:valor};
+  _storeMem.set(chave,o);
+  // localStorage tem ~5 MB; se estourar, o dado continua valendo em memória
+  try{ localStorage.setItem(STORE_PRE+chave, JSON.stringify(o)); }catch(e){}
+  return o;
+}
+/* Depois de GRAVAR alguma coisa: derruba o que ficou velho para o próximo
+   lerStore ir buscar de verdade, em vez de repintar o estado anterior. */
+function storeInvalidar(){
+  for(const chave of arguments){
+    _storeMem.delete(chave);
+    try{ localStorage.removeItem(STORE_PRE+chave); }catch(e){}
   }
 }
+function storeIdade(chave){ const c=storeLer(chave); return c ? Date.now()-c.t : null; }
+
+/* opts: { ttl, pintar, forcar } */
+async function lerStore(payload, chave, opts){
+  opts = opts || {};
+  const ttl = opts.ttl || STORE_TTL_PADRAO;
+  /* Só entra na revalidação automática quem tem `pintar` — ou seja, quem tem
+     onde mostrar o dado novo. Sem esta condição, chaves de consulta pontual
+     (o detalhe de um grupo de obras, por exemplo) iam se acumulando e a
+     revalidação passaria a buscar dezenas delas de dez em dez minutos,
+     recriando o empilhamento que estamos justamente tirando do caminho. */
+  if(typeof opts.pintar==="function") _storeReg.set(chave, { payload:payload, ttl:ttl, pintar:opts.pintar });
+
+  const cache = storeLer(chave);
+  if(cache && typeof opts.pintar==="function"){
+    try{ opts.pintar(Object.assign({ doCache:true, _ts:cache.t }, cache.v)); }catch(e){}
+  }
+  const fresco = cache && (Date.now()-cache.t) < ttl;
+  if(fresco && !opts.forcar) return Object.assign({ doCache:true, _ts:cache.t }, cache.v);
+
+  const r = await ler(payload);
+  if(r && r.ok){
+    storeGravar(chave, r);
+    if(typeof opts.pintar==="function"){ try{ opts.pintar(r); }catch(e){} }
+    return r;
+  }
+  /* Falhou e existe cópia: devolve a cópia marcada como velha, em vez de
+     apagar a tela. "SESSÃO EXPIRADA" por causa de um soluço do servidor era
+     justamente o que derrubava a pessoa pro login sem motivo. */
+  if(cache) return Object.assign({ doCache:true, velho:true, _ts:cache.t }, cache.v);
+  return r;
+}
+
+/* Revalidação automática: roda de minuto em minuto, mas só busca o que já
+   passou do ttl. Uma coisa de cada vez, para não recriar o empilhamento. */
+let _revalidando = false;
+async function revalidarStore(){
+  if(_revalidando || !navigator.onLine || document.hidden) return;
+  _revalidando = true;
+  try{
+    for(const [chave, reg] of _storeReg){
+      const c = storeLer(chave);
+      if(c && (Date.now()-c.t) < reg.ttl) continue;
+      await lerStore(reg.payload, chave, { ttl:reg.ttl, pintar:reg.pintar, forcar:true });
+    }
+  } finally { _revalidando = false; }
+}
+setInterval(revalidarStore, 60000);
+document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) revalidarStore(); });
 
 /* ---------- ESCRITA com fila (tenta agora; senão enfileira) ---------- */
 async function escrever(payload, rotulo){
@@ -183,6 +330,11 @@ const ERROS_TEXTO = {
   ERRO_API: "não consegui falar com o servidor (confira se o Apps Script está publicado)",
   TEMPO_ESGOTADO: "o servidor demorou demais pra responder — tente de novo",
   NAO_AUTORIZADO: "sessão expirada",
+  /* devolvido quando o Apps Script não conseguiu ler as Propriedades do
+     script (acontece sob concorrência). NÃO é sessão expirada — a tela não
+     deve deslogar ninguém por causa disso. */
+  BACKEND_SEM_CONFIG: "o servidor está sobrecarregado — tente de novo em alguns segundos",
+  BACKEND_OCUPADO: "o servidor está ocupado — tente de novo em alguns segundos",
   /* devolvidos pelo Code.gs quando a ação existe mas o perfil não pode */
   MODO_TESTE: "modo teste — este login só visualiza, nada é gravado",
   SEM_PERMISSAO: "seu login não tem permissão para esta ação",
