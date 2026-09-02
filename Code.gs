@@ -205,7 +205,9 @@ var ACOES_ESCRITA = [
    LEEM o Supabase — não gravam nada, então de propósito NÃO entram em
    ACOES_ESCRITA. */
 var ACOES_ANALISE = [
-  "analiseResumo", "analiseObras", "analiseInsumos", "analiseDetalheObra"
+  "analiseResumo", "analiseObras", "analiseInsumos", "analiseDetalheObra",
+  // quais obras usam um insumo (clique na linha da tabela) — só leitura
+  "analiseInsumoObras"
 ];
 
 /* ===================== ROTEADOR ===================== */
@@ -307,6 +309,7 @@ function handle_(e) {
       case "analiseResumo":       return out_(analiseResumo_(sess, p));
       case "analiseObras":        return out_(analiseObras_(sess, p));
       case "analiseInsumos":      return out_(analiseInsumos_(sess, p));
+      case "analiseInsumoObras": return out_(analiseInsumoObras_(sess, p));
       case "analiseDetalheObra":  return out_(analiseDetalheObra_(sess, p));
       case "gerarAtividadesGcap":
         if (!ehAdm_(sess)) return out_({ ok: false, erro: "APENAS_ADM" });
@@ -3941,6 +3944,50 @@ function analiseInsumos_(sess, p) {
 /* Insumos de UMA obra ou de um GRUPO de obras (seleção livre no front).
  * Recebe p.obra_ids = "id1,id2,id3". Devolve as linhas cruas das obras
  * pedidas; o front soma/agrega por insumo. */
+/* Quais OBRAS usam um insumo (MELHORIAS #6, set/26).
+ * O consolidado (vw_insumo_consolidado) so traz o total somado — nao diz de
+ * onde veio. A quebra por obra existe na vw_insumos_atual, que e a mesma
+ * usada pelo detalhe da obra; aqui ela e consultada no sentido inverso:
+ * filtrando por insumo em vez de por obra.
+ *
+ * O nome do insumo vai como filtro exato (eq). Nomes com virgula ou aspas
+ * quebram a sintaxe do PostgREST se forem crus, por isso o valor vai entre
+ * aspas duplas e encodado. */
+function analiseInsumoObras_(sess, p) {
+  var insumo = String(p.insumo || "").trim();
+  if (!insumo) return { ok: false, erro: "SEM_INSUMO" };
+
+  var campos = "obra_nome,insumo,unidade,qtd_orcada,qtd_realizada,ct_orcado,ct_realizado";
+
+  /* CORREÇÃO (set/26): a primeira versão usava só "eq." com o nome entre
+     aspas e voltava VAZIO para insumos que existem (ex.: "AREIA - Grossa").
+     O motivo é que o nome no consolidado nem sempre bate caractere a
+     caractere com o da vw_insumos_atual — sobra espaço, muda a caixa, ou o
+     travessão é outro. Em vez de assumir, tenta três estratégias, da mais
+     estrita para a mais frouxa, e para na primeira que devolver algo:
+       1) eq       -> igual exato
+       2) ilike    -> igual ignorando maiúscula/minúscula
+       3) ilike *..* -> contém (pega espaço sobrando e sufixo)
+     "estrategia" volta na resposta pra dar pra diagnosticar sem adivinhar. */
+  function buscar_(filtro) {
+    try { return supaGet_("vw_insumos_atual?select=" + campos + "&" + filtro + "&order=obra_nome.asc"); }
+    catch (e) { return []; }
+  }
+  // PostgREST: aspas duplas delimitam o valor; barra invertida escapa aspas
+  // de dentro do nome. "*" é o coringa do ilike (não é "%" na querystring).
+  var puro = insumo.replace(/"/g, '\\"');
+  var q    = encodeURIComponent('"' + puro + '"');
+  var qLike= encodeURIComponent('"*' + puro + '*"');
+
+  var linhas = buscar_("insumo=eq." + q), estrategia = "exato";
+  if (!linhas.length) { linhas = buscar_("insumo=ilike." + q);     estrategia = "sem-caixa"; }
+  if (!linhas.length) { linhas = buscar_("insumo=ilike." + qLike); estrategia = "contem"; }
+  if (!linhas.length) estrategia = "nao-encontrado";
+
+  return { ok: true, insumo: insumo, estrategia: estrategia,
+           total: linhas.length, obras: linhas };
+}
+
 function analiseDetalheObra_(sess, p) {
   var ids = String(p.obra_ids || "").split(",").map(function (s) {
     return s.trim();

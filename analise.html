@@ -9,7 +9,7 @@
   if(t!=="claro"&&t!=="escuro") t="claro";
   document.documentElement.dataset.tema=t;}catch(e){}})();</script>
 <link rel="manifest" href="manifest.json">
-<title>Análises · Orçado x Realizado · Morais Engenharia</title>
+<title>Orçado × Realizado · Morais Engenharia</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -188,7 +188,8 @@ td.insumo.link:hover{background:var(--bg3)}
 /* MELHORIAS #8: barras horizontais em HTML puro (sem canvas/biblioteca) */
 .barras{display:flex;flex-direction:column;gap:7px}
 .bl{display:grid;grid-template-columns:minmax(180px,26%) 1fr minmax(120px,auto);gap:12px;align-items:center;font-size:12.5px}
-.bl-nome{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+/* #1: nome inteiro, sem reticencias — quebra em duas linhas se precisar */
+.bl-nome{white-space:normal;word-break:break-word;line-height:1.25;font-weight:600}
 .bl-un{color:var(--text4);font-weight:400;font-size:11px}
 .bl-trilho{background:var(--bg3);border-radius:6px;height:19px;overflow:hidden}
 .bl-barra{height:100%;border-radius:6px}
@@ -197,6 +198,12 @@ td.insumo.link:hover{background:var(--bg3)}
 .bl-val{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}
 @media(max-width:700px){.bl{grid-template-columns:1fr;gap:2px}.bl-val{text-align:left}}
 /* linha clicavel do ranking */
+/* faixa que separa "acima" de "abaixo" nas tabelas de discrepancia */
+tbody tr.sep td{background:var(--bg3);font-family:'Barlow Condensed';font-weight:800;
+  font-size:13px;text-transform:uppercase;letter-spacing:.4px;color:var(--azul-esc);
+  padding:7px 12px;border-top:2px solid var(--border)}
+html[data-tema="escuro"] tbody tr.sep td{color:var(--teal)}
+tbody tr.sep:hover td{background:var(--bg3)}
 tbody tr.clicavel{cursor:pointer}
 tbody tr.clicavel:hover td{background:var(--bg3)}
 /* chip da data da extração — antes era um texto solto no canto, que não
@@ -214,7 +221,7 @@ section > .sec:first-child{margin-top:0}
   <header>
     <div class="wrap hbar">
       <span class="logo"><img src="img/logo.png" alt="Morais" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-block'"><b style="display:none;font-family:'Barlow Condensed';font-weight:800;font-size:16px;color:var(--azul-esc);padding:0 4px">MORAIS</b></span>
-      <div><div class="htitle">Análises</div><div class="hsub">Orçado × Realizado</div></div>
+      <div><div class="htitle">Orçado × Realizado</div><div class="hsub">Morais Engenharia</div></div>
       <div class="hspace"></div>
       <span class="net on" id="net-status">online</span>
       <span class="hupd" id="updated"></span>
@@ -401,7 +408,7 @@ section > .sec:first-child{margin-top:0}
 
 <script src="app.js"></script>
 <script>
-/* ============ Análises · Orçado x Realizado ============
+/* ============ Orçado × Realizado ============
    ACESSO: exige "ANÁLISES" na coluna ACESSOS do banco LOGINS
    (ADM, MASTER e TESTES passam sempre). Dados vêm do Supabase via
    proxy no Apps Script (ações analise*). */
@@ -535,14 +542,17 @@ function trocarModo(m){
    ordem tem que mudar — senao a tabela mostra colunas de quantidade numa
    ordem que so faz sentido em dinheiro. Como o backend manda so 20 linhas,
    a reordenacao aqui e sobre essas 20; e o suficiente pro destaque. */
+/* MELHORIAS #3 (set/26): a ordem tem que ser a da coluna que esta NA TELA,
+   sempre do maior para o menor. Antes o modo quantidade ordenava por
+   PERCENTUAL mas exibia a coluna de quantidade — dai a tabela parecia
+   embaralhada (+334, +113, +160, +35...). Agora ordena pelo mesmo numero
+   que aparece na coluna "Dif quantidade". */
 function ordenarPorModo(arr, tipo){
   const l = (arr||[]).slice();
-  if(MODO !== "qtd") return l;
-  if(tipo==="estouro")  return l.sort((a,b)=>(difQtdPct(b)??-1e9)-(difQtdPct(a)??-1e9));
-  if(tipo==="economia") return l.sort((a,b)=>(difQtdPct(a)??1e9)-(difQtdPct(b)??1e9));
-  if(tipo==="exatos")   return l.sort((a,b)=>Math.abs(difQtd(a))-Math.abs(difQtd(b)));
-  if(tipo==="impacto")  return l.sort((a,b)=>Math.abs(difQtd(b))-Math.abs(difQtd(a)));
-  return l;
+  const v = MODO==="qtd" ? difQtd : (m => Number(m.diferenca)||0);
+  if(tipo==="exatos")  return l.sort((a,b)=>Math.abs(v(a))-Math.abs(v(b)));  // perto de zero primeiro
+  if(tipo==="economia") return l.sort((a,b)=>v(a)-v(b));                     // mais negativo primeiro
+  return l.sort((a,b)=>Math.abs(v(b))-Math.abs(v(a)));                       // maior modulo primeiro
 }
 function linhasInsumo(arr, tipo){
   arr = ordenarPorModo(arr, tipo);
@@ -643,33 +653,53 @@ function pintarTop5Obra(linhas){
   if(!box) return;
   const qtd = (MODO === "qtd");
   const valor = m => qtd ? difQtd(m) : (Number(m.diferenca)||0);
-  const l = (linhas||[]).slice()
-    .filter(m => valor(m) !== 0)
-    .sort((a,b)=>Math.abs(valor(b))-Math.abs(valor(a)))
-    .slice(0,5);
+
+  /* MELHORIAS #5 (set/26): antes era um top 5 por modulo — e como quase toda
+     obra tem mais insumo ABAIXO do orcado, os 5 vinham todos negativos e a
+     tela nunca mostrava onde estourou. Agora sao duas listas: os 5 que mais
+     passaram e os 5 que mais sobraram, cada uma em ordem decrescente. */
+  const todos = (linhas||[]).filter(m => valor(m) !== 0);
+  const acima  = todos.filter(m=>valor(m)>0).sort((a,b)=>valor(b)-valor(a)).slice(0,5);
+  const abaixo = todos.filter(m=>valor(m)<0).sort((a,b)=>valor(a)-valor(b)).slice(0,5);
+
   document.getElementById("top5-tit").textContent =
-    "Top 5 · Maiores discrepâncias " + (qtd ? "(quantidade)" : "(preço)");
+    "Maiores discrepâncias " + (qtd ? "(quantidade)" : "(preço)");
   document.getElementById("top5-desc").textContent = qtd
-    ? "Insumos em que a quantidade usada mais fugiu da orçada nesta seleção."
-    : "Insumos em que o valor mais fugiu do orçado nesta seleção.";
-  if(!l.length){ box.innerHTML='<div class="vazio">Sem discrepância registrada.</div>';
-                 document.getElementById("g-obra").innerHTML=""; return; }
-  let h='<table><thead><tr><th>Insumo</th><th class="col-un">Un</th>'+
-        (qtd ? '<th class="col-num">Qtd orçada</th><th class="col-num">Qtd realizada</th><th class="col-num">Dif quantidade</th>'
-             : '<th class="col-num">Orçado</th><th class="col-num">Realizado</th><th class="col-num">Dif R$</th>')+
-        '<th class="col-num">Dif %</th></tr></thead><tbody>';
-  l.forEach(m=>{
+    ? "Os 5 insumos que mais passaram da quantidade orçada e os 5 que mais sobraram."
+    : "Os 5 insumos que mais passaram do valor orçado e os 5 que mais sobraram.";
+
+  if(!acima.length && !abaixo.length){
+    box.innerHTML='<div class="vazio">Sem discrepância registrada.</div>';
+    document.getElementById("g-obra").innerHTML=""; return;
+  }
+  const cab = '<th>Insumo</th><th class="col-un">Un</th>'+
+    (qtd ? '<th class="col-num">Qtd orçada</th><th class="col-num">Qtd realizada</th><th class="col-num">Dif quantidade</th>'
+         : '<th class="col-num">Orçado</th><th class="col-num">Realizado</th><th class="col-num">Dif R$</th>')+
+    '<th class="col-num">Dif %</th>';
+  const linha = m => {
     const v = valor(m), cls = v>0 ? " acima" : (v<0 ? " abaixo" : "");
-    h += `<tr><td class="insumo">${esc(m.insumo)}</td><td class="col-un">${esc(m.unidade||"")}</td>`+
+    return `<tr><td class="insumo link" title="Ver em quais obras" onclick="verObrasDoInsumo(this.dataset.i)" data-i="${esc(m.insumo)}">${esc(m.insumo)}</td>`+
+      `<td class="col-un">${esc(m.unidade||"")}</td>`+
       (qtd
         ? `<td class="num">${fmtNum(m.qtd_orcada)}</td><td class="num">${fmtNum(m.qtd_realizada)}</td>`+
           `<td class="num${cls}">${v>0?"+":""}${fmtNum(v)}</td><td class="num">${pctPill(difQtdPct(m))}</td>`
         : `<td class="num">${fmtBRL(m.ct_orcado)}</td><td class="num">${fmtBRL(m.ct_realizado)}</td>`+
           `<td class="num${cls}">${v>0?"+":""}${fmtBRL(v)}</td><td class="num">${pctPill(m.diferenca_pct)}</td>`)+
       `</tr>`;
-  });
-  box.innerHTML = h+'</tbody></table>';
-  document.getElementById("g-obra").innerHTML = barrasHtml(l, valor,
+  };
+  const grupo = (tit, arr, n) => arr.length
+    ? `<tr class="sep"><td colspan="${n}">${tit}</td></tr>` + arr.map(linha).join("")
+    : "";
+  const nCols = qtd ? 6 : 6;
+  box.innerHTML = '<table><thead><tr>'+cab+'</tr></thead><tbody>'+
+    grupo("▲ Acima do orçado", acima, nCols)+
+    grupo("▼ Abaixo do orçado", abaixo, nCols)+
+    '</tbody></table>';
+
+  /* o grafico mostra os dois grupos juntos, ordenados por modulo — assim da
+     pra comparar o tamanho do estouro com o da sobra na mesma escala */
+  const juntos = acima.concat(abaixo).sort((a,b)=>Math.abs(valor(b))-Math.abs(valor(a)));
+  document.getElementById("g-obra").innerHTML = barrasHtml(juntos, valor,
     m => qtd ? ((valor(m)>0?"+":"")+fmtNum(valor(m))+" "+(m.unidade||""))
              : ((valor(m)>0?"+":"")+fmtBRL(valor(m))));
 }
@@ -697,12 +727,16 @@ function pintarGraficoTop(){
   const qtd = (MODO === "qtd");
   /* Fonte: o top_estouro que o backend ja manda. No modo quantidade a lista
      e reordenada por diferenca de quantidade (ver ordenarPorModo). */
-  const base = ordenarPorModo(RESUMO.top_estouro, "estouro").slice(0, 12);
+  /* #1: o grafico usa a MESMA ordenacao da tabela (pelo valor exibido), pra
+     as barras sairem em ordem decrescente de verdade. */
+  const valorG = i => qtd ? difQtd(i) : (Number(i.diferenca)||0);
+  const base = (RESUMO.top_estouro||[]).slice()
+    .sort((a,b)=>Math.abs(valorG(b))-Math.abs(valorG(a))).slice(0, 12);
   document.getElementById("g-tit").textContent =
-    "Top 12 · Insumos mais estourados " + (qtd ? "(quantidade)" : "(preço)");
+    "Top 12 · Maiores discrepâncias " + (qtd ? "(quantidade)" : "(preço)");
   document.getElementById("g-desc").textContent = qtd
-    ? "Quanto material foi gasto a mais do que o previsto. Barras proporcionais ao maior estouro da lista."
-    : "Quanto dinheiro passou do previsto. Barras proporcionais ao maior estouro da lista.";
+    ? "Insumos cuja quantidade mais fugiu da orçada — vermelho passou, verde sobrou. Ordenados do maior para o menor."
+    : "Insumos cujo valor mais fugiu do orçado — vermelho passou, verde sobrou. Ordenados do maior para o menor.";
   box.innerHTML = barrasHtml(base,
     i => qtd ? difQtd(i) : (Number(i.diferenca)||0),
     i => qtd ? ((difQtd(i)>0?"+":"")+fmtNum(difQtd(i))+" "+(i.unidade||""))
@@ -722,21 +756,33 @@ function pintarRankingObras(){
     const orc = Number(o.total_orcado)||0, real = Number(o.total_realizado)||0;
     return { id:o.obra_id, nome:o.obra_nome, orc:orc, real:real,
              dif: real-orc, pct: orc ? (real-orc)/orc*100 : null };
-  }).filter(o=>o.orc>0 || o.real>0)
-    .sort((a,b)=>Math.abs(b.dif)-Math.abs(a.dif))
-    .slice(0,15);
-  let h='<table><thead><tr><th>Obra</th><th class="col-num">Orçado</th>'+
-        '<th class="col-num">Realizado</th><th class="col-num">Diferença</th>'+
-        '<th class="col-num">Dif %</th></tr></thead><tbody>';
-  l.forEach(o=>{
+  }).filter(o=>o.orc>0 || o.real>0);
+
+  /* MELHORIAS #2 (set/26): ordenar por modulo trazia so obras NEGATIVAS —
+     a maioria das obras esta abaixo do orcado, entao as 15 maiores em modulo
+     eram todas do mesmo sinal e o ranking nunca mostrava quem estourou.
+     Agora sao dois grupos: as 10 que mais passaram e as 10 que mais
+     sobraram, cada um em ordem decrescente. */
+  const acima  = l.filter(o=>o.dif>0).sort((a,b)=>b.dif-a.dif).slice(0,10);
+  const abaixo = l.filter(o=>o.dif<0).sort((a,b)=>a.dif-b.dif).slice(0,10);
+
+  const linha = o => {
     const cls = o.dif>0 ? " acima" : (o.dif<0 ? " abaixo" : "");
-    h+=`<tr class="clicavel" onclick="abrirObraDoRanking('${esc(o.id)}')" title="Abrir a análise desta obra">`+
-       `<td class="insumo">${esc(o.nome)}</td>`+
-       `<td class="num">${fmtBRL(o.orc)}</td><td class="num">${fmtBRL(o.real)}</td>`+
-       `<td class="num${cls}">${o.dif>0?"+":""}${fmtBRL(o.dif)}</td>`+
-       `<td class="num">${pctPill(o.pct)}</td></tr>`;
-  });
-  box.innerHTML = h+'</tbody></table>';
+    return `<tr class="clicavel" onclick="abrirObraDoRanking('${esc(o.id)}')" title="Abrir a análise desta obra">`+
+      `<td class="insumo">${esc(o.nome)}</td>`+
+      `<td class="num">${fmtBRL(o.orc)}</td><td class="num">${fmtBRL(o.real)}</td>`+
+      `<td class="num${cls}">${o.dif>0?"+":""}${fmtBRL(o.dif)}</td>`+
+      `<td class="num">${pctPill(o.pct)}</td></tr>`;
+  };
+  const grupo = (tit, arr) => arr.length
+    ? '<tr class="sep"><td colspan="5">'+tit+'</td></tr>' + arr.map(linha).join("")
+    : "";
+  box.innerHTML = '<table><thead><tr><th>Obra</th><th class="col-num">Orçado</th>'+
+    '<th class="col-num">Realizado</th><th class="col-num">Diferença</th>'+
+    '<th class="col-num">Dif %</th></tr></thead><tbody>'+
+    grupo("▲ Acima do orçado — gastou mais que o previsto", acima)+
+    grupo("▼ Abaixo do orçado — ainda não gastou tudo", abaixo)+
+    '</tbody></table>';
 }
 /* Clique no ranking: marca so aquela obra e abre a aba de analise dela. */
 function abrirObraDoRanking(id){

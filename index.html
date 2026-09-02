@@ -325,7 +325,10 @@ const SISTEMAS=[
      página (analise.html) mora no próprio portal e lê o Supabase do Orçado x
      Realizado pelo Apps Script (ações analise*). Se a chave não bater, o
      botão não aparece e não dá erro nenhum. */
-  {chave:"ANÁLISES",nome:"Análises",desc:"Orçado × Realizado por obra e insumo",ico:"A",link:"analise.html",grupo:"ANÁLISES"},
+  /* "nome" e so o rotulo do card; "chave" continua ANÁLISES porque e a opcao
+     da coluna ACESSOS no Notion e a permissao no Code.gs — renomear ela
+     tiraria o acesso de todo mundo de uma vez. */
+  {chave:"ANÁLISES",nome:"Orçado × Realizado",desc:"Comparativo por obra e insumo",ico:"$",link:"analise.html",grupo:"ANÁLISES"},
 
   /* "MAPA DE VENDAS" é público: publico:true faz o botão aparecer pra
      qualquer usuário logado, sem precisar de liberação na coluna ACESSOS
