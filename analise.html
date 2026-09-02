@@ -55,12 +55,18 @@ main{flex:1;width:100%;padding:22px 0 50px}
 .sec .cond{font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--azul-esc)}
 html[data-tema="escuro"] .sec .cond{color:var(--teal)}
 
-/* abas internas */
-.tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
-.tab{font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
-  padding:11px 20px;border-radius:8px;border:2px solid var(--border);background:var(--sup);color:var(--text3);cursor:pointer}
-.tab.on{background:var(--azul);border-color:var(--azul);color:#fff}
-.tab:hover:not(.on){border-color:var(--azul);color:var(--azul)}
+/* abas internas — MELHORIAS (set/26): mesmo padrão pill de vendas.html e
+   ligacoes.html (.tabs-outer > .tabs > .tab), pedido pra ficar "parecido com
+   as outras páginas". Antes era um .tabs solto com botão retangular azul
+   sólido, sem a moldura verde nem o efeito de destaque do resto do portal. */
+.tabs-outer{background:var(--bg2);border:1.5px solid var(--border);border-radius:14px;padding:12px;margin:8px 0 20px;
+  display:block;text-align:center;overflow-x:auto}
+.tabs{display:inline-flex;gap:6px;padding:6px;border:2.5px solid var(--verde-btn);border-radius:12px;background:rgba(76,217,100,.06)}
+.tab{padding:11px 22px;font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;color:var(--text3);
+  letter-spacing:.08em;text-transform:uppercase;cursor:pointer;border-radius:8px;border:2px solid transparent;
+  background:none;transition:all .2s;white-space:nowrap}
+.tab:hover:not(.on){color:var(--azul-esc);background:rgba(76,217,100,.15);border-color:rgba(76,217,100,.4)}
+.tab.on{background:var(--verde-btn);color:#1a3347;border-color:var(--verde-btn);box-shadow:0 3px 10px rgba(76,217,100,.35)}
 
 /* KPIs */
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-bottom:22px}
@@ -149,6 +155,15 @@ th.col-num{text-align:right}
 .pill.zero{background:rgba(90,128,153,.15);color:var(--text3)}
 html[data-tema="escuro"] .pill.pos{background:rgba(243,162,154,.16);color:#f3a29a}
 html[data-tema="escuro"] .pill.neg{background:rgba(140,224,165,.16);color:#8ce0a5}
+/* Curva ABC: A = concentra o dinheiro (vermelho, atenção), B = intermediário
+   (laranja), C = muitos itens de baixo impacto (verde, tranquilo) — mesma
+   lógica de cor de severidade já usada no resto do portal. */
+.pill.classeA{background:rgba(192,57,43,.14);color:var(--vermelho)}
+.pill.classeB{background:rgba(212,106,26,.16);color:var(--laranja)}
+.pill.classeC{background:rgba(26,107,64,.14);color:var(--verde-esc)}
+html[data-tema="escuro"] .pill.classeA{background:rgba(243,162,154,.16);color:#f3a29a}
+html[data-tema="escuro"] .pill.classeB{background:rgba(240,201,95,.18);color:#f0c95f}
+html[data-tema="escuro"] .pill.classeC{background:rgba(140,224,165,.16);color:#8ce0a5}
 /* valores em dinheiro: o que está acima do orçado puxa vermelho, o que está
    abaixo puxa verde — mesma leitura de cor dos pills, sem precisar ler o sinal */
 td.num.acima{color:var(--vermelho);font-weight:600}
@@ -211,6 +226,9 @@ td.insumo.link:hover{background:var(--bg3)}
 .bl-barra{height:100%;border-radius:6px}
 .bl-barra.pos{background:var(--vermelho)}
 .bl-barra.neg{background:var(--verde-esc)}
+.bl-barra.classeA{background:var(--vermelho)}
+.bl-barra.classeB{background:var(--laranja)}
+.bl-barra.classeC{background:var(--verde-esc)}
 .bl-val{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}
 @media(max-width:700px){.bl{grid-template-columns:1fr;gap:2px}.bl-val{text-align:left}}
 /* linha clicavel do ranking */
@@ -263,11 +281,12 @@ section > .sec:first-child{margin-top:0}
     </div>
 
     <div id="conteudo" class="hide">
-      <div class="tabs">
+      <div class="tabs-outer"><div class="tabs">
         <button class="tab on" data-tab="principal" onclick="trocarTab('principal')">Visão Geral</button>
         <button class="tab" data-tab="obra" onclick="trocarTab('obra')">Por Obra / Grupo</button>
         <button class="tab" data-tab="insumos" onclick="trocarTab('insumos')">Todos os Insumos</button>
-      </div>
+        <button class="tab" data-tab="curva" onclick="trocarTab('curva')">Curva ABC</button>
+      </div></div>
 
       <!-- ==================== ABA PRINCIPAL ==================== -->
       <section id="tab-principal">
@@ -410,6 +429,47 @@ section > .sec:first-child{margin-top:0}
             </div>
           </div>
           <div id="t-insumos" class="tbl-wrap alta"></div>
+        </div>
+      </section>
+
+      <!-- ==================== ABA CURVA ABC ==================== -->
+      <section id="tab-curva" class="hide">
+        <div class="sec"><span class="cond">Curva ABC de insumos</span></div>
+        <div class="card">
+          <h3>Como funciona</h3>
+          <p class="desc">Os insumos são ordenados do maior para o menor <b>Realizado R$</b> e acumulados.
+            Classe <b>A</b> = os insumos que, somados, respondem por até 80% do total realizado (poucos itens,
+            concentram o dinheiro — merecem atenção prioritária). Classe <b>B</b> = de 80% a 95% acumulado.
+            Classe <b>C</b> = os últimos 5%, muitos itens de baixo impacto individual. Insumos sem nada
+            realizado ainda ficam de fora da curva (não há o que classificar).</p>
+        </div>
+
+        <div class="kpis" id="kpis-abc"><div class="vazio" style="grid-column:1/-1"><span class="load"></span> Carregando…</div></div>
+
+        <div class="card">
+          <h3>Pareto · Top 25 por Realizado R$</h3>
+          <p class="desc">Barras proporcionais ao maior realizado da lista, coloridas pela classe.</p>
+          <div id="g-abc"></div>
+        </div>
+
+        <div class="sec"><span class="cond">Todos os insumos classificados</span></div>
+        <div class="card">
+          <div class="filtros">
+            <div class="fcampo">
+              <label>Buscar insumo</label>
+              <input type="text" id="busca-abc" placeholder="nome do insumo…" oninput="renderCurvaAbc()">
+            </div>
+            <div class="fcampo">
+              <label>Classe</label>
+              <select id="filtro-classe-abc" onchange="renderCurvaAbc()">
+                <option value="">Todas</option>
+                <option value="A">Só classe A</option>
+                <option value="B">Só classe B</option>
+                <option value="C">Só classe C</option>
+              </select>
+            </div>
+          </div>
+          <div id="t-abc" class="tbl-wrap alta"></div>
         </div>
       </section>
     </div>
@@ -1052,12 +1112,114 @@ function sortInsumos(col){
   renderInsumos();
 }
 
+/* ==================== ABA CURVA ABC ====================
+   Reaproveita a mesma lista consolidada da aba "Todos os Insumos" (ação
+   "analiseInsumos") — não precisa de nada novo no Code.gs nem no Supabase,
+   a classificação inteira roda no navegador. */
+let ABC = [];
+async function carregarCurvaAbc(){
+  if(!INSUMOS.length){
+    document.getElementById("kpis-abc").innerHTML = '<div class="vazio" style="grid-column:1/-1"><span class="load"></span> Carregando…</div>';
+    const r = await ler({action:"analiseInsumos"}, "analise_insumos");
+    if(!r || r.ok===false || !r.insumos){
+      document.getElementById("kpis-abc").innerHTML = '<div class="vazio" style="grid-column:1/-1">Erro ao carregar.</div>';
+      return;
+    }
+    INSUMOS = r.insumos;
+  }
+  ABC = classificarAbc(INSUMOS);
+  renderCurvaAbc();
+}
+/* Ordena por Realizado R$ decrescente, acumula, e corta em 80%/95% — o corte
+   clássico da curva ABC de custos. O item que CRUZA os 80% entra na faixa
+   que ele completa (fica em A se o acumulado até ele ainda é ≤80%, senão cai
+   pra B), é a convenção mais comum. Insumo sem nada realizado ainda fica de
+   fora: não há o que classificar num custo zero. */
+function classificarAbc(lista){
+  const arr = (lista||[]).filter(m=>(Number(m.total_realizado)||0)>0)
+    .slice().sort((a,b)=>(Number(b.total_realizado)||0)-(Number(a.total_realizado)||0));
+  const total = arr.reduce((s,m)=>s+(Number(m.total_realizado)||0),0);
+  let acum = 0;
+  return arr.map((m,i)=>{
+    const v = Number(m.total_realizado)||0;
+    acum += v;
+    const pctAcum = total ? (acum/total*100) : 0;
+    const classe = pctAcum<=80 ? "A" : (pctAcum<=95 ? "B" : "C");
+    return Object.assign({}, m, { rank:i+1, pctItem: total?(v/total*100):0, pctAcum, classe });
+  });
+}
+function resumoAbc(arr){
+  const g = {A:{n:0,v:0},B:{n:0,v:0},C:{n:0,v:0}};
+  arr.forEach(m=>{ g[m.classe].n++; g[m.classe].v+=Number(m.total_realizado)||0; });
+  return g;
+}
+function pintarKpisAbc(arr){
+  const g = resumoAbc(arr);
+  const total = arr.reduce((s,m)=>s+(Number(m.total_realizado)||0),0);
+  const pct = v => total ? (v/total*100).toFixed(1) : "0.0";
+  document.getElementById("kpis-abc").innerHTML = `
+    <div class="kpi hero"><div class="lab">Insumos na curva</div>
+      <div class="val">${fmtNum(arr.length)}</div>
+      <div class="sub">com realizado &gt; 0</div></div>
+    <div class="kpi"><div class="lab">Classe A</div>
+      <div class="val vermelho">${fmtNum(g.A.n)} ${g.A.n===1?"item":"itens"}</div>
+      <div class="sub">${fmtBRL(g.A.v)} · ${pct(g.A.v)}% do total</div></div>
+    <div class="kpi"><div class="lab">Classe B</div>
+      <div class="val" style="color:var(--laranja)">${fmtNum(g.B.n)} ${g.B.n===1?"item":"itens"}</div>
+      <div class="sub">${fmtBRL(g.B.v)} · ${pct(g.B.v)}% do total</div></div>
+    <div class="kpi"><div class="lab">Classe C</div>
+      <div class="val verde">${fmtNum(g.C.n)} ${g.C.n===1?"item":"itens"}</div>
+      <div class="sub">${fmtBRL(g.C.v)} · ${pct(g.C.v)}% do total</div></div>`;
+}
+/* Mesma técnica do barrasHtml (div com width em %), colorida pela classe em
+   vez de acima/abaixo. */
+function barrasAbcHtml(itens){
+  if(!itens.length) return '<div class="vazio">Sem insumo com realizado ainda.</div>';
+  const max = Math.max(...itens.map(i=>Number(i.total_realizado)||0)) || 1;
+  return '<div class="barras">' + itens.map(i=>{
+    const v = Number(i.total_realizado)||0, pct = v/max*100;
+    return '<div class="bl">'+
+      '<div class="bl-nome" title="'+esc(i.insumo)+'">'+esc(i.insumo)+
+        ' <span class="pill classe'+i.classe+'">'+i.classe+'</span></div>'+
+      '<div class="bl-trilho"><div class="bl-barra classe'+i.classe+'" style="width:'+pct.toFixed(1)+'%"></div></div>'+
+      '<div class="bl-val">'+fmtBRL(v)+'</div>'+
+    '</div>';
+  }).join("") + '</div>';
+}
+function renderCurvaAbc(){
+  pintarKpisAbc(ABC);
+  document.getElementById("g-abc").innerHTML = barrasAbcHtml(ABC.slice(0,25));
+
+  const termo=(document.getElementById("busca-abc").value||"").toLowerCase();
+  const classeF=document.getElementById("filtro-classe-abc").value;
+  let arr = ABC;
+  if(termo) arr = arr.filter(m=>String(m.insumo).toLowerCase().includes(termo));
+  if(classeF) arr = arr.filter(m=>m.classe===classeF);
+
+  let h = '<table><thead><tr><th>#</th><th>Insumo</th><th class="col-un">Un</th>'+
+    '<th class="col-num">Realizado R$</th><th class="col-num">% do total</th>'+
+    '<th class="col-num">% acumulado</th><th>Classe</th></tr></thead><tbody>';
+  if(!arr.length) h += '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:22px">Nada encontrado.</td></tr>';
+  arr.forEach(m=>{
+    h += `<tr><td class="col-un">${m.rank}</td>`+
+      `<td class="insumo link" title="Ver em quais obras" onclick="verObrasDoInsumo(this.dataset.i)" data-i="${esc(m.insumo)}">${esc(m.insumo)}</td>`+
+      `<td class="col-un">${esc(m.unidade||"")}</td>`+
+      `<td class="num">${fmtBRL(m.total_realizado)}</td>`+
+      `<td class="num">${m.pctItem.toFixed(2)}%</td>`+
+      `<td class="num">${m.pctAcum.toFixed(1)}%</td>`+
+      `<td><span class="pill classe${m.classe}">${m.classe}</span></td></tr>`;
+  });
+  document.getElementById("t-abc").innerHTML = h+'</tbody></table>';
+  atualizarScrollsTopo();
+}
+
 /* ---------- abas ---------- */
 function trocarTab(nome){
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t.dataset.tab===nome));
-  ["principal","obra","insumos"].forEach(n=>
+  ["principal","obra","insumos","curva"].forEach(n=>
     document.getElementById("tab-"+n).classList.toggle("hide", n!==nome));
   if(nome==="insumos") carregarInsumos();
+  if(nome==="curva") carregarCurvaAbc();
 }
 
 iniciar();
