@@ -45,6 +45,7 @@ Variáveis de ambiente:
   NOTION_TOKEN  -> mesmo secret que o fetch_vendas.py já usa
 """
 
+import json
 import os
 import re
 import sys
@@ -224,6 +225,29 @@ def sem_hifen(pid):
     return str(pid or "").replace("-", "")
 
 
+def valores_do_chamado(props):
+    """Mesmo formato do resolver_() do Code.gs — é o que o painel do chamado
+    já espera — com UMA diferença: a coluna de arquivo publica só o NOME.
+
+    A URL que o Notion devolve para um arquivo hospedado é assinada e expira
+    em cerca de uma hora. Publicar num arquivo estático entregaria link
+    quebrado, e foto de obra não deve ficar acessível sem login de qualquer
+    forma. A tela pede o link no clique (ação posObraArquivos do Code.gs)."""
+    out = {}
+    for nome, pp in props.items():
+        t = pp.get("type")
+        if t == "files":
+            out[nome] = [{"name": f.get("name")} for f in (pp.get("files") or [])]
+        elif t == "rollup":
+            # o Code.gs devolve a string "(rollup)" e a tela já sabe lidar;
+            # manter igual evita a coluna aparecer de um jeito no arquivo e de
+            # outro depois que a tela revalida pelo Apps Script
+            out[nome] = "(rollup)"
+        else:
+            out[nome] = valor(pp)
+    return out
+
+
 # --------------------------------------------------------------------------
 def schema_da_base(db_id, com_titulo=False):
     """Schema ao vivo: nome, tipo, opções e se é editável.
@@ -282,6 +306,11 @@ def main():
     # lista a conta ficava dobrada — o chamado sem data nunca gera marcação,
     # então a antiga limpeza pelo calendário nunca acontecia para ele.
     chamados = []
+    # Chamados completos, agrupados por obra: viram um arquivo por obra em
+    # dist/pos_obra/<id>.json, que é o que a tela lê ao abrir uma obra. Antes
+    # isso era a ação "posObra" do Apps Script — uma execução inteira, na fila,
+    # a cada clique numa obra.
+    por_obra_atv = {}
     for a in atvs:
         props = a.get("properties") or {}
         chamados.append(a.get("id"))
@@ -338,6 +367,17 @@ def main():
             item["andamentoEvento"] = andamento_da_coluna(props, col, geral)
             marcacoes.append(item)
 
+        # registro completo do chamado, para o arquivo da obra
+        if rel:
+            reg = {
+                "id": a.get("id"),
+                "nome": nome_chamado,
+                "andamento": geral,
+                "faltando": faltas,
+                "valores": valores_do_chamado(props),
+            }
+            por_obra_atv.setdefault(sem_hifen(rel[0].get("id")), []).append(reg)
+
     marcacoes.sort(key=lambda m: str(m["data"]))
     print(f"  {len(atvs)} chamados -> {len(marcacoes)} marcações no calendário.", flush=True)
 
@@ -346,6 +386,9 @@ def main():
     linhas = ler_banco(DB_POS, "PÓS OBRA")
 
     obras = []
+    # valores da própria obra (OBSERVAÇÕES, FOTOS DO CONTRATO, etc.), usados
+    # pelo painel. CLIENTES e TELEFONE nunca entram — ver o topo do arquivo.
+    obras_props = {}
     sem_cliente = 0
     for r in linhas:
         props = r.get("properties") or {}
@@ -365,6 +408,12 @@ def main():
             continue
 
         casa = v_tol(props, "CASA")
+        vals = valores_do_chamado(props)
+        for oculto in list(vals.keys()):
+            n = norm(oculto)
+            if n in ("CLIENTES", "CLIENTE", "TELEFONE"):
+                del vals[oculto]
+        obras_props[sem_hifen(r.get("id"))] = vals
         c = por_obra.get(sem_hifen(r.get("id")), {"total": 0, "abertas": 0, "incompletos": 0})
         obras.append({
             "id": r.get("id"),
@@ -397,6 +446,39 @@ def main():
     else:
         print("  ! coluna 'HORÁRIO FLEXÍVEL' não existe na base PÓS OBRA — "
               "a tela simplesmente não mostra o controle.", flush=True)
+
+    # ---- 4. UM ARQUIVO POR OBRA -----------------------------------------
+    # É o que a tela baixa ao abrir uma obra: 2 a 10 KB, direto do CDN, em vez
+    # de uma execução do Apps Script na fila. O nome do arquivo é o id da obra
+    # SEM hífen (o id do Notion tem hífen, e hífen em nome de arquivo servido
+    # pelo Pages funciona, mas o resto do sistema já compara ids sem ele —
+    # manter um padrão só evita erro bobo de "arquivo não encontrado").
+    pasta = os.path.join(SAIDA, "pos_obra")
+    os.makedirs(pasta, exist_ok=True)
+    escritos = 0
+    for o in obras:
+        chave = sem_hifen(o["id"])
+        pagina = {
+            "ok": True,
+            "updated_at": agora,
+            "id": o["id"],
+            "endereco": o["endereco"],
+            "casa": o["casa"],
+            "titulo": o["titulo"],
+            # CLIENTES e TELEFONE ficam de fora aqui também — a tela já os tem
+            # em memória, vindos do posObraSensiveis
+            "valores": obras_props.get(chave, {}),
+            "horarioFlexivel": o["horarioFlexivel"],
+            "agio": o["agio"],
+            "cidade": o["cidade"],
+            "setor": o["setor"],
+            "atividades": por_obra_atv.get(chave, []),
+        }
+        caminho = os.path.join(pasta, chave + ".json")
+        with open(caminho, "w", encoding="utf-8") as f:
+            json.dump(pagina, f, ensure_ascii=False, separators=(",", ":"))
+        escritos += 1
+    print(f"  {escritos} páginas de obra em {pasta}/", flush=True)
 
     gravar("pos_obra.json", {
         "ok": True,

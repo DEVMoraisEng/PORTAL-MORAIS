@@ -705,6 +705,23 @@ html[data-tema="escuro"] .logo{background:#fff}
     </div>
   </div>
 
+  <!-- NOVO SERVIÇO (r24) — o botão não cria mais nada sozinho.
+       Motivo: gente clicava sem querer, saía da tela e sobrava um chamado em
+       branco no Notion. Agora o formulário é local; o chamado só nasce, já
+       preenchido e numa única gravação, quando a pessoa confirma. -->
+  <div class="modal-overlay" id="ns-overlay" onclick="if(event.target===this)fecharNovoServico()">
+    <div class="modal-cx">
+      <div class="modal-tit">Novo serviço</div>
+      <div class="modal-sub" id="ns-sub"></div>
+      <div id="ns-campos"></div>
+      <div class="modal-sub" id="ns-erro" style="display:none;color:#c0392b"></div>
+      <div class="modal-acoes">
+        <button class="bt ghost" onclick="fecharNovoServico()">Cancelar</button>
+        <button class="bt az" id="ns-criar" onclick="confirmarNovoServico()">Criar serviço</button>
+      </div>
+    </div>
+  </div>
+
   <!-- card do serviço no calendário (item 12) -->
   <div class="modal-overlay" id="mc-overlay" onclick="if(event.target===this)fecharCard()">
     <div class="modal-cx">
@@ -2209,6 +2226,30 @@ function mostrarView(qual){
 function irHub(){ OBRA = null; mostrarView("view-hub"); renderAlertas(); }
 function irIndicadores(){ mostrarView("view-ind"); renderIndicadores(); }
 
+/* ===================== ABRIR UMA OBRA (r24) ===============================
+ * Antes: uma execução do Apps Script por clique em obra — GET da página +
+ * consulta dos chamados, tudo na fila do Web App. Era o "abrir a obra demora".
+ *
+ * Agora: o build publica um arquivo por obra em dist/pos_obra/<id>.json (2 a
+ * 10 KB, direto do CDN). A tela pinta com ele na hora e SÓ ENTÃO revalida
+ * pelo Apps Script, em segundo plano — a pessoa não espera, e o que outra
+ * pessoa gravou nos últimos minutos aparece alguns segundos depois, sem
+ * travar nada. Se o arquivo ainda não existir (obra nova, primeiro build), o
+ * caminho antigo assume sozinho.
+ * =================================================================== */
+function chaveObraDist(id){ return "pos_obra_pg_" + semHifen(id); }
+
+/* Junta os serviços que só existem no navegador de quem criou e repinta. */
+function mesclarNovosNaObra(){
+  if(!OBRA) return;
+  OBRA.atividades = OBRA.atividades || [];
+  const vindos = OBRA.atividades.map(a=>a.id);
+  limparNovos(vindos);
+  novosDaObra(OBRA.id).forEach(n=>{
+    if(vindos.indexOf(n.id) < 0) OBRA.atividades.push(atividadeDoNovo(n));
+  });
+}
+
 function abrirObra(id, depois){
   if(!id) return;
   mostrarView("view-obra");
@@ -2217,22 +2258,56 @@ function abrirObra(id, depois){
   document.getElementById("gar-lista").innerHTML = "";
   document.getElementById("historico").innerHTML = "";
   document.getElementById("kanban").innerHTML = "";
-  ler({action:"posObra", pageId:id}).then(r=>{
-    if(!r || !r.ok){
-      document.getElementById("obra-topo").innerHTML =
-        '<div class="vazio">Não consegui abrir esta obra: '+esc(erroTexto(r && r.erro))+'</div>';
-      return;
-    }
+
+  let pintou = false;
+  const aplicar = (r, doArquivo)=>{
+    if(!r || r.ok === false) return false;
+    /* Guarda de segurança: uma resposta atrasada de OUTRA obra não pode
+       sobrescrever a que a pessoa está vendo agora. */
+    if(semHifen(r.id) !== semHifen(id)) return false;
     OBRA = r;
-    // mescla os serviços criados agora que o servidor ainda não devolveu
-    const vindos = (OBRA.atividades||[]).map(a=>a.id);
-    limparNovos(vindos);
-    novosDaObra(OBRA.id).forEach(n=>{
-      if(vindos.indexOf(n.id) < 0) OBRA.atividades.push(atividadeDoNovo(n));
-    });
+    /* O arquivo publicado não traz cliente nem telefone (é servido sem
+       login); pegamos os dois da lista, que já os recebeu do posObraSensiveis. */
+    if(doArquivo){
+      const o = obraPorId(id);
+      OBRA.valores = OBRA.valores || {};
+      if(o){
+        if(o.clientes && !OBRA.valores["CLIENTES"]) OBRA.valores["CLIENTES"] = o.clientes;
+        if(o.telefone && !OBRA.valores["TELEFONE"]) OBRA.valores["TELEFONE"] = o.telefone;
+      }
+    }
+    mesclarNovosNaObra();
     pintarObra();
-    if(typeof depois === "function") depois();
-  });
+    pintou = true;
+    return true;
+  };
+
+  lerEstaticoJa("pos_obra/"+semHifen(id)+".json", chaveObraDist(id), r=>aplicar(r, true))
+    .then(r=>{
+      if(typeof depois === "function" && pintou) depois();
+      /* Revalidação: pega o que foi gravado depois do último build (por você
+         ou por outra pessoa). Não bloqueia — a tela já está desenhada. */
+      return ler({action:"posObra", pageId:id}).then(viva=>{
+        if(!viva || !viva.ok){
+          if(!pintou){
+            document.getElementById("obra-topo").innerHTML =
+              '<div class="vazio">Não consegui abrir esta obra: '+esc(erroTexto(viva && viva.erro))+'</div>';
+          }
+          return;
+        }
+        /* Se a pessoa já saiu da obra ou abriu outra, descarta em silêncio. */
+        if(!OBRA || semHifen(OBRA.id) !== semHifen(id)) return;
+        const chamadoAberto = CHAMADO && CHAMADO.id;
+        aplicar(viva, false);
+        /* O painel do chamado estava aberto: repinta com o dado ao vivo em
+           vez de fechar na cara da pessoa. */
+        if(chamadoAberto){
+          const a = (OBRA.atividades||[]).find(x=>x.id === chamadoAberto);
+          if(a){ CHAMADO = a; renderPainelChamado(); }
+        }
+        if(typeof depois === "function" && !pintou) depois();
+      });
+    });
 }
 
 function pintarObra(){
@@ -2585,28 +2660,173 @@ function colunaKanban(titulo, lista){
 }
 
 /* ---------- criar serviço (itens 1 e 4) ---------- */
+/* ===================== NOVO SERVIÇO (r24) =================================
+ * DOIS PROBLEMAS QUE ISTO RESOLVE, e eles eram o mesmo problema:
+ *
+ * 1. Chamado fantasma. O botão criava a página no Notion na hora. Quem
+ *    clicasse sem querer e saísse deixava um chamado em branco na base, e
+ *    ainda contando como "pós obra em andamento" na lista de obras.
+ * 2. Lentidão. Criar era uma execução do Apps Script, e cada campo preenchido
+ *    depois era OUTRA — serviço, responsável, data e informações somavam
+ *    cinco idas ao servidor, todas na mesma fila.
+ *
+ * Agora o botão abre este formulário sem tocar em rede nenhuma. A gravação
+ * acontece uma vez só, com tudo junto (ver posObraServicoNovo_ no Code.gs),
+ * e só se houver ao menos um campo preenchido.
+ *
+ * Os campos vêm do SCHEMA ao vivo, não de uma lista fixa: renomear a coluna
+ * no Notion não quebra o formulário calado, do mesmo jeito que no resto da
+ * tela. Se algum deles não existir na base, ele simplesmente não é desenhado.
+ * =================================================================== */
+const NS_CAMPOS = ["SERVIÇO", "RESPONSÁVEL", "DATA AGENDAMENTO SERVIÇO",
+                   "INFORMAÇÕES SERVIÇO", "STATUS MATERIAL"];
+let NS_OBRA = null;
+
+function camposNovoServico(){
+  const campos = (SCHEMA && SCHEMA.campos) || [];
+  const achar = nome => campos.find(c => normN(c.nome) === normN(nome)) ||
+                        campos.find(c => normN(c.nome).indexOf(normN(nome)) >= 0);
+  const fora = [];
+  NS_CAMPOS.forEach(n=>{
+    const c = achar(n);
+    if(c && c.editavel && !fora.some(x=>x.nome===c.nome)) fora.push(c);
+  });
+  return fora;
+}
+
 function criarServico(){
   if(soLeitura()){ toast("Modo teste: nada é gravado.", 3); return; }
   if(!OBRA) return;
-  const obraId = OBRA.id, titulo = OBRA.titulo;
-  escrever({action:"posObraServicoNovo", pageId:obraId}, "criar serviço pós obra").then(r=>{
-    if(!r.ok){ toast("Não deu para criar: "+erroTexto(r.erro), 4); return; }
+  NS_OBRA = { id: OBRA.id, titulo: OBRA.titulo };
+  document.getElementById("ns-sub").textContent = OBRA.titulo;
+  document.getElementById("ns-erro").style.display = "none";
+
+  const campos = camposNovoServico();
+  if(!campos.length){
+    /* schema ainda não chegou: não trava a pessoa, cria como antes */
+    gravarNovoServico([]);
+    return;
+  }
+  document.getElementById("ns-campos").innerHTML = campos.map(c=>{
+    const id = "ns_" + normN(c.nome).replace(/\W/g,"_");
+    if(c.tipo === "multi_select"){
+      return '<div class="campo"><label>'+esc(c.nome)+'</label><div class="ms-cx" id="'+id+'">'+
+        ((c.opcoes||[]).map(o=>'<label class="ms-item"><input type="checkbox" value="'+esc(o)+'"> '+esc(o)+'</label>').join("")
+          || '<span style="font-size:12px;color:var(--text4)">sem opções cadastradas</span>')+'</div></div>';
+    }
+    if(c.tipo === "select" || c.tipo === "status"){
+      return '<div class="campo"><label>'+esc(c.nome)+'</label><select id="'+id+'">'+
+        '<option value="">—</option>'+
+        (c.opcoes||[]).map(o=>'<option value="'+esc(o)+'">'+esc(o)+'</option>').join("")+'</select></div>';
+    }
+    if(c.tipo === "date"){
+      const tipo = campoComHora(c.nome) ? "datetime-local" : "date";
+      return '<div class="campo"><label>'+esc(c.nome)+'</label><input type="'+tipo+'" id="'+id+'"></div>';
+    }
+    if(c.tipo === "rich_text"){
+      return '<div class="campo"><label>'+esc(c.nome)+'</label>'+
+        '<textarea class="txt-area" id="'+id+'" style="min-height:90px" placeholder="Descreva o problema"></textarea></div>';
+    }
+    return '<div class="campo"><label>'+esc(c.nome)+'</label><input type="text" id="'+id+'"></div>';
+  }).join("");
+  document.getElementById("ns-overlay").classList.add("on");
+}
+function fecharNovoServico(){
+  document.getElementById("ns-overlay").classList.remove("on");
+  NS_OBRA = null;
+}
+
+/* Lê o formulário e devolve [{prop, valor}] só com o que foi preenchido. */
+function valoresNovoServico(){
+  const fora = [];
+  camposNovoServico().forEach(c=>{
+    const id = "ns_" + normN(c.nome).replace(/\W/g,"_");
+    const el = document.getElementById(id);
+    if(!el) return;
+    if(c.tipo === "multi_select"){
+      const marcados = Array.from(el.querySelectorAll("input:checked")).map(i=>i.value);
+      if(marcados.length) fora.push({ prop:c.nome, valor:marcados });
+      return;
+    }
+    const v = String(el.value || "").trim();
+    if(!v) return;
+    fora.push({ prop:c.nome, valor: c.tipo === "date" ? valorData(v, campoComHora(c.nome)) : v });
+  });
+  return fora;
+}
+
+function confirmarNovoServico(){
+  const erro = document.getElementById("ns-erro");
+  const props = valoresNovoServico();
+  if(!props.length){
+    /* o pedido: nada de chamado vazio. Um campo já basta — a pessoa completa
+       o resto no painel depois. */
+    erro.textContent = "Preencha ao menos um campo antes de criar o serviço.";
+    erro.style.display = "block";
+    return;
+  }
+  /* mesma trava de agendamento da edição, aqui só pra avisar antes de gastar
+     a chamada; quem recusa de verdade é o Code.gs */
+  const dt = props.find(x => normN(x.prop).indexOf("DATA") === 0);
+  if(dt && dt.valor){
+    const dia = String(dt.valor).slice(0,10);
+    if(ehFeriadoGoiania(dia)){
+      erro.textContent = "Essa data é feriado em Goiânia — escolha outro dia.";
+      erro.style.display = "block"; return;
+    }
+    if(diaDaSemanaData(dia) === 0){
+      erro.textContent = "Não dá para agendar num domingo.";
+      erro.style.display = "block"; return;
+    }
+    if(diaDaSemanaData(dia) === 6){
+      erro.textContent = "Sábado precisa da senha de um ADM. Crie o serviço sem a data e marque o sábado pelo painel do chamado.";
+      erro.style.display = "block"; return;
+    }
+  }
+  erro.style.display = "none";
+  gravarNovoServico(props);
+}
+
+function gravarNovoServico(props){
+  const obraId = (NS_OBRA && NS_OBRA.id) || (OBRA && OBRA.id);
+  const titulo = (NS_OBRA && NS_OBRA.titulo) || (OBRA && OBRA.titulo) || "";
+  if(!obraId) return;
+  const bt = document.getElementById("ns-criar");
+  if(bt) bt.disabled = true;
+
+  /* "nome" vai daqui: a tela já tem o título da obra, e assim o servidor não
+     precisa de um GET só pra descobrir o texto do rótulo do chamado. */
+  escrever({action:"posObraServicoNovo", pageId:obraId, nome:titulo, props:props},
+           "criar serviço pós obra").then(r=>{
+    if(bt) bt.disabled = false;
+    if(!r.ok){
+      const erro = document.getElementById("ns-erro");
+      erro.textContent = "Não deu para criar: " + erroTexto(r.erro);
+      erro.style.display = "block";
+      return;
+    }
     if(r.enfileirado){
+      fecharNovoServico();
       toast("Sem internet — o serviço será criado quando reconectar.", 4);
       return;
     }
     const id = r.resposta && r.resposta.id;
+    fecharNovoServico();
     if(!id){ toast("Serviço criado."); abrirObra(obraId); return; }
-    // guarda no navegador de quem criou até o servidor passar a devolvê-lo
-    registrarNovo({ id:id, obraId:obraId, nome:(r.resposta.nome || titulo) });
-    const nova = atividadeDoNovo({ id:id, obraId:obraId, nome:(r.resposta.nome || titulo) });
+
+    const nome = (r.resposta && r.resposta.nome) || titulo;
+    // guarda no navegador de quem criou até o arquivo publicado passar a trazê-lo
+    registrarNovo({ id:id, obraId:obraId, nome:nome });
+    (props||[]).forEach(x=> atualizarNovo(id, x.prop, x.valor));
+
+    const nova = atividadeDoNovo(Object.assign({ id:id, obraId:obraId, nome:nome }, { v: novos()[id] ? novos()[id].v : {} }));
     OBRA.atividades = OBRA.atividades || [];
     OBRA.atividades.push(nova);
+    remontarAgenda();
     pintarObra();
-    pintarHub();          // r24: a contagem do hub sobe na hora, sem esperar o servidor
-    recarregarTudo();
-    toast("Serviço criado — preencha os dados.");
-    abrirChamado(id);              // item 4: já abre a aba dele pra editar
+    pintarHub(); renderCalendario(); renderAlertas();
+    toast("Serviço criado.");
+    abrirChamado(id);              // item 4: já abre a aba dele pra completar
   });
 }
 
@@ -2807,7 +3027,8 @@ function campoHtml(c, v){
     const arqs = Array.isArray(val) ? val : [];
     const lista = arqs.map(f=>'<a class="anexo" onclick="verArquivo('+
       JSON.stringify(f.name||"arquivo").replace(/"/g,"&quot;")+','+
-      JSON.stringify(f.url||"").replace(/"/g,"&quot;")+')">📎 '+esc(f.name||"arquivo")+'</a>').join("");
+      JSON.stringify(f.url||"").replace(/"/g,"&quot;")+','+
+      jsNome+')">📎 '+esc(f.name||"arquivo")+'</a>').join("");
     return '<div class="campo">'+lab+
       '<div class="arqbox2'+(arqs.length?" tem":"")+'">'+
         '<div class="arq-cab">📎 '+(arqs.length?"Arquivos anexados":"Nenhum arquivo ainda")+
@@ -3133,7 +3354,8 @@ function salvarCaixaTexto(){
 }
 document.addEventListener("keydown", e=>{
   if(e.key === "Escape"){
-    if(document.getElementById("txt-overlay").classList.contains("on")) fecharCaixaTexto();
+    if(document.getElementById("ns-overlay").classList.contains("on")) fecharNovoServico();
+    else if(document.getElementById("txt-overlay").classList.contains("on")) fecharCaixaTexto();
     else if(document.getElementById("mc-overlay").classList.contains("on")) fecharCard();
     else if(document.getElementById("arqoverlay").classList.contains("on")) fecharArquivo();
     else if(document.getElementById("painel").classList.contains("on")) fecharChamado();
@@ -3143,7 +3365,27 @@ document.addEventListener("keydown", e=>{
 });
 
 /* ---------- arquivos ---------- */
-function verArquivo(nome, url){
+/* r24: o arquivo publicado traz só o NOME do anexo — a URL que o Notion
+   devolve é assinada e expira em cerca de uma hora, então não dá pra deixá-la
+   num arquivo estático (viria quebrada, e foto de obra não deve ficar aberta
+   sem login). Quando o link falta, ele é pedido AQUI, no clique, e chega
+   fresco. Uma chamada por foto que alguém realmente quis abrir. */
+function verArquivo(nome, url, prop){
+  if(!url && prop && CHAMADO && CHAMADO.id){
+    toast("Buscando o arquivo…", 2);
+    return chamar({action:"posObraArquivos", pageId:CHAMADO.id}).then(r=>{
+      const lista = (r && r.ok && r.arquivos && r.arquivos[prop]) || [];
+      const achado = lista.find(f=>f.name === nome) || lista[0];
+      if(!achado || !achado.url){ toast("Não consegui abrir este arquivo.", 4); return; }
+      /* guarda o link na cópia em memória: clicar de novo não gasta outra
+         chamada enquanto a tela estiver aberta */
+      if(CHAMADO.valores && Array.isArray(CHAMADO.valores[prop])){
+        const alvo = CHAMADO.valores[prop].find(f=>f.name === nome);
+        if(alvo) alvo.url = achado.url;
+      }
+      verArquivo(nome, achado.url);
+    });
+  }
   if(!url){ toast("Este arquivo não tem link.", 3); return; }
   document.getElementById("arq-nome").textContent = nome;
   document.getElementById("arq-baixar").href = url;

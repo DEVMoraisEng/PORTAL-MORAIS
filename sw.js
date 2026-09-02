@@ -54,8 +54,11 @@
    forma confiável. Foi exatamente o que fez a janela anônima ficar rápida e o
    navegador de sempre continuar lento na rodada passada.
    A analise.html entrou na lista agora: ela estava de fora desde que virou
-   página própria, então nunca abria offline. */
-const CACHE = "portal-morais-v18";
+   página própria, então nunca abria offline.
+   v18 -> v19: abrir uma obra passou a ler dist/pos_obra/<id>.json, o botão de
+   novo serviço virou formulário (o chamado só nasce preenchido) e o anexo
+   pede o link no clique. Tudo na pos-obra.html. */
+const CACHE = "portal-morais-v19";
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./app.js","./manifest.json"];

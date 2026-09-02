@@ -1,0 +1,70 @@
+name: Publicar site (GitHub Pages)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  # Cron de segurança: cobre edições feitas direto no Notion, fora do site.
+  # A cada 15 min, mesma janela do RAS-SEMANAL.
+  schedule:
+    - cron: '*/15 * * * *'
+  # Disparo vindo do Apps Script depois de uma escrita.
+  # ATENÇÃO: se este bloco sair daqui, o repository_dispatch é ignorado
+  # silenciosamente pelo GitHub (sem erro nenhum).
+  repository_dispatch:
+    types: [portal_update]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Gera dist/*.json lendo o Notion. É isto que deixa o site rápido:
+      # o navegador baixa JSON pronto em vez de esperar o Apps Script.
+      - name: Buscar dados do Notion
+        env:
+          # Único secret necessário. Os IDs das bases ficam fixos no
+          # fetch_vendas.py — ID do Notion não é credencial.
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+        run: python fetch_vendas.py
+
+      # Gera dist/pos_obra.json (obras, calendário e schema do Pós Obra).
+      # Step SEPARADO de propósito: se a leitura do Pós Obra falhar, o
+      # vendas.json e o ligacoes.json já foram gravados no step anterior e o
+      # site publica do mesmo jeito — só a tela de Pós Obra cai no caminho
+      # antigo (Apps Script) até a próxima rodada.
+      - name: Buscar dados do Pós Obra
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+        run: python fetch_pos_obra.py
+
+      - name: Configurar Pages
+        uses: actions/configure-pages@v5
+
+      - name: Empacotar o site (raiz do repo)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      - name: Publicar
+        id: deployment
+        uses: actions/deploy-pages@v4
