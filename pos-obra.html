@@ -396,7 +396,15 @@ html[data-tema="escuro"] .pill.falta{background:#3a2d12;color:#f0c95f;border-col
 .modal-cx{background:var(--sup);border-radius:14px;width:min(560px,100%);max-height:86vh;display:flex;flex-direction:column;padding:18px;box-shadow:0 18px 40px var(--sombra)}
 .modal-tit{font-family:'Barlow Condensed';font-weight:800;font-size:20px;text-transform:uppercase;color:var(--azul-esc);letter-spacing:.4px}
 .modal-sub{font-size:12.5px;color:var(--text3);margin:2px 0 12px}
-.modal-acoes{display:flex;justify-content:flex-end;gap:9px;margin-top:14px;flex-wrap:wrap}
+.modal-acoes{display:flex;justify-content:flex-end;gap:9px;margin-top:14px;flex-wrap:wrap;flex:0 0 auto}
+/* O .modal-cx é flex em coluna com max-height:86vh, mas o miolo não tinha
+   overflow próprio: com o formulário de criar serviço ficando comprido (todos
+   os campos), o conteúdo empurrava o rodapé e os botões Cancelar/Criar saíam
+   para FORA do cartão branco. Agora o miolo rola sozinho e o rodapé fica
+   sempre visível, encostado na base do cartão.
+   O min-height:0 não é decoração: sem ele, um filho flex se recusa a encolher
+   abaixo do próprio conteúdo e o overflow-y nunca chega a valer. */
+.modal-corpo{flex:1 1 auto;overflow-y:auto;min-height:0;padding-right:2px}
 .txt-area{width:100%;min-height:210px;max-height:52vh;resize:vertical;padding:11px 12px;
   border:1px solid var(--border);border-radius:10px;font:inherit;font-size:14px;line-height:1.5;
   color:var(--text);background:var(--sup);white-space:pre-wrap}
@@ -718,7 +726,7 @@ html[data-tema="escuro"] .logo{background:#fff}
     <div class="modal-cx">
       <div class="modal-tit">Nova obra de Pós Obra</div>
       <div class="modal-sub">A obra passa a aparecer na lista e já aceita serviços.</div>
-      <div id="no-campos">
+      <div class="modal-corpo"><div id="no-campos">
         <div class="campo"><label>ENDEREÇO</label>
           <input type="text" id="no-endereco" placeholder="ATALANTA QD 01 LT 21" autocomplete="off"></div>
         <div class="campo"><label>CASA</label>
@@ -727,7 +735,7 @@ html[data-tema="escuro"] .logo{background:#fff}
           <input type="text" id="no-clientes" placeholder="Nome do cliente" autocomplete="off"></div>
         <div class="campo"><label>TELEFONE</label>
           <input type="text" id="no-telefone" placeholder="(62) 99999-9999" autocomplete="off"></div>
-      </div>
+      </div></div>
       <div class="modal-sub" id="no-erro" style="display:none;color:#c0392b"></div>
       <div class="modal-acoes">
         <button class="bt ghost" onclick="fecharNovaObra()">Cancelar</button>
@@ -740,7 +748,7 @@ html[data-tema="escuro"] .logo{background:#fff}
     <div class="modal-cx">
       <div class="modal-tit">Novo serviço</div>
       <div class="modal-sub" id="ns-sub"></div>
-      <div id="ns-campos"></div>
+      <div class="modal-corpo"><div id="ns-campos"></div></div>
       <div class="modal-sub" id="ns-erro" style="display:none;color:#c0392b"></div>
       <div class="modal-acoes">
         <button class="bt ghost" onclick="fecharNovoServico()">Cancelar</button>
@@ -957,7 +965,7 @@ const GARANTIAS = [
 const S = exigirSessao();
 atualizarStatus(); atualizarBadge();
 
-const GS_ESPERADO = "2026-09-02 r25";
+const GS_ESPERADO = "2026-09-02 r26";
 
 const ANDAMENTOS = ["MARCANDO SERVIÇO","SERVIÇO MARCADO","REMARCADO 1","REMARCADO 2",
                     "REMARCADO 3","REMARCADO 4","REMARCADO 5","SERVIÇO FINALIZADO"];
@@ -2815,8 +2823,16 @@ function confirmarNovaObra(){
    pensa ao abrir um chamado. O resto do formulário vem do schema (ver
    camposNovoServico) — pedido: "colocar todos os campos preenchíveis quando
    clico em criar serviço para facilitar". */
-const NS_CAMPOS = ["SERVIÇO", "RESPONSÁVEL", "DATA AGENDAMENTO SERVIÇO",
-                   "INFORMAÇÕES SERVIÇO", "STATUS MATERIAL"];
+/* ORDEM DO FORMULÁRIO (set/26). DATA DO CHAMADO vem PRIMEIRO: é a data de
+   abertura, o começo da história do chamado. Ela estava caindo lá embaixo,
+   depois das datas de conclusão, porque só entrava pelo "resto do schema" —
+   e ler um formulário que termina na abertura é confuso.
+   O resto segue a ordem em que a pessoa pensa: o que é, quem faz, quando,
+   o que aconteceu, material, e por fim os andamentos e a conclusão. */
+const NS_CAMPOS = ["DATA DO CHAMADO", "SERVIÇO", "RESPONSÁVEL",
+                   "DATA AGENDAMENTO SERVIÇO", "INFORMAÇÕES SERVIÇO",
+                   "STATUS MATERIAL", "ANDAMENTO DA SOLICITAÇÃO",
+                   "ANDAMENTO DO SERVIÇO", "DATA CONCLUSÃO"];
 
 /* O que NÃO entra no formulário de criação, por mais que exista no schema:
    - campos de RETORNO/REMARCAÇÃO: não existe retorno num chamado que está
@@ -2895,6 +2911,15 @@ function criarServico(){
     }
     return '<div class="campo"><label>'+esc(c.nome)+'</label><input type="text" id="'+id+'"></div>';
   }).join("");
+  /* DATA DO CHAMADO nasce com hoje: o chamado está sendo aberto agora, e
+     digitar a data do dia à mão é trabalho que a tela pode poupar. Continua
+     editável para quem estiver registrando um chamado antigo. */
+  const elCh = document.getElementById("ns_" + normN("DATA DO CHAMADO").replace(/\W/g,"_"));
+  if(elCh && !elCh.value && elCh.type === "date"){
+    const h = new Date();
+    elCh.value = h.getFullYear() + "-" + String(h.getMonth()+1).padStart(2,"0") +
+                 "-" + String(h.getDate()).padStart(2,"0");
+  }
   document.getElementById("ns-overlay").classList.add("on");
 }
 function fecharNovoServico(){
@@ -2968,13 +2993,28 @@ function gravarNovoServico(props){
     if(bt) bt.disabled = false;
     if(!r.ok){
       const erro = document.getElementById("ns-erro");
+      /* O servidor barrou uma segunda criação igual em poucos minutos (ver
+         a trava em posObraServicoNovo_). Quase sempre é a pessoa repetindo
+         depois de um erro de rede em que o chamado JÁ tinha sido criado —
+         então o caminho certo é abrir o que existe, não criar outro. */
+      if(r.erro === "JA_CRIADO_AGORA" && r.resposta && r.resposta.id){
+        fecharNovoServico();
+        toast("Esse serviço já tinha sido criado agora há pouco — abrindo ele.", 5);
+        abrirChamado(r.resposta.id);
+        return;
+      }
       erro.textContent = "Não deu para criar: " + erroTexto(r.erro);
       erro.style.display = "block";
       return;
     }
     if(r.enfileirado){
       fecharNovoServico();
-      toast("Sem internet — o serviço será criado quando reconectar.", 4);
+      /* Aviso mais longo e explícito de propósito: era exatamente aqui que a
+         pessoa achava que nada tinha acontecido e criava de novo. O envio
+         guardado carrega o mesmo opId, então quando ele sair o servidor
+         devolve o chamado que já existe em vez de criar um segundo. */
+      toast("Sem sinal agora. O serviço está guardado e vai ser criado sozinho " +
+            "quando a conexão voltar — não crie de novo.", 7);
       return;
     }
     const id = r.resposta && r.resposta.id;
