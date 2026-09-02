@@ -563,6 +563,15 @@ function iniciar(){
   document.getElementById("conteudo").classList.remove("hide");
   carregarResumo();
   carregarObras();
+  /* PRE-CARREGAMENTO (set/26): a lista consolidada de insumos alimenta duas
+     abas (TODOS OS INSUMOS e CURVA ABC) e e a resposta mais pesada da tela.
+     Buscar so no clique fazia a aba abrir vazia e ficar em "Carregando...".
+     Aqui ela e buscada em segundo plano, depois das duas primeiras (a fila do
+     app.js garante que ela nao disputa lugar com elas). Quando a pessoa
+     clicar na aba, o dado ja esta na memoria e a troca e instantanea. */
+  setTimeout(()=>{ lerStore({action:"analiseInsumos"}, "analise_insumos", { ttl:TTL })
+    .then(r=>{ if(r && r.ok!==false && r.insumos && !INSUMOS.length) INSUMOS = r.insumos; })
+    .catch(()=>{}); }, 300);
 }
 
 /* ---------- carregamento ----------

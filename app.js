@@ -185,8 +185,14 @@ function storeLer(chave){
 function storeGravar(chave, valor){
   const o={t:Date.now(), v:valor};
   _storeMem.set(chave,o);
-  // localStorage tem ~5 MB; se estourar, o dado continua valendo em memória
-  try{ localStorage.setItem(STORE_PRE+chave, JSON.stringify(o)); }catch(e){}
+  /* localStorage tem ~5 MB no total. Se estourar, o dado continua valendo em
+     MEMÓRIA (a navegação entre abas segue instantânea), mas se perde ao
+     recarregar a página — e aí a tela busca de novo. Quando isso acontecer
+     o aviso aparece no console, para não virar um mistério silencioso:
+     é o sinal de que a resposta daquela ação precisa ser enxugada no
+     Code.gs, e não de que o cache "não está funcionando". */
+  try{ localStorage.setItem(STORE_PRE+chave, JSON.stringify(o)); }
+  catch(e){ console.warn("[store] \""+chave+"\" nao coube no localStorage — vale so nesta aba.", e && e.name); }
   return o;
 }
 /* Depois de GRAVAR alguma coisa: derruba o que ficou velho para o próximo
