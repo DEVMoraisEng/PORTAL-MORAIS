@@ -2727,6 +2727,42 @@ function colunaKanban(titulo, lista){
   return '<div class="kcol"><div class="kcol-tit">'+esc(titulo)+'<span class="n">'+lista.length+'</span></div>'+cards+'</div>';
 }
 
+/* ===================== O QUE A FILA CONSEGUIU ENVIAR ======================
+ * Chamada pelo app.js quando a fila offline esvazia (ver sincronizar()).
+ * Recebe o que o servidor respondeu em cada envio guardado.
+ *
+ * POR QUE ISTO EXISTE: sem sinal, criar um serviço só enfileirava o pedido.
+ * Quando a conexão voltava, o chamado nascia no Notion — mas a tela nunca
+ * ficava sabendo o ID dele, então não conseguia desenhá-lo. Resultado: o
+ * serviço existia no banco e não aparecia na página até o próximo build, que
+ * é exatamente o susto que faz a pessoa criar tudo de novo.
+ *
+ * Agora o serviço entra na ponte local no instante em que o envio sai, do
+ * mesmo jeito que entraria se tivesse sido criado online.
+ * =================================================================== */
+window.aoSincronizar = function(feitos){
+  let mudou = false;
+  (feitos || []).forEach(f=>{
+    const p = f.payload || {}, r = f.resposta || {};
+    if(p.action !== "posObraServicoNovo" || !r.id) return;
+    registrarNovo({ id:r.id, obraId:p.pageId, nome:r.nome || p.nome || "" });
+    (p.props || []).forEach(x=> atualizarNovo(r.id, x.prop, x.valor));
+    if(OBRA && semHifen(OBRA.id) === semHifen(p.pageId)){
+      OBRA.atividades = OBRA.atividades || [];
+      if(!OBRA.atividades.some(a=>a.id === r.id))
+        OBRA.atividades.push(atividadeDoNovo(Object.assign(
+          { id:r.id, obraId:p.pageId, nome:r.nome || p.nome || "" },
+          { v: (novos()[r.id] || {}).v || {} })));
+    }
+    mudou = true;
+  });
+  if(!mudou) return;
+  remontarAgenda();
+  if(OBRA) pintarObra();
+  pintarHub(); renderCalendario(); renderAlertas();
+  toast("Os serviços que estavam guardados foram criados.", 5);
+};
+
 /* ===================== NOVA OBRA DE PÓS OBRA (item 3) ====================
  * Cria uma linha na base PÓS OBRA sem abrir o Notion. Só ADM — o botão fica
  * escondido para os outros e o servidor recusa de novo (posObraNovo_).

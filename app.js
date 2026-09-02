@@ -349,12 +349,20 @@ let _sinc=false;
 async function sincronizar(){
   if(_sinc || !navigator.onLine) return;
   _sinc=true;
+  let feitos=[];
   try{
     let a=fila();
     while(a.length){
       const item=a[0];
       try{
         const r=await chamar(item.payload);
+        /* BURACO QUE ISTO FECHA: até aqui a resposta do reenvio era jogada
+           fora — a fila só olhava se deu ok. Quem criou um serviço sem sinal
+           ficava sem saber o ID do chamado que acabou de nascer, então a tela
+           não conseguia desenhá-lo e a pessoa via "criou no banco mas não
+           aparece na página" até o próximo build. Agora o que voltou é
+           entregue para a tela decidir o que fazer. */
+        if(r && r.ok) feitos.push({ payload:item.payload, resposta:r });
         /* BACKEND_SEM_CONFIG é o servidor engasgado (SESSION_SECRET
            indisponível na execução), não uma recusa da gravação. Descartar o
            item aqui perderia a escrita de vez; melhor parar e tentar depois,
@@ -366,7 +374,7 @@ async function sincronizar(){
     }
   } finally {
     _sinc=false; atualizarBadge();
-    if(typeof window.aoSincronizar==="function") window.aoSincronizar();
+    if(typeof window.aoSincronizar==="function") window.aoSincronizar(feitos);
   }
 }
 
