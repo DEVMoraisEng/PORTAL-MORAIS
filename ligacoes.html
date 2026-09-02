@@ -748,7 +748,7 @@ const V = {
   ENDERECO:      "ENDEREÇO",
   CASA:          "CASA",
   OBRA_CASA:     "ENDEREÇO + CASA",      // coluna montada aqui, não existe no Notion
-  DT_VENDA:      "DATA DA VENDA",
+  DT_ENTREGA:    "DATA DA ENTREGA",
   DT_ASSIN:      "DATA DE ASSINATURA DO CONTRATO",
   CLIENTES:      "CLIENTES ",
   WHATS:         "Nº Whatsapp",
@@ -1036,7 +1036,7 @@ const ABAS = {
     titulo: "Casas vendidas e não transferidas",
     // Esta aba NÃO vem da base de ligações: vem de VENDAS (dist/vendas.json).
     fonte: "vendas",
-    colunas: [V.OBRA_CASA, V.DT_VENDA, V.DT_ASSIN, V.CLIENTES, V.WHATS,
+    colunas: [V.OBRA_CASA, V.DT_ENTREGA, V.DT_ASSIN, V.CLIENTES, V.WHATS,
               V.TEM_PROT_AGUA, V.PROT_AGUA, V.TEM_PROT_ENER, V.PROT_ENER,
               V.ENER_TRANSF, V.UC_ENERGIA, V.AGUA_TRANSF, V.UC_AGUA,
               V.DT_VERIF],
@@ -3091,18 +3091,18 @@ function renderPlanilha(){
 const CIDADE_POR_CONC = { SANESC: "SENADOR CANEDO", SANEAGO: "GOIÂNIA" };
 
 function filtrosVendidas(){
-  const anos = {}, anosVer = {}, anosVenda = {};
+  const anos = {}, anosVer = {}, anosEntrega = {};
   VEN.forEach(v => {
     const d = dataReal(v, V.DT_ASSIN); if (d) anos[d.slice(0,4)] = 1;
     const dv = COL_VERIF ? dataReal(v, COL_VERIF) : null; if (dv) anosVer[dv.slice(0,4)] = 1;
-    const dvd = dataReal(v, V.DT_VENDA); if (dvd) anosVenda[dvd.slice(0,4)] = 1;
+    const dvd = dataReal(v, V.DT_ENTREGA); if (dvd) anosEntrega[dvd.slice(0,4)] = 1;
   });
   // fallback nos DOIS: sem ele, montar a barra antes de o arquivo de vendas
   // chegar deixava o select de ano sem opção nenhuma, e escolher "Ano" não
   // filtrava nada (comparava com string vazia)
   if (!Object.keys(anos).length)    anos[String(new Date().getFullYear())] = 1;
   if (!Object.keys(anosVer).length) anosVer[String(new Date().getFullYear())] = 1;
-  if (!Object.keys(anosVenda).length) anosVenda[String(new Date().getFullYear())] = 1;
+  if (!Object.keys(anosEntrega).length) anosEntrega[String(new Date().getFullYear())] = 1;
   const MES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
   return `
     <select id="vd-per" onchange="aoTrocarPeriodoVendidas()">
@@ -3121,26 +3121,27 @@ function filtrosVendidas(){
     </select>
     <input type="date" id="vd-de" style="display:none" title="Assinado a partir de" onchange="renderAba()">
     <input type="date" id="vd-ate" style="display:none" title="Assinado até" onchange="renderAba()">
-    <!-- MELHORIAS item 4 (set/26): filtro pela DATA DA VENDA. É uma data
-         DIFERENTE da DATA DE ASSINATURA DO CONTRATO (o filtro acima) — a
-         venda acontece antes, a assinatura depois. IDs próprios "vd-dv*"
-         pra não colidir com os de contrato nem com os de verificação. -->
-    <select id="vd-dvper" onchange="aoTrocarPeriodoDataVenda()">
-      <option value="">Venda: qualquer data</option>
-      <option value="7d">Vendida nos últimos 7 dias</option>
-      <option value="30d">Vendida nos últimos 30 dias</option>
-      <option value="mes">Vendida no mês (escolher)</option>
-      <option value="ano">Vendida no ano (escolher)</option>
-      <option value="intervalo">Vendida no intervalo (escolher)</option>
+    <!-- MELHORIAS item 4 (set/26): filtro pela DATA DA ENTREGA. Era DATA DA
+         VENDA no pedido original — corrigido depois pro pedido certo: a
+         entrega da casa, não a venda. É uma data DIFERENTE da DATA DE
+         ASSINATURA DO CONTRATO (o filtro acima). IDs próprios "vd-de*" pra
+         não colidir com os de contrato nem com os de verificação. -->
+    <select id="vd-deper" onchange="aoTrocarPeriodoDataEntrega()">
+      <option value="">Entrega: qualquer data</option>
+      <option value="7d">Entregue nos últimos 7 dias</option>
+      <option value="30d">Entregue nos últimos 30 dias</option>
+      <option value="mes">Entregue no mês (escolher)</option>
+      <option value="ano">Entregue no ano (escolher)</option>
+      <option value="intervalo">Entregue no intervalo (escolher)</option>
     </select>
-    <select id="vd-dvmes" style="display:none" onchange="renderAba()">
+    <select id="vd-demes" style="display:none" onchange="renderAba()">
       ${MES.map((m,i)=>`<option value="${String(i+1).padStart(2,"0")}">${m}</option>`).join("")}
     </select>
-    <select id="vd-dvano" style="display:none" onchange="renderAba()">
-      ${Object.keys(anosVenda).sort().reverse().map(a=>`<option value="${a}">${a}</option>`).join("")}
+    <select id="vd-deano" style="display:none" onchange="renderAba()">
+      ${Object.keys(anosEntrega).sort().reverse().map(a=>`<option value="${a}">${a}</option>`).join("")}
     </select>
-    <input type="date" id="vd-dvde" style="display:none" title="Vendida a partir de" onchange="renderAba()">
-    <input type="date" id="vd-dvate" style="display:none" title="Vendida até" onchange="renderAba()">
+    <input type="date" id="vd-dede" style="display:none" title="Entregue a partir de" onchange="renderAba()">
+    <input type="date" id="vd-deate" style="display:none" title="Entregue até" onchange="renderAba()">
     <select id="vd-cidade" onchange="renderAba()">
       <option value="">Todas as cidades</option>
       <option value="SANESC">Senador Canedo</option>
@@ -3314,23 +3315,23 @@ function passaPeriodoVendidas(v){
   return true;
 }
 /* MELHORIAS item 4 (set/26): mesmo desenho do passaPeriodoVendidas, mas
-   olhando a DATA DA VENDA. Os dois filtros são independentes e se somam —
-   dá pra pedir "vendida em 2025 e com contrato assinado em 2026". */
-function passaPeriodoDataVenda(v){
-  const el = document.getElementById("vd-dvper");
+   olhando a DATA DA ENTREGA. Os dois filtros são independentes e se somam —
+   dá pra pedir "entregue em 2025 e com contrato assinado em 2026". */
+function passaPeriodoDataEntrega(v){
+  const el = document.getElementById("vd-deper");
   if (!el || !el.value) return true;
-  const d = dataReal(v, V.DT_VENDA);
+  const d = dataReal(v, V.DT_ENTREGA);
   if (!d) return false;                       // sem data não entra em recorte de data
   const per = el.value;
   if (per === "7d")  return d >= diasAtras(7)  && d <= hojeISO();
   if (per === "30d") return d >= diasAtras(30) && d <= hojeISO();
-  if (per === "ano") return d.slice(0,4) === document.getElementById("vd-dvano").value;
+  if (per === "ano") return d.slice(0,4) === document.getElementById("vd-deano").value;
   if (per === "mes"){
-    return d.slice(0,4) === document.getElementById("vd-dvano").value &&
-           d.slice(5,7) === document.getElementById("vd-dvmes").value;
+    return d.slice(0,4) === document.getElementById("vd-deano").value &&
+           d.slice(5,7) === document.getElementById("vd-demes").value;
   }
   if (per === "intervalo"){
-    const de = document.getElementById("vd-dvde").value, ate = document.getElementById("vd-dvate").value;
+    const de = document.getElementById("vd-dede").value, ate = document.getElementById("vd-deate").value;
     if (de && d < de) return false;
     if (ate && d > ate) return false;
     return true;
@@ -3338,14 +3339,14 @@ function passaPeriodoDataVenda(v){
   return true;
 }
 /* Mostra só os campos que o período escolhido usa — mesma lógica do
-   aoTrocarPeriodoVendidas, nos controles "vd-dv*". */
-function aoTrocarPeriodoDataVenda(){
-  const per = document.getElementById("vd-dvper").value;
+   aoTrocarPeriodoVendidas, nos controles "vd-de*". */
+function aoTrocarPeriodoDataEntrega(){
+  const per = document.getElementById("vd-deper").value;
   const mostrar = (id, on) => { const e = document.getElementById(id); if (e) e.style.display = on ? "" : "none"; };
-  mostrar("vd-dvmes", per === "mes");
-  mostrar("vd-dvano", per === "mes" || per === "ano");
-  mostrar("vd-dvde", per === "intervalo");
-  mostrar("vd-dvate", per === "intervalo");
+  mostrar("vd-demes", per === "mes");
+  mostrar("vd-deano", per === "mes" || per === "ano");
+  mostrar("vd-dede", per === "intervalo");
+  mostrar("vd-deate", per === "intervalo");
   renderAba();
 }
 function passaCidadeVendidas(v){
@@ -3365,12 +3366,12 @@ function resumoFiltrosVendidas(){
     else if (per.value === "intervalo") out.push("contrato: " + (document.getElementById("vd-de").value||"…") + " a " + (document.getElementById("vd-ate").value||"…"));
     else out.push("contrato: " + txtPer);
   }
-  const dvp = document.getElementById("vd-dvper");
+  const dvp = document.getElementById("vd-deper");
   if (dvp && dvp.value){
-    if (dvp.value === "mes") out.push("venda: " + document.getElementById("vd-dvmes").selectedOptions[0].text + "/" + document.getElementById("vd-dvano").value);
-    else if (dvp.value === "ano") out.push("venda: " + document.getElementById("vd-dvano").value);
-    else if (dvp.value === "intervalo") out.push("venda: " + (document.getElementById("vd-dvde").value||"…") + " a " + (document.getElementById("vd-dvate").value||"…"));
-    else out.push("venda: " + dvp.options[dvp.selectedIndex].text);
+    if (dvp.value === "mes") out.push("entrega: " + document.getElementById("vd-demes").selectedOptions[0].text + "/" + document.getElementById("vd-deano").value);
+    else if (dvp.value === "ano") out.push("entrega: " + document.getElementById("vd-deano").value);
+    else if (dvp.value === "intervalo") out.push("entrega: " + (document.getElementById("vd-dede").value||"…") + " a " + (document.getElementById("vd-deate").value||"…"));
+    else out.push("entrega: " + dvp.options[dvp.selectedIndex].text);
   }
   const cid = document.getElementById("vd-cidade");
   if (cid && cid.value) out.push("cidade: " + cid.options[cid.selectedIndex].text);
@@ -3393,7 +3394,7 @@ function linhasVisiveisAba(){
   const termo = document.getElementById("set-busca").value;
   let linhas = linhasDaAba(ABA_ATUAL).filter(l => passaFiltros(l,filtros) && passaBusca(l,termo));
   if (def.filtrosProprios){
-    linhas = linhas.filter(l => passaPeriodoVendidas(l) && passaPeriodoDataVenda(l) && passaCidadeVendidas(l) && passaVerificacao(l));
+    linhas = linhas.filter(l => passaPeriodoVendidas(l) && passaPeriodoDataEntrega(l) && passaCidadeVendidas(l) && passaVerificacao(l));
   }
   if (def.filtroData && def.filtroData.length){
     linhas = linhas.filter(passaFiltroData);
