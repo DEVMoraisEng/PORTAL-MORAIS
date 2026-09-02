@@ -47,6 +47,16 @@ jobs:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
         run: python fetch_vendas.py
 
+      # Gera dist/pos_obra.json (obras, calendário e schema do Pós Obra).
+      # Step SEPARADO de propósito: se a leitura do Pós Obra falhar, o
+      # vendas.json e o ligacoes.json já foram gravados no step anterior e o
+      # site publica do mesmo jeito — só a tela de Pós Obra cai no caminho
+      # antigo (Apps Script) até a próxima rodada.
+      - name: Buscar dados do Pós Obra
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+        run: python fetch_pos_obra.py
+
       - name: Configurar Pages
         uses: actions/configure-pages@v5
 
