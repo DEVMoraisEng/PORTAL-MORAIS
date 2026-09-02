@@ -46,11 +46,19 @@
    finalizado congelado, WhatsApp com data em destaque, dois avisos de
    material, arrastar no calendário, CIDADE/SETOR/TELEFONE editáveis).
    v15 -> v16: CIDADE lida de fórmula, botão de excluir retorno, cores dos
-   avisos de material e endereço com setor/cidade na servicos.html. */
-const CACHE = "portal-morais-v17";
+   avisos de material e endereço com setor/cidade na servicos.html.
+   v17 -> v18: a pos-obra.html passou a LER do dist/pos_obra.json em vez do
+   Apps Script, e a ponte local de serviço novo mudou de formato. ESTE número
+   PRECISA subir junto: enquanto o nome do cache for o mesmo, o service worker
+   entrega a pos-obra.html ANTIGA do cache — e nem Ctrl+F5 derruba isso de
+   forma confiável. Foi exatamente o que fez a janela anônima ficar rápida e o
+   navegador de sempre continuar lento na rodada passada.
+   A analise.html entrou na lista agora: ela estava de fora desde que virou
+   página própria, então nunca abria offline. */
+const CACHE = "portal-morais-v18";
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
-                  "./app.js","./manifest.json"];
+                  "./analise.html","./app.js","./manifest.json"];
 
 self.addEventListener("install", e=>{
   e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ARQUIVOS)).then(()=>self.skipWaiting()));

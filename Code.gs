@@ -48,8 +48,26 @@
    serviço/retorno não podem cair em domingo nem feriado de Goiânia, e sábado
    só com senha de um ADM (ver bloco "AGENDAMENTO: sábado/feriado"); (2) ÁGIO
    sincronizado de VENDAS pro cabeçalho da obra no PÓS OBRA (ver bloco
-   "PÓS OBRA: sincronização automática"). */
-var VERSAO_GS = "2026-09-01 r20";
+   "PÓS OBRA: sincronização automática").
+   r21-r23 (set/26): DESEMPENHO — cache em pedaços (o CacheService recusa mais
+   de 100 KB por chave e a exceção sumia sem rastro, então NADA era guardado),
+   posObraBoot juntando a abertura da tela numa execução só, cache que serve a
+   cópia velha em vez de fazer esperar, e o aquecimento periódico
+   (aquecerCaches). A constante abaixo tinha ficado em r20 mesmo depois disso:
+   como as telas comparam esta string com o GS_ESPERADO delas, o aviso
+   "Apps Script atrasado" aparecia com o backend já publicado e em dia.
+   r24 (set/26): a tela de PÓS OBRA deixou de LER por aqui. Lista, calendário
+   e schema passaram a sair do dist/pos_obra.json, publicado pelo
+   fetch_pos_obra.py no mesmo build de 15 min das telas de Vendas e Ligações.
+   O motivo é o CANAL, não o número de chamadas: toda leitura por este Web App
+   paga POST -> 302 -> GET (2 RTTs antes de executar) e entra na fila de
+   execuções do dono do script, porque a implantação é "Executar como: Eu".
+   No celular isso era 3 a 20 s por abertura, e nenhum cache tira esse custo.
+   O que continua aqui, de propósito: as ESCRITAS (iguais), o posObraBoot
+   (chamado só DEPOIS de gravar, pra pessoa não esperar o próximo build) e a
+   ação nova posObraSensiveis — CLIENTES e TELEFONE, os dois campos que não
+   podem entrar num arquivo servido sem login. */
+var VERSAO_GS = "2026-09-02 r24";
 
 var PROPS_ = PropertiesService.getScriptProperties();
 // .trim() aqui porque copiar/colar de chat ou de outra aba costuma trazer
@@ -103,6 +121,28 @@ if (!CONFIG.NOTION_TOKEN) {
 }
 if (!CONFIG.SESSION_SECRET) {
   console.error("FALTA CONFIGURAR: Propriedades do script > SESSION_SECRET");
+}
+
+/* r22 — POR QUE ISTO EXISTE (o "NAO_AUTORIZADO" do painel de análises).
+   As duas linhas acima rodam UMA vez, quando a execução começa. Sob
+   concorrência (que é exatamente o quadro do problema), o PropertiesService
+   pode falhar nesse instante e devolver vazio. Aí o CONFIG.SESSION_SECRET
+   fica indefinido, o HMAC do verificar_ não bate com nada, e todo mundo
+   recebe NAO_AUTORIZADO — que a tela lê como "sessão expirada" e desloga a
+   pessoa. Não era sessão expirada: era o servidor engasgado.
+   Estas duas funções tentam ler de novo na hora do uso, e quem chama
+   consegue distinguir "sem configuração" de "token inválido". */
+function segredo_() {
+  if (!CONFIG.SESSION_SECRET) {
+    try { CONFIG.SESSION_SECRET = prop_("SESSION_SECRET"); } catch (e) {}
+  }
+  return CONFIG.SESSION_SECRET;
+}
+function tokenNotion_() {
+  if (!CONFIG.NOTION_TOKEN) {
+    try { CONFIG.NOTION_TOKEN = prop_("NOTION_TOKEN"); } catch (e) {}
+  }
+  return CONFIG.NOTION_TOKEN;
 }
 
 // Mapa "dar baixa": TIPO da atividade -> coluna da OBRA (VENDAS) que é escrita.
@@ -180,6 +220,14 @@ var ACOES_LIGACOES = [
    ATENÇÃO: essa opção precisa ser criada na coluna ACESSOS do Notion — ver o
    bloco "PÓS OBRA: TELA DO SITE E CHAMADOS" mais abaixo. */
 var ACOES_POS_OBRA = [
+  /* r22: posObraBoot devolve lista + calendário + schema numa execução só.
+     A tela abria com CINCO chamadas simultâneas (posObras, posObraAgenda,
+     posObraSchema, me, ping) e o Apps Script atende as requisições de todos
+     os usuários como se fossem do mesmo dono — ou seja, enfileiradas. As do
+     fim da fila estouravam o tempo, e era por isso que a lista aparecia
+     vazia ("0 obras") enquanto o calendário, que tinha chegado antes,
+     mostrava dados. As três ações antigas continuam existindo. */
+  "posObraBoot",
   "posObras", "posObra", "posObraSchema", "posObraAgenda",
   "posObraServicoNovo", "posObraAtvUpdate", "posObraUpdate", "posObraAnexar",
   "posObraRetornoExcluir",
@@ -187,7 +235,11 @@ var ACOES_POS_OBRA = [
   "agendaLink",
   // confere login+senha de um ADM antes de tentar marcar sábado (ver
   // checarDataAgendamento_) — não grava nada, só valida
-  "posObraValidarAdm"
+  "posObraValidarAdm",
+  /* r24: CLIENTES e TELEFONE de todas as obras, num mapa por id. É o que a
+     tela busca depois de pintar a lista com o dist/pos_obra.json — ver
+     posObraSensiveis_. Leitura pura, então NÃO entra em ACOES_ESCRITA. */
+  "posObraSensiveis"
 ];
 
 /* Ações que GRAVAM (Notion, schema ou arquivo). O perfil TESTES é barrado em
@@ -229,7 +281,16 @@ function handle_(e) {
     if (action === "agendaDia") return out_(agendaDia_(p));
 
     var sess = verificar_(p.token);
-    if (!sess) return out_({ ok: false, erro: "NAO_AUTORIZADO" });
+    if (!sess) {
+      /* r22: sem SESSION_SECRET, NENHUM token do mundo confere. Devolver
+         NAO_AUTORIZADO aqui faria a tela deslogar uma pessoa que está
+         perfeitamente logada — o erro é do servidor, não da sessão dela. */
+      if (!segredo_()) {
+        console.error("SESSION_SECRET indisponível nesta execução — respondendo BACKEND_SEM_CONFIG");
+        return out_({ ok: false, erro: "BACKEND_SEM_CONFIG" });
+      }
+      return out_({ ok: false, erro: "NAO_AUTORIZADO" });
+    }
 
     // AUTORIZAÇÃO: token válido não basta — a pessoa precisa ter o acesso.
     if (ACOES_VENDAS.indexOf(action) >= 0 && !temAcesso_(sess, "VENDAS")) {
@@ -294,6 +355,7 @@ function handle_(e) {
       case "ligBaixa":          return out_(ligBaixa_(sess, p));
       case "ligVendaUpdate":    return out_(ligVendaUpdate_(sess, p));
       // PÓS OBRA (pos-obra.html)
+      case "posObraBoot":       return out_(posObraBoot_(sess, p));
       case "posObras":          return out_(posObras_(sess, p));
       case "posObra":           return out_(posObra_(sess, p));
       case "posObraSchema":     return out_(posObraSchemaAcao_(sess));
@@ -304,6 +366,7 @@ function handle_(e) {
       case "agendaLink":        return out_(agendaLink_(sess, p));
       case "posObraRetornoExcluir": return out_(posObraRetornoExcluir_(sess, p));
       case "posObraValidarAdm": return out_(posObraValidarAdm_(sess, p));
+      case "posObraSensiveis":  return out_(posObraSensiveis_(sess, p));
       case "posObraAnexar":     return out_(posObraAnexar_(sess, p));
       // ANÁLISES — Orçado x Realizado (analise.html) — só leitura do Supabase
       case "analiseResumo":       return out_(analiseResumo_(sess, p));
@@ -345,7 +408,7 @@ function assinar_(payloadObj) {
   var payload = Utilities.base64EncodeWebSafe(
     Utilities.newBlob(JSON.stringify(payloadObj)).getBytes());   // UTF-8 (corrige acentos)
   var sig = Utilities.base64EncodeWebSafe(
-    Utilities.computeHmacSha256Signature(payload, CONFIG.SESSION_SECRET));
+    Utilities.computeHmacSha256Signature(payload, segredo_()));
   return payload + "." + sig;
 }
 function verificar_(token) {
@@ -353,7 +416,7 @@ function verificar_(token) {
     var parts = String(token || "").split(".");
     if (parts.length !== 2) return null;
     var esperado = Utilities.base64EncodeWebSafe(
-      Utilities.computeHmacSha256Signature(parts[0], CONFIG.SESSION_SECRET));
+      Utilities.computeHmacSha256Signature(parts[0], segredo_()));
     if (esperado !== parts[1]) return null;
     var payload = JSON.parse(
       Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[0])).getDataAsString("UTF-8"));
@@ -438,7 +501,7 @@ function login_(p) {
       var token = assinar_({ u: login, p: sessao.pessoa, n: sessao.nome, t: tipo, a: acessos, exp: exp });
       // já deixa o cache de acessos "quente" com o valor recém-lido — evita
       // uma consulta redundante ao Notion logo no primeiro clique pós-login
-      try { _cache_().put("acessos_" + login.toLowerCase(), JSON.stringify({ tipo: tipo, acessos: acessos }), CONFIG.ACESSO_CACHE_SEGUNDOS); } catch (e) {}
+      cachePut_("acessos_" + login.toLowerCase(), { t: Date.now(), v: { tipo: tipo, acessos: acessos } }, CACHE_LONGO);
       return { ok: true, token: token, sessao: sessao };
     }
   }
@@ -466,14 +529,160 @@ function gerarHashSenha() { Logger.log(hashSenha_("TROQUE_PELA_SENHA_AQUI")); }
 function _cache_() { return CacheService.getScriptCache(); }
 function tentativas_(login) { return Number(_cache_().get("fail_" + login) || 0); }
 function registrarFalha_(login) { var n = tentativas_(login) + 1; _cache_().put("fail_" + login, String(n), CONFIG.LOCK_SEGUNDOS); return n; }
-function limparFalhas_(login) { _cache_().remove("fail_" + login); }
+function limparFalhas_(login) { cacheRemover_("fail_" + login); }
+
+/* ===================== CACHE EM PEDAÇOS (r22) =====================
+ * O CacheService do Apps Script aceita no máximo 100 KB por chave. A lista
+ * do pós obra, o calendário, os dados protegidos das ligações e as análises
+ * passam disso com folga. Como o comCache_ antigo fazia
+ *      try { c.put(...) } catch (e) {}
+ * a exceção sumia sem deixar rastro e o valor simplesmente NUNCA era
+ * guardado: cada requisição refazia a varredura inteira do Notion. Era essa
+ * a causa das execuções de 5-6 s empilhadas uma sobre a outra.
+ *
+ * Agora o JSON é fatiado em pedaços de 90 KB gravados de uma vez (putAll) e
+ * remontado na leitura. Uma chave auxiliar "::n" guarda quantos pedaços são.
+ * Se ainda assim não couber, isso vai pro LOG — em vez de virar um problema
+ * invisível de novo.
+ * =================================================================== */
+var CACHE_PEDACO = 90000;      // folga sobre o teto de 100 KB por chave
+var CACHE_MAX_PEDACOS = 40;    // ~3,6 MB; acima disso não vale a pena cachear
+
+function cachePut_(chave, obj, segundos) {
+  var texto;
+  try { texto = JSON.stringify(obj); } catch (e) { return false; }
+  try {
+    var c = _cache_();
+    if (texto.length <= CACHE_PEDACO) {
+      c.put(chave, texto, segundos);
+      c.remove(chave + "::n");   // sobra de uma gravação anterior em pedaços
+      return true;
+    }
+    var n = Math.ceil(texto.length / CACHE_PEDACO);
+    if (n > CACHE_MAX_PEDACOS) {
+      console.log("CACHE: \"" + chave + "\" grande demais (" + texto.length +
+                  " bytes) — não foi guardado. A ação vai reler o Notion toda vez.");
+      return false;
+    }
+    var mapa = {};
+    for (var i = 0; i < n; i++) mapa[chave + "::" + i] = texto.substr(i * CACHE_PEDACO, CACHE_PEDACO);
+    mapa[chave + "::n"] = String(n);
+    c.putAll(mapa, segundos);
+    c.remove(chave);             // sobra de uma gravação anterior inteira
+    return true;
+  } catch (e) {
+    console.log("CACHE: falha ao guardar \"" + chave + "\": " + e);
+    return false;
+  }
+}
+function cacheGet_(chave) {
+  try {
+    var c = _cache_();
+    var inteiro = c.get(chave);
+    if (inteiro) return JSON.parse(inteiro);
+    var n = Number(c.get(chave + "::n") || 0);
+    if (!n) return null;
+    var chaves = [];
+    for (var i = 0; i < n; i++) chaves.push(chave + "::" + i);
+    var partes = c.getAll(chaves), texto = "";
+    for (var j = 0; j < n; j++) {
+      var pedaco = partes[chave + "::" + j];
+      // um pedaço expirou antes dos outros: o conjunto não serve mais
+      if (pedaco === undefined || pedaco === null) return null;
+      texto += pedaco;
+    }
+    return JSON.parse(texto);
+  } catch (e) { return null; }
+}
+function cacheRemover_(chave) {
+  if (!chave) return;
+  try {
+    var c = _cache_();
+    var n = Number(c.get(chave + "::n") || 0);
+    c.remove(chave);
+    if (n) {
+      var ks = [chave + "::n"];
+      for (var i = 0; i < n; i++) ks.push(chave + "::" + i);
+      c.removeAll(ks);
+    }
+  } catch (e) {}
+}
+
+/* ===================== CACHE QUE NÃO FAZ NINGUÉM ESPERAR (r23) ============
+ * O valor guardado é um ENVELOPE: { t: quando foi calculado, v: o valor }.
+ * Guardar a hora junto é o que permite separar duas coisas que antes eram a
+ * mesma: "quanto tempo o dado continua CONSIDERADO fresco" (o parâmetro
+ * `segundos`) e "quanto tempo a cópia continua EXISTINDO" (CACHE_LONGO, 6 h).
+ *
+ * Com isso o comportamento vira:
+ *   - dentro do prazo  -> devolve na hora;
+ *   - fora do prazo    -> devolve a cópia velha NA MESMA HORA, e a primeira
+ *                         execução que chegar refaz a conta para as próximas.
+ *                         As demais nem tentam (a reserva abaixo cuida disso);
+ *   - sem cópia alguma -> aí não tem jeito, calcula. Só nesse caso entra a
+ *                         trava, para três pessoas abrindo a tela ao mesmo
+ *                         tempo não dispararem três varreduras iguais.
+ *
+ * "Alguns minutos atrasado" é aceitável em todas as telas que usam isto:
+ * lista de obras, calendário e orçado x realizado. O que não era aceitável
+ * era a tela em branco por 20 segundos.
+ * =================================================================== */
+var CACHE_LONGO = 6 * 3600;   // a cópia velha sobrevive 6 h e sempre serve
+
+/* Só a primeira execução ganha a reserva; as outras seguem com a cópia velha.
+   A marca vale 5 min — se a reconstrução morrer no meio, outra tenta depois. */
+function cacheReservarReconstrucao_(chave) {
+  try {
+    var c = _cache_(), k = chave + "::rb";
+    if (c.get(k)) return false;
+    c.put(k, "1", 300);
+    return true;
+  } catch (e) { return false; }
+}
+function cacheLiberarReconstrucao_(chave) {
+  try { _cache_().remove(chave + "::rb"); } catch (e) {}
+}
+
+/* Grava sem ler — usado pelo aquecimento, que sempre quer refazer. */
+function refazerCache_(chave, fn) {
+  var val = fn();
+  cachePut_(chave, { t: Date.now(), v: val }, CACHE_LONGO);
+  return val;
+}
 
 function comCache_(chave, segundos, fn) {
-  var c = _cache_(), hit = c.get(chave);
-  if (hit) { try { return JSON.parse(hit); } catch (e) {} }
-  var val = fn();
-  try { c.put(chave, JSON.stringify(val), segundos); } catch (e) {}
-  return val;
+  var env = cacheGet_(chave);
+
+  // envelope válido: ou está fresco, ou serve velho enquanto alguém refaz
+  if (env && env.t) {
+    if ((Date.now() - env.t) < segundos * 1000) return env.v;
+
+    if (cacheReservarReconstrucao_(chave)) {
+      try { return refazerCache_(chave, fn); }
+      catch (e) {
+        // Notion/Supabase fora do ar: a cópia velha é melhor que um erro
+        console.log("CACHE: não consegui refazer \"" + chave + "\": " + e);
+        return env.v;
+      }
+      finally { cacheLiberarReconstrucao_(chave); }
+    }
+    return env.v;   // outra execução já está refazendo
+  }
+
+  /* CASO FRIO — nada guardado. É o único ponto em que alguém espera, e é
+     onde a trava faz sentido: sem ela, todo mundo que abrisse a tela junto
+     varreria o Notion em paralelo. */
+  var lock = null, travou = false;
+  try { lock = LockService.getScriptLock(); travou = lock.tryLock(30000); } catch (e) {}
+  try {
+    if (travou) {
+      env = cacheGet_(chave);                       // outra pode ter terminado
+      if (env && env.t) return env.v;
+    }
+    return refazerCache_(chave, fn);
+  } finally {
+    if (travou) { try { lock.releaseLock(); } catch (e) {} }
+  }
 }
 
 /* ===================== PORTAL (KPIs calculados no servidor) =====================
@@ -1004,7 +1213,7 @@ function posObraSincronizar_(propsVenda) {
   var r = posObraAplicar_(alvo, indice);
   // criou linha nova: o índice em cache ficou desatualizado para as próximas
   // chamadas (o objeto acima é uma cópia, mexer nele não volta pro cache)
-  if (r === "criada") { try { _cache_().remove("pos_obra_indice"); } catch (e) {} }
+  if (r === "criada") { try { cacheRemover_("pos_obra_indice"); } catch (e) {} }
   return r;
 }
 
@@ -1056,7 +1265,7 @@ function posObraSincronizarTudo_(opcoes) {
   var terminou = i >= vendas.length;
   if (terminou) { try { PROPS_.deleteProperty(POS_OBRA_PROGRESSO); } catch (e) {} }
   else { PROPS_.setProperty(POS_OBRA_PROGRESSO, String(i)); }
-  try { _cache_().remove("pos_obra_indice"); } catch (e) {}
+  try { cacheRemover_("pos_obra_indice"); } catch (e) {}
 
   return {
     ok: true, terminou: terminou,
@@ -1228,7 +1437,7 @@ function preencherAgioAntigas() {
 
   PROPS_.deleteProperty(BACKFILL_AGIO_PROGRESSO);
   posObraLimparCaches_();
-  try { _cache_().remove("pos_obra_indice"); } catch (e) {}
+  try { cacheRemover_("pos_obra_indice"); } catch (e) {}
   Logger.log("CONCLUÍDO.\nVendas percorridas: " + vendas.length +
              "\nLinhas do PÓS OBRA preenchidas com ÁGIO: " + gravadas +
              "\nJá estavam certas ou sem nada a fazer: " + puladas +
@@ -1311,14 +1520,12 @@ function posObraOpcaoReal_(campo, valor) {
 }
 
 function posObraLimparCaches_() {
-  try {
-    var c = _cache_();
-    c.remove("pos_obra_lista_v3"); c.remove("pos_obra_lista_v2");
-    c.remove("pos_obra_atv_por_obra_v3");
-    c.remove("pos_obra_atv_por_obra");   // chave antiga
-    c.remove("pos_obra_agenda_v3"); c.remove("pos_obra_agenda_v2");
-    c.remove("pos_obra_lista"); c.remove("pos_obra_agenda");   // chaves antigas
-  } catch (e) {}
+  [ CH_POS_SENS,                  // r24: cliente/telefone (muda junto com a base)
+    "pos_obra_dados_v1",          // r22: a leitura única da base de chamados
+    "pos_obra_lista_v4", "pos_obra_lista_v3", "pos_obra_lista_v2", "pos_obra_lista",
+    "pos_obra_atv_por_obra_v3", "pos_obra_atv_por_obra",
+    "pos_obra_agenda_v3", "pos_obra_agenda_v2", "pos_obra_agenda"
+  ].forEach(function (k) { cacheRemover_(k); });
 }
 
 /* Quantos chamados cada obra tem, e quantos ainda estão abertos. Uma consulta
@@ -1373,12 +1580,37 @@ function posObraFaltando_(props) {
   return faltas;
 }
 
-function posObraAtvPorObra_() {
-  /* chave "_v3": passou a devolver "incompletos" — o cache antigo não tem
-     esse campo e deixaria a tela sem os avisos até expirar sozinho. */
-  return comCache_("pos_obra_atv_por_obra_v3", 120, function () {
+/* ===================== UMA LEITURA SÓ DA BASE DE CHAMADOS (r22) ===========
+ * ANTES: posObras_ chamava posObraAtvPorObra_, que varria a ATIVIDADES PÓS
+ * OBRA inteira; e posObraAgenda_ varria a MESMA base outra vez, do zero, na
+ * mesma abertura de tela. Duas paginações completas do Notion para desenhar
+ * uma página. Com o cache que nunca gravava (ver bloco do cachePut_), isso
+ * acontecia em TODA requisição de TODA pessoa.
+ *
+ * AGORA: uma leitura, dois resultados, um cache só. Note que o que é
+ * guardado aqui é o RESUMO (contagens e marcações), nunca as páginas cruas
+ * do Notion — essas são grandes demais e não caberiam nem em pedaços.
+ * =================================================================== */
+var CH_POS_DADOS = "pos_obra_dados_v1";
+var CH_POS_LISTA = "pos_obra_lista_v4";
+/* 15 min de "fresco" de propósito: é mais que os 10 min do aquecimento
+   automático (ver aquecerCaches), então na prática ninguém pega o cache
+   vencido durante o expediente. */
+var POS_FRESCO_SEG = 900;
+
+function posObraDados_() { return comCache_(CH_POS_DADOS, POS_FRESCO_SEG, posObraDadosCalc_); }
+function posObraDadosCalc_() {
+  var atvs = queryAll_(CONFIG.DB.ATIVIDADES_POS_OBRA, {});
+  return {
+    porObra: posObraContarCalc_(atvs),
+    marcacoes: posObraMarcacoesCalc_(atvs)
+  };
+}
+
+function posObraContarCalc_(atvs) {
+  return (function () {
     var mapa = {}, finalizado = normDist_("SERVIÇO FINALIZADO");
-    queryAll_(CONFIG.DB.ATIVIDADES_POS_OBRA, {}).forEach(function (a) {
+    atvs.forEach(function (a) {
       var rel = (a.properties["PÓS OBRA"] && a.properties["PÓS OBRA"].relation) || [];
       var aberta = normDist_(sel_(getTol_(a.properties, "ANDAMENTO DA SOLICITAÇÃO"))) !== finalizado;
       /* Só chamado ABERTO entra na conta de incompleto. Chamado finalizado
@@ -1394,8 +1626,11 @@ function posObraAtvPorObra_() {
       });
     });
     return mapa;
-  });
+  })();
 }
+/* Compatibilidade: quem já chamava esta função continua funcionando, só que
+   agora sem custo nenhum — o trabalho pesado é feito uma vez em posObraDados_. */
+function posObraAtvPorObra_() { return posObraDados_().porObra; }
 
 /* Schema ao vivo da base PÓS OBRA (a base da OBRA, não a dos chamados).
    Nasceu com o HORÁRIO FLEXÍVEL: a tela precisa saber se a coluna é checkbox
@@ -1447,9 +1682,10 @@ function posObraAgio_(pr) {
 
 /* Aba "Obras": a lista inteira, com o STATUS calculado aqui (não existe essa
    coluna no Notion). A tela filtra e pesquisa em cima disto. */
-function posObras_(sess, p) {
-  return comCache_("pos_obra_lista_v3", 120, function () {
-    var atv = posObraAtvPorObra_();
+function posObras_(sess, p) { return comCache_(CH_POS_LISTA, POS_FRESCO_SEG, posObraListaCalc_); }
+function posObraListaCalc_() {
+  return (function () {
+    var atv = posObraDados_().porObra;
     /* Só entram obras COM cliente preenchido. Obra sem cliente ainda não foi
        vendida/entregue, então não existe pós obra pra ela — e são ~165 linhas
        a menos trafegando em cada carga da tela. */
@@ -1496,7 +1732,70 @@ function posObras_(sess, p) {
       ok: true, total: lista.length, lidoEm: new Date().toISOString(), obras: lista,
       flexCampo: fc ? { nome: fc.nome, tipo: fc.tipo, opcoes: fc.opcoes || null } : null
     };
+  })();
+}
+
+/* ===================== CLIENTE E TELEFONE SOB DEMANDA (r24) ===============
+ * A lista de obras da tela agora vem do dist/pos_obra.json, que o GitHub
+ * Pages serve para QUALQUER UM que saiba a URL, sem login. Por isso o
+ * fetch_pos_obra.py publica tudo MENOS o nome do cliente e o telefone — é a
+ * mesma regra que o fetch_vendas.py já aplica ao vendas.json.
+ *
+ * Estes dois campos vêm por aqui, onde a sessão é conferida: um mapa
+ * id-da-obra -> { c: cliente, t: telefone }, e nada mais. A tela pinta a
+ * lista inteira sem esperar por isto e preenche as duas colunas quando a
+ * resposta chega.
+ *
+ * Por que um mapa de tudo, e não uma consulta por obra: a busca da tela casa
+ * por nome de cliente e por telefone, então ela precisa dos dois campos de
+ * TODAS as obras para filtrar. São ~30 KB — cabe numa chave de cache sem
+ * precisar dos pedaços, e é uma execução só, contra uma por linha aberta.
+ *
+ * Nomes curtos ("c" e "t") de propósito: a resposta é uma lista de centenas
+ * de obras e a tela guarda essa cópia no localStorage do celular, onde a
+ * cota já é apertada.
+ * =================================================================== */
+var CH_POS_SENS = "pos_obra_sens_v1";
+
+function posObraSensiveis_(sess, p) { return comCache_(CH_POS_SENS, POS_FRESCO_SEG, posObraSensiveisCalc_); }
+function posObraSensiveisCalc_() {
+  var mapa = {}, n = 0;
+  queryAll_(CONFIG.DB.POS_OBRA, {}).forEach(function (r) {
+    /* Mesmo filtro da lista (posObraListaCalc_): obra sem cliente não aparece
+       na tela, então mandar a linha dela aqui seria dado pessoal trafegando
+       sem ninguém usar. */
+    var cli = texto_(r.properties["CLIENTES"]);
+    if (!cli) return;
+    var tel = (r.properties["TELEFONE"] && r.properties["TELEFONE"].phone_number) || null;
+    mapa[r.id] = { c: cli, t: tel };
+    n++;
   });
+  return { ok: true, total: n, lidoEm: new Date().toISOString(), valores: mapa };
+}
+
+/* ===================== ABERTURA DA TELA EM UMA CHAMADA (r22) ==============
+ * Junta o que a pos-obra.html precisa para abrir: lista de obras, calendário
+ * e schema dos chamados. Tudo sai dos mesmos caches das ações individuais —
+ * o ganho não é de cálculo, é de EXECUÇÃO: uma em vez de cinco, sem fila,
+ * sem risco de metade da tela chegar e a outra metade estourar o tempo.
+ *
+ * Vai junto a versão publicada (a mesma do "ping") e a sessão (a mesma do
+ * "me"), que eram duas chamadas separadas só para isso.
+ * =================================================================== */
+function posObraBoot_(sess, p) {
+  var obras = posObras_(sess, p);
+  var agenda = posObraAgenda_(sess, p);
+  var schema = posObraSchema_();
+  return {
+    ok: true,
+    versao: VERSAO_GS,
+    sessao: pub_(sess),
+    lidoEm: new Date().toISOString(),
+    obras: obras.obras || [],
+    flexCampo: obras.flexCampo || null,
+    marcacoes: agenda.marcacoes || [],
+    schema: schema
+  };
 }
 
 /* Página de UMA obra: os dados dela + todos os chamados, já resolvidos.
@@ -1567,10 +1866,16 @@ function posObraInfoDaColuna_(pr, col) {
    coluna porque o card do calendário mostra tudo isso e precisa poder ser
    copiado pro WhatsApp sem uma segunda consulta por card. */
 function posObraAgenda_(sess, p) {
-  // chave "_v2": a regra do DATA DO CHAMADO mudou, o cache antigo tem de morrer
-  return comCache_("pos_obra_agenda_v3", 120, function () {
+  /* r22: não varre mais nada por conta própria — aproveita a leitura única
+     de posObraDados_, a mesma que a lista de obras usa. */
+  var m = posObraDados_().marcacoes;
+  return { ok: true, total: m.length, marcacoes: m };
+}
+
+function posObraMarcacoesCalc_(atvs) {
+  return (function () {
     var marcacoes = [];
-    queryAll_(CONFIG.DB.ATIVIDADES_POS_OBRA, {}).forEach(function (a) {
+    atvs.forEach(function (a) {
       var pr = a.properties;
       var rel = (pr["PÓS OBRA"] && pr["PÓS OBRA"].relation) || [];
       var msProp = getTol_(pr, "SERVIÇO");
@@ -1608,8 +1913,8 @@ function posObraAgenda_(sess, p) {
       }
     });
     marcacoes.sort(function (x, y) { return x.data < y.data ? -1 : (x.data > y.data ? 1 : 0); });
-    return { ok: true, total: marcacoes.length, marcacoes: marcacoes };
-  });
+    return marcacoes;
+  })();
 }
 
 /* Botão "SERVIÇO DE PÓS OBRA": cria o chamado vinculado à obra.
@@ -1936,7 +2241,7 @@ function posObraEspelharEmVendas_(pageId, coluna, valor) {
   if (!vv) return null;
   props[col] = vv;
   notion_("PATCH", "/pages/" + achada.id, { properties: props });
-  try { _cache_().remove("pos_obra_indice"); } catch (e) {}
+  try { cacheRemover_("pos_obra_indice"); } catch (e) {}
   return achada.id;
 }
 
@@ -1989,6 +2294,16 @@ function usuarios_(sess) {
       return { ok: false, erro: "SEM_LEITURA_DE_USUARIOS", detalhe: String(e).slice(0, 180) };
     }
   });
+}
+
+/* A lista de pessoas fica 1 h no CacheService — e isso NÃO se limpa sozinho
+   ao publicar "Nova versão": o cache é do serviço, não do código. Se você
+   liberou alguém no Notion e o <select> continua sem a pessoa, rode esta
+   função UMA vez pelo menu Executar e recarregue a tela. */
+function limparCacheUsuarios() {
+  cacheRemover_("notion_usuarios");
+  cacheRemover_("lig_responsaveis");
+  Logger.log("Cache de usuários limpo. Recarregue a tela do site.");
 }
 
 /* ===================== TÍTULO DE PÁGINAS LIGADAS (relation) =====================
@@ -2297,7 +2612,7 @@ function novaOpcao_(sess, p) {
 /* Sem isto a opção nova só apareceria para os outros usuários depois dos
    30 min de cache do schema. */
 function opcLimparCacheSchema_(base) {
-  try { _cache_().remove((OPCAO_BASES[base] || {}).cache || ""); } catch (e) {}
+  try { cacheRemover_((OPCAO_BASES[base] || {}).cache || ""); } catch (e) {}
   if (base === "POS_OBRA") { try { posObraLimparCaches_(); } catch (e) {} }
 }
 
@@ -2519,7 +2834,7 @@ function preencherCidadeSetorAntigas() {
 
   PROPS_.deleteProperty(BACKFILL_CS_PROGRESSO);
   posObraLimparCaches_();
-  try { _cache_().remove("pos_obra_indice"); } catch (e) {}
+  try { cacheRemover_("pos_obra_indice"); } catch (e) {}
   Logger.log("CONCLUÍDO.\nVendas percorridas: " + vendas.length +
              "\nLinhas do PÓS OBRA preenchidas: " + gravadas +
              "\nJá tinham CIDADE/SETOR (ou VENDAS estava vazia): " + puladas +
@@ -2798,7 +3113,7 @@ function distrato_(sess, p) {
 
   // 7) os KPIs em cache ficariam velhos por até 10 min contando uma venda
   //    que não existe mais
-  try { _cache_().remove("kpi_portal"); } catch (e) {}
+  try { cacheRemover_("kpi_portal"); } catch (e) {}
 
   return {
     ok: true,
@@ -3181,9 +3496,9 @@ function ligCriar_(sess, p) {
   // os índices guardam a base antiga; sem limpar, a linha nova só apareceria
   // depois dos 5 min de cache — e a checagem de duplicata acima erraria
   try {
-    _cache_().remove("lig_indice_obra");
-    _cache_().remove("ligacoes_vivo");
-    _cache_().remove("lig_sens");
+    cacheRemover_("lig_indice_obra");
+    cacheRemover_("ligacoes_vivo");
+    cacheRemover_("lig_sens");
   } catch (e) {}
   console.log("LIGAÇÕES: " + sess.u + " CRIOU linha " + obra + " (" + concReal + ") -> " + pg.id);
   return { ok: true, id: pg.id, obra: obra, conc: concReal };
@@ -3199,9 +3514,9 @@ function ligExcluir_(sess, p) {
   notion_("PATCH", "/pages/" + p.pageId, { in_trash: true, archived: true });
   console.log("LIGAÇÕES: " + sess.u + " ARQUIVOU " + p.pageId + " (" + titulo + ")");
   try {
-    _cache_().remove("lig_indice_obra");
-    _cache_().remove("ligacoes_vivo");
-    _cache_().remove("lig_sens");
+    cacheRemover_("lig_indice_obra");
+    cacheRemover_("ligacoes_vivo");
+    cacheRemover_("lig_sens");
   } catch (e) {}
   return { ok: true, obra: titulo };
 }
@@ -3387,7 +3702,7 @@ function ligBaixa_(sess, p) {
   notion_("PATCH", "/pages/" + rel[0].id, { properties: props });
   // a lista fica 2 min em cache; sem limpar, a atividade baixada voltaria a
   // aparecer pra quem abrisse a aba logo depois
-  try { _cache_().remove("lig_atividades"); } catch (e) {}
+  try { cacheRemover_("lig_atividades"); } catch (e) {}
   console.log("LIGAÇÕES: " + sess.u + " deu baixa em " + p.atividadeId + " -> " + coluna);
   return { ok: true, coluna: coluna };
 }
@@ -3503,7 +3818,7 @@ function ligBaixaTransferencia_(sess, pageIdVenda, prop) {
   });
   // o índice guarda o status antigo; sem limpar, uma segunda baixa na mesma
   // obra acharia "NÃO LIGADO" de novo e reescreveria à toa
-  if (mudadas) { try { _cache_().remove("lig_indice_obra"); } catch (e) {} }
+  if (mudadas) { try { cacheRemover_("lig_indice_obra"); } catch (e) {} }
   return { ok: true, obra: titulo, ligacoes: alvos.length, mudadas: mudadas };
 }
 
@@ -3577,7 +3892,7 @@ function ligLiberarEsgoto_(sess, pageIdAgua) {
     mudadas++;
     console.log("ESGOTO liberado por " + sess.u + ": " + titulo + " (data " + dataLig + ")");
   });
-  if (mudadas) { try { _cache_().remove("lig_indice_obra"); _cache_().remove("ligacoes_vivo"); } catch (e) {} }
+  if (mudadas) { try { cacheRemover_("lig_indice_obra"); cacheRemover_("ligacoes_vivo"); } catch (e) {} }
   return { ok: true, obra: titulo, linhas: esgoto.length, mudadas: mudadas, data: dataLig };
 }
 
@@ -3616,7 +3931,7 @@ function ligVendaUpdate_(sess, p) {
 
 /* ===================== NOTION: fetch + helpers ===================== */
 function notion_(method, path, body) {
-  if (!CONFIG.NOTION_TOKEN) {
+  if (!tokenNotion_()) {
     throw "NOTION_TOKEN_NAO_CONFIGURADO: adicione a propriedade NOTION_TOKEN em " +
       "Extensões > Apps Script > Configurações do projeto > Propriedades do script.";
   }
@@ -3860,7 +4175,14 @@ function supaGet_(caminho) {
 }
 
 /* KPIs gerais + rankings da aba principal. Uma chamada só, tudo mastigado. */
-function analiseResumo_(sess, p) {
+/* r22 — as três leituras abaixo passaram a ter cache de 10 min.
+   Elas só LEEM o Supabase, e o Supabase só muda quando o pipeline do
+   OR-ADO-REALIZADO publica uma extração nova (uma vez por dia). Reconsultar
+   a cada abertura de aba era gasto puro: são as consultas mais pesadas do
+   sistema e disputavam execução com o resto do portal. */
+var ANALISE_FRESCO_SEG = 1800;   // o Supabase só muda quando o pipeline roda
+function analiseResumo_(sess, p) { return comCache_("analise_resumo_v1", ANALISE_FRESCO_SEG, analiseResumoCalc_); }
+function analiseResumoCalc_() {
   var obras   = supaGet_("vw_resumo_obra_atual?select=*");
   var insumos = supaGet_("vw_insumo_consolidado?select=*");
 
@@ -3925,20 +4247,72 @@ function analiseResumo_(sess, p) {
 }
 
 /* Uma linha por obra — alimenta o seletor de obras e a tabela "por obra". */
-function analiseObras_(sess, p) {
-  var obras = supaGet_("vw_resumo_obra_atual?select=*&order=obra_nome.asc");
-  return { ok: true, obras: obras };
+function analiseObras_(sess, p) { return comCache_("analise_obras_v1", ANALISE_FRESCO_SEG, analiseObrasCalc_); }
+function analiseObrasCalc_() {
+  return { ok: true, obras: supaGet_("vw_resumo_obra_atual?select=*&order=obra_nome.asc") };
 }
 
 /* Consolidado por insumo (todas as obras) — tabela completa filtrável. */
-function analiseInsumos_(sess, p) {
-  var insumos = supaGet_("vw_insumo_consolidado?select=*");
+function analiseInsumos_(sess, p) { return comCache_("analise_insumos_v1", ANALISE_FRESCO_SEG, analiseInsumosCalc_); }
+function analiseInsumosCalc_() {
+  /* r23: "select=*" trazia custo_unit_medio/min/max, que NENHUMA tela usa.
+     Eram três números por linha viajando do Supabase até o Apps Script, dali
+     até o navegador, e ainda ocupando espaço no cache dos dois lados. Pedir
+     só as colunas usadas encolhe a resposta em quase um terço — e é o
+     tamanho dessa resposta que fazia a aba "Todos os insumos" demorar. */
+  var campos = "insumo,unidade,obras,qtd_orcada,qtd_realizada,total_orcado,total_realizado,diferenca";
+  var insumos = supaGet_("vw_insumo_consolidado?select=" + campos);
   insumos.forEach(function (it) {
     var orc  = Number(it.total_orcado)    || 0;
     var real = Number(it.total_realizado) || 0;
     it.diferenca_pct = orc ? ((real - orc) / orc * 100) : null;
   });
   return { ok: true, insumos: insumos };
+}
+/* ===================== AQUECIMENTO DOS CACHES (r23) =======================
+ * ESTA É A FUNÇÃO QUE VOCÊ PRECISA AGENDAR. Ela refaz, em segundo plano, tudo
+ * o que as telas leem — de 10 em 10 minutos, sem ninguém esperando.
+ *
+ * O raciocínio: o cache do r22 já evitava o trabalho repetido, mas alguém
+ * tinha de pagar a primeira conta depois de cada vencimento, e essa pessoa
+ * via a tela parada. Aqui quem paga é um acionador, às 3h ou às 15h, tanto
+ * faz — quando a pessoa abre a tela, o dado já está pronto.
+ *
+ * COMO AGENDAR (uma vez só):
+ *   ícone do relógio (Acionadores) > "+ Adicionar acionador" >
+ *   função "aquecerCaches" > origem "Baseado no tempo" >
+ *   "Contador de minutos" > "A cada 10 minutos" > Salvar.
+ *
+ * Ela nunca APAGA o cache antes de refazer: sobrescreve no fim. Assim, mesmo
+ * durante a execução dela, quem abrir a tela continua recebendo a cópia
+ * anterior na hora, em vez de cair no caso frio.
+ * =================================================================== */
+function aquecerCaches() {
+  var alvos = [
+    ["pós obra · chamados", CH_POS_DADOS,        posObraDadosCalc_],
+    ["pós obra · lista",    CH_POS_LISTA,        posObraListaCalc_],
+    ["pós obra · cliente/tel", CH_POS_SENS,      posObraSensiveisCalc_],
+    ["análises · resumo",   "analise_resumo_v1", analiseResumoCalc_],
+    ["análises · obras",    "analise_obras_v1",  analiseObrasCalc_],
+    ["análises · insumos",  "analise_insumos_v1", analiseInsumosCalc_]
+  ];
+  var t0 = Date.now(), linhas = [];
+  alvos.forEach(function (a) {
+    var t = Date.now();
+    try { refazerCache_(a[1], a[2]); linhas.push("OK   " + a[0] + " (" + Math.round((Date.now()-t)/1000) + "s)"); }
+    catch (e) { linhas.push("FALHOU " + a[0] + ": " + String(e).slice(0, 160)); }
+  });
+  Logger.log("AQUECIMENTO em " + Math.round((Date.now()-t0)/1000) + "s\n" + linhas.join("\n"));
+}
+
+/* Só se quiser conferir na mão o que o acionador faz sozinho. */
+function testeAquecerAgora() { aquecerCaches(); }
+
+/* Rode pelo menu Executar se acabou de rodar o pipeline e quiser ver os
+   números novos antes de vencer o prazo do cache. */
+function limparCacheAnalises() {
+  ["analise_resumo_v1", "analise_obras_v1", "analise_insumos_v1"].forEach(cacheRemover_);
+  Logger.log("Cache das análises limpo. Recarregue a tela.");
 }
 
 /* Insumos de UMA obra ou de um GRUPO de obras (seleção livre no front).
@@ -3969,9 +4343,19 @@ function analiseInsumoObras_(sess, p) {
        2) ilike    -> igual ignorando maiúscula/minúscula
        3) ilike *..* -> contém (pega espaço sobrando e sufixo)
      "estrategia" volta na resposta pra dar pra diagnosticar sem adivinhar. */
+  /* r22 — POR QUE O MODAL DIZIA "Nenhuma obra encontrada" NUM INSUMO QUE
+     EXISTE: este catch devolvia [] para QUALQUER falha. Erro de HTTP do
+     Supabase, tempo esgotado, filtro mal formado — tudo virava exatamente a
+     mesma resposta de "não achei nada", e não havia como saber a diferença.
+     Agora a falha é guardada e volta na resposta como "detalhe" (a tela já
+     sabe mostrar esse campo). */
+  var ultimoErro = null;
   function buscar_(filtro) {
-    try { return supaGet_("vw_insumos_atual?select=" + campos + "&" + filtro + "&order=obra_nome.asc"); }
-    catch (e) { return []; }
+    try {
+      ultimoErro = null;
+      return supaGet_("vw_insumos_atual?select=" + campos + "&" + filtro + "&order=obra_nome.asc");
+    }
+    catch (e) { ultimoErro = String(e).slice(0, 200); return []; }
   }
   // PostgREST: aspas duplas delimitam o valor; barra invertida escapa aspas
   // de dentro do nome. "*" é o coringa do ilike (não é "%" na querystring).
@@ -3983,6 +4367,13 @@ function analiseInsumoObras_(sess, p) {
   if (!linhas.length) { linhas = buscar_("insumo=ilike." + q);     estrategia = "sem-caixa"; }
   if (!linhas.length) { linhas = buscar_("insumo=ilike." + qLike); estrategia = "contem"; }
   if (!linhas.length) estrategia = "nao-encontrado";
+
+  /* Falhou de verdade (e não "não existe"): devolve erro, para a tela parar
+     de dizer que o insumo não é usado em obra nenhuma quando na verdade a
+     consulta nem chegou a rodar. */
+  if (!linhas.length && ultimoErro) {
+    return { ok: false, erro: "CONSULTA_FALHOU", detalhe: ultimoErro, insumo: insumo };
+  }
 
   return { ok: true, insumo: insumo, estrategia: estrategia,
            total: linhas.length, obras: linhas };

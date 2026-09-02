@@ -913,7 +913,7 @@ const GARANTIAS = [
 const S = exigirSessao();
 atualizarStatus(); atualizarBadge();
 
-const GS_ESPERADO = "2026-09-02 r23";
+const GS_ESPERADO = "2026-09-02 r24";
 
 const ANDAMENTOS = ["MARCANDO SERVIÇO","SERVIÇO MARCADO","REMARCADO 1","REMARCADO 2",
                     "REMARCADO 3","REMARCADO 4","REMARCADO 5","SERVIÇO FINALIZADO"];
@@ -987,6 +987,9 @@ function campoComHora(nome){
 }
 
 let OBRAS = [], AGENDA = [], SCHEMA = null;
+/* AGENDA_SRV = só o que veio publicado; AGENDA = isso + os serviços que
+   ainda só existem no navegador de quem criou (ver remontarAgenda). */
+let AGENDA_SRV = [];
 let OBRA = null, CHAMADO = null, CARD = null;
 let CAL_REF = new Date(), CAL_MODO = "mes", CAL_RESP = "";
 /* Pedido 3: filtro "só clientes com horário flexível" na visão Em aberto. */
@@ -1117,6 +1120,18 @@ function catGarantia(grupo){
  * até vencer o prazo de segurança). Mesma ideia das "edições locais" do
  * app.js, aplicada a criação em vez de edição.
  * =================================================================== */
+/* r24: a ponte passou a guardar também O QUE FOI PREENCHIDO no serviço novo.
+   Antes ela só registrava "existe um serviço novo aqui" e, no primeiro campo
+   salvo, jogava o registro fora (esquecerNovo) — na conta de que o servidor
+   já traria o chamado na leitura seguinte. Isso valia quando a leitura era ao
+   vivo; agora a lista vem do dist/, que só é regerado no próximo build. Sem
+   guardar os valores, quem criasse um serviço, marcasse a data e recarregasse
+   a página ficaria até 15 min sem ver nada — exatamente o que não pode
+   acontecer.
+   Agora o registro só é apagado quando o arquivo publicado JÁ traz aquele
+   chamado (a lista "chamados" do dist/pos_obra.json), ou no prazo de
+   segurança. Enquanto isso, ele é desenhado na lista, no kanban, no
+   calendário e nos alertas a partir da cópia do navegador. */
 const NOVOS_KEY = "morais_pos_novos_v1";
 const NOVOS_TTL = 3*24*3600*1000;   // 3 dias: teto de segurança
 
@@ -1126,16 +1141,27 @@ function novos(){
 function novosGravar(o){ try{ localStorage.setItem(NOVOS_KEY, JSON.stringify(o)); }catch(e){} }
 function registrarNovo(atv){
   const o = novos();
-  o[atv.id] = { id:atv.id, obraId:atv.obraId, nome:atv.nome, ts:Date.now() };
+  o[atv.id] = { id:atv.id, obraId:atv.obraId, nome:atv.nome, ts:Date.now(), v:{} };
   novosGravar(o);
+}
+/* Um campo foi gravado com sucesso num serviço que ainda está na ponte:
+   guarda o valor pra tela continuar mostrando depois de um F5. Devolve true
+   quando o registro existia (ou seja, quando vale repintar). */
+function atualizarNovo(id, prop, valor){
+  const o = novos();
+  if(!o[id]) return false;
+  o[id].v = o[id].v || {};
+  o[id].v[prop] = valor;
+  novosGravar(o);
+  return true;
 }
 function esquecerNovo(id){ const o = novos(); if(o[id]){ delete o[id]; novosGravar(o); } }
 /* Faxina: some com o que o servidor já traz e com o que passou do prazo. */
 function limparNovos(idsDoServidor){
   const o = novos(); let mudou = false;
-  const vistos = {}; (idsDoServidor||[]).forEach(i=>vistos[i]=true);
+  const vistos = {}; (idsDoServidor||[]).forEach(i=>{ vistos[i]=true; vistos[semHifen(i)]=true; });
   for(const k in o){
-    if(vistos[k] || Date.now()-o[k].ts > NOVOS_TTL){ delete o[k]; mudou = true; }
+    if(vistos[k] || vistos[semHifen(k)] || Date.now()-o[k].ts > NOVOS_TTL){ delete o[k]; mudou = true; }
   }
   if(mudou) novosGravar(o);
   return o;
@@ -1145,11 +1171,48 @@ function novosDaObra(obraId){
   for(const k in o) if(semHifen(o[k].obraId) === semHifen(obraId)) l.push(o[k]);
   return l;
 }
-/* Um serviço pendente vira uma atividade "de mentira" com os campos vazios —
-   o suficiente pra aparecer no kanban e abrir o painel. */
+/* Um serviço pendente vira uma atividade "de mentira" — agora com os valores
+   que a pessoa já preencheu, e não mais em branco. É o que faz o kanban e o
+   painel mostrarem o serviço do jeito que ela deixou. */
 function atividadeDoNovo(n){
-  return { id:n.id, nome:n.nome, andamento:null, pendente:true,
-           valores:{ "Nome":n.nome, "ANDAMENTO DA SOLICITAÇÃO":null } };
+  const v = Object.assign({ "Nome":n.nome, "ANDAMENTO DA SOLICITAÇÃO":null }, n.v || {});
+  return { id:n.id, nome:n.nome, andamento:v["ANDAMENTO DA SOLICITAÇÃO"] || null,
+           pendente:true, faltando:[], valores:v };
+}
+/* Marcações de calendário dos serviços que ainda só existem no navegador.
+   Uma por coluna de data preenchida, com a mesma forma das que vêm do
+   arquivo publicado — assim o calendário, os alertas e o card não precisam
+   saber que estas são locais. DATA DO CHAMADO fica de fora, igual ao resto
+   do sistema: é registro de abertura, não compromisso. */
+function marcacoesDosNovos(){
+  const o = novos(), fora = [];
+  for(const k in o){
+    const n = o[k], v = n.v || {};
+    for(const prop in v){
+      const pn = normN(prop);
+      if(pn.indexOf("DATA") < 0 || pn.indexOf("CHAMADO") >= 0) continue;
+      const d = v[prop];
+      if(!d) continue;
+      fora.push({
+        atividadeId: n.id, obraId: n.obraId, nome: n.nome,
+        andamento: v["ANDAMENTO DA SOLICITAÇÃO"] || null,
+        andamentoEvento: v["ANDAMENTO DA SOLICITAÇÃO"] || null,
+        responsavel: v["RESPONSÁVEL"] || null,
+        servico: v["SERVIÇO"] || [],
+        statusMaterial: v["STATUS MATERIAL"] || null,
+        faltando: [], coluna: prop, data: d,
+        info: v["INFORMAÇÕES SERVIÇO"] || "",
+        pendente: true
+      });
+    }
+  }
+  return fora;
+}
+/* AGENDA = o que veio publicado + o que ainda só existe aqui. Chamada sempre
+   que a cópia local muda, pra tela repintar sem ir ao servidor. */
+function remontarAgenda(){
+  AGENDA = (AGENDA_SRV || []).concat(marcacoesDosNovos());
+  AGENDA.sort((a,b)=> String(a.data) < String(b.data) ? -1 : (String(a.data) > String(b.data) ? 1 : 0));
 }
 
 /* ===================== BOOT =====================
@@ -1166,8 +1229,37 @@ function atividadeDoNovo(n){
  * (RECARGA_MIN) — trocar de tela, abrir e fechar uma obra ou voltar pro hub
  * não gera requisição nenhuma.
  * =================================================================== */
-const CH_BOOT = "pos_obra_boot";
+/* ===================== r24: A ABERTURA NÃO PASSA MAIS PELO APPS SCRIPT ====
+ * O posObraBoot resolveu o empilhamento de 5 chamadas, mas não resolvia o
+ * custo do CANAL, que é o que fazia a tela demorar no celular:
+ *   - cada chamada ao Web App é POST -> 302 -> GET em
+ *     script.googleusercontent.com: 2 RTTs antes de executar qualquer coisa;
+ *   - o Web App é "Executar como: Eu", então o Google enfileira as execuções
+ *     de TODOS os usuários como se fossem de uma pessoa só;
+ *   - o boot inteiro ia para o localStorage e, no celular, estourava a cota
+ *     da origem (o portal já guarda vendas/ligações/documentos ali). Quando
+ *     estoura, o storeGravar só avisa no console — e a tela volta a buscar
+ *     tudo pela rede a cada abertura. Era esse o "demora e não traz nada".
+ *
+ * Agora a abertura lê dist/pos_obra.json, publicado pelo fetch_pos_obra.py no
+ * mesmo build das outras telas. É arquivo pronto, servido pelo CDN do GitHub
+ * Pages: abre igual Vendas e Ligações, e funciona mesmo sem localStorage.
+ *
+ * O Apps Script continua no jogo em dois pontos, os dois de propósito:
+ *   1. posObraSensiveis — CLIENTES e TELEFONE. Não podem ir para um arquivo
+ *      servido sem login (mesma regra do vendas.json). A lista pinta sem eles
+ *      e completa em seguida, com o token do usuário conferido no servidor.
+ *   2. posObraBoot — só DEPOIS DE GRAVAR. O dist/ só é regerado no próximo
+ *      build (até 15 min), e ninguém pode salvar um serviço e ver a contagem
+ *      antiga. Ou seja: o caminho lento virou exceção, não a regra.
+ * =================================================================== */
+const CH_DIST = "pos_obra_dist";   // cópia do dist/pos_obra.json (serve offline)
+const CH_BOOT = "pos_obra_boot";   // resposta do Apps Script (só depois de gravar)
+const CH_SENS = "pos_obra_sens";   // cliente/telefone, por id de obra
 const RECARGA_MIN = 10;   // de quantos em quantos minutos os dados são renovados
+/* Cliente e telefone praticamente não mudam; 30 min evita gastar execução do
+   Apps Script à toa em quem deixa a tela aberta o dia inteiro. */
+const SENS_TTL = 30*60*1000;
 
 function boot(){
   aplicarTema(temaAtual());
@@ -1185,25 +1277,73 @@ function aplicarBoot(r){
   if(!r || r.ok===false){ mostrarAviso(r); return; }
   OBRAS = r.obras || [];
   FLEX_CAMPO = r.flexCampo || null;
-  AGENDA = r.marcacoes || [];
+  AGENDA_SRV = r.marcacoes || [];
   if(r.schema && r.schema.ok) SCHEMA = r.schema;
-  limparNovos(AGENDA.map(m=>m.atividadeId));
+  /* Um serviço só sai da ponte local quando o arquivo publicado já o traz.
+     O dist manda a lista de ids ("chamados"); a resposta do Apps Script não
+     tem esse campo, e aí valem os ids que aparecem no calendário — que é
+     como funcionava antes. */
+  limparNovos((r.chamados || []).concat(AGENDA_SRV.map(m=>m.atividadeId)));
+  remontarAgenda();
+  aplicarSensEmObras();
   pintarHub(); renderCalendario(); renderAlertas();
   const cx = document.getElementById("aviso"); if(cx) cx.style.display = "none";
   /* a versão do backend vem junto agora — não custa mais uma chamada de ping */
   if(r.versao && !r.doCache) conferirBackend(r.versao);
 }
 
+/* ---------- cliente e telefone (não vêm no arquivo público) ---------- */
+let SENS = {};
+function aplicarSensEmObras(){
+  let mudou = false;
+  (OBRAS || []).forEach(o=>{
+    const s = SENS[o.id] || SENS[semHifen(o.id)];
+    if(!s) return;
+    if(o.clientes == null){ o.clientes = s.c || ""; mudou = true; }
+    if(o.telefone == null){ o.telefone = s.t || null; mudou = true; }
+  });
+  return mudou;
+}
+function carregarSensiveis(forcar){
+  return lerStore({action:"posObraSensiveis"}, CH_SENS,
+    { ttl: SENS_TTL, forcar: !!forcar, pintar: function(r){
+        if(!r || r.ok===false || !r.valores) return;
+        SENS = r.valores;
+        /* índice sem hífen também: o id vem com hífen do Notion, mas parte do
+           sistema compara sem — não custa aceitar as duas formas */
+        for(const k in r.valores) SENS[semHifen(k)] = r.valores[k];
+        if(aplicarSensEmObras() && document.getElementById("view-hub").style.display !== "none") renderObras();
+      }});
+}
+
+/* ---------- carregamento ---------- */
 function carregar(forcar){
-  lerStore({action:"posObraBoot"}, CH_BOOT,
-           { ttl: RECARGA_MIN*60*1000, forcar: !!forcar, pintar: aplicarBoot });
+  /* Caminho rápido: arquivo pronto no CDN do GitHub Pages. Pinta com a cópia
+     local na hora (0 ms) e repinta quando o arquivo chegar. */
+  return lerEstaticoJa("pos_obra.json", CH_DIST, aplicarBoot).then(function(r){
+    if(!r || r.ok === false){
+      /* O arquivo ainda não foi publicado (primeiro build depois desta
+         mudança) ou o Pages está fora: cai no caminho antigo em vez de
+         deixar a tela vazia. */
+      return carregarPeloBackend(!!forcar);
+    }
+    carregarSensiveis(!!forcar);
+    return r;
+  });
+}
+function carregarPeloBackend(forcar){
+  return lerStore({action:"posObraBoot"}, CH_BOOT,
+                  { ttl: RECARGA_MIN*60*1000, forcar: !!forcar, pintar: aplicarBoot });
 }
 function recarregarTudo(){
-  /* depois de GRAVAR: o dado guardado ficou velho na hora, então é descartado
-     e buscado de novo — senão a lista, o calendário e os alertas continuariam
-     contando o estado anterior. */
+  /* depois de GRAVAR: o arquivo publicado ainda tem o estado anterior (ele só
+     é regerado no próximo build), então aqui a tela vai ao Apps Script de
+     propósito — é a única leitura ao vivo que sobrou, e ela acontece depois
+     de uma ação da pessoa, não na abertura.
+     O que ela acabou de digitar já está na tela antes disto: quem cuida
+     disso é a ponte local (ver "SERVIÇOS CRIADOS AGORA"). */
   storeInvalidar(CH_BOOT);
-  carregar(true);
+  carregarPeloBackend(true);
 }
 
 function mostrarAviso(r){
@@ -1608,6 +1748,7 @@ function arrastarSolta(ev, cel, iso){
     .then(r=>{
       if(!r.ok){ toast("Não movi: "+erroTexto(r.erro), 5); return; }
       m.data = novo;                          // calendário reage na hora
+      atualizarNovo(alvo.atividadeId, alvo.coluna, novo);   // r24: e na cópia local, se for um serviço ainda não publicado
       if(CARD && CARD.atividadeId === alvo.atividadeId && CARD.coluna === alvo.coluna){
         CARD.dataISO = novo; CARD.dataHora = dbrh(novo); pintarCard();
       }
@@ -2031,6 +2172,10 @@ function salvarDataCard(){
       if(m) m.data = novo;
       CARD.dataISO = novo;
       CARD.dataHora = dbrh(novo);
+      /* r24: se este chamado ainda só existe no navegador (criado agora, o
+         arquivo publicado ainda não o traz), a data vai para a cópia local —
+         senão ela sumiria do calendário no próximo F5. */
+      if(atualizarNovo(CARD.atividadeId, CARD.coluna, novo)) remontarAgenda();
 
       if(!novo){ fecharCard(); renderCalendario(); recarregarTudo(); toast("Data apagada."); return; }
       pintarCard();
@@ -2458,6 +2603,7 @@ function criarServico(){
     OBRA.atividades = OBRA.atividades || [];
     OBRA.atividades.push(nova);
     pintarObra();
+    pintarHub();          // r24: a contagem do hub sobe na hora, sem esperar o servidor
     recarregarTudo();
     toast("Serviço criado — preencha os dados.");
     abrirChamado(id);              // item 4: já abre a aba dele pra editar
@@ -2739,8 +2885,14 @@ function salvarCampo(prop, valor, id, _el){
     }
     if(cx) cx.classList.remove("recusado");
     CHAMADO.valores[prop] = valor;
-    // o serviço deixou de ser "só criado": já tem conteúdo no servidor
-    if(CHAMADO.pendente){ CHAMADO.pendente = false; esquecerNovo(CHAMADO.id); }
+    /* r24: NÃO esquecer o registro local aqui. O chamado só some da ponte
+       quando o arquivo publicado passar a trazê-lo (ver limparNovos); até lá
+       o valor recém-salvo é o que a lista e o calendário mostram — inclusive
+       depois de um F5. Antes daqui saía um esquecerNovo(), e era isso que
+       fazia o serviço recém-criado sumir da tela até o próximo build. */
+    if(atualizarNovo(CHAMADO.id, prop, valor)){
+      remontarAgenda(); renderCalendario(); renderAlertas(); pintarHub();
+    }
     if(normN(prop) === normN("ANDAMENTO DA SOLICITAÇÃO")){
       CHAMADO.andamento = valor;
       document.getElementById("pn-sub").textContent = valor || "sem andamento";
@@ -2946,7 +3098,11 @@ function editarTexto(prop){
     valor: String(v[prop]||""),
     salvar: function(txt){
       return escrever({action:"posObraAtvUpdate", pageId:CHAMADO.id, prop:prop, valor:txt}, prop).then(r=>{
-        if(r.ok){ CHAMADO.valores[prop] = txt; renderPainelChamado(); renderHistorico(); }
+        if(r.ok){
+          CHAMADO.valores[prop] = txt;
+          if(atualizarNovo(CHAMADO.id, prop, txt)) remontarAgenda();
+          renderPainelChamado(); renderHistorico();
+        }
         return r;
       });
     }
