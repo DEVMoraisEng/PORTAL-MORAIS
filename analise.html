@@ -283,6 +283,12 @@ section > .sec:first-child{margin-top:0}
             <button class="seg-bt on" data-modo="qtd"   onclick="trocarModo('qtd')">Por quantidade</button>
             <button class="seg-bt"    data-modo="valor" onclick="trocarModo('valor')">Por preço</button>
           </div>
+          <!-- MELHORIAS (set/26): acima e abaixo NAO ficam mais misturados na
+               mesma lista — voce escolhe qual quer ver. -->
+          <div class="seg" id="seg-sinal" style="margin-left:8px">
+            <button class="seg-bt on" data-sinal="acima"  onclick="trocarSinal('acima')">▲ Acima do orçado</button>
+            <button class="seg-bt"    data-sinal="abaixo" onclick="trocarSinal('abaixo')">▼ Abaixo do orçado</button>
+          </div>
         </div>
         <!-- MELHORIAS #8 (set/26): barras dos insumos mais estourados. Segue o
              alternador quantidade/preco do cabecalho da secao. -->
@@ -293,7 +299,7 @@ section > .sec:first-child{margin-top:0}
         </div>
 
         <!-- MELHORIAS #9: ranking das obras com maior discrepancia. -->
-        <div class="sec"><span class="cond">Obras com maior discrepância</span></div>
+        <div class="sec"><span class="cond" id="rank-tit">Obras com maior discrepância</span></div>
         <div class="card">
           <p class="desc">Diferença entre o realizado e o orçado de cada obra. Clique numa obra para abrir a análise dela.</p>
           <div id="t-ranking"></div>
@@ -545,6 +551,23 @@ function pintarKpis(){
 /* MELHORIAS #3 (set/26): o modo decide se as tabelas de destaque falam em
    QUANTIDADE de material ou em dinheiro. Quantidade e o padrao. */
 let MODO = "qtd";
+/* "acima" = realizado passou do orcado (estouro). "abaixo" = sobrou.
+   Padrao acima: e o que exige acao. */
+let SINAL = "acima";
+function trocarSinal(x){
+  SINAL = x;
+  document.querySelectorAll("#seg-sinal .seg-bt").forEach(b=>b.classList.toggle("on", b.dataset.sinal===x));
+  if(RESUMO) pintarTops();
+  const ro = document.getElementById("resultado-obra");
+  if(ro && !ro.classList.contains("hide") && DETALHE.length) renderDetalheObra();
+}
+/* Filtra pelo sinal escolhido e ordena do maior para o menor DENTRO do
+   grupo — usado pelo grafico, pelo ranking de obras e pelo top da obra. */
+function filtrarSinal(arr, valorDe){
+  const l = (arr||[]).filter(x => SINAL==="acima" ? valorDe(x)>0 : valorDe(x)<0);
+  return l.sort((a,b)=> SINAL==="acima" ? valorDe(b)-valorDe(a) : valorDe(a)-valorDe(b));
+}
+function rotuloSinal(){ return SINAL==="acima" ? "acima do orçado" : "abaixo do orçado"; }
 function trocarModo(m){
   MODO = m;
   document.querySelectorAll("#seg-modo .seg-bt").forEach(b=>b.classList.toggle("on", b.dataset.modo===m));
@@ -666,7 +689,11 @@ async function verObrasDoInsumo(nome){
     if(r && r.ok!==false) _cacheInsObras[nome] = r;
   }
   if(!r || r.ok===false){
-    body.innerHTML = '<div class="vazio">Não consegui buscar ('+esc(r&&r.erro||"erro")+').</div>';
+    /* Mostra o motivo REAL, inclusive o detalhe que vem do Supabase. Sem
+       isso todo problema virava a mesma frase generica e nao dava pra saber
+       se era permissao, Code.gs desatualizado ou consulta quebrada. */
+    const det = r && r.detalhe ? '<div style="font-size:11px;margin-top:6px;opacity:.8">'+esc(r.detalhe)+'</div>' : "";
+    body.innerHTML = '<div class="vazio">Não consegui buscar: <b>'+esc(r&&r.erro||"erro")+'</b>'+det+'</div>';
     return;
   }
   const l = r.obras || [];
@@ -704,22 +731,20 @@ function pintarTop5Obra(linhas){
   const qtd = (MODO === "qtd");
   const valor = m => qtd ? difQtd(m) : (Number(m.diferenca)||0);
 
-  /* MELHORIAS #5 (set/26): antes era um top 5 por modulo — e como quase toda
-     obra tem mais insumo ABAIXO do orcado, os 5 vinham todos negativos e a
-     tela nunca mostrava onde estourou. Agora sao duas listas: os 5 que mais
-     passaram e os 5 que mais sobraram, cada uma em ordem decrescente. */
-  const todos = (linhas||[]).filter(m => valor(m) !== 0);
-  const acima  = todos.filter(m=>valor(m)>0).sort((a,b)=>valor(b)-valor(a)).slice(0,5);
-  const abaixo = todos.filter(m=>valor(m)<0).sort((a,b)=>valor(a)-valor(b)).slice(0,5);
+  /* MELHORIAS (set/26): um sinal por vez, seguindo o seletor da secao —
+     antes acima e abaixo vinham juntos na mesma tabela. */
+  const sel = filtrarSinal(linhas||[], valor).slice(0,5);
 
   document.getElementById("top5-tit").textContent =
-    "Maiores discrepâncias " + (qtd ? "(quantidade)" : "(preço)");
-  document.getElementById("top5-desc").textContent = qtd
-    ? "Os 5 insumos que mais passaram da quantidade orçada e os 5 que mais sobraram."
-    : "Os 5 insumos que mais passaram do valor orçado e os 5 que mais sobraram.";
+    "Top 5 · " + (SINAL==="acima" ? "Maiores estouros " : "Maiores sobras ") + (qtd ? "(quantidade)" : "(preço)");
+  document.getElementById("top5-desc").textContent = SINAL==="acima"
+    ? (qtd ? "Insumos em que esta seleção usou mais material do que o orçado."
+           : "Insumos em que esta seleção gastou mais do que o orçado.")
+    : (qtd ? "Insumos em que sobrou material nesta seleção."
+           : "Insumos em que sobrou dinheiro nesta seleção.");
 
-  if(!acima.length && !abaixo.length){
-    box.innerHTML='<div class="vazio">Sem discrepância registrada.</div>';
+  if(!sel.length){
+    box.innerHTML='<div class="vazio">Nenhum insumo '+rotuloSinal()+' nesta seleção.</div>';
     document.getElementById("g-obra").innerHTML=""; return;
   }
   const cab = '<th>Insumo</th><th class="col-un">Un</th>'+
@@ -737,23 +762,12 @@ function pintarTop5Obra(linhas){
           `<td class="num${cls}">${v>0?"+":""}${fmtBRL(v)}</td><td class="num">${pctPill(m.diferenca_pct)}</td>`)+
       `</tr>`;
   };
-  const grupo = (tit, arr, n) => arr.length
-    ? `<tr class="sep"><td colspan="${n}">${tit}</td></tr>` + arr.map(linha).join("")
-    : "";
-  const nCols = qtd ? 6 : 6;
-  /* embrulhado em .tbl-wrap pra ganhar a barra de rolagem em cima e embaixo,
-     igual as demais tabelas (ver atualizarScrollsTopo) */
   box.innerHTML = '<div class="tbl-wrap"><table><thead><tr>'+cab+'</tr></thead><tbody>'+
-    grupo("▲ Acima do orçado", acima, nCols)+
-    grupo("▼ Abaixo do orçado", abaixo, nCols)+
-    '</tbody></table></div>';
-
-  /* o grafico mostra os dois grupos juntos, ordenados por modulo — assim da
-     pra comparar o tamanho do estouro com o da sobra na mesma escala */
-  const juntos = acima.concat(abaixo).sort((a,b)=>Math.abs(valor(b))-Math.abs(valor(a)));
-  document.getElementById("g-obra").innerHTML = barrasHtml(juntos, valor,
+    sel.map(linha).join("")+'</tbody></table></div>';
+  document.getElementById("g-obra").innerHTML = barrasHtml(sel, valor,
     m => qtd ? ((valor(m)>0?"+":"")+fmtNum(valor(m))+" "+(m.unidade||""))
              : ((valor(m)>0?"+":"")+fmtBRL(valor(m))));
+  atualizarScrollsTopo();
 }
 
 /* ===== MELHORIAS #8 (set/26): grafico de barras dos mais estourados =====
@@ -782,13 +796,21 @@ function pintarGraficoTop(){
   /* #1: o grafico usa a MESMA ordenacao da tabela (pelo valor exibido), pra
      as barras sairem em ordem decrescente de verdade. */
   const valorG = i => qtd ? difQtd(i) : (Number(i.diferenca)||0);
-  const base = (RESUMO.top_estouro||[]).slice()
-    .sort((a,b)=>Math.abs(valorG(b))-Math.abs(valorG(a))).slice(0, 12);
+  /* O backend manda dois blocos: top_estouro (acima) e top_economia
+     (abaixo). Junta os dois e deixa o filtrarSinal escolher — assim o
+     seletor tem material dos dois lados pra mostrar. */
+  const fonte = (RESUMO.top_estouro||[]).concat(RESUMO.top_economia||[]);
+  const base = filtrarSinal(fonte, valorG).slice(0, 12);
   document.getElementById("g-tit").textContent =
-    "Top 12 · Maiores discrepâncias " + (qtd ? "(quantidade)" : "(preço)");
-  document.getElementById("g-desc").textContent = qtd
-    ? "Insumos cuja quantidade mais fugiu da orçada — vermelho passou, verde sobrou. Ordenados do maior para o menor."
-    : "Insumos cujo valor mais fugiu do orçado — vermelho passou, verde sobrou. Ordenados do maior para o menor.";
+    "Top 12 · " + (SINAL==="acima" ? "Maiores estouros " : "Maiores sobras ") + (qtd ? "(quantidade)" : "(preço)");
+  document.getElementById("g-desc").textContent =
+    (SINAL==="acima"
+      ? (qtd ? "Insumos em que se gastou MAIS material do que o previsto."
+             : "Insumos em que se gastou MAIS dinheiro do que o previsto.")
+      : (qtd ? "Insumos em que sobrou material em relação ao previsto."
+             : "Insumos em que sobrou dinheiro em relação ao previsto."))
+    + " Ordenados do maior para o menor.";
+  if(!base.length){ box.innerHTML='<div class="vazio">Nenhum insumo '+rotuloSinal()+' nesta lista.</div>'; return; }
   box.innerHTML = barrasHtml(base,
     i => qtd ? difQtd(i) : (Number(i.diferenca)||0),
     i => qtd ? ((difQtd(i)>0?"+":"")+fmtNum(difQtd(i))+" "+(i.unidade||""))
@@ -810,31 +832,26 @@ function pintarRankingObras(){
              dif: real-orc, pct: orc ? (real-orc)/orc*100 : null };
   }).filter(o=>o.orc>0 || o.real>0);
 
-  /* MELHORIAS #2 (set/26): ordenar por modulo trazia so obras NEGATIVAS —
-     a maioria das obras esta abaixo do orcado, entao as 15 maiores em modulo
-     eram todas do mesmo sinal e o ranking nunca mostrava quem estourou.
-     Agora sao dois grupos: as 10 que mais passaram e as 10 que mais
-     sobraram, cada um em ordem decrescente. */
-  const acima  = l.filter(o=>o.dif>0).sort((a,b)=>b.dif-a.dif).slice(0,10);
-  const abaixo = l.filter(o=>o.dif<0).sort((a,b)=>a.dif-b.dif).slice(0,10);
-
-  const linha = o => {
+  /* MELHORIAS (set/26): um grupo por vez, escolhido no seletor da secao —
+     antes vinham os dois juntos e a lista misturava estouro com sobra. */
+  const sel = filtrarSinal(l, o=>o.dif).slice(0,15);
+  if(!sel.length){
+    box.innerHTML = '<div class="vazio">Nenhuma obra '+rotuloSinal()+'.</div>'; return;
+  }
+  let h='<div class="tbl-wrap"><table><thead><tr><th>Obra</th><th class="col-num">Orçado</th>'+
+        '<th class="col-num">Realizado</th><th class="col-num">Diferença</th>'+
+        '<th class="col-num">Dif %</th></tr></thead><tbody>';
+  sel.forEach(o=>{
     const cls = o.dif>0 ? " acima" : (o.dif<0 ? " abaixo" : "");
-    return `<tr class="clicavel" onclick="abrirObraDoRanking('${esc(o.id)}')" title="Abrir a análise desta obra">`+
-      `<td class="insumo">${esc(o.nome)}</td>`+
-      `<td class="num">${fmtBRL(o.orc)}</td><td class="num">${fmtBRL(o.real)}</td>`+
-      `<td class="num${cls}">${o.dif>0?"+":""}${fmtBRL(o.dif)}</td>`+
-      `<td class="num">${pctPill(o.pct)}</td></tr>`;
-  };
-  const grupo = (tit, arr) => arr.length
-    ? '<tr class="sep"><td colspan="5">'+tit+'</td></tr>' + arr.map(linha).join("")
-    : "";
-  box.innerHTML = '<div class="tbl-wrap"><table><thead><tr><th>Obra</th><th class="col-num">Orçado</th>'+
-    '<th class="col-num">Realizado</th><th class="col-num">Diferença</th>'+
-    '<th class="col-num">Dif %</th></tr></thead><tbody>'+
-    grupo("▲ Acima do orçado — gastou mais que o previsto", acima)+
-    grupo("▼ Abaixo do orçado — ainda não gastou tudo", abaixo)+
-    '</tbody></table></div>';
+    h+=`<tr class="clicavel" onclick="abrirObraDoRanking('${esc(o.id)}')" title="Abrir a análise desta obra">`+
+       `<td class="insumo">${esc(o.nome)}</td>`+
+       `<td class="num">${fmtBRL(o.orc)}</td><td class="num">${fmtBRL(o.real)}</td>`+
+       `<td class="num${cls}">${o.dif>0?"+":""}${fmtBRL(o.dif)}</td>`+
+       `<td class="num">${pctPill(o.pct)}</td></tr>`;
+  });
+  box.innerHTML = h+'</tbody></table></div>';
+  const rt = document.getElementById("rank-tit");
+  if(rt) rt.textContent = SINAL==="acima" ? "Obras que mais estouraram" : "Obras que mais sobraram";
   atualizarScrollsTopo();
 }
 /* Clique no ranking: marca so aquela obra e abre a aba de analise dela. */
