@@ -965,7 +965,7 @@ const GARANTIAS = [
 const S = exigirSessao();
 atualizarStatus(); atualizarBadge();
 
-const GS_ESPERADO = "2026-09-02 r28";
+const GS_ESPERADO = "2026-09-03 r31";
 
 const ANDAMENTOS = ["MARCANDO SERVIÇO","SERVIÇO MARCADO","REMARCADO 1","REMARCADO 2",
                     "REMARCADO 3","REMARCADO 4","REMARCADO 5","SERVIÇO FINALIZADO"];
@@ -3031,6 +3031,18 @@ function gravarNovoServico(props){
             props:props, opId: NS_OPID || novoOpId()},
            "criar serviço pós obra").then(r=>{
     if(bt) bt.disabled = false;
+    /* ORDEM CORRIGIDA (set/26): FALHOU_SEM_CRIAR vem com ok:false, então era
+       engolido pelo bloco abaixo e a pessoa via o código cru na tela
+       ("Não deu para criar: FALHOU_SEM_CRIAR") em vez da explicação. */
+    if(r.erro === "FALHOU_SEM_CRIAR"){
+      const erro = document.getElementById("ns-erro");
+      /* Resposta honesta: o servidor foi consultado (opStatus, várias vezes,
+         por cerca de um minuto) e o chamado NÃO existe. Nada ficou pendurado. */
+      erro.textContent = "A conexão falhou e o serviço NÃO foi criado. " +
+                         "Pode tentar de novo — nada ficou pendente.";
+      erro.style.display = "block";
+      return;
+    }
     if(!r.ok){
       const erro = document.getElementById("ns-erro");
       /* O servidor barrou uma segunda criação igual em poucos minutos (ver
@@ -3044,15 +3056,6 @@ function gravarNovoServico(props){
         return;
       }
       erro.textContent = "Não deu para criar: " + erroTexto(r.erro);
-      erro.style.display = "block";
-      return;
-    }
-    if(r.erro === "FALHOU_SEM_CRIAR"){
-      const erro = document.getElementById("ns-erro");
-      /* Resposta honesta: o servidor foi consultado (opStatus) e o chamado
-         NÃO existe. Nada ficou pendurado, então tentar de novo é seguro. */
-      erro.textContent = "A conexão falhou e o serviço NÃO foi criado. " +
-                         "Pode tentar de novo — nada ficou pendente.";
       erro.style.display = "block";
       return;
     }

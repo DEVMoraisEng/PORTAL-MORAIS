@@ -148,16 +148,24 @@ function _proximoDaFila(){
     e => { _emVoo--; _proximoDaFila(); throw e; }
   );
 }
-function _enfileirarPedido(fn){
+/* PRIORIDADE (set/26) — criação fura a fila.
+ * Só existe UMA requisição em voo (MAX_SIMULTANEAS=1), porque o Apps Script
+ * serializa tudo mesmo. A consequência é que uma criação clicada no meio de
+ * uma revalidação automática ficava atrás dela e podia estourar o tempo por
+ * culpa de uma leitura que ninguém pediu. Agora quem cria entra na FRENTE:
+ * não torna o servidor mais rápido, mas garante que a ação da pessoa não
+ * espera trabalho de fundo. Leitura continua entrando pelo fim. */
+function _enfileirarPedido(fn, prioritario){
   return new Promise((ok, falha)=>{
-    _naFila.push(()=> fn().then(ok, falha));
+    const tarefa = ()=> fn().then(ok, falha);
+    if(prioritario) _naFila.unshift(tarefa); else _naFila.push(tarefa);
     _proximoDaFila();
   });
 }
 
 /* ---------- chamada crua ao backend (lança em erro de rede ou timeout) ---------- */
-async function chamar(payload, timeoutMs){
-  return _enfileirarPedido(()=>_chamarDireto(payload, timeoutMs));
+async function chamar(payload, timeoutMs, prioritario){
+  return _enfileirarPedido(()=>_chamarDireto(payload, timeoutMs), prioritario);
 }
 async function _chamarDireto(payload, timeoutMs){
   const s=sessao(); if(s&&s.token&&!payload.token) payload.token=s.token;
@@ -287,7 +295,10 @@ async function lerStore(payload, chave, opts){
    passou do ttl. Uma coisa de cada vez, para não recriar o empilhamento. */
 let _revalidando = false;
 async function revalidarStore(){
-  if(_revalidando || !navigator.onLine || document.hidden) return;
+  /* _criando > 0 significa que alguém está criando um registro AGORA. Enquanto
+     isso, nada de trabalho de fundo: cada leitura nossa é uma execução a mais
+     na fila do Apps Script disputando com a criação. */
+  if(_revalidando || _criando > 0 || !navigator.onLine || document.hidden) return;
   _revalidando = true;
   try{
     for(const [chave, reg] of _storeReg){
@@ -321,40 +332,74 @@ document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) revalid
 function novoOpId(){
   return Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,10);
 }
-/* Ações que NUNCA entram na fila offline.
+/* Ações que NUNCA entram na fila offline — são as CRIAÇÕES de registro novo.
  *
- * POR QUÊ: enfileirar uma CRIAÇÃO é o pior dos mundos. Se o pedido falhou
+ * POR QUÊ: enfileirar uma criação é o pior dos mundos. Se o pedido falhou
  * depois de o servidor já ter criado, o item fica na fila prometendo criar
  * algo que já existe; e se ninguém drenar a fila, ele fica pendurado para
  * sempre e a tela mente dizendo "vai ser criado quando a conexão voltar".
- * Foi exatamente esse o travamento: o pedido estourou o tempo ESTANDO online,
- * então o evento "online" nunca disparou e nada drenou a fila.
  *
- * Para estas ações a tela passa a PERGUNTAR ao servidor se a operação chegou
- * a acontecer (ação opStatus, pelo opId). Duas saídas possíveis, ambas
- * honestas: adota o que foi criado, ou avisa que não criou nada. */
-const SEM_FILA = ["posObraServicoNovo", "posObraNovo"];
+ * Estas ações são TRATADAS COMO PRIORITÁRIAS: furam a fila do navegador,
+ * pausam a revalidação de fundo, esperam mais tempo e, se a resposta se
+ * perder, conferem pelo opId em vez de chutar. */
+const SEM_FILA = ["posObraServicoNovo", "posObraNovo", "ligCriar", "criarVenda"];
+
+/* Quantas criações estão em andamento (segura a revalidação de fundo). */
+let _criando = 0;
+const _pausa = ms => new Promise(r => setTimeout(r, ms));
+
+/* ===================== CRIAÇÃO PROTEGIDA (set/26) =========================
+ * Regra desta função: NUNCA declarar "não criou" sem ter perguntado ao
+ * servidor, e NUNCA criar duas vezes. As duas garantias vêm do mesmo lugar —
+ * o opId, gerado uma vez e repetido em toda tentativa.
+ *
+ * Sequência:
+ *   1. envia (90 s de paciência — abortar antes não cancela nada no servidor,
+ *      só faz a tela achar que falhou uma gravação que está acontecendo);
+ *   2. se a resposta se perdeu, pergunta pelo opId de 5 em 5 s, por até 90 s.
+ *      O servidor responde uma de TRÊS coisas: criou (devolve o registro),
+ *      está criando (esperamos), ou nada consta;
+ *   3. "nada consta" com o servidor respondendo bem = a execução não chegou a
+ *      começar. Aí sim reenvia — o mesmo opId torna isso seguro, porque se
+ *      tiver criado no meio tempo o backend devolve o registro existente em
+ *      vez de criar outro.
+ * =================================================================== */
+async function criarProtegido(payload){
+  _criando++;
+  try{
+    for(let tentativa = 0; tentativa < 2; tentativa++){
+      let bruto = null;
+      try{
+        bruto = await chamar(payload, 90000, true);   // true = fura a fila
+      }catch(e){ /* timeout ou rede: cai na conferência */ }
+
+      if(bruto && bruto.ok)   return { ok:true, enviado:true, resposta:bruto };
+      /* Recusa lógica (JA_CRIADO_AGORA, JA_EXISTE, SEM_PERMISSAO...). A
+         "resposta" vai junto porque o JA_CRIADO_AGORA carrega o id do que já
+         existe, e a tela precisa dele para abrir em vez de criar outro. */
+      if(bruto && bruto.erro) return { ok:false, erro:bruto.erro, resposta:bruto };
+
+      let nadaConsta = false;
+      for(let i = 0; i < 18; i++){                    // 18 x 5 s = 90 s
+        await _pausa(5000);
+        let c = null;
+        try{ c = await chamar({ action:"opStatus", opId: payload.opId }, 15000, true); }
+        catch(e){ continue; }                          // sem resposta: insiste
+        if(c && c.ok && c.achado && c.resultado)
+          return { ok:true, enviado:true, recuperado:true, resposta:c.resultado };
+        if(c && c.ok && c.andando) continue;           // está criando: espera
+        if(c && c.ok){ nadaConsta = true; break; }     // servidor respondeu: não começou
+      }
+      if(!nadaConsta) break;                           // servidor mudo: não reenvia às cegas
+    }
+    return { ok:false, erro:"FALHOU_SEM_CRIAR" };
+  } finally { _criando--; }
+}
 
 async function escrever(payload, rotulo){
   if(!payload.opId) payload.opId = novoOpId();
 
-  if(SEM_FILA.indexOf(payload.action) >= 0){
-    try{
-      const r = await chamar(payload);
-      if(r) return r;
-    }catch(e){ /* cai na conferência abaixo */ }
-
-    /* Não sabemos se criou. Perguntamos — com tempo curto, porque isto é uma
-       segunda espera em cima de uma que já falhou. */
-    try{
-      const c = await chamar({ action:"opStatus", opId: payload.opId }, 15000);
-      if(c && c.ok && c.achado && c.resultado){
-        return Object.assign({}, c.resultado, { recuperado:true });
-      }
-    }catch(e){ /* nem a conferência respondeu */ }
-
-    return { ok:false, erro:"FALHOU_SEM_CRIAR" };
-  }
+  if(SEM_FILA.indexOf(payload.action) >= 0) return criarProtegido(payload);
 
   if(navigator.onLine){
     try{

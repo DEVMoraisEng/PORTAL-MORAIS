@@ -67,7 +67,7 @@
    (chamado só DEPOIS de gravar, pra pessoa não esperar o próximo build) e a
    ação nova posObraSensiveis — CLIENTES e TELEFONE, os dois campos que não
    podem entrar num arquivo servido sem login. */
-var VERSAO_GS = "2026-09-02 r29";
+var VERSAO_GS = "2026-09-03 r31";
 
 var PROPS_ = PropertiesService.getScriptProperties();
 // .trim() aqui porque copiar/colar de chat ou de outra aba costuma trazer
@@ -269,6 +269,15 @@ var ACOES_ESCRITA = [
   "posObraAtvExcluir", "posObraNovo"
 ];
 
+/* r31 — CRIAÇÃO DE REGISTRO NOVO. Estas são as ações protegidas: elas
+   entram com prioridade na fila do navegador (ver app.js), carimbam
+   "em andamento" pelo opId e NÃO pagam o aviso ao GitHub. Ação de criação
+   nova precisa entrar aqui, senão volta a pagar. */
+var ACOES_CRIACAO = ["posObraServicoNovo", "posObraNovo", "ligCriar", "criarVenda"];
+/* Property com "tem coisa nova para publicar". Uma linha de texto, sobrescrita
+   à vontade — não é fila, é um sinalizador. */
+var PUBLICAR_PENDENTE = "PUBLICAR_PENDENTE";
+
 /* Ações do sistema de ANÁLISES (analise.html). Exigem "ANÁLISES" na coluna
    ACESSOS do banco LOGINS (ADM, MASTER e TESTES passam sempre). Todas só
    LEEM o Supabase — não gravam nada, então de propósito NÃO entram em
@@ -289,6 +298,10 @@ function handle_(e) {
   if (e && e.parameter) for (var k in e.parameter) if (!(k in p)) p[k] = e.parameter[k];
 
   var action = p.action || "";
+  /* r30 — TELEMETRIA. Ver o bloco "DE ONDE VÊM AS EXECUÇÕES" no fim do
+     arquivo. _T0_ e _ACTION_ são globais de execução (cada execução do Apps
+     Script é uma linha isolada, então não há mistura entre usuários). */
+  _T0_ = Date.now(); _ACTION_ = action; _QUEM_ = "-";
   try {
     if (action === "ping")  return out_({ ok: true, msg: "backend ok", versao: VERSAO_GS, hora: new Date().toISOString() });
     if (action === "login") return out_(login_(p));
@@ -298,6 +311,7 @@ function handle_(e) {
     if (action === "agendaDia") return out_(agendaDia_(p));
 
     var sess = verificar_(p.token);
+    if (sess) _QUEM_ = sess.u || "-";        // r30: telemetria (ver out_)
     if (!sess) {
       /* r22: sem SESSION_SECRET, NENHUM token do mundo confere. Devolver
          NAO_AUTORIZADO aqui faria a tela deslogar uma pessoa que está
@@ -358,7 +372,20 @@ function handle_(e) {
      * a um por vez, independente de quantos setores gravarem.
      * =================================================================== */
     if (res && res.ok && ACOES_ESCRITA.indexOf(action) >= 0) {
-      try { avisarGitHub_(action); } catch (e) {}
+      /* r31 — CRIAÇÃO NÃO PAGA O AVISO AO GITHUB.
+         O avisarGitHub_ faz um UrlFetch para fora e acontece DENTRO da
+         execução, ou seja, a pessoa que criou fica esperando por ele. Numa
+         edição de campo isso é irrelevante; numa criação — que já é a ação
+         mais cara e a única que estava estourando o tempo — é justamente o
+         que não pode ter. Aqui a criação só ANOTA que há o que publicar, e
+         quem dispara é o aquecerCaches, no acionador de 10 min (ver
+         drenarPublicacaoPendente_). A tela não depende disso: o chamado novo
+         já aparece pela ponte local. */
+      if (ACOES_CRIACAO.indexOf(action) >= 0) {
+        try { PROPS_.setProperty(PUBLICAR_PENDENTE, action + " @ " + new Date().toISOString()); } catch (e) {}
+      } else {
+        try { avisarGitHub_(action); } catch (e) {}
+      }
     }
     return out_(res);
   } catch (err) {
@@ -437,8 +464,85 @@ function executar_(action, sess, p) {
 
 
 function out_(obj) {
+  /* r30 — PONTO ÚNICO DE SAÍDA: toda resposta passa por aqui, então é aqui
+     que a execução é contabilizada. Duas coisas acontecem:
+       1) um console.log de uma linha, que aparece ao abrir a execução na tela
+          "Execuções" — é o que responde "essa execução aí foi de quem, e de
+          qual ação?";
+       2) um contador por hora no cache, lido depois pelo conferirTrafego().
+     Custo: um put de cache por requisição. Se um dia atrapalhar, é só apagar
+     a chamada telRegistrar_ — o log da linha 1 já resolve 90% do diagnóstico. */
+  try {
+    var ms = _T0_ ? (Date.now() - _T0_) : 0;
+    console.log("REQ " + (_ACTION_ || "?") + " | " + _QUEM_ + " | " + ms + " ms" +
+                (obj && obj.ok === false ? " | ERRO: " + obj.erro : ""));
+    telRegistrar_(_ACTION_ || "?", _QUEM_, ms);
+  } catch (e) {}
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+/* ===================== DE ONDE VÊM AS EXECUÇÕES (r30) =====================
+ * A tela "Execuções" do Apps Script mostra só doPost/doGet e a duração — ela
+ * não diz QUAL ação foi chamada nem por QUEM, e é por isso que o volume
+ * parece vir do nada. O out_ acima agora carimba isso em cada execução.
+ *
+ * Para ver o quadro somado, rode conferirTrafego() pelo menu Executar. Ele
+ * imprime, por hora, quantas execuções cada par ação|usuário gastou e quanto
+ * tempo consumiu. É com essa lista que se decide o que cortar.
+ *
+ * RESSALVA HONESTA: o contador é lido-e-escrito sem trava. Duas execuções no
+ * mesmo instante podem somar uma só. Para diagnóstico de proporção
+ * ("posObraSensiveis é 60% do tráfego") isso não muda a conclusão; não use
+ * como contagem exata.
+ * =================================================================== */
+var _T0_ = 0, _ACTION_ = "", _QUEM_ = "-";
+var TEL_HORAS = 6;                 // quantas horas o conferirTrafego percorre
+
+function telChave_(d) {
+  return "tel_" + Utilities.formatDate(d, "America/Sao_Paulo", "yyyy-MM-dd_HH");
+}
+function telRegistrar_(action, quem, ms) {
+  var k = telChave_(new Date());
+  var m = cacheGet_(k) || {};
+  var chave = action + " | " + quem;
+  var r = m[chave] || { n: 0, ms: 0, max: 0 };
+  r.n++; r.ms += ms; if (ms > r.max) r.max = ms;
+  m[chave] = r;
+  cachePut_(k, m, 8 * 3600);       // some sozinho depois de 8 h
+}
+
+/* Rode pelo menu Executar. Só LÊ. */
+function conferirTrafego() {
+  var agora = new Date(), total = 0, totMs = 0, linhas = [];
+  for (var h = 0; h < TEL_HORAS; h++) {
+    var d = new Date(agora.getTime() - h * 3600 * 1000);
+    var m = cacheGet_(telChave_(d));
+    if (!m) continue;
+    var hora = Utilities.formatDate(d, "America/Sao_Paulo", "dd/MM HH") + "h";
+    var itens = [];
+    for (var k in m) itens.push({ k: k, n: m[k].n, ms: m[k].ms, max: m[k].max });
+    itens.sort(function (a, b) { return b.n - a.n; });
+    var nH = 0, msH = 0;
+    itens.forEach(function (i) { nH += i.n; msH += i.ms; });
+    total += nH; totMs += msH;
+    linhas.push("\n=== " + hora + " — " + nH + " execuções, " + Math.round(msH / 1000) + "s de servidor");
+    itens.forEach(function (i) {
+      linhas.push("   " + ("      " + i.n).slice(-6) + "x  " +
+                  ("      " + Math.round(i.ms / 1000)).slice(-6) + "s  (pior " +
+                  Math.round(i.max / 1000) + "s)  " + i.k);
+    });
+  }
+  if (!linhas.length) {
+    Logger.log("Nada registrado ainda. O contador começa a encher depois que esta versão for PUBLICADA (Implantar > Gerenciar implantações > lápis > Nova versão) e as telas voltarem a ser usadas.");
+    return;
+  }
+  Logger.log("TRÁFEGO DAS ÚLTIMAS " + TEL_HORAS + " HORAS" + linhas.join("\n"));
+  Logger.log("\nTOTAL: " + total + " execuções | " + Math.round(totMs / 1000) +
+             "s de tempo de servidor.");
+  Logger.log("Lembre que os acionadores (aquecerCaches, publicarSite, posObraSyncDiario, " +
+             "criarAtividadesGcapJob_) NÃO passam pelo out_ e por isso não aparecem aqui — " +
+             "eles aparecem na tela de Execuções com o tipo \"Baseado no tempo\".");
 }
 
 // Rode manualmente (menu Executar, com esta função selecionada) pra testar
@@ -2146,6 +2250,7 @@ function posObraServicoNovo_(sess, p) {
       return { ok: false, erro: "JA_CRIADO_AGORA", id: recente.id, nome: recente.nome };
     }
 
+    opIdIniciar_(p.opId);      // r31: "comecei" — ver opStatus_
     var nova = notion_("POST", "/pages", {
       parent: { database_id: CONFIG.DB.ATIVIDADES_POS_OBRA }, properties: props
     });
@@ -3663,6 +3768,13 @@ function ligSoAdm_(nome) {
  */
 function ligCriar_(sess, p) {
   if (!ehAdm_(sess)) return { ok: false, erro: "APENAS_ADM" };
+  /* r31 — MESMA PROTEÇÃO DO PÓS OBRA. Esta ação não tinha memória: quando a
+     resposta se perdia no caminho (POST -> 302 -> GET), a tela dizia "sem
+     conexão" com a linha já criada. O JA_EXISTE evitava a duplicata, mas com
+     a mensagem errada. Agora o reenvio do mesmo opId devolve o mesmo
+     resultado, e a tela sabe que deu certo. */
+  var pronto = opIdLer_(p.opId);
+  if (pronto) return pronto;
   var obra = String(p.obra || "").trim();
   var conc = String(p.conc || "").trim();
   if (!obra || !conc) return { ok: false, erro: "FALTA_PARAM" };
@@ -3710,6 +3822,7 @@ function ligCriar_(sess, p) {
     }
   });
 
+  opIdIniciar_(p.opId);        // r31
   var pg = notion_("POST", "/pages", {
     parent: { database_id: CONFIG.DB.LIGACOES }, properties: novo
   });
@@ -3721,7 +3834,9 @@ function ligCriar_(sess, p) {
     cacheRemover_("lig_sens");
   } catch (e) {}
   console.log("LIGAÇÕES: " + sess.u + " CRIOU linha " + obra + " (" + concReal + ") -> " + pg.id);
-  return { ok: true, id: pg.id, obra: obra, conc: concReal };
+  var rLig = { ok: true, id: pg.id, obra: obra, conc: concReal };
+  opIdGravar_(p.opId, rLig);   // r31
+  return rLig;
 }
 
 function ligExcluir_(sess, p) {
@@ -4523,6 +4638,22 @@ function aquecerCaches() {
     catch (e) { linhas.push("FALHOU " + a[0] + ": " + String(e).slice(0, 160)); }
   });
   Logger.log("AQUECIMENTO em " + Math.round((Date.now()-t0)/1000) + "s\n" + linhas.join("\n"));
+  drenarPublicacaoPendente_();
+}
+
+/* r31 — publica o que as criações deixaram anotado. Roda no acionador de
+   10 min, longe de qualquer pessoa esperando. Se não houver nada anotado,
+   não faz UrlFetch nenhum. */
+function drenarPublicacaoPendente_() {
+  var pend = null;
+  try { pend = PROPS_.getProperty(PUBLICAR_PENDENTE); } catch (e) {}
+  if (!pend) return;
+  var r = avisarGitHub_("criacao: " + pend);
+  /* Só limpa se o aviso saiu de verdade. Recusado pela janela de 5 min?
+     A anotação fica e a próxima rodada tenta de novo — melhor republicar
+     tarde do que não republicar. */
+  if (r && r.disparado) { try { PROPS_.deleteProperty(PUBLICAR_PENDENTE); } catch (e) {} }
+  Logger.log("Publicação pendente (" + pend + "): " + JSON.stringify(r));
 }
 
 /* Só se quiser conferir na mão o que o acionador faz sozinho. */
@@ -4778,12 +4909,31 @@ function opIdChave_(opId)  { return "op_" + String(opId).replace(/\W/g, "").slic
 function opStatus_(sess, p) {
   if (!p.opId) return { ok: false, erro: "FALTA_PARAM" };
   var r = opIdLer_(p.opId);
-  return { ok: true, achado: !!r, resultado: r || null };
+  /* r31 — A TERCEIRA RESPOSTA POSSÍVEL: "ainda estou criando".
+     Antes só havia "criou" e "não criou", e a tela era obrigada a escolher uma
+     das duas justamente no pior momento: quando a execução original ainda
+     estava na fila do Apps Script, sem ter chegado no opIdGravar_. Dava
+     "não criou" numa criação que estava acontecendo. Agora a criação carimba
+     "comecei" ANTES de tocar no Notion, então a tela sabe esperar. */
+  return { ok: true, achado: !!r, resultado: r || null,
+           andando: !r && opIdAndando_(p.opId) };
 }
 function opIdLer_(opId)    { if (!opId) return null; return cacheGet_(opIdChave_(opId)); }
 function opIdGravar_(opId, resultado) {
   if (!opId) return;
   cachePut_(opIdChave_(opId), resultado, OPID_SEG);
+  try { _cache_().remove(opIdChave_(opId) + "::and"); } catch (e) {}
+}
+/* Chamado IMEDIATAMENTE antes do POST /pages. 10 min de validade: é muito
+   mais que qualquer execução (o teto do Apps Script é 6 min), então uma marca
+   sobrevivente nunca aponta para uma execução viva que já morreu. */
+function opIdIniciar_(opId) {
+  if (!opId) return;
+  try { _cache_().put(opIdChave_(opId) + "::and", String(Date.now()), 600); } catch (e) {}
+}
+function opIdAndando_(opId) {
+  if (!opId) return false;
+  try { return !!_cache_().get(opIdChave_(opId) + "::and"); } catch (e) { return false; }
 }
 
 /* Trava curta em volta do "confere e cria". Sem ela, dois reenvios que
@@ -4907,6 +5057,7 @@ function posObraNovo_(sess, p) {
       if (vTel) props["TELEFONE"] = vTel;
     }
 
+    opIdIniciar_(p.opId);      // r31
     var nova = notion_("POST", "/pages", {
       parent: { database_id: CONFIG.DB.POS_OBRA }, properties: props
     });

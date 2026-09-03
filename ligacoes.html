@@ -3893,10 +3893,14 @@ function abrirNovaLigacao(){
   enche("nv-sist", C.SISTEMA, true);
   enche("nv-status", C.STATUS, true);
   document.getElementById("nv-obra").value = "";
+  /* um opId por FORMULÁRIO aberto: é ele que faz o reenvio devolver a mesma
+     linha em vez de criar uma segunda */
+  NV_OPID = novoOpId();
   document.getElementById("nv-erro").style.display = "none";
   document.getElementById("nova-overlay").classList.add("on");
   document.getElementById("nv-obra").focus();
 }
+let NV_OPID = null;
 function fecharNovaLigacao(){
   document.getElementById("nova-overlay").classList.remove("on");
 }
@@ -3911,11 +3915,19 @@ async function criarNovaLigacao(){
 
   btn.disabled = true; btn.textContent = "Criando…";
   try{
-    const r = await chamar({
+    /* CRIAÇÃO PROTEGIDA (set/26): era um chamar() cru, sem opId. Quando a
+       resposta se perdia no caminho (POST -> 302 -> GET do Apps Script), a
+       tela dizia "sem conexão" com a linha JÁ criada no Notion. Agora vai
+       pelo escrever(), que fura a fila do navegador, espera o servidor e
+       confere pelo opId antes de dar qualquer notícia. */
+    const r = await escrever({
       action: "ligCriar", obra: obra, conc: conc,
       sistema: document.getElementById("nv-sist").value,
-      status:  document.getElementById("nv-status").value
-    });
+      status:  document.getElementById("nv-status").value,
+      opId: NV_OPID || novoOpId()
+    }, "criar linha de ligação");
+    if (r && r.erro === "FALHOU_SEM_CRIAR")
+      return falhar("A conexão falhou e a linha NÃO foi criada. Pode tentar de novo.");
     if (!r || !r.ok){
       /* JA_EXISTE tem mensagem própria: é o erro que mais vai acontecer no dia
          a dia (a pessoa não achou a linha na busca e tentou criar de novo). */
@@ -3924,8 +3936,11 @@ async function criarNovaLigacao(){
         : "Não deu: " + erroTexto(r && r.erro));
     }
     fecharNovaLigacao();
+    NV_OPID = null;
     btn.disabled = false; btn.textContent = "Criar linha";
-    toast("Linha criada. Ela aparece na planilha na próxima publicação da base.");
+    toast(r.recuperado
+      ? "A conexão oscilou, mas a linha já tinha sido criada."
+      : "Linha criada. Ela aparece na planilha na próxima publicação da base.");
     /* A base que a tela lê é o dist/ligacoes.json, republicado pelo GitHub
        Actions — a linha nova não aparece na hora. Repuxar o arquivo é o mais
        perto de "atualizar agora" que dá pra fazer sem esperar o build. */
