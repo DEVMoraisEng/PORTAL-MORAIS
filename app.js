@@ -1,6 +1,45 @@
 /* app.js · Morais Engenharia — camada comum (sessão + offline + sync) */
 
 const API   = "https://script.google.com/macros/s/AKfycbwvMnVHZd7y5k-GP8_Dg9zkWyD2fqqH8UI4gaXsQ0iJnm9QNSsyyUhODFMyMW6BfAk/exec";
+
+/* ===================== SEGUNDA IMPLANTAÇÃO: ESCRITA (set/26) ==============
+ * MEDIDO EM 03/09/2026: dois PROJETOS diferentes do Apps Script, publicados
+ * pela mesma conta, executam em paralelo. Um doGet segurando 20 s num projeto
+ * não atrasou nada num doGet do outro.
+ *
+ * Era essa a causa do "quando tem ação simultânea a criação fica
+ * comprometida": tudo passava por uma implantação só, e o Apps Script atende
+ * uma execução por vez por implantação. Uma criação de 1,4 s ficava atrás de
+ * uma leitura de 12 s que a própria tela tinha pedido sozinha.
+ *
+ * Agora existem duas URLs. A de baixo é do projeto PORTAL-ESCRITA, que roda o
+ * MESMO Code.gs com PAPEL = "ESCRITA". Escrita e leitura deixam de disputar a
+ * mesma fila, no servidor e aqui no navegador (ver as duas faixas mais
+ * abaixo).
+ *
+ * ENQUANTO A SEGUNDA IMPLANTAÇÃO NÃO EXISTIR, deixe a constante vazia (""):
+ * tudo volta a sair pela URL única, exatamente como antes desta mudança.
+ * =================================================================== */
+const API_ESCRITA = "https://script.google.com/macros/s/AKfycbyoEOQfmuuN_jG817TeDK_aVMv6BiD6WFv61ZkgulUQBgYfxxyYPttzv1AMH2PcmZ31Jw/exec";
+
+/* Ações que devem sair pela implantação de ESCRITA. Precisa bater com
+   ACOES_ESCRITA + ACOES_CRIACAO do Code.gs. Ação nova que grave entra aqui
+   também — se esquecer, ela continua funcionando, só que pela fila errada. */
+const ACOES_NA_ESCRITA = [
+  "baixa", "updateVenda", "criarVenda", "excluirVenda", "distrato", "novaOpcao",
+  "upload", "comentarioNovo", "gerarAtividadesGcap",
+  "ligUpdate", "ligAnexar", "ligBaixa", "ligVendaUpdate", "ligExcluir", "ligCriar",
+  "posObraServicoNovo", "posObraAtvUpdate", "posObraUpdate", "posObraAnexar",
+  "posObraRetornoExcluir", "agendaLink", "posObraAtvExcluir", "posObraNovo",
+  /* opStatus e posObraValidarAdm NÃO gravam, mas acompanham uma criação e
+     precisam da mesma faixa livre — perguntar "criou?" na fila das leituras
+     seria esperar atrás da leitura que atrapalhou a criação. */
+  "opStatus", "posObraValidarAdm"
+];
+function ehAcaoDeEscrita(action){ return ACOES_NA_ESCRITA.indexOf(action) >= 0; }
+function urlDe(action){
+  return (API_ESCRITA && ehAcaoDeEscrita(action)) ? API_ESCRITA : API;
+}
 const LOGIN = "login.html";
 const KEY   = "morais_sessao";
 const FILA  = "morais_fila";
@@ -135,17 +174,31 @@ function lerEstaticoJa(arquivo, chaveCache, pintar){
  * MAX_SIMULTANEAS pedidos em voo. O tempo total é o mesmo (o servidor já
  * serializava), mas nada mais estoura o tempo e a ordem fica previsível.
  * =================================================================== */
-const MAX_SIMULTANEAS = 1;
-let _emVoo = 0;
-const _naFila = [];
-
-function _proximoDaFila(){
-  if(_emVoo >= MAX_SIMULTANEAS || !_naFila.length) return;
-  _emVoo++;
-  const tarefa = _naFila.shift();
+/* DUAS FAIXAS (set/26). Antes existia UMA fila com MAX_SIMULTANEAS = 1 e um
+   "prioritário" que dava unshift. Isso nunca resolveu o caso real: a leitura
+   que já estava EM VOO há 8 s não é cancelada por ninguém, então a criação
+   entrava na frente da fila e mesmo assim esperava.
+   Agora são duas filas independentes, uma por implantação. Cada uma continua
+   com uma requisição por vez (o Apps Script serializa por implantação mesmo),
+   mas leitura e escrita não se enxergam. */
+const _faixas = {
+  leitura: { max: 1, emVoo: 0, fila: [] },
+  escrita: { max: 1, emVoo: 0, fila: [] }
+};
+/* Sem a segunda implantação configurada, as duas faixas apontariam para a
+   MESMA URL — e aí duas requisições em voo voltariam a se atrapalhar no
+   servidor. Neste caso tudo volta a andar numa faixa só. */
+function faixaDe(action){
+  if(!API_ESCRITA) return _faixas.leitura;
+  return ehAcaoDeEscrita(action) ? _faixas.escrita : _faixas.leitura;
+}
+function _proximoDaFaixa(f){
+  if(f.emVoo >= f.max || !f.fila.length) return;
+  f.emVoo++;
+  const tarefa = f.fila.shift();
   tarefa().then(
-    v => { _emVoo--; _proximoDaFila(); return v; },
-    e => { _emVoo--; _proximoDaFila(); throw e; }
+    v => { f.emVoo--; _proximoDaFaixa(f); return v; },
+    e => { f.emVoo--; _proximoDaFaixa(f); throw e; }
   );
 }
 /* PRIORIDADE (set/26) — criação fura a fila.
@@ -155,24 +208,25 @@ function _proximoDaFila(){
  * culpa de uma leitura que ninguém pediu. Agora quem cria entra na FRENTE:
  * não torna o servidor mais rápido, mas garante que a ação da pessoa não
  * espera trabalho de fundo. Leitura continua entrando pelo fim. */
-function _enfileirarPedido(fn, prioritario){
+function _enfileirarPedido(fn, prioritario, action){
+  const f = faixaDe(action);
   return new Promise((ok, falha)=>{
     const tarefa = ()=> fn().then(ok, falha);
-    if(prioritario) _naFila.unshift(tarefa); else _naFila.push(tarefa);
-    _proximoDaFila();
+    if(prioritario) f.fila.unshift(tarefa); else f.fila.push(tarefa);
+    _proximoDaFaixa(f);
   });
 }
 
 /* ---------- chamada crua ao backend (lança em erro de rede ou timeout) ---------- */
 async function chamar(payload, timeoutMs, prioritario){
-  return _enfileirarPedido(()=>_chamarDireto(payload, timeoutMs), prioritario);
+  return _enfileirarPedido(()=>_chamarDireto(payload, timeoutMs), prioritario, payload && payload.action);
 }
 async function _chamarDireto(payload, timeoutMs){
   const s=sessao(); if(s&&s.token&&!payload.token) payload.token=s.token;
   const ctrl=new AbortController();
   const timer=setTimeout(()=>ctrl.abort(), timeoutMs||45000); // evita "Carregando…" travado pra sempre
   try{
-    const r=await fetch(API,{ method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, body:JSON.stringify(payload), signal:ctrl.signal });
+    const r=await fetch(urlDe(payload && payload.action),{ method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, body:JSON.stringify(payload), signal:ctrl.signal });
     return await r.json();
   } finally { clearTimeout(timer); }
 }
@@ -332,6 +386,18 @@ document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) revalid
 function novoOpId(){
   return Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,10);
 }
+
+/* Erros que significam "o servidor engasgou", NUNCA "seu pedido foi recusado".
+   Quem cai aqui merece nova tentativa ou conferência por opId, jamais uma
+   mensagem de erro definitiva na cara da pessoa.
+   NAO_AUTORIZADO entra nesta lista de propósito: o token dura 30 dias e é HMAC
+   puro, então ele não vence no meio do expediente. Um NAO_AUTORIZADO durante
+   o uso normal é quase sempre falha interna do backend, não sessão vencida
+   (ver verificar_ / _SESSAO_ERRO_ no Code.gs r32). Se for expiração real, o
+   opStatus vai responder a mesma coisa e a criação termina em
+   FALHOU_SEM_CRIAR, que é honesto: nada foi criado. */
+const ERROS_TRANSITORIOS = ["NAO_AUTORIZADO", "BACKEND_OCUPADO", "BACKEND_SEM_CONFIG",
+                            "TEMPO_ESGOTADO", "ERRO_API"];
 /* Ações que NUNCA entram na fila offline — são as CRIAÇÕES de registro novo.
  *
  * POR QUÊ: enfileirar uma criação é o pior dos mundos. Se o pedido falhou
@@ -374,10 +440,15 @@ async function criarProtegido(payload){
       }catch(e){ /* timeout ou rede: cai na conferência */ }
 
       if(bruto && bruto.ok)   return { ok:true, enviado:true, resposta:bruto };
-      /* Recusa lógica (JA_CRIADO_AGORA, JA_EXISTE, SEM_PERMISSAO...). A
-         "resposta" vai junto porque o JA_CRIADO_AGORA carrega o id do que já
-         existe, e a tela precisa dele para abrir em vez de criar outro. */
-      if(bruto && bruto.erro) return { ok:false, erro:bruto.erro, resposta:bruto };
+      /* BURACO QUE ISTO FECHA (set/26): antes QUALQUER erro saía aqui, sem
+         nunca consultar o opStatus. Um NAO_AUTORIZADO transitório (soluço do
+         PropertiesService no servidor) abortava a criação e a tela dizia
+         "sessão expirada" — com o chamado JÁ criado no Notion. Era o "cria no
+         banco e se perde no sistema".
+         Erro transitório NÃO é recusa: ele agora cai na conferência por opId,
+         igual ao timeout. Só recusa lógica de verdade sai daqui. */
+      if(bruto && bruto.erro && !ERROS_TRANSITORIOS.includes(bruto.erro))
+        return { ok:false, erro:bruto.erro, resposta:bruto };
 
       let nadaConsta = false;
       for(let i = 0; i < 18; i++){                    // 18 x 5 s = 90 s
@@ -389,6 +460,9 @@ async function criarProtegido(payload){
           return { ok:true, enviado:true, recuperado:true, resposta:c.resultado };
         if(c && c.ok && c.andando) continue;           // está criando: espera
         if(c && c.ok){ nadaConsta = true; break; }     // servidor respondeu: não começou
+        /* c.ok false com erro transitório: o servidor engasgou na CONFERÊNCIA,
+           não na criação. Insistir é a única resposta certa — declarar
+           "não criou" aqui é exatamente o que fazia a tela mentir. */
       }
       if(!nadaConsta) break;                           // servidor mudo: não reenvia às cegas
     }
@@ -409,11 +483,14 @@ async function escrever(payload, rotulo){
       // veio junto (ex.: a baixa cruzada das ligações informa qual obra foi
       // marcada como TRANSFERIDO, ou que não achou o endereço).
       if(r && r.ok) return { ok:true, enviado:true, resposta:r };
-      if(r && r.erro && r.erro!=="NAO_AUTORIZADO") return { ok:false, erro:r.erro }; // rejeição lógica: não enfileira
-      /* Sessão expirada NÃO pode virar "salvo": enfileirar aqui só empurra o
-         problema — a fila vai bater na mesma recusa pra sempre e a pessoa
-         segue achando que gravou. Melhor avisar na hora pra ela relogar. */
+      /* Rejeição lógica (SEM_PERMISSAO, OPCAO_INEXISTENTE, DOMINGO_BLOQUEADO):
+         enfileirar não adianta, a fila bateria na mesma recusa pra sempre. */
+      if(r && r.erro && !ERROS_TRANSITORIOS.includes(r.erro)) return { ok:false, erro:r.erro };
+      /* Sessão realmente inválida também não vira "salvo": a pessoa precisa
+         relogar, e a fila só empurraria o problema. */
       if(r && r.erro==="NAO_AUTORIZADO") return { ok:false, erro:"NAO_AUTORIZADO" };
+      /* BACKEND_OCUPADO / BACKEND_SEM_CONFIG: o servidor engasgou, a gravação
+         é válida. Cai pra fila e sobe sozinha depois. */
       // resposta estranha (sem ok e sem erro): cai pra fila
     }catch(e){ /* rede caiu: enfileira */ }
   }

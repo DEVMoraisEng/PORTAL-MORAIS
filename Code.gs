@@ -67,7 +67,43 @@
    (chamado só DEPOIS de gravar, pra pessoa não esperar o próximo build) e a
    ação nova posObraSensiveis — CLIENTES e TELEFONE, os dois campos que não
    podem entrar num arquivo servido sem login. */
-var VERSAO_GS = "2026-09-03 r31";
+var VERSAO_GS = "2026-09-03 r32";
+
+/* =======================================================================
+ * r32 — DUAS IMPLANTAÇÕES, DUAS FILAS
+ * -----------------------------------------------------------------------
+ * MEDIDO EM 03/09/2026: dois projetos DIFERENTES do Apps Script, publicados
+ * pela MESMA conta, executam em PARALELO. Um doGet com Utilities.sleep(20000)
+ * rodando num projeto não atrasou em nada um doGet vazio no outro.
+ *
+ * Isso muda a arquitetura. Até aqui TUDO passava por uma implantação só, e
+ * como o Apps Script atende uma execução por vez por implantação, uma criação
+ * de 1,4 s ficava atrás de uma leitura de 12 s (o `ligacoes` ao vivo, o
+ * `posObraBoot`). Era essa a causa de "quando tem ação simultânea, a criação
+ * fica comprometida".
+ *
+ * A partir daqui o MESMO arquivo roda em dois projetos, distinguidos só por
+ * esta constante:
+ *
+ *   PORTAL-LEITURA  (PAPEL = "LEITURA")  -> a implantação que já existe.
+ *                   Leituras + os acionadores periódicos.
+ *   PORTAL-ESCRITA  (PAPEL = "ESCRITA")  -> projeto novo.
+ *                   Gravações, criações e o opStatus.
+ *
+ * Quem decide para onde cada ação vai é o app.js (ver API_ESCRITA lá).
+ * Aqui embaixo o PAPEL serve para duas coisas: separar quais ACIONADORES
+ * rodam em qual projeto (se rodarem nos dois, tudo duplica) e carimbar a
+ * resposta do "ping", pra você conferir qual projeto respondeu.
+ *
+ * REQUISITO: NOTION_TOKEN e SESSION_SECRET precisam ser IDÊNTICOS nos dois
+ * projetos. O SESSION_SECRET principalmente — é ele que valida o HMAC da
+ * sessão. Se divergir, todo token emitido pela leitura é recusado pela
+ * escrita como se a sessão fosse inválida.
+ * ===================================================================== */
+var PAPEL = "LEITURA";     // <<<< no projeto novo, troque para "ESCRITA"
+
+function ehPapelEscrita_() { return String(PAPEL).toUpperCase() === "ESCRITA"; }
+function ehPapelLeitura_() { return !ehPapelEscrita_(); }
 
 var PROPS_ = PropertiesService.getScriptProperties();
 // .trim() aqui porque copiar/colar de chat ou de outra aba costuma trazer
@@ -303,7 +339,13 @@ function handle_(e) {
      Script é uma linha isolada, então não há mistura entre usuários). */
   _T0_ = Date.now(); _ACTION_ = action; _QUEM_ = "-";
   try {
-    if (action === "ping")  return out_({ ok: true, msg: "backend ok", versao: VERSAO_GS, hora: new Date().toISOString() });
+    /* r32: "papel" no ping é o jeito de conferir, pelo navegador, QUAL dos
+       dois projetos respondeu naquela URL. Cole a URL + "?action=ping" e
+       veja se diz LEITURA ou ESCRITA — sem isso, duas implantações idênticas
+       são indistinguíveis e trocar as URLs no app.js vira adivinhação. */
+    if (action === "ping")  return out_({ ok: true, msg: "backend ok", versao: VERSAO_GS,
+                                          papel: String(PAPEL).toUpperCase(),
+                                          hora: new Date().toISOString() });
     if (action === "login") return out_(login_(p));
     /* AGENDA DO DIA — a ÚNICA ação que roda sem token de login.
        Entra aqui em cima, antes do verificar_, de propósito e com escopo
@@ -313,12 +355,14 @@ function handle_(e) {
     var sess = verificar_(p.token);
     if (sess) _QUEM_ = sess.u || "-";        // r30: telemetria (ver out_)
     if (!sess) {
-      /* r22: sem SESSION_SECRET, NENHUM token do mundo confere. Devolver
-         NAO_AUTORIZADO aqui faria a tela deslogar uma pessoa que está
-         perfeitamente logada — o erro é do servidor, não da sessão dela. */
-      if (!segredo_()) {
-        console.error("SESSION_SECRET indisponível nesta execução — respondendo BACKEND_SEM_CONFIG");
-        return out_({ ok: false, erro: "BACKEND_SEM_CONFIG" });
+      /* r32: quem sabe a diferença entre "sessão inválida" e "servidor
+         engasgado" é o verificar_, que agora carimba _SESSAO_ERRO_. Antes
+         daqui saía uma segunda leitura da Propriedade, que dava certo e
+         fazia o código concluir que a culpa era do token da pessoa — era
+         essa a "sessão expirada" que aparecia com todo mundo logado. */
+      if (_SESSAO_ERRO_) {
+        console.error("Sessão não verificada por falha do servidor: " + _SESSAO_ERRO_);
+        return out_({ ok: false, erro: _SESSAO_ERRO_ });
       }
       return out_({ ok: false, erro: "NAO_AUTORIZADO" });
     }
@@ -567,16 +611,57 @@ function assinar_(payloadObj) {
     Utilities.computeHmacSha256Signature(payload, segredo_()));
   return payload + "." + sig;
 }
+/* r32 — POR QUE ESTA FUNÇÃO FOI REESCRITA (a "sessão expirada" fantasma).
+ * A versão anterior era um try/catch em volta de tudo, com `return null` no
+ * catch. Ou seja: QUALQUER falha interna virava "token inválido", e o handle_
+ * traduzia isso em NAO_AUTORIZADO, que a tela mostra como "sessão expirada".
+ *
+ * O caminho exato da falha: sob concorrência o PropertiesService pode devolver
+ * vazio. Aí segredo_() retorna undefined, o computeHmacSha256Signature lança,
+ * o catch devolve null. De volta no handle_, a checagem `if (!segredo_())`
+ * chamava segredo_() OUTRA VEZ — e como a primeira chamada já tinha guardado o
+ * valor em CONFIG.SESSION_SECRET quando dava certo, a segunda passava. O
+ * código então concluía que o problema era o token da pessoa.
+ *
+ * Isso nunca foi sessão expirada: o token dura 30 dias e é HMAC puro, não tem
+ * como vencer no meio do expediente. Agora as duas coisas são separadas:
+ *   return null + _SESSAO_ERRO_ vazio  -> sessão inválida DE VERDADE
+ *   return null + _SESSAO_ERRO_ posto  -> o servidor engasgou (a tela não
+ *                                         desloga ninguém e manda tentar de novo)
+ */
+var _SESSAO_ERRO_ = null;
+
 function verificar_(token) {
+  _SESSAO_ERRO_ = null;
+  var parts = String(token || "").split(".");
+  if (parts.length !== 2) return null;               // token malformado: é sessão inválida mesmo
+
+  var seg = segredo_();
+  if (!seg) { _SESSAO_ERRO_ = "BACKEND_SEM_CONFIG"; return null; }
+
+  var esperado;
   try {
-    var parts = String(token || "").split(".");
-    if (parts.length !== 2) return null;
-    var esperado = Utilities.base64EncodeWebSafe(
-      Utilities.computeHmacSha256Signature(parts[0], segredo_()));
-    if (esperado !== parts[1]) return null;
-    var payload = JSON.parse(
+    esperado = Utilities.base64EncodeWebSafe(
+      Utilities.computeHmacSha256Signature(parts[0], seg));
+  } catch (e) {
+    console.error("verificar_: HMAC falhou nesta execução — " + e);
+    _SESSAO_ERRO_ = "BACKEND_OCUPADO";
+    return null;
+  }
+  if (esperado !== parts[1]) return null;            // assinatura não bate: sessão inválida mesmo
+
+  var payload;
+  try {
+    payload = JSON.parse(
       Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[0])).getDataAsString("UTF-8"));
-    if (payload.exp && Date.now() > payload.exp) return null;
+  } catch (e) {
+    console.error("verificar_: payload ilegível — " + e);
+    _SESSAO_ERRO_ = "BACKEND_OCUPADO";
+    return null;
+  }
+  if (payload.exp && Date.now() > payload.exp) return null;   // aí sim, expirou
+
+  try {
 
     // ATUALIZAÇÃO CRÍTICA: o token guarda tipo/acessos de quando a pessoa LOGOU.
     // Sessão dura 30 dias — sem isso, liberar um acesso novo no Notion (LOGINS)
@@ -585,9 +670,13 @@ function verificar_(token) {
     // o payload antes de devolver, então a liberação passa a valer em minutos.
     var fresco = acessosFrescos_(payload.u);
     if (fresco) { payload.t = fresco.tipo; payload.a = fresco.acessos; }
-
-    return payload;
-  } catch (e) { return null; }
+  } catch (e) {
+    /* Notion fora do ar, cache travado, lock disputado: nada disso invalida
+       a sessão. Segue com tipo/acessos que já estavam gravados no token. */
+    console.log("verificar_: não consegui atualizar os acessos de " +
+                payload.u + " — seguindo com o token. " + e);
+  }
+  return payload;
 }
 function pub_(sess) {
   return { login: sess.u, pessoa: sess.p, nome: sess.n, tipo: sess.t, acessos: sess.a || [] };
@@ -1107,6 +1196,8 @@ function criarAtividadesGcap_() {
 // Chamada pelo trigger diário (ver criarTriggerGcap). Trigger não tem pra
 // quem devolver resposta — só loga (Ver > Execuções, no editor).
 function criarAtividadesGcapJob_() {
+  /* r32: SÓ na LEITURA — senão nascem duas atividades de GCAP por venda. */
+  if (!ehPapelLeitura_()) { Logger.log("GCAP job ignorado: este projeto é o de ESCRITA."); return; }
   var r = criarAtividadesGcap_();
   Logger.log("GCAP job: " + JSON.stringify(r));
 }
@@ -1465,6 +1556,9 @@ function posObraSincronizarTudo_(opcoes) {
  * anterior (posObraSincronizarTudoJob_) simplesmente não estava lá pra ser
  * escolhida. É ESTA aqui que você seleciona no painel. */
 function posObraSyncDiario() {
+  /* r32: SÓ na LEITURA. Rodando nos dois projetos, duas varreduras
+     concorreriam escrevendo as mesmas linhas do Notion ao mesmo tempo. */
+  if (!ehPapelLeitura_()) { Logger.log("posObraSyncDiario ignorado: este projeto é o de ESCRITA."); return; }
   var r = posObraSincronizarTudo_();
   Logger.log("PÓS OBRA sync diário: " + JSON.stringify(r));
   // se não terminar hoje, o progresso fica salvo e a execução de amanhã
@@ -4623,6 +4717,11 @@ function analiseInsumosCalc_() {
  * anterior na hora, em vez de cair no caso frio.
  * =================================================================== */
 function aquecerCaches() {
+  /* r32: SÓ no projeto de LEITURA. Este acionador reconstrói o cache que as
+     telas leem, e cache é por projeto — aquecer no projeto de escrita não
+     serve para nada e ainda gasta a fila dele, que é justamente a que
+     precisa ficar livre. */
+  if (!ehPapelLeitura_()) { Logger.log("aquecerCaches ignorado: este projeto é o de ESCRITA."); return; }
   var alvos = [
     ["pós obra · chamados", CH_POS_DADOS,        posObraDadosCalc_],
     ["pós obra · lista",    CH_POS_LISTA,        posObraListaCalc_],
@@ -4638,7 +4737,8 @@ function aquecerCaches() {
     catch (e) { linhas.push("FALHOU " + a[0] + ": " + String(e).slice(0, 160)); }
   });
   Logger.log("AQUECIMENTO em " + Math.round((Date.now()-t0)/1000) + "s\n" + linhas.join("\n"));
-  drenarPublicacaoPendente_();
+  /* r32: o dreno saiu daqui e foi para o publicarSite, no projeto de ESCRITA
+     — ver o comentário lá. Aqui ele nunca acharia nada para drenar. */
 }
 
 /* r31 — publica o que as criações deixaram anotado. Roda no acionador de
@@ -4852,6 +4952,14 @@ function avisarGitHub_(motivo) {
  * traz essas mudanças para as telas.
  * ===================================================================== */
 function publicarSite() {
+  /* r32: SÓ no projeto de ESCRITA, e agora ele também DRENA o que as criações
+     deixaram anotado. Motivo: PUBLICAR_PENDENTE é uma Propriedade do script,
+     e Propriedade é POR PROJETO. Quem anota é a criação, que roda na escrita;
+     se quem drenasse continuasse sendo o aquecerCaches (que roda na leitura),
+     a anotação nunca seria lida e o site nunca republicaria depois de uma
+     criação. Agende este acionador a cada 10 minutos no projeto de ESCRITA. */
+  if (!ehPapelEscrita_()) { Logger.log("publicarSite ignorado: este projeto é o de LEITURA."); return; }
+  drenarPublicacaoPendente_();
   var r = avisarGitHub_("periodico");
   Logger.log("Republicação periódica: " + JSON.stringify(r));
   if (r && r.motivo === "SEM_GITHUB_TOKEN") {

@@ -339,6 +339,12 @@ html[data-tema="escuro"] .pill.falta{background:#3a2d12;color:#f0c95f;border-col
 .campo .ro{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;font-size:13px;color:var(--text)}
 .campo .dica{font-size:11px;color:var(--text4);margin-top:3px}
 .campo.recusado input,.campo.recusado select,.campo.recusado textarea{outline:2px solid var(--vermelho);outline-offset:-1px}
+/* set/26: o campo aparece preenchido NA HORA e fica com esta marca discreta
+   enquanto sobe. Antes ele ficava vazio esperando o servidor, e com a fila
+   congestionada isso eram 10 a 20 s de tela parada — era o "o preenchimento
+   fica carregando a informação sem ela aparecer". */
+.campo.salvando input,.campo.salvando select,.campo.salvando textarea,.campo.salvando .ro{opacity:.72}
+.campo.salvando label::after{content:" · salvando…";font-weight:400;opacity:.6}
 .grupo-rm{border:1px solid var(--border2);border-left:4px solid var(--amarelo);border-radius:10px;
   padding:11px 12px 2px;margin:14px 0;background:var(--sup)}
 .grupo-rm .gt{font-family:'Barlow Condensed';font-weight:800;font-size:13.5px;text-transform:uppercase;
@@ -1415,6 +1421,26 @@ function carregarPeloBackend(forcar){
   return lerStore({action:"posObraBoot"}, CH_BOOT,
                   { ttl: RECARGA_MIN*60*1000, forcar: !!forcar, pintar: aplicarBoot });
 }
+/* ===================== RECARGA ADIADA (set/26) ============================
+ * O salvarCampo chamava recarregarTudo() a CADA campo gravado. Isso dispara
+ * um posObraBoot ao vivo no Apps Script só porque um campo de um chamado
+ * mudou — ou seja, a pessoa que está preenchendo o formulário gera, ela
+ * mesma, a leitura pesada que vai atrasar a próxima gravação dela.
+ *
+ * A lista de obras não precisa disso na hora: o que muda nela é a contagem de
+ * chamados abertos, e essa o pintarHub() já recalcula localmente. Então a
+ * recarga vira adiada e única — se a pessoa preencher oito campos seguidos,
+ * acontece UMA recarga 45 s depois do último, e nenhuma se ela sair da aba.
+ * =================================================================== */
+let _recTimer = null;
+function recarregarDepois(ms){
+  clearTimeout(_recTimer);
+  _recTimer = setTimeout(function(){
+    if(document.hidden) return;      // aba em segundo plano: não gasta execução
+    recarregarTudo();
+  }, ms || 45000);
+}
+
 function recarregarTudo(){
   /* depois de GRAVAR: o arquivo publicado ainda tem o estado anterior (ele só
      é regerado no próximo build), então aqui a tela vai ao Apps Script de
@@ -3394,34 +3420,78 @@ function valorData(v, comHora){
   return comHora ? v + ":00-03:00" : v;
 }
 
+/* Aplica o valor no estado da tela. Separado do salvarCampo de propósito:
+   ele é chamado DUAS vezes — uma antes de enviar (otimista) e outra para
+   desfazer, se o servidor recusar.
+   r24: NÃO esquecer o registro local aqui. O chamado só some da ponte quando
+   o arquivo publicado passar a trazê-lo (ver limparNovos); até lá o valor
+   recém-salvo é o que a lista e o calendário mostram — inclusive depois de um
+   F5. Antes daqui saía um esquecerNovo(), e era isso que fazia o serviço
+   recém-criado sumir da tela até o próximo build. */
+function aplicarCampoLocal(alvo, prop, valor){
+  if(!alvo) return;
+  alvo.valores = alvo.valores || {};
+  alvo.valores[prop] = valor;
+  if(atualizarNovo(alvo.id, prop, valor)){
+    remontarAgenda(); renderCalendario(); renderAlertas(); pintarHub();
+  }
+  if(normN(prop) === normN("ANDAMENTO DA SOLICITAÇÃO")){
+    alvo.andamento = valor;
+    const sub = document.getElementById("pn-sub");
+    if(sub) sub.textContent = valor || "sem andamento";
+    renderPainelChamado();
+    renderKanban();
+  }
+  renderHistorico();
+}
+
+/* ===================== GRAVAÇÃO OTIMISTA (set/26) =========================
+ * ANTES: mandava para o servidor e só pintava a tela quando a resposta
+ * voltasse. Com a fila do Apps Script congestionada isso eram 10 a 20 s com o
+ * campo aparentemente vazio, e se a chamada falhasse o que a pessoa digitou
+ * sumia. Era o "o preenchimento fica carregando a informação sem ela aparecer
+ * na tela".
+ *
+ * AGORA: o valor entra no estado da tela IMEDIATAMENTE e a gravação segue por
+ * baixo. Se o servidor recusar de verdade, o campo volta ao valor anterior e
+ * o aviso diz isso com todas as letras. Se for só falta de sinal, o escrever()
+ * enfileira e o valor continua na tela — que é o certo, porque ele vai subir.
+ *
+ * Isto é seguro porque a edição local sobrevive à publicação: o
+ * atualizarNovo/aplicarEdicoesLocais já garante que o dist/ velho não volta
+ * por cima do que acabou de ser digitado.
+ * =================================================================== */
 function salvarCampo(prop, valor, id, _el){
   if(soLeitura()){ toast("Modo teste: nada é gravado.", 3); return; }
+  if(!CHAMADO) return;
   const cx = document.getElementById("cx_"+id);
-  escrever({action:"posObraAtvUpdate", pageId:CHAMADO.id, prop:prop, valor:valor}, prop).then(r=>{
+  const alvo = CHAMADO;
+  const anterior = (alvo.valores || {})[prop];
+
+  aplicarCampoLocal(alvo, prop, valor);
+  if(cx){ cx.classList.remove("recusado"); cx.classList.add("salvando"); }
+
+  escrever({action:"posObraAtvUpdate", pageId:alvo.id, prop:prop, valor:valor}, prop).then(r=>{
+    if(cx) cx.classList.remove("salvando");
     if(!r.ok){
-      if(cx) cx.classList.add("recusado");
-      toast("Não gravou "+prop+": "+erroTexto(r.erro), 5);
+      /* Recusa de verdade (permissão, opção inexistente, chamado finalizado,
+         domingo/feriado): desfaz, para a tela não mostrar um valor que o
+         Notion não tem. */
+      aplicarCampoLocal(alvo, prop, anterior === undefined ? null : anterior);
+      if(CHAMADO && CHAMADO.id === alvo.id) renderPainelChamado();
+      const cx2 = document.getElementById("cx_"+id);
+      if(cx2) cx2.classList.add("recusado");
+      toast("Não gravou "+prop+": "+erroTexto(r.erro)+" — o campo voltou ao valor anterior.", 6);
       return;
     }
-    if(cx) cx.classList.remove("recusado");
-    CHAMADO.valores[prop] = valor;
-    /* r24: NÃO esquecer o registro local aqui. O chamado só some da ponte
-       quando o arquivo publicado passar a trazê-lo (ver limparNovos); até lá
-       o valor recém-salvo é o que a lista e o calendário mostram — inclusive
-       depois de um F5. Antes daqui saía um esquecerNovo(), e era isso que
-       fazia o serviço recém-criado sumir da tela até o próximo build. */
-    if(atualizarNovo(CHAMADO.id, prop, valor)){
-      remontarAgenda(); renderCalendario(); renderAlertas(); pintarHub();
+    if(r.enfileirado){
+      toast("Sem internet agora. O valor está guardado e sobe sozinho quando reconectar.", 5);
+      return;
     }
-    if(normN(prop) === normN("ANDAMENTO DA SOLICITAÇÃO")){
-      CHAMADO.andamento = valor;
-      document.getElementById("pn-sub").textContent = valor || "sem andamento";
-      renderPainelChamado();
-      renderKanban();
-    }
-    renderHistorico();
-    recarregarTudo();
-    toast(r.enfileirado ? "Sem internet — vai subir quando reconectar." : "Salvo.");
+    /* Adiada de propósito: ver recarregarDepois. Chamar recarregarTudo() aqui
+       fazia cada campo preenchido custar uma leitura pesada no servidor. */
+    recarregarDepois();
+    toast("Salvo.");
   });
 }
 
