@@ -4,10 +4,21 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-  # Cron de segurança: cobre edições feitas direto no Notion, fora do site.
-  # A cada 15 min, mesma janela do RAS-SEMANAL.
+  # Cron de segurança, e SÓ isso. Quem manda republicar de verdade agora é o
+  # acionador publicarSite do Apps Script, de 30 em 30 min.
+  #
+  # POR QUE MUDOU: o agendamento do GitHub Actions é entrega de melhor
+  # esforço. Sob carga ele atrasa e chega a pular execuções — o pedido de
+  # 15 min estava virando 2 a 4 HORAS na prática (dá para ver no histórico de
+  # execuções). Pedir 30 em vez de 15 não conserta isso; o problema não é o
+  # número. Por isso o intervalo confiável passou para o Apps Script, cujo
+  # acionador é o mesmo que roda o aquecerCaches sem falhar, e aqui fica um
+  # cron esparso só para o caso de o Apps Script estar fora do ar.
+  #
+  # Minuto 11 e 41 de propósito: topo de hora é o horário mais concorrido do
+  # agendador do GitHub, e é onde o atraso é pior.
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '11,41 * * * *'
   # Disparo vindo do Apps Script depois de uma escrita.
   # ATENÇÃO: se este bloco sair daqui, o repository_dispatch é ignorado
   # silenciosamente pelo GitHub (sem erro nenhum).
