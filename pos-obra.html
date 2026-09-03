@@ -792,7 +792,7 @@ html[data-tema="escuro"] .logo{background:#fff}
   <input type="file" id="arq-input" style="display:none" onchange="enviarArquivo(this)">
   <div class="toast" id="toast"></div>
 
-<script src="app.js?v=28"></script>
+<script src="app.js?v=29"></script>
 <script>
 /* ===================== TABELA DE GARANTIAS =====================
  * Transcrita do "Manual do Proprietário" — as DUAS listas, como combinado:
@@ -1197,10 +1197,43 @@ function novos(){
   try{ return JSON.parse(localStorage.getItem(NOVOS_KEY) || "{}"); }catch(e){ return {}; }
 }
 function novosGravar(o){ try{ localStorage.setItem(NOVOS_KEY, JSON.stringify(o)); }catch(e){} }
+/* r33 — REGISTRO OTIMISTA (a correção do "criei e não apareceu").
+   Até aqui o serviço só entrava na ponte DEPOIS da resposta do servidor. Entre
+   o clique e a resposta existe uma janela que, no pior caso, chega a três
+   minutos (90 s de espera + 90 s de conferência por opId, ver criarProtegido no
+   app.js). Nessa janela a tela não mostrava NADA: se a pessoa fechasse,
+   recarregasse ou trocasse de obra, o serviço nascia no Notion e sumia da vista
+   até o próximo build — e na PRIMEIRA criação da obra isso é gritante, porque a
+   página fica com "Nenhum serviço nesta obra" e a lista com "SEM PÓS OBRA".
+
+   Agora o registro entra na ponte ANTES do envio, com um id provisório
+   ("tmp_<opId>"). Quando a resposta chega, o id provisório vira o id real
+   (trocarIdNovo). Se a pessoa recarregar no meio do caminho, o opId guardado
+   junto permite perguntar ao servidor o que aconteceu (resolverEnvios). */
 function registrarNovo(atv){
   const o = novos();
-  o[atv.id] = { id:atv.id, obraId:atv.obraId, nome:atv.nome, ts:Date.now(), v:{} };
+  o[atv.id] = { id:atv.id, obraId:atv.obraId, nome:atv.nome, ts:Date.now(), v:{},
+                opId: atv.opId || null, enviando: !!atv.enviando };
   novosGravar(o);
+}
+function ehProvisorio(id){ return String(id||"").indexOf("tmp_") === 0; }
+/* O id provisório vira o id real do Notion — na ponte e na obra aberta. */
+function trocarIdNovo(idAntigo, idNovo, nome){
+  const o = novos(), r = o[idAntigo];
+  if(r){
+    delete o[idAntigo];
+    o[idNovo] = Object.assign({}, r, { id:idNovo, nome: nome || r.nome, enviando:false, opId:null });
+    novosGravar(o);
+  }
+  if(OBRA && OBRA.atividades){
+    const a = OBRA.atividades.find(x=>x.id === idAntigo);
+    if(a){ a.id = idNovo; a.nome = nome || a.nome; a.enviando = false; }
+  }
+}
+/* Some com o registro provisório dos dois lados (ponte + obra em memória). */
+function descartarProvisorio(id){
+  esquecerNovo(id);
+  if(OBRA && OBRA.atividades) OBRA.atividades = OBRA.atividades.filter(x=>x.id !== id);
 }
 /* Um campo foi gravado com sucesso num serviço que ainda está na ponte:
    guarda o valor pra tela continuar mostrando depois de um F5. Devolve true
@@ -1244,12 +1277,59 @@ function limparNovos(idsDoServidor, publicadoEm){
     const jaVeio   = vistos[k] || vistos[semHifen(k)];
     const venceu   = Date.now()-r.ts > NOVOS_TTL;
     /* o build é mais novo que a criação e continua sem trazer o chamado */
-    const sumiu    = !!carimbo && carimbo > (r.ts + NOVOS_MARGEM_MS);
+    const sumiu    = !!carimbo && carimbo > (r.ts + NOVOS_MARGEM_MS) && !r.enviando;
+    /* r33: um registro ainda EM ENVIO nunca vai aparecer no arquivo publicado
+       (o id dele é provisório), então a regra do carimbo o apagaria sempre.
+       Quem decide o destino dele é o resolverEnvios(), perguntando por opId. */
     if(jaVeio || venceu || sumiu){ delete o[k]; mudou = true; }
   }
   if(mudou) novosGravar(o);
   return o;
 }
+/* ===================== ENVIOS INTERROMPIDOS (r33) =========================
+ * Cenário real: a pessoa clica em criar, a tela já mostra o serviço (registro
+ * otimista) e ela fecha o navegador antes de a resposta chegar. Sobra na ponte
+ * um registro com id provisório e o opId da operação.
+ *
+ * Na abertura seguinte perguntamos ao servidor o que aconteceu com aquele opId
+ * — a MESMA pergunta que o criarProtegido faz (opStatus). Três respostas:
+ *   criou      -> o id provisório vira o id real e o serviço segue na tela;
+ *   está criando -> deixa como está, tenta de novo no próximo boot;
+ *   nada consta  -> não existe; descarta o fantasma em vez de deixá-lo
+ *                   pintado por três dias (que era o comportamento do TTL).
+ * A margem de 2 min evita descartar uma criação que acabou de sair.
+ * =================================================================== */
+let _resolvendoEnvios = false;
+async function resolverEnvios(){
+  if(_resolvendoEnvios || !navigator.onLine) return;
+  const o = novos(), alvos = [];
+  for(const k in o) if(o[k].enviando && o[k].opId) alvos.push(o[k]);
+  if(!alvos.length) return;
+  _resolvendoEnvios = true;
+  let mudou = false;
+  try{
+    for(const n of alvos){
+      let c = null;
+      try{ c = await chamar({ action:"opStatus", opId:n.opId }, 15000, true); }
+      catch(e){ continue; }                       // sem resposta: tenta no próximo boot
+      if(!c || !c.ok) continue;
+      if(c.achado && c.resultado && c.resultado.id){
+        trocarIdNovo(n.id, c.resultado.id, c.resultado.nome || n.nome);
+        mudou = true;
+      } else if(c.andando){
+        continue;                                  // ainda está criando
+      } else if(Date.now() - n.ts > 2*60*1000){
+        descartarProvisorio(n.id);                 // não chegou a existir
+        mudou = true;
+      }
+    }
+  } finally { _resolvendoEnvios = false; }
+  if(!mudou) return;
+  remontarAgenda();
+  if(OBRA) pintarObra();
+  pintarHub(); renderCalendario(); renderAlertas();
+}
+
 function novosDaObra(obraId){
   const o = novos(), l = [];
   for(const k in o) if(semHifen(o[k].obraId) === semHifen(obraId)) l.push(o[k]);
@@ -1261,7 +1341,7 @@ function novosDaObra(obraId){
 function atividadeDoNovo(n){
   const v = Object.assign({ "Nome":n.nome, "ANDAMENTO DA SOLICITAÇÃO":null }, n.v || {});
   return { id:n.id, nome:n.nome, andamento:v["ANDAMENTO DA SOLICITAÇÃO"] || null,
-           pendente:true, faltando:[], valores:v };
+           pendente:true, enviando: !!n.enviando, faltando:[], valores:v };
 }
 /* Marcações de calendário dos serviços que ainda só existem no navegador.
    Uma por coluna de data preenchida, com a mesma forma das que vêm do
@@ -1272,6 +1352,11 @@ function marcacoesDosNovos(){
   const o = novos(), fora = [];
   for(const k in o){
     const n = o[k], v = n.v || {};
+    /* r33: enquanto o id é provisório, a marcação fica FORA do calendário. O
+       card do calendário permite arrastar a data e gravar — e gravar num id
+       que ainda não existe no Notion daria erro. São poucos segundos; assim
+       que a resposta chega, a marcação entra pelo caminho normal. */
+    if(n.enviando) continue;
     for(const prop in v){
       const pn = normN(prop);
       if(pn.indexOf("DATA") < 0 || pn.indexOf("CHAMADO") >= 0) continue;
@@ -1373,6 +1458,9 @@ function aplicarBoot(r){
   remontarAgenda();
   aplicarSensEmObras();
   pintarHub(); renderCalendario(); renderAlertas();
+  /* r33: se algum envio ficou pelo caminho (a pessoa fechou a tela no meio da
+     criação), é aqui que ele é resolvido — por opId, sem chutar. */
+  resolverEnvios();
   const cx = document.getElementById("aviso"); if(cx) cx.style.display = "none";
   /* a versão do backend vem junto agora — não custa mais uma chamada de ping */
   if(r.versao && !r.doCache) conferirBackend(r.versao);
@@ -2747,7 +2835,7 @@ function colunaKanban(titulo, lista){
     const resp = v["RESPONSÁVEL"] || "";
     const cor = resp ? corDe(resp) : "var(--azul)";
     return '<div class="kcard" style="border-left-color:'+cor+'" onclick="abrirChamado(\''+a.id+'\')">'+
-      '<div class="sv">'+esc(serv || "Serviço sem tipo")+(a.pendente?' <span class="pill novo">novo</span>':"")+'</div>'+
+      '<div class="sv">'+esc(serv || "Serviço sem tipo")+(a.enviando?' <span class="pill novo">enviando…</span>':(a.pendente?' <span class="pill novo">novo</span>':""))+'</div>'+
       '<div class="mt">'+[dbrh(dt), resp].filter(Boolean).map(esc).join(" · ")+'</div></div>';
   }).join("");
   return '<div class="kcol"><div class="kcol-tit">'+esc(titulo)+'<span class="n">'+lista.length+'</span></div>'+cards+'</div>';
@@ -2771,7 +2859,12 @@ window.aoSincronizar = function(feitos){
   (feitos || []).forEach(f=>{
     const p = f.payload || {}, r = f.resposta || {};
     if(p.action !== "posObraServicoNovo" || !r.id) return;
-    registrarNovo({ id:r.id, obraId:p.pageId, nome:r.nome || p.nome || "" });
+    /* r33: se a criação já tinha um registro provisório na ponte (o normal
+       agora), o certo é TROCAR o id — registrar de novo criaria dois cards
+       para o mesmo chamado. */
+    const tmp = p.opId ? ("tmp_" + p.opId) : null;
+    if(tmp && novos()[tmp]) trocarIdNovo(tmp, r.id, r.nome || p.nome || "");
+    else registrarNovo({ id:r.id, obraId:p.pageId, nome:r.nome || p.nome || "" });
     (p.props || []).forEach(x=> atualizarNovo(r.id, x.prop, x.valor));
     if(OBRA && semHifen(OBRA.id) === semHifen(p.pageId)){
       OBRA.atividades = OBRA.atividades || [];
@@ -3044,76 +3137,110 @@ function confirmarNovoServico(){
   gravarNovoServico(props);
 }
 
+/* ===================== CRIAÇÃO OTIMISTA (r33) =============================
+ * O QUE MUDOU E POR QUÊ.
+ *
+ * Antes: clicar em criar desabilitava o botão, mantinha o formulário aberto e
+ * a tela só reagia QUANDO o servidor respondesse. No caminho feliz isso são 2
+ * a 4 segundos; no caminho ruim (resposta perdida no POST -> 302 -> GET do
+ * Apps Script) o criarProtegido espera 90 s e depois confere por opId por mais
+ * 90 s. Nesse intervalo a pessoa não via absolutamente nada acontecer — então
+ * fechava, recarregava ou saía da obra. O chamado nascia no Notion e sumia da
+ * vista até o próximo build, e na PRIMEIRA criação da obra o efeito é total:
+ * "Nenhum serviço nesta obra" com o serviço já gravado no banco.
+ *
+ * Agora: o serviço é desenhado ANTES de o envio sair, com um id provisório. O
+ * formulário fecha na hora, o histórico e o kanban já mostram o chamado, a
+ * lista já conta a obra como PÓS OBRA EM ANDAMENTO. O envio segue em segundo
+ * plano e, quando responde, o id provisório vira o id real.
+ *
+ * As três saídas possíveis, todas tratadas sem deixar fantasma:
+ *   criou            -> troca o id e (se a pessoa continua na obra) abre o painel;
+ *   já existia igual -> adota o chamado que o servidor devolveu (JA_CRIADO_AGORA);
+ *   não criou        -> descarta o registro provisório e avisa por toast.
+ * =================================================================== */
 function gravarNovoServico(props){
   const obraId = (NS_OBRA && NS_OBRA.id) || (OBRA && OBRA.id);
   const titulo = (NS_OBRA && NS_OBRA.titulo) || (OBRA && OBRA.titulo) || "";
   if(!obraId) return;
-  const bt = document.getElementById("ns-criar");
-  if(bt) bt.disabled = true;
 
+  const opId  = NS_OPID || novoOpId();
+  const tmpId = "tmp_" + opId;
+
+  /* ---- 1. PINTA PRIMEIRO ------------------------------------------------ */
+  registrarNovo({ id:tmpId, obraId:obraId, nome:titulo, opId:opId, enviando:true });
+  (props||[]).forEach(x=> atualizarNovo(tmpId, x.prop, x.valor));
+
+  const naObra = OBRA && semHifen(OBRA.id) === semHifen(obraId);
+  if(naObra){
+    OBRA.atividades = OBRA.atividades || [];
+    OBRA.atividades.push(atividadeDoNovo(
+      Object.assign({ id:tmpId, obraId:obraId, nome:titulo, enviando:true },
+                    { v: (novos()[tmpId] || {}).v || {} })));
+    pintarObra();
+  }
+  remontarAgenda();
+  pintarHub(); renderCalendario(); renderAlertas();
+  fecharNovoServico();
+  toast("Serviço criado. Terminando de enviar…", 3);
+
+  /* ---- 2. ENVIA EM SEGUNDO PLANO --------------------------------------- */
   /* "nome" vai daqui: a tela já tem o título da obra, e assim o servidor não
      precisa de um GET só pra descobrir o texto do rótulo do chamado. */
   escrever({action:"posObraServicoNovo", pageId:obraId, nome:titulo,
-            props:props, opId: NS_OPID || novoOpId()},
+            props:props, opId:opId},
            "criar serviço pós obra").then(r=>{
-    if(bt) bt.disabled = false;
-    /* ORDEM CORRIGIDA (set/26): FALHOU_SEM_CRIAR vem com ok:false, então era
-       engolido pelo bloco abaixo e a pessoa via o código cru na tela
-       ("Não deu para criar: FALHOU_SEM_CRIAR") em vez da explicação. */
-    if(r.erro === "FALHOU_SEM_CRIAR"){
-      const erro = document.getElementById("ns-erro");
-      /* Resposta honesta: o servidor foi consultado (opStatus, várias vezes,
-         por cerca de um minuto) e o chamado NÃO existe. Nada ficou pendurado. */
-      erro.textContent = "A conexão falhou e o serviço NÃO foi criado. " +
-                         "Pode tentar de novo — nada ficou pendente.";
-      erro.style.display = "block";
+
+    /* O servidor barrou uma segunda criação igual em poucos minutos (ver a
+       trava em posObraServicoNovo_). Quase sempre é a pessoa repetindo depois
+       de um erro de rede em que o chamado JÁ tinha sido criado — então o
+       caminho certo é adotar o que existe, não criar outro. */
+    if(!r.ok && r.erro === "JA_CRIADO_AGORA" && r.resposta && r.resposta.id){
+      trocarIdNovo(tmpId, r.resposta.id, r.resposta.nome || titulo);
+      finalizarCriacao(obraId, r.resposta.id, naObra);
+      toast("Esse serviço já tinha sido criado agora há pouco — é este aqui.", 5);
       return;
     }
+
     if(!r.ok){
-      const erro = document.getElementById("ns-erro");
-      /* O servidor barrou uma segunda criação igual em poucos minutos (ver
-         a trava em posObraServicoNovo_). Quase sempre é a pessoa repetindo
-         depois de um erro de rede em que o chamado JÁ tinha sido criado —
-         então o caminho certo é abrir o que existe, não criar outro. */
-      if(r.erro === "JA_CRIADO_AGORA" && r.resposta && r.resposta.id){
-        fecharNovoServico();
-        toast("Esse serviço já tinha sido criado agora há pouco — abrindo ele.", 5);
-        abrirChamado(r.resposta.id);
-        return;
-      }
-      erro.textContent = "Não deu para criar: " + erroTexto(r.erro);
-      erro.style.display = "block";
+      /* Nada foi criado: o registro provisório sai da tela para não virar um
+         fantasma. FALHOU_SEM_CRIAR é resposta honesta — o servidor foi
+         consultado por opId, várias vezes, e o chamado não existe. */
+      descartarProvisorio(tmpId);
+      remontarAgenda();
+      if(naObra) pintarObra();
+      pintarHub(); renderCalendario(); renderAlertas();
+      toast(r.erro === "FALHOU_SEM_CRIAR"
+              ? "A conexão falhou e o serviço NÃO foi criado. Pode criar de novo — nada ficou pendente."
+              : "Não deu para criar: " + erroTexto(r.erro), 7);
       return;
     }
-    if(r.recuperado) toast("A conexão oscilou, mas o serviço já tinha sido criado.", 5);
+
     if(r.enfileirado){
-      fecharNovoServico();
-      /* Aviso mais longo e explícito de propósito: era exatamente aqui que a
-         pessoa achava que nada tinha acontecido e criava de novo. O envio
-         guardado carrega o mesmo opId, então quando ele sair o servidor
-         devolve o chamado que já existe em vez de criar um segundo. */
-      toast("Sem sinal agora. O serviço está guardado e vai ser criado sozinho " +
-            "quando a conexão voltar — não crie de novo.", 7);
+      /* Não deveria acontecer (criação não entra na fila — ver SEM_FILA no
+         app.js), mas se um dia entrar, o registro provisório continua na tela
+         e o aoSincronizar resolve o id quando o envio sair. */
+      toast("Sem sinal agora. O serviço está guardado e sobe sozinho quando a " +
+            "conexão voltar — não crie de novo.", 7);
       return;
     }
+
+    if(r.recuperado) toast("A conexão oscilou, mas o serviço já tinha sido criado.", 4);
+
     const id = r.resposta && r.resposta.id;
-    fecharNovoServico();
-    if(!id){ toast("Serviço criado."); abrirObra(obraId); return; }
-
-    const nome = (r.resposta && r.resposta.nome) || titulo;
-    // guarda no navegador de quem criou até o arquivo publicado passar a trazê-lo
-    registrarNovo({ id:id, obraId:obraId, nome:nome });
-    (props||[]).forEach(x=> atualizarNovo(id, x.prop, x.valor));
-
-    const nova = atividadeDoNovo(Object.assign({ id:id, obraId:obraId, nome:nome }, { v: novos()[id] ? novos()[id].v : {} }));
-    OBRA.atividades = OBRA.atividades || [];
-    OBRA.atividades.push(nova);
-    remontarAgenda();
-    pintarObra();
-    pintarHub(); renderCalendario(); renderAlertas();
-    toast("Serviço criado.");
-    abrirChamado(id);              // item 4: já abre a aba dele pra completar
+    if(!id){ descartarProvisorio(tmpId); abrirObra(obraId); return; }
+    trocarIdNovo(tmpId, id, (r.resposta && r.resposta.nome) || titulo);
+    finalizarCriacao(obraId, id, naObra);
   });
+}
+
+/* Repinta com o id definitivo e, se a pessoa continua na obra e não está com
+   outro painel aberto, abre o chamado para ela completar os campos. */
+function finalizarCriacao(obraId, id, naObra){
+  remontarAgenda();
+  if(OBRA && semHifen(OBRA.id) === semHifen(obraId)) pintarObra();
+  pintarHub(); renderCalendario(); renderAlertas();
+  if(naObra && OBRA && semHifen(OBRA.id) === semHifen(obraId) && !CHAMADO) abrirChamado(id);
 }
 
 /* ---------- observação da obra ---------- */
@@ -3134,6 +3261,13 @@ function editarObs(){
 function abrirChamado(id){
   const a = (OBRA && OBRA.atividades || []).find(x=>x.id===id);
   if(!a) return;
+  /* r33: id provisório = o servidor ainda não devolveu o id real. Abrir o
+     painel aqui deixaria a pessoa editar campos de uma página que ainda não
+     existe no Notion — toda gravação daria erro. São poucos segundos. */
+  if(ehProvisorio(id) || a.enviando){
+    toast("Esse serviço ainda está sendo enviado — aguarde alguns segundos.", 4);
+    return;
+  }
   CHAMADO = a;
   document.getElementById("pn-nome").textContent = a.nome || "Serviço";
   document.getElementById("pn-sub").textContent = a.andamento || "sem andamento";

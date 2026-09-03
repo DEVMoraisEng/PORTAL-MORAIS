@@ -70,7 +70,11 @@
    repetida) e pos-obra.html (ordem do FALHOU_SEM_CRIAR). Sem trocar esta
    versao, o navegador de quem ja abriu o portal continuaria servindo o
    app.js antigo do cache e a correcao nao chegaria em ninguem. */
-const CACHE = "portal-morais-v22";  // r31: criação protegida (app.js, pos-obra.html, ligacoes.html)
+/* v22 -> v23: criação otimista do serviço de pós obra. A tela desenha o
+   chamado ANTES da resposta do servidor (id provisório trocado pelo real
+   quando ela chega) e reconcilia por opId se a pessoa fechar no meio.
+   Mudaram: pos-obra.html e app.js. */
+const CACHE = "portal-morais-v23";  // r33: criação otimista no pós obra
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./app.js","./manifest.json"];

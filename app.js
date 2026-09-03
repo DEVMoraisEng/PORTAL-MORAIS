@@ -451,8 +451,12 @@ async function criarProtegido(payload){
         return { ok:false, erro:bruto.erro, resposta:bruto };
 
       let nadaConsta = false;
-      for(let i = 0; i < 18; i++){                    // 18 x 5 s = 90 s
-        await _pausa(5000);
+      /* r33: a primeira conferência sai em 2 s, não em 5. Com a tela já
+         desenhada (registro otimista no pos-obra.html), quem espera aqui é só
+         o acerto do id — quanto antes ele chegar, antes o chamado fica
+         editável. */
+      for(let i = 0; i < 20; i++){                    // ~2 s + 19 x 4 s
+        await _pausa(i === 0 ? 2000 : 4000);
         let c = null;
         try{ c = await chamar({ action:"opStatus", opId: payload.opId }, 15000, true); }
         catch(e){ continue; }                          // sem resposta: insiste
