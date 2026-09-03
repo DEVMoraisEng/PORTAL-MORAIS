@@ -321,8 +321,41 @@ document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) revalid
 function novoOpId(){
   return Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,10);
 }
+/* Ações que NUNCA entram na fila offline.
+ *
+ * POR QUÊ: enfileirar uma CRIAÇÃO é o pior dos mundos. Se o pedido falhou
+ * depois de o servidor já ter criado, o item fica na fila prometendo criar
+ * algo que já existe; e se ninguém drenar a fila, ele fica pendurado para
+ * sempre e a tela mente dizendo "vai ser criado quando a conexão voltar".
+ * Foi exatamente esse o travamento: o pedido estourou o tempo ESTANDO online,
+ * então o evento "online" nunca disparou e nada drenou a fila.
+ *
+ * Para estas ações a tela passa a PERGUNTAR ao servidor se a operação chegou
+ * a acontecer (ação opStatus, pelo opId). Duas saídas possíveis, ambas
+ * honestas: adota o que foi criado, ou avisa que não criou nada. */
+const SEM_FILA = ["posObraServicoNovo", "posObraNovo"];
+
 async function escrever(payload, rotulo){
   if(!payload.opId) payload.opId = novoOpId();
+
+  if(SEM_FILA.indexOf(payload.action) >= 0){
+    try{
+      const r = await chamar(payload);
+      if(r) return r;
+    }catch(e){ /* cai na conferência abaixo */ }
+
+    /* Não sabemos se criou. Perguntamos — com tempo curto, porque isto é uma
+       segunda espera em cima de uma que já falhou. */
+    try{
+      const c = await chamar({ action:"opStatus", opId: payload.opId }, 15000);
+      if(c && c.ok && c.achado && c.resultado){
+        return Object.assign({}, c.resultado, { recuperado:true });
+      }
+    }catch(e){ /* nem a conferência respondeu */ }
+
+    return { ok:false, erro:"FALHOU_SEM_CRIAR" };
+  }
+
   if(navigator.onLine){
     try{
       const r=await chamar(payload);
@@ -389,6 +422,13 @@ function atualizarStatus(){
   const on=navigator.onLine; el.textContent=on?"online":"offline"; el.className="net "+(on?"on":"off");
 }
 window.addEventListener("online",  ()=>{ atualizarStatus(); sincronizar(); });
+/* A fila era drenada SÓ no evento "online" (ou no botão ↻). Um pedido que
+   estoura o tempo com a internet funcionando nunca dispara esse evento, então
+   o item ficava parado indefinidamente. Estas duas linhas cobrem o buraco:
+   tenta de tempos em tempos e ao voltar para a aba. Só faz algo quando há
+   fila (ver tentarSincronizar). */
+setInterval(tentarSincronizar, 30000);
+document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) tentarSincronizar(); });
 window.addEventListener("offline", atualizarStatus);
 
 /* CAUSA DO "PREENCHI E SUMIU DE NOVO": quando a chamada ao Apps Script falha

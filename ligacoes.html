@@ -662,7 +662,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 
   <div class="toast" id="toast"></div>
 
-<script src="app.js"></script>
+<script src="app.js?v=28"></script>
 <script>
 /* =====================================================================
  * LIGAÇÕES DE ÁGUA E ENERGIA — Morais Engenharia
@@ -4315,7 +4315,8 @@ async function salvarVenda(prop, tipo, valor){
   if (!LINHA_ABERTA) return;
   const v = LINHA_ABERTA;
   const r = await salvarCampo(v, prop, tipo, valor, "vendas");
-  if (!r.ok) document.getElementById("pn-body").innerHTML = corpoPainelVenda(v);
+  // mesma correção de salvar() — ver repintarPainel()
+  repintarPainel(corpoPainelVenda(v));
   if (SETOR_ATUAL) renderAba();
 }
 
@@ -4462,12 +4463,37 @@ async function salvarCampo(l, prop, tipo, valor, fonte){
   return r;
 }
 
+/* Redesenha o corpo do painel preservando o que a pessoa está fazendo nele.
+ * FALHA QUE ISTO CORRIGE: salvar() só redesenhava pn-body quando o servidor
+ * RECUSAVA a gravação (pra desfazer visualmente o erro). Numa gravação bem
+ * sucedida o painel nunca era redesenhado — então um alerta calculado no
+ * navegador (ALERTA VER. LIGAÇÃO, "Elerta Informações (1)": ambos reagem ao
+ * STATUS, ver REGRAS_ALERTA) continuava mostrando o texto de quando o painel
+ * foi ABERTO, mesmo com o STATUS já salvo e a TABELA por trás já atualizada
+ * (renderAba() já rodava certinho). Só sumia ao fechar e abrir o painel de
+ * novo — o "só depois do reflow" do relato.
+ *
+ * Preserva o próprio scroll do painel (ver o mesmo padrão em renderPlanilha)
+ * e não atropela quem estiver com foco em OUTRO campo do mesmo painel — se
+ * a pessoa já começou a editar um segundo campo enquanto o primeiro salvava,
+ * essa digitação não é jogada fora.
+ */
+function repintarPainel(html){
+  const body = document.getElementById("pn-body");
+  if (!body) return;
+  const foco = document.activeElement;
+  if (foco && body.contains(foco)) return;    // editando outra coisa: não atropela
+  const y = body.scrollTop;
+  body.innerHTML = html;
+  body.scrollTop = y;
+}
+
 /* Chamado pelos campos do painel lateral. */
 async function salvar(prop, tipo, valor){
   if (!LINHA_ABERTA) return;
   const l = LINHA_ABERTA;
   const r = await salvarCampo(l, prop, tipo, valor);
-  if (!r.ok) document.getElementById("pn-body").innerHTML = corpoPainel(l);
+  repintarPainel(corpoPainel(l));
   if (SETOR_ATUAL) renderAba();
 }
 

@@ -786,7 +786,7 @@ html[data-tema="escuro"] .logo{background:#fff}
   <input type="file" id="arq-input" style="display:none" onchange="enviarArquivo(this)">
   <div class="toast" id="toast"></div>
 
-<script src="app.js"></script>
+<script src="app.js?v=28"></script>
 <script>
 /* ===================== TABELA DE GARANTIAS =====================
  * Transcrita do "Manual do Proprietário" — as DUAS listas, como combinado:
@@ -965,7 +965,7 @@ const GARANTIAS = [
 const S = exigirSessao();
 atualizarStatus(); atualizarBadge();
 
-const GS_ESPERADO = "2026-09-02 r26";
+const GS_ESPERADO = "2026-09-02 r28";
 
 const ANDAMENTOS = ["MARCANDO SERVIÇO","SERVIÇO MARCADO","REMARCADO 1","REMARCADO 2",
                     "REMARCADO 3","REMARCADO 4","REMARCADO 5","SERVIÇO FINALIZADO"];
@@ -2815,6 +2815,10 @@ function confirmarNovaObra(){
             clientes:clientes, telefone:telefone, opId: NO_OPID || novoOpId()},
            "criar obra pós obra").then(r=>{
     if(bt) bt.disabled = false;
+    if(r.erro === "FALHOU_SEM_CRIAR"){
+      falha("A conexão falhou e a obra NÃO foi criada. Pode tentar de novo.");
+      return;
+    }
     if(!r.ok){ falha("Não deu para criar: " + erroTexto(r.erro)); return; }
     if(r.enfileirado){ fecharNovaObra(); toast("Sem internet — a obra será criada quando reconectar.", 4); return; }
     fecharNovaObra();
@@ -3043,6 +3047,16 @@ function gravarNovoServico(props){
       erro.style.display = "block";
       return;
     }
+    if(r.erro === "FALHOU_SEM_CRIAR"){
+      const erro = document.getElementById("ns-erro");
+      /* Resposta honesta: o servidor foi consultado (opStatus) e o chamado
+         NÃO existe. Nada ficou pendurado, então tentar de novo é seguro. */
+      erro.textContent = "A conexão falhou e o serviço NÃO foi criado. " +
+                         "Pode tentar de novo — nada ficou pendente.";
+      erro.style.display = "block";
+      return;
+    }
+    if(r.recuperado) toast("A conexão oscilou, mas o serviço já tinha sido criado.", 5);
     if(r.enfileirado){
       fecharNovoServico();
       /* Aviso mais longo e explícito de propósito: era exatamente aqui que a

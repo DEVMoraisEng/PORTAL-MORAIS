@@ -55,10 +55,18 @@
    navegador de sempre continuar lento na rodada passada.
    A analise.html entrou na lista agora: ela estava de fora desde que virou
    página própria, então nunca abria offline.
+   v19 -> v20: entrou a marca de versão no endereço do app.js
+   (app.js?v=28). Repare no ignoreSearch da linha de fallback mais abaixo: sem
+   ele, o cache guardaria "./app.js" e a tela pediria "./app.js?v=28", que para
+   o navegador é OUTRO endereço — offline, o arquivo não seria encontrado e a
+   tela abriria sem o app.js, ou seja, quebrada. Com ignoreSearch, o que muda é
+   só o ?v=, e a cópia guardada continua servindo.
+   Mudaram também app.js e pos-obra.html (r28: criação não vai mais para a
+   fila, conferência pelo opId, fila que drena sozinha).
    v18 -> v19: abrir uma obra passou a ler dist/pos_obra/<id>.json, o botão de
    novo serviço virou formulário (o chamado só nasce preenchido) e o anexo
    pede o link no clique. Tudo na pos-obra.html. */
-const CACHE = "portal-morais-v19";
+const CACHE = "portal-morais-v20";
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./app.js","./manifest.json"];
@@ -78,6 +86,6 @@ self.addEventListener("fetch", e=>{
   // resto: rede primeiro, cache como rede de segurança
   e.respondWith(
     fetch(req).then(r=>{ const cp=r.clone(); caches.open(CACHE).then(c=>c.put(req,cp)); return r; })
-              .catch(()=>caches.match(req).then(r=>r||caches.match("./index.html")))
+              .catch(()=>caches.match(req, {ignoreSearch:true}).then(r=>r||caches.match("./index.html")))
   );
 });

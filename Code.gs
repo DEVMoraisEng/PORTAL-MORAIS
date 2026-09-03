@@ -67,7 +67,7 @@
    (chamado só DEPOIS de gravar, pra pessoa não esperar o próximo build) e a
    ação nova posObraSensiveis — CLIENTES e TELEFONE, os dois campos que não
    podem entrar num arquivo servido sem login. */
-var VERSAO_GS = "2026-09-02 r24";
+var VERSAO_GS = "2026-09-02 r29";
 
 var PROPS_ = PropertiesService.getScriptProperties();
 // .trim() aqui porque copiar/colar de chat ou de outra aba costuma trazer
@@ -239,7 +239,17 @@ var ACOES_POS_OBRA = [
   /* r24: CLIENTES e TELEFONE de todas as obras, num mapa por id. É o que a
      tela busca depois de pintar a lista com o dist/pos_obra.json — ver
      posObraSensiveis_. Leitura pura, então NÃO entra em ACOES_ESCRITA. */
-  "posObraSensiveis"
+  "posObraSensiveis",
+  /* r25: a tela JÁ chamava esta ação (ver posObraArquivos_ no fim do
+     arquivo), mas ela nunca foi registrada aqui nem implementada nesta
+     cópia do Code.gs — clicar num anexo devolvia ACAO_DESCONHECIDA. */
+  "posObraArquivos",
+  /* r25 item 2: apagar um chamado inteiro (só ADM — trava dentro da função) */
+  "posObraAtvExcluir",
+  /* r25 item 3: criar uma linha nova na base PÓS OBRA (só ADM) */
+  "posObraNovo",
+  /* r28: "a minha criação chegou a acontecer?" — leitura pura, ver opStatus_ */
+  "opStatus"
 ];
 
 /* Ações que GRAVAM (Notion, schema ou arquivo). O perfil TESTES é barrado em
@@ -249,7 +259,14 @@ var ACOES_ESCRITA = [
   "baixa", "updateVenda", "criarVenda", "excluirVenda", "distrato", "novaOpcao",
   "upload", "comentarioNovo", "gerarAtividadesGcap",
   "ligUpdate", "ligAnexar", "ligBaixa", "ligVendaUpdate", "ligExcluir", "ligCriar",
-  "posObraServicoNovo", "posObraAtvUpdate", "posObraUpdate", "posObraAnexar"
+  "posObraServicoNovo", "posObraAtvUpdate", "posObraUpdate", "posObraAnexar",
+  /* r25 — FALHA QUE ESTAVA AQUI: as duas linhas abaixo GRAVAM (a primeira
+     limpa campos do Notion, a segunda escreve uma Propriedade do script) e
+     não estavam nesta lista. Nada vazou porque as duas exigem ADM e o perfil
+     TESTES não é ADM — mas a trava do modo teste dependia de uma
+     coincidência, não da regra. */
+  "posObraRetornoExcluir", "agendaLink",
+  "posObraAtvExcluir", "posObraNovo"
 ];
 
 /* Ações do sistema de ANÁLISES (analise.html). Exigem "ANÁLISES" na coluna
@@ -320,69 +337,104 @@ function handle_(e) {
       return out_({ ok: false, erro: "MODO_TESTE" });
     }
 
-    switch (action) {
-      case "me":               return out_({ ok: true, sessao: pub_(sess) });
-      case "portal":            return out_(portal_(sess));
-      case "atividades":        return out_(atividades_(sess, p));
-      case "baixa":             return out_(baixa_(sess, p));
-      case "vendasSchema":      return out_(vendasSchema_(sess));
-      case "vendas":            return out_(vendas_(sess, p));
-      case "obra":              return out_(obra_(sess, p));
-      case "updateVenda":       return out_(updateVenda_(sess, p));
-      case "criarVenda":        return out_(criarVenda_(sess, p));
-      case "excluirVenda":      return out_(excluirVenda_(sess, p));
-      case "distrato":          return out_(distrato_(sess, p));
-      case "novaOpcao":         return out_(novaOpcao_(sess, p));
-      case "upload":            return out_(upload_(sess, p));
-      case "setores":           return out_(setores_(sess));
-      case "documentosSchema":  return out_(documentosSchema_(sess));
-      case "documentos":        return out_(documentos_(sess, p));
-      case "comentarios":       return out_(comentarios_(sess, p));
-      case "comentarioNovo":    return out_(comentarioNovo_(sess, p));
-      case "usuarios":          return out_(usuarios_(sess));
-      case "titulos":           return out_(titulos_(sess, p));
-      // LIGAÇÕES DE ÁGUA E ENERGIA (ligacoes.html)
-      case "ligacoes":          return out_(ligacoes_(sess, p));
-      case "ligacao":           return out_(ligacao_(sess, p));
-      case "ligUpdate":         return out_(ligUpdate_(sess, p));
-      case "ligExcluir":        return out_(ligExcluir_(sess, p));
-      case "ligCriar":          return out_(ligCriar_(sess, p));
-      case "ligAnexar":         return out_(ligAnexar_(sess, p));
-      case "ligResponsaveis":   return out_(ligResponsaveis_(sess, p));
-      case "ligSensiveis":      return out_(ligSensiveis_(sess, p));
-      case "ligVendasSensiveis":return out_(ligVendasSensiveis_(sess, p));
-      case "ligAtividades":     return out_(ligAtividades_(sess, p));
-      case "ligBaixa":          return out_(ligBaixa_(sess, p));
-      case "ligVendaUpdate":    return out_(ligVendaUpdate_(sess, p));
-      // PÓS OBRA (pos-obra.html)
-      case "posObraBoot":       return out_(posObraBoot_(sess, p));
-      case "posObras":          return out_(posObras_(sess, p));
-      case "posObra":           return out_(posObra_(sess, p));
-      case "posObraSchema":     return out_(posObraSchemaAcao_(sess));
-      case "posObraAgenda":     return out_(posObraAgenda_(sess, p));
-      case "posObraServicoNovo":return out_(posObraServicoNovo_(sess, p));
-      case "posObraAtvUpdate":  return out_(posObraAtvUpdate_(sess, p));
-      case "posObraUpdate":     return out_(posObraUpdate_(sess, p));
-      case "agendaLink":        return out_(agendaLink_(sess, p));
-      case "posObraRetornoExcluir": return out_(posObraRetornoExcluir_(sess, p));
-      case "posObraValidarAdm": return out_(posObraValidarAdm_(sess, p));
-      case "posObraSensiveis":  return out_(posObraSensiveis_(sess, p));
-      case "posObraAnexar":     return out_(posObraAnexar_(sess, p));
-      // ANÁLISES — Orçado x Realizado (analise.html) — só leitura do Supabase
-      case "analiseResumo":       return out_(analiseResumo_(sess, p));
-      case "analiseObras":        return out_(analiseObras_(sess, p));
-      case "analiseInsumos":      return out_(analiseInsumos_(sess, p));
-      case "analiseInsumoObras": return out_(analiseInsumoObras_(sess, p));
-      case "analiseDetalheObra":  return out_(analiseDetalheObra_(sess, p));
-      case "gerarAtividadesGcap":
-        if (!ehAdm_(sess)) return out_({ ok: false, erro: "APENAS_ADM" });
-        return out_(criarAtividadesGcap_());
-      default:                  return out_({ ok: false, erro: "ACAO_DESCONHECIDA: " + action });
+    var res = executar_(action, sess, p);
+
+    /* ===== r27 — AVISO DE BUILD PARA O PORTAL INTEIRO =====================
+     * ANTES o aviso ao GitHub saía de um lugar só: o posObraLimparCaches_.
+     * Ou seja, apenas o PÓS OBRA conseguia republicar o site depois de
+     * gravar. Vendas, Ligações, distrato e baixa de atividade gravavam no
+     * Notion e ficavam esperando o cron de 15 min — sem nada indicando isso
+     * na tela.
+     *
+     * Agora o aviso mora AQUI, depois do switch, onde toda ação passa. A
+     * condição é a mesma lista que já define o que é escrita (ACOES_ESCRITA),
+     * então uma ação nova que grave entra nesta regra sozinha, pelo mesmo
+     * caminho em que já entra na trava do perfil TESTES.
+     *
+     * Só avisa quando a gravação DEU CERTO: pedido recusado por permissão ou
+     * por valor inválido não mudou nada no Notion e não tem o que publicar.
+     *
+     * O número de builds não muda: a janela de 15 min do avisarGitHub_ limita
+     * a um por vez, independente de quantos setores gravarem.
+     * =================================================================== */
+    if (res && res.ok && ACOES_ESCRITA.indexOf(action) >= 0) {
+      try { avisarGitHub_(action); } catch (e) {}
     }
+    return out_(res);
   } catch (err) {
     return out_({ ok: false, erro: String(err) });
   }
 }
+
+/* O switch saiu do handle_ para cá justamente para existir um ponto por onde
+   toda resposta passa antes de virar JSON — é lá em cima que o aviso de build
+   é decidido. Cada case devolve o OBJETO; quem embrulha é o handle_. */
+function executar_(action, sess, p) {
+    switch (action) {
+      case "me":               return ({ ok: true, sessao: pub_(sess) });
+      case "portal":            return (portal_(sess));
+      case "atividades":        return (atividades_(sess, p));
+      case "baixa":             return (baixa_(sess, p));
+      case "vendasSchema":      return (vendasSchema_(sess));
+      case "vendas":            return (vendas_(sess, p));
+      case "obra":              return (obra_(sess, p));
+      case "updateVenda":       return (updateVenda_(sess, p));
+      case "criarVenda":        return (criarVenda_(sess, p));
+      case "excluirVenda":      return (excluirVenda_(sess, p));
+      case "distrato":          return (distrato_(sess, p));
+      case "novaOpcao":         return (novaOpcao_(sess, p));
+      case "upload":            return (upload_(sess, p));
+      case "setores":           return (setores_(sess));
+      case "documentosSchema":  return (documentosSchema_(sess));
+      case "documentos":        return (documentos_(sess, p));
+      case "comentarios":       return (comentarios_(sess, p));
+      case "comentarioNovo":    return (comentarioNovo_(sess, p));
+      case "usuarios":          return (usuarios_(sess));
+      case "titulos":           return (titulos_(sess, p));
+      // LIGAÇÕES DE ÁGUA E ENERGIA (ligacoes.html)
+      case "ligacoes":          return (ligacoes_(sess, p));
+      case "ligacao":           return (ligacao_(sess, p));
+      case "ligUpdate":         return (ligUpdate_(sess, p));
+      case "ligExcluir":        return (ligExcluir_(sess, p));
+      case "ligCriar":          return (ligCriar_(sess, p));
+      case "ligAnexar":         return (ligAnexar_(sess, p));
+      case "ligResponsaveis":   return (ligResponsaveis_(sess, p));
+      case "ligSensiveis":      return (ligSensiveis_(sess, p));
+      case "ligVendasSensiveis":return (ligVendasSensiveis_(sess, p));
+      case "ligAtividades":     return (ligAtividades_(sess, p));
+      case "ligBaixa":          return (ligBaixa_(sess, p));
+      case "ligVendaUpdate":    return (ligVendaUpdate_(sess, p));
+      // PÓS OBRA (pos-obra.html)
+      case "posObraBoot":       return (posObraBoot_(sess, p));
+      case "posObras":          return (posObras_(sess, p));
+      case "posObra":           return (posObra_(sess, p));
+      case "posObraSchema":     return (posObraSchemaAcao_(sess));
+      case "posObraAgenda":     return (posObraAgenda_(sess, p));
+      case "posObraServicoNovo":return (posObraServicoNovo_(sess, p));
+      case "posObraAtvUpdate":  return (posObraAtvUpdate_(sess, p));
+      case "posObraUpdate":     return (posObraUpdate_(sess, p));
+      case "agendaLink":        return (agendaLink_(sess, p));
+      case "posObraRetornoExcluir": return (posObraRetornoExcluir_(sess, p));
+      case "posObraValidarAdm": return (posObraValidarAdm_(sess, p));
+      case "posObraSensiveis":  return (posObraSensiveis_(sess, p));
+      case "posObraAnexar":     return (posObraAnexar_(sess, p));
+      case "posObraArquivos":   return (posObraArquivos_(sess, p));
+      case "posObraAtvExcluir": return (posObraAtvExcluir_(sess, p));
+      case "posObraNovo":       return (posObraNovo_(sess, p));
+      case "opStatus":          return (opStatus_(sess, p));
+      // ANÁLISES — Orçado x Realizado (analise.html) — só leitura do Supabase
+      case "analiseResumo":       return (analiseResumo_(sess, p));
+      case "analiseObras":        return (analiseObras_(sess, p));
+      case "analiseInsumos":      return (analiseInsumos_(sess, p));
+      case "analiseInsumoObras": return (analiseInsumoObras_(sess, p));
+      case "analiseDetalheObra":  return (analiseDetalheObra_(sess, p));
+      case "gerarAtividadesGcap":
+        if (!ehAdm_(sess)) return ({ ok: false, erro: "APENAS_ADM" });
+        return (criarAtividadesGcap_());
+      default:                  return ({ ok: false, erro: "ACAO_DESCONHECIDA: " + action });
+    }
+}
+
 
 function out_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
@@ -629,6 +681,10 @@ function cacheRemover_(chave) {
  * =================================================================== */
 var CACHE_LONGO = 6 * 3600;   // a cópia velha sobrevive 6 h e sempre serve
 
+/* r25: esta execução já segura o lock de script? Ver o "CASO FRIO" do
+   comCache_ — lock de script não é reentrante e o aninhamento custava 30 s. */
+var LOCK_EM_USO_ = false;
+
 /* Só a primeira execução ganha a reserva; as outras seguem com a cópia velha.
    A marca vale 5 min — se a reconstrução morrer no meio, outra tenta depois. */
 function cacheReservarReconstrucao_(chave) {
@@ -647,15 +703,22 @@ function cacheLiberarReconstrucao_(chave) {
 function refazerCache_(chave, fn) {
   var val = fn();
   cachePut_(chave, { t: Date.now(), v: val }, CACHE_LONGO);
+  // r26: refez, então a marca de vencido não vale mais
+  try { _cache_().remove(chave + "::velho"); } catch (e) {}
   return val;
 }
 
 function comCache_(chave, segundos, fn) {
   var env = cacheGet_(chave);
 
+  /* r26: marca posta por quem gravou (ver posObraEnvelhecer_). Vale como
+     "vencido", sem precisar reescrever o valor guardado. */
+  var marcadoVelho = false;
+  try { marcadoVelho = !!_cache_().get(chave + "::velho"); } catch (e) {}
+
   // envelope válido: ou está fresco, ou serve velho enquanto alguém refaz
   if (env && env.t) {
-    if ((Date.now() - env.t) < segundos * 1000) return env.v;
+    if (!marcadoVelho && (Date.now() - env.t) < segundos * 1000) return env.v;
 
     if (cacheReservarReconstrucao_(chave)) {
       try { return refazerCache_(chave, fn); }
@@ -671,9 +734,24 @@ function comCache_(chave, segundos, fn) {
 
   /* CASO FRIO — nada guardado. É o único ponto em que alguém espera, e é
      onde a trava faz sentido: sem ela, todo mundo que abrisse a tela junto
-     varreria o Notion em paralelo. */
+     varreria o Notion em paralelo.
+
+     r25 — TRAVAMENTO DE 30 SEGUNDOS QUE EXISTIA AQUI:
+     posObraListaCalc_ chama posObraDados_() lá dentro, ou seja, um comCache_
+     roda DENTRO de outro. No caminho frio o de fora pegava o LockService e o
+     de dentro pedia o MESMO lock — e lock de script no Apps Script NÃO é
+     reentrante. A execução ficava esperando um lock que ela mesma segurava,
+     os 30 000 ms inteiros do tryLock, e só então seguia (sem lock, porque
+     travou=false). Isso também estourava o tempo do aquecerCaches, que então
+     deixava o cache sem ser refeito e realimentava o caso frio na abertura
+     seguinte. Como cada execução do Apps Script é de uma linha só, basta
+     lembrar que ESTA execução já segura o lock e não pedir de novo. */
   var lock = null, travou = false;
-  try { lock = LockService.getScriptLock(); travou = lock.tryLock(30000); } catch (e) {}
+  var jaTinha = LOCK_EM_USO_;
+  if (!jaTinha) {
+    try { lock = LockService.getScriptLock(); travou = lock.tryLock(30000); } catch (e) {}
+    if (travou) LOCK_EM_USO_ = true;
+  }
   try {
     if (travou) {
       env = cacheGet_(chave);                       // outra pode ter terminado
@@ -681,7 +759,7 @@ function comCache_(chave, segundos, fn) {
     }
     return refazerCache_(chave, fn);
   } finally {
-    if (travou) { try { lock.releaseLock(); } catch (e) {} }
+    if (travou) { LOCK_EM_USO_ = false; try { lock.releaseLock(); } catch (e) {} }
   }
 }
 
@@ -1477,7 +1555,16 @@ function semHifen_(id) { return String(id || "").replace(/-/g, ""); }
 /* Schema ao vivo de ATIVIDADES PÓS OBRA. É daqui que o site monta os campos
    e é daqui que a validação de escrita tira o tipo real — nunca do que o
    navegador mandou. Cache de 30 min, igual ao vendasSchema_. */
+/* r26: memória de execução. posObraAtvCampo_ é chamado uma vez POR CAMPO do
+   formulário, e cada chamada relia o cache (que é fatiado). Com nove campos
+   isso eram nove remontagens do mesmo JSON dentro de uma criação só. */
+var _SCHEMA_ATV_ = null;
 function posObraSchema_() {
+  if (_SCHEMA_ATV_) return _SCHEMA_ATV_;
+  _SCHEMA_ATV_ = _posObraSchemaCalc_();
+  return _SCHEMA_ATV_;
+}
+function _posObraSchemaCalc_() {
   return comCache_("pos_obra_atv_schema", 1800, function () {
     var db = notion_("GET", "/databases/" + CONFIG.DB.ATIVIDADES_POS_OBRA, null);
     var props = db.properties || {};
@@ -1519,13 +1606,46 @@ function posObraOpcaoReal_(campo, valor) {
   return null;
 }
 
+/* r25 — POR QUE ISTO NÃO APAGA MAIS, SÓ ENVELHECE.
+ * Esta função roda depois de TODA escrita do pós obra. Apagando as chaves,
+ * a próxima pessoa a ler caía no CASO FRIO do comCache_ e pagava a varredura
+ * inteira da base de chamados — e, até a correção do lock logo acima, ainda
+ * levava 30 s de brinde. Era isto o "está demorando muito do momento que
+ * clico em Criar serviço até abrir a tela lateral": criar um serviço
+ * destruía o cache de todo mundo.
+ *
+ * Envelhecendo (carimbo de tempo jogado para trás) em vez de apagar, o
+ * comCache_ passa a servir a cópia anterior NA HORA e manda UMA execução
+ * refazer por baixo. Ninguém espera, e o dado novo entra na leitura seguinte.
+ * Quem precisa do valor exato no mesmo instante não lê daqui: lê do Notion,
+ * como o posObra_ já faz.
+ */
+/* r26 — ERRO MEU NA r25, E ERA ELE QUE DEIXAVA A CRIAÇÃO LENTA.
+ * A r25 "envelhecia" relendo o envelope inteiro e regravando com t=0. Só que
+ * CH_POS_DADOS e CH_POS_LISTA são grandes e ficam FATIADOS em até 40 pedaços
+ * (ver cachePut_): cada envelhecimento virava um getAll + um putAll de
+ * centenas de KB, para dez chaves, DENTRO da requisição de quem estava
+ * gravando. Trocar apagar por reescrever tirou o caso frio, mas pôs um custo
+ * pior no lugar.
+ *
+ * Agora a marca é uma chave própria, minúscula, com um "1" dentro. O
+ * comCache_ olha essa marca e trata o valor como vencido — mesmo efeito
+ * (serve a cópia velha na hora e manda uma execução refazer), a um custo fixo
+ * de um put por chave, sem tocar nos pedaços. */
+function posObraEnvelhecer_(chave) {
+  try { _cache_().put(chave + "::velho", "1", CACHE_LONGO); } catch (e) {}
+}
 function posObraLimparCaches_() {
   [ CH_POS_SENS,                  // r24: cliente/telefone (muda junto com a base)
     "pos_obra_dados_v1",          // r22: a leitura única da base de chamados
     "pos_obra_lista_v4", "pos_obra_lista_v3", "pos_obra_lista_v2", "pos_obra_lista",
     "pos_obra_atv_por_obra_v3", "pos_obra_atv_por_obra",
     "pos_obra_agenda_v3", "pos_obra_agenda_v2", "pos_obra_agenda"
-  ].forEach(function (k) { cacheRemover_(k); });
+  ].forEach(function (k) { posObraEnvelhecer_(k); });
+  /* r27: o aviso de build saiu daqui. Ele passou a ser feito no handle_,
+     depois de QUALQUER ação de escrita — antes só o pós obra republicava o
+     site, e os outros setores ficavam esperando o cron. Ver o bloco
+     "AVISO DE BUILD PARA O PORTAL INTEIRO". */
 }
 
 /* Quantos chamados cada obra tem, e quantos ainda estão abertos. Uma consulta
@@ -1921,25 +2041,125 @@ function posObraMarcacoesCalc_(atvs) {
    Conforme combinado, nasce só com o vínculo e o nome ("ENDEREÇO CS CASA") —
    o resto (data do chamado, serviço, responsável, andamento) a pessoa
    preenche na tela. */
+/* r25 — O CHAMADO NASCE JA PREENCHIDO.
+ * ---------------------------------------------------------------------
+ * FALHA QUE ESTAVA AQUI: esta funcao, nesta copia do Code.gs, criava o
+ * chamado so com o titulo e o vinculo — e jogava fora o p.props que o
+ * pos-obra.html manda desde a r24. Tudo o que a pessoa marcava no
+ * formulario (servico, responsavel, data, informacoes, status do material)
+ * era simplesmente ignorado, e o chamado nascia em branco no Notion.
+ * Era isto o "CRIADO AGORA / ainda sem data / Servico novo — preencha os
+ * dados" que aparecia no historico: a ponte local mostrava o que a pessoa
+ * digitou, a pagina do Notion estava vazia.
+ *
+ * Os campos passam pela MESMA validacao do posObraAtvUpdate_: tipo real do
+ * schema ao vivo, opcao que existe de verdade e a trava de agendamento
+ * (domingo e feriado bloqueados, sabado so com senha de ADM). Criar nao pode
+ * ser um caminho mais frouxo do que editar.
+ *
+ * "nome" pode vir da tela, que ja o tem na lista — quando vem, economiza um
+ * GET /pages inteiro. Ele e so o rotulo; o vinculo com a obra e feito pelo
+ * pageId, que a tela nao escolhe.
+ */
 function posObraServicoNovo_(sess, p) {
   if (!p.pageId) return { ok: false, erro: "SEM_PAGINA" };
-  var pg = notion_("GET", "/pages/" + p.pageId, null);
-  var pr = pg.properties || {};
-  var endereco = titulo_(pr["Nome"]);
-  if (!endereco) return { ok: false, erro: "OBRA_SEM_ENDERECO" };
-  var casa = numProp_(pr["CASA"]);
-  var nome = endereco + (casa === null || casa === undefined ? "" : " CS " + casa);
+
+  /* r25 — ISTO E O QUE MATA O LOOPING DE CRIACAO. Ver o bloco
+     "CRIACAO SEM DUPLICAR" no fim do arquivo. */
+  var pronto = opIdLer_(p.opId);
+  if (pronto) return pronto;
+
+  var nome = String(p.nome || "").trim().slice(0, 200);
+  if (!nome) {
+    var pg = notion_("GET", "/pages/" + p.pageId, null);
+    var prObra = pg.properties || {};
+    var endereco = titulo_(prObra["Nome"]);
+    if (!endereco) return { ok: false, erro: "OBRA_SEM_ENDERECO" };
+    var casaO = numProp_(prObra["CASA"]);
+    nome = endereco + (casaO === null || casaO === undefined ? "" : " CS " + casaO);
+  }
 
   var props = {};
   props[posObraSchema_().tituloProp] = buildValue_("title", nome);
   props["PÓS OBRA"] = { relation: [{ id: p.pageId }] };
 
-  var nova = notion_("POST", "/pages", {
-    parent: { database_id: CONFIG.DB.ATIVIDADES_POS_OBRA }, properties: props
+  var lista = p.props;
+  if (typeof lista === "string") { try { lista = JSON.parse(lista); } catch (e) { lista = null; } }
+  var gravados = [];
+  if (lista && lista.length) {
+    for (var i = 0; i < lista.length; i++) {
+      var it = lista[i] || {};
+      if (!it.prop) continue;
+      var campo = posObraAtvCampo_(it.prop);
+      if (!campo) return { ok: false, erro: "CAMPO_INEXISTENTE: " + it.prop };
+      if (campo.tipo === "files") return { ok: false, erro: "USE_UPLOAD_PARA_ARQUIVOS" };
+      if (!campo.editavel) return { ok: false, erro: "CAMPO_NAO_EDITAVEL: " + campo.nome };
+
+      var valor = it.valor;
+      if (valor === null || valor === undefined || valor === "") continue;
+      if (campo.tipo === "select" || campo.tipo === "status") {
+        var real = posObraOpcaoReal_(campo, valor);
+        if (!real) return { ok: false, erro: "OPCAO_INEXISTENTE: " + valor };
+        valor = real;
+      }
+      if (campo.tipo === "multi_select" && valor && valor.length) {
+        var reais = [];
+        for (var j = 0; j < valor.length; j++) {
+          var r1 = posObraOpcaoReal_(campo, valor[j]);
+          if (!r1) return { ok: false, erro: "OPCAO_INEXISTENTE: " + valor[j] };
+          reais.push(r1);
+        }
+        valor = reais;
+      }
+      if (campo.tipo === "date") {
+        var bloqueio = checarDataAgendamento_(campo.nome, valor, p);
+        if (bloqueio) return bloqueio;
+      }
+      props[campo.nome] = buildValue_(campo.tipo, valor);
+      gravados.push(campo.nome);
+    }
+  }
+
+  return comTrava_(function () {
+    var jaFeito = opIdLer_(p.opId);
+    if (jaFeito) return jaFeito;
+
+    /* r26 - TRAVA CONTRA DUPLICATA, agora SEMPRE, nao so sem opId.
+       O opId cobre o reenvio automatico da fila. O que ele NAO cobre e a
+       pessoa: a tela disse "sem internet", ela fechou, abriu de novo e criou
+       a mao - formulario novo, opId novo, duplicata legitima aos olhos do
+       servidor. Como dois chamados iguais na mesma obra em poucos minutos sao
+       quase sempre isso, a segunda tentativa e RECUSADA com o id da primeira,
+       e a tela oferece abrir o que ja existe.
+       A chave inclui os servicos marcados: dois chamados diferentes na mesma
+       obra (um de infiltracao, outro de fissura) continuam passando. */
+    var assinatura = [];
+    (lista || []).forEach(function (x) {
+      if (x && normDist_(x.prop).indexOf("SERVICO") >= 0)
+        assinatura = assinatura.concat(x.valor || []);
+    });
+    var marca = "cria_" + semHifen_(p.pageId) + "_" +
+                normDist_(nome + "|" + assinatura.join("+")).replace(/\W/g, "").slice(0, 60);
+    var recente = cacheGet_(marca);
+    if (recente) {
+      console.log("POS OBRA: criacao repetida barrada para " + nome + " (" + sess.u + ")");
+      return { ok: false, erro: "JA_CRIADO_AGORA", id: recente.id, nome: recente.nome };
+    }
+
+    var nova = notion_("POST", "/pages", {
+      parent: { database_id: CONFIG.DB.ATIVIDADES_POS_OBRA }, properties: props
+    });
+    posObraLimparCaches_();
+
+    var r = { ok: true, id: nova.id, nome: nome, campos: gravados };
+    opIdGravar_(p.opId, r);
+    cachePut_(marca, r, CRIA_JANELA_SEG);
+
+    console.log("PÓS OBRA: " + sess.u + " criou servico para " + nome +
+                (gravados.length ? " com " + gravados.join(", ") : " (em branco)") +
+                (p.opId ? " [op " + String(p.opId).slice(0, 8) + "]" : ""));
+    return r;
   });
-  posObraLimparCaches_();
-  console.log("PÓS OBRA: " + sess.u + " criou serviço para " + nome);
-  return { ok: true, id: nova.id, nome: nome };
 }
 
 /* ===================== AGENDAMENTO: sábado/feriado (pós obra) =============
@@ -4394,4 +4614,368 @@ function analiseDetalheObra_(sess, p) {
     "&obra_id=in.(" + encodeURIComponent(lista) + ")"
   );
   return { ok: true, linhas: linhas, obra_ids: ids };
+}
+
+/* =======================================================================
+ * r25 — AVISO AO GITHUB DEPOIS DE ESCREVER
+ * -----------------------------------------------------------------------
+ * ISTO É A CAUSA DO "o workflow de 15 min não está rodando": ele nunca
+ * existiu neste backend. O Code.gs r24 não tinha UMA linha de
+ * repository_dispatch — nada aqui jamais avisou o GitHub. O único
+ * republicador do site era o cron de 15 min do pages.yml, e cron do
+ * GitHub Actions é entrega de melhor esforço: atrasa sob fila e é DESLIGADO
+ * sozinho depois de 60 dias sem commit no repositório. Por isso "nem sei de
+ * quanto em quanto tempo está rodando" — às vezes não estava rodando nada.
+ *
+ * Como a tela lê o dist/ estático, sem republicação nada do que se grava
+ * aparece. É a mesma raiz do serviço criado que "ficou perdido" e dos
+ * serviços apagados que continuaram na tela.
+ *
+ * PRÉ-REQUISITO (uma vez só): Propriedades do script > GITHUB_TOKEN, com um
+ * fine-grained PAT do repositório DEVMoraisEng/PORTAL-MORAIS e permissão
+ * Contents: Read and write. Sem a propriedade, esta função não faz nada e
+ * não quebra ninguém — o cron continua sendo o plano B.
+ *
+ * JANELA DE 15 MIN + LockService: dez pessoas gravando em sequência não
+ * podem disparar dez builds. O primeiro aviso dispara na hora; os seguintes
+ * só depois da janela. É o mesmo desenho do RAS-SEMANAL.
+ * ===================================================================== */
+var GH_REPO = "DEVMoraisEng/PORTAL-MORAIS";
+var GH_EVENTO = "portal_update";          // TEM que bater com o types: do pages.yml
+/* r29 — 5 min, não 15.
+   O motivo é a chegada do acionador periódico (publicarSite, abaixo). Com
+   janela de 15 min, um build periódico às 10:00 fazia a gravação de alguém às
+   10:05 ser DESCARTADA — e essa pessoa esperava até 30 min para ver o próprio
+   trabalho publicado. Com 5 min, quem grava republica quase sempre, e o teto
+   de builds continua modesto: no pior caso 12 por hora, num repositório
+   público (Actions sem custo). */
+var GH_JANELA_MS = 5 * 60 * 1000;
+var GH_ULTIMO = "GH_ULTIMO_DISPATCH";
+
+function avisarGitHub_(motivo) {
+  var tk = prop_("GITHUB_TOKEN");
+  if (!tk) return { ok: false, motivo: "SEM_GITHUB_TOKEN" };
+
+  /* r28 — REGRESSÃO QUE EU TINHA INTRODUZIDO AQUI.
+     A ordem estava invertida: pedia o LockService (esperando até 5 s) e só
+     DEPOIS conferia a janela de 15 min. Como 99% das gravações caem dentro da
+     janela e não disparam nada, quase toda escrita do portal pagava uma
+     espera de lock à toa — e o lock é o mesmo que uma reconstrução de cache
+     pode estar segurando. Conferir a janela primeiro é de graça (uma leitura
+     de Propriedade) e resolve a maioria dos casos sem tocar em lock nenhum.
+     O lock saiu de vez: no pior caso duas execuções disparam dois builds no
+     mesmo segundo, o que é inofensivo — bem menos custoso do que travar toda
+     gravação para evitar isso. */
+  var ultimo = Number(PROPS_.getProperty(GH_ULTIMO) || 0);
+  if (Date.now() - ultimo < GH_JANELA_MS) {
+    return { ok: true, pulou: true, faltamSeg: Math.round((GH_JANELA_MS - (Date.now() - ultimo)) / 1000) };
+  }
+  try {
+    var r = UrlFetchApp.fetch("https://api.github.com/repos/" + GH_REPO + "/dispatches", {
+      method: "post", muteHttpExceptions: true, contentType: "application/json",
+      headers: {
+        Authorization: "Bearer " + tk,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28"
+      },
+      payload: JSON.stringify({
+        event_type: GH_EVENTO,
+        client_payload: { motivo: String(motivo || ""), em: new Date().toISOString() }
+      })
+    });
+    var code = r.getResponseCode();
+    /* 204 é o sucesso desta rota do GitHub — ela não devolve corpo. */
+    if (code === 204) {
+      PROPS_.setProperty(GH_ULTIMO, String(Date.now()));
+      console.log("GITHUB: build pedido (" + motivo + ")");
+      return { ok: true, disparado: true };
+    }
+    console.log("GITHUB: dispatch recusado " + code + " — " + r.getContentText().slice(0, 200));
+    return { ok: false, http: code };
+  } catch (e) {
+    console.log("GITHUB: falhou — " + e);
+    return { ok: false, erro: String(e).slice(0, 200) };
+  }
+}
+
+/* ===================== REPUBLICAÇÃO PERIÓDICA (r29) =======================
+ * POR QUE ISTO SAIU DO GITHUB E VEIO PARA CÁ.
+ * O pages.yml pedia um cron de 30 min, mas o agendamento do GitHub
+ * Actions é entrega de MELHOR ESFORÇO: sob carga ele atrasa e chega a pular
+ * execuções. Na prática o intervalo pedido de 15 min estava virando 2 a 4
+ * HORAS. Não é configuração errada, é como o serviço funciona; mudar o número
+ * do cron não conserta.
+ *
+ * O acionador do Apps Script, por outro lado, é confiável — é o mesmo
+ * mecanismo que já roda o aquecerCaches de 10 em 10 minutos sem falhar. Então
+ * quem passa a mandar o site republicar é ELE, e o cron do GitHub fica só
+ * como rede de segurança para o caso de o Apps Script estar fora do ar.
+ *
+ * COMO AGENDAR (uma vez só):
+ *   ícone do relógio (Acionadores) > "+ Adicionar acionador" >
+ *   função "publicarSite" > "Baseado no tempo" > "Contador de minutos" >
+ *   "A cada 30 minutos" > Salvar.
+ *
+ * Cobre o que nenhum outro caminho cobre: edição feita DIRETO no Notion, sem
+ * passar pelo site. Nada vigia o Notion, então é esta rodada periódica que
+ * traz essas mudanças para as telas.
+ * ===================================================================== */
+function publicarSite() {
+  var r = avisarGitHub_("periodico");
+  Logger.log("Republicação periódica: " + JSON.stringify(r));
+  if (r && r.motivo === "SEM_GITHUB_TOKEN") {
+    Logger.log("*** Falta a Propriedade GITHUB_TOKEN. Sem ela nada é publicado por aqui.");
+  }
+}
+
+/* Rode pelo menu Executar para testar sem esperar ninguém gravar. Ignora a
+   janela de propósito — é teste. */
+function testeAvisarGitHub() {
+  PROPS_.deleteProperty(GH_ULTIMO);
+  Logger.log(JSON.stringify(avisarGitHub_("teste manual")));
+  Logger.log("Confira em Actions do PORTAL-MORAIS se um build começou agora.");
+}
+
+
+/* =======================================================================
+ * r25 — CRIAÇÃO SEM DUPLICAR (idempotência)
+ * -----------------------------------------------------------------------
+ * ISTO É A CAUSA DO "serviço em looping de criação" e do "criou no banco mas
+ * deu erro na tela". Não é bug de lógica, é do canal:
+ *
+ * Toda chamada a este Web App é POST -> 302 -> GET. O Apps Script EXECUTA
+ * (cria a página no Notion) e responde um redirecionamento; o navegador só
+ * então busca o resultado. Se a rede do celular engasgar nesse meio — ou
+ * bater o timeout de 45 s do app.js — a página EXISTE e a tela recebe
+ * "falhou". A partir daí a fila de reenvio repete o mesmo POST, e cada
+ * repetição criava OUTRA página, porque criar não tinha memória.
+ *
+ * A correção certa não é a tela parar de reenviar: reenviar é o que salva
+ * quem está na obra sem sinal. É a criação virar idempotente. A tela manda
+ * um identificador da OPERAÇÃO (opId, gerado uma vez quando o formulário
+ * abre) e o servidor lembra o que já fez com ele.
+ * ===================================================================== */
+var OPID_SEG = 6 * 3600;     // lembra a operação por 6 h
+var CRIA_JANELA_SEG = 300;   // r26: 5 min de trava contra criacao repetida
+
+function opIdChave_(opId)  { return "op_" + String(opId).replace(/\W/g, "").slice(0, 60); }
+
+/* ===================== "A MINHA CRIAÇÃO ACONTECEU?" (r28) =================
+ * O canal deste Web App é POST -> 302 -> GET: o servidor EXECUTA e só depois
+ * o navegador busca o resultado. Se a rede engasgar nesse meio, a tela não
+ * sabe se criou ou não — e as duas suposições possíveis são ruins. Supor que
+ * criou esconde uma falha real; supor que não criou faz a pessoa criar de
+ * novo, ou (pior) a tela enfileirar um reenvio que fica parado sem ninguém
+ * para drená-lo, que foi exatamente o travamento relatado.
+ *
+ * Agora a tela não supõe: ela PERGUNTA. Esta ação devolve o que ficou
+ * guardado para aquele opId — o mesmo registro que impede a duplicação.
+ *   achado = true  -> criou; a tela adota o chamado e mostra na hora
+ *   achado = false -> NÃO criou; a tela avisa e não fica nada pendurado
+ *
+ * Leitura pura: não cria, não grava, não entra em ACOES_ESCRITA.
+ * =================================================================== */
+function opStatus_(sess, p) {
+  if (!p.opId) return { ok: false, erro: "FALTA_PARAM" };
+  var r = opIdLer_(p.opId);
+  return { ok: true, achado: !!r, resultado: r || null };
+}
+function opIdLer_(opId)    { if (!opId) return null; return cacheGet_(opIdChave_(opId)); }
+function opIdGravar_(opId, resultado) {
+  if (!opId) return;
+  cachePut_(opIdChave_(opId), resultado, OPID_SEG);
+}
+
+/* Trava curta em volta do "confere e cria". Sem ela, dois reenvios que
+   chegam no mesmo segundo passam os dois pela conferência antes de qualquer
+   um gravar — e criam duas páginas assim mesmo. */
+function comTrava_(fn) {
+  var lock = null, travou = false, jaTinha = LOCK_EM_USO_;
+  if (!jaTinha) {
+    /* r28: 3 s, não 20. Este é o MESMO lock que o comCache_ segura quando
+       está reconstruindo o cache do zero (uma varredura inteira do Notion).
+       Com 20 s, criar um serviço no instante errado ficava parado esperando
+       essa varredura terminar — e era isso que estourava o tempo de 45 s do
+       navegador, fazendo a tela dizer "sem sinal" com o chamado já criado.
+       Não conseguir o lock não impede nada: o opId e a marca de duplicata
+       continuam valendo, e a janela de corrida que sobra é de milissegundos. */
+    try { lock = LockService.getScriptLock(); travou = lock.tryLock(3000); } catch (e) {}
+    if (travou) LOCK_EM_USO_ = true;
+  }
+  try { return fn(); }
+  finally {
+    if (travou) { LOCK_EM_USO_ = false; try { lock.releaseLock(); } catch (e) {} }
+  }
+}
+
+
+/* =======================================================================
+ * r25 item 2 — EXCLUIR UM CHAMADO DE PÓS OBRA (só ADM)
+ * -----------------------------------------------------------------------
+ * ARQUIVA, não destrói: no Notion dá para restaurar pela lixeira em até 30
+ * dias. O título e a obra vão para o registro de execuções justamente para
+ * você achar o que foi arquivado sem caçar na lixeira inteira.
+ *
+ * A trava é AQUI, no servidor: esconder o botão na tela não impede ninguém
+ * de chamar a ação pelo F12.
+ *
+ * Diferença para o posObraRetornoExcluir_, que já existia: aquele limpa os
+ * campos de UM nível de retorno e mantém o chamado; este remove o chamado.
+ * ===================================================================== */
+function posObraAtvExcluir_(sess, p) {
+  if (!ehAdm_(sess)) return { ok: false, erro: "APENAS_ADM" };
+  if (!p.pageId) return { ok: false, erro: "SEM_PAGINA" };
+
+  var pg = notion_("GET", "/pages/" + p.pageId, null);
+  var pr = pg.properties || {};
+
+  /* Confere que a página é MESMO um chamado antes de arquivar. Sem isto,
+     quem descobrisse a ação poderia mandar o id de qualquer página do
+     workspace e arquivá-la — inclusive uma venda. A relation "PÓS OBRA" só
+     existe na base de chamados, então serve de assinatura. */
+  if (!pr["PÓS OBRA"]) return { ok: false, erro: "NAO_E_CHAMADO_POS_OBRA" };
+
+  var nome = tituloDe_(pr);
+  var rel = (pr["PÓS OBRA"].relation) || [];
+  var obraId = rel[0] ? rel[0].id : null;
+
+  notion_("PATCH", "/pages/" + p.pageId, { in_trash: true, archived: true });
+  posObraLimparCaches_();
+
+  console.log("PÓS OBRA: " + sess.u + " EXCLUIU o chamado " + p.pageId +
+              " (" + nome + ") da obra " + obraId);
+  return { ok: true, id: p.pageId, nome: nome, obraId: obraId };
+}
+
+
+/* =======================================================================
+ * r25 item 3 — CRIAR UMA OBRA NOVA NA BASE PÓS OBRA (só ADM)
+ * -----------------------------------------------------------------------
+ * TRÊS CUIDADOS QUE NÃO SÃO ÓBVIOS:
+ *
+ * 1) CLIENTES é OBRIGATÓRIO. Não é capricho: o posObraListaCalc_ filtra a
+ *    lista por "tem CLIENTES preenchido". Uma obra criada sem cliente seria
+ *    gravada no Notion e NÃO apareceria na tela — o mesmo sintoma de "criou
+ *    no banco mas ficou perdido" que você já estava caçando por outro
+ *    motivo. Melhor recusar com uma mensagem clara.
+ *
+ * 2) O casamento com VENDAS é ENDEREÇO normalizado + CASA (posObraChave_).
+ *    Uma segunda linha com a mesma chave faria a sincronia automática
+ *    escrever nas duas e os chamados se dividirem entre elas. Duplicata é
+ *    recusada.
+ *
+ * 3) O título ("Nome") leva o ENDEREÇO PURO, sem " CS N" — é assim que a
+ *    base está montada e é disso que o rollup "ENDEREÇO BASE" da
+ *    ATIVIDADES PÓS OBRA depende. O número da casa vai na coluna CASA.
+ *
+ * Se a obra existir em VENDAS, a sincronia automática completa data de
+ * assinatura, cidade, setor e ágio sozinha na próxima varredura.
+ * ===================================================================== */
+function posObraNovo_(sess, p) {
+  if (!ehAdm_(sess)) return { ok: false, erro: "APENAS_ADM" };
+
+  var endereco = String(p.endereco || "").trim();
+  var clientes = String(p.clientes || "").trim();
+  if (!endereco) return { ok: false, erro: "ENDERECO_OBRIGATORIO" };
+  if (!clientes) return { ok: false, erro: "CLIENTES_OBRIGATORIO" };
+
+  var casa = (p.casa === "" || p.casa === null || p.casa === undefined)
+             ? null : Number(p.casa);
+  if (casa !== null && isNaN(casa)) return { ok: false, erro: "CASA_INVALIDA" };
+
+  return comTrava_(function () {
+    var pronto = opIdLer_(p.opId);
+    if (pronto) return pronto;                    // reenvio: devolve o mesmo
+
+    var indice = posObraIndiceCalc_();
+    if (indice[posObraChave_(endereco, casa)]) {
+      return { ok: false, erro: "JA_EXISTE",
+               detalhe: endereco + (casa === null ? "" : " CS " + casa) };
+    }
+
+    var props = {};
+    props["Nome"]     = buildValue_("title", endereco);
+    props["CLIENTES"] = buildValue_("rich_text", clientes);
+    if (casa !== null) props["CASA"] = buildValue_("number", casa);
+
+    /* Telefone é opcional e vai pelo tipo REAL da coluna (pode ser
+       phone_number ou texto, conforme a base) — mesma regra do resto do
+       arquivo, para não corromper a propriedade. */
+    var tel = String(p.telefone || "").trim();
+    if (tel) {
+      var vTel = posObraValorPara_(CONFIG.DB.POS_OBRA, "TELEFONE", tel);
+      if (vTel) props["TELEFONE"] = vTel;
+    }
+
+    var nova = notion_("POST", "/pages", {
+      parent: { database_id: CONFIG.DB.POS_OBRA }, properties: props
+    });
+
+    try { cacheRemover_("pos_obra_indice"); } catch (e) {}
+    posObraLimparCaches_();
+
+    var r = { ok: true, id: nova.id, endereco: endereco, casa: casa,
+              titulo: endereco + (casa === null ? "" : " CS " + casa) };
+    opIdGravar_(p.opId, r);
+    console.log("PÓS OBRA: " + sess.u + " CRIOU a obra " + r.titulo + " -> " + nova.id);
+    return r;
+  });
+}
+
+
+/* =======================================================================
+ * r25 — CONFERÊNCIA (só lê, não grava)
+ * -----------------------------------------------------------------------
+ * Escrita por causa do item 4 (serviços apagados que continuavam na tela).
+ * Ela mostra o que o BACKEND enxerga AGORA, o que separa "cache velho do
+ * Apps Script" de "dist/ que não foi republicado".
+ * ===================================================================== */
+function conferirPosObraAoVivo() {
+  posObraLimparCaches_();
+  var atvs = queryAll_(CONFIG.DB.ATIVIDADES_POS_OBRA, {});
+  var obras = queryAll_(CONFIG.DB.POS_OBRA, {});
+  var comCliente = obras.filter(function (r) { return !!texto_(r.properties["CLIENTES"]); });
+
+  Logger.log("AO VIVO no Notion, agora:");
+  Logger.log("  chamados na ATIVIDADES PÓS OBRA: " + atvs.length);
+  Logger.log("  linhas na base PÓS OBRA: " + obras.length +
+             "  |  com CLIENTES (é o que a tela lista): " + comCliente.length);
+  Logger.log("");
+  Logger.log("Se estes números batem com o Notion mas a TELA mostra outra coisa,");
+  Logger.log("o problema NÃO está aqui: está no dist/pos_obra.json, que é servido");
+  Logger.log("estático e só muda quando o GitHub Actions republica.");
+  Logger.log("");
+  Logger.log("GITHUB_TOKEN configurado? " + (prop_("GITHUB_TOKEN") ? "sim" : "NÃO — o aviso de build não sai daqui"));
+}
+
+
+/* =======================================================================
+ * r25 — ANEXOS SOB DEMANDA (a tela já chamava, o backend não tinha)
+ * -----------------------------------------------------------------------
+ * O dist/pos_obra/<obra>.json publica o NOME dos arquivos de cada chamado,
+ * nunca a URL: o link que o Notion devolve é assinado e expira em cerca de
+ * uma hora, então publicar num arquivo estático entregaria link quebrado —
+ * e link de foto de obra não deve ficar exposto sem login de qualquer jeito.
+ *
+ * Quando a pessoa clica no anexo, a tela pede o link aqui e ele vem fresco.
+ * É uma chamada por clique, e só de quem realmente quis abrir.
+ *
+ * ESTA FUNÇÃO FALTAVA nesta cópia do Code.gs: o pos-obra.html chamava
+ * "posObraArquivos" e recebia ACAO_DESCONHECIDA, ou seja, nenhum anexo abria.
+ * ===================================================================== */
+function posObraArquivos_(sess, p) {
+  if (!p.pageId) return { ok: false, erro: "SEM_PAGINA" };
+  var pg = notion_("GET", "/pages/" + p.pageId, null);
+  var pr = pg.properties || {}, out = {};
+  for (var nome in pr) {
+    if (pr[nome].type !== "files") continue;
+    out[nome] = (pr[nome].files || []).map(function (f) {
+      return {
+        name: f.name,
+        url: f.type === "external" ? (f.external && f.external.url)
+                                   : (f.file && f.file.url)
+      };
+    });
+  }
+  return { ok: true, id: pg.id, arquivos: out };
 }
