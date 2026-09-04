@@ -638,6 +638,83 @@ async function lerAnalise(arquivo, acao, chaveCache, opcoes){
   }
 }
 
+/* ===================== DETALHE INSUMO x OBRA (set/26) ====================
+ * O QUE MUDOU E POR QUÊ.
+ * O painel virou estático em set/26, mas o DETALHE (o botão "Analisar
+ * seleção" e o clique no nome do insumo) continuou indo ao Apps Script — a
+ * aposta era que clique é raro o bastante. Na prática o botão passou a
+ * devolver ERRO_API, que no app.js quer dizer "o fetch falhou ou a resposta
+ * não era JSON": a implantação não respondeu direito. Resultado absurdo — o
+ * painel inteiro vinha do CDN num piscar, e a tela morria justamente no
+ * único ponto que ainda dependia de uma fila de execução para servir um
+ * número que muda UMA VEZ POR DIA.
+ *
+ * Agora o pipeline publica analise_detalhe.json (ver exportar_json.py no
+ * OR-ADO-REALIZADO) e as duas coisas saem daqui, sem servidor nenhum.
+ *
+ * TRÊS DECISÕES QUE NÃO SÃO ÓBVIAS:
+ *
+ * 1) UM arquivo só, não um por obra. São ~35 mil linhas, 2,1 MB (309 KB no
+ *    fio, o Pages serve com gzip). Um arquivo por obra daria 118 requisições
+ *    e o mesmo total; e o clique no insumo precisa de TODAS as obras de
+ *    qualquer forma, então teria que baixar tudo mesmo assim.
+ *
+ * 2) Baixado no PRIMEIRO CLIQUE, nunca na abertura. Quem só olha o painel
+ *    não paga nada por isto.
+ *
+ * 3) Fica só em MEMÓRIA (esta variável). NÃO entra no localStorage: a cota
+ *    do celular é de ~5 MB no total e este arquivo sozinho comeria metade,
+ *    derrubando o cache offline das outras telas. Recarregar a página baixa
+ *    de novo — e o cache HTTP do navegador resolve isso sem nos envolver.
+ * =================================================================== */
+let DET_TUDO = null;          // o JSON inteiro, cru (formato colunar)
+let _detPromessa = null;      // dois cliques rápidos = um download só
+
+async function carregarDetalheEstatico(){
+  if(DET_TUDO) return DET_TUDO;
+  if(_detPromessa) return _detPromessa;
+  _detPromessa = (async ()=>{
+    try{
+      /* cache:"default" de propósito (e não "no-cache" como nas outras três):
+         o arquivo é grande e muda uma vez por dia. O ?v= por hora já força a
+         revalidação, e o resto do tempo o navegador serve do disco. */
+      const r = await fetch(ANALISE_DIST + "analise_detalhe.json?v=" + Math.floor(Date.now()/3600000),
+                            {cache:"default"});
+      if(!r.ok) throw new Error("HTTP "+r.status);
+      const j = await r.json();
+      if(!j || j.ok===false || !j.linhas || !j.obras) throw new Error("arquivo sem dados");
+      DET_TUDO = j;
+      return j;
+    }catch(e){
+      /* Build do dia falhou, Pages fora, sem internet: devolve null e quem
+         chamou cai no Apps Script, que continua existindo como plano B. */
+      console.warn("detalhe estático indisponível:", e);
+      return null;
+    }finally{
+      _detPromessa = null;
+    }
+  })();
+  return _detPromessa;
+}
+
+/* Posição de cada coluna, lida do próprio arquivo. Não fixo os índices aqui
+   de propósito: acrescentar uma coluna no exportar_json.py não pode
+   embaralhar esta tela em silêncio. */
+function detPos(j){
+  const p = {};
+  (j.cols||[]).forEach((c,i)=> p[c] = i);
+  return p;
+}
+/* Uma linha colunar vira o mesmo objeto que o Apps Script devolvia — assim
+   renderDetalheObra e pintarKpisObra não precisaram mudar uma vírgula. */
+function detObjeto(j, p, l){
+  const o = j.obras[l[p.obra]] || ["",""];
+  return { obra_id:o[0], obra_nome:o[1],
+           codigo:l[p.codigo], insumo:l[p.insumo], unidade:l[p.unidade],
+           qtd_orcada:l[p.qtd_orcada], qtd_realizada:l[p.qtd_realizada],
+           ct_orcado:l[p.ct_orcado], ct_realizado:l[p.ct_realizado] };
+}
+
 function carregarResumo(){
   return lerAnalise("analise_resumo.json", "analiseResumo", "analise_resumo", { pintar:aplicarResumo });
 }
@@ -810,6 +887,37 @@ window.addEventListener("resize", atualizarScrollsTopo);
    Cache por insumo: reabrir o mesmo nao custa outra ida ao servidor. */
 const _cacheInsObras = {};
 function fecharObrasInsumo(){ document.getElementById("ins-ov").classList.add("hide"); }
+
+/* Quais obras usam este insumo, tirado do arquivo estático.
+   SOMA POR OBRA de propósito: o mesmo insumo pode aparecer em ETAPAS
+   diferentes da mesma obra (é assim que a chave única da tabela está
+   montada no Supabase), e o backend antigo devolvia essas linhas soltas —
+   a mesma obra aparecia duas vezes no modal, cada uma com um pedaço do
+   total. Agregando aqui, cada obra aparece uma vez, com o total dela. */
+function insumoObrasEstatico(j, nome){
+  const p = detPos(j), alvo = normNome(nome), mapa = {};
+  for(let i=0;i<j.linhas.length;i++){
+    const l = j.linhas[i];
+    if(normNome(l[p.insumo]) !== alvo) continue;
+    const o = j.obras[l[p.obra]] || ["",""];
+    const m = mapa[o[1]] || (mapa[o[1]] = { obra_nome:o[1], unidade:l[p.unidade],
+      qtd_orcada:0, qtd_realizada:0, ct_orcado:0, ct_realizado:0 });
+    m.qtd_orcada    += Number(l[p.qtd_orcada])    || 0;
+    m.qtd_realizada += Number(l[p.qtd_realizada]) || 0;
+    m.ct_orcado     += Number(l[p.ct_orcado])     || 0;
+    m.ct_realizado  += Number(l[p.ct_realizado])  || 0;
+  }
+  const lista = Object.values(mapa)
+    .sort((a,b)=> String(a.obra_nome).localeCompare(String(b.obra_nome),"pt-BR"));
+  return { ok:true, insumo:nome, estrategia:"estatico", total:lista.length, obras:lista };
+}
+/* Sem acento, sem caixa, sem espaço sobrando — mesma normalização do
+   normDist_ do Code.gs, para os dois lados concordarem sobre o que é "o
+   mesmo insumo". */
+function normNome(s){
+  return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .toUpperCase().replace(/\s+/g," ").trim();
+}
 async function verObrasDoInsumo(nome){
   if(!nome) return;
   const ov = document.getElementById("ins-ov");
@@ -821,7 +929,17 @@ async function verObrasDoInsumo(nome){
   let r = _cacheInsObras[nome];
   if(!r){
     body.innerHTML = '<div class="vazio"><span class="load"></span> Buscando…</div>';
-    r = await chamar({action:"analiseInsumoObras", insumo:nome});
+    /* set/26: mesma fonte estática do "Analisar seleção". Ver o bloco
+       "DETALHE INSUMO x OBRA" lá em cima. */
+    const j = await carregarDetalheEstatico();
+    if(j) r = insumoObrasEstatico(j, nome);
+    /* Plano B — e ele NÃO é só para o arquivo faltar: o analiseInsumoObras_
+       do Code.gs tenta três estratégias de casamento de nome (exato, sem
+       caixa, contém), porque o nome no consolidado nem sempre bate caractere
+       a caractere com o da vw_insumos_atual. Aqui a comparação é exata
+       ignorando caixa/acento; quando ela não acha nada, quem tenta o resto
+       continua sendo o servidor. */
+    if(!r || !(r.obras||[]).length) r = await chamar({action:"analiseInsumoObras", insumo:nome});
     if(r && r.ok!==false) _cacheInsObras[nome] = r;
   }
   if(!r || r.ok===false){
@@ -1030,12 +1148,27 @@ async function analisarSelecao(){
   document.getElementById("kpis-obra").innerHTML='<div class="vazio" style="grid-column:1/-1"><span class="load"></span> Carregando…</div>';
   document.getElementById("t-detalhe").innerHTML='';
   const ids=[..._sel].join(",");
-  /* guarda por combinacao de obras escolhida: reabrir o mesmo grupo nao
-     gera execucao nova no Apps Script */
-  const r = await lerStore({action:"analiseDetalheObra", obra_ids:ids},
-                           "analise_detalhe_"+ids, { ttl:TTL });
+
+  /* set/26: primeiro o arquivo estático. Filtrar 35 mil linhas em memória é
+     instantâneo e não gasta execução nenhuma — reabrir o mesmo grupo, ou
+     qualquer outro, custa zero requisição depois do primeiro download. */
+  let r = null;
+  const j = await carregarDetalheEstatico();
+  if(j){
+    const p = detPos(j), alvo = _sel;
+    const linhas = [];
+    for(let i=0;i<j.linhas.length;i++){
+      const l = j.linhas[i], o = j.obras[l[p.obra]];
+      if(o && alvo.has(o[0])) linhas.push(detObjeto(j, p, l));
+    }
+    r = { ok:true, linhas:linhas, estatico:true };
+  }
+  /* Plano B: build do dia falhou ou Pages fora. Guarda por combinação de
+     obras escolhida, para reabrir o mesmo grupo não gerar execução nova. */
+  if(!r) r = await lerStore({action:"analiseDetalheObra", obra_ids:ids},
+                            "analise_detalhe_"+ids, { ttl:TTL });
   if(!r || r.ok===false){ document.getElementById("kpis-obra").innerHTML=
-    `<div class="vazio" style="grid-column:1/-1">Erro: ${esc(r&&r.erro||"—")}</div>`; return; }
+    `<div class="vazio" style="grid-column:1/-1">Erro: ${esc(erroTexto(r&&r.erro))}</div>`; return; }
   DETALHE = r.linhas||[];
   pintarKpisObra(); renderDetalheObra();
   document.getElementById("resultado-obra").scrollIntoView({behavior:"smooth",block:"start"});
