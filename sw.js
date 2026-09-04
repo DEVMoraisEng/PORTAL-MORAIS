@@ -74,7 +74,7 @@
    chamado ANTES da resposta do servidor (id provisório trocado pelo real
    quando ela chega) e reconcilia por opId se a pessoa fechar no meio.
    Mudaram: pos-obra.html e app.js. */
-const CACHE = "portal-morais-v23";  // r33: criação otimista no pós obra
+const CACHE = "portal-morais-v24";  // r34: botão da RAS Obras
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./app.js","./manifest.json"];
