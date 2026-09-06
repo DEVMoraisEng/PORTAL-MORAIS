@@ -35,6 +35,10 @@ const ACOES_NA_ESCRITA = [
      precisam da mesma faixa livre — perguntar "criou?" na fila das leituras
      seria esperar atrás da leitura que atrapalhou a criação. */
   "opStatus", "posObraValidarAdm"
+  /* r33: "forcarAtualizacao" NÃO entra aqui, e não é esquecimento. O que ela
+     limpa é o cache do CacheService, que é POR PROJETO do Apps Script — limpar
+     na implantação de ESCRITA não mexeria em nada do que as telas leem, que
+     sai da implantação de LEITURA. Ela precisa sair pela URL padrão. */
 ];
 function ehAcaoDeEscrita(action){ return ACOES_NA_ESCRITA.indexOf(action) >= 0; }
 function urlDe(action){
