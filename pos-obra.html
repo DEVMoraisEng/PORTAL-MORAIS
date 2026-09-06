@@ -589,6 +589,10 @@ html[data-tema="escuro"] .logo{background:#fff}
       <div class="crumb">
         <a class="btn-voltar" href="index.html">← Voltar para o Dashboard</a>
         <span style="flex:1"></span>
+        <!-- r33 (pedido 4): só ADM. A trava real é o forcarAtualizacao_ no
+             servidor; aqui é só não oferecer o que a pessoa não pode fazer. -->
+        <button class="bt ghost" id="bt-atualizar" onclick="forcarAtualizacao()" style="display:none"
+                title="Descarta o cache e relê o Notion agora. Use quando alguém criou/alterou uma linha direto no banco.">🔄 Atualizar dados</button>
         <button class="bt ghost" id="bt-agenda" onclick="abrirLinksAgenda()" style="display:none">🔗 Link dos responsáveis</button>
         <button class="bt az" onclick="irIndicadores()">📊 Indicadores</button>
       </div>
@@ -732,6 +736,10 @@ html[data-tema="escuro"] .logo{background:#fff}
     <div class="modal-cx">
       <div class="modal-tit">Nova obra de Pós Obra</div>
       <div class="modal-sub">A obra passa a aparecer na lista e já aceita serviços.</div>
+      <!-- r33 (pedido 1): o formulário passou a trazer TODOS os campos de
+           preenchimento da obra, e não só os quatro do começo. A ordem é a de
+           quem digita: o que identifica a casa, quem é o cliente, onde fica e,
+           por fim, o que vem do contrato. -->
       <div class="modal-corpo"><div id="no-campos">
         <div class="campo"><label>ENDEREÇO</label>
           <input type="text" id="no-endereco" placeholder="ATALANTA QD 01 LT 21" autocomplete="off"></div>
@@ -741,7 +749,25 @@ html[data-tema="escuro"] .logo{background:#fff}
           <input type="text" id="no-clientes" placeholder="Nome do cliente" autocomplete="off"></div>
         <div class="campo"><label>TELEFONE</label>
           <input type="text" id="no-telefone" placeholder="(62) 99999-9999" autocomplete="off"></div>
+        <div class="campo"><label>SETOR</label>
+          <input type="text" id="no-setor" placeholder="PQ DOS BURITIS" autocomplete="off"></div>
+        <div class="campo"><label>CIDADE</label>
+          <input type="text" id="no-cidade" placeholder="SENADOR CANEDO" autocomplete="off"></div>
+        <div class="campo"><label>DATA DE ASSINATURA DO CONTRATO</label>
+          <input type="date" id="no-assinatura"></div>
+        <div class="campo"><label>ÁGIO</label>
+          <select id="no-agio">
+            <option value="">— não definir agora —</option>
+            <option value="SIM">SIM</option>
+            <option value="NÃO">NÃO</option>
+          </select></div>
+        <!-- desenhado na abertura conforme o TIPO REAL da coluna no Notion
+             (caixa de seleção ou lista) — ver FLEX_CAMPO -->
+        <div id="no-flex-cx"></div>
+        <div class="campo"><label>OBSERVAÇÕES</label>
+          <textarea id="no-obs" rows="3" placeholder="Observação fixada no topo do histórico da obra"></textarea></div>
       </div></div>
+      <div class="modal-sub">Só <b>endereço</b> e <b>cliente</b> são obrigatórios — o resto pode ficar em branco e ser preenchido depois. Setor, cidade e telefone são espelho de Vendas: se a obra existir lá, a sincronia manda o valor da venda por cima.</div>
       <div class="modal-sub" id="no-erro" style="display:none;color:#c0392b"></div>
       <div class="modal-acoes">
         <button class="bt ghost" onclick="fecharNovaObra()">Cancelar</button>
@@ -1057,7 +1083,10 @@ let CAL_FLEX = false;
    simplesmente não mostra nada. */
 let FLEX_CAMPO = null;
 let ORD = { col:"titulo", dir:1 };
-let CTX_TXT = null, CTX_ARQ = null;
+/* CTX_ARQ_PAGE: em QUE página o próximo arquivo será anexado (um chamado ou a
+   própria obra — ver anexarNaObra). CTX_ARQ_CHAMADO: qual painel reabrir
+   depois; fica null quando o anexo é da obra. */
+let CTX_TXT = null, CTX_ARQ = null, CTX_ARQ_PAGE = null, CTX_ARQ_CHAMADO = null;
 
 /* ===================== utilidades ===================== */
 let _toastT = null;
@@ -1561,6 +1590,66 @@ function pintarUsuario(s){
      pode usar. */
   const bn = document.getElementById("bt-nova-obra");
   if(bn) bn.style.display = (s.tipo==="ADM" ? "" : "none");
+  /* pedido 4: o botão de forçar atualização também é só do ADM. Cada clique
+     custa uma varredura inteira do Notion e um build do GitHub Actions —
+     aberto a todos, viraria um jeito acidental de derrubar o desempenho de
+     todo mundo. */
+  const bu = document.getElementById("bt-atualizar");
+  if(bu) bu.style.display = (s.tipo==="ADM" ? "" : "none");
+}
+
+/* ===================== ATUALIZAR DADOS AGORA (pedido 4, set/26) ===========
+ * O PROBLEMA QUE ELE RESOLVE: a tela lê o dist/pos_obra.json (republicado
+ * pelo GitHub Actions) e o Apps Script ainda guarda a própria cópia por 15
+ * min. São duas camadas de atraso empilhadas — ótimas no dia a dia, péssimas
+ * no caso em que alguém cria ou corrige uma linha DIRETO NO NOTION: o dado
+ * novo some por vários minutos e nada na tela explica por quê.
+ *
+ * O botão faz as três coisas necessárias, nesta ordem, porque a ordem
+ * importa: primeiro manda o servidor jogar fora as cópias dele e pedir um
+ * build (senão a leitura seguinte devolveria o mesmo cache velho), depois
+ * limpa o cache do NAVEGADOR, e só então relê AO VIVO — o caminho que não
+ * depende do arquivo publicado.
+ *
+ * O build republica o dist/ para TODO MUNDO em um ou dois minutos; a leitura
+ * ao vivo resolve a tela de quem clicou na hora. Por isso as duas coisas, e
+ * por isso a mensagem final diz qual das duas aconteceu.
+ * =================================================================== */
+let _atualizando = false;
+function forcarAtualizacao(){
+  if(_atualizando) return;
+  if(!ehAdmTela()){ toast("Só o ADM pode forçar a atualização.", 4); return; }
+  const bt = document.getElementById("bt-atualizar");
+  _atualizando = true;
+  if(bt){ bt.disabled = true; bt.textContent = "🔄 Atualizando…"; }
+  const fim = (msg, seg)=>{
+    _atualizando = false;
+    if(bt){ bt.disabled = false; bt.textContent = "🔄 Atualizar dados"; }
+    toast(msg, seg || 5);
+  };
+
+  chamar({action:"forcarAtualizacao", escopo:"POS_OBRA"}, 90000, true).then(r=>{
+    if(!r || !r.ok){ fim("Não consegui atualizar: " + erroTexto(r && r.erro)); return; }
+    /* As cópias do navegador precisam sair TAMBÉM: sem isto o lerEstaticoJa
+       pintaria de novo com o arquivo antigo antes de qualquer rede chegar, e
+       o botão pareceria não ter feito nada. */
+    storeInvalidar(CH_BOOT, CH_SENS);
+    try{
+      for(let i = localStorage.length - 1; i >= 0; i--){
+        const k = localStorage.key(i);
+        if(k && k.indexOf("morais_cache_v2_pos_obra") === 0) localStorage.removeItem(k);
+      }
+    }catch(e){}
+    /* Ao vivo de propósito: o dist/ só muda quando o build terminar, daqui a
+       um ou dois minutos. Esta leitura é o que faz o dado novo aparecer AGORA
+       para quem clicou. */
+    return Promise.all([carregarPeloBackend(true), carregarSensiveis(true)]).then(()=>{
+      fim(r.build
+        ? "Dados atualizados. A publicação para as outras pessoas sai em 1-2 minutos."
+        : "Dados atualizados aqui. A publicação para as outras pessoas ainda não foi disparada"+
+          (r.buildMotivo === "SEM_GITHUB_TOKEN" ? " (falta o GITHUB_TOKEN no Apps Script)." : "."), 7);
+    });
+  }).catch(()=> fim("Sem conexão — tenta de novo."));
 }
 
 function versaoGS(v){
@@ -2517,6 +2606,11 @@ function pintarObra(){
         esc(OBRA.cidade || "—")+
         (soLeitura() ? "" : ' <button class="bt-lapis" title="Editar cidade" onclick="editarEspelho(\'CIDADE\',\'Cidade\')">✏️</button>'), true) +
       od("Assinatura do contrato", dbr(assin) || "—") +
+      /* r33 (pedido 2): o anexo do contrato faltava aqui. A coluna FOTOS DO
+         CONTRATO existe na base PÓS OBRA e o backend já aceitava anexo nela
+         (posObraAnexar_), mas nenhuma tela mostrava — quem quisesse ver ou
+         subir o contrato tinha de abrir o Notion. */
+      od("Anexo do contrato", anexoContratoHtml(), true) +
       /* item 3: o tempo desde a compra, que é o que responde na hora se a
          casa ainda é nova ou se já passou da maioria dos prazos */
       od("Tempo de compra", assin ? tempoDesde(assin) : "—") +
@@ -2549,6 +2643,48 @@ function pintarObra(){
 }
 function od(l, v, bruto){
   return '<div class="od"><div class="l">'+esc(l)+'</div><div class="v">'+(bruto?v:esc(v))+'</div></div>';
+}
+
+/* ===================== ANEXO DO CONTRATO (pedido 2, set/26) ===============
+ * FOTOS DO CONTRATO é a única coluna de arquivo da base PÓS OBRA — a da OBRA,
+ * não a dos chamados. Ela já era aceita pelo posObraAnexar_ no servidor, mas
+ * não tinha lugar nenhum na tela: o contrato só dava para ver abrindo o
+ * Notion. Agora ele fica no cabeçalho, junto do resto do que identifica a
+ * casa, que é onde alguém procura por ele.
+ *
+ * O nome da coluna é resolvido pelo valor que veio (e não fixado), porque a
+ * base tem colunas com espaço sobrando e acento — a mesma tolerância que o
+ * resto do sistema usa. Se a coluna não existir, o campo mostra "—" e o botão
+ * de anexar não aparece: nada quebra.
+ * =================================================================== */
+const COL_CONTRATO = "FOTOS DO CONTRATO";
+function colunaContrato(){
+  const v = (OBRA && OBRA.valores) || {};
+  for(const nome in v) if(normN(nome) === normN(COL_CONTRATO)) return nome;
+  return null;
+}
+function anexoContratoHtml(){
+  const col = colunaContrato();
+  if(!col) return '<span style="color:var(--text4)">—</span>';
+  const arqs = Array.isArray(OBRA.valores[col]) ? OBRA.valores[col] : [];
+  const jsCol = JSON.stringify(col).replace(/"/g,"&quot;");
+  const lista = arqs.map(f=>'<a class="anexo" onclick="verArquivo('+
+      JSON.stringify(f.name||"contrato").replace(/"/g,"&quot;")+','+
+      JSON.stringify(f.url||"").replace(/"/g,"&quot;")+','+jsCol+','+
+      JSON.stringify(OBRA.id).replace(/"/g,"&quot;")+')">📎 '+esc(f.name||"contrato")+'</a>').join(" ");
+  return (lista || '<span style="color:var(--text4)">nenhum arquivo</span>') +
+    (soLeitura() ? "" : ' <button class="bt-lapis" title="Anexar contrato" onclick="anexarNaObra('+jsCol+')">📎+</button>');
+}
+function anexarNaObra(prop){
+  if(soLeitura()){ toast("Modo teste: nada é gravado.", 3); return; }
+  if(!OBRA) return;
+  CTX_ARQ = prop;
+  /* r33: o envio passou a saber EM QUE PÁGINA anexar. Antes ele assumia o
+     chamado aberto, e um anexo de contrato feito com o painel fechado não
+     tinha destino nenhum. */
+  CTX_ARQ_PAGE = OBRA.id;
+  CTX_ARQ_CHAMADO = null;
+  document.getElementById("arq-input").click();
 }
 
 /* ---------- HORÁRIO FLEXÍVEL da obra (pedido 3) ----------
@@ -2899,9 +3035,28 @@ let NO_OPID = null;
 function abrirNovaObra(){
   if(!ehAdmTela() || soLeitura()) return;
   NO_OPID = novoOpId();
-  ["no-endereco","no-casa","no-clientes","no-telefone"].forEach(id=>{
+  ["no-endereco","no-casa","no-clientes","no-telefone","no-setor","no-cidade",
+   "no-assinatura","no-agio","no-obs"].forEach(id=>{
     const el = document.getElementById(id); if(el) el.value = "";
   });
+  /* HORÁRIO FLEXÍVEL: o controle é montado aqui, e não escrito no HTML, pelo
+     mesmo motivo do controleFlex() do cabeçalho — a coluna pode ser caixa de
+     seleção ou lista no Notion, e trocar o tipo lá não pode quebrar o
+     formulário calado. Se a coluna ainda não existir, o campo simplesmente
+     não aparece. */
+  const flexCx = document.getElementById("no-flex-cx");
+  if(flexCx){
+    if(!FLEX_CAMPO){ flexCx.innerHTML = ""; }
+    else if(FLEX_CAMPO.tipo === "select" || FLEX_CAMPO.tipo === "status"){
+      flexCx.innerHTML = '<div class="campo"><label>'+esc(FLEX_CAMPO.nome)+'</label>'+
+        '<select id="no-flex"><option value="">— não definir agora —</option>'+
+        (FLEX_CAMPO.opcoes||[]).map(o=>'<option>'+esc(o)+'</option>').join("")+'</select></div>';
+    } else {
+      flexCx.innerHTML = '<div class="campo"><label>'+esc(FLEX_CAMPO.nome)+'</label>'+
+        '<label class="ms-item" style="padding:0"><input type="checkbox" id="no-flex"> '+
+        'o cliente aceita horário flexível</label></div>';
+    }
+  }
   document.getElementById("no-erro").style.display = "none";
   document.getElementById("no-overlay").classList.add("on");
   setTimeout(()=>{ const e=document.getElementById("no-endereco"); if(e) e.focus(); }, 50);
@@ -2914,6 +3069,15 @@ function confirmarNovaObra(){
   const clientes = String(document.getElementById("no-clientes").value||"").trim();
   const casa     = String(document.getElementById("no-casa").value||"").trim();
   const telefone = String(document.getElementById("no-telefone").value||"").trim();
+  const setor    = String(document.getElementById("no-setor").value||"").trim();
+  const cidade   = String(document.getElementById("no-cidade").value||"").trim();
+  const assin    = String(document.getElementById("no-assinatura").value||"").trim();
+  const agio     = String(document.getElementById("no-agio").value||"").trim();
+  const obs      = String(document.getElementById("no-obs").value||"").trim();
+  /* o controle de horário flexível pode não existir (coluna ausente no
+     Notion), ser caixa de seleção ou ser lista — os três casos aqui */
+  const elFlex   = document.getElementById("no-flex");
+  const flex     = !elFlex ? "" : (elFlex.type === "checkbox" ? (elFlex.checked ? "SIM" : "") : String(elFlex.value||"").trim());
 
   function falha(t){ erro.textContent = t; erro.style.display = "block"; }
   if(!endereco) return falha("Informe o endereço da obra.");
@@ -2931,7 +3095,10 @@ function confirmarNovaObra(){
   const bt = document.getElementById("no-criar"); if(bt) bt.disabled = true;
 
   escrever({action:"posObraNovo", endereco:endereco, casa:casa,
-            clientes:clientes, telefone:telefone, opId: NO_OPID || novoOpId()},
+            clientes:clientes, telefone:telefone,
+            setor:setor, cidade:cidade, dataAssinatura:assin,
+            agio:agio, observacoes:obs, horarioFlexivel:flex,
+            opId: NO_OPID || novoOpId()},
            "criar obra pós obra").then(r=>{
     if(bt) bt.disabled = false;
     if(r.erro === "FALHOU_SEM_CRIAR"){
@@ -2947,10 +3114,13 @@ function confirmarNovaObra(){
        enquanto isso ela entra aqui para a pessoa já conseguir usar */
     if(id){
       OBRAS = OBRAS || [];
+      /* a obra entra na lista já com o que foi digitado — se ficasse só com
+         endereço e cliente, a pessoa abriria a obra recém-criada e veria os
+         campos em branco até o próximo build, achando que não gravou */
       OBRAS.push({ id:id, endereco:endereco, casa: casa===""?null:Number(casa),
                    titulo:(r.resposta.titulo||endereco), clientes:clientes,
-                   telefone:telefone||null, dataAssinatura:null, observacoes:"",
-                   horarioFlexivel:null, agio:null, cidade:"", setor:"",
+                   telefone:telefone||null, dataAssinatura:assin||null, observacoes:obs,
+                   horarioFlexivel:flex||null, agio:agio||null, cidade:cidade, setor:setor,
                    servicos:0, servicosAbertos:0, servicosIncompletos:0,
                    status:"SEM PÓS OBRA" });
       pintarHub();
@@ -3873,17 +4043,23 @@ document.addEventListener("keydown", e=>{
    num arquivo estático (viria quebrada, e foto de obra não deve ficar aberta
    sem login). Quando o link falta, ele é pedido AQUI, no clique, e chega
    fresco. Uma chamada por foto que alguém realmente quis abrir. */
-function verArquivo(nome, url, prop){
-  if(!url && prop && CHAMADO && CHAMADO.id){
+/* r33: ganhou o 4º parâmetro `pageId`. Antes a busca do link assumia sempre o
+   CHAMADO aberto — o que já não vale desde que o anexo do contrato passou a
+   ficar no cabeçalho da OBRA, com o painel do chamado fechado. Quando o
+   pageId não vem, o comportamento é o de antes (o chamado aberto). */
+function verArquivo(nome, url, prop, pageId){
+  const alvoId = pageId || (CHAMADO && CHAMADO.id);
+  if(!url && prop && alvoId){
     toast("Buscando o arquivo…", 2);
-    return chamar({action:"posObraArquivos", pageId:CHAMADO.id}).then(r=>{
+    return chamar({action:"posObraArquivos", pageId:alvoId}).then(r=>{
       const lista = (r && r.ok && r.arquivos && r.arquivos[prop]) || [];
       const achado = lista.find(f=>f.name === nome) || lista[0];
       if(!achado || !achado.url){ toast("Não consegui abrir este arquivo.", 4); return; }
       /* guarda o link na cópia em memória: clicar de novo não gasta outra
          chamada enquanto a tela estiver aberta */
-      if(CHAMADO.valores && Array.isArray(CHAMADO.valores[prop])){
-        const alvo = CHAMADO.valores[prop].find(f=>f.name === nome);
+      const dono = (OBRA && semHifen(OBRA.id) === semHifen(alvoId)) ? OBRA : CHAMADO;
+      if(dono && dono.valores && Array.isArray(dono.valores[prop])){
+        const alvo = dono.valores[prop].find(f=>f.name === nome);
         if(alvo) alvo.url = achado.url;
       }
       verArquivo(nome, achado.url);
@@ -3904,27 +4080,33 @@ function fecharArquivo(){
 }
 function anexarEm(prop){
   if(soLeitura()){ toast("Modo teste: nada é gravado.", 3); return; }
+  if(!CHAMADO) return;
   CTX_ARQ = prop;
+  CTX_ARQ_PAGE = CHAMADO.id;      // r33: o destino agora é explícito
+  CTX_ARQ_CHAMADO = CHAMADO.id;   // reabrir o painel depois de enviar
   document.getElementById("arq-input").click();
 }
 function enviarArquivo(input){
   const f = input.files && input.files[0];
   input.value = "";
-  if(!f || !CTX_ARQ || !CHAMADO) return;
+  /* r33: o destino é o CTX_ARQ_PAGE, e não mais "o chamado aberto". Um anexo
+     de contrato acontece com o painel do chamado fechado — na versão anterior
+     esse envio simplesmente não saía, e sem nenhuma mensagem. */
+  if(!f || !CTX_ARQ || !CTX_ARQ_PAGE || !OBRA) return;
   // 8 MB: acima disso o base64 estoura o payload do Apps Script e o erro que
   // volta não explica nada
   if(f.size > 8*1024*1024){ toast("Arquivo muito grande (máx. 8 MB).", 4); return; }
-  const prop = CTX_ARQ, chamadoId = CHAMADO.id, obraId = OBRA.id;
+  const prop = CTX_ARQ, alvoId = CTX_ARQ_PAGE, chamadoId = CTX_ARQ_CHAMADO, obraId = OBRA.id;
   toast("Enviando "+f.name+"…", 4);
   const fr = new FileReader();
   fr.onload = ()=>{
     const b64 = String(fr.result).split(",")[1] || "";
-    escrever({action:"posObraAnexar", pageId:chamadoId, prop:prop,
+    escrever({action:"posObraAnexar", pageId:alvoId, prop:prop,
               filename:f.name, mimeType:f.type||"application/octet-stream", dataBase64:b64}, "anexo")
       .then(r=>{
         if(!r.ok){ toast("Não anexou: "+erroTexto(r.erro), 5); return; }
         toast("Arquivo anexado.");
-        abrirObra(obraId, ()=>abrirChamado(chamadoId));
+        abrirObra(obraId, chamadoId ? (()=>abrirChamado(chamadoId)) : undefined);
       });
   };
   fr.onerror = ()=> toast("Não consegui ler o arquivo.", 4);

@@ -560,6 +560,10 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
         <span style="flex:1"></span>
         <!-- MELHORIAS item 6 (set/26): só ADM enxerga. A trava real é no
              backend (ligCriar_) — este botão só decide se aparece. -->
+        <!-- r33 (pedido 4): forçar a releitura do banco. Só ADM — a trava
+             real é o forcarAtualizacao_ no servidor. -->
+        <button class="bt ghost peq" id="bt-atualizar" style="display:none" onclick="forcarAtualizacaoLig()"
+                title="Descarta o cache e relê o Notion agora. Use quando alguém criou/alterou uma linha direto no banco.">🔄 Atualizar dados</button>
         <button class="bt az peq" id="bt-nova-lig" style="display:none" onclick="abrirNovaLigacao()">+ Nova ligação</button>
       </div>
       <div class="recorte" id="recorte" style="display:none"></div>
@@ -619,7 +623,13 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
         <input type="text" id="nv-obra" autocomplete="off" spellcheck="false" placeholder="TB 19 QD 51 LT 19 CS 2"></div>
       <div class="campo"><label>Concessionária</label><select id="nv-conc"></select></div>
       <div class="campo"><label>Sistema (opcional)</label><select id="nv-sist"></select></div>
-      <div class="campo"><label>Status (opcional)</label><select id="nv-status"></select></div>
+      <!-- r33 (pedido 3): entrou RESPONSÁVEL e SAIU o status.
+           O status é o andamento da ligação (solicitou, aprovou, ligou) e
+           quem o move é o fluxo, não a criação — oferecê-lo aqui só convidava
+           a marcar um estado que a linha ainda não tem. Já o responsável é
+           justamente o que precisa ficar definido no momento em que a linha
+           nasce, senão ela fica órfã até alguém reparar. -->
+      <div class="campo"><label>Responsável (opcional)</label><select id="nv-resp"></select></div>
       <div class="txt-sub" id="nv-erro" style="display:none;color:#c0392b"></div>
       <div class="modal-acoes">
         <button class="bt ghost" onclick="fecharNovaLigacao()">Cancelar</button>
@@ -1509,6 +1519,10 @@ function boot(){
   if (ehAdmLig() && !SO_LEITURA){
     const btNova = document.getElementById("bt-nova-lig");
     if (btNova) btNova.style.display = "";
+    /* pedido 4: mesma regra. Cada clique custa uma varredura inteira do
+       Notion e um build do Actions — não é botão para todo mundo. */
+    const btAt = document.getElementById("bt-atualizar");
+    if (btAt) btAt.style.display = "";
   }
   // pinta na hora com a cópia salva e repinta quando o dist/ chegar
   lerEstaticoJa("ligacoes.json", "ligacoes", pintarTudo);
@@ -1756,11 +1770,29 @@ async function atualizarAoVivo(forcar){
     LIG.forEach(l => { porId[l.id] = l; });
     let tocadas = 0;
     r.ligacoes.forEach(viva => {
-      const l = porId[viva.id];
+      let l = porId[viva.id];
+      /* r33: linha que o ao vivo tem e a cópia publicada não — é o caso de
+         quem acabou de criar a linha (aqui ou direto no Notion). Antes ela era
+         ignorada em silêncio e só aparecia no próximo build, o que fazia o
+         "Atualizar dados" parecer não ter funcionado. Agora ela ENTRA, montada
+         no mesmo formato do dist/ para que filtros, PDF e planilha a tratem
+         como qualquer outra. */
+      if (!l && viva.valores){
+        l = { id: viva.id, obra: null, obraIds: [], uc: null, concessionaria: null,
+              status: null, v: {}, sens: {}, _base: "ligacoes" };
+        LIG.push(l);
+        porId[viva.id] = l;
+      }
       if (!l || !l.v || !viva.valores) return;
       // o ao vivo traz TUDO, inclusive colunas que o dist/ esconde por serem
       // sensíveis — aqui o token da sessão já foi conferido pelo servidor
       for (const nome in viva.valores) setV(l.v, nome, viva.valores[nome]);
+      /* os campos "de fora do v" que o dist/ preenche e a planilha usa para
+         achar a linha: sem eles a linha nova entraria sem nome nem filtro */
+      if (l.obra == null) l.obra = getLBruto(l, C.OBRA) || null;
+      if (l.uc == null) l.uc = getLBruto(l, "UC") || null;
+      if (l.concessionaria == null) l.concessionaria = getLBruto(l, C.CONC) || null;
+      if (l.status == null) l.status = getLBruto(l, C.STATUS) || null;
       tocadas++;
     });
     if (!tocadas) return;
@@ -3891,7 +3923,18 @@ function abrirNovaLigacao(){
   };
   enche("nv-conc", C.CONC, false);
   enche("nv-sist", C.SISTEMA, true);
-  enche("nv-status", C.STATUS, true);
+  /* RESPONSÁVEL é coluna do tipo Pessoa: o <option> leva o UUID do usuário no
+     Notion, não o nome — é o id que o ligCriar_ grava. A lista vem do
+     ligResponsaveis_ e pode ainda não ter chegado; quando chegar, o select é
+     preenchido sozinho (o modal fica aberto enquanto a pessoa digita). */
+  const preencherResp = ()=>{
+    const el = document.getElementById("nv-resp");
+    if(!el) return;
+    el.innerHTML = '<option value="">— não definir agora —</option>' +
+      (RESPONSAVEIS||[]).map(p=>`<option value="${esc(p.id)}">${esc(p.nome)}</option>`).join("");
+  };
+  preencherResp();
+  carregarResponsaveis().then(preencherResp);
   document.getElementById("nv-obra").value = "";
   /* um opId por FORMULÁRIO aberto: é ele que faz o reenvio devolver a mesma
      linha em vez de criar uma segunda */
@@ -3923,7 +3966,9 @@ async function criarNovaLigacao(){
     const r = await escrever({
       action: "ligCriar", obra: obra, conc: conc,
       sistema: document.getElementById("nv-sist").value,
-      status:  document.getElementById("nv-status").value,
+      /* r33: sem status (a linha nasce sem andamento, de propósito) e com o
+         responsável — que vai como ID do usuário do Notion, ver preencherResp */
+      resp: document.getElementById("nv-resp").value || "",
       opId: NV_OPID || novoOpId()
     }, "criar linha de ligação");
     if (r && r.erro === "FALHOU_SEM_CRIAR")
@@ -3949,6 +3994,50 @@ async function criarNovaLigacao(){
     falhar("Sem conexão — tenta de novo.");
   }
 }
+/* ===================== ATUALIZAR DADOS AGORA (pedido 4, set/26) ===========
+ * Mesma ideia do botão do Pós Obra, e pela mesma razão: a tela lê o
+ * dist/ligacoes.json (republicado pelo Actions) e o Apps Script ainda guarda a
+ * cópia dele por 5 min. Quem cria ou corrige uma linha DIRETO NO NOTION fica
+ * sem ver o resultado por vários minutos, sem nada explicando por quê.
+ *
+ * A ordem importa: primeiro o servidor joga fora as cópias dele e pede o build
+ * (senão a leitura seguinte devolveria o mesmo cache velho), depois some o
+ * cache do navegador, e só então vem a leitura ao vivo — que é a única que não
+ * depende do arquivo publicado, e por isso a única que mostra o dado novo AGORA.
+ * O build republica para as outras pessoas em um ou dois minutos.
+ * =================================================================== */
+let _atualizandoLig = false;
+async function forcarAtualizacaoLig(){
+  if (_atualizandoLig) return;
+  if (!ehAdmLig()){ toast("Só o ADM pode forçar a atualização."); return; }
+  const bt = document.getElementById("bt-atualizar");
+  _atualizandoLig = true;
+  if (bt){ bt.disabled = true; bt.textContent = "🔄 Atualizando…"; }
+  const fim = m => {
+    _atualizandoLig = false;
+    if (bt){ bt.disabled = false; bt.textContent = "🔄 Atualizar dados"; }
+    toast(m);
+  };
+  try{
+    const r = await chamar({ action: "forcarAtualizacao", escopo: "LIGACOES" }, 90000, true);
+    if (!r || !r.ok) return fim("Não consegui atualizar: " + erroTexto(r && r.erro));
+    /* as cópias locais precisam sair também: sem isto o lerEstaticoJa
+       repintaria com o arquivo antigo antes de qualquer rede chegar, e o
+       botão pareceria não ter feito nada */
+    try{
+      ["ligacoes","vendas_lig","schema_lig"].forEach(k=>localStorage.removeItem("morais_cache_v2_"+k));
+    }catch(e){}
+    RESPONSAVEIS = null;                 // a lista de pessoas também é cacheada
+    await atualizarAoVivo(true);         // ignora o limite de 1 leitura/minuto
+    fim(r.build
+      ? "Dados atualizados. A publicação para as outras pessoas sai em 1-2 minutos."
+      : "Dados atualizados aqui. A publicação para as outras pessoas ainda não foi disparada" +
+        (r.buildMotivo === "SEM_GITHUB_TOKEN" ? " (falta o GITHUB_TOKEN no Apps Script)." : "."));
+  }catch(e){
+    fim("Sem conexão — tenta de novo.");
+  }
+}
+
 function soAdmEdita(nome){ return SO_ADM.some(n => normN(n) === normN(nome)); }
 /* MODO TESTE: o perfil TESTES enxerga tudo, mas o Apps Script recusa toda
    escrita (MODO_TESTE). Os campos continuam ABRINDO de propósito — a razão de
