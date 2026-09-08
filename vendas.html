@@ -1125,10 +1125,22 @@ function noWhitelistDoSetor(nome){
     return a.length>=10 && n.indexOf(a)===0;
   });
 }
+/* SETORES em que a lista branca vale TAMBÉM no painel da obra (pedido do
+   Gestor de Vendas: "quando abrir a obra na página dele só apareçam as opções
+   que falei"). Para os outros setores o comportamento continua o de antes —
+   lista branca só na planilha, painel mostra tudo menos as colunas "-AUTO" —
+   porque lá a obra aberta é justamente onde se preenche o que falta.
+   Para ligar/desligar isso em outro setor, acrescente/remova o nome aqui. */
+const PAINEL_SO_LISTA=["Gestor de Vendas"];
+function painelListaBranca(){
+  return PAINEL_SO_LISTA.indexOf(SETOR_ATUAL)>=0 && !!COLUNAS_SETOR[SETOR_ATUAL];
+}
 function ocultoNoSetor(nome, ondeEstou){
   if(ondeEstou==="painel"){
+    // setor que pediu painel enxuto: o que não está na lista não aparece
+    if(painelListaBranca()){ if(!noWhitelistDoSetor(nome)) return true; }
     // Secretária mantém as regras dela (bloco de reparos etc.)
-    if(SETOR_ATUAL!=="Secretária de Vendas" && COLUNAS_SETOR[SETOR_ATUAL]) return ehAuto(nome);
+    else if(SETOR_ATUAL!=="Secretária de Vendas" && COLUNAS_SETOR[SETOR_ATUAL]) return ehAuto(nome);
   } else if(!noWhitelistDoSetor(nome)) return true;
   const cfg=CAMPOS_OCULTOS_SETOR[SETOR_ATUAL]; if(!cfg) return false;
   const n=normNome(nome);
@@ -1146,7 +1158,11 @@ const ORDEM_PREFIXOS=[
   "ITBI GERADO","ITBI PAGO","DEU ENTRADA","FICOU PRONTO","DEVOLVEU NO B","RECEBEU?","CASA APTA","AGENDOU PRE VI","DATA DA PRE-VIS",
   "TEM MANUAL DE","AGUA TRANSFER","ENERGIA TRANSF","ENTEGOU A CAS","DATA DA ENTREGA","PREENCHEU A PE","GEROU E ARMAZ",
   "PAGOU GCAP","REPAROS PRE VIS","ANEXAR AQUIVO","ANALISE DE REPA","TITULARIDADES","SITUACAO","REF","CIDADE","SETOR",
-  "ENG. RESPONS","MODELO?","TIPO","LAYOUT","FOTOS","LOCALIZACAO"
+  /* RESERVADA (nova coluna do BANCO DE DADOS VENDAS) fica logo depois de
+     MODELO?, como pedido para a Secretária de Vendas. Como a ordem geral é por
+     PREFIXO, basta esta linha: quando a coluna existir no schema do Notion ela
+     entra sozinha nesse lugar; enquanto não existir, nada acontece. */
+  "ENG. RESPONS","MODELO?","RESERVADA","TIPO","LAYOUT","FOTOS","LOCALIZACAO"
 ];
 function ordenarPorPrefixo(campos){
   const usados=new Set(), out=[];
@@ -1177,7 +1193,29 @@ function ordemColunas(){
   }
   return ["ENDEREÇO",...RESUMO,...ordenarPorPrefixo(camposBase()).map(c=>c.nome)];
 }
-function ordemFormulario(){ return ordenarPorPrefixo(camposBase("painel").filter(c=>c.editavel && c.tipo!=="files")).map(c=>c.nome); }
+function ordemFormulario(){
+  const base=camposBase("painel").filter(c=>c.editavel && c.tipo!=="files");
+  /* Setor com painel enxuto (PAINEL_SO_LISTA): a ordem é a MESMA da lista dele,
+     não a ORDEM_PREFIXOS geral. Sem isto o painel mostraria as colunas certas
+     em ordem trocada — AVALIAÇÃO/VALIDADE/VALOR NA MÃO caem antes de MODELO?
+     na lista geral, mas o pedido é a ordem escrita em COLUNAS_SETOR. */
+  if(painelListaBranca()){
+    const vistos={}, saida=[];
+    COLUNAS_SETOR[SETOR_ATUAL].forEach(f=>{
+      const alvo=normNome(f);
+      const c=base.find(x=>{
+        if(vistos[x.nome]) return false;
+        const n=normNome(x.nome);
+        return n===alvo || (alvo.length>=10 && n.indexOf(alvo)===0);
+      });
+      if(c){ vistos[c.nome]=1; saida.push(c.nome); }
+    });
+    // sobras: coluna liberada pela lista que não casou por nome exato/prefixo
+    base.forEach(c=>{ if(!vistos[c.nome]){ vistos[c.nome]=1; saida.push(c.nome); } });
+    return saida;
+  }
+  return ordenarPorPrefixo(base).map(c=>c.nome);
+}
 function campoPorFragmento(frag){ const alvo=normNome(frag); return SCHEMA.find(c=>normNome(c.nome).indexOf(alvo)>=0)||null; }
 
 /* ---------- marcadores SIM/NÃO ---------- */
@@ -1574,6 +1612,23 @@ const ALERTAS_SETOR={
 /* Colunas da PLANILHA por setor (fragmentos, nome exato tem prioridade).
    Setor sem entrada aqui mostra a planilha completa, como antes. */
 const COLUNAS_SETOR={
+  /* GESTOR DE VENDAS — exatamente as colunas pedidas, nesta ordem, e ELA VALE
+     TAMBÉM NO PAINEL DA OBRA (ver PAINEL_SO_LISTA): abrir uma casa mostra só
+     estes campos, nada de reparos, vistoria, cartório, GCAP ou anexos.
+     ENDEREÇO entra na frente porque é ele que identifica a linha: a planilha é
+     montada A PARTIR desta lista (ordemColunas), então sem ele a tabela sairia
+     sem o nome da casa. Se quiser o número da casa junto, acrescente "CASA"
+     logo depois — deixei de fora porque não estava no que você pediu.
+     RESERVADA é a coluna nova; se ainda não existir no Notion (ou o
+     dist/vendas.json ainda não tiver sido republicado), ela simplesmente não
+     aparece — nada quebra. */
+  "Gestor de Vendas":[
+    "ENDEREÇO","CLIENTES","CPF","Nº Whatsapp","Email",
+    "DATA DA VENDA","VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)",
+    "CORRETOR","IMOBILIÁRIA","CORRESPONDENTE","BANCO",
+    "AVALIAÇÃO","VALIDADE","VALOR NA MÃO","COMISSÃO",
+    "MODELO?","RESERVADA","TIPO"
+  ],
   // Só estas, na ordem do print. As colunas "-AUTO", SETOR e ENG. RESPONSÁEL
   // NÃO entram aqui: elas aparecem como campos do alerta PREENCHER ENDEREÇO
   // (ver CAMPOS_DO_ALERTA), que é onde são preenchidas.
@@ -2572,14 +2627,19 @@ function renderPainel(V,pageId,sensPendente){
   }).join("")+'</div>';
 
   // alertas / situação
-  const chips=[]; SCHEMA.filter(c=>c.tipo==="formula").forEach(c=>{ const val=getV(V,c.nome); if(val==null||val===""||val==="-")return; const s=String(val); const al=/PREENCHER|⚠️|🔴|🚨/.test(s)||/^ALERTA|^ELERTA/.test(c.nome); chips.push(`<span class="chip${al?" alerta":""}">${esc(s)}</span>`); });
+  /* No setor de painel enxuto (Gestor de Vendas) as etiquetas do topo também
+     saem: elas são calculadas a partir de colunas que ele não vê (conformidade,
+     cartório, entrega, água/energia). Deixá-las seria mostrar pela etiqueta o
+     que a lista mandou esconder. */
+  const soLista=painelListaBranca();
+  const chips=[]; (soLista?[]:SCHEMA.filter(c=>c.tipo==="formula")).forEach(c=>{ const val=getV(V,c.nome); if(val==null||val===""||val==="-")return; const s=String(val); const al=/PREENCHER|⚠️|🔴|🚨/.test(s)||/^ALERTA|^ELERTA/.test(c.nome); chips.push(`<span class="chip${al?" alerta":""}">${esc(s)}</span>`); });
   /* Transferência de titularidade nos informativos do topo.
      Estas duas colunas não são fórmula, então não entravam no laço acima — e
      o painel dizia "PROCESSO DE ENTREGA FINALIZADO" sem contar a água e a
      energia, que continuam pendentes depois da entrega. Aqui elas aparecem
      junto: verde quando transferida, laranja quando ainda não. Vazio não vira
      etiqueta, senão toda obra antiga ganharia dois avisos do nada. */
-  [["AGUA TRANSFERIDA","ÁGUA"],["ENERGIA TRANSFERIDA","ENERGIA"]].forEach(([alvo,rot])=>{
+  (soLista?[]:[["AGUA TRANSFERIDA","ÁGUA"],["ENERGIA TRANSFERIDA","ENERGIA"]]).forEach(([alvo,rot])=>{
     // acha a coluna pelo nome SEM acento: na base ela está como
     // "AGUA TRANSFERIDA" (sem o Á), e o getV compara com acento
     const campo=SCHEMA.find(c=>normNome(c.nome)===alvo);
