@@ -3124,7 +3124,12 @@ function confirmarNovaObra(){
                    servicos:0, servicosAbertos:0, servicosIncompletos:0,
                    status:"SEM PÓS OBRA" });
       pintarHub();
-      abrirObra(id);
+      /* NÃO abre a página da obra recém-criada (pedido de set/26).
+         A lista vem do arquivo publicado e a obra só existe lá no próximo
+         build; ao abrir na hora, a tela tentava carregar os chamados de uma
+         obra que o dist/ ainda não conhece e ficava carregando sem fim. A
+         obra já aparece na lista pela linha acima — a pessoa abre quando
+         quiser, e aí o carregamento tem o que buscar. */
     } else recarregarTudo();
   });
 }

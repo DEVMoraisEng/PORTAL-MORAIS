@@ -522,6 +522,104 @@ def main():
     if vazios:
         print(f"  {vazios} valores sensíveis descartados antes de gravar.", flush=True)
 
+    # ---- mapa_vendas.json: fonte única do MAPA DE VENDAS público -----------
+    # POR QUE ESTE ARQUIVO EXISTE, EM VEZ DE O MAPA LER O vendas.json:
+    # o mapa é a página que vai para cliente e corretor de fora. O vendas.json
+    # tem TODA coluna não sensível — inclusive COMISSÃO, CORRETOR, IMOBILIÁRIA
+    # e VALOR DE COMPRA E VENDA. Fazer a página pública carregar aquele arquivo
+    # entregaria a comissão de cada casa a quem abrisse o F12. Aqui vai só o
+    # que o mapa desenha, e nada além disso.
+    #
+    # POR QUE NÃO FICAR NO REPOSITÓRIO DO MAPA (fetch_notion.py):
+    # eram dois códigos lendo o mesmo Notion com regras próprias, e o mapa só
+    # atualizava no gatilho de 10 min dele. Publicando daqui, qualquer gravação
+    # feita no portal (RESERVADA, por exemplo) já republica este arquivo junto
+    # — o mapa lê ele direto do navegador e aparece em 1 a 2 min.
+    #
+    # CLIENTE NÃO SAI DAQUI: "vendida" é só um booleano, tirado do resumo
+    # "sens" (que diz se a coluna CLIENTES está preenchida, nunca o nome).
+    # O mapa só precisa saber SE está vendida.
+    #
+    # SETOR: em VENDAS a coluna vem vazia na maioria das linhas, então o setor
+    # é deduzido do prefixo do REF — a mesma tabela que o fetch_notion.py usava.
+    # Mexeu em prefixo? Mexa aqui.
+    REF_PARA_SETOR = {
+        "TB": "TERRABELA CERRADO", "RR": "RAVENA", "RPB": "PQ DOS BURITIS",
+        "J": "JOÃO BRAZ", "I": "IPANEMA", "IT": "ITAIPU", "A": "ACROPOLE",
+        "M": "MARQUES DE ABREU", "EF": "ST EFIGÊNIA", "FE": "ST FÉ",
+        "PS": "PORTO SEGURO",
+    }
+
+    def setor_por_ref(ref):
+        if not ref or ref == "-":
+            return ""
+        prefixo = "".join(c for c in str(ref) if not c.isdigit()).strip()
+        return REF_PARA_SETOR.get(prefixo.upper(), "")
+
+    def simples(v):
+        """Só valor escalar vai para o arquivo público. Lista/dict (anexo,
+        relation, pessoa) é descartado: nada disso o mapa usa, e é justamente
+        onde dado inesperado costuma vazar."""
+        if isinstance(v, (list, dict)):
+            return None
+        return v
+
+    def campo_mv(v, *frags):
+        """Valor da coluna pelo nome, tolerando acento, caixa e espaço sobrando;
+        se não achar exato, aceita quem CONTENHA o pedaço. Mesmo comportamento
+        do campo() usado mais abaixo — está repetido aqui de propósito, porque
+        aquele é definido depois deste ponto do arquivo."""
+        for frag in frags:
+            alvo = norm(frag)
+            for k in v:
+                if norm(k) == alvo:
+                    return v[k]
+        for frag in frags:
+            alvo = norm(frag)
+            for k in v:
+                if alvo in norm(k):
+                    return v[k]
+        return None
+
+    mv = []
+    for reg in vendas:
+        v = reg["valores"]
+        sens = reg.get("sens") or {}
+        vendida = any(norm(k).startswith("CLIENTE") and sens[k] for k in sens)
+        ref = simples(campo_mv(v, "REF")) or ""
+        setor = simples(campo_mv(v, "SETOR")) or setor_por_ref(ref)
+        mv.append({
+            "id": reg["id"],
+            "endereco": simples(campo_mv(v, "ENDEREÇO")) or "",
+            "casa": simples(campo_mv(v, "CASA")) or "",
+            "ref": ref,
+            "setor": setor,
+            "tipo": simples(campo_mv(v, "TIPO")),
+            "modelo": simples(campo_mv(v, "MODELO?", "MODELO")) or "",
+            # booleano, nunca o nome — ver comentário acima
+            "vendida": bool(vendida),
+            "avaliacao": simples(campo_mv(v, "AVALIAÇÃO")),
+            "valorMao": simples(campo_mv(v, "VALOR NA MÃO")),
+            "valorVenda": simples(campo_mv(v, "VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)",
+                                           "VALOR DE COMPRA E VENDA")),
+            "entregou": simples(campo_mv(v, "ENTEGOU A CASA E PEGOU TERMO DE ENTREGA?",
+                                         "ENTREGOU A CASA")) or "",
+            "fotos": simples(campo_mv(v, "FOTOS")) or "",
+            "layout": simples(campo_mv(v, "LAYOUT")) or "",
+            "localizacao": simples(campo_mv(v, "LOCALIZAÇÃO", "LOCALIZACAO")) or "",
+            # RESERVADA: SIM pinta a casa de azul por 24h no mapa.
+            # dataReserva é preenchida pelo Apps Script do mapa
+            # (verificarReservas), não por gente — é dela que sai a contagem.
+            "reservada": simples(campo_mv(v, "RESERVADA")) or "",
+            "dataReserva": simples(campo_mv(v, "DATA DA RESERVA", "DATA RESERVA")),
+        })
+    gravar("mapa_vendas.json", {
+        "ok": True, "total": len(mv), "rows": mv, "updated_at": agora,
+    })
+    print("  mapa_vendas.json: " + str(len(mv)) + " linhas ("
+          + str(sum(1 for x in mv if x["reservada"] and
+                    norm(x["reservada"]) == "SIM")) + " reservada(s)).", flush=True)
+
     # DOCUMENTOS: índice endereço -> flags (contadores "em breve"/"em construção")
     # + lista completa (docs_full) usada pra calcular o dashboard (portal.json):
     # precisa de n_casas/cota/datas, não só habite/obra_iniciada.
