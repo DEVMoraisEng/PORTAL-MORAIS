@@ -68,6 +68,16 @@ jobs:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
         run: python fetch_pos_obra.py
 
+      # Gera dist/docs.json (base DOCUMENTOS + atividades de documentação).
+      # Step SEPARADO pelo mesmo motivo do Pós Obra: se a leitura desta base
+      # falhar, o que os steps anteriores já gravaram continua sendo publicado
+      # e só a tela de Gestão de Documentos fica com o arquivo da rodada
+      # anterior.
+      - name: Buscar dados de Documentos
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+        run: python fetch_documentos.py
+
       - name: Configurar Pages
         uses: actions/configure-pages@v5
 
