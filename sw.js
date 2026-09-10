@@ -78,7 +78,7 @@
    demandas do mês (demandas.html), e o app.js ganhou as ações do setor novo.
    Sem trocar este número, o service worker continua entregando o app.js
    ANTIGO do cache — e nem Ctrl+F5 derruba isso de forma confiável. */
-const CACHE = "portal-morais-v27";  // calendario semanal, link so engenheiros, data no link
+const CACHE = "portal-morais-v28";  // fundo do modal de links
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./documentos.html","./demandas.html",

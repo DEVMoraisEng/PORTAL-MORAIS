@@ -847,6 +847,22 @@ html[data-tema="escuro"] .obralink.sem-end{color:#ff8a80}
 .proj-card .cond{font-family:'Barlow Condensed';font-weight:800;font-size:19px;text-transform:uppercase;color:var(--azul-esc)}
 .proj-card .d{font-size:12px;color:var(--text3);margin-top:3px}
 
+/* ===== O QUADRO do link das demandas =====================================
+   O .modal só tinha fundo dentro de #distoverlay (o CSS veio da tela de
+   Vendas, onde o único modal é o do distrato). O daqui ficava TRANSPARENTE:
+   o texto caía em cima do calendário e não dava para ler nada — era o que
+   aparecia na sua captura de tela.
+   Estilo do quadro inteiro, e não só das linhas de dentro. */
+#linkoverlay .modal{
+  background:var(--sup);border:1px solid var(--border2);border-radius:14px;
+  padding:22px;width:min(560px,94vw);max-height:86vh;overflow:auto;
+  box-shadow:0 18px 50px rgba(0,0,0,.28)}
+#linkoverlay .modal h3{font-family:'Barlow Condensed';font-weight:800;font-size:21px;
+  text-transform:uppercase;letter-spacing:.5px;color:var(--azul-esc);margin:0 0 6px}
+#linkoverlay .dist-aviso{color:var(--text3);font-size:12.5px;line-height:1.5}
+#linkoverlay .dist-acoes{display:flex;justify-content:flex-end;margin-top:14px}
+@media(max-width:700px){ #linkoverlay .modal{padding:16px} }
+
 /* modal do link das demandas */
 /* Pedido 10/09/2026: cada linha ganhou fundo próprio — antes ficava sobre o
    fundo transparente do modal e, num tema mais claro, o texto quase sumia. */
