@@ -61,18 +61,17 @@ header::after{content:"";display:block;height:4px;background:linear-gradient(90d
 .card.hab{border-left-color:var(--amarelo);background:var(--amarelo-bg)}
 .dia{font-family:'Barlow Condensed',Inter,sans-serif;font-size:34px;font-weight:700;
   line-height:1;color:var(--azul);letter-spacing:.5px}
-.dia small{font-size:15px;font-weight:600;color:var(--text3);letter-spacing:0;
-  font-family:Inter,sans-serif;margin-left:8px;text-transform:capitalize}
+.dia .full{font-size:16px;font-weight:700;color:var(--text3);letter-spacing:0;
+  font-family:Inter,sans-serif;margin-left:9px;text-transform:capitalize;display:inline-block}
+.dia .full b{color:var(--azul);font-weight:800}
 .end{font-family:'Barlow Condensed',Inter,sans-serif;font-size:23px;font-weight:700;
   text-transform:uppercase;line-height:1.15;margin:10px 0 10px;color:var(--text)}
 .ln{display:flex;gap:11px;align-items:flex-start;margin-bottom:8px;font-size:17px}
 .ln .ic{font-size:21px;line-height:1.25;flex:0 0 28px;text-align:center}
 .ln .tx{flex:1;overflow-wrap:anywhere}
-.acoes{display:flex;gap:10px;margin-top:12px}
-.acoes a{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;
-  min-height:52px;border-radius:12px;text-decoration:none;font-size:18px;font-weight:800;
-  font-family:'Barlow Condensed',Inter,sans-serif;text-transform:uppercase;letter-spacing:.6px;
-  background:var(--sup);color:var(--azul);border:2px solid var(--azul)}
+/* O botão de Rota saiu (pedido 10/09/2026): a lista já mostra o setor e a
+   cidade, e o link abria o Maps sem endereço completo — mais confusão que
+   ajuda. Sem .acoes sobrando, também não tinha mais função. */
 .vazio{background:var(--sup);border:1px dashed var(--border);border-radius:14px;
   padding:24px 18px;text-align:center;font-size:18px;color:var(--text3);font-weight:600}
 .vazio .em{font-size:40px;display:block;margin-bottom:8px}
@@ -139,17 +138,22 @@ function endereco(it){
   [it.setor, it.cidade].forEach(x=>{ const t=String(x||"").trim(); if(t && !jaTem(t)) partes.push(t); });
   return partes.filter(Boolean).join(" · ");
 }
+function dataCompleta(iso){
+  const [a,m,d]=String(iso).slice(0,10).split("-");
+  return d+"/"+m+"/"+a;
+}
 function cartao(it, tipo){
   const dia=String(it.data).slice(8,10);
-  const rota="https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(endereco(it));
   return '<div class="card'+(tipo==="hab"?" hab":"")+'">'+
-    '<div class="dia">'+esc(dia)+'<small>'+esc(diaSemana(it.data))+'</small></div>'+
+    /* Pedido 10/09/2026: a data completa (dia/mês/ano) precisa estar no
+       cartão — antes só o número do dia aparecia, e o mês só no topo da
+       página, então um print do cartão sozinho não dizia quando era. */
+    '<div class="dia">'+esc(dia)+'<span class="full">'+esc(diaSemana(it.data))+', <b>'+esc(dataCompleta(it.data))+'</b></span></div>'+
     '<div class="end">'+esc(it.endereco)+'</div>'+
     ((it.setor||it.cidade)?'<div class="ln"><span class="ic">📍</span><span class="tx">'+esc([it.setor,it.cidade].filter(Boolean).join(" · "))+'</span></div>':"")+
     (it.responsavel?'<div class="ln"><span class="ic">👷</span><span class="tx">'+esc(it.responsavel)+'</span></div>':"")+
     (it.mestre?'<div class="ln"><span class="ic">🧱</span><span class="tx">Mestre: '+esc(it.mestre)+'</span></div>':"")+
     (it.turno?'<div class="ln"><span class="ic">🕑</span><span class="tx">Turno: '+esc(it.turno)+'</span></div>':"")+
-    '<div class="acoes"><a href="'+esc(rota)+'" target="_blank" rel="noopener">📍 Rota</a></div>'+
   '</div>';
 }
 function secao(titulo, itens, tipo, vazioTxt){

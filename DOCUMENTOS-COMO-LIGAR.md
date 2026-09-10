@@ -127,6 +127,48 @@ Cada um traz, na própria linha, o campo para preencher ali mesmo.
 
 ---
 
+## Rodada de ajustes (10/09/2026, segunda leva)
+
+**REMARCAÇÕES pode desligar o ANDAMENTO DA SOLICITAÇÃO.** Conferi o sistema
+inteiro: nada mais depende dos valores `RETORNO N` / `REMARCADO N` dentro do
+andamento — a tela já olha as duas colunas (REMARCAÇÕES e ANDAMENTO) e fica
+com a maior. Pode apagar as opções de retorno do ANDAMENTO DA SOLICITAÇÃO com
+segurança, contanto que o `preencherRemarcacoes()` já tenha rodado (e pela sua
+captura de tela, rodou certo — o par bateu linha a linha).
+
+**Link das demandas — data completa e sem a rota.** O cartão mostrava só o
+número do dia; agora traz dia da semana + data completa (`quarta, 02/09/2026`).
+O botão de Rota saiu.
+
+**Fundo nas linhas do link das demandas.** Cada linha ganhou cartão próprio —
+antes ficava sobre o fundo do modal e sumia num tema mais claro.
+
+**Calendários: só engenheiros, e com visualização por semana.** O filtro e o
+link das demandas já listavam só engenheiros desde a rodada anterior; agora o
+**seletor do calendário** também — o mestre continua no cartão e na legenda,
+só não entra como opção de filtro. E entrou o alternador **Mês / Semana** no
+topo dos dois calendários: no modo semana, a grade mostra só os 7 dias da
+semana corrente, e as setas `‹ ›` andam semana a semana em vez de mês a mês.
+
+**RAS OBRAS**: o nome do acesso é `RAS OBRAS` — com espaço, sem acento extra,
+maiúsculas — criado como opção da coluna ACESSOS no LOGINS. Já estava certo no
+`index.html`; se algum usuário não vê o card, confira se a opção foi marcada
+para ele lá.
+
+### Pendente — depende da página de OBRAS
+
+Você pediu que a `PREVISÃO DE INÍCIO DE OBRA` da base DOCUMENTOS seja
+preenchida a partir da `Previsão de início` da base **OBRAS**. **Essa base
+ainda não está configurada no sistema** — é a página de OBRAS que você disse
+que ia me passar os detalhes depois, e o `Code.gs` não tem o id dela em
+`CONFIG.DB`. Assim que você mandar o id do banco e o nome exato da coluna, eu
+faço a sincronia — no mesmo padrão da que já existe entre VENDAS e PÓS OBRA
+(grava só quando o valor de origem estiver preenchido e for diferente do que
+já está lá, e roda tanto na hora — quando alguém edita pelo site — quanto numa
+varredura diária, pra cobrir edição feita direto no Notion).
+
+---
+
 ## Rodada de correções (10/09/2026)
 
 **O link das demandas não funcionava — e o do pós obra também não.**
