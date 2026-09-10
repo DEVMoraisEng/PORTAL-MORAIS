@@ -30,7 +30,7 @@ const ACOES_NA_ESCRITA = [
   "upload", "comentarioNovo", "gerarAtividadesGcap",
   "ligUpdate", "ligAnexar", "ligBaixa", "ligVendaUpdate", "ligExcluir", "ligCriar",
   "posObraServicoNovo", "posObraAtvUpdate", "posObraUpdate", "posObraAnexar",
-  "posObraRetornoExcluir", "agendaLink", "posObraAtvExcluir", "posObraNovo",
+  "posObraRetornoExcluir", "posObraAtvExcluir", "posObraNovo",
   /* opStatus e posObraValidarAdm NÃO gravam, mas acompanham uma criação e
      precisam da mesma faixa livre — perguntar "criou?" na fila das leituras
      seria esperar atrás da leitura que atrapalhou a criação. */
@@ -38,7 +38,20 @@ const ACOES_NA_ESCRITA = [
   /* GESTÃO DE DOCUMENTOS (set/26). Mesma regra: ação que GRAVA sai pela
      implantação de ESCRITA, para não esperar atrás de uma leitura longa.
      Precisa bater com ACOES_DOCS_ESCRITA do documentos.gs. */
-  "docUpdate", "docBaixa", "docAnexar", "docNovo", "docExcluir", "docAgendaLink"
+  "docUpdate", "docBaixa", "docAnexar", "docNovo", "docExcluir"
+  /* ===== POR QUE "agendaLink" E "docAgendaLink" SAÍRAM DAQUI (set/26) =====
+     Os dois GRAVAM (a chave do link vai numa Propriedade do script), então
+     por hábito estavam na faixa de ESCRITA. Só que a chave é gravada num
+     projeto e LIDA no outro: as telas sem login (servicos.html do pós obra e
+     demandas.html da gestão de documentos) chamam a URL padrão, que é a de
+     LEITURA — e Propriedade do script é POR PROJETO.
+
+     Resultado: o link era gerado na ESCRITA, a tela procurava a chave na
+     LEITURA, não achava e respondia "Este link não vale mais". Era isso, e
+     não link vencido nem falta de publicação.
+
+     Gerar link é raro e rápido; ficar na fila das leituras não custa nada. */
+
   /* r33: "forcarAtualizacao" NÃO entra aqui, e não é esquecimento. O que ela
      limpa é o cache do CacheService, que é POR PROJETO do Apps Script — limpar
      na implantação de ESCRITA não mexeria em nada do que as telas leem, que

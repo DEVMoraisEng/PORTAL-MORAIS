@@ -78,11 +78,11 @@
    demandas do mês (demandas.html), e o app.js ganhou as ações do setor novo.
    Sem trocar este número, o service worker continua entregando o app.js
    ANTIGO do cache — e nem Ctrl+F5 derruba isso de forma confiável. */
-const CACHE = "portal-morais-v25";  // gestão de documentos
+const CACHE = "portal-morais-v26";  // alertas em todos os setores + REMARCAÇÕES
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./documentos.html","./demandas.html",
-                  "./app.js","./manifest.json"];
+                  "./app.js","./alertas-docs.js","./manifest.json"];
 
 self.addEventListener("install", e=>{
   e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ARQUIVOS)).then(()=>self.skipWaiting()));

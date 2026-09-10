@@ -90,12 +90,12 @@ OCULTAR_ANEXOS = True
 # Mantenha igual ao BAIXA_MAP_DOCS do Code.gs: quem VALIDA é o servidor, este
 # aqui só publica o alvo para a tela mostrar antes do clique.
 BAIXA_MAP_DOCS = {
-    "USO DO SOLO":          "USO DO SOLO SOLICITADO",        # CONFERIR
-    "HABITE-SE":            "APROVOU HABITE-SE",             # CONFERIR
+    # "Uso Do Solo" e "Habite-se" não entram: confirmado que não existem como
+    # atividade — são só alertas.
     "CERTIDAO DO LOTE":     "CERTIDÃO DO LOTE",
     "ALVARA":               "TAXAS ENTRADA ALVAR",
     "APROVACAO DE PROJETO": "PROJETO APROVADO E ALVARA",
-    "PROJETO APROVADO":     "PROJETO FEITO",                 # CONFERIR
+    "PROJETO APROVADO":     "PROJETO APROVADO E ALVARA",     # confirmado 10/09/2026
     "INCORPORACAO":         "FOI DADO ENTRADA NA INCORPORA",
     "INCORP. FINALIZADA":   "INCORPORAÇÃO FINALI",
     "RET":                  "FOI DATA A ENTRADA NO RET",
@@ -103,7 +103,7 @@ BAIXA_MAP_DOCS = {
     "ANEXAR RET":           "RET ARMAZENADO",
     "AGENDOU HABITE-SE":    "AGENDOU HABITE-SE",
     "ARMAZENAR HABITE-SE":  "ARMAZENOU HABITE-SE",
-    "SCPO E VISTORIA":      "PAGOU BOLETOS DE VIS",          # CONFERIR
+    "SCPO E VISTORIA":      "EMITIU DOCUMENTOS DE VISTORIA E SCPO",   # confirmado 10/09/2026
     "ART DE ACRESCIMO":     "EMITIU ART DE ACRESC",
     "CERTIDOES FINAIS":     "SAIRAM AS CERTIDOES",
     "ISSQN":                "GEROU E ARMAZENOU I",

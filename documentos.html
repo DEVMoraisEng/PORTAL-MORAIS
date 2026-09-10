@@ -818,6 +818,11 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 .multi label{font-size:12px;display:inline-flex;align-items:center;gap:4px}
 .oculto{color:var(--text4);letter-spacing:2px}
 
+/* obra sem ENDEREÇO preenchido: some da vista de todo mundo se não for
+   marcada — e é justamente a que precisa de alguém para completar */
+.obralink.sem-end{color:#C0392B;font-weight:800}
+html[data-tema="escuro"] .obralink.sem-end{color:#ff8a80}
+
 /* qual coluna a baixa da atividade vai marcar (ver renderAtividades) */
 .col-alvo{font-size:10.5px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;
   background:var(--bg3);color:var(--azul-esc);border-radius:20px;padding:2px 9px;white-space:nowrap}
@@ -1014,7 +1019,8 @@ html[data-tema="escuro"] .barra-linha .bwrap{background:#1f2f3a}
 
   <div class="toast" id="toast"></div>
 
-<script src="app.js?v=29"></script>
+<script src="app.js?v=30"></script>
+<script src="alertas-docs.js?v=1"></script>
 <script>
 /* claro/escuro — mesma chave (morais_tema) das outras páginas do portal. */
 const TEMA_KEY="morais_tema";
@@ -1051,7 +1057,7 @@ document.addEventListener("DOMContentLoaded",()=>aplicarTema(temaAtual()));
  * conta é feita sobre o NÚMERO, então 0% conta como preenchido e a coluna
  * "COTA PREENCHIDA?" pode ser aposentada — a regra passa a ser
  * "COTA DA EMPRESA (%) tem valor" + "PROPRIETÁRIO REAL preenchido"
- * (ver REGRAS, alerta DADOS_JULIO).
+ * (ver o alerta DADOS_JULIO no alertas-docs.js).
  * ===================================================================== */
 const S = exigirSessao();
 const SO_LEITURA = ehSomenteLeitura(S);
@@ -1074,12 +1080,18 @@ let IND_ANO=String(new Date().getFullYear());
    DE DOCUMENTAÇÕES que identifica as atividades daquele setor (mesma ideia do
    SETORES_AREA do vendas.html). null = sem aba de atividades. */
 const SETORES=[
+  /* "responsaveis": como o nome aparece na coluna RESPONSÁVEL da base
+     ATIVIDADES CONTROLE DE DOCUMENTAÇÕES. A comparação é por PEDAÇO do nome
+     (ver atividadesDoSetor) — foi o que fez as atividades do Júlio voltarem a
+     aparecer: no Notion ele está como "Júlio César Gomes de Morais FILHO", e
+     a comparação exata não casava. null = setor sem atividades. */
   {nome:"Departamento de Projetos", d:"Felipe e Arthur", responsaveis:["José Arthur","felipe berçan"],
-   abas:["atividades","alertas","planilha","calendarios","projetos"], colunas:"PROJETOS"},
+   /* sem calendários, a pedido (set/26): este setor não agenda obra */
+   abas:["atividades","alertas","planilha","projetos"], colunas:"PROJETOS"},
   {nome:"João Vítor", d:"Alertas, planilha e calendários", responsaveis:null,
    abas:["alertas","planilha","calendarios"], colunas:"TUDO"},
   {nome:"Júlio César", d:"Atividades, alertas e planilha", responsaveis:["Júlio César Gomes de Morais"],
-   abas:["atividades","alertas","planilha","calendarios"], colunas:"TUDO"}
+   abas:["atividades","alertas","planilha","calendarios","projetos"], colunas:"TUDO"}
 ];
 const ROTULO_ABA={atividades:"Atividades", alertas:"Alertas", planilha:"Planilha",
                   calendarios:"Calendários", indicadores:"Indicadores", projetos:"Projetos p/ aprovação"};
@@ -1103,27 +1115,14 @@ function jsArg(v){ return String(v==null?"":v).replace(/\\/g,"\\\\").replace(/'/
    Primeiro nome exato normalizado; depois "contém". É assim que a tela
    sobrevive a espaço sobrando, acento e aos typos que já existem na base
    (o Notion tem "OBRA INCIADA" e "FOI DATA A ENTRADA NO RET?"). */
-const _cacheCampo=new Map();
-function campo(...frags){
-  const k=frags.join("|");
-  if(_cacheCampo.has(k)) return _cacheCampo.get(k);
-  let achado=null;
-  for(const f of frags){
-    const alvo=normNome(f);
-    achado=CAMPOS.find(c=>normNome(c.nome)===alvo);
-    if(achado) break;
-  }
-  if(!achado) for(const f of frags){
-    const alvo=normNome(f);
-    achado=CAMPOS.find(c=>normNome(c.nome).indexOf(alvo)>=0);
-    if(achado) break;
-  }
-  _cacheCampo.set(k,achado||null);
-  return achado||null;
-}
+/* ---------- localizar coluna e ler valor ----------
+   O motor mora no alertas-docs.js, compartilhado com o painel inicial (que
+   precisa contar as pendências deste setor sem reimplementar as regras).
+   Aqui ficam só os atalhos. */
+let MOTOR=null;
+function campo(...frags){ return MOTOR?MOTOR.campo(...frags):null; }
 function nomeCol(...frags){ const c=campo(...frags); return c?c.nome:null; }
-/* valor de uma obra por fragmento do nome da coluna */
-function val(o,...frags){ const c=campo(...frags); return c?getV(o.valores,c.nome):undefined; }
+function val(o,...frags){ return MOTOR?MOTOR.val(o,...frags):undefined; }
 function sensDe(o,c){ return (o&&o.sens&&c)?o.sens[c.nome]:undefined; }
 
 /* ---------- colunas que a planilha mostra ----------
@@ -1197,132 +1196,9 @@ function escopoDoSetor(nome){ const s=SETORES.find(x=>x.nome===nome); return (s&
  * quebra (rode conferirDocumentos() no Apps Script para ver se algum nome
  * não bateu).
  * =================================================================== */
-function faltamDados(o, lista){
-  const faltas=[];
-  lista.forEach(([frag,rotulo])=>{
-    const c=campo(frag); if(!c) return;
-    let v = getV(o.valores,c.nome);
-    // coluna sensível (CPF): o dist/ não traz o valor, só "tem/não tem"
-    if(v===undefined && o.sens && o.sens[c.nome]!==undefined) v=o.sens[c.nome];
-    if(vazio(v)) faltas.push(rotulo||c.nome);
-  });
-  return faltas;
-}
-const REGRAS=[
-  /* ---- Departamento de Projetos ---- */
-  {chave:"USO_SOLO_SOL", setores:["Departamento de Projetos"],
-   titulo:"PREENCHER DATA DE SOLICITAÇÃO DO USO DO SOLO",
-   quando:o=> ehSim(val(o,"USO DO SOLO SOLICITADO")) && vazio(val(o,"DATA DE SOLICITAÇÃO USO DO SOLO","DATA DE SOLICITACAO USO DO SOLO")),
-   alvos:["DATA DE SOLICITAÇÃO USO DO SOLO"]},
-
-  {chave:"USO_SOLO_EMI", setores:["Departamento de Projetos"],
-   titulo:"PREENCHER DATA DE EMISSÃO DO USO DO SOLO",
-   quando:o=> ehSim(val(o,"USO DO SOLO EMITIDO")) && vazio(val(o,"DATA DE EMISSÃO DO USO DO SOLO")),
-   alvos:["DATA DE EMISSÃO DO USO DO SOLO"]},
-
-  {chave:"ALVARA_ENT", setores:["Departamento de Projetos"],
-   titulo:"PREENCHER DATA DE ENTRADA DE ALVARÁ",
-   quando:o=> ehSim(val(o,"TAXAS ENTRADA ALVAR")) && vazio(val(o,"DATA DE ENTRADA DE ALVARA","DATA DE ENTRADA DE ALVARÁ")),
-   alvos:["DATA DE ENTRADA DE ALVARA"]},
-
-  {chave:"ALVARA_EMI", setores:["Departamento de Projetos"],
-   titulo:"PREENCHER DATA DE EMISSÃO DE ALVARÁ",
-   quando:o=> ehSim(val(o,"PROJETO APROVADO E ALVARA","PROJETO APROVADO E ALVARÁ")) && vazio(val(o,"DATA DE APROVAÇÃO DO PROJETO")),
-   alvos:["DATA DE APROVAÇÃO DO PROJETO"]},
-
-  {chave:"REF_PBI", setores:["Departamento de Projetos"],
-   titulo:"PREENCHER REFERÊNCIA PBI",
-   quando:o=> vazio(val(o,"REF.","REF")),
-   alvos:["REF."]},
-
-  {chave:"DADOS_PROJETOS", setores:["Departamento de Projetos"],
-   titulo:o=>"PREENCHER: "+faltamDados(o,DADOS_OBRA_PROJETOS).join(", "),
-   quando:o=> faltamDados(o,DADOS_OBRA_PROJETOS).length>0,
-   alvos:o=> faltamDados(o,DADOS_OBRA_PROJETOS).map(x=>x)},
-
-  /* ---- João Vítor ---- */
-  {chave:"MESTRE_PREV", setores:["João Vítor"],
-   titulo:o=> !vazio(val(o,"MESTRE")) ? "PREENCHER PREVISÃO DE INÍCIO DE OBRA" : "PREENCHER MESTRE",
-   quando:o=>{
-     const m=!vazio(val(o,"MESTRE")), p=!vazio(val(o,"PREVISÃO DE INÍCIO DE OBRA","PREVISAO DE INICIO DE OBRA"));
-     if(ehSim(val(o,"OBRA INCIADA","OBRA INICIADA"))) return false;   // obra já começou: não cobra mais
-     return (m&&!p)||(!m&&p);
-   },
-   alvos:o=> !vazio(val(o,"MESTRE")) ? ["PREVISÃO DE INÍCIO DE OBRA"] : ["MESTRE"]},
-
-  {chave:"INICIO_OBRA", setores:["João Vítor"],
-   titulo:"PREENCHER DATA DE INÍCIO DE OBRA",
-   quando:o=> ehSim(val(o,"OBRA INCIADA","OBRA INICIADA")) && vazio(val(o,"DATA DE INÍCIO DA OBRA")),
-   alvos:["DATA DE INÍCIO DA OBRA"]},
-
-  /* ---- Júlio César ---- */
-  {chave:"DADOS_JULIO", setores:["Júlio César"],
-   titulo:o=>"PREENCHER: "+faltamJulio(o).join(", "),
-   quando:o=> faltamJulio(o).length>0,
-   alvos:o=> faltamJulio(o)},
-
-  {chave:"INCORP_ENT", setores:["Júlio César"],
-   titulo:"PREENCHER DATA DE ENTRADA NA INCORPORAÇÃO",
-   quando:o=> ehSim(val(o,"FOI DADO ENTRADA NA INCORPORAÇÃO","FOI DADO ENTRADA NA INCORPORACAO")) && vazio(val(o,"DATA DE ENTRADA NA INCORPORAÇÃO")),
-   alvos:["DATA DE ENTRADA NA INCORPORAÇÃO"]},
-
-  {chave:"INCORP_FIM", setores:["Júlio César"],
-   titulo:"PREENCHER DATA DE FINALIZAÇÃO DA INCORPORAÇÃO",
-   quando:o=> ehSim(val(o,"INCORPORAÇÃO FINALI","INCORPORACAO FINALI")) && vazio(val(o,"DATA DE FINALIZAÇÃO DA INCORPORAÇÃO","DATA DE FINALIZACAO DA INCORPORACAO")),
-   alvos:["DATA DE FINALIZAÇÃO DA INCORPORAÇÃO"]},
-
-  {chave:"RET_ENT", setores:["Júlio César"],
-   titulo:"PREENCHER DATA DE ENTRADA DO RET",
-   quando:o=> ehSim(val(o,"FOI DATA A ENTRADA NO RET","FOI DADA A ENTRADA NO RET")) && vazio(val(o,"DATA DE ENTRADA DO RET")),
-   alvos:["DATA DE ENTRADA DO RET"]},
-
-  /* Este alerta você pediu para CRIAR (não existe fórmula no Notion):
-     RET armazenado, mas sem a data de finalização. */
-  {chave:"RET_EMI", setores:["Júlio César"],
-   titulo:"PREENCHER DATA DE EMISSÃO DO RET",
-   quando:o=> ehSim(val(o,"RET ARMAZENADO")) && vazio(val(o,"DATA DE FINALIZAÇÃO DO RET","DATA DE FINALIZACAO DO RET")),
-   alvos:["DATA DE FINALIZAÇÃO DO RET"]},
-
-  {chave:"HABITE_APROV", setores:["Júlio César"],
-   titulo:"PREENCHER DATA DE APROVAÇÃO HABITE-SE",
-   quando:o=> ehSim(val(o,"APROVOU HABITE-SE","APROVOU HABITE")) && vazio(val(o,"DATA DE APROVAÇÃO DO HABITE-SE","DATA DE APROVACAO DO HABITE")),
-   alvos:["DATA DE APROVAÇÃO DO HABITE-SE"]}
-];
-
-/* PREENCHER DADOS DE OBRA (Departamento de Projetos) — a fórmula que você
-   mandou, campo a campo. O rótulo é o que aparece no texto do alerta. */
-const DADOS_OBRA_PROJETOS=[
-  ["ENDEREÇO","TÍTULO"],["SETOR","SETOR"],["CIDADE","CIDADE"],
-  ["PROPRIETARIO DOCUMENTO","PROPRIETÁRIO DOCUMENTO"],
-  ["ENG. EXECUÇÃO","ENGENHEIRO EXEC."],
-  ["PROPRIETARIO REAL","PROPRIETÁRIO REAL"],
-  ["CPF/CNPJ","CPF/CNPJ"],
-  ["ENGENHEIRO RT","ENGENHEIRO RT"],
-  ["Nº DE CASAS","Nº DE CASAS"],
-  ["IMPLANTAÇÃO","IMPLANTAÇÃO"]
-];
-/* PREENCHER DADOS DE OBRA (Júlio César). Diferenças em relação à fórmula do
-   Notion, as duas pedidas por você:
-     - PROPRIETARIO REAL entrou na conta;
-     - a COTA é lida como NÚMERO: 0% conta como preenchida (era o que a
-       fórmula do Notion não conseguia distinguir de vazio). Por isso a coluna
-       "COTA PREENCHIDA?" não é usada aqui e pode ser removida do Notion. */
-function faltamJulio(o){
-  const faltas=[];
-  if(vazio(val(o,"ENDEREÇO"))) faltas.push("TÍTULO");
-  const cota=val(o,"COTA DA EMPRESA","COTA EMPRESA");
-  if(cota===undefined||cota===null||cota==="") faltas.push("COTA");
-  if(vazio(val(o,"DATA DE AQUISIÇÃO DO LOTE","DATA DE AQUISICAO DO LOTE"))) faltas.push("DATA DE AQUISIÇÃO");
-  if(vazio(val(o,"PROPRIETARIO REAL"))) faltas.push("PROPRIETÁRIO REAL");
-  return faltas;
-}
-/* rótulo do alerta -> coluna que ele manda preencher */
-const ROTULO_PARA_COLUNA={
-  "TÍTULO":"ENDEREÇO","COTA":"COTA DA EMPRESA","DATA DE AQUISIÇÃO":"DATA DE AQUISIÇÃO DO LOTE",
-  "PROPRIETÁRIO REAL":"PROPRIETARIO REAL","PROPRIETÁRIO DOCUMENTO":"PROPRIETARIO DOCUMENTO",
-  "ENGENHEIRO EXEC.":"ENG. EXECUÇÃO"
-};
-function colunaDoRotulo(r){ return campo(ROTULO_PARA_COLUNA[r]||r); }
+/* As REGRAS de alerta e o de-para rótulo->coluna moram no alertas-docs.js.
+   Ver o cabeçalho de lá para o porquê. */
+function colunaDoRotulo(r){ return MOTOR?MOTOR.colunaDoRotulo(r):null; }
 
 /* ===================== BOOT ===================== */
 async function boot(){
@@ -1337,7 +1213,7 @@ async function boot(){
     if(!r || !r.ok){ mostrarOffline(r); if(!CARREGOU) document.getElementById("hub-wrap").innerHTML='<div class="vazio">Ainda não há dados publicados. Rode o build (fetch_documentos.py) uma vez.</div>'; return; }
     CAMPOS=r.campos||[]; OBRAS=r.obras||[]; ATIVIDADES=r.atividades||[];
     OCULTAS=r.ocultas||[]; COLSIM=r.colunasSim||[]; UPDATED=r.updated_at||"";
-    _cacheCampo.clear(); CARREGOU=true;
+    MOTOR=criarMotorAlertas(CAMPOS); CARREGOU=true;
     aplicarEdicoesDaTela();
     mostrarOffline(r);
     montarFiltros();
@@ -1368,23 +1244,24 @@ function atividadesDoSetor(nome){
   const s=SETORES.find(x=>x.nome===nome);
   if(!s || !s.responsaveis) return [];
   const alvos=s.responsaveis.map(normNome);
-  return ATIVIDADES.filter(a=>(a.responsavel||[]).some(n=>alvos.indexOf(normNome(n))>=0));
-}
-function alertasDoSetor(nome){
-  const regras=REGRAS.filter(r=>r.setores.indexOf(nome)>=0);
-  const linhas=[];
-  OBRAS.forEach(o=>{
-    regras.forEach(r=>{
-      let bate=false;
-      try{ bate=!!r.quando(o); }catch(e){ bate=false; }
-      if(!bate) return;
-      const titulo = typeof r.titulo==="function" ? r.titulo(o) : r.titulo;
-      const alvos  = typeof r.alvos==="function"  ? r.alvos(o)  : r.alvos;
-      linhas.push({o:o, chave:r.chave, titulo:titulo, alvos:alvos});
+  const hoje=hojeISO();
+  return ATIVIDADES.filter(a=>{
+    /* Comparação por PEDAÇO, não exata: no Notion o responsável pode estar
+       como "Júlio César Gomes de Morais Filho" e aqui como "Júlio César
+       Gomes de Morais". Exigir igualdade escondia TODAS as atividades dele. */
+    const dele=(a.responsavel||[]).some(n=>{
+      const x=normNome(n);
+      return alvos.some(alvo=>x.indexOf(alvo)>=0 || alvo.indexOf(x)>=0);
     });
+    if(!dele) return false;
+    /* Mesmo filtro do setor de vendas e da própria visão do Notion ("Data
+       Inicial: on or before Hoje"): atividade que ainda não começou não é
+       cobrança de hoje. Sem data inicial, entra. */
+    if(a.dataInicial && String(a.dataInicial).slice(0,10)>hoje) return false;
+    return true;
   });
-  return linhas;
 }
+function alertasDoSetor(nome){ return MOTOR?MOTOR.alertasDoSetor(OBRAS,nome):[]; }
 function renderSetores(){
   const box=document.getElementById("setores");
   box.innerHTML=SETORES.map((s,i)=>`
@@ -1500,13 +1377,21 @@ function renderAlertas(){
   if(!CARREGOU){ box.innerHTML='<div class="vazio"><span class="load"></span> Carregando…</div>'; return; }
   const linhas=alertasDoSetor(SETOR_ATUAL);
   if(!linhas.length){ box.innerHTML='<div class="vazio">Nenhum alerta pendente. 🎉</div>'; return; }
+  /* Agrupa pela REGRA, não pelo texto: antes, "PREENCHER: TÍTULO, SETOR…" e
+     "PREENCHER: TÍTULO, COTA…" viravam dois grupos diferentes só porque a
+     lista de campos faltando era outra. Agora é um grupo só, e o que falta em
+     cada obra aparece na linha. */
   const grupos=new Map();
-  linhas.forEach(l=>{ const k=l.titulo; if(!grupos.has(k)) grupos.set(k,[]); grupos.get(k).push(l); });
-  box.innerHTML=[...grupos.entries()].sort((a,b)=>b[1].length-a[1].length).map(([titulo,itens])=>
+  linhas.forEach(l=>{ const k=l.chave; if(!grupos.has(k)) grupos.set(k,{titulo:l.titulo,itens:[]}); grupos.get(k).itens.push(l); });
+  box.innerHTML=[...grupos.values()].sort((a,b)=>b.itens.length-a.itens.length).map(({titulo,itens})=>
     `<details class="grupo"><summary>${esc(titulo)}<span class="qtd">${itens.length}</span></summary><div class="corpo">`+
     '<div class="al al3 al-cab"><span>Endereço</span><span>Alerta</span><span>Preencher</span></div>'+
     itens.map(l=>{
-      const end=val(l.o,"ENDEREÇO")||"(sem endereço)";
+      /* Obra sem endereço aparece marcada em vermelho, e não como um
+         "(sem endereço)" discreto: são justamente as linhas que ninguém
+         encontra depois. */
+      const endTxt=val(l.o,"ENDEREÇO");
+      const end=endTxt||"⚠ SEM ENDEREÇO";
       const campos=(l.alvos||[]).map(a=>colunaDoRotulo(a)).filter(Boolean);
       const preench = campos.length ? `<span class="preench-multi">`+campos.map(c=>{
           const v=getV(l.o.valores,c.nome);
@@ -1515,8 +1400,8 @@ function renderAlertas(){
             : `<span class="ro-inline" title="Preencha direto no Notion — este campo não é editável pela API">${esc(Array.isArray(v)?v.join(", "):(v==null?"—":v))}</span>`;
           return `<span class="preench-item"><label>${esc(c.nome.trim())}</label>${ctrl}</span>`;
         }).join("")+`</span>` : `<span class="ro-inline">—</span>`;
-      return `<div class="al al3"><span class="obralink" onclick="abrirObra('${l.o.id}')">${esc(end)}</span>`+
-             `<span>${esc(l.titulo)}</span>${preench}</div>`;
+      return `<div class="al al3"><span class="obralink${endTxt?"":" sem-end"}" onclick="abrirObra('${l.o.id}')">${esc(end)}</span>`+
+             `<span>${esc(l.detalhe||l.titulo)}</span>${preench}</div>`;
     }).join("")+"</div></details>").join("");
 }
 
@@ -1714,7 +1599,12 @@ function renderTabela(ctx,lista){
   const tr=lista.map((o,i)=>{
     const end=val(o,"ENDEREÇO")||"(sem endereço)";
     const tds=cols.map((c,j)=>{
-      if(j===0) return `<td class="stick"><span class="obralink" onclick="abrirObra('${o.id}')">${esc(end)}</span></td>`;
+      if(j===0){
+        /* Sem endereço = a linha que some da vista de todo mundo. Fica
+           marcada, e o alerta "PREENCHER DADOS DA OBRA" já cobra o campo. */
+        const semEnd=!val(o,"ENDEREÇO");
+        return `<td class="stick"><span class="obralink${semEnd?" sem-end":""}" onclick="abrirObra('${o.id}')">${esc(semEnd?"⚠ SEM ENDEREÇO":end)}</span></td>`;
+      }
       return `<td>${celula(c,o)}</td>`;
     }).join("");
     return `<tr><td class="stick num">${i+1}</td>${tds}</tr>`;
@@ -1832,9 +1722,19 @@ function marcacoes(tipo){
   });
   return out.sort((a,b)=>a.data.localeCompare(b.data));
 }
+/* Todo mundo que aparece nos cartões do calendário — engenheiro responsável e
+   mestre. Serve para o filtro e para a legenda. */
 function responsaveis(){
   const s={};
   OBRAS.forEach(o=>{ const r=textoDe(respDaObra(o)); if(r) s[r]=1; const m=textoDe(val(o,"MESTRE")); if(m) s[m]=1; });
+  return Object.keys(s).sort((a,b)=>a.localeCompare(b,"pt-BR"));
+}
+/* Só os ENGENHEIROS RESPONSÁVEIS (coluna ENG. EXECUÇÃO). É esta lista que
+   aparece no "Link das demandas do mês", a pedido (set/26): o link entrega
+   endereço e agenda do mês, e quem recebe isso é o engenheiro. */
+function engenheiros(){
+  const s={};
+  OBRAS.forEach(o=>{ const r=textoDe(respDaObra(o)); if(r) s[r]=1; });
   return Object.keys(s).sort((a,b)=>a.localeCompare(b,"pt-BR"));
 }
 function calMudar(n){ const d=new Date(CAL_REF); d.setMonth(d.getMonth()+n); CAL_REF=d; renderCalendarios(SETOR_ATUAL?"set":"hub"); }
@@ -1896,12 +1796,12 @@ function calendarioHtml(tipo,titulo){
 /* ---------- link das demandas do mês (só ADM) ---------- */
 function abrirLinks(){
   const box=document.getElementById("link-lista");
-  const resps=responsaveis();
+  const resps=engenheiros();
   box.innerHTML = resps.length
     ? resps.map(r=>`<div class="link-linha"><b>${esc(r)}</b>
         <span class="lk" id="lk-${normNome(r).replace(/\W/g,"_")}"></span>
         <button class="bt az" onclick="gerarLink('${jsArg(r)}')">Gerar link</button></div>`).join("")
-    : '<div class="vazio">Nenhum responsável preenchido nas obras ainda.</div>';
+    : '<div class="vazio">Nenhum engenheiro responsável preenchido nas obras ainda.</div>';
   document.getElementById("linkoverlay").classList.add("on");
 }
 function fecharLinks(){ document.getElementById("linkoverlay").classList.remove("on"); }

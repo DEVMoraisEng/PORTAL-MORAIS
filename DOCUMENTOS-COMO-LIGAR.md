@@ -13,7 +13,8 @@ no Notion** (é o único que conhece o token).
 | `documentos.html` | a tela do setor (**novo**) |
 | `demandas.html` | as demandas do mês, sem login, pelo link (**novo**) |
 | `fetch_documentos.py` | publica `dist/docs.json` no build (**novo**) |
-| `Code.gs` | **completo**, já com o setor novo dentro (r35) |
+| `Code.gs` | **completo** (r36) |
+| `alertas-docs.js` | regras de alerta, usadas pela tela e pelo painel inicial (**novo**) |
 | `index.html` | ganhou o card "Gestão de Documentos" |
 | `app.js` | ações novas na fila de ESCRITA |
 | `sw.js` | cache v25 + as duas páginas novas |
@@ -123,6 +124,94 @@ Commit dos arquivos → o build roda sozinho. Se quiser na hora, use o botão
 
 **Alertas** — são **calculados na tela**, não lidos das fórmulas do Notion.
 Cada um traz, na própria linha, o campo para preencher ali mesmo.
+
+---
+
+## Rodada de correções (10/09/2026)
+
+**O link das demandas não funcionava — e o do pós obra também não.**
+A chave do link é gravada numa Propriedade do script, e Propriedade é **por
+projeto**. O `docAgendaLink` estava roteado para a implantação de **ESCRITA**,
+enquanto a `demandas.html` (que abre sem login) lê pela de **LEITURA**. O link
+nascia válido e a tela respondia "Este link não vale mais". Os dois — o novo e o
+`agendaLink` do pós obra, que tinha o mesmo defeito desde o r32 — voltaram para
+a leitura. **Depois de publicar, gere os links de novo**: os antigos ficaram na
+Propriedade do projeto errado.
+
+**Atividades do Júlio César não apareciam.** No Notion ele é "Júlio César Gomes
+de Morais **Filho**" e a comparação era exata. Agora casa por pedaço do nome. A
+lista também passou a respeitar `DATA INICIAL <= hoje`, igual à visão do Notion.
+
+**Alertas a mais e a menos no João Vítor.** A causa era uma só: eu tratava
+"SIM SEM PRAZO" como "SIM". A fórmula do Notion usa `== "SIM"` exato. Agora:
+- `PREENCHER DATA DE INÍCIO DE OBRA` só conta `SIM` exato (some o excesso);
+- `PREENCHER MESTRE OU PREVISÃO` ignora obra iniciada em **qualquer** variante
+  de SIM, e a linha traz **os dois campos** (mestre e previsão) para preencher.
+
+**Alertas de "PREENCHER: …" não se separam mais.** O agrupamento passou a ser
+pela regra, não pelo texto: um grupo só, e o que falta em cada obra aparece na
+linha. Vale para o Departamento de Projetos e para o Júlio César.
+
+**Outros ajustes desta rodada**
+- `PROPRIETÁRIO REAL` saiu do alerta do Departamento de Projetos (é cobrança do
+  Júlio César, e só).
+- Departamento de Projetos ficou **sem calendários**; **Júlio César** ganhou a
+  aba **Projetos p/ aprovação**.
+- Obra **sem endereço** aparece marcada em vermelho na planilha e no alerta —
+  antes era um "(sem endereço)" discreto que ninguém achava.
+- **Link das demandas do mês**: só os **engenheiros responsáveis** (coluna
+  `ENG. EXECUÇÃO`). Os mestres continuam no filtro e na legenda do calendário.
+- **De-para dos tipos fechado**: `PROJETO APROVADO` → `PROJETO APROVADO E
+  ALVARA EMITIDO E ARMAZENADO?` e `SCPO E VISTORIA` → `EMITIU DOCUMENTOS DE
+  VISTORIA E SCPO?`. "Uso Do Solo" e "Habite-se" saíram do mapa (não existem
+  como atividade). Sobrou uma dúvida pequena: na sua fórmula, `AGENDOU
+  HABITE-SE` é validado pelo rollup do SCPO — deixei na coluna `AGENDOU
+  HABITE-SE?`, que parece o certo. Se a baixa marcar o campo errado, é uma
+  linha para trocar.
+
+### Painel inicial: pendências em todos os setores
+
+Os quatro cards agora mostram número. O que cada um conta:
+
+| Setor | Número |
+|---|---|
+| Gestão de Vendas | atividades em aberto (como já era) |
+| Ligações | linhas com alerta de **atraso** (mesmo recorte da tela do setor) |
+| Pós Obra | chamados em aberto |
+| Gestão de Documentos | atividades em aberto **+** alertas |
+
+Tudo lido do `dist/`, sem custar execução do Apps Script. Para o setor de
+documentos as regras de alerta saíram para um arquivo próprio,
+**`alertas-docs.js`**, usado pela tela e pelo painel — assim os dois números
+nunca divergem. Esse arquivo é **novo e precisa ir no commit**.
+
+### Pós Obra: coluna REMARCAÇÕES
+
+O campo aparece **logo abaixo de ANDAMENTO DA SOLICITAÇÃO** no painel do
+chamado. E, **antes de apagar os `RETORNO 1..5` do andamento**, rode no Apps
+Script, nesta ordem:
+
+1. `conferirRemarcacoes()` — só lê e imprime o que faria, com amostra e
+   distribuição por nível;
+2. `preencherRemarcacoes()` — grava (só onde está diferente; pode repetir);
+3. aí sim apague os `RETORNO N` da coluna ANDAMENTO DA SOLICITAÇÃO.
+
+O nível de cada chamado sai, nessa ordem: da **maior coluna de retorno com
+conteúdo** (o fato registrado), e só se não houver nenhuma, do `RETORNO N` que
+ainda estiver escrito no andamento — que é a informação prestes a sumir.
+
+**Os blocos de retorno passaram a ser liberados pelo REMARCAÇÕES.** Isso não
+era automático: quem abria o bloco vazio do RETORNO N era o ANDAMENTO DA
+SOLICITAÇÃO, e sem esse ajuste, no dia em que você apagasse os `RETORNO 1..5`
+de lá, nenhum bloco novo apareceria mais. Agora a tela olha **as duas colunas e
+fica com a maior** — então funciona antes, durante e depois da migração:
+enquanto o andamento ainda tiver os retornos antigos, os chamados de antes
+continuam abrindo o bloco certo; depois que você apagar, quem manda é o
+REMARCAÇÕES sozinho. Trocar o valor redesenha o painel na hora.
+
+O que já tem conteúdo preenchido **nunca some**, independentemente das duas
+colunas — essa regra é de antes (item 6 das melhorias de agosto) e continua
+valendo.
 
 ---
 

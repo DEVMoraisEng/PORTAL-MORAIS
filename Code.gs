@@ -76,8 +76,13 @@
    arquivo. Duas linhas mudaram no que já existia: uma no handle_ (a rota
    docsDemandas, que roda sem login, ao lado da agendaDia) e o default do
    executar_, que agora pergunta ao docsRotear_ antes de dizer
-   ACAO_DESCONHECIDA. */
-var VERSAO_GS = "2026-09-10 r35";
+   ACAO_DESCONHECIDA.
+   r36 (set/26): de-para dos tipos de atividade da documentação fechado com os
+   nomes reais; a geração de link (agendaLink e docAgendaLink) voltou para a
+   implantação de LEITURA, que é onde a chave é lida (era a causa do "Este link
+   não vale mais"); e entrou a rotina da coluna REMARCAÇÕES do pós obra
+   (conferirRemarcacoes / preencherRemarcacoes), no fim do arquivo. */
+var VERSAO_GS = "2026-09-10 r36";
 
 /* =======================================================================
  * r32 — DUAS IMPLANTAÇÕES, DUAS FILAS
@@ -5797,25 +5802,33 @@ function docsAtvFeita_(pr) {
    são longos e foram vistos truncados no print, então casar por pedaço evita
    um erro de digitação derrubar a baixa inteira.
 
-   As quatro linhas marcadas com "CONFERIR" são as que a fórmula não resolve
-   sozinha, porque o rollup que ela consulta tem nome próprio e não bate com
-   nenhuma coluna da obra de forma óbvia. Elas FUNCIONAM assim mesmo, e a tela
-   mostra a coluna alvo antes do clique — mas vale um olhar seu. */
+   Conferido com você em 10/09/2026: PROJETO APROVADO e SCPO E VISTORIA foram
+   corrigidos, e "Uso Do Solo" e "Habite-se" saíram por não existirem como
+   atividade. Sobrou uma dúvida pequena, anotada na linha do AGENDOU HABITE-SE.
+   A tela continua mostrando a coluna alvo ANTES do clique, então um de-para
+   errado aparece em vez de acontecer calado. */
 var BAIXA_MAP_DOCS = {
-  "USO DO SOLO":          "USO DO SOLO SOLICITADO",        // CONFERIR: é a solicitação ou a emissão?
-  "HABITE-SE":            "APROVOU HABITE-SE",             // CONFERIR: aprovou, agendou ou armazenou?
+  /* "Uso Do Solo" e "Habite-se" NÃO entram: você confirmou que esses dois não
+     existem como atividade — são só alertas (dois para o uso do solo,
+     solicitação e emissão; um para a data de aprovação do habite-se). Mapear
+     um TIPO que não existe não quebra nada, mas deixa no arquivo uma regra que
+     ninguém consegue conferir. */
   "CERTIDAO DO LOTE":     "CERTIDÃO DO LOTE",
   "ALVARA":               "TAXAS ENTRADA ALVAR",
   "APROVACAO DE PROJETO": "PROJETO APROVADO E ALVARA",
-  "PROJETO APROVADO":     "PROJETO FEITO",                 // CONFERIR: PROJETO FEITO? ou a de aprovação?
+  "PROJETO APROVADO":     "PROJETO APROVADO E ALVARA",     // confirmado 10/09/2026
   "INCORPORACAO":         "FOI DADO ENTRADA NA INCORPORA",
   "INCORP. FINALIZADA":   "INCORPORAÇÃO FINALI",
   "RET":                  "FOI DATA A ENTRADA NO RET",
   "ARMAZENAR RET":        "RET ARMAZENADO",
   "ANEXAR RET":           "RET ARMAZENADO",
+  /* Na fórmula da base, este TIPO é validado pelo mesmo rollup do SCPO E
+     VISTORIA — o que parece cópia/cola, já que existe uma coluna
+     "AGENDOU HABITE-SE?" na obra. Fica nela; se a baixa marcar o campo
+     errado, troque aqui para "EMITIU DOCUMENTOS DE VISTORIA E SCPO". */
   "AGENDOU HABITE-SE":    "AGENDOU HABITE-SE",
   "ARMAZENAR HABITE-SE":  "ARMAZENOU HABITE-SE",
-  "SCPO E VISTORIA":      "PAGOU BOLETOS DE VIS",          // CONFERIR: é esta a coluna da vistoria?
+  "SCPO E VISTORIA":      "EMITIU DOCUMENTOS DE VISTORIA E SCPO",   // confirmado 10/09/2026
   "ART DE ACRESCIMO":     "EMITIU ART DE ACRESC",
   "CERTIDOES FINAIS":     "SAIRAM AS CERTIDOES",
   "ISSQN":                "GEROU E ARMAZENOU I",
@@ -6114,6 +6127,14 @@ function docsDemandas_(p) {
 /* Gera (ou devolve) a chave de uma pessoa PELA TELA. Só ADM: quem cria o link
    decide quem enxerga a agenda de obras sem login — não é decisão para dar a
    todo mundo que tem acesso ao setor.
+
+   ONDE ELA RODA: no projeto de LEITURA, e isso é OBRIGATÓRIO. A chave é
+   gravada numa Propriedade do script, e Propriedade é POR PROJETO; quem LÊ é
+   a demandas.html, que chama a URL padrão (a de leitura, porque não tem
+   login). Gerando na ESCRITA, o link nasce válido e a tela responde "Este
+   link não vale mais" — foi exatamente o que aconteceu em 10/09/2026, e o
+   conserto foi tirar "docAgendaLink" (e o "agendaLink" do pós obra, que tinha
+   o mesmo defeito) do ACOES_NA_ESCRITA do app.js.
    Devolve só a CHAVE; a tela monta a URL a partir do próprio endereço, então
    trocar o domínio não exige mexer aqui. */
 function docAgendaLink_(sess, p) {
@@ -6237,4 +6258,152 @@ function conferirDocumentos() {
   } else {
     Logger.log("\nTodos os nomes bateram. Nada a ajustar.");
   }
+}
+
+
+/* =======================================================================
+ * r36 (set/26) — PÓS OBRA: COLUNA "REMARCAÇÕES"
+ * -----------------------------------------------------------------------
+ * Você criou a coluna REMARCAÇÕES (SEM REMARCAÇÃO, RETORNO 1..5) para tirar os
+ * retornos de dentro do ANDAMENTO DA SOLICITAÇÃO, que estava fazendo dois
+ * trabalhos ao mesmo tempo: dizer o que está acontecendo AGORA e dizer em qual
+ * retorno o chamado está.
+ *
+ * ANTES DE APAGAR OS "RETORNO N" DO ANDAMENTO, rode isto — senão a informação
+ * de quantos retornos cada chamado teve some junto.
+ *
+ * ORDEM CERTA:
+ *   1. conferirRemarcacoes()   -> só LÊ e imprime o que faria, chamado a
+ *                                 chamado. Confira uma amostra no Notion.
+ *   2. preencherRemarcacoes()  -> grava. Pode rodar quantas vezes quiser: só
+ *                                 escreve onde o valor está diferente.
+ *   3. só então apague os RETORNO 1..5 da coluna ANDAMENTO DA SOLICITAÇÃO.
+ *
+ * COMO O NÍVEL É DESCOBERTO, em ordem de confiança:
+ *   1. a MAIOR coluna de retorno com conteúdo (DATA RETORNO 3 preenchida,
+ *      INFORMAÇÕES REMARCAÇÃO 3, ANDAMENTO DA REMARCAÇÃO 3...). É o fato
+ *      registrado, e por isso ganha de tudo;
+ *   2. se nenhuma tiver conteúdo, o "RETORNO N" que estiver escrito hoje no
+ *      ANDAMENTO DA SOLICITAÇÃO — é a informação que está prestes a ser
+ *      apagada, e este é o único momento em que dá para aproveitá-la;
+ *   3. nada disso -> SEM REMARCAÇÃO.
+ * ===================================================================== */
+var POS_OBRA_COL_REMARC = "REMARCAÇÕES";
+var REMARC_PROGRESSO = "REMARC_PROGRESSO";
+
+/* Nível de retorno de UM chamado, pela regra acima. Devolve 0 = sem retorno. */
+function posObraNivelRetorno_(pr) {
+  var maior = 0;
+  for (var nome in pr) {
+    var n = normDist_(nome);
+    if (n === "REMARCACOES") continue;                    // a própria coluna nova
+    if (n.indexOf("REMARCA") < 0 && n.indexOf("RETORNO") < 0 && !/\bRM ?\d/.test(n)) continue;
+    var m = n.match(/(\d+)\s*$/) || n.match(/RM ?(\d+)/);
+    if (!m) continue;
+    var nivel = Number(m[1]);
+    if (!nivel || nivel <= maior) continue;
+    var p = pr[nome], t = p.type, cheio = false;
+    if (t === "date") cheio = !!dt_(p);
+    else if (t === "rich_text") cheio = !!texto_(p);
+    else if (t === "select" || t === "status") cheio = !!sel_(p);
+    else if (t === "files") cheio = ((p.files || []).length > 0);
+    else if (t === "multi_select") cheio = ((p.multi_select || []).length > 0);
+    else if (t === "checkbox") cheio = !!p.checkbox;
+    else if (t === "number") cheio = (typeof p.number === "number");
+    if (cheio) maior = nivel;
+  }
+  if (maior) return maior;
+
+  // nada registrado nas colunas: aproveita o que está no ANDAMENTO hoje
+  var and = normDist_(sel_(getTol_(pr, "ANDAMENTO DA SOLICITAÇÃO")) || "");
+  var m2 = and.match(/RETORNO\s*(\d+)/);
+  return m2 ? Number(m2[1]) : 0;
+}
+/* Nome da opção como está no Notion ("RETORNO 1", "RETORNO 01", "Retorno 1"…). */
+function posObraOpcaoRemarc_(campo, nivel) {
+  var alvo = nivel ? ("RETORNO " + nivel) : "SEM REMARCACAO";
+  var ops = (campo && campo.opcoes) || [];
+  for (var i = 0; i < ops.length; i++) {
+    var o = normDist_(ops[i]).replace(/RETORNO\s*0*(\d+)/, "RETORNO $1");
+    if (o === alvo) return ops[i];
+  }
+  return null;
+}
+
+function conferirRemarcacoes() { remarcRodar_(true); }
+function preencherRemarcacoes() { remarcRodar_(false); }
+function reiniciarRemarcacoes() {
+  PROPS_.deleteProperty(REMARC_PROGRESSO);
+  Logger.log("Progresso zerado. A próxima execução começa do primeiro chamado.");
+}
+
+function remarcRodar_(simulado) {
+  var campo = posObraAtvCampo_(POS_OBRA_COL_REMARC);
+  if (!campo) {
+    Logger.log("*** A coluna \"" + POS_OBRA_COL_REMARC + "\" não existe na base " +
+               "ATIVIDADES PÓS OBRA. Crie-a (tipo Seleção, com SEM REMARCAÇÃO e " +
+               "RETORNO 1..5) e rode de novo.");
+    return;
+  }
+  if (campo.tipo !== "select" && campo.tipo !== "status") {
+    Logger.log("*** A coluna \"" + campo.nome + "\" é do tipo " + campo.tipo +
+               ". Esta rotina só sabe preencher Seleção/Status.");
+    return;
+  }
+
+  var t0 = Date.now();
+  var de = simulado ? 0 : Number(PROPS_.getProperty(REMARC_PROGRESSO) || 0);
+  var chamados = queryAll_(CONFIG.DB.ATIVIDADES_POS_OBRA, {});
+  // ordem estável, senão "continuar de onde parou" não significa nada
+  chamados.sort(function (a, b) { return String(a.id) < String(b.id) ? -1 : 1; });
+
+  var gravados = 0, iguais = 0, semOpcao = {}, porNivel = {}, exemplos = [], i;
+  for (i = de; i < chamados.length; i++) {
+    if (!simulado && Date.now() - t0 > POS_OBRA_BUDGET_MS) {
+      PROPS_.setProperty(REMARC_PROGRESSO, String(i));
+      Logger.log("PAUSADO em " + i + " de " + chamados.length + ". Gravados: " + gravados +
+                 ".\n\nRode preencherRemarcacoes() DE NOVO — continua daqui.");
+      return;
+    }
+    var pr = chamados[i].properties || {};
+    var nivel = posObraNivelRetorno_(pr);
+    var alvo = posObraOpcaoRemarc_(campo, nivel);
+    porNivel[nivel] = (porNivel[nivel] || 0) + 1;
+    if (!alvo) { semOpcao[nivel] = (semOpcao[nivel] || 0) + 1; continue; }
+
+    var atual = sel_(pr[campo.nome]);
+    if (normDist_(atual) === normDist_(alvo)) { iguais++; continue; }
+
+    if (exemplos.length < 12) {
+      exemplos.push("   " + tituloDe_(pr) + "  |  " + (atual || "(vazio)") + "  ->  " + alvo);
+    }
+    if (!simulado) {
+      var props = {}; props[campo.nome] = buildValue_(campo.tipo, alvo);
+      notion_("PATCH", "/pages/" + chamados[i].id, { properties: props });
+    }
+    gravados++;
+  }
+
+  if (!simulado) { PROPS_.deleteProperty(REMARC_PROGRESSO); posObraLimparCaches_(); }
+
+  Logger.log((simulado ? "SIMULAÇÃO (nada foi gravado)" : "CONCLUÍDO") +
+             " — " + chamados.length + " chamados na base.");
+  Logger.log("Distribuição por nível encontrado:");
+  Object.keys(porNivel).sort().forEach(function (n) {
+    Logger.log("   " + (n === "0" ? "sem retorno" : "RETORNO " + n) + ": " + porNivel[n]);
+  });
+  Logger.log((simulado ? "Seriam gravados: " : "Gravados: ") + gravados +
+             "  |  já estavam certos: " + iguais);
+  if (exemplos.length) {
+    Logger.log("Amostra (" + exemplos.length + " de " + gravados + "):");
+    exemplos.forEach(function (e) { Logger.log(e); });
+  }
+  var faltando = Object.keys(semOpcao);
+  if (faltando.length) {
+    Logger.log("*** ATENÇÃO: níveis sem opção correspondente na coluna \"" + campo.nome + "\": " +
+               faltando.map(function (n) { return (n === "0" ? "SEM REMARCAÇÃO" : "RETORNO " + n) +
+                            " (" + semOpcao[n] + " chamados)"; }).join(", ") +
+               ". Crie a opção no Notion e rode de novo — esses chamados ficaram intactos.");
+  }
+  if (simulado) Logger.log("\nSe a amostra estiver certa, rode preencherRemarcacoes().");
 }

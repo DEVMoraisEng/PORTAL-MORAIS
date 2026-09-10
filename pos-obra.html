@@ -1060,7 +1060,11 @@ function classeEvento(a){ return ehFinalizado(a) ? "sim" : "alerta"; }
    em vez de sumir. */
 const ORDEM_CAMPOS = ["SERVIÇO","RESPONSÁVEL","DATA DO CHAMADO","DATA AGENDAMENTO SERVIÇO",
                       "INFORMAÇÕES SERVIÇO","FOTOS DOS PROBLEMAS",
-                      "ANDAMENTO DA SOLICITAÇÃO","STATUS MATERIAL","DATA CONCLUSÃO"];
+                      /* REMARCAÇÕES logo abaixo do ANDAMENTO DA SOLICITAÇÃO
+                         (set/26): são as duas metades do mesmo estado — o que
+                         está acontecendo e em qual retorno. */
+                      "ANDAMENTO DA SOLICITAÇÃO","REMARCAÇÕES",
+                      "STATUS MATERIAL","DATA CONCLUSÃO"];
 /* Dentro de cada bloco de remarcação: data, informações, fotos. */
 const ORDEM_RM = ["DATA","INFORMA","FOTO"];
 /* Colunas de data que também guardam HORA (pedido 5). Comparação por pedaço:
@@ -2215,6 +2219,11 @@ function linhaAberto(m, atras){
    renomeada aos poucos sem quebrar nada no meio do caminho. */
 function ehRetorno(nome){
   const n = normN(nome);
+  /* A coluna REMARCAÇÕES (set/26) NÃO é um campo de bloco de retorno: ela é o
+     estado do chamado inteiro — em qual retorno ele está —, e mora ao lado do
+     ANDAMENTO DA SOLICITAÇÃO. Sem esta linha ela cairia aqui pelo "REMARCA" e
+     sumiria do painel, porque não tem número de nível para ser agrupada. */
+  if(n==="REMARCACOES" || n==="REMARCACAO") return false;
   return n.indexOf("REMARCA")>=0 || n.indexOf("RETORNO")>=0 ||
          n.indexOf(" RM ")>=0 || /\bRM\d/.test(n);
 }
@@ -3466,6 +3475,21 @@ function nivelAtual(andamento){
   const m = normN(andamento).match(/^(?:REMARCADO|RETORNO)\s*(\d+)$/);
   return m ? Number(m[1]) : 0;
 }
+/* Coluna nova (set/26) que passou a guardar em qual retorno o chamado está.
+   O ANDAMENTO DA SOLICITAÇÃO estava fazendo dois trabalhos ao mesmo tempo —
+   dizer o que acontece agora e dizer quantos retornos já houve. */
+const COL_REMARCACOES = "REMARCAÇÕES";
+/* Qual bloco de retorno pode ser aberto NESTE chamado.
+   Olha as DUAS colunas e fica com a maior: enquanto o ANDAMENTO ainda tiver
+   os RETORNO 1..5 antigos, os chamados de antes continuam abrindo o bloco
+   certo; depois que você apagar essas opções de lá, quem manda passa a ser o
+   REMARCAÇÕES, sozinho. Nenhuma etapa da migração deixa a tela sem o campo. */
+function nivelDoChamado(alvo){
+  if(!alvo) return 0;
+  const v = alvo.valores || {};
+  const rem = (typeof getV === "function") ? getV(v, COL_REMARCACOES) : v[COL_REMARCACOES];
+  return Math.max(nivelAtual(rem), nivelAtual(alvo.andamento));
+}
 /* Ordena pela lista pedida; o que não estiver nela vai pro fim, em ordem
    alfabética (coluna nova no Notion aparece sozinha em vez de sumir).
    `exato` existe por causa de uma armadilha real: "DATA AGENDAMENTO SERVIÇO" CONTÉM
@@ -3498,7 +3522,7 @@ function renderPainelChamado(){
     return;
   }
   const v = CHAMADO.valores || {};
-  const nivel = nivelAtual(CHAMADO.andamento);
+  const nivel = nivelDoChamado(CHAMADO);
   const fim = chamadoFinalizado();
   const base = [], porNivel = {};
   SCHEMA.campos.forEach(c=>{
@@ -3560,7 +3584,7 @@ function renderPainelChamado(){
 
   if(ocultos){
     html += '<div class="campo"><div class="dica">'+ocultos+' bloco(s) de retorno ainda vazios. '+
-            'Aparecem quando o <b>ANDAMENTO DA SOLICITAÇÃO</b> virar <b>'+
+            'Aparecem quando <b>REMARCAÇÕES</b> virar <b>'+
             esc(rotuloRetorno(nivel+1))+'</b>.</div></div>';
   }
   body.innerHTML = html;
@@ -3750,6 +3774,12 @@ function aplicarCampoLocal(alvo, prop, valor){
     if(sub) sub.textContent = valor || "sem andamento";
     renderPainelChamado();
     renderKanban();
+  }
+  /* Mudar REMARCAÇÕES tem que redesenhar o painel na hora: é ela que libera o
+     próximo bloco de retorno. Sem isto a pessoa escolheria "RETORNO 2" e não
+     apareceria campo nenhum até fechar e abrir o chamado. */
+  if(normN(prop) === normN(COL_REMARCACOES)){
+    renderPainelChamado();
   }
   renderHistorico();
 }
