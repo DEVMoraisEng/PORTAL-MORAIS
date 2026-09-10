@@ -74,10 +74,15 @@
    chamado ANTES da resposta do servidor (id provisório trocado pelo real
    quando ela chega) e reconcilia por opId se a pessoa fechar no meio.
    Mudaram: pos-obra.html e app.js. */
-const CACHE = "portal-morais-v24";  // r34: botão da RAS Obras
+/* v24 -> v25: entrou a GESTÃO DE DOCUMENTOS (documentos.html) e a tela de
+   demandas do mês (demandas.html), e o app.js ganhou as ações do setor novo.
+   Sem trocar este número, o service worker continua entregando o app.js
+   ANTIGO do cache — e nem Ctrl+F5 derruba isso de forma confiável. */
+const CACHE = "portal-morais-v25";  // gestão de documentos
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
-                  "./analise.html","./app.js","./manifest.json"];
+                  "./analise.html","./documentos.html","./demandas.html",
+                  "./app.js","./manifest.json"];
 
 self.addEventListener("install", e=>{
   e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ARQUIVOS)).then(()=>self.skipWaiting()));

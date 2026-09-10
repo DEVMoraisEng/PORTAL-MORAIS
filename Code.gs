@@ -67,7 +67,17 @@
    (chamado só DEPOIS de gravar, pra pessoa não esperar o próximo build) e a
    ação nova posObraSensiveis — CLIENTES e TELEFONE, os dois campos que não
    podem entrar num arquivo servido sem login. */
-var VERSAO_GS = "2026-09-03 r32";
+/* r33 (set/26): botão "Atualizar dados agora" (forcarAtualizacao_), criação de
+   linha de LIGAÇÕES já com RESPONSÁVEL e obra de PÓS OBRA nascendo preenchida.
+   r34 (set/26): a coleta do Orçado x Realizado passou a ser disparada por
+   acionador daqui (dispararColetaDiaria), porque o cron do GitHub atrasava de
+   2 a 6 horas todo dia.
+   r35 (set/26): setor novo GESTÃO DE DOCUMENTOS (OBRA) — ver o bloco no fim do
+   arquivo. Duas linhas mudaram no que já existia: uma no handle_ (a rota
+   docsDemandas, que roda sem login, ao lado da agendaDia) e o default do
+   executar_, que agora pergunta ao docsRotear_ antes de dizer
+   ACAO_DESCONHECIDA. */
+var VERSAO_GS = "2026-09-10 r35";
 
 /* =======================================================================
  * r32 — DUAS IMPLANTAÇÕES, DUAS FILAS
@@ -302,7 +312,11 @@ var ACOES_ESCRITA = [
      TESTES não é ADM — mas a trava do modo teste dependia de uma
      coincidência, não da regra. */
   "posObraRetornoExcluir", "agendaLink",
-  "posObraAtvExcluir", "posObraNovo"
+  "posObraAtvExcluir", "posObraNovo",
+  /* r33: forcarAtualizacao escreve a Propriedade GH_ULTIMO e pede um build
+     ao GitHub. Não toca no Notion, mas é escrita — e o perfil TESTES não
+     dispara build de produção. */
+  "forcarAtualizacao"
 ];
 
 /* r31 — CRIAÇÃO DE REGISTRO NOVO. Estas são as ações protegidas: elas
@@ -351,6 +365,11 @@ function handle_(e) {
        Entra aqui em cima, antes do verificar_, de propósito e com escopo
        mínimo: ver o bloco "AGENDA DO DIA" mais abaixo. */
     if (action === "agendaDia") return out_(agendaDia_(p));
+    /* r35 — DEMANDAS DO MÊS (Gestão de Documentos). Entra aqui em cima, ao
+       lado da agenda do dia e pelo mesmo motivo: é a tela que o mestre e o
+       engenheiro abrem no celular SEM login, pela chave do link. O escopo
+       dela é mínimo — ver docsDemandas_, no fim do arquivo. */
+    if (action === "docsDemandas") return out_(docsDemandas_(p));
 
     var sess = verificar_(p.token);
     if (sess) _QUEM_ = sess.u || "-";        // r30: telemetria (ver out_)
@@ -493,6 +512,11 @@ function executar_(action, sess, p) {
       case "posObraAtvExcluir": return (posObraAtvExcluir_(sess, p));
       case "posObraNovo":       return (posObraNovo_(sess, p));
       case "opStatus":          return (opStatus_(sess, p));
+      /* r33 (set/26) — botão "Atualizar dados agora", só ADM (ver
+         forcarAtualizacao_). Não entra em ACOES_POS_OBRA nem em
+         ACOES_LIGACOES de propósito: serve as duas telas e a trava dela é o
+         próprio ADM, não o acesso de um setor. */
+      case "forcarAtualizacao": return (forcarAtualizacao_(sess, p));
       // ANÁLISES — Orçado x Realizado (analise.html) — só leitura do Supabase
       case "analiseResumo":       return (analiseResumo_(sess, p));
       case "analiseObras":        return (analiseObras_(sess, p));
@@ -502,7 +526,14 @@ function executar_(action, sess, p) {
       case "gerarAtividadesGcap":
         if (!ehAdm_(sess)) return ({ ok: false, erro: "APENAS_ADM" });
         return (criarAtividadesGcap_());
-      default:                  return ({ ok: false, erro: "ACAO_DESCONHECIDA: " + action });
+      default:
+        /* r35 — GESTÃO DE DOCUMENTOS (OBRA). O bloco do setor mora no FIM
+           deste arquivo e tem roteador próprio: permissão, trava do modo
+           teste e aviso de build ficam todos lá dentro. Devolve null quando
+           a ação não é dele — e aí segue o ACAO_DESCONHECIDA de sempre. */
+        var rDocs = docsRotear_(action, sess, p);
+        if (rDocs) return rDocs;
+        return ({ ok: false, erro: "ACAO_DESCONHECIDA: " + action });
     }
 }
 
@@ -3902,7 +3933,12 @@ function ligCriar_(sess, p) {
   novo[colTitulo] = buildValue_("title", obra);
   novo[colConc] = buildValue_(tConc, concReal);
 
-  // SISTEMA e STATUS são opcionais: só entram se vierem e se existirem mesmo
+  /* SISTEMA e STATUS são opcionais: só entram se vierem e se existirem mesmo.
+     r33 (set/26): a TELA não pergunta mais o STATUS — linha nova nasce sem
+     status de propósito, porque status é o andamento da ligação e ele muda
+     pelo fluxo (solicitou, aprovou, ligou), não na criação. O parâmetro
+     continua sendo aceito aqui só para não quebrar uma tela mais velha que
+     ainda o mande; se não vier, nada acontece. */
   [["SISTEMA", p.sistema], ["STATUS", p.status]].forEach(function (par) {
     var alvo = par[0], valor = String(par[1] || "").trim();
     if (!valor) return;
@@ -3915,6 +3951,31 @@ function ligCriar_(sess, p) {
       }
     }
   });
+
+  /* ===== r33 — RESPONSÁVEL JÁ NA CRIAÇÃO (pedido 3) ====================
+   * A coluna RESPONSÁVEL é do tipo Pessoa: o Notion só grava o UUID do
+   * usuário, nunca o nome digitado. Por isso a tela manda o ID (que ela pega
+   * do ligResponsaveis_) e não o texto — o mesmo caminho que a edição pela
+   * planilha já usava.
+   *
+   * Aceita um id ou uma lista. Id inválido é recusado ANTES do POST: mandar
+   * um UUID que não existe faz o Notion devolver 400 e a tela mostraria só
+   * "erro", sem dizer o motivo.
+   * =================================================================== */
+  var resp = p.resp;
+  if (typeof resp === "string") resp = resp ? [resp] : [];
+  if (resp && resp.length) {
+    var colResp = null;
+    for (var kr in props) {
+      if (normDist_(kr) === normDist_("RESPONSÁVEL") && props[kr].type === "people") { colResp = kr; break; }
+    }
+    if (!colResp) return { ok: false, erro: "CAMPO_INEXISTENTE: RESPONSÁVEL" };
+    for (var ir = 0; ir < resp.length; ir++) {
+      if (!/^[0-9a-fA-F-]{32,40}$/.test(String(resp[ir] || "")))
+        return { ok: false, erro: "RESPONSAVEL_INVALIDO" };
+    }
+    novo[colResp] = buildValue_("people", resp);
+  }
 
   opIdIniciar_(p.opId);        // r31
   var pg = notion_("POST", "/pages", {
@@ -5165,6 +5226,46 @@ function posObraNovo_(sess, p) {
       if (vTel) props["TELEFONE"] = vTel;
     }
 
+    /* ===== r33 (set/26) — A OBRA NASCE JÁ PREENCHIDA =====================
+     * Pedido 1: "quando for criar uma nova obra quero que apareça todos os
+     * dados de preenchimento já". Antes só endereço, casa, cliente e telefone
+     * entravam aqui; o resto a pessoa tinha de sair caçando campo a campo
+     * depois da obra criada.
+     *
+     * Cada campo vai pelo TIPO REAL da coluna (posObraValorPara_), nunca por
+     * um tipo fixado aqui — mesma regra do resto do arquivo, e é ela que
+     * impede corromper a propriedade se você trocar o tipo no Notion.
+     * Campo vazio simplesmente não entra: obra sem cidade continua válida e a
+     * sincronia com VENDAS completa depois o que faltar.
+     *
+     * O QUE NÃO FICA SÓ AQUI: CIDADE, SETOR e TELEFONE são espelho de VENDAS.
+     * Se a obra existir lá, a sincronia diária manda o valor da venda por cima
+     * — de propósito (VENDAS é a fonte). Preencher aqui vale sobretudo para a
+     * obra criada à mão, que ainda não tem venda: é o único lugar onde esse
+     * dado existe. */
+    var extras = [
+      ["CIDADE",                          p.cidade],
+      ["SETOR",                           p.setor],
+      ["DATA DE ASSINATURA DO CONTRATO",  p.dataAssinatura],
+      ["ÁGIO",                            p.agio],
+      ["OBSERVAÇÕES",                     p.observacoes],
+      [POS_OBRA_FLEX_COL,                 p.horarioFlexivel]
+    ];
+    var preenchidos = [];
+    extras.forEach(function (par) {
+      var col = par[0], valor = par[1];
+      if (valor === null || valor === undefined || valor === "" || valor === false) return;
+      var campo = posObraCampoDe_(CONFIG.DB.POS_OBRA, col);
+      if (!campo) return;                        // coluna não existe nesta base
+      /* HORÁRIO FLEXÍVEL pode ser caixa de seleção: o que chega é true ou
+         "SIM", e quem decide o formato final é o tipo da coluna. */
+      if (campo.tipo === "checkbox") valor = true;
+      var v = posObraValorPara_(CONFIG.DB.POS_OBRA, col, valor);
+      if (!v) return;
+      props[campo.nome] = v;
+      preenchidos.push(campo.nome);
+    });
+
     opIdIniciar_(p.opId);      // r31
     var nova = notion_("POST", "/pages", {
       parent: { database_id: CONFIG.DB.POS_OBRA }, properties: props
@@ -5174,6 +5275,7 @@ function posObraNovo_(sess, p) {
     posObraLimparCaches_();
 
     var r = { ok: true, id: nova.id, endereco: endereco, casa: casa,
+              campos: preenchidos,
               titulo: endereco + (casa === null ? "" : " CS " + casa) };
     opIdGravar_(p.opId, r);
     console.log("PÓS OBRA: " + sess.u + " CRIOU a obra " + r.titulo + " -> " + nova.id);
@@ -5237,4 +5339,902 @@ function posObraArquivos_(sess, p) {
     });
   }
   return { ok: true, id: pg.id, arquivos: out };
+}
+
+
+/* =======================================================================
+ * r33 (set/26) — "ATUALIZAR DADOS AGORA" (só ADM)  · pedido 4
+ * -----------------------------------------------------------------------
+ * POR QUE ISTO PRECISA EXISTIR
+ * As telas leem o dist/*.json publicado pelo GitHub Actions, e o Apps Script
+ * ainda guarda por 15 min a sua própria cópia do que veio do Notion. São DUAS
+ * camadas de atraso empilhadas. No dia a dia isso é ótimo (é o que faz a tela
+ * abrir instantânea), mas cria um caso ruim e frequente: alguém cria a linha
+ * DIRETO NO NOTION e ela não aparece em lugar nenhum por vários minutos — sem
+ * nada na tela explicando por quê nem como apressar.
+ *
+ * Esta ação é a alavanca manual para esse caso. Ela faz três coisas:
+ *   1. joga fora as cópias que o Apps Script guarda (a leitura seguinte vai
+ *      ao Notion de verdade);
+ *   2. pede ao GitHub um build AGORA, furando a janela de 5 min do
+ *      avisarGitHub_ — é isso que faz o dist/ ser republicado para TODO MUNDO,
+ *      e não só para quem clicou;
+ *   3. devolve o que conseguiu fazer, para a tela dizer a verdade em vez de
+ *      um "pronto!" genérico.
+ *
+ * SÓ ADM, por dois motivos concretos: cada clique custa uma varredura inteira
+ * do Notion (a mais cara do sistema) e um build do Actions. Um botão desses
+ * aberto a todos vira um jeito acidental de derrubar o desempenho de todos.
+ *
+ * ONDE ELA RODA: no projeto de LEITURA. O cache do CacheService é POR PROJETO
+ * — limpá-lo na implantação de ESCRITA não faria efeito nenhum sobre o que as
+ * telas leem. Por isso "forcarAtualizacao" NÃO entra no ACOES_NA_ESCRITA do
+ * app.js. O GITHUB_TOKEN precisa existir também nas Propriedades do projeto de
+ * leitura; sem ele a limpeza acontece do mesmo jeito e a resposta avisa que o
+ * build não foi pedido.
+ * ===================================================================== */
+function forcarAtualizacao_(sess, p) {
+  if (!ehAdm_(sess)) return { ok: false, erro: "APENAS_ADM" };
+
+  var escopo = String(p.escopo || "TUDO").toUpperCase();
+  var chaves = [];
+
+  if (escopo === "TUDO" || escopo === "POS_OBRA") {
+    chaves = chaves.concat([
+      CH_POS_DADOS, CH_POS_LISTA, CH_POS_SENS,
+      "pos_obra_indice", "pos_obra_atv_schema", "pos_obra_obra_schema"
+    ]);
+  }
+  if (escopo === "TUDO" || escopo === "LIGACOES") {
+    chaves = chaves.concat([
+      "ligacoes_vivo", "lig_indice_obra", "lig_sens", "lig_sens_vendas",
+      "lig_atividades", "lig_responsaveis"
+    ]);
+  }
+  if (escopo === "TUDO" || escopo === "VENDAS") {
+    chaves = chaves.concat(["vendas_schema", "documentos_schema", "documentos_dados", "kpi_portal"]);
+  }
+  if (escopo === "TUDO" || escopo === "ANALISES") {
+    chaves = chaves.concat(["analise_resumo_v1", "analise_obras_v1", "analise_insumos_v1"]);
+  }
+  /* r35: o setor de GESTÃO DE DOCUMENTOS entrou na lista. Sem isto, o botão
+     "Atualizar dados agora" limpava tudo MENOS a tela nova — e ela é
+     justamente a mais provável de receber linha criada direto no Notion. */
+  if (escopo === "TUDO" || escopo === "DOCUMENTOS") {
+    chaves = chaves.concat(["docs_schema_v1", "docs_atividades_v1"]);
+  }
+
+  /* Aqui é cacheRemover_ mesmo, e não o posObraEnvelhecer_ que as escritas
+     usam. A diferença importa: envelhecer serve a cópia velha na hora e manda
+     alguém refazer por baixo — perfeito para não fazer ninguém esperar depois
+     de gravar. Mas quem aperta ESTE botão está dizendo justamente "quero o
+     dado novo, e espero por ele". Servir a cópia velha aqui seria dar a
+     impressão de que o botão não funciona. */
+  var limpas = 0;
+  chaves.forEach(function (k) { try { cacheRemover_(k); limpas++; } catch (e) {} });
+  /* a marca de "vencido" que uma escrita anterior tenha deixado também sai:
+     sem isso ela continuaria mandando refazer um cache que já não existe */
+  chaves.forEach(function (k) { try { _cache_().remove(k + "::velho"); _cache_().remove(k + "::rb"); } catch (e) {} });
+
+  /* Fura a janela dos 5 min de propósito: o botão existe para o caso em que
+     esperar é o problema. Como é ADM e é clique manual, o volume de builds
+     continua desprezível. */
+  var build = null;
+  try {
+    PROPS_.deleteProperty(GH_ULTIMO);
+    build = avisarGitHub_("forcado por " + sess.u);
+  } catch (e) { build = { ok: false, erro: String(e).slice(0, 160) }; }
+
+  console.log("ATUALIZAÇÃO FORÇADA por " + sess.u + " (" + escopo + "): " +
+              limpas + " chaves limpas | build: " + JSON.stringify(build));
+
+  return {
+    ok: true,
+    escopo: escopo,
+    caches: limpas,
+    papel: String(PAPEL).toUpperCase(),
+    /* true = o GitHub aceitou e o dist/ vai ser republicado em 1-2 min.
+       false = só o cache do Apps Script foi limpo; a leitura ao vivo desta
+       tela já traz o dado novo, mas as outras pessoas continuam com o arquivo
+       publicado antigo até o próximo build. A tela usa isto para escolher a
+       mensagem — e é por isso que ele volta separado do "ok". */
+    build: !!(build && build.disparado),
+    buildMotivo: (build && (build.motivo || build.erro || (build.pulou ? "JANELA" : ""))) || ""
+  };
+}
+
+/* =======================================================================
+ * r34 (set/26) — COLETA ORÇADO x REALIZADO NA HORA CERTA
+ * -----------------------------------------------------------------------
+ * MEDIDO EM 08/09/2026: o repositório OR-ADO-REALIZADO tem dois crons
+ * (05:07 e 08:37 de Brasília) e as rodadas reais saíram entre 08:48 e
+ * 11:12 — atrasos de 2h20 a 6h, todo dia, sem exceção.
+ *
+ * É a MESMA raiz que já derrubou o pages.yml e fez o publicarSite vir para
+ * cá no r29: o `schedule` do GitHub Actions é entrega de melhor esforço.
+ * Ele atrasa sob fila, pula execuções e se desliga sozinho depois de 60
+ * dias sem commit. Mudar o número do cron não conserta — não é configuração
+ * errada, é como o serviço funciona.
+ *
+ * O `repository_dispatch`, por outro lado, entra na fila no instante em que
+ * chega, e o acionador de tempo do Apps Script é confiável (é o mesmo que
+ * roda o aquecerCaches de 10 em 10 min sem falhar). Então quem manda na
+ * hora passa a ser ESTE bloco; os crons do coleta-diaria.yml ficam só como
+ * rede de segurança, para o caso de o token vencer ou o Apps Script cair.
+ *
+ * ONDE RODA: só na LEITURA, pela mesma razão do GCAP e do posObraSyncDiario
+ * — rodando nos dois projetos, sairiam duas coletas por dia.
+ *
+ * PRÉ-REQUISITO — O TOKEN. O GITHUB_TOKEN que já está nas Propriedades é um
+ * fine-grained PAT com escopo do PORTAL-MORAIS, e fine-grained só vale para
+ * os repositórios que ele lista. Duas saídas:
+ *   (a) editar aquele token no GitHub e marcar TAMBÉM o OR-ADO-REALIZADO;
+ *   (b) gerar um token separado só do OR-ADO-REALIZADO (Contents: Read and
+ *       write) e pôr nas Propriedades do script como COLETA_TOKEN.
+ * O código tenta COLETA_TOKEN primeiro e cai no GITHUB_TOKEN.
+ *
+ * COMO AGENDAR (uma vez só, NO PROJETO DE LEITURA):
+ *   ícone do relógio (Acionadores) > "+ Adicionar acionador" >
+ *   função "dispararColetaDiaria" > "Baseado no tempo" >
+ *   "Contador de dias" > entre 5h e 6h > Salvar.
+ * ===================================================================== */
+var COLETA_REPO = "DEVMoraisEng/OR-ADO-REALIZADO";
+var COLETA_EVENTO = "coleta-diaria";   // TEM que bater com o types: do coleta-diaria.yml
+
+/* Esta função NÃO termina com "_" de propósito: função privada não aparece
+   na lista de funções da tela de Acionadores — foi o que pegou no
+   posObraSyncDiario (r11). */
+function dispararColetaDiaria() {
+  if (!ehPapelLeitura_()) {
+    Logger.log("Coleta ignorada: este projeto é o de ESCRITA.");
+    return;
+  }
+  var r = avisarColeta_("acionador diario");
+  Logger.log("Coleta Orçado x Realizado: " + JSON.stringify(r));
+  if (r && r.motivo === "SEM_TOKEN") {
+    Logger.log("*** Falta COLETA_TOKEN (ou o GITHUB_TOKEN precisa incluir o repositório " +
+               COLETA_REPO + "). Sem isso a coleta segue só pelo cron do GitHub, atrasada.");
+  }
+}
+
+/* O disparo em si. Separado da função do acionador para poder ser chamado
+   à mão pelo testeColetaAgora sem passar pela trava de PAPEL.
+   Sem janela de tempo (ao contrário do avisarGitHub_): isto roda uma vez por
+   dia, não depois de cada gravação — não há o que limitar. */
+function avisarColeta_(motivo) {
+  var tk = prop_("COLETA_TOKEN") || prop_("GITHUB_TOKEN");
+  if (!tk) return { ok: false, motivo: "SEM_TOKEN" };
+
+  try {
+    var r = UrlFetchApp.fetch("https://api.github.com/repos/" + COLETA_REPO + "/dispatches", {
+      method: "post", muteHttpExceptions: true, contentType: "application/json",
+      headers: {
+        Authorization: "Bearer " + tk,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28"
+      },
+      payload: JSON.stringify({
+        event_type: COLETA_EVENTO,
+        client_payload: { motivo: String(motivo || ""), em: new Date().toISOString() }
+      })
+    });
+    var code = r.getResponseCode();
+    /* 204 é o sucesso desta rota — ela não devolve corpo nenhum.
+       404 aqui quase sempre é escopo de token, não repositório inexistente:
+       fine-grained PAT sem acesso ao repo responde 404, não 403. */
+    if (code === 204) {
+      console.log("COLETA: rodada pedida (" + motivo + ")");
+      return { ok: true, disparado: true };
+    }
+    console.log("COLETA: dispatch recusado " + code + " — " + r.getContentText().slice(0, 200));
+    return { ok: false, http: code, detalhe: r.getContentText().slice(0, 200) };
+  } catch (e) {
+    console.log("COLETA: falhou — " + e);
+    return { ok: false, erro: String(e).slice(0, 200) };
+  }
+}
+
+/* Teste manual: rode ANTES de criar o acionador. Confira em Actions do
+   OR-ADO-REALIZADO se um run aparece em segundos (o evento tem que ser
+   "coleta-diaria", não "Scheduled"). */
+function testeColetaAgora() {
+  Logger.log(JSON.stringify(avisarColeta_("teste manual")));
+}
+
+/* Alternativa por código ao painel de Acionadores. Costuma falhar em
+   navegador logado em várias contas do Google ("You do not have permission
+   to call ScriptApp...") — se der isso, use o painel e ignore estas duas. */
+function criarTriggerColeta() {
+  removerTriggerColeta();
+  ScriptApp.newTrigger("dispararColetaDiaria").timeBased().everyDays(1).atHour(5).create();
+  Logger.log("Trigger diário da coleta criado — roda todo dia por volta das 5h (fuso do projeto).");
+}
+function removerTriggerColeta() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === "dispararColetaDiaria") ScriptApp.deleteTrigger(t);
+  });
+}
+
+
+/* =======================================================================
+ * r35 (set/26) — GESTÃO DE DOCUMENTOS (OBRA)
+ * -----------------------------------------------------------------------
+ * Backend da documentos.html (a tela do setor) e da demandas.html (as
+ * demandas do mês, aberta sem login pela chave do link).
+ *
+ * Duas coisas já estão feitas mais acima neste arquivo, e é bom saber onde:
+ *   - no handle_, a rota "docsDemandas", ao lado da agendaDia (é a única
+ *     ação deste setor que roda sem token);
+ *   - no executar_, o default pergunta ao docsRotear_ antes de devolver
+ *     ACAO_DESCONHECIDA.
+ *
+ * PRÉ-REQUISITO NO NOTION (uma vez só): criar a opção "DOCUMENTOS" na coluna
+ * ACESSOS do banco LOGINS e marcar quem é da equipe. Sem isso ninguém entra —
+ * a não ser ADM, MASTER e TESTES, que passam sempre. A base ATIVIDADES
+ * CONTROLE DE DOCUMENTAÇÕES também precisa estar compartilhada com a
+ * integração (base > ... > Conexões).
+ * ===================================================================== */
+
+/* ATIVIDADES CONTROLE DE DOCUMENTAÇÕES. O id da base DOCUMENTOS já existe em
+   CONFIG.DB.DOCUMENTOS — este aqui faltava. Id não é credencial (ver o topo
+   do Code.gs). */
+var DB_ATIVIDADES_DOCS = "330c5ab532d38009b6c2d5d6b77b6926";
+
+/* Ações deste setor. Ação nova entra aqui, senão o docsRotear_ devolve null e
+   ela morre no ACAO_DESCONHECIDA. */
+var ACOES_DOCS = [
+  "docsBoot", "docObra", "docAtividades",
+  "docUpdate", "docBaixa", "docAnexar", "docNovo", "docExcluir",
+  "docAgendaLink"
+];
+/* Quais delas GRAVAM. Serve para duas coisas: barrar o perfil TESTES e pedir
+   a republicação do site ao GitHub depois de gravar (o mesmo que o handle_ faz
+   com o ACOES_ESCRITA). */
+var ACOES_DOCS_ESCRITA = ["docUpdate", "docBaixa", "docAnexar", "docNovo",
+                          "docExcluir", "docAgendaLink"];
+
+/* Coluna que identifica o RESPONSÁVEL da obra nos calendários e no link das
+   demandas do mês. Se um dia a regra mudar (ex.: passar a ser o ENGENHEIRO
+   RT), troque AQUI e na constante de mesmo nome da documentos.html — são os
+   dois lugares. A busca é por pedaço do nome, então acento e espaço sobrando
+   não atrapalham. */
+var DOCS_COL_RESP = "ENG. EXECUÇÃO";
+
+/* ===================== ROTEADOR DO SETOR =====================
+ * Um ponto só de entrada: permissão, trava do modo teste e aviso de build
+ * ficam todos aqui, e não espalhados por cada função. Devolve null quando a
+ * ação não é deste setor. */
+function docsRotear_(action, sess, p) {
+  if (ACOES_DOCS.indexOf(action) < 0) return null;
+
+  if (!temAcesso_(sess, "DOCUMENTOS")) {
+    console.log("BLOQUEADO por falta de acesso DOCUMENTOS: " + sess.u + " -> " + action);
+    return { ok: false, erro: "SEM_PERMISSAO" };
+  }
+  var grava = ACOES_DOCS_ESCRITA.indexOf(action) >= 0;
+  if (grava && ehTestes_(sess)) {
+    console.log("MODO TESTE bloqueou escrita: " + sess.u + " -> " + action);
+    return { ok: false, erro: "MODO_TESTE" };
+  }
+
+  var r;
+  switch (action) {
+    case "docsBoot":       r = docsBoot_(sess, p); break;
+    case "docObra":        r = docObra_(sess, p); break;
+    case "docAtividades":  r = docAtividades_(sess, p); break;
+    case "docUpdate":      r = docUpdate_(sess, p); break;
+    case "docBaixa":       r = docBaixa_(sess, p); break;
+    case "docAnexar":      r = docAnexar_(sess, p); break;
+    case "docNovo":        r = docNovo_(sess, p); break;
+    case "docExcluir":     r = docExcluir_(sess, p); break;
+    case "docAgendaLink":  r = docAgendaLink_(sess, p); break;
+    default:               return null;
+  }
+
+  /* Só avisa o GitHub quando a gravação DEU CERTO: pedido recusado por
+     permissão ou por valor inválido não mudou nada no Notion e não tem o que
+     publicar. A janela de 5 min do avisarGitHub_ limita o número de builds. */
+  if (grava && r && r.ok) { try { avisarGitHub_(action); } catch (e) {} }
+  return r;
+}
+
+/* ===================== SCHEMA AO VIVO =====================
+ * Igual ao resto do sistema: o TIPO com que se grava sai SEMPRE do schema do
+ * Notion, nunca do que o navegador mandou. Se alguém trocar o tipo de uma
+ * coluna lá, a gravação acompanha em vez de corromper a propriedade. */
+function docsSchema_() {
+  return comCache_("docs_schema_v1", 1800, function () {
+    var db = notion_("GET", "/databases/" + CONFIG.DB.DOCUMENTOS, null);
+    var props = db.properties || {}, campos = [], tituloProp = "ENDEREÇO";
+    for (var nome in props) {
+      var t = props[nome].type;
+      if (t === "title") tituloProp = nome;
+      var c = { nome: nome, tipo: t, editavel: (EDITAVEL_[t] === true) };
+      if (t === "select" || t === "status" || t === "multi_select")
+        c.opcoes = (props[nome][t].options || []).map(function (o) { return o.name; });
+      campos.push(c);
+    }
+    return { ok: true, tituloProp: tituloProp, campos: campos };
+  });
+}
+function docsCampo_(nome) {
+  var s = docsSchema_(), alvo = normDist_(nome);
+  for (var i = 0; i < s.campos.length; i++)
+    if (normDist_(s.campos[i].nome) === alvo) return s.campos[i];
+  return null;
+}
+/* Nome EXATO da opção como está no Notion (ou null). Barra valor inventado
+   antes de tomar 400 da API e grava com a grafia certa mesmo que a tela mande
+   em caixa diferente. */
+function docsOpcaoReal_(campo, valor) {
+  var ops = campo.opcoes || [], alvo = normDist_(valor);
+  for (var i = 0; i < ops.length; i++) if (normDist_(ops[i]) === alvo) return ops[i];
+  return null;
+}
+/* Colunas de marcação: select/status que têm a opção SIM. São as que a baixa
+   de atividade escreve. */
+function docsColunasSim_() {
+  var s = docsSchema_(), out = [];
+  s.campos.forEach(function (c) {
+    if (c.tipo !== "select" && c.tipo !== "status") return;
+    var ops = c.opcoes || [];
+    for (var i = 0; i < ops.length; i++) if (normDist_(ops[i]) === "SIM") { out.push(c.nome); return; }
+  });
+  return out;
+}
+
+/* ===================== ABERTURA DA TELA ===================== */
+function docsBoot_(sess, p) {
+  return { ok: true, versao: VERSAO_GS, sessao: pub_(sess), schema: docsSchema_(),
+           colunasSim: docsColunasSim_(), lidoEm: new Date().toISOString() };
+}
+
+/* Uma obra, com TODOS os valores — inclusive o CPF/CNPJ, que o dist/docs.json
+   não publica de propósito (ver o topo do fetch_documentos.py). Sem cache: é
+   pouca coisa e precisa refletir o Notion na hora. */
+function docObra_(sess, p) {
+  if (!p.pageId) return { ok: false, erro: "SEM_PAGINA" };
+  var pg = notion_("GET", "/pages/" + p.pageId, null);
+  return { ok: true, id: pg.id, valores: resolver_(pg.properties) };
+}
+
+/* ===================== ATIVIDADES DE DOCUMENTAÇÃO =====================
+ * A tela lê do dist/docs.json; esta ação é o caminho ao vivo (usada depois de
+ * dar baixa, e como plano B quando o arquivo publicado ainda está velho).
+ * Mesma regra do atividades_ do setor de vendas: só o que já começou
+ * (DATA INICIAL <= hoje) e ainda não terminou. */
+function docAtividades_(sess, p) {
+  return comCache_("docs_atividades_v1", 120, function () {
+    var hoje = Utilities.formatDate(new Date(), "America/Sao_Paulo", "yyyy-MM-dd");
+    var rows = queryAll_(DB_ATIVIDADES_DOCS, {});
+    var colunasSim = docsColunasSim_();
+    var lista = [];
+    rows.forEach(function (r) {
+      var pr = r.properties || {};
+      if (docsAtvFeita_(pr)) return;                  // já resolvida
+
+      var rel = [], resp = [];
+      for (var nome in pr) {
+        if (pr[nome].type === "relation" && normDist_(nome).indexOf("OBRA") >= 0)
+          rel = (pr[nome].relation || []);
+        if (pr[nome].type === "people" && normDist_(nome).indexOf("RESPONS") >= 0)
+          resp = pessoas_(pr[nome]);
+      }
+      var di = dt_(getTol_(pr, "DATA INICIAL"));
+      if (di && di.slice(0, 10) > hoje) return;        // ainda não começou
+
+      var tipo = sel_(getTol_(pr, "TIPO"));
+      lista.push({
+        id: r.id, nome: tituloDe_(pr), tipo: tipo, responsavel: resp,
+        obraId: rel[0] ? rel[0].id : null,
+        dataInicial: di,
+        dataFinal: dt_(getTol_(pr, "DATA FINAL PREVISTA")) || dt_(getTol_(pr, "DATA FINAL")),
+        coluna: docsColunaDaBaixa_(tipo, colunasSim)
+      });
+    });
+    lista.sort(function (a, b) {
+      return String(a.dataFinal || "9999").localeCompare(String(b.dataFinal || "9999"));
+    });
+    return { ok: true, total: lista.length, lidoEm: new Date().toISOString(), atividades: lista };
+  });
+}
+
+/* ===================== ESTA ATIVIDADE JÁ FOI RESOLVIDA? ===================
+ * A base tem uma fórmula de validação própria (a que pinta "🟢 SIM" quando a
+ * coluna da obra correspondente ao TIPO já está SIM, e "🔴 NÃO" quando não).
+ * É ELA que manda aqui — e não uma coluna de nome fixo, porque o nome dessa
+ * fórmula pode mudar e o sinal (o círculo verde) não muda.
+ *
+ * A ordem da checagem é essa de propósito:
+ *   1. qualquer fórmula que devolva 🟢 / 🔴  -> é a validação da base;
+ *   2. senão, uma coluna "ATIVIDADE FINALIZADA" (o padrão do setor de vendas);
+ *   3. senão, a atividade conta como ABERTA — em branco nunca vira
+ *      "resolvida", que é o erro que esconderia trabalho a fazer.
+ * =================================================================== */
+function docsAtvFeita_(pr) {
+  var achouSinal = false;
+  for (var k in pr) {
+    var p = pr[k];
+    if (!p || p.type !== "formula") continue;
+    var v = (p.formula && p.formula.string) || "";
+    if (String(v).indexOf("🟢") >= 0) return true;
+    if (String(v).indexOf("🔴") >= 0 || String(v).indexOf("🔵") >= 0) achouSinal = true;
+  }
+  if (achouSinal) return false;
+  for (var k2 in pr) {
+    if (normDist_(k2).indexOf("ATIVIDADE FINALIZADA") < 0) continue;
+    var f = pr[k2];
+    var fin = (f.formula && (f.formula.string || f.formula.boolean)) || sel_(f) || texto_(f) || "";
+    if (fin === true) return true;
+    if (!fin) return false;
+    return normDist_(fin).indexOf("NAO") < 0;
+  }
+  return false;
+}
+
+/* ===================== TIPO DA ATIVIDADE -> COLUNA DA OBRA =================
+ * Mesmo papel do BAIXA_MAP do setor de vendas, com uma diferença importante:
+ * lá o mapa é fixo porque os TIPOs são conhecidos; aqui os TIPOs da base
+ * ATIVIDADES CONTROLE DE DOCUMENTAÇÕES ainda não foram conferidos um a um.
+ *
+ * Então são duas camadas:
+ *   1. BAIXA_MAP_DOCS abaixo — o mapa explícito, que ganha de tudo. Complete
+ *      ele quando rodar conferirDocumentos() (no fim deste arquivo) e ver os
+ *      TIPOs reais;
+ *   2. casamento por PALAVRAS do nome, quando o mapa não disser nada. É um
+ *      chute educado — e por isso a TELA MOSTRA qual coluna vai ser escrita
+ *      antes de a pessoa clicar em "Dar baixa". Chute errado fica visível.
+ *
+ * A mesma conta existe no fetch_documentos.py (é ela que publica o alvo no
+ * dist/), mas quem VALE é esta aqui: a tela nunca escolhe a coluna, ela só
+ * mostra. Mexeu num, mexa no outro.
+ * =================================================================== */
+/* ---- O DE-PARA (r35, fechado em 10/09/2026) ----------------------------
+   Os TIPOs abaixo são os que existem de verdade na base — saíram da fórmula
+   de validação que roda lá dentro (aquela que pinta 🟢 SIM / 🔴 NÃO). A chave
+   é o TIPO normalizado (maiúsculas, sem acento); o valor é a coluna da base
+   DOCUMENTOS que a baixa marca, e pode ser um PEDAÇO do nome — os nomes reais
+   são longos e foram vistos truncados no print, então casar por pedaço evita
+   um erro de digitação derrubar a baixa inteira.
+
+   As quatro linhas marcadas com "CONFERIR" são as que a fórmula não resolve
+   sozinha, porque o rollup que ela consulta tem nome próprio e não bate com
+   nenhuma coluna da obra de forma óbvia. Elas FUNCIONAM assim mesmo, e a tela
+   mostra a coluna alvo antes do clique — mas vale um olhar seu. */
+var BAIXA_MAP_DOCS = {
+  "USO DO SOLO":          "USO DO SOLO SOLICITADO",        // CONFERIR: é a solicitação ou a emissão?
+  "HABITE-SE":            "APROVOU HABITE-SE",             // CONFERIR: aprovou, agendou ou armazenou?
+  "CERTIDAO DO LOTE":     "CERTIDÃO DO LOTE",
+  "ALVARA":               "TAXAS ENTRADA ALVAR",
+  "APROVACAO DE PROJETO": "PROJETO APROVADO E ALVARA",
+  "PROJETO APROVADO":     "PROJETO FEITO",                 // CONFERIR: PROJETO FEITO? ou a de aprovação?
+  "INCORPORACAO":         "FOI DADO ENTRADA NA INCORPORA",
+  "INCORP. FINALIZADA":   "INCORPORAÇÃO FINALI",
+  "RET":                  "FOI DATA A ENTRADA NO RET",
+  "ARMAZENAR RET":        "RET ARMAZENADO",
+  "ANEXAR RET":           "RET ARMAZENADO",
+  "AGENDOU HABITE-SE":    "AGENDOU HABITE-SE",
+  "ARMAZENAR HABITE-SE":  "ARMAZENOU HABITE-SE",
+  "SCPO E VISTORIA":      "PAGOU BOLETOS DE VIS",          // CONFERIR: é esta a coluna da vistoria?
+  "ART DE ACRESCIMO":     "EMITIU ART DE ACRESC",
+  "CERTIDOES FINAIS":     "SAIRAM AS CERTIDOES",
+  "ISSQN":                "GEROU E ARMAZENOU I",
+  "CND + CNO":            "EMITIU CNO E CND",
+  "CONTRATO MESTRE":      "CONTRATO MESTRE"
+};
+/* Resolve o valor do mapa (que pode ser pedaço) para o nome REAL da coluna.
+   Sem isto, "TAXAS ENTRADA ALVAR" seria procurado como nome exato e não
+   acharia nada — e a baixa morreria com TIPO_SEM_MAPEAMENTO. */
+function docsColunaReal_(frag) {
+  var c = docsCampo_(frag);
+  if (c) return c.nome;
+  var alvo = normDist_(frag), s = docsSchema_();
+  for (var i = 0; i < s.campos.length; i++)
+    if (normDist_(s.campos[i].nome).indexOf(alvo) >= 0) return s.campos[i].nome;
+  return null;
+}
+var DOCS_RUIDO = ["DE", "DO", "DA", "DOS", "DAS", "E", "A", "O", "EM", "NA", "NO",
+                  "PARA", "COM", "OBRA", "DATA", "FAZER", "CONFERIR", "EMITIR",
+                  "ARMAZENAR", "PAGAR", "SOLICITAR", "ENVIAR"];
+function docsPalavras_(s) {
+  return normDist_(s).split(/[^A-Z0-9]+/).filter(function (x) {
+    return x && DOCS_RUIDO.indexOf(x) < 0;
+  });
+}
+function docsColunaDaBaixa_(tipo, colunasSim) {
+  if (!tipo) return null;
+  var exato = BAIXA_MAP_DOCS[tipo] || BAIXA_MAP_DOCS[normDist_(tipo)];
+  if (exato) return docsColunaReal_(exato) || exato;
+  var alvo = docsPalavras_(tipo);
+  if (!alvo.length) return null;
+  var melhor = null, nota = 0;
+  (colunasSim || docsColunasSim_()).forEach(function (col) {
+    var c = docsPalavras_(col);
+    if (!c.length) return;
+    var comuns = 0;
+    alvo.forEach(function (w) { if (c.indexOf(w) >= 0) comuns++; });
+    if (!comuns) return;
+    var n = comuns / alvo.length + (comuns / c.length) * 0.5;
+    if (n > nota) { nota = n; melhor = col; }
+  });
+  return nota >= 0.6 ? melhor : null;
+}
+
+/* Baixa: escreve a coluna da OBRA correspondente ao TIPO da atividade.
+   O alvo é recalculado AQUI — a tela manda só o id da atividade e o valor. */
+function docBaixa_(sess, p) {
+  if (!p.atividadeId) return { ok: false, erro: "SEM_ATIVIDADE" };
+  var valorAlvo = p.valor || "SIM";
+
+  var atv = notion_("GET", "/pages/" + p.atividadeId, null);
+  var pr = atv.properties || {};
+  var tipo = sel_(getTol_(pr, "TIPO"));
+  var coluna = docsColunaDaBaixa_(tipo, docsColunasSim_());
+  if (!coluna) return { ok: false, erro: "TIPO_SEM_MAPEAMENTO: " + tipo };
+
+  var rel = [];
+  for (var nome in pr) {
+    if (pr[nome].type === "relation" && normDist_(nome).indexOf("OBRA") >= 0)
+      rel = (pr[nome].relation || []);
+  }
+  if (!rel.length) return { ok: false, erro: "ATIVIDADE_SEM_OBRA" };
+
+  var campo = docsCampo_(coluna);
+  if (!campo) return { ok: false, erro: "CAMPO_INEXISTENTE: " + coluna };
+  var real = (campo.tipo === "select" || campo.tipo === "status")
+             ? docsOpcaoReal_(campo, valorAlvo) : valorAlvo;
+  if (!real) return { ok: false, erro: "OPCAO_INEXISTENTE: " + valorAlvo };
+
+  var props = {}; props[campo.nome] = buildValue_(campo.tipo, real);
+  notion_("PATCH", "/pages/" + rel[0].id, { properties: props });
+  try { cacheRemover_("docs_atividades_v1"); } catch (e) {}
+  console.log("DOCUMENTOS: " + sess.u + " deu baixa em " + p.atividadeId +
+              " (" + tipo + ") -> " + campo.nome + " = " + real);
+  return { ok: true, coluna: campo.nome, valor: real };
+}
+
+/* ===================== ESCRITA NA BASE DOCUMENTOS =====================
+ * Sem lista branca de colunas, de propósito: esta base é de documentação de
+ * obra e o setor inteiro existe para preenchê-la. O que NÃO se escreve é
+ * decidido pelo TIPO da coluna (fórmula e rollup são calculados no Notion) e
+ * pelo perfil (MASTER não mexe no endereço, como em VENDAS).
+ * =================================================================== */
+function docUpdate_(sess, p) {
+  if (!p.pageId || !p.prop) return { ok: false, erro: "FALTA_PARAM" };
+  var campo = docsCampo_(p.prop);
+  if (!campo) return { ok: false, erro: "CAMPO_INEXISTENTE: " + p.prop };
+  if (campo.tipo === "files") return { ok: false, erro: "USE_UPLOAD_PARA_ARQUIVOS" };
+  if (!campo.editavel) return { ok: false, erro: "CAMPO_NAO_EDITAVEL: " + campo.nome + " (" + campo.tipo + ")" };
+  /* MASTER não edita endereço — mesma trava do updateVenda_. Ela precisa
+     estar AQUI: esconder o campo no navegador não impede ninguém de chamar a
+     ação pelo DevTools. */
+  if (ehMaster_(sess) && normDist_(campo.nome).indexOf("ENDERE") === 0)
+    return { ok: false, erro: "MASTER_NAO_EDITA_ENDERECO" };
+
+  var valor = p.valor;
+  if ((campo.tipo === "select" || campo.tipo === "status") && valor) {
+    var real = docsOpcaoReal_(campo, valor);
+    if (!real) return { ok: false, erro: "OPCAO_INEXISTENTE: " + valor };
+    valor = real;
+  }
+  if (campo.tipo === "multi_select" && valor && valor.length) {
+    var reais = [];
+    for (var i = 0; i < valor.length; i++) {
+      var r1 = docsOpcaoReal_(campo, valor[i]);
+      if (!r1) return { ok: false, erro: "OPCAO_INEXISTENTE: " + valor[i] };
+      reais.push(r1);
+    }
+    valor = reais;
+  }
+
+  var props = {}; props[campo.nome] = buildValue_(campo.tipo, valor);
+  notion_("PATCH", "/pages/" + p.pageId, { properties: props });
+  try { cacheRemover_("docs_atividades_v1"); } catch (e) {}
+  console.log("DOCUMENTOS: " + sess.u + " gravou " + campo.nome + " em " + p.pageId);
+  return { ok: true, prop: campo.nome, tipo: campo.tipo };
+}
+
+/* Anexar arquivo (CERTIDÃO DO LOTE, documentos escaneados). O envio é o mesmo
+   upload_ que Vendas, Ligações e Pós Obra já usam; o que muda é a trava: a
+   coluna precisa ser do tipo arquivo NESTA base. Descobrir isso pelo schema,
+   em vez de uma lista fixa, faz coluna nova funcionar sem mexer no código. */
+function docAnexar_(sess, p) {
+  if (!p.pageId || !p.prop || !p.dataBase64) return { ok: false, erro: "FALTA_PARAM" };
+  var campo = docsCampo_(p.prop);
+  if (!campo || campo.tipo !== "files") return { ok: false, erro: "CAMPO_NAO_LIBERADO: " + p.prop };
+  console.log("DOCUMENTOS: " + sess.u + " anexou \"" + (p.filename || "") + "\" em " +
+              campo.nome + " / " + p.pageId);
+  return upload_(sess, p);
+}
+
+/* Criar uma obra nova na base DOCUMENTOS. Só ADM: uma linha a mais, ou com o
+   endereço escrito diferente, desalinha o cruzamento com VENDAS (que casa por
+   ENDEREÇO normalizado) e a obra passa a aparecer duas vezes nos indicadores. */
+function docNovo_(sess, p) {
+  if (!ehAdm_(sess)) return { ok: false, erro: "APENAS_ADM" };
+  var endereco = String(p.endereco || "").trim();
+  if (!endereco) return { ok: false, erro: "ENDERECO_OBRIGATORIO" };
+
+  var pronto = opIdLer_(p.opId);
+  if (pronto) return pronto;
+
+  return comTrava_(function () {
+    var jaFeito = opIdLer_(p.opId);
+    if (jaFeito) return jaFeito;
+
+    // duplicata: mesmo endereço normalizado já existe?
+    var existe = null;
+    queryAll_(CONFIG.DB.DOCUMENTOS, {}).forEach(function (r) {
+      if (existe) return;
+      if (normDist_(tituloDe_(r.properties)) === normDist_(endereco)) existe = r.id;
+    });
+    if (existe) return { ok: false, erro: "JA_EXISTE", id: existe };
+
+    var s = docsSchema_(), props = {};
+    props[s.tituloProp] = buildValue_("title", endereco);
+
+    /* Os demais campos vêm da tela no mesmo formato do criarVenda_:
+       [{prop, valor}]. Cada um passa pelo tipo REAL da coluna. */
+    var lista = p.props;
+    if (typeof lista === "string") { try { lista = JSON.parse(lista); } catch (e) { lista = null; } }
+    var gravados = [];
+    (lista || []).forEach(function (it) {
+      if (!it || !it.prop) return;
+      var c = docsCampo_(it.prop);
+      if (!c || !c.editavel || c.tipo === "files" || c.tipo === "title") return;
+      if (it.valor === null || it.valor === undefined || it.valor === "") return;
+      var v = it.valor;
+      if (c.tipo === "select" || c.tipo === "status") {
+        v = docsOpcaoReal_(c, v);
+        if (!v) return;
+      }
+      props[c.nome] = buildValue_(c.tipo, v);
+      gravados.push(c.nome);
+    });
+
+    opIdIniciar_(p.opId);
+    var pg = notion_("POST", "/pages", {
+      parent: { database_id: CONFIG.DB.DOCUMENTOS }, properties: props
+    });
+    var r = { ok: true, id: pg.id, endereco: endereco, campos: gravados };
+    opIdGravar_(p.opId, r);
+    console.log("DOCUMENTOS: " + sess.u + " CRIOU a obra " + endereco + " -> " + pg.id);
+    return r;
+  });
+}
+
+/* Arquivar (não apagar: a lixeira do Notion guarda 30 dias). Só ADM. */
+function docExcluir_(sess, p) {
+  if (!ehAdm_(sess)) return { ok: false, erro: "APENAS_ADM" };
+  if (!p.pageId) return { ok: false, erro: "SEM_PAGINA" };
+  var pg = notion_("GET", "/pages/" + p.pageId, null);
+  var titulo = tituloDe_(pg.properties || {});
+  notion_("PATCH", "/pages/" + p.pageId, { in_trash: true, archived: true });
+  console.log("DOCUMENTOS: " + sess.u + " ARQUIVOU " + p.pageId + " (" + titulo + ")");
+  return { ok: true, endereco: titulo };
+}
+
+/* =======================================================================
+ * DEMANDAS DO MÊS (SEM LOGIN) — o mesmo desenho da agenda do dia do pós obra
+ * -----------------------------------------------------------------------
+ * A tela demandas.html abre no celular do mestre/engenheiro sem usuário e
+ * senha, pela chave que vai no link. Vale a mesma leitura de risco do bloco
+ * "AGENDA DO DIA" lá em cima, com os mesmos cinco estreitamentos:
+ *
+ *  1. CHAVE  — 32 caracteres aleatórios. Sem ela, CHAVE_INVALIDA e nada sai.
+ *  2. PESSOA — a chave JÁ DIZ de quem é a lista. Não existe parâmetro de
+ *              responsável: trocar o nome na URL não muda nada.
+ *  3. JANELA — um MÊS (o corrente, ou o que vier em "mes"), e só.
+ *  4. CAMPOS — endereço, setor, cidade, responsável, mestre, data e turno.
+ *              Nada de CPF, proprietário, valores ou contrato.
+ *  5. LEITURA— não existe gravação nenhuma nesta rota.
+ *
+ * Risco que SOBRA: quem receber o link vê os endereços e as datas daquele mês.
+ * Se vazar, rode docsRevogarChave("NOME") e gere outro — o antigo morre na
+ * hora.
+ * ===================================================================== */
+var DOCS_AGENDA_KEY = "DOCS_AGENDA_CHAVES";   // JSON: { chave: "NOME" }
+
+function docsChaves_() {
+  try { return JSON.parse(PROPS_.getProperty(DOCS_AGENDA_KEY) || "{}") || {}; }
+  catch (e) { return {}; }
+}
+/* Responsável da obra: ENG. EXECUÇÃO, e só (confirmado em 10/09/2026 — o
+   ENGENHEIRO RT não entra aqui; quem aparece ao lado é o MESTRE, num campo
+   próprio). Lê people, select e texto: a coluna pode ser qualquer um dos três
+   no Notion sem que isto pare de funcionar. */
+function docsRespDaObra_(pr) {
+  return docsTextoDe_(getTol_(pr, DOCS_COL_RESP));
+}
+function docsTextoDe_(pp) {
+  if (!pp) return "";
+  if (pp.type === "people") return (pessoas_(pp) || []).join(", ");
+  if (pp.type === "formula") {
+    var f = pp.formula || {}; var fv = f[f.type];
+    if (fv === null || fv === undefined) return "";
+    return f.type === "date" ? (fv.start || "") : String(fv);
+  }
+  return sel_(pp) || texto_(pp) || titulo_(pp) || "";
+}
+
+function docsDemandas_(p) {
+  var chave = String(p.chave || "").trim();
+  var alvo = docsChaves_()[chave];
+  // mensagem genérica de propósito: não confirma se a chave existe
+  if (!chave || !alvo) return { ok: false, erro: "CHAVE_INVALIDA" };
+
+  var mes = String(p.mes || "").slice(0, 7);
+  if (!/^\d{4}-\d{2}$/.test(mes))
+    mes = Utilities.formatDate(new Date(), "America/Sao_Paulo", "yyyy-MM");
+  var alvoN = normDist_(alvo);
+
+  return comCache_("docs_dem_" + alvoN.replace(/\W/g, "_") + "_" + mes, 300, function () {
+    var inicio = [], habite = [];
+    queryAll_(CONFIG.DB.DOCUMENTOS, {}).forEach(function (r) {
+      var pr = r.properties || {};
+      var resp = docsRespDaObra_(pr);
+      var mestre = docsTextoDe_(getTol_(pr, "MESTRE"));
+      /* A chave casa com o RESPONSÁVEL ou com o MESTRE: assim o mesmo
+         mecanismo serve para o engenheiro e para o mestre de obra, que é
+         quem mais usa isso no celular. */
+      if (normDist_(resp) !== alvoN && normDist_(mestre) !== alvoN) return;
+
+      var base = {
+        endereco: tituloDe_(pr),
+        setor: docsTextoDe_(getTol_(pr, "SETOR")),
+        cidade: docsTextoDe_(getTol_(pr, "CIDADE")),
+        responsavel: resp, mestre: mestre
+      };
+
+      var prev = dt_(getTol_(pr, "PREVISÃO DE INÍCIO DE OBRA"));
+      var iniciada = normDist_(docsTextoDe_(getTol_(pr, "OBRA INCIADA")) ||
+                               docsTextoDe_(getTol_(pr, "OBRA INICIADA")));
+      if (prev && prev.slice(0, 7) === mes && iniciada !== "SIM") {
+        var a = {}; for (var k in base) a[k] = base[k];
+        a.data = prev; inicio.push(a);
+      }
+
+      var dhab = dt_(getTol_(pr, "DATA HABITE-SE"));
+      if (dhab && dhab.slice(0, 7) === mes) {
+        var b = {}; for (var k2 in base) b[k2] = base[k2];
+        b.data = dhab;
+        b.turno = docsTextoDe_(getTol_(pr, "TURNO HABITE-SE"));
+        habite.push(b);
+      }
+    });
+    function porData(x, y) { return String(x.data).localeCompare(String(y.data)); }
+    inicio.sort(porData); habite.sort(porData);
+    return { ok: true, responsavel: alvo, mes: mes,
+             inicio: inicio, habite: habite,
+             total: inicio.length + habite.length,
+             lidoEm: new Date().toISOString() };
+  });
+}
+
+/* Gera (ou devolve) a chave de uma pessoa PELA TELA. Só ADM: quem cria o link
+   decide quem enxerga a agenda de obras sem login — não é decisão para dar a
+   todo mundo que tem acesso ao setor.
+   Devolve só a CHAVE; a tela monta a URL a partir do próprio endereço, então
+   trocar o domínio não exige mexer aqui. */
+function docAgendaLink_(sess, p) {
+  if (!ehAdm_(sess)) return { ok: false, erro: "APENAS_ADM" };
+  var nome = String(p.resp || "").trim();
+  if (!nome) return { ok: false, erro: "FALTA_PARAM" };
+
+  var todas = docsChaves_(), k, atual = null;
+  for (k in todas) if (normDist_(todas[k]) === normDist_(nome)) { atual = k; break; }
+  if (p.regerar && atual) { delete todas[atual]; atual = null; }
+  if (atual) return { ok: true, nome: nome, chave: atual, novo: false };
+
+  var alfabeto = "abcdefghijkmnopqrstuvwxyz23456789";   // sem l/1/0/o: confundem
+  var chave = "";
+  for (var i = 0; i < 32; i++) chave += alfabeto.charAt(Math.floor(Math.random() * alfabeto.length));
+  todas[chave] = nome;
+  PROPS_.setProperty(DOCS_AGENDA_KEY, JSON.stringify(todas));
+  console.log("DOCS DEMANDAS: " + sess.u + " gerou link para " + nome + (p.regerar ? " (regerado)" : ""));
+  return { ok: true, nome: nome, chave: chave, novo: true, regerado: !!p.regerar };
+}
+
+/* Plano B pelo menu Executar (mesmo papel das funções da agenda do dia). */
+function docsRevogarChave(nome) {
+  var todas = docsChaves_(), n = 0;
+  for (var k in todas) if (!nome || normDist_(todas[k]) === normDist_(nome)) { delete todas[k]; n++; }
+  PROPS_.setProperty(DOCS_AGENDA_KEY, JSON.stringify(todas));
+  Logger.log(n + " chave(s) revogada(s). Os links correspondentes pararam de funcionar.");
+}
+function docsListarChaves() {
+  var todas = docsChaves_(), n = 0;
+  for (var k in todas) { n++; Logger.log(todas[k] + "  ->  " + k.slice(0, 6) + "…(" + k.length + " caracteres)"); }
+  if (!n) Logger.log("Nenhuma chave criada ainda.");
+}
+
+/* =======================================================================
+ * CONFERÊNCIA — rode pelo menu Executar. Só LÊ, não grava nada.
+ * -----------------------------------------------------------------------
+ * É a "automação para verificar as colunas exatas dos bancos de dados" que
+ * você pediu. Ela responde quatro coisas:
+ *   1. os nomes EXATOS das colunas da base DOCUMENTOS (com tipo);
+ *   2. quais delas são de marcação (têm SIM) — as que a baixa escreve;
+ *   3. os TIPOs que existem de verdade na base de atividades, e em qual
+ *      coluna cada um daria baixa hoje;
+ *   4. quais colunas os alertas da tela procuram e se todas foram achadas.
+ * Copie a saída e me mande: é com ela que eu fecho o BAIXA_MAP_DOCS e corrijo
+ * qualquer nome de coluna que eu tenha escrito diferente do seu Notion.
+ * ===================================================================== */
+function conferirDocumentos() {
+  var s = docsSchema_();
+  Logger.log("=== 1) COLUNAS DA BASE DOCUMENTOS (" + s.campos.length + ") ===");
+  s.campos.slice().sort(function (a, b) { return a.nome.localeCompare(b.nome, "pt-BR"); })
+    .forEach(function (c) {
+      Logger.log("   " + JSON.stringify(c.nome) + "  (" + c.tipo + ")" +
+                 (c.opcoes && c.opcoes.length ? "  opções: " + c.opcoes.join(" | ") : ""));
+    });
+
+  var sims = docsColunasSim_();
+  Logger.log("\n=== 2) COLUNAS DE MARCAÇÃO (têm SIM) — " + sims.length + " ===");
+  sims.forEach(function (c) { Logger.log("   " + c); });
+
+  Logger.log("\n=== 3) TIPOS DE ATIVIDADE E A COLUNA QUE A BAIXA ESCREVERIA ===");
+  Logger.log("   (entre parênteses: quantas já estão resolvidas pela fórmula 🟢 da base)");
+  try {
+    var tipos = {}, feitas = {};
+    queryAll_(DB_ATIVIDADES_DOCS, {}).forEach(function (a) {
+      var t = sel_(getTol_(a.properties, "TIPO")) || "(sem tipo)";
+      tipos[t] = (tipos[t] || 0) + 1;
+      if (docsAtvFeita_(a.properties)) feitas[t] = (feitas[t] || 0) + 1;
+    });
+    var achou = false;
+    for (var t in tipos) {
+      achou = true;
+      var col = docsColunaDaBaixa_(t, sims);
+      Logger.log("   " + ("     " + tipos[t]).slice(-5) + "x  (" + (feitas[t] || 0) + " resolvidas)  " +
+                 JSON.stringify(t) + "  ->  " +
+                 (col ? col : "*** SEM COLUNA — preencha BAIXA_MAP_DOCS ***"));
+    }
+    if (!achou) Logger.log("   (nenhuma atividade na base)");
+  } catch (e) {
+    Logger.log("   FALHOU ao ler a base de atividades: " + e);
+    Logger.log("   Quase sempre é a integração do Notion sem acesso à base — " +
+               "abra a base > ... > Conexões > adicione a integração.");
+  }
+
+  Logger.log("\n=== 4) COLUNAS QUE OS ALERTAS DA TELA PROCURAM ===");
+  var procurados = [
+    "USO DO SOLO SOLICITADO", "DATA DE SOLICITAÇÃO USO DO SOLO",
+    "USO DO SOLO EMITIDO E ARMAZENADO", "DATA DE EMISSÃO DO USO DO SOLO",
+    "TAXAS ENTRADA ALVARÁ EMITIDAS E PAGAS", "DATA DE ENTRADA DE ALVARA",
+    "PROJETO APROVADO E ALVARA EMITIDO E ARMAZENADO", "DATA DE APROVAÇÃO DO PROJETO",
+    "REF.", "PROPRIETARIO DOCUMENTO", "PROPRIETARIO REAL", "CPF/CNPJ",
+    "ENGENHEIRO RT", "ENG. EXECUÇÃO", "Nº DE CASAS", "IMPLANTAÇÃO",
+    "MESTRE", "PREVISÃO DE INÍCIO DE OBRA", "OBRA INCIADA", "DATA DE INÍCIO DA OBRA",
+    "COTA DA EMPRESA (%)", "DATA DE AQUISIÇÃO DO LOTE",
+    "FOI DADO ENTRADA NA INCORPORAÇÃO? (OBRAS CNPJ)", "DATA DE ENTRADA NA INCORPORAÇÃO",
+    "INCORPORAÇÃO FINALIZADA", "DATA DE FINALIZAÇÃO DA INCORPORAÇÃO",
+    "FOI DATA A ENTRADA NO RET? (OBRAS CNPJ)", "DATA DE ENTRADA DO RET",
+    "RET ARMAZENADO", "DATA DE FINALIZAÇÃO DO RET",
+    "APROVOU HABITE-SE?", "DATA DE APROVAÇÃO DO HABITE-SE",
+    "AGENDOU HABITE-SE?", "TURNO HABITE-SE", "DATA HABITE-SE",
+    "OBRA FINALIZADA?", "DATA DE TÉRMINO DE OBRA", "SETOR", "CIDADE"
+  ];
+  var faltando = [];
+  procurados.forEach(function (nome) {
+    var c = docsCampo_(nome);
+    if (!c) {
+      // tenta por pedaço, que é como a tela também procura
+      var alvo = normDist_(nome), achado = null;
+      s.campos.forEach(function (x) {
+        if (!achado && normDist_(x.nome).indexOf(alvo) >= 0) achado = x;
+      });
+      c = achado;
+    }
+    if (c) Logger.log("   OK      " + nome + "   ->   " + JSON.stringify(c.nome) + " (" + c.tipo + ")");
+    else { Logger.log("   FALTOU  " + nome); faltando.push(nome); }
+  });
+  if (faltando.length) {
+    Logger.log("\n*** " + faltando.length + " nome(s) não bateram. Me mande esta lista: " +
+               "é só ajustar o fragmento na tela, nada quebra por causa disso — " +
+               "o alerta correspondente simplesmente não aparece. ***");
+  } else {
+    Logger.log("\nTodos os nomes bateram. Nada a ajustar.");
+  }
 }

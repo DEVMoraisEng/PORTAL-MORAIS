@@ -34,7 +34,11 @@ const ACOES_NA_ESCRITA = [
   /* opStatus e posObraValidarAdm NÃO gravam, mas acompanham uma criação e
      precisam da mesma faixa livre — perguntar "criou?" na fila das leituras
      seria esperar atrás da leitura que atrapalhou a criação. */
-  "opStatus", "posObraValidarAdm"
+  "opStatus", "posObraValidarAdm",
+  /* GESTÃO DE DOCUMENTOS (set/26). Mesma regra: ação que GRAVA sai pela
+     implantação de ESCRITA, para não esperar atrás de uma leitura longa.
+     Precisa bater com ACOES_DOCS_ESCRITA do documentos.gs. */
+  "docUpdate", "docBaixa", "docAnexar", "docNovo", "docExcluir", "docAgendaLink"
   /* r33: "forcarAtualizacao" NÃO entra aqui, e não é esquecimento. O que ela
      limpa é o cache do CacheService, que é POR PROJETO do Apps Script — limpar
      na implantação de ESCRITA não mexeria em nada do que as telas leem, que

@@ -280,7 +280,7 @@ html[data-tema="escuro"] .logo{background:#fff}
     </main>
   </div>
 
-<script src="app.js?v=28"></script>
+<script src="app.js?v=29"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele */
 const TEMA_KEY = "morais_tema";
@@ -328,6 +328,12 @@ const SISTEMAS=[
   /* "nome" e so o rotulo do card; "chave" continua ANÁLISES porque e a opcao
      da coluna ACESSOS no Notion e a permissao no Code.gs — renomear ela
      tiraria o acesso de todo mundo de uma vez. */
+  /* GESTÃO DE DOCUMENTOS (set/26). "DOCUMENTOS" precisa existir, com
+     maiúsculas, como opção da coluna ACESSOS no banco LOGINS — mesma regra
+     dos outros setores. Se não bater, o botão simplesmente não aparece, e
+     sem erro nenhum na tela. */
+  {chave:"DOCUMENTOS",nome:"Gestão de Documentos",desc:"Documentação da obra, alvará, habite-se e prazos",ico:"D",link:"documentos.html",grupo:"SETORES"},
+
   {chave:"ANÁLISES",nome:"Orçado × Realizado",desc:"Comparativo por obra e insumo",ico:"$",link:"analise.html",grupo:"ANÁLISES"},
 
   /* "MAPA DE VENDAS" é público: publico:true faz o botão aparecer pra

@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<title>Minhas demandas do mês</title>
+<link rel="icon" href="img/logo-192.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1e3f58">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ===================================================================
+   DEMANDAS DO MÊS — a tela que o mestre/engenheiro abre pelo link
+   ---------------------------------------------------------------
+   Irmã da servicos.html (a agenda do dia do pós obra), e pelas mesmas
+   razões de projeto: sem login, sem menu, sem filtro, fonte grande e
+   alvo de toque folgado. A diferença é a JANELA — aqui é o MÊS INTEIRO,
+   com dois blocos fixos:
+       INÍCIO DE OBRAS (pela PREVISÃO DE INÍCIO DE OBRA)
+       HABITE-SE       (pela DATA HABITE-SE)
+   Nenhuma ação escreve nada. Os dados vêm da ação "docsDemandas" do
+   Apps Script, que só responde com a chave do link.
+   =================================================================== */
+:root{
+  --azul:#295778;--azul-esc:#1e3f58;--verde:#2a9d5c;--teal:#3aa7a0;
+  --bg:#EAF1F3;--sup:#fff;--border:#b8d0da;--border2:#d0e4ec;
+  --text:#1a3347;--text3:#5a8099;--text4:#8aacbb;
+  --amarelo-bg:#FFF7ED;--amarelo-bd:#FED7AA;--amarelo:#b7791f;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--text);
+  font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:17px;line-height:1.5;
+  padding-bottom:env(safe-area-inset-bottom)}
+header{background:linear-gradient(120deg,var(--azul-esc),var(--azul));color:#fff;
+  padding:18px 16px;padding-top:calc(18px + env(safe-area-inset-top))}
+header .oi{font-size:15px;opacity:.85;font-weight:600}
+header .nome{font-family:'Barlow Condensed',Inter,sans-serif;font-size:30px;font-weight:700;
+  letter-spacing:.5px;text-transform:uppercase;line-height:1.1;margin-top:2px}
+header::after{content:"";display:block;height:4px;background:linear-gradient(90deg,var(--verde),var(--teal));
+  margin:16px -16px -18px}
+.wrap{max-width:640px;margin:0 auto;padding:16px 14px 40px}
+
+.mesbar{display:flex;align-items:center;gap:10px;margin:6px 0 4px}
+.mesbar button{border:2px solid var(--border);background:var(--sup);color:var(--azul);
+  border-radius:12px;width:52px;min-height:48px;font:inherit;font-size:22px;font-weight:800;cursor:pointer}
+.mesbar .m{flex:1;text-align:center;font-family:'Barlow Condensed',Inter,sans-serif;
+  font-size:26px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--azul-esc)}
+
+.sec{margin:24px 0 12px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.sec .t{font-family:'Barlow Condensed',Inter,sans-serif;font-size:26px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.5px;color:var(--azul-esc)}
+.sec .n{margin-left:auto;background:var(--azul);color:#fff;border-radius:999px;
+  padding:3px 12px;font-size:15px;font-weight:800}
+
+.card{background:var(--sup);border:1px solid var(--border2);border-radius:14px;
+  padding:16px;margin-bottom:14px;box-shadow:0 2px 6px rgba(20,40,55,.06);
+  border-left:6px solid var(--azul)}
+.card.hab{border-left-color:var(--amarelo);background:var(--amarelo-bg)}
+.dia{font-family:'Barlow Condensed',Inter,sans-serif;font-size:34px;font-weight:700;
+  line-height:1;color:var(--azul);letter-spacing:.5px}
+.dia small{font-size:15px;font-weight:600;color:var(--text3);letter-spacing:0;
+  font-family:Inter,sans-serif;margin-left:8px;text-transform:capitalize}
+.end{font-family:'Barlow Condensed',Inter,sans-serif;font-size:23px;font-weight:700;
+  text-transform:uppercase;line-height:1.15;margin:10px 0 10px;color:var(--text)}
+.ln{display:flex;gap:11px;align-items:flex-start;margin-bottom:8px;font-size:17px}
+.ln .ic{font-size:21px;line-height:1.25;flex:0 0 28px;text-align:center}
+.ln .tx{flex:1;overflow-wrap:anywhere}
+.acoes{display:flex;gap:10px;margin-top:12px}
+.acoes a{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;
+  min-height:52px;border-radius:12px;text-decoration:none;font-size:18px;font-weight:800;
+  font-family:'Barlow Condensed',Inter,sans-serif;text-transform:uppercase;letter-spacing:.6px;
+  background:var(--sup);color:var(--azul);border:2px solid var(--azul)}
+.vazio{background:var(--sup);border:1px dashed var(--border);border-radius:14px;
+  padding:24px 18px;text-align:center;font-size:18px;color:var(--text3);font-weight:600}
+.vazio .em{font-size:40px;display:block;margin-bottom:8px}
+.aviso{background:#FEF2F2;border:1px solid #FCA5A5;color:#991B1B;border-radius:12px;
+  padding:18px;font-size:18px;font-weight:600;text-align:center}
+.carregando{text-align:center;padding:50px 16px;font-size:19px;color:var(--text3);font-weight:600}
+.recarregar{display:block;width:100%;min-height:54px;margin-top:22px;border:2px solid var(--border);
+  background:var(--sup);color:var(--azul);border-radius:12px;font:inherit;font-size:18px;font-weight:800;
+  font-family:'Barlow Condensed',Inter,sans-serif;text-transform:uppercase;letter-spacing:.6px;cursor:pointer}
+.rodape{text-align:center;color:var(--text4);font-size:13px;margin-top:16px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="oi">Demandas do mês de</div>
+  <div class="nome" id="quem">…</div>
+</header>
+
+<div class="wrap" id="tela">
+  <div class="carregando">Carregando…</div>
+</div>
+
+<script>
+/* URL do Apps Script (implantação de LEITURA) — a mesma do app.js. Esta página
+   é PROPOSITALMENTE independente do app.js: ele carrega login, fila offline e
+   sessão, coisas que aqui não existem e que só criariam chance de erro. */
+const API = "https://script.google.com/macros/s/AKfycbwvMnVHZd7y5k-GP8_Dg9zkWyD2fqqH8UI4gaXsQ0iJnm9QNSsyyUhODFMyMW6BfAk/exec";
+
+/* A chave vem do link (?k=...). É ela que diz ao servidor de quem é a lista —
+   não existe parâmetro de responsável, então mexer na URL não mostra a lista
+   de outra pessoa. */
+const CHAVE = new URLSearchParams(location.search).get("k") || "";
+const CACHE_KEY = "morais_demandas_mes";
+
+const esc = t => String(t==null?"":t).replace(/[&<>"']/g, c =>
+  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+const MESES = ["janeiro","fevereiro","março","abril","maio","junho","julho",
+               "agosto","setembro","outubro","novembro","dezembro"];
+const DIAS = ["domingo","segunda","terça","quarta","quinta","sexta","sábado"];
+
+let MES = (function(){ const d=new Date();
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); })();
+
+function nomeMes(m){
+  const [a,mm]=String(m).split("-").map(Number);
+  return MESES[mm-1]+" de "+a;
+}
+function mudarMes(n){
+  const [a,mm]=MES.split("-").map(Number);
+  const d=new Date(a, mm-1+n, 1);
+  MES = d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
+  carregar();
+}
+function diaSemana(iso){
+  const [a,m,d]=String(iso).slice(0,10).split("-").map(Number);
+  return DIAS[new Date(a,m-1,d).getDay()];
+}
+function endereco(it){
+  const partes=[String(it.endereco||"").trim()];
+  const jaTem = t => partes.join(" ").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+      .indexOf(String(t).toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")) >= 0;
+  [it.setor, it.cidade].forEach(x=>{ const t=String(x||"").trim(); if(t && !jaTem(t)) partes.push(t); });
+  return partes.filter(Boolean).join(" · ");
+}
+function cartao(it, tipo){
+  const dia=String(it.data).slice(8,10);
+  const rota="https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(endereco(it));
+  return '<div class="card'+(tipo==="hab"?" hab":"")+'">'+
+    '<div class="dia">'+esc(dia)+'<small>'+esc(diaSemana(it.data))+'</small></div>'+
+    '<div class="end">'+esc(it.endereco)+'</div>'+
+    ((it.setor||it.cidade)?'<div class="ln"><span class="ic">📍</span><span class="tx">'+esc([it.setor,it.cidade].filter(Boolean).join(" · "))+'</span></div>':"")+
+    (it.responsavel?'<div class="ln"><span class="ic">👷</span><span class="tx">'+esc(it.responsavel)+'</span></div>':"")+
+    (it.mestre?'<div class="ln"><span class="ic">🧱</span><span class="tx">Mestre: '+esc(it.mestre)+'</span></div>':"")+
+    (it.turno?'<div class="ln"><span class="ic">🕑</span><span class="tx">Turno: '+esc(it.turno)+'</span></div>':"")+
+    '<div class="acoes"><a href="'+esc(rota)+'" target="_blank" rel="noopener">📍 Rota</a></div>'+
+  '</div>';
+}
+function secao(titulo, itens, tipo, vazioTxt){
+  return '<div class="sec"><span class="t">'+esc(titulo)+'</span>'+
+         (itens.length?'<span class="n">'+itens.length+'</span>':"")+'</div>'+
+    (itens.length ? itens.map(i=>cartao(i,tipo)).join("")
+      : '<div class="vazio"><span class="em">☕</span>'+esc(vazioTxt)+'</div>');
+}
+function pintar(d){
+  document.getElementById("quem").textContent=(d.responsavel||"").replace(/\s*\(.*\)\s*$/,"");
+  document.getElementById("tela").innerHTML =
+    '<div class="mesbar"><button onclick="mudarMes(-1)">‹</button>'+
+      '<span class="m">'+esc(nomeMes(d.mes||MES))+'</span>'+
+      '<button onclick="mudarMes(1)">›</button></div>'+
+    secao("Início de obras", d.inicio||[], "ini", "Nenhuma obra prevista para começar neste mês") +
+    secao("Habite-se", d.habite||[], "hab", "Nenhum habite-se marcado neste mês") +
+    '<button class="recarregar" onclick="carregar()">🔄 Atualizar</button>'+
+    '<div class="rodape">Morais Engenharia · Gestão de Documentos</div>';
+}
+function erro(msg){
+  document.getElementById("tela").innerHTML =
+    '<div class="aviso">'+esc(msg)+'</div>'+
+    '<button class="recarregar" onclick="carregar()">🔄 Tentar de novo</button>';
+}
+async function carregar(){
+  if(!CHAVE){ erro("Este link está incompleto. Peça o link certo no escritório."); return; }
+  document.getElementById("tela").innerHTML='<div class="carregando">Carregando…</div>';
+  try{
+    /* text/plain evita o pedido de permissão (preflight) que o Apps Script
+       recusa — mesmo motivo do app.js. */
+    const r=await fetch(API,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body:JSON.stringify({action:"docsDemandas", chave:CHAVE, mes:MES})});
+    const d=await r.json();
+    if(!d.ok){
+      erro(d.erro==="CHAVE_INVALIDA"
+        ? "Este link não vale mais. Peça um link novo no escritório."
+        : "Não consegui carregar agora. Tente de novo em instantes.");
+      return;
+    }
+    try{ localStorage.setItem(CACHE_KEY, JSON.stringify(d)); }catch(e){}
+    pintar(d);
+  }catch(e){
+    /* Sem internet: mostra a última lista que deu certo, avisando o mês.
+       Melhor uma lista salva, sinalizada, do que tela em branco na rua. */
+    let c=null;
+    try{ c=JSON.parse(localStorage.getItem(CACHE_KEY)||"null"); }catch(_){}
+    if(c && (c.inicio||c.habite)){
+      pintar(c);
+      document.getElementById("tela").insertAdjacentHTML("afterbegin",
+        '<div class="aviso">📵 Sem internet — esta lista é de '+esc(nomeMes(c.mes||MES))+' e foi salva no celular. Pode ter mudado.</div>');
+    }else{
+      erro("Sem internet. Conecte e toque em Tentar de novo.");
+    }
+  }
+}
+carregar();
+</script>
+</body>
+</html>

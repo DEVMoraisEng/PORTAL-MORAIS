@@ -1,0 +1,2056 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light only">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#295778">
+<!-- tema antes da pintura: sem isto a tela pisca branca pra quem usa escuro -->
+<script>(function(){try{var t=localStorage.getItem("morais_tema");
+  if(t!=="claro"&&t!=="escuro") t="claro";   // padrão do portal: CLARO
+  document.documentElement.dataset.tema=t;}catch(e){}})();</script>
+<link rel="manifest" href="manifest.json">
+<title>Gestão de Documentos · Morais</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* O tema agora é escolhido no botão do cabeçalho e gravado em morais_tema
+   (a MESMA chave do index.html e do ligacoes.html — quem escolhe escuro numa
+   página encontra as outras já escuras).
+   O "light only" saiu daqui de propósito: ele existia para impedir o
+   Android/iOS de inverter os controles nativos por conta própria. Agora quem
+   manda é o data-tema do <html>, e o color-scheme acompanha a escolha (ver o
+   bloco MODO ESCURO no fim deste <style>) — assim input, select e calendário
+   nativos ficam coerentes com o tema em vez de brigar com ele. */
+:root{color-scheme:light}
+/* O fundo do body só cobre a altura do conteúdo. Sem repetir a cor aqui,
+   o resto da tela cai no branco do html — foi o que deixou a faixa branca
+   embaixo em páginas curtas. min-height garante a tela toda. */
+html{background:var(--bg);min-height:100%}
+body{min-height:100vh}
+
+:root{
+  --azul:#295778;--azul-esc:#1e3f58;--teal:#8FDCD2;--verde:#2a9d5c;--verde-btn:#4cd964;--verde-esc:#1a6b40;
+  --bg:#EAF1F3;--bg2:#F5F9FA;--bg3:#dceaef;--border:#b8d0da;--border2:#d0e4ec;
+  --text:#1a3347;--text3:#5a8099;--text4:#8aacbb;--branco:#fff;--orange:#E67E22;
+  /* superfície dos cartões/painéis. Existe para o modo escuro trocar UMA
+     variável em vez de reescrever dezenas de regras — mesmo padrão do
+     ligacoes.html, que já usa --sup. */
+  --sup:#fff;--sup2:#f7fbfc;--sombra:rgba(20,50,70,.18)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.45}
+.cond{font-family:'Barlow Condensed',Inter,sans-serif}
+.wrap{max-width:1320px;margin:0 auto;padding:0 20px}
+a{color:inherit}
+
+/* topo */
+header{background:linear-gradient(120deg,var(--azul-esc),var(--azul));position:relative}
+header::after{content:"";display:block;height:4px;background:linear-gradient(90deg,var(--verde-btn),var(--teal))}
+.hbar{display:flex;align-items:center;gap:12px;padding:13px 0;flex-wrap:wrap}
+.logo{background:var(--sup);border-radius:9px;padding:4px 9px;display:inline-flex;align-items:center}.logo img{height:34px;display:block}
+.htitle{font-family:'Barlow Condensed';font-weight:800;font-size:22px;color:#fff;letter-spacing:.5px;text-transform:uppercase;line-height:1}
+.hsub{color:var(--teal);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
+.hspace{flex:1}
+.net{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;padding:3px 9px;border-radius:20px}
+.net.on{background:rgba(76,217,100,.22);color:#CFF9DC}.net.off{background:rgba(255,180,120,.28);color:#FFE2C6}
+.btn-sync{display:none;align-items:center;gap:5px;border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.14);color:#fff;border-radius:8px;padding:6px 10px;font:inherit;font-weight:700;font-size:12px;cursor:pointer}
+.filabadge{display:none;align-items:center;justify-content:center;min-width:19px;height:19px;padding:0 6px;border-radius:20px;background:var(--orange);color:#fff;font-size:11px;font-weight:800}
+.user{display:flex;align-items:center;gap:9px;color:#fff}.nome{font-weight:600;font-size:13px}
+.badge{font-size:10px;font-weight:800;letter-spacing:.5px;padding:3px 8px;border-radius:20px;background:rgba(255,255,255,.18);color:#fff;text-transform:uppercase}.badge.adm{background:var(--verde-btn);color:#0c3f22}
+.sair{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;padding:6px 11px;font:inherit;font-weight:700;font-size:12px;cursor:pointer}
+
+main{padding:24px 20px 70px}
+.aviso{background:#FFF7ED;border:1px solid #FED7AA;color:#9A3412;border-radius:10px;padding:9px 12px;font-size:12.5px;margin-bottom:16px;display:none}
+.crumb{display:flex;align-items:center;gap:10px;margin-bottom:16px;color:var(--text3);font-size:13px}
+/* item 11: botão "voltar" em pílula azul-escura, igual ao padrão do analise.html */
+.btn-voltar{display:inline-flex;align-items:center;gap:6px;background:var(--azul-esc);border:1px solid rgba(143,220,210,.4);
+  border-radius:8px;padding:9px 16px;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;
+  color:var(--teal);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;text-decoration:none;transition:background .15s}
+.btn-voltar:hover{background:#16303f}
+.sec{display:flex;align-items:center;gap:10px;background:var(--bg3);border-left:4px solid var(--verde);border-radius:8px;padding:9px 14px;margin:26px 0 16px}
+.sec .cond{font-size:19px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--azul-esc)}
+.sec:first-of-type{margin-top:6px}
+
+/* cards de setor (verde) */
+.setores{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+.scard{position:relative;border:0;border-radius:14px;padding:18px 18px 16px;cursor:pointer;text-align:left;color:#fff;
+  background:linear-gradient(135deg,var(--verde),var(--verde-esc));box-shadow:0 6px 18px rgba(42,157,92,.25);transition:transform .1s,box-shadow .15s;font:inherit}
+.scard:hover{transform:translateY(-3px);box-shadow:0 12px 26px rgba(42,157,92,.32)}
+.scard.soon{background:linear-gradient(135deg,#7fa0b3,#5a7a8c);box-shadow:none;opacity:.9}
+.scard .cond{font-size:18px;font-weight:800;text-transform:uppercase;line-height:1.05}
+.scard .d{font-size:11.5px;opacity:.92;margin-top:4px}
+.scard .cnt{position:absolute;top:14px;right:14px;background:#c0392b;color:#fff;min-width:26px;height:26px;border-radius:20px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;padding:0 7px}
+/* item 4: reserva espaço à direita quando o card tem o número da bolinha —
+   sem isto, nome de setor comprido (2 linhas) passava por baixo do badge */
+.scard.tem-cnt{padding-right:46px}
+
+/* abas do setor — item 10: estilo "pílula" centralizado, igual ao analise.html */
+.tabs-outer{background:var(--bg2);border:1.5px solid var(--border);border-radius:14px;padding:12px;margin:8px 0 20px;display:flex;justify-content:center}
+.tabs{display:flex;gap:6px;padding:6px;border:2.5px solid var(--verde-btn);border-radius:12px;background:rgba(76,217,100,.06)}
+.tab{padding:11px 30px;font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;border-radius:8px;border:2px solid transparent;background:none;transition:all .2s}
+.tab:hover{color:var(--azul-esc);background:rgba(76,217,100,.15);border-color:rgba(76,217,100,.4)}
+.tab.on{background:var(--verde-btn);color:#1a3347;border-color:var(--verde-btn);box-shadow:0 3px 10px rgba(76,217,100,.35)}
+@media(max-width:560px){.tab{padding:10px 16px;font-size:13px}}
+
+/* atividades */
+.atv{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:12px 15px;margin-bottom:10px;display:flex;gap:13px;align-items:center;flex-wrap:wrap}
+.atv.feita{opacity:.45}
+.atv .tipo{font-size:10px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:#fff;background:var(--azul);padding:3px 9px;border-radius:20px}
+.atv .nm{font-weight:600;flex:1;min-width:210px;font-size:13.5px}
+.atv .dt{font-size:11.5px;color:var(--text3)}
+.atv .bx{display:flex;align-items:center;gap:7px}
+.atv .bxlab{font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700;letter-spacing:.3px}
+select,input[type=text],input[type=number],input[type=date],input[type=url],input[type=email],input[type=tel]{
+  border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;background:var(--sup);max-width:100%;color:var(--text)}
+select:focus,input:focus{outline:none;border-color:var(--verde);box-shadow:0 0 0 3px rgba(76,217,100,.2)}
+.bt{border:0;border-radius:8px;padding:8px 13px;font:inherit;font-weight:700;font-size:12.5px;color:#fff;background:var(--verde);cursor:pointer}
+.bt:hover{filter:brightness(1.06)}.bt.az{background:var(--azul)}.bt.ghost{background:#e7f0f3;color:var(--azul)}.bt.danger{background:#C0392B}
+.bt:disabled{opacity:.5;cursor:default}
+.bt-mini{padding:4px 10px;font-size:11px}
+.busca{border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;font:inherit;font-size:13px;min-width:210px}
+
+/* alertas */
+.al{background:var(--sup);border:1px solid var(--border2);border-left:4px solid var(--orange);border-radius:10px;padding:11px 14px;margin-bottom:9px;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.al .end{font-weight:700;font-size:13.5px;color:var(--azul)}.al .txt{color:#B45309;font-size:12.5px}
+/* rótulo ainda sem nome de obra resolvido — some sozinho quando o Notion responde */
+.al .end.end-vazio{color:var(--text4);font-weight:600;font-style:italic}
+.al .end:hover{text-decoration:underline;cursor:pointer}
+/* item 4 (rodada 2): alertas em 3 colunas — Endereço / Alerta / campo pra preencher ali mesmo */
+.al3{display:grid;grid-template-columns:minmax(140px,1fr) minmax(180px,1.6fr) minmax(160px,1fr);align-items:center;gap:14px}
+.al-cab{background:transparent;border:0;box-shadow:none;padding:0 14px;margin-bottom:6px;color:var(--text3);font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px}
+.al3 .preench{display:flex;align-items:center}
+.campo-inline select,.campo-inline input{width:100%;max-width:220px}
+
+/* filtros + informativo */
+.toolbar{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.count{color:var(--text3);font-size:12.5px}
+.info-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.icard{background:var(--sup);border:1px solid var(--border2);border-radius:10px;padding:9px 16px;min-width:104px;text-align:center}
+.ival{font-family:'Barlow Condensed';font-weight:800;font-size:21px;color:var(--azul-esc);line-height:1}
+.ilab{font-size:10px;text-transform:uppercase;letter-spacing:.3px;color:var(--text3);font-weight:700;margin-top:3px}
+.inote{width:100%;font-size:11px;color:#9A3412;background:#FFF7ED;border:1px solid #FED7AA;border-radius:8px;padding:6px 10px}
+
+/* planilha */
+/* CORREÇÃO (set/26): height:14px fixo cortava a barra — a de rolagem do
+   Chrome mede ~15-17px. Sem altura forcada, o navegador dimensiona sozinho e
+   a barra de cima fica igual a de baixo. */
+.scroll-top{overflow-x:auto;overflow-y:hidden;border:1px solid var(--border2);border-bottom:0;
+  border-radius:10px 10px 0 0;background:var(--bg2)}
+@supports (scrollbar-width: auto){ .scroll-top{scrollbar-width:auto} }
+.scroll-top>div{height:1px}
+.tabela-wrap{overflow:auto;max-height:70vh;border:1px solid var(--border2);border-radius:0 0 10px 10px;background:var(--sup)}
+table{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;font-size:12.5px}
+thead th{background:var(--azul);color:#fff;text-align:center;padding:9px 11px;font-size:10px;letter-spacing:.4px;text-transform:uppercase;position:sticky;top:0;white-space:nowrap;z-index:2;font-weight:700;border-right:1px solid rgba(255,255,255,.22)}
+thead th.stick{left:0;z-index:3}
+tbody td{padding:7px 11px;border-top:1px solid var(--border2);border-right:1px solid var(--border2);white-space:nowrap;color:var(--text);max-width:280px;overflow:hidden;text-overflow:ellipsis}
+tbody td.stick{position:sticky;left:0;background:var(--sup);font-weight:700;z-index:1;border-right:2px solid var(--border)}
+tbody tr:nth-child(even) td{background:var(--bg2)} tbody tr:nth-child(even) td.stick{background:#eef5f7}
+tbody tr:hover td{background:#e9f6ef} tbody tr:hover td.stick{background:#dff2e6}
+tr.vendida td.stick{color:var(--verde-esc)}
+.obralink{color:var(--azul);font-weight:800;cursor:pointer}.obralink:hover{text-decoration:underline}
+/* item 6: coluna de numeração (só casas vendidas, ordem por data da venda) */
+.numcol{text-align:center;font-weight:800;color:var(--text4);width:34px}
+.casanum{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:20px;background:var(--azul);color:#fff;font-size:10px;font-weight:800;vertical-align:middle}
+.tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700}
+.tag.sim{background:rgba(42,157,92,.14);color:var(--verde-esc)}.tag.nao{background:#f1e0e0;color:#9b2c2c}
+td.edt{cursor:cell}
+td.edt:hover{outline:2px solid var(--verde);outline-offset:-2px;background:#f0fbf4!important}
+
+/* cor das linhas = SITUAÇÃO DO PROCESSO (fórmula do Notion) — item 5: cores mais distintas entre si */
+tbody tr.sit1 td{background:#FFF3AD}
+tbody tr.sit1 td.stick{background:#FCE87F}
+tbody tr.sit2 td{background:#FFD8A0}
+tbody tr.sit2 td.stick{background:#FDC06E}
+tbody tr.sit3 td{background:#FFB3B3}
+tbody tr.sit3 td.stick{background:#FF8F8F}
+tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brightness(.96)}
+.chkcompleto{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--verde);color:#fff;font-size:9px;font-weight:900;margin-left:7px;vertical-align:middle}
+
+/* legenda / filtro das cores — item 5: viraram chips clicáveis (checkbox) que filtram a tabela */
+.legenda{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px;font-size:11.5px}
+.legenda .sw{display:inline-flex;align-items:center;gap:6px;cursor:pointer;background:var(--sup);border:1.5px solid var(--border);border-radius:20px;padding:5px 12px 5px 8px;color:var(--text3);font-weight:600;transition:all .12s;user-select:none}
+.legenda .sw:hover{border-color:var(--text3)}
+.legenda .sw.on{border-color:var(--azul);color:var(--azul);background:#e7f0f3}
+.legenda .sw input{margin:0;accent-color:var(--azul)}
+.legenda .dot{width:13px;height:13px;border-radius:4px;display:inline-block;border:1px solid rgba(20,50,65,.18)}
+.legenda .dot.sit1{background:#FFF3AD;border-color:#E8CE5A}
+.legenda .dot.sit2{background:#FFD8A0;border-color:#EDA344}
+.legenda .dot.sit3{background:#FFB3B3;border-color:#E05252}
+.legenda .dot.sit0{background:var(--sup);border-color:var(--border)}
+
+/* painel obra */
+.overlay{position:fixed;inset:0;background:rgba(20,40,55,.55);display:none;z-index:40}
+/* Painel da obra: metade da tela. Era largura fixa (620px), que em monitor
+   grande virava uma faixa estreita de ~25%. O clamp mantém o piso de 620px
+   (abaixo disso os campos lado a lado ficam apertados) e o teto na largura
+   da janela. Abaixo de 680px o media query lá embaixo assume e vira tela cheia. */
+.painel{position:fixed;top:0;right:0;height:100%;width:clamp(620px,50vw,100vw);background:var(--bg2);z-index:41;box-shadow:-14px 0 44px rgba(0,0,0,.3);display:none;flex-direction:column}
+.painel.on,.overlay.on{display:flex}
+.ph{background:linear-gradient(120deg,var(--azul-esc),var(--azul));color:#fff;padding:18px 22px;position:relative}
+.ph .end{font-family:'Barlow Condensed';font-weight:800;font-size:24px;text-transform:uppercase;line-height:1;letter-spacing:.5px}
+.ph .loc{color:var(--teal);font-size:12px;font-weight:700;margin-top:4px}
+.pfechar{position:absolute;top:16px;right:18px;background:rgba(255,255,255,.16);border:0;color:#fff;width:30px;height:30px;border-radius:8px;font-size:18px;cursor:pointer}
+.pbody{padding:0 0 24px;overflow:auto;flex:1}
+.resumo{background:var(--sup);margin:0;padding:16px 22px;border-bottom:1px solid var(--border2);display:grid;grid-template-columns:repeat(2,1fr);gap:12px 18px}
+.ri .k{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--text4);font-weight:700;margin-bottom:5px}
+.ri input,.ri select{width:100%}
+.chips{display:flex;flex-wrap:wrap;gap:7px;padding:14px 22px 0}
+.chip{font-size:11.5px;font-weight:600;padding:5px 10px;border-radius:20px;background:#e7f0f3;color:var(--azul)}
+.chip.alerta{background:#FFF3E0;color:#B45309;border:1px solid #FCD9A8}
+.chip.ok{background:rgba(42,157,92,.14);color:var(--verde-esc);border:1px solid rgba(42,157,92,.3)}
+.grp{font-family:'Barlow Condensed';font-size:15px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--azul);margin:20px 22px 12px;padding-bottom:7px;border-bottom:2px solid var(--verde)}
+.grp.sub{color:var(--orange);border-bottom-color:var(--orange);font-size:13.5px}
+.campo{padding:0 22px;margin-bottom:13px}
+.campo label{display:block;font-size:11px;font-weight:700;color:var(--text3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px}
+.campo input,.campo select{width:100%}
+/* checkboxes de multi_select (ex.: Análise de Reparos) — item "marcadores bugados":
+   cada opção numa célula de grid própria, com o checkbox sempre colado ao texto
+   mesmo quando o rótulo é longo e quebra linha. */
+.msgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 14px;margin-top:2px}
+.mschk{display:flex;align-items:flex-start;gap:7px;font-weight:500;font-size:12.5px;color:var(--text);cursor:pointer;line-height:1.3}
+.mschk input{flex:none;margin-top:2px;accent-color:var(--verde)}
+.mschk span{flex:1}
+.ro{padding:9px 11px;background:#eef3f5;border-radius:8px;color:var(--text3);font-size:13px}
+.arq{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;padding:6px 22px;border-bottom:1px dashed var(--border2)}
+.arq a{color:var(--azul);font-weight:600}
+.load{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--verde);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--azul-esc);color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:60;opacity:0;transition:opacity .2s;pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.toast.on{opacity:1}
+.semacesso{max-width:460px;margin:80px auto;text-align:center;color:var(--text3)}
+.vazio{padding:26px;text-align:center;color:var(--text3);font-size:13px}
+/* dado sensível: não vem no dist/ (público). Chega pelo Apps Script ao abrir a obra. */
+.sens{color:var(--text4);letter-spacing:2px;user-select:none}
+.sens.vazia{background:repeating-linear-gradient(45deg,transparent,transparent 5px,rgba(0,0,0,.03) 5px,rgba(0,0,0,.03) 10px)}
+.arq-vazio{color:var(--text4);font-size:12px;padding:2px 0}
+/* tópicos suspensos (alertas e atividades agrupados) */
+.grupo{border:1px solid var(--border2);border-radius:10px;background:var(--sup);margin-bottom:10px;overflow:hidden}
+.grupo>summary{cursor:pointer;padding:12px 14px;font-weight:700;font-size:13px;color:var(--text);display:flex;align-items:center;gap:10px;list-style:none}
+.grupo>summary::-webkit-details-marker{display:none}
+.grupo>summary::before{content:"▸";font-size:11px;color:var(--text3);transition:transform .15s}
+.grupo[open]>summary::before{transform:rotate(90deg)}
+.grupo[open]>summary{border-bottom:1px solid var(--border2)}
+.grupo .qtd{margin-left:auto;background:var(--border2);color:var(--text3);border-radius:999px;padding:2px 9px;font-size:12px;font-weight:700}
+.grupo .corpo{padding:8px 10px}
+.thsub{font-weight:500;font-size:9.5px;opacity:.75;text-transform:none;letter-spacing:0}
+tr.tot td{font-weight:800;background:var(--bg3)}
+
+/* item 7: expandir setor no Estoque de Casas para ver os endereços */
+.exp-toggle{background:none;border:0;padding:0;font:inherit;font-weight:700;color:var(--azul-esc);cursor:pointer;display:flex;align-items:center;gap:6px;text-align:left}
+.exp-toggle .seta{color:var(--verde);font-size:11px;transition:transform .1s}
+tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
+.est-detalhe{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.est-col b{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--text3);margin-bottom:6px}
+.est-col ul{margin:0;padding:0;list-style:none;max-height:220px;overflow-y:auto}
+.est-col li{font-size:12.5px;padding:4px 0;border-bottom:1px dashed var(--border2)}
+.est-extra{display:block;font-size:11px;color:var(--text4);font-weight:600;margin-top:1px}
+.est-vazio{font-size:12px;color:var(--text4)}
+@media(max-width:680px){.est-detalhe{grid-template-columns:1fr}}
+.ligs{display:flex;flex-direction:column;gap:6px}
+.lig{display:flex;align-items:center;gap:10px;padding:7px 10px;border:1px solid var(--border2);border-radius:8px;font-size:12.5px}
+.lig-c{font-weight:700;color:var(--text);min-width:92px}
+.lig-uc{color:var(--text3);font-variant-numeric:tabular-nums}
+.lig-s{margin-left:auto;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--verde-esc)}
+.lig-s.off{color:var(--orange)}
+.preench-multi{display:flex;flex-direction:column;gap:6px;width:100%}
+.preench-item{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.preench-item>label{font-size:10px;font-weight:700;color:var(--text4);text-transform:uppercase;min-width:78px}
+.preench-item .campo-inline{flex:1;min-width:120px}
+.ro-inline{flex:1;min-width:120px;padding:7px 9px;border:1px dashed var(--border2);border-radius:7px;color:var(--text3);font-size:13px}
+.cola.falta{background:#fdf1e7;color:#b26a2b}
+.cola{font-size:11px;color:var(--text3);background:var(--bg3);border-radius:6px;padding:2px 7px;white-space:nowrap}
+.lapis{border:0;background:none;cursor:pointer;color:var(--text3);font-size:13px;padding:0 3px}
+.lapis:hover{color:var(--text)}
+#distoverlay .modal{background:var(--sup);border-radius:14px;padding:20px;width:min(420px,92vw);box-shadow:0 18px 50px rgba(0,0,0,.25)}
+#distoverlay h3{margin:0 0 6px;font-size:16px;color:var(--text)}
+.dist-obra{margin:0 0 10px;font-weight:700;color:var(--text);font-size:14px}
+.dist-aviso{margin:0 0 14px;font-size:12.5px;color:var(--text3);line-height:1.5}
+.dist-lab{display:block;font-size:12px;font-weight:700;color:var(--text3);margin-bottom:5px}
+#dist-senha{width:100%;padding:9px 11px;border:1.5px solid var(--border);background:var(--sup);border-radius:8px;font-size:14px;box-sizing:border-box}
+.dist-erro{color:#c0392b;font-size:12.5px;min-height:18px;margin-top:6px}
+.dist-acoes{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
+.ajuda{font-size:12px;color:var(--text3);margin-top:6px;line-height:1.45}
+.sens-ro{padding:7px 9px;border:1px dashed var(--border2);border-radius:7px;color:var(--text3);font-size:13px}
+
+/* item 3: comentários do Notion no painel da obra */
+.coment-lista{display:flex;flex-direction:column;gap:8px;margin-bottom:10px;max-height:280px;overflow-y:auto}
+.coment-item{background:var(--sup);border:1px solid var(--border2);border-radius:10px;padding:8px 11px}
+.coment-autor{font-weight:800;font-size:12px;color:var(--azul-esc)}
+.coment-data{font-size:10.5px;color:var(--text4);margin-left:6px;font-weight:600}
+.coment-txt{font-size:13px;color:var(--text);margin-top:3px;white-space:pre-wrap;word-break:break-word}
+.coment-vazio{color:var(--text4);font-size:12.5px;padding:4px 0}
+.coment-erro{color:#c0392b;font-size:12px;padding:4px 0}
+.coment-novo{display:flex;gap:8px;align-items:flex-end}
+.coment-novo textarea{flex:1;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;resize:vertical;min-height:38px}
+.coment-novo textarea:focus{outline:none;border-color:var(--verde);box-shadow:0 0 0 3px rgba(76,217,100,.2)}
+
+/* marcadores SIM/NÃO (toggle) */
+.tgwrap{display:flex;gap:6px}
+.tg{border:1.5px solid var(--border);background:var(--sup);border-radius:20px;padding:7px 16px;font:inherit;font-weight:800;font-size:12px;cursor:pointer;color:var(--text3);transition:background .12s,border-color .12s,color .12s}
+.tg:hover{border-color:var(--text3)}
+.tg.sim.on{background:rgba(42,157,92,.14);border-color:var(--verde);color:var(--verde-esc)}
+.tg.nao.on{background:#f6dede;border-color:#C0392B;color:#9b2c2c}
+
+/* visualizador de PDF/arquivo */
+.pdfoverlay{position:fixed;inset:0;background:rgba(15,30,40,.72);display:none;align-items:center;justify-content:center;z-index:70;padding:26px}
+.pdfoverlay.on{display:flex}
+.pdfmodal{background:var(--sup);border-radius:14px;width:min(920px,100%);height:min(88vh,920px);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.pdfhead{background:linear-gradient(120deg,var(--azul-esc),var(--azul));color:#fff;padding:12px 18px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.pdfhead b{font-weight:700;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pdffoot{padding:10px 18px;border-top:1px solid var(--border2);text-align:right}
+
+/* ===== Painel Casas Vendidas (era casas-vendidas.html) — escopado em #st-vendidas ===== */
+#st-vendidas *, #st-vendidas *::before, #st-vendidas *::after{box-sizing:border-box;margin:0;padding:0}
+#st-vendidas{
+  --azul:#295778;--azul-esc:#1e3f58;--teal:#8FDCD2;
+  --verde:#2a9d5c;--verde-btn:#4cd964;
+  --bg:#EAF1F3;--bg2:#F5F9FA;--bg3:#dceaef;
+  --border:#b8d0da;--border2:#d0e4ec;
+  --text:#1a3347;--text3:#5a8099;--text4:#8aacbb;--branco:#fff;
+}
+#st-vendidas{background:var(--bg);font-family:'Barlow',sans-serif;min-height:100vh;
+     display:flex;flex-direction:column;overflow-x:hidden}
+#st-vendidas .header{background:var(--azul);border-bottom:3px solid var(--teal);padding:0 28px;
+        height:68px;display:flex;align-items:center;gap:14px;
+        position:sticky;top:0;z-index:200;flex-shrink:0}
+#st-vendidas .hdr-back{background:rgba(143,220,210,.18);border:1px solid rgba(143,220,210,.4);
+          border-radius:7px;padding:7px 16px;font-family:'Barlow Condensed',sans-serif;
+          font-size:14px;font-weight:700;color:var(--teal);letter-spacing:.06em;
+          text-transform:uppercase;cursor:pointer;transition:background .15s;flex-shrink:0}
+#st-vendidas .hdr-back:hover{background:rgba(143,220,210,.32)}
+#st-vendidas .hdr-logo{height:38px;flex-shrink:0;object-fit:contain}
+#st-vendidas .hdr-info{display:flex;flex-direction:column;flex:1}
+#st-vendidas .hdr-sup{font-size:11px;font-weight:700;color:var(--teal);letter-spacing:.12em;
+         text-transform:uppercase;opacity:.85}
+#st-vendidas .hdr-title{font-family:'Barlow Condensed',sans-serif;font-size:26px;font-weight:800;
+           color:#fff;letter-spacing:.02em}
+#st-vendidas .hdr-right{display:flex;align-items:center;gap:12px;flex-shrink:0}
+#st-vendidas .updated{font-size:11px;color:rgba(255,255,255,.4);font-family:monospace;white-space:nowrap}
+#st-vendidas .hdr-fechar{background:rgba(143,220,210,.18);border:1px solid rgba(143,220,210,.4);
+            border-radius:7px;padding:7px 16px;font-family:'Barlow Condensed',sans-serif;
+            font-size:14px;font-weight:700;color:var(--teal);letter-spacing:.06em;
+            cursor:pointer;transition:background .15s;flex-shrink:0}
+#st-vendidas .hdr-fechar:hover{background:rgba(143,220,210,.32)}
+#st-vendidas #loading{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;
+         justify-content:center;z-index:500;flex-direction:column;gap:12px}
+#st-vendidas #loading.hidden{display:none}
+#st-vendidas .spin{width:36px;height:36px;border:3px solid var(--border);
+      border-top-color:var(--teal);border-radius:50%;animation:spin .7s linear infinite}
+to{transform:rotate(360deg)}
+#st-vendidas .main-wrap{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+#st-vendidas .page{display:none;flex:1;min-height:0;overflow-y:auto;flex-direction:column}
+#st-vendidas .page.active{display:flex}
+#st-vendidas /* Modo standalone — scroll normal quando aberto direto */
+body.standalone{overflow-y:auto}
+#st-vendidas body.standalone .main-wrap{overflow:visible;height:auto}
+#st-vendidas body.standalone .page{overflow:visible;height:auto}
+#st-vendidas body.standalone .page.active{display:flex}
+#st-vendidas body.standalone #page-dash{flex-direction:row}
+#st-vendidas body.standalone .dash-main{overflow-y:visible}
+#st-vendidas body.standalone .metas-body{overflow-y:visible}
+#st-vendidas body.standalone .pg-body{overflow-y:visible}
+#st-vendidas /* DASHBOARD */
+#page-dash{flex-direction:row}
+#st-vendidas .dash-nav{width:220px;flex-shrink:0;background:var(--azul-esc);
+          border-right:2px solid rgba(143,220,210,.2);
+          display:flex;flex-direction:column;padding:24px 14px;gap:8px}
+#st-vendidas .nav-btn{display:block;width:100%;padding:14px 16px;
+         font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;
+         color:rgba(255,255,255,.55);letter-spacing:.09em;text-transform:uppercase;
+         text-align:left;cursor:pointer;border:2px solid transparent;
+         border-radius:8px;background:rgba(255,255,255,.04);transition:all .18s;line-height:1.2}
+#st-vendidas .nav-btn:hover{color:#fff;background:rgba(143,220,210,.14);border-color:rgba(143,220,210,.3)}
+#st-vendidas .nav-btn:disabled{opacity:.3;cursor:not-allowed}
+#st-vendidas .nav-btn.active-nav{color:var(--teal);border-color:rgba(143,220,210,.5);background:rgba(143,220,210,.1)}
+#st-vendidas .dash-main{flex:1;padding:24px 28px 40px;overflow-y:auto}
+#st-vendidas .sel-bar{display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+#st-vendidas .sel-lbl{font-size:13px;font-weight:700;color:var(--text3);
+         text-transform:uppercase;letter-spacing:.07em}
+#st-vendidas select{background:var(--branco);border:1px solid var(--border);border-radius:7px;
+       padding:7px 14px;font-family:'Barlow',sans-serif;font-size:13px;
+       color:var(--text);cursor:pointer;outline:none}
+#st-vendidas select:focus{border-color:var(--teal)}
+#st-vendidas .blk-title{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:800;
+           color:var(--azul);text-transform:uppercase;letter-spacing:.08em;
+           padding:9px 18px;background:var(--bg3);
+           border:2px solid rgba(76,217,100,.45);border-left:5px solid var(--verde-btn);
+           border-radius:7px;margin-bottom:16px;margin-top:10px}
+#st-vendidas .kpi-row{display:grid;gap:12px;margin-bottom:14px}
+#st-vendidas .r4{grid-template-columns:repeat(4,1fr)}
+#st-vendidas .r3{grid-template-columns:repeat(3,1fr)}
+#st-vendidas .r2{grid-template-columns:repeat(2,1fr)}
+#st-vendidas .kpi-card{background:var(--branco);border:1.5px solid var(--border);border-radius:10px;
+          padding:16px 18px;box-shadow:0 2px 8px rgba(41,87,120,.07);transition:border-color .15s}
+#st-vendidas .kpi-card:hover{border-color:rgba(76,217,100,.5)}
+#st-vendidas .kpi-lbl{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;
+         letter-spacing:.08em;margin-bottom:7px}
+#st-vendidas .kpi-val{font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:800;
+         color:var(--azul);line-height:1}
+#st-vendidas .kpi-val.g{color:var(--verde)}
+#st-vendidas .kpi-val.r{color:#c0392b}
+#st-vendidas .kpi-sub2{font-size:11px;color:var(--text4);margin-top:4px}
+#st-vendidas /* KPI EXPANDIDO — múltiplas estatísticas (12m/anual/média/mês) */
+.kpi-ext-row{display:grid;gap:12px;margin-bottom:14px}
+#st-vendidas .kpi-ext-row.r1{grid-template-columns:1fr}
+#st-vendidas .kpi-ext-row.r2{grid-template-columns:repeat(2,1fr)}
+#st-vendidas .kpi-ext-row.r3{grid-template-columns:repeat(3,1fr)}
+#st-vendidas .kpi-ext-row.r4{grid-template-columns:repeat(4,1fr)}
+#st-vendidas .kpi-ext-card{background:var(--branco);border:1.5px solid var(--border);border-radius:10px;
+              padding:16px 18px;box-shadow:0 2px 8px rgba(41,87,120,.07);
+              display:flex;flex-direction:column;gap:10px;min-width:0}
+#st-vendidas .kpi-ext-title{font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;
+               color:var(--azul);text-transform:uppercase;letter-spacing:.07em;
+               padding-bottom:8px;border-bottom:1.5px solid var(--border2)}
+#st-vendidas .kpi-ext-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#st-vendidas .kpi-ext-grid.cols4{grid-template-columns:repeat(4,1fr)}
+#st-vendidas .kpi-ext-grid.cols5{grid-template-columns:repeat(5,1fr)}
+#st-vendidas .kpi-ext-item{display:flex;flex-direction:column;gap:2px;min-width:0}
+#st-vendidas .kpi-ext-lbl{font-size:10px;font-weight:700;color:var(--text3);
+             text-transform:uppercase;letter-spacing:.07em}
+#st-vendidas .kpi-ext-val{font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;
+             color:var(--azul);line-height:1;word-break:break-word}
+#st-vendidas .kpi-ext-val.g{color:var(--verde)}
+#st-vendidas .kpi-ext-val.r{color:#c0392b}
+#st-vendidas .kpi-ext-extra{font-size:10.5px;color:var(--text3);line-height:1.25;margin-top:2px}
+#st-vendidas .kpi-ext-extra strong{color:var(--text)}
+#st-vendidas .kpi-ext-alert{background:rgba(192,57,43,.08);border-left:3px solid #c0392b;
+               border-radius:4px;padding:6px 9px;font-size:11px;color:#8a1f15;
+               margin-top:4px;line-height:1.3}
+#st-vendidas /* Alerta de divergência ERP × Notion */
+.diverg-box{background:#fff8e1;border:1px solid #e0c068;border-left:5px solid #d4a017;
+            border-radius:8px;padding:10px 14px;font-size:12.5px;color:#5a4810;display:flex;
+            flex-direction:column;gap:6px}
+#st-vendidas .diverg-box .diverg-title{font-family:'Barlow Condensed',sans-serif;font-weight:800;
+            font-size:14px;color:#8a6d10;text-transform:uppercase;letter-spacing:.06em;
+            display:flex;align-items:center;gap:6px;cursor:pointer}
+#st-vendidas .diverg-box .diverg-title .chev{transition:transform .15s}
+#st-vendidas .diverg-box .diverg-title.open .chev{transform:rotate(90deg)}
+#st-vendidas .diverg-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+#st-vendidas .diverg-col h5{font-size:11.5px;color:#5a4810;text-transform:uppercase;
+               letter-spacing:.06em;margin-bottom:4px;font-weight:800}
+#st-vendidas .diverg-list{max-height:160px;overflow-y:auto;font-family:'DM Mono',monospace;
+             font-size:11px;line-height:1.5;color:#3a2e08;background:#fffdf2;
+             border:1px solid #e8d49a;border-radius:5px;padding:6px 9px}
+#st-vendidas .diverg-list span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#st-vendidas /* METAS */
+#page-metas{flex-direction:column;overflow:hidden}
+#st-vendidas .metas-hdr{background:var(--azul-esc);border-bottom:2px solid rgba(143,220,210,.2);
+           padding:14px 28px;display:flex;align-items:center;gap:14px}
+#st-vendidas .metas-hdr-title{font-family:'Barlow Condensed',sans-serif;font-size:22px;
+                 font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.06em;flex:1}
+#st-vendidas .btn-volta-dash{background:rgba(143,220,210,.18);border:1px solid rgba(143,220,210,.4);
+                border-radius:7px;padding:6px 14px;font-family:'Barlow Condensed',sans-serif;
+                font-size:13px;font-weight:700;color:var(--teal);letter-spacing:.06em;
+                text-transform:uppercase;cursor:pointer;transition:background .15s}
+#st-vendidas .btn-volta-dash:hover{background:rgba(143,220,210,.32)}
+#st-vendidas .sub-tabs-outer{background:var(--bg2);border-bottom:2px solid var(--border);
+                padding:18px 28px;display:flex;justify-content:center}
+#st-vendidas .sub-tabs-box{display:flex;gap:6px;padding:6px;
+              border:2.5px solid var(--verde-btn);border-radius:12px;
+              background:rgba(76,217,100,.06)}
+#st-vendidas .sub-tab{padding:12px 36px;font-family:'Barlow Condensed',sans-serif;font-size:16px;
+         font-weight:800;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;
+         cursor:pointer;border-radius:8px;border:2px solid transparent;
+         background:none;transition:all .2s}
+#st-vendidas .sub-tab:hover{color:var(--azul-esc);background:rgba(76,217,100,.15);border-color:rgba(76,217,100,.4)}
+#st-vendidas .sub-tab.active{background:var(--verde-btn);color:#1a3347;border-color:var(--verde-btn);
+                box-shadow:0 3px 10px rgba(76,217,100,.35)}
+#st-vendidas .metas-body{padding-top:0;flex:1;padding:24px 28px 40px;overflow-y:auto}
+#st-vendidas .sub-pg{display:none}
+#st-vendidas .sub-pg.active{display:block}
+#st-vendidas .controles{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+#st-vendidas .graf-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:22px}
+#st-vendidas .graf-card{background:var(--branco);border:1.5px solid var(--border);border-radius:10px;
+           overflow:hidden;box-shadow:0 2px 8px rgba(41,87,120,.06)}
+#st-vendidas .graf-hdr{padding:11px 16px 9px;border-bottom:1px solid var(--border2)}
+#st-vendidas .graf-hdr-title{font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;
+                color:var(--azul);text-transform:uppercase;letter-spacing:.06em}
+#st-vendidas .graf-hdr-sub{font-size:11px;color:var(--text3);margin-top:2px}
+#st-vendidas .graf-body{padding:14px 16px}
+#st-vendidas .legenda{display:flex;gap:14px;margin-bottom:10px;flex-wrap:wrap;align-items:center}
+#st-vendidas .leg{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text3)}
+#st-vendidas .leg-cor{width:12px;height:12px;border-radius:2px;flex-shrink:0}
+#st-vendidas .leg-metas{display:flex;gap:14px;margin-left:8px;flex-wrap:wrap}
+#st-vendidas .leg-meta{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;
+          padding:3px 10px;border-radius:12px;background:rgba(41,87,120,.05);
+          border:1px dashed currentColor;letter-spacing:.02em}
+#st-vendidas .leg-meta-line{width:14px;height:2px;border-top:2px dashed currentColor;flex-shrink:0}
+#st-vendidas .chart-wrap{position:relative;width:100%;overflow-x:auto}
+#st-vendidas .chart-wrap canvas{max-width:100%;box-sizing:border-box}
+#st-vendidas canvas{display:block}
+#st-vendidas .tbl-outer{display:flex;justify-content:center;margin-bottom:22px}
+#st-vendidas .tbl-wrap{border-radius:8px;border:1.5px solid var(--border);overflow:hidden;
+          width:100%;max-width:860px}
+#st-vendidas table{width:100%;border-collapse:collapse;font-size:12.5px}
+#st-vendidas thead th{background:var(--azul);color:#fff;padding:10px 14px;text-align:center;
+         font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;
+         text-transform:uppercase;letter-spacing:.07em;white-space:nowrap;
+         border-right:1px solid rgba(255,255,255,.15)}
+#st-vendidas thead th:last-child{border-right:none}
+#st-vendidas thead th.left{text-align:left}
+#st-vendidas tbody tr:nth-child(even){background:var(--bg2)}
+#st-vendidas tbody tr:hover{background:var(--bg3)}
+#st-vendidas tbody td{padding:7px 14px;color:var(--text);border-bottom:1px solid var(--border2);
+         border-right:1px solid var(--border2);white-space:nowrap;text-align:center}
+#st-vendidas tbody td:first-child{text-align:left}
+#st-vendidas tbody td:last-child{border-right:none}
+#st-vendidas tfoot td{background:var(--azul-esc);color:#fff;padding:8px 14px;text-align:center;
+         font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;
+         border-right:1px solid rgba(255,255,255,.12)}
+#st-vendidas tfoot td:first-child{text-align:left}
+#st-vendidas tfoot td:last-child{border-right:none}
+#st-vendidas .nr{text-align:right!important;font-family:'DM Mono',monospace}
+#st-vendidas .det-bloco{margin-bottom:0}
+#st-vendidas .det-mes-hdr{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:800;
+             color:#fff;background:var(--azul);padding:9px 16px;
+             border-radius:8px 8px 0 0;text-align:center;letter-spacing:.04em;
+             border-bottom:3px solid var(--verde-btn)}
+#st-vendidas .det-mes-body{border:1.5px solid var(--border);border-top:none;
+              border-radius:0 0 8px 8px;overflow:hidden}
+#st-vendidas .det-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+#st-vendidas .aviso{background:rgba(201,162,39,.1);border:1px solid rgba(201,162,39,.4);
+       border-radius:7px;padding:10px 16px;font-size:12px;color:#7a5e0a;margin-bottom:16px}
+#st-vendidas .det-footer{background:rgba(76,217,100,.12);border-top:2px solid rgba(76,217,100,.4)}
+#st-vendidas .det-footer td{color:var(--verde)!important;font-weight:700!important;
+               font-family:'Barlow Condensed',sans-serif!important;font-size:13px!important;
+               background:rgba(76,217,100,.1)!important;border-top:none!important}
+#st-vendidas .rank-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:24px}
+#st-vendidas .rank-card{background:var(--branco);border:1.5px solid var(--border);border-radius:10px;overflow:hidden}
+#st-vendidas .rank-hdr{background:var(--azul);padding:11px 16px}
+#st-vendidas .rank-hdr-title{font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;
+                color:#fff;text-transform:uppercase;letter-spacing:.06em}
+#st-vendidas .rank-row{display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid var(--border2)}
+#st-vendidas .rank-row:last-child{border-bottom:none}
+#st-vendidas .rank-pos{font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:var(--text4);width:24px;flex-shrink:0}
+#st-vendidas .rank-pos.top3{color:#c9a227}
+#st-vendidas .rank-nome{flex:1;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#st-vendidas .alert-badge{position:relative;display:inline-flex;align-items:center;
+              justify-content:center;width:22px;height:22px;border-radius:50%;
+              background:#c0392b;color:#fff;font-size:11px;font-weight:800;
+              cursor:pointer;flex-shrink:0;transition:transform .15s;user-select:none;
+              margin-left:6px;vertical-align:middle}
+#st-vendidas .alert-badge:hover{transform:scale(1.15)}
+#st-vendidas .alert-modal{position:fixed;inset:0;z-index:600;display:flex;align-items:center;
+             justify-content:center;background:rgba(0,0,0,.45)}
+#st-vendidas .alert-modal-box{background:var(--branco);border-radius:12px;padding:24px;
+                 max-width:520px;width:90%;max-height:70vh;overflow-y:auto;
+                 box-shadow:0 12px 48px rgba(0,0,0,.22)}
+#st-vendidas .alert-modal-title{font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;
+                   color:#c0392b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px}
+#st-vendidas .alert-item{padding:7px 0;border-bottom:1px solid var(--border2);font-size:12px;
+            color:var(--text);display:flex;align-items:center;gap:8px}
+#st-vendidas .alert-item:last-child{border-bottom:none}
+#st-vendidas .alert-item::before{content:'⚠';font-size:14px;flex-shrink:0}
+#st-vendidas .alert-modal-close{margin-top:16px;padding:8px 20px;background:var(--azul);color:#fff;
+                   border:none;border-radius:7px;font-family:'Barlow Condensed',sans-serif;
+                   font-size:14px;font-weight:700;cursor:pointer;letter-spacing:.06em}
+#st-vendidas .rank-qt{font-family:'DM Mono',monospace;font-size:12px;color:var(--azul);font-weight:700}
+#st-vendidas /* PRAZOS + SETORIZADAS — páginas de coluna única */
+#page-prazos, #st-vendidas #page-setor{flex-direction:column;overflow:hidden}
+#st-vendidas .pg-hdr{background:var(--azul-esc);border-bottom:2px solid rgba(143,220,210,.2);
+        padding:14px 28px;display:flex;align-items:center;gap:14px;
+        position:sticky;top:0;z-index:10;flex-shrink:0}
+#st-vendidas .pg-hdr-title{font-family:'Barlow Condensed',sans-serif;font-size:22px;
+              font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.06em;flex:1}
+#st-vendidas .pg-body{flex:1;padding:24px 28px 40px}
+#st-vendidas /* Comparativo de barras horizontal */
+.comp-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:22px}
+#st-vendidas .comp-card{background:var(--branco);border:1.5px solid var(--border);border-radius:10px;overflow:hidden}
+#st-vendidas .comp-hdr{background:var(--azul);padding:10px 16px}
+#st-vendidas .comp-hdr-title{font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;
+                color:#fff;text-transform:uppercase;letter-spacing:.06em}
+#st-vendidas .comp-body{padding:14px 16px}
+#st-vendidas .comp-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+#st-vendidas .comp-lbl{font-size:12px;color:var(--text);min-width:80px;font-weight:600}
+#st-vendidas .comp-bar-wrap{flex:1;background:var(--bg3);border-radius:4px;height:20px;overflow:hidden}
+#st-vendidas .comp-bar{height:100%;border-radius:4px;transition:width .4s}
+#st-vendidas .comp-val{font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);min-width:40px;text-align:right}
+#st-vendidas /* TIR/ROI cards */
+.roi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+#st-vendidas .roi-card{background:var(--branco);border:1.5px solid var(--border);border-radius:10px;padding:14px 16px}
+#st-vendidas .roi-lbl{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px}
+#st-vendidas .roi-val{font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:800;color:var(--azul)}
+#st-vendidas .roi-sub{font-size:10px;color:var(--text4);margin-top:3px}
+#st-vendidas .roi-val.g{color:var(--verde)}
+#st-vendidas /* MTIR config box */
+.mtir-box{background:var(--bg2);border:1.5px solid var(--border2);border-radius:10px;
+          padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+#st-vendidas .mtir-box-title{font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;
+                letter-spacing:.07em;flex-shrink:0}
+#st-vendidas .mtir-field{display:flex;align-items:center;gap:8px}
+#st-vendidas .mtir-field label{font-size:12px;color:var(--text3)}
+#st-vendidas .mtir-field input{width:80px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;
+                  font-size:13px;font-family:'DM Mono',monospace;color:var(--text)}
+#st-vendidas .mtir-field input:focus{border-color:var(--teal);outline:none}
+#st-vendidas .mtir-badge{font-size:10px;background:rgba(76,217,100,.15);color:var(--verde);
+            border-radius:4px;padding:2px 7px;font-weight:700;letter-spacing:.05em}
+#st-vendidas /* Tabela exposição */
+.exp-table-wrap{border-radius:8px;border:1.5px solid var(--border);overflow:hidden;margin-bottom:20px}
+#st-vendidas /* Gráfico exposição de caixa */
+.graf-card-full{background:var(--branco);border:1.5px solid var(--border);border-radius:10px;
+                overflow:hidden;box-shadow:0 2px 8px rgba(41,87,120,.06);margin-bottom:20px}
+#st-vendidas /* Linha de média no gráfico */
+.media-line{stroke-dasharray:6 4}
+#st-vendidas .obra-search-wrap{position:relative;display:flex;flex-direction:column;gap:4px}
+#st-vendidas .obra-tag{display:flex;align-items:center;gap:5px;background:var(--azul);color:#fff;
+          border-radius:5px;padding:3px 8px;font-size:11px;font-weight:600}
+#st-vendidas .obra-tag-x{cursor:pointer;opacity:.7;font-size:13px;line-height:1}
+#st-vendidas .obra-tag-x:hover{opacity:1}
+#st-vendidas .obra-check-item{display:flex;align-items:center;gap:8px;padding:7px 14px;cursor:pointer;
+                 font-size:12px;color:var(--text);transition:background .12s}
+#st-vendidas .obra-check-item:hover{background:var(--bg3)}
+#st-vendidas .obra-check-item input[type=checkbox]{accent-color:var(--azul);width:14px;height:14px;cursor:pointer}
+#st-vendidas #page-dash{flex-direction:column}
+#st-vendidas .dash-nav{width:100%;flex-direction:row;flex-wrap:wrap;padding:10px;gap:6px}
+#st-vendidas .nav-btn{width:auto;padding:8px 12px;font-size:13px}
+#st-vendidas .graf-row, #st-vendidas .comp-grid, #st-vendidas .roi-grid{grid-template-columns:1fr}
+#st-vendidas .kpi-row.r4{grid-template-columns:1fr 1fr}
+#st-vendidas .rank-grid, #st-vendidas .det-grid{grid-template-columns:1fr}
+#st-vendidas .sub-tab{padding:10px 20px;font-size:14px}
+#st-vendidas /* ajustes desta página (versão standalone da aba CASAS VENDIDAS) */
+body{display:flex;flex-direction:column;min-height:100vh}
+#st-vendidas .metas-body{flex:1}
+#st-vendidas .rank-grid{grid-template-columns:1fr}
+
+/* ==================== CELULAR ====================
+   Regras concentradas aqui, no fim, pra sobrepor o que vem antes sem precisar
+   mexer no layout de desktop — que está bom e não deve mudar. */
+@media(max-width:680px){
+  /* toque: nada de alvo menor que ~40px, e fonte 16px nos inputs (abaixo
+     disso o iOS dá zoom sozinho ao focar o campo) */
+  input,select,textarea{font-size:16px}
+  .bt,.bt-mini,button{min-height:40px}
+  .bt-mini{min-height:34px}
+
+  /* cabeçalho */
+  .topo,.hdr{flex-wrap:wrap;gap:8px;padding:10px 12px}
+  .crumb{font-size:12px}
+
+  /* abas: rolagem horizontal em vez de quebrar linha e virar um bloco alto */
+  .tabs-outer{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .tabs{flex-wrap:nowrap;width:max-content;min-width:100%}
+  .tab{white-space:nowrap;padding:10px 14px;font-size:12.5px}
+
+  /* barra de filtros: cada controle ocupa a linha inteira */
+  .toolbar{flex-direction:column;align-items:stretch;gap:8px}
+  .toolbar select,.toolbar input,.busca{width:100%}
+  .count{text-align:right;font-size:12px}
+
+  /* planilha: rolagem lateral com a 1ª coluna fixa, que já existe no desktop */
+  .tabela-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{font-size:12px}
+  th,td{padding:8px 9px;white-space:nowrap}
+  td.stick,th.stick{position:sticky;left:0;z-index:2}
+
+  /* alertas e atividades: as 3 colunas viram blocos empilhados */
+  .al.al3{grid-template-columns:1fr;gap:6px;padding:10px 12px}
+  .al.al3.al-cab{display:none}
+  .al .txt{font-size:12px}
+  .preench-item{flex-direction:column;align-items:stretch}
+  .preench-item>label{min-width:0}
+  .atv{flex-direction:column;align-items:stretch;gap:8px}
+  .atv .bt{width:100%}
+
+  /* painel da obra: tela cheia, é o único jeito de caber */
+  .painel{width:100vw;max-width:100vw;right:0;border-radius:0}
+  .pn-body,.corpo{padding:12px}
+  .campo input,.campo select,.campo textarea{width:100%}
+  .grupo>summary{padding:12px}
+
+  /* cards de setor e KPIs em uma coluna */
+  .setores,.kpis,.rank-grid{grid-template-columns:1fr}
+
+  /* painel de vendas embutido */
+  #st-vendidas .controles{flex-direction:column;align-items:stretch;gap:8px}
+  #st-vendidas .controles select{width:100%}
+  #st-vendidas .kpi-grid{grid-template-columns:1fr 1fr}
+  #st-vendidas .chart-box{height:260px}
+  #st-vendidas canvas{max-width:100%}
+
+  /* modal do distrato e visualizador de arquivo */
+  #distoverlay .modal{width:94vw;padding:16px}
+  .pdfoverlay{padding:0}
+  .pdfoverlay .visor,.pdfoverlay iframe,.pdfoverlay img{width:100vw;height:100vh;border-radius:0}
+}
+@media(max-width:420px){
+  #st-vendidas .kpi-grid{grid-template-columns:1fr}
+  .tab{padding:9px 11px;font-size:12px}
+}
+
+/* ===================== MODO ESCURO =====================
+   Mesma paleta e a MESMA chave (morais_tema) do index.html e do ligacoes.html.
+   Só troca COR: nenhuma medida nem regra de layout muda aqui, então tudo o
+   que foi ajustado para o celular continua valendo igual nos dois temas.
+   As superfícies já viraram variáveis (--sup, --sup2, --branco); o que sobra
+   neste bloco são as cores que estavam escritas à mão em regras específicas
+   (zebra da tabela, etiquetas, avisos) e os textos azul-escuros, que no fundo
+   escuro ficariam da cor do próprio fundo e sumiriam da tela. */
+html[data-tema="escuro"]{
+  color-scheme:dark;
+  --azul:#2f6e93;--azul-esc:#122430;--teal:#79c8bf;--verde:#2f9e63;--verde-btn:#3cbf5d;--verde-esc:#17603a;
+  --bg:#0e1920;--bg2:#15222c;--bg3:#1a2c38;--border:#2d4757;--border2:#243a4a;
+  --text:#e7eff5;--text3:#9db4c4;--text4:#7794a6;--branco:#15222c;--orange:#d9843c;
+  --sup:#15222c;--sup2:#1a2934;--sombra:rgba(0,0,0,.6);
+}
+html[data-tema="escuro"] body{background:var(--bg)}
+/* zebra e realce de linha da planilha */
+html[data-tema="escuro"] table tbody tr:nth-child(even) td{background:#121e27}
+html[data-tema="escuro"] tbody tr:hover td{background:#1b2f3c}
+html[data-tema="escuro"] td.edt:hover{background:#1c3d2c !important}
+html[data-tema="escuro"] thead th{background:var(--azul-esc);color:var(--teal)}
+/* etiquetas SIM/NÃO e chips */
+html[data-tema="escuro"] .tag.sim,html[data-tema="escuro"] .chip.ok{background:#16341f;color:#8ce0a5}
+html[data-tema="escuro"] .tag.nao{background:#3a1e1e;color:#f3a29a}
+html[data-tema="escuro"] .chip{background:var(--bg3);color:var(--text3)}
+html[data-tema="escuro"] .chip.alerta{background:#3a2d12;color:#f0c95f}
+html[data-tema="escuro"] .aviso{background:#2a2113;border-color:#57431f;color:#f0c95f}
+html[data-tema="escuro"] .atv.atrasada{background:#3a1e1e}
+html[data-tema="escuro"] .painel{box-shadow:-6px 0 26px rgba(0,0,0,.55)}
+/* Títulos e números que no claro são azul-escuro: no escuro esse azul fica
+   quase igual ao fundo e o texto some. Passam todos para o tom claro do tema.
+   (Mesma correção que já tinha sido feita no ligacoes.html.) */
+html[data-tema="escuro"] .sec .cond,
+html[data-tema="escuro"] .kpi .val,
+html[data-tema="escuro"] .modal-tit,
+html[data-tema="escuro"] .grp,
+html[data-tema="escuro"] .pn-tit,
+html[data-tema="escuro"] .atv-titulo{color:var(--teal)}
+html[data-tema="escuro"] .kpi.hero .val{color:#fff}
+html[data-tema="escuro"] .obralink,
+html[data-tema="escuro"] .bt.ghost,
+html[data-tema="escuro"] .anexo{color:#8fd3ee}
+html[data-tema="escuro"] .btn-voltar:hover{background:#1c3b4d}
+/* campos de formulário: sem isto o input fica branco no painel escuro */
+html[data-tema="escuro"] input,html[data-tema="escuro"] select,html[data-tema="escuro"] textarea{
+  background:var(--sup2);color:var(--text);border-color:var(--border)}
+/* o logo é uma imagem clara: fica na plaquinha branca nos dois temas */
+html[data-tema="escuro"] .logo{background:#fff}
+
+/* botão de tema no cabeçalho (mesmo visual das outras páginas) */
+.btema{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;
+  padding:6px 10px;font:inherit;font-size:15px;line-height:1;cursor:pointer}
+.btema:hover{background:rgba(255,255,255,.22)}
+
+/* ===================== TARJA DO MODO SOMENTE LEITURA =====================
+   Perfil TESTES: os campos continuam abrindo (é justamente o que se quer
+   conferir), então precisa ficar MUITO claro na tela que nada é gravado —
+   senão a pessoa testa, vê "erro" e acha que o sistema quebrou. */
+.tarja-teste{display:none;align-items:center;gap:9px;background:#FFF7ED;border:1px solid #FED7AA;
+  color:#9A3412;border-radius:10px;padding:9px 13px;font-size:12.5px;font-weight:600;margin-bottom:14px}
+.tarja-teste.on{display:flex}
+.tarja-teste b{font-weight:800;letter-spacing:.03em}
+html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;color:#f0c95f}
+.updated{color:var(--text4);font-size:11px;margin-top:14px;text-align:right}
+/* Hora da última publicação, no cabeçalho de todas as páginas. No rodapé ela
+   existia mas ficava depois de uma tela inteira de conteúdo — na prática
+   ninguém via. Aqui fica sempre à vista. No celular some (o cabeçalho já é
+   apertado) e a cópia do rodapé cobre. */
+.hupd{font-size:10.5px;color:rgba(255,255,255,.72);white-space:nowrap;
+  text-align:right;margin:0;line-height:1.2;max-width:210px}
+@media(max-width:900px){ .hupd{display:none} }
+
+
+/* ===================== ESPECÍFICO DA GESTÃO DE DOCUMENTOS =====================
+   O bloco acima é o mesmo CSS da tela de Vendas, de propósito: as duas telas
+   têm a mesma estrutura (setores, abas, planilha larga, painel lateral) e
+   manter uma folha só evita que uma correção de layout valha em uma e não na
+   outra. O que vem daqui pra baixo é o que existe SÓ aqui: os dois
+   calendários, os cartões de indicador e as barras dos gráficos. */
+
+/* KPIs (o .kpi do vendas.html é escopado em #st-vendidas e não serve aqui) */
+.kpi-row{display:grid;gap:12px;grid-template-columns:repeat(3,1fr);margin-bottom:14px}
+@media(max-width:900px){ .kpi-row{grid-template-columns:1fr 1fr} }
+@media(max-width:560px){ .kpi-row{grid-template-columns:1fr} }
+.kpi{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:13px 15px}
+.kpi .lab{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--text3)}
+.kpi .val{font-family:'Barlow Condensed';font-weight:800;font-size:30px;line-height:1.1;color:var(--azul-esc)}
+.kpi .sub{font-size:11.5px;color:var(--text4)}
+
+/* ===================== CALENDÁRIO ===================== */
+.cal-box{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:14px}
+.cal-topo{display:flex;align-items:center;gap:9px;margin-bottom:11px;flex-wrap:wrap}
+.cal-mes{font-family:'Barlow Condensed';font-weight:800;font-size:18px;text-transform:uppercase;
+  letter-spacing:.4px;color:var(--azul-esc);min-width:190px}
+.cal-nav{border:1px solid var(--border);background:var(--sup);color:var(--azul);border-radius:8px;
+  width:34px;height:34px;font:inherit;font-size:15px;font-weight:800;cursor:pointer;line-height:1}
+.cal-nav:hover{background:var(--bg3)}
+.cal-grade{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.cal-dia-cab{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--text3);text-align:center;padding:4px 0}
+/* sem altura fixa: o dia cheio estica a linha e mostra tudo, em vez de cortar */
+.cal-dia{min-height:92px;border:1px solid var(--border2);border-radius:9px;background:var(--bg2);padding:5px 6px}
+.cal-dia.fora{opacity:.4}
+.cal-dia.hoje{border-color:var(--verde);box-shadow:0 0 0 1px var(--verde) inset}
+.cal-num{font-size:11.5px;font-weight:800;color:var(--text3);margin-bottom:3px}
+.cal-dia.hoje .cal-num{color:var(--verde-esc)}
+/* A COR do cartão identifica o RESPONSÁVEL — a mesma pessoa tem sempre a mesma
+   cor, nos dois calendários e em qualquer mês (ver corDe no script). */
+.cal-mc{display:block;width:100%;text-align:left;border:0;border-left:3px solid var(--azul);border-radius:6px;
+  padding:5px 7px;margin-bottom:4px;font:inherit;font-size:10.5px;line-height:1.3;cursor:pointer}
+.cal-mc .e{font-weight:800;font-size:11px;overflow-wrap:anywhere;display:block}
+.cal-mc .r{font-weight:700;opacity:.9;overflow-wrap:anywhere;display:block}
+.cal-mc .h{font-weight:800;display:block;opacity:.8}
+.cal-mc:hover{filter:brightness(.94)}
+.cal-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--text3);margin-top:10px}
+.cal-leg i{display:inline-block;width:11px;height:11px;border-radius:3px;vertical-align:-1px;margin-right:5px}
+@media(max-width:900px){
+  .cal-dia{min-height:62px;padding:4px}
+  .cal-mc{font-size:9.5px;padding:4px 5px}
+  .cal-mc .e{font-size:10px}
+  .cal-mes{font-size:15px;min-width:0}
+}
+
+/* barras dos indicadores — CSS puro, sem biblioteca (abre offline e não pesa) */
+.barras{display:flex;flex-direction:column;gap:6px}
+.barra-linha{display:grid;grid-template-columns:42px 1fr 1fr;gap:8px;align-items:center;font-size:11.5px}
+.barra-linha .bl{font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.4px}
+.barra-linha .bwrap{position:relative;background:var(--bg3);border-radius:6px;height:18px;display:flex;align-items:center}
+.barra-linha .b{position:absolute;left:0;top:0;bottom:0;border-radius:6px}
+.barra-linha .b1{background:#295778}
+.barra-linha .b2{background:#1a6b40}
+.barra-linha b{position:relative;font-size:10.5px;font-weight:800;color:#fff;padding-left:6px;text-shadow:0 1px 2px rgba(0,0,0,.35)}
+
+/* painel da obra */
+.pgrupo{margin-bottom:18px}
+.ptit{font-family:'Barlow Condensed';font-weight:800;font-size:15px;text-transform:uppercase;
+  letter-spacing:.5px;color:var(--azul-esc);border-bottom:1px solid var(--border2);padding-bottom:5px;margin-bottom:10px}
+.multi{display:flex;flex-wrap:wrap;gap:8px}
+.multi label{font-size:12px;display:inline-flex;align-items:center;gap:4px}
+.oculto{color:var(--text4);letter-spacing:2px}
+
+/* qual coluna a baixa da atividade vai marcar (ver renderAtividades) */
+.col-alvo{font-size:10.5px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;
+  background:var(--bg3);color:var(--azul-esc);border-radius:20px;padding:2px 9px;white-space:nowrap}
+.col-alvo.falta{background:#FEE2E2;color:#991B1B}
+
+/* projetos para aprovação */
+.proj-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:700px){ .proj-grid{grid-template-columns:1fr} }
+.proj-card{display:block;background:var(--sup);border:1px solid var(--border2);border-radius:12px;
+  padding:18px;text-decoration:none;color:inherit}
+.proj-card:hover{border-color:var(--azul);box-shadow:0 3px 12px var(--sombra)}
+.proj-card .cond{font-family:'Barlow Condensed';font-weight:800;font-size:19px;text-transform:uppercase;color:var(--azul-esc)}
+.proj-card .d{font-size:12px;color:var(--text3);margin-top:3px}
+
+/* modal do link das demandas */
+.link-linha{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border2);flex-wrap:wrap}
+.link-linha b{min-width:190px;font-size:13px}
+.link-linha .lk{flex:1;min-width:180px;font-size:11.5px;color:var(--text3)}
+.link-linha .lk input{width:100%;font-size:11px;padding:5px 7px;border:1px solid var(--border);border-radius:7px;background:var(--bg2);color:var(--text)}
+
+html[data-tema="escuro"] .cal-dia{background:var(--bg2)}
+html[data-tema="escuro"] .barra-linha .bwrap{background:#1f2f3a}
+
+</style>
+</head>
+<body>
+  <header>
+    <div class="wrap hbar">
+      <span class="logo"><img src="img/logo.png" alt="Morais" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-block'"><b style="display:none;font-family:'Barlow Condensed';font-weight:800;font-size:16px;color:var(--azul-esc);padding:0 4px">MORAIS</b></span>
+      <div><div class="htitle">Gestão de Documentos</div><div class="hsub">Morais Engenharia</div></div>
+      <div class="hspace"></div>
+      <span class="net on" id="net-status">online</span>
+      <button class="btn-sync" id="btn-sync" onclick="sincronizar()">↻ Sincronizar <span class="filabadge" id="fila-badge">0</span></button>
+      <span class="hupd updated" id="updated"></span>
+      <div class="user">
+        <div style="text-align:right"><div class="nome" id="u-nome">—</div><span class="badge" id="u-tipo">—</span></div>
+        <button class="btema" id="btema" onclick="trocarTema()" title="Alternar claro/escuro" aria-label="Alternar claro/escuro">🌙</button>
+        <button class="sair" onclick="sair()">Sair</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="tarja-teste" id="tarja-teste">
+      <span>🔍</span><span><b>MODO TESTE</b> — este login enxerga tudo, mas nenhuma alteração é gravada.</span>
+    </div>
+    <div class="aviso" id="aviso"></div>
+
+    <div id="sem-acesso" class="semacesso" style="display:none">
+      <h2>Sem acesso</h2><p>Seu login não tem o acesso <b>DOCUMENTOS</b>. Fale com um ADM.</p>
+      <a class="bt az" href="index.html">Voltar ao portal</a>
+    </div>
+
+    <!-- ===================== HUB ===================== -->
+    <section id="view-hub">
+      <div class="crumb"><a class="btn-voltar" href="index.html">← Voltar para o Dashboard</a></div>
+
+      <div class="sec"><span class="cond">Setores</span></div>
+      <div class="setores" id="setores"></div>
+
+      <div class="sec"><span class="cond">Planilha Geral de Obras</span></div>
+      <div class="toolbar">
+        <select id="hub-setor" onchange="aplicarFiltros('hub')"><option value="">Todos os setores</option></select>
+        <select id="hub-cidade" onchange="aplicarFiltros('hub')"><option value="">Todas as cidades</option></select>
+        <select id="hub-situacao" onchange="aplicarFiltros('hub')">
+          <option value="">Todas as obras</option>
+          <option value="andamento">Obras em andamento</option>
+          <option value="finalizada">Obras finalizadas</option>
+          <option value="nao">Ainda não iniciadas</option>
+        </select>
+        <select id="hub-campodata" onchange="aplicarFiltros('hub')">
+          <option value="aquisicao">Data de aquisição do lote</option>
+          <option value="inicio">Data de início da obra</option>
+          <option value="termino">Data de término de obra</option>
+          <option value="previsao">Previsão de início de obra</option>
+          <option value="habite">Data habite-se</option>
+        </select>
+        <select id="hub-periodo" onchange="aoTrocarPeriodo('hub')">
+          <option value="">Qualquer período</option><option value="30d">Últimos 30 dias</option>
+          <option value="ano">Ano (escolher)</option><option value="mes">Mês (escolher)</option>
+          <option value="intervalo">Intervalo (escolher)</option>
+        </select>
+        <select id="hub-ano" style="display:none" onchange="aplicarFiltros('hub')"></select>
+        <select id="hub-mes" style="display:none" onchange="aplicarFiltros('hub')"></select>
+        <input type="date" id="hub-de" style="display:none" title="Data inicial" onchange="aplicarFiltros('hub')">
+        <input type="date" id="hub-ate" style="display:none" title="Data final" onchange="aplicarFiltros('hub')">
+        <input class="busca" type="search" readonly onfocus="this.removeAttribute('readonly')" id="hub-busca"
+               name="q_docs_hub" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+               data-lpignore="true" data-1p-ignore data-form-type="other"
+               placeholder="Buscar por endereço, setor, cidade, mestre…" oninput="aplicarFiltros('hub')">
+        <span class="count" id="hub-count"></span>
+      </div>
+      <div class="info-bar" id="hub-info"></div>
+      <div class="scroll-top" id="hub-stop"><div></div></div>
+      <div class="tabela-wrap" id="hub-wrap"><div class="vazio"><span class="load"></span> Carregando…</div></div>
+
+      <div class="sec"><span class="cond">Calendários</span></div>
+      <div id="hub-cals"></div>
+
+      <div class="sec"><span class="cond">Indicadores</span></div>
+      <div id="hub-ind"><div class="vazio"><span class="load"></span> Carregando…</div></div>
+    </section>
+
+    <!-- ===================== SETOR ===================== -->
+    <section id="view-setor" style="display:none">
+      <div class="crumb"><button class="btn-voltar" onclick="irHub()">← Voltar para Gestão de Documentos</button> <span>/</span> <b id="setor-nome">Setor</b></div>
+      <div class="tabs-outer"><div class="tabs" id="tabs-setor"></div></div>
+
+      <div id="st-atividades" style="display:none">
+        <div class="count" id="atv-count" style="margin-bottom:12px"></div>
+        <div id="atv-lista"><div class="vazio"><span class="load"></span> Carregando…</div></div>
+      </div>
+
+      <div id="st-alertas" style="display:none">
+        <div id="al-lista"><div class="vazio">Carregando…</div></div>
+      </div>
+
+      <div id="st-planilha" style="display:none">
+        <div class="toolbar">
+          <select id="set-setor" onchange="aplicarFiltros('set')"><option value="">Todos os setores</option></select>
+          <select id="set-cidade" onchange="aplicarFiltros('set')"><option value="">Todas as cidades</option></select>
+          <select id="set-situacao" onchange="aplicarFiltros('set')">
+            <option value="">Todas as obras</option>
+            <option value="andamento">Obras em andamento</option>
+            <option value="finalizada">Obras finalizadas</option>
+            <option value="nao">Ainda não iniciadas</option>
+          </select>
+          <select id="set-campodata" onchange="aplicarFiltros('set')">
+            <option value="aquisicao">Data de aquisição do lote</option>
+            <option value="inicio">Data de início da obra</option>
+            <option value="termino">Data de término de obra</option>
+            <option value="previsao">Previsão de início de obra</option>
+            <option value="habite">Data habite-se</option>
+          </select>
+          <select id="set-periodo" onchange="aoTrocarPeriodo('set')">
+            <option value="">Qualquer período</option><option value="30d">Últimos 30 dias</option>
+            <option value="ano">Ano (escolher)</option><option value="mes">Mês (escolher)</option>
+            <option value="intervalo">Intervalo (escolher)</option>
+          </select>
+          <select id="set-ano" style="display:none" onchange="aplicarFiltros('set')"></select>
+          <select id="set-mes" style="display:none" onchange="aplicarFiltros('set')"></select>
+          <input type="date" id="set-de" style="display:none" onchange="aplicarFiltros('set')">
+          <input type="date" id="set-ate" style="display:none" onchange="aplicarFiltros('set')">
+          <input class="busca" type="search" readonly onfocus="this.removeAttribute('readonly')" id="set-busca"
+                 name="q_docs_set" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                 data-lpignore="true" data-1p-ignore data-form-type="other"
+                 placeholder="Buscar…" oninput="aplicarFiltros('set')">
+          <span class="count" id="set-count"></span>
+        </div>
+        <div class="info-bar" id="set-info"></div>
+        <div class="scroll-top" id="set-stop"><div></div></div>
+        <div class="tabela-wrap" id="set-wrap"><div class="vazio">Carregando…</div></div>
+      </div>
+
+      <div id="st-calendarios" style="display:none">
+        <div id="set-cals"></div>
+      </div>
+
+      <div id="st-indicadores" style="display:none">
+        <div id="set-ind"></div>
+      </div>
+
+      <div id="st-projetos" style="display:none">
+        <div class="sec"><span class="cond">Projetos para aprovação</span></div>
+        <div class="proj-grid">
+          <a class="proj-card" target="_blank" rel="noopener"
+             href="https://1drv.ms/f/c/1ac9fedf303b684a/IgCqOkDDQn3dRLaDRmJSLQvUAftte3QCFuWEKjEwjOVqgy0?e=8r6W3r">
+            <div class="cond">SENADOR CANEDO</div><div class="d">Pasta dos projetos em aprovação ↗</div></a>
+          <a class="proj-card" target="_blank" rel="noopener"
+             href="https://1drv.ms/f/c/1ac9fedf303b684a/IgDlq8zuyFRUSpkSKYD26FK7AQkVHkYOZe98fKiV5YHAflA?e=QoYdCF">
+            <div class="cond">GOIÂNIA</div><div class="d">Pasta dos projetos em aprovação ↗</div></a>
+        </div>
+      </div>
+    </section>
+    <div class="updated"></div>
+  </main>
+
+  <div class="overlay" id="overlay" onclick="fecharObra()"></div>
+  <aside class="painel" id="painel">
+    <div class="ph"><div class="end" id="pn-end">Obra</div><div class="loc" id="pn-loc"></div><button class="pfechar" onclick="fecharObra()">×</button></div>
+    <div class="pbody" id="pn-body"></div>
+  </aside>
+
+  <!-- LINK DAS DEMANDAS DO MÊS (só ADM) -->
+  <div class="pdfoverlay" id="linkoverlay" onclick="if(event.target===this)fecharLinks()">
+    <div class="modal" style="max-width:520px">
+      <h3>Link das demandas do mês</h3>
+      <p class="dist-aviso" style="margin-bottom:10px">Abre no celular, sem login, com as obras do mês daquela pessoa
+      (início de obra e habite-se). Gerar de novo derruba o link anterior na hora.</p>
+      <div id="link-lista"></div>
+      <div class="dist-acoes"><button type="button" class="bt ghost" onclick="fecharLinks()">Fechar</button></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script src="app.js?v=29"></script>
+<script>
+/* claro/escuro — mesma chave (morais_tema) das outras páginas do portal. */
+const TEMA_KEY="morais_tema";
+function temaAtual(){ return document.documentElement.dataset.tema==="escuro"?"escuro":"claro"; }
+function aplicarTema(t){
+  const escuro=(t==="escuro");
+  document.documentElement.dataset.tema=escuro?"escuro":"claro";
+  const b=document.getElementById("btema");
+  if(b){ b.textContent=escuro?"☀":"🌙"; b.title=escuro?"Modo claro":"Modo escuro"; }
+  const m=document.querySelector('meta[name="theme-color"]');
+  if(m) m.setAttribute("content", escuro?"#0f1c26":"#295778");
+}
+function trocarTema(){ const novo=temaAtual()==="escuro"?"claro":"escuro"; try{localStorage.setItem(TEMA_KEY,novo);}catch(e){} aplicarTema(novo); }
+document.addEventListener("DOMContentLoaded",()=>aplicarTema(temaAtual()));
+
+/* =======================================================================
+ * GESTÃO DE DOCUMENTOS (OBRA)
+ * -----------------------------------------------------------------------
+ * De onde vem o dado: dist/docs.json, publicado pelo fetch_documentos.py no
+ * mesmo build das outras telas. A tela pinta na hora com a última cópia
+ * guardada no navegador e repinta quando o arquivo chega — é o mesmo
+ * stale-while-revalidate do resto do portal (lerEstaticoJa, no app.js).
+ *
+ * O que NÃO vem do arquivo: CPF/CNPJ (dado pessoal; o dist/ é servido sem
+ * login) e o conteúdo dos anexos. Os dois chegam pela ação "docObra" do
+ * Apps Script quando alguém ABRE a obra — aí existe token para conferir.
+ *
+ * POR QUE OS ALERTAS SÃO CALCULADOS AQUI, E NÃO LIDOS DAS FÓRMULAS DO NOTION
+ * (era a sua pergunta sobre a COTA):
+ * as colunas de fórmula "ALERTA ..." continuam existindo no Notion e não
+ * atrapalham, mas esta tela recalcula tudo por conta própria. Isso resolve o
+ * caso que você levantou: cota 0% É uma cota preenchida, e a fórmula do Notion
+ * não consegue distinguir "0" de "vazio" com o format() que ela usa. Aqui a
+ * conta é feita sobre o NÚMERO, então 0% conta como preenchido e a coluna
+ * "COTA PREENCHIDA?" pode ser aposentada — a regra passa a ser
+ * "COTA DA EMPRESA (%) tem valor" + "PROPRIETÁRIO REAL preenchido"
+ * (ver REGRAS, alerta DADOS_JULIO).
+ * ===================================================================== */
+const S = exigirSessao();
+const SO_LEITURA = ehSomenteLeitura(S);
+
+/* Coluna que identifica o RESPONSÁVEL da obra nos calendários e no link das
+   demandas: ENG. EXECUÇÃO, e só (confirmado em 10/09/2026). Quem aparece ao
+   lado dele no cartão é o MESTRE, que é campo próprio.
+   Precisa bater com DOCS_COL_RESP do Code.gs. */
+const COL_RESP = "ENG. EXECUÇÃO";
+
+let CAMPOS=[], OBRAS=[], ATIVIDADES=[], OCULTAS=[], COLSIM=[];
+let UPDATED="", CARREGOU=false;
+let SETOR_ATUAL="";
+let FILTRADAS={hub:[], set:[]};
+let CAL_REF=new Date(), CAL_RESP="";
+let IND_ANO=String(new Date().getFullYear());
+
+/* ---------- setores ----------
+   "responsaveis" é o valor da coluna RESPONSÁVEL da base ATIVIDADES CONTROLE
+   DE DOCUMENTAÇÕES que identifica as atividades daquele setor (mesma ideia do
+   SETORES_AREA do vendas.html). null = sem aba de atividades. */
+const SETORES=[
+  {nome:"Departamento de Projetos", d:"Felipe e Arthur", responsaveis:["José Arthur","felipe berçan"],
+   abas:["atividades","alertas","planilha","calendarios","projetos"], colunas:"PROJETOS"},
+  {nome:"João Vítor", d:"Alertas, planilha e calendários", responsaveis:null,
+   abas:["alertas","planilha","calendarios"], colunas:"TUDO"},
+  {nome:"Júlio César", d:"Atividades, alertas e planilha", responsaveis:["Júlio César Gomes de Morais"],
+   abas:["atividades","alertas","planilha","calendarios"], colunas:"TUDO"}
+];
+const ROTULO_ABA={atividades:"Atividades", alertas:"Alertas", planilha:"Planilha",
+                  calendarios:"Calendários", indicadores:"Indicadores", projetos:"Projetos p/ aprovação"};
+
+function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("on"); setTimeout(()=>t.classList.remove("on"),2200); }
+function ehMaster(s){ return String((s&&s.tipo)||"").toUpperCase()==="MASTER"; }
+function ehAdmTela(){ return String((S&&S.tipo)||"").toUpperCase()==="ADM"; }
+function pintarUsuario(s){
+  document.getElementById("u-nome").textContent=s.nome||s.login;
+  const tb=document.getElementById("u-tipo"); tb.textContent=s.tipo;
+  tb.className="badge"+(s.tipo==="ADM"||ehMaster(s)?" adm":"");
+  if(SO_LEITURA) document.getElementById("tarja-teste").classList.add("on");
+}
+function normNome(s){ return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[ºª°]/g,"").toUpperCase().replace(/\s+/g," ").trim(); }
+function fmt(d){ if(!d)return "—"; const p=String(d).slice(0,10).split("-"); return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:d; }
+function vazio(v){ return v===undefined||v===null||v===""||(Array.isArray(v)&&!v.length); }
+function ehSim(v){ if(v===true) return true; const n=normNome(v); return n==="SIM"||n.indexOf("SIM ")===0||n==="SIM SEM PRAZO"; }
+function jsArg(v){ return String(v==null?"":v).replace(/\\/g,"\\\\").replace(/'/g,"\\'").replace(/\n/g," "); }
+
+/* ---------- localizar coluna pelo nome (tolerante) ----------
+   Primeiro nome exato normalizado; depois "contém". É assim que a tela
+   sobrevive a espaço sobrando, acento e aos typos que já existem na base
+   (o Notion tem "OBRA INCIADA" e "FOI DATA A ENTRADA NO RET?"). */
+const _cacheCampo=new Map();
+function campo(...frags){
+  const k=frags.join("|");
+  if(_cacheCampo.has(k)) return _cacheCampo.get(k);
+  let achado=null;
+  for(const f of frags){
+    const alvo=normNome(f);
+    achado=CAMPOS.find(c=>normNome(c.nome)===alvo);
+    if(achado) break;
+  }
+  if(!achado) for(const f of frags){
+    const alvo=normNome(f);
+    achado=CAMPOS.find(c=>normNome(c.nome).indexOf(alvo)>=0);
+    if(achado) break;
+  }
+  _cacheCampo.set(k,achado||null);
+  return achado||null;
+}
+function nomeCol(...frags){ const c=campo(...frags); return c?c.nome:null; }
+/* valor de uma obra por fragmento do nome da coluna */
+function val(o,...frags){ const c=campo(...frags); return c?getV(o.valores,c.nome):undefined; }
+function sensDe(o,c){ return (o&&o.sens&&c)?o.sens[c.nome]:undefined; }
+
+/* ---------- colunas que a planilha mostra ----------
+   Regra: TODAS as colunas da base, menos as calculadas (fórmula/rollup/
+   relation) e menos as auxiliares -AUTO e ALERTA — que é exatamente o
+   conjunto do print que você mandou. Fazer por exclusão, e não por lista
+   fixa, garante que coluna nova no Notion apareça sozinha na tela. */
+function ehAuxiliar(nome){
+  const n=normNome(nome);
+  return /(^|[\s-])AUTO$|-AUTO\b|\bAUTO\b/.test(n) || /ALERTA|ELERTA|INFORMACOES PENDENTES|SOLICITACAO RET|EMISSAO INCORPORACAO/.test(n);
+}
+/* Colunas do Departamento de Projetos (o segundo print): a planilha e o
+   painel da obra mostram só o que esse setor preenche. */
+const COLS_PROJETOS=[
+  "ENDEREÇO","SETOR","CIDADE","PROPRIETARIO DOCUMENTO","CPF/CNPJ","ENGENHEIRO RT",
+  "USO DO SOLO SOLICITADO","DATA DE SOLICITAÇÃO USO DO SOLO",
+  "USO DO SOLO EMITIDO","DATA DE EMISSÃO DO USO DO SOLO",
+  "PROJETO FEITO","ART FEITA E PAGA","ESCRITURA REGISTRADA","CERTIDÃO DO LOTE",
+  "TAXAS ENTRADA ALVAR","DATA DE ENTRADA DE ALVARA",
+  "PROJETO APROVADO E ALVARA","DATA DE APROVAÇÃO DO PROJETO",
+  "EMITIU ART DE ACRESC","EMITIU DOCUMENTOS","REF."
+];
+/* Ordem das primeiras colunas da planilha — a mesma do print que você mandou.
+   O que não estiver nesta lista vem depois, na ordem do Notion. ENDEREÇO é
+   obrigatoriamente a PRIMEIRA: é a coluna fixa da esquerda (a que abre a obra
+   ao clicar), então o cabeçalho tem que ser o dela. */
+const ORDEM_TABELA=[
+  "ENDEREÇO","Nº DE CASAS","IMPLANTAÇÃO","SETOR","CIDADE","DATA DE AQUISIÇÃO DO LOTE",
+  "COTA DA EMPRESA","PROPRIETARIO DOCUMENTO","PROPRIETARIO REAL","CPF/CNPJ","MESTRE",
+  "DESPACHANTE","ENG. EXECUÇÃO","ENGENHEIRO RT","PREVISÃO DE INÍCIO DE OBRA",
+  "OBRA INCIADA","DATA DE INÍCIO DA OBRA","OBRA FINALIZADA","DATA DE TÉRMINO DE OBRA","REF."
+];
+function ordenarColunas(cols){
+  const pos=c=>{
+    const n=normNome(c.nome);
+    for(let i=0;i<ORDEM_TABELA.length;i++){
+      const a=normNome(ORDEM_TABELA[i]);
+      if(n===a||n.indexOf(a)===0) return i;
+    }
+    return 999;
+  };
+  return cols.slice().sort((a,b)=>{
+    const pa=pos(a), pb=pos(b);
+    if(pa!==pb) return pa-pb;
+    return 0;                 // empate: mantém a ordem do Notion
+  });
+}
+function colunasDaTela(escopo){
+  let out;
+  if(escopo==="PROJETOS"){
+    out=[];
+    COLS_PROJETOS.forEach(f=>{ const c=campo(f); if(c && out.indexOf(c)<0) out.push(c); });
+  }else{
+    out=CAMPOS.filter(c=>["formula","rollup","relation","created_time","last_edited_time","created_by","last_edited_by","unique_id","button"].indexOf(c.tipo)<0
+                         && !ehAuxiliar(c.nome));
+  }
+  out=ordenarColunas(out);
+  /* ENDEREÇO na frente, sempre e uma vez só: a primeira célula da linha é o
+     link que abre a obra (ver renderTabela), e cabeçalho trocado ali seria um
+     erro invisível — a coluna mostraria endereço com o nome de outra coisa. */
+  const end=campo("ENDEREÇO");
+  if(end){ out=out.filter(c=>c!==end); out.unshift(end); }
+  return out;
+}
+function escopoDoSetor(nome){ const s=SETORES.find(x=>x.nome===nome); return (s&&s.colunas)||"TUDO"; }
+
+/* ===================== ALERTAS (calculados aqui) =====================
+ * Cada regra é a tradução da fórmula que você mandou. "alvos" são as colunas
+ * que a pessoa preenche NA PRÓPRIA LINHA do alerta, sem abrir a obra.
+ * Regra que não acha a coluna no Notion simplesmente não aparece — nada
+ * quebra (rode conferirDocumentos() no Apps Script para ver se algum nome
+ * não bateu).
+ * =================================================================== */
+function faltamDados(o, lista){
+  const faltas=[];
+  lista.forEach(([frag,rotulo])=>{
+    const c=campo(frag); if(!c) return;
+    let v = getV(o.valores,c.nome);
+    // coluna sensível (CPF): o dist/ não traz o valor, só "tem/não tem"
+    if(v===undefined && o.sens && o.sens[c.nome]!==undefined) v=o.sens[c.nome];
+    if(vazio(v)) faltas.push(rotulo||c.nome);
+  });
+  return faltas;
+}
+const REGRAS=[
+  /* ---- Departamento de Projetos ---- */
+  {chave:"USO_SOLO_SOL", setores:["Departamento de Projetos"],
+   titulo:"PREENCHER DATA DE SOLICITAÇÃO DO USO DO SOLO",
+   quando:o=> ehSim(val(o,"USO DO SOLO SOLICITADO")) && vazio(val(o,"DATA DE SOLICITAÇÃO USO DO SOLO","DATA DE SOLICITACAO USO DO SOLO")),
+   alvos:["DATA DE SOLICITAÇÃO USO DO SOLO"]},
+
+  {chave:"USO_SOLO_EMI", setores:["Departamento de Projetos"],
+   titulo:"PREENCHER DATA DE EMISSÃO DO USO DO SOLO",
+   quando:o=> ehSim(val(o,"USO DO SOLO EMITIDO")) && vazio(val(o,"DATA DE EMISSÃO DO USO DO SOLO")),
+   alvos:["DATA DE EMISSÃO DO USO DO SOLO"]},
+
+  {chave:"ALVARA_ENT", setores:["Departamento de Projetos"],
+   titulo:"PREENCHER DATA DE ENTRADA DE ALVARÁ",
+   quando:o=> ehSim(val(o,"TAXAS ENTRADA ALVAR")) && vazio(val(o,"DATA DE ENTRADA DE ALVARA","DATA DE ENTRADA DE ALVARÁ")),
+   alvos:["DATA DE ENTRADA DE ALVARA"]},
+
+  {chave:"ALVARA_EMI", setores:["Departamento de Projetos"],
+   titulo:"PREENCHER DATA DE EMISSÃO DE ALVARÁ",
+   quando:o=> ehSim(val(o,"PROJETO APROVADO E ALVARA","PROJETO APROVADO E ALVARÁ")) && vazio(val(o,"DATA DE APROVAÇÃO DO PROJETO")),
+   alvos:["DATA DE APROVAÇÃO DO PROJETO"]},
+
+  {chave:"REF_PBI", setores:["Departamento de Projetos"],
+   titulo:"PREENCHER REFERÊNCIA PBI",
+   quando:o=> vazio(val(o,"REF.","REF")),
+   alvos:["REF."]},
+
+  {chave:"DADOS_PROJETOS", setores:["Departamento de Projetos"],
+   titulo:o=>"PREENCHER: "+faltamDados(o,DADOS_OBRA_PROJETOS).join(", "),
+   quando:o=> faltamDados(o,DADOS_OBRA_PROJETOS).length>0,
+   alvos:o=> faltamDados(o,DADOS_OBRA_PROJETOS).map(x=>x)},
+
+  /* ---- João Vítor ---- */
+  {chave:"MESTRE_PREV", setores:["João Vítor"],
+   titulo:o=> !vazio(val(o,"MESTRE")) ? "PREENCHER PREVISÃO DE INÍCIO DE OBRA" : "PREENCHER MESTRE",
+   quando:o=>{
+     const m=!vazio(val(o,"MESTRE")), p=!vazio(val(o,"PREVISÃO DE INÍCIO DE OBRA","PREVISAO DE INICIO DE OBRA"));
+     if(ehSim(val(o,"OBRA INCIADA","OBRA INICIADA"))) return false;   // obra já começou: não cobra mais
+     return (m&&!p)||(!m&&p);
+   },
+   alvos:o=> !vazio(val(o,"MESTRE")) ? ["PREVISÃO DE INÍCIO DE OBRA"] : ["MESTRE"]},
+
+  {chave:"INICIO_OBRA", setores:["João Vítor"],
+   titulo:"PREENCHER DATA DE INÍCIO DE OBRA",
+   quando:o=> ehSim(val(o,"OBRA INCIADA","OBRA INICIADA")) && vazio(val(o,"DATA DE INÍCIO DA OBRA")),
+   alvos:["DATA DE INÍCIO DA OBRA"]},
+
+  /* ---- Júlio César ---- */
+  {chave:"DADOS_JULIO", setores:["Júlio César"],
+   titulo:o=>"PREENCHER: "+faltamJulio(o).join(", "),
+   quando:o=> faltamJulio(o).length>0,
+   alvos:o=> faltamJulio(o)},
+
+  {chave:"INCORP_ENT", setores:["Júlio César"],
+   titulo:"PREENCHER DATA DE ENTRADA NA INCORPORAÇÃO",
+   quando:o=> ehSim(val(o,"FOI DADO ENTRADA NA INCORPORAÇÃO","FOI DADO ENTRADA NA INCORPORACAO")) && vazio(val(o,"DATA DE ENTRADA NA INCORPORAÇÃO")),
+   alvos:["DATA DE ENTRADA NA INCORPORAÇÃO"]},
+
+  {chave:"INCORP_FIM", setores:["Júlio César"],
+   titulo:"PREENCHER DATA DE FINALIZAÇÃO DA INCORPORAÇÃO",
+   quando:o=> ehSim(val(o,"INCORPORAÇÃO FINALI","INCORPORACAO FINALI")) && vazio(val(o,"DATA DE FINALIZAÇÃO DA INCORPORAÇÃO","DATA DE FINALIZACAO DA INCORPORACAO")),
+   alvos:["DATA DE FINALIZAÇÃO DA INCORPORAÇÃO"]},
+
+  {chave:"RET_ENT", setores:["Júlio César"],
+   titulo:"PREENCHER DATA DE ENTRADA DO RET",
+   quando:o=> ehSim(val(o,"FOI DATA A ENTRADA NO RET","FOI DADA A ENTRADA NO RET")) && vazio(val(o,"DATA DE ENTRADA DO RET")),
+   alvos:["DATA DE ENTRADA DO RET"]},
+
+  /* Este alerta você pediu para CRIAR (não existe fórmula no Notion):
+     RET armazenado, mas sem a data de finalização. */
+  {chave:"RET_EMI", setores:["Júlio César"],
+   titulo:"PREENCHER DATA DE EMISSÃO DO RET",
+   quando:o=> ehSim(val(o,"RET ARMAZENADO")) && vazio(val(o,"DATA DE FINALIZAÇÃO DO RET","DATA DE FINALIZACAO DO RET")),
+   alvos:["DATA DE FINALIZAÇÃO DO RET"]},
+
+  {chave:"HABITE_APROV", setores:["Júlio César"],
+   titulo:"PREENCHER DATA DE APROVAÇÃO HABITE-SE",
+   quando:o=> ehSim(val(o,"APROVOU HABITE-SE","APROVOU HABITE")) && vazio(val(o,"DATA DE APROVAÇÃO DO HABITE-SE","DATA DE APROVACAO DO HABITE")),
+   alvos:["DATA DE APROVAÇÃO DO HABITE-SE"]}
+];
+
+/* PREENCHER DADOS DE OBRA (Departamento de Projetos) — a fórmula que você
+   mandou, campo a campo. O rótulo é o que aparece no texto do alerta. */
+const DADOS_OBRA_PROJETOS=[
+  ["ENDEREÇO","TÍTULO"],["SETOR","SETOR"],["CIDADE","CIDADE"],
+  ["PROPRIETARIO DOCUMENTO","PROPRIETÁRIO DOCUMENTO"],
+  ["ENG. EXECUÇÃO","ENGENHEIRO EXEC."],
+  ["PROPRIETARIO REAL","PROPRIETÁRIO REAL"],
+  ["CPF/CNPJ","CPF/CNPJ"],
+  ["ENGENHEIRO RT","ENGENHEIRO RT"],
+  ["Nº DE CASAS","Nº DE CASAS"],
+  ["IMPLANTAÇÃO","IMPLANTAÇÃO"]
+];
+/* PREENCHER DADOS DE OBRA (Júlio César). Diferenças em relação à fórmula do
+   Notion, as duas pedidas por você:
+     - PROPRIETARIO REAL entrou na conta;
+     - a COTA é lida como NÚMERO: 0% conta como preenchida (era o que a
+       fórmula do Notion não conseguia distinguir de vazio). Por isso a coluna
+       "COTA PREENCHIDA?" não é usada aqui e pode ser removida do Notion. */
+function faltamJulio(o){
+  const faltas=[];
+  if(vazio(val(o,"ENDEREÇO"))) faltas.push("TÍTULO");
+  const cota=val(o,"COTA DA EMPRESA","COTA EMPRESA");
+  if(cota===undefined||cota===null||cota==="") faltas.push("COTA");
+  if(vazio(val(o,"DATA DE AQUISIÇÃO DO LOTE","DATA DE AQUISICAO DO LOTE"))) faltas.push("DATA DE AQUISIÇÃO");
+  if(vazio(val(o,"PROPRIETARIO REAL"))) faltas.push("PROPRIETÁRIO REAL");
+  return faltas;
+}
+/* rótulo do alerta -> coluna que ele manda preencher */
+const ROTULO_PARA_COLUNA={
+  "TÍTULO":"ENDEREÇO","COTA":"COTA DA EMPRESA","DATA DE AQUISIÇÃO":"DATA DE AQUISIÇÃO DO LOTE",
+  "PROPRIETÁRIO REAL":"PROPRIETARIO REAL","PROPRIETÁRIO DOCUMENTO":"PROPRIETARIO DOCUMENTO",
+  "ENGENHEIRO EXEC.":"ENG. EXECUÇÃO"
+};
+function colunaDoRotulo(r){ return campo(ROTULO_PARA_COLUNA[r]||r); }
+
+/* ===================== BOOT ===================== */
+async function boot(){
+  pintarUsuario(S);
+  if(!podeAcessar(S,"DOCUMENTOS")){
+    document.getElementById("sem-acesso").style.display="block";
+    document.getElementById("view-hub").style.display="none";
+    return;
+  }
+  renderSetores();
+  lerEstaticoJa("docs.json","docs", r=>{
+    if(!r || !r.ok){ mostrarOffline(r); if(!CARREGOU) document.getElementById("hub-wrap").innerHTML='<div class="vazio">Ainda não há dados publicados. Rode o build (fetch_documentos.py) uma vez.</div>'; return; }
+    CAMPOS=r.campos||[]; OBRAS=r.obras||[]; ATIVIDADES=r.atividades||[];
+    OCULTAS=r.ocultas||[]; COLSIM=r.colunasSim||[]; UPDATED=r.updated_at||"";
+    _cacheCampo.clear(); CARREGOU=true;
+    aplicarEdicoesDaTela();
+    mostrarOffline(r);
+    montarFiltros();
+    aplicarFiltros("hub");
+    renderCalendarios("hub");
+    renderIndicadores("hub-ind");
+    atualizarBadges();
+    if(SETOR_ATUAL) repintarSetor();
+  });
+}
+/* Edições feitas aqui e ainda não publicadas continuam valendo na tela até o
+   arquivo novo trazer o valor (mecanismo comum do portal — ver app.js). */
+function aplicarEdicoesDaTela(){
+  const idx={}; OBRAS.forEach(o=>idx[o.id]=o);
+  aplicarEdicoesLocais("docs", UPDATED,
+    (id,prop)=>{ const o=idx[id]; if(!o) return undefined; const v=getV(o.valores,prop); return v===undefined?null:v; },
+    (id,prop,valor)=>{ const o=idx[id]; if(o) setV(o.valores,prop,valor); });
+}
+function mostrarOffline(r){
+  const av=document.getElementById("aviso");
+  if(r&&r.offline){ av.style.display="block"; av.textContent="Sem internet — dados salvos em "+new Date(r._ts).toLocaleString("pt-BR")+". O que preencher entra na fila e sobe ao reconectar."; }
+  else if(r&&r.online===false&&!r.ok){ av.style.display="block"; av.textContent="Não consegui carregar agora: "+erroTexto(r.erro)+"."; }
+  else av.style.display="none";
+}
+
+/* ===================== HUB: setores ===================== */
+function atividadesDoSetor(nome){
+  const s=SETORES.find(x=>x.nome===nome);
+  if(!s || !s.responsaveis) return [];
+  const alvos=s.responsaveis.map(normNome);
+  return ATIVIDADES.filter(a=>(a.responsavel||[]).some(n=>alvos.indexOf(normNome(n))>=0));
+}
+function alertasDoSetor(nome){
+  const regras=REGRAS.filter(r=>r.setores.indexOf(nome)>=0);
+  const linhas=[];
+  OBRAS.forEach(o=>{
+    regras.forEach(r=>{
+      let bate=false;
+      try{ bate=!!r.quando(o); }catch(e){ bate=false; }
+      if(!bate) return;
+      const titulo = typeof r.titulo==="function" ? r.titulo(o) : r.titulo;
+      const alvos  = typeof r.alvos==="function"  ? r.alvos(o)  : r.alvos;
+      linhas.push({o:o, chave:r.chave, titulo:titulo, alvos:alvos});
+    });
+  });
+  return linhas;
+}
+function renderSetores(){
+  const box=document.getElementById("setores");
+  box.innerHTML=SETORES.map((s,i)=>`
+    <button class="scard tem-cnt" data-i="${i}">
+      <span class="cnt" id="scnt-${i}">·</span>
+      <div class="cond">${esc(s.nome)}</div><div class="d">${esc(s.d)}</div>
+    </button>`).join("");
+  box.querySelectorAll(".scard").forEach(b=>{
+    b.addEventListener("click",()=>abrirSetor(SETORES[+b.dataset.i].nome));
+  });
+}
+function atualizarBadges(){
+  SETORES.forEach((s,i)=>{
+    const el=document.getElementById("scnt-"+i); if(!el) return;
+    const n = (s.responsaveis? atividadesDoSetor(s.nome).length : 0) + alertasDoSetor(s.nome).length;
+    el.textContent=n;
+  });
+}
+function irHub(){
+  SETOR_ATUAL="";
+  document.getElementById("view-setor").style.display="none";
+  document.getElementById("view-hub").style.display="block";
+}
+function abrirSetor(nome){
+  SETOR_ATUAL=nome;
+  document.getElementById("setor-nome").textContent=nome;
+  document.getElementById("view-hub").style.display="none";
+  document.getElementById("view-setor").style.display="block";
+  const s=SETORES.find(x=>x.nome===nome);
+  document.getElementById("tabs-setor").innerHTML =
+    s.abas.map((t,i)=>`<button class="tab${i===0?" on":""}" data-t="${t}" onclick="abaSetor('${t}')">${ROTULO_ABA[t]||t}</button>`).join("");
+  abaSetor(s.abas[0]);
+}
+function abaSetor(t){
+  document.querySelectorAll("#tabs-setor .tab").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
+  ["atividades","alertas","planilha","calendarios","indicadores","projetos"].forEach(x=>{
+    const el=document.getElementById("st-"+x); if(el) el.style.display = x===t?"block":"none";
+  });
+  if(t==="atividades") renderAtividades();
+  if(t==="alertas") renderAlertas();
+  if(t==="planilha") aplicarFiltros("set");
+  if(t==="calendarios") renderCalendarios("set");
+  if(t==="indicadores") renderIndicadores("set-ind");
+}
+function repintarSetor(){
+  const aba=document.querySelector("#tabs-setor .tab.on");
+  if(aba) abaSetor(aba.dataset.t);
+}
+
+/* ===================== ATIVIDADES ===================== */
+function renderAtividades(){
+  const box=document.getElementById("atv-lista");
+  const lista=atividadesDoSetor(SETOR_ATUAL);
+  document.getElementById("atv-count").textContent =
+    lista.length+" atividade(s) em aberto — "+SETOR_ATUAL;
+  if(!lista.length){
+    box.innerHTML='<div class="vazio">Nenhuma atividade em aberto. 🎉</div>'; return;
+  }
+  const porTipo=new Map();
+  lista.forEach(a=>{ const k=a.tipo||"Sem tipo"; if(!porTipo.has(k)) porTipo.set(k,[]); porTipo.get(k).push(a); });
+  box.innerHTML=[...porTipo.entries()].sort((x,y)=>y[1].length-x[1].length).map(([tipo,itens])=>{
+    const corpo=itens.map(a=>{
+      const c=a.coluna?campo(a.coluna):null;
+      const ops=(c&&c.opcoes&&c.opcoes.length)?c.opcoes:["SIM","NÃO"];
+      const obra=a.obraId?obraPorId(a.obraId):null;
+      const atual=(obra&&c)?getV(obra.valores,c.nome):null;
+      const temAtual = atual!=null && atual!=="" && ops.indexOf(atual)>=0;
+      /* Mostra QUAL coluna a baixa vai escrever. É de propósito: o casamento
+         TIPO -> coluna é automático (ver docsColunaDaBaixa_ no Code.gs) e,
+         enquanto os TIPOs não forem conferidos um a um, é assim que um
+         casamento errado fica visível ANTES de alguém clicar. */
+      const alvo = c ? `<span class="col-alvo" title="coluna que será marcada na obra">${esc(c.nome)}</span>`
+                     : `<span class="col-alvo falta" title="nenhuma coluna casou com este tipo">sem coluna</span>`;
+      return `<div class="atv" data-id="${a.id}">
+        <span class="tipo">${esc(a.tipo||"—")}</span>
+        <span class="nm">${esc(a.nome||"(sem nome)")}</span>
+        <span class="dt">prazo: ${fmt(a.dataFinal)}</span>
+        ${alvo}
+        <span class="bx"><span class="bxlab">Marcar como</span>
+          <select ${c?"":"disabled"}>${temAtual?"":'<option value="" selected disabled>Selecione…</option>'}${ops.map(o=>`<option${(temAtual&&o===atual)?" selected":""}>${esc(o)}</option>`).join("")}</select>
+          <button class="bt" ${c?"":"disabled"} onclick="darBaixa('${a.id}',this)">Dar baixa</button></span>
+      </div>`;
+    }).join("");
+    return `<details class="grupo" open><summary>${esc(tipo)}<span class="qtd">${itens.length}</span></summary><div class="corpo">${corpo}</div></details>`;
+  }).join("");
+}
+async function darBaixa(id, btn){
+  const linha=btn.closest(".atv"), sel=linha.querySelector("select");
+  if(!sel.value){ toast("Selecione um valor antes de dar baixa."); return; }
+  const a=ATIVIDADES.find(x=>x.id===id); if(!a) return;
+  btn.disabled=true; btn.innerHTML='<span class="load"></span>';
+  const r=await escrever({action:"docBaixa",atividadeId:id,valor:sel.value},"Baixa: "+(a.nome||id));
+  if(r.ok){
+    /* A obra em memória acompanha na hora, senão a planilha continuaria
+       mostrando o valor antigo até a próxima publicação. */
+    const col=(r.resposta&&r.resposta.coluna)||a.coluna;
+    if(a.obraId&&col){
+      const o=obraPorId(a.obraId);
+      if(o){ setV(o.valores,col,sel.value); registrarEdicao("docs",a.obraId,col,sel.value); }
+    }
+    linha.classList.add("feita"); toast(r.enfileirado?"Baixa na fila ✓":"Baixa registrada ✓");
+    setTimeout(()=>{
+      ATIVIDADES=ATIVIDADES.filter(x=>x.id!==id);
+      renderAtividades(); atualizarBadges();
+    },650);
+  }else{ btn.disabled=false; btn.textContent="Dar baixa"; toast("Não deu certo: "+erroTexto(r.erro)); }
+}
+function obraPorId(id){ return OBRAS.find(o=>o.id===id)||null; }
+
+/* ===================== ALERTAS ===================== */
+function renderAlertas(){
+  const box=document.getElementById("al-lista");
+  if(!CARREGOU){ box.innerHTML='<div class="vazio"><span class="load"></span> Carregando…</div>'; return; }
+  const linhas=alertasDoSetor(SETOR_ATUAL);
+  if(!linhas.length){ box.innerHTML='<div class="vazio">Nenhum alerta pendente. 🎉</div>'; return; }
+  const grupos=new Map();
+  linhas.forEach(l=>{ const k=l.titulo; if(!grupos.has(k)) grupos.set(k,[]); grupos.get(k).push(l); });
+  box.innerHTML=[...grupos.entries()].sort((a,b)=>b[1].length-a[1].length).map(([titulo,itens])=>
+    `<details class="grupo"><summary>${esc(titulo)}<span class="qtd">${itens.length}</span></summary><div class="corpo">`+
+    '<div class="al al3 al-cab"><span>Endereço</span><span>Alerta</span><span>Preencher</span></div>'+
+    itens.map(l=>{
+      const end=val(l.o,"ENDEREÇO")||"(sem endereço)";
+      const campos=(l.alvos||[]).map(a=>colunaDoRotulo(a)).filter(Boolean);
+      const preench = campos.length ? `<span class="preench-multi">`+campos.map(c=>{
+          const v=getV(l.o.valores,c.nome);
+          const ctrl = (c.editavel && !SO_LEITURA)
+            ? `<span class="campo-inline">${controle(c,v,l.o.id)}</span>`
+            : `<span class="ro-inline" title="Preencha direto no Notion — este campo não é editável pela API">${esc(Array.isArray(v)?v.join(", "):(v==null?"—":v))}</span>`;
+          return `<span class="preench-item"><label>${esc(c.nome.trim())}</label>${ctrl}</span>`;
+        }).join("")+`</span>` : `<span class="ro-inline">—</span>`;
+      return `<div class="al al3"><span class="obralink" onclick="abrirObra('${l.o.id}')">${esc(end)}</span>`+
+             `<span>${esc(l.titulo)}</span>${preench}</div>`;
+    }).join("")+"</div></details>").join("");
+}
+
+/* ===================== CONTROLES DE EDIÇÃO =====================
+ * O tipo usado para gravar sai SEMPRE do schema (c.tipo), nunca de um palpite
+ * da tela — é o mesmo contrato que o docUpdate_ do Code.gs confere do lado do
+ * servidor. */
+function controle(c, valor, pageId){
+  const arg=`'${pageId}','${jsArg(c.nome)}','${c.tipo}'`;
+  if(c.tipo==="date")
+    return `<input type="date" value="${esc(String(valor||"").slice(0,10))}" onchange="editar(${arg},this.value,this)">`;
+  if(c.tipo==="checkbox")
+    return `<input type="checkbox" ${valor?"checked":""} onchange="editar(${arg},this.checked,this)">`;
+  if(c.tipo==="select"||c.tipo==="status"){
+    const ops=c.opcoes||[];
+    return `<select onchange="editar(${arg},this.value,this)"><option value="">—</option>`+
+      ops.map(o=>`<option${normNome(o)===normNome(valor)?" selected":""}>${esc(o)}</option>`).join("")+`</select>`;
+  }
+  if(c.tipo==="multi_select"){
+    const marc=Array.isArray(valor)?valor:[];
+    return `<span class="multi">`+(c.opcoes||[]).map(o=>
+      `<label><input type="checkbox" ${marc.indexOf(o)>=0?"checked":""} onchange="editarMulti('${pageId}','${jsArg(c.nome)}',this)"> ${esc(o)}</label>`).join("")+`</span>`;
+  }
+  if(c.tipo==="number")
+    return `<input type="number" step="any" value="${esc(valor==null?"":valor)}" onchange="editar(${arg},this.value,this)">`;
+  if(c.tipo==="people")
+    return `<span class="ro-inline" title="Coluna de Pessoa: o Notion só aceita o usuário, não o nome digitado">${esc(Array.isArray(valor)?valor.join(", "):(valor||"—"))}</span>`;
+  return `<input type="text" value="${esc(valor==null?"":valor)}" onchange="editar(${arg},this.value,this)">`;
+}
+async function editar(pageId,prop,tipo,valor,el){
+  if(SO_LEITURA){ toast("Modo teste: nada é gravado."); return; }
+  if(el) el.style.borderColor="#F0C36D";
+  const o=obraPorId(pageId);
+  if(o){ setV(o.valores,prop,valor); }
+  registrarEdicao("docs",pageId,prop,valor);
+  const r=await escrever({action:"docUpdate",pageId:pageId,prop:prop,tipo:tipo,valor:valor},"Editar "+prop);
+  if(el) el.style.borderColor=r.ok?(r.enfileirado?"#E67E22":"#4cd964"):"#C0392B";
+  if(!r.ok){ esquecerEdicao("docs",pageId,prop); }
+  toast(r.ok?(r.enfileirado?"Salvo aqui ✓ — sobe quando reconectar":"Salvo ✓"):("Não deu certo: "+erroTexto(r.erro)));
+  if(r.ok){ atualizarBadges(); if(SETOR_ATUAL) repintarSetorSuave(); }
+}
+async function editarMulti(pageId,prop,el){
+  const box=el.closest(".multi");
+  const marc=[...box.querySelectorAll("input:checked")].map(i=>i.parentNode.textContent.trim());
+  const o=obraPorId(pageId); if(o) setV(o.valores,prop,marc);
+  registrarEdicao("docs",pageId,prop,marc);
+  const r=await escrever({action:"docUpdate",pageId:pageId,prop:prop,tipo:"multi_select",valor:marc},"Editar "+prop);
+  if(!r.ok) esquecerEdicao("docs",pageId,prop);
+  toast(r.ok?(r.enfileirado?"Na fila ✓":"Salvo ✓"):("Não deu certo: "+erroTexto(r.erro)));
+}
+/* Repinta só o que depende do valor, sem fechar o grupo que a pessoa abriu.
+   Um alerta resolvido some da lista; os outros ficam onde estavam. */
+let _repintarTimer=null;
+function repintarSetorSuave(){
+  clearTimeout(_repintarTimer);
+  _repintarTimer=setTimeout(()=>{
+    const aba=document.querySelector("#tabs-setor .tab.on");
+    if(aba && aba.dataset.t==="alertas") renderAlertas();
+    if(aba && aba.dataset.t==="planilha") aplicarFiltros("set");
+  }, 1200);
+}
+
+/* ===================== PLANILHA ===================== */
+function montarFiltros(){
+  const cSetor=campo("SETOR"), cCidade=campo("CIDADE");
+  const setores = cSetor && cSetor.opcoes && cSetor.opcoes.length
+    ? cSetor.opcoes.slice()
+    : [...new Set(OBRAS.map(o=>val(o,"SETOR")).filter(Boolean))].sort();
+  const cidades = cCidade && cCidade.opcoes && cCidade.opcoes.length
+    ? cCidade.opcoes.slice()
+    : [...new Set(OBRAS.map(o=>val(o,"CIDADE")).filter(Boolean))].sort();
+  ["hub","set"].forEach(ctx=>{
+    const s=document.getElementById(ctx+"-setor");
+    if(s){ const atual=s.value; s.innerHTML='<option value="">Todos os setores</option>'+setores.map(x=>`<option>${esc(x)}</option>`).join(""); s.value=atual; }
+    const c=document.getElementById(ctx+"-cidade");
+    if(c){ const atual=c.value; c.innerHTML='<option value="">Todas as cidades</option>'+cidades.map(x=>`<option>${esc(x)}</option>`).join(""); c.value=atual; }
+    const a=document.getElementById(ctx+"-ano");
+    if(a && !a.options.length){
+      const anos=[]; const y=new Date().getFullYear();
+      for(let i=y+1;i>=y-8;i--) anos.push(String(i));
+      a.innerHTML=anos.map(x=>`<option${x===String(y)?" selected":""}>${x}</option>`).join("");
+    }
+    const m=document.getElementById(ctx+"-mes");
+    if(m && !m.options.length){
+      const MES=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+      m.innerHTML=MES.map((x,i)=>`<option value="${String(i+1).padStart(2,"0")}">${x}</option>`).join("");
+      m.value=String(new Date().getMonth()+1).padStart(2,"0");
+    }
+  });
+}
+function aoTrocarPeriodo(ctx){
+  const p=document.getElementById(ctx+"-periodo").value;
+  document.getElementById(ctx+"-ano").style.display=(p==="ano"||p==="mes")?"":"none";
+  document.getElementById(ctx+"-mes").style.display=(p==="mes")?"":"none";
+  document.getElementById(ctx+"-de").style.display=(p==="intervalo")?"":"none";
+  document.getElementById(ctx+"-ate").style.display=(p==="intervalo")?"":"none";
+  aplicarFiltros(ctx);
+}
+const CAMPO_DATA={
+  aquisicao:["DATA DE AQUISIÇÃO DO LOTE","DATA DE AQUISICAO DO LOTE"],
+  inicio:["DATA DE INÍCIO DA OBRA","DATA DE INICIO DA OBRA"],
+  termino:["DATA DE TÉRMINO DE OBRA","DATA DE TERMINO DE OBRA"],
+  previsao:["PREVISÃO DE INÍCIO DE OBRA","PREVISAO DE INICIO DE OBRA"],
+  habite:["DATA HABITE-SE","DATA HABITE"]
+};
+function hojeISO(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function menosDias(n){ const d=new Date(); d.setDate(d.getDate()-n); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function intervaloDo(ctx){
+  const p=document.getElementById(ctx+"-periodo").value;
+  if(!p) return null;
+  if(p==="30d") return [menosDias(30), hojeISO()];
+  const ano=document.getElementById(ctx+"-ano").value;
+  if(p==="ano") return [ano+"-01-01", ano+"-12-31"];
+  if(p==="mes"){ const m=document.getElementById(ctx+"-mes").value; const fim=new Date(Number(ano),Number(m),0).getDate();
+                 return [ano+"-"+m+"-01", ano+"-"+m+"-"+String(fim).padStart(2,"0")]; }
+  if(p==="intervalo"){ const de=document.getElementById(ctx+"-de").value, ate=document.getElementById(ctx+"-ate").value;
+                       return [de||"0000-01-01", ate||"9999-12-31"]; }
+  return null;
+}
+function situacaoDa(o){
+  const fin=ehSim(val(o,"OBRA FINALIZADA"));
+  const ini=ehSim(val(o,"OBRA INCIADA","OBRA INICIADA"));
+  if(fin) return "finalizada";
+  if(ini) return "andamento";
+  return "nao";
+}
+function aplicarFiltros(ctx){
+  if(!CARREGOU) return;
+  const q=normNome(document.getElementById(ctx+"-busca").value);
+  const fSetor=document.getElementById(ctx+"-setor").value;
+  const fCidade=document.getElementById(ctx+"-cidade").value;
+  const fSit=document.getElementById(ctx+"-situacao").value;
+  const campoData=document.getElementById(ctx+"-campodata").value;
+  const inter=intervaloDo(ctx);
+
+  let lista=OBRAS.slice();
+  /* No setor, a planilha do Departamento de Projetos mostra as colunas dele —
+     mas as LINHAS continuam sendo todas as obras, com o filtro de setor que
+     você pediu. */
+  if(fSetor) lista=lista.filter(o=>normNome(val(o,"SETOR"))===normNome(fSetor));
+  if(fCidade) lista=lista.filter(o=>normNome(val(o,"CIDADE"))===normNome(fCidade));
+  if(fSit) lista=lista.filter(o=>situacaoDa(o)===fSit);
+  if(inter){
+    const frags=CAMPO_DATA[campoData]||CAMPO_DATA.aquisicao;
+    lista=lista.filter(o=>{ const d=val(o,...frags); if(!d) return false;
+                            const s=String(d).slice(0,10); return s>=inter[0] && s<=inter[1]; });
+  }
+  if(q) lista=lista.filter(o=>{
+    const alvo=[val(o,"ENDEREÇO"),val(o,"SETOR"),val(o,"CIDADE"),val(o,"MESTRE"),
+                val(o,"REF."),val(o,COL_RESP),val(o,"PROPRIETARIO REAL")].map(x=>normNome(x)).join(" ");
+    return alvo.indexOf(q)>=0;
+  });
+  lista.sort((a,b)=>String(val(a,"ENDEREÇO")||"").localeCompare(String(val(b,"ENDEREÇO")||""),"pt-BR"));
+  FILTRADAS[ctx]=lista;
+  document.getElementById(ctx+"-count").textContent =
+    lista.length+(lista.length===1?" obra":" obras")+(lista.length!==OBRAS.length?" de "+OBRAS.length:"");
+  renderInformativo(ctx,lista);
+  renderTabela(ctx,lista);
+}
+function renderInformativo(ctx,lista){
+  const box=document.getElementById(ctx+"-info"); if(!box) return;
+  const ini=lista.filter(o=>situacaoDa(o)==="andamento").length;
+  const fim=lista.filter(o=>situacaoDa(o)==="finalizada").length;
+  const nao=lista.filter(o=>situacaoDa(o)==="nao").length;
+  const casas=lista.reduce((s,o)=>{ const n=Number(val(o,"Nº DE CASAS")); return s+((!isNaN(n)&&n>0)?n:1); },0);
+  box.innerHTML=[["Obras em andamento",ini],["Obras finalizadas",fim],["Ainda não iniciadas",nao],["Casas (soma)",casas]]
+    .map(([l,v])=>`<div class="icard"><div class="ival">${num(v)}</div><div class="ilab">${esc(l)}</div></div>`).join("");
+}
+function celula(c,o){
+  let v=getV(o.valores,c.nome);
+  if(v===undefined && o.sens && o.sens[c.nome]!==undefined){
+    // coluna não publicada (CPF): mostra que está preenchida, sem o valor
+    return typeof o.sens[c.nome]==="number" ? `<span class="tag">${o.sens[c.nome]} arq.</span>` : `<span class="oculto" title="Abra a obra para ver">•••</span>`;
+  }
+  if(v===undefined||v===null||v==="") return "";
+  if(Array.isArray(v)) return esc(v.map(x=>(x&&x.name)?x.name:x).join(", "));
+  if(c.tipo==="date") return fmt(v);
+  if(c.tipo==="checkbox") return v?"SIM":"NÃO";
+  if(c.tipo==="number"){
+    // COTA DA EMPRESA (%) no Notion é 0-1 quando a coluna é porcentagem
+    if(/COTA/.test(normNome(c.nome)) && Math.abs(Number(v))<=1) return (Number(v)*100).toFixed(0)+"%";
+    return num(v);
+  }
+  const n=normNome(v);
+  if(n==="SIM") return '<span class="tag sim">SIM</span>';
+  if(n==="NÃO"||n==="NAO") return '<span class="tag nao">NÃO</span>';
+  return esc(v);
+}
+function renderTabela(ctx,lista){
+  const wrap=document.getElementById(ctx+"-wrap");
+  const escopo = ctx==="set" ? escopoDoSetor(SETOR_ATUAL) : "TUDO";
+  const cols=colunasDaTela(escopo);
+  if(!lista.length){ wrap.innerHTML='<div class="vazio">Nenhuma obra com esses filtros.</div>'; return; }
+  const th='<th class="stick">#</th>'+cols.map(c=>`<th>${esc(c.nome.trim())}</th>`).join("");
+  const tr=lista.map((o,i)=>{
+    const end=val(o,"ENDEREÇO")||"(sem endereço)";
+    const tds=cols.map((c,j)=>{
+      if(j===0) return `<td class="stick"><span class="obralink" onclick="abrirObra('${o.id}')">${esc(end)}</span></td>`;
+      return `<td>${celula(c,o)}</td>`;
+    }).join("");
+    return `<tr><td class="stick num">${i+1}</td>${tds}</tr>`;
+  }).join("");
+  wrap.innerHTML=`<table class="grade"><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table>`;
+  sincronizarScroll(ctx);
+}
+function sincronizarScroll(ctx){
+  const wrap=document.getElementById(ctx+"-wrap"), top=document.getElementById(ctx+"-stop");
+  const tab=wrap.querySelector("table"); if(!tab||!top) return;
+  top.firstElementChild.style.width=tab.scrollWidth+"px";
+  top.onscroll=()=>{ wrap.scrollLeft=top.scrollLeft; };
+  wrap.onscroll=()=>{ top.scrollLeft=wrap.scrollLeft; };
+}
+
+/* ===================== PAINEL DA OBRA ===================== */
+let OBRA_ABERTA=null;
+async function abrirObra(pageId){
+  const o=obraPorId(pageId); if(!o) return;
+  OBRA_ABERTA=pageId;
+  document.getElementById("pn-end").textContent=val(o,"ENDEREÇO")||"Obra";
+  document.getElementById("pn-loc").textContent=[val(o,"SETOR"),val(o,"CIDADE")].filter(Boolean).join(" · ");
+  document.getElementById("overlay").classList.add("on");
+  document.getElementById("painel").classList.add("on");
+  renderPainel(o);
+  /* CPF/CNPJ e afins não vêm no arquivo publicado (ver o topo deste script).
+     Aqui existe token, então dá para buscar com segurança. */
+  if(OCULTAS.length){
+    const r=await ler({action:"docObra",pageId:pageId},null);
+    if(r&&r.ok&&r.valores&&OBRA_ABERTA===pageId){
+      OCULTAS.forEach(nome=>{ const v=getV(r.valores,nome); if(v!==undefined) setV(o.valores,nome,v); });
+      renderPainel(o);
+    }
+  }
+}
+function fecharObra(){
+  OBRA_ABERTA=null;
+  document.getElementById("overlay").classList.remove("on");
+  document.getElementById("painel").classList.remove("on");
+}
+function renderPainel(o){
+  const escopo = SETOR_ATUAL ? escopoDoSetor(SETOR_ATUAL) : "TUDO";
+  const cols=colunasDaTela(escopo).filter(c=>normNome(c.nome)!=="ENDEREÇO");
+  const podeEditar = !SO_LEITURA;
+  const linhas=cols.map(c=>{
+    let v=getV(o.valores,c.nome);
+    const oculto = v===undefined && o.sens && o.sens[c.nome]!==undefined;
+    const ctrl = (podeEditar && c.editavel && c.tipo!=="files")
+      ? controle(c, v, o.id)
+      : `<span class="ro-inline">${oculto?"•••":esc(Array.isArray(v)?v.join(", "):(v==null||v===""?"—":v))}</span>`;
+    return `<div class="campo"><label>${esc(c.nome.trim())}</label>${ctrl}</div>`;
+  }).join("");
+  const anexos=CAMPOS.filter(c=>c.tipo==="files").map(c=>{
+    const n=(o.sens&&o.sens[c.nome])||0;
+    return `<div class="campo"><label>${esc(c.nome.trim())}</label>
+      <span class="ro-inline">${n?`${n} arquivo(s) — abra no Notion`:"—"}</span>
+      ${podeEditar?`<input type="file" onchange="enviarArquivo('${o.id}','${jsArg(c.nome)}',this)">`:""}</div>`;
+  }).join("");
+  document.getElementById("pn-body").innerHTML =
+    `<div class="pgrupo"><div class="ptit">Dados da obra</div>${linhas}</div>`+
+    (anexos?`<div class="pgrupo"><div class="ptit">Anexos</div>${anexos}</div>`:"")+
+    (ehAdmTela()?`<div class="pgrupo"><button class="bt danger" onclick="excluirObra('${o.id}')">Arquivar esta obra</button></div>`:"");
+}
+async function enviarArquivo(pageId,prop,input){
+  const f=input.files[0]; if(!f) return;
+  toast("Enviando "+f.name+"…");
+  try{
+    const b64=await new Promise((res,rej)=>{const rd=new FileReader();rd.onload=()=>res(rd.result.split(",")[1]);rd.onerror=rej;rd.readAsDataURL(f);});
+    const r=await escrever({action:"docAnexar",pageId:pageId,prop:prop,filename:f.name,
+                            mimeType:f.type||"application/octet-stream",dataBase64:b64},"Arquivo: "+f.name);
+    toast(r.ok?(r.enfileirado?"Arquivo na fila ✓":"Arquivo enviado ✓"):("Não deu certo: "+erroTexto(r.erro)));
+  }catch(e){ toast("Falha ao ler o arquivo"); }
+}
+async function excluirObra(pageId){
+  if(!confirm("Arquivar esta obra no Notion? Dá para restaurar pela lixeira em até 30 dias.")) return;
+  const r=await escrever({action:"docExcluir",pageId:pageId},"Arquivar obra");
+  if(r.ok){ OBRAS=OBRAS.filter(o=>o.id!==pageId); fecharObra(); aplicarFiltros("hub"); if(SETOR_ATUAL) repintarSetor(); }
+  toast(r.ok?"Arquivada ✓":("Não deu certo: "+erroTexto(r.erro)));
+}
+
+/* ===================== CALENDÁRIOS =====================
+ * Dois, com a mesma mecânica do calendário do Pós Obra:
+ *   INÍCIO DE OBRAS — por PREVISÃO DE INÍCIO DE OBRA. A obra SOME do
+ *     calendário quando OBRA INCIADA = SIM (foi o que você pediu).
+ *     Cartão: ENDEREÇO / RESPONSÁVEL / MESTRE.
+ *   HABITE-SE — por DATA HABITE-SE. Cartão: ENDEREÇO / RESPONSÁVEL / TURNO.
+ * A COR identifica o responsável (a mesma pessoa tem sempre a mesma cor, em
+ * qualquer mês e nos dois calendários).
+ * =================================================================== */
+const MESES=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+const DIAS=["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+const PALETA=["#295778","#1a6b40","#8e44ad","#b9770e","#a93226","#117a8b","#5b21b6","#7d6608","#0e6251","#6e2c00"];
+function corDe(nome){
+  const n=normNome(nome); if(!n) return "#5a8099";
+  let h=0; for(let i=0;i<n.length;i++) h=(h*31+n.charCodeAt(i))>>>0;
+  return PALETA[h%PALETA.length];
+}
+function respDaObra(o){ return val(o,COL_RESP) || ""; }
+function textoDe(v){ return Array.isArray(v)?v.join(", "):(v==null?"":String(v)); }
+function marcacoes(tipo){
+  const out=[];
+  OBRAS.forEach(o=>{
+    if(tipo==="inicio"){
+      const d=val(o,"PREVISÃO DE INÍCIO DE OBRA","PREVISAO DE INICIO DE OBRA");
+      if(!d) return;
+      if(ehSim(val(o,"OBRA INCIADA","OBRA INICIADA"))) return;   // já começou: some
+      out.push({o:o, data:String(d).slice(0,10), end:val(o,"ENDEREÇO")||"(sem endereço)",
+                resp:textoDe(respDaObra(o)), extra:textoDe(val(o,"MESTRE")), rotExtra:"Mestre"});
+    }else{
+      const d=val(o,"DATA HABITE-SE","DATA HABITE");
+      if(!d) return;
+      out.push({o:o, data:String(d).slice(0,10), end:val(o,"ENDEREÇO")||"(sem endereço)",
+                resp:textoDe(respDaObra(o)), extra:textoDe(val(o,"TURNO HABITE-SE","TURNO HABITE")), rotExtra:"Turno"});
+    }
+  });
+  return out.sort((a,b)=>a.data.localeCompare(b.data));
+}
+function responsaveis(){
+  const s={};
+  OBRAS.forEach(o=>{ const r=textoDe(respDaObra(o)); if(r) s[r]=1; const m=textoDe(val(o,"MESTRE")); if(m) s[m]=1; });
+  return Object.keys(s).sort((a,b)=>a.localeCompare(b,"pt-BR"));
+}
+function calMudar(n){ const d=new Date(CAL_REF); d.setMonth(d.getMonth()+n); CAL_REF=d; renderCalendarios(SETOR_ATUAL?"set":"hub"); }
+function calHoje(){ CAL_REF=new Date(); renderCalendarios(SETOR_ATUAL?"set":"hub"); }
+function calResp(v){ CAL_RESP=v; renderCalendarios(SETOR_ATUAL?"set":"hub"); }
+function isoDe(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function renderCalendarios(ctx){
+  const box=document.getElementById(ctx==="set"?"set-cals":"hub-cals");
+  if(!box) return;
+  if(!CARREGOU){ box.innerHTML='<div class="vazio"><span class="load"></span> Carregando…</div>'; return; }
+  const resps=responsaveis();
+  const sel='<select onchange="calResp(this.value)"><option value="">Todos os responsáveis</option>'+
+    resps.map(r=>`<option${r===CAL_RESP?" selected":""}>${esc(r)}</option>`).join("")+'</select>';
+  const botaoLink = ehAdmTela()
+    ? `<button class="bt az" onclick="abrirLinks()">Link das demandas do mês</button>` : "";
+  box.innerHTML =
+    `<div class="cal-topo">
+       <button class="cal-nav" onclick="calMudar(-1)">‹</button>
+       <div class="cal-mes">${MESES[CAL_REF.getMonth()]} ${CAL_REF.getFullYear()}</div>
+       <button class="cal-nav" onclick="calMudar(1)">›</button>
+       <button class="bt ghost" onclick="calHoje()">Hoje</button>
+       ${sel}<span style="flex:1"></span>${botaoLink}
+     </div>`+
+    calendarioHtml("inicio","Início de obras (previsão)")+
+    calendarioHtml("habite","Habite-se");
+}
+function calendarioHtml(tipo,titulo){
+  let lista=marcacoes(tipo);
+  if(CAL_RESP) lista=lista.filter(m=>normNome(m.resp)===normNome(CAL_RESP)||normNome(m.extra)===normNome(CAL_RESP));
+  const porDia={}; lista.forEach(m=>{ (porDia[m.data]=porDia[m.data]||[]).push(m); });
+  const ano=CAL_REF.getFullYear(), mes=CAL_REF.getMonth(), hoje=hojeISO();
+  const primeiro=new Date(ano,mes,1), inicio=new Date(ano,mes,1-primeiro.getDay());
+  let grade='<div class="cal-grade">'+DIAS.map(d=>`<div class="cal-dia-cab">${d}</div>`).join("");
+  let noMes=0;
+  for(let i=0;i<42;i++){
+    const d=new Date(inicio.getFullYear(),inicio.getMonth(),inicio.getDate()+i);
+    const iso=isoDe(d), fora=d.getMonth()!==mes, marc=porDia[iso]||[];
+    if(!fora) noMes+=marc.length;
+    const cards=marc.map(m=>{
+      const cor=corDe(m.resp||m.extra);
+      return `<button class="cal-mc" style="border-left-color:${cor};background:${cor}1A;color:${cor}"
+        onclick="abrirObra('${m.o.id}')" title="${esc(m.end)}">
+        <span class="e">${esc(m.end)}</span>
+        <span class="r">${esc(m.resp||"sem responsável")}</span>
+        ${m.extra?`<span class="h">${esc(m.rotExtra)}: ${esc(m.extra)}</span>`:""}
+      </button>`;
+    }).join("");
+    grade+=`<div class="cal-dia${fora?" fora":""}${iso===hoje?" hoje":""}"><div class="cal-num">${d.getDate()}</div>${cards}</div>`;
+  }
+  grade+="</div>";
+  const leg=[...new Set(lista.map(m=>m.resp).filter(Boolean))].sort()
+    .map(r=>`<span><i style="background:${corDe(r)}"></i>${esc(r)}</span>`).join("");
+  return `<div class="cal-box" style="margin-bottom:16px">
+    <div class="sec" style="margin-top:0"><span class="cond">${esc(titulo)}</span><span style="flex:1"></span>
+      <span class="count">${noMes} no mês</span></div>
+    ${grade}<div class="cal-leg">${leg}</div></div>`;
+}
+
+/* ---------- link das demandas do mês (só ADM) ---------- */
+function abrirLinks(){
+  const box=document.getElementById("link-lista");
+  const resps=responsaveis();
+  box.innerHTML = resps.length
+    ? resps.map(r=>`<div class="link-linha"><b>${esc(r)}</b>
+        <span class="lk" id="lk-${normNome(r).replace(/\W/g,"_")}"></span>
+        <button class="bt az" onclick="gerarLink('${jsArg(r)}')">Gerar link</button></div>`).join("")
+    : '<div class="vazio">Nenhum responsável preenchido nas obras ainda.</div>';
+  document.getElementById("linkoverlay").classList.add("on");
+}
+function fecharLinks(){ document.getElementById("linkoverlay").classList.remove("on"); }
+async function gerarLink(nome){
+  const cel=document.getElementById("lk-"+normNome(nome).replace(/\W/g,"_"));
+  if(cel) cel.innerHTML='<span class="load"></span>';
+  const r=await chamar({action:"docAgendaLink",resp:nome,regerar:true});
+  if(!r||!r.ok){ if(cel) cel.textContent="não deu certo: "+erroTexto(r&&r.erro); return; }
+  const url=location.href.replace(/[^/]*$/,"")+"demandas.html?k="+r.chave;
+  if(cel) cel.innerHTML=`<input readonly value="${esc(url)}" onclick="this.select()">`;
+  try{ await navigator.clipboard.writeText(url); toast("Link copiado ✓ — o anterior desta pessoa parou de valer"); }
+  catch(e){ toast("Link gerado — copie do campo ao lado"); }
+}
+
+/* ===================== INDICADORES =====================
+ * Três blocos, que é o que você pediu:
+ *   1. tempo médio de obra, geral e por setor;
+ *   2. início de obras e lotes comprados, mês a mês (gráfico);
+ *   3. prazo médio de CADA par início/término que existe na tabela — o
+ *      "estudo" dos itens com data de início e fim. Os pares estão escritos
+ *      abaixo em PARES_PRAZO: se você criar um par novo no Notion, é só
+ *      acrescentar uma linha ali.
+ * Sem biblioteca de gráfico de propósito: barras em CSS abrem offline e não
+ * pesam nada. O portal já tem canvas em outra tela; aqui não valia o custo.
+ * =================================================================== */
+const PARES_PRAZO=[
+  ["Uso do solo (solicitação → emissão)","DATA DE SOLICITAÇÃO USO DO SOLO","DATA DE EMISSÃO DO USO DO SOLO"],
+  ["Alvará (entrada → aprovação do projeto)","DATA DE ENTRADA DE ALVARA","DATA DE APROVAÇÃO DO PROJETO"],
+  ["Incorporação (entrada → finalização)","DATA DE ENTRADA NA INCORPORAÇÃO","DATA DE FINALIZAÇÃO DA INCORPORAÇÃO"],
+  ["RET (entrada → finalização)","DATA DE ENTRADA DO RET","DATA DE FINALIZAÇÃO DO RET"],
+  ["Habite-se (agendado → aprovação)","DATA HABITE-SE","DATA DE APROVAÇÃO DO HABITE-SE"],
+  ["Lote → início da obra","DATA DE AQUISIÇÃO DO LOTE","DATA DE INÍCIO DA OBRA"],
+  ["Obra (início → término)","DATA DE INÍCIO DA OBRA","DATA DE TÉRMINO DE OBRA"],
+  ["Certidões (emissão → término da obra)","DATA DE EMISSÃO DAS CERTIDOES","DATA DE TÉRMINO DE OBRA"]
+];
+function dias(a,b){
+  if(!a||!b) return null;
+  const x=new Date(String(a).slice(0,10)+"T12:00:00"), y=new Date(String(b).slice(0,10)+"T12:00:00");
+  if(isNaN(x)||isNaN(y)) return null;
+  return Math.round((y-x)/86400000);
+}
+function mediana(arr){
+  if(!arr.length) return null;
+  const a=arr.slice().sort((x,y)=>x-y), m=Math.floor(a.length/2);
+  return a.length%2 ? a[m] : Math.round((a[m-1]+a[m])/2);
+}
+function media(arr){ return arr.length ? Math.round(arr.reduce((s,x)=>s+x,0)/arr.length) : null; }
+function renderIndicadores(destino){
+  const box=document.getElementById(destino); if(!box) return;
+  if(!CARREGOU){ box.innerHTML='<div class="vazio"><span class="load"></span> Carregando…</div>'; return; }
+  const ano=IND_ANO;
+
+  /* --- 1. tempo de obra --- */
+  const porSetor={};
+  const geral=[];
+  OBRAS.forEach(o=>{
+    const d=dias(val(o,"DATA DE INÍCIO DA OBRA"), val(o,"DATA DE TÉRMINO DE OBRA","DATA DE TERMINO DE OBRA"));
+    if(d===null||d<0) return;
+    geral.push(d);
+    const s=val(o,"SETOR")||"(sem setor)";
+    (porSetor[s]=porSetor[s]||[]).push(d);
+  });
+  const emAndamento=[];
+  OBRAS.forEach(o=>{
+    if(situacaoDa(o)!=="andamento") return;
+    const d=dias(val(o,"DATA DE INÍCIO DA OBRA"), hojeISO());
+    if(d!==null&&d>=0) emAndamento.push(d);
+  });
+
+  /* --- 2. início de obras e lotes, mês a mês --- */
+  const mesesIni=new Array(12).fill(0), mesesLote=new Array(12).fill(0);
+  let iniAno=0, loteAno=0, fimAno=0;
+  OBRAS.forEach(o=>{
+    const di=val(o,"DATA DE INÍCIO DA OBRA"), dl=val(o,"DATA DE AQUISIÇÃO DO LOTE","DATA DE AQUISICAO DO LOTE");
+    const df=val(o,"DATA DE TÉRMINO DE OBRA","DATA DE TERMINO DE OBRA");
+    const casas=(()=>{ const n=Number(val(o,"Nº DE CASAS")); return (!isNaN(n)&&n>0)?n:1; })();
+    if(di && String(di).slice(0,4)===ano){ mesesIni[Number(String(di).slice(5,7))-1]+=casas; iniAno+=casas; }
+    if(dl && String(dl).slice(0,4)===ano){ mesesLote[Number(String(dl).slice(5,7))-1]++; loteAno++; }
+    if(df && String(df).slice(0,4)===ano) fimAno++;
+  });
+
+  const anos=[]; const y=new Date().getFullYear();
+  for(let i=y+1;i>=y-8;i--) anos.push(String(i));
+  const selAno=`<select onchange="IND_ANO=this.value;renderIndicadores('${destino}')">`+
+    anos.map(a=>`<option${a===ano?" selected":""}>${a}</option>`).join("")+`</select>`;
+
+  const kpis=[
+    ["Casas iniciadas em "+ano, num(iniAno), ""],
+    ["Lotes adquiridos em "+ano, num(loteAno), ""],
+    ["Obras concluídas em "+ano, num(fimAno), ""],
+    ["Tempo médio de obra", geral.length?media(geral)+" dias":"—", geral.length?geral.length+" obras concluídas":"sem obra concluída"],
+    ["Mediana do tempo de obra", geral.length?mediana(geral)+" dias":"—", ""],
+    ["Obras em andamento", num(emAndamento.length), emAndamento.length?("média de "+media(emAndamento)+" dias corridos"):""]
+  ].map(([l,v,s])=>`<div class="kpi"><div class="lab">${esc(l)}</div><div class="val">${v}</div><div class="sub">${esc(s)}</div></div>`).join("");
+
+  /* barras: uma linha por mês, duas séries */
+  const maxMes=Math.max(1,...mesesIni,...mesesLote);
+  const barras=MESES.map((m,i)=>`
+    <div class="barra-linha">
+      <span class="bl">${m.slice(0,3)}</span>
+      <span class="bwrap"><span class="b b1" style="width:${(mesesIni[i]/maxMes*100).toFixed(1)}%"></span><b>${mesesIni[i]||""}</b></span>
+      <span class="bwrap"><span class="b b2" style="width:${(mesesLote[i]/maxMes*100).toFixed(1)}%"></span><b>${mesesLote[i]||""}</b></span>
+    </div>`).join("");
+
+  const setores=Object.keys(porSetor).sort((a,b)=>a.localeCompare(b,"pt-BR"));
+  const tabSetor=setores.length?`<table class="grade"><thead><tr><th>Setor</th><th>Obras concluídas</th><th>Tempo médio</th><th>Mediana</th><th>Mais rápida</th><th>Mais lenta</th></tr></thead><tbody>`+
+    setores.map(s=>{ const a=porSetor[s];
+      return `<tr><td>${esc(s)}</td><td class="num">${a.length}</td><td class="num">${media(a)} dias</td><td class="num">${mediana(a)} dias</td><td class="num">${Math.min(...a)} dias</td><td class="num">${Math.max(...a)} dias</td></tr>`;
+    }).join("")+`</tbody></table>`:'<div class="vazio">Nenhuma obra com início e término preenchidos ainda.</div>';
+
+  const linhasPrazo=PARES_PRAZO.map(([rot,ci,cf])=>{
+    const cA=campo(ci), cB=campo(cf);
+    if(!cA||!cB) return `<tr><td>${esc(rot)}</td><td colspan="5" class="ro-inline">coluna não encontrada na base</td></tr>`;
+    const ds=[]; let abertos=0, maiorAberto=0;
+    OBRAS.forEach(o=>{
+      const a=getV(o.valores,cA.nome), b=getV(o.valores,cB.nome);
+      if(a&&b){ const d=dias(a,b); if(d!==null&&d>=0) ds.push(d); }
+      else if(a&&!b){ abertos++; const d=dias(a,hojeISO()); if(d!==null&&d>maiorAberto) maiorAberto=d; }
+    });
+    return `<tr><td>${esc(rot)}</td><td class="num">${ds.length}</td>`+
+           `<td class="num">${ds.length?media(ds)+" dias":"—"}</td>`+
+           `<td class="num">${ds.length?mediana(ds)+" dias":"—"}</td>`+
+           `<td class="num">${abertos}</td>`+
+           `<td class="num">${abertos?maiorAberto+" dias":"—"}</td></tr>`;
+  }).join("");
+
+  box.innerHTML=`
+    <div class="toolbar" style="margin-bottom:12px"><span class="count">Ano:</span>${selAno}</div>
+    <div class="kpi-row r3" style="margin-bottom:18px">${kpis}</div>
+
+    <div class="sec"><span class="cond">Início de obras e lotes comprados — ${esc(ano)}</span></div>
+    <div class="cal-box" style="margin-bottom:18px">
+      <div class="cal-leg" style="margin:0 0 10px"><span><i style="background:#295778"></i>Casas iniciadas</span><span><i style="background:#1a6b40"></i>Lotes adquiridos</span></div>
+      <div class="barras">${barras}</div>
+    </div>
+
+    <div class="sec"><span class="cond">Tempo médio de obra por setor</span></div>
+    <div class="tabela-wrap" style="margin-bottom:18px">${tabSetor}</div>
+
+    <div class="sec"><span class="cond">Prazo de cada etapa (das colunas com data de início e fim)</span></div>
+    <div class="tabela-wrap">
+      <table class="grade"><thead><tr><th>Etapa</th><th>Concluídas</th><th>Prazo médio</th><th>Mediana</th><th>Em aberto</th><th>Mais antiga em aberto</th></tr></thead>
+      <tbody>${linhasPrazo}</tbody></table>
+    </div>`;
+}
+
+/* ---------- inicialização ---------- */
+window.aoSincronizar=function(){ /* a fila subiu: nada a repintar além do que já está */ };
+boot();
+</script>
+</body>
+</html>
