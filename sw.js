@@ -78,7 +78,10 @@
    demandas do mês (demandas.html), e o app.js ganhou as ações do setor novo.
    Sem trocar este número, o service worker continua entregando o app.js
    ANTIGO do cache — e nem Ctrl+F5 derruba isso de forma confiável. */
-const CACHE = "portal-morais-v28";  // fundo do modal de links
+/* v28 -> v29: vendas.html — PARCELA/FGTS/RENDA passaram a aparecer na planilha
+   da Secretária (despublicados no fetch_vendas.py) e entrou o alerta de faixa
+   (VALOR DA PARCELA / VALOR DO FGTS fora de 1.000–50.000). */
+const CACHE = "portal-morais-v29";  // parcela/fgts/renda na planilha + alerta de faixa
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./documentos.html","./demandas.html",

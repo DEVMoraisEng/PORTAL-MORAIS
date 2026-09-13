@@ -96,10 +96,15 @@ CAMPOS_SENSIVEIS_PADRAO = [
     # contato
     "TELEFONE", "CELULAR", "WHATSAPP", "CONTATO", "E-MAIL", "EMAIL",
     # financeiro pessoal
-    "PARCELA", "FGTS",
+    # PARCELA / FGTS / RENDA foram DESPUBLICADOS a pedido (set/26): a Secretária
+    # de Vendas precisa ver esses valores direto na planilha (e o site dispara
+    # alerta quando ficam fora da faixa 1.000–50.000). Como o dist/ é servido
+    # como estático público no GitHub Pages, ATENÇÃO: esses três valores agora
+    # saem no dist/vendas.json — qualquer um com a URL do JSON os lê sem login.
+    # Para voltar a protegê-los, basta recolocar "PARCELA", "FGTS", "RENDA" aqui.
     "AGENCIA", "CONTA CORRENTE", "PIX",   # "BANCO" fica de fora: é o banco
                                           # financiador da obra, não conta bancária
-    "NASCIMENTO", "ESTADO CIVIL", "PROFISSAO", "RENDA",
+    "NASCIMENTO", "ESTADO CIVIL", "PROFISSAO",
     "ENDERECO DO CLIENTE", "ENDERECO RESIDENCIAL",
 ]
 # Além da lista acima, TODA coluna do tipo "files" é tratada como sensível:

@@ -221,6 +221,9 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
 .vazio{padding:26px;text-align:center;color:var(--text3);font-size:13px}
 /* dado sensível: não vem no dist/ (público). Chega pelo Apps Script ao abrir a obra. */
 .sens{color:var(--text4);letter-spacing:2px;user-select:none}
+/* célula com VALOR DA PARCELA / VALOR DO FGTS fora de 1.000–50.000 */
+td.fora-faixa{background:rgba(220,38,38,.12);color:#b91c1c;font-weight:600;box-shadow:inset 3px 0 0 #dc2626}
+td.fora-faixa::after{content:" ⚠️";font-weight:400}
 .sens.vazia{background:repeating-linear-gradient(45deg,transparent,transparent 5px,rgba(0,0,0,.03) 5px,rgba(0,0,0,.03) 10px)}
 .arq-vazio{color:var(--text4);font-size:12px;padding:2px 0}
 /* tópicos suspensos (alertas e atividades agrupados) */
@@ -1153,7 +1156,7 @@ function nomeExcluido(nome, ondeEstou){ const n=normNome(nome); if(CAMPOS_EXCLUI
    assim que o schema chega do Notion, mesmo que aqui o texto esteja cortado igual ao print */
 const ORDEM_PREFIXOS=[
   "AVALIACAO","VALIDADE","VALOR NA MAO","VALOR DE COMP","COMISSAO","ARMAZENOU CO","EMITIU RCPM","MANDOU TODO",
-  "DATA DE ENVIO","MANDOU P/ CO","PROCESSO CON","ASSINOU E ARM","DATA DE ASSINA","VALOR DA PARCE","TEVE FGTS","VALOR DO FGTS",
+  "DATA DE ENVIO","MANDOU P/ CO","PROCESSO CON","ASSINOU E ARM","DATA DE ASSINA","VALOR DA PARCE","TEVE FGTS","VALOR DO FGTS","VALOR DA REN","RENDA",
   "TEM PROTOCOL","PROTOCOLO DE","TEM PROTOCOL","PROTOCOLO DE","RECEBEU TAXA VI","AGENCIA","TEM NUMERO DE","CADASTR",
   "ITBI GERADO","ITBI PAGO","DEU ENTRADA","FICOU PRONTO","DEVOLVEU NO B","RECEBEU?","CASA APTA","AGENDOU PRE VI","DATA DA PRE-VIS",
   "TEM MANUAL DE","AGUA TRANSFER","ENERGIA TRANSF","ENTEGOU A CAS","DATA DA ENTREGA","PREENCHEU A PE","GEROU E ARMAZ",
@@ -1653,6 +1656,43 @@ function camposAlertaDoSetor(nome){
   const alvo=lista.map(normNome);
   return SCHEMA.filter(c=>c.tipo==="formula" && alvo.some(a=>normNome(c.nome).indexOf(a)>=0));
 }
+/* ALERTA DE FAIXA (pedido set/26): a Secretária precisa notar preenchimento
+   fora do esperado em VALOR DA PARCELA e VALOR DO FGTS. Cada coluna é conferida
+   SEPARADAMENTE (sem somar): se o valor preenchido for menor que R$1.000 ou
+   maior que R$50.000, entra na aba de alertas e a célula fica destacada na
+   planilha. Para incluir outra coluna (ex.: RENDA) acrescente o fragmento em
+   FAIXA_COLS; para mudar os limites, edite FAIXA_MIN/FAIXA_MAX. */
+const FAIXA_MIN=1000, FAIXA_MAX=50000;
+const FAIXA_COLS=["VALOR DA PARCELA","VALOR DO FGTS"];
+const FAIXA_SETORES=["Secretária de Vendas"];   // setores que veem este alerta
+/* lê número tolerante: aceita number puro (Notion, o caso normal) ou texto
+   "1.234,56" / "R$ 1.200" / "1200". VALOR DA PARCELA/FGTS são number no Notion,
+   então quase sempre já chega como número — o parse de texto é rede de segurança. */
+function paraNumero(v){
+  if(v==null||v==="") return null;
+  if(typeof v==="number") return isNaN(v)?null:v;
+  let s=String(v).replace(/[^\d.,-]/g,"").trim(); if(!s) return null;
+  if(s.indexOf(",")>=0){                       // tem vírgula -> pt-BR: ponto=milhar, vírgula=decimal
+    s=s.replace(/\./g,"").replace(",",".");
+  } else if(/\.\d{3}(\.\d{3})*$/.test(s) || (s.match(/\./g)||[]).length>1){
+    s=s.replace(/\./g,"");                      // sem vírgula, mas o ponto separa milhar ("1.200","1.200.000") -> remove
+  }                                             // senão o ponto é decimal de verdade ("1200.50") -> deixa
+  const n=parseFloat(s); return isNaN(n)?null:n;
+}
+function colunasDeFaixa(){ return FAIXA_COLS.map(f=>campoExatoOuFrag(f)).filter(Boolean); }
+/* devolve {n} se o valor está preenchido E fora da faixa; senão null */
+function valorForaDaFaixa(valores, c){
+  const n=paraNumero(getV(valores,c.nome));
+  if(n==null) return null;                       // vazio não é erro: ainda não preencheu
+  return (n<FAIXA_MIN||n>FAIXA_MAX)?{n}:null;
+}
+function setorTemAlertaFaixa(){ return FAIXA_SETORES.indexOf(SETOR_ATUAL)>=0; }
+/* usado na planilha (celulaHtml) pra pintar a célula fora da faixa */
+function celulaForaDaFaixa(c, valores){
+  if(!setorTemAlertaFaixa()) return false;
+  return colunasDeFaixa().some(cf=>normNome(cf.nome)===normNome(c.nome)) && !!valorForaDaFaixa(valores,c);
+}
+
 function renderAlertas(){
   const box=document.getElementById("al-lista");
   const dados = DADOS.set.length?DADOS.set:DADOS.hub;
@@ -1663,11 +1703,21 @@ function renderAlertas(){
   // disponível — VALOR NA MÃO preenchido — e ainda sem TIPO.
   const cTipo=campoExatoOuFrag("TIPO");
   const querTipo=["Secretária de Vendas","Departamento de Projetos"].indexOf(SETOR_ATUAL)>=0;
+  const colsFaixa=setorTemAlertaFaixa()?colunasDeFaixa():[];
   dados.forEach(v=>{
     alertaCampos.forEach(c=>{ const val=getV(v.valores,c.nome); if(val && val!=="-" && /PREENCHER|⚠️/.test(String(val))) linhas.push({v, end:getV(v.valores,"ENDEREÇO")||"(sem endereço)", txt:String(val)}); });
     if(querTipo && cTipo){
       const vm=getV(v.valores,"VALOR NA MÃO"), tp=getV(v.valores,cTipo.nome);
       if(vm!=null && vm!=="" && (tp==null||tp==="")) linhas.push({v, end:getV(v.valores,"ENDEREÇO")||"(sem endereço)", txt:"PREENCHER TIPO"});
+    }
+    // alerta de faixa: VALOR DA PARCELA / VALOR DO FGTS fora de 1.000–50.000.
+    // O txt começa com o nome real da coluna, então camposDoAlerta() já abre o
+    // campo editável ao lado — a pessoa corrige o valor sem abrir a obra.
+    if(setorTemAlertaFaixa()){
+      colsFaixa.forEach(cf=>{
+        if(valorForaDaFaixa(v.valores,cf))
+          linhas.push({v, end:getV(v.valores,"ENDEREÇO")||"(sem endereço)", txt:cf.nome.trim()+" — FORA DA FAIXA (R$1.000 a R$50.000)"});
+      });
     }
   });
   if(!linhas.length){ box.innerHTML='<div class="vazio">Nenhum alerta pendente. 🎉</div>'; return; }
@@ -1963,10 +2013,13 @@ function celulaHtml(c,val,rec){
     return `<td class="sens" title="Dado protegido — abra a obra para ver">•••</td>`;
   }
   const editavel=editavelNaCelula(c);
-  const attrs=editavel?` class="edt" data-col="${esc(c.nome)}" title="Clique para editar"`:"";
+  const fora=rec && celulaForaDaFaixa(c, rec.valores);
+  const cls=(editavel?"edt":"")+(fora?" fora-faixa":"");
+  const tit=fora?"⚠️ Fora da faixa esperada (R$1.000 a R$50.000)":(editavel?"Clique para editar":"");
+  const attrs=(cls.trim()?` class="${cls.trim()}"`:"")+(editavel?` data-col="${esc(c.nome)}"`:"")+(tit?` title="${esc(tit)}"`:"");
   if((c.tipo==="select"||c.tipo==="status") && (val==="SIM"||val==="NÃO")) return `<td${attrs}>${tagSimNao(val)}</td>`;
   const txt=celulaTexto(c,val);
-  return editavel?`<td${attrs}>${esc(txt)}</td>`:`<td title="${esc(txt)}">${esc(txt)}</td>`;
+  return editavel?`<td${attrs}>${esc(txt)}</td>`:`<td${attrs||` title="${esc(txt)}"`}>${esc(txt)}</td>`;
 }
 function tagSimNao(v){ if(v==="SIM")return `<span class="tag sim">SIM</span>`; if(v==="NÃO")return `<span class="tag nao">NÃO</span>`; return esc(v); }
 /* "tem cliente?" sem saber quem é: a coluna CLIENTES não é publicada, então a
@@ -2130,7 +2183,7 @@ function editarCelula(ctx,td){
       // na Casas Modelo a célula de link tem formatação própria (botão + lápis),
       // que o celulaHtml não sabe montar — redesenha a tabela inteira
       if(ctx==="mod"){ renderCasasModelo(); }
-      else td.outerHTML=celulaHtml(c,novo);   // repinta a célula com o valor novo (celulaTexto formata o R$)
+      else td.outerHTML=celulaHtml(c,novo,reg);   // repinta com o valor novo (formata R$ e reavalia o alerta de faixa na hora)
       toast(r.enfileirado?"Na fila ✓":"Salvo ✓");
     }else{
       // recusado pelo servidor: a edição não existe, não pode ficar na tela
