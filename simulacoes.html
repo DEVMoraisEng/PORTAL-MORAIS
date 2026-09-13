@@ -289,6 +289,7 @@ section > .sec:first-child{margin-top:0}
     <div class="crumb">
       <a class="btn-voltar" href="index.html">← Voltar para o Dashboard</a>
       <span style="flex:1"></span>
+      <button class="bt az" onclick="simAtualizarTudo()" title="Ignora os caches e busca no Notion agora">↻ Atualizar dados agora</button>
       <span class="chip-extr" id="data-extr"></span>
     </div>
 
@@ -442,10 +443,31 @@ async function simCarregar(forcar){
   const r = await lerStore({action:"simsLista"}, "sims_lista",
                            { ttl:SIM_TTL, forcar:!!forcar, pintar:simPintarLista });
   if(!(r && r.simulacoes)){
+    document.getElementById("sim-kpis").innerHTML =
+      '<div class="vazio" style="grid-column:1/-1">Sem dados para mostrar.</div>';
     document.getElementById("sim-lista").innerHTML =
-      '<div class="vazio">'+((r&&r.erro)||"Não foi possível carregar.")+'</div>';
+      '<div class="vazio" style="text-align:left;line-height:1.7">'+simErroAmigavel(r&&r.erro)+'</div>';
   }
 }
+/* Botão do topo: força as duas abas de uma vez. */
+function simAtualizarTudo(){
+  simCarregar(true);
+  if(UNS.length || !document.getElementById("tab-unidades").classList.contains("hide")) simCarregarUnidades(true);
+}
+
+/* O 404 do Notion tem uma causa só e uma solução só — mostrar o texto cru da
+   API deixava a pessoa achando que era bug do portal. */
+function simErroAmigavel(erro){
+  const t = String(erro||"");
+  if(t.indexOf("404") >= 0 || t.toLowerCase().indexOf("shared with your integration") >= 0){
+    return '<b>A base do Ipês ainda não foi compartilhada com a integração do portal.</b><br>' +
+           'No Notion, abra a base <b>SIMULAÇÕES – RESERVA DOS IPÊS</b> (e também a de UNIDADES) → ' +
+           'menu <b>⋯</b> → <b>Conexões</b> → adicione <b>SITES MORAIS</b>.<br>' +
+           '<span style="color:var(--text4);font-size:11px">' + esc(t) + '</span>';
+  }
+  return esc(t) || "Não foi possível carregar.";
+}
+
 function simPintarLista(r){
   if(!r || !r.simulacoes) return;
   SIMS = r.simulacoes;
@@ -595,7 +617,7 @@ async function simCarregarUnidades(forcar){
     UNS=r.unidades; simRenderUnidades();
     simAvisoUn("ok","Lista ao vivo do Notion"+(r.doCache?" (cópia de "+simData(r._ts)+")":"")+".");
   }
-  else simAvisoUn("err",(r&&r.erro)||"Não foi possível carregar as unidades.");
+  else { const a=document.getElementById("sim-avisoUn"); a.className="sim-aviso err"; a.innerHTML=simErroAmigavel(r&&r.erro); }
 }
 function simAvisoUn(t,m){
   const a=document.getElementById("sim-avisoUn");
