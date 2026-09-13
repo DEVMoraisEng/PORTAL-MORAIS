@@ -142,6 +142,12 @@ select:focus,input:focus{outline:none;border-color:var(--verde);box-shadow:0 0 0
 table{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;font-size:12.5px}
 thead th{background:var(--azul);color:#fff;text-align:center;padding:9px 11px;font-size:10px;letter-spacing:.4px;text-transform:uppercase;position:sticky;top:0;white-space:nowrap;z-index:2;font-weight:700;border-right:1px solid rgba(255,255,255,.22)}
 thead th.stick{left:0;z-index:3}
+/* cabeçalho ordenável (clique para ordenar) */
+thead th.ord{cursor:pointer}
+thead th.ord:hover{background:rgba(0,0,0,.18)}
+thead th.ord-ativa{background:rgba(0,0,0,.28)}
+thead th .ord-seta{margin-left:5px;font-size:8px;opacity:.9;vertical-align:middle}
+thead th .ord-seta.off{opacity:.35}
 tbody td{padding:7px 11px;border-top:1px solid var(--border2);border-right:1px solid var(--border2);white-space:nowrap;color:var(--text);max-width:280px;overflow:hidden;text-overflow:ellipsis}
 tbody td.stick{position:sticky;left:0;background:var(--sup);font-weight:700;z-index:1;border-right:2px solid var(--border)}
 tbody tr:nth-child(even) td{background:var(--bg2)} tbody tr:nth-child(even) td.stick{background:#eef5f7}
@@ -1488,7 +1494,7 @@ function renderCasasModelo(){
     wrap.innerHTML=`<div class="vazio">Nenhuma casa com MODELO? = SIM${busca?" para esta busca":""}.</div>`;
     return;
   }
-  let html='<table><thead><tr>'+cols.map((c,i)=>`<th class="${i===0?"stick":""}">${esc(c.nome.trim())}</th>`).join("")+'</tr></thead><tbody>';
+  let html='<table><thead><tr>'+cols.map((c,i)=>thCol(c,i,"mod")).join("")+'</tr></thead><tbody>';
   lista.forEach(v=>{
     html+=`<tr data-id="${esc(v.id)}">`+cols.map((c,i)=>{
       if(i===0) return `<td class="stick"><span class="obralink" data-obra="${esc(v.id)}">${esc(getV(v.valores,c.nome)||"(sem endereço)")}</span></td>`;
@@ -1516,6 +1522,7 @@ function renderCasasModelo(){
   // Sem isto o clique na célula não fazia nada — era o "não consigo editar aqui".
   DADOS.mod=lista;
   ligarTabela("mod");
+  ordenarDom("mod");   // reaplica a ordem por clique (a tabela foi reconstruída)
 }
 
 /* ---------- ATIVIDADES ---------- */
@@ -2066,9 +2073,87 @@ function corSituacao(valores){
   if(n===3) return "sit3"; if(n===2) return "sit2"; if(n===1) return "sit1";
   return "";
 }
+/* ---------- ORDENAÇÃO POR CLIQUE NO CABEÇALHO (set/26) ----------
+   ORDEM_TAB[ctx] = {col, dir}: dir 1=crescente, -1=decrescente. Sem entrada =
+   ordem padrão (a numeração por DATA DA VENDA de sempre). O clique alterna
+   crescente -> decrescente -> padrão. A ordenação mexe só no DOM (reordena as
+   <tr>), então convive com os filtros: aplicarFiltros() termina em
+   renumerarTabela(), que reaplica esta ordem. Vale para as planilhas (hub/set)
+   e para as Casas Modelo (mod). A coluna "Nº" continua sendo a posição na
+   ordem de venda, mesmo quando a tabela está ordenada por outra coluna. */
+const ORDEM_TAB={};
+/* extrai a chave de ordenação de um registro para uma coluna, já tipada:
+   número (moeda/number), texto (resto) ou vazio (sempre jogado para o fim). */
+function valOrd(reg, colNome){
+  if(!reg) return {vazio:true};
+  const c=campoPorNome(colNome);
+  let v=getV(reg.valores, colNome);
+  // coluna protegida cujo valor não é publicado: ordena pelo resumo "sens"
+  // (preenchido / nº de anexos), não pela string mascarada
+  if(c && c.sensivel && (v==null||v==="")){
+    const s=reg.sens?reg.sens[c.nome]:undefined;
+    if(s===undefined) return {vazio:true};
+    if(typeof s==="number") return {num:s};
+    return {str:"\uFFFE"};   // preenchido mas oculto: depois de tudo, antes do vazio
+  }
+  if(v==null||v==="") return {vazio:true};
+  if(c && (c.tipo==="number"||ehColunaMoeda(colNome,c.tipo))){ const n=paraNumero(v); return n==null?{vazio:true}:{num:n}; }
+  if(c && c.tipo==="date") return {str:String(v).slice(0,10)};
+  if(Array.isArray(v)) v=v.join(", ");
+  return {str:String(v).toLowerCase()};
+}
+function compararRegistros(ra, rb, colNome, dir){
+  const a=valOrd(ra,colNome), b=valOrd(rb,colNome);
+  if(a.vazio && b.vazio) return 0;
+  if(a.vazio) return 1;            // vazio sempre por último, independente da direção
+  if(b.vazio) return -1;
+  let cmp;
+  if(a.num!=null && b.num!=null) cmp=a.num-b.num;
+  else cmp=String(a.str==null?"":a.str).localeCompare(String(b.str==null?"":b.str),"pt-BR",{numeric:true,sensitivity:"base"});
+  return cmp*dir;
+}
+/* reordena as <tr> do tbody conforme ORDEM_TAB[ctx]. Devolve true se aplicou. */
+function ordenarDom(ctx){
+  const ord=ORDEM_TAB[ctx]; if(!ord) return false;
+  const tbody=document.querySelector("#"+ctx+"-wrap tbody"); if(!tbody) return false;
+  const idx={}; (DADOS[ctx]||[]).forEach(v=>{ idx[v.id]=v; });
+  const trs=[...tbody.querySelectorAll("tr")];
+  trs.sort((a,b)=>compararRegistros(idx[a.dataset.id], idx[b.dataset.id], ord.col, ord.dir));
+  trs.forEach(tr=>tbody.appendChild(tr));
+  return true;
+}
+function setaOrd(ctx, colNome){
+  const o=ORDEM_TAB[ctx];
+  if(o && normNome(o.col)===normNome(colNome)) return `<span class="ord-seta">${o.dir>0?"▲":"▼"}</span>`;
+  return `<span class="ord-seta off">↕</span>`;
+}
+/* <th> ordenável: mantém o "stick" da 1ª coluna, guarda o nome em data-col */
+function thCol(c, i, ctx){
+  const cls=(i===0?"stick ":"")+"ord"+(ORDEM_TAB[ctx]&&normNome(ORDEM_TAB[ctx].col)===normNome(c.nome)?" ord-ativa":"");
+  return `<th class="${cls}" data-col="${esc(c.nome)}" title="Ordenar por ${esc(c.nome.trim())}">${esc(c.nome.trim())}${setaOrd(ctx,c.nome)}</th>`;
+}
+function atualizarSetas(ctx){
+  document.querySelectorAll("#"+ctx+"-wrap thead th.ord").forEach(th=>{
+    const s=th.querySelector(".ord-seta"); if(!s) return;
+    const o=ORDEM_TAB[ctx];
+    if(o && normNome(o.col)===normNome(th.dataset.col)){ s.textContent=o.dir>0?"▲":"▼"; s.classList.remove("off"); th.classList.add("ord-ativa"); }
+    else { s.textContent="↕"; s.classList.add("off"); th.classList.remove("ord-ativa"); }
+  });
+}
+/* clique no cabeçalho: crescente -> decrescente -> volta ao padrão */
+function ordenarPor(ctx, colNome){
+  if(!colNome) return;
+  const o=ORDEM_TAB[ctx];
+  if(o && normNome(o.col)===normNome(colNome)){
+    if(o.dir>0) o.dir=-1; else delete ORDEM_TAB[ctx];
+  } else ORDEM_TAB[ctx]={col:colNome, dir:1};
+  if(ctx==="mod"){ renderCasasModelo(); }        // mod reconstrói a tabela inteira
+  else { renumerarTabela(ctx); atualizarSetas(ctx); }
+}
+
 function renderTabela(ctx){
   const cols=ordemColunas().map(campoPorNome).filter(Boolean);
-  let html='<table><thead><tr><th>Nº</th>'+cols.map((c,i)=>`<th class="${i===0?"stick":""}">${esc(c.nome.trim())}</th>`).join("")+'</tr></thead><tbody>';
+  let html='<table><thead><tr><th>Nº</th>'+cols.map((c,i)=>thCol(c,i,ctx)).join("")+'</tr></thead><tbody>';
   DADOS[ctx].forEach(v=>{
     const dv=getV(v.valores,"DATA DA VENDA");
     const vendida=!!dv;
@@ -2108,20 +2193,26 @@ function renderTabela(ctx){
 function renumerarTabela(ctx){
   const tbody=document.querySelector("#"+ctx+"-wrap tbody"); if(!tbody) return;
   const todas=[...tbody.querySelectorAll("tr")];
-  const visiveis=todas.filter(tr=>tr.style.display!=="none" && tr.dataset.dv);
-  visiveis.sort((a,b)=>a.dataset.dv.localeCompare(b.dataset.dv));
+  // Nº = posição na ordem de DATA DA VENDA (só visíveis e vendidas), sempre —
+  // independe da ordem visual escolhida no cabeçalho
+  const vendidas=todas.filter(tr=>tr.style.display!=="none" && tr.dataset.dv);
+  const porData=[...vendidas].sort((a,b)=>a.dataset.dv.localeCompare(b.dataset.dv));
   todas.forEach(td=>{ const c=td.querySelector(".numcol"); if(c) c.textContent="—"; });
-  visiveis.forEach((tr,i)=>{ tr.querySelector(".numcol").textContent=i+1; });
-  // reordena o DOM: numeradas em ordem crescente primeiro, resto (sem número) mantém a ordem que já tinha
-  const numeradas=new Set(visiveis);
+  porData.forEach((tr,i)=>{ const c=tr.querySelector(".numcol"); if(c) c.textContent=i+1; });
+  // ordem do DOM: se há ordenação por clique, ela manda
+  if(ordenarDom(ctx)) return;
+  // padrão de sempre: vendidas por data primeiro, o resto mantém a ordem atual
+  const numeradas=new Set(porData);
   const resto=todas.filter(tr=>!numeradas.has(tr));
-  [...visiveis, ...resto].forEach(tr=>tbody.appendChild(tr));
+  [...porData, ...resto].forEach(tr=>tbody.appendChild(tr));
 }
 
 /* clique na tabela: abre a obra (coluna de endereço) ou edita a célula */
 function ligarTabela(ctx){
   const wrap=document.getElementById(ctx+"-wrap");
   wrap.onclick=(ev)=>{
+    const th=ev.target.closest("th.ord");
+    if(th){ ordenarPor(ctx, th.dataset.col); return; }
     const link=ev.target.closest(".obralink");
     if(link){ abrirObra(link.dataset.obra); return; }
     if(ev.target.closest("a")) return;   // clicou no "🔗 Abrir": deixa navegar

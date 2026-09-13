@@ -80,8 +80,9 @@
    ANTIGO do cache — e nem Ctrl+F5 derruba isso de forma confiável. */
 /* v28 -> v29: vendas.html — PARCELA/FGTS/RENDA passaram a aparecer na planilha
    da Secretária (despublicados no fetch_vendas.py) e entrou o alerta de faixa
-   (VALOR DA PARCELA / VALOR DO FGTS fora de 1.000–50.000). */
-const CACHE = "portal-morais-v29";  // parcela/fgts/renda na planilha + alerta de faixa
+   (VALOR DA PARCELA / VALOR DO FGTS fora de 1.000–50.000). Também entrou a
+   ORDENAÇÃO por clique no cabeçalho das tabelas (planilha e Casas Modelo). */
+const CACHE = "portal-morais-v29";  // parcela/fgts/renda + alerta de faixa + ordenar por coluna
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./documentos.html","./demandas.html",
