@@ -335,12 +335,20 @@ const SISTEMAS=[
      sem erro nenhum na tela. */
   {chave:"DOCUMENTOS",nome:"Gestão de Documentos",desc:"Documentação da obra, alvará, habite-se e prazos",ico:"D",link:"documentos.html",conta:true,grupo:"SETORES"},
 
+  /* r38 — SIMULAÇÕES (Reserva do Ipês). Exige a opção "SIMULAÇÕES" na coluna
+     ACESSOS do banco LOGINS, como os demais setores (ADM/MASTER/TESTES passam
+     sempre). A tela é a simulacoes.html, no próprio portal. */
+  {chave:"SIMULAÇÕES",nome:"Simulações · Reserva do Ipês",desc:"Simulações da Caixa, aprovação e unidades",ico:"S",link:"simulacoes.html",grupo:"SETORES"},
+
   {chave:"ANÁLISES",nome:"Orçado × Realizado",desc:"Comparativo por obra e insumo",ico:"$",link:"analise.html",grupo:"ANÁLISES"},
 
   /* "MAPA DE VENDAS" é público: publico:true faz o botão aparecer pra
      qualquer usuário logado, sem precisar de liberação na coluna ACESSOS
      do banco LOGINS (diferente dos outros itens, que exigem a chave lá). */
   {chave:"MAPA DE VENDAS",nome:"Mapa de Vendas",desc:"Disponibilidade e mapas por setor",ico:"M",link:"https://devmoraiseng.github.io/SITE-DE-VENDAS/",externo:true,grupo:"MAPAS",publico:true},
+
+  /* público, igual ao Mapa de Vendas: aparece para qualquer usuário logado. */
+  {chave:"MAPA RESERVA DOS IPÊS",nome:"Mapa Reserva dos Ipês",desc:"Mapa de vendas e simulador do empreendimento",ico:"M",link:"https://devmoraiseng.github.io/SIMULADOR-RESERVA-DO-IP-S/",externo:true,grupo:"MAPAS",publico:true},
 
   {chave:"RAS LÍDERES",nome:"RAS Líderes",desc:"Reunião de alinhamento — Líderes",ico:"R",link:"https://devmoraiseng.github.io/RAS-SEMANAL/",externo:true,grupo:"REUNIÕES"},
   {chave:"RAS FINANCEIRO",nome:"RAS Financeiro",desc:"Reunião de alinhamento — Financeiro",ico:"R",link:"https://devmoraiseng.github.io/RAS-FINANCEIRO/",externo:true,grupo:"REUNIÕES"},
