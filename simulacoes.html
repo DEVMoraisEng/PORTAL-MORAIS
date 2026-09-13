@@ -328,7 +328,7 @@ section > .sec:first-child{margin-top:0}
               <option value="APROVADA">Aprovadas</option>
               <option value="REJEITADA">Rejeitadas</option>
             </select>
-            <button class="bt az" onclick="simCarregar(true)">Atualizar</button>
+            <button class="bt az" onclick="simCarregar(true)" title="Ignora o cache e busca no Notion agora">Atualizar agora</button>
           </div>
           <div id="sim-lista"><div class="vazio"><span class="load"></span> Carregando…</div></div>
         </div>
@@ -341,7 +341,7 @@ section > .sec:first-child{margin-top:0}
           <div id="sim-avisoUn" class="sim-aviso"></div>
           <div class="sim-barra">
             <input type="search" id="sim-buscaUn" placeholder="Unidade ou tipo…" oninput="simRenderUnidades()">
-            <button class="bt az" onclick="simCarregarUnidades(true)">Recarregar</button>
+            <button class="bt az" onclick="simCarregarUnidades(true)" title="Busca no Notion ao vivo, ignorando o arquivo publicado">Atualizar agora</button>
           </div>
           <div class="tbl-wrap" style="max-height:68vh"><table class="sim-tabela" id="sim-tabUn"></table></div>
         </div>
@@ -427,16 +427,32 @@ function iniciar(){
 }
 
 /* ---------- simulações ---------- */
+/* CARREGA UMA VEZ E REVALIDA SOZINHO (lerStore do app.js).
+   Por que NÃO dá para publicar isto num dist/*.json como as outras telas:
+   a lista tem nome, CPF, e-mail e renda do cliente, e o GitHub Pages serve
+   aquele arquivo para QUALQUER UM que saiba a URL, sem login. Então a fonte
+   continua sendo o Apps Script — mas a tela deixa de esperar por ele:
+   pinta a cópia guardada NA HORA e troca quando a resposta chega. O
+   "Atualizar agora" é o atalho para quem não quer esperar o ciclo. */
+const SIM_TTL = 10*60*1000;   // 10 min, igual ao ritmo das outras telas
+
 async function simCarregar(forcar){
-  const r = await ler({action:"simsLista"}, forcar ? null : "sims_lista");
-  if(r && r.simulacoes){
-    SIMS = r.simulacoes;
-    if(r.lidoEm) document.getElementById("data-extr").textContent = "Atualizado "+simData(r.lidoEm);
-    simRenderKpis(); simRenderGrafico(); simRenderLista();
-  }else{
+  if(forcar) document.getElementById("sim-lista").innerHTML =
+    '<div class="vazio"><span class="load"></span> Buscando no Notion…</div>';
+  const r = await lerStore({action:"simsLista"}, "sims_lista",
+                           { ttl:SIM_TTL, forcar:!!forcar, pintar:simPintarLista });
+  if(!(r && r.simulacoes)){
     document.getElementById("sim-lista").innerHTML =
       '<div class="vazio">'+((r&&r.erro)||"Não foi possível carregar.")+'</div>';
   }
+}
+function simPintarLista(r){
+  if(!r || !r.simulacoes) return;
+  SIMS = r.simulacoes;
+  const quando = r.lidoEm || r._ts;
+  document.getElementById("data-extr").textContent =
+    (r.doCache ? "Do cache · " : "Atualizado ") + simData(quando) + (r.velho ? " (sem conexão)" : "");
+  simRenderKpis(); simRenderGrafico(); simRenderLista();
 }
 function simMedia(campo){
   const v = SIMS.map(s=>Number(s[campo])||0).filter(x=>x>0);
@@ -537,6 +553,7 @@ async function simDecidir(id,decisao){
   if(r && r.ok){
     const s=SIMS.find(x=>x.id===id); if(s) s.aprovacao=decisao;
     av.className="sim-aviso ok"; av.textContent="Marcada como "+decisao+".";
+    try{ storeGravar("sims_lista", {ok:true, simulacoes:SIMS, lidoEm:new Date().toISOString()}); }catch(e){}
     simRenderKpis(); simRenderLista(); setTimeout(simFecharDet,700);
   }else{
     av.className="sim-aviso err";
@@ -551,9 +568,33 @@ const SIM_COLS=[["unidade","UNIDADE","ro"],["tipo","TIPO","num"],["valorVenda","
 const SIM_NOME_NOTION={unidade:"UNIDADE",tipo:"TIPO",valorVenda:"VALOR DE VENDA",avaliacao:"AVALIACAO",
                        informacoes:"INFORMACOES",decorado:"DECORADO",disponivel:"DISPONIVEL",vendido:"VENDIDA"};
 
+/* As unidades NÃO têm dado de cliente — são preço, tipo e disponibilidade,
+   as mesmas que o mapa já publica. Então a fonte primária aqui é o arquivo
+   estático do repositório do mapa: abre instantâneo, sem fila do Apps
+   Script. O Apps Script entra só como reserva (e é ele que grava). */
+const SIM_UNIDADES_JSON = "https://devmoraiseng.github.io/SIMULADOR-RESERVA-DO-IP-S/unidades.json";
+
 async function simCarregarUnidades(forcar){
-  const r = await ler({action:"simsUnidades"}, forcar ? null : "sims_unidades");
-  if(r && r.unidades){ UNS=r.unidades; simRenderUnidades(); }
+  if(!forcar){
+    try{
+      const resp = await fetch(SIM_UNIDADES_JSON, {cache:"no-cache"});
+      if(resp.ok){
+        const d = await resp.json();
+        if(d && d.length){
+          UNS = d; simRenderUnidades();
+          simAvisoUn("ok","Lista do mapa publicado. Use \u201cRecarregar\u201d para ver o Notion ao vivo.");
+          return;
+        }
+      }
+    }catch(e){}
+  }
+  simAvisoUn("ok","Buscando no Notion…");
+  const r = await lerStore({action:"simsUnidades"}, "sims_unidades",
+                           { ttl:SIM_TTL, forcar:!!forcar });
+  if(r && r.unidades){
+    UNS=r.unidades; simRenderUnidades();
+    simAvisoUn("ok","Lista ao vivo do Notion"+(r.doCache?" (cópia de "+simData(r._ts)+")":"")+".");
+  }
   else simAvisoUn("err",(r&&r.erro)||"Não foi possível carregar as unidades.");
 }
 function simAvisoUn(t,m){
@@ -591,6 +632,7 @@ async function simSalvarUnidade(i){
   simAvisoUn("ok","Salvando no Notion…");
   const r = await chamar({action:"simsUnidadeUpdate", pageId:u.id, campos:campos}, 30000, true);
   if(r && r.ok){
+    try{ storeGravar("sims_unidades", {ok:true, unidades:UNS}); }catch(e){}
     simAvisoUn("ok","Unidade "+u.unidade+" atualizada. O mapa de vendas está sendo republicado.");
     simRenderUnidades();
   }else{
