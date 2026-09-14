@@ -31,10 +31,14 @@ const ACOES_NA_ESCRITA = [
   "ligUpdate", "ligAnexar", "ligBaixa", "ligVendaUpdate", "ligExcluir", "ligCriar",
   "posObraServicoNovo", "posObraAtvUpdate", "posObraUpdate", "posObraAnexar",
   "posObraRetornoExcluir", "posObraAtvExcluir", "posObraNovo",
-  /* set/26: a gravação de unidade do Ipês estava saindo pela faixa de
-     LEITURA — ou seja, cada "Salvar" disputava fila com as revalidações da
-     própria tela. Agora vai pela implantação de escrita, como as demais. */
-  "simsUnidadeUpdate",
+  /* set/26 r2 — simsUnidadeUpdate NAO entra aqui, de proposito.
+     Na rodada anterior ela foi movida para a faixa de ESCRITA e o "Salvar
+     tudo" passou a devolver NAO_AUTORIZADO: a implantacao de LEITURA
+     respondeu normalmente no diagnostico (HTTP 200 + JSON), a de ESCRITA
+     recusou a sessao. Enquanto o SESSION_SECRET dos dois projetos nao for
+     confirmado identico, a gravacao de unidade sai pela MESMA implantacao
+     que ja funciona. Nao mover esta acao sem antes conferir o ping da
+     implantacao de escrita. */
   /* opStatus e posObraValidarAdm NÃO gravam, mas acompanham uma criação e
      precisam da mesma faixa livre — perguntar "criou?" na fila das leituras
      seria esperar atrás da leitura que atrapalhou a criação. */

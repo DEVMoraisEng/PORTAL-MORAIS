@@ -731,11 +731,14 @@ function simVerDet(id){
 function simFecharDet(){ document.getElementById("sim-modal").classList.add("hide"); }
 
 /* ---------- unidades (sem mudanças de fundo — só o local do botão mudou) ---------- */
+/* VENDIDA tem TRES estados desde set/26: SIM, NAO e RESERVADA. RESERVADA e o
+   que a aba de propostas grava quando a proposta e aceita ou reservada — por
+   isso a coluna aqui e um select de tres opcoes e nao um SIM/NAO. */
 const SIM_COLS=[["unidade","UNIDADE","ro"],["tipo","TIPO","num"],["valorVenda","VALOR DE VENDA","num"],
                 ["avaliacao","AVALIACAO","num"],["informacoes","INFORMACOES","txt"],
-                ["decorado","DECORADO","sn"],["disponivel","DISPONIVEL","sn"],["vendido","VENDIDA","sn"]];
+                ["decorado","DECORADO","sn"],["disponivel","DISPONIVEL","sn"],["vendidaCru","VENDIDA","v3"]];
 const SIM_NOME_NOTION={unidade:"UNIDADE",tipo:"TIPO",valorVenda:"VALOR DE VENDA",avaliacao:"AVALIACAO",
-                       informacoes:"INFORMACOES",decorado:"DECORADO",disponivel:"DISPONIVEL",vendido:"VENDIDA"};
+                       informacoes:"INFORMACOES",decorado:"DECORADO",disponivel:"DISPONIVEL",vendidaCru:"VENDIDA"};
 
 /* IMPORTANTE — POR QUE NÃO USAMOS MAIS O unidades.json ESTÁTICO AQUI
    O arquivo publicado do mapa (unidades.json) traz preço/tipo/disponibilidade,
@@ -818,7 +821,9 @@ function simColetarLinha(i){
   const u=UNS[i]; const campos={};
   document.querySelectorAll(`.sim-edit[data-i="${i}"]`).forEach(el=>{
     const c=el.dataset.c, v=el.value;
-    if(["decorado","disponivel","vendido"].includes(c)){ u[c]=(v==="true"); campos[SIM_NOME_NOTION[c]]= u[c]?"SIM":"NÃO"; }
+    if(c==="vendidaCru"){ u.vendidaCru=v; u.vendido=(v==="SIM"); u.reservado=(v==="RESERVADA");
+                          campos[SIM_NOME_NOTION[c]]=(v==="NAO"?"NÃO":v); }
+    else if(["decorado","disponivel"].includes(c)){ u[c]=(v==="true"); campos[SIM_NOME_NOTION[c]]= u[c]?"SIM":"NÃO"; }
     else if(["valorVenda","avaliacao","tipo"].includes(c)){ u[c]=Number(v)||0; campos[SIM_NOME_NOTION[c]]=u[c]; }
     else { u[c]=v; campos[SIM_NOME_NOTION[c]]=v; }
   });
@@ -835,6 +840,13 @@ function simRenderUnidades(){
     const tds=SIM_COLS.map(c=>{
       const campo=c[0], tipo=c[2], v=u[campo];
       if(tipo==="ro") return `<td><b>${esc(String(v==null?"":v))}</b></td>`;
+      if(tipo==="v3"){
+        const atual=String(v||"NAO").toUpperCase();
+        return `<td><select class="sim-edit" data-i="${i}" data-c="${campo}" onchange="simAoEditar(${i})">
+          <option value="NAO"${atual==="NAO"?" selected":""}>NÃO</option>
+          <option value="RESERVADA"${atual==="RESERVADA"?" selected":""}>RESERVADA</option>
+          <option value="SIM"${atual==="SIM"?" selected":""}>SIM</option></select></td>`;
+      }
       if(tipo==="sn") return `<td><select class="sim-edit" data-i="${i}" data-c="${campo}" onchange="simAoEditar(${i})">
           <option value="true"${v?" selected":""}>SIM</option>
           <option value="false"${!v?" selected":""}>NÃO</option></select></td>`;
@@ -875,7 +887,10 @@ async function simSalvarUnidade(i){
   if(r && r.ok){
     SIM_ALTERADAS.delete(i);
     try{ storeGravar("sims_unidades", {ok:true, unidades:UNS}); }catch(e){}
-    simAvisoUn("ok","Unidade "+u.unidade+" atualizada. O mapa de vendas está sendo republicado.");
+    /* ignoradas = colunas que o Notion nao tem com aquele nome. Antes isso
+       passava calado e a pessoa achava que tinha salvo. */
+    const ign = (r.ignoradas&&r.ignoradas.length) ? " Colunas nao encontradas no Notion: "+r.ignoradas.join(", ")+"." : "";
+    simAvisoUn(ign?"err":"ok","Unidade "+u.unidade+" atualizada."+ign+" O mapa de vendas está sendo republicado.");
     simRenderUnidades();
   }else{
     simAvisoUn("err",(r&&r.erro==="MODO_TESTE") ? "Perfil TESTES não grava." : simErroAmigavel(r&&r.erro));
