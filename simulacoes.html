@@ -315,15 +315,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
         <div class="sec"><span class="cond">Panorama</span></div>
         <div class="kpis" id="sim-kpis"><div class="vazio" style="grid-column:1/-1"><span class="load"></span> Carregando…</div></div>
 
-        <div class="sec"><span class="cond">Médias dos proponentes</span>
-          <span style="flex:1"></span>
-          <div class="seg" id="seg-media">
-            <button class="seg-bt on" data-fm="todas" onclick="simSegMedia('todas')">Todas</button>
-            <button class="seg-bt" data-fm="APROVADA" onclick="simSegMedia('APROVADA')">Aprovadas</button>
-            <button class="seg-bt" data-fm="PENDENTE" onclick="simSegMedia('PENDENTE')">Pendentes</button>
-            <button class="seg-bt" data-fm="REJEITADA" onclick="simSegMedia('REJEITADA')">Negadas</button>
-          </div>
-        </div>
+        <div class="sec"><span class="cond">Médias dos proponentes</span></div>
         <div class="card"><div class="sim-graf" id="sim-grafico"></div></div>
 
         <div class="sec"><span class="cond">Ranking de corretores e imobiliárias</span></div>
@@ -337,17 +329,22 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
             <div class="tbl-wrap" style="max-height:360px"><table id="sim-rankImob"></table></div>
           </div>
         </div>
+
+        <div class="sec"><span class="cond">Unidades mais simuladas</span></div>
+        <div class="card">
+          <div class="tbl-wrap" style="max-height:420px"><table id="sim-rankUnidade"></table></div>
+        </div>
       </section>
 
       <!-- ==================== SIMULAÇÕES RECEBIDAS ==================== -->
       <section id="tab-recebidas" class="hide">
         <div class="sec"><span class="cond">Simulações recebidas</span>
           <span style="flex:1"></span>
-          <div class="seg" id="seg-aprov">
-            <button class="seg-bt" data-ap="" onclick="simSegAp('')">Todas</button>
-            <button class="seg-bt on" data-ap="PENDENTE" onclick="simSegAp('PENDENTE')">Pendentes</button>
-            <button class="seg-bt" data-ap="APROVADA" onclick="simSegAp('APROVADA')">Aprovadas</button>
-            <button class="seg-bt" data-ap="REJEITADA" onclick="simSegAp('REJEITADA')">Recusadas</button>
+          <div class="seg" id="seg-st">
+            <button class="seg-bt on" data-st="" onclick="simSegSt('')">Todas</button>
+            <button class="seg-bt" data-st="PENDENTE" onclick="simSegSt('PENDENTE')">Em processamento</button>
+            <button class="seg-bt" data-st="CONCLUIDO" onclick="simSegSt('CONCLUIDO')">Concluídas</button>
+            <button class="seg-bt" data-st="ERRO" onclick="simSegSt('ERRO')">Com erro</button>
           </div>
         </div>
         <div class="card">
@@ -369,6 +366,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
             <div class="fcampo"><label>Buscar</label>
               <input type="search" id="sim-buscaUn" placeholder="Unidade ou tipo…" oninput="simRenderUnidades()"></div>
             <button class="bt ghost" onclick="simCarregarUnidades(true)" title="Busca no Notion ao vivo, ignorando o arquivo publicado">↻ Atualizar agora</button>
+            <button class="bt ghost" onclick="simDiagRede()" title="Mostra a resposta crua do Apps Script — use quando aparecer ERRO_API">🩺 Diagnóstico</button>
             <button class="bt verde" id="sim-btSalvarTudo" onclick="simSalvarTudo()" title="Grava no Notion todas as unidades que você alterou">💾 Salvar tudo</button>
             <span id="sim-alteradas" style="font-size:12px;color:var(--text3);align-self:center"></span>
           </div>
@@ -398,8 +396,11 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
 const S = exigirSessao();
 let SIMS = [], UNS = [];
 let ordSim = {col:"criadoEm", dir:-1};   // ordenação da tabela "Simulações Recebidas"
-let simFiltroAp = "PENDENTE";            // aba de aprovação ativa em Recebidas
-let simFiltroMedia = "todas";            // filtro das médias do Painel
+/* set/26 — APROVAÇÃO SAIU DAQUI.
+   Aprovar/negar/reservar passou a ser assunto do banco de PROPOSTAS. A tela de
+   SIMULAÇÕES só mostra o que o worker devolveu, então o único estado que
+   sobra é o do processamento (pendente / concluído / erro). */
+let simFiltroSt = "";                    // filtro por status do worker em Recebidas
 
 function trocarTema(){
   const novo = document.documentElement.dataset.tema === "escuro" ? "claro" : "escuro";
@@ -514,32 +515,29 @@ function simPintarLista(r){
 }
 
 /* ---------- KPIs ---------- */
+function simSt(s){ return String(s&&s.status||"").trim().toUpperCase(); }
 function simRenderKpis(){
-  const pend = SIMS.filter(s=>(s.aprovacao||"PENDENTE")==="PENDENTE").length;
-  const apr  = SIMS.filter(s=>s.aprovacao==="APROVADA");
-  const rej  = SIMS.filter(s=>s.aprovacao==="REJEITADA").length;
-  const com  = apr.reduce((a,s)=>a+(Number(s.comissaoValor)||0),0);
+  const conc = SIMS.filter(s=>simSt(s)==="CONCLUIDO").length;
+  const erro = SIMS.filter(s=>simSt(s)==="ERRO").length;
+  const proc = SIMS.length - conc - erro;
+  const com  = SIMS.reduce((a,s)=>a+(Number(s.comissaoValor)||0),0);
+  const uns  = new Set(SIMS.map(s=>String(s.unidade||"")).filter(Boolean)).size;
   document.getElementById("sim-kpis").innerHTML =
-    [["Simulações",SIMS.length],["Pendentes",pend],["Aprovadas",apr.length],
-     ["Rejeitadas",rej],["Comissão das aprovadas",simBRL(com)]]
+    [["Simulações",SIMS.length],["Concluídas",conc],["Em processamento",proc],
+     ["Com erro",erro],["Unidades procuradas",uns],["Comissão prevista",simBRL(com)]]
     .map(k=>`<div class="kpi"><div class="lab">${k[0]}</div><div class="val">${k[1]}</div></div>`).join("");
 }
 
-/* ---------- médias (com o filtro por aprovação) ---------- */
-function simSegMedia(v){
-  simFiltroMedia=v;
-  document.querySelectorAll("#seg-media .seg-bt").forEach(b=>b.classList.toggle("on", b.dataset.fm===v));
-  simRenderGrafico();
-}
+/* ---------- médias (todas as simulações recebidas) ---------- */
 function simMedia(campo, arr){
   const base = arr || SIMS;
   const v = base.map(s=>Number(s[campo])||0).filter(x=>x>0);
   return v.length ? v.reduce((a,b)=>a+b,0)/v.length : 0;
 }
 function simRenderGrafico(){
-  const base = simFiltroMedia==="todas" ? SIMS : SIMS.filter(s=>(s.aprovacao||"PENDENTE")===simFiltroMedia);
+  const base = SIMS;
   if(!base.length){
-    document.getElementById("sim-grafico").innerHTML='<div class="vazio" style="width:100%">Sem simulações nesse grupo.</div>';
+    document.getElementById("sim-grafico").innerHTML='<div class="vazio" style="width:100%">Sem simulações ainda.</div>';
     return;
   }
   const dados=[["Renda média",simMedia("renda",base)],["FGTS médio",simMedia("fgts",base)],["Subsídio médio",simMedia("subsidio",base)]];
@@ -554,21 +552,49 @@ function simRenderGrafico(){
 function simRenderRanking(){
   simRenderRankingTabela("sim-rankCorretor","corretor");
   simRenderRankingTabela("sim-rankImob","imobiliaria");
+  simRenderRankingUnidades();
 }
 function simRenderRankingTabela(idAlvo, campo){
   const mapa={};
   SIMS.forEach(s=>{
     const nome=(s[campo]||"").trim()||"—";
-    const r=mapa[nome]||(mapa[nome]={qtd:0,aprov:0,comissao:0});
+    const r=mapa[nome]||(mapa[nome]={qtd:0,conc:0,comissao:0});
     r.qtd++;
-    if(s.aprovacao==="APROVADA"){ r.aprov++; r.comissao+=Number(s.comissaoValor)||0; }
+    if(simSt(s)==="CONCLUIDO") r.conc++;
+    r.comissao+=Number(s.comissaoValor)||0;
   });
   const linhas=Object.entries(mapa).sort((a,b)=>b[1].qtd-a[1].qtd);
-  const cab='<thead><tr><th>Nome</th><th class="col-num">Simulações</th><th class="col-num">Aprovadas</th><th class="col-num">Comissão</th></tr></thead>';
+  const cab='<thead><tr><th>Nome</th><th class="col-num">Simulações</th><th class="col-num">Concluídas</th><th class="col-num">Comissão prevista</th></tr></thead>';
   const corpo = linhas.length ? linhas.map(([nome,r])=>
-      `<tr><td>${esc(nome)}</td><td class="num">${r.qtd}</td><td class="num">${r.aprov}</td><td class="num">${simBRL(r.comissao)}</td></tr>`).join("")
+      `<tr><td>${esc(nome)}</td><td class="num">${r.qtd}</td><td class="num">${r.conc}</td><td class="num">${simBRL(r.comissao)}</td></tr>`).join("")
     : '<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:16px">Sem dados.</td></tr>';
   document.getElementById(idAlvo).innerHTML = cab+"<tbody>"+corpo+"</tbody>";
+}
+
+/* Implantação 2 — QUAIS UNIDADES ESTÃO RECEBENDO MAIS SIMULAÇÕES.
+   Conta por unidade e mostra também quantas pessoas diferentes (por CPF)
+   simularam aquela unidade: 5 simulações de 5 CPFs é procura de verdade,
+   5 simulações do mesmo CPF é uma pessoa refazendo a conta. */
+function simRenderRankingUnidades(){
+  const mapa={};
+  SIMS.forEach(s=>{
+    const un=String(s.unidade||"").trim(); if(!un) return;
+    const r=mapa[un]||(mapa[un]={qtd:0,tipo:s.tipo||"",cpfs:new Set(),ultima:""});
+    r.qtd++;
+    if(s.cpf) r.cpfs.add(String(s.cpf).replace(/\D/g,""));
+    if(!r.ultima || String(s.criadoEm||"")>r.ultima) r.ultima=String(s.criadoEm||"");
+  });
+  const linhas=Object.entries(mapa).sort((a,b)=>b[1].qtd-a[1].qtd || (parseInt(a[0],10)||0)-(parseInt(b[0],10)||0));
+  const max = linhas.length ? linhas[0][1].qtd : 1;
+  const cab='<thead><tr><th>Unidade</th><th>Tipo</th><th class="col-num">Simulações</th><th class="col-num">Pessoas</th><th>Última</th><th></th></tr></thead>';
+  const corpo = linhas.length ? linhas.map(([un,r])=>
+      `<tr><td><b>Un. ${esc(un)}</b></td><td>T${esc(String(r.tipo||"—"))}</td>`+
+      `<td class="num">${r.qtd}</td><td class="num">${r.cpfs.size}</td>`+
+      `<td>${simData(r.ultima)}</td>`+
+      `<td style="width:38%"><div style="background:var(--bg3);border-radius:4px;height:10px">`+
+      `<div style="width:${Math.max(6,(r.qtd/max)*100)}%;height:10px;border-radius:4px;background:var(--azul)"></div></div></td></tr>`).join("")
+    : '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:16px">Sem dados.</td></tr>';
+  document.getElementById("sim-rankUnidade").innerHTML = cab+"<tbody>"+corpo+"</tbody>";
 }
 
 /* ---------- Simulações Recebidas: flat, filtrável e ORDENÁVEL ----------
@@ -579,13 +605,13 @@ const SIM_COLS_REC=[
   ["cliente","Cliente",false],["cpf","CPF",false],["corretor","Corretor",false],
   ["imobiliaria","Imobiliária",false],["unidade","Unidade",false],
   ["renda","Renda",true],["financiado","Financiado",true],["entrada","Entrada",true],
-  ["parcela","Parcela",true],["criadoEm","Data",false],["status","Status",false],["aprovacao","Aprovação",false]
+  ["parcela","Parcela",true],["criadoEm","Data",false],["status","Status",false]
 ];
-const SIM_COLS_TXT=["cliente","cpf","corretor","imobiliaria","status","aprovacao"];
+const SIM_COLS_TXT=["cliente","cpf","corretor","imobiliaria","status"];
 
-function simSegAp(v){
-  simFiltroAp=v;
-  document.querySelectorAll("#seg-aprov .seg-bt").forEach(b=>b.classList.toggle("on", b.dataset.ap===v));
+function simSegSt(v){
+  simFiltroSt=v;
+  document.querySelectorAll("#seg-st .seg-bt").forEach(b=>b.classList.toggle("on", b.dataset.st===v));
   simRenderRecebidas();
 }
 function sortSim(col){
@@ -603,7 +629,10 @@ function simRenderRecebidas(){
   const termo=(document.getElementById("sim-busca").value||"").toLowerCase();
   let vis=SIMS.filter(s=>{
     const alvo=`${s.cliente||""} ${s.cpf||""} ${s.corretor||""} ${s.imobiliaria||""}`.toLowerCase();
-    return alvo.includes(termo) && (!simFiltroAp || (s.aprovacao||"PENDENTE")===simFiltroAp);
+    if(!alvo.includes(termo)) return false;
+    if(!simFiltroSt) return true;
+    const st=simSt(s);
+    return simFiltroSt==="PENDENTE" ? (st!=="CONCLUIDO" && st!=="ERRO") : st===simFiltroSt;
   });
   vis.sort((a,b)=>{
     const va=simValorOrd(a,ordSim.col), vb=simValorOrd(b,ordSim.col);
@@ -630,15 +659,10 @@ function simRenderRecebidas(){
     <td class="num">${s.entrada?simBRL(s.entrada):"—"}</td>
     <td class="num">${s.parcela?simBRL(s.parcela):"—"}</td>
     <td>${simData(s.criadoEm)}</td>
-    <td>${simTagSt(s.status)}</td><td>${simTagAp(s.aprovacao)}</td></tr>`).join("");
+    <td>${simTagSt(s.status)}</td></tr>`).join("");
   document.getElementById("sim-tabRec").innerHTML=cab+"<tbody>"+corpo+"</tbody>";
 }
 
-function simTagAp(a){
-  a=a||"PENDENTE";
-  const cls = a==="APROVADA" ? "pos" : (a==="REJEITADA" ? "neg" : "zero");
-  return `<span class="pill ${cls}">${a}</span>`;
-}
 function simTagSt(st){
   const n=String(st||"").toUpperCase();
   if(!n) return "—";
@@ -667,7 +691,6 @@ function simEncargo(parcela){ return SIM_PCTS.map(p=>(Number(parcela)||0)*p/100)
 function simVerDet(id){
   const s=SIMS.find(x=>x.id===id); if(!s) return;
   const it=(r,v)=>`<div class="sim-item"><small>${r}</small><b>${v||"—"}</b></div>`;
-  const podeGravar = !ehSomenteLeitura(S);
 
   const fluxo = simParseEsquema(s.esquema);
   const tabFluxo = fluxo.length ? `
@@ -687,7 +710,7 @@ function simVerDet(id){
 
   document.getElementById("sim-modalCx").innerHTML=`
     <div class="modal-tit">${esc(s.cliente||"—")}</div>
-    <div class="modal-sub">CPF ${esc(s.cpf||"—")} · ${simData(s.criadoEm)} · ${simTagAp(s.aprovacao)}</div>
+    <div class="modal-sub">CPF ${esc(s.cpf||"—")} · ${simData(s.criadoEm)} · ${simTagSt(s.status)}</div>
     <div class="sim-grade">
       ${it("Corretor",esc(s.corretor||""))}${it("Imobiliária",esc(s.imobiliaria||""))}${it("E-mail",esc(s.email||""))}
       ${it("Unidade","Un. "+esc(String(s.unidade||"—"))+" (Tipo "+esc(String(s.tipo||"—"))+")")}
@@ -700,39 +723,12 @@ function simVerDet(id){
     </div>
     ${tabFluxo}${tabEncargo}
     <div style="display:flex;gap:9px;margin-top:16px;flex-wrap:wrap">
-      ${podeGravar?`<button class="bt verde" onclick="simDecidir('${s.id}','APROVADA')">Aprovar</button>
-      <button class="bt vermelho" onclick="simDecidir('${s.id}','REJEITADA')">Rejeitar</button>`:""}
       <button class="bt" onclick="simFecharDet()">Fechar</button>
     </div>
     <div id="sim-detAviso" class="sim-aviso" style="margin-top:10px"></div>`;
   document.getElementById("sim-modal").classList.remove("hide");
 }
 function simFecharDet(){ document.getElementById("sim-modal").classList.add("hide"); }
-
-async function simDecidir(id,decisao){
-  const av=document.getElementById("sim-detAviso");
-  av.className="sim-aviso ok"; av.textContent="Salvando…";
-  /* try/catch aqui é o que impede o "Salvando…" eterno: se o chamar()
-     estourar o tempo ou a rede cair, a promessa REJEITA — e sem este
-     catch a função morria no await e a mensagem nunca mudava. */
-  let r;
-  try{
-    r = await chamar({action:"simsAprovar", pageId:id, decisao:decisao}, 30000, true);
-  }catch(err){
-    av.className="sim-aviso err";
-    av.textContent = "Não foi possível confirmar (tempo esgotado ou sem conexão). Tente de novo.";
-    return;
-  }
-  if(r && r.ok){
-    const s=SIMS.find(x=>x.id===id); if(s) s.aprovacao=decisao;
-    av.className="sim-aviso ok"; av.textContent="Marcada como "+decisao+".";
-    try{ storeGravar("sims_lista", {ok:true, simulacoes:SIMS, lidoEm:new Date().toISOString()}); }catch(e){}
-    simRenderKpis(); simRenderRanking(); simRenderRecebidas(); setTimeout(simFecharDet,700);
-  }else{
-    av.className="sim-aviso err";
-    av.textContent = (r&&r.erro==="MODO_TESTE") ? "Perfil TESTES não grava." : simErroAmigavel(r&&r.erro);
-  }
-}
 
 /* ---------- unidades (sem mudanças de fundo — só o local do botão mudou) ---------- */
 const SIM_COLS=[["unidade","UNIDADE","ro"],["tipo","TIPO","num"],["valorVenda","VALOR DE VENDA","num"],
@@ -754,6 +750,11 @@ async function simCarregarUnidades(forcar){
     r = await lerStore({action:"simsUnidades"}, "sims_unidades",
                        { ttl:SIM_TTL, forcar:!!forcar });
   }catch(e){ r = { erro:"ERRO_API" }; }
+  /* ERRO_API quer dizer UMA coisa só: a resposta do Apps Script não era JSON
+     (ou o fetch nem chegou lá). Quase sempre é implantação — URL velha, versão
+     nova não publicada, ou "Quem tem acesso" diferente de "qualquer pessoa",
+     que faz o Google devolver uma página de login em HTML. O botão
+     🩺 Diagnóstico mostra o que voltou de verdade. */
   if(r && r.unidades && r.unidades.length){
     UNS=r.unidades; simRenderUnidades();
     const semId = UNS.some(u=>!u.id);
@@ -763,7 +764,36 @@ async function simCarregarUnidades(forcar){
       simAvisoUn("ok","Lista ao vivo do Notion"+(r.doCache?" (cópia de "+simData(r._ts)+")":"")+". Edite quantas quiser e use \u201cSalvar tudo\u201d.");
     }
   }
-  else { const a=document.getElementById("sim-avisoUn"); a.className="sim-aviso err"; a.innerHTML=simErroAmigavel(r&&r.erro); }
+  else {
+    const a=document.getElementById("sim-avisoUn"); a.className="sim-aviso err";
+    a.innerHTML = (String(r&&r.erro||"")==="ERRO_API")
+      ? '<b>O servidor respondeu, mas não em JSON (ERRO_API).</b><br>' +
+        'Isso é implantação, não Notion. Clique em <b>🩺 Diagnóstico</b> aqui do lado para ver a resposta crua.'
+      : simErroAmigavel(r&&r.erro);
+  }
+}
+
+/* Mostra status HTTP + começo do corpo da resposta. É o que separa
+   "Apps Script devolveu página de login" de "Notion recusou a base". */
+async function simDiagRede(){
+  const a=document.getElementById("sim-avisoUn");
+  a.className="sim-aviso ok"; a.textContent="Perguntando direto ao Apps Script…";
+  const sess=sessao()||{};
+  try{
+    const resp=await fetch(API,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body:JSON.stringify({action:"simsUnidades", token:sess.token})});
+    const txt=await resp.text();
+    let tipo="texto";
+    try{ JSON.parse(txt); tipo="JSON"; }catch(e){ tipo = /<html/i.test(txt) ? "HTML (página do Google, não é resposta do seu código)" : "texto não-JSON"; }
+    a.className="sim-aviso err";
+    a.innerHTML='<b>Diagnóstico</b><br>URL: <code style="font-size:11px">'+esc(API)+'</code><br>'+
+      'HTTP '+resp.status+' · resposta em '+esc(tipo)+'<br>'+
+      '<span style="font-size:11px;color:var(--text4);white-space:pre-wrap;display:block;margin-top:6px">'+
+      esc(txt.slice(0,400))+'</span>';
+  }catch(err){
+    a.className="sim-aviso err";
+    a.innerHTML='<b>Diagnóstico</b><br>O navegador nem conseguiu falar com <code style="font-size:11px">'+esc(API)+'</code>.<br>'+esc(String(err));
+  }
 }
 function simAvisoUn(t,m){
   const a=document.getElementById("sim-avisoUn");

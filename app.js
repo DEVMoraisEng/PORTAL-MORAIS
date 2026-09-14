@@ -31,6 +31,10 @@ const ACOES_NA_ESCRITA = [
   "ligUpdate", "ligAnexar", "ligBaixa", "ligVendaUpdate", "ligExcluir", "ligCriar",
   "posObraServicoNovo", "posObraAtvUpdate", "posObraUpdate", "posObraAnexar",
   "posObraRetornoExcluir", "posObraAtvExcluir", "posObraNovo",
+  /* set/26: a gravação de unidade do Ipês estava saindo pela faixa de
+     LEITURA — ou seja, cada "Salvar" disputava fila com as revalidações da
+     própria tela. Agora vai pela implantação de escrita, como as demais. */
+  "simsUnidadeUpdate",
   /* opStatus e posObraValidarAdm NÃO gravam, mas acompanham uma criação e
      precisam da mesma faixa livre — perguntar "criou?" na fila das leituras
      seria esperar atrás da leitura que atrapalhou a criação. */
