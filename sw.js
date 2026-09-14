@@ -84,7 +84,12 @@
    ORDENAÇÃO por clique no cabeçalho das tabelas (planilha e Casas Modelo).
    documentos.html: os cards de alerta e o painel da obra passaram a mostrar a
    REFERÊNCIA (colunas -AUTO), que é o que identifica a obra sem ENDEREÇO. */
-const CACHE = "portal-morais-v29";  // parcela/fgts/renda + alerta de faixa + ordenar por coluna + referência -AUTO
+/* v29 -> v30: documentos.html — corrigida a referência (-AUTO) de SETOR e
+   CPF/CNPJ, que estavam pegando a coluna errada; e o campo que a pessoa acaba
+   de preencher deixou de sumir da lista de alertas na hora — agora fica
+   visível (confirmado ✓) até o próximo carregamento real dos dados, e os
+   grupos abertos não fecham mais sozinhos a cada repintura. */
+const CACHE = "portal-morais-v30";  // documentos: referência corrigida + campo preenchido não some mais
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./documentos.html","./demandas.html",

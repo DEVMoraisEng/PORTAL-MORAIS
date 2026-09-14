@@ -263,6 +263,13 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 .preench-item>label{font-size:10px;font-weight:700;color:var(--text4);text-transform:uppercase;min-width:78px}
 .preench-item .campo-inline{flex:1;min-width:120px}
 .ro-inline{flex:1;min-width:120px;padding:7px 9px;border:1px dashed var(--border2);border-radius:7px;color:var(--text3);font-size:13px}
+/* campo já preenchido nesta sessão: fica visível e confirmado, não some —
+   some de verdade só no próximo carregamento dos dados */
+.ro-inline.ok{border-style:solid;border-color:#2e9e57;color:#1f7a3f;background:rgba(46,158,87,.08);font-weight:600}
+html[data-tema="escuro"] .ro-inline.ok{color:#5fd889;background:rgba(46,158,87,.12)}
+.al.al-resolvida{opacity:.72}
+.al.al-resolvida>span:nth-child(2){color:#1f7a3f;font-weight:700}
+html[data-tema="escuro"] .al.al-resolvida>span:nth-child(2){color:#5fd889}
 .cola.falta{background:#fdf1e7;color:#b26a2b}
 .cola{font-size:11px;color:var(--text3);background:var(--bg3);border-radius:6px;padding:2px 7px;white-space:nowrap}
 .lapis{border:0;background:none;cursor:pointer;color:var(--text3);font-size:13px;padding:0 3px}
@@ -1109,6 +1116,14 @@ let CAMPOS=[], OBRAS=[], ATIVIDADES=[], OCULTAS=[], COLSIM=[];
 let UPDATED="", CARREGOU=false;
 let SETOR_ATUAL="";
 let FILTRADAS={hub:[], set:[]};
+/* Memória da sessão dos alertas (set/26): sem isto, assim que um campo era
+   preenchido ele sumia da lista NA HORA (a regra para de considerá-lo
+   "faltando") e o box.innerHTML inteiro era reconstruído, fechando os grupos
+   que a pessoa tinha aberto. Aqui a lista "cresce mas não encolhe" dentro da
+   mesma sessão: uma vez que um campo/alerta apareceu, ele continua visível
+   (agora como confirmado ✓) até o próximo CARREGAMENTO DE VERDADE dos dados
+   (boot() recebendo docs.json — reseta o Map ali). chave = regraChave+"|"+id. */
+let ALERTAS_VISTOS=new Map();
 let CAL_REF=new Date(), CAL_RESP="", CAL_MODO="mes";   // "mes" | "semana"
 let IND_ANO=String(new Date().getFullYear());
 
@@ -1209,47 +1224,57 @@ function refsAuto(o){
 }
 /* nomes prováveis da -AUTO de cada campo. Como os nomes reais no Notion variam,
    isto é só o atalho: quem resolve de fato é o casamento genérico do
-   acharColaDocs, que acha a -AUTO que compartilha a palavra-chave do campo. */
+   acharColaDocs, que acha a -AUTO que compartilha a palavra-chave do campo.
+   set/26: SETOR e CPF/CNPJ vieram confirmados pelo usuário — ficam em primeiro
+   na lista de cada um, e a comparação abaixo ignora espaço/traço/barra, então
+   "SETOR-AUTO", "SETOR AUTO" ou "SETOR_AUTO" no Notion dão no mesmo. */
 const COLA_DOCS=[
-  {campo:"ENDEREÇO",                  cola:["OBRA-AUTO","ENDEREÇO-AUTO","ENDERECO-AUTO"]},
   {campo:"SETOR",                     cola:["SETOR-AUTO"]},
+  {campo:"CPF/CNPJ",                  cola:["CPF/CNPJ-AUTO","CPF-AUTO","CNPJ-AUTO"]},
+  {campo:"ENDEREÇO",                  cola:["OBRA-AUTO","ENDEREÇO-AUTO","ENDERECO-AUTO"]},
   {campo:"CASA",                      cola:["CASA-AUTO"]},
   {campo:"Nº DE CASAS",               cola:["CASAS-AUTO","CASA-AUTO"]},
   {campo:"ENG. EXECUÇÃO",             cola:["ENGENHEIRO-AUTO","ENG-AUTO"]},
   {campo:"ENGENHEIRO RT",             cola:["ENGENHEIRO RT-AUTO","ENGENHEIRO-AUTO","RT-AUTO"]},
   {campo:"PROPRIETARIO DOCUMENTO",    cola:["PROPRIETARIO DOCUMENTO-AUTO","PROPRIETARIO-AUTO"]},
   {campo:"PROPRIETARIO REAL",         cola:["PROPRIETARIO REAL-AUTO","PROPRIETARIO-AUTO"]},
-  {campo:"CPF/CNPJ",                  cola:["CPF/CNPJ-AUTO","CPF-AUTO","CNPJ-AUTO"]},
   {campo:"COTA DA EMPRESA",           cola:["COTA DA EMPRESA-AUTO","COTA-AUTO"]},
   {campo:"DATA DE AQUISIÇÃO DO LOTE", cola:["AQUISIÇÃO-AUTO","AQUISICAO-AUTO","LOTE-AUTO"]},
   {campo:"IMPLANTAÇÃO",               cola:["IMPLANTAÇÃO-AUTO","IMPLANTACAO-AUTO"]},
   {campo:"CIDADE",                    cola:["CIDADE-AUTO"]}
 ];
 const PARADAS_COLA=["DE","DA","DO","DAS","DOS","E","N","Nº","EMPRESA"];
+/* remove TODA pontuação/espaço (não só acento) — "CPF/CNPJ-AUTO" e
+   "CPF CNPJ AUTO" viram a mesma coisa, e é isso que faz a comparação
+   sobreviver a como quer que o nome esteja escrito no Notion */
+function normSolta(s){ return normNome(s).replace(/[^A-Z0-9]/g,""); }
 /* acha a coluna -AUTO que serve de referência para o campo c */
 function acharColaDocs(c){
   if(!c) return null;
   const auto=(CAMPOS||[]).filter(x=>ehRefAuto(x.nome));
   if(!auto.length) return null;
-  const base=x=>normNome(x.nome).replace(/[-\s]*AUTO\b/,"").trim();
+  // nome "base" da -AUTO, sem o sufixo AUTO — "SETOR-AUTO" -> "SETOR"
+  const base=x=>normSolta(x.nome.replace(/[-\s]*AUTO\b/i,""));
   const reg=COLA_DOCS.find(x=>normNome(x.campo)===normNome(c.nome));
-  // 1) nome exato de um dos candidatos
+  // 1) nome exato (tolerante a espaço/traço/barra) de um dos candidatos
   if(reg) for(const nome of reg.cola){
-    const achou=auto.find(x=>normNome(x.nome)===normNome(nome));
+    const achou=auto.find(x=>normSolta(x.nome)===normSolta(nome));
     if(achou) return achou;
   }
-  // 2) genérico: -AUTO que compartilha uma palavra-chave do campo
-  //    (casa nos dois sentidos pra "Nº DE CASAS" achar "CASA-AUTO")
+  // 2) candidato "contém", também tolerante a pontuação
+  if(reg) for(const nome of reg.cola){
+    const alvo=normSolta(nome.replace(/[-\s]*AUTO\b/i,""));
+    if(alvo.length<3) continue;
+    const achou=auto.find(x=>base(x).length>=3 && base(x).indexOf(alvo)>=0);
+    if(achou) return achou;
+  }
+  // 3) genérico: -AUTO que compartilha uma palavra-chave do campo. Exige pelo
+  //    menos 3 letras nos dois lados — evita que uma -AUTO "vazia de nome"
+  //    (ex.: coluna chamada só "AUTO") case com qualquer campo por acidente.
   const toks=normNome(c.nome).replace(/[^A-Z0-9 ]/g," ").split(/\s+/)
               .filter(t=>t.length>2 && PARADAS_COLA.indexOf(t)<0);
   for(const t of toks){
-    const achou=auto.find(x=>{ const n=base(x); return n.length>2 && (n.indexOf(t)>=0 || t.indexOf(n)>=0); });
-    if(achou) return achou;
-  }
-  // 3) candidatos por "contém"
-  if(reg) for(const nome of reg.cola){
-    const alvo=normNome(nome).replace(/[-\s]*AUTO\b/,"").trim();
-    const achou=auto.find(x=>alvo.length>2 && base(x).indexOf(alvo)>=0);
+    const achou=auto.find(x=>{ const n=base(x); return n.length>=3 && t.length>=3 && (n.indexOf(t)>=0 || t.indexOf(n)>=0); });
     if(achou) return achou;
   }
   return null;
@@ -1342,6 +1367,7 @@ async function boot(){
     CAMPOS=r.campos||[]; OBRAS=r.obras||[]; ATIVIDADES=r.atividades||[];
     OCULTAS=r.ocultas||[]; COLSIM=r.colunasSim||[]; UPDATED=r.updated_at||"";
     MOTOR=criarMotorAlertas(CAMPOS); CARREGOU=true;
+    ALERTAS_VISTOS=new Map();   // dados carregados de novo: aqui sim pode "esquecer"
     aplicarEdicoesDaTela();
     mostrarOffline(r);
     montarFiltros();
@@ -1504,15 +1530,54 @@ function renderAlertas(){
   const box=document.getElementById("al-lista");
   if(!CARREGOU){ box.innerHTML='<div class="vazio"><span class="load"></span> Carregando…</div>'; return; }
   const linhas=alertasDoSetor(SETOR_ATUAL);
-  if(!linhas.length){ box.innerHTML='<div class="vazio">Nenhum alerta pendente. 🎉</div>'; return; }
+
+  // não fecha o grupo que a pessoa já tinha aberto (data-chave sobrevive ao rebuild)
+  const abertos=new Set([...box.querySelectorAll("details.grupo[open]")].map(d=>d.dataset.chave));
+
+  /* Memória da sessão: soma os campos deste alerta (nunca tira) e guarda a
+     referência viva da obra. Isso é o que faz um campo continuar visível
+     depois de preenchido — como já acontece na tela de vendas, onde a lista
+     de campos de cada alerta é fixa por tipo, não recalculada a cada render. */
+  const vistasAgora=new Set();
+  linhas.forEach(l=>{
+    const k=l.chave+"|"+l.o.id;
+    vistasAgora.add(k);
+    let reg=ALERTAS_VISTOS.get(k);
+    if(!reg){ reg={titulo:l.titulo, o:l.o, campos:new Set()}; ALERTAS_VISTOS.set(k,reg); }
+    reg.o=l.o;
+    (l.alvos||[]).forEach(a=>{ const c=colunaDoRotulo(a); if(c) reg.campos.add(c.nome); });
+  });
+  /* alertas que apareceram nesta sessão e não batem mais (a pessoa preencheu
+     tudo que faltava): ficam mais um pouco, marcados como resolvidos, em vez
+     de sumir no instante em que o último campo foi preenchido */
+  const resolvidas=[];
+  ALERTAS_VISTOS.forEach((reg,k)=>{
+    if(vistasAgora.has(k)) return;
+    const chave=k.slice(0,k.lastIndexOf("|"));
+    const r=(MOTOR&&MOTOR.regras||[]).find(x=>x.chave===chave);
+    if(!r || r.setores.indexOf(SETOR_ATUAL)<0) return;   // não é deste setor
+    resolvidas.push({o:reg.o, chave, titulo:reg.titulo, campos:reg.campos});
+  });
+
+  if(!linhas.length && !resolvidas.length){ box.innerHTML='<div class="vazio">Nenhum alerta pendente. 🎉</div>'; return; }
+
   /* Agrupa pela REGRA, não pelo texto: antes, "PREENCHER: TÍTULO, SETOR…" e
      "PREENCHER: TÍTULO, COTA…" viravam dois grupos diferentes só porque a
      lista de campos faltando era outra. Agora é um grupo só, e o que falta em
      cada obra aparece na linha. */
   const grupos=new Map();
-  linhas.forEach(l=>{ const k=l.chave; if(!grupos.has(k)) grupos.set(k,{titulo:l.titulo,itens:[]}); grupos.get(k).itens.push(l); });
-  box.innerHTML=[...grupos.values()].sort((a,b)=>b.itens.length-a.itens.length).map(({titulo,itens})=>
-    `<details class="grupo"><summary>${esc(titulo)}<span class="qtd">${itens.length}</span></summary><div class="corpo">`+
+  linhas.forEach(l=>{
+    if(!grupos.has(l.chave)) grupos.set(l.chave,{titulo:l.titulo,itens:[]});
+    const camposSessao=(ALERTAS_VISTOS.get(l.chave+"|"+l.o.id)||{}).campos||new Set();
+    grupos.get(l.chave).itens.push({o:l.o, detalhe:l.detalhe, titulo:l.titulo, camposSessao, resolvida:false});
+  });
+  resolvidas.forEach(r=>{
+    if(!grupos.has(r.chave)) grupos.set(r.chave,{titulo:r.titulo,itens:[]});
+    grupos.get(r.chave).itens.push({o:r.o, detalhe:"", titulo:r.titulo, camposSessao:r.campos, resolvida:true});
+  });
+
+  box.innerHTML=[...grupos.entries()].sort((a,b)=>b[1].itens.length-a[1].itens.length).map(([chave,{titulo,itens}])=>
+    `<details class="grupo" data-chave="${esc(chave)}"${abertos.has(chave)?" open":""}><summary>${esc(titulo)}<span class="qtd">${itens.length}</span></summary><div class="corpo">`+
     '<div class="al al3 al-cab"><span>Endereço</span><span>Alerta</span><span>Preencher</span></div>'+
     itens.map(l=>{
       /* Obra sem endereço aparece marcada em vermelho, e não como um
@@ -1520,21 +1585,27 @@ function renderAlertas(){
          encontra depois. */
       const endTxt=val(l.o,"ENDEREÇO");
       const end=endTxt||"⚠ SEM ENDEREÇO";
-      const campos=(l.alvos||[]).map(a=>colunaDoRotulo(a)).filter(Boolean);
-      const preench = campos.length ? `<span class="preench-multi">`+campos.map(c=>{
+      const nomesCampos=[...l.camposSessao];
+      const preench = nomesCampos.length ? `<span class="preench-multi">`+nomesCampos.map(nome=>{
+          const c=campo(nome); if(!c) return "";
           const v=getV(l.o.valores,c.nome);
-          const ctrl = (c.editavel && !SO_LEITURA)
-            ? `<span class="campo-inline">${controle(c,v,l.o.id)}</span>`
-            : `<span class="ro-inline" title="Preencha direto no Notion — este campo não é editável pela API">${esc(Array.isArray(v)?v.join(", "):(v==null?"—":v))}</span>`;
-          // referência (-AUTO) logo abaixo do campo, igual à tela de vendas
+          const preenchido=!vazio(v);
+          // campo já preenchido: fica como confirmado (✓), não some da lista —
+          // só desaparece de fato no próximo carregamento real dos dados
+          const ctrl = preenchido
+            ? `<span class="ro-inline ok" title="Preenchido — sai da lista no próximo carregamento">✓ ${esc(Array.isArray(v)?v.join(", "):v)}</span>`
+            : (c.editavel && !SO_LEITURA
+                ? `<span class="campo-inline">${controle(c,v,l.o.id)}</span>`
+                : `<span class="ro-inline" title="Preencha direto no Notion — este campo não é editável pela API">${esc(Array.isArray(v)?v.join(", "):(v==null?"—":v))}</span>`);
           return `<span class="preench-item"><label>${esc(c.nome.trim())}</label>${ctrl}${colaDocsHtml(l.o,c)}</span>`;
         }).join("")+`</span>` : `<span class="ro-inline">—</span>`;
       /* sem ENDEREÇO, o rótulo da esquerda vira a junção das referências
          (" · "), como em vendas — é o que identifica a obra pra quem preenche */
       const refs=refsAuto(l.o).map(r=>r.txt);
       const rotulo = endTxt || (refs.length?refs.join(" · "):end);
-      return `<div class="al al3"><span class="obralink${endTxt?"":" sem-end"}" onclick="abrirObra('${l.o.id}')">${esc(rotulo)}</span>`+
-             `<span>${esc(l.detalhe||l.titulo)}</span>${preench}</div>`;
+      const detalheTxt = l.resolvida ? "Tudo preenchido — atualiza no próximo carregamento" : (l.detalhe||l.titulo);
+      return `<div class="al al3${l.resolvida?" al-resolvida":""}"><span class="obralink${endTxt?"":" sem-end"}" onclick="abrirObra('${l.o.id}')">${esc(rotulo)}</span>`+
+             `<span>${esc(detalheTxt)}</span>${preench}</div>`;
     }).join("")+"</div></details>").join("");
 }
 
