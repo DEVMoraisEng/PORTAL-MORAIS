@@ -148,14 +148,12 @@ tbody tr:nth-child(even) td{background:var(--bg2)} tbody tr:nth-child(even) td.s
 tbody tr:hover td{background:#e9f6ef} tbody tr:hover td.stick{background:#dff2e6}
 tr.vendida td.stick{color:var(--verde-esc)}
 .obralink{color:var(--azul);font-weight:800;cursor:pointer}.obralink:hover{text-decoration:underline}
-/* referência (-AUTO) no card de alerta: identifica a obra quando o ENDEREÇO
-   ainda está vazio. Só leitura — relation não é editável pela API. */
-.col-end{display:flex;flex-direction:column;gap:4px;align-items:flex-start;min-width:0}
-.refs{display:flex;flex-wrap:wrap;gap:4px}
-.ref-chip{font-size:10.5px;font-weight:700;color:var(--text3);background:var(--bg2);
-  border:1px solid var(--border2);border-radius:999px;padding:1px 8px;
-  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-html[data-tema="escuro"] .ref-chip{background:rgba(255,255,255,.06);color:var(--text3)}
+/* "cola": referência (-AUTO) logo abaixo do campo, só leitura — mesmo padrão
+   da tela de vendas. Ocupa a linha inteira do item pra cair SOB o campo. */
+.cola{font-size:11px;color:var(--text3);background:var(--bg3);border-radius:6px;
+  padding:2px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  max-width:100%;flex-basis:100%;margin-left:78px}
+html[data-tema="escuro"] .cola{background:rgba(255,255,255,.06);color:var(--text3)}
 /* item 6: coluna de numeração (só casas vendidas, ordem por data da venda) */
 .numcol{text-align:center;font-weight:800;color:var(--text4);width:34px}
 .casanum{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:20px;background:var(--azul);color:#fff;font-size:10px;font-weight:800;vertical-align:middle}
@@ -656,6 +654,7 @@ body{display:flex;flex-direction:column;min-height:100vh}
   .al .txt{font-size:12px}
   .preench-item{flex-direction:column;align-items:stretch}
   .preench-item>label{min-width:0}
+  .cola{margin-left:0;white-space:normal}
   .atv{flex-direction:column;align-items:stretch;gap:8px}
   .atv .bt{width:100%}
 
@@ -1177,8 +1176,11 @@ function ehAuxiliar(nome){
    fetch_documentos.py (resolver_titulos_relacao). Elas ficam fora da planilha
    e do painel de propósito (são auxiliares), mas nos cards de alerta são a
    ÚNICA forma de saber de que obra se trata quando o ENDEREÇO ainda está
-   vazio — que é justamente o caso desses alertas. Aqui elas entram só como
-   referência de leitura, nunca como campo editável (a API não grava relation). */
+   vazio — que é justamente o caso desses alertas.
+   Mesmo padrão da tela de VENDAS: a referência de cada campo aparece como uma
+   "cola" cinza LOGO ABAIXO do campo (só leitura, pra conferir e copiar), e o
+   título do card junta as referências com " · ". Nunca vira campo editável —
+   o Notion não grava relation pela API. */
 function ehRefAuto(nome){ return /(^|[\s-])AUTO$|-AUTO\b|\bAUTO\b/.test(normNome(nome)); }
 /* rollup de relation chega como array aninhado ([["Rua X"]]); achata e
    descarta o que não for texto (anexo vira objeto e não serve de referência) */
@@ -1205,12 +1207,60 @@ function refsAuto(o){
   });
   return out;
 }
-/* linha de referência para o card de alerta (vazia se não há nenhuma) */
-function refsHtml(o){
-  const r=refsAuto(o);
-  if(!r.length) return "";
-  return `<span class="refs">`+r.map(x=>
-    `<span class="ref-chip" title="${esc(x.nome)}">${esc(x.txt)}</span>`).join("")+`</span>`;
+/* nomes prováveis da -AUTO de cada campo. Como os nomes reais no Notion variam,
+   isto é só o atalho: quem resolve de fato é o casamento genérico do
+   acharColaDocs, que acha a -AUTO que compartilha a palavra-chave do campo. */
+const COLA_DOCS=[
+  {campo:"ENDEREÇO",                  cola:["OBRA-AUTO","ENDEREÇO-AUTO","ENDERECO-AUTO"]},
+  {campo:"SETOR",                     cola:["SETOR-AUTO"]},
+  {campo:"CASA",                      cola:["CASA-AUTO"]},
+  {campo:"Nº DE CASAS",               cola:["CASAS-AUTO","CASA-AUTO"]},
+  {campo:"ENG. EXECUÇÃO",             cola:["ENGENHEIRO-AUTO","ENG-AUTO"]},
+  {campo:"ENGENHEIRO RT",             cola:["ENGENHEIRO RT-AUTO","ENGENHEIRO-AUTO","RT-AUTO"]},
+  {campo:"PROPRIETARIO DOCUMENTO",    cola:["PROPRIETARIO DOCUMENTO-AUTO","PROPRIETARIO-AUTO"]},
+  {campo:"PROPRIETARIO REAL",         cola:["PROPRIETARIO REAL-AUTO","PROPRIETARIO-AUTO"]},
+  {campo:"CPF/CNPJ",                  cola:["CPF/CNPJ-AUTO","CPF-AUTO","CNPJ-AUTO"]},
+  {campo:"COTA DA EMPRESA",           cola:["COTA DA EMPRESA-AUTO","COTA-AUTO"]},
+  {campo:"DATA DE AQUISIÇÃO DO LOTE", cola:["AQUISIÇÃO-AUTO","AQUISICAO-AUTO","LOTE-AUTO"]},
+  {campo:"IMPLANTAÇÃO",               cola:["IMPLANTAÇÃO-AUTO","IMPLANTACAO-AUTO"]},
+  {campo:"CIDADE",                    cola:["CIDADE-AUTO"]}
+];
+const PARADAS_COLA=["DE","DA","DO","DAS","DOS","E","N","Nº","EMPRESA"];
+/* acha a coluna -AUTO que serve de referência para o campo c */
+function acharColaDocs(c){
+  if(!c) return null;
+  const auto=(CAMPOS||[]).filter(x=>ehRefAuto(x.nome));
+  if(!auto.length) return null;
+  const base=x=>normNome(x.nome).replace(/[-\s]*AUTO\b/,"").trim();
+  const reg=COLA_DOCS.find(x=>normNome(x.campo)===normNome(c.nome));
+  // 1) nome exato de um dos candidatos
+  if(reg) for(const nome of reg.cola){
+    const achou=auto.find(x=>normNome(x.nome)===normNome(nome));
+    if(achou) return achou;
+  }
+  // 2) genérico: -AUTO que compartilha uma palavra-chave do campo
+  //    (casa nos dois sentidos pra "Nº DE CASAS" achar "CASA-AUTO")
+  const toks=normNome(c.nome).replace(/[^A-Z0-9 ]/g," ").split(/\s+/)
+              .filter(t=>t.length>2 && PARADAS_COLA.indexOf(t)<0);
+  for(const t of toks){
+    const achou=auto.find(x=>{ const n=base(x); return n.length>2 && (n.indexOf(t)>=0 || t.indexOf(n)>=0); });
+    if(achou) return achou;
+  }
+  // 3) candidatos por "contém"
+  if(reg) for(const nome of reg.cola){
+    const alvo=normNome(nome).replace(/[-\s]*AUTO\b/,"").trim();
+    const achou=auto.find(x=>alvo.length>2 && base(x).indexOf(alvo)>=0);
+    if(achou) return achou;
+  }
+  return null;
+}
+/* a "cola" abaixo do campo: valor automático, só leitura */
+function colaDocsHtml(o,c){
+  const cola=acharColaDocs(c);
+  if(!cola) return "";
+  const txt=txtRef(getV(o.valores,cola.nome));
+  if(!txt) return "";
+  return `<span class="cola" title="${esc(cola.nome.trim())} (automático)">${esc(txt)}</span>`;
 }
 /* Colunas do Departamento de Projetos (o segundo print): a planilha e o
    painel da obra mostram só o que esse setor preenche. */
@@ -1476,9 +1526,14 @@ function renderAlertas(){
           const ctrl = (c.editavel && !SO_LEITURA)
             ? `<span class="campo-inline">${controle(c,v,l.o.id)}</span>`
             : `<span class="ro-inline" title="Preencha direto no Notion — este campo não é editável pela API">${esc(Array.isArray(v)?v.join(", "):(v==null?"—":v))}</span>`;
-          return `<span class="preench-item"><label>${esc(c.nome.trim())}</label>${ctrl}</span>`;
+          // referência (-AUTO) logo abaixo do campo, igual à tela de vendas
+          return `<span class="preench-item"><label>${esc(c.nome.trim())}</label>${ctrl}${colaDocsHtml(l.o,c)}</span>`;
         }).join("")+`</span>` : `<span class="ro-inline">—</span>`;
-      return `<div class="al al3"><span class="col-end"><span class="obralink${endTxt?"":" sem-end"}" onclick="abrirObra('${l.o.id}')">${esc(end)}</span>${refsHtml(l.o)}</span>`+
+      /* sem ENDEREÇO, o rótulo da esquerda vira a junção das referências
+         (" · "), como em vendas — é o que identifica a obra pra quem preenche */
+      const refs=refsAuto(l.o).map(r=>r.txt);
+      const rotulo = endTxt || (refs.length?refs.join(" · "):end);
+      return `<div class="al al3"><span class="obralink${endTxt?"":" sem-end"}" onclick="abrirObra('${l.o.id}')">${esc(rotulo)}</span>`+
              `<span>${esc(l.detalhe||l.titulo)}</span>${preench}</div>`;
     }).join("")+"</div></details>").join("");
 }
