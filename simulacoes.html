@@ -249,24 +249,22 @@ section > .sec:first-child{margin-top:0}
 .sim-col .b{width:100%;max-width:88px;border-radius:7px 7px 0 0;background:linear-gradient(180deg,var(--teal),var(--azul))}
 .sim-col .v{font-size:12px;font-weight:800;color:var(--azul-esc);margin-bottom:5px}
 .sim-col .l{font-size:12px;color:var(--text3);margin-top:7px;text-align:center}
-.sim-grupo{font-weight:800;color:var(--azul-esc);padding:10px 2px 6px;font-size:14px}
-.sim-grupo small{font-weight:400;color:var(--text3)}
-.sim-barra{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
-.sim-barra input,.sim-barra select{padding:8px 10px;border:1px solid var(--border);border-radius:7px;font-size:13px;background:var(--sup);color:var(--text)}
 .sim-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:9px;margin:14px 0}
 .sim-item{border:1px solid var(--border2);border-radius:8px;padding:9px 11px}
 .sim-item small{display:block;color:var(--text3);font-size:10px;font-weight:800;text-transform:uppercase}
 .sim-item b{font-size:14px;color:var(--azul-esc)}
-.sim-cx{background:var(--bg2);border:1px dashed var(--border);border-radius:8px;padding:11px;font-size:12px;line-height:1.7;margin-top:5px}
 .sim-aviso{padding:11px 13px;border-radius:8px;font-size:13px;margin-bottom:10px;display:none}
 .sim-aviso.ok{background:#e7f5ec;border:1px solid #9dd3b4;color:var(--verde-esc);display:block}
 .sim-aviso.err{background:#fbeae7;border:1px solid #e2a493;color:var(--vermelho);display:block}
 .sim-edit{width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--sup);color:var(--text)}
-.sim-tabela{width:100%;border-collapse:collapse;font-size:13px}
-.sim-tabela th{background:var(--bg3);color:var(--azul-esc);text-align:left;padding:9px 10px;font-size:11px;text-transform:uppercase;letter-spacing:.4px;position:sticky;top:0}
-.sim-tabela td{padding:9px 10px;border-top:1px solid var(--border2);vertical-align:middle}
-.sim-tabela tr.clicavel{cursor:pointer}
-.sim-tabela tr.clicavel:hover{background:var(--bg2)}
+/* ranking de corretores/imobiliárias lado a lado, empilha no celular (mesma
+   quebra que o portal já usa para os KPIs, ver .kpis acima) */
+.sim-2col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:900px){.sim-2col{grid-template-columns:1fr}}
+/* linha de total nas mini-tabelas do modal (fluxo de pagamento), no mesmo
+   azul do cabeçalho das tabelas grandes — para lembrar o e-mail enviado */
+.sim-tot td{background:var(--azul);color:#fff;font-weight:800;border-color:rgba(255,255,255,.22)!important}
+html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
 </style>
 </head>
 <body>
@@ -307,31 +305,58 @@ section > .sec:first-child{margin-top:0}
 
     <div id="conteudo" class="hide">
       <div class="tabs-outer"><div class="tabs">
-        <button class="tab on" data-tab="sims" onclick="trocarTab('sims')">Simulações</button>
+        <button class="tab on" data-tab="painel" onclick="trocarTab('painel')">Painel</button>
+        <button class="tab" data-tab="recebidas" onclick="trocarTab('recebidas')">Simulações Recebidas</button>
         <button class="tab" data-tab="unidades" onclick="trocarTab('unidades')">Unidades</button>
       </div></div>
 
-      <!-- ==================== SIMULAÇÕES ==================== -->
-      <section id="tab-sims">
+      <!-- ==================== PAINEL (só indicadores) ==================== -->
+      <section id="tab-painel">
         <div class="sec"><span class="cond">Panorama</span></div>
         <div class="kpis" id="sim-kpis"><div class="vazio" style="grid-column:1/-1"><span class="load"></span> Carregando…</div></div>
 
-        <div class="sec"><span class="cond">Médias dos proponentes</span></div>
+        <div class="sec"><span class="cond">Médias dos proponentes</span>
+          <span style="flex:1"></span>
+          <div class="seg" id="seg-media">
+            <button class="seg-bt on" data-fm="todas" onclick="simSegMedia('todas')">Todas</button>
+            <button class="seg-bt" data-fm="APROVADA" onclick="simSegMedia('APROVADA')">Aprovadas</button>
+            <button class="seg-bt" data-fm="PENDENTE" onclick="simSegMedia('PENDENTE')">Pendentes</button>
+            <button class="seg-bt" data-fm="REJEITADA" onclick="simSegMedia('REJEITADA')">Negadas</button>
+          </div>
+        </div>
         <div class="card"><div class="sim-graf" id="sim-grafico"></div></div>
 
-        <div class="sec"><span class="cond">Por cliente · ordem de solicitação</span></div>
-        <div class="card">
-          <div class="sim-barra">
-            <input type="search" id="sim-busca" placeholder="Cliente, CPF ou corretor…" oninput="simRenderLista()">
-            <select id="sim-filtro" onchange="simRenderLista()">
-              <option value="">Todas as aprovações</option>
-              <option value="PENDENTE">Pendentes</option>
-              <option value="APROVADA">Aprovadas</option>
-              <option value="REJEITADA">Rejeitadas</option>
-            </select>
-            <button class="bt az" onclick="simCarregar(true)" title="Ignora o cache e busca no Notion agora">Atualizar agora</button>
+        <div class="sec"><span class="cond">Ranking de corretores e imobiliárias</span></div>
+        <div class="sim-2col">
+          <div class="card">
+            <h3>Corretores</h3>
+            <div class="tbl-wrap" style="max-height:360px"><table id="sim-rankCorretor"></table></div>
           </div>
-          <div id="sim-lista"><div class="vazio"><span class="load"></span> Carregando…</div></div>
+          <div class="card">
+            <h3>Imobiliárias</h3>
+            <div class="tbl-wrap" style="max-height:360px"><table id="sim-rankImob"></table></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== SIMULAÇÕES RECEBIDAS ==================== -->
+      <section id="tab-recebidas" class="hide">
+        <div class="sec"><span class="cond">Simulações recebidas</span>
+          <span style="flex:1"></span>
+          <div class="seg" id="seg-aprov">
+            <button class="seg-bt" data-ap="" onclick="simSegAp('')">Todas</button>
+            <button class="seg-bt on" data-ap="PENDENTE" onclick="simSegAp('PENDENTE')">Pendentes</button>
+            <button class="seg-bt" data-ap="APROVADA" onclick="simSegAp('APROVADA')">Aprovadas</button>
+            <button class="seg-bt" data-ap="REJEITADA" onclick="simSegAp('REJEITADA')">Recusadas</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="filtros">
+            <div class="fcampo"><label>Buscar</label>
+              <input type="search" id="sim-busca" placeholder="Cliente, CPF ou corretor…" oninput="simRenderRecebidas()"></div>
+            <button class="bt ghost" onclick="simCarregar(true)" title="Ignora o cache e busca no Notion agora">↻ Atualizar agora</button>
+          </div>
+          <div class="tbl-wrap alta"><table id="sim-tabRec"></table></div>
         </div>
       </section>
 
@@ -340,11 +365,12 @@ section > .sec:first-child{margin-top:0}
         <div class="sec"><span class="cond">Editar unidades · reflete no mapa de vendas</span></div>
         <div class="card">
           <div id="sim-avisoUn" class="sim-aviso"></div>
-          <div class="sim-barra">
-            <input type="search" id="sim-buscaUn" placeholder="Unidade ou tipo…" oninput="simRenderUnidades()">
-            <button class="bt az" onclick="simCarregarUnidades(true)" title="Busca no Notion ao vivo, ignorando o arquivo publicado">Atualizar agora</button>
+          <div class="filtros">
+            <div class="fcampo"><label>Buscar</label>
+              <input type="search" id="sim-buscaUn" placeholder="Unidade ou tipo…" oninput="simRenderUnidades()"></div>
+            <button class="bt ghost" onclick="simCarregarUnidades(true)" title="Busca no Notion ao vivo, ignorando o arquivo publicado">↻ Atualizar agora</button>
           </div>
-          <div class="tbl-wrap" style="max-height:68vh"><table class="sim-tabela" id="sim-tabUn"></table></div>
+          <div class="tbl-wrap alta"><table id="sim-tabUn"></table></div>
         </div>
       </section>
     </div>
@@ -361,13 +387,17 @@ section > .sec:first-child{margin-top:0}
  * SIMULAÇÕES — RESERVA DO IPÊS
  * ---------------------------------------------------------------------
  * ATENÇÃO AOS NOMES: tudo aqui é prefixado com "sim". O app.js já declara
- * globais como brl, esc, num, ler, chamar, fila... e redeclarar QUALQUER
- * um deles derruba a página inteira com "Identifier has already been
- * declared" — foi exatamente o que aconteceu com "brl" na primeira versão
- * (mesma armadilha anotada no analise.html a respeito do esc()).
+ * globais como brl, esc, num, ler, chamar, fila, lerStore, storeGravar...
+ * e redeclarar QUALQUER um deles derruba a página inteira com "Identifier
+ * has already been declared" — foi exatamente o que aconteceu com "brl"
+ * na primeira versão (mesma armadilha anotada no analise.html a respeito
+ * do esc()).
  * =================================================================== */
 const S = exigirSessao();
 let SIMS = [], UNS = [];
+let ordSim = {col:"criadoEm", dir:-1};   // ordenação da tabela "Simulações Recebidas"
+let simFiltroAp = "PENDENTE";            // aba de aprovação ativa em Recebidas
+let simFiltroMedia = "todas";            // filtro das médias do Painel
 
 function trocarTema(){
   const novo = document.documentElement.dataset.tema === "escuro" ? "claro" : "escuro";
@@ -391,7 +421,7 @@ addEventListener("offline",()=>simNet(false));
 
 function trocarTab(nome){
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on", t.dataset.tab===nome));
-  ["sims","unidades"].forEach(n=>document.getElementById("tab-"+n).classList.toggle("hide", n!==nome));
+  ["painel","recebidas","unidades"].forEach(n=>document.getElementById("tab-"+n).classList.toggle("hide", n!==nome));
   if(nome==="unidades" && !UNS.length) simCarregarUnidades();
 }
 
@@ -427,36 +457,40 @@ function iniciar(){
   }
 }
 
-/* ---------- simulações ---------- */
-/* CARREGA UMA VEZ E REVALIDA SOZINHO (lerStore do app.js).
-   Por que NÃO dá para publicar isto num dist/*.json como as outras telas:
-   a lista tem nome, CPF, e-mail e renda do cliente, e o GitHub Pages serve
-   aquele arquivo para QUALQUER UM que saiba a URL, sem login. Então a fonte
-   continua sendo o Apps Script — mas a tela deixa de esperar por ele:
-   pinta a cópia guardada NA HORA e troca quando a resposta chega. O
-   "Atualizar agora" é o atalho para quem não quer esperar o ciclo. */
-const SIM_TTL = 10*60*1000;   // 10 min, igual ao ritmo das outras telas
+/* ---------- simulações: carrega uma vez e revalida sozinho ----------
+ * lerStore (do app.js) pinta a cópia guardada NA HORA e troca quando a
+ * resposta do Apps Script chega — a mesma solução que resolveu esse
+ * mesmo problema no Orçado x Realizado e no Pós Obra. O botão
+ * "Atualizar agora" é o atalho pra quem não quer esperar o ciclo de
+ * 10 min.
+ *
+ * Por que NÃO dá pra publicar isto num dist/*.json como as outras telas:
+ * a lista tem nome, CPF, e-mail e renda do cliente, e o GitHub Pages serve
+ * aquele arquivo pra QUALQUER UM que saiba a URL, sem login — por isso a
+ * fonte continua sendo o Apps Script (com sessão conferida). */
+const SIM_TTL = 10*60*1000;
 
 async function simCarregar(forcar){
-  if(forcar) document.getElementById("sim-lista").innerHTML =
-    '<div class="vazio"><span class="load"></span> Buscando no Notion…</div>';
+  if(forcar){
+    document.getElementById("sim-lista-load")?.remove();
+  }
   const r = await lerStore({action:"simsLista"}, "sims_lista",
                            { ttl:SIM_TTL, forcar:!!forcar, pintar:simPintarLista });
   if(!(r && r.simulacoes)){
     document.getElementById("sim-kpis").innerHTML =
       '<div class="vazio" style="grid-column:1/-1">Sem dados para mostrar.</div>';
-    document.getElementById("sim-lista").innerHTML =
-      '<div class="vazio" style="text-align:left;line-height:1.7">'+simErroAmigavel(r&&r.erro)+'</div>';
+    document.getElementById("sim-tabRec").innerHTML =
+      '<tbody><tr><td style="text-align:left;line-height:1.7;white-space:normal;padding:16px">'+simErroAmigavel(r&&r.erro)+'</td></tr></tbody>';
   }
 }
-/* Botão do topo: força as duas abas de uma vez. */
+/* Botão do topo: força as duas fontes de uma vez (Notion ao vivo). */
 function simAtualizarTudo(){
   simCarregar(true);
-  if(UNS.length || !document.getElementById("tab-unidades").classList.contains("hide")) simCarregarUnidades(true);
+  simCarregarUnidades(true);
 }
 
-/* O 404 do Notion tem uma causa só e uma solução só — mostrar o texto cru da
-   API deixava a pessoa achando que era bug do portal. */
+/* O 404 do Notion tem uma causa só e uma solução só — mostrar o texto cru
+   da API deixava a pessoa achando que era bug do portal. */
 function simErroAmigavel(erro){
   const t = String(erro||"");
   if(t.indexOf("404") >= 0 || t.toLowerCase().indexOf("shared with your integration") >= 0){
@@ -474,12 +508,10 @@ function simPintarLista(r){
   const quando = r.lidoEm || r._ts;
   document.getElementById("data-extr").textContent =
     (r.doCache ? "Do cache · " : "Atualizado ") + simData(quando) + (r.velho ? " (sem conexão)" : "");
-  simRenderKpis(); simRenderGrafico(); simRenderLista();
+  simRenderKpis(); simRenderGrafico(); simRenderRanking(); simRenderRecebidas();
 }
-function simMedia(campo){
-  const v = SIMS.map(s=>Number(s[campo])||0).filter(x=>x>0);
-  return v.length ? v.reduce((a,b)=>a+b,0)/v.length : 0;
-}
+
+/* ---------- KPIs ---------- */
 function simRenderKpis(){
   const pend = SIMS.filter(s=>(s.aprovacao||"PENDENTE")==="PENDENTE").length;
   const apr  = SIMS.filter(s=>s.aprovacao==="APROVADA");
@@ -490,14 +522,116 @@ function simRenderKpis(){
      ["Rejeitadas",rej],["Comissão das aprovadas",simBRL(com)]]
     .map(k=>`<div class="kpi"><div class="lab">${k[0]}</div><div class="val">${k[1]}</div></div>`).join("");
 }
+
+/* ---------- médias (com o filtro por aprovação) ---------- */
+function simSegMedia(v){
+  simFiltroMedia=v;
+  document.querySelectorAll("#seg-media .seg-bt").forEach(b=>b.classList.toggle("on", b.dataset.fm===v));
+  simRenderGrafico();
+}
+function simMedia(campo, arr){
+  const base = arr || SIMS;
+  const v = base.map(s=>Number(s[campo])||0).filter(x=>x>0);
+  return v.length ? v.reduce((a,b)=>a+b,0)/v.length : 0;
+}
 function simRenderGrafico(){
-  const dados=[["Renda média",simMedia("renda")],["FGTS médio",simMedia("fgts")],["Subsídio médio",simMedia("subsidio")]];
+  const base = simFiltroMedia==="todas" ? SIMS : SIMS.filter(s=>(s.aprovacao||"PENDENTE")===simFiltroMedia);
+  if(!base.length){
+    document.getElementById("sim-grafico").innerHTML='<div class="vazio" style="width:100%">Sem simulações nesse grupo.</div>';
+    return;
+  }
+  const dados=[["Renda média",simMedia("renda",base)],["FGTS médio",simMedia("fgts",base)],["Subsídio médio",simMedia("subsidio",base)]];
   const max=Math.max(...dados.map(d=>d[1]))||1;
   document.getElementById("sim-grafico").innerHTML = dados.map(d=>
     `<div class="sim-col"><span class="v">${simBRL(d[1])}</span>`+
     `<div class="b" style="height:${Math.max(4,(d[1]/max)*100)}%"></div>`+
     `<span class="l">${d[0]}</span></div>`).join("");
 }
+
+/* ---------- ranking de corretores e imobiliárias ---------- */
+function simRenderRanking(){
+  simRenderRankingTabela("sim-rankCorretor","corretor");
+  simRenderRankingTabela("sim-rankImob","imobiliaria");
+}
+function simRenderRankingTabela(idAlvo, campo){
+  const mapa={};
+  SIMS.forEach(s=>{
+    const nome=(s[campo]||"").trim()||"—";
+    const r=mapa[nome]||(mapa[nome]={qtd:0,aprov:0,comissao:0});
+    r.qtd++;
+    if(s.aprovacao==="APROVADA"){ r.aprov++; r.comissao+=Number(s.comissaoValor)||0; }
+  });
+  const linhas=Object.entries(mapa).sort((a,b)=>b[1].qtd-a[1].qtd);
+  const cab='<thead><tr><th>Nome</th><th class="col-num">Simulações</th><th class="col-num">Aprovadas</th><th class="col-num">Comissão</th></tr></thead>';
+  const corpo = linhas.length ? linhas.map(([nome,r])=>
+      `<tr><td>${esc(nome)}</td><td class="num">${r.qtd}</td><td class="num">${r.aprov}</td><td class="num">${simBRL(r.comissao)}</td></tr>`).join("")
+    : '<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:16px">Sem dados.</td></tr>';
+  document.getElementById(idAlvo).innerHTML = cab+"<tbody>"+corpo+"</tbody>";
+}
+
+/* ---------- Simulações Recebidas: flat, filtrável e ORDENÁVEL ----------
+ * Clicar no cabeçalho ordena por aquela coluna (renda, financiado, entrada,
+ * parcela, data...) — mesmo mecanismo de clique + seta que a tabela de
+ * insumos do Orçado x Realizado já usa (ver sortDetalhe lá). */
+const SIM_COLS_REC=[
+  ["cliente","Cliente",false],["cpf","CPF",false],["corretor","Corretor",false],
+  ["imobiliaria","Imobiliária",false],["unidade","Unidade",false],
+  ["renda","Renda",true],["financiado","Financiado",true],["entrada","Entrada",true],
+  ["parcela","Parcela",true],["criadoEm","Data",false],["status","Status",false],["aprovacao","Aprovação",false]
+];
+const SIM_COLS_TXT=["cliente","cpf","corretor","imobiliaria","status","aprovacao"];
+
+function simSegAp(v){
+  simFiltroAp=v;
+  document.querySelectorAll("#seg-aprov .seg-bt").forEach(b=>b.classList.toggle("on", b.dataset.ap===v));
+  simRenderRecebidas();
+}
+function sortSim(col){
+  if(ordSim.col===col) ordSim.dir*=-1;
+  else { ordSim.col=col; ordSim.dir = SIM_COLS_TXT.includes(col) ? 1 : -1; }
+  simRenderRecebidas();
+}
+function simValorOrd(s,col){
+  if(col==="criadoEm") return new Date(s.criadoEm||0).getTime()||0;
+  if(col==="unidade") return parseInt(String(s.unidade).replace(/\D/g,""),10)||0;
+  if(["renda","financiado","entrada","parcela"].includes(col)) return Number(s[col])||0;
+  return String(s[col]||"").toLowerCase();
+}
+function simRenderRecebidas(){
+  const termo=(document.getElementById("sim-busca").value||"").toLowerCase();
+  let vis=SIMS.filter(s=>{
+    const alvo=`${s.cliente||""} ${s.cpf||""} ${s.corretor||""} ${s.imobiliaria||""}`.toLowerCase();
+    return alvo.includes(termo) && (!simFiltroAp || (s.aprovacao||"PENDENTE")===simFiltroAp);
+  });
+  vis.sort((a,b)=>{
+    const va=simValorOrd(a,ordSim.col), vb=simValorOrd(b,ordSim.col);
+    if(va<vb) return -1*ordSim.dir;
+    if(va>vb) return  1*ordSim.dir;
+    return 0;
+  });
+  const cab='<thead><tr>'+SIM_COLS_REC.map(([k,rot,n])=>{
+    const s=ordSim.col===k?(ordSim.dir<0?"sortD":"sortA"):"";
+    const arrIco=ordSim.col===k?(ordSim.dir<0?"▼":"▲"):"↕";
+    return `<th class="${s}" style="${n?'text-align:right':''}" onclick="sortSim('${k}')">${rot}<span class="arr">${arrIco}</span></th>`;
+  }).join("")+"</tr></thead>";
+  if(!vis.length){
+    document.getElementById("sim-tabRec").innerHTML=cab+
+      `<tbody><tr><td colspan="${SIM_COLS_REC.length}" style="text-align:center;color:var(--text3);padding:22px">Nenhuma simulação encontrada.</td></tr></tbody>`;
+    return;
+  }
+  const corpo=vis.map(s=>`<tr class="clicavel" onclick="simVerDet('${s.id}')">
+    <td>${esc(s.cliente||"—")}</td><td class="col-un">${esc(s.cpf||"—")}</td>
+    <td>${esc(s.corretor||"—")}</td><td>${esc(s.imobiliaria||"—")}</td>
+    <td>Un. ${esc(String(s.unidade||"—"))} <span style="color:var(--text3)">(T${esc(String(s.tipo||"—"))})</span></td>
+    <td class="num">${s.renda?simBRL(s.renda):"—"}</td>
+    <td class="num">${s.financiado?simBRL(s.financiado):"—"}</td>
+    <td class="num">${s.entrada?simBRL(s.entrada):"—"}</td>
+    <td class="num">${s.parcela?simBRL(s.parcela):"—"}</td>
+    <td>${simData(s.criadoEm)}</td>
+    <td>${simTagSt(s.status)}</td><td>${simTagAp(s.aprovacao)}</td></tr>`).join("");
+  document.getElementById("sim-tabRec").innerHTML=cab+"<tbody>"+corpo+"</tbody>";
+}
+
 function simTagAp(a){
   a=a||"PENDENTE";
   const cls = a==="APROVADA" ? "pos" : (a==="REJEITADA" ? "neg" : "zero");
@@ -509,38 +643,46 @@ function simTagSt(st){
   const cls = n==="ERRO" ? "neg" : (n==="CONCLUIDO" ? "pos" : "zero");
   return `<span class="pill ${cls}">${n}</span>`;
 }
-function simRenderLista(){
-  const termo=(document.getElementById("sim-busca").value||"").toLowerCase();
-  const filtro=document.getElementById("sim-filtro").value;
-  const vis=SIMS.filter(s=>{
-    const alvo=`${s.cliente||""} ${s.cpf||""} ${s.corretor||""} ${s.imobiliaria||""}`.toLowerCase();
-    return alvo.includes(termo) && (!filtro || (s.aprovacao||"PENDENTE")===filtro);
+
+/* ---------- detalhe (modal) ----------
+ * "Esquema de entrada" e "evolução do encargo" organizados como duas
+ * tabelas, igual ao e-mail que o worker manda (ver email_timbrado.py:
+ * montar_corpo). O texto cru do worker (s.esquema) vem como
+ * "Na assinatura: R$ 1000,00 (Sinal / ato); 30 dias: R$ 3000,00 (...); ..."
+ * — simParseEsquema quebra isso em linhas de tabela.
+ * "Mensagem do worker" saiu daqui por pedido — não tinha uso pra quem
+ * aprova/rejeita, só ruído no modal. */
+function simParseEsquema(txt){
+  if(!txt) return [];
+  return String(txt).split(";").map(p=>p.trim()).filter(Boolean).map(p=>{
+    const m = p.match(/^(.*?):\s*(R\$\s?[\d.,]+)\s*\((.*)\)$/);
+    return m ? {quando:m[1].trim(), valor:m[2].trim(), forma:m[3].trim()} : {quando:p, valor:"", forma:""};
   });
-  if(!vis.length){ document.getElementById("sim-lista").innerHTML='<div class="vazio">Nenhuma simulação encontrada.</div>'; return; }
-  const grupos={}, ordem=[];
-  vis.forEach(s=>{ const k=(s.cliente||"—").trim().toUpperCase(); if(!grupos[k]){grupos[k]=[];ordem.push(k);} grupos[k].push(s); });
-  document.getElementById("sim-lista").innerHTML = ordem.map(k=>{
-    const itens=grupos[k];
-    const linhas=itens.map(s=>`<tr class="clicavel" onclick="simVerDet('${s.id}')">
-      <td>${simData(s.criadoEm)}</td>
-      <td>Un. ${esc(String(s.unidade||"—"))} <span style="color:var(--text3)">(T${esc(String(s.tipo||"—"))})</span></td>
-      <td>${esc(s.corretor||"—")}</td>
-      <td class="num">${s.financiado?simBRL(s.financiado):"—"}</td>
-      <td class="num">${s.entrada?simBRL(s.entrada):"—"}</td>
-      <td class="num">${s.parcela?simBRL(s.parcela):"—"}</td>
-      <td>${simTagSt(s.status)}</td><td>${simTagAp(s.aprovacao)}</td></tr>`).join("");
-    return `<div style="margin-bottom:16px">
-      <div class="sim-grupo">${esc(k)} <small>· ${itens.length} simulação(ões) · CPF ${esc(itens[0].cpf||"—")}</small></div>
-      <table class="sim-tabela"><thead><tr><th>Data</th><th>Unidade</th><th>Corretor</th>
-      <th>Financiado</th><th>Entrada</th><th>Parcela</th><th>Status</th><th>Aprovação</th></tr></thead>
-      <tbody>${linhas}</tbody></table></div>`;
-  }).join("");
 }
+const SIM_PCTS=[20,30,40,50,60,70,80,90];   // mesmas faixas do e-mail (email_timbrado.py)
+function simEncargo(parcela){ return SIM_PCTS.map(p=>(Number(parcela)||0)*p/100); }
 
 function simVerDet(id){
   const s=SIMS.find(x=>x.id===id); if(!s) return;
   const it=(r,v)=>`<div class="sim-item"><small>${r}</small><b>${v||"—"}</b></div>`;
   const podeGravar = !ehSomenteLeitura(S);
+
+  const fluxo = simParseEsquema(s.esquema);
+  const tabFluxo = fluxo.length ? `
+    <div style="margin-top:14px"><b style="font-size:13px;color:var(--azul)">Entrada total — fluxo de pagamento</b>
+      <div class="tbl-wrap" style="margin-top:6px;max-height:none"><table><tbody>
+        <tr class="sim-tot"><td colspan="2">ENTRADA TOTAL A PAGAR</td><td class="num">${simBRL(s.entrada)}</td></tr>
+        ${fluxo.map(f=>`<tr><td>${esc(f.quando)}</td><td class="num">${esc(f.valor)}</td><td style="color:var(--text3)">${esc(f.forma)}</td></tr>`).join("")}
+      </tbody></table></div>
+    </div>` : "";
+  const tabEncargo = s.parcela ? `
+    <div style="margin-top:14px"><b style="font-size:13px;color:var(--azul)">Evolução estimada do encargo durante a obra</b>
+      <div class="tbl-wrap" style="margin-top:6px;max-height:none"><table><tbody>
+        <tr>${SIM_PCTS.map(p=>`<td style="background:var(--bg3);text-align:center;font-weight:700;color:var(--azul-esc)">${p}%</td>`).join("")}</tr>
+        <tr>${simEncargo(s.parcela).map(v=>`<td class="num" style="text-align:center">${simBRL(v)}</td>`).join("")}</tr>
+      </tbody></table></div>
+    </div>` : "";
+
   document.getElementById("sim-modalCx").innerHTML=`
     <div class="modal-tit">${esc(s.cliente||"—")}</div>
     <div class="modal-sub">CPF ${esc(s.cpf||"—")} · ${simData(s.criadoEm)} · ${simTagAp(s.aprovacao)}</div>
@@ -550,14 +692,11 @@ function simVerDet(id){
       ${it("Valor de venda",simBRL(s.valorVenda))}${it("Avaliação",simBRL(s.avaliacao))}
       ${it("Renda",simBRL(s.renda))}${it("FGTS",simBRL(s.fgts))}${it("Subsídio",simBRL(s.subsidio))}
       ${it("Valor financiado",simBRL(s.financiado))}${it("Parcela",simBRL(s.parcela))}
-      ${it("Valor da entrada",simBRL(s.entrada))}
       ${it("Prazo da entrada",(s.prazoEntrada||"—")+" meses")}
       ${it("Comissão",(s.comissaoPct?(s.comissaoPct*100).toFixed(2).replace(".",",")+"% · ":"")+simBRL(s.comissaoValor))}
       ${it("Produto",esc(s.produtos||""))}${it("Seguradora",esc(s.seguradora||""))}
     </div>
-    ${s.prestacoes?`<div><b style="font-size:13px;color:var(--azul)">Prestações da entrada</b><div class="sim-cx">${esc(s.prestacoes)}</div></div>`:""}
-    ${s.esquema?`<div style="margin-top:9px"><b style="font-size:13px;color:var(--azul)">Esquema de entrada</b><div class="sim-cx">${esc(s.esquema)}</div></div>`:""}
-    ${s.mensagem?`<div style="margin-top:9px"><b style="font-size:13px;color:var(--azul)">Mensagem do worker</b><div class="sim-cx">${esc(s.mensagem)}</div></div>`:""}
+    ${tabFluxo}${tabEncargo}
     <div style="display:flex;gap:9px;margin-top:16px;flex-wrap:wrap">
       ${podeGravar?`<button class="bt verde" onclick="simDecidir('${s.id}','APROVADA')">Aprovar</button>
       <button class="bt vermelho" onclick="simDecidir('${s.id}','REJEITADA')">Rejeitar</button>`:""}
@@ -576,14 +715,14 @@ async function simDecidir(id,decisao){
     const s=SIMS.find(x=>x.id===id); if(s) s.aprovacao=decisao;
     av.className="sim-aviso ok"; av.textContent="Marcada como "+decisao+".";
     try{ storeGravar("sims_lista", {ok:true, simulacoes:SIMS, lidoEm:new Date().toISOString()}); }catch(e){}
-    simRenderKpis(); simRenderLista(); setTimeout(simFecharDet,700);
+    simRenderKpis(); simRenderRanking(); simRenderRecebidas(); setTimeout(simFecharDet,700);
   }else{
     av.className="sim-aviso err";
     av.textContent = (r&&r.erro==="MODO_TESTE") ? "Perfil TESTES não grava." : ((r&&r.erro)||"Não foi possível salvar.");
   }
 }
 
-/* ---------- unidades ---------- */
+/* ---------- unidades (sem mudanças de fundo — só o local do botão mudou) ---------- */
 const SIM_COLS=[["unidade","UNIDADE","ro"],["tipo","TIPO","num"],["valorVenda","VALOR DE VENDA","num"],
                 ["avaliacao","AVALIACAO","num"],["informacoes","INFORMACOES","txt"],
                 ["decorado","DECORADO","sn"],["disponivel","DISPONIVEL","sn"],["vendido","VENDIDA","sn"]];
@@ -604,7 +743,7 @@ async function simCarregarUnidades(forcar){
         const d = await resp.json();
         if(d && d.length){
           UNS = d; simRenderUnidades();
-          simAvisoUn("ok","Lista do mapa publicado. Use \u201cRecarregar\u201d para ver o Notion ao vivo.");
+          simAvisoUn("ok","Lista do mapa publicado. Use \\u201cAtualizar agora\\u201d para ver o Notion ao vivo.");
           return;
         }
       }
