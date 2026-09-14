@@ -148,6 +148,14 @@ tbody tr:nth-child(even) td{background:var(--bg2)} tbody tr:nth-child(even) td.s
 tbody tr:hover td{background:#e9f6ef} tbody tr:hover td.stick{background:#dff2e6}
 tr.vendida td.stick{color:var(--verde-esc)}
 .obralink{color:var(--azul);font-weight:800;cursor:pointer}.obralink:hover{text-decoration:underline}
+/* referência (-AUTO) no card de alerta: identifica a obra quando o ENDEREÇO
+   ainda está vazio. Só leitura — relation não é editável pela API. */
+.col-end{display:flex;flex-direction:column;gap:4px;align-items:flex-start;min-width:0}
+.refs{display:flex;flex-wrap:wrap;gap:4px}
+.ref-chip{font-size:10.5px;font-weight:700;color:var(--text3);background:var(--bg2);
+  border:1px solid var(--border2);border-radius:999px;padding:1px 8px;
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html[data-tema="escuro"] .ref-chip{background:rgba(255,255,255,.06);color:var(--text3)}
 /* item 6: coluna de numeração (só casas vendidas, ordem por data da venda) */
 .numcol{text-align:center;font-weight:800;color:var(--text4);width:34px}
 .casanum{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:20px;background:var(--azul);color:#fff;font-size:10px;font-weight:800;vertical-align:middle}
@@ -1164,6 +1172,46 @@ function ehAuxiliar(nome){
   const n=normNome(nome);
   return /(^|[\s-])AUTO$|-AUTO\b|\bAUTO\b/.test(n) || /ALERTA|ELERTA|INFORMACOES PENDENTES|SOLICITACAO RET|EMISSAO INCORPORACAO/.test(n);
 }
+/* ---------- REFERÊNCIA (colunas -AUTO) ----------
+   As -AUTO são relation/rollup: vêm do Notion já resolvidas em NOME pelo
+   fetch_documentos.py (resolver_titulos_relacao). Elas ficam fora da planilha
+   e do painel de propósito (são auxiliares), mas nos cards de alerta são a
+   ÚNICA forma de saber de que obra se trata quando o ENDEREÇO ainda está
+   vazio — que é justamente o caso desses alertas. Aqui elas entram só como
+   referência de leitura, nunca como campo editável (a API não grava relation). */
+function ehRefAuto(nome){ return /(^|[\s-])AUTO$|-AUTO\b|\bAUTO\b/.test(normNome(nome)); }
+/* rollup de relation chega como array aninhado ([["Rua X"]]); achata e
+   descarta o que não for texto (anexo vira objeto e não serve de referência) */
+function txtRef(v){
+  if(v==null||v==="") return "";
+  if(Array.isArray(v)){
+    const flat=[];
+    const anda=x=>{ if(Array.isArray(x)) x.forEach(anda);
+                    else if(x!=null&&x!==""&&typeof x!=="object") flat.push(String(x)); };
+    anda(v);
+    return [...new Set(flat)].join(", ");
+  }
+  if(typeof v==="object") return "";
+  return String(v);
+}
+/* devolve [{nome, txt}] das colunas -AUTO preenchidas desta obra */
+function refsAuto(o){
+  if(!o) return [];
+  const out=[];
+  (CAMPOS||[]).forEach(c=>{
+    if(!ehRefAuto(c.nome)) return;
+    const t=txtRef(getV(o.valores,c.nome));
+    if(t) out.push({nome:c.nome.trim(), txt:t});
+  });
+  return out;
+}
+/* linha de referência para o card de alerta (vazia se não há nenhuma) */
+function refsHtml(o){
+  const r=refsAuto(o);
+  if(!r.length) return "";
+  return `<span class="refs">`+r.map(x=>
+    `<span class="ref-chip" title="${esc(x.nome)}">${esc(x.txt)}</span>`).join("")+`</span>`;
+}
 /* Colunas do Departamento de Projetos (o segundo print): a planilha e o
    painel da obra mostram só o que esse setor preenche. */
 const COLS_PROJETOS=[
@@ -1430,7 +1478,7 @@ function renderAlertas(){
             : `<span class="ro-inline" title="Preencha direto no Notion — este campo não é editável pela API">${esc(Array.isArray(v)?v.join(", "):(v==null?"—":v))}</span>`;
           return `<span class="preench-item"><label>${esc(c.nome.trim())}</label>${ctrl}</span>`;
         }).join("")+`</span>` : `<span class="ro-inline">—</span>`;
-      return `<div class="al al3"><span class="obralink${endTxt?"":" sem-end"}" onclick="abrirObra('${l.o.id}')">${esc(end)}</span>`+
+      return `<div class="al al3"><span class="col-end"><span class="obralink${endTxt?"":" sem-end"}" onclick="abrirObra('${l.o.id}')">${esc(end)}</span>${refsHtml(l.o)}</span>`+
              `<span>${esc(l.detalhe||l.titulo)}</span>${preench}</div>`;
     }).join("")+"</div></details>").join("");
 }
@@ -1656,7 +1704,9 @@ async function abrirObra(pageId){
   const o=obraPorId(pageId); if(!o) return;
   OBRA_ABERTA=pageId;
   document.getElementById("pn-end").textContent=val(o,"ENDEREÇO")||"Obra";
-  document.getElementById("pn-loc").textContent=[val(o,"SETOR"),val(o,"CIDADE")].filter(Boolean).join(" · ");
+  // sem ENDEREÇO o cabeçalho ficava só "Obra": a referência (-AUTO) diz qual é
+  document.getElementById("pn-loc").textContent=
+    [val(o,"SETOR"),val(o,"CIDADE")].concat(refsAuto(o).map(r=>r.txt)).filter(Boolean).join(" · ");
   document.getElementById("overlay").classList.add("on");
   document.getElementById("painel").classList.add("on");
   renderPainel(o);
