@@ -1159,6 +1159,14 @@ function etapaFechada(l, col, validou){
 const TXT_PREENCHER_DATA = "⚠️ PREENCHER DATA";
 const TXT_PREENCHER_UC   = "⚠️ PREENCHER UC";
 
+/* NÍVEL de cada alerta (""/"alerta"/"atraso"): a MESMA função que decide o
+   nível decide o texto, pra pintura da linha e coluna nunca mais divergirem.
+   Pedido set/26: a pintura da linha olhava um texto fixo antigo (isso está
+   logo abaixo, em situacaoAlertaLinha) enquanto REGRAS_ALERTA já podia estar
+   devolvendo outro texto — daí linha que devia pintar ficava sem cor. Ver
+   REGRAS_NIVEL e nivelDe() mais abaixo. */
+const REGRAS_NIVEL = {};
+
 const REGRAS_ALERTA = {};
 /* "Alerta Informações": olha FEZ A SOLICITAÇÃO? + DATA DE SOLICITAÇÃO.
    Solicitou e não anotou quando -> cobra a data. Anotou -> resolvido. */
@@ -1207,15 +1215,56 @@ const _regraSanesc = l => {
 };
 REGRAS_ALERTA[normN(C.VERIF_SOL)]  = _regraSanesc;
 REGRAS_ALERTA[normN(C.ALERTA_SOL)] = _regraSanesc;
-/* Idem para a conferência da ligação: ligou e datou -> resolvido. */
+/* ALERTA VER. LIGAÇÃO — pedido set/26 (corrige o alerta que vinha errado do
+   Notion: usava um prazo só, igual para todas as concessionárias, e às vezes
+   mostrava até o texto da coluna ERRADA — o de SOLICITAÇÃO SANESC (ver nota
+   grande abaixo). A partir de agora o texto e a cor SEMPRE nascem aqui, a
+   partir do PRAZO SEM LIGAÇÃO (dias desde a DATA DE SOLICITAÇÃO) — nunca mais
+   do texto que vinha publicado do Notion.
+     SANESC .......... 15 a 29 dias = aviso; 30+ dias = atraso
+     demais (SANEAGO, EQUATORIAL etc.) .. só 1 estágio: 7+ dias = atraso
+   NÃO CONFUNDIR com _regraSanesc/ALERTA_SOL/VERIF_SOL, que é outro alerta
+   (acompanhamento da APROVAÇÃO da solicitação na SANESC, aba separada) — os
+   dois pararam de compartilhar texto de propósito: pedido explícito foi que
+   um nunca apareça na aba do outro. */
+const TXT_LIG_AVISO    = "⚠️ VERIFICAR SE A LIGAÇÃO FOI EFETIVADA";
+const TXT_LIG_ATRASADO = "🚨 ATRASADO! VERIFICAR PROBLEMA";
+function _nivelPrazoLigacao(l){
+  const dias = diasCorridosLigacao(l);      // null enquanto não tiver DATA DE SOLICITAÇÃO
+  if (dias == null) return "";
+  const sanesc = normN(sel(l, C.CONC)) === "SANESC";
+  if (sanesc) return dias >= 30 ? "atraso" : (dias >= 15 ? "alerta" : "");
+  return dias >= 7 ? "atraso" : "";
+}
+REGRAS_NIVEL[normN(C.ALERTA_LIG)] = l => {
+  const ligou = normN(sel(l, C.STATUS)) === "LIGADO";
+  if (etapaFechada(l, C.DT_LIG, ligou)) return "";
+  if (ligou) return "alerta";               // ligou mas falta datar: pede atenção
+  return _nivelPrazoLigacao(l);
+};
 REGRAS_ALERTA[normN(C.ALERTA_LIG)] = l => {
   const ligou = normN(sel(l, C.STATUS)) === "LIGADO";
   if (etapaFechada(l, C.DT_LIG, ligou)) return "";
   if (ligou) return TXT_PREENCHER_DATA;
-  return null;
+  const nivel = _nivelPrazoLigacao(l);
+  if (nivel === "atraso") return TXT_LIG_ATRASADO;
+  if (nivel === "alerta") return TXT_LIG_AVISO;
+  return "";           // dentro do prazo: sem alerta nenhum (não é mais "deixa o Notion decidir")
 };
 
 function temRegraAlerta(coluna){ return !!REGRAS_ALERTA[normN(coluna)]; }
+/* Nível ("" / "alerta" / "atraso") de uma coluna de alerta — usa a regra
+   dedicada quando existe (garantida de bater com o texto de alertaDe(), pois
+   é a mesma conta); senão cai no texto publicado, do jeito que já funcionava
+   antes (ver situacaoAlertaLinha). */
+function nivelDe(l, coluna){
+  const regra = REGRAS_NIVEL[normN(coluna)];
+  if (regra){
+    try { const r = regra(l); if (r !== null && r !== undefined) return r; }
+    catch (e) { /* linha estranha: cai no texto */ }
+  }
+  return null;          // sem regra dedicada: quem decide é situacaoAlertaLinha, pelo texto
+}
 
 /* Valor do alerta: a regra daqui quando ela sabe responder, senão o Notion.
    É por aqui que passam a tabela, o PDF, os filtros e as regras das abas —
@@ -3068,14 +3117,21 @@ const LEGENDA_VENC = `<div class="legenda">
    ALERTA_COLS_TODAS já foi declarada lá em cima, perto do C (as ABAS
    precisam dela antes deste ponto do arquivo). */
 function situacaoAlertaLinha(l, colunas){
-  /* MELHORIAS item 2 (set/26): a decisao e pelo TEXTO, nao pelo emoji.
-     "AGUARDANDO INFORMACAO" tambem usa o mesmo ampulheta dos alertas de
-     prazo, entao pintava a linha de amarelo a toa — e ela nao e alerta,
-     e um estado normal do fluxo. Agora so pintam os dois alertas de prazo
-     de verdade: ATRASADO (vermelho) e VERIFICACAO PREVIA DE LIGACAO
-     (amarelo). Qualquer outro texto nao pinta nada. */
+  /* set/26: cada coluna primeiro pergunta pro seu NÍVEL dedicado (nivelDe —
+     ver REGRAS_NIVEL), que é a mesma conta que gera o texto da coluna, então
+     os dois nunca mais podem divergir. Só cai de volta pro texto publicado
+     (comportamento antigo) para colunas SEM regra de nível própria ainda.
+     MELHORIAS item 2 (set/26), preservado para essas: a decisao e pelo TEXTO,
+     nao pelo emoji — "AGUARDANDO INFORMACAO" tambem usa o mesmo ampulheta dos
+     alertas de prazo, entao pintava a linha de amarelo a toa. Só pintam os
+     dois alertas de prazo de verdade: ATRASADO (vermelho) e VERIFICACAO
+     PREVIA DE LIGACAO (amarelo, nome antigo mantido aqui só de fallback). */
   let aviso = false;
   for (let i = 0; i < colunas.length; i++){
+    const nivel = nivelDe(l, colunas[i]);
+    if (nivel === "atraso") return "atraso";
+    if (nivel === "alerta") { aviso = true; continue; }
+    if (nivel !== null) continue;             // regra dedicada disse "sem alerta": não olha o texto
     const s = normN(txt(alertaDe(l, colunas[i])));
     if (s.indexOf("ATRASADO") >= 0) return "atraso";
     if (s.indexOf("VERIFICACAO PREVIA DE LIGACAO") >= 0) aviso = true;
