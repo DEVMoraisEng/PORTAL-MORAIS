@@ -386,6 +386,11 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
             <button class="seg-bt" data-ps="RESERVADA" onclick="propSeg('RESERVADA')">Reservadas</button>
             <button class="seg-bt" data-ps="NEGADA" onclick="propSeg('NEGADA')">Negadas</button>
           </div>
+          <div class="seg" id="seg-credito" style="margin-left:8px">
+            <button class="seg-bt on" data-pc="" onclick="propSegCredito('')">Crédito: todas</button>
+            <button class="seg-bt" data-pc="SIM" onclick="propSegCredito('SIM')">Com carta</button>
+            <button class="seg-bt" data-pc="NAO" onclick="propSegCredito('NAO')">Sem carta</button>
+          </div>
         </div>
         <div class="card">
           <div class="filtros">
@@ -1048,6 +1053,9 @@ async function simSalvarTudo(){
  * =================================================================== */
 let PROPS = [];
 let propFiltro = "";
+/* Filtro separado do de andamento: uma proposta pode ser RECEBIDA e ter
+   carta, ou RECEBIDA e não ter. São dois eixos diferentes. */
+let propFiltroCredito = "";
 const PROP_TTL = 5*60*1000;
 
 const PROP_NORM = t => String(t==null?"":t).normalize("NFD").replace(/[\u0300-\u036f]/g,"")
@@ -1122,6 +1130,11 @@ function propAlerta24(){
 /* ---------- lista ---------- */
 const PROP_ROTULO={ "RECEBIDA":"RECEBIDA","EM ANALISE":"EM ANÁLISE","ACEITA":"ACEITA",
                     "RESERVADA":"RESERVADA","NEGADA":"NEGADA" };
+function propSegCredito(v){
+  propFiltroCredito=v;
+  document.querySelectorAll("#seg-credito .seg-bt").forEach(b=>b.classList.toggle("on", b.dataset.pc===v));
+  propRender();
+}
 function propSeg(v){
   propFiltro=v;
   document.querySelectorAll("#seg-prop .seg-bt").forEach(b=>b.classList.toggle("on", b.dataset.ps===v));
@@ -1137,16 +1150,19 @@ function propRender(){
   const vis=PROPS.filter(p=>{
     const alvo=`${p.cliente||""} ${p.cpf||""} ${p.unidade||""} ${p.vendedor||""} ${p.imobiliaria||""}`.toLowerCase();
     if(!alvo.includes(termo)) return false;
+    if(propFiltroCredito==="SIM" && !p.comCredito) return false;
+    if(propFiltroCredito==="NAO" && p.comCredito) return false;
     return !propFiltro || PROP_NORM(p.status)===propFiltro;
   });
   /* estilo do editor injetado uma vez */
   propEstiloEditor();
   const cab='<thead><tr><th>Proposta</th><th>Unidade</th><th>Cliente</th><th>CPF</th>'+
-            '<th>Corretor</th><th>Imobiliária</th><th class="col-num">Crédito</th>'+
+            '<th>Corretor</th><th>Imobiliária</th><th>Crédito Caixa</th>'+
+            '<th class="col-num">Valor</th><th class="col-num">Entrada</th>'+
             '<th class="col-num">Renda</th><th>Criada</th><th>Status</th></tr></thead>';
   if(!vis.length){
     document.getElementById("prop-tab").innerHTML=cab+
-      '<tbody><tr><td colspan="11" style="text-align:center;color:var(--text3);padding:22px">Nenhuma proposta encontrada.</td></tr></tbody>';
+      '<tbody><tr><td colspan="12" style="text-align:center;color:var(--text3);padding:22px">Nenhuma proposta encontrada.</td></tr></tbody>';
     return;
   }
   const corpo=vis.map(p=>{
@@ -1157,7 +1173,11 @@ function propRender(){
       <td>Un. ${esc(String(p.unidade||"—"))}</td>
       <td>${esc(p.cliente||"—")}</td><td class="col-un">${esc(p.cpf||"—")}</td>
       <td>${esc(p.vendedor||"—")}</td><td>${esc(p.imobiliaria||"—")}</td>
+      <td>${p.comCredito
+            ? '<span class="pill pos">APROVADO</span>'
+            : '<span class="pill zero">SEM CARTA</span>'}</td>
       <td class="num">${p.creditoAprovado?simBRL(p.creditoAprovado):"—"}</td>
+      <td class="num">${p.valorEntrada?simBRL(p.valorEntrada):"—"}</td>
       <td class="num">${p.rendaTotal?simBRL(p.rendaTotal):"—"}</td>
       <td>${simData(p.criadoEm)}</td>
       <td>${propTag(p.status)}${venc?' <span style="color:#C0392B;font-weight:700">+24h</span>':''}</td></tr>`;
@@ -1255,8 +1275,26 @@ async function propStatus(id, status){
   const av=document.getElementById("prop-detAviso");
   av.className="sim-aviso ok"; av.textContent="Salvando…";
   let r;
-  try{ r=await chamar({action:"simsPropostaStatus", pageId:id, status:status}, 45000, true); }
-  catch(e){ av.className="sim-aviso err"; av.textContent="Não deu para confirmar (tempo esgotado ou sem conexão). Tente de novo."; return; }
+  /* 90 s: a mudança de status mexe na proposta E na unidade, são várias idas
+     ao Notion. Em 45 s o navegador desistia antes de o servidor terminar —
+     e o servidor terminava, gravando. */
+  try{ r=await chamar({action:"simsPropostaStatus", pageId:id, status:status}, 90000, true); }
+  catch(e){
+    /* Antes de mandar "tente de novo", vai ao Notion ver se gravou. Repetir
+       às cegas é como a proposta ficou ACEITA no banco e "com erro" na tela. */
+    const conferido = await propConferirStatus(id, status);
+    if(conferido===true){
+      av.className="sim-aviso ok";
+      av.textContent="Demorou, mas gravou: a proposta está como "+status+".";
+      storeInvalidar("sims_propostas","sims_unidades"); UNS=[];
+      propCarregar(true); setTimeout(simFecharDet,1600); return;
+    }
+    av.className="sim-aviso err";
+    av.textContent = conferido===false
+      ? "O tempo esgotou e o status não mudou. Pode tentar de novo."
+      : "Não deu para confirmar. Abra a proposta no Notion antes de repetir.";
+    return;
+  }
   if(r && r.ok){
     av.className="sim-aviso ok";
     av.textContent="Status: "+r.status+". "+(r.reflexo||"");
@@ -1317,6 +1355,18 @@ function propLerBase64(f){
     r.readAsDataURL(f);
   });
 }
+/* Confere no Notion se a mudança de status pegou, depois de um tempo
+   esgotado. true = gravou, false = não gravou, null = não deu para saber. */
+async function propConferirStatus(id, status){
+  try{
+    const r = await ler({action:"simsPropostas"});
+    if(!r || !r.propostas) return null;
+    const p = r.propostas.find(x=>x.id===id);
+    if(!p) return null;
+    return PROP_NORM(p.status) === PROP_NORM(status);
+  }catch(e){ return null; }
+}
+
 async function propEmail(id){
   const av=document.getElementById("prop-detAviso");
   const ed=document.getElementById("prop-msg");
