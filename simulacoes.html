@@ -654,7 +654,11 @@ function simRenderRankingUnidades(){
 const SIM_COLS_REC=[
   ["cliente","Cliente",false],["cpf","CPF",false],["corretor","Corretor",false],
   ["imobiliaria","Imobiliária",false],["unidade","Unidade",false],
-  ["renda","Renda",true],["financiado","Financiado",true],["entrada","Entrada",true],
+  ["renda","Renda",true],["financiado","Financiado",true],
+  /* entradaInformada = "VALOR PARA ENTRADA" digitado pelo corretor;
+     entrada = o que sobrou para pagar depois de FGTS, subsídio e ele. */
+  ["entradaInformada","Valor p/ entrada",true],
+  ["entrada","Entrada a pagar",true],
   ["parcela","Parcela",true],["criadoEm","Data",false],["status","Status",false]
 ];
 const SIM_COLS_TXT=["cliente","cpf","corretor","imobiliaria","status"];
@@ -787,6 +791,9 @@ function simFecharDet(){ document.getElementById("sim-modal").classList.add("hid
 const SIM_COLS=[["unidade","UNIDADE","ro"],["tipo","TIPO","num"],["valorVenda","VALOR DE VENDA","num"],
                 ["avaliacao","AVALIACAO","num"],["informacoes","INFORMACOES","txt"],
                 ["decorado","DECORADO","sn"],["disponivel","DISPONIVEL","sn"],["vendidaCru","VENDIDA","v3"]];
+/* INFORMACOES ganhou tipo proprio: e texto livre que vai para o popup do mapa,
+   entao precisa aceitar varias linhas. Um <input> corta tudo numa linha so. */
+SIM_COLS[4][2]="area";
 const SIM_NOME_NOTION={unidade:"UNIDADE",tipo:"TIPO",valorVenda:"VALOR DE VENDA",avaliacao:"AVALIACAO",
                        informacoes:"INFORMACOES",decorado:"DECORADO",disponivel:"DISPONIVEL",vendidaCru:"VENDIDA"};
 
@@ -914,6 +921,7 @@ function simRenderUnidades(){
           <option value="RESERVADA"${atual==="RESERVADA"?" selected":""}>RESERVADA</option>
           <option value="SIM"${atual==="SIM"?" selected":""}>SIM</option></select></td>`;
       }
+      if(tipo==="area") return `<td><textarea class="sim-edit" rows="2" data-i="${i}" data-c="${campo}" oninput="simAoEditar(${i})" style="width:100%;min-width:220px;resize:vertical;font-family:inherit;font-size:13px;line-height:1.4">${esc(String(v==null?"":v))}</textarea></td>`;
       if(tipo==="sn") return `<td><select class="sim-edit" data-i="${i}" data-c="${campo}" onchange="simAoEditar(${i})">
           <option value="true"${v?" selected":""}>SIM</option>
           <option value="false"${!v?" selected":""}>NÃO</option></select></td>`;
@@ -949,8 +957,25 @@ async function simSalvarUnidade(i){
   const campos=simColetarLinha(i);
   simAvisoUn("ok","Salvando no Notion…");
   let r;
-  try{ r = await chamar({action:"simsUnidadeUpdate", pageId:u.id, campos:campos}, 30000, true); }
-  catch(e){ simAvisoUn("err","Não foi possível salvar (tempo esgotado ou sem conexão). Tente de novo."); return; }
+  /* 60 s, não 30: o Apps Script tem partida fria e a gravação passa por um
+     GET de esquema + um PATCH no Notion. Em 30 s ele estourava antes de o
+     servidor terminar — e o servidor terminava, gravando. */
+  try{ r = await chamar({action:"simsUnidadeUpdate", pageId:u.id, campos:campos}, 60000, true); }
+  catch(e){
+    /* "Tente de novo" é o pior conselho aqui: o tempo esgotar no navegador
+       não quer dizer que o Notion não gravou. Antes de pedir para repetir,
+       vai lá conferir. */
+    const ok2 = await simConferirGravacao(u, campos);
+    if(ok2===true){
+      SIM_ALTERADAS.delete(i);
+      simAvisoUn("ok","Demorou, mas gravou: unidade "+u.unidade+" está como você deixou no Notion.");
+      simCarregarUnidades(true); return;
+    }
+    simAvisoUn("err", ok2===false
+      ? ("O tempo esgotou e a unidade "+u.unidade+" continua como estava no Notion. Pode salvar de novo.")
+      : "Não deu para confirmar se salvou. Confira a unidade "+u.unidade+" no Notion antes de repetir.");
+    return;
+  }
   if(r && r.ok){
     SIM_ALTERADAS.delete(i);
     try{ storeGravar("sims_unidades", {ok:true, unidades:UNS}); }catch(e){}
@@ -962,6 +987,23 @@ async function simSalvarUnidade(i){
   }else{
     simAvisoUn("err",(r&&r.erro==="MODO_TESTE") ? "Perfil TESTES não grava." : simErroAmigavel(r&&r.erro));
   }
+}
+
+/* Depois de um tempo esgotado, vai ao Notion ver se a gravação pegou.
+   Devolve true (gravou), false (não gravou) ou null (não deu para saber). */
+async function simConferirGravacao(u, campos){
+  try{
+    const r = await ler({action:"simsUnidades"});
+    if(!r || !r.unidades) return null;
+    const atual = r.unidades.find(x=>x.id===u.id);
+    if(!atual) return null;
+    const norm = v => String(v==null?"":v).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().trim();
+    if(campos["VENDIDA"] !== undefined && norm(atual.vendidaCru) !== norm(campos["VENDIDA"])) return false;
+    if(campos["DISPONIVEL"] !== undefined && norm(atual.disponivel?"SIM":"NÃO") !== norm(campos["DISPONIVEL"])) return false;
+    if(campos["VALOR DE VENDA"] !== undefined && Number(atual.valorVenda) !== Number(campos["VALOR DE VENDA"])) return false;
+    if(campos["AVALIACAO"] !== undefined && Number(atual.avaliacao) !== Number(campos["AVALIACAO"])) return false;
+    return true;
+  }catch(e){ return null; }
 }
 
 /* SALVAR TUDO — grava, uma a uma, só as unidades alteradas. Em série (não em
@@ -978,8 +1020,8 @@ async function simSalvarTudo(){
     if(!u||!u.id){ falhas.push((u&&u.unidade)||"?"); continue; }
     const campos=simColetarLinha(i);
     let r;
-    try{ r = await chamar({action:"simsUnidadeUpdate", pageId:u.id, campos:campos}, 30000, true); }
-    catch(e){ r=null; }
+    try{ r = await chamar({action:"simsUnidadeUpdate", pageId:u.id, campos:campos}, 60000, true); }
+    catch(e){ r = (await simConferirGravacao(u, campos)) === true ? {ok:true} : null; }
     if(r && r.ok){ ok++; SIM_ALTERADAS.delete(i); }
     else if(r && r.erro==="MODO_TESTE"){ simAvisoUn("err","Perfil TESTES não grava."); if(bt) bt.disabled=false; return; }
     else { falhas.push((u&&u.unidade)||"?"); }
@@ -1247,9 +1289,27 @@ async function propSetup(){
   try{ r=await chamar({action:"simsPropostasSetup"}, 60000, true); }
   catch(e){ propAviso("err","Não deu para falar com o servidor."); return; }
   if(r && r.ok){
+    /* Antes ele só dizia "nada a criar" e parecia que não tinha rodado.
+       Agora mostra o que achou coluna por coluna — é o relatório que responde
+       "rodou e não deu em nada". */
+    let det = await chamar({action:"simsDiag"}, 60000, true).catch(()=>null);
+    let tabela = "";
+    if(det && det.PROPOSTAS && det.PROPOSTAS.colunas){
+      const cols = det.PROPOSTAS.colunas;
+      tabela = '<div style="margin-top:8px"><b>Base PROPOSTAS · '+cols.length+' coluna(s)</b>'+
+        '<div class="tbl-wrap" style="max-height:260px;margin-top:6px"><table><tbody>'+
+        cols.map(c=>`<tr><td>${esc(c.coluna)}</td><td style="color:var(--text3)">${esc(c.tipo)}</td></tr>`).join("")+
+        '</tbody></table></div>'+
+        (det.PROPOSTAS.faltando && det.PROPOSTAS.faltando.length
+          ? '<div style="margin-top:6px;color:#C0392B">Ainda faltando: '+esc(det.PROPOSTAS.faltando.join(", "))+'</div>'
+          : '<div style="margin-top:6px;color:#1D5433">Nenhuma coluna faltando.</div>')+
+        '</div>';
+    } else if(det && det.PROPOSTAS && det.PROPOSTAS.erro){
+      tabela = '<div style="margin-top:6px;color:#C0392B">Não consegui ler a base: '+esc(det.PROPOSTAS.erro)+'</div>';
+    }
     propAviso("ok","<b>"+esc(r.mensagem)+"</b>"+
-      (r.criadas && r.criadas.length ? "<br>Criadas: "+esc(r.criadas.join(", ")) : "")+
-      "<br>Já existiam: "+(r.jaExistiam||0)+" coluna(s).");
+      (r.criadas && r.criadas.length ? "<br>Criadas agora: "+esc(r.criadas.join(", ")) : "")+
+      tabela);
     propCarregar(true);
   }else{
     propAviso("err", (r&&r.erro==="APENAS_ADM") ? "Só o perfil ADM pode criar colunas." : propErro(r&&r.erro));
