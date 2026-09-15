@@ -307,6 +307,8 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
       <div class="tabs-outer"><div class="tabs">
         <button class="tab on" data-tab="painel" onclick="trocarTab('painel')">Painel</button>
         <button class="tab" data-tab="recebidas" onclick="trocarTab('recebidas')">Simulações Recebidas</button>
+        <button class="tab" data-tab="propostas" onclick="trocarTab('propostas')">Propostas</button>
+        <button class="tab" data-tab="nova" onclick="trocarTab('nova')">Nova proposta</button>
         <button class="tab" data-tab="unidades" onclick="trocarTab('unidades')">Unidades</button>
       </div></div>
 
@@ -318,7 +320,10 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
         <div class="sec"><span class="cond">Médias dos proponentes</span></div>
         <div class="card"><div class="sim-graf" id="sim-grafico"></div></div>
 
-        <div class="sec"><span class="cond">Ranking de corretores e imobiliárias</span></div>
+        <div class="sec"><span class="cond">Propostas</span></div>
+        <div class="kpis" id="prop-kpis"><div class="vazio" style="grid-column:1/-1">Abra a aba Propostas para carregar.</div></div>
+
+        <div class="sec"><span class="cond">Ranking de corretores e imobiliárias · SIMULAÇÕES</span></div>
         <div class="sim-2col">
           <div class="card">
             <h3>Corretores</h3>
@@ -327,6 +332,18 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
           <div class="card">
             <h3>Imobiliárias</h3>
             <div class="tbl-wrap" style="max-height:360px"><table id="sim-rankImob"></table></div>
+          </div>
+        </div>
+
+        <div class="sec"><span class="cond">Ranking de corretores e imobiliárias · PROPOSTAS</span></div>
+        <div class="sim-2col">
+          <div class="card">
+            <h3>Corretores</h3>
+            <div class="tbl-wrap" style="max-height:360px"><table id="prop-rankCorretor"></table></div>
+          </div>
+          <div class="card">
+            <h3>Imobiliárias</h3>
+            <div class="tbl-wrap" style="max-height:360px"><table id="prop-rankImob"></table></div>
           </div>
         </div>
 
@@ -354,6 +371,142 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
             <button class="bt ghost" onclick="simCarregar(true)" title="Ignora o cache e busca no Notion agora">↻ Atualizar agora</button>
           </div>
           <div class="tbl-wrap alta"><table id="sim-tabRec"></table></div>
+        </div>
+      </section>
+
+      <!-- ==================== PROPOSTAS ==================== -->
+      <section id="tab-propostas" class="hide">
+        <div id="prop-alerta24" class="sim-aviso err hide" style="margin-bottom:10px"></div>
+        <div class="sec"><span class="cond">Propostas recebidas</span>
+          <span style="flex:1"></span>
+          <div class="seg" id="seg-prop">
+            <button class="seg-bt on" data-ps="" onclick="propSeg('')">Todas</button>
+            <button class="seg-bt" data-ps="RECEBIDA" onclick="propSeg('RECEBIDA')">Recebidas</button>
+            <button class="seg-bt" data-ps="EM ANALISE" onclick="propSeg('EM ANALISE')">Em análise</button>
+            <button class="seg-bt" data-ps="ACEITA" onclick="propSeg('ACEITA')">Aceitas</button>
+            <button class="seg-bt" data-ps="RESERVADA" onclick="propSeg('RESERVADA')">Reservadas</button>
+            <button class="seg-bt" data-ps="NEGADA" onclick="propSeg('NEGADA')">Negadas</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="filtros">
+            <div class="fcampo"><label>Buscar</label>
+              <input type="search" id="prop-busca" placeholder="Cliente, CPF, unidade ou corretor…" oninput="propRender()"></div>
+            <button class="bt ghost" onclick="propCarregar(true)">↻ Atualizar agora</button>
+            <button class="bt ghost" onclick="propSetup()" title="Cria no Notion as colunas que faltarem na base PROPOSTAS. Só acrescenta — nunca renomeia nem apaga.">🛠 Conferir/criar colunas</button>
+            <span style="font-size:12px;color:var(--text3);align-self:center">
+              <span style="display:inline-block;width:10px;height:10px;background:#F6D6D2;border:1px solid #D98A80;border-radius:2px;vertical-align:middle"></span>
+              linha vermelha = reservada há mais de 24 h
+            </span>
+          </div>
+          <div id="prop-aviso" class="sim-aviso"></div>
+          <div class="tbl-wrap alta"><table id="prop-tab"></table></div>
+        </div>
+      </section>
+
+      <!-- ==================== NOVA PROPOSTA ==================== -->
+      <section id="tab-nova" class="hide">
+        <div class="sec"><span class="cond">Nova proposta · Condomínio Reserva dos Ipês</span></div>
+        <div class="card">
+          <div id="prop-novaAviso" class="sim-aviso"></div>
+
+          <h3>Unidade</h3>
+          <div class="filtros">
+            <div class="fcampo"><label>Unidade *</label>
+              <select id="np-unidade" onchange="propAoTrocarUnidade()"></select></div>
+            <div class="fcampo"><label>Preço</label><input id="np-preco" readonly></div>
+            <div class="fcampo"><label>Característica</label><input id="np-carac" readonly></div>
+          </div>
+          <p style="font-size:12px;color:var(--text3);margin:2px 0 14px">
+            Metragem 70,27 m² · entrega 15/10/2028 · Rua RPB 24, Quadra 269, Lote 03, 75257-005,
+            Setor Parque dos Buritis, Senador Canedo – GO ·
+            <b style="color:#C0392B">Memorial de incorporação: pendente</b>
+          </p>
+
+          <h3>Proponente</h3>
+          <div class="filtros">
+            <div class="fcampo"><label>Nome *</label><input id="np-cliente" data-pad="1"></div>
+            <div class="fcampo"><label>CPF *</label><input id="np-cpf" inputmode="numeric" maxlength="14" placeholder="000.000.000-00"></div>
+            <div class="fcampo"><label>Identidade</label><input id="np-identidade" data-pad="1"></div>
+            <div class="fcampo"><label>Estado civil</label>
+              <select id="np-estadoCivil" onchange="propConjuge()">
+                <option>SOLTEIRO</option><option>CASADO</option><option>DIVORCIADO</option>
+                <option>VIUVO</option><option>UNIAO ESTAVEL</option></select></div>
+            <div class="fcampo"><label>Nacionalidade</label><input id="np-nacionalidade" value="BR" data-pad="1"></div>
+            <div class="fcampo"><label>Profissão</label><input id="np-profissao" data-pad="1"></div>
+            <div class="fcampo"><label>Data de nascimento</label><input id="np-dataNascimento" type="date"></div>
+            <div class="fcampo"><label>Telefone</label><input id="np-telefone" inputmode="numeric" maxlength="15" placeholder="(00) 0000-0000"></div>
+            <div class="fcampo"><label>Celular</label><input id="np-celular" inputmode="numeric" maxlength="15" placeholder="(00) 00000-0000"></div>
+            <div class="fcampo" style="flex:2"><label>Endereço</label><input id="np-endereco" data-pad="1"></div>
+            <div class="fcampo"><label>Participação (%)</label><input id="np-participacao" type="number" value="100"></div>
+          </div>
+          <div class="filtros hide" id="np-boxConjuge">
+            <div class="fcampo"><label>Cônjuge</label><input id="np-conjuge" data-pad="1"></div>
+            <div class="fcampo"><label>CPF do cônjuge</label><input id="np-cpfConjuge" inputmode="numeric" maxlength="14" placeholder="000.000.000-00"></div>
+          </div>
+
+          <h3>Trabalho e renda</h3>
+          <div class="filtros">
+            <div class="fcampo"><label>Cargo</label><input id="np-cargo" data-pad="1"></div>
+            <div class="fcampo"><label>Empresa</label><input id="np-empresa" data-pad="1"></div>
+            <div class="fcampo"><label>Tempo de serviço</label><input id="np-tempoServico" data-pad="1"></div>
+            <div class="fcampo"><label>Renda formal (R$)</label><input id="np-rendaFormal" inputmode="numeric" placeholder="0,00" oninput="propRenda()"></div>
+            <div class="fcampo"><label>Origem</label><input id="np-origemFormal" data-pad="1"></div>
+            <div class="fcampo"><label>Renda informal (R$)</label><input id="np-rendaInformal" inputmode="numeric" placeholder="0,00" oninput="propRenda()"></div>
+            <div class="fcampo"><label>Origem</label><input id="np-origemInformal" data-pad="1"></div>
+            <div class="fcampo"><label>Renda total</label><input id="np-rendaTotal" readonly></div>
+          </div>
+
+          <h3>Recursos e financiamento</h3>
+          <div class="filtros">
+            <div class="fcampo"><label>Saldo FGTS (R$)</label><input id="np-saldoFgts" inputmode="numeric" placeholder="0,00" oninput="propFluxo()"></div>
+            <div class="fcampo"><label>Subsídio (R$)</label><input id="np-subsidio" inputmode="numeric" placeholder="0,00" oninput="propFluxo()"></div>
+            <div class="fcampo"><label>Valor para entrada (R$)</label><input id="np-valorEntrada" inputmode="numeric" placeholder="0,00" oninput="propFluxo()"></div>
+            <div class="fcampo"><label>Crédito aprovado (R$) *</label><input id="np-creditoAprovado" inputmode="numeric" placeholder="0,00" oninput="propFluxo()"></div>
+            <div class="fcampo"><label>Banco</label><input id="np-banco" value="CEF FGTS" data-pad="1"></div>
+            <div class="fcampo"><label>Tipo de venda</label><input id="np-tipoVenda" data-pad="1"></div>
+            <div class="fcampo"><label>Prazo (meses)</label><input id="np-prazo" type="number" value="420"></div>
+            <div class="fcampo"><label>Data de referência</label><input id="np-dataRef" type="date" onchange="propFluxo()"></div>
+          </div>
+          <div id="np-fluxo" style="margin:4px 0 14px"></div>
+
+          <h3>Situação declarada</h3>
+          <div class="filtros">
+            <div class="fcampo"><label>Possui imóvel próprio</label><select id="np-possuiImovel"><option>NÃO</option><option>SIM</option></select></div>
+            <div class="fcampo"><label>Possui financiamento</label><select id="np-possuiFinanciamento"><option>NÃO</option><option>SIM</option></select></div>
+            <div class="fcampo"><label>Possui créd. pessoal</label><select id="np-possuiCredPessoal"><option>NÃO</option><option>SIM</option></select></div>
+            <div class="fcampo"><label>Possui conta corrente</label><select id="np-possuiContaCorrente"><option>NÃO</option><option>SIM</option></select></div>
+          </div>
+
+          <h3>Referências</h3>
+          <div class="filtros">
+            <div class="fcampo"><label>Referência 1</label><input id="np-referencia1" data-pad="1"></div>
+            <div class="fcampo"><label>Telefone</label><input id="np-telRef1" inputmode="numeric" maxlength="15" placeholder="(00) 00000-0000"></div>
+            <div class="fcampo"><label>Referência 2</label><input id="np-referencia2" data-pad="1"></div>
+            <div class="fcampo"><label>Telefone</label><input id="np-telRef2" inputmode="numeric" maxlength="15" placeholder="(00) 00000-0000"></div>
+          </div>
+
+          <h3>Análise e corretor</h3>
+          <div class="filtros">
+            <div class="fcampo"><label>Plano do simulador</label><input id="np-planoSimulador" data-pad="1"></div>
+            <div class="fcampo"><label>Score</label><input id="np-score" data-pad="1"></div>
+            <div class="fcampo"><label>Validade da análise</label><input id="np-validadeAnalise" type="date"></div>
+            <div class="fcampo"><label>Vendedor *</label><input id="np-vendedor" data-pad="1"></div>
+            <div class="fcampo"><label>CRECI</label><input id="np-creci" data-pad="1"></div>
+            <div class="fcampo"><label>Imobiliária</label><input id="np-imobiliaria" data-pad="1"></div>
+            <div class="fcampo" style="flex:2"><label>E-mail para receber a proposta *</label><input id="np-email" type="email"></div>
+            <div class="fcampo" style="flex:3"><label>Observações</label><input id="np-observacoes" data-pad="1"></div>
+          </div>
+          <p style="font-size:12px;color:var(--text3)">
+            Os anexos (documento pessoal, comprovante de endereço, carteira de trabalho,
+            3 últimos contracheques, certidão, IR + extratos) são anexados na própria
+            página da proposta no Notion, no campo ANEXOS.
+          </p>
+
+          <div style="display:flex;gap:9px;margin-top:12px">
+            <button class="bt verde" id="np-btEnviar" onclick="propEnviar()">Enviar proposta</button>
+            <button class="bt ghost" onclick="propLimpar()">Limpar</button>
+          </div>
         </div>
       </section>
 
@@ -424,8 +577,10 @@ addEventListener("offline",()=>simNet(false));
 
 function trocarTab(nome){
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on", t.dataset.tab===nome));
-  ["painel","recebidas","unidades"].forEach(n=>document.getElementById("tab-"+n).classList.toggle("hide", n!==nome));
+  ["painel","recebidas","propostas","nova","unidades"].forEach(n=>document.getElementById("tab-"+n).classList.toggle("hide", n!==nome));
   if(nome==="unidades" && !UNS.length) simCarregarUnidades();
+  if(nome==="propostas" && !PROPS.length) propCarregar();
+  if(nome==="nova"){ if(!UNS.length) simCarregarUnidades().then(propMontarUnidades); else propMontarUnidades(); }
 }
 
 /* ---------- boot ---------- */
@@ -925,6 +1080,475 @@ async function simSalvarTudo(){
     simAvisoUn("err",`${ok} salva(s); falhou em: ${falhas.join(", ")}. As que falharam continuam marcadas — tente de novo.`);
   }
 }
+
+/* =====================================================================
+ * PROPOSTAS — RESERVA DO IPÊS (set/26 r3)
+ * ---------------------------------------------------------------------
+ * Duas abas: "Propostas" (lista + decisão + e-mail) e "Nova proposta"
+ * (preenchimento). É aqui que a unidade é ACEITA, RESERVADA ou NEGADA —
+ * a aba de simulações não decide nada.
+ *
+ * Tudo prefixado com "prop" pelo mesmo motivo de sempre: o app.js já
+ * declara globais (brl, esc, num, ler, chamar, lerStore...) e redeclarar
+ * qualquer um derruba a página inteira.
+ * =================================================================== */
+let PROPS = [];
+let propFiltro = "";
+const PROP_TTL = 5*60*1000;
+
+const PROP_NORM = t => String(t==null?"":t).normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+                        .toUpperCase().replace(/\s+/g," ").trim();
+
+/* ---------- carregar ---------- */
+async function propCarregar(forcar){
+  propAviso("ok","Buscando propostas no Notion…");
+  let r;
+  try{ r = await lerStore({action:"simsPropostas"}, "sims_propostas",
+                          { ttl:PROP_TTL, forcar:!!forcar, pintar:propPintar }); }
+  catch(e){ r = { erro:"ERRO_API" }; }
+  if(r && r.propostas){ propPintar(r); propAviso("ok",""); }
+  else { propAviso("err", propErro(r && r.erro)); }
+}
+function propAviso(t,m){
+  const a=document.getElementById("prop-aviso");
+  if(!a) return;
+  a.className="sim-aviso "+(t==="ok"?"ok":"err");
+  a.innerHTML = m || "";
+  a.style.display = m ? "" : "none";
+}
+function propErro(e){
+  const t=String(e||"");
+  if(t.indexOf("SIM_DB_PROPOSTAS_NAO_CONFIGURADO")>=0){
+    return '<b>A base de PROPOSTAS ainda não está ligada.</b><br>' +
+           'No Apps Script do portal: <b>Configurações do projeto → Propriedades do script</b> → ' +
+           'adicione <code>SIM_DB_PROPOSTAS</code> com o id da base. Depois, na aba Unidades, ' +
+           'use <b>🩺 Diagnóstico</b> para conferir as colunas.';
+  }
+  return simErroAmigavel(e);
+}
+function propPintar(r){
+  if(!r || !r.propostas) return;
+  PROPS = r.propostas;
+  propRender(); propKpis(); propRankings(); propAlerta24();
+}
+
+/* ---------- as 24 horas (item 9) ----------
+ * A contagem começa quando o STATUS VIRA RESERVADA — por isso lê DATA
+ * RESERVA, carimbada pelo backend nessa virada, e não o "criado em". Se a
+ * data não vier (proposta reservada na mão, direto no Notion), a linha não
+ * é acusada: melhor não avisar do que avisar errado. */
+function propHorasReservada(p){
+  if(PROP_NORM(p.status)!=="RESERVADA" || !p.dataReserva) return null;
+  const d=new Date(p.dataReserva);
+  if(isNaN(d)) return null;
+  return (Date.now()-d.getTime())/36e5;
+}
+function propVencida(p){ const h=propHorasReservada(p); return h!==null && h>24; }
+function propAlerta24(){
+  const el=document.getElementById("prop-alerta24"); if(!el) return;
+  const vencidas=PROPS.filter(propVencida);
+  if(!vencidas.length){ el.classList.add("hide"); return; }
+  el.classList.remove("hide");
+  el.innerHTML = "<b>"+vencidas.length+" proposta(s) reservada(s) há mais de 24 horas.</b><br>" +
+    vencidas.map(p=>"Un. "+esc(String(p.unidade||"—"))+" · "+esc(p.cliente||"—")+
+      " · "+Math.floor(propHorasReservada(p))+" h").join("<br>");
+}
+
+/* ---------- lista ---------- */
+const PROP_ROTULO={ "RECEBIDA":"RECEBIDA","EM ANALISE":"EM ANÁLISE","ACEITA":"ACEITA",
+                    "RESERVADA":"RESERVADA","NEGADA":"NEGADA" };
+function propSeg(v){
+  propFiltro=v;
+  document.querySelectorAll("#seg-prop .seg-bt").forEach(b=>b.classList.toggle("on", b.dataset.ps===v));
+  propRender();
+}
+function propTag(st){
+  const n=PROP_NORM(st)||"RECEBIDA";
+  const cls = n==="ACEITA" ? "pos" : (n==="NEGADA" ? "neg" : "zero");
+  return `<span class="pill ${cls}">${PROP_ROTULO[n]||n}</span>`;
+}
+function propRender(){
+  const termo=(document.getElementById("prop-busca").value||"").toLowerCase();
+  const vis=PROPS.filter(p=>{
+    const alvo=`${p.cliente||""} ${p.cpf||""} ${p.unidade||""} ${p.vendedor||""} ${p.imobiliaria||""}`.toLowerCase();
+    if(!alvo.includes(termo)) return false;
+    return !propFiltro || PROP_NORM(p.status)===propFiltro;
+  });
+  const cab='<thead><tr><th>Proposta</th><th>Unidade</th><th>Cliente</th><th>CPF</th>'+
+            '<th>Corretor</th><th>Imobiliária</th><th class="col-num">Crédito</th>'+
+            '<th class="col-num">Renda</th><th>Criada</th><th>Status</th></tr></thead>';
+  if(!vis.length){
+    document.getElementById("prop-tab").innerHTML=cab+
+      '<tbody><tr><td colspan="10" style="text-align:center;color:var(--text3);padding:22px">Nenhuma proposta encontrada.</td></tr></tbody>';
+    return;
+  }
+  const corpo=vis.map(p=>{
+    const venc=propVencida(p);
+    const estilo = venc ? ' style="background:#F6D6D2"' : '';
+    return `<tr class="clicavel"${estilo} onclick="propVer('${p.id}')">
+      <td><b>${esc(p.proposta||"—")}</b></td>
+      <td>Un. ${esc(String(p.unidade||"—"))}</td>
+      <td>${esc(p.cliente||"—")}</td><td class="col-un">${esc(p.cpf||"—")}</td>
+      <td>${esc(p.vendedor||"—")}</td><td>${esc(p.imobiliaria||"—")}</td>
+      <td class="num">${p.creditoAprovado?simBRL(p.creditoAprovado):"—"}</td>
+      <td class="num">${p.rendaTotal?simBRL(p.rendaTotal):"—"}</td>
+      <td>${simData(p.criadoEm)}</td>
+      <td>${propTag(p.status)}${venc?' <span style="color:#C0392B;font-weight:700">+24h</span>':''}</td></tr>`;
+  }).join("");
+  document.getElementById("prop-tab").innerHTML=cab+"<tbody>"+corpo+"</tbody>";
+}
+
+/* ---------- indicadores no painel (item 6) ---------- */
+function propKpis(){
+  const el=document.getElementById("prop-kpis"); if(!el) return;
+  const c=n=>PROPS.filter(p=>PROP_NORM(p.status)===n).length;
+  const credito=PROPS.filter(p=>["ACEITA","RESERVADA"].includes(PROP_NORM(p.status)))
+                     .reduce((a,p)=>a+(Number(p.creditoAprovado)||0),0);
+  el.innerHTML=[["Propostas",PROPS.length],["Recebidas",c("RECEBIDA")],["Em análise",c("EM ANALISE")],
+                ["Aceitas",c("ACEITA")],["Reservadas",c("RESERVADA")],["Negadas",c("NEGADA")],
+                ["Crédito aceito/reservado",simBRL(credito)]]
+    .map(k=>`<div class="kpi"><div class="lab">${k[0]}</div><div class="val">${k[1]}</div></div>`).join("");
+}
+function propRankings(){
+  propRank("prop-rankCorretor","vendedor");
+  propRank("prop-rankImob","imobiliaria");
+}
+function propRank(idAlvo, campo){
+  const el=document.getElementById(idAlvo); if(!el) return;
+  const mapa={};
+  PROPS.forEach(p=>{
+    const nome=(p[campo]||"").trim()||"—";
+    const r=mapa[nome]||(mapa[nome]={qtd:0,ok:0,credito:0});
+    r.qtd++;
+    if(["ACEITA","RESERVADA"].includes(PROP_NORM(p.status))){ r.ok++; r.credito+=Number(p.creditoAprovado)||0; }
+  });
+  const linhas=Object.entries(mapa).sort((a,b)=>b[1].qtd-a[1].qtd);
+  const cab='<thead><tr><th>Nome</th><th class="col-num">Propostas</th><th class="col-num">Aceitas/Reserv.</th><th class="col-num">Crédito</th></tr></thead>';
+  const corpo=linhas.length ? linhas.map(([nome,r])=>
+      `<tr><td>${esc(nome)}</td><td class="num">${r.qtd}</td><td class="num">${r.ok}</td><td class="num">${simBRL(r.credito)}</td></tr>`).join("")
+    : '<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:16px">Sem dados.</td></tr>';
+  el.innerHTML=cab+"<tbody>"+corpo+"</tbody>";
+}
+
+/* ---------- detalhe: decisão + e-mail (item 6) ---------- */
+function propVer(id){
+  const p=PROPS.find(x=>x.id===id); if(!p) return;
+  const it=(r,v)=>`<div class="sim-item"><small>${r}</small><b>${v||"—"}</b></div>`;
+  const podeGravar=!ehSomenteLeitura(S);
+  const h=propHorasReservada(p);
+  const fluxo=propParseEsquema(p.esquema);
+  const tabFluxo = fluxo.length ? `
+    <div style="margin-top:14px"><b style="font-size:13px;color:var(--azul)">Entrada — fluxo de pagamento</b>
+      <div class="tbl-wrap" style="margin-top:6px;max-height:none"><table><tbody>
+        ${fluxo.map(f=>`<tr><td>${esc(f.quando)}</td><td class="num">${esc(f.valor)}</td><td style="color:var(--text3)">${esc(f.forma)}</td></tr>`).join("")}
+      </tbody></table></div></div>` : "";
+
+  document.getElementById("sim-modalCx").innerHTML=`
+    <div class="modal-tit">${esc(p.cliente||"—")} · Un. ${esc(String(p.unidade||"—"))}</div>
+    <div class="modal-sub">${esc(p.proposta||"")} · CPF ${esc(p.cpf||"—")} · ${simData(p.criadoEm)} · ${propTag(p.status)}
+      ${h!==null?` · reservada há ${Math.floor(h)} h`:""}</div>
+    <div class="sim-grade">
+      ${it("Corretor",esc(p.vendedor||""))}${it("CRECI",esc(p.creci||""))}${it("Imobiliária",esc(p.imobiliaria||""))}
+      ${it("E-mail",esc(p.email||""))}
+      ${it("Preço da unidade",simBRL(p.preco))}${it("Crédito aprovado",simBRL(p.creditoAprovado))}
+      ${it("Renda total",simBRL(p.rendaTotal))}${it("FGTS",simBRL(p.fgts))}
+      ${it("Subsídio",simBRL(p.subsidio))}${it("Valor para entrada",simBRL(p.valorEntrada))}
+      ${it("Observações",esc(p.observacoes||""))}
+    </div>
+    ${tabFluxo}
+    ${podeGravar?`
+    <div style="margin-top:16px"><b style="font-size:13px;color:var(--azul)">Decisão</b>
+      <div style="display:flex;gap:9px;margin-top:8px;flex-wrap:wrap">
+        <button class="bt" onclick="propStatus('${p.id}','EM ANÁLISE')">Em análise</button>
+        <button class="bt verde" onclick="propStatus('${p.id}','ACEITA')">Aceitar</button>
+        <button class="bt az" onclick="propStatus('${p.id}','RESERVADA')">Reservar</button>
+        <button class="bt vermelho" onclick="propStatus('${p.id}','NEGADA')">Negar</button>
+      </div>
+      <div style="font-size:12px;color:var(--text3);margin-top:6px">
+        Aceitar ou reservar marca a unidade ${esc(String(p.unidade||""))} como RESERVADA no Notion
+        (e ela fica azul no mapa de vendas). Negar devolve para NÃO.
+      </div>
+    </div>
+    <div style="margin-top:16px"><b style="font-size:13px;color:var(--azul)">Enviar e-mail para ${esc(p.email||"—")}</b>
+      <textarea id="prop-msg" rows="4" style="width:100%;margin-top:6px;padding:9px;border:1px solid var(--linha);border-radius:6px;font-family:inherit;font-size:13px" placeholder="Escreva a mensagem…"></textarea>
+      <button class="bt az" style="margin-top:6px" onclick="propEmail('${p.id}')">Enviar e-mail</button>
+    </div>`:""}
+    <div style="display:flex;gap:9px;margin-top:16px"><button class="bt" onclick="simFecharDet()">Fechar</button></div>
+    <div id="prop-detAviso" class="sim-aviso" style="margin-top:10px"></div>`;
+  document.getElementById("sim-modal").classList.remove("hide");
+}
+function propParseEsquema(txt){
+  if(!txt) return [];
+  return String(txt).split(";").map(p=>p.trim()).filter(Boolean).map(p=>{
+    const m=p.match(/^(.*?):\s*(R\$\s?[\d.,]+)\s*\((.*)\)$/);
+    return m ? {quando:m[1].trim(), valor:m[2].trim(), forma:m[3].trim()} : {quando:p, valor:"", forma:""};
+  });
+}
+async function propStatus(id, status){
+  const av=document.getElementById("prop-detAviso");
+  av.className="sim-aviso ok"; av.textContent="Salvando…";
+  let r;
+  try{ r=await chamar({action:"simsPropostaStatus", pageId:id, status:status}, 45000, true); }
+  catch(e){ av.className="sim-aviso err"; av.textContent="Não deu para confirmar (tempo esgotado ou sem conexão). Tente de novo."; return; }
+  if(r && r.ok){
+    av.className="sim-aviso ok";
+    av.textContent="Status: "+r.status+". "+(r.reflexo||"");
+    storeInvalidar("sims_propostas","sims_unidades");
+    UNS=[];
+    propCarregar(true);
+    setTimeout(simFecharDet,1400);
+  }else{
+    av.className="sim-aviso err";
+    av.textContent=(r&&r.erro==="MODO_TESTE") ? "Perfil TESTES não grava." : propErro(r&&r.erro);
+  }
+}
+async function propEmail(id){
+  const av=document.getElementById("prop-detAviso");
+  const msg=(document.getElementById("prop-msg").value||"").trim();
+  if(!msg){ av.className="sim-aviso err"; av.textContent="Escreva a mensagem antes de enviar."; return; }
+  av.className="sim-aviso ok"; av.textContent="Enviando…";
+  let r;
+  try{ r=await chamar({action:"simsPropostaEmail", pageId:id, mensagem:msg}, 45000, true); }
+  catch(e){ av.className="sim-aviso err"; av.textContent="Não deu para confirmar o envio."; return; }
+  if(r && r.ok){ av.className="sim-aviso ok"; av.textContent="E-mail enviado para "+r.enviadoPara+" (com cópia para vendasreservadosipes@gmail.com)."; }
+  else { av.className="sim-aviso err"; av.textContent=propErro(r&&r.erro); }
+}
+
+/* =====================================================================
+ * NOVA PROPOSTA
+ * =================================================================== */
+const PROP_CARAC="3 QUARTOS SENDO 1 SUÍTE – MCMV FAIXA 3";
+
+function propMontarUnidades(){
+  const sel=document.getElementById("np-unidade"); if(!sel) return;
+  const livres=UNS.filter(u=>u.disponivel);
+  sel.innerHTML=(livres.length?livres:UNS).map(u=>
+    `<option value="${esc(String(u.unidade))}">Unidade ${esc(String(u.unidade))} — T${esc(String(u.tipo||"—"))} · ${simBRL(u.valorVenda)}</option>`).join("");
+  propAoTrocarUnidade();
+}
+function propUnidadeAtual(){
+  const v=(document.getElementById("np-unidade")||{}).value;
+  return UNS.find(u=>String(u.unidade)===String(v));
+}
+function propAoTrocarUnidade(){
+  const u=propUnidadeAtual(); if(!u) return;
+  document.getElementById("np-preco").value=simBRL(u.valorVenda);
+  document.getElementById("np-carac").value=PROP_CARAC;
+  propFluxo();
+}
+function propConjuge(){
+  const casado=["CASADO","UNIAO ESTAVEL"].includes(document.getElementById("np-estadoCivil").value);
+  document.getElementById("np-boxConjuge").classList.toggle("hide", !casado);
+}
+const propMoeda = v => { const s=String(v||"").replace(/\./g,"").replace(",",".").replace(/[^0-9.]/g,""); return parseFloat(s)||0; };
+function propRenda(){
+  const t=propMoeda(document.getElementById("np-rendaFormal").value)+
+          propMoeda(document.getElementById("np-rendaInformal").value);
+  document.getElementById("np-rendaTotal").value=simBRL(t);
+}
+
+/* Fluxo da entrada — MESMA conta do worker (email_timbrado.calcular) e do
+   simulador. Base: preço da unidade menos o CRÉDITO APROVADO, menos FGTS,
+   subsídio e valor para entrada. A regra do 20/11/2026 vale igual: passada
+   a data, o bloco "1 a 12" perde uma parcela por mês e o valor se
+   redistribui nas que sobraram.
+   Se a conta mudar, muda nos TRÊS lugares — não há um quarto. */
+const PROP_FIXOS_FLUXO=[["Na assinatura",1000,"Sinal / ato"],["30 dias",3000,"Sinal 30 dias"],
+  ["60 dias",3000,"Sinal 60 dias"],["90 dias",3000,"Sinal 90 dias"],
+  ["20/12/2027",10000,"Balão em dezembro/2027"],["Entrega das chaves",7000,"Balão na entrega das chaves"]];
+const PROP_TOTAL_FIXO=27000, PROP_B12=12*860, PROP_B1324=12*330, PROP_BPOS=24*788.3332806666667;
+const PROP_BFLEX=PROP_B12+PROP_B1324+PROP_BPOS;
+function propCalcular(preco, credito, subsidio, fgts, entrada, dataRef){
+  const bruta=(preco||0)-(credito||0);
+  let total=bruta-(fgts||0)-(subsidio||0)-(entrada||0);
+  let fixos=PROP_FIXOS_FLUXO.slice(), flex=0;
+  if(total<=0){ total=0; fixos=[]; }
+  else if(total<PROP_TOTAL_FIXO){ const f=total/PROP_TOTAL_FIXO; fixos=PROP_FIXOS_FLUXO.map(x=>[x[0],x[1]*f,x[2]]); }
+  else flex=total-PROP_TOTAL_FIXO;
+  let t12,t1324,tpos;
+  if(flex<=PROP_BFLEX){ const g=PROP_BFLEX?flex/PROP_BFLEX:0; t12=PROP_B12*g; t1324=PROP_B1324*g; tpos=PROP_BPOS*g; }
+  else { tpos=PROP_BPOS; const r=flex-PROP_BPOS, b=PROP_B12+PROP_B1324; t12=r*(PROP_B12/b); t1324=r*(PROP_B1324/b); }
+  const meses=(dataRef.getFullYear()-2026)*12+((dataRef.getMonth()+1)-11);
+  const n1=Math.max(1,Math.min(12,12-Math.max(0,meses)));
+  const fluxo=fixos.slice();
+  if(t12/n1>0.005)   fluxo.push([n1+" X", t12/n1, "parcelas (meses 1 a "+n1+")"]);
+  if(t1324/12>0.005) fluxo.push(["12 X", t1324/12, "parcelas (meses 13 a 24)"]);
+  if(tpos/24>0.005)  fluxo.push(["24 X", tpos/24, "pós-chaves"]);
+  return {total:total, fluxo:fluxo, n1:n1};
+}
+function propFluxo(){
+  const alvo=document.getElementById("np-fluxo"); if(!alvo) return;
+  const u=propUnidadeAtual();
+  const credito=propMoeda(document.getElementById("np-creditoAprovado").value);
+  if(!u || !credito){ alvo.innerHTML='<span style="font-size:12px;color:var(--text3)">Informe o crédito aprovado para montar o fluxo da entrada.</span>'; return; }
+  const dtxt=document.getElementById("np-dataRef").value;
+  const d=dtxt?new Date(dtxt+"T12:00:00"):new Date();
+  const q=propCalcular(u.valorVenda, credito,
+    propMoeda(document.getElementById("np-subsidio").value),
+    propMoeda(document.getElementById("np-saldoFgts").value),
+    propMoeda(document.getElementById("np-valorEntrada").value), d);
+  alvo.dataset.esquema=q.fluxo.map(x=>x[0]+": "+simBRL(x[1])+" ("+x[2]+")").join("; ");
+  alvo.innerHTML='<div class="tbl-wrap" style="max-height:none"><table><tbody>'+
+    `<tr class="sim-tot"><td colspan="2">ENTRADA TOTAL A PAGAR</td><td class="num">${simBRL(q.total)}</td></tr>`+
+    q.fluxo.map(x=>`<tr><td>${esc(x[0])}</td><td class="num">${simBRL(x[1])}</td><td style="color:var(--text3)">${esc(x[2])}</td></tr>`).join("")+
+    '</tbody></table></div>';
+}
+
+/* ---------- máscaras e padronização (itens 10, 11 e 12) ---------- */
+const propDig = v => String(v||"").replace(/\D/g,"");
+function propFmtCpf(v){
+  const d=propDig(v).slice(0,11);
+  if(d.length>9) return d.slice(0,3)+"."+d.slice(3,6)+"."+d.slice(6,9)+"-"+d.slice(9);
+  if(d.length>6) return d.slice(0,3)+"."+d.slice(3,6)+"."+d.slice(6);
+  if(d.length>3) return d.slice(0,3)+"."+d.slice(3);
+  return d;
+}
+function propCpfOk(v){
+  const c=propDig(v);
+  if(c.length!==11 || /^(\d)\1{10}$/.test(c)) return false;
+  for(let t=9;t<11;t++){
+    let soma=0;
+    for(let i=0;i<t;i++) soma+=parseInt(c[i],10)*((t+1)-i);
+    let dig=(soma*10)%11; if(dig===10) dig=0;
+    if(dig!==parseInt(c[t],10)) return false;
+  }
+  return true;
+}
+function propFmtTel(v){
+  const d=propDig(v).slice(0,11);
+  if(d.length<=2) return d.length?"("+d:"";
+  if(d.length<=6) return "("+d.slice(0,2)+") "+d.slice(2);
+  if(d.length<=10) return "("+d.slice(0,2)+") "+d.slice(2,6)+"-"+d.slice(6);
+  return "("+d.slice(0,2)+") "+d.slice(2,7)+"-"+d.slice(7);
+}
+function propLigarMascaras(){
+  ["np-cpf","np-cpfConjuge"].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    el.addEventListener("input",e=>{ e.target.value=propFmtCpf(e.target.value); });
+  });
+  ["np-telefone","np-celular","np-telRef1","np-telRef2"].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    el.addEventListener("input",e=>{ e.target.value=propFmtTel(e.target.value); });
+  });
+  ["np-rendaFormal","np-rendaInformal","np-saldoFgts","np-subsidio",
+   "np-valorEntrada","np-creditoAprovado"].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    el.addEventListener("input",e=>{
+      const d=propDig(e.target.value);
+      e.target.value = d ? (parseInt(d,10)/100).toFixed(2).replace(".",",").replace(/\B(?=(\d{3})+(?!\d))/g,".") : "";
+    });
+  });
+  /* Item 11: os campos de texto sobem para MAIÚSCULO sem acento enquanto a
+     pessoa digita — ela vê exatamente o que vai para o banco. O servidor
+     padroniza de novo, que é a garantia de verdade. */
+  document.querySelectorAll('[data-pad="1"]').forEach(el=>{
+    el.addEventListener("input",e=>{
+      const pos=e.target.selectionStart;
+      e.target.value=String(e.target.value||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
+      try{ e.target.setSelectionRange(pos,pos); }catch(x){}
+    });
+  });
+}
+
+function propLimpar(){
+  document.querySelectorAll('#tab-nova input, #tab-nova select').forEach(el=>{
+    if(el.id==="np-unidade") return;
+    if(el.tagName==="SELECT") el.selectedIndex=0; else if(!el.readOnly) el.value="";
+  });
+  document.getElementById("np-nacionalidade").value="BR";
+  document.getElementById("np-banco").value="CEF FGTS";
+  document.getElementById("np-participacao").value="100";
+  document.getElementById("np-prazo").value="420";
+  propConjuge(); propRenda(); propAoTrocarUnidade();
+  document.getElementById("prop-novaAviso").innerHTML="";
+}
+
+async function propEnviar(){
+  const av=document.getElementById("prop-novaAviso");
+  const V=id=>(document.getElementById(id)||{}).value||"";
+  const u=propUnidadeAtual();
+  const faltando=[];
+  if(!u) faltando.push("unidade");
+  if(!V("np-cliente").trim()) faltando.push("nome do cliente");
+  if(!propCpfOk(V("np-cpf"))) faltando.push("CPF válido");
+  if(!V("np-vendedor").trim()) faltando.push("vendedor");
+  if(!V("np-email").trim()) faltando.push("e-mail");
+  if(!propMoeda(V("np-creditoAprovado"))) faltando.push("crédito aprovado");
+  if(faltando.length){
+    av.className="sim-aviso err";
+    av.innerHTML="Falta preencher: <b>"+faltando.join(", ")+"</b>.";
+    return;
+  }
+  const dados={
+    unidade:String(u.unidade), tipo:String(u.tipo||""), preco:u.valorVenda,
+    cliente:V("np-cliente"), cpf:propDig(V("np-cpf")), identidade:V("np-identidade"),
+    estadoCivil:V("np-estadoCivil"), conjuge:V("np-conjuge"), cpfConjuge:propDig(V("np-cpfConjuge")),
+    nacionalidade:V("np-nacionalidade"), profissao:V("np-profissao"),
+    dataNascimento:V("np-dataNascimento"), endereco:V("np-endereco"),
+    telefone:propDig(V("np-telefone")), celular:propDig(V("np-celular")),
+    participacao:V("np-participacao"), cargo:V("np-cargo"),
+    tempoServico:V("np-tempoServico"), empresa:V("np-empresa"),
+    saldoFgts:propMoeda(V("np-saldoFgts")), subsidio:propMoeda(V("np-subsidio")),
+    valorEntrada:propMoeda(V("np-valorEntrada")),
+    rendaFormal:propMoeda(V("np-rendaFormal")), origemFormal:V("np-origemFormal"),
+    rendaInformal:propMoeda(V("np-rendaInformal")), origemInformal:V("np-origemInformal"),
+    referencia1:V("np-referencia1"), telRef1:propDig(V("np-telRef1")),
+    referencia2:V("np-referencia2"), telRef2:propDig(V("np-telRef2")),
+    possuiImovel:V("np-possuiImovel")==="SIM", possuiFinanciamento:V("np-possuiFinanciamento")==="SIM",
+    possuiCredPessoal:V("np-possuiCredPessoal")==="SIM", possuiContaCorrente:V("np-possuiContaCorrente")==="SIM",
+    creditoAprovado:propMoeda(V("np-creditoAprovado")), banco:V("np-banco"),
+    tipoVenda:V("np-tipoVenda"), prazo:V("np-prazo"),
+    planoSimulador:V("np-planoSimulador"), score:V("np-score"),
+    validadeAnalise:V("np-validadeAnalise"), vendedor:V("np-vendedor"),
+    creci:V("np-creci"), imobiliaria:V("np-imobiliaria"), email:V("np-email"),
+    observacoes:V("np-observacoes"), dataRef:V("np-dataRef"),
+    esquema:(document.getElementById("np-fluxo").dataset.esquema||"")
+  };
+  const bt=document.getElementById("np-btEnviar");
+  bt.disabled=true;
+  av.className="sim-aviso ok"; av.textContent="Enviando a proposta…";
+  let r;
+  try{ r=await chamar({action:"simsPropostaNova", dados:dados}, 60000, true); }
+  catch(e){
+    av.className="sim-aviso err";
+    av.innerHTML="Não deu para confirmar o envio. <b>Confira na aba Propostas antes de reenviar</b> — "+
+                 "pode ter sido criada mesmo assim.";
+    bt.disabled=false; return;
+  }
+  if(r && r.ok){
+    av.className="sim-aviso ok";
+    av.innerHTML="Proposta <b>"+esc(r.proposta)+"</b> criada."+(r.aviso?" "+esc(r.aviso):
+      " Uma cópia foi enviada por e-mail.");
+    storeInvalidar("sims_propostas");
+    propLimpar(); propCarregar(true);
+  }else{
+    av.className="sim-aviso err";
+    av.textContent=(r&&r.erro==="CPF_INVALIDO") ? "CPF inválido." :
+                   ((r&&r.erro==="MODO_TESTE") ? "Perfil TESTES não grava." : propErro(r&&r.erro));
+  }
+  bt.disabled=false;
+}
+
+/* Confere a base PROPOSTAS contra o esquema do codigo e CRIA o que faltar.
+   E o "rodar o script para identificar se as colunas estao corretas": em vez
+   de so apontar a diferenca, ele resolve. So acrescenta coluna — nunca
+   renomeia e nunca apaga, entao rodar de novo e inofensivo. */
+async function propSetup(){
+  propAviso("ok","Conferindo as colunas da base PROPOSTAS…");
+  let r;
+  try{ r=await chamar({action:"simsPropostasSetup"}, 60000, true); }
+  catch(e){ propAviso("err","Não deu para falar com o servidor."); return; }
+  if(r && r.ok){
+    propAviso("ok","<b>"+esc(r.mensagem)+"</b>"+
+      (r.criadas && r.criadas.length ? "<br>Criadas: "+esc(r.criadas.join(", ")) : "")+
+      "<br>Já existiam: "+(r.jaExistiam||0)+" coluna(s).");
+    propCarregar(true);
+  }else{
+    propAviso("err", (r&&r.erro==="APENAS_ADM") ? "Só o perfil ADM pode criar colunas." : propErro(r&&r.erro));
+  }
+}
+
+propLigarMascaras();
 
 iniciar();
 
