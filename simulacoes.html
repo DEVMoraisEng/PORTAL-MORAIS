@@ -1139,12 +1139,14 @@ function propRender(){
     if(!alvo.includes(termo)) return false;
     return !propFiltro || PROP_NORM(p.status)===propFiltro;
   });
+  /* estilo do editor injetado uma vez */
+  propEstiloEditor();
   const cab='<thead><tr><th>Proposta</th><th>Unidade</th><th>Cliente</th><th>CPF</th>'+
             '<th>Corretor</th><th>Imobiliária</th><th class="col-num">Crédito</th>'+
             '<th class="col-num">Renda</th><th>Criada</th><th>Status</th></tr></thead>';
   if(!vis.length){
     document.getElementById("prop-tab").innerHTML=cab+
-      '<tbody><tr><td colspan="10" style="text-align:center;color:var(--text3);padding:22px">Nenhuma proposta encontrada.</td></tr></tbody>';
+      '<tbody><tr><td colspan="11" style="text-align:center;color:var(--text3);padding:22px">Nenhuma proposta encontrada.</td></tr></tbody>';
     return;
   }
   const corpo=vis.map(p=>{
@@ -1267,15 +1269,96 @@ async function propStatus(id, status){
     av.textContent=(r&&r.erro==="MODO_TESTE") ? "Perfil TESTES não grava." : propErro(r&&r.erro);
   }
 }
+/* ---------- editor do e-mail ----------
+   contenteditable + execCommand: é o que roda em todo navegador sem trazer
+   uma biblioteca inteira para dentro do portal por causa de quatro botões. */
+function propEstiloEditor(){
+  if(document.getElementById("prop-css-editor")) return;
+  const st=document.createElement("style"); st.id="prop-css-editor";
+  st.textContent=`
+    .prop-barra{display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-top:8px;
+      border:1px solid var(--linha);border-bottom:none;border-radius:6px 6px 0 0;
+      padding:5px 7px;background:var(--bg2);}
+    .prop-barra button{border:1px solid transparent;background:transparent;cursor:pointer;
+      border-radius:4px;padding:3px 7px;font-size:13px;color:var(--text2);line-height:1.2;}
+    .prop-barra button:hover{background:var(--bg3);border-color:var(--linha);}
+    .prop-barra .sep{width:1px;height:16px;background:var(--linha);margin:0 3px;}
+    .prop-editor{min-height:150px;max-height:320px;overflow:auto;border:1px solid var(--linha);
+      border-radius:0 0 6px 6px;padding:11px 12px;font-size:14px;line-height:1.6;
+      background:#fff;color:#2A2118;outline:none;}
+    .prop-editor:focus{border-color:var(--azul);box-shadow:0 0 0 3px rgba(31,111,178,.12);}
+    .prop-editor:empty:before{content:attr(data-vazio);color:#9aa8b2;}
+    .prop-editor ul,.prop-editor ol{margin:6px 0 6px 22px;}`;
+  document.head.appendChild(st);
+}
+function propFmt(cmd){ document.getElementById("prop-msg").focus(); document.execCommand(cmd,false,null); }
+function propCor(c){ document.getElementById("prop-msg").focus(); document.execCommand("foreColor",false,c); }
+function propLink(){
+  const u=prompt("Endereço do link (https://…)");
+  if(!u) return;
+  document.getElementById("prop-msg").focus();
+  document.execCommand("createLink",false,u);
+}
+function propResumoAnexos(){
+  const el=document.getElementById("prop-anexos");
+  const info=document.getElementById("prop-anexoInfo");
+  const arqs=[...(el.files||[])];
+  if(!arqs.length){ info.textContent=""; return; }
+  const total=arqs.reduce((a,f)=>a+f.size,0);
+  const mb=(total/1048576).toFixed(1);
+  info.innerHTML=arqs.length+" arquivo(s) · "+mb+" MB"+
+    (total>20*1048576 ? ' <b style="color:#C0392B">— acima do limite de 20 MB</b>' : "");
+}
+function propLerBase64(f){
+  return new Promise((ok,err)=>{
+    const r=new FileReader();
+    r.onload=()=>ok(String(r.result).split(",")[1]||"");
+    r.onerror=()=>err(new Error("Falha ao ler "+f.name));
+    r.readAsDataURL(f);
+  });
+}
 async function propEmail(id){
   const av=document.getElementById("prop-detAviso");
-  const msg=(document.getElementById("prop-msg").value||"").trim();
-  if(!msg){ av.className="sim-aviso err"; av.textContent="Escreva a mensagem antes de enviar."; return; }
-  av.className="sim-aviso ok"; av.textContent="Enviando…";
+  const ed=document.getElementById("prop-msg");
+  const html=(ed.innerHTML||"").trim();
+  const texto=(ed.innerText||"").trim();
+  const arqs=[...((document.getElementById("prop-anexos")||{}).files||[])];
+  if(!texto && !arqs.length){
+    av.className="sim-aviso err"; av.textContent="Escreva a mensagem (ou anexe um arquivo) antes de enviar."; return;
+  }
+  const total=arqs.reduce((a,f)=>a+f.size,0);
+  if(total>20*1048576){
+    av.className="sim-aviso err"; av.textContent="Os anexos passam de 20 MB. Tire algum arquivo."; return;
+  }
+  av.className="sim-aviso ok"; av.textContent=arqs.length?"Preparando anexos…":"Enviando…";
+  let anexos=[];
+  try{
+    anexos=await Promise.all(arqs.map(async f=>({
+      nome:f.name, tipo:f.type||"application/octet-stream", base64:await propLerBase64(f)
+    })));
+  }catch(e){ av.className="sim-aviso err"; av.textContent="Não consegui ler os anexos."; return; }
+
+  av.textContent="Enviando…";
   let r;
-  try{ r=await chamar({action:"simsPropostaEmail", pageId:id, mensagem:msg}, 45000, true); }
-  catch(e){ av.className="sim-aviso err"; av.textContent="Não deu para confirmar o envio."; return; }
-  if(r && r.ok){ av.className="sim-aviso ok"; av.textContent="E-mail enviado para "+r.enviadoPara+" (com cópia para vendasreservadosipes@gmail.com)."; }
+  try{
+    r=await chamar({action:"simsPropostaEmail", pageId:id, mensagemHtml:html,
+                    assunto:(document.getElementById("prop-assunto").value||"").trim(),
+                    anexos:anexos}, 90000, true);
+  }
+  catch(e){ av.className="sim-aviso err"; av.textContent="Não deu para confirmar o envio. Confira a caixa de saída antes de repetir."; return; }
+  if(r && r.ok){
+    av.className="sim-aviso ok";
+    av.textContent="E-mail enviado para "+r.enviadoPara+
+      (r.anexos?" com "+r.anexos+" anexo(s)":"")+" (com cópia para vendasreservadosipes@gmail.com).";
+    ed.innerHTML="";
+  }
+  else if(r && r.erro==="SEM_PERMISSAO_EMAIL"){
+    av.className="sim-aviso err";
+    av.innerHTML="<b>O Apps Script ainda não tem permissão para enviar e-mail.</b><br>"+
+      "Abra o projeto do Apps Script, selecione a função <code>autorizarEnvioDeEmail_</code> "+
+      "na barra de cima e clique em <b>Executar</b>. O Google vai pedir a permissão — aceite. "+
+      "Publicar nova versão não pede permissão nenhuma; quem pede é a execução no editor.";
+  }
   else { av.className="sim-aviso err"; av.textContent=propErro(r&&r.erro); }
 }
 
