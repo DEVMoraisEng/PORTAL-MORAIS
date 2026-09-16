@@ -1032,6 +1032,9 @@ if(SO_LEITURA){
 }
 atualizarStatus(); atualizarBadge();
 let SCHEMA=[], SCAMPO={}, ATIV=[], ATIV_ALL=[], DADOS={hub:[], set:[], mod:[]}, SETOR_ATUAL="Secretária de Vendas";
+/* De qual setor é a planilha que está desenhada agora (ver abaSetor).
+   null = nada desenhado ainda. */
+let PLANILHA_SETOR=null;
 /* item 9: Nº Whatsapp e Email vêm logo depois do CPF (antes ficavam perto de CORRESPONDENTE) */
 const RESUMO=["CLIENTES","CPF","Nº Whatsapp","Email","DATA DA VENDA","VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)","CORRETOR","IMOBILIÁRIA","CORRESPONDENTE","BANCO"];
 
@@ -1425,7 +1428,15 @@ function abaSetor(t){
   ["atividades","alertas","atrasados","planilha","modelo","estoque","vendidas"].forEach(x=>{
     const el=document.getElementById("st-"+x); if(el) el.style.display = x===t?"block":"none";
   });
-  if(t==="planilha" && !DADOS.set.length) carregarPlanilha("set");
+  /* CORREÇÃO (set/26) — PLANILHA FICAVA COM AS COLUNAS DO SETOR ANTERIOR:
+     a condição era só "!DADOS.set.length". Ao sair de um setor e entrar em
+     outro, DADOS.set continuava cheio do setor anterior, então
+     carregarPlanilha("set") NÃO rodava — e é ela quem chama renderTabela().
+     Resultado: a tabela continuava exatamente como estava, com as colunas
+     (que vêm de COLUNAS_SETOR[SETOR_ATUAL]) e as linhas do primeiro setor
+     aberto. Agora também recarrega quando o setor da vez é diferente do que
+     está desenhado (PLANILHA_SETOR). */
+  if(t==="planilha" && (!DADOS.set.length || PLANILHA_SETOR!==SETOR_ATUAL)) carregarPlanilha("set");
   if(t==="alertas") renderAlertas();
   if(t==="atrasados") renderAtrasados();
   if(t==="modelo") abrirCasasModelo();
@@ -2031,6 +2042,7 @@ async function carregarPlanilha(ctx){
     document.getElementById(ctx+"-count").textContent=DADOS[ctx].length+" obra(s)";
     popularFiltrosDinamicos(ctx);
     renderTabela(ctx);
+    if(ctx==="set") PLANILHA_SETOR=SETOR_ATUAL;   // marca de qual setor é o que está na tela
     aplicarFiltros(ctx);
   };
   await lerEstaticoJa("vendas.json","vendas", pintar);
