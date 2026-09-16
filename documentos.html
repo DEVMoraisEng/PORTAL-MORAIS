@@ -1280,11 +1280,36 @@ function acharColaDocs(c){
   return null;
 }
 /* a "cola" abaixo do campo: valor automático, só leitura */
+/* Campos em que a tarja só vale se for uma opção existente — ver colaDocsHtml.
+   Ponha aqui apenas CATEGORIA (lista fechada), nunca campo de dado. */
+const COLA_SO_OPCAO_VALIDA=["SETOR","CIDADE"];
 function colaDocsHtml(o,c){
   const cola=acharColaDocs(c);
   if(!cola) return "";
   const txt=txtRef(getV(o.valores,cola.nome));
   if(!txt) return "";
+  /* CORREÇÃO (set/26) — A TARJA DO SETOR MOSTRAVA O ENDEREÇO DA OBRA:
+     a tarja é uma SUGESTÃO do que preencher no campo. Se o campo é uma lista
+     fechada (select/multi_select), um valor que não está entre as opções dele
+     não é sugestão nenhuma — é dado de outra coluna. Era o caso do SETOR, que
+     exibia "PR 06 QD 07 LT 28" (endereço), impossível de escolher no select.
+     Agora, para campo de lista, a tarja só aparece se o valor for realmente
+     uma opção dele. Isso vale seja qual for a origem do erro — coluna -AUTO
+     casada errado aqui, ou rollup do Notion apontando pra propriedade errada
+     (neste caso a tarja simplesmente some, em vez de mostrar coisa errada).
+
+     SÓ PARA OS CAMPOS DE COL_SO_OPCAO_VALIDA, de propósito: a 1ª versão desta
+     checagem valia para TODO campo de lista e escondeu a tarja do CPF/CNPJ —
+     que também é select aqui. A diferença é o que a coluna guarda: SETOR e
+     CIDADE são CATEGORIAS (valor fora da lista é erro na certa), CPF/CNPJ
+     guarda DADO (um CPF ainda não cadastrado é exatamente o que se precisa
+     ver pra cadastrar). A comparação usa normSolta pra diferença de
+     pontuação/acento não esconder uma opção que existe. */
+  if(COLA_SO_OPCAO_VALIDA.some(n=>normNome(n)===normNome(c.nome))
+     && (c.opcoes||[]).length){
+    const vale=(c.opcoes||[]).some(o2=>normSolta(o2)===normSolta(txt));
+    if(!vale) return "";
+  }
   return `<span class="cola" title="${esc(cola.nome.trim())} (automático)">${esc(txt)}</span>`;
 }
 /* Colunas do Departamento de Projetos (o segundo print): a planilha e o
