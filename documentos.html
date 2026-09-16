@@ -1586,13 +1586,26 @@ function renderAlertas(){
       const endTxt=val(l.o,"ENDEREÇO");
       const end=endTxt||"⚠ SEM ENDEREÇO";
       const nomesCampos=[...l.camposSessao];
+      /* CORREÇÃO (set/26): "enquanto ainda estiver preenchendo algum dado dos
+         alertas poderia ser permitido editar". Antes, CADA campo virava
+         "✓ valor" (só leitura) assim que ganhava qualquer valor — então quem
+         preenchia o 1º campo de um alerta com vários (ex.: CPF/CNPJ,
+         ENGENHEIRO RT, Nº DE CASAS, IMPLANTAÇÃO) já não conseguia mais
+         corrigi-lo enquanto preenchia os outros. Agora só trava quando os
+         campos DESTE alerta já estão TODOS preenchidos (ou o servidor já
+         confirmou que resolveu, via l.resolvida) — até lá, mesmo um campo já
+         preenchido continua editável. */
+      const linhaCompleta = nomesCampos.length > 0 && nomesCampos.every(nome=>{
+        const c=campo(nome); return c ? !vazio(getV(l.o.valores,c.nome)) : true;
+      });
       const preench = nomesCampos.length ? `<span class="preench-multi">`+nomesCampos.map(nome=>{
           const c=campo(nome); if(!c) return "";
           const v=getV(l.o.valores,c.nome);
           const preenchido=!vazio(v);
-          // campo já preenchido: fica como confirmado (✓), não some da lista —
-          // só desaparece de fato no próximo carregamento real dos dados
-          const ctrl = preenchido
+          const trava = preenchido && (linhaCompleta || l.resolvida);
+          // só trava (✓, só leitura) quando o alerta inteiro já está
+          // resolvido — não some da lista até o próximo carregamento real
+          const ctrl = trava
             ? `<span class="ro-inline ok" title="Preenchido — sai da lista no próximo carregamento">✓ ${esc(Array.isArray(v)?v.join(", "):v)}</span>`
             : (c.editavel && !SO_LEITURA
                 ? `<span class="campo-inline">${controle(c,v,l.o.id)}</span>`

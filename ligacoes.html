@@ -137,10 +137,19 @@ table.grade thead th.stick{left:0;z-index:3}
 table.grade tbody td{padding:7px 11px;border-top:1px solid var(--border2);border-right:1px solid var(--border2);
   white-space:nowrap;color:var(--text);max-width:280px;overflow:hidden;text-overflow:ellipsis}
 table.grade tbody td.stick{position:sticky;left:0;background:var(--sup);font-weight:700;z-index:1;border-right:2px solid var(--border)}
-table.grade tbody tr:nth-child(even) td{background:var(--bg2)}
-table.grade tbody tr:nth-child(even) td.stick{background:var(--sup-stick)}
-table.grade tbody tr:hover td{background:var(--hover)}
-table.grade tbody tr:hover td.stick{background:var(--hover-stick)}
+/* CORREÇÃO (set/26): linha pintada (lin-atraso/lin-alerta/lin-vencida/...)
+   ficava sem cor quando caía numa posição PAR da tabela, ou ao passar o mouse
+   por cima — "linha que devia estar pintada aparece em branco". A causa era
+   especificidade de CSS: "tr:nth-child(even) td" e "tr:hover td" têm DUAS
+   classes na seletor (a da tabela + a pseudo-classe), contra UMA só de
+   "tr.lin-atraso td" — então zebra/hover sempre venciam a pintura,
+   não importa a ordem no arquivo. O :not([class*="lin-"]) tira a linha
+   pintada dessas duas regras, então a cor do alerta/vencimento nunca mais
+   é sobrescrita. */
+table.grade tbody tr:nth-child(even):not([class*="lin-"]) td{background:var(--bg2)}
+table.grade tbody tr:nth-child(even):not([class*="lin-"]) td.stick{background:var(--sup-stick)}
+table.grade tbody tr:not([class*="lin-"]):hover td{background:var(--hover)}
+table.grade tbody tr:not([class*="lin-"]):hover td.stick{background:var(--hover-stick)}
 /* célula que dá pra editar: cursor de planilha e contorno verde no hover —
    exatamente o td.edt do vendas.html */
 td.edt{cursor:cell}
@@ -412,7 +421,7 @@ html[data-tema="escuro"]{
   --sup:#15222c;--sup-stick:#1a2934;--hover:#1d3a2c;--hover-stick:#234634;--sombra:rgba(0,0,0,.6);
 }
 html[data-tema="escuro"] body{background:var(--bg)}
-html[data-tema="escuro"] table.grade tbody tr:nth-child(even) td{background:#121e27}
+html[data-tema="escuro"] table.grade tbody tr:nth-child(even):not([class*="lin-"]) td{background:#121e27}
 html[data-tema="escuro"] td.edt:hover{background:#1c3d2c !important}
 html[data-tema="escuro"] td.recusado{background:#4a2020 !important}
 html[data-tema="escuro"] tbody tr.lin-vencida td{background:#4a2222}
@@ -1014,7 +1023,7 @@ const ABAS = {
     pdf: true,
     vencimento: true,        // liga o filtro e a pintura por vencimento
     ordenar: (a, b) => {     // vencidas primeiro, da mais antiga para a mais nova
-      const x = dataReal(a, C.VENC), y = dataReal(b, C.VENC);
+      const x = dataVencimento(a, C.VENC), y = dataVencimento(b, C.VENC);
       if (!x && !y) return 0;
       if (!x) return 1;      // sem data vai pro fim
       if (!y) return -1;
@@ -2615,6 +2624,7 @@ function celulaTexto(l, nome, fonte){
     return temSens(l, campo.nome) ? "•••" : "—";
   }
   if (tipo === "date"){
+    if (nome === C.VENC){ const d = dataVencimento(l, nome); return d ? fmtData(d) : "—"; }
     const d = dataReal(l, nome);
     return d ? fmtData(d) : (dataMarcador(l, nome) ? "01/01/2000" : "—");
   }
@@ -2662,6 +2672,12 @@ function celula(l, nome, fonte){
       ? '<span title="Dado protegido — carrega ao abrir a aba">•••</span>' : "—";
   }
   if (tipo === "date") {
+    /* VENCIMENTO (CONTROLE DE CONTAS) não usa o marcador cinza/itálico: aqui
+       01/01/2000 É uma data de vencimento de verdade (ver dataVencimento),
+       então mostra igual a qualquer outra data — o cinza/itálico daria a
+       entender "isso não vale", o oposto do que a cor vermelha da linha
+       já está dizendo. */
+    if (nome === C.VENC){ const d = dataVencimento(l, nome); return d ? fmtData(d) : "—"; }
     const d = dataReal(l, nome);
     if (d) return fmtData(d);
     /* Sem data de verdade, mas com o 01/01/2000 gravado: mostrar o que
@@ -3036,7 +3052,7 @@ function editarCelula(td){
        marcador de "sem data" — que confundia e ainda deixava o ano errado
        para quem trocava só o dia e o mês. */
     el.value = campo.tipo === "date"
-      ? (dataReal(linha, col) || "")
+      ? (dataParaEditor(linha, col) || "")
       : (atual==null ? "" : atual);
   }
   /* 16px no celular: abaixo disso o iOS dá zoom sozinho ao focar o campo e
@@ -3056,7 +3072,7 @@ function editarCelula(td){
     const novo = el.value;
     const antesTxt = campo.tipo === "people"
       ? (Array.isArray(atual) ? atual.join(", ") : String(atual==null ? "" : atual))
-      : (campo.tipo === "date" ? (dataReal(linha, col) || "")
+      : (campo.tipo === "date" ? (dataParaEditor(linha, col) || "")
                                : String(atual==null ? "" : atual));
     if (antesTxt === String(novo)){ td.innerHTML = antigo; return; }
     td.innerHTML = '<span class="load"></span>';
@@ -3092,13 +3108,35 @@ function editarCelula(td){
 
 /* ---------- vencimento: classificação, cor e legenda ----------
    Regra pedida: verde = não vencida, vermelho = vencida, branca = sem data.
-   O 01/01/2000 do Notion conta como "sem data" (é o marcador de vazio). */
+   Só aqui, 01/01/2000 NÃO é "sem data" — conta como vencida (ver
+   dataVencimento acima). "sem" só acontece quando a célula está mesmo vazia. */
 function hojeISO(){
   const d = new Date();
   return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
 }
+/* CORREÇÃO (set/26), só para VENCIMENTO: em todo o resto do site 01/01/2000
+   é o marcador de "ainda não tem data" (ver DATA_LIXO / dataReal). Mas na
+   coluna VENCIMENTO, do setor CONTROLE DE CONTAS, a equipe usa esse mesmo
+   01/01/2000 do jeito OPOSTO — como valor padrão para a conta já nascer com
+   uma data preenchida, não como "vazio". Por isso o VENCIMENTO não pode
+   ignorar essa data: aqui ela vale como uma data de verdade (e, sendo
+   2000, conta como vencida). Só a coluna VENCIMENTO usa esta função —
+   todo o resto do site (prazos, filas, ALERTA VER. LIGAÇÃO etc.) continua
+   com dataReal(), sem mudança nenhuma. */
+function dataVencimento(linha, nome){
+  const v = getL(linha, nome);
+  if (!v) return null;
+  return String(v).slice(0,10);
+}
+/* Mesma escolha usada em celula()/celulaTexto(): VENCIMENTO lê pelo
+   dataVencimento (não ignora 01/01/2000); qualquer outra coluna de data
+   continua em dataReal(). Usada para abrir o editor de célula com o valor
+   certo e para saber se o que foi digitado é igual ao que já estava. */
+function dataParaEditor(linha, nome){
+  return nome === C.VENC ? dataVencimento(linha, nome) : dataReal(linha, nome);
+}
 function situacaoVenc(l){
-  const d = dataReal(l, C.VENC);
+  const d = dataVencimento(l, C.VENC);
   if (!d) return "sem";
   return d <= hojeISO() ? "vencida" : "emdia";
 }
@@ -4185,11 +4223,13 @@ function corpoPainel(l){
         ${ops.map(o=>`<option value="${esc(o)}" ${String(v)===String(o)?"selected":""}>${esc(o)}</option>`).join("")}
       </select>`;
     } else if (tipo === "date"){
-      const d = dataReal(l, nome) || "";
+      const d = dataParaEditor(l, nome) || "";
       /* onblur, não onchange: ver o comentário do editor de célula — no
          onchange o navegador avisa com a data ainda pela metade. */
       html += `<input type="date" id="${idc}" value="${esc(d)}" onblur="salvar('${esc(nome)}','date',this.value)">`;
-      if (!d && v) html += `<div class="dica">no Notion está <b>01/01/2000</b> — o marcador de “sem data”. Digitando a data certa aqui, ela passa por cima.</div>`;
+      // VENCIMENTO não usa o aviso de marcador: aqui 01/01/2000 é uma data de
+      // vencimento de verdade, não "sem data" (ver dataVencimento).
+      if (!d && v && nome !== C.VENC) html += `<div class="dica">no Notion está <b>01/01/2000</b> — o marcador de “sem data”. Digitando a data certa aqui, ela passa por cima.</div>`;
     } else if (tipo === "url"){
       html += `<input type="text" id="${idc}" value="${esc(v||"")}" placeholder="https://…" onchange="salvar('${esc(nome)}','url',this.value)">`;
     } else if (tipo === "rich_text" || tipo === "title"){
