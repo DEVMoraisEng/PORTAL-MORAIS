@@ -1552,10 +1552,40 @@ async function darBaixa(id, btn){
 function obraPorId(id){ return OBRAS.find(o=>o.id===id)||null; }
 
 /* ===================== ALERTAS ===================== */
+/* Obras cujos valores protegidos já foram buscados (ou estão em rota) —
+   evita repetir o docObra a cada repintura da lista. */
+const SENS_BUSCADAS=new Set();
+/* CPF/CNPJ (e afins) não vêm no dist/: o fetch_documentos.py tira o valor
+   antes de publicar, porque o GitHub Pages serve sem login. Sem isto, a tarja
+   de gabarito do CPF/CNPJ-AUTO ficava vazia nos alertas. Aqui existe token,
+   então dá pra buscar pelo Apps Script, igual ao que abrirObra() já fazia.
+   Só as obras VISÍVEIS na lista, uma vez cada, e a lista se repinta quando
+   chegam. */
+async function carregarSensiveisDosAlertas(linhas){
+  if(!OCULTAS.length) return;
+  const alvos=[...new Set(linhas.map(l=>l.o&&l.o.id).filter(Boolean))]
+    .filter(id=>!SENS_BUSCADAS.has(id)).slice(0,40);
+  if(!alvos.length) return;
+  alvos.forEach(id=>SENS_BUSCADAS.add(id));
+  let mudou=false;
+  for(const id of alvos){
+    try{
+      const r=await ler({action:"docObra",pageId:id},null);
+      if(!r||!r.ok||!r.valores){ SENS_BUSCADAS.delete(id); continue; }
+      const o=obraPorId(id); if(!o) continue;
+      OCULTAS.forEach(nome=>{ const v=getV(r.valores,nome); if(v!==undefined){ setV(o.valores,nome,v); mudou=true; } });
+    }catch(e){ SENS_BUSCADAS.delete(id); }
+  }
+  // repinta só se ainda estiver na aba de alertas, pra não roubar a tela
+  if(mudou && document.getElementById("st-alertas") &&
+     document.getElementById("st-alertas").style.display!=="none") renderAlertas();
+}
+
 function renderAlertas(){
   const box=document.getElementById("al-lista");
   if(!CARREGOU){ box.innerHTML='<div class="vazio"><span class="load"></span> Carregando…</div>'; return; }
   const linhas=alertasDoSetor(SETOR_ATUAL);
+  carregarSensiveisDosAlertas(linhas);   // assíncrono: não segura o desenho
 
   // não fecha o grupo que a pessoa já tinha aberto (data-chave sobrevive ao rebuild)
   const abertos=new Set([...box.querySelectorAll("details.grupo[open]")].map(d=>d.dataset.chave));
@@ -1659,7 +1689,7 @@ function renderAlertas(){
    do F5: o schema desta tela vem do dist/ publicado, que só muda quando o
    workflow roda de novo. Por isso o que foi criado fica guardado no navegador
    de quem criou (OPC_LOCAIS) e é remontado no schema a cada carregamento. */
-const CAMPOS_OPCAO_LIVRE=["SETOR","PROPRIETARIO DOCUMENTO"];
+const CAMPOS_OPCAO_LIVRE=["SETOR","PROPRIETARIO DOCUMENTO","CPF/CNPJ"];
 function podeCriarOpcao(nome){
   const n=normNome(nome);
   return CAMPOS_OPCAO_LIVRE.some(c=>normNome(c)===n);
