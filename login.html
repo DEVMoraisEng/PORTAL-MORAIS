@@ -129,16 +129,43 @@ async function api(payload, timeoutMs){
   } finally { clearTimeout(timer); }
 }
 
+let TIMER_BLOQUEIO = null;
 function mostrarErro(msg){
+  clearInterval(TIMER_BLOQUEIO); TIMER_BLOQUEIO = null;
   const e = document.getElementById("erro");
   e.textContent = msg; e.style.display = "block";
+}
+
+/* Bloqueio por tentativas: mostra a contagem regressiva e destrava o botão
+   sozinho no fim. Antes a mensagem era "aguarde alguns minutos", sem dizer
+   quantos — dava pra ficar olhando pra tela sem saber se já tinha liberado. */
+function mostrarBloqueio(segundos){
+  clearInterval(TIMER_BLOQUEIO);
+  const e = document.getElementById("erro");
+  const btn = document.getElementById("btn");
+  let resta = Math.max(1, Number(segundos) || 60);
+  const pintar = () => {
+    if(resta > 0){
+      e.textContent = "Muitas tentativas. Tente de novo em " + resta + "s.";
+      e.style.display = "block";
+      btn.disabled = true;
+      resta--;
+    } else {
+      clearInterval(TIMER_BLOQUEIO); TIMER_BLOQUEIO = null;
+      e.textContent = "Pode tentar de novo.";
+      btn.disabled = false;
+      document.getElementById("senha").focus();
+    }
+  };
+  pintar();
+  TIMER_BLOQUEIO = setInterval(pintar, 1000);
 }
 
 const MENSAGENS = {
   LOGIN_NAO_ENCONTRADO: "Login não encontrado.",
   SENHA_INCORRETA:      "Senha incorreta.",
   INFORME_LOGIN:        "Digite o login.",
-  BLOQUEADO:            "Muitas tentativas. Aguarde alguns minutos e tente de novo.",
+  BLOQUEADO:            "Muitas tentativas. Aguarde e tente de novo.",
   NAO_AUTORIZADO:       "Sessão expirada. Entre novamente."
 };
 
@@ -156,6 +183,7 @@ async function entrar(){
   try{
     const res = await api({ action:"login", login, senha });
     if(!res.ok){
+      if(res.erro==="BLOQUEADO"){ mostrarBloqueio(res.segundos); return; }
       let msg = MENSAGENS[res.erro] || ("Erro: " + res.erro);
       if(res.erro==="SENHA_INCORRETA" && typeof res.restantes==="number") msg += " ("+res.restantes+" tentativa(s) restante(s))";
       mostrarErro(msg); return;
@@ -168,7 +196,9 @@ async function entrar(){
   }catch(err){
     mostrarErro("Não consegui falar com o servidor. Confira a URL do Apps Script e a internet.");
   }finally{
-    btn.disabled = false; btn.textContent = "Entrar";
+    btn.textContent = "Entrar";
+    // durante o bloqueio o botão continua travado (quem libera é o contador)
+    if(!TIMER_BLOQUEIO) btn.disabled = false;
   }
 }
 
