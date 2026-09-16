@@ -664,9 +664,12 @@ const SIM_COLS_REC=[
      entrada = o que sobrou para pagar depois de FGTS, subsídio e ele. */
   ["entradaInformada","Valor p/ entrada",true],
   ["entrada","Entrada a pagar",true],
-  ["parcela","Parcela",true],["criadoEm","Data",false],["status","Status",false]
+  ["parcela","Parcela",true],["criadoEm","Data",false],["status","Status",false],
+  /* O motivo do erro sempre esteve gravado na coluna MENSAGEM do Notion —
+     só nunca aparecia na tela. Sem ele, "ERRO" não dizia nada. */
+  ["mensagem","Motivo",false]
 ];
-const SIM_COLS_TXT=["cliente","cpf","corretor","imobiliaria","status"];
+const SIM_COLS_TXT=["cliente","cpf","corretor","imobiliaria","status","mensagem"];
 
 function simSegSt(v){
   simFiltroSt=v;
@@ -718,7 +721,9 @@ function simRenderRecebidas(){
     <td class="num">${s.entrada?simBRL(s.entrada):"—"}</td>
     <td class="num">${s.parcela?simBRL(s.parcela):"—"}</td>
     <td>${simData(s.criadoEm)}</td>
-    <td>${simTagSt(s.status)}</td></tr>`).join("");
+    <td>${simTagSt(s.status)}</td>
+    <td style="max-width:320px;font-size:12px;color:var(--text3)"
+        title="${esc(s.mensagem||"")}">${esc(String(s.mensagem||"—").slice(0,90))}${String(s.mensagem||"").length>90?"…":""}</td></tr>`).join("");
   document.getElementById("sim-tabRec").innerHTML=cab+"<tbody>"+corpo+"</tbody>";
 }
 
@@ -781,13 +786,36 @@ function simVerDet(id){
       ${it("Produto",esc(s.produtos||""))}${it("Seguradora",esc(s.seguradora||""))}
     </div>
     ${tabFluxo}${tabEncargo}
+    ${s.mensagem?`<div class="sim-aviso ${simSt(s)==="ERRO"?"err":"ok"}" style="margin-top:12px">
+      <b>Mensagem do processamento</b><br>${esc(s.mensagem)}</div>`:""}
     <div style="display:flex;gap:9px;margin-top:16px;flex-wrap:wrap">
+      ${simSt(s)==="ERRO" && !ehSomenteLeitura(S)
+        ? `<button class="bt az" onclick="simRefazer('${s.id}')">↻ Tentar de novo</button>` : ""}
       <button class="bt" onclick="simFecharDet()">Fechar</button>
     </div>
+    <div id="sim-detAviso" class="sim-aviso" style="margin-top:10px"></div>
     <div id="sim-detAviso" class="sim-aviso" style="margin-top:10px"></div>`;
   document.getElementById("sim-modal").classList.remove("hide");
 }
 function simFecharDet(){ document.getElementById("sim-modal").classList.add("hide"); }
+
+/* Devolve uma simulação com erro para a fila. O worker já tenta três vezes
+   sozinho; isto é para o caso de você ter corrigido algo (um dado da unidade,
+   o worker que estava parado) e querer rodar de novo sem refazer o pedido. */
+async function simRefazer(id){
+  const av=document.getElementById("sim-detAviso");
+  av.className="sim-aviso ok"; av.textContent="Devolvendo para a fila…";
+  let r;
+  try{ r=await chamar({action:"simsRefazer", pageId:id}, 60000, true); }
+  catch(e){ av.className="sim-aviso err"; av.textContent="Não deu para confirmar."; return; }
+  if(r && r.ok){
+    av.className="sim-aviso ok";
+    av.textContent="Devolvida para a fila. O worker pega no próximo ciclo.";
+    storeInvalidar("sims_lista");
+    simCarregar(true);
+    setTimeout(simFecharDet,1500);
+  } else { av.className="sim-aviso err"; av.textContent=simErroAmigavel(r&&r.erro); }
+}
 
 /* ---------- unidades (sem mudanças de fundo — só o local do botão mudou) ---------- */
 /* VENDIDA tem TRES estados desde set/26: SIM, NAO e RESERVADA. RESERVADA e o
@@ -1243,6 +1271,11 @@ function propVer(id){
       ${it("Observações",esc(p.observacoes||""))}
     </div>
     ${tabFluxo}
+
+    <div id="prop-detalhe" style="margin-top:16px">
+      <div class="sim-aviso ok">Carregando anexos e pendências…</div>
+    </div>
+
     ${podeGravar?`
     <div style="margin-top:16px"><b style="font-size:13px;color:var(--azul)">Decisão</b>
       <div style="display:flex;gap:9px;margin-top:8px;flex-wrap:wrap">
@@ -1256,6 +1289,17 @@ function propVer(id){
         (e ela fica azul no mapa de vendas). Negar devolve para NÃO.
       </div>
     </div>
+
+    <div style="margin-top:16px"><b style="font-size:13px;color:var(--azul)">Documento da proposta</b>
+      <div style="display:flex;gap:9px;margin-top:8px;flex-wrap:wrap;align-items:center">
+        <button class="bt" id="prop-btPdf" onclick="propPdf('${p.id}')">📄 Gerar PDF da proposta</button>
+        <span id="prop-pdfInfo" style="font-size:12px;color:var(--text3)"></span>
+      </div>
+      <div style="font-size:12px;color:var(--text3);margin-top:6px">
+        O PDF sai no formato da proposta em papel, é baixado na hora e fica guardado
+        na coluna PDF do Notion.
+      </div>
+    </div>
     <div style="margin-top:16px"><b style="font-size:13px;color:var(--azul)">Enviar e-mail para ${esc(p.email||"—")}</b>
       <textarea id="prop-msg" rows="4" style="width:100%;margin-top:6px;padding:9px;border:1px solid var(--linha);border-radius:6px;font-family:inherit;font-size:13px" placeholder="Escreva a mensagem…"></textarea>
       <button class="bt az" style="margin-top:6px" onclick="propEmail('${p.id}')">Enviar e-mail</button>
@@ -1263,7 +1307,100 @@ function propVer(id){
     <div style="display:flex;gap:9px;margin-top:16px"><button class="bt" onclick="simFecharDet()">Fechar</button></div>
     <div id="prop-detAviso" class="sim-aviso" style="margin-top:10px"></div>`;
   document.getElementById("sim-modal").classList.remove("hide");
+  propCarregarDetalhe(p.id);
 }
+
+/* ---------- detalhe: anexos, campos e o que falta ----------
+   Carregado depois que o modal abre, e numa chamada separada: a lista de
+   propostas ja traz dezenas de linhas, arrastar os anexos de cada uma junto
+   deixaria a aba inteira lenta por causa de um dado que so importa quando
+   voce abre uma proposta. */
+async function propCarregarDetalhe(id){
+  const alvo = document.getElementById("prop-detalhe");
+  if(!alvo) return;
+  let r;
+  try{ r = await chamar({action:"simsPropostaDetalhe", pageId:id}, 60000, true); }
+  catch(e){ alvo.innerHTML = '<div class="sim-aviso err">Não consegui carregar os anexos e as pendências.</div>'; return; }
+  if(!r || !r.ok){
+    alvo.innerHTML = '<div class="sim-aviso err">'+propErro(r&&r.erro)+'</div>'; return;
+  }
+
+  const pend = r.pendencias || {campos:[], documentos:[]};
+  const totalPend = (pend.campos.length + pend.documentos.length);
+
+  const cxPend = r.completa
+    ? '<div class="sim-aviso ok"><b>Proposta completa.</b> Todos os campos obrigatórios '+
+      'e todos os documentos foram entregues.</div>'
+    : '<div class="sim-aviso err"><b>Faltam '+totalPend+' item(ns) nesta proposta.</b>'+
+      (pend.campos.length ? '<br><b>Campos:</b> '+pend.campos.map(esc).join(' · ') : '')+
+      (pend.documentos.length ? '<br><b>Documentos:</b> '+pend.documentos.map(esc).join(' · ') : '')+
+      '</div>';
+
+  const docs = (r.anexos||[]).map(a=>{
+    const tem = a.arquivos.length;
+    const links = tem
+      ? a.arquivos.map(f=>`<a href="${esc(f.url)}" target="_blank" rel="noopener"
+           style="color:var(--azul);text-decoration:underline">${esc(f.nome)}</a>`).join(' · ')
+      : '<span style="color:#C0392B">não enviado</span>';
+    return `<tr><td>${tem?'✅':'⬜'} ${esc(a.rotulo)}</td><td>${links}</td></tr>`;
+  }).join("");
+
+  /* Os links de arquivo do Notion sao assinados e valem cerca de 1 hora.
+     Depois disso o link desta tela expira — basta reabrir a proposta que
+     ele e gerado de novo. */
+  const cxDocs = '<div style="margin-top:14px"><b style="font-size:13px;color:var(--azul)">Documentos anexados</b>'+
+    '<div class="tbl-wrap" style="max-height:none;margin-top:6px"><table><tbody>'+docs+'</tbody></table></div>'+
+    '<div style="font-size:11px;color:var(--text4);margin-top:4px">Os links valem cerca de 1 hora. '+
+    'Se expirarem, feche e abra a proposta de novo.</div></div>';
+
+  // todos os campos gravados, para conferir sem abrir o Notion
+  const campos = r.campos || {};
+  const linhas = Object.keys(campos).sort().map(k=>
+    `<tr><td style="color:var(--text3);width:38%">${esc(k)}</td><td>${esc(campos[k])}</td></tr>`).join("");
+  const cxCampos = '<details style="margin-top:14px"><summary style="cursor:pointer;font-size:13px;'+
+    'font-weight:700;color:var(--azul)">Todos os campos gravados ('+Object.keys(campos).length+')</summary>'+
+    '<div class="tbl-wrap" style="max-height:320px;margin-top:6px"><table><tbody>'+linhas+
+    '</tbody></table></div></details>';
+
+  const cxPdf = (r.pdfs && r.pdfs.length)
+    ? '<div style="margin-top:10px;font-size:12px">PDF já gerado: '+
+      r.pdfs.map(f=>`<a href="${esc(f.url)}" target="_blank" rel="noopener"
+        style="color:var(--azul);text-decoration:underline">${esc(f.nome)}</a>`).join(' · ')+'</div>'
+    : '';
+
+  alvo.innerHTML = cxPend + cxDocs + cxCampos + cxPdf;
+}
+
+/* ---------- PDF da proposta ---------- */
+async function propPdf(id){
+  const bt = document.getElementById("prop-btPdf");
+  const info = document.getElementById("prop-pdfInfo");
+  bt.disabled = true; info.textContent = "Gerando o PDF…";
+  let r;
+  try{ r = await chamar({action:"simsPropostaPdf", pageId:id}, 120000, true); }
+  catch(e){ bt.disabled=false; info.textContent="Não deu para confirmar. Tente de novo."; return; }
+  if(!r || !r.ok){
+    bt.disabled=false;
+    info.textContent = (r&&r.erro==="MODO_TESTE") ? "Perfil TESTES não gera PDF." : propErro(r&&r.erro);
+    return;
+  }
+  /* Baixa na hora: o PDF vem em base64 na resposta e vira arquivo aqui no
+     navegador, sem depender do link do Notion (que expira). */
+  try{
+    const bin = atob(r.base64);
+    const bytes = new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([bytes], {type:"application/pdf"}));
+    const a = document.createElement("a");
+    a.href=url; a.download=r.nome||"proposta.pdf"; document.body.appendChild(a); a.click();
+    a.remove(); setTimeout(()=>URL.revokeObjectURL(url), 4000);
+  }catch(e){ info.textContent="PDF gerado, mas o download falhou. Ele está no Notion."; }
+  bt.disabled=false;
+  info.innerHTML = "PDF gerado e baixado." + (r.guardado ? " Também "+esc(r.guardado)+"."
+    : (r.erroUpload ? ' <span style="color:#C0392B">Não foi para o Notion: '+esc(r.erroUpload)+'</span>' : ""));
+  propCarregarDetalhe(id);
+}
+
 function propParseEsquema(txt){
   if(!txt) return [];
   return String(txt).split(";").map(p=>p.trim()).filter(Boolean).map(p=>{
