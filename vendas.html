@@ -1195,7 +1195,7 @@ function ordemColunas(){
   if(lista){
     const vistos={}, saida=[];
     lista.forEach(f=>{
-      const c=campoExatoOuFrag(f);
+      const c=campoDoAlvo(f);
       if(c && !vistos[c.nome]){ vistos[c.nome]=1; saida.push(c.nome); }
     });
     if(saida.length) return saida;
@@ -1444,6 +1444,48 @@ function campoExatoOuFrag(f){
   const alvo=normNome(f);
   return SCHEMA.find(c=>normNome(c.nome)===alvo) || campoPorFragmento(f);
 }
+/* CORREÇÃO (set/26) — SELEÇÃO DO ENGENHEIRO VINHA DA COLUNA ERRADA:
+   a base VENDAS tem mais de uma coluna parecida com "ENG. RESPONS..." — a de
+   Pessoa (a certa, com os engenheiros) e uma Seleção antiga, cujas únicas
+   opções são "—" e "Morais Engenharia". Era essa Seleção que aparecia no
+   <select> do site: campoExatoOuFrag() casa por nome, e basta a grafia do
+   Notion não bater 100% (um espaço a mais, "ENG" sem ponto, o typo
+   RESPONSÁEL/RESPONSÁVEL) pra ele cair na outra coluna.
+   Esta versão decide pelo TIPO, não pela grafia: havendo uma coluna do tipo
+   pedido entre as que casam, é ela que vale. Sem nenhuma do tipo, cai no
+   comportamento de antes — então nada quebra se a base mudar. */
+function campoExatoOuFragTipo(f, tipoPreferido, fragAncora){
+  const alvo=normNome(f);
+  /* Chave frouxa: sem pontuação, pra "ENG. RESPONS", "ENG RESPONS" e
+     "ENG.RESPONS" virarem a mesma coisa. */
+  const solto=s=>normNome(s).replace(/[^A-Z0-9]/g,"");
+  const ancora=solto(fragAncora||f);
+  /* Candidatas = todas as colunas que começam pelo fragmento comum
+     ("ENGRESPONS"). Isso pega RESPONSÁEL e RESPONSÁVEL de uma vez, que é o
+     ponto: o typo deixa de importar. */
+  const candidatos=SCHEMA.filter(c=>solto(c.nome).indexOf(ancora)===0);
+  const doTipo=candidatos.filter(c=>c.tipo===tipoPreferido);
+  if(doTipo.length){
+    // entre as do tipo certo, o nome exato ganha da parecida
+    return doTipo.find(c=>normNome(c.nome)===alvo) || doTipo[0];
+  }
+  /* Nenhuma do tipo pedido: usa a que casou pelo fragmento (é melhor que
+     devolver nada — sem isto, um nome com typo que não bate exatamente com
+     nenhuma coluna sumia do painel em vez de aparecer só leitura). */
+  if(candidatos.length) return candidatos.find(c=>normNome(c.nome)===alvo) || candidatos[0];
+  return campoExatoOuFrag(f);
+}
+/* Colunas que só fazem sentido no tipo indicado — hoje só a do engenheiro.
+   Pra incluir outra, basta acrescentar aqui. */
+const TIPO_ESPERADO_DO_CAMPO=[
+  { frag:"ENG. RESPONS", tipo:"people" }
+];
+function campoDoAlvo(f){
+  const solto=s=>normNome(s).replace(/[^A-Z0-9]/g,"");
+  const n=solto(f);
+  const regra=TIPO_ESPERADO_DO_CAMPO.find(r=>n.indexOf(solto(r.frag))===0);
+  return regra ? campoExatoOuFragTipo(f, regra.tipo, regra.frag) : campoExatoOuFrag(f);
+}
 function ehModelo(valores){
   const c=campoExatoOuFrag("MODELO"); if(!c) return false;
   const v=getV(valores,c.nome);
@@ -1642,9 +1684,15 @@ const COLUNAS_SETOR={
   // Só estas, na ordem do print. As colunas "-AUTO", SETOR e ENG. RESPONSÁEL
   // NÃO entram aqui: elas aparecem como campos do alerta PREENCHER ENDEREÇO
   // (ver CAMPOS_DO_ALERTA), que é onde são preenchidas.
+  // Set/26: saíram OBRA-AUTO, CASA-AUTO e SETOR-AUTO da planilha (pedido) e
+  // entrou RESERVADA. As três continuam existindo no Notion e continuam
+  // aparecendo como "cola" (valor automático ao lado) nos campos do alerta
+  // PREENCHER ENDEREÇO — ver CAMPOS_DO_ALERTA —, que é onde elas servem de
+  // referência pra preencher. ENGENHEIRO-AUTO ficou, porque não foi pedida
+  // a saída dela.
   "Departamento de Projetos":[
-    "ENDEREÇO","OBRA-AUTO","CASA","CASA-AUTO","SETOR","SETOR-AUTO",
-    "TIPO","MODELO?","TEM MANUAL DE OBRA?",
+    "ENDEREÇO","CASA","SETOR",
+    "TIPO","MODELO?","RESERVADA","TEM MANUAL DE OBRA?",
     "ENG. RESPONSÁEL","ENGENHEIRO-AUTO",
     "FOTOS","LAYOUT","LOCALIZAÇÃO","REF"
   ],
@@ -1908,7 +1956,7 @@ function camposDoAlerta(texto){
   const reg=CAMPOS_DO_ALERTA.find(x=>t.indexOf(normNome(x.quando))>=0);
   if(reg){
     const out=reg.campos.map(f=>({
-      campo:campoExatoOuFrag(f.nome),
+      campo:campoDoAlvo(f.nome),
       cola:acharCola(f.cola),
       colaEsperada:f.cola?(Array.isArray(f.cola)?f.cola[0]:f.cola):null
     })).filter(x=>x.campo);
