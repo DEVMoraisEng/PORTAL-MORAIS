@@ -1659,7 +1659,7 @@ function renderAlertas(){
    do F5: o schema desta tela vem do dist/ publicado, que só muda quando o
    workflow roda de novo. Por isso o que foi criado fica guardado no navegador
    de quem criou (OPC_LOCAIS) e é remontado no schema a cada carregamento. */
-const CAMPOS_OPCAO_LIVRE=["SETOR"];
+const CAMPOS_OPCAO_LIVRE=["SETOR","PROPRIETARIO DOCUMENTO"];
 function podeCriarOpcao(nome){
   const n=normNome(nome);
   return CAMPOS_OPCAO_LIVRE.some(c=>normNome(c)===n);
