@@ -1366,6 +1366,7 @@ async function boot(){
     if(!r || !r.ok){ mostrarOffline(r); if(!CARREGOU) document.getElementById("hub-wrap").innerHTML='<div class="vazio">Ainda não há dados publicados. Rode o build (fetch_documentos.py) uma vez.</div>'; return; }
     CAMPOS=r.campos||[]; OBRAS=r.obras||[]; ATIVIDADES=r.atividades||[];
     OCULTAS=r.ocultas||[]; COLSIM=r.colunasSim||[]; UPDATED=r.updated_at||"";
+    aplicarOpcoesLocais();      // setores criados aqui valem já no 1º desenho
     MOTOR=criarMotorAlertas(CAMPOS); CARREGOU=true;
     ALERTAS_VISTOS=new Map();   // dados carregados de novo: aqui sim pode "esquecer"
     aplicarEdicoesDaTela();
@@ -1626,6 +1627,71 @@ function renderAlertas(){
  * O tipo usado para gravar sai SEMPRE do schema (c.tipo), nunca de um palpite
  * da tela — é o mesmo contrato que o docUpdate_ do Code.gs confere do lado do
  * servidor. */
+/* ===================== CRIAR OPÇÃO NOVA (ex.: SETOR) =====================
+   Precisa bater com CAMPOS_OPCAO_LIVRE do Code.gs — esta lista só decide se o
+   "+ Novo…" aparece; quem autoriza de fato é o Apps Script.
+   O setor criado precisa valer NA HORA para as outras obras, e também depois
+   do F5: o schema desta tela vem do dist/ publicado, que só muda quando o
+   workflow roda de novo. Por isso o que foi criado fica guardado no navegador
+   de quem criou (OPC_LOCAIS) e é remontado no schema a cada carregamento. */
+const CAMPOS_OPCAO_LIVRE=["SETOR"];
+function podeCriarOpcao(nome){
+  const n=normNome(nome);
+  return CAMPOS_OPCAO_LIVRE.some(c=>normNome(c)===n);
+}
+const OPC_LOCAIS_KEY="docs_opcoes_locais";
+function opcLocaisLer(){
+  try{ return JSON.parse(localStorage.getItem(OPC_LOCAIS_KEY)||"{}")||{}; }catch(e){ return {}; }
+}
+function opcLocaisGravar(prop,nome){
+  try{
+    const t=opcLocaisLer(); const k=normNome(prop);
+    t[k]=(t[k]||[]); if(t[k].indexOf(nome)<0) t[k].push(nome);
+    localStorage.setItem(OPC_LOCAIS_KEY, JSON.stringify(t));
+  }catch(e){ /* navegador sem localStorage: vale só nesta sessão */ }
+}
+/* Junta as opções criadas aqui ao schema recém-carregado. Some sozinho quando
+   o dist/ for republicado, porque aí a opção já vem do Notion e o indexOf
+   abaixo evita duplicar. */
+function aplicarOpcoesLocais(){
+  const t=opcLocaisLer();
+  (CAMPOS||[]).forEach(c=>{
+    const extras=t[normNome(c.nome)]; if(!extras||!extras.length) return;
+    c.opcoes=(c.opcoes||[]).slice();
+    extras.forEach(o=>{ if(!c.opcoes.some(x=>normNome(x)===normNome(o))) c.opcoes.push(o); });
+  });
+}
+async function aoTrocarSelect(pageId,prop,tipo,el){
+  if(el.value!=="__novo__"){ el.dataset.anterior=el.value; editar(pageId,prop,tipo,el.value,el); return; }
+  const anterior=el.dataset.anterior||"";
+  const nome=(window.prompt("Novo "+prop.trim().toLowerCase()+":")||"").trim();
+  if(!nome){ el.value=anterior; return; }
+  if(nome.indexOf(",")>=0){ toast("Nome não pode ter vírgula."); el.value=anterior; return; }
+  if(!window.confirm("Criar \""+nome+"\" em "+prop.trim()+"?\n\nEle passa a valer para todas as obras.")){ el.value=anterior; return; }
+  el.disabled=true;
+  const r=await chamar({action:"novaOpcao", base:"DOCUMENTOS", prop:prop, valor:nome});
+  el.disabled=false;
+  if(!r||!r.ok){ toast("Não criou: "+erroTexto((r&&r.erro)||"REDE")); el.value=anterior; return; }
+  const campo=(CAMPOS||[]).find(x=>normNome(x.nome)===normNome(prop));
+  if(campo && !(campo.opcoes||[]).some(x=>normNome(x)===normNome(r.nome))){
+    campo.opcoes=(campo.opcoes||[]).concat([r.nome]);
+  }
+  opcLocaisGravar(prop, r.nome);
+  /* remonta o filtro "Todos os setores" (montarFiltros lê opcoes do campo
+     SETOR) pra dar pra filtrar já, sem F5. Ele preserva a seleção atual. */
+  if(normNome(prop)===normNome("SETOR")) montarFiltros();
+  document.querySelectorAll("select").forEach(sel=>{
+    const marc=[...sel.options].find(o=>o.value==="__novo__");
+    if(!marc) return;
+    if([...sel.options].some(o=>o.text===r.nome)) return;
+    const o=document.createElement("option"); o.text=r.nome; o.value=r.nome;
+    sel.insertBefore(o, marc);
+  });
+  el.value=r.nome; el.dataset.anterior=r.nome;
+  toast(r.jaExistia ? "Já existia — selecionado." : "Criado ✓");
+  editar(pageId,prop,tipo,r.nome,el);
+}
+
 function controle(c, valor, pageId){
   const arg=`'${pageId}','${jsArg(c.nome)}','${c.tipo}'`;
   if(c.tipo==="date")
@@ -1634,8 +1700,14 @@ function controle(c, valor, pageId){
     return `<input type="checkbox" ${valor?"checked":""} onchange="editar(${arg},this.checked,this)">`;
   if(c.tipo==="select"||c.tipo==="status"){
     const ops=c.opcoes||[];
-    return `<select onchange="editar(${arg},this.value,this)"><option value="">—</option>`+
-      ops.map(o=>`<option${normNome(o)===normNome(valor)?" selected":""}>${esc(o)}</option>`).join("")+`</select>`;
+    // campos liberados (hoje SETOR) ganham "+ Novo…" no fim da lista
+    const criavel = c.tipo==="select" && podeCriarOpcao(c.nome);
+    const on = criavel
+      ? `onchange="aoTrocarSelect('${pageId}','${jsArg(c.nome)}','${c.tipo}',this)"`
+      : `onchange="editar(${arg},this.value,this)"`;
+    return `<select ${on} data-anterior="${esc(valor||"")}"><option value="">—</option>`+
+      ops.map(o=>`<option${normNome(o)===normNome(valor)?" selected":""}>${esc(o)}</option>`).join("")+
+      (criavel?`<option value="__novo__">+ Novo…</option>`:``)+`</select>`;
   }
   if(c.tipo==="multi_select"){
     const marc=Array.isArray(valor)?valor:[];

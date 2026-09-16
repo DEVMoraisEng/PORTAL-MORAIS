@@ -1320,7 +1320,7 @@ async function boot(){
     .catch(()=>{});
 
   const [sc]=await Promise.all([ lerEstatico("schema.json","schema"), carregarDocumentos(), carregarLigacoes() ]); // só dist/ — rápido
-  if(sc.ok){ SCHEMA=sc.campos; SCAMPO={}; SCHEMA.forEach(c=>SCAMPO[c.nome]=c); mostrarOffline(sc); }
+  if(sc.ok){ SCHEMA=sc.campos; aplicarOpcoesLocais(); SCAMPO={}; SCHEMA.forEach(c=>SCAMPO[c.nome]=c); mostrarOffline(sc); }
   montarSetorSelects();
   // item 5/7 (rodada 2): espera a Planilha carregar ANTES de calcular os badges/contagens
   // de atividades, porque agora elas cruzam com o valor real da obra (vendaPorId) —
@@ -1392,8 +1392,12 @@ function renderSetores(){
 function montarSetorSelects(){
   const c=campoPorNome("SETOR"); if(!c||!c.opcoes)return;
   const ops='<option value="">Todos os setores</option>'+c.opcoes.map(o=>`<option>${esc(o)}</option>`).join("");
-  document.getElementById("hub-setor").innerHTML=ops;
-  document.getElementById("set-setor").innerHTML=ops;
+  // guarda e devolve o que estava filtrado: esta função passou a ser chamada
+  // também ao criar setor novo, e sem isso o filtro do usuário se perdia
+  ["hub-setor","set-setor"].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    const atual=el.value; el.innerHTML=ops; el.value=atual;
+  });
 }
 function irHub(){ document.getElementById("view-setor").style.display="none"; document.getElementById("view-hub").style.display="block"; }
 
@@ -2727,7 +2731,31 @@ function inputControl(c,valor,pageId){
 /* Colunas em que o usuário pode cadastrar uma opção nova pelo site.
    Precisa bater com CAMPOS_OPCAO_LIVRE no Code.gs — a lista do navegador só
    decide se o "+ Novo…" aparece; quem autoriza de fato é o Apps Script. */
-const CAMPOS_OPCAO_LIVRE=["CORRETOR","IMOBILIÁRIA","BANCO","CORRESPONDENTE"];
+const CAMPOS_OPCAO_LIVRE=["CORRETOR","IMOBILIÁRIA","BANCO","CORRESPONDENTE","SETOR"];
+/* O SCHEMA desta tela vem do dist/schema.json publicado, que só muda quando o
+   workflow roda de novo. Sem isto, a opção criada sumia no primeiro F5 e a
+   pessoa achava que não tinha salvado. Fica guardada no navegador de quem
+   criou e é remontada no schema a cada carregamento; quando o dist/ for
+   republicado, a opção já vem do Notion e o teste abaixo evita duplicar. */
+const OPC_LOCAIS_KEY="vendas_opcoes_locais";
+function opcLocaisLer(){
+  try{ return JSON.parse(localStorage.getItem(OPC_LOCAIS_KEY)||"{}")||{}; }catch(e){ return {}; }
+}
+function opcLocaisGravar(prop,nome){
+  try{
+    const t=opcLocaisLer(); const k=normNome(prop);
+    t[k]=(t[k]||[]); if(t[k].indexOf(nome)<0) t[k].push(nome);
+    localStorage.setItem(OPC_LOCAIS_KEY, JSON.stringify(t));
+  }catch(e){ /* navegador sem localStorage: vale só nesta sessão */ }
+}
+function aplicarOpcoesLocais(){
+  const t=opcLocaisLer();
+  (SCHEMA||[]).forEach(c=>{
+    const extras=t[normNome(c.nome)]; if(!extras||!extras.length) return;
+    c.opcoes=(c.opcoes||[]).slice();
+    extras.forEach(o=>{ if(!c.opcoes.some(x=>normNome(x)===normNome(o))) c.opcoes.push(o); });
+  });
+}
 function podeCriarOpcao(nome){
   const n=normNome(nome);
   return CAMPOS_OPCAO_LIVRE.some(c=>normNome(c)===n);
@@ -2738,6 +2766,7 @@ async function aoTrocarSelect(pageId,prop,tipo,el){
   const nome=(window.prompt("Novo "+prop.trim().toLowerCase()+":")||"").trim();
   if(!nome){ el.value=anterior; return; }
   if(nome.indexOf(",")>=0){ toast("Nome não pode ter vírgula."); el.value=anterior; return; }
+  if(!window.confirm("Criar \""+nome+"\" em "+prop.trim()+"?\n\nEle passa a valer para todas as obras.")){ el.value=anterior; return; }
   el.disabled=true;
   /* base:"VENDAS" — o novaOpcao do Code.gs passou a servir dois setores
      (vendas e pós obra), então a base agora é explícita. Sem ela o backend
@@ -2749,6 +2778,11 @@ async function aoTrocarSelect(pageId,prop,tipo,el){
   // tela, e no SCHEMA em memória — senão só apareceria no próximo carregamento
   const campo=campoPorNome(prop);
   if(campo && (campo.opcoes||[]).indexOf(r.nome)<0){ campo.opcoes=(campo.opcoes||[]).concat([r.nome]); }
+  opcLocaisGravar(prop, r.nome);   // sobrevive ao F5 (ver aplicarOpcoesLocais)
+  /* O filtro "Todos os setores" é montado a partir de opcoes do campo SETOR.
+     Sem remontar aqui, o setor recém-criado só dava pra filtrar depois de
+     recarregar a página — foi o que você apontou. Preserva a seleção atual. */
+  if(normNome(prop)===normNome("SETOR")) montarSetorSelects();
   document.querySelectorAll("select").forEach(sel=>{
     const marc=[...sel.options].find(o=>o.value==="__novo__");
     if(!marc) return;
