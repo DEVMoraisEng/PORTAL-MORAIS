@@ -1392,6 +1392,7 @@ async function boot(){
     CAMPOS=r.campos||[]; OBRAS=r.obras||[]; ATIVIDADES=r.atividades||[];
     OCULTAS=r.ocultas||[]; COLSIM=r.colunasSim||[]; UPDATED=r.updated_at||"";
     aplicarOpcoesLocais();      // setores criados aqui valem já no 1º desenho
+    SENS_CARREGADO=false;       // dados novos: os protegidos são buscados outra vez
     MOTOR=criarMotorAlertas(CAMPOS); CARREGOU=true;
     ALERTAS_VISTOS=new Map();   // dados carregados de novo: aqui sim pode "esquecer"
     aplicarEdicoesDaTela();
@@ -1554,38 +1555,43 @@ function obraPorId(id){ return OBRAS.find(o=>o.id===id)||null; }
 /* ===================== ALERTAS ===================== */
 /* Obras cujos valores protegidos já foram buscados (ou estão em rota) —
    evita repetir o docObra a cada repintura da lista. */
-const SENS_BUSCADAS=new Set();
-/* CPF/CNPJ (e afins) não vêm no dist/: o fetch_documentos.py tira o valor
-   antes de publicar, porque o GitHub Pages serve sem login. Sem isto, a tarja
-   de gabarito do CPF/CNPJ-AUTO ficava vazia nos alertas. Aqui existe token,
-   então dá pra buscar pelo Apps Script, igual ao que abrirObra() já fazia.
-   Só as obras VISÍVEIS na lista, uma vez cada, e a lista se repinta quando
-   chegam. */
-async function carregarSensiveisDosAlertas(linhas){
-  if(!OCULTAS.length) return;
-  const alvos=[...new Set(linhas.map(l=>l.o&&l.o.id).filter(Boolean))]
-    .filter(id=>!SENS_BUSCADAS.has(id)).slice(0,40);
-  if(!alvos.length) return;
-  alvos.forEach(id=>SENS_BUSCADAS.add(id));
-  let mudou=false;
-  for(const id of alvos){
-    try{
-      const r=await ler({action:"docObra",pageId:id},null);
-      if(!r||!r.ok||!r.valores){ SENS_BUSCADAS.delete(id); continue; }
-      const o=obraPorId(id); if(!o) continue;
-      OCULTAS.forEach(nome=>{ const v=getV(r.valores,nome); if(v!==undefined){ setV(o.valores,nome,v); mudou=true; } });
-    }catch(e){ SENS_BUSCADAS.delete(id); }
-  }
-  // repinta só se ainda estiver na aba de alertas, pra não roubar a tela
-  if(mudou && document.getElementById("st-alertas") &&
-     document.getElementById("st-alertas").style.display!=="none") renderAlertas();
+let SENS_CARREGADO=false;   // uma vez por carregamento de tela
+/* CPF/CNPJ (e o CPF/CNPJ-AUTO que é o gabarito) não vêm no dist/: o
+   fetch_documentos.py tira o valor antes de publicar, porque o GitHub Pages
+   serve sem login. Aqui existe token, então dá pra buscar pelo Apps Script.
+
+   UMA CHAMADA para TODAS as obras, não uma por obra (set/26): o Apps Script
+   atende uma execução por vez por usuário, então 30 alertas viravam 30 idas
+   em fila — 30 a 90 s de tela parada, que na prática é igual a não funcionar.
+   Mesmo desenho do posObraSensiveis_ da tela de pós obra. */
+async function carregarSensiveisDosAlertas(){
+  if(SENS_CARREGADO || !OCULTAS.length) return;
+  SENS_CARREGADO=true;
+  try{
+    const r=await ler({action:"docsSensiveis"},null);
+    if(!r||!r.ok||!r.valores){ SENS_CARREGADO=false; return; }
+    let mudou=false;
+    Object.keys(r.valores).forEach(id=>{
+      const o=obraPorId(id); if(!o) return;
+      const vals=r.valores[id]||{};
+      Object.keys(vals).forEach(nome=>{ setV(o.valores,nome,vals[nome]); mudou=true; });
+    });
+    if(mudou) repintarSensiveis();
+  }catch(e){ SENS_CARREGADO=false; }
+}
+/* Repinta o que depende desses valores, sem roubar a tela de quem já mudou
+   de aba no meio do caminho. */
+function repintarSensiveis(){
+  const vis=id=>{ const el=document.getElementById(id); return el && el.style.display!=="none"; };
+  if(vis("st-alertas")) renderAlertas();
+  if(OBRA_ABERTA){ const o=obraPorId(OBRA_ABERTA); if(o) renderPainel(o); }
 }
 
 function renderAlertas(){
   const box=document.getElementById("al-lista");
   if(!CARREGOU){ box.innerHTML='<div class="vazio"><span class="load"></span> Carregando…</div>'; return; }
   const linhas=alertasDoSetor(SETOR_ATUAL);
-  carregarSensiveisDosAlertas(linhas);   // assíncrono: não segura o desenho
+  carregarSensiveisDosAlertas();   // assíncrono: não segura o desenho
 
   // não fecha o grupo que a pessoa já tinha aberto (data-chave sobrevive ao rebuild)
   const abertos=new Set([...box.querySelectorAll("details.grupo[open]")].map(d=>d.dataset.chave));
