@@ -981,6 +981,10 @@ html[data-tema="escuro"] .barra-linha .bwrap{background:#1f2f3a}
       </div>
 
       <div id="st-alertas" style="display:none">
+        <div id="al-acoes" style="margin:0 0 10px;display:none">
+          <button class="btn" id="bt-autocpf" onclick="preencherCpfAuto()">Preencher CPF/CNPJ pelo automático</button>
+          <span id="autocpf-msg" style="margin-left:10px;font-size:13px;color:var(--text3)"></span>
+        </div>
         <div id="al-lista"><div class="vazio">Carregando…</div></div>
       </div>
 
@@ -1587,11 +1591,48 @@ function repintarSensiveis(){
   if(OBRA_ABERTA){ const o=obraPorId(OBRA_ABERTA); if(o) renderPainel(o); }
 }
 
+/* Copia o CPF/CNPJ-AUTO para o CPF/CNPJ em todas as obras onde ele está
+   vazio (ver docsAutoCpf_ no Code.gs). Só preenche vazio — nunca sobrescreve
+   o que alguém digitou; divergências voltam listadas, para decisão humana.
+   Fica escondido para quem é só leitura: o botão grava. */
+async function preencherCpfAuto(){
+  const bt=document.getElementById("bt-autocpf");
+  const msg=document.getElementById("autocpf-msg");
+  if(!window.confirm("Preencher o CPF/CNPJ das obras que estão sem ele, usando o CPF/CNPJ-AUTO?\n\nNada que já esteja preenchido é alterado.")) return;
+  bt.disabled=true; msg.textContent="Preenchendo…";
+  try{
+    let total=0, voltas=0, r;
+    /* A rotina do servidor corta em 4 min e diz onde parou; continua daqui
+       até terminar, em vez de obrigar a clicar de novo. */
+    do{
+      r=await escrever({action:"docsAutoCpf"},"Preencher CPF/CNPJ");
+      if(!r||!r.ok){ msg.textContent="Não deu certo: "+erroTexto((r&&r.erro)||"REDE"); bt.disabled=false; return; }
+      total+=r.preenchidas||0;
+      msg.textContent="Preenchendo… "+total+" obra(s)";
+    }while(!r.terminou && ++voltas<10);
+
+    let txt=total+" obra(s) preenchida(s).";
+    if(r.divergentes && r.divergentes.length){
+      txt+=" "+r.divergentes.length+" com valor diferente do automático (não mexi) — confira: "+
+           r.divergentes.slice(0,3).map(d=>d.obra).join(", ")+
+           (r.divergentes.length>3?"…":"");
+    }
+    msg.textContent=txt;
+    toast(total?("Preenchido ✓ "+total+" obra(s)"):"Nada a preencher.");
+    /* Os valores novos não estão no dist/ ainda (ele só muda no próximo
+       build). Recarrega os protegidos pelo Apps Script, que já lê ao vivo. */
+    if(total){ SENS_CARREGADO=false; carregarSensiveisDosAlertas(); }
+  }catch(e){ msg.textContent="Falhou: "+String(e).slice(0,120); }
+  bt.disabled=false;
+}
+
 function renderAlertas(){
   const box=document.getElementById("al-lista");
   if(!CARREGOU){ box.innerHTML='<div class="vazio"><span class="load"></span> Carregando…</div>'; return; }
   const linhas=alertasDoSetor(SETOR_ATUAL);
   carregarSensiveisDosAlertas();   // assíncrono: não segura o desenho
+  const acoes=document.getElementById("al-acoes");
+  if(acoes) acoes.style.display = SO_LEITURA ? "none" : "block";
 
   // não fecha o grupo que a pessoa já tinha aberto (data-chave sobrevive ao rebuild)
   const abertos=new Set([...box.querySelectorAll("details.grupo[open]")].map(d=>d.dataset.chave));
