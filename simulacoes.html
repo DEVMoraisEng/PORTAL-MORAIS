@@ -146,6 +146,11 @@ th.col-num{text-align:right}
 .pill.pos{background:rgba(192,57,43,.14);color:var(--vermelho)}
 .pill.neg{background:rgba(26,107,64,.14);color:var(--verde-esc)}
 .pill.zero{background:rgba(90,128,153,.15);color:var(--text3)}
+/* r38 — verde = bom, vermelho = atenção (pos/neg são convenção financeira) */
+.pill.bom{background:rgba(26,107,64,.16);color:var(--verde-esc)}
+.pill.ruim{background:rgba(192,57,43,.16);color:var(--vermelho)}
+html[data-tema="escuro"] .pill.bom{background:rgba(140,224,165,.16);color:#8ce0a5}
+html[data-tema="escuro"] .pill.ruim{background:rgba(243,162,154,.16);color:#f3a29a}
 html[data-tema="escuro"] .pill.pos{background:rgba(243,162,154,.16);color:#f3a29a}
 html[data-tema="escuro"] .pill.neg{background:rgba(140,224,165,.16);color:#8ce0a5}
 /* Curva ABC: A = concentra o dinheiro (vermelho, atenção), B = intermediário
@@ -1241,8 +1246,8 @@ function propRender(){
       <td>${esc(p.cliente||"—")}</td><td class="col-un">${esc(p.cpf||"—")}</td>
       <td>${esc(p.vendedor||"—")}</td><td>${esc(p.imobiliaria||"—")}</td>
       <td>${p.comCredito
-            ? '<span class="pill pos">APROVADO</span>'
-            : '<span class="pill zero">SEM CARTA</span>'}</td>
+            ? '<span class="pill bom">APROVADO</span>'
+            : '<span class="pill ruim">SEM CARTA</span>'}</td>
       <td class="num">${p.creditoAprovado?simBRL(p.creditoAprovado):"—"}</td>
       <td class="num">${p.valorEntrada?simBRL(p.valorEntrada):"—"}</td>
       <td class="num">${p.rendaTotal?simBRL(p.rendaTotal):"—"}</td>
@@ -1291,8 +1296,8 @@ function propPillSinais(p){
   const sn=p.sinais||{};
   if(!sn.sinaisTotal) return '<span style="color:var(--text4)">—</span>';
   return sn.falta>0.005
-    ? `<span class="pill neg" title="Os R$ 10.000 do valor para entrada não cobrem o sinal">falta ${simBRL(sn.falta)}</span>`
-    : '<span class="pill pos">coberto</span>';
+    ? `<span class="pill ruim" title="Os R$ 10.000 do valor para entrada não cobrem o sinal">falta ${simBRL(sn.falta)}</span>`
+    : '<span class="pill bom">coberto</span>';
 }
 
 /* ITENS 8 e 15 — fluxo agrupado e o quadro dos sinais em destaque. */
