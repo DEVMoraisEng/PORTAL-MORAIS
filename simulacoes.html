@@ -1350,6 +1350,9 @@ function propQuadroFluxo(p){
         <b>${falta?simBRL(sn.falta):simBRL(sn.cobertos)}</b></div>
       ${sn.excedente>0.005?`<div><small>Excedente abatido da entrada</small><b>${simBRL(sn.excedente)}</b></div>`:""}
     </div>
+    ${sn.devolucao>0.005?`<div class="prop-ab no" style="color:#7A4A16;background:#FBEEC8;border:1px solid #EFB700;border-radius:6px;padding:7px 10px;margin-top:8px">
+      O sinal de R$ 10.000,00 é mantido: FGTS e subsídio cobririam a entrada abaixo desse valor.
+      A diferença de ${simBRL(sn.devolucao)} será devolvida ao cliente no ato da assinatura do contrato com o banco.</div>`:""}
     <div class="prop-dest-nota">${falta
       ? "A entrada desta unidade está <b>acima do padrão</b>: as parcelas do sinal de 30/60/90 dias subiram e os R$ 10.000 do valor para entrada não cobrem tudo. Avalie antes de aceitar."
       : "Os R$ 10.000 do valor para entrada são o valor do sinal (R$ 1.000 no ato + 3 × R$ 3.000)."}
