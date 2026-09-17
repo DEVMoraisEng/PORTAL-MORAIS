@@ -97,6 +97,39 @@ function podeAcessar(s, chave){
   if(!s) return false;
   return TIPOS_VEEM_TUDO.indexOf(tipoDe(s))>=0 || (s.acessos||[]).indexOf(chave)>=0;
 }
+/* ---------- ACESSO NOVO QUE NÃO CHEGAVA NA TELA (set/26) ----------
+ * A sessão gravada no navegador (tipo + ACESSOS) era escrita UMA VEZ, no
+ * login, e nunca mais. O servidor até relia os acessos frescos do Notion a
+ * cada chamada (acessosFrescos_ no Code.gs), mas essa lista atualizada era
+ * jogada fora: quem desenha os botões do hub é o podeAcessar() aqui, que lê
+ * a cópia CONGELADA do localStorage.
+ *
+ * Resultado: marcar "RAS OBRAS" (ou qualquer acesso novo) na coluna ACESSOS
+ * do banco LOGINS não fazia efeito nenhum para quem já estava logado — e sem
+ * erro nenhum na tela, o que fazia parecer erro no nome da opção. O botão só
+ * aparecia depois de SAIR e ENTRAR de novo, ou quando o token expirava.
+ *
+ * Esta função grava por cima o que o servidor acabou de dizer na ação "me".
+ * Mantém o token (o servidor não devolve um novo) e grava no MESMO lugar em
+ * que a sessão já estava — localStorage se a pessoa marcou "manter conectado",
+ * sessionStorage se não. `alvo` é o objeto que a tela guardou em memória
+ * (o S das páginas): sem ele, a gravação só valeria no próximo F5.
+ * Devolve true quando tipo ou acessos realmente mudaram — é o sinal para a
+ * tela se repintar. */
+function atualizarSessaoLocal(nova, alvo){
+  if(!nova) return false;
+  const atual = sessao();
+  if(!atual || !atual.token) return false;
+  const antes  = JSON.stringify([String(atual.tipo||""), (atual.acessos||[]).slice().sort()]);
+  const depois = JSON.stringify([String(nova.tipo ||""), (nova.acessos ||[]).slice().sort()]);
+  if(antes === depois) return false;
+  const merge = Object.assign({}, atual, nova, { token: atual.token });
+  const onde = localStorage.getItem(KEY) ? localStorage : sessionStorage;
+  try{ onde.setItem(KEY, JSON.stringify(merge)); }catch(e){ /* cheio: segue com a cópia em memória */ }
+  if(alvo) Object.assign(alvo, merge);
+  return true;
+}
+
 /* Perfil que só olha. Usado pelas telas pra mostrar a tarja de aviso e para
    dar uma mensagem clara em vez de deixar o usuário achando que salvou. */
 function ehSomenteLeitura(s){ return tipoDe(s)==="TESTES"; }

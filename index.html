@@ -280,7 +280,7 @@ html[data-tema="escuro"] .logo{background:#fff}
     </main>
   </div>
 
-<script src="app.js?v=30"></script>
+<script src="app.js?v=31"></script>
 <script src="alertas-docs.js?v=1"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele */
@@ -626,7 +626,24 @@ function boot(){
   // 3) validação da sessão em segundo plano. O redirecionamento do login virou
   //    otimista (entra na hora); quem confere o token de verdade é o Apps
   //    Script — aqui e em toda escrita. Token velho/revogado cai pra fora.
-  ler({action:"me"}).then(r=>{ if(r && r.ok===false && r.erro==="NAO_AUTORIZADO") sair(); }).catch(()=>{});
+  //    De quebra, é AQUI que o hub descobre acesso novo: a resposta do "me"
+  //    traz tipo/ACESSOS relidos do Notion. Antes essa lista era descartada e
+  //    os botões continuavam saindo da cópia do login — marcar "RAS OBRAS" na
+  //    coluna ACESSOS não aparecia para quem já estava logado, e sem erro
+  //    nenhum na tela (parecia nome errado da opção). Ver atualizarSessaoLocal
+  //    no app.js. Se algo mudou, repinta o cabeçalho, os botões e os
+  //    contadores — renderCards refaz o HTML e zera os numerinhos.
+  ler({action:"me"}).then(r=>{
+    if(r && r.ok===false && r.erro==="NAO_AUTORIZADO"){ sair(); return; }
+    if(r && r.ok && r.sessao && atualizarSessaoLocal(r.sessao, S)){
+      pintarUsuario(S);
+      renderCards(S);
+      if(podeAcessar(S,"VENDAS")){
+        ler({action:"atividades"},"atividades").then(pintarAtividades).catch(()=>{});
+      }
+      contadoresDosSetores();
+    }
+  }).catch(()=>{});
 }
 function pintarAtividades(r){ const el=document.getElementById("cnt-VENDAS"); if(el&&r&&r.ok)el.textContent=r.total; }
 

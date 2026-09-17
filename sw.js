@@ -89,7 +89,14 @@
    de preencher deixou de sumir da lista de alertas na hora — agora fica
    visível (confirmado ✓) até o próximo carregamento real dos dados, e os
    grupos abertos não fecham mais sozinhos a cada repintura. */
-const CACHE = "portal-morais-v30";  // documentos: referência corrigida + campo preenchido não some mais
+/* v30 -> v31: app.js e index.html — acesso liberado na coluna ACESSOS do
+   Notion (o caso foi a "RAS OBRAS") não aparecia para quem já estava logado,
+   porque a lista de acessos do navegador era a do dia do login e nunca mais
+   era atualizada. Agora a resposta do "me" regrava tipo/acessos e o hub
+   repinta os botões sozinho. Sem trocar este número, o service worker
+   continuaria entregando o app.js ANTIGO do cache — e nem Ctrl+F5 derruba
+   isso de forma confiável. */
+const CACHE = "portal-morais-v31";  // acesso novo (RAS OBRAS etc.) passa a aparecer sem sair e entrar
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./documentos.html","./demandas.html",
