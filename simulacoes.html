@@ -368,7 +368,10 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
             <div class="fcampo"><label>Buscar</label>
               <input type="search" id="sim-busca" placeholder="Cliente, CPF ou corretor…" oninput="simRenderRecebidas()"></div>
             <button class="bt ghost" onclick="simCarregar(true)" title="Ignora o cache e busca no Notion agora">↻ Atualizar agora</button>
+            <button class="bt az" id="sim-btRefazerErros" onclick="simRefazerErros()"
+                    title="Devolve para a fila TODAS as simulações com erro">↻ Rodar de novo as com erro <span id="sim-qtdErros"></span></button>
           </div>
+          <div id="sim-avisoErros" class="sim-aviso" style="margin:0 0 10px"></div>
           <div class="tbl-wrap alta"><table id="sim-tabRec"></table></div>
         </div>
       </section>
@@ -684,10 +687,17 @@ function sortSim(col){
 function simValorOrd(s,col){
   if(col==="criadoEm") return new Date(s.criadoEm||0).getTime()||0;
   if(col==="unidade") return parseInt(String(s.unidade).replace(/\D/g,""),10)||0;
-  if(["renda","financiado","entrada","parcela"].includes(col)) return Number(s[col])||0;
+  if(["renda","financiado","entradaInformada","entrada","parcela"].includes(col)) return Number(s[col])||0;
   return String(s[col]||"").toLowerCase();
 }
 function simRenderRecebidas(){
+  /* contador do botão "rodar de novo as com erro" */
+  const nErro=SIMS.filter(s=>simSt(s)==="ERRO").length;
+  const btE=document.getElementById("sim-btRefazerErros");
+  if(btE){
+    btE.style.display = (nErro && !ehSomenteLeitura(S)) ? "" : "none";
+    document.getElementById("sim-qtdErros").textContent = nErro ? "("+nErro+")" : "";
+  }
   const termo=(document.getElementById("sim-busca").value||"").toLowerCase();
   let vis=SIMS.filter(s=>{
     const alvo=`${s.cliente||""} ${s.cpf||""} ${s.corretor||""} ${s.imobiliaria||""}`.toLowerCase();
@@ -718,6 +728,7 @@ function simRenderRecebidas(){
     <td>Un. ${esc(String(s.unidade||"—"))} <span style="color:var(--text3)">(T${esc(String(s.tipo||"—"))})</span></td>
     <td class="num">${s.renda?simBRL(s.renda):"—"}</td>
     <td class="num">${s.financiado?simBRL(s.financiado):"—"}</td>
+    <td class="num">${s.entradaInformada?simBRL(s.entradaInformada):"—"}</td>
     <td class="num">${s.entrada?simBRL(s.entrada):"—"}</td>
     <td class="num">${s.parcela?simBRL(s.parcela):"—"}</td>
     <td>${simData(s.criadoEm)}</td>
@@ -815,6 +826,34 @@ async function simRefazer(id){
     simCarregar(true);
     setTimeout(simFecharDet,1500);
   } else { av.className="sim-aviso err"; av.textContent=simErroAmigavel(r&&r.erro); }
+}
+
+/* r34 — devolve para a fila TODAS as simulações com erro, uma por vez (o
+   Apps Script faz uma ida ao Notion por simulação). O worker pega no
+   próximo ciclo; cada uma volta com o contador de tentativas zerado. */
+async function simRefazerErros(){
+  const erros=SIMS.filter(s=>simSt(s)==="ERRO");
+  const av=document.getElementById("sim-avisoErros");
+  const bt=document.getElementById("sim-btRefazerErros");
+  if(!erros.length){ av.className="sim-aviso ok"; av.textContent="Nenhuma simulação com erro."; return; }
+  if(!confirm("Devolver "+erros.length+" simulação(ões) com erro para a fila?")) return;
+  bt.disabled=true;
+  let ok=0, falha=[];
+  for(let i=0;i<erros.length;i++){
+    const s=erros[i];
+    av.className="sim-aviso ok";
+    av.textContent="Devolvendo "+(i+1)+" de "+erros.length+"… ("+(s.cliente||"")+")";
+    try{
+      const r=await chamar({action:"simsRefazer", pageId:s.id}, 60000, true);
+      if(r && r.ok) ok++; else falha.push((s.cliente||s.id)+": "+simErroAmigavel(r&&r.erro));
+    }catch(e){ falha.push((s.cliente||s.id)+": sem resposta"); }
+  }
+  bt.disabled=false;
+  av.className = falha.length ? "sim-aviso err" : "sim-aviso ok";
+  av.innerHTML = "<b>"+ok+" de "+erros.length+" devolvida(s) para a fila.</b> O worker pega no próximo ciclo."+
+    (falha.length ? "<br>Não foram: "+falha.map(esc).join(" · ") : "");
+  storeInvalidar("sims_lista");
+  simCarregar(true);
 }
 
 /* ---------- unidades (sem mudanças de fundo — só o local do botão mudou) ---------- */
