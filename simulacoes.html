@@ -1187,10 +1187,10 @@ function propRender(){
   const cab='<thead><tr><th>Proposta</th><th>Unidade</th><th>Cliente</th><th>CPF</th>'+
             '<th>Corretor</th><th>Imobiliária</th><th>Crédito Caixa</th>'+
             '<th class="col-num">Valor</th><th class="col-num">Entrada</th>'+
-            '<th class="col-num">Renda</th><th>Criada</th><th>Status</th></tr></thead>';
+            '<th class="col-num">Renda</th><th>Sinais</th><th>Criada</th><th>Status</th></tr></thead>';
   if(!vis.length){
     document.getElementById("prop-tab").innerHTML=cab+
-      '<tbody><tr><td colspan="12" style="text-align:center;color:var(--text3);padding:22px">Nenhuma proposta encontrada.</td></tr></tbody>';
+      '<tbody><tr><td colspan="13" style="text-align:center;color:var(--text3);padding:22px">Nenhuma proposta encontrada.</td></tr></tbody>';
     return;
   }
   const corpo=vis.map(p=>{
@@ -1207,6 +1207,7 @@ function propRender(){
       <td class="num">${p.creditoAprovado?simBRL(p.creditoAprovado):"—"}</td>
       <td class="num">${p.valorEntrada?simBRL(p.valorEntrada):"—"}</td>
       <td class="num">${p.rendaTotal?simBRL(p.rendaTotal):"—"}</td>
+      <td>${propPillSinais(p)}</td>
       <td>${simData(p.criadoEm)}</td>
       <td>${propTag(p.status)}${venc?' <span style="color:#C0392B;font-weight:700">+24h</span>':''}</td></tr>`;
   }).join("");
@@ -1246,31 +1247,74 @@ function propRank(idAlvo, campo){
 }
 
 /* ---------- detalhe: decisão + e-mail (item 6) ---------- */
+/* ITEM 15 — pílula da lista: o crivo de aceite à vista sem abrir a proposta */
+function propPillSinais(p){
+  const sn=p.sinais||{};
+  if(!sn.sinaisTotal) return '<span style="color:var(--text4)">—</span>';
+  return sn.falta>0.005
+    ? `<span class="pill neg" title="Os R$ 10.000 do valor para entrada não cobrem os sinais">falta ${simBRL(sn.falta)}</span>`
+    : '<span class="pill pos">cobertos</span>';
+}
+
+/* ITENS 8 e 15 — fluxo agrupado e o quadro dos sinais em destaque. */
+function propQuadroFluxo(p){
+  const sn=p.sinais||{};
+  const fluxo=propParseEsquema(p.esquema);
+  if(!fluxo.length && !sn.sinaisTotal) return "";
+  const falta=(sn.falta||0)>0.005;
+  const ROT={sinal:"Sinais — pagos com o valor para entrada", obra:"Parcelas durante a obra",
+             balao:"Balões", pos:"Pós-chaves", outro:""};
+  let ultimo="";
+  const linhas=fluxo.map(f=>{
+    let cab="";
+    if(f.grupo!==ultimo && ROT[f.grupo]) cab=`<tr><td colspan="3" class="prop-grp">${ROT[f.grupo]}</td></tr>`;
+    ultimo=f.grupo;
+    const tag=f.grupo==="obra"?' <span class="prop-tag-obra">DURANTE A OBRA</span>':"";
+    return cab+`<tr><td>${esc(f.quando)}</td><td class="num">${esc(f.valor)}</td><td style="color:var(--text3)">${esc(f.forma)}${tag}</td></tr>`;
+  }).join("");
+  return `
+  <div class="prop-destaque ${falta?"ruim":"bom"}">
+    <div class="prop-dest-tit">${falta?"⚠ ":"✓ "}Fluxo de pagamento — sinais × valor para entrada</div>
+    <div class="prop-dest-grade">
+      <div><small>Entrada total</small><b>${simBRL(sn.entradaTotal)}</b></div>
+      <div><small>Sinais (ato + 30/60/90)</small><b>${simBRL(sn.sinaisTotal)}</b></div>
+      <div><small>Valor para entrada → sinais</small><b>${simBRL(sn.paraSinais)}</b></div>
+      <div class="${falta?"k-ruim":"k-bom"}"><small>${falta?"Falta pagar dos sinais":"Sinais cobertos"}</small>
+        <b>${falta?simBRL(sn.falta):simBRL(sn.cobertos)}</b></div>
+      ${sn.excedente>0.005?`<div><small>Excedente abatido da entrada</small><b>${simBRL(sn.excedente)}</b></div>`:""}
+    </div>
+    <div class="prop-dest-nota">${falta
+      ? "A entrada desta unidade está <b>acima do padrão</b>: os sinais de 30/60/90 dias subiram e os R$ 10.000 do valor para entrada não cobrem tudo. Avalie antes de aceitar."
+      : "Os R$ 10.000 do valor para entrada pagam os sinais (R$ 1.000 no ato + 3 × R$ 3.000) e não abatem a entrada. Só o excedente abate."}
+      ${sn.calculado===false?'<br><i>Proposta antiga: conta refeita a partir do fluxo gravado.</i>':""}</div>
+    ${fluxo.length?`<div class="tbl-wrap" style="margin-top:8px;max-height:none"><table><tbody>
+      <tr class="sim-tot"><td colspan="2">ENTRADA TOTAL A PAGAR</td><td class="num">${simBRL(sn.entradaTotal)}</td></tr>
+      ${linhas}</tbody></table></div>`:""}
+  </div>`;
+}
+
+/* ---------- detalhe: decisão + e-mail (item 6) ---------- */
 function propVer(id){
   const p=PROPS.find(x=>x.id===id); if(!p) return;
   const it=(r,v)=>`<div class="sim-item"><small>${r}</small><b>${v||"—"}</b></div>`;
   const podeGravar=!ehSomenteLeitura(S);
   const h=propHorasReservada(p);
-  const fluxo=propParseEsquema(p.esquema);
-  const tabFluxo = fluxo.length ? `
-    <div style="margin-top:14px"><b style="font-size:13px;color:var(--azul)">Entrada — fluxo de pagamento</b>
-      <div class="tbl-wrap" style="margin-top:6px;max-height:none"><table><tbody>
-        ${fluxo.map(f=>`<tr><td>${esc(f.quando)}</td><td class="num">${esc(f.valor)}</td><td style="color:var(--text3)">${esc(f.forma)}</td></tr>`).join("")}
-      </tbody></table></div></div>` : "";
+  propEstiloEditor();
 
   document.getElementById("sim-modalCx").innerHTML=`
     <div class="modal-tit">${esc(p.cliente||"—")} · Un. ${esc(String(p.unidade||"—"))}</div>
     <div class="modal-sub">${esc(p.proposta||"")} · CPF ${esc(p.cpf||"—")} · ${simData(p.criadoEm)} · ${propTag(p.status)}
       ${h!==null?` · reservada há ${Math.floor(h)} h`:""}</div>
-    <div class="sim-grade">
+    ${propQuadroFluxo(p)}
+    <div class="sim-grade" style="margin-top:14px">
       ${it("Corretor",esc(p.vendedor||""))}${it("CRECI",esc(p.creci||""))}${it("Imobiliária",esc(p.imobiliaria||""))}
       ${it("E-mail",esc(p.email||""))}
       ${it("Preço da unidade",simBRL(p.preco))}${it("Crédito aprovado",simBRL(p.creditoAprovado))}
-      ${it("Renda total",simBRL(p.rendaTotal))}${it("FGTS",simBRL(p.fgts))}
-      ${it("Subsídio",simBRL(p.subsidio))}${it("Valor para entrada",simBRL(p.valorEntrada))}
+      ${it("Valor financiado",simBRL(p.valorFinanciado))}${it("Parcela",p.parcelaFinanciamento?simBRL(p.parcelaFinanciamento):"não apurada")}
+      ${it("Renda aprovada",simBRL(p.rendaAprovada))}${it("Renda total",simBRL(p.rendaTotal))}
+      ${it("FGTS",simBRL(p.fgts))}${it("Subsídio",simBRL(p.subsidio))}${it("Valor para entrada",simBRL(p.valorEntrada))}
       ${it("Observações",esc(p.observacoes||""))}
     </div>
-    ${tabFluxo}
 
     <div id="prop-detalhe" style="margin-top:16px">
       <div class="sim-aviso ok">Carregando anexos e pendências…</div>
@@ -1300,13 +1344,54 @@ function propVer(id){
         na coluna PDF do Notion.
       </div>
     </div>
-    <div style="margin-top:16px"><b style="font-size:13px;color:var(--azul)">Enviar e-mail para ${esc(p.email||"—")}</b>
-      <textarea id="prop-msg" rows="4" style="width:100%;margin-top:6px;padding:9px;border:1px solid var(--linha);border-radius:6px;font-family:inherit;font-size:13px" placeholder="Escreva a mensagem…"></textarea>
-      <button class="bt az" style="margin-top:6px" onclick="propEmail('${p.id}')">Enviar e-mail</button>
+
+    <!-- ITEM 5 — quadro do e-mail: assunto, barra de formatação (negrito,
+         itálico, sublinhado, tópicos, lista numerada, cor, link), área de
+         texto com moldura e anexos. -->
+    <div class="prop-email">
+      <div class="prop-email-tit">✉ Enviar e-mail para ${esc(p.email||"—")}
+        <span>cópia para vendasreservadosipes@gmail.com</span></div>
+      <label class="prop-rot">Assunto</label>
+      <input id="prop-assunto" class="prop-inp" type="text"
+             value="${esc("Proposta "+(p.proposta||"")+" - Reserva do Ipês")}">
+      <label class="prop-rot">Mensagem</label>
+      <div class="prop-barra">
+        <button type="button" title="Negrito (Ctrl+B)" onmousedown="event.preventDefault()" onclick="propFmt('bold')"><b>B</b></button>
+        <button type="button" title="Itálico (Ctrl+I)" onmousedown="event.preventDefault()" onclick="propFmt('italic')"><i>I</i></button>
+        <button type="button" title="Sublinhado (Ctrl+U)" onmousedown="event.preventDefault()" onclick="propFmt('underline')"><u>U</u></button>
+        <span class="sep"></span>
+        <button type="button" title="Tópicos" onmousedown="event.preventDefault()" onclick="propFmt('insertUnorderedList')">• Tópicos</button>
+        <button type="button" title="Lista numerada" onmousedown="event.preventDefault()" onclick="propFmt('insertOrderedList')">1. Lista</button>
+        <span class="sep"></span>
+        <button type="button" title="Vermelho" onmousedown="event.preventDefault()" onclick="propCor('#C0392B')"><span style="color:#C0392B;font-weight:800">A</span></button>
+        <button type="button" title="Azul" onmousedown="event.preventDefault()" onclick="propCor('#1F6FB2')"><span style="color:#1F6FB2;font-weight:800">A</span></button>
+        <button type="button" title="Verde" onmousedown="event.preventDefault()" onclick="propCor('#1D7A45')"><span style="color:#1D7A45;font-weight:800">A</span></button>
+        <button type="button" title="Cor normal" onmousedown="event.preventDefault()" onclick="propCor('#2A2118')"><span style="font-weight:800">A</span></button>
+        <span class="sep"></span>
+        <button type="button" title="Inserir link" onmousedown="event.preventDefault()" onclick="propLink()">🔗 Link</button>
+        <button type="button" title="Limpar formatação" onmousedown="event.preventDefault()" onclick="propFmt('removeFormat')">⌫ Limpar</button>
+      </div>
+      <div id="prop-msg" class="prop-editor" contenteditable="true"
+           data-vazio="Escreva a mensagem…"></div>
+      <label class="prop-rot">Anexos</label>
+      <label class="prop-anexo-bt">📎 Escolher arquivos
+        <input id="prop-anexos" type="file" multiple onchange="propResumoAnexos()" style="display:none">
+      </label>
+      <span id="prop-anexoInfo" class="prop-anexo-info"></span>
+      <div style="margin-top:12px">
+        <button class="bt az" id="prop-btEmail" onclick="propEmail('${p.id}')">Enviar e-mail</button>
+      </div>
     </div>`:""}
     <div style="display:flex;gap:9px;margin-top:16px"><button class="bt" onclick="simFecharDet()">Fechar</button></div>
     <div id="prop-detAviso" class="sim-aviso" style="margin-top:10px"></div>`;
   document.getElementById("sim-modal").classList.remove("hide");
+  const ed=document.getElementById("prop-msg");
+  if(ed){
+    /* sem isto, alguns navegadores criam <div> soltos em vez de parágrafos
+       e o ":empty" do placeholder nunca volta a valer */
+    try{ document.execCommand("defaultParagraphSeparator",false,"p"); }catch(e){}
+    ed.addEventListener("input",()=>{ if(!ed.textContent.trim() && !ed.querySelector("li,img")) ed.innerHTML=""; });
+  }
   propCarregarDetalhe(p.id);
 }
 
@@ -1403,9 +1488,18 @@ async function propPdf(id){
 
 function propParseEsquema(txt){
   if(!txt) return [];
+  const norm=v=>String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
   return String(txt).split(";").map(p=>p.trim()).filter(Boolean).map(p=>{
     const m=p.match(/^(.*?):\s*(R\$\s?[\d.,]+)\s*\((.*)\)$/);
-    return m ? {quando:m[1].trim(), valor:m[2].trim(), forma:m[3].trim()} : {quando:p, valor:"", forma:""};
+    if(!m) return {quando:p, valor:"", forma:"", grupo:"outro"};
+    const bruta=m[3].trim(), n=norm(bruta);
+    let grupo="outro";
+    if(n.startsWith("SINAL")) grupo="sinal";
+    else if(n.includes("POS-CHAVES")||n.includes("POS CHAVES")) grupo="pos";
+    else if(n.startsWith("BALAO")) grupo="balao";
+    else if(n.startsWith("PARCELA")) grupo="obra";
+    const forma=bruta.replace(/\s*-\s*DURANTE A OBRA/i,"").replace(/\s*-\s*pago com o valor para entrada/i,"");
+    return {quando:m[1].trim(), valor:m[2].trim(), forma, grupo};
   });
 }
 async function propStatus(id, status){
@@ -1450,24 +1544,65 @@ async function propStatus(id, status){
 function propEstiloEditor(){
   if(document.getElementById("prop-css-editor")) return;
   const st=document.createElement("style"); st.id="prop-css-editor";
+  /* --linha e --text2 não existem neste arquivo: era por isso que a barra e
+     a moldura saíam sem borda. Agora usa --border e --text. */
   st.textContent=`
-    .prop-barra{display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-top:8px;
-      border:1px solid var(--linha);border-bottom:none;border-radius:6px 6px 0 0;
-      padding:5px 7px;background:var(--bg2);}
+    .prop-email{margin-top:18px;border:1.5px solid var(--border);border-radius:10px;
+      padding:14px 14px 16px;background:var(--bg2);}
+    .prop-email-tit{font-size:14px;font-weight:800;color:var(--azul-esc);display:flex;
+      flex-wrap:wrap;gap:6px 12px;align-items:baseline;}
+    html[data-tema="escuro"] .prop-email-tit{color:var(--teal);}
+    .prop-email-tit span{font-size:11px;font-weight:600;color:var(--text3);}
+    .prop-rot{display:block;font-size:11px;font-weight:700;color:var(--text3);
+      text-transform:uppercase;letter-spacing:.4px;margin:12px 0 4px;}
+    .prop-inp{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;
+      font:inherit;font-size:13px;background:var(--sup);color:var(--text);}
+    .prop-inp:focus{outline:none;border-color:var(--azul);box-shadow:0 0 0 3px rgba(41,87,120,.14);}
+    .prop-barra{display:flex;gap:3px;align-items:center;flex-wrap:wrap;
+      border:1px solid var(--border);border-bottom:none;border-radius:6px 6px 0 0;
+      padding:5px 7px;background:var(--bg3);}
     .prop-barra button{border:1px solid transparent;background:transparent;cursor:pointer;
-      border-radius:4px;padding:3px 7px;font-size:13px;color:var(--text2);line-height:1.2;}
-    .prop-barra button:hover{background:var(--bg3);border-color:var(--linha);}
-    .prop-barra .sep{width:1px;height:16px;background:var(--linha);margin:0 3px;}
-    .prop-editor{min-height:150px;max-height:320px;overflow:auto;border:1px solid var(--linha);
-      border-radius:0 0 6px 6px;padding:11px 12px;font-size:14px;line-height:1.6;
+      border-radius:4px;padding:4px 8px;font-size:13px;color:var(--text);line-height:1.2;}
+    .prop-barra button:hover{background:var(--sup);border-color:var(--border);}
+    .prop-barra .sep{width:1px;height:18px;background:var(--border);margin:0 4px;}
+    .prop-editor{min-height:170px;max-height:340px;overflow:auto;border:1px solid var(--border);
+      border-radius:0 0 6px 6px;padding:11px 13px;font-size:14px;line-height:1.6;
       background:#fff;color:#2A2118;outline:none;}
-    .prop-editor:focus{border-color:var(--azul);box-shadow:0 0 0 3px rgba(31,111,178,.12);}
+    .prop-editor:focus{border-color:var(--azul);box-shadow:0 0 0 3px rgba(41,87,120,.14);}
     .prop-editor:empty:before{content:attr(data-vazio);color:#9aa8b2;}
-    .prop-editor ul,.prop-editor ol{margin:6px 0 6px 22px;}`;
+    .prop-editor p{margin:0 0 6px;}
+    .prop-editor ul,.prop-editor ol{margin:6px 0 6px 22px;padding:0;}
+    .prop-anexo-bt{display:inline-flex;align-items:center;gap:6px;cursor:pointer;border:1px dashed var(--border);
+      border-radius:6px;padding:7px 12px;font-size:13px;font-weight:700;color:var(--azul);background:var(--sup);}
+    .prop-anexo-bt:hover{border-color:var(--azul);}
+    .prop-anexo-info{display:block;font-size:12px;color:var(--text3);margin-top:6px;}
+    .prop-anexo-info .arq{display:inline-block;background:var(--bg3);border-radius:12px;padding:2px 9px;margin:3px 4px 0 0;}
+    .prop-destaque{margin-top:14px;border:2px solid var(--amarelo);border-radius:10px;padding:12px 14px;background:#FFFBEF;}
+    .prop-destaque.ruim{border-color:var(--vermelho);background:#FDF1EF;}
+    html[data-tema="escuro"] .prop-destaque{background:var(--bg2);}
+    .prop-dest-tit{font-size:14px;font-weight:800;color:#7A4A16;}
+    .prop-destaque.ruim .prop-dest-tit{color:var(--vermelho);}
+    .prop-dest-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px;}
+    .prop-dest-grade>div{background:var(--sup);border:1px solid var(--border2);border-radius:8px;padding:7px 10px;}
+    .prop-dest-grade small{display:block;font-size:11px;color:var(--text3);}
+    .prop-dest-grade b{font-size:15px;}
+    .prop-dest-grade .k-ruim{border-color:var(--vermelho);background:#FBE3DF;}
+    .prop-dest-grade .k-ruim b,.prop-dest-grade .k-ruim small{color:#8A2E17;}
+    .prop-dest-grade .k-bom{border-color:var(--verde);background:#E5F5EC;}
+    .prop-dest-grade .k-bom b,.prop-dest-grade .k-bom small{color:#1a6b40;}
+    .prop-dest-nota{font-size:12px;color:var(--text3);margin-top:8px;line-height:1.5;}
+    .prop-grp{background:var(--bg3)!important;color:var(--azul-esc);font-weight:800;font-size:11px;
+      text-transform:uppercase;letter-spacing:.4px;}
+    .prop-tag-obra{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;background:#1F6FB2;
+      color:#fff;font-size:10px;font-weight:800;}`;
   document.head.appendChild(st);
 }
 function propFmt(cmd){ document.getElementById("prop-msg").focus(); document.execCommand(cmd,false,null); }
-function propCor(c){ document.getElementById("prop-msg").focus(); document.execCommand("foreColor",false,c); }
+function propCor(c){
+  document.getElementById("prop-msg").focus();
+  try{ document.execCommand("styleWithCSS",false,true); }catch(e){}
+  document.execCommand("foreColor",false,c);
+}
 function propLink(){
   const u=prompt("Endereço do link (https://…)");
   if(!u) return;
@@ -1481,7 +1616,8 @@ function propResumoAnexos(){
   if(!arqs.length){ info.textContent=""; return; }
   const total=arqs.reduce((a,f)=>a+f.size,0);
   const mb=(total/1048576).toFixed(1);
-  info.innerHTML=arqs.length+" arquivo(s) · "+mb+" MB"+
+  info.innerHTML=arqs.map(f=>`<span class="arq">📄 ${esc(f.name)}</span>`).join("")+
+    "<br>"+arqs.length+" arquivo(s) · "+mb+" MB"+
     (total>20*1048576 ? ' <b style="color:#C0392B">— acima do limite de 20 MB</b>' : "");
 }
 function propLerBase64(f){
@@ -1504,12 +1640,27 @@ async function propConferirStatus(id, status){
   }catch(e){ return null; }
 }
 
+/* ITEM 5 — O ERRO DO ENVIO.
+   A tela desenhava um <textarea id="prop-msg">, mas o envio lia
+   innerHTML/innerText, que no textarea ficam vazios mesmo com texto
+   digitado — por isso "Escreva a mensagem…" aparecia com "OI" escrito. E
+   os campos prop-assunto e prop-anexos nem existiam, o que derrubava a
+   função. Agora o campo é um editor de verdade (contenteditable) e a
+   leitura aceita os dois formatos, por garantia. */
 async function propEmail(id){
   const av=document.getElementById("prop-detAviso");
   const ed=document.getElementById("prop-msg");
-  const html=(ed.innerHTML||"").trim();
-  const texto=(ed.innerText||"").trim();
+  if(!ed){ av.className="sim-aviso err"; av.textContent="Editor do e-mail não encontrado. Feche e abra a proposta."; return; }
+  let html, texto;
+  if(ed.tagName==="TEXTAREA"){
+    texto=(ed.value||"").trim();
+    html=texto ? '<div style="white-space:pre-wrap">'+esc(texto)+'</div>' : "";
+  }else{
+    html=(ed.innerHTML||"").trim();
+    texto=(ed.innerText||ed.textContent||"").trim();
+  }
   const arqs=[...((document.getElementById("prop-anexos")||{}).files||[])];
+  const bt=document.getElementById("prop-btEmail");
   if(!texto && !arqs.length){
     av.className="sim-aviso err"; av.textContent="Escreva a mensagem (ou anexe um arquivo) antes de enviar."; return;
   }
@@ -1518,26 +1669,32 @@ async function propEmail(id){
     av.className="sim-aviso err"; av.textContent="Os anexos passam de 20 MB. Tire algum arquivo."; return;
   }
   av.className="sim-aviso ok"; av.textContent=arqs.length?"Preparando anexos…":"Enviando…";
+  if(bt) bt.disabled=true;
   let anexos=[];
   try{
     anexos=await Promise.all(arqs.map(async f=>({
       nome:f.name, tipo:f.type||"application/octet-stream", base64:await propLerBase64(f)
     })));
-  }catch(e){ av.className="sim-aviso err"; av.textContent="Não consegui ler os anexos."; return; }
+  }catch(e){ if(bt) bt.disabled=false; av.className="sim-aviso err"; av.textContent="Não consegui ler os anexos."; return; }
 
   av.textContent="Enviando…";
+  const cxAssunto=document.getElementById("prop-assunto");
   let r;
   try{
-    r=await chamar({action:"simsPropostaEmail", pageId:id, mensagemHtml:html,
-                    assunto:(document.getElementById("prop-assunto").value||"").trim(),
+    r=await chamar({action:"simsPropostaEmail", pageId:id,
+                    mensagemHtml:html, mensagem:texto,
+                    assunto:((cxAssunto&&cxAssunto.value)||"").trim(),
                     anexos:anexos}, 90000, true);
   }
-  catch(e){ av.className="sim-aviso err"; av.textContent="Não deu para confirmar o envio. Confira a caixa de saída antes de repetir."; return; }
+  catch(e){ if(bt) bt.disabled=false; av.className="sim-aviso err"; av.textContent="Não deu para confirmar o envio. Confira a caixa de saída antes de repetir."; return; }
+  if(bt) bt.disabled=false;
   if(r && r.ok){
     av.className="sim-aviso ok";
     av.textContent="E-mail enviado para "+r.enviadoPara+
       (r.anexos?" com "+r.anexos+" anexo(s)":"")+" (com cópia para vendasreservadosipes@gmail.com).";
-    ed.innerHTML="";
+    if(ed.tagName==="TEXTAREA") ed.value=""; else ed.innerHTML="";
+    const inpA=document.getElementById("prop-anexos"); if(inpA) inpA.value="";
+    propResumoAnexos();
   }
   else if(r && r.erro==="SEM_PERMISSAO_EMAIL"){
     av.className="sim-aviso err";
