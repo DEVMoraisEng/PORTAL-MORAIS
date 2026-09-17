@@ -1226,7 +1226,7 @@ function propRender(){
   const cab='<thead><tr><th>Proposta</th><th>Unidade</th><th>Cliente</th><th>CPF</th>'+
             '<th>Corretor</th><th>Imobiliária</th><th>Crédito Caixa</th>'+
             '<th class="col-num">Valor</th><th class="col-num">Entrada</th>'+
-            '<th class="col-num">Renda</th><th>Sinais</th><th>Criada</th><th>Status</th></tr></thead>';
+            '<th class="col-num">Renda</th><th>Sinal</th><th>Criada</th><th>Status</th></tr></thead>';
   if(!vis.length){
     document.getElementById("prop-tab").innerHTML=cab+
       '<tbody><tr><td colspan="13" style="text-align:center;color:var(--text3);padding:22px">Nenhuma proposta encontrada.</td></tr></tbody>';
@@ -1291,8 +1291,8 @@ function propPillSinais(p){
   const sn=p.sinais||{};
   if(!sn.sinaisTotal) return '<span style="color:var(--text4)">—</span>';
   return sn.falta>0.005
-    ? `<span class="pill neg" title="Os R$ 10.000 do valor para entrada não cobrem os sinais">falta ${simBRL(sn.falta)}</span>`
-    : '<span class="pill pos">cobertos</span>';
+    ? `<span class="pill neg" title="Os R$ 10.000 do valor para entrada não cobrem o sinal">falta ${simBRL(sn.falta)}</span>`
+    : '<span class="pill pos">coberto</span>';
 }
 
 /* ITENS 8 e 15 — fluxo agrupado e o quadro dos sinais em destaque. */
@@ -1301,30 +1301,57 @@ function propQuadroFluxo(p){
   const fluxo=propParseEsquema(p.esquema);
   if(!fluxo.length && !sn.sinaisTotal) return "";
   const falta=(sn.falta||0)>0.005;
-  const ROT={sinal:"Sinais — pagos com o valor para entrada", obra:"Parcelas durante a obra",
+  const ROT={sinal:"Sinal — abatido pelo valor para entrada (ato → 30 → 60 → 90 dias)", obra:"Parcelas durante a obra",
              balao:"Balões", pos:"Pós-chaves — pós a obra", outro:""};
   let ultimo="";
-  const linhas=fluxo.map(f=>{
+  /* r36 — o valor para entrada abate o sinal na ordem ato → 30 → 60 → 90.
+     Cada linha mostra quanto abateu; o que faltar fica nas últimas. */
+  const numBR=v=>Number(String(v||"").replace(/[^\d,]/g,"").replace(",","."))||0;
+  let resto=Number(sn.paraSinais)||0, ultS=-1; const faltasS=[];
+  fluxo.forEach((f,i)=>{
+    if(f.grupo!=="sinal") return;
+    ultS=i;
+    const v=numBR(f.valor), ab=Math.min(v,Math.max(0,resto));
+    resto-=ab; f.abatido=ab; f.falta=Math.round((v-ab)*100)/100;
+    if(f.falta>0.005) faltasS.push(f.quando);
+  });
+  const linhas=fluxo.map((f,idx)=>{
     let cab="";
     if(f.grupo!==ultimo && ROT[f.grupo]) cab=`<tr><td colspan="3" class="prop-grp">${ROT[f.grupo]}</td></tr>`;
     ultimo=f.grupo;
     const tag=f.grupo==="obra"?' <span class="prop-tag-obra">DURANTE A OBRA</span>'
              :(f.grupo==="pos"?' <span class="prop-tag-obra" style="background:#5B4A8A">PÓS A OBRA</span>':"");
-    return cab+`<tr><td>${esc(f.quando)}</td><td class="num">${esc(f.valor)}</td><td style="color:var(--text3)">${esc(f.forma)}${tag}</td></tr>`;
+    let situ="", est="";
+    if(f.grupo==="sinal"){
+      if(f.falta<=0.005) situ='<div class="prop-ab ok">✓ abatido pelo valor para entrada</div>';
+      else {
+        est=' class="prop-lfalta"';
+        situ=f.abatido>0.005
+          ? `<div class="prop-ab no">⚠ abatido ${simBRL(f.abatido)} · FALTA ${simBRL(f.falta)}</div>`
+          : `<div class="prop-ab no">⚠ FALTA ${simBRL(f.falta)} — não coberto pelo valor para entrada</div>`;
+      }
+    }
+    let fecho="";
+    if(idx===ultS){
+      fecho = faltasS.length
+        ? `<tr class="prop-lfalta"><td colspan="3"><b>⚠ O valor para entrada (${simBRL(sn.paraSinais)}) não cobre o sinal inteiro (${simBRL(sn.sinaisTotal)}). Faltam ${simBRL(sn.falta)}, nas últimas parcelas do sinal: ${esc(faltasS.join(", "))}.</b></td></tr>`
+        : `<tr><td colspan="3"><div class="prop-ab ok">✓ O valor para entrada (${simBRL(sn.paraSinais)}) abate todo o sinal (${simBRL(sn.sinaisTotal)}).</div></td></tr>`;
+    }
+    return cab+`<tr${est}><td>${esc(f.quando)}</td><td class="num">${esc(f.valor)}</td><td style="color:var(--text3)">${esc(f.forma)}${tag}${situ}</td></tr>`+fecho;
   }).join("");
   return `
   <div class="prop-destaque ${falta?"ruim":"bom"}">
-    <div class="prop-dest-tit">${falta?"⚠ ":"✓ "}Fluxo de pagamento — sinais × valor para entrada</div>
+    <div class="prop-dest-tit">${falta?"⚠ ":"✓ "}Fluxo de pagamento — sinal × valor para entrada</div>
     <div class="prop-dest-grade">
       <div><small>Entrada total</small><b>${simBRL(sn.entradaTotal)}</b></div>
-      <div><small>Sinais (ato + 30/60/90)</small><b>${simBRL(sn.sinaisTotal)}</b></div>
-      <div><small>Valor para entrada → sinais</small><b>${simBRL(sn.paraSinais)}</b></div>
-      <div class="${falta?"k-ruim":"k-bom"}"><small>${falta?"Falta pagar dos sinais":"Sinais cobertos"}</small>
+      <div><small>Sinal (ato + 30/60/90)</small><b>${simBRL(sn.sinaisTotal)}</b></div>
+      <div><small>Valor para entrada → sinal</small><b>${simBRL(sn.paraSinais)}</b></div>
+      <div class="${falta?"k-ruim":"k-bom"}"><small>${falta?"Falta pagar do sinal":"Sinal coberto"}</small>
         <b>${falta?simBRL(sn.falta):simBRL(sn.cobertos)}</b></div>
       ${sn.excedente>0.005?`<div><small>Excedente abatido da entrada</small><b>${simBRL(sn.excedente)}</b></div>`:""}
     </div>
     <div class="prop-dest-nota">${falta
-      ? "A entrada desta unidade está <b>acima do padrão</b>: os sinais de 30/60/90 dias subiram e os R$ 10.000 do valor para entrada não cobrem tudo. Avalie antes de aceitar."
+      ? "A entrada desta unidade está <b>acima do padrão</b>: as parcelas do sinal de 30/60/90 dias subiram e os R$ 10.000 do valor para entrada não cobrem tudo. Avalie antes de aceitar."
       : "Os R$ 10.000 do valor para entrada são o valor do sinal (R$ 1.000 no ato + 3 × R$ 3.000)."}
       ${sn.calculado===false?'<br><i>Proposta antiga: fluxo lido da coluna do Notion.</i>':""}</div>
     ${fluxo.length?`<div class="tbl-wrap" style="margin-top:8px;max-height:none"><table><tbody>
@@ -1637,6 +1664,9 @@ function propEstiloEditor(){
     .prop-dest-nota{font-size:12px;color:var(--text3);margin-top:8px;line-height:1.5;}
     .prop-grp{background:var(--bg3)!important;color:var(--azul-esc);font-weight:800;font-size:11px;
       text-transform:uppercase;letter-spacing:.4px;}
+    .prop-ab{font-size:11.5px;font-weight:800;margin-top:2px;}
+    .prop-ab.ok{color:#1a6b40;} .prop-ab.no{color:#8A2E17;}
+    .prop-lfalta td{background:#FBE3DF!important;color:#8A2E17!important;}
     .prop-tag-obra{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;background:#1F6FB2;
       color:#fff;font-size:10px;font-weight:800;}`;
   document.head.appendChild(st);
