@@ -411,6 +411,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
               linha vermelha = reservada há mais de 24 h
             </span>
           </div>
+          <div style="font-size:12px;color:var(--text3);margin:0 0 6px" id="prop-origem"></div>
           <div id="prop-aviso" class="sim-aviso"></div>
           <div class="tbl-wrap alta"><table id="prop-tab"></table></div>
         </div>
@@ -488,7 +489,7 @@ function trocarTab(nome){
      DECIDE sobre proposta que já chegou. */
   ["painel","recebidas","propostas","unidades"].forEach(n=>document.getElementById("tab-"+n).classList.toggle("hide", n!==nome));
   if(nome==="unidades" && !UNS.length) simCarregarUnidades();
-  if(nome==="propostas" && !PROPS.length) propCarregar();
+  if(nome==="propostas") propCarregar();   // r40 — revalida toda vez (respeita o TTL)
 }
 
 /* ---------- boot ---------- */
@@ -551,8 +552,12 @@ async function simCarregar(forcar){
 }
 /* Botão do topo: força as duas fontes de uma vez (Notion ao vivo). */
 function simAtualizarTudo(){
+  /* r40 — o botão do topo não recarregava as PROPOSTAS: a aba ficava
+     mostrando o cache de até 5 minutos e parecia que o Notion não tinha
+     atualizado. Agora ele força as três listas. */
   simCarregar(true);
   simCarregarUnidades(true);
+  propCarregar(true);
 }
 
 /* O 404 do Notion tem uma causa só e uma solução só — mostrar o texto cru
@@ -1128,7 +1133,7 @@ let propFiltro = "";
 /* Filtro separado do de andamento: uma proposta pode ser RECEBIDA e ter
    carta, ou RECEBIDA e não ter. São dois eixos diferentes. */
 let propFiltroCredito = "";
-const PROP_TTL = 5*60*1000;
+const PROP_TTL = 60*1000;   // r40 — era 5 min; a aba parecia parada no tempo
 
 const PROP_NORM = t => String(t==null?"":t).normalize("NFD").replace(/[\u0300-\u036f]/g,"")
                         .toUpperCase().replace(/\s+/g," ").trim();
@@ -1175,6 +1180,17 @@ function propPintar(r){
   if(!r || !r.propostas) return;
   PROPS = r.propostas;
   propRender(); propKpis(); propRankings(); propAlerta24();
+  /* r40 — de onde veio a lista: Notion agora ou cache (com a hora), e qual
+     base foi lida. Se a base aqui não for a mesma do simulador, as propostas
+     novas nunca apareceriam — e não havia como perceber. */
+  const o=document.getElementById("prop-origem");
+  if(o){
+    const hora = t => new Date(t).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+    o.innerHTML = PROPS.length + " proposta(s) · " +
+      (r.doCache ? '<b style="color:var(--laranja)">do cache das ' + hora(r._ts) + '</b> — clique em ↻ Atualizar agora'
+                 : "lido do Notion às " + hora(r.lidoEm || Date.now())) +
+      (r.baseId ? ' · base ' + String(r.baseId).slice(-6) : "");
+  }
 }
 
 /* ---------- as 24 horas (item 9) ----------
