@@ -1263,13 +1263,14 @@ function propQuadroFluxo(p){
   if(!fluxo.length && !sn.sinaisTotal) return "";
   const falta=(sn.falta||0)>0.005;
   const ROT={sinal:"Sinais — pagos com o valor para entrada", obra:"Parcelas durante a obra",
-             balao:"Balões", pos:"Pós-chaves", outro:""};
+             balao:"Balões", pos:"Pós-chaves — pós a obra", outro:""};
   let ultimo="";
   const linhas=fluxo.map(f=>{
     let cab="";
     if(f.grupo!==ultimo && ROT[f.grupo]) cab=`<tr><td colspan="3" class="prop-grp">${ROT[f.grupo]}</td></tr>`;
     ultimo=f.grupo;
-    const tag=f.grupo==="obra"?' <span class="prop-tag-obra">DURANTE A OBRA</span>':"";
+    const tag=f.grupo==="obra"?' <span class="prop-tag-obra">DURANTE A OBRA</span>'
+             :(f.grupo==="pos"?' <span class="prop-tag-obra" style="background:#5B4A8A">PÓS A OBRA</span>':"");
     return cab+`<tr><td>${esc(f.quando)}</td><td class="num">${esc(f.valor)}</td><td style="color:var(--text3)">${esc(f.forma)}${tag}</td></tr>`;
   }).join("");
   return `
@@ -1285,8 +1286,8 @@ function propQuadroFluxo(p){
     </div>
     <div class="prop-dest-nota">${falta
       ? "A entrada desta unidade está <b>acima do padrão</b>: os sinais de 30/60/90 dias subiram e os R$ 10.000 do valor para entrada não cobrem tudo. Avalie antes de aceitar."
-      : "Os R$ 10.000 do valor para entrada pagam os sinais (R$ 1.000 no ato + 3 × R$ 3.000) e não abatem a entrada. Só o excedente abate."}
-      ${sn.calculado===false?'<br><i>Proposta antiga: conta refeita a partir do fluxo gravado.</i>':""}</div>
+      : "Os R$ 10.000 do valor para entrada são o valor do sinal (R$ 1.000 no ato + 3 × R$ 3.000)."}
+      ${sn.calculado===false?'<br><i>Proposta antiga: fluxo lido da coluna do Notion.</i>':""}</div>
     ${fluxo.length?`<div class="tbl-wrap" style="margin-top:8px;max-height:none"><table><tbody>
       <tr class="sim-tot"><td colspan="2">ENTRADA TOTAL A PAGAR</td><td class="num">${simBRL(sn.entradaTotal)}</td></tr>
       ${linhas}</tbody></table></div>`:""}
@@ -1498,8 +1499,12 @@ function propParseEsquema(txt){
     else if(n.includes("POS-CHAVES")||n.includes("POS CHAVES")) grupo="pos";
     else if(n.startsWith("BALAO")) grupo="balao";
     else if(n.startsWith("PARCELA")) grupo="obra";
-    const forma=bruta.replace(/\s*-\s*DURANTE A OBRA/i,"").replace(/\s*-\s*pago com o valor para entrada/i,"");
+    const forma=bruta.replace(/\s*-\s*DURANTE A OBRA/i,"").replace(/\s*-\s*P[OÓ]S A OBRA/i,"")
+                     .replace(/\s*-\s*pago com o valor para entrada/i,"");
     return {quando:m[1].trim(), valor:m[2].trim(), forma, grupo};
+  }).map((l,i)=>Object.assign(l,{i})).sort((a,b)=>{
+    const o={sinal:1,obra:2,balao:3,pos:4,outro:5};
+    return (o[a.grupo]-o[b.grupo])||(a.i-b.i);
   });
 }
 async function propStatus(id, status){
@@ -1699,7 +1704,7 @@ async function propEmail(id){
   else if(r && r.erro==="SEM_PERMISSAO_EMAIL"){
     av.className="sim-aviso err";
     av.innerHTML="<b>O Apps Script ainda não tem permissão para enviar e-mail.</b><br>"+
-      "Abra o projeto do Apps Script, selecione a função <code>autorizarEnvioDeEmail_</code> "+
+      "Abra o projeto do Apps Script, selecione a função <code>autorizarEnvioDeEmail</code> "+
       "na barra de cima e clique em <b>Executar</b>. O Google vai pedir a permissão — aceite. "+
       "Publicar nova versão não pede permissão nenhuma; quem pede é a execução no editor.";
   }
