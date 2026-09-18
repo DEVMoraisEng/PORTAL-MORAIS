@@ -97,6 +97,10 @@ html[data-tema="escuro"] .kpi .val{color:var(--teal)}
 .fluxo .dia b{font-size:11px;font-weight:800;color:var(--azul-esc);min-height:14px}
 .fluxo .dia i{display:block;width:100%;max-width:34px;border-radius:5px 5px 0 0;
   background:linear-gradient(180deg,var(--teal),var(--azul))}
+.hist-email summary{cursor:pointer;list-style:none}
+.hist-email .hist-msg{border-top:1px solid var(--border2);padding:9px 0;font-size:12.5px}
+.hist-email .hist-corpo{color:var(--text3);margin-top:4px;white-space:pre-wrap;line-height:1.5;
+  max-height:260px;overflow:auto}
 .an-det:empty{display:none}
 .an-det{margin-top:14px;border-top:1px solid var(--border2);padding-top:12px}
 .fluxo .dia span{font-size:10px;color:var(--text4);margin-top:4px;white-space:nowrap}
@@ -1325,7 +1329,13 @@ async function propGerarLink(id){
   let r;
   try{ r=await chamar({action:"simsPropostaLink", pageId:id}, 60000, true); }
   catch(e){ if(cx) cx.textContent="não consegui gerar agora."; return; }
-  if(!r || !r.ok){ if(cx) cx.innerHTML='<span style="color:var(--vermelho)">'+esc((r&&r.erro)||"falhou")+'</span>'; return; }
+  if(!r || !r.ok){
+    const erro=String((r&&r.erro)||"falhou");
+    if(cx) cx.innerHTML='<span style="color:var(--vermelho)">'+
+      (erro==="NAO_AUTORIZADO" ? 'Sessão expirada — saia e entre de novo no portal.' : esc(erro))+
+      '</span> <button class="bt ghost" style="padding:4px 10px" onclick="propGerarLink(\''+id+'\')">↻ Tentar de novo</button>';
+    return;
+  }
   const cxDet=document.getElementById("prop-detalhe");
   const bloco=document.createElement("div");
   bloco.className="card";
@@ -1340,11 +1350,35 @@ async function propGerarLink(id){
     '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">'+
     '<button class="bt az" onclick="propCopiar(\'prop-linkUrl\',this)">Copiar o link</button>'+
     '<button class="bt" onclick="propCopiar(\'prop-linkMsg\',this)">Copiar a mensagem</button>'+
+    /* r52 (item 4) — manda direto por e-mail, na mesma conversa da proposta */
+    '<button class="bt verde" onclick="propEnviarLink(\''+id+'\',this)">✉ Enviar por e-mail ao corretor</button>'+
     '<a class="bt ghost" target="_blank" rel="noopener" href="'+esc(r.url)+'" style="text-decoration:none">Abrir</a>'+
-    '</div>';
+    '</div><div id="prop-linkEnvio" style="font-size:12px;margin-top:8px"></div>';
   if(cx){ cx.textContent=""; cx.parentElement.appendChild(bloco); }
   else if(cxDet) cxDet.prepend(bloco);
 }
+/* r52 (item 4) — envia o link por e-mail para o corretor. Usa o mesmo
+   caminho das outras mensagens, então entra na conversa da proposta. */
+async function propEnviarLink(id, bt){
+  const msg=document.getElementById("prop-linkMsg"), url=document.getElementById("prop-linkUrl");
+  const av=document.getElementById("prop-linkEnvio");
+  if(!msg || !url) return;
+  const texto=(msg.value||"").trim();
+  if(!texto){ av.innerHTML='<span style="color:var(--vermelho)">Escreva a mensagem antes de enviar.</span>'; return; }
+  const html='<div style="white-space:pre-wrap">'+esc(texto).replace(
+      esc(url.value), '<a href="'+esc(url.value)+'">'+esc(url.value)+'</a>')+'</div>';
+  bt.disabled=true; av.innerHTML='Enviando…';
+  let r;
+  try{ r=await chamar({action:"simsPropostaEmail", pageId:id, mensagemHtml:html, mensagem:texto,
+                       assunto:"Proposta — documentos e dados que faltam"}, 90000, true); }
+  catch(e){ bt.disabled=false; av.innerHTML='<span style="color:var(--vermelho)">Não deu para confirmar o envio.</span>'; return; }
+  bt.disabled=false;
+  av.innerHTML = (r && r.ok)
+    ? '<span style="color:var(--verde-esc)">Enviado para '+esc(r.enviadoPara||"o corretor")+
+      (r.naConversa?' — na mesma conversa da proposta.':'.')+'</span>'
+    : '<span style="color:var(--vermelho)">'+esc((r&&r.erro)||"não enviou")+'</span>';
+}
+
 function propCopiar(id, bt){
   const el=document.getElementById(id); if(!el) return;
   el.select(); el.setSelectionRange(0, 99999);
@@ -2067,7 +2101,11 @@ async function propCarregarDetalhe(id){
   if(!alvo) return;
   let r;
   try{ r = await chamar({action:"simsPropostaDetalhe", pageId:id}, 60000, true); }
-  catch(e){ alvo.innerHTML = '<div class="sim-aviso err">Não consegui carregar os anexos e as pendências.</div>'; return; }
+  catch(e){
+    alvo.innerHTML = '<div class="sim-aviso err">Não consegui carregar os documentos e a conversa. '+
+      '<button class="bt ghost" style="margin-left:8px;padding:4px 10px" onclick="propCarregarDetalhe(\''+id+'\')">↻ Tentar de novo</button></div>';
+    return;
+  }
   if(!r || !r.ok){
     alvo.innerHTML = '<div class="sim-aviso err">'+propErro(r&&r.erro)+'</div>'; return;
   }
@@ -2081,23 +2119,33 @@ async function propCarregarDetalhe(id){
 
   /* r50 (item 4) — conversa de e-mail da proposta: o que já foi enviado ao
      corretor e as respostas. As mensagens daqui entram nessa conversa. */
+  /* r52 (itens 2 e 3) — a conversa inteira, recolhida, no FIM do card. O
+     texto de cada mensagem vem completo; quando não dá para ler a conversa,
+     aparece o motivo e um botão para tentar de novo. */
   const hist = r.historicoEmail || {};
   const cxHist = (hist.mensagens && hist.mensagens.length)
-    ? '<div class="card" style="margin-top:14px;background:var(--bg2)"><b style="font-size:13px;color:var(--azul)">'+
-      'Conversa por e-mail · '+hist.mensagens.length+' mensagem(ns)</b>'+
-      '<div style="font-size:11.5px;color:var(--text3);margin:2px 0 6px">'+esc(hist.assunto||'')+'</div>'+
-      hist.mensagens.map(m=>'<div style="border-top:1px solid var(--border2);padding:7px 0;font-size:12.5px">'+
-        '<b>'+esc(m.de)+'</b> <span style="color:var(--text3)">· '+simData(m.data)+'</span><br>'+
-        '<span style="color:var(--text3)">'+esc(m.resumo)+'…</span></div>').join('')+
+    ? '<details class="card hist-email" style="margin-top:14px;background:var(--bg2)" '+
+      (hist.mensagens.length<=2?'open':'')+'>'+
+      '<summary><b style="font-size:13px;color:var(--azul)">Conversa por e-mail · '+
+      hist.mensagens.length+' mensagem(ns)</b>'+
+      '<span style="font-size:11.5px;color:var(--text3);display:block;margin-top:2px">'+
+      esc(hist.assunto||'')+' — clique para ver tudo</span></summary>'+
+      hist.mensagens.map(m=>'<div class="hist-msg">'+
+        '<b>'+esc(m.de)+'</b> <span style="color:var(--text3)">· '+simData(m.data)+'</span>'+
+        (m.para?'<span style="color:var(--text4)"> · para '+esc(m.para)+'</span>':'')+
+        '<div class="hist-corpo">'+esc(m.resumo)+'</div></div>').join('')+
       '<div style="font-size:11.5px;color:var(--text3);margin-top:8px">O e-mail escrito abaixo entra '+
-      '<b>nesta mesma conversa</b>, como resposta.</div></div>'
-    : (hist.motivo==="SEM_THREAD"
-        ? '<div class="sim-aviso" style="margin-top:12px">Ainda não achei a conversa desta proposta no Gmail '+
-          '(ela pode ter saído antes desta versão). A mensagem daqui sai como um e-mail novo.</div>'
-        : (hist.motivo
-            ? '<div class="sim-aviso" style="margin-top:12px">A conversa desta proposta está em outra conta Google, '+
-              'então não consigo abri-la aqui. A mensagem sai com "Re:" no assunto.</div>'
-            : ""));
+      '<b>nesta mesma conversa</b>, como resposta.</div></details>'
+    : '<div class="sim-aviso" style="margin-top:12px">'+
+      (hist.motivo==="SEM_THREAD"
+        ? 'Ainda não achei a conversa desta proposta no Gmail (ela pode ter saído antes desta versão). '+
+          'A mensagem daqui sai como um e-mail novo.'
+        : (hist.motivo==="SEM_ACESSO"
+            ? 'A conversa está em outra conta Google, então não consigo abri-la aqui. '+
+              'Confira a propriedade <b>SIM_SEGREDO</b> no Apps Script do portal.'
+            : 'Não consegui carregar a conversa de e-mail agora.'))+
+      ' <button class="bt ghost" style="margin-left:8px;padding:4px 10px" '+
+      'onclick="propCarregarDetalhe(\''+id+'\')">↻ Tentar de novo</button></div>';
 
   /* r51 (item 4) — a tabela separa o que É PEDIDO para este cliente do que
      está na lista geral. Antes, um CLT via "pró-labore não enviado" e
@@ -2143,7 +2191,7 @@ async function propCarregarDetalhe(id){
         style="color:var(--azul);text-decoration:underline">${esc(f.nome)}</a>`).join(' · ')+'</div>'
     : '';
 
-  alvo.innerHTML = cxPend + cxHist + cxDocs + cxCampos + cxPdf;
+  alvo.innerHTML = cxPend + cxDocs + cxCampos + cxPdf + cxHist;   // r52 — conversa no fim
 }
 
 /* ---------- PDF da proposta ---------- */
