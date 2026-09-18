@@ -1344,12 +1344,16 @@ async function propGerarLink(id){
     const erro=String((r&&r.erro)||"falhou");
     /* r55 — o "Can't edit block that is archived" do Notion quer dizer que a
        PÁGINA DA PROPOSTA está na lixeira da base. Nenhum retry resolve. */
-    const arquivada = /archiv/i.test(erro);
+    /* r56 — o servidor já tenta restaurar sozinho; se voltou erro daqui, é
+       porque nem ele conseguiu. A mensagem dele diz o que fazer. */
+    const arquivada = /archiv/i.test(erro) || erro==="PROPOSTA_ARQUIVADA" || erro==="BASE_ARQUIVADA";
     if(cx) cx.innerHTML='<span style="color:var(--vermelho)">'+
       (erro==="NAO_AUTORIZADO" ? 'Sessão expirada — saia e entre de novo no portal.'
-       : arquivada ? 'Esta proposta está <b>arquivada no Notion</b> (foi para a lixeira da base). '+
-                     'Restaure a página no Notion e gere o link de novo.'
-       : esc(erro))+
+       : arquivada ? (r.mensagem ? esc(r.mensagem)
+                      : 'Esta proposta está na <b>lixeira do Notion</b>. Restaure a página e gere o link de novo.')
+       : esc(r.mensagem || erro))+
+      (r.pagina ? '<br><span style="font-size:11px;color:var(--text3)">página '+esc(r.pagina)+
+                  (r.base?' · base '+esc(String(r.base).slice(-6)):'')+'</span>' : '')+
       '</span>'+(arquivada?'':' <button class="bt ghost" style="padding:4px 10px" onclick="propGerarLink(\''+id+'\')">↻ Tentar de novo</button>');
     return;
   }
