@@ -601,12 +601,18 @@ function iniciar(){
     /* r48 (item 1) — o portal passa a funcionar como o mapa: carrega as três
        listas na abertura, mostra o progresso e revalida sozinho a cada 60 s,
        sem depender de a pessoa abrir a aba ou clicar em atualizar. */
-    portalCarga(5,'Simulações');
-    Promise.resolve(simCarregar())
-      .then(function(){ portalCarga(40,'Propostas'); return propCarregar(); })
-      .then(function(){ portalCarga(72,'Unidades'); return simCarregarUnidades(); })
-      .then(function(){ portalCarga(100); })
-      .catch(function(){ portalCarga(100); });
+    /* r51 — o percentual era fixo e parecia travado. Agora conta o que já
+       terminou: as três listas vão juntas e a barra anda de verdade. */
+    var tarefas=[["Simulações",simCarregar()],["Propostas",propCarregar()],["Unidades",simCarregarUnidades()]];
+    var prontas=0;
+    portalCarga(0, tarefas.map(function(t){return t[0];}).join(", "));
+    tarefas.forEach(function(t){
+      Promise.resolve(t[1]).catch(function(){}).then(function(){
+        prontas++;
+        portalCarga(Math.round(prontas/tarefas.length*100),
+                    tarefas.filter(function(_,i){ return i>=prontas; }).map(function(x){return x[0];}).join(", "));
+      });
+    });
     setInterval(function(){
       if(document.hidden) return;
       if(!document.getElementById("sim-modal").classList.contains("hide")) return;  // detalhe aberto
@@ -685,7 +691,7 @@ function portalCarga(pct, oque){
   if(!cx) return;
   if(pct>=100){ cx.classList.add("fim"); return; }
   cx.classList.remove("fim");
-  t.textContent = pct + "%" + (oque ? " · " + oque : "");
+  t.textContent = pct + "%" + (oque ? " · faltam " + oque : "");
 }
 
 function trocarPainel(qual){
@@ -1314,7 +1320,7 @@ async function simRefazerErros(){
 
 /* r49 (item 8) — gera o link, copia para a área de transferência e deixa a
    mensagem pronta para colar no WhatsApp ou no e-mail. */
-async function propLink(id){
+async function propGerarLink(id){
   const cx=document.getElementById("prop-linkCx"); if(cx) cx.textContent="gerando…";
   let r;
   try{ r=await chamar({action:"simsPropostaLink", pageId:id}, 60000, true); }
@@ -1857,7 +1863,8 @@ function propPendenciasHtml(p, pend){
     (pedidos.length ? '<br><b>Documentos pedidos para este cliente'+
       (origens.filter(Boolean).length?' ('+origens.filter(Boolean).map(esc).join(' / ')+')':'')+':</b> '+
       pedidos.map(esc).join(' · ') : '')+
-    (outros.length ? '<br><span style="color:var(--text3)"><b>Demais documentos:</b> '+outros.map(esc).join(' · ')+'</span>' : '')+
+    (outros.length ? '<br><span style="color:var(--text3)">Outros '+outros.length+
+      ' documento(s) da lista geral não foram enviados, mas <b>não são exigidos</b> para este perfil.</span>' : '')+
     '</div>';
 }
 
@@ -1961,18 +1968,18 @@ function propVer(id){
       ${it("Observações",esc(p.observacoes||""))}
     </div>
 
-    <!-- r50 (item 3) — as pendências já vêm com a lista, então aparecem na
-         hora; os links dos arquivos chegam logo depois. -->
-    ${propPendenciasHtml(p)}
     ${podeGravar?`<div style="margin:10px 0 4px">
-      <button class="bt az" onclick="propLink('${p.id}')">🔗 Gerar link para o corretor completar</button>
+      <button class="bt az" onclick="propGerarLink('${p.id}')">🔗 Gerar link para o corretor completar</button>
       <span id="prop-linkCx" style="font-size:12px;color:var(--text3);margin-left:8px"></span>
       <div style="font-size:12px;color:var(--text3);margin-top:5px">O corretor abre o link, completa o que falta
         e anexa os documentos — cai direto no cadastro desta proposta.</div>
     </div>`:""}
 
+    <!-- r51 — as pendências aparecem na hora (dados da lista) e são
+         atualizadas aqui mesmo quando o Notion responde. -->
     <div id="prop-detalhe" style="margin-top:16px">
-      <div class="sim-aviso ok"><span class="load"></span> Carregando os arquivos e a conversa de e-mail…</div>
+      ${propPendenciasHtml(p)}
+      <div class="sim-aviso ok"><span class="load"></span> Carregando os documentos e a conversa de e-mail…</div>
     </div>
 
     ${podeGravar?`
@@ -2092,20 +2099,32 @@ async function propCarregarDetalhe(id){
               'então não consigo abri-la aqui. A mensagem sai com "Re:" no assunto.</div>'
             : ""));
 
-  const docs = (r.anexos||[]).map(a=>{
+  /* r51 (item 4) — a tabela separa o que É PEDIDO para este cliente do que
+     está na lista geral. Antes, um CLT via "pró-labore não enviado" e
+     parecia pendência. */
+  const origensD=[String(r.origemRenda||""), String(r.origemRendaConjuge||"")];
+  const civilD=String(r.estadoCivil||"");
+  const linhaDoc=a=>{
     const tem = a.arquivos.length;
     const links = tem
       ? a.arquivos.map(f=>`<a href="${esc(f.url)}" target="_blank" rel="noopener"
            style="color:var(--azul);text-decoration:underline">${esc(f.nome)}</a>`).join(' · ')
       : '<span style="color:#C0392B">não enviado</span>';
     return `<tr><td>${tem?'✅':'⬜'} ${esc(a.rotulo)}</td><td>${links}</td></tr>`;
-  }).join("");
+  };
+  const pedidosDoc=(r.anexos||[]).filter(a=>propPedido(a.rotulo, origensD, civilD) || a.arquivos.length);
+  const outrosDoc=(r.anexos||[]).filter(a=>!(propPedido(a.rotulo, origensD, civilD) || a.arquivos.length));
+  const docs = pedidosDoc.map(linhaDoc).join("");
 
   /* Os links de arquivo do Notion sao assinados e valem cerca de 1 hora.
      Depois disso o link desta tela expira — basta reabrir a proposta que
      ele e gerado de novo. */
-  const cxDocs = '<div style="margin-top:14px"><b style="font-size:13px;color:var(--azul)">Documentos anexados</b>'+
+  const cxDocs = '<div style="margin-top:14px"><b style="font-size:13px;color:var(--azul)">Documentos desta proposta</b>'+
     '<div class="tbl-wrap" style="max-height:none;margin-top:6px"><table><tbody>'+docs+'</tbody></table></div>'+
+    (outrosDoc.length ? '<details style="margin-top:8px"><summary style="cursor:pointer;font-size:12.5px;color:var(--text3)">'+
+      'Ver os outros '+outrosDoc.length+' documento(s) da lista geral (não exigidos para este perfil)</summary>'+
+      '<div class="tbl-wrap" style="max-height:none;margin-top:6px"><table><tbody>'+
+      outrosDoc.map(linhaDoc).join("")+'</tbody></table></div></details>' : '')+
     '<div style="font-size:11px;color:var(--text4);margin-top:4px">Os links valem cerca de 1 hora. '+
     'Se expirarem, feche e abra a proposta de novo.</div></div>';
 
