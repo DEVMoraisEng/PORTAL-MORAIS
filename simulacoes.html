@@ -437,8 +437,6 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
           <div id="sim-avisoErros" class="sim-aviso" style="margin:0 0 10px"></div>
           <div class="tbl-wrap alta"><table id="sim-tabRec"></table></div>
         </div>
-        <!-- r49 (item 7) — dados completos da simulação, abaixo da tabela -->
-        <div id="sim-detBaixo" class="card" style="display:none"></div>
       </section>
 
       <!-- ==================== ANÁLISE DE VENDAS (r49 · item 6) ==================== -->
@@ -767,29 +765,53 @@ function graficoMedias(alvoGraf, alvoDet, dados){
     `<span class="q">${d.valores.filter(x=>x>0).length} pessoa(s)</span></div>`).join("");
 }
 
-/* ---------- fluxo por tempo (itens 3 e 4) ---------- */
-function fluxoPorTempo(alvo, datas, rotulo){
+/* ---------- fluxo por tempo (itens 3, 4 e 6) ----------
+   r50 (item 1) — só aparecem os períodos QUE TÊM registro, e dá para trocar
+   entre dia, semana e mês. O padrão é semana. */
+const FLUXO_MODO={};
+function fluxoPorTempo(alvo, datas, rotulo, modo){
   const el=document.getElementById(alvo); if(!el) return;
-  const dias=14, hoje=new Date(); hoje.setHours(0,0,0,0);
-  const balde={}, ordem=[];
-  for(let i=dias-1;i>=0;i--){
-    const d=new Date(hoje); d.setDate(d.getDate()-i);
-    const k=d.toISOString().slice(0,10);
-    balde[k]=0; ordem.push(k);
-  }
-  let fora=0;
-  datas.forEach(t=>{
-    const k=String(t||"").slice(0,10);
-    if(balde[k]!==undefined) balde[k]++; else if(k) fora++;
-  });
-  const max=Math.max(1,...ordem.map(k=>balde[k]));
-  el.innerHTML='<div class="fluxo">'+ordem.map(k=>{
-    const q=balde[k], d=k.slice(8,10)+"/"+k.slice(5,7);
-    return `<div class="dia" title="${d}: ${q} ${rotulo}"><b>${q||""}</b>`+
-           `<i style="height:${Math.max(3,Math.round(q/max*100))}%"></i><span>${d}</span></div>`;
-  }).join("")+'</div>'+
-  `<div style="font-size:12px;color:var(--text3);margin-top:6px">Últimos 14 dias`+
-  (fora?` · ${fora} ${rotulo} antes desse período`:"")+`</div>`;
+  FLUXO_MODO[alvo]=modo||FLUXO_MODO[alvo]||"semana";
+  const m=FLUXO_MODO[alvo];
+  const limpas=datas.map(t=>String(t||"").slice(0,10)).filter(k=>/^\d{4}-\d{2}-\d{2}$/.test(k));
+  const chave=k=>{
+    if(m==="dia") return k;
+    if(m==="mes") return k.slice(0,7);
+    const d=new Date(k+"T12:00:00");
+    d.setDate(d.getDate()-((d.getDay()+6)%7));          // segunda-feira da semana
+    return d.toISOString().slice(0,10);
+  };
+  const rotulaChave=k=>{
+    if(m==="dia") return k.slice(8,10)+"/"+k.slice(5,7);
+    if(m==="mes"){
+      const mm=["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"][Number(k.slice(5,7))-1];
+      return mm+"/"+k.slice(2,4);
+    }
+    const f=new Date(k+"T12:00:00"); f.setDate(f.getDate()+6);
+    return k.slice(8,10)+"/"+k.slice(5,7)+" a "+String(f.getDate()).padStart(2,"0")+"/"+String(f.getMonth()+1).padStart(2,"0");
+  };
+  const balde={};
+  limpas.forEach(k=>{ const c=chave(k); balde[c]=(balde[c]||0)+1; });
+  const ordem=Object.keys(balde).sort();
+  const seg=["dia","semana","mes"].map(x=>
+    `<button class="seg-bt${x===m?" on":""}" onclick="fluxoTrocar('${alvo}','${x}')">`+
+    ({dia:"Dia",semana:"Semana",mes:"Mês"})[x]+`</button>`).join("");
+  const topo=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">`+
+    `<div class="seg">${seg}</div>`+
+    `<span style="font-size:12px;color:var(--text3)">${ordem.length} período(s) com registro · ${limpas.length} ${rotulo}</span></div>`;
+  if(!ordem.length){ el.innerHTML=topo+'<div class="vazio">Nada registrado ainda.</div>'; FLUXO_DADOS[alvo]={datas,rotulo}; return; }
+  const max=Math.max(...ordem.map(k=>balde[k]));
+  el.innerHTML=topo+'<div class="fluxo">'+ordem.map(k=>{
+    const q=balde[k], r=rotulaChave(k);
+    return `<div class="dia" title="${r}: ${q} ${rotulo}"><b>${q}</b>`+
+           `<i style="height:${Math.max(6,Math.round(q/max*100))}%"></i><span>${r}</span></div>`;
+  }).join("")+'</div>';
+  FLUXO_DADOS[alvo]={datas:datas, rotulo:rotulo};
+}
+const FLUXO_DADOS={};
+function fluxoTrocar(alvo, modo){
+  const d=FLUXO_DADOS[alvo]; if(!d) return;
+  fluxoPorTempo(alvo, d.datas, d.rotulo, modo);
 }
 
 /* r48 (item 9) — MAPA AO VIVO abaixo da tabela de unidades. É o mesmo SVG do
@@ -810,6 +832,15 @@ async function pintarMapa(alvo, alvoLegenda, clicavel){
   if(!cx.querySelector("svg")) cx.innerHTML=MAPA_SVG_TXT;
   const svg=cx.querySelector("svg"); if(!svg) return;
   svg.removeAttribute("width"); svg.removeAttribute("height");
+  /* r50 (item 5) — a foto aérea do mapa mora fora do SVG (assets/mapa-fundo.jpg).
+     Dentro do portal o endereço relativo não resolve e sobrava só a prévia
+     borrada. Aqui o endereço absoluto é aplicado uma vez. */
+  const fundo=svg.querySelector("#mapaFundo");
+  if(fundo && !fundo.getAttribute("href")){
+    const url=MAPA_SVG_URL.replace("CONDOMINIO_VENDAS.svg","mapa-fundo.jpg");
+    fundo.setAttribute("href", url);
+    fundo.setAttributeNS("http://www.w3.org/1999/xlink","xlink:href", url);
+  }
   const cor={vendida:"#C0392B", reservada:"#1F6FB2", disponivel:"#1a6b40", indisponivel:"#9aa8b2"};
   let c={vendida:0,reservada:0,disponivel:0,indisponivel:0};
   UNS.forEach(u=>{
@@ -916,16 +947,17 @@ function anTabela(){
   el.innerHTML=cab+"<tbody>"+corpo+"</tbody>";
 }
 function anDetalhe(un){
-  const cx=document.getElementById("an-detalheUn"); if(!cx) return;
+  /* r50 (item 6) — abre no mesmo card (modal) das outras telas */
+  const cx=document.getElementById("sim-modalCx"); if(!cx) return;
+  document.getElementById("sim-modal").classList.remove("hide");
   const u=UNS.find(x=>String(x.unidade).trim()===String(un).trim());
   if(!u){ cx.innerHTML=""; return; }
   const e=anEstado(u), p=anPropostaDaUnidade(un);
   const it=(r,v)=>`<div class="sim-item"><small>${r}</small><b>${v||"—"}</b></div>`;
   const nome={vendida:"Vendida", reservada:"Reservada", disponivel:"Disponível", indisponivel:"Em breve"}[e];
-  let html=`<div class="sec" style="margin-top:0"><span class="cond">Unidade ${esc(String(un))} · ${nome}</span>
-    <span style="flex:1"></span>
-    <button class="bt ghost" onclick="document.getElementById('an-detalheUn').innerHTML=''">Fechar</button></div>
-    <div class="sim-grade">${it("Tipo","T"+esc(String(u.tipo||"—")))}${it("Valor de venda",simBRL(u.valorVenda))}
+  let html=`<div class="modal-tit">Unidade ${esc(String(un))} · ${nome}</div>
+    <div class="modal-sub">Condomínio Reserva dos Ipês</div>
+    <div class="sim-grade" style="margin-top:12px">${it("Tipo","T"+esc(String(u.tipo||"—")))}${it("Valor de venda",simBRL(u.valorVenda))}
     ${it("Avaliação",simBRL(u.avaliacao))}${it("Situação",nome)}</div>`;
   if(!p){
     html+='<div class="sim-aviso" style="margin-top:12px">Nenhuma proposta ligada a esta unidade no portal.</div>';
@@ -938,10 +970,10 @@ function anDetalhe(un){
       ${it("Financiado",simBRL(p.valorFinanciado))}${it("Parcela",p.parcelaFinanciamento?simBRL(p.parcelaFinanciamento):"não apurada")}
       ${it("Renda",simBRL(p.rendaTotal))}${it("Valor para entrada",simBRL(p.valorEntrada))}
     </div>${propQuadroFluxo(p)}
-    <div style="margin-top:10px"><button class="bt az" onclick="trocarTab('propostas');setTimeout(function(){propVer('${p.id}')},250)">Abrir a proposta</button></div>`;
+    <div style="margin-top:10px"><button class="bt az" onclick="simFecharDet();trocarTab('propostas');setTimeout(function(){propVer('${p.id}')},250)">Abrir a proposta</button></div>`;
   }
+  html+='<div style="display:flex;gap:9px;margin-top:16px"><button class="bt" onclick="simFecharDet()">Fechar</button></div>';
   cx.innerHTML=html;
-  cx.scrollIntoView({behavior:"smooth", block:"nearest"});
 }
 
 /* ---------- KPIs ---------- */
@@ -1094,7 +1126,7 @@ function simRenderRecebidas(){
       `<tbody><tr><td colspan="${SIM_COLS_REC.length}" style="text-align:center;color:var(--text3);padding:22px">Nenhuma simulação encontrada.</td></tr></tbody>`;
     return;
   }
-  const corpo=vis.map(s=>`<tr class="clicavel" onclick="simVerAbaixo('${s.id}')">
+  const corpo=vis.map(s=>`<tr class="clicavel" onclick="simVerDet('${s.id}')">
     <td>${esc(s.cliente||"—")}</td><td class="col-un">${esc(s.cpf||"—")}</td>
     <td>${esc(s.corretor||"—")}</td><td>${esc(s.imobiliaria||"—")}</td>
     <td>Un. ${esc(String(s.unidade||"—"))} <span style="color:var(--text3)">(T${esc(String(s.tipo||"—"))})</span></td>
@@ -1196,14 +1228,8 @@ function simVerDet(id){
   const s=SIMS.find(x=>x.id===id); if(!s) return;
   const it=(r,v)=>`<div class="sim-item"><small>${r}</small><b>${v||"—"}</b></div>`;
 
-  const fluxo = simParseEsquema(s.esquema);
-  const tabFluxo = fluxo.length ? `
-    <div style="margin-top:14px"><b style="font-size:13px;color:var(--azul)">Entrada total — fluxo de pagamento</b>
-      <div class="tbl-wrap" style="margin-top:6px;max-height:none"><table><tbody>
-        <tr class="sim-tot"><td colspan="2">ENTRADA TOTAL A PAGAR</td><td class="num">${simBRL(s.entrada)}</td></tr>
-        ${fluxo.map(f=>`<tr><td>${esc(f.quando)}</td><td class="num">${esc(f.valor)}</td><td style="color:var(--text3)">${esc(f.forma)}</td></tr>`).join("")}
-      </tbody></table></div>
-    </div>` : "";
+  /* r50 (item 2) — de volta ao card, agora com o fluxo agrupado e etiquetado */
+  const tabFluxo = simFluxoHtml(s);
   const tabEncargo = s.parcela ? `
     <div style="margin-top:14px"><b style="font-size:13px;color:var(--azul)">Evolução estimada do encargo durante a obra</b>
       <div class="tbl-wrap" style="margin-top:6px;max-height:none"><table><tbody>
@@ -1220,6 +1246,7 @@ function simVerDet(id){
       ${it("Unidade","Un. "+esc(String(s.unidade||"—"))+" (Tipo "+esc(String(s.tipo||"—"))+")")}
       ${it("Valor de venda",simBRL(s.valorVenda))}${it("Avaliação",simBRL(s.avaliacao))}
       ${it("Renda",simBRL(s.renda))}${it("FGTS",simBRL(s.fgts))}${it("Subsídio",simBRL(s.subsidio))}
+      ${it("Valor para entrada",simBRL(s.entradaInformada))}${it("Entrada a pagar",simBRL(s.entrada))}
       ${it("Valor financiado",simBRL(s.financiado))}${it("Parcela",simBRL(s.parcela))}
       ${it("Prazo da entrada",(s.prazoEntrada||"—")+" meses")}
       ${it("Comissão",(s.comissaoPct?(s.comissaoPct*100).toFixed(2).replace(".",",")+"% · ":"")+simBRL(s.comissaoValor))}
@@ -1801,6 +1828,39 @@ function propRank(idAlvo, campo){
 }
 
 /* ---------- detalhe: decisão + e-mail (item 6) ---------- */
+/* r50 (item 3) — pendências direto da lista, organizadas pelos marcadores. */
+const PEND_REGRA={
+  "Dois últimos contracheques":["CLT","SERVIDOR PÚBLICO"],
+  "Carteira de trabalho":["CLT"], "Extrato do FGTS":["CLT"],
+  "Pró-labore":["EMPRESÁRIO"],
+  "Movimentação bancária (4 meses)":["AUTÔNOMO","MEI","OUTRO"],
+  "Extrato da plataforma (4 meses)":["MOTORISTA DE APLICATIVO"],
+  "Imposto de renda":["EMPRESÁRIO","AUTÔNOMO","MEI","PROFISSIONAL LIBERAL","RURAL"]
+};
+const PEND_SEMPRE=["RG e CPF do proponente","Comprovante de estado civil","Comprovante de endereço"];
+function propPedido(doc, origens, civil){
+  return PEND_SEMPRE.indexOf(doc)>=0 ||
+    (PEND_REGRA[doc] && origens.some(o=>o && PEND_REGRA[doc].indexOf(o)>=0)) ||
+    (doc==="Comprovante de divórcio" && String(civil||"").indexOf("DIVORC")>=0);
+}
+function propPendenciasHtml(p, pend){
+  pend = pend || p.pendencias;
+  if(!pend) return '<div class="sim-aviso ok"><span class="load"></span> Conferindo pendências…</div>';
+  const origens=[String(p.origemRenda||""), String(p.origemRendaConjuge||"")];
+  const civil=String(p.estadoCivil||"");
+  const total=(pend.campos||[]).length+(pend.documentos||[]).length;
+  if(!total) return '<div class="sim-aviso ok"><b>Proposta completa.</b> Todos os campos obrigatórios e todos os documentos foram entregues.</div>';
+  const pedidos=(pend.documentos||[]).filter(d=>propPedido(d,origens,civil));
+  const outros=(pend.documentos||[]).filter(d=>!propPedido(d,origens,civil));
+  return '<div class="sim-aviso err"><b>Faltam '+total+' item(ns) nesta proposta.</b>'+
+    ((pend.campos||[]).length ? '<br><b>Campos:</b> '+pend.campos.map(esc).join(' · ') : '')+
+    (pedidos.length ? '<br><b>Documentos pedidos para este cliente'+
+      (origens.filter(Boolean).length?' ('+origens.filter(Boolean).map(esc).join(' / ')+')':'')+':</b> '+
+      pedidos.map(esc).join(' · ') : '')+
+    (outros.length ? '<br><span style="color:var(--text3)"><b>Demais documentos:</b> '+outros.map(esc).join(' · ')+'</span>' : '')+
+    '</div>';
+}
+
 /* ITEM 15 — pílula da lista: o crivo de aceite à vista sem abrir a proposta */
 function propPillSinais(p){
   const sn=p.sinais||{};
@@ -1901,8 +1961,18 @@ function propVer(id){
       ${it("Observações",esc(p.observacoes||""))}
     </div>
 
+    <!-- r50 (item 3) — as pendências já vêm com a lista, então aparecem na
+         hora; os links dos arquivos chegam logo depois. -->
+    ${propPendenciasHtml(p)}
+    ${podeGravar?`<div style="margin:10px 0 4px">
+      <button class="bt az" onclick="propLink('${p.id}')">🔗 Gerar link para o corretor completar</button>
+      <span id="prop-linkCx" style="font-size:12px;color:var(--text3);margin-left:8px"></span>
+      <div style="font-size:12px;color:var(--text3);margin-top:5px">O corretor abre o link, completa o que falta
+        e anexa os documentos — cai direto no cadastro desta proposta.</div>
+    </div>`:""}
+
     <div id="prop-detalhe" style="margin-top:16px">
-      <div class="sim-aviso ok">Carregando anexos e pendências…</div>
+      <div class="sim-aviso ok"><span class="load"></span> Carregando os arquivos e a conversa de e-mail…</div>
     </div>
 
     ${podeGravar?`
@@ -1995,16 +2065,32 @@ async function propCarregarDetalhe(id){
     alvo.innerHTML = '<div class="sim-aviso err">'+propErro(r&&r.erro)+'</div>'; return;
   }
 
-  const pend = r.pendencias || {campos:[], documentos:[]};
-  const totalPend = (pend.campos.length + pend.documentos.length);
+  /* r50 — as pendências já apareceram com os dados da lista; aqui elas são
+     atualizadas com o que o Notion acabou de devolver, na mesma lógica dos
+     marcadores da proposta (primeiro o que ESTE cliente precisa). */
+  const cxPend = propPendenciasHtml(
+    {origemRenda:r.origemRenda, origemRendaConjuge:r.origemRendaConjuge, estadoCivil:r.estadoCivil},
+    r.pendencias || {campos:[], documentos:[]});
 
-  const cxPend = r.completa
-    ? '<div class="sim-aviso ok"><b>Proposta completa.</b> Todos os campos obrigatórios '+
-      'e todos os documentos foram entregues.</div>'
-    : '<div class="sim-aviso err"><b>Faltam '+totalPend+' item(ns) nesta proposta.</b>'+
-      (pend.campos.length ? '<br><b>Campos:</b> '+pend.campos.map(esc).join(' · ') : '')+
-      (pend.documentos.length ? '<br><b>Documentos:</b> '+pend.documentos.map(esc).join(' · ') : '')+
-      '</div>';
+  /* r50 (item 4) — conversa de e-mail da proposta: o que já foi enviado ao
+     corretor e as respostas. As mensagens daqui entram nessa conversa. */
+  const hist = r.historicoEmail || {};
+  const cxHist = (hist.mensagens && hist.mensagens.length)
+    ? '<div class="card" style="margin-top:14px;background:var(--bg2)"><b style="font-size:13px;color:var(--azul)">'+
+      'Conversa por e-mail · '+hist.mensagens.length+' mensagem(ns)</b>'+
+      '<div style="font-size:11.5px;color:var(--text3);margin:2px 0 6px">'+esc(hist.assunto||'')+'</div>'+
+      hist.mensagens.map(m=>'<div style="border-top:1px solid var(--border2);padding:7px 0;font-size:12.5px">'+
+        '<b>'+esc(m.de)+'</b> <span style="color:var(--text3)">· '+simData(m.data)+'</span><br>'+
+        '<span style="color:var(--text3)">'+esc(m.resumo)+'…</span></div>').join('')+
+      '<div style="font-size:11.5px;color:var(--text3);margin-top:8px">O e-mail escrito abaixo entra '+
+      '<b>nesta mesma conversa</b>, como resposta.</div></div>'
+    : (hist.motivo==="SEM_THREAD"
+        ? '<div class="sim-aviso" style="margin-top:12px">Ainda não achei a conversa desta proposta no Gmail '+
+          '(ela pode ter saído antes desta versão). A mensagem daqui sai como um e-mail novo.</div>'
+        : (hist.motivo
+            ? '<div class="sim-aviso" style="margin-top:12px">A conversa desta proposta está em outra conta Google, '+
+              'então não consigo abri-la aqui. A mensagem sai com "Re:" no assunto.</div>'
+            : ""));
 
   const docs = (r.anexos||[]).map(a=>{
     const tem = a.arquivos.length;
