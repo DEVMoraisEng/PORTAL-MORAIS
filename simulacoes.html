@@ -72,6 +72,36 @@ html[data-tema="escuro"] .kpi .val{color:var(--teal)}
 .kpi.hero{background:linear-gradient(135deg,var(--azul),var(--azul-esc));border:0}
 .kpi.hero .lab{color:rgba(255,255,255,.85)}.kpi.hero .val{color:#fff}.kpi.hero .sub{color:var(--teal)}
 .kpi .val.vermelho{color:var(--vermelho)}.kpi .val.verde{color:var(--verde-esc)}
+/* ===== r48 — painel ===== */
+.kpi{transition:transform .12s ease, box-shadow .12s ease}
+.kpi:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(31,76,110,.12)}
+.kpi .sub{font-size:11.5px;margin-top:6px;color:var(--text3);line-height:1.35}
+.kpi .sub.meta-ok{color:var(--verde-esc);font-weight:800}
+.kpi .sub.meta-ruim{color:var(--vermelho);font-weight:800}
+.carga-portal{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:var(--text3)}
+.carga-portal i{width:14px;height:14px;border:2.5px solid var(--border2);border-top-color:var(--azul);
+  border-radius:50%;display:inline-block;animation:girar-p .9s linear infinite}
+.carga-portal.fim{display:none}
+@keyframes girar-p{to{transform:rotate(360deg)}}
+.sim-col.clicavel{cursor:pointer;border-radius:8px;padding:4px 2px;transition:background .12s}
+.sim-col.clicavel:hover{background:var(--bg3)}
+.sim-col .q{font-size:10.5px;color:var(--text4);margin-top:2px}
+.detalhe-media{margin-top:12px}
+.detalhe-media h4{margin:0 0 8px;font-size:13px;color:var(--azul-esc)}
+.detalhe-media .faixa{display:grid;grid-template-columns:190px 1fr 110px;gap:10px;align-items:center;
+  font-size:12.5px;padding:3px 0}
+.detalhe-media .barra{background:var(--bg3);border-radius:6px;height:12px;overflow:hidden}
+.detalhe-media .barra i{display:block;height:100%;background:linear-gradient(90deg,var(--teal),var(--azul))}
+.fluxo{display:flex;align-items:flex-end;gap:5px;height:130px}
+.fluxo .dia{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
+.fluxo .dia b{font-size:11px;font-weight:800;color:var(--azul-esc);min-height:14px}
+.fluxo .dia i{display:block;width:100%;max-width:34px;border-radius:5px 5px 0 0;
+  background:linear-gradient(180deg,var(--teal),var(--azul))}
+.an-det:empty{display:none}
+.an-det{margin-top:14px;border-top:1px solid var(--border2);padding-top:12px}
+.fluxo .dia span{font-size:10px;color:var(--text4);margin-top:4px;white-space:nowrap}
+#sim-mapa svg{width:100%;height:auto;min-width:760px}
+@media(max-width:720px){.detalhe-media .faixa{grid-template-columns:1fr;gap:2px}}
 html[data-tema="escuro"] .kpi .val.vermelho{color:#f3a29a}
 html[data-tema="escuro"] .kpi .val.verde{color:#8ce0a5}
 
@@ -293,6 +323,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
       <a class="btn-voltar" href="index.html">← Voltar para o Dashboard</a>
       <span style="flex:1"></span>
       <button class="bt az" onclick="simAtualizarTudo()" title="Ignora os caches e busca no Notion agora">↻ Atualizar dados agora</button>
+      <span class="carga-portal" id="carga-portal"><i></i><b id="carga-pct">carregando…</b></span>
       <span class="chip-extr" id="data-extr"></span>
     </div>
 
@@ -313,47 +344,74 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
         <button class="tab on" data-tab="painel" onclick="trocarTab('painel')">Painel</button>
         <button class="tab" data-tab="recebidas" onclick="trocarTab('recebidas')">Simulações Recebidas</button>
         <button class="tab" data-tab="propostas" onclick="trocarTab('propostas')">Propostas</button>
+        <button class="tab" data-tab="analise" onclick="trocarTab('analise')">Análise de vendas</button>
         <button class="tab" data-tab="unidades" onclick="trocarTab('unidades')">Unidades</button>
       </div></div>
 
-      <!-- ==================== PAINEL (só indicadores) ==================== -->
+      <!-- ==================== PAINEL ==================== -->
       <section id="tab-painel">
-        <div class="sec"><span class="cond">Panorama</span></div>
-        <div class="kpis" id="sim-kpis"><div class="vazio" style="grid-column:1/-1"><span class="load"></span> Carregando…</div></div>
+        <!-- r48 (item 1) — VGV primeiro, antes de qualquer outra coisa -->
+        <div class="sec"><span class="cond">VGV · meta de R$ 315.000 por unidade</span></div>
+        <div class="kpis" id="sim-vgv"><div class="vazio" style="grid-column:1/-1"><span class="load"></span> Carregando…</div></div>
 
-        <div class="sec"><span class="cond">Médias dos proponentes</span></div>
-        <div class="card"><div class="sim-graf" id="sim-grafico"></div></div>
-
-        <div class="sec"><span class="cond">Propostas</span></div>
-        <div class="kpis" id="prop-kpis"><div class="vazio" style="grid-column:1/-1">Abra a aba Propostas para carregar.</div></div>
-
-        <div class="sec"><span class="cond">Ranking de corretores e imobiliárias · SIMULAÇÕES</span></div>
-        <div class="sim-2col">
-          <div class="card">
-            <h3>Corretores</h3>
-            <div class="tbl-wrap" style="max-height:360px"><table id="sim-rankCorretor"></table></div>
-          </div>
-          <div class="card">
-            <h3>Imobiliárias</h3>
-            <div class="tbl-wrap" style="max-height:360px"><table id="sim-rankImob"></table></div>
+        <!-- r48 (item 2) — painel dividido em SIMULAÇÃO e PROPOSTAS -->
+        <div class="sec" style="margin-top:18px">
+          <div class="seg" id="seg-painel">
+            <button class="seg-bt on" data-pn="sim" onclick="trocarPainel('sim')">Simulações</button>
+            <button class="seg-bt" data-pn="prop" onclick="trocarPainel('prop')">Propostas</button>
           </div>
         </div>
 
-        <div class="sec"><span class="cond">Ranking de corretores e imobiliárias · PROPOSTAS</span></div>
-        <div class="sim-2col">
-          <div class="card">
-            <h3>Corretores</h3>
-            <div class="tbl-wrap" style="max-height:360px"><table id="prop-rankCorretor"></table></div>
-          </div>
-          <div class="card">
-            <h3>Imobiliárias</h3>
-            <div class="tbl-wrap" style="max-height:360px"><table id="prop-rankImob"></table></div>
+        <!-- ---------- painel: SIMULAÇÕES ---------- -->
+        <div id="painel-sim">
+          <div class="sec"><span class="cond">Situação</span></div>
+          <div class="kpis" id="sim-kpis"><div class="vazio" style="grid-column:1/-1"><span class="load"></span> Carregando…</div></div>
+
+          <div class="sec"><span class="cond">Médias dos proponentes</span>
+            <span style="flex:1"></span>
+            <span style="font-size:12px;color:var(--text3)">clique numa barra para ver a distribuição</span></div>
+          <div class="card"><div class="sim-graf" id="sim-grafico"></div>
+            <div id="sim-mediaDet" class="detalhe-media"></div></div>
+
+          <div class="sec"><span class="cond">Simulações por tempo</span></div>
+          <div class="card"><div id="sim-fluxoTempo"></div></div>
+
+          <div class="sec"><span class="cond">Unidades mais simuladas</span></div>
+          <div class="card"><div class="tbl-wrap" style="max-height:420px"><table id="sim-rankUnidade"></table></div></div>
+
+          <div class="sec"><span class="cond">Ranking de corretores e imobiliárias</span></div>
+          <div class="sim-2col">
+            <div class="card"><h3>Corretores</h3>
+              <div class="tbl-wrap" style="max-height:360px"><table id="sim-rankCorretor"></table></div></div>
+            <div class="card"><h3>Imobiliárias</h3>
+              <div class="tbl-wrap" style="max-height:360px"><table id="sim-rankImob"></table></div></div>
           </div>
         </div>
 
-        <div class="sec"><span class="cond">Unidades mais simuladas</span></div>
-        <div class="card">
-          <div class="tbl-wrap" style="max-height:420px"><table id="sim-rankUnidade"></table></div>
+        <!-- ---------- painel: PROPOSTAS ---------- -->
+        <div id="painel-prop" class="hide">
+          <div class="sec"><span class="cond">Situação</span></div>
+          <div class="kpis" id="prop-kpis"><div class="vazio" style="grid-column:1/-1"><span class="load"></span> Carregando…</div></div>
+
+          <div class="sec"><span class="cond">Médias dos proponentes</span>
+            <span style="flex:1"></span>
+            <span style="font-size:12px;color:var(--text3)">clique numa barra para ver a distribuição</span></div>
+          <div class="card"><div class="sim-graf" id="prop-grafico"></div>
+            <div id="prop-mediaDet" class="detalhe-media"></div></div>
+
+          <div class="sec"><span class="cond">Propostas por tempo</span></div>
+          <div class="card"><div id="prop-fluxoTempo"></div></div>
+
+          <div class="sec"><span class="cond">Unidades com mais propostas</span></div>
+          <div class="card"><div class="tbl-wrap" style="max-height:420px"><table id="prop-rankUnidade"></table></div></div>
+
+          <div class="sec"><span class="cond">Ranking de corretores e imobiliárias</span></div>
+          <div class="sim-2col">
+            <div class="card"><h3>Corretores</h3>
+              <div class="tbl-wrap" style="max-height:360px"><table id="prop-rankCorretor"></table></div></div>
+            <div class="card"><h3>Imobiliárias</h3>
+              <div class="tbl-wrap" style="max-height:360px"><table id="prop-rankImob"></table></div></div>
+          </div>
         </div>
       </section>
 
@@ -379,6 +437,28 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
           <div id="sim-avisoErros" class="sim-aviso" style="margin:0 0 10px"></div>
           <div class="tbl-wrap alta"><table id="sim-tabRec"></table></div>
         </div>
+        <!-- r49 (item 7) — dados completos da simulação, abaixo da tabela -->
+        <div id="sim-detBaixo" class="card" style="display:none"></div>
+      </section>
+
+      <!-- ==================== ANÁLISE DE VENDAS (r49 · item 6) ==================== -->
+      <section id="tab-analise" class="hide">
+        <div class="sec"><span class="cond">VGV · meta de R$ 315.000 por unidade</span></div>
+        <div class="kpis" id="an-vgv"><div class="vazio" style="grid-column:1/-1"><span class="load"></span> Carregando…</div></div>
+
+        <div class="sec"><span class="cond">Mapa das unidades</span>
+          <span style="flex:1"></span>
+          <span style="font-size:12px;color:var(--text3)" id="an-legenda"></span></div>
+        <div class="card">
+          <div id="an-mapa" style="overflow:auto"></div>
+          <div id="an-detalheUn" class="an-det"></div>
+        </div>
+
+        <div class="sec"><span class="cond">Vendas e reservas por tempo</span></div>
+        <div class="card"><div id="an-fluxo"></div></div>
+
+        <div class="sec"><span class="cond">Unidades reservadas, aceitas e vendidas</span></div>
+        <div class="card"><div class="tbl-wrap" style="max-height:460px"><table id="an-tabela"></table></div></div>
       </section>
 
       <!-- ==================== PROPOSTAS ==================== -->
@@ -405,7 +485,6 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
             <div class="fcampo"><label>Buscar</label>
               <input type="search" id="prop-busca" placeholder="Cliente, CPF, unidade ou corretor…" oninput="propRender()"></div>
             <button class="bt ghost" onclick="propCarregar(true)">↻ Atualizar agora</button>
-            <button class="bt ghost" onclick="propSetup()" title="Cria no Notion as colunas que faltarem na base PROPOSTAS. Só acrescenta — nunca renomeia nem apaga.">🛠 Conferir/criar colunas</button>
             <span style="font-size:12px;color:var(--text3);align-self:center">
               <span style="display:inline-block;width:10px;height:10px;background:#F6D6D2;border:1px solid #D98A80;border-radius:2px;vertical-align:middle"></span>
               linha vermelha = reservada há mais de 24 h
@@ -426,12 +505,16 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
             <div class="fcampo"><label>Buscar</label>
               <input type="search" id="sim-buscaUn" placeholder="Unidade ou tipo…" oninput="simRenderUnidades()"></div>
             <button class="bt ghost" onclick="simCarregarUnidades(true)" title="Busca no Notion ao vivo, ignorando o arquivo publicado">↻ Atualizar agora</button>
-            <button class="bt ghost" onclick="simDiagRede()" title="Mostra a resposta crua do Apps Script — use quando aparecer ERRO_API">🩺 Diagnóstico</button>
             <button class="bt verde" id="sim-btSalvarTudo" onclick="simSalvarTudo()" title="Grava no Notion todas as unidades que você alterou">💾 Salvar tudo</button>
             <span id="sim-alteradas" style="font-size:12px;color:var(--text3);align-self:center"></span>
           </div>
           <div class="tbl-wrap alta"><table id="sim-tabUn"></table></div>
         </div>
+        <!-- r48 (item 9) — mapa logo abaixo: dá para ver a mudança ao vivo -->
+        <div class="sec"><span class="cond">Mapa de vendas · ao vivo</span>
+          <span style="flex:1"></span>
+          <span style="font-size:12px;color:var(--text3)" id="sim-mapaLegenda"></span></div>
+        <div class="card"><div id="sim-mapa" style="overflow:auto"></div></div>
       </section>
     </div>
   </main>
@@ -487,9 +570,10 @@ function trocarTab(nome){
   /* set/26 r5 — a aba "Nova proposta" saiu: o preenchimento é pelo mapa
      (proposta.html), do mesmo jeito que a simulação. Aqui o portal só
      DECIDE sobre proposta que já chegou. */
-  ["painel","recebidas","propostas","unidades"].forEach(n=>document.getElementById("tab-"+n).classList.toggle("hide", n!==nome));
+  ["painel","recebidas","propostas","analise","unidades"].forEach(n=>document.getElementById("tab-"+n).classList.toggle("hide", n!==nome));
   if(nome==="unidades" && !UNS.length) simCarregarUnidades();
   if(nome==="propostas") propCarregar();   // r40 — revalida toda vez (respeita o TTL)
+  if(nome==="analise"){ propCarregar(); if(!UNS.length) simCarregarUnidades(); else analiseRender(); }
 }
 
 /* ---------- boot ---------- */
@@ -516,7 +600,20 @@ function iniciar(){
       return;
     }
     document.getElementById("conteudo").classList.remove("hide");
-    simCarregar();
+    /* r48 (item 1) — o portal passa a funcionar como o mapa: carrega as três
+       listas na abertura, mostra o progresso e revalida sozinho a cada 60 s,
+       sem depender de a pessoa abrir a aba ou clicar em atualizar. */
+    portalCarga(5,'Simulações');
+    Promise.resolve(simCarregar())
+      .then(function(){ portalCarga(40,'Propostas'); return propCarregar(); })
+      .then(function(){ portalCarga(72,'Unidades'); return simCarregarUnidades(); })
+      .then(function(){ portalCarga(100); })
+      .catch(function(){ portalCarga(100); });
+    setInterval(function(){
+      if(document.hidden) return;
+      if(!document.getElementById("sim-modal").classList.contains("hide")) return;  // detalhe aberto
+      simCarregar(true); propCarregar(true); simCarregarUnidades(true);
+    }, 60000);
   }catch(e){
     /* Sem isto, qualquer erro deixaria a tela em branco sem explicação —
        que foi como o problema do "brl" apareceu para o usuário. */
@@ -582,17 +679,283 @@ function simPintarLista(r){
   simRenderKpis(); simRenderGrafico(); simRenderRanking(); simRenderRecebidas();
 }
 
+/* =====================================================================
+ * r48 — PAINEL (itens 1 a 5)
+ * ------------------------------------------------------------------ */
+function portalCarga(pct, oque){
+  const cx=document.getElementById("carga-portal"), t=document.getElementById("carga-pct");
+  if(!cx) return;
+  if(pct>=100){ cx.classList.add("fim"); return; }
+  cx.classList.remove("fim");
+  t.textContent = pct + "%" + (oque ? " · " + oque : "");
+}
+
+function trocarPainel(qual){
+  document.querySelectorAll("#seg-painel .seg-bt").forEach(b=>b.classList.toggle("on", b.dataset.pn===qual));
+  document.getElementById("painel-sim").classList.toggle("hide", qual!=="sim");
+  document.getElementById("painel-prop").classList.toggle("hide", qual!=="prop");
+}
+
+/* ---------- VGV (item 1) ----------
+   Meta: R$ 315.000 por unidade. Os cards mostram estoque, vendido e o
+   conjunto, sempre com a distância para a meta. */
+const VGV_META = 315000;
+function simRenderVgv(){
+  const el=document.getElementById("sim-vgv"); if(!el) return;
+  if(!UNS.length){ el.innerHTML='<div class="vazio" style="grid-column:1/-1"><span class="load"></span> Carregando unidades…</div>'; return; }
+  const val = u => Number(u.valorVenda)||0;
+  const st = u => String(u.vendida||u.vendidaCru||"").toUpperCase();
+  const vendidas = UNS.filter(u=>st(u)==="SIM");
+  const reservadas = UNS.filter(u=>st(u).indexOf("RESERV")===0);
+  const estoque = UNS.filter(u=>st(u)!=="SIM");
+  const med = arr => arr.length ? arr.reduce((a,u)=>a+val(u),0)/arr.length : 0;
+  const cards=[
+    ["VGV total", simBRL(UNS.reduce((a,u)=>a+val(u),0)), UNS.length+" unidade(s)", null],
+    ["VGV vendido", simBRL(vendidas.reduce((a,u)=>a+val(u),0)), vendidas.length+" vendida(s)", null],
+    ["VGV em estoque", simBRL(estoque.reduce((a,u)=>a+val(u),0)), estoque.length+" disponível(is) ou reservada(s)", null],
+    ["Preço médio · vendidas", simBRL(med(vendidas)), null, med(vendidas)],
+    ["Preço médio · estoque", simBRL(med(estoque)), null, med(estoque)],
+    ["Preço médio · geral", simBRL(med(UNS)), reservadas.length+" reservada(s)", med(UNS)]
+  ];
+  el.innerHTML = cards.map(k=>{
+    let sub = k[2] ? `<div class="sub">${esc(k[2])}</div>` : "";
+    if(k[3]!==null && k[3]!==undefined){
+      const dif = k[3]-VGV_META;
+      const bom = dif>=0;
+      sub = `<div class="sub ${bom?"meta-ok":"meta-ruim"}">${bom?"▲":"▼"} ${simBRL(Math.abs(dif))} ${bom?"acima":"abaixo"} da meta de ${simBRL(VGV_META)}</div>`;
+    }
+    return `<div class="kpi"><div class="lab">${k[0]}</div><div class="val">${k[1]}</div>${sub}</div>`;
+  }).join("");
+}
+
+/* ---------- médias clicáveis (item 3) ----------
+   Clicar na barra abre a distribuição: quantas pessoas em cada faixa. */
+function faixasDe(valores){
+  const v=valores.filter(x=>x>0).sort((a,b)=>a-b);
+  if(!v.length) return [];
+  const max=v[v.length-1], passo=Math.max(500, Math.ceil(max/6/500)*500);
+  const mapa={};
+  v.forEach(x=>{ const f=Math.floor(x/passo)*passo; mapa[f]=(mapa[f]||0)+1; });
+  return Object.keys(mapa).map(Number).sort((a,b)=>a-b)
+    .map(f=>({de:f, ate:f+passo, qtd:mapa[f]}));
+}
+function abrirDetalheMedia(alvo, titulo, valores){
+  const el=document.getElementById(alvo); if(!el) return;
+  const faixas=faixasDe(valores);
+  if(el.dataset.aberto===titulo){ el.innerHTML=""; el.dataset.aberto=""; return; }
+  el.dataset.aberto=titulo;
+  if(!faixas.length){ el.innerHTML='<div class="vazio">Sem valores informados.</div>'; return; }
+  const max=Math.max(...faixas.map(f=>f.qtd));
+  el.innerHTML='<h4>'+esc(titulo)+' · distribuição</h4>'+
+    faixas.map(f=>`<div class="faixa"><span>${simBRL(f.de)} a ${simBRL(f.ate)}</span>`+
+      `<div class="barra"><i style="width:${Math.round(f.qtd/max*100)}%"></i></div>`+
+      `<b>${f.qtd} pessoa(s)</b></div>`).join("");
+}
+
+function graficoMedias(alvoGraf, alvoDet, dados){
+  const el=document.getElementById(alvoGraf); if(!el) return;
+  const validos=dados.filter(d=>d.valores.some(v=>v>0));
+  if(!validos.length){ el.innerHTML='<div class="vazio" style="width:100%">Sem dados ainda.</div>'; return; }
+  const media=v=>{ const x=v.filter(n=>n>0); return x.length ? x.reduce((a,b)=>a+b,0)/x.length : 0; };
+  const valores=validos.map(d=>media(d.valores));
+  const max=Math.max(...valores)||1;
+  el.innerHTML=validos.map((d,i)=>
+    `<div class="sim-col clicavel" onclick="abrirDetalheMedia('${alvoDet}','${esc(d.nome)}',${JSON.stringify(d.valores)})" title="Clique para ver a distribuição">`+
+    `<span class="v">${simBRL(valores[i])}</span>`+
+    `<div class="b" style="height:${Math.max(4,(valores[i]/max)*100)}%"></div>`+
+    `<span class="l">${esc(d.nome)}</span>`+
+    `<span class="q">${d.valores.filter(x=>x>0).length} pessoa(s)</span></div>`).join("");
+}
+
+/* ---------- fluxo por tempo (itens 3 e 4) ---------- */
+function fluxoPorTempo(alvo, datas, rotulo){
+  const el=document.getElementById(alvo); if(!el) return;
+  const dias=14, hoje=new Date(); hoje.setHours(0,0,0,0);
+  const balde={}, ordem=[];
+  for(let i=dias-1;i>=0;i--){
+    const d=new Date(hoje); d.setDate(d.getDate()-i);
+    const k=d.toISOString().slice(0,10);
+    balde[k]=0; ordem.push(k);
+  }
+  let fora=0;
+  datas.forEach(t=>{
+    const k=String(t||"").slice(0,10);
+    if(balde[k]!==undefined) balde[k]++; else if(k) fora++;
+  });
+  const max=Math.max(1,...ordem.map(k=>balde[k]));
+  el.innerHTML='<div class="fluxo">'+ordem.map(k=>{
+    const q=balde[k], d=k.slice(8,10)+"/"+k.slice(5,7);
+    return `<div class="dia" title="${d}: ${q} ${rotulo}"><b>${q||""}</b>`+
+           `<i style="height:${Math.max(3,Math.round(q/max*100))}%"></i><span>${d}</span></div>`;
+  }).join("")+'</div>'+
+  `<div style="font-size:12px;color:var(--text3);margin-top:6px">Últimos 14 dias`+
+  (fora?` · ${fora} ${rotulo} antes desse período`:"")+`</div>`;
+}
+
+/* r48 (item 9) — MAPA AO VIVO abaixo da tabela de unidades. É o mesmo SVG do
+   mapa de vendas; as cores saem da lista que está na tela, então a mudança
+   aparece assim que a unidade é salva. */
+const MAPA_SVG_URL = "https://devmoraiseng.github.io/SIMULADOR-RESERVA-DO-IP-S/assets/CONDOMINIO_VENDAS.svg";
+let MAPA_SVG_TXT = "";
+async function simRenderMapa(){ return pintarMapa("sim-mapa","sim-mapaLegenda", false); }
+
+async function pintarMapa(alvo, alvoLegenda, clicavel){
+  const cx=document.getElementById(alvo); if(!cx || !UNS.length) return;
+  if(!MAPA_SVG_TXT){
+    try{
+      const r=await fetch(MAPA_SVG_URL);
+      MAPA_SVG_TXT=await r.text();
+    }catch(e){ cx.innerHTML='<div class="vazio">Não consegui carregar o mapa agora.</div>'; return; }
+  }
+  if(!cx.querySelector("svg")) cx.innerHTML=MAPA_SVG_TXT;
+  const svg=cx.querySelector("svg"); if(!svg) return;
+  svg.removeAttribute("width"); svg.removeAttribute("height");
+  const cor={vendida:"#C0392B", reservada:"#1F6FB2", disponivel:"#1a6b40", indisponivel:"#9aa8b2"};
+  let c={vendida:0,reservada:0,disponivel:0,indisponivel:0};
+  UNS.forEach(u=>{
+    const id=String(u.unidade||"").trim();
+    const pol=svg.querySelector('[id="'+id+'"]') || svg.querySelector('[id="'+id.padStart(2,"0")+'"]');
+    if(!pol) return;
+    const st=String(u.vendida||u.vendidaCru||"").toUpperCase();
+    const disp=String(u.disponivel||"").toUpperCase();
+    let e="indisponivel";
+    if(st==="SIM") e="vendida";
+    else if(st.indexOf("RESERV")===0) e="reservada";
+    else if(disp==="SIM"||u.disponivel===true) e="disponivel";
+    c[e]++;
+    pol.setAttribute("fill", cor[e]);
+    pol.setAttribute("fill-opacity","0.62");
+    pol.setAttribute("stroke","#fff");
+    pol.setAttribute("stroke-width","6");
+    pol.style.cursor = clicavel ? "pointer" : "default";
+    if(clicavel){ pol.onclick=function(){ anDetalhe(id); }; }
+    let t=pol.querySelector("title");
+    if(!t){ t=document.createElementNS("http://www.w3.org/2000/svg","title"); pol.appendChild(t); }
+    t.textContent="Un. "+id+" · T"+(u.tipo||"—")+" · "+simBRL(Number(u.valorVenda)||0)+" · "+
+      ({vendida:"vendida",reservada:"reservada",disponivel:"disponível",indisponivel:"em breve"})[e];
+  });
+  const leg=document.getElementById(alvoLegenda);
+  if(leg) leg.innerHTML=
+    `<b style="color:${cor.disponivel}">■</b> ${c.disponivel} disponível(is) · `+
+    `<b style="color:${cor.reservada}">■</b> ${c.reservada} reservada(s) · `+
+    `<b style="color:${cor.vendida}">■</b> ${c.vendida} vendida(s) · `+
+    `<b style="color:${cor.indisponivel}">■</b> ${c.indisponivel} em breve`;
+}
+
+/* =====================================================================
+ * r49 (item 6) — ANÁLISE DE VENDAS
+ * ---------------------------------------------------------------------
+ * Junta unidades (situação e preço) com propostas (quem, corretor, crédito
+ * e fluxo). Clicar numa unidade do mapa abre quem está nela.
+ * ------------------------------------------------------------------ */
+function anEstado(u){
+  const st=String(u.vendida||u.vendidaCru||"").toUpperCase();
+  if(st==="SIM") return "vendida";
+  if(st.indexOf("RESERV")===0) return "reservada";
+  const d=String(u.disponivel||"").toUpperCase();
+  return (d==="SIM"||u.disponivel===true) ? "disponivel" : "indisponivel";
+}
+function anPropostaDaUnidade(un){
+  const alvo=String(un).trim();
+  const desta=PROPS.filter(p=>String(p.unidade||"").trim()===alvo);
+  const peso={ACEITA:3, RESERVADA:2, "EM ANALISE":1};
+  return desta.sort((a,b)=>(peso[PROP_NORM(b.status)]||0)-(peso[PROP_NORM(a.status)]||0) ||
+                           String(b.criadoEm||"").localeCompare(String(a.criadoEm||"")))[0] || null;
+}
+function analiseRender(){
+  if(!document.getElementById("an-vgv")) return;
+  anVgv(); anMapa(); anFluxo(); anTabela();
+}
+function anVgv(){
+  const el=document.getElementById("an-vgv");
+  if(!UNS.length){ el.innerHTML='<div class="vazio" style="grid-column:1/-1"><span class="load"></span> Carregando unidades…</div>'; return; }
+  const val=u=>Number(u.valorVenda)||0;
+  const vend=UNS.filter(u=>anEstado(u)==="vendida");
+  const estoque=UNS.filter(u=>anEstado(u)!=="vendida");
+  const med=a=>a.length ? a.reduce((x,u)=>x+val(u),0)/a.length : 0;
+  const card=(lab,val2,meta,extra)=>{
+    let sub=extra?`<div class="sub">${esc(extra)}</div>`:"";
+    if(meta!==null && meta!==undefined){
+      const d=meta-VGV_META;
+      sub=`<div class="sub ${d>=0?"meta-ok":"meta-ruim"}">${d>=0?"▲":"▼"} ${simBRL(Math.abs(d))} ${d>=0?"acima":"abaixo"} da meta</div>`;
+    }
+    return `<div class="kpi"><div class="lab">${lab}</div><div class="val">${val2}</div>${sub}</div>`;
+  };
+  const faltam=Math.max(0, VGV_META*UNS.length - UNS.reduce((a,u)=>a+val(u),0));
+  el.innerHTML=
+    card("VGV médio · vendidas", simBRL(med(vend)), med(vend), null)+
+    card("VGV médio · estoque", simBRL(med(estoque)), med(estoque), null)+
+    card("VGV médio · geral", simBRL(med(UNS)), med(UNS), null)+
+    card("Vendidas", vend.length+" de "+UNS.length, null, simBRL(vend.reduce((a,u)=>a+val(u),0))+" vendidos")+
+    card("Em estoque", estoque.length+"", null, simBRL(estoque.reduce((a,u)=>a+val(u),0))+" a vender")+
+    card("Para bater a meta", faltam?simBRL(faltam):"na meta", null,
+         faltam?"é o quanto falta no conjunto para a média chegar a "+simBRL(VGV_META):"o conjunto já está na meta");
+}
+function anMapa(){ pintarMapa("an-mapa","an-legenda", true); }
+function anFluxo(){
+  const datas=PROPS.filter(p=>["ACEITA","RESERVADA"].includes(PROP_NORM(p.status)))
+                   .map(p=>p.dataAceite||p.dataReserva||p.criadoEm);
+  fluxoPorTempo("an-fluxo", datas, "venda(s)/reserva(s)");
+}
+function anTabela(){
+  const el=document.getElementById("an-tabela"); if(!el) return;
+  const linhas=UNS.filter(u=>anEstado(u)!=="disponivel" && anEstado(u)!=="indisponivel")
+    .sort((a,b)=>(parseInt(a.unidade,10)||0)-(parseInt(b.unidade,10)||0));
+  const cab='<thead><tr><th>Unidade</th><th>Situação</th><th class="col-num">Valor</th>'+
+            '<th>Cliente</th><th>Corretor</th><th>Crédito</th><th>Sinal</th></tr></thead>';
+  const corpo=linhas.length ? linhas.map(u=>{
+    const e=anEstado(u), p=anPropostaDaUnidade(u.unidade);
+    const sit=e==="vendida" ? '<span class="pill ruim">VENDIDA</span>' : '<span class="pill" style="background:rgba(31,111,178,.16);color:#1F6FB2">RESERVADA</span>';
+    return `<tr class="clicavel" onclick="anDetalhe('${esc(String(u.unidade))}')">`+
+      `<td><b>Un. ${esc(String(u.unidade))}</b> · T${esc(String(u.tipo||"—"))}</td><td>${sit}</td>`+
+      `<td class="num">${simBRL(u.valorVenda)}</td>`+
+      `<td>${esc((p&&p.cliente)||"—")}</td><td>${esc((p&&p.vendedor)||"—")}</td>`+
+      `<td>${p ? (p.comCredito?'<span class="pill bom">APROVADO</span>':'<span class="pill ruim">SEM CARTA</span>') : "—"}</td>`+
+      `<td>${p ? propPillSinais(p) : "—"}</td></tr>`;
+  }).join("") : '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:16px">Nenhuma unidade reservada ou vendida ainda.</td></tr>';
+  el.innerHTML=cab+"<tbody>"+corpo+"</tbody>";
+}
+function anDetalhe(un){
+  const cx=document.getElementById("an-detalheUn"); if(!cx) return;
+  const u=UNS.find(x=>String(x.unidade).trim()===String(un).trim());
+  if(!u){ cx.innerHTML=""; return; }
+  const e=anEstado(u), p=anPropostaDaUnidade(un);
+  const it=(r,v)=>`<div class="sim-item"><small>${r}</small><b>${v||"—"}</b></div>`;
+  const nome={vendida:"Vendida", reservada:"Reservada", disponivel:"Disponível", indisponivel:"Em breve"}[e];
+  let html=`<div class="sec" style="margin-top:0"><span class="cond">Unidade ${esc(String(un))} · ${nome}</span>
+    <span style="flex:1"></span>
+    <button class="bt ghost" onclick="document.getElementById('an-detalheUn').innerHTML=''">Fechar</button></div>
+    <div class="sim-grade">${it("Tipo","T"+esc(String(u.tipo||"—")))}${it("Valor de venda",simBRL(u.valorVenda))}
+    ${it("Avaliação",simBRL(u.avaliacao))}${it("Situação",nome)}</div>`;
+  if(!p){
+    html+='<div class="sim-aviso" style="margin-top:12px">Nenhuma proposta ligada a esta unidade no portal.</div>';
+  } else {
+    html+=`<div class="sim-grade" style="margin-top:12px">
+      ${it("Cliente",esc(p.cliente||""))}${it("CPF",esc(p.cpf||""))}
+      ${it("Corretor",esc(p.vendedor||""))}${it("Imobiliária",esc(p.imobiliaria||""))}
+      ${it("Situação da proposta",esc(p.status||""))}
+      ${it("Crédito na CAIXA", p.comCredito?("APROVADO · "+simBRL(p.creditoAprovado)):"SEM CARTA — estimativa")}
+      ${it("Financiado",simBRL(p.valorFinanciado))}${it("Parcela",p.parcelaFinanciamento?simBRL(p.parcelaFinanciamento):"não apurada")}
+      ${it("Renda",simBRL(p.rendaTotal))}${it("Valor para entrada",simBRL(p.valorEntrada))}
+    </div>${propQuadroFluxo(p)}
+    <div style="margin-top:10px"><button class="bt az" onclick="trocarTab('propostas');setTimeout(function(){propVer('${p.id}')},250)">Abrir a proposta</button></div>`;
+  }
+  cx.innerHTML=html;
+  cx.scrollIntoView({behavior:"smooth", block:"nearest"});
+}
+
 /* ---------- KPIs ---------- */
 function simSt(s){ return String(s&&s.status||"").trim().toUpperCase(); }
 function simRenderKpis(){
   const conc = SIMS.filter(s=>simSt(s)==="CONCLUIDO").length;
   const erro = SIMS.filter(s=>simSt(s)==="ERRO").length;
   const proc = SIMS.length - conc - erro;
-  const com  = SIMS.reduce((a,s)=>a+(Number(s.comissaoValor)||0),0);
   const uns  = new Set(SIMS.map(s=>String(s.unidade||"")).filter(Boolean)).size;
+  const pessoas = new Set(SIMS.map(s=>String(s.cpf||"").replace(/\D/g,"")).filter(Boolean)).size;
+  /* r48 (item 3) — "Comissão prevista" saiu daqui. */
   document.getElementById("sim-kpis").innerHTML =
     [["Simulações",SIMS.length],["Concluídas",conc],["Em processamento",proc],
-     ["Com erro",erro],["Unidades procuradas",uns],["Comissão prevista",simBRL(com)]]
+     ["Com erro",erro],["Unidades procuradas",uns],["Pessoas diferentes",pessoas]]
     .map(k=>`<div class="kpi"><div class="lab">${k[0]}</div><div class="val">${k[1]}</div></div>`).join("");
 }
 
@@ -603,17 +966,16 @@ function simMedia(campo, arr){
   return v.length ? v.reduce((a,b)=>a+b,0)/v.length : 0;
 }
 function simRenderGrafico(){
-  const base = SIMS;
-  if(!base.length){
-    document.getElementById("sim-grafico").innerHTML='<div class="vazio" style="width:100%">Sem simulações ainda.</div>';
-    return;
-  }
-  const dados=[["Renda média",simMedia("renda",base)],["FGTS médio",simMedia("fgts",base)],["Subsídio médio",simMedia("subsidio",base)]];
-  const max=Math.max(...dados.map(d=>d[1]))||1;
-  document.getElementById("sim-grafico").innerHTML = dados.map(d=>
-    `<div class="sim-col"><span class="v">${simBRL(d[1])}</span>`+
-    `<div class="b" style="height:${Math.max(4,(d[1]/max)*100)}%"></div>`+
-    `<span class="l">${d[0]}</span></div>`).join("");
+  /* r48 (item 3) — entrou a média do VALOR PARA ENTRADA e as barras viraram
+     clicáveis (abrem a distribuição por faixa). */
+  graficoMedias("sim-grafico","sim-mediaDet",[
+    {nome:"Renda", valores:SIMS.map(s=>Number(s.renda)||0)},
+    {nome:"FGTS", valores:SIMS.map(s=>Number(s.fgts)||0)},
+    {nome:"Subsídio", valores:SIMS.map(s=>Number(s.subsidio)||0)},
+    {nome:"Valor para entrada", valores:SIMS.map(s=>Number(s.entradaInformada)||0)},
+    {nome:"Entrada a pagar", valores:SIMS.map(s=>Number(s.entrada)||0)}
+  ]);
+  fluxoPorTempo("sim-fluxoTempo", SIMS.map(s=>s.criadoEm), "simulação(ões)");
 }
 
 /* ---------- ranking de corretores e imobiliárias ---------- */
@@ -732,7 +1094,7 @@ function simRenderRecebidas(){
       `<tbody><tr><td colspan="${SIM_COLS_REC.length}" style="text-align:center;color:var(--text3);padding:22px">Nenhuma simulação encontrada.</td></tr></tbody>`;
     return;
   }
-  const corpo=vis.map(s=>`<tr class="clicavel" onclick="simVerDet('${s.id}')">
+  const corpo=vis.map(s=>`<tr class="clicavel" onclick="simVerAbaixo('${s.id}')">
     <td>${esc(s.cliente||"—")}</td><td class="col-un">${esc(s.cpf||"—")}</td>
     <td>${esc(s.corretor||"—")}</td><td>${esc(s.imobiliaria||"—")}</td>
     <td>Un. ${esc(String(s.unidade||"—"))} <span style="color:var(--text3)">(T${esc(String(s.tipo||"—"))})</span></td>
@@ -772,6 +1134,63 @@ function simParseEsquema(txt){
 }
 const SIM_PCTS=[20,30,40,50,60,70,80,90];   // mesmas faixas do e-mail (email_timbrado.py)
 function simEncargo(parcela){ return SIM_PCTS.map(p=>(Number(parcela)||0)*p/100); }
+
+/* r49 (item 7) — o fluxo da simulação sai agrupado e com etiquetas, igual ao
+   das propostas: sinal → parcelas durante a obra → balões → pós-chaves. */
+function simFluxoHtml(s){
+  const fluxo=propParseEsquema(s.esquema);
+  if(!fluxo.length) return "";
+  const ROT={sinal:"Sinal — pago com o valor para entrada", obra:"Parcelas durante a obra",
+             balao:"Balões", pos:"Pós-chaves — pós a obra", outro:""};
+  let ultimo="";
+  const linhas=fluxo.map(f=>{
+    let cab="";
+    if(f.grupo!==ultimo && ROT[f.grupo]){ cab=`<tr><td colspan="3" class="prop-grp">${ROT[f.grupo]}</td></tr>`; ultimo=f.grupo; }
+    const tag=f.grupo==="obra"?' <span class="prop-tag-obra">DURANTE A OBRA</span>'
+             :(f.grupo==="pos"?' <span class="prop-tag-obra" style="background:#5B4A8A">PÓS A OBRA</span>':"");
+    return cab+`<tr><td>${esc(f.quando)}</td><td class="num">${esc(f.valor)}</td><td style="color:var(--text3)">${esc(f.forma)}${tag}</td></tr>`;
+  }).join("");
+  return `<div style="margin-top:14px"><b style="font-size:13px;color:var(--azul)">Entrada total — fluxo de pagamento</b>
+    <div class="tbl-wrap" style="margin-top:6px;max-height:none"><table><tbody>
+      <tr class="sim-tot"><td colspan="2">ENTRADA TOTAL A PAGAR</td><td class="num">${simBRL(s.entrada)}</td></tr>
+      ${linhas}</tbody></table></div></div>`;
+}
+
+/* Abre a simulação LOGO ABAIXO DA TABELA (item 7), com tudo o que existe
+   dela. O modal continua valendo para quem clicar duas vezes. */
+function simVerAbaixo(id){
+  const s=SIMS.find(x=>x.id===id); if(!s) return;
+  const cx=document.getElementById("sim-detBaixo"); if(!cx) return;
+  if(cx.dataset.id===id && cx.style.display!=="none"){ cx.style.display="none"; cx.dataset.id=""; return; }
+  cx.dataset.id=id; cx.style.display="";
+  const it=(r,v)=>`<div class="sim-item"><small>${r}</small><b>${v||"—"}</b></div>`;
+  cx.innerHTML=`
+    <div class="sec" style="margin-top:0"><span class="cond">Simulação de ${esc(s.cliente||"—")}</span>
+      <span style="flex:1"></span>
+      <button class="bt ghost" onclick="document.getElementById('sim-detBaixo').style.display='none'">Fechar</button></div>
+    <div class="modal-sub" style="margin-bottom:10px">CPF ${esc(s.cpf||"—")} · ${simData(s.criadoEm)} · ${simTagSt(s.status)}</div>
+    <div class="sim-grade">
+      ${it("Corretor",esc(s.corretor||""))}${it("Imobiliária",esc(s.imobiliaria||""))}${it("E-mail",esc(s.email||""))}
+      ${it("Unidade","Un. "+esc(String(s.unidade||"—"))+" (Tipo "+esc(String(s.tipo||"—"))+")")}
+      ${it("Valor de venda",simBRL(s.valorVenda))}${it("Avaliação",simBRL(s.avaliacao))}
+      ${it("Renda",simBRL(s.renda))}${it("FGTS",simBRL(s.fgts))}${it("Subsídio",simBRL(s.subsidio))}
+      ${it("Valor para entrada",simBRL(s.entradaInformada))}${it("Entrada a pagar",simBRL(s.entrada))}
+      ${it("Valor financiado",simBRL(s.financiado))}${it("Parcela",simBRL(s.parcela))}
+      ${it("Prazo da entrada",(s.prazoEntrada||"—")+" meses")}
+      ${it("Produto",esc(s.produtos||""))}${it("Seguradora",esc(s.seguradora||""))}
+    </div>
+    ${simFluxoHtml(s)}
+    ${s.parcela?`<div style="margin-top:14px"><b style="font-size:13px;color:var(--azul)">Evolução estimada do encargo durante a obra</b>
+      <div class="tbl-wrap" style="margin-top:6px;max-height:none"><table><tbody>
+        <tr>${SIM_PCTS.map(p=>`<td style="background:var(--bg3);text-align:center;font-weight:700;color:var(--azul-esc)">${p}%</td>`).join("")}</tr>
+        <tr>${simEncargo(s.parcela).map(v=>`<td class="num" style="text-align:center">${simBRL(v)}</td>`).join("")}</tr>
+      </tbody></table></div></div>`:""}
+    ${s.mensagem?`<div class="sim-aviso ${simSt(s)==="ERRO"?"err":"ok"}" style="margin-top:12px">
+      <b>Mensagem do processamento</b><br>${esc(s.mensagem)}</div>`:""}
+    ${simSt(s)==="ERRO" && !ehSomenteLeitura(S)
+      ? `<div style="margin-top:12px"><button class="bt az" onclick="simRefazer('${s.id}')">↻ Tentar de novo</button></div>`:""}`;
+  cx.scrollIntoView({behavior:"smooth", block:"nearest"});
+}
 
 function simVerDet(id){
   const s=SIMS.find(x=>x.id===id); if(!s) return;
@@ -866,6 +1285,42 @@ async function simRefazerErros(){
   simCarregar(true);
 }
 
+/* r49 (item 8) — gera o link, copia para a área de transferência e deixa a
+   mensagem pronta para colar no WhatsApp ou no e-mail. */
+async function propLink(id){
+  const cx=document.getElementById("prop-linkCx"); if(cx) cx.textContent="gerando…";
+  let r;
+  try{ r=await chamar({action:"simsPropostaLink", pageId:id}, 60000, true); }
+  catch(e){ if(cx) cx.textContent="não consegui gerar agora."; return; }
+  if(!r || !r.ok){ if(cx) cx.innerHTML='<span style="color:var(--vermelho)">'+esc((r&&r.erro)||"falhou")+'</span>'; return; }
+  const cxDet=document.getElementById("prop-detalhe");
+  const bloco=document.createElement("div");
+  bloco.className="card";
+  bloco.style.margin="8px 0 12px";
+  bloco.innerHTML=
+    '<b style="font-size:13px;color:var(--azul)">Link para o corretor completar</b>'+
+    '<div style="font-size:12px;color:var(--text3);margin:4px 0 8px">Vale até '+esc(r.validade)+
+    '. Gerar de novo invalida o anterior. O que o corretor enviar cai direto no cadastro.</div>'+
+    '<input class="prop-inp" id="prop-linkUrl" readonly value="'+esc(r.url)+'">'+
+    '<label class="prop-rot">Mensagem pronta</label>'+
+    '<textarea class="prop-inp" id="prop-linkMsg" rows="5">'+esc(r.sugestao)+'</textarea>'+
+    '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">'+
+    '<button class="bt az" onclick="propCopiar(\'prop-linkUrl\',this)">Copiar o link</button>'+
+    '<button class="bt" onclick="propCopiar(\'prop-linkMsg\',this)">Copiar a mensagem</button>'+
+    '<a class="bt ghost" target="_blank" rel="noopener" href="'+esc(r.url)+'" style="text-decoration:none">Abrir</a>'+
+    '</div>';
+  if(cx){ cx.textContent=""; cx.parentElement.appendChild(bloco); }
+  else if(cxDet) cxDet.prepend(bloco);
+}
+function propCopiar(id, bt){
+  const el=document.getElementById(id); if(!el) return;
+  el.select(); el.setSelectionRange(0, 99999);
+  try{ document.execCommand("copy"); }catch(e){}
+  if(navigator.clipboard) navigator.clipboard.writeText(el.value).catch(()=>{});
+  const txt=bt.textContent; bt.textContent="copiado ✓";
+  setTimeout(()=>{ bt.textContent=txt; }, 1600);
+}
+
 /* ---------- unidades (sem mudanças de fundo — só o local do botão mudou) ---------- */
 /* VENDIDA tem TRES estados desde set/26: SIM, NAO e RESERVADA. RESERVADA e o
    que a aba de propostas grava quando a proposta e aceita ou reservada — por
@@ -898,7 +1353,7 @@ async function simCarregarUnidades(forcar){
      que faz o Google devolver uma página de login em HTML. O botão
      🩺 Diagnóstico mostra o que voltou de verdade. */
   if(r && r.unidades && r.unidades.length){
-    UNS=r.unidades; simRenderUnidades();
+    UNS=r.unidades; simRenderUnidades(); simRenderVgv(); simRenderMapa(); analiseRender();
     const semId = UNS.some(u=>!u.id);
     if(semId){
       simAvisoUn("err","As unidades vieram sem identificador do Notion — o backend precisa da ação simsUnidades atualizada. Fale com o dev.");
@@ -1065,7 +1520,7 @@ async function simSalvarUnidade(i){
        passava calado e a pessoa achava que tinha salvo. */
     const ign = (r.ignoradas&&r.ignoradas.length) ? " Colunas nao encontradas no Notion: "+r.ignoradas.join(", ")+"." : "";
     simAvisoUn(ign?"err":"ok","Unidade "+u.unidade+" atualizada."+ign+" O mapa de vendas está sendo republicado.");
-    simRenderUnidades();
+    simRenderUnidades(); simRenderVgv(); simRenderMapa();
   }else{
     simAvisoUn("err",(r&&r.erro==="MODO_TESTE") ? "Perfil TESTES não grava." : simErroAmigavel(r&&r.erro));
   }
@@ -1109,7 +1564,7 @@ async function simSalvarTudo(){
     else { falhas.push((u&&u.unidade)||"?"); }
   }
   try{ storeGravar("sims_unidades", {ok:true, unidades:UNS}); }catch(e){}
-  simRenderUnidades();
+  simRenderUnidades(); simRenderVgv(); simRenderMapa();
   if(!falhas.length){
     simAvisoUn("ok",`${ok} unidade(s) salva(s). O mapa de vendas está sendo republicado.`);
   }else{
@@ -1179,7 +1634,7 @@ function propErro(e){
 function propPintar(r){
   if(!r || !r.propostas) return;
   PROPS = r.propostas;
-  propRender(); propKpis(); propRankings(); propAlerta24();
+  propRender(); propKpis(); propRankings(); propAlerta24(); analiseRender();
   /* r40 — de onde veio a lista: Notion agora ou cache (com a hora), e qual
      base foi lida. Se a base aqui não for a mesma do simulador, as propostas
      novas nunca apareceriam — e não havia como perceber. */
@@ -1278,12 +1733,51 @@ function propRender(){
 function propKpis(){
   const el=document.getElementById("prop-kpis"); if(!el) return;
   const c=n=>PROPS.filter(p=>PROP_NORM(p.status)===n).length;
-  const credito=PROPS.filter(p=>["ACEITA","RESERVADA"].includes(PROP_NORM(p.status)))
-                     .reduce((a,p)=>a+(Number(p.creditoAprovado)||0),0);
+  /* r48 (item 4) — no lugar do "crédito aceito/reservado", o VGV médio das
+     unidades ACEITAS, com a distância para a meta. */
+  const aceitas=PROPS.filter(p=>PROP_NORM(p.status)==="ACEITA");
+  const precos=aceitas.map(p=>Number(p.preco)||0).filter(x=>x>0);
+  const vgvMedio=precos.length ? precos.reduce((a,b)=>a+b,0)/precos.length : 0;
+  const dif=vgvMedio-VGV_META;
   el.innerHTML=[["Propostas",PROPS.length],["Recebidas",c("RECEBIDA")],["Em análise",c("EM ANALISE")],
-                ["Aceitas",c("ACEITA")],["Reservadas",c("RESERVADA")],["Negadas",c("NEGADA")],
-                ["Crédito aceito/reservado",simBRL(credito)]]
-    .map(k=>`<div class="kpi"><div class="lab">${k[0]}</div><div class="val">${k[1]}</div></div>`).join("");
+                ["Aceitas",c("ACEITA")],["Reservadas",c("RESERVADA")],["Negadas",c("NEGADA")]]
+    .map(k=>`<div class="kpi"><div class="lab">${k[0]}</div><div class="val">${k[1]}</div></div>`).join("") +
+    `<div class="kpi"><div class="lab">VGV médio · aceitas</div><div class="val">${simBRL(vgvMedio)}</div>`+
+    (precos.length
+      ? `<div class="sub ${dif>=0?"meta-ok":"meta-ruim"}">${dif>=0?"▲":"▼"} ${simBRL(Math.abs(dif))} ${dif>=0?"acima":"abaixo"} da meta de ${simBRL(VGV_META)}</div>`
+      : '<div class="sub">nenhuma proposta aceita ainda</div>')+`</div>`;
+
+  graficoMedias("prop-grafico","prop-mediaDet",[
+    {nome:"Renda", valores:PROPS.map(p=>Number(p.rendaTotal)||0)},
+    {nome:"FGTS", valores:PROPS.map(p=>Number(p.fgts)||0)},
+    {nome:"Subsídio", valores:PROPS.map(p=>Number(p.subsidio)||0)},
+    {nome:"Valor para entrada", valores:PROPS.map(p=>Number(p.valorEntrada)||0)},
+    {nome:"Crédito aprovado", valores:PROPS.map(p=>Number(p.creditoAprovado)||0)}
+  ]);
+  fluxoPorTempo("prop-fluxoTempo", PROPS.map(p=>p.criadoEm), "proposta(s)");
+  propRankUnidades();
+}
+
+/* r48 (item 4) — unidades com mais propostas */
+function propRankUnidades(){
+  const el=document.getElementById("prop-rankUnidade"); if(!el) return;
+  const mapa={};
+  PROPS.forEach(p=>{
+    const un=String(p.unidade||"").trim(); if(!un) return;
+    const r=mapa[un]||(mapa[un]={qtd:0,tipo:p.tipo||"",aceitas:0,preco:Number(p.preco)||0,cpfs:new Set()});
+    r.qtd++;
+    if(PROP_NORM(p.status)==="ACEITA") r.aceitas++;
+    if(p.cpf) r.cpfs.add(String(p.cpf).replace(/\D/g,""));
+  });
+  const linhas=Object.entries(mapa).sort((a,b)=>b[1].qtd-a[1].qtd || (parseInt(a[0],10)||0)-(parseInt(b[0],10)||0));
+  const cab='<thead><tr><th>Unidade</th><th>Tipo</th><th class="col-num">Propostas</th>'+
+            '<th class="col-num">Pessoas</th><th class="col-num">Aceitas</th><th class="col-num">Preço</th></tr></thead>';
+  const corpo=linhas.length ? linhas.map(([un,r])=>
+      `<tr><td><b>Un. ${esc(un)}</b></td><td>T${esc(String(r.tipo||"—"))}</td>`+
+      `<td class="num">${r.qtd}</td><td class="num">${r.cpfs.size}</td>`+
+      `<td class="num">${r.aceitas||"—"}</td><td class="num">${r.preco?simBRL(r.preco):"—"}</td></tr>`).join("")
+    : '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:16px">Sem propostas ainda.</td></tr>';
+  el.innerHTML=cab+"<tbody>"+corpo+"</tbody>";
 }
 function propRankings(){
   propRank("prop-rankCorretor","vendedor");
@@ -1544,7 +2038,7 @@ async function propCarregarDetalhe(id){
         style="color:var(--azul);text-decoration:underline">${esc(f.nome)}</a>`).join(' · ')+'</div>'
     : '';
 
-  alvo.innerHTML = cxPend + cxDocs + cxCampos + cxPdf;
+  alvo.innerHTML = cxPend + cxHist + cxDocs + cxCampos + cxPdf;
 }
 
 /* ---------- PDF da proposta ---------- */
