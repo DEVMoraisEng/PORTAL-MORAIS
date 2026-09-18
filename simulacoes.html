@@ -1342,9 +1342,15 @@ async function propGerarLink(id){
   catch(e){ if(cx) cx.textContent="não consegui gerar agora."; return; }
   if(!r || !r.ok){
     const erro=String((r&&r.erro)||"falhou");
+    /* r55 — o "Can't edit block that is archived" do Notion quer dizer que a
+       PÁGINA DA PROPOSTA está na lixeira da base. Nenhum retry resolve. */
+    const arquivada = /archiv/i.test(erro);
     if(cx) cx.innerHTML='<span style="color:var(--vermelho)">'+
-      (erro==="NAO_AUTORIZADO" ? 'Sessão expirada — saia e entre de novo no portal.' : esc(erro))+
-      '</span> <button class="bt ghost" style="padding:4px 10px" onclick="propGerarLink(\''+id+'\')">↻ Tentar de novo</button>';
+      (erro==="NAO_AUTORIZADO" ? 'Sessão expirada — saia e entre de novo no portal.'
+       : arquivada ? 'Esta proposta está <b>arquivada no Notion</b> (foi para a lixeira da base). '+
+                     'Restaure a página no Notion e gere o link de novo.'
+       : esc(erro))+
+      '</span>'+(arquivada?'':' <button class="bt ghost" style="padding:4px 10px" onclick="propGerarLink(\''+id+'\')">↻ Tentar de novo</button>');
     return;
   }
   const cxDet=document.getElementById("prop-detalhe");
@@ -1921,17 +1927,22 @@ function propPendenciasHtml(p, pend){
   if(!pend) return '<div class="sim-aviso ok"><span class="load"></span> Conferindo pendências…</div>';
   const origens=[String(p.origemRenda||""), String(p.origemRendaConjuge||"")];
   const civil=String(p.estadoCivil||"");
-  const total=(pend.campos||[]).length+(pend.documentos||[]).length;
-  if(!total) return '<div class="sim-aviso ok"><b>Proposta completa.</b> Todos os campos obrigatórios e todos os documentos foram entregues.</div>';
+  /* r55 — só conta o que ESTE cliente precisa entregar. Documento que a
+     análise não exige para o perfil dele não é pendência. */
   const pedidos=(pend.documentos||[]).filter(d=>propPedido(d,origens,civil));
   const outros=(pend.documentos||[]).filter(d=>!propPedido(d,origens,civil));
+  const total=(pend.campos||[]).length+pedidos.length;
+  if(!total) return '<div class="sim-aviso ok"><b>Proposta completa.</b> Todos os campos obrigatórios '+
+    'e todos os documentos exigidos para este perfil foram entregues.'+
+    (outros.length?'<br><span style="color:var(--text3)">'+outros.length+' documento(s) da lista geral não '+
+     'foram enviados, mas não são exigidos aqui.</span>':'')+'</div>';
   return '<div class="sim-aviso err"><b>Faltam '+total+' item(ns) nesta proposta.</b>'+
     ((pend.campos||[]).length ? '<br><b>Campos:</b> '+pend.campos.map(esc).join(' · ') : '')+
     (pedidos.length ? '<br><b>Documentos pedidos para este cliente'+
       (origens.filter(Boolean).length?' ('+origens.filter(Boolean).map(esc).join(' / ')+')':'')+':</b> '+
       pedidos.map(esc).join(' · ') : '')+
     (outros.length ? '<br><span style="color:var(--text3)">Outros '+outros.length+
-      ' documento(s) da lista geral não foram enviados, mas <b>não são exigidos</b> para este perfil.</span>' : '')+
+      ' documento(s) da lista geral não foram enviados — <b>não contam como pendência</b> neste perfil.</span>' : '')+
     '</div>';
 }
 
