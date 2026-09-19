@@ -1397,7 +1397,7 @@ async function propEnviarLink(id, bt){
   av.innerHTML = (r && r.ok)
     ? '<span style="color:var(--verde-esc)">Enviado para '+esc(r.enviadoPara||"o corretor")+
       (r.naConversa?' — na mesma conversa da proposta.':'.')+'</span>'
-    : '<span style="color:var(--vermelho)">'+esc((r&&r.erro)||"não enviou")+'</span>';
+    : '<span style="color:var(--vermelho)">'+esc((r&&(r.mensagem||r.erro))||"não enviou")+'</span>';
 }
 
 /* r53 — o HTML do e-mail aparece com a formatação original, mas sem nada
@@ -2501,7 +2501,7 @@ async function propEmail(id){
       "na barra de cima e clique em <b>Executar</b>. O Google vai pedir a permissão — aceite. "+
       "Publicar nova versão não pede permissão nenhuma; quem pede é a execução no editor.";
   }
-  else { av.className="sim-aviso err"; av.textContent=propErro(r&&r.erro); }
+  else { av.className="sim-aviso err"; av.textContent=(r&&r.mensagem) || propErro(r&&r.erro); }
 }
 
 /* Confere a base PROPOSTAS contra o esquema do codigo e CRIA o que faltar.
