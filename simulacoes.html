@@ -1937,17 +1937,13 @@ function propPendenciasHtml(p, pend){
   const outros=(pend.documentos||[]).filter(d=>!propPedido(d,origens,civil));
   const total=(pend.campos||[]).length+pedidos.length;
   if(!total) return '<div class="sim-aviso ok"><b>Proposta completa.</b> Todos os campos obrigatórios '+
-    'e todos os documentos exigidos para este perfil foram entregues.'+
-    (outros.length?'<br><span style="color:var(--text3)">'+outros.length+' documento(s) da lista geral não '+
-     'foram enviados, mas não são exigidos aqui.</span>':'')+'</div>';
+    'e todos os documentos exigidos para este perfil foram entregues.</div>';
   return '<div class="sim-aviso err"><b>Faltam '+total+' item(ns) nesta proposta.</b>'+
     ((pend.campos||[]).length ? '<br><b>Campos:</b> '+pend.campos.map(esc).join(' · ') : '')+
     (pedidos.length ? '<br><b>Documentos pedidos para este cliente'+
       (origens.filter(Boolean).length?' ('+origens.filter(Boolean).map(esc).join(' / ')+')':'')+':</b> '+
       pedidos.map(esc).join(' · ') : '')+
-    (outros.length ? '<br><span style="color:var(--text3)">Outros '+outros.length+
-      ' documento(s) da lista geral não foram enviados — <b>não contam como pendência</b> neste perfil.</span>' : '')+
-    '</div>';
+    '</div>';   /* r57 — documento não exigido não é citado aqui */
 }
 
 /* ITEM 15 — pílula da lista: o crivo de aceite à vista sem abrir a proposta */
@@ -2224,7 +2220,7 @@ async function propCarregarDetalhe(id){
   const cxDocs = '<div style="margin-top:14px"><b style="font-size:13px;color:var(--azul)">Documentos desta proposta</b>'+
     '<div class="tbl-wrap" style="max-height:none;margin-top:6px"><table><tbody>'+docs+'</tbody></table></div>'+
     (outrosDoc.length ? '<details style="margin-top:8px"><summary style="cursor:pointer;font-size:12.5px;color:var(--text3)">'+
-      'Ver os outros '+outrosDoc.length+' documento(s) da lista geral (não exigidos para este perfil)</summary>'+
+      'Anexar outro documento ('+outrosDoc.length+' disponíveis)</summary>'+
       '<div class="tbl-wrap" style="max-height:none;margin-top:6px"><table><tbody>'+
       outrosDoc.map(linhaDoc).join("")+'</tbody></table></div></details>' : '')+
     '<div style="font-size:11px;color:var(--text4);margin-top:4px">Os links valem cerca de 1 hora. '+
