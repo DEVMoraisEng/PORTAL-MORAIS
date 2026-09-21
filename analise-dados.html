@@ -1039,7 +1039,17 @@ async function carregarAnaliseDados(){
         (vale 2 min) para o arquivo no Supabase Storage privado;
      2) o navegador baixa o arquivo direto de lá — rápido e sem passar o
         JSON pelo Apps Script (era isso que dava 404 / "Unexpected token '<'"). */
-  const r=await chamar({action:"analiseDados"}, 45000);
+  let r;
+  try{ r=await chamar({action:"analiseDados"}, 45000); }
+  catch(e){
+    /* Resposta que não é JSON = o Apps Script devolveu página de erro (o 404
+       do ".../macros/echo"). Quase sempre é a implantação de LEITURA ainda na
+       versão antiga. O ping diz qual versão está no ar. */
+    let v="?";
+    try{ const pg=await chamar({action:"ping"}, 15000); v=(pg&&pg.versao)||"?"; }catch(_){}
+    throw new Error("O Apps Script não respondeu JSON para analiseDados. Versão no ar: "+v+
+                    " — esta tela precisa da r39 ou mais nova (Implantar > Gerenciar implantações > lápis > Nova versão).");
+  }
   if(!r||!r.ok){
     if(r&&r.erro==="NAO_AUTORIZADO"){ sair(); return null; }
     const msg=(r&&(erroTexto(r.erro)||r.erro))||"sem resposta do servidor";
