@@ -79,7 +79,7 @@ jobs:
         run: python fetch_documentos.py
 
       # ANÁLISE DE DADOS (veio do repositório CONTROLES-INTERNOS). NÃO gera
-      # nada no dist/: grava no Supabase (tabela analise_dados) e a tela lê
+      # nada no dist/: grava no Supabase Storage (bucket privado "analise") e a tela lê
       # pelo Apps Script, com login — mesmo desenho do Orçado x Realizado.
       # continue-on-error: a planilha do ERP fora do ar não pode derrubar o
       # build do portal inteiro.
