@@ -78,6 +78,23 @@ jobs:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
         run: python fetch_documentos.py
 
+      # ANÁLISE DE DADOS (veio do repositório CONTROLES-INTERNOS). NÃO gera
+      # nada no dist/: grava no Supabase (tabela analise_dados) e a tela lê
+      # pelo Apps Script, com login — mesmo desenho do Orçado x Realizado.
+      # continue-on-error: a planilha do ERP fora do ar não pode derrubar o
+      # build do portal inteiro.
+      - name: Buscar dados da Análise de Dados
+        continue-on-error: true
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          ERP_CSV_PROPOSTAS: ${{ secrets.ERP_CSV_PROPOSTAS }}
+          ERP_CSV_PAGAMENTOS: ${{ secrets.ERP_CSV_PAGAMENTOS }}
+          ERP_CSV_OBRAS: ${{ secrets.ERP_CSV_OBRAS }}
+          ERP_CSV_RECEBIMENTOS: ${{ secrets.ERP_CSV_RECEBIMENTOS }}
+        run: pip install requests && python fetch_analise_dados.py
+
       - name: Configurar Pages
         uses: actions/configure-pages@v5
 
