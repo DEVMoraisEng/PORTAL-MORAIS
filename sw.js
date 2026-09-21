@@ -96,7 +96,12 @@
    repinta os botões sozinho. Sem trocar este número, o service worker
    continuaria entregando o app.js ANTIGO do cache — e nem Ctrl+F5 derruba
    isso de forma confiável. */
-const CACHE = "portal-morais-v31";  // acesso novo (RAS OBRAS etc.) passa a aparecer sem sair e entrar
+/* v31 -> v32 (21/09/2026): a limpeza do "activate" apagava TODO cache que não
+   fosse o do portal — e o "caches" é da origem inteira (devmoraiseng.github.io),
+   então cada versão nova do portal apagava também a cópia offline das RAS, que
+   agora têm service worker próprio. A limpeza passa a mexer só nos caches cujo
+   nome começa com "portal-morais-". */
+const CACHE = "portal-morais-v32";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./documentos.html","./demandas.html",
@@ -106,7 +111,7 @@ self.addEventListener("install", e=>{
   e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ARQUIVOS)).then(()=>self.skipWaiting()));
 });
 self.addEventListener("activate", e=>{
-  e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));
+  e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k.startsWith("portal-morais-")&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));
 });
 self.addEventListener("fetch", e=>{
   const req=e.request;
