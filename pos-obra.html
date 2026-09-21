@@ -2614,7 +2614,14 @@ function pintarObra(){
       od("Cidade",
         esc(OBRA.cidade || "—")+
         (soLeitura() ? "" : ' <button class="bt-lapis" title="Editar cidade" onclick="editarEspelho(\'CIDADE\',\'Cidade\')">✏️</button>'), true) +
-      od("Assinatura do contrato", dbr(assin) || "—") +
+      /* set/26: a DATA DE ASSINATURA DO CONTRATO agora é editável aqui. Ela é
+         espelho de VENDAS (a sincronia traz de lá), então a gravação vai para
+         OS DOIS LADOS — mesmo esquema de TELEFONE/SETOR/CIDADE — senão a
+         sincronia seguinte desfazia a correção. */
+      od("Assinatura do contrato",
+        '<span class="assin-box">'+esc(dbr(assin) || "—")+
+        (soLeitura() ? "" : ' <button class="bt-lapis" title="Editar data de assinatura" onclick="editarAssinatura(this)">✏️</button>')+
+        '</span>', true) +
       /* r33 (pedido 2): o anexo do contrato faltava aqui. A coluna FOTOS DO
          CONTRATO existe na base PÓS OBRA e o backend já aceitava anexo nela
          (posObraAnexar_), mas nenhuma tela mostrava — quem quisesse ver ou
@@ -2739,6 +2746,54 @@ function editarEspelho(coluna, rotulo){
     if(!r.ok){ toast("Não gravou: "+erroTexto(r.erro), 5); return; }
     OBRA[chave] = limpo || null;
     const o = obraPorId(OBRA.id); if(o) o[chave] = OBRA[chave];
+    pintarObra();
+    const esp = r.resposta && r.resposta.espelhado;
+    toast(r.enfileirado ? "Sem internet — vai subir quando reconectar."
+        : (esp ? "Salvo aqui e na venda." : "Salvo. (Sem venda correspondente para espelhar.)"), 4);
+  });
+}
+
+/* DATA DE ASSINATURA DO CONTRATO (set/26) — edição inline com calendário.
+   Troca o valor por um <input type="date"> no próprio cabeçalho; ✓ grava,
+   ✕ desfaz. A data mexe no prazo das garantias e no "tempo de compra", então
+   depois de gravar o cabeçalho inteiro é repintado (pintarObra já chama o
+   renderGarantias). Grava no PÓS OBRA e espelha em VENDAS (posObraUpdate_). */
+const COL_ASSIN = "DATA DE ASSINATURA DO CONTRATO";
+function editarAssinatura(bt){
+  if(soLeitura()){ toast("Modo teste: nada é gravado.", 3); return; }
+  if(!OBRA) return;
+  const box = bt && bt.closest(".assin-box");
+  if(!box) return;
+  const atual = String(((OBRA.valores||{})[COL_ASSIN]) || "").slice(0,10);
+  box.innerHTML =
+    '<input type="date" id="assin-inp" value="'+esc(atual)+'" '+
+      'style="font:inherit;font-size:13px;padding:3px 6px;border:1px solid var(--line,#ccc);border-radius:6px" '+
+      'onkeydown="if(event.key===\'Enter\')salvarAssinatura();if(event.key===\'Escape\')pintarObra();">'+
+    ' <button class="bt-lapis" style="opacity:1" title="Salvar" onclick="salvarAssinatura()">✔️</button>'+
+    '<button class="bt-lapis" style="opacity:1" title="Cancelar" onclick="pintarObra()">✖️</button>';
+  const inp = document.getElementById("assin-inp");
+  if(inp){ inp.focus(); try{ inp.showPicker && inp.showPicker(); }catch(e){} }
+}
+function salvarAssinatura(){
+  if(soLeitura()){ toast("Modo teste: nada é gravado.", 3); return; }
+  if(!OBRA) return;
+  const inp = document.getElementById("assin-inp");
+  if(!inp) return;
+  const novo = String(inp.value || "").trim();          // "" ou AAAA-MM-DD
+  const atual = String(((OBRA.valores||{})[COL_ASSIN]) || "").slice(0,10);
+  if(novo === atual){ pintarObra(); return; }           // não mudou: não gasta chamada
+  if(novo && !/^\d{4}-\d{2}-\d{2}$/.test(novo)){ toast("Data inválida.", 4); return; }
+  if(novo && novo > hojeISO() &&
+     !confirm("A data "+dbr(novo)+" está no futuro. Gravar assim mesmo?")) return;
+  if(!novo && !confirm("Apagar a data de assinatura?\n\nIsso apaga também na VENDA e as garantias deixam de ser calculadas.")) return;
+
+  inp.disabled = true;
+  escrever({action:"posObraUpdate", pageId:OBRA.id, prop:COL_ASSIN, valor:novo}, "Assinatura do contrato").then(r=>{
+    if(!r.ok){ toast("Não gravou: "+erroTexto(r.erro), 5); pintarObra(); return; }
+    OBRA.valores = OBRA.valores || {};
+    OBRA.valores[COL_ASSIN] = novo || null;
+    OBRA.dataAssinatura = novo || null;
+    const o = obraPorId(OBRA.id); if(o) o.dataAssinatura = novo || null;
     pintarObra();
     const esp = r.resposta && r.resposta.espelhado;
     toast(r.enfileirado ? "Sem internet — vai subir quando reconectar."
