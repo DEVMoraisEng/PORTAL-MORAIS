@@ -1035,15 +1035,22 @@ function expandirPagamentos(p){
   }));
 }
 async function carregarAnaliseDados(){
-  const r=await chamar({action:"analiseDados"}, 120000);
+  /* 1) o Apps Script confere login + acesso e devolve um link assinado
+        (vale 2 min) para o arquivo no Supabase Storage privado;
+     2) o navegador baixa o arquivo direto de lá — rápido e sem passar o
+        JSON pelo Apps Script (era isso que dava 404 / "Unexpected token '<'"). */
+  const r=await chamar({action:"analiseDados"}, 45000);
   if(!r||!r.ok){
     if(r&&r.erro==="NAO_AUTORIZADO"){ sair(); return null; }
     const msg=(r&&(erroTexto(r.erro)||r.erro))||"sem resposta do servidor";
     throw new Error(msg+(r&&r.detalhe?" — "+r.detalhe:""));
   }
-  const data=Object.assign({}, r.base||{});
-  data.pagamentos_full=expandirPagamentos(r.pagamentos);
-  if(r.atualizado) data.updated_at=r.atualizado;
+  const resp=await fetch(r.url,{cache:"no-store"});
+  if(!resp.ok) throw new Error("Supabase respondeu HTTP "+resp.status+" ao baixar o arquivo");
+  const arq=await resp.json();
+  const data=Object.assign({}, arq.base||{});
+  data.pagamentos_full=expandirPagamentos(arq.pagamentos);
+  if(arq.atualizado) data.updated_at=arq.atualizado;
   return data;
 }
 </script>

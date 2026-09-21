@@ -9,12 +9,13 @@ prazos, fluxo de caixa, análise de desempenho e custos) e grava no SUPABASE —
 não no dist/. É o fetch_all.py do repositório CONTROLES-INTERNOS trazido para o
 portal, com cinco diferenças:
 
-0. NADA PÚBLICO. Mesmo desenho do Orçado x Realizado: o resultado vai para a
-   tabela analise_dados do Supabase (RLS ligado, sem policy — só a
-   service_role lê e grava) e a tela busca pelo Apps Script (ação
-   analiseDados), que confere login e o acesso "ANÁLISE DE DADOS". Fluxo de
-   caixa e pagamento por fornecedor deixam de ficar num JSON aberto.
-   A tabela é criada uma vez com o supabase_analise_dados.sql.
+0. NADA PÚBLICO. O resultado vai para um arquivo num bucket PRIVADO do
+   Supabase Storage (analise/analise_dados.json). A tela pede ao Apps Script
+   (ação analiseDados), que confere login e o acesso "ANÁLISE DE DADOS" e
+   devolve um link assinado que vale 2 minutos; o navegador baixa direto do
+   Supabase. (A primeira versão passava o JSON inteiro pelo Apps Script e a
+   resposta de ~1,5 MB chegava como 404 — ver r39 no Code.gs.)
+   O bucket é criado uma vez com o supabase_analise_dados.sql.
 
 1. UM TOKEN SÓ. Lá eram NOTION_TOKEN_DOCS / _VENDAS / _METAS; aqui é o mesmo
    NOTION_TOKEN dos outros fetch_*.py. Os ids das bases ficam fixos no código
@@ -492,21 +493,21 @@ def compactar_pagamentos(lista):
     return {"dic": dic, "rows": rows}
 
 
-def gravar_supabase(partes):
+def gravar_supabase(conteudo):
+    """Sobe o arquivo para o bucket privado (substitui o anterior)."""
     if not SUPABASE_URL or not SUPABASE_KEY:
         raise SystemExit("Faltam os secrets SUPABASE_URL e/ou SUPABASE_SERVICE_KEY no GitHub.")
-    agora = datetime.now(timezone.utc).isoformat()
-    corpo = [{"parte": k, "dados": v, "atualizado": agora} for k, v in partes.items()]
-    texto = json.dumps(corpo, ensure_ascii=False, separators=(",", ":"))
+    corpo = json.dumps(conteudo, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     r = requests.post(
-        SUPABASE_URL + "/rest/v1/analise_dados?on_conflict=parte",
-        data=texto.encode("utf-8"), timeout=120,
+        SUPABASE_URL + "/storage/v1/object/analise/analise_dados.json",
+        data=corpo, timeout=180,
         headers={"apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY,
-                 "Content-Type": "application/json",
-                 "Prefer": "resolution=merge-duplicates,return=minimal"})
+                 "Content-Type": "application/json", "x-upsert": "true",
+                 "Cache-Control": "no-cache"})
     if r.status_code >= 300:
-        raise SystemExit(f"Supabase recusou ({r.status_code}): {r.text[:300]}")
-    print(f"  Supabase: {len(corpo)} parte(s) gravada(s), {len(texto) // 1024} KB", flush=True)
+        raise SystemExit(f"Supabase Storage recusou ({r.status_code}): {r.text[:300]} — "
+                         "o bucket 'analise' foi criado (supabase_analise_dados.sql)?")
+    print(f"  Supabase Storage: analise/analise_dados.json ({len(corpo) // 1024} KB)", flush=True)
 
 
 # ─── MAIN ─────────────────────────────────────────────────────────────────
@@ -559,6 +560,7 @@ def main():
         fat_por_tipo[tipo][item["mes"]] = fat_por_tipo[tipo].get(item["mes"], 0) + item["valor"]
 
     gravar_supabase({
+        "atualizado": datetime.now(timezone.utc).isoformat(),
         "base": {
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "documentos": documentos,
