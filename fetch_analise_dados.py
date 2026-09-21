@@ -82,21 +82,32 @@ OBRA_SOBREPOE = {
 
 # ─── ENDEREÇO NO PADRÃO "RUA QD XX LT XX" (igual ao Apps Script) ─────────
 def padronizar_endereco(s):
+    """Mesma regra do obrPadronizarEndereco_ (ObrasSync.gs). Hífen some do nome
+    da rua, mas fica entre dois lotes (LT 01-02); letra só se separa do número
+    depois de QD/LT/CS e no começo do endereço."""
     t = str(s or "").replace("\u2013", "-").replace("\u2014", "-").upper()
     t = re.sub(r"\s+", " ", t).strip()
     if not t:
         return t
     t = re.sub(r"\bQUADRA\b", "QD", t)
     t = re.sub(r"\bLOTE\b", "LT", t)
-    t = re.sub(r"\s*-\s*", " ", t)
     t = re.sub(r"\b(QD|LT|CS)\.(?=\s*\d)", r"\1", t)
-    t = re.sub(r"\b([A-Z]{1,4})(?=\d)", r"\1 ", t)
+    t = re.sub(r"\bLT\s*(\d+[A-Z]?)\s*-+\s*(\d+[A-Z]?)\b", r"LT \1~\2", t)
+    t = re.sub(r"\bLT (\d+) (\d+)\b", r"LT \1~\2", t)
+    t = re.sub(r"\s*-+\s*", " ", t)
+    t = re.sub(r"\b(QD|LT|CS)(?=\d)", r"\1 ", t)
+    t = re.sub(r"^([A-Z]{1,4})(?=\d)", r"\1 ", t)
+    t = re.sub(r"\bQD 0+ (\d+)", r"QD \1", t)
+    t = re.sub(r"\bB (\d+)\b", r"B\1", t)
 
     def pad(m):
-        n = m.group(2)
-        return m.group(1) + " " + (n if len(n) >= 2 else "0" + n) + m.group(3)
-    t = re.sub(r"\b(QD|LT) 0*(\d+)([A-Z]?)\b", pad, t)
-    return re.sub(r"\s+", " ", t).strip()
+        a, sa, b, sb = m.group(2), m.group(3) or "", m.group(4), m.group(5) or ""
+        r = m.group(1) + " " + (a if len(a) >= 2 else "0" + a) + sa
+        if b:
+            r += "-" + (b if len(b) >= 2 else "0" + b) + sb
+        return r
+    t = re.sub(r"\b(QD|LT) 0*(\d+)([A-Z]?)(?:~0*(\d+)([A-Z]?))?(?![\dA-Z])", pad, t)
+    return re.sub(r"\s+", " ", t.replace("~", "-")).strip()
 
 
 # ─── LEITURA TOLERANTE ────────────────────────────────────────────────────
