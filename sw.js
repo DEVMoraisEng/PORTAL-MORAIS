@@ -101,10 +101,12 @@
    então cada versão nova do portal apagava também a cópia offline das RAS, que
    agora têm service worker próprio. A limpeza passa a mexer só nos caches cujo
    nome começa com "portal-morais-". */
-const CACHE = "portal-morais-v32";  // limpeza só dos caches do portal (não apaga os das RAS)
+/* v32 -> v33: entrou a analise-dados.html (ANÁLISE DE DADOS, vinda do
+   CONTROLES-INTERNOS) e o index.html ganhou o card dela. */
+const CACHE = "portal-morais-v33";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
-                  "./analise.html","./documentos.html","./demandas.html",
+                  "./analise.html","./analise-dados.html","./documentos.html","./demandas.html",
                   "./app.js","./alertas-docs.js","./manifest.json"];
 
 self.addEventListener("install", e=>{

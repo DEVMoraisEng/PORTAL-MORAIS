@@ -342,6 +342,13 @@ const SISTEMAS=[
 
   {chave:"ANÁLISES",nome:"Orçado × Realizado",desc:"Comparativo por obra e insumo",ico:"$",link:"analise.html",grupo:"ANÁLISES"},
 
+  /* ANÁLISE DE DADOS (set/26) — veio do repositório CONTROLES-INTERNOS.
+     Exige a opção "ANÁLISE DE DADOS" (com acento, maiúsculas) na coluna
+     ACESSOS do banco LOGINS. Chave PRÓPRIA de propósito, separada de
+     "ANÁLISES": aqui aparece fluxo de caixa e pagamento por fornecedor, que
+     não é para todo mundo que vê o Orçado × Realizado. */
+  {chave:"ANÁLISE DE DADOS",nome:"Análise de Dados",desc:"Dashboard · metas · prazos · setorizadas",ico:"A",link:"analise-dados.html",grupo:"ANÁLISES"},
+
   /* "MAPA DE VENDAS" é público: publico:true faz o botão aparecer pra
      qualquer usuário logado, sem precisar de liberação na coluna ACESSOS
      do banco LOGINS (diferente dos outros itens, que exigem a chave lá). */
