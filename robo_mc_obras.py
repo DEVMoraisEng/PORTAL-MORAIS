@@ -107,13 +107,33 @@ def criar_no_mc(page, o):
         print(f"  ! dados gerais não preenchidos: {str(e)[:100]}", flush=True)
 
     clicar_texto(page, "Dados do cliente")
+    page.wait_for_timeout(600)
+    # O campo "Cliente" é um combobox: o <input> fica DESABILITADO até alguém
+    # clicar na caixa — era nele que a primeira versão tentava digitar.
     campo = page.locator("input[placeholder*=buscar i]").last
-    campo.fill(o["cliente"])
-    page.wait_for_timeout(1500)
+    if campo.is_disabled():
+        caixa = campo.locator("xpath=ancestor::*[contains(@class,'select') or contains(@class,'combo') "
+                              "or contains(@class,'autocomplete') or @role='combobox'][1]")
+        (caixa if caixa.count() else campo.locator("xpath=..")).first.click(force=True)
+        page.wait_for_timeout(700)
+        ativo = page.locator("input[placeholder*=buscar i]:not([disabled])").last
+        if ativo.count():
+            ativo.press_sequentially(o["cliente"][:25], delay=30)
+        else:
+            page.keyboard.type(o["cliente"][:25], delay=30)
+    else:
+        campo.press_sequentially(o["cliente"][:25], delay=30)
+    page.wait_for_timeout(1800)
     opc = page.get_by_text(o["cliente"], exact=True)
     if not opc.count():
+        # mesmo nome com acento/caixa diferente
+        opc = page.locator("li, [role=option], .ui-select-choices-row, .dropdown-item").filter(
+            has_text=o["cliente"].split()[0])
+        opc = opc.filter(has_text=o["cliente"].split()[-1]) if opc.count() > 1 else opc
+    if not opc.count():
         foto(page, "cliente_nao_achado")
-        raise RuntimeError(f"cliente '{o['cliente']}' não existe no MC")
+        raise RuntimeError(f"cliente '{o['cliente']}' não apareceu na busca do MC — o robô de clientes "
+                           "precisa rodar com aplicar antes (o Proprietário tem que estar com o nome do MC)")
     opc.last.click()
     page.wait_for_timeout(500)
     foto(page, "nova_obra_" + o["titulo"].replace(" ", "_"))

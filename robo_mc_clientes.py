@@ -30,6 +30,25 @@ ID_CADASTRO = "3e2c5ab532d38055a241db35f74e7bbc"
 ID_OBRAS = "306c5ab532d3812fa14fe9a281510128"
 ID_DOCS = "32fc5ab532d380a0900dd7f4bfc619bd"
 
+# Clientes do MC que NÃO são proprietários, mesmo com setor diferente de
+# "Casa" (fornecedor, investidor avulso…). Nome como está no MC.
+NAO_SAO_PROPRIETARIOS = [
+]
+
+
+def nome_limpo(s):
+    """Nome no padrão do cadastro: MAIÚSCULAS e um espaço só. O MC tem nomes
+    em minúsculas ("julivaldo Tobias Martins") e com espaço duplo — isso não é
+    nome diferente, é digitação."""
+    return " ".join(str(s or "").upper().split())
+
+
+def mascarar(doc):
+    """O log do Actions é visível a quem acessa o repositório: CPF/CNPJ nunca
+    sai inteiro nele."""
+    d = so_digitos(doc)
+    return f"***{d[-4:]}" if d else "sem documento"
+
 
 # ---------------------------------------------------------------- MC
 def ler_clientes_mc(page):
@@ -80,7 +99,7 @@ def ler_cadastro(page, nome):
     page.go_back()
     esperar(page)
     page.wait_for_timeout(1200)
-    return {"nome": nome_mc.strip(), "doc": doc.strip(), "tipo": tipo}
+    return {"nome": nome_limpo(nome_mc), "doc": doc.strip(), "tipo": tipo}
 
 
 # ---------------------------------------------------------------- Notion
@@ -133,7 +152,7 @@ def sincronizar(clientes):
         alvo = por_doc.get(d) if d else None
         alvo = alvo or por_nome.get(N(c["nome"]))
         if not alvo:
-            log.append(f"CRIAR no cadastro: {c['nome']} ({c['doc'] or 'sem documento'})")
+            log.append(f"CRIAR no cadastro: {c['nome']} ({mascarar(c['doc'])}) — setor no MC: {c.get('setor') or '(vazio)'}")
             if APLICAR and col_tit:
                 props = {col_tit: {"title": [{"text": {"content": c["nome"]}}]}}
                 if col_cpf:
@@ -147,7 +166,7 @@ def sincronizar(clientes):
             renomear[alvo["nome"]] = c["nome"]
             props[col_tit] = {"title": [{"text": {"content": c["nome"]}}]}
         if d and so_digitos(alvo["doc"]) != d and col_cpf:
-            log.append(f"DOCUMENTO: {c['nome']}  {alvo['doc'] or '(vazio)'}  ->  {c['doc']}")
+            log.append(f"DOCUMENTO: {c['nome']}  {mascarar(alvo['doc']) if alvo['doc'] else '(vazio)'}  ->  {mascarar(c['doc'])}")
             props[col_cpf] = {"rich_text": [{"text": {"content": c["doc"]}}]}
         if props and APLICAR:
             patch(alvo["id"], props)
@@ -190,12 +209,15 @@ def main():
         try:
             login(page)
             lista = ler_clientes_mc(page)
-            props = [x for x in lista if N(x["setor"]) != "CASA"]
+            fora = {N(x) for x in NAO_SAO_PROPRIETARIOS}
+            props = [x for x in lista if N(x["setor"]) != "CASA" and N(x["nome"]) not in fora]
             print(f"MC: {len(props)} clientes com setor diferente de Casa", flush=True)
             clientes = []
             for x in props:
                 try:
-                    clientes.append(ler_cadastro(page, x["nome"]))
+                    c = ler_cadastro(page, x["nome"])
+                    c["setor"] = x["setor"]
+                    clientes.append(c)
                 except Exception as e:
                     print(f"  ! não consegui abrir o cadastro de {x['nome']}: {str(e)[:120]}", flush=True)
                     foto(page, "erro_cadastro")
