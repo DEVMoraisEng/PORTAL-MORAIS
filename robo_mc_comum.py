@@ -80,33 +80,74 @@ def abrir(p):
     return b, page
 
 
+def _fill(loc, valor):
+    """Digita como gente: o login do MC é AngularJS (ng-model) e só aceita o
+    valor quando recebe os eventos de teclado/input."""
+    loc.click()
+    loc.fill("")
+    loc.press_sequentially(valor, delay=25)
+    loc.dispatch_event("input")
+    loc.dispatch_event("change")
+    loc.dispatch_event("blur")
+
+
+_JS_MSG_ERRO = """
+() => {
+  const vis = e => !!(e.offsetWidth || e.offsetHeight || e.getClientRects().length);
+  const sel = "[class*=error i],[class*=erro i],[class*=alert i],[class*=toast i],[class*=invalid i],[class*=message i],[role=alert]";
+  const t = [...document.querySelectorAll(sel)].filter(vis).map(e => e.innerText.trim()).filter(Boolean);
+  return [...new Set(t)].join(" | ").slice(0, 400);
+}
+"""
+
+
 def login(page):
     if not (MC_URL and MC_USUARIO and MC_SENHA):
         raise SystemExit("Faltam os secrets MC_URL, MC_USUARIO e/ou MC_SENHA.")
     page.goto(MC_URL, wait_until="domcontentloaded")
     esperar(page)
+    page.wait_for_timeout(1500)
     foto(page, "login")
     # Só campos VISÍVEIS: a tela de login do MC tem, escondido, o formulário de
-    # "esqueci a senha" com outro campo de e-mail (#fgtemail) — era nele que a
-    # primeira versão tentava digitar, e esperava até estourar o tempo.
+    # "esqueci a senha" com outro campo de e-mail (#fgtemail).
     usuario = page.locator(
         "input[type=email]:visible, input[name*=mail i]:visible, input[name*=user i]:visible, "
-        "input[name*=login i]:visible, input[id*=mail i]:not(#fgtemail):visible, input[type=text]:visible").first
-    usuario.fill(MC_USUARIO)
+        "input[name*=login i]:visible, input[type=text]:visible").first
+    _fill(usuario, MC_USUARIO)
     senha = page.locator("input[type=password]:visible").first
-    senha.fill(MC_SENHA)
-    bt = page.locator("button[type=submit]:visible, input[type=submit]:visible")
+    _fill(senha, MC_SENHA)
+    foto(page, "login_preenchido")
+    # botão de entrar: primeiro pelo texto, depois qualquer submit visível
+    bt = page.locator("button:visible, input[type=submit]:visible").filter(
+        has_text=__import__("re").compile(r"entrar|acessar|login|logar", __import__("re").I))
+    if not bt.count():
+        bt = page.locator("button[type=submit]:visible, input[type=submit]:visible")
     if bt.count():
         bt.first.click()
     else:
         senha.press("Enter")
-    esperar(page, 30000)
-    page.wait_for_timeout(2000)
+    # espera a tela de senha sumir (o MC troca de rota sem recarregar a página)
+    try:
+        page.wait_for_selector("input[type=password]:visible", state="hidden", timeout=30000)
+    except PWTimeout:
+        senha.press("Enter")          # segunda tentativa: alguns formulários só respondem ao Enter
+        try:
+            page.wait_for_selector("input[type=password]:visible", state="hidden", timeout=15000)
+        except PWTimeout:
+            pass
+    esperar(page, 20000)
+    page.wait_for_timeout(1500)
     foto(page, "pos_login")
-    pw = page.locator("input[type=password]")
-    if pw.count() and pw.first.is_visible():
-        raise SystemExit("Login no Mais Controle falhou (a tela de senha continua aberta) — veja mc_evidencias.")
-    print("MC: login ok", flush=True)
+    pw = page.locator("input[type=password]:visible")
+    if pw.count():
+        msg = ""
+        try:
+            msg = page.evaluate(_JS_MSG_ERRO)
+        except Exception:
+            pass
+        raise SystemExit("Login no Mais Controle falhou — a tela de senha continua aberta. "
+                         f"URL: {page.url} | Mensagem na tela: {msg or '(nenhuma)'} — veja mc_evidencias.")
+    print(f"MC: login ok ({page.url})", flush=True)
 
 
 def ir_menu(page, grupo, item):
