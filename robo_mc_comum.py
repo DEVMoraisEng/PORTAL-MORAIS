@@ -1,0 +1,240 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+robo_mc_comum.py — PORTAL-MORAIS · funções comuns dos robôs do Mais Controle
+
+Os dois robôs (robo_mc_clientes.py e robo_mc_obras.py) entram no Mais
+Controle com Playwright, igual ao OR-ADO-REALIZADO, e gravam no Notion com o
+mesmo NOTION_TOKEN dos outros fetch_*.py.
+
+MODOS (variáveis de ambiente):
+  APLICAR=1    grava de verdade (no MC e no Notion). SEM ela, só simula:
+               lê tudo, preenche formulário sem salvar e imprime o que faria.
+  DESCOBRIR=1  salva print + HTML de CADA tela em mc_evidencias/ — é o que
+               eu preciso ver para acertar um seletor que falhe. Sem ela,
+               só salva as telas de navegação (sem dado de cliente).
+
+SECRETS: MC_URL (endereço da tela de login), MC_USUARIO, MC_SENHA, NOTION_TOKEN.
+
+Os seletores são por TEXTO visível (os rótulos que aparecem na tela:
+"Contatos", "Clientes", "Nova Obra", "Nome da obra"…), não por classe CSS —
+é o que menos quebra quando o MC muda o visual.
+"""
+
+import os
+import unicodedata
+from pathlib import Path
+
+from playwright.sync_api import TimeoutError as PWTimeout
+
+MC_URL = os.environ.get("MC_URL", "").strip()
+MC_USUARIO = os.environ.get("MC_USUARIO", "").strip()
+MC_SENHA = os.environ.get("MC_SENHA", "")
+APLICAR = os.environ.get("APLICAR", "").strip().lower() in ("1", "true", "sim")
+DESCOBRIR = os.environ.get("DESCOBRIR", "").strip().lower() in ("1", "true", "sim")
+
+SAIDA = Path("mc_evidencias")
+SAIDA.mkdir(exist_ok=True)
+_seq = [0]
+
+
+def N(s):
+    s = unicodedata.normalize("NFD", str(s or ""))
+    s = "".join(c for c in s if unicodedata.category(c) != "Mn")
+    return " ".join(s.upper().split())
+
+
+def so_digitos(s):
+    return "".join(c for c in str(s or "") if c.isdigit())
+
+
+def foto(page, nome, sensivel=False):
+    """Print + HTML da tela. Tela com dado de cliente só com DESCOBRIR=1."""
+    if sensivel and not DESCOBRIR:
+        return
+    _seq[0] += 1
+    base = SAIDA / f"{_seq[0]:03d}_{nome}"
+    try:
+        page.screenshot(path=f"{base}.png", full_page=True)
+    except Exception:
+        pass
+    if DESCOBRIR:
+        try:
+            Path(f"{base}.html").write_text(page.content(), encoding="utf-8")
+        except Exception:
+            pass
+
+
+def esperar(page, ms=15000):
+    try:
+        page.wait_for_load_state("networkidle", timeout=ms)
+    except PWTimeout:
+        pass
+
+
+def abrir(p):
+    b = p.chromium.launch(headless=True)
+    ctx = b.new_context(viewport={"width": 1440, "height": 900}, locale="pt-BR")
+    page = ctx.new_page()
+    page.set_default_timeout(20000)
+    return b, page
+
+
+def login(page):
+    if not (MC_URL and MC_USUARIO and MC_SENHA):
+        raise SystemExit("Faltam os secrets MC_URL, MC_USUARIO e/ou MC_SENHA.")
+    page.goto(MC_URL, wait_until="domcontentloaded")
+    esperar(page)
+    foto(page, "login")
+    usuario = page.locator(
+        "input[type=email], input[name*=mail i], input[name*=user i], input[name*=login i], "
+        "input[id*=mail i], input[id*=user i], input[id*=login i], input[type=text]").first
+    usuario.fill(MC_USUARIO)
+    senha = page.locator("input[type=password]").first
+    senha.fill(MC_SENHA)
+    bt = page.locator("button[type=submit], input[type=submit]")
+    if bt.count():
+        bt.first.click()
+    else:
+        senha.press("Enter")
+    esperar(page, 30000)
+    page.wait_for_timeout(2000)
+    foto(page, "pos_login")
+    pw = page.locator("input[type=password]")
+    if pw.count() and pw.first.is_visible():
+        raise SystemExit("Login no Mais Controle falhou (a tela de senha continua aberta) — veja mc_evidencias.")
+    print("MC: login ok", flush=True)
+
+
+def ir_menu(page, grupo, item):
+    """Menu lateral do MC: o grupo abre um submenu ao passar o mouse/clicar."""
+    g = page.get_by_text(grupo, exact=True).first
+    g.hover()
+    page.wait_for_timeout(600)
+    alvo = page.get_by_text(item, exact=True)
+    try:
+        alvo.first.click(timeout=4000)
+    except Exception:
+        g.click()
+        page.wait_for_timeout(600)
+        alvo.first.click()
+    esperar(page)
+    page.wait_for_timeout(1000)
+
+
+def clicar_texto(page, texto, exato=True, timeout=8000):
+    loc = page.get_by_text(texto, exact=exato).first
+    loc.wait_for(state="visible", timeout=timeout)
+    loc.click()
+    page.wait_for_timeout(500)
+
+
+def input_por_rotulo(page, rotulo):
+    """Primeiro <input> depois do texto do rótulo (tolera '*' e ':' no rótulo)."""
+    return page.locator(
+        "xpath=(//*[normalize-space(translate(text(),'*:',''))='%s']/following::input[1])[1]" % rotulo)
+
+
+# Valor de um campo pelo rótulo, direto no DOM: acha o texto do rótulo e sobe
+# até achar um <input> no mesmo bloco. Tenta os rótulos na ordem dada.
+_JS_VALOR = """
+(rotulos) => {
+  const n = s => (s||"").normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toUpperCase().replace(/[:*]/g,"").trim();
+  for (const r of rotulos) {
+    const alvo = n(r);
+    const els = [...document.querySelectorAll("label,span,div,p,b,strong")]
+      .filter(e => e.children.length === 0 && n(e.textContent) === alvo);
+    for (const e of els) {
+      let c = e.parentElement;
+      for (let k = 0; k < 4 && c; k++, c = c.parentElement) {
+        const i = c.querySelector("input:not([type=radio]):not([type=checkbox]):not([type=hidden])");
+        if (i) return i.value;
+      }
+    }
+  }
+  return null;
+}
+"""
+
+
+def valor_por_rotulo(page, rotulos):
+    try:
+        return page.evaluate(_JS_VALOR, rotulos)
+    except Exception:
+        return None
+
+
+_JS_RADIO = """
+() => { const r = [...document.querySelectorAll("input[type=radio]:checked")];
+  return r.map(x => (x.closest("label") || x.parentElement || {}).textContent || x.value).join(" | "); }
+"""
+
+
+def radios_marcados(page):
+    try:
+        return page.evaluate(_JS_RADIO) or ""
+    except Exception:
+        return ""
+
+
+# Tabela da tela (cabeçalho + linhas), lida inteira de uma vez.
+_JS_TABELA = """
+() => {
+  const t = [...document.querySelectorAll("table")].find(x => x.querySelector("tbody tr"));
+  if (!t) return null;
+  const cab = [...t.querySelectorAll("thead th")].map(th => th.textContent.trim());
+  const linhas = [...t.querySelectorAll("tbody tr")].map(tr => [...tr.querySelectorAll("td")].map(td => td.textContent.trim()));
+  return { cab, linhas };
+}
+"""
+
+
+def ler_tabela(page):
+    try:
+        return page.evaluate(_JS_TABELA)
+    except Exception:
+        return None
+
+
+# Troca o "Exibir N por página" para o maior número disponível.
+_JS_MAIOR_PAGINA = """
+() => {
+  for (const s of document.querySelectorAll("select")) {
+    const nums = [...s.options].map(o => Number(o.value || o.textContent)).filter(x => !isNaN(x) && x > 0);
+    if (nums.length >= 2) {
+      const max = Math.max(...nums);
+      const o = [...s.options].find(o => Number(o.value || o.textContent) === max);
+      s.value = o.value; s.dispatchEvent(new Event("change", { bubbles: true }));
+      return max;
+    }
+  }
+  return null;
+}
+"""
+
+
+def maior_pagina(page):
+    try:
+        r = page.evaluate(_JS_MAIOR_PAGINA)
+        esperar(page)
+        page.wait_for_timeout(1500)
+        return r
+    except Exception:
+        return None
+
+
+def proxima_pagina(page):
+    """Clica em 'próxima' da paginação. False se não houver/desabilitado."""
+    for sel in ["a[aria-label*=Next i]", "a[aria-label*=Próx i]", "li.next:not(.disabled) a",
+                "button[aria-label*=next i]", "text=»", "text=›"]:
+        loc = page.locator(sel)
+        if loc.count():
+            el = loc.last
+            cls = (el.get_attribute("class") or "") + " " + ((el.locator("xpath=..").get_attribute("class")) or "")
+            if "disabled" in cls or el.is_disabled():
+                return False
+            el.click()
+            esperar(page)
+            page.wait_for_timeout(1200)
+            return True
+    return False

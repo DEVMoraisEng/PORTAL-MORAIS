@@ -33,6 +33,7 @@ from fetch_vendas import ler_banco, api, gravar, norm, SAIDA, TOKEN
 
 ID_OBRAS = "306c5ab532d3812fa14fe9a281510128"   # (EMP) Projeto 2.0
 ID_ATIV = "306c5ab532d381fb864edee432bb128d"    # ATIVIDADES DE PROJETOS
+ID_CADASTRO = "3e2c5ab532d38055a241db35f74e7bbc"  # PROPRIETÁRIOS (cadastro) — só o NOME sai daqui
 
 ERP_CSV_OBRAS = os.environ.get("ERP_CSV_OBRAS", "").strip() or \
     "https://docs.google.com/spreadsheets/d/e/2PACX-1vQAVoeaF7ztdWagGt87vVr5dsNxFvpQ3uS6g5q3Ip6ppYchJxCaepob5SjWHhKIMjlNsLC1BXtzCKRd/pub?gid=931586083&single=true&output=csv"
@@ -244,12 +245,27 @@ def main():
             if norm(k) in PROIBIDAS:
                 o.pop(k)
 
+    # nomes do cadastro de proprietários: a MESMA lista serve para Proprietário e
+    # Proprietário Real no formulário. CPF/CNPJ e conta não saem daqui.
+    proprietarios = []
+    try:
+        for pg in ler_banco(ID_CADASTRO, "PROPRIETÁRIOS"):
+            for v in (pg.get("properties") or {}).values():
+                if (v or {}).get("type") == "title":
+                    nome = txt(v)
+                    if nome:
+                        proprietarios.append(nome.strip())
+    except SystemExit as e:
+        print(f"  cadastro de proprietários não lido: {e}", flush=True)
+    proprietarios = sorted(set(proprietarios), key=norm)
+
     gravar("obras.json", {
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "obras": obras,
         "atividades": atividades,
         "opcoes": {k: v for k, v in opcoes.items() if norm(k) not in PROIBIDAS},
         "opcoes_atividades": opcoes_ativ,
+        "proprietarios": proprietarios,
         "pessoas": sorted([{"id": k, "nome": v} for k, v in pessoas.items()], key=lambda x: norm(x["nome"])),
     })
     print(f"obras.json: {len(obras)} obras, {len(atividades)} atividades, {len(pessoas)} pessoas", flush=True)

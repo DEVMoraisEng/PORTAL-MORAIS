@@ -125,6 +125,9 @@ tbody tr:hover td{background:#e9f6ef;cursor:pointer} tbody tr:hover td.stick{bac
 .atv-cab div:hover{color:var(--azul)}
 .seta{font-size:9px;margin-left:3px;opacity:.8}
 .acoes-atv{display:flex;gap:8px;flex-wrap:wrap;padding:0 22px}
+.lig-bts{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin-top:10px}
+.lig-bts .bt{background:var(--sup);color:var(--azul);border:1.5px solid var(--border);text-align:left}
+.lig-bts .bt:hover{border-color:var(--azul);background:#e7f0f3}
 /* painel */
 .overlay{position:fixed;inset:0;background:rgba(20,40,55,.55);display:none;z-index:40}
 .painel{position:fixed;top:0;right:0;height:100%;width:clamp(720px,68vw,100vw);background:var(--bg2);z-index:41;box-shadow:-14px 0 44px rgba(0,0,0,.3);display:none;flex-direction:column}
@@ -292,10 +295,10 @@ html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
         <div class="campo full"><label>Endereço <i>*</i></label>
           <input type="text" id="f-end" placeholder="TB 19 QD 51 LT 14" oninput="checarEnd()" autocomplete="off">
           <div class="ajuda" id="a-end"></div></div>
-        <div class="campo"><label>Setor <i>*</i></label><select id="f-setor"></select></div>
-        <div class="campo"><label>Cidade <i>*</i></label><select id="f-cidade"></select></div>
-        <div class="campo"><label>Proprietário <i>*</i></label><select id="f-prop"></select></div>
-        <div class="campo"><label>Proprietário real <i>*</i></label><select id="f-propreal"></select></div>
+        <div class="campo"><label>Setor <i>*</i></label><select id="f-setor" onchange="novoSeNecessario(this,'SETOR')"></select></div>
+        <div class="campo"><label>Cidade <i>*</i></label><select id="f-cidade" onchange="novoSeNecessario(this,'Cidade')"></select></div>
+        <div class="campo"><label>Proprietário <i>*</i></label><select id="f-prop" onchange="novoSeNecessario(this,'Proprietário')"></select></div>
+        <div class="campo"><label>Proprietário real <i>*</i></label><select id="f-propreal" onchange="novoSeNecessario(this,'Proprietário Real')"></select></div>
         <div class="campo"><label>Responsável pela obra <i>*</i></label><select id="f-resp"></select></div>
         <div class="campo"><label>Engenheiro RT <i>*</i></label><select id="f-rt"></select></div>
         <div class="campo"><label>Cota da empresa (%) <i>*</i></label><input type="number" id="f-cota" step="any" min="0" max="100" placeholder="100"></div>
@@ -361,6 +364,40 @@ function toast(t){ const e=document.getElementById("toast"); e.textContent=t; e.
 function tagSN(v){ const n=N(v); return !v?"—":`<span class="tag ${n==="SIM"?"sim":n==="NAO"?"nao":n==="INEXISTE"?"ine":""}">${esc(v)}</span>`; }
 function opc(nome,fonte){ fonte=fonte||D.opcoes; const k=Object.keys(fonte||{}).find(x=>N(x)===N(nome)); return k?fonte[k]:[]; }
 const fim=st=>FIM.indexOf(N(st))>=0;
+/* ---------- opções novas (setor, cidade, proprietários) ----------
+   Quem cria uma opção nova continua vendo ela nas outras listas sem
+   recarregar: fica guardada no navegador até entrar no próximo build. */
+const LIVRES=["SETOR","Cidade","Proprietário","Proprietário Real"], EXTRA_KEY="obras_opc_extra";
+const ehLivre=col=>LIVRES.some(x=>N(x)===N(col));
+function extras(){ try{ return JSON.parse(localStorage.getItem(EXTRA_KEY)||"{}")||{}; }catch(e){ return {}; } }
+function guardarExtra(col,v){ const e=extras(), k=N(col)==="PROPRIETARIO REAL"?"PROPRIETARIO":N(col); (e[k]=e[k]||[]).push(v); try{localStorage.setItem(EXTRA_KEY,JSON.stringify(e));}catch(x){} }
+function unicos(l){ const vis={}, out=[]; l.forEach(x=>{ const k=N(x); if(x&&!vis[k]){ vis[k]=1; out.push(x); } }); return out; }
+/* a lista de cada campo: setor só os do padrão (+ criados); os DOIS
+   proprietários usam o mesmo cadastro (PROPRIETARIOS_PAI) */
+function listaOpc(col){
+  const e=extras(), n=N(col);
+  if(n==="SETOR"){
+    const pad=SETORES_PADRAO.filter(s=>opc("SETOR").some(x=>N(x)===N(s)));
+    return unicos(pad.concat(opc("SETOR").filter(x=>SETORES_PADRAO.some(s=>N(s)===N(x))), e.SETOR||[])).sort((a,b)=>a.localeCompare(b,"pt-BR"));
+  }
+  if(n==="PROPRIETARIO"||n==="PROPRIETARIO REAL")
+    return unicos((D.proprietarios&&D.proprietarios.length?D.proprietarios:opc("Proprietário")).concat(e.PROPRIETARIO||[])).sort((a,b)=>a.localeCompare(b,"pt-BR"));
+  if(n==="CIDADE") return unicos(opc("Cidade").concat(e.CIDADE||[]));
+  return opc(col);
+}
+function pedirNovo(col){
+  const v=prompt(`Novo ${N(col)==="SETOR"?"setor":N(col)==="CIDADE"?"cidade":"proprietário"}:`);
+  if(!v||!v.trim()) return null;
+  let t=v.replace(/,/g," ").replace(/\s+/g," ").trim(); if(N(col)==="SETOR"||N(col).indexOf("PROPRIETARIO")===0) t=t.toUpperCase();
+  if(!listaOpc(col).some(x=>N(x)===N(t))) guardarExtra(col,t);
+  return listaOpc(col).find(x=>N(x)===N(t))||t;
+}
+function novoSeNecessario(el,col){
+  if(el.value!=="__novo__") return;
+  const v=pedirNovo(col);
+  preencherSel(el.id,listaOpc(col),null,true);
+  if(v) el.value=v; else el.value="";
+}
 const ehLig=a=>/^7\b/.test(String(a.tipo||"").trim());
 const atvFeita=a=>N(a.status)==="FINALIZADO"||!!a.data_conclusao;
 const atrasada=a=>N(a.controle_prazo).indexOf("ATRASO")>=0 && !atvFeita(a);
@@ -594,10 +631,11 @@ function campoHtml(o,c,i){
   const [rot,k,col,tipo]=c, v=o[k];
   let inp;
   if(tipo==="sel"||tipo==="setor"||tipo==="multi"){
-    let ops=opc(col); if(tipo==="setor") ops=ops.filter(x=>SETORES_PADRAO.some(s=>N(s)===N(x))||N(x)===N(v));
-    if(!ops.length) return "";
     const atual=tipo==="multi"?String(v||"").split(",")[0].trim():v;
-    inp=`<select onchange="gravarObra(${i},this)"><option value="">—</option>${ops.map(x=>`<option ${N(x)===N(atual)?"selected":""}>${esc(x)}</option>`).join("")}</select>`;
+    let ops=ehLivre(col)?listaOpc(col):opc(col);
+    if(atual&&!ops.some(x=>N(x)===N(atual))) ops=[atual].concat(ops);   // valor antigo fora da lista continua visível
+    if(!ops.length&&!ehLivre(col)) return "";
+    inp=`<select onchange="gravarObra(${i},this)"><option value="">—</option>${ops.map(x=>`<option ${N(x)===N(atual)?"selected":""}>${esc(x)}</option>`).join("")}${ehLivre(col)?`<option value="__novo__">+ Novo…</option>`:""}</select>`;
   }else if(tipo==="pessoa"){
     const atual=(v||[])[0]||"";
     inp=`<select onchange="gravarObra(${i},this)"><option value="">—</option>${D.pessoas.map(p=>`<option value="${p.id}" ${p.id===atual?"selected":""}>${esc(p.nome)}</option>`).join("")}</select>`;
@@ -633,13 +671,20 @@ function pintarObraPainel(){
   else h+=gantt(normais);
   h+=`</div><div class="grp">Ligação de água e energia</div><div class="pl">`;
   h+=lig.length?cabAtv(false)+lig.map(a=>linhaAtv(a,false)).join(""):`<div class="vazio">Nenhuma atividade de ligação ainda.</div>`;
-  h+=`<div class="ajuda" style="margin-top:8px">Os botões que criam as linhas de Vendas e Ligações (1 casa, 2 casas c/ esgoto…) entram aqui assim que a configuração deles for passada para o portal — por enquanto continuam na página da obra no Notion.</div>`;
+  h+=`<div class="lig-bts">${[1,2,3,4,5].map(n=>[false,true].map(e=>
+      `<button class="bt" onclick="criarLigacoes(${n},${e},this)">→ ${n} ${n===1?"CASA":"CASAS"}${e?" C/ ESGOTO":""}</button>`).join("")).join("")}</div>
+    <div class="ajuda">Cria, para cada casa, as ligações SANEAGO e EQUATORIAL (e SANEAGO ESGOTO, se for "c/ esgoto") e a linha em Vendas.</div>`;
   h+=`</div>`;
   document.getElementById("p1-corpo").innerHTML=h;
 }
 async function gravarObra(i,el){
   const o=obraDe(OBRA); if(!o) return;
   const [rot,k,col,tipo]=CAMPOS[i];
+  if(el.value==="__novo__"){
+    const nv=pedirNovo(col);
+    if(!nv){ pintarObraPainel(); return; }
+    const op=document.createElement("option"); op.textContent=nv; el.insertBefore(op,el.lastElementChild); el.value=nv;
+  }
   let valor=el.value; if(tipo==="pessoa"||tipo==="multi") valor=valor?[valor]:[];
   el.classList.remove("ok","erro"); el.classList.add("salvando");
   let r; try{ r=await chamar({action:"obraUpdate",pageId:o.id,prop:col,valor:valor},45000); }catch(e){ r={ok:false,erro:"sem conexão"}; }
@@ -778,16 +823,34 @@ async function executarAcao(atvId,acao,bt){
   }else toast("Não criou: "+(r?errMsg(r):"sem resposta do servidor — confira a lista antes de tentar de novo"));
 }
 
+/* botões de ligação (os mesmos da página da obra no Notion) */
+async function criarLigacoes(n,esgoto,bt,forcar){
+  const o=obraDe(OBRA); if(!o) return;
+  const rot=`${n} ${n===1?"casa":"casas"}${esgoto?" c/ esgoto":""}`;
+  if(!forcar&&!confirm(`Criar ligações e vendas para ${o.titulo} — ${rot}?\n\n${n*(esgoto?3:2)} linhas em Ligações e ${n} em Vendas.`)) return;
+  const op=novoOpId(), txt=bt.textContent; bt.disabled=true; bt.innerHTML='<span class="load"></span> Criando…';
+  let r=null;
+  for(let t=0;t<2&&!(r&&(r.ok||r.erro));t++){ try{ r=await chamar({action:"obraLigacoes",pageId:o.id,casas:n,esgoto:esgoto,forcar:!!forcar,opId:op},120000); }catch(e){ r=null; } }
+  bt.disabled=false; bt.textContent=txt;
+  if(r&&r.ok){ toast(`Criadas ${r.ligacoes} ligações e ${r.vendas} vendas`+(r.responsavel?` (responsável: ${r.responsavel})`:"")+
+    (r.semResponsavel?` — não achei a pessoa "${r.semResponsavel}", RESPONSÁVEL ficou vazio`:"")+"."); return; }
+  if(r&&r.erro==="JA_EXISTEM"){
+    if(confirm(`Esta obra já tem ${r.ligacoes} ligações e ${r.vendas} vendas. Criar mesmo assim?`)) return criarLigacoes(n,esgoto,bt,true);
+    return;
+  }
+  toast("Não criou: "+(r?errMsg(r):"sem resposta do servidor — confira em Ligações antes de tentar de novo"));
+}
+
 /* ===================== FORMULÁRIO ===================== */
-function preencherSel(id,ops,vals){
-  document.getElementById(id).innerHTML=`<option value="">Selecione…</option>`+ops.map((x,i)=>`<option value="${esc(vals?vals[i]:x)}">${esc(x)}</option>`).join("");
+function preencherSel(id,ops,vals,novo){
+  document.getElementById(id).innerHTML=`<option value="">Selecione…</option>`+ops.map((x,i)=>`<option value="${esc(vals?vals[i]:x)}">${esc(x)}</option>`).join("")+
+    (novo?`<option value="__novo__">+ Novo…</option>`:"");
 }
 function abrirForm(){
-  const set=opc("SETOR").filter(x=>SETORES_PADRAO.some(s=>N(s)===N(x)));
-  preencherSel("f-setor",set.length?set:opc("SETOR"));
-  preencherSel("f-cidade",opc("Cidade"));
-  preencherSel("f-prop",opc("Proprietário"));
-  preencherSel("f-propreal",opc("Proprietário Real"));
+  preencherSel("f-setor",listaOpc("SETOR"),null,true);
+  preencherSel("f-cidade",listaOpc("Cidade"),null,true);
+  preencherSel("f-prop",listaOpc("Proprietário"),null,true);
+  preencherSel("f-propreal",listaOpc("Proprietário Real"),null,true);
   preencherSel("f-resp",D.pessoas.map(p=>p.nome),D.pessoas.map(p=>p.id));
   preencherSel("f-rt",D.pessoas.map(p=>p.nome),D.pessoas.map(p=>p.id));
   preencherSel("f-impl",opc("IMPLANTAÇÃO"));
