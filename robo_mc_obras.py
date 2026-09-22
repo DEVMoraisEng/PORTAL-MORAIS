@@ -23,7 +23,9 @@ import sys
 
 from playwright.sync_api import sync_playwright
 
-from robo_mc_comum import (N, foto, esperar, abrir, login, ir_menu, clicar_texto, input_por_rotulo, APLICAR)
+import re
+
+from robo_mc_comum import N, foto, abrir, login, ir_menu, clicar_texto, APLICAR
 from fetch_vendas import ler_banco, api
 from fetch_obras import obras_no_mc, padronizar_endereco
 
@@ -47,10 +49,14 @@ def txt(p):
         return "".join(x.get("plain_text", "") for x in v or [])
     if t in ("select", "status"):
         return (v or {}).get("name") or ""
+    if t == "multi_select":
+        return ", ".join(x.get("name") or "" for x in v or [])
     if t == "people":
         return ", ".join(x.get("name") or "" for x in v or [])
     if t == "number":
         return v
+    if t == "formula" and v:
+        return v.get(v.get("type")) or ""
     return ""
 
 
@@ -67,13 +73,12 @@ def fila_de_obras():
         pr = pg.get("properties") or {}
         if N(txt(pega(pr, "MAIS CONTROLE"))) != "CRIAR":
             continue
+        a1, a2 = txt(pega(pr, "ÁREA CONSTRUÍDA AVERBADA")), txt(pega(pr, "ÁREA PÓS HABITE-SE"))
         fila.append({
             "id": pg["id"],
             "titulo": padronizar_endereco(txt(pega(pr, "Projeto"))),
             "casas": txt(pega(pr, "Nº DE CASAS")),
-            # área do MC = averbada + pós habite-se (decidido em set/26)
-            "area": (lambda a, b: (a or 0) + (b or 0) if (a or b) else None)(
-                txt(pega(pr, "ÁREA CONSTRUÍDA AVERBADA")), txt(pega(pr, "ÁREA PÓS HABITE-SE"))),
+            "area": ((a1 or 0) + (a2 or 0)) or None,      # área do MC = averbada + pós habite-se
             "rt": txt(pega(pr, "ENGENHEIRO RT")),
             "resp": txt(pega(pr, "Responsável Pela Obra")),
             "cliente": txt(pega(pr, "Proprietário")),
@@ -87,29 +92,59 @@ def marcar_criada(pid):
     api("PATCH", f"/pages/{pid}", {"properties": {"MAIS CONTROLE": {"select": {"name": "Criada"}}}})
 
 
-def escolher_opcao(page, gatilho_texto, opcao):
-    """Abre um select/dropdown pelo texto que ele mostra e clica a opção."""
-    page.get_by_text(gatilho_texto, exact=True).first.click()
+# ---------------------------------------------------------------- formulário
+# Seletores conferidos direto no formulário do MC (set/26): cada campo tem um
+# name próprio do react-hook-form, e o Cliente é o #participants (o rótulo
+# "Cliente" é for=participants). Nada de procurar por texto na tela.
+CAMPO = {
+    "nome": "input[name=name]",
+    "tipo": "input[name=workType]",
+    "status": "input[name=status]",
+    "area": "input[name=estimatedArea]",
+    "rt": "input[name='responsible.technicalResponsible']",
+    "resp": "input[name='responsible.workResponsible']",
+    "cliente": "#participants",
+    "logradouro": "input[name='address.address']",
+    "complemento": "input[name='address.complement']",
+    "quem_paga": "input[name=defaultWhoPays]",
+    "conta": "#select-single-account-visible",
+}
+
+
+def escolher_na_lista(page, campo_sel, texto_busca, alvo=None, exato=False):
+    """Abre a lista do campo, digita (quando o campo aceita busca) e clica na
+    opção. Devolve o texto da opção escolhida."""
+    campo = page.locator(campo_sel).first
+    campo.scroll_into_view_if_needed()
+    campo.click()
     page.wait_for_timeout(500)
-    page.get_by_text(opcao, exact=True).last.click()
-    page.wait_for_timeout(400)
-
-
-def form(page):
-    """O painel "Nova Obra" — TUDO é procurado dentro dele. A lista de obras
-    fica atrás do painel e tem uma coluna chamada "Cliente": sem esse recorte,
-    o robô achava o campo de busca da LISTA em vez do campo do formulário."""
-    for sel in ["[role=dialog]:visible", ".MuiDrawer-paper:visible", ".modal-content:visible",
-                ".drawer:visible", ".offcanvas:visible", "form:visible"]:
-        loc = page.locator(sel)
-        if loc.count():
-            return loc.last
-    return page.locator("body")
-
-
-def campo_form(page, rotulo):
-    return form(page).locator(
-        "xpath=(.//*[normalize-space(translate(text(),'*:',''))='%s']/following::input[1])[1]" % rotulo)
+    if texto_busca:
+        campo.press_sequentially(texto_busca, delay=30)
+        page.wait_for_timeout(1500)
+    opcoes = page.locator("[role=listbox] [role=option], [role=listbox] li")
+    n = opcoes.count()
+    if not n:
+        raise RuntimeError("a lista não abriu")
+    textos = [(opcoes.nth(i).inner_text() or "").strip() for i in range(min(n, 40))]
+    escolha = None
+    alvo = alvo or texto_busca or ""
+    for i, t in enumerate(textos):
+        if N(t) == N(alvo):
+            escolha = i
+            break
+    if escolha is None and not exato:
+        # melhor parecido: mais palavras em comum (o MC às vezes guarda o nome
+        # sem o "LTDA" que existe no cadastro do Notion)
+        pal = set(N(alvo).split())
+        notas = [(len(pal & set(N(t).split())), i) for i, t in enumerate(textos)]
+        notas.sort(reverse=True)
+        if notas and notas[0][0] >= 2:
+            escolha = notas[0][1]
+    if escolha is None:
+        raise RuntimeError(f"'{alvo}' não apareceu na lista (vi: {textos[:6]})")
+    opcoes.nth(escolha).click()
+    page.wait_for_timeout(600)
+    return textos[escolha]
 
 
 def ajustar_visiveis(page, resp):
@@ -122,32 +157,29 @@ def ajustar_visiveis(page, resp):
     if not fora:
         print("  Visível para: responsável fora das equipes conhecidas — deixei como está", flush=True)
         return
-    campo = form(page).locator("#participants")
-    if not campo.count():
-        campo = campo_form(page, "Visível para")
-    campo.first.scroll_into_view_if_needed()
-    campo.first.click(force=True)
-    page.wait_for_timeout(700)
-    busca = page.locator("input[placeholder*=usuário i]:visible, input[placeholder*=usuario i]:visible").first
+    # a caixa é um select com lista de checkboxes (label id=select-checkbox-list-label)
+    page.locator("xpath=//label[@id='select-checkbox-list-label']/following-sibling::div[1]").first.click()
+    page.wait_for_timeout(900)
     tirados = []
+    busca = page.locator("input[placeholder='Busque um usuário']")
     for nome in fora:
         try:
             if busca.count():
-                busca.fill(nome)
-                page.wait_for_timeout(600)
-            linha = page.locator("label:visible, li:visible").filter(has_text=nome).first
-            cx = linha.locator("input[type=checkbox]")
-            if cx.count() and cx.first.is_checked():
-                linha.click(force=True)
+                busca.first.fill(nome)
+                page.wait_for_timeout(700)
+            linha = page.locator("li, label").filter(has_text=nome).first
+            cx = linha.locator("input[type=checkbox]").first
+            if cx.count() and cx.is_checked():
+                linha.click()
                 tirados.append(nome)
                 page.wait_for_timeout(300)
         except Exception:
             continue
     if busca.count():
-        busca.fill("")
+        busca.first.fill("")
     page.keyboard.press("Escape")
-    page.wait_for_timeout(400)
-    print(f"  Visível para: mantive {manter or '(equipe não identificada)'}, tirei {tirados}", flush=True)
+    page.wait_for_timeout(500)
+    print(f"  Visível para: mantive {manter}, tirei {tirados}", flush=True)
 
 
 def preencher_endereco(page, o):
@@ -156,262 +188,115 @@ def preencher_endereco(page, o):
     corte = titulo.find(" QD ")
     rua = titulo[:corte].strip() if corte > 0 else titulo
     compl = titulo[corte:].strip() if corte > 0 else ""
-    clicar_texto(page, "Endereço")
-    page.wait_for_timeout(500)
     if rua:
-        campo_form(page, "Logradouro").fill(rua)
+        page.locator(CAMPO["logradouro"]).first.fill(rua)
     if compl:
-        campo_form(page, "Complemento").fill(compl)
+        page.locator(CAMPO["complemento"]).first.fill(compl)
     try:
-        estado = form(page).locator("#state:visible").first
-        estado.click()
-        estado.press_sequentially("Goi", delay=40)
-        page.wait_for_timeout(1200)
-        op = page.locator("li:visible, [role=option]:visible").filter(has_text="Goiás")
-        (op.first if op.count() else page.get_by_text("Goiás", exact=False).last).click()
-        page.wait_for_timeout(900)
+        escolher_na_lista(page, "#state", "Goi", alvo="Goiás")
         if o.get("cidade"):
-            cid = form(page).locator("#city:visible").first
-            cid.click()
-            cid.press_sequentially(o["cidade"][:10], delay=40)
-            page.wait_for_timeout(1200)
-            opc = page.locator("li:visible, [role=option]:visible").filter(has_text=o["cidade"][:8])
-            if opc.count():
-                opc.first.click()
+            page.wait_for_timeout(900)
+            escolher_na_lista(page, "#city", o["cidade"][:12], alvo=o["cidade"])
     except Exception as e:
-        print(f"  ! estado/cidade não escolhidos: {str(e)[:90]}", flush=True)
+        print(f"  ! estado/cidade: {str(e)[:110]}", flush=True)
     print(f"  endereço: logradouro='{rua}' complemento='{compl}'", flush=True)
 
 
 def preencher_conta(page, o):
     """Quem paga = Cliente; Conta = a CONTA da obra (vem do cadastro)."""
-    clicar_texto(page, "Conta bancária padrão")
-    page.wait_for_timeout(500)
     try:
-        escolher_opcao(page, "Selecione quem paga", "Cliente")
+        escolher_na_lista(page, CAMPO["quem_paga"], "", alvo="Cliente", exato=True)
     except Exception as e:
-        print(f"  ! 'Quem paga' não escolhido: {str(e)[:80]}", flush=True)
+        print(f"  ! 'Quem paga': {str(e)[:110]}", flush=True)
     conta = (o.get("conta") or "").strip()
     if not conta or N(conta) == "PESSOA FISICA":
         print("  conta bancária: obra sem CONTA no Notion — deixei em branco", flush=True)
         return
-    campo = form(page).locator("#select-single-account-visible:visible").first
-    if not campo.count():
-        campo = campo_form(page, "Conta")
-    campo.first.click()
-    campo.first.press_sequentially(conta[:25], delay=35)
-    page.wait_for_timeout(1500)
-    op = page.locator("li:visible, [role=option]:visible").filter(has_text=conta.split()[0])
-    if op.count():
-        op.first.click()
-        print(f"  conta bancária: {conta}", flush=True)
-    else:
-        print(f"  ! conta '{conta}' não apareceu na busca do MC", flush=True)
+    escolhida = escolher_na_lista(page, CAMPO["conta"], conta[:25], alvo=conta)
+    print(f"  conta bancária: {escolhida}", flush=True)
+
+
+def desmarcar_compras(page):
+    """Terceiro interruptor de 'Exibir obra para' (Lançamentos, Faturamentos,
+    Compras). Os dois primeiros têm name; o de Compras não, então vai pela ordem."""
+    cxs = page.locator("input[type=checkbox]:visible")
+    if cxs.count() >= 3:
+        alvo = cxs.nth(2)
+        if alvo.is_checked():
+            alvo.click(force=True)
+            print("  Exibir obra para: Compras desmarcado", flush=True)
 
 
 def criar_no_mc(page, o):
     ir_menu(page, "Obras", "Minhas Obras")
+    page.wait_for_timeout(1500)
     clicar_texto(page, "Nova Obra", exato=False)
-    page.wait_for_timeout(1200)
-    campo_form(page, "Nome da obra").fill(o["titulo"])
+    page.locator(CAMPO["nome"]).wait_for(state="visible", timeout=15000)
+
+    page.locator(CAMPO["nome"]).fill(o["titulo"])
 
     n = int(o["casas"]) if isinstance(o["casas"], (int, float)) else 0
-    if n not in TIPOS:
-        # sem Nº DE CASAS: entra como genérico e a rotina de atualização
-        # troca pelo tipo certo quando o número for preenchido no portal
-        try:
-            escolher_opcao(page, "Selecione um tipo", TIPO_PADRAO)
-        except Exception as e:
-            print(f"  ! tipo genérico não escolhido: {str(e)[:80]}", flush=True)
-    if n in TIPOS:
-        try:
-            escolher_opcao(page, "Selecione um tipo", TIPOS[n])
-        except Exception:
-            # tipo que ainda não existe no MC (ex.: "5 casas"): cria pelo
-            # "+ Novo tipo" do próprio formulário
-            try:
-                print(f"  tipo '{TIPOS[n]}' não existe no MC — criando", flush=True)
-                page.keyboard.press("Escape")
-                clicar_texto(page, "Novo tipo", exato=False)
-                page.wait_for_timeout(700)
-                novo = page.locator("input:visible").last
-                novo.press_sequentially(TIPOS[n], delay=30)
-                for rot in ["Salvar", "Adicionar", "Confirmar", "OK"]:
-                    bt = page.get_by_text(rot, exact=False)
-                    if bt.count():
-                        bt.last.click()
-                        break
-                page.wait_for_timeout(1200)
-            except Exception as e2:
-                print(f"  ! tipo da obra não escolhido ({TIPOS[n]}): {str(e2)[:100]}", flush=True)
+    tipo = TIPOS.get(n, TIPO_PADRAO)
+    try:
+        escolher_na_lista(page, CAMPO["tipo"], "", alvo=tipo, exato=True)
+        print(f"  tipo: {tipo}", flush=True)
+    except Exception as e:
+        print(f"  ! tipo '{tipo}': {str(e)[:110]}", flush=True)
 
-    # ---- Visível para: tira quem não é da equipe do responsável ----
     try:
         ajustar_visiveis(page, o.get("resp") or "")
     except Exception as e:
-        print(f"  ! Visível para não ajustado: {str(e)[:110]}", flush=True)
+        print(f"  ! Visível para: {str(e)[:110]}", flush=True)
 
     try:
-        clicar_texto(page, "Dados gerais")
         if o["area"]:
-            campo_form(page, "Área total").fill(f"{float(o['area']):.2f}".replace(".", ","))
+            page.locator(CAMPO["area"]).first.fill(f"{float(o['area']):.2f}".replace(".", ","))
         if o["rt"]:
-            campo_form(page, "Responsável técnico").fill(o["rt"])
+            page.locator(CAMPO["rt"]).first.fill(o["rt"])
         if o["resp"]:
-            campo_form(page, "Responsável da obra").fill(o["resp"])
+            page.locator(CAMPO["resp"]).first.fill(o["resp"])
     except Exception as e:
-        print(f"  ! dados gerais não preenchidos: {str(e)[:100]}", flush=True)
+        print(f"  ! dados gerais: {str(e)[:110]}", flush=True)
 
-    clicar_texto(page, "Dados do cliente")
-    page.wait_for_timeout(800)
-    try:
-        campos = page.evaluate("""() => [...document.querySelectorAll("input,select,textarea")]
-            .filter(e => e.offsetWidth || e.offsetHeight)
-            .map(e => `${e.tagName.toLowerCase()}#${e.id||"-"} ph="${e.placeholder||""}"${e.disabled?" DESABILITADO":""}`)""")
-        print(f"  campos visíveis no formulário: {campos}", flush=True)
-    except Exception:
-        pass
-    # O campo "Cliente" é um combobox: o <input> fica DESABILITADO até alguém
-    # clicar na caixa — era nele que a primeira versão tentava digitar.
-    # O campo CERTO é o que vem logo depois do rótulo "Cliente". Pegar o
-    # último "Digite para buscar" da tela era errado: esse mesmo texto está no
-    # "Visível para" (#participants), no endereço e na conta bancária — e
-    # escrever no "Visível para", que é obrigatório, é o que fazia o MC
-    # recusar o cadastro sem dizer nada.
-    campo = campo_form(page, "Cliente")
-    if not campo.count():
-        campo = form(page).locator("input[placeholder*=buscar i]").last
-    try:
-        print(f"  campo do Cliente: #{campo.get_attribute('id') or '-'}", flush=True)
-    except Exception:
-        pass
-    ativo = None
-    if campo.count() and not campo.is_disabled():
-        ativo = campo
-    else:
-        # combobox fechado: clica do elemento mais próximo do input para fora,
-        # até o campo de busca ficar habilitado
-        ancestrais = campo.locator("xpath=ancestor::*[position()<=4]")
-        for i in range(ancestrais.count() - 1, -1, -1):
-            try:
-                ancestrais.nth(i).click(force=True)
-            except Exception:
-                continue
-            page.wait_for_timeout(600)
-            livre = page.locator("input[placeholder*=buscar i]:not([disabled]):visible")
-            if livre.count():
-                ativo = livre.last
-                break
-        if ativo is None:   # última tentativa: clicar no rótulo "Cliente"
-            try:
-                page.locator("xpath=//*[normalize-space(text())='Cliente']/following::*[1]").first.click(force=True)
-                page.wait_for_timeout(600)
-                livre = page.locator("input[placeholder*=buscar i]:not([disabled]):visible")
-                ativo = livre.last if livre.count() else None
-            except Exception:
-                ativo = None
-    if ativo is None:
-        foto(page, "cliente_sem_campo")
-        raise RuntimeError("não consegui abrir a caixa de busca do Cliente — veja o print cliente_sem_campo")
-    ativo.click()
-    ativo.press_sequentially(o["cliente"][:25], delay=35)
-    page.wait_for_timeout(1800)
-    # o que apareceu de opção na tela (vai para o log — ajuda a acertar o seletor)
-    try:
-        vis = page.evaluate("""() => [...document.querySelectorAll("li,[role=option],.ui-select-choices-row,.dropdown-item,.md-autocomplete-suggestions li,mat-option")]
-            .filter(e => e.offsetWidth || e.offsetHeight).map(e => e.innerText.trim()).filter(Boolean).slice(0, 12)""")
-        print(f"  opções visíveis depois de digitar: {vis}", flush=True)
-    except Exception:
-        pass
-    opc = page.get_by_text(o["cliente"], exact=True).locator("visible=true")
-    if not opc.count():
-        # mesmo nome com acento/caixa/espaço diferente: só opções VISÍVEIS
-        opc = page.locator("li:visible, [role=option]:visible, .ui-select-choices-row:visible, .dropdown-item:visible, mat-option:visible")
-        for palavra in o["cliente"].split()[:3]:
-            if opc.count() > 1:
-                opc = opc.filter(has_text=palavra)
-    if not opc.count():
-        foto(page, "cliente_nao_achado")
-        raise RuntimeError(f"cliente '{o['cliente']}' não apareceu na busca do MC — o robô de clientes "
-                           "precisa rodar com aplicar antes (o Proprietário tem que estar com o nome do MC)")
-    opc.first.click()
-    page.wait_for_timeout(600)
-    # confere que o "Visível para" (obrigatório) continua preenchido
-    try:
-        vp = page.locator("#participants")
-        if vp.count():
-            print(f"  Visível para: {(vp.first.input_value() or '(vazio)')[:60]}", flush=True)
-    except Exception:
-        pass
-    foto(page, "nova_obra_" + o["titulo"].replace(" ", "_"))
+    cliente = escolher_na_lista(page, CAMPO["cliente"], o["cliente"][:25], alvo=o["cliente"])
+    print(f"  cliente: {cliente}", flush=True)
 
-    # ---- Endereço: logradouro + complemento (QD/LT) + estado/cidade ----
     try:
         preencher_endereco(page, o)
     except Exception as e:
-        print(f"  ! endereço não preenchido: {str(e)[:110]}", flush=True)
-
-    # ---- Conta bancária padrão: quem paga = Cliente, conta = a do Notion ----
+        print(f"  ! endereço: {str(e)[:110]}", flush=True)
     try:
         preencher_conta(page, o)
     except Exception as e:
-        print(f"  ! conta bancária não preenchida: {str(e)[:110]}", flush=True)
-
-    # ---- Exibir obra para: desmarca "Compras" ----
+        print(f"  ! conta: {str(e)[:110]}", flush=True)
     try:
-        clicar_texto(page, "Exibir obra para")
-        page.wait_for_timeout(500)
-        alvo = form(page).locator("xpath=(.//*[normalize-space(text())='Compras']/following::input[@type='checkbox'][1])[1]")
-        if alvo.count() and alvo.first.is_checked():
-            alvo.first.click(force=True)
-        else:
-            bt = form(page).locator("xpath=(.//*[normalize-space(text())='Compras']/following::*[self::button or @role='switch'][1])[1]")
-            if bt.count():
-                bt.first.click(force=True)
-        page.wait_for_timeout(400)
+        desmarcar_compras(page)
     except Exception as e:
-        print(f"  ! 'Compras' não desmarcado: {str(e)[:110]}", flush=True)
+        print(f"  ! Compras: {str(e)[:110]}", flush=True)
 
     foto(page, "antes_salvar_" + o["titulo"].replace(" ", "_"))
     if not APLICAR:
         page.keyboard.press("Escape")
-        page.wait_for_timeout(500)
+        page.wait_for_timeout(600)
         return "simulado"
 
-    # "Salvar Obra" é o botão do rodapé do painel: precisa rolar até ele e
-    # clicar à força (o rodapé fica fixo e às vezes cobre o alvo).
-    import re as _re
-    salvar = page.locator("button:visible, a:visible").filter(has_text=_re.compile(r"salvar\s+obra", _re.I)).last
-    if not salvar.count():
-        salvar = page.get_by_text("Salvar Obra", exact=False).last
+    salvar = page.locator("button:visible").filter(has_text=re.compile(r"salvar\s+obra", re.I)).last
     salvar.scroll_into_view_if_needed()
     page.wait_for_timeout(400)
     salvar.click(force=True)
-    esperar(page, 20000)
-    page.wait_for_timeout(2000)
+    try:
+        page.locator(CAMPO["nome"]).wait_for(state="hidden", timeout=25000)
+    except Exception:
+        erro = ""
+        try:
+            erro = page.evaluate("""() => [...document.querySelectorAll('.Mui-error,[class*=error i],[role=alert]')]
+                .filter(e => e.offsetWidth||e.offsetHeight).map(e => e.innerText.trim()).filter(Boolean).join(' | ').slice(0,300)""")
+        except Exception:
+            pass
+        foto(page, "erro_salvar_" + o["titulo"].replace(" ", "_"))
+        raise RuntimeError(f"o painel continuou aberto depois de Salvar Obra. Erros na tela: {erro or '(nenhum)'}")
     foto(page, "pos_salvar_" + o["titulo"].replace(" ", "_"))
-    # O painel "Nova Obra" fechar é o sinal de que o MC aceitou o cadastro.
-    fechou = True
-    try:
-        page.wait_for_selector("text=Salvar Obra", state="hidden", timeout=20000)
-    except Exception:
-        fechou = False
-    # a lista às vezes demora a mostrar a obra nova; serve de confirmação extra
-    achou = False
-    try:
-        busca = page.locator("input[placeholder*=Busque i]:visible, input[placeholder*=busca i]:visible").first
-        for _ in range(3):
-            busca.fill(o["titulo"])
-            page.wait_for_timeout(2500)
-            if page.get_by_text(o["titulo"], exact=False).count():
-                achou = True
-                break
-    except Exception:
-        pass
-    if fechou:
-        print(f"  {o['titulo']}: painel fechou (salvo)" + ("" if achou else " — ainda não apareceu na busca da lista"), flush=True)
-        return "criada"
-    raise RuntimeError("cliquei em Salvar Obra mas o painel continuou aberto — confira no MC e veja o print pos_salvar")
+    return "criada"
 
 
 def main():
