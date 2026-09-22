@@ -310,16 +310,13 @@ document.addEventListener("DOMContentLoaded", () => aplicarTema(temaAtual()));
    "grupo" decide em que bloco da barra lateral o botão cai — a ORDEM dos
    blocos é fixa (ver GRUPOS_ORDEM), não a ordem aqui no array. */
 const SISTEMAS=[
-  {chave:"VENDAS",nome:"Gestão de Vendas",desc:"Atividades, alertas e planilhas",ico:"V",link:"vendas.html",conta:true,grupo:"SETORES"},
   /* "LIGAÇÕES" tem que ser IGUAL à opção da coluna ACESSOS no banco LOGINS —
      com acento e em maiúsculas. Se não bater, o botão simplesmente não
      aparece pra quem tem o acesso, e sem mensagem de erro nenhuma. */
-  {chave:"LIGAÇÕES",nome:"Ligações de Água e Energia",desc:"Solicitações, prazos e planilha",ico:"L",link:"ligacoes.html",conta:true,grupo:"SETORES"},
 
   /* Mesma regra da linha de cima: "PÓS OBRA" precisa existir, com acento e em
      maiúsculas, como opção da coluna ACESSOS no banco LOGINS. Se não bater, o
      botão simplesmente não aparece — e sem erro nenhum na tela. */
-  {chave:"PÓS OBRA",nome:"Pós Obra",desc:"Garantias, chamados e serviços de assistência",ico:"P",link:"pos-obra.html",conta:true,grupo:"SETORES"},
 
   /* "ANÁLISES" precisa existir, com acento e em maiúsculas, como opção da
      coluna ACESSOS no banco LOGINS — mesma regra dos outros setores. A
@@ -333,13 +330,22 @@ const SISTEMAS=[
      maiúsculas, como opção da coluna ACESSOS no banco LOGINS — mesma regra
      dos outros setores. Se não bater, o botão simplesmente não aparece, e
      sem erro nenhum na tela. */
-  {chave:"DOCUMENTOS",nome:"Gestão de Documentos",desc:"Documentação da obra, alvará, habite-se e prazos",ico:"D",link:"documentos.html",conta:true,grupo:"SETORES"},
 
   /* r38 — SIMULAÇÕES (Reserva do Ipês). Exige a opção "SIMULAÇÕES" na coluna
      ACESSOS do banco LOGINS, como os demais setores (ADM/MASTER/TESTES passam
      sempre). A tela é a simulacoes.html, no próprio portal. */
-  {chave:"SIMULAÇÕES",nome:"Simulações · Reserva do Ipês",desc:"Simulações da Caixa, aprovação e unidades",ico:"S",link:"simulacoes.html",grupo:"SETORES"},
 
+  /* ORDEM DOS SETORES (set/26): Atividades, Obras, Vendas, Documentos,
+     Ligações, Pós Obra, Simulações. "embreve" = botão aparece apagado, sem
+     link, para todo mundo que tem o acesso — OBRAS sai do "em breve" quando
+     a obras.html for publicada. */
+  {chave:"ATIVIDADES",nome:"Atividades",desc:"Atividades das obras por pessoa",ico:"T",link:"#",grupo:"SETORES",embreve:true,publico:true},
+  {chave:"OBRAS",nome:"Obras",desc:"Solicitação de obras, atividades e cronograma",ico:"O",link:"#",grupo:"SETORES",embreve:true,publico:true},
+  {chave:"VENDAS",nome:"Gestão de Vendas",desc:"Atividades, alertas e planilhas",ico:"V",link:"vendas.html",conta:true,grupo:"SETORES"},
+  {chave:"DOCUMENTOS",nome:"Gestão de Documentos",desc:"Documentação da obra, alvará, habite-se e prazos",ico:"D",link:"documentos.html",conta:true,grupo:"SETORES"},
+  {chave:"LIGAÇÕES",nome:"Ligações de Água e Energia",desc:"Solicitações, prazos e planilha",ico:"L",link:"ligacoes.html",conta:true,grupo:"SETORES"},
+  {chave:"PÓS OBRA",nome:"Pós Obra",desc:"Garantias, chamados e serviços de assistência",ico:"P",link:"pos-obra.html",conta:true,grupo:"SETORES"},
+  {chave:"SIMULAÇÕES",nome:"Simulações · Reserva do Ipês",desc:"Simulações da Caixa, aprovação e unidades",ico:"S",link:"simulacoes.html",grupo:"SETORES"},
   {chave:"ANÁLISES",nome:"Orçado × Realizado",desc:"Comparativo por obra e insumo",ico:"$",link:"analise.html",grupo:"ANÁLISES"},
 
   /* ANÁLISE DE DADOS (set/26) — veio do repositório CONTROLES-INTERNOS.
@@ -382,6 +388,7 @@ const S=exigirSessao(); atualizarStatus();
 
 function pintarUsuario(s){ document.getElementById("u-nome").textContent=s.nome||s.login; const tb=document.getElementById("u-tipo"); tb.textContent=s.tipo; tb.className="badge"+(s.tipo==="ADM"?" adm":""); }
 function botaoSistemaHtml(x){
+  if(x.embreve) return `<span class="nav-btn" style="opacity:.45;cursor:default" title="Em breve">${esc(x.nome)} <span class="ext">em breve</span></span>`;
   return `<a class="nav-btn" href="${x.link}"${x.externo?' target="_blank" rel="noopener"':''}>${esc(x.nome)}${x.externo?' <span class="ext">↗</span>':''}${x.conta?`<span class="cnt" id="cnt-${x.chave}">·</span>`:``}</a>`;
 }
 function renderCards(s){

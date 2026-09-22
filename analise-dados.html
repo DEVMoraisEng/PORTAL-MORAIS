@@ -329,6 +329,38 @@ tfoot td:last-child{border-right:none}
   .rank-grid,.det-grid{grid-template-columns:1fr}
   .sub-tab{padding:10px 20px;font-size:14px}
 }
+/* ===== CELULAR (PORTAL, set/26) =====================================
+   A regra de 900px que já existia não pegava: "body.standalone #page-dash"
+   (mais específica) mantinha o menu na lateral, e vários grids têm colunas
+   escritas direto no HTML (style="grid-template-columns:..."), que nenhuma
+   classe desfaz. Este bloco vem por último e resolve os dois. */
+@media(max-width:900px){
+  body.standalone #page-dash,#page-dash{flex-direction:column}
+  .dash-nav{position:sticky;top:0;z-index:30;width:100%;flex-direction:row;flex-wrap:nowrap;
+            overflow-x:auto;-webkit-overflow-scrolling:touch;padding:8px 10px;gap:6px;
+            border-right:0;border-bottom:2px solid rgba(143,220,210,.2)}
+  .nav-btn{width:auto;flex:0 0 auto;white-space:nowrap;padding:9px 12px;font-size:12px}
+  .header{padding:0 12px;gap:8px}
+  .hdr-logo{height:30px}
+  .hdr-title{font-size:20px}
+  .hdr-sup{font-size:9px}
+  #updated-at,.updated{display:none}
+  .dash-main,.metas-body,.pg-body{padding:14px 12px 30px}
+  .kpi-row.r3,.kpi-row.r2{grid-template-columns:1fr 1fr}
+  .kpi-ext-row.r3,.kpi-ext-row.r4,.kpi-ext-grid.cols4,.kpi-ext-grid.cols5{grid-template-columns:1fr 1fr}
+  .diverg-cols{grid-template-columns:1fr}
+  [style*="grid-template-columns"]{grid-template-columns:1fr !important}
+  .tbl-outer{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .tbl-wrap{overflow-x:auto}
+  .kpi-val{font-size:24px}
+  table{font-size:12px}
+}
+@media(max-width:560px){
+  .kpi-row.r4,.kpi-row.r3,.kpi-row.r2{grid-template-columns:1fr}
+  .kpi-ext-row.r2,.kpi-ext-row.r3,.kpi-ext-row.r4,.kpi-ext-grid,.kpi-ext-grid.cols4,.kpi-ext-grid.cols5{grid-template-columns:1fr 1fr}
+  .controles{gap:8px}
+  .controles select,.controles input{max-width:100%}
+}
 </style>
 </head>
 <body>
