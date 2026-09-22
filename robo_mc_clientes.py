@@ -82,24 +82,26 @@ def ler_clientes_mc(page):
 
 
 def ler_cadastro(page, nome):
-    """Abre o cadastro de um cliente pela busca da lista e lê nome/documento."""
+    """Abre o cadastro de um cliente pela busca da lista e lê nome/documento.
+    RÁPIDO: espera o elemento certo aparecer, e não a rede "parar" — o MC fica
+    fazendo chamadas o tempo todo, e esperar a rede parar custava ~15 s por
+    passo (era isso que fazia a rodada levar mais de 20 min)."""
     busca = page.locator("input[placeholder*=busca i], input[placeholder*=Digite i]").first
-    busca.fill("")
     busca.fill(nome)
-    esperar(page)
-    page.wait_for_timeout(1500)
     alvo = page.locator("table tbody tr").filter(has_text=nome).first
+    alvo.wait_for(state="visible", timeout=15000)
     alvo.locator("td").nth(1).click()
-    esperar(page)
-    page.wait_for_timeout(1500)
+    page.get_by_text("Cadastro de Cliente", exact=False).first.wait_for(state="visible", timeout=15000)
+    page.wait_for_timeout(700)      # os campos são preenchidos logo depois do título
     foto(page, "cadastro_" + N(nome)[:30].replace(" ", "_"), sensivel=True)
     tipo = radios_marcados(page)
     nome_mc = valor_por_rotulo(page, ["Nome Completo", "Razão Social", "Nome"]) or nome
     doc = valor_por_rotulo(page, ["CNPJ", "CPF", "CPF/CNPJ"]) or ""
+    nasc = valor_por_rotulo(page, ["Aniversário", "Data de Nascimento", "Nascimento", "Data de Abertura"]) or ""
     page.go_back()
-    esperar(page)
-    page.wait_for_timeout(1200)
-    return {"nome": nome_limpo(nome_mc), "doc": doc.strip(), "tipo": tipo}
+    page.locator("table tbody tr").first.wait_for(state="visible", timeout=15000)
+    page.wait_for_timeout(400)
+    return {"nome": nome_limpo(nome_mc), "doc": doc.strip(), "tipo": tipo, "nasc": nasc.strip()}
 
 
 # ---------------------------------------------------------------- Notion
@@ -130,6 +132,42 @@ def patch(pid, props):
     api("PATCH", f"/pages/{pid}", {"properties": props})
 
 
+def limpar_opcoes(finais, renomear, log):
+    validos = {N(x) for x in finais}
+    for db, cols, rot in [(ID_OBRAS, ["Proprietário", "Proprietário Real"], "OBRAS"),
+                          (ID_DOCS, ["PROPRIETARIO DOCUMENTO", "PROPRIETARIO REAL"], "DOCUMENTOS")]:
+        esquema = api("GET", f"/databases/{db}").get("properties") or {}
+        paginas = ler_banco(db, "opções em uso")
+        for c in cols:
+            k = col_real(esquema, c)
+            if not k or esquema[k].get("type") != "select":
+                continue
+            # o que as páginas vão usar DEPOIS das trocas desta rodada
+            em_uso = set()
+            for pg in paginas:
+                v = texto_de((pg.get("properties") or {}).get(k))
+                if v:
+                    em_uso.add(N(renomear.get(v, v)))
+            ops = (esquema[k].get("select") or {}).get("options") or []
+            manter = [o for o in ops if N(o["name"]) in validos or N(o["name"]) in em_uso]
+            nomes_manter = {N(o["name"]) for o in manter}
+            novos = [{"name": x.replace(",", " ")} for x in sorted(finais) if N(x) not in nomes_manter]
+            sai = [o["name"] for o in ops if o not in manter]
+            if not sai and not novos:
+                continue
+            log.append(f"Lista de {rot}.{k}: sai {len(sai)} opção(ões) sem uso" + (f" ({', '.join(sai[:8])}{'…' if len(sai) > 8 else ''})" if sai else "")
+                       + f", entra {len(novos)} do cadastro")
+            lista = [{"id": o["id"], "name": o["name"], "color": o.get("color", "default")} for o in manter] + novos
+            if len(lista) > 100:
+                log.append(f"   ! {k}: mais de 100 opções — o Notion não aceita trocar a lista inteira; ficou como está")
+                continue
+            if APLICAR:
+                try:
+                    api("PATCH", f"/databases/{db}", {"properties": {k: {"select": {"options": lista}}}})
+                except SystemExit as e:
+                    log.append(f"   ! {k}: o Notion recusou a limpeza ({str(e)[:120]})")
+
+
 def sincronizar(clientes):
     cad = ler_banco(ID_CADASTRO, "CADASTRO")
     col_tit = col_cpf = None
@@ -137,11 +175,20 @@ def sincronizar(clientes):
         p0 = cad[0].get("properties") or {}
         col_tit = next((k for k, v in p0.items() if v.get("type") == "title"), None)
         col_cpf = col_real(p0, "CPF/CNPJ")
+    # DATA DE NASCIMENTO também passa a morar no cadastro (vem do "Aniversário"
+    # do MC) — é o que deixa a fórmula DATA DE NASCIMENTO da obra ler de lá.
+    col_nasc = col_real(p0, "DATA DE NASCIMENTO") if cad else None
+    if cad and not col_nasc:
+        print("Cadastro sem a coluna DATA DE NASCIMENTO — " + ("criando." if APLICAR else "seria criada."), flush=True)
+        if APLICAR:
+            api("PATCH", f"/databases/{ID_CADASTRO}", {"properties": {"DATA DE NASCIMENTO": {"rich_text": {}}}})
+        col_nasc = "DATA DE NASCIMENTO"
     por_doc, por_nome = {}, {}
     for r in cad:
         pr = r.get("properties") or {}
         nome, doc = titulo_de(pr), texto_de(pr.get(col_cpf)) if col_cpf else ""
-        item = {"id": r["id"], "nome": nome, "doc": doc, "casou": False}
+        item = {"id": r["id"], "nome": nome, "doc": doc, "casou": False,
+                "nasc": texto_de(pr.get(col_nasc)) if col_nasc and pr.get(col_nasc) else ""}
         if so_digitos(doc):
             por_doc[so_digitos(doc)] = item
         por_nome[N(nome)] = item
@@ -157,6 +204,8 @@ def sincronizar(clientes):
                 props = {col_tit: {"title": [{"text": {"content": c["nome"]}}]}}
                 if col_cpf:
                     props[col_cpf] = {"rich_text": [{"text": {"content": c["doc"]}}]}
+                if col_nasc and c.get("nasc"):
+                    props[col_nasc] = {"rich_text": [{"text": {"content": c["nasc"]}}]}
                 api("POST", "/pages", {"parent": {"database_id": ID_CADASTRO}, "properties": props})
             continue
         alvo["casou"] = True
@@ -168,6 +217,9 @@ def sincronizar(clientes):
         if d and so_digitos(alvo["doc"]) != d and col_cpf:
             log.append(f"DOCUMENTO: {c['nome']}  {mascarar(alvo['doc']) if alvo['doc'] else '(vazio)'}  ->  {mascarar(c['doc'])}")
             props[col_cpf] = {"rich_text": [{"text": {"content": c["doc"]}}]}
+        if col_nasc and c.get("nasc") and c["nasc"] != alvo.get("nasc"):
+            props[col_nasc] = {"rich_text": [{"text": {"content": c["nasc"]}}]}
+            log.append(f"NASCIMENTO/ABERTURA: {c['nome']} preenchida")
         if props and APLICAR:
             patch(alvo["id"], props)
 
@@ -192,6 +244,46 @@ def sincronizar(clientes):
                     if APLICAR:
                         patch(pg["id"], props)
             log.append(f"{'Trocado' if APLICAR else 'Trocaria'} o nome em {trocas} páginas de {'OBRAS' if db == ID_OBRAS else 'DOCUMENTOS'}")
+
+    # Nomes CURTOS em Proprietário Real ("MOURA", "MORAIS ENGENHARIA"…): viram
+    # o nome completo do cadastro quando só UM nome do cadastro começa com eles.
+    # Os que servem para mais de um (ex.: "MOURA" = LTDA ou RAVENA) só são
+    # listados — esses você escolhe na mão.
+    finais = [renomear.get(i["nome"], i["nome"]) for i in por_nome.values()] + \
+             [c["nome"] for c in clientes if not (por_doc.get(so_digitos(c["doc"])) or por_nome.get(N(c["nome"])))]
+    finais_n = {N(x): x for x in finais}
+    ambiguos = {}
+    for db, cols in [(ID_OBRAS, ["Proprietário Real"]), (ID_DOCS, ["PROPRIETARIO REAL"])]:
+        trocas = 0
+        for pg in ler_banco(db, "nomes curtos"):
+            pr = pg.get("properties") or {}
+            props = {}
+            for c in cols:
+                k = col_real(pr, c)
+                if not k or pr[k].get("type") != "select":
+                    continue
+                v = texto_de(pr[k])
+                if not v or N(v) in finais_n or N(v) in {N(x) for x in renomear}:
+                    continue
+                cand = [x for x in finais if N(x).startswith(N(v) + " ")]
+                if len(cand) == 1:
+                    props[k] = {"select": {"name": cand[0].replace(",", " ")}}
+                else:
+                    ambiguos.setdefault(v, set()).update(cand)
+            if props:
+                trocas += 1
+                if APLICAR:
+                    patch(pg["id"], props)
+        log.append(f"Nome curto -> completo em Proprietário Real: {trocas} páginas de {'OBRAS' if db == ID_OBRAS else 'DOCUMENTOS'}")
+    if ambiguos:
+        log.append("Nomes curtos que NÃO deu para completar sozinho (escolha na mão):")
+        for v, c in sorted(ambiguos.items()):
+            log.append(f"   {v}  ->  {' | '.join(sorted(c)) if c else 'nenhum nome do cadastro começa assim'}")
+
+    # LIMPEZA DAS LISTAS: nas 4 colunas de proprietário, a lista de opções passa
+    # a ter só os nomes do cadastro (os reais do MC). Opção antiga só sai se
+    # nenhuma página usa mais — valor em uso nunca some.
+    limpar_opcoes(finais, renomear, log)
 
     sem_par = [i["nome"] for i in por_nome.values() if not i["casou"]]
     print(("APLICADO" if APLICAR else "SIMULAÇÃO — nada gravado") + f": {len(log)} ações", flush=True)
