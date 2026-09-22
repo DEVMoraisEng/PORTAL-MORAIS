@@ -102,7 +102,8 @@ jobs:
         continue-on-error: true
         env:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
-        run: python fetch_obras.py
+          ERP_CSV_OBRAS: ${{ secrets.ERP_CSV_OBRAS }}
+        run: pip install requests && python fetch_obras.py
 
       - name: Configurar Pages
         uses: actions/configure-pages@v5
