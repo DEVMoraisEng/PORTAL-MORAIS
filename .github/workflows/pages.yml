@@ -95,6 +95,15 @@ jobs:
           ERP_CSV_RECEBIMENTOS: ${{ secrets.ERP_CSV_RECEBIMENTOS }}
         run: pip install requests && python fetch_analise_dados.py
 
+      # ABA DE OBRAS — gera dist/obras.json (obras + atividades de projetos,
+      # sem CPF/CNPJ, nascimento e conta). A integração do Notion precisa
+      # estar conectada à ATIVIDADES DE PROJETOS.
+      - name: Buscar dados das Obras
+        continue-on-error: true
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+        run: python fetch_obras.py
+
       - name: Configurar Pages
         uses: actions/configure-pages@v5
 
