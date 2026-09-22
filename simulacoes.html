@@ -1726,12 +1726,14 @@ function propErro(e){
      novo está colado, mas a versão publicada ainda é a antiga — ou só um dos
      dois projetos foi publicado. */
   if(t.indexOf("ACAO_DESCONHECIDA")>=0){
-    return '<b>A implantação ainda está na versão antiga.</b><br>' +
-           'O Code.gs novo precisa de <b>Implantar → Gerenciar implantações → ✏️ → ' +
-           'Versão: Nova versão → Implantar</b>, nos <b>dois</b> projetos (leitura e escrita). ' +
-           'Salvar o arquivo não publica.<br>' +
-           'Para conferir qual versão está no ar, abra a URL do Apps Script com ' +
-           '<code>?action=ping</code>: tem que responder <code>2026-09-15 r37</code>.';
+    /* r60 — a causa real (22/09/2026): as funções das simulações não estão
+       no projeto que respondeu. Elas moram no Simulacoes.gs, que precisa
+       estar nos DOIS projetos (leitura e escrita), publicado como Nova versão. */
+    return '<b>Este projeto do Apps Script não tem o Simulacoes.gs.</b><br>' +
+           'Adicione o arquivo <b>Simulacoes.gs</b> (e o Code.gs r44) nos <b>dois</b> projetos do portal — ' +
+           'leitura e escrita — e publique cada um em <b>Implantar → Gerenciar implantações → ✏️ → ' +
+           'Nova versão</b>. Salvar o arquivo não publica.<br>' +
+           'Para conferir: <code>?action=ping</code> tem que responder <code>2026-09-22 r44</code>.';
   }
   if(t.indexOf("SIM_DB_PROPOSTAS_NAO_CONFIGURADO")>=0){
     return '<b>A base de PROPOSTAS ainda não está ligada.</b><br>' +
@@ -2257,7 +2259,7 @@ async function propPdf(id){
   catch(e){ bt.disabled=false; info.textContent="Não deu para confirmar. Tente de novo."; return; }
   if(!r || !r.ok){
     bt.disabled=false;
-    info.textContent = (r&&r.erro==="MODO_TESTE") ? "Perfil TESTES não gera PDF." : propErro(r&&r.erro);
+    info.innerHTML = (r&&r.erro==="MODO_TESTE") ? "Perfil TESTES não gera PDF." : propErro(r&&r.erro);
     return;
   }
   /* Baixa na hora: o PDF vem em base64 na resposta e vira arquivo aqui no
@@ -2330,7 +2332,7 @@ async function propStatus(id, status){
     setTimeout(simFecharDet,1400);
   }else{
     av.className="sim-aviso err";
-    av.textContent=(r&&r.erro==="MODO_TESTE") ? "Perfil TESTES não grava." : propErro(r&&r.erro);
+    av.innerHTML=(r&&r.erro==="MODO_TESTE") ? "Perfil TESTES não grava." : propErro(r&&r.erro);
   }
 }
 /* ---------- editor do e-mail ----------
