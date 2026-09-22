@@ -95,6 +95,23 @@ def escolher_opcao(page, gatilho_texto, opcao):
     page.wait_for_timeout(400)
 
 
+def form(page):
+    """O painel "Nova Obra" — TUDO é procurado dentro dele. A lista de obras
+    fica atrás do painel e tem uma coluna chamada "Cliente": sem esse recorte,
+    o robô achava o campo de busca da LISTA em vez do campo do formulário."""
+    for sel in ["[role=dialog]:visible", ".MuiDrawer-paper:visible", ".modal-content:visible",
+                ".drawer:visible", ".offcanvas:visible", "form:visible"]:
+        loc = page.locator(sel)
+        if loc.count():
+            return loc.last
+    return page.locator("body")
+
+
+def campo_form(page, rotulo):
+    return form(page).locator(
+        "xpath=(.//*[normalize-space(translate(text(),'*:',''))='%s']/following::input[1])[1]" % rotulo)
+
+
 def ajustar_visiveis(page, resp):
     """Deixa marcados só os usuários da equipe do responsável pela obra."""
     manter = []
@@ -105,8 +122,11 @@ def ajustar_visiveis(page, resp):
     if not fora:
         print("  Visível para: responsável fora das equipes conhecidas — deixei como está", flush=True)
         return
-    campo = page.locator("#participants")
-    (campo if campo.count() else page.locator("xpath=(//*[normalize-space(translate(text(),'*:',''))='Visível para']/following::input[1])[1]")).first.click()
+    campo = form(page).locator("#participants")
+    if not campo.count():
+        campo = campo_form(page, "Visível para")
+    campo.first.scroll_into_view_if_needed()
+    campo.first.click(force=True)
     page.wait_for_timeout(700)
     busca = page.locator("input[placeholder*=usuário i]:visible, input[placeholder*=usuario i]:visible").first
     tirados = []
@@ -139,11 +159,11 @@ def preencher_endereco(page, o):
     clicar_texto(page, "Endereço")
     page.wait_for_timeout(500)
     if rua:
-        input_por_rotulo(page, "Logradouro").fill(rua)
+        campo_form(page, "Logradouro").fill(rua)
     if compl:
-        input_por_rotulo(page, "Complemento").fill(compl)
+        campo_form(page, "Complemento").fill(compl)
     try:
-        estado = page.locator("#state:visible").first
+        estado = form(page).locator("#state:visible").first
         estado.click()
         estado.press_sequentially("Goi", delay=40)
         page.wait_for_timeout(1200)
@@ -151,7 +171,7 @@ def preencher_endereco(page, o):
         (op.first if op.count() else page.get_by_text("Goiás", exact=False).last).click()
         page.wait_for_timeout(900)
         if o.get("cidade"):
-            cid = page.locator("#city:visible").first
+            cid = form(page).locator("#city:visible").first
             cid.click()
             cid.press_sequentially(o["cidade"][:10], delay=40)
             page.wait_for_timeout(1200)
@@ -175,9 +195,9 @@ def preencher_conta(page, o):
     if not conta or N(conta) == "PESSOA FISICA":
         print("  conta bancária: obra sem CONTA no Notion — deixei em branco", flush=True)
         return
-    campo = page.locator("#select-single-account-visible:visible").first
+    campo = form(page).locator("#select-single-account-visible:visible").first
     if not campo.count():
-        campo = page.locator("xpath=(//*[normalize-space(translate(text(),'*:',''))='Conta']/following::input[1])[1]")
+        campo = campo_form(page, "Conta")
     campo.first.click()
     campo.first.press_sequentially(conta[:25], delay=35)
     page.wait_for_timeout(1500)
@@ -193,7 +213,7 @@ def criar_no_mc(page, o):
     ir_menu(page, "Obras", "Minhas Obras")
     clicar_texto(page, "Nova Obra", exato=False)
     page.wait_for_timeout(1200)
-    input_por_rotulo(page, "Nome da obra").fill(o["titulo"])
+    campo_form(page, "Nome da obra").fill(o["titulo"])
 
     n = int(o["casas"]) if isinstance(o["casas"], (int, float)) else 0
     if n not in TIPOS:
@@ -234,11 +254,11 @@ def criar_no_mc(page, o):
     try:
         clicar_texto(page, "Dados gerais")
         if o["area"]:
-            input_por_rotulo(page, "Área total").fill(f"{float(o['area']):.2f}".replace(".", ","))
+            campo_form(page, "Área total").fill(f"{float(o['area']):.2f}".replace(".", ","))
         if o["rt"]:
-            input_por_rotulo(page, "Responsável técnico").fill(o["rt"])
+            campo_form(page, "Responsável técnico").fill(o["rt"])
         if o["resp"]:
-            input_por_rotulo(page, "Responsável da obra").fill(o["resp"])
+            campo_form(page, "Responsável da obra").fill(o["resp"])
     except Exception as e:
         print(f"  ! dados gerais não preenchidos: {str(e)[:100]}", flush=True)
 
@@ -258,10 +278,9 @@ def criar_no_mc(page, o):
     # "Visível para" (#participants), no endereço e na conta bancária — e
     # escrever no "Visível para", que é obrigatório, é o que fazia o MC
     # recusar o cadastro sem dizer nada.
-    campo = page.locator(
-        "xpath=(//*[normalize-space(translate(text(),'*:',''))='Cliente']/following::input[1])[1]")
+    campo = campo_form(page, "Cliente")
     if not campo.count():
-        campo = page.locator("input[placeholder*=buscar i]").last
+        campo = form(page).locator("input[placeholder*=buscar i]").last
     try:
         print(f"  campo do Cliente: #{campo.get_attribute('id') or '-'}", flush=True)
     except Exception:
@@ -342,11 +361,11 @@ def criar_no_mc(page, o):
     try:
         clicar_texto(page, "Exibir obra para")
         page.wait_for_timeout(500)
-        alvo = page.locator("xpath=(//*[normalize-space(text())='Compras']/following::input[@type='checkbox'][1])[1]")
+        alvo = form(page).locator("xpath=(.//*[normalize-space(text())='Compras']/following::input[@type='checkbox'][1])[1]")
         if alvo.count() and alvo.first.is_checked():
             alvo.first.click(force=True)
         else:
-            bt = page.locator("xpath=(//*[normalize-space(text())='Compras']/following::*[self::button or @role='switch'][1])[1]")
+            bt = form(page).locator("xpath=(.//*[normalize-space(text())='Compras']/following::*[self::button or @role='switch'][1])[1]")
             if bt.count():
                 bt.first.click(force=True)
         page.wait_for_timeout(400)
