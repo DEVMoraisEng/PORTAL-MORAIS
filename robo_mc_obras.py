@@ -185,6 +185,38 @@ def escolher_na_lista(page, campo_sel, texto_busca, alvo=None, exato=False):
     return textos[escolha]
 
 
+def abrir_secao(page, titulo):
+    """Os blocos de "Dados opcionais" vêm FECHADOS. Enquanto não são abertos,
+    os campos existem no HTML mas não recebem o que o robô escreve — foi o que
+    fez o cliente, a área e os responsáveis ficarem vazios nas primeiras
+    tentativas."""
+    try:
+        cab = page.get_by_text(titulo, exact=True).last
+        cab.scroll_into_view_if_needed()
+        cab.click(force=True)
+        page.wait_for_timeout(700)
+    except Exception as e:
+        print(f"  ! não abri a seção '{titulo}': {str(e)[:80]}", flush=True)
+
+
+def fechar_replicar(page):
+    """Ao escolher o cliente, o MC pergunta "Replicar dados do cliente?" numa
+    janela que fica por cima e BLOQUEIA o botão Salvar Obra. Respondemos Não:
+    o endereço da obra é o nosso, não o do cliente."""
+    try:
+        page.get_by_text("Replicar dados do cliente", exact=False).first.wait_for(state="visible", timeout=4000)
+    except Exception:
+        return
+    for rot in ["Não", "Nao"]:
+        bt = page.locator("button:visible").filter(has_text=re.compile(rf"^\s*{rot}\s*$", re.I))
+        if bt.count():
+            bt.last.click(force=True)
+            page.wait_for_timeout(900)
+            print("  janela 'Replicar dados do cliente': respondi Não", flush=True)
+            return
+    page.keyboard.press("Escape")
+
+
 def ajustar_visiveis(page, resp):
     """Deixa marcados só os usuários da equipe do responsável pela obra."""
     manter = []
@@ -287,6 +319,7 @@ def criar_no_mc(page, o):
     except Exception as e:
         print(f"  ! Visível para: {str(e)[:110]}", flush=True)
 
+    abrir_secao(page, "Dados gerais")
     try:
         if o["area"]:
             escrever(page, CAMPO["area"], f"{float(o['area']):.2f}".replace(".", ","))
@@ -297,17 +330,22 @@ def criar_no_mc(page, o):
     except Exception as e:
         print(f"  ! dados gerais: {str(e)[:110]}", flush=True)
 
+    abrir_secao(page, "Dados do cliente")
     cliente = escolher_na_lista(page, CAMPO["cliente"], o["cliente"][:25], alvo=o["cliente"])
     print(f"  cliente: {cliente}", flush=True)
+    fechar_replicar(page)
 
+    abrir_secao(page, "Endereço")
     try:
         preencher_endereco(page, o)
     except Exception as e:
         print(f"  ! endereço: {str(e)[:110]}", flush=True)
+    abrir_secao(page, "Conta bancária padrão")
     try:
         preencher_conta(page, o)
     except Exception as e:
         print(f"  ! conta: {str(e)[:110]}", flush=True)
+    abrir_secao(page, "Exibir obra para")
     try:
         desmarcar_compras(page)
     except Exception as e:
@@ -322,18 +360,39 @@ def criar_no_mc(page, o):
     salvar = page.locator("button:visible").filter(has_text=re.compile(r"salvar\s+obra", re.I)).last
     salvar.scroll_into_view_if_needed()
     page.wait_for_timeout(400)
-    salvar.click(force=True)
     try:
-        page.locator(CAMPO["nome"]).wait_for(state="hidden", timeout=25000)
+        page._rede.clear()
     except Exception:
+        pass
+    salvar.click(force=True)
+    fechou = True
+    try:
+        # salvou = o painel fecha e o MC abre a página da obra (/work/<id>)
+        page.wait_for_url(re.compile(r"/work/[0-9a-f-]{20,}"), timeout=30000)
+    except Exception:
+        try:
+            page.locator(CAMPO["nome"]).wait_for(state="hidden", timeout=5000)
+        except Exception:
+            fechou = False
+    # o que o MC respondeu: é isso que diz se a obra foi criada ou recusada
+    rede = []
+    try:
+        rede = [x for x in (page._rede or []) if "/work" in x or "POST" in x][:12]
+    except Exception:
+        pass
+    if not fechou:
         erro = ""
         try:
-            erro = page.evaluate("""() => [...document.querySelectorAll('.Mui-error,[class*=error i],[role=alert]')]
-                .filter(e => e.offsetWidth||e.offsetHeight).map(e => e.innerText.trim()).filter(Boolean).join(' | ').slice(0,300)""")
+            erro = page.evaluate("""() => [...document.querySelectorAll('.Mui-error, .MuiFormHelperText-root, [role=alert], .Toastify__toast')]
+                .filter(e => e.offsetWidth||e.offsetHeight)
+                .map(e => e.innerText.trim()).filter(t => t && t.length > 3 && isNaN(Number(t)))
+                .join(' | ').slice(0,400)""")
         except Exception:
             pass
         foto(page, "erro_salvar_" + o["titulo"].replace(" ", "_"))
-        raise RuntimeError(f"o painel continuou aberto depois de Salvar Obra. Erros na tela: {erro or '(nenhum)'}")
+        raise RuntimeError(f"o painel continuou aberto depois de Salvar Obra. Erros na tela: {erro or '(nenhum)'} "
+                           f"| rede: {rede or '(sem chamadas)'}")
+    print(f"  salvou — rede: {rede or '(sem chamadas registradas)'}", flush=True)
     foto(page, "pos_salvar_" + o["titulo"].replace(" ", "_"))
     return "criada"
 
