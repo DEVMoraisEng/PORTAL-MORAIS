@@ -315,6 +315,7 @@ html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
     </div>
     <div class="merro" id="f-erro"></div>
     <div class="macoes"><button class="bt ghost" onclick="fecharForm()">Cancelar</button>
+      <button class="bt az" onclick="enviarObra(true)" title="Cria e mantém o formulário aberto, com os mesmos dados, só trocando o endereço">Criar e continuar</button>
       <button class="bt" id="f-ok" onclick="enviarObra()">Criar obra</button></div>
   </div>
 </div>
@@ -519,7 +520,7 @@ function pintarLista(l){
       ${thOrd("Prev. término","data_prevista",SORT_OB,"ordObra")}${thOrd("Projeto final.","projeto_finalizado",SORT_OB,"ordObra")}
       ${thOrd("Orçamento final.","orcamento_finalizado",SORT_OB,"ordObra")}${thOrd("Liberar","liberar",SORT_OB,"ordObra")}
       ${thOrd("Controle de prazo","controle_prazo",SORT_OB,"ordObra")}${thOrd("Status","status",SORT_OB,"ordObra")}</tr></thead><tbody>`+
-      l.map(o=>`<tr onclick="abrirObra('${o.id}')"><td class="stick"><span class="obralink">${esc(o.titulo||"(sem endereço)")}</span></td>
+      l.map(o=>`<tr onclick="abrirObra('${o.id}')"><td class="stick"><span class="obralink">${esc(o.titulo||"(sem endereço)")}</span>${o.pendente?' <span class="tag">criando…</span>':""}</td>
         <td>${esc(o.setor||"—")}</td><td>${esc(o.resp||"—")}</td><td>${dt(o.data_prevista)}</td>
         <td>${tagSN(o.projeto_finalizado)}</td><td>${tagSN(o.orcamento_finalizado)}</td><td>${tagSN(o.liberar)}</td>
         <td class="prazo">${esc(o.controle_prazo||"—")}</td><td><span class="tag">${esc(o.status||"—")}</span></td></tr>`).join("")+
@@ -645,6 +646,7 @@ function campoHtml(o,c,i){
 }
 function abrirObra(id){
   if(!id||!obraDe(id)) return;
+  if(obraDe(id).pendente){ toast("Esta obra ainda está sendo criada."); return; }
   OBRA=id; MODO="lista"; pintarObraPainel();
   document.getElementById("ov1").classList.add("on"); document.getElementById("p1").classList.add("on");
   document.getElementById("p1-corpo").scrollTop=0;
@@ -851,7 +853,7 @@ function preencherSel(id,ops,vals,novo){
   document.getElementById(id).innerHTML=`<option value="">Selecione…</option>`+ops.map((x,i)=>`<option value="${esc(vals?vals[i]:x)}">${esc(x)}</option>`).join("")+
     (novo?`<option value="__novo__">+ Novo…</option>`:"");
 }
-function abrirForm(){
+function abrirForm(valores){
   preencherSel("f-setor",listaOpc("SETOR"),null,true);
   preencherSel("f-cidade",listaOpc("Cidade"),null,true);
   preencherSel("f-prop",listaOpc("Proprietário"),null,true);
@@ -862,15 +864,28 @@ function abrirForm(){
   ["f-end","f-cota","f-lote","f-casas","f-alote","f-aaverb","f-ahab"].forEach(x=>document.getElementById(x).value="");
   document.getElementById("f-estudo").checked=false;
   document.getElementById("f-erro").textContent="";
+  if(valores){        // reabrindo depois de um erro: devolve tudo preenchido
+    const põe=(id,v)=>{ if(v!=null&&v!=="") document.getElementById(id).value=v; };
+    põe("f-end",valores.endereco); põe("f-setor",valores.setor); põe("f-cidade",valores.cidade);
+    põe("f-prop",valores.proprietario); põe("f-propreal",valores.proprietarioReal);
+    põe("f-resp",valores.resp); põe("f-rt",valores.rt); põe("f-cota",valores.cota);
+    põe("f-lote",valores.dataLote); põe("f-casas",valores.nCasas); põe("f-impl",valores.implantacao);
+    põe("f-alote",valores.areaLote); põe("f-aaverb",valores.areaAverbada); põe("f-ahab",valores.areaHabite);
+    document.getElementById("f-estudo").checked=!!valores.estudoLayout;
+  }
   checarEnd();
-  window._opObra=novoOpId();
+  window._opObra=(valores&&valores.opId)||novoOpId();
   document.getElementById("mf").classList.add("on");
 }
 function fecharForm(){ document.getElementById("mf").classList.remove("on"); }
 const ERROS={ ENDERECO_OBRIGATORIO:"Informe o endereço.", ENDERECO_COM_PREFIXO:"Endereço sem prefixo de rua/avenida.",
   ENDERECO_SEM_QD_LT:"Endereço precisa ter QD e LT.", ENDERECO_FORA_DO_PADRAO:"Endereço fora do padrão.",
   JA_EXISTE:"Já existe uma obra com este endereço.", SEM_PERMISSAO:"Seu login não tem o acesso OBRAS.", MODO_TESTE:"Modo teste: nada é gravado." };
-async function enviarObra(){
+/* CRIAÇÃO EM FILA (set/26) — para lançar várias obras seguidas sem esperar.
+   A obra entra na lista na hora, marcada como "criando…", e a gravação segue
+   por trás. O opId garante que reenviar não duplica; se o servidor recusar, a
+   linha some e o formulário volta com tudo preenchido para corrigir. */
+async function enviarObra(continuar){
   const g=id=>document.getElementById(id).value.trim(), erro=document.getElementById("f-erro");
   if(!checarEnd()){ erro.textContent="Corrija o endereço."; return; }
   const p={ action:"obraNova", opId:window._opObra, endereco:g("f-end").toUpperCase().replace(/\s+/g," "),
@@ -881,21 +896,40 @@ async function enviarObra(){
     ["resp","Responsável pela obra"],["rt","Engenheiro RT"],["cota","Cota"],["dataLote","Data de aquisição do lote"],["nCasas","Nº de casas"]]
     .filter(([k])=>!p[k]).map(([,r])=>r);
   if(falta.length){ erro.textContent="Preencha: "+falta.join(", "); return; }
-  const bt=document.getElementById("f-ok"); bt.disabled=true; bt.innerHTML='<span class="load"></span> Criando…'; erro.textContent="";
-  let r=null;
-  for(let t=0;t<2&&!(r&&(r.ok||r.erro));t++){ try{ r=await chamar(Object.assign({},p),60000); }catch(e){ r=null; } }
-  bt.disabled=false; bt.textContent="Criar obra";
-  if(!r){ erro.textContent="Sem resposta do servidor. Confira a lista em alguns minutos antes de tentar de novo."; return; }
-  if(!r.ok){ const base=String(r.erro||"").split(":")[0];
-    erro.textContent=(ERROS[base]||errMsg(r))+(r.sugestao?` Sugestão: ${r.sugestao}`:""); return; }
+  erro.textContent="";
+
+  /* a linha já aparece na lista, com aviso de que ainda está gravando */
   const pes=id=>(D.pessoas.find(x=>x.id===id)||{}).nome||"", iso=d=>d.toISOString().slice(0,10);
-  D.obras.unshift({ id:r.id, titulo:r.titulo, setor:p.setor, cidade:p.cidade, proprietario:p.proprietario,
-    proprietario_real:p.proprietarioReal, resp:pes(p.resp), resp_ids:[p.resp], rt:pes(p.rt), rt_ids:[p.rt],
-    status:"Não começou", liberar:"Não", data_inicial:iso(new Date()), data_prevista:iso(new Date(Date.now()+37*864e5)),
-    n_casas:Number(p.nCasas), cota:Number(p.cota), data_lote:p.dataLote, implantacao:p.implantacao||null,
-    mais_controle:"Criar", em_mc:null });
-  fecharForm(); ABA="obras"; FILTRO="andamento"; pintar();
-  toast("Obra "+r.titulo+" criada. Atividades e linha em Documentos aparecem em até 1 hora.");
+  const local={ id:"tmp-"+p.opId, pendente:true, titulo:p.endereco, setor:p.setor, cidade:p.cidade,
+    proprietario:p.proprietario, proprietario_real:p.proprietarioReal, resp:pes(p.resp), resp_ids:[p.resp],
+    rt:pes(p.rt), rt_ids:[p.rt], status:"Não começou", liberar:"Não", data_inicial:iso(new Date()),
+    data_prevista:iso(new Date(Date.now()+37*864e5)), n_casas:Number(p.nCasas), cota:Number(p.cota),
+    data_lote:p.dataLote, implantacao:p.implantacao||null, mais_controle:"Criar", em_mc:null };
+  D.obras.unshift(local);
+  if(continuar){        // próxima obra: só o endereço e as áreas são limpos
+    ["f-end","f-alote","f-aaverb","f-ahab"].forEach(x=>document.getElementById(x).value="");
+    document.getElementById("f-estudo").checked=false;
+    window._opObra=novoOpId(); checarEnd(); document.getElementById("f-end").focus();
+  }else fecharForm();
+  ABA="obras"; FILTRO="andamento"; pintar();
+  toast("Criando "+p.endereco+"…");
+
+  let r=null;
+  for(let t=0;t<2&&!(r&&(r.ok||r.erro));t++){ try{ r=await chamar(Object.assign({},p),90000); }catch(e){ r=null; } }
+  const i=D.obras.findIndex(o=>o.id===local.id);
+  if(r&&r.ok){
+    if(i>=0){ D.obras[i].id=r.id; D.obras[i].titulo=r.titulo; delete D.obras[i].pendente; }
+    if(ABA==="obras") pintarLista();
+    toast("Obra "+r.titulo+" criada. Atividades e linha em Documentos aparecem em até 1 hora.");
+    return;
+  }
+  if(i>=0) D.obras.splice(i,1);            // não gravou: tira a linha provisória
+  if(ABA==="obras") pintarLista();
+  const msg=!r?"Sem resposta do servidor — confira a lista antes de tentar de novo."
+    :(ERROS[String(r.erro||"").split(":")[0]]||errMsg(r))+(r.sugestao?` Sugestão: ${r.sugestao}`:"");
+  toast("Não criou "+p.endereco+": "+msg);
+  abrirForm(p);                            // volta com os dados para corrigir
+  document.getElementById("f-erro").textContent=msg;
 }
 
 document.addEventListener("keydown",e=>{ if(e.key==="Escape"){ if(ATV) fecharAtv(); else if(OBRA) fecharObra(); else fecharForm(); } });
