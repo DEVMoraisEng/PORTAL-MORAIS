@@ -282,8 +282,17 @@ def preencher_conta(page, o):
     if not conta or N(conta) == "PESSOA FISICA":
         print("  conta bancária: obra sem CONTA no Notion — deixei em branco", flush=True)
         return
-    escolhida = escolher_na_lista(page, CAMPO["conta"], conta[:25], alvo=conta)
-    print(f"  conta bancária: {escolhida}", flush=True)
+    # a busca do MC é por pedaço do nome: "MORAIS INCORPORACOES SENADOR..." acha,
+    # a linha inteira da CONTA (com "- Conta corrente: 1234-5 - SICOOB") não acha
+    tentativas = [conta.split(" - ")[0][:22], " ".join(conta.split()[:2]), conta.split()[0]]
+    for t in [x for x in tentativas if x]:
+        try:
+            escolhida = escolher_na_lista(page, CAMPO["conta"], t, alvo=conta)
+            print(f"  conta bancária: {escolhida}", flush=True)
+            return
+        except Exception as e:
+            ultimo = str(e)[:110]
+    print(f"  ! conta '{conta}' não foi escolhida ({ultimo}) — ficou em branco", flush=True)
 
 
 def desmarcar_compras(page):
