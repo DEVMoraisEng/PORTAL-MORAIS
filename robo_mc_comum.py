@@ -86,13 +86,16 @@ def login(page):
     page.goto(MC_URL, wait_until="domcontentloaded")
     esperar(page)
     foto(page, "login")
+    # Só campos VISÍVEIS: a tela de login do MC tem, escondido, o formulário de
+    # "esqueci a senha" com outro campo de e-mail (#fgtemail) — era nele que a
+    # primeira versão tentava digitar, e esperava até estourar o tempo.
     usuario = page.locator(
-        "input[type=email], input[name*=mail i], input[name*=user i], input[name*=login i], "
-        "input[id*=mail i], input[id*=user i], input[id*=login i], input[type=text]").first
+        "input[type=email]:visible, input[name*=mail i]:visible, input[name*=user i]:visible, "
+        "input[name*=login i]:visible, input[id*=mail i]:not(#fgtemail):visible, input[type=text]:visible").first
     usuario.fill(MC_USUARIO)
-    senha = page.locator("input[type=password]").first
+    senha = page.locator("input[type=password]:visible").first
     senha.fill(MC_SENHA)
-    bt = page.locator("button[type=submit], input[type=submit]")
+    bt = page.locator("button[type=submit]:visible, input[type=submit]:visible")
     if bt.count():
         bt.first.click()
     else:
