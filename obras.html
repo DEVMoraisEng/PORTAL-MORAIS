@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#295778">
+<link rel="manifest" href="manifest.json">
+<title>Obras · Morais</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ===================== OBRAS (set/26) =====================
+   Lê dist/obras.json (fetch_obras.py) e grava pelo Apps Script (obraNova /
+   obraUpdate, bloco r40 do Code.gs). Acesso: "OBRAS" em ACESSOS do LOGINS. */
+:root{--azul:#295778;--azul-esc:#1e3f58;--navy:#2A285F;--teal:#81C9C0;--menta:#CCE8E6;
+      --bg:#eef3f6;--card:#fff;--borda:#d7e2e9;--txt:#1d2b36;--txt2:#5b7282;
+      --verde:#2a9d5c;--verm:#c0392b;--amar:#d99a00}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);min-height:100%}
+body{font-family:Inter,system-ui,sans-serif;color:var(--txt);font-size:14px}
+header{background:var(--azul);border-bottom:3px solid var(--teal);color:#fff;
+       display:flex;align-items:center;gap:12px;padding:10px 18px;position:sticky;top:0;z-index:40}
+header img{height:34px}
+header .t{flex:1;min-width:0}
+header .sup{font-size:10px;letter-spacing:.12em;color:var(--teal);font-weight:700;text-transform:uppercase}
+header h1{font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:800;line-height:1}
+header .upd{font-size:11px;color:#cfe3ec;white-space:nowrap}
+.btn{border:1px solid var(--borda);background:#fff;color:var(--azul);border-radius:8px;padding:8px 14px;
+     font:600 13px Inter,sans-serif;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--azul)}
+.btn.pri{background:var(--verde);border-color:var(--verde);color:#fff}
+.btn.hdr{background:rgba(129,201,192,.18);border-color:rgba(129,201,192,.5);color:#fff}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:14px 18px 0}
+.tabs{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tab{border:1px solid var(--borda);background:#fff;border-radius:20px;padding:7px 14px;cursor:pointer;
+     font:600 13px Inter,sans-serif;color:var(--txt2);white-space:nowrap}
+.tab.on{background:var(--azul);border-color:var(--azul);color:#fff}
+.tab .n{opacity:.7;font-weight:500;margin-left:4px}
+.busca{flex:1;min-width:180px;border:1px solid var(--borda);border-radius:8px;padding:8px 12px;font:14px Inter,sans-serif}
+main{padding:14px 18px 60px}
+.card{background:var(--card);border:1px solid var(--borda);border-radius:10px;overflow:hidden}
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#f3f7fa;color:var(--txt2);font-size:11px;text-transform:uppercase;letter-spacing:.04em;
+   text-align:left;padding:9px 10px;border-bottom:1px solid var(--borda);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid #edf2f5;vertical-align:middle}
+tr.cl{cursor:pointer}
+tr.cl:hover td{background:#f6fafc}
+.tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:#eef2f5;color:#44596a;white-space:nowrap}
+.tag.sim{background:#e3f5ea;color:#1f7a47}
+.tag.nao{background:#fde8e6;color:#a8322a}
+.tag.ine{background:#e6eefb;color:#2d5ea8}
+.prazo{white-space:nowrap;font-size:12px}
+.vazio{padding:30px;text-align:center;color:var(--txt2)}
+.msg{padding:40px;text-align:center;color:var(--txt2)}
+.msg.err{color:var(--verm)}
+/* drawer */
+.fundo{position:fixed;inset:0;background:rgba(15,30,40,.45);z-index:60;display:none}
+.fundo.on{display:block}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(980px,100%);background:var(--bg);z-index:61;
+        transform:translateX(100%);transition:transform .2s;display:flex;flex-direction:column}
+.drawer.on{transform:none}
+.dh{background:var(--azul);color:#fff;padding:12px 16px;display:flex;align-items:center;gap:10px}
+.dh h2{font-family:'Barlow Condensed',sans-serif;font-size:22px;flex:1;min-width:0}
+.dh a{color:var(--teal);font-size:12px}
+.db{flex:1;overflow-y:auto;padding:14px 16px 40px}
+.sec{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;color:var(--azul-esc);
+     margin:18px 0 8px;display:flex;align-items:center;gap:10px}
+.sec .sp{flex:1}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.f{background:#fff;border:1px solid var(--borda);border-radius:8px;padding:8px 10px}
+.f label{display:block;font-size:10px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.f select,.f input{width:100%;border:1px solid var(--borda);border-radius:6px;padding:6px 8px;font:13px Inter,sans-serif;background:#fff}
+.f .ro{font-size:13px;padding:6px 0}
+.f.salvando{border-color:var(--amar)} .f.ok{border-color:var(--verde)} .f.erro{border-color:var(--verm)}
+/* kanban */
+.kb{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch}
+.kc{flex:0 0 230px;background:#e6eef3;border-radius:8px;padding:8px}
+.kc h4{font-size:12px;color:var(--azul-esc);margin-bottom:6px;display:flex;justify-content:space-between}
+.kt{background:#fff;border:1px solid var(--borda);border-radius:6px;padding:8px;margin-bottom:6px;font-size:12px}
+.kt b{display:block;margin-bottom:3px;font-size:13px}
+.kt .m{color:var(--txt2)}
+/* pessoas */
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.chip{border:1px solid var(--borda);background:#fff;border-radius:16px;padding:6px 12px;cursor:pointer;font-size:13px}
+.chip.on{background:var(--azul);color:#fff;border-color:var(--azul)}
+/* modal */
+.modal{position:fixed;inset:0;z-index:70;display:none;align-items:flex-start;justify-content:center;
+       background:rgba(15,30,40,.5);overflow-y:auto;padding:30px 12px}
+.modal.on{display:flex}
+.mbox{background:#fff;border-radius:12px;width:min(720px,100%);padding:18px 20px}
+.mbox h3{font-family:'Barlow Condensed',sans-serif;font-size:24px;color:var(--azul-esc);margin-bottom:4px}
+.mbox .sub{color:var(--txt2);font-size:12px;margin-bottom:14px}
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.fg .full{grid-column:1/-1}
+.fg label{display:block;font-size:11px;font-weight:700;color:var(--txt2);margin-bottom:4px}
+.fg label i{color:var(--verm);font-style:normal}
+.fg input,.fg select{width:100%;border:1px solid var(--borda);border-radius:8px;padding:9px 10px;font:14px Inter,sans-serif;background:#fff}
+.dica{font-size:11px;color:var(--txt2);margin-top:4px}
+.dica.err{color:var(--verm)} .dica.ok{color:var(--verde)}
+.chk{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--azul-esc)}
+.chk input{width:18px;height:18px}
+.acoes{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--azul-esc);color:#fff;
+       padding:10px 16px;border-radius:8px;font-size:13px;z-index:90;display:none;max-width:92%}
+@media(max-width:700px){
+  header h1{font-size:20px} header .upd{display:none}
+  .bar,main{padding-left:10px;padding-right:10px}
+  .fg{grid-template-columns:1fr}
+  .col-m{display:none}
+}
+</style>
+</head>
+<body>
+<header>
+  <img src="img/logo.png" alt="Morais">
+  <div class="t"><div class="sup">Morais Engenharia · Portal</div><h1>Obras</h1></div>
+  <span class="upd updated" id="upd"></span>
+  <button class="btn hdr" onclick="location.href='index.html'">← Voltar</button>
+</header>
+
+<div class="bar">
+  <div class="tabs" id="tabs"></div>
+  <input class="busca" id="busca" placeholder="Buscar obra, setor, responsável…" oninput="obPintar()">
+  <button class="btn pri" onclick="obAbrirForm()">+ Solicitar nova obra</button>
+</div>
+<main><div id="conteudo" class="msg">Carregando…</div></main>
+
+<div class="fundo" id="fundo" onclick="obFechar()"></div>
+<div class="drawer" id="drawer">
+  <div class="dh"><h2 id="d-tit"></h2><a id="d-link" target="_blank" rel="noopener">abrir no Notion ↗</a>
+    <button class="btn hdr" onclick="obFechar()">✕</button></div>
+  <div class="db" id="d-corpo"></div>
+</div>
+
+<div class="modal" id="modal">
+  <div class="mbox">
+    <h3>Solicitar nova obra</h3>
+    <div class="sub">Campos com <b style="color:#c0392b">*</b> são obrigatórios. Depois de criada, as atividades
+      (Criação de Obra, Briefing, Uso do Solo em Goiânia, Estudo de Layout se marcado) e a linha em Documentos aparecem em até 1 hora.
+      Compatibilização e Formulário de Obra nascem quando "Liberar obra p/ processo interno" virar Sim.</div>
+    <div class="fg">
+      <div class="full">
+        <label>ENDEREÇO <i>*</i></label>
+        <input id="f-end" placeholder="TB 19 QD 51 LT 14" oninput="obChecarEnd()" autocomplete="off">
+        <div class="dica" id="d-end">Padrão: <b>RUA QD XX LT XX</b> — sem "RUA"/"AV", sem traço, quadra e lote com 2 dígitos. Ex.: <b>TB 19 QD 51 LT 14</b></div>
+      </div>
+      <div><label>SETOR <i>*</i></label><select id="f-setor"></select></div>
+      <div><label>CIDADE <i>*</i></label><select id="f-cidade"></select></div>
+      <div><label>PROPRIETÁRIO <i>*</i></label><select id="f-prop"></select></div>
+      <div><label>PROPRIETÁRIO REAL <i>*</i></label><select id="f-propreal"></select></div>
+      <div><label>RESPONSÁVEL PELA OBRA <i>*</i></label><select id="f-resp"></select></div>
+      <div><label>ENGENHEIRO RT <i>*</i></label><select id="f-rt"></select></div>
+      <div><label>COTA DA EMPRESA (%) <i>*</i></label><input id="f-cota" type="number" step="any" min="0" max="100" placeholder="100"></div>
+      <div><label>DATA DE AQUISIÇÃO DO LOTE <i>*</i></label><input id="f-lote" type="date"></div>
+      <div><label>Nº DE CASAS <i>*</i></label><input id="f-casas" type="number" min="1" step="1"></div>
+      <div><label>IMPLANTAÇÃO</label><select id="f-impl"></select></div>
+      <div><label>ÁREA DO LOTE (m²)</label><input id="f-alote" type="number" step="any"></div>
+      <div><label>ÁREA CONSTRUÍDA AVERBADA (m²)</label><input id="f-aaverb" type="number" step="any"></div>
+      <div><label>ÁREA PÓS HABITE-SE (m²)</label><input id="f-ahab" type="number" step="any"></div>
+      <div class="full"><label class="chk"><input type="checkbox" id="f-estudo"> PRECISA DE ESTUDO DE LAYOUT</label></div>
+    </div>
+    <div class="dica err" id="f-erro"></div>
+    <div class="acoes">
+      <button class="btn" onclick="obFecharForm()">Cancelar</button>
+      <button class="btn pri" id="f-ok" onclick="obEnviar()">Criar obra</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="app.js?v=31"></script>
+<script>
+const OB_S = exigirSessao();
+if (OB_S && !podeAcessar(OB_S, "OBRAS")) location.replace("index.html");
+
+/* Setores do padrão (mesma lista do ObrasSync.gs). O formulário só oferece
+   estes — as opções antigas que ainda existem no Notion ficam de fora. */
+const OB_SETORES = ["TERRABELA CERRADO","PQ DOS BURITIS","ACROPOLE","COND. ESMERALDAS","IPANEMA","ITAIPU",
+  "JOÃO BRAZ","MARQUES DE ABREU","RAVENA","SOLAR VILLE","ST FÉ","ST EFIGÊNIA","PORTO SEGURO",
+  "PORTAL DO ORIENTE","JARDIM PETROPOLIS","VILA SÃO SEBASTIÃO","FLORENÇA"];
+const OB_FIM = ["FINALIZADO","CANCELADO","CONCLUIDO"];
+let D = { obras:[], atividades:[], opcoes:{}, pessoas:[] };
+let ABA = "andamento", PESSOA = null, VER_FIN = false, OBRA_ABERTA = null, MODO_ATV = "lista";
+
+const obN = s => String(s==null?"":s).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/\s+/g," ").trim();
+const obData = d => d ? String(d).slice(0,10).split("-").reverse().join("/") : "—";
+function obToast(t){ const e=document.getElementById("toast"); e.textContent=t; e.style.display="block"; clearTimeout(e._t); e._t=setTimeout(()=>e.style.display="none",4500); }
+function obTagSN(v){ const n=obN(v); return !v?"—":`<span class="tag ${n==="SIM"?"sim":n==="NAO"?"nao":n==="INEXISTE"?"ine":""}">${esc(v)}</span>`; }
+function obOpc(nome){ const k=Object.keys(D.opcoes).find(x=>obN(x)===obN(nome)); return k?D.opcoes[k]:[]; }
+function obFim(st){ return OB_FIM.indexOf(obN(st))>=0; }
+function obEhLigacao(a){ return /^7\b/.test(String(a.tipo||"").trim()); }
+
+/* ---------- endereço (mesma regra do Apps Script) ---------- */
+function obPadrao(s){
+  let t=String(s||"").replace(/[\u2013\u2014]/g,"-").toUpperCase().replace(/\s+/g," ").trim();
+  if(!t) return t;
+  t=t.replace(/\bQUADRA\b/g,"QD").replace(/\bLOTE\b/g,"LT").replace(/\b(QD|LT|CS)\.(?=\s*\d)/g,"$1");
+  t=t.replace(/\bLT\s*(\d+[A-Z]?)\s*-+\s*(\d+[A-Z]?)\b/g,"LT $1~$2").replace(/\bLT (\d+) (\d+)\b/g,"LT $1~$2");
+  t=t.replace(/\s*-+\s*/g," ").replace(/\b(QD|LT|CS)(?=\d)/g,"$1 ").replace(/^([A-Z]{1,4})(?=\d)/,"$1 ");
+  t=t.replace(/\bQD 0+ (\d+)/g,"QD $1").replace(/\bB (\d+)\b/g,"B$1");
+  t=t.replace(/\b(QD|LT) 0*(\d+)([A-Z]?)(?:~0*(\d+)([A-Z]?))?(?![\dA-Z])/g,(m,k,a,sa,b,sb)=>{
+    let r=k+" "+(a.length<2?"0"+a:a)+(sa||""); if(b) r+="-"+(b.length<2?"0"+b:b)+(sb||""); return r; });
+  return t.replace(/~/g,"-").replace(/\s+/g," ").trim();
+}
+function obErroEnd(e){
+  if(!e) return "Informe o endereço.";
+  if(/^(RUA|R\.|AV\.?|AVENIDA|ALAMEDA|AL\.|TRAVESSA|TV\.?|ESTRADA|RODOVIA)\s/.test(e)) return "Sem prefixo de rua/avenida (tire o \"RUA\", \"AV\"…).";
+  if(obPadrao(e)!==e) return "Fora do padrão.";
+  if(!/\bQD \d{2,}[A-Z]?\b/.test(e)||!/\bLT \d{2,}/.test(e)) return "Precisa ter QD e LT (ex.: QD 51 LT 14).";
+  return null;
+}
+function obChecarEnd(){
+  const i=document.getElementById("f-end"), d=document.getElementById("d-end");
+  const e=i.value.toUpperCase().replace(/\s+/g," ").trim(), err=obErroEnd(e), sug=obPadrao(e);
+  if(!e){ d.className="dica"; d.innerHTML='Padrão: <b>RUA QD XX LT XX</b> — sem "RUA"/"AV", sem traço, quadra e lote com 2 dígitos. Ex.: <b>TB 19 QD 51 LT 14</b>'; return false; }
+  const dup=D.obras.find(o=>obN(o.titulo)===obN(e));
+  if(dup){ d.className="dica err"; d.textContent="Já existe uma obra com este endereço."; return false; }
+  if(!err){ d.className="dica ok"; d.textContent="✓ No padrão."; return true; }
+  d.className="dica err";
+  d.innerHTML=esc(err)+(sug&&sug!==e&&!/^(RUA|AV)/.test(sug)?` <button class="btn" style="padding:2px 8px;font-size:11px" onclick="document.getElementById('f-end').value='${esc(sug)}';obChecarEnd()">usar ${esc(sug)}</button>`:"");
+  return false;
+}
+
+/* ---------- carga ---------- */
+async function obCarregar(){
+  try{
+    const r=await fetch("dist/obras.json?v="+Math.floor(Date.now()/60000),{cache:"no-cache"});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    D=await r.json();
+    document.getElementById("upd").textContent="Atualizado: "+new Date(D.updated_at).toLocaleString("pt-BR");
+    obPintar();
+  }catch(e){
+    document.getElementById("conteudo").innerHTML=`<div class="msg err">Não consegui ler os dados das obras (${esc(e.message)}).<br>O arquivo dist/obras.json é gerado no build do GitHub — confira o step "Buscar dados das Obras".</div>`;
+  }
+}
+
+/* ---------- lista ---------- */
+function obFiltrar(){
+  const q=obN(document.getElementById("busca").value);
+  let l=D.obras.slice();
+  if(ABA==="andamento") l=l.filter(o=>!obFim(o.status));
+  if(ABA==="liberar") l=l.filter(o=>obN(o.liberar)==="NAO");
+  if(q) l=l.filter(o=>obN([o.titulo,o.setor,o.resp,o.rt,o.proprietario,o.status].join(" ")).indexOf(q)>=0);
+  l.sort((a,b)=>String(a.data_prevista||"9999").localeCompare(String(b.data_prevista||"9999")));
+  return l;
+}
+function obPintarTabs(){
+  const n={ andamento:D.obras.filter(o=>!obFim(o.status)).length, todas:D.obras.length,
+            liberar:D.obras.filter(o=>obN(o.liberar)==="NAO").length };
+  const t=[["andamento","Em andamento"],["todas","Todas as obras"],["liberar","Liberar = Não"],["pessoas","Atividades por pessoa"]];
+  document.getElementById("tabs").innerHTML=t.map(([k,r])=>
+    `<button class="tab ${ABA===k?"on":""}" onclick="ABA='${k}';obPintar()">${r}${n[k]!=null?`<span class="n">${n[k]}</span>`:""}</button>`).join("");
+}
+function obPintar(){
+  obPintarTabs();
+  if(ABA==="pessoas") return obPintarPessoas();
+  const l=obFiltrar(), box=document.getElementById("conteudo");
+  box.className="";
+  if(!l.length){ box.innerHTML='<div class="card vazio">Nenhuma obra nesta lista.</div>'; return; }
+  box.innerHTML=`<div class="card tw"><table><thead><tr>
+    <th>Projeto</th><th class="col-m">Setor</th><th>Prev. término</th><th class="col-m">Projeto final.</th>
+    <th class="col-m">Orçamento final.</th><th>Liberar</th><th>Controle de prazo</th><th class="col-m">Status</th></tr></thead><tbody>`+
+    l.map(o=>`<tr class="cl" onclick="obAbrir('${o.id}')"><td><b>${esc(o.titulo||"(sem endereço)")}</b></td>
+      <td class="col-m">${esc(o.setor||"—")}</td><td>${obData(o.data_prevista)}</td>
+      <td class="col-m">${obTagSN(o.projeto_finalizado)}</td><td class="col-m">${obTagSN(o.orcamento_finalizado)}</td>
+      <td>${obTagSN(o.liberar)}</td><td class="prazo">${esc(o.controle_prazo||"—")}</td>
+      <td class="col-m"><span class="tag">${esc(o.status||"—")}</span></td></tr>`).join("")+
+    `</tbody></table></div>`;
+}
+
+/* ---------- atividades por pessoa ---------- */
+function obPintarPessoas(){
+  const box=document.getElementById("conteudo"), q=obN(document.getElementById("busca").value);
+  const obraPor={}; D.obras.forEach(o=>obraPor[o.id]=o);
+  const atv=D.atividades.filter(a=>(VER_FIN||!obFim(a.status)) && !obEhLigacao(a));
+  const cont={}; atv.forEach(a=>(a.resp||[]).forEach(p=>cont[p]=(cont[p]||0)+1));
+  const nomes=Object.keys(cont).sort((a,b)=>a.localeCompare(b,"pt-BR"));
+  if(!PESSOA||!cont[PESSOA]) PESSOA=nomes[0]||null;
+  let l=atv.filter(a=>(a.resp||[]).indexOf(PESSOA)>=0);
+  if(q) l=l.filter(a=>obN([a.titulo,a.tipo,(obraPor[a.obra_id]||{}).titulo].join(" ")).indexOf(q)>=0);
+  l.sort((a,b)=>String(a.data_final||"9999").localeCompare(String(b.data_final||"9999")));
+  box.innerHTML=`<div class="chips">`+nomes.map(n=>`<span class="chip ${n===PESSOA?"on":""}" onclick="PESSOA=${JSON.stringify(n).replace(/"/g,'&quot;')};obPintar()">${esc(n)} <b>${cont[n]}</b></span>`).join("")+
+    `<label class="chip"><input type="checkbox" ${VER_FIN?"checked":""} onchange="VER_FIN=this.checked;obPintar()"> finalizadas</label></div>`+
+    (l.length?`<div class="card tw"><table><thead><tr><th>Atividade</th><th>Obra</th><th>Status</th><th>Data final prevista</th><th>Controle de prazo</th><th class="col-m">Responsável</th></tr></thead><tbody>`+
+    l.map(a=>{ const o=obraPor[a.obra_id]||{};
+      return `<tr class="cl" onclick="${o.id?`obAbrir('${o.id}')`:""}"><td><b>${esc(a.titulo||a.tipo||"—")}</b><div style="font-size:11px;color:var(--txt2)">${esc(a.tipo||"")}</div></td>
+      <td>${esc(o.titulo||"—")}</td><td><span class="tag">${esc(a.status||"—")}</span></td><td>${obData(a.data_final)}</td>
+      <td class="prazo">${esc(a.controle_prazo||"—")}</td><td class="col-m">${esc((a.resp||[]).join(", "))}</td></tr>`; }).join("")+
+    `</tbody></table></div>`:'<div class="card vazio">Sem atividades para esta pessoa.</div>');
+}
+
+/* ---------- detalhe da obra ---------- */
+const OB_CAMPOS = [
+  // [rótulo, chave no json, coluna no Notion, tipo]
+  ["Status","status","Status","sel"],
+  ["Liberar obra p/ processo interno","liberar","Liberar Obra Para Processo Interno","sel"],
+  ["Projeto finalizado","projeto_finalizado","Projeto Finalizado","sel"],
+  ["Orçamento finalizado","orcamento_finalizado","Orçamento Finalizado","sel"],
+  ["Projeto aprovado","projeto_aprovado","Projeto Aprovado","sel"],
+  ["Data prevista p/ término","data_prevista","Data Prevista P/ Término","data"],
+  ["Data de conclusão do processo","data_conclusao","Data de Conclusão do Processo","data"],
+  ["Setor","setor","SETOR","setor"],
+  ["Cidade","cidade","Cidade","multi"],
+  ["Proprietário","proprietario","Proprietário","sel"],
+  ["Proprietário real","proprietario_real","Proprietário Real","sel"],
+  ["Responsável pela obra","resp_ids","Responsável Pela Obra","pessoa"],
+  ["Engenheiro RT","rt_ids","ENGENHEIRO RT","pessoa"],
+  ["Nº de casas","n_casas","Nº DE CASAS","num"],
+  ["Cota da empresa (%)","cota","COTA DA EMPRESA (%)","num"],
+  ["Data de aquisição do lote","data_lote","DATA DE AQUISIÇÃO DO LOTE","data"],
+  ["Implantação","implantacao","IMPLANTAÇÃO","sel"],
+  ["Área do lote (m²)","area_lote","ÁREA DO LOTE","num"],
+  ["Área construída averbada (m²)","area_averbada","ÁREA CONSTRUÍDA AVERBADA","num"],
+  ["Área pós habite-se (m²)","area_habite","ÁREA PÓS HABITE-SE","num"]
+];
+function obCampoHtml(o,c,i){
+  const [rot,k,col,tipo]=c, v=o[k], id=`c-${i}`;
+  let inp;
+  if(tipo==="sel"||tipo==="setor"||tipo==="multi"){
+    let ops=obOpc(col); if(tipo==="setor") ops=ops.filter(x=>OB_SETORES.some(s=>obN(s)===obN(x))||obN(x)===obN(v));
+    const atual=tipo==="multi"?String(v||"").split(",")[0].trim():v;
+    inp=`<select id="${id}" onchange="obGravar('${o.id}',${i},this)"><option value="">—</option>`+
+      ops.map(x=>`<option ${obN(x)===obN(atual)?"selected":""}>${esc(x)}</option>`).join("")+`</select>`;
+  }else if(tipo==="pessoa"){
+    const atual=(v||[])[0]||"";
+    inp=`<select id="${id}" onchange="obGravar('${o.id}',${i},this)"><option value="">—</option>`+
+      D.pessoas.map(p=>`<option value="${p.id}" ${p.id===atual?"selected":""}>${esc(p.nome)}</option>`).join("")+`</select>`;
+  }else if(tipo==="data"){
+    inp=`<input id="${id}" type="date" value="${esc(v||"")}" onchange="obGravar('${o.id}',${i},this)">`;
+  }else{
+    inp=`<input id="${id}" type="number" step="any" value="${v==null?"":esc(v)}" onchange="obGravar('${o.id}',${i},this)">`;
+  }
+  return `<div class="f" id="w-${i}"><label>${esc(rot)}</label>${inp}</div>`;
+}
+function obAbrir(id){
+  const o=D.obras.find(x=>x.id===id); if(!o) return;
+  OBRA_ABERTA=id;
+  document.getElementById("d-tit").textContent=o.titulo||"(sem endereço)";
+  const lk=document.getElementById("d-link"); lk.href=o.url||("https://www.notion.so/"+String(o.id).replace(/-/g,""));
+  obPintarDetalhe();
+  document.getElementById("fundo").classList.add("on"); document.getElementById("drawer").classList.add("on");
+}
+function obPintarDetalhe(){
+  const o=D.obras.find(x=>x.id===OBRA_ABERTA); if(!o) return;
+  const atv=D.atividades.filter(a=>a.obra_id===o.id);
+  const normais=atv.filter(a=>!obEhLigacao(a)).sort((a,b)=>String(a.data_inicio||a.data_criacao||"").localeCompare(String(b.data_inicio||b.data_criacao||"")));
+  const lig=atv.filter(obEhLigacao);
+  let h=`<div class="grid">`+OB_CAMPOS.map((c,i)=>obCampoHtml(o,c,i)).join("")+`</div>`;
+  h+=`<div class="sec">Lista de atividades <span class="sp"></span>
+       <button class="tab ${MODO_ATV==="lista"?"on":""}" onclick="MODO_ATV='lista';obPintarDetalhe()">Lista</button>
+       <button class="tab ${MODO_ATV==="kanban"?"on":""}" onclick="MODO_ATV='kanban';obPintarDetalhe()">Cronograma</button></div>`;
+  if(!normais.length) h+=`<div class="card vazio">Nenhuma atividade ligada a esta obra ainda.</div>`;
+  else if(MODO_ATV==="lista"){
+    h+=`<div class="card tw"><table><thead><tr><th>Atividade</th><th class="col-m">Tipo</th><th>Responsável</th><th class="col-m">Criação</th><th>Final prevista</th><th>Status</th><th>Controle de prazo</th></tr></thead><tbody>`+
+      normais.map(a=>`<tr class="cl" onclick="window.open('${a.url||""}','_blank')"><td><b>${esc(a.titulo||"—")}</b></td><td class="col-m">${esc(a.tipo||"")}</td>
+        <td>${esc((a.resp||[]).join(", ")||"—")}</td><td class="col-m">${obData(a.data_criacao)}</td><td>${obData(a.data_final)}</td>
+        <td><span class="tag">${esc(a.status||"—")}</span></td><td class="prazo">${esc(a.controle_prazo||"—")}</td></tr>`).join("")+`</tbody></table></div>`;
+  }else{
+    const cols={}; normais.forEach(a=>{ const s=a.status||"Sem status"; (cols[s]=cols[s]||[]).push(a); });
+    const ordem=["Não começou","Em andamento","Aguardando análise do solicitante","Aguardando Aprovação","Aguardando Emissão",
+                 "Analisado Aguardando Correção","Fazer Novo Estudo","Layout Aprovado","Liberado Para Detalhamento","Finalizado"];
+    const ks=Object.keys(cols).sort((a,b)=>{ const ia=ordem.indexOf(a), ib=ordem.indexOf(b); return (ia<0?99:ia)-(ib<0?99:ib); });
+    h+=`<div class="kb">`+ks.map(k=>`<div class="kc"><h4>${esc(k)}<span>${cols[k].length}</span></h4>`+
+      cols[k].map(a=>`<div class="kt"><b>${esc(a.titulo||"—")}</b><div class="m">${esc((a.resp||[]).join(", ")||"—")}</div>
+        <div class="m">Final prevista: ${obData(a.data_final)}</div><div class="m">${esc(a.controle_prazo||"")}</div></div>`).join("")+`</div>`).join("")+`</div>`;
+  }
+  h+=`<div class="sec">Ligação de água e energia</div>`;
+  h+= lig.length?`<div class="card tw"><table><thead><tr><th>Atividade</th><th>Status</th><th>Conclusão</th><th>Final prevista</th></tr></thead><tbody>`+
+      lig.map(a=>`<tr class="cl" onclick="window.open('${a.url||""}','_blank')"><td><b>${esc(a.titulo||"—")}</b></td><td><span class="tag">${esc(a.status||"—")}</span></td>
+        <td>${obData(a.data_conclusao)}</td><td>${obData(a.data_final)}</td></tr>`).join("")+`</tbody></table></div>`
+      :`<div class="card vazio">Nenhuma atividade de ligação. Os botões de ligação (1 casa, 2 casas c/ esgoto…) continuam na página da obra no Notion.</div>`;
+  document.getElementById("d-corpo").innerHTML=h;
+}
+function obFechar(){ document.getElementById("fundo").classList.remove("on"); document.getElementById("drawer").classList.remove("on"); OBRA_ABERTA=null; }
+
+async function obGravar(obraId,i,el){
+  const [rot,k,col,tipo]=OB_CAMPOS[i], w=document.getElementById("w-"+i);
+  let valor=el.value;
+  if(tipo==="pessoa") valor=valor?[valor]:[];
+  if(tipo==="multi") valor=valor?[valor]:[];
+  w.className="f salvando";
+  let r;
+  try{ r=await chamar({action:"obraUpdate",pageId:obraId,prop:col,valor:valor},45000); }
+  catch(e){ r={ok:false,erro:"sem conexão"}; }
+  if(r&&r.ok){
+    w.className="f ok";
+    const o=D.obras.find(x=>x.id===obraId);
+    if(o){ if(tipo==="pessoa"){ o[k]=valor; const p=D.pessoas.find(x=>x.id===valor[0]); o[k==="resp_ids"?"resp":"rt"]=p?p.nome:""; }
+           else if(tipo==="num") o[k]=el.value===""?null:Number(el.value); else o[k]=el.value; }
+    if(r.compat&&r.compat.criada) obToast("Criado para esta obra: "+(r.compat.criadas||[]).join(" e ")+".");
+    else obToast(rot+" salvo.");
+  }else{
+    w.className="f erro";
+    obToast("Não salvou: "+((r&&(erroTexto(r.erro)||r.erro))||"erro"));
+  }
+}
+
+/* ---------- formulário ---------- */
+function obSel(id,ops,valores){
+  document.getElementById(id).innerHTML=`<option value="">Selecione…</option>`+
+    ops.map((x,i)=>`<option value="${esc(valores?valores[i]:x)}">${esc(x)}</option>`).join("");
+}
+function obAbrirForm(){
+  const set=obOpc("SETOR").filter(x=>OB_SETORES.some(s=>obN(s)===obN(x)));
+  obSel("f-setor",set.length?set:obOpc("SETOR"));
+  obSel("f-cidade",obOpc("Cidade"));
+  obSel("f-prop",obOpc("Proprietário"));
+  obSel("f-propreal",obOpc("Proprietário Real"));
+  obSel("f-resp",D.pessoas.map(p=>p.nome),D.pessoas.map(p=>p.id));
+  obSel("f-rt",D.pessoas.map(p=>p.nome),D.pessoas.map(p=>p.id));
+  obSel("f-impl",obOpc("IMPLANTAÇÃO"));
+  ["f-end","f-cota","f-lote","f-casas","f-alote","f-aaverb","f-ahab"].forEach(x=>document.getElementById(x).value="");
+  document.getElementById("f-estudo").checked=false;
+  document.getElementById("f-erro").textContent="";
+  obChecarEnd();
+  window._opObra=novoOpId();
+  document.getElementById("modal").classList.add("on");
+}
+function obFecharForm(){ document.getElementById("modal").classList.remove("on"); }
+const OB_ERROS={
+  ENDERECO_OBRIGATORIO:"Informe o endereço.", ENDERECO_COM_PREFIXO:"Endereço sem prefixo de rua/avenida.",
+  ENDERECO_SEM_QD_LT:"Endereço precisa ter QD e LT.", ENDERECO_FORA_DO_PADRAO:"Endereço fora do padrão.",
+  JA_EXISTE:"Já existe uma obra com este endereço.", SEM_PERMISSAO:"Seu login não tem o acesso OBRAS.",
+  MODO_TESTE:"Modo teste: nada é gravado."
+};
+async function obEnviar(){
+  const g=id=>document.getElementById(id).value.trim(), erro=document.getElementById("f-erro");
+  const end=g("f-end").toUpperCase().replace(/\s+/g," ");
+  if(!obChecarEnd()){ erro.textContent="Corrija o endereço."; return; }
+  const p={ action:"obraNova", opId:window._opObra, endereco:end, setor:g("f-setor"), cidade:g("f-cidade"),
+            proprietario:g("f-prop"), proprietarioReal:g("f-propreal"), resp:g("f-resp"), rt:g("f-rt"),
+            cota:g("f-cota"), dataLote:g("f-lote"), nCasas:g("f-casas"), implantacao:g("f-impl"),
+            areaLote:g("f-alote"), areaAverbada:g("f-aaverb"), areaHabite:g("f-ahab"),
+            estudoLayout:document.getElementById("f-estudo").checked };
+  const falta=[["setor","SETOR"],["cidade","CIDADE"],["proprietario","PROPRIETÁRIO"],["proprietarioReal","PROPRIETÁRIO REAL"],
+    ["resp","RESPONSÁVEL PELA OBRA"],["rt","ENGENHEIRO RT"],["cota","COTA DA EMPRESA"],["dataLote","DATA DE AQUISIÇÃO DO LOTE"],["nCasas","Nº DE CASAS"]]
+    .filter(([k])=>!p[k]).map(([,r])=>r);
+  if(falta.length){ erro.textContent="Preencha: "+falta.join(", "); return; }
+  const bt=document.getElementById("f-ok"); bt.disabled=true; bt.textContent="Criando…"; erro.textContent="";
+  let r=null;
+  for(let t=0;t<2&&!(r&&(r.ok||r.erro));t++){
+    try{ r=await chamar(Object.assign({},p),60000); }catch(e){ r=null; }   // mesma opId: reenviar não duplica
+  }
+  bt.disabled=false; bt.textContent="Criar obra";
+  if(!r){ erro.textContent="Sem resposta do servidor. Confira na lista em alguns minutos antes de tentar de novo."; return; }
+  if(!r.ok){
+    const base=String(r.erro||"").split(":")[0];
+    erro.textContent=(OB_ERROS[base]||erroTexto(r.erro)||r.erro)+(r.sugestao?` Sugestão: ${r.sugestao}`:"");
+    return;
+  }
+  const pes=id=>(D.pessoas.find(x=>x.id===id)||{}).nome||"";
+  const hoje=new Date(), prev=new Date(Date.now()+37*864e5), iso=d=>d.toISOString().slice(0,10);
+  D.obras.unshift({ id:r.id, titulo:r.titulo, setor:p.setor, cidade:p.cidade, proprietario:p.proprietario,
+    proprietario_real:p.proprietarioReal, resp:pes(p.resp), resp_ids:[p.resp], rt:pes(p.rt), rt_ids:[p.rt],
+    status:"Não começou", liberar:"Não", data_inicial:iso(hoje), data_prevista:iso(prev), n_casas:Number(p.nCasas),
+    cota:Number(p.cota), data_lote:p.dataLote, implantacao:p.implantacao,
+    url:"https://www.notion.so/"+String(r.id).replace(/-/g,"") });
+  obFecharForm(); ABA="andamento"; obPintar();
+  obToast("Obra "+r.titulo+" criada. Atividades e linha em Documentos aparecem em até 1 hora.");
+}
+
+obCarregar();
+</script>
+</body>
+</html>

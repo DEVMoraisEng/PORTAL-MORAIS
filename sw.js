@@ -103,10 +103,11 @@
    nome começa com "portal-morais-". */
 /* v32 -> v33: entrou a analise-dados.html (ANÁLISE DE DADOS, vinda do
    CONTROLES-INTERNOS) e o index.html ganhou o card dela. */
-const CACHE = "portal-morais-v33";  // limpeza só dos caches do portal (não apaga os das RAS)
+/* v33 -> v34: entrou a obras.html (aba de OBRAS). */
+const CACHE = "portal-morais-v34";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
-                  "./analise.html","./analise-dados.html","./documentos.html","./demandas.html",
+                  "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html",
                   "./app.js","./alertas-docs.js","./manifest.json"];
 
 self.addEventListener("install", e=>{
