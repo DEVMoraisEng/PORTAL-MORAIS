@@ -1,0 +1,80 @@
+# Robôs do Mais Controle (PORTAL-MORAIS)
+#  1) robo_mc_clientes.py — corrige nome e CPF/CNPJ dos proprietários pelo cadastro
+#     de clientes do MC (setor diferente de "Casa") e propaga o nome para as obras.
+#  2) robo_mc_obras.py    — cria no MC as obras marcadas "Criar" na coluna
+#     MAIS CONTROLE da (EMP) Projeto 2.0 e marca "Criada".
+#
+# SIMULAÇÃO por padrão. Para gravar de verdade:
+#   - rodando à mão: Actions > Robôs Mais Controle > Run workflow > aplicar = true
+#   - na rodada diária: crie a VARIÁVEL do repositório MC_APLICAR = 1
+#     (Settings > Secrets and variables > Actions > aba Variables)
+#
+# Secrets: MC_URL, MC_USUARIO, MC_SENHA, NOTION_TOKEN, ERP_CSV_OBRAS
+name: Robôs Mais Controle
+
+on:
+  schedule:
+    - cron: "15 9 * * *"        # 06:15 de Brasília
+  workflow_dispatch:
+    inputs:
+      robo:
+        description: "Qual robô"
+        type: choice
+        options: [ambos, clientes, obras]
+        default: ambos
+      aplicar:
+        description: "Gravar de verdade (sem marcar = simulação)"
+        type: boolean
+        default: false
+      descobrir:
+        description: "Salvar print+HTML de todas as telas (diagnóstico)"
+        type: boolean
+        default: false
+  repository_dispatch:
+    types: [robos-mc]
+
+concurrency:
+  group: robos-mc
+  cancel-in-progress: false
+
+jobs:
+  robos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+      MC_URL: ${{ secrets.MC_URL }}
+      MC_USUARIO: ${{ secrets.MC_USUARIO }}
+      MC_SENHA: ${{ secrets.MC_SENHA }}
+      ERP_CSV_OBRAS: ${{ secrets.ERP_CSV_OBRAS }}
+      APLICAR: ${{ (github.event_name == 'workflow_dispatch' && inputs.aplicar) && '1' || (github.event_name != 'workflow_dispatch' && vars.MC_APLICAR) || '' }}
+      DESCOBRIR: ${{ inputs.descobrir && '1' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Instalar Playwright
+        run: |
+          pip install playwright requests
+          python -m playwright install --with-deps chromium
+
+      - name: Robô de clientes (proprietários)
+        if: ${{ github.event.inputs.robo != 'obras' }}
+        continue-on-error: true
+        run: python robo_mc_clientes.py
+
+      - name: Robô de obras
+        if: ${{ github.event.inputs.robo != 'clientes' }}
+        continue-on-error: true
+        run: python robo_mc_obras.py
+
+      # prints das telas (com DESCOBRIR, também o HTML). Ficam 3 dias.
+      # Cadastro de cliente (CPF) só entra com DESCOBRIR ligado.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mc-evidencias
+          path: mc_evidencias
+          retention-days: 3
+          if-no-files-found: ignore
