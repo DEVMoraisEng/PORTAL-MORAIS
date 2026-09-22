@@ -120,14 +120,26 @@ JS_SET = """(el, v) => {
 
 
 def escrever(page, sel, valor):
-    """Escreve num campo do formulário. O MC cobre os campos com camadas do
-    Material UI, e o clique normal do Playwright fica esperando o campo ficar
-    "livre" até estourar o tempo — escrever pelo próprio DOM, disparando os
-    eventos que o React escuta, funciona sempre."""
+    """Escreve num campo do formulário e CONFERE se o valor ficou.
+    Primeiro digitando de verdade (é o que o react-hook-form registra); se o
+    campo continuar vazio, insiste pelo DOM. O clique comum do Playwright não
+    serve: as camadas do Material UI cobrem o campo e o clique fica esperando."""
     el = page.locator(sel).first
     el.scroll_into_view_if_needed()
-    el.evaluate(JS_SET, valor)
-    page.wait_for_timeout(250)
+    try:
+        el.evaluate("e => e.focus()")
+        page.keyboard.press("Control+a")
+        page.keyboard.type(str(valor), delay=25)
+        page.wait_for_timeout(300)
+    except Exception:
+        pass
+    if not (el.input_value() or "").strip():
+        el.evaluate(JS_SET, str(valor))
+        page.wait_for_timeout(300)
+    ficou = (el.input_value() or "").strip()
+    if not ficou:
+        print(f"  ! campo {sel} continuou vazio", flush=True)
+    return ficou
 
 
 def escolher_na_lista(page, campo_sel, texto_busca, alvo=None, exato=False):
@@ -135,15 +147,19 @@ def escolher_na_lista(page, campo_sel, texto_busca, alvo=None, exato=False):
     opção. Devolve o texto da opção escolhida."""
     campo = page.locator(campo_sel).first
     campo.scroll_into_view_if_needed()
-    try:
-        campo.click(force=True, timeout=8000)      # abre a lista (selects)
-    except Exception:
-        pass
-    page.wait_for_timeout(600)
-    if texto_busca:
-        campo.evaluate(JS_SET, texto_busca)        # busca (autocompletes)
-        page.wait_for_timeout(1600)
     opcoes = page.locator("[role=listbox] [role=option], [role=listbox] li")
+    # abre a lista: no campo e, se não abrir, no quadro em volta dele
+    for alvo_clique in [campo, campo.locator("xpath=.."), campo.locator("xpath=../..")]:
+        try:
+            alvo_clique.click(force=True, timeout=6000)
+        except Exception:
+            continue
+        page.wait_for_timeout(700)
+        if texto_busca:
+            campo.evaluate(JS_SET, texto_busca)    # busca (autocompletes)
+            page.wait_for_timeout(1600)
+        if opcoes.count():
+            break
     n = opcoes.count()
     if not n:
         raise RuntimeError("a lista não abriu")
@@ -255,7 +271,8 @@ def criar_no_mc(page, o):
     clicar_texto(page, "Nova Obra", exato=False)
     page.locator(CAMPO["nome"]).wait_for(state="visible", timeout=15000)
 
-    escrever(page, CAMPO["nome"], o["titulo"])
+    nome_ok = escrever(page, CAMPO["nome"], o["titulo"])
+    print(f"  nome da obra: '{nome_ok}'", flush=True)
 
     n = int(o["casas"]) if isinstance(o["casas"], (int, float)) else 0
     tipo = TIPOS.get(n, TIPO_PADRAO)
