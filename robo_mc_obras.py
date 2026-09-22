@@ -111,16 +111,38 @@ CAMPO = {
 }
 
 
+JS_SET = """(el, v) => {
+  const s = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+  s.call(el, v);
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+}"""
+
+
+def escrever(page, sel, valor):
+    """Escreve num campo do formulário. O MC cobre os campos com camadas do
+    Material UI, e o clique normal do Playwright fica esperando o campo ficar
+    "livre" até estourar o tempo — escrever pelo próprio DOM, disparando os
+    eventos que o React escuta, funciona sempre."""
+    el = page.locator(sel).first
+    el.scroll_into_view_if_needed()
+    el.evaluate(JS_SET, valor)
+    page.wait_for_timeout(250)
+
+
 def escolher_na_lista(page, campo_sel, texto_busca, alvo=None, exato=False):
     """Abre a lista do campo, digita (quando o campo aceita busca) e clica na
     opção. Devolve o texto da opção escolhida."""
     campo = page.locator(campo_sel).first
     campo.scroll_into_view_if_needed()
-    campo.click()
-    page.wait_for_timeout(500)
+    try:
+        campo.click(force=True, timeout=8000)      # abre a lista (selects)
+    except Exception:
+        pass
+    page.wait_for_timeout(600)
     if texto_busca:
-        campo.press_sequentially(texto_busca, delay=30)
-        page.wait_for_timeout(1500)
+        campo.evaluate(JS_SET, texto_busca)        # busca (autocompletes)
+        page.wait_for_timeout(1600)
     opcoes = page.locator("[role=listbox] [role=option], [role=listbox] li")
     n = opcoes.count()
     if not n:
@@ -158,14 +180,14 @@ def ajustar_visiveis(page, resp):
         print("  Visível para: responsável fora das equipes conhecidas — deixei como está", flush=True)
         return
     # a caixa é um select com lista de checkboxes (label id=select-checkbox-list-label)
-    page.locator("xpath=//label[@id='select-checkbox-list-label']/following-sibling::div[1]").first.click()
+    page.locator("xpath=//label[@id='select-checkbox-list-label']/following-sibling::div[1]").first.click(force=True)
     page.wait_for_timeout(900)
     tirados = []
     busca = page.locator("input[placeholder='Busque um usuário']")
     for nome in fora:
         try:
             if busca.count():
-                busca.first.fill(nome)
+                busca.first.evaluate(JS_SET, nome)
                 page.wait_for_timeout(700)
             linha = page.locator("li, label").filter(has_text=nome).first
             cx = linha.locator("input[type=checkbox]").first
@@ -176,7 +198,7 @@ def ajustar_visiveis(page, resp):
         except Exception:
             continue
     if busca.count():
-        busca.first.fill("")
+        busca.first.evaluate(JS_SET, "")
     page.keyboard.press("Escape")
     page.wait_for_timeout(500)
     print(f"  Visível para: mantive {manter}, tirei {tirados}", flush=True)
@@ -189,9 +211,9 @@ def preencher_endereco(page, o):
     rua = titulo[:corte].strip() if corte > 0 else titulo
     compl = titulo[corte:].strip() if corte > 0 else ""
     if rua:
-        page.locator(CAMPO["logradouro"]).first.fill(rua)
+        escrever(page, CAMPO["logradouro"], rua)
     if compl:
-        page.locator(CAMPO["complemento"]).first.fill(compl)
+        escrever(page, CAMPO["complemento"], compl)
     try:
         escolher_na_lista(page, "#state", "Goi", alvo="Goiás")
         if o.get("cidade"):
@@ -233,7 +255,7 @@ def criar_no_mc(page, o):
     clicar_texto(page, "Nova Obra", exato=False)
     page.locator(CAMPO["nome"]).wait_for(state="visible", timeout=15000)
 
-    page.locator(CAMPO["nome"]).fill(o["titulo"])
+    escrever(page, CAMPO["nome"], o["titulo"])
 
     n = int(o["casas"]) if isinstance(o["casas"], (int, float)) else 0
     tipo = TIPOS.get(n, TIPO_PADRAO)
@@ -250,11 +272,11 @@ def criar_no_mc(page, o):
 
     try:
         if o["area"]:
-            page.locator(CAMPO["area"]).first.fill(f"{float(o['area']):.2f}".replace(".", ","))
+            escrever(page, CAMPO["area"], f"{float(o['area']):.2f}".replace(".", ","))
         if o["rt"]:
-            page.locator(CAMPO["rt"]).first.fill(o["rt"])
+            escrever(page, CAMPO["rt"], o["rt"])
         if o["resp"]:
-            page.locator(CAMPO["resp"]).first.fill(o["resp"])
+            escrever(page, CAMPO["resp"], o["resp"])
     except Exception as e:
         print(f"  ! dados gerais: {str(e)[:110]}", flush=True)
 
