@@ -125,22 +125,47 @@ def criar_no_mc(page, o):
         print(f"  ! dados gerais não preenchidos: {str(e)[:100]}", flush=True)
 
     clicar_texto(page, "Dados do cliente")
-    page.wait_for_timeout(600)
+    page.wait_for_timeout(800)
+    try:
+        campos = page.evaluate("""() => [...document.querySelectorAll("input,select,textarea")]
+            .filter(e => e.offsetWidth || e.offsetHeight)
+            .map(e => `${e.tagName.toLowerCase()}#${e.id||"-"} ph="${e.placeholder||""}"${e.disabled?" DESABILITADO":""}`)""")
+        print(f"  campos visíveis no formulário: {campos}", flush=True)
+    except Exception:
+        pass
     # O campo "Cliente" é um combobox: o <input> fica DESABILITADO até alguém
     # clicar na caixa — era nele que a primeira versão tentava digitar.
     campo = page.locator("input[placeholder*=buscar i]").last
-    if campo.is_disabled():
-        caixa = campo.locator("xpath=ancestor::*[contains(@class,'select') or contains(@class,'combo') "
-                              "or contains(@class,'autocomplete') or @role='combobox'][1]")
-        (caixa if caixa.count() else campo.locator("xpath=..")).first.click(force=True)
-        page.wait_for_timeout(700)
-        ativo = page.locator("input[placeholder*=buscar i]:not([disabled])").last
-        if ativo.count():
-            ativo.press_sequentially(o["cliente"][:25], delay=30)
-        else:
-            page.keyboard.type(o["cliente"][:25], delay=30)
+    ativo = None
+    if campo.count() and not campo.is_disabled():
+        ativo = campo
     else:
-        campo.press_sequentially(o["cliente"][:25], delay=30)
+        # combobox fechado: clica do elemento mais próximo do input para fora,
+        # até o campo de busca ficar habilitado
+        ancestrais = campo.locator("xpath=ancestor::*[position()<=4]")
+        for i in range(ancestrais.count() - 1, -1, -1):
+            try:
+                ancestrais.nth(i).click(force=True)
+            except Exception:
+                continue
+            page.wait_for_timeout(600)
+            livre = page.locator("input[placeholder*=buscar i]:not([disabled]):visible")
+            if livre.count():
+                ativo = livre.last
+                break
+        if ativo is None:   # última tentativa: clicar no rótulo "Cliente"
+            try:
+                page.locator("xpath=//*[normalize-space(text())='Cliente']/following::*[1]").first.click(force=True)
+                page.wait_for_timeout(600)
+                livre = page.locator("input[placeholder*=buscar i]:not([disabled]):visible")
+                ativo = livre.last if livre.count() else None
+            except Exception:
+                ativo = None
+    if ativo is None:
+        foto(page, "cliente_sem_campo")
+        raise RuntimeError("não consegui abrir a caixa de busca do Cliente — veja o print cliente_sem_campo")
+    ativo.click()
+    ativo.press_sequentially(o["cliente"][:25], delay=35)
     page.wait_for_timeout(1800)
     # o que apareceu de opção na tela (vai para o log — ajuda a acertar o seletor)
     try:
