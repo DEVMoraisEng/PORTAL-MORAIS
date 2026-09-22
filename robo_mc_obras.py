@@ -135,7 +135,19 @@ def criar_no_mc(page, o):
         pass
     # O campo "Cliente" é um combobox: o <input> fica DESABILITADO até alguém
     # clicar na caixa — era nele que a primeira versão tentava digitar.
-    campo = page.locator("input[placeholder*=buscar i]").last
+    # O campo CERTO é o que vem logo depois do rótulo "Cliente". Pegar o
+    # último "Digite para buscar" da tela era errado: esse mesmo texto está no
+    # "Visível para" (#participants), no endereço e na conta bancária — e
+    # escrever no "Visível para", que é obrigatório, é o que fazia o MC
+    # recusar o cadastro sem dizer nada.
+    campo = page.locator(
+        "xpath=(//*[normalize-space(translate(text(),'*:',''))='Cliente']/following::input[1])[1]")
+    if not campo.count():
+        campo = page.locator("input[placeholder*=buscar i]").last
+    try:
+        print(f"  campo do Cliente: #{campo.get_attribute('id') or '-'}", flush=True)
+    except Exception:
+        pass
     ativo = None
     if campo.count() and not campo.is_disabled():
         ativo = campo
@@ -186,7 +198,14 @@ def criar_no_mc(page, o):
         raise RuntimeError(f"cliente '{o['cliente']}' não apareceu na busca do MC — o robô de clientes "
                            "precisa rodar com aplicar antes (o Proprietário tem que estar com o nome do MC)")
     opc.first.click()
-    page.wait_for_timeout(500)
+    page.wait_for_timeout(600)
+    # confere que o "Visível para" (obrigatório) continua preenchido
+    try:
+        vp = page.locator("#participants")
+        if vp.count():
+            print(f"  Visível para: {(vp.first.input_value() or '(vazio)')[:60]}", flush=True)
+    except Exception:
+        pass
     foto(page, "nova_obra_" + o["titulo"].replace(" ", "_"))
 
     if not APLICAR:
