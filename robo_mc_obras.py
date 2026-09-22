@@ -194,7 +194,15 @@ def criar_no_mc(page, o):
         page.wait_for_timeout(500)
         return "simulado"
 
-    clicar_texto(page, "Salvar Obra")
+    # "Salvar Obra" é o botão do rodapé do painel: precisa rolar até ele e
+    # clicar à força (o rodapé fica fixo e às vezes cobre o alvo).
+    import re as _re
+    salvar = page.locator("button:visible, a:visible").filter(has_text=_re.compile(r"salvar\s+obra", _re.I)).last
+    if not salvar.count():
+        salvar = page.get_by_text("Salvar Obra", exact=False).last
+    salvar.scroll_into_view_if_needed()
+    page.wait_for_timeout(400)
+    salvar.click(force=True)
     esperar(page, 20000)
     page.wait_for_timeout(2000)
     foto(page, "pos_salvar_" + o["titulo"].replace(" ", "_"))
