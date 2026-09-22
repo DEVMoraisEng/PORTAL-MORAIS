@@ -101,6 +101,36 @@ _JS_MSG_ERRO = """
 """
 
 
+_JS_DIAG = """
+() => {
+  const vis = e => !!(e.offsetWidth || e.offsetHeight || e.getClientRects().length);
+  const inp = [...document.querySelectorAll("input")].filter(vis).map(i =>
+    `${i.type}#${i.id||"-"} name=${i.name||"-"} ph="${i.placeholder||""}" valor=${(i.value||"").length}ch`);
+  const bts = [...document.querySelectorAll("button, input[type=submit], a.btn, [role=button]")].filter(vis).map(b =>
+    `"${(b.innerText||b.value||"").trim().slice(0,30)}" type=${b.type||"-"}${b.disabled?" DESABILITADO":""}`);
+  const frames = [...document.querySelectorAll("iframe")].map(f => f.src.slice(0,80));
+  return { titulo: document.title, hash: location.hash, inputs: inp, botoes: bts, iframes: frames,
+           captcha: !!document.querySelector("[class*=captcha i], iframe[src*=captcha i], iframe[src*=recaptcha i]") };
+}
+"""
+
+
+def diagnostico(page, rotulo):
+    """Imprime no LOG o que está visível na tela (sem valores digitados)."""
+    try:
+        d = page.evaluate(_JS_DIAG)
+        print(f"--- DIAGNÓSTICO ({rotulo}) ---", flush=True)
+        print(f"  título: {d['titulo']} | rota: {d['hash']} | captcha: {d['captcha']}", flush=True)
+        for x in d["inputs"]:
+            print(f"  campo: {x}", flush=True)
+        for x in d["botoes"]:
+            print(f"  botão: {x}", flush=True)
+        for x in d["iframes"]:
+            print(f"  iframe: {x}", flush=True)
+    except Exception as e:
+        print(f"  (diagnóstico falhou: {e})", flush=True)
+
+
 def login(page):
     if not (MC_URL and MC_USUARIO and MC_SENHA):
         raise SystemExit("Faltam os secrets MC_URL, MC_USUARIO e/ou MC_SENHA.")
@@ -117,14 +147,17 @@ def login(page):
     senha = page.locator("input[type=password]:visible").first
     _fill(senha, MC_SENHA)
     foto(page, "login_preenchido")
+    diagnostico(page, "login preenchido, antes de clicar")
     # botão de entrar: primeiro pelo texto, depois qualquer submit visível
     bt = page.locator("button:visible, input[type=submit]:visible").filter(
         has_text=__import__("re").compile(r"entrar|acessar|login|logar", __import__("re").I))
     if not bt.count():
         bt = page.locator("button[type=submit]:visible, input[type=submit]:visible")
     if bt.count():
+        print(f"MC: clicando no botão \"{(bt.first.inner_text() or '').strip()[:30]}\"", flush=True)
         bt.first.click()
     else:
+        print("MC: nenhum botão de entrar visível — usando Enter", flush=True)
         senha.press("Enter")
     # espera a tela de senha sumir (o MC troca de rota sem recarregar a página)
     try:
@@ -140,13 +173,14 @@ def login(page):
     foto(page, "pos_login")
     pw = page.locator("input[type=password]:visible")
     if pw.count():
+        diagnostico(page, "depois de clicar em entrar")
         msg = ""
         try:
             msg = page.evaluate(_JS_MSG_ERRO)
         except Exception:
             pass
         raise SystemExit("Login no Mais Controle falhou — a tela de senha continua aberta. "
-                         f"URL: {page.url} | Mensagem na tela: {msg or '(nenhuma)'} — veja mc_evidencias.")
+                         f"Mensagem na tela: {msg or '(nenhuma)'} — veja o DIAGNÓSTICO acima e mc_evidencias.")
     print(f"MC: login ok ({page.url})", flush=True)
 
 
