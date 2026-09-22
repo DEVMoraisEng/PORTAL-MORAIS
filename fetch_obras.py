@@ -16,16 +16,71 @@ aceita para gravar Responsável Pela Obra e ENGENHEIRO RT.
 FICA DE FORA, de propósito (o dist/ é público para quem tem a URL):
 CPF/CNPJ, DATA DE NASCIMENTO e CONTA da obra. Nenhuma dessas é usada na tela.
 
-Variável de ambiente: NOTION_TOKEN (o mesmo dos outros fetch_*.py).
+Variáveis de ambiente: NOTION_TOKEN (o mesmo dos outros fetch_*.py) e
+ERP_CSV_OBRAS (a aba Obras do Mais Controle, a mesma da Análise de Dados) —
+com ela cada obra sai marcada com "em_mc": se já existe no Mais Controle.
 """
 
+import csv
+import io
 import os
+import re
 from datetime import datetime, timezone
+
+import requests
 
 from fetch_vendas import ler_banco, api, gravar, norm, SAIDA, TOKEN
 
 ID_OBRAS = "306c5ab532d3812fa14fe9a281510128"   # (EMP) Projeto 2.0
 ID_ATIV = "306c5ab532d381fb864edee432bb128d"    # ATIVIDADES DE PROJETOS
+
+ERP_CSV_OBRAS = os.environ.get("ERP_CSV_OBRAS", "").strip() or \
+    "https://docs.google.com/spreadsheets/d/e/2PACX-1vQAVoeaF7ztdWagGt87vVr5dsNxFvpQ3uS6g5q3Ip6ppYchJxCaepob5SjWHhKIMjlNsLC1BXtzCKRd/pub?gid=931586083&single=true&output=csv"
+
+
+def padronizar_endereco(s):
+    """Mesma regra do Apps Script / fetch_analise_dados.py."""
+    t = str(s or "").replace("\u2013", "-").replace("\u2014", "-").upper()
+    t = re.sub(r"\s+", " ", t).strip()
+    if not t:
+        return t
+    t = re.sub(r"\bQUADRA\b", "QD", t)
+    t = re.sub(r"\bLOTE\b", "LT", t)
+    t = re.sub(r"\b(QD|LT|CS)\.(?=\s*\d)", r"\1", t)
+    t = re.sub(r"\bLT\s*(\d+[A-Z]?)\s*-+\s*(\d+[A-Z]?)\b", r"LT \1~\2", t)
+    t = re.sub(r"\bLT (\d+) (\d+)\b", r"LT \1~\2", t)
+    t = re.sub(r"\s*-+\s*", " ", t)
+    t = re.sub(r"\b(QD|LT|CS)(?=\d)", r"\1 ", t)
+    t = re.sub(r"^([A-Z]{1,4})(?=\d)", r"\1 ", t)
+    t = re.sub(r"\bQD 0+ (\d+)", r"QD \1", t)
+    t = re.sub(r"\bB (\d+)\b", r"B\1", t)
+
+    def pad(m):
+        a, sa, b, sb = m.group(2), m.group(3) or "", m.group(4), m.group(5) or ""
+        r = m.group(1) + " " + (a if len(a) >= 2 else "0" + a) + sa
+        if b:
+            r += "-" + (b if len(b) >= 2 else "0" + b) + sb
+        return r
+    t = re.sub(r"\b(QD|LT) 0*(\d+)([A-Z]?)(?:~0*(\d+)([A-Z]?))?(?![\dA-Z])", pad, t)
+    return re.sub(r"\s+", " ", t.replace("~", "-")).strip()
+
+
+def obras_no_mc():
+    """Conjunto de nomes (padronizados) das obras que existem no Mais Controle.
+    None = não deu para ler (aí a tela não acusa nada, em vez de acusar tudo)."""
+    try:
+        r = requests.get(ERP_CSV_OBRAS, timeout=60)
+        if r.status_code != 200:
+            print(f"  ERP obras: HTTP {r.status_code}", flush=True)
+            return None
+        rows = list(csv.DictReader(io.StringIO(r.content.decode("utf-8-sig"))))
+        nomes = {padronizar_endereco(x.get("nome")) for x in rows if x.get("nome")}
+        print(f"  ERP obras: {len(nomes)} obras no Mais Controle", flush=True)
+        return nomes or None
+    except Exception as e:
+        print(f"  ERP obras: falhou — {e}", flush=True)
+        return None
+
 
 # colunas da obra que NUNCA vão para o arquivo público
 PROIBIDAS = {norm(x) for x in ["CPF/CNPJ", "DATA DE NASCIMENTO", "CONTA", "Nº DA CONTA"]}
@@ -98,6 +153,13 @@ def main():
         t = d.get("type")
         if t in ("select", "status", "multi_select"):
             opcoes[nome] = [o.get("name") for o in (d.get(t) or {}).get("options") or []]
+    esq_ativ = api("GET", f"/databases/{ID_ATIV}").get("properties") or {}
+    opcoes_ativ = {}
+    for nome, d in esq_ativ.items():
+        t = d.get("type")
+        if t in ("select", "status", "multi_select"):
+            opcoes_ativ[nome] = [o.get("name") for o in (d.get(t) or {}).get("options") or []]
+    no_mc = obras_no_mc()
     fmt_cota = None
     for nome, d in esquema.items():
         if norm(nome) == norm("COTA DA EMPRESA (%)") and d.get("type") == "number":
@@ -150,6 +212,8 @@ def main():
             "area_averbada": txt(pega(ip, "ÁREA CONSTRUÍDA AVERBADA")),
             "area_habite": txt(pega(ip, "ÁREA PÓS HABITE-SE")),
             "estudo_layout": txt(pega(ip, "PRECISA DE ESTUDO DE LAYOUT")),
+            "mais_controle": txt(pega(ip, "MAIS CONTROLE")),
+            "em_mc": (None if no_mc is None else padronizar_endereco(txt(pega(ip, "Projeto"))) in no_mc),
         })
 
     atividades = []
@@ -185,6 +249,7 @@ def main():
         "obras": obras,
         "atividades": atividades,
         "opcoes": {k: v for k, v in opcoes.items() if norm(k) not in PROIBIDAS},
+        "opcoes_atividades": opcoes_ativ,
         "pessoas": sorted([{"id": k, "nome": v} for k, v in pessoas.items()], key=lambda x: norm(x["nome"])),
     })
     print(f"obras.json: {len(obras)} obras, {len(atividades)} atividades, {len(pessoas)} pessoas", flush=True)

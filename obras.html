@@ -4,197 +4,355 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#295778">
+<script>(function(){try{var t=localStorage.getItem("morais_tema");
+  if(t!=="claro"&&t!=="escuro") t="claro";
+  document.documentElement.dataset.tema=t;}catch(e){}})();</script>
 <link rel="manifest" href="manifest.json">
 <title>Obras · Morais</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-/* ===================== OBRAS (set/26) =====================
-   Lê dist/obras.json (fetch_obras.py) e grava pelo Apps Script (obraNova /
-   obraUpdate, bloco r40 do Code.gs). Acesso: "OBRAS" em ACESSOS do LOGINS. */
-:root{--azul:#295778;--azul-esc:#1e3f58;--navy:#2A285F;--teal:#81C9C0;--menta:#CCE8E6;
-      --bg:#eef3f6;--card:#fff;--borda:#d7e2e9;--txt:#1d2b36;--txt2:#5b7282;
-      --verde:#2a9d5c;--verm:#c0392b;--amar:#d99a00}
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{background:var(--bg);min-height:100%}
-body{font-family:Inter,system-ui,sans-serif;color:var(--txt);font-size:14px}
-header{background:var(--azul);border-bottom:3px solid var(--teal);color:#fff;
-       display:flex;align-items:center;gap:12px;padding:10px 18px;position:sticky;top:0;z-index:40}
-header img{height:34px}
-header .t{flex:1;min-width:0}
-header .sup{font-size:10px;letter-spacing:.12em;color:var(--teal);font-weight:700;text-transform:uppercase}
-header h1{font-family:'Barlow Condensed',sans-serif;font-size:24px;font-weight:800;line-height:1}
-header .upd{font-size:11px;color:#cfe3ec;white-space:nowrap}
-.btn{border:1px solid var(--borda);background:#fff;color:var(--azul);border-radius:8px;padding:8px 14px;
-     font:600 13px Inter,sans-serif;cursor:pointer;white-space:nowrap}
-.btn:hover{border-color:var(--azul)}
-.btn.pri{background:var(--verde);border-color:var(--verde);color:#fff}
-.btn.hdr{background:rgba(129,201,192,.18);border-color:rgba(129,201,192,.5);color:#fff}
-.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:14px 18px 0}
-.tabs{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch}
-.tab{border:1px solid var(--borda);background:#fff;border-radius:20px;padding:7px 14px;cursor:pointer;
-     font:600 13px Inter,sans-serif;color:var(--txt2);white-space:nowrap}
-.tab.on{background:var(--azul);border-color:var(--azul);color:#fff}
-.tab .n{opacity:.7;font-weight:500;margin-left:4px}
-.busca{flex:1;min-width:180px;border:1px solid var(--borda);border-radius:8px;padding:8px 12px;font:14px Inter,sans-serif}
-main{padding:14px 18px 60px}
-.card{background:var(--card);border:1px solid var(--borda);border-radius:10px;overflow:hidden}
-.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
-table{width:100%;border-collapse:collapse;font-size:13px}
-th{background:#f3f7fa;color:var(--txt2);font-size:11px;text-transform:uppercase;letter-spacing:.04em;
-   text-align:left;padding:9px 10px;border-bottom:1px solid var(--borda);white-space:nowrap}
-td{padding:9px 10px;border-bottom:1px solid #edf2f5;vertical-align:middle}
-tr.cl{cursor:pointer}
-tr.cl:hover td{background:#f6fafc}
-.tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:#eef2f5;color:#44596a;white-space:nowrap}
-.tag.sim{background:#e3f5ea;color:#1f7a47}
-.tag.nao{background:#fde8e6;color:#a8322a}
-.tag.ine{background:#e6eefb;color:#2d5ea8}
-.prazo{white-space:nowrap;font-size:12px}
-.vazio{padding:30px;text-align:center;color:var(--txt2)}
-.msg{padding:40px;text-align:center;color:var(--txt2)}
-.msg.err{color:var(--verm)}
-/* drawer */
-.fundo{position:fixed;inset:0;background:rgba(15,30,40,.45);z-index:60;display:none}
-.fundo.on{display:block}
-.drawer{position:fixed;top:0;right:0;bottom:0;width:min(980px,100%);background:var(--bg);z-index:61;
-        transform:translateX(100%);transition:transform .2s;display:flex;flex-direction:column}
-.drawer.on{transform:none}
-.dh{background:var(--azul);color:#fff;padding:12px 16px;display:flex;align-items:center;gap:10px}
-.dh h2{font-family:'Barlow Condensed',sans-serif;font-size:22px;flex:1;min-width:0}
-.dh a{color:var(--teal);font-size:12px}
-.db{flex:1;overflow-y:auto;padding:14px 16px 40px}
-.sec{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;color:var(--azul-esc);
-     margin:18px 0 8px;display:flex;align-items:center;gap:10px}
-.sec .sp{flex:1}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
-.f{background:#fff;border:1px solid var(--borda);border-radius:8px;padding:8px 10px}
-.f label{display:block;font-size:10px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
-.f select,.f input{width:100%;border:1px solid var(--borda);border-radius:6px;padding:6px 8px;font:13px Inter,sans-serif;background:#fff}
-.f .ro{font-size:13px;padding:6px 0}
-.f.salvando{border-color:var(--amar)} .f.ok{border-color:var(--verde)} .f.erro{border-color:var(--verm)}
-/* kanban */
-.kb{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch}
-.kc{flex:0 0 230px;background:#e6eef3;border-radius:8px;padding:8px}
-.kc h4{font-size:12px;color:var(--azul-esc);margin-bottom:6px;display:flex;justify-content:space-between}
-.kt{background:#fff;border:1px solid var(--borda);border-radius:6px;padding:8px;margin-bottom:6px;font-size:12px}
-.kt b{display:block;margin-bottom:3px;font-size:13px}
-.kt .m{color:var(--txt2)}
-/* pessoas */
-.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
-.chip{border:1px solid var(--borda);background:#fff;border-radius:16px;padding:6px 12px;cursor:pointer;font-size:13px}
-.chip.on{background:var(--azul);color:#fff;border-color:var(--azul)}
-/* modal */
-.modal{position:fixed;inset:0;z-index:70;display:none;align-items:flex-start;justify-content:center;
-       background:rgba(15,30,40,.5);overflow-y:auto;padding:30px 12px}
-.modal.on{display:flex}
-.mbox{background:#fff;border-radius:12px;width:min(720px,100%);padding:18px 20px}
-.mbox h3{font-family:'Barlow Condensed',sans-serif;font-size:24px;color:var(--azul-esc);margin-bottom:4px}
-.mbox .sub{color:var(--txt2);font-size:12px;margin-bottom:14px}
-.fg{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.fg .full{grid-column:1/-1}
-.fg label{display:block;font-size:11px;font-weight:700;color:var(--txt2);margin-bottom:4px}
-.fg label i{color:var(--verm);font-style:normal}
-.fg input,.fg select{width:100%;border:1px solid var(--borda);border-radius:8px;padding:9px 10px;font:14px Inter,sans-serif;background:#fff}
-.dica{font-size:11px;color:var(--txt2);margin-top:4px}
-.dica.err{color:var(--verm)} .dica.ok{color:var(--verde)}
-.chk{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--azul-esc)}
-.chk input{width:18px;height:18px}
-.acoes{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
-.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--azul-esc);color:#fff;
-       padding:10px 16px;border-radius:8px;font-size:13px;z-index:90;display:none;max-width:92%}
-@media(max-width:700px){
-  header h1{font-size:20px} header .upd{display:none}
-  .bar,main{padding-left:10px;padding-right:10px}
-  .fg{grid-template-columns:1fr}
-  .col-m{display:none}
+/* =====================================================================
+   OBRAS (set/26) — mesmo sistema visual da Gestão de Documentos / Vendas:
+   cabeçalho em degradê, abas em pílula, planilha com cabeçalho azul, painel
+   lateral da obra. Dados: dist/obras.json (fetch_obras.py). Gravação: Apps
+   Script, ações obra* (blocos r40/r41 do Code.gs). Acesso: "OBRAS".
+   ===================================================================== */
+:root{color-scheme:light}
+html{background:var(--bg);min-height:100%}
+body{min-height:100vh}
+:root{
+  --azul:#295778;--azul-esc:#1e3f58;--teal:#8FDCD2;--verde:#2a9d5c;--verde-btn:#4cd964;--verde-esc:#1a6b40;
+  --bg:#EAF1F3;--bg2:#F5F9FA;--bg3:#dceaef;--border:#b8d0da;--border2:#d0e4ec;
+  --text:#1a3347;--text3:#5a8099;--text4:#8aacbb;--branco:#fff;--orange:#E67E22;--verm:#c0392b;
+  --sup:#fff;--sup2:#f7fbfc;--sombra:rgba(20,50,70,.18)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.45}
+.wrap{max-width:1320px;margin:0 auto;padding:0 20px}
+header{background:linear-gradient(120deg,var(--azul-esc),var(--azul));position:relative}
+header::after{content:"";display:block;height:4px;background:linear-gradient(90deg,var(--verde-btn),var(--teal))}
+.hbar{display:flex;align-items:center;gap:12px;padding:13px 0;flex-wrap:wrap}
+.logo{background:#fff;border-radius:9px;padding:4px 9px;display:inline-flex;align-items:center}.logo img{height:34px;display:block}
+.htitle{font-family:'Barlow Condensed';font-weight:800;font-size:22px;color:#fff;letter-spacing:.5px;text-transform:uppercase;line-height:1}
+.hsub{color:var(--teal);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
+.hspace{flex:1}
+.hupd{font-size:10.5px;color:rgba(255,255,255,.72);white-space:nowrap;text-align:right;max-width:210px}
+.user{display:flex;align-items:center;gap:9px;color:#fff}.nome{font-weight:600;font-size:13px}
+.badge{font-size:10px;font-weight:800;letter-spacing:.5px;padding:3px 8px;border-radius:20px;background:rgba(255,255,255,.18);color:#fff;text-transform:uppercase}.badge.adm{background:var(--verde-btn);color:#0c3f22}
+.sair,.btema{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;padding:6px 11px;font:inherit;font-weight:700;font-size:12px;cursor:pointer}
+.btema{font-size:15px;line-height:1;padding:6px 10px}
+main{padding:24px 20px 70px}
+.crumb{display:flex;align-items:center;gap:10px;margin-bottom:16px;color:var(--text3);font-size:13px;flex-wrap:wrap}
+.btn-voltar{display:inline-flex;align-items:center;gap:6px;background:var(--azul-esc);border:1px solid rgba(143,220,210,.4);
+  border-radius:8px;padding:9px 16px;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;
+  color:var(--teal);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;text-decoration:none}
+.btn-voltar:hover{background:#16303f}
+.sec{display:flex;align-items:center;gap:10px;background:var(--bg3);border-left:4px solid var(--verde);border-radius:8px;padding:9px 14px;margin:26px 0 16px;flex-wrap:wrap}
+.sec .cond{font-family:'Barlow Condensed',Inter,sans-serif;font-size:19px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--azul-esc)}
+.sec .qtd{margin-left:auto;background:var(--border2);color:var(--text3);border-radius:999px;padding:2px 10px;font-size:12px;font-weight:700}
+.sec:first-child{margin-top:6px}
+.tabs-outer{background:var(--bg2);border:1.5px solid var(--border);border-radius:14px;padding:12px;margin:8px 0 20px;display:flex;justify-content:center;overflow-x:auto}
+.tabs{display:flex;gap:6px;padding:6px;border:2.5px solid var(--verde-btn);border-radius:12px;background:rgba(76,217,100,.06)}
+.tab{padding:11px 30px;font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;border-radius:8px;border:2px solid transparent;background:none;white-space:nowrap}
+.tab:hover{color:var(--azul-esc);background:rgba(76,217,100,.15);border-color:rgba(76,217,100,.4)}
+.tab.on{background:var(--verde-btn);color:#1a3347;border-color:var(--verde-btn);box-shadow:0 3px 10px rgba(76,217,100,.35)}
+.tab .nb{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;border-radius:20px;background:var(--verm);color:#fff;font:800 11px Inter,sans-serif;padding:0 6px;margin-left:6px;vertical-align:2px}
+.toolbar{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.legenda{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sw{display:inline-flex;align-items:center;gap:6px;cursor:pointer;background:var(--sup);border:1.5px solid var(--border);border-radius:20px;padding:6px 13px;color:var(--text3);font-weight:600;font-size:12px;user-select:none}
+.sw:hover{border-color:var(--text3)}
+.sw.on{border-color:var(--azul);color:var(--azul);background:#e7f0f3}
+.sw b{font-weight:800}
+select,input[type=text],input[type=number],input[type=date]{border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;background:var(--sup);max-width:100%;color:var(--text)}
+select:focus,input:focus{outline:none;border-color:var(--verde);box-shadow:0 0 0 3px rgba(76,217,100,.2)}
+.busca{border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;font:inherit;font-size:13px;min-width:220px;flex:1;background:var(--sup);color:var(--text)}
+.bt{border:0;border-radius:8px;padding:9px 14px;font:inherit;font-weight:700;font-size:12.5px;color:#fff;background:var(--verde);cursor:pointer;white-space:nowrap}
+.bt:hover{filter:brightness(1.06)}.bt.az{background:var(--azul)}.bt.ghost{background:#e7f0f3;color:var(--azul)}
+.bt:disabled{opacity:.5;cursor:default}
+.bt-mini{padding:5px 10px;font-size:11.5px}
+.info-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.icard{background:var(--sup);border:1px solid var(--border2);border-radius:10px;padding:9px 16px;min-width:110px;text-align:center}
+.ival{font-family:'Barlow Condensed';font-weight:800;font-size:22px;color:var(--azul-esc);line-height:1}
+.ival.r{color:var(--verm)}
+.ilab{font-size:10px;text-transform:uppercase;letter-spacing:.3px;color:var(--text3);font-weight:700;margin-top:3px}
+.tabela-wrap{overflow:auto;max-height:72vh;border:1px solid var(--border2);border-radius:10px;background:var(--sup)}
+table{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;font-size:12.5px}
+thead th{background:var(--azul);color:#fff;text-align:left;padding:9px 11px;font-size:10px;letter-spacing:.4px;text-transform:uppercase;position:sticky;top:0;white-space:nowrap;z-index:2;font-weight:700}
+thead th.stick{left:0;z-index:3}
+tbody td{padding:8px 11px;border-top:1px solid var(--border2);white-space:nowrap;color:var(--text)}
+tbody td.stick{position:sticky;left:0;background:var(--sup);font-weight:700;z-index:1;border-right:2px solid var(--border)}
+tbody tr:nth-child(even) td{background:var(--bg2)} tbody tr:nth-child(even) td.stick{background:#eef5f7}
+tbody tr:hover td{background:#e9f6ef;cursor:pointer} tbody tr:hover td.stick{background:#dff2e6}
+.obralink{color:var(--azul);font-weight:800;cursor:pointer}.obralink:hover{text-decoration:underline}
+.tag{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;background:#e7f0f3;color:var(--azul);white-space:nowrap}
+.tag.sim{background:rgba(42,157,92,.14);color:var(--verde-esc)}.tag.nao{background:#f1e0e0;color:#9b2c2c}.tag.ine{background:#e6eefb;color:#2d5ea8}
+.prazo{font-size:12px;white-space:nowrap}
+.vazio{padding:26px;text-align:center;color:var(--text3);font-size:13px;background:var(--sup);border:1px dashed var(--border2);border-radius:10px}
+.semacesso{max-width:460px;margin:80px auto;text-align:center;color:var(--text3)}
+.al{background:var(--sup);border:1px solid var(--border2);border-left:4px solid var(--orange);border-radius:10px;padding:11px 14px;margin-bottom:9px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.al .end{font-weight:800;font-size:13.5px;color:var(--azul);cursor:pointer;min-width:170px}.al .end:hover{text-decoration:underline}
+.al .txt{color:#B45309;font-size:12.5px;flex:1;min-width:200px}
+.al .acoes{display:flex;gap:6px}
+.falta{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:#FFF3E0;color:#B45309;border:1px solid #FCD9A8;margin:2px 4px 2px 0}
+.grupo{border:1px solid var(--border2);border-radius:10px;background:var(--sup);margin-bottom:10px;overflow:hidden}
+.grupo>summary{cursor:pointer;padding:12px 14px;font-weight:700;font-size:13.5px;color:var(--text);display:flex;align-items:center;gap:10px;list-style:none}
+.grupo>summary::-webkit-details-marker{display:none}
+.grupo>summary::before{content:"▸";font-size:11px;color:var(--text3);transition:transform .15s}
+.grupo[open]>summary::before{transform:rotate(90deg)}
+.grupo[open]>summary{border-bottom:1px solid var(--border2)}
+.grupo .qtd{margin-left:auto;background:var(--border2);color:var(--text3);border-radius:999px;padding:2px 9px;font-size:12px;font-weight:700}
+.grupo .qtd.r{background:#f6dede;color:#9b2c2c}
+.grupo .corpo{padding:8px}
+/* linha de atividade */
+.atv{display:grid;grid-template-columns:minmax(200px,1.6fr) minmax(130px,1fr) 170px 115px 150px minmax(150px,1fr);gap:10px;align-items:center;
+     padding:10px 12px;border:1px solid var(--border2);border-radius:10px;background:var(--sup);margin-bottom:8px}
+.atv:hover{border-color:var(--azul)}
+.atv .nm{font-weight:700;font-size:13px;cursor:pointer;color:var(--text)}
+.atv .nm:hover{color:var(--azul);text-decoration:underline}
+.atv .tp{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;color:#fff;background:var(--azul);padding:2px 8px;border-radius:20px;margin-bottom:4px}
+.atv .k{display:none;font-size:10px;font-weight:700;color:var(--text4);text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px}
+.atv .v{font-size:12.5px;color:var(--text)}
+.atv select,.atv input{width:100%;padding:6px 8px;font-size:12.5px}
+.atv.fin{opacity:.72}
+.salvando{border-color:#F0C36D!important}.ok{border-color:var(--verde)!important}.erro{border-color:var(--verm)!important}
+.atv-cab{display:grid;grid-template-columns:minmax(200px,1.6fr) minmax(130px,1fr) 170px 115px 150px minmax(150px,1fr);gap:10px;padding:0 12px 6px;
+         font-size:10px;font-weight:800;text-transform:uppercase;color:var(--text3);letter-spacing:.4px}
+/* painel */
+.overlay{position:fixed;inset:0;background:rgba(20,40,55,.55);display:none;z-index:40}
+.painel{position:fixed;top:0;right:0;height:100%;width:clamp(720px,68vw,100vw);background:var(--bg2);z-index:41;box-shadow:-14px 0 44px rgba(0,0,0,.3);display:none;flex-direction:column}
+.painel.p2{z-index:51;width:clamp(560px,48vw,100vw)}
+.overlay.o2{z-index:50}
+.painel.on,.overlay.on{display:flex}
+.ph{background:linear-gradient(120deg,var(--azul-esc),var(--azul));color:#fff;padding:18px 22px;position:relative}
+.ph .end{font-family:'Barlow Condensed';font-weight:800;font-size:24px;text-transform:uppercase;line-height:1.05;letter-spacing:.5px;padding-right:44px}
+.ph .loc{color:var(--teal);font-size:12px;font-weight:700;margin-top:4px}
+.pfechar{position:absolute;top:16px;right:18px;background:rgba(255,255,255,.16);border:0;color:#fff;width:32px;height:32px;border-radius:8px;font-size:18px;cursor:pointer}
+.pbody{padding:0 0 30px;overflow:auto;flex:1}
+.chips{display:flex;flex-wrap:wrap;gap:7px;padding:14px 22px 0}
+.chip{font-size:11.5px;font-weight:600;padding:5px 10px;border-radius:20px;background:#e7f0f3;color:var(--azul)}
+.chip.alerta{background:#FFF3E0;color:#B45309;border:1px solid #FCD9A8}
+.chip.ok{background:rgba(42,157,92,.14);color:var(--verde-esc);border:1px solid rgba(42,157,92,.3)}
+.grp{font-family:'Barlow Condensed';font-size:15px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--azul);margin:20px 22px 12px;padding-bottom:7px;border-bottom:2px solid var(--verde);display:flex;align-items:center;gap:8px}
+.grp .sp{flex:1}
+.resumo{padding:0 22px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px 16px}
+.ri .k{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--text4);font-weight:700;margin-bottom:5px}
+.ri input,.ri select{width:100%}
+.ro{padding:8px 10px;background:#eef3f5;border-radius:8px;color:var(--text3);font-size:13px;min-height:37px}
+.pl{padding:0 22px}
+.tg{border:1.5px solid var(--border);background:var(--sup);border-radius:20px;padding:5px 14px;font:inherit;font-weight:800;font-size:11.5px;cursor:pointer;color:var(--text3);text-transform:none;letter-spacing:0}
+.tg.on{background:var(--azul);border-color:var(--azul);color:#fff}
+/* cronograma */
+.gantt{background:var(--sup);border:1px solid var(--border2);border-radius:10px;overflow-x:auto}
+.gt{min-width:780px;position:relative}
+.gr{display:grid;grid-template-columns:230px 1fr;border-top:1px solid var(--border2);min-height:36px}
+.gl{padding:7px 10px;font-size:12px;font-weight:600;border-right:1px solid var(--border2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.gl:hover{color:var(--azul)}
+.gl small{display:block;color:var(--text4);font-weight:600;font-size:10.5px}
+.gtr{position:relative}
+.gbar{position:absolute;top:9px;height:18px;border-radius:5px;background:var(--azul);min-width:6px;color:#fff;font-size:10px;font-weight:700;line-height:18px;padding:0 6px;white-space:nowrap;overflow:hidden;cursor:pointer}
+.gbar.fin{background:var(--verde)}.gbar.atr{background:var(--verm)}
+.ghead{display:grid;grid-template-columns:230px 1fr;background:var(--azul);color:#fff;font-size:10px;font-weight:700;text-transform:uppercase}
+.ghead>div:first-child{padding:8px 10px}
+.gmeses{position:relative;height:30px}
+.gmes{position:absolute;top:0;bottom:0;border-left:1px solid rgba(255,255,255,.3);padding:8px 5px;white-space:nowrap}
+.ghoje{position:absolute;top:0;bottom:0;width:2px;background:var(--orange);z-index:2}
+/* conteúdo da atividade */
+.cont{padding:0 22px;font-size:13.5px}
+.cont h1,.cont h2,.cont h3{font-family:'Barlow Condensed';color:var(--azul-esc);margin:14px 0 6px;text-transform:uppercase;letter-spacing:.3px}
+.cont h1{font-size:20px}.cont h2{font-size:18px}.cont h3{font-size:16px}
+.cont p{margin:4px 0}
+.cont .todo{display:flex;gap:8px;align-items:flex-start;padding:5px 8px;border-radius:7px;cursor:pointer}
+.cont .todo:hover{background:var(--bg3)}
+.cont .todo input{margin-top:3px;width:17px;height:17px;accent-color:var(--verde);flex:none}
+.cont .todo.feito span{text-decoration:line-through;color:var(--text4)}
+.cont details{border:1px solid var(--border2);border-radius:8px;background:var(--sup);margin:6px 0;padding:0 10px}
+.cont details>summary{cursor:pointer;padding:8px 0;font-weight:700}
+.cont ul,.cont ol{margin:4px 0 4px 20px;padding:0}
+.cont .callout{background:var(--bg3);border-radius:8px;padding:8px 10px;margin:6px 0}
+.cont hr{border:0;border-top:1px solid var(--border2);margin:10px 0}
+.progresso{height:8px;border-radius:8px;background:var(--border2);overflow:hidden;margin:4px 22px 10px}
+.progresso>div{height:100%;background:var(--verde)}
+.load{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--verde);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* formulário */
+.mfundo{position:fixed;inset:0;background:rgba(15,30,40,.6);display:none;align-items:flex-start;justify-content:center;z-index:60;overflow-y:auto;padding:30px 12px}
+.mfundo.on{display:flex}
+.modal{background:var(--sup);border-radius:14px;width:min(760px,100%);overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,.25)}
+.modal .ph .end{font-size:22px}
+.mcorpo{padding:18px 22px}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px}
+.fgrid .full{grid-column:1/-1}
+.campo label{display:block;font-size:11px;font-weight:700;color:var(--text3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px}
+.campo label i{color:var(--verm);font-style:normal}
+.campo input,.campo select{width:100%}
+.ajuda{font-size:11.5px;color:var(--text3);margin-top:5px;line-height:1.4}
+.ajuda.err{color:var(--verm)}.ajuda.ok{color:var(--verde-esc)}
+.chk{display:flex!important;align-items:center;gap:9px;font-weight:700;color:var(--azul-esc);font-size:13px;cursor:pointer;text-transform:none!important}
+.chk input{width:18px;height:18px;accent-color:var(--verde)}
+.macoes{display:flex;justify-content:flex-end;gap:8px;padding:14px 22px;border-top:1px solid var(--border2);background:var(--bg2)}
+.merro{color:var(--verm);font-size:12.5px;min-height:18px;padding:0 22px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--azul-esc);color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:90;opacity:0;transition:opacity .2s;pointer-events:none;max-width:92%}
+.toast.on{opacity:1}
+.tarja-teste{display:none;align-items:center;gap:9px;background:#FFF7ED;border:1px solid #FED7AA;color:#9A3412;border-radius:10px;padding:9px 13px;font-size:12.5px;font-weight:600;margin-bottom:14px}
+.tarja-teste.on{display:flex}
+/* ===== MODO ESCURO (mesma chave morais_tema) ===== */
+html[data-tema="escuro"]{color-scheme:dark;
+  --azul:#2f6e93;--azul-esc:#122430;--teal:#79c8bf;--verde:#2f9e63;--verde-btn:#3cbf5d;--verde-esc:#17603a;
+  --bg:#0e1920;--bg2:#15222c;--bg3:#1a2c38;--border:#2d4757;--border2:#243a4a;
+  --text:#e7eff5;--text3:#9db4c4;--text4:#7794a6;--branco:#15222c;--orange:#d9843c;--sup:#15222c;--sup2:#1a2934}
+html[data-tema="escuro"] tbody tr:nth-child(even) td,html[data-tema="escuro"] tbody tr:nth-child(even) td.stick{background:#121e27}
+html[data-tema="escuro"] tbody tr:hover td{background:#1b2f3c}
+html[data-tema="escuro"] thead th,html[data-tema="escuro"] .ghead{background:var(--azul-esc);color:var(--teal)}
+html[data-tema="escuro"] .tag,html[data-tema="escuro"] .chip{background:var(--bg3);color:var(--text3)}
+html[data-tema="escuro"] .tag.sim,html[data-tema="escuro"] .chip.ok{background:#16341f;color:#8ce0a5}
+html[data-tema="escuro"] .tag.nao{background:#3a1e1e;color:#f3a29a}
+html[data-tema="escuro"] .chip.alerta,html[data-tema="escuro"] .falta{background:#3a2d12;color:#f0c95f;border-color:#57431f}
+html[data-tema="escuro"] .sec .cond,html[data-tema="escuro"] .grp,html[data-tema="escuro"] .ival,
+html[data-tema="escuro"] .cont h1,html[data-tema="escuro"] .cont h2,html[data-tema="escuro"] .cont h3{color:var(--teal)}
+html[data-tema="escuro"] .obralink,html[data-tema="escuro"] .al .end,html[data-tema="escuro"] .bt.ghost,html[data-tema="escuro"] .sw.on{color:#8fd3ee}
+html[data-tema="escuro"] .bt.ghost,html[data-tema="escuro"] .sw.on,html[data-tema="escuro"] .ro{background:var(--bg3)}
+html[data-tema="escuro"] input,html[data-tema="escuro"] select{background:var(--sup2);color:var(--text);border-color:var(--border)}
+/* ===== CELULAR ===== */
+@media(max-width:1000px){
+  .atv{grid-template-columns:1fr 1fr} .atv-cab{display:none} .atv .nmcol{grid-column:1/-1} .atv .k{display:block}
+}
+@media(max-width:900px){ .hupd{display:none} .resumo{grid-template-columns:1fr 1fr} }
+@media(max-width:680px){
+  input,select{font-size:16px}
+  main{padding:16px 10px 60px}
+  .tab{padding:10px 14px;font-size:13px}
+  .tabs-outer{justify-content:flex-start}
+  .painel,.painel.p2{width:100vw}
+  .fgrid{grid-template-columns:1fr}
+  .busca{min-width:0;width:100%}
+  .ph .end{font-size:20px}
+  .pl,.resumo,.cont{padding-left:12px;padding-right:12px}
 }
 </style>
 </head>
 <body>
 <header>
-  <img src="img/logo.png" alt="Morais">
-  <div class="t"><div class="sup">Morais Engenharia · Portal</div><h1>Obras</h1></div>
-  <span class="upd updated" id="upd"></span>
-  <button class="btn hdr" onclick="location.href='index.html'">← Voltar</button>
+  <div class="wrap hbar">
+    <span class="logo"><img src="img/logo.png" alt="Morais"></span>
+    <div><div class="htitle">Obras</div><div class="hsub">Morais Engenharia</div></div>
+    <div class="hspace"></div>
+    <span class="hupd updated" id="updated"></span>
+    <div class="user">
+      <div style="text-align:right"><div class="nome" id="u-nome">—</div><span class="badge" id="u-tipo">—</span></div>
+      <button class="btema" id="btema" onclick="trocarTema()" title="Alternar claro/escuro">🌙</button>
+      <button class="sair" onclick="sair()">Sair</button>
+    </div>
+  </div>
 </header>
 
-<div class="bar">
-  <div class="tabs" id="tabs"></div>
-  <input class="busca" id="busca" placeholder="Buscar obra, setor, responsável…" oninput="obPintar()">
-  <button class="btn pri" onclick="obAbrirForm()">+ Solicitar nova obra</button>
-</div>
-<main><div id="conteudo" class="msg">Carregando…</div></main>
+<main class="wrap">
+  <div class="tarja-teste" id="tarja-teste"><span>🔍</span><span><b>MODO TESTE</b> — este login enxerga tudo, mas nenhuma alteração é gravada.</span></div>
+  <div id="sem-acesso" class="semacesso" style="display:none">
+    <h2>Sem acesso</h2><p>Seu login não tem o acesso <b>OBRAS</b>. Fale com um ADM.</p>
+    <a class="bt az" href="index.html">Voltar ao portal</a>
+  </div>
+  <div id="app">
+    <div class="crumb"><a class="btn-voltar" href="index.html">← Voltar para o Dashboard</a></div>
+    <div class="tabs-outer"><div class="tabs" id="tabs"></div></div>
+    <div id="view"><div class="vazio"><span class="load"></span> Carregando…</div></div>
+  </div>
+</main>
 
-<div class="fundo" id="fundo" onclick="obFechar()"></div>
-<div class="drawer" id="drawer">
-  <div class="dh"><h2 id="d-tit"></h2><a id="d-link" target="_blank" rel="noopener">abrir no Notion ↗</a>
-    <button class="btn hdr" onclick="obFechar()">✕</button></div>
-  <div class="db" id="d-corpo"></div>
+<div class="overlay" id="ov1" onclick="fecharObra()"></div>
+<div class="painel" id="p1">
+  <div class="ph"><div class="end" id="p1-end"></div><div class="loc" id="p1-loc"></div>
+    <button class="pfechar" onclick="fecharObra()">✕</button></div>
+  <div class="pbody" id="p1-corpo"></div>
 </div>
 
-<div class="modal" id="modal">
-  <div class="mbox">
-    <h3>Solicitar nova obra</h3>
-    <div class="sub">Campos com <b style="color:#c0392b">*</b> são obrigatórios. Depois de criada, as atividades
-      (Criação de Obra, Briefing, Uso do Solo em Goiânia, Estudo de Layout se marcado) e a linha em Documentos aparecem em até 1 hora.
-      Compatibilização e Formulário de Obra nascem quando "Liberar obra p/ processo interno" virar Sim.</div>
-    <div class="fg">
-      <div class="full">
-        <label>ENDEREÇO <i>*</i></label>
-        <input id="f-end" placeholder="TB 19 QD 51 LT 14" oninput="obChecarEnd()" autocomplete="off">
-        <div class="dica" id="d-end">Padrão: <b>RUA QD XX LT XX</b> — sem "RUA"/"AV", sem traço, quadra e lote com 2 dígitos. Ex.: <b>TB 19 QD 51 LT 14</b></div>
+<div class="overlay o2" id="ov2" onclick="fecharAtv()"></div>
+<div class="painel p2" id="p2">
+  <div class="ph"><div class="end" id="p2-end"></div><div class="loc" id="p2-loc"></div>
+    <button class="pfechar" onclick="fecharAtv()">✕</button></div>
+  <div class="pbody" id="p2-corpo"></div>
+</div>
+
+<div class="mfundo" id="mf">
+  <div class="modal">
+    <div class="ph"><div class="end">Solicitar nova obra</div>
+      <div class="loc">Campos com * são obrigatórios</div>
+      <button class="pfechar" onclick="fecharForm()">✕</button></div>
+    <div class="mcorpo">
+      <div class="fgrid">
+        <div class="campo full"><label>Endereço <i>*</i></label>
+          <input type="text" id="f-end" placeholder="TB 19 QD 51 LT 14" oninput="checarEnd()" autocomplete="off">
+          <div class="ajuda" id="a-end"></div></div>
+        <div class="campo"><label>Setor <i>*</i></label><select id="f-setor"></select></div>
+        <div class="campo"><label>Cidade <i>*</i></label><select id="f-cidade"></select></div>
+        <div class="campo"><label>Proprietário <i>*</i></label><select id="f-prop"></select></div>
+        <div class="campo"><label>Proprietário real <i>*</i></label><select id="f-propreal"></select></div>
+        <div class="campo"><label>Responsável pela obra <i>*</i></label><select id="f-resp"></select></div>
+        <div class="campo"><label>Engenheiro RT <i>*</i></label><select id="f-rt"></select></div>
+        <div class="campo"><label>Cota da empresa (%) <i>*</i></label><input type="number" id="f-cota" step="any" min="0" max="100" placeholder="100"></div>
+        <div class="campo"><label>Data de aquisição do lote <i>*</i></label><input type="date" id="f-lote"></div>
+        <div class="campo"><label>Nº de casas <i>*</i></label><input type="number" id="f-casas" min="1" step="1"></div>
+        <div class="campo"><label>Implantação</label><select id="f-impl"></select></div>
+        <div class="campo"><label>Área do lote (m²)</label><input type="number" id="f-alote" step="any"></div>
+        <div class="campo"><label>Área construída averbada (m²)</label><input type="number" id="f-aaverb" step="any"></div>
+        <div class="campo"><label>Área pós habite-se (m²)</label><input type="number" id="f-ahab" step="any"></div>
+        <div class="campo full"><label class="chk"><input type="checkbox" id="f-estudo"> Precisa de estudo de layout</label></div>
+        <div class="campo full"><div class="ajuda">Ao criar: Briefing (e Uso do Solo, se Goiânia; Estudo de Layout, se marcado), a linha em Documentos e a obra no Mais Controle.
+          Compatibilização e Formulário de Obra nascem quando "Liberar obra p/ processo interno" virar Sim.</div></div>
       </div>
-      <div><label>SETOR <i>*</i></label><select id="f-setor"></select></div>
-      <div><label>CIDADE <i>*</i></label><select id="f-cidade"></select></div>
-      <div><label>PROPRIETÁRIO <i>*</i></label><select id="f-prop"></select></div>
-      <div><label>PROPRIETÁRIO REAL <i>*</i></label><select id="f-propreal"></select></div>
-      <div><label>RESPONSÁVEL PELA OBRA <i>*</i></label><select id="f-resp"></select></div>
-      <div><label>ENGENHEIRO RT <i>*</i></label><select id="f-rt"></select></div>
-      <div><label>COTA DA EMPRESA (%) <i>*</i></label><input id="f-cota" type="number" step="any" min="0" max="100" placeholder="100"></div>
-      <div><label>DATA DE AQUISIÇÃO DO LOTE <i>*</i></label><input id="f-lote" type="date"></div>
-      <div><label>Nº DE CASAS <i>*</i></label><input id="f-casas" type="number" min="1" step="1"></div>
-      <div><label>IMPLANTAÇÃO</label><select id="f-impl"></select></div>
-      <div><label>ÁREA DO LOTE (m²)</label><input id="f-alote" type="number" step="any"></div>
-      <div><label>ÁREA CONSTRUÍDA AVERBADA (m²)</label><input id="f-aaverb" type="number" step="any"></div>
-      <div><label>ÁREA PÓS HABITE-SE (m²)</label><input id="f-ahab" type="number" step="any"></div>
-      <div class="full"><label class="chk"><input type="checkbox" id="f-estudo"> PRECISA DE ESTUDO DE LAYOUT</label></div>
     </div>
-    <div class="dica err" id="f-erro"></div>
-    <div class="acoes">
-      <button class="btn" onclick="obFecharForm()">Cancelar</button>
-      <button class="btn pri" id="f-ok" onclick="obEnviar()">Criar obra</button>
-    </div>
+    <div class="merro" id="f-erro"></div>
+    <div class="macoes"><button class="bt ghost" onclick="fecharForm()">Cancelar</button>
+      <button class="bt" id="f-ok" onclick="enviarObra()">Criar obra</button></div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
 
 <script src="app.js?v=31"></script>
 <script>
-const OB_S = exigirSessao();
-if (OB_S && !podeAcessar(OB_S, "OBRAS")) location.replace("index.html");
+/* ---------- tema ---------- */
+const TEMA_KEY="morais_tema";
+function temaAtual(){ return document.documentElement.dataset.tema==="escuro"?"escuro":"claro"; }
+function aplicarTema(t){ const e=t==="escuro"; document.documentElement.dataset.tema=e?"escuro":"claro";
+  const b=document.getElementById("btema"); if(b) b.textContent=e?"☀":"🌙";
+  const m=document.querySelector('meta[name="theme-color"]'); if(m) m.setAttribute("content",e?"#0f1c26":"#295778"); }
+function trocarTema(){ const n=temaAtual()==="escuro"?"claro":"escuro"; try{localStorage.setItem(TEMA_KEY,n);}catch(e){} aplicarTema(n); }
+aplicarTema(temaAtual());
 
-/* Setores do padrão (mesma lista do ObrasSync.gs). O formulário só oferece
-   estes — as opções antigas que ainda existem no Notion ficam de fora. */
-const OB_SETORES = ["TERRABELA CERRADO","PQ DOS BURITIS","ACROPOLE","COND. ESMERALDAS","IPANEMA","ITAIPU",
-  "JOÃO BRAZ","MARQUES DE ABREU","RAVENA","SOLAR VILLE","ST FÉ","ST EFIGÊNIA","PORTO SEGURO",
-  "PORTAL DO ORIENTE","JARDIM PETROPOLIS","VILA SÃO SEBASTIÃO","FLORENÇA"];
-const OB_FIM = ["FINALIZADO","CANCELADO","CONCLUIDO"];
-let D = { obras:[], atividades:[], opcoes:{}, pessoas:[] };
-let ABA = "andamento", PESSOA = null, VER_FIN = false, OBRA_ABERTA = null, MODO_ATV = "lista";
+/* ---------- sessão ---------- */
+const OB_S=exigirSessao();
+const PODE=!!(OB_S&&podeAcessar(OB_S,"OBRAS"));
+if(OB_S){ document.getElementById("u-nome").textContent=OB_S.nome||OB_S.login;
+  const tb=document.getElementById("u-tipo"); tb.textContent=OB_S.tipo; if(OB_S.tipo==="ADM") tb.classList.add("adm");
+  if(String(OB_S.tipo).toUpperCase()==="TESTES") document.getElementById("tarja-teste").classList.add("on"); }
+if(!PODE){ document.getElementById("app").style.display="none"; document.getElementById("sem-acesso").style.display="block"; }
 
-const obN = s => String(s==null?"":s).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/\s+/g," ").trim();
-const obData = d => d ? String(d).slice(0,10).split("-").reverse().join("/") : "—";
-function obToast(t){ const e=document.getElementById("toast"); e.textContent=t; e.style.display="block"; clearTimeout(e._t); e._t=setTimeout(()=>e.style.display="none",4500); }
-function obTagSN(v){ const n=obN(v); return !v?"—":`<span class="tag ${n==="SIM"?"sim":n==="NAO"?"nao":n==="INEXISTE"?"ine":""}">${esc(v)}</span>`; }
-function obOpc(nome){ const k=Object.keys(D.opcoes).find(x=>obN(x)===obN(nome)); return k?D.opcoes[k]:[]; }
-function obFim(st){ return OB_FIM.indexOf(obN(st))>=0; }
-function obEhLigacao(a){ return /^7\b/.test(String(a.tipo||"").trim()); }
+/* ---------- constantes e utilitários ---------- */
+const SETORES_PADRAO=["TERRABELA CERRADO","PQ DOS BURITIS","ACROPOLE","COND. ESMERALDAS","IPANEMA","ITAIPU","JOÃO BRAZ",
+  "MARQUES DE ABREU","RAVENA","SOLAR VILLE","ST FÉ","ST EFIGÊNIA","PORTO SEGURO","PORTAL DO ORIENTE","JARDIM PETROPOLIS","VILA SÃO SEBASTIÃO","FLORENÇA"];
+const FIM=["FINALIZADO","CANCELADO","CONCLUIDO"];
+const OBRIGATORIOS=[["setor","Setor"],["cidade","Cidade"],["proprietario","Proprietário"],["proprietario_real","Proprietário real"],
+  ["resp","Responsável pela obra"],["rt","Engenheiro RT"],["cota","Cota da empresa"],["data_lote","Data de aquisição do lote"],["n_casas","Nº de casas"]];
+let D={obras:[],atividades:[],opcoes:{},opcoes_atividades:{},pessoas:[]};
+let ABA="obras", FILTRO="andamento", PESSOA=null, VER_FIN=false, OBRA=null, ATV=null, MODO="lista", CONT=null;
+
+const N=s=>String(s==null?"":s).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/\s+/g," ").trim();
+const dt=d=>d?String(d).slice(0,10).split("-").reverse().join("/"):"—";
+const hoje=()=>new Date().toISOString().slice(0,10);
+function toast(t){ const e=document.getElementById("toast"); e.textContent=t; e.classList.add("on"); clearTimeout(e._t); e._t=setTimeout(()=>e.classList.remove("on"),4200); }
+function tagSN(v){ const n=N(v); return !v?"—":`<span class="tag ${n==="SIM"?"sim":n==="NAO"?"nao":n==="INEXISTE"?"ine":""}">${esc(v)}</span>`; }
+function opc(nome,fonte){ fonte=fonte||D.opcoes; const k=Object.keys(fonte||{}).find(x=>N(x)===N(nome)); return k?fonte[k]:[]; }
+const fim=st=>FIM.indexOf(N(st))>=0;
+const ehLig=a=>/^7\b/.test(String(a.tipo||"").trim());
+const atvFeita=a=>N(a.status)==="FINALIZADO"||!!a.data_conclusao;
+const atrasada=a=>N(a.controle_prazo).indexOf("ATRASO")>=0 && !atvFeita(a);
+const obraDe=id=>D.obras.find(o=>o.id===id);
+function ordemTipo(t){ const m=String(t||"").trim().match(/^(\d+)(?:\.(\d+))?/); return m?Number(m[1])*100+Number(m[2]||0):9999; }
+function ordenaAtv(a,b){ return ordemTipo(a.tipo)-ordemTipo(b.tipo) || String(a.data_inicio||a.data_criacao||"").localeCompare(String(b.data_inicio||b.data_criacao||"")); }
+const errMsg=r=>(r&&(erroTexto(r.erro)||r.erro))||"erro";
 
 /* ---------- endereço (mesma regra do Apps Script) ---------- */
-function obPadrao(s){
-  let t=String(s||"").replace(/[\u2013\u2014]/g,"-").toUpperCase().replace(/\s+/g," ").trim();
-  if(!t) return t;
+function padrao(s){
+  let t=String(s||"").replace(/[\u2013\u2014]/g,"-").toUpperCase().replace(/\s+/g," ").trim(); if(!t) return t;
   t=t.replace(/\bQUADRA\b/g,"QD").replace(/\bLOTE\b/g,"LT").replace(/\b(QD|LT|CS)\.(?=\s*\d)/g,"$1");
   t=t.replace(/\bLT\s*(\d+[A-Z]?)\s*-+\s*(\d+[A-Z]?)\b/g,"LT $1~$2").replace(/\bLT (\d+) (\d+)\b/g,"LT $1~$2");
   t=t.replace(/\s*-+\s*/g," ").replace(/\b(QD|LT|CS)(?=\d)/g,"$1 ").replace(/^([A-Z]{1,4})(?=\d)/,"$1 ");
@@ -203,264 +361,418 @@ function obPadrao(s){
     let r=k+" "+(a.length<2?"0"+a:a)+(sa||""); if(b) r+="-"+(b.length<2?"0"+b:b)+(sb||""); return r; });
   return t.replace(/~/g,"-").replace(/\s+/g," ").trim();
 }
-function obErroEnd(e){
-  if(!e) return "Informe o endereço.";
-  if(/^(RUA|R\.|AV\.?|AVENIDA|ALAMEDA|AL\.|TRAVESSA|TV\.?|ESTRADA|RODOVIA)\s/.test(e)) return "Sem prefixo de rua/avenida (tire o \"RUA\", \"AV\"…).";
-  if(obPadrao(e)!==e) return "Fora do padrão.";
-  if(!/\bQD \d{2,}[A-Z]?\b/.test(e)||!/\bLT \d{2,}/.test(e)) return "Precisa ter QD e LT (ex.: QD 51 LT 14).";
+function erroEnd(e){
+  if(/^(RUA|R\.|AV\.?|AVENIDA|ALAMEDA|AL\.|TRAVESSA|TV\.?|ESTRADA|RODOVIA)\s/.test(e)) return "Sem prefixo de rua/avenida — tire o \"RUA\", \"AV\"…";
+  if(padrao(e)!==e) return "Fora do padrão.";
+  if(!/\bQD \d{2,}[A-Z]?\b/.test(e)||!/\bLT \d{2,}/.test(e)) return "Precisa ter QD e LT, com 2 dígitos (ex.: QD 51 LT 14).";
   return null;
 }
-function obChecarEnd(){
-  const i=document.getElementById("f-end"), d=document.getElementById("d-end");
-  const e=i.value.toUpperCase().replace(/\s+/g," ").trim(), err=obErroEnd(e), sug=obPadrao(e);
-  if(!e){ d.className="dica"; d.innerHTML='Padrão: <b>RUA QD XX LT XX</b> — sem "RUA"/"AV", sem traço, quadra e lote com 2 dígitos. Ex.: <b>TB 19 QD 51 LT 14</b>'; return false; }
-  const dup=D.obras.find(o=>obN(o.titulo)===obN(e));
-  if(dup){ d.className="dica err"; d.textContent="Já existe uma obra com este endereço."; return false; }
-  if(!err){ d.className="dica ok"; d.textContent="✓ No padrão."; return true; }
-  d.className="dica err";
-  d.innerHTML=esc(err)+(sug&&sug!==e&&!/^(RUA|AV)/.test(sug)?` <button class="btn" style="padding:2px 8px;font-size:11px" onclick="document.getElementById('f-end').value='${esc(sug)}';obChecarEnd()">usar ${esc(sug)}</button>`:"");
+const AJUDA_END='Padrão: <b>RUA QD XX LT XX</b> — sem "RUA"/"AV", sem traço, quadra e lote com 2 dígitos. Ex.: <b>TB 19 QD 51 LT 14</b>';
+function checarEnd(){
+  const a=document.getElementById("a-end");
+  const e=document.getElementById("f-end").value.toUpperCase().replace(/\s+/g," ").trim();
+  if(!e){ a.className="ajuda"; a.innerHTML=AJUDA_END; return false; }
+  if(D.obras.some(o=>N(o.titulo)===N(e))){ a.className="ajuda err"; a.textContent="Já existe uma obra com este endereço."; return false; }
+  const err=erroEnd(e);
+  if(!err){ a.className="ajuda ok"; a.textContent="✓ No padrão."; return true; }
+  const sug=padrao(e);
+  a.className="ajuda err";
+  a.innerHTML=esc(err)+(sug!==e&&!erroEnd(sug)?` <button class="bt bt-mini ghost" onclick="document.getElementById('f-end').value='${esc(sug)}';checarEnd()">usar ${esc(sug)}</button>`:"");
   return false;
 }
 
 /* ---------- carga ---------- */
-async function obCarregar(){
+async function carregar(){
   try{
     const r=await fetch("dist/obras.json?v="+Math.floor(Date.now()/60000),{cache:"no-cache"});
     if(!r.ok) throw new Error("HTTP "+r.status);
-    D=await r.json();
-    document.getElementById("upd").textContent="Atualizado: "+new Date(D.updated_at).toLocaleString("pt-BR");
-    obPintar();
+    D=await r.json(); D.opcoes_atividades=D.opcoes_atividades||{};
+    document.getElementById("updated").textContent="Atualizado: "+new Date(D.updated_at).toLocaleString("pt-BR");
+    pintar();
   }catch(e){
-    document.getElementById("conteudo").innerHTML=`<div class="msg err">Não consegui ler os dados das obras (${esc(e.message)}).<br>O arquivo dist/obras.json é gerado no build do GitHub — confira o step "Buscar dados das Obras".</div>`;
+    document.getElementById("view").innerHTML=`<div class="vazio">Não consegui ler os dados das obras (${esc(e.message)}). O arquivo é gerado no build do GitHub — step "Buscar dados das Obras".</div>`;
   }
 }
 
-/* ---------- lista ---------- */
-function obFiltrar(){
-  const q=obN(document.getElementById("busca").value);
+/* ---------- alertas ---------- */
+function faltasDe(o){ return OBRIGATORIOS.filter(([k])=>o[k]===null||o[k]===undefined||o[k]===""||(Array.isArray(o[k])&&!o[k].length)).map(([,r])=>r); }
+const alertasMc=()=>D.obras.filter(o=>o.em_mc===false && !o.mais_controle && !fim(o.status));
+const alertasCampos=()=>D.obras.filter(o=>!fim(o.status) && faltasDe(o).length);
+
+/* ---------- abas ---------- */
+function pintarTabs(){
+  const nAl=alertasMc().length+alertasCampos().length;
+  document.getElementById("tabs").innerHTML=[["obras","Obras"],["atividades","Atividades"],["alertas","Alertas"]].map(([k,r])=>
+    `<button class="tab ${ABA===k?"on":""}" onclick="ABA='${k}';pintar()">${r}${k==="alertas"&&nAl?`<span class="nb">${nAl}</span>`:""}</button>`).join("");
+}
+function pintar(){ pintarTabs(); if(ABA==="obras") pintarObras(); else if(ABA==="atividades") pintarAtividades(); else pintarAlertas(); }
+
+/* ===================== ABA OBRAS ===================== */
+let BUSCA="", SETOR="";
+function pintarObras(){
+  const q=N(BUSCA);
   let l=D.obras.slice();
-  if(ABA==="andamento") l=l.filter(o=>!obFim(o.status));
-  if(ABA==="liberar") l=l.filter(o=>obN(o.liberar)==="NAO");
-  if(q) l=l.filter(o=>obN([o.titulo,o.setor,o.resp,o.rt,o.proprietario,o.status].join(" ")).indexOf(q)>=0);
+  const cont={andamento:l.filter(o=>!fim(o.status)).length, todas:l.length, liberar:l.filter(o=>N(o.liberar)==="NAO").length};
+  if(FILTRO==="andamento") l=l.filter(o=>!fim(o.status));
+  if(FILTRO==="liberar") l=l.filter(o=>N(o.liberar)==="NAO");
+  if(SETOR) l=l.filter(o=>o.setor===SETOR);
+  if(q) l=l.filter(o=>N([o.titulo,o.setor,o.resp,o.rt,o.proprietario,o.status].join(" ")).indexOf(q)>=0);
   l.sort((a,b)=>String(a.data_prevista||"9999").localeCompare(String(b.data_prevista||"9999")));
-  return l;
+  const ativas=D.obras.filter(o=>!fim(o.status));
+  const atraso=ativas.filter(o=>N(o.controle_prazo).indexOf("ATRASO")>=0).length;
+  const setores=[...new Set(D.obras.map(o=>o.setor).filter(Boolean))].sort();
+  document.getElementById("view").innerHTML=`
+    <div class="sec"><span class="cond">Obras</span></div>
+    <div class="info-bar">
+      <div class="icard"><div class="ival">${cont.andamento}</div><div class="ilab">Em andamento</div></div>
+      <div class="icard"><div class="ival r">${atraso}</div><div class="ilab">Em atraso</div></div>
+      <div class="icard"><div class="ival">${cont.liberar}</div><div class="ilab">Liberar = Não</div></div>
+      <div class="icard"><div class="ival">${cont.todas}</div><div class="ilab">Total</div></div>
+    </div>
+    <div class="toolbar">
+      <div class="legenda">${[["andamento","Em andamento"],["todas","Todas as obras"],["liberar","Liberar = Não"]].map(([k,r])=>
+        `<span class="sw ${FILTRO===k?"on":""}" onclick="FILTRO='${k}';pintarObras()">${r} <b>${cont[k]}</b></span>`).join("")}</div>
+      <select onchange="SETOR=this.value;pintarObras()"><option value="">Todos os setores</option>${setores.map(s=>`<option ${s===SETOR?"selected":""}>${esc(s)}</option>`).join("")}</select>
+      <input class="busca" id="busca" placeholder="Buscar obra, setor, responsável…" value="${esc(BUSCA)}" oninput="BUSCA=this.value;pintarLista()">
+      <button class="bt" onclick="abrirForm()">+ Solicitar nova obra</button>
+    </div>
+    <div id="lista-obras"></div>`;
+  pintarLista(l);
 }
-function obPintarTabs(){
-  const n={ andamento:D.obras.filter(o=>!obFim(o.status)).length, todas:D.obras.length,
-            liberar:D.obras.filter(o=>obN(o.liberar)==="NAO").length };
-  const t=[["andamento","Em andamento"],["todas","Todas as obras"],["liberar","Liberar = Não"],["pessoas","Atividades por pessoa"]];
-  document.getElementById("tabs").innerHTML=t.map(([k,r])=>
-    `<button class="tab ${ABA===k?"on":""}" onclick="ABA='${k}';obPintar()">${r}${n[k]!=null?`<span class="n">${n[k]}</span>`:""}</button>`).join("");
-}
-function obPintar(){
-  obPintarTabs();
-  if(ABA==="pessoas") return obPintarPessoas();
-  const l=obFiltrar(), box=document.getElementById("conteudo");
-  box.className="";
-  if(!l.length){ box.innerHTML='<div class="card vazio">Nenhuma obra nesta lista.</div>'; return; }
-  box.innerHTML=`<div class="card tw"><table><thead><tr>
-    <th>Projeto</th><th class="col-m">Setor</th><th>Prev. término</th><th class="col-m">Projeto final.</th>
-    <th class="col-m">Orçamento final.</th><th>Liberar</th><th>Controle de prazo</th><th class="col-m">Status</th></tr></thead><tbody>`+
-    l.map(o=>`<tr class="cl" onclick="obAbrir('${o.id}')"><td><b>${esc(o.titulo||"(sem endereço)")}</b></td>
-      <td class="col-m">${esc(o.setor||"—")}</td><td>${obData(o.data_prevista)}</td>
-      <td class="col-m">${obTagSN(o.projeto_finalizado)}</td><td class="col-m">${obTagSN(o.orcamento_finalizado)}</td>
-      <td>${obTagSN(o.liberar)}</td><td class="prazo">${esc(o.controle_prazo||"—")}</td>
-      <td class="col-m"><span class="tag">${esc(o.status||"—")}</span></td></tr>`).join("")+
-    `</tbody></table></div>`;
+function pintarLista(l){
+  if(!l){ // só a busca mudou: recalcula sem redesenhar a barra (mantém o foco)
+    const q=N(BUSCA); l=D.obras.slice();
+    if(FILTRO==="andamento") l=l.filter(o=>!fim(o.status));
+    if(FILTRO==="liberar") l=l.filter(o=>N(o.liberar)==="NAO");
+    if(SETOR) l=l.filter(o=>o.setor===SETOR);
+    if(q) l=l.filter(o=>N([o.titulo,o.setor,o.resp,o.rt,o.proprietario,o.status].join(" ")).indexOf(q)>=0);
+    l.sort((a,b)=>String(a.data_prevista||"9999").localeCompare(String(b.data_prevista||"9999")));
+  }
+  document.getElementById("lista-obras").innerHTML=l.length?`<div class="tabela-wrap"><table><thead><tr>
+      <th class="stick">Projeto</th><th>Setor</th><th>Responsável</th><th>Prev. término</th><th>Projeto final.</th>
+      <th>Orçamento final.</th><th>Liberar</th><th>Controle de prazo</th><th>Status</th></tr></thead><tbody>`+
+      l.map(o=>`<tr onclick="abrirObra('${o.id}')"><td class="stick"><span class="obralink">${esc(o.titulo||"(sem endereço)")}</span></td>
+        <td>${esc(o.setor||"—")}</td><td>${esc(o.resp||"—")}</td><td>${dt(o.data_prevista)}</td>
+        <td>${tagSN(o.projeto_finalizado)}</td><td>${tagSN(o.orcamento_finalizado)}</td><td>${tagSN(o.liberar)}</td>
+        <td class="prazo">${esc(o.controle_prazo||"—")}</td><td><span class="tag">${esc(o.status||"—")}</span></td></tr>`).join("")+
+      `</tbody></table></div>`:`<div class="vazio">Nenhuma obra nesta lista.</div>`;
 }
 
-/* ---------- atividades por pessoa ---------- */
-function obPintarPessoas(){
-  const box=document.getElementById("conteudo"), q=obN(document.getElementById("busca").value);
-  const obraPor={}; D.obras.forEach(o=>obraPor[o.id]=o);
-  const atv=D.atividades.filter(a=>(VER_FIN||!obFim(a.status)) && !obEhLigacao(a));
+/* ===================== ABA ATIVIDADES (por pessoa) ===================== */
+function pintarAtividades(){
+  const atv=D.atividades.filter(a=>!ehLig(a) && (VER_FIN||!atvFeita(a)));
   const cont={}; atv.forEach(a=>(a.resp||[]).forEach(p=>cont[p]=(cont[p]||0)+1));
   const nomes=Object.keys(cont).sort((a,b)=>a.localeCompare(b,"pt-BR"));
-  if(!PESSOA||!cont[PESSOA]) PESSOA=nomes[0]||null;
-  let l=atv.filter(a=>(a.resp||[]).indexOf(PESSOA)>=0);
-  if(q) l=l.filter(a=>obN([a.titulo,a.tipo,(obraPor[a.obra_id]||{}).titulo].join(" ")).indexOf(q)>=0);
-  l.sort((a,b)=>String(a.data_final||"9999").localeCompare(String(b.data_final||"9999")));
-  box.innerHTML=`<div class="chips">`+nomes.map(n=>`<span class="chip ${n===PESSOA?"on":""}" onclick="PESSOA=${JSON.stringify(n).replace(/"/g,'&quot;')};obPintar()">${esc(n)} <b>${cont[n]}</b></span>`).join("")+
-    `<label class="chip"><input type="checkbox" ${VER_FIN?"checked":""} onchange="VER_FIN=this.checked;obPintar()"> finalizadas</label></div>`+
-    (l.length?`<div class="card tw"><table><thead><tr><th>Atividade</th><th>Obra</th><th>Status</th><th>Data final prevista</th><th>Controle de prazo</th><th class="col-m">Responsável</th></tr></thead><tbody>`+
-    l.map(a=>{ const o=obraPor[a.obra_id]||{};
-      return `<tr class="cl" onclick="${o.id?`obAbrir('${o.id}')`:""}"><td><b>${esc(a.titulo||a.tipo||"—")}</b><div style="font-size:11px;color:var(--txt2)">${esc(a.tipo||"")}</div></td>
-      <td>${esc(o.titulo||"—")}</td><td><span class="tag">${esc(a.status||"—")}</span></td><td>${obData(a.data_final)}</td>
-      <td class="prazo">${esc(a.controle_prazo||"—")}</td><td class="col-m">${esc((a.resp||[]).join(", "))}</td></tr>`; }).join("")+
-    `</tbody></table></div>`:'<div class="card vazio">Sem atividades para esta pessoa.</div>');
+  if(!PESSOA||!cont[PESSOA]) PESSOA=(OB_S&&nomes.find(n=>N(n)===N(OB_S.nome)))||nomes[0]||null;
+  const minhas=atv.filter(a=>(a.resp||[]).indexOf(PESSOA)>=0);
+  const grupos={}; minhas.forEach(a=>{ const k=a.tipo||"(sem tipo)"; (grupos[k]=grupos[k]||[]).push(a); });
+  const ks=Object.keys(grupos).sort((a,b)=>ordemTipo(a)-ordemTipo(b)||a.localeCompare(b));
+  const atr=minhas.filter(atrasada).length;
+  document.getElementById("view").innerHTML=`
+    <div class="sec"><span class="cond">Atividades por pessoa</span></div>
+    <div class="toolbar"><div class="legenda">
+      ${nomes.map((n,i)=>`<span class="sw ${n===PESSOA?"on":""}" onclick="PESSOA=NOMES_ATV[${i}];pintarAtividades()">${esc(n)} <b>${cont[n]}</b></span>`).join("")}
+      <label class="sw"><input type="checkbox" ${VER_FIN?"checked":""} onchange="VER_FIN=this.checked;pintarAtividades()"> incluir finalizadas</label>
+    </div></div>
+    ${PESSOA?`<div class="info-bar">
+      <div class="icard"><div class="ival">${minhas.length}</div><div class="ilab">${VER_FIN?"Atividades":"Em aberto"}</div></div>
+      <div class="icard"><div class="ival r">${atr}</div><div class="ilab">Em atraso</div></div>
+      <div class="icard"><div class="ival">${ks.length}</div><div class="ilab">Tipos</div></div></div>`:""}
+    ${ks.length?ks.map(k=>{ const g=grupos[k].sort((a,b)=>String(a.data_final||"9999").localeCompare(String(b.data_final||"9999")));
+      const na=g.filter(atrasada).length;
+      return `<details class="grupo" open><summary>${esc(k)}<span class="qtd ${na?"r":""}">${g.length}${na?` · ${na} em atraso`:""}</span></summary>
+        <div class="corpo">${cabAtv(true)}${g.map(a=>linhaAtv(a,true)).join("")}</div></details>`; }).join("")
+      :`<div class="vazio">${PESSOA?"Nenhuma atividade para esta pessoa.":"Nenhuma atividade encontrada."}</div>`}`;
+  window.NOMES_ATV=nomes;
+}
+function cabAtv(comObra){
+  return `<div class="atv-cab"><div>${comObra?"Obra / atividade":"Atividade"}</div><div>Responsável</div><div>Status</div><div>Final prevista</div><div>Conclusão</div><div>Controle de prazo</div></div>`;
+}
+function linhaAtv(a,comObra){
+  const o=obraDe(a.obra_id)||{}, sts=opc("Status",D.opcoes_atividades);
+  return `<div class="atv ${atvFeita(a)?"fin":""}">
+    <div class="nmcol">${comObra?`<div class="obralink" style="font-size:12px" onclick="abrirObra('${o.id||""}')">${esc(o.titulo||"—")}</div>`:`<span class="tp">${esc(a.tipo||"—")}</span>`}
+      <div class="nm" onclick="abrirAtv('${a.id}')">${esc(a.titulo||a.tipo||"—")}</div></div>
+    <div><div class="k">Responsável</div><div class="v">${esc((a.resp||[]).join(", ")||"—")}</div></div>
+    <div><div class="k">Status</div><select onchange="gravarAtv('${a.id}','Status',this.value,this)">
+      ${(sts.length?sts:[a.status||""]).map(s=>`<option ${N(s)===N(a.status)?"selected":""}>${esc(s)}</option>`).join("")}</select></div>
+    <div><div class="k">Final prevista</div><div class="v">${dt(a.data_final)}</div></div>
+    <div><div class="k">Conclusão</div><input type="date" value="${esc(a.data_conclusao||"")}" onchange="gravarAtv('${a.id}','Data De Conclusão da Atividade',this.value,this)"></div>
+    <div><div class="k">Controle de prazo</div><div class="v prazo">${esc(a.controle_prazo||"—")}</div></div>
+  </div>`;
+}
+async function gravarAtv(id,prop,valor,el){
+  const a=D.atividades.find(x=>x.id===id); if(!a) return;
+  if(el){ el.classList.remove("ok","erro"); el.classList.add("salvando"); }
+  const extra=(prop==="Status"&&N(valor)==="FINALIZADO"&&!a.data_conclusao)?{conclusaoSeVazia:true}:{};
+  let r; try{ r=await chamar(Object.assign({action:"obraAtvUpdate",pageId:id,prop:prop,valor:valor},extra),45000); }catch(e){ r={ok:false,erro:"sem conexão"}; }
+  if(el) el.classList.remove("salvando");
+  if(r&&r.ok){
+    if(el) el.classList.add("ok");
+    if(prop==="Status") a.status=valor;
+    if(prop==="Data De Conclusão da Atividade") a.data_conclusao=valor||null;
+    if(prop==="Data Final Prevista") a.data_final=valor||null;
+    if(prop==="Data De Início") a.data_inicio=valor||null;
+    if(r.conclusao){ a.data_conclusao=r.conclusao; setTimeout(repintarAtvs,300); }
+    toast("Salvo.");
+  }else{ if(el) el.classList.add("erro"); toast("Não salvou: "+errMsg(r)); }
+}
+function repintarAtvs(){ if(OBRA) pintarObraPainel(); if(ABA==="atividades") pintarAtividades(); if(ATV) pintarAtvPainel(); }
+
+/* ===================== ABA ALERTAS ===================== */
+function pintarAlertas(){
+  const mc=alertasMc(), cp=alertasCampos();
+  const leuMc=D.obras.some(o=>o.em_mc===true||o.em_mc===false);
+  document.getElementById("view").innerHTML=`
+    <div class="sec"><span class="cond">Obras que não estão no Mais Controle</span><span class="qtd">${mc.length}</span></div>
+    ${!leuMc?`<div class="vazio">Não foi possível ler a lista de obras do Mais Controle neste build.</div>`:
+      mc.length?mc.map(o=>`<div class="al"><span class="end" onclick="abrirObra('${o.id}')">${esc(o.titulo)}</span>
+        <span class="txt">Não encontrada no Mais Controle. Criar lá?</span>
+        <span class="acoes"><button class="bt bt-mini" onclick="decidirMc('${o.id}','Criar')">Criar</button>
+        <button class="bt bt-mini ghost" onclick="decidirMc('${o.id}','Não criar')">Não criar</button></span></div>`).join("")
+      :`<div class="vazio">Todas as obras em andamento já estão no Mais Controle (ou já têm decisão).</div>`}
+    <div class="sec"><span class="cond">Campos obrigatórios faltando</span><span class="qtd">${cp.length}</span></div>
+    ${cp.length?cp.map(o=>`<div class="al"><span class="end" onclick="abrirObra('${o.id}')">${esc(o.titulo)}</span>
+        <span class="txt">${faltasDe(o).map(f=>`<span class="falta">${esc(f)}</span>`).join("")}</span>
+        <span class="acoes"><button class="bt bt-mini az" onclick="abrirObra('${o.id}')">Preencher</button></span></div>`).join("")
+      :`<div class="vazio">Nenhuma obra em andamento com campo obrigatório vazio.</div>`}`;
+}
+async function decidirMc(id,valor){
+  const o=obraDe(id); if(!o) return;
+  let r; try{ r=await chamar({action:"obraUpdate",pageId:id,prop:"MAIS CONTROLE",valor:valor},45000); }catch(e){ r={ok:false,erro:"sem conexão"}; }
+  if(r&&r.ok){ o.mais_controle=valor; toast(valor==="Criar"?"Marcada para criar no Mais Controle.":"Marcada para não criar."); pintar(); }
+  else toast("Não salvou: "+errMsg(r));
 }
 
-/* ---------- detalhe da obra ---------- */
-const OB_CAMPOS = [
-  // [rótulo, chave no json, coluna no Notion, tipo]
-  ["Status","status","Status","sel"],
-  ["Liberar obra p/ processo interno","liberar","Liberar Obra Para Processo Interno","sel"],
-  ["Projeto finalizado","projeto_finalizado","Projeto Finalizado","sel"],
-  ["Orçamento finalizado","orcamento_finalizado","Orçamento Finalizado","sel"],
-  ["Projeto aprovado","projeto_aprovado","Projeto Aprovado","sel"],
-  ["Data prevista p/ término","data_prevista","Data Prevista P/ Término","data"],
-  ["Data de conclusão do processo","data_conclusao","Data de Conclusão do Processo","data"],
-  ["Setor","setor","SETOR","setor"],
-  ["Cidade","cidade","Cidade","multi"],
-  ["Proprietário","proprietario","Proprietário","sel"],
-  ["Proprietário real","proprietario_real","Proprietário Real","sel"],
-  ["Responsável pela obra","resp_ids","Responsável Pela Obra","pessoa"],
-  ["Engenheiro RT","rt_ids","ENGENHEIRO RT","pessoa"],
-  ["Nº de casas","n_casas","Nº DE CASAS","num"],
-  ["Cota da empresa (%)","cota","COTA DA EMPRESA (%)","num"],
-  ["Data de aquisição do lote","data_lote","DATA DE AQUISIÇÃO DO LOTE","data"],
-  ["Implantação","implantacao","IMPLANTAÇÃO","sel"],
-  ["Área do lote (m²)","area_lote","ÁREA DO LOTE","num"],
-  ["Área construída averbada (m²)","area_averbada","ÁREA CONSTRUÍDA AVERBADA","num"],
-  ["Área pós habite-se (m²)","area_habite","ÁREA PÓS HABITE-SE","num"]
+/* ===================== PAINEL DA OBRA ===================== */
+const CAMPOS=[
+  ["Status","status","Status","sel"],["Liberar obra p/ processo interno","liberar","Liberar Obra Para Processo Interno","sel"],
+  ["Projeto finalizado","projeto_finalizado","Projeto Finalizado","sel"],["Orçamento finalizado","orcamento_finalizado","Orçamento Finalizado","sel"],
+  ["Projeto aprovado","projeto_aprovado","Projeto Aprovado","sel"],["Data prevista p/ término","data_prevista","Data Prevista P/ Término","data"],
+  ["Conclusão do processo","data_conclusao","Data de Conclusão do Processo","data"],["Setor","setor","SETOR","setor"],
+  ["Cidade","cidade","Cidade","multi"],["Proprietário","proprietario","Proprietário","sel"],
+  ["Proprietário real","proprietario_real","Proprietário Real","sel"],["Responsável pela obra","resp_ids","Responsável Pela Obra","pessoa"],
+  ["Engenheiro RT","rt_ids","ENGENHEIRO RT","pessoa"],["Nº de casas","n_casas","Nº DE CASAS","num"],
+  ["Cota da empresa (%)","cota","COTA DA EMPRESA (%)","num"],["Aquisição do lote","data_lote","DATA DE AQUISIÇÃO DO LOTE","data"],
+  ["Implantação","implantacao","IMPLANTAÇÃO","sel"],["Área do lote (m²)","area_lote","ÁREA DO LOTE","num"],
+  ["Área construída averbada (m²)","area_averbada","ÁREA CONSTRUÍDA AVERBADA","num"],["Área pós habite-se (m²)","area_habite","ÁREA PÓS HABITE-SE","num"],
+  ["Mais Controle","mais_controle","MAIS CONTROLE","sel"]
 ];
-function obCampoHtml(o,c,i){
-  const [rot,k,col,tipo]=c, v=o[k], id=`c-${i}`;
+function campoHtml(o,c,i){
+  const [rot,k,col,tipo]=c, v=o[k];
   let inp;
   if(tipo==="sel"||tipo==="setor"||tipo==="multi"){
-    let ops=obOpc(col); if(tipo==="setor") ops=ops.filter(x=>OB_SETORES.some(s=>obN(s)===obN(x))||obN(x)===obN(v));
+    let ops=opc(col); if(tipo==="setor") ops=ops.filter(x=>SETORES_PADRAO.some(s=>N(s)===N(x))||N(x)===N(v));
+    if(!ops.length) return "";
     const atual=tipo==="multi"?String(v||"").split(",")[0].trim():v;
-    inp=`<select id="${id}" onchange="obGravar('${o.id}',${i},this)"><option value="">—</option>`+
-      ops.map(x=>`<option ${obN(x)===obN(atual)?"selected":""}>${esc(x)}</option>`).join("")+`</select>`;
+    inp=`<select onchange="gravarObra(${i},this)"><option value="">—</option>${ops.map(x=>`<option ${N(x)===N(atual)?"selected":""}>${esc(x)}</option>`).join("")}</select>`;
   }else if(tipo==="pessoa"){
     const atual=(v||[])[0]||"";
-    inp=`<select id="${id}" onchange="obGravar('${o.id}',${i},this)"><option value="">—</option>`+
-      D.pessoas.map(p=>`<option value="${p.id}" ${p.id===atual?"selected":""}>${esc(p.nome)}</option>`).join("")+`</select>`;
-  }else if(tipo==="data"){
-    inp=`<input id="${id}" type="date" value="${esc(v||"")}" onchange="obGravar('${o.id}',${i},this)">`;
-  }else{
-    inp=`<input id="${id}" type="number" step="any" value="${v==null?"":esc(v)}" onchange="obGravar('${o.id}',${i},this)">`;
-  }
-  return `<div class="f" id="w-${i}"><label>${esc(rot)}</label>${inp}</div>`;
+    inp=`<select onchange="gravarObra(${i},this)"><option value="">—</option>${D.pessoas.map(p=>`<option value="${p.id}" ${p.id===atual?"selected":""}>${esc(p.nome)}</option>`).join("")}</select>`;
+  }else if(tipo==="data"){ inp=`<input type="date" value="${esc(v||"")}" onchange="gravarObra(${i},this)">`; }
+  else{ inp=`<input type="number" step="any" value="${v==null?"":esc(v)}" onchange="gravarObra(${i},this)">`; }
+  return `<div class="ri"><div class="k">${esc(rot)}</div>${inp}</div>`;
 }
-function obAbrir(id){
-  const o=D.obras.find(x=>x.id===id); if(!o) return;
-  OBRA_ABERTA=id;
-  document.getElementById("d-tit").textContent=o.titulo||"(sem endereço)";
-  const lk=document.getElementById("d-link"); lk.href=o.url||("https://www.notion.so/"+String(o.id).replace(/-/g,""));
-  obPintarDetalhe();
-  document.getElementById("fundo").classList.add("on"); document.getElementById("drawer").classList.add("on");
+function abrirObra(id){
+  if(!id||!obraDe(id)) return;
+  OBRA=id; MODO="lista"; pintarObraPainel();
+  document.getElementById("ov1").classList.add("on"); document.getElementById("p1").classList.add("on");
+  document.getElementById("p1-corpo").scrollTop=0;
 }
-function obPintarDetalhe(){
-  const o=D.obras.find(x=>x.id===OBRA_ABERTA); if(!o) return;
+function fecharObra(){ OBRA=null; document.getElementById("ov1").classList.remove("on"); document.getElementById("p1").classList.remove("on"); }
+function pintarObraPainel(){
+  const o=obraDe(OBRA); if(!o) return;
+  document.getElementById("p1-end").textContent=o.titulo||"(sem endereço)";
+  document.getElementById("p1-loc").textContent=[o.setor,o.cidade,o.resp].filter(Boolean).join(" · ");
   const atv=D.atividades.filter(a=>a.obra_id===o.id);
-  const normais=atv.filter(a=>!obEhLigacao(a)).sort((a,b)=>String(a.data_inicio||a.data_criacao||"").localeCompare(String(b.data_inicio||b.data_criacao||"")));
-  const lig=atv.filter(obEhLigacao);
-  let h=`<div class="grid">`+OB_CAMPOS.map((c,i)=>obCampoHtml(o,c,i)).join("")+`</div>`;
-  h+=`<div class="sec">Lista de atividades <span class="sp"></span>
-       <button class="tab ${MODO_ATV==="lista"?"on":""}" onclick="MODO_ATV='lista';obPintarDetalhe()">Lista</button>
-       <button class="tab ${MODO_ATV==="kanban"?"on":""}" onclick="MODO_ATV='kanban';obPintarDetalhe()">Cronograma</button></div>`;
-  if(!normais.length) h+=`<div class="card vazio">Nenhuma atividade ligada a esta obra ainda.</div>`;
-  else if(MODO_ATV==="lista"){
-    h+=`<div class="card tw"><table><thead><tr><th>Atividade</th><th class="col-m">Tipo</th><th>Responsável</th><th class="col-m">Criação</th><th>Final prevista</th><th>Status</th><th>Controle de prazo</th></tr></thead><tbody>`+
-      normais.map(a=>`<tr class="cl" onclick="window.open('${a.url||""}','_blank')"><td><b>${esc(a.titulo||"—")}</b></td><td class="col-m">${esc(a.tipo||"")}</td>
-        <td>${esc((a.resp||[]).join(", ")||"—")}</td><td class="col-m">${obData(a.data_criacao)}</td><td>${obData(a.data_final)}</td>
-        <td><span class="tag">${esc(a.status||"—")}</span></td><td class="prazo">${esc(a.controle_prazo||"—")}</td></tr>`).join("")+`</tbody></table></div>`;
-  }else{
-    const cols={}; normais.forEach(a=>{ const s=a.status||"Sem status"; (cols[s]=cols[s]||[]).push(a); });
-    const ordem=["Não começou","Em andamento","Aguardando análise do solicitante","Aguardando Aprovação","Aguardando Emissão",
-                 "Analisado Aguardando Correção","Fazer Novo Estudo","Layout Aprovado","Liberado Para Detalhamento","Finalizado"];
-    const ks=Object.keys(cols).sort((a,b)=>{ const ia=ordem.indexOf(a), ib=ordem.indexOf(b); return (ia<0?99:ia)-(ib<0?99:ib); });
-    h+=`<div class="kb">`+ks.map(k=>`<div class="kc"><h4>${esc(k)}<span>${cols[k].length}</span></h4>`+
-      cols[k].map(a=>`<div class="kt"><b>${esc(a.titulo||"—")}</b><div class="m">${esc((a.resp||[]).join(", ")||"—")}</div>
-        <div class="m">Final prevista: ${obData(a.data_final)}</div><div class="m">${esc(a.controle_prazo||"")}</div></div>`).join("")+`</div>`).join("")+`</div>`;
-  }
-  h+=`<div class="sec">Ligação de água e energia</div>`;
-  h+= lig.length?`<div class="card tw"><table><thead><tr><th>Atividade</th><th>Status</th><th>Conclusão</th><th>Final prevista</th></tr></thead><tbody>`+
-      lig.map(a=>`<tr class="cl" onclick="window.open('${a.url||""}','_blank')"><td><b>${esc(a.titulo||"—")}</b></td><td><span class="tag">${esc(a.status||"—")}</span></td>
-        <td>${obData(a.data_conclusao)}</td><td>${obData(a.data_final)}</td></tr>`).join("")+`</tbody></table></div>`
-      :`<div class="card vazio">Nenhuma atividade de ligação. Os botões de ligação (1 casa, 2 casas c/ esgoto…) continuam na página da obra no Notion.</div>`;
-  document.getElementById("d-corpo").innerHTML=h;
+  const normais=atv.filter(a=>!ehLig(a)).sort(ordenaAtv), lig=atv.filter(ehLig).sort(ordenaAtv);
+  const falt=faltasDe(o), feitas=normais.filter(atvFeita).length;
+  let h=`<div class="chips"><span class="chip">${esc(o.status||"sem status")}</span>
+    ${o.controle_prazo?`<span class="chip ${N(o.controle_prazo).indexOf("ATRASO")>=0?"alerta":""}">${esc(o.controle_prazo)}</span>`:""}
+    ${normais.length?`<span class="chip ok">${feitas} de ${normais.length} atividades concluídas</span>`:""}
+    ${o.em_mc===true?`<span class="chip ok">No Mais Controle</span>`:o.em_mc===false?`<span class="chip alerta">Fora do Mais Controle${o.mais_controle?" · "+esc(o.mais_controle):""}</span>`:""}
+    ${falt.length?`<span class="chip alerta">Falta: ${esc(falt.join(", "))}</span>`:""}</div>`;
+  h+=`<div class="grp">Dados da obra</div><div class="resumo">${CAMPOS.map((c,i)=>campoHtml(o,c,i)).join("")}</div>`;
+  h+=`<div class="grp">Atividades <span class="sp"></span>
+      <button class="tg ${MODO==="lista"?"on":""}" onclick="MODO='lista';pintarObraPainel()">Lista</button>
+      <button class="tg ${MODO==="crono"?"on":""}" onclick="MODO='crono';pintarObraPainel()">Cronograma</button></div><div class="pl">`;
+  if(!normais.length) h+=`<div class="vazio">Nenhuma atividade ligada a esta obra ainda.</div>`;
+  else if(MODO==="lista") h+=cabAtv(false)+normais.map(a=>linhaAtv(a,false)).join("");
+  else h+=gantt(normais);
+  h+=`</div><div class="grp">Ligação de água e energia</div><div class="pl">`;
+  h+=lig.length?cabAtv(false)+lig.map(a=>linhaAtv(a,false)).join("")
+     :`<div class="vazio">Nenhuma atividade de ligação ainda. Os botões de ligação (1 casa, 2 casas c/ esgoto…) continuam na página da obra no Notion.</div>`;
+  h+=`</div>`;
+  document.getElementById("p1-corpo").innerHTML=h;
 }
-function obFechar(){ document.getElementById("fundo").classList.remove("on"); document.getElementById("drawer").classList.remove("on"); OBRA_ABERTA=null; }
-
-async function obGravar(obraId,i,el){
-  const [rot,k,col,tipo]=OB_CAMPOS[i], w=document.getElementById("w-"+i);
-  let valor=el.value;
-  if(tipo==="pessoa") valor=valor?[valor]:[];
-  if(tipo==="multi") valor=valor?[valor]:[];
-  w.className="f salvando";
-  let r;
-  try{ r=await chamar({action:"obraUpdate",pageId:obraId,prop:col,valor:valor},45000); }
-  catch(e){ r={ok:false,erro:"sem conexão"}; }
+async function gravarObra(i,el){
+  const o=obraDe(OBRA); if(!o) return;
+  const [rot,k,col,tipo]=CAMPOS[i];
+  let valor=el.value; if(tipo==="pessoa"||tipo==="multi") valor=valor?[valor]:[];
+  el.classList.remove("ok","erro"); el.classList.add("salvando");
+  let r; try{ r=await chamar({action:"obraUpdate",pageId:o.id,prop:col,valor:valor},45000); }catch(e){ r={ok:false,erro:"sem conexão"}; }
+  el.classList.remove("salvando");
   if(r&&r.ok){
-    w.className="f ok";
-    const o=D.obras.find(x=>x.id===obraId);
-    if(o){ if(tipo==="pessoa"){ o[k]=valor; const p=D.pessoas.find(x=>x.id===valor[0]); o[k==="resp_ids"?"resp":"rt"]=p?p.nome:""; }
-           else if(tipo==="num") o[k]=el.value===""?null:Number(el.value); else o[k]=el.value; }
-    if(r.compat&&r.compat.criada) obToast("Criado para esta obra: "+(r.compat.criadas||[]).join(" e ")+".");
-    else obToast(rot+" salvo.");
-  }else{
-    w.className="f erro";
-    obToast("Não salvou: "+((r&&(erroTexto(r.erro)||r.erro))||"erro"));
-  }
+    el.classList.add("ok");
+    if(tipo==="pessoa"){ o[k]=valor; const p=D.pessoas.find(x=>x.id===valor[0]); o[k==="resp_ids"?"resp":"rt"]=p?p.nome:""; }
+    else if(tipo==="num") o[k]=el.value===""?null:Number(el.value); else o[k]=el.value||null;
+    toast(r.compat&&r.compat.criada?"Criado para esta obra: "+(r.compat.criadas||[]).join(" e ")+". Aparece aqui no próximo build.":rot+" salvo.");
+    pintarTabs(); if(ABA==="obras") pintarLista(); else if(ABA==="alertas") pintarAlertas();
+  }else{ el.classList.add("erro"); toast("Não salvou: "+errMsg(r)); }
 }
 
-/* ---------- formulário ---------- */
-function obSel(id,ops,valores){
-  document.getElementById(id).innerHTML=`<option value="">Selecione…</option>`+
-    ops.map((x,i)=>`<option value="${esc(valores?valores[i]:x)}">${esc(x)}</option>`).join("");
+/* cronograma: barra de Data De Início até a conclusão (ou final prevista) */
+function gantt(lista){
+  const ini=a=>a.data_inicio||a.data_criacao, fimA=a=>a.data_conclusao||a.data_final||ini(a);
+  const ds=lista.flatMap(a=>[ini(a),fimA(a)]).filter(Boolean).concat([hoje()]).sort();
+  const t0=new Date(ds[0]+"T12:00:00"); t0.setDate(1);
+  const t1=new Date(ds[ds.length-1]+"T12:00:00"); t1.setMonth(t1.getMonth()+1,1);
+  const tot=(t1-t0)||1, pos=d=>Math.max(0,Math.min(100,(new Date(d+"T12:00:00")-t0)/tot*100));
+  const meses=[]; const m=new Date(t0); while(m<t1){ meses.push(new Date(m)); m.setMonth(m.getMonth()+1); }
+  const MES=["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+  let h=`<div class="gantt"><div class="gt"><div class="ghead"><div>Atividade</div><div class="gmeses">`+
+    meses.map(x=>`<div class="gmes" style="left:${pos(x.toISOString().slice(0,10))}%">${MES[x.getMonth()]}/${String(x.getFullYear()).slice(2)}</div>`).join("")+`</div></div>`;
+  lista.forEach(a=>{
+    const i=ini(a), f=fimA(a), cls=atvFeita(a)?"fin":atrasada(a)?"atr":"";
+    const l=i?pos(i):0, w=i?Math.max(0.8,pos(f)-pos(i)):0;
+    h+=`<div class="gr"><div class="gl" onclick="abrirAtv('${a.id}')">${esc(a.titulo||a.tipo)}<small>${esc((a.resp||[]).join(", "))}</small></div>
+      <div class="gtr"><div class="ghoje" style="left:${pos(hoje())}%"></div>
+      ${i?`<div class="gbar ${cls}" style="left:${l}%;width:${w}%" title="${dt(i)} → ${dt(f)}" onclick="abrirAtv('${a.id}')">${dt(i).slice(0,5)} → ${dt(f).slice(0,5)}</div>`:""}</div></div>`;
+  });
+  return h+`</div></div><div class="ajuda">Azul = em andamento · Verde = concluída · Vermelho = em atraso · Linha laranja = hoje</div>`;
 }
-function obAbrirForm(){
-  const set=obOpc("SETOR").filter(x=>OB_SETORES.some(s=>obN(s)===obN(x)));
-  obSel("f-setor",set.length?set:obOpc("SETOR"));
-  obSel("f-cidade",obOpc("Cidade"));
-  obSel("f-prop",obOpc("Proprietário"));
-  obSel("f-propreal",obOpc("Proprietário Real"));
-  obSel("f-resp",D.pessoas.map(p=>p.nome),D.pessoas.map(p=>p.id));
-  obSel("f-rt",D.pessoas.map(p=>p.nome),D.pessoas.map(p=>p.id));
-  obSel("f-impl",obOpc("IMPLANTAÇÃO"));
+
+/* ===================== PAINEL DA ATIVIDADE ===================== */
+function abrirAtv(id){
+  if(!D.atividades.find(x=>x.id===id)) return;
+  ATV=id; CONT=null; pintarAtvPainel();
+  document.getElementById("ov2").classList.add("on"); document.getElementById("p2").classList.add("on");
+  carregarConteudo(id);
+}
+function fecharAtv(){ ATV=null; document.getElementById("ov2").classList.remove("on"); document.getElementById("p2").classList.remove("on"); }
+function pintarAtvPainel(){
+  const a=D.atividades.find(x=>x.id===ATV); if(!a) return;
+  const o=obraDe(a.obra_id)||{}, sts=opc("Status",D.opcoes_atividades);
+  document.getElementById("p2-end").textContent=a.titulo||a.tipo||"Atividade";
+  document.getElementById("p2-loc").textContent=[o.titulo,a.tipo].filter(Boolean).join(" · ");
+  let h=`<div class="chips">${a.controle_prazo?`<span class="chip ${atrasada(a)?"alerta":atvFeita(a)?"ok":""}">${esc(a.controle_prazo)}</span>`:""}</div>
+    <div class="grp">Dados da atividade</div><div class="resumo">
+    <div class="ri"><div class="k">Status</div><select onchange="gravarAtv('${a.id}','Status',this.value,this)">${(sts.length?sts:[a.status||""]).map(s=>`<option ${N(s)===N(a.status)?"selected":""}>${esc(s)}</option>`).join("")}</select></div>
+    <div class="ri"><div class="k">Responsável</div><div class="ro">${esc((a.resp||[]).join(", ")||"—")}</div></div>
+    <div class="ri"><div class="k">Criação</div><div class="ro">${dt(a.data_criacao)}</div></div>
+    <div class="ri"><div class="k">Início</div><input type="date" value="${esc(a.data_inicio||"")}" onchange="gravarAtv('${a.id}','Data De Início',this.value,this)"></div>
+    <div class="ri"><div class="k">Final prevista</div><input type="date" value="${esc(a.data_final||"")}" onchange="gravarAtv('${a.id}','Data Final Prevista',this.value,this)"></div>
+    <div class="ri"><div class="k">Conclusão</div><input type="date" value="${esc(a.data_conclusao||"")}" onchange="gravarAtv('${a.id}','Data De Conclusão da Atividade',this.value,this)"></div>
+    </div><div class="grp">Checklist e conteúdo</div><div id="p2-cont">${
+      CONT===null?`<div class="cont"><span class="load"></span> Carregando o conteúdo da atividade…</div>`
+      :CONT.erro?`<div class="cont" style="color:var(--verm)">Não consegui carregar: ${esc(CONT.erro)}</div>`
+      :conteudoHtml(CONT.blocos)}</div>`;
+  document.getElementById("p2-corpo").innerHTML=h;
+}
+async function carregarConteudo(id){
+  let r; try{ r=await chamar({action:"obraAtvConteudo",pageId:id},60000); }catch(e){ r={ok:false,erro:"sem conexão"}; }
+  if(ATV!==id) return;
+  CONT=(r&&r.ok)?{blocos:r.blocos||[]}:{erro:errMsg(r)};
+  pintarAtvPainel();
+}
+function contarTodos(bs,c){ c=c||{t:0,f:0}; (bs||[]).forEach(b=>{ if(b.tipo==="to_do"){ c.t++; if(b.marcado) c.f++; } contarTodos(b.filhos,c); }); return c; }
+function conteudoHtml(bs){
+  if(!bs||!bs.length) return `<div class="cont"><div class="vazio">Esta atividade não tem checklist nem conteúdo.</div></div>`;
+  const c=contarTodos(bs);
+  return (c.t?`<div class="ajuda" style="padding:0 22px">${c.f} de ${c.t} itens concluídos</div><div class="progresso"><div style="width:${Math.round(c.f/c.t*100)}%"></div></div>`:"")+
+    `<div class="cont">${blocosHtml(bs)}</div>`;
+}
+function blocosHtml(bs){
+  let h="", lista=null;
+  const fecha=()=>{ if(lista){ h+=`</${lista}>`; lista=null; } };
+  (bs||[]).forEach(b=>{
+    const t=esc(b.texto||""), filhos=b.filhos&&b.filhos.length?blocosHtml(b.filhos):"";
+    if(b.tipo==="bulleted_list_item"||b.tipo==="numbered_list_item"){
+      const tag=b.tipo==="bulleted_list_item"?"ul":"ol";
+      if(lista!==tag){ fecha(); h+=`<${tag}>`; lista=tag; }
+      h+=`<li>${t}${filhos}</li>`; return;
+    }
+    fecha();
+    if(b.tipo==="heading_1") h+=`<h1>${t}</h1>${filhos}`;
+    else if(b.tipo==="heading_2") h+=`<h2>${t}</h2>${filhos}`;
+    else if(b.tipo==="heading_3") h+=`<h3>${t}</h3>${filhos}`;
+    else if(b.tipo==="to_do") h+=`<label class="todo ${b.marcado?"feito":""}"><input type="checkbox" ${b.marcado?"checked":""} onchange="marcar('${b.id}',this)"><span>${t||"&nbsp;"}</span></label>${filhos?`<div style="margin-left:24px">${filhos}</div>`:""}`;
+    else if(b.tipo==="toggle") h+=`<details><summary>${t||"(sem título)"}</summary>${filhos}</details>`;
+    else if(b.tipo==="callout"||b.tipo==="quote") h+=`<div class="callout">${t}${filhos}</div>`;
+    else if(b.tipo==="divider") h+=`<hr>`;
+    else if(t||filhos) h+=(t?`<p>${t}</p>`:"")+filhos;
+  });
+  fecha();
+  return h;
+}
+function acharBloco(bs,id){ for(const b of bs||[]){ if(b.id===id) return b; const x=acharBloco(b.filhos,id); if(x) return x; } return null; }
+async function marcar(blockId,el){
+  const v=el.checked; el.disabled=true;
+  let r; try{ r=await chamar({action:"obraAtvCheck",blockId:blockId,marcado:v},30000); }catch(e){ r={ok:false,erro:"sem conexão"}; }
+  el.disabled=false;
+  if(r&&r.ok){
+    const b=CONT&&acharBloco(CONT.blocos,blockId); if(b) b.marcado=v;
+    /* guarda quais <details> estavam abertos para não fechar tudo ao repintar */
+    const box=document.getElementById("p2-cont"), abertos=[...box.querySelectorAll("details")].map(d=>d.open);
+    box.innerHTML=conteudoHtml(CONT.blocos);
+    [...box.querySelectorAll("details")].forEach((d,i)=>{ if(abertos[i]) d.open=true; });
+  }else{ el.checked=!v; toast("Não salvou: "+errMsg(r)); }
+}
+
+/* ===================== FORMULÁRIO ===================== */
+function preencherSel(id,ops,vals){
+  document.getElementById(id).innerHTML=`<option value="">Selecione…</option>`+ops.map((x,i)=>`<option value="${esc(vals?vals[i]:x)}">${esc(x)}</option>`).join("");
+}
+function abrirForm(){
+  const set=opc("SETOR").filter(x=>SETORES_PADRAO.some(s=>N(s)===N(x)));
+  preencherSel("f-setor",set.length?set:opc("SETOR"));
+  preencherSel("f-cidade",opc("Cidade"));
+  preencherSel("f-prop",opc("Proprietário"));
+  preencherSel("f-propreal",opc("Proprietário Real"));
+  preencherSel("f-resp",D.pessoas.map(p=>p.nome),D.pessoas.map(p=>p.id));
+  preencherSel("f-rt",D.pessoas.map(p=>p.nome),D.pessoas.map(p=>p.id));
+  preencherSel("f-impl",opc("IMPLANTAÇÃO"));
   ["f-end","f-cota","f-lote","f-casas","f-alote","f-aaverb","f-ahab"].forEach(x=>document.getElementById(x).value="");
   document.getElementById("f-estudo").checked=false;
   document.getElementById("f-erro").textContent="";
-  obChecarEnd();
+  checarEnd();
   window._opObra=novoOpId();
-  document.getElementById("modal").classList.add("on");
+  document.getElementById("mf").classList.add("on");
 }
-function obFecharForm(){ document.getElementById("modal").classList.remove("on"); }
-const OB_ERROS={
-  ENDERECO_OBRIGATORIO:"Informe o endereço.", ENDERECO_COM_PREFIXO:"Endereço sem prefixo de rua/avenida.",
+function fecharForm(){ document.getElementById("mf").classList.remove("on"); }
+const ERROS={ ENDERECO_OBRIGATORIO:"Informe o endereço.", ENDERECO_COM_PREFIXO:"Endereço sem prefixo de rua/avenida.",
   ENDERECO_SEM_QD_LT:"Endereço precisa ter QD e LT.", ENDERECO_FORA_DO_PADRAO:"Endereço fora do padrão.",
-  JA_EXISTE:"Já existe uma obra com este endereço.", SEM_PERMISSAO:"Seu login não tem o acesso OBRAS.",
-  MODO_TESTE:"Modo teste: nada é gravado."
-};
-async function obEnviar(){
+  JA_EXISTE:"Já existe uma obra com este endereço.", SEM_PERMISSAO:"Seu login não tem o acesso OBRAS.", MODO_TESTE:"Modo teste: nada é gravado." };
+async function enviarObra(){
   const g=id=>document.getElementById(id).value.trim(), erro=document.getElementById("f-erro");
-  const end=g("f-end").toUpperCase().replace(/\s+/g," ");
-  if(!obChecarEnd()){ erro.textContent="Corrija o endereço."; return; }
-  const p={ action:"obraNova", opId:window._opObra, endereco:end, setor:g("f-setor"), cidade:g("f-cidade"),
-            proprietario:g("f-prop"), proprietarioReal:g("f-propreal"), resp:g("f-resp"), rt:g("f-rt"),
-            cota:g("f-cota"), dataLote:g("f-lote"), nCasas:g("f-casas"), implantacao:g("f-impl"),
-            areaLote:g("f-alote"), areaAverbada:g("f-aaverb"), areaHabite:g("f-ahab"),
-            estudoLayout:document.getElementById("f-estudo").checked };
-  const falta=[["setor","SETOR"],["cidade","CIDADE"],["proprietario","PROPRIETÁRIO"],["proprietarioReal","PROPRIETÁRIO REAL"],
-    ["resp","RESPONSÁVEL PELA OBRA"],["rt","ENGENHEIRO RT"],["cota","COTA DA EMPRESA"],["dataLote","DATA DE AQUISIÇÃO DO LOTE"],["nCasas","Nº DE CASAS"]]
+  if(!checarEnd()){ erro.textContent="Corrija o endereço."; return; }
+  const p={ action:"obraNova", opId:window._opObra, endereco:g("f-end").toUpperCase().replace(/\s+/g," "),
+    setor:g("f-setor"), cidade:g("f-cidade"), proprietario:g("f-prop"), proprietarioReal:g("f-propreal"),
+    resp:g("f-resp"), rt:g("f-rt"), cota:g("f-cota"), dataLote:g("f-lote"), nCasas:g("f-casas"), implantacao:g("f-impl"),
+    areaLote:g("f-alote"), areaAverbada:g("f-aaverb"), areaHabite:g("f-ahab"), estudoLayout:document.getElementById("f-estudo").checked };
+  const falta=[["setor","Setor"],["cidade","Cidade"],["proprietario","Proprietário"],["proprietarioReal","Proprietário real"],
+    ["resp","Responsável pela obra"],["rt","Engenheiro RT"],["cota","Cota"],["dataLote","Data de aquisição do lote"],["nCasas","Nº de casas"]]
     .filter(([k])=>!p[k]).map(([,r])=>r);
   if(falta.length){ erro.textContent="Preencha: "+falta.join(", "); return; }
-  const bt=document.getElementById("f-ok"); bt.disabled=true; bt.textContent="Criando…"; erro.textContent="";
+  const bt=document.getElementById("f-ok"); bt.disabled=true; bt.innerHTML='<span class="load"></span> Criando…'; erro.textContent="";
   let r=null;
-  for(let t=0;t<2&&!(r&&(r.ok||r.erro));t++){
-    try{ r=await chamar(Object.assign({},p),60000); }catch(e){ r=null; }   // mesma opId: reenviar não duplica
-  }
+  for(let t=0;t<2&&!(r&&(r.ok||r.erro));t++){ try{ r=await chamar(Object.assign({},p),60000); }catch(e){ r=null; } }
   bt.disabled=false; bt.textContent="Criar obra";
-  if(!r){ erro.textContent="Sem resposta do servidor. Confira na lista em alguns minutos antes de tentar de novo."; return; }
-  if(!r.ok){
-    const base=String(r.erro||"").split(":")[0];
-    erro.textContent=(OB_ERROS[base]||erroTexto(r.erro)||r.erro)+(r.sugestao?` Sugestão: ${r.sugestao}`:"");
-    return;
-  }
-  const pes=id=>(D.pessoas.find(x=>x.id===id)||{}).nome||"";
-  const hoje=new Date(), prev=new Date(Date.now()+37*864e5), iso=d=>d.toISOString().slice(0,10);
+  if(!r){ erro.textContent="Sem resposta do servidor. Confira a lista em alguns minutos antes de tentar de novo."; return; }
+  if(!r.ok){ const base=String(r.erro||"").split(":")[0];
+    erro.textContent=(ERROS[base]||errMsg(r))+(r.sugestao?` Sugestão: ${r.sugestao}`:""); return; }
+  const pes=id=>(D.pessoas.find(x=>x.id===id)||{}).nome||"", iso=d=>d.toISOString().slice(0,10);
   D.obras.unshift({ id:r.id, titulo:r.titulo, setor:p.setor, cidade:p.cidade, proprietario:p.proprietario,
     proprietario_real:p.proprietarioReal, resp:pes(p.resp), resp_ids:[p.resp], rt:pes(p.rt), rt_ids:[p.rt],
-    status:"Não começou", liberar:"Não", data_inicial:iso(hoje), data_prevista:iso(prev), n_casas:Number(p.nCasas),
-    cota:Number(p.cota), data_lote:p.dataLote, implantacao:p.implantacao,
-    url:"https://www.notion.so/"+String(r.id).replace(/-/g,"") });
-  obFecharForm(); ABA="andamento"; obPintar();
-  obToast("Obra "+r.titulo+" criada. Atividades e linha em Documentos aparecem em até 1 hora.");
+    status:"Não começou", liberar:"Não", data_inicial:iso(new Date()), data_prevista:iso(new Date(Date.now()+37*864e5)),
+    n_casas:Number(p.nCasas), cota:Number(p.cota), data_lote:p.dataLote, implantacao:p.implantacao||null,
+    mais_controle:"Criar", em_mc:null });
+  fecharForm(); ABA="obras"; FILTRO="andamento"; pintar();
+  toast("Obra "+r.titulo+" criada. Atividades e linha em Documentos aparecem em até 1 hora.");
 }
 
-obCarregar();
+document.addEventListener("keydown",e=>{ if(e.key==="Escape"){ if(ATV) fecharAtv(); else if(OBRA) fecharObra(); else fecharForm(); } });
+if(PODE) carregar();
 </script>
 </body>
 </html>
