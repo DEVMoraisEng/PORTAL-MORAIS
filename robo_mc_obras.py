@@ -206,13 +206,28 @@ def criar_no_mc(page, o):
     esperar(page, 20000)
     page.wait_for_timeout(2000)
     foto(page, "pos_salvar_" + o["titulo"].replace(" ", "_"))
-    # confere na lista
-    busca = page.locator("input[placeholder*=Busque i], input[placeholder*=busca i]").first
-    busca.fill(o["titulo"])
-    page.wait_for_timeout(2000)
-    if page.get_by_text(o["titulo"], exact=True).count():
+    # O painel "Nova Obra" fechar é o sinal de que o MC aceitou o cadastro.
+    fechou = True
+    try:
+        page.wait_for_selector("text=Salvar Obra", state="hidden", timeout=20000)
+    except Exception:
+        fechou = False
+    # a lista às vezes demora a mostrar a obra nova; serve de confirmação extra
+    achou = False
+    try:
+        busca = page.locator("input[placeholder*=Busque i]:visible, input[placeholder*=busca i]:visible").first
+        for _ in range(3):
+            busca.fill(o["titulo"])
+            page.wait_for_timeout(2500)
+            if page.get_by_text(o["titulo"], exact=False).count():
+                achou = True
+                break
+    except Exception:
+        pass
+    if fechou:
+        print(f"  {o['titulo']}: painel fechou (salvo)" + ("" if achou else " — ainda não apareceu na busca da lista"), flush=True)
         return "criada"
-    raise RuntimeError("salvou, mas a obra não apareceu na lista — confira no MC")
+    raise RuntimeError("cliquei em Salvar Obra mas o painel continuou aberto — confira no MC e veja o print pos_salvar")
 
 
 def main():
