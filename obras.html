@@ -104,19 +104,27 @@ tbody tr:hover td{background:#e9f6ef;cursor:pointer} tbody tr:hover td.stick{bac
 .grupo .qtd.r{background:#f6dede;color:#9b2c2c}
 .grupo .corpo{padding:8px}
 /* linha de atividade */
-.atv{display:grid;grid-template-columns:minmax(200px,1.6fr) minmax(130px,1fr) 170px 115px 150px minmax(150px,1fr);gap:10px;align-items:center;
-     padding:10px 12px;border:1px solid var(--border2);border-radius:10px;background:var(--sup);margin-bottom:8px}
+.atv{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) minmax(0,150px) minmax(0,100px) minmax(0,145px) minmax(0,1.1fr);gap:10px;align-items:center;
+     padding:10px 12px;border:1px solid var(--border2);border-left:5px solid var(--cor,var(--azul));border-radius:10px;background:var(--sup);margin-bottom:8px}
+.atv>div{min-width:0}
+.atv .prazo{white-space:normal;overflow-wrap:anywhere}
+.atv.atr{background:#fdecea;border-color:#f1b2ab}
+.atv.atr .nm{color:#9b2c2c}
 .atv:hover{border-color:var(--azul)}
 .atv .nm{font-weight:700;font-size:13px;cursor:pointer;color:var(--text)}
 .atv .nm:hover{color:var(--azul);text-decoration:underline}
-.atv .tp{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;color:#fff;background:var(--azul);padding:2px 8px;border-radius:20px;margin-bottom:4px}
+.atv .tp{display:inline-block;max-width:100%;font-size:10px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;color:#fff;background:var(--cor,var(--azul));padding:2px 8px;border-radius:20px;margin-bottom:4px;white-space:normal}
 .atv .k{display:none;font-size:10px;font-weight:700;color:var(--text4);text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px}
 .atv .v{font-size:12.5px;color:var(--text)}
 .atv select,.atv input{width:100%;padding:6px 8px;font-size:12.5px}
 .atv.fin{opacity:.72}
 .salvando{border-color:#F0C36D!important}.ok{border-color:var(--verde)!important}.erro{border-color:var(--verm)!important}
-.atv-cab{display:grid;grid-template-columns:minmax(200px,1.6fr) minmax(130px,1fr) 170px 115px 150px minmax(150px,1fr);gap:10px;padding:0 12px 6px;
+.atv-cab{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) minmax(0,150px) minmax(0,100px) minmax(0,145px) minmax(0,1.1fr);gap:10px;padding:0 12px 6px 17px;
          font-size:10px;font-weight:800;text-transform:uppercase;color:var(--text3);letter-spacing:.4px}
+.atv-cab div,th.ord{cursor:pointer;user-select:none}
+.atv-cab div:hover{color:var(--azul)}
+.seta{font-size:9px;margin-left:3px;opacity:.8}
+.acoes-atv{display:flex;gap:8px;flex-wrap:wrap;padding:0 22px}
 /* painel */
 .overlay{position:fixed;inset:0;background:rgba(20,40,55,.55);display:none;z-index:40}
 .painel{position:fixed;top:0;right:0;height:100%;width:clamp(720px,68vw,100vw);background:var(--bg2);z-index:41;box-shadow:-14px 0 44px rgba(0,0,0,.3);display:none;flex-direction:column}
@@ -212,6 +220,8 @@ html[data-tema="escuro"] .cont h1,html[data-tema="escuro"] .cont h2,html[data-te
 html[data-tema="escuro"] .obralink,html[data-tema="escuro"] .al .end,html[data-tema="escuro"] .bt.ghost,html[data-tema="escuro"] .sw.on{color:#8fd3ee}
 html[data-tema="escuro"] .bt.ghost,html[data-tema="escuro"] .sw.on,html[data-tema="escuro"] .ro{background:var(--bg3)}
 html[data-tema="escuro"] input,html[data-tema="escuro"] select{background:var(--sup2);color:var(--text);border-color:var(--border)}
+html[data-tema="escuro"] .atv.atr{background:#3a1e1e;border-color:#6b2c2c}
+html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
 /* ===== CELULAR ===== */
 @media(max-width:1000px){
   .atv{grid-template-columns:1fr 1fr} .atv-cab{display:none} .atv .nmcol{grid-column:1/-1} .atv .k{display:block}
@@ -334,6 +344,15 @@ const OBRIGATORIOS=[["setor","Setor"],["cidade","Cidade"],["proprietario","Propr
   ["resp","Responsável pela obra"],["rt","Engenheiro RT"],["cota","Cota da empresa"],["data_lote","Data de aquisição do lote"],["n_casas","Nº de casas"]];
 let D={obras:[],atividades:[],opcoes:{},opcoes_atividades:{},pessoas:[]};
 let ABA="obras", FILTRO="andamento", PESSOA=null, VER_FIN=false, OBRA=null, ATV=null, MODO="lista", CONT=null;
+let SORT_OB={k:"data_prevista",d:1}, SORT_ATV={k:null,d:1};
+const CONT_MEM={};   // conteúdo já aberto nesta sessão: reabre na hora
+/* cor por grupo de tipo (1.x, 2.x … 7) — mesma ideia das cores do Notion */
+const CORES_TIPO={1:"#2f6fb0",2:"#7b4fb3",3:"#2a9d5c",4:"#d27a1f",5:"#8a6d3b",6:"#c2477a",7:"#1c7c74"};
+function corTipo(t){ const m=String(t||"").trim().match(/^(\d+)/); return (m&&CORES_TIPO[m[1]])||"#5a8099"; }
+/* botões das atividades (os que existiam dentro das páginas do Notion).
+   Precisa bater com OBRA_ATV_ACOES do Code.gs. */
+const ACOES_POR_TIPO=[{tipo:"3.1",id:"SOLICITAR_PROJETOS",rotulo:"Solicitar projetos",
+  cria:{titulo:"Elaboração e Detalhamento De Projetos",tipo:"3.2 Elaboração e Detalhamento De Projetos"}}];
 
 const N=s=>String(s==null?"":s).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/\s+/g," ").trim();
 const dt=d=>d?String(d).slice(0,10).split("-").reverse().join("/"):"—";
@@ -387,6 +406,8 @@ async function carregar(){
     const r=await fetch("dist/obras.json?v="+Math.floor(Date.now()/60000),{cache:"no-cache"});
     if(!r.ok) throw new Error("HTTP "+r.status);
     D=await r.json(); D.opcoes_atividades=D.opcoes_atividades||{};
+    /* abre direto nas atividades de quem está logado, se a pessoa tiver alguma */
+    if(OB_S&&D.atividades.some(a=>!atvFeita(a)&&(a.resp||[]).some(n=>N(n)===N(OB_S.nome)))) ABA="atividades";
     document.getElementById("updated").textContent="Atualizado: "+new Date(D.updated_at).toLocaleString("pt-BR");
     pintar();
   }catch(e){
@@ -417,7 +438,6 @@ function pintarObras(){
   if(FILTRO==="liberar") l=l.filter(o=>N(o.liberar)==="NAO");
   if(SETOR) l=l.filter(o=>o.setor===SETOR);
   if(q) l=l.filter(o=>N([o.titulo,o.setor,o.resp,o.rt,o.proprietario,o.status].join(" ")).indexOf(q)>=0);
-  l.sort((a,b)=>String(a.data_prevista||"9999").localeCompare(String(b.data_prevista||"9999")));
   const ativas=D.obras.filter(o=>!fim(o.status));
   const atraso=ativas.filter(o=>N(o.controle_prazo).indexOf("ATRASO")>=0).length;
   const setores=[...new Set(D.obras.map(o=>o.setor).filter(Boolean))].sort();
@@ -437,8 +457,17 @@ function pintarObras(){
       <button class="bt" onclick="abrirForm()">+ Solicitar nova obra</button>
     </div>
     <div id="lista-obras"></div>`;
-  pintarLista(l);
+  pintarLista();
 }
+function cmp(a,b){ const va=a==null||a===""?null:a, vb=b==null||b===""?null:b;
+  if(va===null&&vb===null) return 0; if(va===null) return 1; if(vb===null) return -1;
+  if(typeof va==="number"&&typeof vb==="number") return va-vb;
+  return String(va).localeCompare(String(vb),"pt-BR",{numeric:true}); }
+function ordenar(l,st){ return st.k? l.slice().sort((a,b)=>{ const r=cmp(valOrd(a,st.k),valOrd(b,st.k)); return r===0?0:(r*st.d); }) : l; }
+function valOrd(x,k){ if(k==="resp"&&Array.isArray(x.resp)) return x.resp.join(", "); if(k==="tipo") return ordemTipo(x.tipo); return x[k]; }
+function thOrd(rot,k,st,fn,cls){ const on=st.k===k; return `<th class="ord ${cls||""}" onclick="${fn}('${k}')">${rot}${on?`<span class="seta">${st.d>0?"▲":"▼"}</span>`:""}</th>`; }
+function ordObra(k){ SORT_OB=SORT_OB.k===k?{k:k,d:-SORT_OB.d}:{k:k,d:1}; pintarLista(); }
+function ordAtv(k){ SORT_ATV=SORT_ATV.k===k?{k:k,d:-SORT_ATV.d}:{k:k,d:1}; if(OBRA) pintarObraPainel(); if(ABA==="atividades") pintarAtividades(); }
 function pintarLista(l){
   if(!l){ // só a busca mudou: recalcula sem redesenhar a barra (mantém o foco)
     const q=N(BUSCA); l=D.obras.slice();
@@ -446,11 +475,13 @@ function pintarLista(l){
     if(FILTRO==="liberar") l=l.filter(o=>N(o.liberar)==="NAO");
     if(SETOR) l=l.filter(o=>o.setor===SETOR);
     if(q) l=l.filter(o=>N([o.titulo,o.setor,o.resp,o.rt,o.proprietario,o.status].join(" ")).indexOf(q)>=0);
-    l.sort((a,b)=>String(a.data_prevista||"9999").localeCompare(String(b.data_prevista||"9999")));
   }
+  l=ordenar(l,SORT_OB);
   document.getElementById("lista-obras").innerHTML=l.length?`<div class="tabela-wrap"><table><thead><tr>
-      <th class="stick">Projeto</th><th>Setor</th><th>Responsável</th><th>Prev. término</th><th>Projeto final.</th>
-      <th>Orçamento final.</th><th>Liberar</th><th>Controle de prazo</th><th>Status</th></tr></thead><tbody>`+
+      ${thOrd("Projeto","titulo",SORT_OB,"ordObra","stick")}${thOrd("Setor","setor",SORT_OB,"ordObra")}${thOrd("Responsável","resp",SORT_OB,"ordObra")}
+      ${thOrd("Prev. término","data_prevista",SORT_OB,"ordObra")}${thOrd("Projeto final.","projeto_finalizado",SORT_OB,"ordObra")}
+      ${thOrd("Orçamento final.","orcamento_finalizado",SORT_OB,"ordObra")}${thOrd("Liberar","liberar",SORT_OB,"ordObra")}
+      ${thOrd("Controle de prazo","controle_prazo",SORT_OB,"ordObra")}${thOrd("Status","status",SORT_OB,"ordObra")}</tr></thead><tbody>`+
       l.map(o=>`<tr onclick="abrirObra('${o.id}')"><td class="stick"><span class="obralink">${esc(o.titulo||"(sem endereço)")}</span></td>
         <td>${esc(o.setor||"—")}</td><td>${esc(o.resp||"—")}</td><td>${dt(o.data_prevista)}</td>
         <td>${tagSN(o.projeto_finalizado)}</td><td>${tagSN(o.orcamento_finalizado)}</td><td>${tagSN(o.liberar)}</td>
@@ -478,7 +509,7 @@ function pintarAtividades(){
       <div class="icard"><div class="ival">${minhas.length}</div><div class="ilab">${VER_FIN?"Atividades":"Em aberto"}</div></div>
       <div class="icard"><div class="ival r">${atr}</div><div class="ilab">Em atraso</div></div>
       <div class="icard"><div class="ival">${ks.length}</div><div class="ilab">Tipos</div></div></div>`:""}
-    ${ks.length?ks.map(k=>{ const g=grupos[k].sort((a,b)=>String(a.data_final||"9999").localeCompare(String(b.data_final||"9999")));
+    ${ks.length?ks.map(k=>{ const g=SORT_ATV.k?ordenar(grupos[k],SORT_ATV):grupos[k].sort((a,b)=>String(a.data_final||"9999").localeCompare(String(b.data_final||"9999")));
       const na=g.filter(atrasada).length;
       return `<details class="grupo" open><summary>${esc(k)}<span class="qtd ${na?"r":""}">${g.length}${na?` · ${na} em atraso`:""}</span></summary>
         <div class="corpo">${cabAtv(true)}${g.map(a=>linhaAtv(a,true)).join("")}</div></details>`; }).join("")
@@ -486,11 +517,12 @@ function pintarAtividades(){
   window.NOMES_ATV=nomes;
 }
 function cabAtv(comObra){
-  return `<div class="atv-cab"><div>${comObra?"Obra / atividade":"Atividade"}</div><div>Responsável</div><div>Status</div><div>Final prevista</div><div>Conclusão</div><div>Controle de prazo</div></div>`;
+  const c=(rot,k)=>`<div onclick="ordAtv('${k}')">${rot}${SORT_ATV.k===k?`<span class="seta">${SORT_ATV.d>0?"▲":"▼"}</span>`:""}</div>`;
+  return `<div class="atv-cab">${c(comObra?"Obra / atividade":"Atividade",comObra?"titulo":"tipo")}${c("Responsável","resp")}${c("Status","status")}${c("Final prevista","data_final")}${c("Conclusão","data_conclusao")}${c("Controle de prazo","controle_prazo")}</div>`;
 }
 function linhaAtv(a,comObra){
   const o=obraDe(a.obra_id)||{}, sts=opc("Status",D.opcoes_atividades);
-  return `<div class="atv ${atvFeita(a)?"fin":""}">
+  return `<div class="atv ${atvFeita(a)?"fin":""} ${atrasada(a)?"atr":""}" style="--cor:${corTipo(a.tipo)}">
     <div class="nmcol">${comObra?`<div class="obralink" style="font-size:12px" onclick="abrirObra('${o.id||""}')">${esc(o.titulo||"—")}</div>`:`<span class="tp">${esc(a.tipo||"—")}</span>`}
       <div class="nm" onclick="abrirAtv('${a.id}')">${esc(a.titulo||a.tipo||"—")}</div></div>
     <div><div class="k">Responsável</div><div class="v">${esc((a.resp||[]).join(", ")||"—")}</div></div>
@@ -597,11 +629,11 @@ function pintarObraPainel(){
       <button class="tg ${MODO==="lista"?"on":""}" onclick="MODO='lista';pintarObraPainel()">Lista</button>
       <button class="tg ${MODO==="crono"?"on":""}" onclick="MODO='crono';pintarObraPainel()">Cronograma</button></div><div class="pl">`;
   if(!normais.length) h+=`<div class="vazio">Nenhuma atividade ligada a esta obra ainda.</div>`;
-  else if(MODO==="lista") h+=cabAtv(false)+normais.map(a=>linhaAtv(a,false)).join("");
+  else if(MODO==="lista") h+=cabAtv(false)+ordenar(normais,SORT_ATV.k?SORT_ATV:{k:null}).map(a=>linhaAtv(a,false)).join("");
   else h+=gantt(normais);
   h+=`</div><div class="grp">Ligação de água e energia</div><div class="pl">`;
-  h+=lig.length?cabAtv(false)+lig.map(a=>linhaAtv(a,false)).join("")
-     :`<div class="vazio">Nenhuma atividade de ligação ainda. Os botões de ligação (1 casa, 2 casas c/ esgoto…) continuam na página da obra no Notion.</div>`;
+  h+=lig.length?cabAtv(false)+lig.map(a=>linhaAtv(a,false)).join(""):`<div class="vazio">Nenhuma atividade de ligação ainda.</div>`;
+  h+=`<div class="ajuda" style="margin-top:8px">Os botões que criam as linhas de Vendas e Ligações (1 casa, 2 casas c/ esgoto…) entram aqui assim que a configuração deles for passada para o portal — por enquanto continuam na página da obra no Notion.</div>`;
   h+=`</div>`;
   document.getElementById("p1-corpo").innerHTML=h;
 }
@@ -645,7 +677,7 @@ function gantt(lista){
 /* ===================== PAINEL DA ATIVIDADE ===================== */
 function abrirAtv(id){
   if(!D.atividades.find(x=>x.id===id)) return;
-  ATV=id; CONT=null; pintarAtvPainel();
+  ATV=id; CONT=CONT_MEM[id]||null; pintarAtvPainel();
   document.getElementById("ov2").classList.add("on"); document.getElementById("p2").classList.add("on");
   carregarConteudo(id);
 }
@@ -663,7 +695,7 @@ function pintarAtvPainel(){
     <div class="ri"><div class="k">Início</div><input type="date" value="${esc(a.data_inicio||"")}" onchange="gravarAtv('${a.id}','Data De Início',this.value,this)"></div>
     <div class="ri"><div class="k">Final prevista</div><input type="date" value="${esc(a.data_final||"")}" onchange="gravarAtv('${a.id}','Data Final Prevista',this.value,this)"></div>
     <div class="ri"><div class="k">Conclusão</div><input type="date" value="${esc(a.data_conclusao||"")}" onchange="gravarAtv('${a.id}','Data De Conclusão da Atividade',this.value,this)"></div>
-    </div><div class="grp">Checklist e conteúdo</div><div id="p2-cont">${
+    </div>${acoesHtml(a)}<div class="grp">Checklist e conteúdo</div><div id="p2-cont">${
       CONT===null?`<div class="cont"><span class="load"></span> Carregando o conteúdo da atividade…</div>`
       :CONT.erro?`<div class="cont" style="color:var(--verm)">Não consegui carregar: ${esc(CONT.erro)}</div>`
       :conteudoHtml(CONT.blocos)}</div>`;
@@ -671,9 +703,13 @@ function pintarAtvPainel(){
 }
 async function carregarConteudo(id){
   let r; try{ r=await chamar({action:"obraAtvConteudo",pageId:id},60000); }catch(e){ r={ok:false,erro:"sem conexão"}; }
+  if(r&&r.ok) CONT_MEM[id]={blocos:r.blocos||[]};
   if(ATV!==id) return;
-  CONT=(r&&r.ok)?{blocos:r.blocos||[]}:{erro:errMsg(r)};
+  if(!(r&&r.ok)&&CONT_MEM[id]) return;   // falhou mas já temos uma cópia: fica com ela
+  const box=document.getElementById("p2-cont"), abertos=box?[...box.querySelectorAll("details")].map(d=>d.open):[];
+  CONT=(r&&r.ok)?CONT_MEM[id]:{erro:errMsg(r)};
   pintarAtvPainel();
+  const nb=document.getElementById("p2-cont"); if(nb) [...nb.querySelectorAll("details")].forEach((d,i)=>{ if(abertos[i]) d.open=true; });
 }
 function contarTodos(bs,c){ c=c||{t:0,f:0}; (bs||[]).forEach(b=>{ if(b.tipo==="to_do"){ c.t++; if(b.marcado) c.f++; } contarTodos(b.filhos,c); }); return c; }
 function conteudoHtml(bs){
@@ -708,7 +744,7 @@ function blocosHtml(bs){
 function acharBloco(bs,id){ for(const b of bs||[]){ if(b.id===id) return b; const x=acharBloco(b.filhos,id); if(x) return x; } return null; }
 async function marcar(blockId,el){
   const v=el.checked; el.disabled=true;
-  let r; try{ r=await chamar({action:"obraAtvCheck",blockId:blockId,marcado:v},30000); }catch(e){ r={ok:false,erro:"sem conexão"}; }
+  let r; try{ r=await chamar({action:"obraAtvCheck",blockId:blockId,marcado:v,pageId:ATV},30000); }catch(e){ r={ok:false,erro:"sem conexão"}; }
   el.disabled=false;
   if(r&&r.ok){
     const b=CONT&&acharBloco(CONT.blocos,blockId); if(b) b.marcado=v;
@@ -717,6 +753,29 @@ async function marcar(blockId,el){
     box.innerHTML=conteudoHtml(CONT.blocos);
     [...box.querySelectorAll("details")].forEach((d,i)=>{ if(abertos[i]) d.open=true; });
   }else{ el.checked=!v; toast("Não salvou: "+errMsg(r)); }
+}
+
+/* botões da atividade (os que existiam dentro da página no Notion) */
+function acoesHtml(a){
+  const l=ACOES_POR_TIPO.filter(x=>String(a.tipo||"").trim().indexOf(x.tipo)===0);
+  if(!l.length) return "";
+  return `<div class="grp">Ações</div><div class="acoes-atv">`+
+    l.map(x=>`<button class="bt" onclick="executarAcao('${a.id}','${x.id}',this)">→ ${esc(x.rotulo)}</button>`).join("")+`</div>`;
+}
+async function executarAcao(atvId,acao,bt){
+  const cfg=ACOES_POR_TIPO.find(x=>x.id===acao), a=D.atividades.find(x=>x.id===atvId);
+  if(!cfg||!a) return;
+  if(!confirm(`${cfg.rotulo}: criar "${cfg.cria.titulo}" para ${(obraDe(a.obra_id)||{}).titulo||"esta obra"}?`)) return;
+  const op=novoOpId(); bt.disabled=true; const txt=bt.textContent; bt.innerHTML='<span class="load"></span> Criando…';
+  let r=null;
+  for(let t=0;t<2&&!(r&&(r.ok||r.erro));t++){ try{ r=await chamar({action:"obraAtvAcao",pageId:atvId,acao:acao,opId:op},60000); }catch(e){ r=null; } }
+  bt.disabled=false; bt.textContent=txt;
+  if(r&&r.ok){
+    D.atividades.push({id:r.id,titulo:r.titulo,tipo:cfg.cria.tipo,status:"Não começou",resp:[],obra_id:r.obraId,
+      data_criacao:r.dataInicio,data_inicio:r.dataInicio,data_final:r.dataFinal});
+    toast(r.titulo+" criada. O responsável aparece no próximo build.");
+    if(OBRA) pintarObraPainel();
+  }else toast("Não criou: "+(r?errMsg(r):"sem resposta do servidor — confira a lista antes de tentar de novo"));
 }
 
 /* ===================== FORMULÁRIO ===================== */
