@@ -671,9 +671,14 @@ function pintarObraPainel(){
   else h+=gantt(normais);
   h+=`</div><div class="grp">Ligação de água e energia</div><div class="pl">`;
   h+=lig.length?cabAtv(false)+lig.map(a=>linhaAtv(a,false)).join(""):`<div class="vazio">Nenhuma atividade de ligação ainda.</div>`;
-  h+=`<div class="lig-bts">${[1,2,3,4,5].map(n=>[false,true].map(e=>
-      `<button class="bt" onclick="criarLigacoes(${n},${e},this)">→ ${n} ${n===1?"CASA":"CASAS"}${e?" C/ ESGOTO":""}</button>`).join("")).join("")}</div>
-    <div class="ajuda">Cria, para cada casa, as ligações SANEAGO e EQUATORIAL (e SANEAGO ESGOTO, se for "c/ esgoto") e a linha em Vendas.</div>`;
+  /* Senador Canedo: SANESC + EQUATORIAL e NUNCA esgoto. Goiânia: SANEAGO +
+     EQUATORIAL, com SANEAGO ESGOTO quando for "c/ esgoto". */
+  const canedo=N(o.cidade).indexOf("CANEDO")>=0, semCidade=!o.cidade;
+  h+=`<div class="lig-bts">${[1,2,3,4,5].map(n=>[false].concat(canedo?[]:[true]).map(e=>
+      `<button class="bt" ${semCidade?"disabled":""} onclick="criarLigacoes(${n},${e},this)">→ ${n} ${n===1?"CASA":"CASAS"}${e?" C/ ESGOTO":""}</button>`).join("")).join("")}</div>
+    <div class="ajuda">${semCidade?"Preencha a CIDADE da obra para liberar os botões. ":""}
+      ${canedo?"Senador Canedo: SANESC + EQUATORIAL (sem esgoto)":"Goiânia: SANEAGO + EQUATORIAL (com SANEAGO ESGOTO nos botões \"c/ esgoto\")"}
+      · cada casa também ganha a linha em Vendas.</div>`;
   h+=`</div>`;
   document.getElementById("p1-corpo").innerHTML=h;
 }
@@ -832,7 +837,7 @@ async function criarLigacoes(n,esgoto,bt,forcar){
   let r=null;
   for(let t=0;t<2&&!(r&&(r.ok||r.erro));t++){ try{ r=await chamar({action:"obraLigacoes",pageId:o.id,casas:n,esgoto:esgoto,forcar:!!forcar,opId:op},120000); }catch(e){ r=null; } }
   bt.disabled=false; bt.textContent=txt;
-  if(r&&r.ok){ toast(`Criadas ${r.ligacoes} ligações e ${r.vendas} vendas`+(r.responsavel?` (responsável: ${r.responsavel})`:"")+
+  if(r&&r.ok){ toast(`Criadas ${r.ligacoes} ligações (${r.modelos||""}) e ${r.vendas} vendas`+(r.responsavel?` — responsável: ${r.responsavel}`:"")+
     (r.semResponsavel?` — não achei a pessoa "${r.semResponsavel}", RESPONSÁVEL ficou vazio`:"")+"."); return; }
   if(r&&r.erro==="JA_EXISTEM"){
     if(confirm(`Esta obra já tem ${r.ligacoes} ligações e ${r.vendas} vendas. Criar mesmo assim?`)) return criarLigacoes(n,esgoto,bt,true);

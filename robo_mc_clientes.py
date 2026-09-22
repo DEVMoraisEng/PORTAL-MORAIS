@@ -35,6 +35,14 @@ ID_DOCS = "32fc5ab532d380a0900dd7f4bfc619bd"
 NAO_SAO_PROPRIETARIOS = [
 ]
 
+# Nome curto (Proprietário Real) -> nome do cadastro, quando o robô não tem
+# como adivinhar sozinho. Decidido em set/26.
+DE_PARA_CURTOS = {
+    "MOURA": "MOURA DANTAS EMPREENDIMENTOS LTDA",
+    "RENATO SANTOS": "KARLLA FLEURY SOARES ARAUJO",
+    "RENATOS SANTOS E ESPOSA": "KARLLA FLEURY SOARES ARAUJO",
+}
+
 
 def nome_limpo(s):
     """Nome no padrão do cadastro: MAIÚSCULAS e um espaço só. O MC tem nomes
@@ -265,7 +273,22 @@ def sincronizar(clientes):
                 v = texto_de(pr[k])
                 if not v or N(v) in finais_n or N(v) in {N(x) for x in renomear}:
                     continue
+                fixo = next((DE_PARA_CURTOS[k] for k in DE_PARA_CURTOS if N(k) == N(v)), None)
+                if fixo:
+                    props[k] = {"select": {"name": fixo}}
+                    continue
                 cand = [x for x in finais if N(x).startswith(N(v) + " ")]
+                if not cand:
+                    # "CAIO YOSHIDA" -> "CAIO MANABU DIAS YOSHIDA": todas as
+                    # palavras do nome curto aparecem, na ordem, no completo
+                    pal = N(v).split()
+                    def contem(full):
+                        f = N(full).split(); i = 0
+                        for w in f:
+                            if i < len(pal) and w == pal[i]:
+                                i += 1
+                        return i == len(pal) and len(pal) >= 2
+                    cand = [x for x in finais if contem(x)]
                 if len(cand) == 1:
                     props[k] = {"select": {"name": cand[0].replace(",", " ")}}
                 else:

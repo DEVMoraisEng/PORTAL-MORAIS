@@ -28,7 +28,7 @@ from fetch_vendas import ler_banco, api
 from fetch_obras import obras_no_mc, padronizar_endereco
 
 ID_OBRAS = "306c5ab532d3812fa14fe9a281510128"
-TIPOS = {1: "Casa", 2: "2 casas", 3: "3 casas", 4: "4 casas"}
+TIPOS = {1: "Casa", 2: "2 casas", 3: "3 casas", 4: "4 casas", 5: "5 casas"}
 
 
 def txt(p):
@@ -62,7 +62,9 @@ def fila_de_obras():
             "id": pg["id"],
             "titulo": padronizar_endereco(txt(pega(pr, "Projeto"))),
             "casas": txt(pega(pr, "Nº DE CASAS")),
-            "area": txt(pega(pr, "ÁREA CONSTRUÍDA AVERBADA")),
+            # área do MC = averbada + pós habite-se (decidido em set/26)
+            "area": (lambda a, b: (a or 0) + (b or 0) if (a or b) else None)(
+                txt(pega(pr, "ÁREA CONSTRUÍDA AVERBADA")), txt(pega(pr, "ÁREA PÓS HABITE-SE"))),
             "rt": txt(pega(pr, "ENGENHEIRO RT")),
             "resp": txt(pega(pr, "Responsável Pela Obra")),
             "cliente": txt(pega(pr, "Proprietário")),
@@ -92,8 +94,24 @@ def criar_no_mc(page, o):
     if n in TIPOS:
         try:
             escolher_opcao(page, "Selecione um tipo", TIPOS[n])
-        except Exception as e:
-            print(f"  ! tipo da obra não escolhido ({TIPOS[n]}): {str(e)[:80]}", flush=True)
+        except Exception:
+            # tipo que ainda não existe no MC (ex.: "5 casas"): cria pelo
+            # "+ Novo tipo" do próprio formulário
+            try:
+                print(f"  tipo '{TIPOS[n]}' não existe no MC — criando", flush=True)
+                page.keyboard.press("Escape")
+                clicar_texto(page, "Novo tipo", exato=False)
+                page.wait_for_timeout(700)
+                novo = page.locator("input:visible").last
+                novo.press_sequentially(TIPOS[n], delay=30)
+                for rot in ["Salvar", "Adicionar", "Confirmar", "OK"]:
+                    bt = page.get_by_text(rot, exact=False)
+                    if bt.count():
+                        bt.last.click()
+                        break
+                page.wait_for_timeout(1200)
+            except Exception as e2:
+                print(f"  ! tipo da obra não escolhido ({TIPOS[n]}): {str(e2)[:100]}", flush=True)
 
     try:
         clicar_texto(page, "Dados gerais")
@@ -124,17 +142,25 @@ def criar_no_mc(page, o):
     else:
         campo.press_sequentially(o["cliente"][:25], delay=30)
     page.wait_for_timeout(1800)
-    opc = page.get_by_text(o["cliente"], exact=True)
+    # o que apareceu de opção na tela (vai para o log — ajuda a acertar o seletor)
+    try:
+        vis = page.evaluate("""() => [...document.querySelectorAll("li,[role=option],.ui-select-choices-row,.dropdown-item,.md-autocomplete-suggestions li,mat-option")]
+            .filter(e => e.offsetWidth || e.offsetHeight).map(e => e.innerText.trim()).filter(Boolean).slice(0, 12)""")
+        print(f"  opções visíveis depois de digitar: {vis}", flush=True)
+    except Exception:
+        pass
+    opc = page.get_by_text(o["cliente"], exact=True).locator("visible=true")
     if not opc.count():
-        # mesmo nome com acento/caixa diferente
-        opc = page.locator("li, [role=option], .ui-select-choices-row, .dropdown-item").filter(
-            has_text=o["cliente"].split()[0])
-        opc = opc.filter(has_text=o["cliente"].split()[-1]) if opc.count() > 1 else opc
+        # mesmo nome com acento/caixa/espaço diferente: só opções VISÍVEIS
+        opc = page.locator("li:visible, [role=option]:visible, .ui-select-choices-row:visible, .dropdown-item:visible, mat-option:visible")
+        for palavra in o["cliente"].split()[:3]:
+            if opc.count() > 1:
+                opc = opc.filter(has_text=palavra)
     if not opc.count():
         foto(page, "cliente_nao_achado")
         raise RuntimeError(f"cliente '{o['cliente']}' não apareceu na busca do MC — o robô de clientes "
                            "precisa rodar com aplicar antes (o Proprietário tem que estar com o nome do MC)")
-    opc.last.click()
+    opc.first.click()
     page.wait_for_timeout(500)
     foto(page, "nova_obra_" + o["titulo"].replace(" ", "_"))
 
