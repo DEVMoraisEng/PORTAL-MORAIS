@@ -29,6 +29,15 @@ from fetch_obras import obras_no_mc, padronizar_endereco
 
 ID_OBRAS = "306c5ab532d3812fa14fe9a281510128"
 TIPOS = {1: "Casa", 2: "2 casas", 3: "3 casas", 4: "4 casas", 5: "5 casas"}
+TIPO_PADRAO = "Genérico"     # sem Nº DE CASAS ainda: entra como genérico
+
+# "Visível para": ficam só os engenheiros de execução (e o estagiário deles)
+# que são os responsáveis da obra. Os demais são desmarcados.
+EQUIPES = {
+    "GUILHERME GOUVEIA": ["Guilherme", "alefe"],
+    "JOAO MARCOS VIEIRA CABRAL MENEZES": ["João Marcos", "Ian"],
+    "ISAAC NATAN": ["Isaac", "Icaro"],
+}
 
 
 def txt(p):
@@ -68,6 +77,8 @@ def fila_de_obras():
             "rt": txt(pega(pr, "ENGENHEIRO RT")),
             "resp": txt(pega(pr, "Responsável Pela Obra")),
             "cliente": txt(pega(pr, "Proprietário")),
+            "cidade": txt(pega(pr, "Cidade")),
+            "conta": txt(pega(pr, "CONTA")),
         })
     return fila
 
@@ -84,6 +95,100 @@ def escolher_opcao(page, gatilho_texto, opcao):
     page.wait_for_timeout(400)
 
 
+def ajustar_visiveis(page, resp):
+    """Deixa marcados só os usuários da equipe do responsável pela obra."""
+    manter = []
+    for eng, nomes in EQUIPES.items():
+        if N(eng) in N(resp) or N(resp) in N(eng):
+            manter = nomes
+    fora = [n for eng, nomes in EQUIPES.items() for n in nomes if n not in manter]
+    if not fora:
+        print("  Visível para: responsável fora das equipes conhecidas — deixei como está", flush=True)
+        return
+    campo = page.locator("#participants")
+    (campo if campo.count() else page.locator("xpath=(//*[normalize-space(translate(text(),'*:',''))='Visível para']/following::input[1])[1]")).first.click()
+    page.wait_for_timeout(700)
+    busca = page.locator("input[placeholder*=usuário i]:visible, input[placeholder*=usuario i]:visible").first
+    tirados = []
+    for nome in fora:
+        try:
+            if busca.count():
+                busca.fill(nome)
+                page.wait_for_timeout(600)
+            linha = page.locator("label:visible, li:visible").filter(has_text=nome).first
+            cx = linha.locator("input[type=checkbox]")
+            if cx.count() and cx.first.is_checked():
+                linha.click(force=True)
+                tirados.append(nome)
+                page.wait_for_timeout(300)
+        except Exception:
+            continue
+    if busca.count():
+        busca.fill("")
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(400)
+    print(f"  Visível para: mantive {manter or '(equipe não identificada)'}, tirei {tirados}", flush=True)
+
+
+def preencher_endereco(page, o):
+    """Logradouro = rua (o que vem antes do QD); complemento = QD/LT."""
+    titulo = o["titulo"]
+    corte = titulo.find(" QD ")
+    rua = titulo[:corte].strip() if corte > 0 else titulo
+    compl = titulo[corte:].strip() if corte > 0 else ""
+    clicar_texto(page, "Endereço")
+    page.wait_for_timeout(500)
+    if rua:
+        input_por_rotulo(page, "Logradouro").fill(rua)
+    if compl:
+        input_por_rotulo(page, "Complemento").fill(compl)
+    try:
+        estado = page.locator("#state:visible").first
+        estado.click()
+        estado.press_sequentially("Goi", delay=40)
+        page.wait_for_timeout(1200)
+        op = page.locator("li:visible, [role=option]:visible").filter(has_text="Goiás")
+        (op.first if op.count() else page.get_by_text("Goiás", exact=False).last).click()
+        page.wait_for_timeout(900)
+        if o.get("cidade"):
+            cid = page.locator("#city:visible").first
+            cid.click()
+            cid.press_sequentially(o["cidade"][:10], delay=40)
+            page.wait_for_timeout(1200)
+            opc = page.locator("li:visible, [role=option]:visible").filter(has_text=o["cidade"][:8])
+            if opc.count():
+                opc.first.click()
+    except Exception as e:
+        print(f"  ! estado/cidade não escolhidos: {str(e)[:90]}", flush=True)
+    print(f"  endereço: logradouro='{rua}' complemento='{compl}'", flush=True)
+
+
+def preencher_conta(page, o):
+    """Quem paga = Cliente; Conta = a CONTA da obra (vem do cadastro)."""
+    clicar_texto(page, "Conta bancária padrão")
+    page.wait_for_timeout(500)
+    try:
+        escolher_opcao(page, "Selecione quem paga", "Cliente")
+    except Exception as e:
+        print(f"  ! 'Quem paga' não escolhido: {str(e)[:80]}", flush=True)
+    conta = (o.get("conta") or "").strip()
+    if not conta or N(conta) == "PESSOA FISICA":
+        print("  conta bancária: obra sem CONTA no Notion — deixei em branco", flush=True)
+        return
+    campo = page.locator("#select-single-account-visible:visible").first
+    if not campo.count():
+        campo = page.locator("xpath=(//*[normalize-space(translate(text(),'*:',''))='Conta']/following::input[1])[1]")
+    campo.first.click()
+    campo.first.press_sequentially(conta[:25], delay=35)
+    page.wait_for_timeout(1500)
+    op = page.locator("li:visible, [role=option]:visible").filter(has_text=conta.split()[0])
+    if op.count():
+        op.first.click()
+        print(f"  conta bancária: {conta}", flush=True)
+    else:
+        print(f"  ! conta '{conta}' não apareceu na busca do MC", flush=True)
+
+
 def criar_no_mc(page, o):
     ir_menu(page, "Obras", "Minhas Obras")
     clicar_texto(page, "Nova Obra", exato=False)
@@ -91,6 +196,13 @@ def criar_no_mc(page, o):
     input_por_rotulo(page, "Nome da obra").fill(o["titulo"])
 
     n = int(o["casas"]) if isinstance(o["casas"], (int, float)) else 0
+    if n not in TIPOS:
+        # sem Nº DE CASAS: entra como genérico e a rotina de atualização
+        # troca pelo tipo certo quando o número for preenchido no portal
+        try:
+            escolher_opcao(page, "Selecione um tipo", TIPO_PADRAO)
+        except Exception as e:
+            print(f"  ! tipo genérico não escolhido: {str(e)[:80]}", flush=True)
     if n in TIPOS:
         try:
             escolher_opcao(page, "Selecione um tipo", TIPOS[n])
@@ -112,6 +224,12 @@ def criar_no_mc(page, o):
                 page.wait_for_timeout(1200)
             except Exception as e2:
                 print(f"  ! tipo da obra não escolhido ({TIPOS[n]}): {str(e2)[:100]}", flush=True)
+
+    # ---- Visível para: tira quem não é da equipe do responsável ----
+    try:
+        ajustar_visiveis(page, o.get("resp") or "")
+    except Exception as e:
+        print(f"  ! Visível para não ajustado: {str(e)[:110]}", flush=True)
 
     try:
         clicar_texto(page, "Dados gerais")
@@ -208,6 +326,34 @@ def criar_no_mc(page, o):
         pass
     foto(page, "nova_obra_" + o["titulo"].replace(" ", "_"))
 
+    # ---- Endereço: logradouro + complemento (QD/LT) + estado/cidade ----
+    try:
+        preencher_endereco(page, o)
+    except Exception as e:
+        print(f"  ! endereço não preenchido: {str(e)[:110]}", flush=True)
+
+    # ---- Conta bancária padrão: quem paga = Cliente, conta = a do Notion ----
+    try:
+        preencher_conta(page, o)
+    except Exception as e:
+        print(f"  ! conta bancária não preenchida: {str(e)[:110]}", flush=True)
+
+    # ---- Exibir obra para: desmarca "Compras" ----
+    try:
+        clicar_texto(page, "Exibir obra para")
+        page.wait_for_timeout(500)
+        alvo = page.locator("xpath=(//*[normalize-space(text())='Compras']/following::input[@type='checkbox'][1])[1]")
+        if alvo.count() and alvo.first.is_checked():
+            alvo.first.click(force=True)
+        else:
+            bt = page.locator("xpath=(//*[normalize-space(text())='Compras']/following::*[self::button or @role='switch'][1])[1]")
+            if bt.count():
+                bt.first.click(force=True)
+        page.wait_for_timeout(400)
+    except Exception as e:
+        print(f"  ! 'Compras' não desmarcado: {str(e)[:110]}", flush=True)
+
+    foto(page, "antes_salvar_" + o["titulo"].replace(" ", "_"))
     if not APLICAR:
         page.keyboard.press("Escape")
         page.wait_for_timeout(500)
