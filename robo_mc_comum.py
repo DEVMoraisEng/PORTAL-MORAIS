@@ -72,11 +72,35 @@ def esperar(page, ms=15000):
         pass
 
 
+UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+      "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
+
+
 def abrir(p):
-    b = p.chromium.launch(headless=True)
-    ctx = b.new_context(viewport={"width": 1440, "height": 900}, locale="pt-BR")
+    # Navegador com cara de navegador comum: sem isto o Chromium do robô se
+    # identifica como "HeadlessChrome", e há sistemas que recusam o login calados.
+    b = p.chromium.launch(headless=True, args=["--disable-blink-features=AutomationControlled"])
+    ctx = b.new_context(viewport={"width": 1440, "height": 900}, locale="pt-BR",
+                        timezone_id="America/Sao_Paulo", user_agent=UA)
+    ctx.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined});")
     page = ctx.new_page()
     page.set_default_timeout(20000)
+    # registro de rede do login: o que o ENTRAR chamou e o que voltou
+    page._rede = []
+    def _resp(r):
+        try:
+            if r.request.resource_type in ("xhr", "fetch", "document"):
+                page._rede.append(f"{r.request.method} {r.status} {r.url.split('?')[0][:110]}")
+        except Exception:
+            pass
+    def _falhou(rq):
+        try:
+            page._rede.append(f"FALHOU {rq.method} {rq.url.split('?')[0][:110]} — {rq.failure}")
+        except Exception:
+            pass
+    page.on("response", _resp)
+    page.on("requestfailed", _falhou)
+    page.on("console", lambda m: page._rede.append(f"console.{m.type}: {m.text[:150]}") if m.type in ("error", "warning") else None)
     return b, page
 
 
@@ -153,6 +177,7 @@ def login(page):
         has_text=__import__("re").compile(r"entrar|acessar|login|logar", __import__("re").I))
     if not bt.count():
         bt = page.locator("button[type=submit]:visible, input[type=submit]:visible")
+    page._rede.clear()
     if bt.count():
         print(f"MC: clicando no botão \"{(bt.first.inner_text() or '').strip()[:30]}\"", flush=True)
         bt.first.click()
@@ -174,6 +199,9 @@ def login(page):
     pw = page.locator("input[type=password]:visible")
     if pw.count():
         diagnostico(page, "depois de clicar em entrar")
+        print("--- REDE depois do ENTRAR ---", flush=True)
+        for x in (page._rede or ["(nenhuma chamada — o botão não disparou nada)"])[:40]:
+            print("  " + x, flush=True)
         msg = ""
         try:
             msg = page.evaluate(_JS_MSG_ERRO)
