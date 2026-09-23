@@ -24,6 +24,7 @@ import sys
 from playwright.sync_api import sync_playwright
 
 import re
+from datetime import datetime, timezone
 
 from robo_mc_comum import N, foto, abrir, login, ir_menu, clicar_texto, APLICAR
 from fetch_vendas import ler_banco, api
@@ -430,6 +431,184 @@ def criar_no_mc(page, o):
     return "criada"
 
 
+# =====================================================================
+# COMPLETAR OBRAS QUE JÁ EXISTEM NO MC (set/26)
+# ---------------------------------------------------------------------
+# Para cada obra em andamento que existe no MC: abre "Editar Obra" (o mesmo
+# formulário da criação, que vem PREENCHIDO com o que o MC já tem) e só
+# completa o que estiver FALTANDO lá — nunca sobrescreve o que alguém
+# preencheu no MC. O que entra:
+#   tipo (Genérico/vazio -> pelo Nº DE CASAS), área total (averbada + pós
+#   habite-se), responsável técnico, responsável da obra, cliente, endereço
+#   (logradouro, complemento, estado, cidade), quem paga e conta.
+# "Visível para" e "Compras" NÃO são mexidos aqui: são decisões da criação.
+#
+# Para não abrir 90 obras todo dia: a coluna MC ATUALIZADO EM guarda quando
+# a obra foi conferida; ela só volta para a fila se for editada no Notion
+# depois disso. Primeira rodada: no máximo LIMITE_POR_RODADA obras.
+# =====================================================================
+COL_MC_DATA = "MC ATUALIZADO EM"
+LIMITE_POR_RODADA = 35
+FIM = ("FINALIZADO", "CANCELADO", "CONCLUIDO")
+
+
+def garantir_coluna_data():
+    esq = api("GET", f"/databases/{ID_OBRAS}").get("properties") or {}
+    if any(N(k) == N(COL_MC_DATA) for k in esq):
+        return
+    print(f"Coluna {COL_MC_DATA} não existe — " + ("criando." if APLICAR else "seria criada."), flush=True)
+    if APLICAR:
+        api("PATCH", f"/databases/{ID_OBRAS}", {"properties": {COL_MC_DATA: {"date": {}}}})
+
+
+def marcar_conferida(pid):
+    agora = datetime.now(timezone.utc).isoformat()
+    api("PATCH", f"/pages/{pid}", {"properties": {COL_MC_DATA: {"date": {"start": agora}}}})
+
+
+def _dt(s):
+    try:
+        return datetime.fromisoformat(str(s).replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def fila_atualizar(no_mc):
+    fila = []
+    for pg in ler_banco(ID_OBRAS, "OBRAS"):
+        pr = pg.get("properties") or {}
+        titulo = padronizar_endereco(txt(pega(pr, "Projeto")))
+        if not titulo or titulo not in no_mc:
+            continue
+        if N(txt(pega(pr, "Status"))) in FIM:
+            continue
+        conf = (pega(pr, COL_MC_DATA) or {}).get("date") or {}
+        conf = _dt(conf.get("start")) if conf else None
+        editada = _dt(pg.get("last_edited_time"))
+        # gravar a própria data mexe na última edição: 3 min de folga
+        if conf and editada and (editada - conf).total_seconds() < 180:
+            continue
+        a1, a2 = txt(pega(pr, "ÁREA CONSTRUÍDA AVERBADA")), txt(pega(pr, "ÁREA PÓS HABITE-SE"))
+        fila.append({
+            "id": pg["id"], "titulo": titulo, "conferida": bool(conf),
+            "casas": txt(pega(pr, "Nº DE CASAS")),
+            "area": ((a1 or 0) + (a2 or 0)) or None,
+            "rt": txt(pega(pr, "ENGENHEIRO RT")),
+            "resp": txt(pega(pr, "Responsável Pela Obra")),
+            "cliente": txt(pega(pr, "Proprietário")),
+            "cidade": txt(pega(pr, "Cidade")),
+            "conta": txt(pega(pr, "CONTA")),
+        })
+    # as nunca conferidas por último: primeiro o que mudou de verdade
+    fila.sort(key=lambda o: o["conferida"], reverse=True)
+    return fila
+
+
+def abrir_edicao(page, titulo):
+    ir_menu(page, "Obras", "Minhas Obras")
+    page.wait_for_timeout(1200)
+    busca = page.locator("input[placeholder*='Busque uma obra']").first
+    busca.fill(titulo)
+    page.wait_for_timeout(2200)
+    linha = page.locator("table tbody tr, [class*=row]").filter(has_text=titulo).first
+    if not linha.count():
+        raise RuntimeError("não achei a obra na lista do MC")
+    linha.click()
+    page.wait_for_url(re.compile(r"/work/[0-9a-f-]{20,}"), timeout=20000)
+    page.wait_for_timeout(1200)
+    page.locator("button:visible").filter(has_text=re.compile(r"editar\s+obra", re.I)).first.click()
+    page.locator(CAMPO["nome"]).wait_for(state="visible", timeout=15000)
+    page.wait_for_timeout(800)
+
+
+def valor_campo(page, sel):
+    try:
+        return (page.locator(sel).first.input_value() or "").strip()
+    except Exception:
+        return ""
+
+
+def completar_no_mc(page, o):
+    abrir_edicao(page, o["titulo"])
+    mudou = []
+
+    n = int(o["casas"]) if isinstance(o["casas"], (int, float)) else 0
+    tipo_atual = ""
+    try:
+        tipo_atual = page.locator(CAMPO["tipo"]).first.locator("xpath=..").inner_text().strip()
+    except Exception:
+        pass
+    if n in TIPOS and N(tipo_atual) != N(TIPOS[n]) and (not tipo_atual or N(tipo_atual) == N(TIPO_PADRAO)):
+        try:
+            escolher_na_lista(page, CAMPO["tipo"], "", alvo=TIPOS[n], exato=True)
+            mudou.append(f"tipo {tipo_atual or '(vazio)'} -> {TIPOS[n]}")
+        except Exception as e:
+            print(f"  ! tipo: {str(e)[:90]}", flush=True)
+
+    area_atual = valor_campo(page, CAMPO["area"])
+    rt_atual, resp_atual = valor_campo(page, CAMPO["rt"]), valor_campo(page, CAMPO["resp"])
+    if (o["area"] and area_atual in ("", "0", "0,00")) or (o["rt"] and not rt_atual) or (o["resp"] and not resp_atual):
+        abrir_secao(page, "Dados gerais")
+        if o["area"] and area_atual in ("", "0", "0,00"):
+            escrever(page, CAMPO["area"], f"{float(o['area']):.2f}".replace(".", ","))
+            mudou.append(f"área {o['area']}")
+        if o["rt"] and not rt_atual:
+            escrever(page, CAMPO["rt"], o["rt"]); mudou.append("responsável técnico")
+        if o["resp"] and not resp_atual:
+            escrever(page, CAMPO["resp"], o["resp"]); mudou.append("responsável da obra")
+
+    if o["cliente"] and not valor_campo(page, CAMPO["cliente"]):
+        abrir_secao(page, "Dados do cliente")
+        try:
+            c = escolher_na_lista(page, CAMPO["cliente"], o["cliente"][:25], alvo=o["cliente"])
+            fechar_replicar(page)
+            mudou.append(f"cliente {c}")
+        except Exception as e:
+            print(f"  ! cliente: {str(e)[:90]}", flush=True)
+
+    if not valor_campo(page, CAMPO["logradouro"]) or not valor_campo(page, "#state"):
+        abrir_secao(page, "Endereço")
+        try:
+            if not valor_campo(page, CAMPO["logradouro"]):
+                preencher_endereco(page, o)
+                mudou.append("endereço")
+            elif not valor_campo(page, "#state"):
+                escolher_na_lista(page, "#state", "Goi", alvo="Goiás")
+                if o.get("cidade"):
+                    page.wait_for_timeout(900)
+                    escolher_na_lista(page, "#city", o["cidade"][:12], alvo=o["cidade"])
+                mudou.append("estado/cidade")
+        except Exception as e:
+            print(f"  ! endereço: {str(e)[:90]}", flush=True)
+
+    conta = (o.get("conta") or "").strip()
+    if conta and N(conta) != "PESSOA FISICA" and not valor_campo(page, CAMPO["conta"]):
+        abrir_secao(page, "Conta bancária padrão")
+        try:
+            preencher_conta(page, o)
+            mudou.append("conta bancária")
+        except Exception as e:
+            print(f"  ! conta: {str(e)[:90]}", flush=True)
+
+    if not mudou:
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(500)
+        return "nada a completar"
+    print(f"  {o['titulo']}: completando {', '.join(mudou)}", flush=True)
+    if not APLICAR:
+        page.keyboard.press("Escape")
+        return "simulado"
+    salvar = page.locator("button:visible").filter(has_text=re.compile(r"salvar\s+obra", re.I)).last
+    salvar.scroll_into_view_if_needed()
+    salvar.click(force=True)
+    try:
+        page.locator(CAMPO["nome"]).wait_for(state="hidden", timeout=25000)
+    except Exception:
+        foto(page, "erro_completar_" + o["titulo"].replace(" ", "_"))
+        raise RuntimeError("o painel de edição continuou aberto depois de Salvar Obra")
+    return "completada"
+
+
 def main():
     fila = fila_de_obras()
     no_mc = obras_no_mc() or set()
@@ -444,18 +623,35 @@ def main():
     for o in faltando:
         print(f"  ! {o['titulo']}: sem Proprietário — pulei", flush=True)
     fazer = [o for o in fazer if o["cliente"]]
-    if not fazer:
+
+    garantir_coluna_data()
+    completar = fila_atualizar(no_mc)[:LIMITE_POR_RODADA]
+    print(f"Completar: {len(completar)} obras do MC para conferir nesta rodada", flush=True)
+    if not fazer and not completar:
         return 0
     with sync_playwright() as p:
         b, page = abrir(p)
         try:
             login(page)
+            for o in completar:
+                try:
+                    r = completar_no_mc(page, o)
+                    print(f"  {o['titulo']}: {r}", flush=True)
+                    if r in ("completada", "nada a completar") and APLICAR:
+                        marcar_conferida(o["id"])
+                except Exception as e:
+                    print(f"  ! {o['titulo']} (completar): {str(e)[:160]}", flush=True)
+                    page.keyboard.press("Escape")
             for o in fazer:
                 try:
                     r = criar_no_mc(page, o)
                     print(f"  {o['titulo']}: {r}", flush=True)
                     if r in ("criada", "ja_existe") and APLICAR:
                         marcar_criada(o["id"])
+                        try:
+                            marcar_conferida(o["id"])
+                        except Exception:
+                            pass
                 except Exception as e:
                     print(f"  ! {o['titulo']}: {str(e)[:160]}", flush=True)
                     foto(page, "erro_" + o["titulo"].replace(" ", "_"))
