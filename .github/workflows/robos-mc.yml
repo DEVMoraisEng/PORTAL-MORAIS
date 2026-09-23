@@ -45,6 +45,8 @@ jobs:
     timeout-minutes: 90
     env:
       NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+      # banco CONTAS BANCÁRIAS (criado à mão no Notion em 23/09/26) — id não é segredo
+      CONTAS_DB_ID: 3e4c5ab532d380afbd3bf9f7af31d2a7
       MC_URL: ${{ secrets.MC_URL }}
       MC_USUARIO: ${{ secrets.MC_USUARIO }}
       MC_SENHA: ${{ secrets.MC_SENHA }}
