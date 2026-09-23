@@ -378,7 +378,12 @@ const FIM=["FINALIZADO","CANCELADO","CONCLUIDO"];
 const OBRIGATORIOS=[["setor","Setor"],["cidade","Cidade"],["proprietario","Proprietário"],["proprietario_real","Proprietário real"],
   ["resp","Responsável pela obra"],["rt","Engenheiro RT"],["cota","Cota da empresa"],["data_lote","Data de aquisição do lote"],["n_casas","Nº de casas"]];
 let D={obras:[],atividades:[],opcoes:{},opcoes_atividades:{},pessoas:[]};
-let CONTAS=null, CONTAS_AVISO="";   // contas bancárias (Notion), carregadas por contasBancarias — uma vez por sessão (T7)
+/* contas bancárias: a lista fica guardada NO NAVEGADOR (localStorage) e o
+   formulário abre na hora com ela; por trás, o portal confere no servidor e
+   atualiza. Só nome da conta — nada de número/agência. */
+const CONTAS_KEY="obras_contas_v1";
+let CONTAS=(function(){ try{ const x=JSON.parse(localStorage.getItem(CONTAS_KEY)||"null"); return x&&Array.isArray(x.l)?x.l:null; }catch(e){ return null; } })(),
+    CONTAS_AVISO="", _contasEmVoo=null, _contasFresco=0;
 let ABA="obras", FILTRO="andamento", PESSOA=null, VER_FIN=false, OBRA=null, ATV=null, MODO="lista", CONT=null;
 let SORT_OB={k:"data_prevista",d:1}, SORT_ATV={k:null,d:1};
 /* conteúdo das atividades: memória + localStorage (abre na hora, confere por trás) */
@@ -492,6 +497,7 @@ async function carregar(){
     if(OB_S&&D.atividades.some(a=>!atvFeita(a)&&(a.resp||[]).some(n=>N(n)===N(OB_S.nome)))) ABA="atividades";
     document.getElementById("updated").textContent="Atualizado: "+new Date(D.updated_at).toLocaleString("pt-BR");
     pintar();
+    carregarContas();          // já deixa a lista de contas pronta para o formulário
   }catch(e){
     document.getElementById("view").innerHTML=`<div class="vazio">Não consegui ler os dados das obras (${esc(e.message)}). O arquivo é gerado no build do GitHub — step "Buscar dados das Obras".</div>`;
   }
@@ -777,7 +783,7 @@ function abrirObra(id){
   OBRA=id; MODO="lista"; pintarObraPainel();
   document.getElementById("ov1").classList.add("on"); document.getElementById("p1").classList.add("on");
   document.getElementById("p1-corpo").scrollTop=0;
-  if(CONTAS===null) carregarContas().then(()=>{ if(OBRA===id) repintarSeguro(); });
+  carregarContas();
   atualizarObraVivo(id).then(()=>preCarregarConteudos(id));
   carregarComentarios(id,"com-obra");
 }
@@ -1009,17 +1015,28 @@ function preencherSel(id,ops,vals,novo){
    não tiver a ação (ou falhar), o campo fica só com "Sem conta" e um aviso
    discreto, sem travar a criação da obra. */
 function preencherSelConta(){
+  const el=document.getElementById("f-conta"), antes=el?el.value:"";
   const nomes=["Pessoa física (sem conta)"].concat((CONTAS||[]).map(c=>c.opcao)).concat(["CRIAR CONTA — a conta ainda não existe"]);
   const vals=["PESSOA FÍSICA"].concat((CONTAS||[]).map(c=>c.opcao)).concat(["CRIAR CONTA"]);
   preencherSel("f-conta",nomes,vals);
+  if(antes&&vals.indexOf(antes)>=0) el.value=antes;          // não perde o que já foi escolhido
   const av=document.getElementById("a-conta"); if(av) av.textContent=CONTAS_AVISO;
 }
-async function carregarContas(){
-  if(CONTAS!==null) return;         // já tentou nesta sessão
-  let r; try{ r=await chamar({action:"contasBancarias"},20000); }catch(e){ r=null; }
-  if(r&&r.ok){ CONTAS=r.contas||[]; CONTAS_AVISO=""; }
-  else{ CONTAS=[]; CONTAS_AVISO="lista de contas indisponível — use \"CRIAR CONTA\" e escolha depois"; }
-  if(document.getElementById("mf").classList.contains("on")){ preencherSelConta(); aplicarCombos(document.getElementById("mf")); }
+async function carregarContas(forcar){
+  if(_contasEmVoo) return _contasEmVoo;
+  if(!forcar && Date.now()-_contasFresco<5*60000) return;
+  _contasEmVoo=(async()=>{
+    let r; try{ r=await chamar({action:"contasBancarias"},45000); }catch(e){ r=null; }
+    if(r&&r.ok&&Array.isArray(r.contas)){
+      CONTAS=r.contas; CONTAS_AVISO=""; _contasFresco=Date.now();
+      try{ localStorage.setItem(CONTAS_KEY,JSON.stringify({t:Date.now(),l:CONTAS})); }catch(e){}
+    } else if(!CONTAS||!CONTAS.length){
+      CONTAS=CONTAS||[]; CONTAS_AVISO="a lista de contas ainda não carregou — tente abrir de novo em instantes";
+    }
+    if(document.getElementById("mf").classList.contains("on")){ preencherSelConta(); aplicarCombos(document.getElementById("mf")); }
+    if(OBRA) repintarSeguro();
+  })();
+  try{ await _contasEmVoo; } finally{ _contasEmVoo=null; }
 }
 function abrirForm(valores){
   preencherSel("f-setor",listaOpc("SETOR"),null,true);
@@ -1252,7 +1269,7 @@ async function marcarAparece(id,el){
   el.disabled=true;
   const r=await gravarComRetry({action:"contaAparece",pageId:id,aparece:el.checked},el);
   el.disabled=false;
-  if(r&&r.ok){ c.aparece=el.checked; CONTAS=null; toast(el.checked?"Conta aparecendo para escolha.":"Conta escondida da escolha."); }
+  if(r&&r.ok){ c.aparece=el.checked; carregarContas(true); toast(el.checked?"Conta aparecendo para escolha.":"Conta escondida da escolha."); }
   else { el.checked=!el.checked; toast("Não salvou: "+errMsg(r)); }
 }
 
