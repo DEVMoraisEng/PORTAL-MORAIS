@@ -26,7 +26,7 @@ from playwright.sync_api import sync_playwright
 import re
 from datetime import datetime, timezone
 
-from robo_mc_comum import N, foto, abrir, login, ir_menu, clicar_texto, APLICAR
+from robo_mc_comum import N, foto, abrir, login, ir_menu, clicar_texto, APLICAR, MC_URL
 from fetch_vendas import ler_banco, api
 from fetch_obras import obras_no_mc, padronizar_endereco
 
@@ -330,8 +330,7 @@ def ja_existe_no_mc(page, titulo):
 
 
 def criar_no_mc(page, o):
-    ir_menu(page, "Obras", "Minhas Obras")
-    page.wait_for_timeout(1500)
+    ir_lista_obras(page)
     if ja_existe_no_mc(page, o["titulo"]):
         return "ja_existe"
     clicar_texto(page, "Nova Obra", exato=False)
@@ -504,9 +503,19 @@ def fila_atualizar(no_mc):
     return fila
 
 
+def ir_lista_obras(page):
+    """Vai para "Minhas Obras" pelo ENDEREÇO (#/work). Pelo menu não dá depois
+    de abrir uma obra: o painel de edição/página da obra fica por cima do menu
+    lateral, e da segunda obra em diante o robô não achava mais nada — foi o
+    que aconteceu na simulação de 23/09 (1 obra conferida, 34 com erro)."""
+    base = (MC_URL.split("#")[0] or "https://acessar.maiscontroleerp.com.br/").rstrip("/") + "/#/work"
+    page.goto(base)
+    page.locator("input[placeholder*='Busque uma obra']").first.wait_for(state="visible", timeout=25000)
+    page.wait_for_timeout(800)
+
+
 def abrir_edicao(page, titulo):
-    ir_menu(page, "Obras", "Minhas Obras")
-    page.wait_for_timeout(1200)
+    ir_lista_obras(page)
     busca = page.locator("input[placeholder*='Busque uma obra']").first
     busca.fill(titulo)
     page.wait_for_timeout(2200)
