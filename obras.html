@@ -501,10 +501,13 @@ async function carregar(){
 function faltasDe(o){ return OBRIGATORIOS.filter(([k])=>o[k]===null||o[k]===undefined||o[k]===""||(Array.isArray(o[k])&&!o[k].length)).map(([,r])=>r); }
 const alertasMc=()=>D.obras.filter(o=>o.em_mc===false && !o.mais_controle && !fim(o.status));
 const alertasCampos=()=>D.obras.filter(o=>!fim(o.status) && faltasDe(o).length);
+/* 23/09/26 — conta bancária marcada CRIAR CONTA (a conta ainda não existe no
+   Mais Controle) ou DÚVIDA (a conversão da fórmula antiga não teve certeza) */
+const alertasConta=()=>D.obras.filter(o=>!fim(o.status) && (o.conta_alerta==="CRIAR CONTA"||o.conta_alerta==="DÚVIDA"));
 
 /* ---------- abas ---------- */
 function pintarTabs(){
-  const nAl=alertasMc().length+alertasCampos().length;
+  const nAl=alertasMc().length+alertasCampos().length+alertasConta().length;
   document.getElementById("tabs").innerHTML=[["obras","Obras"],["atividades","Atividades"],["alertas","Alertas"],["investidores","Cadastros investidores"]].map(([k,r])=>
     `<button class="tab ${ABA===k?"on":""}" onclick="ABA='${k}';FIXAS.clear();pintar()">${r}${k==="alertas"&&nAl?`<span class="nb">${nAl}</span>`:""}</button>`).join("");
 }
@@ -677,7 +680,7 @@ async function atualizarObraVivo(obraId){
     let r; try{ r=await chamar({action:"obraVivo",obraId:obraId},40000); }catch(e){ r=null; }
     if(!(r&&r.ok)) return [];
     const o=obraDe(obraId);
-    if(o&&r.obra){ Object.keys(r.obra).forEach(k=>{ if(k!=="id") o[k]=r.obra[k]; }); }
+    if(o&&r.obra){ Object.keys(r.obra).forEach(k=>{ if(k!=="id") o[k]=r.obra[k]; }); o._vivo=true; }
     const vindas=r.atividades||[], ids=new Set(vindas.map(x=>x.id)), novas=[];
     D.atividades=D.atividades.filter(x=>x.obra_id!==obraId||ids.has(x.id)||String(x.id).indexOf("tmp")===0);
     vindas.forEach(v=>{ const a=D.atividades.find(x=>x.id===v.id);
@@ -701,7 +704,7 @@ function repintarAtvs(){ if(OBRA) pintarObraPainel(); if(ABA==="atividades") pin
 
 /* ===================== ABA ALERTAS ===================== */
 function pintarAlertas(){
-  const mc=alertasMc(), cp=alertasCampos();
+  const mc=alertasMc(), cp=alertasCampos(), ct=alertasConta();
   const leuMc=D.obras.some(o=>o.em_mc===true||o.em_mc===false);
   document.getElementById("view").innerHTML=`
     <div class="sec"><span class="cond">Obras que não estão no Mais Controle</span><span class="qtd">${mc.length}</span></div>
@@ -715,7 +718,12 @@ function pintarAlertas(){
     ${cp.length?cp.map(o=>`<div class="al"><span class="end" onclick="abrirObra('${o.id}')">${esc(o.titulo)}</span>
         <span class="txt">${faltasDe(o).map(f=>`<span class="falta">${esc(f)}</span>`).join("")}</span>
         <span class="acoes"><button class="bt bt-mini az" onclick="abrirObra('${o.id}')">Preencher</button></span></div>`).join("")
-      :`<div class="vazio">Nenhuma obra em andamento com campo obrigatório vazio.</div>`}`;
+      :`<div class="vazio">Nenhuma obra em andamento com campo obrigatório vazio.</div>`}
+    <div class="sec"><span class="cond">Conta bancária a definir</span><span class="qtd">${ct.length}</span></div>
+    ${ct.length?ct.map(o=>`<div class="al"><span class="end" onclick="abrirObra('${o.id}')">${esc(o.titulo)}</span>
+        <span class="txt"><span class="falta">${o.conta_alerta==="CRIAR CONTA"?"CRIAR CONTA — conta ainda não existe no Mais Controle":"DÚVIDA — confirme qual é a conta"}</span></span>
+        <span class="acoes"><button class="bt bt-mini az" onclick="abrirObra('${o.id}')">Escolher conta</button></span></div>`).join("")
+      :`<div class="vazio">Nenhuma obra em andamento com conta pendente.</div>`}`;
 }
 async function decidirMc(id,valor){
   const o=obraDe(id); if(!o) return;
@@ -736,7 +744,7 @@ const CAMPOS=[
   ["Cota da empresa (%)","cota","COTA DA EMPRESA (%)","num"],["Aquisição do lote","data_lote","DATA DE AQUISIÇÃO DO LOTE","data"],
   ["Implantação","implantacao","IMPLANTAÇÃO","sel"],["Área do lote (m²)","area_lote","ÁREA DO LOTE","num"],
   ["Área construída averbada (m²)","area_averbada","ÁREA CONSTRUÍDA AVERBADA","num"],["Área pós habite-se (m²)","area_habite","ÁREA PÓS HABITE-SE","num"],
-  ["Mais Controle","mais_controle","MAIS CONTROLE","sel"],["Conta bancária","conta_id","CONTA BANCÁRIA","conta"]
+  ["Mais Controle","mais_controle","MAIS CONTROLE","sel"],["Conta bancária","conta","CONTA","conta"]
 ];
 function campoHtml(o,c,i){
   const [rot,k,col,tipo]=c, v=o[k];
@@ -748,10 +756,14 @@ function campoHtml(o,c,i){
     if(!ops.length&&!ehLivre(col)) return "";
     inp=`<select onchange="gravarObra(${i},this)"><option value="">—</option>${ops.map(x=>`<option ${N(x)===N(atual)?"selected":""}>${esc(x)}</option>`).join("")}${ehLivre(col)?`<option value="__novo__">+ Novo…</option>`:""}</select>`;
   }else if(tipo==="conta"){
-    const l=CONTAS||[], atual=v||"";
-    inp=`<select onchange="gravarObra(${i},this)"><option value="SEM" ${!atual?"selected":""}>Sem conta (pessoa física)</option>${
-      l.map(c=>`<option value="${esc(c.id)}" ${String(c.id).replace(/-/g,"")===String(atual).replace(/-/g,"")?"selected":""}>${esc(c.nome)}</option>`).join("")}${
-      atual&&!l.some(c=>String(c.id).replace(/-/g,"")===String(atual).replace(/-/g,""))?`<option value="${esc(atual)}" selected>(conta atual)</option>`:""}</select>`;
+    /* 23/09/26 — CONTA é seleção com o NOME da conta (igual ao Mais Controle).
+       O valor atual só chega pelo obraVivo (o nome não vai para o dist/). */
+    const l=CONTAS||[], atual=v||"", ops=[["PESSOA FÍSICA","Pessoa física (sem conta)"]]
+      .concat(l.map(c=>[c.opcao,c.opcao])).concat([["CRIAR CONTA","CRIAR CONTA — a conta ainda não existe"]]);
+    const tem=ops.some(([x])=>N(x)===N(atual));
+    inp=`<select onchange="gravarObra(${i},this)"><option value="" ${!atual?"selected":""}>${o._vivo?"—":"carregando…"}</option>${
+      ops.map(([val,rot])=>`<option value="${esc(val)}" ${N(val)===N(atual)?"selected":""}>${esc(rot)}</option>`).join("")}${
+      atual&&!tem?`<option value="${esc(atual)}" selected>${esc(atual)}${N(atual)===N("DÚVIDA")?" — escolha a conta certa":""}</option>`:""}</select>`;
   }else if(tipo==="pessoa"){
     const atual=(v||[])[0]||"";
     inp=`<select onchange="gravarObra(${i},this)"><option value="">—</option>${D.pessoas.map(p=>`<option value="${p.id}" ${p.id===atual?"selected":""}>${esc(p.nome)}</option>`).join("")}</select>`;
@@ -820,7 +832,8 @@ async function gravarObra(i,el){
   el.classList.remove("ok","erro"); el.classList.add("salvando");
   /* Liberar sai pela LEITURA (é lá que o ObrasSync cria a Compatibilização na
      hora); conta bancária tem ação própria; o resto vai pela ESCRITA */
-  const payload=tipo==="conta"?{action:"obraConta",pageId:o.id,contaId:valor}
+  if(tipo==="conta"&&!valor) return;
+  const payload=tipo==="conta"?{action:"obraConta",pageId:o.id,conta:valor}
     :{action:N(col)===N("Liberar Obra Para Processo Interno")?"obraLiberar":"obraUpdate",pageId:o.id,prop:col,valor:valor};
   const r=await gravarComRetry(payload,el);
   el.classList.remove("salvando");
@@ -828,7 +841,7 @@ async function gravarObra(i,el){
     el.classList.add("ok");
     if(tipo==="pessoa"){ o[k]=valor; const p=D.pessoas.find(x=>x.id===valor[0]); o[k==="resp_ids"?"resp":"rt"]=p?p.nome:""; }
     else if(tipo==="num") o[k]=el.value===""?null:Number(el.value);
-    else if(tipo==="conta") o[k]=el.value==="SEM"?null:el.value;
+    else if(tipo==="conta"){ o[k]=el.value; o.conta_alerta=(el.value==="CRIAR CONTA"||el.value==="DÚVIDA")?el.value:null; }
     else o[k]=el.value||null;
     toast(r.compat&&r.compat.criada?"Criado para esta obra: "+(r.compat.criadas||[]).join(" e ")+".":rot+" salvo.");
     pintarTabs(); if(ABA==="obras") pintarLista(); else if(ABA==="alertas") pintarAlertas();
@@ -996,8 +1009,8 @@ function preencherSel(id,ops,vals,novo){
    não tiver a ação (ou falhar), o campo fica só com "Sem conta" e um aviso
    discreto, sem travar a criação da obra. */
 function preencherSelConta(){
-  const nomes=["Sem conta (pessoa física)"].concat((CONTAS||[]).map(c=>c.nome));
-  const vals=["SEM"].concat((CONTAS||[]).map(c=>c.id));
+  const nomes=["Pessoa física (sem conta)"].concat((CONTAS||[]).map(c=>c.opcao)).concat(["CRIAR CONTA — a conta ainda não existe"]);
+  const vals=["PESSOA FÍSICA"].concat((CONTAS||[]).map(c=>c.opcao)).concat(["CRIAR CONTA"]);
   preencherSel("f-conta",nomes,vals);
   const av=document.getElementById("a-conta"); if(av) av.textContent=CONTAS_AVISO;
 }
@@ -1005,7 +1018,7 @@ async function carregarContas(){
   if(CONTAS!==null) return;         // já tentou nesta sessão
   let r; try{ r=await chamar({action:"contasBancarias"},20000); }catch(e){ r=null; }
   if(r&&r.ok){ CONTAS=r.contas||[]; CONTAS_AVISO=""; }
-  else{ CONTAS=[]; CONTAS_AVISO="lista de contas indisponível — use \"Sem conta\""; }
+  else{ CONTAS=[]; CONTAS_AVISO="lista de contas indisponível — use \"CRIAR CONTA\" e escolha depois"; }
   if(document.getElementById("mf").classList.contains("on")){ preencherSelConta(); aplicarCombos(document.getElementById("mf")); }
 }
 function abrirForm(valores){
@@ -1024,7 +1037,7 @@ function abrirForm(valores){
     const põe=(id,v)=>{ if(v!=null&&v!=="") document.getElementById(id).value=v; };
     põe("f-end",valores.endereco); põe("f-setor",valores.setor); põe("f-cidade",valores.cidade);
     põe("f-prop",valores.proprietario); põe("f-propreal",valores.proprietarioReal);
-    põe("f-conta",valores.contaId); põe("f-resp",valores.resp); põe("f-rt",valores.rt); põe("f-cota",valores.cota);
+    põe("f-conta",valores.conta); põe("f-resp",valores.resp); põe("f-rt",valores.rt); põe("f-cota",valores.cota);
     põe("f-lote",valores.dataLote); põe("f-casas",valores.nCasas); põe("f-impl",valores.implantacao);
     põe("f-alote",valores.areaLote); põe("f-aaverb",valores.areaAverbada); põe("f-ahab",valores.areaHabite);
     document.getElementById("f-estudo").checked=!!valores.estudoLayout;
@@ -1045,14 +1058,14 @@ const ERROS={ ENDERECO_OBRIGATORIO:"Informe o endereço.", ENDERECO_COM_PREFIXO:
 async function enviarObra(continuar){
   const g=id=>document.getElementById(id).value.trim(), erro=document.getElementById("f-erro");
   if(!checarEnd()){ erro.textContent="Corrija o endereço."; return; }
-  const contaSel=g("f-conta");   // "SEM" (pessoa física) ou o id da conta no Notion
+  const contaSel=g("f-conta");   // nome da conta, "PESSOA FÍSICA" ou "CRIAR CONTA"
   const p={ action:"obraNova", opId:window._opObra, endereco:g("f-end").toUpperCase().replace(/\s+/g," "),
     setor:g("f-setor"), cidade:g("f-cidade"), proprietario:g("f-prop"), proprietarioReal:g("f-propreal"),
-    contaId:contaSel==="SEM"?"":contaSel,   // vazio quando "Sem conta" (T7); backend aceita vazio ou "SEM"
+    conta:contaSel,
     resp:g("f-resp"), rt:g("f-rt"), cota:g("f-cota"), dataLote:g("f-lote"), nCasas:g("f-casas"), implantacao:g("f-impl"),
     areaLote:g("f-alote"), areaAverbada:g("f-aaverb"), areaHabite:g("f-ahab"), estudoLayout:document.getElementById("f-estudo").checked };
   const falta=[["setor","Setor",!p.setor],["cidade","Cidade",!p.cidade],["proprietario","Proprietário",!p.proprietario],
-    ["proprietarioReal","Proprietário real",!p.proprietarioReal],["contaId","Conta bancária",!contaSel],
+    ["proprietarioReal","Proprietário real",!p.proprietarioReal],["conta","Conta bancária",!contaSel],
     ["resp","Responsável pela obra",!p.resp],["rt","Engenheiro RT",!p.rt],["cota","Cota",!p.cota],
     ["dataLote","Data de aquisição do lote",!p.dataLote]]
     .filter(([,,vazio])=>vazio).map(([,r])=>r);
@@ -1065,7 +1078,7 @@ async function enviarObra(continuar){
     proprietario:p.proprietario, proprietario_real:p.proprietarioReal, resp:pes(p.resp), resp_ids:[p.resp],
     rt:pes(p.rt), rt_ids:[p.rt], status:"Não começou", liberar:"Não", data_inicial:iso(new Date()),
     data_prevista:iso(new Date(Date.now()+37*864e5)), n_casas:p.nCasas?Number(p.nCasas):null,
-    projeto_finalizado:"Não", orcamento_finalizado:"Não", projeto_aprovado:"Não", conta_id:p.contaId||null, cota:Number(p.cota),
+    projeto_finalizado:"Não", orcamento_finalizado:"Não", projeto_aprovado:"Não", conta:p.conta||null, conta_alerta:p.conta==="CRIAR CONTA"?"CRIAR CONTA":null, cota:Number(p.cota),
     data_lote:p.dataLote, implantacao:p.implantacao||null, mais_controle:"Criar", em_mc:null };
   D.obras.unshift(local);
   if(continuar){        // próxima obra: só o endereço e as áreas são limpos
