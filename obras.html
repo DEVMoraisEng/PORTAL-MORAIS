@@ -493,8 +493,8 @@ async function carregar(){
     const r=await fetch("dist/obras.json?v="+Math.floor(Date.now()/60000),{cache:"no-cache"});
     if(!r.ok) throw new Error("HTTP "+r.status);
     D=await r.json(); D.opcoes_atividades=D.opcoes_atividades||{};
-    /* abre direto nas atividades de quem está logado, se a pessoa tiver alguma */
-    if(OB_S&&D.atividades.some(a=>!atvFeita(a)&&(a.resp||[]).some(n=>N(n)===N(OB_S.nome)))) ABA="atividades";
+    /* 23/09/26: a tela abre sempre em OBRAS. Ao clicar em Atividades, a aba
+       já entra nas atividades de quem está logado (ver pintarAtividades). */
     document.getElementById("updated").textContent="Atualizado: "+new Date(D.updated_at).toLocaleString("pt-BR");
     pintar();
     carregarContas();          // já deixa a lista de contas pronta para o formulário
