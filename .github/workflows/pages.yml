@@ -105,6 +105,18 @@ jobs:
           ERP_CSV_OBRAS: ${{ secrets.ERP_CSV_OBRAS }}
         run: pip install requests && python fetch_obras.py
 
+      # ESPELHO DOS ANEXOS DAS LIGAÇÕES (23/09/26). Copia NF MEDIDOR e demais
+      # anexos para o bucket PRIVADO "anexos" do Supabase — é o que faz o PDF
+      # abrir em 1-2 s pelo portal (ação ligArquivo do Melhorias.gs). Só sobe o
+      # que é novo; nada disso vai para o dist/. Falhar aqui não derruba o site.
+      - name: Espelhar anexos das Ligações
+        continue-on-error: true
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: pip install requests && python espelhar_anexos.py
+
       - name: Configurar Pages
         uses: actions/configure-pages@v5
 
