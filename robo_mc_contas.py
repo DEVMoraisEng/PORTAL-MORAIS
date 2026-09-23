@@ -9,13 +9,18 @@ O que o robô faz, em ordem:
   1. Lê as contas ATIVAS do ERP (login por API; se o WAF recusar — 403 — ou
      der erro de rede, recua para login pela tela com Playwright e refaz a
      mesma consulta de dentro da página).
-  2. Acha (ou cria) o banco CONTAS BANCÁRIAS no Notion, no mesmo pai da (EMP)
-     Projeto 2.0, e garante a coluna CONTA BANCÁRIA na base de obras.
+  2. Usa o banco CONTAS BANCÁRIAS do Notion (id fixo em CONTAS_DB_ID; sem
+     ele, acha/cria no mesmo pai da (EMP) Projeto 2.0) e garante as colunas.
   3. Casa as contas do ERP com as páginas do Notion pelo "ID ERP" e decide o
      que criar/atualizar/marcar como sumida ou que voltou — nunca mexendo em
      "Aparece" de conta já cadastrada (isso é decisão do dono, pelo painel).
-  4. Com --ligar-antigas: liga as obras antigas (sem a relação, com texto na
-     coluna CONTA) à conta certa, casando pelos dígitos do número.
+  4. Coluna CONTA das obras (23/09/26): ela é uma SELEÇÃO cujas opções são os
+     nomes das contas do ERP (+ PESSOA FÍSICA, CRIAR CONTA e DÚVIDA). Toda
+     rodada mantém as opções em dia (conta nova entra, conta renomeada no ERP
+     é renomeada na opção — e as obras acompanham). Na PRIMEIRA rodada com
+     APLICAR, se a CONTA ainda for a fórmula antiga, ela é convertida: cada
+     obra recebe a conta real que a fórmula descrevia; o que não der para
+     casar com segurança fica "DÚVIDA", para alguém escolher depois.
 
 MODOS (variáveis de ambiente, mesmo padrão dos outros robôs do MC):
   APLICAR=1              grava de verdade (no Notion). Sem ela, só simula.
@@ -46,7 +51,13 @@ from fetch_vendas import api, ler_banco
 # (EMP) Projeto 2.0 — mesma base que robo_mc_obras.py usa como fila de obras.
 ID_OBRAS = "306c5ab532d3812fa14fe9a281510128"
 TITULO_BANCO_CONTAS = "CONTAS BANCÁRIAS"
-COL_RELACAO_OBRAS = "CONTA BANCÁRIA"
+# Banco criado à mão no Notion (23/09/26). Com ele, o robô não precisa achar
+# a página-pai da base de obras (que a integração não enxerga).
+CONTAS_DB_ID = os.environ.get("CONTAS_DB_ID", "").strip()
+COL_CONTA_OBRAS = "CONTA"              # seleção na (EMP) Projeto 2.0
+COL_OPCAO = "Nome na obra"             # nome da opção na CONTA das obras
+OPC_PF, OPC_CRIAR, OPC_DUVIDA = "PESSOA FÍSICA", "CRIAR CONTA", "DÚVIDA"
+OPCOES_ESPECIAIS = [OPC_PF, OPC_CRIAR, OPC_DUVIDA]
 
 # Endereços do ERP (copiados de fontes/comprovantes-mais-controle/erp/hosts.py)
 ACESSAR = "https://acessar.maiscontroleerp.com.br"
@@ -90,6 +101,11 @@ def txt(p):
         return bool(v)
     if t == "relation":
         return v or []
+    if t == "formula" and v:
+        x = v.get(v.get("type"))
+        return "" if x is None else str(x)
+    if t == "number":
+        return "" if v is None else str(v)
     return ""
 
 
@@ -538,6 +554,7 @@ _COLUNAS_BANCO = {
     "Aparece": {"checkbox": {}},
     "Situação no ERP": {"select": {"options": [{"name": "Ativa"}, {"name": "Sumiu do ERP"}]}},
     "Atualizado em": {"date": {}},
+    COL_OPCAO: {"rich_text": {}},
 }
 
 _MAPA_CAMPO_PROPRIEDADE = {
@@ -614,6 +631,10 @@ def achar_ou_criar_banco(aplicar):
     "CONTAS BANCÁRIAS" pelos blocos do pai (não pelo `/search` — índice
     atrasado cria duplicata); não achando e sem APLICAR, só avisa (não
     cria). Devolve (db_id | None, criado_agora)."""
+    if CONTAS_DB_ID:
+        if aplicar:
+            preparar_banco_fixo(CONTAS_DB_ID)
+        return CONTAS_DB_ID, False
     pai = _pagina_pai_das_obras()
 
     achado = _achar_filho_banco(pai)
@@ -632,29 +653,228 @@ def achar_ou_criar_banco(aplicar):
     return novo["id"], True
 
 
-def garantir_relacao(db_id):
-    """Garante, na base de obras, a coluna CONTA BANCÁRIA (relação com o
-    banco novo). E, EM TODA RODADA — não só quando a coluna nasce —, confere
-    se o lado de volta (a relação que o Notion cria sozinho no banco novo)
-    já se chama "Obras"; se ainda não (alguém não conseguiu renomear numa
-    rodada anterior, ou renomeou de volta sem querer), tenta de novo."""
-    esquema_obras = api("GET", f"/databases/{ID_OBRAS}").get("properties") or {}
-    if not any(N(k) == N(COL_RELACAO_OBRAS) for k in esquema_obras):
-        api("PATCH", f"/databases/{ID_OBRAS}", {
-            "properties": {COL_RELACAO_OBRAS: {"relation": {"database_id": db_id, "dual_property": {}}}}
-        })
+def preparar_banco_fixo(db_id):
+    """Banco criado à mão (CONTAS_DB_ID): nasce só com o título "Nome". Aqui
+    o título vira "Conta", as colunas que faltam são criadas e o banco ganha
+    o nome CONTAS BANCÁRIAS. Só acrescenta — nunca apaga coluna nenhuma."""
+    db = api("GET", f"/databases/{db_id}")
+    props = db.get("properties") or {}
+    mudar = {}
+    for nome, prop in props.items():
+        if prop.get("type") == "title" and N(nome) != N("Conta"):
+            mudar[nome] = {"name": "Conta"}
+    tem = {N(k) for k in props}
+    for nome, definicao in _COLUNAS_BANCO.items():
+        if "title" in definicao or N(nome) in tem:
+            continue
+        mudar[nome] = definicao
+    corpo = {"properties": mudar} if mudar else {}
+    titulo = "".join(x.get("plain_text", "") for x in (db.get("title") or []))
+    if N(titulo) != N(TITULO_BANCO_CONTAS):
+        corpo["title"] = [{"type": "text", "text": {"content": TITULO_BANCO_CONTAS}}]
+    if corpo:
+        api("PATCH", f"/databases/{db_id}", corpo)
+        print(f"Banco de contas preparado: {len(mudar)} coluna(s) ajustada(s)", flush=True)
 
-    esquema_novo = api("GET", f"/databases/{db_id}").get("properties") or {}
-    lado_de_volta = None
-    for nome, prop in esquema_novo.items():
-        # o "database_id" que o Notion devolve aqui vem COM hífen
-        # ("306c5ab5-32d3-..."); ID_OBRAS está no formato compacto (sem
-        # hífen) — comparar direto nunca bate. `_norm_id` neutraliza os dois.
-        if prop.get("type") == "relation" and _norm_id((prop.get("relation") or {}).get("database_id")) == _norm_id(ID_OBRAS):
-            lado_de_volta = nome
-            break
-    if lado_de_volta and N(lado_de_volta) != N("Obras"):
-        api("PATCH", f"/databases/{db_id}", {"properties": {lado_de_volta: {"name": "Obras"}}})
+
+# ============================================================================
+# Coluna CONTA das obras — seleção com os nomes das contas do ERP
+# ============================================================================
+
+def nome_opcao(nome):
+    """Nome de opção de seleção do Notion: sem vírgula (a API recusa), sem
+    espaço sobrando, até 100 caracteres."""
+    t = " ".join(str(nome or "").replace(",", " ").split())
+    return t[:100]
+
+
+def opcoes_das_contas(contas):
+    """{page_id: nome da opção} para as contas ATIVAS. Duas contas com o mesmo
+    nome no ERP ganham o final do número para não virarem a mesma opção."""
+    ativas = [c for c in (contas or []) if c.get("page_id") and N(c.get("situacao", "")) != _SITUACAO_SUMIU]
+    contagem = {}
+    for c in ativas:
+        contagem[N(nome_opcao(c.get("nome")))] = contagem.get(N(nome_opcao(c.get("nome"))), 0) + 1
+    out = {}
+    for c in ativas:
+        base = nome_opcao(c.get("nome"))
+        if not base:
+            continue
+        if contagem[N(base)] > 1:
+            fim = so_digitos(c.get("numero"))[-4:] or str(c.get("id_erp") or "")[-4:]
+            base = nome_opcao(f"{base[:90]} {fim}")
+        out[c["page_id"]] = base
+    return out
+
+
+_RUIDO = {"SPE", "LTDA", "S/A", "SA", "ME", "EIRELI", "DE", "DA", "DO", "DOS", "DAS", "E",
+          "CONTA", "CORRENTE", "C/C", "CC", "AG", "AGENCIA", "-", "–", "N", "NO", "NUM"}
+
+
+def _tokens(texto):
+    return {t for t in re.split(r"[^A-Z0-9/]+", N(texto)) if t and t not in _RUIDO and not t.isdigit()}
+
+
+def _tokens_conta(c):
+    tk = _tokens(c.get("nome"))
+    banco = str(c.get("banco") or "").strip()
+    if banco in BANCOS_CONHECIDOS:
+        tk.add(N(BANCOS_CONHECIDOS[banco]))
+    if "CAIXA" in tk:
+        tk.add("CEF")
+    return tk
+
+
+def casar_obra_conta(texto, numero_obra, contas):
+    """Função PURA: que conta a fórmula antiga da obra descrevia.
+
+    `contas`: dicts com page_id, nome, numero, banco, situacao, opcao.
+    Devolve (opcao | "", motivo): "" quando a fórmula estava vazia;
+    PESSOA FÍSICA quando era pessoa física; DÚVIDA quando não dá para
+    garantir UMA conta. Ordem (da mais segura para a menos):
+      1. nome igual (sem acento/caixa);
+      2. número da conta (dígitos da fórmula ou da coluna Nº DA CONTA),
+         desempatado pelo banco;
+      3. todas as palavras da fórmula presentes no nome da conta (+ nome do
+         banco), com UMA candidata só — ou uma só entre as que batem também
+         o número."""
+    texto = str(texto or "").strip()
+    if not texto:
+        return "", "vazia"
+    if N(texto) == N(OPC_PF):
+        return OPC_PF, "pf"
+    ativas = [c for c in (contas or []) if c.get("opcao") and N(c.get("situacao", "")) != _SITUACAO_SUMIU]
+    iguais = [c for c in ativas if N(c.get("nome")) == N(texto) or N(c.get("opcao")) == N(texto)]
+    if len(iguais) == 1:
+        return iguais[0]["opcao"], "nome"
+
+    fonte_digitos = texto + " " + str(numero_obra or "")
+    por_numero = [c for c in ativas if so_digitos(c.get("numero"))
+                  and so_digitos(c.get("numero")) in _grupos_digitos(fonte_digitos)]
+    if len(por_numero) == 1:
+        return por_numero[0]["opcao"], "numero"
+    if len(por_numero) > 1:
+        texto_n = N(texto)
+        grupos = _grupos_digitos(fonte_digitos)
+        com_banco = [c for c in por_numero if _banco_bate_no_texto(c.get("banco"), grupos, texto_n)]
+        if len(com_banco) == 1:
+            return com_banco[0]["opcao"], "numero"
+
+    alvo = _tokens(texto)
+    if alvo:
+        contem = [c for c in ativas if alvo <= _tokens_conta(c)]
+        if len(contem) == 1:
+            return contem[0]["opcao"], "palavras"
+        if len(contem) > 1 and por_numero:
+            ids = {c["page_id"] for c in por_numero}
+            dos_dois = [c for c in contem if c["page_id"] in ids]
+            if len(dos_dois) == 1:
+                return dos_dois[0]["opcao"], "palavras"
+    return OPC_DUVIDA, "duvida"
+
+
+def _opcoes_desejadas(contas):
+    mapa = opcoes_das_contas(contas)
+    return mapa, list(dict.fromkeys(list(mapa.values()) + OPCOES_ESPECIAIS))
+
+
+def sincronizar_coluna_conta(db_id, contas, aplicar):
+    """Mantém a coluna CONTA das obras como seleção com os nomes das contas.
+
+    - Coluna ainda é a FÓRMULA antiga -> `migrar_coluna_conta` (uma vez só).
+    - Já é seleção -> acrescenta conta nova, renomeia a opção da conta que
+      mudou de nome no ERP (as obras acompanham, porque a opção é a mesma) e
+      grava em "Nome na obra" o nome da opção de cada conta.
+    Imprime só contagens (repo público)."""
+    mapa, desejadas = _opcoes_desejadas(contas)
+    esquema = api("GET", f"/databases/{ID_OBRAS}").get("properties") or {}
+    nome_col, prop = None, None
+    for k, v in esquema.items():
+        if N(k) == N(COL_CONTA_OBRAS):
+            nome_col, prop = k, v
+    if prop is None or prop.get("type") == "formula":
+        return migrar_coluna_conta(nome_col, contas, mapa, desejadas, aplicar)
+    if prop.get("type") != "select":
+        print(f"  ! coluna {COL_CONTA_OBRAS} das obras é do tipo {prop.get('type')} — não mexi", flush=True)
+        return
+
+    existentes = (prop.get("select") or {}).get("options") or []
+    por_nome = {N(o.get("name")): o for o in existentes}
+    renomear, novas = 0, []
+    for c in contas or []:
+        nova = mapa.get(c.get("page_id"))
+        velha = c.get("opcao")
+        if not nova:
+            continue
+        if velha and N(velha) != N(nova) and N(velha) in por_nome and N(nova) not in por_nome:
+            por_nome[N(velha)]["name"] = nova
+            por_nome[N(nova)] = por_nome.pop(N(velha))
+            renomear += 1
+    for nome in desejadas:
+        if N(nome) not in por_nome:
+            novas.append({"name": nome})
+            por_nome[N(nome)] = {"name": nome}
+    print(f"CONTA das obras: {len(novas)} opção(ões) nova(s), {renomear} renomeada(s)"
+          + ("" if aplicar else " (simulação)"), flush=True)
+    if aplicar:
+        if novas or renomear:
+            opcoes = [{"id": o["id"], "name": o["name"]} if o.get("id") else {"name": o["name"]}
+                      for o in list({id(o): o for o in por_nome.values()}.values())]
+            api("PATCH", f"/databases/{ID_OBRAS}", {"properties": {nome_col: {"select": {"options": opcoes}}}})
+        _gravar_nome_na_obra(contas, mapa)
+
+
+def _gravar_nome_na_obra(contas, mapa):
+    for c in contas or []:
+        nova = mapa.get(c.get("page_id"))
+        if nova and N(c.get("opcao")) != N(nova):
+            api("PATCH", f"/pages/{c['page_id']}", {"properties": {COL_OPCAO: _texto_prop(COL_OPCAO, nova)}})
+
+
+def migrar_coluna_conta(nome_col, contas, mapa, desejadas, aplicar):
+    """Troca a fórmula CONTA por uma seleção com o MESMO nome e preenche cada
+    obra com a conta real que a fórmula descrevia (`casar_obra_conta`).
+
+    Lê todas as obras ANTES de mexer no esquema — é o único momento em que o
+    texto da fórmula ainda existe. Tenta converter a coluna no lugar (fica na
+    mesma posição das visões); se o Notion recusar, cria a seleção ao lado,
+    preenche e só então apaga a fórmula. A fórmula pode ser refeita a
+    qualquer hora: ela só lê PROPRIETÁRIO (CADASTRO) e Nº DA CONTA, que
+    continuam intactas."""
+    contas_opc = [dict(c, opcao=mapa.get(c.get("page_id"), "")) for c in (contas or [])]
+    obras = ler_banco(ID_OBRAS, "OBRAS")
+    alvo, cont = {}, {}
+    for pg in obras:
+        pr = pg.get("properties") or {}
+        texto = txt(pega(pr, COL_CONTA_OBRAS))
+        numero = txt(pega(pr, "Nº DA CONTA"))
+        opcao, motivo = casar_obra_conta(texto, numero, contas_opc)
+        alvo[pg["id"]] = opcao
+        cont[motivo] = cont.get(motivo, 0) + 1
+    print("CONTA das obras (fórmula -> seleção): "
+          f"{cont.get('nome', 0)} pelo nome, {cont.get('numero', 0)} pelo número, "
+          f"{cont.get('palavras', 0)} pelas palavras, {cont.get('pf', 0)} pessoa física, "
+          f"{cont.get('duvida', 0)} DÚVIDA, {cont.get('vazia', 0)} vazias"
+          + ("" if aplicar else " (simulação — nada foi gravado)"), flush=True)
+    if not aplicar:
+        return
+
+    opcoes = [{"name": n} for n in desejadas]
+    col = nome_col or COL_CONTA_OBRAS
+    antiga = None
+    try:
+        api("PATCH", f"/databases/{ID_OBRAS}", {"properties": {col: {"select": {"options": opcoes}}}})
+    except SystemExit:
+        # o Notion não deixou converter no lugar: seleção nova ao lado
+        antiga = col + " (FÓRMULA ANTIGA)"
+        api("PATCH", f"/databases/{ID_OBRAS}", {"properties": {col: {"name": antiga}}})
+        api("PATCH", f"/databases/{ID_OBRAS}", {"properties": {col: {"select": {"options": opcoes}}}})
+    for pid, opcao in alvo.items():
+        api("PATCH", f"/pages/{pid}", {"properties": {col: {"select": {"name": opcao} if opcao else None}}})
+    if antiga:
+        api("PATCH", f"/databases/{ID_OBRAS}", {"properties": {antiga: None}})
+    _gravar_nome_na_obra(contas, mapa)
+    print(f"CONTA das obras convertida para seleção ({len(alvo)} obras gravadas)", flush=True)
 
 
 def _notion_para_dict(pagina):
@@ -668,6 +888,7 @@ def _notion_para_dict(pagina):
         "numero": txt(pega(pr, "Número")),
         "situacao": txt(pega(pr, "Situação no ERP")),
         "aparece": txt(pega(pr, "Aparece")) is True,
+        "opcao": txt(pega(pr, COL_OPCAO)),
     }
 
 
@@ -717,38 +938,6 @@ def aplicar_plano(db_id, plano):
         }})
 
 
-def ligar_obras_antigas(contas_notion, aplicar):
-    """Para cada obra sem a relação e com texto na coluna CONTA: casa com UMA
-    conta do banco pelos dígitos do número (+ banco quando houver). Grava a
-    relação só com APLICAR. `contas_notion` vem no formato de
-    `_notion_para_dict` (page_id, ...); `contas_para_casar` converte para o
-    contrato de `casar_texto_conta` (id, ...) e tira as "Sumiu do ERP"."""
-    contas = contas_para_casar(contas_notion)
-    ligadas = sem_par = ambiguas = 0
-    for pg in ler_banco(ID_OBRAS, "OBRAS"):
-        pr = pg.get("properties") or {}
-        relacao = pega(pr, COL_RELACAO_OBRAS)
-        if relacao and txt(relacao):
-            continue
-        texto_conta = txt(pega(pr, "CONTA"))
-        if not texto_conta or N(texto_conta) == "PESSOA FISICA":
-            continue
-        alvo = casar_texto_conta(texto_conta, contas)
-        if alvo is None:
-            if len(_candidatos_por_digitos(texto_conta, contas)) > 1:
-                ambiguas += 1
-            else:
-                sem_par += 1
-            continue
-        ligadas += 1
-        if aplicar:
-            api("PATCH", f"/pages/{pg['id']}", {
-                "properties": {COL_RELACAO_OBRAS: {"relation": [{"id": alvo}]}}
-            })
-    print(f"--ligar-antigas: {ligadas} ligadas, {sem_par} sem par, {ambiguas} ambíguas"
-          + ("" if aplicar else " (simulação)"), flush=True)
-
-
 def main():
     ligar_antigas = "--ligar-antigas" in sys.argv[1:]
 
@@ -777,8 +966,6 @@ def main():
         # lista vazia, só para mostrar as contagens.
         contas_notion, primeira_carga = [], True
     else:
-        if aplicar:
-            garantir_relacao(db_id)
         paginas_notion = ler_banco(db_id, "CONTAS BANCÁRIAS")
         contas_notion = [_notion_para_dict(pg) for pg in paginas_notion]
         primeira_carga = decidir_primeira_carga(criado_agora, contas_notion)
@@ -794,12 +981,19 @@ def main():
     else:
         print("SIMULAÇÃO — nada foi gravado no Notion", flush=True)
 
+    # coluna CONTA das obras: relê o banco depois de aplicar (as contas
+    # novas já têm página); na simulação com o banco ainda vazio, usa o ERP
+    # como se já estivesse gravado, só para mostrar as contagens.
+    if pode_gravar:
+        contas_para_coluna = [_notion_para_dict(pg) for pg in ler_banco(db_id, "CONTAS BANCÁRIAS")]
+    elif contas_notion:
+        contas_para_coluna = contas_notion
+    else:
+        contas_para_coluna = [dict(c, page_id="sim-" + c["id"], id_erp=c["id"], situacao="Ativa", opcao="")
+                              for c in contas_erp]
+    sincronizar_coluna_conta(db_id, contas_para_coluna, pode_gravar)
     if ligar_antigas:
-        # relê o banco depois de aplicar o plano, para casar já com o que
-        # acabou de ser criado/atualizado nesta rodada.
-        contas_para_ligar = ([_notion_para_dict(pg) for pg in ler_banco(db_id, "CONTAS BANCÁRIAS")]
-                              if pode_gravar else contas_notion)
-        ligar_obras_antigas(contas_para_ligar, pode_gravar)
+        print("--ligar-antigas: sem efeito — a coluna CONTA já é preenchida pela conversão acima", flush=True)
 
     return 0
 
