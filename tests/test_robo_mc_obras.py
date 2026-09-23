@@ -68,8 +68,10 @@ def test_mapa_contas_por_id_monta_id_pagina_para_nome(monkeypatch):
     monkeypatch.setattr(r, "ler_banco", lambda db_id, rotulo: paginas)
 
     mapa = r.mapa_contas_por_id()
-    assert mapa == {"pg-1": {"nome": "CONTA MODELO 1234-5", "numero": "1234-5"},
-                    "pg-2": {"nome": "CONTA MODELO 2 9999-0", "numero": ""}}
+    so_ids = {k: v for k, v in mapa.items() if not k.startswith("opcao:")}
+    assert so_ids == {"pg-1": {"nome": "CONTA MODELO 1234-5", "numero": "1234-5"},
+                      "pg-2": {"nome": "CONTA MODELO 2 9999-0", "numero": ""}}
+    assert mapa["opcao:" + r.N("CONTA MODELO 1234-5")] == mapa["pg-1"]   # 23/09/26: pela opção da CONTA
 
 
 # ============================================================================
@@ -675,3 +677,28 @@ def test_criar_no_mc_prints_da_tela_sao_sensiveis(monkeypatch):
     r.criar_no_mc(_FakePageSalva(), _obra_ficticia())
     assert fotos, "criar_no_mc deveria tirar prints"
     assert all(sensivel for _, sensivel in fotos), fotos
+
+
+# ============================================================================
+# 23/09/26 — coluna CONTA como SELEÇÃO
+# ============================================================================
+
+def _sel(v):
+    return {"type": "select", "select": {"name": v} if v else None}
+
+
+def test_resolver_conta_selecao():
+    mapa = {"opcao:" + r.N("CONTA MODELO A"): {"nome": "CONTA MODELO A", "numero": "1000-1"}}
+    assert r.resolver_conta(_sel("CONTA MODELO A"), mapa) == ("CONTA MODELO A", "1000-1", False)
+    assert r.resolver_conta(_sel("PESSOA FÍSICA"), mapa) == ("", "", False)
+    assert r.resolver_conta(_sel(""), mapa) == ("", "", False)
+    assert r.resolver_conta(_sel("CRIAR CONTA"), mapa) == ("", "", True)
+    assert r.resolver_conta(_sel("DÚVIDA"), mapa) == ("", "", True)
+    assert r.resolver_conta(_sel("OUTRA"), mapa) == ("", "", False)     # cai no texto
+
+
+def test_prop_conta_prefere_relacao_so_quando_ligada():
+    pr = {"CONTA BANCÁRIA": {"type": "relation", "relation": []}, "CONTA": _sel("X")}
+    assert r.prop_conta(pr) == _sel("X")
+    pr["CONTA BANCÁRIA"]["relation"] = [{"id": "pg"}]
+    assert r.prop_conta(pr)["type"] == "relation"
