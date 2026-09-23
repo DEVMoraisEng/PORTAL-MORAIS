@@ -299,6 +299,8 @@ html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
         <div class="campo"><label>Cidade <i>*</i></label><select id="f-cidade" onchange="novoSeNecessario(this,'Cidade')"></select></div>
         <div class="campo"><label>Proprietário <i>*</i></label><select id="f-prop" onchange="novoSeNecessario(this,'Proprietário')"></select></div>
         <div class="campo"><label>Proprietário real <i>*</i></label><select id="f-propreal" onchange="novoSeNecessario(this,'Proprietário Real')"></select></div>
+        <div class="campo"><label>Conta bancária <i>*</i></label><select id="f-conta"></select>
+          <div class="ajuda" id="a-conta"></div></div>
         <div class="campo"><label>Responsável pela obra <i>*</i></label><select id="f-resp"></select></div>
         <div class="campo"><label>Engenheiro RT <i>*</i></label><select id="f-rt"></select></div>
         <div class="campo"><label>Cota da empresa (%) <i>*</i></label><input type="number" id="f-cota" step="any" min="0" max="100" placeholder="100"></div>
@@ -347,6 +349,7 @@ const FIM=["FINALIZADO","CANCELADO","CONCLUIDO"];
 const OBRIGATORIOS=[["setor","Setor"],["cidade","Cidade"],["proprietario","Proprietário"],["proprietario_real","Proprietário real"],
   ["resp","Responsável pela obra"],["rt","Engenheiro RT"],["cota","Cota da empresa"],["data_lote","Data de aquisição do lote"],["n_casas","Nº de casas"]];
 let D={obras:[],atividades:[],opcoes:{},opcoes_atividades:{},pessoas:[]};
+let CONTAS=null, CONTAS_AVISO="";   // contas bancárias (Notion), carregadas por contasBancarias — uma vez por sessão (T7)
 let ABA="obras", FILTRO="andamento", PESSOA=null, VER_FIN=false, OBRA=null, ATV=null, MODO="lista", CONT=null;
 let SORT_OB={k:"data_prevista",d:1}, SORT_ATV={k:null,d:1};
 const CONT_MEM={};   // conteúdo já aberto nesta sessão: reabre na hora
@@ -853,11 +856,29 @@ function preencherSel(id,ops,vals,novo){
   document.getElementById(id).innerHTML=`<option value="">Selecione…</option>`+ops.map((x,i)=>`<option value="${esc(vals?vals[i]:x)}">${esc(x)}</option>`).join("")+
     (novo?`<option value="__novo__">+ Novo…</option>`:"");
 }
+/* conta bancária (T7): a lista só existe autenticada — nunca vai para dist/
+   nem para arquivo público. Carrega uma vez por sessão; se o backend ainda
+   não tiver a ação (ou falhar), o campo fica só com "Sem conta" e um aviso
+   discreto, sem travar a criação da obra. */
+function preencherSelConta(){
+  const nomes=["Sem conta (pessoa física)"].concat((CONTAS||[]).map(c=>c.nome));
+  const vals=["SEM"].concat((CONTAS||[]).map(c=>c.id));
+  preencherSel("f-conta",nomes,vals);
+  const av=document.getElementById("a-conta"); if(av) av.textContent=CONTAS_AVISO;
+}
+async function carregarContas(){
+  if(CONTAS!==null) return;         // já tentou nesta sessão
+  let r; try{ r=await chamar({action:"contasBancarias"},20000); }catch(e){ r=null; }
+  if(r&&r.ok){ CONTAS=r.contas||[]; CONTAS_AVISO=""; }
+  else{ CONTAS=[]; CONTAS_AVISO="lista de contas indisponível — use \"Sem conta\""; }
+  if(document.getElementById("mf").classList.contains("on")) preencherSelConta();
+}
 function abrirForm(valores){
   preencherSel("f-setor",listaOpc("SETOR"),null,true);
   preencherSel("f-cidade",listaOpc("Cidade"),null,true);
   preencherSel("f-prop",listaOpc("Proprietário"),null,true);
   preencherSel("f-propreal",listaOpc("Proprietário Real"),null,true);
+  preencherSelConta(); carregarContas();
   preencherSel("f-resp",D.pessoas.map(p=>p.nome),D.pessoas.map(p=>p.id));
   preencherSel("f-rt",D.pessoas.map(p=>p.nome),D.pessoas.map(p=>p.id));
   preencherSel("f-impl",opc("IMPLANTAÇÃO"));
@@ -868,7 +889,7 @@ function abrirForm(valores){
     const põe=(id,v)=>{ if(v!=null&&v!=="") document.getElementById(id).value=v; };
     põe("f-end",valores.endereco); põe("f-setor",valores.setor); põe("f-cidade",valores.cidade);
     põe("f-prop",valores.proprietario); põe("f-propreal",valores.proprietarioReal);
-    põe("f-resp",valores.resp); põe("f-rt",valores.rt); põe("f-cota",valores.cota);
+    põe("f-conta",valores.contaId); põe("f-resp",valores.resp); põe("f-rt",valores.rt); põe("f-cota",valores.cota);
     põe("f-lote",valores.dataLote); põe("f-casas",valores.nCasas); põe("f-impl",valores.implantacao);
     põe("f-alote",valores.areaLote); põe("f-aaverb",valores.areaAverbada); põe("f-ahab",valores.areaHabite);
     document.getElementById("f-estudo").checked=!!valores.estudoLayout;
@@ -888,13 +909,17 @@ const ERROS={ ENDERECO_OBRIGATORIO:"Informe o endereço.", ENDERECO_COM_PREFIXO:
 async function enviarObra(continuar){
   const g=id=>document.getElementById(id).value.trim(), erro=document.getElementById("f-erro");
   if(!checarEnd()){ erro.textContent="Corrija o endereço."; return; }
+  const contaSel=g("f-conta");   // "SEM" (pessoa física) ou o id da conta no Notion
   const p={ action:"obraNova", opId:window._opObra, endereco:g("f-end").toUpperCase().replace(/\s+/g," "),
     setor:g("f-setor"), cidade:g("f-cidade"), proprietario:g("f-prop"), proprietarioReal:g("f-propreal"),
+    contaId:contaSel==="SEM"?"":contaSel,   // vazio quando "Sem conta" (T7); backend aceita vazio ou "SEM"
     resp:g("f-resp"), rt:g("f-rt"), cota:g("f-cota"), dataLote:g("f-lote"), nCasas:g("f-casas"), implantacao:g("f-impl"),
     areaLote:g("f-alote"), areaAverbada:g("f-aaverb"), areaHabite:g("f-ahab"), estudoLayout:document.getElementById("f-estudo").checked };
-  const falta=[["setor","Setor"],["cidade","Cidade"],["proprietario","Proprietário"],["proprietarioReal","Proprietário real"],
-    ["resp","Responsável pela obra"],["rt","Engenheiro RT"],["cota","Cota"],["dataLote","Data de aquisição do lote"],["nCasas","Nº de casas"]]
-    .filter(([k])=>!p[k]).map(([,r])=>r);
+  const falta=[["setor","Setor",!p.setor],["cidade","Cidade",!p.cidade],["proprietario","Proprietário",!p.proprietario],
+    ["proprietarioReal","Proprietário real",!p.proprietarioReal],["contaId","Conta bancária",!contaSel],
+    ["resp","Responsável pela obra",!p.resp],["rt","Engenheiro RT",!p.rt],["cota","Cota",!p.cota],
+    ["dataLote","Data de aquisição do lote",!p.dataLote],["nCasas","Nº de casas",!p.nCasas]]
+    .filter(([,,vazio])=>vazio).map(([,r])=>r);
   if(falta.length){ erro.textContent="Preencha: "+falta.join(", "); return; }
   erro.textContent="";
 
