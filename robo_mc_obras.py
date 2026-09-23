@@ -306,9 +306,31 @@ def desmarcar_compras(page):
             print("  Exibir obra para: Compras desmarcado", flush=True)
 
 
+def ja_existe_no_mc(page, titulo):
+    """Confere AO VIVO na lista do MC antes de criar. A planilha do ERP (que a
+    fila usa) só atualiza de tempos em tempos: se a rodada de ontem criou a
+    obra e não conseguiu marcar "Criada" no Notion, sem esta conferência a
+    obra nasceria de novo, duplicada."""
+    try:
+        busca = page.locator("input[placeholder*='Busque uma obra']").first
+        busca.fill(titulo)
+        page.wait_for_timeout(2000)
+        linhas = page.locator("table tbody tr, [class*=row]").filter(has_text=titulo)
+        for i in range(min(linhas.count(), 5)):
+            if N(titulo) in N(linhas.nth(i).inner_text()):
+                busca.fill("")
+                return True
+        busca.fill("")
+    except Exception:
+        pass
+    return False
+
+
 def criar_no_mc(page, o):
     ir_menu(page, "Obras", "Minhas Obras")
     page.wait_for_timeout(1500)
+    if ja_existe_no_mc(page, o["titulo"]):
+        return "ja_existe"
     clicar_texto(page, "Nova Obra", exato=False)
     page.locator(CAMPO["nome"]).wait_for(state="visible", timeout=15000)
 
@@ -430,7 +452,7 @@ def main():
                 try:
                     r = criar_no_mc(page, o)
                     print(f"  {o['titulo']}: {r}", flush=True)
-                    if r == "criada":
+                    if r in ("criada", "ja_existe") and APLICAR:
                         marcar_criada(o["id"])
                 except Exception as e:
                     print(f"  ! {o['titulo']}: {str(e)[:160]}", flush=True)

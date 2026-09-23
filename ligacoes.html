@@ -4408,8 +4408,14 @@ async function verArquivo(pageId, coluna){
   document.getElementById("arq-baixar").style.display = "none";
   corpo.innerHTML = '<div class="arqlista"><span class="load"></span> buscando o arquivo…</div>';
   document.getElementById("arqoverlay").classList.add("on");
+  /* se o Apps Script demorar, a tela diz isso em vez de girar calada */
+  const avisoLento = setTimeout(()=>{
+    if(corpo.querySelector(".load")) corpo.innerHTML =
+      '<div class="arqlista"><span class="load"></span> buscando o arquivo… (o servidor está demorando mais que o normal)</div>';
+  }, 8000);
 
   const r = await ler({action:"ligacao", pageId: pageId});   // sem cache: a URL expira
+  clearTimeout(avisoLento);
   if (!r || !r.ok || !r.valores){
     corpo.innerHTML = `<div class="arqlista"><div class="aviso-inline">Não consegui buscar o arquivo (${esc(erroTexto(r && r.erro))}).</div></div>`;
     return;
@@ -4432,14 +4438,47 @@ async function verArquivo(pageId, coluna){
   ).join("") + '</div>';
   window.ARQ_ATUAIS = arquivos;
 }
+/* PDF e imagem do Notion vêm de uma URL assinada da Amazon. Às vezes ela
+   chega com "baixe este arquivo" no cabeçalho, e aí o <iframe> fica girando
+   para sempre sem mostrar nada — era isso que travava a tela. Agora:
+     - o visualizador tem um prazo (10 s). Se o arquivo não pintar até lá,
+       aparece o atalho para abrir em outra aba ou baixar;
+     - erro de carregamento cai no mesmo aviso, em vez de ficar em branco. */
+function atalhosArquivo(a, motivo){
+  return `<div class="arqlista">
+    <div class="aviso-inline">${esc(motivo)}</div>
+    <button class="bt az" onclick="window.open('${esc(a.url)}','_blank','noopener')">Abrir em outra aba</button>
+    <button class="bt ghost" onclick="document.getElementById('arq-baixar').click()">Baixar</button>
+  </div>`;
+}
 function mostrarArquivo(a){
   const corpo = document.getElementById("arq-corpo");
   const baixar = document.getElementById("arq-baixar");
   document.getElementById("arq-nome").textContent = a.name || "Arquivo";
   baixar.href = a.url; baixar.style.display = "";
-  if (ehImagem(a.name, a.url))      corpo.innerHTML = `<img src="${esc(a.url)}" alt="${esc(a.name||"")}">`;
-  else if (ehPdf(a.name, a.url))    corpo.innerHTML = `<iframe src="${esc(a.url)}"></iframe>`;
-  else corpo.innerHTML = `<div class="arqlista"><div class="aviso-inline">Este tipo de arquivo o navegador não abre aqui dentro — use o botão <b>Baixar</b> ali em cima.</div></div>`;
+  if (!a.url){ corpo.innerHTML = '<div class="arqlista"><div class="aviso-inline">Este anexo veio sem link.</div></div>'; return; }
+
+  const imagem = ehImagem(a.name, a.url), pdf = ehPdf(a.name, a.url);
+  if (!imagem && !pdf){
+    corpo.innerHTML = atalhosArquivo(a, "Este tipo de arquivo o navegador não abre aqui dentro.");
+    return;
+  }
+  corpo.innerHTML = (imagem
+    ? `<img id="arq-vis" src="${esc(a.url)}" alt="${esc(a.name||"")}">`
+    : `<iframe id="arq-vis" src="${esc(a.url)}"></iframe>`)
+    + `<div class="arqlista" id="arq-espera" style="padding:10px"><span class="load"></span> abrindo o arquivo…</div>`;
+
+  const vis = document.getElementById("arq-vis"), espera = document.getElementById("arq-espera");
+  let pronto = false;
+  const ok = ()=>{ pronto = true; if (espera) espera.remove(); };
+  const falhou = (motivo)=>{
+    if (pronto) return;
+    pronto = true;
+    corpo.innerHTML = atalhosArquivo(a, motivo);
+  };
+  vis.addEventListener("load", ok);
+  vis.addEventListener("error", ()=>falhou("Não consegui mostrar o arquivo aqui dentro."));
+  setTimeout(()=>falhou("O arquivo demorou demais para abrir aqui dentro."), 10000);
 }
 function fecharArquivo(){
   document.getElementById("arqoverlay").classList.remove("on");

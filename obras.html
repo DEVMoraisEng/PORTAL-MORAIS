@@ -309,7 +309,7 @@ html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
         <div class="campo"><label>Área construída averbada (m²)</label><input type="number" id="f-aaverb" step="any"></div>
         <div class="campo"><label>Área pós habite-se (m²)</label><input type="number" id="f-ahab" step="any"></div>
         <div class="campo full"><label class="chk"><input type="checkbox" id="f-estudo"> Precisa de estudo de layout</label></div>
-        <div class="campo full"><div class="ajuda">Ao criar: Briefing (e Uso do Solo, se Goiânia; Estudo de Layout, se marcado), a linha em Documentos e a obra no Mais Controle.
+        <div class="campo full"><div class="ajuda">Ao criar: Briefing (e Uso do Solo, se Goiânia; Estudo de Layout, se marcado), a linha em Documentos (em alguns minutos) e a obra no Mais Controle (na rodada diária).
           Compatibilização e Formulário de Obra nascem quando "Liberar obra p/ processo interno" virar Sim.</div></div>
       </div>
     </div>
@@ -920,7 +920,7 @@ async function enviarObra(continuar){
   if(r&&r.ok){
     if(i>=0){ D.obras[i].id=r.id; D.obras[i].titulo=r.titulo; delete D.obras[i].pendente; }
     if(ABA==="obras") pintarLista();
-    toast("Obra "+r.titulo+" criada. Atividades e linha em Documentos aparecem em até 1 hora.");
+    toast("Obra "+r.titulo+" criada. Atividades e linha em Documentos aparecem em alguns minutos.");
     return;
   }
   if(i>=0) D.obras.splice(i,1);            // não gravou: tira a linha provisória
