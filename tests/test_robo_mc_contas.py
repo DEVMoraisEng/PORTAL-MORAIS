@@ -388,70 +388,6 @@ def test_norm_id_ignora_hifen_e_caixa():
     assert r._norm_id("306c5ab5-32d3-812f-a14f-e9a281510128") == r._norm_id("306c5ab532d3812fa14fe9a281510128")
 
 
-def test_garantir_relacao_normaliza_hifen_e_renomeia(monkeypatch):
-    id_obras_com_hifen = "306c5ab5-32d3-812f-a14f-e9a281510128"
-    assert r._norm_id(id_obras_com_hifen) == r._norm_id(r.ID_OBRAS)
-
-    chamadas = []
-
-    def fake_api(metodo, caminho, corpo=None):
-        chamadas.append((metodo, caminho, corpo))
-        if metodo == "GET" and caminho == f"/databases/{r.ID_OBRAS}":
-            return {"properties": {r.COL_RELACAO_OBRAS: {"type": "relation"}}}  # já existe: não recria
-        if metodo == "GET" and caminho == "/databases/banco-ficticio":
-            return {"properties": {
-                "Obras relacionadas": {"type": "relation", "relation": {"database_id": id_obras_com_hifen}},
-            }}
-        if metodo == "PATCH" and caminho == "/databases/banco-ficticio":
-            return {}
-        raise AssertionError(f"chamada inesperada: {metodo} {caminho}")
-
-    monkeypatch.setattr(r, "api", fake_api)
-    r.garantir_relacao("banco-ficticio")
-
-    renomeacoes = [c for c in chamadas if c[0] == "PATCH"]
-    assert len(renomeacoes) == 1
-    assert renomeacoes[0][2]["properties"]["Obras relacionadas"]["name"] == "Obras"
-
-
-def test_garantir_relacao_tenta_renomear_mesmo_quando_a_coluna_ja_existia(monkeypatch):
-    # a coluna CONTA BANCÁRIA já existe (rodada anterior) e o lado de volta
-    # ainda não se chama "Obras" — tem de tentar renomear DE NOVO, não só na
-    # rodada em que a coluna nasceu.
-    chamadas = []
-
-    def fake_api(metodo, caminho, corpo=None):
-        chamadas.append((metodo, caminho, corpo))
-        if metodo == "GET" and caminho == f"/databases/{r.ID_OBRAS}":
-            return {"properties": {r.COL_RELACAO_OBRAS: {"type": "relation"}}}
-        if metodo == "GET" and caminho == "/databases/banco-ficticio":
-            return {"properties": {
-                "Related to OBRAS": {"type": "relation", "relation": {"database_id": r.ID_OBRAS}},
-            }}
-        if metodo == "PATCH" and caminho == "/databases/banco-ficticio":
-            return {}
-        raise AssertionError(f"chamada inesperada: {metodo} {caminho}")
-
-    monkeypatch.setattr(r, "api", fake_api)
-    r.garantir_relacao("banco-ficticio")
-
-    assert not any(c[0] == "PATCH" and c[1] == f"/databases/{r.ID_OBRAS}" for c in chamadas)  # não recriou a coluna
-    renomeacoes = [c for c in chamadas if c[0] == "PATCH" and c[1] == "/databases/banco-ficticio"]
-    assert len(renomeacoes) == 1
-
-
-def test_garantir_relacao_nao_renomeia_se_ja_e_obras(monkeypatch):
-    def fake_api(metodo, caminho, corpo=None):
-        if metodo == "GET" and caminho == f"/databases/{r.ID_OBRAS}":
-            return {"properties": {r.COL_RELACAO_OBRAS: {"type": "relation"}}}
-        if metodo == "GET" and caminho == "/databases/banco-ficticio":
-            return {"properties": {"Obras": {"type": "relation", "relation": {"database_id": r.ID_OBRAS}}}}
-        raise AssertionError(f"não deveria fazer PATCH: {metodo} {caminho}")
-
-    monkeypatch.setattr(r, "api", fake_api)
-    r.garantir_relacao("banco-ficticio")  # não levanta AssertionError = não tentou PATCH
-
-
 # ---- item 5: trava contra ERP vazio ----------------------------------------
 
 def test_planejar_com_erp_vazio_marcaria_tudo_como_sumiu_por_isso_o_main_aborta_antes():
@@ -631,52 +567,6 @@ def test_contas_para_casar_converte_contrato_e_tira_sumidas():
     assert r.contas_para_casar(notion) == [{"id": "p1", "numero": "1000-1", "banco": "756"}]
 
 
-def test_ligar_obras_antigas_orquestracao(monkeypatch, capsys):
-    contas_notion = [r._notion_para_dict(pg) for pg in [
-        _pagina_conta_notion("pg-a", "e1", "CONTA MODELO A", "1000-1"),
-        _pagina_conta_notion("pg-b", "e2", "CONTA MODELO B", "2000-2"),
-        _pagina_conta_notion("pg-sumida", "e3", "CONTA MODELO C", "3000-3", situacao="Sumiu do ERP"),
-    ]]
-    obras = [
-        _pagina_obra_antiga("obra-1", "BANCO MODELO - Conta corrente: 1000-1"),       # liga em pg-a
-        _pagina_obra_antiga("obra-2", "BANCO MODELO - Conta corrente: 3000-3"),       # só a sumida: sem par
-        _pagina_obra_antiga("obra-3", "BANCO MODELO - Conta corrente: 2000-2", ["ja"]),  # já ligada: pula
-        _pagina_obra_antiga("obra-4", "PESSOA FISICA"),                              # pula
-        _pagina_obra_antiga("obra-5", ""),                                           # pula
-    ]
-    monkeypatch.setattr(r, "ler_banco", lambda db_id, rotulo: obras if db_id == r.ID_OBRAS else [])
-    chamadas = []
-    monkeypatch.setattr(r, "api", lambda metodo, caminho, corpo=None: chamadas.append((metodo, caminho, corpo)) or {})
-
-    r.ligar_obras_antigas(contas_notion, aplicar=True)
-
-    assert chamadas == [("PATCH", "/pages/obra-1",
-                         {"properties": {"CONTA BANCÁRIA": {"relation": [{"id": "pg-a"}]}}})]
-    saida = capsys.readouterr().out
-    assert "1 ligadas, 1 sem par, 0 ambíguas" in saida
-    assert "CONTA MODELO" not in saida and "1000-1" not in saida
-
-
-def test_ligar_obras_antigas_simulacao_nao_grava(monkeypatch):
-    contas_notion = [r._notion_para_dict(_pagina_conta_notion("pg-a", "e1", "CONTA MODELO A", "1000-1"))]
-    monkeypatch.setattr(r, "ler_banco", lambda db_id, rotulo: [_pagina_obra_antiga("obra-1", "Conta 1000-1")])
-    chamadas = []
-    monkeypatch.setattr(r, "api", lambda *a, **k: chamadas.append(a) or {})
-    r.ligar_obras_antigas(contas_notion, aplicar=False)
-    assert chamadas == []
-
-
-def test_ligar_obras_antigas_conta_ambiguas(monkeypatch, capsys):
-    contas_notion = [r._notion_para_dict(pg) for pg in [
-        _pagina_conta_notion("pg-a", "e1", "CONTA MODELO A", "1000-1", banco="001"),
-        _pagina_conta_notion("pg-b", "e2", "CONTA MODELO B", "1000-1", banco="104"),
-    ]]
-    monkeypatch.setattr(r, "ler_banco", lambda db_id, rotulo: [_pagina_obra_antiga("obra-1", "Conta 1000-1")])
-    monkeypatch.setattr(r, "api", lambda *a, **k: {})
-    r.ligar_obras_antigas(contas_notion, aplicar=True)
-    assert "0 ligadas, 0 sem par, 1 ambíguas" in capsys.readouterr().out
-
-
 class _NotionFalso:
     """api/ler_banco falsos para o main: um banco de contas já existente e a
     base de obras; guarda toda gravação."""
@@ -703,23 +593,12 @@ def _preparar_main(monkeypatch, notion, contas_erp, aplicar=True, argv=()):
     monkeypatch.setattr(r, "decidir_credenciais", lambda: ("robo@exemplo.com", "senha-ficticia", aplicar, None))
     monkeypatch.setattr(r, "contas_ativas_do_erp", lambda u, s: contas_erp)
     monkeypatch.setattr(r, "achar_ou_criar_banco", lambda aplicar: ("banco-contas", False))
-    monkeypatch.setattr(r, "garantir_relacao", lambda db_id: None)
+    notion.coluna = []
+    monkeypatch.setattr(r, "sincronizar_coluna_conta",
+                        lambda db_id, contas, aplicar: notion.coluna.append((db_id, len(contas), aplicar)))
     monkeypatch.setattr(r, "api", notion.api)
     monkeypatch.setattr(r, "ler_banco", notion.ler_banco)
     monkeypatch.setattr(sys, "argv", ["robo_mc_contas.py", *argv])
-
-
-def test_main_ligar_antigas_orquestracao_nao_quebra(monkeypatch):
-    # é o caminho que quebrava com KeyError 'id' (C1)
-    paginas = [_pagina_conta_notion("pg-a", "e1", "CONTA MODELO A", "1000-1")]
-    obras = [_pagina_obra_antiga("obra-1", "BANCO MODELO - Conta corrente: 1000-1")]
-    notion = _NotionFalso(paginas, obras)
-    erp = [{"id": "e1", "nome": "CONTA MODELO A", "banco": "756", "agencia": "1-2", "numero": "1000-1"}]
-    _preparar_main(monkeypatch, notion, erp, argv=["--ligar-antigas"])
-
-    assert r.main() == 0
-    assert ("PATCH", "/pages/obra-1",
-            {"properties": {"CONTA BANCÁRIA": {"relation": [{"id": "pg-a"}]}}}) in notion.gravacoes
 
 
 def test_main_conta_nova_nasce_desmarcada_quando_ninguem_marcou_ainda(monkeypatch):
@@ -765,3 +644,147 @@ def test_main_erp_vazio_aborta_sem_tocar_no_notion(monkeypatch):
     _preparar_main(monkeypatch, notion, [])
     assert r.main() == 1
     assert notion.gravacoes == []
+
+
+# ============================================================================
+# 23/09/26 — coluna CONTA das obras como SELEÇÃO (nomes das contas do ERP)
+# ============================================================================
+
+def _c(pid, nome, numero="", banco="756", situacao="Ativa", opcao=None):
+    return {"page_id": pid, "id_erp": "e-" + pid, "nome": nome, "numero": numero, "banco": banco,
+            "situacao": situacao, "opcao": nome if opcao is None else opcao}
+
+
+def test_nome_opcao_tira_virgula_e_limita():
+    assert r.nome_opcao("EMPRESA MODELO, LTDA  - BANCO") == "EMPRESA MODELO LTDA - BANCO"
+    assert len(r.nome_opcao("X" * 300)) == 100
+
+
+def test_opcoes_das_contas_desempata_nomes_iguais_e_tira_sumidas():
+    contas = [_c("a", "EMPRESA MODELO", "1000-1"), _c("b", "EMPRESA MODELO", "2000-2"),
+              _c("c", "OUTRA", situacao="Sumiu do ERP")]
+    m = r.opcoes_das_contas(contas)
+    assert set(m) == {"a", "b"}
+    assert m["a"] != m["b"] and m["a"].endswith("0001") and m["b"].endswith("0002")
+
+
+def test_casar_obra_conta_regras():
+    contas = [_c("a", "EMPRESA MODELO IPANEMA SPE LTDA", "1000-1", "756"),
+              _c("b", "EMPRESA MODELO TERRA BELA SPE", "2000-2", "756"),
+              _c("c", "APLICACAO FUNDO - TERRA BELA - CAIXA ECONOMICA FEDERAL", "3000-3", "104"),
+              _c("d", "VELHA SICOOB", "4000-4", situacao="Sumiu do ERP")]
+    assert r.casar_obra_conta("", "", contas) == ("", "vazia")
+    assert r.casar_obra_conta("PESSOA FÍSICA", "", contas) == ("PESSOA FÍSICA", "pf")
+    assert r.casar_obra_conta("empresa modelo ipanema spe ltda", "", contas)[0] == contas[0]["opcao"]
+    assert r.casar_obra_conta("QUALQUER COISA", "1000-1", contas)[0] == contas[0]["opcao"]     # nº da conta da obra
+    assert r.casar_obra_conta("SPE IPANEMA SICOOB", "", contas)[0] == contas[0]["opcao"]       # palavras + banco
+    assert r.casar_obra_conta("TERRA BELA", "", contas) == ("DÚVIDA", "duvida")                # duas candidatas
+    assert r.casar_obra_conta("TERRA BELA CAIXA", "", contas)[0] == contas[2]["opcao"]
+    assert r.casar_obra_conta("VELHA SICOOB", "", contas) == ("DÚVIDA", "duvida")              # sumida não vale
+    assert r.casar_obra_conta("NADA A VER", "", contas) == ("DÚVIDA", "duvida")
+
+
+def _obra(pid, formula, numero=None):
+    pr = {"CONTA": {"type": "formula", "formula": {"type": "string", "string": formula}}}
+    if numero is not None:
+        pr["Nº DA CONTA"] = {"type": "number", "number": numero}
+    return {"id": pid, "properties": pr}
+
+
+def test_migracao_simulada_nao_grava_e_so_imprime_contagens(monkeypatch, capsys):
+    contas = [_c("a", "EMPRESA MODELO IPANEMA SPE", "1000-1")]
+    chamadas = []
+    def fake_api(m, caminho, corpo=None):
+        chamadas.append((m, caminho))
+        return {"properties": {"CONTA": {"type": "formula"}}}
+    monkeypatch.setattr(r, "api", fake_api)
+    monkeypatch.setattr(r, "ler_banco", lambda db, rot: [_obra("o1", "SPE IPANEMA SICOOB"), _obra("o2", "PESSOA FÍSICA"),
+                                                         _obra("o3", "XPTO"), _obra("o4", "")])
+    r.sincronizar_coluna_conta("banco", contas, aplicar=False)
+    assert all(m == "GET" for m, _ in chamadas)
+    out = capsys.readouterr().out
+    assert "1 pelas palavras" in out and "1 pessoa física" in out and "1 DÚVIDA" in out and "1 vazias" in out
+    assert "IPANEMA" not in out
+
+
+def test_migracao_aplicada_converte_no_lugar_e_preenche(monkeypatch):
+    contas = [_c("a", "EMPRESA MODELO IPANEMA SPE", "1000-1", opcao="")]
+    grav = []
+    def fake_api(m, caminho, corpo=None):
+        if m == "GET":
+            return {"properties": {"CONTA": {"type": "formula"}}}
+        grav.append((m, caminho, corpo))
+        return {}
+    monkeypatch.setattr(r, "api", fake_api)
+    monkeypatch.setattr(r, "ler_banco", lambda db, rot: [_obra("o1", "SPE IPANEMA SICOOB"), _obra("o2", "")])
+    r.sincronizar_coluna_conta("banco", contas, aplicar=True)
+    esquema = grav[0]
+    assert esquema[1] == f"/databases/{r.ID_OBRAS}"
+    nomes = [o["name"] for o in esquema[2]["properties"]["CONTA"]["select"]["options"]]
+    assert nomes == ["EMPRESA MODELO IPANEMA SPE", "PESSOA FÍSICA", "CRIAR CONTA", "DÚVIDA"]
+    assert ("PATCH", "/pages/o1", {"properties": {"CONTA": {"select": {"name": "EMPRESA MODELO IPANEMA SPE"}}}}) in grav
+    assert ("PATCH", "/pages/o2", {"properties": {"CONTA": {"select": None}}}) in grav
+    assert ("PATCH", "/pages/a", {"properties": {"Nome na obra": {"rich_text": [{"text": {"content": "EMPRESA MODELO IPANEMA SPE"}}]}}}) in grav
+
+
+def test_migracao_recua_para_coluna_nova_quando_notion_recusa_converter(monkeypatch):
+    contas = [_c("a", "EMPRESA MODELO", "1000-1")]
+    grav, primeira = [], [True]
+    def fake_api(m, caminho, corpo=None):
+        if m == "GET":
+            return {"properties": {"CONTA": {"type": "formula"}}}
+        if caminho == f"/databases/{r.ID_OBRAS}" and primeira[0]:
+            primeira[0] = False
+            raise SystemExit("Notion 400: não pode mudar o tipo")
+        grav.append((m, caminho, corpo))
+        return {}
+    monkeypatch.setattr(r, "api", fake_api)
+    monkeypatch.setattr(r, "ler_banco", lambda db, rot: [_obra("o1", "EMPRESA MODELO")])
+    r.sincronizar_coluna_conta("banco", contas, aplicar=True)
+    esquemas = [c for m, cam, c in grav if cam == f"/databases/{r.ID_OBRAS}"]
+    assert esquemas[0] == {"properties": {"CONTA": {"name": "CONTA (FÓRMULA ANTIGA)"}}}
+    assert "select" in esquemas[1]["properties"]["CONTA"]
+    assert esquemas[-1] == {"properties": {"CONTA (FÓRMULA ANTIGA)": None}}   # apagada só no fim
+
+
+def test_selecao_existente_acrescenta_e_renomeia(monkeypatch):
+    contas = [_c("a", "NOME NOVO NO ERP", "1000-1", opcao="NOME ANTIGO"), _c("b", "CONTA NOVA", "2000-2", opcao="")]
+    grav = []
+    def fake_api(m, caminho, corpo=None):
+        if m == "GET":
+            return {"properties": {"CONTA": {"type": "select", "select": {"options": [
+                {"id": "x1", "name": "NOME ANTIGO"}, {"id": "x2", "name": "PESSOA FÍSICA"},
+                {"id": "x3", "name": "CRIAR CONTA"}, {"id": "x4", "name": "DÚVIDA"}]}}}}
+        grav.append((m, caminho, corpo))
+        return {}
+    monkeypatch.setattr(r, "api", fake_api)
+    r.sincronizar_coluna_conta("banco", contas, aplicar=True)
+    opcoes = grav[0][2]["properties"]["CONTA"]["select"]["options"]
+    assert {"id": "x1", "name": "NOME NOVO NO ERP"} in opcoes          # renomeada: obras acompanham
+    assert {"name": "CONTA NOVA"} in opcoes
+    assert not any(o.get("name") == "NOME ANTIGO" for o in opcoes)
+
+
+def test_preparar_banco_fixo_renomeia_titulo_e_cria_colunas(monkeypatch):
+    grav = []
+    def fake_api(m, caminho, corpo=None):
+        if m == "GET":
+            return {"title": [{"plain_text": "NOTION_PAI_CONTAS"}],
+                    "properties": {"Nome": {"type": "title"}, "Banco": {"type": "rich_text"}}}
+        grav.append(corpo)
+        return {}
+    monkeypatch.setattr(r, "api", fake_api)
+    r.preparar_banco_fixo("banco-fixo")
+    props = grav[0]["properties"]
+    assert props["Nome"] == {"name": "Conta"}
+    assert "Banco" not in props and "ID ERP" in props and "Nome na obra" in props
+    assert grav[0]["title"][0]["text"]["content"] == "CONTAS BANCÁRIAS"
+
+
+def test_main_chama_a_coluna_conta_com_a_mesma_decisao_de_gravar(monkeypatch):
+    paginas = [_pagina_conta_notion("pg-a", "e1", "CONTA MODELO A", "1000-1")]
+    notion = _NotionFalso(paginas, [])
+    erp = [{"id": "e1", "nome": "CONTA MODELO A", "banco": "756", "agencia": "1-2", "numero": "1000-1"}]
+    _preparar_main(monkeypatch, notion, erp, aplicar=False)
+    assert r.main() == 0
+    assert notion.coluna == [("banco-contas", 1, False)]
