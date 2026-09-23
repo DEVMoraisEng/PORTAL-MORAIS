@@ -542,11 +542,17 @@ def completar_no_mc(page, o):
     mudou = []
 
     n = int(o["casas"]) if isinstance(o["casas"], (int, float)) else 0
+    # o valor do input é um id (uuid); o NOME do tipo fica no quadro do select.
+    # Ler o "pai" inteiro trazia junto o rótulo "Tipo da obra", e a comparação
+    # com "Genérico" nunca batia — por isso a PARAISO não teve o tipo trocado.
     tipo_atual = ""
     try:
-        tipo_atual = page.locator(CAMPO["tipo"]).first.locator("xpath=..").inner_text().strip()
+        tipo_atual = page.locator(CAMPO["tipo"]).first.evaluate("""e => {
+            const q = e.parentElement.querySelector('[role=combobox], .MuiSelect-select, .MuiSelect-root');
+            return (q ? q.innerText : '').trim(); }""")
     except Exception:
         pass
+    print(f"  {o['titulo']}: no MC hoje -> tipo '{tipo_atual or '(vazio)'}' | nº de casas no Notion: {n or '(vazio)'}", flush=True)
     if n in TIPOS and N(tipo_atual) != N(TIPOS[n]) and (not tipo_atual or N(tipo_atual) == N(TIPO_PADRAO)):
         try:
             escolher_na_lista(page, CAMPO["tipo"], "", alvo=TIPOS[n], exato=True)
