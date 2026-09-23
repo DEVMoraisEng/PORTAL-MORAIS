@@ -555,3 +555,213 @@ def test_login_api_erro_de_rede_vira_login_recusado(monkeypatch):
     monkeypatch.setattr(requests, "post", _boom)
     with pytest.raises(r.LoginRecusado):
         r.login_api("usuario@exemplo.com", "senha-ficticia")
+
+
+# ============================================================================
+# I3 (revisão final) — primeira carga: conta nova só nasce marcada quando o
+# banco já tem ao menos uma página com Aparece marcado E uma com ID ERP
+# ============================================================================
+
+def _pag(id_erp="e1", aparece=False):
+    d = _pagina_notion(id_erp=id_erp)
+    d["aparece"] = aparece
+    return d
+
+
+def test_decidir_primeira_carga_banco_criado_agora():
+    assert r.decidir_primeira_carga(True, [_pag(aparece=True)]) is True
+
+
+def test_decidir_primeira_carga_banco_vazio():
+    assert r.decidir_primeira_carga(False, []) is True
+
+
+def test_decidir_primeira_carga_interrompida_nenhuma_marcada():
+    # 1ª gravação caiu no meio: há páginas, todas desmarcadas -> ainda é primeira carga
+    assert r.decidir_primeira_carga(False, [_pag("e1"), _pag("e2")]) is True
+
+
+def test_decidir_primeira_carga_pagina_manual_sem_id_erp():
+    # página manual (sem ID ERP) marcada num banco sem conta do ERP -> primeira carga
+    assert r.decidir_primeira_carga(False, [_pag(id_erp="", aparece=True)]) is True
+
+
+def test_decidir_primeira_carga_dono_ja_marcou():
+    assert r.decidir_primeira_carga(False, [_pag("e1", aparece=True), _pag("e2")]) is False
+
+
+def test_notion_para_dict_le_aparece():
+    pg = {"id": "p1", "properties": {
+        "Conta": {"type": "title", "title": [{"plain_text": "CONTA MODELO"}]},
+        "Aparece": {"type": "checkbox", "checkbox": True},
+    }}
+    assert r._notion_para_dict(pg)["aparece"] is True
+    pg["properties"]["Aparece"]["checkbox"] = False
+    assert r._notion_para_dict(pg)["aparece"] is False
+    del pg["properties"]["Aparece"]
+    assert r._notion_para_dict(pg)["aparece"] is False
+
+
+# ============================================================================
+# C1 (revisão final) — contrato do --ligar-antigas e teste de ORQUESTRAÇÃO
+# (api / ler_banco / ERP falsos)
+# ============================================================================
+
+def _pagina_conta_notion(page_id, id_erp, nome, numero, banco="756", situacao="Ativa", aparece=True):
+    def rt(v):
+        return {"type": "rich_text", "rich_text": [{"plain_text": v}] if v else []}
+    return {"id": page_id, "properties": {
+        "Conta": {"type": "title", "title": [{"plain_text": nome}]},
+        "Banco": rt(banco), "Agência": rt("1-2"), "Número": rt(numero), "ID ERP": rt(id_erp),
+        "Aparece": {"type": "checkbox", "checkbox": aparece},
+        "Situação no ERP": {"type": "select", "select": {"name": situacao}},
+    }}
+
+
+def _pagina_obra_antiga(page_id, texto_conta, relacao=None):
+    return {"id": page_id, "properties": {
+        "CONTA": {"type": "rich_text", "rich_text": [{"plain_text": texto_conta}] if texto_conta else []},
+        "CONTA BANCÁRIA": {"type": "relation", "relation": [{"id": x} for x in (relacao or [])]},
+    }}
+
+
+def test_contas_para_casar_converte_contrato_e_tira_sumidas():
+    notion = [_pagina_notion(page_id="p1", numero="1000-1"),
+              _pagina_notion(page_id="p2", id_erp="e2", numero="2000-2", situacao="Sumiu do ERP")]
+    assert r.contas_para_casar(notion) == [{"id": "p1", "numero": "1000-1", "banco": "756"}]
+
+
+def test_ligar_obras_antigas_orquestracao(monkeypatch, capsys):
+    contas_notion = [r._notion_para_dict(pg) for pg in [
+        _pagina_conta_notion("pg-a", "e1", "CONTA MODELO A", "1000-1"),
+        _pagina_conta_notion("pg-b", "e2", "CONTA MODELO B", "2000-2"),
+        _pagina_conta_notion("pg-sumida", "e3", "CONTA MODELO C", "3000-3", situacao="Sumiu do ERP"),
+    ]]
+    obras = [
+        _pagina_obra_antiga("obra-1", "BANCO MODELO - Conta corrente: 1000-1"),       # liga em pg-a
+        _pagina_obra_antiga("obra-2", "BANCO MODELO - Conta corrente: 3000-3"),       # só a sumida: sem par
+        _pagina_obra_antiga("obra-3", "BANCO MODELO - Conta corrente: 2000-2", ["ja"]),  # já ligada: pula
+        _pagina_obra_antiga("obra-4", "PESSOA FISICA"),                              # pula
+        _pagina_obra_antiga("obra-5", ""),                                           # pula
+    ]
+    monkeypatch.setattr(r, "ler_banco", lambda db_id, rotulo: obras if db_id == r.ID_OBRAS else [])
+    chamadas = []
+    monkeypatch.setattr(r, "api", lambda metodo, caminho, corpo=None: chamadas.append((metodo, caminho, corpo)) or {})
+
+    r.ligar_obras_antigas(contas_notion, aplicar=True)
+
+    assert chamadas == [("PATCH", "/pages/obra-1",
+                         {"properties": {"CONTA BANCÁRIA": {"relation": [{"id": "pg-a"}]}}})]
+    saida = capsys.readouterr().out
+    assert "1 ligadas, 1 sem par, 0 ambíguas" in saida
+    assert "CONTA MODELO" not in saida and "1000-1" not in saida
+
+
+def test_ligar_obras_antigas_simulacao_nao_grava(monkeypatch):
+    contas_notion = [r._notion_para_dict(_pagina_conta_notion("pg-a", "e1", "CONTA MODELO A", "1000-1"))]
+    monkeypatch.setattr(r, "ler_banco", lambda db_id, rotulo: [_pagina_obra_antiga("obra-1", "Conta 1000-1")])
+    chamadas = []
+    monkeypatch.setattr(r, "api", lambda *a, **k: chamadas.append(a) or {})
+    r.ligar_obras_antigas(contas_notion, aplicar=False)
+    assert chamadas == []
+
+
+def test_ligar_obras_antigas_conta_ambiguas(monkeypatch, capsys):
+    contas_notion = [r._notion_para_dict(pg) for pg in [
+        _pagina_conta_notion("pg-a", "e1", "CONTA MODELO A", "1000-1", banco="001"),
+        _pagina_conta_notion("pg-b", "e2", "CONTA MODELO B", "1000-1", banco="104"),
+    ]]
+    monkeypatch.setattr(r, "ler_banco", lambda db_id, rotulo: [_pagina_obra_antiga("obra-1", "Conta 1000-1")])
+    monkeypatch.setattr(r, "api", lambda *a, **k: {})
+    r.ligar_obras_antigas(contas_notion, aplicar=True)
+    assert "0 ligadas, 0 sem par, 1 ambíguas" in capsys.readouterr().out
+
+
+class _NotionFalso:
+    """api/ler_banco falsos para o main: um banco de contas já existente e a
+    base de obras; guarda toda gravação."""
+
+    def __init__(self, paginas_contas, obras):
+        self.paginas_contas = paginas_contas
+        self.obras = obras
+        self.gravacoes = []
+
+    def api(self, metodo, caminho, corpo=None):
+        if metodo != "GET":
+            self.gravacoes.append((metodo, caminho, corpo))
+        return {}
+
+    def ler_banco(self, db_id, rotulo):
+        if db_id == "banco-contas":
+            return self.paginas_contas
+        if db_id == r.ID_OBRAS:
+            return self.obras
+        raise AssertionError(f"ler_banco inesperado: {db_id}")
+
+
+def _preparar_main(monkeypatch, notion, contas_erp, aplicar=True, argv=()):
+    monkeypatch.setattr(r, "decidir_credenciais", lambda: ("robo@exemplo.com", "senha-ficticia", aplicar, None))
+    monkeypatch.setattr(r, "contas_ativas_do_erp", lambda u, s: contas_erp)
+    monkeypatch.setattr(r, "achar_ou_criar_banco", lambda aplicar: ("banco-contas", False))
+    monkeypatch.setattr(r, "garantir_relacao", lambda db_id: None)
+    monkeypatch.setattr(r, "api", notion.api)
+    monkeypatch.setattr(r, "ler_banco", notion.ler_banco)
+    monkeypatch.setattr(sys, "argv", ["robo_mc_contas.py", *argv])
+
+
+def test_main_ligar_antigas_orquestracao_nao_quebra(monkeypatch):
+    # é o caminho que quebrava com KeyError 'id' (C1)
+    paginas = [_pagina_conta_notion("pg-a", "e1", "CONTA MODELO A", "1000-1")]
+    obras = [_pagina_obra_antiga("obra-1", "BANCO MODELO - Conta corrente: 1000-1")]
+    notion = _NotionFalso(paginas, obras)
+    erp = [{"id": "e1", "nome": "CONTA MODELO A", "banco": "756", "agencia": "1-2", "numero": "1000-1"}]
+    _preparar_main(monkeypatch, notion, erp, argv=["--ligar-antigas"])
+
+    assert r.main() == 0
+    assert ("PATCH", "/pages/obra-1",
+            {"properties": {"CONTA BANCÁRIA": {"relation": [{"id": "pg-a"}]}}}) in notion.gravacoes
+
+
+def test_main_conta_nova_nasce_desmarcada_quando_ninguem_marcou_ainda(monkeypatch):
+    # primeira carga interrompida: já há página do ERP, nenhuma marcada
+    paginas = [_pagina_conta_notion("pg-a", "e1", "CONTA MODELO A", "1000-1", aparece=False)]
+    notion = _NotionFalso(paginas, [])
+    erp = [{"id": "e1", "nome": "CONTA MODELO A", "banco": "756", "agencia": "1-2", "numero": "1000-1"},
+           {"id": "e2", "nome": "CONTA MODELO B", "banco": "756", "agencia": "1-2", "numero": "2000-2"}]
+    _preparar_main(monkeypatch, notion, erp)
+
+    assert r.main() == 0
+    criadas = [c for m, cam, c in notion.gravacoes if m == "POST" and cam == "/pages"]
+    assert len(criadas) == 1
+    assert criadas[0]["properties"]["Aparece"] == {"checkbox": False}
+
+
+def test_main_conta_nova_nasce_marcada_depois_que_o_dono_marcou(monkeypatch):
+    paginas = [_pagina_conta_notion("pg-a", "e1", "CONTA MODELO A", "1000-1", aparece=True)]
+    notion = _NotionFalso(paginas, [])
+    erp = [{"id": "e1", "nome": "CONTA MODELO A", "banco": "756", "agencia": "1-2", "numero": "1000-1"},
+           {"id": "e2", "nome": "CONTA MODELO B", "banco": "756", "agencia": "1-2", "numero": "2000-2"}]
+    _preparar_main(monkeypatch, notion, erp)
+
+    assert r.main() == 0
+    criadas = [c for m, cam, c in notion.gravacoes if m == "POST" and cam == "/pages"]
+    assert len(criadas) == 1
+    assert criadas[0]["properties"]["Aparece"] == {"checkbox": True}
+
+
+def test_main_sem_aplicar_nao_grava_nada(monkeypatch):
+    paginas = [_pagina_conta_notion("pg-a", "e1", "CONTA MODELO A", "1000-1")]
+    obras = [_pagina_obra_antiga("obra-1", "Conta 1000-1")]
+    notion = _NotionFalso(paginas, obras)
+    erp = [{"id": "e2", "nome": "CONTA MODELO B", "banco": "756", "agencia": "1-2", "numero": "2000-2"}]
+    _preparar_main(monkeypatch, notion, erp, aplicar=False, argv=["--ligar-antigas"])
+
+    assert r.main() == 0
+    assert notion.gravacoes == []
+
+
+def test_main_erp_vazio_aborta_sem_tocar_no_notion(monkeypatch):
+    notion = _NotionFalso([_pagina_conta_notion("pg-a", "e1", "CONTA MODELO A", "1000-1")], [])
+    _preparar_main(monkeypatch, notion, [])
+    assert r.main() == 1
+    assert notion.gravacoes == []

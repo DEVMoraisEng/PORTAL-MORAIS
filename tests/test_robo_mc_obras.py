@@ -59,7 +59,8 @@ def test_mapa_contas_por_id_monta_id_pagina_para_nome(monkeypatch):
     monkeypatch.setattr(r.rc, "_achar_filho_banco", lambda pai: "banco-contas-ficticio")
 
     paginas = [
-        {"id": "pg-1", "properties": {"Conta": {"type": "title", "title": [{"plain_text": "CONTA MODELO 1234-5"}]}}},
+        {"id": "pg-1", "properties": {"Conta": {"type": "title", "title": [{"plain_text": "CONTA MODELO 1234-5"}]},
+                                      "Número": {"type": "rich_text", "rich_text": [{"plain_text": "1234-5"}]}}},
         {"id": "pg-2", "properties": {"Conta": {"type": "title", "title": [{"plain_text": "CONTA MODELO 2 9999-0"}]}}},
         # sem título -> não entra no mapa
         {"id": "pg-3", "properties": {"Conta": {"type": "title", "title": []}}},
@@ -67,7 +68,8 @@ def test_mapa_contas_por_id_monta_id_pagina_para_nome(monkeypatch):
     monkeypatch.setattr(r, "ler_banco", lambda db_id, rotulo: paginas)
 
     mapa = r.mapa_contas_por_id()
-    assert mapa == {"pg-1": "CONTA MODELO 1234-5", "pg-2": "CONTA MODELO 2 9999-0"}
+    assert mapa == {"pg-1": {"nome": "CONTA MODELO 1234-5", "numero": "1234-5"},
+                    "pg-2": {"nome": "CONTA MODELO 2 9999-0", "numero": ""}}
 
 
 # ============================================================================
@@ -96,7 +98,7 @@ def _pagina_obra(id_="obra-1", mais_controle="Criar", status="Em andamento",
 
 def test_fila_de_obras_sem_relacao_conta_exata_fica_vazia(monkeypatch):
     monkeypatch.setattr(r, "ler_banco", lambda db_id, rotulo: [_pagina_obra(conta_texto="TEXTO LIVRE DA CONTA")])
-    fila = r.fila_de_obras(mapa_contas={"pg-x": "CONTA MODELO X"})
+    fila = r.fila_de_obras(mapa_contas={"pg-x": {"nome": "CONTA MODELO X", "numero": ""}})
     assert len(fila) == 1
     assert fila[0]["conta_exata"] == ""
     assert fila[0]["conta"] == "TEXTO LIVRE DA CONTA"
@@ -104,21 +106,28 @@ def test_fila_de_obras_sem_relacao_conta_exata_fica_vazia(monkeypatch):
 
 def test_fila_de_obras_com_relacao_preenche_conta_exata_pelo_mapa(monkeypatch):
     monkeypatch.setattr(r, "ler_banco", lambda db_id, rotulo: [_pagina_obra(conta_id="pg-conta-1")])
-    fila = r.fila_de_obras(mapa_contas={"pg-conta-1": "CONTA MODELO 1234-5"})
+    fila = r.fila_de_obras(mapa_contas={"pg-conta-1": {"nome": "CONTA MODELO 1234-5", "numero": "1234-5"}})
     assert fila[0]["conta_exata"] == "CONTA MODELO 1234-5"
+    assert fila[0]["conta_numero"] == "1234-5"
+    assert fila[0]["conta_nao_resolvida"] is False
 
 
 def test_fila_de_obras_relacao_apontando_para_pagina_fora_do_mapa_fica_vazia(monkeypatch):
-    # a página relacionada não está (ainda) no mapa — não inventa nome
+    # a página relacionada não está (ainda) no mapa — não inventa nome, e a
+    # obra fica como "conta pedida e não resolvida" (I1 da revisão final)
     monkeypatch.setattr(r, "ler_banco", lambda db_id, rotulo: [_pagina_obra(conta_id="pg-desconhecida")])
-    fila = r.fila_de_obras(mapa_contas={"pg-conta-1": "CONTA MODELO 1234-5"})
+    fila = r.fila_de_obras(mapa_contas={"pg-conta-1": {"nome": "CONTA MODELO 1234-5", "numero": ""}})
     assert fila[0]["conta_exata"] == ""
+    assert fila[0]["conta_nao_resolvida"] is True
+    assert r.tem_conta_pedida(fila[0]) is True
 
 
 def test_fila_de_obras_sem_mapa_contas_nao_quebra(monkeypatch):
     monkeypatch.setattr(r, "ler_banco", lambda db_id, rotulo: [_pagina_obra(conta_id="pg-conta-1")])
     fila = r.fila_de_obras()  # mapa_contas=None
     assert fila[0]["conta_exata"] == ""
+    # relação existe, mas sem mapa não se resolve: conta pedida, não resolvida
+    assert fila[0]["conta_nao_resolvida"] is True
 
 
 def test_fila_de_obras_ignora_pagina_sem_mais_controle_criar(monkeypatch):
@@ -130,7 +139,7 @@ def test_fila_atualizar_com_relacao_preenche_conta_exata(monkeypatch):
     # padronizar_endereco preenche zero à esquerda em QD/LT — o título tem de
     # bater com o que "fila_atualizar" compara (o mesmo padronizado)
     monkeypatch.setattr(r, "ler_banco", lambda db_id, rotulo: [_pagina_obra(titulo="RUA MODELO QD 1 LT 2", conta_id="pg-conta-1")])
-    fila = r.fila_atualizar({"RUA MODELO QD 01 LT 02"}, mapa_contas={"pg-conta-1": "CONTA MODELO 1234-5"})
+    fila = r.fila_atualizar({"RUA MODELO QD 01 LT 02"}, mapa_contas={"pg-conta-1": {"nome": "CONTA MODELO 1234-5", "numero": "1234-5"}})
     assert len(fila) == 1
     assert fila[0]["conta_exata"] == "CONTA MODELO 1234-5"
 
@@ -159,7 +168,7 @@ def test_preencher_conta_pessoa_fisica_nao_conta_como_pedido(monkeypatch):
 def test_preencher_conta_relacao_escolhida_com_sucesso(monkeypatch):
     vistos = {}
 
-    def fake_escolher(page, campo_sel, texto_busca, alvo=None, exato=False, prefixo=False, sigilo=False):
+    def fake_escolher(page, campo_sel, texto_busca, alvo=None, exato=False, prefixo=False, sigilo=False, numero=""):
         if campo_sel == r.CAMPO["conta"]:
             vistos["chamado"] = (texto_busca, alvo, prefixo, sigilo)
         return alvo or texto_busca
@@ -178,7 +187,7 @@ def test_preencher_conta_relacao_escolhida_com_sucesso(monkeypatch):
 
 
 def test_preencher_conta_relacao_pedida_e_nao_escolhida_devolve_false(monkeypatch):
-    def fake_escolher(page, campo_sel, texto_busca, alvo=None, exato=False, prefixo=False, sigilo=False):
+    def fake_escolher(page, campo_sel, texto_busca, alvo=None, exato=False, prefixo=False, sigilo=False, numero=""):
         if campo_sel == r.CAMPO["conta"]:
             raise RuntimeError("não apareceu na lista (fictício)")
         return "Cliente"
@@ -189,7 +198,7 @@ def test_preencher_conta_relacao_pedida_e_nao_escolhida_devolve_false(monkeypatc
 
 
 def test_preencher_conta_relacao_pedida_e_nao_escolhida_nao_imprime_nome(monkeypatch, capsys):
-    def fake_escolher(page, campo_sel, texto_busca, alvo=None, exato=False, prefixo=False, sigilo=False):
+    def fake_escolher(page, campo_sel, texto_busca, alvo=None, exato=False, prefixo=False, sigilo=False, numero=""):
         if campo_sel == r.CAMPO["conta"]:
             raise RuntimeError("não apareceu na lista (fictício)")
         return "Cliente"
@@ -202,7 +211,7 @@ def test_preencher_conta_relacao_pedida_e_nao_escolhida_nao_imprime_nome(monkeyp
 
 
 def test_preencher_conta_texto_livre_pedido_e_nao_escolhido_devolve_false(monkeypatch):
-    def fake_escolher(page, campo_sel, texto_busca, alvo=None, exato=False, prefixo=False, sigilo=False):
+    def fake_escolher(page, campo_sel, texto_busca, alvo=None, exato=False, prefixo=False, sigilo=False, numero=""):
         if campo_sel == r.CAMPO["conta"]:
             raise RuntimeError("não apareceu na lista (fictício)")
         return "Cliente"
@@ -213,7 +222,7 @@ def test_preencher_conta_texto_livre_pedido_e_nao_escolhido_devolve_false(monkey
 
 
 def test_preencher_conta_texto_livre_pedido_e_nao_escolhido_nao_imprime_nome(monkeypatch, capsys):
-    def fake_escolher(page, campo_sel, texto_busca, alvo=None, exato=False, prefixo=False, sigilo=False):
+    def fake_escolher(page, campo_sel, texto_busca, alvo=None, exato=False, prefixo=False, sigilo=False, numero=""):
         if campo_sel == r.CAMPO["conta"]:
             raise RuntimeError("não apareceu na lista (fictício)")
         return "Cliente"
@@ -244,7 +253,7 @@ def test_preencher_conta_relacao_tem_prioridade_sobre_texto(monkeypatch):
     # caísse, a busca por pedaço de "conta" apareceria em vistos também
     chamadas_conta = []
 
-    def fake_escolher(page, campo_sel, texto_busca, alvo=None, exato=False, prefixo=False, sigilo=False):
+    def fake_escolher(page, campo_sel, texto_busca, alvo=None, exato=False, prefixo=False, sigilo=False, numero=""):
         if campo_sel == r.CAMPO["conta"]:
             chamadas_conta.append(texto_busca)
         return alvo or texto_busca
@@ -310,10 +319,11 @@ def test_escolha_por_prefixo_opcao_comeca_com_o_alvo():
     assert r.escolha_por_prefixo(textos, "CONTA MODELO 1234-5") == 0
 
 
-def test_escolha_por_prefixo_alvo_comeca_com_a_opcao():
-    # o nome pedido é mais longo que o texto exibido no combo
+def test_escolha_por_prefixo_nao_aceita_opcao_mais_curta_que_o_nome():
+    # I2 da revisão final: a direção reversa (nome pedido começa com a
+    # opção) foi removida — a opção "mãe" não serve para a conta "filha"
     textos = ["CONTA MODELO", "OUTRA CONTA"]
-    assert r.escolha_por_prefixo(textos, "CONTA MODELO 1234-5") == 0
+    assert r.escolha_por_prefixo(textos, "CONTA MODELO 1234-5") is None
 
 
 def test_escolha_por_prefixo_duas_candidatas_falha_sem_chutar():
@@ -415,7 +425,7 @@ def _silenciar_apoios_criar_no_mc(monkeypatch):
         monkeypatch.setattr(r, nome, valor)
     # escolher_na_lista: só é chamado aqui para "tipo" e "cliente" — devolve
     # o alvo pedido, sem abrir lista de verdade
-    monkeypatch.setattr(r, "escolher_na_lista", lambda page, campo_sel, texto_busca, alvo=None, exato=False, prefixo=False, sigilo=False: alvo or texto_busca)
+    monkeypatch.setattr(r, "escolher_na_lista", lambda page, campo_sel, texto_busca, alvo=None, exato=False, prefixo=False, sigilo=False, numero="": alvo or texto_busca)
 
 
 def test_criar_no_mc_com_conta_escolhida_devolve_criada(monkeypatch):
@@ -452,7 +462,7 @@ def _silenciar_apoios_completar_no_mc(monkeypatch, valor_conta=""):
     monkeypatch.setattr(r, "fechar_replicar", lambda page: None)
     monkeypatch.setattr(r, "preencher_endereco", lambda page, o: None)
     monkeypatch.setattr(r, "foto", lambda page, nome, sensivel=False: None)
-    monkeypatch.setattr(r, "escolher_na_lista", lambda page, campo_sel, texto_busca, alvo=None, exato=False, prefixo=False, sigilo=False: alvo or texto_busca)
+    monkeypatch.setattr(r, "escolher_na_lista", lambda page, campo_sel, texto_busca, alvo=None, exato=False, prefixo=False, sigilo=False, numero="": alvo or texto_busca)
 
     def fake_valor_campo(page, sel):
         return "" if sel == r.CAMPO["conta"] else "já preenchido no MC"
@@ -504,3 +514,164 @@ def test_completar_no_mc_erro_ao_preencher_conta_tambem_nao_marca_completada(mon
     monkeypatch.setattr(r, "APLICAR", True)
     resultado = r.completar_no_mc(_FakePageSalva(), _obra_ficticia())
     assert resultado == "conta não escolhida"
+
+
+# ============================================================================
+# I2 (revisão final) — nomes parecidos, nos dois sentidos
+# ============================================================================
+
+def test_escolha_por_prefixo_nome_curto_nao_pega_conta_com_outra_palavra():
+    # pedido "EMPRESA MODELO", só aparece "EMPRESA MODELO SPE 2" -> não escolhe
+    assert r.escolha_por_prefixo(["EMPRESA MODELO SPE 2"], "EMPRESA MODELO") is None
+
+
+def test_escolha_por_prefixo_nome_longo_nao_pega_conta_mae():
+    # pedido "EMPRESA MODELO SPE 2", só aparece "EMPRESA MODELO" -> não escolhe
+    assert r.escolha_por_prefixo(["EMPRESA MODELO"], "EMPRESA MODELO SPE 2") is None
+
+
+def test_escolha_por_prefixo_as_duas_na_lista_escolhe_a_igual():
+    textos = ["EMPRESA MODELO", "EMPRESA MODELO SPE 2"]
+    assert r.escolha_por_prefixo(textos, "EMPRESA MODELO") == 0
+    assert r.escolha_por_prefixo(textos, "EMPRESA MODELO SPE 2") == 1
+
+
+def test_escolha_por_prefixo_nome_com_sufixo_de_separador_passa():
+    for textos in (["EMPRESA MODELO - Conta corrente: 1234-5"],
+                   ["EMPRESA MODELO \u2013 Conta corrente: 1234-5"],
+                   ["EMPRESA MODELO (BANCO MODELO)"]):
+        assert r.escolha_por_prefixo(textos, "EMPRESA MODELO") == 0, textos
+
+
+def test_escolha_por_prefixo_parecida_com_separador_mas_outro_nome_nao_passa():
+    # "EMPRESA MODELO SPE 2 - ..." começa com "EMPRESA MODELO" seguido de
+    # " S" (outra palavra), não de separador
+    assert r.escolha_por_prefixo(["EMPRESA MODELO SPE 2 - Conta corrente: 1234-5"], "EMPRESA MODELO") is None
+
+
+def test_escolha_por_prefixo_confere_numero_quando_opcao_tem_digitos():
+    textos = ["EMPRESA MODELO - Conta corrente: 9999-0"]
+    assert r.escolha_por_prefixo(textos, "EMPRESA MODELO", numero="1234-5") is None
+    textos = ["EMPRESA MODELO - Conta corrente: 1234-5"]
+    assert r.escolha_por_prefixo(textos, "EMPRESA MODELO", numero="1234-5") == 0
+
+
+def test_escolha_por_prefixo_numero_desempata_duas_com_separador():
+    textos = ["EMPRESA MODELO - Conta corrente: 9999-0", "EMPRESA MODELO - Conta corrente: 1234-5"]
+    assert r.escolha_por_prefixo(textos, "EMPRESA MODELO") is None       # sem número: 2 candidatas
+    assert r.escolha_por_prefixo(textos, "EMPRESA MODELO", numero="1234-5") == 1
+
+
+def test_escolha_por_prefixo_opcao_sem_digitos_nao_exige_numero():
+    textos = ["EMPRESA MODELO (BANCO MODELO)"]
+    assert r.escolha_por_prefixo(textos, "EMPRESA MODELO", numero="1234-5") == 0
+
+
+def test_preencher_conta_passa_numero_do_banco_de_contas(monkeypatch):
+    vistos = []
+
+    def fake_escolher(page, campo_sel, texto_busca, alvo=None, exato=False, prefixo=False, sigilo=False, numero=""):
+        if campo_sel == r.CAMPO["conta"]:
+            vistos.append(numero)
+        return alvo or texto_busca
+
+    monkeypatch.setattr(r, "escolher_na_lista", fake_escolher)
+    r.preencher_conta(_PageFake(), {"conta_exata": "CONTA MODELO", "conta_numero": "1234-5", "conta": ""})
+    assert vistos == ["1234-5"]
+
+
+# ============================================================================
+# I1 (revisão final) — relação que não se resolve = conta pedida e não resolvida
+# ============================================================================
+
+def test_resolver_conta_sem_relacao():
+    assert r.resolver_conta({"type": "relation", "relation": []}, {}) == ("", "", False)
+    assert r.resolver_conta(None, {}) == ("", "", False)
+
+
+def test_resolver_conta_uma_no_mapa():
+    mapa = {"pg-1": {"nome": "CONTA MODELO", "numero": "1234-5"}}
+    prop = {"type": "relation", "relation": [{"id": "pg-1"}]}
+    assert r.resolver_conta(prop, mapa) == ("CONTA MODELO", "1234-5", False)
+
+
+def test_resolver_conta_fora_do_mapa():
+    prop = {"type": "relation", "relation": [{"id": "pg-sumida"}]}
+    assert r.resolver_conta(prop, {"pg-1": {"nome": "CONTA MODELO", "numero": ""}}) == ("", "", True)
+
+
+def test_resolver_conta_titulo_vazio_no_mapa():
+    prop = {"type": "relation", "relation": [{"id": "pg-1"}]}
+    assert r.resolver_conta(prop, {"pg-1": {"nome": "", "numero": "1234-5"}}) == ("", "", True)
+
+
+def test_resolver_conta_mais_de_uma_conta_relacionada():
+    mapa = {"pg-1": {"nome": "CONTA MODELO 1", "numero": ""}, "pg-2": {"nome": "CONTA MODELO 2", "numero": ""}}
+    prop = {"type": "relation", "relation": [{"id": "pg-1"}, {"id": "pg-2"}]}
+    assert r.resolver_conta(prop, mapa) == ("", "", True)
+
+
+def test_fila_de_obras_duas_contas_relacionadas_fica_nao_resolvida(monkeypatch):
+    pg = _pagina_obra(conta_id="pg-1")
+    pg["properties"]["CONTA BANCÁRIA"]["relation"].append({"id": "pg-2"})
+    monkeypatch.setattr(r, "ler_banco", lambda db_id, rotulo: [pg])
+    mapa = {"pg-1": {"nome": "CONTA MODELO 1", "numero": ""}, "pg-2": {"nome": "CONTA MODELO 2", "numero": ""}}
+    fila = r.fila_de_obras(mapa_contas=mapa)
+    assert fila[0]["conta_exata"] == ""
+    assert fila[0]["conta_nao_resolvida"] is True
+
+
+def test_tem_conta_pedida_nao_resolvida_conta_como_pedida():
+    assert r.tem_conta_pedida({"conta_exata": "", "conta": "", "conta_nao_resolvida": True}) is True
+
+
+def test_preencher_conta_nao_resolvida_devolve_false_sem_cair_no_texto(monkeypatch, capsys):
+    chamadas_conta = []
+
+    def fake_escolher(page, campo_sel, texto_busca, alvo=None, exato=False, prefixo=False, sigilo=False, numero=""):
+        if campo_sel == r.CAMPO["conta"]:
+            chamadas_conta.append(texto_busca)
+        return alvo or texto_busca
+
+    monkeypatch.setattr(r, "escolher_na_lista", fake_escolher)
+    ok = r.preencher_conta(_PageFake(), {"conta_exata": "", "conta_nao_resolvida": True,
+                                         "conta": "BANCO SIGILOSO - Conta corrente: 1234-5"})
+    assert ok is False
+    assert chamadas_conta == []          # nunca cai no texto livre
+    saida = capsys.readouterr().out
+    assert "BANCO SIGILOSO" not in saida and "1234-5" not in saida
+
+
+def test_criar_no_mc_nao_resolvida_nao_cria(monkeypatch):
+    _silenciar_apoios_criar_no_mc(monkeypatch)
+    abriu = []
+    monkeypatch.setattr(r, "ir_lista_obras", lambda page: abriu.append(1))
+    monkeypatch.setattr(r, "APLICAR", True)
+    resultado = r.criar_no_mc(_FakePageSalva(), _obra_ficticia(conta_exata="", conta_nao_resolvida=True))
+    assert resultado == "conta_nao_resolvida"
+    assert abriu == []                   # nem abriu o formulário
+    assert resultado not in ("criada", "ja_existe")
+
+
+def test_completar_no_mc_nao_resolvida_com_conta_ja_preenchida_no_mc_nao_confere(monkeypatch):
+    _silenciar_apoios_completar_no_mc(monkeypatch)
+    monkeypatch.setattr(r, "valor_campo", lambda page, sel: "já preenchido no MC")
+    monkeypatch.setattr(r, "preencher_conta", lambda page, o: True)
+    monkeypatch.setattr(r, "APLICAR", True)
+    resultado = r.completar_no_mc(_FakePageSalva(), _obra_ficticia(conta_exata="", conta_nao_resolvida=True))
+    assert resultado == "conta não escolhida"
+
+
+# ============================================================================
+# I5 (revisão final) — prints com a conta não vão para o artefato público
+# ============================================================================
+
+def test_criar_no_mc_prints_da_tela_sao_sensiveis(monkeypatch):
+    _silenciar_apoios_criar_no_mc(monkeypatch)
+    fotos = []
+    monkeypatch.setattr(r, "foto", lambda page, nome, sensivel=False: fotos.append((nome.split("_")[0], sensivel)))
+    monkeypatch.setattr(r, "preencher_conta", lambda page, o: True)
+    monkeypatch.setattr(r, "APLICAR", True)
+    r.criar_no_mc(_FakePageSalva(), _obra_ficticia())
+    assert fotos, "criar_no_mc deveria tirar prints"
+    assert all(sensivel for _, sensivel in fotos), fotos

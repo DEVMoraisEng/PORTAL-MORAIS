@@ -151,7 +151,8 @@ def planejar(erp, notion, primeira_carga):
     `notion`: lista de dicts com o que já está na página — page_id, id_erp,
     nome, banco, agencia, numero, situacao.
     Casamento é pelo "ID ERP". Devolve {"criar", "atualizar", "sumiu",
-    "voltou"}: "criar" ganha "aparece" (False só na primeira carga); nenhuma
+    "voltou"}: "criar" ganha "aparece" (False na primeira carga — ver
+    `decidir_primeira_carga`); nenhuma
     das outras listas jamais toca em "Aparece" — é decisão do dono, feita
     pelo painel, e o robô nunca a revisita depois de criada a página."""
     erp = erp or []
@@ -228,6 +229,32 @@ def _banco_bate_no_texto(banco_conta, grupos_digitos, texto_n):
     return N(banco_conta) in texto_n
 
 
+def _grupos_digitos(texto):
+    return [g for g in (so_digitos(x) for x in _GRUPO_DIGITOS_TEXTO.findall(texto or "")) if g]
+
+
+def _candidatos_por_digitos(texto, contas):
+    """Contas cujo número (só dígitos) é IGUAL a algum grupo de dígitos do
+    texto. Mesma regra usada por `casar_texto_conta` e pela contagem de
+    ambíguas do `ligar_obras_antigas` — uma só, para as duas não divergirem."""
+    grupos = _grupos_digitos(texto)
+    if not grupos:
+        return []
+    return [c for c in (contas or []) if so_digitos(c.get("numero")) and so_digitos(c.get("numero")) in grupos]
+
+
+def contas_para_casar(contas_notion):
+    """Converte as páginas do banco (formato `_notion_para_dict`: page_id,
+    numero, banco, situacao) no contrato de `casar_texto_conta` (id, numero,
+    banco) — e tira as contas "Sumiu do ERP": obra antiga nunca é ligada a
+    conta que não existe mais no ERP."""
+    return [
+        {"id": d["page_id"], "numero": d.get("numero", ""), "banco": d.get("banco", "")}
+        for d in (contas_notion or [])
+        if d.get("page_id") and N(d.get("situacao", "")) != _SITUACAO_SUMIU
+    ]
+
+
 def casar_texto_conta(texto, contas):
     """Acha, entre `contas` (dicts com "id", "numero", "banco"), a que o
     texto descreve — cada GRUPO de dígitos do texto comparado, por
@@ -238,10 +265,10 @@ def casar_texto_conta(texto, contas):
     texto = (texto or "").strip()
     if not texto or N(texto) == "PESSOA FISICA":
         return None
-    grupos = [g for g in (so_digitos(x) for x in _GRUPO_DIGITOS_TEXTO.findall(texto)) if g]
+    grupos = _grupos_digitos(texto)
     if not grupos:
         return None
-    candidatos = [c for c in (contas or []) if so_digitos(c.get("numero")) in grupos]
+    candidatos = _candidatos_por_digitos(texto, contas)
     if not candidatos:
         return None
     if len(candidatos) == 1:
@@ -616,7 +643,24 @@ def _notion_para_dict(pagina):
         "agencia": txt(pega(pr, "Agência")),
         "numero": txt(pega(pr, "Número")),
         "situacao": txt(pega(pr, "Situação no ERP")),
+        "aparece": txt(pega(pr, "Aparece")) is True,
     }
+
+
+def decidir_primeira_carga(criado_agora, contas_notion):
+    """Conta nova só nasce com "Aparece" MARCADO quando o banco já passou pela
+    primeira carga E o dono já decidiu alguma coisa nele: tem ao menos uma
+    página com "Aparece" marcado E ao menos uma página com "ID ERP". Fora
+    disso é "primeira carga" (tudo nasce desmarcado). Olhar só "banco vazio"
+    não basta: uma primeira gravação que cai no meio (ou uma página manual
+    sem ID ERP num banco vazio) faria as restantes nascerem marcadas sem o
+    dono escolher. Na dúvida, desmarcado — o dono marca pelo painel."""
+    if criado_agora:
+        return True
+    contas_notion = contas_notion or []
+    tem_marcada = any(c.get("aparece") is True for c in contas_notion)
+    tem_id_erp = any(c.get("id_erp") for c in contas_notion)
+    return not (tem_marcada and tem_id_erp)
 
 
 def aplicar_plano(db_id, plano):
@@ -652,7 +696,10 @@ def aplicar_plano(db_id, plano):
 def ligar_obras_antigas(contas_notion, aplicar):
     """Para cada obra sem a relação e com texto na coluna CONTA: casa com UMA
     conta do banco pelos dígitos do número (+ banco quando houver). Grava a
-    relação só com APLICAR."""
+    relação só com APLICAR. `contas_notion` vem no formato de
+    `_notion_para_dict` (page_id, ...); `contas_para_casar` converte para o
+    contrato de `casar_texto_conta` (id, ...) e tira as "Sumiu do ERP"."""
+    contas = contas_para_casar(contas_notion)
     ligadas = sem_par = ambiguas = 0
     for pg in ler_banco(ID_OBRAS, "OBRAS"):
         pr = pg.get("properties") or {}
@@ -662,11 +709,9 @@ def ligar_obras_antigas(contas_notion, aplicar):
         texto_conta = txt(pega(pr, "CONTA"))
         if not texto_conta or N(texto_conta) == "PESSOA FISICA":
             continue
-        alvo = casar_texto_conta(texto_conta, contas_notion)
+        alvo = casar_texto_conta(texto_conta, contas)
         if alvo is None:
-            digitos = so_digitos(texto_conta)
-            candidatos = [c for c in contas_notion if digitos and so_digitos(c.get("numero")) in digitos]
-            if len(candidatos) > 1:
+            if len(_candidatos_por_digitos(texto_conta, contas)) > 1:
                 ambiguas += 1
             else:
                 sem_par += 1
@@ -712,7 +757,7 @@ def main():
             garantir_relacao(db_id)
         paginas_notion = ler_banco(db_id, "CONTAS BANCÁRIAS")
         contas_notion = [_notion_para_dict(pg) for pg in paginas_notion]
-        primeira_carga = criado_agora or not contas_notion
+        primeira_carga = decidir_primeira_carga(criado_agora, contas_notion)
 
     plano = planejar(contas_erp, contas_notion, primeira_carga)
     print(f"Plano: {len(plano['criar'])} para criar, {len(plano['atualizar'])} para atualizar, "
