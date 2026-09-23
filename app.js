@@ -403,7 +403,12 @@ async function lerStore(payload, chave, opts){
   /* Falhou e existe cópia: devolve a cópia marcada como velha, em vez de
      apagar a tela. "SESSÃO EXPIRADA" por causa de um soluço do servidor era
      justamente o que derrubava a pessoa pro login sem motivo. */
-  if(cache) return Object.assign({ doCache:true, velho:true, _ts:cache.t }, cache.v);
+  /* set/26 — a cópia velha continua sendo devolvida (a tela não apaga), mas
+     agora leva JUNTO o motivo da falha. Antes o erro sumia aqui: a tela
+     mostrava "Do cache" de um dia atrás e ninguém sabia que o servidor estava
+     recusando (foi o caso das Simulações em 23/09). */
+  if(cache) return Object.assign({ doCache:true, velho:true, _ts:cache.t,
+                                   erroAoVivo:(r && r.erro) || "SEM_RESPOSTA" }, cache.v);
   return r;
 }
 

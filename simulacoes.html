@@ -341,6 +341,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
       <span class="carga-portal" id="carga-portal"><i></i><b id="carga-pct">carregando…</b></span>
       <span class="chip-extr" id="data-extr"></span>
     </div>
+    <div class="sim-aviso err" id="sim-vivo" style="display:none"></div>
 
     <div id="sem-acesso" class="semacesso hide">
       <h2>Sem acesso</h2>
@@ -536,7 +537,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
     <div class="modal-cx" id="sim-modalCx"></div>
   </div>
 
-<script src="app.js"></script>
+<script src="app.js?v=32"></script>
 <script>
 
 /* =====================================================================
@@ -631,7 +632,13 @@ function iniciar(){
     setInterval(function(){
       if(document.hidden) return;
       if(!document.getElementById("sim-modal").classList.contains("hide")) return;  // detalhe aberto
-      simCarregar(true); propCarregar(true); simCarregarUnidades(true);
+      /* set/26 — se a rodada anterior ainda não voltou, não pede outra.
+         Antes, com o servidor lento, entravam 3 pedidos novos por minuto na
+         MESMA fila (uma requisição por vez), e a fila nunca alcançava. */
+      if(window._simRodando) return;
+      window._simRodando = true;
+      Promise.all([simCarregar(true), propCarregar(true), simCarregarUnidades(true)].map(p=>Promise.resolve(p).catch(()=>{})))
+        .then(()=>{ window._simRodando = false; });
     }, 60000);
   }catch(e){
     /* Sem isto, qualquer erro deixaria a tela em branco sem explicação —
@@ -659,11 +666,30 @@ async function simCarregar(forcar){
   }
   const r = await lerStore({action:"simsLista"}, "sims_lista",
                            { ttl:SIM_TTL, forcar:!!forcar, pintar:simPintarLista });
+  simAvisoVivo(r);
   if(!(r && r.simulacoes)){
     document.getElementById("sim-kpis").innerHTML =
       '<div class="vazio" style="grid-column:1/-1">Sem dados para mostrar.</div>';
     document.getElementById("sim-tabRec").innerHTML =
       '<tbody><tr><td style="text-align:left;line-height:1.7;white-space:normal;padding:16px">'+simErroAmigavel(r&&r.erro)+'</td></tr></tbody>';
+  }
+}
+/* set/26 — quando a busca no Notion FALHA, lerStore devolve a cópia guardada
+   (para a tela não ficar em branco). O problema é que ela fazia isso calada:
+   o rótulo dizia só "Do cache" e a lista ficava parada no dia anterior, sem
+   nada indicando que o servidor estava recusando. Agora o motivo aparece. */
+function simAvisoVivo(r){
+  const a=document.getElementById("sim-vivo"), ex=document.getElementById("data-extr");
+  if(!a) return;
+  if(r && r.velho){
+    const quando = simData(r.lidoEm || r._ts);
+    a.innerHTML = '<b>⚠ As simulações NÃO estão atualizando.</b> A lista abaixo é a última cópia boa, de ' +
+                  esc(quando) + '. Motivo informado pelo servidor:<br>' + propErro(r.erroAoVivo);
+    a.style.display = "";
+    if(ex){ ex.textContent = "⚠ Desatualizado · " + quando; ex.style.color = "var(--vermelho)"; }
+  }else if(r && r.ok && !r.doCache){
+    a.style.display = "none"; a.innerHTML = "";
+    if(ex) ex.style.color = "";
   }
 }
 /* Botão do topo: força as duas fontes de uma vez (Notion ao vivo). */
@@ -1710,7 +1736,9 @@ async function propCarregar(forcar){
   try{ r = await lerStore({action:"simsPropostas"}, "sims_propostas",
                           { ttl:PROP_TTL, forcar:!!forcar, pintar:propPintar }); }
   catch(e){ r = { erro:"ERRO_API" }; }
-  if(r && r.propostas){ propPintar(r); propAviso("ok",""); }
+  if(r && r.propostas){ propPintar(r);
+    if(r.velho) propAviso("err", "<b>⚠ Propostas não atualizaram — mostrando a última cópia boa.</b><br>" + propErro(r.erroAoVivo));
+    else propAviso("ok",""); }
   else { propAviso("err", propErro(r && r.erro)); }
 }
 function propAviso(t,m){
