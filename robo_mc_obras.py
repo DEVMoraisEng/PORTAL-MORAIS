@@ -527,14 +527,30 @@ def abrir_edicao(page, titulo):
     page.wait_for_timeout(1200)
     page.locator("button:visible").filter(has_text=re.compile(r"editar\s+obra", re.I)).first.click()
     page.locator(CAMPO["nome"]).wait_for(state="visible", timeout=15000)
-    page.wait_for_timeout(800)
+    # O formulário de edição abre VAZIO e o MC preenche os campos logo depois.
+    # Ler cedo demais faz campo preenchido parecer vazio — e aí o robô tentaria
+    # escrever por cima. Espera o nome chegar e mais um pouco para o resto.
+    try:
+        page.wait_for_function("() => { const e = document.querySelector('input[name=name]'); return e && e.value.trim().length > 0; }",
+                               timeout=15000)
+    except Exception:
+        pass
+    page.wait_for_timeout(2500)
 
 
 def valor_campo(page, sel):
-    try:
-        return (page.locator(sel).first.input_value() or "").strip()
-    except Exception:
-        return ""
+    """Valor atual do campo no MC. Se vier vazio, confere de novo depois de um
+    instante: só é "vazio" se continuar vazio."""
+    for tentativa in range(2):
+        try:
+            v = (page.locator(sel).first.input_value() or "").strip()
+        except Exception:
+            v = ""
+        if v:
+            return v
+        if tentativa == 0:
+            page.wait_for_timeout(900)
+    return ""
 
 
 def completar_no_mc(page, o):
@@ -553,6 +569,8 @@ def completar_no_mc(page, o):
     except Exception:
         pass
     print(f"  {o['titulo']}: no MC hoje -> tipo '{tipo_atual or '(vazio)'}' | nº de casas no Notion: {n or '(vazio)'}", flush=True)
+    if N(tipo_atual) in ("SELECIONE UM TIPO", ""):
+        tipo_atual = ""                     # é só o texto de exemplo do campo vazio
     if n in TIPOS and N(tipo_atual) != N(TIPOS[n]) and (not tipo_atual or N(tipo_atual) == N(TIPO_PADRAO)):
         try:
             escolher_na_lista(page, CAMPO["tipo"], "", alvo=TIPOS[n], exato=True)
