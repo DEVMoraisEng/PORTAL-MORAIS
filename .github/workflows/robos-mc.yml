@@ -15,6 +15,7 @@ name: Robôs Mais Controle
 on:
   schedule:
     - cron: "23 9 * * *"        # 06:23 de Brasília (minuto "quebrado": o GitHub atrasa menos)
+    - cron: "50 11 * * *"       # 08:50 de Brasília — TESTE do agendamento; apague esta linha depois
   workflow_dispatch:
     inputs:
       robo:
