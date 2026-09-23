@@ -59,8 +59,26 @@ def mascarar(doc):
 
 
 # ---------------------------------------------------------------- MC
+URL_LISTA = [None]     # endereço da lista de clientes, para voltar sempre ao mesmo lugar
+
+
+def voltar_lista(page):
+    """Volta para a lista de clientes pelo ENDEREÇO, não pelo "voltar" do
+    navegador: cliente recém-criado no MC abre o cadastro sem deixar histórico,
+    e o "voltar" saía da lista — foi o que derrubou a rodada de 23/09 no
+    cliente TESTE AUTOMAÇÃO."""
+    if URL_LISTA[0]:
+        page.goto(URL_LISTA[0])
+    else:
+        ir_menu(page, "Contatos", "Clientes")
+    page.locator("table tbody tr").first.wait_for(state="visible", timeout=20000)
+    page.wait_for_timeout(500)
+
+
 def ler_clientes_mc(page):
     ir_menu(page, "Contatos", "Clientes")
+    page.locator("table tbody tr").first.wait_for(state="visible", timeout=20000)
+    URL_LISTA[0] = page.url
     foto(page, "clientes_lista")
     maior_pagina(page)
     vistos, lista, voltas = set(), [], 0
@@ -106,9 +124,7 @@ def ler_cadastro(page, nome):
     nome_mc = valor_por_rotulo(page, ["Nome Completo", "Razão Social", "Nome"]) or nome
     doc = valor_por_rotulo(page, ["CNPJ", "CPF", "CPF/CNPJ"]) or ""
     nasc = valor_por_rotulo(page, ["Aniversário", "Data de Nascimento", "Nascimento", "Data de Abertura"]) or ""
-    page.go_back()
-    page.locator("table tbody tr").first.wait_for(state="visible", timeout=15000)
-    page.wait_for_timeout(400)
+    voltar_lista(page)
     return {"nome": nome_limpo(nome_mc), "doc": doc.strip(), "tipo": tipo, "nasc": nasc.strip()}
 
 
@@ -334,10 +350,14 @@ def main():
                     c["setor"] = x["setor"]
                     clientes.append(c)
                 except Exception as e:
-                    print(f"  ! não consegui abrir o cadastro de {x['nome']}: {str(e)[:120]}", flush=True)
+                    print(f"  ! não consegui ler o cadastro de {x['nome']}: {str(e)[:120]}", flush=True)
                     foto(page, "erro_cadastro")
-                    ir_menu(page, "Contatos", "Clientes")
-                    maior_pagina(page)
+                    # um cliente com problema não pode derrubar a rodada inteira
+                    try:
+                        voltar_lista(page)
+                    except Exception as e2:
+                        print(f"  ! e não consegui voltar para a lista ({str(e2)[:80]}) — sigo com o que já li", flush=True)
+                        break
             print(f"MC: {len(clientes)} cadastros lidos", flush=True)
         finally:
             b.close()

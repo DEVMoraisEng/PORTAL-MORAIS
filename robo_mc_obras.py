@@ -223,10 +223,12 @@ def ajustar_visiveis(page, resp):
     for eng, nomes in EQUIPES.items():
         if N(eng) in N(resp) or N(resp) in N(eng):
             manter = nomes
-    fora = [n for eng, nomes in EQUIPES.items() for n in nomes if n not in manter]
-    if not fora:
-        print("  Visível para: responsável fora das equipes conhecidas — deixei como está", flush=True)
+    if not manter:
+        # responsável que não é engenheiro de execução (ex.: obra lançada por
+        # outra pessoa): não dá para saber qual equipe fica — não tira ninguém
+        print(f"  Visível para: '{resp or '(vazio)'}' não é engenheiro de execução — deixei todo mundo", flush=True)
         return
+    fora = [n for eng, nomes in EQUIPES.items() for n in nomes if n not in manter]
     # a caixa é um select com lista de checkboxes (label id=select-checkbox-list-label)
     page.locator("xpath=//label[@id='select-checkbox-list-label']/following-sibling::div[1]").first.click(force=True)
     page.wait_for_timeout(900)
