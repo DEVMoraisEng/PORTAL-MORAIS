@@ -38,6 +38,20 @@ ID_LIGACOES = "313c5ab532d3801e974ced0bb656c9d5"  # LIGAÇÕES DE ÁGUA E ENERGI
 ID_VENDAS = "33cc5ab532d38047ae3aee8b87ac1f4d"    # BANCO DE DADOS VENDAS (só a contagem por obra)
 
 
+def conta_alerta(p):
+    """Situação da coluna CONTA sem revelar o nome da conta."""
+    if not p or p.get("type") != "select":
+        return None                      # ainda é a fórmula antiga: sem alerta
+    v = norm(((p.get("select") or {}).get("name")) or "")
+    if not v:
+        return "VAZIA"
+    if v == norm("CRIAR CONTA"):
+        return "CRIAR CONTA"
+    if v == norm("DÚVIDA"):
+        return "DÚVIDA"
+    return None
+
+
 def contar_por_relacao(db_id, rotulo, coluna):
     """Quantas linhas de uma base apontam para cada obra (relação `coluna`).
     Serve para a tela travar os botões de ligação com "JÁ CRIADO" (item 9).
@@ -235,8 +249,10 @@ def main():
             "estudo_layout": txt(pega(ip, "PRECISA DE ESTUDO DE LAYOUT")),
             "mais_controle": txt(pega(ip, "MAIS CONTROLE")),
             "em_mc": (None if no_mc is None else padronizar_endereco(txt(pega(ip, "Projeto"))) in no_mc),
-            # id da conta (relação) — o NOME da conta só vem autenticado, pelo Apps Script
-            "conta_id": (ids(pega(ip, "CONTA BANCÁRIA")) or [None])[0],
+            # 23/09/26 — CONTA virou seleção com o nome real da conta. O NOME não
+            # sai aqui (arquivo público); só a situação, para os Alertas:
+            # "CRIAR CONTA", "DÚVIDA", "VAZIA" ou null (conta escolhida / PF).
+            "conta_alerta": conta_alerta(pega(ip, "CONTA")),
             "lig_criadas": lig_por_obra.get(str(pg.get("id")).replace("-", ""), 0),
             "vendas_criadas": ven_por_obra.get(str(pg.get("id")).replace("-", ""), 0),
         })
