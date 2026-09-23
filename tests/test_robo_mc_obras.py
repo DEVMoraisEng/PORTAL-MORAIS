@@ -337,6 +337,14 @@ def test_escolha_por_prefixo_ignora_acento_e_caixa():
     assert r.escolha_por_prefixo(textos, "conta modelo 1234-5") == 0
 
 
+def test_escolha_por_prefixo_ignora_opcao_em_branco_do_combo():
+    # Rodada 2: combo real costuma ter uma opção vazia/placeholder ("",
+    # "SELECIONE"); sem ignorá-la, `alvo_n.startswith(N(""))` bate sempre
+    # (prefixo vazio), viraria "duas candidatas" e a escolha certa falharia
+    textos = ["", "SELECIONE", "CONTA MODELO - Conta corrente: 1234-5"]
+    assert r.escolha_por_prefixo(textos, "CONTA MODELO") == 2
+
+
 # ============================================================================
 # criar_no_mc / completar_no_mc — não marcam "pronta" quando a conta pedida
 # não foi escolhida (item 2 da revisão: a garantia não pode se desfazer na

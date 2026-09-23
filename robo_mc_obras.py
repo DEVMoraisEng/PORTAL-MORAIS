@@ -196,7 +196,11 @@ def escolha_por_prefixo(textos, alvo):
         return None
     candidatos = [
         i for i, t in enumerate(textos)
-        if N(t) == alvo_n or N(t).startswith(alvo_n) or alvo_n.startswith(N(t))
+        if N(t) and (N(t) == alvo_n or N(t).startswith(alvo_n) or alvo_n.startswith(N(t)))
+        # N(t) vazio (opção em branco/placeholder do combo) nunca é
+        # candidata: sem o filtro, `alvo_n.startswith("")` é sempre
+        # verdadeiro e uma opção vazia faria QUALQUER casamento único virar
+        # "duas candidatas" -> None, derrubando a escolha certa.
     ]
     return candidatos[0] if len(candidatos) == 1 else None
 
