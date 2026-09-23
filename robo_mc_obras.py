@@ -183,9 +183,34 @@ def escrever(page, sel, valor):
     return ficou
 
 
-def escolher_na_lista(page, campo_sel, texto_busca, alvo=None, exato=False):
+def escolha_por_prefixo(textos, alvo):
+    """Função PURA (sem Playwright): escolhe, entre `textos`, a ÚNICA opção
+    que bate com `alvo` por igualdade OU por prefixo — em qualquer direção
+    (a opção do combo pode mostrar mais que o nome pedido, ex. agência/
+    número numa segunda linha; ou o nome pedido pode ser mais longo que o
+    texto exibido). Exige EXATAMENTE UMA candidata: nunca "a mais parecida"
+    — com 0 ou 2+ candidatas, devolve None (falha sem chutar). Devolve o
+    ÍNDICE da opção escolhida, ou None."""
+    alvo_n = N(alvo)
+    if not alvo_n:
+        return None
+    candidatos = [
+        i for i, t in enumerate(textos)
+        if N(t) == alvo_n or N(t).startswith(alvo_n) or alvo_n.startswith(N(t))
+    ]
+    return candidatos[0] if len(candidatos) == 1 else None
+
+
+def escolher_na_lista(page, campo_sel, texto_busca, alvo=None, exato=False, prefixo=False, sigilo=False):
     """Abre a lista do campo, digita (quando o campo aceita busca) e clica na
-    opção. Devolve o texto da opção escolhida."""
+    opção. Devolve o texto da opção escolhida.
+
+    `prefixo=True`: quando a igualdade exata não bate, tenta
+    `escolha_por_prefixo` (exige uma única candidata — nunca cai no "melhor
+    parecido" do `exato=False`).
+    `sigilo=True`: a mensagem de erro NÃO leva `alvo` nem as opções vistas —
+    só a contagem. É para o campo de conta bancária: nome real de conta não
+    pode ir para o log público do Actions (repo público)."""
     campo = page.locator(campo_sel).first
     campo.scroll_into_view_if_needed()
     opcoes = page.locator("[role=listbox] [role=option], [role=listbox] li")
@@ -211,7 +236,9 @@ def escolher_na_lista(page, campo_sel, texto_busca, alvo=None, exato=False):
         if N(t) == N(alvo):
             escolha = i
             break
-    if escolha is None and not exato:
+    if escolha is None and prefixo:
+        escolha = escolha_por_prefixo(textos, alvo)
+    elif escolha is None and not exato:
         # melhor parecido: mais palavras em comum (o MC às vezes guarda o nome
         # sem o "LTDA" que existe no cadastro do Notion)
         pal = set(N(alvo).split())
@@ -220,6 +247,8 @@ def escolher_na_lista(page, campo_sel, texto_busca, alvo=None, exato=False):
         if notas and notas[0][0] >= 2:
             escolha = notas[0][1]
     if escolha is None:
+        if sigilo:
+            raise RuntimeError(f"não apareceu na lista ({len(textos)} opções vistas)")
         raise RuntimeError(f"'{alvo}' não apareceu na lista (vi: {textos[:6]})")
     opcoes.nth(escolha).click()
     page.wait_for_timeout(600)
@@ -315,17 +344,51 @@ def preencher_endereco(page, o):
     print(f"  endereço: logradouro='{rua}' complemento='{compl}'", flush=True)
 
 
+def tem_conta_pedida(o):
+    """Função PURA: uma conta foi PEDIDA para a obra — pela relação CONTA
+    BANCÁRIA (`o["conta_exata"]`) ou pelo texto antigo da coluna CONTA
+    (exceto vazio/"PESSOA FISICA"). Usada por `completar_no_mc` (decidir se
+    abre a seção) e por `main` (decidir, no ramo "já existe no MC", se a
+    obra precisa confirmar a conta antes de ser marcada "Criada")."""
+    conta_exata = (o.get("conta_exata") or "").strip()
+    conta = (o.get("conta") or "").strip()
+    return bool(conta_exata) or bool(conta and N(conta) != "PESSOA FISICA")
+
+
+def tentativas_busca(texto):
+    """Função PURA: pedaços curtos de um texto de conta para a busca do combo
+    do MC — ele busca por PEDAÇO do nome ("MORAIS INCORPORACOES SENADOR..."
+    acha); a linha INTEIRA (que costuma trazer "- Conta corrente: 1234-5 -
+    SICOOB" depois do nome) não acha nada."""
+    texto = str(texto or "").strip()
+    palavras = texto.split()
+    tentativas = [texto.split(" - ")[0][:22], " ".join(palavras[:2]), palavras[0] if palavras else ""]
+    vistos, unicos = set(), []
+    for t in tentativas:
+        if t and t not in vistos:
+            vistos.add(t)
+            unicos.append(t)
+    return unicos
+
+
 def preencher_conta(page, o):
     """Quem paga = Cliente; Conta = a exata, quando a obra tem a relação
-    CONTA BANCÁRIA (casamento por igualdade EXATA com o título da conta no
-    banco CONTAS BANCÁRIAS — `o["conta_exata"]`, montado em fila_de_obras/
-    fila_atualizar via mapa_contas_por_id); sem ela, o caminho antigo (texto
-    livre da coluna CONTA, busca por pedaço).
+    CONTA BANCÁRIA (`o["conta_exata"]`, montado em fila_de_obras/
+    fila_atualizar via mapa_contas_por_id) — busca por PEDAÇO
+    (`tentativas_busca`, a linha inteira costuma não achar nada no combo) e
+    escolhe por igualdade OU prefixo, exigindo uma única candidata
+    (`escolha_por_prefixo`, nunca "a mais parecida"); sem ela, o caminho
+    antigo (texto livre da coluna CONTA, busca por pedaço, "mais parecida"
+    como último recurso).
 
-    Devolve False só quando uma conta foi PEDIDA (relação ou texto) e não
+    Devolve False só quando uma conta foi PEDIDA (`tem_conta_pedida`) e não
     foi possível escolhê-la na lista — nada pedido, ou pedido e escolhido,
-    devolve True. É esse sinal que `criar_no_mc` usa para NÃO marcar
-    "Criada" quando a obra ficou com a conta errada (ou nenhuma)."""
+    devolve True. É esse sinal que `criar_no_mc`/`completar_no_mc`/`main`
+    usam para NÃO marcar a obra como pronta quando ficou com a conta errada
+    (ou nenhuma).
+
+    NUNCA imprime nome/número de conta (repo público, log do Actions é
+    público): todo `escolher_na_lista` daqui em diante usa `sigilo=True`."""
     try:
         escolher_na_lista(page, CAMPO["quem_paga"], "", alvo="Cliente", exato=True)
     except Exception as e:
@@ -333,30 +396,28 @@ def preencher_conta(page, o):
 
     conta_exata = (o.get("conta_exata") or "").strip()
     if conta_exata:
-        try:
-            escolhida = escolher_na_lista(page, CAMPO["conta"], conta_exata, alvo=conta_exata, exato=True)
-            print(f"  conta bancária: {escolhida} (pela relação {COL_RELACAO_CONTA})", flush=True)
-            return True
-        except Exception as e:
-            print(f"  ! conta bancária pela relação {COL_RELACAO_CONTA}: não escolhida ({str(e)[:110]})", flush=True)
-            return False
+        for t in tentativas_busca(conta_exata):
+            try:
+                escolher_na_lista(page, CAMPO["conta"], t, alvo=conta_exata, prefixo=True, sigilo=True)
+                print(f"  conta bancária: escolhida (pela relação {COL_RELACAO_CONTA})", flush=True)
+                return True
+            except Exception:
+                continue
+        print(f"  ! conta bancária pela relação {COL_RELACAO_CONTA}: não escolhida", flush=True)
+        return False
 
     conta = (o.get("conta") or "").strip()
     if not conta or N(conta) == "PESSOA FISICA":
         print("  conta bancária: obra sem CONTA no Notion — deixei em branco", flush=True)
         return True
-    # a busca do MC é por pedaço do nome: "MORAIS INCORPORACOES SENADOR..." acha,
-    # a linha inteira da CONTA (com "- Conta corrente: 1234-5 - SICOOB") não acha
-    tentativas = [conta.split(" - ")[0][:22], " ".join(conta.split()[:2]), conta.split()[0]]
-    ultimo = ""
-    for t in [x for x in tentativas if x]:
+    for t in tentativas_busca(conta):
         try:
-            escolhida = escolher_na_lista(page, CAMPO["conta"], t, alvo=conta)
-            print(f"  conta bancária: {escolhida}", flush=True)
+            escolher_na_lista(page, CAMPO["conta"], t, alvo=conta, sigilo=True)
+            print("  conta bancária: escolhida", flush=True)
             return True
-        except Exception as e:
-            ultimo = str(e)[:110]
-    print(f"  ! conta '{conta}' não foi escolhida ({ultimo}) — ficou em branco", flush=True)
+        except Exception:
+            continue
+    print("  ! conta bancária: não foi escolhida — ficou em branco", flush=True)
     return False
 
 
@@ -687,21 +748,23 @@ def completar_no_mc(page, o):
         except Exception as e:
             print(f"  ! endereço: {str(e)[:90]}", flush=True)
 
-    conta_exata = (o.get("conta_exata") or "").strip()
-    conta = (o.get("conta") or "").strip()
-    tem_conta_pedida = bool(conta_exata) or bool(conta and N(conta) != "PESSOA FISICA")
-    if tem_conta_pedida and not valor_campo(page, CAMPO["conta"]):
+    conta_pendente = False
+    if tem_conta_pedida(o) and not valor_campo(page, CAMPO["conta"]):
         abrir_secao(page, "Conta bancária padrão")
         try:
-            preencher_conta(page, o)
-            mudou.append("conta bancária")
+            if preencher_conta(page, o):
+                mudou.append("conta bancária")
+            else:
+                conta_pendente = True
+                print(f"  ! {o['titulo']}: conta bancária pedida não foi escolhida — não conto como conferida", flush=True)
         except Exception as e:
             print(f"  ! conta: {str(e)[:90]}", flush=True)
+            conta_pendente = True
 
     if not mudou:
         page.keyboard.press("Escape")
         page.wait_for_timeout(500)
-        return "nada a completar"
+        return "conta não escolhida" if conta_pendente else "nada a completar"
     print(f"  {o['titulo']}: completando {', '.join(mudou)}", flush=True)
     if not APLICAR:
         page.keyboard.press("Escape")
@@ -714,7 +777,10 @@ def completar_no_mc(page, o):
     except Exception:
         foto(page, "erro_completar_" + o["titulo"].replace(" ", "_"))
         raise RuntimeError("o painel de edição continuou aberto depois de Salvar Obra")
-    return "completada"
+    # mesmo salvando os outros campos, a conta pedida (e não escolhida) não
+    # pode "passar" como conferida — main() só marca conferida para
+    # "completada"/"nada a completar", nunca para este status.
+    return "conta não escolhida" if conta_pendente else "completada"
 
 
 def main():
@@ -724,10 +790,18 @@ def main():
     ja = [o for o in fila if o["titulo"] in no_mc]
     fazer = [o for o in fila if o["titulo"] not in no_mc]
     print(f"Fila: {len(fila)} obras marcadas 'Criar' — {len(ja)} já existem no MC, {len(fazer)} para criar", flush=True)
-    for o in ja:
+    # obra que já existe no MC mas ainda pede conta: marcar "Criada" direto
+    # (como antes) deixaria a conta sem ninguém olhar de novo — passa pelo
+    # completar_no_mc (abre a edição e tenta escolher) e só é marcada depois,
+    # e só se a conta ficou preenchida.
+    ja_sem_conta = [o for o in ja if not tem_conta_pedida(o)]
+    ja_com_conta = [o for o in ja if tem_conta_pedida(o)]
+    for o in ja_sem_conta:
         print(f"  já existe no MC: {o['titulo']}" + (" -> marcada Criada" if APLICAR else ""), flush=True)
         if APLICAR:
             marcar_criada(o["id"])
+    if ja_com_conta:
+        print(f"  {len(ja_com_conta)} já existem no MC e pedem conta bancária — confiro antes de marcar Criada", flush=True)
     faltando = [o for o in fazer if not o["cliente"]]
     for o in faltando:
         print(f"  ! {o['titulo']}: sem Proprietário — pulei", flush=True)
@@ -735,13 +809,28 @@ def main():
 
     garantir_coluna_data()
     completar = fila_atualizar(no_mc, mapa_contas)[:LIMITE_POR_RODADA]
+    # obras do ja_com_conta já vão ser abertas no completar_no_mc abaixo —
+    # tirar da lista de "completar" para não abrir a mesma obra duas vezes.
+    ids_ja_com_conta = {o["id"] for o in ja_com_conta}
+    completar = [o for o in completar if o["id"] not in ids_ja_com_conta]
     print(f"Completar: {len(completar)} obras do MC para conferir nesta rodada", flush=True)
-    if not fazer and not completar:
+    if not fazer and not completar and not ja_com_conta:
         return 0
     with sync_playwright() as p:
         b, page = abrir(p)
         try:
             login(page)
+            for o in ja_com_conta:
+                try:
+                    r = completar_no_mc(page, o)
+                    print(f"  {o['titulo']} (já existe, conferindo conta): {r}", flush=True)
+                    if r != "conta não escolhida" and APLICAR:
+                        marcar_criada(o["id"])
+                        if r in ("completada", "nada a completar"):
+                            marcar_conferida(o["id"])
+                except Exception as e:
+                    print(f"  ! {o['titulo']} (já existe, conferindo conta): {str(e)[:160]}", flush=True)
+                    page.keyboard.press("Escape")
             for o in completar:
                 try:
                     r = completar_no_mc(page, o)
