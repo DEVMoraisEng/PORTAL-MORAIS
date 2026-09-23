@@ -68,6 +68,13 @@ def N(s):
     return " ".join(s.upper().split())
 
 
+def _norm_id(s):
+    """UUID do Notion sem hífen e minúsculo — a API ora devolve COM hífen
+    ("306c5ab5-32d3-..."), ora sem (o formato compacto que usamos nas
+    constantes deste módulo); comparar direto nunca bate."""
+    return str(s or "").replace("-", "").lower()
+
+
 def so_digitos(s):
     return "".join(c for c in str(s or "") if c.isdigit())
 
@@ -185,28 +192,62 @@ def planejar(erp, notion, primeira_carga):
     return {"criar": criar, "atualizar": atualizar, "sumiu": sumiu, "voltou": voltou}
 
 
+# Cada GRUPO de dígitos do texto — não o texto inteiro emendado, senão
+# "Ag 3233 Conta 1234-5" vira "323312345" e uma conta CURTA pode casar
+# atravessando a fronteira entre agência e número (ex.: "33123" bateria,
+# sem ser nem a agência nem a conta). O dígito verificador separado por
+# hífen ("1234-5") entra no MESMO grupo do número, porque é assim que
+# `conta_do_erp`/`_com_digito` também gravam ("1234-5" -> dígitos "12345").
+_GRUPO_DIGITOS_TEXTO = re.compile(r"\d+(?:-\d+)?")
+
+# código do Banco Central -> nome curto, só o suficiente para desempatar
+# quando o texto cita o banco por extenso. A coluna "Banco" das contas do
+# ERP guarda o CÓDIGO (ex. "756"), não o nome — comparar código com "SICOOB"
+# direto nunca batia.
+BANCOS_CONHECIDOS = {
+    "001": "BB", "033": "SANTANDER", "077": "INTER", "104": "CAIXA",
+    "237": "BRADESCO", "260": "NUBANK", "341": "ITAU", "748": "SICREDI",
+    "756": "SICOOB", "290": "PAGBANK", "380": "PICPAY",
+}
+
+
+def _banco_bate_no_texto(banco_conta, grupos_digitos, texto_n):
+    """`banco_conta` normalmente é o código (ex. "756"). Casa por: o próprio
+    código aparecendo como um GRUPO de dígitos isolado no texto (nunca como
+    substring solta — "56" não pode casar dentro de "756"), OU o nome do
+    banco aparecendo no texto (o nome da tabela, para código conhecido; o
+    valor gravado direto, quando não é um código)."""
+    banco_conta = str(banco_conta or "").strip()
+    if not banco_conta:
+        return False
+    if banco_conta.isdigit():
+        if banco_conta in grupos_digitos:
+            return True
+        nome = BANCOS_CONHECIDOS.get(banco_conta)
+        return bool(nome) and N(nome) in texto_n
+    return N(banco_conta) in texto_n
+
+
 def casar_texto_conta(texto, contas):
     """Acha, entre `contas` (dicts com "id", "numero", "banco"), a que o
-    texto descreve — pelos dígitos do número da conta aparecendo nos dígitos
-    do texto. Exige UM candidato; empate se desfaz pelo nome do banco
-    aparecendo no texto. "PESSOA FISICA"/vazio/sem dígito -> None."""
+    texto descreve — cada GRUPO de dígitos do texto comparado, por
+    IGUALDADE EXATA, aos dígitos do número da conta (nunca substring do
+    texto inteiro emendado — ver `_GRUPO_DIGITOS_TEXTO`). Exige UM
+    candidato; empate se desfaz pelo banco (`_banco_bate_no_texto`).
+    "PESSOA FISICA"/vazio/sem dígito -> None."""
     texto = (texto or "").strip()
     if not texto or N(texto) == "PESSOA FISICA":
         return None
-    digitos_texto = so_digitos(texto)
-    if not digitos_texto:
+    grupos = [g for g in (so_digitos(x) for x in _GRUPO_DIGITOS_TEXTO.findall(texto)) if g]
+    if not grupos:
         return None
-    candidatos = []
-    for c in contas or []:
-        digitos_conta = so_digitos(c.get("numero"))
-        if digitos_conta and digitos_conta in digitos_texto:
-            candidatos.append(c)
+    candidatos = [c for c in (contas or []) if so_digitos(c.get("numero")) in grupos]
     if not candidatos:
         return None
     if len(candidatos) == 1:
         return candidatos[0]["id"]
     texto_n = N(texto)
-    com_banco = [c for c in candidatos if c.get("banco") and N(c["banco"]) in texto_n]
+    com_banco = [c for c in candidatos if _banco_bate_no_texto(c.get("banco"), grupos, texto_n)]
     if len(com_banco) == 1:
         return com_banco[0]["id"]
     return None
@@ -284,17 +325,27 @@ def _cabecalhos_contas(jwt_token, company_id):
 
 
 def listar_contas_api(jwt_token, company_id):
-    """GET paginado {ERP_API}/bank-integration/bank-accounts, só ativas."""
+    """GET paginado {ERP_API}/bank-integration/bank-accounts, só ativas.
+
+    401/403/erro de rede também viram LoginRecusado aqui — não só no login:
+    o jwtToken pode vencer (ou o WAF recusar só a partir da segunda chamada)
+    depois de um login que deu certo, e o sinal para recuar pelo Playwright
+    é o mesmo."""
     import requests
 
     itens = []
     pagina = 1
     while True:
-        resp = requests.get(
-            f"{ERP_API}/bank-integration/bank-accounts",
-            params={"pageIndex": pagina, "pageSize": 200, "isActive": "true"},
-            headers=_cabecalhos_contas(jwt_token, company_id), timeout=45,
-        )
+        try:
+            resp = requests.get(
+                f"{ERP_API}/bank-integration/bank-accounts",
+                params={"pageIndex": pagina, "pageSize": 200, "isActive": "true"},
+                headers=_cabecalhos_contas(jwt_token, company_id), timeout=45,
+            )
+        except requests.exceptions.RequestException as e:
+            raise LoginRecusado(f"erro de rede na listagem de contas: {e}") from e
+        if resp.status_code in (401, 403):
+            raise LoginRecusado(f"listagem de contas recusada (HTTP {resp.status_code})")
         resp.raise_for_status()
         corpo = resp.json() or {}
         itens.extend(corpo.get("items") or [])
@@ -348,7 +399,10 @@ _JS_FETCH_PAGINA = """(args) => fetch(args.url, {
     "authorization": "Bearer " + args.jwt,
     "company-id": args.company,
   }
-}).then(r => r.json())"""
+}).then(async r => {
+  if (!r.ok) { return { __erro: r.status, __texto: (await r.text()).slice(0, 200) }; }
+  return r.json();
+})"""
 
 
 def _achar_no_storage(page, script):
@@ -360,13 +414,18 @@ def _achar_no_storage(page, script):
 
 def listar_contas_playwright(page, jwt_token, company_id):
     """Mesma consulta de `listar_contas_api`, feita de DENTRO da página (o
-    fetch sai com a origem/cookies do navegador — é o que passa pelo WAF)."""
+    fetch sai com a origem/cookies do navegador — é o que passa pelo WAF).
+    `fetch` não levanta em HTTP de erro — quem confere é o `r.ok` do JS
+    (`_JS_FETCH_PAGINA`), e aqui só traduzimos em exceção."""
     itens = []
     pagina = 1
     while True:
         url = (f"{ERP_API}/bank-integration/bank-accounts"
                f"?pageIndex={pagina}&pageSize=200&isActive=true")
         corpo = page.evaluate(_JS_FETCH_PAGINA, {"url": url, "jwt": jwt_token, "company": company_id}) or {}
+        if corpo.get("__erro"):
+            raise SystemExit(f"recuo por Playwright: a consulta de contas voltou HTTP {corpo['__erro']} "
+                             f"— {corpo.get('__texto') or ''}")
         itens.extend(corpo.get("items") or [])
         if not corpo.get("hasNextPage"):
             break
@@ -385,6 +444,15 @@ def _contas_via_playwright(usuario, senha):
     from playwright.sync_api import sync_playwright
     import robo_mc_comum as comum
 
+    # robo_mc_comum lê MC_USUARIO/MC_SENHA do ambiente NO IMPORT (módulo já
+    # carregado antes desta função rodar) — trocar os.environ depois não
+    # muda o que ele já guardou em MC_USUARIO/MC_SENHA. Este robô pode logar
+    # com outra credencial (MC_ROBO_*), então sobrescrevemos os ATRIBUTOS do
+    # módulo diretamente, que é o que `comum.login` de fato lê.
+    if not comum.MC_URL:
+        raise SystemExit("recuo por Playwright: falta o secret MC_URL (robo_mc_comum.login exige).")
+    comum.MC_USUARIO, comum.MC_SENHA = usuario, senha
+
     capturado = {}
 
     def _resp(r):
@@ -401,10 +469,6 @@ def _contas_via_playwright(usuario, senha):
         except Exception:
             pass
 
-    # login pela tela usa as credenciais globais do robo_mc_comum (MC_USUARIO/
-    # SENHA); como este robô pode logar com outra credencial (MC_ROBO_*), a
-    # sobrepomos só para esta chamada.
-    os.environ["MC_USUARIO"], os.environ["MC_SENHA"] = usuario, senha
     with sync_playwright() as p:
         b, page = comum.abrir(p)
         try:
@@ -459,23 +523,51 @@ def _texto_prop(chave, valor):
     return {tipo: [{"text": {"content": str(valor or "")}}]}
 
 
+_MAX_PAGINAS_BLOCOS = 50
+
+
+def _achar_filho_banco(pai):
+    """Lista os blocos-filho do pai (paginado) procurando um
+    "child_database" chamado CONTAS BANCÁRIAS. Em vez do `/search`: ele lê
+    de um índice que atrasa a indexar página nova, e um banco criado nesta
+    MESMA rodada (ou por outra rodada minutos antes) pode ainda não
+    aparecer — rodando de novo, o robô o criaria duplicado. `/blocks/.../
+    children` lê a estrutura de verdade, sem atraso de índice."""
+    cursor = None
+    paginas = 0
+    while True:
+        caminho = f"/blocks/{pai}/children?page_size=100"
+        if cursor:
+            caminho += f"&start_cursor={cursor}"
+        r = api("GET", caminho)
+        for bloco in r.get("results") or []:
+            if bloco.get("type") != "child_database":
+                continue
+            titulo = (bloco.get("child_database") or {}).get("title") or ""
+            if N(titulo) == N(TITULO_BANCO_CONTAS):
+                return bloco["id"]
+        if not r.get("has_more"):
+            return None
+        cursor = r.get("next_cursor")
+        paginas += 1
+        if paginas > _MAX_PAGINAS_BLOCOS:
+            print(f"  ! parei em {_MAX_PAGINAS_BLOCOS} páginas de blocos procurando o banco de contas", flush=True)
+            return None
+
+
 def achar_ou_criar_banco(aplicar):
     """Pai = a mesma página da (EMP) Projeto 2.0. Procura o filho
-    "CONTAS BANCÁRIAS"; não achando e sem APLICAR, só avisa (não cria).
-    Devolve (db_id | None, criado_agora)."""
+    "CONTAS BANCÁRIAS" pelos blocos do pai (não pelo `/search` — índice
+    atrasado cria duplicata); não achando e sem APLICAR, só avisa (não
+    cria). Devolve (db_id | None, criado_agora)."""
     obras = api("GET", f"/databases/{ID_OBRAS}")
     pai = (obras.get("parent") or {}).get("page_id")
     if not pai:
         raise SystemExit("a base de obras não tem page_id como pai — não sei onde criar o banco de contas.")
 
-    busca = api("POST", "/search", {
-        "query": TITULO_BANCO_CONTAS,
-        "filter": {"property": "object", "value": "database"},
-    })
-    for r in busca.get("results") or []:
-        titulo = "".join(t.get("plain_text", "") for t in r.get("title") or [])
-        if N(titulo) == N(TITULO_BANCO_CONTAS) and (r.get("parent") or {}).get("page_id") == pai:
-            return r["id"], False
+    achado = _achar_filho_banco(pai)
+    if achado:
+        return achado, False
 
     if not aplicar:
         print("Banco CONTAS BANCÁRIAS não existe — sem APLICAR, simulando (criaria o banco).", flush=True)
@@ -491,17 +583,23 @@ def achar_ou_criar_banco(aplicar):
 
 def garantir_relacao(db_id):
     """Garante, na base de obras, a coluna CONTA BANCÁRIA (relação com o
-    banco novo) — e renomeia, no banco novo, o lado de volta para "Obras"."""
+    banco novo). E, EM TODA RODADA — não só quando a coluna nasce —, confere
+    se o lado de volta (a relação que o Notion cria sozinho no banco novo)
+    já se chama "Obras"; se ainda não (alguém não conseguiu renomear numa
+    rodada anterior, ou renomeou de volta sem querer), tenta de novo."""
     esquema_obras = api("GET", f"/databases/{ID_OBRAS}").get("properties") or {}
-    if any(N(k) == N(COL_RELACAO_OBRAS) for k in esquema_obras):
-        return
-    api("PATCH", f"/databases/{ID_OBRAS}", {
-        "properties": {COL_RELACAO_OBRAS: {"relation": {"database_id": db_id, "dual_property": {}}}}
-    })
+    if not any(N(k) == N(COL_RELACAO_OBRAS) for k in esquema_obras):
+        api("PATCH", f"/databases/{ID_OBRAS}", {
+            "properties": {COL_RELACAO_OBRAS: {"relation": {"database_id": db_id, "dual_property": {}}}}
+        })
+
     esquema_novo = api("GET", f"/databases/{db_id}").get("properties") or {}
     lado_de_volta = None
     for nome, prop in esquema_novo.items():
-        if prop.get("type") == "relation" and (prop.get("relation") or {}).get("database_id") == ID_OBRAS:
+        # o "database_id" que o Notion devolve aqui vem COM hífen
+        # ("306c5ab5-32d3-..."); ID_OBRAS está no formato compacto (sem
+        # hífen) — comparar direto nunca bate. `_norm_id` neutraliza os dois.
+        if prop.get("type") == "relation" and _norm_id((prop.get("relation") or {}).get("database_id")) == _norm_id(ID_OBRAS):
             lado_de_volta = nome
             break
     if lado_de_volta and N(lado_de_volta) != N("Obras"):
@@ -594,6 +692,14 @@ def main():
 
     contas_erp = contas_ativas_do_erp(usuario, senha)
     print(f"ERP: {len(contas_erp)} contas ativas", flush=True)
+
+    if not contas_erp:
+        # 0 contas quase certamente é falha de leitura (resposta sem
+        # "items", página vazia por erro), não sumiço real de TODAS as
+        # contas — se seguisse, `planejar` marcaria toda página do Notion
+        # como "Sumiu do ERP". Aborta antes de tocar no Notion.
+        print("  ! ERP devolveu 0 contas ativas — abortando sem mexer no Notion (não aplico nada nesta rodada).", flush=True)
+        return 1
 
     db_id, criado_agora = achar_ou_criar_banco(aplicar)
     if db_id is None:
