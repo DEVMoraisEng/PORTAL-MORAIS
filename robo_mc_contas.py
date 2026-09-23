@@ -582,15 +582,39 @@ def _achar_filho_banco(pai):
             return None
 
 
+def _pagina_pai_das_obras():
+    """Página onde o banco CONTAS BANCÁRIAS nasce: a mesma da (EMP) Projeto 2.0.
+
+    23/09/26 — a base de obras não é filha DIRETA de uma página: ela está
+    dentro de um bloco (coluna, toggle, callout...), e aí o Notion devolve
+    parent = {"type": "block_id"}. Antes o robô parava aí. Agora sobe pelos
+    blocos até achar a página. Se a base estiver solta no workspace (sem
+    página nenhuma), use a variável NOTION_PAI_CONTAS com o id de uma página
+    compartilhada com a integração."""
+    fixo = os.environ.get("NOTION_PAI_CONTAS", "").strip()
+    if fixo:
+        return fixo
+    atual = (api("GET", f"/databases/{ID_OBRAS}").get("parent") or {})
+    for _ in range(12):
+        tipo = atual.get("type")
+        if tipo == "page_id":
+            return atual["page_id"]
+        if tipo == "block_id":
+            atual = (api("GET", f"/blocks/{atual['block_id']}").get("parent") or {})
+            continue
+        break
+    raise SystemExit(
+        f"não achei a página onde a base de obras mora (parent = {atual.get('type') or 'desconhecido'}). "
+        "Crie/escolha uma página no Notion, compartilhe com a integração e rode com a variável "
+        "NOTION_PAI_CONTAS = id dessa página.")
+
+
 def achar_ou_criar_banco(aplicar):
     """Pai = a mesma página da (EMP) Projeto 2.0. Procura o filho
     "CONTAS BANCÁRIAS" pelos blocos do pai (não pelo `/search` — índice
     atrasado cria duplicata); não achando e sem APLICAR, só avisa (não
     cria). Devolve (db_id | None, criado_agora)."""
-    obras = api("GET", f"/databases/{ID_OBRAS}")
-    pai = (obras.get("parent") or {}).get("page_id")
-    if not pai:
-        raise SystemExit("a base de obras não tem page_id como pai — não sei onde criar o banco de contas.")
+    pai = _pagina_pai_das_obras()
 
     achado = _achar_filho_banco(pai)
     if achado:
