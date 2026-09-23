@@ -29,6 +29,7 @@ from datetime import datetime, timezone
 from robo_mc_comum import N, foto, abrir, login, ir_menu, clicar_texto, APLICAR, MC_URL
 from fetch_vendas import ler_banco, api
 from fetch_obras import obras_no_mc, padronizar_endereco
+import robo_mc_contas as rc  # reaproveita _achar_filho_banco/txt/pega do banco de contas (sem playwright no topo dele)
 
 ID_OBRAS = "306c5ab532d3812fa14fe9a281510128"
 TIPOS = {1: "Casa", 2: "2 casas", 3: "3 casas", 4: "4 casas", 5: "5 casas"}
@@ -68,13 +69,81 @@ def pega(pr, nome):
     return None
 
 
-def fila_de_obras():
+COL_RELACAO_CONTA = "CONTA BANCÁRIA"
+
+
+def ids_relacionados(p):
+    """`txt()` (acima) não lê `relation` — só title/rich_text/select/status.
+    Devolve TODOS os ids da relação (lista, possivelmente vazia)."""
+    if (p or {}).get("type") != "relation":
+        return []
+    return [str(i.get("id") or "") for i in (p.get("relation") or []) if i.get("id")]
+
+
+def id_relacionado(p):
+    """Primeiro id da relação, ou ''. Só para leitura rápida — quem decide a
+    conta da obra é `resolver_conta`, que trata 2+ contas como erro."""
+    ids = ids_relacionados(p)
+    return ids[0] if ids else ""
+
+
+def resolver_conta(prop_relacao, mapa_contas):
+    """Função PURA: a partir da propriedade CONTA BANCÁRIA da obra e do mapa
+    id->{"nome","numero"} do banco de contas, devolve
+    (conta_exata, conta_numero, nao_resolvida).
+
+    - sem relação -> ("", "", False): nada pedido pela relação (vale o texto
+      antigo da coluna CONTA, se houver);
+    - UMA página relacionada que está no mapa com nome -> (nome, numero, False);
+    - página relacionada fora do mapa (banco renomeado/duplicado, título
+      vazio) OU mais de uma conta relacionada -> ("", "", True): a conta FOI
+      pedida e não dá para saber qual — a obra não é criada nem marcada
+      "Criada" (nunca cai no texto livre, nunca escolhe uma ao acaso)."""
+    ids = ids_relacionados(prop_relacao)
+    if not ids:
+        return "", "", False
+    if len(ids) > 1:
+        return "", "", True
+    info = (mapa_contas or {}).get(ids[0]) or {}
+    nome = str(info.get("nome") or "").strip()
+    if not nome:
+        return "", "", True
+    return nome, str(info.get("numero") or "").strip(), False
+
+
+def mapa_contas_por_id():
+    """id da página do banco CONTAS BANCÁRIAS -> {"nome": nome exato da conta
+    (título "Conta", que dá nome à opção na lista do MC), "numero": coluna
+    "Número" (usada para conferir a opção escolhida)}. Lê o banco UMA VEZ
+    por rodada (fila_de_obras/fila_atualizar reaproveitam o mapa) e acha o
+    banco pelos blocos do pai — mesma função que robo_mc_contas usa
+    (`_achar_filho_banco`), para não duplicar a lógica de índice atrasado.
+    Banco ainda não existe (robo_mc_contas nunca aplicou) -> {}."""
+    obras = api("GET", f"/databases/{ID_OBRAS}")
+    pai = (obras.get("parent") or {}).get("page_id")
+    if not pai:
+        return {}
+    db_id = rc._achar_filho_banco(pai)
+    if not db_id:
+        return {}
+    mapa = {}
+    for pg in ler_banco(db_id, "CONTAS BANCÁRIAS"):
+        pr = pg.get("properties") or {}
+        nome = rc.txt(rc.pega(pr, "Conta"))
+        if nome:
+            mapa[pg["id"]] = {"nome": nome, "numero": rc.txt(rc.pega(pr, "Número")) or ""}
+    return mapa
+
+
+def fila_de_obras(mapa_contas=None):
+    mapa_contas = mapa_contas or {}
     fila = []
     for pg in ler_banco(ID_OBRAS, "OBRAS"):
         pr = pg.get("properties") or {}
         if N(txt(pega(pr, "MAIS CONTROLE"))) != "CRIAR":
             continue
         a1, a2 = txt(pega(pr, "ÁREA CONSTRUÍDA AVERBADA")), txt(pega(pr, "ÁREA PÓS HABITE-SE"))
+        conta_exata, conta_numero, nao_resolvida = resolver_conta(pega(pr, COL_RELACAO_CONTA), mapa_contas)
         fila.append({
             "id": pg["id"],
             "titulo": padronizar_endereco(txt(pega(pr, "Projeto"))),
@@ -85,6 +154,9 @@ def fila_de_obras():
             "cliente": txt(pega(pr, "Proprietário")),
             "cidade": txt(pega(pr, "Cidade")),
             "conta": txt(pega(pr, "CONTA")),
+            "conta_exata": conta_exata,
+            "conta_numero": conta_numero,
+            "conta_nao_resolvida": nao_resolvida,
         })
     return fila
 
@@ -143,9 +215,65 @@ def escrever(page, sel, valor):
     return ficou
 
 
-def escolher_na_lista(page, campo_sel, texto_busca, alvo=None, exato=False):
+# o que pode vir logo depois do nome da conta quando a opção do combo mostra
+# MAIS que o nome (ex. "NOME - Conta corrente: 1234-5", "NOME (BANCO)"):
+# só separador — nunca outra palavra ("NOME SPE 2" é OUTRA conta).
+_SEPARADORES_SUFIXO = (" -", " –", " (")
+_GRUPO_DIGITOS = re.compile(r"\d+(?:-\d+)?")
+
+
+def _numero_bate(texto, numero):
+    """Se o banco de contas tem o número e o texto mostra dígitos, os dígitos
+    do número têm de aparecer num grupo de dígitos do texto."""
+    num = "".join(c for c in str(numero or "") if c.isdigit())
+    if not num:
+        return True
+    grupos = ["".join(c for c in g if c.isdigit()) for g in _GRUPO_DIGITOS.findall(str(texto or ""))]
+    if not grupos:
+        return True
+    return any(num in g for g in grupos)
+
+
+def escolha_por_prefixo(textos, alvo, numero=""):
+    """Função PURA (sem Playwright): escolhe, entre `textos`, a ÚNICA opção
+    que é o nome pedido (`alvo`) — igual, ou igual seguido de um SEPARADOR
+    (" -", " –", " (") e mais texto (a opção do combo pode mostrar número/
+    banco depois do nome). Nunca o contrário (opção mais curta que o nome:
+    "EMPRESA MODELO" não serve para "EMPRESA MODELO SPE 2"), nunca o nome
+    seguido de outra palavra ("EMPRESA MODELO SPE 2" não serve para
+    "EMPRESA MODELO"). Quando a opção tem texto a mais e `numero` (coluna
+    "Número" do banco de contas) vem preenchido, o texto a mais que mostra
+    dígitos tem de mostrar os dígitos desse número. Exige EXATAMENTE UMA
+    candidata: com 0 ou 2+, devolve None (falha sem chutar). Devolve o
+    ÍNDICE da opção escolhida, ou None."""
+    alvo_n = N(alvo)
+    if not alvo_n:
+        return None
+    candidatos = []
+    for i, t in enumerate(textos):
+        t_n = N(t)
+        if not t_n:
+            # opção em branco/placeholder do combo nunca é candidata
+            continue
+        if t_n == alvo_n:
+            candidatos.append(i)
+            continue
+        resto = t_n[len(alvo_n):]
+        if t_n.startswith(alvo_n) and resto.startswith(_SEPARADORES_SUFIXO) and _numero_bate(resto, numero):
+            candidatos.append(i)
+    return candidatos[0] if len(candidatos) == 1 else None
+
+
+def escolher_na_lista(page, campo_sel, texto_busca, alvo=None, exato=False, prefixo=False, sigilo=False, numero=""):
     """Abre a lista do campo, digita (quando o campo aceita busca) e clica na
-    opção. Devolve o texto da opção escolhida."""
+    opção. Devolve o texto da opção escolhida.
+
+    `prefixo=True`: a escolha é TODA de `escolha_por_prefixo` (igualdade ou
+    nome + separador, conferindo `numero`; exige uma única candidata — nunca
+    "a primeira igual", nunca o "melhor parecido" do `exato=False`).
+    `sigilo=True`: a mensagem de erro NÃO leva `alvo` nem as opções vistas —
+    só a contagem. É para o campo de conta bancária: nome real de conta não
+    pode ir para o log público do Actions (repo público)."""
     campo = page.locator(campo_sel).first
     campo.scroll_into_view_if_needed()
     opcoes = page.locator("[role=listbox] [role=option], [role=listbox] li")
@@ -167,11 +295,14 @@ def escolher_na_lista(page, campo_sel, texto_busca, alvo=None, exato=False):
     textos = [(opcoes.nth(i).inner_text() or "").strip() for i in range(min(n, 40))]
     escolha = None
     alvo = alvo or texto_busca or ""
-    for i, t in enumerate(textos):
-        if N(t) == N(alvo):
-            escolha = i
-            break
-    if escolha is None and not exato:
+    if prefixo:
+        escolha = escolha_por_prefixo(textos, alvo, numero)
+    else:
+        for i, t in enumerate(textos):
+            if N(t) == N(alvo):
+                escolha = i
+                break
+    if escolha is None and not prefixo and not exato:
         # melhor parecido: mais palavras em comum (o MC às vezes guarda o nome
         # sem o "LTDA" que existe no cadastro do Notion)
         pal = set(N(alvo).split())
@@ -180,6 +311,8 @@ def escolher_na_lista(page, campo_sel, texto_busca, alvo=None, exato=False):
         if notas and notas[0][0] >= 2:
             escolha = notas[0][1]
     if escolha is None:
+        if sigilo:
+            raise RuntimeError(f"não apareceu na lista ({len(textos)} opções vistas)")
         raise RuntimeError(f"'{alvo}' não apareceu na lista (vi: {textos[:6]})")
     opcoes.nth(escolha).click()
     page.wait_for_timeout(600)
@@ -275,27 +408,90 @@ def preencher_endereco(page, o):
     print(f"  endereço: logradouro='{rua}' complemento='{compl}'", flush=True)
 
 
+def tem_conta_pedida(o):
+    """Função PURA: uma conta foi PEDIDA para a obra — pela relação CONTA
+    BANCÁRIA (`o["conta_exata"]`, ou a relação existe mas não se resolve:
+    `o["conta_nao_resolvida"]`) ou pelo texto antigo da coluna CONTA
+    (exceto vazio/"PESSOA FISICA"). Usada por `completar_no_mc` (decidir se
+    abre a seção) e por `main` (decidir, no ramo "já existe no MC", se a
+    obra precisa confirmar a conta antes de ser marcada "Criada")."""
+    if o.get("conta_nao_resolvida"):
+        return True
+    conta_exata = (o.get("conta_exata") or "").strip()
+    conta = (o.get("conta") or "").strip()
+    return bool(conta_exata) or bool(conta and N(conta) != "PESSOA FISICA")
+
+
+def tentativas_busca(texto):
+    """Função PURA: pedaços curtos de um texto de conta para a busca do combo
+    do MC — ele busca por PEDAÇO do nome ("EMPRESA MODELO INCORPORACOES..."
+    acha); a linha INTEIRA (que costuma trazer "- Conta corrente: 1234-5 -
+    SICOOB" depois do nome) não acha nada."""
+    texto = str(texto or "").strip()
+    palavras = texto.split()
+    tentativas = [texto.split(" - ")[0][:22], " ".join(palavras[:2]), palavras[0] if palavras else ""]
+    vistos, unicos = set(), []
+    for t in tentativas:
+        if t and t not in vistos:
+            vistos.add(t)
+            unicos.append(t)
+    return unicos
+
+
 def preencher_conta(page, o):
-    """Quem paga = Cliente; Conta = a CONTA da obra (vem do cadastro)."""
+    """Quem paga = Cliente; Conta = a exata, quando a obra tem a relação
+    CONTA BANCÁRIA (`o["conta_exata"]`, montado em fila_de_obras/
+    fila_atualizar via mapa_contas_por_id) — busca por PEDAÇO
+    (`tentativas_busca`, a linha inteira costuma não achar nada no combo) e
+    escolhe por igualdade OU prefixo, exigindo uma única candidata
+    (`escolha_por_prefixo`, nunca "a mais parecida"); sem ela, o caminho
+    antigo (texto livre da coluna CONTA, busca por pedaço, "mais parecida"
+    como último recurso).
+
+    Devolve False só quando uma conta foi PEDIDA (`tem_conta_pedida`) e não
+    foi possível escolhê-la na lista — nada pedido, ou pedido e escolhido,
+    devolve True. É esse sinal que `criar_no_mc`/`completar_no_mc`/`main`
+    usam para NÃO marcar a obra como pronta quando ficou com a conta errada
+    (ou nenhuma).
+
+    NUNCA imprime nome/número de conta (repo público, log do Actions é
+    público): todo `escolher_na_lista` daqui em diante usa `sigilo=True`."""
     try:
         escolher_na_lista(page, CAMPO["quem_paga"], "", alvo="Cliente", exato=True)
     except Exception as e:
         print(f"  ! 'Quem paga': {str(e)[:110]}", flush=True)
+
+    if o.get("conta_nao_resolvida"):
+        print(f"  ! conta bancária pela relação {COL_RELACAO_CONTA}: página fora do banco de contas, "
+              "sem nome ou mais de uma conta ligada — não escolhida", flush=True)
+        return False
+
+    conta_exata = (o.get("conta_exata") or "").strip()
+    if conta_exata:
+        for t in tentativas_busca(conta_exata):
+            try:
+                escolher_na_lista(page, CAMPO["conta"], t, alvo=conta_exata, prefixo=True, sigilo=True,
+                                  numero=o.get("conta_numero") or "")
+                print(f"  conta bancária: escolhida (pela relação {COL_RELACAO_CONTA})", flush=True)
+                return True
+            except Exception:
+                continue
+        print(f"  ! conta bancária pela relação {COL_RELACAO_CONTA}: não escolhida", flush=True)
+        return False
+
     conta = (o.get("conta") or "").strip()
     if not conta or N(conta) == "PESSOA FISICA":
         print("  conta bancária: obra sem CONTA no Notion — deixei em branco", flush=True)
-        return
-    # a busca do MC é por pedaço do nome: "MORAIS INCORPORACOES SENADOR..." acha,
-    # a linha inteira da CONTA (com "- Conta corrente: 1234-5 - SICOOB") não acha
-    tentativas = [conta.split(" - ")[0][:22], " ".join(conta.split()[:2]), conta.split()[0]]
-    for t in [x for x in tentativas if x]:
+        return True
+    for t in tentativas_busca(conta):
         try:
-            escolhida = escolher_na_lista(page, CAMPO["conta"], t, alvo=conta)
-            print(f"  conta bancária: {escolhida}", flush=True)
-            return
-        except Exception as e:
-            ultimo = str(e)[:110]
-    print(f"  ! conta '{conta}' não foi escolhida ({ultimo}) — ficou em branco", flush=True)
+            escolher_na_lista(page, CAMPO["conta"], t, alvo=conta, sigilo=True)
+            print("  conta bancária: escolhida", flush=True)
+            return True
+        except Exception:
+            continue
+    print("  ! conta bancária: não foi escolhida — ficou em branco", flush=True)
+    return False
 
 
 def desmarcar_compras(page):
@@ -330,6 +526,13 @@ def ja_existe_no_mc(page, titulo):
 
 
 def criar_no_mc(page, o):
+    if o.get("conta_nao_resolvida"):
+        # relação CONTA BANCÁRIA que não se resolve (fora do banco de contas,
+        # sem nome, ou 2+ contas): não cria — criar sem a conta e marcar
+        # "Criada" deixaria a obra sem a conta pedida sem ninguém voltar a
+        # olhar. Aviso sem nome de conta (repo público).
+        print(f"  ! {o['titulo']}: conta bancária pedida pela relação não se resolve — não criei", flush=True)
+        return "conta_nao_resolvida"
     ir_lista_obras(page)
     if ja_existe_no_mc(page, o["titulo"]):
         return "ja_existe"
@@ -374,17 +577,21 @@ def criar_no_mc(page, o):
     except Exception as e:
         print(f"  ! endereço: {str(e)[:110]}", flush=True)
     abrir_secao(page, "Conta bancária padrão")
+    conta_ok = True
     try:
-        preencher_conta(page, o)
+        conta_ok = preencher_conta(page, o)
     except Exception as e:
         print(f"  ! conta: {str(e)[:110]}", flush=True)
+        conta_ok = False
     abrir_secao(page, "Exibir obra para")
     try:
         desmarcar_compras(page)
     except Exception as e:
         print(f"  ! Compras: {str(e)[:110]}", flush=True)
 
-    foto(page, "antes_salvar_" + o["titulo"].replace(" ", "_"))
+    # sensivel=True: a tela mostra a conta bancária escolhida, e o artefato
+    # mc-evidencias do Actions é público (repo público) — só com DESCOBRIR=1
+    foto(page, "antes_salvar_" + o["titulo"].replace(" ", "_"), sensivel=True)
     if not APLICAR:
         page.keyboard.press("Escape")
         page.wait_for_timeout(600)
@@ -422,11 +629,17 @@ def criar_no_mc(page, o):
                 .join(' | ').slice(0,400)""")
         except Exception:
             pass
-        foto(page, "erro_salvar_" + o["titulo"].replace(" ", "_"))
+        foto(page, "erro_salvar_" + o["titulo"].replace(" ", "_"), sensivel=True)
         raise RuntimeError(f"o painel continuou aberto depois de Salvar Obra. Erros na tela: {erro or '(nenhum)'} "
                            f"| rede: {rede or '(sem chamadas)'}")
     print(f"  salvou — rede: {rede or '(sem chamadas registradas)'}", flush=True)
-    foto(page, "pos_salvar_" + o["titulo"].replace(" ", "_"))
+    foto(page, "pos_salvar_" + o["titulo"].replace(" ", "_"), sensivel=True)
+    if not conta_ok:
+        # havia conta pedida (relação CONTA BANCÁRIA ou texto em CONTA) e não
+        # foi escolhida na lista — não marco "Criada" (o dono revisita pelo
+        # painel); aviso SEM o nome da conta (repo público).
+        print(f"  ! {o['titulo']}: obra criada, mas a conta bancária pedida não foi escolhida — não marco 'Criada'", flush=True)
+        return "criada_sem_conta"
     return "criada"
 
 
@@ -472,7 +685,8 @@ def _dt(s):
         return None
 
 
-def fila_atualizar(no_mc):
+def fila_atualizar(no_mc, mapa_contas=None):
+    mapa_contas = mapa_contas or {}
     fila = []
     for pg in ler_banco(ID_OBRAS, "OBRAS"):
         pr = pg.get("properties") or {}
@@ -488,6 +702,7 @@ def fila_atualizar(no_mc):
         if conf and editada and (editada - conf).total_seconds() < 180:
             continue
         a1, a2 = txt(pega(pr, "ÁREA CONSTRUÍDA AVERBADA")), txt(pega(pr, "ÁREA PÓS HABITE-SE"))
+        conta_exata, conta_numero, nao_resolvida = resolver_conta(pega(pr, COL_RELACAO_CONTA), mapa_contas)
         fila.append({
             "id": pg["id"], "titulo": titulo, "conferida": bool(conf),
             "casas": txt(pega(pr, "Nº DE CASAS")),
@@ -497,6 +712,9 @@ def fila_atualizar(no_mc):
             "cliente": txt(pega(pr, "Proprietário")),
             "cidade": txt(pega(pr, "Cidade")),
             "conta": txt(pega(pr, "CONTA")),
+            "conta_exata": conta_exata,
+            "conta_numero": conta_numero,
+            "conta_nao_resolvida": nao_resolvida,
         })
     # as nunca conferidas por último: primeiro o que mudou de verdade
     fila.sort(key=lambda o: o["conferida"], reverse=True)
@@ -614,19 +832,28 @@ def completar_no_mc(page, o):
         except Exception as e:
             print(f"  ! endereço: {str(e)[:90]}", flush=True)
 
-    conta = (o.get("conta") or "").strip()
-    if conta and N(conta) != "PESSOA FISICA" and not valor_campo(page, CAMPO["conta"]):
+    conta_pendente = False
+    if o.get("conta_nao_resolvida"):
+        # relação que não se resolve: mesmo com a conta do MC preenchida, não
+        # dá para conferir que é a pedida — não conta como conferida/Criada
+        conta_pendente = True
+        print(f"  ! {o['titulo']}: conta bancária pedida pela relação não se resolve — não conto como conferida", flush=True)
+    elif tem_conta_pedida(o) and not valor_campo(page, CAMPO["conta"]):
         abrir_secao(page, "Conta bancária padrão")
         try:
-            preencher_conta(page, o)
-            mudou.append("conta bancária")
+            if preencher_conta(page, o):
+                mudou.append("conta bancária")
+            else:
+                conta_pendente = True
+                print(f"  ! {o['titulo']}: conta bancária pedida não foi escolhida — não conto como conferida", flush=True)
         except Exception as e:
             print(f"  ! conta: {str(e)[:90]}", flush=True)
+            conta_pendente = True
 
     if not mudou:
         page.keyboard.press("Escape")
         page.wait_for_timeout(500)
-        return "nada a completar"
+        return "conta não escolhida" if conta_pendente else "nada a completar"
     print(f"  {o['titulo']}: completando {', '.join(mudou)}", flush=True)
     if not APLICAR:
         page.keyboard.press("Escape")
@@ -637,35 +864,62 @@ def completar_no_mc(page, o):
     try:
         page.locator(CAMPO["nome"]).wait_for(state="hidden", timeout=25000)
     except Exception:
-        foto(page, "erro_completar_" + o["titulo"].replace(" ", "_"))
+        foto(page, "erro_completar_" + o["titulo"].replace(" ", "_"), sensivel=True)
         raise RuntimeError("o painel de edição continuou aberto depois de Salvar Obra")
-    return "completada"
+    # mesmo salvando os outros campos, a conta pedida (e não escolhida) não
+    # pode "passar" como conferida — main() só marca conferida para
+    # "completada"/"nada a completar", nunca para este status.
+    return "conta não escolhida" if conta_pendente else "completada"
 
 
 def main():
-    fila = fila_de_obras()
+    mapa_contas = mapa_contas_por_id()
+    fila = fila_de_obras(mapa_contas)
     no_mc = obras_no_mc() or set()
     ja = [o for o in fila if o["titulo"] in no_mc]
     fazer = [o for o in fila if o["titulo"] not in no_mc]
     print(f"Fila: {len(fila)} obras marcadas 'Criar' — {len(ja)} já existem no MC, {len(fazer)} para criar", flush=True)
-    for o in ja:
+    # obra que já existe no MC mas ainda pede conta: marcar "Criada" direto
+    # (como antes) deixaria a conta sem ninguém olhar de novo — passa pelo
+    # completar_no_mc (abre a edição e tenta escolher) e só é marcada depois,
+    # e só se a conta ficou preenchida.
+    ja_sem_conta = [o for o in ja if not tem_conta_pedida(o)]
+    ja_com_conta = [o for o in ja if tem_conta_pedida(o)]
+    for o in ja_sem_conta:
         print(f"  já existe no MC: {o['titulo']}" + (" -> marcada Criada" if APLICAR else ""), flush=True)
         if APLICAR:
             marcar_criada(o["id"])
+    if ja_com_conta:
+        print(f"  {len(ja_com_conta)} já existem no MC e pedem conta bancária — confiro antes de marcar Criada", flush=True)
     faltando = [o for o in fazer if not o["cliente"]]
     for o in faltando:
         print(f"  ! {o['titulo']}: sem Proprietário — pulei", flush=True)
     fazer = [o for o in fazer if o["cliente"]]
 
     garantir_coluna_data()
-    completar = fila_atualizar(no_mc)[:LIMITE_POR_RODADA]
+    completar = fila_atualizar(no_mc, mapa_contas)[:LIMITE_POR_RODADA]
+    # obras do ja_com_conta já vão ser abertas no completar_no_mc abaixo —
+    # tirar da lista de "completar" para não abrir a mesma obra duas vezes.
+    ids_ja_com_conta = {o["id"] for o in ja_com_conta}
+    completar = [o for o in completar if o["id"] not in ids_ja_com_conta]
     print(f"Completar: {len(completar)} obras do MC para conferir nesta rodada", flush=True)
-    if not fazer and not completar:
+    if not fazer and not completar and not ja_com_conta:
         return 0
     with sync_playwright() as p:
         b, page = abrir(p)
         try:
             login(page)
+            for o in ja_com_conta:
+                try:
+                    r = completar_no_mc(page, o)
+                    print(f"  {o['titulo']} (já existe, conferindo conta): {r}", flush=True)
+                    if r != "conta não escolhida" and APLICAR:
+                        marcar_criada(o["id"])
+                        if r in ("completada", "nada a completar"):
+                            marcar_conferida(o["id"])
+                except Exception as e:
+                    print(f"  ! {o['titulo']} (já existe, conferindo conta): {str(e)[:160]}", flush=True)
+                    page.keyboard.press("Escape")
             for o in completar:
                 try:
                     r = completar_no_mc(page, o)
@@ -687,7 +941,7 @@ def main():
                             pass
                 except Exception as e:
                     print(f"  ! {o['titulo']}: {str(e)[:160]}", flush=True)
-                    foto(page, "erro_" + o["titulo"].replace(" ", "_"))
+                    foto(page, "erro_" + o["titulo"].replace(" ", "_"), sensivel=True)
                     page.keyboard.press("Escape")
         finally:
             b.close()

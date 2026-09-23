@@ -9,7 +9,8 @@
 #   - na rodada diária: crie a VARIÁVEL do repositório MC_APLICAR = 1
 #     (Settings > Secrets and variables > Actions > aba Variables)
 #
-# Secrets: MC_URL, MC_USUARIO, MC_SENHA, NOTION_TOKEN, ERP_CSV_OBRAS
+# Secrets: MC_URL, MC_USUARIO, MC_SENHA, MC_ROBO_USUARIO, MC_ROBO_SENHA,
+# NOTION_TOKEN, ERP_CSV_OBRAS
 name: Robôs Mais Controle
 
 on:
@@ -47,6 +48,8 @@ jobs:
       MC_URL: ${{ secrets.MC_URL }}
       MC_USUARIO: ${{ secrets.MC_USUARIO }}
       MC_SENHA: ${{ secrets.MC_SENHA }}
+      MC_ROBO_USUARIO: ${{ secrets.MC_ROBO_USUARIO }}
+      MC_ROBO_SENHA: ${{ secrets.MC_ROBO_SENHA }}
       ERP_CSV_OBRAS: ${{ secrets.ERP_CSV_OBRAS }}
       APLICAR: ${{ (github.event_name == 'workflow_dispatch' && inputs.aplicar) && '1' || (github.event_name != 'workflow_dispatch' && vars.MC_APLICAR) || '' }}
       DESCOBRIR: ${{ inputs.descobrir && '1' || '' }}
@@ -68,6 +71,8 @@ jobs:
       - name: Robô de obras
         if: ${{ github.event.inputs.robo != 'clientes' }}
         continue-on-error: true
+        env:
+          MC_CRED: robo
         run: python robo_mc_obras.py
 
       # prints das telas (com DESCOBRIR, também o HTML). Ficam 3 dias.

@@ -1,0 +1,67 @@
+# Robô de contas bancárias (PORTAL-MORAIS) — robo_mc_contas.py
+#
+# Espelha as contas ATIVAS do ERP no banco CONTAS BANCÁRIAS do Notion (mesma
+# página da (EMP) Projeto 2.0) e garante a relação CONTA BANCÁRIA na base de
+# obras — é o que dá à obra nova o campo já ligado (ver robo_mc_obras.py).
+#
+# SIMULAÇÃO por padrão. Para gravar de verdade:
+#   - rodando à mão: Actions > Robô de contas bancárias > Run workflow > aplicar = true
+#   - na rodada agendada: crie a VARIÁVEL do repositório MC_APLICAR = 1
+#     (Settings > Secrets and variables > Actions > aba Variables)
+#
+# "ligar_antigas" roda também `--ligar-antigas`: liga obra antiga (sem a
+# relação, só com texto na coluna CONTA) à conta certa, casando pelos dígitos.
+#
+# Secrets: MC_URL, MC_USUARIO, MC_SENHA, MC_ROBO_USUARIO, MC_ROBO_SENHA,
+# NOTION_TOKEN
+name: Robô de contas bancárias
+
+on:
+  schedule:
+    # 05:30 de Brasília, todo dia (inclusive fim de semana) — antes do robô
+    # de obras (06:23, robos-mc.yml), para a conta nova já estar no Notion
+    # quando a obra for criada.
+    - cron: "30 8 * * *"
+  workflow_dispatch:
+    inputs:
+      aplicar:
+        description: "Gravar de verdade (sem marcar = simulação)"
+        type: boolean
+        default: false
+      ligar_antigas:
+        description: "Também ligar obras antigas à conta certa (--ligar-antigas)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: robos-mc
+  cancel-in-progress: false
+
+jobs:
+  contas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+      MC_URL: ${{ secrets.MC_URL }}
+      MC_USUARIO: ${{ secrets.MC_USUARIO }}
+      MC_SENHA: ${{ secrets.MC_SENHA }}
+      MC_ROBO_USUARIO: ${{ secrets.MC_ROBO_USUARIO }}
+      MC_ROBO_SENHA: ${{ secrets.MC_ROBO_SENHA }}
+      APLICAR: ${{ (github.event_name == 'workflow_dispatch' && inputs.aplicar) && '1' || (github.event_name != 'workflow_dispatch' && vars.MC_APLICAR) || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Instalar dependências
+        run: |
+          pip install playwright requests
+          python -m playwright install --with-deps chromium
+
+      - name: Robô de contas bancárias
+        run: python robo_mc_contas.py
+
+      - name: Robô de contas bancárias — ligar obras antigas
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.ligar_antigas }}
+        run: python robo_mc_contas.py --ligar-antigas
