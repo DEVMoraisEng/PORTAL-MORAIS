@@ -325,7 +325,7 @@ html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
         <div class="campo"><label>Cidade <i>*</i></label><select id="f-cidade" onchange="novoSeNecessario(this,'Cidade')"></select></div>
         <div class="campo"><label>Proprietário <i>*</i></label><select id="f-prop" onchange="novoSeNecessario(this,'Proprietário')"></select></div>
         <div class="campo"><label>Proprietário real <i>*</i></label><select id="f-propreal" onchange="novoSeNecessario(this,'Proprietário Real')"></select></div>
-        <div class="campo"><label>Conta bancária <i>*</i></label><select id="f-conta"></select>
+        <div class="campo"><label>Conta bancária <i>*</i></label><select id="f-conta" data-combo="1"></select>
           <div class="ajuda" id="a-conta"></div></div>
         <div class="campo"><label>Responsável pela obra <i>*</i></label><select id="f-resp"></select></div>
         <div class="campo"><label>Engenheiro RT <i>*</i></label><select id="f-rt"></select></div>
@@ -508,10 +508,10 @@ const alertasConta=()=>D.obras.filter(o=>!fim(o.status) && (o.conta_alerta==="CR
 /* ---------- abas ---------- */
 function pintarTabs(){
   const nAl=alertasMc().length+alertasCampos().length+alertasConta().length;
-  document.getElementById("tabs").innerHTML=[["obras","Obras"],["atividades","Atividades"],["alertas","Alertas"],["investidores","Cadastros investidores"]].map(([k,r])=>
+  document.getElementById("tabs").innerHTML=[["obras","Obras"],["atividades","Atividades"],["alertas","Alertas"],["contas","Contas bancárias"],["investidores","Cadastros investidores"]].map(([k,r])=>
     `<button class="tab ${ABA===k?"on":""}" onclick="ABA='${k}';FIXAS.clear();pintar()">${r}${k==="alertas"&&nAl?`<span class="nb">${nAl}</span>`:""}</button>`).join("");
 }
-function pintar(){ pintarTabs(); if(ABA==="obras") pintarObras(); else if(ABA==="atividades") pintarAtividades(); else if(ABA==="investidores") pintarInvestidores(); else pintarAlertas(); }
+function pintar(){ pintarTabs(); if(ABA==="obras") pintarObras(); else if(ABA==="atividades") pintarAtividades(); else if(ABA==="investidores") pintarInvestidores(); else if(ABA==="contas") pintarContas(); else pintarAlertas(); }
 
 /* ===================== ABA OBRAS ===================== */
 let BUSCA="", SETOR="";
@@ -761,7 +761,7 @@ function campoHtml(o,c,i){
     const l=CONTAS||[], atual=v||"", ops=[["PESSOA FÍSICA","Pessoa física (sem conta)"]]
       .concat(l.map(c=>[c.opcao,c.opcao])).concat([["CRIAR CONTA","CRIAR CONTA — a conta ainda não existe"]]);
     const tem=ops.some(([x])=>N(x)===N(atual));
-    inp=`<select onchange="gravarObra(${i},this)"><option value="" ${!atual?"selected":""}>${o._vivo?"—":"carregando…"}</option>${
+    inp=`<select data-combo="1" onchange="gravarObra(${i},this)"><option value="" ${!atual?"selected":""}>${o._vivo?"—":"carregando…"}</option>${
       ops.map(([val,rot])=>`<option value="${esc(val)}" ${N(val)===N(atual)?"selected":""}>${esc(rot)}</option>`).join("")}${
       atual&&!tem?`<option value="${esc(atual)}" selected>${esc(atual)}${N(atual)===N("DÚVIDA")?" — escolha a conta certa":""}</option>`:""}</select>`;
   }else if(tipo==="pessoa"){
@@ -1116,7 +1116,7 @@ async function enviarObra(continuar){
 const ehAdmTela=()=>OB_S&&String(OB_S.tipo).toUpperCase()==="ADM";
 function aplicarCombos(raiz){ (raiz||document).querySelectorAll("select").forEach(sel=>{
   if(sel.dataset.semCombo||sel.closest(".cb")||sel.closest(".atv")||sel.closest(".toolbar")) { if(sel._cb) comboSync(sel); return; }
-  if(sel.options.length<7) return;
+  if(sel.options.length<7 && !sel.dataset.combo) return;
   comboMontar(sel); }); }
 function comboMontar(sel){
   if(sel._cb){ comboSync(sel); return; }
@@ -1216,6 +1216,44 @@ async function enviarComentario(pageId){
   delete COM_ARQ[pageId]; if(t) t.value="";
   toast(r.anexoNoCorpo?"Enviado — o anexo ficou no corpo da página no Notion.":"Comentário enviado.");
   carregarComentarios(pageId,document.getElementById("com-atv")&&ATV===pageId?"com-atv":"com-obra");
+}
+
+/* ===================== CONTAS BANCÁRIAS (aba própria) =====================
+   Lista do banco CONTAS BANCÁRIAS (mantido pelo robô com as contas do Mais
+   Controle): Conta, Aparece e Situação. Marcar "Aparece" é o que coloca a
+   conta na lista de escolha da obra. ADM e MASTER marcam; os demais só veem. */
+let CTS=null, CT_FILTRO="ativas", CT_BUSCA="";
+async function pintarContas(forcar){
+  const v=document.getElementById("view");
+  if(!CTS||forcar){
+    v.innerHTML=`<div class="sec"><span class="cond">Contas bancárias</span></div><div class="vazio"><span class="load"></span> Carregando contas…</div>`;
+    let r; try{ r=await chamar({action:"contasTodas"},60000); }catch(e){ r={ok:false,erro:"sem conexão"}; }
+    if(!(r&&r.ok)){ v.innerHTML=`<div class="sec"><span class="cond">Contas bancárias</span></div><div class="vazio">Não carregou: ${esc(errMsg(r))}</div>`; return; }
+    CTS=r;
+  }
+  if(ABA!=="contas") return;
+  const ativa=c=>N(c.situacao).indexOf("SUMIU")<0, q=N(CT_BUSCA);
+  let l=CTS.contas.filter(c=>(CT_FILTRO==="todas"||(CT_FILTRO==="ativas"?ativa(c):!ativa(c))) && (!q||N(c.conta).indexOf(q)>=0));
+  const nAp=CTS.contas.filter(c=>c.aparece&&ativa(c)).length;
+  v.innerHTML=`<div class="sec"><span class="cond">Contas bancárias</span><span class="qtd">${CTS.contas.length}</span></div>
+    <div class="toolbar"><input class="busca" placeholder="Buscar conta…" value="${esc(CT_BUSCA)}" oninput="CT_BUSCA=this.value;clearTimeout(window._ctT);window._ctT=setTimeout(()=>{pintarContas();const b=document.querySelector('#view .busca');if(b){b.focus();b.setSelectionRange(b.value.length,b.value.length);}},200)">
+      <select onchange="CT_FILTRO=this.value;pintarContas()" style="max-width:190px">
+        ${[["ativas","Só ativas no ERP"],["inativas","Só as que sumiram do ERP"],["todas","Todas"]].map(([k,t])=>`<option value="${k}" ${CT_FILTRO===k?"selected":""}>${t}</option>`).join("")}</select>
+      <button class="bt ghost" onclick="pintarContas(true)">↻ Atualizar</button></div>
+    <div class="ajuda" style="margin-bottom:8px">${nAp} conta(s) aparecendo para escolha na obra.${CTS.podeEditar?" Marque ou desmarque \"Aparece\" — grava na hora.":""}</div>
+    <div class="tabela-wrap"><table><thead><tr><th class="stick">Conta</th><th>Aparece</th><th>Situação</th></tr></thead><tbody>${
+      l.length?l.map(c=>`<tr><td class="stick">${esc(c.conta)}</td>
+        <td><input type="checkbox" ${c.aparece?"checked":""} ${CTS.podeEditar?"":"disabled"} onchange="marcarAparece('${c.id}',this)"></td>
+        <td>${ativa(c)?`<span class="tag sim">${esc(c.situacao||"Ativa")}</span>`:`<span class="tag nao">${esc(c.situacao)}</span>`}</td></tr>`).join("")
+      :`<tr><td colspan="3" class="vazio">Nenhuma conta neste filtro.</td></tr>`}</tbody></table></div>`;
+}
+async function marcarAparece(id,el){
+  const c=CTS&&CTS.contas.find(x=>x.id===id); if(!c) return;
+  el.disabled=true;
+  const r=await gravarComRetry({action:"contaAparece",pageId:id,aparece:el.checked},el);
+  el.disabled=false;
+  if(r&&r.ok){ c.aparece=el.checked; CONTAS=null; toast(el.checked?"Conta aparecendo para escolha.":"Conta escondida da escolha."); }
+  else { el.checked=!el.checked; toast("Não salvou: "+errMsg(r)); }
 }
 
 /* ===================== CADASTROS INVESTIDORES (itens 11 e 12) =====================
