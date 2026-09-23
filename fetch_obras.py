@@ -34,6 +34,24 @@ from fetch_vendas import ler_banco, api, gravar, norm, SAIDA, TOKEN
 ID_OBRAS = "306c5ab532d3812fa14fe9a281510128"   # (EMP) Projeto 2.0
 ID_ATIV = "306c5ab532d381fb864edee432bb128d"    # ATIVIDADES DE PROJETOS
 ID_CADASTRO = "3e2c5ab532d38055a241db35f74e7bbc"  # PROPRIETÁRIOS (cadastro) — só o NOME sai daqui
+ID_LIGACOES = "313c5ab532d3801e974ced0bb656c9d5"  # LIGAÇÕES DE ÁGUA E ENERGIA (só a contagem por obra)
+ID_VENDAS = "33cc5ab532d38047ae3aee8b87ac1f4d"    # BANCO DE DADOS VENDAS (só a contagem por obra)
+
+
+def contar_por_relacao(db_id, rotulo, coluna):
+    """Quantas linhas de uma base apontam para cada obra (relação `coluna`).
+    Serve para a tela travar os botões de ligação com "JÁ CRIADO" (item 9).
+    Falhar aqui não derruba o build: a tela só deixa de mostrar o aviso."""
+    cont = {}
+    try:
+        for pg in ler_banco(db_id, rotulo):
+            ip = por_nome(pg.get("properties") or {})
+            for oid in ids(ip.get(norm(coluna))):
+                k = oid.replace("-", "")
+                cont[k] = cont.get(k, 0) + 1
+    except SystemExit as e:
+        print(f"  contagem de {rotulo} não lida: {e}", flush=True)
+    return cont
 
 ERP_CSV_OBRAS = os.environ.get("ERP_CSV_OBRAS", "").strip() or \
     "https://docs.google.com/spreadsheets/d/e/2PACX-1vQAVoeaF7ztdWagGt87vVr5dsNxFvpQ3uS6g5q3Ip6ppYchJxCaepob5SjWHhKIMjlNsLC1BXtzCKRd/pub?gid=931586083&single=true&output=csv"
@@ -167,6 +185,8 @@ def main():
             fmt_cota = (d.get("number") or {}).get("format")
 
     pessoas = {}
+    lig_por_obra = contar_por_relacao(ID_LIGACOES, "LIGAÇÕES", "Vínculo Obra")
+    ven_por_obra = contar_por_relacao(ID_VENDAS, "VENDAS", "OBRA-AUTO")
 
     def guarda_pessoas(p):
         for u in ((p or {}).get("people") or []):
@@ -215,6 +235,10 @@ def main():
             "estudo_layout": txt(pega(ip, "PRECISA DE ESTUDO DE LAYOUT")),
             "mais_controle": txt(pega(ip, "MAIS CONTROLE")),
             "em_mc": (None if no_mc is None else padronizar_endereco(txt(pega(ip, "Projeto"))) in no_mc),
+            # id da conta (relação) — o NOME da conta só vem autenticado, pelo Apps Script
+            "conta_id": (ids(pega(ip, "CONTA BANCÁRIA")) or [None])[0],
+            "lig_criadas": lig_por_obra.get(str(pg.get("id")).replace("-", ""), 0),
+            "vendas_criadas": ven_por_obra.get(str(pg.get("id")).replace("-", ""), 0),
         })
 
     atividades = []

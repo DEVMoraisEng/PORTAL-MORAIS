@@ -107,6 +107,11 @@ def ler_clientes_mc(page):
     return lista
 
 
+def eh_pj(doc, tipo=""):
+    """CNPJ (14 dígitos) ou pessoa marcada como jurídica no cadastro do MC."""
+    return len(so_digitos(doc or "")) == 14 or "JURID" in N(str(tipo or ""))
+
+
 def ler_cadastro(page, nome):
     """Abre o cadastro de um cliente pela busca da lista e lê nome/documento.
     RÁPIDO: espera o elemento certo aparecer, e não a rede "parar" — o MC fica
@@ -124,6 +129,9 @@ def ler_cadastro(page, nome):
     nome_mc = valor_por_rotulo(page, ["Nome Completo", "Razão Social", "Nome"]) or nome
     doc = valor_por_rotulo(page, ["CNPJ", "CPF", "CPF/CNPJ"]) or ""
     nasc = valor_por_rotulo(page, ["Aniversário", "Data de Nascimento", "Nascimento", "Data de Abertura"]) or ""
+    # item 12 (23/09/26): investidor PJ não tem aniversário — grava "PJ"
+    if eh_pj(doc, tipo):
+        nasc = "PJ"
     voltar_lista(page)
     return {"nome": nome_limpo(nome_mc), "doc": doc.strip(), "tipo": tipo, "nasc": nasc.strip()}
 
@@ -246,6 +254,16 @@ def sincronizar(clientes):
             log.append(f"NASCIMENTO/ABERTURA: {c['nome']} preenchida")
         if props and APLICAR:
             patch(alvo["id"], props)
+
+    # item 12: quem já está no cadastro com CNPJ e ainda sem "PJ" no
+    # nascimento (inclusive quem não veio do MC nesta rodada) ganha "PJ"
+    if col_nasc:
+        for item in {id(v): v for v in list(por_doc.values()) + list(por_nome.values())}.values():
+            if eh_pj(item.get("doc")) and item.get("nasc") != "PJ":
+                log.append(f"NASCIMENTO: {item['nome']} é PJ -> 'PJ'")
+                if APLICAR:
+                    patch(item["id"], {col_nasc: {"rich_text": [{"text": {"content": "PJ"}}]}})
+                item["nasc"] = "PJ"
 
     # o nome antigo nas obras e em DOCUMENTOS passa para o nome do MC
     if renomear:

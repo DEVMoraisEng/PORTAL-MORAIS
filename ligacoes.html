@@ -681,7 +681,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 
   <div class="toast" id="toast"></div>
 
-<script src="app.js?v=28"></script>
+<script src="app.js?v=32"></script>
 <script>
 /* =====================================================================
  * LIGAÇÕES DE ÁGUA E ENERGIA — Morais Engenharia
@@ -4413,6 +4413,28 @@ async function verArquivo(pageId, coluna){
     if(corpo.querySelector(".load")) corpo.innerHTML =
       '<div class="arqlista"><span class="load"></span> buscando o arquivo… (o servidor está demorando mais que o normal)</div>';
   }, 8000);
+
+  /* 23/09/26 — CAMINHO RÁPIDO. O arquivo sai do espelho no Supabase (ação
+     ligArquivo): o Apps Script só assina o link, sem ir ao Notion. E o pedido
+     vai DIRETO, sem entrar na fila das leituras — era atrás do ligSensiveis
+     (a base inteira) que ele esperava os 2 minutos. Se falhar, cai no caminho
+     antigo abaixo. */
+  try {
+    const l = linhaPorId(pageId), campo = campoDe(coluna);
+    const n = l && l.sens ? l.sens[campo ? campo.nome : coluna] : null;
+    const rr = await _chamarDireto({action:"ligArquivo", pageId: pageId, prop: coluna,
+                                    n: (typeof n === "number" && n > 0) ? n : 1}, 30000);
+    if (rr && rr.ok && rr.arquivos && rr.arquivos.length){
+      clearTimeout(avisoLento);
+      const arqs = rr.arquivos.filter(a => a && a.url);
+      if (arqs.length === 1) return mostrarArquivo(arqs[0]);
+      corpo.innerHTML = '<div class="arqlista">' + arqs.map((a,i)=>
+        `<button class="bt ghost" onclick="mostrarArquivo(ARQ_ATUAIS[${i}])">📎 ${esc(a.name||("arquivo "+(i+1)))}</button>`
+      ).join("") + '</div>';
+      window.ARQ_ATUAIS = arqs;
+      return;
+    }
+  } catch(e){ /* segue pelo caminho antigo */ }
 
   const r = await ler({action:"ligacao", pageId: pageId});   // sem cache: a URL expira
   clearTimeout(avisoLento);

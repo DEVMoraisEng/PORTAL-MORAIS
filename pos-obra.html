@@ -186,6 +186,12 @@ th.ord.on .seta{opacity:1}
    visual do aviso de material (laranja), pra ser lido como "pendencia sua",
    e nao como erro do sistema. */
 .al.falta{background:#FEF3C7;border-color:#FCD34D;color:#92400E}
+/* 23/09/26 — serviço com data passada e sem finalizar */
+.al.atraso{background:#FEF2F2;border-color:#FCA5A5;color:#991B1B}
+.al.atraso .ti{color:#991B1B}
+html[data-tema="escuro"] .al.atraso{background:#3a1e1e;border-color:#6b2c2c;color:#f3a29a}
+html[data-tema="escuro"] .al.atraso .ti{color:#f3a29a}
+.tag-criando{display:inline-block;font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:20px;background:#FEF3C7;color:#92400E;margin-left:6px}
 html[data-tema="escuro"] .al.falta{background:#3a2d12;border-color:#6b5320;color:#f0c95f}
 .falta-box{background:#FEF3C7;border:1px solid #FCD34D;border-radius:10px;padding:10px 12px;
   font-size:12.5px;color:#92400E;margin-bottom:14px;line-height:1.7}
@@ -771,6 +777,7 @@ html[data-tema="escuro"] .logo{background:#fff}
       <div class="modal-sub" id="no-erro" style="display:none;color:#c0392b"></div>
       <div class="modal-acoes">
         <button class="bt ghost" onclick="fecharNovaObra()">Cancelar</button>
+        <button class="bt" id="no-continuar" onclick="confirmarNovaObra(true)" title="Cria e deixa o formulário aberto, limpando só endereço, casa e cliente">Criar e continuar</button>
         <button class="bt az" id="no-criar" onclick="confirmarNovaObra()">Criar obra</button>
       </div>
     </div>
@@ -818,7 +825,7 @@ html[data-tema="escuro"] .logo{background:#fff}
   <input type="file" id="arq-input" style="display:none" onchange="enviarArquivo(this)">
   <div class="toast" id="toast"></div>
 
-<script src="app.js?v=29"></script>
+<script src="app.js?v=32"></script>
 <script>
 /* ===================== TABELA DE GARANTIAS =====================
  * Transcrita do "Manual do Proprietário" — as DUAS listas, como combinado:
@@ -1776,6 +1783,7 @@ function ehColunaServico(col){
 function calcularAlertas(obraId){
   const hoje = hojeISO(), amanha = isoMaisDias(hoje, 1);
   const doDia = [], material = [[], []];   // um balde por aviso de MATERIAL_AVISOS
+  const atrasados = [], vistosAtr = {};
   AGENDA.forEach(m=>{
     if(obraId && semHifen(m.obraId) !== semHifen(obraId)) return;
     /* Passou a olhar o andamento DAQUELE evento (pedido 5): antes, uma
@@ -1785,6 +1793,12 @@ function calcularAlertas(obraId){
     if(!ehColunaServico(m.coluna)) return;
     const d = soData(m.data);
     if(d === amanha) doDia.push(m);
+    /* 23/09/26 (PÓS OBRA item 2): a data do serviço/retorno já passou e o
+       andamento DAQUELE evento não está FINALIZADO */
+    if(d && d < hoje){
+      const k = m.atividadeId + "|" + m.coluna;
+      if(!vistosAtr[k]){ vistosAtr[k] = 1; atrasados.push(m); }
+    }
 
     /* item 9: cada status tem a sua antecedência. Data já passada continua
        entrando (d <= limite), senão o pendente sumiria justo quando mais
@@ -1812,7 +1826,8 @@ function calcularAlertas(obraId){
       faltando.push({ atividadeId:m.atividadeId, obraId:m.obraId, nome:m.nome, faltas:m.faltando });
     });
   }
-  return { doDia:doDia, material:material, faltando:faltando };
+  atrasados.sort((a,b)=>String(a.data).localeCompare(String(b.data)));
+  return { doDia:doDia, material:material, faltando:faltando, atrasados:atrasados };
 }
 function renderAlertas(){
   document.getElementById("alertas-hub").innerHTML = htmlAlertas(calcularAlertas(null), true);
@@ -1822,6 +1837,12 @@ function renderAlertas(){
 }
 function htmlAlertas(a, comObra){
   let h = "";
+  if(a.atrasados && a.atrasados.length){
+    h += '<div class="al atraso"><span class="ic">⏰</span><div class="co">'+
+      '<div class="ti">Data passada sem finalizar — '+a.atrasados.length+(a.atrasados.length===1?' serviço':' serviços')+'</div>'+
+      '<div class="li" style="margin-bottom:5px">O dia marcado já passou e o andamento ainda não está FINALIZADO. Marque como finalizado ou remarque.</div>'+
+      a.atrasados.map(m=>linhaAlerta(m, comObra)).join("")+'</div></div>';
+  }
   if(a.doDia.length){
     h += '<div class="al amanha"><span class="ic">📅</span><div class="co">'+
       '<div class="ti">Amanhã tem '+a.doDia.length+(a.doDia.length===1?' serviço marcado':' serviços marcados')+'</div>'+
@@ -1943,7 +1964,8 @@ function renderObras(){
     const st = o.status==="PÓS OBRA EM ANDAMENTO"
       ? '<span class="pill alerta">PÓS OBRA EM ANDAMENTO</span>'
       : '<span class="pill neutro">SEM PÓS OBRA</span>';
-    const nv = o.pendentes ? ' <span class="pill novo" title="criado agora, ainda subindo">+'+o.pendentes+' novo</span>' : "";
+    const nv = (o.pendentes ? ' <span class="pill novo" title="criado agora, ainda subindo">+'+o.pendentes+' novo</span>' : "") +
+               (o.pendente ? ' <span class="tag-criando">criando…</span>' : "");
     /* MELHORIAS item 3: selo na propria linha da obra, pra dar pra varrer a
        lista e ver onde falta preencher sem abrir uma por uma. */
     const inc = o.servicosIncompletos
@@ -2532,6 +2554,7 @@ function mesclarNovosNaObra(){
 
 function abrirObra(id, depois){
   if(!id) return;
+  if(String(id).indexOf("tmp-") === 0){ toast("Esta obra ainda está sendo criada."); return; }
   mostrarView("view-obra");
   document.getElementById("obra-topo").innerHTML = '<div class="vazio"><span class="load"></span> Carregando obra…</div>';
   document.getElementById("alertas-obra").innerHTML = "";
@@ -3127,74 +3150,72 @@ function abrirNovaObra(){
 }
 function fecharNovaObra(){ document.getElementById("no-overlay").classList.remove("on"); }
 
-function confirmarNovaObra(){
+/* 23/09/26 (PÓS OBRA item 1) — CRIAÇÃO RÁPIDA, igual à de Obras.
+   A obra entra na lista NA HORA, marcada "criando…", e a gravação segue por
+   trás. "Criar e continuar" deixa o formulário aberto para a próxima (só
+   limpa endereço, casa, cliente e telefone). Se o servidor recusar, a linha
+   provisória sai e o formulário volta com tudo preenchido e o motivo. */
+function confirmarNovaObra(continuar){
   const erro = document.getElementById("no-erro");
-  const endereco = String(document.getElementById("no-endereco").value||"").trim();
-  const clientes = String(document.getElementById("no-clientes").value||"").trim();
-  const casa     = String(document.getElementById("no-casa").value||"").trim();
-  const telefone = String(document.getElementById("no-telefone").value||"").trim();
-  const setor    = String(document.getElementById("no-setor").value||"").trim();
-  const cidade   = String(document.getElementById("no-cidade").value||"").trim();
-  const assin    = String(document.getElementById("no-assinatura").value||"").trim();
-  const agio     = String(document.getElementById("no-agio").value||"").trim();
-  const obs      = String(document.getElementById("no-obs").value||"").trim();
-  /* o controle de horário flexível pode não existir (coluna ausente no
-     Notion), ser caixa de seleção ou ser lista — os três casos aqui */
-  const elFlex   = document.getElementById("no-flex");
-  const flex     = !elFlex ? "" : (elFlex.type === "checkbox" ? (elFlex.checked ? "SIM" : "") : String(elFlex.value||"").trim());
+  const g = id => String((document.getElementById(id)||{}).value||"").trim();
+  const endereco = g("no-endereco"), clientes = g("no-clientes"), casa = g("no-casa");
+  const telefone = g("no-telefone"), setor = g("no-setor"), cidade = g("no-cidade");
+  const assin = g("no-assinatura"), agio = g("no-agio"), obs = g("no-obs");
+  const elFlex = document.getElementById("no-flex");
+  const flex = !elFlex ? "" : (elFlex.type === "checkbox" ? (elFlex.checked ? "SIM" : "") : String(elFlex.value||"").trim());
 
   function falha(t){ erro.textContent = t; erro.style.display = "block"; }
   if(!endereco) return falha("Informe o endereço da obra.");
   if(!clientes) return falha("Informe o cliente — sem ele a obra não aparece na lista.");
   if(/\bCS\b|\bCASA\b/i.test(endereco))
     return falha("Tire o \"CS\" do endereço: o número da casa vai no campo ao lado.");
-
-  /* já existe? a checagem definitiva é do servidor (que olha a base inteira),
-     esta aqui só evita a ida quando dá para ver daqui mesmo */
   const chave = normN(endereco) + "|" + (casa||"");
   if((OBRAS||[]).some(o => normN(o.endereco)+"|"+(o.casa==null?"":String(o.casa)) === chave))
     return falha("Essa obra já está cadastrada no Pós Obra.");
-
   erro.style.display = "none";
-  const bt = document.getElementById("no-criar"); if(bt) bt.disabled = true;
+
+  const opId = NO_OPID || novoOpId();
+  const valores = { endereco, clientes, casa, telefone, setor, cidade, assin, agio, obs };
+  const tmpId = "tmp-" + opId;
+  OBRAS = OBRAS || [];
+  OBRAS.push({ id:tmpId, pendente:true, endereco:endereco, casa: casa===""?null:Number(casa),
+               titulo:endereco + (casa ? " CS " + casa : ""), clientes:clientes,
+               telefone:telefone||null, dataAssinatura:assin||null, observacoes:obs,
+               horarioFlexivel:flex||null, agio:agio||null, cidade:cidade, setor:setor,
+               servicos:0, servicosAbertos:0, servicosIncompletos:0, status:"SEM PÓS OBRA" });
+  pintarHub();
+  if(continuar){
+    ["no-endereco","no-casa","no-clientes","no-telefone"].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=""; });
+    NO_OPID = novoOpId();
+    const e=document.getElementById("no-endereco"); if(e) e.focus();
+    toast("Criando " + endereco + "… o formulário continua aberto.");
+  } else { fecharNovaObra(); toast("Criando " + endereco + "…"); }
 
   escrever({action:"posObraNovo", endereco:endereco, casa:casa,
             clientes:clientes, telefone:telefone,
             setor:setor, cidade:cidade, dataAssinatura:assin,
-            agio:agio, observacoes:obs, horarioFlexivel:flex,
-            opId: NO_OPID || novoOpId()},
+            agio:agio, observacoes:obs, horarioFlexivel:flex, opId: opId},
            "criar obra pós obra").then(r=>{
-    if(bt) bt.disabled = false;
-    if(r.erro === "FALHOU_SEM_CRIAR"){
-      falha("A conexão falhou e a obra NÃO foi criada. Pode tentar de novo.");
+    const i = OBRAS.findIndex(o => o.id === tmpId);
+    if(r && r.ok && r.enfileirado){ toast("Sem internet — " + endereco + " será criada quando reconectar.", 4); return; }
+    const id = r && r.ok && r.resposta && r.resposta.id;
+    if(id){
+      if(i >= 0){ OBRAS[i].id = id; delete OBRAS[i].pendente; if(r.resposta.titulo) OBRAS[i].titulo = r.resposta.titulo; }
+      pintarHub(); toast("Obra " + endereco + " criada.");
       return;
     }
-    if(!r.ok){ falha("Não deu para criar: " + erroTexto(r.erro)); return; }
-    if(r.enfileirado){ fecharNovaObra(); toast("Sem internet — a obra será criada quando reconectar.", 4); return; }
-    fecharNovaObra();
-    toast("Obra criada.");
-    const id = r.resposta && r.resposta.id;
-    /* a lista vem do arquivo publicado e só terá a obra no próximo build;
-       enquanto isso ela entra aqui para a pessoa já conseguir usar */
-    if(id){
-      OBRAS = OBRAS || [];
-      /* a obra entra na lista já com o que foi digitado — se ficasse só com
-         endereço e cliente, a pessoa abriria a obra recém-criada e veria os
-         campos em branco até o próximo build, achando que não gravou */
-      OBRAS.push({ id:id, endereco:endereco, casa: casa===""?null:Number(casa),
-                   titulo:(r.resposta.titulo||endereco), clientes:clientes,
-                   telefone:telefone||null, dataAssinatura:assin||null, observacoes:obs,
-                   horarioFlexivel:flex||null, agio:agio||null, cidade:cidade, setor:setor,
-                   servicos:0, servicosAbertos:0, servicosIncompletos:0,
-                   status:"SEM PÓS OBRA" });
-      pintarHub();
-      /* NÃO abre a página da obra recém-criada (pedido de set/26).
-         A lista vem do arquivo publicado e a obra só existe lá no próximo
-         build; ao abrir na hora, a tela tentava carregar os chamados de uma
-         obra que o dist/ ainda não conhece e ficava carregando sem fim. A
-         obra já aparece na lista pela linha acima — a pessoa abre quando
-         quiser, e aí o carregamento tem o que buscar. */
-    } else recarregarTudo();
+    if(r && r.ok){ if(i >= 0) OBRAS.splice(i,1); recarregarTudo(); return; }
+    if(i >= 0) OBRAS.splice(i,1);
+    pintarHub();
+    const msg = (r && r.erro === "FALHOU_SEM_CRIAR") ? "A conexão falhou e a obra NÃO foi criada. Pode tentar de novo."
+              : "Não deu para criar " + endereco + ": " + erroTexto(r && r.erro);
+    abrirNovaObra();
+    NO_OPID = opId;
+    const mapa = { "no-endereco":valores.endereco, "no-casa":valores.casa, "no-clientes":valores.clientes,
+                   "no-telefone":valores.telefone, "no-setor":valores.setor, "no-cidade":valores.cidade,
+                   "no-assinatura":valores.assin, "no-agio":valores.agio, "no-obs":valores.obs };
+    Object.keys(mapa).forEach(k=>{ const e=document.getElementById(k); if(e) e.value = mapa[k] || ""; });
+    falha(msg);
   });
 }
 

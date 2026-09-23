@@ -46,7 +46,19 @@ const ACOES_NA_ESCRITA = [
   /* GESTÃO DE DOCUMENTOS (set/26). Mesma regra: ação que GRAVA sai pela
      implantação de ESCRITA, para não esperar atrás de uma leitura longa.
      Precisa bater com ACOES_DOCS_ESCRITA do documentos.gs. */
-  "docUpdate", "docBaixa", "docAnexar", "docNovo", "docExcluir"
+  "docUpdate", "docBaixa", "docAnexar", "docNovo", "docExcluir",
+  /* OBRAS (23/09/26). As gravações da aba de obras estavam saindo pela
+     LEITURA e ficavam atrás do checklist das atividades (a leitura mais pesada
+     da tela) — era o "Não salvou: sem conexão" ao trocar o STATUS. Agora saem
+     pela ESCRITA. Ficam na LEITURA, de propósito: "obraNova" e "obraLiberar",
+     porque é lá que mora o ObrasSync.gs (atividades e Compatibilização).
+     obraVivo e obraComentarios não gravam, mas são curtas e acompanham uma
+     gravação: não podem esperar atrás do checklist. */
+  "obraUpdate", "obraAtvUpdate", "obraAtvCheck", "obraAtvAcao", "obraLigacoes",
+  "obraConta", "obraVivo", "obraComentarios", "obraComentarioNovo", "investidorUpdate",
+  /* anexo das ligações: pedido curto (só assina o link); na fila das
+     leituras ele esperava o ligSensiveis inteiro — era o PDF de 2 minutos */
+  "ligArquivo"
   /* ===== POR QUE "agendaLink" E "docAgendaLink" SAÍRAM DAQUI (set/26) =====
      Os dois GRAVAM (a chave do link vai numa Propriedade do script), então
      por hábito estavam na faixa de ESCRITA. Só que a chave é gravada num
