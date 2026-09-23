@@ -286,7 +286,7 @@ def test_tem_conta_pedida_nada_pedido():
 
 
 def test_tentativas_busca_pedaco_do_nome():
-    tentativas = r.tentativas_busca("BANCO MODELO INCORPORACOES SENADOR - Conta corrente: 1234-5")
+    tentativas = r.tentativas_busca("BANCO MODELO INCORPORACOES CENTRO - Conta corrente: 1234-5")
     assert tentativas[0] == "BANCO MODELO INCORPORA"       # até " - ", cortado em 22 caracteres
     assert "1234-5" not in tentativas[0]                    # não é a linha inteira
 

@@ -424,7 +424,7 @@ def tem_conta_pedida(o):
 
 def tentativas_busca(texto):
     """Função PURA: pedaços curtos de um texto de conta para a busca do combo
-    do MC — ele busca por PEDAÇO do nome ("MORAIS INCORPORACOES SENADOR..."
+    do MC — ele busca por PEDAÇO do nome ("EMPRESA MODELO INCORPORACOES..."
     acha); a linha INTEIRA (que costuma trazer "- Conta corrente: 1234-5 -
     SICOOB" depois do nome) não acha nada."""
     texto = str(texto or "").strip()

@@ -211,17 +211,17 @@ def test_casar_texto_conta_lista_vazia_devolve_none():
 
 
 def test_casar_texto_conta_nao_atravessa_fronteira_entre_grupos():
-    # "Ag 3233 Conta 1234-5" JUNTANDO os dígitos vira "323312345" — uma conta
-    # CURTA cujo número atravessa a fronteira ("33123", por exemplo) bateria
+    # "Ag 4321 Conta 1234-5" JUNTANDO os dígitos vira "432112345" — uma conta
+    # CURTA cujo número atravessa a fronteira ("21123", por exemplo) bateria
     # por engano se a comparação fosse substring do texto inteiro emendado.
     # Comparando GRUPO a grupo, isso não acontece.
-    contas = [{"id": "curta", "numero": "33123", "banco": ""}]
-    assert r.casar_texto_conta("Ag 3233 Conta 1234-5", contas) is None
+    contas = [{"id": "curta", "numero": "21123", "banco": ""}]
+    assert r.casar_texto_conta("Ag 4321 Conta 1234-5", contas) is None
 
 
 def test_casar_texto_conta_grupo_com_digito_verificador_casa_exato():
     contas = [{"id": "c1", "numero": "1234-5", "banco": ""}]
-    assert r.casar_texto_conta("Ag 3233 Conta 1234-5", contas) == "c1"
+    assert r.casar_texto_conta("Ag 4321 Conta 1234-5", contas) == "c1"
 
 
 def test_casar_texto_conta_desempate_por_codigo_do_banco_isolado_no_texto():

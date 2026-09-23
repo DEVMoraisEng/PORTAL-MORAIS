@@ -194,8 +194,8 @@ def planejar(erp, notion, primeira_carga):
 
 
 # Cada GRUPO de dígitos do texto — não o texto inteiro emendado, senão
-# "Ag 3233 Conta 1234-5" vira "323312345" e uma conta CURTA pode casar
-# atravessando a fronteira entre agência e número (ex.: "33123" bateria,
+# "Ag 4321 Conta 1234-5" vira "432112345" e uma conta CURTA pode casar
+# atravessando a fronteira entre agência e número (ex.: "21123" bateria,
 # sem ser nem a agência nem a conta). O dígito verificador separado por
 # hífen ("1234-5") entra no MESMO grupo do número, porque é assim que
 # `conta_do_erp`/`_com_digito` também gravam ("1234-5" -> dígitos "12345").
