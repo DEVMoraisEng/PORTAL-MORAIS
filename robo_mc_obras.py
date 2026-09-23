@@ -69,7 +69,9 @@ def pega(pr, nome):
     return None
 
 
-COL_RELACAO_CONTA = "CONTA BANCÁRIA"
+COL_RELACAO_CONTA = "CONTA BANCÁRIA"   # relação (desenho antigo, nunca chegou a produção)
+COL_CONTA = "CONTA"                    # 23/09/26: SELEÇÃO com o nome da conta do ERP
+CONTA_PENDENTE = {"CRIAR CONTA", "DUVIDA"}   # opções que dizem "ainda não sei a conta"
 
 
 def ids_relacionados(p):
@@ -99,6 +101,18 @@ def resolver_conta(prop_relacao, mapa_contas):
       vazio) OU mais de uma conta relacionada -> ("", "", True): a conta FOI
       pedida e não dá para saber qual — a obra não é criada nem marcada
       "Criada" (nunca cai no texto livre, nunca escolhe uma ao acaso)."""
+    if (prop_relacao or {}).get("type") != "relation":
+        # 23/09/26 — coluna CONTA como SELEÇÃO: o valor É o nome da opção,
+        # que o robô de contas mantém igual ao nome da conta no ERP.
+        valor = str(txt(prop_relacao) or "").strip()
+        if not valor or N(valor) == "PESSOA FISICA":
+            return "", "", False
+        if N(valor) in CONTA_PENDENTE:
+            return "", "", True           # CRIAR CONTA / DÚVIDA: não escolhe nenhuma
+        info = (mapa_contas or {}).get("opcao:" + N(valor)) or {}
+        if info.get("nome"):
+            return info["nome"], str(info.get("numero") or "").strip(), False
+        return "", "", False              # fora do mapa: cai no caminho do texto (busca pelo nome)
     ids = ids_relacionados(prop_relacao)
     if not ids:
         return "", "", False
@@ -118,12 +132,17 @@ def mapa_contas_por_id():
     por rodada (fila_de_obras/fila_atualizar reaproveitam o mapa) e acha o
     banco pelos blocos do pai — mesma função que robo_mc_contas usa
     (`_achar_filho_banco`), para não duplicar a lógica de índice atrasado.
-    Banco ainda não existe (robo_mc_contas nunca aplicou) -> {}."""
-    obras = api("GET", f"/databases/{ID_OBRAS}")
-    pai = (obras.get("parent") or {}).get("page_id")
-    if not pai:
-        return {}
-    db_id = rc._achar_filho_banco(pai)
+    Banco ainda não existe (robo_mc_contas nunca aplicou) -> {}.
+    23/09/26: também indexa por "opcao:<nome da opção>" (coluna "Nome na
+    obra"), que é como a coluna CONTA das obras aponta para a conta; e usa o
+    id fixo CONTAS_DB_ID quando existir."""
+    db_id = rc.CONTAS_DB_ID
+    if not db_id:
+        obras = api("GET", f"/databases/{ID_OBRAS}")
+        pai = (obras.get("parent") or {}).get("page_id")
+        if not pai:
+            return {}
+        db_id = rc._achar_filho_banco(pai)
     if not db_id:
         return {}
     mapa = {}
@@ -131,8 +150,18 @@ def mapa_contas_por_id():
         pr = pg.get("properties") or {}
         nome = rc.txt(rc.pega(pr, "Conta"))
         if nome:
-            mapa[pg["id"]] = {"nome": nome, "numero": rc.txt(rc.pega(pr, "Número")) or ""}
+            info = {"nome": nome, "numero": rc.txt(rc.pega(pr, "Número")) or ""}
+            mapa[pg["id"]] = info
+            opcao = rc.txt(rc.pega(pr, rc.COL_OPCAO)) or rc.nome_opcao(nome)
+            mapa["opcao:" + N(opcao)] = info
     return mapa
+
+
+def prop_conta(pr):
+    """A propriedade que diz a conta da obra: a relação antiga, se tiver
+    alguma conta ligada; senão a coluna CONTA (seleção)."""
+    rel = pega(pr, COL_RELACAO_CONTA)
+    return rel if ids_relacionados(rel) else pega(pr, COL_CONTA)
 
 
 def fila_de_obras(mapa_contas=None):
@@ -143,7 +172,7 @@ def fila_de_obras(mapa_contas=None):
         if N(txt(pega(pr, "MAIS CONTROLE"))) != "CRIAR":
             continue
         a1, a2 = txt(pega(pr, "ÁREA CONSTRUÍDA AVERBADA")), txt(pega(pr, "ÁREA PÓS HABITE-SE"))
-        conta_exata, conta_numero, nao_resolvida = resolver_conta(pega(pr, COL_RELACAO_CONTA), mapa_contas)
+        conta_exata, conta_numero, nao_resolvida = resolver_conta(prop_conta(pr), mapa_contas)
         fila.append({
             "id": pg["id"],
             "titulo": padronizar_endereco(txt(pega(pr, "Projeto"))),
@@ -462,8 +491,7 @@ def preencher_conta(page, o):
         print(f"  ! 'Quem paga': {str(e)[:110]}", flush=True)
 
     if o.get("conta_nao_resolvida"):
-        print(f"  ! conta bancária pela relação {COL_RELACAO_CONTA}: página fora do banco de contas, "
-              "sem nome ou mais de uma conta ligada — não escolhida", flush=True)
+        print("  ! conta bancária: marcada CRIAR CONTA/DÚVIDA (ou relação inválida) — não escolhida", flush=True)
         return False
 
     conta_exata = (o.get("conta_exata") or "").strip()
@@ -472,11 +500,11 @@ def preencher_conta(page, o):
             try:
                 escolher_na_lista(page, CAMPO["conta"], t, alvo=conta_exata, prefixo=True, sigilo=True,
                                   numero=o.get("conta_numero") or "")
-                print(f"  conta bancária: escolhida (pela relação {COL_RELACAO_CONTA})", flush=True)
+                print("  conta bancária: escolhida (pela coluna CONTA)", flush=True)
                 return True
             except Exception:
                 continue
-        print(f"  ! conta bancária pela relação {COL_RELACAO_CONTA}: não escolhida", flush=True)
+        print("  ! conta bancária pela coluna CONTA: não escolhida", flush=True)
         return False
 
     conta = (o.get("conta") or "").strip()
@@ -702,7 +730,7 @@ def fila_atualizar(no_mc, mapa_contas=None):
         if conf and editada and (editada - conf).total_seconds() < 180:
             continue
         a1, a2 = txt(pega(pr, "ÁREA CONSTRUÍDA AVERBADA")), txt(pega(pr, "ÁREA PÓS HABITE-SE"))
-        conta_exata, conta_numero, nao_resolvida = resolver_conta(pega(pr, COL_RELACAO_CONTA), mapa_contas)
+        conta_exata, conta_numero, nao_resolvida = resolver_conta(prop_conta(pr), mapa_contas)
         fila.append({
             "id": pg["id"], "titulo": titulo, "conferida": bool(conf),
             "casas": txt(pega(pr, "Nº DE CASAS")),
