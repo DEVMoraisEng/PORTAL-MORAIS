@@ -29,6 +29,7 @@ from datetime import datetime, timezone
 from robo_mc_comum import N, foto, abrir, login, ir_menu, clicar_texto, APLICAR, MC_URL
 from fetch_vendas import ler_banco, api
 from fetch_obras import obras_no_mc, padronizar_endereco
+import robo_mc_contas as rc  # reaproveita _achar_filho_banco/txt/pega do banco de contas (sem playwright no topo dele)
 
 ID_OBRAS = "306c5ab532d3812fa14fe9a281510128"
 TIPOS = {1: "Casa", 2: "2 casas", 3: "3 casas", 4: "4 casas", 5: "5 casas"}
@@ -68,13 +69,51 @@ def pega(pr, nome):
     return None
 
 
-def fila_de_obras():
+COL_RELACAO_CONTA = "CONTA BANCÁRIA"
+
+
+def id_relacionado(p):
+    """`txt()` (acima) não lê `relation` — só title/rich_text/select/status.
+    Uma relação de página só tem sentido no singular aqui (uma obra aponta
+    para NO MÁXIMO uma conta), então devolve só o primeiro id, ou ''."""
+    if (p or {}).get("type") != "relation":
+        return ""
+    itens = p.get("relation") or []
+    return str(itens[0].get("id") or "") if itens else ""
+
+
+def mapa_contas_por_id():
+    """id da página do banco CONTAS BANCÁRIAS -> nome exato da conta (título
+    "Conta", coluna que dá nome à opção na lista do MC). Lê o banco UMA VEZ
+    por rodada (fila_de_obras/fila_atualizar reaproveitam o mapa) e acha o
+    banco pelos blocos do pai — mesma função que robo_mc_contas usa
+    (`_achar_filho_banco`), para não duplicar a lógica de índice atrasado.
+    Banco ainda não existe (robo_mc_contas nunca aplicou) -> {}."""
+    obras = api("GET", f"/databases/{ID_OBRAS}")
+    pai = (obras.get("parent") or {}).get("page_id")
+    if not pai:
+        return {}
+    db_id = rc._achar_filho_banco(pai)
+    if not db_id:
+        return {}
+    mapa = {}
+    for pg in ler_banco(db_id, "CONTAS BANCÁRIAS"):
+        pr = pg.get("properties") or {}
+        nome = rc.txt(rc.pega(pr, "Conta"))
+        if nome:
+            mapa[pg["id"]] = nome
+    return mapa
+
+
+def fila_de_obras(mapa_contas=None):
+    mapa_contas = mapa_contas or {}
     fila = []
     for pg in ler_banco(ID_OBRAS, "OBRAS"):
         pr = pg.get("properties") or {}
         if N(txt(pega(pr, "MAIS CONTROLE"))) != "CRIAR":
             continue
         a1, a2 = txt(pega(pr, "ÁREA CONSTRUÍDA AVERBADA")), txt(pega(pr, "ÁREA PÓS HABITE-SE"))
+        conta_id = id_relacionado(pega(pr, COL_RELACAO_CONTA))
         fila.append({
             "id": pg["id"],
             "titulo": padronizar_endereco(txt(pega(pr, "Projeto"))),
@@ -85,6 +124,7 @@ def fila_de_obras():
             "cliente": txt(pega(pr, "Proprietário")),
             "cidade": txt(pega(pr, "Cidade")),
             "conta": txt(pega(pr, "CONTA")),
+            "conta_exata": mapa_contas.get(conta_id, ""),
         })
     return fila
 
@@ -276,26 +316,48 @@ def preencher_endereco(page, o):
 
 
 def preencher_conta(page, o):
-    """Quem paga = Cliente; Conta = a CONTA da obra (vem do cadastro)."""
+    """Quem paga = Cliente; Conta = a exata, quando a obra tem a relação
+    CONTA BANCÁRIA (casamento por igualdade EXATA com o título da conta no
+    banco CONTAS BANCÁRIAS — `o["conta_exata"]`, montado em fila_de_obras/
+    fila_atualizar via mapa_contas_por_id); sem ela, o caminho antigo (texto
+    livre da coluna CONTA, busca por pedaço).
+
+    Devolve False só quando uma conta foi PEDIDA (relação ou texto) e não
+    foi possível escolhê-la na lista — nada pedido, ou pedido e escolhido,
+    devolve True. É esse sinal que `criar_no_mc` usa para NÃO marcar
+    "Criada" quando a obra ficou com a conta errada (ou nenhuma)."""
     try:
         escolher_na_lista(page, CAMPO["quem_paga"], "", alvo="Cliente", exato=True)
     except Exception as e:
         print(f"  ! 'Quem paga': {str(e)[:110]}", flush=True)
+
+    conta_exata = (o.get("conta_exata") or "").strip()
+    if conta_exata:
+        try:
+            escolhida = escolher_na_lista(page, CAMPO["conta"], conta_exata, alvo=conta_exata, exato=True)
+            print(f"  conta bancária: {escolhida} (pela relação {COL_RELACAO_CONTA})", flush=True)
+            return True
+        except Exception as e:
+            print(f"  ! conta bancária pela relação {COL_RELACAO_CONTA}: não escolhida ({str(e)[:110]})", flush=True)
+            return False
+
     conta = (o.get("conta") or "").strip()
     if not conta or N(conta) == "PESSOA FISICA":
         print("  conta bancária: obra sem CONTA no Notion — deixei em branco", flush=True)
-        return
+        return True
     # a busca do MC é por pedaço do nome: "MORAIS INCORPORACOES SENADOR..." acha,
     # a linha inteira da CONTA (com "- Conta corrente: 1234-5 - SICOOB") não acha
     tentativas = [conta.split(" - ")[0][:22], " ".join(conta.split()[:2]), conta.split()[0]]
+    ultimo = ""
     for t in [x for x in tentativas if x]:
         try:
             escolhida = escolher_na_lista(page, CAMPO["conta"], t, alvo=conta)
             print(f"  conta bancária: {escolhida}", flush=True)
-            return
+            return True
         except Exception as e:
             ultimo = str(e)[:110]
     print(f"  ! conta '{conta}' não foi escolhida ({ultimo}) — ficou em branco", flush=True)
+    return False
 
 
 def desmarcar_compras(page):
@@ -374,10 +436,12 @@ def criar_no_mc(page, o):
     except Exception as e:
         print(f"  ! endereço: {str(e)[:110]}", flush=True)
     abrir_secao(page, "Conta bancária padrão")
+    conta_ok = True
     try:
-        preencher_conta(page, o)
+        conta_ok = preencher_conta(page, o)
     except Exception as e:
         print(f"  ! conta: {str(e)[:110]}", flush=True)
+        conta_ok = False
     abrir_secao(page, "Exibir obra para")
     try:
         desmarcar_compras(page)
@@ -427,6 +491,12 @@ def criar_no_mc(page, o):
                            f"| rede: {rede or '(sem chamadas)'}")
     print(f"  salvou — rede: {rede or '(sem chamadas registradas)'}", flush=True)
     foto(page, "pos_salvar_" + o["titulo"].replace(" ", "_"))
+    if not conta_ok:
+        # havia conta pedida (relação CONTA BANCÁRIA ou texto em CONTA) e não
+        # foi escolhida na lista — não marco "Criada" (o dono revisita pelo
+        # painel); aviso SEM o nome da conta (repo público).
+        print(f"  ! {o['titulo']}: obra criada, mas a conta bancária pedida não foi escolhida — não marco 'Criada'", flush=True)
+        return "criada_sem_conta"
     return "criada"
 
 
@@ -472,7 +542,8 @@ def _dt(s):
         return None
 
 
-def fila_atualizar(no_mc):
+def fila_atualizar(no_mc, mapa_contas=None):
+    mapa_contas = mapa_contas or {}
     fila = []
     for pg in ler_banco(ID_OBRAS, "OBRAS"):
         pr = pg.get("properties") or {}
@@ -488,6 +559,7 @@ def fila_atualizar(no_mc):
         if conf and editada and (editada - conf).total_seconds() < 180:
             continue
         a1, a2 = txt(pega(pr, "ÁREA CONSTRUÍDA AVERBADA")), txt(pega(pr, "ÁREA PÓS HABITE-SE"))
+        conta_id = id_relacionado(pega(pr, COL_RELACAO_CONTA))
         fila.append({
             "id": pg["id"], "titulo": titulo, "conferida": bool(conf),
             "casas": txt(pega(pr, "Nº DE CASAS")),
@@ -497,6 +569,7 @@ def fila_atualizar(no_mc):
             "cliente": txt(pega(pr, "Proprietário")),
             "cidade": txt(pega(pr, "Cidade")),
             "conta": txt(pega(pr, "CONTA")),
+            "conta_exata": mapa_contas.get(conta_id, ""),
         })
     # as nunca conferidas por último: primeiro o que mudou de verdade
     fila.sort(key=lambda o: o["conferida"], reverse=True)
@@ -614,8 +687,10 @@ def completar_no_mc(page, o):
         except Exception as e:
             print(f"  ! endereço: {str(e)[:90]}", flush=True)
 
+    conta_exata = (o.get("conta_exata") or "").strip()
     conta = (o.get("conta") or "").strip()
-    if conta and N(conta) != "PESSOA FISICA" and not valor_campo(page, CAMPO["conta"]):
+    tem_conta_pedida = bool(conta_exata) or bool(conta and N(conta) != "PESSOA FISICA")
+    if tem_conta_pedida and not valor_campo(page, CAMPO["conta"]):
         abrir_secao(page, "Conta bancária padrão")
         try:
             preencher_conta(page, o)
@@ -643,7 +718,8 @@ def completar_no_mc(page, o):
 
 
 def main():
-    fila = fila_de_obras()
+    mapa_contas = mapa_contas_por_id()
+    fila = fila_de_obras(mapa_contas)
     no_mc = obras_no_mc() or set()
     ja = [o for o in fila if o["titulo"] in no_mc]
     fazer = [o for o in fila if o["titulo"] not in no_mc]
@@ -658,7 +734,7 @@ def main():
     fazer = [o for o in fazer if o["cliente"]]
 
     garantir_coluna_data()
-    completar = fila_atualizar(no_mc)[:LIMITE_POR_RODADA]
+    completar = fila_atualizar(no_mc, mapa_contas)[:LIMITE_POR_RODADA]
     print(f"Completar: {len(completar)} obras do MC para conferir nesta rodada", flush=True)
     if not fazer and not completar:
         return 0
