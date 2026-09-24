@@ -1142,6 +1142,70 @@ async function recarregarTela(bt){
   if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",por); else por();
 })();
 
+/* =======================================================================
+ * 24/09/26 — AO VIVO (igual a um site "de verdade")
+ * -----------------------------------------------------------------------
+ * Quando alguém grava algo pelo portal, o Apps Script manda um aviso pelo
+ * Realtime do Supabase (canal "portal"). Toda tela aberta recebe em ~1 s e
+ * dispara o evento "portal-ao-vivo" com {tela, acao, id, obraId, quem}.
+ *   - Telas que sabem se atualizar sozinhas (obras) tratam o evento e
+ *     releem só o que mudou — sem recarregar a página.
+ *   - As demais mostram uma faixa: "Fulano alterou dados desta tela —
+ *     🔄 Atualizar", que recarrega com um clique.
+ * A mensagem não carrega dado nenhum (só ids e o nome de quem gravou); o
+ * dado novo vem pelo caminho normal, com login.
+ * Sem a Propriedade SUPABASE_ANON_KEY no Apps Script, nada disso liga e o
+ * portal funciona como antes.
+ * ===================================================================== */
+(function aoVivo(){
+  if(typeof document==="undefined") return;
+  const tela=(location.pathname.split("/").pop()||"index.html").replace(/\.html$/,"")||"index";
+  const TELAS={obras:"obras",ligacoes:"ligacoes","pos-obra":"pos-obra",documentos:"documentos",simulacoes:"simulacoes",vendas:"vendas"};
+  function faixa(d){
+    if(window.AO_VIVO_TRATA===d.tela) return;                 // a tela cuida sozinha
+    if(TELAS[tela]!==d.tela) return;
+    const me=(sessao()||{}).nome||""; if(d.quem&&me&&d.quem===me) return;
+    let f=document.getElementById("faixa-ao-vivo");
+    if(!f){
+      f=document.createElement("div"); f.id="faixa-ao-vivo";
+      f.style.cssText="position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:9998;background:#1f3b57;color:#fff;padding:9px 14px;border-radius:12px;font-size:13px;box-shadow:0 6px 18px rgba(0,0,0,.25);display:flex;gap:10px;align-items:center";
+      document.body.appendChild(f);
+    }
+    f.innerHTML="<span>🟢 "+String(d.quem||"Alguém").replace(/</g,"&lt;")+" alterou dados desta tela.</span>"+
+      "<button type='button' style='background:#4ade80;color:#0b2e1a;border:0;border-radius:8px;padding:5px 10px;font-weight:700;cursor:pointer' title='Recarrega esta tela com os dados novos'>🔄 Atualizar</button>"+
+      "<button type='button' style='background:transparent;color:#fff;border:0;cursor:pointer;font-size:15px' title='Fechar'>×</button>";
+    const [bAt,bX]=f.querySelectorAll("button");
+    bAt.onclick=()=>{ if(typeof recarregarTela==="function") recarregarTela(bAt); else location.reload(); };
+    bX.onclick=()=>f.remove();
+  }
+  window.addEventListener("portal-ao-vivo",e=>faixa(e.detail||{}));
+  async function iniciar(){
+    if(!sessao()) return;
+    let cfg=null;
+    try{ cfg=JSON.parse(sessionStorage.getItem("morais_aovivo")||"null"); }catch(e){}
+    if(!cfg){
+      let r=null; try{ r=await _chamarDireto({action:"aoVivoConfig"},20000); }catch(e){}
+      if(!(r&&r.ok&&r.url&&r.anon)) return;                    // não configurado: segue sem ao vivo
+      cfg={url:r.url,anon:r.anon,canal:r.canal||"portal"};
+      try{ sessionStorage.setItem("morais_aovivo",JSON.stringify(cfg)); }catch(e){}
+    }
+    await new Promise((ok,err)=>{
+      if(window.supabase&&window.supabase.createClient) return ok();
+      const sc=document.createElement("script");
+      sc.src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js";
+      sc.onload=ok; sc.onerror=err; document.head.appendChild(sc);
+    }).catch(()=>null);
+    if(!(window.supabase&&window.supabase.createClient)) return;
+    const sb=window.supabase.createClient(cfg.url,cfg.anon,{auth:{persistSession:false,autoRefreshToken:false}});
+    sb.channel(cfg.canal).on("broadcast",{event:"mudou"},msg=>{
+      window.dispatchEvent(new CustomEvent("portal-ao-vivo",{detail:(msg&&msg.payload)||{}}));
+    }).subscribe();
+    window._aoVivo=sb;
+  }
+  /* espera a tela abrir e as primeiras leituras saírem, para não disputar a fila */
+  window.addEventListener("load",()=>setTimeout(iniciar,2500));
+})();
+
 /* ---------- service worker (abre offline) ---------- */
 if("serviceWorker" in navigator){ window.addEventListener("load", ()=>navigator.serviceWorker.register("sw.js").catch(()=>{})); }
 

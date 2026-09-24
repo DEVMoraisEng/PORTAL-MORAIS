@@ -112,7 +112,8 @@
 /* v35 -> v36 (24/09/26): app.js com a faxina dos dados guardados e
    obras.html com o acompanhamento ao vivo. */
 /* v36 -> v37 (24/09/26): botão Recarregar em todas as telas (app.js). */
-const CACHE = "portal-morais-v37";  // limpeza só dos caches do portal (não apaga os das RAS)
+/* v37 -> v38 (24/09/26): ao vivo (app.js) e baixa otimista (obras.html). */
+const CACHE = "portal-morais-v38";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",

@@ -357,7 +357,7 @@ html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
 </div>
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=35"></script>
+<script src="app.js?v=36"></script>
 <script>
 /* ---------- tema ---------- */
 const TEMA_KEY="morais_tema";
@@ -690,41 +690,43 @@ async function gravarAtv(id,prop,valor,el){
   const a=D.atividades.find(x=>x.id===id); if(!a) return;
   /* data digitada pela metade (ano "0002"): não grava nem some da lista */
   if(/^Data/i.test(prop)&&valor&&!dataOk(valor)) return;
-  FIXAS.add(id);
-  if(el){ el.classList.remove("ok","erro"); el.classList.add("salvando"); }
-  const extra=(prop==="Status"&&N(valor)==="FINALIZADO"&&!a.data_conclusao)?{conclusaoSeVazia:true}:{};
-  const r=await gravarComRetry(Object.assign({action:"obraAtvUpdate",pageId:id,prop:prop,valor:valor},extra),el);
-  if(el) el.classList.remove("salvando");
+  /* 24/09/26 — GRAVAÇÃO OTIMISTA. A tela muda NA HORA (e a atividade
+     concluída sai da lista na hora); o servidor grava por trás. Se ele
+     recusar de verdade, tudo volta como estava e o aviso diz o motivo. */
+  const antes={status:a.status,data_conclusao:a.data_conclusao,data_final:a.data_final,data_inicio:a.data_inicio,controle_prazo:a.controle_prazo};
+  const campo=ATV_PROP[prop];
+  if(campo) a[campo]=valor||null;
+  const autoConc=(prop==="Status"&&N(valor)==="FINALIZADO"&&!a.data_conclusao);
+  if(autoConc) a.data_conclusao=hoje();
+  a.controle_prazo=prazoLocal(a);
+  ponteGuardar("obras-atv",id,prop,valor||null);
+  if(autoConc) ponteGuardar("obras-atv",id,"Data De Conclusão da Atividade",a.data_conclusao);
+  const concluida=N(a.status)==="FINALIZADO"&&dataOk(a.data_conclusao);
+  if(concluida){
+    const lin=el&&el.closest(".atv");
+    if(lin&&!VER_FIN){ lin.classList.add("saindo"); setTimeout(repintarSeguro,300); } else setTimeout(repintarSeguro,50);
+    toast(VER_FIN?"Atividade concluída.":"Atividade concluída — saiu da lista (marque \"incluir finalizadas\" para ver).");
+    acompanharProxima(a.obra_id, true);
+  } else { if(el){ el.classList.remove("ok","erro"); el.classList.add("salvando"); } setTimeout(repintarSeguro,50); }
+
+  const r=await gravarComRetry(Object.assign({action:"obraAtvUpdate",pageId:id,prop:prop,valor:valor,obraId:a.obra_id},autoConc?{conclusaoSeVazia:true}:{}),null);
+  const el2=el&&document.body.contains(el)?el:null;
+  if(el2) el2.classList.remove("salvando");
   if(r&&r.ok){
-    if(el) el.classList.add("ok");
-    if(prop==="Status") a.status=valor;
-    if(prop==="Data De Conclusão da Atividade") a.data_conclusao=valor||null;
-    if(prop==="Data Final Prevista") a.data_final=valor||null;
-    if(prop==="Data De Início") a.data_inicio=valor||null;
-    if(r.conclusao) a.data_conclusao=r.conclusao;
-    ponteGuardar("obras-atv",id,prop,valor||null);
-    if(r.conclusao) ponteGuardar("obras-atv",id,"Data De Conclusão da Atividade",r.conclusao);
-    a.controle_prazo=prazoLocal(a);           // já mostra certo; o Notion confirma logo abaixo
-    /* 24/09/26 — STATUS Finalizado + DATA DE CONCLUSÃO preenchida = a
-       atividade sai da lista na hora (antes ela ficava até trocar de aba).
-       Enquanto só um dos dois estiver preenchido, ela continua na tela. */
-    const concluida=N(a.status)==="FINALIZADO"&&dataOk(a.data_conclusao);
-    if(concluida){
-      FIXAS.delete(id);
-      const lin=el&&el.closest(".atv");
-      if(lin&&!VER_FIN){ lin.classList.add("saindo"); setTimeout(repintarSeguro,450); }
-      else setTimeout(repintarSeguro,200);
-      toast(VER_FIN?"Atividade concluída.":"Atividade concluída — saiu da lista (marque \"incluir finalizadas\" para ver).");
-    } else {
-      setTimeout(repintarSeguro,200);
-      toast("Salvo.");
-    }
-    /* item 2: a automação do Notion cria a próxima atividade (ex.: Armazenar
-       projetos) alguns segundos depois da baixa — busca de novo até ela vir */
-    if(prop==="Status"&&N(valor)==="FINALIZADO") acompanharProxima(a.obra_id);
-    else atualizarObraVivo(a.obra_id);
-  }else{ if(el) el.classList.add("erro"); toast("Não salvou: "+errMsg(r)); }
+    if(el2) el2.classList.add("ok");
+    if(r.conclusao&&r.conclusao!==a.data_conclusao){ a.data_conclusao=r.conclusao; ponteGuardar("obras-atv",id,"Data De Conclusão da Atividade",r.conclusao); }
+    if(!concluida) toast("Salvo.");
+    else acompanharProxima(a.obra_id);        // agora sim a automação do Notion já rodou
+  } else {
+    Object.assign(a,antes);
+    if(_acomp[a.obra_id]&&_acomp[a.obra_id].espera){ delete _acomp[a.obra_id]; mostrarProcurando(false); }
+    try{ esquecerEdicao("obras-atv",id,prop); if(autoConc) esquecerEdicao("obras-atv",id,"Data De Conclusão da Atividade"); }catch(e){}
+    repintarSeguro();
+    const e3=document.querySelector(`[data-atv="${id}"]`); if(e3) e3.classList.add("erro");
+    toast("Não salvou: "+errMsg(r)+" — a atividade voltou como estava.");
+  }
 }
+
 /* 24/09/26 — ACOMPANHAMENTO AO VIVO depois de finalizar.
    Finalizar uma atividade faz a automação do Notion criar a próxima em
    segundos. Em vez de 3 consultas espaçadas (6, 15 e 35 s), a tela consulta a
@@ -733,9 +735,11 @@ async function gravarAtv(id,prop,valor,el){
    Enquanto procura, uma faixa discreta avisa "procurando a próxima…".
    Só uma busca por obra de cada vez (várias baixas seguidas não empilham). */
 const _acomp={};
-function acompanharProxima(obraId){
+function acompanharProxima(obraId, soAviso){
   if(!obraId) return;
-  if(_acomp[obraId]) { _acomp[obraId].reinicia=true; return; }
+  if(soAviso){ _acomp[obraId]=_acomp[obraId]||{reinicia:false,espera:true}; mostrarProcurando(true); return; }
+  if(_acomp[obraId]&&!_acomp[obraId].espera) { _acomp[obraId].reinicia=true; return; }
+  delete _acomp[obraId];
   const passos=[2,4,6,9,12,16,20,25,30,40,50,60], t0=Date.now();
   const est=_acomp[obraId]={reinicia:false};
   mostrarProcurando(true);
@@ -760,6 +764,23 @@ function mostrarProcurando(on){
   if(!b){ b=document.createElement("div"); b.id="procurando"; document.body.appendChild(b); }
   b.innerHTML='<span class="load"></span> procurando a próxima atividade no Notion…';
 }
+
+/* 24/09/26 — AO VIVO: outra pessoa gravou algo nas obras → esta tela relê
+   só aquela obra (obraVivo), em ~1 s, sem recarregar nada. */
+window.AO_VIVO_TRATA="obras";
+const _vivoFila={};
+window.addEventListener("portal-ao-vivo",ev=>{
+  const d=ev.detail||{}; if(d.tela!=="obras"||!D) return;
+  const me=(sessao()||{}).nome||"";
+  if(d.quem&&me&&d.quem===me) return;                       // fui eu
+  let obraId=d.obraId;
+  if(!obraId&&d.id){ const at=D.atividades.find(x=>x.id===d.id); obraId=at?at.obra_id:(obraDe(d.id)?d.id:null); }
+  if(!obraId){ toast((d.quem||"Alguém")+" alterou as obras — use 🔄 Recarregar para ver."); return; }
+  clearTimeout(_vivoFila[obraId]);
+  _vivoFila[obraId]=setTimeout(()=>atualizarObraVivo(obraId).then(()=>{
+    const o=obraDe(obraId); toast("Atualizado ao vivo"+(d.quem?" por "+d.quem:"")+(o?": "+o.titulo:"")+".");
+  }),600);
+});
 
 /* mesma regra da fórmula CONTROLE DE PRAZO do Notion, para a tela não ficar
    dizendo "EM ATRASO" numa atividade que acabou de ser concluída (item 3) */
