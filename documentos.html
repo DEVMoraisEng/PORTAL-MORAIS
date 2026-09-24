@@ -890,6 +890,12 @@ html[data-tema="escuro"] .obralink.sem-end{color:#ff8a80}
 html[data-tema="escuro"] .cal-dia{background:var(--bg2)}
 html[data-tema="escuro"] .barra-linha .bwrap{background:#1f2f3a}
 
+
+/* 24/09/26 — cabeçalho clicável para ordenar */
+th.th-ord{cursor:pointer;user-select:none}
+th.th-ord:hover{filter:brightness(1.15)}
+th.th-ord.on{box-shadow:inset 0 -3px 0 #4ade80}
+th.th-ord .seta{font-size:10px;opacity:.9}
 </style>
 </head>
 <body>
@@ -931,6 +937,7 @@ html[data-tema="escuro"] .barra-linha .bwrap{background:#1f2f3a}
       <div class="toolbar">
         <select id="hub-setor" onchange="aplicarFiltros('hub')"><option value="">Todos os setores</option></select>
         <select id="hub-cidade" onchange="aplicarFiltros('hub')"><option value="">Todas as cidades</option></select>
+        <select id="hub-desp" title="Filtra pelo despachante da obra" onchange="aplicarFiltros('hub')"><option value="">Todos os despachantes</option></select>
         <select id="hub-situacao" onchange="aplicarFiltros('hub')">
           <option value="">Todas as obras</option>
           <option value="andamento">Obras em andamento</option>
@@ -992,6 +999,7 @@ html[data-tema="escuro"] .barra-linha .bwrap{background:#1f2f3a}
         <div class="toolbar">
           <select id="set-setor" onchange="aplicarFiltros('set')"><option value="">Todos os setores</option></select>
           <select id="set-cidade" onchange="aplicarFiltros('set')"><option value="">Todas as cidades</option></select>
+          <select id="set-desp" title="Filtra pelo despachante da obra" onchange="aplicarFiltros('set')"><option value="">Todos os despachantes</option></select>
           <select id="set-situacao" onchange="aplicarFiltros('set')">
             <option value="">Todas as obras</option>
             <option value="andamento">Obras em andamento</option>
@@ -1857,8 +1865,21 @@ function repintarSetorSuave(){
 }
 
 /* ===================== PLANILHA ===================== */
+/* texto de qualquer valor (seleção, pessoas, lista) — usado no filtro e na ordenação */
+function txtVal(v){
+  if(v===undefined||v===null) return "";
+  if(Array.isArray(v)) return v.map(x=>(x&&x.name)?x.name:x).filter(Boolean).join(", ");
+  return String(v);
+}
 function montarFiltros(){
   const cSetor=campo("SETOR"), cCidade=campo("CIDADE");
+  /* despachante: as opções da coluna, ou os nomes que aparecem nas obras */
+  const desp=[...new Set(OBRAS.flatMap(o=>{ const v=val(o,"DESPACHANTE"); return Array.isArray(v)?v.map(x=>(x&&x.name)?x.name:x):[v]; })
+                .map(x=>String(x||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+  ["hub","set"].forEach(ctx=>{
+    const d=document.getElementById(ctx+"-desp");
+    if(d){ const atual=d.value; d.innerHTML='<option value="">Todos os despachantes</option>'+desp.map(x=>`<option>${esc(x)}</option>`).join("")+'<option value="__sem__">(sem despachante)</option>'; d.value=atual; }
+  });
   const setores = cSetor && cSetor.opcoes && cSetor.opcoes.length
     ? cSetor.opcoes.slice()
     : [...new Set(OBRAS.map(o=>val(o,"SETOR")).filter(Boolean))].sort();
@@ -1925,6 +1946,7 @@ function aplicarFiltros(ctx){
   const q=normNome(document.getElementById(ctx+"-busca").value);
   const fSetor=document.getElementById(ctx+"-setor").value;
   const fCidade=document.getElementById(ctx+"-cidade").value;
+  const elDesp=document.getElementById(ctx+"-desp"), fDesp=elDesp?elDesp.value:"";
   const fSit=document.getElementById(ctx+"-situacao").value;
   const campoData=document.getElementById(ctx+"-campodata").value;
   const inter=intervaloDo(ctx);
@@ -1935,6 +1957,9 @@ function aplicarFiltros(ctx){
      você pediu. */
   if(fSetor) lista=lista.filter(o=>normNome(val(o,"SETOR"))===normNome(fSetor));
   if(fCidade) lista=lista.filter(o=>normNome(val(o,"CIDADE"))===normNome(fCidade));
+  if(fDesp==="__sem__") lista=lista.filter(o=>!txtVal(val(o,"DESPACHANTE")).trim());
+  else if(fDesp) lista=lista.filter(o=>normNome(txtVal(val(o,"DESPACHANTE"))).split(/\s*,\s*/).indexOf(normNome(fDesp))>=0
+                                       || normNome(txtVal(val(o,"DESPACHANTE")))===normNome(fDesp));
   if(fSit) lista=lista.filter(o=>situacaoDa(o)===fSit);
   if(inter){
     const frags=CAMPO_DATA[campoData]||CAMPO_DATA.aquisicao;
@@ -1946,7 +1971,22 @@ function aplicarFiltros(ctx){
                 val(o,"REF."),val(o,COL_RESP),val(o,"PROPRIETARIO REAL")].map(x=>normNome(x)).join(" ");
     return alvo.indexOf(q)>=0;
   });
-  lista.sort((a,b)=>String(val(a,"ENDEREÇO")||"").localeCompare(String(val(b,"ENDEREÇO")||""),"pt-BR"));
+  const ord=ORD_TAB[ctx];
+  if(ord&&ord.col){
+    /* ordenação pela coluna clicada: número como número, data como data,
+       texto em ordem alfabética com números naturais (LT 2 antes de LT 10);
+       vazio sempre no fim, nas duas direções */
+    const chave=o=>{ const v=getV(o.valores,ord.col); return Array.isArray(v)?txtVal(v):v; };
+    lista.sort((a,b)=>{
+      const x=chave(a), y=chave(b), vx=(x===undefined||x===null||x===""), vy=(y===undefined||y===null||y==="");
+      if(vx||vy) return vx&&vy?0:(vx?1:-1);
+      let r;
+      if(typeof x==="number"&&typeof y==="number") r=x-y;
+      else if(typeof x==="boolean"||typeof y==="boolean") r=(x?1:0)-(y?1:0);
+      else r=String(x).localeCompare(String(y),"pt-BR",{numeric:true,sensitivity:"base"});
+      return r*ord.d;
+    });
+  } else lista.sort((a,b)=>String(val(a,"ENDEREÇO")||"").localeCompare(String(val(b,"ENDEREÇO")||""),"pt-BR",{numeric:true}));
   FILTRADAS[ctx]=lista;
   document.getElementById(ctx+"-count").textContent =
     lista.length+(lista.length===1?" obra":" obras")+(lista.length!==OBRAS.length?" de "+OBRAS.length:"");
@@ -1982,12 +2022,25 @@ function celula(c,o){
   if(n==="NÃO"||n==="NAO") return '<span class="tag nao">NÃO</span>';
   return esc(v);
 }
+/* ordenação por coluna, por planilha (hub = geral, set = do setor) */
+const ORD_TAB={hub:null,set:null}, COLS_TAB={};
+function ordTab(ctx,i){
+  const c=(COLS_TAB[ctx]||[])[i]; if(!c) return;
+  const o=ORD_TAB[ctx];
+  ORD_TAB[ctx]=(o&&o.col===c.nome)?(o.d===1?{col:c.nome,d:-1}:null):{col:c.nome,d:1};   // crescente → decrescente → padrão
+  aplicarFiltros(ctx);
+}
 function renderTabela(ctx,lista){
   const wrap=document.getElementById(ctx+"-wrap");
   const escopo = ctx==="set" ? escopoDoSetor(SETOR_ATUAL) : "TUDO";
   const cols=colunasDaTela(escopo);
   if(!lista.length){ wrap.innerHTML='<div class="vazio">Nenhuma obra com esses filtros.</div>'; return; }
-  const th='<th class="stick">#</th>'+cols.map(c=>`<th>${esc(c.nome.trim())}</th>`).join("");
+  COLS_TAB[ctx]=cols;
+  const ord=ORD_TAB[ctx];
+  const th='<th class="stick">#</th>'+cols.map((c,i)=>{
+    const on=ord&&ord.col===c.nome;
+    return `<th class="th-ord${on?" on":""}" onclick="ordTab('${ctx}',${i})" title="Ordenar por ${esc(c.nome.trim())}${on?(ord.d===1?" — clique de novo para decrescente":" — clique de novo para voltar à ordem padrão"):""}">${esc(c.nome.trim())}${on?`<span class="seta">${ord.d===1?" ▲":" ▼"}</span>`:""}</th>`;
+  }).join("");
   const tr=lista.map((o,i)=>{
     const end=val(o,"ENDEREÇO")||"(sem endereço)";
     const tds=cols.map((c,j)=>{
