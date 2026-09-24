@@ -228,6 +228,9 @@ html[data-tema="escuro"] .cb-op:hover,html[data-tema="escuro"] .cb-op.ativo{back
 .inv-cel input,.inv-cel select{width:100%;padding:5px 7px;font-size:12.5px}
 .sens{letter-spacing:2px;color:var(--text4)}
 .tentando{border-color:#F0C36D!important;background-image:none}
+/* 23/09/26 — desempenho: linhas fora da tela não são desenhadas até rolar */
+.tabela-wrap tbody tr{content-visibility:auto;contain-intrinsic-size:auto 44px}
+.atv{content-visibility:auto;contain-intrinsic-size:auto 56px}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--azul-esc);color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:90;opacity:0;transition:opacity .2s;pointer-events:none;max-width:92%}
 .toast.on{opacity:1}
 .tarja-teste{display:none;align-items:center;gap:9px;background:#FFF7ED;border:1px solid #FED7AA;color:#9A3412;border-radius:10px;padding:9px 13px;font-size:12.5px;font-weight:600;margin-bottom:14px}
@@ -300,14 +303,14 @@ html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
 <div class="overlay" id="ov1" onclick="fecharObra()"></div>
 <div class="painel" id="p1">
   <div class="ph"><div class="end" id="p1-end"></div><div class="loc" id="p1-loc"></div>
-    <button class="pfechar" onclick="fecharObra()">✕</button></div>
+    <button class="pfechar" title="Fechar (Esc)" aria-label="Fechar" onclick="fecharObra()">✕</button></div>
   <div class="pbody" id="p1-corpo"></div>
 </div>
 
 <div class="overlay o2" id="ov2" onclick="fecharAtv()"></div>
 <div class="painel p2" id="p2">
   <div class="ph"><div class="end" id="p2-end"></div><div class="loc" id="p2-loc"></div>
-    <button class="pfechar" onclick="fecharAtv()">✕</button></div>
+    <button class="pfechar" title="Fechar (Esc)" aria-label="Fechar" onclick="fecharAtv()">✕</button></div>
   <div class="pbody" id="p2-corpo"></div>
 </div>
 
@@ -315,7 +318,7 @@ html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
   <div class="modal">
     <div class="ph"><div class="end">Solicitar nova obra</div>
       <div class="loc">Campos com * são obrigatórios</div>
-      <button class="pfechar" onclick="fecharForm()">✕</button></div>
+      <button class="pfechar" title="Fechar (Esc)" aria-label="Fechar" onclick="fecharForm()">✕</button></div>
     <div class="mcorpo">
       <div class="fgrid">
         <div class="campo full"><label>Endereço <i>*</i></label>
@@ -347,12 +350,12 @@ html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
     <div class="merro" id="f-erro"></div>
     <div class="macoes"><button class="bt ghost" onclick="fecharForm()">Cancelar</button>
       <button class="bt az" onclick="enviarObra(true)" title="Cria e mantém o formulário aberto, com os mesmos dados, só trocando o endereço">Criar e continuar</button>
-      <button class="bt" id="f-ok" onclick="enviarObra()">Criar obra</button></div>
+      <button class="bt" id="f-ok" title="Grava a obra e fecha o formulário" onclick="enviarObra()">Criar obra</button></div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=32"></script>
+<script src="app.js?v=33"></script>
 <script>
 /* ---------- tema ---------- */
 const TEMA_KEY="morais_tema";
@@ -452,6 +455,14 @@ const ehLig=a=>/^7\b/.test(String(a.tipo||"").trim());
 const atvFeita=a=>N(a.status)==="FINALIZADO"||!!a.data_conclusao;
 const atrasada=a=>N(a.controle_prazo).indexOf("ATRASO")>=0 && !atvFeita(a);
 const obraDe=id=>D.obras.find(o=>o.id===id);
+/* índice atividades-por-obra: montado uma vez por versão dos dados, em vez
+   de filtrar a lista inteira a cada obra pintada */
+let _IDX=null, _IDXv=null;
+function atvsDaObra(id){
+  if(_IDXv!==D.atividades){ _IDX=new Map(); _IDXv=D.atividades; D.atividades.forEach(a=>{ const k=a.obra_id; (_IDX.get(k)||_IDX.set(k,[]).get(k)).push(a); }); }
+  return _IDX.get(id)||[];
+}
+const buscaObra=o=>o._bt||(o._bt=N([o.titulo,o.setor,o.resp,o.rt,o.proprietario,o.status].join(" ")));
 function ordemTipo(t){ const m=String(t||"").trim().match(/^(\d+)(?:\.(\d+))?/); return m?Number(m[1])*100+Number(m[2]||0):9999; }
 function ordenaAtv(a,b){ return ordemTipo(a.tipo)-ordemTipo(b.tipo) || String(a.data_inicio||a.data_criacao||"").localeCompare(String(b.data_inicio||b.data_criacao||"")); }
 const errMsg=r=>(r&&(erroTexto(r.erro)||r.erro))||"erro";
@@ -515,7 +526,7 @@ const alertasConta=()=>D.obras.filter(o=>!fim(o.status) && (o.conta_alerta==="CR
 function pintarTabs(){
   const nAl=alertasMc().length+alertasCampos().length+alertasConta().length;
   document.getElementById("tabs").innerHTML=[["obras","Obras"],["atividades","Atividades"],["alertas","Alertas"],["contas","Contas bancárias"],["investidores","Cadastros investidores"]].map(([k,r])=>
-    `<button class="tab ${ABA===k?"on":""}" onclick="ABA='${k}';FIXAS.clear();pintar()">${r}${k==="alertas"&&nAl?`<span class="nb">${nAl}</span>`:""}</button>`).join("");
+    `<button class="tab ${ABA===k?"on":""}" title="${({obras:"Lista de obras e formulário de obra nova",atividades:"Atividades por pessoa — abre nas suas",alertas:"O que falta preencher ou decidir",contas:"Contas do Mais Controle e quais aparecem para escolha",investidores:"Cadastro de proprietários/investidores (só consulta)"})[k]||""}" onclick="ABA='${k}';FIXAS.clear();pintar()">${r}${k==="alertas"&&nAl?`<span class="nb">${nAl}</span>`:""}</button>`).join("");
 }
 function pintar(){ pintarTabs(); if(ABA==="obras") pintarObras(); else if(ABA==="atividades") pintarAtividades(); else if(ABA==="investidores") pintarInvestidores(); else if(ABA==="contas") pintarContas(); else pintarAlertas(); }
 
@@ -528,7 +539,7 @@ function pintarObras(){
   if(FILTRO==="andamento") l=l.filter(o=>!fim(o.status));
   if(FILTRO==="liberar") l=l.filter(o=>N(o.liberar)==="NAO");
   if(SETOR) l=l.filter(o=>o.setor===SETOR);
-  if(q) l=l.filter(o=>N([o.titulo,o.setor,o.resp,o.rt,o.proprietario,o.status].join(" ")).indexOf(q)>=0);
+  if(q) l=l.filter(o=>buscaObra(o).indexOf(q)>=0);
   const ativas=D.obras.filter(o=>!fim(o.status));
   const atraso=ativas.filter(o=>N(o.controle_prazo).indexOf("ATRASO")>=0).length;
   const setores=[...new Set(D.obras.map(o=>o.setor).filter(Boolean))].sort();
@@ -544,8 +555,8 @@ function pintarObras(){
       <div class="legenda">${[["andamento","Em andamento"],["todas","Todas as obras"],["liberar","Liberar = Não"]].map(([k,r])=>
         `<span class="sw ${FILTRO===k?"on":""}" onclick="FILTRO='${k}';pintarObras()">${r} <b>${cont[k]}</b></span>`).join("")}</div>
       <select onchange="SETOR=this.value;pintarObras()"><option value="">Todos os setores</option>${setores.map(s=>`<option ${s===SETOR?"selected":""}>${esc(s)}</option>`).join("")}</select>
-      <input class="busca" id="busca" placeholder="Buscar obra, setor, responsável…" value="${esc(BUSCA)}" oninput="BUSCA=this.value;pintarLista()">
-      <button class="bt" onclick="abrirForm()">+ Solicitar nova obra</button>
+      <input class="busca" id="busca" placeholder="Buscar obra, setor, responsável…" value="${esc(BUSCA)}" oninput="BUSCA=this.value;clearTimeout(window._bT);window._bT=setTimeout(pintarLista,120)">
+      <button class="bt" title="Abre o formulário de obra nova" onclick="abrirForm()">+ Solicitar nova obra</button>
     </div>
     <div id="lista-obras"></div>`;
   pintarLista();
@@ -556,7 +567,7 @@ function cmp(a,b){ const va=a==null||a===""?null:a, vb=b==null||b===""?null:b;
   return String(va).localeCompare(String(vb),"pt-BR",{numeric:true}); }
 function ordenar(l,st){ return st.k? l.slice().sort((a,b)=>{ const r=cmp(valOrd(a,st.k),valOrd(b,st.k)); return r===0?0:(r*st.d); }) : l; }
 function valOrd(x,k){ if(k==="resp"&&Array.isArray(x.resp)) return x.resp.join(", "); if(k==="tipo") return ordemTipo(x.tipo); return x[k]; }
-function thOrd(rot,k,st,fn,cls){ const on=st.k===k; return `<th class="ord ${cls||""}" onclick="${fn}('${k}')">${rot}${on?`<span class="seta">${st.d>0?"▲":"▼"}</span>`:""}</th>`; }
+function thOrd(rot,k,st,fn,cls){ const on=st.k===k; return `<th class="ord ${cls||""}" title="Ordenar por ${rot}${on?(st.d>0?" (crescente → decrescente)":" (decrescente → crescente)"):""}" onclick="${fn}('${k}')">${rot}${on?`<span class="seta">${st.d>0?"▲":"▼"}</span>`:""}</th>`; }
 function ordObra(k){ SORT_OB=SORT_OB.k===k?{k:k,d:-SORT_OB.d}:{k:k,d:1}; pintarLista(); }
 function ordAtv(k){ SORT_ATV=SORT_ATV.k===k?{k:k,d:-SORT_ATV.d}:{k:k,d:1}; if(OBRA) pintarObraPainel(); if(ABA==="atividades") pintarAtividades(); }
 function pintarLista(l){
@@ -565,7 +576,7 @@ function pintarLista(l){
     if(FILTRO==="andamento") l=l.filter(o=>!fim(o.status));
     if(FILTRO==="liberar") l=l.filter(o=>N(o.liberar)==="NAO");
     if(SETOR) l=l.filter(o=>o.setor===SETOR);
-    if(q) l=l.filter(o=>N([o.titulo,o.setor,o.resp,o.rt,o.proprietario,o.status].join(" ")).indexOf(q)>=0);
+    if(q) l=l.filter(o=>buscaObra(o).indexOf(q)>=0);
   }
   l=ordenar(l,SORT_OB);
   document.getElementById("lista-obras").innerHTML=l.length?`<div class="tabela-wrap"><table><thead><tr>
@@ -593,7 +604,7 @@ function pintarAtividades(){
   document.getElementById("view").innerHTML=`
     <div class="sec"><span class="cond">Atividades por pessoa</span></div>
     <div class="toolbar"><div class="legenda">
-      ${nomes.map((n,i)=>`<span class="sw ${n===PESSOA?"on":""}" onclick="PESSOA=NOMES_ATV[${i}];FIXAS.clear();pintarAtividades()">${esc(n)} <b>${cont[n]}</b></span>`).join("")}
+      ${nomes.map((n,i)=>`<span class="sw ${n===PESSOA?"on":""}" title="Ver as atividades de ${esc(n)}" onclick="PESSOA=NOMES_ATV[${i}];FIXAS.clear();pintarAtividades()">${esc(n)} <b>${cont[n]}</b></span>`).join("")}
       <label class="sw"><input type="checkbox" ${VER_FIN?"checked":""} onchange="VER_FIN=this.checked;pintarAtividades()"> incluir finalizadas</label>
     </div></div>
     ${PESSOA?`<div class="info-bar">
@@ -686,11 +697,12 @@ async function atualizarObraVivo(obraId){
     let r; try{ r=await chamar({action:"obraVivo",obraId:obraId},40000); }catch(e){ r=null; }
     if(!(r&&r.ok)) return [];
     const o=obraDe(obraId);
-    if(o&&r.obra){ Object.keys(r.obra).forEach(k=>{ if(k!=="id") o[k]=r.obra[k]; }); o._vivo=true; }
+    if(o&&r.obra){ Object.keys(r.obra).forEach(k=>{ if(k!=="id") o[k]=r.obra[k]; }); o._vivo=true; o._bt=null; }
     const vindas=r.atividades||[], ids=new Set(vindas.map(x=>x.id)), novas=[];
     D.atividades=D.atividades.filter(x=>x.obra_id!==obraId||ids.has(x.id)||String(x.id).indexOf("tmp")===0);
     vindas.forEach(v=>{ const a=D.atividades.find(x=>x.id===v.id);
       if(a) Object.assign(a,v); else { D.atividades.push(v); novas.push(v); } });
+    _IDXv=null;   // índice por obra refeito na próxima pintura
     repintarSeguro();
     return novas;
   })();
@@ -728,7 +740,7 @@ function pintarAlertas(){
     <div class="sec"><span class="cond">Conta bancária a definir</span><span class="qtd">${ct.length}</span></div>
     ${ct.length?ct.map(o=>`<div class="al"><span class="end" onclick="abrirObra('${o.id}')">${esc(o.titulo)}</span>
         <span class="txt"><span class="falta">${o.conta_alerta==="CRIAR CONTA"?"CRIAR CONTA — conta ainda não existe no Mais Controle":"DÚVIDA — confirme qual é a conta"}</span></span>
-        <span class="acoes"><button class="bt bt-mini az" onclick="abrirObra('${o.id}')">Escolher conta</button></span></div>`).join("")
+        <span class="acoes"><button class="bt bt-mini az" title="Abre a obra para escolher a conta bancária" onclick="abrirObra('${o.id}')">Escolher conta</button></span></div>`).join("")
       :`<div class="vazio">Nenhuma obra em andamento com conta pendente.</div>`}`;
 }
 async function decidirMc(id,valor){
@@ -792,7 +804,7 @@ function pintarObraPainel(){
   const o=obraDe(OBRA); if(!o) return;
   document.getElementById("p1-end").textContent=o.titulo||"(sem endereço)";
   document.getElementById("p1-loc").textContent=[o.setor,o.cidade,o.resp].filter(Boolean).join(" · ");
-  const atv=D.atividades.filter(a=>a.obra_id===o.id);
+  const atv=atvsDaObra(o.id);
   const normais=atv.filter(a=>!ehLig(a)).sort(ordenaAtv), lig=atv.filter(ehLig).sort(ordenaAtv);
   const falt=faltasDe(o), feitas=normais.filter(atvFeita).length;
   let h=`<div class="chips"><span class="chip">${esc(o.status||"sem status")}</span>
@@ -802,8 +814,8 @@ function pintarObraPainel(){
     ${falt.length?`<span class="chip alerta">Falta: ${esc(falt.join(", "))}</span>`:""}</div>`;
   h+=`<div class="grp">Dados da obra</div><div class="resumo">${CAMPOS.map((c,i)=>campoHtml(o,c,i)).join("")}</div>`;
   h+=`<div class="grp">Atividades <span class="sp"></span>
-      <button class="tg ${MODO==="lista"?"on":""}" onclick="MODO='lista';pintarObraPainel()">Lista</button>
-      <button class="tg ${MODO==="crono"?"on":""}" onclick="MODO='crono';pintarObraPainel()">Cronograma</button></div><div class="pl">`;
+      <button class="tg ${MODO==="lista"?"on":""}" title="Atividades em lista, por tipo" onclick="MODO='lista';pintarObraPainel()">Lista</button>
+      <button class="tg ${MODO==="crono"?"on":""}" title="Atividades no tempo (início → prazo)" onclick="MODO='crono';pintarObraPainel()">Cronograma</button></div><div class="pl">`;
   if(!normais.length) h+=`<div class="vazio">Nenhuma atividade ligada a esta obra ainda.</div>`;
   else if(MODO==="lista") h+=cabAtv(false)+ordenar(normais,SORT_ATV.k?SORT_ATV:{k:null}).map(a=>linhaAtv(a,false)).join("");
   else h+=gantt(normais);
@@ -815,9 +827,9 @@ function pintarObraPainel(){
   /* item 9: depois de criadas, os botões travam e mostram JÁ CRIADO */
   const jaCriado=(o.lig_criadas||0)>0||(o.vendas_criadas||0)>0, liberado=!!(window.LIG_LIBERA||{})[o.id];
   if(jaCriado) h+=`<div class="ja-criado">✓ JÁ CRIADO — ${o.lig_criadas||0} ligações e ${o.vendas_criadas||0} vendas desta obra.
-      ${ehAdmTela()&&!liberado?`<button class="bt bt-mini ghost" onclick="(window.LIG_LIBERA=window.LIG_LIBERA||{})['${o.id}']=1;pintarObraPainel()">criar de novo (ADM)</button>`:""}</div>`;
+      ${ehAdmTela()&&!liberado?`<button class="bt bt-mini ghost" title="Libera os botões para criar de novo, mesmo já tendo ligações/vendas (só ADM)" onclick="(window.LIG_LIBERA=window.LIG_LIBERA||{})['${o.id}']=1;pintarObraPainel()">criar de novo (ADM)</button>`:""}</div>`;
   h+=`<div class="lig-bts">${[1,2,3,4,5].map(n=>[false].concat(canedo?[]:[true]).map(e=>
-      `<button class="bt" ${semCidade||(jaCriado&&!liberado)?"disabled":""} onclick="criarLigacoes(${n},${e},this${jaCriado?",true":""})">${jaCriado&&!liberado?"JÁ CRIADO · ":"→ "}${n} ${n===1?"CASA":"CASAS"}${e?" C/ ESGOTO":""}</button>`).join("")).join("")}</div>
+      `<button class="bt" ${semCidade||(jaCriado&&!liberado)?"disabled":""} title="Cria ${n} ${n===1?"linha":"linhas"} de ligação de água e energia${e?" (com esgoto)":""} e ${n} ${n===1?"venda":"vendas"} para esta obra" onclick="criarLigacoes(${n},${e},this${jaCriado?",true":""})">${jaCriado&&!liberado?"JÁ CRIADO · ":"→ "}${n} ${n===1?"CASA":"CASAS"}${e?" C/ ESGOTO":""}</button>`).join("")).join("")}</div>
     <div class="ajuda">${semCidade?"Preencha a CIDADE da obra para liberar os botões. ":""}
       ${canedo?"Senador Canedo: SANESC + EQUATORIAL (sem esgoto)":"Goiânia: SANEAGO + EQUATORIAL (com SANEAGO ESGOTO nos botões \"c/ esgoto\")"}
       · cada casa também ganha a linha em Vendas.</div>`;
@@ -849,6 +861,7 @@ async function gravarObra(i,el){
     else if(tipo==="num") o[k]=el.value===""?null:Number(el.value);
     else if(tipo==="conta"){ o[k]=el.value; o.conta_alerta=(el.value==="CRIAR CONTA"||el.value==="DÚVIDA")?el.value:null; }
     else o[k]=el.value||null;
+    o._bt=null;
     toast(r.compat&&r.compat.criada?"Criado para esta obra: "+(r.compat.criadas||[]).join(" e ")+".":rot+" salvo.");
     pintarTabs(); if(ABA==="obras") pintarLista(); else if(ABA==="alertas") pintarAlertas();
     atualizarObraVivo(o.id);
@@ -979,6 +992,7 @@ async function executarAcao(atvId,acao,bt){
   for(let t=0;t<2&&!(r&&(r.ok||r.erro));t++){ try{ r=await chamar({action:"obraAtvAcao",pageId:atvId,acao:acao,opId:op},60000); }catch(e){ r=null; } }
   bt.disabled=false; bt.textContent=txt;
   if(r&&r.ok){
+    _IDXv=null;
     D.atividades.push({id:r.id,titulo:r.titulo,tipo:cfg.cria.tipo,status:"Não começou",resp:[],obra_id:r.obraId,
       data_criacao:r.dataInicio,data_inicio:r.dataInicio,data_final:r.dataFinal});
     toast(r.titulo+" criada. O responsável aparece no próximo build.");
@@ -1201,8 +1215,8 @@ function comentariosHtml(pageId){
           :`<a class="arq" href="${esc(a.url)}" target="_blank" rel="noopener">📎 ${esc(a.nome||"arquivo")}</a>`):"").join("")}</div>`).join("");
   return `<div class="com-lista">${lista}</div>
     <div class="com-form"><textarea id="ct-${pageId}" placeholder="Escreva um comentário…"></textarea>
-      <label class="bt ghost" style="cursor:pointer">📷 Anexar<input type="file" accept="image/*,application/pdf" style="display:none" onchange="comentarioArquivo('${pageId}',this)"></label>
-      <button class="bt" id="cb-${pageId}" onclick="enviarComentario('${pageId}')">Enviar</button>
+      <label class="bt ghost" style="cursor:pointer" title="Anexa uma imagem ou PDF ao comentário (até 8 MB)">📷 Anexar<input type="file" accept="image/*,application/pdf" style="display:none" onchange="comentarioArquivo('${pageId}',this)"></label>
+      <button class="bt" id="cb-${pageId}" title="Envia o comentário (e o anexo, se houver) para a página no Notion" onclick="enviarComentario('${pageId}')">Enviar</button>
       <div class="com-anexo" id="ca-${pageId}"></div></div>`;
 }
 async function carregarComentarios(pageId,boxId){
@@ -1256,7 +1270,7 @@ async function pintarContas(forcar){
     <div class="toolbar"><input class="busca" placeholder="Buscar conta…" value="${esc(CT_BUSCA)}" oninput="CT_BUSCA=this.value;clearTimeout(window._ctT);window._ctT=setTimeout(()=>{pintarContas();const b=document.querySelector('#view .busca');if(b){b.focus();b.setSelectionRange(b.value.length,b.value.length);}},200)">
       <select onchange="CT_FILTRO=this.value;pintarContas()" style="max-width:190px">
         ${[["ativas","Só ativas no ERP"],["inativas","Só as que sumiram do ERP"],["todas","Todas"]].map(([k,t])=>`<option value="${k}" ${CT_FILTRO===k?"selected":""}>${t}</option>`).join("")}</select>
-      <button class="bt ghost" onclick="pintarContas(true)">↻ Atualizar</button></div>
+      <button class="bt ghost" title="Recarrega as contas do Notion" onclick="pintarContas(true)">↻ Atualizar</button></div>
     <div class="ajuda" style="margin-bottom:8px">${nAp} conta(s) aparecendo para escolha na obra.${CTS.podeEditar?" Marque ou desmarque \"Aparece\" — grava na hora.":""}</div>
     <div class="tabela-wrap"><table><thead><tr><th class="stick">Conta</th><th>Aparece</th><th>Situação</th></tr></thead><tbody>${
       l.length?l.map(c=>`<tr><td class="stick">${esc(c.conta)}</td>
@@ -1292,8 +1306,8 @@ async function pintarInvestidores(forcar){
   const pode=INV.podeEditar;
   v.innerHTML=`<div class="sec"><span class="cond">Cadastros investidores</span><span class="qtd">${INV.linhas.length}</span></div>
     <div class="toolbar"><input class="busca" placeholder="Buscar nome, CPF/CNPJ…" value="${esc(INV_BUSCA)}" oninput="INV_BUSCA=this.value;clearTimeout(window._invT);window._invT=setTimeout(()=>{pintarInvestidores();const b=document.querySelector('#view .busca');if(b){b.focus();b.setSelectionRange(b.value.length,b.value.length);}},250)">
-      ${INV_SENS?`<span class="tag sim">CPFs carregados</span>`:`<button class="bt az" onclick="carregarSensInv(this)">🔓 Carregar CPFs</button>`}
-      <button class="bt ghost" onclick="pintarInvestidores(true)">↻ Atualizar</button></div>
+      ${INV_SENS?`<span class="tag sim">CPFs carregados</span>`:`<button class="bt az" title="Carrega CPF/CNPJ e data de nascimento. Fica registrado quem carregou." onclick="carregarSensInv(this)">🔓 Carregar CPFs</button>`}
+      <button class="bt ghost" title="Recarrega o cadastro do Notion" onclick="pintarInvestidores(true)">↻ Atualizar</button></div>
     ${pode?`<div class="ajuda" style="margin-bottom:8px">Você pode editar: a alteração grava no Notion ao sair do campo.</div>`:""}
     <div class="tabela-wrap"><table><thead><tr>${cols.map(c=>`<th class="${c.tipo==="title"?"stick":""}">${esc(c.nome)}</th>`).join("")}</tr></thead><tbody>${
       linhas.map(l=>`<tr>${cols.map(c=>{

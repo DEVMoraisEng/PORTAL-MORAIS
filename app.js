@@ -1011,3 +1011,97 @@ function aplicarEdicoesLocais(base, updatedAt, ler, gravar){
 
 /* ---------- service worker (abre offline) ---------- */
 if("serviceWorker" in navigator){ window.addEventListener("load", ()=>navigator.serviceWorker.register("sw.js").catch(()=>{})); }
+
+/* =======================================================================
+ * 23/09/26 — DICAS NOS BOTÕES E DESEMPENHO, EM TODAS AS TELAS
+ * -----------------------------------------------------------------------
+ * Vale para qualquer página que carregue o app.js. Duas coisas:
+ *
+ * 1) DICAS (tooltip + aria-label). Todo botão/aba/filtro sem `title` ganha
+ *    uma dica ao passar o mouse, dizendo o que ele faz. Os textos comuns do
+ *    portal ("Sair", "Cancelar", "↻ Sincronizar", "×"...) têm frases próprias;
+ *    abas viram "Abre a aba X", filtros viram "Filtra: X", e o resto usa o
+ *    próprio rótulo (útil quando ele está cortado numa tela pequena). Botão
+ *    só com ícone ganha um nome para leitor de tela. Um observador aplica o
+ *    mesmo aos botões desenhados depois (as telas montam o HTML por JS).
+ *
+ * 2) LISTAS GRANDES. Tabela com muitas linhas ganha `content-visibility`:
+ *    o navegador só desenha as linhas visíveis e as demais quando rolar.
+ *    Só entra em tabelas com 60+ linhas, para não mexer em nada pequeno.
+ * ===================================================================== */
+(function(){
+  if(typeof document==="undefined") return;
+  const DICAS={
+    "SAIR":"Sai do portal e encerra a sessão neste navegador",
+    "CANCELAR":"Fecha sem gravar nada",
+    "FECHAR":"Fecha este painel",
+    "X":"Fechar (Esc)",
+    "SALVAR":"Grava no Notion",
+    "SINCRONIZAR":"Busca no Notion os dados mais recentes",
+    "ATUALIZAR":"Recarrega os dados",
+    "ATUALIZAR DADOS AGORA":"Limpa o cache do servidor e pede um build do site — só ADM",
+    "TENTAR DE NOVO":"Tenta carregar novamente",
+    "VOLTAR":"Volta para a tela anterior",
+    "VOLTAR PARA O DASHBOARD":"Volta para a página inicial do portal",
+    "VOLTAR PARA POS OBRA":"Volta para a lista do pós obra",
+    "MARCAR TODAS":"Marca todas as opções da lista",
+    "ENVIAR":"Envia para o Notion",
+    "VISUALIZAR":"Abre o arquivo numa nova aba",
+    "ARQ.":"Abre a obra para ver os arquivos",
+    "ABRIR OBRA":"Abre o painel desta obra",
+    "CONFIRMAR DISTRATO":"Limpa os dados da venda e arquiva as atividades — não tem desfazer",
+    "CRIAR":"Grava no Notion",
+    "CRIAR OBRA":"Grava a obra e fecha o formulário",
+    "CRIAR E CONTINUAR":"Grava e deixa o formulário aberto para a próxima",
+    "NOVA OBRA":"Abre o formulário de obra nova",
+    "NOVO SERVICO":"Abre o formulário de chamado de pós obra",
+    "SERVICO DE POS OBRA":"Cria um chamado de assistência para esta obra",
+    "GERAR PDF":"Monta o PDF da proposta e guarda no Notion",
+    "COPIAR":"Copia para a área de transferência",
+    "WHATSAPP":"Abre a conversa no WhatsApp com o texto pronto",
+    "IMPRIMIR":"Abre a versão para impressão",
+    "EXPORTAR":"Baixa os dados em arquivo",
+    "DIAGNOSTICO":"Confere as colunas das bases no Notion e mostra o que falta",
+    "DAR BAIXA":"Marca a atividade como feita, gravando na obra",
+    "EXCLUIR":"Remove — no Notion fica na lixeira por 30 dias",
+    "ANEXAR":"Envia um arquivo para o Notion"
+  };
+  const N=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase()
+            .replace(/^[\s→←↻🔄✕×✓⚠📎👁🔓📷🌙+\-·•]+|[\s…:]+$/g,"").replace(/\s+/g," ").trim();
+  const POR_CLASSE=[
+    ["pfechar","Fechar (Esc)"],["hdr-fechar","Volta para a tela anterior"],["hdr-back","Volta para a tela anterior"],
+    ["btema","Alterna entre tema claro e escuro"],["bt-graf","Mostra ou esconde o gráfico"],
+    ["exp-toggle","Expande ou recolhe"],["gar-toggle","Mostra ou esconde os detalhes da garantia"],
+    ["gar-cab","Mostra ou esconde os detalhes"],["scard","Abre os detalhes"],["btn-sync","Busca no Notion os dados mais recentes"],
+    ["recarregar","Recarrega os dados"],["btn-volta-dash","Volta para a página inicial do portal"],
+    ["btn-voltar","Volta para a tela anterior"],["sair","Sai do portal e encerra a sessão neste navegador"]
+  ];
+  function dicaDe(el){
+    const cls=el.className||"";
+    for(const [c,t] of POR_CLASSE) if(el.classList.contains(c)) return t;
+    const txt=(el.innerText||el.textContent||"").trim(), n=N(txt);
+    if(DICAS[n]) return DICAS[n];
+    if(!txt||/^[^\wÀ-ÿ]{1,3}$/.test(txt)) return el.getAttribute("aria-label")||"";   // só ícone, sem rótulo conhecido
+    if(/\btab\b|sub-tab|nav-btn/.test(cls)) return "Abre: "+txt;
+    if(/seg-bt|\btg\b|\bsw\b|chip|filtro/.test(cls)) return "Filtra: "+txt;
+    if(/\bth\b/.test(el.tagName.toLowerCase())) return "Ordena por "+txt;
+    return txt;   // rótulo completo (útil quando cortado)
+  }
+  function aplicar(raiz){
+    (raiz||document).querySelectorAll("button:not([title]),[role=button]:not([title]),th.ord:not([title]),.tab:not([title]),.seg-bt:not([title])").forEach(el=>{
+      const t=dicaDe(el); if(!t) return;
+      el.title=t;
+      if(!el.getAttribute("aria-label")&&!(el.innerText||"").trim()) el.setAttribute("aria-label",t);
+    });
+    (raiz||document).querySelectorAll("table:not(.cv-rows)").forEach(tb=>{
+      if(tb.tBodies[0]&&tb.tBodies[0].rows.length>=60) tb.classList.add("cv-rows");
+    });
+  }
+  const css=document.createElement("style");
+  css.textContent=".cv-rows tbody tr{content-visibility:auto;contain-intrinsic-size:auto 44px}";
+  document.head.appendChild(css);
+  let agendado=false;
+  const obs=new MutationObserver(()=>{ if(agendado) return; agendado=true; requestAnimationFrame(()=>{ agendado=false; aplicar(); }); });
+  function iniciar(){ aplicar(); obs.observe(document.body,{childList:true,subtree:true}); }
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",iniciar); else iniciar();
+})();

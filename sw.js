@@ -104,10 +104,15 @@
 /* v32 -> v33: entrou a analise-dados.html (ANÁLISE DE DADOS, vinda do
    CONTROLES-INTERNOS) e o index.html ganhou o card dela. */
 /* v33 -> v34: entrou a obras.html (aba de OBRAS). */
-const CACHE = "portal-morais-v34";  // limpeza só dos caches do portal (não apaga os das RAS)
+/* v34 -> v35 (23/09/26): pacote de melhorias — app.js (dicas nos botões,
+   listas grandes, rotas de escrita das obras), obras.html, ligacoes.html,
+   pos-obra.html, simulacoes.html. Sem subir este número, o navegador de quem
+   já abriu o portal continua servindo as telas ANTIGAS do cache — e foi isso
+   que mostrou a lista de contas vazia depois de tudo publicado. */
+const CACHE = "portal-morais-v35";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
-                  "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html",
+                  "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",
                   "./app.js","./alertas-docs.js","./manifest.json"];
 
 self.addEventListener("install", e=>{

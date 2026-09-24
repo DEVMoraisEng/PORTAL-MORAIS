@@ -217,14 +217,14 @@ function pintar(d){
   document.getElementById("tela").innerHTML =
     secao("Hoje", d.hoje, hoje) +
     secao("Amanhã", d.amanha, amanha) +
-    '<button class="recarregar" onclick="carregar()">🔄 Atualizar</button>'+
+    '<button class="recarregar" title="Recarrega a agenda de hoje e amanhã" onclick="carregar()">🔄 Atualizar</button>'+
     '<div class="rodape">Morais Engenharia · Pós Obra</div>';
 }
 
 function erro(msg){
   document.getElementById("tela").innerHTML =
     '<div class="aviso">'+esc(msg)+'</div>'+
-    '<button class="recarregar" onclick="carregar()">🔄 Tentar de novo</button>';
+    '<button class="recarregar" title="Tenta carregar novamente" onclick="carregar()">🔄 Tentar de novo</button>';
 }
 
 async function carregar(){
