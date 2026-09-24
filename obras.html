@@ -224,6 +224,7 @@ html[data-tema="escuro"] .cb-op:hover,html[data-tema="escuro"] .cb-op.ativo{back
 .com-anexo{font-size:11.5px;color:var(--text3);width:100%}
 .ja-criado{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:rgba(42,157,92,.12);border:1px solid rgba(42,157,92,.35);color:var(--verde-esc);border-radius:10px;padding:10px 13px;font-weight:700;font-size:13px;margin-top:10px}
 .atv.fixa{outline:2px dashed rgba(42,157,92,.45)}
+.atv.saindo{transition:opacity .4s,transform .4s;opacity:0;transform:translateX(24px)}
 .inv-cel{min-width:130px}
 .inv-cel input,.inv-cel select{width:100%;padding:5px 7px;font-size:12.5px}
 .sens{letter-spacing:2px;color:var(--text4)}
@@ -355,7 +356,7 @@ html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
 </div>
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=32"></script>
+<script src="app.js?v=33"></script>
 <script>
 /* ---------- tema ---------- */
 const TEMA_KEY="morais_tema";
@@ -400,7 +401,42 @@ function contGuardar(id,blocos){
    da aba (item 4 — não somem no meio do preenchimento) */
 const FIXAS=new Set();
 const dataOk=d=>/^\d{4}-\d{2}-\d{2}$/.test(String(d||""))&&Number(String(d).slice(0,4))>=2000;
-const sumir=a=>N(a.status)==="FINALIZADO"&&dataOk(a.data_conclusao)&&!FIXAS.has(a.id);
+/* 24/09/26: Finalizado + data de conclusão = some. FIXAS não segura mais
+   (ela existia para não sumir no meio do preenchimento, mas meio preenchido
+   já não cumpre a regra de sumir). */
+const sumir=a=>N(a.status)==="FINALIZADO"&&dataOk(a.data_conclusao);
+
+/* ===================== PONTE DE EDIÇÕES (o valor não "volta") ===================
+   24/09/26 — O status voltava para o antigo depois de salvar. O Notion
+   gravava, mas duas leituras logo em seguida traziam o valor ANTERIOR:
+     - a consulta de atividades do Notion (obraVivo) demora alguns segundos
+       para enxergar a gravação;
+     - o dist/obras.json só muda no build seguinte.
+   Aqui é o mesmo mecanismo de Ligações e Vendas (registrarEdicao do app.js):
+   o que foi salvo fica guardado e é reaplicado por cima de qualquer cópia
+   que chegar, até o Notion devolver o mesmo valor — ou, se ele devolver
+   outro valor bem depois (alguém mudou no Notion), o Notion manda. */
+const ATV_PROP={"Status":"status","Data De Conclusão da Atividade":"data_conclusao","Data Final Prevista":"data_final","Data De Início":"data_inicio"};
+const PONTE_FOLGA=3*60*1000;
+function ponteGuardar(base,id,prop,valor){ try{ registrarEdicao(base,id,prop,valor); }catch(e){} }
+function ponteAplicar(base,lista,campoDe,publicadoEm){
+  let o; try{ o=edicoes(); }catch(e){ return; }
+  const pub=publicadoEm?tsPublicacao(publicadoEm):0, agora=Date.now(); let mudou=false;
+  const porId=new Map(lista.map(x=>[x.id,x]));
+  for(const k in o){
+    const e=o[k]; if(!e||e.b!==base) continue;
+    const alvo=porId.get(e.id), campo=campoDe(e.p);
+    if(!alvo||!campo) continue;
+    if(agora-e.ts>7*24*3600*1000){ delete o[k]; mudou=true; continue; }
+    if(iguaisEdicao(alvo[campo],e.v)){ delete o[k]; mudou=true; continue; }   // o Notion já tem
+    const idadeLeitura=pub||agora;
+    if(idadeLeitura>e.ts+PONTE_FOLGA){ delete o[k]; mudou=true; continue; }    // leitura bem posterior e diferente: vale o Notion
+    alvo[campo]=e.v;                                                           // ainda não chegou: fica o que foi salvo
+  }
+  if(mudou) edicoesGravar(o);
+}
+function ponteAtividades(publicadoEm){ ponteAplicar("obras-atv",D.atividades,p=>ATV_PROP[p],publicadoEm); D.atividades.forEach(a=>{ a.controle_prazo=prazoLocal(a); }); }
+function ponteObras(publicadoEm){ ponteAplicar("obras",D.obras,p=>{ const c=CAMPOS.find(x=>x[2]===p); return c&&c[3]!=="pessoa"?c[1]:null; },publicadoEm); }
 let INV=null, INV_SENS=null, INV_BUSCA="";
 /* cor por grupo de tipo (1.x, 2.x … 7) — mesma ideia das cores do Notion */
 const CORES_TIPO={1:"#2f6fb0",2:"#7b4fb3",3:"#2a9d5c",4:"#d27a1f",5:"#8a6d3b",6:"#c2477a",7:"#1c7c74"};
@@ -504,6 +540,7 @@ async function carregar(){
     const r=await fetch("dist/obras.json?v="+Math.floor(Date.now()/60000),{cache:"no-cache"});
     if(!r.ok) throw new Error("HTTP "+r.status);
     D=await r.json(); D.opcoes_atividades=D.opcoes_atividades||{};
+    ponteAtividades(D.updated_at); ponteObras(D.updated_at);
     /* 23/09/26: a tela abre sempre em OBRAS. Ao clicar em Atividades, a aba
        já entra nas atividades de quem está logado (ver pintarAtividades). */
     document.getElementById("updated").textContent="Atualizado: "+new Date(D.updated_at).toLocaleString("pt-BR");
@@ -664,9 +701,23 @@ async function gravarAtv(id,prop,valor,el){
     if(prop==="Data Final Prevista") a.data_final=valor||null;
     if(prop==="Data De Início") a.data_inicio=valor||null;
     if(r.conclusao) a.data_conclusao=r.conclusao;
+    ponteGuardar("obras-atv",id,prop,valor||null);
+    if(r.conclusao) ponteGuardar("obras-atv",id,"Data De Conclusão da Atividade",r.conclusao);
     a.controle_prazo=prazoLocal(a);           // já mostra certo; o Notion confirma logo abaixo
-    setTimeout(repintarSeguro,200);
-    toast("Salvo.");
+    /* 24/09/26 — STATUS Finalizado + DATA DE CONCLUSÃO preenchida = a
+       atividade sai da lista na hora (antes ela ficava até trocar de aba).
+       Enquanto só um dos dois estiver preenchido, ela continua na tela. */
+    const concluida=N(a.status)==="FINALIZADO"&&dataOk(a.data_conclusao);
+    if(concluida){
+      FIXAS.delete(id);
+      const lin=el&&el.closest(".atv");
+      if(lin&&!VER_FIN){ lin.classList.add("saindo"); setTimeout(repintarSeguro,450); }
+      else setTimeout(repintarSeguro,200);
+      toast(VER_FIN?"Atividade concluída.":"Atividade concluída — saiu da lista (marque \"incluir finalizadas\" para ver).");
+    } else {
+      setTimeout(repintarSeguro,200);
+      toast("Salvo.");
+    }
     /* item 2: a automação do Notion cria a próxima atividade (ex.: Armazenar
        projetos) alguns segundos depois da baixa — busca de novo até ela vir */
     const n0=D.atividades.filter(x=>x.obra_id===a.obra_id).length;
@@ -702,6 +753,7 @@ async function atualizarObraVivo(obraId){
     D.atividades=D.atividades.filter(x=>x.obra_id!==obraId||ids.has(x.id)||String(x.id).indexOf("tmp")===0);
     vindas.forEach(v=>{ const a=D.atividades.find(x=>x.id===v.id);
       if(a) Object.assign(a,v); else { D.atividades.push(v); novas.push(v); } });
+    ponteAtividades(null); ponteObras(null);   // leitura ao vivo pode vir atrasada: o que foi salvo prevalece
     _IDXv=null;   // índice por obra refeito na próxima pintura
     repintarSeguro();
     return novas;
@@ -861,6 +913,7 @@ async function gravarObra(i,el){
     else if(tipo==="num") o[k]=el.value===""?null:Number(el.value);
     else if(tipo==="conta"){ o[k]=el.value; o.conta_alerta=(el.value==="CRIAR CONTA"||el.value==="DÚVIDA")?el.value:null; }
     else o[k]=el.value||null;
+    if(tipo!=="pessoa") ponteGuardar("obras",o.id,col,o[k]);
     o._bt=null;
     toast(r.compat&&r.compat.criada?"Criado para esta obra: "+(r.compat.criadas||[]).join(" e ")+".":rot+" salvo.");
     pintarTabs(); if(ABA==="obras") pintarLista(); else if(ABA==="alertas") pintarAlertas();
