@@ -543,6 +543,13 @@ async function carregar(){
     if(!r.ok) throw new Error("HTTP "+r.status);
     D=await r.json(); D.opcoes_atividades=D.opcoes_atividades||{};
     ponteAtividades(D.updated_at); ponteObras(D.updated_at);
+    /* 25/09/26 — a lista de contas já vem no arquivo publicado: o formulário
+       abre com ela na hora. O servidor só confere depois (carregarContas). */
+    if(Array.isArray(D.contas)&&D.contas.length&&(!CONTAS||!CONTAS.length||!_contasFresco)){
+      CONTAS=D.contas; CONTAS_AVISO="";
+      try{ localStorage.setItem(CONTAS_KEY,JSON.stringify({t:Date.now(),l:CONTAS})); }catch(e){}
+      if(document.getElementById("mf").classList.contains("on")){ preencherSelConta(); aplicarCombos(document.getElementById("mf")); }
+    }
     /* 23/09/26: a tela abre sempre em OBRAS. Ao clicar em Atividades, a aba
        já entra nas atividades de quem está logado (ver pintarAtividades). */
     document.getElementById("updated").textContent="Atualizado: "+new Date(D.updated_at).toLocaleString("pt-BR");
@@ -1189,8 +1196,8 @@ async function carregarContas(forcar){
   if(_contasEmVoo) return _contasEmVoo;
   if(!forcar && Date.now()-_contasFresco<5*60000) return;
   _contasEmVoo=(async()=>{
-    let r; try{ r=await chamar({action:"contasBancarias"},45000); }catch(e){ r=null; }
-    if(r&&r.ok&&Array.isArray(r.contas)){
+    let r; try{ r=await chamar({action:"contasBancarias"},30000,true); }catch(e){ r=null; }
+    if(r&&r.ok&&Array.isArray(r.contas)&&(r.contas.length||!(D&&Array.isArray(D.contas)&&D.contas.length))){
       CONTAS=r.contas; CONTAS_AVISO=""; _contasFresco=Date.now(); _contasTent=0;
       try{ localStorage.setItem(CONTAS_KEY,JSON.stringify({t:Date.now(),l:CONTAS})); }catch(e){}
     } else if(!CONTAS||!CONTAS.length){
@@ -1434,12 +1441,18 @@ async function enviarComentario(pageId){
 let CTS=null, CT_FILTRO="ativas", CT_BUSCA="";
 async function pintarContas(forcar){
   const v=document.getElementById("view");
-  if(!CTS||forcar){
-    v.innerHTML=`<div class="sec"><span class="cond">Contas bancárias</span></div><div class="vazio"><span class="load"></span> Carregando contas…</div>`;
-    let r; try{ r=await chamar({action:"contasTodas"},60000); }catch(e){ r={ok:false,erro:"sem conexão"}; }
-    if(!(r&&r.ok)){ v.innerHTML=`<div class="sec"><span class="cond">Contas bancárias</span></div><div class="vazio">Não carregou: ${esc(errMsg(r))}</div>`; return; }
-    CTS=r;
+  /* 25/09/26 — a aba abre NA HORA com a lista publicada no arquivo (build);
+     o servidor confere por trás e, se responder, a tabela se atualiza. Antes
+     ela ficava presa em "Carregando contas…" esperando o Apps Script. */
+  if(!CTS&&D&&Array.isArray(D.contas_todas)&&D.contas_todas.length){
+    const s0=sessao()||{}, adm=["ADM","MASTER"].indexOf(String(s0.tipo||"").toUpperCase())>=0;
+    CTS={ok:true,contas:D.contas_todas.map(c=>Object.assign({},c)),podeEditar:adm,doArquivo:true};
   }
+  if(!CTS){
+    v.innerHTML=`<div class="sec"><span class="cond">Contas bancárias</span></div><div class="vazio"><span class="load"></span> Carregando contas…</div>`;
+    await ctBuscar(true);
+    if(!CTS){ v.innerHTML=`<div class="sec"><span class="cond">Contas bancárias</span></div><div class="vazio">Não carregou agora. <button class="bt bt-mini ghost" onclick="pintarContas(true)">Tentar de novo</button></div>`; return; }
+  } else if(forcar||CTS.doArquivo) ctBuscar(forcar);      // confere por trás, sem travar a tela
   if(ABA!=="contas") return;
   const ativa=c=>N(c.situacao).indexOf("SUMIU")<0, q=N(CT_BUSCA);
   let l=CTS.contas.filter(c=>(CT_FILTRO==="todas"||(CT_FILTRO==="ativas"?ativa(c):!ativa(c))) && (!q||N(c.conta).indexOf(q)>=0));
@@ -1455,6 +1468,14 @@ async function pintarContas(forcar){
         <td><input type="checkbox" ${c.aparece?"checked":""} ${CTS.podeEditar?"":"disabled"} onchange="marcarAparece('${c.id}',this)"></td>
         <td>${ativa(c)?`<span class="tag sim">${esc(c.situacao||"Ativa")}</span>`:`<span class="tag nao">${esc(c.situacao)}</span>`}</td></tr>`).join("")
       :`<tr><td colspan="3" class="vazio">Nenhuma conta neste filtro.</td></tr>`}</tbody></table></div>`;
+}
+let CT_BUSCANDO=false;
+async function ctBuscar(avisar){
+  if(CT_BUSCANDO) return; CT_BUSCANDO=true;
+  let r; try{ r=await chamar({action:"contasTodas"},30000,true); }catch(e){ r=null; }
+  CT_BUSCANDO=false;
+  if(r&&r.ok&&Array.isArray(r.contas)&&r.contas.length){ CTS=r; if(ABA==="contas") pintarContas(); return; }
+  if(CTS){ CTS.doArquivo=false; if(avisar) toast("Não consegui atualizar agora — mostrando a última lista publicada."); }
 }
 async function marcarAparece(id,el){
   const c=CTS&&CTS.contas.find(x=>x.id===id); if(!c) return;

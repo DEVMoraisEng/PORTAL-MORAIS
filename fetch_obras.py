@@ -175,6 +175,10 @@ def pega(ip, *nomes):
     return None
 
 
+# banco CONTAS BANCÁRIAS (mantido pelo robo_mc_contas.py) — id não é segredo
+CONTAS_DB_ID = os.environ.get("CONTAS_DB_ID", "").strip() or "3e4c5ab532d380afbd3bf9f7af31d2a7"
+
+
 def main():
     if not TOKEN:
         raise SystemExit("Falta o secret NOTION_TOKEN.")
@@ -299,8 +303,38 @@ def main():
         print(f"  cadastro de proprietários não lido: {e}", flush=True)
     proprietarios = sorted(set(proprietarios), key=norm)
 
+    # 25/09/26 — lista de CONTAS BANCÁRIAS para a escolha na obra, pronta no
+    # arquivo (a tela abre já com ela, sem esperar o Apps Script). Vai SÓ o
+    # nome da opção — o mesmo texto que aparece na coluna CONTA da obra —
+    # das contas marcadas "Aparece" e ativas no ERP. Nada de banco, agência,
+    # número ou id do ERP.
+    # contas_todas alimenta a aba "Contas bancárias" (Conta, Aparece,
+    # Situação) — também só nome, marcação e situação.
+    contas, contas_todas = [], []
+    try:
+        for pg in ler_banco(CONTAS_DB_ID, "CONTAS BANCÁRIAS"):
+            ip = pg.get("properties") or {}
+            ap = pega(ip, "Aparece")
+            aparece = bool(ap and ap.get("type") == "checkbox" and ap.get("checkbox"))
+            situacao = (txt(pega(ip, "Situação no ERP")) or "").strip()
+            tit = next((v for v in ip.values() if v.get("type") == "title"), None)
+            titulo = (txt(tit) or "").strip()
+            if not titulo:
+                continue
+            contas_todas.append({"id": pg["id"], "conta": titulo, "aparece": aparece, "situacao": situacao})
+            if not aparece or "SUMIU" in norm(situacao):
+                continue
+            nome = (txt(pega(ip, "Nome na obra")) or "").strip() or " ".join(titulo.replace(",", " ").split())[:100]
+            contas.append({"opcao": nome})
+    except SystemExit as e:
+        print(f"  contas bancárias não lidas: {e}", flush=True)
+    contas.sort(key=lambda c: norm(c["opcao"]))
+    contas_todas.sort(key=lambda c: norm(c["conta"]))
+
     gravar("obras.json", {
         "updated_at": datetime.now(timezone.utc).isoformat(),
+        "contas": contas,
+        "contas_todas": contas_todas,
         "obras": obras,
         "atividades": atividades,
         "opcoes": {k: v for k, v in opcoes.items() if norm(k) not in PROIBIDAS},
@@ -308,7 +342,7 @@ def main():
         "proprietarios": proprietarios,
         "pessoas": sorted([{"id": k, "nome": v} for k, v in pessoas.items()], key=lambda x: norm(x["nome"])),
     })
-    print(f"obras.json: {len(obras)} obras, {len(atividades)} atividades, {len(pessoas)} pessoas", flush=True)
+    print(f"obras.json: {len(obras)} obras, {len(atividades)} atividades, {len(pessoas)} pessoas, {len(contas)} contas", flush=True)
 
 
 if __name__ == "__main__":
