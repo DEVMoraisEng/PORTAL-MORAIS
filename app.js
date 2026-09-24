@@ -305,9 +305,25 @@ async function _chamarDireto(payload, timeoutMs){
   const s=sessao(); if(s&&s.token&&!payload.token) payload.token=s.token;
   const ctrl=new AbortController();
   const timer=setTimeout(()=>ctrl.abort(), timeoutMs||45000); // evita "Carregando…" travado pra sempre
+  /* 25/09/26 — O Google às vezes devolve uma PÁGINA DE ERRO (HTML, 404 na
+     etapa "echo") em vez da resposta, mesmo com a execução concluída — é
+     intermitente: repetido na hora, responde normal. Antes isso virava "não
+     consegui falar com o servidor" e a gravação ia parar na fila. Agora a
+     leitura e a gravação de campo (que dá no mesmo se repetir) são refeitas
+     sozinhas até 2 vezes. Ação que NÃO pode repetir (criar, enviar e-mail,
+     comentar, gerar link/PDF) continua falhando na primeira, como antes. */
+  const acao=String((payload&&payload.action)||"");
+  const repetivel=!/(Novo|Nova|Criar|criar|Email|Enviar|Acao|Ligacoes|Link|Pdf|Distrato|distrato|Refazer|Setup|aixa|pload|Anexar|xcluir|Liberar)/.test(acao);
   try{
-    const r=await fetch(urlDe(payload && payload.action),{ method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, body:JSON.stringify(payload), signal:ctrl.signal });
-    return await r.json();
+    for(let tent=0;;tent++){
+      const r=await fetch(urlDe(acao),{ method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, body:JSON.stringify(payload), signal:ctrl.signal });
+      const txt=await r.text();
+      try{ return JSON.parse(txt); }
+      catch(e){
+        if(!repetivel||tent>=2) throw new Error("RESPOSTA_INVALIDA ("+r.status+")");
+        await new Promise(ok=>setTimeout(ok, tent?1500:700));
+      }
+    }
   } finally { clearTimeout(timer); }
 }
 
