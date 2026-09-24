@@ -283,6 +283,19 @@ html[data-tema="escuro"] tbody tr.sep td{color:var(--teal)}
 tbody tr.sep:hover td{background:var(--bg3)}
 tbody tr.clicavel{cursor:pointer}
 tbody tr.clicavel:hover td{background:var(--bg3)}
+/* r47 (item 5) — simulação/proposta que chegou com a unidade JÁ RESERVADA */
+tbody tr.linha-res td{background:#DCEAF7}
+tbody tr.linha-res td:first-child{box-shadow:inset 4px 0 0 #1F6FB2}
+tbody tr.linha-res:hover td{background:#C9DDF1}
+html[data-tema="escuro"] tbody tr.linha-res td{background:rgba(31,111,178,.26)}
+html[data-tema="escuro"] tbody tr.linha-res:hover td{background:rgba(31,111,178,.38)}
+.leg-res{display:inline-block;width:10px;height:10px;background:#DCEAF7;border:1px solid #1F6FB2;
+  border-radius:2px;vertical-align:middle}
+.aviso-res{margin:12px 0 0;padding:10px 12px;border-radius:8px;background:#EAF2FA;border:1px solid #BBD5EC;
+  border-left:4px solid #1F6FB2;color:#1F4E79;font-size:13px;line-height:1.5}
+html[data-tema="escuro"] .aviso-res{background:rgba(31,111,178,.18);border-color:rgba(31,111,178,.5);color:#cfe3f6}
+.corresp-bt{min-width:150px;text-align:left;line-height:1.25}
+.corresp-bt small{display:block;font-weight:400;font-size:11px;opacity:.75}
 /* chip da data da extração — antes era um texto solto no canto, que não
    parecia parte de nada. Mesmo formato do "Última atualização" das outras
    telas. */
@@ -449,6 +462,10 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
             <button class="bt ghost" onclick="simCarregar(true)" title="Ignora o cache e busca no Notion agora">↻ Atualizar agora</button>
             <button class="bt az" id="sim-btRefazerErros" onclick="simRefazerErros()"
                     title="Devolve para a fila TODAS as simulações com erro">↻ Rodar de novo as com erro <span id="sim-qtdErros"></span></button>
+            <span style="font-size:12px;color:var(--text3);align-self:center">
+              <span class="leg-res"></span>
+              linha azul = simulação feita com a unidade já <b>reservada</b> (proposta só é analisada se houver desistência)
+            </span>
           </div>
           <div id="sim-avisoErros" class="sim-aviso" style="margin:0 0 10px"></div>
           <div class="tbl-wrap alta"><table id="sim-tabRec"></table></div>
@@ -499,9 +516,17 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
             <div class="fcampo"><label>Buscar</label>
               <input type="search" id="prop-busca" placeholder="Cliente, CPF, unidade ou corretor…" oninput="propRender()"></div>
             <button class="bt ghost" onclick="propCarregar(true)">↻ Atualizar agora</button>
+            <div class="fcampo"><label>Ordem</label>
+              <div class="seg" id="seg-ordem">
+                <button class="seg-bt on" data-po="asc" onclick="propOrdenar('asc')" title="Padrão: a que chegou primeiro fica no topo">↑ Mais antigas primeiro</button>
+                <button class="seg-bt" data-po="desc" onclick="propOrdenar('desc')">↓ Mais novas primeiro</button>
+              </div></div>
             <span style="font-size:12px;color:var(--text3);align-self:center">
               <span style="display:inline-block;width:10px;height:10px;background:#F6D6D2;border:1px solid #D98A80;border-radius:2px;vertical-align:middle"></span>
               linha vermelha = reservada há mais de 24 h
+              &nbsp;·&nbsp;
+              <span class="leg-res"></span>
+              linha azul = proposta enviada com a unidade já <b>reservada</b> (só é analisada se houver desistência)
             </span>
           </div>
           <div style="font-size:12px;color:var(--text3);margin:0 0 6px" id="prop-origem"></div>
@@ -1173,7 +1198,7 @@ function simRenderRecebidas(){
       `<tbody><tr><td colspan="${SIM_COLS_REC.length}" style="text-align:center;color:var(--text3);padding:22px">Nenhuma simulação encontrada.</td></tr></tbody>`;
     return;
   }
-  const corpo=vis.map(s=>`<tr class="clicavel" onclick="simVerDet('${s.id}')">
+  const corpo=vis.map(s=>`<tr class="clicavel${chegouReservada(s,false)?' linha-res':''}"${chegouReservada(s,false)?' title="Simulação feita com a unidade já reservada"':''} onclick="simVerDet('${s.id}')">
     <td>${esc(s.cliente||"—")}</td><td class="col-un">${esc(s.cpf||"—")}</td>
     <td>${esc(s.corretor||"—")}</td><td>${esc(s.imobiliaria||"—")}</td>
     <td>Un. ${esc(String(s.unidade||"—"))} <span style="color:var(--text3)">(T${esc(String(s.tipo||"—"))})</span></td>
@@ -1724,10 +1749,49 @@ let propFiltro = "";
 /* Filtro separado do de andamento: uma proposta pode ser RECEBIDA e ter
    carta, ou RECEBIDA e não ter. São dois eixos diferentes. */
 let propFiltroCredito = "";
+/* r47 (item 4) — ordem da lista: a mais antiga no topo é o padrão */
+let propOrdem = "asc";
 const PROP_TTL = 60*1000;   // r40 — era 5 min; a aba parecia parada no tempo
 
 const PROP_NORM = t => String(t==null?"":t).normalize("NFD").replace(/[\u0300-\u036f]/g,"")
                         .toUpperCase().replace(/\s+/g," ").trim();
+
+/* ---------- r47 (item 5) — chegou com a unidade JÁ RESERVADA? ----------
+ * O site do simulador grava isso no envio (DADOS.unidadeReservada). Para o
+ * que chegou antes dessa versão, a resposta sai do histórico: existe uma
+ * proposta ACEITA/RESERVADA desta unidade anterior a este registro? */
+function reservaDesde(un, excetoId){
+  const alvo=String(un==null?"":un).trim(); if(!alvo) return null;
+  let menor=null;
+  PROPS.forEach(p=>{
+    if(p.id===excetoId || String(p.unidade==null?"":p.unidade).trim()!==alvo) return;
+    const st=PROP_NORM(p.status);
+    if(st!=="ACEITA" && st!=="RESERVADA") return;
+    const t=new Date(p.dataReserva||p.dataAceite||p.criadoEm||0).getTime();
+    if(t && (menor===null || t<menor)) menor=t;
+  });
+  return menor;
+}
+function chegouReservada(reg, ehProposta){
+  if(!reg) return false;
+  let flag = reg.unidadeReservada;
+  if(flag===undefined || flag===null) flag = reg.dados ? reg.dados.unidadeReservada : undefined;
+  if(flag===true) return true;
+  if(flag===false) return false;
+  if(ehProposta){
+    const st=PROP_NORM(reg.status);
+    if(st==="ACEITA" || st==="RESERVADA") return false;   // é ela que reservou
+  }
+  const desde=reservaDesde(reg.unidade, reg.id);
+  if(desde===null) return false;
+  const t=new Date(reg.criadoEm||0).getTime();
+  return !!t && t>desde;
+}
+function propOrdenar(v){
+  propOrdem = (v==="desc") ? "desc" : "asc";
+  document.querySelectorAll("#seg-ordem .seg-bt").forEach(b=>b.classList.toggle("on", b.dataset.po===propOrdem));
+  propRender();
+}
 
 /* ---------- carregar ---------- */
 async function propCarregar(forcar){
@@ -1775,6 +1839,9 @@ function propPintar(r){
   if(!r || !r.propostas) return;
   PROPS = r.propostas;
   propRender(); propKpis(); propRankings(); propAlerta24(); analiseRender();
+  /* r47 — as simulações antigas decidem a linha azul pelo histórico das
+     propostas; com as propostas carregadas, a tabela delas é redesenhada. */
+  try{ if(SIMS.length) simRenderRecebidas(); }catch(e){}
   /* r40 — de onde veio a lista: Notion agora ou cache (com a hora), e qual
      base foi lida. Se a base aqui não for a mesma do simulador, as propostas
      novas nunca apareceriam — e não havia como perceber. */
@@ -1837,12 +1904,17 @@ function propRender(){
     if(propFiltroCredito==="NAO" && p.comCredito) return false;
     return !propFiltro || PROP_NORM(p.status)===propFiltro;
   });
+  /* r47 (item 4) — ordem pela data de chegada; padrão: mais antiga no topo */
+  const tempo = p => new Date(p.criadoEm||0).getTime() || 0;
+  vis.sort((a,b)=> propOrdem==="desc" ? tempo(b)-tempo(a) : tempo(a)-tempo(b));
   /* estilo do editor injetado uma vez */
   propEstiloEditor();
   const cab='<thead><tr><th>Proposta</th><th>Unidade</th><th>Cliente</th><th>CPF</th>'+
             '<th>Corretor</th><th>Imobiliária</th><th>Crédito Caixa</th>'+
             '<th class="col-num">Valor</th><th class="col-num">Entrada</th>'+
-            '<th class="col-num">Renda</th><th>Sinal</th><th>Criada</th><th>Status</th></tr></thead>';
+            '<th class="col-num">Renda</th><th>Sinal</th>'+
+            '<th style="cursor:pointer" title="Clique para inverter a ordem" onclick="propOrdenar(propOrdem===\'asc\'?\'desc\':\'asc\')">'+
+            'Criada <span class="arr">'+(propOrdem==="desc"?"▼":"▲")+'</span></th><th>Status</th></tr></thead>';
   if(!vis.length){
     document.getElementById("prop-tab").innerHTML=cab+
       '<tbody><tr><td colspan="13" style="text-align:center;color:var(--text3);padding:22px">Nenhuma proposta encontrada.</td></tr></tbody>';
@@ -1850,8 +1922,9 @@ function propRender(){
   }
   const corpo=vis.map(p=>{
     const venc=propVencida(p);
+    const res=!venc && chegouReservada(p,true);
     const estilo = venc ? ' style="background:#F6D6D2"' : '';
-    return `<tr class="clicavel"${estilo} onclick="propVer('${p.id}')">
+    return `<tr class="clicavel${res?' linha-res':''}"${estilo}${res?' title="Enviada com a unidade já reservada — só é analisada se houver desistência"':''} onclick="propVer('${p.id}')">
       <td><b>${esc(p.proposta||"—")}</b></td>
       <td>Un. ${esc(String(p.unidade||"—"))}</td>
       <td>${esc(p.cliente||"—")}</td><td class="col-un">${esc(p.cpf||"—")}</td>
@@ -2065,6 +2138,9 @@ function propVer(id){
     <div class="modal-tit">${esc(p.cliente||"—")} · Un. ${esc(String(p.unidade||"—"))}</div>
     <div class="modal-sub">${esc(p.proposta||"")} · CPF ${esc(p.cpf||"—")} · ${simData(p.criadoEm)} · ${propTag(p.status)}
       ${h!==null?` · reservada há ${Math.floor(h)} h`:""}</div>
+    ${chegouReservada(p,true)?`<div class="aviso-res"><b>Unidade já reservada no envio.</b>
+      Esta proposta chegou quando a unidade ${esc(String(p.unidade||""))} já estava reservada —
+      ela só é analisada caso haja desistência da reserva atual.</div>`:""}
     ${propQuadroFluxo(p)}
     <div class="sim-grade" style="margin-top:14px">
       ${it("Corretor",esc(p.vendedor||""))}${it("CRECI",esc(p.creci||""))}${it("Imobiliária",esc(p.imobiliaria||""))}
@@ -2113,6 +2189,19 @@ function propVer(id){
         O PDF sai no formato da proposta em papel, é baixado na hora e fica guardado
         na coluna PDF do Notion.
       </div>
+    </div>
+
+    <!-- r47 (item 1) — documentação para o correspondente -->
+    <div style="margin-top:16px"><b style="font-size:13px;color:var(--azul)">Enviar documentação ao correspondente</b>
+      <div id="prop-corresp" style="display:flex;gap:9px;margin-top:8px;flex-wrap:wrap;align-items:center">
+        ${propBotoesCorresp(p.id, PROP_CORRESP_PADRAO)}
+      </div>
+      <div id="prop-correspInfo" style="font-size:12px;color:var(--text3);margin-top:6px"></div>
+      <div style="font-size:12px;color:var(--text3);margin-top:6px">
+        Vai o <b>PDF da proposta</b> (gerado na hora, com os dados atuais) e <b>todos os documentos anexados</b>.
+        No corpo do e-mail vai o cabeçalho desta proposta. Cópia para vendasreservadosipes@gmail.com.
+      </div>
+      <div id="prop-correspHist" style="font-size:12px;margin-top:6px">${propHistCorresp(p.envioCorrespondente)}</div>
     </div>
 
     <!-- ITEM 5 — quadro do e-mail: assunto, barra de formatação (negrito,
@@ -2272,6 +2361,14 @@ async function propCarregarDetalhe(id){
     : '';
 
   alvo.innerHTML = cxPend + cxDocs + cxCampos + cxPdf;
+  /* r47 (item 1) — a lista de correspondentes vem do servidor (é lá que o
+     TESTE sai quando não precisar mais) */
+  PROP_ARQ_TOTAL[id] = Number(r.arquivosTotal)||0;
+  const cxC=document.getElementById("prop-corresp");
+  if(cxC && r.correspondentes && r.correspondentes.length && !cxC.dataset.enviando)
+    cxC.innerHTML = propBotoesCorresp(id, r.correspondentes);
+  const cxCH=document.getElementById("prop-correspHist");
+  if(cxCH && r.envioCorrespondente!==undefined) cxCH.innerHTML = propHistCorresp(r.envioCorrespondente);
   /* r53 — a conversa mora abaixo do campo de resposta, não aqui. */
   const cxH = document.getElementById("prop-hist");
   if(cxH) cxH.innerHTML = cxHist;
@@ -2305,6 +2402,72 @@ async function propPdf(id){
   info.innerHTML = "PDF gerado e baixado." + (r.guardado ? " Também "+esc(r.guardado)+"."
     : (r.erroUpload ? ' <span style="color:#C0392B">Não foi para o Notion: '+esc(r.erroUpload)+'</span>' : ""));
   propCarregarDetalhe(id);
+}
+
+/* ---------- r47 (item 1) — documentação para o correspondente ----------
+ * A tela manda só a CHAVE; o endereço é resolvido no servidor. A lista
+ * abaixo é o que aparece enquanto o detalhe não chega — depois quem manda é
+ * a lista do servidor (SIM_CORRESPONDENTES_ no Simulacoes.gs). */
+const PROP_CORRESP_PADRAO = [
+  {chave:"AUDICRED", nome:"AUDICRED", email:"audicred.aprovacoes@gmail.com"},
+  {chave:"DANIELA",  nome:"DANIELA",  email:"analises@amazonasintermedicoes.com"},
+  {chave:"TESTE",    nome:"TESTE",    email:"felipebercan@gmail.com"}
+];
+const PROP_ARQ_TOTAL = {};
+function propBotoesCorresp(id, lista){
+  return (lista||[]).map(c=>
+    `<button class="bt az corresp-bt" data-chave="${esc(c.chave)}"
+       onclick="propEnviarCorresp('${id}','${esc(c.chave)}','${esc(c.nome)}','${esc(c.email)}')">
+       ✉ ${esc(c.nome)}<small>${esc(c.email)}</small></button>`).join("");
+}
+function propHistCorresp(txt){
+  const linhas=String(txt||"").split(/\n+/).map(t=>t.trim()).filter(Boolean);
+  if(!linhas.length) return '<span style="color:var(--text3)">Ainda não enviada a nenhum correspondente.</span>';
+  return '<b style="color:var(--text2)">Já enviada:</b><br>'+linhas.slice(0,6).map(esc).join("<br>")+
+         (linhas.length>6?'<br><span style="color:var(--text3)">+ '+(linhas.length-6)+' envio(s) antigo(s)</span>':'');
+}
+async function propEnviarCorresp(id, chave, nome, email){
+  const p=PROPS.find(x=>x.id===id)||{};
+  const cx=document.getElementById("prop-corresp");
+  const info=document.getElementById("prop-correspInfo");
+  if(!cx || cx.dataset.enviando) return;
+  const n=PROP_ARQ_TOTAL[id];
+  const hist=String((document.getElementById("prop-correspHist")||{}).textContent||"");
+  const jaFoi = hist.indexOf("· "+nome+" (")>=0;
+  if(!confirm("Enviar a documentação da proposta "+(p.proposta||"")+" ("+(p.cliente||"")+" · Un. "+(p.unidade||"")+")\n"+
+              "para "+nome+" — "+email+"?\n\n"+
+              "Vai o PDF da proposta"+(n===undefined?" e os documentos anexados":" + "+n+" documento(s) anexado(s)")+"."+
+              (jaFoi?"\n\nATENÇÃO: esta proposta JÁ foi enviada para "+nome+" antes.":""))) return;
+  cx.dataset.enviando="1";
+  cx.querySelectorAll("button").forEach(b=>b.disabled=true);
+  info.innerHTML='<span class="load"></span> Gerando o PDF, juntando os documentos e enviando para <b>'+esc(nome)+'</b>… (pode levar até 1 minuto)';
+  let r;
+  try{ r = await chamar({action:"simsEnviarCorrespondente", pageId:id, correspondente:chave}, 240000, true); }
+  catch(e){
+    delete cx.dataset.enviando; cx.querySelectorAll("button").forEach(b=>b.disabled=false);
+    info.innerHTML='<span style="color:#C0392B"><b>Não recebi a confirmação.</b> O e-mail pode ter saído — confira a cópia em '+
+      'vendasreservadosipes@gmail.com antes de enviar de novo.</span>';
+    return;
+  }
+  delete cx.dataset.enviando; cx.querySelectorAll("button").forEach(b=>b.disabled=false);
+  if(!r || !r.ok){
+    const e=String(r&&r.erro||"");
+    info.innerHTML='<span style="color:#C0392B">'+
+      (e==="MODO_TESTE" ? "Perfil TESTES não envia e-mail."
+       : e==="SEM_PERMISSAO_EMAIL" ? "O Apps Script do portal ainda não tem permissão de enviar e-mail: rode <b>autorizarEnvioDeEmail</b> no editor (uma vez)."
+       : e==="CORRESPONDENTE_INVALIDO" ? "Correspondente não reconhecido pelo servidor — publique a versão nova do Simulacoes.gs."
+       : e.indexOf("ACAO_DESCONHECIDA")>=0 ? propErro(e)
+       : "Não enviou: "+esc(e||"erro desconhecido"))+'</span>';
+    return;
+  }
+  info.innerHTML='<span style="color:#1D7A45"><b>✓ Enviado para '+esc(r.correspondente)+'</b> ('+esc(r.para)+') — '+
+    r.anexos+' anexo(s)'+(r.partes>1?' em '+r.partes+' e-mails (tamanho)':'')+'.</span>'+
+    ((r.naoAnexados&&r.naoAnexados.length)?'<br><span style="color:#C0392B">Não foram anexados: '+r.naoAnexados.map(esc).join(" · ")+'</span>':'')+
+    (r.aviso?'<br><span style="color:#C0392B">'+esc(r.aviso)+'</span>':'');
+  if(r.registro!==undefined){
+    const h=document.getElementById("prop-correspHist"); if(h) h.innerHTML=propHistCorresp(r.registro);
+    if(p) p.envioCorrespondente=r.registro;
+  }
 }
 
 function propParseEsquema(txt){
