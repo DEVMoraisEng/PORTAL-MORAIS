@@ -357,7 +357,7 @@ html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
 </div>
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=36"></script>
+<script src="app.js?v=37"></script>
 <script>
 /* ---------- tema ---------- */
 const TEMA_KEY="morais_tema";
@@ -1001,8 +1001,10 @@ function abrirAtv(id){
   ATV=id; CONT=CONT_MEM[id]||null; pintarAtvPainel();
   document.getElementById("ov2").classList.add("on"); document.getElementById("p2").classList.add("on");
   /* já tem cópia de menos de 2 min (pré-carregada ao abrir a obra): não pede de novo */
-  if(!CONT&&LOTE_ANDANDO.has(id)){}          // o pré-carregamento já está trazendo
-  else if(!CONT||Date.now()-(CONT.t||0)>120000) carregarConteudo(id);
+  /* 24/09/26: a atividade aberta NUNCA espera o pré-carregamento — pede o
+     conteúdo dela na hora, com prioridade na fila. Se já tem cópia, mostra a
+     cópia e confere por trás. */
+  if(!CONT||Date.now()-(CONT.t||0)>120000) carregarConteudo(id);
   carregarComentarios(id,"com-atv");
 }
 function fecharAtv(){ ATV=null; document.getElementById("ov2").classList.remove("on"); document.getElementById("p2").classList.remove("on"); }
@@ -1021,13 +1023,19 @@ function pintarAtvPainel(){
     <div class="ri"><div class="k">Conclusão</div><input type="date" value="${esc(a.data_conclusao||"")}" onchange="gravarAtv('${a.id}','Data De Conclusão da Atividade',this.value,this)"></div>
     </div>${acoesHtml(a)}<div class="grp">Checklist e conteúdo</div><div id="p2-cont">${
       CONT===null?`<div class="cont"><span class="load"></span> Carregando o conteúdo da atividade…</div>`
-      :CONT.erro?`<div class="cont" style="color:var(--verm)">Não consegui carregar: ${esc(CONT.erro)}</div>`
+      :CONT.erro?`<div class="cont" style="color:var(--verm)">Não consegui carregar: ${esc(CONT.erro)}
+          <button class="bt bt-mini ghost" style="margin-left:8px" title="Pede o conteúdo de novo ao servidor" onclick="CONT=null;pintarAtvPainel();carregarConteudo('${a.id}')">Tentar de novo</button></div>`
       :conteudoHtml(CONT.blocos)}</div>
     <div class="grp">Comentários e imagens</div><div class="pl" id="com-atv">${comentariosHtml(a.id)}</div>`;
   document.getElementById("p2-corpo").innerHTML=h;
 }
-async function carregarConteudo(id){
-  let r; try{ r=await chamar({action:"obraAtvConteudo",pageId:id},60000); }catch(e){ r={ok:false,erro:"sem conexão"}; }
+async function carregarConteudo(id, tentativa){
+  /* 24/09/26: 25 s por tentativa e UMA nova tentativa automática (antes: 60 s
+     parado e depois "não respondeu"). Na falha, a tela oferece tentar de novo. */
+  /* prioritário: passa na frente do pré-carregamento na fila do navegador, e
+     vai à LEITURA, que é onde o aquecimento deixa o conteúdo pronto no cache */
+  let r; try{ r=await chamar({action:"obraAtvConteudo",pageId:id},25000,true); }catch(e){ r={ok:false,erro:"sem conexão"}; }
+  if(!(r&&r.ok)&&!tentativa&&ATV===id){ return carregarConteudo(id,1); }
   if(r&&r.ok) contGuardar(id,r.blocos||[]);
   if(ATV!==id) return;
   if(!(r&&r.ok)&&CONT_MEM[id]) return;   // falhou mas já temos uma cópia: fica com ela
@@ -1295,16 +1303,26 @@ new MutationObserver(ms=>ms.forEach(m=>{ if(m.target._cb) comboSync(m.target); }
    Ao abrir a obra, o checklist de TODAS as atividades dela vem numa chamada
    só, por trás. Quando a pessoa clica, já está aqui. */
 const LOTE_ANDANDO=new Set();
+/* 24/09/26 — em LOTES DE 5, um depois do outro. Pedir as ~20 atividades de
+   uma vez gerava uma resposta grande demais: o Google devolvia 404 na etapa
+   "echo" (o mesmo limite que derrubou a Análise de Dados) e nada chegava.
+   Com o aquecimento no servidor (Melhorias m5), quase tudo já vem do cache. */
+const LOTE_TAM=5;
 async function preCarregarConteudos(obraId){
   const ids=D.atividades.filter(a=>a.obra_id===obraId&&!ehLig(a)&&String(a.id).indexOf("tmp")!==0)
+    .sort((x,y)=>(atvFeita(x)?1:0)-(atvFeita(y)?1:0))                 // as abertas primeiro
     .filter(a=>!CONT_MEM[a.id]||Date.now()-(CONT_MEM[a.id].t||0)>10*60000).map(a=>a.id);
-  if(!ids.length) return;
-  ids.forEach(x=>LOTE_ANDANDO.add(x));
-  let r; try{ r=await chamar({action:"obraAtvConteudoLote",ids:ids},90000); }catch(e){ r=null; }
-  ids.forEach(x=>LOTE_ANDANDO.delete(x));
-  if(!(r&&r.ok&&r.conteudos)){ if(ATV&&ids.indexOf(ATV)>=0&&!CONT) carregarConteudo(ATV); return; }
-  Object.keys(r.conteudos).forEach(id=>contGuardar(id,r.conteudos[id]||[]));
-  if(ATV&&r.conteudos[ATV]&&(!CONT||CONT.erro)){ CONT=CONT_MEM[ATV]; pintarAtvPainel(); }
+  for(let i=0;i<ids.length;i+=LOTE_TAM){
+    if(OBRA!==obraId) return;                                          // fechou a obra: para
+    const lote=ids.slice(i,i+LOTE_TAM).filter(x=>x!==ATV||!CONT);
+    if(!lote.length) continue;
+    lote.forEach(x=>LOTE_ANDANDO.add(x));
+    let r; try{ r=await chamar({action:"obraAtvConteudoLote",ids:lote},40000); }catch(e){ r=null; }
+    lote.forEach(x=>LOTE_ANDANDO.delete(x));
+    if(!(r&&r.ok&&r.conteudos)) return;                                // falhou: não insiste agora
+    Object.keys(r.conteudos).forEach(id=>contGuardar(id,r.conteudos[id]||[]));
+    if(ATV&&r.conteudos[ATV]&&(!CONT||CONT.erro)){ CONT=CONT_MEM[ATV]; pintarAtvPainel(); }
+  }
 }
 
 /* ===================== COMENTÁRIOS E IMAGENS (extra 1) ===================== */

@@ -113,8 +113,7 @@
    obras.html com o acompanhamento ao vivo. */
 /* v36 -> v37 (24/09/26): botão Recarregar em todas as telas (app.js). */
 /* v37 -> v38 (24/09/26): ao vivo (app.js) e baixa otimista (obras.html). */
-/* v38 -> v39 (24/09/26): simulacoes.html — envio ao correspondente, ordem das
-   propostas e linha azul das unidades reservadas. */
+/* v38 -> v39 (24/09/26): conteúdo das atividades sem travar (obras.html). */
 const CACHE = "portal-morais-v39";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
