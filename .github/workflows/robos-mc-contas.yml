@@ -17,11 +17,11 @@
 name: Robô de contas bancárias
 
 on:
-  schedule:
-    # 05:30 de Brasília, todo dia (inclusive fim de semana) — antes do robô
-    # de obras (06:23, robos-mc.yml), para a conta nova já estar no Notion
-    # quando a obra for criada.
-    - cron: "30 8 * * *"
+  # 24/09/26 — SEM cron aqui. A rodada diária mora no robos-mc.yml (passo
+  # "Robô de contas bancárias", antes dos outros robôs), disparado pelo Apps
+  # Script. O cron das 05:30 deste arquivo não rodou no primeiro dia: o
+  # agendamento do GitHub é de melhor esforço e pula execuções. Este workflow
+  # fica só para rodar à mão (simulação, gravar de verdade, ligar antigas).
   workflow_dispatch:
     inputs:
       aplicar:

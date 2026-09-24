@@ -65,6 +65,17 @@ jobs:
           pip install playwright requests
           python -m playwright install --with-deps chromium
 
+      # 24/09/26 — o robô de contas passou a rodar AQUI, antes dos outros. O
+      # arquivo dele (robos-mc-contas.yml) só tinha cron, e cron do GitHub é
+      # entrega de melhor esforço: a rodada das 05:30 simplesmente não saiu. Este
+      # workflow é disparado pelo Apps Script (repository_dispatch), que é
+      # confiável — então a conta nova do ERP entra no Notion na mesma rodada,
+      # antes de a obra ser criada. Falha aqui não derruba os demais.
+      - name: Robô de contas bancárias
+        if: ${{ github.event.inputs.robo != 'clientes' }}
+        continue-on-error: true
+        run: python robo_mc_contas.py
+
       - name: Robô de clientes (proprietários)
         if: ${{ github.event.inputs.robo != 'obras' }}
         continue-on-error: true
