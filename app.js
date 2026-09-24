@@ -55,7 +55,10 @@ const ACOES_NA_ESCRITA = [
      obraVivo e obraComentarios não gravam, mas são curtas e acompanham uma
      gravação: não podem esperar atrás do checklist. */
   "obraUpdate", "obraAtvUpdate", "obraAtvCheck", "obraAtvAcao", "obraLigacoes",
-  "obraConta", "obraVivo", "obraComentarios", "obraComentarioNovo", "investidorUpdate",
+  /* 24/09/26: obraComentarios e obraComentarioNovo SAÍRAM daqui — os
+     comentários ficam prontos no cache da LEITURA (aquecimento), e o
+     comentário novo precisa apagar a cópia no MESMO projeto que a serve. */
+  "obraConta", "obraVivo", "investidorUpdate",
   /* anexo das ligações: pedido curto (só assina o link); na fila das
      leituras ele esperava o ligSensiveis inteiro — era o PDF de 2 minutos */
   "ligArquivo"
@@ -107,7 +110,10 @@ const TIPOS_VEEM_TUDO = ["ADM","MASTER","TESTES"];
 function tipoDe(s){ return String((s&&s.tipo)||"").toUpperCase(); }
 function podeAcessar(s, chave){
   if(!s) return false;
-  return TIPOS_VEEM_TUDO.indexOf(tipoDe(s))>=0 || (s.acessos||[]).indexOf(chave)>=0;
+  /* 25/09/26: compara sem acento, caixa e espaço sobrando — uma opção
+     "OBRAS " (com espaço) na coluna ACESSOS escondia o botão sem aviso */
+  const nz=x=>String(x||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/\s+/g," ").trim();
+  return TIPOS_VEEM_TUDO.indexOf(tipoDe(s))>=0 || (s.acessos||[]).some(a=>nz(a)===nz(chave));
 }
 /* ---------- ACESSO NOVO QUE NÃO CHEGAVA NA TELA (set/26) ----------
  * A sessão gravada no navegador (tipo + ACESSOS) era escrita UMA VEZ, no
@@ -1033,7 +1039,7 @@ function aplicarEdicoesLocais(base, updatedAt, ler, gravar){
  * todas as cópias e recarrega. As telas mostram o atalho Ctrl+Shift+L.
  * ===================================================================== */
 const DADOS_VERSAO = "2026-09-24a";
-const _PREFIXOS_COPIA = ["morais_cache_", "morais_store_", "obras_cont_", "obras_contas_", "morais_edits_"];
+const _PREFIXOS_COPIA = ["morais_cache_", "morais_store_", "obras_cont_", "obras_contas_", "obras_coms_", "morais_edits_"];
 function _ehCopia(k){ return _PREFIXOS_COPIA.some(p=>k.indexOf(p)===0); }
 function limparDadosLocais(recarregar){
   try{

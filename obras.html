@@ -213,6 +213,7 @@ tbody tr:hover td{background:#e9f6ef;cursor:pointer} tbody tr:hover td.stick{bac
 .cb-op.novo{color:var(--verde-esc);font-weight:700;border-top:1px solid var(--border2)}
 .cb-vazio{padding:8px 10px;color:var(--text4);font-size:12px}
 html[data-tema="escuro"] .cb-op:hover,html[data-tema="escuro"] .cb-op.ativo{background:#1b2f3c}
+.cont a,.com .tx a{color:var(--azul);text-decoration:underline;word-break:break-all}
 .com-lista{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
 .com{background:var(--sup);border:1px solid var(--border2);border-radius:10px;padding:8px 11px}
 .com .qm{font-size:11px;color:var(--text3);font-weight:700;margin-bottom:3px}
@@ -357,7 +358,7 @@ html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
 </div>
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=37"></script>
+<script src="app.js?v=39"></script>
 <script>
 /* ---------- tema ---------- */
 const TEMA_KEY="morais_tema";
@@ -673,6 +674,17 @@ function linhaAtv(a,comObra){
     <div><div class="k">Controle de prazo</div><div class="v prazo">${esc(a.controle_prazo||"—")}</div></div>
   </div>`;
 }
+/* 25/09/26 — gravação que NÃO se perde: vai pela fila do app.js (escrever).
+   Deu certo -> resposta normal. Rede caiu ou servidor não respondeu -> fica
+   guardada no navegador e sobe sozinha quando a conexão voltar ({enfileirado}).
+   Só volta atrás quando o servidor RECUSA de verdade (permissão, valor
+   inválido) — aí não adianta tentar de novo. */
+async function gravarNaFila(payload,rotulo){
+  let r; try{ r=await escrever(payload,rotulo); }catch(e){ r=null; }
+  if(r&&r.ok&&r.enviado) return Object.assign({ok:true},r.resposta||{});
+  if(r&&r.ok&&r.enfileirado) return {ok:true,enfileirado:true};
+  return r||{ok:false,erro:"sem conexão"};
+}
 /* grava com uma segunda tentativa automática: "sem conexão" quase sempre era
    a resposta se perdendo no caminho (POST -> 302 -> GET), não falha real */
 async function gravarComRetry(payload,el){
@@ -703,16 +715,23 @@ async function gravarAtv(id,prop,valor,el){
   if(autoConc) ponteGuardar("obras-atv",id,"Data De Conclusão da Atividade",a.data_conclusao);
   const concluida=N(a.status)==="FINALIZADO"&&dataOk(a.data_conclusao);
   if(concluida){
-    const lin=el&&el.closest(".atv");
-    if(lin&&!VER_FIN){ lin.classList.add("saindo"); setTimeout(repintarSeguro,300); } else setTimeout(repintarSeguro,50);
-    toast(VER_FIN?"Atividade concluída.":"Atividade concluída — saiu da lista (marque \"incluir finalizadas\" para ver).");
+    /* 25/09/26: a saída animada é só na aba Atividades. No painel da obra a
+       linha continua (ele mostra todas); antes ela ficava invisível e deixava
+       um buraco no meio da lista até o painel ser redesenhado. */
+    const lin=el&&el.closest(".atv"), naLista=lin&&!lin.closest(".painel");
+    if(naLista&&!VER_FIN){ lin.classList.add("saindo"); setTimeout(repintarSeguro,300); } else setTimeout(repintarSeguro,50);
+    toast(!naLista||VER_FIN?"Atividade concluída.":"Atividade concluída — saiu da lista (marque \"incluir finalizadas\" para ver).");
     acompanharProxima(a.obra_id, true);
   } else { if(el){ el.classList.remove("ok","erro"); el.classList.add("salvando"); } setTimeout(repintarSeguro,50); }
 
-  const r=await gravarComRetry(Object.assign({action:"obraAtvUpdate",pageId:id,prop:prop,valor:valor,obraId:a.obra_id},autoConc?{conclusaoSeVazia:true}:{}),null);
+  const r=await gravarNaFila(Object.assign({action:"obraAtvUpdate",pageId:id,prop:prop,valor:valor,obraId:a.obra_id},autoConc?{conclusaoSeVazia:true}:{}),"Atividade: "+(a.titulo||a.tipo||""));
   const el2=el&&document.body.contains(el)?el:null;
   if(el2) el2.classList.remove("salvando");
-  if(r&&r.ok){
+  if(r&&r.ok&&r.enfileirado){
+    if(el2) el2.classList.add("ok");
+    if(_acomp[a.obra_id]&&_acomp[a.obra_id].espera){ delete _acomp[a.obra_id]; mostrarProcurando(false); }
+    toast("Sem conexão agora — a baixa ficou guardada e grava sozinha quando a conexão voltar.");
+  } else if(r&&r.ok){
     if(el2) el2.classList.add("ok");
     if(r.conclusao&&r.conclusao!==a.data_conclusao){ a.data_conclusao=r.conclusao; ponteGuardar("obras-atv",id,"Data De Conclusão da Atividade",r.conclusao); }
     if(!concluida) toast("Salvo.");
@@ -773,6 +792,14 @@ window.addEventListener("portal-ao-vivo",ev=>{
   const d=ev.detail||{}; if(d.tela!=="obras"||!D) return;
   const me=(sessao()||{}).nome||"";
   if(d.quem&&me&&d.quem===me) return;                       // fui eu
+  /* comentário novo de outra pessoa na obra/atividade que está aberta aqui */
+  if(d.acao==="obraComentarioNovo"&&d.id){
+    if(ATV===d.id) carregarComentarios(d.id,"com-atv",true);
+    else if(OBRA===d.id) carregarComentarios(d.id,"com-obra",true);
+    else delete COMS[d.id];
+    toast("Novo comentário"+(d.quem?" de "+d.quem:"")+".");
+    return;
+  }
   let obraId=d.obraId;
   if(!obraId&&d.id){ const at=D.atividades.find(x=>x.id===d.id); obraId=at?at.obra_id:(obraDe(d.id)?d.id:null); }
   if(!obraId){ toast((d.quem||"Alguém")+" alterou as obras — use 🔄 Recarregar para ver."); return; }
@@ -958,7 +985,7 @@ async function gravarObra(i,el){
   if(tipo==="conta"&&!valor) return;
   const payload=tipo==="conta"?{action:"obraConta",pageId:o.id,conta:valor}
     :{action:N(col)===N("Liberar Obra Para Processo Interno")?"obraLiberar":"obraUpdate",pageId:o.id,prop:col,valor:valor};
-  const r=await gravarComRetry(payload,el);
+  const r=await gravarNaFila(payload,"Obra: "+(o.titulo||""));
   el.classList.remove("salvando");
   if(r&&r.ok){
     el.classList.add("ok");
@@ -1051,11 +1078,19 @@ function conteudoHtml(bs){
   return (c.t?`<div class="ajuda" style="padding:0 22px">${c.f} de ${c.t} itens concluídos</div><div class="progresso"><div style="width:${Math.round(c.f/c.t*100)}%"></div></div>`:"")+
     `<div class="cont">${blocosHtml(bs)}</div>`;
 }
+/* 25/09/26 — link vira link: endereço escrito no texto (https://...) e texto
+   com link do Notion abrem numa nova aba. */
+function linkar(txt,links){
+  let h=esc(txt||"");
+  (links||[]).forEach(l=>{ const e=esc(l.t||""); if(e&&l.h&&/^https?:/i.test(l.h)&&h.indexOf(e)>=0)
+    h=h.replace(e,`<a href="${esc(l.h)}" target="_blank" rel="noopener" title="Abre o link numa nova aba">${e}</a>`); });
+  return h.replace(/(^|[\s(])(https?:\/\/[^\s<"]+[^\s<".,;:!?)\]])/gi,(m,a,u)=>a+`<a href="${u}" target="_blank" rel="noopener" title="Abre o link numa nova aba">${u}</a>`);
+}
 function blocosHtml(bs){
   let h="", lista=null;
   const fecha=()=>{ if(lista){ h+=`</${lista}>`; lista=null; } };
   (bs||[]).forEach(b=>{
-    const t=esc(b.texto||""), filhos=b.filhos&&b.filhos.length?blocosHtml(b.filhos):"";
+    const t=linkar(b.texto||"",b.links), filhos=b.filhos&&b.filhos.length?blocosHtml(b.filhos):"";
     if(b.tipo==="bulleted_list_item"||b.tipo==="numbered_list_item"){
       const tag=b.tipo==="bulleted_list_item"?"ul":"ol";
       if(lista!==tag){ fecha(); h+=`<${tag}>`; lista=tag; }
@@ -1321,19 +1356,32 @@ async function preCarregarConteudos(obraId){
     lote.forEach(x=>LOTE_ANDANDO.delete(x));
     if(!(r&&r.ok&&r.conteudos)) return;                                // falhou: não insiste agora
     Object.keys(r.conteudos).forEach(id=>contGuardar(id,r.conteudos[id]||[]));
+    Object.keys(r.comentarios||{}).forEach(id=>{ if(!Array.isArray(COMS[id])) comsGuardar(id,r.comentarios[id]); });
     if(ATV&&r.conteudos[ATV]&&(!CONT||CONT.erro)){ CONT=CONT_MEM[ATV]; pintarAtvPainel(); }
   }
 }
 
 /* ===================== COMENTÁRIOS E IMAGENS (extra 1) ===================== */
-const COMS={};
+/* 24/09/26 — os comentários ficam guardados no navegador (como o checklist):
+   a obra/atividade abre com a última cópia na tela e o servidor só confere.
+   O pré-carregamento em lote também já traz os que estão prontos no cache. */
+const COMS_KEY="obras_coms_v1";
+const COMS=(function(){ try{ const x=JSON.parse(localStorage.getItem(COMS_KEY)||"{}")||{}; const o={}; for(const k in x) o[k]=x[k].l; return o; }catch(e){ return {}; } })();
+function comsGuardar(id,lista){
+  COMS[id]=lista;
+  try{
+    const x=JSON.parse(localStorage.getItem(COMS_KEY)||"{}")||{}; x[id]={t:Date.now(),l:lista};
+    const ks=Object.keys(x); if(ks.length>150) ks.sort((a,b)=>x[a].t-x[b].t).slice(0,ks.length-150).forEach(k=>delete x[k]);
+    localStorage.setItem(COMS_KEY,JSON.stringify(x));
+  }catch(e){}
+}
 function comentariosHtml(pageId){
   const l=COMS[pageId];
   const lista=l===undefined?`<div class="ajuda"><span class="load"></span> carregando comentários…</div>`
     :l.erro?`<div class="ajuda err">Não carregou os comentários: ${esc(l.erro)}</div>`
     :!l.length?`<div class="ajuda">Nenhum comentário ainda.</div>`
     :l.map(c=>`<div class="com"><div class="qm">${esc(c.autor||"")} · ${c.criadoEm?new Date(c.criadoEm).toLocaleString("pt-BR"):""}</div>
-      ${c.texto?`<div class="tx">${esc(c.texto)}</div>`:""}
+      ${c.texto?`<div class="tx">${linkar(c.texto)}</div>`:""}
       ${(c.anexos||[]).map(a=>a.url?(a.categoria==="image"||/\.(png|jpe?g|gif|webp|heic)(\?|$)/i.test(a.url)
           ?`<a href="${esc(a.url)}" target="_blank" rel="noopener"><img src="${esc(a.url)}" alt=""></a>`
           :`<a class="arq" href="${esc(a.url)}" target="_blank" rel="noopener">📎 ${esc(a.nome||"arquivo")}</a>`):"").join("")}</div>`).join("");
@@ -1343,9 +1391,11 @@ function comentariosHtml(pageId){
       <button class="bt" id="cb-${pageId}" title="Envia o comentário (e o anexo, se houver) para a página no Notion" onclick="enviarComentario('${pageId}')">Enviar</button>
       <div class="com-anexo" id="ca-${pageId}"></div></div>`;
 }
-async function carregarComentarios(pageId,boxId){
-  let r; try{ r=await chamar({action:"obraComentarios",pageId:pageId},40000); }catch(e){ r={ok:false,erro:"sem conexão"}; }
-  COMS[pageId]=r&&r.ok?(r.comentarios||[]):{erro:errMsg(r)};
+async function carregarComentarios(pageId,boxId,fresco){
+  let r; try{ r=await chamar(Object.assign({action:"obraComentarios",pageId:pageId},fresco?{fresco:true}:{}),25000,true); }catch(e){ r={ok:false,erro:"sem conexão"}; }
+  if(r&&r.ok) comsGuardar(pageId,r.comentarios||[]);
+  else if(Array.isArray(COMS[pageId])) return;          // falhou, mas já tem cópia na tela: fica com ela
+  else COMS[pageId]={erro:errMsg(r)};
   const box=document.getElementById(boxId); if(!box) return;
   const txt=document.getElementById("ct-"+pageId), rascunho=txt?txt.value:"";
   box.innerHTML=comentariosHtml(pageId);
@@ -1370,7 +1420,7 @@ async function enviarComentario(pageId){
   if(!(r&&r.ok)){ toast("Não enviou: "+errMsg(r)); return; }
   delete COM_ARQ[pageId]; if(t) t.value="";
   toast(r.anexoNoCorpo?"Enviado — o anexo ficou no corpo da página no Notion.":"Comentário enviado.");
-  carregarComentarios(pageId,document.getElementById("com-atv")&&ATV===pageId?"com-atv":"com-obra");
+  carregarComentarios(pageId,document.getElementById("com-atv")&&ATV===pageId?"com-atv":"com-obra",true);
 }
 
 /* ===================== CONTAS BANCÁRIAS (aba própria) =====================
