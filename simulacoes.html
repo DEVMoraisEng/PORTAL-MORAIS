@@ -562,7 +562,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
     <div class="modal-cx" id="sim-modalCx"></div>
   </div>
 
-<script src="app.js?v=39"></script>
+<script src="app.js?v=40"></script>
 <script>
 
 /* =====================================================================
@@ -1389,8 +1389,14 @@ async function simRefazerErros(){
 async function propGerarLink(id){
   const cx=document.getElementById("prop-linkCx"); if(cx) cx.textContent="gerando…";
   let r;
-  try{ r=await chamar({action:"simsPropostaLink", pageId:id}, 60000, true); }
-  catch(e){ if(cx) cx.textContent="não consegui gerar agora."; return; }
+  /* 25/09/26: versão rápida (sem ler a conversa de e-mail); se o servidor
+     ainda não tiver, usa a normal */
+  try{ r=await chamar({action:"simsLinkRapido", pageId:id}, 45000, true); }
+  catch(e){ r=null; }
+  if(r && !r.ok && /ACAO_DESCONHECIDA/.test(String(r.erro||""))){
+    try{ r=await chamar({action:"simsPropostaLink", pageId:id}, 60000, true); }catch(e){ r=null; }
+  }
+  if(!r){ if(cx) cx.innerHTML='não consegui gerar agora. <button class="bt ghost" style="padding:4px 10px" onclick="propGerarLink(\''+id+'\')">↻ Tentar de novo</button>'; return; }
   if(!r || !r.ok){
     const erro=String((r&&r.erro)||"falhou");
     /* r55 — o "Can't edit block that is archived" do Notion quer dizer que a
@@ -2261,19 +2267,58 @@ function propVer(id){
    propostas ja traz dezenas de linhas, arrastar os anexos de cada uma junto
    deixaria a aba inteira lenta por causa de um dado que so importa quando
    voce abre uma proposta. */
-async function propCarregarDetalhe(id){
+/* 25/09/26 — DETALHE MAIS RÁPIDO
+   1) Abriu de novo? Mostra na hora a última cópia (guardada no navegador).
+   2) Pede a versão RÁPIDA (simsDetalheRapido, Melhorias m8): documentos,
+      campos e pendências, sem ler a conversa de e-mail — que era a parte lenta.
+   3) Depois, sem prioridade, pede o detalhe completo só para trazer a
+      conversa. Se o servidor ainda não tiver a versão rápida, usa a normal. */
+const PROP_DET_KEY="morais_cache_propdet_v1";
+function propDetGuardado(id){
+  try{ const x=JSON.parse(localStorage.getItem(PROP_DET_KEY)||"{}")||{}; const e=x[id];
+       return e&&Date.now()-e.t<50*60000?e.r:null; }catch(e){ return null; }     // links do Notion valem ~1 h
+}
+function propDetGuardar(id,r){
+  try{ const x=JSON.parse(localStorage.getItem(PROP_DET_KEY)||"{}")||{}; x[id]={t:Date.now(),r:r};
+       const ks=Object.keys(x); if(ks.length>40) ks.sort((a,b)=>x[a].t-x[b].t).slice(0,ks.length-40).forEach(k=>delete x[k]);
+       localStorage.setItem(PROP_DET_KEY,JSON.stringify(x)); }catch(e){}
+}
+async function propCarregarDetalhe(id, tentativa){
   const alvo = document.getElementById("prop-detalhe");
   if(!alvo) return;
+  const guardado = propDetGuardado(id);
+  if(guardado) propPintarDetalhe(id, guardado);
+  else if(tentativa) alvo.innerHTML='<div class="sim-aviso ok"><span class="load"></span> Tentando de novo…</div>';
   let r;
-  try{ r = await chamar({action:"simsPropostaDetalhe", pageId:id}, 60000, true); }
-  catch(e){
-    alvo.innerHTML = '<div class="sim-aviso err">Não consegui carregar os documentos e a conversa. '+
-      '<button class="bt ghost" style="margin-left:8px;padding:4px 10px" onclick="propCarregarDetalhe(\''+id+'\')">↻ Tentar de novo</button></div>';
+  try{ r = await chamar({action:"simsDetalheRapido", pageId:id}, 45000, true); }
+  catch(e){ r = null; }
+  if(r && !r.ok && /ACAO_DESCONHECIDA/.test(String(r.erro||""))){
+    try{ r = await chamar({action:"simsPropostaDetalhe", pageId:id}, 60000, true); }catch(e){ r=null; }
+  }
+  if(!document.getElementById("prop-detalhe")) return;
+  if(!r || !r.ok){
+    if(guardado) return;                                   // fica com a cópia que já está na tela
+    alvo.innerHTML = r ? '<div class="sim-aviso err">'+propErro(r&&r.erro)+
+        ' <button class="bt ghost" style="margin-left:8px;padding:4px 10px" onclick="propCarregarDetalhe(\''+id+'\',1)">↻ Tentar de novo</button></div>'
+      : '<div class="sim-aviso err">Não consegui carregar os documentos. '+
+        '<button class="bt ghost" style="margin-left:8px;padding:4px 10px" onclick="propCarregarDetalhe(\''+id+'\',1)">↻ Tentar de novo</button></div>';
     return;
   }
-  if(!r || !r.ok){
-    alvo.innerHTML = '<div class="sim-aviso err">'+propErro(r&&r.erro)+'</div>'; return;
+  const histGuardada = guardado && guardado.historicoEmail && guardado.historicoEmail.motivo!=="ADIADO" ? guardado.historicoEmail : null;
+  if(r.historicoEmail && r.historicoEmail.motivo==="ADIADO" && histGuardada) r.historicoEmail = histGuardada;
+  propPintarDetalhe(id, r);
+  propDetGuardar(id, r);
+  /* a conversa, sem pressa */
+  if(r.historicoEmail && r.historicoEmail.motivo==="ADIADO"){
+    let c=null; try{ c = await chamar({action:"simsPropostaDetalhe", pageId:id}, 90000); }catch(e){}
+    if(c && c.ok){ propDetGuardar(id, c); if(document.getElementById("prop-detalhe")) propPintarDetalhe(id, c); }
+    else { const cxH=document.getElementById("prop-hist"); if(cxH) cxH.innerHTML='<div class="sim-aviso" style="margin-top:12px">Não consegui carregar a conversa de e-mail agora. '+
+      '<button class="bt ghost" style="margin-left:8px;padding:4px 10px" onclick="propCarregarDetalhe(\''+id+'\',1)">↻ Tentar de novo</button></div>'; }
   }
+}
+function propPintarDetalhe(id, r){
+  const alvo = document.getElementById("prop-detalhe");
+  if(!alvo) return;
 
   /* r50 — as pendências já apareceram com os dados da lista; aqui elas são
      atualizadas com o que o Notion acabou de devolver, na mesma lógica dos
@@ -2288,7 +2333,9 @@ async function propCarregarDetalhe(id){
      texto de cada mensagem vem completo; quando não dá para ler a conversa,
      aparece o motivo e um botão para tentar de novo. */
   const hist = r.historicoEmail || {};
-  const cxHist = (hist.mensagens && hist.mensagens.length)
+  const cxHist = hist.motivo==="ADIADO"
+    ? '<div class="sim-aviso" style="margin-top:12px"><span class="load"></span> Carregando a conversa de e-mail…</div>'
+    : (hist.mensagens && hist.mensagens.length)
     /* r54 — a conversa nasce sempre FECHADA: quem quiser ler abre. */
     ? '<details class="card hist-email" style="margin-top:14px;background:var(--bg2)">'+
       '<summary><b style="font-size:13px;color:var(--azul)">Conversa por e-mail · '+

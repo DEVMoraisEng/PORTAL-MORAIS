@@ -358,7 +358,7 @@ html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
 </div>
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=39"></script>
+<script src="app.js?v=40"></script>
 <script>
 /* ---------- tema ---------- */
 const TEMA_KEY="morais_tema";
@@ -389,7 +389,7 @@ let D={obras:[],atividades:[],opcoes:{},opcoes_atividades:{},pessoas:[]};
    atualiza. Só nome da conta — nada de número/agência. */
 const CONTAS_KEY="obras_contas_v1";
 let CONTAS=(function(){ try{ const x=JSON.parse(localStorage.getItem(CONTAS_KEY)||"null"); return x&&Array.isArray(x.l)?x.l:null; }catch(e){ return null; } })(),
-    CONTAS_AVISO="", _contasEmVoo=null, _contasFresco=0;
+    CONTAS_AVISO="", _contasEmVoo=null, _contasFresco=0, _contasTent=0;
 let ABA="obras", FILTRO="andamento", PESSOA=null, VER_FIN=false, OBRA=null, ATV=null, MODO="lista", CONT=null;
 let SORT_OB={k:"data_prevista",d:1}, SORT_ATV={k:null,d:1};
 /* conteúdo das atividades: memória + localStorage (abre na hora, confere por trás) */
@@ -1191,10 +1191,14 @@ async function carregarContas(forcar){
   _contasEmVoo=(async()=>{
     let r; try{ r=await chamar({action:"contasBancarias"},45000); }catch(e){ r=null; }
     if(r&&r.ok&&Array.isArray(r.contas)){
-      CONTAS=r.contas; CONTAS_AVISO=""; _contasFresco=Date.now();
+      CONTAS=r.contas; CONTAS_AVISO=""; _contasFresco=Date.now(); _contasTent=0;
       try{ localStorage.setItem(CONTAS_KEY,JSON.stringify({t:Date.now(),l:CONTAS})); }catch(e){}
     } else if(!CONTAS||!CONTAS.length){
-      CONTAS=CONTAS||[]; CONTAS_AVISO="a lista de contas ainda não carregou — tente abrir de novo em instantes";
+      CONTAS=CONTAS||[]; CONTAS_AVISO="carregando a lista de contas… (tentando de novo)";
+      /* 25/09/26: não desiste — tenta de novo em 10, 20, 40 e 80 s */
+      _contasTent=(_contasTent||0)+1;
+      if(_contasTent<=4) setTimeout(()=>carregarContas(true),10000*Math.pow(2,_contasTent-1));
+      else CONTAS_AVISO="a lista de contas não carregou — use 🔄 Recarregar";
     }
     if(document.getElementById("mf").classList.contains("on")){ preencherSelConta(); aplicarCombos(document.getElementById("mf")); }
     if(OBRA) repintarSeguro();

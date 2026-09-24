@@ -116,7 +116,8 @@
 /* v38 -> v39 (24/09/26): conteúdo das atividades sem travar (obras.html). */
 /* v39 -> v40 (24/09/26): comentários guardados e pela leitura (app.js, obras.html). */
 /* v40 -> v41 (25/09/26): fila offline na baixa, links clicáveis, acesso tolerante. */
-const CACHE = "portal-morais-v41";  // limpeza só dos caches do portal (não apaga os das RAS)
+/* v41 -> v42 (25/09/26): simulações com detalhe rápido; contas insistem. */
+const CACHE = "portal-morais-v42";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",
