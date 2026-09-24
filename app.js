@@ -1073,6 +1073,75 @@ document.addEventListener("keydown",e=>{
   }
 });
 
+/* =======================================================================
+ * 24/09/26 — BOTÃO "RECARREGAR" EM TODAS AS TELAS
+ * -----------------------------------------------------------------------
+ * Aparece sozinho no cabeçalho, ao lado do "Sair", em toda tela que carrega
+ * o app.js. O que ele faz:
+ *   - para TODOS: apaga as cópias guardadas no navegador (menos as edições
+ *     ainda não publicadas e as gravações pendentes) e recarrega a tela direto
+ *     do servidor;
+ *   - para ADM, antes disso: limpa o cache do Apps Script daquele setor e
+ *     pede ao GitHub a republicação do site (o mesmo "Atualizar dados agora"
+ *     que existia só no Pós Obra e nas Ligações) — aí o dado novo chega para
+ *     todo mundo em 1-2 min, e não só para quem clicou.
+ * O botão antigo de ADM do Pós Obra e das Ligações some: este faz o mesmo.
+ * ===================================================================== */
+function _escopoDaTela(){
+  const p=(location.pathname.split("/").pop()||"").toLowerCase();
+  if(p.indexOf("pos-obra")===0) return "POS_OBRA";
+  if(p.indexOf("ligacoes")===0) return "LIGACOES";
+  if(p.indexOf("vendas")===0||p.indexOf("casas-vendidas")===0) return "VENDAS";
+  if(p.indexOf("documentos")===0) return "DOCUMENTOS";
+  if(p.indexOf("analise")===0) return "ANALISES";
+  return "TUDO";
+}
+async function recarregarTela(bt){
+  if(bt){ bt.disabled=true; bt.textContent="🔄 Recarregando…"; }
+  const s=sessao()||{};
+  let msg="";
+  if(String(s.tipo||"").toUpperCase()==="ADM"){
+    try{
+      const r=await _chamarDireto({action:"forcarAtualizacao",escopo:_escopoDaTela()},60000);
+      msg = r&&r.ok ? (r.build?"Servidor atualizado; a publicação para todos sai em 1-2 min.":"Servidor atualizado (a publicação para todos não foi disparada).")
+                    : "Não consegui limpar o servidor — recarregando só este navegador.";
+    }catch(e){ msg="Servidor não respondeu — recarregando só este navegador."; }
+  }
+  /* cópias do navegador, menos edições não publicadas (morais_edits_) e fila */
+  try{
+    const ks=[]; for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k&&_ehCopia(k)&&k.indexOf("morais_edits_")!==0) ks.push(k); }
+    ks.forEach(k=>localStorage.removeItem(k));
+  }catch(e){}
+  try{ _storeMem.clear(); }catch(e){}
+  try{ if(msg) sessionStorage.setItem("morais_msg_recarga",msg); }catch(e){}
+  location.reload();
+}
+(function botaoRecarregar(){
+  if(typeof document==="undefined") return;
+  const css=document.createElement("style");
+  css.textContent="#bt-atualizar{display:none!important}"+
+    ".bt-recarregar{margin-right:8px;background:transparent;border:1px solid rgba(255,255,255,.45);color:inherit;border-radius:8px;padding:6px 10px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}"+
+    ".bt-recarregar:hover{background:rgba(255,255,255,.12)}.bt-recarregar:disabled{opacity:.6;cursor:wait}"+
+    "#msg-recarga{position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:9999;background:#1d5433;color:#fff;padding:8px 14px;border-radius:10px;font-size:13px;box-shadow:0 6px 18px rgba(0,0,0,.2)}";
+  document.head.appendChild(css);
+  function por(){
+    const sair=document.querySelector("button.sair");
+    if(!sair||document.querySelector(".bt-recarregar")) return;
+    const b=document.createElement("button");
+    b.className="bt-recarregar"; b.type="button"; b.textContent="🔄 Recarregar";
+    const adm=String((sessao()||{}).tipo||"").toUpperCase()==="ADM";
+    b.title=adm?"Recarrega do servidor, limpa o cache do Apps Script e republica o site para todos (ADM)"
+               :"Recarrega esta tela direto do servidor, sem as cópias guardadas no navegador";
+    b.onclick=()=>recarregarTela(b);
+    sair.parentNode.insertBefore(b, sair);
+    try{
+      const m=sessionStorage.getItem("morais_msg_recarga");
+      if(m){ sessionStorage.removeItem("morais_msg_recarga"); const d=document.createElement("div"); d.id="msg-recarga"; d.textContent=m; document.body.appendChild(d); setTimeout(()=>d.remove(),6000); }
+    }catch(e){}
+  }
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",por); else por();
+})();
+
 /* ---------- service worker (abre offline) ---------- */
 if("serviceWorker" in navigator){ window.addEventListener("load", ()=>navigator.serviceWorker.register("sw.js").catch(()=>{})); }
 
