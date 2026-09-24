@@ -425,6 +425,10 @@ function ponteAplicar(base,lista,campoDe,publicadoEm){
   let o; try{ o=edicoes(); }catch(e){ return; }
   const pub=publicadoEm?tsPublicacao(publicadoEm):0, agora=Date.now(); let mudou=false;
   const porId=new Map(lista.map(x=>[x.id,x]));
+  /* 25/09/26: gravação que ainda está na FILA (sem conexão na hora) nunca
+     perde para uma leitura — o Notion ainda não tem como saber dela */
+  let pend=new Set();
+  try{ (fila()||[]).forEach(it=>{ const q=it&&it.payload||{}; if(q.pageId&&q.prop) pend.add(String(q.pageId).replace(/-/g,"")+"|"+q.prop); }); }catch(e){}
   for(const k in o){
     const e=o[k]; if(!e||e.b!==base) continue;
     const alvo=porId.get(e.id), campo=campoDe(e.p);
@@ -432,7 +436,8 @@ function ponteAplicar(base,lista,campoDe,publicadoEm){
     if(agora-e.ts>7*24*3600*1000){ delete o[k]; mudou=true; continue; }
     if(iguaisEdicao(alvo[campo],e.v)){ delete o[k]; mudou=true; continue; }   // o Notion já tem
     const idadeLeitura=pub||agora;
-    if(idadeLeitura>e.ts+PONTE_FOLGA){ delete o[k]; mudou=true; continue; }    // leitura bem posterior e diferente: vale o Notion
+    const naFila=pend.has(String(e.id).replace(/-/g,"")+"|"+e.p);
+    if(!naFila&&idadeLeitura>e.ts+PONTE_FOLGA){ delete o[k]; mudou=true; continue; }    // leitura bem posterior e diferente: vale o Notion
     alvo[campo]=e.v;                                                           // ainda não chegou: fica o que foi salvo
   }
   if(mudou) edicoesGravar(o);
@@ -954,7 +959,9 @@ function abrirObra(id){
   atualizarObraVivo(id).then(()=>preCarregarConteudos(id));
   carregarComentarios(id,"com-obra");
 }
-function fecharObra(){ OBRA=null; document.getElementById("ov1").classList.remove("on"); document.getElementById("p1").classList.remove("on"); }
+function fecharObra(){ OBRA=null; document.getElementById("ov1").classList.remove("on"); document.getElementById("p1").classList.remove("on");
+  /* 25/09/26: ao fechar, a lista de trás mostra o que acabou de ser preenchido */
+  pintarTabs(); if(ABA==="alertas") pintarAlertas(); else if(ABA==="obras"&&document.getElementById("lista-obras")) pintarLista(); }
 function pintarObraPainel(){
   const o=obraDe(OBRA); if(!o) return;
   document.getElementById("p1-end").textContent=o.titulo||"(sem endereço)";
@@ -1012,13 +1019,19 @@ async function gravarObra(i,el){
   el.classList.remove("salvando");
   if(r&&r.ok){
     el.classList.add("ok");
-    if(tipo==="pessoa"){ o[k]=valor; const p=D.pessoas.find(x=>x.id===valor[0]); o[k==="resp_ids"?"resp":"rt"]=p?p.nome:""; }
+    if(tipo==="pessoa"){
+      o[k]=valor;
+      const opt=el.options&&el.selectedIndex>=0?el.options[el.selectedIndex]:null;
+      const p=D.pessoas.find(x=>String(x.id).replace(/-/g,"")===String(valor[0]||"").replace(/-/g,""));
+      o[k==="resp_ids"?"resp":"rt"]=valor.length?((p&&p.nome)||(opt&&opt.value?opt.text:"")):"";
+    }
     else if(tipo==="num") o[k]=el.value===""?null:Number(el.value);
     else if(tipo==="conta"){ o[k]=el.value; o.conta_alerta=(el.value==="CRIAR CONTA"||el.value==="DÚVIDA")?el.value:null; }
     else o[k]=el.value||null;
     ponteGuardar("obras",o.id,col,o[k]);           // pessoa entra também (ids): o alerta não volta
     o._bt=null;
-    toast(r.compat&&r.compat.criada?"Criado para esta obra: "+(r.compat.criadas||[]).join(" e ")+".":rot+" salvo.");
+    toast(r.enfileirado?rot+": sem conexão agora — ficou guardado e grava sozinho quando voltar."
+      :r.compat&&r.compat.criada?"Criado para esta obra: "+(r.compat.criadas||[]).join(" e ")+".":rot+" salvo.");
     pintarTabs(); if(ABA==="obras") pintarLista(); else if(ABA==="alertas") pintarAlertas();
     atualizarObraVivo(o.id);
   }else{ el.classList.add("erro"); toast("Não salvou: "+errMsg(r)); }
