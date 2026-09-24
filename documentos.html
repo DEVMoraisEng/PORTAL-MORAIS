@@ -891,6 +891,9 @@ html[data-tema="escuro"] .cal-dia{background:var(--bg2)}
 html[data-tema="escuro"] .barra-linha .bwrap{background:#1f2f3a}
 
 
+/* 24/09/26 — card da seleção atual */
+.icard.icard-sel{border:2px solid #4ade80;background:rgba(74,222,128,.08)}
+.icard.icard-sel .ival small{font-size:.55em;opacity:.7;font-weight:600}
 /* 24/09/26 — cabeçalho clicável para ordenar */
 th.th-ord{cursor:pointer;user-select:none}
 th.th-ord:hover{filter:brightness(1.15)}
@@ -1075,7 +1078,7 @@ th.th-ord .seta{font-size:10px;opacity:.9}
 
   <div class="toast" id="toast"></div>
 
-<script src="app.js?v=33"></script>
+<script src="app.js?v=34"></script>
 <script src="alertas-docs.js?v=1"></script>
 <script>
 /* claro/escuro — mesma chave (morais_tema) das outras páginas do portal. */
@@ -1999,7 +2002,11 @@ function renderInformativo(ctx,lista){
   const fim=lista.filter(o=>situacaoDa(o)==="finalizada").length;
   const nao=lista.filter(o=>situacaoDa(o)==="nao").length;
   const casas=lista.reduce((s,o)=>{ const n=Number(val(o,"Nº DE CASAS")); return s+((!isNaN(n)&&n>0)?n:1); },0);
-  box.innerHTML=[["Obras em andamento",ini],["Obras finalizadas",fim],["Ainda não iniciadas",nao],["Casas (soma)",casas]]
+  /* 24/09/26 — card em destaque com quantas obras a seleção atual tem (filtros
+     + busca), e de quantas no total quando algum filtro está ligado */
+  const tot=OBRAS.length, filtrado=lista.length!==tot;
+  box.innerHTML=`<div class="icard icard-sel" title="Obras que passam pelos filtros e pela busca de agora"><div class="ival">${num(lista.length)}${filtrado?`<small> de ${num(tot)}</small>`:""}</div><div class="ilab">${filtrado?"Obras na seleção":"Obras (todas)"}</div></div>`+
+    [["Obras em andamento",ini],["Obras finalizadas",fim],["Ainda não iniciadas",nao],["Casas (soma)",casas]]
     .map(([l,v])=>`<div class="icard"><div class="ival">${num(v)}</div><div class="ilab">${esc(l)}</div></div>`).join("");
 }
 function celula(c,o){

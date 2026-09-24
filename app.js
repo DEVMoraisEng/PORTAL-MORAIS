@@ -892,7 +892,7 @@ function setV(obj, nome, valor){
    Ou seja: é uma ponte para cobrir a janela entre salvar e republicar, não
    um banco paralelo. */
 const EDITS       = "morais_edits_v1";
-const EDITS_TTL   = 7*24*3600*1000;   // teto de segurança: 7 dias
+const EDITS_TTL   = 24*3600*1000;     // teto de segurança: 24 h (era 7 dias; ver "DADOS GUARDADOS")
 const EDITS_FOLGA = 3*60*1000;        // publicação só "vence" a edição 3 min depois
 
 /* O fetch_vendas.py grava updated_at em UTC SEM o "Z" ("2026-08-25T13:04:00").
@@ -1008,6 +1008,70 @@ function aplicarEdicoesLocais(base, updatedAt, ler, gravar){
   if(mudou) edicoesGravar(o);
   return aplicadas;
 }
+
+/* =======================================================================
+ * 24/09/26 — DADOS GUARDADOS NO NAVEGADOR NÃO FICAM VELHOS
+ * -----------------------------------------------------------------------
+ * O portal guarda cópias no localStorage para abrir rápido e funcionar sem
+ * sinal: cache das leituras (morais_cache_v2_*), store de sessão
+ * (morais_store_v1_*), edições ainda não publicadas (morais_edits_v1),
+ * conteúdo das atividades e lista de contas (obras_*). Isso é bom, mas não
+ * pode sobreviver a uma atualização do sistema nem a uma troca de usuário.
+ * Três regras, todas automáticas:
+ *
+ *  1. VERSÃO DOS DADOS. Quando DADOS_VERSAO muda (sobe junto com mudanças de
+ *     formato/regra), tudo que é cópia é apagado na primeira abertura. Ficam
+ *     só a sessão (não desloga ninguém) e a fila de gravações pendentes (é
+ *     trabalho de alguém que ainda vai subir).
+ *  2. TROCA DE USUÁRIO / SAIR. Ao sair, as cópias vão embora junto — o
+ *     próximo que usar o navegador não herda dados do anterior.
+ *  3. IDADE MÁXIMA. Cópia com mais de 24 h é apagada, mesmo sem versão nova.
+ *     Edição local (a "ponte" entre salvar e o Notion publicar) vale no
+ *     máximo 24 h — antes eram 7 dias.
+ *
+ * E um botão de emergência: limparDadosLocais() (também no console) apaga
+ * todas as cópias e recarrega. As telas mostram o atalho Ctrl+Shift+L.
+ * ===================================================================== */
+const DADOS_VERSAO = "2026-09-24a";
+const _PREFIXOS_COPIA = ["morais_cache_", "morais_store_", "obras_cont_", "obras_contas_", "morais_edits_"];
+function _ehCopia(k){ return _PREFIXOS_COPIA.some(p=>k.indexOf(p)===0); }
+function limparDadosLocais(recarregar){
+  try{
+    const ks=[]; for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k&&_ehCopia(k)) ks.push(k); }
+    ks.forEach(k=>localStorage.removeItem(k));
+  }catch(e){}
+  try{ if(typeof _storeMem!=="undefined") _storeMem.clear(); }catch(e){}
+  try{ _EDITS=null; _EDITS_IDX=null; }catch(e){}
+  try{ if(window.caches) caches.keys().then(ks=>ks.filter(k=>k.indexOf("portal-morais-")===0).forEach(k=>caches.delete(k))); }catch(e){}
+  if(recarregar!==false) location.reload();
+}
+(function faxina(){
+  try{
+    if(localStorage.getItem("morais_dados_versao")!==DADOS_VERSAO){
+      limparDadosLocais(false);
+      localStorage.setItem("morais_dados_versao",DADOS_VERSAO);
+      return;
+    }
+    const lim=Date.now()-24*3600*1000;
+    for(let i=localStorage.length-1;i>=0;i--){
+      const k=localStorage.key(i); if(!k||!_ehCopia(k)||k==="morais_edits_v1") continue;
+      let t=0; try{ const o=JSON.parse(localStorage.getItem(k)); t=(o&&(o.t||o.ts))||0; }catch(e){}
+      if(t&&t<lim) localStorage.removeItem(k);
+    }
+    const ed=JSON.parse(localStorage.getItem("morais_edits_v1")||"{}"); let mudou=false;
+    for(const k in ed){ if(!ed[k]||!ed[k].ts||ed[k].ts<lim){ delete ed[k]; mudou=true; } }
+    if(mudou) localStorage.setItem("morais_edits_v1",JSON.stringify(ed));
+  }catch(e){}
+})();
+/* sair também leva as cópias embora */
+const _sairOriginal = sair;
+sair = function(){ limparDadosLocais(false); _sairOriginal(); };
+document.addEventListener("keydown",e=>{
+  if(e.ctrlKey&&e.shiftKey&&(e.key==="L"||e.key==="l")){
+    e.preventDefault();
+    if(confirm("Apagar os dados guardados neste navegador e recarregar do servidor?\n(Você continua logado; gravações pendentes são mantidas.)")) limparDadosLocais();
+  }
+});
 
 /* ---------- service worker (abre offline) ---------- */
 if("serviceWorker" in navigator){ window.addEventListener("load", ()=>navigator.serviceWorker.register("sw.js").catch(()=>{})); }

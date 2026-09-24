@@ -224,6 +224,7 @@ html[data-tema="escuro"] .cb-op:hover,html[data-tema="escuro"] .cb-op.ativo{back
 .com-anexo{font-size:11.5px;color:var(--text3);width:100%}
 .ja-criado{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:rgba(42,157,92,.12);border:1px solid rgba(42,157,92,.35);color:var(--verde-esc);border-radius:10px;padding:10px 13px;font-weight:700;font-size:13px;margin-top:10px}
 .atv.fixa{outline:2px dashed rgba(42,157,92,.45)}
+#procurando{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:90;background:var(--sup);border:1px solid var(--border2);box-shadow:0 6px 18px var(--sombra);border-radius:20px;padding:7px 14px;font-size:12.5px;color:var(--text3)}
 .atv.saindo{transition:opacity .4s,transform .4s;opacity:0;transform:translateX(24px)}
 .inv-cel{min-width:130px}
 .inv-cel input,.inv-cel select{width:100%;padding:5px 7px;font-size:12.5px}
@@ -356,7 +357,7 @@ html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
 </div>
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=33"></script>
+<script src="app.js?v=34"></script>
 <script>
 /* ---------- tema ---------- */
 const TEMA_KEY="morais_tema";
@@ -720,15 +721,46 @@ async function gravarAtv(id,prop,valor,el){
     }
     /* item 2: a automação do Notion cria a próxima atividade (ex.: Armazenar
        projetos) alguns segundos depois da baixa — busca de novo até ela vir */
-    const n0=D.atividades.filter(x=>x.obra_id===a.obra_id).length;
-    atualizarObraVivo(a.obra_id).then(()=>{
-      if(prop!=="Status"||N(valor)!=="FINALIZADO") return;
-      [6000,15000,35000].forEach(ms=>setTimeout(()=>atualizarObraVivo(a.obra_id).then(novas=>{
-        if(novas&&novas.length) toast("Nova atividade: "+novas.map(x=>x.titulo||x.tipo).join(", "));
-      }),ms));
-    });
+    if(prop==="Status"&&N(valor)==="FINALIZADO") acompanharProxima(a.obra_id);
+    else atualizarObraVivo(a.obra_id);
   }else{ if(el) el.classList.add("erro"); toast("Não salvou: "+errMsg(r)); }
 }
+/* 24/09/26 — ACOMPANHAMENTO AO VIVO depois de finalizar.
+   Finalizar uma atividade faz a automação do Notion criar a próxima em
+   segundos. Em vez de 3 consultas espaçadas (6, 15 e 35 s), a tela consulta a
+   obra em intervalos curtos e PARA na primeira atividade nova que aparecer:
+   2 s, 4 s, 6 s, 9 s, 12 s, 16 s, 20 s, 25 s, 30 s, 40 s, 50 s, 60 s.
+   Enquanto procura, uma faixa discreta avisa "procurando a próxima…".
+   Só uma busca por obra de cada vez (várias baixas seguidas não empilham). */
+const _acomp={};
+function acompanharProxima(obraId){
+  if(!obraId) return;
+  if(_acomp[obraId]) { _acomp[obraId].reinicia=true; return; }
+  const passos=[2,4,6,9,12,16,20,25,30,40,50,60], t0=Date.now();
+  const est=_acomp[obraId]={reinicia:false};
+  mostrarProcurando(true);
+  let i=0;
+  const tick=async()=>{
+    if(est.reinicia){ est.reinicia=false; i=0; }
+    const novas=await atualizarObraVivo(obraId);
+    if(novas&&novas.length){
+      toast("Nova atividade: "+novas.map(x=>x.titulo||x.tipo).join(", "));
+      delete _acomp[obraId]; mostrarProcurando(false); return;
+    }
+    if(i>=passos.length){ delete _acomp[obraId]; mostrarProcurando(false); return; }
+    const alvo=passos[i++]*1000, espera=Math.max(500,alvo-(Date.now()-t0));
+    setTimeout(tick,espera);
+  };
+  tick();
+}
+function mostrarProcurando(on){
+  let b=document.getElementById("procurando");
+  const ativos=Object.keys(_acomp).length;
+  if(!on&&!ativos){ if(b) b.remove(); return; }
+  if(!b){ b=document.createElement("div"); b.id="procurando"; document.body.appendChild(b); }
+  b.innerHTML='<span class="load"></span> procurando a próxima atividade no Notion…';
+}
+
 /* mesma regra da fórmula CONTROLE DE PRAZO do Notion, para a tela não ficar
    dizendo "EM ATRASO" numa atividade que acabou de ser concluída (item 3) */
 function prazoLocal(a){

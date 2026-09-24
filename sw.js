@@ -109,7 +109,9 @@
    pos-obra.html, simulacoes.html. Sem subir este número, o navegador de quem
    já abriu o portal continua servindo as telas ANTIGAS do cache — e foi isso
    que mostrou a lista de contas vazia depois de tudo publicado. */
-const CACHE = "portal-morais-v35";  // limpeza só dos caches do portal (não apaga os das RAS)
+/* v35 -> v36 (24/09/26): app.js com a faxina dos dados guardados e
+   obras.html com o acompanhamento ao vivo. */
+const CACHE = "portal-morais-v36";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",
