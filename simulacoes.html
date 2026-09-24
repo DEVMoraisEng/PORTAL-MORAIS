@@ -562,7 +562,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
     <div class="modal-cx" id="sim-modalCx"></div>
   </div>
 
-<script src="app.js?v=36"></script>
+<script src="app.js?v=37"></script>
 <script>
 
 /* =====================================================================
@@ -2462,6 +2462,10 @@ async function propEnviarCorresp(id, chave, nome, email){
   }
   info.innerHTML='<span style="color:#1D7A45"><b>✓ Enviado para '+esc(r.correspondente)+'</b> ('+esc(r.para)+') — '+
     r.anexos+' anexo(s)'+(r.partes>1?' em '+r.partes+' e-mails (tamanho)':'')+'.</span>'+
+    /* r48 — quantos documentos a proposta tinha, para bater com o que saiu */
+    (r.encontrados!==undefined ? '<br><span style="color:var(--text3)">Documentos cadastrados na proposta: <b>'+
+      r.encontrados+'</b> + o PDF.</span>' : '')+
+    (r.encontrados===0 ? '<br><span style="color:#C0392B">Nenhum documento cadastrado — foi só o PDF.</span>' : '')+
     ((r.naoAnexados&&r.naoAnexados.length)?'<br><span style="color:#C0392B">Não foram anexados: '+r.naoAnexados.map(esc).join(" · ")+'</span>':'')+
     (r.aviso?'<br><span style="color:#C0392B">'+esc(r.aviso)+'</span>':'');
   if(r.registro!==undefined){
