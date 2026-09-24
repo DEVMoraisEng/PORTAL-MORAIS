@@ -438,7 +438,22 @@ function ponteAplicar(base,lista,campoDe,publicadoEm){
   if(mudou) edicoesGravar(o);
 }
 function ponteAtividades(publicadoEm){ ponteAplicar("obras-atv",D.atividades,p=>ATV_PROP[p],publicadoEm); D.atividades.forEach(a=>{ a.controle_prazo=prazoLocal(a); }); }
-function ponteObras(publicadoEm){ ponteAplicar("obras",D.obras,p=>{ const c=CAMPOS.find(x=>x[2]===p); return c&&c[3]!=="pessoa"?c[1]:null; },publicadoEm); }
+/* 25/09/26 — os ALERTAS dependem destes campos: depois de reaplicar o que foi
+   salvo, refaz o que deriva deles (nome da pessoa a partir do id, situação
+   da conta). Antes, uma leitura atrasada trazia o alerta de volta. */
+function ponteObras(publicadoEm){
+  ponteAplicar("obras",D.obras,p=>{ const c=CAMPOS.find(x=>x[2]===p); return c?c[1]:null; },publicadoEm);
+  D.obras.forEach(o=>{
+    ["resp_ids","rt_ids"].forEach(k=>{
+      const ids=o[k]; if(!Array.isArray(ids)||!ids.length) return;
+      const nome=ids.map(id=>{ const p=(D.pessoas||[]).find(x=>String(x.id).replace(/-/g,"")===String(id).replace(/-/g,"")); return p?p.nome:""; }).filter(Boolean).join(", ");
+      if(nome) o[k==="resp_ids"?"resp":"rt"]=nome;
+    });
+    if(o.conta!==undefined&&o.conta!==null&&o.conta!==""){
+      o.conta_alerta=(o.conta==="CRIAR CONTA"||o.conta==="DÚVIDA")?o.conta:null;
+    }
+  });
+}
 let INV=null, INV_SENS=null, INV_BUSCA="";
 /* cor por grupo de tipo (1.x, 2.x … 7) — mesma ideia das cores do Notion */
 const CORES_TIPO={1:"#2f6fb0",2:"#7b4fb3",3:"#2a9d5c",4:"#d27a1f",5:"#8a6d3b",6:"#c2477a",7:"#1c7c74"};
@@ -841,6 +856,7 @@ async function atualizarObraVivo(obraId){
     vindas.forEach(v=>{ const a=D.atividades.find(x=>x.id===v.id);
       if(a) Object.assign(a,v); else { D.atividades.push(v); novas.push(v); } });
     ponteAtividades(null); ponteObras(null);   // leitura ao vivo pode vir atrasada: o que foi salvo prevalece
+    if(ABA==="alertas") pintarAlertas();
     _IDXv=null;   // índice por obra refeito na próxima pintura
     repintarSeguro();
     return novas;
@@ -1000,7 +1016,7 @@ async function gravarObra(i,el){
     else if(tipo==="num") o[k]=el.value===""?null:Number(el.value);
     else if(tipo==="conta"){ o[k]=el.value; o.conta_alerta=(el.value==="CRIAR CONTA"||el.value==="DÚVIDA")?el.value:null; }
     else o[k]=el.value||null;
-    if(tipo!=="pessoa") ponteGuardar("obras",o.id,col,o[k]);
+    ponteGuardar("obras",o.id,col,o[k]);           // pessoa entra também (ids): o alerta não volta
     o._bt=null;
     toast(r.compat&&r.compat.criada?"Criado para esta obra: "+(r.compat.criadas||[]).join(" e ")+".":rot+" salvo.");
     pintarTabs(); if(ABA==="obras") pintarLista(); else if(ABA==="alertas") pintarAlertas();
