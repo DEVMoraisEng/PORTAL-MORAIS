@@ -358,7 +358,7 @@ html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
 </div>
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=41"></script>
+<script src="app.js?v=43"></script>
 <script>
 /* ---------- tema ---------- */
 const TEMA_KEY="morais_tema";
@@ -437,7 +437,11 @@ function ponteAplicar(base,lista,campoDe,publicadoEm){
     if(iguaisEdicao(alvo[campo],e.v)){ delete o[k]; mudou=true; continue; }   // o Notion já tem
     const idadeLeitura=pub||agora;
     const naFila=pend.has(String(e.id).replace(/-/g,"")+"|"+e.p);
-    if(!naFila&&idadeLeitura>e.ts+PONTE_FOLGA){ delete o[k]; mudou=true; continue; }    // leitura bem posterior e diferente: vale o Notion
+    /* 25/09/26: o arquivo publicado (build) NUNCA derruba o que foi salvo —
+       ele pode atrasar por muito tempo (build que falhou, fila do GitHub).
+       Só a leitura AO VIVO (obraVivo, direto do Notion) pode dizer que o valor
+       mudou lá, e mesmo assim só depois de 3 min da gravação. */
+    if(!naFila&&!pub&&idadeLeitura>e.ts+PONTE_FOLGA){ delete o[k]; mudou=true; continue; }
     alvo[campo]=e.v;                                                           // ainda não chegou: fica o que foi salvo
   }
   if(mudou) edicoesGravar(o);
@@ -733,6 +737,7 @@ async function gravarAtv(id,prop,valor,el){
      concluída sai da lista na hora); o servidor grava por trás. Se ele
      recusar de verdade, tudo volta como estava e o aviso diz o motivo. */
   const antes={status:a.status,data_conclusao:a.data_conclusao,data_final:a.data_final,data_inicio:a.data_inicio,controle_prazo:a.controle_prazo};
+  a._editadoEm=Date.now();
   const campo=ATV_PROP[prop];
   if(campo) a[campo]=valor||null;
   const autoConc=(prop==="Status"&&N(valor)==="FINALIZADO"&&!a.data_conclusao);
@@ -848,18 +853,33 @@ function prazoLocal(a){
 /* Traz a obra e as atividades dela direto do Notion (obraVivo). Devolve as
    atividades que ainda não estavam na tela. */
 const _vivoEmVoo={};
+/* 25/09/26 — A CAUSA DO "PREENCHI, FECHEI, ABRI E SUMIU".
+   Abrir a obra dispara uma leitura ao vivo que leva alguns segundos. Se a
+   pessoa preenchia um campo NESSE intervalo, a leitura — que tinha começado
+   ANTES da gravação — chegava depois, com o valor antigo, e passava por cima
+   do novo. Ao reabrir a obra, o campo aparecia vazio, como se nada tivesse
+   sido feito. Agora cada gravação marca a hora (_editadoEm) e uma leitura que
+   começou antes dessa hora NÃO sobrescreve o registro; em vez disso, uma
+   leitura nova é feita logo depois, já com o valor gravado. */
 async function atualizarObraVivo(obraId){
   if(!obraId||String(obraId).indexOf("tmp-")===0) return [];
   if(_vivoEmVoo[obraId]) return _vivoEmVoo[obraId];
+  const iniciou=Date.now();
   const pr=(async()=>{
     let r; try{ r=await chamar({action:"obraVivo",obraId:obraId},40000); }catch(e){ r=null; }
     if(!(r&&r.ok)) return [];
     const o=obraDe(obraId);
-    if(o&&r.obra){ Object.keys(r.obra).forEach(k=>{ if(k!=="id") o[k]=r.obra[k]; }); o._vivo=true; o._bt=null; }
+    let releia=false;
+    if(o&&r.obra){
+      if(o._editadoEm&&iniciou<o._editadoEm) releia=true;                     // leitura velha: não mexe
+      else { Object.keys(r.obra).forEach(k=>{ if(k!=="id") o[k]=r.obra[k]; }); o._vivo=true; o._bt=null; }
+    }
     const vindas=r.atividades||[], ids=new Set(vindas.map(x=>x.id)), novas=[];
     D.atividades=D.atividades.filter(x=>x.obra_id!==obraId||ids.has(x.id)||String(x.id).indexOf("tmp")===0);
     vindas.forEach(v=>{ const a=D.atividades.find(x=>x.id===v.id);
-      if(a) Object.assign(a,v); else { D.atividades.push(v); novas.push(v); } });
+      if(a){ if(a._editadoEm&&iniciou<a._editadoEm) releia=true; else Object.assign(a,v); }
+      else { D.atividades.push(v); novas.push(v); } });
+    if(releia) setTimeout(()=>atualizarObraVivo(obraId),800);
     ponteAtividades(null); ponteObras(null);   // leitura ao vivo pode vir atrasada: o que foi salvo prevalece
     if(ABA==="alertas") pintarAlertas();
     _IDXv=null;   // índice por obra refeito na próxima pintura
@@ -1002,6 +1022,7 @@ function pintarObraPainel(){
 async function gravarObra(i,el){
   const o=obraDe(OBRA); if(!o) return;
   const [rot,k,col,tipo]=CAMPOS[i];
+  o._editadoEm=Date.now();                      // leitura que começou antes disto não sobrescreve
   if(el.value==="__novo__"){
     const nv=pedirNovo(col);
     if(!nv){ pintarObraPainel(); return; }
@@ -1032,6 +1053,7 @@ async function gravarObra(i,el){
     o._bt=null;
     toast(r.enfileirado?rot+": sem conexão agora — ficou guardado e grava sozinho quando voltar."
       :r.compat&&r.compat.criada?"Criado para esta obra: "+(r.compat.criadas||[]).join(" e ")+".":rot+" salvo.");
+    atualizarChipsObra(o);                        // "Falta: …" some na hora
     pintarTabs(); if(ABA==="obras") pintarLista(); else if(ABA==="alertas") pintarAlertas();
     atualizarObraVivo(o.id);
   }else{ el.classList.add("erro"); toast("Não salvou: "+errMsg(r)); }

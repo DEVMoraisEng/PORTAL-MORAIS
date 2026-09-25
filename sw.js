@@ -119,7 +119,10 @@
 /* v41 -> v42 (25/09/26): simulações com detalhe rápido; contas insistem. */
 /* v42 -> v43 (25/09/26): app.js repete sozinho quando o Google devolve
    página de erro no lugar da resposta. */
-const CACHE = "portal-morais-v43";  // limpeza só dos caches do portal (não apaga os das RAS)
+/* v43 -> v44 (25/09/26): edição salva não some no build nem ao sair;
+   chips do painel na hora. */
+/* v44 -> v45 (25/09/26): leitura ao vivo antiga não apaga o que acabou de ser salvo. */
+const CACHE = "portal-morais-v45";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",
