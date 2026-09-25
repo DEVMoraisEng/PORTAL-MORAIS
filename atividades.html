@@ -377,6 +377,19 @@ html[data-tema="escuro"] .pchip{background:var(--bg3);color:var(--text)}
 .icard.clic:hover{transform:translateY(-2px);box-shadow:0 6px 16px var(--sombra)}
 .icard.on{border:2px solid var(--azul);box-shadow:0 4px 14px rgba(41,87,120,.25)}
 html[data-tema="escuro"] .flt{background:var(--bg3);color:var(--text)}
+/* v3 — lista de itens do checklist (digita, Enter, próxima linha) */
+.ck{display:flex;flex-direction:column;gap:5px;background:var(--sup);border:1.5px solid var(--border);border-radius:10px;padding:8px 10px}
+.ck-l{display:flex;align-items:center;gap:8px}
+.ck-b{color:var(--text3);font-size:15px;flex:none}
+.ck-l input{flex:1;border:0!important;border-bottom:1px dashed var(--border2)!important;border-radius:0!important;padding:6px 2px!important;background:transparent!important;box-shadow:none!important}
+.ck-l input:focus{border-bottom:2px solid var(--verde)!important}
+.ck-x{border:0;background:transparent;color:var(--text4);font-size:17px;cursor:pointer;padding:0 6px;border-radius:6px}
+.ck-x:hover{background:#fde8e6;color:var(--verm)}
+.pessoa-lista i{color:var(--verde-esc);font-style:normal;font-size:11px}
+/* v3 — a página não "corta seco": respiro no fim e colunas com a mesma altura de topo */
+main.wrap{padding-bottom:90px}
+.lay{margin-bottom:30px}
+.cal{margin-bottom:10px}
 
 </style>
 </head>
@@ -424,8 +437,8 @@ html[data-tema="escuro"] .flt{background:var(--bg3);color:var(--text)}
 
 <script src="app.js?v=43"></script>
 <script src="alertas-docs.js?v=1"></script>
-<script src="editor-blocos.js?v=2"></script>
-<script src="atv-alertas.js?v=2"></script>
+<script src="editor-blocos.js?v=3"></script>
+<script src="atv-alertas.js?v=3"></script>
 <script>
 /* ---------- tema ---------- */
 const TEMA_KEY="morais_tema";
@@ -499,13 +512,13 @@ async function carregar(fresco){
   const o=await ler(Object.assign({action:"atvOutras"},fresco?{fresco:true}:{}),"atv_outras");
   if(o&&o.ok){ OUT=o; pintar(); }
   carregarModelos();
-  if(!fresco){ setTimeout(preCarregar,1500); if(EQUIPE&&!EQ) setTimeout(()=>carregarEquipe(false,true),2500); }
+  if(!fresco){ setTimeout(preCarregar,12000); if(EQUIPE&&!cacheGet("atv_equipe")) setTimeout(()=>carregarEquipe(false,true),6000); }
 }
 /* v2 — PRÉ-CARREGAMENTO: as atividades mais prováveis de serem abertas
    (atrasadas e as próximas do prazo) já ficam guardadas no navegador com
    comentários e checklist. Uma por vez, e para quando você abre alguma. */
 async function preCarregar(){
-  const cand=D.atividades.filter(aberta).filter(a=>souResp(a)||souSolic(a)).sort(ordFim).slice(0,6);
+  const cand=D.atividades.filter(aberta).filter(a=>souResp(a)||souSolic(a)).sort(ordFim).slice(0,2);
   for(const a of cand){
     if(ABERTA) return;
     if(guardadaAtv(a.id)) continue;
@@ -711,11 +724,12 @@ function pintarLado(){
       ${prop.length?prop.map(a=>`<div class="mini" onclick="abrirAtv('${a.id}')"><span>${a.titulo.indexOf("✅")===0?"":"•"}</span>
         <span class="t">${esc(a.titulo)}</span><span class="d ${atrasada(a)?"atr":""}">${a.fim?br(a.fim):""}</span></div>`).join("")
       :`<div class="ajuda">Nada em aberto. Crie uma atividade só sua ou gere um checklist.</div>`}
-      <div style="margin-top:9px"><button class="bt bt-mini" onclick="novaAtividade(true)">+ Atividade para mim</button></div></div>
+      <div style="margin-top:9px;display:flex;gap:6px;flex-wrap:wrap"><button class="bt bt-mini" onclick="novaAtividade(true)">+ Atividade para mim</button>
+        <button class="bt az bt-mini" onclick="checklistAvulso()" title="Lista rápida, sem modelo">☑ Checklist avulso</button></div></div>
     <div class="caixa"><h3>Checklists prontos <span class="n">${MOD.modelos.length}</span></h3>
-      ${MOD.modelos.map(m=>`<div class="mod"><div class="t"><b>${esc(m.nome)}</b><span>${esc(m.frequencia)} · ${m.itens.length} itens</span></div>
-        <button class="bt bt-mini" title="Cria agora uma atividade nova com estes itens desmarcados" onclick="gerarModelo(${m.id},this)">▶ Gerar</button>
-        <button class="bt ghost bt-mini" title="Editar o modelo" onclick="formModelo(${m.id})">✎</button></div>`).join("")||`<div class="ajuda">Monte listas que você repete (diária, semanal, mensal). “Gerar” cria uma atividade nova, zerada, com os itens.</div>`}
+      ${MOD.modelos.map(m=>`<div class="mod"><div class="t"><b>${esc(m.nome)}</b><span>${esc(m.frequencia)} · ${m.itens.length} itens${m._salvando?" · salvando…":""}</span></div>
+        <button class="bt bt-mini" title="Cria agora uma atividade nova com estes itens desmarcados" onclick="gerarModelo('${m.id}',this)">▶ Gerar</button>
+        <button class="bt ghost bt-mini" title="Editar o modelo" onclick="formModelo(${JSON.stringify(m.id).replace(/"/g,"&quot;")})">✎</button></div>`).join("")||`<div class="ajuda">Monte listas que você repete (diária, semanal, mensal). “Gerar” cria uma atividade nova, zerada, com os itens.</div>`}
       <div style="margin-top:9px"><button class="bt ghost bt-mini" onclick="formModelo(null)">+ Novo checklist pronto</button></div></div>
     ${ALERTAS_ABAS.length?`<div class="caixa"><h3>Alertas das abas</h3>${ALERTAS_ABAS.map(x=>`<a class="mini" href="${esc(x.link)}" style="text-decoration:none">
       <span class="t">${esc(x.nome)}</span><span class="d atr">${x.n} ${esc(x.txt)}</span></a>`).join("")}</div>`:""}`;
@@ -768,19 +782,26 @@ async function abrirAtv(id){
   pintarCampos(a);
   const g=guardadaAtv(id);
   if(g&&g.comentarios){ _coms=g.comentarios; _comsAssin=_coms.map(c=>c.id).join(","); pintarChat(); }
-  EditorBlocos.montar(document.getElementById("pa-cont"), id, {somenteLeitura:!podeEditar(a), dados:g&&g.conteudo});
+  if(g&&g.conteudo) EditorBlocos.montar(document.getElementById("pa-cont"), id, {somenteLeitura:!podeEditar(a), dados:g.conteudo});
+  else document.getElementById("pa-cont").innerHTML=`<div class="eb-vazio"><span class="load"></span> Carregando checklist e anotações…</div>`;
   const t=document.getElementById("pa-txt");
   if(t) t.addEventListener("keydown",e=>{ if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); enviarComentario(); } });
   document.getElementById("ov1").classList.add("on"); document.getElementById("p1").classList.add("on");
   history.replaceState(null,"","#"+id);
   if(!g){ _coms=null; _comsAssin=""; }
   abrirServidor(id, !!g);
-  clearInterval(_poll); _poll=setInterval(()=>{ if(!document.hidden&&ABERTA) lerComentarios(false); },20000);
+  clearInterval(_poll); _poll=setInterval(()=>{ if(!document.hidden&&ABERTA) lerComentarios(false); },window._aoVivo?60000:25000);
 }
 /* tudo de uma vez: detalhe + comentários + conteúdo (1 chamada) */
 async function abrirServidor(id, temCopia){
   let r=null; try{ r=await chamar({action:"atvAbrir",pageId:id},60000,true); }catch(e){}
-  if(!(r&&r.ok)){ if(!temCopia) lerComentarios(true); return; }
+  if(!(r&&r.ok)){
+    if(ABERTA!==id||temCopia) return;
+    const msg=`<div class="ajuda">Não consegui abrir agora (${esc(msgErro(r))}). <a href="#" onclick="abrirServidor('${id}',false);return false">Tentar de novo</a></div>`;
+    const ch=document.getElementById("pa-chat"); if(ch) ch.innerHTML=msg;
+    const ct=document.getElementById("pa-cont"); if(ct&&!ct._eb) ct.innerHTML=msg;
+    return;
+  }
   guardarAtv(id,r);
   if(ABERTA!==id) return;
   const a=acha(id); if(a&&r.atividade){ Object.assign(a,r.atividade); pintarCampos(a); }
@@ -806,7 +827,7 @@ function pintarCampos(a){
   el.innerHTML=`<div class="af">
     <div class="full"><label>Atividade</label><input type="text" value="${esc(a.titulo)}" ${dis} onchange="gravar('${a.id}','titulo',this.value,this)"></div>
     <div><label>Status</label><select ${dis} onchange="gravar('${a.id}','status',this.value,this)">${opts(D.opcoes.status,a.status)}</select></div>
-    <div><label>Tipo</label><select ${dis} onchange="gravar('${a.id}','tipo',this.value,this)">${opts(D.opcoes.tipo,a.tipo,true)}</select></div>
+    <div><label>Tipo</label><select ${dis} data-antes="${esc(a.tipo||"")}" onchange="if(this.value==='__novo__'){novoTipo(this);return;} gravar('${a.id}','tipo',this.value,this)">${opts(D.opcoes.tipo,a.tipo,true)}<option value="__novo__">＋ Novo tipo…</option></select></div>
     <div><label>Prioridade</label><select ${dis} onchange="gravar('${a.id}','prioridade',this.value,this)">${opts(D.opcoes.prioridade,a.prioridade,true)}</select></div>
     <div><label>Início</label><input type="date" value="${esc(a.ini||"")}" ${dis} onchange="gravar('${a.id}','ini',this.value,this)"></div>
     <div><label>Prazo final</label><input type="date" value="${esc(a.fim||"")}" ${dis} onchange="gravar('${a.id}','fim',this.value,this)"></div>
@@ -866,55 +887,179 @@ async function enviarComentario(){
   _coms=(_coms||[]).concat([tmp]); pintarChat();
   t.value=""; inp.value=""; mostrarAnexos();
   const bt=document.getElementById("pa-env"); bt.disabled=true;
-  let r; try{ r=await chamar({action:"atvComentarioNovo",pageId:id,texto,arquivos},120000,true); }catch(e){ r={ok:false,erro:"sem conexão"}; }
+  const r=await criarRF({action:"atvComentarioNovo",pageId:id,texto,arquivos});
   bt.disabled=false;
-  if(!(r&&r.ok)){ _coms=_coms.filter(c=>c!==tmp); pintarChat(); t.value=texto; toast("Não enviou: "+erroTexto(r&&r.erro)); return; }
+  if(!(r&&r.ok)){ _coms=_coms.filter(c=>c!==tmp); pintarChat(); t.value=texto; toast("Não enviou: "+msgErro(r)); return; }
   if(ABERTA===id) lerComentarios(true);
 }
 
-/* ---------- formulários (nova atividade / checklist pronto) ---------- */
+/* ---------- formulários (v3 — 25/09 noite) ----------
+   - Checklist item por item: digita, Enter, aparece a próxima linha (colar
+     várias linhas também funciona). Sem "um por linha" num quadro de texto.
+   - Responsáveis em TODOS os formulários, com busca (na "para mim" você já
+     vem marcado).
+   - "+ Novo tipo…" no Tipo (grava o tipo novo no Notion na hora de salvar).
+   - Anexos já na criação: vão como o primeiro comentário da atividade.
+   - Checklist avulso: uma lista rápida só sua, sem modelo.
+   - Criação protegida (criarRF): se a resposta demorar, a tela pergunta
+     "criou?" em vez de dar "erro desconhecido" — e nunca cria duas vezes. */
 function abrirForm(tit,sub,corpo,acoes){
   document.getElementById("mf-tit").textContent=tit; document.getElementById("mf-sub").textContent=sub||"";
   document.getElementById("mf-corpo").innerHTML=corpo; document.getElementById("mf-acoes").innerHTML=acoes;
   document.getElementById("mf-erro").textContent=""; document.getElementById("mf").classList.add("on");
 }
 function fecharForm(){ document.getElementById("mf").classList.remove("on"); }
+function msgErro(r){
+  if(!r) return "o servidor não respondeu a tempo — confira na lista antes de tentar de novo";
+  return erroTexto(r.erro||"erro sem detalhe");
+}
+/* criação à prova de demora (opId + pergunta "criou?") */
+async function criarRF(payload,rotulo){
+  payload.opId=payload.opId||(typeof novoOpId==="function"?novoOpId():Date.now()+"_"+Math.random().toString(36).slice(2));
+  const transit=(typeof ERROS_TRANSITORIOS!=="undefined")?ERROS_TRANSITORIOS:["NAO_AUTORIZADO","BACKEND_OCUPADO"];
+  for(let tent=0;tent<2;tent++){
+    let r=null; try{ r=await chamar(Object.assign({},payload),90000,true); }catch(e){}
+    if(r&&r.ok) return r;
+    if(r&&r.erro&&r.erro!=="EM_ANDAMENTO"&&transit.indexOf(r.erro)<0) return r;
+    for(let i=0;i<12;i++){
+      await new Promise(ok=>setTimeout(ok,i?4000:2000));
+      let c=null; try{ c=await chamar({action:"atvOp",opId:payload.opId},20000,true); }catch(e){}
+      if(c&&c.ok&&c.resultado) return c.resultado;
+      if(c&&c.ok&&!c.andando) break;                         // não começou: manda de novo (mesmo opId)
+    }
+  }
+  return null;
+}
+/* ---- lista de itens (checklist) ---- */
+function itensHtml(id,itens,ph){
+  return `<div class="ck" id="${id}">${(itens||[]).map(t=>ckLinha(t)).join("")}${ckLinha("",ph||"Digite um item e aperte Enter")}</div>
+    <div class="ajuda">Enter cria a próxima linha · colar várias linhas também funciona · × tira o item</div>`;
+}
+function ckLinha(t,ph){ return `<div class="ck-l"><span class="ck-b">☐</span><input type="text" value="${esc(t||"")}" placeholder="${esc(ph||"")}"><button type="button" class="ck-x" title="Tirar este item" tabindex="-1">×</button></div>`; }
+function ligarItens(id){
+  const box=document.getElementById(id); if(!box) return;
+  box.addEventListener("keydown",e=>{
+    if(e.target.tagName!=="INPUT") return;
+    const linha=e.target.closest(".ck-l");
+    if(e.key==="Enter"){ e.preventDefault();
+      if(!e.target.value.trim()) return;
+      let prox=linha.nextElementSibling;
+      if(!prox||prox.querySelector("input").value.trim()){ linha.insertAdjacentHTML("afterend",ckLinha("","Próximo item…")); prox=linha.nextElementSibling; }
+      prox.querySelector("input").focus();
+    }else if(e.key==="Backspace"&&!e.target.value&&box.querySelectorAll(".ck-l").length>1){
+      e.preventDefault(); const ant=linha.previousElementSibling||linha.nextElementSibling; linha.remove(); if(ant) ant.querySelector("input").focus();
+    }
+  });
+  box.addEventListener("paste",e=>{
+    if(e.target.tagName!=="INPUT") return;
+    const tx=(e.clipboardData||window.clipboardData).getData("text");
+    if(tx.indexOf("\n")<0) return;
+    e.preventDefault();
+    const partes=tx.split(/\r?\n/).map(x=>x.replace(/^[\s\-•*☐☑✓\d.)]+/,"").trim()).filter(Boolean);
+    const linha=e.target.closest(".ck-l"); e.target.value=partes.shift()||"";
+    let ult=linha; partes.forEach(p=>{ ult.insertAdjacentHTML("afterend",ckLinha(p)); ult=ult.nextElementSibling; });
+    ult.insertAdjacentHTML("afterend",ckLinha("","Próximo item…"));
+  });
+  box.addEventListener("click",e=>{ const x=e.target.closest(".ck-x"); if(!x) return;
+    const l=x.closest(".ck-l"); if(box.querySelectorAll(".ck-l").length>1) l.remove(); else l.querySelector("input").value=""; });
+}
+function lerItens(id){ return [...document.querySelectorAll("#"+id+" input")].map(i=>i.value.trim()).filter(Boolean); }
+/* ---- responsáveis com busca ---- */
+function respHtml(marcados){
+  const ids=marcados||[];
+  const ord=D.pessoas.slice().sort((a,b)=>(ids.indexOf(b.id)>=0)-(ids.indexOf(a.id)>=0)||a.nome.localeCompare(b.nome));
+  return `<input type="text" class="busca" style="min-width:0;width:100%;margin-bottom:6px" placeholder="Buscar pessoa…" oninput="filtrarPessoas(this.value)">
+    <div class="pessoa-lista" id="n-pessoas">${ord.map(p=>`<label data-n="${esc(N(p.nome))}"><input type="checkbox" value="${p.id}" class="n-resp" ${ids.indexOf(p.id)>=0?"checked":""}> ${esc(p.nome)}${p.id===ME?" <i>(você)</i>":""}</label>`).join("")||`<span class="ajuda">Lista de pessoas ainda carregando…</span>`}</div>`;
+}
+function filtrarPessoas(t){ const n=N(t); document.querySelectorAll("#n-pessoas label").forEach(l=>l.style.display=!n||l.dataset.n.indexOf(n)>=0?"":"none"); }
+/* ---- tipo com "+ Novo tipo…" ---- */
+function tipoSelect(id,valor,extra){
+  return `<select id="${id}" ${extra||""} onchange="if(this.value==='__novo__') novoTipo(this)">${opts(D.opcoes.tipo,valor,true)}<option value="__novo__">＋ Novo tipo…</option></select>`;
+}
+function novoTipo(sel){
+  const t=(prompt("Nome do novo tipo de atividade:")||"").trim();
+  if(!t){ sel.value=sel.dataset.antes||""; return; }
+  if((D.opcoes.tipo||[]).indexOf(t)<0){ D.opcoes.tipo=(D.opcoes.tipo||[]).concat([t]); }
+  const op=document.createElement("option"); op.textContent=t; op.value=t; sel.insertBefore(op,sel.lastElementChild); sel.value=t;
+  sel.dispatchEvent(new Event("change"));
+}
+/* ---- nova atividade / para mim ---- */
 function novaAtividade(paraMim){
   if(RO){ toast("Modo teste: não grava."); return; }
   const hoje=hojeISO();
-  abrirForm(paraMim?"Atividade para mim":"Nova atividade", paraMim?"Você é o solicitante e o responsável":"Você fica como solicitante",
+  abrirForm(paraMim?"Atividade para mim":"Nova atividade", paraMim?"Você já vem como responsável — marque mais gente se quiser":"Você fica como solicitante",
     `<div class="fgrid">
       <div class="campo full"><label>Atividade <i>*</i></label><input type="text" id="n-tit" placeholder="O que precisa ser feito"></div>
-      <div class="campo"><label>Tipo</label><select id="n-tipo">${opts(D.opcoes.tipo,paraMim?PROPRIA:"",true)}</select></div>
+      <div class="campo"><label>Tipo</label>${tipoSelect("n-tipo",paraMim?PROPRIA:"")}</div>
       <div class="campo"><label>Prioridade</label><select id="n-pri">${opts(D.opcoes.prioridade,"Média",true)}</select></div>
       <div class="campo"><label>Início</label><input type="date" id="n-ini" value="${hoje}"></div>
       <div class="campo"><label>Prazo final <i>*</i></label><input type="date" id="n-fim" value="${paraMim?hoje:""}"></div>
-      ${paraMim?"":`<div class="campo full"><label>Responsáveis <i>*</i></label><div class="pessoa-lista">${D.pessoas.map(p=>
-        `<label><input type="checkbox" value="${p.id}" class="n-resp"> ${esc(p.nome)}</label>`).join("")}</div></div>`}
+      <div class="campo full"><label>Responsáveis <i>*</i></label>${respHtml(paraMim?[ME]:[])}</div>
       <div class="campo full"><label>Obra</label><select id="n-obra"><option value="">— sem obra —</option>${OBRAS_L.map(o=>`<option value="${o.id}">${esc(o.titulo)}</option>`).join("")}</select></div>
       <div class="campo full"><label>Descrição</label><textarea class="campo-grande" id="n-desc" placeholder="Detalhes (opcional)"></textarea></div>
-      <div class="campo full"><label>Checklist</label><textarea class="campo-grande" id="n-itens" placeholder="Um item por linha (opcional)"></textarea></div>
+      <div class="campo full"><label>Checklist</label>${itensHtml("n-itens",[])}</div>
+      <div class="campo full"><label>Anexos</label><label class="bt ghost bt-mini" style="display:inline-flex;cursor:pointer">📎 Escolher fotos ou documentos<input type="file" id="n-arq" multiple hidden
+        accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.dwg,.zip,.txt" onchange="document.getElementById('n-arq-l').textContent=[...this.files].map(f=>f.name).join(' · ')"></label>
+        <div class="ajuda" id="n-arq-l"></div></div>
     </div>`,
-    `<button class="bt ghost" onclick="fecharForm()">Cancelar</button><button class="bt" id="n-ok" onclick="criarAtividade(${paraMim})">Criar atividade</button>`);
+    `<button class="bt ghost" onclick="fecharForm()">Cancelar</button><button class="bt" id="n-ok" onclick="criarAtividade()">Criar atividade</button>`);
+  ligarItens("n-itens");
   setTimeout(()=>document.getElementById("n-tit").focus(),50);
 }
-async function criarAtividade(paraMim){
+function checklistAvulso(){
+  if(RO){ toast("Modo teste: não grava."); return; }
+  const hoje=hojeISO();
+  abrirForm("Checklist avulso","Uma lista rápida só sua — vai para “Para mim”",
+    `<div class="fgrid">
+      <div class="campo"><label>Nome</label><input type="text" id="n-tit" value="Checklist ${hoje.slice(8,10)}/${hoje.slice(5,7)}"></div>
+      <div class="campo"><label>Para quando</label><input type="date" id="n-fim" value="${hoje}"></div>
+      <div class="campo full"><label>Itens <i>*</i></label>${itensHtml("n-itens",[],"Primeiro item e Enter")}</div>
+    </div>`,
+    `<button class="bt ghost" onclick="fecharForm()">Cancelar</button><button class="bt" id="n-ok" onclick="criarAvulso()">Criar checklist</button>`);
+  ligarItens("n-itens");
+  setTimeout(()=>document.querySelector("#n-itens input").focus(),50);
+}
+async function criarAvulso(){
+  const g=id=>document.getElementById(id), err=g("mf-erro"), itens=lerItens("n-itens");
+  if(!itens.length){ err.textContent="Escreva pelo menos um item."; return; }
+  g("n-ok").disabled=true; err.textContent="";
+  const r=await criarRF({action:"atvCriar",titulo:"✅ "+(g("n-tit").value.trim()||"Checklist"),tipo:PROPRIA,prioridade:"Média",ini:hojeISO(),fim:g("n-fim").value||hojeISO(),resp:[ME],itens});
+  g("n-ok").disabled=false;
+  if(!(r&&r.ok)){ err.textContent="Não criou: "+msgErro(r); return; }
+  adotar(r.atividade); fecharForm(); toast("Checklist criado — está em “Para mim”.");
+}
+function adotar(a){
+  if(!a) return;
+  const i=D.atividades.findIndex(x=>x.id===a.id); if(i>=0) D.atividades[i]=a; else D.atividades.push(a);
+  cacheSet("atv_minhas",Object.assign({},D,{ok:true,me:ME})); pintar();
+  if(window.AtvAlertas) setTimeout(()=>AtvAlertas.atualizar(true),2500);
+}
+async function criarAtividade(){
   const g=id=>document.getElementById(id), err=g("mf-erro");
   const titulo=g("n-tit").value.trim(), fim=g("n-fim").value;
-  const resp=paraMim?[ME]:[...document.querySelectorAll(".n-resp:checked")].map(x=>x.value);
+  const resp=[...document.querySelectorAll(".n-resp:checked")].map(x=>x.value);
   if(!titulo){ err.textContent="Escreva o que precisa ser feito."; return; }
   if(!fim){ err.textContent="Informe o prazo final."; return; }
   if(!resp.length){ err.textContent="Escolha pelo menos um responsável."; return; }
-  const itens=g("n-itens").value.split("\n").map(x=>x.trim()).filter(Boolean);
-  g("n-ok").disabled=true; err.textContent="";
-  let r; try{ r=await chamar({action:"atvCriar",titulo,tipo:g("n-tipo").value,prioridade:g("n-pri").value,ini:g("n-ini").value,fim,
-    resp,obraId:g("n-obra").value||"",descricao:g("n-desc").value.trim(),itens},90000,true); }catch(e){ r={ok:false,erro:"sem conexão"}; }
-  g("n-ok").disabled=false;
-  if(!(r&&r.ok)){ err.textContent="Não criou: "+erroTexto(r&&r.erro); return; }
-  if(r.atividade) D.atividades.push(r.atividade);
-  fecharForm(); pintar(); toast("Atividade criada.");
-  if(window.AtvAlertas) setTimeout(()=>AtvAlertas.atualizar(true),1500);
+  const fs=[...(g("n-arq").files||[])];
+  if(fs.some(f=>f.size>15*1024*1024)){ err.textContent="Tem arquivo acima de 15 MB — mande um menor."; return; }
+  let arquivos=[];
+  try{ arquivos=await Promise.all(fs.slice(0,5).map(async f=>({filename:f.name,mimeType:f.type||"application/octet-stream",dataBase64:await lerB64(f)}))); }
+  catch(e){ err.textContent="Não consegui ler o arquivo."; return; }
+  const tipo=g("n-tipo").value==="__novo__"?"":g("n-tipo").value;
+  g("n-ok").disabled=true; g("n-ok").textContent="Criando…"; err.textContent="";
+  const r=await criarRF({action:"atvCriar",titulo,tipo,prioridade:g("n-pri").value,ini:g("n-ini").value,fim,
+    resp,obraId:g("n-obra").value||"",descricao:g("n-desc").value.trim(),itens:lerItens("n-itens")});
+  g("n-ok").disabled=false; g("n-ok").textContent="Criar atividade";
+  if(!(r&&r.ok)){ err.textContent="Não criou: "+msgErro(r); return; }
+  adotar(r.atividade); fecharForm();
+  if(arquivos.length&&r.atividade){
+    toast("Atividade criada. Enviando anexos…");
+    const c=await criarRF({action:"atvComentarioNovo",pageId:r.atividade.id,texto:"📎 Anexos enviados na criação da atividade",arquivos});
+    toast(c&&c.ok?"Atividade criada com os anexos.":"Atividade criada, mas os anexos não subiram: "+msgErro(c));
+  } else toast("Atividade criada.");
 }
+/* ---- checklists prontos ---- */
 function formModelo(id){
   if(RO){ toast("Modo teste: não grava."); return; }
   const m=id?MOD.modelos.find(x=>x.id===id):{nome:"",frequencia:"diário",itens:[]};
@@ -923,35 +1068,40 @@ function formModelo(id){
     `<div class="fgrid">
       <div class="campo"><label>Nome <i>*</i></label><input type="text" id="m-nome" value="${esc(m.nome)}" placeholder="Ex.: Abertura do escritório"></div>
       <div class="campo"><label>Frequência</label><select id="m-freq">${["diário","semanal","mensal"].map(f=>`<option ${f===m.frequencia?"selected":""}>${f}</option>`).join("")}</select></div>
-      <div class="campo full"><label>Itens <i>*</i></label><textarea class="campo-grande" id="m-itens" style="min-height:160px" placeholder="Um item por linha">${esc(m.itens.join("\n"))}</textarea></div>
+      <div class="campo full"><label>Itens <i>*</i></label>${itensHtml("m-itens",m.itens)}</div>
     </div>`,
     `${id?`<button class="bt ghost" style="margin-right:auto" onclick="excluirModelo(${id})">🗑 Excluir</button>`:""}<button class="bt ghost" onclick="fecharForm()">Cancelar</button>
      <button class="bt" id="m-ok" onclick="salvarModelo(${id||"null"})">Salvar</button>`);
+  ligarItens("m-itens");
+  setTimeout(()=>document.getElementById(id?"m-nome":"m-nome").focus(),50);
 }
 async function salvarModelo(id){
-  const nome=document.getElementById("m-nome").value.trim(), itens=document.getElementById("m-itens").value.split("\n").map(x=>x.trim()).filter(Boolean);
+  const nome=document.getElementById("m-nome").value.trim(), itens=lerItens("m-itens"), freq=document.getElementById("m-freq").value;
   const err=document.getElementById("mf-erro");
   if(!nome||!itens.length){ err.textContent="Dê um nome e pelo menos um item."; return; }
-  document.getElementById("m-ok").disabled=true;
-  const r=await chamar({action:"atvModeloUpdate",id:id||"",nome,frequencia:document.getElementById("m-freq").value,itens},45000,true).catch(()=>null);
-  document.getElementById("m-ok").disabled=false;
-  if(!(r&&r.ok)){ err.textContent="Não salvou: "+erroTexto(r&&r.erro); return; }
-  fecharForm(); toast("Checklist pronto salvo."); carregarModelos();
+  /* aparece NA HORA na coluna da direita; o servidor grava por trás */
+  const antes=JSON.parse(JSON.stringify(MOD.modelos));
+  const tmp=id?MOD.modelos.find(x=>x.id===id):{id:"tmp"+Date.now()};
+  Object.assign(tmp,{nome,frequencia:freq,itens,_salvando:true}); if(!id) MOD.modelos.push(tmp);
+  fecharForm(); pintarLado();
+  let r=null; try{ r=await chamar({action:"atvModeloUpdate",id:id||"",nome,frequencia:freq,itens},60000,true); }catch(e){}
+  if(!(r&&r.ok)){ MOD.modelos=antes; pintarLado(); toast("Não salvou o checklist pronto: "+msgErro(r)); return; }
+  tmp.id=r.id||tmp.id; delete tmp._salvando; cacheSet("atv_modelos",MOD); pintarLado(); toast("Checklist pronto salvo.");
 }
 async function excluirModelo(id){
   if(!confirm("Excluir este checklist pronto? (As atividades já geradas continuam.)")) return;
   const r=await chamar({action:"atvModeloExcluir",id},45000,true).catch(()=>null);
   if(r&&r.ok){ MOD.modelos=MOD.modelos.filter(m=>m.id!==id); cacheSet("atv_modelos",MOD); fecharForm(); pintarLado(); }
-  else toast("Não excluiu: "+erroTexto(r&&r.erro));
+  else toast("Não excluiu: "+msgErro(r));
 }
 async function gerarModelo(id,bt){
   if(RO){ toast("Modo teste: não grava."); return; }
-  bt.disabled=true; bt.textContent="…";
-  const r=await chamar({action:"atvModeloCriar",id},90000,true).catch(()=>null);
+  if(String(id).indexOf("tmp")===0){ toast("Ainda salvando o modelo — tente em alguns segundos."); return; }
+  bt.disabled=true; bt.textContent="Gerando…";
+  const r=await criarRF({action:"atvModeloCriar",id});
   bt.disabled=false; bt.textContent="▶ Gerar";
-  if(!(r&&r.ok)){ toast("Não gerou: "+erroTexto(r&&r.erro)); return; }
-  if(r.atividade) D.atividades.push(r.atividade);
-  pintar(); toast("Checklist gerado — está em “Para mim”.");
+  if(!(r&&r.ok)){ toast("Não gerou: "+msgErro(r)); return; }
+  adotar(r.atividade); toast("Checklist gerado — está em “Para mim”.");
 }
 
 /* ---------- EQUIPE (ADM/MASTER) ---------- */
@@ -1000,7 +1150,7 @@ window.addEventListener("portal-ao-vivo",ev=>{
   const did=SID(d.id);
   if(ABERTA&&did===ABERTA&&d.acao==="atvComentarioNovo"){ lerComentarios(false); return; }
   const me=(S||{}).nome||""; if(d.quem&&d.quem===me) return;
-  clearTimeout(_recarga); _recarga=setTimeout(()=>{ carregar(true); if(ABA==="equipe") carregarEquipe(true); },1200);
+  clearTimeout(_recarga); _recarga=setTimeout(()=>{ carregar(true); if(ABA==="equipe") carregarEquipe(true); },800);
 });
 
 /* ---------- início ---------- */

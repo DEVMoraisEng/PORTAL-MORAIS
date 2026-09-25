@@ -71,7 +71,8 @@
   }
   function iniciar(){
     try{ const c=cacheGet("atv_alertas"); if(c&&c.v) pintar(c.v); }catch(err){}
-    setTimeout(()=>atualizar(false),1200);
+    /* na própria aba Atividades a tela já pede tudo; o sino espera para não disputar a fila */
+    setTimeout(()=>atualizar(false),/atividades\.html/.test(location.pathname)?20000:1200);
     setInterval(()=>atualizar(false),5*60*1000);
   }
   window.addEventListener("portal-ao-vivo",ev=>{ const d=ev.detail||{}; if(/^atv/.test(d.acao||"")) setTimeout(()=>atualizar(false),1500); });

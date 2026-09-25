@@ -292,6 +292,11 @@ html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
 .cont-proc{padding:6px 22px 30px}
 html[data-tema="escuro"] .pc .t,html[data-tema="escuro"] .gtit{color:var(--teal)}
 @media(max-width:680px){ .pcampos{grid-template-columns:1fr} }
+/* v3 — barra de categorias não corta mais: quebra em linhas e centraliza */
+.tabs-outer{justify-content:flex-start}
+.tabs{flex-wrap:wrap;justify-content:center;width:100%}
+.tab{padding:9px 16px;font-size:14px}
+.tab .qt{opacity:.7;margin-left:4px}
 
 </style>
 </head>
@@ -333,7 +338,7 @@ html[data-tema="escuro"] .pc .t,html[data-tema="escuro"] .gtit{color:var(--teal)
 <div class="toast" id="toast"></div>
 
 <script src="app.js?v=43"></script>
-<script src="editor-blocos.js?v=2"></script>
+<script src="editor-blocos.js?v=3"></script>
 <script>
 /* ---------- tema ---------- */
 const TEMA_KEY="morais_tema";
@@ -382,9 +387,12 @@ async function carregar(fresco){
 function daCat(p,c){ return c==="__todas"||(c===SEM?!p.categorias.length:p.categorias.indexOf(c)>=0); }
 function pintarTabs(){
   const n=c=>D.processos.filter(p=>daCat(p,c)).length;
-  const cats=["__todas"].concat(D.categorias).concat(D.processos.some(p=>!p.categorias.length)?[SEM]:[]);
-  document.getElementById("tabs").innerHTML=cats.map(c=>`<button class="tab ${CAT===c?"on":""}" onclick="CAT='${esc(c).replace(/'/g,"\\'")}';pintar()">${
-    c==="__todas"?"Todos":c===SEM?"Sem categoria":esc(c)} <span style="opacity:.7">${n(c)}</span></button>`).join("");
+  /* v3: só categorias que TÊM itens (as zeradas somem da barra) */
+  const cats=["__todas"].concat(D.categorias.filter(c=>n(c)>0)).concat(D.processos.some(p=>!p.categorias.length)?[SEM]:[]);
+  if(CAT!=="__todas"&&cats.indexOf(CAT)<0) CAT="__todas";
+  document.getElementById("tabs").innerHTML=!CARREGOU?`<span class="ajuda" style="padding:8px 14px"><span class="load"></span> Carregando categorias…</span>`:
+    cats.map(c=>`<button class="tab ${CAT===c?"on":""}" onclick="CAT='${esc(c).replace(/'/g,"\\'")}';pintar()">${
+    c==="__todas"?"Todos":c===SEM?"Sem categoria":esc(c)}<span class="qt">${n(c)}</span></button>`).join("");
   const fs=document.getElementById("f-status"), v=fs.value;
   fs.innerHTML=`<option value="">Todos os status</option>`+D.status.map(s=>`<option ${s===v?"selected":""}>${esc(s)}</option>`).join("");
 }
@@ -479,6 +487,7 @@ window.AO_VIVO_TRATA="processos";   // (Arquivos usa o mesmo aviso)
 window.addEventListener("portal-ao-vivo",ev=>{ const d=ev.detail||{}; if(!/^proc/.test(d.acao||"")) return;
   const me=(S||{}).nome||""; if(d.quem&&d.quem===me) return; carregar(true); });
 
+pintar();
 carregar(false).then(()=>{ const h=location.hash.slice(1); if(h&&proc(h)) abrir(h); });
 
 </script>

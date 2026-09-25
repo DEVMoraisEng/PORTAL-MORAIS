@@ -135,6 +135,22 @@ html[data-tema="escuro"] .delta.desce{color:#f3a29a}
    círculo colorido e nomes fortes; quem já fez aniversário no mês continua
    em destaque (só ganha um "✓ já foi"); o aniversariante do DIA ocupa a
    linha inteira em dourado, com brilho, "PARABÉNS" grande, bolo e fogos. */
+/* 25/09/26 (noite) — TIPO "PORTAL": atividades desse tipo ficam em destaque
+   aqui, com o conteúdo e o checklist, até serem finalizadas. */
+#bloco-portal{background:linear-gradient(135deg,rgba(41,87,120,.10),rgba(143,220,210,.18));border:1.5px solid rgba(41,87,120,.30);
+  border-radius:16px;padding:14px 16px 16px;margin-bottom:18px}
+#bloco-portal .sec{background:transparent;border-left:0;padding:0 2px;margin-bottom:10px}
+#bloco-portal .sec .cond{font-size:21px}
+.portal-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px}
+.pt{background:var(--sup);border-radius:14px;box-shadow:0 4px 14px rgba(20,50,70,.10);padding:14px 16px;border-top:4px solid var(--azul)}
+.pt.atr{border-top-color:var(--verm)}
+.pt .pt-t{font-family:'Barlow Condensed';font-weight:800;font-size:20px;color:var(--azul-esc);letter-spacing:.3px;line-height:1.1}
+.pt .pt-m{font-size:12px;color:var(--text3);margin:5px 0 8px;display:flex;gap:10px;flex-wrap:wrap}
+.pt .pt-m .atr{color:var(--verm);font-weight:800}
+.pt .pt-c{max-height:340px;overflow:auto;border-top:1px solid var(--border2);padding-top:8px}
+.pt .pt-a{display:inline-block;margin-top:8px;font-size:12px;font-weight:800;color:var(--azul)}
+html[data-tema="escuro"] .pt .pt-t{color:var(--teal)}
+@media(max-width:600px){ .portal-lista{grid-template-columns:1fr} }
 #bloco-aniv{background:linear-gradient(135deg,rgba(76,217,100,.16),rgba(143,220,210,.22) 55%,rgba(246,201,69,.18));
   border:1.5px solid rgba(42,157,92,.35);border-radius:16px;padding:14px 16px 16px}
 #bloco-aniv .sec{background:transparent;border-left:0;padding:0 2px;margin-bottom:12px}
@@ -298,6 +314,10 @@ html[data-tema="escuro"] .logo{background:#fff}
     <nav class="dash-nav" id="cards"><div class="vazio"><span class="load"></span> Carregando…</div></nav>
     <main class="dash-main">
       <div class="nota" id="nota"></div>
+      <div class="bloco" id="bloco-portal" style="display:none">
+        <div class="sec"><span class="cond">📌 Portal</span></div>
+        <div class="portal-lista" id="portal-lista"></div>
+      </div>
       <div class="bloco" id="bloco-aniv" style="display:none">
         <div class="sec"><span class="cond">🎂 Aniversariantes de <span id="aniv-mes"></span></span></div>
         <div class="aniv-lista" id="aniv-lista"></div>
@@ -330,7 +350,8 @@ html[data-tema="escuro"] .logo{background:#fff}
 <script src="app.js?v=43"></script>
 <script src="alertas-docs.js?v=1"></script>
 <script src="fogos.js?v=2"></script>
-<script src="atv-alertas.js?v=2"></script>
+<script src="editor-blocos.js?v=3"></script>
+<script src="atv-alertas.js?v=3"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele */
 const TEMA_KEY = "morais_tema";
@@ -673,6 +694,13 @@ function boot(){
   //    portal_() do Code.gs, só que rodada uma vez no build).
   lerEstaticoJa("portal.json","portal", pintarKpis);
 
+  // 1a) atividades do tipo PORTAL (em destaque até finalizar)
+  try{ const cp=cacheGet("atv_portal"); if(cp&&cp.v) pintarPortal(cp.v); }catch(e){}
+  ler({action:"atvPortal"},"atv_portal").then(r=>{ if(r&&r.ok) pintarPortal(r); }).catch(()=>{});
+  // 1c) Processos e Arquivos já ficam guardados no navegador (abrem na hora)
+  setTimeout(()=>{ [["processos","proc"],["arquivos","arq"]].forEach(([k,b])=>{
+    const c=cacheGet(k); if(!c||Date.now()-c.t>30*60*1000) ler({action:"procLista",base:b},k).catch(()=>{}); }); },9000);
+
   // 1b) aniversariantes do mês: cópia salva na hora, depois o Apps Script
   try{ const c=cacheGet("aniversariantes"); if(c&&c.v) pintarAniversarios(c.v); }catch(e){}
   ler({action:"aniversariantes"},"aniversariantes").then(r=>{ if(r&&r.ok) pintarAniversarios(r); }).catch(()=>{});
@@ -753,6 +781,43 @@ function pintarAniversarios(r){
       ${x.dia<dia?`<span class="foi">✓ já foi</span>`:""}</div>`).join("");
   hoje.forEach((x,i)=>setTimeout(()=>fogosAniv(x.id,false), 300+i*1200));
 }
+/* ===================== PORTAL (25/09/26 noite) =====================
+ * Atividades do tipo "PORTAL" ainda não finalizadas: título, quem faz, prazo
+ * e o CONTEÚDO inteiro (texto, listas, checklist). Quem é responsável ou
+ * solicitante (ou ADM/MASTER) marca o checklist e edita aqui mesmo. */
+function pintarPortal(r){
+  const bloco=document.getElementById("bloco-portal"), box=document.getElementById("portal-lista");
+  if(!bloco||!box||!r) return;
+  const l=r.atividades||[];
+  if(!l.length){ bloco.style.display="none"; return; }
+  bloco.style.display="";
+  const hoje=new Date().toISOString().slice(0,10);
+  const br=d=>d?d.slice(8,10)+"/"+d.slice(5,7):"";
+  const ativos=new Set(l.map(x=>x.atividade.id));
+  box.querySelectorAll(".pt").forEach(el=>{ if(!ativos.has(el.dataset.id)) el.remove(); });
+  l.forEach(x=>{
+    const a=x.atividade, atr=a.fim&&a.fim<hoje;
+    let el=box.querySelector(`.pt[data-id="${a.id}"]`);
+    const meta=`<span>👤 ${esc((a.resp||[]).map(u=>nomeBonito(u.nome)).join(", ")||"—")}</span>${a.fim?`<span class="${atr?"atr":""}">📅 ${atr?"venceu ":""}${br(a.fim)}</span>`:""}<span>${esc(a.status||"")}</span>`;
+    if(!el){
+      box.insertAdjacentHTML("beforeend",`<div class="pt" data-id="${a.id}"><div class="pt-t"></div><div class="pt-m"></div><div class="pt-c"></div>
+        <a class="pt-a" href="atividades.html#${a.id}">Abrir a atividade →</a></div>`);
+      el=box.querySelector(`.pt[data-id="${a.id}"]`);
+    }
+    el.classList.toggle("atr",!!atr);
+    el.querySelector(".pt-t").textContent=a.titulo;
+    el.querySelector(".pt-m").innerHTML=meta;
+    const c=el.querySelector(".pt-c");
+    if(typeof EditorBlocos!=="undefined"&&!c.contains(document.activeElement)){
+      if(x.conteudo&&x.conteudo.blocos) EditorBlocos.montar(c, a.id, {somenteLeitura:!x.podeEditar, dados:x.conteudo});
+      else if(!c._eb) c.innerHTML=`<div class="aniv-vazio">Sem conteúdo.</div>`;
+    }
+  });
+}
+let _portalT=null;
+window.addEventListener("portal-ao-vivo",ev=>{ const d=ev.detail||{}; if(!/^atv|^bloco/.test(d.acao||"")) return;
+  clearTimeout(_portalT); _portalT=setTimeout(()=>ler({action:"atvPortal"},"atv_portal").then(r=>{ if(r&&r.ok) pintarPortal(r); }).catch(()=>{}),1500); });
+
 function fogosAniv(id, forcar){
   if(typeof soltarFogos!=="function") return;
   const el=document.getElementById("aniv-"+id); if(!el) return;
