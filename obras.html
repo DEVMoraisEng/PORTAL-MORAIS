@@ -988,12 +988,7 @@ function pintarObraPainel(){
   document.getElementById("p1-loc").textContent=[o.setor,o.cidade,o.resp].filter(Boolean).join(" · ");
   const atv=atvsDaObra(o.id);
   const normais=atv.filter(a=>!ehLig(a)).sort(ordenaAtv), lig=atv.filter(ehLig).sort(ordenaAtv);
-  const falt=faltasDe(o), feitas=normais.filter(atvFeita).length;
-  let h=`<div class="chips"><span class="chip">${esc(o.status||"sem status")}</span>
-    ${o.controle_prazo?`<span class="chip ${N(o.controle_prazo).indexOf("ATRASO")>=0?"alerta":""}">${esc(o.controle_prazo)}</span>`:""}
-    ${normais.length?`<span class="chip ok">${feitas} de ${normais.length} atividades concluídas</span>`:""}
-    ${o.em_mc===true?`<span class="chip ok">No Mais Controle</span>`:o.em_mc===false?`<span class="chip alerta">Fora do Mais Controle${o.mais_controle?" · "+esc(o.mais_controle):""}</span>`:""}
-    ${falt.length?`<span class="chip alerta">Falta: ${esc(falt.join(", "))}</span>`:""}</div>`;
+  let h=`<div class="chips">${chipsObraHtml(o)}</div>`;
   h+=`<div class="grp">Dados da obra</div><div class="resumo">${CAMPOS.map((c,i)=>campoHtml(o,c,i)).join("")}</div>`;
   h+=`<div class="grp">Atividades <span class="sp"></span>
       <button class="tg ${MODO==="lista"?"on":""}" title="Atividades em lista, por tipo" onclick="MODO='lista';pintarObraPainel()">Lista</button>
@@ -1019,10 +1014,42 @@ function pintarObraPainel(){
   document.getElementById("p1-corpo").innerHTML=h;
   aplicarCombos(document.getElementById("p1-corpo"));
 }
+/* 25/09/26 — GRAVAÇÃO OTIMISTA NA OBRA (mesma ideia da baixa de atividade).
+   Antes a obra só mudava na memória DEPOIS da resposta do servidor: quem
+   fechava o painel antes do "salvo" continuava vendo o alerta e, ao reabrir,
+   a leitura ao vivo trazia o campo vazio do Notion. Agora o valor entra NA
+   HORA (tela, alertas, contador e ponte); a gravação roda por trás. Só volta
+   atrás se o servidor RECUSAR de verdade — e só se ninguém mexeu de novo. */
+function chipsObraHtml(o){
+  const atv=atvsDaObra(o.id), normais=atv.filter(a=>!ehLig(a)), falt=faltasDe(o), feitas=normais.filter(atvFeita).length;
+  return `<span class="chip">${esc(o.status||"sem status")}</span>
+    ${o.controle_prazo?`<span class="chip ${N(o.controle_prazo).indexOf("ATRASO")>=0?"alerta":""}">${esc(o.controle_prazo)}</span>`:""}
+    ${normais.length?`<span class="chip ok">${feitas} de ${normais.length} atividades concluídas</span>`:""}
+    ${o.em_mc===true?`<span class="chip ok">No Mais Controle</span>`:o.em_mc===false?`<span class="chip alerta">Fora do Mais Controle${o.mais_controle?" · "+esc(o.mais_controle):""}</span>`:""}
+    ${falt.length?`<span class="chip alerta">Falta: ${esc(falt.join(", "))}</span>`:""}`;
+}
+/* chips e cabeçalho do painel sem redesenhar os campos (não tira o foco) */
+function atualizarChipsObra(o){
+  if(!o||OBRA!==o.id) return;
+  const c=document.querySelector("#p1-corpo .chips"); if(c) c.innerHTML=chipsObraHtml(o);
+  const l=document.getElementById("p1-loc"); if(l) l.textContent=[o.setor,o.cidade,o.resp].filter(Boolean).join(" · ");
+}
+function repintarFundoObras(){ pintarTabs(); if(ABA==="obras"&&document.getElementById("lista-obras")) pintarLista(); else if(ABA==="alertas") pintarAlertas(); }
+function aplicarValorObra(o,k,tipo,valor,el){
+  if(tipo==="pessoa"){
+    o[k]=valor;
+    const opt=el&&el.options&&el.selectedIndex>=0?el.options[el.selectedIndex]:null;
+    const p=D.pessoas.find(x=>String(x.id).replace(/-/g,"")===String(valor[0]||"").replace(/-/g,""));
+    o[k==="resp_ids"?"resp":"rt"]=valor.length?((p&&p.nome)||(opt&&opt.value?opt.text:"")):"";
+  }
+  else if(tipo==="num") o[k]=valor===""||valor==null?null:Number(valor);
+  else if(tipo==="multi") o[k]=valor.length?valor[0]:null;
+  else if(tipo==="conta"){ o[k]=valor; o.conta_alerta=(valor==="CRIAR CONTA"||valor==="DÚVIDA")?valor:null; }
+  else o[k]=valor||null;
+}
 async function gravarObra(i,el){
   const o=obraDe(OBRA); if(!o) return;
   const [rot,k,col,tipo]=CAMPOS[i];
-  o._editadoEm=Date.now();                      // leitura que começou antes disto não sobrescreve
   if(el.value==="__novo__"){
     const nv=pedirNovo(col);
     if(!nv){ pintarObraPainel(); return; }
@@ -1030,33 +1057,44 @@ async function gravarObra(i,el){
   }
   let valor=el.value; if(tipo==="pessoa"||tipo==="multi") valor=valor?[valor]:[];
   if(tipo==="data"&&valor&&!dataOk(valor)) return;      // data pela metade: espera completar
-  el.classList.remove("ok","erro"); el.classList.add("salvando");
-  /* Liberar sai pela LEITURA (é lá que o ObrasSync cria a Compatibilização na
-     hora); conta bancária tem ação própria; o resto vai pela ESCRITA */
   if(tipo==="conta"&&!valor) return;
+
+  /* 1) NA HORA: memória, ponte, chips, alertas e contador */
+  const antes={[k]:o[k],resp:o.resp,rt:o.rt,conta_alerta:o.conta_alerta};
+  o._editadoEm=Date.now();                      // leitura que começou antes disto não sobrescreve
+  aplicarValorObra(o,k,tipo,valor,el);
+  const meu=o[k];
+  ponteGuardar("obras",o.id,col,meu);             // leitura ao vivo/build atrasado não traz o vazio de volta
+  o._bt=null;
+  el.classList.remove("ok","erro"); el.classList.add("salvando");
+  atualizarChipsObra(o);
+  repintarFundoObras();
+
+  /* 2) POR TRÁS: grava. Liberar sai pela LEITURA (é lá que o ObrasSync cria
+     a Compatibilização na hora); conta bancária tem ação própria; o resto
+     vai pela ESCRITA */
   const payload=tipo==="conta"?{action:"obraConta",pageId:o.id,conta:valor}
     :{action:N(col)===N("Liberar Obra Para Processo Interno")?"obraLiberar":"obraUpdate",pageId:o.id,prop:col,valor:valor};
   const r=await gravarNaFila(payload,"Obra: "+(o.titulo||""));
-  el.classList.remove("salvando");
+  const el2=document.body.contains(el)?el:null;
+  if(el2) el2.classList.remove("salvando");
   if(r&&r.ok){
-    el.classList.add("ok");
-    if(tipo==="pessoa"){
-      o[k]=valor;
-      const opt=el.options&&el.selectedIndex>=0?el.options[el.selectedIndex]:null;
-      const p=D.pessoas.find(x=>String(x.id).replace(/-/g,"")===String(valor[0]||"").replace(/-/g,""));
-      o[k==="resp_ids"?"resp":"rt"]=valor.length?((p&&p.nome)||(opt&&opt.value?opt.text:"")):"";
-    }
-    else if(tipo==="num") o[k]=el.value===""?null:Number(el.value);
-    else if(tipo==="conta"){ o[k]=el.value; o.conta_alerta=(el.value==="CRIAR CONTA"||el.value==="DÚVIDA")?el.value:null; }
-    else o[k]=el.value||null;
-    ponteGuardar("obras",o.id,col,o[k]);           // pessoa entra também (ids): o alerta não volta
-    o._bt=null;
-    toast(r.enfileirado?rot+": sem conexão agora — ficou guardado e grava sozinho quando voltar."
-      :r.compat&&r.compat.criada?"Criado para esta obra: "+(r.compat.criadas||[]).join(" e ")+".":rot+" salvo.");
-    atualizarChipsObra(o);                        // "Falta: …" some na hora
-    pintarTabs(); if(ABA==="obras") pintarLista(); else if(ABA==="alertas") pintarAlertas();
+    if(el2) el2.classList.add("ok");
+    if(r.enfileirado) toast(rot+": sem conexão agora — ficou guardado e grava sozinho quando voltar.");
+    else if(r.compat&&r.compat.criada) toast("Criado para esta obra: "+(r.compat.criadas||[]).join(" e ")+".");
     atualizarObraVivo(o.id);
-  }else{ el.classList.add("erro"); toast("Não salvou: "+errMsg(r)); }
+  }else{
+    /* recusa de verdade: volta — mas só se o campo ainda tem o valor desta gravação */
+    if(iguaisEdicao(o[k],meu)){
+      Object.assign(o,antes);
+      try{ esquecerEdicao("obras",o.id,col); }catch(e){}
+      if(OBRA===o.id) pintarObraPainel();
+      repintarFundoObras();
+    }
+    const alvo=(el2&&document.body.contains(el2)?el2:null)||(OBRA===o.id?document.querySelector(`#p1-corpo [onchange^="gravarObra(${i},"]`):null);
+    if(alvo){ alvo.classList.add("erro"); if(alvo._cb) comboSync(alvo); }
+    toast("Não salvou "+rot+": "+errMsg(r)+" — o campo voltou como estava.");
+  }
 }
 
 /* cronograma: barra de Data De Início até a conclusão (ou final prevista) */

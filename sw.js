@@ -122,7 +122,8 @@
 /* v43 -> v44 (25/09/26): edição salva não some no build nem ao sair;
    chips do painel na hora. */
 /* v44 -> v45 (25/09/26): leitura ao vivo antiga não apaga o que acabou de ser salvo. */
-const CACHE = "portal-morais-v45";  // limpeza só dos caches do portal (não apaga os das RAS)
+/* v45 -> v46 (25/09/26): obra grava na hora (otimista) — alerta some ao preencher. */
+const CACHE = "portal-morais-v46";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",
