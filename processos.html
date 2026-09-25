@@ -338,6 +338,7 @@ html[data-tema="escuro"] .pc .t,html[data-tema="escuro"] .gtit{color:var(--teal)
 <div class="toast" id="toast"></div>
 
 <script src="app.js?v=43"></script>
+<script src="rf-rotas.js?v=1"></script>
 <script src="editor-blocos.js?v=3"></script>
 <script>
 /* ---------- tema ---------- */
@@ -382,7 +383,8 @@ async function carregar(fresco){
   const c=cacheGet(TXT.ck); if(c&&c.v&&!fresco){ D=c.v; CARREGOU=true; pintar(); }
   const r=await ler(Object.assign({action:"procLista",base:BASE},fresco?{fresco:true}:{}),TXT.ck);
   if(r&&r.ok){ D=r; CARREGOU=true; pintar(); if(ABERTO) cabecalho(); }
-  else if(!D.processos.length) document.getElementById("view").innerHTML=`<div class="vazio">Não consegui carregar os ${TXT.uns} (${esc(erroTexto(r&&r.erro))}). <a href="#" onclick="carregar(true);return false">Tentar de novo</a></div>`;
+  else if(!D.processos.length){ document.getElementById("tabs").innerHTML=""; }
+  if(!(r&&r.ok)&&!D.processos.length) document.getElementById("view").innerHTML=`<div class="vazio">Não consegui carregar os ${TXT.uns} (${esc(/data sources accessible|Could not find/i.test(String(r&&r.erro))?"a integração SITES MORAIS ainda não tem acesso a este banco no Notion — ••• › Conexões › SITES MORAIS":erroTexto(r&&r.erro))}). <a href="#" onclick="carregar(true);return false">Tentar de novo</a></div>`;
 }
 function daCat(p,c){ return c==="__todas"||(c===SEM?!p.categorias.length:p.categorias.indexOf(c)>=0); }
 function pintarTabs(){

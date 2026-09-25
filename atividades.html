@@ -390,6 +390,16 @@ html[data-tema="escuro"] .flt{background:var(--bg3);color:var(--text)}
 main.wrap{padding-bottom:90px}
 .lay{margin-bottom:30px}
 .cal{margin-bottom:10px}
+/* v4 — lista de responsáveis (caixinha à esquerda, nome ao lado) e busca */
+.pessoa-lista label{justify-content:flex-start!important;text-align:left;padding:5px 4px;border-radius:6px;cursor:pointer}
+.pessoa-lista label:hover{background:rgba(41,87,120,.07)}
+.pessoa-lista input[type=checkbox]{width:17px!important;height:17px;flex:none;margin:0;accent-color:var(--verde)}
+.pessoa-lista label.oculto{display:none!important}
+.li.criando{opacity:.75;border-left-color:#F0C36D;border-style:dashed}
+.falhou{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:95;background:#7f1d1d;color:#fff;border-radius:12px;padding:10px 14px;
+  font-size:13px;display:flex;gap:10px;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.3);max-width:94vw}
+.falhou button{border:0;border-radius:8px;padding:6px 11px;font:inherit;font-weight:800;cursor:pointer}
+.falhou .tn{background:#fff;color:#7f1d1d}.falhou .fx{background:transparent;color:#fff;font-size:16px}
 
 </style>
 </head>
@@ -436,6 +446,7 @@ main.wrap{padding-bottom:90px}
 <div class="toast" id="toast"></div>
 
 <script src="app.js?v=43"></script>
+<script src="rf-rotas.js?v=1"></script>
 <script src="alertas-docs.js?v=1"></script>
 <script src="editor-blocos.js?v=3"></script>
 <script src="atv-alertas.js?v=3"></script>
@@ -608,8 +619,8 @@ function pintarCorpo(){
   if(RAPIDO){ m.innerHTML=listaRapida(Q[RAPIDO],RAPIDO); return; }
   if(!D.atividades.length&&!OUT.itens.length){ m.innerHTML=`<div class="vazio">Nenhuma atividade sua por enquanto. Crie uma em “+ Nova atividade”.</div>`; return; }
   const soEmp=ORIG==="todas"||ORIG==="Atividades";
-  if(VIS==="kanban") m.innerHTML=soEmp?kanban(minhas.filter(doFiltro).filter(busca)):`<div class="vazio">O Kanban mostra as atividades da aba Atividades. As de ${esc(ORIG)} abrem na própria aba — veja em Lista ou Calendário.</div>`;
-  else if(VIS==="cal") m.innerHTML=calendario(soEmp?minhas.filter(doFiltro).filter(busca):[]);
+  if(VIS==="kanban") m.innerHTML=soEmp?kanban(minhas.filter(a=>!a._criando).filter(doFiltro).filter(busca)):`<div class="vazio">O Kanban mostra as atividades da aba Atividades. As de ${esc(ORIG)} abrem na própria aba — veja em Lista ou Calendário.</div>`;
+  else if(VIS==="cal") m.innerHTML=calendario(soEmp?minhas.filter(a=>!a._criando).filter(doFiltro).filter(busca):[]);
   else m.innerHTML=lista(soEmp?minhas:[]);
   if(VIS==="kanban") ligarKanban();
 }
@@ -636,6 +647,7 @@ function linha(a,modo){
   const cls=!aberta(a)?"fin":atrasada(a)?"atr":venceHoje(a)?"hoje":"";
   const quem=modo==="solic"?"Faz: "+(nomes(a.resp)||"—"):(a.solic&&a.solic.length?"Pediu: "+nomes(a.solic):"");
   const obra=nomeObra(a.obraId);
+  if(a._criando) return `<div class="li criando" title="Criando no Notion…"><div class="t">${esc(a.titulo)}<small>criando…</small></div><div><span class="pill s0">criando…</span></div><div class="c">${esc(nomes(a.resp))}</div><div class="c">${a.fim?br(a.fim):""}</div><div class="c"><span class="load"></span></div></div>`;
   return `<div class="li ${cls}" onclick="abrirAtv('${a.id}')" title="Abrir a atividade">
     <div class="t">${esc(a.titulo)}<small>${esc([a.tipo,obra].filter(Boolean).join(" · "))}</small></div>
     <div>${pillSt(a.status)}</div>
@@ -721,7 +733,7 @@ function pintarLado(){
   const el=document.getElementById("m-lado"); if(!el) return;
   const prop=D.atividades.filter(a=>ehPropria(a)&&aberta(a)).sort(ordFim);
   el.innerHTML=`<div class="caixa"><h3>Para mim <span class="n">${prop.length}</span></h3>
-      ${prop.length?prop.map(a=>`<div class="mini" onclick="abrirAtv('${a.id}')"><span>${a.titulo.indexOf("✅")===0?"":"•"}</span>
+      ${prop.length?prop.map(a=>`<div class="mini" ${a._criando?`title="criando…"`:`onclick="abrirAtv('${a.id}')"`}><span>${a._criando?'<span class="load"></span>':(a.titulo.indexOf("✅")===0?"":"•")}</span>
         <span class="t">${esc(a.titulo)}</span><span class="d ${atrasada(a)?"atr":""}">${a.fim?br(a.fim):""}</span></div>`).join("")
       :`<div class="ajuda">Nada em aberto. Crie uma atividade só sua ou gere um checklist.</div>`}
       <div style="margin-top:9px;display:flex;gap:6px;flex-wrap:wrap"><button class="bt bt-mini" onclick="novaAtividade(true)">+ Atividade para mim</button>
@@ -763,6 +775,7 @@ async function gravar(id,campo,valor,el){
 /* ---------- painel da atividade ---------- */
 async function abrirAtv(id){
   id=SID(id);
+  if(id.indexOf("tmp")===0){ toast("Ainda criando no Notion — já já dá para abrir."); return; }
   let a=acha(id);
   if(!a){
     toast("Abrindo…");
@@ -971,7 +984,7 @@ function respHtml(marcados){
   return `<input type="text" class="busca" style="min-width:0;width:100%;margin-bottom:6px" placeholder="Buscar pessoa…" oninput="filtrarPessoas(this.value)">
     <div class="pessoa-lista" id="n-pessoas">${ord.map(p=>`<label data-n="${esc(N(p.nome))}"><input type="checkbox" value="${p.id}" class="n-resp" ${ids.indexOf(p.id)>=0?"checked":""}> ${esc(p.nome)}${p.id===ME?" <i>(você)</i>":""}</label>`).join("")||`<span class="ajuda">Lista de pessoas ainda carregando…</span>`}</div>`;
 }
-function filtrarPessoas(t){ const n=N(t); document.querySelectorAll("#n-pessoas label").forEach(l=>l.style.display=!n||l.dataset.n.indexOf(n)>=0?"":"none"); }
+function filtrarPessoas(t){ const n=N(t); document.querySelectorAll("#n-pessoas label").forEach(l=>l.classList.toggle("oculto",!!n&&l.dataset.n.indexOf(n)<0)); }
 /* ---- tipo com "+ Novo tipo…" ---- */
 function tipoSelect(id,valor,extra){
   return `<select id="${id}" ${extra||""} onchange="if(this.value==='__novo__') novoTipo(this)">${opts(D.opcoes.tipo,valor,true)}<option value="__novo__">＋ Novo tipo…</option></select>`;
@@ -998,6 +1011,7 @@ function novaAtividade(paraMim){
       <div class="campo full"><label>Obra</label><select id="n-obra"><option value="">— sem obra —</option>${OBRAS_L.map(o=>`<option value="${o.id}">${esc(o.titulo)}</option>`).join("")}</select></div>
       <div class="campo full"><label>Descrição</label><textarea class="campo-grande" id="n-desc" placeholder="Detalhes (opcional)"></textarea></div>
       <div class="campo full"><label>Checklist</label>${itensHtml("n-itens",[])}</div>
+      <div class="campo full"><label>Comentário</label><textarea class="campo-grande" id="n-com" style="min-height:60px" placeholder="Primeiro comentário da atividade (opcional) — aparece em Comentários"></textarea></div>
       <div class="campo full"><label>Anexos</label><label class="bt ghost bt-mini" style="display:inline-flex;cursor:pointer">📎 Escolher fotos ou documentos<input type="file" id="n-arq" multiple hidden
         accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.dwg,.zip,.txt" onchange="document.getElementById('n-arq-l').textContent=[...this.files].map(f=>f.name).join(' · ')"></label>
         <div class="ajuda" id="n-arq-l"></div></div>
@@ -1019,19 +1033,48 @@ function checklistAvulso(){
   ligarItens("n-itens");
   setTimeout(()=>document.querySelector("#n-itens input").focus(),50);
 }
+/* v4 — CRIAÇÃO OTIMISTA (igual à obra): o formulário fecha NA HORA, a
+   atividade aparece na lista como "criando…" e o servidor grava por trás.
+   Deu certo: troca pela de verdade. Deu errado: some e aparece a faixa
+   vermelha com o motivo e "Tentar de novo" (sem perder o que foi digitado). */
+function temporaria(dados){
+  const a={id:"tmp"+Date.now()+Math.random().toString(36).slice(2,6),titulo:dados.titulo,status:"Não começou",tipo:dados.tipo||"",
+    prioridade:dados.prioridade||"",ini:dados.ini||hojeISO(),fim:dados.fim||"",concl:null,
+    resp:(dados.resp||[]).map(id=>({id,nome:((D.pessoas.find(p=>p.id===id)||{}).nome)||""})),
+    solic:[{id:ME,nome:(S&&S.nome)||""}],obraId:dados.obraId||null,_criando:true};
+  D.atividades.push(a); pintar(); return a;
+}
+function falhou(msg,repetir){
+  let f=document.getElementById("falhou"); if(f) f.remove();
+  f=document.createElement("div"); f.id="falhou"; f.className="falhou";
+  f.innerHTML=`<span>⚠ ${esc(msg)}</span><button class="tn">Tentar de novo</button><button class="fx" title="Fechar">×</button>`;
+  document.body.appendChild(f);
+  f.querySelector(".tn").onclick=()=>{ f.remove(); repetir(); };
+  f.querySelector(".fx").onclick=()=>f.remove();
+}
+async function criarEmSegundoPlano(payload,extra){
+  const tmp=temporaria(payload);
+  const r=await criarRF(Object.assign({},payload));
+  D.atividades=D.atividades.filter(x=>x!==tmp);
+  if(!(r&&r.ok)){ pintar(); falhou(`Não criou "${payload.titulo}": ${msgErro(r)}`,()=>criarEmSegundoPlano(payload,extra)); return null; }
+  adotar(r.atividade);
+  if(extra&&r.atividade&&(extra.texto||(extra.arquivos&&extra.arquivos.length))){
+    const c=await criarRF({action:"atvComentarioNovo",pageId:r.atividade.id,texto:extra.texto||"📎 Anexos enviados na criação da atividade",arquivos:extra.arquivos||[]});
+    if(!(c&&c.ok)) falhou(`A atividade foi criada, mas o comentário/anexo não subiu: ${msgErro(c)}`,()=>criarRF({action:"atvComentarioNovo",pageId:r.atividade.id,texto:extra.texto||"📎 Anexos",arquivos:extra.arquivos||[]}));
+    else toast("Atividade criada"+(extra.arquivos&&extra.arquivos.length?" com os anexos.":" com o comentário."));
+  } else toast("Atividade criada.");
+  return r.atividade;
+}
 async function criarAvulso(){
   const g=id=>document.getElementById(id), err=g("mf-erro"), itens=lerItens("n-itens");
   if(!itens.length){ err.textContent="Escreva pelo menos um item."; return; }
-  g("n-ok").disabled=true; err.textContent="";
-  const r=await criarRF({action:"atvCriar",titulo:"✅ "+(g("n-tit").value.trim()||"Checklist"),tipo:PROPRIA,prioridade:"Média",ini:hojeISO(),fim:g("n-fim").value||hojeISO(),resp:[ME],itens});
-  g("n-ok").disabled=false;
-  if(!(r&&r.ok)){ err.textContent="Não criou: "+msgErro(r); return; }
-  adotar(r.atividade); fecharForm(); toast("Checklist criado — está em “Para mim”.");
+  const payload={action:"atvCriar",titulo:"✅ "+(g("n-tit").value.trim()||"Checklist"),tipo:PROPRIA,prioridade:"Média",ini:hojeISO(),fim:g("n-fim").value||hojeISO(),resp:[ME],itens};
+  fecharForm(); criarEmSegundoPlano(payload);
 }
 function adotar(a){
   if(!a) return;
   const i=D.atividades.findIndex(x=>x.id===a.id); if(i>=0) D.atividades[i]=a; else D.atividades.push(a);
-  cacheSet("atv_minhas",Object.assign({},D,{ok:true,me:ME})); pintar();
+  cacheSet("atv_minhas",Object.assign({},D,{ok:true,me:ME,atividades:D.atividades.filter(x=>!x._criando)})); pintar();
   if(window.AtvAlertas) setTimeout(()=>AtvAlertas.atualizar(true),2500);
 }
 async function criarAtividade(){
@@ -1047,17 +1090,11 @@ async function criarAtividade(){
   try{ arquivos=await Promise.all(fs.slice(0,5).map(async f=>({filename:f.name,mimeType:f.type||"application/octet-stream",dataBase64:await lerB64(f)}))); }
   catch(e){ err.textContent="Não consegui ler o arquivo."; return; }
   const tipo=g("n-tipo").value==="__novo__"?"":g("n-tipo").value;
-  g("n-ok").disabled=true; g("n-ok").textContent="Criando…"; err.textContent="";
-  const r=await criarRF({action:"atvCriar",titulo,tipo,prioridade:g("n-pri").value,ini:g("n-ini").value,fim,
-    resp,obraId:g("n-obra").value||"",descricao:g("n-desc").value.trim(),itens:lerItens("n-itens")});
-  g("n-ok").disabled=false; g("n-ok").textContent="Criar atividade";
-  if(!(r&&r.ok)){ err.textContent="Não criou: "+msgErro(r); return; }
-  adotar(r.atividade); fecharForm();
-  if(arquivos.length&&r.atividade){
-    toast("Atividade criada. Enviando anexos…");
-    const c=await criarRF({action:"atvComentarioNovo",pageId:r.atividade.id,texto:"📎 Anexos enviados na criação da atividade",arquivos});
-    toast(c&&c.ok?"Atividade criada com os anexos.":"Atividade criada, mas os anexos não subiram: "+msgErro(c));
-  } else toast("Atividade criada.");
+  const payload={action:"atvCriar",titulo,tipo,prioridade:g("n-pri").value,ini:g("n-ini").value,fim,
+    resp,obraId:g("n-obra").value||"",descricao:g("n-desc").value.trim(),itens:lerItens("n-itens")};
+  const com=g("n-com").value.trim();
+  fecharForm();
+  criarEmSegundoPlano(payload,(com||arquivos.length)?{texto:com,arquivos}:null);
 }
 /* ---- checklists prontos ---- */
 function formModelo(id){
@@ -1084,9 +1121,10 @@ async function salvarModelo(id){
   const tmp=id?MOD.modelos.find(x=>x.id===id):{id:"tmp"+Date.now()};
   Object.assign(tmp,{nome,frequencia:freq,itens,_salvando:true}); if(!id) MOD.modelos.push(tmp);
   fecharForm(); pintarLado();
-  let r=null; try{ r=await chamar({action:"atvModeloUpdate",id:id||"",nome,frequencia:freq,itens},60000,true); }catch(e){}
-  if(!(r&&r.ok)){ MOD.modelos=antes; pintarLado(); toast("Não salvou o checklist pronto: "+msgErro(r)); return; }
-  tmp.id=r.id||tmp.id; delete tmp._salvando; cacheSet("atv_modelos",MOD); pintarLado(); toast("Checklist pronto salvo.");
+  tmp._p=(async()=>{ let r=null; try{ r=await chamar({action:"atvModeloUpdate",id:id||"",nome,frequencia:freq,itens},60000,true); }catch(e){} return r; })();
+  const r=await tmp._p;
+  if(!(r&&r.ok)){ MOD.modelos=antes; pintarLado(); falhou("Não salvou o checklist pronto: "+msgErro(r),()=>{ formModelo(null); }); return; }
+  tmp.id=r.id||tmp.id; delete tmp._salvando; delete tmp._p; cacheSet("atv_modelos",MOD); pintarLado(); toast("Checklist pronto salvo.");
 }
 async function excluirModelo(id){
   if(!confirm("Excluir este checklist pronto? (As atividades já geradas continuam.)")) return;
@@ -1096,11 +1134,15 @@ async function excluirModelo(id){
 }
 async function gerarModelo(id,bt){
   if(RO){ toast("Modo teste: não grava."); return; }
-  if(String(id).indexOf("tmp")===0){ toast("Ainda salvando o modelo — tente em alguns segundos."); return; }
-  bt.disabled=true; bt.textContent="Gerando…";
+  const m=MOD.modelos.find(x=>String(x.id)===String(id));
+  if(m&&m._p){ bt.disabled=true; bt.textContent="Salvando…"; await m._p; bt.disabled=false; bt.textContent="▶ Gerar"; id=m.id; }
+  if(String(id).indexOf("tmp")===0){ toast("O modelo não foi salvo — veja a mensagem vermelha."); return; }
+  /* aparece NA HORA em "Para mim"; o servidor cria por trás */
+  const hoje=hojeISO();
+  const tmp=temporaria({titulo:"✅ "+((m&&m.nome)||"Checklist")+" · "+hoje.slice(8,10)+"/"+hoje.slice(5,7),tipo:PROPRIA,fim:hoje,resp:[ME]});
   const r=await criarRF({action:"atvModeloCriar",id});
-  bt.disabled=false; bt.textContent="▶ Gerar";
-  if(!(r&&r.ok)){ toast("Não gerou: "+msgErro(r)); return; }
+  D.atividades=D.atividades.filter(x=>x!==tmp);
+  if(!(r&&r.ok)){ pintar(); falhou("Não gerou o checklist: "+msgErro(r),()=>gerarModelo(id,bt)); return; }
   adotar(r.atividade); toast("Checklist gerado — está em “Para mim”.");
 }
 

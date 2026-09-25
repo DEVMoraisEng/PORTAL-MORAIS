@@ -128,12 +128,13 @@
 /* v48 -> v49 (25/09/26): abas Atividades e Processos, editor de conteúdo, sino de atrasadas. */
 /* v49 -> v50 (25/09/26 tarde): Arquivos, pré-carregamento das Atividades, filtros. */
 /* v50 -> v51 (25/09/26 noite): tipo PORTAL no painel, checklist item a item, criação protegida. */
-const CACHE = "portal-morais-v51";  // limpeza só dos caches do portal (não apaga os das RAS)
+/* v51 -> v52 (25/09/26 16h): ações novas pela ESCRITA (rf-rotas.js), criação otimista. */
+const CACHE = "portal-morais-v52";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",
                   "./atividades.html","./processos.html","./arquivos.html",
-                  "./app.js","./alertas-docs.js","./fogos.js","./editor-blocos.js","./atv-alertas.js","./manifest.json"];
+                  "./app.js","./alertas-docs.js","./fogos.js","./editor-blocos.js","./atv-alertas.js","./rf-rotas.js","./manifest.json"];
 
 self.addEventListener("install", e=>{
   e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ARQUIVOS)).then(()=>self.skipWaiting()));
