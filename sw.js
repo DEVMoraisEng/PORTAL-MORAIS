@@ -124,7 +124,8 @@
 /* v44 -> v45 (25/09/26): leitura ao vivo antiga não apaga o que acabou de ser salvo. */
 /* v45 -> v46 (25/09/26): obra grava na hora (otimista) — alerta some ao preencher. */
 /* v46 -> v47 (25/09/26): fogos.js — fogos no painel quando a meta é batida no mês. */
-const CACHE = "portal-morais-v47";  // limpeza só dos caches do portal (não apaga os das RAS)
+/* v47 -> v48 (25/09/26): aniversariantes do mês no painel. */
+const CACHE = "portal-morais-v48";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",

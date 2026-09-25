@@ -130,6 +130,20 @@ html[data-tema="escuro"] .delta.desce{color:#f3a29a}
 .tri.futuro{opacity:.5}
 /* 25/09/26 — meta batida NO MÊS: selo no cartão (o mês todo) + fogos (1x/dia por pessoa, fogos.js) */
 .kpi,.tri{position:relative}
+/* 25/09/26 — ANIVERSARIANTES DO MÊS (acima de Venda de Casas) */
+.aniv-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:11px}
+.aniv{display:flex;align-items:center;gap:12px;background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:12px 14px;position:relative}
+.aniv .dia{font-family:'Barlow Condensed';font-size:30px;font-weight:800;line-height:1;color:var(--azul-esc);min-width:40px;text-align:center}
+.aniv .dia small{display:block;font-size:10px;letter-spacing:.4px;text-transform:uppercase;color:var(--text3);font-family:inherit;font-weight:700}
+.aniv .nm{font-weight:800;color:var(--azul-esc);font-size:14px;line-height:1.2}
+.aniv .cg{font-size:11px;color:var(--text4);margin-top:3px}
+.aniv.passou{opacity:.55}
+.aniv.hoje{background:linear-gradient(135deg,#fff4cc,#ffe08a);border-color:#f6c945;box-shadow:0 6px 22px rgba(246,201,69,.35);cursor:pointer;grid-column:1/-1}
+.aniv.hoje .dia,.aniv.hoje .nm{color:#5a4200}
+.aniv.hoje .parabens{font-family:'Barlow Condensed';font-size:22px;font-weight:800;color:#7a5a00;letter-spacing:.3px}
+.aniv-vazio{font-size:13px;color:var(--text4);padding:4px 2px}
+html[data-tema="escuro"] .aniv.hoje{background:linear-gradient(135deg,#5a4a12,#7a5a00)}
+html[data-tema="escuro"] .aniv.hoje .dia,html[data-tema="escuro"] .aniv.hoje .nm,html[data-tema="escuro"] .aniv.hoje .parabens{color:#ffe7a0}
 .meta-batida{box-shadow:0 0 0 2px #f6c945 inset, 0 6px 22px rgba(246,201,69,.28)}
 .kpi.hero.meta-batida{box-shadow:0 0 0 2px #f6c945, 0 6px 22px rgba(246,201,69,.35)}
 .selo-meta{margin-top:8px;display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:800;
@@ -263,6 +277,10 @@ html[data-tema="escuro"] .logo{background:#fff}
     <nav class="dash-nav" id="cards"><div class="vazio"><span class="load"></span> Carregando…</div></nav>
     <main class="dash-main">
       <div class="nota" id="nota"></div>
+      <div class="bloco" id="bloco-aniv" style="display:none">
+        <div class="sec"><span class="cond">🎂 Aniversariantes de <span id="aniv-mes"></span></span></div>
+        <div class="aniv-lista" id="aniv-lista"></div>
+      </div>
       <div class="bloco">
         <div class="sec"><span class="cond">Venda de Casas</span>
           <button class="bt-graf" id="bt-g-vendas" aria-expanded="false" onclick="alternarGrafico('vendas')"><span class="seta">▶</span> Evolução anual</button></div>
@@ -629,6 +647,10 @@ function boot(){
   //    portal_() do Code.gs, só que rodada uma vez no build).
   lerEstaticoJa("portal.json","portal", pintarKpis);
 
+  // 1b) aniversariantes do mês: cópia salva na hora, depois o Apps Script
+  try{ const c=cacheGet("aniversariantes"); if(c&&c.v) pintarAniversarios(c.v); }catch(e){}
+  ler({action:"aniversariantes"},"aniversariantes").then(r=>{ if(r&&r.ok) pintarAniversarios(r); }).catch(()=>{});
+
   // 2) contagem de atividades: é só um numerinho no botão de Vendas. Vai em
   //    segundo plano; se o Apps Script demorar ou falhar, o resto da tela não
   //    sofre. Só é chamada por quem TEM acesso a VENDAS: para os demais
@@ -667,6 +689,44 @@ function boot(){
       contadoresDosSetores();
     }
   }).catch(()=>{});
+}
+/* ===================== ANIVERSARIANTES (25/09/26) =====================
+ * Vem do LOGINS (colunas trazidas do (EMP) Membros) pela ação
+ * "aniversariantes" — só nome, dia, mês, cargo e setor; nunca ano/idade.
+ * Mostra o mês corrente em ordem de dia; os que já passaram ficam apagados;
+ * o de HOJE vira destaque dourado com "Parabéns" e fogos (1x por dia por
+ * pessoa que abre o painel; clicar no cartão solta de novo). */
+function nomeBonito(n){
+  const minus=["da","de","do","das","dos","e"];
+  return String(n||"").toLowerCase().split(/\s+/).filter(Boolean)
+    .map((w,i)=>i&&minus.indexOf(w)>=0?w:w.charAt(0).toUpperCase()+w.slice(1)).join(" ");
+}
+function primeiroNome(n){ return nomeBonito(n).split(" ")[0]||""; }
+function pintarAniversarios(r){
+  const bloco=document.getElementById("bloco-aniv"), box=document.getElementById("aniv-lista");
+  if(!bloco||!box||!r||!r.lista) return;
+  const agora=new Date(), mes=agora.getMonth()+1, dia=agora.getDate(), ano=agora.getFullYear();
+  document.getElementById("aniv-mes").textContent=MESES_NOME[mes-1];
+  const doMes=r.lista.filter(x=>x.mes===mes).sort((a,b)=>a.dia-b.dia);
+  bloco.style.display="";
+  if(!doMes.length){ box.innerHTML=`<div class="aniv-vazio">Nenhum aniversariante em ${MESES_NOME[mes-1]}.</div>`; return; }
+  const hoje=doMes.filter(x=>x.dia===dia), resto=doMes.filter(x=>x.dia!==dia);
+  const sub=x=>[x.cargo,x.setor].filter(Boolean).map(esc).join(" · ");
+  box.innerHTML =
+    hoje.map(x=>`<div class="aniv hoje" id="aniv-${esc(x.id)}" title="Soltar os fogos de novo" onclick="fogosAniv('${esc(x.id)}',true)">
+      <div class="dia">${x.dia}<small>hoje</small></div>
+      <div><div class="parabens">🎉 Parabéns, ${esc(primeiroNome(x.nome))}!</div>
+        <div class="nm">${esc(nomeBonito(x.nome))}</div><div class="cg">${sub(x)}</div></div></div>`).join("")+
+    resto.map(x=>`<div class="aniv ${x.dia<dia?"passou":""}">
+      <div class="dia">${x.dia}<small>${MESES_ABREV[mes-1]}</small></div>
+      <div><div class="nm">${esc(nomeBonito(x.nome))}</div><div class="cg">${sub(x)}</div></div></div>`).join("");
+  hoje.forEach((x,i)=>setTimeout(()=>fogosAniv(x.id,false), 300+i*1200));
+}
+function fogosAniv(id, forcar){
+  if(typeof soltarFogos!=="function") return;
+  const el=document.getElementById("aniv-"+id); if(!el) return;
+  const d=new Date(), chave="aniv-"+id+"-"+d.getFullYear();
+  soltarFogos(el, forcar?null:chave, {forcar:!!forcar, seletor:"#aniv-"+id, duracao:6000});
 }
 function pintarAtividades(r){ const el=document.getElementById("cnt-VENDAS"); if(el&&r&&r.ok)el.textContent=r.total; }
 
