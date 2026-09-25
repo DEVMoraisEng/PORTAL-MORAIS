@@ -366,6 +366,18 @@ html[data-tema="escuro"] .pchip{background:var(--bg3);color:var(--text)}
 @media(max-width:1100px){ .lay{grid-template-columns:1fr} .lado{position:static} }
 @media(max-width:760px){ .li{grid-template-columns:1fr 1fr} .li .t{grid-column:1/-1} .af{grid-template-columns:1fr 1fr} .kb{grid-template-columns:repeat(4,240px)} }
 
+/* v2 — filtros com destaque e cartões clicáveis */
+.flts{display:inline-flex;align-items:center;gap:5px;background:var(--sup);border:1.5px solid var(--border);border-radius:12px;padding:4px 6px}
+.flt-l{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);padding:0 4px}
+.flt{border:2px solid transparent;background:var(--bg3);color:var(--azul-esc);border-radius:9px;padding:7px 14px;font:inherit;font-size:13px;font-weight:800;cursor:pointer}
+.flt:hover{border-color:var(--azul)}
+.flt.on{background:var(--azul);color:#fff;box-shadow:0 3px 10px rgba(41,87,120,.35)}
+.flt.o.on{background:var(--verde);box-shadow:0 3px 10px rgba(42,157,92,.35)}
+.icard.clic{cursor:pointer;transition:transform .12s,box-shadow .12s}
+.icard.clic:hover{transform:translateY(-2px);box-shadow:0 6px 16px var(--sombra)}
+.icard.on{border:2px solid var(--azul);box-shadow:0 4px 14px rgba(41,87,120,.25)}
+html[data-tema="escuro"] .flt{background:var(--bg3);color:var(--text)}
+
 </style>
 </head>
 <body>
@@ -412,8 +424,8 @@ html[data-tema="escuro"] .pchip{background:var(--bg3);color:var(--text)}
 
 <script src="app.js?v=43"></script>
 <script src="alertas-docs.js?v=1"></script>
-<script src="editor-blocos.js?v=1"></script>
-<script src="atv-alertas.js?v=1"></script>
+<script src="editor-blocos.js?v=2"></script>
+<script src="atv-alertas.js?v=2"></script>
 <script>
 /* ---------- tema ---------- */
 const TEMA_KEY="morais_tema";
@@ -452,7 +464,8 @@ let ME=SID(S&&S.pessoa);
 let D={atividades:[],pessoas:[],opcoes:{status:[],tipo:[],prioridade:[]}}, OUT={itens:[]}, MOD={modelos:[]}, EQ=null;
 let OBRAS={}, OBRAS_L=[], ALERTAS_ABAS=[];
 let ABA="minhas", VIS=localStorage.getItem("atv_vis")||"lista", FILTRO="todas", BUSCA="", MES=new Date(); MES.setDate(1);
-let VER_FIN=false, EQ_PESSOA="";
+let VER_FIN=false, EQ_PESSOA="", ORIG="todas", RAPIDO="";
+const ORIGENS=["Atividades","Obras","Vendas","Documentos"];
 let ABERTA=null, _poll=null, _coms=null, _comsAssin="";
 
 /* ---------- utilitários ---------- */
@@ -479,13 +492,31 @@ function doFiltro(a){ return FILTRO==="todas"?true:FILTRO==="resp"?souResp(a):so
 /* ---------- carga ---------- */
 async function carregar(fresco){
   const c=cacheGet("atv_minhas"); if(c&&c.v&&!fresco&&!D.atividades.length){ aplicar(c.v); }
+  const co=cacheGet("atv_outras"); if(co&&co.v&&!fresco&&!OUT.itens.length){ OUT=co.v; pintar(); }
   const r=await ler(Object.assign({action:"atvMinhas"},fresco?{fresco:true}:{}),"atv_minhas");
   if(r&&r.ok) aplicar(r);
   else if(!D.atividades.length) document.getElementById("view").innerHTML=`<div class="vazio">Não consegui carregar suas atividades (${esc(erroTexto(r&&r.erro))}).</div>`;
   const o=await ler(Object.assign({action:"atvOutras"},fresco?{fresco:true}:{}),"atv_outras");
   if(o&&o.ok){ OUT=o; pintar(); }
   carregarModelos();
+  if(!fresco){ setTimeout(preCarregar,1500); if(EQUIPE&&!EQ) setTimeout(()=>carregarEquipe(false,true),2500); }
 }
+/* v2 — PRÉ-CARREGAMENTO: as atividades mais prováveis de serem abertas
+   (atrasadas e as próximas do prazo) já ficam guardadas no navegador com
+   comentários e checklist. Uma por vez, e para quando você abre alguma. */
+async function preCarregar(){
+  const cand=D.atividades.filter(aberta).filter(a=>souResp(a)||souSolic(a)).sort(ordFim).slice(0,6);
+  for(const a of cand){
+    if(ABERTA) return;
+    if(guardadaAtv(a.id)) continue;
+    let r=null; try{ r=await chamar({action:"atvAbrir",pageId:a.id},60000,false); }catch(e){}
+    if(r&&r.ok) guardarAtv(a.id,r);
+  }
+}
+function guardarAtv(id,r){ try{ const k="atv_ab_"+id; localStorage.setItem(k,JSON.stringify({t:Date.now(),r}));
+  const idx=JSON.parse(localStorage.getItem("atv_ab_idx")||"[]").filter(x=>x!==k); idx.push(k);
+  while(idx.length>40) localStorage.removeItem(idx.shift()); localStorage.setItem("atv_ab_idx",JSON.stringify(idx)); }catch(e){} }
+function guardadaAtv(id){ try{ const c=JSON.parse(localStorage.getItem("atv_ab_"+id)||"null"); return c&&c.r; }catch(e){ return null; } }
 function aplicar(r){
   D.atividades=r.atividades||[]; D.pessoas=r.pessoas||D.pessoas; D.opcoes=r.opcoes||D.opcoes;
   if(r.me) ME=r.me;
@@ -537,7 +568,8 @@ function pintarMinhas(){
   if(!document.getElementById("m-main")){
     v.innerHTML=`<div class="toolbar">
         <div class="vis">${["lista","kanban","cal"].map(k=>`<button id="vis-${k}" onclick="trocarVis('${k}')">${{lista:"☰ Lista",kanban:"▦ Kanban",cal:"📅 Calendário"}[k]}</button>`).join("")}</div>
-        <div class="legenda">${[["todas","Todas"],["resp","Sou responsável"],["solic","Solicitei"]].map(([k,r])=>`<span class="sw" id="f-${k}" onclick="FILTRO='${k}';pintarMinhas()">${r}</span>`).join("")}</div>
+        <div class="flts" title="Quem"><span class="flt-l">Quem</span>${[["todas","Todas"],["resp","Sou responsável"],["solic","Solicitei"]].map(([k,r])=>`<button class="flt" id="f-${k}" onclick="FILTRO='${k}';pintarMinhas()">${r}</button>`).join("")}</div>
+        <div class="flts" title="De onde vem a atividade"><span class="flt-l">Origem</span>${[["todas","Todas"]].concat(ORIGENS.map(o=>[o,o])).map(([k,r])=>`<button class="flt o" id="o-${k}" onclick="ORIG='${k}';pintarMinhas()">${r}</button>`).join("")}</div>
         <input class="busca" placeholder="Buscar atividade, tipo ou obra…" value="${esc(BUSCA)}" oninput="BUSCA=this.value;pintarCorpo()">
         <button class="bt" onclick="novaAtividade(false)" title="Cria uma atividade e escolhe quem faz">+ Nova atividade</button>
       </div>
@@ -546,25 +578,46 @@ function pintarMinhas(){
   }
   ["lista","kanban","cal"].forEach(k=>document.getElementById("vis-"+k).classList.toggle("on",VIS===k));
   ["todas","resp","solic"].forEach(k=>document.getElementById("f-"+k).classList.toggle("on",FILTRO===k));
+  ["todas"].concat(ORIGENS).forEach(k=>document.getElementById("o-"+k).classList.toggle("on",ORIG===k));
   pintarCorpo(); pintarLado();
 }
-function trocarVis(k){ VIS=k; try{localStorage.setItem("atv_vis",k);}catch(e){} pintarMinhas(); }
+function trocarVis(k){ VIS=k; RAPIDO=""; try{localStorage.setItem("atv_vis",k);}catch(e){} pintarMinhas(); }
 function pintarCorpo(){
   const m=document.getElementById("m-main"); if(!m) return;
   const minhas=D.atividades.filter(a=>!ehPropria(a));
   const ab=minhas.filter(aberta);
-  const info=[
-    ["Abertas",ab.filter(souResp).length,""],
-    ["Atrasadas",ab.filter(a=>souResp(a)&&atrasada(a)).length+OUT.itens.filter(x=>x.fim&&x.fim<hojeISO()).length,"r"],
-    ["Vencem hoje",ab.filter(a=>souResp(a)&&venceHoje(a)).length+OUT.itens.filter(x=>x.fim===hojeISO()).length,""],
-    ["Aguardando minha análise",ab.filter(a=>souSolic(a)&&a.status===AGUARD).length,""],
-    ["Das outras abas",OUT.itens.length,""]];
-  document.getElementById("m-info").innerHTML=info.map(([l,n,c])=>`<div class="icard"><div class="ival ${n&&c?c:""}">${n}</div><div class="ilab">${l}</div></div>`).join("");
+  const Q=quick();
+  const info=[["abertas","Abertas",Q.abertas.length,""],["atrasadas","Atrasadas",Q.atrasadas.length,"r"],["hoje","Vencem hoje",Q.hoje.length,""],
+    ["analise","Aguardando minha análise",Q.analise.length,""],["outras","Das outras abas",Q.outras.length,""]];
+  document.getElementById("m-info").innerHTML=info.map(([k,l,n,c])=>`<div class="icard clic ${RAPIDO===k?"on":""}" onclick="RAPIDO=RAPIDO==='${k}'?'':'${k}';pintarCorpo()" title="Ver só estas">
+    <div class="ival ${n&&c?c:""}">${n}</div><div class="ilab">${l}</div></div>`).join("")+
+    (RAPIDO?`<button class="bt ghost bt-mini" style="align-self:center" onclick="RAPIDO='';pintarCorpo()">✕ Ver tudo</button>`:"");
+  if(RAPIDO){ m.innerHTML=listaRapida(Q[RAPIDO],RAPIDO); return; }
   if(!D.atividades.length&&!OUT.itens.length){ m.innerHTML=`<div class="vazio">Nenhuma atividade sua por enquanto. Crie uma em “+ Nova atividade”.</div>`; return; }
-  if(VIS==="kanban") m.innerHTML=kanban(minhas.filter(doFiltro).filter(busca));
-  else if(VIS==="cal") m.innerHTML=calendario(minhas.filter(doFiltro).filter(busca));
-  else m.innerHTML=lista(minhas);
+  const soEmp=ORIG==="todas"||ORIG==="Atividades";
+  if(VIS==="kanban") m.innerHTML=soEmp?kanban(minhas.filter(doFiltro).filter(busca)):`<div class="vazio">O Kanban mostra as atividades da aba Atividades. As de ${esc(ORIG)} abrem na própria aba — veja em Lista ou Calendário.</div>`;
+  else if(VIS==="cal") m.innerHTML=calendario(soEmp?minhas.filter(doFiltro).filter(busca):[]);
+  else m.innerHTML=lista(soEmp?minhas:[]);
   if(VIS==="kanban") ligarKanban();
+}
+/* recortes dos cartões de cima (clicáveis) — todas as origens juntas */
+function outrasFiltradas(){ return OUT.itens.filter(x=>ORIG==="todas"||ORIG===x.origem).filter(x=>!BUSCA||N(x.titulo+" "+(x.tipo||"")).indexOf(N(BUSCA))>=0); }
+function quick(){
+  const h=hojeISO(), emp=(ORIG==="todas"||ORIG==="Atividades")?D.atividades.filter(a=>!ehPropria(a)||true).filter(aberta).filter(busca):[];
+  const out=outrasFiltradas();
+  return {
+    abertas: emp.filter(souResp).map(a=>({a})).concat(out.map(x=>({x}))),
+    atrasadas: emp.filter(a=>souResp(a)&&atrasada(a)).map(a=>({a})).concat(out.filter(x=>x.fim&&x.fim<h).map(x=>({x}))),
+    hoje: emp.filter(a=>souResp(a)&&venceHoje(a)).map(a=>({a})).concat(out.filter(x=>x.fim===h).map(x=>({x}))),
+    analise: emp.filter(a=>souSolic(a)&&a.status===AGUARD).map(a=>({a})),
+    outras: out.map(x=>({x}))
+  };
+}
+function listaRapida(itens,k){
+  const tit={abertas:"Todas as abertas em que sou responsável",atrasadas:"⚠ Todas as atrasadas",hoje:"Vencem hoje",analise:"Aguardando minha análise",outras:"Das outras abas"}[k];
+  const ord=itens.slice().sort((p,q)=>String((p.a||p.x).fim||"9999").localeCompare(String((q.a||q.x).fim||"9999")));
+  return ord.length?`<div class="sect"><div class="sect-h ${k==="atrasadas"?"r":""}">${tit} <span class="n">${ord.length}</span></div>
+    <div class="al-lista">${ord.map(o=>o.a?linha(o.a,souResp(o.a)?"resp":"solic"):linhaOut(o.x)).join("")}</div></div>`:`<div class="vazio">Nada aqui. 🎉</div>`;
 }
 function linha(a,modo){
   const cls=!aberta(a)?"fin":atrasada(a)?"atr":venceHoje(a)?"hoje":"";
@@ -597,7 +650,7 @@ function lista(minhas){
   const ab=f.filter(aberta);
   const resp=ab.filter(a=>souResp(a)&&FILTRO!=="solic").sort(ordFim);
   const solic=ab.filter(a=>souSolic(a)&&!souResp(a)&&FILTRO!=="resp").sort(ordFim);
-  const out=FILTRO==="solic"?[]:OUT.itens.filter(x=>!BUSCA||N(x.titulo+" "+(x.tipo||"")).indexOf(N(BUSCA))>=0).sort(ordFim);
+  const out=(FILTRO==="solic"||ORIG==="Atividades")?[]:outrasFiltradas().sort(ordFim);
   const fin=f.filter(a=>!aberta(a)&&doFiltro(a)).sort((a,b)=>String(b.concl||"").localeCompare(String(a.concl||"")));
   const atr=resp.filter(atrasada);
   return sec("⚠ Atrasadas",atr,a=>linha(a,"resp"),"r")+
@@ -633,7 +686,7 @@ function calendario(l){
   const hoje=hojeISO();
   const ev={};
   l.forEach(a=>{ const d=a.fim||a.ini; if(d) (ev[d]=ev[d]||[]).push({a}); });
-  if(FILTRO!=="solic") OUT.itens.forEach(x=>{ if(x.fim) (ev[x.fim]=ev[x.fim]||[]).push({x}); });
+  if(FILTRO!=="solic"&&ORIG!=="Atividades") outrasFiltradas().forEach(x=>{ if(x.fim) (ev[x.fim]=ev[x.fim]||[]).push({x}); });
   let h=`<div class="cal-top"><button class="bt ghost bt-mini" onclick="MES.setMonth(MES.getMonth()-1);pintarCorpo()">◀</button>
     <b>${MES.toLocaleDateString("pt-BR",{month:"long",year:"numeric"})}</b>
     <button class="bt ghost bt-mini" onclick="MES.setMonth(MES.getMonth()+1);pintarCorpo()">▶</button>
@@ -713,13 +766,28 @@ async function abrirAtv(id){
         <button class="bt" id="pa-env" onclick="enviarComentario()">Enviar</button><div class="chat-anx" id="pa-anx"></div></div>`}</div>
     <div class="sec2"><div class="grp">Checklist e anotações</div><div id="pa-cont" style="padding:4px 0 26px"></div></div>`;
   pintarCampos(a);
-  EditorBlocos.montar(document.getElementById("pa-cont"), id, {somenteLeitura:!podeEditar(a)});
+  const g=guardadaAtv(id);
+  if(g&&g.comentarios){ _coms=g.comentarios; _comsAssin=_coms.map(c=>c.id).join(","); pintarChat(); }
+  EditorBlocos.montar(document.getElementById("pa-cont"), id, {somenteLeitura:!podeEditar(a), dados:g&&g.conteudo});
   const t=document.getElementById("pa-txt");
   if(t) t.addEventListener("keydown",e=>{ if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); enviarComentario(); } });
   document.getElementById("ov1").classList.add("on"); document.getElementById("p1").classList.add("on");
   history.replaceState(null,"","#"+id);
-  _coms=null; _comsAssin=""; lerComentarios(true);
-  clearInterval(_poll); _poll=setInterval(()=>{ if(!document.hidden&&ABERTA) lerComentarios(false); },10000);
+  if(!g){ _coms=null; _comsAssin=""; }
+  abrirServidor(id, !!g);
+  clearInterval(_poll); _poll=setInterval(()=>{ if(!document.hidden&&ABERTA) lerComentarios(false); },20000);
+}
+/* tudo de uma vez: detalhe + comentários + conteúdo (1 chamada) */
+async function abrirServidor(id, temCopia){
+  let r=null; try{ r=await chamar({action:"atvAbrir",pageId:id},60000,true); }catch(e){}
+  if(!(r&&r.ok)){ if(!temCopia) lerComentarios(true); return; }
+  guardarAtv(id,r);
+  if(ABERTA!==id) return;
+  const a=acha(id); if(a&&r.atividade){ Object.assign(a,r.atividade); pintarCampos(a); }
+  if(r.comentarios){ const assin=r.comentarios.map(c=>c.id).join(","); if(assin!==_comsAssin){ _comsAssin=assin; _coms=r.comentarios; pintarChat(); } }
+  else if(r.erroComentarios){ document.getElementById("pa-chat").innerHTML=`<div class="ajuda">Não consegui ler os comentários (${esc(r.erroComentarios)}).</div>`; }
+  const cont=document.getElementById("pa-cont");
+  if(r.conteudo&&cont&&!cont.contains(document.activeElement)) EditorBlocos.montar(cont, id, {somenteLeitura:!(a&&podeEditar(a)), dados:r.conteudo});
 }
 function fecharAtv(){
   ABERTA=null; clearInterval(_poll);
@@ -763,6 +831,7 @@ async function lerComentarios(primeira){
   const assin=(r.comentarios||[]).map(c=>c.id).join(",");
   if(!primeira&&assin===_comsAssin) return;
   _comsAssin=assin; _coms=r.comentarios||[]; pintarChat();
+  const g=guardadaAtv(id)||{ok:true,pageId:id}; g.comentarios=_coms; guardarAtv(id,g);
 }
 function linkar(t){ return esc(t).replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" rel="noopener">$1</a>'); }
 function pintarChat(){
@@ -886,12 +955,12 @@ async function gerarModelo(id,bt){
 }
 
 /* ---------- EQUIPE (ADM/MASTER) ---------- */
-async function carregarEquipe(fresco){
+async function carregarEquipe(fresco,silencioso){
   if(!EQUIPE) return;
-  const c=cacheGet("atv_equipe"); if(c&&c.v&&!EQ){ EQ=c.v; pintar(); }
+  const c=cacheGet("atv_equipe"); if(c&&c.v&&!EQ){ EQ=c.v; if(ABA==="equipe") pintar(); }
   const r=await ler(Object.assign({action:"atvEquipe"},fresco?{fresco:true}:{}),"atv_equipe");
   if(r&&r.ok){ EQ=r; if(ABA==="equipe") pintar(); }
-  else if(!EQ) document.getElementById("view").innerHTML=`<div class="vazio">Não consegui carregar a equipe (${esc(erroTexto(r&&r.erro))}).</div>`;
+  else if(!EQ&&!silencioso&&ABA==="equipe") document.getElementById("view").innerHTML=`<div class="vazio">Não consegui carregar a equipe (${esc(erroTexto(r&&r.erro))}).</div>`;
 }
 function pintarEquipe(){
   const v=document.getElementById("view");

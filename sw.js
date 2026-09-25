@@ -126,11 +126,12 @@
 /* v46 -> v47 (25/09/26): fogos.js — fogos no painel quando a meta é batida no mês. */
 /* v47 -> v48 (25/09/26): aniversariantes do mês no painel. */
 /* v48 -> v49 (25/09/26): abas Atividades e Processos, editor de conteúdo, sino de atrasadas. */
-const CACHE = "portal-morais-v49";  // limpeza só dos caches do portal (não apaga os das RAS)
+/* v49 -> v50 (25/09/26 tarde): Arquivos, pré-carregamento das Atividades, filtros. */
+const CACHE = "portal-morais-v50";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",
-                  "./atividades.html","./processos.html",
+                  "./atividades.html","./processos.html","./arquivos.html",
                   "./app.js","./alertas-docs.js","./fogos.js","./editor-blocos.js","./atv-alertas.js","./manifest.json"];
 
 self.addEventListener("install", e=>{

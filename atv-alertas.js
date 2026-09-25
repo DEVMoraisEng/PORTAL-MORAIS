@@ -4,6 +4,9 @@
  * Documentos). Clicar abre a lista; clicar num item leva até ele.
  * Fonte: ação atvAlertas (RetaFinal.gs). Mostra a cópia salva na hora e
  * atualiza por trás; relê a cada 5 minutos e quando o ao vivo avisa.
+ * v2: a mesma chamada traz as atividades da pessoa (comDados) e guarda no
+ * navegador — a aba Atividades já abre pronta. ADM/MASTER também deixam a
+ * visão da Equipe pré-carregada.
  */
 (function(){
   if(typeof document==="undefined") return;
@@ -53,7 +56,18 @@
   }
   async function atualizar(fresco){
     if(typeof sessao!=="function"||!sessao()) return;
-    try{ const r=await ler(Object.assign({action:"atvAlertas"},fresco?{fresco:true}:{}),"atv_alertas"); pintar(r); }catch(err){}
+    try{
+      const r=await ler(Object.assign({action:"atvAlertas",comDados:true},fresco?{fresco:true}:{}),"atv_alertas");
+      pintar(r);
+      if(r&&r.ok&&r.minhas&&typeof cacheSet==="function"){ cacheSet("atv_minhas",r.minhas); if(r.outras) cacheSet("atv_outras",r.outras); }
+    }catch(err){}
+    try{
+      const s=sessao(), t=String((s&&s.tipo)||"").toUpperCase();
+      if(!fresco&&(t==="ADM"||t==="MASTER")&&!/atividades\.html/.test(location.pathname)){
+        const c=typeof cacheGet==="function"?cacheGet("atv_equipe"):null;
+        if(!c||Date.now()-c.t>10*60*1000) ler({action:"atvEquipe"},"atv_equipe").catch(()=>{});
+      }
+    }catch(err){}
   }
   function iniciar(){
     try{ const c=cacheGet("atv_alertas"); if(c&&c.v) pintar(c.v); }catch(err){}

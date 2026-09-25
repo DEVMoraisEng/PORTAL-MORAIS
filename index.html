@@ -131,37 +131,40 @@ html[data-tema="escuro"] .delta.desce{color:#f3a29a}
 /* 25/09/26 — meta batida NO MÊS: selo no cartão (o mês todo) + fogos (1x/dia por pessoa, fogos.js) */
 .kpi,.tri{position:relative}
 /* 25/09/26 — ANIVERSARIANTES DO MÊS (acima de Venda de Casas).
-   v2: nomes mais vivos (cor forte, maiores) e os que já passaram continuam
-   legíveis; o aniversariante do DIA ocupa a linha inteira, em dourado, com
-   brilho pulsando, "PARABÉNS" grande e fogos. */
-.aniv-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:11px}
-.aniv{display:flex;align-items:center;gap:13px;background:var(--sup);border:1px solid var(--border2);border-left:5px solid var(--verde);border-radius:12px;padding:12px 14px;position:relative}
-.aniv .dia{font-family:'Barlow Condensed';font-size:34px;font-weight:800;line-height:1;color:var(--verde-esc);min-width:44px;text-align:center}
-.aniv .dia small{display:block;font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--verde);font-family:inherit;font-weight:800}
-.aniv .nm{font-weight:800;color:var(--azul-esc);font-size:15.5px;line-height:1.2}
-.aniv .cg{font-size:11.5px;color:var(--azul);margin-top:3px;font-weight:600}
-.aniv.passou{border-left-color:var(--border);background:var(--bg2)}
-.aniv.passou .dia{color:var(--text3)}.aniv.passou .dia small{color:var(--text4)}
-.aniv.passou .nm{color:var(--text)}.aniv.passou .cg{color:var(--text3)}
-.aniv.hoje{grid-column:1/-1;cursor:pointer;border:0;border-radius:16px;padding:18px 22px;gap:18px;
+   v3: bloco próprio com fundo festivo, cartões grandes com a inicial em
+   círculo colorido e nomes fortes; quem já fez aniversário no mês continua
+   em destaque (só ganha um "✓ já foi"); o aniversariante do DIA ocupa a
+   linha inteira em dourado, com brilho, "PARABÉNS" grande, bolo e fogos. */
+#bloco-aniv{background:linear-gradient(135deg,rgba(76,217,100,.16),rgba(143,220,210,.22) 55%,rgba(246,201,69,.18));
+  border:1.5px solid rgba(42,157,92,.35);border-radius:16px;padding:14px 16px 16px}
+#bloco-aniv .sec{background:transparent;border-left:0;padding:0 2px;margin-bottom:12px}
+#bloco-aniv .sec .cond{font-size:21px;color:var(--verde-esc)}
+.aniv-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.aniv{display:flex;align-items:center;gap:13px;background:var(--sup);border:0;border-radius:14px;padding:13px 15px;position:relative;
+  box-shadow:0 4px 14px rgba(20,50,70,.10)}
+.aniv .av{flex:none;width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-family:'Barlow Condensed';font-weight:800;font-size:22px;color:#fff;background:var(--c,#2a9d5c);box-shadow:0 3px 8px rgba(0,0,0,.18)}
+.aniv .dt{font-family:'Barlow Condensed';font-weight:800;font-size:14px;letter-spacing:.4px;color:var(--c,#2a9d5c);text-transform:uppercase}
+.aniv .nm{font-weight:800;color:var(--azul-esc);font-size:17px;line-height:1.15}
+.aniv .cg{font-size:12px;color:var(--azul);margin-top:2px;font-weight:600}
+.aniv .foi{position:absolute;top:8px;right:10px;font-size:10px;font-weight:800;color:var(--verde-esc);background:rgba(42,157,92,.12);border-radius:20px;padding:2px 8px}
+.aniv.hoje{grid-column:1/-1;cursor:pointer;border-radius:18px;padding:20px 24px;gap:18px;
   background:linear-gradient(120deg,#f6c945 0%,#ffe9a8 45%,#f6c945 100%);background-size:200% 100%;
   animation:aniv-brilho 3.2s ease-in-out infinite, aniv-pulso 2.4s ease-in-out infinite}
 @keyframes aniv-brilho{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
-@keyframes aniv-pulso{0%,100%{box-shadow:0 6px 22px rgba(246,201,69,.45)}50%{box-shadow:0 10px 38px rgba(246,201,69,.85)}}
-.aniv.hoje .dia{font-size:50px;color:#5a4200;min-width:64px}
-.aniv.hoje .dia small{color:#7a5a00;font-size:12px}
-.aniv.hoje .parabens{font-family:'Barlow Condensed';font-size:34px;font-weight:800;color:#4a3400;letter-spacing:.5px;line-height:1.05;text-transform:uppercase}
-.aniv.hoje .nm{color:#3b2c00;font-size:17px}
+@keyframes aniv-pulso{0%,100%{box-shadow:0 6px 22px rgba(246,201,69,.45)}50%{box-shadow:0 10px 40px rgba(246,201,69,.9)}}
+.aniv.hoje .av{width:72px;height:72px;font-size:34px;background:#7a5a00}
+.aniv.hoje .parabens{font-family:'Barlow Condensed';font-size:38px;font-weight:800;color:#4a3400;letter-spacing:.5px;line-height:1.05;text-transform:uppercase}
+.aniv.hoje .nm{color:#3b2c00;font-size:18px}
 .aniv.hoje .cg{color:#6b5000}
-.aniv.hoje .bolo{font-size:46px;margin-left:auto;animation:aniv-pula 1.6s ease-in-out infinite}
+.aniv.hoje .bolo{font-size:52px;margin-left:auto;animation:aniv-pula 1.6s ease-in-out infinite}
 @keyframes aniv-pula{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-6px) rotate(6deg)}}
-.aniv-vazio{font-size:13px;color:var(--text4);padding:4px 2px}
+.aniv-vazio{font-size:13px;color:var(--text3);padding:4px 2px}
+html[data-tema="escuro"] #bloco-aniv{background:linear-gradient(135deg,rgba(47,158,99,.18),rgba(121,200,191,.12))}
 html[data-tema="escuro"] .aniv .nm{color:#e7f3ff}
 html[data-tema="escuro"] .aniv .cg{color:var(--teal)}
-html[data-tema="escuro"] .aniv .dia{color:#8ce0a5}
-html[data-tema="escuro"] .aniv.passou{background:var(--bg3)}
-html[data-tema="escuro"] .aniv.hoje .dia,html[data-tema="escuro"] .aniv.hoje .nm,html[data-tema="escuro"] .aniv.hoje .parabens{color:#3b2c00}
-@media(max-width:600px){ .aniv.hoje .parabens{font-size:24px} .aniv.hoje .bolo{display:none} }
+html[data-tema="escuro"] .aniv.hoje .nm,html[data-tema="escuro"] .aniv.hoje .parabens{color:#3b2c00}
+@media(max-width:600px){ .aniv.hoje .parabens{font-size:26px} .aniv.hoje .bolo{display:none} }
 .meta-batida{box-shadow:0 0 0 2px #f6c945 inset, 0 6px 22px rgba(246,201,69,.28)}
 .kpi.hero.meta-batida{box-shadow:0 0 0 2px #f6c945, 0 6px 22px rgba(246,201,69,.35)}
 .selo-meta{margin-top:8px;display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:800;
@@ -327,7 +330,7 @@ html[data-tema="escuro"] .logo{background:#fff}
 <script src="app.js?v=43"></script>
 <script src="alertas-docs.js?v=1"></script>
 <script src="fogos.js?v=2"></script>
-<script src="atv-alertas.js?v=1"></script>
+<script src="atv-alertas.js?v=2"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele */
 const TEMA_KEY = "morais_tema";
@@ -385,8 +388,10 @@ const SISTEMAS=[
      Ligações, Pós Obra, Simulações. "embreve" = botão aparece apagado, sem
      link, para todo mundo. */
   {chave:"ATIVIDADES",nome:"Atividades",desc:"Suas atividades, checklists e equipe",ico:"T",link:"atividades.html",grupo:"SETORES",publico:true},
-  /* PROCESSOS (25/09/26) — liberado para todos os logados (combinado). */
-  {chave:"PROCESSOS",nome:"Processos",desc:"Regras, procedimentos e cultura da empresa",ico:"P",link:"processos.html",grupo:"SETORES",publico:true},
+  /* PROCESSOS E ARQUIVOS (25/09/26) — bloco próprio no menu; liberados para
+     todos os logados (combinado). Arquivos = página ARQUIVOS do Notion. */
+  {chave:"PROCESSOS",nome:"Processos",desc:"Regras, procedimentos e cultura da empresa",ico:"P",link:"processos.html",grupo:"PROCESSOS E ARQUIVOS",publico:true},
+  {chave:"ARQUIVOS",nome:"Arquivos",desc:"Documentos e modelos da empresa",ico:"A",link:"arquivos.html",grupo:"PROCESSOS E ARQUIVOS",publico:true},
   /* OBRAS: exige a opção "OBRAS" na coluna ACESSOS do banco LOGINS. */
   {chave:"OBRAS",nome:"Obras",desc:"Solicitação de obras, atividades e cronograma",ico:"O",link:"obras.html",grupo:"SETORES"},
   {chave:"VENDAS",nome:"Gestão de Vendas",desc:"Atividades, alertas e planilhas",ico:"V",link:"vendas.html",conta:true,grupo:"SETORES"},
@@ -431,7 +436,7 @@ const SISTEMAS=[
      Se não bater, o botão não aparece e não dá erro nenhum. */
   {chave:"PRANCHA HUMANIZADA",nome:"Prancha Humanizada",desc:"Planta do Revit → prancha de venda no timbrado",ico:"A",link:"https://devmoraiseng.github.io/AUT-PRANCHA-HUMANIZADA/",externo:true,grupo:"AUTOMAÇÕES"}
 ];
-const GRUPOS_ORDEM=["SETORES","ANÁLISES","MAPAS","REUNIÕES","AUTOMAÇÕES"]; // setores, análises, mapas, reuniões e automações — nessa ordem
+const GRUPOS_ORDEM=["SETORES","PROCESSOS E ARQUIVOS","ANÁLISES","MAPAS","REUNIÕES","AUTOMAÇÕES"]; // setores, análises, mapas, reuniões e automações — nessa ordem
 const S=exigirSessao(); atualizarStatus();
 
 function pintarUsuario(s){ document.getElementById("u-nome").textContent=s.nome||s.login; const tb=document.getElementById("u-tipo"); tb.textContent=s.tipo; tb.className="badge"+(s.tipo==="ADM"?" adm":""); }
@@ -733,14 +738,19 @@ function pintarAniversarios(r){
   if(!doMes.length){ box.innerHTML=`<div class="aniv-vazio">Nenhum aniversariante em ${MESES_NOME[mes-1]}.</div>`; return; }
   const hoje=doMes.filter(x=>x.dia===dia), resto=doMes.filter(x=>x.dia!==dia);
   const sub=x=>[x.cargo,x.setor].filter(Boolean).map(esc).join(" · ");
+  const CORES=["#2a9d5c","#295778","#E67E22","#8e44ad","#c0392b","#16a085","#d35400","#2c3e50"];
+  const cor=n=>CORES[[...String(n)].reduce((s,c)=>s+c.charCodeAt(0),0)%CORES.length];
+  const ini=n=>nomeBonito(n).split(" ").filter(Boolean).slice(0,2).map(p=>p[0]).join("");
   box.innerHTML =
     hoje.map(x=>`<div class="aniv hoje" id="aniv-${esc(x.id)}" title="Soltar os fogos de novo" onclick="fogosAniv('${esc(x.id)}',true)">
-      <div class="dia">${x.dia}<small>hoje</small></div>
+      <div class="av">${esc(ini(x.nome))}</div>
       <div><div class="parabens">🎉 Parabéns, ${esc(primeiroNome(x.nome))}!</div>
         <div class="nm">${esc(nomeBonito(x.nome))} faz aniversário hoje</div><div class="cg">${sub(x)}</div></div><div class="bolo">🎂</div></div>`).join("")+
-    resto.map(x=>`<div class="aniv ${x.dia<dia?"passou":""}">
-      <div class="dia">${x.dia}<small>${MESES_ABREV[mes-1]}</small></div>
-      <div><div class="nm">${esc(nomeBonito(x.nome))}</div><div class="cg">${sub(x)}</div></div></div>`).join("");
+    resto.map(x=>`<div class="aniv" style="--c:${cor(x.nome)}">
+      <div class="av">${esc(ini(x.nome))}</div>
+      <div><div class="dt">🎂 ${String(x.dia).padStart(2,"0")} de ${MESES_NOME[mes-1]}</div>
+        <div class="nm">${esc(nomeBonito(x.nome))}</div><div class="cg">${sub(x)}</div></div>
+      ${x.dia<dia?`<span class="foi">✓ já foi</span>`:""}</div>`).join("");
   hoje.forEach((x,i)=>setTimeout(()=>fogosAniv(x.id,false), 300+i*1200));
 }
 function fogosAniv(id, forcar){
