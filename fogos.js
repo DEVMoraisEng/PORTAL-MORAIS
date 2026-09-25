@@ -46,11 +46,12 @@
     canvas.style.cssText="position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:9999";
     document.body.appendChild(canvas);
     ctx=canvas.getContext("2d");
+    if(!ctx){ canvas.remove(); canvas=null; return; }      // navegador sem canvas: fica só o selo
     redimensionar();
     window.addEventListener("resize", redimensionar);
   }
   function redimensionar(){
-    if(!canvas) return;
+    if(!canvas||!ctx) return;
     const dpr=Math.min(window.devicePixelRatio||1,2);
     canvas.width=innerWidth*dpr; canvas.height=innerHeight*dpr;
     ctx.setTransform(dpr,0,0,dpr,0,0);
@@ -110,6 +111,7 @@
     if(chave) marcarHoje(chave);
     if(reduzMovimento()) return false;
     prepararCanvas();
+    if(!canvas) return false;
     const dur=opts.duracao||4500;
     fimEm=Math.max(fimEm, performance.now()+dur);
     // a posição do cartão é relida a cada lançamento: se o painel repintar

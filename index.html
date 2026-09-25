@@ -130,20 +130,38 @@ html[data-tema="escuro"] .delta.desce{color:#f3a29a}
 .tri.futuro{opacity:.5}
 /* 25/09/26 — meta batida NO MÊS: selo no cartão (o mês todo) + fogos (1x/dia por pessoa, fogos.js) */
 .kpi,.tri{position:relative}
-/* 25/09/26 — ANIVERSARIANTES DO MÊS (acima de Venda de Casas) */
-.aniv-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:11px}
-.aniv{display:flex;align-items:center;gap:12px;background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:12px 14px;position:relative}
-.aniv .dia{font-family:'Barlow Condensed';font-size:30px;font-weight:800;line-height:1;color:var(--azul-esc);min-width:40px;text-align:center}
-.aniv .dia small{display:block;font-size:10px;letter-spacing:.4px;text-transform:uppercase;color:var(--text3);font-family:inherit;font-weight:700}
-.aniv .nm{font-weight:800;color:var(--azul-esc);font-size:14px;line-height:1.2}
-.aniv .cg{font-size:11px;color:var(--text4);margin-top:3px}
-.aniv.passou{opacity:.55}
-.aniv.hoje{background:linear-gradient(135deg,#fff4cc,#ffe08a);border-color:#f6c945;box-shadow:0 6px 22px rgba(246,201,69,.35);cursor:pointer;grid-column:1/-1}
-.aniv.hoje .dia,.aniv.hoje .nm{color:#5a4200}
-.aniv.hoje .parabens{font-family:'Barlow Condensed';font-size:22px;font-weight:800;color:#7a5a00;letter-spacing:.3px}
+/* 25/09/26 — ANIVERSARIANTES DO MÊS (acima de Venda de Casas).
+   v2: nomes mais vivos (cor forte, maiores) e os que já passaram continuam
+   legíveis; o aniversariante do DIA ocupa a linha inteira, em dourado, com
+   brilho pulsando, "PARABÉNS" grande e fogos. */
+.aniv-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:11px}
+.aniv{display:flex;align-items:center;gap:13px;background:var(--sup);border:1px solid var(--border2);border-left:5px solid var(--verde);border-radius:12px;padding:12px 14px;position:relative}
+.aniv .dia{font-family:'Barlow Condensed';font-size:34px;font-weight:800;line-height:1;color:var(--verde-esc);min-width:44px;text-align:center}
+.aniv .dia small{display:block;font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--verde);font-family:inherit;font-weight:800}
+.aniv .nm{font-weight:800;color:var(--azul-esc);font-size:15.5px;line-height:1.2}
+.aniv .cg{font-size:11.5px;color:var(--azul);margin-top:3px;font-weight:600}
+.aniv.passou{border-left-color:var(--border);background:var(--bg2)}
+.aniv.passou .dia{color:var(--text3)}.aniv.passou .dia small{color:var(--text4)}
+.aniv.passou .nm{color:var(--text)}.aniv.passou .cg{color:var(--text3)}
+.aniv.hoje{grid-column:1/-1;cursor:pointer;border:0;border-radius:16px;padding:18px 22px;gap:18px;
+  background:linear-gradient(120deg,#f6c945 0%,#ffe9a8 45%,#f6c945 100%);background-size:200% 100%;
+  animation:aniv-brilho 3.2s ease-in-out infinite, aniv-pulso 2.4s ease-in-out infinite}
+@keyframes aniv-brilho{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+@keyframes aniv-pulso{0%,100%{box-shadow:0 6px 22px rgba(246,201,69,.45)}50%{box-shadow:0 10px 38px rgba(246,201,69,.85)}}
+.aniv.hoje .dia{font-size:50px;color:#5a4200;min-width:64px}
+.aniv.hoje .dia small{color:#7a5a00;font-size:12px}
+.aniv.hoje .parabens{font-family:'Barlow Condensed';font-size:34px;font-weight:800;color:#4a3400;letter-spacing:.5px;line-height:1.05;text-transform:uppercase}
+.aniv.hoje .nm{color:#3b2c00;font-size:17px}
+.aniv.hoje .cg{color:#6b5000}
+.aniv.hoje .bolo{font-size:46px;margin-left:auto;animation:aniv-pula 1.6s ease-in-out infinite}
+@keyframes aniv-pula{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-6px) rotate(6deg)}}
 .aniv-vazio{font-size:13px;color:var(--text4);padding:4px 2px}
-html[data-tema="escuro"] .aniv.hoje{background:linear-gradient(135deg,#5a4a12,#7a5a00)}
-html[data-tema="escuro"] .aniv.hoje .dia,html[data-tema="escuro"] .aniv.hoje .nm,html[data-tema="escuro"] .aniv.hoje .parabens{color:#ffe7a0}
+html[data-tema="escuro"] .aniv .nm{color:#e7f3ff}
+html[data-tema="escuro"] .aniv .cg{color:var(--teal)}
+html[data-tema="escuro"] .aniv .dia{color:#8ce0a5}
+html[data-tema="escuro"] .aniv.passou{background:var(--bg3)}
+html[data-tema="escuro"] .aniv.hoje .dia,html[data-tema="escuro"] .aniv.hoje .nm,html[data-tema="escuro"] .aniv.hoje .parabens{color:#3b2c00}
+@media(max-width:600px){ .aniv.hoje .parabens{font-size:24px} .aniv.hoje .bolo{display:none} }
 .meta-batida{box-shadow:0 0 0 2px #f6c945 inset, 0 6px 22px rgba(246,201,69,.28)}
 .kpi.hero.meta-batida{box-shadow:0 0 0 2px #f6c945, 0 6px 22px rgba(246,201,69,.35)}
 .selo-meta{margin-top:8px;display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:800;
@@ -308,7 +326,8 @@ html[data-tema="escuro"] .logo{background:#fff}
 
 <script src="app.js?v=43"></script>
 <script src="alertas-docs.js?v=1"></script>
-<script src="fogos.js?v=1"></script>
+<script src="fogos.js?v=2"></script>
+<script src="atv-alertas.js?v=1"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele */
 const TEMA_KEY = "morais_tema";
@@ -365,7 +384,9 @@ const SISTEMAS=[
   /* ORDEM DOS SETORES (set/26): Atividades, Obras, Vendas, Documentos,
      Ligações, Pós Obra, Simulações. "embreve" = botão aparece apagado, sem
      link, para todo mundo. */
-  {chave:"ATIVIDADES",nome:"Atividades",desc:"Atividades das obras por pessoa",ico:"T",link:"#",grupo:"SETORES",embreve:true,publico:true},
+  {chave:"ATIVIDADES",nome:"Atividades",desc:"Suas atividades, checklists e equipe",ico:"T",link:"atividades.html",grupo:"SETORES",publico:true},
+  /* PROCESSOS (25/09/26) — liberado para todos os logados (combinado). */
+  {chave:"PROCESSOS",nome:"Processos",desc:"Regras, procedimentos e cultura da empresa",ico:"P",link:"processos.html",grupo:"SETORES",publico:true},
   /* OBRAS: exige a opção "OBRAS" na coluna ACESSOS do banco LOGINS. */
   {chave:"OBRAS",nome:"Obras",desc:"Solicitação de obras, atividades e cronograma",ico:"O",link:"obras.html",grupo:"SETORES"},
   {chave:"VENDAS",nome:"Gestão de Vendas",desc:"Atividades, alertas e planilhas",ico:"V",link:"vendas.html",conta:true,grupo:"SETORES"},
@@ -716,7 +737,7 @@ function pintarAniversarios(r){
     hoje.map(x=>`<div class="aniv hoje" id="aniv-${esc(x.id)}" title="Soltar os fogos de novo" onclick="fogosAniv('${esc(x.id)}',true)">
       <div class="dia">${x.dia}<small>hoje</small></div>
       <div><div class="parabens">🎉 Parabéns, ${esc(primeiroNome(x.nome))}!</div>
-        <div class="nm">${esc(nomeBonito(x.nome))}</div><div class="cg">${sub(x)}</div></div></div>`).join("")+
+        <div class="nm">${esc(nomeBonito(x.nome))} faz aniversário hoje</div><div class="cg">${sub(x)}</div></div><div class="bolo">🎂</div></div>`).join("")+
     resto.map(x=>`<div class="aniv ${x.dia<dia?"passou":""}">
       <div class="dia">${x.dia}<small>${MESES_ABREV[mes-1]}</small></div>
       <div><div class="nm">${esc(nomeBonito(x.nome))}</div><div class="cg">${sub(x)}</div></div></div>`).join("");

@@ -125,11 +125,13 @@
 /* v45 -> v46 (25/09/26): obra grava na hora (otimista) — alerta some ao preencher. */
 /* v46 -> v47 (25/09/26): fogos.js — fogos no painel quando a meta é batida no mês. */
 /* v47 -> v48 (25/09/26): aniversariantes do mês no painel. */
-const CACHE = "portal-morais-v48";  // limpeza só dos caches do portal (não apaga os das RAS)
+/* v48 -> v49 (25/09/26): abas Atividades e Processos, editor de conteúdo, sino de atrasadas. */
+const CACHE = "portal-morais-v49";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",
-                  "./app.js","./alertas-docs.js","./fogos.js","./manifest.json"];
+                  "./atividades.html","./processos.html",
+                  "./app.js","./alertas-docs.js","./fogos.js","./editor-blocos.js","./atv-alertas.js","./manifest.json"];
 
 self.addEventListener("install", e=>{
   e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ARQUIVOS)).then(()=>self.skipWaiting()));
