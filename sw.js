@@ -123,11 +123,12 @@
    chips do painel na hora. */
 /* v44 -> v45 (25/09/26): leitura ao vivo antiga não apaga o que acabou de ser salvo. */
 /* v45 -> v46 (25/09/26): obra grava na hora (otimista) — alerta some ao preencher. */
-const CACHE = "portal-morais-v46";  // limpeza só dos caches do portal (não apaga os das RAS)
+/* v46 -> v47 (25/09/26): fogos.js — fogos no painel quando a meta é batida no mês. */
+const CACHE = "portal-morais-v47";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",
-                  "./app.js","./alertas-docs.js","./manifest.json"];
+                  "./app.js","./alertas-docs.js","./fogos.js","./manifest.json"];
 
 self.addEventListener("install", e=>{
   e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ARQUIVOS)).then(()=>self.skipWaiting()));
