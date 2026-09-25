@@ -59,7 +59,8 @@
   .eb-tab td div:focus{background:var(--sup);box-shadow:inset 0 0 0 2px rgba(42,157,92,.35)}
   .eb-add{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
   .eb-add button{border:1.5px dashed var(--border);background:transparent;color:var(--text3);border-radius:8px;padding:5px 10px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
-  .eb-add button:hover{border-color:var(--verde);color:var(--verde-esc)}
+  .eb-add button:hover,.eb-anx:hover{border-color:var(--verde);color:var(--verde-esc)}
+  .eb-anx{border:1.5px dashed var(--border);background:transparent;color:var(--text3);border-radius:8px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center}
   .eb-vazio{color:var(--text4);font-size:13px;padding:6px 4px}
   .eb-rico{flex:1;min-width:0;white-space:pre-wrap;word-break:break-word;padding:1px 3px}
   .eb-rico a{color:var(--azul);text-decoration:underline}
@@ -133,6 +134,7 @@
   function linhaBloco(b){
     const t=b.tipo, cls={heading_1:"h1",heading_2:"h2",heading_3:"h3",quote:"quote",callout:"callout",code:"code"}[t]||"";
     const x=`<button class="eb-x" data-x="${b.id}" title="Apagar este item" type="button">🗑</button>`;
+    if(t==="_enviando") return `<div class="eb-b"><span class="eb-ro"><span class="load"></span> ${e(b.texto)}</span></div>`;
     if(t==="divider") return `<div class="eb-b" data-id="${b.id}"><hr class="eb-div">${x}</div>`;
     if(b.editavel){
       let mk="";
@@ -168,7 +170,9 @@
         <button type="button" data-add="to_do">☑ + Tarefa</button><button type="button" data-add="paragraph">¶ + Texto</button>
         <button type="button" data-add="heading_2">H + Título</button><button type="button" data-add="bulleted_list_item">• + Lista</button>
         <button type="button" data-add="numbered_list_item">1. + Lista numerada</button><button type="button" data-add="quote">❝ + Citação</button>
-        <button type="button" data-add="callout">💡 + Destaque</button><button type="button" data-add="divider">— Divisor</button></div>`);
+        <button type="button" data-add="callout">💡 + Destaque</button><button type="button" data-add="divider">— Divisor</button>
+        <label class="eb-anx" title="Foto ou documento aqui no corpo (fica junto da descrição)">📎 + Anexo<input type="file" data-anx="1" multiple hidden
+          accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.dwg,.zip,.txt"></label></div>`);
     ligar(st);
   }
   function acha(bs,id){ for(const b of bs){ if(b.id===id) return b; if(b.filhos){ const f=acha(b.filhos,id); if(f) return f; } } return null; }
@@ -191,6 +195,7 @@
       const bl=acha(st.blocos,b.getAttribute("data-ed")); if(!bl) return; bl._plano=true; pintar(st);
       const n=st.el.querySelector(`[data-t="${bl.id}"]`); if(n) n.focus(); }));
     el.querySelectorAll("[data-add]").forEach(b=>b.addEventListener("click",()=>novo(st,b.getAttribute("data-add"),null,"",true)));
+    const fa=el.querySelector("[data-anx]"); if(fa) fa.addEventListener("change",()=>anexar(st,fa));
     el.querySelectorAll("[data-cel]").forEach(c=>{ c._orig=c.innerText; c.addEventListener("blur",()=>salvarLinha(st,c));
       c.addEventListener("keydown",ev=>{ if(ev.key==="Enter"&&!ev.shiftKey){ ev.preventDefault(); c.blur(); } }); });
   }
@@ -258,6 +263,20 @@
     if(String(id).indexOf("tmp")===0) return;
     const r=await pedir({action:"blocoExcluir",blockId:id,pageId:st.pageId});
     if(!r||!r.ok){ onde.lista.splice(i,0,b); pintar(st); aviso("Não apagou: "+((r&&r.erro)||"erro")); }
+  }
+  /* v5 — anexo no CORPO da página (foto/documento junto da descrição) */
+  async function anexar(st,inp){
+    const fs=[...(inp.files||[])]; inp.value=""; if(!fs.length) return;
+    if(fs.some(f=>f.size>15*1024*1024)){ aviso("Arquivo acima de 15 MB — mande um menor."); return; }
+    const ler=f=>new Promise((ok,err)=>{ const rd=new FileReader(); rd.onload=()=>ok(String(rd.result).split(",")[1]); rd.onerror=err; rd.readAsDataURL(f); });
+    let arquivos=[]; try{ arquivos=await Promise.all(fs.slice(0,5).map(async f=>({filename:f.name,mimeType:f.type||"application/octet-stream",dataBase64:await ler(f)}))); }
+    catch(err){ aviso("Não consegui ler o arquivo."); return; }
+    const tmp={id:"tmp"+Date.now(),tipo:"_enviando",texto:"📎 enviando "+fs.map(f=>f.name).join(", ")+"…"};
+    st.blocos.push(tmp); pintar(st);
+    const r=await pedir({action:"blocoAnexar",pageId:st.pageId,arquivos,opId:Date.now()+"_"+Math.random().toString(36).slice(2)},180000);
+    st.blocos=st.blocos.filter(b=>b!==tmp);
+    if(r&&r.ok&&r.conteudo&&r.conteudo.blocos){ st.blocos=r.conteudo.blocos; guardar(st.pageId,r.conteudo); pintar(st); aviso("Anexo adicionado."); }
+    else { pintar(st); aviso("Não anexou: "+((r&&r.erro)||"sem resposta do servidor")); }
   }
   /* ao vivo: outra pessoa mexeu nesta página → relê (se eu não estiver digitando nela) */
   window.addEventListener("portal-ao-vivo",ev=>{

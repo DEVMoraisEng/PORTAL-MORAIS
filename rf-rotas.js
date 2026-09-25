@@ -17,7 +17,8 @@
     ["procLista","procCriar","procUpdate","blocos","blocoUpdate","blocoNovo","blocoExcluir",
      "atvMinhas","atvOutras","atvAlertas","atvEquipe","atvDetalhe","atvAbrir","atvCriar","atvUpdate",
      "atvComentarios","atvComentarioNovo","atvModelos","atvModeloUpdate","atvModeloExcluir","atvModeloCriar",
-     "atvOp","atvPortal","aniversariantes"
+     "atvOp","atvPortal","aniversariantes",
+     /* v5 */ "atvMural","procLote","atvLote","blocoAnexar","ckLista","ckCriar","ckMarcar","ckExcluir"
     ].forEach(a=>{ if(ACOES_NA_ESCRITA.indexOf(a)<0) ACOES_NA_ESCRITA.push(a); });
   }catch(e){}
 })();

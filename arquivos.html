@@ -338,8 +338,8 @@ html[data-tema="escuro"] .pc .t,html[data-tema="escuro"] .gtit{color:var(--teal)
 <div class="toast" id="toast"></div>
 
 <script src="app.js?v=43"></script>
-<script src="rf-rotas.js?v=1"></script>
-<script src="editor-blocos.js?v=3"></script>
+<script src="rf-rotas.js?v=2"></script>
+<script src="editor-blocos.js?v=4"></script>
 <script>
 /* ---------- tema ---------- */
 const TEMA_KEY="morais_tema";
@@ -382,7 +382,7 @@ function tagStatus(s){ if(!s) return ""; const c=clsStatus(s); return `<span cla
 async function carregar(fresco){
   const c=cacheGet(TXT.ck); if(c&&c.v&&!fresco){ D=c.v; CARREGOU=true; pintar(); }
   const r=await ler(Object.assign({action:"procLista",base:BASE},fresco?{fresco:true}:{}),TXT.ck);
-  if(r&&r.ok){ D=r; CARREGOU=true; pintar(); if(ABERTO) cabecalho(); }
+  if(r&&r.ok){ D=r; CARREGOU=true; pintar(); if(ABERTO) cabecalho(); preCarregar(); }
   else if(!D.processos.length){ document.getElementById("tabs").innerHTML=""; }
   if(!(r&&r.ok)&&!D.processos.length) document.getElementById("view").innerHTML=`<div class="vazio">Não consegui carregar os ${TXT.uns} (${esc(/data sources accessible|Could not find/i.test(String(r&&r.erro))?"a integração SITES MORAIS ainda não tem acesso a este banco no Notion — ••• › Conexões › SITES MORAIS":erroTexto(r&&r.erro))}). <a href="#" onclick="carregar(true);return false">Tentar de novo</a></div>`;
 }
@@ -419,6 +419,19 @@ function pintarLista(){
     <div class="pgrid">${g.itens.map(card).join("")}</div>`).join(""):`<div class="vazio">Nenhum ${TXT.um} com esse filtro.</div>`;
 }
 
+/* v5 — TUDO PRÉ-CARREGADO: o conteúdo de todos os itens vem numa chamada
+   (o servidor já deixa pronto no gatilho) e fica guardado no navegador.
+   Só pede o que mudou desde a última cópia guardada. */
+let _pre=false;
+async function preCarregar(){
+  if(_pre||typeof EditorBlocos==="undefined") return; _pre=true;
+  const ids=D.processos.filter(p=>{ const c=EditorBlocos.guardado(p.id); return !c||!c.lidoEm||(p.editado&&p.editado>c.lidoEm); }).map(p=>p.id);
+  for(let i=0;i<ids.length;i+=30){
+    let r=null; try{ r=await chamar({action:"procLote",base:BASE,ids:ids.slice(i,i+30)},60000,false); }catch(e){}
+    if(!(r&&r.ok)) break;
+    Object.keys(r.conteudos||{}).forEach(id=>EditorBlocos.guardar(id,r.conteudos[id]));
+  }
+}
 /* ---------- painel do processo ---------- */
 function proc(id){ return D.processos.find(p=>p.id===id); }
 function cabecalho(){

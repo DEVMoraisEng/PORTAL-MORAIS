@@ -135,8 +135,9 @@ html[data-tema="escuro"] .delta.desce{color:#f3a29a}
    círculo colorido e nomes fortes; quem já fez aniversário no mês continua
    em destaque (só ganha um "✓ já foi"); o aniversariante do DIA ocupa a
    linha inteira em dourado, com brilho, "PARABÉNS" grande, bolo e fogos. */
-/* 25/09/26 (noite) — TIPO "PORTAL": atividades desse tipo ficam em destaque
-   aqui, com o conteúdo e o checklist, até serem finalizadas. */
+/* 25/09/26 (noite) — MURAL (tipo de atividade "MURAL"; as antigas "PORTAL"
+   também entram): em destaque aqui até serem finalizadas. Só leitura:
+   título, solicitante, término, descrição, checklist e comentários. */
 #bloco-portal{background:linear-gradient(135deg,rgba(41,87,120,.10),rgba(143,220,210,.18));border:1.5px solid rgba(41,87,120,.30);
   border-radius:16px;padding:14px 16px 16px;margin-bottom:18px}
 #bloco-portal .sec{background:transparent;border-left:0;padding:0 2px;margin-bottom:10px}
@@ -147,7 +148,14 @@ html[data-tema="escuro"] .delta.desce{color:#f3a29a}
 .pt .pt-t{font-family:'Barlow Condensed';font-weight:800;font-size:20px;color:var(--azul-esc);letter-spacing:.3px;line-height:1.1}
 .pt .pt-m{font-size:12px;color:var(--text3);margin:5px 0 8px;display:flex;gap:10px;flex-wrap:wrap}
 .pt .pt-m .atr{color:var(--verm);font-weight:800}
-.pt .pt-c{max-height:340px;overflow:auto;border-top:1px solid var(--border2);padding-top:8px}
+.pt .pt-c{max-height:360px;overflow:auto;border-top:1px solid var(--border2);padding-top:8px;font-size:13px}
+.pt .pt-sec{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);margin:8px 0 4px}
+.pt .pt-d p{margin:0 0 5px;white-space:pre-wrap}.pt .pt-d h4{margin:6px 0 4px;font-size:14px;color:var(--azul-esc)}
+.pt .pt-d li{margin-left:18px}
+.pt .pt-d img{max-width:100%;max-height:180px;border-radius:8px;margin:4px 0;display:block}
+.pt .pt-ck{display:flex;gap:7px;align-items:flex-start;padding:2px 0}.pt .pt-ck.f span{text-decoration:line-through;color:var(--text4)}
+.pt .pt-com{background:var(--bg2);border-radius:8px;padding:6px 9px;margin-bottom:5px}
+.pt .pt-com b{font-size:11px;color:var(--text3)}
 .pt .pt-a{display:inline-block;margin-top:8px;font-size:12px;font-weight:800;color:var(--azul)}
 html[data-tema="escuro"] .pt .pt-t{color:var(--teal)}
 @media(max-width:600px){ .portal-lista{grid-template-columns:1fr} }
@@ -315,7 +323,7 @@ html[data-tema="escuro"] .logo{background:#fff}
     <main class="dash-main">
       <div class="nota" id="nota"></div>
       <div class="bloco" id="bloco-portal" style="display:none">
-        <div class="sec"><span class="cond">📌 Portal</span></div>
+        <div class="sec"><span class="cond">📌 Mural</span></div>
         <div class="portal-lista" id="portal-lista"></div>
       </div>
       <div class="bloco" id="bloco-aniv" style="display:none">
@@ -348,10 +356,9 @@ html[data-tema="escuro"] .logo{background:#fff}
   </div>
 
 <script src="app.js?v=43"></script>
-<script src="rf-rotas.js?v=1"></script>
+<script src="rf-rotas.js?v=2"></script>
 <script src="alertas-docs.js?v=1"></script>
 <script src="fogos.js?v=2"></script>
-<script src="editor-blocos.js?v=3"></script>
 <script src="atv-alertas.js?v=3"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele */
@@ -695,9 +702,9 @@ function boot(){
   //    portal_() do Code.gs, só que rodada uma vez no build).
   lerEstaticoJa("portal.json","portal", pintarKpis);
 
-  // 1a) atividades do tipo PORTAL (em destaque até finalizar)
-  try{ const cp=cacheGet("atv_portal"); if(cp&&cp.v) pintarPortal(cp.v); }catch(e){}
-  ler({action:"atvPortal"},"atv_portal").then(r=>{ if(r&&r.ok) pintarPortal(r); }).catch(()=>{});
+  // 1a) MURAL: atividades do tipo MURAL (em destaque até finalizar)
+  try{ const cp=cacheGet("atv_mural"); if(cp&&cp.v) pintarMural(cp.v); }catch(e){}
+  ler({action:"atvMural"},"atv_mural").then(r=>{ if(r&&r.ok) pintarMural(r); }).catch(()=>{});
   // 1c) Processos e Arquivos já ficam guardados no navegador (abrem na hora)
   setTimeout(()=>{ [["processos","proc"],["arquivos","arq"]].forEach(([k,b])=>{
     const c=cacheGet(k); if(!c||Date.now()-c.t>30*60*1000) ler({action:"procLista",base:b},k).catch(()=>{}); }); },9000);
@@ -782,11 +789,10 @@ function pintarAniversarios(r){
       ${x.dia<dia?`<span class="foi">✓ já foi</span>`:""}</div>`).join("");
   hoje.forEach((x,i)=>setTimeout(()=>fogosAniv(x.id,false), 300+i*1200));
 }
-/* ===================== PORTAL (25/09/26 noite) =====================
- * Atividades do tipo "PORTAL" ainda não finalizadas: título, quem faz, prazo
- * e o CONTEÚDO inteiro (texto, listas, checklist). Quem é responsável ou
- * solicitante (ou ADM/MASTER) marca o checklist e edita aqui mesmo. */
-function pintarPortal(r){
+/* ===================== MURAL (25/09/26 noite) =====================
+ * Atividades do tipo MURAL ainda não finalizadas. Só leitura (combinado):
+ * título, solicitante, término, descrição, checklist e comentários. */
+function pintarMural(r){
   const bloco=document.getElementById("bloco-portal"), box=document.getElementById("portal-lista");
   if(!bloco||!box||!r) return;
   const l=r.atividades||[];
@@ -794,30 +800,29 @@ function pintarPortal(r){
   bloco.style.display="";
   const hoje=new Date().toISOString().slice(0,10);
   const br=d=>d?d.slice(8,10)+"/"+d.slice(5,7):"";
-  const ativos=new Set(l.map(x=>x.atividade.id));
-  box.querySelectorAll(".pt").forEach(el=>{ if(!ativos.has(el.dataset.id)) el.remove(); });
-  l.forEach(x=>{
-    const a=x.atividade, atr=a.fim&&a.fim<hoje;
-    let el=box.querySelector(`.pt[data-id="${a.id}"]`);
-    const meta=`<span>👤 ${esc((a.resp||[]).map(u=>nomeBonito(u.nome)).join(", ")||"—")}</span>${a.fim?`<span class="${atr?"atr":""}">📅 ${atr?"venceu ":""}${br(a.fim)}</span>`:""}<span>${esc(a.status||"")}</span>`;
-    if(!el){
-      box.insertAdjacentHTML("beforeend",`<div class="pt" data-id="${a.id}"><div class="pt-t"></div><div class="pt-m"></div><div class="pt-c"></div>
-        <a class="pt-a" href="atividades.html#${a.id}">Abrir a atividade →</a></div>`);
-      el=box.querySelector(`.pt[data-id="${a.id}"]`);
-    }
-    el.classList.toggle("atr",!!atr);
-    el.querySelector(".pt-t").textContent=a.titulo;
-    el.querySelector(".pt-m").innerHTML=meta;
-    const c=el.querySelector(".pt-c");
-    if(typeof EditorBlocos!=="undefined"&&!c.contains(document.activeElement)){
-      if(x.conteudo&&x.conteudo.blocos) EditorBlocos.montar(c, a.id, {somenteLeitura:!x.podeEditar, dados:x.conteudo});
-      else if(!c._eb) c.innerHTML=`<div class="aniv-vazio">Sem conteúdo.</div>`;
-    }
-  });
+  const desc=d=>{ let h="", lista=false;
+    (d||[]).forEach(b=>{
+      const li=b.tipo==="bulleted_list_item"||b.tipo==="numbered_list_item";
+      if(li&&!lista){ h+="<ul>"; lista=true; } if(!li&&lista){ h+="</ul>"; lista=false; }
+      if(b.tipo==="arquivo") h+=b.img?`<a href="${esc(b.url)}" target="_blank" rel="noopener"><img src="${esc(b.url)}" alt="${esc(b.texto)}"></a>`:`<p><a href="${esc(b.url)}" target="_blank" rel="noopener">📎 ${esc(b.texto)}</a></p>`;
+      else if(/^heading/.test(b.tipo)) h+=`<h4>${esc(b.texto)}</h4>`;
+      else if(li) h+=`<li>${esc(b.texto)}</li>`;
+      else h+=`<p>${esc(b.texto)}</p>`;
+    }); if(lista) h+="</ul>"; return h; };
+  box.innerHTML=l.map(a=>{
+    const atr=a.fim&&a.fim<hoje;
+    return `<div class="pt ${atr?"atr":""}"><div class="pt-t">${esc(a.titulo)}</div>
+      <div class="pt-m"><span>👤 Solicitante: ${esc(nomeBonito(a.solicitante)||"—")}</span>${a.fim?`<span class="${atr?"atr":""}">📅 Término: ${br(a.fim)}</span>`:""}</div>
+      <div class="pt-c">
+        ${(a.descricao||[]).length?`<div class="pt-sec">Descrição</div><div class="pt-d">${desc(a.descricao)}</div>`:""}
+        ${(a.checklist||[]).length?`<div class="pt-sec">Checklist</div>${a.checklist.map(x=>`<div class="pt-ck ${x.f?"f":""}">${x.f?"☑":"☐"} <span>${esc(x.t)}</span></div>`).join("")}`:""}
+        ${(a.comentarios||[]).length?`<div class="pt-sec">Comentários</div>${a.comentarios.map(c=>`<div class="pt-com"><b>${esc(c.autor||"")}</b><div>${esc(c.texto||"")}</div></div>`).join("")}`:""}
+      </div></div>`;
+  }).join("");
 }
-let _portalT=null;
+let _muralT=null;
 window.addEventListener("portal-ao-vivo",ev=>{ const d=ev.detail||{}; if(!/^atv|^bloco/.test(d.acao||"")) return;
-  clearTimeout(_portalT); _portalT=setTimeout(()=>ler({action:"atvPortal"},"atv_portal").then(r=>{ if(r&&r.ok) pintarPortal(r); }).catch(()=>{}),1500); });
+  clearTimeout(_muralT); _muralT=setTimeout(()=>ler({action:"atvMural"},"atv_mural").then(r=>{ if(r&&r.ok) pintarMural(r); }).catch(()=>{}),1500); });
 
 function fogosAniv(id, forcar){
   if(typeof soltarFogos!=="function") return;

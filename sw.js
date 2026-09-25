@@ -129,7 +129,8 @@
 /* v49 -> v50 (25/09/26 tarde): Arquivos, pré-carregamento das Atividades, filtros. */
 /* v50 -> v51 (25/09/26 noite): tipo PORTAL no painel, checklist item a item, criação protegida. */
 /* v51 -> v52 (25/09/26 16h): ações novas pela ESCRITA (rf-rotas.js), criação otimista. */
-const CACHE = "portal-morais-v52";  // limpeza só dos caches do portal (não apaga os das RAS)
+/* v52 -> v53 (25/09/26 17h): Mural, checklists de verdade, tudo pré-carregado. */
+const CACHE = "portal-morais-v53";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",

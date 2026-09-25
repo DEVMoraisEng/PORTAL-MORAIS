@@ -400,6 +400,30 @@ main.wrap{padding-bottom:90px}
   font-size:13px;display:flex;gap:10px;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.3);max-width:94vw}
 .falhou button{border:0;border-radius:8px;padding:6px 11px;font:inherit;font-weight:800;cursor:pointer}
 .falhou .tn{background:#fff;color:#7f1d1d}.falhou .fx{background:transparent;color:#fff;font-size:16px}
+/* v5 — checklists de verdade na coluna da direita */
+.ckc{border:1px solid var(--border2);border-radius:10px;padding:9px 10px;margin-bottom:8px;background:var(--sup2)}
+.ckc.ok{border-color:rgba(42,157,92,.5);background:rgba(42,157,92,.07)}
+.ckc.criando{opacity:.7;border-style:dashed}
+.ckc-h{display:flex;align-items:center;gap:8px;font-size:13px}.ckc-h b{flex:1;min-width:0;color:var(--azul-esc)}
+.ckc-h span{font-size:11px;font-weight:800;color:var(--text3)}
+.ckc .prog{margin:6px 0 6px}
+.ckc-i{display:flex!important;align-items:flex-start;gap:8px;font-size:13px;padding:4px 2px;cursor:pointer;border-radius:6px;text-transform:none;letter-spacing:0;font-weight:500;color:var(--text)}
+.ckc-i:hover{background:rgba(41,87,120,.06)}
+.ckc-i input{width:17px!important;height:17px;flex:none;margin:1px 0 0;accent-color:var(--verde)}
+.ckc-i.f span{text-decoration:line-through;color:var(--text4)}
+.ckc-fim{font-size:11px;font-weight:800;color:var(--verde-esc);margin-top:4px}
+.ck-prontos{margin-top:12px;border-top:1px dashed var(--border2);padding-top:8px}
+.ck-pt{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);margin-bottom:4px}
+/* v5 — "Descrição e checklist" no formulário */
+.cp{display:flex;flex-direction:column;gap:4px;background:var(--sup);border:1.5px solid var(--border);border-radius:10px;padding:8px 10px}
+.cp-l{display:flex;align-items:center;gap:8px}
+.cp-m{flex:none;width:20px;text-align:center;color:var(--text3);font-weight:800}
+.cp-l input{flex:1;border:0!important;border-bottom:1px dashed var(--border2)!important;border-radius:0!important;padding:6px 2px!important;background:transparent!important;box-shadow:none!important}
+.cp-l input:focus{border-bottom:2px solid var(--verde)!important}
+.cp-l.t-heading_2 input{font-weight:800;font-size:15px}
+.cp-add{margin-top:8px}
+.cp-add button{border:1.5px dashed var(--border);background:transparent;color:var(--text3);border-radius:8px;padding:5px 10px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.cp-add button:hover{border-color:var(--verde);color:var(--verde-esc)}
 
 </style>
 </head>
@@ -446,9 +470,9 @@ main.wrap{padding-bottom:90px}
 <div class="toast" id="toast"></div>
 
 <script src="app.js?v=43"></script>
-<script src="rf-rotas.js?v=1"></script>
+<script src="rf-rotas.js?v=2"></script>
 <script src="alertas-docs.js?v=1"></script>
-<script src="editor-blocos.js?v=3"></script>
+<script src="editor-blocos.js?v=4"></script>
 <script src="atv-alertas.js?v=3"></script>
 <script>
 /* ---------- tema ---------- */
@@ -491,6 +515,7 @@ let ABA="minhas", VIS=localStorage.getItem("atv_vis")||"lista", FILTRO="todas", 
 let VER_FIN=false, EQ_PESSOA="", ORIG="todas", RAPIDO="";
 const ORIGENS=["Atividades","Obras","Vendas","Documentos"];
 let ABERTA=null, _poll=null, _coms=null, _comsAssin="";
+let CKS={checklists:[]};   // v5: checklists de verdade (Supabase)
 
 /* ---------- utilitários ---------- */
 function N(s){ return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().trim(); }
@@ -523,18 +548,28 @@ async function carregar(fresco){
   const o=await ler(Object.assign({action:"atvOutras"},fresco?{fresco:true}:{}),"atv_outras");
   if(o&&o.ok){ OUT=o; pintar(); }
   carregarModelos();
-  if(!fresco){ setTimeout(preCarregar,12000); if(EQUIPE&&!cacheGet("atv_equipe")) setTimeout(()=>carregarEquipe(false,true),6000); }
+  carregarChecklists();
+  if(!fresco){ setTimeout(preCarregar,1500); if(EQUIPE&&!cacheGet("atv_equipe")) setTimeout(()=>carregarEquipe(false,true),6000); }
 }
 /* v2 — PRÉ-CARREGAMENTO: as atividades mais prováveis de serem abertas
    (atrasadas e as próximas do prazo) já ficam guardadas no navegador com
    comentários e checklist. Uma por vez, e para quando você abre alguma. */
+/* v5 — TUDO PRÉ-CARREGADO: numa chamada só vêm o conteúdo e os
+   comentários de TODAS as suas atividades abertas (o servidor já deixa isso
+   pronto no gatilho). Fica guardado no navegador: abrir é imediato. */
+let _lotePronto=false;
 async function preCarregar(){
-  const cand=D.atividades.filter(aberta).filter(a=>souResp(a)||souSolic(a)).sort(ordFim).slice(0,2);
-  for(const a of cand){
-    if(ABERTA) return;
-    if(guardadaAtv(a.id)) continue;
-    let r=null; try{ r=await chamar({action:"atvAbrir",pageId:a.id},60000,false); }catch(e){}
-    if(r&&r.ok) guardarAtv(a.id,r);
+  if(_lotePronto) return; _lotePronto=true;
+  const ids=D.atividades.filter(a=>aberta(a)&&!a._criando).map(a=>a.id);
+  for(let i=0;i<ids.length;i+=40){
+    let r=null; try{ r=await chamar({action:"atvLote",ids:ids.slice(i,i+40)},60000,false); }catch(e){}
+    if(!(r&&r.ok)) break;
+    ids.slice(i,i+40).forEach(id=>{
+      const g=guardadaAtv(id)||{ok:true,pageId:id};
+      if(r.conteudos&&r.conteudos[id]) g.conteudo=r.conteudos[id];
+      if(r.comentarios&&r.comentarios[id]) g.comentarios=r.comentarios[id];
+      guardarAtv(id,g);
+    });
   }
 }
 function guardarAtv(id,r){ try{ const k="atv_ab_"+id; localStorage.setItem(k,JSON.stringify({t:Date.now(),r}));
@@ -732,19 +767,63 @@ function calendario(l){
 function pintarLado(){
   const el=document.getElementById("m-lado"); if(!el) return;
   const prop=D.atividades.filter(a=>ehPropria(a)&&aberta(a)).sort(ordFim);
-  el.innerHTML=`<div class="caixa"><h3>Para mim <span class="n">${prop.length}</span></h3>
-      ${prop.length?prop.map(a=>`<div class="mini" ${a._criando?`title="criando…"`:`onclick="abrirAtv('${a.id}')"`}><span>${a._criando?'<span class="load"></span>':(a.titulo.indexOf("✅")===0?"":"•")}</span>
+  const cks=CKS.checklists||[];
+  el.innerHTML=`<div class="caixa"><h3>Meus checklists <span class="n">${cks.filter(c=>!c.concluido).length}</span></h3>
+      ${cks.length?cks.map(ckHtml).join(""):`<div class="ajuda">Nenhum checklist aberto. Crie um avulso ou gere de um pronto.</div>`}
+      <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap"><button class="bt bt-mini" onclick="checklistAvulso()">☑ + Checklist avulso</button></div>
+      <div class="ck-prontos"><div class="ck-pt">Checklists prontos</div>
+        ${MOD.modelos.map(m=>`<div class="mod"><div class="t"><b>${esc(m.nome)}</b><span>${esc(m.frequencia)} · ${m.itens.length} itens${m._salvando?" · salvando…":""}</span></div>
+          <button class="bt bt-mini" title="Cria agora um checklist novo com estes itens desmarcados" onclick="gerarModelo('${m.id}',this)">▶ Gerar</button>
+          <button class="bt ghost bt-mini" title="Editar o modelo" onclick="formModelo(${JSON.stringify(m.id).replace(/"/g,"&quot;")})">✎</button></div>`).join("")||`<div class="ajuda">Monte listas que você repete (diária, semanal, mensal). “Gerar” cria um checklist novo, zerado.</div>`}
+        <div style="margin-top:8px"><button class="bt ghost bt-mini" onclick="formModelo(null)">+ Novo checklist pronto</button></div></div></div>
+    <div class="caixa"><h3>Para mim <span class="n">${prop.length}</span></h3>
+      ${prop.length?prop.map(a=>`<div class="mini" ${a._criando?`title="criando…"`:`onclick="abrirAtv('${a.id}')"`}><span>${a._criando?'<span class="load"></span>':"•"}</span>
         <span class="t">${esc(a.titulo)}</span><span class="d ${atrasada(a)?"atr":""}">${a.fim?br(a.fim):""}</span></div>`).join("")
-      :`<div class="ajuda">Nada em aberto. Crie uma atividade só sua ou gere um checklist.</div>`}
-      <div style="margin-top:9px;display:flex;gap:6px;flex-wrap:wrap"><button class="bt bt-mini" onclick="novaAtividade(true)">+ Atividade para mim</button>
-        <button class="bt az bt-mini" onclick="checklistAvulso()" title="Lista rápida, sem modelo">☑ Checklist avulso</button></div></div>
-    <div class="caixa"><h3>Checklists prontos <span class="n">${MOD.modelos.length}</span></h3>
-      ${MOD.modelos.map(m=>`<div class="mod"><div class="t"><b>${esc(m.nome)}</b><span>${esc(m.frequencia)} · ${m.itens.length} itens${m._salvando?" · salvando…":""}</span></div>
-        <button class="bt bt-mini" title="Cria agora uma atividade nova com estes itens desmarcados" onclick="gerarModelo('${m.id}',this)">▶ Gerar</button>
-        <button class="bt ghost bt-mini" title="Editar o modelo" onclick="formModelo(${JSON.stringify(m.id).replace(/"/g,"&quot;")})">✎</button></div>`).join("")||`<div class="ajuda">Monte listas que você repete (diária, semanal, mensal). “Gerar” cria uma atividade nova, zerada, com os itens.</div>`}
-      <div style="margin-top:9px"><button class="bt ghost bt-mini" onclick="formModelo(null)">+ Novo checklist pronto</button></div></div>
+      :`<div class="ajuda">Nenhuma atividade só sua em aberto.</div>`}
+      <div style="margin-top:9px"><button class="bt bt-mini" onclick="novaAtividade(true)">+ Atividade para mim</button></div></div>
     ${ALERTAS_ABAS.length?`<div class="caixa"><h3>Alertas das abas</h3>${ALERTAS_ABAS.map(x=>`<a class="mini" href="${esc(x.link)}" style="text-decoration:none">
       <span class="t">${esc(x.nome)}</span><span class="d atr">${x.n} ${esc(x.txt)}</span></a>`).join("")}</div>`:""}`;
+}
+
+/* ---------- v5: CHECKLISTS de verdade (dá baixa aqui mesmo) ---------- */
+function ckHtml(c){
+  const feitos=c.itens.filter(x=>x.f).length, tot=c.itens.length, pct=tot?Math.round(feitos*100/tot):0;
+  const cid=JSON.stringify(c.id).replace(/"/g,"&quot;");
+  return `<div class="ckc ${c.concluido?"ok":""} ${c._criando?"criando":""}">
+    <div class="ckc-h"><b>${esc(c.nome)}</b><span>${feitos}/${tot}</span>
+      <button class="ck-x" title="Apagar este checklist" onclick="ckExcluir(${cid})">🗑</button></div>
+    <div class="prog"><i style="width:${pct}%"></i></div>
+    ${c.itens.map((x,i)=>`<label class="ckc-i ${x.f?"f":""}"><input type="checkbox" ${x.f?"checked":""} ${c._criando?"disabled":""} onchange="ckMarcar(${cid},${i},this.checked)"> <span>${esc(x.t)}</span></label>`).join("")}
+    ${c.concluido?`<div class="ckc-fim">✓ Concluído</div>`:""}</div>`;
+}
+async function carregarChecklists(){
+  const c=cacheGet("atv_cks"); if(c&&c.v&&!CKS.checklists.length){ CKS=c.v; pintarLado(); }
+  const r=await ler({action:"ckLista"},"atv_cks"); if(r&&r.ok){ CKS=r; pintarLado(); }
+}
+function ckGuardar(){ cacheSet("atv_cks",{ok:true,checklists:CKS.checklists.filter(c=>!c._criando)}); }
+async function ckNovo(dados){
+  const tmp={id:"tmp"+Date.now(),nome:dados.nome||"Checklist",itens:(dados.itens||[]).map(t=>({t,f:false})),concluido:false,_criando:true};
+  CKS.checklists.push(tmp); pintarLado();
+  const r=await criarRF(Object.assign({action:"ckCriar"},dados.modeloId?{modeloId:dados.modeloId}:{nome:dados.nome,itens:dados.itens}));
+  const i=CKS.checklists.indexOf(tmp);
+  if(!(r&&r.ok&&r.checklist)){ if(i>=0) CKS.checklists.splice(i,1); pintarLado(); falhou("Não criou o checklist: "+msgErro(r),()=>ckNovo(dados)); return; }
+  if(i>=0) CKS.checklists[i]=r.checklist; else CKS.checklists.push(r.checklist);
+  ckGuardar(); pintarLado();
+}
+async function ckMarcar(id,i,f){
+  const c=CKS.checklists.find(x=>x.id===id); if(!c||!c.itens[i]) return;
+  c.itens[i].f=f; c.concluido=c.itens.every(x=>x.f); pintarLado(); ckGuardar();
+  if(c.concluido&&typeof soltarFogos==="function"){}           // (sem fogos aqui: só o selo ✓)
+  let r=null; try{ r=await chamar({action:"ckMarcar",id,i,f},45000,true); }catch(e){}
+  if(!(r&&r.ok)){ c.itens[i].f=!f; c.concluido=c.itens.every(x=>x.f); pintarLado(); ckGuardar(); toast("Não salvou o item: "+msgErro(r)); }
+}
+async function ckExcluir(id){
+  const c=CKS.checklists.find(x=>x.id===id); if(!c) return;
+  if(!c.concluido&&!confirm(`Apagar o checklist "${c.nome}"?`)) return;
+  const antes=CKS.checklists.slice(); CKS.checklists=CKS.checklists.filter(x=>x!==c); pintarLado(); ckGuardar();
+  if(String(id).indexOf("tmp")===0) return;
+  let r=null; try{ r=await chamar({action:"ckExcluir",id},45000,true); }catch(e){}
+  if(!(r&&r.ok)){ CKS.checklists=antes; pintarLado(); ckGuardar(); toast("Não apagou: "+msgErro(r)); }
 }
 
 /* ---------- gravar um campo (otimista) ---------- */
@@ -1009,29 +1088,62 @@ function novaAtividade(paraMim){
       <div class="campo"><label>Prazo final <i>*</i></label><input type="date" id="n-fim" value="${paraMim?hoje:""}"></div>
       <div class="campo full"><label>Responsáveis <i>*</i></label>${respHtml(paraMim?[ME]:[])}</div>
       <div class="campo full"><label>Obra</label><select id="n-obra"><option value="">— sem obra —</option>${OBRAS_L.map(o=>`<option value="${o.id}">${esc(o.titulo)}</option>`).join("")}</select></div>
-      <div class="campo full"><label>Descrição</label><textarea class="campo-grande" id="n-desc" placeholder="Detalhes (opcional)"></textarea></div>
-      <div class="campo full"><label>Checklist</label>${itensHtml("n-itens",[])}</div>
-      <div class="campo full"><label>Comentário</label><textarea class="campo-grande" id="n-com" style="min-height:60px" placeholder="Primeiro comentário da atividade (opcional) — aparece em Comentários"></textarea></div>
-      <div class="campo full"><label>Anexos</label><label class="bt ghost bt-mini" style="display:inline-flex;cursor:pointer">📎 Escolher fotos ou documentos<input type="file" id="n-arq" multiple hidden
-        accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.dwg,.zip,.txt" onchange="document.getElementById('n-arq-l').textContent=[...this.files].map(f=>f.name).join(' · ')"></label>
-        <div class="ajuda" id="n-arq-l"></div></div>
+      <div class="campo full"><label>Descrição e checklist</label>${compositorHtml("n-cp")}
+        ${anexoCampo("n-arq-d","📎 Anexar na descrição")}</div>
+      <div class="campo full"><label>Comentário</label><textarea class="campo-grande" id="n-com" style="min-height:60px" placeholder="Primeiro comentário da atividade (opcional) — aparece em Comentários"></textarea>
+        ${anexoCampo("n-arq-c","📎 Anexar no comentário")}</div>
     </div>`,
     `<button class="bt ghost" onclick="fecharForm()">Cancelar</button><button class="bt" id="n-ok" onclick="criarAtividade()">Criar atividade</button>`);
-  ligarItens("n-itens");
-  setTimeout(()=>document.getElementById("n-tit").focus(),50);
+  ligarCompositor("n-cp");
+  setTimeout(()=>{ const x=document.getElementById("n-tit"); if(x) x.focus(); },50);
+}
+/* v5 — "Descrição e checklist" com os mesmos botões do conteúdo da atividade */
+const CP_TIPOS={paragraph:["¶","Texto"],to_do:["☐","Tarefa"],heading_2:["H","Título"],bulleted_list_item:["•","Lista"],numbered_list_item:["1.","Lista numerada"],quote:["❝","Citação"],callout:["💡","Destaque"]};
+function cpLinha(tipo,texto){ const [ic,rot]=CP_TIPOS[tipo]||CP_TIPOS.paragraph;
+  return `<div class="cp-l t-${tipo}" data-tipo="${tipo}"><span class="cp-m">${ic}</span><input type="text" value="${esc(texto||"")}" placeholder="${rot}…"><button type="button" class="ck-x" tabindex="-1" title="Tirar">×</button></div>`; }
+function compositorHtml(id){
+  return `<div class="cp" id="${id}">${cpLinha("paragraph","")}</div>
+    <div class="eb-add cp-add" data-cp="${id}">${Object.keys(CP_TIPOS).map(t=>`<button type="button" data-t="${t}">${CP_TIPOS[t][0]} + ${CP_TIPOS[t][1]}</button>`).join("")}</div>
+    <div class="ajuda">Enter cria a próxima linha do mesmo tipo · colar várias linhas também funciona</div>`;
+}
+function ligarCompositor(id){
+  const box=document.getElementById(id), bar=document.querySelector(`[data-cp="${id}"]`); if(!box) return;
+  const CONT={to_do:1,bulleted_list_item:1,numbered_list_item:1};
+  bar.addEventListener("click",e=>{ const b=e.target.closest("button[data-t]"); if(!b) return;
+    const vazia=[...box.querySelectorAll(".cp-l")].pop(); 
+    if(vazia&&!vazia.querySelector("input").value.trim()) vazia.remove();
+    box.insertAdjacentHTML("beforeend",cpLinha(b.dataset.t,"")); box.lastElementChild.querySelector("input").focus(); });
+  box.addEventListener("keydown",e=>{ if(e.target.tagName!=="INPUT") return; const l=e.target.closest(".cp-l");
+    if(e.key==="Enter"){ e.preventDefault(); const t=CONT[l.dataset.tipo]?l.dataset.tipo:"paragraph";
+      l.insertAdjacentHTML("afterend",cpLinha(t,"")); l.nextElementSibling.querySelector("input").focus(); }
+    else if(e.key==="Backspace"&&!e.target.value&&box.children.length>1){ e.preventDefault(); const ant=l.previousElementSibling||l.nextElementSibling; l.remove(); if(ant) ant.querySelector("input").focus(); } });
+  box.addEventListener("paste",e=>{ if(e.target.tagName!=="INPUT") return; const tx=(e.clipboardData||window.clipboardData).getData("text"); if(tx.indexOf("\n")<0) return;
+    e.preventDefault(); const l=e.target.closest(".cp-l"), partes=tx.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+    e.target.value=partes.shift()||""; let ult=l; partes.forEach(p=>{ ult.insertAdjacentHTML("afterend",cpLinha(l.dataset.tipo,p)); ult=ult.nextElementSibling; }); });
+  box.addEventListener("click",e=>{ const x=e.target.closest(".ck-x"); if(!x) return; const l=x.closest(".cp-l"); if(box.children.length>1) l.remove(); else l.querySelector("input").value=""; });
+}
+function lerCompositor(id){ return [...document.querySelectorAll("#"+id+" .cp-l")].map(l=>({tipo:l.dataset.tipo,texto:l.querySelector("input").value.trim()})).filter(b=>b.texto); }
+function anexoCampo(id,rot){
+  return `<div style="margin-top:6px"><label class="bt ghost bt-mini" style="display:inline-flex;cursor:pointer">${rot}<input type="file" id="${id}" multiple hidden
+    accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.dwg,.zip,.txt" onchange="document.getElementById('${id}-l').textContent=[...this.files].map(f=>f.name).join(' · ')"></label>
+    <span class="ajuda" id="${id}-l"></span></div>`;
+}
+async function lerArquivos(id){
+  const fs=[...((document.getElementById(id)||{}).files||[])];
+  if(fs.some(f=>f.size>15*1024*1024)) throw new Error("Tem arquivo acima de 15 MB — mande um menor.");
+  return Promise.all(fs.slice(0,5).map(async f=>({filename:f.name,mimeType:f.type||"application/octet-stream",dataBase64:await lerB64(f)})));
 }
 function checklistAvulso(){
   if(RO){ toast("Modo teste: não grava."); return; }
   const hoje=hojeISO();
-  abrirForm("Checklist avulso","Uma lista rápida só sua — vai para “Para mim”",
+  abrirForm("Checklist avulso","Uma lista rápida só sua — fica na coluna da direita e você dá baixa lá mesmo",
     `<div class="fgrid">
-      <div class="campo"><label>Nome</label><input type="text" id="n-tit" value="Checklist ${hoje.slice(8,10)}/${hoje.slice(5,7)}"></div>
-      <div class="campo"><label>Para quando</label><input type="date" id="n-fim" value="${hoje}"></div>
+      <div class="campo full"><label>Nome</label><input type="text" id="n-tit" value="Checklist ${hoje.slice(8,10)}/${hoje.slice(5,7)}"></div>
       <div class="campo full"><label>Itens <i>*</i></label>${itensHtml("n-itens",[],"Primeiro item e Enter")}</div>
     </div>`,
     `<button class="bt ghost" onclick="fecharForm()">Cancelar</button><button class="bt" id="n-ok" onclick="criarAvulso()">Criar checklist</button>`);
   ligarItens("n-itens");
-  setTimeout(()=>document.querySelector("#n-itens input").focus(),50);
+  setTimeout(()=>{ const x=document.querySelector("#n-itens input"); if(x) x.focus(); },50);
 }
 /* v4 — CRIAÇÃO OTIMISTA (igual à obra): o formulário fecha NA HORA, a
    atividade aparece na lista como "criando…" e o servidor grava por trás.
@@ -1058,6 +1170,11 @@ async function criarEmSegundoPlano(payload,extra){
   D.atividades=D.atividades.filter(x=>x!==tmp);
   if(!(r&&r.ok)){ pintar(); falhou(`Não criou "${payload.titulo}": ${msgErro(r)}`,()=>criarEmSegundoPlano(payload,extra)); return null; }
   adotar(r.atividade);
+  if(extra&&r.atividade&&extra.anexosDescricao&&extra.anexosDescricao.length){
+    const d=await criarRF({action:"blocoAnexar",pageId:r.atividade.id,arquivos:extra.anexosDescricao});
+    if(!(d&&d.ok)) falhou(`A atividade foi criada, mas o anexo da descrição não subiu: ${msgErro(d)}`,()=>criarRF({action:"blocoAnexar",pageId:r.atividade.id,arquivos:extra.anexosDescricao}));
+    else { const gg=guardadaAtv(r.atividade.id)||{ok:true,pageId:r.atividade.id}; if(d.conteudo) gg.conteudo=d.conteudo; guardarAtv(r.atividade.id,gg); }
+  }
   if(extra&&r.atividade&&(extra.texto||(extra.arquivos&&extra.arquivos.length))){
     const c=await criarRF({action:"atvComentarioNovo",pageId:r.atividade.id,texto:extra.texto||"📎 Anexos enviados na criação da atividade",arquivos:extra.arquivos||[]});
     if(!(c&&c.ok)) falhou(`A atividade foi criada, mas o comentário/anexo não subiu: ${msgErro(c)}`,()=>criarRF({action:"atvComentarioNovo",pageId:r.atividade.id,texto:extra.texto||"📎 Anexos",arquivos:extra.arquivos||[]}));
@@ -1068,8 +1185,8 @@ async function criarEmSegundoPlano(payload,extra){
 async function criarAvulso(){
   const g=id=>document.getElementById(id), err=g("mf-erro"), itens=lerItens("n-itens");
   if(!itens.length){ err.textContent="Escreva pelo menos um item."; return; }
-  const payload={action:"atvCriar",titulo:"✅ "+(g("n-tit").value.trim()||"Checklist"),tipo:PROPRIA,prioridade:"Média",ini:hojeISO(),fim:g("n-fim").value||hojeISO(),resp:[ME],itens};
-  fecharForm(); criarEmSegundoPlano(payload);
+  const nome=g("n-tit").value.trim()||"Checklist";
+  fecharForm(); ckNovo({nome,itens});
 }
 function adotar(a){
   if(!a) return;
@@ -1084,17 +1201,14 @@ async function criarAtividade(){
   if(!titulo){ err.textContent="Escreva o que precisa ser feito."; return; }
   if(!fim){ err.textContent="Informe o prazo final."; return; }
   if(!resp.length){ err.textContent="Escolha pelo menos um responsável."; return; }
-  const fs=[...(g("n-arq").files||[])];
-  if(fs.some(f=>f.size>15*1024*1024)){ err.textContent="Tem arquivo acima de 15 MB — mande um menor."; return; }
-  let arquivos=[];
-  try{ arquivos=await Promise.all(fs.slice(0,5).map(async f=>({filename:f.name,mimeType:f.type||"application/octet-stream",dataBase64:await lerB64(f)}))); }
-  catch(e){ err.textContent="Não consegui ler o arquivo."; return; }
+  let anexDesc=[], anexCom=[];
+  try{ anexDesc=await lerArquivos("n-arq-d"); anexCom=await lerArquivos("n-arq-c"); }catch(e){ err.textContent=e.message||"Não consegui ler o arquivo."; return; }
   const tipo=g("n-tipo").value==="__novo__"?"":g("n-tipo").value;
   const payload={action:"atvCriar",titulo,tipo,prioridade:g("n-pri").value,ini:g("n-ini").value,fim,
-    resp,obraId:g("n-obra").value||"",descricao:g("n-desc").value.trim(),itens:lerItens("n-itens")};
+    resp,obraId:g("n-obra").value||"",blocos:lerCompositor("n-cp")};
   const com=g("n-com").value.trim();
   fecharForm();
-  criarEmSegundoPlano(payload,(com||arquivos.length)?{texto:com,arquivos}:null);
+  criarEmSegundoPlano(payload,{texto:com,arquivos:anexCom,anexosDescricao:anexDesc});
 }
 /* ---- checklists prontos ---- */
 function formModelo(id){
@@ -1110,7 +1224,7 @@ function formModelo(id){
     `${id?`<button class="bt ghost" style="margin-right:auto" onclick="excluirModelo(${id})">🗑 Excluir</button>`:""}<button class="bt ghost" onclick="fecharForm()">Cancelar</button>
      <button class="bt" id="m-ok" onclick="salvarModelo(${id||"null"})">Salvar</button>`);
   ligarItens("m-itens");
-  setTimeout(()=>document.getElementById(id?"m-nome":"m-nome").focus(),50);
+  setTimeout(()=>{ const x=document.getElementById("m-nome"); if(x) x.focus(); },50);
 }
 async function salvarModelo(id){
   const nome=document.getElementById("m-nome").value.trim(), itens=lerItens("m-itens"), freq=document.getElementById("m-freq").value;
@@ -1136,14 +1250,10 @@ async function gerarModelo(id,bt){
   if(RO){ toast("Modo teste: não grava."); return; }
   const m=MOD.modelos.find(x=>String(x.id)===String(id));
   if(m&&m._p){ bt.disabled=true; bt.textContent="Salvando…"; await m._p; bt.disabled=false; bt.textContent="▶ Gerar"; id=m.id; }
-  if(String(id).indexOf("tmp")===0){ toast("O modelo não foi salvo — veja a mensagem vermelha."); return; }
-  /* aparece NA HORA em "Para mim"; o servidor cria por trás */
-  const hoje=hojeISO();
-  const tmp=temporaria({titulo:"✅ "+((m&&m.nome)||"Checklist")+" · "+hoje.slice(8,10)+"/"+hoje.slice(5,7),tipo:PROPRIA,fim:hoje,resp:[ME]});
-  const r=await criarRF({action:"atvModeloCriar",id});
-  D.atividades=D.atividades.filter(x=>x!==tmp);
-  if(!(r&&r.ok)){ pintar(); falhou("Não gerou o checklist: "+msgErro(r),()=>gerarModelo(id,bt)); return; }
-  adotar(r.atividade); toast("Checklist gerado — está em “Para mim”.");
+  if(!m||String(m.id).indexOf("tmp")===0){ toast("O modelo não foi salvo — veja a mensagem vermelha."); return; }
+  const hoje=hojeISO(), f=N(m.frequencia);
+  const rot=f.indexOf("MENS")===0?hoje.slice(5,7)+"/"+hoje.slice(0,4):hoje.slice(8,10)+"/"+hoje.slice(5,7);
+  ckNovo({modeloId:m.id,nome:m.nome+" · "+rot,itens:m.itens});
 }
 
 /* ---------- EQUIPE (ADM/MASTER) ---------- */
