@@ -140,7 +140,9 @@
 /* v58 -> v59 (28/09/26): mensagem "enviando" guardada no navegador e retomada. */
 /* v59 -> v60 (28/09/26): baixa confirmada pelo Notion, sincronia de 1 min. */
 /* v60 -> v61 (28/09/26): Mapa de Obras no painel, status das atividades sem embolar. */
-const CACHE = "portal-morais-v61";  // limpeza só dos caches do portal (não apaga os das RAS)
+/* v61 -> v62 (28/09/26): Mural e checklists na hora. */
+/* v62 -> v63 (28/09/26 noite): @menções, reordenar conteúdo, anexo que sumia. */
+const CACHE = "portal-morais-v63";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",

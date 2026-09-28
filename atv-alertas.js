@@ -44,15 +44,23 @@
       cx.style.top=(r.bottom+8)+"px"; cx.style.right=Math.max(8,innerWidth-r.right)+"px"; cx.classList.toggle("on"); });
     document.addEventListener("click",ev=>{ if(cx&&!cx.contains(ev.target)) cx.classList.remove("on"); });
   }
+  /* v6 (28/09): @menções — quem te citou nos comentários (7 dias). As que
+     você ainda não abriu contam no sino; abrir uma marca como vista. */
+  const K_VISTAS="aa_mencoes_vistas";
+  const vistas=()=>{ try{ return JSON.parse(localStorage.getItem(K_VISTAS)||"[]"); }catch(x){ return []; } };
+  window.AA_mencaoVista=id=>{ const v=vistas(); if(v.indexOf(id)<0){ v.push(id); try{ localStorage.setItem(K_VISTAS,JSON.stringify(v.slice(-200))); }catch(x){} } };
   function pintar(r){
     if(!r||!r.ok) return; dados=r; montar(); if(!bt) return;
-    const a=r.atrasadas||[], h=r.hoje||[];
-    if(!a.length&&!h.length){ bt.style.display="none"; cx.classList.remove("on"); return; }
+    const a=r.atrasadas||[], h=r.hoje||[], m=r.mencoes||[], vs=vistas(), mn=m.filter(x=>vs.indexOf(x.id)<0);
+    if(!a.length&&!h.length&&!mn.length){ bt.style.display="none"; cx.classList.remove("on"); return; }
     bt.style.display="";
     bt.classList.toggle("so-hoje",!a.length);
-    bt.innerHTML=a.length?`⚠ ${a.length} atrasada${a.length>1?"s":""}${h.length?` · ${h.length} hoje`:""}`:`⏰ ${h.length} vence${h.length>1?"m":""} hoje`;
+    bt.innerHTML=(a.length?`⚠ ${a.length} atrasada${a.length>1?"s":""}${h.length?` · ${h.length} hoje`:""}`:h.length?`⏰ ${h.length} vence${h.length>1?"m":""} hoje`:"")+
+      (mn.length?`${a.length||h.length?" · ":""}💬 ${mn.length}`:"");
     const item=(x,atr)=>`<a class="aa-i" href="${e(x.link)}"><b>${e(x.titulo)}</b><span>${e(x.origem)} · ${atr?`<span class="atr">venceu ${br(x.fim)}</span>`:"vence hoje"}</span></a>`;
-    cx.innerHTML=(a.length?`<div class="aa-h">Atrasadas (${a.length})</div>`+a.map(x=>item(x,true)).join(""):"")+
+    const itemM=x=>`<a class="aa-i" href="${e(x.link)}" onclick="AA_mencaoVista('${e(x.id)}')"><b>${vs.indexOf(x.id)<0?"🔵 ":""}${e(x.autor)} te mencionou · ${e(x.titulo)}</b><span>${e(x.texto)} · ${br(String(x.em||"").slice(0,10))}</span></a>`;
+    cx.innerHTML=(m.length?`<div class="aa-h">💬 Mencionaram você (${mn.length} nova${mn.length===1?"":"s"})</div>`+m.slice(0,8).map(itemM).join(""):"")+
+      (a.length?`<div class="aa-h">Atrasadas (${a.length})</div>`+a.map(x=>item(x,true)).join(""):"")+
       (h.length?`<div class="aa-h">Vencem hoje (${h.length})</div>`+h.map(x=>item(x,false)).join(""):"");
   }
   async function atualizar(fresco){
@@ -61,6 +69,10 @@
       const r=await ler(Object.assign({action:"atvAlertas",comDados:true},fresco?{fresco:true}:{}),"atv_alertas");
       pintar(r);
       if(r&&r.ok&&r.minhas&&typeof cacheSet==="function"){ cacheSet("atv_minhas",r.minhas); if(r.outras) cacheSet("atv_outras",r.outras); }
+      /* v5 (28/09 fim do dia): Mural e checklists também vêm junto */
+      if(r&&r.ok&&r.mural&&r.mural.ok&&typeof cacheSet==="function"){ cacheSet("atv_mural",r.mural); if(typeof window.pintarMural==="function") window.pintarMural(r.mural); }
+      if(r&&r.ok&&r.checklists&&r.checklists.ok&&typeof cacheSet==="function") cacheSet("atv_cks",r.checklists);
+      if(r&&r.ok&&r.modelos&&r.modelos.ok&&typeof cacheSet==="function") cacheSet("atv_modelos",r.modelos);
       /* v4 (28/09): os aniversários vêm junto — o painel já abre com eles */
       if(r&&r.ok&&r.aniv&&r.aniv.ok&&typeof cacheSet==="function"){
         const antes=typeof cacheGet==="function"?cacheGet("aniversariantes"):null;

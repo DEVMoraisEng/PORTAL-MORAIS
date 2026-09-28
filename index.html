@@ -360,10 +360,10 @@ html[data-tema="escuro"] .logo{background:#fff}
   </div>
 
 <script src="app.js?v=44"></script>
-<script src="rf-rotas.js?v=5"></script>
+<script src="rf-rotas.js?v=6"></script>
 <script src="alertas-docs.js?v=1"></script>
 <script src="fogos.js?v=2"></script>
-<script src="atv-alertas.js?v=4"></script>
+<script src="atv-alertas.js?v=5"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele */
 const TEMA_KEY = "morais_tema";
@@ -710,6 +710,9 @@ function boot(){
   //    portal_() do Code.gs, só que rodada uma vez no build).
   lerEstaticoJa("portal.json","portal", pintarKpis);
 
+  // 1-0) MURAL antes de tudo (ver lerMural)
+  try{ const cp=cacheGet("atv_mural"); if(cp&&cp.v) pintarMural(cp.v); }catch(e){}
+  lerMural();
   // 1a) ANIVERSARIANTES (28/09/26): é dado quase fixo. Pinta com a cópia
   //     guardada e só pergunta ao servidor se ela tiver mais de 6 h — e com
   //     PRIORIDADE: antes ele esperava o Mural na mesma fila (medido: 29 s).
@@ -717,12 +720,9 @@ function boot(){
   let _cAniv=null; try{ _cAniv=cacheGet("aniversariantes"); if(_cAniv&&_cAniv.v) pintarAniversarios(_cAniv.v); }catch(e){}
   if(!_cAniv||!_cAniv.v){ const b=document.getElementById("bloco-aniv"), l=document.getElementById("aniv-lista");
     if(b&&l){ document.getElementById("aniv-mes").textContent=MESES_NOME[new Date().getMonth()]; l.innerHTML=`<div class="aniv-vazio"><span class="load"></span> Carregando aniversariantes…</div>`; b.style.display=""; } }
-  if(!_cAniv||!_cAniv.v||Date.now()-_cAniv.t>6*3600*1000)
-    chamar({action:"aniversariantes"},45000,true).then(r=>{ if(r&&r.ok){ cacheSet("aniversariantes",r); pintarAniversarios(r); } }).catch(()=>{});
+  if(!_cAniv||!_cAniv.v||Date.now()-_cAniv.t>6*3600*1000) lerAniversarios(0);
 
-  // 1b) MURAL: atividades do tipo MURAL (em destaque até finalizar)
-  try{ const cp=cacheGet("atv_mural"); if(cp&&cp.v) pintarMural(cp.v); }catch(e){}
-  lerMural();
+  // 1b) (o Mural já saiu lá em cima)
   // 1c) Processos e Arquivos já ficam guardados no navegador (abrem na hora)
   setTimeout(()=>{ [["processos","proc"],["arquivos","arq"]].forEach(([k,b])=>{
     const c=cacheGet(k); if(!c||Date.now()-c.t>30*60*1000) ler({action:"procLista",base:b},k).catch(()=>{}); }); },9000);
@@ -811,7 +811,19 @@ function pintarAniversarios(r){
  * marca na hora na tela e grava pela ação atvMuralCheck. As fotos dos
  * comentários aparecem; se um link vencer, o Mural é relido sozinho. */
 let _MURAL=null;
-function lerMural(){ return ler({action:"atvMural"},"atv_mural").then(r=>{ if(r&&r.ok) pintarMural(r); }).catch(()=>{}); }
+/* 28/09 (noite): aniversários que "ficavam carregando" — quando a resposta
+   falhava (servidor ocupado), ninguém tentava de novo e o "Carregando…"
+   ficava para sempre. Agora tenta 4 vezes (4 s, 8 s, 12 s) e, se não vier,
+   some o bloco (o sino traz de novo na próxima atualização). */
+function lerAniversarios(tent){
+  chamar({action:"aniversariantes"},30000,true).then(r=>{ if(r&&r.ok){ cacheSet("aniversariantes",r); pintarAniversarios(r); } else throw 0; })
+    .catch(()=>{ if(tent<3) setTimeout(()=>lerAniversarios(tent+1),4000*(tent+1));
+      else { const c=cacheGet("aniversariantes"); if(!(c&&c.v)){ const b=document.getElementById("bloco-aniv"); if(b) b.style.display="none"; } } });
+}
+/* 28/09 (fim do dia): o Mural sai PRIMEIRO, com prioridade e pela faixa
+   rápida (rf-rotas.js) — não espera nenhuma outra leitura. Ele também vem
+   junto do sino em toda tela, então quase sempre já está guardado. */
+function lerMural(){ return chamar({action:"atvMural"},30000,true).then(r=>{ if(r&&r.ok){ cacheSet("atv_mural",r); pintarMural(r); } }).catch(()=>{}); }
 let _muralImgRelida=0;
 function muralImgFalhou(img){
   if(img.dataset.f) return; img.dataset.f="1";

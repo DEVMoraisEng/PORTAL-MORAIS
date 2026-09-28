@@ -40,6 +40,11 @@
   .eb-b:hover{background:rgba(41,87,120,.06)}
   .eb-b .eb-x{position:absolute;right:4px;top:3px;display:none;border:0;background:transparent;cursor:pointer;color:var(--text4);font-size:13px;padding:2px 5px;border-radius:6px}
   .eb-b:hover .eb-x{display:block}.eb-b .eb-x:hover{background:#fde8e6;color:var(--verm)}
+  .eb-b .eb-mv{position:absolute;top:3px;display:none;border:0;background:transparent;cursor:pointer;color:var(--text4);font-size:13px;font-weight:800;padding:2px 6px;border-radius:6px}
+  .eb-b .eb-mv.up{right:52px}.eb-b .eb-mv.dn{right:28px}
+  .eb-b:hover .eb-mv{display:block}.eb-b .eb-mv:hover{background:var(--bg3,#dceaef);color:var(--azul,#295778)}
+  .eb-b.movendo{opacity:.45;pointer-events:none}
+  @media (hover:none){ .eb-b .eb-x,.eb-b .eb-mv{display:block} }
   .eb-t{flex:1;min-width:0;outline:none;white-space:pre-wrap;word-break:break-word;min-height:21px;padding:1px 3px;border-radius:5px}
   .eb-t:focus{background:var(--sup);box-shadow:0 0 0 2px rgba(42,157,92,.35)}
   .eb-t:empty:before{content:attr(data-ph);color:var(--text4)}
@@ -147,7 +152,9 @@
       return h; }).join(""); }
   function linhaBloco(b){
     const t=b.tipo, cls={heading_1:"h1",heading_2:"h2",heading_3:"h3",quote:"quote",callout:"callout",code:"code"}[t]||"";
-    const x=`<button class="eb-x" data-x="${b.id}" title="Apagar este item" type="button">🗑</button>`;
+    /* v6 (28/09): ↑ ↓ para reordenar (só itens do primeiro nível) */
+    const mv=b._top&&String(b.id).indexOf("tmp")!==0?`<button class="eb-mv up" data-up="${b.id}" title="Subir" type="button">↑</button><button class="eb-mv dn" data-dn="${b.id}" title="Descer" type="button">↓</button>`:"";
+    const x=mv+`<button class="eb-x" data-x="${b.id}" title="Apagar este item" type="button">🗑</button>`;
     if(t==="_enviando") return `<div class="eb-b"><span class="eb-ro"><span class="load"></span> ${e(b.texto)}</span></div>`;
     if(t==="divider") return `<div class="eb-b" data-id="${b.id}"><hr class="eb-div">${x}</div>`;
     if(b.editavel){
@@ -179,6 +186,7 @@
   function lista(bs){ let n=0; return bs.map(b=>{ n=b.tipo==="numbered_list_item"?n+1:0; b._n=n; return linhaBloco(b); }).join(""); }
   function pintar(st){
     const bs=st.blocos||[];
+    bs.forEach(b=>{ b._top=true; });
     st.el.innerHTML=navHtml(st)+`<div class="eb">${bs.length?lista(bs):`<div class="eb-vazio">Sem conteúdo ainda.</div>`}</div>`+
       (st.ro?"":`<div class="eb-add">
         <button type="button" data-add="to_do">☑ + Tarefa</button><button type="button" data-add="paragraph">¶ + Texto</button>
@@ -204,6 +212,8 @@
     });
     el.querySelectorAll("[data-chk]").forEach(c=>c.addEventListener("change",()=>marcar(st,c)));
     el.querySelectorAll("[data-x]").forEach(b=>b.addEventListener("click",()=>apagar(st,b.getAttribute("data-x"))));
+    el.querySelectorAll("[data-up]").forEach(b=>b.addEventListener("click",()=>mover(st,b.getAttribute("data-up"),-1)));
+    el.querySelectorAll("[data-dn]").forEach(b=>b.addEventListener("click",()=>mover(st,b.getAttribute("data-dn"),1)));
     el.querySelectorAll("[data-ed]").forEach(b=>b.addEventListener("click",()=>{
       if(!confirm("Editar este trecho? A formatação dele (negrito, links) vira texto simples.")) return;
       const bl=acha(st.blocos,b.getAttribute("data-ed")); if(!bl) return; bl._plano=true; pintar(st);
@@ -267,6 +277,29 @@
     if(!r||!r.ok||!r.ids||!r.ids[0]){ arr.splice(arr.indexOf(temp),1); pintar(st); aviso("Não criou o item: "+((r&&r.erro)||"erro")); return; }
     temp.id=r.ids[0]; pintar(st);
     if(focar){ const n=st.el.querySelector(`[data-t="${temp.id}"]`); if(n) n.focus(); }
+  }
+  /* REORDENAR (28/09). O Notion não move bloco: o servidor recria UM bloco
+     depois do outro (arquivo é enviado de novo) e apaga o antigo. Subir X =
+     recriar o de cima depois de X; descer X = recriar X depois do de baixo. */
+  async function mover(st,id,dir){
+    if(st._movendo){ aviso("Espere terminar a mudança anterior."); return; }
+    const arr=st.blocos, i=arr.findIndex(b=>b.id===id); if(i<0) return;
+    const j=i+dir; if(j<0||j>=arr.length) return;
+    const recriar=dir<0?arr[j]:arr[i], depois=dir<0?arr[i]:arr[j];
+    if(recriar.filhos&&recriar.filhos.length){ aviso("Este item tem sub-itens e não dá para mover pelo portal (mova no Notion)."); return; }
+    st._movendo=true;
+    const tmp=arr[i]; arr[i]=arr[j]; arr[j]=tmp; recriar._mov=true; pintar(st);
+    const n=st.el.querySelector(`[data-id="${recriar.id}"]`); if(n) n.classList.add("movendo");
+    const r=await pedir({action:"blocoMover",pageId:st.pageId,blockId:recriar.id,depoisDe:depois.id},90000);
+    st._movendo=false; delete recriar._mov;
+    if(r&&r.ok){
+      if(r.conteudo&&r.conteudo.blocos){ st.blocos=r.conteudo.blocos; }
+      else if(r.novoId) recriar.id=r.novoId;
+      pintar(st); guardar(st.pageId,{blocos:st.blocos}); return;
+    }
+    const t2=arr[i]; arr[i]=arr[j]; arr[j]=t2; pintar(st);
+    const er=(r&&r.erro)||"erro";
+    aviso(/TEM_SUBITENS/.test(er)?"Este item tem sub-itens e não dá para mover pelo portal.":/NAO_MOVE/.test(er)?"Este tipo de item não dá para mover pelo portal.":"Não moveu: "+er);
   }
   async function apagar(st,id,focarAnterior){
     const onde=paiDe(st.blocos,id); if(!onde) return;

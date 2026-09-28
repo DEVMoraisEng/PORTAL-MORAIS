@@ -20,7 +20,7 @@
      "atvComentarios","atvComentarioNovo","atvModelos","atvModeloUpdate","atvModeloExcluir","atvModeloCriar",
      "atvOp","atvPortal","aniversariantes",
      /* v5 */ "atvMural","procLote","atvLote","blocoAnexar","ckLista","ckCriar","ckMarcar","ckExcluir",
-     /* v6 (28/09) */ "atvMuralCheck", /* v7 */ "atvAnexoUrl", /* v8 */ "atvDelta"
+     /* v6 (28/09) */ "atvMuralCheck", /* v7 */ "atvAnexoUrl", /* v8 */ "atvDelta", /* v9 */ "blocoMover"
     ].forEach(a=>{ if(ACOES_NA_ESCRITA.indexOf(a)<0) ACOES_NA_ESCRITA.push(a); });
   }catch(e){}
 })();
@@ -35,7 +35,9 @@
   try{
     if(typeof _faixas!=="object"||typeof faixaDe!=="function"||typeof API_ESCRITA==="undefined"||!API_ESCRITA) return;
     /* v8 (28/09 noite): atvUpdate também — a baixa não espera o pré-carregamento */
-    const CHAT=["atvComentarios","atvComentarioNovo","atvAnexoUrl","atvOp","atvMuralCheck","atvUpdate"];
+    /* v9 (28/09 fim do dia): Mural, aniversários e checklists também — são o que a tela mostra primeiro */
+    const CHAT=["atvComentarios","atvComentarioNovo","atvAnexoUrl","atvOp","atvMuralCheck","atvUpdate",
+                "atvMural","aniversariantes","ckLista","atvModelos"];
     if(!_faixas.chat) _faixas.chat={ max:1, emVoo:0, fila:[] };
     const original=faixaDe;
     faixaDe=function(action){ return CHAT.indexOf(action)>=0 ? _faixas.chat : original(action); };

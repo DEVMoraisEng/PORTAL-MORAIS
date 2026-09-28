@@ -369,7 +369,12 @@ html[data-tema="escuro"] .cal-leg{color:#e7f3ff}
 .msg.nt{background:#f3f4f6;border-style:dashed}
 .msg .qm{font-size:10.5px;font-weight:800;color:var(--text3);margin-bottom:2px}
 .msg .qm .env{color:#b7791f}
-.pend-ed{font-size:12px;cursor:help}.msg .qm .nao{color:var(--verm)}.msg.falhou{border-color:var(--verm)}
+.pend-ed{font-size:12px;cursor:help}
+.mencao{background:rgba(41,87,120,.12);color:var(--azul);font-weight:700;border-radius:5px;padding:0 3px}
+.mencao.eu{background:rgba(76,217,100,.25);color:var(--verde-esc)}
+.menc-caixa{display:none;position:absolute;left:0;bottom:100%;margin-bottom:4px;z-index:50;min-width:220px;max-height:240px;overflow:auto;background:var(--sup,#fff);border:1px solid var(--border2);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.menc-i{padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer}
+.menc-i.on,.menc-i:hover{background:var(--bg3,#dceaef)}.msg .qm .nao{color:var(--verm)}.msg.falhou{border-color:var(--verm)}
 .msg .tx{white-space:pre-wrap;font-size:13px;word-break:break-word}
 .msg img{max-width:240px;max-height:200px;border-radius:8px;display:block;margin-top:6px;cursor:zoom-in;border:1px solid var(--border2)}
 .msg a.arq,.msg span.arq{display:inline-block;margin-top:5px;font-size:12px;font-weight:700;color:var(--azul)}
@@ -497,10 +502,10 @@ main.wrap{padding-bottom:90px}
 <div class="toast" id="toast"></div>
 
 <script src="app.js?v=44"></script>
-<script src="rf-rotas.js?v=5"></script>
+<script src="rf-rotas.js?v=6"></script>
 <script src="alertas-docs.js?v=1"></script>
-<script src="editor-blocos.js?v=5"></script>
-<script src="atv-alertas.js?v=4"></script>
+<script src="editor-blocos.js?v=6"></script>
+<script src="atv-alertas.js?v=5"></script>
 <script>
 /* ---------- tema ---------- */
 const TEMA_KEY="morais_tema";
@@ -570,8 +575,15 @@ let _carregou=false;   // 28/09: até a 1ª resposta, "Carregando…" (e não "N
 async function carregar(fresco){
   const c=cacheGet("atv_minhas"); if(c&&c.v&&!fresco&&!D.atividades.length){ aplicar(c.v); }
   const co=cacheGet("atv_outras"); if(co&&co.v&&!fresco&&!OUT.itens.length){ OUT=co.v; pintar(); }
+  /* 28/09 (fim do dia): checklists e modelos prontos pintam na hora com a
+     cópia guardada e vêm JUNTO das atividades (comCks) — antes esperavam as
+     atividades e as outras abas terminarem para só então serem pedidos. */
+  if(!fresco){ const ck=cacheGet("atv_cks"); if(ck&&ck.v&&!CKS.checklists.length) CKS=ck.v;
+    const md=cacheGet("atv_modelos"); if(md&&md.v&&!MOD.modelos.length) MOD=md.v; pintarLado(); }
   /* 28/09: minhas + outras abas numa chamada só (antes eram duas, uma atrás da outra) */
-  const r=await ler(Object.assign({action:"atvMinhas",comOutras:true},fresco?{fresco:true}:{}),"atv_minhas");
+  const r=await ler(Object.assign({action:"atvMinhas",comOutras:true,comCks:true},fresco?{fresco:true}:{}),"atv_minhas");
+  if(r&&r.ok&&r.checklists&&r.checklists.ok){ CKS={ok:true,checklists:r.checklists.checklists.concat((CKS.checklists||[]).filter(c=>c._criando))}; ckGuardar(); }
+  if(r&&r.ok&&r.modelos&&r.modelos.ok){ MOD=r.modelos; cacheSet("atv_modelos",MOD); }
   _carregou=true;
   if(r&&r.ok){ if(r.outras&&r.outras.ok){ OUT=r.outras; cacheSet("atv_outras",r.outras); } aplicar(r); }
   else if(!D.atividades.length) document.getElementById("view").innerHTML=`<div class="vazio">Não consegui carregar suas atividades (${esc(erroTexto(r&&r.erro))}).</div>`;
@@ -579,8 +591,8 @@ async function carregar(fresco){
     const o=await ler(Object.assign({action:"atvOutras"},fresco?{fresco:true}:{}),"atv_outras");
     if(o&&o.ok){ OUT=o; pintar(); }
   }
-  carregarModelos();
-  carregarChecklists();
+  if(!(r&&r.ok&&r.modelos)) carregarModelos();          // servidor ainda sem o comCks: pede separado
+  if(!(r&&r.ok&&r.checklists)) carregarChecklists();
   if(!fresco){ setTimeout(preCarregar,1500); if(EQUIPE&&!cacheGet("atv_equipe")) setTimeout(()=>carregarEquipe(false,true),6000); }
 }
 /* v2 — PRÉ-CARREGAMENTO: as atividades mais prováveis de serem abertas
@@ -970,7 +982,7 @@ async function abrirAtv(id){
   if(g&&g.conteudo) EditorBlocos.montar(document.getElementById("pa-cont"), id, {somenteLeitura:!podeEditar(a), dados:g.conteudo});
   else document.getElementById("pa-cont").innerHTML=`<div class="eb-vazio"><span class="load"></span> Carregando checklist e anotações…</div>`;
   const t=document.getElementById("pa-txt");
-  if(t) t.addEventListener("keydown",e=>{ if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); enviarComentario(); } });
+  if(t){ ligarMencoes(t); t.addEventListener("keydown",e=>{ if(t._mencAberta) return; if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); enviarComentario(); } }); }
   document.getElementById("ov1").classList.add("on"); document.getElementById("p1").classList.add("on");
   history.replaceState(null,"","#"+id);
   if(!g){ _coms=null; _comsAssin=""; if(pendDe(id).length) pintarChat(); }
@@ -1047,7 +1059,46 @@ function chatImgFalhou(img){
   if(!ABERTA||Date.now()-_chatImgRelido<60000) return;
   _chatImgRelido=Date.now(); lerComentarios(true);
 }
-function linkar(t){ return esc(t).replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" rel="noopener">$1</a>'); }
+function linkar(t){ return esc(t).replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" rel="noopener">$1</a>')
+  /* 28/09: @menção — no texto vai como @[Nome|id]; aqui aparece destacada */
+  .replace(/@\[([^|\]]{1,80})\|([0-9a-fA-F-]{32,36})\]/g,(m,n,id)=>`<span class="mencao ${String(id).replace(/-/g,"")===ME?"eu":""}" title="Mencionou ${n}">@${n}</span>`); }
+/* ---------- @MENÇÕES (28/09) ----------
+ * Digitou "@" no comentário: aparece a lista de pessoas; escolheu, entra
+ * "@Nome". Ao enviar vira @[Nome|id] — a pessoa vê no sino dela e, na cópia
+ * para o Notion, vira menção de verdade (o Notion avisa ela). */
+function ligarMencoes(t){
+  t._menc={};
+  const cx=document.createElement("div"); cx.className="menc-caixa"; t.parentNode.style.position="relative"; t.parentNode.appendChild(cx);
+  let itens=[], sel=0, ini=-1;
+  const fechar=()=>{ cx.style.display="none"; t._mencAberta=false; ini=-1; };
+  const pintarLista=()=>{ cx.innerHTML=itens.map((p,i)=>`<div class="menc-i ${i===sel?"on":""}" data-i="${i}">@${esc(nomeMenc(p.nome))}</div>`).join(""); };
+  const escolher=i=>{ const p=itens[i]; if(!p) return; const nome=nomeMenc(p.nome), v=t.value, pos=t.selectionStart;
+    t.value=v.slice(0,ini)+"@"+nome+" "+v.slice(pos); const c=ini+nome.length+2; t.setSelectionRange(c,c); t._menc[nome]=p.id; fechar(); t.focus(); };
+  t.addEventListener("input",()=>{
+    const pos=t.selectionStart, antes=t.value.slice(0,pos), m=antes.match(/(^|\s)@([^\s@]{0,30})$/);
+    if(!m){ fechar(); return; }
+    ini=pos-m[2].length-1; const q=N(m[2]);
+    itens=(D.pessoas||[]).filter(p=>!q||N(p.nome).split(/\s+/).some(w=>w.indexOf(q)===0)||N(p.nome).indexOf(q)>=0).slice(0,7);
+    if(!itens.length){ fechar(); return; }
+    sel=0; pintarLista(); cx.style.display="block"; t._mencAberta=true;
+  });
+  t.addEventListener("keydown",e=>{
+    if(!t._mencAberta) return;
+    if(e.key==="ArrowDown"){ e.preventDefault(); sel=(sel+1)%itens.length; pintarLista(); }
+    else if(e.key==="ArrowUp"){ e.preventDefault(); sel=(sel-1+itens.length)%itens.length; pintarLista(); }
+    else if(e.key==="Enter"||e.key==="Tab"){ e.preventDefault(); escolher(sel); }
+    else if(e.key==="Escape"){ e.preventDefault(); fechar(); }
+  });
+  cx.addEventListener("mousedown",e=>{ const d=e.target.closest("[data-i]"); if(d){ e.preventDefault(); escolher(+d.dataset.i); } });
+  t.addEventListener("blur",()=>setTimeout(fechar,150));
+}
+function nomeMenc(n){ const minus=["da","de","do","das","dos","e"];
+  return String(n||"").toLowerCase().split(/\s+/).filter(Boolean).map((w,i)=>i&&minus.includes(w)?w:w.charAt(0).toUpperCase()+w.slice(1)).join(" "); }
+function comMencoes(t,texto){
+  const m=(t&&t._menc)||{};
+  Object.keys(m).sort((a,b)=>b.length-a.length).forEach(nome=>{ texto=texto.split("@"+nome).join("@["+nome+"|"+m[nome]+"]"); });
+  return texto;
+}
 function pintarChat(){
   const c=document.getElementById("pa-chat"); if(!c) return;
   const noFim=c.scrollHeight-c.scrollTop-c.clientHeight<60;
@@ -1117,7 +1168,7 @@ function idbArq(op,id,valor){
 }
 async function enviarComentario(){
   const id=ABERTA, t=document.getElementById("pa-txt"), inp=document.getElementById("pa-arq");
-  const texto=t.value.trim(), fs=[...(inp.files||[])].slice(0,5);
+  const texto=comMencoes(t,t.value.trim()), fs=[...(inp.files||[])].slice(0,5);
   if(!texto&&!fs.length) return;
   if(fs.some(f=>f.size>20*1024*1024&&!/^image\//.test(f.type))){ toast("Arquivo acima de 20 MB — mande um menor (ou um link)."); return; }
   const tid="tmp"+Date.now()+Math.random().toString(36).slice(2,6);
@@ -1125,7 +1176,7 @@ async function enviarComentario(){
     opId:(typeof novoOpId==="function"?novoOpId():tid),nArq:fs.length,anexos:fs.map(f=>({nome:f.name,mime:f.type}))};
   _previa[tid]=fs.map(f=>/^image\//.test(f.type)?URL.createObjectURL(f):null);
   _PEND[tid]=m; pendGravar();
-  t.value=""; inp.value=""; mostrarAnexos(); pintarChat();
+  t.value=""; t._menc={}; inp.value=""; mostrarAnexos(); pintarChat();
   if(fs.length){ try{ await idbArq("put",tid,fs); }catch(e){} }
   mandar(tid,fs);
 }
