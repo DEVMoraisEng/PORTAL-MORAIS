@@ -297,7 +297,7 @@ html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
 .sect-h .n{font:700 11px Inter,sans-serif;background:var(--bg3);color:var(--text3);border-radius:20px;padding:2px 8px}
 .sect-h.r{color:var(--verm)}
 .al-lista{display:flex;flex-direction:column;gap:6px}
-.li{display:grid;grid-template-columns:minmax(0,1fr) 150px 120px 110px 90px;gap:10px;align-items:center;background:var(--sup);border:1px solid var(--border2);
+.li{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,210px) minmax(0,140px) 90px 70px;gap:12px;align-items:center;background:var(--sup);border:1px solid var(--border2);
   border-left:4px solid var(--azul);border-radius:10px;padding:9px 12px;cursor:pointer}
 .li:hover{box-shadow:0 4px 12px var(--sombra)}
 .li.atr{border-left-color:var(--verm);background:#fff6f5}
@@ -306,6 +306,9 @@ html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
 .li .t{font-weight:700;font-size:13px;min-width:0}
 .li .t small{display:block;font-weight:500;font-size:11px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .li .c{font-size:12px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 28/09: status comprido ("Aguardando análise do solicitante") não invade a coluna de quem pediu/faz */
+.li>div{min-width:0}
+.li .pill{max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
 .li .c.atr{color:var(--verm);font-weight:800}
 .pill{display:inline-block;font-size:10.5px;font-weight:800;padding:3px 9px;border-radius:20px;background:#e7f0f3;color:var(--azul);white-space:nowrap}
 .pill.s0{background:#eef1f3;color:#5a6b77}.pill.s1{background:#e3eefb;color:#2d5ea8}.pill.s2{background:#fdf1dc;color:#9a5b0b}.pill.s3{background:rgba(42,157,92,.14);color:var(--verde-esc)}
@@ -557,7 +560,7 @@ const nomes=l=>(l||[]).map(u=>primeiro(u.nome)).join(", ");
 function primeiro(n){ const p=String(n||"").trim().split(/\s+/); return p.length>1?(p[0].charAt(0).toUpperCase()+p[0].slice(1).toLowerCase()+" "+p[p.length-1].charAt(0).toUpperCase()+"."):(p[0]||""); }
 function nomeObra(id){ return id?(OBRAS[SID(id)]||""):""; }
 function stIdx(s){ const i=(D.opcoes.status||[]).indexOf(s); return i<0?0:i; }
-function pillSt(s){ return `<span class="pill s${stIdx(s)}">${esc(s||"—")}</span>`; }
+function pillSt(s){ return `<span class="pill s${stIdx(s)}" title="${esc(s||"")}">${esc(s||"—")}</span>`; }
 function podeEditar(a){ return !RO&&(souResp(a)||souSolic(a)||TIPO==="ADM"||TIPO==="MASTER"); }
 function busca(a){ const b=N(BUSCA); return !b||N(a.titulo+" "+(a.tipo||"")+" "+nomeObra(a.obraId)).indexOf(b)>=0; }
 function doFiltro(a){ return FILTRO==="todas"?true:FILTRO==="resp"?souResp(a):souSolic(a)&&!souResp(a); }
