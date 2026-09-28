@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { criarGas, assinar, notionFalso, texto, COLUNAS_REAIS, PAGE_ID_PADRAO, DB_ID_PADRAO } from "./fakes.mjs";
 
-const PROPS = { NOTION_TOKEN: "ntn-falso", SESSION_SECRET: "segredo-de-teste", ANTHROPIC_API_KEY: "sk-falsa", DB_VENDAS: DB_ID_PADRAO };
+const PROPS = { NOTION_TOKEN: "ntn-falso", SESSION_SECRET: "segredo-de-teste", ANTHROPIC_API_KEY: "sk-falsa", DB_VENDAS: DB_ID_PADRAO, PROVEDOR_IA: "anthropic" };
 const PAGE = PAGE_ID_PADRAO;
 const DIA = 24 * 3600 * 1000;
 const tokenDe = (t = "GERAL", a = ["VENDAS"]) => assinar({ u: "ana.teste", t, a, exp: Date.now() + DIA });
@@ -218,4 +218,70 @@ test("nenhum log leva CPF ou nome", () => {
   const tudo = g.logs.join("\n");
   assert.doesNotMatch(tudo, /529|ANA TESTE/);
   assert.match(tudo, /tokens 1500\/80/);
+});
+
+/* ---- provedor OpenAI (padrão) ---- */
+function openaiResponde(leitura) {
+  return () => ({ json: { status: "completed", usage: { input_tokens: 1500, output_tokens: 80 },
+    output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(leitura) }] }] } });
+}
+function montarOpenai({ valores, s3, colunas, openai, props } = {}) {
+  const n = notionFalso({ valores, s3, colunas });
+  const g = criarGas({ props: Object.assign({ NOTION_TOKEN: "ntn-falso", SESSION_SECRET: "segredo-de-teste",
+      DB_VENDAS: DB_ID_PADRAO, OPENAI_API_KEY: "sk-openai-falsa" }, props),
+    rotas: (url, opt) => url === "https://api.openai.com/v1/responses" ? (openai || openaiResponde({}))(url, opt) : n.rota(url, opt) });
+  return { n, g };
+}
+
+test("caminho openai ponta a ponta: lê e grava CLIENTES e CPF", () => {
+  const { g, n } = montarOpenai({ openai: openaiResponde(CNH) });
+  const r = g.chamar({ action: "lerDocumento", token: tokenDe(), pageId: PAGE, espaco: "C1_IDENTIDADE",
+                       arquivo: { nome: "cnh.jpg", mime: "image/jpeg", base64: JPG } });
+  assert.equal(r.ok, true);
+  assert.equal(n.pagina.properties["CLIENTES "].rich_text[0].text.content, "ANA TESTE");
+  assert.equal(n.pagina.properties["CPF "].rich_text[0].text.content, "529.982.247-25");
+});
+
+test("sem PROVEDOR_IA nas propriedades, usa openai (padrão)", () => {
+  const { g, n } = montarOpenai({ openai: openaiResponde(CNH) });
+  const r = g.chamar({ action: "lerDocumento", token: tokenDe(), pageId: PAGE, espaco: "C1_IDENTIDADE",
+                       arquivo: { nome: "cnh.jpg", mime: "image/jpeg", base64: JPG } });
+  assert.equal(r.ok, true);
+  assert.equal(n.pagina.properties["CLIENTES "].rich_text[0].text.content, "ANA TESTE");
+});
+
+test("MODELO_IA chega no corpo do pedido à OpenAI", () => {
+  let pedido = null;
+  const { g } = montarOpenai({
+    props: { MODELO_IA: "gpt-modelo-especial" },
+    openai: (url, opt) => { pedido = JSON.parse(opt.payload); return openaiResponde(CNH)(); },
+  });
+  g.chamar({ action: "lerDocumento", token: tokenDe(), pageId: PAGE, espaco: "C1_IDENTIDADE",
+             arquivo: { nome: "cnh.jpg", mime: "image/jpeg", base64: JPG } });
+  assert.equal(pedido.model, "gpt-modelo-especial");
+});
+
+test("OPENAI_API_KEY faltando: CHAVE_IA_FALTANDO, arquivo guardado, nenhuma chamada à rede de IA", () => {
+  const { g, n } = montarOpenai({ props: { OPENAI_API_KEY: "" }, openai: () => { throw new Error("não devia chamar"); } });
+  const r = g.chamar({ action: "lerDocumento", token: tokenDe(), pageId: PAGE, espaco: "C1_IDENTIDADE",
+                       arquivo: { nome: "cnh.jpg", mime: "image/jpeg", base64: JPG } });
+  assert.deepEqual(r, { ok: false, erro: "CHAVE_IA_FALTANDO", arquivoGuardado: true });
+  assert.equal(n.pagina.properties["COMPRADOR 1 - IDENTIDADE"].files.length, 1);
+});
+
+test("PROVEDOR_IA desconhecido vira PROVEDOR_IA_INVALIDO, arquivo guardado", () => {
+  const { g, n } = montarOpenai({ props: { PROVEDOR_IA: "xpto" }, openai: () => { throw new Error("não devia chamar"); } });
+  const r = g.chamar({ action: "lerDocumento", token: tokenDe(), pageId: PAGE, espaco: "C1_IDENTIDADE",
+                       arquivo: { nome: "cnh.jpg", mime: "image/jpeg", base64: JPG } });
+  assert.deepEqual(r, { ok: false, erro: "PROVEDOR_IA_INVALIDO", arquivoGuardado: true });
+  assert.equal(n.pagina.properties["COMPRADOR 1 - IDENTIDADE"].files.length, 1);
+});
+
+test("log de leitura openai traz o nome do provedor e nunca a chave", () => {
+  const { g } = montarOpenai({ openai: openaiResponde(CNH) });
+  g.chamar({ action: "lerDocumento", token: tokenDe(), pageId: PAGE, espaco: "C1_IDENTIDADE",
+             arquivo: { nome: "cnh.jpg", mime: "image/jpeg", base64: JPG } });
+  const tudo = g.logs.join("\n");
+  assert.match(tudo, /PORTAL-VENDA leitura openai C1_IDENTIDADE tokens 1500\/80/);
+  assert.doesNotMatch(tudo, /sk-openai-falsa/);
 });

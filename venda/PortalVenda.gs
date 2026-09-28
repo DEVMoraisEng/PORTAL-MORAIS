@@ -1,9 +1,11 @@
 /* PORTAL-VENDA — dossiê do comprador (entrega 1).
  * Projeto do Apps Script SEPARADO do PORTAL-LEITURA/ESCRITA: um upload do
  * Code.gs do portal não apaga este, e vice-versa.
- * Arquivos do projeto: RegrasVenda.gs, ClaudeLeitor.gs, PortalVenda.gs.
+ * Arquivos do projeto: RegrasVenda.gs, ClaudeLeitor.gs, OpenAILeitor.gs, PortalVenda.gs.
  * Propriedades do script: NOTION_TOKEN, SESSION_SECRET (os MESMOS do portal
- * daquele ambiente), ANTHROPIC_API_KEY, DB_VENDAS.
+ * daquele ambiente), DB_VENDAS, PROVEDOR_IA (openai padrão | anthropic),
+ * OPENAI_API_KEY (provedor openai), MODELO_IA (opcional, só openai),
+ * ANTHROPIC_API_KEY (provedor anthropic, plano B).
  * Nenhum log com nome, CPF, endereço ou conteúdo de documento. */
 var VERSAO_VENDA = "venda-v1";
 var NOTION_VERSION = "2022-06-28";
@@ -197,6 +199,21 @@ function baixarArquivo_(f) {
   return { mime: RegrasVenda.mimeDoArquivo(f.name, b.getContentType()), base64: Utilities.base64Encode(b.getBytes()) };
 }
 
+function leitorIA_() {
+  var provedor = String(prop_("PROVEDOR_IA") || "openai").toLowerCase();
+  if (provedor === "openai") {
+    var chaveOpenai = prop_("OPENAI_API_KEY");
+    if (!chaveOpenai) return { erro: "CHAVE_IA_FALTANDO" };
+    return { nome: "openai", leitor: OpenAILeitor, chave: chaveOpenai, modelo: prop_("MODELO_IA") };
+  }
+  if (provedor === "anthropic") {
+    var chaveAnthropic = prop_("ANTHROPIC_API_KEY");
+    if (!chaveAnthropic) return { erro: "CHAVE_IA_FALTANDO" };
+    return { nome: "anthropic", leitor: ClaudeLeitor, chave: chaveAnthropic, modelo: "" };
+  }
+  return { erro: "PROVEDOR_IA_INVALIDO" };
+}
+
 function lerDocumento_(col, sess, p) {
   var esp = RegrasVenda.ESPACOS[p.espaco];
   if (!esp) return { ok: false, erro: "ESPACO_DESCONHECIDO" };
@@ -223,16 +240,18 @@ function lerDocumento_(col, sess, p) {
   if (!arquivos.length) return { ok: false, erro: "SEM_ARQUIVO", arquivoGuardado: guardado };
   if (!partes.length) return { ok: false, erro: "ARQUIVO_NAO_LEGIVEL", arquivoGuardado: guardado };
 
-  var pedido = ClaudeLeitor.montarPedido(esp.tipo, partes, prop_("ANTHROPIC_API_KEY"));
+  var ia = leitorIA_();
+  if (ia.erro) return { ok: false, erro: ia.erro, arquivoGuardado: guardado };
+  var pedido = ia.leitor.montarPedido(esp.tipo, partes, ia.chave, ia.modelo);
   if (pedido.erro) return { ok: false, erro: pedido.erro, arquivoGuardado: guardado };
   var res;
   try {
     var r = UrlFetchApp.fetch(pedido.url, { method: "post", contentType: "application/json", muteHttpExceptions: true,
                                            headers: pedido.headers, payload: JSON.stringify(pedido.corpo) });
-    res = ClaudeLeitor.interpretarResposta(r.getResponseCode(), r.getContentText());
+    res = ia.leitor.interpretarResposta(r.getResponseCode(), r.getContentText());
   } catch (e) { res = { ok: false, erro: "LEITURA_FALHOU" }; }
   if (!res.ok) return { ok: false, erro: res.erro, arquivoGuardado: guardado };
-  console.log("PORTAL-VENDA leitura " + p.espaco + " tokens " + res.uso.entrada + "/" + res.uso.saida);
+  console.log("PORTAL-VENDA leitura " + ia.nome + " " + p.espaco + " tokens " + res.uso.entrada + "/" + res.uso.saida);
 
   var plano = RegrasVenda.planejarGravacao(p.espaco, res.leitura, a, hoje_("yyyy-MM-dd"));
   var depois = {};
