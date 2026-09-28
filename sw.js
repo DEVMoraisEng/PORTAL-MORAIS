@@ -143,7 +143,8 @@
 /* v61 -> v62 (28/09/26): Mural e checklists na hora. */
 /* v62 -> v63 (28/09/26 noite): @menções, reordenar conteúdo, anexo que sumia. */
 /* v63 -> v64 (28/09/26 noite): mensagem e anexo "enviando" não somem ao fechar e abrir. */
-const CACHE = "portal-morais-v64";  // limpeza só dos caches do portal (não apaga os das RAS)
+/* v64 -> v65 (28/09/26 noite): envio continua ao sair da página; obra com casas vendidas/entregues. */
+const CACHE = "portal-morais-v65";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",

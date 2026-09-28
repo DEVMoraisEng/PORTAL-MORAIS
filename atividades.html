@@ -502,9 +502,9 @@ main.wrap{padding-bottom:90px}
 <div class="toast" id="toast"></div>
 
 <script src="app.js?v=44"></script>
-<script src="rf-rotas.js?v=6"></script>
+<script src="rf-rotas.js?v=7"></script>
 <script src="alertas-docs.js?v=1"></script>
-<script src="editor-blocos.js?v=7"></script>
+<script src="editor-blocos.js?v=8"></script>
 <script src="atv-alertas.js?v=5"></script>
 <script>
 /* ---------- tema ---------- */
@@ -1555,7 +1555,20 @@ window.addEventListener("portal-ao-vivo",ev=>{
 /* ---------- início ---------- */
 carregarObras();
 pendCarregar();
-carregar(false).then(()=>{ const h=location.hash.slice(1); if(h) abrirAtv(h); setTimeout(retomarPendentes,800); setTimeout(retomarEdicoes,400); });
+/* 28/09 (noite): o que ficou saindo retoma JÁ (antes esperava a lista das
+   atividades carregar — a mensagem ficava "enviando" esse tempo todo) */
+setTimeout(retomarPendentes,300); setTimeout(retomarEdicoes,300);
+carregar(false).then(()=>{ const h=location.hash.slice(1); if(h) abrirAtv(h); });
+/* página fechando: comentário (sem arquivo por subir) e alteração ainda não
+   confirmados saem assim mesmo, num pedido pequeno que o navegador termina
+   mesmo depois de a página fechar (keepalive). O servidor não duplica (opId). */
+window.addEventListener("pagehide",()=>{
+  const s0=sessao(); if(!s0||!s0.token||typeof API_ESCRITA==="undefined") return;
+  const manda=corpo=>{ try{ fetch(API_ESCRITA,{method:"POST",keepalive:true,headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(Object.assign({token:s0.token},corpo))}); }catch(e){} };
+  Object.values(_PEND).forEach(m=>{ if(m._ok||m._falhou) return; if(m.nArq&&!m.prontos) return;
+    manda({action:"atvComentarioNovo",pageId:m.atv,texto:m.texto,anexosProntos:m.prontos||[],opId:m.opId,retomada:true}); });
+  const ed=editPend(); Object.keys(ed).forEach(k=>{ const p=ed[k]; if(p.ok) return; manda({action:"atvUpdate",pageId:p.id,campo:p.campo,valor:p.valor}); });
+});
 /* 28/09 — SINCRONIA COM O NOTION: com a tela aberta, pergunta a cada 1 min o
    que mudou no Notion (atvDelta). O servidor consulta só o que foi editado
    desde a última olhada, então é leve. Mudou no Notion → aparece aqui em ~1 min. */

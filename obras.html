@@ -1026,7 +1026,23 @@ function chipsObraHtml(o){
     ${o.controle_prazo?`<span class="chip ${N(o.controle_prazo).indexOf("ATRASO")>=0?"alerta":""}">${esc(o.controle_prazo)}</span>`:""}
     ${normais.length?`<span class="chip ok">${feitas} de ${normais.length} atividades concluídas</span>`:""}
     ${o.em_mc===true?`<span class="chip ok">No Mais Controle</span>`:o.em_mc===false?`<span class="chip alerta">Fora do Mais Controle${o.mais_controle?" · "+esc(o.mais_controle):""}</span>`:""}
-    ${falt.length?`<span class="chip alerta">Falta: ${esc(falt.join(", "))}</span>`:""}`;
+    ${falt.length?`<span class="chip alerta">Falta: ${esc(falt.join(", "))}</span>`:""}
+    ${chipsCasasObra(o)}`;
+}
+/* 28/09/26 — da BASE DE DADOS DOCUMENTOS (obra iniciada / finalizada) e do
+   BANCO DE DADOS VENDAS (cada casa: vendida? entregue?). Vêm no obras.json. */
+function chipsCasasObra(o){
+  const sim=v=>/^SIM/.test(N(v||""));
+  let h="";
+  if(o.obra_iniciada!=null) h+=`<span class="chip ${sim(o.obra_iniciada)?"ok":""}" title="BASE DE DADOS DOCUMENTOS">Obra iniciada: ${esc(o.obra_iniciada||"—")}</span>`;
+  if(o.obra_finalizada!=null) h+=`<span class="chip ${sim(o.obra_finalizada)?"ok":""}" title="BASE DE DADOS DOCUMENTOS">Obra finalizada: ${esc(o.obra_finalizada||"—")}</span>`;
+  (o.casas||[]).forEach(c=>{
+    const n=c.casa!=null&&c.casa!==""?`Casa ${esc(c.casa)}`:"Casa";
+    h+=c.entregue?`<span class="chip ok" title="BANCO DE DADOS VENDAS">${n}: vendida · entregue</span>`
+      :c.vendida?`<span class="chip alerta" title="BANCO DE DADOS VENDAS">${n}: vendida · não entregue</span>`
+      :`<span class="chip" title="BANCO DE DADOS VENDAS">${n}: não vendida</span>`;
+  });
+  return h;
 }
 /* chips e cabeçalho do painel sem redesenhar os campos (não tira o foco) */
 function atualizarChipsObra(o){

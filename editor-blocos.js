@@ -282,7 +282,6 @@
   /* REORDENAR (28/09). O Notion não move bloco: o servidor recria UM bloco
      depois do outro (arquivo é enviado de novo) e apaga o antigo. Subir X =
      recriar o de cima depois de X; descer X = recriar X depois do de baixo. */
-  window.addEventListener("beforeunload",ev=>{ if(Object.keys(ENVIANDO).length){ ev.preventDefault(); ev.returnValue=""; } });
   async function mover(st,id,dir){
     if(st._movendo){ aviso("Espere terminar a mudança anterior."); return; }
     const arr=st.blocos, i=arr.findIndex(b=>b.id===id); if(i<0) return;
@@ -314,27 +313,94 @@
     if(!r||!r.ok){ onde.lista.splice(i,0,b); pintar(st); aviso("Não apagou: "+((r&&r.erro)||"erro")); }
   }
   /* v5 — anexo no CORPO da página (foto/documento junto da descrição) */
-  async function anexar(st,inp){
-    const fs=[...(inp.files||[])]; inp.value=""; if(!fs.length) return;
-    if(fs.some(f=>f.size>15*1024*1024)){ aviso("Arquivo acima de 15 MB — mande um menor."); return; }
-    const ler=f=>new Promise((ok,err)=>{ const rd=new FileReader(); rd.onload=()=>ok(String(rd.result).split(",")[1]); rd.onerror=err; rd.readAsDataURL(f); });
-    let arquivos=[]; try{ arquivos=await Promise.all(fs.slice(0,5).map(async f=>({filename:f.name,mimeType:f.type||"application/octet-stream",dataBase64:await ler(f)}))); }
-    catch(err){ aviso("Não consegui ler o arquivo."); return; }
-    /* v7 (28/09 noite): o "enviando…" fica guardado por página, FORA do
-       conteúdo — fechar e abrir a atividade (ou trocar de atividade) no meio
-       do envio não some com ele; quando termina, a tela daquela página é
-       atualizada onde quer que ela esteja aberta. */
-    const pg=st.pageId, tmp={id:"tmp"+Date.now(),tipo:"_enviando",texto:"📎 enviando "+fs.map(f=>f.name).join(", ")+"…"};
-    (ENVIANDO[pg]=ENVIANDO[pg]||[]).push(tmp); pintar(st);
-    const r=await pedir({action:"blocoAnexar",pageId:pg,arquivos,opId:Date.now()+"_"+Math.random().toString(36).slice(2)},180000);
-    ENVIANDO[pg]=(ENVIANDO[pg]||[]).filter(b=>b!==tmp); if(!ENVIANDO[pg].length) delete ENVIANDO[pg];
-    const abertos=[...document.querySelectorAll(".eb-host")].map(h=>h._eb).filter(x=>x&&x.pageId===pg);
-    if(r&&r.ok&&r.conteudo&&r.conteudo.blocos){
-      guardar(pg,r.conteudo);
-      abertos.forEach(x=>{ x.blocos=r.conteudo.blocos; pintar(x); });
-      aviso("Anexo adicionado.");
-    } else { abertos.forEach(x=>pintar(x)); aviso("Não anexou: "+((r&&r.erro)||"sem resposta do servidor")); }
+  /* ---------- ANEXO NO CONTEÚDO (v8, 28/09 noite) ----------
+   * Continua mesmo saindo da página:
+   *   1) o arquivo sobe DIRETO para o Supabase (rápido, não passa pelo
+   *      Apps Script) e fica guardado também no navegador (IndexedDB);
+   *   2) a finalização (Supabase → Notion) é um pedido PEQUENO — se a página
+   *      fechar, ele sai assim mesmo (keepalive); se não der, na próxima vez
+   *      que qualquer tela com conteúdo abrir, ele termina sozinho;
+   *   3) o servidor não duplica (mesmo opId).
+   * O "📎 enviando…" fica guardado por página e aparece até terminar. */
+  const K_ENV="eb_env_v1";
+  function envLer(){ try{ return JSON.parse(localStorage.getItem(K_ENV)||"{}")||{}; }catch(err){ return {}; } }
+  function envGravar(){ const o={}; Object.keys(ENVIANDO).forEach(pg=>{ o[pg]=ENVIANDO[pg].map(x=>({id:x.id,texto:x.texto,prontos:x.prontos||null,opId:x.opId,nomes:x.nomes,t:x.t})); });
+    try{ localStorage.setItem(K_ENV,JSON.stringify(o)); }catch(err){} }
+  function idb(op,id,valor){
+    return new Promise((ok,err)=>{ if(!window.indexedDB) return ok(op==="get"?null:undefined);
+      const rq=indexedDB.open("morais_eb",1); rq.onupgradeneeded=()=>rq.result.createObjectStore("arquivos"); rq.onerror=()=>err(rq.error);
+      rq.onsuccess=()=>{ const db=rq.result, tx=db.transaction("arquivos",op==="get"?"readonly":"readwrite"), stx=tx.objectStore("arquivos");
+        const r=op==="get"?stx.get(id):op==="put"?stx.put(valor,id):stx.delete(id); r.onsuccess=()=>ok(r.result); r.onerror=()=>err(r.error); tx.oncomplete=()=>db.close(); }; });
   }
+  function repintarPagina(pg,conteudo){
+    [...document.querySelectorAll(".eb-host")].map(h=>h._eb).filter(x=>x&&x.pageId===pg).forEach(x=>{ if(conteudo&&conteudo.blocos) x.blocos=conteudo.blocos; pintar(x); });
+  }
+  async function anexar(st,inp){
+    const fs=[...(inp.files||[])].slice(0,5); inp.value=""; if(!fs.length) return;
+    if(fs.some(f=>f.size>20*1024*1024)){ aviso("Arquivo acima de 20 MB — mande um menor."); return; }
+    const pg=st.pageId, tmp={id:"tmp"+Date.now()+Math.random().toString(36).slice(2,5),tipo:"_enviando",nomes:fs.map(f=>f.name),t:Date.now(),
+      texto:"📎 enviando "+fs.map(f=>f.name).join(", ")+"…",opId:Date.now()+"_"+Math.random().toString(36).slice(2)};
+    (ENVIANDO[pg]=ENVIANDO[pg]||[]).push(tmp); envGravar(); pintar(st);
+    try{ await idb("put",tmp.id,fs); }catch(err){}
+    enviarAnexo(pg,tmp,fs);
+  }
+  async function enviarAnexo(pg,tmp,fs){
+    if(tmp._andando) return; tmp._andando=true;
+    let r=null;
+    try{
+      if(!tmp.prontos){
+        if(!fs){ try{ fs=await idb("get",tmp.id); }catch(err){} }
+        if(!fs||!fs.length) throw new Error("o arquivo não ficou guardado neste navegador — anexe de novo");
+        const u=await pedir({action:"blocoAnexarUrl",pageId:pg,arquivos:fs.map(f=>({nome:f.name,mime:f.type||"",tam:f.size}))},45000);
+        if(u&&/ACAO_DESCONHECIDA/.test(String(u.erro||""))){                 // servidor antigo: jeito de antes (base64)
+          const ler=f=>new Promise((ok,err)=>{ const rd=new FileReader(); rd.onload=()=>ok(String(rd.result).split(",")[1]); rd.onerror=err; rd.readAsDataURL(f); });
+          const arquivos=await Promise.all(fs.map(async f=>({filename:f.name,mimeType:f.type||"application/octet-stream",dataBase64:await ler(f)})));
+          r=await pedir({action:"blocoAnexar",pageId:pg,arquivos,opId:tmp.opId},180000);
+        } else {
+          if(!(u&&u.ok&&u.envios)) throw new Error((u&&u.erro)||"sem resposta do servidor");
+          const prontos=[];
+          for(let i=0;i<u.envios.length;i++){
+            const f=fs[i], v=u.envios[i];
+            tmp.texto=`📎 enviando ${f.name} (${i+1}/${u.envios.length})…`; repintarPagina(pg);
+            const rr=await fetch(v.url,{method:"PUT",headers:{"Content-Type":f.type||"application/octet-stream","x-upsert":"true"},body:f});
+            if(!rr.ok) throw new Error("o arquivo "+f.name+" não subiu ("+rr.status+")");
+            prontos.push({nome:v.nome,mime:v.mime||f.type||"",caminho:v.caminho});
+          }
+          tmp.prontos=prontos; envGravar();
+        }
+      }
+      if(!r){ tmp.texto="📎 colocando no Notion: "+tmp.nomes.join(", ")+"…"; repintarPagina(pg);
+        r=await pedir({action:"blocoAnexarDoSupa",pageId:pg,arquivos:tmp.prontos,opId:tmp.opId},120000); }
+    }catch(err){ r={ok:false,erro:String((err&&err.message)||err)}; }
+    tmp._andando=false;
+    if(r&&r.ok){
+      ENVIANDO[pg]=(ENVIANDO[pg]||[]).filter(b=>b!==tmp); if(!ENVIANDO[pg].length) delete ENVIANDO[pg]; envGravar();
+      idb("delete",tmp.id).catch(()=>{});
+      if(r.conteudo) guardar(pg,r.conteudo);
+      repintarPagina(pg,r.conteudo); aviso("Anexo adicionado.");
+    } else if(tmp.prontos){
+      tmp.texto="📎 "+tmp.nomes.join(", ")+" — já subiu, termina sozinho ("+((r&&r.erro)||"sem resposta")+")"; envGravar(); repintarPagina(pg);
+      setTimeout(()=>enviarAnexo(pg,tmp),20000);
+    } else {
+      ENVIANDO[pg]=(ENVIANDO[pg]||[]).filter(b=>b!==tmp); if(!ENVIANDO[pg].length) delete ENVIANDO[pg]; envGravar();
+      idb("delete",tmp.id).catch(()=>{}); repintarPagina(pg); aviso("Não anexou: "+((r&&r.erro)||"sem resposta do servidor"));
+    }
+  }
+  /* ao abrir qualquer tela com conteúdo: retoma o que ficou pela metade */
+  (function retomar(){
+    const o=envLer();
+    Object.keys(o).forEach(pg=>{ (o[pg]||[]).forEach(x=>{ if(Date.now()-(x.t||0)>24*3600*1000) return;
+      const tmp=Object.assign({tipo:"_enviando"},x); (ENVIANDO[pg]=ENVIANDO[pg]||[]).push(tmp); }); });
+    envGravar();
+    setTimeout(()=>Object.keys(ENVIANDO).forEach(pg=>ENVIANDO[pg].forEach(t=>enviarAnexo(pg,t))),1500);
+  })();
+  /* página fechando: o que já subiu para o Supabase é finalizado assim mesmo */
+  window.addEventListener("pagehide",()=>{
+    const s0=typeof sessao==="function"&&sessao(); if(!s0||!s0.token||typeof API_ESCRITA==="undefined"||!API_ESCRITA) return;
+    Object.keys(ENVIANDO).forEach(pg=>ENVIANDO[pg].forEach(t=>{ if(!t.prontos) return;
+      try{ fetch(API_ESCRITA,{method:"POST",keepalive:true,headers:{"Content-Type":"text/plain;charset=utf-8"},
+        body:JSON.stringify({action:"blocoAnexarDoSupa",token:s0.token,pageId:pg,arquivos:t.prontos,opId:t.opId})}); }catch(err){} }));
+  });
   /* ao vivo: outra pessoa mexeu nesta página → relê (se eu não estiver digitando nela) */
   window.addEventListener("portal-ao-vivo",ev=>{
     const d=ev.detail||{}; if(!/^bloco/.test(d.acao||"")) return;

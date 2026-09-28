@@ -35,7 +35,8 @@ ID_OBRAS = "306c5ab532d3812fa14fe9a281510128"   # (EMP) Projeto 2.0
 ID_ATIV = "306c5ab532d381fb864edee432bb128d"    # ATIVIDADES DE PROJETOS
 ID_CADASTRO = "3e2c5ab532d38055a241db35f74e7bbc"  # PROPRIETÁRIOS (cadastro) — só o NOME sai daqui
 ID_LIGACOES = "313c5ab532d3801e974ced0bb656c9d5"  # LIGAÇÕES DE ÁGUA E ENERGIA (só a contagem por obra)
-ID_VENDAS = "33cc5ab532d38047ae3aee8b87ac1f4d"    # BANCO DE DADOS VENDAS (só a contagem por obra)
+ID_VENDAS = "33cc5ab532d38047ae3aee8b87ac1f4d"    # BANCO DE DADOS VENDAS (contagem + casas vendidas/entregues)
+ID_DOCS = (os.environ.get("DOCUMENTOS_DB_ID") or "32fc5ab532d380a0900dd7f4bfc619bd").strip()   # BASE DE DADOS DOCUMENTOS
 
 
 def conta_alerta(p):
@@ -50,6 +51,54 @@ def conta_alerta(p):
     if v == norm("DÚVIDA"):
         return "DÚVIDA"
     return None
+
+
+POSITIVOS_ENTREGA = {"SIM", "INEXISTE", "AGIO"}
+
+
+def situacao_obras(ids_obras, titulo_por_id):
+    """28/09/26 — para o painel da obra:
+       - da BASE DE DADOS DOCUMENTOS: OBRA INCIADA e OBRA FINALIZADA?
+       - do BANCO DE DADOS VENDAS: cada casa — vendida? entregue?
+       Liga pela relação com a obra; sem relação, pelo endereço (= Projeto).
+       Nada de nome de cliente: só número da casa e SIM/NÃO."""
+    por_end = {padronizar_endereco(t): i for i, t in titulo_por_id.items() if t}
+    def obra_de(ip, colunas_endereco):
+        for v in ip.values():
+            for oid in ids(v) if (v or {}).get("type") == "relation" else []:
+                k = oid.replace("-", "")
+                if k in ids_obras:
+                    return k
+        for c in colunas_endereco:
+            t = txt(pega(ip, c))
+            if t and padronizar_endereco(t) in por_end:
+                return por_end[padronizar_endereco(t)]
+        return None
+    docs, casas = {}, {}
+    try:
+        for pg in ler_banco(ID_DOCS, "DOCUMENTOS (obra iniciada/finalizada)"):
+            ip = por_nome(pg.get("properties") or {})
+            o = obra_de(ip, ["ENDEREÇO"])
+            if o:
+                docs[o] = {"obra_iniciada": txt(pega(ip, "OBRA INCIADA", "OBRA INICIADA")),
+                           "obra_finalizada": txt(pega(ip, "OBRA FINALIZADA?", "OBRA FINALIZADA"))}
+    except SystemExit as e:
+        print(f"  DOCUMENTOS não lido: {e}", flush=True)
+    try:
+        for pg in ler_banco(ID_VENDAS, "VENDAS (casas)"):
+            ip = por_nome(pg.get("properties") or {})
+            o = obra_de(ip, ["ENDEREÇO"])
+            if not o:
+                continue
+            n = txt(pega(ip, "CASA", "CASA-AUTO"))
+            vendida = bool(txt(pega(ip, "CLIENTES")) or txt(pega(ip, "DATA DA VENDA")))
+            ent = norm(txt(pega(ip, "ENTEGOU A CASA E PEGOU TERMO DE ENTREGA?")) or "")
+            casas.setdefault(o, []).append({"casa": n, "vendida": vendida, "entregue": ent in POSITIVOS_ENTREGA})
+    except SystemExit as e:
+        print(f"  VENDAS (casas) não lido: {e}", flush=True)
+    for l in casas.values():
+        l.sort(key=lambda c: (c["casa"] is None, c["casa"] if isinstance(c["casa"], (int, float)) else str(c["casa"])))
+    return docs, casas
 
 
 def contar_por_relacao(db_id, rotulo, coluna):
@@ -260,6 +309,16 @@ def main():
             "lig_criadas": lig_por_obra.get(str(pg.get("id")).replace("-", ""), 0),
             "vendas_criadas": ven_por_obra.get(str(pg.get("id")).replace("-", ""), 0),
         })
+
+    # 28/09/26: obra iniciada/finalizada (DOCUMENTOS) e casas vendidas/entregues (VENDAS)
+    ids_obras = {str(o["id"]).replace("-", "") for o in obras}
+    docs_obra, casas_obra = situacao_obras(ids_obras, {str(o["id"]).replace("-", ""): o.get("titulo") for o in obras})
+    for o in obras:
+        k = str(o["id"]).replace("-", "")
+        d = docs_obra.get(k) or {}
+        o["obra_iniciada"] = d.get("obra_iniciada")
+        o["obra_finalizada"] = d.get("obra_finalizada")
+        o["casas"] = casas_obra.get(k, [])
 
     atividades = []
     for pg in ler_banco(ID_ATIV, "ATIVIDADES DE PROJETOS"):
