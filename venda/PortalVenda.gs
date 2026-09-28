@@ -137,12 +137,13 @@ function lerPagina_(col, pageId) {
   return atuais;
 }
 function propNotion_(tipo, valor) {
+  var vazio = valor === null || valor === undefined || (typeof valor === "string" && valor.trim() === "");
   switch (tipo) {
-    case "number": return { number: Number(valor) };
+    case "number": return { number: vazio ? null : Number(valor) };
     case "select": return { select: valor ? { name: String(valor) } : null };
-    case "email": return { email: String(valor) };
-    case "phone_number": return { phone_number: String(valor) };
-    default: return { rich_text: [{ type: "text", text: { content: String(valor).slice(0, 1900) } }] };
+    case "email": return { email: vazio ? null : String(valor) };
+    case "phone_number": return { phone_number: vazio ? null : String(valor) };
+    default: return { rich_text: vazio ? [] : [{ type: "text", text: { content: String(valor).slice(0, 1900) } }] };
   }
 }
 function gravar_(col, pageId, porCanonico) {
@@ -176,17 +177,21 @@ function mudarDossie_(col, sess, p, estado, nota) {
   return { ok: true };
 }
 
-function anexarArquivo_(pageId, colReal, arq) {
+function anexarArquivo_(pageId, colReal, arq, trocar) {
   var fu = notion_("POST", "/file_uploads", { filename: arq.nome, content_type: arq.mime });
   var blob = Utilities.newBlob(Utilities.base64Decode(arq.base64), arq.mime, arq.nome);
   var r = UrlFetchApp.fetch(fu.upload_url, { method: "post", muteHttpExceptions: true,
     headers: { Authorization: "Bearer " + prop_("NOTION_TOKEN"), "Notion-Version": NOTION_VERSION }, payload: { file: blob } });
   if (r.getResponseCode() >= 300) throw new Error("UPLOAD_FALHOU");
-  var pg = notion_("GET", "/pages/" + pageId, null);
-  /* Arquivo já hospedado pelo Notion só continua na coluna se for reenviado
-     como {type:"file"} — a API substitui a lista inteira (doc "Page property
-     values", seção Files). */
-  var lista = ((pg.properties[colReal] || {}).files || []).map(RegrasVenda.manterArquivo);
+  var lista = [];
+  if (!trocar) {
+    var pg = notion_("GET", "/pages/" + pageId, null);
+    /* Arquivo já hospedado pelo Notion só continua na coluna se for reenviado
+       como {type:"file"} — a API substitui a lista inteira (doc "Page property
+       values", seção Files). Com trocar, a lista não é lida: o arquivo novo
+       substitui os que estavam ali (decisão do dono, Task 9). */
+    lista = ((pg.properties[colReal] || {}).files || []).map(RegrasVenda.manterArquivo);
+  }
   lista.push({ type: "file_upload", name: arq.nome, file_upload: { id: fu.id } });
   var props = {}; props[colReal] = { files: lista };
   notion_("PATCH", "/pages/" + pageId, { properties: props });
@@ -217,11 +222,12 @@ function leitorIA_() {
 function lerDocumento_(col, sess, p) {
   var esp = RegrasVenda.ESPACOS[p.espaco];
   if (!esp) return { ok: false, erro: "ESPACO_DESCONHECIDO" };
+  if (p.trocar && !p.arquivo) return { ok: false, erro: "TROCAR_SEM_ARQUIVO" };
   var C = RegrasVenda.COL, guardado = false;
   if (p.arquivo) {
     var chk = RegrasVenda.conferirArquivo(p.arquivo);
     if (!chk.ok) return { ok: false, erro: chk.erro, arquivoGuardado: false };
-    try { anexarArquivo_(p.pageId, col.mapa[esp.coluna], p.arquivo); guardado = true; }
+    try { anexarArquivo_(p.pageId, col.mapa[esp.coluna], p.arquivo, !!p.trocar); guardado = true; }
     catch (e) { console.error("PORTAL-VENDA upload falhou: " + String(e.message || e).slice(0, 120)); return { ok: false, erro: "UPLOAD_FALHOU", arquivoGuardado: false }; }
   }
   var a, arquivos, partes;
@@ -253,7 +259,7 @@ function lerDocumento_(col, sess, p) {
   if (!res.ok) return { ok: false, erro: res.erro, arquivoGuardado: guardado };
   console.log("PORTAL-VENDA leitura " + ia.nome + " " + p.espaco + " tokens " + res.uso.entrada + "/" + res.uso.saida);
 
-  var plano = RegrasVenda.planejarGravacao(p.espaco, res.leitura, a, hoje_("yyyy-MM-dd"));
+  var plano = RegrasVenda.planejarGravacao(p.espaco, res.leitura, a, hoje_("yyyy-MM-dd"), p.trocar ? "trocar" : "atualizar");
   var depois = {};
   for (var k in a) depois[k] = a[k];
   for (var c in plano.props) depois[c] = plano.props[c];

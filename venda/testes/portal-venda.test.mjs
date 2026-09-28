@@ -134,6 +134,39 @@ test("RG em dois arquivos: um já no Notion e um novo vão juntos na mesma leitu
   assert.deepEqual(n.pagina.properties["COMPRADOR 1 - IDENTIDADE"].files.map((f) => f.name), ["frente.png", "verso.jpg"]);
 });
 
+test("trocar: o anexo substitui a lista da coluna (só o novo fica), sem reenviar os antigos", () => {
+  const s3 = { frente: { buf: Buffer.from("frente"), mime: "image/png" } };
+  const { g, n } = montar({
+    valores: { "COMPRADOR 1 - IDENTIDADE": { files: [{ name: "frente.png", type: "file", file: { url: "https://s3.falso/frente" } }] } },
+    s3, claude: claudeResponde(Object.assign({}, CNH, { tipo_documento: "RG" })),
+  });
+  const r = g.chamar({ action: "lerDocumento", token: tokenDe(), pageId: PAGE, espaco: "C1_IDENTIDADE", trocar: true,
+                       arquivo: { nome: "novo.jpg", mime: "image/jpeg", base64: JPG } });
+  assert.equal(r.ok, true);
+  assert.deepEqual(n.pagina.properties["COMPRADOR 1 - IDENTIDADE"].files.map((f) => f.name), ["novo.jpg"]);
+});
+
+test("trocar sem arquivo devolve TROCAR_SEM_ARQUIVO sem chamar o Claude nem subir nada", () => {
+  const { g, n } = montar({ claude: () => { throw new Error("não devia chamar"); } });
+  const r = g.chamar({ action: "lerDocumento", token: tokenDe(), pageId: PAGE, espaco: "C1_IDENTIDADE", trocar: true });
+  assert.deepEqual(r, { ok: false, erro: "TROCAR_SEM_ARQUIVO" });
+  assert.equal(Object.keys(n.uploads).length, 0);
+});
+
+test("trocar com campo ausente no documento novo limpa o campo no Notion ({rich_text: []})", () => {
+  const { g, n } = montar({
+    valores: { "CLIENTES ": texto("ANA TESTE"), "CPF ": texto("529.982.247-25"),
+      "COMPRADOR 1 - IDENTIDADE": { files: [{ name: "velho.jpg", type: "file", file: { url: "https://s3.falso/velho" } }] } },
+    s3: { velho: { buf: Buffer.from("velho"), mime: "image/jpeg" } },
+    claude: claudeResponde({ tipo_documento: "CNH", nome: "", cpf: "", numero_documento: "", orgao_emissor: "",
+      nacionalidade: "", data_nascimento: "", rg_numero: "", rg_orgao_uf: "" }),
+  });
+  const r = g.chamar({ action: "lerDocumento", token: tokenDe(), pageId: PAGE, espaco: "C1_IDENTIDADE", trocar: true,
+                       arquivo: { nome: "novo.jpg", mime: "image/jpeg", base64: JPG } });
+  assert.equal(r.ok, true);
+  assert.deepEqual(n.pagina.properties["CPF "].rich_text, []);
+});
+
 test("leitura falha depois de subir: arquivo fica, DOSSIÊ não muda, arquivoGuardado true", () => {
   const { g, n } = montar({ valores: { "DOSSIÊ": { select: { name: "CONFERIDO" } } },
     claude: () => ({ status: 529, json: { type: "error", error: { type: "overloaded_error" } } }) });
