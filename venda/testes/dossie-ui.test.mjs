@@ -41,6 +41,13 @@ test("Ler de novo só habilita com arquivo no espaço", () => {
   assert.match(h.match(/<button[^>]*data-acao="reler"[^>]*data-espaco="C1_COMPROVANTE"[^>]*>/)[0], /disabled/);
 });
 
+test("botão Trocar aparece com arquivo e fica desabilitado sem arquivo no espaço", () => {
+  const h = D.html(base, ui());
+  assert.match(h, /data-acao="trocar"[^>]*data-espaco="C1_IDENTIDADE"[^>]*>Trocar/);
+  assert.doesNotMatch(h.match(/<button[^>]*data-acao="trocar"[^>]*data-espaco="C1_IDENTIDADE"[^>]*>/)[0], /disabled/);
+  assert.match(h.match(/<button[^>]*data-acao="trocar"[^>]*data-espaco="C1_COMPROVANTE"[^>]*>/)[0], /disabled/);
+});
+
 test("contagem de arquivos vinda do servidor é convertida em número (não vira HTML)", () => {
   const h = D.html(Object.assign({}, base, { arquivos: Object.assign({}, base.arquivos, { C1_IDENTIDADE: "<b>2</b>" }) }), ui());
   assert.doesNotMatch(h, /<b>2<\/b>/);
@@ -59,6 +66,7 @@ test("mensagens de erro em português, com o caso do arquivo guardado", () => {
   assert.equal(D.mensagemDeErro("TIPO_DE_ARQUIVO_NAO_SUPORTADO"), "Formato não suportado — envie foto em JPG ou PNG, ou PDF. (Foto de iPhone em HEIC: tire um print ou exporte como JPG.)");
   assert.equal(D.mensagemDeErro("COLUNA_FALTANDO: VALOR DO SUBSÍDIO"), "A base não tem a coluna VALOR DO SUBSÍDIO — avise o desenvolvedor.");
   assert.equal(D.mensagemDeErro("XPTO"), "Algo deu errado (XPTO) — tente de novo.");
+  assert.equal(D.mensagemDeErro("TROCAR_SEM_ARQUIVO"), "Escolha o arquivo novo para trocar.");
 });
 
 test("SEM_RESPOSTA muda de mensagem quando a ação era lerDocumento (o arquivo pode ter sido guardado)", () => {

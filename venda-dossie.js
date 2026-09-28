@@ -20,6 +20,7 @@
     SEM_PERMISSAO: "Seu login não tem acesso a Vendas.",
     SEM_PERMISSAO_TESTES: "O perfil TESTES só consulta; não grava.",
     UPLOAD_FALHOU: "Não consegui guardar o arquivo — tente de novo.",
+    TROCAR_SEM_ARQUIVO: "Escolha o arquivo novo para trocar.",
     TIPO_DE_ARQUIVO_NAO_SUPORTADO: "Formato não suportado — envie foto em JPG ou PNG, ou PDF. (Foto de iPhone em HEIC: tire um print ou exporte como JPG.)",
     ARQUIVO_GRANDE: "Arquivo grande demais (PDF até 10 MB).",
     SEM_ARQUIVO: "Esse espaço ainda não tem arquivo.",
@@ -88,7 +89,8 @@
         (n ? n + (n === 1 ? " arquivo" : " arquivos") : "nenhum arquivo") + "</small>" +
         (ui.ocupado === d.id ? " <b>lendo…</b>" : "") + "</span>" +
         '<button type="button" class="bt bt-mini" data-acao="enviar" data-espaco="' + d.id + '"' + dis(travado || ocupado || testes) + ">Enviar e ler</button> " +
-        '<button type="button" class="bt ghost bt-mini" data-acao="reler" data-espaco="' + d.id + '"' + dis(travado || ocupado || testes || !n) + ">Ler de novo</button></div>";
+        '<button type="button" class="bt ghost bt-mini" data-acao="reler" data-espaco="' + d.id + '"' + dis(travado || ocupado || testes || !n) + ">Ler de novo</button> " +
+        '<button type="button" class="bt ghost bt-mini" data-acao="trocar" data-espaco="' + d.id + '"' + dis(travado || ocupado || testes || !n) + ">Trocar</button></div>";
     });
     h += '<div class="dz-linha"><span class="dz-rot">Dossiê: <b>' + esc(e.dossie || "—") + "</b></span>" +
       '<button type="button" class="bt bt-mini" data-acao="conferir"' + dis(travado || ocupado || testes) + ">Marcar conferido</button> " +
@@ -213,10 +215,12 @@
       r = await chamarVenda({ action: "tipoCasa", pageId: pageId, valor: b.getAttribute("data-valor") });
       return depoisDeGravar(pageId, r, "Tipo de casa gravado.");
     }
-    if (acao === "enviar" || acao === "reler") {
+    if (acao === "enviar" || acao === "reler" || acao === "trocar") {
+      if (acao === "trocar" && !window.confirm("Trocar o documento? O arquivo atual será removido e os campos deste documento serão lidos de novo.")) return;
       var espaco = b.getAttribute("data-espaco"), payload = { action: "lerDocumento", pageId: pageId, espaco: espaco };
+      if (acao === "trocar") payload.trocar = true;
       ui.ocupado = espaco; ui.msg = ""; pintar();
-      if (acao === "enviar") {
+      if (acao === "enviar" || acao === "trocar") {
         var f = await escolherArquivo();
         if (!f) { if (mesmaCasa(pageId)) { ui.ocupado = null; pintar(); } return; }
         var arq = await prepararArquivo(f);
