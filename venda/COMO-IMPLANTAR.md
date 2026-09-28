@@ -1,5 +1,11 @@
 # PORTAL-VENDA — como implantar
 
+## Regras
+
+- Vale sempre o último documento enviado: um valor lido não vazio substitui
+  o valor atual do campo (não só preenche campo vazio). Trocar remove os
+  arquivos anteriores do espaço antes de ler o novo.
+
 ## Teste (uma vez)
 
 1. script.google.com → Novo projeto → nome **PORTAL-VENDA-TESTE**.
