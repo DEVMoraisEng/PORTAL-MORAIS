@@ -331,18 +331,25 @@ html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
 /* 28/09/26 — cor = DE ONDE vem a atividade (mesmas cores das etiquetas da
    lista). Atrasada = borda vermelha + ⚠; concluída = riscada e apagada. */
 .cal .ev{display:block;border-radius:5px;padding:2px 5px;margin-bottom:2px;background:#e3eefb;color:#1f4f8a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;font-weight:600;border-left:3px solid transparent;text-decoration:none}
-.cal .ev.o-Obras,.cal-leg i.o-Obras{background:#e8e2f7;color:#5b3fa6}
-.cal .ev.o-Vendas,.cal-leg i.o-Vendas{background:#fde6ec;color:#a3284e}
-.cal .ev.o-Documentos,.cal-leg i.o-Documentos{background:#e0f2ef;color:#1d6b5f}
-.cal-leg i.o-Atividades{background:#e3eefb}
+.cal .ev.o-Obras{background:#e8e2f7;color:#5b3fa6}
+.cal .ev.o-Vendas{background:#fde6ec;color:#a3284e}
+.cal .ev.o-Documentos{background:#e0f2ef;color:#1d6b5f}
 .cal .ev.atr{border-left-color:#c0392b;font-weight:800}
 .cal .ev.fin{opacity:.55;text-decoration:line-through}
-.cal-leg{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:11.5px;color:var(--text3);margin:0 0 8px;font-weight:700}
-.cal-leg span{display:inline-flex;align-items:center;gap:5px}
-.cal-leg i{display:inline-block;width:14px;height:11px;border-radius:3px}
-.cal-leg i.leg-atr{background:#e3eefb;border-left:3px solid #c0392b}
-.cal-leg i.leg-fin{background:#e3eefb;opacity:.55;position:relative}
-.cal-leg i.leg-fin::after{content:"";position:absolute;left:1px;right:1px;top:5px;border-top:1.5px solid #1f4f8a}
+/* legenda (28/09 tarde): caixa branca e amostras em cor cheia — antes as
+   cores claras sumiam no fundo da página */
+.cal-leg{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;background:var(--sup);border:1px solid var(--border2);
+  border-radius:10px;padding:8px 14px;margin:0 0 10px;font-size:12px;font-weight:800;color:var(--azul-esc);box-shadow:0 2px 8px rgba(20,50,70,.06)}
+.cal-leg .tl{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3)}
+.cal-leg span{display:inline-flex;align-items:center;gap:6px}
+.cal-leg i{display:inline-block;width:16px;height:16px;border-radius:4px}
+.cal-leg i.o-Atividades{background:#1f4f8a}.cal-leg i.o-Obras{background:#5b3fa6}
+.cal-leg i.o-Vendas{background:#a3284e}.cal-leg i.o-Documentos{background:#1d6b5f}
+.cal-leg i.leg-atr{background:#fff;border:1px solid var(--border2);border-left:4px solid #c0392b}
+.cal-leg i.leg-fin{background:#fff;border:1px solid var(--border2);position:relative}
+.cal-leg i.leg-fin::after{content:"";position:absolute;left:2px;right:2px;top:6px;border-top:2px solid #1f4f8a}
+.cal-leg .sep{width:1px;height:18px;background:var(--border2)}
+html[data-tema="escuro"] .cal-leg{color:#e7f3ff}
 .pill.o-Atividades{background:#e3eefb;color:#1f4f8a}
 .msg img{max-width:100%;max-height:260px;border-radius:8px;display:block;margin-top:5px;cursor:zoom-in}
 /* painel da atividade */
@@ -358,6 +365,7 @@ html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
 .msg.eu{align-self:flex-end;background:#e4f5ea;border-color:#bfe5cc;border-radius:12px 12px 4px 12px}
 .msg.nt{background:#f3f4f6;border-style:dashed}
 .msg .qm{font-size:10.5px;font-weight:800;color:var(--text3);margin-bottom:2px}
+.msg .qm .env{color:#b7791f}.msg .qm .nao{color:var(--verm)}.msg.falhou{border-color:var(--verm)}
 .msg .tx{white-space:pre-wrap;font-size:13px;word-break:break-word}
 .msg img{max-width:240px;max-height:200px;border-radius:8px;display:block;margin-top:6px;cursor:zoom-in;border:1px solid var(--border2)}
 .msg a.arq{display:inline-block;margin-top:5px;font-size:12px;font-weight:700;color:var(--azul)}
@@ -484,7 +492,7 @@ main.wrap{padding-bottom:90px}
 <div class="toast" id="toast"></div>
 
 <script src="app.js?v=43"></script>
-<script src="rf-rotas.js?v=3"></script>
+<script src="rf-rotas.js?v=4"></script>
 <script src="alertas-docs.js?v=1"></script>
 <script src="editor-blocos.js?v=5"></script>
 <script src="atv-alertas.js?v=4"></script>
@@ -763,8 +771,8 @@ function ligarKanban(){
 const ehMural=a=>/^(MURAL|PORTAL)$/.test(N(a&&a.tipo));
 function legendaCal(){
   const origens=ORIG==="todas"?ORIGENS:[ORIG];
-  return `<div class="cal-leg">`+origens.map(o=>`<span><i class="o-${o}"></i>${o}</span>`).join("")+
-    `<span><i class="leg-atr"></i>⚠ Atrasada</span><span><i class="leg-fin"></i>Concluída</span><span>📌 Mural</span></div>`;
+  return `<div class="cal-leg"><span class="tl">Legenda</span>`+origens.map(o=>`<span><i class="o-${o}"></i>${o}</span>`).join("")+
+    `<span class="sep"></span><span><i class="leg-atr"></i>⚠ Atrasada</span><span><i class="leg-fin"></i>Concluída</span><span>📌 Mural</span></div>`;
 }
 /* calendário (mês; cada atividade no dia do prazo final) */
 function calendario(l){
@@ -924,7 +932,8 @@ async function abrirServidor(id, temCopia){
   guardarAtv(id,r);
   if(ABERTA!==id) return;
   const a=acha(id); if(a&&r.atividade){ Object.assign(a,r.atividade); pintarCampos(a); }
-  if(r.comentarios){ const assin=r.comentarios.map(c=>c.id).join(","); if(assin!==_comsAssin){ _comsAssin=assin; _coms=r.comentarios; pintarChat(); } }
+  if(r.comentarios){ const assin=r.comentarios.map(c=>c.id).join(","); if(assin!==_comsAssin){ _comsAssin=assin;
+    _coms=r.comentarios.concat((_coms||[]).filter(c=>c._env||c._falhou)); pintarChat(); } }
   else if(r.erroComentarios){ document.getElementById("pa-chat").innerHTML=`<div class="ajuda">Não consegui ler os comentários (${esc(r.erroComentarios)}).</div>`; }
   const cont=document.getElementById("pa-cont");
   if(r.conteudo&&cont&&!cont.contains(document.activeElement)) EditorBlocos.montar(cont, id, {somenteLeitura:!(a&&podeEditar(a)), dados:r.conteudo});
@@ -970,7 +979,9 @@ async function lerComentarios(primeira){
   if(!(r&&r.ok)){ if(primeira) document.getElementById("pa-chat").innerHTML=`<div class="ajuda">Não consegui ler os comentários (${esc(erroTexto(r&&r.erro))}).</div>`; return; }
   const assin=(r.comentarios||[]).map(c=>c.id).join(",");
   if(!primeira&&assin===_comsAssin) return;
-  _comsAssin=assin; _coms=r.comentarios||[]; pintarChat();
+  /* 28/09: mensagens ainda saindo (ou que falharam) continuam na tela */
+  const pend=(_coms||[]).filter(c=>(c._env||c._falhou)&&!(r.comentarios||[]).some(x=>x.id===c._idServ));
+  _comsAssin=assin; _coms=(r.comentarios||[]).concat(pend); pintarChat();
   const g=guardadaAtv(id)||{ok:true,pageId:id}; g.comentarios=_coms; guardarAtv(id,g);
 }
 /* 28/09: foto que não carregar (link vencido na cópia do navegador) → relê
@@ -989,7 +1000,8 @@ function pintarChat(){
   c.innerHTML=(_coms||[]).length?_coms.map(m=>{
     const eu=m.pessoa?m.pessoa===ME:(m.autor===meuNome);
     const quando=m.criadoEm?new Date(m.criadoEm).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"";
-    return `<div class="msg ${eu?"eu":""} ${m.notion?"nt":""}"><div class="qm">${esc(m.autor||"")} · ${quando}${m.notion?" · (Notion)":""}${m._env?" · enviando…":""}</div>
+    const est=m._env?` · <span class="env">${esc(m._passo||"enviando…")}</span>`:m._falhou?` · <b class="nao">não enviou (${esc(m._erro||"erro")})</b> <a href="#" onclick="reenviarComentario('${m.id}');return false">Tentar de novo</a> · <a href="#" onclick="descartarComentario('${m.id}');return false">Descartar</a>`:"";
+    return `<div class="msg ${eu?"eu":""} ${m.notion?"nt":""} ${m._falhou?"falhou":""}"><div class="qm">${esc(m.autor||"")} · ${quando}${m.notion?" · (Notion)":""}${est}</div>
       ${m.texto?`<div class="tx">${linkar(m.texto)}</div>`:""}
       ${(m.anexos||[]).map(x=>x.url&&/^image\//.test(x.mime||"")||(x.url&&/\.(png|jpe?g|gif|webp)(\?|$)/i.test(x.url))?`<a href="${esc(x.url)}" target="_blank" rel="noopener"><img src="${esc(x.url)}" alt="${esc(x.nome)}" loading="lazy" onerror="chatImgFalhou(this)"></a>`:
         `<a class="arq" href="${esc(x.url||"#")}" target="_blank" rel="noopener">📎 ${esc(x.nome||"arquivo")}</a>`).join("")}</div>`;
@@ -1001,24 +1013,61 @@ function mostrarAnexos(){
   document.getElementById("pa-anx").textContent=f.length?[...f].map(x=>x.name+" ("+Math.round(x.size/1024)+" KB)").join(" · "):"";
 }
 const lerB64=f=>new Promise((ok,err)=>{ const rd=new FileReader(); rd.onload=()=>ok(String(rd.result).split(",")[1]); rd.onerror=err; rd.readAsDataURL(f); });
+/* 28/09 (tarde) — ENVIO QUE NÃO TRAVA
+ * - O arquivo vai DIRETO para o Supabase (link de envio pedido ao servidor):
+ *   antes o PDF subia em base64 pelo Apps Script e prendia o chat inteiro.
+ * - Cada mensagem tem o próprio estado: "enviando…" → some quando o servidor
+ *   confirma; se falhar, fica na tela com "Tentar de novo" (nada se perde).
+ * - Pode mandar outra mensagem enquanto a anterior ainda está saindo.
+ * - Anda numa faixa própria (rf-rotas.js v7): não espera o pré-carregamento. */
+const _envios={};
 async function enviarComentario(){
   const id=ABERTA, t=document.getElementById("pa-txt"), inp=document.getElementById("pa-arq");
-  const texto=t.value.trim(), fs=[...(inp.files||[])];
+  const texto=t.value.trim(), fs=[...(inp.files||[])].slice(0,5);
   if(!texto&&!fs.length) return;
-  if(fs.some(f=>f.size>15*1024*1024)){ toast("Arquivo acima de 15 MB — mande um menor."); return; }
-  let arquivos=[];
-  try{ arquivos=await Promise.all(fs.slice(0,5).map(async f=>({filename:f.name,mimeType:f.type||"application/octet-stream",dataBase64:await lerB64(f)}))); }
-  catch(e){ toast("Não consegui ler o arquivo."); return; }
-  const tmp={id:"tmp"+Date.now(),autor:(S&&S.nome)||"",pessoa:ME,texto,criadoEm:new Date().toISOString(),_env:true,
-    anexos:fs.map(f=>({nome:f.name,mime:f.type}))};
+  if(fs.some(f=>f.size>50*1024*1024)){ toast("Arquivo acima de 50 MB — mande um menor."); return; }
+  const tmp={id:"tmp"+Date.now()+Math.random().toString(36).slice(2,6),autor:(S&&S.nome)||"",pessoa:ME,texto,criadoEm:new Date().toISOString(),_env:true,
+    anexos:fs.map(f=>({nome:f.name,mime:f.type,url:/^image\//.test(f.type)?URL.createObjectURL(f):null}))};
+  _envios[tmp.id]={atv:id,texto,fs,opId:(typeof novoOpId==="function"?novoOpId():tmp.id)};
   _coms=(_coms||[]).concat([tmp]); pintarChat();
   t.value=""; inp.value=""; mostrarAnexos();
-  const bt=document.getElementById("pa-env"); bt.disabled=true;
-  const r=await criarRF({action:"atvComentarioNovo",pageId:id,texto,arquivos});
-  bt.disabled=false;
-  if(!(r&&r.ok)){ _coms=_coms.filter(c=>c!==tmp); pintarChat(); t.value=texto; toast("Não enviou: "+msgErro(r)); return; }
-  if(ABERTA===id) lerComentarios(true);
+  mandar(tmp);
 }
+async function mandar(tmp){
+  const e=_envios[tmp.id]; if(!e) return;
+  tmp._env=true; tmp._falhou=false; tmp._passo=e.fs.length?"enviando arquivo…":"enviando…"; pintarChat();
+  try{
+    let anexosProntos=[], arquivos=[];
+    if(e.fs.length&&!e.prontos){
+      let u=null; try{ u=await chamar({action:"atvAnexoUrl",pageId:e.atv,arquivos:e.fs.map(f=>({nome:f.name,mime:f.type||"",tam:f.size}))},30000,true); }catch(x){}
+      if(u&&u.ok&&u.envios){
+        for(let i=0;i<u.envios.length;i++){
+          const f=e.fs[i], v=u.envios[i];
+          tmp._passo=`enviando arquivo ${i+1}/${u.envios.length}…`; pintarChat();
+          const r=await fetch(v.url,{method:"PUT",headers:{"Content-Type":f.type||"application/octet-stream","x-upsert":"true"},body:f});
+          if(!r.ok) throw new Error("o arquivo "+f.name+" não subiu ("+r.status+")");
+          anexosProntos.push({nome:v.nome,mime:v.mime||f.type||"",caminho:v.caminho});
+        }
+        e.prontos=anexosProntos;
+      } else if(!(u&&/ACAO_DESCONHECIDA/.test(String(u.erro||"")))) throw new Error(msgErro(u));
+      else {
+        /* servidor ainda sem o link de envio: jeito antigo (base64) */
+        arquivos=await Promise.all(e.fs.map(async f=>({filename:f.name,mimeType:f.type||"application/octet-stream",dataBase64:await lerB64(f)})));
+      }
+    }
+    tmp._passo="enviando…"; pintarChat();
+    const r=await criarRF({action:"atvComentarioNovo",pageId:e.atv,texto:e.texto,anexosProntos:e.prontos||anexosProntos,arquivos,opId:e.opId});
+    if(!(r&&r.ok)) throw new Error(msgErro(r));
+    tmp._env=false; tmp._idServ=r.id||null; delete _envios[tmp.id];
+    pintarChat();
+    if(ABERTA===e.atv) lerComentarios(true);
+  }catch(x){
+    tmp._env=false; tmp._falhou=true; tmp._erro=String((x&&x.message)||x||"erro").slice(0,80); pintarChat();
+  }
+}
+function reenviarComentario(tid){ const m=(_coms||[]).find(c=>c.id===tid); if(m) mandar(m); }
+function descartarComentario(tid){ _coms=(_coms||[]).filter(c=>c.id!==tid); delete _envios[tid]; pintarChat(); }
+window.addEventListener("beforeunload",ev=>{ if((_coms||[]).some(c=>c._env)){ ev.preventDefault(); ev.returnValue=""; } });
 
 /* ---------- formulários (v3 — 25/09 noite) ----------
    - Checklist item por item: digita, Enter, aparece a próxima linha (colar
@@ -1336,6 +1385,7 @@ window.addEventListener("portal-ao-vivo",ev=>{
   const d=ev.detail||{}; if(!/^atv|^bloco/.test(d.acao||"")) return;
   const did=SID(d.id);
   if(ABERTA&&did===ABERTA&&d.acao==="atvComentarioNovo"){ lerComentarios(false); return; }
+  if(d.acao==="atvMuralCheck") return;                  // o conteúdo aberto se relê sozinho (editor-blocos)
   const me=(S||{}).nome||""; if(d.quem&&d.quem===me) return;
   clearTimeout(_recarga); _recarga=setTimeout(()=>{ carregar(true); if(ABA==="equipe") carregarEquipe(true); },800);
 });

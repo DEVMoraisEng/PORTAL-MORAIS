@@ -360,7 +360,7 @@ html[data-tema="escuro"] .logo{background:#fff}
   </div>
 
 <script src="app.js?v=43"></script>
-<script src="rf-rotas.js?v=3"></script>
+<script src="rf-rotas.js?v=4"></script>
 <script src="alertas-docs.js?v=1"></script>
 <script src="fogos.js?v=2"></script>
 <script src="atv-alertas.js?v=4"></script>
@@ -812,9 +812,38 @@ function muralImgFalhou(img){
   if(Date.now()-_muralImgRelida<60000) return;
   _muralImgRelida=Date.now(); lerMural();
 }
+/* 28/09 (tarde) — BAIXA QUE NÃO VOLTA ATRÁS
+ * Marcou e saiu da página antes do servidor responder (ou voltou enquanto
+ * ele ainda gravava): a leitura seguinte trazia o valor ANTIGO e desmarcava.
+ * Agora cada marcação fica guardada no navegador como "pendente" até o
+ * servidor devolver o mesmo valor; enquanto isso, ela vence o que vier da
+ * leitura. Ao sair da página com marcação ainda não confirmada, ela é
+ * enviada de novo em segundo plano (sendBeacon) — gravar o mesmo valor duas
+ * vezes não faz mal. */
+const MURAL_PEND="mural_pend_v1", MURAL_PEND_MAX=10*60*1000;
+function muralPend(){ try{ return JSON.parse(localStorage.getItem(MURAL_PEND)||"{}")||{}; }catch(e){ return {}; } }
+function muralPendGravar(o){ try{ localStorage.setItem(MURAL_PEND,JSON.stringify(o)); }catch(e){} }
+function muralAplicarPend(r){
+  const pend=muralPend(), agora=Date.now(); let mudou=false;
+  (r&&r.atividades||[]).forEach(a=>(a.checklist||[]).forEach(x=>{
+    const p=pend[x.id]; if(!p) return;
+    if(agora-p.t>MURAL_PEND_MAX){ delete pend[x.id]; mudou=true; return; }
+    if(p.ok&&!!x.f===!!p.f){ delete pend[x.id]; mudou=true; return; }   // servidor já confirma: pendência resolvida
+    x.f=!!p.f;                                                           // ainda não confirmou: vale o que você marcou
+  }));
+  Object.keys(pend).forEach(k=>{ if(agora-pend[k].t>MURAL_PEND_MAX){ delete pend[k]; mudou=true; } });
+  if(mudou) muralPendGravar(pend);
+  return r;
+}
+window.addEventListener("pagehide",()=>{
+  const pend=muralPend(), s=sessao(); if(!s||!s.token||typeof API_ESCRITA==="undefined"||!navigator.sendBeacon) return;
+  Object.keys(pend).forEach(bid=>{ const p=pend[bid]; if(p.ok) return;
+    try{ navigator.sendBeacon(API_ESCRITA,new Blob([JSON.stringify({action:"atvMuralCheck",token:s.token,pageId:p.a,blockId:bid,f:!!p.f})],{type:"text/plain;charset=utf-8"})); }catch(e){} });
+});
 function pintarMural(r){
   const bloco=document.getElementById("bloco-portal"), box=document.getElementById("portal-lista");
   if(!bloco||!box||!r) return;
+  muralAplicarPend(r);
   _MURAL=r;
   const l=r.atividades||[];
   if(!l.length){ bloco.style.display="none"; return; }
@@ -857,18 +886,30 @@ async function muralMarcar(atvId, blockId, f, el){
   const a=(_MURAL.atividades||[]).find(x=>x.id===atvId); if(!a) return;
   const it=(a.checklist||[]).find(x=>x.id===blockId); if(!it) return;
   const antes=it.f; it.f=!!f;
+  const pend=muralPend(); pend[blockId]={a:atvId,f:!!f,t:Date.now(),ok:false}; muralPendGravar(pend);
   try{ cacheSet("atv_mural",_MURAL); }catch(e){}
-  const lab=el&&el.closest(".pt-ck"); if(lab){ lab.classList.toggle("f",!!f); lab.classList.add("salvando"); }
-  const r=await escrever({action:"atvMuralCheck",pageId:atvId,blockId:blockId,f:!!f},"Checklist do Mural");
-  if(r&&r.ok){ if(lab) lab.classList.remove("salvando"); pintarMural(_MURAL); return; }
-  it.f=antes; try{ cacheSet("atv_mural",_MURAL); }catch(e){}
   pintarMural(_MURAL);
-  alert("Não marquei o item: "+(typeof erroTexto==="function"?erroTexto(r&&r.erro):((r&&r.erro)||"erro")));
+  const payload={action:"atvMuralCheck",pageId:atvId,blockId:blockId,f:!!f};
+  let r=null;
+  try{ r=await chamar(Object.assign({},payload),30000,true); }catch(e){}      // faixa própria (rf-rotas.js), fura a fila
+  const p2=muralPend();
+  if(r&&r.ok){ if(p2[blockId]&&p2[blockId].t&&!!p2[blockId].f===!!f){ p2[blockId].ok=true; muralPendGravar(p2); } return; }
+  if(r&&r.erro&&!(typeof ERROS_TRANSITORIOS!=="undefined"&&ERROS_TRANSITORIOS.includes(r.erro))){
+    delete p2[blockId]; muralPendGravar(p2);
+    it.f=antes; try{ cacheSet("atv_mural",_MURAL); }catch(e){}
+    pintarMural(_MURAL);
+    alert("Não marquei o item: "+(typeof erroTexto==="function"?erroTexto(r.erro):r.erro));
+    return;
+  }
+  /* sem resposta: vai para a fila de envios (sobe sozinho quando a conexão voltar) */
+  try{ await escrever(payload,"Checklist do Mural"); }catch(e){}
 }
+/* Mural quase ao vivo: além do aviso ao vivo, relê a cada 2 min com a tela aberta */
+setInterval(()=>{ if(!document.hidden) lerMural(); },120000);
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden) lerMural(); });
 let _muralT=null;
 window.addEventListener("portal-ao-vivo",ev=>{ const d=ev.detail||{}; if(!/^atv|^bloco/.test(d.acao||"")) return;
-  const me=(S&&S.nome)||""; if(d.acao==="atvMuralCheck"&&d.quem&&d.quem===me) return;   // a própria baixa já está na tela
-  clearTimeout(_muralT); _muralT=setTimeout(lerMural,1500); });
+  clearTimeout(_muralT); _muralT=setTimeout(lerMural,800); });
 
 function fogosAniv(id, forcar){
   if(typeof soltarFogos!=="function") return;

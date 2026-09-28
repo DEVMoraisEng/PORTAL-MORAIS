@@ -132,7 +132,9 @@
 /* v52 -> v53 (25/09/26 17h): Mural, checklists de verdade, tudo pré-carregado. */
 /* v53 -> v54 (28/09/26): baixa no checklist do Mural, aniversários na hora,
    legenda de cores e atividades próprias no calendário, imagens do Supabase. */
-const CACHE = "portal-morais-v54";  // limpeza só dos caches do portal (não apaga os das RAS)
+/* v54 -> v55 (28/09/26 tarde): chat com envio direto ao Supabase, faixa própria,
+   baixa do Mural que não volta atrás, legenda com fundo. */
+const CACHE = "portal-morais-v55";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",

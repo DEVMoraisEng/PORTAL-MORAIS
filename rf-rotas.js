@@ -10,6 +10,7 @@
  * também mora o gatilho que deixa o retrato das atividades pronto.
  *
  * Tem que ser carregado DEPOIS do app.js (usa a lista ACOES_NA_ESCRITA dele).
+ * v7 (28/09): faixa própria para chat e Mural (ver o fim do arquivo).
  * ------------------------------------------------------------------------ */
 (function(){
   try{
@@ -19,7 +20,23 @@
      "atvComentarios","atvComentarioNovo","atvModelos","atvModeloUpdate","atvModeloExcluir","atvModeloCriar",
      "atvOp","atvPortal","aniversariantes",
      /* v5 */ "atvMural","procLote","atvLote","blocoAnexar","ckLista","ckCriar","ckMarcar","ckExcluir",
-     /* v6 (28/09) */ "atvMuralCheck"
+     /* v6 (28/09) */ "atvMuralCheck", /* v7 */ "atvAnexoUrl"
     ].forEach(a=>{ if(ACOES_NA_ESCRITA.indexOf(a)<0) ACOES_NA_ESCRITA.push(a); });
+  }catch(e){}
+})();
+
+/* v7 (28/09 tarde) — FAIXA PRÓPRIA PARA O CHAT E O MURAL
+ * O navegador manda uma requisição por vez em cada faixa. Comentário, baixa
+ * no Mural e a conferência "criou?" ficavam atrás do pré-carregamento das
+ * atividades (até 60 s) — era o "enviando…" que não acabava. Agora andam numa
+ * terceira faixa, ainda pela implantação de ESCRITA, que nunca espera leitura
+ * longa. */
+(function(){
+  try{
+    if(typeof _faixas!=="object"||typeof faixaDe!=="function"||typeof API_ESCRITA==="undefined"||!API_ESCRITA) return;
+    const CHAT=["atvComentarios","atvComentarioNovo","atvAnexoUrl","atvOp","atvMuralCheck"];
+    if(!_faixas.chat) _faixas.chat={ max:1, emVoo:0, fila:[] };
+    const original=faixaDe;
+    faixaDe=function(action){ return CHAT.indexOf(action)>=0 ? _faixas.chat : original(action); };
   }catch(e){}
 })();
