@@ -1057,9 +1057,21 @@ function aplicarEdicoesLocais(base, updatedAt, ler, gravar){
 const DADOS_VERSAO = "2026-09-24a";
 const _PREFIXOS_COPIA = ["morais_cache_", "morais_store_", "obras_cont_", "obras_contas_", "obras_coms_", "morais_edits_"];
 function _ehCopia(k){ return _PREFIXOS_COPIA.some(p=>k.indexOf(p)===0); }
-function limparDadosLocais(recarregar){
+/* 28/09/26 — CÓPIAS DO PAINEL QUE NÃO SOMEM
+ * Medido: ao entrar de manhã (cópia com mais de 24 h), depois do "Recarregar"
+ * ou de sair e entrar, o painel abria SEM Mural, SEM aniversários e com
+ * "Nenhuma atividade" até o Apps Script responder — parecia quebrado.
+ *   - DA EMPRESA (iguais para todos): aniversários e Mural. Nunca são
+ *     apagadas; a tela pinta com elas e troca quando o servidor responde.
+ *   - DA PESSOA (atividades, sino): sobrevivem ao "Recarregar" e à faxina
+ *     de 24 h (a tela sempre relê do servidor por cima), mas saem no "Sair" —
+ *     outra pessoa pode entrar no mesmo computador. */
+const _COPIAS_EMPRESA = ["morais_cache_v2_aniversariantes","morais_cache_v2_atv_mural"];
+const _COPIAS_PESSOA  = ["morais_cache_v2_atv_minhas","morais_cache_v2_atv_outras","morais_cache_v2_atv_alertas","morais_cache_v2_atv_cks","morais_cache_v2_atv_modelos"];
+function _copiaFica(k, saindo){ return _COPIAS_EMPRESA.indexOf(k)>=0 || (!saindo && _COPIAS_PESSOA.indexOf(k)>=0); }
+function limparDadosLocais(recarregar, saindo){
   try{
-    const ks=[]; for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k&&_ehCopia(k)) ks.push(k); }
+    const ks=[]; for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k&&_ehCopia(k)&&!_copiaFica(k,saindo)) ks.push(k); }
     ks.forEach(k=>localStorage.removeItem(k));
   }catch(e){}
   try{ if(typeof _storeMem!=="undefined") _storeMem.clear(); }catch(e){}
@@ -1076,7 +1088,7 @@ function limparDadosLocais(recarregar){
     }
     const lim=Date.now()-24*3600*1000;
     for(let i=localStorage.length-1;i>=0;i--){
-      const k=localStorage.key(i); if(!k||!_ehCopia(k)||k==="morais_edits_v1") continue;
+      const k=localStorage.key(i); if(!k||!_ehCopia(k)||k==="morais_edits_v1"||_copiaFica(k,false)) continue;
       let t=0; try{ const o=JSON.parse(localStorage.getItem(k)); t=(o&&(o.t||o.ts))||0; }catch(e){}
       if(t&&t<lim) localStorage.removeItem(k);
     }
@@ -1087,7 +1099,7 @@ function limparDadosLocais(recarregar){
 })();
 /* sair também leva as cópias embora */
 const _sairOriginal = sair;
-sair = function(){ limparDadosLocais(false); _sairOriginal(); };
+sair = function(){ limparDadosLocais(false, true); _sairOriginal(); };
 document.addEventListener("keydown",e=>{
   if(e.ctrlKey&&e.shiftKey&&(e.key==="L"||e.key==="l")){
     e.preventDefault();
