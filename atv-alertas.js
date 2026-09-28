@@ -7,6 +7,7 @@
  * v2: a mesma chamada traz as atividades da pessoa (comDados) e guarda no
  * navegador — a aba Atividades já abre pronta. ADM/MASTER também deixam a
  * visão da Equipe pré-carregada.
+ * v4 (28/09): guarda também os aniversários (r.aniv) — o painel abre com eles.
  */
 (function(){
   if(typeof document==="undefined") return;
@@ -60,6 +61,12 @@
       const r=await ler(Object.assign({action:"atvAlertas",comDados:true},fresco?{fresco:true}:{}),"atv_alertas");
       pintar(r);
       if(r&&r.ok&&r.minhas&&typeof cacheSet==="function"){ cacheSet("atv_minhas",r.minhas); if(r.outras) cacheSet("atv_outras",r.outras); }
+      /* v4 (28/09): os aniversários vêm junto — o painel já abre com eles */
+      if(r&&r.ok&&r.aniv&&r.aniv.ok&&typeof cacheSet==="function"){
+        const antes=typeof cacheGet==="function"?cacheGet("aniversariantes"):null;
+        cacheSet("aniversariantes",r.aniv);
+        if(typeof window.pintarAniversarios==="function"&&(!antes||JSON.stringify(antes.v&&antes.v.lista)!==JSON.stringify(r.aniv.lista))) window.pintarAniversarios(r.aniv);
+      }
     }catch(err){}
     try{
       const s=sessao(), t=String((s&&s.tipo)||"").toUpperCase();

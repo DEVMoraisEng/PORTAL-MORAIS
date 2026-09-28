@@ -130,7 +130,9 @@
 /* v50 -> v51 (25/09/26 noite): tipo PORTAL no painel, checklist item a item, criação protegida. */
 /* v51 -> v52 (25/09/26 16h): ações novas pela ESCRITA (rf-rotas.js), criação otimista. */
 /* v52 -> v53 (25/09/26 17h): Mural, checklists de verdade, tudo pré-carregado. */
-const CACHE = "portal-morais-v53";  // limpeza só dos caches do portal (não apaga os das RAS)
+/* v53 -> v54 (28/09/26): baixa no checklist do Mural, aniversários na hora,
+   legenda de cores e atividades próprias no calendário, imagens do Supabase. */
+const CACHE = "portal-morais-v54";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",

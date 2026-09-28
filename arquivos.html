@@ -338,8 +338,8 @@ html[data-tema="escuro"] .pc .t,html[data-tema="escuro"] .gtit{color:var(--teal)
 <div class="toast" id="toast"></div>
 
 <script src="app.js?v=43"></script>
-<script src="rf-rotas.js?v=2"></script>
-<script src="editor-blocos.js?v=4"></script>
+<script src="rf-rotas.js?v=3"></script>
+<script src="editor-blocos.js?v=5"></script>
 <script>
 /* ---------- tema ---------- */
 const TEMA_KEY="morais_tema";
@@ -384,7 +384,16 @@ async function carregar(fresco){
   const r=await ler(Object.assign({action:"procLista",base:BASE},fresco?{fresco:true}:{}),TXT.ck);
   if(r&&r.ok){ D=r; CARREGOU=true; pintar(); if(ABERTO) cabecalho(); preCarregar(); }
   else if(!D.processos.length){ document.getElementById("tabs").innerHTML=""; }
-  if(!(r&&r.ok)&&!D.processos.length) document.getElementById("view").innerHTML=`<div class="vazio">Não consegui carregar os ${TXT.uns} (${esc(/data sources accessible|Could not find/i.test(String(r&&r.erro))?"a integração SITES MORAIS ainda não tem acesso a este banco no Notion — ••• › Conexões › SITES MORAIS":erroTexto(r&&r.erro))}). <a href="#" onclick="carregar(true);return false">Tentar de novo</a></div>`;
+  /* 28/09: a SITES MORAIS JÁ está conectada ao banco (conferido no Notion) —
+     o servidor agora procura a fonte de dados pela API nova. Se ainda falhar,
+     a tela mostra o motivo exato que o servidor devolveu. */
+  if(!(r&&r.ok)&&!D.processos.length){
+    const er=String((r&&r.erro)||"");
+    const semFonte=/SEM_FONTE_ACESSIVEL|data sources accessible|Could not find/i.test(er);
+    document.getElementById("view").innerHTML=`<div class="vazio">Não consegui carregar os ${TXT.uns}${semFonte
+      ?`: a integração SITES MORAIS não consegue ler a fonte de dados deste banco no Notion.<br><small style="display:block;margin-top:6px;color:var(--text4)">Para o suporte: rode <b>rfDiagnosticoArquivos</b> no Apps Script (projeto ESCRITA) e envie o log. Detalhe: ${esc(er.slice(0,400))}</small>`
+      :` (${esc(erroTexto(er))})`}. <a href="#" onclick="carregar(true);return false">Tentar de novo</a></div>`;
+  }
 }
 function daCat(p,c){ return c==="__todas"||(c===SEM?!p.categorias.length:p.categorias.indexOf(c)>=0); }
 function pintarTabs(){

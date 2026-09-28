@@ -17,6 +17,10 @@
  * Gravação: ações blocoUpdate / blocoNovo / blocoExcluir (RetaFinal.gs).
  * Ao vivo: se outra pessoa mexer nesta página, o conteúdo relê sozinho
  * (só quando você não está digitando nele).
+ * v5 (28/09): as imagens vêm com link assinado do Supabase (o do Notion
+ * vencia em 1 h). Se uma imagem não carregar, o conteúdo é relido sozinho
+ * (1x por minuto) e ela volta. Links novos a cada leitura não repintam a
+ * tela à toa — a comparação ignora o link.
  * v2 (25/09 tarde):
  *  - Abre NA HORA com a última cópia guardada no navegador e atualiza por trás.
  *  - Aceita os dados já prontos (opts.dados — a aba Atividades traz tudo numa
@@ -109,10 +113,20 @@
       st.el.innerHTML=`<div class="eb-vazio">Não consegui abrir o conteúdo (${e((r&&r.erro)||"erro")}). <a href="#" onclick="return false">Tentar de novo</a></div>`;
       st.el.querySelector("a").onclick=()=>{ carregar(st,true); return false; }; return; }
     guardar(alvo,r);
-    if(silencioso&&JSON.stringify(r.blocos)===JSON.stringify(st.blocos)) return;
+    const forcar=st._imgForcar; st._imgForcar=false;
+    if(silencioso&&!forcar&&semLinks(r.blocos)===semLinks(st.blocos)) return;
     if(silencioso&&st.el.contains(document.activeElement)) return;      // está digitando: não troca por baixo
     st.blocos=r.blocos||[]; if(r.titulo&&st.pilha.length) st.titulo=r.titulo;
     pintar(st);
+  }
+  /* compara o conteúdo sem os links (que mudam a cada leitura: são assinados) */
+  function semLinks(bs){ try{ return JSON.stringify(bs||[],(k,v)=>k==="url"?undefined:v); }catch(err){ return ""; } }
+  /* imagem não carregou (link vencido na cópia do navegador): relê 1x/min */
+  function imgFalhou(img){
+    if(img.dataset.f) return; img.dataset.f="1";
+    const host=img.closest(".eb-host"), st=host&&host._eb; if(!st) return;
+    if(st._imgRelido&&Date.now()-st._imgRelido<60000) return;
+    st._imgRelido=Date.now(); st._imgForcar=true; carregar(st,false,true);
   }
   /* subpágina / link para página: abre aqui mesmo, com Voltar */
   function navegar(st, pageId, titulo){
@@ -156,7 +170,7 @@
         `<td><div contenteditable="true" data-cel="${r.id}" data-j="${j}">${e(c)}</div></td>`).join("")}</tr>`).join("");
       return `<div class="eb-b" data-id="${b.id}"><div class="eb-tab"><table>${rows}</table></div></div>`;
     }
-    if(t==="image") return `<div class="eb-b" data-id="${b.id}">${b.url?`<a href="${e(b.url)}" target="_blank" rel="noopener"><img class="eb-img" src="${e(b.url)}" alt="${e(b.nome)}"></a>`:`<span class="eb-ro">imagem</span>`}${x}</div>`;
+    if(t==="image") return `<div class="eb-b" data-id="${b.id}">${b.url?`<a href="${e(b.url)}" target="_blank" rel="noopener"><img class="eb-img" src="${e(b.url)}" alt="${e(b.nome)}" loading="lazy" onerror="EditorBlocos.imgFalhou(this)"></a>`:`<span class="eb-ro">imagem</span>`}${x}</div>`;
     if(b.url) return `<div class="eb-b" data-id="${b.id}"><a href="${e(b.url)}" target="_blank" rel="noopener">📎 ${e(b.nome||b.url)}</a>${x}</div>`;
     if((t==="child_page"||t==="link_to_page")&&b.pagina) return `<div class="eb-b" data-id="${b.id}"><span class="eb-pg" data-pg="${e(b.pagina)}" data-pgt="${e(b.texto)}" title="Abrir">📄 ${e(b.texto||"subpágina")} ›</span></div>`;
     if(t==="child_database") return `<div class="eb-b" data-id="${b.id}"><span class="eb-ro">🗂 ${e(b.texto||"banco")} — abra no Notion</span></div>`;
@@ -291,5 +305,5 @@
       carregar(st,true);
     });
   });
-  window.EditorBlocos={montar, recarregar:(el)=>el&&el._eb&&carregar(el._eb,true), guardar, guardado};
+  window.EditorBlocos={montar, recarregar:(el)=>el&&el._eb&&carregar(el._eb,true), guardar, guardado, imgFalhou};
 })();
