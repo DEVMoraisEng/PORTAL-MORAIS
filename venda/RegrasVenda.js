@@ -170,22 +170,26 @@ var RegrasVenda = (function () {
 
   var TIPOS_DOC = { identidade: ["CNH", "RG"], comprovante: ["COMPROVANTE"], aprovacao: ["APROVACAO"] };
 
-  function planejarGravacao(espacoId, leitura, atuais, hojeISO) {
+  function planejarGravacao(espacoId, leitura, atuais, hojeISO, modo) {
     var esp = ESPACOS[espacoId];
     if (!esp) throw new Error("ESPACO_DESCONHECIDO: " + espacoId);
     leitura = leitura || {};
     atuais = atuais || {};
+    modo = modo === "trocar" ? "trocar" : "atualizar";
     var plano = { props: {}, observacoes: [], preenchidos: [] };
     function obs(t) { plano.observacoes.push(esp.rotulo + ": " + t); }
     function gravar(col, valor) { plano.props[col] = valor; plano.preenchidos.push(col); }
-    function propor(col, valor, modo) {
-      if (vazio(valor)) return;
+    function propor(col, valor, modoComp) {
       var atual = atuais[col];
-      if (vazio(atual)) { gravar(col, valor); return; }
-      if (iguais(atual, valor, modo)) return;
-      obs("o campo " + col + " já tem outro valor e o documento diz diferente" +
-        (modo === "cpf" ? " (documento " + mascararCpf(valor) + ", campo " + mascararCpf(atual) + ")" : "") +
-        " — conferir");
+      if (!vazio(valor)) {
+        if (vazio(atual)) { gravar(col, valor); return; }
+        if (iguais(atual, valor, modoComp)) return;
+        gravar(col, valor);
+        obs("o campo " + col + " foi atualizado pelo documento mais recente" +
+          (modoComp === "cpf" ? " (antes " + mascararCpf(atual) + ", agora " + mascararCpf(valor) + ")" : ""));
+        return;
+      }
+      if (modo === "trocar" && !vazio(atual)) gravar(col, "");
     }
 
     var tipoLido = texto(leitura.tipo_documento).toUpperCase().trim();
@@ -201,22 +205,46 @@ var RegrasVenda = (function () {
         obs("o CPF lido (" + mascararCpf(cpf) + ") não fecha o dígito verificador — não foi gravado, conferir");
         cpf = "";
       }
+      var rgNumero = texto(leitura.rg_numero).trim();
+      var rgOrgaoUf = texto(leitura.rg_orgao_uf).trim();
       var numero = texto(leitura.numero_documento).trim();
-      var doc = numero ? [tipoLido, numero, texto(leitura.orgao_emissor).trim()].filter(function (x) { return x; }).join(" ") : "";
+      var orgaoEmissor = texto(leitura.orgao_emissor).trim();
+      var doc = "";
+      if (rgNumero) {
+        doc = "RG " + rgNumero + (rgOrgaoUf ? " " + rgOrgaoUf : "");
+      } else if (numero) {
+        doc = tipoLido + " " + numero + (orgaoEmissor ? " " + orgaoEmissor : "");
+        obs("RG não encontrado no documento — gravado o número do " + tipoLido);
+      }
       var cli = atuais[COL.CLIENTES];
       if (esp.comprador === 1) {
         if (nome) {
-          if (vazio(cli)) gravar(COL.CLIENTES, vazio(atuais[COL.C2_NOME]) ? nome : nome + " E " + texto(atuais[COL.C2_NOME]).trim());
-          else if (!contemNome(cli, nome)) obs("o nome lido não aparece em CLIENTES — conferir");
+          var depoisE = null;
+          if (!vazio(cli)) {
+            var posE = cli.indexOf(" E ");
+            if (posE >= 0) depoisE = cli.slice(posE + 3);
+          }
+          var novoCli = nome + (depoisE !== null ? " E " + depoisE
+            : (vazio(atuais[COL.C2_NOME]) ? "" : " E " + texto(atuais[COL.C2_NOME]).trim()));
+          if (!iguais(cli, novoCli, "texto")) gravar(COL.CLIENTES, novoCli);
+        } else if (modo === "trocar" && !vazio(cli)) {
+          var posE2 = cli.indexOf(" E ");
+          gravar(COL.CLIENTES, posE2 >= 0 ? cli.slice(posE2 + 3) : "");
         }
         propor(COL.CPF1, cpf ? formatarCpf(cpf) : "", "cpf");
         propor(COL.C1_DOC, doc, "texto");
         propor(COL.C1_NAC, leitura.nacionalidade, "texto");
       } else {
         propor(COL.C2_NOME, nome, "texto");
-        if (nome && !vazio(cli) && !contemNome(cli, nome)) {
-          if ((" " + chave(cli) + " ").indexOf(" E ") < 0) gravar(COL.CLIENTES, texto(cli).trim() + " E " + nome);
-          else obs("o nome lido não aparece em CLIENTES — conferir");
+        if (nome) {
+          if (!vazio(cli)) {
+            var posB = cli.indexOf(" E ");
+            var novoCliB = posB >= 0 ? cli.slice(0, posB + 3) + nome : texto(cli).trim() + " E " + nome;
+            if (!iguais(cli, novoCliB, "texto")) gravar(COL.CLIENTES, novoCliB);
+          }
+        } else if (modo === "trocar" && !vazio(cli)) {
+          var posC = cli.indexOf(" E ");
+          if (posC >= 0) gravar(COL.CLIENTES, cli.slice(0, posC));
         }
         propor(COL.C2_CPF, cpf ? formatarCpf(cpf) : "", "cpf");
         propor(COL.C2_DOC, doc, "texto");

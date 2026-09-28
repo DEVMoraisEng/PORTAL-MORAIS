@@ -115,30 +115,74 @@ test("temDoisCompradores, contarArquivos e estadoAposLeitura", () => {
 
 const C = R.COL;
 const HOJE = "2026-09-23";
-const CNH = { tipo_documento: "CNH", nome: "ANA TESTE", cpf: "52998224725", numero_documento: "01234567890", orgao_emissor: "DETRAN/GO", nacionalidade: "brasileira", data_nascimento: "01/01/1990" };
+const CNH = { tipo_documento: "CNH", nome: "ANA TESTE", cpf: "52998224725", numero_documento: "01234567890",
+              orgao_emissor: "DETRAN/GO", nacionalidade: "brasileira", data_nascimento: "01/01/1990",
+              rg_numero: "0987654321", rg_orgao_uf: "SSP/GO" };
+const DOC_CNH_RG = "RG " + CNH.rg_numero + " " + CNH.rg_orgao_uf;
 
-test("identidade do comprador 1 preenche CLIENTES, CPF, documento e nacionalidade vazios", () => {
+test("identidade do comprador 1 preenche CLIENTES, CPF, documento (RG) e nacionalidade vazios", () => {
   const p = R.planejarGravacao("C1_IDENTIDADE", CNH, {}, HOJE);
   assert.deepEqual(p.props, {
     [C.CLIENTES]: "ANA TESTE", [C.CPF1]: "529.982.247-25",
-    [C.C1_DOC]: "CNH 01234567890 DETRAN/GO", [C.C1_NAC]: "brasileira"
+    [C.C1_DOC]: DOC_CNH_RG, [C.C1_NAC]: "brasileira"
   });
   assert.deepEqual(p.observacoes, []);
 });
 
 test("segunda leitura do mesmo documento não sobrescreve nem gera observação", () => {
-  const atuais = { [C.CLIENTES]: "Ana  Teste", [C.CPF1]: "529.982.247-25", [C.C1_DOC]: "CNH 01234567890 DETRAN/GO", [C.C1_NAC]: "Brasileira" };
+  const atuais = { [C.CLIENTES]: "Ana  Teste", [C.CPF1]: "529.982.247-25", [C.C1_DOC]: DOC_CNH_RG, [C.C1_NAC]: "Brasileira" };
   const p = R.planejarGravacao("C1_IDENTIDADE", CNH, atuais, HOJE);
   assert.deepEqual(p.props, {});
   assert.deepEqual(p.observacoes, []);
 });
 
-test("CPF diferente do que já está no campo vira observação mascarada, sem sobrescrever", () => {
+test("CPF diferente do que já está no campo grava o novo (último documento vale) e anota os dois mascarados", () => {
   const p = R.planejarGravacao("C1_IDENTIDADE", CNH, { [C.CPF1]: "111.444.777-35" }, HOJE);
-  assert.equal(p.props[C.CPF1], undefined);
+  assert.equal(p.props[C.CPF1], "529.982.247-25");
   assert.equal(p.observacoes.length, 1);
-  assert.match(p.observacoes[0], /CPF .*documento \*\*\*-25, campo \*\*\*-35/);
-  assert.doesNotMatch(p.observacoes[0], /529/);
+  assert.match(p.observacoes[0], /CPF .*antes \*\*\*-35, agora \*\*\*-25/);
+  assert.doesNotMatch(p.observacoes[0], /529|111/);
+});
+
+test("'trocar' limpa os campos que o documento novo não trouxer", () => {
+  const leituraVazia = { tipo_documento: "CNH", nome: "", cpf: "", numero_documento: "", orgao_emissor: "",
+                          nacionalidade: "", data_nascimento: "", rg_numero: "", rg_orgao_uf: "" };
+  const atuais = { [C.CLIENTES]: "ANA TESTE E BRUNO TESTE", [C.CPF1]: "529.982.247-25", [C.C1_DOC]: DOC_CNH_RG, [C.C1_NAC]: "brasileira" };
+  const p = R.planejarGravacao("C1_IDENTIDADE", leituraVazia, atuais, HOJE, "trocar");
+  assert.deepEqual(p.props, { [C.CLIENTES]: "BRUNO TESTE", [C.CPF1]: "", [C.C1_DOC]: "", [C.C1_NAC]: "" });
+  assert.deepEqual(p.observacoes, []);
+});
+
+test("'atualizar' (padrão) mantém os campos que o documento novo não trouxer", () => {
+  const leituraVazia = { tipo_documento: "CNH", nome: "", cpf: "", numero_documento: "", orgao_emissor: "",
+                          nacionalidade: "", data_nascimento: "", rg_numero: "", rg_orgao_uf: "" };
+  const atuais = { [C.CLIENTES]: "ANA TESTE", [C.CPF1]: "529.982.247-25", [C.C1_DOC]: DOC_CNH_RG, [C.C1_NAC]: "brasileira" };
+  const p = R.planejarGravacao("C1_IDENTIDADE", leituraVazia, atuais, HOJE);
+  assert.deepEqual(p.props, {});
+  assert.deepEqual(p.observacoes, []);
+});
+
+test("CLIENTES casal: comprador 1 novo troca só a parte antes de \" E \"; comprador 2 novo troca só a parte depois", () => {
+  const leitura1 = Object.assign({}, CNH, { nome: "CARLA NOVA" });
+  const p1 = R.planejarGravacao("C1_IDENTIDADE", leitura1, { [C.CLIENTES]: "ANA TESTE E BRUNO TESTE" }, HOJE);
+  assert.equal(p1.props[C.CLIENTES], "CARLA NOVA E BRUNO TESTE");
+
+  const leitura2 = Object.assign({}, CNH, { nome: "DANIEL NOVO" });
+  const p2 = R.planejarGravacao("C2_IDENTIDADE", leitura2, { [C.CLIENTES]: "ANA TESTE E BRUNO TESTE" }, HOJE);
+  assert.equal(p2.props[C.C2_NOME], "DANIEL NOVO");
+  assert.equal(p2.props[C.CLIENTES], "ANA TESTE E DANIEL NOVO");
+});
+
+test("DOCUMENTO: CNH com rg_numero grava RG; sem rg_numero cai no número da CNH e observa", () => {
+  const p1 = R.planejarGravacao("C1_IDENTIDADE", CNH, {}, HOJE);
+  assert.equal(p1.props[C.C1_DOC], DOC_CNH_RG);
+  assert.deepEqual(p1.observacoes, []);
+
+  const semRg = Object.assign({}, CNH, { rg_numero: "", rg_orgao_uf: "" });
+  const p2 = R.planejarGravacao("C1_IDENTIDADE", semRg, {}, HOJE);
+  assert.equal(p2.props[C.C1_DOC], "CNH 01234567890 DETRAN/GO");
+  assert.equal(p2.observacoes.length, 1);
+  assert.match(p2.observacoes[0], /RG não encontrado no documento — gravado o número do CNH/);
 });
 
 test("CPF lido com dígito errado não é gravado e vira observação", () => {
