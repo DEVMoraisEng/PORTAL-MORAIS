@@ -365,7 +365,8 @@ html[data-tema="escuro"] .cal-leg{color:#e7f3ff}
 .msg.eu{align-self:flex-end;background:#e4f5ea;border-color:#bfe5cc;border-radius:12px 12px 4px 12px}
 .msg.nt{background:#f3f4f6;border-style:dashed}
 .msg .qm{font-size:10.5px;font-weight:800;color:var(--text3);margin-bottom:2px}
-.msg .qm .env{color:#b7791f}.msg .qm .nao{color:var(--verm)}.msg.falhou{border-color:var(--verm)}
+.msg .qm .env{color:#b7791f}
+.pend-ed{font-size:12px;cursor:help}.msg .qm .nao{color:var(--verm)}.msg.falhou{border-color:var(--verm)}
 .msg .tx{white-space:pre-wrap;font-size:13px;word-break:break-word}
 .msg img{max-width:240px;max-height:200px;border-radius:8px;display:block;margin-top:6px;cursor:zoom-in;border:1px solid var(--border2)}
 .msg a.arq,.msg span.arq{display:inline-block;margin-top:5px;font-size:12px;font-weight:700;color:var(--azul)}
@@ -493,7 +494,7 @@ main.wrap{padding-bottom:90px}
 <div class="toast" id="toast"></div>
 
 <script src="app.js?v=44"></script>
-<script src="rf-rotas.js?v=4"></script>
+<script src="rf-rotas.js?v=5"></script>
 <script src="alertas-docs.js?v=1"></script>
 <script src="editor-blocos.js?v=5"></script>
 <script src="atv-alertas.js?v=4"></script>
@@ -606,6 +607,7 @@ function guardarAtv(id,r){ try{ const k="atv_ab_"+id; localStorage.setItem(k,JSO
 function guardadaAtv(id){ try{ const c=JSON.parse(localStorage.getItem("atv_ab_"+id)||"null"); return c&&c.r; }catch(e){ return null; } }
 function aplicar(r){
   D.atividades=r.atividades||[]; D.pessoas=r.pessoas||D.pessoas; D.opcoes=r.opcoes||D.opcoes;
+  aplicarPendentes(D.atividades);                     // 28/09: o que ainda não foi confirmado vence o servidor
   if(r.me) ME=r.me;
   if(r.aviso==="SEU_LOGIN_SEM_PESSOA") toast("Seu login não tem PESSOA no LOGINS do Notion — peça a um ADM para ligar.");
   document.getElementById("updated").textContent="Atualizado: "+new Date(r.lidoEm||Date.now()).toLocaleTimeString("pt-BR");
@@ -718,7 +720,7 @@ function linha(a,modo){
   if(a._criando) return `<div class="li criando" title="Criando no Notion…"><div class="t">${esc(a.titulo)}<small>criando…</small></div><div><span class="pill s0">criando…</span></div><div class="c">${esc(nomes(a.resp))}</div><div class="c">${a.fim?br(a.fim):""}</div><div class="c"><span class="load"></span></div></div>`;
   return `<div class="li ${cls}" onclick="abrirAtv('${a.id}')" title="Abrir a atividade">
     <div class="t">${ehMural(a)?"📌 ":""}${esc(a.titulo)}<small>${esc([a.tipo,obra].filter(Boolean).join(" · "))}</small></div>
-    <div>${pillSt(a.status)}</div>
+    <div>${pillSt(a.status)}${temEdicaoPendente(a.id)?` <span class="pend-ed" title="Alteração ainda não confirmada pelo Notion — tenta de novo sozinha">⏳</span>`:""}</div>
     <div class="c" title="${esc(quem)}">${esc(quem)}</div>
     <div class="c ${atrasada(a)?"atr":""}">${a.fim?(atrasada(a)?"⚠ ":"")+br(a.fim):"sem prazo"}</div>
     <div class="c pri-${esc(a.prioridade||"")}">${esc(a.prioridade||"")}</div></div>`;
@@ -760,7 +762,7 @@ function kanban(l){
     const it=l.filter(a=>a.status===s).sort(ordFim);
     return `<div class="kc" data-st="${esc(s)}"><h4>${esc(s)}<span>${it.length}</span></h4>${it.map(a=>
       `<div class="kk ${atrasada(a)?"atr":""}" draggable="${podeEditar(a)}" data-id="${a.id}" onclick="abrirAtv('${a.id}')">
-        <b>${esc(a.titulo)}</b><div class="m">${a.fim?`<span class="${atrasada(a)?"pri-Alta":""}">📅 ${br(a.fim)}</span>`:""}
+        <b>${temEdicaoPendente(a.id)?"⏳ ":""}${esc(a.titulo)}</b><div class="m">${a.fim?`<span class="${atrasada(a)?"pri-Alta":""}">📅 ${br(a.fim)}</span>`:""}
         ${a.prioridade?`<span class="pri-${esc(a.prioridade)}">${esc(a.prioridade)}</span>`:""}<span>👤 ${esc(nomes(a.resp))}</span></div></div>`).join("")}</div>`;
   }).join("")}</div><div class="ajuda" style="margin-top:6px">Arraste o cartão para mudar o status.</div>`;
 }
@@ -867,29 +869,77 @@ async function ckExcluir(id){
 }
 
 /* ---------- gravar um campo (otimista) ---------- */
-async function gravar(id,campo,valor,el){
-  const a=acha(id); if(!a) return;
-  if(!podeEditar(a)){ toast(RO?"Modo teste: não grava.":"Só quem é responsável ou solicitante pode mudar."); return; }
-  const antes=JSON.parse(JSON.stringify(a));
-  if(campo==="resp"){ a.resp=(valor||[]).map(x=>{ const p=D.pessoas.find(q=>q.id===x)||a.resp.find(q=>q.id===x); return {id:x,nome:p?p.nome:""}; }); }
+/* ---------- GRAVAÇÃO CONFIRMADA PELO NOTION (28/09 noite) ----------
+ * Antes: se o servidor demorasse, a baixa ia para a "fila offline" e a tela
+ * mostrava como feita — às vezes nunca chegava ao Notion e a atividade
+ * voltava aberta. Agora:
+ *   - a mudança aparece na hora com "⏳" (ainda não confirmada);
+ *   - fica guardada no navegador até o NOTION responder;
+ *   - sem resposta, tenta de novo sozinha (5 s, 10 s, 20 s… até 2 min), mesmo
+ *     trocando de página ou recarregando;
+ *   - recusa de verdade (sem permissão, etc.): volta como estava e avisa. */
+const EDIT_KEY="atv_edit_pend_v1", _editando=new Set();
+function editPend(){ try{ return JSON.parse(localStorage.getItem(EDIT_KEY)||"{}")||{}; }catch(e){ return {}; } }
+function editPendGravar(o){ try{ localStorage.setItem(EDIT_KEY,JSON.stringify(o)); }catch(e){} }
+function editPendDe(id){ const o=editPend(); return Object.values(o).filter(x=>x.id===id); }
+function aplicarCampo(a,campo,valor){
+  if(campo==="resp"){ a.resp=(valor||[]).map(x=>{ const p=D.pessoas.find(q=>q.id===x)||(a.resp||[]).find(q=>q.id===x); return {id:x,nome:p?p.nome:""}; }); }
   else if(campo==="obra") a.obraId=valor||null;
   else a[campo]=valor;
   if(campo==="status"){ if(valor===FIM&&!a.concl) a.concl=hojeISO(); if(valor!==FIM) a.concl=null; }
+}
+function valorDe(a,campo){ return campo==="resp"?(a.resp||[]).map(u=>u.id).sort().join(","):campo==="obra"?(a.obraId||""):(a[campo]==null?"":String(a[campo])); }
+function valorPend(campo,v){ return campo==="resp"?[].concat(v||[]).slice().sort().join(","):(v==null?"":String(v)); }
+/* o que veio do servidor + o que você mudou e o Notion ainda não confirmou */
+function aplicarPendentes(lista){
+  const o=editPend(); let mudou=false;
+  Object.keys(o).forEach(k=>{ const p=o[k], a=(lista||[]).find(x=>x.id===p.id); if(!a) return;
+    if(p.ok&&valorDe(a,p.campo)===valorPend(p.campo,p.valor)){ delete o[k]; mudou=true; return; }   // servidor já mostra: resolvido
+    if(Date.now()-p.t>24*3600*1000){ delete o[k]; mudou=true; return; }
+    aplicarCampo(a,p.campo,p.valor); });
+  if(mudou) editPendGravar(o);
+}
+function temEdicaoPendente(id){ return editPendDe(id).some(p=>!p.ok); }
+async function gravar(id,campo,valor,el){
+  const a=acha(id); if(!a) return;
+  if(!podeEditar(a)){ toast(RO?"Modo teste: não grava.":"Só quem é responsável ou solicitante pode mudar."); return; }
+  const k=id+"|"+campo, o=editPend();
+  o[k]={id,campo,valor,antes:(o[k]&&o[k].antes!==undefined)?o[k].antes:JSON.parse(JSON.stringify(a)),t:Date.now(),n:0,ok:false};
+  editPendGravar(o);
+  aplicarCampo(a,campo,valor);
   pintar(); if(ABERTA===a.id) pintarCampos(a);
   if(el){ el.classList.remove("ok","erro"); el.classList.add("salvando"); }
-  const r=await escrever({action:"atvUpdate",pageId:a.id,campo,valor},"Atividade");
-  const el2=el&&document.body.contains(el)?el:null;
-  if(el2) el2.classList.remove("salvando");
-  if(r&&r.ok){ if(el2) el2.classList.add("ok");
-    const nv=r.resposta&&r.resposta.atividade; if(nv) Object.assign(a,nv);
-    if(r.enfileirado) toast("Sem conexão: ficou guardado e grava sozinho quando voltar.");
-    cacheSet("atv_minhas",Object.assign({},D,{ok:true})); pintar(); if(ABERTA===a.id) pintarCampos(a);
-    if(window.AtvAlertas) setTimeout(()=>AtvAlertas.atualizar(true),1500);
-  }else{
-    Object.assign(a,antes); pintar(); if(ABERTA===a.id) pintarCampos(a);
-    toast("Não salvou: "+erroTexto((r&&r.erro)||"erro")+" — voltou como estava.");
-  }
+  enviarEdicao(k,el);
 }
+async function enviarEdicao(k,el){
+  let p=editPend()[k]; if(!p||p.ok||_editando.has(k)) return;
+  _editando.add(k);
+  let r=null; try{ r=await chamar({action:"atvUpdate",pageId:p.id,campo:p.campo,valor:p.valor},30000,true); }catch(e){}
+  _editando.delete(k);
+  const o=editPend(); p=o[k]; if(!p) return;
+  const a=acha(p.id), el2=el&&document.body.contains(el)?el:null;
+  if(el2) el2.classList.remove("salvando");
+  if(r&&r.ok){
+    p.ok=true; editPendGravar(o);                                // confirmado pelo Notion
+    if(a&&r.atividade){ Object.assign(a,r.atividade); aplicarPendentes([a]); }
+    if(el2) el2.classList.add("ok");
+    cacheSet("atv_minhas",Object.assign({},D,{ok:true})); pintar(); if(a&&ABERTA===a.id) pintarCampos(a);
+    if(window.AtvAlertas) setTimeout(()=>AtvAlertas.atualizar(true),1500);
+    return;
+  }
+  const transit=(typeof ERROS_TRANSITORIOS!=="undefined")?ERROS_TRANSITORIOS:["NAO_AUTORIZADO","BACKEND_OCUPADO"];
+  if(r&&r.erro&&transit.indexOf(r.erro)<0){                      // recusa de verdade: volta como estava
+    const antes=p.antes; delete o[k]; editPendGravar(o);
+    if(a&&antes){ Object.assign(a,antes); pintar(); if(ABERTA===a.id) pintarCampos(a); }
+    if(el2) el2.classList.add("erro");
+    toast("Não salvou no Notion: "+erroTexto(r.erro)+" — voltou como estava.");
+    return;
+  }
+  p.n=(p.n||0)+1; editPendGravar(o); pintar();
+  if(p.n===2) toast("O Notion está demorando — sua alteração está guardada (⏳) e vai sozinha.");
+  setTimeout(()=>enviarEdicao(k),Math.min(120000,5000*Math.pow(2,p.n-1)));
+}
+function retomarEdicoes(){ Object.keys(editPend()).forEach(k=>{ if(!editPend()[k].ok) enviarEdicao(k); }); }
 
 /* ---------- painel da atividade ---------- */
 async function abrirAtv(id){
@@ -920,7 +970,7 @@ async function abrirAtv(id){
   if(t) t.addEventListener("keydown",e=>{ if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); enviarComentario(); } });
   document.getElementById("ov1").classList.add("on"); document.getElementById("p1").classList.add("on");
   history.replaceState(null,"","#"+id);
-  if(!g){ _coms=null; _comsAssin=""; }
+  if(!g){ _coms=null; _comsAssin=""; if(pendDe(id).length) pintarChat(); }
   abrirServidor(id, !!g);
   clearInterval(_poll); _poll=setInterval(()=>{ if(!document.hidden&&ABERTA) lerComentarios(false); },window._aoVivo?60000:25000);
 }
@@ -937,8 +987,7 @@ async function abrirServidor(id, temCopia){
   guardarAtv(id,r);
   if(ABERTA!==id) return;
   const a=acha(id); if(a&&r.atividade){ Object.assign(a,r.atividade); pintarCampos(a); }
-  if(r.comentarios){ const assin=r.comentarios.map(c=>c.id).join(","); if(assin!==_comsAssin){ _comsAssin=assin;
-    _coms=r.comentarios.concat((_coms||[]).filter(c=>c._env||c._falhou)); pintarChat(); } }
+  if(r.comentarios){ const assin=r.comentarios.map(c=>c.id).join(","); if(assin!==_comsAssin){ _comsAssin=assin; _coms=r.comentarios; pintarChat(); } }
   else if(r.erroComentarios){ document.getElementById("pa-chat").innerHTML=`<div class="ajuda">Não consegui ler os comentários (${esc(r.erroComentarios)}).</div>`; }
   const cont=document.getElementById("pa-cont");
   if(r.conteudo&&cont&&!cont.contains(document.activeElement)) EditorBlocos.montar(cont, id, {somenteLeitura:!(a&&podeEditar(a)), dados:r.conteudo});
@@ -984,10 +1033,8 @@ async function lerComentarios(primeira){
   if(!(r&&r.ok)){ if(primeira) document.getElementById("pa-chat").innerHTML=`<div class="ajuda">Não consegui ler os comentários (${esc(erroTexto(r&&r.erro))}).</div>`; return; }
   const assin=(r.comentarios||[]).map(c=>c.id).join(",");
   if(!primeira&&assin===_comsAssin) return;
-  /* 28/09: mensagens ainda saindo (ou que falharam) continuam na tela */
-  const pend=(_coms||[]).filter(c=>(c._env||c._falhou)&&!(r.comentarios||[]).some(x=>x.id===c._idServ));
-  _comsAssin=assin; _coms=(r.comentarios||[]).concat(pend); pintarChat();
-  const g=guardadaAtv(id)||{ok:true,pageId:id}; g.comentarios=_coms; guardarAtv(id,g);
+  _comsAssin=assin; _coms=r.comentarios||[]; pintarChat();
+  const g=guardadaAtv(id)||{ok:true,pageId:id}; g.comentarios=(_coms||[]).filter(c=>!c._env&&!c._falhou); guardarAtv(id,g);
 }
 /* 28/09: foto que não carregar (link vencido na cópia do navegador) → relê
    os comentários, que voltam com links novos. No máximo 1x por minuto. */
@@ -1002,7 +1049,12 @@ function pintarChat(){
   const c=document.getElementById("pa-chat"); if(!c) return;
   const noFim=c.scrollHeight-c.scrollTop-c.clientHeight<60;
   const meuNome=(S&&S.nome)||"";
-  c.innerHTML=(_coms||[]).length?_coms.map(m=>{
+  /* 28/09: as mensagens que VOCÊ mandou e ainda estão saindo (ou falharam)
+     ficam guardadas neste navegador e aparecem aqui — mesmo fechando a
+     atividade, trocando de página ou recarregando. Os outros só veem quando
+     o servidor confirma. */
+  const todos=(_coms||[]).filter(m=>!m._env&&!m._falhou).concat(pendDe(ABERTA));
+  c.innerHTML=todos.length?todos.map(m=>{
     const eu=m.pessoa?m.pessoa===ME:(m.autor===meuNome);
     const quando=m.criadoEm?new Date(m.criadoEm).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"";
     const est=m._env?` · <span class="env">${esc(m._passo||"enviando…")}</span>`:m._falhou?` · <b class="nao">não enviou (${esc(m._erro||"erro")})</b> <a href="#" onclick="reenviarComentario('${m.id}');return false">Tentar de novo</a> · <a href="#" onclick="descartarComentario('${m.id}');return false">Descartar</a>`:"";
@@ -1027,69 +1079,97 @@ const lerB64=f=>new Promise((ok,err)=>{ const rd=new FileReader(); rd.onload=()=
  *   confirma; se falhar, fica na tela com "Tentar de novo" (nada se perde).
  * - Pode mandar outra mensagem enquanto a anterior ainda está saindo.
  * - Anda numa faixa própria (rf-rotas.js v7): não espera o pré-carregamento. */
-const _envios={};
+/* ---------- PENDENTES (28/09 noite) ----------
+ * Cada mensagem enviada fica guardada até o servidor confirmar:
+ *   - texto e estado no localStorage (atv_pend_v1);
+ *   - arquivos no IndexedDB do navegador (não cabem no localStorage).
+ * Se a página fechar no meio do envio, na próxima vez que a aba Atividades
+ * abrir o envio continua sozinho, com o MESMO opId — o servidor nunca cria
+ * duas vezes (e, depois de 6 h, confere pelo texto: "retomada"). */
+const PEND_KEY="atv_pend_v1", _PEND={}, _mandando=new Set(), _previa={};
+function pendGravar(){
+  const o={}; Object.keys(_PEND).forEach(k=>{ const m=_PEND[k];
+    o[k]={id:m.id,atv:m.atv,autor:m.autor,pessoa:m.pessoa,texto:m.texto,criadoEm:m.criadoEm,opId:m.opId,prontos:m.prontos||null,
+          anexos:(m.anexos||[]).map(x=>({nome:x.nome,mime:x.mime})),nArq:m.nArq||0,_falhou:!!m._falhou,_erro:m._erro||""}; });
+  try{ localStorage.setItem(PEND_KEY,JSON.stringify(o)); }catch(e){}
+}
+function pendCarregar(){
+  let o={}; try{ o=JSON.parse(localStorage.getItem(PEND_KEY)||"{}")||{}; }catch(e){}
+  Object.keys(o).forEach(k=>{ if(!_PEND[k]) _PEND[k]=Object.assign(o[k],{_env:!o[k]._falhou,_retomada:true}); });
+}
+function pendDe(atv){ if(!atv) return []; return Object.values(_PEND).filter(m=>m.atv===atv).sort((a,b)=>String(a.criadoEm).localeCompare(String(b.criadoEm)))
+  .map(m=>Object.assign({},m,{anexos:(m.anexos||[]).map((x,i)=>Object.assign({},x,{url:(_previa[m.id]||[])[i]||null}))})); }
+function pendTirar(id){ delete _PEND[id]; pendGravar(); idbArq("delete",id).catch(()=>{}); (_previa[id]||[]).forEach(u=>{ try{ URL.revokeObjectURL(u); }catch(e){} }); delete _previa[id]; }
+/* IndexedDB mínimo: guarda a lista de arquivos de cada mensagem */
+function idbArq(op,id,valor){
+  return new Promise((ok,err)=>{
+    if(!window.indexedDB) return op==="get"?ok(null):ok();
+    const rq=indexedDB.open("morais_pend",1);
+    rq.onupgradeneeded=()=>rq.result.createObjectStore("arquivos");
+    rq.onerror=()=>err(rq.error);
+    rq.onsuccess=()=>{ const db=rq.result, tx=db.transaction("arquivos",op==="get"?"readonly":"readwrite"), st=tx.objectStore("arquivos");
+      const r=op==="get"?st.get(id):op==="put"?st.put(valor,id):st.delete(id);
+      r.onsuccess=()=>ok(r.result); r.onerror=()=>err(r.error); tx.oncomplete=()=>db.close(); };
+  });
+}
 async function enviarComentario(){
   const id=ABERTA, t=document.getElementById("pa-txt"), inp=document.getElementById("pa-arq");
   const texto=t.value.trim(), fs=[...(inp.files||[])].slice(0,5);
   if(!texto&&!fs.length) return;
   if(fs.some(f=>f.size>20*1024*1024&&!/^image\//.test(f.type))){ toast("Arquivo acima de 20 MB — mande um menor (ou um link)."); return; }
-  const tmp={id:"tmp"+Date.now()+Math.random().toString(36).slice(2,6),autor:(S&&S.nome)||"",pessoa:ME,texto,criadoEm:new Date().toISOString(),_env:true,
-    anexos:fs.map(f=>({nome:f.name,mime:f.type,url:/^image\//.test(f.type)?URL.createObjectURL(f):null}))};
-  _envios[tmp.id]={atv:id,texto,fs,opId:(typeof novoOpId==="function"?novoOpId():tmp.id)};
-  _coms=(_coms||[]).concat([tmp]); pintarChat();
-  t.value=""; inp.value=""; mostrarAnexos();
-  mandar(tmp);
+  const tid="tmp"+Date.now()+Math.random().toString(36).slice(2,6);
+  const m={id:tid,atv:id,autor:(S&&S.nome)||"",pessoa:ME,texto,criadoEm:new Date().toISOString(),_env:true,
+    opId:(typeof novoOpId==="function"?novoOpId():tid),nArq:fs.length,anexos:fs.map(f=>({nome:f.name,mime:f.type}))};
+  _previa[tid]=fs.map(f=>/^image\//.test(f.type)?URL.createObjectURL(f):null);
+  _PEND[tid]=m; pendGravar();
+  t.value=""; inp.value=""; mostrarAnexos(); pintarChat();
+  if(fs.length){ try{ await idbArq("put",tid,fs); }catch(e){} }
+  mandar(tid,fs);
 }
-async function mandar(tmp){
-  const e=_envios[tmp.id]; if(!e) return;
-  tmp._env=true; tmp._falhou=false; tmp._passo=e.fs.length?"enviando arquivo…":"enviando…"; pintarChat();
+async function mandar(tid,arquivosNaMao){
+  const m=_PEND[tid]; if(!m||_mandando.has(tid)) return;
+  _mandando.add(tid);
+  const pinta=passo=>{ m._passo=passo; if(ABERTA===m.atv) pintarChat(); };
+  m._env=true; m._falhou=false; pendGravar(); pinta(m.nArq&&!m.prontos?"enviando arquivo…":"enviando…");
   try{
-    let anexosProntos=[], arquivos=[];
-    if(e.fs.length&&!e.prontos){
-      /* 28/09: foto é comprimida antes de subir (celular manda 3–5 MB; vira ~300 KB) */
-      if(!e.comprimido){ tmp._passo="preparando foto…"; pintarChat(); e.fs=await Promise.all(e.fs.map(comprimirFoto)); e.comprimido=true; }
-      let u=null; try{ u=await chamar({action:"atvAnexoUrl",pageId:e.atv,arquivos:e.fs.map(f=>({nome:f.name,mime:f.type||"",tam:f.size}))},30000,true); }catch(x){}
+    let fs=arquivosNaMao||null, arquivos=[];
+    if(m.nArq&&!m.prontos){
+      if(!fs){ try{ fs=await idbArq("get",tid); }catch(e){} }
+      if(!fs||!fs.length) throw new Error("o arquivo não ficou guardado neste navegador — anexe de novo");
+      pinta("preparando foto…"); fs=await Promise.all(fs.map(comprimirFoto));
+      let u=null; try{ u=await chamar({action:"atvAnexoUrl",pageId:m.atv,arquivos:fs.map(f=>({nome:f.name,mime:f.type||"",tam:f.size}))},30000,true); }catch(x){}
       if(u&&u.ok&&u.envios){
+        const prontos=[];
         for(let i=0;i<u.envios.length;i++){
-          const f=e.fs[i], v=u.envios[i];
-          tmp._passo=`enviando arquivo ${i+1}/${u.envios.length}…`; pintarChat();
+          const f=fs[i], v=u.envios[i];
+          pinta(`enviando arquivo ${i+1}/${u.envios.length}…`);
           const r=await fetch(v.url,{method:"PUT",headers:{"Content-Type":f.type||"application/octet-stream","x-upsert":"true"},body:f});
           if(!r.ok) throw new Error("o arquivo "+f.name+" não subiu ("+r.status+")");
-          anexosProntos.push({nome:v.nome,mime:v.mime||f.type||"",caminho:v.caminho});
+          prontos.push({nome:v.nome,mime:v.mime||f.type||"",caminho:v.caminho});
         }
-        e.prontos=anexosProntos;
+        m.prontos=prontos; pendGravar();                // arquivo já está no Supabase: não sobe de novo
       } else if(!(u&&/ACAO_DESCONHECIDA/.test(String(u.erro||"")))) throw new Error(msgErro(u));
-      else {
-        /* servidor ainda sem o link de envio: jeito antigo (base64) */
-        arquivos=await Promise.all(e.fs.map(async f=>({filename:f.name,mimeType:f.type||"application/octet-stream",dataBase64:await lerB64(f)})));
-      }
+      else arquivos=await Promise.all(fs.map(async f=>({filename:f.name,mimeType:f.type||"application/octet-stream",dataBase64:await lerB64(f)})));
     }
-    tmp._passo="enviando…"; pintarChat();
-    const r=await criarRF({action:"atvComentarioNovo",pageId:e.atv,texto:e.texto,anexosProntos:e.prontos||anexosProntos,arquivos,opId:e.opId});
+    pinta("enviando…");
+    const r=await criarRF({action:"atvComentarioNovo",pageId:m.atv,texto:m.texto,anexosProntos:m.prontos||[],arquivos,opId:m.opId,retomada:!!m._retomada});
     if(!(r&&r.ok)) throw new Error(msgErro(r));
-    tmp._env=false; tmp._idServ=r.id||null; delete _envios[tmp.id];
-    pintarChat();
-    if(ABERTA===e.atv) lerComentarios(true);
+    pendTirar(tid);
+    if(ABERTA===m.atv) lerComentarios(true);
   }catch(x){
-    tmp._env=false; tmp._falhou=true; tmp._erro=String((x&&x.message)||x||"erro").slice(0,80); pintarChat();
-  }
+    m._env=false; m._falhou=true; m._erro=String((x&&x.message)||x||"erro").slice(0,80); pendGravar();
+    if(ABERTA===m.atv) pintarChat();
+  }finally{ _mandando.delete(tid); }
 }
-/* foto → JPEG de até 1920 px (qualidade 0,82). GIF/SVG e o que já é pequeno
-   passam direto; se a versão comprimida não ficar menor, fica a original. */
-async function comprimirFoto(f){
-  try{
-    if(!/^image\/(jpeg|png|webp|heic|heif)$/i.test(f.type)||f.size<400*1024||typeof createImageBitmap!=="function") return f;
-    const bmp=await createImageBitmap(f), M=1920, k=Math.min(1,M/Math.max(bmp.width,bmp.height));
-    const c=document.createElement("canvas"); c.width=Math.round(bmp.width*k); c.height=Math.round(bmp.height*k);
-    const g=c.getContext("2d"); g.fillStyle="#fff"; g.fillRect(0,0,c.width,c.height); g.drawImage(bmp,0,0,c.width,c.height);
-    const b=await new Promise(ok=>c.toBlob(ok,"image/jpeg",0.82));
-    if(!b||b.size>=f.size) return f;
-    return new File([b],f.name.replace(/\.[a-z0-9]+$/i,"")+".jpg",{type:"image/jpeg"});
-  }catch(err){ return f; }
+/* retoma, em ordem, o que ficou saindo quando a página fechou */
+async function retomarPendentes(){
+  pendCarregar();
+  const l=Object.values(_PEND).filter(m=>!m._falhou).sort((a,b)=>String(a.criadoEm).localeCompare(String(b.criadoEm)));
+  for(const m of l) await mandar(m.id);
 }
-function reenviarComentario(tid){ const m=(_coms||[]).find(c=>c.id===tid); if(m) mandar(m); }
-function descartarComentario(tid){ _coms=(_coms||[]).filter(c=>c.id!==tid); delete _envios[tid]; pintarChat(); }
-window.addEventListener("beforeunload",ev=>{ if((_coms||[]).some(c=>c._env)){ ev.preventDefault(); ev.returnValue=""; } });
+function reenviarComentario(tid){ if(_PEND[tid]) mandar(tid); }
+function descartarComentario(tid){ if(!confirm("Descartar esta mensagem? Ela não foi enviada.")) return; pendTirar(tid); pintarChat(); }
+/* fechar no meio do envio: a mensagem fica guardada e continua quando a aba Atividades abrir de novo */
 
 /* ---------- formulários (v3 — 25/09 noite) ----------
    - Checklist item por item: digita, Enter, aparece a próxima linha (colar
@@ -1414,7 +1494,22 @@ window.addEventListener("portal-ao-vivo",ev=>{
 
 /* ---------- início ---------- */
 carregarObras();
-carregar(false).then(()=>{ const h=location.hash.slice(1); if(h) abrirAtv(h); });
+pendCarregar();
+carregar(false).then(()=>{ const h=location.hash.slice(1); if(h) abrirAtv(h); setTimeout(retomarPendentes,800); setTimeout(retomarEdicoes,400); });
+/* 28/09 — SINCRONIA COM O NOTION: com a tela aberta, pergunta a cada 1 min o
+   que mudou no Notion (atvDelta). O servidor consulta só o que foi editado
+   desde a última olhada, então é leve. Mudou no Notion → aparece aqui em ~1 min. */
+async function sincronizarNotion(){
+  if(document.hidden) return;
+  let r=null; try{ r=await chamar({action:"atvDelta"},30000,false); }catch(e){}
+  if(!(r&&r.ok)) return;
+  if(r.outras&&r.outras.ok){ OUT=r.outras; cacheSet("atv_outras",r.outras); }
+  cacheSet("atv_minhas",r);
+  const ae=document.activeElement; if(ae&&/INPUT|SELECT|TEXTAREA/.test(ae.tagName)&&document.getElementById("pa-campos")&&document.getElementById("pa-campos").contains(ae)) return;   // editando: não troca por baixo
+  aplicar(r);
+}
+setInterval(sincronizarNotion,60000);
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden) sincronizarNotion(); });
 window.addEventListener("hashchange",()=>{ const h=location.hash.slice(1); if(h&&h!==ABERTA) abrirAtv(h); });
 
 </script>
