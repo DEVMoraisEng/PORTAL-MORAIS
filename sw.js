@@ -136,7 +136,8 @@
    baixa do Mural que não volta atrás, legenda com fundo. */
 /* v55 -> v56 (28/09/26): fotos do chat comprimidas, anexo arquivado no chat. */
 /* v56 -> v57 (28/09/26): cópias do painel não somem (Recarregar/24 h/Sair). */
-const CACHE = "portal-morais-v57";  // limpeza só dos caches do portal (não apaga os das RAS)
+/* v57 -> v58 (28/09/26): anexo arquivado nos comentários do Notion. */
+const CACHE = "portal-morais-v58";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",

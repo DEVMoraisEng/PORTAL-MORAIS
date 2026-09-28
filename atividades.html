@@ -1009,7 +1009,8 @@ function pintarChat(){
     return `<div class="msg ${eu?"eu":""} ${m.notion?"nt":""} ${m._falhou?"falhou":""}"><div class="qm">${esc(m.autor||"")} · ${quando}${m.notion?" · (Notion)":""}${est}</div>
       ${m.texto?`<div class="tx">${linkar(m.texto)}</div>`:""}
       ${(m.anexos||[]).map(x=>x.url&&/^image\//.test(x.mime||"")||(x.url&&/\.(png|jpe?g|gif|webp)(\?|$)/i.test(x.url))?`<a href="${esc(x.url)}" target="_blank" rel="noopener"><img src="${esc(x.url)}" alt="${esc(x.nome)}" loading="lazy" onerror="chatImgFalhou(this)"></a>`:
-        x.arquivado?`<span class="arq" title="Guardado no corpo desta atividade (Checklist e anotações, logo abaixo)">🗄 ${esc(x.nome||"arquivo")} · arquivado ↓</span>`:
+        x.arquivado?(x.noComentario?`<span class="arq" title="Guardado nos comentários desta atividade no Notion">🗄 ${esc(x.nome||"arquivo")} · arquivado no Notion</span>`
+          :`<span class="arq" title="Guardado no corpo desta atividade (Checklist e anotações, logo abaixo)">🗄 ${esc(x.nome||"arquivo")} · arquivado ↓</span>`):
         `<a class="arq" href="${esc(x.url||"#")}" target="_blank" rel="noopener">📎 ${esc(x.nome||"arquivo")}</a>`).join("")}</div>`;
   }).join(""):`<div class="ajuda">Nenhum comentário ainda. Escreva o primeiro.</div>`;
   if(noFim||!c._rolou){ c.scrollTop=c.scrollHeight; c._rolou=true; }
