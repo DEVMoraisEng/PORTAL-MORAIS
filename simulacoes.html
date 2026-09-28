@@ -1217,6 +1217,9 @@ function simRenderRecebidas(){
 function simTagSt(st){
   const n=String(st||"").toUpperCase();
   if(!n) return "—";
+  /* r64 — SIOP fora do ar: saiu a preliminar pela base offline; a
+     definitiva vem quando a CAIXA voltar (worker r41). */
+  if(n==="OFFLINE") return `<span class="pill zero" style="background:#FBEEC8;color:#7A4A16;border:1px solid #EFB700" title="Preliminar pela base offline — aguardando o SIOP para a definitiva">OFFLINE · PRELIMINAR</span>`;
   const cls = n==="ERRO" ? "neg" : (n==="CONCLUIDO" ? "pos" : "zero");
   return `<span class="pill ${cls}">${n}</span>`;
 }
