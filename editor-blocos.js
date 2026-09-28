@@ -184,8 +184,9 @@
     return `<div class="eb-b" data-id="${b.id}"><span class="eb-ro">(${e(t)} — este tipo de bloco só aparece no Notion)</span></div>`;
   }
   function lista(bs){ let n=0; return bs.map(b=>{ n=b.tipo==="numbered_list_item"?n+1:0; b._n=n; return linhaBloco(b); }).join(""); }
+  const ENVIANDO={};   // pageId → anexos subindo (sobrevive a fechar/abrir a atividade)
   function pintar(st){
-    const bs=st.blocos||[];
+    const bs=(st.blocos||[]).concat(ENVIANDO[st.pageId]||[]);        // + anexos ainda subindo
     bs.forEach(b=>{ b._top=true; });
     st.el.innerHTML=navHtml(st)+`<div class="eb">${bs.length?lista(bs):`<div class="eb-vazio">Sem conteúdo ainda.</div>`}</div>`+
       (st.ro?"":`<div class="eb-add">
@@ -281,6 +282,7 @@
   /* REORDENAR (28/09). O Notion não move bloco: o servidor recria UM bloco
      depois do outro (arquivo é enviado de novo) e apaga o antigo. Subir X =
      recriar o de cima depois de X; descer X = recriar X depois do de baixo. */
+  window.addEventListener("beforeunload",ev=>{ if(Object.keys(ENVIANDO).length){ ev.preventDefault(); ev.returnValue=""; } });
   async function mover(st,id,dir){
     if(st._movendo){ aviso("Espere terminar a mudança anterior."); return; }
     const arr=st.blocos, i=arr.findIndex(b=>b.id===id); if(i<0) return;
@@ -318,12 +320,20 @@
     const ler=f=>new Promise((ok,err)=>{ const rd=new FileReader(); rd.onload=()=>ok(String(rd.result).split(",")[1]); rd.onerror=err; rd.readAsDataURL(f); });
     let arquivos=[]; try{ arquivos=await Promise.all(fs.slice(0,5).map(async f=>({filename:f.name,mimeType:f.type||"application/octet-stream",dataBase64:await ler(f)}))); }
     catch(err){ aviso("Não consegui ler o arquivo."); return; }
-    const tmp={id:"tmp"+Date.now(),tipo:"_enviando",texto:"📎 enviando "+fs.map(f=>f.name).join(", ")+"…"};
-    st.blocos.push(tmp); pintar(st);
-    const r=await pedir({action:"blocoAnexar",pageId:st.pageId,arquivos,opId:Date.now()+"_"+Math.random().toString(36).slice(2)},180000);
-    st.blocos=st.blocos.filter(b=>b!==tmp);
-    if(r&&r.ok&&r.conteudo&&r.conteudo.blocos){ st.blocos=r.conteudo.blocos; guardar(st.pageId,r.conteudo); pintar(st); aviso("Anexo adicionado."); }
-    else { pintar(st); aviso("Não anexou: "+((r&&r.erro)||"sem resposta do servidor")); }
+    /* v7 (28/09 noite): o "enviando…" fica guardado por página, FORA do
+       conteúdo — fechar e abrir a atividade (ou trocar de atividade) no meio
+       do envio não some com ele; quando termina, a tela daquela página é
+       atualizada onde quer que ela esteja aberta. */
+    const pg=st.pageId, tmp={id:"tmp"+Date.now(),tipo:"_enviando",texto:"📎 enviando "+fs.map(f=>f.name).join(", ")+"…"};
+    (ENVIANDO[pg]=ENVIANDO[pg]||[]).push(tmp); pintar(st);
+    const r=await pedir({action:"blocoAnexar",pageId:pg,arquivos,opId:Date.now()+"_"+Math.random().toString(36).slice(2)},180000);
+    ENVIANDO[pg]=(ENVIANDO[pg]||[]).filter(b=>b!==tmp); if(!ENVIANDO[pg].length) delete ENVIANDO[pg];
+    const abertos=[...document.querySelectorAll(".eb-host")].map(h=>h._eb).filter(x=>x&&x.pageId===pg);
+    if(r&&r.ok&&r.conteudo&&r.conteudo.blocos){
+      guardar(pg,r.conteudo);
+      abertos.forEach(x=>{ x.blocos=r.conteudo.blocos; pintar(x); });
+      aviso("Anexo adicionado.");
+    } else { abertos.forEach(x=>pintar(x)); aviso("Não anexou: "+((r&&r.erro)||"sem resposta do servidor")); }
   }
   /* ao vivo: outra pessoa mexeu nesta página → relê (se eu não estiver digitando nela) */
   window.addEventListener("portal-ao-vivo",ev=>{

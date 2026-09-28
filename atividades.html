@@ -504,7 +504,7 @@ main.wrap{padding-bottom:90px}
 <script src="app.js?v=44"></script>
 <script src="rf-rotas.js?v=6"></script>
 <script src="alertas-docs.js?v=1"></script>
-<script src="editor-blocos.js?v=6"></script>
+<script src="editor-blocos.js?v=7"></script>
 <script src="atv-alertas.js?v=5"></script>
 <script>
 /* ---------- tema ---------- */
@@ -1107,7 +1107,10 @@ function pintarChat(){
      ficam guardadas neste navegador e aparecem aqui — mesmo fechando a
      atividade, trocando de página ou recarregando. Os outros só veem quando
      o servidor confirma. */
-  const todos=(_coms||[]).filter(m=>!m._env&&!m._falhou).concat(pendDe(ABERTA));
+  const doServ=(_coms||[]).filter(m=>!m._env&&!m._falhou), idsServ=new Set(doServ.map(m=>m.id));
+  /* enviada e já na lista do servidor: sai da lista de pendentes */
+  Object.values(_PEND).forEach(m=>{ if(m._ok&&((m._idServ&&idsServ.has(m._idServ))||Date.now()-(m._okEm||0)>10*60*1000)&&(m.atv===ABERTA||Date.now()-(m._okEm||0)>10*60*1000)) pendTirar(m.id); });
+  const todos=doServ.concat(pendDe(ABERTA).filter(m=>!(m._idServ&&idsServ.has(m._idServ))));
   c.innerHTML=todos.length?todos.map(m=>{
     const eu=m.pessoa?m.pessoa===ME:(m.autor===meuNome);
     const quando=m.criadoEm?new Date(m.criadoEm).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"";
@@ -1144,12 +1147,13 @@ const PEND_KEY="atv_pend_v1", _PEND={}, _mandando=new Set(), _previa={};
 function pendGravar(){
   const o={}; Object.keys(_PEND).forEach(k=>{ const m=_PEND[k];
     o[k]={id:m.id,atv:m.atv,autor:m.autor,pessoa:m.pessoa,texto:m.texto,criadoEm:m.criadoEm,opId:m.opId,prontos:m.prontos||null,
-          anexos:(m.anexos||[]).map(x=>({nome:x.nome,mime:x.mime})),nArq:m.nArq||0,_falhou:!!m._falhou,_erro:m._erro||""}; });
+          anexos:(m.anexos||[]).map(x=>({nome:x.nome,mime:x.mime})),nArq:m.nArq||0,_falhou:!!m._falhou,_erro:m._erro||"",
+          _ok:!!m._ok,_idServ:m._idServ||null,_okEm:m._okEm||0}; });
   try{ localStorage.setItem(PEND_KEY,JSON.stringify(o)); }catch(e){}
 }
 function pendCarregar(){
   let o={}; try{ o=JSON.parse(localStorage.getItem(PEND_KEY)||"{}")||{}; }catch(e){}
-  Object.keys(o).forEach(k=>{ if(!_PEND[k]) _PEND[k]=Object.assign(o[k],{_env:!o[k]._falhou,_retomada:true}); });
+  Object.keys(o).forEach(k=>{ if(!_PEND[k]) _PEND[k]=Object.assign(o[k],{_env:!o[k]._falhou&&!o[k]._ok,_retomada:!o[k]._ok}); });
 }
 function pendDe(atv){ if(!atv) return []; return Object.values(_PEND).filter(m=>m.atv===atv).sort((a,b)=>String(a.criadoEm).localeCompare(String(b.criadoEm)))
   .map(m=>Object.assign({},m,{anexos:(m.anexos||[]).map((x,i)=>Object.assign({},x,{url:(_previa[m.id]||[])[i]||null}))})); }
@@ -1208,8 +1212,10 @@ async function mandar(tid,arquivosNaMao){
     pinta("enviando…");
     const r=await criarRF({action:"atvComentarioNovo",pageId:m.atv,texto:m.texto,anexosProntos:m.prontos||[],arquivos,opId:m.opId,retomada:!!m._retomada});
     if(!(r&&r.ok)) throw new Error(msgErro(r));
-    pendTirar(tid);
-    if(ABERTA===m.atv) lerComentarios(true);
+    /* 28/09 (noite): enviada NÃO some — fica na tela (sem "enviando") até a
+       lista do servidor já trazer ela; antes ela sumia por um instante */
+    m._env=false; m._ok=true; m._idServ=r.id||null; m._okEm=Date.now(); pendGravar();
+    if(ABERTA===m.atv){ pintarChat(); lerComentarios(true); }
   }catch(x){
     m._env=false; m._falhou=true; m._erro=String((x&&x.message)||x||"erro").slice(0,80); pendGravar();
     if(ABERTA===m.atv) pintarChat();
@@ -1218,7 +1224,7 @@ async function mandar(tid,arquivosNaMao){
 /* retoma, em ordem, o que ficou saindo quando a página fechou */
 async function retomarPendentes(){
   pendCarregar();
-  const l=Object.values(_PEND).filter(m=>!m._falhou).sort((a,b)=>String(a.criadoEm).localeCompare(String(b.criadoEm)));
+  const l=Object.values(_PEND).filter(m=>!m._falhou&&!m._ok).sort((a,b)=>String(a.criadoEm).localeCompare(String(b.criadoEm)));
   for(const m of l) await mandar(m.id);
 }
 function reenviarComentario(tid){ if(_PEND[tid]) mandar(tid); }
