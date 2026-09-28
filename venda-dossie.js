@@ -60,6 +60,12 @@
     if (["image/jpeg", "image/png", "image/webp"].indexOf(mime) >= 0) return "imagem";
     return "";
   }
+  /* true só para o placeholder que abrirObra põe em #pn-body enquanto carrega:
+   * um único filho, classe "vazio", com o spinner .load dentro. Qualquer outra
+   * coisa com .load (o spinner dos comentários, por exemplo) não conta. */
+  function painelCarregando(qtdFilhos, classesPrimeiroFilho, primeiroTemLoad) {
+    return qtdFilhos === 1 && classesPrimeiroFilho === "vazio" && !!primeiroTemLoad;
+  }
 
   function html(e, ui) {
     var travado = !e.tipoCasa, ocupado = !!ui.ocupado, testes = !!ui.testes;
@@ -93,7 +99,7 @@
   }
 
   var exportar = { URL_PORTAL_VENDA: URL_PORTAL_VENDA, DOCS: DOCS, html: html, mensagemDeErro: mensagemDeErro,
-                   resumo: resumo, escala: escala, tipoAceito: tipoAceito };
+                   resumo: resumo, escala: escala, tipoAceito: tipoAceito, painelCarregando: painelCarregando };
   if (typeof module !== "undefined" && module.exports) { module.exports = exportar; return; }
 
   /* ---------------- navegador ---------------- */
@@ -243,7 +249,8 @@
       if (paginaDoBloco !== null) { paginaDoBloco = null; estado = null; ui = { dois: false, ocupado: null, msg: "", testes: false }; }
       return;
     }
-    if (wrap() || body.querySelector(".load")) return;
+    if (wrap() || painelCarregando(body.children.length, body.firstElementChild ? body.firstElementChild.className : "",
+        !!(body.firstElementChild && body.firstElementChild.querySelector(".load")))) return;
     if (paginaDoBloco !== id) { paginaDoBloco = id; estado = null; ui = { dois: false, ocupado: null, msg: "", testes: perfilTestes() }; }
     var w = document.createElement("div"); w.id = "dossie-wrap";
     w.addEventListener("click", aoClicar);

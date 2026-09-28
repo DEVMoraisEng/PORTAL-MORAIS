@@ -21,3 +21,7 @@ test("vendas.html carrega o venda-dossie.js depois do app.js", () => {
   const iApp = vendas.indexOf('src="app.js'), iDossie = vendas.indexOf('src="venda-dossie.js');
   assert.ok(iApp > 0 && iDossie > iApp);
 });
+test("abrirObra ainda marca o painel como carregando com um único filho .vazio contendo .load", () => {
+  // é este placeholder, e só ele, que venda-dossie.js espera para saber que o painel ainda está carregando
+  assert.match(vendas, /body\.innerHTML\s*=\s*['"]<div class="vazio"><span class="load"><\/span> Carregando…<\/div>['"]/);
+});

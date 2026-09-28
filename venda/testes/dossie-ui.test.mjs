@@ -101,3 +101,19 @@ test("tipoAceito separa imagem, PDF e o resto (HEIC fica de fora)", () => {
   assert.equal(D.tipoAceito("image/heic"), "");
   assert.equal(D.tipoAceito(""), "");
 });
+
+test("painelCarregando: só é true no placeholder do abrirObra (1 filho .vazio com .load)", () => {
+  assert.equal(D.painelCarregando(1, "vazio", true), true);
+});
+
+test("painelCarregando: false quando o painel já foi renderizado, mesmo com um spinner .load em outro lugar (comentários)", () => {
+  assert.equal(D.painelCarregando(12, "grp", false), false);
+});
+
+test("painelCarregando: false com 1 filho sem .load", () => {
+  assert.equal(D.painelCarregando(1, "vazio", false), false);
+});
+
+test("painelCarregando: false com 0 filhos", () => {
+  assert.equal(D.painelCarregando(0, "", false), false);
+});
