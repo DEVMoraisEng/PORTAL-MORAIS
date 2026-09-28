@@ -471,7 +471,13 @@ const SISTEMAS=[
      Lembrete que já custou caro uma vez: "chave" tem que ser IGUAL à opção da
      coluna ACESSOS no banco LOGINS do Notion, com acento e em maiúsculas.
      Se não bater, o botão não aparece e não dá erro nenhum. */
-  {chave:"PRANCHA HUMANIZADA",nome:"Prancha Humanizada",desc:"Planta do Revit → prancha de venda no timbrado",ico:"A",link:"https://devmoraiseng.github.io/AUT-PRANCHA-HUMANIZADA/",externo:true,grupo:"AUTOMAÇÕES"}
+  {chave:"PRANCHA HUMANIZADA",nome:"Prancha Humanizada",desc:"Planta do Revit → prancha de venda no timbrado",ico:"A",link:"https://devmoraiseng.github.io/AUT-PRANCHA-HUMANIZADA/",externo:true,grupo:"AUTOMAÇÕES"},
+  /* 28/09/26 — CONFERÊNCIA OC × NF (repositório AUT-CONFERENCIA-NF), equipe
+     de Compras. Diferente da Prancha, a página de destino TEM trava própria:
+     ela usa a sessão deste portal e o Apps Script AUT-CONFERENCIA-NF recusa
+     quem não tem "CONFERÊNCIA DE NF" na coluna ACESSOS do LOGINS (ADM,
+     MASTER e TESTES passam sempre) — é ele que guarda a chave da OpenAI. */
+  {chave:"CONFERÊNCIA DE NF",nome:"Conferência OC × NF",desc:"Ordem de compra × nota fiscal: itens, quantidades e valores",ico:"C",link:"https://devmoraiseng.github.io/AUT-CONFERENCIA-NF/",externo:true,grupo:"AUTOMAÇÕES"}
 ];
 const GRUPOS_ORDEM=["SETORES","PROCESSOS E ARQUIVOS","ANÁLISES","MAPAS","REUNIÕES","AUTOMAÇÕES"]; // setores, análises, mapas, reuniões e automações — nessa ordem
 const S=exigirSessao(); atualizarStatus();

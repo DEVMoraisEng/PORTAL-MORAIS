@@ -144,7 +144,8 @@
 /* v62 -> v63 (28/09/26 noite): @menções, reordenar conteúdo, anexo que sumia. */
 /* v63 -> v64 (28/09/26 noite): mensagem e anexo "enviando" não somem ao fechar e abrir. */
 /* v64 -> v65 (28/09/26 noite): envio continua ao sair da página; obra com casas vendidas/entregues. */
-const CACHE = "portal-morais-v65";  // limpeza só dos caches do portal (não apaga os das RAS)
+/* v65 -> v66 (28/09/26): index.html com o botão Conferência OC × NF em Automações. */
+const CACHE = "portal-morais-v66";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",
