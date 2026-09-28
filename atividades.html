@@ -368,7 +368,8 @@ html[data-tema="escuro"] .cal-leg{color:#e7f3ff}
 .msg .qm .env{color:#b7791f}.msg .qm .nao{color:var(--verm)}.msg.falhou{border-color:var(--verm)}
 .msg .tx{white-space:pre-wrap;font-size:13px;word-break:break-word}
 .msg img{max-width:240px;max-height:200px;border-radius:8px;display:block;margin-top:6px;cursor:zoom-in;border:1px solid var(--border2)}
-.msg a.arq{display:inline-block;margin-top:5px;font-size:12px;font-weight:700;color:var(--azul)}
+.msg a.arq,.msg span.arq{display:inline-block;margin-top:5px;font-size:12px;font-weight:700;color:var(--azul)}
+.msg span.arq{color:var(--text3);cursor:help}
 .chat-form{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-top:8px}
 .chat-form textarea{flex:1;min-width:200px;min-height:50px;max-height:160px;border:1.5px solid var(--border);border-radius:10px;padding:8px 10px;font:inherit;font-size:13px;background:var(--sup);color:var(--text);resize:vertical}
 .chat-anx{font-size:11.5px;color:var(--text3);width:100%}
@@ -1004,6 +1005,7 @@ function pintarChat(){
     return `<div class="msg ${eu?"eu":""} ${m.notion?"nt":""} ${m._falhou?"falhou":""}"><div class="qm">${esc(m.autor||"")} · ${quando}${m.notion?" · (Notion)":""}${est}</div>
       ${m.texto?`<div class="tx">${linkar(m.texto)}</div>`:""}
       ${(m.anexos||[]).map(x=>x.url&&/^image\//.test(x.mime||"")||(x.url&&/\.(png|jpe?g|gif|webp)(\?|$)/i.test(x.url))?`<a href="${esc(x.url)}" target="_blank" rel="noopener"><img src="${esc(x.url)}" alt="${esc(x.nome)}" loading="lazy" onerror="chatImgFalhou(this)"></a>`:
+        x.arquivado?`<span class="arq" title="Guardado no corpo desta atividade (Checklist e anotações, logo abaixo)">🗄 ${esc(x.nome||"arquivo")} · arquivado ↓</span>`:
         `<a class="arq" href="${esc(x.url||"#")}" target="_blank" rel="noopener">📎 ${esc(x.nome||"arquivo")}</a>`).join("")}</div>`;
   }).join(""):`<div class="ajuda">Nenhum comentário ainda. Escreva o primeiro.</div>`;
   if(noFim||!c._rolou){ c.scrollTop=c.scrollHeight; c._rolou=true; }
@@ -1025,7 +1027,7 @@ async function enviarComentario(){
   const id=ABERTA, t=document.getElementById("pa-txt"), inp=document.getElementById("pa-arq");
   const texto=t.value.trim(), fs=[...(inp.files||[])].slice(0,5);
   if(!texto&&!fs.length) return;
-  if(fs.some(f=>f.size>50*1024*1024)){ toast("Arquivo acima de 50 MB — mande um menor."); return; }
+  if(fs.some(f=>f.size>20*1024*1024&&!/^image\//.test(f.type))){ toast("Arquivo acima de 20 MB — mande um menor (ou um link)."); return; }
   const tmp={id:"tmp"+Date.now()+Math.random().toString(36).slice(2,6),autor:(S&&S.nome)||"",pessoa:ME,texto,criadoEm:new Date().toISOString(),_env:true,
     anexos:fs.map(f=>({nome:f.name,mime:f.type,url:/^image\//.test(f.type)?URL.createObjectURL(f):null}))};
   _envios[tmp.id]={atv:id,texto,fs,opId:(typeof novoOpId==="function"?novoOpId():tmp.id)};
@@ -1039,6 +1041,8 @@ async function mandar(tmp){
   try{
     let anexosProntos=[], arquivos=[];
     if(e.fs.length&&!e.prontos){
+      /* 28/09: foto é comprimida antes de subir (celular manda 3–5 MB; vira ~300 KB) */
+      if(!e.comprimido){ tmp._passo="preparando foto…"; pintarChat(); e.fs=await Promise.all(e.fs.map(comprimirFoto)); e.comprimido=true; }
       let u=null; try{ u=await chamar({action:"atvAnexoUrl",pageId:e.atv,arquivos:e.fs.map(f=>({nome:f.name,mime:f.type||"",tam:f.size}))},30000,true); }catch(x){}
       if(u&&u.ok&&u.envios){
         for(let i=0;i<u.envios.length;i++){
@@ -1064,6 +1068,19 @@ async function mandar(tmp){
   }catch(x){
     tmp._env=false; tmp._falhou=true; tmp._erro=String((x&&x.message)||x||"erro").slice(0,80); pintarChat();
   }
+}
+/* foto → JPEG de até 1920 px (qualidade 0,82). GIF/SVG e o que já é pequeno
+   passam direto; se a versão comprimida não ficar menor, fica a original. */
+async function comprimirFoto(f){
+  try{
+    if(!/^image\/(jpeg|png|webp|heic|heif)$/i.test(f.type)||f.size<400*1024||typeof createImageBitmap!=="function") return f;
+    const bmp=await createImageBitmap(f), M=1920, k=Math.min(1,M/Math.max(bmp.width,bmp.height));
+    const c=document.createElement("canvas"); c.width=Math.round(bmp.width*k); c.height=Math.round(bmp.height*k);
+    const g=c.getContext("2d"); g.fillStyle="#fff"; g.fillRect(0,0,c.width,c.height); g.drawImage(bmp,0,0,c.width,c.height);
+    const b=await new Promise(ok=>c.toBlob(ok,"image/jpeg",0.82));
+    if(!b||b.size>=f.size) return f;
+    return new File([b],f.name.replace(/\.[a-z0-9]+$/i,"")+".jpg",{type:"image/jpeg"});
+  }catch(err){ return f; }
 }
 function reenviarComentario(tid){ const m=(_coms||[]).find(c=>c.id===tid); if(m) mandar(m); }
 function descartarComentario(tid){ _coms=(_coms||[]).filter(c=>c.id!==tid); delete _envios[tid]; pintarChat(); }
