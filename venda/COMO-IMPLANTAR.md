@@ -89,7 +89,12 @@ Gera o contrato de compra e venda no fim do painel da casa (PDF em
    lista no arquivo 12 da DOCUMENTACAO); `MODELO_PRONTO_ID` e
    `MODELO_CONSTRUCAO_ID` = IDs dos dois modelos (Google Docs);
    `PASTA_PROVISORIA_ID` = ID de uma pasta do Drive só para as cópias
-   provisórias; `CIDADE_ASSINATURA` (opcional; vazio = `Goiânia`).
+   provisórias; `CIDADE_ASSINATURA` (opcional; vazio = `Goiânia`);
+   `DB_DOCUMENTOS` = ID da BASE DE DADOS DOCUMENTOS (a obra da casa é achada
+   pela relação OBRA-AUTO quando ela aponta para essa base e, senão, pelo
+   **endereço**: título da linha em DOCUMENTOS = título da casa, sem
+   distinção de acento/caixa/espaço). Teste: `a74c5ab532d38374a4170155196788f9`;
+   produção: `32fc5ab532d380a0900dd7f4bfc619bd`.
 4. **Modelos no Drive:** os modelos prontos (com `{{MARCADORES}}`) ficam em
    `CONTRATOS DE VENDA/modelos-portal/` — **nunca no repositório**. Ao subir
    para o Drive, escolher **converter para Google Docs** (ou abrir o `.docx`

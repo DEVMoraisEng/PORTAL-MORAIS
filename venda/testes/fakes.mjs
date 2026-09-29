@@ -96,7 +96,7 @@ export const DB_ID_PADRAO = "db-falso";
 /* Notion falso: uma base (as colunas acima, ou `colunas`) e uma página
    (PAGE_ID_PADRAO por padrão, ou `pageId`), com `parent.database_id` = `dbId`. */
 export function notionFalso({ valores = {}, s3 = {}, colunas = COLUNAS_REAIS, pageId = PAGE_ID_PADRAO, dbId = DB_ID_PADRAO,
-                              paginasExtras = {}, bases = {} } = {}) {
+                              paginasExtras = {}, paginasDb = {}, bases = {} } = {}) {
   const db = { properties: {} };
   for (const [nome, t] of Object.entries(colunas)) {
     const tipo = typeof t === "string" ? t : t.tipo;
@@ -131,9 +131,19 @@ export function notionFalso({ valores = {}, s3 = {}, colunas = COLUNAS_REAIS, pa
       if (m === "GET" && u === "/pages/" + pageId) return { json: pagina };
       /* páginas extras (ex.: a obra) e linhas de bases de cadastro, em ordem de declaração */
       if (m === "GET" && u.startsWith("/pages/") && paginasExtras[u.slice(7)])
-        return { json: { id: u.slice(7), parent: { database_id: "db-extra" }, properties: tipar(paginasExtras[u.slice(7)]) } };
+        return { json: { id: u.slice(7), parent: { database_id: paginasDb[u.slice(7)] || "db-extra" }, properties: tipar(paginasExtras[u.slice(7)]) } };
       const q = /^\/databases\/([^/]+)\/query$/.exec(u);
-      if (m === "POST" && q && bases[q[1]]) return { json: { results: bases[q[1]].map((p, i) => ({ id: "linha-" + i, properties: tipar(p) })), has_more: false } };
+      if (m === "POST" && q && bases[q[1]]) {
+        let linhas = bases[q[1]].map((p) => tipar(p));
+        const fl = corpo && corpo.filter;
+        if (fl) { /* como o Notion: a propriedade do filtro tem de existir e ser de título */
+          if (!fl.title || !linhas.every((l) => l[fl.property] && l[fl.property].type === "title"))
+            return { status: 400, json: { message: "filtro inválido" } };
+          const tx = (l) => l[fl.property].title.map((t) => t.plain_text).join("");
+          linhas = linhas.filter((l) => tx(l) === fl.title.equals);
+        }
+        return { json: { results: linhas.map((p, i) => ({ id: "linha-" + i, properties: p })), has_more: false } };
+      }
       if (m === "PATCH" && u === "/pages/" + pageId) { patches.push(corpo.properties); return aplicar(corpo.properties); }
       if (m === "POST" && u === "/file_uploads") {
         const id = "fu-" + (++seq);

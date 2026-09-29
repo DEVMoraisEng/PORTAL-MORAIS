@@ -57,10 +57,11 @@ function ctrLerPaginaVenda_(pageId) {
   return pg;
 }
 
-function ctrLinhasBase_(dbId) {
+function ctrLinhasBase_(dbId, filtro) {
   var linhas = [], cursor = null, voltas = 0;
   do {
     var corpo = { page_size: 100 };
+    if (filtro) corpo.filter = filtro;
     if (cursor) corpo.start_cursor = cursor;
     var r = notion_("POST", "/databases/" + dbId + "/query", corpo);
     (r.results || []).forEach(function (l) { linhas.push(l.properties || {}); });
@@ -75,6 +76,25 @@ function ctrAcharLinha_(linhas, nome) {
   for (var i = 0; i < linhas.length; i++) {
     if (RegrasVenda.chave(ctrTitulo_(linhas[i])) === k) return { titulo: ctrTitulo_(linhas[i]), c: ctrPorChave_(linhas[i]) };
   }
+  return null;
+}
+
+/* Propriedades da linha de DOCUMENTOS (a obra) da casa, ou null. */
+function ctrObraProps_(rels, endereco) {
+  var db = prop_("DB_DOCUMENTOS"), dbLimpo = db.replace(/-/g, "");
+  if (rels && rels.length) {
+    try {
+      var pg = notion_("GET", "/pages/" + rels[0], null);
+      if (String((pg.parent && pg.parent.database_id) || "").replace(/-/g, "") === dbLimpo) return pg.properties || {};
+    } catch (e) { ctrErro_("contrato: relacao da obra ilegivel", e); }
+  }
+  var k = RegrasVenda.chave(endereco);
+  if (!k) return null;
+  var linhas = [];
+  try { linhas = ctrLinhasBase_(db, { property: "ENDEREÇO", title: { equals: endereco } }); }
+  catch (e) { ctrErro_("contrato: filtro por endereco falhou", e); }
+  if (!linhas.length) linhas = ctrLinhasBase_(db, null);
+  for (var i = 0; i < linhas.length; i++) if (RegrasVenda.chave(ctrTitulo_(linhas[i])) === k) return linhas[i];
   return null;
 }
 
@@ -121,14 +141,12 @@ function ctrFontes_(col, pageId) {
   };
   var setor = ctrTxt_(cv("SETOR"));
 
-  /* a obra (relação OBRA-AUTO, primeiro id) */
-  var obra = {};
-  var rels = cv("OBRA-AUTO");
-  if (rels && rels.length) {
-    var op = ctrPorChave_(notion_("GET", "/pages/" + rels[0], null).properties || {});
-    obra = { obraFinalizada: ctrTxt_(ctrCampo_(op, "OBRA FINALIZADA?")), proprietario: ctrTxt_(ctrCampo_(op, "PROPRIETARIO DOCUMENTO")),
-             cpfCnpj: ctrTxt_(ctrCampo_(op, "CPF/CNPJ")), dataHabitese: ctrTxt_(ctrCampo_(op, "DATA HABITE-SE")) };
-  }
+  /* a obra: relação OBRA-AUTO se aponta para DOCUMENTOS; senão, pelo ENDEREÇO (título) */
+  var props = ctrObraProps_(cv("OBRA-AUTO"), venda.ENDERECO);
+  if (!props) return { obraNaoEncontrada: true };
+  var op = ctrPorChave_(props);
+  var obra = { obraFinalizada: ctrTxt_(ctrCampo_(op, "OBRA FINALIZADA?")), proprietario: ctrTxt_(ctrCampo_(op, "PROPRIETARIO DOCUMENTO")),
+               cpfCnpj: ctrTxt_(ctrCampo_(op, "CPF/CNPJ")), dataHabitese: ctrTxt_(ctrCampo_(op, "DATA HABITE-SE")) };
 
   /* os três cadastros */
   var lv = ctrAcharLinha_(ctrLinhasBase_(prop_("DB_VENDEDORES")), obra.proprietario);
@@ -222,9 +240,13 @@ function contratoEstado_(col, p) {
 
 function gerarContrato_(col, sess, p) {
   var t0 = Date.now(), pid = String(p.pageId).slice(0, 8);
-  if (!prop_("DB_VENDEDORES") || !prop_("DB_LOTEAMENTOS") || !prop_("DB_CORRETORES")) return { ok: false, erro: "CADASTRO_NAO_CONFIGURADO" };
+  if (!prop_("DB_VENDEDORES") || !prop_("DB_LOTEAMENTOS") || !prop_("DB_CORRETORES") || !prop_("DB_DOCUMENTOS")) return { ok: false, erro: "CADASTRO_NAO_CONFIGURADO" };
 
   var f = ctrFontes_(col, p.pageId);
+  if (f.obraNaoEncontrada) {
+    ctrLog_("gerarContrato " + pid + " obra nao encontrada");
+    return { ok: false, erro: "FALTAM_DADOS", faltas: ["Vendedor: obra da casa não encontrada em DOCUMENTOS (endereço)"] };
+  }
   var d = ContratoVenda.montarDadosContrato(f.fontes);
   var faltas = ContratoVenda.faltasContrato(d);
   if (faltas.length) {

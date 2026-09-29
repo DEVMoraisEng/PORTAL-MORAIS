@@ -19,7 +19,7 @@ const rt = texto;
 
 const PROPS = {
   NOTION_TOKEN: "ntn-teste", SESSION_SECRET: "segredo-de-teste", DB_VENDAS: DB_ID_PADRAO,
-  DB_VENDEDORES: "db-vend", DB_LOTEAMENTOS: "db-lote", DB_CORRETORES: "db-corr",
+  DB_VENDEDORES: "db-vend", DB_LOTEAMENTOS: "db-lote", DB_CORRETORES: "db-corr", DB_DOCUMENTOS: "db-doc",
   MODELO_PRONTO_ID: "modelo-pronto", MODELO_CONSTRUCAO_ID: "modelo-obra", PASTA_PROVISORIA_ID: "pasta-prov",
 };
 
@@ -91,12 +91,13 @@ const mescla = (base, mud) => {
   return r;
 };
 
-function cenario({ venda, obra, vendedor, loteamento, corretor, props, drive, colunas, semBases = [], rotaExtra } = {}) {
+function cenario({ venda, obra, vendedor, loteamento, corretor, props, drive, colunas, semBases = [], rotaExtra, obraDb = "db-doc", linhasDoc } = {}) {
   const d = driveFalso(Object.assign({ modelos: { "modelo-obra": MODELO_OBRA, "modelo-pronto": MODELO_PRONTO } }, drive));
-  const bases = { "db-vend": [mescla(VENDEDOR, vendedor)], "db-lote": [mescla(LOTEAMENTO, loteamento)], "db-corr": [mescla(CORRETOR, corretor)] };
+  const bases = { "db-vend": [mescla(VENDEDOR, vendedor)], "db-lote": [mescla(LOTEAMENTO, loteamento)], "db-corr": [mescla(CORRETOR, corretor)],
+    "db-doc": linhasDoc || [Object.assign({ "ENDEREÇO": tit("RESIDENCIAL TESTE QD 07 LT 12") }, mescla(OBRA_PG, obra))] };
   const cols = colunas || colunasVenda();
   const valores = Object.fromEntries(Object.entries(mescla(VENDA, venda)).filter(([k]) => k in cols));
-  const n = notionFalso({ colunas: cols, valores, paginasExtras: { [OBRA]: mescla(OBRA_PG, obra) }, bases });
+  const n = notionFalso({ colunas: cols, valores, paginasExtras: { [OBRA]: mescla(OBRA_PG, obra) }, paginasDb: { [OBRA]: obraDb }, bases });
   const rotas = rotaExtra ? (url, opt) => rotaExtra(url, opt) || n.rota(url, opt) : n.rota;
   const p = Object.assign({}, PROPS, props);
   for (const s of semBases) delete p[s];
@@ -216,6 +217,34 @@ test("Review Focus 5: vendedor, setor e corretor com acento/espaço/caixa difere
   assert.ok(t.includes("Contrato de Residencial Teste"));
 });
 
+const LINHA_DOC = (endereco, prop) => ({ "ENDEREÇO": tit(endereco), ...OBRA_PG, "PROPRIETARIO DOCUMENTO": rt(prop) });
+
+test("obra: relação para OUTRA base é ignorada; acha em DOCUMENTOS pelo endereço (acento/espaço diferentes)", () => {
+  const c = cenario({
+    obraDb: "db-outra", obra: { "PROPRIETARIO DOCUMENTO": rt("Empresa Errada Teste") },
+    linhasDoc: [LINHA_DOC("Outro Endereço QD 1 LT 1", "Empresa Errada Teste"), LINHA_DOC("residencial  téste  QD 07 LT 12", "Construtora Teste Ltda")],
+  });
+  const r = c.gerar();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.ok(c.pdfTexto().includes("PJ: Construtora Teste Ltda"));
+});
+
+test("obra: relação vazia -> acha pelo endereço; a relação para DOCUMENTOS (hífens à parte) é usada direto", () => {
+  const vazia = cenario({ venda: { "OBRA-AUTO": { relation: [] } } });
+  assert.equal(vazia.gerar().ok, true);
+  const direta = cenario({ props: { DB_DOCUMENTOS: "db-d-oc".replace(/-/g, "-") }, obraDb: "dbdoc", linhasDoc: [] });
+  /* DB_DOCUMENTOS "db-d-oc" == parent "dbdoc" sem hífens */
+  assert.equal(direta.gerar().ok, true);
+});
+
+test("obra não encontrada: falta específica, nenhuma cópia no Drive", () => {
+  const c = cenario({ venda: { "OBRA-AUTO": { relation: [] } }, linhasDoc: [LINHA_DOC("Outro Endereço QD 1 LT 1", "Fulano")] });
+  const r = c.gerar();
+  assert.equal(r.erro, "FALTAM_DADOS");
+  assert.deepEqual(r.faltas, ["Vendedor: obra da casa não encontrada em DOCUMENTOS (endereço)"]);
+  assert.equal(c.d.estado.copias.length, 0);
+});
+
 test("modelo PRONTO quando a obra está finalizada, com prazos do loteamento (texto ou número)", () => {
   const c = cenario({
     obra: { "OBRA FINALIZADA?": sel("SIM") },
@@ -317,7 +346,7 @@ test("modelo ou pasta não configurados; cadastro não configurado", () => {
   assert.equal(b.gerar().erro, "MODELO_NAO_CONFIGURADO");
   const p = cenario({ props: { PASTA_PROVISORIA_ID: "" } });
   assert.equal(p.gerar().erro, "MODELO_NAO_CONFIGURADO");
-  for (const x of ["DB_VENDEDORES", "DB_LOTEAMENTOS", "DB_CORRETORES"]) {
+  for (const x of ["DB_VENDEDORES", "DB_LOTEAMENTOS", "DB_CORRETORES", "DB_DOCUMENTOS"]) {
     const c = cenario({ semBases: [x] });
     assert.equal(c.gerar().erro, "CADASTRO_NAO_CONFIGURADO", x);
     assert.equal(c.d.estado.copias.length, 0);
