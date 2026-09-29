@@ -71,6 +71,44 @@ CPF/nome, log só com tokens.
 
 **Não sobe para produção:** a pasta `teste/` e o commit do apontador.
 
+## Contrato (entrega 2)
+
+Gera o contrato de compra e venda no fim do painel da casa (PDF em
+`CONTRATO GERADO`). Vale para o teste e, depois do "sobe", para a produção.
+
+1. **Arquivos novos** no projeto PORTAL-VENDA (botão + › Script), depois de
+   `RegrasVenda` e antes/junto de `PortalVenda`: `venda/ContratoVenda.js` →
+   arquivo **ContratoVenda**; `venda/GerarContrato.gs` → arquivo **GerarContrato**.
+   O `PortalVenda.gs` também mudou (2 ações novas): colar de novo.
+2. **Serviço avançado Drive API:** Serviços (+ ao lado de Serviços) › **Drive API**
+   › versão v3 › Adicionar. Serve para apagar a cópia provisória de vez; sem
+   ele a cópia vai só para a lixeira (o log avisa).
+3. **Propriedades do script** (Configurações do projeto):
+   `DB_VENDEDORES`, `DB_LOTEAMENTOS`, `DB_CORRETORES` = IDs das 3 bases de
+   cadastro (VENDEDORES – CONTRATO, LOTEAMENTOS – CONTRATO, CORRETORES – CONTRATO;
+   lista no arquivo 12 da DOCUMENTACAO); `MODELO_PRONTO_ID` e
+   `MODELO_CONSTRUCAO_ID` = IDs dos dois modelos (Google Docs);
+   `PASTA_PROVISORIA_ID` = ID de uma pasta do Drive só para as cópias
+   provisórias; `CIDADE_ASSINATURA` (opcional; vazio = `Goiânia`).
+4. **Modelos no Drive:** os modelos prontos (com `{{MARCADORES}}`) ficam em
+   `CONTRATOS DE VENDA/modelos-portal/` — **nunca no repositório**. Ao subir
+   para o Drive, escolher **converter para Google Docs** (ou abrir o `.docx`
+   pelo Google Docs e **Arquivo › Salvar como Google Docs**). O ID é o trecho
+   da URL entre `/d/` e `/edit`
+   (`https://docs.google.com/document/d/`**ID**`/edit`). As linhas de bloco
+   (`{{#SE_VENDEDOR_PJ}}`, `{{/SE_VENDEDOR_PJ}}` etc.) e os marcadores têm que
+   ficar no **corpo** do documento, nunca no cabeçalho ou no rodapé (o código
+   só lê o corpo).
+5. **Nova autorização:** como entraram DocumentApp, DriveApp e Drive API, a
+   implantação pede autorização de novo. Implantar › Gerenciar implantações ›
+   lápis › Nova versão › Implantar, e autorizar (Avançado › Acessar).
+6. **Colunas e cadastros:** na VENDAS as 20 colunas `CONTRATO - …` e as 3 bases
+   de cadastro (nomes e tipos exatos no arquivo 12). No teste o script
+   `ferramentas/contrato/criar_estrutura_teste.py` faz tudo (fora do repo).
+
+Teste: abrir a casa de teste, preencher/conferir os campos, **Gerar contrato**;
+faltando dado, o botão lista o que falta e não gera nada.
+
 ## Plano B — Anthropic
 
 A leitura por padrão é pela OpenAI (decisão do dono em 28/09/2026); a
