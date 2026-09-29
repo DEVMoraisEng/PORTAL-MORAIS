@@ -145,8 +145,8 @@
 /* v63 -> v64 (28/09/26 noite): mensagem e anexo "enviando" não somem ao fechar e abrir. */
 /* v64 -> v65 (28/09/26 noite): envio continua ao sair da página; obra com casas vendidas/entregues. */
 /* v65 -> v66 (28/09/26): index.html com o botão Conferência OC × NF em Automações.
-   v66 -> v67 (29/09/26): link do botão corrigido para o repositório CONFER-NCIA-COMPRAS. */
-const CACHE = "portal-morais-v67";  // limpeza só dos caches do portal (não apaga os das RAS)
+   v67 -> v69 (29/09/26): botão aponta para o endereço que está no ar, CONFER-NCIA-COMPRAS. */
+const CACHE = "portal-morais-v69";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",
