@@ -81,8 +81,10 @@ Gera o contrato de compra e venda no fim do painel da casa (PDF em
    arquivo **ContratoVenda**; `venda/GerarContrato.gs` → arquivo **GerarContrato**.
    O `PortalVenda.gs` também mudou (2 ações novas): colar de novo.
 2. **Serviço avançado Drive API:** Serviços (+ ao lado de Serviços) › **Drive API**
-   › versão v3 › Adicionar. Serve para apagar a cópia provisória de vez; sem
-   ele a cópia vai só para a lixeira (o log avisa).
+   › versão v3 › Adicionar. **É obrigatória:** ela apaga a cópia provisória
+   (que tem dado pessoal) de vez, sem passar pela lixeira. Sem ela o botão
+   "Gerar contrato" recusa antes de criar qualquer cópia e a tela mostra
+   "Ative o serviço Drive API no PORTAL-VENDA" (`DRIVE_API_DESLIGADA`).
 3. **Propriedades do script** (Configurações do projeto):
    `DB_VENDEDORES`, `DB_LOTEAMENTOS`, `DB_CORRETORES` = IDs das 3 bases de
    cadastro (VENDEDORES – CONTRATO, LOTEAMENTOS – CONTRATO, CORRETORES – CONTRATO;

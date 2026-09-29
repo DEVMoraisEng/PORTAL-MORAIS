@@ -67,19 +67,23 @@ function ctrLinhasBase_(dbId, filtro) {
     (r.results || []).forEach(function (l) { linhas.push(l.properties || {}); });
     cursor = r.has_more ? r.next_cursor : null;
   } while (cursor && ++voltas < 10);
+  if (cursor) ctrLog_("contrato: base " + dbId + " atingiu o limite de " + linhas.length + " linhas"); /* o resto ficou sem ler */
   return linhas;
 }
-/* Casa a linha do cadastro pelo TÍTULO, com RegrasVenda.chave dos dois lados. */
+/* Casa a linha do cadastro pelo TÍTULO, com RegrasVenda.chave dos dois lados.
+ * Devolve a linha, null (nenhuma) ou { duplicado: true } (mais de um título casa). */
 function ctrAcharLinha_(linhas, nome) {
-  var k = RegrasVenda.chave(nome);
+  var k = RegrasVenda.chave(nome), achada = null;
   if (!k) return null;
   for (var i = 0; i < linhas.length; i++) {
-    if (RegrasVenda.chave(ctrTitulo_(linhas[i])) === k) return { titulo: ctrTitulo_(linhas[i]), c: ctrPorChave_(linhas[i]) };
+    if (RegrasVenda.chave(ctrTitulo_(linhas[i])) !== k) continue;
+    if (achada) return { duplicado: true };
+    achada = { titulo: ctrTitulo_(linhas[i]), c: ctrPorChave_(linhas[i]) };
   }
-  return null;
+  return achada;
 }
 
-/* Propriedades da linha de DOCUMENTOS (a obra) da casa, ou null. */
+/* Propriedades da linha de DOCUMENTOS (a obra) da casa, null (não achou) ou { ambigua: true } (endereço repetido). */
 function ctrObraProps_(rels, endereco) {
   var db = prop_("DB_DOCUMENTOS"), dbLimpo = db.replace(/-/g, "");
   if (rels && rels.length) {
@@ -94,8 +98,9 @@ function ctrObraProps_(rels, endereco) {
   try { linhas = ctrLinhasBase_(db, { property: "ENDEREÇO", title: { equals: endereco } }); }
   catch (e) { ctrErro_("contrato: filtro por endereco falhou", e); }
   if (!linhas.length) linhas = ctrLinhasBase_(db, null);
-  for (var i = 0; i < linhas.length; i++) if (RegrasVenda.chave(ctrTitulo_(linhas[i])) === k) return linhas[i];
-  return null;
+  var achadas = linhas.filter(function (l) { return RegrasVenda.chave(ctrTitulo_(l)) === k; });
+  if (achadas.length > 1) return { ambigua: true };
+  return achadas.length ? achadas[0] : null;
 }
 
 /* Colunas da VENDAS que o contrato exige além das do dossiê. */
@@ -144,6 +149,7 @@ function ctrFontes_(col, pageId) {
   /* a obra: relação OBRA-AUTO se aponta para DOCUMENTOS; senão, pelo ENDEREÇO (título) */
   var props = ctrObraProps_(cv("OBRA-AUTO"), venda.ENDERECO);
   if (!props) return { obraNaoEncontrada: true };
+  if (props.ambigua === true) return { obraAmbigua: true };
   var op = ctrPorChave_(props);
   var obra = { obraFinalizada: ctrTxt_(ctrCampo_(op, "OBRA FINALIZADA?")), proprietario: ctrTxt_(ctrCampo_(op, "PROPRIETARIO DOCUMENTO")),
                cpfCnpj: ctrTxt_(ctrCampo_(op, "CPF/CNPJ")), dataHabitese: ctrTxt_(ctrCampo_(op, "DATA HABITE-SE")) };
@@ -152,6 +158,11 @@ function ctrFontes_(col, pageId) {
   var lv = ctrAcharLinha_(ctrLinhasBase_(prop_("DB_VENDEDORES")), obra.proprietario);
   var ll = ctrAcharLinha_(ctrLinhasBase_(prop_("DB_LOTEAMENTOS")), setor);
   var lc = ctrAcharLinha_(ctrLinhasBase_(prop_("DB_CORRETORES")), venda.CORRETOR);
+  var duplicados = [];
+  if (lv && lv.duplicado) duplicados.push("Vendedor: cadastro duplicado em VENDEDORES – CONTRATO");
+  if (ll && ll.duplicado) duplicados.push("Loteamento: cadastro duplicado em LOTEAMENTOS – CONTRATO");
+  if (lc && lc.duplicado) duplicados.push("Corretor: cadastro duplicado em CORRETORES – CONTRATO");
+  if (duplicados.length) return { duplicados: duplicados };
   function t(l, nome) { return ctrTxt_(ctrCampo_(l.c, nome)); }
   var vendedor = lv ? {
     tipo: t(lv, "TIPO"), nome: lv.titulo, cpfCnpj: t(lv, "CPF/CNPJ"), endereco: t(lv, "ENDEREÇO / SEDE"),
@@ -203,24 +214,36 @@ function aplicarMarcadores_(body, marcadores) {
     body.replaceText("\\{\\{" + chave + "\\}\\}", valor);
   }
 }
-/* Nomes (só nomes) dos marcadores que sobraram no corpo; [] se está limpo. */
-function ctrMarcadoresSobrando_(body) {
-  var t = String(body.getText());
+/* Nomes (só nomes) dos marcadores que sobraram no texto; [] se está limpo. */
+function ctrMarcadoresNoTexto_(t) {
+  t = String(t);
   if (t.indexOf("{{") < 0 && t.indexOf("}}") < 0) return [];
   var nomes = [], re = /\{\{[#\/]?([A-Za-z0-9_]+)\}\}/g, m;
   while ((m = re.exec(t)) !== null) if (nomes.indexOf(m[1]) < 0) nomes.push(m[1]);
   return nomes.length ? nomes : ["{{ }}"];
 }
+/* Corpo, cabeçalho e rodapé (os dois últimos podem não existir). */
+function ctrSecoes_(doc) {
+  var s = [doc.getBody()];
+  [doc.getHeader(), doc.getFooter()].forEach(function (x) { if (x) s.push(x); });
+  return s;
+}
+function ctrMarcadoresSobrando_(doc) {
+  var nomes = [];
+  ctrSecoes_(doc).forEach(function (sec) {
+    ctrMarcadoresNoTexto_(sec.getText()).forEach(function (n) { if (nomes.indexOf(n) < 0) nomes.push(n); });
+  });
+  return nomes;
+}
 function apagarCopia_(id) {
   try {
-    if (typeof Drive !== "undefined" && Drive.Files && Drive.Files.remove) Drive.Files.remove(id);
-    else {
-      DriveApp.getFileById(id).setTrashed(true);
-      console.log("PORTAL-VENDA contrato: copia na lixeira (Drive API avançada desligada)");
-    }
+    Drive.Files.remove(id, { supportsAllDrives: true });
   } catch (e) {
     ctrErro_("contrato: copia nao apagada", e);
-    try { DriveApp.getFileById(id).setTrashed(true); } catch (_) {}
+    try {
+      DriveApp.getFileById(id).setTrashed(true);
+      ctrLog_("contrato: copia foi para a lixeira");
+    } catch (_) {}
   }
 }
 
@@ -243,6 +266,14 @@ function gerarContrato_(col, sess, p) {
   if (!prop_("DB_VENDEDORES") || !prop_("DB_LOTEAMENTOS") || !prop_("DB_CORRETORES") || !prop_("DB_DOCUMENTOS")) return { ok: false, erro: "CADASTRO_NAO_CONFIGURADO" };
 
   var f = ctrFontes_(col, p.pageId);
+  if (f.obraAmbigua) {
+    ctrLog_("gerarContrato " + pid + " obra ambigua");
+    return { ok: false, erro: "FALTAM_DADOS", faltas: ["Vendedor: obra ambígua em DOCUMENTOS (endereço repetido)"] };
+  }
+  if (f.duplicados) {
+    ctrLog_("gerarContrato " + pid + " cadastro duplicado " + f.duplicados.length);
+    return { ok: false, erro: "FALTAM_DADOS", faltas: f.duplicados };
+  }
   if (f.obraNaoEncontrada) {
     ctrLog_("gerarContrato " + pid + " obra nao encontrada");
     return { ok: false, erro: "FALTAM_DADOS", faltas: ["Vendedor: obra da casa não encontrada em DOCUMENTOS (endereço)"] };
@@ -254,6 +285,10 @@ function gerarContrato_(col, sess, p) {
     return { ok: false, erro: "FALTAM_DADOS", faltas: faltas };
   }
 
+  if (typeof Drive === "undefined" || !Drive || !Drive.Files || !Drive.Files.remove) {
+    ctrLog_("gerarContrato " + pid + " Drive API desligada");
+    return { ok: false, erro: "DRIVE_API_DESLIGADA" }; /* sem ela a cópia com dado pessoal ficaria na lixeira */
+  }
   var modeloId = prop_(d.modelo === "PRONTO" ? "MODELO_PRONTO_ID" : "MODELO_CONSTRUCAO_ID"), pastaId = prop_("PASTA_PROVISORIA_ID");
   if (!modeloId || !pastaId) return { ok: false, erro: "MODELO_NAO_CONFIGURADO" };
   var modelo, pasta, marcadores, blocos;
@@ -271,8 +306,8 @@ function gerarContrato_(col, sess, p) {
     copia = modelo.makeCopy("contrato-provisorio-" + pid + "-" + Date.now(), pasta);
     var doc = DocumentApp.openById(copia.getId());
     aplicarBlocos_(doc.getBody(), blocos);
-    aplicarMarcadores_(doc.getBody(), marcadores);
-    var sobrando = ctrMarcadoresSobrando_(doc.getBody());
+    ctrSecoes_(doc).forEach(function (sec) { aplicarMarcadores_(sec, marcadores); });
+    var sobrando = ctrMarcadoresSobrando_(doc);
     if (sobrando.length) {
       ctrLog_("gerarContrato " + pid + " marcador sobrando: " + sobrando.join(", "));
       doc.saveAndClose();

@@ -187,6 +187,7 @@ test("mensagemContrato: cada erro em português", () => {
   assert.equal(m("CADASTRO_NAO_CONFIGURADO"), "Os cadastros do contrato não estão configurados neste ambiente.");
   assert.equal(m("CONTRATO_FALHOU"), "Não consegui gerar o contrato — tente de novo.");
   assert.equal(m("MODELO_COM_MARCADOR_SOBRANDO"), "O modelo do contrato tem um campo sem preenchimento — avise o suporte.");
+  assert.equal(m("DRIVE_API_DESLIGADA"), "Ative o serviço Drive API no PORTAL-VENDA (veja COMO-IMPLANTAR).");
   assert.equal(m("SEM_PERMISSAO_TESTES"), "O perfil TESTES só consulta; não grava.");
   assert.equal(m("NAO_AUTORIZADO"), "Sua sessão expirou — entre de novo no portal.");
   assert.match(m("SEM_RESPOSTA"), /não respondeu/);

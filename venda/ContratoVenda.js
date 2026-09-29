@@ -168,9 +168,14 @@ var ContratoVenda = (function () {
   function nomeComprador1(clientes, nome2) {
     var c = txt(clientes), n2 = txt(nome2);
     if (!n2) return c;
-    var pos = c.toUpperCase().indexOf(n2.toUpperCase());
+    /* o nome do 2º só vale como fronteira de palavra (depois de espaço ou separador), nunca no meio de outro nome */
+    var pos = -1, cu = c.toUpperCase(), nu = n2.toUpperCase(), from = 0, i;
+    while ((i = cu.indexOf(nu, from)) >= 0) {
+      if (i > 0 && /[\s&,\/]/.test(cu.charAt(i - 1))) { pos = i; break; }
+      from = i + 1;
+    }
     if (pos < 0) {
-      var m = /\s+E\s+|\s*[&,\/]\s*/i.exec(c);
+      var m = /\s+E\s+|\s*[&,\/]\s*/i.exec(c); /* o PRIMEIRO " E ", como no dossiê */
       pos = m ? m.index : -1;
     }
     if (pos < 0) return c;
@@ -241,7 +246,7 @@ var ContratoVenda = (function () {
         prazoConclusao: txt(v.PRAZO_CONCLUSAO), condicoesEspeciais: txt(v.CONDICOES_ESPECIAIS)
       },
       negociacao: {
-        valorContrato: total, aquisicao: aquisicao, intermediacao: intermediacao,
+        valorContrato: total, valorNaMao: naMao, aquisicao: aquisicao, intermediacao: intermediacao,
         sinalValor: num(v.SINAL_VALOR), sinalData: txt(v.SINAL_DATA),
         entradaValor: num(v.ENTRADA_VALOR), entradaVencimento: txt(v.ENTRADA_VENCIMENTO),
         intermediariaValor: num(v.INTERMEDIARIA_VALOR), intermediariaVencimento: txt(v.INTERMEDIARIA_VENCIMENTO),
@@ -330,6 +335,14 @@ var ContratoVenda = (function () {
 
     var n = d.negociacao, c = d.comissao;
     exige(n.valorContrato !== null && n.valorContrato > 0, "Negociação", "valor do imóvel");
+    if (n.valorContrato !== null && n.valorContrato > 0) {
+      exige(n.aquisicao !== null && n.aquisicao > 0, "Negociação", "valor de aquisição inválido");
+      /* com a comissão paga pelo comprador, o valor na mão entra no contrato: tem de fechar com o total */
+      if (d.comissao.pagaPor !== "VENDEDOR" && n.valorNaMao !== null && n.valorNaMao > 0 && c.valor !== null &&
+          Math.abs(n.valorNaMao + c.valor - n.valorContrato) > 0.01) {
+        faltas.push("Negociação: valor na mão + comissão ≠ valor do contrato");
+      }
+    }
     exige(n.sinalValor !== null && n.sinalValor > 0, "Negociação", "sinal (valor)");
     exige(!vazio(n.sinalData), "Negociação", "sinal (data)");
     exige(n.entradaValor !== null && n.entradaValor > 0, "Negociação", "entrada (valor)");

@@ -198,3 +198,49 @@ test("marcadores novos: prazo, condições, assinaturas, doc do corretor e do ve
   assert.equal(m.REPRESENTANTE_NOME, "INVESTIDOR TESTE");
   assert.equal(m.REPRESENTANTE_CPF, "333.444.555-66");
 });
+
+test("soma dos valores: na mão + comissão bate com o contrato (tolerância de 1 centavo)", () => {
+  assert.deepEqual(C.faltasContrato(C.montarDadosContrato(fontes())), []);
+  const f = fontes();
+  f.venda.VALOR_NA_MAO = 289999.995;
+  assert.ok(!C.faltasContrato(C.montarDadosContrato(f)).some((x) => x.includes("na mão")));
+});
+
+test("soma dos valores: na mão + comissão diferente do contrato vira falta", () => {
+  const f = fontes();
+  f.venda.VALOR_NA_MAO = 280000;
+  assert.ok(C.faltasContrato(C.montarDadosContrato(f)).includes("Negociação: valor na mão + comissão ≠ valor do contrato"));
+});
+
+test("valor de aquisição inválido (negativo) vira falta", () => {
+  const f = fontes();
+  f.venda.VALOR_NA_MAO = null;
+  f.venda.COMISSAO = 400000; /* total - comissão < 0 */
+  assert.ok(C.faltasContrato(C.montarDadosContrato(f)).includes("Negociação: valor de aquisição inválido"));
+  const g = fontes();
+  g.venda.VALOR_NA_MAO = -5;
+  g.venda.COMISSAO = 300005;
+  assert.ok(C.faltasContrato(C.montarDadosContrato(g)).includes("Negociação: valor de aquisição inválido"));
+});
+
+test("comissão paga pelo vendedor: a soma não é exigida (na mão não entra no contrato)", () => {
+  const f = fontes();
+  f.venda.COMISSAO_PAGA_POR = "VENDEDOR";
+  f.venda.VALOR_NA_MAO = 1;
+  assert.ok(!C.faltasContrato(C.montarDadosContrato(f)).some((x) => x.includes("na mão")));
+});
+
+test("comprador 1 vindo de CLIENTES: primeira fronteira ' E ', mesmo com E dentro do nome", () => {
+  const f = fontes();
+  f.venda.CLIENTES = "EDUARDO E SILVA TESTE E BRUNA TESTE";
+  f.venda.COMPRADOR2 = Object.assign({}, f.venda.COMPRADOR2, { nome: "BRUNA TESTE" });
+  assert.equal(C.montarDadosContrato(f).comprador1.nome, "EDUARDO E SILVA TESTE");
+  const g = fontes();
+  g.venda.CLIENTES = "EDUARDO TESTE E OUTRA GRAFIA";
+  g.venda.COMPRADOR2 = Object.assign({}, g.venda.COMPRADOR2, { nome: "BRUNA TESTE" });
+  assert.equal(C.montarDadosContrato(g).comprador1.nome, "EDUARDO TESTE");
+  const h = fontes(); /* o nome do 2º aparece dentro do nome do 1º: só conta como fronteira de palavra */
+  h.venda.CLIENTES = "MARIANA TESTE E ANA";
+  h.venda.COMPRADOR2 = Object.assign({}, h.venda.COMPRADOR2, { nome: "ANA" });
+  assert.equal(C.montarDadosContrato(h).comprador1.nome, "MARIANA TESTE");
+});

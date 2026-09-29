@@ -103,6 +103,7 @@
   var MSG_CONTRATO = {
     MODELO_NAO_CONFIGURADO: "O modelo do contrato não está configurado neste ambiente.",
     CADASTRO_NAO_CONFIGURADO: "Os cadastros do contrato não estão configurados neste ambiente.",
+    DRIVE_API_DESLIGADA: "Ative o serviço Drive API no PORTAL-VENDA (veja COMO-IMPLANTAR).",
     CONTRATO_FALHOU: "Não consegui gerar o contrato — tente de novo.",
     MODELO_COM_MARCADOR_SOBRANDO: "O modelo do contrato tem um campo sem preenchimento — avise o suporte.",
     FALTAM_DADOS: "Faltam dados para gerar o contrato."

@@ -170,13 +170,13 @@ export function notionFalso({ valores = {}, s3 = {}, colunas = COLUNAS_REAIS, pa
    - Body.replaceText(regex, substituto): substituto literal salvo `\x` e `$n` (um `$` solto lança);
    - Paragraph.removeFromParent() lança no último parágrafo do corpo;
    - o PDF exportado é o conteúdo SALVO (saveAndClose), não o que ainda está aberto;
-   - `Drive` (serviço avançado) só existe com avancado: true; Drive.Files.remove apaga de vez. */
-export function driveFalso({ modelos = {}, avancado = true, falhaAbrir = null } = {}) {
+   - `Drive` (serviço avançado) só existe com avancado: true; Drive.Files.remove apaga de vez (opções guardadas em estado.opcoesRemocao). */
+export function driveFalso({ modelos = {}, avancado = true, falhaAbrir = null, cabecalhos = {} } = {}) {
   const docs = {};
-  const estado = { copias: [], removidas: [], lixeira: [], exportados: [], abertos: [] };
+  const estado = { copias: [], removidas: [], lixeira: [], exportados: [], abertos: [], opcoesRemocao: [], salvos: {} };
   let seq = 0;
   const par = (t) => ({ texto: t });
-  for (const [id, linhas] of Object.entries(modelos)) docs[id] = { pars: linhas.map(par), salvo: linhas.slice(), aberto: false };
+  for (const [id, linhas] of Object.entries(modelos)) docs[id] = { pars: linhas.map(par), salvo: linhas.slice(), aberto: false, cab: cabecalhos[id] || {} };
   const substituto = (rep, m) => {
     let s = "";
     for (let i = 0; i < rep.length; i++) {
@@ -191,6 +191,12 @@ export function driveFalso({ modelos = {}, avancado = true, falhaAbrir = null } 
       } else s += c;
     }
     return s;
+  };
+  /* cabeçalho/rodapé: null quando o documento não tem (como no Apps Script) */
+  const secao = (d, k) => {
+    if (!d.aberto) throw new Error("Document is closed");
+    if (typeof d.cab[k] !== "string") return null;
+    return { getText: () => d.cab[k], replaceText: (padrao, rep) => { d.cab[k] = d.cab[k].replace(new RegExp(padrao, "g"), (...a) => substituto(rep, a)); } };
   };
   function docAberto(id) {
     const d = docs[id];
@@ -218,7 +224,9 @@ export function driveFalso({ modelos = {}, avancado = true, falhaAbrir = null } 
           },
         };
       },
-      saveAndClose: () => { d.salvo = d.pars.map((p) => p.texto); d.aberto = false; },
+      getHeader: () => secao(d, "header"),
+      getFooter: () => secao(d, "footer"),
+      saveAndClose: () => { d.salvo = d.pars.map((p) => p.texto); d.aberto = false; estado.salvos[id] = { pars: d.salvo.slice(), cab: JSON.parse(JSON.stringify(d.cab)) }; },
     };
   }
   const arquivo = (id) => {
@@ -228,7 +236,7 @@ export function driveFalso({ modelos = {}, avancado = true, falhaAbrir = null } 
       makeCopy: (nome, pasta) => {
         if (!pasta || !pasta.getId) throw new Error("makeCopy precisa de (nome, pasta)");
         const novo = "copia-" + (++seq);
-        docs[novo] = { pars: docs[id].salvo.map(par), salvo: docs[id].salvo.slice(), aberto: false };
+        docs[novo] = { pars: docs[id].salvo.map(par), salvo: docs[id].salvo.slice(), aberto: false, cab: JSON.parse(JSON.stringify(docs[id].cab || {})) };
         estado.copias.push({ id: novo, nome, pasta: pasta.getId() });
         return arquivo(novo);
       },
@@ -249,6 +257,6 @@ export function driveFalso({ modelos = {}, avancado = true, falhaAbrir = null } 
     } },
     DriveApp: { getFileById: arquivo, getFolderById: (id) => ({ getId: () => id }) },
   };
-  if (avancado) extras.Drive = { Files: { remove: (id) => { if (!docs[id]) throw new Error("File not found: " + id); delete docs[id]; estado.removidas.push(id); } } };
+  if (avancado) extras.Drive = { Files: { remove: (id, opc) => { if (!docs[id]) throw new Error("File not found: " + id); delete docs[id]; estado.removidas.push(id); estado.opcoesRemocao.push(opc); } } };
   return { extras, estado, docs };
 }

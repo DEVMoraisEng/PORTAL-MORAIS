@@ -91,10 +91,11 @@ const mescla = (base, mud) => {
   return r;
 };
 
-function cenario({ venda, obra, vendedor, loteamento, corretor, props, drive, colunas, semBases = [], rotaExtra, obraDb = "db-doc", linhasDoc } = {}) {
+function cenario({ venda, obra, vendedor, loteamento, corretor, props, drive, colunas, semBases = [], rotaExtra, obraDb = "db-doc", linhasDoc, duplicar = {} } = {}) {
   const d = driveFalso(Object.assign({ modelos: { "modelo-obra": MODELO_OBRA, "modelo-pronto": MODELO_PRONTO } }, drive));
   const bases = { "db-vend": [mescla(VENDEDOR, vendedor)], "db-lote": [mescla(LOTEAMENTO, loteamento)], "db-corr": [mescla(CORRETOR, corretor)],
     "db-doc": linhasDoc || [Object.assign({ "ENDEREÇO": tit("RESIDENCIAL TESTE QD 07 LT 12") }, mescla(OBRA_PG, obra))] };
+  for (const [base, mud] of Object.entries(duplicar)) bases[base].push(mescla(bases[base][0], mud === true ? {} : mud));
   const cols = colunas || colunasVenda();
   const valores = Object.fromEntries(Object.entries(mescla(VENDA, venda)).filter(([k]) => k in cols));
   const n = notionFalso({ colunas: cols, valores, paginasExtras: { [OBRA]: mescla(OBRA_PG, obra) }, paginasDb: { [OBRA]: obraDb }, bases });
@@ -324,19 +325,97 @@ test("Review Focus 4: Notion falha no upload -> CONTRATO_FALHOU, cópia removida
   assert.equal(c.n.patches.length, 0);
 });
 
-test("sem o serviço Drive avançado: cópia vai para a lixeira e o log avisa", () => {
+test("I-1: sem o serviço Drive avançado: DRIVE_API_DESLIGADA e nenhuma cópia criada", () => {
   const c = cenario({ drive: { avancado: false } });
-  assert.equal(c.gerar().ok, true);
-  assert.deepEqual(c.d.estado.lixeira, [c.d.estado.copias[0].id]);
-  assert.deepEqual(c.d.estado.removidas, []);
-  assert.ok(c.g.logs.includes("PORTAL-VENDA contrato: copia na lixeira (Drive API avançada desligada)"));
+  const r = c.gerar();
+  assert.deepEqual(r, { ok: false, erro: "DRIVE_API_DESLIGADA" });
+  assert.equal(c.d.estado.copias.length, 0);
+  assert.deepEqual(c.d.estado.lixeira, []);
+  assert.equal(c.d.estado.abertos.length, 0);
+  assert.equal(c.n.patches.length, 0);
 });
 
-test("remoção da cópia que falha é logada e não derruba a geração", () => {
+test("I-1: Drive.Files sem remove também conta como desligado", () => {
+  const c = cenario();
+  c.g.ctx.Drive = {};
+  assert.equal(c.gerar().erro, "DRIVE_API_DESLIGADA");
+  assert.equal(c.d.estado.copias.length, 0);
+});
+
+test("I-1: a remoção passa supportsAllDrives: true", () => {
+  const c = cenario();
+  assert.equal(c.gerar().ok, true);
+  assert.equal(JSON.stringify(c.d.estado.opcoesRemocao), '[{"supportsAllDrives":true}]');
+});
+
+test("I-1: remoção que lança cai para a lixeira, loga sem dado pessoal e não derruba a geração", () => {
   const c = cenario();
   c.g.ctx.Drive.Files.remove = () => { throw new Error("sem permissão"); };
   assert.equal(c.gerar().ok, true);
   assert.ok(c.g.logs.some((l) => /copia nao apagada/.test(l)));
+  assert.deepEqual(c.d.estado.lixeira, [c.d.estado.copias[0].id]);
+  assert.ok(c.g.logs.includes("PORTAL-VENDA contrato: copia foi para a lixeira"));
+});
+
+test("I-2: endereço repetido em DOCUMENTOS (sem relação) -> falta de obra ambígua, sem cópia", () => {
+  const c = cenario({
+    venda: { "OBRA-AUTO": { relation: [] } },
+    linhasDoc: [LINHA_DOC("RESIDENCIAL TESTE QD 07 LT 12", "Construtora Teste Ltda"), LINHA_DOC("RESIDENCIAL TESTE QD 07 LT 12", "Outra Empresa Teste")],
+  });
+  const r = c.gerar();
+  assert.equal(r.erro, "FALTAM_DADOS");
+  assert.deepEqual(r.faltas, ["Vendedor: obra ambígua em DOCUMENTOS (endereço repetido)"]);
+  assert.equal(c.d.estado.copias.length, 0);
+});
+
+test("I-2: cadastro duplicado (vendedor, loteamento, corretor) vira falta, sem cópia", () => {
+  const casos = [["db-vend", "Vendedor: cadastro duplicado em VENDEDORES – CONTRATO"],
+                 ["db-lote", "Loteamento: cadastro duplicado em LOTEAMENTOS – CONTRATO"],
+                 ["db-corr", "Corretor: cadastro duplicado em CORRETORES – CONTRATO"]];
+  for (const [base, falta] of casos) {
+    const c = cenario({ duplicar: { [base]: true } });
+    const r = c.gerar();
+    assert.equal(r.erro, "FALTAM_DADOS", base);
+    assert.deepEqual(r.faltas, [falta], base);
+    assert.equal(c.d.estado.copias.length, 0, base);
+  }
+});
+
+test("I-2: cadastro duplicado por acento/caixa diferentes também conta", () => {
+  const c = cenario({ duplicar: { "db-vend": { NOME: tit("CONSTRUTORA  TÉSTE LTDA") } } });
+  assert.deepEqual(c.gerar().faltas, ["Vendedor: cadastro duplicado em VENDEDORES – CONTRATO"]);
+});
+
+test("M-2: marcador sobrando só no cabeçalho ou só no rodapé também barra; a cópia é removida", () => {
+  for (const [cab, nome] of [[{ header: "Cabeçalho {{SOBRA_CAB}}" }, "SOBRA_CAB"], [{ footer: "Rodapé {{SOBRA_ROD}}" }, "SOBRA_ROD"]]) {
+    const c = cenario({ venda: { "CONTRATO GERADO": ANTIGO }, drive: { cabecalhos: { "modelo-obra": cab } } });
+    const r = c.gerar();
+    assert.equal(r.erro, "MODELO_COM_MARCADOR_SOBRANDO");
+    assert.deepEqual(r.marcadores, [nome]);
+    assert.deepEqual(c.d.estado.removidas, [c.d.estado.copias[0].id]);
+    assert.deepEqual(c.d.estado.exportados, []);
+    assert.equal(c.n.patches.length, 0);
+  }
+});
+
+test("M-2: marcador válido em cabeçalho e rodapé é preenchido; documento sem cabeçalho (null) segue normal", () => {
+  const c = cenario({ drive: { cabecalhos: { "modelo-obra": { header: "Loteamento {{LOTEAMENTO}} $", footer: "{{MUNICIPIO_UF}}" } } } });
+  assert.equal(c.gerar().ok, true);
+  const salvo = c.d.estado.salvos[c.d.estado.copias[0].id];
+  assert.equal(salvo.cab.header, "Loteamento Residencial Teste $");
+  assert.equal(salvo.cab.footer, "Cidade Teste/GO");
+  assert.equal(cenario().gerar().ok, true);
+});
+
+test("M-3: base que continua com mais páginas depois de 1000 linhas é avisada no log", () => {
+  const linha = (i) => ({ id: "l" + i, properties: { NOME: { type: "title", title: [{ type: "text", plain_text: "Corretor " + i }] } } });
+  const c = cenario({ rotaExtra: (url) => (url.endsWith("/databases/db-corr/query")
+    ? { json: { results: Array.from({ length: 100 }, (_, i) => linha(i)), has_more: true, next_cursor: "c" } } : null) });
+  c.gerar();
+  assert.ok(c.g.logs.includes("PORTAL-VENDA contrato: base db-corr atingiu o limite de 1000 linhas"), c.g.logs.join(" | "));
+  const curta = cenario();
+  curta.gerar();
+  assert.ok(!curta.g.logs.some((l) => l.includes("limite de 1000")));
 });
 
 test("modelo ou pasta não configurados; cadastro não configurado", () => {
@@ -392,7 +471,8 @@ test("nenhum log carrega nome, CPF, Pix ou conta dos dados de teste", () => {
   falta.gerar();
   const falha = cenario({ drive: { falhaAbrir: "Documento indisponível" } });
   falha.gerar();
-  const semLixo = cenario({ drive: { avancado: false } });
+  const semLixo = cenario();
+  semLixo.g.ctx.Drive.Files.remove = () => { throw new Error("sem permissão"); };
   semLixo.gerar();
   for (const c of [ok, falta, falha, semLixo]) {
     const todos = c.g.logs.join("\n");
