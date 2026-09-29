@@ -125,3 +125,77 @@ test("painelCarregando: false com 1 filho sem .load", () => {
 test("painelCarregando: false com 0 filhos", () => {
   assert.equal(D.painelCarregando(0, "", false), false);
 });
+
+/* ---------- bloco Contrato ---------- */
+const uic = (x = {}) => Object.assign({ ocupadoContrato: null, faltas: null, msg: "", testes: false }, x);
+const botao = (h, acao) => (h.match(new RegExp('<button[^>]*data-acao="' + acao + '"[^>]*>')) || [null])[0];
+
+test("contrato: sem estado ainda mostra carregando", () => {
+  const h = D.htmlContrato(null, uic());
+  assert.match(h, /Contrato/);
+  assert.match(h, /carregando/);
+  assert.equal(botao(h, "c-gerar"), null);
+});
+
+test("contrato: nunca gerado mostra Gerar contrato habilitado e nada de Visualizar", () => {
+  const h = D.htmlContrato({ gerado: false }, uic());
+  assert.match(h, /Gerar contrato/);
+  assert.doesNotMatch(botao(h, "c-gerar"), /disabled/);
+  assert.equal(botao(h, "c-ver"), null);
+});
+
+test("contrato: gerando avisa e desabilita todos os botões", () => {
+  const h = D.htmlContrato({ gerado: true, nome: "Contrato.pdf" }, uic({ ocupadoContrato: "gerar" }));
+  assert.match(h, /gerando… \(até 1 minuto\)/);
+  assert.match(botao(h, "c-gerar"), /disabled/);
+  assert.match(botao(h, "c-ver"), /disabled/);
+});
+
+test("contrato: faltas viram lista escapada com o título", () => {
+  const h = D.htmlContrato({ gerado: false }, uic({ faltas: ["Negociação: sinal (valor)", "<img src=x onerror=alert(1)>"] }));
+  assert.match(h, /Para gerar o contrato, falta:/);
+  assert.match(h, /<ul>[\s\S]*<li>Negociação: sinal \(valor\)<\/li>/);
+  assert.doesNotMatch(h, /<img/);
+  assert.match(h, /&lt;img/);
+});
+
+test("contrato: gerado mostra o nome (escapado), Visualizar e Gerar de novo", () => {
+  const h = D.htmlContrato({ gerado: true, nome: "<b>C</b>.pdf" }, uic());
+  assert.match(h, /Contrato gerado: &lt;b&gt;C&lt;\/b&gt;\.pdf/);
+  assert.doesNotMatch(botao(h, "c-ver"), /disabled/);
+  assert.match(h, /Gerar de novo/);
+  assert.doesNotMatch(botao(h, "c-gerar"), /disabled/);
+});
+
+test("contrato: perfil TESTES vê o bloco com botões desabilitados", () => {
+  for (const est of [{ gerado: false }, { gerado: true, nome: "x.pdf" }]) {
+    const h = D.htmlContrato(est, uic({ testes: true }));
+    assert.match(h, /Perfil TESTES/);
+    assert.match(botao(h, "c-gerar"), /disabled/);
+    const ver = botao(h, "c-ver");
+    if (ver) assert.match(ver, /disabled/);
+  }
+});
+
+test("contrato: mensagem da tela é escapada", () => {
+  assert.match(D.htmlContrato({ gerado: false }, uic({ msg: "<i>x</i>" })), /&lt;i&gt;x/);
+});
+
+test("mensagemContrato: cada erro em português", () => {
+  const m = (erro) => D.mensagemContrato({ ok: false, erro });
+  assert.equal(m("MODELO_NAO_CONFIGURADO"), "O modelo do contrato não está configurado neste ambiente.");
+  assert.equal(m("CADASTRO_NAO_CONFIGURADO"), "Os cadastros do contrato não estão configurados neste ambiente.");
+  assert.equal(m("CONTRATO_FALHOU"), "Não consegui gerar o contrato — tente de novo.");
+  assert.equal(m("MODELO_COM_MARCADOR_SOBRANDO"), "O modelo do contrato tem um campo sem preenchimento — avise o suporte.");
+  assert.equal(m("SEM_PERMISSAO_TESTES"), "O perfil TESTES só consulta; não grava.");
+  assert.equal(m("NAO_AUTORIZADO"), "Sua sessão expirou — entre de novo no portal.");
+  assert.match(m("SEM_RESPOSTA"), /não respondeu/);
+  assert.match(m("COLUNA_FALTANDO: X"), /coluna X/);
+  assert.match(m("TIPO_DE_COLUNA_ERRADO: Y"), /coluna Y/);
+  assert.match(m("OUTRO"), /OUTRO/);
+});
+
+test("mensagemContrato: nunca mostra os nomes dos marcadores", () => {
+  const t = D.mensagemContrato({ ok: false, erro: "MODELO_COM_MARCADOR_SOBRANDO", marcadores: ["SEGREDO_X"] });
+  assert.doesNotMatch(t, /SEGREDO_X/);
+});

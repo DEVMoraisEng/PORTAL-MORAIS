@@ -100,14 +100,52 @@
     return h;
   }
 
+  var MSG_CONTRATO = {
+    MODELO_NAO_CONFIGURADO: "O modelo do contrato não está configurado neste ambiente.",
+    CADASTRO_NAO_CONFIGURADO: "Os cadastros do contrato não estão configurados neste ambiente.",
+    CONTRATO_FALHOU: "Não consegui gerar o contrato — tente de novo.",
+    MODELO_COM_MARCADOR_SOBRANDO: "O modelo do contrato tem um campo sem preenchimento — avise o suporte.",
+    FALTAM_DADOS: "Faltam dados para gerar o contrato."
+  };
+  /* Nunca inclui nomes de marcador do modelo (resposta.marcadores): esses vão só para o console. */
+  function mensagemContrato(r) {
+    var e = String((r && r.erro) || "");
+    return MSG_CONTRATO[e] || mensagemDeErro(e);
+  }
+  function htmlContrato(e, u) {
+    var ocupado = !!u.ocupadoContrato, testes = !!u.testes;
+    var dis = (ocupado || testes) ? " disabled" : "";
+    var h = '<div class="grp">Contrato</div>';
+    if (testes) h += '<div class="dz-aviso">Perfil TESTES só consulta.</div>';
+    if (!e) return h + '<div class="vazio">' + esc(u.msg || "carregando…") + "</div>";
+    if (u.ocupadoContrato === "gerar") h += '<div class="dz-linha"><b>gerando… (até 1 minuto)</b></div>';
+    if (u.faltas && u.faltas.length) {
+      h += '<div class="dz-aviso">Para gerar o contrato, falta:</div><ul>' +
+        u.faltas.map(function (f) { return "<li>" + esc(f) + "</li>"; }).join("") + "</ul>";
+    }
+    if (e.gerado) {
+      h += '<div class="dz-linha"><span class="dz-rot">Contrato gerado: ' + esc(e.nome) + "</span>" +
+        '<button type="button" class="bt bt-mini" data-acao="c-ver"' + dis + ">Visualizar</button> " +
+        '<button type="button" class="bt ghost bt-mini" data-acao="c-gerar"' + dis + ">Gerar de novo</button></div>";
+    } else {
+      h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-gerar"' + dis + ">Gerar contrato</button></div>";
+    }
+    if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
+    return h;
+  }
+
   var exportar = { URL_PORTAL_VENDA: URL_PORTAL_VENDA, DOCS: DOCS, html: html, mensagemDeErro: mensagemDeErro,
-                   resumo: resumo, escala: escala, tipoAceito: tipoAceito, painelCarregando: painelCarregando };
+                   resumo: resumo, escala: escala, tipoAceito: tipoAceito, painelCarregando: painelCarregando,
+                   htmlContrato: htmlContrato, mensagemContrato: mensagemContrato };
   if (typeof module !== "undefined" && module.exports) { module.exports = exportar; return; }
 
   /* ---------------- navegador ---------------- */
   var CSS = "#dossie-wrap{margin-bottom:14px}#dossie-wrap .dz-linha{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}" +
     "#dossie-wrap .dz-rot{flex:1 1 200px}#dossie-wrap .on{outline:2px solid #4cd964}#dossie-wrap .dz-aviso{color:#E67E22;margin:6px 0}" +
-    "#dossie-wrap .dz-msg{margin-top:8px;font-weight:600}#dossie-wrap pre{white-space:pre-wrap;font:inherit;margin:4px 0}";
+    "#dossie-wrap .dz-msg{margin-top:8px;font-weight:600}#dossie-wrap pre{white-space:pre-wrap;font:inherit;margin:4px 0}" +
+    "#contrato-wrap{margin-top:14px}#contrato-wrap .dz-linha{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}" +
+    "#contrato-wrap .dz-rot{flex:1 1 200px}#contrato-wrap .dz-aviso{color:#E67E22;margin:6px 0}" +
+    "#contrato-wrap .dz-msg{margin-top:8px;font-weight:600}#contrato-wrap ul{margin:4px 0 4px 18px}";
   var estado = null, ui = { dois: false, ocupado: null, msg: "", testes: false }, paginaDoBloco = null;
 
   function obraAberta() { try { return OBRA_ABERTA; } catch (e) { return null; } }
@@ -246,21 +284,89 @@
       return depoisDeGravar(pageId, r, "Dossiê devolvido.");
     }
   }
+  /* ---- bloco Contrato: estado próprio, separado do dossiê ---- */
+  var estadoC = null, uiC = { ocupadoContrato: null, faltas: null, msg: "", testes: false }, paginaDoContrato = null;
+  function novoUiC() { return { ocupadoContrato: null, faltas: null, msg: "", testes: perfilTestes() }; }
+  function mesmaCasaContrato(pageId) { return obraAberta() === pageId && paginaDoContrato === pageId; }
+  function wrapC() { return document.getElementById("contrato-wrap"); }
+  function pintarC() {
+    var w = wrapC(); if (!w) return;
+    w.innerHTML = htmlContrato(estadoC, uiC);
+  }
+  async function carregarContrato(pageId) {
+    var r = await chamarVenda({ action: "contratoEstado", pageId: pageId });
+    if (!mesmaCasaContrato(pageId)) return;
+    if (r.ok) estadoC = { gerado: !!r.gerado, nome: r.nome || "", url: r.url || "" };
+    else uiC.msg = mensagemContrato(r);
+    pintarC();
+  }
+  async function aoClicarContrato(ev) {
+    var b = ev.target.closest("[data-acao]"); if (!b || b.disabled) return;
+    var pageId = obraAberta(), acao = b.getAttribute("data-acao"), r;
+    if (!pageId || uiC.ocupadoContrato || paginaDoContrato !== pageId) return;
+    if (acao === "c-ver") {
+      uiC.ocupadoContrato = "ver"; uiC.msg = ""; pintarC();
+      r = await chamarVenda({ action: "contratoEstado", pageId: pageId });
+      if (!mesmaCasaContrato(pageId)) return;
+      uiC.ocupadoContrato = null;
+      if (r.ok && r.gerado && r.url) { estadoC = { gerado: true, nome: r.nome || "", url: r.url }; window.open(r.url, "_blank", "noopener"); }
+      else uiC.msg = r.ok ? "Ainda não há contrato gerado." : mensagemContrato(r);
+      pintarC();
+      return;
+    }
+    if (acao === "c-gerar") {
+      if (estadoC && estadoC.gerado && !window.confirm("Gerar de novo? O contrato atual será substituído.")) return;
+      uiC.ocupadoContrato = "gerar"; uiC.msg = ""; uiC.faltas = null; pintarC();
+      r = await chamarVenda({ action: "gerarContrato", pageId: pageId }, 150000);
+      if (!mesmaCasaContrato(pageId)) return;
+      uiC.ocupadoContrato = null;
+      if (r.ok) {
+        estadoC = { gerado: true, nome: r.nome || "", url: r.url || "" };
+        uiC.msg = "Contrato gerado.";
+      } else if (r.erro === "FALTAM_DADOS" && r.faltas && r.faltas.length) {
+        uiC.faltas = r.faltas;
+      } else {
+        if (r.erro === "MODELO_COM_MARCADOR_SOBRANDO" && typeof console !== "undefined") console.warn("contrato: marcadores sobrando", r.marcadores);
+        uiC.msg = mensagemContrato(r);
+      }
+      pintarC();
+      /* sem resposta: o servidor pode ter gerado mesmo assim — olha de novo */
+      if (!r.ok && r.erro === "SEM_RESPOSTA") carregarContrato(pageId);
+    }
+  }
+  /* Contrato é sempre o ÚLTIMO filho de #pn-body. Sem laço de observer: o
+   * MutationObserver só reage a childList de #pn-body, e aqui só mexemos quando
+   * o bloco falta ou não está por último; depois de anexar/mover ele está
+   * por último, então a chamada disparada pela própria mutação não faz nada. */
+  function garantirContrato(body, id) {
+    var w = wrapC();
+    if (w) { if (body.lastElementChild !== w) body.appendChild(w); return; }
+    if (paginaDoContrato !== id) { paginaDoContrato = id; estadoC = null; uiC = novoUiC(); }
+    w = document.createElement("div"); w.id = "contrato-wrap";
+    w.addEventListener("click", aoClicarContrato);
+    body.appendChild(w);
+    pintarC();
+    if (!estadoC) carregarContrato(id);
+  }
   function garantirBloco(body) {
     var id = obraAberta();
     if (!id) {
       /* painel fechado: zera para a mesma casa recarregar o estado ao reabrir */
       if (paginaDoBloco !== null) { paginaDoBloco = null; estado = null; ui = { dois: false, ocupado: null, msg: "", testes: false }; }
+      if (paginaDoContrato !== null) { paginaDoContrato = null; estadoC = null; uiC = novoUiC(); }
       return;
     }
-    if (wrap() || painelCarregando(body.children.length, body.firstElementChild ? body.firstElementChild.className : "",
+    if (painelCarregando(body.children.length, body.firstElementChild ? body.firstElementChild.className : "",
         !!(body.firstElementChild && body.firstElementChild.querySelector(".load")))) return;
-    if (paginaDoBloco !== id) { paginaDoBloco = id; estado = null; ui = { dois: false, ocupado: null, msg: "", testes: perfilTestes() }; }
-    var w = document.createElement("div"); w.id = "dossie-wrap";
-    w.addEventListener("click", aoClicar);
-    body.insertBefore(w, body.firstChild);
-    pintar();
-    if (!estado) carregarEstado(id);
+    if (!wrap()) {
+      if (paginaDoBloco !== id) { paginaDoBloco = id; estado = null; ui = { dois: false, ocupado: null, msg: "", testes: perfilTestes() }; }
+      var w = document.createElement("div"); w.id = "dossie-wrap";
+      w.addEventListener("click", aoClicar);
+      body.insertBefore(w, body.firstChild);
+      pintar();
+      if (!estado) carregarEstado(id);
+    }
+    garantirContrato(body, id);
   }
   function iniciar() {
     var body = document.getElementById("pn-body"); if (!body) return;
