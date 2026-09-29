@@ -896,7 +896,7 @@ function pintarMural(r){
      descrição e checklist */
   box.innerHTML=l.map(a=>{
     const atr=a.fim&&a.fim<hoje;
-    const ckl=a.checklist||[], feitos=ckl.filter(x=>x.f).length;
+    const ckl=(a.checklist||[]).filter(x=>String(x.t||"").trim()), feitos=ckl.filter(x=>x.f).length;   // 29/09: item vazio não aparece
     return `<div class="pt ${atr?"atr":""}"><div class="pt-t">${esc(a.titulo)}</div>
       <div class="pt-m"><span>👤 Solicitante: ${esc(nomeBonito(a.solicitante)||"—")}</span>${a.fim?`<span class="${atr?"atr":""}">📅 Término: ${br(a.fim)}</span>`:""}</div>
       <div class="pt-c">

@@ -37,6 +37,9 @@
  *    verdade) e avisa.
  *  - Para o topo: o servidor usa a posição "início" do Notion (v15 do
  *    RetaFinal.gs).
+ * v10 (29/09 tarde): EditorBlocos.atualizar(el) — relê em silêncio pedindo ao
+ *  servidor para conferir no Notion se a página mudou (a aba Atividades chama
+ *  a cada 30 s). Baixa dada no MURAL do painel relê a atividade aberta na hora.
  * v2 (25/09 tarde):
  *  - Abre NA HORA com a última cópia guardada no navegador e atualiza por trás.
  *  - Aceita os dados já prontos (opts.dados — a aba Atividades traz tudo numa
@@ -135,9 +138,11 @@
     else { el.innerHTML=`<div class="eb-vazio"><span class="load"></span> Carregando conteúdo…</div>`; carregar(st,false); }
     return st;
   }
-  async function carregar(st, fresco, silencioso){
+  async function carregar(st, fresco, silencioso, conferir){
     const alvo=st.pageId;
-    const r=await pedir(Object.assign({action:"blocos",pageId:alvo}, fresco?{fresco:true}:{}), 60000);
+    if(st._lendo&&silencioso) return; st._lendo=true;
+    const r=await pedir(Object.assign({action:"blocos",pageId:alvo}, fresco?{fresco:true}:{}, conferir?{conferir:true}:{}), 60000);
+    st._lendo=false;
     if(!st.el.isConnected||st.pageId!==alvo) return;
     if(filaAtiva(alvo)&&!st._forcar&&st.blocos) return;   // v9: a fila de mudanças está indo — ela mesma atualiza no fim
     st._forcar=false;
@@ -591,7 +596,7 @@
   });
   /* ao vivo: outra pessoa mexeu nesta página → relê (se eu não estiver digitando nela) */
   window.addEventListener("portal-ao-vivo",ev=>{
-    const d=ev.detail||{}; if(!/^bloco/.test(d.acao||"")) return;
+    const d=ev.detail||{}; if(!/^bloco|^atvMuralCheck$/.test(d.acao||"")) return;      // v10: baixa pelo Mural também
     const me=((typeof sessao==="function"&&sessao())||{}).nome||"";
     if(d.quem&&me&&d.quem===me) return;
     document.querySelectorAll(".eb-host").forEach(h=>{
@@ -599,8 +604,9 @@
       const sid=String(st.pageId).replace(/-/g,""), did=String(d.id||"").replace(/-/g,"");
       if(did&&did!==sid) return;
       if(h.contains(document.activeElement)) return;
-      carregar(st,true);
+      carregar(st,d.acao!=="atvMuralCheck",d.acao==="atvMuralCheck");
     });
   });
-  window.EditorBlocos={montar, recarregar:(el)=>el&&el._eb&&carregar(el._eb,true), guardar, guardado, imgFalhou};
+  window.EditorBlocos={montar, recarregar:(el)=>el&&el._eb&&carregar(el._eb,true), guardar, guardado, imgFalhou,
+    atualizar:(el)=>el&&el._eb&&!el._eb.pilha.length&&carregar(el._eb,false,true,true)};
 })();

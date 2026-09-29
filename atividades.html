@@ -513,7 +513,7 @@ main.wrap{padding-bottom:90px}
 <script src="app.js?v=44"></script>
 <script src="rf-rotas.js?v=7"></script>
 <script src="alertas-docs.js?v=1"></script>
-<script src="editor-blocos.js?v=9"></script>
+<script src="editor-blocos.js?v=10"></script>
 <script src="atv-alertas.js?v=5"></script>
 <script>
 /* ---------- tema ---------- */
@@ -581,6 +581,13 @@ function doFiltro(a){ return FILTRO==="todas"?true:FILTRO==="resp"?souResp(a):so
 
 /* ---------- carga ---------- */
 let _carregou=false;   // 28/09: até a 1ª resposta, "Carregando…" (e não "Nenhuma atividade")
+/* 29/09 (tarde): "🔄 Recarregar" ou F5 → pede ao servidor para conferir o
+   Notion NA HORA (delta + excluídas) e joga fora as cópias de conteúdo e
+   comentários guardadas neste navegador (antes elas sobreviviam ao Recarregar). */
+let _foiRecarga=false;
+try{ const nv=performance.getEntriesByType("navigation")[0]; _foiRecarga=!!(nv&&nv.type==="reload"); }catch(e){}
+if(_foiRecarga){ try{ for(let i=localStorage.length-1;i>=0;i--){ const k=localStorage.key(i)||""; if(k.indexOf("atv_ab_")===0||k.indexOf("eb_v2_")===0) localStorage.removeItem(k); } }catch(e){} }
+function recargaUmaVez(){ const r=_foiRecarga; _foiRecarga=false; return r; }
 async function carregar(fresco){
   const c=cacheGet("atv_minhas"); if(c&&c.v&&!fresco&&!D.atividades.length){ aplicar(c.v); }
   const co=cacheGet("atv_outras"); if(co&&co.v&&!fresco&&!OUT.itens.length){ OUT=co.v; pintar(); }
@@ -590,7 +597,7 @@ async function carregar(fresco){
   if(!fresco){ const ck=cacheGet("atv_cks"); if(ck&&ck.v&&!CKS.checklists.length) CKS=ck.v;
     const md=cacheGet("atv_modelos"); if(md&&md.v&&!MOD.modelos.length) MOD=md.v; pintarLado(); }
   /* 28/09: minhas + outras abas numa chamada só (antes eram duas, uma atrás da outra) */
-  const r=await ler(Object.assign({action:"atvMinhas",comOutras:true,comCks:true},fresco?{fresco:true}:{}),"atv_minhas");
+  const r=await ler(Object.assign({action:"atvMinhas",comOutras:true,comCks:true},(fresco||recargaUmaVez())?{fresco:true}:{}),"atv_minhas");
   if(r&&r.ok&&r.checklists&&r.checklists.ok){ CKS={ok:true,checklists:r.checklists.checklists.concat((CKS.checklists||[]).filter(c=>c._criando))}; ckGuardar(); }
   if(r&&r.ok&&r.modelos&&r.modelos.ok){ MOD=r.modelos; cacheSet("atv_modelos",MOD); }
   _carregou=true;
@@ -993,7 +1000,7 @@ async function abrirAtv(id){
   if(g&&g.comentarios){ _coms=g.comentarios; _comsAssin=assinComs(_coms); pintarChat(); sinc("copia"); }
   else sinc("lendo");
   if(g&&g.conteudo) EditorBlocos.montar(document.getElementById("pa-cont"), id, {somenteLeitura:!podeEditar(a), dados:g.conteudo});
-  else document.getElementById("pa-cont").innerHTML=`<div class="eb-vazio"><span class="load"></span> Carregando checklist e anotações…</div>`;
+  else EditorBlocos.montar(document.getElementById("pa-cont"), id, {somenteLeitura:!podeEditar(a)});   // 29/09: lê sozinho, sem esperar o atvAbrir
   const t=document.getElementById("pa-txt");
   if(t){ ligarMencoes(t); t.addEventListener("keydown",e=>{ if(t._mencAberta) return; if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); enviarComentario(); } }); }
   document.getElementById("ov1").classList.add("on"); document.getElementById("p1").classList.add("on");
@@ -1004,6 +1011,11 @@ async function abrirAtv(id){
      e são relidos a cada 15 s (o que é escrito direto no Notion não avisa) */
   lerComentarios(false);
   clearInterval(_poll); _poll=setInterval(()=>{ if(!document.hidden&&ABERTA) lerComentarios(false); },15000);
+  /* 29/09 (tarde): o CHECKLIST também se atualiza sozinho — a cada 30 s o
+     servidor confere no Notion se a página mudou (baixa dada no Notion ou no
+     Mural aparece aqui). A primeira conferência sai logo ao abrir. */
+  clearInterval(_pollCont); _pollCont=setInterval(atualizarConteudo,30000);
+  setTimeout(atualizarConteudo,1200);
 }
 /* tudo de uma vez: detalhe + comentários + conteúdo (1 chamada) */
 async function abrirServidor(id, temCopia){
@@ -1035,8 +1047,11 @@ function atvExcluida(id,calado){
   else if(tinha&&!calado) toast("Uma atividade foi excluída no Notion e saiu do portal.");
   pintar();
 }
+let _pollCont=null;
+function atualizarConteudo(){ if(document.hidden||!ABERTA) return; const c=document.getElementById("pa-cont"); if(c&&c._eb) EditorBlocos.atualizar(c); }
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden&&ABERTA) atualizarConteudo(); });
 function fecharAtv(){
-  ABERTA=null; clearInterval(_poll); clearTimeout(_comsRetry);
+  ABERTA=null; clearInterval(_poll); clearInterval(_pollCont); clearTimeout(_comsRetry);
   document.getElementById("ov1").classList.remove("on"); document.getElementById("p1").classList.remove("on");
   history.replaceState(null,"",location.pathname);
 }
