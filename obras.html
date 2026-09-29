@@ -125,8 +125,10 @@ tbody tr:hover td{background:#e9f6ef;cursor:pointer} tbody tr:hover td.stick{bac
 .atv-cab div:hover{color:var(--azul)}
 .seta{font-size:9px;margin-left:3px;opacity:.8}
 .acoes-atv{display:flex;gap:8px;flex-wrap:wrap;padding:0 22px}
-.lig-bts{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin-top:10px}
-.lig-bts .bt{background:var(--sup);color:var(--azul);border:1.5px solid var(--border);text-align:left}
+.lig-bts{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;margin-top:10px}
+/* 29/09: o texto quebra dentro do botão (antes vazava por cima do vizinho) */
+.lig-bts .bt{background:var(--sup);color:var(--azul);border:1.5px solid var(--border);text-align:left;white-space:normal;height:auto;min-height:38px;line-height:1.25;min-width:0;overflow-wrap:anywhere}
+.lig-bts .bt:disabled{opacity:.55;cursor:not-allowed}
 .lig-bts .bt:hover{border-color:var(--azul);background:#e7f0f3}
 /* painel */
 .overlay{position:fixed;inset:0;background:rgba(20,40,55,.55);display:none;z-index:40}
@@ -1006,7 +1008,7 @@ function pintarObraPainel(){
   if(jaCriado) h+=`<div class="ja-criado">✓ JÁ CRIADO — ${o.lig_criadas||0} ligações e ${o.vendas_criadas||0} vendas desta obra.
       ${ehAdmTela()&&!liberado?`<button class="bt bt-mini ghost" title="Libera os botões para criar de novo, mesmo já tendo ligações/vendas (só ADM)" onclick="(window.LIG_LIBERA=window.LIG_LIBERA||{})['${o.id}']=1;pintarObraPainel()">criar de novo (ADM)</button>`:""}</div>`;
   h+=`<div class="lig-bts">${[1,2,3,4,5].map(n=>[false].concat(canedo?[]:[true]).map(e=>
-      `<button class="bt" ${semCidade||(jaCriado&&!liberado)?"disabled":""} title="Cria ${n} ${n===1?"linha":"linhas"} de ligação de água e energia${e?" (com esgoto)":""} e ${n} ${n===1?"venda":"vendas"} para esta obra" onclick="criarLigacoes(${n},${e},this${jaCriado?",true":""})">${jaCriado&&!liberado?"JÁ CRIADO · ":"→ "}${n} ${n===1?"CASA":"CASAS"}${e?" C/ ESGOTO":""}</button>`).join("")).join("")}</div>
+      `<button class="bt" ${semCidade||(jaCriado&&!liberado)?"disabled":""} title="Cria ${n} ${n===1?"linha":"linhas"} de ligação de água e energia${e?" (com esgoto)":""} e ${n} ${n===1?"venda":"vendas"} para esta obra" onclick="criarLigacoes(${n},${e},this${jaCriado?",true":""})">${jaCriado&&!liberado?"🔒 ":"→ "}${n} ${n===1?"CASA":"CASAS"}${e?" C/ ESGOTO":""}</button>`).join("")).join("")}</div>
     <div class="ajuda">${semCidade?"Preencha a CIDADE da obra para liberar os botões. ":""}
       ${canedo?"Senador Canedo: SANESC + EQUATORIAL (sem esgoto)":"Goiânia: SANEAGO + EQUATORIAL (com SANEAGO ESGOTO nos botões \"c/ esgoto\")"}
       · cada casa também ganha a linha em Vendas.</div>`;

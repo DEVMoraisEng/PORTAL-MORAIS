@@ -151,7 +151,8 @@
 /* v71 -> v72 (29/09/26): atividades.html — "Criar checklist com os responsáveis" na nova atividade. */
 /* v72 -> v73 (29/09/26): index.html (Mural com comentários no topo) e atividades.html (atividade excluída no Notion sai do portal). */
 /* v73 -> v74 (29/09/26 tarde): atividades.html + editor-blocos.js v10 (checklist se atualiza sozinho, Recarregar confere o Notion) e index.html (Mural sem item vazio). */
-const CACHE = "portal-morais-v74";  // limpeza só dos caches do portal (não apaga os das RAS)
+/* v74 -> v75 (29/09/26 noite): obras.html (botões de ligação sem embolar) e atividades.html (arrastar no calendário muda o prazo). */
+const CACHE = "portal-morais-v75";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",

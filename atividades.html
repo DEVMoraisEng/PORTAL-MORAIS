@@ -339,6 +339,12 @@ html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
 .cal .ev.o-Documentos{background:#e0f2ef;color:#1d6b5f}
 .cal .ev.atr{border-left-color:#c0392b;font-weight:800}
 .cal .ev.fin{opacity:.55;text-decoration:line-through}
+/* 29/09 — arrastar no calendário */
+.cal .ev[draggable=true]{cursor:grab}
+.cal .ev.puxando{opacity:.35}
+.cal.arrastando .dia{transition:background .1s}
+.cal .dia.sobre{background:rgba(42,157,92,.12);outline:2px dashed var(--verde);outline-offset:-2px}
+.cal-top .bt.sobre{outline:2px dashed var(--verde)}
 /* legenda (28/09 tarde): caixa branca e amostras em cor cheia — antes as
    cores claras sumiam no fundo da página */
 .cal-leg{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;background:var(--sup);border:1px solid var(--border2);
@@ -724,6 +730,7 @@ function pintarCorpo(){
   else if(VIS==="cal") m.innerHTML=calendario(soEmp?minhas.filter(a=>!a._criando).filter(doFiltro).filter(busca):[]);
   else m.innerHTML=lista(soEmp?minhas:[]);
   if(VIS==="kanban") ligarKanban();
+  if(VIS==="cal") ligarCal();
 }
 /* recortes dos cartões de cima (clicáveis) — todas as origens juntas */
 function outrasFiltradas(){ return OUT.itens.filter(x=>ORIG==="todas"||ORIG===x.origem).filter(x=>!BUSCA||N(x.titulo+" "+(x.tipo||"")).indexOf(N(BUSCA))>=0); }
@@ -820,21 +827,53 @@ function calendario(l){
   const ev={};
   l.forEach(a=>{ const d=a.fim||a.ini; if(d) (ev[d]=ev[d]||[]).push({a}); });
   if(FILTRO!=="solic"&&ORIG!=="Atividades") outrasFiltradas().forEach(x=>{ if(x.fim) (ev[x.fim]=ev[x.fim]||[]).push({x}); });
-  let h=`<div class="cal-top"><button class="bt ghost bt-mini" onclick="MES.setMonth(MES.getMonth()-1);pintarCorpo()">◀</button>
+  let h=`<div class="cal-top"><button class="bt ghost bt-mini" data-mes="-1" title="Mês anterior (segurando uma atividade em cima, vira o mês)" onclick="MES.setMonth(MES.getMonth()-1);pintarCorpo()">◀</button>
     <b>${MES.toLocaleDateString("pt-BR",{month:"long",year:"numeric"})}</b>
-    <button class="bt ghost bt-mini" onclick="MES.setMonth(MES.getMonth()+1);pintarCorpo()">▶</button>
+    <button class="bt ghost bt-mini" data-mes="1" title="Próximo mês (segurando uma atividade em cima, vira o mês)" onclick="MES.setMonth(MES.getMonth()+1);pintarCorpo()">▶</button>
     <button class="bt ghost bt-mini" onclick="MES=new Date();MES.setDate(1);pintarCorpo()">Hoje</button></div>`+legendaCal()+`<div class="cal">`+
     ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"].map(d=>`<div class="dw">${d}</div>`).join("");
   for(let i=0;i<42;i++){
     const d=new Date(ini); d.setDate(ini.getDate()+i);
     const iso=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
     const itens=(ev[iso]||[]);
-    h+=`<div class="dia ${d.getMonth()!==mes?"fora":""} ${iso===hoje?"hj":""}"><div class="dn">${d.getDate()}</div>${itens.map(o=>o.a?
-      `<span class="ev o-Atividades ${!aberta(o.a)?"fin":atrasada(o.a)?"atr":""}" onclick="abrirAtv('${o.a.id}')" title="${esc("Atividades: "+o.a.titulo+(atrasada(o.a)?" (atrasada)":""))}">${atrasada(o.a)?"⚠ ":""}${ehMural(o.a)?"📌 ":""}${esc(o.a.titulo)}</span>`:
+    h+=`<div class="dia ${d.getMonth()!==mes?"fora":""} ${iso===hoje?"hj":""}" data-iso="${iso}"><div class="dn">${d.getDate()}</div>${itens.map(o=>o.a?
+      `<span class="ev o-Atividades ${!aberta(o.a)?"fin":atrasada(o.a)?"atr":""}" data-id="${o.a.id}" draggable="${podeEditar(o.a)?"true":"false"}" onclick="abrirAtv('${o.a.id}')" title="${esc("Atividades: "+o.a.titulo+(atrasada(o.a)?" (atrasada)":"")+(podeEditar(o.a)?" — arraste para outro dia para mudar o prazo":""))}">${atrasada(o.a)?"⚠ ":""}${ehMural(o.a)?"📌 ":""}${esc(o.a.titulo)}</span>`:
       `<a class="ev out o-${esc(o.x.origem)} ${o.x.fim&&o.x.fim<hoje?"atr":""}" href="${esc(o.x.link)}" title="${esc(o.x.origem+": "+o.x.titulo+(o.x.fim&&o.x.fim<hoje?" (atrasada)":""))}">${o.x.fim&&o.x.fim<hoje?"⚠ ":""}${esc(o.x.titulo)}</a>`).join("")}</div>`;
     if(i===34&&new Date(ini.getFullYear(),ini.getMonth(),ini.getDate()+35).getMonth()!==mes) break;
   }
-  return h+`</div>`;
+  return h+`</div><div class="ajuda" style="margin-top:6px">Arraste uma atividade para outro dia para mudar o prazo · segure em cima de ◀ ▶ para trocar de mês.</div>`;
+}
+/* 29/09 — ARRASTAR NO CALENDÁRIO: solta a atividade em outro dia e o PRAZO
+   FINAL muda (sem prazo, muda o início — é por ele que ela aparece). Se o
+   início ficar depois do novo prazo, o início vem junto para o mesmo dia.
+   Grava como qualquer edição (⏳ até o Notion confirmar; recusa volta). */
+let _calArrasto=null, _calVira=null;
+function ligarCal(){
+  const cal=document.querySelector(".cal"); if(!cal) return;
+  cal.querySelectorAll(".ev[draggable=true]").forEach(k=>{
+    k.addEventListener("dragstart",e=>{ _calArrasto=k.dataset.id; e.dataTransfer.setData("text/plain",k.dataset.id); e.dataTransfer.effectAllowed="move"; k.classList.add("puxando"); cal.classList.add("arrastando"); });
+    k.addEventListener("dragend",()=>{ _calArrasto=null; clearTimeout(_calVira); document.querySelectorAll(".cal .puxando,.cal .sobre,.cal-top .sobre").forEach(x=>x.classList.remove("puxando","sobre")); const c=document.querySelector(".cal"); if(c) c.classList.remove("arrastando"); });
+  });
+  cal.querySelectorAll(".dia[data-iso]").forEach(d=>{
+    d.addEventListener("dragover",e=>{ if(!_calArrasto) return; e.preventDefault(); e.dataTransfer.dropEffect="move"; d.classList.add("sobre"); });
+    d.addEventListener("dragleave",e=>{ if(!d.contains(e.relatedTarget)) d.classList.remove("sobre"); });
+    d.addEventListener("drop",e=>{ e.preventDefault(); d.classList.remove("sobre"); const id=_calArrasto||e.dataTransfer.getData("text/plain"); _calArrasto=null; if(id) moverNoCal(id,d.dataset.iso); });
+  });
+  /* segurar em cima de ◀ ▶ vira o mês (a atividade continua na mão) */
+  document.querySelectorAll(".cal-top [data-mes]").forEach(b=>{
+    b.addEventListener("dragover",e=>{ if(!_calArrasto) return; e.preventDefault(); if(b.classList.contains("sobre")) return; b.classList.add("sobre");
+      clearTimeout(_calVira); _calVira=setTimeout(()=>{ const id=_calArrasto; MES.setMonth(MES.getMonth()+Number(b.dataset.mes)); pintarCorpo(); _calArrasto=id; const c=document.querySelector(".cal"); if(c) c.classList.add("arrastando"); },650); });
+    b.addEventListener("dragleave",()=>{ b.classList.remove("sobre"); clearTimeout(_calVira); });
+  });
+}
+function moverNoCal(id,iso){
+  const a=acha(id); if(!a||!iso) return;
+  if(!podeEditar(a)){ toast(RO?"Modo teste: não grava.":"Só quem é responsável ou solicitante pode mudar."); return; }
+  const campo=a.fim?"fim":(a.ini?"ini":"fim");
+  if((a[campo]||"")===iso) return;
+  if(campo==="fim"&&a.ini&&a.ini>iso) gravar(id,"ini",iso);
+  gravar(id,campo,iso);
+  toast(`“${a.titulo}” — ${campo==="fim"?"prazo":"início"}: ${br(iso)}`);
 }
 /* coluna da direita */
 function pintarLado(){
