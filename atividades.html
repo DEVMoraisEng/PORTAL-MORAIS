@@ -453,6 +453,11 @@ main.wrap{padding-bottom:90px}
 /* v5 — "Descrição e checklist" no formulário */
 .cp{display:flex;flex-direction:column;gap:4px;background:var(--sup);border:1.5px solid var(--border);border-radius:10px;padding:8px 10px}
 .cp-l{display:flex;align-items:center;gap:8px}
+/* 29/09 — checklist com os responsáveis */
+.ck-resp{display:flex;align-items:center;gap:8px;margin-top:8px;padding:7px 10px;border:1.5px dashed var(--border);border-radius:9px;font-size:12.5px;font-weight:700;color:var(--azul-esc);cursor:pointer;text-transform:none;letter-spacing:0}
+.ck-resp input{width:16px;height:16px;accent-color:var(--verde);margin:0}
+.ck-resp .ajuda{font-weight:500;margin:0}
+.cp-l[data-resp] .cp-m{color:var(--verde)}
 .cp-m{flex:none;width:20px;text-align:center;color:var(--text3);font-weight:800}
 .cp-l input{flex:1;border:0!important;border-bottom:1px dashed var(--border2)!important;border-radius:0!important;padding:6px 2px!important;background:transparent!important;box-shadow:none!important}
 .cp-l input:focus{border-bottom:2px solid var(--verde)!important}
@@ -1390,7 +1395,9 @@ function novaAtividade(paraMim){
       <div class="campo"><label>Prioridade</label><select id="n-pri">${opts(D.opcoes.prioridade,"Média",true)}</select></div>
       <div class="campo"><label>Início</label><input type="date" id="n-ini" value="${hoje}"></div>
       <div class="campo"><label>Prazo final <i>*</i></label><input type="date" id="n-fim" value="${paraMim?hoje:""}"></div>
-      <div class="campo full"><label>Responsáveis <i>*</i></label>${respHtml(paraMim?[ME]:[])}</div>
+      <div class="campo full"><label>Responsáveis <i>*</i></label>${respHtml(paraMim?[ME]:[])}
+        <label class="ck-resp" title="Cada responsável marcado vira uma tarefa com o nome dele — marcar/desmarcar pessoa atualiza a lista">
+          <input type="checkbox" id="n-ckresp"> ☑ Criar checklist com os responsáveis <span class="ajuda">— uma tarefa para cada um, em Descrição e checklist</span></label></div>
       <div class="campo full"><label>Obra</label><select id="n-obra"><option value="">— sem obra —</option>${OBRAS_L.map(o=>`<option value="${o.id}">${esc(o.titulo)}</option>`).join("")}</select></div>
       <div class="campo full"><label>Descrição e checklist</label>${compositorHtml("n-cp")}
         ${anexoCampo("n-arq-d","📎 Anexar na descrição")}</div>
@@ -1399,7 +1406,39 @@ function novaAtividade(paraMim){
     </div>`,
     `<button class="bt ghost" onclick="fecharForm()">Cancelar</button><button class="bt" id="n-ok" onclick="criarAtividade()">Criar atividade</button>`);
   ligarCompositor("n-cp");
+  ligarCkResp();
   setTimeout(()=>{ const x=document.getElementById("n-tit"); if(x) x.focus(); },50);
+}
+/* 29/09 — CHECKLIST COM OS RESPONSÁVEIS
+   Ligado: cada responsável marcado vira uma Tarefa com o nome dele em
+   "Descrição e checklist" (cada um dá baixa na sua). Marcar/desmarcar pessoa
+   depois atualiza a lista; a linha em que você escreveu algo a mais (ex.:
+   "Ana Paula — revisar planta") não some ao desmarcar a pessoa. */
+function ligarCkResp(){
+  const ck=document.getElementById("n-ckresp"), box=document.getElementById("n-cp"), lista=document.getElementById("n-pessoas");
+  if(!ck||!box) return;
+  const vazia=l=>l&&!l.dataset.resp&&!l.querySelector("input").value.trim();
+  function sinc(){
+    const marcados=ck.checked?[...document.querySelectorAll(".n-resp:checked")].map(x=>x.value):[];
+    box.querySelectorAll(".cp-l[data-resp]").forEach(l=>{
+      if(marcados.indexOf(l.dataset.resp)>=0) return;
+      if(l.querySelector("input").value.trim()===l.dataset.nome) l.remove(); else l.removeAttribute("data-resp");
+    });
+    marcados.forEach(id=>{
+      if(box.querySelector(`.cp-l[data-resp="${id}"]`)) return;
+      const nome=((D.pessoas.find(p=>p.id===id)||{}).nome)||""; if(!nome) return;
+      while(box.children.length&&vazia(box.lastElementChild)) box.lastElementChild.remove();     // tira a linha vazia do fim
+      const html=cpLinha("to_do",nome).replace('class="cp-l',`data-resp="${id}" data-nome="${esc(nome)}" class="cp-l`);
+      const ult=[...box.querySelectorAll(".cp-l[data-resp]")].pop();
+      if(ult) ult.insertAdjacentHTML("afterend",html); else box.insertAdjacentHTML("beforeend",html);
+    });
+    if(!box.children.length) box.insertAdjacentHTML("beforeend",cpLinha("paragraph",""));
+  }
+  ck.addEventListener("change",()=>{
+    if(ck.checked&&!document.querySelector(".n-resp:checked")) toast("Marque os responsáveis — cada um vira uma tarefa.");
+    sinc();
+  });
+  if(lista) lista.addEventListener("change",e=>{ if(ck.checked&&e.target.classList.contains("n-resp")) sinc(); });
 }
 /* v5 — "Descrição e checklist" com os mesmos botões do conteúdo da atividade */
 const CP_TIPOS={paragraph:["¶","Texto"],to_do:["☐","Tarefa"],heading_2:["H","Título"],bulleted_list_item:["•","Lista"],numbered_list_item:["1.","Lista numerada"],quote:["❝","Citação"],callout:["💡","Destaque"]};

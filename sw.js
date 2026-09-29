@@ -148,7 +148,8 @@
    v67 -> v69 (29/09/26): botão aponta para o endereço que está no ar, CONFER-NCIA-COMPRAS. */
 /* v69 -> v70 (29/09/26): atividades.html — comentários sempre atuais (relê a cada 15 s, avisa quando não atualiza, ↻). */
 /* v70 -> v71 (29/09/26): editor-blocos.js v9 — arrastar para reorganizar e fila sem "espere" (atividades, processos, arquivos). */
-const CACHE = "portal-morais-v71";  // limpeza só dos caches do portal (não apaga os das RAS)
+/* v71 -> v72 (29/09/26): atividades.html — "Criar checklist com os responsáveis" na nova atividade. */
+const CACHE = "portal-morais-v72";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",
