@@ -21,6 +21,22 @@
  * vencia em 1 h). Se uma imagem não carregar, o conteúdo é relido sozinho
  * (1x por minuto) e ela volta. Links novos a cada leitura não repintam a
  * tela à toa — a comparação ignora o link.
+ * v9 (29/09): REORGANIZAR SEM ESPERAR
+ *  - Arrastar: segure no ⠿ (aparece à esquerda do item) e solte onde quiser.
+ *    Foto, documento e divisor dá para arrastar pegando no próprio item.
+ *    Funciona com mouse e no celular (pelo ⠿).
+ *  - Nada de "espere terminar a mudança anterior": a tela muda NA HORA e as
+ *    mudanças vão para o Notion numa fila, uma atrás da outra (o Notion não
+ *    move bloco — o servidor recria, e documento/foto sobe de novo, por isso
+ *    demora). Enquanto isso dá para continuar mexendo; o item que ainda está
+ *    indo fica com a faixa amarela à esquerda e aparece "Organizando no
+ *    Notion (n)…" embaixo.
+ *  - A fila fica guardada no navegador: fechou a página no meio, ela termina
+ *    na próxima vez que alguma tela com conteúdo abrir.
+ *  - Deu erro no meio: o conteúdo é relido do Notion (mostra como ficou de
+ *    verdade) e avisa.
+ *  - Para o topo: o servidor usa a posição "início" do Notion (v15 do
+ *    RetaFinal.gs).
  * v2 (25/09 tarde):
  *  - Abre NA HORA com a última cópia guardada no navegador e atualiza por trás.
  *  - Aceita os dados já prontos (opts.dados — a aba Atividades traz tudo numa
@@ -43,8 +59,17 @@
   .eb-b .eb-mv{position:absolute;top:3px;display:none;border:0;background:transparent;cursor:pointer;color:var(--text4);font-size:13px;font-weight:800;padding:2px 6px;border-radius:6px}
   .eb-b .eb-mv.up{right:52px}.eb-b .eb-mv.dn{right:28px}
   .eb-b:hover .eb-mv{display:block}.eb-b .eb-mv:hover{background:var(--bg3,#dceaef);color:var(--azul,#295778)}
-  .eb-b.movendo{opacity:.45;pointer-events:none}
-  @media (hover:none){ .eb-b .eb-x,.eb-b .eb-mv{display:block} }
+  .eb{padding-left:20px}
+  .eb-b .eb-arr{position:absolute;left:-19px;top:2px;display:none;cursor:grab;color:var(--text4);font-size:15px;line-height:1;padding:3px 3px;border-radius:5px;user-select:none;-webkit-user-select:none;touch-action:none}
+  .eb-b:hover .eb-arr{display:block}.eb-b .eb-arr:hover{background:var(--bg3,#dceaef);color:var(--azul,#295778)}
+  .eb-b.arrastavel{cursor:grab}
+  .eb-b.pendente{box-shadow:inset 3px 0 0 #F0C36D}
+  .eb-b.arrastando{opacity:.35}
+  .eb-linha{height:3px;background:var(--verde,#2a9d5c);border-radius:2px;margin:-1px 0 -2px;pointer-events:none}
+  .eb-fantasma{position:fixed;z-index:10000;pointer-events:none;background:var(--sup,#fff);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 22px rgba(0,0,0,.18);padding:5px 10px;max-width:340px;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .eb-fila{font-size:11.5px;font-weight:700;color:#b7791f;margin-top:4px}.eb-fila:empty{display:none}
+  body.eb-puxando,body.eb-puxando *{cursor:grabbing!important;user-select:none!important;-webkit-user-select:none!important}
+  @media (hover:none){ .eb-b .eb-x,.eb-b .eb-mv,.eb-b .eb-arr{display:block} }
   .eb-t{flex:1;min-width:0;outline:none;white-space:pre-wrap;word-break:break-word;min-height:21px;padding:1px 3px;border-radius:5px}
   .eb-t:focus{background:var(--sup);box-shadow:0 0 0 2px rgba(42,157,92,.35)}
   .eb-t:empty:before{content:attr(data-ph);color:var(--text4)}
@@ -114,6 +139,8 @@
     const alvo=st.pageId;
     const r=await pedir(Object.assign({action:"blocos",pageId:alvo}, fresco?{fresco:true}:{}), 60000);
     if(!st.el.isConnected||st.pageId!==alvo) return;
+    if(filaAtiva(alvo)&&!st._forcar&&st.blocos) return;   // v9: a fila de mudanças está indo — ela mesma atualiza no fim
+    st._forcar=false;
     if(!r||!r.ok){ if(silencioso) return;
       st.el.innerHTML=`<div class="eb-vazio">Não consegui abrir o conteúdo (${e((r&&r.erro)||"erro")}). <a href="#" onclick="return false">Tentar de novo</a></div>`;
       st.el.querySelector("a").onclick=()=>{ carregar(st,true); return false; }; return; }
@@ -154,7 +181,8 @@
     const t=b.tipo, cls={heading_1:"h1",heading_2:"h2",heading_3:"h3",quote:"quote",callout:"callout",code:"code"}[t]||"";
     /* v6 (28/09): ↑ ↓ para reordenar (só itens do primeiro nível) */
     const mv=b._top&&String(b.id).indexOf("tmp")!==0?`<button class="eb-mv up" data-up="${b.id}" title="Subir" type="button">↑</button><button class="eb-mv dn" data-dn="${b.id}" title="Descer" type="button">↓</button>`:"";
-    const x=mv+`<button class="eb-x" data-x="${b.id}" title="Apagar este item" type="button">🗑</button>`;
+    const arr=b._top&&t!=="_enviando"?`<span class="eb-arr" data-arr="1" title="Arraste para mudar de lugar">⠿</span>`:"";
+    const x=arr+mv+`<button class="eb-x" data-x="${b.id}" title="Apagar este item" type="button">🗑</button>`;
     if(t==="_enviando") return `<div class="eb-b"><span class="eb-ro"><span class="load"></span> ${e(b.texto)}</span></div>`;
     if(t==="divider") return `<div class="eb-b" data-id="${b.id}"><hr class="eb-div">${x}</div>`;
     if(b.editavel){
@@ -177,8 +205,8 @@
         `<td><div contenteditable="true" data-cel="${r.id}" data-j="${j}">${e(c)}</div></td>`).join("")}</tr>`).join("");
       return `<div class="eb-b" data-id="${b.id}"><div class="eb-tab"><table>${rows}</table></div></div>`;
     }
-    if(t==="image") return `<div class="eb-b" data-id="${b.id}">${b.url?`<a href="${e(b.url)}" target="_blank" rel="noopener"><img class="eb-img" src="${e(b.url)}" alt="${e(b.nome)}" loading="lazy" onerror="EditorBlocos.imgFalhou(this)"></a>`:`<span class="eb-ro">imagem</span>`}${x}</div>`;
-    if(b.url) return `<div class="eb-b" data-id="${b.id}"><a href="${e(b.url)}" target="_blank" rel="noopener">📎 ${e(b.nome||b.url)}</a>${x}</div>`;
+    if(t==="image") return `<div class="eb-b" data-id="${b.id}">${b.url?`<a href="${e(b.url)}" target="_blank" rel="noopener" draggable="false"><img class="eb-img" src="${e(b.url)}" alt="${e(b.nome)}" loading="lazy" draggable="false" onerror="EditorBlocos.imgFalhou(this)"></a>`:`<span class="eb-ro">imagem</span>`}${x}</div>`;
+    if(b.url) return `<div class="eb-b" data-id="${b.id}"><a href="${e(b.url)}" target="_blank" rel="noopener" draggable="false">📎 ${e(b.nome||b.url)}</a>${x}</div>`;
     if((t==="child_page"||t==="link_to_page")&&b.pagina) return `<div class="eb-b" data-id="${b.id}"><span class="eb-pg" data-pg="${e(b.pagina)}" data-pgt="${e(b.texto)}" title="Abrir">📄 ${e(b.texto||"subpágina")} ›</span></div>`;
     if(t==="child_database") return `<div class="eb-b" data-id="${b.id}"><span class="eb-ro">🗂 ${e(b.texto||"banco")} — abra no Notion</span></div>`;
     return `<div class="eb-b" data-id="${b.id}"><span class="eb-ro">(${e(t)} — este tipo de bloco só aparece no Notion)</span></div>`;
@@ -188,7 +216,7 @@
   function pintar(st){
     const bs=(st.blocos||[]).concat(ENVIANDO[st.pageId]||[]);        // + anexos ainda subindo
     bs.forEach(b=>{ b._top=true; });
-    st.el.innerHTML=navHtml(st)+`<div class="eb">${bs.length?lista(bs):`<div class="eb-vazio">Sem conteúdo ainda.</div>`}</div>`+
+    st.el.innerHTML=navHtml(st)+`<div class="eb">${bs.length?lista(bs):`<div class="eb-vazio">Sem conteúdo ainda.</div>`}</div><div class="eb-fila" data-fila="1">${filaTexto(st.pageId)}</div>`+
       (st.ro?"":`<div class="eb-add">
         <button type="button" data-add="to_do">☑ + Tarefa</button><button type="button" data-add="paragraph">¶ + Texto</button>
         <button type="button" data-add="heading_2">H + Título</button><button type="button" data-add="bulleted_list_item">• + Lista</button>
@@ -204,7 +232,7 @@
     const el=st.el;
     ligarNav(st);
     el.querySelectorAll("[data-pg]").forEach(a=>a.addEventListener("click",ev=>{ ev.preventDefault(); navegar(st,a.getAttribute("data-pg"),a.getAttribute("data-pgt")); }));
-    if(st.ro){ el.querySelectorAll("[contenteditable]").forEach(x=>x.removeAttribute("contenteditable")); el.querySelectorAll("input[type=checkbox]").forEach(x=>x.disabled=true); el.querySelectorAll(".eb-x").forEach(x=>x.remove()); return; }
+    if(st.ro){ el.querySelectorAll("[contenteditable]").forEach(x=>x.removeAttribute("contenteditable")); el.querySelectorAll("input[type=checkbox]").forEach(x=>x.disabled=true); el.querySelectorAll(".eb-x,.eb-arr,.eb-mv").forEach(x=>x.remove()); return; }
     el.querySelectorAll("[data-t]").forEach(t=>{
       t._orig=t.innerText;
       t.addEventListener("blur",()=>salvarTexto(st,t));
@@ -215,6 +243,7 @@
     el.querySelectorAll("[data-x]").forEach(b=>b.addEventListener("click",()=>apagar(st,b.getAttribute("data-x"))));
     el.querySelectorAll("[data-up]").forEach(b=>b.addEventListener("click",()=>mover(st,b.getAttribute("data-up"),-1)));
     el.querySelectorAll("[data-dn]").forEach(b=>b.addEventListener("click",()=>mover(st,b.getAttribute("data-dn"),1)));
+    ligarArrasto(st);
     el.querySelectorAll("[data-ed]").forEach(b=>b.addEventListener("click",()=>{
       if(!confirm("Editar este trecho? A formatação dele (negrito, links) vira texto simples.")) return;
       const bl=acha(st.blocos,b.getAttribute("data-ed")); if(!bl) return; bl._plano=true; pintar(st);
@@ -279,28 +308,187 @@
     temp.id=r.ids[0]; pintar(st);
     if(focar){ const n=st.el.querySelector(`[data-t="${temp.id}"]`); if(n) n.focus(); }
   }
-  /* REORDENAR (28/09). O Notion não move bloco: o servidor recria UM bloco
-     depois do outro (arquivo é enviado de novo) e apaga o antigo. Subir X =
-     recriar o de cima depois de X; descer X = recriar X depois do de baixo. */
-  async function mover(st,id,dir){
-    if(st._movendo){ aviso("Espere terminar a mudança anterior."); return; }
-    const arr=st.blocos, i=arr.findIndex(b=>b.id===id); if(i<0) return;
-    const j=i+dir; if(j<0||j>=arr.length) return;
-    const recriar=dir<0?arr[j]:arr[i], depois=dir<0?arr[i]:arr[j];
-    if(recriar.filhos&&recriar.filhos.length){ aviso("Este item tem sub-itens e não dá para mover pelo portal (mova no Notion)."); return; }
-    st._movendo=true;
-    const tmp=arr[i]; arr[i]=arr[j]; arr[j]=tmp; recriar._mov=true; pintar(st);
-    const n=st.el.querySelector(`[data-id="${recriar.id}"]`); if(n) n.classList.add("movendo");
-    const r=await pedir({action:"blocoMover",pageId:st.pageId,blockId:recriar.id,depoisDe:depois.id},90000);
-    st._movendo=false; delete recriar._mov;
-    if(r&&r.ok){
-      if(r.conteudo&&r.conteudo.blocos){ st.blocos=r.conteudo.blocos; }
-      else if(r.novoId) recriar.id=r.novoId;
-      pintar(st); guardar(st.pageId,{blocos:st.blocos}); return;
+  /* ---------- REORDENAR (v9, 29/09) ----------
+   * O Notion não move bloco: o servidor RECRIA um bloco depois de outro (ou
+   * no início) e apaga o antigo. A tela muda na hora; o servidor vai
+   * recebendo as mudanças numa FILA por página, uma de cada vez.
+   * Cada mudança guarda o OBJETO do bloco (não o id): quando o servidor
+   * devolve o id novo do bloco recriado, as mudanças seguintes já usam ele. */
+  const FILAS={}, K_FILA="eb_fila_v1";
+  const pgId=pg=>String(pg).replace(/-/g,"");
+  const ehTmp=b=>!b||String(b.id).indexOf("tmp")===0;
+  const ARQ={image:1,file:1,pdf:1,video:1,audio:1};
+  const ehArquivo=b=>!!(b&&(ARQ[b.tipo]||(b.url&&!b.editavel)));
+  function filaAtiva(pg){ const f=FILAS[pgId(pg)]; return !!(f&&(f.ops.length||f.rodando)); }
+  function filaTexto(pg){ const f=FILAS[pgId(pg)], n=f?f.ops.length:0; return n?`⏳ Organizando no Notion (${n})… pode continuar mexendo.`:""; }
+  function hostsDe(pg){ return [...document.querySelectorAll(".eb-host")].map(h=>h._eb).filter(x=>x&&pgId(x.pageId)===pgId(pg)); }
+  function atualizarFila(pg){ hostsDe(pg).forEach(x=>{ const d=x.el.querySelector("[data-fila]"); if(d) d.textContent=filaTexto(pg);
+    x.el.querySelectorAll(".eb > .eb-b[data-id]").forEach(l=>{ const b=(x.blocos||[]).find(y=>y.id===l.getAttribute("data-id")); l.classList.toggle("pendente",!!(b&&b._pend)); }); }); }
+  function filaGravar(){ const o={}; Object.keys(FILAS).forEach(pg=>{ const ops=FILAS[pg].ops.filter(op=>!ehTmp(op.alvo)&&(!op.depois||!ehTmp(op.depois)));
+      if(ops.length) o[pg]=ops.map(op=>({a:op.alvo.id,d:op.depois?op.depois.id:null,t:op.t})); });
+    try{ localStorage.setItem(K_FILA,JSON.stringify(o)); }catch(err){} }
+  const dormir=ms=>new Promise(ok=>setTimeout(ok,ms));
+
+  /* ↑ ↓ */
+  function mover(st,id,dir){
+    const i=st.blocos.findIndex(b=>b.id===id); if(i<0) return;
+    moverPara(st,st.blocos[i],i+dir);
+  }
+  /* põe o bloco b na posição dest (índice na lista já sem ele) */
+  function moverPara(st,b,dest){
+    const arr=st.blocos, i=arr.indexOf(b);
+    if(i<0||dest<0||dest>=arr.length||dest===i) return;
+    if(b.filhos&&b.filhos.length){ aviso("Este item tem sub-itens e não dá para mover pelo portal (mova no Notion)."); return; }
+    arr.splice(i,1); arr.splice(dest,0,b);
+    /* o que recriar: normalmente o próprio bloco. Troca com o vizinho (1 casa)
+       e o bloco é foto/documento: recria o vizinho (texto é instantâneo;
+       arquivo teria que subir de novo). */
+    let alvo=b, depois=dest>0?arr[dest-1]:null;
+    if(Math.abs(dest-i)===1&&ehArquivo(b)){
+      const viz=dest<i?arr[dest+1]:arr[dest-1];
+      if(viz&&!ehArquivo(viz)&&!(viz.filhos&&viz.filhos.length)){
+        alvo=viz; depois=dest<i?b:(i>0?arr[i-1]:null);
+      }
     }
-    const t2=arr[i]; arr[i]=arr[j]; arr[j]=t2; pintar(st);
-    const er=(r&&r.erro)||"erro";
-    aviso(/TEM_SUBITENS/.test(er)?"Este item tem sub-itens e não dá para mover pelo portal.":/NAO_MOVE/.test(er)?"Este tipo de item não dá para mover pelo portal.":"Não moveu: "+er);
+    enfileirar(st.pageId,{alvo,depois,t:Date.now()});
+    pintar(st);
+  }
+  function enfileirar(pg,op){
+    const k=pgId(pg), f=FILAS[k]=FILAS[k]||{ops:[],rodando:false};
+    op.alvo._pend=(op.alvo._pend||0)+1;
+    f.ops.push(op); filaGravar(); atualizarFila(pg);
+    rodarFila(pg);
+  }
+  async function rodarFila(pg){
+    const k=pgId(pg), f=FILAS[k]; if(!f||f.rodando) return;
+    f.rodando=true; let ultimo=null, erro=null;
+    while(f.ops.length){
+      const op=f.ops[0];
+      /* item recém-criado ainda sem id do Notion: espera (até 1 min) */
+      for(let n=0;n<120&&(ehTmp(op.alvo)||(op.depois&&ehTmp(op.depois)));n++) await dormir(500);
+      let r;
+      if(ehTmp(op.alvo)||(op.depois&&ehTmp(op.depois))) r={ok:false,erro:"o item ainda não foi criado no Notion"};
+      else if(op.depois&&op.depois.id===op.alvo.id) r={ok:true};
+      else {
+        const payload={action:"blocoMover",pageId:pg,blockId:op.alvo.id};
+        if(op.depois) payload.depoisDe=op.depois.id; else payload.inicio=true;
+        r=await pedir(payload,150000);
+      }
+      f.ops.shift(); op.alvo._pend=Math.max(0,(op.alvo._pend||1)-1);
+      if(r&&r.ok){
+        if(r.novoId){ const velho=op.alvo.id; op.alvo.id=r.novoId;
+          f.ops.forEach(o=>{ if(o.alvo.id===velho) o.alvo.id=r.novoId; if(o.depois&&o.depois.id===velho) o.depois.id=r.novoId; }); }
+        ultimo=r.conteudo||null;                        // só vale a cópia da ÚLTIMA mudança
+        filaGravar(); atualizarFila(pg);
+        continue;
+      }
+      erro=(r&&r.erro)||"sem resposta do servidor";
+      f.ops.forEach(o=>{ o.alvo._pend=0; }); f.ops.length=0; filaGravar();
+      break;
+    }
+    f.rodando=false;
+    if(!f.ops.length) delete FILAS[k];
+    filaGravar();
+    const hosts=hostsDe(pg);
+    if(erro){
+      aviso(/TEM_SUBITENS/.test(erro)?"Um item tem sub-itens e não dá para mover pelo portal — voltei para como está no Notion.":
+            /NAO_MOVE/.test(erro)?"Este tipo de item não dá para mover pelo portal — voltei para como está no Notion.":
+            "Não terminou de organizar ("+erro+"). Voltei para como está no Notion.");
+      hosts.forEach(x=>{ x._forcar=true; carregar(x,true); });
+      if(!hosts.length) try{ localStorage.removeItem(CK+k); }catch(err){}
+      return;
+    }
+    if(ultimo&&ultimo.blocos) guardar(pg,ultimo);
+    hosts.forEach(x=>{
+      const temTmp=(x.blocos||[]).some(b=>ehTmp(b));
+      if(ultimo&&ultimo.blocos&&!temTmp&&!x.el.contains(document.activeElement)){ x.blocos=ultimo.blocos; pintar(x); }
+      else { guardar(pg,{blocos:x.blocos}); atualizarFila(pg); }
+    });
+  }
+  /* abriu qualquer tela com conteúdo: termina a fila que ficou pela metade */
+  (function retomarFila(){
+    let o={}; try{ o=JSON.parse(localStorage.getItem(K_FILA)||"{}")||{}; }catch(err){}
+    Object.keys(o).forEach(pg=>{
+      const obj={}, ref=id=>id?(obj[id]=obj[id]||{id}):null;
+      (o[pg]||[]).forEach(x=>{ if(Date.now()-(x.t||0)>24*3600*1000) return;
+        const f=FILAS[pg]=FILAS[pg]||{ops:[],rodando:false}; const op={alvo:ref(x.a),depois:ref(x.d),t:x.t}; op.alvo._pend=(op.alvo._pend||0)+1; f.ops.push(op); });
+    });
+    setTimeout(()=>Object.keys(FILAS).forEach(pg=>rodarFila(pg)),2000);
+  })();
+
+  /* ---------- ARRASTAR (v9) ----------
+   * Mouse ou dedo, pelo ⠿; foto/documento/divisor também pelo próprio item.
+   * Só itens do primeiro nível (os que o Notion deixa recriar no lugar). */
+  function podeArrastar(b){ return b&&b.tipo!=="_enviando"&&!(b.filhos&&b.filhos.length); }
+  function rolavel(el){
+    for(let p=el.parentElement;p&&p!==document.body;p=p.parentElement){
+      const ov=getComputedStyle(p).overflowY; if(/(auto|scroll)/.test(ov)&&p.scrollHeight>p.clientHeight+2) return p; }
+    return document.scrollingElement||document.documentElement;
+  }
+  function ligarArrasto(st){
+    const raiz=st.el.querySelector(".eb"); if(!raiz) return;
+    raiz.querySelectorAll(":scope > .eb-b[data-id]").forEach(linha=>{
+      const b=(st.blocos||[]).find(x=>x.id===linha.getAttribute("data-id")); if(!b) return;
+      if(b._pend) linha.classList.add("pendente");
+      const h=linha.querySelector(":scope > .eb-arr");
+      if(!podeArrastar(b)){ if(h) h.title="Tem sub-itens — mova no Notion"; if(h) h.style.opacity=".35"; return; }
+      if(h) h.addEventListener("pointerdown",ev=>iniciarArrasto(st,b,linha,ev));
+      if(!b.editavel&&b.tipo!=="table"&&b.tipo!=="child_page"&&b.tipo!=="link_to_page"){
+        linha.classList.add("arrastavel");
+        linha.addEventListener("pointerdown",ev=>{
+          if(ev.pointerType==="touch"||ev.button!==0||ev.target.closest(".eb-x,.eb-mv,.eb-arr,.eb-ed")) return;
+          iniciarArrasto(st,b,linha,ev,true);
+        });
+      }
+    });
+  }
+  function iniciarArrasto(st,b,linha,ev,peloItem){
+    if(ev.button>0) return;
+    if(!peloItem) ev.preventDefault();
+    const x0=ev.clientX, y0=ev.clientY, raiz=st.el.querySelector(".eb"), cont=rolavel(st.el);
+    let ativo=false, fant=null, marca=null, destino=null, rolar=null, ultY=y0;
+    function comecar(){
+      ativo=true; document.body.classList.add("eb-puxando");
+      if(document.activeElement&&st.el.contains(document.activeElement)) document.activeElement.blur();
+      linha.classList.add("arrastando");
+      fant=document.createElement("div"); fant.className="eb-fantasma";
+      fant.textContent=(b.tipo==="image"?"🖼 ":ehArquivo(b)?"📎 ":b.tipo==="divider"?"— ":"")+(b.nome||b.texto||ROT[b.tipo]||"item");
+      document.body.appendChild(fant);
+      marca=document.createElement("div"); marca.className="eb-linha";
+      rolar=setInterval(()=>{
+        const r=cont===document.scrollingElement||cont===document.documentElement?{top:0,bottom:innerHeight}:cont.getBoundingClientRect();
+        if(ultY<r.top+60) cont.scrollBy(0,-16); else if(ultY>r.bottom-60) cont.scrollBy(0,16);
+      },30);
+    }
+    function lugar(y){
+      const linhas=[...raiz.querySelectorAll(":scope > .eb-b[data-id]")];
+      let idx=linhas.length;
+      for(let k=0;k<linhas.length;k++){ const r=linhas[k].getBoundingClientRect(); if(y<r.top+r.height/2){ idx=k; break; } }
+      destino=idx;
+      if(idx<linhas.length) raiz.insertBefore(marca,linhas[idx]);
+      else if(linhas.length){ let d=linhas[linhas.length-1]; while(d.nextElementSibling&&d.nextElementSibling.classList.contains("eb-filhos")) d=d.nextElementSibling; d.after(marca); }
+    }
+    function mv(e2){
+      if(!ativo){ if(Math.hypot(e2.clientX-x0,e2.clientY-y0)<6) return; comecar(); }
+      e2.preventDefault(); ultY=e2.clientY;
+      fant.style.left=(e2.clientX+14)+"px"; fant.style.top=(e2.clientY+10)+"px";
+      lugar(e2.clientY);
+    }
+    function fim(e2){
+      window.removeEventListener("pointermove",mv); window.removeEventListener("pointerup",fim); window.removeEventListener("pointercancel",fim);
+      if(!ativo) return;
+      clearInterval(rolar); document.body.classList.remove("eb-puxando");
+      if(fant) fant.remove(); if(marca) marca.remove(); linha.classList.remove("arrastando");
+      /* soltou: não deixa o clique abrir a foto/o documento */
+      const para=ce=>{ ce.preventDefault(); ce.stopPropagation(); };
+      window.addEventListener("click",para,true); setTimeout(()=>window.removeEventListener("click",para,true),0);
+      if(e2.type==="pointercancel"||destino==null) return;
+      const i=st.blocos.indexOf(b); if(i<0) return;
+      let dest=destino; if(dest>i) dest--;
+      moverPara(st,b,dest);
+    }
+    window.addEventListener("pointermove",mv,{passive:false});
+    window.addEventListener("pointerup",fim); window.addEventListener("pointercancel",fim);
   }
   async function apagar(st,id,focarAnterior){
     const onde=paiDe(st.blocos,id); if(!onde) return;
