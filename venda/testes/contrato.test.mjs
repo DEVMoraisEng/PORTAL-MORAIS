@@ -43,12 +43,12 @@ function fontes(extra = {}) {
       ENDERECO: "APOLO LYKEIOS QD 01 LT 35", VALOR_CONTRATO: 300000, VALOR_NA_MAO: 290000, COMISSAO: 10000, DATA_VENDA: "2026-09-28", CORRETOR: "teste",
       ALVARA_NUMERO: "1.238", ALVARA_DATA: "2025-10-23", HABITESE_NUMERO: "77", MATRICULA_INDIVIDUAL: "99.999", CRI: "Senador Canedo", AREA: 125, CONFRONTACOES: "frente para a rua teste",
       SINAL_VALOR: 5000, SINAL_DATA: "2026-09-28", ENTRADA_VALOR: 20000, ENTRADA_VENCIMENTO: "2026-10-28", INTERMEDIARIA_VALOR: null, INTERMEDIARIA_VENCIMENTO: null,
-      FORMA_PAGAMENTO: "PIX", COMISSAO_FORMA: "PIX", COMISSAO_VENCIMENTO: "na data de assinatura do contrato de financiamento", COMISSAO_PAGA_POR: "COMPRADOR" },
+      FORMA_PAGAMENTO: "PIX", COMISSAO_FORMA: "PIX", COMISSAO_VENCIMENTO: "na data de assinatura do contrato de financiamento", COMISSAO_PAGA_POR: "COMPRADOR", PRAZO_CONCLUSAO: "2027-03-01", CONDICOES_ESPECIAIS: "" },
     obra: { proprietario: "SPE TESTE LTDA", cpfCnpj: "00.000.000/0001-91", obraFinalizada: "SIM", cidade: "Senador Canedo", dataHabitese: "2026-08-01" },
     vendedor: { tipo: "PJ", nome: "SPE TESTE LTDA", cpfCnpj: "00.000.000/0001-91", endereco: "RUA SEDE, 1", representanteNome: "REPRESENTANTE TESTE", representanteCpf: "111.444.777-35", representanteRg: "7654321", representanteNacionalidade: "brasileiro", representanteEstadoCivil: "casado",
       nacionalidade: "", estadoCivil: "", profissao: "", rg: "", banco: "BANCO TESTE", agencia: "0001", operacao: "", conta: "12345-6", pix: "00000000000191" },
     loteamento: { denominacao: "LOTEAMENTO TESTE", municipioUf: "Senador Canedo/GO", matricula: "64.613", cartorio: "Senador Canedo", prazoPosseDias: "30", prazoChavesDias: "10" },
-    corretor: { nome: "teste", creci: "40.167", cpfCnpj: "", nacionalidade: "brasileira", endereco: "RUA CORRETOR, 5", email: "corretor@teste.invalid" },
+    corretor: { nome: "teste", creci: "40.167", cpfCnpj: "111.444.777-35", nacionalidade: "brasileira", endereco: "RUA CORRETOR, 5", email: "corretor@teste.invalid" },
     hojeISO: "2026-09-29", cidadeAssinatura: "Goiânia",
   };
   return Object.assign(base, extra);
@@ -163,4 +163,38 @@ test("rótulo do documento", () => {
 test("valor fora do limite lança erro", () => {
   assert.throws(() => C.valorPorExtenso(1000000000), /VALOR_FORA_DO_LIMITE/);
   assert.equal(C.valorPorExtenso(999999999), "novecentos e noventa e nove milhões novecentos e noventa e nove mil novecentos e noventa e nove reais");
+});
+
+test("construção exige prazo de conclusão; corretor exige CPF/CNPJ; condições opcionais", () => {
+  const f = fontes(); f.obra.obraFinalizada = "NÃO"; f.venda.PRAZO_CONCLUSAO = null; f.corretor.cpfCnpj = "";
+  const faltas = C.faltasContrato(C.montarDadosContrato(f));
+  assert.ok(faltas.includes("Imóvel: prazo previsto de conclusão das obras"));
+  assert.ok(faltas.includes("Corretor: CPF/CNPJ"));
+  assert.ok(!faltas.some((x) => /condiç/i.test(x)));
+  const g = fontes(); g.venda.PRAZO_CONCLUSAO = null;
+  assert.deepEqual(C.faltasContrato(C.montarDadosContrato(g)), []);
+});
+
+test("marcadores novos: prazo, condições, assinaturas, doc do corretor e do vendedor", () => {
+  let m = C.marcadores(C.montarDadosContrato(fontes()));
+  assert.equal(m.PRAZO_CONCLUSAO, "01/03/2027");
+  assert.equal(m.CONDICOES_ESPECIAIS, "Não há.");
+  assert.equal(m.ASSINATURA_COMPRADORES_NOMES, "ANA TESTE");
+  assert.equal(m.ASSINATURA_COMPRADORES_CPFS, "529.982.247-25");
+  assert.equal(m.CORRETOR_DOC, "111.444.777-35");
+  assert.equal(m.VENDEDOR_DOC_ROTULO, "CNPJ sob o número 00.000.000/0001-91");
+  assert.equal(m.REPRESENTANTE_NOME, "REPRESENTANTE TESTE");
+  assert.equal(m.REPRESENTANTE_CPF, "111.444.777-35");
+  const f = fontes();
+  f.venda.CONDICOES_ESPECIAIS = "condição inventada";
+  f.venda.CLIENTES = "ANA TESTE E BRUNO TESTE";
+  f.venda.COMPRADOR2 = { nome: "BRUNO TESTE", cpf: "222.333.444-05", nacionalidade: "brasileiro", estadoCivil: "casado", profissao: "motorista", documento: "RG 999", endereco: "RUA X" };
+  f.vendedor = Object.assign({}, f.vendedor, { tipo: "PF", nome: "INVESTIDOR TESTE", cpfCnpj: "333.444.555-66" });
+  m = C.marcadores(C.montarDadosContrato(f));
+  assert.equal(m.CONDICOES_ESPECIAIS, "condição inventada");
+  assert.equal(m.ASSINATURA_COMPRADORES_NOMES, "ANA TESTE / BRUNO TESTE");
+  assert.equal(m.ASSINATURA_COMPRADORES_CPFS, "529.982.247-25 / 222.333.444-05");
+  assert.equal(m.VENDEDOR_DOC_ROTULO, "CPF nº 333.444.555-66");
+  assert.equal(m.REPRESENTANTE_NOME, "INVESTIDOR TESTE");
+  assert.equal(m.REPRESENTANTE_CPF, "333.444.555-66");
 });

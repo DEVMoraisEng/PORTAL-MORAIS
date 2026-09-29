@@ -23,6 +23,8 @@ var ContratoVenda = (function () {
     COMISSAO_FORMA: "CONTRATO - COMISSÃO FORMA",
     COMISSAO_VENCIMENTO: "CONTRATO - COMISSÃO VENCIMENTO",
     COMISSAO_PAGA_POR: "CONTRATO - COMISSÃO PAGA POR",
+    PRAZO_CONCLUSAO: "CONTRATO - PRAZO DE CONCLUSÃO DAS OBRAS",
+    CONDICOES_ESPECIAIS: "CONTRATO - CONDIÇÕES ESPECIAIS",
     CONTRATO_GERADO: "CONTRATO GERADO"
   };
 
@@ -44,6 +46,8 @@ var ContratoVenda = (function () {
   TIPOS[COL.COMISSAO_FORMA] = "select";
   TIPOS[COL.COMISSAO_VENCIMENTO] = "rich_text";
   TIPOS[COL.COMISSAO_PAGA_POR] = "select";
+  TIPOS[COL.PRAZO_CONCLUSAO] = "date";
+  TIPOS[COL.CONDICOES_ESPECIAIS] = "rich_text";
   TIPOS[COL.CONTRATO_GERADO] = "files";
 
   var MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho",
@@ -233,7 +237,8 @@ var ContratoVenda = (function () {
         area: num(v.AREA), confrontacoes: txt(v.CONFRONTACOES),
         matriculaIndividual: txt(v.MATRICULA_INDIVIDUAL), cri: txt(v.CRI),
         alvaraNumero: txt(v.ALVARA_NUMERO), alvaraData: txt(v.ALVARA_DATA),
-        habiteseNumero: txt(v.HABITESE_NUMERO), habiteseData: txt(o.dataHabitese)
+        habiteseNumero: txt(v.HABITESE_NUMERO), habiteseData: txt(o.dataHabitese),
+        prazoConclusao: txt(v.PRAZO_CONCLUSAO), condicoesEspeciais: txt(v.CONDICOES_ESPECIAIS)
       },
       negociacao: {
         valorContrato: total, aquisicao: aquisicao, intermediacao: intermediacao,
@@ -317,6 +322,7 @@ var ContratoVenda = (function () {
     exige(im.area !== null && im.area > 0, "Imóvel", "área do lote");
     exige(!vazio(im.alvaraNumero), "Imóvel", "alvará (número)");
     exige(!vazio(im.alvaraData), "Imóvel", "alvará (data)");
+    if (!pronto) exige(!vazio(im.prazoConclusao), "Imóvel", "prazo previsto de conclusão das obras");
     if (pronto) {
       exige(!vazio(im.habiteseNumero), "Imóvel", "habite-se (número)");
       exige(!vazio(im.habiteseData), "Imóvel", "habite-se (data)");
@@ -343,6 +349,7 @@ var ContratoVenda = (function () {
     } else {
       exige(!vazio(k.nome), "Corretor", "nome");
       exige(!vazio(k.creci), "Corretor", "CRECI");
+      exige(!vazio(k.cpfCnpj), "Corretor", "CPF/CNPJ");
     }
     return faltas;
   }
@@ -361,6 +368,7 @@ var ContratoVenda = (function () {
     var compradores = qualificacao(c1) + (c2 ? "; e " + qualificacao(c2) : "");
     var nomes = c2 ? c1.nome + " e " + c2.nome : c1.nome;
     var pagaVend = c.pagaPor === "VENDEDOR";
+    var ehPF = v.tipo === "PF";
     var interm = typeof n.intermediacao === "string" ? n.intermediacao
       : (n.intermediacao === null ? "" : "R$ " + moedaBR(n.intermediacao));
     return {
@@ -372,8 +380,14 @@ var ContratoVenda = (function () {
       VENDEDOR_ESTADO_CIVIL: ehPJ ? txt(v.representanteEstadoCivil) : txt(v.estadoCivil),
       VENDEDOR_PROFISSAO: ehPJ ? "" : txt(v.profissao),
       VENDEDOR_RG: ehPJ ? txt(v.representanteRg) : txt(v.rg),
-      REPRESENTANTE_NOME: txt(v.representanteNome),
-      REPRESENTANTE_CPF: txt(v.representanteCpf),
+      VENDEDOR_DOC_ROTULO: ehPJ ? "CNPJ sob o número " + txt(v.cpfCnpj) : (ehPF ? "CPF nº " + txt(v.cpfCnpj) : txt(v.cpfCnpj)),
+      REPRESENTANTE_NOME: ehPF ? (txt(v.nome) || d.nomeProprietario) : txt(v.representanteNome),
+      REPRESENTANTE_CPF: ehPF ? txt(v.cpfCnpj) : txt(v.representanteCpf),
+      PRAZO_CONCLUSAO: dataBR(im.prazoConclusao),
+      CONDICOES_ESPECIAIS: im.condicoesEspeciais || "Não há.",
+      ASSINATURA_COMPRADORES_NOMES: c2 ? c1.nome + " / " + c2.nome : c1.nome,
+      ASSINATURA_COMPRADORES_CPFS: c2 ? c1.cpf + " / " + c2.cpf : c1.cpf,
+      CORRETOR_DOC: txt(k.cpfCnpj),
       LOTEAMENTO: txt(l.denominacao),
       MUNICIPIO_UF: txt(l.municipioUf),
       ALVARA_NUMERO: im.alvaraNumero,
