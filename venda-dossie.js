@@ -131,6 +131,10 @@
       h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-gerar"' + dis + ">Gerar contrato</button></div>";
     }
     if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
+    if (u.link && /^https:\/\//.test(u.link)) {
+      h += '<div class="dz-msg">O navegador bloqueou a janela — clique em Abrir contrato. ' +
+        '<a href="' + esc(u.link) + '" target="_blank" rel="noopener">Abrir contrato</a></div>';
+    }
     return h;
   }
 
@@ -285,7 +289,7 @@
     }
   }
   /* ---- bloco Contrato: estado próprio, separado do dossiê ---- */
-  var estadoC = null, uiC = { ocupadoContrato: null, faltas: null, msg: "", testes: false }, paginaDoContrato = null;
+  var seqC = 0, carregandoC = null, estadoC = null, uiC = { ocupadoContrato: null, faltas: null, msg: "", testes: false }, paginaDoContrato = null;
   function novoUiC() { return { ocupadoContrato: null, faltas: null, msg: "", testes: perfilTestes() }; }
   function mesmaCasaContrato(pageId) { return obraAberta() === pageId && paginaDoContrato === pageId; }
   function wrapC() { return document.getElementById("contrato-wrap"); }
@@ -293,32 +297,52 @@
     var w = wrapC(); if (!w) return;
     w.innerHTML = htmlContrato(estadoC, uiC);
   }
+  /* seqC: contador de pedidos; sobe a cada troca de casa e a cada ação. Resposta
+   * com seq diferente do capturado é descartada (caso A→B→A, em que mesmaCasaContrato
+   * sozinho enganaria). carregandoC evita pedidos paralelos quando o bloco é recriado
+   * enquanto o estado ainda carrega. */
   async function carregarContrato(pageId) {
+    if (carregandoC === pageId) return;
+    carregandoC = pageId;
+    var seq = ++seqC;
     var r = await chamarVenda({ action: "contratoEstado", pageId: pageId });
-    if (!mesmaCasaContrato(pageId)) return;
-    if (r.ok) estadoC = { gerado: !!r.gerado, nome: r.nome || "", url: r.url || "" };
+    if (carregandoC === pageId) carregandoC = null;
+    if (seq !== seqC || !mesmaCasaContrato(pageId)) return;
+    if (r.ok) { estadoC = { gerado: !!r.gerado, nome: r.nome || "", url: r.url || "" }; uiC.msg = ""; }
     else uiC.msg = mensagemContrato(r);
     pintarC();
   }
   async function aoClicarContrato(ev) {
     var b = ev.target.closest("[data-acao]"); if (!b || b.disabled) return;
-    var pageId = obraAberta(), acao = b.getAttribute("data-acao"), r;
+    var pageId = obraAberta(), acao = b.getAttribute("data-acao"), r, seq;
     if (!pageId || uiC.ocupadoContrato || paginaDoContrato !== pageId) return;
     if (acao === "c-ver") {
-      uiC.ocupadoContrato = "ver"; uiC.msg = ""; pintarC();
+      /* abre a janela AGORA, dentro do clique (antes de qualquer await), senão o
+       * navegador a bloqueia; depois só troca o endereço. Sem "noopener" aqui
+       * (devolveria null): o opener é zerado à mão. */
+      var w = window.open("about:blank", "_blank");
+      uiC.ocupadoContrato = "ver"; uiC.msg = ""; uiC.link = null; pintarC();
+      seq = ++seqC;
       r = await chamarVenda({ action: "contratoEstado", pageId: pageId });
-      if (!mesmaCasaContrato(pageId)) return;
+      if (seq !== seqC || !mesmaCasaContrato(pageId)) { if (w) { try { w.close(); } catch (e) {} } return; }
       uiC.ocupadoContrato = null;
-      if (r.ok && r.gerado && r.url) { estadoC = { gerado: true, nome: r.nome || "", url: r.url }; window.open(r.url, "_blank", "noopener"); }
-      else uiC.msg = r.ok ? "Ainda não há contrato gerado." : mensagemContrato(r);
+      if (r.ok && r.gerado && /^https:\/\//.test(r.url || "")) {
+        estadoC = { gerado: true, nome: r.nome || "", url: r.url };
+        if (w) { try { w.opener = null; } catch (e) {} w.location.href = r.url; }
+        else uiC.link = r.url;
+      } else {
+        if (w) { try { w.close(); } catch (e) {} }
+        uiC.msg = r.ok ? "Ainda não há contrato gerado." : mensagemContrato(r);
+      }
       pintarC();
       return;
     }
     if (acao === "c-gerar") {
       if (estadoC && estadoC.gerado && !window.confirm("Gerar de novo? O contrato atual será substituído.")) return;
-      uiC.ocupadoContrato = "gerar"; uiC.msg = ""; uiC.faltas = null; pintarC();
+      uiC.ocupadoContrato = "gerar"; uiC.msg = ""; uiC.faltas = null; uiC.link = null; pintarC();
+      seq = ++seqC;
       r = await chamarVenda({ action: "gerarContrato", pageId: pageId }, 150000);
-      if (!mesmaCasaContrato(pageId)) return;
+      if (seq !== seqC || !mesmaCasaContrato(pageId)) return;
       uiC.ocupadoContrato = null;
       if (r.ok) {
         estadoC = { gerado: true, nome: r.nome || "", url: r.url || "" };
@@ -341,7 +365,7 @@
   function garantirContrato(body, id) {
     var w = wrapC();
     if (w) { if (body.lastElementChild !== w) body.appendChild(w); return; }
-    if (paginaDoContrato !== id) { paginaDoContrato = id; estadoC = null; uiC = novoUiC(); }
+    if (paginaDoContrato !== id) { paginaDoContrato = id; seqC++; estadoC = null; uiC = novoUiC(); }
     w = document.createElement("div"); w.id = "contrato-wrap";
     w.addEventListener("click", aoClicarContrato);
     body.appendChild(w);
@@ -353,7 +377,7 @@
     if (!id) {
       /* painel fechado: zera para a mesma casa recarregar o estado ao reabrir */
       if (paginaDoBloco !== null) { paginaDoBloco = null; estado = null; ui = { dois: false, ocupado: null, msg: "", testes: false }; }
-      if (paginaDoContrato !== null) { paginaDoContrato = null; estadoC = null; uiC = novoUiC(); }
+      if (paginaDoContrato !== null) { paginaDoContrato = null; seqC++; estadoC = null; uiC = novoUiC(); }
       return;
     }
     if (painelCarregando(body.children.length, body.firstElementChild ? body.firstElementChild.className : "",

@@ -199,3 +199,13 @@ test("mensagemContrato: nunca mostra os nomes dos marcadores", () => {
   const t = D.mensagemContrato({ ok: false, erro: "MODELO_COM_MARCADOR_SOBRANDO", marcadores: ["SEGREDO_X"] });
   assert.doesNotMatch(t, /SEGREDO_X/);
 });
+
+test("contrato: link de reserva só aparece com https, escapado, e com o aviso", () => {
+  const est = { gerado: true, nome: "x.pdf" };
+  const com = D.htmlContrato(est, uic({ link: "https://exemplo.test/a?b=1&c=\"2\"" }));
+  assert.match(com, /O navegador bloqueou a janela — clique em Abrir contrato\./);
+  assert.match(com, /<a href="https:\/\/exemplo\.test\/a\?b=1&amp;c=&quot;2&quot;" target="_blank" rel="noopener">Abrir contrato<\/a>/);
+  assert.doesNotMatch(D.htmlContrato(est, uic()), /Abrir contrato/);
+  assert.doesNotMatch(D.htmlContrato(est, uic({ link: "javascript:alert(1)" })), /Abrir contrato/);
+  assert.doesNotMatch(D.htmlContrato(est, uic({ link: "http://inseguro.test" })), /Abrir contrato/);
+});
