@@ -504,6 +504,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
             <button class="seg-bt" data-ps="ACEITA" onclick="propSeg('ACEITA')">Aceitas</button>
             <button class="seg-bt" data-ps="RESERVADA" onclick="propSeg('RESERVADA')">Reservadas</button>
             <button class="seg-bt" data-ps="NEGADA" onclick="propSeg('NEGADA')">Negadas</button>
+            <button class="seg-bt" data-ps="VENDIDA" onclick="propSeg('VENDIDA')">Vendidas</button>
           </div>
           <div class="seg" id="seg-credito" style="margin-left:8px">
             <button class="seg-bt on" data-pc="" onclick="propSegCredito('')">Crédito: todas</button>
@@ -1888,7 +1889,7 @@ function propAlerta24(){
 
 /* ---------- lista ---------- */
 const PROP_ROTULO={ "RECEBIDA":"RECEBIDA","EM ANALISE":"EM ANÁLISE","ACEITA":"ACEITA",
-                    "RESERVADA":"RESERVADA","NEGADA":"NEGADA" };
+                    "RESERVADA":"RESERVADA","NEGADA":"NEGADA","VENDIDA":"VENDIDA" };
 function propSegCredito(v){
   propFiltroCredito=v;
   document.querySelectorAll("#seg-credito .seg-bt").forEach(b=>b.classList.toggle("on", b.dataset.pc===v));
@@ -1901,7 +1902,7 @@ function propSeg(v){
 }
 function propTag(st){
   const n=PROP_NORM(st)||"RECEBIDA";
-  const cls = n==="ACEITA" ? "pos" : (n==="NEGADA" ? "neg" : "zero");
+  const cls = (n==="ACEITA"||n==="VENDIDA") ? "pos" : (n==="NEGADA" ? "neg" : "zero");
   return `<span class="pill ${cls}">${PROP_ROTULO[n]||n}</span>`;
 }
 function propRender(){
@@ -1962,7 +1963,7 @@ function propKpis(){
   const vgvMedio=precos.length ? precos.reduce((a,b)=>a+b,0)/precos.length : 0;
   const dif=vgvMedio-VGV_META;
   el.innerHTML=[["Propostas",PROPS.length],["Recebidas",c("RECEBIDA")],["Em análise",c("EM ANALISE")],
-                ["Aceitas",c("ACEITA")],["Reservadas",c("RESERVADA")],["Negadas",c("NEGADA")]]
+                ["Aceitas",c("ACEITA")],["Reservadas",c("RESERVADA")],["Vendidas",c("VENDIDA")],["Negadas",c("NEGADA")]]
     .map(k=>`<div class="kpi"><div class="lab">${k[0]}</div><div class="val">${k[1]}</div></div>`).join("") +
     `<div class="kpi"><div class="lab">VGV médio · aceitas</div><div class="val">${simBRL(vgvMedio)}</div>`+
     (precos.length
@@ -2158,6 +2159,7 @@ function propVer(id){
       ${it("Valor financiado",simBRL(p.valorFinanciado))}${it("Parcela",p.parcelaFinanciamento?simBRL(p.parcelaFinanciamento):"não apurada")}
       ${it("Renda aprovada",simBRL(p.rendaAprovada))}${it("Renda total",simBRL(p.rendaTotal))}
       ${it("FGTS",simBRL(p.fgts))}${it("Subsídio",simBRL(p.subsidio))}${it("Valor para entrada",simBRL(p.valorEntrada))}
+      ${it("Prazo da entrada",p.prazoEntrada?p.prazoEntrada+" meses":"não informado")}${it("Comissão do corretor",p.comissaoValor?simBRL(p.comissaoValor)+" ("+((Number(p.comissaoPct)||0)*100).toLocaleString("pt-BR",{minimumFractionDigits:2})+"%)":"não informada")}
       ${it("Observações",esc(p.observacoes||""))}
     </div>
 
@@ -2166,6 +2168,12 @@ function propVer(id){
       <span id="prop-linkCx" style="font-size:12px;color:var(--text3);margin-left:8px"></span>
       <div style="font-size:12px;color:var(--text3);margin-top:5px">O corretor abre o link, completa o que falta
         e anexa os documentos — cai direto no cadastro desta proposta.</div>
+    </div>
+    <div style="margin:10px 0 4px">
+      <button class="bt" onclick="propGerarLinkVenda('${p.id}')">🧾 Link para completar as informações da venda</button>
+      <span id="prop-vendaLinkCx" style="font-size:12px;color:var(--text3);margin-left:8px"></span>
+      <div style="font-size:12px;color:var(--text3);margin-top:5px">Para a venda fechada: o cliente ou o corretor completa
+        os dados e documentos que faltam (inclusive o comprovante de endereço) — cai no BANCO DE DADOS VENDAS CONDOMÍNIO.</div>
     </div>`:""}
 
     <!-- r51 — as pendências aparecem na hora (dados da lista) e são
@@ -2182,10 +2190,12 @@ function propVer(id){
         <button class="bt verde" onclick="propStatus('${p.id}','ACEITA')">Aceitar</button>
         <button class="bt az" onclick="propStatus('${p.id}','RESERVADA')">Reservar</button>
         <button class="bt vermelho" onclick="propStatus('${p.id}','NEGADA')">Negar</button>
+        <button class="bt" style="background:#5B2A86;color:#fff" onclick="propStatus('${p.id}','VENDIDA')">Vendida</button>
       </div>
       <div style="font-size:12px;color:var(--text3);margin-top:6px">
         Aceitar ou reservar marca a unidade ${esc(String(p.unidade||""))} como RESERVADA no Notion
         (e ela fica azul no mapa de vendas). Negar devolve para NÃO.
+        <b>Vendida</b> muda a unidade para VENDIDA = SIM e preenche o BANCO DE DADOS VENDAS CONDOMÍNIO.
       </div>
     </div>
 
@@ -2544,7 +2554,84 @@ function propParseEsquema(txt){
     return (o[a.grupo]-o[b.grupo])||(a.i-b.i);
   });
 }
+/* r50 — LINK PARA COMPLETAR AS INFORMAÇÕES DA VENDA (mesmo esquema do link da proposta) */
+async function propGerarLinkVenda(id){
+  const cx=document.getElementById("prop-vendaLinkCx"); if(cx) cx.textContent="gerando…";
+  let r; try{ r=await chamar({action:"simsVendaLink", pageId:id}, 60000, true); }catch(e){ r=null; }
+  if(!r || !r.ok){
+    if(cx) cx.innerHTML='<span style="color:var(--vermelho)">'+esc((r&&(r.mensagem||r.erro))||"não consegui gerar agora")+'</span> '+
+      '<button class="bt ghost" style="padding:4px 10px" onclick="propGerarLinkVenda(\''+id+'\')">↻ Tentar de novo</button>';
+    return;
+  }
+  const bloco=document.createElement("div");
+  bloco.className="card"; bloco.style.margin="8px 0 12px";
+  bloco.innerHTML=
+    '<b style="font-size:13px;color:var(--azul)">Link para completar as informações da venda</b>'+
+    '<div style="font-size:12px;color:var(--text3);margin:4px 0 8px">Vale até '+esc(r.validade)+
+    '. Gerar de novo invalida o anterior. O que for preenchido cai direto no banco de vendas.</div>'+
+    '<input class="prop-inp" id="prop-vLinkUrl" readonly value="'+esc(r.url)+'">'+
+    '<label class="prop-rot">Mensagem pronta</label>'+
+    '<textarea class="prop-inp" id="prop-vLinkMsg" rows="5">'+esc(r.sugestao)+'</textarea>'+
+    '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">'+
+    '<button class="bt az" onclick="propCopiar(\'prop-vLinkUrl\',this)">Copiar o link</button>'+
+    '<button class="bt" onclick="propCopiar(\'prop-vLinkMsg\',this)">Copiar a mensagem</button>'+
+    '<button class="bt verde" onclick="propEnviarLinkVenda(\''+id+'\',this)">✉ Enviar por e-mail ao corretor</button>'+
+    '<a class="bt ghost" target="_blank" rel="noopener" href="'+esc(r.url)+'" style="text-decoration:none">Abrir</a>'+
+    '</div><div id="prop-vLinkEnvio" style="font-size:12px;margin-top:8px"></div>';
+  if(cx){ cx.textContent=""; cx.parentElement.appendChild(bloco); }
+}
+async function propEnviarLinkVenda(id, bt){
+  const msg=document.getElementById("prop-vLinkMsg"), url=document.getElementById("prop-vLinkUrl");
+  const av=document.getElementById("prop-vLinkEnvio");
+  if(!msg || !url) return;
+  const texto=(msg.value||"").trim();
+  if(!texto){ av.innerHTML='<span style="color:var(--vermelho)">Escreva a mensagem antes de enviar.</span>'; return; }
+  const html='<div style="white-space:pre-wrap">'+esc(texto).replace(
+      esc(url.value), '<a href="'+esc(url.value)+'">'+esc(url.value)+'</a>')+'</div>';
+  bt.disabled=true; av.innerHTML='Enviando…';
+  let r;
+  try{ r=await chamar({action:"simsPropostaEmail", pageId:id, mensagemHtml:html, mensagem:texto,
+                       assunto:"Proposta — completar as informações da venda"}, 90000, true); }
+  catch(e){ bt.disabled=false; av.innerHTML='<span style="color:var(--vermelho)">Não deu para confirmar o envio.</span>'; return; }
+  bt.disabled=false;
+  av.innerHTML = (r && r.ok)
+    ? '<span style="color:var(--verde-esc)">Enviado para '+esc(r.enviadoPara||"o corretor")+
+      (r.naConversa?' — na mesma conversa da proposta.':'.')+'</span>'
+    : '<span style="color:var(--vermelho)">'+esc((r&&(r.mensagem||r.erro))||"não enviou")+'</span>';
+}
+/* r50 — depois de marcar VENDIDA: mostra o que o banco de vendas recebeu e copia os documentos */
+async function propPosVendida(id, r, av){
+  storeInvalidar("sims_propostas","sims_unidades"); UNS=[]; propCarregar(true);
+  const v=r.venda||{};
+  if(!v.ok){
+    av.className="sim-aviso err";
+    av.innerHTML='A unidade foi marcada como VENDIDA, mas <b>o banco de vendas não foi preenchido</b>: '+
+      esc(v.mensagem||v.erro||"sem resposta")+
+      ' <button class="bt ghost" style="padding:4px 10px" onclick="propStatus(\''+id+'\',\'VENDIDA\')">↻ Tentar de novo</button>';
+    return;
+  }
+  const pend=(v.pendencias||[]).length;
+  av.className="sim-aviso ok";
+  av.innerHTML='<b>Vendida.</b> '+esc(r.reflexo||"")+'<br>Banco de vendas: linha da unidade '+esc(v.unidade||"")+
+    (v.criou?' criada':' atualizada')+
+    (pend?' — <b>'+pend+' pendência(s)</b> para completar (gere o link abaixo).':' — cadastro completo.')+
+    ((v.colunasCriadas||[]).length?'<br><span style="font-size:12px">Colunas criadas no banco: '+esc(v.colunasCriadas.join(", "))+'</span>':'');
+  const arqs=v.arquivos||[];
+  if(!arqs.length) return;
+  const prog=document.createElement("div"); prog.style.cssText="font-size:12px;margin-top:6px"; av.appendChild(prog);
+  const falhas=[];
+  for(let i=0;i<arqs.length;i++){
+    prog.textContent="Copiando documentos para o banco de vendas ("+(i+1)+" de "+arqs.length+"): "+arqs[i].para+"… não feche.";
+    let x=null;
+    try{ x=await chamar({action:"simsVendaArquivos", pageId:id, de:arqs[i].de}, 90000, true); }catch(e){ x=null; }
+    if(!x || !x.ok || (x.falhas||[]).length) falhas.push(arqs[i].para+((x&&x.erro)?" ("+x.erro+")":""));
+  }
+  prog.innerHTML = falhas.length
+    ? '<span style="color:var(--vermelho)">Não consegui copiar: '+esc(falhas.join(", "))+'. Dá para arrastar na mão no Notion.</span>'
+    : 'Documentos copiados para o banco de vendas.';
+}
 async function propStatus(id, status){
+  if(status==="VENDIDA" && !confirm("Marcar esta proposta como VENDIDA?\n\nA unidade passa para VENDIDA = SIM no mapa e os dados vão para o BANCO DE DADOS VENDAS CONDOMÍNIO.")) return;
   const av=document.getElementById("prop-detAviso");
   av.className="sim-aviso ok"; av.textContent="Salvando…";
   let r;
@@ -2568,6 +2655,7 @@ async function propStatus(id, status){
       : "Não deu para confirmar. Abra a proposta no Notion antes de repetir.";
     return;
   }
+  if(r && r.ok && status==="VENDIDA"){ await propPosVendida(id, r, av); return; }
   if(r && r.ok){
     av.className="sim-aviso ok";
     av.textContent="Status: "+r.status+". "+(r.reflexo||"");
