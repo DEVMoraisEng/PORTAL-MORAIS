@@ -236,11 +236,39 @@ test("valor com $ e \\ entra literal (a substituição do Docs interpreta os doi
   assert.ok(c.pdfTexto().includes("Confrontações: lote $1 e \\ fim $"), c.pdfTexto());
 });
 
-test("marcador sem valor sobrando: gera mesmo assim e loga aviso sem o valor", () => {
-  const c = cenario({ drive: { modelos: { "modelo-obra": [...MODELO_OBRA, "{{NAO_EXISTE}}"] } } });
-  assert.equal(c.gerar().ok, true);
-  assert.ok(c.g.logs.some((l) => /sobrou marcador/.test(l)));
-  assert.ok(!c.g.logs.some((l) => l.includes("NAO_EXISTE")));
+function semExportar(c, r, nomes) {
+  assert.equal(r.ok, false);
+  assert.equal(r.erro, "MODELO_COM_MARCADOR_SOBRANDO");
+  assert.deepEqual(r.marcadores, nomes);
+  assert.deepEqual(c.d.estado.removidas, [c.d.estado.copias[0].id]);
+  assert.deepEqual(c.d.estado.exportados, []);
+  assert.equal(c.arquivos()[0].name, "antigo.pdf");
+  assert.equal(c.n.patches.length, 0);
+}
+test("marcador desconhecido sobrando: não anexa, devolve só os nomes, cópia removida", () => {
+  const c = cenario({ venda: { "CONTRATO GERADO": ANTIGO }, drive: { modelos: { "modelo-obra": [...MODELO_OBRA, "{{NAO_EXISTE}}"] } } });
+  semExportar(c, c.gerar(), ["NAO_EXISTE"]);
+  assert.ok(c.g.logs.some((l) => l.includes("NAO_EXISTE")));
+});
+
+test("bloco sem fechamento: MODELO_COM_MARCADOR_SOBRANDO, PDF anterior intacto", () => {
+  const c = cenario({ venda: { "CONTRATO GERADO": ANTIGO }, drive: { modelos: { "modelo-obra": [...MODELO_OBRA, "{{#SE_OUTRO}}", "texto"] } } });
+  semExportar(c, c.gerar(), ["SE_OUTRO"]);
+});
+
+test("fechamento solto {{/X}}: MODELO_COM_MARCADOR_SOBRANDO", () => {
+  const c = cenario({ venda: { "CONTRATO GERADO": ANTIGO }, drive: { modelos: { "modelo-obra": [...MODELO_OBRA, "{{/SE_SOLTO}}"] } } });
+  semExportar(c, c.gerar(), ["SE_SOLTO"]);
+});
+
+test("chaves no valor digitado são removidas: não viram marcador nem injetam outra chave", () => {
+  const c = cenario({ venda: { "CONTRATO - CONDIÇÕES ESPECIAIS": rt("ver {{LOTE}} e }} solto") },
+                     drive: { modelos: { "modelo-obra": [...MODELO_OBRA, "Condições: {{CONDICOES_ESPECIAIS}}"] } } });
+  const r = c.gerar();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const t = c.pdfTexto();
+  assert.ok(t.includes("Condições: ver LOTE e  solto"), t);
+  assert.ok(!t.includes("{{") && !t.includes("}}"));
 });
 
 test("Review Focus 4: Docs falha no meio -> CONTRATO_FALHOU, cópia removida, PDF anterior intacto", () => {

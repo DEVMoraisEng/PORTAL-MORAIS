@@ -180,10 +180,18 @@ function aplicarBlocos_(body, blocos) {
 }
 function aplicarMarcadores_(body, marcadores) {
   for (var chave in marcadores) {
-    var valor = ctrTxt_(marcadores[chave]).replace(/\\/g, "\\\\").replace(/\$/g, "\\$");
+    /* chaves duplas no valor digitado não podem virar marcador falso nem injetar outra chave */
+    var valor = ctrTxt_(marcadores[chave]).replace(/\{\{|\}\}/g, "").replace(/\\/g, "\\\\").replace(/\$/g, "\\$");
     body.replaceText("\\{\\{" + chave + "\\}\\}", valor);
   }
-  if (String(body.getText()).indexOf("{{") >= 0) ctrLog_("contrato: sobrou marcador sem valor no texto");
+}
+/* Nomes (só nomes) dos marcadores que sobraram no corpo; [] se está limpo. */
+function ctrMarcadoresSobrando_(body) {
+  var t = String(body.getText());
+  if (t.indexOf("{{") < 0 && t.indexOf("}}") < 0) return [];
+  var nomes = [], re = /\{\{[#\/]?([A-Za-z0-9_]+)\}\}/g, m;
+  while ((m = re.exec(t)) !== null) if (nomes.indexOf(m[1]) < 0) nomes.push(m[1]);
+  return nomes.length ? nomes : ["{{ }}"];
 }
 function apagarCopia_(id) {
   try {
@@ -242,6 +250,12 @@ function gerarContrato_(col, sess, p) {
     var doc = DocumentApp.openById(copia.getId());
     aplicarBlocos_(doc.getBody(), blocos);
     aplicarMarcadores_(doc.getBody(), marcadores);
+    var sobrando = ctrMarcadoresSobrando_(doc.getBody());
+    if (sobrando.length) {
+      ctrLog_("gerarContrato " + pid + " marcador sobrando: " + sobrando.join(", "));
+      doc.saveAndClose();
+      return { ok: false, erro: "MODELO_COM_MARCADOR_SOBRANDO", marcadores: sobrando }; /* o finally apaga a cópia */
+    }
     doc.saveAndClose();
     var pdf = DriveApp.getFileById(copia.getId()).getAs("application/pdf");
     anexarArquivo_(p.pageId, colGerado, { nome: nomePdf, mime: "application/pdf", base64: Utilities.base64Encode(pdf.getBytes()) }, true);
