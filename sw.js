@@ -146,7 +146,8 @@
 /* v64 -> v65 (28/09/26 noite): envio continua ao sair da página; obra com casas vendidas/entregues. */
 /* v65 -> v66 (28/09/26): index.html com o botão Conferência OC × NF em Automações.
    v67 -> v69 (29/09/26): botão aponta para o endereço que está no ar, CONFER-NCIA-COMPRAS. */
-const CACHE = "portal-morais-v69";  // limpeza só dos caches do portal (não apaga os das RAS)
+/* v69 -> v70 (29/09/26): atividades.html — comentários sempre atuais (relê a cada 15 s, avisa quando não atualiza, ↻). */
+const CACHE = "portal-morais-v70";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",
