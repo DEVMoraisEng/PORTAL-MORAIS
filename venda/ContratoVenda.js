@@ -103,6 +103,7 @@ var ContratoVenda = (function () {
   function valorPorExtenso(n) {
     var c = Math.round(Math.abs(Number(n) || 0) * 100);
     var reais = Math.floor(c / 100), cent = c % 100;
+    if (reais >= 1000000000) throw new Error("VALOR_FORA_DO_LIMITE");
     var partes = [];
     if (reais > 0) {
       var t = inteiroPorExtenso(reais);
@@ -147,9 +148,9 @@ var ContratoVenda = (function () {
   function documentoComRotulo(doc) {
     var d = txt(doc);
     if (!d) return "";
-    var m = /^(RG|CNH)(?![A-Za-z])\s*(?:n[ºo°]\.?\s*)?(.*)$/i.exec(d);
+    var m = /^(RG|CNH)(?![A-Za-z]):?\s*(?:n[ºo°]\.?\s*)?(.*)$/i.exec(d);
     if (m) return m[1].toUpperCase() + " nº " + m[2];
-    return "RG nº " + d;
+    return d;
   }
 
   function qualificacao(c) {
@@ -163,9 +164,13 @@ var ContratoVenda = (function () {
   function nomeComprador1(clientes, nome2) {
     var c = txt(clientes), n2 = txt(nome2);
     if (!n2) return c;
-    var sufixo = " E " + n2.toUpperCase();
-    if (c.toUpperCase().slice(-sufixo.length) === sufixo) return c.slice(0, c.length - sufixo.length).trim();
-    return c;
+    var pos = c.toUpperCase().indexOf(n2.toUpperCase());
+    if (pos < 0) {
+      var m = /\s+E\s+|\s*[&,\/]\s*/i.exec(c);
+      pos = m ? m.index : -1;
+    }
+    if (pos < 0) return c;
+    return c.slice(0, pos).replace(/(?:\s+[Ee]\s*|[\s,\/&]+)+$/, "").trim();
   }
 
   function formaPorExtenso(v) {
@@ -299,6 +304,10 @@ var ContratoVenda = (function () {
       exige(!vazio(l.municipioUf), "Loteamento", "município/UF");
       exige(!vazio(l.matricula), "Loteamento", "matrícula do loteamento");
       exige(!vazio(l.cartorio), "Loteamento", "cartório");
+      if (pronto) {
+        exige(!vazio(l.prazoPosseDias), "Loteamento", "prazo de posse (dias)");
+        exige(!vazio(l.prazoChavesDias), "Loteamento", "prazo de entrega das chaves (dias)");
+      }
     }
 
     var im = d.imovel;
@@ -306,11 +315,11 @@ var ContratoVenda = (function () {
     exige(!vazio(im.matriculaIndividual), "Imóvel", "matrícula individual");
     exige(!vazio(im.cri), "Imóvel", "CRI da matrícula");
     exige(im.area !== null && im.area > 0, "Imóvel", "área do lote");
+    exige(!vazio(im.alvaraNumero), "Imóvel", "alvará (número)");
+    exige(!vazio(im.alvaraData), "Imóvel", "alvará (data)");
     if (pronto) {
       exige(!vazio(im.habiteseNumero), "Imóvel", "habite-se (número)");
       exige(!vazio(im.habiteseData), "Imóvel", "habite-se (data)");
-      exige(!vazio(im.alvaraNumero), "Imóvel", "alvará (número)");
-      exige(!vazio(im.alvaraData), "Imóvel", "alvará (data)");
     }
 
     var n = d.negociacao, c = d.comissao;
@@ -410,10 +419,12 @@ var ContratoVenda = (function () {
 
   function blocos(d) {
     var v = d.vendedor || {}, n = d.negociacao;
+    var temInterm = n.intermediariaValor !== null && n.intermediariaValor > 0;
     return {
       SE_VENDEDOR_PJ: v.tipo === "PJ",
       SE_VENDEDOR_PF: v.tipo === "PF",
-      SE_INTERMEDIARIA: n.intermediariaValor !== null && n.intermediariaValor > 0,
+      SE_INTERMEDIARIA: temInterm,
+      SEM_INTERMEDIARIA: !temInterm,
       SE_COMISSAO_VENDEDOR: d.comissao.pagaPor === "VENDEDOR"
     };
   }

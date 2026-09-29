@@ -70,7 +70,7 @@ test("dados completos: nenhuma falta, modelo PRONTO, valores com comprador pagan
   assert.equal(m.COMPRADORES, "ANA TESTE, brasileira, solteira, professora, RG nº 1234567 SSP/GO, CPF nº 529.982.247-25, residente e domiciliado à RUA TESTE, 10, GOIÂNIA/GO");
   assert.equal(m.SINAL_DATA, "28/09/2026");
   const b = C.blocos(d);
-  assert.deepEqual(b, { SE_VENDEDOR_PJ: true, SE_VENDEDOR_PF: false, SE_INTERMEDIARIA: false, SE_COMISSAO_VENDEDOR: false });
+  assert.deepEqual(b, { SE_VENDEDOR_PJ: true, SE_VENDEDOR_PF: false, SE_INTERMEDIARIA: false, SEM_INTERMEDIARIA: true, SE_COMISSAO_VENDEDOR: false });
   for (const [k, v] of Object.entries(m)) assert.equal(typeof v, "string", k);
 });
 
@@ -99,7 +99,7 @@ test("vendedor PF, comissão paga pelo vendedor e intermediária", () => {
   const d = C.montarDadosContrato(f);
   assert.deepEqual(C.faltasContrato(d), []);
   const m = C.marcadores(d), b = C.blocos(d);
-  assert.deepEqual(b, { SE_VENDEDOR_PJ: false, SE_VENDEDOR_PF: true, SE_INTERMEDIARIA: true, SE_COMISSAO_VENDEDOR: true });
+  assert.deepEqual(b, { SE_VENDEDOR_PJ: false, SE_VENDEDOR_PF: true, SE_INTERMEDIARIA: true, SEM_INTERMEDIARIA: false, SE_COMISSAO_VENDEDOR: true });
   assert.equal(m.VALOR_IMOVEL, "300.000,00");
   assert.equal(m.VALOR_INTERMEDIACAO, "paga pelo VENDEDOR");
   assert.equal(m.VALOR_TOTAL, "R$ 300.000,00");
@@ -123,4 +123,44 @@ test("modelo em construção não exige habite-se", () => {
   const d = C.montarDadosContrato(f);
   assert.equal(d.modelo, "CONSTRUCAO");
   assert.deepEqual(C.faltasContrato(d), []);
+});
+
+test("alvará é exigido nos dois modelos", () => {
+  const f = fontes(); f.obra.obraFinalizada = "NÃO"; f.venda.ALVARA_NUMERO = ""; f.venda.ALVARA_DATA = null;
+  const faltas = C.faltasContrato(C.montarDadosContrato(f));
+  assert.ok(faltas.includes("Imóvel: alvará (número)"));
+  assert.ok(faltas.includes("Imóvel: alvará (data)"));
+});
+
+test("prazos do loteamento só no modelo PRONTO", () => {
+  const f = fontes(); f.loteamento.prazoPosseDias = ""; f.loteamento.prazoChavesDias = "";
+  const faltas = C.faltasContrato(C.montarDadosContrato(f));
+  assert.ok(faltas.includes("Loteamento: prazo de posse (dias)"));
+  assert.ok(faltas.includes("Loteamento: prazo de entrega das chaves (dias)"));
+  f.obra.obraFinalizada = "NÃO";
+  assert.deepEqual(C.faltasContrato(C.montarDadosContrato(f)), []);
+});
+
+test("nome do comprador 1 com separadores variados", () => {
+  for (const clientes of ["ANA TESTE & BRUNO TESTE", "ANA TESTE, BRUNO TESTE", "ANA TESTE e BRUNO TESTE", "ANA TESTE / BRUNO TESTE"]) {
+    const f = fontes();
+    f.venda.CLIENTES = clientes;
+    f.venda.COMPRADOR2 = Object.assign({}, f.venda.COMPRADOR1, { nome: "BRUNO TESTE", cpf: "111.444.777-35" });
+    assert.match(C.marcadores(C.montarDadosContrato(f)).COMPRADORES, /^ANA TESTE, brasileira/, clientes);
+  }
+  const f = fontes();
+  f.venda.CLIENTES = "ANA TESTE & B. TESTE";
+  f.venda.COMPRADOR2 = Object.assign({}, f.venda.COMPRADOR1, { nome: "BRUNO TESTE", cpf: "111.444.777-35" });
+  assert.match(C.marcadores(C.montarDadosContrato(f)).COMPRADORES, /^ANA TESTE, brasileira/);
+});
+
+test("rótulo do documento", () => {
+  assert.equal(C.qualificacao({ documento: "RG: 123 SSP/GO" }), "RG nº 123 SSP/GO");
+  assert.equal(C.qualificacao({ documento: "CNH 55" }), "CNH nº 55");
+  assert.equal(C.qualificacao({ documento: "Passaporte X1" }), "Passaporte X1");
+});
+
+test("valor fora do limite lança erro", () => {
+  assert.throws(() => C.valorPorExtenso(1000000000), /VALOR_FORA_DO_LIMITE/);
+  assert.equal(C.valorPorExtenso(999999999), "novecentos e noventa e nove milhões novecentos e noventa e nove mil novecentos e noventa e nove reais");
 });
