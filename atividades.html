@@ -973,6 +973,7 @@ async function abrirAtv(id){
   if(!a){
     toast("Abrindo…");
     const r=await chamar({action:"atvDetalhe",pageId:id},45000,true);
+    if(r&&r.excluida){ atvExcluida(id); return; }
     if(!(r&&r.ok)){ toast("Não abriu: "+erroTexto(r&&r.erro)); return; }
     a=r.atividade; D.atividades.push(a);
   }
@@ -1007,6 +1008,7 @@ async function abrirAtv(id){
 /* tudo de uma vez: detalhe + comentários + conteúdo (1 chamada) */
 async function abrirServidor(id, temCopia){
   let r=null; try{ r=await chamar({action:"atvAbrir",pageId:id},60000,true); }catch(e){}
+  if(r&&r.excluida){ atvExcluida(id); return; }                       // 29/09: apagada no Notion
   if(!(r&&r.ok)){
     if(ABERTA!==id||temCopia) return;
     const msg=`<div class="ajuda">Não consegui abrir agora (${esc(msgErro(r))}). <a href="#" onclick="abrirServidor('${id}',false);return false">Tentar de novo</a></div>`;
@@ -1021,6 +1023,17 @@ async function abrirServidor(id, temCopia){
   else if(r.erroComentarios&&!_coms){ document.getElementById("pa-chat").innerHTML=`<div class="ajuda">Não consegui ler os comentários (${esc(r.erroComentarios)}).</div>`; }
   const cont=document.getElementById("pa-cont");
   if(r.conteudo&&cont&&!cont.contains(document.activeElement)) EditorBlocos.montar(cont, id, {somenteLeitura:!(a&&podeEditar(a)), dados:r.conteudo});
+}
+/* 29/09 — atividade apagada no Notion: sai da tela, da cópia do navegador e
+   fecha o painel se estiver aberta */
+function atvExcluida(id,calado){
+  id=SID(id); const tinha=D.atividades.some(a=>a.id===id);
+  D.atividades=D.atividades.filter(a=>a.id!==id);
+  try{ localStorage.removeItem("atv_ab_"+id); }catch(e){}
+  const c=cacheGet("atv_minhas"); if(c&&c.v&&c.v.atividades){ c.v.atividades=c.v.atividades.filter(a=>a.id!==id); cacheSet("atv_minhas",c.v); }
+  if(ABERTA===id){ fecharAtv(); toast("Esta atividade foi excluída no Notion — saiu do portal."); }
+  else if(tinha&&!calado) toast("Uma atividade foi excluída no Notion e saiu do portal.");
+  pintar();
 }
 function fecharAtv(){
   ABERTA=null; clearInterval(_poll); clearTimeout(_comsRetry);
@@ -1673,6 +1686,7 @@ async function sincronizarNotion(){
   if(document.hidden) return;
   let r=null; try{ r=await chamar({action:"atvDelta"},30000,false); }catch(e){}
   if(!(r&&r.ok)) return;
+  (r.excluidas||[]).forEach(id=>{ if(SID(id)===ABERTA||D.atividades.some(a=>a.id===SID(id))) atvExcluida(id,true); });   // 29/09
   if(r.outras&&r.outras.ok){ OUT=r.outras; cacheSet("atv_outras",r.outras); }
   cacheSet("atv_minhas",r);
   const ae=document.activeElement; if(ae&&/INPUT|SELECT|TEXTAREA/.test(ae.tagName)&&document.getElementById("pa-campos")&&document.getElementById("pa-campos").contains(ae)) return;   // editando: não troca por baixo

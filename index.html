@@ -892,15 +892,17 @@ function pintarMural(r){
       <input type="checkbox" ${x.f?"checked":""} ${pode?"":"disabled"} onchange="muralMarcar('${esc(a.id)}','${esc(x.id||"")}',this.checked,this)"> <span>${esc(x.t)}</span></label>`; };
   const com=c=>`<div class="pt-com"><b>${esc(c.autor||"")}</b>${c.texto?`<div>${esc(c.texto)}</div>`:""}${(c.anexos||[]).map(x=>
     ehImg(x)?img(x.url,x.nome):`<a class="arq" href="${esc(x.url||"#")}" target="_blank" rel="noopener">📎 ${esc(x.nome||"arquivo")}</a>`).join("")}</div>`;
+  /* 29/09: COMENTÁRIOS NO TOPO do card (o recado mais novo primeiro), depois
+     descrição e checklist */
   box.innerHTML=l.map(a=>{
     const atr=a.fim&&a.fim<hoje;
     const ckl=a.checklist||[], feitos=ckl.filter(x=>x.f).length;
     return `<div class="pt ${atr?"atr":""}"><div class="pt-t">${esc(a.titulo)}</div>
       <div class="pt-m"><span>👤 Solicitante: ${esc(nomeBonito(a.solicitante)||"—")}</span>${a.fim?`<span class="${atr?"atr":""}">📅 Término: ${br(a.fim)}</span>`:""}</div>
       <div class="pt-c">
+        ${(a.comentarios||[]).length?`<div class="pt-sec">Comentários</div>${a.comentarios.slice().reverse().map(com).join("")}`:""}
         ${(a.descricao||[]).length?`<div class="pt-sec">Descrição</div><div class="pt-d">${desc(a.descricao)}</div>`:""}
         ${ckl.length?`<div class="pt-sec">Checklist · ${feitos}/${ckl.length}</div>${ckl.map(x=>ck(a,x)).join("")}`:""}
-        ${(a.comentarios||[]).length?`<div class="pt-sec">Comentários</div>${a.comentarios.map(com).join("")}`:""}
       </div></div>`;
   }).join("");
 }
