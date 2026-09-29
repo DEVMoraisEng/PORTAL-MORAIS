@@ -76,6 +76,22 @@ select:focus,input:focus{outline:none;border-color:var(--verde);box-shadow:0 0 0
 .ival.r{color:var(--verm)}
 .ilab{font-size:10px;text-transform:uppercase;letter-spacing:.3px;color:var(--text3);font-weight:700;margin-top:3px}
 .tabela-wrap{overflow:auto;max-height:72vh;border:1px solid var(--border2);border-radius:10px;background:var(--sup)}
+/* 29/09 — PREENCHER NA PLANILHA: campos editáveis direto na tabela de obras */
+.tabela-wrap .ce{font:inherit;font-size:12.5px;color:inherit;background:transparent;border:1.5px solid transparent;border-radius:6px;padding:3px 4px;max-width:100%;cursor:pointer}
+.tabela-wrap .ce:hover{border-color:var(--border);background:var(--sup)}
+.tabela-wrap .ce:focus{outline:none;border-color:var(--azul);background:var(--sup)}
+.tabela-wrap select.ce.sn{font-size:11.5px;font-weight:700;border-radius:999px;padding:2px 6px}
+.tabela-wrap select.ce.sim{background:rgba(42,157,92,.14);color:var(--verde-esc)}
+.tabela-wrap select.ce.nao{background:#f1e0e0;color:#9b2c2c}
+.tabela-wrap select.ce.ine{background:#e6eefb;color:#2d5ea8}
+.tabela-wrap select.ce.st{font-size:11.5px;font-weight:700;background:var(--bg2,#eef3f5);border-radius:999px;padding:2px 6px}
+.tabela-wrap input.ce[type=date]{width:132px}
+.tabela-wrap .ce.salvando{border-color:#F0C36D!important}
+.tabela-wrap .ce.ok{border-color:var(--verde)!important}
+.tabela-wrap .ce.erro{border-color:#c0392b!important}
+html[data-tema="escuro"] .tabela-wrap select.ce.sim{background:#16341f;color:#8ce0a5}
+html[data-tema="escuro"] .tabela-wrap select.ce.nao{background:#3a1e1e;color:#f3a29a}
+html[data-tema="escuro"] .tabela-wrap .ce option{background:#1b2a33;color:#e6eef2}
 table{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;font-size:12.5px}
 thead th{background:var(--azul);color:#fff;text-align:left;padding:9px 11px;font-size:10px;letter-spacing:.4px;text-transform:uppercase;position:sticky;top:0;white-space:nowrap;z-index:2;font-weight:700}
 thead th.stick{left:0;z-index:3}
@@ -656,11 +672,37 @@ function pintarLista(l){
       ${thOrd("Prev. término","data_prevista",SORT_OB,"ordObra")}${thOrd("Projeto final.","projeto_finalizado",SORT_OB,"ordObra")}
       ${thOrd("Orçamento final.","orcamento_finalizado",SORT_OB,"ordObra")}${thOrd("Liberar","liberar",SORT_OB,"ordObra")}
       ${thOrd("Controle de prazo","controle_prazo",SORT_OB,"ordObra")}${thOrd("Status","status",SORT_OB,"ordObra")}</tr></thead><tbody>`+
-      l.map(o=>`<tr onclick="abrirObra('${o.id}')"><td class="stick"><span class="obralink">${esc(o.titulo||"(sem endereço)")}</span>${o.pendente?' <span class="tag">criando…</span>':""}</td>
+      l.map(o=>o.pendente?`<tr onclick="abrirObra('${o.id}')"><td class="stick"><span class="obralink">${esc(o.titulo||"(sem endereço)")}</span> <span class="tag">criando…</span></td>
         <td>${esc(o.setor||"—")}</td><td>${esc(o.resp||"—")}</td><td>${dt(o.data_prevista)}</td>
         <td>${tagSN(o.projeto_finalizado)}</td><td>${tagSN(o.orcamento_finalizado)}</td><td>${tagSN(o.liberar)}</td>
-        <td class="prazo">${esc(o.controle_prazo||"—")}</td><td><span class="tag">${esc(o.status||"—")}</span></td></tr>`).join("")+
-      `</tbody></table></div>`:`<div class="vazio">Nenhuma obra nesta lista.</div>`;
+        <td class="prazo">${esc(o.controle_prazo||"—")}</td><td><span class="tag">${esc(o.status||"—")}</span></td></tr>`
+      :`<tr onclick="abrirObra('${o.id}')"><td class="stick"><span class="obralink" title="Abrir a obra">${esc(o.titulo||"(sem endereço)")}</span></td>
+        <td>${celObra(o,"setor")}</td><td>${celObra(o,"resp_ids")}</td><td>${celObra(o,"data_prevista")}</td>
+        <td>${celObra(o,"projeto_finalizado")}</td><td>${celObra(o,"orcamento_finalizado")}</td><td>${celObra(o,"liberar")}</td>
+        <td class="prazo">${esc(o.controle_prazo||"—")}</td><td>${celObra(o,"status")}</td></tr>`).join("")+
+      `</tbody></table></div><div class="ajuda" style="margin-top:6px">Preencha direto na tabela: setor, responsável, previsão, projeto/orçamento finalizado, liberar e status gravam no Notion na hora (borda amarela = gravando, verde = gravou). Clique no nome da obra para abrir tudo.</div>`
+      :`<div class="vazio">Nenhuma obra nesta lista.</div>`;
+}
+/* 29/09 — célula editável da tabela (usa a mesma gravação do painel da obra) */
+const _SALV_OB=new Set();
+function celObra(o,k){
+  const i=CAMPOS.findIndex(c=>c[1]===k); if(i<0) return esc(o[k]||"—");
+  const [rot,,col,tipo]=CAMPOS[i], v=o[k];
+  const st=_SALV_OB.has(o.id+"|"+k)?" salvando":"";
+  const on=`data-ce="${o.id}|${k}" title="${esc(rot)}" onclick="event.stopPropagation()" onchange="gravarObra(${i},this,'${o.id}')"`;
+  if(tipo==="data") return `<input type="date" class="ce${st}" value="${esc(v||"")}" ${on}>`;
+  if(tipo==="pessoa"){
+    const atual=String((v||[])[0]||"").replace(/-/g,"");
+    const tem=D.pessoas.some(p=>String(p.id).replace(/-/g,"")===atual);
+    return `<select class="ce${st}" ${on}><option value="">—</option>${!tem&&atual?`<option value="${esc((v||[])[0])}" selected>${esc(o.resp||"(pessoa)")}</option>`:""}${
+      D.pessoas.map(p=>`<option value="${p.id}" ${String(p.id).replace(/-/g,"")===atual?"selected":""}>${esc(p.nome)}</option>`).join("")}</select>`;
+  }
+  let ops=ehLivre(col)?listaOpc(col):opc(col);
+  if(v&&!ops.some(x=>N(x)===N(v))) ops=[v].concat(ops);
+  if(!ops.length&&!ehLivre(col)) return k==="status"?`<span class="tag">${esc(v||"—")}</span>`:tagSN(v);
+  const n=N(v), sn=/^(SIM|NAO|INEXISTE)$/.test(n)?" sn "+(n==="SIM"?"sim":n==="NAO"?"nao":"ine"):(k==="status"?" st":"");
+  return `<select class="ce${sn}${st}" ${on}><option value="">—</option>${ops.map(x=>`<option ${N(x)===N(v)?"selected":""}>${esc(x)}</option>`).join("")}${
+    ehLivre(col)?`<option value="__novo__">+ Novo…</option>`:""}</select>`;
 }
 
 /* ===================== ABA ATIVIDADES (por pessoa) ===================== */
@@ -1065,12 +1107,12 @@ function aplicarValorObra(o,k,tipo,valor,el){
   else if(tipo==="conta"){ o[k]=valor; o.conta_alerta=(valor==="CRIAR CONTA"||valor==="DÚVIDA")?valor:null; }
   else o[k]=valor||null;
 }
-async function gravarObra(i,el){
-  const o=obraDe(OBRA); if(!o) return;
+async function gravarObra(i,el,idLinha){
+  const o=obraDe(idLinha||OBRA); if(!o) return;                 // 29/09: idLinha = veio da tabela
   const [rot,k,col,tipo]=CAMPOS[i];
   if(el.value==="__novo__"){
     const nv=pedirNovo(col);
-    if(!nv){ pintarObraPainel(); return; }
+    if(!nv){ if(idLinha) repintarFundoObras(); else pintarObraPainel(); return; }
     const op=document.createElement("option"); op.textContent=nv; el.insertBefore(op,el.lastElementChild); el.value=nv;
   }
   let valor=el.value; if(tipo==="pessoa"||tipo==="multi") valor=valor?[valor]:[];
@@ -1085,8 +1127,10 @@ async function gravarObra(i,el){
   ponteGuardar("obras",o.id,col,meu);             // leitura ao vivo/build atrasado não traz o vazio de volta
   o._bt=null;
   el.classList.remove("ok","erro"); el.classList.add("salvando");
+  const chave=o.id+"|"+k; _SALV_OB.add(chave);
   atualizarChipsObra(o);
   repintarFundoObras();
+  if(idLinha&&OBRA===o.id) pintarObraPainel();                   // painel aberto da mesma obra acompanha
 
   /* 2) POR TRÁS: grava. Liberar sai pela LEITURA (é lá que o ObrasSync cria
      a Compatibilização na hora); conta bancária tem ação própria; o resto
@@ -1094,10 +1138,14 @@ async function gravarObra(i,el){
   const payload=tipo==="conta"?{action:"obraConta",pageId:o.id,conta:valor}
     :{action:N(col)===N("Liberar Obra Para Processo Interno")?"obraLiberar":"obraUpdate",pageId:o.id,prop:col,valor:valor};
   const r=await gravarNaFila(payload,"Obra: "+(o.titulo||""));
-  const el2=document.body.contains(el)?el:null;
+  _SALV_OB.delete(chave);
+  const celula=()=>document.querySelector(`.tabela-wrap [data-ce="${chave}"]`);
+  const el2=document.body.contains(el)?el:celula();
   if(el2) el2.classList.remove("salvando");
+  if(el2!==celula()&&celula()) celula().classList.remove("salvando");
   if(r&&r.ok){
     if(el2) el2.classList.add("ok");
+    { const c=celula(); if(c){ c.classList.add("ok"); setTimeout(()=>c.classList.remove("ok"),1800); } }
     if(r.enfileirado) toast(rot+": sem conexão agora — ficou guardado e grava sozinho quando voltar.");
     else if(r.compat&&r.compat.criada) toast("Criado para esta obra: "+(r.compat.criadas||[]).join(" e ")+".");
     atualizarObraVivo(o.id);
@@ -1109,7 +1157,7 @@ async function gravarObra(i,el){
       if(OBRA===o.id) pintarObraPainel();
       repintarFundoObras();
     }
-    const alvo=(el2&&document.body.contains(el2)?el2:null)||(OBRA===o.id?document.querySelector(`#p1-corpo [onchange^="gravarObra(${i},"]`):null);
+    const alvo=(el2&&document.body.contains(el2)?el2:null)||celula()||(OBRA===o.id?document.querySelector(`#p1-corpo [onchange^="gravarObra(${i},"]`):null);
     if(alvo){ alvo.classList.add("erro"); if(alvo._cb) comboSync(alvo); }
     toast("Não salvou "+rot+": "+errMsg(r)+" — o campo voltou como estava.");
   }
