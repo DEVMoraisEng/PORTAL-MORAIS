@@ -1,7 +1,8 @@
 /* PORTAL-VENDA — dossiê do comprador (entrega 1).
  * Projeto do Apps Script SEPARADO do PORTAL-LEITURA/ESCRITA: um upload do
  * Code.gs do portal não apaga este, e vice-versa.
- * Arquivos do projeto: RegrasVenda.gs, ClaudeLeitor.gs, OpenAILeitor.gs, PortalVenda.gs.
+ * Arquivos do projeto: RegrasVenda.gs, ClaudeLeitor.gs, OpenAILeitor.gs, ContratoVenda.gs,
+ * PortalVenda.gs, GerarContrato.gs.
  * Propriedades do script: NOTION_TOKEN, SESSION_SECRET (os MESMOS do portal
  * daquele ambiente), DB_VENDAS, PROVEDOR_IA (openai padrão | anthropic),
  * OPENAI_API_KEY (provedor openai), MODELO_IA (opcional, só openai),
@@ -33,7 +34,7 @@ function tratar_(p) {
     var sess = verificarToken_(p.token);
     if (!sess) return { ok: false, erro: "NAO_AUTORIZADO" };
     if (!temAcessoVendas_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
-    var grava = ["tipoCasa", "lerDocumento", "conferir", "devolver"].indexOf(p.action) >= 0;
+    var grava = ["tipoCasa", "lerDocumento", "conferir", "devolver", "gerarContrato"].indexOf(p.action) >= 0;
     if (grava && String(sess.t || "").toUpperCase() === "TESTES") return { ok: false, erro: "SEM_PERMISSAO_TESTES" };
     if (p.action !== "ping" && !REGEX_PAGE_ID.test(String(p.pageId || ""))) return { ok: false, erro: "PAGINA_INVALIDA" };
     var col = colunas_();
@@ -45,6 +46,8 @@ function tratar_(p) {
       case "devolver":
         if (!String(p.motivo || "").trim()) return { ok: false, erro: "MOTIVO_OBRIGATORIO" };
         return mudarDossie_(col, sess, p, RegrasVenda.ESTADOS.DEVOLVIDO, "Devolvido: " + String(p.motivo).trim());
+      case "contratoEstado": return contratoEstado_(col, p);
+      case "gerarContrato": return gerarContrato_(col, sess, p);
       default: return { ok: false, erro: "ACAO_DESCONHECIDA" };
     }
   } catch (err) {

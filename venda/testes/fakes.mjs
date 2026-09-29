@@ -23,7 +23,7 @@ function blob(buf, mime, nome) {
            getContentType: () => mime, getName: () => nome, _buf: buf };
 }
 
-export function criarGas({ props, rotas }) {
+export function criarGas({ props, rotas, extras = {} }) {
   const cache = new Map(), chamadas = [], logs = [];
   const ctx = {
     console: { log: (...a) => logs.push(a.join(" ")), error: (...a) => logs.push(a.join(" ")) },
@@ -57,8 +57,9 @@ export function criarGas({ props, rotas }) {
       },
     },
   };
+  Object.assign(ctx, extras);
   vm.createContext(ctx);
-  for (const f of ["RegrasVenda.js", "ClaudeLeitor.js", "OpenAILeitor.js", "PortalVenda.gs"])
+  for (const f of ["RegrasVenda.js", "ClaudeLeitor.js", "OpenAILeitor.js", "ContratoVenda.js", "PortalVenda.gs", "GerarContrato.gs"])
     vm.runInContext(fs.readFileSync(path.join(VENDA, f), "utf8"), ctx, { filename: f });
   const chamar = (payload) => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(payload) } }).texto);
   return { ctx, chamar, chamadas, logs, cache };
@@ -83,6 +84,8 @@ export const COLUNAS_REAIS = {
 };
 
 export const texto = (s) => ({ rich_text: [{ type: "text", plain_text: s, text: { content: s } }] });
+/* propriedades "cruas" (só {title:[…]}, {select:…}) ganham o `type` que o Notion sempre manda */
+const tipar = (props) => Object.fromEntries(Object.entries(props).map(([n, v]) => [n, v.type ? v : Object.assign({ type: Object.keys(v)[0] }, v)]));
 const vazioDe = (t) => ({ [t]: t === "files" || t === "rich_text" || t === "title" ? [] : null });
 
 /* Página id no formato que PortalVenda.gs exige (32 hex, sem hífen) e o
@@ -92,7 +95,8 @@ export const DB_ID_PADRAO = "db-falso";
 
 /* Notion falso: uma base (as colunas acima, ou `colunas`) e uma página
    (PAGE_ID_PADRAO por padrão, ou `pageId`), com `parent.database_id` = `dbId`. */
-export function notionFalso({ valores = {}, s3 = {}, colunas = COLUNAS_REAIS, pageId = PAGE_ID_PADRAO, dbId = DB_ID_PADRAO } = {}) {
+export function notionFalso({ valores = {}, s3 = {}, colunas = COLUNAS_REAIS, pageId = PAGE_ID_PADRAO, dbId = DB_ID_PADRAO,
+                              paginasExtras = {}, bases = {} } = {}) {
   const db = { properties: {} };
   for (const [nome, t] of Object.entries(colunas)) {
     const tipo = typeof t === "string" ? t : t.tipo;
@@ -125,6 +129,11 @@ export function notionFalso({ valores = {}, s3 = {}, colunas = COLUNAS_REAIS, pa
       const u = url.slice("https://api.notion.com/v1".length);
       if (m === "GET" && u.startsWith("/databases/")) return { json: db };
       if (m === "GET" && u === "/pages/" + pageId) return { json: pagina };
+      /* páginas extras (ex.: a obra) e linhas de bases de cadastro, em ordem de declaração */
+      if (m === "GET" && u.startsWith("/pages/") && paginasExtras[u.slice(7)])
+        return { json: { id: u.slice(7), parent: { database_id: "db-extra" }, properties: tipar(paginasExtras[u.slice(7)]) } };
+      const q = /^\/databases\/([^/]+)\/query$/.exec(u);
+      if (m === "POST" && q && bases[q[1]]) return { json: { results: bases[q[1]].map((p, i) => ({ id: "linha-" + i, properties: tipar(p) })), has_more: false } };
       if (m === "PATCH" && u === "/pages/" + pageId) { patches.push(corpo.properties); return aplicar(corpo.properties); }
       if (m === "POST" && u === "/file_uploads") {
         const id = "fu-" + (++seq);
@@ -145,4 +154,91 @@ export function notionFalso({ valores = {}, s3 = {}, colunas = COLUNAS_REAIS, pa
     return null;
   }
   return { rota, pagina, uploads, patches, db };
+}
+
+/* DocumentApp / DriveApp / Drive falsos, no mesmo rigor do Apps Script real:
+   - Body.replaceText(regex, substituto): substituto literal salvo `\x` e `$n` (um `$` solto lança);
+   - Paragraph.removeFromParent() lança no último parágrafo do corpo;
+   - o PDF exportado é o conteúdo SALVO (saveAndClose), não o que ainda está aberto;
+   - `Drive` (serviço avançado) só existe com avancado: true; Drive.Files.remove apaga de vez. */
+export function driveFalso({ modelos = {}, avancado = true, falhaAbrir = null } = {}) {
+  const docs = {};
+  const estado = { copias: [], removidas: [], lixeira: [], exportados: [], abertos: [] };
+  let seq = 0;
+  const par = (t) => ({ texto: t });
+  for (const [id, linhas] of Object.entries(modelos)) docs[id] = { pars: linhas.map(par), salvo: linhas.slice(), aberto: false };
+  const substituto = (rep, m) => {
+    let s = "";
+    for (let i = 0; i < rep.length; i++) {
+      const c = rep[i];
+      if (c === "\\") { i++; if (i >= rep.length) throw new Error("Character to be escaped is missing"); s += rep[i]; }
+      else if (c === "$") {
+        i++;
+        if (!/\d/.test(rep[i] || "")) throw new Error("Illegal group reference");
+        const g = m[Number(rep[i])];
+        if (g === undefined) throw new Error("No group " + rep[i]);
+        s += g;
+      } else s += c;
+    }
+    return s;
+  };
+  function docAberto(id) {
+    const d = docs[id];
+    const noCorpo = (p) => { if (!d.aberto) throw new Error("Document is closed"); return d.pars.indexOf(p); };
+    const Par = (p) => ({
+      getText: () => p.texto, setText: (t) => { noCorpo(p); p.texto = String(t); },
+      removeFromParent: () => {
+        const i = noCorpo(p);
+        if (i < 0) throw new Error("Element not in body");
+        if (i === d.pars.length - 1) throw new Error("Can't remove the last paragraph in a document section");
+        d.pars.splice(i, 1);
+      },
+    });
+    const cache = new Map();
+    const pp = (p) => { if (!cache.has(p)) cache.set(p, Par(p)); return cache.get(p); };
+    return {
+      getBody: () => {
+        if (!d.aberto) throw new Error("Document is closed");
+        return {
+          getParagraphs: () => d.pars.map(pp),
+          getText: () => d.pars.map((p) => p.texto).join("\n"),
+          replaceText: (padrao, rep) => {
+            const re = new RegExp(padrao, "g");
+            d.pars.forEach((p) => { p.texto = p.texto.replace(re, (...a) => substituto(rep, a)); });
+          },
+        };
+      },
+      saveAndClose: () => { d.salvo = d.pars.map((p) => p.texto); d.aberto = false; },
+    };
+  }
+  const arquivo = (id) => {
+    if (!docs[id]) throw new Error("File not found: " + id);
+    return {
+      getId: () => id,
+      makeCopy: (nome, pasta) => {
+        if (!pasta || !pasta.getId) throw new Error("makeCopy precisa de (nome, pasta)");
+        const novo = "copia-" + (++seq);
+        docs[novo] = { pars: docs[id].salvo.map(par), salvo: docs[id].salvo.slice(), aberto: false };
+        estado.copias.push({ id: novo, nome, pasta: pasta.getId() });
+        return arquivo(novo);
+      },
+      getAs: (mime) => {
+        if (mime !== "application/pdf") throw new Error("mime não previsto: " + mime);
+        estado.exportados.push(id);
+        return blob(Buffer.from(docs[id].salvo.join("\n"), "utf8"), "application/pdf", "contrato.pdf");
+      },
+      setTrashed: (b) => { if (b) estado.lixeira.push(id); },
+    };
+  };
+  const extras = {
+    DocumentApp: { openById: (id) => {
+      if (falhaAbrir) throw new Error(falhaAbrir);
+      if (!docs[id]) throw new Error("Document not found");
+      docs[id].aberto = true; estado.abertos.push(id);
+      return docAberto(id);
+    } },
+    DriveApp: { getFileById: arquivo, getFolderById: (id) => ({ getId: () => id }) },
+  };
+  if (avancado) extras.Drive = { Files: { remove: (id) => { if (!docs[id]) throw new Error("File not found: " + id); delete docs[id]; estado.removidas.push(id); } } };
+  return { extras, estado, docs };
 }
