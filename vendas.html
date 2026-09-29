@@ -308,6 +308,43 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 .pdfhead b{font-weight:700;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pdffoot{padding:10px 18px;border-top:1px solid var(--border2);text-align:right}
 
+/* ===== Planilha Casas Condomínio (r67) ===== */
+.cd-bt{border:1.5px solid var(--border);background:var(--sup);color:var(--azul);border-radius:8px;padding:8px 12px;font:inherit;font-weight:700;font-size:13px;cursor:pointer}
+.cd-bt:hover{background:var(--bg3)}
+.cd-bt.pri{background:var(--verde-btn);border-color:var(--verde-btn);color:#1a3347}
+.cd-chk{font-size:12.5px;color:var(--text3);display:flex;align-items:center;gap:5px}
+.cd-dica{font-size:12.5px;color:var(--text3);margin:0 0 10px}
+#cd-wrap table{border-collapse:collapse;font-size:12.5px;min-width:100%}
+#cd-wrap th{position:sticky;top:0;background:var(--azul);color:#fff;padding:8px 10px;text-align:left;white-space:nowrap;font-size:11.5px;z-index:2}
+#cd-wrap td{padding:7px 10px;border-bottom:1px solid var(--border2);white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis}
+#cd-wrap td.ed{background:rgba(41,87,120,.07);cursor:cell}
+#cd-wrap td.ed:hover{background:rgba(41,87,120,.16)}
+#cd-wrap td.un{position:sticky;left:0;background:var(--sup);font-weight:800;color:var(--azul);cursor:pointer;z-index:1}
+#cd-wrap td.un:hover{text-decoration:underline}
+#cd-wrap td.num{text-align:right}
+#cd-wrap td input,#cd-wrap td select{font:inherit;font-size:12.5px;padding:3px 5px;border:1.5px solid var(--verde-btn);border-radius:5px;max-width:170px}
+.cd-tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:800}
+.cd-tag.ok{background:#EAF6EF;color:#1D5433}.cd-tag.pend{background:#FDECEA;color:#8A2E17}
+.cd-ov{position:fixed;inset:0;background:rgba(15,30,45,.55);z-index:60;overflow:auto;padding:24px 12px}
+.cd-cardbox{background:var(--sup);border-radius:14px;max-width:880px;margin:0 auto;padding:20px 22px;box-shadow:0 12px 40px rgba(0,0,0,.35)}
+.cd-cardbox h3{margin:0;font-family:'Barlow Condensed',sans-serif;font-size:24px;color:var(--azul)}
+.cd-cardbox .sub{color:var(--text3);font-size:13px;margin:2px 0 14px}
+.cd-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.cd-kpi{border:1.5px solid var(--border2);border-radius:10px;padding:10px 12px;background:var(--bg2)}
+.cd-kpi small{display:block;font-size:11px;color:var(--text3);font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.cd-kpi b{font-size:19px;color:var(--azul)}
+.cd-kpi span{display:block;font-size:11.5px;color:var(--text3)}
+.cd-ent{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;background:rgba(76,217,100,.08);border:1.5px solid var(--verde-btn);border-radius:10px;padding:12px;margin-bottom:16px}
+.cd-ent label{display:block;font-size:11.5px;font-weight:700;color:var(--text3);margin-bottom:3px}
+.cd-ent input,.cd-ent select{font:inherit;padding:7px 9px;border:1.5px solid var(--border);border-radius:7px;background:var(--sup);color:var(--text)}
+.cd-fl{width:100%;border-collapse:collapse;font-size:13px}
+.cd-fl th{background:var(--azul);color:#fff;padding:7px 10px;text-align:left;font-size:12px}
+.cd-fl td{padding:7px 10px;border-bottom:1px solid var(--border2)}
+.cd-fl td.r{text-align:right;white-space:nowrap}
+.cd-fl tr.tot td{background:#FBEEC8;font-weight:800;color:#7A4A16}
+.cd-fl tr.gr td{background:var(--bg3);font-weight:800;font-size:11.5px;letter-spacing:.06em;color:var(--azul)}
+.cd-aviso{margin-top:10px;padding:9px 12px;background:#FBEEC8;border-left:3px solid #EFB700;font-size:12.5px;color:#7A4A16;border-radius:0 6px 6px 0}
+.cd-falta{margin-top:8px;padding:9px 12px;background:#FDECEA;border-left:3px solid #C0392B;font-size:12.5px;color:#8A2E17;border-radius:0 6px 6px 0}
 /* ===== Painel Casas Vendidas (era casas-vendidas.html) — escopado em #st-vendidas ===== */
 #st-vendidas *, #st-vendidas *::before, #st-vendidas *::after{box-sizing:border-box;margin:0;padding:0}
 #st-vendidas{
@@ -824,7 +861,8 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
         <button class="tab on" data-t="atividades" onclick="abaSetor('atividades')">Atividades</button>
         <button class="tab" data-t="alertas" onclick="abaSetor('alertas')">Alertas</button>
         <button class="tab" data-t="atrasados" onclick="abaSetor('atrasados')">Situação do Processo</button>
-        <button class="tab" data-t="planilha" onclick="abaSetor('planilha')">Planilha</button>
+        <button class="tab" data-t="planilha" onclick="abaSetor('planilha')">Planilha Casas de Rua</button>
+        <button class="tab" data-t="condominio" onclick="abaSetor('condominio')">Planilha Casas Condomínio</button>
         <button class="tab" data-t="modelo" onclick="abaSetor('modelo')">Casas Modelo</button>
         <button class="tab" data-t="estoque" onclick="abaSetor('estoque')">Estoque de Casas</button>
         <button class="tab" data-t="vendidas" onclick="abaSetor('vendidas')">Casas Vendidas</button>
@@ -866,6 +904,25 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
         <div class="scroll-top" id="set-stop"><div></div></div>
         <div class="tabela-wrap" id="set-wrap"><div class="vazio">Carregando…</div></div>
       </div>
+
+      <!-- PLANILHA CASAS CONDOMÍNIO (r67): BANCO DE DADOS VENDAS CONDOMÍNIO, lido ao vivo do Notion -->
+      <div id="st-condominio" style="display:none">
+        <div class="toolbar">
+          <input class="busca" type="search" id="cd-busca" placeholder="Buscar unidade, proponente, corretor…" oninput="condRender()" autocomplete="off">
+          <select id="cd-status" onchange="condRender()">
+            <option value="">Todos os cadastros</option>
+            <option value="INCOMPLETO">Cadastro incompleto</option>
+            <option value="COMPLETO">Cadastro completo</option>
+          </select>
+          <label class="cd-chk"><input type="checkbox" id="cd-todas" onchange="condRender()"> Todas as colunas</label>
+          <button class="cd-bt" onclick="condCarregar(true)">↻ Atualizar</button>
+          <span class="count" id="cd-count"></span>
+        </div>
+        <div class="cd-dica">Clique no número da <b>unidade</b> para abrir o card com o fluxo de pagamento. Clique numa célula com fundo azulado para editar.
+          Ao preencher a <b>data de assinatura</b>, o <b>dia de pagamento</b> ou a <b>data da entrega</b>, as datas, o nº de parcelas e os valores do fluxo são recalculados.</div>
+        <div class="tabela-wrap" id="cd-wrap"><div class="vazio">Carregando…</div></div>
+      </div>
+      <div id="cd-card" class="cd-ov" style="display:none" onclick="if(event.target===this)condFechar()"></div>
 
       <!-- CASAS VENDIDAS: página própria (casas-vendidas.html) em iframe.
            Em iframe de propósito: ela traz CSS e canvas próprios, e embutir
@@ -1060,7 +1117,7 @@ const SETORES_AREA=[
    Chaves: atividades | alertas | atrasados (Situação do Processo) | planilha |
    modelo (Casas Modelo) | estoque (Estoque de Casas). */
 const ABAS_SETOR={
-  "Secretária de Vendas":  ["atividades","alertas","atrasados","planilha","modelo"],
+  "Secretária de Vendas":  ["atividades","alertas","atrasados","planilha","condominio","modelo"],
   // Gestor de Vendas: sem alerta e sem atividade — a página dele é dado de venda
   "Gestor de Vendas":      ["vendidas","estoque","planilha","modelo"],  // vendidas primeiro
   "Departamento de Projetos":["atividades","alertas","planilha","modelo"],
@@ -1429,7 +1486,7 @@ function abrirSetor(nome){
 }
 function abaSetor(t){
   document.querySelectorAll("#view-setor .tab").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
-  ["atividades","alertas","atrasados","planilha","modelo","estoque","vendidas"].forEach(x=>{
+  ["atividades","alertas","atrasados","planilha","condominio","modelo","estoque","vendidas"].forEach(x=>{
     const el=document.getElementById("st-"+x); if(el) el.style.display = x===t?"block":"none";
   });
   /* CORREÇÃO (set/26) — PLANILHA FICAVA COM AS COLUNAS DO SETOR ANTERIOR:
@@ -1441,11 +1498,217 @@ function abaSetor(t){
      aberto. Agora também recarrega quando o setor da vez é diferente do que
      está desenhado (PLANILHA_SETOR). */
   if(t==="planilha" && (!DADOS.set.length || PLANILHA_SETOR!==SETOR_ATUAL)) carregarPlanilha("set");
+  if(t==="condominio") abrirCondominio();
   if(t==="alertas") renderAlertas();
   if(t==="atrasados") renderAtrasados();
   if(t==="modelo") abrirCasasModelo();
   if(t==="estoque"){ if(DOCS_OK) renderEstoque(); else carregarDocumentos().then(renderEstoque); }
   if(t==="vendidas") abrirVendidas();
+}
+
+/* =====================================================================
+   PLANILHA CASAS CONDOMÍNIO (r67) — BANCO DE DADOS VENDAS CONDOMÍNIO
+   Lê e grava ao vivo no Notion (pelo Apps Script do portal). Ao mudar a
+   DATA DE ASSINATURA, o DIA PAGAMENTO PARCELAS ou a DATA DA ENTREGA, o
+   servidor recalcula datas, nº de parcelas e valores do fluxo e devolve a
+   linha atualizada.
+   ===================================================================== */
+let COND=null, COND_ABERTA=null, COND_CARREGANDO=false;
+const CD_PADRAO=["UNIDADE","PROPONENTE","CORRETOR","STATUS DO CADASTRO","DATA DA VENDA","VALOR DE VENDA","COMISSÃO",
+  "VALOR DO CRÉDITO","VALOR DA PARCELA","DATA DE ASSINATURA DO CONTRATO","DIA PAGAMENTO PARCELAS","DATA DA ENTREGA",
+  "DATA SINAL 30 DIAS","DATA SINAL 60 DIAS","DATA SINAL 90 DIAS",
+  "DATA 1º PARTE PRÉ CHAVES","Nº PARCELAS 1º PARTE PRÉ CHAVES","VALOR 1º PARTE PRÉ CHAVES",
+  "DATA 2º PARTE PRÉ CHAVES","Nº PARCELAS 2º PARTE PRÉ CHAVES","VALOR 2º PARTE PRÉ CHAVES",
+  "DATA 1º BALÃO (12/27)","VALOR 1º BALÃO","DATA 2º BALÃO (25º PARCELA)","VALOR BALÃO ENTREGA DE CHAVES",
+  "DATA PÓS CHAVES","Nº PARCELAS PÓS CHAVES","VALOR PÓS CHAVES","PENDÊNCIAS"];
+const CD_GATILHOS=["DATA DE ASSINATURA DO CONTRATO","DIA PAGAMENTO PARCELAS","DATA DA ENTREGA"];
+const CD_SO_LEITURA=["files","formula","rollup","relation","created_time","last_edited_time","created_by","last_edited_by","people","status","multi_select","title"];
+const cdNorm=t=>String(t==null?"":t).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/\s+/g," ").trim();
+const cdBRL=v=>(v==null||v===""||isNaN(v))?"—":"R$ "+Number(v).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+const cdDia=iso=>{ if(!iso) return "—"; const p=String(iso).slice(0,10).split("-"); return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:String(iso); };
+function cdCampoTipo(nome){ const c=(COND&&COND.colunas||[]).find(x=>x.nome===nome); return c?c.tipo:""; }
+function cdEhMoeda(nome,tipo){ return tipo==="number" && /VALOR|COMISS|FGTS|PARCELA|AVALIA|SUBIS|CR[EÉ]DITO/i.test(nome) && !/^N[ºO°]/i.test(nome) && !/PERCENTUAL|DIA /i.test(nome); }
+function cdEditavel(c){ return c && CD_SO_LEITURA.indexOf(c.tipo)<0; }
+function cdVal(l,nome){ const v=l.v[nome]; return v===undefined?null:v; }
+/* soma n meses a uma data ISO e coloca no dia escolhido (dia 31 em mês curto = último dia) */
+function cdAddMes(iso,n,dia){
+  const p=String(iso||"").slice(0,10).split("-").map(Number); if(p.length!==3||!p[0]) return "";
+  const t=p[0]*12+(p[1]-1)+n, y=Math.floor(t/12), m=(t%12)+1;
+  const ult=new Date(y,m,0).getDate(), d=Math.min(dia||p[2],ult);
+  return y+"-"+String(m).padStart(2,"0")+"-"+String(d).padStart(2,"0");
+}
+
+async function abrirCondominio(){ if(!COND) await condCarregar(false); else condRender(); }
+async function condCarregar(forcar){
+  if(COND_CARREGANDO) return; COND_CARREGANDO=true;
+  const wrap=document.getElementById("cd-wrap");
+  if(!COND||forcar) wrap.innerHTML='<div class="vazio"><span class="load"></span> Carregando o banco de vendas do condomínio…</div>';
+  let r=null;
+  try{ r=await chamar({action:"simsVendasCond"},70000); }catch(e){ r=null; }
+  COND_CARREGANDO=false;
+  if(!r||!r.ok){
+    wrap.innerHTML='<div class="vazio">Não consegui carregar: '+esc((r&&(r.mensagem||r.erro))||"sem resposta do servidor")+
+      '<br><button class="cd-bt" style="margin-top:8px" onclick="condCarregar(true)">↻ Tentar de novo</button></div>';
+    return;
+  }
+  COND=r; condRender();
+}
+function condColunas(){
+  if(!COND) return [];
+  const todas=document.getElementById("cd-todas").checked;
+  const mapa={}; COND.colunas.forEach(c=>{ mapa[cdNorm(c.nome)]=c; });
+  if(todas){
+    const tit=COND.titulo;
+    return [mapa[cdNorm(tit)]].concat(COND.colunas.filter(c=>c.nome!==tit&&c.tipo!=="files")).filter(Boolean);
+  }
+  return CD_PADRAO.map(n=>mapa[cdNorm(n)]).filter(Boolean);
+}
+function condRender(){
+  if(!COND) return;
+  const cols=condColunas(), termo=cdNorm(document.getElementById("cd-busca").value), st=document.getElementById("cd-status").value;
+  const tit=COND.titulo;
+  const linhas=COND.linhas.filter(l=>{
+    if(st && String(cdVal(l,"STATUS DO CADASTRO")||"").toUpperCase()!==st) return false;
+    if(!termo) return true;
+    return cdNorm([cdVal(l,tit),cdVal(l,"PROPONENTE"),cdVal(l,"CORRETOR"),cdVal(l,"IMOBILIÁRIA"),cdVal(l,"PROPOSTA")].join(" ")).indexOf(termo)>=0;
+  }).sort((a,b)=>String(cdVal(a,tit)||"").localeCompare(String(cdVal(b,tit)||""),"pt-BR",{numeric:true}));
+  document.getElementById("cd-count").textContent=linhas.length+" unidade(s)";
+  if(!COND.linhas.length){ document.getElementById("cd-wrap").innerHTML='<div class="vazio">Nenhuma venda no banco ainda. Marque uma proposta como <b>VENDIDA</b> em Simulações → Propostas para ela aparecer aqui.</div>'; return; }
+  let h='<table><thead><tr>'+cols.map(c=>'<th>'+esc(c.nome)+'</th>').join("")+'</tr></thead><tbody>';
+  linhas.forEach(l=>{
+    h+='<tr data-id="'+esc(l.id)+'">'+cols.map((c,i)=>{
+      const v=cdVal(l,c.nome), ed=cdEditavel(c)&&i>0;
+      if(i===0) return '<td class="un" onclick="condAbrir(\''+esc(l.id)+'\')">'+esc(v||"(sem unidade)")+'</td>';
+      let txt="";
+      if(v==null||v==="") txt="";
+      else if(c.tipo==="date") txt=cdDia(v);
+      else if(c.tipo==="number") txt=cdEhMoeda(c.nome,c.tipo)?cdBRL(v):String(v).replace(".",",");
+      else if(c.tipo==="checkbox") txt=v?"SIM":"NÃO";
+      else txt=String(v);
+      if(c.nome==="STATUS DO CADASTRO" && txt) return '<td><span class="cd-tag '+(txt==="COMPLETO"?"ok":"pend")+'">'+esc(txt)+'</span></td>';
+      const cls=(ed?"ed":"")+(c.tipo==="number"?" num":"");
+      return '<td class="'+cls.trim()+'"'+(ed?' data-col="'+esc(c.nome)+'" data-tipo="'+c.tipo+'" onclick="condEditar(this)"':'')+' title="'+esc(txt)+'">'+esc(txt)+'</td>';
+    }).join("")+'</tr>';
+  });
+  document.getElementById("cd-wrap").innerHTML=h+'</tbody></table>';
+}
+
+/* ---- edição de célula ---- */
+function condEditar(td){
+  if(td.querySelector("input,select")) return;
+  const id=td.parentElement.dataset.id, col=td.dataset.col, tipo=td.dataset.tipo;
+  const l=COND.linhas.find(x=>x.id===id); const atual=cdVal(l,col);
+  let campo;
+  if(col==="DIA PAGAMENTO PARCELAS"){
+    campo=document.createElement("select");
+    campo.innerHTML='<option value="">—</option>'+Array.from({length:31},(_,i)=>'<option value="'+(i+1)+'"'+(String(atual)===String(i+1)?" selected":"")+'>Dia '+(i+1)+'</option>').join("");
+  } else if(tipo==="select"){
+    campo=document.createElement("select");
+    const ops=[...new Set(COND.linhas.map(x=>cdVal(x,col)).filter(Boolean))];
+    campo.innerHTML='<option value="">—</option>'+ops.map(o=>'<option'+(o===atual?" selected":"")+'>'+esc(o)+'</option>').join("");
+  } else {
+    campo=document.createElement("input");
+    campo.type = tipo==="date"?"date":(tipo==="number"?"text":(tipo==="email"?"email":"text"));
+    campo.value = atual==null?"":(tipo==="date"?String(atual).slice(0,10):String(atual).replace(".",","));
+    if(tipo==="checkbox"){ campo.value=atual?"SIM":"NÃO"; }
+  }
+  td.textContent=""; td.appendChild(campo); campo.focus();
+  let feito=false;
+  const fim=async(salvar)=>{
+    if(feito) return; feito=true;
+    if(!salvar){ condRender(); return; }
+    let novo=campo.value; if(novo===(atual==null?"":String(atual).slice(0,10)) || novo===String(atual==null?"":atual)){ condRender(); return; }
+    await condSalvar(id,col,novo);
+  };
+  campo.addEventListener("keydown",e=>{ if(e.key==="Enter") fim(true); else if(e.key==="Escape") fim(false); });
+  campo.addEventListener("blur",()=>fim(true));
+  campo.addEventListener("change",()=>{ if(campo.tagName==="SELECT"||campo.type==="date") fim(true); });
+}
+async function condSalvar(id,prop,valor){
+  toast("Salvando "+prop+"…");
+  let r=null;
+  try{ r=await chamar({action:"simsVendaSalvar",pageId:id,prop:prop,valor:valor},70000); }catch(e){ r=null; }
+  if(!r||!r.ok){ toast("Não salvou: "+((r&&(r.mensagem||r.erro))||"sem resposta")); condRender(); return false; }
+  if(r.linha){ const i=COND.linhas.findIndex(x=>x.id===id); if(i>=0) COND.linhas[i]=r.linha; }
+  if(r.aviso) toast(r.aviso); else if(r.calculo) toast("Salvo — fluxo recalculado."+(r.calculo.avisos&&r.calculo.avisos.length?" "+r.calculo.avisos[0]:"")); else toast("Salvo.");
+  condRender(); if(COND_ABERTA===id) condAbrir(id);
+  return true;
+}
+
+/* ---- card da unidade ---- */
+function condFechar(){ COND_ABERTA=null; const c=document.getElementById("cd-card"); c.style.display="none"; c.innerHTML=""; }
+function condFluxo(l){
+  const g=n=>cdVal(l,n), dia=Number(g("DIA PAGAMENTO PARCELAS"))||0;
+  const L=[]; let total=0;
+  const add=(rot,qtd,val,quando)=>{ if(val==null||val==="") return; const sub=(qtd||1)*Number(val); total+=sub; L.push({rot,qtd:qtd||1,val:Number(val),sub,quando}); };
+  const dt=(n)=>cdDia(g(n));
+  L.push({grupo:"SINAL"});
+  add("Sinal — ato da assinatura",1,g("VALOR SINAL ATO"),g("DATA DE ASSINATURA DO CONTRATO")?cdDia(g("DATA DE ASSINATURA DO CONTRATO")):"na assinatura");
+  add("Sinal 30 dias",1,g("VALOR SINAL 30 DIAS"),dt("DATA SINAL 30 DIAS"));
+  add("Sinal 60 dias",1,g("VALOR SINAL 60 DIAS"),dt("DATA SINAL 60 DIAS"));
+  add("Sinal 90 dias",1,g("VALOR SINAL 90 DIAS"),dt("DATA SINAL 90 DIAS"));
+  L.push({grupo:"PARCELAS PRÉ-CHAVES"});
+  const n1=Number(g("Nº PARCELAS 1º PARTE PRÉ CHAVES"))||0, d1=g("DATA 1º PARTE PRÉ CHAVES");
+  add("1ª parte pré-chaves",n1,g("VALOR 1º PARTE PRÉ CHAVES"), d1?dt("DATA 1º PARTE PRÉ CHAVES")+" a "+cdDia(cdAddMes(d1,n1-1,dia)):"—");
+  const n2=Number(g("Nº PARCELAS 2º PARTE PRÉ CHAVES"))||0, d2=g("DATA 2º PARTE PRÉ CHAVES");
+  add("2ª parte pré-chaves",n2,g("VALOR 2º PARTE PRÉ CHAVES"), d2?dt("DATA 2º PARTE PRÉ CHAVES")+" a "+cdDia(cdAddMes(d2,n2-1,dia)):"—");
+  L.push({grupo:"BALÕES"});
+  add("Balão dez/2027",1,g("VALOR 1º BALÃO"),dt("DATA 1º BALÃO (12/27)"));
+  add("Balão da entrega (25ª parcela)",1,g("VALOR BALÃO ENTREGA DE CHAVES"),dt("DATA 2º BALÃO (25º PARCELA)"));
+  L.push({grupo:"PÓS-CHAVES"});
+  const nP=Number(g("Nº PARCELAS PÓS CHAVES"))||0, dP=g("DATA PÓS CHAVES");
+  add("Pós-chaves",nP,g("VALOR PÓS CHAVES"), dP?dt("DATA PÓS CHAVES")+" a "+cdDia(cdAddMes(dP,nP-1,dia)):"—");
+  return {L,total};
+}
+function condAbrir(id){
+  const l=COND.linhas.find(x=>x.id===id); if(!l) return;
+  COND_ABERTA=id;
+  const g=n=>cdVal(l,n), fx=condFluxo(l), tit=COND.titulo;
+  const ass=g("DATA DE ASSINATURA DO CONTRATO"), dia=g("DIA PAGAMENTO PARCELAS"), ent=g("DATA DA ENTREGA");
+  const pct=Number(g("PERCENTUAL COMISSÃO"));
+  const pctTxt=pct?((pct<1?pct*100:pct).toLocaleString("pt-BR",{maximumFractionDigits:2})+"%"):"";
+  const falta=[]; if(!ass) falta.push("data de assinatura do contrato"); if(!dia) falta.push("dia de pagamento (o cliente escolhe)"); if(!ent) falta.push("data da entrega (para as parcelas pós-chaves)");
+  const linhasH=fx.L.map(x=>x.grupo?'<tr class="gr"><td colspan="4">'+x.grupo+'</td></tr>'
+    :'<tr><td>'+esc(x.rot)+'</td><td class="r">'+(x.qtd>1?x.qtd+" × ":"")+cdBRL(x.val)+'</td><td>'+esc(x.quando||"—")+'</td><td class="r">'+cdBRL(x.sub)+'</td></tr>').join("");
+  document.getElementById("cd-card").innerHTML='<div class="cd-cardbox">'+
+    '<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div>'+
+    '<h3>Unidade '+esc(g(tit)||"")+'</h3><div class="sub">'+esc(g("PROPONENTE")||"—")+' · Proposta '+esc(g("PROPOSTA")||"—")+' · Corretor: '+esc(g("CORRETOR")||"—")+'</div></div>'+
+    '<button class="cd-bt" onclick="condFechar()">✕ Fechar</button></div>'+
+    '<div class="cd-kpis">'+
+      '<div class="cd-kpi"><small>Crédito aprovado</small><b>'+cdBRL(g("VALOR DO CRÉDITO"))+'</b></div>'+
+      '<div class="cd-kpi"><small>Valor da parcela</small><b>'+cdBRL(g("VALOR DA PARCELA"))+'</b></div>'+
+      '<div class="cd-kpi"><small>Valor de venda</small><b>'+cdBRL(g("VALOR DE VENDA"))+'</b></div>'+
+      '<div class="cd-kpi"><small>Comissão</small><b>'+cdBRL(g("COMISSÃO"))+'</b>'+(pctTxt?'<span>'+pctTxt+(g("PRAZO ENTRADA")?' · prazo '+g("PRAZO ENTRADA")+' meses':'')+'</span>':'')+'</div>'+
+    '</div>'+
+    '<div class="cd-ent">'+
+      '<div><label>Data de assinatura do contrato</label><input type="date" id="cd-ass" value="'+esc(ass?String(ass).slice(0,10):"")+'"></div>'+
+      '<div><label>Dia de pagamento (cliente escolhe)</label><select id="cd-dia"><option value="">—</option>'+Array.from({length:31},(_,i)=>'<option value="'+(i+1)+'"'+(String(dia)===String(i+1)?" selected":"")+'>Dia '+(i+1)+'</option>').join("")+'</select></div>'+
+      '<div><label>Data da entrega</label><input type="date" id="cd-ent" value="'+esc(ent?String(ent).slice(0,10):"")+'"></div>'+
+      '<button class="cd-bt pri" id="cd-calc" onclick="condCalcular(\''+esc(id)+'\')">Salvar e recalcular o fluxo</button>'+
+    '</div>'+
+    '<b style="color:var(--azul);font-size:14px">FLUXO DE PAGAMENTO PRO SOLUTO</b>'+
+    '<table class="cd-fl" style="margin-top:6px"><thead><tr><th>Parcela</th><th>Valor</th><th>Quando</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>'+linhasH+
+    '<tr class="tot"><td colspan="3">TOTAL DO PRO SOLUTO</td><td class="r">'+cdBRL(fx.total)+'</td></tr></tbody></table>'+
+    (falta.length?'<div class="cd-falta"><b>Para fechar o fluxo falta:</b> '+falta.join("; ")+'.</div>':'')+
+    '<div class="cd-aviso"><b>Atenção:</b> As parcelas e os valores do fluxo podem sofrer alteração de acordo com a data de assinatura do contrato.</div>'+
+    (g("PENDÊNCIAS")&&g("PENDÊNCIAS")!=="nenhuma"?'<div class="cd-falta" style="margin-top:8px"><b>Pendências do cadastro:</b> '+esc(g("PENDÊNCIAS"))+'</div>':'')+
+    '</div>';
+  document.getElementById("cd-card").style.display="block";
+}
+async function condCalcular(id){
+  const bt=document.getElementById("cd-calc"); bt.disabled=true; bt.textContent="Calculando…";
+  const l=COND.linhas.find(x=>x.id===id);
+  const novos=[["DATA DE ASSINATURA DO CONTRATO",document.getElementById("cd-ass").value],
+               ["DIA PAGAMENTO PARCELAS",document.getElementById("cd-dia").value],
+               ["DATA DA ENTREGA",document.getElementById("cd-ent").value]];
+  for(const [prop,val] of novos){
+    const atual=cdVal(l,prop), a=atual==null?"":String(atual).slice(0,10);
+    if(String(val)===a && String(val)!=="") continue;
+    if(String(val)==="" && a==="") continue;
+    const ok=await condSalvar(id,prop,val);
+    if(!ok) break;
+  }
+  const b2=document.getElementById("cd-calc"); if(b2){ b2.disabled=false; b2.textContent="Salvar e recalcular o fluxo"; }
 }
 
 /* ---------- CASAS MODELO ---------- */

@@ -1261,7 +1261,8 @@ function simFluxoHtml(s){
   return `<div style="margin-top:14px"><b style="font-size:13px;color:var(--azul)">Entrada total — fluxo de pagamento</b>
     <div class="tbl-wrap" style="margin-top:6px;max-height:none"><table><tbody>
       <tr class="sim-tot"><td colspan="2">ENTRADA TOTAL A PAGAR</td><td class="num">${simBRL(s.entrada)}</td></tr>
-      ${linhas}</tbody></table></div></div>`;
+      ${linhas}</tbody></table></div>
+    <div style="margin-top:6px;padding:7px 10px;background:#FBEEC8;border-left:3px solid #EFB700;font-size:12px;color:#7A4A16"><b>Atenção:</b> As parcelas e os valores do fluxo podem sofrer alteração de acordo com a data de assinatura do contrato.</div></div>`;
 }
 
 /* Abre a simulação LOGO ABAIXO DA TABELA (item 7), com tudo o que existe
@@ -2132,7 +2133,8 @@ function propQuadroFluxo(p){
       ${sn.calculado===false?'<br><i>Proposta antiga: fluxo lido da coluna do Notion.</i>':""}</div>
     ${fluxo.length?`<div class="tbl-wrap" style="margin-top:8px;max-height:none"><table><tbody>
       <tr class="sim-tot"><td colspan="2">ENTRADA TOTAL A PAGAR</td><td class="num">${simBRL(sn.entradaTotal)}</td></tr>
-      ${linhas}</tbody></table></div>`:""}
+      ${linhas}</tbody></table></div>
+    <div style="margin-top:6px;padding:7px 10px;background:#FBEEC8;border-left:3px solid #EFB700;font-size:12px;color:#7A4A16"><b>Atenção:</b> As parcelas e os valores do fluxo podem sofrer alteração de acordo com a data de assinatura do contrato.</div>`:""}
   </div>`;
 }
 
