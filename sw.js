@@ -156,7 +156,7 @@
 /* v76 -> v77 (30/09/26): atividades.html — economia de cota (releituras mais espaçadas, pausa com a tela parada). */
 /* v77 -> v78 (30/09/26): vendas.html (card do condomínio: sinais 60/90 e pós-chaves; salvar as 3 datas juntas) e simulacoes.html (documentos da venda copiados pelo servidor). */
 /* v78 -> v79 (30/09/26 tarde): simulacoes.html (decisão da proposta com status em destaque, resultado sob os botões, confirmação no Notion enquanto salva) e rf-rotas.js v11 (2 pedidos por faixa; 3ª implantação opcional). */
-const CACHE = "portal-morais-v79";  // limpeza só dos caches do portal (não apaga os das RAS)
+const CACHE = "portal-morais-v80";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",
