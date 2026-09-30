@@ -43,3 +43,35 @@
     faixaDe=function(action){ return CHAT.indexOf(action)>=0 ? _faixas.chat : original(action); };
   }catch(e){}
 })();
+
+/* v11 (30/09) — TERCEIRA IMPLANTAÇÃO E DUAS REQUISIÇÕES POR FAIXA
+ * 1) Medido nas Execuções: o Apps Script RODA execuções ao mesmo tempo (duas
+ *    começando no mesmo segundo, as duas concluídas). A fila do navegador
+ *    (uma por faixa) era mais restrita que o servidor: qualquer pedido lento
+ *    segurava todos os outros da mesma faixa. Agora são DUAS por faixa.
+ * 2) API_ATIVIDADES: cole abaixo a URL /exec de um TERCEIRO projeto Apps Script
+ *    (cópia do PORTAL-ESCRITA, PAPEL "ESCRITA", mesmas Propriedades do script).
+ *    Tudo de Atividades, Processos, Arquivos, Mural e Aniversários passa a ir
+ *    para ele, numa faixa própria — Propostas e Vendas ficam na ESCRITA e param
+ *    de disputar lugar com o portal de atividades. Vazio = continua tudo na
+ *    ESCRITA, como hoje. Depois de copiar, mova o acionador rfAquecerAtividades
+ *    para o projeto novo (e apague-o na ESCRITA). A cota diária de UrlFetch da
+ *    conta continua sendo uma só. */
+const API_ATIVIDADES = "";   // <<< URL /exec do projeto PORTAL-ATIVIDADES (opcional)
+(function(){
+  try{
+    if(typeof _faixas!=="object") return;
+    Object.keys(_faixas).forEach(k=>{ if(_faixas[k]&&_faixas[k].max<2) _faixas[k].max=2; });
+    if(!API_ATIVIDADES||typeof urlDe!=="function"||typeof ACOES_NA_ESCRITA==="undefined") return;
+    const RF=["procLista","procCriar","procUpdate","blocos","blocoUpdate","blocoNovo","blocoExcluir",
+      "atvMinhas","atvOutras","atvAlertas","atvEquipe","atvDetalhe","atvAbrir","atvCriar","atvUpdate",
+      "atvComentarios","atvComentarioNovo","atvModelos","atvModeloUpdate","atvModeloExcluir","atvModeloCriar",
+      "atvOp","atvPortal","aniversariantes","atvMural","procLote","atvLote","blocoAnexar","ckLista","ckCriar",
+      "ckMarcar","ckExcluir","atvMuralCheck","atvAnexoUrl","atvDelta","blocoMover","blocoAnexarUrl","blocoAnexarDoSupa"];
+    const urlAntes=urlDe;
+    urlDe=function(action){ return RF.indexOf(action)>=0 ? API_ATIVIDADES : urlAntes(action); };
+    if(!_faixas.atv) _faixas.atv={ max:2, emVoo:0, fila:[] };
+    const faixaAntes=faixaDe;
+    faixaDe=function(action){ const f=faixaAntes(action); return (RF.indexOf(action)>=0 && f!==_faixas.chat) ? _faixas.atv : f; };
+  }catch(e){}
+})();

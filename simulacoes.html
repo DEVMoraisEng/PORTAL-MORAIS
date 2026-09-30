@@ -2187,13 +2187,15 @@ function propVer(id){
 
     ${podeGravar?`
     <div style="margin-top:16px"><b style="font-size:13px;color:var(--azul)">Decisão</b>
-      <div style="display:flex;gap:9px;margin-top:8px;flex-wrap:wrap">
-        <button class="bt" onclick="propStatus('${p.id}','EM ANÁLISE')">Em análise</button>
-        <button class="bt verde" onclick="propStatus('${p.id}','ACEITA')">Aceitar</button>
-        <button class="bt az" onclick="propStatus('${p.id}','RESERVADA')">Reservar</button>
-        <button class="bt vermelho" onclick="propStatus('${p.id}','NEGADA')">Negar</button>
-        <button class="bt" style="background:#5B2A86;color:#fff" onclick="propStatus('${p.id}','VENDIDA')">Vendida</button>
+      <!-- 30/09: o botão do status atual fica em destaque e os outros apagados; o resultado aparece logo abaixo -->
+      <div class="prop-dec ${PROP_NORM(p.status)?'tem-status':''}" style="display:flex;gap:9px;margin-top:8px;flex-wrap:wrap">
+        <button class="bt ${PROP_NORM(p.status)==='EM ANALISE'?'atual':''}" onclick="propStatus('${p.id}','EM ANÁLISE')">Em análise</button>
+        <button class="bt verde ${PROP_NORM(p.status)==='ACEITA'?'atual':''}" onclick="propStatus('${p.id}','ACEITA')">Aceitar</button>
+        <button class="bt az ${PROP_NORM(p.status)==='RESERVADA'?'atual':''}" onclick="propStatus('${p.id}','RESERVADA')">Reservar</button>
+        <button class="bt vermelho ${PROP_NORM(p.status)==='NEGADA'?'atual':''}" onclick="propStatus('${p.id}','NEGADA')">Negar</button>
+        <button class="bt ${PROP_NORM(p.status)==='VENDIDA'?'atual':''}" style="background:#5B2A86;color:#fff" onclick="propStatus('${p.id}','VENDIDA')">Vendida</button>
       </div>
+      <div id="prop-detAviso" class="sim-aviso" style="margin-top:8px"></div>
       <div style="font-size:12px;color:var(--text3);margin-top:6px">
         Aceitar ou reservar marca a unidade ${esc(String(p.unidade||""))} como RESERVADA no Notion
         (e ela fica azul no mapa de vendas). Negar devolve para NÃO.
@@ -2265,7 +2267,7 @@ function propVer(id){
     <!-- r53 — a conversa fica logo abaixo do campo de resposta -->
     <div id="prop-hist"></div>`:""}
     <div style="display:flex;gap:9px;margin-top:16px"><button class="bt" onclick="simFecharDet()">Fechar</button></div>
-    <div id="prop-detAviso" class="sim-aviso" style="margin-top:10px"></div>`;
+    ${podeGravar?'':'<div id="prop-detAviso" class="sim-aviso" style="margin-top:10px"></div>'}`;
   document.getElementById("sim-modal").classList.remove("hide");
   const ed=document.getElementById("prop-msg");
   if(ed){
@@ -2648,8 +2650,19 @@ async function propStatus(id, status){
   /* 90 s: a mudança de status mexe na proposta E na unidade, são várias idas
      ao Notion. Em 45 s o navegador desistia antes de o servidor terminar —
      e o servidor terminava, gravando. */
-  try{ r=await chamar({action:"simsPropostaStatus", pageId:id, status:status}, 90000, true); }
+  /* 30/09: enquanto espera, confere no Notion a cada 12 s — quando a resposta
+     do servidor se perde no caminho, a tela fecha assim que o status já
+     estiver gravado, em vez de esperar 90 s. (Não vale para VENDIDA: ela
+     precisa da resposta com os dados da venda.) */
+  let _conf=null, _confOk=false;
+  if(status!=="VENDIDA"){
+    _conf=setInterval(async()=>{ try{ if(await propConferirStatus(id,status)===true) _confOk=true; }catch(e){} },12000);
+  }
+  const pedido=chamar({action:"simsPropostaStatus", pageId:id, status:status}, 90000, true);
+  const espera=new Promise(res=>{ const t=setInterval(()=>{ if(_confOk){ clearInterval(t); res({ok:true,status:status,reflexo:"(confirmado no Notion)"}); } },1000); pedido.finally(()=>clearInterval(t)); });
+  try{ r=await Promise.race([pedido, espera]); }
   catch(e){
+    if(_conf) clearInterval(_conf);
     /* Antes de mandar "tente de novo", vai ao Notion ver se gravou. Repetir
        às cegas é como a proposta ficou ACEITA no banco e "com erro" na tela. */
     const conferido = await propConferirStatus(id, status);
@@ -2665,6 +2678,7 @@ async function propStatus(id, status){
       : "Não deu para confirmar. Abra a proposta no Notion antes de repetir.";
     return;
   }
+  if(_conf) clearInterval(_conf);
   if(r && r.ok && status==="VENDIDA"){ await propPosVendida(id, r, av); return; }
   if(r && r.ok){
     av.className="sim-aviso ok";
@@ -2687,6 +2701,9 @@ function propEstiloEditor(){
   /* --linha e --text2 não existem neste arquivo: era por isso que a barra e
      a moldura saíam sem borda. Agora usa --border e --text. */
   st.textContent=`
+    .prop-dec.tem-status .bt{opacity:.5}
+    .prop-dec .bt.atual{opacity:1;outline:3px solid var(--azul);outline-offset:2px;transform:scale(1.06);font-weight:800}
+    .prop-dec .bt.atual::after{content:" ✓"}
     .prop-email{margin-top:18px;border:1.5px solid var(--border);border-radius:10px;
       padding:14px 14px 16px;background:var(--bg2);}
     .prop-email-tit{font-size:14px;font-weight:800;color:var(--azul-esc);display:flex;
