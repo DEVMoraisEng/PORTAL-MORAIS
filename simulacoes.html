@@ -2618,6 +2618,14 @@ async function propPosVendida(id, r, av){
     (v.criou?' criada':' atualizada')+
     (pend?' — <b>'+pend+' pendência(s)</b> para completar (gere o link abaixo).':' — cadastro completo.')+
     ((v.colunasCriadas||[]).length?'<br><span style="font-size:12px">Colunas criadas no banco: '+esc(v.colunasCriadas.join(", "))+'</span>':'');
+  /* 30/09: os documentos agora são copiados pelo servidor (fila) — pode fechar a tela */
+  const cd=v.copiaDocs;
+  if(cd&&cd.pedidos){
+    av.innerHTML+='<br><span style="font-size:12px">Documentos da proposta: '+
+      (cd.copiados?cd.copiados+' copiado(s)':'')+
+      (cd.naFila?(cd.copiados?' · ':'')+cd.naFila+' copiando em segundo plano (pode fechar esta tela — se falhar, o servidor tenta de novo sozinho)':'')+
+      (!cd.naFila&&cd.copiados===cd.pedidos?' ✓':'')+'</span>';
+  }
   const arqs=v.arquivos||[];
   if(!arqs.length) return;
   const prog=document.createElement("div"); prog.style.cssText="font-size:12px;margin-top:6px"; av.appendChild(prog);

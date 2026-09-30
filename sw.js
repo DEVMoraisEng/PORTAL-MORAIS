@@ -154,7 +154,8 @@
 /* v74 -> v75 (29/09/26 noite): obras.html (botões de ligação sem embolar) e atividades.html (arrastar no calendário muda o prazo). */
 /* v75 -> v76 (29/09/26 noite): obras.html — preencher direto na tabela de obras. */
 /* v76 -> v77 (30/09/26): atividades.html — economia de cota (releituras mais espaçadas, pausa com a tela parada). */
-const CACHE = "portal-morais-v77";  // limpeza só dos caches do portal (não apaga os das RAS)
+/* v77 -> v78 (30/09/26): vendas.html (card do condomínio: sinais 60/90 e pós-chaves; salvar as 3 datas juntas) e simulacoes.html (documentos da venda copiados pelo servidor). */
+const CACHE = "portal-morais-v78";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",

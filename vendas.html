@@ -1529,7 +1529,16 @@ const cdDia=iso=>{ if(!iso) return "—"; const p=String(iso).slice(0,10).split(
 function cdCampoTipo(nome){ const c=(COND&&COND.colunas||[]).find(x=>x.nome===nome); return c?c.tipo:""; }
 function cdEhMoeda(nome,tipo){ return tipo==="number" && /VALOR|COMISS|FGTS|PARCELA|AVALIA|SUBIS|CR[EÉ]DITO/i.test(nome) && !/^N[ºO°]/i.test(nome) && !/PERCENTUAL|DIA /i.test(nome); }
 function cdEditavel(c){ return c && CD_SO_LEITURA.indexOf(c.tipo)<0; }
-function cdVal(l,nome){ const v=l.v[nome]; return v===undefined?null:v; }
+/* 30/09: acha a coluna mesmo com espaço/acento diferente no nome (era por isso
+   que "Sinal 60 dias", "Sinal 90 dias" e as datas do pós-chaves saíam em branco
+   no card, mesmo gravados no Notion) */
+const cdNormK=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/\s+/g," ").trim();
+function cdVal(l,nome){
+  if(!l||!l.v) return null;
+  let v=l.v[nome];
+  if(v===undefined){ const a=cdNormK(nome); const k=Object.keys(l.v).find(x=>cdNormK(x)===a); v=k===undefined?undefined:l.v[k]; }
+  return v===undefined?null:v;
+}
 /* soma n meses a uma data ISO e coloca no dia escolhido (dia 31 em mês curto = último dia) */
 function cdAddMes(iso,n,dia){
   const p=String(iso||"").slice(0,10).split("-").map(Number); if(p.length!==3||!p[0]) return "";
@@ -1701,6 +1710,22 @@ async function condCalcular(id){
   const novos=[["DATA DE ASSINATURA DO CONTRATO",document.getElementById("cd-ass").value],
                ["DIA PAGAMENTO PARCELAS",document.getElementById("cd-dia").value],
                ["DATA DA ENTREGA",document.getElementById("cd-ent").value]];
+  /* 30/09: as três juntas, um recálculo só (antes: 3 gravações e 3 recálculos) */
+  const mudou={};
+  novos.forEach(([prop,val])=>{ const atual=cdVal(l,prop), a=atual==null?"":String(atual).slice(0,10);
+    if(String(val)===a) return; mudou[prop]=val; });
+  if(!Object.keys(mudou).length){ toast("Nada mudou."); bt.disabled=false; bt.textContent="Salvar e recalcular o fluxo"; return; }
+  let r=null;
+  try{ r=await chamar({action:"simsVendaSalvarVarios",pageId:id,valores:mudou},90000); }catch(e){ r=null; }
+  if(r&&r.ok){
+    if(r.linha){ const i=COND.linhas.findIndex(x=>x.id===id); if(i>=0) COND.linhas[i]=r.linha; }
+    toast(r.aviso?r.aviso:(r.calculo?"Salvo — fluxo recalculado.":"Salvo."));
+    condRender(); if(COND_ABERTA===id) condAbrir(id);
+    const b3=document.getElementById("cd-calc"); if(b3){ b3.disabled=false; b3.textContent="Salvar e recalcular o fluxo"; }
+    return;
+  }
+  if(r&&r.erro&&!/ACAO|DESCONHECID|SEM_RESPOSTA/i.test(r.erro)){ toast("Não salvou: "+(r.mensagem||r.erro)); bt.disabled=false; bt.textContent="Salvar e recalcular o fluxo"; return; }
+  /* servidor antigo: grava uma por uma, como antes */
   for(const [prop,val] of novos){
     const atual=cdVal(l,prop), a=atual==null?"":String(atual).slice(0,10);
     if(String(val)===a && String(val)!=="") continue;
