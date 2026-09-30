@@ -590,6 +590,19 @@ let _carregou=false;   // 28/09: até a 1ª resposta, "Carregando…" (e não "N
 /* 29/09 (tarde): "🔄 Recarregar" ou F5 → pede ao servidor para conferir o
    Notion NA HORA (delta + excluídas) e joga fora as cópias de conteúdo e
    comentários guardadas neste navegador (antes elas sobreviviam ao Recarregar). */
+/* 30/09 — ECONOMIA DE COTA: cada releitura automática é uma chamada ao
+   Google (a cota diária de conexões da conta é uma só para o portal inteiro).
+   - comentários: a cada 45 s (o "ao vivo" já traz na hora os do portal);
+   - checklist: a cada 2 min;
+   - 15 min sem mexer na tela (mouse, teclado, rolagem) → pausa tudo; ao
+     mexer de novo, relê na hora. Aba esquecida aberta não gasta mais nada. */
+const ehCota=e=>/COTA_GOOGLE|muitas vezes no mesmo dia|too many times/i.test(String(e||""));
+let _usoEm=Date.now();
+const ocioso=()=>Date.now()-_usoEm>15*60*1000;
+["pointerdown","keydown","wheel","touchstart"].forEach(ev=>window.addEventListener(ev,()=>{
+  const volta=ocioso(); _usoEm=Date.now();
+  if(volta&&!document.hidden){ sincronizarNotion(); if(ABERTA){ lerComentarios(false); atualizarConteudo(); } }
+},{passive:true,capture:true}));
 let _foiRecarga=false;
 try{ const nv=performance.getEntriesByType("navigation")[0]; _foiRecarga=!!(nv&&nv.type==="reload"); }catch(e){}
 if(_foiRecarga){ try{ for(let i=localStorage.length-1;i>=0;i--){ const k=localStorage.key(i)||""; if(k.indexOf("atv_ab_")===0||k.indexOf("eb_v2_")===0) localStorage.removeItem(k); } }catch(e){} }
@@ -608,7 +621,9 @@ async function carregar(fresco){
   if(r&&r.ok&&r.modelos&&r.modelos.ok){ MOD=r.modelos; cacheSet("atv_modelos",MOD); }
   _carregou=true;
   if(r&&r.ok){ if(r.outras&&r.outras.ok){ OUT=r.outras; cacheSet("atv_outras",r.outras); } aplicar(r); }
-  else if(!D.atividades.length) document.getElementById("view").innerHTML=`<div class="vazio">Não consegui carregar suas atividades (${esc(erroTexto(r&&r.erro))}).</div>`;
+  else if(!D.atividades.length) document.getElementById("view").innerHTML=ehCota(r&&r.erro)
+    ?`<div class="vazio">⚠ O Google bloqueou as chamadas do portal por hoje (cota diária de conexões da conta esgotada). Volta sozinho quando o Google renovar a cota — não precisa mexer em nada.</div>`
+    :`<div class="vazio">Não consegui carregar suas atividades (${esc(erroTexto(r&&r.erro))}).</div>`;
   if(!(r&&r.ok&&r.outras)){   // servidor ainda na versão anterior: pede separado
     const o=await ler(Object.assign({action:"atvOutras"},fresco?{fresco:true}:{}),"atv_outras");
     if(o&&o.ok){ OUT=o; pintar(); }
@@ -1047,13 +1062,13 @@ async function abrirAtv(id){
   if(!g){ _coms=null; _comsAssin=""; if(pendDe(id).length) pintarChat(); }
   abrirServidor(id, !!g);
   /* 29/09: os comentários vêm JÁ, pela faixa do chat, sem esperar o conteúdo;
-     e são relidos a cada 15 s (o que é escrito direto no Notion não avisa) */
+     e são relidos a cada 45 s — 30/09: era 15 s (o que é escrito direto no Notion não avisa) */
   lerComentarios(false);
-  clearInterval(_poll); _poll=setInterval(()=>{ if(!document.hidden&&ABERTA) lerComentarios(false); },15000);
+  clearInterval(_poll); _poll=setInterval(()=>{ if(!document.hidden&&ABERTA&&!ocioso()) lerComentarios(false); },window._aoVivo?45000:30000);
   /* 29/09 (tarde): o CHECKLIST também se atualiza sozinho — a cada 30 s o
      servidor confere no Notion se a página mudou (baixa dada no Notion ou no
      Mural aparece aqui). A primeira conferência sai logo ao abrir. */
-  clearInterval(_pollCont); _pollCont=setInterval(atualizarConteudo,30000);
+  clearInterval(_pollCont); _pollCont=setInterval(atualizarConteudo,120000);
   setTimeout(atualizarConteudo,1200);
 }
 /* tudo de uma vez: detalhe + comentários + conteúdo (1 chamada) */
@@ -1087,7 +1102,7 @@ function atvExcluida(id,calado){
   pintar();
 }
 let _pollCont=null;
-function atualizarConteudo(){ if(document.hidden||!ABERTA) return; const c=document.getElementById("pa-cont"); if(c&&c._eb) EditorBlocos.atualizar(c); }
+function atualizarConteudo(){ if(document.hidden||!ABERTA||ocioso()) return; const c=document.getElementById("pa-cont"); if(c&&c._eb) EditorBlocos.atualizar(c); }
 document.addEventListener("visibilitychange",()=>{ if(!document.hidden&&ABERTA) atualizarConteudo(); });
 function fecharAtv(){
   ABERTA=null; clearInterval(_poll); clearInterval(_pollCont); clearTimeout(_comsRetry);
@@ -1127,7 +1142,7 @@ function tirarResp(id,pid){ const a=acha(id); if(!a) return; const l=(a.resp||[]
  * Antes: se a leitura falhasse ou passasse do tempo, a tela desistia CALADA e
  * ficava mostrando a cópia guardada no navegador (que podia ter dias).
  * Agora:
- *  - relê a cada 15 s com a atividade aberta, e na hora ao voltar para a aba;
+ *  - relê a cada 45 s com a atividade aberta (30/09: era 15 s), e na hora ao voltar para a aba;
  *  - falhou → tenta de novo em 5 s, 10 s… (até 30 s) e AVISA no cabeçalho
  *    ("sem atualizar desde…"); a cópia antiga fica marcada como cópia;
  *  - ↻ no cabeçalho busca agora, relendo o Notion na hora;
@@ -1171,7 +1186,7 @@ async function lerComentarios(primeira,forcar){
     const msg=erroTexto(r&&r.erro);
     if(!_coms&&!pendDe(id).length) document.getElementById("pa-chat").innerHTML=`<div class="ajuda">Não consegui ler os comentários (${esc(msg)}). <a href="#" onclick="lerComentarios(true,true);return false">Tentar de novo</a></div>`;
     sinc("erro",msg);
-    _comsRetry=setTimeout(()=>{ if(ABERTA===id) lerComentarios(false); },Math.min(30000,5000*_comsFalhas));
+    _comsRetry=setTimeout(()=>{ if(ABERTA===id) lerComentarios(false); },ehCota(r&&r.erro)?300000:Math.min(30000,5000*_comsFalhas));   // cota esgotada: 5 min
     return;
   }
   aplicarComs(id,r.comentarios||[],Date.parse(r.lidoEm||"")||Date.now());
@@ -1737,7 +1752,7 @@ window.addEventListener("pagehide",()=>{
    que mudou no Notion (atvDelta). O servidor consulta só o que foi editado
    desde a última olhada, então é leve. Mudou no Notion → aparece aqui em ~1 min. */
 async function sincronizarNotion(){
-  if(document.hidden) return;
+  if(document.hidden||ocioso()) return;
   let r=null; try{ r=await chamar({action:"atvDelta"},30000,false); }catch(e){}
   if(!(r&&r.ok)) return;
   (r.excluidas||[]).forEach(id=>{ if(SID(id)===ABERTA||D.atividades.some(a=>a.id===SID(id))) atvExcluida(id,true); });   // 29/09
