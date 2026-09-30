@@ -343,6 +343,9 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 .cd-fl td.r{text-align:right;white-space:nowrap}
 .cd-fl tr.tot td{background:#FBEEC8;font-weight:800;color:#7A4A16}
 .cd-fl tr.gr td{background:var(--bg3);font-weight:800;font-size:11.5px;letter-spacing:.06em;color:var(--azul)}
+.cd-abat{margin:0 0 14px;padding:12px 14px;border:1.5px solid var(--border2);border-radius:10px;background:var(--bg2)}
+.cd-abat .cd-fl td.neg{color:#8A2E17}
+.cd-abat p{margin:8px 0 0;font-size:12.5px;color:var(--text3)}
 .cd-aviso{margin-top:10px;padding:9px 12px;background:#FBEEC8;border-left:3px solid #EFB700;font-size:12.5px;color:#7A4A16;border-radius:0 6px 6px 0}
 .cd-falta{margin-top:8px;padding:9px 12px;background:#FDECEA;border-left:3px solid #C0392B;font-size:12.5px;color:#8A2E17;border-radius:0 6px 6px 0}
 /* ===== Painel Casas Vendidas (era casas-vendidas.html) — escopado em #st-vendidas ===== */
@@ -917,7 +920,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
             <option value="INCOMPLETO">Cadastro incompleto</option>
             <option value="COMPLETO">Cadastro completo</option>
           </select>
-          <label class="cd-chk"><input type="checkbox" id="cd-todas" onchange="condRender()"> Todas as colunas</label>
+          <label class="cd-chk"><input type="checkbox" id="cd-todas" checked onchange="try{localStorage.setItem('cd_todas',this.checked?'1':'0')}catch(e){};condRender()"> Todas as colunas</label>
           <button class="cd-bt" onclick="condCarregar(true)">↻ Atualizar</button>
           <span class="count" id="cd-count"></span>
         </div>
@@ -1568,6 +1571,7 @@ async function condCarregar(forcar){
 /* 30/09 — filtro por CONDOMÍNIO (hoje só o Reserva dos Ipês; entra sozinho quem vier) */
 function condOpcoesCond(){
   const sel=document.getElementById("cd-cond"); if(!sel||!COND) return;
+  try{ const t=localStorage.getItem("cd_todas"); const ck=document.getElementById("cd-todas"); if(ck&&t!==null) ck.checked=(t==="1"); }catch(e){}
   let guardado=""; try{ guardado=localStorage.getItem("cd_cond")||""; }catch(e){}
   const atual=sel.value||guardado;
   const nomes=[...new Set(COND.linhas.map(l=>String(cdVal(l,"CONDOMÍNIO")||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
@@ -1628,7 +1632,7 @@ function condEditar(td){
   let campo;
   if(col==="DIA PAGAMENTO PARCELAS"){
     campo=document.createElement("select");
-    campo.innerHTML='<option value="">—</option>'+Array.from({length:31},(_,i)=>'<option value="'+(i+1)+'"'+(String(atual)===String(i+1)?" selected":"")+'>Dia '+(i+1)+'</option>').join("");
+    campo.innerHTML='<option value="">—</option>'+Array.from({length:27},(_,i)=>'<option value="'+(i+5)+'"'+(String(atual)===String(i+5)?" selected":"")+'>Dia '+(i+5)+'</option>').join("");
   } else if(tipo==="select"){
     campo=document.createElement("select");
     const ops=[...new Set(COND.linhas.map(x=>cdVal(x,col)).filter(Boolean))];
@@ -1687,6 +1691,46 @@ function condFluxo(l){
   add("Pós-chaves",nP,g("VALOR PÓS CHAVES"), dP?dt("DATA PÓS CHAVES")+" a "+cdDia(cdAddMes(dP,nP-1,dia)):"—");
   return {L,total};
 }
+/* procura, nas colunas da linha, a primeira numérica cujo nome bate (sem acento) e não cai na exclusão */
+function cdAchaNum(l,re,excl){
+  if(!l||!l.v) return null;
+  for(const k of Object.keys(l.v)){
+    const n=cdNorm(k); if(!re.test(n)||(excl&&excl.test(n))) continue;
+    const v=l.v[k]; if(v===null||v===undefined||v==="") continue;
+    const num=typeof v==="number"?v:Number(String(v).replace(/[^\d,.-]/g,"").replace(/\./g,"").replace(",","."));
+    if(!isNaN(num)) return num;
+  }
+  return null;
+}
+/* 30/09 — mostra de onde sai o pro soluto: valor de venda − crédito = entrada; FGTS e subsídio abatem a entrada */
+function condAbatimentos(l,totalFluxo){
+  const g=n=>cdVal(l,n);
+  const venda=Number(g("VALOR DE VENDA"))||null, cred=Number(g("VALOR DO CRÉDITO"))||null;
+  const fgts=cdAchaNum(l,/FGTS/,/TEVE|DOC|EXTRATO|ANOS|SALDO|N[ºO°] /);
+  const sub=cdAchaNum(l,/SUBSIDIO/,/DOC|N[ºO°] /);
+  const entr=cdAchaNum(l,/ENTRADA/,/PRAZO|DATA|DOC|N[ºO°] /);
+  const entradaCalc=(venda!=null&&cred!=null)?venda-cred:null;
+  const entrada=entr!=null?entr:entradaCalc;
+  if(venda==null&&fgts==null&&sub==null&&entrada==null) return "";
+  const linha=(rot,val,neg)=>val==null?"":'<tr><td>'+rot+'</td><td class="r'+(neg?" neg":"")+'">'+(neg?"− ":"")+cdBRL(Math.abs(val))+'</td></tr>';
+  const abat=(fgts||0)+(sub||0);
+  const esperado=entrada!=null?Math.max(entrada-abat,0):null;
+  let h='<div class="cd-abat"><b style="color:var(--azul);font-size:14px">COMO SE CHEGA NO PRO SOLUTO</b>'+
+    '<table class="cd-fl" style="margin-top:6px"><tbody>'+
+    linha("Valor de venda",venda)+
+    linha("Crédito aprovado (financiamento)",cred,true)+
+    (entr!=null?linha("Entrada (valor para entrada informado)",entr):linha("Entrada (valor de venda − crédito)",entradaCalc))+
+    linha("FGTS usado na entrada",fgts,true)+
+    linha("Subsídio usado na entrada",sub,true)+
+    '</tbody></table>';
+  if(abat>0 && esperado!=null){
+    h+='<p>O <b>FGTS</b> e o <b>subsídio</b> abatem a entrada (nunca o sinal de R$ 10.000,00). Por isso o pro soluto fica menor: entrada '+cdBRL(entrada)+
+       ' − '+cdBRL(abat)+' = <b>'+cdBRL(esperado)+'</b>'+(Math.abs(esperado-totalFluxo)>1?' (o fluxo abaixo soma '+cdBRL(totalFluxo)+').':'.')+'</p>';
+  } else if(entrada!=null){
+    h+='<p>Sem FGTS nem subsídio informados: o pro soluto é a entrada inteira.</p>';
+  }
+  return h+'</div>';
+}
 function condAbrir(id){
   const l=COND.linhas.find(x=>x.id===id); if(!l) return;
   COND_ABERTA=id;
@@ -1709,10 +1753,11 @@ function condAbrir(id){
     '</div>'+
     '<div class="cd-ent">'+
       '<div><label>Data de assinatura do contrato</label><input type="date" id="cd-ass" value="'+esc(ass?String(ass).slice(0,10):"")+'"></div>'+
-      '<div><label>Dia de pagamento (cliente escolhe)</label><select id="cd-dia"><option value="">—</option>'+Array.from({length:31},(_,i)=>'<option value="'+(i+1)+'"'+(String(dia)===String(i+1)?" selected":"")+'>Dia '+(i+1)+'</option>').join("")+'</select></div>'+
+      '<div><label>Dia de pagamento (cliente escolhe)</label><select id="cd-dia"><option value="">—</option>'+Array.from({length:27},(_,i)=>'<option value="'+(i+5)+'"'+(String(dia)===String(i+5)?" selected":"")+'>Dia '+(i+5)+'</option>').join("")+'</select></div>'+
       '<div><label>Data da entrega</label><input type="date" id="cd-ent" value="'+esc(ent?String(ent).slice(0,10):"")+'"></div>'+
       '<button class="cd-bt pri" id="cd-calc" onclick="condCalcular(\''+esc(id)+'\')">Salvar e recalcular o fluxo</button>'+
     '</div>'+
+    condAbatimentos(l,fx.total)+
     '<b style="color:var(--azul);font-size:14px">FLUXO DE PAGAMENTO PRO SOLUTO</b>'+
     '<table class="cd-fl" style="margin-top:6px"><thead><tr><th>Parcela</th><th>Valor</th><th>Quando</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>'+linhasH+
     '<tr class="tot"><td colspan="3">TOTAL DO PRO SOLUTO</td><td class="r">'+cdBRL(fx.total)+'</td></tr></tbody></table>'+
