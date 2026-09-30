@@ -909,6 +909,9 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
       <div id="st-condominio" style="display:none">
         <div class="toolbar">
           <input class="busca" type="search" id="cd-busca" placeholder="Buscar unidade, proponente, corretor…" oninput="condRender()" autocomplete="off">
+          <select id="cd-cond" onchange="try{localStorage.setItem('cd_cond',this.value)}catch(e){};condRender()" title="Condomínio">
+            <option value="">Todos os condomínios</option>
+          </select>
           <select id="cd-status" onchange="condRender()">
             <option value="">Todos os cadastros</option>
             <option value="INCOMPLETO">Cadastro incompleto</option>
@@ -1514,7 +1517,7 @@ function abaSetor(t){
    linha atualizada.
    ===================================================================== */
 let COND=null, COND_ABERTA=null, COND_CARREGANDO=false;
-const CD_PADRAO=["UNIDADE","PROPONENTE","CORRETOR","STATUS DO CADASTRO","DATA DA VENDA","VALOR DE VENDA","COMISSÃO",
+const CD_PADRAO=["UNIDADE","CONDOMÍNIO","PROPONENTE","CORRETOR","STATUS DO CADASTRO","DATA DA VENDA","VALOR DE VENDA","COMISSÃO",
   "VALOR DO CRÉDITO","VALOR DA PARCELA","DATA DE ASSINATURA DO CONTRATO","DIA PAGAMENTO PARCELAS","DATA DA ENTREGA",
   "DATA SINAL 30 DIAS","DATA SINAL 60 DIAS","DATA SINAL 90 DIAS",
   "DATA 1º PARTE PRÉ CHAVES","Nº PARCELAS 1º PARTE PRÉ CHAVES","VALOR 1º PARTE PRÉ CHAVES",
@@ -1560,7 +1563,18 @@ async function condCarregar(forcar){
       '<br><button class="cd-bt" style="margin-top:8px" onclick="condCarregar(true)">↻ Tentar de novo</button></div>';
     return;
   }
-  COND=r; condRender();
+  COND=r; condOpcoesCond(); condRender();
+}
+/* 30/09 — filtro por CONDOMÍNIO (hoje só o Reserva dos Ipês; entra sozinho quem vier) */
+function condOpcoesCond(){
+  const sel=document.getElementById("cd-cond"); if(!sel||!COND) return;
+  let guardado=""; try{ guardado=localStorage.getItem("cd_cond")||""; }catch(e){}
+  const atual=sel.value||guardado;
+  const nomes=[...new Set(COND.linhas.map(l=>String(cdVal(l,"CONDOMÍNIO")||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+  const semCond=COND.linhas.some(l=>!String(cdVal(l,"CONDOMÍNIO")||"").trim());
+  sel.innerHTML='<option value="">Todos os condomínios</option>'+nomes.map(n=>'<option value="'+esc(n)+'">'+esc(n)+'</option>').join("")+
+    (semCond?'<option value="__sem__">(sem condomínio)</option>':'');
+  sel.value=[...sel.options].some(o=>o.value===atual)?atual:"";
 }
 function condColunas(){
   if(!COND) return [];
@@ -1576,7 +1590,11 @@ function condRender(){
   if(!COND) return;
   const cols=condColunas(), termo=cdNorm(document.getElementById("cd-busca").value), st=document.getElementById("cd-status").value;
   const tit=COND.titulo;
+  const cf=(document.getElementById("cd-cond")||{}).value||"";
   const linhas=COND.linhas.filter(l=>{
+    const cn=String(cdVal(l,"CONDOMÍNIO")||"").trim();
+    if(cf==="__sem__"&&cn) return false;
+    if(cf&&cf!=="__sem__"&&cdNorm(cn)!==cdNorm(cf)) return false;
     if(st && String(cdVal(l,"STATUS DO CADASTRO")||"").toUpperCase()!==st) return false;
     if(!termo) return true;
     return cdNorm([cdVal(l,tit),cdVal(l,"PROPONENTE"),cdVal(l,"CORRETOR"),cdVal(l,"IMOBILIÁRIA"),cdVal(l,"PROPOSTA")].join(" ")).indexOf(termo)>=0;
@@ -1681,7 +1699,7 @@ function condAbrir(id){
     :'<tr><td>'+esc(x.rot)+'</td><td class="r">'+(x.qtd>1?x.qtd+" × ":"")+cdBRL(x.val)+'</td><td>'+esc(x.quando||"—")+'</td><td class="r">'+cdBRL(x.sub)+'</td></tr>').join("");
   document.getElementById("cd-card").innerHTML='<div class="cd-cardbox">'+
     '<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div>'+
-    '<h3>Unidade '+esc(g(tit)||"")+'</h3><div class="sub">'+esc(g("PROPONENTE")||"—")+' · Proposta '+esc(g("PROPOSTA")||"—")+' · Corretor: '+esc(g("CORRETOR")||"—")+'</div></div>'+
+    '<h3>Unidade '+esc(g(tit)||"")+(g("CONDOMÍNIO")?' · '+esc(g("CONDOMÍNIO")):'')+'</h3><div class="sub">'+esc(g("PROPONENTE")||"—")+' · Proposta '+esc(g("PROPOSTA")||"—")+' · Corretor: '+esc(g("CORRETOR")||"—")+'</div></div>'+
     '<button class="cd-bt" onclick="condFechar()">✕ Fechar</button></div>'+
     '<div class="cd-kpis">'+
       '<div class="cd-kpi"><small>Crédito aprovado</small><b>'+cdBRL(g("VALOR DO CRÉDITO"))+'</b></div>'+
