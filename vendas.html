@@ -1528,7 +1528,7 @@ const CD_PADRAO=["UNIDADE","CONDOMÍNIO","PROPONENTE","CORRETOR","STATUS DO CADA
   "DATA 1º BALÃO (12/27)","VALOR 1º BALÃO","DATA 2º BALÃO (25º PARCELA)","VALOR BALÃO ENTREGA DE CHAVES",
   "DATA PÓS CHAVES","Nº PARCELAS PÓS CHAVES","VALOR PÓS CHAVES","PENDÊNCIAS"];
 const CD_GATILHOS=["DATA DE ASSINATURA DO CONTRATO","DIA PAGAMENTO PARCELAS","DATA DA ENTREGA"];
-const CD_SO_LEITURA=["files","formula","rollup","relation","created_time","last_edited_time","created_by","last_edited_by","people","status","multi_select","title"];
+const CD_SO_LEITURA=["files","formula","rollup","relation","created_time","last_edited_time","created_by","last_edited_by","people","multi_select","title"];
 const cdNorm=t=>String(t==null?"":t).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/\s+/g," ").trim();
 const cdBRL=v=>(v==null||v===""||isNaN(v))?"—":"R$ "+Number(v).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
 const cdDia=iso=>{ if(!iso) return "—"; const p=String(iso).slice(0,10).split("-"); return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:String(iso); };
@@ -1580,15 +1580,41 @@ function condOpcoesCond(){
     (semCond?'<option value="__sem__">(sem condomínio)</option>':'');
   sel.value=[...sel.options].some(o=>o.value===atual)?atual:"";
 }
+/* 01/10 (r71) — mesma ordem da Planilha Casas de Rua, com as colunas que existirem no banco do
+   condomínio (inclusive as de preenchimento: SIM/NÃO e datas — MANDOU P/ CONFORMIDADE, ASSINOU E
+   ARMAZENOU CONTRATO, DATA DE ASSINATURA, TEM PROTOCOLO…). Depois entram as colunas próprias do
+   condomínio (fluxo de pagamento) e, com "todas as colunas", o resto. */
+const CD_ALIAS_RUA={"ENDERECO":"__TITULO__","CLIENTES":"PROPONENTE","CPF":"CPF PROPONENTE",
+  "VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)":"VALOR DE VENDA","EMAIL":"EMAIL"};
+function cdOrdemRua(){
+  let nomes=[];
+  if(typeof SCHEMA!=="undefined" && SCHEMA && SCHEMA.length){
+    const base=SCHEMA.filter(c=>c.tipo!=="rollup"&&c.tipo!=="relation"&&c.tipo!=="files"&&c.nome!=="ENDEREÇO"&&
+      RESUMO_NORM.indexOf(normNome(c.nome))<0&&!/\bAUTO\b|ALERTA|ELERTA/.test(normNome(c.nome)));
+    nomes=["ENDEREÇO",...RESUMO,...ordenarPorPrefixo(base).map(c=>c.nome)];
+  } else {
+    nomes=["ENDEREÇO",...RESUMO,...ORDEM_PREFIXOS];            // planilha de rua ainda não carregou: usa a ordem pedida
+  }
+  return nomes;
+}
+function cdAchaColuna(nomeRua, usados){
+  const alvo=cdNorm(nomeRua), alias=CD_ALIAS_RUA[alvo];
+  if(alias==="__TITULO__") return null;
+  const cands=COND.colunas.filter(c=>c.tipo!=="files"&&c.nome!==COND.titulo&&!usados.has(c.nome));
+  const a2=alias?cdNorm(alias):alvo;
+  let c=cands.find(x=>cdNorm(x.nome)===a2);
+  if(!c && a2.length>=8) c=cands.find(x=>{ const n=cdNorm(x.nome); return n.indexOf(a2)===0 || (n.length>=8 && a2.indexOf(n)===0); });
+  return c||null;
+}
 function condColunas(){
   if(!COND) return [];
   const todas=document.getElementById("cd-todas").checked;
   const mapa={}; COND.colunas.forEach(c=>{ mapa[cdNorm(c.nome)]=c; });
-  if(todas){
-    const tit=COND.titulo;
-    return [mapa[cdNorm(tit)]].concat(COND.colunas.filter(c=>c.nome!==tit&&c.tipo!=="files")).filter(Boolean);
-  }
-  return CD_PADRAO.map(n=>mapa[cdNorm(n)]).filter(Boolean);
+  const tit=COND.titulo, usados=new Set([tit]), out=[mapa[cdNorm(tit)]];
+  cdOrdemRua().forEach(n=>{ const c=cdAchaColuna(n,usados); if(c){ usados.add(c.nome); out.push(c); } });
+  CD_PADRAO.forEach(n=>{ const c=mapa[cdNorm(n)]; if(c&&!usados.has(c.nome)){ usados.add(c.nome); out.push(c); } });
+  if(todas) COND.colunas.forEach(c=>{ if(c.tipo!=="files"&&!usados.has(c.nome)){ usados.add(c.nome); out.push(c); } });
+  return out.filter(Boolean);
 }
 function condRender(){
   if(!COND) return;
@@ -1633,9 +1659,12 @@ function condEditar(td){
   if(col==="DIA PAGAMENTO PARCELAS"){
     campo=document.createElement("select");
     campo.innerHTML='<option value="">—</option>'+Array.from({length:27},(_,i)=>'<option value="'+(i+5)+'"'+(String(atual)===String(i+5)?" selected":"")+'>Dia '+(i+5)+'</option>').join("");
-  } else if(tipo==="select"){
+  } else if(tipo==="select"||tipo==="status"){
     campo=document.createElement("select");
-    const ops=[...new Set(COND.linhas.map(x=>cdVal(x,col)).filter(Boolean))];
+    /* r71 — opções vêm do Notion (servidor); coluna vazia de SIM/NÃO também tem o que escolher */
+    const def=(COND.colunas||[]).find(x=>x.nome===col)||{};
+    let ops=(def.opcoes&&def.opcoes.length)?def.opcoes.slice():[...new Set(COND.linhas.map(x=>cdVal(x,col)).filter(Boolean))];
+    if(!ops.length && /\?\s*$/.test(col)) ops=["SIM","NÃO"];
     campo.innerHTML='<option value="">—</option>'+ops.map(o=>'<option'+(o===atual?" selected":"")+'>'+esc(o)+'</option>').join("");
   } else {
     campo=document.createElement("input");

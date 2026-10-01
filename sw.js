@@ -159,7 +159,7 @@
 /* v80 -> v81 (30/09/26 noite): vendas.html — dia de pagamento a partir do dia 5, bloco entrada/FGTS/subsídio no fluxo e todas as colunas da planilha do condomínio por padrão. */
 /* v81 -> v82 (01/10/26): pos-obra.html (validação do ADM, obra nova para todos com endereço no padrão, data de assinatura vazia por quem tem acesso), atv-alertas.js v7 (mensagens novas e validações no sino), atividades.html e index.html. */
 /* v82 -> v83 (01/10/26): analise-dados.html — ESCRITÓRIO MOURA DANTAS fora do Custo Escritório. */
-const CACHE = "portal-morais-v83";  // limpeza só dos caches do portal (não apaga os das RAS)
+const CACHE = "portal-morais-v84";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",
