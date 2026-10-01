@@ -1220,7 +1220,11 @@ function ocultoNoSetor(nome, ondeEstou){
   const cfg=CAMPOS_OCULTOS_SETOR[SETOR_ATUAL]; if(!cfg) return false;
   const n=normNome(nome);
   if(cfg.blocoReparo && BLOCO_REPARO.test(n)) return true;
-  return (cfg.campos||[]).some(f=>new RegExp("\\b"+normNome(f).replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\b").test(n));
+  /* 01/10/26 — NOME EXATO, não palavra solta. Com "palavra inteira", o "CASA" da lista
+     derrubava também "ENTEGOU A CASA E PEGOU TERMO DE ENTREGA?" e "CASA APTA PARA A
+     VISTORIA": a Secretária não via o campo da entrega (nem na planilha, nem no painel)
+     e a atividade VERIFICAÇÃO DE ENTREGA só podia ser resolvida pela baixa. */
+  return (cfg.campos||[]).some(f=>n===normNome(f));
 }
 function nomeExcluido(nome, ondeEstou){ const n=normNome(nome); if(CAMPOS_EXCLUIDOS.indexOf(n)>=0) return true; if(ocultoNoSetor(nome, ondeEstou)) return true; return /\bAUTO\b|ALERTA|ELERTA/.test(n); } // item 9: nada com AUTO/ALERTA entra na planilha/obra
 
