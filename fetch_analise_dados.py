@@ -295,7 +295,7 @@ def parse_venda(page):
         "registro_pronto":        s("FICOU PRONTO O REGISTRO?"),
         "devolveu_banco":         s("DEVOLVEU NO BANCO?"),
         "recebeu":                s("RECEBEU?"),
-        "entregou_casa":          s("ENTEGOU A CASA E PEGOU TERMO DE ENTREGA?"),
+        "entregou_casa":          s("ENTREGOU A CASA E PEGOU TERMO DE ENTREGA?", "ENTEGOU A CASA E PEGOU TERMO DE ENTREGA?"),  # 01/10: nome corrigido no Notion
         "data_entrega":           d("DATA DA ENTREGA"),
         "gcap_gerado":            s("GEROU E ARMAZENOU GCAP?"),
         "gcap_pago":              s("PAGOU GCAP?"),

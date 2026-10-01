@@ -92,7 +92,7 @@ def situacao_obras(ids_obras, titulo_por_id):
                 continue
             n = txt(pega(ip, "CASA", "CASA-AUTO"))
             vendida = bool(txt(pega(ip, "CLIENTES")) or txt(pega(ip, "DATA DA VENDA")))
-            ent = norm(txt(pega(ip, "ENTEGOU A CASA E PEGOU TERMO DE ENTREGA?")) or "")
+            ent = norm(txt(pega(ip, "ENTREGOU A CASA E PEGOU TERMO DE ENTREGA?", "ENTEGOU A CASA E PEGOU TERMO DE ENTREGA?")) or "")
             casas.setdefault(o, []).append({"casa": n, "vendida": vendida, "entregue": ent in POSITIVOS_ENTREGA})
     except SystemExit as e:
         print(f"  VENDAS (casas) não lido: {e}", flush=True)
