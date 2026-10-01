@@ -4000,6 +4000,9 @@ let SABADO_PENDENTE = null;   // { prop, valor, id } aguardando senha do ADM
    normal, com fila offline (salvarCampo). */
 function salvarCampoData(prop, valorBruto, id){
   const dataPura = String(valorBruto||"").slice(0,10);
+  /* 01/10/26 — digitando a data, o navegador dispara a gravação a cada número do ano
+     ("0002", "0020"…) e gravava 30/09/0020. Só grava com ano completo e plausível. */
+  if(dataPura){ const ano=Number(dataPura.slice(0,4)); if(!(ano>=2000 && ano<=2100)) return; }
   if(!dataPura || !ehDataAgendamento(prop)){ salvarCampo(prop, valorBruto, id); return; }
 
   if(ehFeriadoGoiania(dataPura)){
