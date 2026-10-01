@@ -8,6 +8,10 @@
  * navegador — a aba Atividades já abre pronta. ADM/MASTER também deixam a
  * visão da Equipe pré-carregada.
  * v4 (28/09): guarda também os aniversários (r.aniv) — o painel abre com eles.
+ * v7 (01/10): MENSAGENS NOVAS — comentários de outras pessoas nas atividades
+ *   em que você é responsável/solicitante + @menções, ainda não abertas
+ *   (servidor: r.mensagens, "lida" = abriu a atividade). Para o ADM, as
+ *   criações do Pós Obra esperando validação (r.validacoes).
  */
 (function(){
   if(typeof document==="undefined") return;
@@ -37,7 +41,7 @@
     const alvo=document.querySelector("header .user"); if(!alvo) return;
     const s=document.createElement("style"); s.textContent=CSS; document.head.appendChild(s);
     bt=document.createElement("button"); bt.type="button"; bt.className="aa-sino"; bt.style.display="none";
-    bt.title="Suas atividades atrasadas e as que vencem hoje";
+    bt.title="Atividades atrasadas e de hoje, mensagens novas e o que espera validação";
     alvo.insertBefore(bt, alvo.firstChild);
     cx=document.createElement("div"); cx.className="aa-caixa"; document.body.appendChild(cx);
     bt.addEventListener("click",ev=>{ ev.stopPropagation(); const r=bt.getBoundingClientRect();
@@ -48,18 +52,37 @@
      você ainda não abriu contam no sino; abrir uma marca como vista. */
   const K_VISTAS="aa_mencoes_vistas";
   const vistas=()=>{ try{ return JSON.parse(localStorage.getItem(K_VISTAS)||"[]"); }catch(x){ return []; } };
+  /* v7: clicou na mensagem / abriu a atividade -> some daqui na hora (o
+     servidor também marca como lida ao abrir; isto só evita esperar a próxima leitura) */
+  const K_ATV="aa_atv_vistas";
+  const atvVistas=()=>{ try{ return JSON.parse(localStorage.getItem(K_ATV)||"{}"); }catch(x){ return {}; } };
+  window.AA_atvVista=id=>{ if(!id) return; const v=atvVistas(); v[id]=new Date().toISOString();
+    const ks=Object.keys(v); if(ks.length>300) ks.sort((a,b)=>v[a]<v[b]?-1:1).slice(0,ks.length-300).forEach(k=>delete v[k]);
+    try{ localStorage.setItem(K_ATV,JSON.stringify(v)); }catch(x){} if(dados) pintar(dados); };
   window.AA_mencaoVista=id=>{ const v=vistas(); if(v.indexOf(id)<0){ v.push(id); try{ localStorage.setItem(K_VISTAS,JSON.stringify(v.slice(-200))); }catch(x){} } };
   function pintar(r){
     if(!r||!r.ok) return; dados=r; montar(); if(!bt) return;
-    const a=r.atrasadas||[], h=r.hoje||[], m=r.mencoes||[], vs=vistas(), mn=m.filter(x=>vs.indexOf(x.id)<0);
-    if(!a.length&&!h.length&&!mn.length){ bt.style.display="none"; cx.classList.remove("on"); return; }
+    const a=r.atrasadas||[], h=r.hoje||[], vs=vistas(), av=atvVistas();
+    /* v7: com r.mensagens (servidor novo) as menções já vêm dentro dela */
+    const novoSrv=Array.isArray(r.mensagens);
+    const msgs=novoSrv?r.mensagens.filter(x=>!(av[x.atv]&&new Date(x.em)<=new Date(av[x.atv]))&&vs.indexOf(x.id)<0):[];
+    const m=novoSrv?[]:(r.mencoes||[]), mn=m.filter(x=>vs.indexOf(x.id)<0);
+    const val=r.validacoes||[];
+    if(!a.length&&!h.length&&!mn.length&&!msgs.length&&!val.length){ bt.style.display="none"; cx.classList.remove("on"); return; }
     bt.style.display="";
     bt.classList.toggle("so-hoje",!a.length);
     bt.innerHTML=(a.length?`⚠ ${a.length} atrasada${a.length>1?"s":""}${h.length?` · ${h.length} hoje`:""}`:h.length?`⏰ ${h.length} vence${h.length>1?"m":""} hoje`:"")+
-      (mn.length?`${a.length||h.length?" · ":""}💬 ${mn.length}`:"");
+      (mn.length?`${a.length||h.length?" · ":""}💬 ${mn.length}`:"")+
+      (msgs.length?`${a.length||h.length?" · ":""}💬 ${msgs.length}`:"")+
+      (val.length?`${a.length||h.length||mn.length||msgs.length?" · ":""}🛠 ${val.length}`:"");
+    if(!a.length&&(msgs.length||val.length)) bt.classList.add("so-hoje");
     const item=(x,atr)=>`<a class="aa-i" href="${e(x.link)}"><b>${e(x.titulo)}</b><span>${e(x.origem)} · ${atr?`<span class="atr">venceu ${br(x.fim)}</span>`:"vence hoje"}</span></a>`;
     const itemM=x=>`<a class="aa-i" href="${e(x.link)}" onclick="AA_mencaoVista('${e(x.id)}')"><b>${vs.indexOf(x.id)<0?"🔵 ":""}${e(x.autor)} te mencionou · ${e(x.titulo)}</b><span>${e(x.texto)} · ${br(String(x.em||"").slice(0,10))}</span></a>`;
-    cx.innerHTML=(m.length?`<div class="aa-h">💬 Mencionaram você (${mn.length} nova${mn.length===1?"":"s"})</div>`+m.slice(0,8).map(itemM).join(""):"")+
+    const itemMsg=x=>`<a class="aa-i" href="${e(x.link)}" onclick="AA_atvVista('${e(x.atv)}')"><b>🔵 ${e(x.autor)}${x.mencao?" te mencionou":""} · ${e(x.titulo)}</b><span>${e(x.texto)} · ${br(String(x.em||"").slice(0,10))} ${e(String(x.em||"").slice(11,16))}</span></a>`;
+    const itemVal=x=>`<a class="aa-i" href="pos-obra.html#validar"><b>${x.tipo==="obra"?"🏠 Obra":"🔧 Serviço"}: ${e(x.nome)}</b><span>criado por ${e(x.por||"?")} · ${br(String(x.em||"").slice(0,10))} · aguardando validação</span></a>`;
+    cx.innerHTML=(val.length?`<div class="aa-h">🛠 Pós Obra — para validar (${val.length})</div>`+val.slice(0,8).map(itemVal).join(""):"")+
+      (msgs.length?`<div class="aa-h">💬 Mensagens novas (${msgs.length})</div>`+msgs.slice(0,12).map(itemMsg).join(""):"")+
+      (m.length?`<div class="aa-h">💬 Mencionaram você (${mn.length} nova${mn.length===1?"":"s"})</div>`+m.slice(0,8).map(itemM).join(""):"")+
       (a.length?`<div class="aa-h">Atrasadas (${a.length})</div>`+a.map(x=>item(x,true)).join(""):"")+
       (h.length?`<div class="aa-h">Vencem hoje (${h.length})</div>`+h.map(x=>item(x,false)).join(""):"");
   }
@@ -89,11 +112,15 @@
     }catch(err){}
   }
   function iniciar(){
+    vistaPeloHash();
     try{ const c=cacheGet("atv_alertas"); if(c&&c.v) pintar(c.v); }catch(err){}
     /* na própria aba Atividades a tela já pede tudo; o sino espera para não disputar a fila */
     setTimeout(()=>atualizar(false),/atividades\.html/.test(location.pathname)?20000:1200);
     setInterval(()=>atualizar(false),5*60*1000);
   }
+  /* v7: abriu a atividade pela própria aba Atividades -> mensagens dela somem */
+  function vistaPeloHash(){ if(/atividades\.html/.test(location.pathname)){ const h=location.hash.slice(1); if(h) window.AA_atvVista(h.replace(/-/g,"")); } }
+  window.addEventListener("hashchange",vistaPeloHash);
   window.addEventListener("portal-ao-vivo",ev=>{ const d=ev.detail||{}; if(/^atv/.test(d.acao||"")) setTimeout(()=>atualizar(false),1500); });
   window.AtvAlertas={atualizar, pintar};
   if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",iniciar); else iniciar();

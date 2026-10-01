@@ -121,6 +121,20 @@ th.ord.on .seta{opacity:1}
 
 /* ===================== ALERTAS (item 13) ===================== */
 .alertas{display:flex;flex-direction:column;gap:9px;margin:14px 0}
+/* 01/10/26 — validação do ADM (obra/serviço criados por outra pessoa) */
+.val-faixa{display:none;margin:14px 0 0;border:1px solid #F5C26B;background:#FFF7E6;color:#8A4B00;border-radius:11px;padding:11px 13px;font-size:13px;align-items:center;gap:10px}
+.val-faixa.on{display:flex}
+.val-faixa b{font-weight:800}
+.val-it{border:1px solid var(--border2,#d0e4ec);border-radius:10px;padding:10px 12px;margin-bottom:10px}
+.val-it .t{font-weight:800;font-size:13.5px}
+.val-it .s{font-size:12px;color:var(--text3,#5a8099);margin:3px 0 6px}
+.val-it ul{margin:4px 0 8px 18px;padding:0;font-size:12.5px}
+.val-it li a{cursor:pointer;text-decoration:underline}
+.val-it .acoes{display:flex;gap:8px;justify-content:flex-end}
+.val-tag{display:inline-block;font-size:10.5px;font-weight:800;border-radius:8px;padding:1px 7px;margin-left:6px;background:#FFE7BA;color:#8A4B00;vertical-align:middle}
+.ajuda-end{font-size:11.5px;margin-top:4px;color:var(--text3,#5a8099)}
+.ajuda-end.ok{color:#15803D}.ajuda-end.err{color:#c0392b}
+html[data-tema="escuro"] .val-faixa{background:#3a2d12;border-color:#7a5a1e;color:#f0c95f}
 .al{display:flex;gap:11px;align-items:flex-start;border-radius:11px;padding:11px 13px;border:1px solid;font-size:13px}
 .al .ic{font-size:17px;line-height:1.1}
 .al .co{flex:1;min-width:0}
@@ -603,6 +617,8 @@ html[data-tema="escuro"] .logo{background:#fff}
         <button class="bt az" onclick="irIndicadores()">📊 Indicadores</button>
       </div>
 
+      <!-- 01/10/26: só ADM — obras e serviços criados por outras pessoas esperando validação -->
+      <div class="val-faixa" id="val-faixa"></div>
       <div class="alertas" id="alertas-hub"></div>
 
       <div class="sec"><span class="cond">Panorama</span></div>
@@ -741,14 +757,15 @@ html[data-tema="escuro"] .logo{background:#fff}
   <div class="modal-overlay" id="no-overlay" onclick="if(event.target===this)fecharNovaObra()">
     <div class="modal-cx">
       <div class="modal-tit">Nova obra de Pós Obra</div>
-      <div class="modal-sub">A obra passa a aparecer na lista e já aceita serviços.</div>
+      <div class="modal-sub">A obra passa a aparecer na lista e já aceita serviços. <span id="no-aviso-val"></span></div>
       <!-- r33 (pedido 1): o formulário passou a trazer TODOS os campos de
            preenchimento da obra, e não só os quatro do começo. A ordem é a de
            quem digita: o que identifica a casa, quem é o cliente, onde fica e,
            por fim, o que vem do contrato. -->
       <div class="modal-corpo"><div id="no-campos">
         <div class="campo"><label>ENDEREÇO</label>
-          <input type="text" id="no-endereco" placeholder="ATALANTA QD 01 LT 21" autocomplete="off"></div>
+          <input type="text" id="no-endereco" placeholder="TB 19 QD 51 LT 14" autocomplete="off" oninput="checarEndNO()">
+          <div class="ajuda-end" id="no-end-ajuda"></div></div>
         <div class="campo"><label>CASA</label>
           <input type="number" id="no-casa" placeholder="2" autocomplete="off"></div>
         <div class="campo"><label>CLIENTE</label>
@@ -779,6 +796,18 @@ html[data-tema="escuro"] .logo{background:#fff}
         <button class="bt ghost" onclick="fecharNovaObra()">Cancelar</button>
         <button class="bt" id="no-continuar" onclick="confirmarNovaObra(true)" title="Cria e deixa o formulário aberto, limpando só endereço, casa e cliente">Criar e continuar</button>
         <button class="bt az" id="no-criar" onclick="confirmarNovaObra()">Criar obra</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 01/10/26: validação do ADM -->
+  <div class="modal-overlay" id="val-overlay" onclick="if(event.target===this)fecharValidacoes()">
+    <div class="modal-cx">
+      <div class="modal-tit">Criações para validar</div>
+      <div class="modal-sub">Obras e tipos de serviço criados por quem não é ADM. <b>Validar</b> mantém. <b>Recusar</b> exclui: o serviço sai dos chamados (o chamado continua, sem ele) e da lista do Notion; a obra vai para a lixeira do Notion junto com os chamados dela.</div>
+      <div class="modal-corpo"><div id="val-lista"></div></div>
+      <div class="modal-acoes">
+        <button class="bt ghost" onclick="fecharValidacoes()">Fechar</button>
       </div>
     </div>
   </div>
@@ -1480,6 +1509,7 @@ function boot(){
     return;
   }
   carregar();
+  if(ehAdmTela()) setTimeout(carregarValidacoes, 2500);
 }
 
 function aplicarBoot(r){
@@ -1599,8 +1629,10 @@ function pintarUsuario(s){
   /* item 3: criar obra nova é a mesma regra — só ADM. A trava real está no
      posObraNovo_ do servidor; isto aqui é só não mostrar o que a pessoa não
      pode usar. */
+  /* 01/10/26: liberado para todos com acesso ao Pós Obra (quem não é ADM cria
+     e o ADM valida depois). O modo teste continua sem o botão. */
   const bn = document.getElementById("bt-nova-obra");
-  if(bn) bn.style.display = (s.tipo==="ADM" ? "" : "none");
+  if(bn) bn.style.display = (ehSomenteLeitura(s) ? "none" : "");
   /* pedido 4: o botão de forçar atualização também é só do ADM. Cada clique
      custa uma varredura inteira do Notion e um build do GitHub Actions —
      aberto a todos, viraria um jeito acidental de derrubar o desempenho de
@@ -2643,7 +2675,8 @@ function pintarObra(){
          sincronia seguinte desfazia a correção. */
       od("Assinatura do contrato",
         '<span class="assin-box">'+esc(dbr(assin) || "—")+
-        (soLeitura() ? "" : ' <button class="bt-lapis" title="Editar data de assinatura" onclick="editarAssinatura(this)">✏️</button>')+
+        /* 01/10/26: quem tem acesso preenche a data VAZIA; trocar/apagar continua só com o ADM */
+        ((soLeitura() || (assin && !ehAdmTela())) ? "" : ' <button class="bt-lapis" title="'+(assin?"Editar":"Preencher")+' data de assinatura" onclick="editarAssinatura(this)">✏️</button>')+
         '</span>', true) +
       /* r33 (pedido 2): o anexo do contrato faltava aqui. A coluna FOTOS DO
          CONTRATO existe na base PÓS OBRA e o backend já aceitava anexo nela
@@ -2785,6 +2818,7 @@ const COL_ASSIN = "DATA DE ASSINATURA DO CONTRATO";
 function editarAssinatura(bt){
   if(soLeitura()){ toast("Modo teste: nada é gravado.", 3); return; }
   if(!OBRA) return;
+  if(!ehAdmTela() && ((OBRA.valores||{})[COL_ASSIN])){ toast("A data já está preenchida — só o ADM pode trocar.", 4); return; }
   const box = bt && bt.closest(".assin-box");
   if(!box) return;
   const atual = String(((OBRA.valores||{})[COL_ASSIN]) || "").slice(0,10);
@@ -2808,6 +2842,7 @@ function salvarAssinatura(){
   if(novo && !/^\d{4}-\d{2}-\d{2}$/.test(novo)){ toast("Data inválida.", 4); return; }
   if(novo && novo > hojeISO() &&
      !confirm("A data "+dbr(novo)+" está no futuro. Gravar assim mesmo?")) return;
+  if(!novo && !ehAdmTela()){ toast("Escolha uma data.", 3); return; }
   if(!novo && !confirm("Apagar a data de assinatura?\n\nIsso apaga também na VENDA e as garantias deixam de ser calculadas.")) return;
 
   inp.disabled = true;
@@ -2819,8 +2854,9 @@ function salvarAssinatura(){
     const o = obraPorId(OBRA.id); if(o) o.dataAssinatura = novo || null;
     pintarObra();
     const esp = r.resposta && r.resposta.espelhado;
+    const gc = r.resposta && r.resposta.gcapCriada;
     toast(r.enfileirado ? "Sem internet — vai subir quando reconectar."
-        : (esp ? "Salvo aqui e na venda." : "Salvo. (Sem venda correspondente para espelhar.)"), 4);
+        : (esp ? "Salvo aqui e na venda." + (gc ? " Atividade de GCAP criada." : "") : "Salvo. (Sem venda correspondente para espelhar.)"), 4);
   });
 }
 
@@ -3120,7 +3156,10 @@ window.aoSincronizar = function(feitos){
  * =================================================================== */
 let NO_OPID = null;
 function abrirNovaObra(){
-  if(!ehAdmTela() || soLeitura()) return;
+  if(soLeitura()) return;
+  const av = document.getElementById("no-aviso-val");
+  if(av) av.textContent = ehAdmTela() ? "" : "Como você não é ADM, a obra fica aguardando a validação de um ADM.";
+  setTimeout(checarEndNO, 0);
   NO_OPID = novoOpId();
   ["no-endereco","no-casa","no-clientes","no-telefone","no-setor","no-cidade",
    "no-assinatura","no-agio","no-obs"].forEach(id=>{
@@ -3158,7 +3197,7 @@ function fecharNovaObra(){ document.getElementById("no-overlay").classList.remov
 function confirmarNovaObra(continuar){
   const erro = document.getElementById("no-erro");
   const g = id => String((document.getElementById(id)||{}).value||"").trim();
-  const endereco = g("no-endereco"), clientes = g("no-clientes"), casa = g("no-casa");
+  const endereco = g("no-endereco").toUpperCase().replace(/\s+/g," "), clientes = g("no-clientes"), casa = g("no-casa");
   const telefone = g("no-telefone"), setor = g("no-setor"), cidade = g("no-cidade");
   const assin = g("no-assinatura"), agio = g("no-agio"), obs = g("no-obs");
   const elFlex = document.getElementById("no-flex");
@@ -3166,6 +3205,9 @@ function confirmarNovaObra(continuar){
 
   function falha(t){ erro.textContent = t; erro.style.display = "block"; }
   if(!endereco) return falha("Informe o endereço da obra.");
+  /* 01/10/26: mesma regra de endereço da criação de obra na aba Obras */
+  const errEnd = erroEndNO(endereco);
+  if(errEnd){ checarEndNO(); return falha("Endereço: " + errEnd); }
   if(!clientes) return falha("Informe o cliente — sem ele a obra não aparece na lista.");
   if(/\bCS\b|\bCASA\b/i.test(endereco))
     return falha("Tire o \"CS\" do endereço: o número da casa vai no campo ao lado.");
@@ -3201,7 +3243,8 @@ function confirmarNovaObra(continuar){
     const id = r && r.ok && r.resposta && r.resposta.id;
     if(id){
       if(i >= 0){ OBRAS[i].id = id; delete OBRAS[i].pendente; if(r.resposta.titulo) OBRAS[i].titulo = r.resposta.titulo; }
-      pintarHub(); toast("Obra " + endereco + " criada.");
+      pintarHub();
+      toast(r.resposta.pendenteValidacao ? "Obra " + endereco + " criada — aguardando a validação do ADM." : "Obra " + endereco + " criada.", 5);
       return;
     }
     if(r && r.ok){ if(i >= 0) OBRAS.splice(i,1); recarregarTudo(); return; }
@@ -4067,7 +4110,8 @@ async function pedirOpcaoNova(prop){
     if(!campo.opcoes.some(o => normN(o) === normN(real))) campo.opcoes.push(real);
   }
   const jaTinha = (r.resposta && r.resposta.jaExistia) || r.jaExistia;
-  toast(jaTinha ? "Já existia — selecionado." : "Criado ✓");
+  const aguarda = (r.resposta && r.resposta.aguardaValidacao) || r.aguardaValidacao;
+  toast(jaTinha ? "Já existia — selecionado." : (aguarda ? "Criado ✓ — o ADM vai validar este serviço." : "Criado ✓"), aguarda ? 5 : 3);
   return real;
 }
 
@@ -4487,6 +4531,132 @@ function barrasH(dados){
 }
 
 boot();
+
+/* ===================== 01/10/26 — ENDEREÇO NO PADRÃO (igual à aba Obras) =====
+ * Mesma regra do obraEnderecoErro_ do Code.gs e do checarEnd() do obras.html:
+ * sem "RUA/AV", sem traço, QD e LT com 2 dígitos. Quem decide de verdade é o
+ * servidor (posObraNovo_); aqui é só avisar antes de enviar e sugerir a forma certa. */
+function padraoEndNO(s){
+  let t=String(s||"").replace(/[\u2013\u2014]/g,"-").toUpperCase().replace(/\s+/g," ").trim(); if(!t) return t;
+  t=t.replace(/\bQUADRA\b/g,"QD").replace(/\bLOTE\b/g,"LT").replace(/\b(QD|LT|CS)\.(?=\s*\d)/g,"$1");
+  t=t.replace(/\bLT\s*(\d+[A-Z]?)\s*-+\s*(\d+[A-Z]?)\b/g,"LT $1~$2").replace(/\bLT (\d+) (\d+)\b/g,"LT $1~$2");
+  t=t.replace(/\s*-+\s*/g," ").replace(/\b(QD|LT|CS)(?=\d)/g,"$1 ").replace(/^([A-Z]{1,4})(?=\d)/,"$1 ");
+  t=t.replace(/\bQD 0+ (\d+)/g,"QD $1").replace(/\bB (\d+)\b/g,"B$1");
+  t=t.replace(/\b(QD|LT) 0*(\d+)([A-Z]?)(?:~0*(\d+)([A-Z]?))?(?![\dA-Z])/g,(m,k,a,sa,b,sb)=>{
+    let r=k+" "+(a.length<2?"0"+a:a)+(sa||""); if(b) r+="-"+(b.length<2?"0"+b:b)+(sb||""); return r; });
+  return t.replace(/~/g,"-").replace(/\s+/g," ").trim();
+}
+function erroEndNO(e){
+  e=String(e||"").toUpperCase().replace(/\s+/g," ").trim();
+  if(!e) return "Informe o endereço.";
+  if(/^(RUA|R\.|AV\.?|AVENIDA|ALAMEDA|AL\.|TRAVESSA|TV\.?|ESTRADA|RODOVIA)\s/.test(e)) return "sem prefixo de rua/avenida — tire o \"RUA\", \"AV\"…";
+  if(/\bCS\b|\bCASA\b/.test(e)) return "tire o \"CS\" do endereço: o número da casa vai no campo CASA.";
+  if(padraoEndNO(e)!==e) return "fora do padrão.";
+  if(!/\bQD \d{2,}[A-Z]?\b/.test(e)||!/\bLT \d{2,}/.test(e)) return "precisa ter QD e LT, com 2 dígitos (ex.: QD 51 LT 14).";
+  return null;
+}
+function checarEndNO(){
+  const inp=document.getElementById("no-endereco"), a=document.getElementById("no-end-ajuda");
+  if(!inp||!a) return true;
+  const e=String(inp.value||"").toUpperCase().replace(/\s+/g," ").trim();
+  if(!e){ a.className="ajuda-end"; a.innerHTML='Padrão: <b>RUA QD XX LT XX</b> — sem "RUA"/"AV", sem traço, quadra e lote com 2 dígitos. Ex.: <b>TB 19 QD 51 LT 14</b>'; return false; }
+  const err=erroEndNO(e);
+  if(!err){ a.className="ajuda-end ok"; a.textContent="✓ No padrão."; return true; }
+  const sug=padraoEndNO(e.replace(/\s+(CS|CASA)\s*\d+\s*$/,""));
+  a.className="ajuda-end err";
+  a.innerHTML=esc(err.charAt(0).toUpperCase()+err.slice(1))+(sug!==e&&!erroEndNO(sug)?
+    ' <button class="bt ghost peq" type="button" onclick="document.getElementById(\'no-endereco\').value=\''+esc(sug)+'\';checarEndNO()">usar '+esc(sug)+'</button>':"");
+  return false;
+}
+
+/* ===================== 01/10/26 — VALIDAÇÃO DO ADM =====================
+ * Obra nova e tipo de SERVIÇO novo criados por quem não é ADM ficam numa fila
+ * (Supabase, via Melhorias.gs). Só o ADM vê a faixa e a janela; o servidor
+ * confere de novo (posObraPendencias_/posObraValidar_). */
+try{ if(typeof ACOES_NA_ESCRITA!=="undefined" && ACOES_NA_ESCRITA.indexOf("posObraValidar")<0) ACOES_NA_ESCRITA.push("posObraValidar"); }catch(e){}
+try{
+  Object.assign(ERROS_TEXTO, {
+    ENDERECO_OBRIGATORIO:"Informe o endereço.", ENDERECO_COM_PREFIXO:"Endereço sem prefixo de rua/avenida.",
+    ENDERECO_SEM_QD_LT:"Endereço precisa ter QD e LT com 2 dígitos.", ENDERECO_FORA_DO_PADRAO:"Endereço fora do padrão (ex.: TB 19 QD 51 LT 14).",
+    DATA_JA_PREENCHIDA_SO_ADM:"A data já está preenchida — só o ADM pode trocar.", SO_ADM_APAGA_DATA:"Só o ADM pode apagar a data.",
+    DATA_INVALIDA:"Data inválida.", APENAS_ADM:"Só o ADM pode fazer isso."
+  });
+}catch(e){}
+let VALIDACOES = [];
+async function carregarValidacoes(){
+  if(!ehAdmTela()) return;
+  const r = await ler({action:"posObraPendencias"});
+  if(!r || !r.ok){ return; }
+  VALIDACOES = r.itens || [];
+  pintarFaixaValidacoes();
+  if(location.hash==="#validar" && VALIDACOES.length) abrirValidacoes();
+}
+function pintarFaixaValidacoes(){
+  const f = document.getElementById("val-faixa"); if(!f) return;
+  const n = VALIDACOES.length;
+  if(!n){ f.classList.remove("on"); f.innerHTML=""; fecharValidacoes(); return; }
+  const ob = VALIDACOES.filter(x=>x.tipo==="obra").length, sv = n-ob;
+  f.innerHTML = '<span style="font-size:17px">🛠</span><span style="flex:1"><b>'+n+' criaç'+(n>1?"ões":"ão")+' para validar</b> — '+
+    [ob?ob+" obra"+(ob>1?"s":""):"", sv?sv+" tipo"+(sv>1?"s":"")+" de serviço":""].filter(Boolean).join(" e ")+
+    ' criad'+(n>1?"os":"o")+' por quem não é ADM.</span><button class="bt az peq" onclick="abrirValidacoes()">Ver e validar</button>';
+  f.classList.add("on");
+}
+function abrirValidacoes(){
+  const cx = document.getElementById("val-lista"); if(!cx) return;
+  const dt = iso=>{ try{ const d=new Date(iso); return d.toLocaleDateString("pt-BR")+" "+d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}); }catch(e){ return ""; } };
+  cx.innerHTML = VALIDACOES.length ? VALIDACOES.map(x=>{
+    const chs = x.chamados || [];
+    const lista = chs.length
+      ? '<ul>'+chs.slice(0,30).map(c=>'<li>'+(c.obraId||x.obraId ? '<a onclick="fecharValidacoes();abrirObra(\''+esc(c.obraId||x.obraId)+'\')">'+esc(c.titulo)+'</a>' : esc(c.titulo))+'</li>').join("")+
+        (chs.length>30?'<li>… e mais '+(chs.length-30)+'</li>':"")+'</ul>'
+      : '<div class="s">Nenhum chamado '+(x.tipo==="obra"?"nesta obra":"usando este serviço")+' ainda.</div>';
+    const tit = x.tipo==="obra"
+      ? '🏠 Obra: '+(x.obraId && !x.arquivada ? '<a style="cursor:pointer;text-decoration:underline" onclick="fecharValidacoes();abrirObra(\''+esc(x.obraId)+'\')">'+esc(x.nome)+'</a>' : esc(x.nome))+(x.arquivada?'<span class="val-tag">já está na lixeira</span>':"")
+      : '🔧 Serviço: '+esc(x.nome);
+    const sub = 'Criado por '+esc(x.por||"?")+' em '+esc(dt(x.em))+(x.tipo==="obra"&&x.clientes?' · cliente '+esc(x.clientes):"");
+    return '<div class="val-it" id="val-'+x.id+'"><div class="t">'+tit+'</div><div class="s">'+sub+'</div>'+
+      '<div class="s"><b>'+(x.tipo==="obra"?"Chamados desta obra":"Obras/chamados vinculados")+' ('+chs.length+')</b></div>'+lista+
+      (x.aviso?'<div class="s" style="color:#c0392b">'+esc(x.aviso)+'</div>':"")+
+      '<div class="acoes"><button class="bt ghost peq" onclick="decidirValidacao('+x.id+',\'recusar\')">✖ Recusar e excluir</button>'+
+      '<button class="bt az peq" onclick="decidirValidacao('+x.id+',\'aprovar\')">✔ Validar</button></div></div>';
+  }).join("") : '<div class="vazio">Nada para validar.</div>';
+  document.getElementById("val-overlay").classList.add("on");
+}
+function fecharValidacoes(){ const o=document.getElementById("val-overlay"); if(o) o.classList.remove("on"); }
+async function decidirValidacao(id, decisao){
+  const x = VALIDACOES.find(v=>v.id===id); if(!x) return;
+  if(soLeitura()){ toast("Modo teste: nada é gravado.", 3); return; }
+  if(decisao==="recusar"){
+    const n=(x.chamados||[]).length;
+    const msg = x.tipo==="obra"
+      ? "Recusar a obra "+x.nome+"?\n\nEla vai para a lixeira do Notion"+(n?" junto com "+n+" chamado"+(n>1?"s":""):"")+"."
+      : "Recusar o serviço \""+x.nome+"\"?\n\nEle sai da lista de serviços"+(n?" e de "+n+" chamado"+(n>1?"s":"")+" (os chamados continuam, sem esse serviço)":"")+".";
+    if(!confirm(msg)) return;
+  }
+  const box = document.getElementById("val-"+id);
+  if(box) box.querySelectorAll("button").forEach(b=>b.disabled=true);
+  const r = await escrever({action:"posObraValidar", id:id, decisao:decisao}, "validação");
+  if(!r || !r.ok || r.enfileirado){
+    if(box) box.querySelectorAll("button").forEach(b=>b.disabled=false);
+    toast(r && r.enfileirado ? "Sem internet — tente de novo quando reconectar." : "Não deu: "+erroTexto(r && r.erro), 5); return;
+  }
+  const res = r.resposta || {}, feito = res.feito || {};
+  VALIDACOES = VALIDACOES.filter(v=>v.id!==id);
+  if(decisao==="recusar"){
+    if(x.tipo==="obra"){
+      OBRAS = (OBRAS||[]).filter(o=>o.id!==x.obraId && String(o.id).replace(/-/g,"")!==String(x.obraId||"").replace(/-/g,""));
+      pintarHub();
+    } else {
+      const campo=(SCHEMA && SCHEMA.campos||[]).find(c=>normN(c.nome)===normN("SERVIÇO"));
+      if(campo && campo.opcoes) campo.opcoes = campo.opcoes.filter(o=>normN(o)!==normN(x.nome));
+    }
+    if(feito.avisos && feito.avisos.length) alert("Recusado, com aviso:\n\n"+feito.avisos.join("\n"));
+    toast(x.tipo==="obra" ? "Obra recusada e enviada para a lixeira." : "Serviço recusado e removido"+(feito.chamados?" de "+feito.chamados+" chamado(s)":"")+".", 5);
+  } else toast("Validado ✓", 3);
+  pintarFaixaValidacoes();
+  if(VALIDACOES.length) abrirValidacoes(); else fecharValidacoes();
+}
+window.addEventListener("hashchange",()=>{ if(location.hash==="#validar" && ehAdmTela()){ if(VALIDACOES.length) abrirValidacoes(); else carregarValidacoes(); } });
 </script>
 </body>
 </html>

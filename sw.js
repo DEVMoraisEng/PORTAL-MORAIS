@@ -157,7 +157,8 @@
 /* v77 -> v78 (30/09/26): vendas.html (card do condomínio: sinais 60/90 e pós-chaves; salvar as 3 datas juntas) e simulacoes.html (documentos da venda copiados pelo servidor). */
 /* v78 -> v79 (30/09/26 tarde): simulacoes.html (decisão da proposta com status em destaque, resultado sob os botões, confirmação no Notion enquanto salva) e rf-rotas.js v11 (2 pedidos por faixa; 3ª implantação opcional). */
 /* v80 -> v81 (30/09/26 noite): vendas.html — dia de pagamento a partir do dia 5, bloco entrada/FGTS/subsídio no fluxo e todas as colunas da planilha do condomínio por padrão. */
-const CACHE = "portal-morais-v81";  // limpeza só dos caches do portal (não apaga os das RAS)
+/* v81 -> v82 (01/10/26): pos-obra.html (validação do ADM, obra nova para todos com endereço no padrão, data de assinatura vazia por quem tem acesso), atv-alertas.js v7 (mensagens novas e validações no sino), atividades.html e index.html. */
+const CACHE = "portal-morais-v82";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",

@@ -520,7 +520,7 @@ main.wrap{padding-bottom:90px}
 <script src="rf-rotas.js?v=7"></script>
 <script src="alertas-docs.js?v=1"></script>
 <script src="editor-blocos.js?v=10"></script>
-<script src="atv-alertas.js?v=5"></script>
+<script src="atv-alertas.js?v=7"></script>
 <script>
 /* ---------- tema ---------- */
 const TEMA_KEY="morais_tema";
@@ -1059,6 +1059,7 @@ async function abrirAtv(id){
   if(t){ ligarMencoes(t); t.addEventListener("keydown",e=>{ if(t._mencAberta) return; if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); enviarComentario(); } }); }
   document.getElementById("ov1").classList.add("on"); document.getElementById("p1").classList.add("on");
   history.replaceState(null,"","#"+id);
+  try{ if(window.AA_atvVista) window.AA_atvVista(String(id).replace(/-/g,"")); }catch(e){}   // 01/10: mensagens desta atividade somem do sino
   if(!g){ _coms=null; _comsAssin=""; if(pendDe(id).length) pintarChat(); }
   abrirServidor(id, !!g);
   /* 29/09: os comentários vêm JÁ, pela faixa do chat, sem esperar o conteúdo;
