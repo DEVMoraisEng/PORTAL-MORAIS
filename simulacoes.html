@@ -500,8 +500,6 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
           <div class="seg" id="seg-prop">
             <button class="seg-bt on" data-ps="" onclick="propSeg('')">Todas</button>
             <button class="seg-bt" data-ps="RECEBIDA" onclick="propSeg('RECEBIDA')">Recebidas</button>
-            <button class="seg-bt" data-ps="EM ANALISE" onclick="propSeg('EM ANALISE')">Em análise</button>
-            <button class="seg-bt" data-ps="ACEITA" onclick="propSeg('ACEITA')">Aceitas</button>
             <button class="seg-bt" data-ps="RESERVADA" onclick="propSeg('RESERVADA')">Reservadas</button>
             <button class="seg-bt" data-ps="NEGADA" onclick="propSeg('NEGADA')">Negadas</button>
             <button class="seg-bt" data-ps="VENDIDA" onclick="propSeg('VENDIDA')">Vendidas</button>
@@ -532,6 +530,10 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
           </div>
           <div style="font-size:12px;color:var(--text3);margin:0 0 6px" id="prop-origem"></div>
           <div id="prop-aviso" class="sim-aviso"></div>
+          <div class="leg-cores" style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--text3);margin:4px 0 6px">
+            <span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#FFF3C4;border:1px solid #E8C860;vertical-align:-2px"></i> nova (recebida, ainda sem decisão)</span>
+            <span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#F6D6D2;border:1px solid #E2A493;vertical-align:-2px"></i> reserva vencida</span>
+          </div>
           <div class="tbl-wrap alta"><table id="prop-tab"></table></div>
         </div>
       </section>
@@ -547,6 +549,12 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
             <button class="bt ghost" onclick="simCarregarUnidades(true)" title="Busca no Notion ao vivo, ignorando o arquivo publicado">↻ Atualizar agora</button>
             <button class="bt verde" id="sim-btSalvarTudo" onclick="simSalvarTudo()" title="Tenta de novo as unidades que não conseguiram salvar" style="display:none">↻ Tentar salvar de novo</button>
             <span id="sim-alteradas" style="font-size:12px;color:var(--text3);align-self:center"></span>
+          </div>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--text3);margin:4px 0 6px">
+            <b style="color:var(--text2)">Status interno (só controle, não vai para o mapa):</b>
+            <span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#E3F4E8;border:1px solid #9BD3AE;vertical-align:-2px"></i> disponível</span>
+            <span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#E1ECF8;border:1px solid #9CC3E4;vertical-align:-2px"></i> reservada</span>
+            <span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#FBE1E1;border:1px solid #E7A3A3;vertical-align:-2px"></i> vendida</span>
           </div>
           <div class="tbl-wrap alta"><table id="sim-tabUn"></table></div>
         </div>
@@ -1155,6 +1163,8 @@ const SIM_COLS_REC=[
   ["mensagem","Motivo",false]
 ];
 const SIM_COLS_TXT=["cliente","cpf","corretor","imobiliaria","status","mensagem"];
+/* 02/10 (item 6) — simulação nova = chegou nas últimas 24 h */
+function simNova(s){ const t=Date.parse(s.criadoEm||s.criado||""); return !isNaN(t) && (Date.now()-t) < 24*3600*1000; }
 
 function simSegSt(v){
   simFiltroSt=v;
@@ -1204,7 +1214,7 @@ function simRenderRecebidas(){
       `<tbody><tr><td colspan="${SIM_COLS_REC.length}" style="text-align:center;color:var(--text3);padding:22px">Nenhuma simulação encontrada.</td></tr></tbody>`;
     return;
   }
-  const corpo=vis.map(s=>`<tr class="clicavel${chegouReservada(s,false)?' linha-res':''}"${chegouReservada(s,false)?' title="Simulação feita com a unidade já reservada"':''} onclick="simVerDet('${s.id}')">
+  const corpo=vis.map(s=>`<tr class="clicavel${chegouReservada(s,false)?' linha-res':''}"${chegouReservada(s,false)?' title="Simulação feita com a unidade já reservada"':''}${simNova(s)?' style="background:#FFF3C4"':''} onclick="simVerDet('${s.id}')">
     <td>${esc(s.cliente||"—")}</td><td class="col-un">${esc(s.cpf||"—")}</td>
     <td>${esc(s.corretor||"—")}</td><td>${esc(s.imobiliaria||"—")}</td>
     <td>Un. ${esc(String(s.unidade||"—"))} <span style="color:var(--text3)">(T${esc(String(s.tipo||"—"))})</span></td>
@@ -1504,12 +1514,14 @@ function propCopiar(id, bt){
    isso a coluna aqui e um select de tres opcoes e nao um SIM/NAO. */
 const SIM_COLS=[["unidade","UNIDADE","ro"],["tipo","TIPO","num"],["valorVenda","VALOR DE VENDA","num"],
                 ["avaliacao","AVALIACAO","num"],["informacoes","INFORMACOES","txt"],
-                ["decorado","DECORADO","sn"],["disponivel","DISPONIVEL","sn"],["vendidaCru","VENDIDA","v3"]];
+                ["decorado","DECORADO","sn"],["disponivel","DISPONIVEL","sn"],["vendidaCru","VENDIDA","v3"],
+                ["statusInterno","STATUS INTERNO","si"]];   // 02/10 (item 6) — só controle interno
 /* INFORMACOES ganhou tipo proprio: e texto livre que vai para o popup do mapa,
    entao precisa aceitar varias linhas. Um <input> corta tudo numa linha so. */
 SIM_COLS[4][2]="area";
 const SIM_NOME_NOTION={unidade:"UNIDADE",tipo:"TIPO",valorVenda:"VALOR DE VENDA",avaliacao:"AVALIACAO",
-                       informacoes:"INFORMACOES",decorado:"DECORADO",disponivel:"DISPONIVEL",vendidaCru:"VENDIDA"};
+                       informacoes:"INFORMACOES",decorado:"DECORADO",disponivel:"DISPONIVEL",vendidaCru:"VENDIDA",
+                       statusInterno:"STATUS INTERNO"};
 
 /* IMPORTANTE — POR QUE NÃO USAMOS MAIS O unidades.json ESTÁTICO AQUI
    O arquivo publicado do mapa (unidades.json) traz preço/tipo/disponibilidade,
@@ -1618,7 +1630,10 @@ function simColetarLinha(i){
     if(c==="vendidaCru"){ u.vendidaCru=v; u.vendido=(v==="SIM"); u.reservado=(v==="RESERVADA");
                           campos[SIM_NOME_NOTION[c]]=(v==="NAO"?"NÃO":v); }
     else if(["decorado","disponivel"].includes(c)){ u[c]=(v==="true"); campos[SIM_NOME_NOTION[c]]= u[c]?"SIM":"NÃO"; }
-    else if(["valorVenda","avaliacao","tipo"].includes(c)){ u[c]=Number(v)||0; campos[SIM_NOME_NOTION[c]]=u[c]; }
+    else if(["valorVenda","avaliacao","tipo"].includes(c)){
+      /* 02/10 (item 4) — o campo virou texto (sem as setinhas): aceita 305000, 305.000 ou 305.000,00 */
+      const t=String(v||"").trim(), num=/,/.test(t) ? Number(t.replace(/\./g,"").replace(",",".")) : Number(t.replace(/\.(?=\d{3}(\D|$))/g,""));
+      u[c]=isNaN(num)?0:num; campos[SIM_NOME_NOTION[c]]=u[c]; }
     else { u[c]=v; campos[SIM_NOME_NOTION[c]]=v; }
   });
   return campos;
@@ -1645,11 +1660,18 @@ function simRenderUnidades(){
       if(tipo==="sn") return `<td><select class="sim-edit" data-i="${i}" data-c="${campo}" onchange="simAoEditar(${i},true)">
           <option value="true"${v?" selected":""}>SIM</option>
           <option value="false"${!v?" selected":""}>NÃO</option></select></td>`;
-      return `<td><input class="sim-edit" type="${tipo==="num"?"number":"text"}" data-i="${i}" data-c="${campo}" value="${esc(String(v==null?"":v))}" oninput="simAoEditar(${i})" onblur="simSairDoCampo(${i})"></td>`;
+      if(tipo==="si"){   // 02/10 (item 6) — STATUS INTERNO
+        const ops=["","DISPONÍVEL","RESERVADA","VENDIDA"];
+        return `<td><select class="sim-edit" data-i="${i}" data-c="${campo}" onchange="simAoEditar(${i},true);simCorStatusInterno(${i})">`+
+          ops.map(o=>`<option value="${o}"${PROP_NORM(o)===PROP_NORM(v)?" selected":""}>${o||"—"}</option>`).join("")+`</select></td>`;
+      }
+      /* 02/10 (item 4) — números como texto: sem as setinhas de subir/descer o valor */
+      return `<td><input class="sim-edit" type="text"${tipo==="num"?' inputmode="decimal"':''} data-i="${i}" data-c="${campo}" value="${esc(String(v==null?"":v))}" oninput="simAoEditar(${i})" onblur="simSairDoCampo(${i})"></td>`;
     }).join("");
     // linha alterada ganha um destaque suave para não perder a edição de vista
-    const estilo = alterada ? ' style="background:#fff8e6"' : '';
-    return `<tr${estilo}><td style="text-align:center;color:${alterada?'#c9a227':'#c8d8e0'}">${alterada?'●':''}</td>${tds}<td id="sim-st-${i}" style="white-space:nowrap;font-size:12px;min-width:110px">${simStatusHtml(i)}</td></tr>`;
+    const siK = PROP_NORM(u.statusInterno||"");
+    const estilo = alterada ? ' style="background:#fff8e6"' : (SIM_COR_SI[siK] ? ' style="background:'+SIM_COR_SI[siK]+'"' : '');
+    return `<tr${estilo} data-si="${siK}"><td style="text-align:center;color:${alterada?'#c9a227':'#c8d8e0'}">${alterada?'●':''}</td>${tds}<td id="sim-st-${i}" style="white-space:nowrap;font-size:12px;min-width:110px">${simStatusHtml(i)}</td></tr>`;
   }).join("");
   // +1 coluna (o marcador de "alterada") no cabeçalho
   const cab2 = cab.replace('<thead><tr>', '<thead><tr><th></th>').replace('<th></th></tr></thead>', '<th>Notion</th></tr></thead>');
@@ -1666,6 +1688,14 @@ function simRenderUnidades(){
    tabela NÃO é redesenhada depois de gravar — senão o campo que a pessoa está
    digitando em outra linha perderia o foco. Se a linha for alterada de novo
    enquanto grava, grava outra vez com o valor novo. */
+/* 02/10 (item 6) — cor da linha pelo STATUS INTERNO (não mexe no mapa) */
+const SIM_COR_SI={"DISPONIVEL":"#E3F4E8","RESERVADA":"#E1ECF8","VENDIDA":"#FBE1E1"};
+function simCorStatusInterno(i){
+  const st=document.getElementById("sim-st-"+i), tr=st&&st.closest("tr"); if(!tr) return;
+  const u=UNS[i]||{}; const sel=tr.querySelector('.sim-edit[data-c="statusInterno"]');
+  const k=PROP_NORM(sel?sel.value:(u.statusInterno||""));
+  tr.dataset.si=k; if(!SIM_ALTERADAS.has(i) && SIM_ESTADO[i]!=="erro") tr.style.background=SIM_COR_SI[k]||"";
+}
 function simStatusHtml(i){
   const e=SIM_ESTADO[i];
   if(e==="salvando") return '<span style="color:#7A6A2E">⏳ salvando…</span>';
@@ -1679,7 +1709,7 @@ function simPintarLinha(i){
   const st=document.getElementById("sim-st-"+i); if(st) st.innerHTML=simStatusHtml(i);
   const tr=st && st.closest("tr"); if(!tr) return;
   const pend=SIM_ALTERADAS.has(i), erro=SIM_ESTADO[i]==="erro";
-  tr.style.background = erro ? "#FDECEA" : (pend ? "#fff8e6" : "");
+  tr.style.background = erro ? "#FDECEA" : (pend ? "#fff8e6" : (SIM_COR_SI[tr.dataset.si||PROP_NORM((UNS[i]||{}).statusInterno||"")]||""));
   const mk=tr.firstElementChild;
   if(mk){ mk.textContent = pend ? "●" : ""; mk.style.color = erro ? "#B0431F" : "#c9a227"; }
 }
@@ -1990,7 +2020,8 @@ function propRender(){
   const corpo=vis.map(p=>{
     const venc=propVencida(p);
     const res=!venc && chegouReservada(p,true);
-    const estilo = venc ? ' style="background:#F6D6D2"' : '';
+    const nova = !venc && PROP_NORM(p.status)==="RECEBIDA";      // 02/10 (item 6) — novas em destaque
+    const estilo = venc ? ' style="background:#F6D6D2"' : (nova ? ' style="background:#FFF3C4"' : '');
     return `<tr class="clicavel${res?' linha-res':''}"${estilo}${res?' title="Enviada com a unidade já reservada — só é analisada se houver desistência"':''} onclick="propVer('${p.id}')">
       <td><b>${esc(p.proposta||"—")}</b></td>
       <td>Un. ${esc(String(p.unidade||"—"))}</td>
@@ -2092,8 +2123,11 @@ const PEND_REGRA={
 };
 const PEND_SEMPRE=["RG e CPF do proponente","Comprovante de estado civil","Comprovante de endereço"];
 function propPedido(doc, origens, civil){
+  /* 02/10 (item 11) — compara SEM acento: a origem vem gravada como "SERVIDOR PUBLICO" e a regra
+     tinha "SERVIDOR PÚBLICO"; por isso os documentos de renda sumiam da lista do cliente */
+  const os=(origens||[]).map(o=>PROP_NORM(o)).filter(Boolean);
   return PEND_SEMPRE.indexOf(doc)>=0 ||
-    (PEND_REGRA[doc] && origens.some(o=>o && PEND_REGRA[doc].indexOf(o)>=0)) ||
+    (PEND_REGRA[doc] && PEND_REGRA[doc].some(r=>os.indexOf(PROP_NORM(r))>=0)) ||
     (doc==="Comprovante de divórcio" && String(civil||"").indexOf("DIVORC")>=0);
 }
 function propPendenciasHtml(p, pend){
@@ -2250,6 +2284,9 @@ function propVer(id){
         <button class="bt ${PROP_NORM(p.status)==='VENDIDA'?'atual':''}" style="background:#5B2A86;color:#fff" onclick="propStatus('${p.id}','VENDIDA')">Vendida</button>
       </div>
       <div id="prop-detAviso" class="sim-aviso" style="margin-top:8px"></div>
+      <!-- 02/10 (item 10) -->
+      <div style="margin-top:10px"><button class="bt" style="background:#B7791F;color:#fff" onclick="propAlerta('${p.id}')">📣 Enviar alerta de pendências ao corretor</button>
+        <div id="prop-alertaInfo" class="sim-aviso" style="margin-top:6px"></div></div>
       <div style="font-size:12px;color:var(--text3);margin-top:6px">
         <b>Reservar</b> marca a unidade ${esc(String(p.unidade||""))} como RESERVADA no Notion
         (e ela fica azul no mapa de vendas). <b>Negar</b> devolve a unidade para NÃO.
@@ -2275,7 +2312,7 @@ function propVer(id){
       </div>
       <div id="prop-correspInfo" style="font-size:12px;color:var(--text3);margin-top:6px"></div>
       <div style="font-size:12px;color:var(--text3);margin-top:6px">
-        Vai o <b>PDF da proposta</b> (gerado na hora, com os dados atuais) e <b>todos os documentos anexados</b>.
+        Vai o <b>PDF da proposta</b> e o <b>link de consulta</b> (somente leitura) com os dados e documentos — o link mostra sempre a versão atual.
         No corpo do e-mail vai o cabeçalho desta proposta. Cópia para vendasreservadosipes@gmail.com.
       </div>
       <div id="prop-correspHist" style="font-size:12px;margin-top:6px">${propHistCorresp(p.envioCorrespondente)}</div>
@@ -2478,13 +2515,28 @@ function propPintarDetalhe(id, r){
         style="color:var(--azul);text-decoration:underline">${esc(f.nome)}</a>`).join(' · ')+'</div>'
     : '';
 
-  alvo.innerHTML = cxPend + cxDocs + cxCampos + cxPdf;
+  alvo.innerHTML = propPerfilHtml(campos) + cxPend + cxDocs + cxCampos + cxPdf;
   /* r47 (item 1) — a lista de correspondentes vem do servidor (é lá que o
      TESTE sai quando não precisar mais) */
   PROP_ARQ_TOTAL[id] = Number(r.arquivosTotal)||0;
   const cxC=document.getElementById("prop-corresp");
-  if(cxC && r.correspondentes && r.correspondentes.length && !cxC.dataset.enviando)
-    cxC.innerHTML = propBotoesCorresp(id, r.correspondentes);
+  if(cxC && r.correspondentes && r.correspondentes.length && !cxC.dataset.enviando){
+    /* 02/10 (item 7) — o que o corretor marcou na proposta decide os botões:
+       crédito JÁ aprovado por AUDICRED/AMAZONAS -> só o aviso (não precisa enviar);
+       preferência AUDICRED ou AMAZONAS -> só o botão dele; QUALQUER (ou vazio) -> os dois. */
+    const cAprov=PROP_NORM(campos["CORRESPONDENTE"]||""), cPref=PROP_NORM(campos["CORRESPONDENTE PREFERIDO"]||"");
+    const comCred=PROP_NORM(campos["CLIENTE COM CREDITO APROVADO NA CAIXA"]||"")==="SIM";
+    const casa=(c,alvo)=>{ const n=PROP_NORM(c.nome)+" "+PROP_NORM(c.chave); return alvo==="AUDICRED" ? n.indexOf("AUDICRED")>=0 : (alvo==="AMAZONAS" ? (n.indexOf("AMAZONAS")>=0||n.indexOf("DANIELA")>=0) : false); };
+    const info=document.getElementById("prop-correspInfo");
+    if(comCred && (cAprov==="AUDICRED"||cAprov==="AMAZONAS")){
+      cxC.innerHTML='<div class="sim-aviso ok" style="margin:0"><b>Crédito já aprovado pelo correspondente '+esc(campos["CORRESPONDENTE"])+'.</b> Não é preciso enviar a proposta.</div>';
+    } else {
+      let lista=r.correspondentes.filter(c=>!/TESTE/i.test(c.nome||c.chave)||true);
+      if(cPref==="AUDICRED"||cPref==="AMAZONAS") lista=r.correspondentes.filter(c=>casa(c,cPref));
+      cxC.innerHTML = propBotoesCorresp(id, lista.length?lista:r.correspondentes);
+      if(info) info.innerHTML = cPref ? 'Preferência do corretor: <b>'+esc(campos["CORRESPONDENTE PREFERIDO"])+'</b>.' : '';
+    }
+  }
   const cxCH=document.getElementById("prop-correspHist");
   if(cxCH && r.envioCorrespondente!==undefined) cxCH.innerHTML = propHistCorresp(r.envioCorrespondente);
   /* r53 — a conversa mora abaixo do campo de resposta, não aqui. */
@@ -2492,6 +2544,36 @@ function propPintarDetalhe(id, r){
   if(cxH) cxH.innerHTML = cxHist;
 }
 
+/* 02/10 (item 12) — quadro só com o perfil de quem compra: profissão, origem da renda, renda,
+   estado civil e regime de bens do proponente, do cônjuge e dos demais compradores. */
+function propPerfilHtml(campos){
+  campos=campos||{};
+  const ach=(re)=>{ const k=Object.keys(campos).find(k=>re.test(PROP_NORM(k))); return k?campos[k]:""; };
+  const brl=v=>{ const n=Number(String(v||"").replace(/[^\d,.-]/g,"").replace(/\.(?=\d{3})/g,"").replace(",",".")); return isNaN(n)||!n ? (v||"—") : simBRL(n); };
+  const linhas=[];
+  linhas.push(["Proponente", ach(/^CLIENTE$/), ach(/^PROFISSAO$/), ach(/^ORIGEM (DA )?RENDA$/), brl(ach(/^RENDA( APROVADA| TITULAR)?$/)), ach(/^ESTADO CIVIL$/), ach(/^REGIME( DE BENS)?$/)]);
+  const conj=ach(/^CONJUGE$/);
+  if(conj) linhas.push(["Cônjuge", conj, ach(/^PROFISSAO CONJUGE$/), ach(/^ORIGEM (DA )?RENDA CONJUGE$/), brl(ach(/^RENDA( APROVADA)? CONJUGE$/)), ach(/^ESTADO CIVIL$/), ach(/^REGIME( DE BENS)?$/)]);
+  let deps=[]; try{ const d=JSON.parse(campos["DADOS"]||"{}"); deps=(d.dependentes||d.pessoas||[]); }catch(e){}
+  (Array.isArray(deps)?deps:[]).forEach((x,i)=>{ if(!x||!x.nome) return;
+    linhas.push([(PROP_NORM(x.tipo)==="COMPRADOR"?"Comprador ":"Dependente ")+(i+1), x.nome, x.profissao||"", x.origemRenda||"", x.renda?brl(x.renda):"—", "", ""]); });
+  const td='style="padding:6px 8px;border-bottom:1px solid var(--border)"';
+  return '<div style="margin:0 0 14px;border:1.5px solid var(--azul);border-radius:10px;padding:10px 12px">'+
+    '<b style="font-size:13px;color:var(--azul)">Perfil dos compradores</b>'+
+    '<div class="tbl-wrap" style="margin-top:6px"><table style="width:100%;font-size:12.5px"><thead><tr>'+
+    ['','Nome','Profissão','Origem da renda','Renda','Estado civil','Regime de bens'].map(h=>'<th '+td+'>'+h+'</th>').join("")+
+    '</tr></thead><tbody>'+linhas.map(l=>'<tr>'+l.map((v,k)=>'<td '+td+'>'+(k===0?'<b>'+esc(v)+'</b>':esc(v||"—"))+'</td>').join("")+'</tr>').join("")+
+    '</tbody></table></div></div>';
+}
+/* 02/10 (item 10) — alerta ao corretor: e-mail com o link de complemento e a lista do que falta */
+async function propAlerta(id){
+  const av=document.getElementById("prop-alertaInfo"); if(!av) return;
+  if(!confirm("Enviar ao CORRETOR um e-mail com o link para completar a proposta e a lista do que falta?")) return;
+  av.className="sim-aviso ok"; av.textContent="Enviando o alerta…";
+  let r=null; try{ r=await chamar({action:"simsPropostaStatus", pageId:id, alerta:true}, 90000, true); }catch(e){ r=null; }
+  if(r&&r.ok){ av.className="sim-aviso ok"; av.innerHTML="<b>✓ Alerta enviado</b> para "+esc(r.para||"o corretor")+" — "+(r.pendencias||0)+" pendência(s) listada(s)."; }
+  else { av.className="sim-aviso err"; av.textContent="Não enviou: "+((r&&(r.mensagem||r.erro))||"sem resposta"); }
+}
 /* ---------- PDF da proposta ---------- */
 async function propPdf(id){
   const bt = document.getElementById("prop-btPdf");
@@ -2770,7 +2852,8 @@ async function propStatus(id, status){
   if(r && r.ok && status==="VENDIDA"){ propMarcarAtual(status); await propPosVendida(id, r, av); try{ simCarregarUnidades(true); }catch(e){} return; }
   if(r && r.ok){
     av.className="sim-aviso ok";
-    av.innerHTML="<b>✓ Status: "+esc(r.status||status)+".</b> "+esc(r.reflexo||"")+"<br><span style='font-size:12px'>Unidade, mapa e lista de propostas já atualizados.</span>";
+    av.innerHTML="<b>✓ Status: "+esc(r.status||status)+".</b> "+esc(r.reflexo||"")+"<br><span style='font-size:12px'>Unidade, mapa e lista de propostas já atualizados."+
+      (r.emailCorretor ? (r.emailCorretor.ok ? " E-mail enviado ao corretor ("+esc(r.emailCorretor.para||"")+")." : " ⚠ E-mail ao corretor não saiu: "+esc(r.emailCorretor.erro||"")) : "")+"</span>";
     propMarcarAtual(status);
     propSincronizarTudo();
   }else{
