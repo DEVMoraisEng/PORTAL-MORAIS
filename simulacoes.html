@@ -545,7 +545,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
             <div class="fcampo"><label>Buscar</label>
               <input type="search" id="sim-buscaUn" placeholder="Unidade ou tipo…" oninput="simRenderUnidades()"></div>
             <button class="bt ghost" onclick="simCarregarUnidades(true)" title="Busca no Notion ao vivo, ignorando o arquivo publicado">↻ Atualizar agora</button>
-            <button class="bt verde" id="sim-btSalvarTudo" onclick="simSalvarTudo()" title="Grava no Notion todas as unidades que você alterou">💾 Salvar tudo</button>
+            <button class="bt verde" id="sim-btSalvarTudo" onclick="simSalvarTudo()" title="Tenta de novo as unidades que não conseguiram salvar" style="display:none">↻ Tentar salvar de novo</button>
             <span id="sim-alteradas" style="font-size:12px;color:var(--text3);align-self:center"></span>
           </div>
           <div class="tbl-wrap alta"><table id="sim-tabUn"></table></div>
@@ -1535,7 +1535,7 @@ async function simCarregarUnidades(forcar){
     if(semId){
       simAvisoUn("err","As unidades vieram sem identificador do Notion — o backend precisa da ação simsUnidades atualizada. Fale com o dev.");
     }else{
-      simAvisoUn("ok","Lista ao vivo do Notion"+(r.doCache?" (cópia de "+simData(r._ts)+")":"")+". Edite quantas quiser e use \u201cSalvar tudo\u201d.");
+      simAvisoUn("ok","Lista ao vivo do Notion"+(r.doCache?" (cópia de "+simData(r._ts)+")":"")+". Pode editar direto: cada alteração é salva sozinha no Notion e já aparece no mapa.");
     }
   }
   else {
@@ -1593,13 +1593,19 @@ function simAvisoUn(t,m){
 /* Conjunto das unidades alteradas mas ainda não gravadas (por índice em UNS).
    É o que permite editar várias e mandar todas de uma vez no "Salvar tudo". */
 const SIM_ALTERADAS = new Set();
+/* salvar automático (02/10) — ver simAoEditar */
+const SIM_TIMERS={}, SIM_VER={}, SIM_ESTADO={};
+let SIM_FILA=[], SIM_GRAVANDO=false, SIM_ULTIMO_OK="";
 
 function simMarcarContador(){
   const el=document.getElementById("sim-alteradas");
   const bt=document.getElementById("sim-btSalvarTudo");
   const n=SIM_ALTERADAS.size;
-  if(el) el.textContent = n ? (n+" unidade(s) alterada(s) — não esqueça de salvar") : "";
-  if(bt) bt.disabled = (n===0);
+  const falhas=[...SIM_ALTERADAS].filter(i=>SIM_ESTADO[i]==="erro").length;
+  const salvando=SIM_GRAVANDO || SIM_FILA.length || Object.keys(SIM_TIMERS).length;
+  if(el) el.textContent = falhas ? (falhas+" unidade(s) não salvaram — veja as linhas em vermelho")
+                        : (salvando ? "salvando no Notion…" : (SIM_ULTIMO_OK ? "tudo salvo · "+SIM_ULTIMO_OK : ""));
+  if(bt){ bt.style.display = falhas ? "" : "none"; bt.disabled = !falhas; }
 }
 
 /* Lê os campos de UMA linha (do DOM) de volta para o objeto em UNS e devolve
@@ -1630,40 +1636,103 @@ function simRenderUnidades(){
       if(tipo==="ro") return `<td><b>${esc(String(v==null?"":v))}</b></td>`;
       if(tipo==="v3"){
         const atual=String(v||"NAO").toUpperCase();
-        return `<td><select class="sim-edit" data-i="${i}" data-c="${campo}" onchange="simAoEditar(${i})">
+        return `<td><select class="sim-edit" data-i="${i}" data-c="${campo}" onchange="simAoEditar(${i},true)">
           <option value="NAO"${atual==="NAO"?" selected":""}>NÃO</option>
           <option value="RESERVADA"${atual==="RESERVADA"?" selected":""}>RESERVADA</option>
           <option value="SIM"${atual==="SIM"?" selected":""}>SIM</option></select></td>`;
       }
-      if(tipo==="area") return `<td><textarea class="sim-edit" rows="2" data-i="${i}" data-c="${campo}" oninput="simAoEditar(${i})" style="width:100%;min-width:220px;resize:vertical;font-family:inherit;font-size:13px;line-height:1.4">${esc(String(v==null?"":v))}</textarea></td>`;
-      if(tipo==="sn") return `<td><select class="sim-edit" data-i="${i}" data-c="${campo}" onchange="simAoEditar(${i})">
+      if(tipo==="area") return `<td><textarea class="sim-edit" rows="2" data-i="${i}" data-c="${campo}" oninput="simAoEditar(${i})" onblur="simSairDoCampo(${i})" style="width:100%;min-width:220px;resize:vertical;font-family:inherit;font-size:13px;line-height:1.4">${esc(String(v==null?"":v))}</textarea></td>`;
+      if(tipo==="sn") return `<td><select class="sim-edit" data-i="${i}" data-c="${campo}" onchange="simAoEditar(${i},true)">
           <option value="true"${v?" selected":""}>SIM</option>
           <option value="false"${!v?" selected":""}>NÃO</option></select></td>`;
-      return `<td><input class="sim-edit" type="${tipo==="num"?"number":"text"}" data-i="${i}" data-c="${campo}" value="${esc(String(v==null?"":v))}" oninput="simAoEditar(${i})"></td>`;
+      return `<td><input class="sim-edit" type="${tipo==="num"?"number":"text"}" data-i="${i}" data-c="${campo}" value="${esc(String(v==null?"":v))}" oninput="simAoEditar(${i})" onblur="simSairDoCampo(${i})"></td>`;
     }).join("");
     // linha alterada ganha um destaque suave para não perder a edição de vista
     const estilo = alterada ? ' style="background:#fff8e6"' : '';
-    return `<tr${estilo}><td style="text-align:center;color:${alterada?'#c9a227':'#c8d8e0'}">${alterada?'●':''}</td>${tds}<td><button class="bt az" onclick="simSalvarUnidade(${i})">Salvar</button></td></tr>`;
+    return `<tr${estilo}><td style="text-align:center;color:${alterada?'#c9a227':'#c8d8e0'}">${alterada?'●':''}</td>${tds}<td id="sim-st-${i}" style="white-space:nowrap;font-size:12px;min-width:110px">${simStatusHtml(i)}</td></tr>`;
   }).join("");
   // +1 coluna (o marcador de "alterada") no cabeçalho
-  const cab2 = cab.replace('<thead><tr>', '<thead><tr><th></th>');
+  const cab2 = cab.replace('<thead><tr>', '<thead><tr><th></th>').replace('<th></th></tr></thead>', '<th>Notion</th></tr></thead>');
   document.getElementById("sim-tabUn").innerHTML=cab2+"<tbody>"+corpo+"</tbody>";
   simMarcarContador();
 }
 
-/* Chamado a cada tecla/troca: marca a linha como alterada sem re-renderizar
-   a tabela inteira (re-render no meio da digitação faria o campo perder o
-   foco). Só atualiza o marcador e o contador. */
-function simAoEditar(i){
-  if(!SIM_ALTERADAS.has(i)){
-    SIM_ALTERADAS.add(i);
-    // acende o ponto e pinta a linha sem reconstruir a tabela
-    const cel = document.querySelector(`.sim-edit[data-i="${i}"]`);
-    const tr = cel && cel.closest("tr");
-    if(tr){ tr.style.background="#fff8e6"; const mk=tr.firstElementChild; if(mk){ mk.textContent="●"; mk.style.color="#c9a227"; } }
-  }
+/* 02/10 — SALVA SOZINHO. Antes era preciso clicar em "Salvar" (e muita gente
+   não clicava): agora toda alteração vai para o Notion e para o mapa.
+     - listas (SIM/NÃO, vendida…): grava na hora;
+     - texto e números: grava 1,2 s depois que a pessoa para de digitar, ou ao
+       sair do campo;
+   As gravações vão UMA de cada vez (o Apps Script atende uma por vez) e a
+   tabela NÃO é redesenhada depois de gravar — senão o campo que a pessoa está
+   digitando em outra linha perderia o foco. Se a linha for alterada de novo
+   enquanto grava, grava outra vez com o valor novo. */
+function simStatusHtml(i){
+  const e=SIM_ESTADO[i];
+  if(e==="salvando") return '<span style="color:#7A6A2E">⏳ salvando…</span>';
+  if(e==="pendente") return '<span style="color:#9a8a50">● alterado</span>';
+  if(e==="ok") return '<span style="color:#1D7A46;font-weight:700">✓ salvo</span>';
+  if(e==="erro") return '<span style="color:#B0431F;font-weight:700">⚠ não salvou</span> '+
+                       `<button class="bt az" style="padding:3px 8px;font-size:11px" onclick="simEnfileirar(${i})">tentar de novo</button>`;
+  return '<span style="color:#9fb3bf">salva sozinho</span>';
+}
+function simPintarLinha(i){
+  const st=document.getElementById("sim-st-"+i); if(st) st.innerHTML=simStatusHtml(i);
+  const tr=st && st.closest("tr"); if(!tr) return;
+  const pend=SIM_ALTERADAS.has(i), erro=SIM_ESTADO[i]==="erro";
+  tr.style.background = erro ? "#FDECEA" : (pend ? "#fff8e6" : "");
+  const mk=tr.firstElementChild;
+  if(mk){ mk.textContent = pend ? "●" : ""; mk.style.color = erro ? "#B0431F" : "#c9a227"; }
+}
+function simAoEditar(i, imediato){
+  SIM_ALTERADAS.add(i);
+  SIM_VER[i]=(SIM_VER[i]||0)+1;
+  if(SIM_ESTADO[i]!=="salvando") SIM_ESTADO[i]="pendente";
+  simPintarLinha(i);
+  clearTimeout(SIM_TIMERS[i]);
+  SIM_TIMERS[i]=setTimeout(()=>{ delete SIM_TIMERS[i]; simEnfileirar(i); }, imediato ? 0 : 1200);
   simMarcarContador();
 }
+function simSairDoCampo(i){
+  if(SIM_TIMERS[i]){ clearTimeout(SIM_TIMERS[i]); delete SIM_TIMERS[i]; simEnfileirar(i); }
+}
+function simEnfileirar(i){
+  if(!SIM_FILA.includes(i)) SIM_FILA.push(i);
+  simProcessarFila();
+}
+async function simProcessarFila(){
+  if(SIM_GRAVANDO) return;
+  SIM_GRAVANDO=true; simMarcarContador();
+  try{ while(SIM_FILA.length){ await simGravarAuto(SIM_FILA.shift()); } }
+  finally{ SIM_GRAVANDO=false; simMarcarContador(); }
+}
+async function simGravarAuto(i){
+  const u=UNS[i];
+  if(!u||!u.id){ SIM_ESTADO[i]="erro"; simPintarLinha(i);
+    simAvisoUn("err","Unidade sem identificador — clique em ↻ Atualizar agora para recarregar do Notion."); return; }
+  const ver=SIM_VER[i]||0;
+  const campos=simColetarLinha(i);
+  SIM_ESTADO[i]="salvando"; simPintarLinha(i);
+  let r;
+  try{ r = await chamar({action:"simsUnidadeUpdate", pageId:u.id, campos:campos}, 60000, true); }
+  catch(e){ r = (await simConferirGravacao(u, campos)) === true ? {ok:true} : null; }
+  if(r && r.ok){
+    if((SIM_VER[i]||0)===ver){ SIM_ALTERADAS.delete(i); SIM_ESTADO[i]="ok"; }
+    else SIM_ESTADO[i]="pendente";            // mudou de novo durante a gravação: o timer novo grava
+    SIM_ULTIMO_OK=new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+    try{ storeGravar("sims_unidades", {ok:true, unidades:UNS}); }catch(e){}
+    const ign = (r.ignoradas&&r.ignoradas.length) ? " Colunas não encontradas no Notion: "+r.ignoradas.join(", ")+"." : "";
+    simAvisoUn(ign?"err":"ok","Unidade "+u.unidade+" salva no Notion às "+SIM_ULTIMO_OK+"."+ign+" O mapa de vendas já mostra a mudança.");
+    try{ simRenderVgv(); simRenderMapa(); analiseRender(); }catch(e){}
+  }else{
+    SIM_ESTADO[i]="erro";
+    simAvisoUn("err",(r&&r.erro==="MODO_TESTE") ? "Perfil TESTES não grava." :
+      "Unidade "+u.unidade+" não salvou: "+simErroAmigavel(r&&r.erro)+" Use \u201ctentar de novo\u201d na linha.");
+  }
+  simPintarLinha(i); simMarcarContador();
+}
+window.addEventListener("beforeunload", e=>{
+  if(SIM_GRAVANDO || SIM_FILA.length || Object.keys(SIM_TIMERS).length){ e.preventDefault(); e.returnValue=""; }
+});
 
 async function simSalvarUnidade(i){
   const u=UNS[i];
@@ -1724,29 +1793,11 @@ async function simConferirGravacao(u, campos){
    paralelo) de propósito: o Apps Script atende uma requisição por vez, então
    disparar 10 juntas só encheria a fila e aumentaria a chance de timeout. */
 async function simSalvarTudo(){
+  /* 02/10 — com o salvar automático, este botão só aparece quando alguma
+     linha falhou: manda de novo todas as que ainda estão pendentes. */
   const ids=[...SIM_ALTERADAS];
-  if(!ids.length){ simAvisoUn("ok","Nada alterado para salvar."); return; }
-  const bt=document.getElementById("sim-btSalvarTudo"); if(bt) bt.disabled=true;
-  let ok=0, falhas=[];
-  for(let k=0;k<ids.length;k++){
-    const i=ids[k]; const u=UNS[i];
-    simAvisoUn("ok",`Salvando ${k+1}/${ids.length} — Unidade ${u&&u.unidade}…`);
-    if(!u||!u.id){ falhas.push((u&&u.unidade)||"?"); continue; }
-    const campos=simColetarLinha(i);
-    let r;
-    try{ r = await chamar({action:"simsUnidadeUpdate", pageId:u.id, campos:campos}, 60000, true); }
-    catch(e){ r = (await simConferirGravacao(u, campos)) === true ? {ok:true} : null; }
-    if(r && r.ok){ ok++; SIM_ALTERADAS.delete(i); }
-    else if(r && r.erro==="MODO_TESTE"){ simAvisoUn("err","Perfil TESTES não grava."); if(bt) bt.disabled=false; return; }
-    else { falhas.push((u&&u.unidade)||"?"); }
-  }
-  try{ storeGravar("sims_unidades", {ok:true, unidades:UNS}); }catch(e){}
-  simRenderUnidades(); simRenderVgv(); simRenderMapa();
-  if(!falhas.length){
-    simAvisoUn("ok",`${ok} unidade(s) salva(s). O mapa de vendas está sendo republicado.`);
-  }else{
-    simAvisoUn("err",`${ok} salva(s); falhou em: ${falhas.join(", ")}. As que falharam continuam marcadas — tente de novo.`);
-  }
+  if(!ids.length){ simAvisoUn("ok","Nada pendente — tudo já está salvo."); return; }
+  ids.forEach(i=>{ if(SIM_TIMERS[i]){ clearTimeout(SIM_TIMERS[i]); delete SIM_TIMERS[i]; } simEnfileirar(i); });
 }
 
 /* =====================================================================
