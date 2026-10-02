@@ -2245,16 +2245,14 @@ function propVer(id){
     <div style="margin-top:16px"><b style="font-size:13px;color:var(--azul)">Decisão</b>
       <!-- 30/09: o botão do status atual fica em destaque e os outros apagados; o resultado aparece logo abaixo -->
       <div class="prop-dec ${PROP_NORM(p.status)?'tem-status':''}" style="display:flex;gap:9px;margin-top:8px;flex-wrap:wrap">
-        <button class="bt ${PROP_NORM(p.status)==='EM ANALISE'?'atual':''}" onclick="propStatus('${p.id}','EM ANÁLISE')">Em análise</button>
-        <button class="bt verde ${PROP_NORM(p.status)==='ACEITA'?'atual':''}" onclick="propStatus('${p.id}','ACEITA')">Aceitar</button>
         <button class="bt az ${PROP_NORM(p.status)==='RESERVADA'?'atual':''}" onclick="propStatus('${p.id}','RESERVADA')">Reservar</button>
         <button class="bt vermelho ${PROP_NORM(p.status)==='NEGADA'?'atual':''}" onclick="propStatus('${p.id}','NEGADA')">Negar</button>
         <button class="bt ${PROP_NORM(p.status)==='VENDIDA'?'atual':''}" style="background:#5B2A86;color:#fff" onclick="propStatus('${p.id}','VENDIDA')">Vendida</button>
       </div>
       <div id="prop-detAviso" class="sim-aviso" style="margin-top:8px"></div>
       <div style="font-size:12px;color:var(--text3);margin-top:6px">
-        Aceitar ou reservar marca a unidade ${esc(String(p.unidade||""))} como RESERVADA no Notion
-        (e ela fica azul no mapa de vendas). Negar devolve para NÃO.
+        <b>Reservar</b> marca a unidade ${esc(String(p.unidade||""))} como RESERVADA no Notion
+        (e ela fica azul no mapa de vendas). <b>Negar</b> devolve a unidade para NÃO.
         <b>Vendida</b> muda a unidade para VENDIDA = SIM e preenche o BANCO DE DADOS VENDAS CONDOMÍNIO.
       </div>
     </div>
@@ -2698,10 +2696,43 @@ async function propPosVendida(id, r, av){
     ? '<span style="color:var(--vermelho)">Não consegui copiar: '+esc(falhas.join(", "))+'. Dá para arrastar na mão no Notion.</span>'
     : 'Documentos copiados para o banco de vendas.';
 }
+/* 02/10 (item 23) — mostra o que está acontecendo enquanto o servidor trabalha, em vez de só
+   "Salvando…", e marca o botão novo como atual assim que termina. */
+function propProgresso(av, status){
+  const etapas = status==="VENDIDA"
+    ? ["Gravando o status VENDIDA na proposta…","Marcando a unidade como VENDIDA no Notion…",
+       "Levando os dados para o BANCO DE DADOS VENDAS CONDOMÍNIO…","Conferindo as pendências do cadastro da venda…",
+       "Atualizando o mapa e as abas…"]
+    : ["Gravando o status "+status+" na proposta…","Atualizando a unidade no Notion…","Atualizando o mapa e as abas…"];
+  const t0=Date.now();
+  const pintar=()=>{
+    const seg=Math.round((Date.now()-t0)/1000), k=Math.min(etapas.length-1, Math.floor(seg/(status==="VENDIDA"?7:5)));
+    av.className="sim-aviso ok";
+    av.innerHTML=etapas.map((e,i)=>'<div style="opacity:'+(i<k?'.55':(i===k?'1':'.3'))+'">'+(i<k?'✓ ':(i===k?'⏳ ':'• '))+esc(e)+'</div>').join("")+
+      '<div style="font-size:11px;color:var(--text3);margin-top:4px">'+seg+' s</div>';
+  };
+  pintar(); const tm=setInterval(pintar,1000);
+  return ()=>clearInterval(tm);
+}
+function propMarcarAtual(status){
+  const n=PROP_NORM(status);
+  document.querySelectorAll(".prop-dec .bt").forEach(b=>{
+    const m=String(b.getAttribute("onclick")||"").match(/'([^']+)'\)\s*$/);
+    b.classList.toggle("atual", !!(m && PROP_NORM(m[1])===n));
+  });
+  const box=document.querySelector(".prop-dec"); if(box) box.classList.add("tem-status");
+}
+/* 02/10 (item 2) — mudou o status: propostas, unidades e mapa recarregam juntos */
+function propSincronizarTudo(){
+  storeInvalidar("sims_propostas","sims_unidades"); UNS=[];
+  try{ propCarregar(true); }catch(e){}
+  try{ simCarregarUnidades(true); }catch(e){}
+}
 async function propStatus(id, status){
   if(status==="VENDIDA" && !confirm("Marcar esta proposta como VENDIDA?\n\nA unidade passa para VENDIDA = SIM no mapa e os dados vão para o BANCO DE DADOS VENDAS CONDOMÍNIO.")) return;
   const av=document.getElementById("prop-detAviso");
   av.className="sim-aviso ok"; av.textContent="Salvando…";
+  const pararProg=propProgresso(av, status);
   let r;
   /* 90 s: a mudança de status mexe na proposta E na unidade, são várias idas
      ao Notion. Em 45 s o navegador desistia antes de o servidor terminar —
@@ -2719,14 +2750,14 @@ async function propStatus(id, status){
   try{ r=await Promise.race([pedido, espera]); }
   catch(e){
     if(_conf) clearInterval(_conf);
+    pararProg();
     /* Antes de mandar "tente de novo", vai ao Notion ver se gravou. Repetir
        às cegas é como a proposta ficou ACEITA no banco e "com erro" na tela. */
     const conferido = await propConferirStatus(id, status);
     if(conferido===true){
       av.className="sim-aviso ok";
       av.textContent="Demorou, mas gravou: a proposta está como "+status+".";
-      storeInvalidar("sims_propostas","sims_unidades"); UNS=[];
-      propCarregar(true); setTimeout(simFecharDet,1600); return;
+      propMarcarAtual(status); propSincronizarTudo(); return;
     }
     av.className="sim-aviso err";
     av.textContent = conferido===false
@@ -2735,14 +2766,13 @@ async function propStatus(id, status){
     return;
   }
   if(_conf) clearInterval(_conf);
-  if(r && r.ok && status==="VENDIDA"){ await propPosVendida(id, r, av); return; }
+  pararProg();
+  if(r && r.ok && status==="VENDIDA"){ propMarcarAtual(status); await propPosVendida(id, r, av); try{ simCarregarUnidades(true); }catch(e){} return; }
   if(r && r.ok){
     av.className="sim-aviso ok";
-    av.textContent="Status: "+r.status+". "+(r.reflexo||"");
-    storeInvalidar("sims_propostas","sims_unidades");
-    UNS=[];
-    propCarregar(true);
-    setTimeout(simFecharDet,1400);
+    av.innerHTML="<b>✓ Status: "+esc(r.status||status)+".</b> "+esc(r.reflexo||"")+"<br><span style='font-size:12px'>Unidade, mapa e lista de propostas já atualizados.</span>";
+    propMarcarAtual(status);
+    propSincronizarTudo();
   }else{
     av.className="sim-aviso err";
     av.innerHTML=(r&&r.erro==="MODO_TESTE") ? "Perfil TESTES não grava." : propErro(r&&r.erro);
