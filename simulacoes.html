@@ -986,10 +986,15 @@ function anVgv(){
     return `<div class="kpi"><div class="lab">${lab}</div><div class="val">${val2}</div>${sub}</div>`;
   };
   const faltam=Math.max(0, VGV_META*UNS.length - UNS.reduce((a,u)=>a+val(u),0));
+  const ehDecorado=u=>u.decorado===true || /^SIM$/i.test(String(u.decorado||"").trim());
+  const semDecorado=UNS.filter(u=>!ehDecorado(u));
   el.innerHTML=
     card("VGV médio · vendidas", simBRL(med(vend)), med(vend), null)+
     card("VGV médio · estoque", simBRL(med(estoque)), med(estoque), null)+
-    card("VGV médio · geral", simBRL(med(UNS)), med(UNS), null)+
+    /* 02/10 — geral COM e SEM o(s) decorado(s): o decorado tem valor bem acima
+       (vai mobiliado) e puxa a média do conjunto para cima */
+    card("VGV médio · geral (com decorado)", simBRL(med(UNS)), med(UNS), null)+
+    card("VGV médio · geral (sem decorado)", simBRL(med(semDecorado)), med(semDecorado), null)+
     card("Vendidas", vend.length+" de "+UNS.length, null, simBRL(vend.reduce((a,u)=>a+val(u),0))+" vendidos")+
     card("Em estoque", estoque.length+"", null, simBRL(estoque.reduce((a,u)=>a+val(u),0))+" a vender")+
     card("Para bater a meta", faltam?simBRL(faltam):"na meta", null,
