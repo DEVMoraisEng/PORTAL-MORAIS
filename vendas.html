@@ -347,6 +347,15 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 .cd-abat .cd-fl td.neg{color:#8A2E17}
 .cd-abat p{margin:8px 0 0;font-size:12.5px;color:var(--text3)}
 .cd-aviso{margin-top:10px;padding:9px 12px;background:#FBEEC8;border-left:3px solid #EFB700;font-size:12.5px;color:#7A4A16;border-radius:0 6px 6px 0}
+.cd-and{margin:0 0 16px;border:1.5px solid var(--azul,#2B5A7A);border-radius:10px;padding:12px}
+.cd-and h4{margin:0 0 10px;font-size:13px;color:var(--azul,#2B5A7A);letter-spacing:.3px}
+.cd-and .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.cd-and label{display:block;font-size:11px;font-weight:700;color:var(--text3,#5b6b78);margin-bottom:3px;text-transform:uppercase}
+.cd-and select,.cd-and input{width:100%;box-sizing:border-box}
+.cd-and .st{font-size:11px;margin-top:2px;min-height:14px}
+.cd-prog{margin-top:8px;font-size:12.5px;color:var(--azul,#2B5A7A)}
+.cd-prog .barra{height:6px;border-radius:4px;background:rgba(43,90,122,.15);overflow:hidden;margin-top:4px}
+.cd-prog .barra i{display:block;height:100%;width:0;background:var(--verde-btn,#4CD964);transition:width .4s}
 .cd-falta{margin-top:8px;padding:9px 12px;background:#FDECEA;border-left:3px solid #C0392B;font-size:12.5px;color:#8A2E17;border-radius:0 6px 6px 0}
 /* ===== Painel Casas Vendidas (era casas-vendidas.html) — escopado em #st-vendidas ===== */
 #st-vendidas *, #st-vendidas *::before, #st-vendidas *::after{box-sizing:border-box;margin:0;padding:0}
@@ -1780,8 +1789,6 @@ function condAbrir(id){
     '<h3>Unidade '+esc(g(tit)||"")+(g("CONDOMÍNIO")?' · '+esc(g("CONDOMÍNIO")):'')+'</h3><div class="sub">'+esc(g("PROPONENTE")||"—")+' · Proposta '+esc(g("PROPOSTA")||"—")+' · Corretor: '+esc(g("CORRETOR")||"—")+'</div></div>'+
     '<button class="cd-bt" onclick="condFechar()">✕ Fechar</button></div>'+
     '<div class="cd-kpis">'+
-      '<div class="cd-kpi"><small>Crédito aprovado</small><b>'+cdBRL(g("VALOR DO CRÉDITO"))+'</b></div>'+
-      '<div class="cd-kpi"><small>Valor da parcela</small><b>'+cdBRL(g("VALOR DA PARCELA"))+'</b></div>'+
       '<div class="cd-kpi"><small>Valor de venda</small><b>'+cdBRL(g("VALOR DE VENDA"))+'</b></div>'+
       '<div class="cd-kpi"><small>Comissão</small><b>'+cdBRL(g("COMISSÃO"))+'</b>'+(pctTxt?'<span>'+pctTxt+(g("PRAZO ENTRADA")?' · prazo '+g("PRAZO ENTRADA")+' meses':'')+'</span>':'')+'</div>'+
     '</div>'+
@@ -1790,7 +1797,10 @@ function condAbrir(id){
       '<div><label>Dia de pagamento (cliente escolhe)</label><select id="cd-dia"><option value="">—</option>'+Array.from({length:27},(_,i)=>'<option value="'+(i+5)+'"'+(String(dia)===String(i+5)?" selected":"")+'>Dia '+(i+5)+'</option>').join("")+'</select></div>'+
       '<div><label>Data da entrega</label><input type="date" id="cd-ent" value="'+esc(ent?String(ent).slice(0,10):"")+'"></div>'+
       '<button class="cd-bt pri" id="cd-calc" onclick="condCalcular(\''+esc(id)+'\')">Salvar e recalcular o fluxo</button>'+
+      '<div class="cd-prog" id="cd-prog" style="display:none;flex-basis:100%"></div>'+
     '</div>'+
+    condAndamentoHtml(l)+
+    condLinkVendaHtml(l)+
     condAbatimentos(l,fx.total)+
     '<b style="color:var(--azul);font-size:14px">FLUXO DE PAGAMENTO PRO SOLUTO</b>'+
     '<table class="cd-fl" style="margin-top:6px"><thead><tr><th>Parcela</th><th>Valor</th><th>Quando</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>'+linhasH+
@@ -1801,8 +1811,108 @@ function condAbrir(id){
     '</div>';
   document.getElementById("cd-card").style.display="block";
 }
+/* 02/10 — ANDAMENTO DO PROCESSO: as colunas de preenchimento do BANCO DE DADOS VENDAS
+   CONDOMÍNIO (SIM/NÃO e datas — conformidade, assinatura, protocolo, manual, água, energia,
+   pré-vistoria…) editáveis aqui no card, na ordem da planilha. Cada mudança grava sozinha. */
+const CD_AND_FORA=/^(DATA DA VENDA|DATA DE ASSINATURA DO CONTRATO|DATA DA ENTREGA|DATA NASCIMENTO|CONDOM[IÍ]NIO$|STATUS DO CADASTRO|DIA PAGAMENTO)|SINAL|PARCELA|BAL[AÃ]O|P[OÓ]S.CHAVES|NASCIMENTO|^CONTRATO -|VALIDADE|TOKEN|REGIME|ESTADO CIVIL|CORRESPONDENTE/i;
+function condAndamentoCols(){
+  if(!COND) return [];
+  const ordem=condColunasTodas();
+  return ordem.filter(c=>{
+    if(CD_AND_FORA.test(c.nome)) return false;
+    if(c.tipo==="date") return true;
+    if(c.tipo==="checkbox") return true;
+    if(c.tipo==="select"||c.tipo==="status"){
+      const ops=(c.opcoes||[]).map(o=>cdNorm(o));
+      return /\?\s*$/.test(c.nome) || (ops.length && ops.every(o=>o==="SIM"||o==="NAO"||o==="INEXISTE"||o==="AGIO"));
+    }
+    if(c.tipo==="url") return /PROTOCOLO|LINK/i.test(c.nome);
+    return false;
+  });
+}
+function condColunasTodas(){
+  /* mesma ordem da planilha (rua), com todas as colunas */
+  const mapa={}; COND.colunas.forEach(c=>{ mapa[cdNorm(c.nome)]=c; });
+  const tit=COND.titulo, usados=new Set([tit]), out=[];
+  cdOrdemRua().forEach(n=>{ const c=cdAchaColuna(n,usados); if(c){ usados.add(c.nome); out.push(c); } });
+  COND.colunas.forEach(c=>{ if(!usados.has(c.nome)&&c.nome!==tit){ usados.add(c.nome); out.push(c); } });
+  return out;
+}
+function condAndamentoHtml(l){
+  const cols=condAndamentoCols(); if(!cols.length) return "";
+  const campos=cols.map((c,k)=>{
+    const v=cdVal(l,c.nome), idc="cd-and-"+k;
+    let ctl;
+    if(c.tipo==="date") ctl='<input type="date" id="'+idc+'" value="'+esc(v?String(v).slice(0,10):"")+'">';
+    else if(c.tipo==="url") ctl='<input type="url" id="'+idc+'" placeholder="https://…" value="'+esc(v||"")+'">';
+    else if(c.tipo==="checkbox") ctl='<select id="'+idc+'"><option value="NÃO"'+(!v?" selected":"")+'>NÃO</option><option value="SIM"'+(v?" selected":"")+'>SIM</option></select>';
+    else {
+      let ops=(c.opcoes&&c.opcoes.length)?c.opcoes.slice():["SIM","NÃO"];
+      ctl='<select id="'+idc+'"><option value="">—</option>'+ops.map(o=>'<option'+(o===v?" selected":"")+'>'+esc(o)+'</option>').join("")+'</select>';
+    }
+    return '<div><label title="'+esc(c.nome)+'">'+esc(c.nome)+'</label>'+ctl+'<div class="st" id="'+idc+'-st"></div></div>';
+  }).join("");
+  setTimeout(()=>{
+    cols.forEach((c,k)=>{
+      const el=document.getElementById("cd-and-"+k); if(!el) return;
+      el.addEventListener("change",()=>condAndSalvar(l.id,c.nome,el.value,"cd-and-"+k+"-st"));
+    });
+  },0);
+  return '<div class="cd-and"><h4>ANDAMENTO DO PROCESSO <span style="font-weight:400;color:var(--text3)">· cada mudança salva sozinha no Notion</span></h4><div class="grid">'+campos+'</div></div>';
+}
+async function condAndSalvar(id,prop,valor,stId){
+  const st=document.getElementById(stId); if(st){ st.style.color="#7A6A2E"; st.textContent="⏳ salvando…"; }
+  let r=null;
+  try{ r=await chamar({action:"simsVendaSalvar",pageId:id,prop:prop,valor:valor},70000); }catch(e){ r=null; }
+  if(!r||!r.ok){ if(st){ st.style.color="#B0431F"; st.textContent="⚠ não salvou: "+((r&&(r.mensagem||r.erro))||"sem resposta"); } return; }
+  if(r.linha){ const i=COND.linhas.findIndex(x=>x.id===id); if(i>=0) COND.linhas[i]=r.linha; }
+  if(st){ st.style.color="#1D7A46"; st.textContent="✓ salvo"; }
+  condRender();
+}
+/* 02/10 (item 20) — link para o cliente/corretor completar as informações da venda */
+function condLinkVendaHtml(l){
+  const pid=cdVal(l,"ID PROPOSTA");
+  if(!pid) return "";
+  return '<div class="cd-and" style="border-color:#8a6d3b"><h4 style="color:#7A4A16">LINK PARA COMPLETAR AS INFORMAÇÕES DA VENDA</h4>'+
+    '<div style="font-size:12.5px;color:var(--text3);margin-bottom:8px">O cliente ou o corretor completa os dados e documentos da venda (cônjuge, compradores, fiadores, comprovantes) — cai direto no banco de vendas.</div>'+
+    '<button class="cd-bt pri" id="cd-vlink-bt" onclick="condGerarLinkVenda(\''+esc(String(pid))+'\')">🧾 Gerar link</button>'+
+    '<div id="cd-vlink" style="margin-top:8px"></div></div>';
+}
+async function condGerarLinkVenda(pid){
+  const bt=document.getElementById("cd-vlink-bt"), cx=document.getElementById("cd-vlink");
+  if(bt){ bt.disabled=true; bt.textContent="Gerando…"; }
+  let r=null; try{ r=await chamar({action:"simsVendaLink",pageId:pid},60000); }catch(e){ r=null; }
+  if(bt){ bt.disabled=false; bt.textContent="🧾 Gerar de novo"; }
+  if(!r||!r.ok){ cx.innerHTML='<span style="color:#B0431F">Não consegui gerar: '+esc((r&&(r.mensagem||r.erro))||"sem resposta")+'</span>'; return; }
+  cx.innerHTML='<div style="font-size:12px;color:var(--text3);margin-bottom:4px">Vale até '+esc(r.validade||"")+'. Gerar de novo invalida o anterior.</div>'+
+    '<input id="cd-vlink-url" readonly value="'+esc(r.url)+'" style="width:100%;box-sizing:border-box">'+
+    '<textarea id="cd-vlink-msg" rows="4" style="width:100%;box-sizing:border-box;margin-top:6px">'+esc(r.sugestao||"")+'</textarea>'+
+    '<div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">'+
+    '<button class="cd-bt" onclick="condCopiar(\'cd-vlink-url\',this)">Copiar o link</button>'+
+    '<button class="cd-bt" onclick="condCopiar(\'cd-vlink-msg\',this)">Copiar a mensagem</button>'+
+    '<a class="cd-bt" target="_blank" rel="noopener" href="'+esc(r.url)+'" style="text-decoration:none">Abrir</a></div>';
+}
+function condCopiar(idEl,bt){
+  const el=document.getElementById(idEl); if(!el) return;
+  const t=el.value; (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).catch(()=>{ el.select(); document.execCommand("copy"); });
+  if(bt){ const o=bt.textContent; bt.textContent="✓ Copiado"; setTimeout(()=>bt.textContent=o,1500); }
+}
+/* 02/10 (item 25) — andamento do "Salvar e recalcular": etapas e tempo, em vez de só "Calculando…" */
+function condProgresso(ativo){
+  const el=document.getElementById("cd-prog"); if(!el) return ()=>{};
+  if(!ativo){ el.style.display="none"; return ()=>{}; }
+  const etapas=["Gravando as datas no Notion…","Recalculando o fluxo de pagamento…","Atualizando as parcelas na planilha…","Conferindo pendências do cadastro…"];
+  const t0=Date.now(); el.style.display="block";
+  const pintar=()=>{
+    const s=Math.round((Date.now()-t0)/1000), k=Math.min(etapas.length-1,Math.floor(s/6));
+    el.innerHTML='<b>'+etapas[k]+'</b> <span style="color:var(--text3)">('+s+' s)</span><div class="barra"><i style="width:'+Math.min(95,(s/25)*100)+'%"></i></div>';
+  };
+  pintar(); const tm=setInterval(pintar,1000);
+  return (ok)=>{ clearInterval(tm); el.innerHTML='<b style="color:'+(ok?'#1D7A46':'#B0431F')+'">'+(ok?'✓ Salvo e fluxo recalculado':'⚠ Não terminou — veja a mensagem')+'</b>'; setTimeout(()=>{ el.style.display="none"; },4000); };
+}
 async function condCalcular(id){
   const bt=document.getElementById("cd-calc"); bt.disabled=true; bt.textContent="Calculando…";
+  const fimProg=condProgresso(true);
   const l=COND.linhas.find(x=>x.id===id);
   const novos=[["DATA DE ASSINATURA DO CONTRATO",document.getElementById("cd-ass").value],
                ["DIA PAGAMENTO PARCELAS",document.getElementById("cd-dia").value],
@@ -1811,17 +1921,18 @@ async function condCalcular(id){
   const mudou={};
   novos.forEach(([prop,val])=>{ const atual=cdVal(l,prop), a=atual==null?"":String(atual).slice(0,10);
     if(String(val)===a) return; mudou[prop]=val; });
-  if(!Object.keys(mudou).length){ toast("Nada mudou."); bt.disabled=false; bt.textContent="Salvar e recalcular o fluxo"; return; }
+  if(!Object.keys(mudou).length){ fimProg(true); toast("Nada mudou."); bt.disabled=false; bt.textContent="Salvar e recalcular o fluxo"; return; }
   let r=null;
   try{ r=await chamar({action:"simsVendaSalvarVarios",pageId:id,valores:mudou},90000); }catch(e){ r=null; }
   if(r&&r.ok){
     if(r.linha){ const i=COND.linhas.findIndex(x=>x.id===id); if(i>=0) COND.linhas[i]=r.linha; }
     toast(r.aviso?r.aviso:(r.calculo?"Salvo — fluxo recalculado.":"Salvo."));
+    fimProg(true);
     condRender(); if(COND_ABERTA===id) condAbrir(id);
     const b3=document.getElementById("cd-calc"); if(b3){ b3.disabled=false; b3.textContent="Salvar e recalcular o fluxo"; }
     return;
   }
-  if(r&&r.erro&&!/ACAO|DESCONHECID|SEM_RESPOSTA/i.test(r.erro)){ toast("Não salvou: "+(r.mensagem||r.erro)); bt.disabled=false; bt.textContent="Salvar e recalcular o fluxo"; return; }
+  if(r&&r.erro&&!/ACAO|DESCONHECID|SEM_RESPOSTA/i.test(r.erro)){ fimProg(false); toast("Não salvou: "+(r.mensagem||r.erro)); bt.disabled=false; bt.textContent="Salvar e recalcular o fluxo"; return; }
   /* servidor antigo: grava uma por uma, como antes */
   for(const [prop,val] of novos){
     const atual=cdVal(l,prop), a=atual==null?"":String(atual).slice(0,10);
