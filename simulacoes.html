@@ -934,6 +934,10 @@ async function pintarMapa(alvo, alvoLegenda, clicavel){
     if(st==="SIM") e="vendida";
     else if(st.indexOf("RESERV")===0) e="reservada";
     else if(disp==="SIM"||u.disponivel===true) e="disponivel";
+    /* 02/10 (item 6) — este é o mapa INTERNO: o STATUS INTERNO manda quando for reservada/vendida
+       (o mapa do site do corretor continua só com a coluna VENDIDA) */
+    const si=PROP_NORM(u.statusInterno||"");
+    if(si==="VENDIDA") e="vendida"; else if(si==="RESERVADA") e="reservada";
     c[e]++;
     pol.setAttribute("fill", cor[e]);
     pol.setAttribute("fill-opacity","0.62");
@@ -1651,7 +1655,7 @@ function simRenderUnidades(){
       if(tipo==="ro") return `<td><b>${esc(String(v==null?"":v))}</b></td>`;
       if(tipo==="v3"){
         const atual=String(v||"NAO").toUpperCase();
-        return `<td><select class="sim-edit" data-i="${i}" data-c="${campo}" onchange="simAoEditar(${i},true)">
+        return `<td><select class="sim-edit" data-i="${i}" data-c="${campo}" onchange="simEspelharStatusInterno(${i});simAoEditar(${i},true)">
           <option value="NAO"${atual==="NAO"?" selected":""}>NÃO</option>
           <option value="RESERVADA"${atual==="RESERVADA"?" selected":""}>RESERVADA</option>
           <option value="SIM"${atual==="SIM"?" selected":""}>SIM</option></select></td>`;
@@ -1690,6 +1694,16 @@ function simRenderUnidades(){
    enquanto grava, grava outra vez com o valor novo. */
 /* 02/10 (item 6) — cor da linha pelo STATUS INTERNO (não mexe no mapa) */
 const SIM_COR_SI={"DISPONIVEL":"#E3F4E8","RESERVADA":"#E1ECF8","VENDIDA":"#FBE1E1"};
+/* 02/10 (item 5) — mudou VENDIDA: o status interno acompanha (SIM -> VENDIDA, RESERVADA -> RESERVADA, NÃO -> DISPONÍVEL) */
+function simEspelharStatusInterno(i){
+  const st=document.getElementById("sim-st-"+i), tr=st&&st.closest("tr"); if(!tr) return;
+  const v=tr.querySelector('.sim-edit[data-c="vendidaCru"]'), si=tr.querySelector('.sim-edit[data-c="statusInterno"]');
+  if(!v||!si) return;
+  const k=String(v.value||"").toUpperCase();
+  si.value = k==="SIM" ? "VENDIDA" : (k==="RESERVADA" ? "RESERVADA" : "DISPONÍVEL");
+  if(UNS[i]) UNS[i].statusInterno=si.value;
+  simCorStatusInterno(i);
+}
 function simCorStatusInterno(i){
   const st=document.getElementById("sim-st-"+i), tr=st&&st.closest("tr"); if(!tr) return;
   const u=UNS[i]||{}; const sel=tr.querySelector('.sim-edit[data-c="statusInterno"]');
@@ -1753,6 +1767,7 @@ async function simGravarAuto(i){
     const ign = (r.ignoradas&&r.ignoradas.length) ? " Colunas não encontradas no Notion: "+r.ignoradas.join(", ")+"." : "";
     simAvisoUn(ign?"err":"ok","Unidade "+u.unidade+" salva no Notion às "+SIM_ULTIMO_OK+"."+ign+" O mapa de vendas já mostra a mudança.");
     try{ simRenderVgv(); simRenderMapa(); analiseRender(); }catch(e){}
+    try{ propRender(); }catch(e){}   // 02/10 (item 6): selo do status interno na lista de propostas
   }else{
     SIM_ESTADO[i]="erro";
     simAvisoUn("err",(r&&r.erro==="MODO_TESTE") ? "Perfil TESTES não grava." :
@@ -1992,6 +2007,14 @@ function propTag(st){
   const cls = (n==="ACEITA"||n==="VENDIDA") ? "pos" : (n==="NEGADA" ? "neg" : "zero");
   return `<span class="pill ${cls}">${PROP_ROTULO[n]||n}</span>`;
 }
+/* 02/10 (item 6) — selo do STATUS INTERNO da unidade na lista de propostas */
+function propSeloInterno(unidade){
+  const u=(UNS||[]).find(x=>String(x.unidade)===String(unidade)); if(!u) return "";
+  const k=PROP_NORM(u.statusInterno||"");
+  if(k==="RESERVADA") return ' <span title="status interno da unidade" style="font-size:10px;font-weight:800;color:#1B4F7A;background:#E1ECF8;border:1px solid #9CC3E4;border-radius:8px;padding:1px 6px">RESERVADA (interno)</span>';
+  if(k==="VENDIDA") return ' <span title="status interno da unidade" style="font-size:10px;font-weight:800;color:#8A2E17;background:#FBE1E1;border:1px solid #E7A3A3;border-radius:8px;padding:1px 6px">VENDIDA (interno)</span>';
+  return "";
+}
 function propRender(){
   const termo=(document.getElementById("prop-busca").value||"").toLowerCase();
   const vis=PROPS.filter(p=>{
@@ -2024,7 +2047,7 @@ function propRender(){
     const estilo = venc ? ' style="background:#F6D6D2"' : (nova ? ' style="background:#FFF3C4"' : '');
     return `<tr class="clicavel${res?' linha-res':''}"${estilo}${res?' title="Enviada com a unidade já reservada — só é analisada se houver desistência"':''} onclick="propVer('${p.id}')">
       <td><b>${esc(p.proposta||"—")}</b></td>
-      <td>Un. ${esc(String(p.unidade||"—"))}</td>
+      <td>Un. ${esc(String(p.unidade||"—"))}${propSeloInterno(p.unidade)}</td>
       <td>${esc(p.cliente||"—")}</td><td class="col-un">${esc(p.cpf||"—")}</td>
       <td>${esc(p.vendedor||"—")}</td><td>${esc(p.imobiliaria||"—")}</td>
       <td>${p.comCredito
@@ -2532,7 +2555,7 @@ function propPintarDetalhe(id, r){
       cxC.innerHTML='<div class="sim-aviso ok" style="margin:0"><b>Crédito já aprovado pelo correspondente '+esc(campos["CORRESPONDENTE"])+'.</b> Não é preciso enviar a proposta.</div>';
     } else {
       let lista=r.correspondentes.filter(c=>!/TESTE/i.test(c.nome||c.chave)||true);
-      if(cPref==="AUDICRED"||cPref==="AMAZONAS") lista=r.correspondentes.filter(c=>casa(c,cPref));
+      if(cPref==="AUDICRED"||cPref==="AMAZONAS") lista=r.correspondentes.filter(c=>casa(c,cPref) || /TESTE/i.test(c.nome||c.chave||""));   // o TESTE fica sempre, por enquanto
       cxC.innerHTML = propBotoesCorresp(id, lista.length?lista:r.correspondentes);
       if(info) info.innerHTML = cPref ? 'Preferência do corretor: <b>'+esc(campos["CORRESPONDENTE PREFERIDO"])+'</b>.' : '';
     }
