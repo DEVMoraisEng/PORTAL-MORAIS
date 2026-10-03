@@ -1665,15 +1665,19 @@ function simRenderUnidades(){
           <option value="true"${v?" selected":""}>SIM</option>
           <option value="false"${!v?" selected":""}>NÃO</option></select></td>`;
       if(tipo==="si"){   // 02/10 (item 6) — STATUS INTERNO
-        const ops=["","DISPONÍVEL","RESERVADA","VENDIDA"];
+        /* 03/10 — vazio no Notion: mostra o que corresponde à coluna VENDIDA (padrão DISPONÍVEL) */
+        let vs=v;
+        if(!String(vs||"").trim()){ const vc=String((UNS[i]||{}).vendidaCru||(UNS[i]||{}).vendida||"").toUpperCase();
+          vs = vc==="SIM" ? "VENDIDA" : (vc.indexOf("RESERV")===0 ? "RESERVADA" : "DISPONÍVEL"); if(UNS[i]) UNS[i].statusInterno=vs; }
+        const ops=["DISPONÍVEL","RESERVADA","VENDIDA"];
         return `<td><select class="sim-edit" data-i="${i}" data-c="${campo}" onchange="simAoEditar(${i},true);simCorStatusInterno(${i})">`+
-          ops.map(o=>`<option value="${o}"${PROP_NORM(o)===PROP_NORM(v)?" selected":""}>${o||"—"}</option>`).join("")+`</select></td>`;
+          ops.map(o=>`<option value="${o}"${PROP_NORM(o)===PROP_NORM(vs)?" selected":""}>${o||"—"}</option>`).join("")+`</select></td>`;
       }
       /* 02/10 (item 4) — números como texto: sem as setinhas de subir/descer o valor */
       return `<td><input class="sim-edit" type="text"${tipo==="num"?' inputmode="decimal"':''} data-i="${i}" data-c="${campo}" value="${esc(String(v==null?"":v))}" oninput="simAoEditar(${i})" onblur="simSairDoCampo(${i})"></td>`;
     }).join("");
     // linha alterada ganha um destaque suave para não perder a edição de vista
-    const siK = PROP_NORM(u.statusInterno||"");
+    const siK = PROP_NORM(u.statusInterno || (String(u.vendidaCru||u.vendida||"").toUpperCase()==="SIM" ? "VENDIDA" : (String(u.vendidaCru||u.vendida||"").toUpperCase().indexOf("RESERV")===0 ? "RESERVADA" : "DISPONIVEL")));
     const estilo = alterada ? ' style="background:#fff8e6"' : (SIM_COR_SI[siK] ? ' style="background:'+SIM_COR_SI[siK]+'"' : '');
     return `<tr${estilo} data-si="${siK}"><td style="text-align:center;color:${alterada?'#c9a227':'#c8d8e0'}">${alterada?'●':''}</td>${tds}<td id="sim-st-${i}" style="white-space:nowrap;font-size:12px;min-width:110px">${simStatusHtml(i)}</td></tr>`;
   }).join("");
