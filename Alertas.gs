@@ -30,7 +30,7 @@
  * efeito na hora, alManutencao() pelo menu Executar (o log lista tudo).
  *************************************************************************/
 
-var VERSAO_ALERTAS = "2026-10-05 a1";
+var VERSAO_ALERTAS = "2026-10-05 a2";   // a2: a manutenção também arquiva cópias que ainda não começaram
 
 /* Tipo da atividade de DOCUMENTOS que pertence a outro setor, não importa
    quem esteja no Responsável do Notion. */
@@ -154,7 +154,8 @@ function alDocsAbertas_(fresco) {
   if (fresco) cacheRemover_(AL_CH_DOCS);
   return comCache_(AL_CH_DOCS, AL_FRESCO_SEG, alDocsAbertasCalc_);
 }
-function alDocsAbertasCalc_() {
+function alDocsAbertasCalc_(opc) {
+  var futuras = !!(opc && opc.futuras);
   var hoje = alHoje_(), colunasSim = docsColunasSim_();
   var rows = queryAll_(DB_ATIVIDADES_DOCS, {});
 
@@ -181,7 +182,7 @@ function alDocsAbertasCalc_() {
       }
     }
     var di = dt_(getTol_(pr, "DATA INICIAL"));
-    if (di && di.slice(0, 10) > hoje) return;                         // ainda não começou
+    if (!futuras && di && di.slice(0, 10) > hoje) return;             // ainda não começou
 
     var tipo = sel_(getTol_(pr, "TIPO")), coluna = colPorTipo[tipo] || null;
     var obraId = rel[0] ? rel[0].id : null, op = obraId ? obras[alSH_(obraId)] : null;
@@ -223,7 +224,8 @@ function alVendasAbertas_(fresco) {
   if (fresco) cacheRemover_(AL_CH_VENDAS);
   return comCache_(AL_CH_VENDAS, AL_FRESCO_SEG, alVendasAbertasCalc_);
 }
-function alVendasAbertasCalc_() {
+function alVendasAbertasCalc_(opc) {
+  var futuras = !!(opc && opc.futuras);
   var hoje = alHoje_();
   var rows = queryAll_(CONFIG.DB.ATIVIDADES_VENDAS, {
     filter: { property: "ATIVIDADE FINALIZADA", formula: { string: { contains: "NÃO" } } }
@@ -240,7 +242,7 @@ function alVendasAbertasCalc_() {
   rows.forEach(function (r) {
     var pr = r.properties || {};
     var di = dt_(pr["DATA INICIAL"]);
-    if (di && di.slice(0, 10) > hoje) return;
+    if (!futuras && di && di.slice(0, 10) > hoje) return;
     var tipo = sel_(pr["TIPO"]), coluna = alColunaVendas_(tipo);
     var rel = (pr["OBRA"] && pr["OBRA"].relation) || [];
     var obraId = rel[0] ? rel[0].id : null, op = obraId ? obras[alSH_(obraId)] : null;
@@ -272,7 +274,7 @@ function alManutencao() {
   var log = { arquivadas: [], certidao: 0, erros: [] };
   [["DOCUMENTOS", alDocsAbertasCalc_], ["VENDAS", alVendasAbertasCalc_]].forEach(function (par) {
     try {
-      var r = par[1]();
+      var r = par[1]({ futuras: true });
       r.atividades.forEach(function (a) {
         if (!a.dups || !a.dups.length) return;
         a.dups.forEach(function (id) {

@@ -160,7 +160,8 @@
 /* v81 -> v82 (01/10/26): pos-obra.html (validação do ADM, obra nova para todos com endereço no padrão, data de assinatura vazia por quem tem acesso), atv-alertas.js v7 (mensagens novas e validações no sino), atividades.html e index.html. */
 /* v82 -> v83 (01/10/26): analise-dados.html — ESCRITÓRIO MOURA DANTAS fora do Custo Escritório. */
 /* v94 -> v95 (05/10/26): revisão das atividades — alertas-docs.js (coluna da obra, sem cópias, CERTIDÃO DO LOTE em Projetos, alerta de emissão das certidões), documentos.html, vendas.html e index.html. */
-const CACHE = "portal-morais-v95";  // limpeza só dos caches do portal (não apaga os das RAS)
+/* v95 -> v96 (05/10/26): editor-blocos.js v11 + atividades.html — PDFs e fotos com link vencido (InvalidJWT) renovam sozinhos. */
+const CACHE = "portal-morais-v96";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",

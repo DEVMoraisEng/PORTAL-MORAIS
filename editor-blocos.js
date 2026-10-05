@@ -40,6 +40,15 @@
  * v10 (29/09 tarde): EditorBlocos.atualizar(el) — relê em silêncio pedindo ao
  *  servidor para conferir no Notion se a página mudou (a aba Atividades chama
  *  a cada 30 s). Baixa dada no MURAL do painel relê a atividade aberta na hora.
+ * v11 (05/10): LINK VENCIDO ("InvalidJWT / exp claim timestamp check failed").
+ *  Os PDFs e fotos são links assinados do Supabase que valem 6 h. A cópia
+ *  guardada no navegador (e a que a aba Atividades passa pronta em
+ *  opts.dados) continuava com os links velhos: a comparação ignorava os
+ *  links e o documento (diferente da foto) nunca pedia de novo. Agora:
+ *   - abrir com link vencido ou vencendo (10 min) relê na hora e repinta;
+ *   - clicar num link vencido busca o link novo e abre (sem a tela de erro);
+ *   - window.urlAssinadaVencida(url) fica disponível para a aba Atividades
+ *     usar nos anexos dos comentários.
  * v2 (25/09 tarde):
  *  - Abre NA HORA com a última cópia guardada no navegador e atualiza por trás.
  *  - Aceita os dados já prontos (opts.dados — a aba Atividades traz tudo numa
@@ -50,6 +59,43 @@
  *    (é assim que a aba Arquivos organiza os documentos).
  * ------------------------------------------------------------------------ */
 (function(){
+  /* v11: o link assinado (token=JWT) já venceu ou vence em "folga" ms? */
+  function urlAssinadaVencida(u, folga){
+    const m=/[?&]token=([^&#]+)/.exec(String(u||"")); if(!m) return false;
+    try{
+      const p=JSON.parse(atob(m[1].split(".")[1].replace(/-/g,"+").replace(/_/g,"/")));
+      return !p.exp || p.exp*1000 < Date.now()+(folga==null?600000:folga);
+    }catch(err){ return false; }
+  }
+  window.urlAssinadaVencida=urlAssinadaVencida;
+  function venceu(bs){
+    let v=false;
+    try{ JSON.stringify(bs||[],(k,x)=>{ if(!v&&k==="url"&&typeof x==="string"&&urlAssinadaVencida(x)) v=true; return x; }); }catch(err){}
+    return v;
+  }
+  function acharBloco(bs,id){
+    for(const b of (bs||[])){ if(String(b.id)===String(id)) return b; const f=acharBloco(b.filhos,id); if(f) return f; }
+    return null;
+  }
+  /* clicou num link vencido: busca o link novo e abre (a aba é aberta já,
+     no clique, para o navegador não bloquear como pop-up) */
+  document.addEventListener("click",ev=>{
+    const a=ev.target&&ev.target.closest&&ev.target.closest('a[href*="/object/sign/"]');
+    if(!a||!urlAssinadaVencida(a.href,60000)) return;
+    const host=a.closest(".eb-host"), st=host&&host._eb;
+    const outro=!st&&typeof window.renovarLinkVencido==="function";
+    if(!st&&!outro) return;
+    ev.preventDefault(); ev.stopPropagation();
+    const w=window.open("about:blank","_blank");
+    if(w){ try{ w.document.write('<p style="font:14px sans-serif;padding:20px">Abrindo o arquivo…</p>'); }catch(err){} }
+    if(outro){ window.renovarLinkVencido(a,w); return; }
+    const bid=(a.closest("[data-id]")||{}).dataset; const id=bid&&bid.id;
+    st._imgForcar=true;
+    carregar(st,true,true).then(()=>{
+      const nb=id?acharBloco(st.blocos,id):null;
+      if(nb&&nb.url&&w) w.location.href=nb.url; else if(w) w.close();
+    });
+  },true);
   const ROT={paragraph:"Texto",heading_1:"Título",heading_2:"Título",heading_3:"Subtítulo",bulleted_list_item:"Lista",
     numbered_list_item:"Lista numerada",to_do:"Tarefa",toggle:"Recolhível",quote:"Citação",callout:"Destaque",code:"Código"};
   const CONTINUA={to_do:"to_do",bulleted_list_item:"bulleted_list_item",numbered_list_item:"numbered_list_item"};
@@ -132,7 +178,10 @@
     css(); opts=opts||{}; el.classList.add("eb-host");
     const st={pageId, raiz:pageId, pilha:[], blocos:null, ro:!!opts.somenteLeitura, el, titulo:opts.titulo||""};
     el._eb=st;
-    if(opts.dados&&opts.dados.blocos){ st.blocos=opts.dados.blocos; guardar(pageId,opts.dados); pintar(st); return st; }
+    if(opts.dados&&opts.dados.blocos){ st.blocos=opts.dados.blocos; guardar(pageId,opts.dados); pintar(st);
+      /* v11: cópia pronta com link vencido -> relê já, por trás */
+      if(venceu(st.blocos)){ st._imgForcar=true; carregar(st,false,true); }
+      return st; }
     const c=guardado(pageId);
     if(c&&c.blocos){ st.blocos=c.blocos; pintar(st); carregar(st,false,true); }
     else { el.innerHTML=`<div class="eb-vazio"><span class="load"></span> Carregando conteúdo…</div>`; carregar(st,false); }
@@ -151,7 +200,7 @@
       st.el.querySelector("a").onclick=()=>{ carregar(st,true); return false; }; return; }
     guardar(alvo,r);
     const forcar=st._imgForcar; st._imgForcar=false;
-    if(silencioso&&!forcar&&semLinks(r.blocos)===semLinks(st.blocos)) return;
+    if(silencioso&&!forcar&&semLinks(r.blocos)===semLinks(st.blocos)&&!venceu(st.blocos)) return;   // v11: link vencido repinta
     if(silencioso&&st.el.contains(document.activeElement)) return;      // está digitando: não troca por baixo
     st.blocos=r.blocos||[]; if(r.titulo&&st.pilha.length) st.titulo=r.titulo;
     pintar(st);

@@ -519,7 +519,7 @@ main.wrap{padding-bottom:90px}
 <script src="app.js?v=44"></script>
 <script src="rf-rotas.js?v=7"></script>
 <script src="alertas-docs.js?v=1"></script>
-<script src="editor-blocos.js?v=10"></script>
+<script src="editor-blocos.js?v=11"></script>
 <script src="atv-alertas.js?v=7"></script>
 <script>
 /* ---------- tema ---------- */
@@ -1151,7 +1151,17 @@ function tirarResp(id,pid){ const a=acha(id); if(!a) return; const l=(a.resp||[]
  *    leitura chegam em ordens diferentes);
  *  - texto editado no Notion também atualiza (a assinatura inclui o texto). */
 let _lendoComs=false, _relerComs=false, _comsLidoEm=0, _comsOkEm=0, _comsFalhas=0, _comsRetry=null;
-function assinComs(l){ return (l||[]).map(c=>c.id+"|"+(c.texto||"")+"|"+(c.anexos||[]).length).join("\n"); }
+function assinComs(l){ return (l||[]).map(c=>c.id+"|"+(c.texto||"")+"|"+(c.anexos||[]).length+
+  /* 05/10: anexo com link vencido muda a assinatura -> a lista nova (links novos) repinta */
+  (c.anexos||[]).map(x=>(window.urlAssinadaVencida&&x.url&&window.urlAssinadaVencida(x.url))?"v":"").join("")).join("\n"); }
+/* 05/10: clicou num anexo de comentário com link vencido (InvalidJWT): relê os
+   comentários e abre o link novo do mesmo arquivo (editor-blocos.js chama). */
+window.renovarLinkVencido=async function(a,w){
+  const img=a.querySelector("img"), alvo=(img?img.alt:a.textContent.replace(/^\s*📎\s*/,"")).trim();
+  try{ await lerComentarios(true,true); }catch(e){}
+  let u=null; (_coms||[]).forEach(m=>(m.anexos||[]).forEach(x=>{ if(!u&&x.url&&String(x.nome||"").trim()===alvo) u=x.url; }));
+  if(u&&w) w.location.href=u; else if(w) w.close();
+};
 function hm(t){ return new Date(t).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit",second:"2-digit"}); }
 function sinc(estado,extra){
   const el=document.getElementById("pa-sinc"); if(!el) return;
