@@ -1526,8 +1526,12 @@ function repintarSetor(){
 }
 
 /* ===================== ATIVIDADES ===================== */
+/* 05/10/26: grupos de atividades nascem FECHADOS; o que a pessoa abrir fica
+   aberto enquanto estiver no setor (inclusive depois de dar baixa). */
+const ATV_ABERTOS={};
 function renderAtividades(){
   const box=document.getElementById("atv-lista");
+  const abertos=ATV_ABERTOS[SETOR_ATUAL]||(ATV_ABERTOS[SETOR_ATUAL]=new Set());
   const lista=atividadesDoSetor(SETOR_ATUAL);
   document.getElementById("atv-count").textContent =
     lista.length+" atividade(s) em aberto — "+SETOR_ATUAL;
@@ -1560,8 +1564,9 @@ function renderAtividades(){
           <button class="bt" ${c?"":"disabled"} onclick="darBaixa('${a.id}',this)">Dar baixa</button></span>
       </div>`;
     }).join("");
-    return `<details class="grupo" open><summary>${esc(tipo)}<span class="qtd">${itens.length}</span></summary><div class="corpo">${corpo}</div></details>`;
+    return `<details class="grupo" data-tipo="${esc(tipo)}"${abertos.has(tipo)?" open":""}><summary>${esc(tipo)}<span class="qtd">${itens.length}</span></summary><div class="corpo">${corpo}</div></details>`;
   }).join("");
+  box.querySelectorAll("details.grupo[data-tipo]").forEach(d=>d.addEventListener("toggle",()=>{ d.open?abertos.add(d.dataset.tipo):abertos.delete(d.dataset.tipo); }));
 }
 async function darBaixa(id, btn){
   const linha=btn.closest(".atv"), sel=linha.querySelector("select");

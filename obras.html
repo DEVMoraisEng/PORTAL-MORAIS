@@ -727,10 +727,14 @@ function pintarAtividades(){
       <div class="icard"><div class="ival">${ks.length}</div><div class="ilab">Tipos</div></div></div>`:""}
     ${ks.length?ks.map(k=>{ const g=SORT_ATV.k?ordenar(grupos[k],SORT_ATV):grupos[k].sort((a,b)=>String(a.data_final||"9999").localeCompare(String(b.data_final||"9999")));
       const na=g.filter(atrasada).length;
-      return `<details class="grupo" open><summary>${esc(k)}<span class="qtd ${na?"r":""}">${g.length}${na?` · ${na} em atraso`:""}</span></summary>
+      return `<details class="grupo grp-atv" data-k="${esc(k)}"${(window.ATV_GR_ABERTOS||new Set()).has(k)?" open":""}><summary>${esc(k)}<span class="qtd ${na?"r":""}">${g.length}${na?` · ${na} em atraso`:""}</span></summary>
         <div class="corpo">${cabAtv(true)}${g.map(a=>linhaAtv(a,true)).join("")}</div></details>`; }).join("")
       :`<div class="vazio">${PESSOA?"Nenhuma atividade para esta pessoa.":"Nenhuma atividade encontrada."}</div>`}`;
   window.NOMES_ATV=nomes;
+  /* 05/10/26: grupos de atividades nascem FECHADOS; o que abrir fica aberto ao repintar */
+  if(!window.ATV_GR_ABERTOS) window.ATV_GR_ABERTOS=new Set();
+  document.querySelectorAll("details.grp-atv[data-k]").forEach(d=>{ if(d._lig) return; d._lig=1;
+    d.addEventListener("toggle",()=>{ d.open?ATV_GR_ABERTOS.add(d.dataset.k):ATV_GR_ABERTOS.delete(d.dataset.k); }); });
 }
 function cabAtv(comObra){
   const c=(rot,k)=>`<div onclick="ordAtv('${k}')">${rot}${SORT_ATV.k===k?`<span class="seta">${SORT_ATV.d>0?"▲":"▼"}</span>`:""}</div>`;
