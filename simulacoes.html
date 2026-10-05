@@ -575,6 +575,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
             <b style="color:var(--text2)">Status interno (só controle, não vai para o mapa):</b>
             <span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#E3F4E8;border:1px solid #9BD3AE;vertical-align:-2px"></i> disponível</span>
             <span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#E1ECF8;border:1px solid #9CC3E4;vertical-align:-2px"></i> reservada</span>
+            <span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#EDE3F6;border:1px solid #B79AD6;vertical-align:-2px"></i> pagou preferência</span>
             <span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#FBE1E1;border:1px solid #E7A3A3;vertical-align:-2px"></i> vendida</span>
           </div>
           <div class="tbl-wrap alta"><table id="sim-tabUn"></table></div>
@@ -1012,8 +1013,8 @@ async function pintarMapa(alvo, alvoLegenda, clicavel){
     fundo.setAttribute("href", url);
     fundo.setAttributeNS("http://www.w3.org/1999/xlink","xlink:href", url);
   }
-  const cor={vendida:"#C0392B", reservada:"#1F6FB2", disponivel:"#1a6b40", indisponivel:"#9aa8b2"};
-  let c={vendida:0,reservada:0,disponivel:0,indisponivel:0};
+  const cor={vendida:"#C0392B", reservada:"#1F6FB2", preferencia:"#7B4FA0", disponivel:"#1a6b40", indisponivel:"#9aa8b2"};
+  let c={vendida:0,reservada:0,preferencia:0,disponivel:0,indisponivel:0};
   UNS.forEach(u=>{
     const id=String(u.unidade||"").trim();
     const pol=svg.querySelector('[id="'+id+'"]') || svg.querySelector('[id="'+id.padStart(2,"0")+'"]');
@@ -1027,7 +1028,7 @@ async function pintarMapa(alvo, alvoLegenda, clicavel){
     /* 02/10 (item 6) — este é o mapa INTERNO: o STATUS INTERNO manda quando for reservada/vendida
        (o mapa do site do corretor continua só com a coluna VENDIDA) */
     const si=PROP_NORM(u.statusInterno||"");
-    if(si==="VENDIDA") e="vendida"; else if(si==="RESERVADA") e="reservada";
+    if(si==="VENDIDA") e="vendida"; else if(si==="RESERVADA") e="reservada"; else if(si==="PAGOU PREFERENCIA") e="preferencia";   // 05/10 (item 2)
     c[e]++;
     pol.setAttribute("fill", cor[e]);
     pol.setAttribute("fill-opacity","0.62");
@@ -1038,12 +1039,13 @@ async function pintarMapa(alvo, alvoLegenda, clicavel){
     let t=pol.querySelector("title");
     if(!t){ t=document.createElementNS("http://www.w3.org/2000/svg","title"); pol.appendChild(t); }
     t.textContent="Un. "+id+" · T"+(u.tipo||"—")+" · "+simBRL(Number(u.valorVenda)||0)+" · "+
-      ({vendida:"vendida",reservada:"reservada",disponivel:"disponível",indisponivel:"em breve"})[e];
+      ({vendida:"vendida",reservada:"reservada",preferencia:"pagou preferência",disponivel:"disponível",indisponivel:"em breve"})[e];
   });
   const leg=document.getElementById(alvoLegenda);
   if(leg) leg.innerHTML=
     `<b style="color:${cor.disponivel}">■</b> ${c.disponivel} disponível(is) · `+
     `<b style="color:${cor.reservada}">■</b> ${c.reservada} reservada(s) · `+
+    (c.preferencia ? `<b style="color:${cor.preferencia}">■</b> ${c.preferencia} pagou preferência · ` : ``)+
     `<b style="color:${cor.vendida}">■</b> ${c.vendida} vendida(s) · `+
     `<b style="color:${cor.indisponivel}">■</b> ${c.indisponivel} em breve`;
 }
@@ -1609,13 +1611,14 @@ function propCopiar(id, bt){
 const SIM_COLS=[["unidade","UNIDADE","ro"],["tipo","TIPO","num"],["valorVenda","VALOR DE VENDA","num"],
                 ["avaliacao","AVALIACAO","num"],["informacoes","INFORMACOES","txt"],
                 ["decorado","DECORADO","sn"],["disponivel","DISPONIVEL","sn"],["vendidaCru","VENDIDA","v3"],
-                ["statusInterno","STATUS INTERNO","si"]];   // 02/10 (item 6) — só controle interno
+                ["statusInterno","STATUS INTERNO","si"],   // 02/10 (item 6) — só controle interno
+                ["observacao","OBSERVACAO","obs"]];        // 05/10 (item 1) — abre numa janela, aceita quebra de linha
 /* INFORMACOES ganhou tipo proprio: e texto livre que vai para o popup do mapa,
    entao precisa aceitar varias linhas. Um <input> corta tudo numa linha so. */
 SIM_COLS[4][2]="area";
 const SIM_NOME_NOTION={unidade:"UNIDADE",tipo:"TIPO",valorVenda:"VALOR DE VENDA",avaliacao:"AVALIACAO",
                        informacoes:"INFORMACOES",decorado:"DECORADO",disponivel:"DISPONIVEL",vendidaCru:"VENDIDA",
-                       statusInterno:"STATUS INTERNO"};
+                       statusInterno:"STATUS INTERNO", observacao:"OBSERVACAO"};
 
 /* IMPORTANTE — POR QUE NÃO USAMOS MAIS O unidades.json ESTÁTICO AQUI
    O arquivo publicado do mapa (unidades.json) traz preço/tipo/disponibilidade,
@@ -1762,9 +1765,15 @@ function simRenderUnidades(){
         let vs=v;
         if(!String(vs||"").trim()){ const vc=String((UNS[i]||{}).vendidaCru||(UNS[i]||{}).vendida||"").toUpperCase();
           vs = vc==="SIM" ? "VENDIDA" : (vc.indexOf("RESERV")===0 ? "RESERVADA" : "DISPONÍVEL"); if(UNS[i]) UNS[i].statusInterno=vs; }
-        const ops=["DISPONÍVEL","RESERVADA","VENDIDA"];
+        const ops=["DISPONÍVEL","RESERVADA","PAGOU PREFERÊNCIA","VENDIDA"];   // 05/10 (item 2)
         return `<td><select class="sim-edit" data-i="${i}" data-c="${campo}" onchange="simAoEditar(${i},true);simCorStatusInterno(${i})">`+
           ops.map(o=>`<option value="${o}"${PROP_NORM(o)===PROP_NORM(vs)?" selected":""}>${o||"—"}</option>`).join("")+`</select></td>`;
+      }
+      if(tipo==="obs"){   // 05/10 (item 1) — OBSERVAÇÃO: prévia na célula, edição numa janela
+        const txt=String(v==null?"":v);
+        return `<td style="min-width:170px"><textarea class="sim-edit" data-i="${i}" data-c="${campo}" style="display:none">${esc(txt)}</textarea>`+
+          `<button class="bt" type="button" id="sim-obs-${i}" onclick="simObsAbrir(${i})" style="width:100%;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px;font-weight:500">`+
+          (txt.trim() ? "📝 "+esc(txt.split("\n")[0].slice(0,40))+(txt.length>40||txt.indexOf("\n")>=0?"…":"") : '<span style="color:#9fb3bf">+ observação</span>')+`</button></td>`;
       }
       /* 02/10 (item 4) — números como texto: sem as setinhas de subir/descer o valor */
       return `<td><input class="sim-edit" type="text"${tipo==="num"?' inputmode="decimal"':''} data-i="${i}" data-c="${campo}" value="${esc(String(v==null?"":v))}" oninput="simAoEditar(${i})" onblur="simSairDoCampo(${i})"></td>`;
@@ -1790,7 +1799,33 @@ function simRenderUnidades(){
    digitando em outra linha perderia o foco. Se a linha for alterada de novo
    enquanto grava, grava outra vez com o valor novo. */
 /* 02/10 (item 6) — cor da linha pelo STATUS INTERNO (não mexe no mapa) */
-const SIM_COR_SI={"DISPONIVEL":"#E3F4E8","RESERVADA":"#E1ECF8","VENDIDA":"#FBE1E1"};
+const SIM_COR_SI={"DISPONIVEL":"#E3F4E8","RESERVADA":"#E1ECF8","PAGOU PREFERENCIA":"#EDE3F6","VENDIDA":"#FBE1E1"};
+/* 05/10 (item 1) — janela da OBSERVAÇÃO da unidade (texto livre, com quebra de linha) */
+function simObsAbrir(i){
+  const ta=document.querySelector('.sim-edit[data-i="'+i+'"][data-c="observacao"]'); if(!ta) return;
+  let m=document.getElementById("sim-obsModal");
+  if(!m){
+    m=document.createElement("div"); m.id="sim-obsModal";
+    m.style.cssText="position:fixed;inset:0;background:rgba(10,25,35,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px";
+    m.innerHTML='<div style="background:#fff;border-radius:12px;max-width:620px;width:100%;padding:18px 18px 14px;box-shadow:0 10px 40px rgba(0,0,0,.25)">'+
+      '<b id="sim-obsTit" style="font-size:15px;color:var(--azul)"></b>'+
+      '<textarea id="sim-obsTxt" rows="10" style="width:100%;box-sizing:border-box;margin-top:10px;font-family:inherit;font-size:14px;line-height:1.5;resize:vertical"></textarea>'+
+      '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">'+
+      '<button class="bt" type="button" onclick="document.getElementById(\'sim-obsModal\').style.display=\'none\'">Cancelar</button>'+
+      '<button class="bt verde" type="button" id="sim-obsOk">Salvar</button></div></div>';
+    document.body.appendChild(m);
+    m.addEventListener("click",e=>{ if(e.target===m) m.style.display="none"; });
+  }
+  document.getElementById("sim-obsTit").textContent="Observação — unidade "+((UNS[i]||{}).unidade||"");
+  const t=document.getElementById("sim-obsTxt"); t.value=ta.value;
+  document.getElementById("sim-obsOk").onclick=()=>{
+    ta.value=t.value; if(UNS[i]) UNS[i].observacao=t.value;
+    const b=document.getElementById("sim-obs-"+i);
+    if(b) b.innerHTML = t.value.trim() ? "📝 "+esc(t.value.split("\n")[0].slice(0,40))+(t.value.length>40||t.value.indexOf("\n")>=0?"…":"") : '<span style="color:#9fb3bf">+ observação</span>';
+    m.style.display="none"; simAoEditar(i,true);
+  };
+  m.style.display="flex"; setTimeout(()=>t.focus(),50);
+}
 /* 02/10 (item 5) — mudou VENDIDA: o status interno acompanha (SIM -> VENDIDA, RESERVADA -> RESERVADA, NÃO -> DISPONÍVEL) */
 function simEspelharStatusInterno(i){
   const st=document.getElementById("sim-st-"+i), tr=st&&st.closest("tr"); if(!tr) return;
@@ -1840,11 +1875,19 @@ function simEnfileirar(i){
   if(!SIM_FILA.includes(i)) SIM_FILA.push(i);
   simProcessarFila();
 }
+/* 05/10 (item 14) — grava em SEGUNDO PLANO e em paralelo (até 3 unidades ao mesmo tempo):
+   a tela segue livre e várias linhas alteradas em sequência não esperam uma pela outra. */
+let SIM_ATIVOS=0; const SIM_PARALELO=3;
 async function simProcessarFila(){
-  if(SIM_GRAVANDO) return;
-  SIM_GRAVANDO=true; simMarcarContador();
-  try{ while(SIM_FILA.length){ await simGravarAuto(SIM_FILA.shift()); } }
-  finally{ SIM_GRAVANDO=false; simMarcarContador(); }
+  SIM_GRAVANDO = true; simMarcarContador();
+  while(SIM_FILA.length && SIM_ATIVOS < SIM_PARALELO){
+    const i=SIM_FILA.shift(); SIM_ATIVOS++;
+    simGravarAuto(i).catch(()=>{}).finally(()=>{
+      SIM_ATIVOS--;
+      if(SIM_FILA.length) simProcessarFila();
+      else if(!SIM_ATIVOS){ SIM_GRAVANDO=false; simMarcarContador(); }
+    });
+  }
 }
 async function simGravarAuto(i){
   const u=UNS[i];
@@ -2112,6 +2155,7 @@ function propSeloInterno(unidade){
   const u=(UNS||[]).find(x=>String(x.unidade)===String(unidade)); if(!u) return "";
   const k=PROP_NORM(u.statusInterno||"");
   if(k==="RESERVADA") return ' <span title="status interno da unidade" style="font-size:10px;font-weight:800;color:#1B4F7A;background:#E1ECF8;border:1px solid #9CC3E4;border-radius:8px;padding:1px 6px">RESERVADA (interno)</span>';
+  if(k==="PAGOU PREFERENCIA") return ' <span title="status interno da unidade" style="font-size:10px;font-weight:800;color:#5B3285;background:#EDE3F6;border:1px solid #B79AD6;border-radius:8px;padding:1px 6px">PAGOU PREFERÊNCIA (interno)</span>';
   if(k==="VENDIDA") return ' <span title="status interno da unidade" style="font-size:10px;font-weight:800;color:#8A2E17;background:#FBE1E1;border:1px solid #E7A3A3;border-radius:8px;padding:1px 6px">VENDIDA (interno)</span>';
   return "";
 }
@@ -2718,8 +2762,14 @@ function propPerfilHtml(campos){
 async function propAlerta(id){
   const av=document.getElementById("prop-alertaInfo"); if(!av) return;
   if(!confirm("Enviar ao CORRETOR um e-mail com o link para completar a proposta e a lista do que falta?")) return;
-  av.className="sim-aviso ok"; av.textContent="Enviando o alerta…";
+  /* 05/10 (item 6) — andamento visível, como na venda */
+  const etapas=["Montando a lista do que falta…","Gerando o link de complemento…","Enviando o e-mail ao corretor (resposta na conversa da proposta)…"];
+  const t0=Date.now();
+  const pintar=()=>{ const sg=Math.round((Date.now()-t0)/1000), k=Math.min(etapas.length-1,Math.floor(sg/6));
+    av.className="sim-aviso ok"; av.innerHTML=etapas.map((e2,ix)=>'<div style="opacity:'+(ix<k?'.55':(ix===k?'1':'.3'))+'">'+(ix<k?'✓ ':(ix===k?'⏳ ':'• '))+esc(e2)+'</div>').join("")+'<div style="font-size:11px;color:var(--text3);margin-top:4px">'+sg+' s</div>'; };
+  pintar(); const tmA=setInterval(pintar,1000);
   let r=null; try{ r=await chamar({action:"simsPropostaStatus", pageId:id, alerta:true}, 90000, true); }catch(e){ r=null; }
+  clearInterval(tmA);
   if(r&&r.ok){ av.className="sim-aviso ok"; av.innerHTML="<b>✓ Alerta enviado</b> para "+esc(r.para||"o corretor")+" — "+(r.pendencias||0)+" pendência(s) listada(s)."; }
   else { av.className="sim-aviso err"; av.textContent="Não enviou: "+((r&&(r.mensagem||r.erro))||"sem resposta"); }
 }
