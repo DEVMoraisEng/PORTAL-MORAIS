@@ -187,7 +187,13 @@ def eh_sensivel_docs(nome):
     if PUBLICAR_CPF:
         return False
     n = norm(nome)
-    return bool(re.search(r"\bCPF\b|\bCNPJ\b|\bRG\b", n))
+    # 05/10/26: só colunas que COMEÇAM com CPF/CNPJ/RG ("CPF/CNPJ",
+    # "CPF/CNPJ-AUTO"). Antes qualquer nome com "CNPJ" no meio caía aqui —
+    # "FOI DADO ENTRADA NA INCORPORAÇÃO? (OBRAS CNPJ)", "INCORPORAÇÃO
+    # FINALIZOU (OBRAS CNPJ)?" e "FOI DATA A ENTRADA NO RET? (OBRAS CNPJ)"
+    # sumiam do arquivo, e os alertas e atividades de incorporação/RET nunca
+    # apareciam no portal.
+    return bool(re.match(r"(CPF|CNPJ|RG)\b", n))
 
 
 def atividade_feita(props):
@@ -216,6 +222,47 @@ def atividade_feita(props):
     if not fin:
         return False
     return "NAO" not in norm(fin)
+
+
+# --------------------------------------------------------------------------
+# 05/10/26 — ATIVIDADE EM ABERTO = COLUNA DA OBRA VAZIA OU "NÃO"
+# Mesma regra do Alertas.gs (alDocsAbertas_) e do alertas-docs.js. A fórmula
+# do Notion só aceitava SIM (INEXISTE ficava aberta) e às vezes não
+# acompanhava a baixa; agora vale o que está escrito na obra.
+TIPO_SETOR = {"CERTIDAO DO LOTE": "Departamento de Projetos"}
+PROJETOS_PESSOAS = ["José Arthur", "felipe berçan"]
+
+
+def texto_valor(v):
+    if v is None:
+        return ""
+    if isinstance(v, bool):
+        return "SIM" if v else ""
+    if isinstance(v, list):
+        return ", ".join(str(x) for x in v) if v else ""
+    return str(v)
+
+
+def aberto(v):
+    n = norm(texto_valor(v))
+    return n in ("", "NAO", "NO")
+
+
+def deduplicar(lista):
+    """Uma por obra+tipo (a de prazo mais cedo); as outras vão em 'dups'."""
+    grupos, ordem = {}, []
+    for a in lista:
+        k = (a["obraId"].replace("-", "") + "|" + norm(a.get("tipo") or "")) if a.get("obraId") else "id|" + a["id"]
+        if k not in grupos:
+            grupos[k] = []
+            ordem.append(k)
+        grupos[k].append(a)
+    out = []
+    for k in ordem:
+        g = sorted(grupos[k], key=lambda x: (str(x.get("dataFinal") or "9999"), str(x.get("criado") or "")))
+        g[0]["dups"] = [x["id"] for x in g[1:]]
+        out.append(g[0])
+    return out
 
 
 def titulo_de(props):
@@ -319,10 +366,24 @@ def main():
         atv_paginas = None
 
     atividades, tipos_vistos = [], {}
+    obra_props = {p["id"].replace("-", ""): (p.get("properties") or {}) for p in paginas}
+    fechadas_obra = 0
     if atv_paginas is not None:
         for a in atv_paginas:
             props = a.get("properties") or {}
-            if atividade_feita(props):
+            tipo0 = v_tol(props, "TIPO")
+            col0 = coluna_da_baixa(tipo0, colunas_sim)
+            rel0 = []
+            for nome0, prop0 in props.items():
+                if prop0.get("type") == "relation" and "OBRA" in norm(nome0):
+                    rel0 = [x.get("id") for x in (prop0.get("relation") or []) if x.get("id")]
+            op = obra_props.get(rel0[0].replace("-", "")) if rel0 else None
+            pc = prop_tol(op, col0) if (op and col0) else None
+            if pc is not None:
+                if not aberto(valor(pc)):
+                    fechadas_obra += 1
+                    continue
+            elif atividade_feita(props):
                 continue
             rel = []
             resp = []
@@ -335,7 +396,12 @@ def main():
             tipo = v_tol(props, "TIPO")
             if tipo:
                 tipos_vistos[tipo] = tipos_vistos.get(tipo, 0) + 1
+            setor = TIPO_SETOR.get(norm(tipo or ""))
+            if setor == "Departamento de Projetos":
+                resp = list(PROJETOS_PESSOAS)
             atividades.append({
+                "setor": setor,
+                "criado": a.get("created_time") or "",
                 "id": a.get("id"),
                 "nome": titulo_de(props),
                 "tipo": tipo,
@@ -346,7 +412,10 @@ def main():
                 # coluna da OBRA que a baixa escreve (ver coluna_da_baixa)
                 "coluna": coluna_da_baixa(tipo, colunas_sim),
             })
-        print(f"  {len(atividades)} atividade(s) em aberto.", flush=True)
+        antes = len(atividades)
+        atividades = deduplicar(atividades)
+        print(f"  {len(atividades)} atividade(s) em aberto ({antes - len(atividades)} duplicada(s) "
+              f"escondida(s), {fechadas_obra} fechada(s) pela coluna da obra).", flush=True)
         if tipos_vistos:
             print("  TIPOs encontrados (e a coluna que a baixa vai escrever):", flush=True)
             for t, n in sorted(tipos_vistos.items(), key=lambda x: -x[1]):

@@ -702,29 +702,24 @@ function rfSnapOutrasConstruir_() {
                    resp: rfPess_(P["Responsável"]).map(function (u) { return u.id; }) });
     });
   } catch (e) { avisos.push("Obras: " + String(e).slice(0, 80)); }
+  /* 05/10 (Alertas.gs): Vendas e Documentos usam a MESMA lista das telas —
+     aberta pela coluna da obra (vazio/NÃO), sem duplicadas, só o que já
+     começou, e CERTIDÃO DO LOTE com o Departamento de Projetos. Antes o sino
+     usava a fórmula do Notion e contava cópias e atividades já baixadas. */
   try {
-    rfQuery_(CONFIG.DB.ATIVIDADES_VENDAS, { filter: { property: "ATIVIDADE FINALIZADA", formula: { string: { contains: "NÃO" } } } }).forEach(function (pg) {
-      var P = pg.properties || {};
-      itens.push({ origem: "Vendas", link: "vendas.html", id: rfSH_(pg.id), titulo: titulo_(P["Nome"]), status: "Em aberto",
-                   tipo: sel_(P["TIPO"]), fim: rfDt_(P["DATA FINAL PREVISTA"]), ini: rfDt_(P["DATA INICIAL"]),
-                   obraId: (rfRel_(P["OBRA"])[0]) || null, resp: rfPess_(P["RESPONSÁVEL"]).map(function (u) { return u.id; }) });
+    alVendasAbertas_(true).atividades.forEach(function (a) {
+      itens.push({ origem: "Vendas", link: "vendas.html", id: rfSH_(a.id), titulo: a.nome, status: "Em aberto",
+                   tipo: a.tipo, fim: a.dataFinal ? String(a.dataFinal).slice(0, 10) : null,
+                   ini: a.dataInicial ? String(a.dataInicial).slice(0, 10) : null,
+                   obraId: a.obraId ? rfSH_(a.obraId) : null, resp: a.respIds || [] });
     });
   } catch (e) { avisos.push("Vendas: " + String(e).slice(0, 80)); }
   try {
-    var sch = rfSchema_(RF_DOC_ATV), colResp = null, colIni = null, colFim = null, colTipo = null;
-    Object.keys(sch).forEach(function (k) {
-      var n = rfNorm_(k).toUpperCase(), t = sch[k].type;
-      if (t === "people" && n.indexOf("RESPONS") >= 0 && !colResp) colResp = k;
-      if (t === "date" && n.indexOf("INICIAL") >= 0) colIni = k;
-      if (t === "date" && n.indexOf("FINAL") >= 0 && !colFim) colFim = k;
-      if (n === "TIPO") colTipo = k;
-    });
-    rfQuery_(RF_DOC_ATV, {}).forEach(function (pg) {
-      var P = pg.properties || {};
-      if (typeof docsAtvFeita_ === "function" && docsAtvFeita_(P)) return;
-      itens.push({ origem: "Documentos", link: "documentos.html", id: rfSH_(pg.id), titulo: tituloDe_(P), status: "Em aberto",
-                   tipo: colTipo ? rfSel_(P[colTipo]) : null, fim: colFim ? rfDt_(P[colFim]) : null, ini: colIni ? rfDt_(P[colIni]) : null,
-                   resp: colResp ? rfPess_(P[colResp]).map(function (u) { return u.id; }) : [] });
+    alDocsAbertas_(true).atividades.forEach(function (a) {
+      itens.push({ origem: "Documentos", link: "documentos.html", id: rfSH_(a.id), titulo: a.nome, status: "Em aberto",
+                   tipo: a.tipo, fim: a.dataFinal ? String(a.dataFinal).slice(0, 10) : null,
+                   ini: a.dataInicial ? String(a.dataInicial).slice(0, 10) : null,
+                   obraId: a.obraId ? rfSH_(a.obraId) : null, resp: a.respIds || [] });
     });
   } catch (e) { avisos.push("Documentos: " + String(e).slice(0, 80)); }
   var snap = { t: Date.now(), itens: itens, avisos: avisos };

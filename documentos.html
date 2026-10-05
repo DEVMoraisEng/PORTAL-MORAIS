@@ -1128,6 +1128,11 @@ const SO_LEITURA = ehSomenteLeitura(S);
 const COL_RESP = "ENG. EXECUÇÃO";
 
 let CAMPOS=[], OBRAS=[], ATIVIDADES=[], OCULTAS=[], COLSIM=[];
+/* 05/10/26: lista de atividades lida AO VIVO (docAtividades, cache de 2 min no
+   servidor). Quando chega, vale mais que a do docs.json — que só é refeito a
+   cada publicação (até 30 min). É o que faz sumir a atividade de quem marcou
+   a coluna direto no Notion. */
+let ATV_VIVO=null;
 let UPDATED="", CARREGOU=false;
 let SETOR_ATUAL="";
 let FILTRADAS={hub:[], set:[]};
@@ -1402,9 +1407,15 @@ async function boot(){
     return;
   }
   renderSetores();
+  ler({action:"docAtividades"},"docs_atv_vivo").then(r=>{
+    if(!r||!r.ok||!Array.isArray(r.atividades)||r.offline) return;
+    ATV_VIVO=r.atividades;
+    if(!CARREGOU) return;
+    ATIVIDADES=ATV_VIVO; atualizarBadges(); if(SETOR_ATUAL) repintarSetor();
+  }).catch(()=>{});
   lerEstaticoJa("docs.json","docs", r=>{
     if(!r || !r.ok){ mostrarOffline(r); if(!CARREGOU) document.getElementById("hub-wrap").innerHTML='<div class="vazio">Ainda não há dados publicados. Rode o build (fetch_documentos.py) uma vez.</div>'; return; }
-    CAMPOS=r.campos||[]; OBRAS=r.obras||[]; ATIVIDADES=r.atividades||[];
+    CAMPOS=r.campos||[]; OBRAS=r.obras||[]; ATIVIDADES=ATV_VIVO||r.atividades||[];
     OCULTAS=r.ocultas||[]; COLSIM=r.colunasSim||[]; UPDATED=r.updated_at||"";
     aplicarOpcoesLocais();      // setores criados aqui valem já no 1º desenho
     SENS_CARREGADO=false;       // dados novos: os protegidos são buscados outra vez
@@ -1441,7 +1452,14 @@ function atividadesDoSetor(nome){
   if(!s || !s.responsaveis) return [];
   const alvos=s.responsaveis.map(normNome);
   const hoje=hojeISO();
-  return ATIVIDADES.filter(a=>{
+  /* 05/10/26: lista limpa do motor (alertas-docs.js) — aberta pela coluna da
+     obra (vazio/NÃO), uma por obra+tipo. E tipo com setor fixo (CERTIDÃO DO
+     LOTE -> Departamento de Projetos) vai para lá, seja quem for o
+     Responsável no Notion. */
+  const base=MOTOR?MOTOR.atividadesAbertas(ATIVIDADES,OBRAS):ATIVIDADES;
+  return base.filter(a=>{
+    const fixo=MOTOR?MOTOR.setorDaAtividade(a):null;
+    if(fixo) return fixo===nome && !(a.dataInicial && String(a.dataInicial).slice(0,10)>hoje);
     /* Comparação por PEDAÇO, não exata: no Notion o responsável pode estar
        como "Júlio César Gomes de Morais Filho" e aqui como "Júlio César
        Gomes de Morais". Exigir igualdade escondia TODAS as atividades dele. */
@@ -1531,9 +1549,10 @@ function renderAtividades(){
          casamento errado fica visível ANTES de alguém clicar. */
       const alvo = c ? `<span class="col-alvo" title="coluna que será marcada na obra">${esc(c.nome)}</span>`
                      : `<span class="col-alvo falta" title="nenhuma coluna casou com este tipo">sem coluna</span>`;
+      const nd=(a.dups||[]).length;
       return `<div class="atv" data-id="${a.id}">
         <span class="tipo">${esc(a.tipo||"—")}</span>
-        <span class="nm">${esc(a.nome||"(sem nome)")}</span>
+        <span class="nm">${esc(a.nome||"(sem nome)")}${nd?` <span class="col-alvo" title="o Notion tem ${nd} cópia(s) desta atividade; a baixa resolve todas">+${nd} cópia${nd>1?"s":""}</span>`:""}</span>
         <span class="dt">prazo: ${fmt(a.dataFinal)}</span>
         ${alvo}
         <span class="bx"><span class="bxlab">Marcar como</span>
@@ -1560,7 +1579,9 @@ async function darBaixa(id, btn){
     }
     linha.classList.add("feita"); toast(r.enfileirado?"Baixa na fila ✓":"Baixa registrada ✓");
     setTimeout(()=>{
-      ATIVIDADES=ATIVIDADES.filter(x=>x.id!==id);
+      /* a baixa marca a coluna da OBRA: some a atividade e todas as cópias dela */
+      const fora=new Set([id].concat(a.dups||[]));
+      ATIVIDADES=ATIVIDADES.filter(x=>!fora.has(x.id) && !(x.obraId===a.obraId && x.tipo===a.tipo));
       renderAtividades(); atualizarBadges();
     },650);
   }else{ btn.disabled=false; btn.textContent="Dar baixa"; toast("Não deu certo: "+erroTexto(r.erro)); }

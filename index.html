@@ -990,9 +990,14 @@ function contadoresDosSetores(){
       const hoje=new Date().toISOString().slice(0,10);
       /* mesma regra da tela do setor: atividade que ainda não começou não é
          cobrança de hoje */
-      const atv=(r.atividades||[]).filter(a=>!a.dataInicial||String(a.dataInicial).slice(0,10)<=hoje).length;
+      let atv=(r.atividades||[]).filter(a=>!a.dataInicial||String(a.dataInicial).slice(0,10)<=hoje).length;
       let alertas=0;
-      try{ alertas=criarMotorAlertas(r.campos||[]).contar(r.obras||[]).total; }catch(e){}
+      try{
+        const M=criarMotorAlertas(r.campos||[]);
+        alertas=M.contar(r.obras||[]).total;
+        /* 05/10/26: mesma lista limpa da tela (coluna da obra, sem cópias) */
+        atv=M.atividadesAbertas(r.atividades||[], r.obras||[]).length;
+      }catch(e){}
       porCnt("DOCUMENTOS", atv+alertas);
     });
   }

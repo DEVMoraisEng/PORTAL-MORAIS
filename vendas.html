@@ -1424,7 +1424,11 @@ function atividadeRealmenteAberta(a){
   if(!a.coluna || !a.obraId) return true; // sem como conferir contra a obra, mantém como veio do servidor
   const vd=vendaPorId(a.obraId); if(!vd) return true; // planilha ainda não carregou — não filtra por engano
   const c=campoPorNome(a.coluna); if(!c) return true;
-  return normNome(getV(vd.valores,c.nome))!=="SIM";
+  /* 05/10/26: aberta = coluna da obra VAZIA ou NÃO. SIM, INEXISTE ou qualquer
+     outro valor fecha — mesma regra do servidor (Alertas.gs) e de Documentos. */
+  const v=getV(vd.valores,c.nome);
+  const n=normNome(Array.isArray(v)?v.join(", "):(v===true?"SIM":v));
+  return !n || n==="NAO" || n==="NO" || n==="FALSE";
 }
 function atividadesDoSetor(nome){
   const info=SETORES_AREA.find(s=>s.nome===nome);
@@ -2113,8 +2117,9 @@ async function carregarAtividades(){
     // parecia que a atividade já tinha sido feita sem ninguém ter escolhido nada.
     const temAtual = atual!=null && atual!=="" && ops.indexOf(atual)>=0;
     const d=document.createElement("div"); d.className="atv";
+    const nd=(a.dups||[]).length;
     d.innerHTML=`<span class="tipo">${esc(a.tipo||"—")}</span>
-      <span class="nm">${esc(a.nome||"(sem nome)")}</span>
+      <span class="nm">${esc(a.nome||"(sem nome)")}${nd?` <small title="o Notion tem ${nd} cópia(s) desta atividade; a baixa resolve todas" style="opacity:.7">(+${nd} cópia${nd>1?"s":""})</small>`:""}</span>
       <span class="dt">prazo: ${fmt(a.dataFinal)}</span>
       <span class="bx"><span class="bxlab">Marcar como</span><select>${temAtual?"":'<option value="" selected disabled>Selecione…</option>'}${ops.map(o=>`<option${(temAtual&&o===atual)?" selected":""}>${esc(o)}</option>`).join("")}</select><button class="bt">Dar baixa</button></span>`;
     const sel=d.querySelector("select"), btn=d.querySelector("button");
@@ -2142,7 +2147,11 @@ async function darBaixa(a,valor,d,btn){
         if(!restam) grupo.remove();
         else grupo.querySelector(".qtd").textContent=restam;
       }
-      ATIV_ALL=ATIV_ALL.filter(x=>x.id!==a.id); // tira da base local pra badges/contagens ficarem certos
+      /* tira da base local (com as cópias dela) pra badges/contagens ficarem certos,
+         e marca a coluna na obra em memória: a planilha já mostra o valor novo */
+      const fora=new Set([a.id].concat(a.dups||[]));
+      ATIV_ALL=ATIV_ALL.filter(x=>!fora.has(x.id));
+      try{ const vd=vendaPorId(a.obraId), c=a.coluna?campoPorNome(a.coluna):null; if(vd&&c){ setV(vd.valores,c.nome,valor); registrarEdicao("vendas",a.obraId,c.nome,valor); } }catch(e){}
       const n=document.querySelectorAll("#atv-lista .atv").length;
       document.getElementById("atv-count").textContent=n+" atividade(s) em aberto — "+SETOR_ATUAL;
       atualizarBadgesSetores();
