@@ -2289,12 +2289,20 @@ const PEND_REGRA={
   "Imposto de renda":["EMPRESÁRIO","AUTÔNOMO","MEI","PROFISSIONAL LIBERAL","RURAL"]
 };
 const PEND_SEMPRE=["RG e CPF do proponente","Comprovante de estado civil","Comprovante de endereço"];
+/* 05/10 (itens 5 e 7) — documento de quem: "(cônjuge)", "(comprador 1)", "(fiador 2)"... no fim do rótulo */
+function propDonoDoc(rot){ const m=String(rot||"").match(/^(.*) \(((?:cônjuge|conjuge)|comprador \d|fiador \d|dependentes)\)$/i);
+  return m ? {base:m[1], dono:m[2].toLowerCase().replace("conjuge","cônjuge")} : {base:String(rot||""), dono:/cônjuge|conjuge/i.test(rot)?"cônjuge":"proponente"}; }
 function propPedido(doc, origens, civil){
-  /* 02/10 (item 11) — compara SEM acento: a origem vem gravada como "SERVIDOR PUBLICO" e a regra
-     tinha "SERVIDOR PÚBLICO"; por isso os documentos de renda sumiam da lista do cliente */
-  const os=(origens||[]).map(o=>PROP_NORM(o)).filter(Boolean);
+  /* 02/10 (item 11) — compara SEM acento. 05/10 (item 5) — cada documento olha a origem da renda
+     de QUEM ele é: o do proponente só a do proponente, o do cônjuge só a do cônjuge. */
+  const dd=propDonoDoc(doc), o0=PROP_NORM((origens||[])[0]||""), o1=PROP_NORM((origens||[])[1]||"");
+  if(dd.dono==="cônjuge"){
+    if(doc==="RG e CPF do cônjuge") return !!o1;
+    return !!(o1 && PEND_REGRA[dd.base] && PEND_REGRA[dd.base].some(r=>PROP_NORM(r)===o1));
+  }
+  if(dd.dono!=="proponente") return false;
   return PEND_SEMPRE.indexOf(doc)>=0 ||
-    (PEND_REGRA[doc] && PEND_REGRA[doc].some(r=>os.indexOf(PROP_NORM(r))>=0)) ||
+    (PEND_REGRA[doc] && PEND_REGRA[doc].some(r=>PROP_NORM(r)===o0)) ||
     (doc==="Comprovante de divórcio" && String(civil||"").indexOf("DIVORC")>=0);
 }
 function propPendenciasHtml(p, pend){
@@ -2669,17 +2677,27 @@ function propPintarDetalhe(id, r){
      parecia pendência. */
   const origensD=[String(r.origemRenda||""), String(r.origemRendaConjuge||"")];
   const civilD=String(r.estadoCivil||"");
+  /* 05/10 (item 7) — cada documento na linha da PESSOA dele e com botão para anexar por aqui */
   const linhaDoc=a=>{
     const tem = a.arquivos.length;
     const links = tem
       ? a.arquivos.map(f=>`<a href="${esc(f.url)}" target="_blank" rel="noopener"
            style="color:var(--azul);text-decoration:underline">${esc(f.nome)}</a>`).join(' · ')
       : '<span style="color:#C0392B">não enviado</span>';
-    return `<tr><td>${tem?'✅':'⬜'} ${esc(a.rotulo)}</td><td>${links}</td></tr>`;
+    const anexar = a.coluna ? `<label class="bt" style="padding:3px 9px;font-size:11.5px;cursor:pointer;white-space:nowrap">📎 Anexar`+
+      `<input type="file" multiple style="display:none" onchange="propAnexarDoc('${id}','${esc(a.coluna)}',this)"></label>` : '';
+    return `<tr><td>${tem?'✅':'⬜'} ${esc(propDonoDoc(a.rotulo).base)}</td><td>${links}</td><td style="width:1%">${anexar}</td></tr>`;
+  };
+  const porPessoa=lista=>{
+    const ordem=["proponente","cônjuge","comprador 1","comprador 2","dependentes","fiador 1","fiador 2"], g={};
+    lista.forEach(a=>{ const k=propDonoDoc(a.rotulo).dono; (g[k]=g[k]||[]).push(a); });
+    return Object.keys(g).sort((x,y)=>(ordem.indexOf(x)+99)%99-(ordem.indexOf(y)+99)%99).map(k=>
+      `<tr><td colspan="3" style="background:#EEF3F7;font-weight:800;color:var(--azul);text-transform:uppercase;font-size:11.5px">${esc(k)}</td></tr>`+
+      g[k].map(linhaDoc).join("")).join("");
   };
   const pedidosDoc=(r.anexos||[]).filter(a=>propPedido(a.rotulo, origensD, civilD) || a.arquivos.length);
   const outrosDoc=(r.anexos||[]).filter(a=>!(propPedido(a.rotulo, origensD, civilD) || a.arquivos.length));
-  const docs = pedidosDoc.map(linhaDoc).join("");
+  const docs = porPessoa(pedidosDoc);
 
   /* Os links de arquivo do Notion sao assinados e valem cerca de 1 hora.
      Depois disso o link desta tela expira — basta reabrir a proposta que
@@ -2689,7 +2707,8 @@ function propPintarDetalhe(id, r){
     (outrosDoc.length ? '<details style="margin-top:8px"><summary style="cursor:pointer;font-size:12.5px;color:var(--text3)">'+
       'Anexar outro documento ('+outrosDoc.length+' disponíveis)</summary>'+
       '<div class="tbl-wrap" style="max-height:none;margin-top:6px"><table><tbody>'+
-      outrosDoc.map(linhaDoc).join("")+'</tbody></table></div></details>' : '')+
+      porPessoa(outrosDoc)+'</tbody></table></div></details>' : '')+
+    '<div id="prop-anexarInfo" class="sim-aviso" style="margin-top:6px"></div>'+
     '<div style="font-size:11px;color:var(--text4);margin-top:4px">Os links valem cerca de 1 hora. '+
     'Se expirarem, feche e abra a proposta de novo.</div></div>';
 
@@ -2772,6 +2791,23 @@ async function propAlerta(id){
   clearInterval(tmA);
   if(r&&r.ok){ av.className="sim-aviso ok"; av.innerHTML="<b>✓ Alerta enviado</b> para "+esc(r.para||"o corretor")+" — "+(r.pendencias||0)+" pendência(s) listada(s)."; }
   else { av.className="sim-aviso err"; av.textContent="Não enviou: "+((r&&(r.mensagem||r.erro))||"sem resposta"); }
+}
+/* 05/10 (item 7) — anexar um documento direto pelo portal: vai para a coluna certa da proposta no Notion */
+async function propAnexarDoc(id, coluna, input){
+  const av=document.getElementById("prop-anexarInfo"); const fs=[...(input.files||[])]; if(!fs.length) return;
+  const tot=fs.reduce((a,f)=>a+f.size,0);
+  if(tot>18*1024*1024){ if(av){ av.className="sim-aviso err"; av.textContent="Arquivos acima de 18 MB — envie em partes."; } return; }
+  if(av){ av.className="sim-aviso ok"; av.innerHTML='<span class="load"></span> Enviando '+fs.length+' arquivo(s) para <b>'+esc(coluna)+'</b>…'; }
+  try{
+    const anexos=await Promise.all(fs.map(f=>new Promise((ok,er)=>{ const rd=new FileReader();
+      rd.onload=()=>ok({nome:f.name, tipo:f.type||"application/octet-stream", base64:String(rd.result).split(",")[1], rotulo:coluna}); rd.onerror=er; rd.readAsDataURL(f); })));
+    const resp=await fetch(SRV_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({acao:"anexarProposta",pageId:id,anexos:anexos})});
+    const x=await resp.json();
+    const ok=(x&&x.anexosNotion&&x.anexosNotion.ok)||0, falhas=(x&&x.anexosNotion&&x.anexosNotion.falhas)||[];
+    if(x&&x.ok&&ok){ if(av){ av.className="sim-aviso ok"; av.innerHTML="<b>✓ "+ok+" arquivo(s) anexado(s).</b> Atualizando a lista…"; } setTimeout(()=>propCarregarDetalhe(id),800); }
+    else if(av){ av.className="sim-aviso err"; av.textContent="Não anexou: "+(falhas.join(" · ")||(x&&x.erro)||"sem resposta"); }
+  }catch(e){ if(av){ av.className="sim-aviso err"; av.textContent="Não anexou: "+e; } }
+  input.value="";
 }
 /* ---------- PDF da proposta ---------- */
 async function propPdf(id){
