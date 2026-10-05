@@ -30,7 +30,7 @@
  * efeito na hora, alManutencao() pelo menu Executar (o log lista tudo).
  *************************************************************************/
 
-var VERSAO_ALERTAS = "2026-10-05 a2";   // a2: a manutenção também arquiva cópias que ainda não começaram
+var VERSAO_ALERTAS = "2026-10-05 a3";   // a2: manutenção pega cópias futuras · a3: leitura rápida + aquecimento a cada 10 min
 
 /* Tipo da atividade de DOCUMENTOS que pertence a outro setor, não importa
    quem esteja no Responsável do Notion. */
@@ -39,7 +39,32 @@ var AL_PROJETOS_PESSOAS = ["José Arthur", "felipe berçan"];
 
 var AL_CH_DOCS = "al_docs_v1";
 var AL_CH_VENDAS = "al_vendas_v1";
-var AL_FRESCO_SEG = 120;
+var AL_FRESCO_SEG = 900;   // a3: o gatilho alAquecer refaz a cada 10 min; quem grava apaga na hora
+
+/* a3 (05/10 tarde) — DESEMPENHO. Medido: ler a base de atividades de
+   documentação inteira (815 linhas) levava 11,6 s e era feita DUAS vezes na
+   primeira leitura (lista + pessoas de Projetos) — a tela esperava ~30 s e a
+   de Vendas chegou a estourar o tempo. Agora:
+     • a lista só lê o que a fórmula ainda NÃO marcou 🟢 (166 linhas, 2 s) —
+       o que ela já marcou como feito continua feito, como sempre foi;
+     • as pessoas de Projetos saem dessas mesmas linhas (sem segunda leitura);
+     • alAquecer (gatilho de 10 min, só no PORTAL-LEITURA, 6h–21h) deixa as
+       duas listas prontas: ninguém mais espera a leitura do Notion. */
+function alDocsLinhas_(completo) {
+  if (!completo) {
+    try {
+      return queryAll_(DB_ATIVIDADES_DOCS, { filter: { property: "Atividade Feita?", formula: { string: { does_not_contain: "\ud83d\udfe2" } } } });
+    } catch (e) { console.log("alDocsLinhas_: filtro recusado (" + e + ") — lendo tudo"); }
+  }
+  return queryAll_(DB_ATIVIDADES_DOCS, {});
+}
+function alAquecer() {
+  if (!ehPapelLeitura_()) return;
+  var h = Number(Utilities.formatDate(new Date(), "America/Sao_Paulo", "H"));
+  if (h < 6 || h > 21) return;
+  try { refazerCache_(AL_CH_DOCS, alDocsAbertasCalc_); } catch (e) { console.log("alAquecer docs: " + e); }
+  try { refazerCache_(AL_CH_VENDAS, alVendasAbertasCalc_); } catch (e) { console.log("alAquecer vendas: " + e); }
+}
 
 /* ------------------------------------------------------------------ */
 function alHoje_() { return Utilities.formatDate(new Date(), "America/Sao_Paulo", "yyyy-MM-dd"); }
@@ -125,11 +150,11 @@ function alDeduplicar_(lista) {
 }
 
 /* Ids (Notion) das pessoas do Departamento de Projetos. */
-function alPessoasProjetos_() {
+function alPessoasProjetos_(linhas) {
   return comCache_("al_pess_proj_v1", 21600, function () {
     var achados = {};
     try {
-      queryAll_(DB_ATIVIDADES_DOCS, {}).forEach(function (a) {
+      (linhas || alDocsLinhas_(false)).forEach(function (a) {
         var pr = a.properties || {};
         for (var k in pr) {
           if (pr[k].type !== "people") continue;
@@ -157,7 +182,7 @@ function alDocsAbertas_(fresco) {
 function alDocsAbertasCalc_(opc) {
   var futuras = !!(opc && opc.futuras);
   var hoje = alHoje_(), colunasSim = docsColunasSim_();
-  var rows = queryAll_(DB_ATIVIDADES_DOCS, {});
+  var rows = alDocsLinhas_(!!(opc && opc.completo));
 
   /* colunas da obra que as baixas desses tipos escrevem */
   var colPorTipo = {}, cols = [];
@@ -171,7 +196,7 @@ function alDocsAbertasCalc_(opc) {
   var obras = {};
   if (cols.length) alQueryColunas_(CONFIG.DB.DOCUMENTOS, cols).forEach(function (o) { obras[alSH_(o.id)] = o.properties || {}; });
 
-  var proj = alPessoasProjetos_(), lista = [], fechadasPelaObra = 0;
+  var proj = alPessoasProjetos_(rows), lista = [], fechadasPelaObra = 0;
   rows.forEach(function (r) {
     var pr = r.properties || {}, rel = [], resp = [], respIds = [];
     for (var nome in pr) {
@@ -274,7 +299,7 @@ function alManutencao() {
   var log = { arquivadas: [], certidao: 0, erros: [] };
   [["DOCUMENTOS", alDocsAbertasCalc_], ["VENDAS", alVendasAbertasCalc_]].forEach(function (par) {
     try {
-      var r = par[1]({ futuras: true });
+      var r = par[1]({ futuras: true, completo: true });
       r.atividades.forEach(function (a) {
         if (!a.dups || !a.dups.length) return;
         a.dups.forEach(function (id) {
@@ -323,7 +348,12 @@ function alCriarGatilhoManutencao() {
     if (t.getHandlerFunction() === "alManutencaoJob_") ScriptApp.deleteTrigger(t);
   });
   ScriptApp.newTrigger("alManutencaoJob_").timeBased().everyDays(1).atHour(7).create();
-  Logger.log("Gatilho diário da manutenção das atividades criado (~7h).");
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === "alAquecer") ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger("alAquecer").timeBased().everyMinutes(10).create();
+  alAquecer();
+  Logger.log("Gatilhos criados: manutenção diária (~7h) e aquecimento das listas a cada 10 min.");
 }
 
 /* Diagnóstico: rode pelo menu e confira os números no log. */
