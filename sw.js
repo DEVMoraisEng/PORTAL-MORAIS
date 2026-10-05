@@ -162,7 +162,8 @@
 /* v94 -> v95 (05/10/26): revisão das atividades — alertas-docs.js (coluna da obra, sem cópias, CERTIDÃO DO LOTE em Projetos, alerta de emissão das certidões), documentos.html, vendas.html e index.html. */
 /* v95 -> v96 (05/10/26): editor-blocos.js v11 + atividades.html — PDFs e fotos com link vencido (InvalidJWT) renovam sozinhos. */
 /* v96 -> v97 (05/10/26): grupos de atividades fechados por padrão (documentos.html e obras.html). */
-const CACHE = "portal-morais-v97";  // limpeza só dos caches do portal (não apaga os das RAS)
+/* v97 -> v98 (05/10/26): simulacoes.html — leituras/envios das Simulações fora da fila (Atualizar, detalhe, conversa, correspondente) e aba Servidores. */
+const CACHE = "portal-morais-v98";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",
