@@ -350,7 +350,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
     <div class="crumb">
       <a class="btn-voltar" href="index.html">← Voltar para o Dashboard</a>
       <span style="flex:1"></span>
-      <button class="bt az" onclick="simAtualizarTudo()" title="Ignora os caches e busca no Notion agora">↻ Atualizar dados agora</button>
+      <button class="bt az" onclick="simAtualizarTudo(this)" title="Ignora os caches e busca no Notion agora">↻ Atualizar dados agora</button>
       <span class="carga-portal" id="carga-portal"><i></i><b id="carga-pct">carregando…</b></span>
       <span class="chip-extr" id="data-extr"></span>
     </div>
@@ -375,6 +375,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
         <button class="tab" data-tab="propostas" onclick="trocarTab('propostas')">Propostas</button>
         <button class="tab" data-tab="analise" onclick="trocarTab('analise')">Análise de vendas</button>
         <button class="tab" data-tab="unidades" onclick="trocarTab('unidades')">Unidades</button>
+        <button class="tab" data-tab="servidores" onclick="trocarTab('servidores')">Servidores</button>
       </div></div>
 
       <!-- ==================== PAINEL ==================== -->
@@ -459,7 +460,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
           <div class="filtros">
             <div class="fcampo"><label>Buscar</label>
               <input type="search" id="sim-busca" placeholder="Cliente, CPF ou corretor…" oninput="simRenderRecebidas()"></div>
-            <button class="bt ghost" onclick="simCarregar(true)" title="Ignora o cache e busca no Notion agora">↻ Atualizar agora</button>
+            <button class="bt ghost" onclick="simCarregar(true,this)" title="Ignora o cache e busca no Notion agora">↻ Atualizar agora</button>
             <button class="bt az" id="sim-btRefazerErros" onclick="simRefazerErros()"
                     title="Devolve para a fila TODAS as simulações com erro">↻ Rodar de novo as com erro <span id="sim-qtdErros"></span></button>
             <span style="font-size:12px;color:var(--text3);align-self:center">
@@ -492,6 +493,26 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
         <div class="card"><div class="tbl-wrap" style="max-height:460px"><table id="an-tabela"></table></div></div>
       </section>
 
+      <!-- ==================== SERVIDORES (05/10) ==================== -->
+      <section id="tab-servidores" class="hide">
+        <div class="sec"><span class="cond">PCs que rodam o sistema online · revezamento</span></div>
+        <div class="card">
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+            <button class="bt ghost" onclick="srvCarregar(this)">↻ Atualizar agora</button>
+            <span id="srv-hora" style="font-size:12px;color:var(--text3)"></span>
+          </div>
+          <div id="srv-resumo"></div>
+          <div class="tbl-wrap" style="max-height:none;margin-top:10px"><table id="srv-tab"></table></div>
+          <div id="srv-nuvem" style="margin-top:12px"></div>
+          <div style="font-size:12px;color:var(--text3);margin-top:10px;line-height:1.6">
+            O <b>primeiro PC ligado</b> é o LÍDER e processa as simulações; os outros ficam de RESERVA na ordem em que foram ligados.
+            Se o líder ficar mais de 2 minutos sem sinal, o próximo assume sozinho. Religar um PC coloca ele no fim da fila.
+            Com nenhum PC online (ou com a fila parada há mais de 12 min), a simulação <b>preliminar</b> sai pela nuvem.
+            A tela atualiza sozinha a cada 20 s enquanto esta aba estiver aberta.
+          </div>
+        </div>
+      </section>
+
       <!-- ==================== PROPOSTAS ==================== -->
       <section id="tab-propostas" class="hide">
         <div id="prop-alerta24" class="sim-aviso err hide" style="margin-bottom:10px"></div>
@@ -514,7 +535,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
           <div class="filtros">
             <div class="fcampo"><label>Buscar</label>
               <input type="search" id="prop-busca" placeholder="Cliente, CPF, unidade ou corretor…" oninput="propRender()"></div>
-            <button class="bt ghost" onclick="propCarregar(true)">↻ Atualizar agora</button>
+            <button class="bt ghost" onclick="propCarregar(true,this)">↻ Atualizar agora</button>
             <div class="fcampo"><label>Ordem</label>
               <div class="seg" id="seg-ordem">
                 <button class="seg-bt on" data-po="asc" onclick="propOrdenar('asc')" title="Padrão: a que chegou primeiro fica no topo">↑ Mais antigas primeiro</button>
@@ -546,7 +567,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
           <div class="filtros">
             <div class="fcampo"><label>Buscar</label>
               <input type="search" id="sim-buscaUn" placeholder="Unidade ou tipo…" oninput="simRenderUnidades()"></div>
-            <button class="bt ghost" onclick="simCarregarUnidades(true)" title="Busca no Notion ao vivo, ignorando o arquivo publicado">↻ Atualizar agora</button>
+            <button class="bt ghost" onclick="simCarregarUnidades(true,this)" title="Busca no Notion ao vivo, ignorando o arquivo publicado">↻ Atualizar agora</button>
             <button class="bt verde" id="sim-btSalvarTudo" onclick="simSalvarTudo()" title="Tenta de novo as unidades que não conseguiram salvar" style="display:none">↻ Tentar salvar de novo</button>
             <span id="sim-alteradas" style="font-size:12px;color:var(--text3);align-self:center"></span>
           </div>
@@ -618,8 +639,10 @@ function trocarTab(nome){
   /* set/26 r5 — a aba "Nova proposta" saiu: o preenchimento é pelo mapa
      (proposta.html), do mesmo jeito que a simulação. Aqui o portal só
      DECIDE sobre proposta que já chegou. */
-  ["painel","recebidas","propostas","analise","unidades"].forEach(n=>document.getElementById("tab-"+n).classList.toggle("hide", n!==nome));
+  ["painel","recebidas","propostas","analise","unidades","servidores"].forEach(n=>document.getElementById("tab-"+n).classList.toggle("hide", n!==nome));
   if(nome==="unidades" && !UNS.length) simCarregarUnidades();
+  clearInterval(window._srvTimer);
+  if(nome==="servidores"){ srvCarregar(); window._srvTimer=setInterval(()=>{ if(!document.hidden) srvCarregar(); }, 20000); }
   if(nome==="propostas") propCarregar();   // r40 — revalida toda vez (respeita o TTL)
   if(nome==="analise"){ propCarregar(); if(!UNS.length) simCarregarUnidades(); else analiseRender(); }
 }
@@ -694,12 +717,79 @@ function iniciar(){
  * fonte continua sendo o Apps Script (com sessão conferida). */
 const SIM_TTL = 10*60*1000;
 
-async function simCarregar(forcar){
+/* 05/10 (itens 3, 4 e 5) — FORA DA FILA. Todas as ações das Simulações saíam pela MESMA fila do
+   navegador (uma por vez). Abrir uma proposta dispara a leitura da conversa de e-mail (até 90 s) e,
+   enquanto ela não volta, o ↻ Atualizar, o envio ao correspondente e o detalhe esperavam atrás —
+   e o "forçar" ainda reaproveitava a leitura velha que estava presa. Agora o que a pessoa CLICA e o
+   detalhe da proposta vão direto ao servidor, sem fila, e o botão mostra que está trabalhando. */
+/* 05/10 (item 11) — ABA SERVIDORES. Lê direto do Apps Script do simulador (ação pública e só de
+   leitura "workers": nomes dos PCs, papel, último sinal — nenhum segredo). */
+const SRV_URL = "https://script.google.com/macros/s/AKfycbzwUIApU5nKXi1vG3cEs_V2DWCdkLDwY_vo0zBxO59ZBLbEihIxuOqbHdNLm-8pVVwVJQ/exec";
+function srvTempo(seg){ seg=Math.max(0,Number(seg)||0); if(seg<60) return seg+" s"; if(seg<3600) return Math.round(seg/60)+" min"; if(seg<86400) return (seg/3600).toFixed(1).replace(".",",")+" h"; return Math.round(seg/86400)+" dia(s)"; }
+function srvHora(iso){ if(!iso) return "—"; const d=new Date(iso); return isNaN(d)?esc(iso):d.toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"}); }
+async function srvCarregar(bt){
+  const res=document.getElementById("srv-resumo"); if(!res) return;
+  simBotao(bt, true);
+  let r=null;
+  try{ const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),30000);
+       r = await fetch(SRV_URL+"?acao=workers&_="+Date.now(),{signal:ctrl.signal}).then(x=>x.json()); clearTimeout(t); }
+  catch(e){ r=null; }
+  simBotao(bt, false);
+  if(!r || !r.ok){
+    res.innerHTML='<div class="sim-aviso err">Não consegui ler o status dos servidores agora. '+
+      (r&&r.mensagem?esc(r.mensagem):'Confira se o Apps Script do simulador está publicado na versão r80 ou mais nova.')+'</div>';
+    return;
+  }
+  document.getElementById("srv-hora").textContent="Lido às "+new Date().toLocaleTimeString("pt-BR")+" · servidor "+(r.versao||"");
+  const ws=r.workers||[], on=ws.filter(w=>w.online), lid=ws.find(w=>w.papel==="LÍDER");
+  const sem=r.ultimoSinal ? Math.round((Date.now()-Date.parse(r.ultimoSinal))/1000) : null;
+  res.innerHTML = (on.length
+    ? '<div class="sim-aviso ok"><b>Sistema online.</b> '+on.length+' PC(s) ligado(s). Líder: <b>'+esc(lid?lid.pc:"—")+'</b>'+
+        (on.length>1?' · '+(on.length-1)+' de reserva':' · <span style="color:#B7791F">sem reserva — se ele cair, só a nuvem cobre</span>')+'.</div>'
+    : '<div class="sim-aviso err"><b>Nenhum PC online.</b> '+(sem!==null?'Último sinal há '+srvTempo(sem)+'. ':'')+
+        'As simulações estão saindo como PRELIMINAR pela nuvem até um PC voltar.</div>')+
+    (r.ultimaTroca && r.ultimaTroca.para ? '<div style="font-size:12px;color:var(--text3);margin-top:6px">Última troca de líder: '+
+       srvHora(new Date(r.ultimaTroca.em).toISOString())+(r.ultimaTroca.de?' ('+esc(String(r.ultimaTroca.de).replace(/-\d+$/,""))+' → '+esc(String(r.ultimaTroca.para).replace(/-\d+$/,""))+')':'')+'</div>' : '');
+  const cor=p=>p==="LÍDER"?"#1D7A45":(p==="RESERVA"?"#1F6FB2":"#C0392B");
+  document.getElementById("srv-tab").innerHTML = ws.length
+    ? '<thead><tr><th>PC</th><th>Papel</th><th>Situação</th><th>Último sinal</th><th>Ligado em</th><th>Versão do worker</th></tr></thead><tbody>'+
+      ws.map(w=>'<tr><td style="text-align:left"><b>'+esc(w.pc)+'</b><br><span style="font-size:11px;color:var(--text4)">'+esc(w.id)+'</span></td>'+
+        '<td><span class="tag" style="background:'+cor(w.papel)+';color:#fff;padding:3px 8px;border-radius:10px;font-weight:700">'+esc(w.papel)+(w.posicao?' · '+w.posicao+'º':'')+'</span></td>'+
+        '<td>'+(w.online?'<b style="color:#1D7A45">● online</b>':'<b style="color:#C0392B">● fora</b>')+'</td>'+
+        '<td>há '+srvTempo(w.segundosSemSinal)+'</td><td>'+srvHora(w.ligadoEm)+'</td><td>'+esc(w.versao||"—")+'</td></tr>').join("")+'</tbody>'
+    : '<tbody><tr><td style="padding:14px;text-align:left">Nenhum PC registrado ainda. Os PCs aparecem aqui depois do primeiro sinal de um worker r46 ou mais novo.</td></tr></tbody>';
+  const n=r.nuvem||{};
+  document.getElementById("srv-nuvem").innerHTML='<div style="border:1px dashed var(--border);border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.7">'+
+    '<b style="color:var(--azul)">Nuvem (contingência)</b><br>Última conferência: '+esc(n.ultimaRodada||"—")+
+    '<br>Situação: '+esc(n.ultimoMotivo||"—")+'<br>Última preliminar enviada pela nuvem: '+esc(n.ultimaPreliminar||"nenhuma")+'</div>';
+}
+
+async function simDireto(payload, ms){
+  return await _chamarDireto(Object.assign({}, payload), ms||60000);
+}
+async function simLerVivo(payload, chave, pintar){
+  let r=null;
+  try{ r = await simDireto(payload, 60000); }catch(e){ r = { ok:false, erro:(e&&e.name==="AbortError")?"TEMPO_ESGOTADO":"ERRO_API" }; }
+  if(r && r.ok){ storeGravar(chave, r); if(pintar){ try{ pintar(r); }catch(e){} } return r; }
+  const c = storeLer(chave);
+  if(c) return Object.assign({ doCache:true, velho:true, _ts:c.t, erroAoVivo:(r&&r.erro)||"SEM_RESPOSTA" }, c.v);
+  return r || { ok:false, erro:"SEM_RESPOSTA" };
+}
+function simBotao(bt, ligado){
+  if(!bt || !bt.tagName) return;
+  if(ligado){ if(!bt.dataset.txt) bt.dataset.txt=bt.innerHTML; bt.disabled=true; bt.innerHTML='<span class="load"></span> Atualizando…'; }
+  else { bt.disabled=false; if(bt.dataset.txt){ bt.innerHTML=bt.dataset.txt; delete bt.dataset.txt; } }
+}
+
+async function simCarregar(forcar, bt){
   if(forcar){
     document.getElementById("sim-lista-load")?.remove();
   }
-  const r = await lerStore({action:"simsLista"}, "sims_lista",
-                           { ttl:SIM_TTL, forcar:!!forcar, pintar:simPintarLista });
+  simBotao(bt, true);
+  const r = forcar ? await simLerVivo({action:"simsLista"}, "sims_lista", simPintarLista)
+                   : await lerStore({action:"simsLista"}, "sims_lista",
+                           { ttl:SIM_TTL, forcar:false, pintar:simPintarLista });
+  simBotao(bt, false);
   simAvisoVivo(r);
   if(!(r && r.simulacoes)){
     document.getElementById("sim-kpis").innerHTML =
@@ -727,13 +817,13 @@ function simAvisoVivo(r){
   }
 }
 /* Botão do topo: força as duas fontes de uma vez (Notion ao vivo). */
-function simAtualizarTudo(){
+function simAtualizarTudo(bt){
   /* r40 — o botão do topo não recarregava as PROPOSTAS: a aba ficava
      mostrando o cache de até 5 minutos e parecia que o Notion não tinha
      atualizado. Agora ele força as três listas. */
-  simCarregar(true);
-  simCarregarUnidades(true);
-  propCarregar(true);
+  simBotao(bt, true);
+  Promise.all([simCarregar(true), simCarregarUnidades(true), propCarregar(true)])
+    .finally(()=>simBotao(bt, false));
 }
 
 /* O 404 do Notion tem uma causa só e uma solução só — mostrar o texto cru
@@ -1533,13 +1623,16 @@ const SIM_NOME_NOTION={unidade:"UNIDADE",tipo:"TIPO",valorVenda:"VALOR DE VENDA"
    gravar — era exatamente o "Unidade sem identificador — recarregue.".
    Como esta aba é de EDIÇÃO, a fonte tem que ser o Apps Script, que devolve
    o id de cada página. O cache do lerStore mantém a abertura rápida. */
-async function simCarregarUnidades(forcar){
+async function simCarregarUnidades(forcar, bt){
   simAvisoUn("ok","Buscando no Notion…");
   let r;
+  simBotao(bt, true);
   try{
-    r = await lerStore({action:"simsUnidades"}, "sims_unidades",
-                       { ttl:SIM_TTL, forcar:!!forcar });
+    r = forcar ? await simLerVivo({action:"simsUnidades"}, "sims_unidades", null)
+               : await lerStore({action:"simsUnidades"}, "sims_unidades",
+                       { ttl:SIM_TTL, forcar:false });
   }catch(e){ r = { erro:"ERRO_API" }; }
+  simBotao(bt, false);
   /* ERRO_API quer dizer UMA coisa só: a resposta do Apps Script não era JSON
      (ou o fetch nem chegou lá). Quase sempre é implantação — URL velha, versão
      nova não publicada, ou "Quem tem acesso" diferente de "qualquer pessoa",
@@ -1910,12 +2003,15 @@ function propOrdenar(v){
 }
 
 /* ---------- carregar ---------- */
-async function propCarregar(forcar){
+async function propCarregar(forcar, bt){
   propAviso("ok","Buscando propostas no Notion…");
   let r;
-  try{ r = await lerStore({action:"simsPropostas"}, "sims_propostas",
-                          { ttl:PROP_TTL, forcar:!!forcar, pintar:propPintar }); }
+  simBotao(bt, true);
+  try{ r = forcar ? await simLerVivo({action:"simsPropostas"}, "sims_propostas", propPintar)
+                  : await lerStore({action:"simsPropostas"}, "sims_propostas",
+                          { ttl:PROP_TTL, forcar:false, pintar:propPintar }); }
   catch(e){ r = { erro:"ERRO_API" }; }
+  simBotao(bt, false);
   if(r && r.propostas){ propPintar(r);
     if(r.velho) propAviso("err", "<b>⚠ Propostas não atualizaram — mostrando a última cópia boa.</b><br>" + propErro(r.erroAoVivo));
     else propAviso("ok",""); }
@@ -2335,7 +2431,7 @@ function propVer(id){
     <!-- r47 (item 1) — documentação para o correspondente -->
     <div style="margin-top:16px"><b style="font-size:13px;color:var(--azul)">Enviar documentação ao correspondente</b>
       <div id="prop-corresp" style="display:flex;gap:9px;margin-top:8px;flex-wrap:wrap;align-items:center">
-        ${propBotoesCorresp(p.id, PROP_CORRESP_PADRAO)}
+        <span style="font-size:12px;color:var(--text3)"><span class="load"></span> Conferindo a preferência do corretor…</span>
       </div>
       <div id="prop-correspInfo" style="font-size:12px;color:var(--text3);margin-top:6px"></div>
       <div style="font-size:12px;color:var(--text3);margin-top:6px">
@@ -2383,7 +2479,7 @@ function propVer(id){
       </div>
     </div>
     <!-- r53 — a conversa fica logo abaixo do campo de resposta -->
-    <div id="prop-hist"></div>`:""}
+    <div id="prop-hist"><div class="sim-aviso" style="margin-top:12px"><span class="load"></span> Carregando a conversa de e-mail…</div></div>`:""}
     <div style="display:flex;gap:9px;margin-top:16px"><button class="bt" onclick="simFecharDet()">Fechar</button></div>
     ${podeGravar?'':'<div id="prop-detAviso" class="sim-aviso" style="margin-top:10px"></div>'}`;
   document.getElementById("sim-modal").classList.remove("hide");
@@ -2425,14 +2521,18 @@ async function propCarregarDetalhe(id, tentativa){
   if(guardado) propPintarDetalhe(id, guardado);
   else if(tentativa) alvo.innerHTML='<div class="sim-aviso ok"><span class="load"></span> Tentando de novo…</div>';
   let r;
-  try{ r = await chamar({action:"simsDetalheRapido", pageId:id}, 45000, true); }
+  /* 05/10 — a cópia guardada aparece na hora, mas fica marcada como cópia até a versão
+     nova chegar (era o "anexei e não deu baixa": a tela ficava na cópia de até 50 min). */
+  if(guardado) propMarcaCopia(true);
+  try{ r = await simDireto({action:"simsDetalheRapido", pageId:id}, 45000); }
   catch(e){ r = null; }
   if(r && !r.ok && /ACAO_DESCONHECIDA/.test(String(r.erro||""))){
-    try{ r = await chamar({action:"simsPropostaDetalhe", pageId:id}, 60000, true); }catch(e){ r=null; }
+    try{ r = await simDireto({action:"simsPropostaDetalhe", pageId:id}, 60000); }catch(e){ r=null; }
   }
   if(!document.getElementById("prop-detalhe")) return;
   if(!r || !r.ok){
-    if(guardado) return;                                   // fica com a cópia que já está na tela
+    propHistErro(id);                                      // 05/10 (item 6): a conversa nunca fica em branco
+    if(guardado){ propMarcaCopia(false, true, id); return; }   // fica com a cópia, avisando que é cópia
     alvo.innerHTML = r ? '<div class="sim-aviso err">'+propErro(r&&r.erro)+
         ' <button class="bt ghost" style="margin-left:8px;padding:4px 10px" onclick="propCarregarDetalhe(\''+id+'\',1)">↻ Tentar de novo</button></div>'
       : '<div class="sim-aviso err">Não consegui carregar os documentos. '+
@@ -2440,20 +2540,42 @@ async function propCarregarDetalhe(id, tentativa){
     return;
   }
   const histGuardada = guardado && guardado.historicoEmail && guardado.historicoEmail.motivo!=="ADIADO" ? guardado.historicoEmail : null;
-  if(r.historicoEmail && r.historicoEmail.motivo==="ADIADO" && histGuardada) r.historicoEmail = histGuardada;
   propPintarDetalhe(id, r);
+  /* 05/10 (item 6) — a conversa guardada aparece enquanto a nova é buscada (antes ela SUBSTITUÍA a
+     busca e a conversa nova nunca vinha) */
+  if(histGuardada && r.historicoEmail && r.historicoEmail.motivo==="ADIADO"){
+    const cxH0=document.getElementById("prop-hist");
+    if(cxH0){ propPintarDetalhe(id, Object.assign({}, r, {historicoEmail:histGuardada}));
+      cxH0.insertAdjacentHTML("afterbegin",'<div class="sim-aviso" style="margin-top:12px"><span class="load"></span> Atualizando a conversa…</div>'); }
+  }
   propDetGuardar(id, r);
-  /* a conversa, sem pressa */
+  /* a conversa, sem pressa — e fora da fila, para não trancar o resto da tela */
   if(r.historicoEmail && r.historicoEmail.motivo==="ADIADO"){
-    let c=null; try{ c = await chamar({action:"simsPropostaDetalhe", pageId:id}, 90000); }catch(e){}
+    let c=null; try{ c = await simDireto({action:"simsPropostaDetalhe", pageId:id}, 90000); }catch(e){}
     if(c && c.ok){ propDetGuardar(id, c); if(document.getElementById("prop-detalhe")) propPintarDetalhe(id, c); }
     else { const cxH=document.getElementById("prop-hist"); if(cxH) cxH.innerHTML='<div class="sim-aviso" style="margin-top:12px">Não consegui carregar a conversa de e-mail agora. '+
       '<button class="bt ghost" style="margin-left:8px;padding:4px 10px" onclick="propCarregarDetalhe(\''+id+'\',1)">↻ Tentar de novo</button></div>'; }
   }
 }
+function propMarcaCopia(ligar, falhou, id){
+  const a=document.getElementById("prop-detalhe"); if(!a) return;
+  let m=document.getElementById("prop-copiaAviso");
+  if(!ligar && !falhou){ if(m) m.remove(); return; }
+  if(!m){ m=document.createElement("div"); m.id="prop-copiaAviso"; m.className="sim-aviso"; m.style.marginBottom="8px"; a.parentNode.insertBefore(m, a); }
+  m.innerHTML = falhou
+    ? '<b>Mostrando a última cópia</b> — não consegui buscar a versão atual agora. <button class="bt ghost" style="margin-left:8px;padding:4px 10px" onclick="propCarregarDetalhe(\''+id+'\',1)">↻ Tentar de novo</button>'
+    : '<span class="load"></span> Conferindo documentos e dados atualizados no Notion…';
+}
+function propHistErro(id){
+  const cxH=document.getElementById("prop-hist"); if(!cxH) return;
+  if(cxH.querySelector("details.hist-email")) return;
+  cxH.innerHTML='<div class="sim-aviso" style="margin-top:12px">Não consegui carregar a conversa de e-mail agora. '+
+    '<button class="bt ghost" style="margin-left:8px;padding:4px 10px" onclick="propCarregarDetalhe(\''+id+'\',1)">↻ Tentar de novo</button></div>';
+}
 function propPintarDetalhe(id, r){
   const alvo = document.getElementById("prop-detalhe");
   if(!alvo) return;
+  if(!r.doCache) propMarcaCopia(false);
 
   /* r50 — as pendências já apareceram com os dados da lista; aqui elas são
      atualizadas com o que o Notion acabou de devolver, na mesma lógica dos
@@ -2669,8 +2791,36 @@ async function propEnviarCorresp(id, chave, nome, email){
   cx.querySelectorAll("button").forEach(b=>b.disabled=true);
   info.innerHTML='<span class="load"></span> Gerando o PDF, juntando os documentos e enviando para <b>'+esc(nome)+'</b>… (pode levar até 1 minuto)';
   let r;
-  try{ r = await chamar({action:"simsEnviarCorrespondente", pageId:id, correspondente:chave}, 240000, true); }
-  catch(e){
+  /* 05/10 (item 3) — o envio sai FORA da fila e, em paralelo, a tela confere no Notion se o
+     registro "Já enviada" ganhou esta linha. O que chegar primeiro destrava a tela: antes o e-mail
+     saía e a tela ficava girando até a resposta voltar (ou até 4 min). */
+  const linhasAntes = String(p.envioCorrespondente||hist||"").split(/\n+/).filter(t=>t.trim()).length;
+  let pronto=false;
+  const confere = (async ()=>{
+    await new Promise(ok=>setTimeout(ok, 20000));
+    for(let i=0;i<16 && !pronto;i++){
+      try{
+        const d = await simDireto({action:"simsDetalheRapido", pageId:id}, 30000);
+        const reg = String((d&&d.envioCorrespondente)||"");
+        const linhas = reg.split(/\n+/).filter(t=>t.trim());
+        if(d && d.ok && linhas.length>linhasAntes && reg.indexOf(nome)>=0)
+          return { ok:true, correspondente:nome, para:email, anexos:"?", registro:reg, viaRegistro:true };
+      }catch(e){}
+      await new Promise(ok=>setTimeout(ok, 15000));
+    }
+    return null;
+  })();
+  try{
+    r = await Promise.race([
+      simDireto({action:"simsEnviarCorrespondente", pageId:id, correspondente:chave}, 240000),
+      confere.then(x=>x || new Promise(()=>{}))
+    ]);
+  }catch(e){
+    const x = await Promise.race([confere, new Promise(ok=>setTimeout(()=>ok(null), 60000))]);
+    if(x) r=x;
+  }
+  pronto=true;
+  if(!r){
     delete cx.dataset.enviando; cx.querySelectorAll("button").forEach(b=>b.disabled=false);
     info.innerHTML='<span style="color:#C0392B"><b>Não recebi a confirmação.</b> O e-mail pode ter saído — confira a cópia em '+
       'vendasreservadosipes@gmail.com antes de enviar de novo.</span>';
@@ -2687,8 +2837,8 @@ async function propEnviarCorresp(id, chave, nome, email){
        : "Não enviou: "+esc(e||"erro desconhecido"))+'</span>';
     return;
   }
-  info.innerHTML='<span style="color:#1D7A45"><b>✓ Enviado para '+esc(r.correspondente)+'</b> ('+esc(r.para)+') — '+
-    r.anexos+' anexo(s)'+(r.partes>1?' em '+r.partes+' e-mails (tamanho)':'')+'.</span>'+
+  info.innerHTML='<span style="color:#1D7A45"><b>✓ Enviado para '+esc(r.correspondente)+'</b> ('+esc(r.para)+')'+
+    (r.viaRegistro ? ' — confirmado pelo registro da proposta.' : ' — '+r.anexos+' anexo(s)'+(r.partes>1?' em '+r.partes+' e-mails (tamanho)':'')+'.')+'</span>'+
     /* r48 — quantos documentos a proposta tinha, para bater com o que saiu */
     (r.encontrados!==undefined ? '<br><span style="color:var(--text3)">Documentos cadastrados na proposta: <b>'+
       r.encontrados+'</b> + o PDF.</span>' : '')+
