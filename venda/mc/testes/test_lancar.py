@@ -233,6 +233,10 @@ def test_aviso_generico_nao_apaga_o_motivo_ja_anotado():
     L._anotar_erro(n, "p", "o robô falhou", manter_erro_anterior=True)
     assert n.props["MC - SITUAÇÃO"]["rich_text"][0]["plain_text"].startswith("ERRO: o Mais Controle recusou")
     n = NotionFake(pagina())
+    n.props["MC - SITUAÇÃO"] = txt("RECUSADA: já existe no Mais Controle um cadastro")
+    L._anotar_erro(n, "p", "o robô falhou", manter_erro_anterior=True)
+    assert n.gravado == {}
+    n = NotionFake(pagina())
     n.props["MC - SITUAÇÃO"] = txt("PROCESSANDO [t=1]")
     L._anotar_erro(n, "p", "o robô falhou", manter_erro_anterior=True)
     assert "o robô falhou" in str(n.gravado)

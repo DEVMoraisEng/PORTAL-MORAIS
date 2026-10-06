@@ -190,8 +190,8 @@ def _anotar_erro(notion, page, texto, manter_erro_anterior=False) -> None:
         props = notion.pagina(page).get("properties") or {}
         cel = props.get(R.COL["situacao"]) or {}
         atual = "".join(t.get("plain_text", "") for t in cel.get("rich_text") or [])
-        if manter_erro_anterior and atual.startswith("ERRO"):
-            return   # o robô já anotou o motivo; não trocar por um aviso genérico
+        if manter_erro_anterior and atual.strip() and not atual.startswith("PROCESSANDO"):
+            return   # o robô já anotou o resultado (ERRO, RECUSADA...); não trocar por um aviso genérico
         notion.gravar_textos(page, props, {R.COL["situacao"]: "ERRO: " + texto[:300]})
     except Exception:
         pass
