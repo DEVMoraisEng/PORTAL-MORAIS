@@ -28,7 +28,8 @@ export function criarGas({ props, rotas, extras = {} }) {
   const ctx = {
     console: { log: (...a) => logs.push(a.join(" ")), error: (...a) => logs.push(a.join(" ")) },
     PropertiesService: { getScriptProperties: () => ({ getProperty: (n) => (n in props ? props[n] : null),
-                                                       setProperty: (n, v) => { props[n] = String(v); } }) },
+                                                       setProperty: (n, v) => { props[n] = String(v); },
+                                                       deleteProperty: (n) => { delete props[n]; } }) },
     CacheService: { getScriptCache: () => ({ get: (k) => (cache.has(k) ? cache.get(k) : null),
                                              put: (k, v) => { if (String(v).length > 100000) throw new Error("Argument too large: value"); cache.set(k, v); },
                                              remove: (k) => cache.delete(k) }) },
@@ -40,6 +41,13 @@ export function criarGas({ props, rotas, extras = {} }) {
       base64Encode: (x) => paraBuf(x).toString("base64"),
       base64Decode: (s) => comSinal(Buffer.from(s, "base64")),
       computeHmacSha256Signature: (valor, chave) => comSinal(crypto.createHmac("sha256", chave).update(valor).digest()),
+      DigestAlgorithm: { SHA_256: "SHA_256" },
+      Charset: { UTF_8: "UTF_8" },
+      computeDigest: (alg, valor, charset) => {
+        if (alg !== "SHA_256" || charset !== "UTF_8") throw new Error("computeDigest: algoritmo/charset não previsto");
+        return comSinal(crypto.createHash("sha256").update(String(valor), "utf8").digest());
+      },
+      sleep: () => {},
       newBlob: (x, mime, nome) => blob(paraBuf(x), mime, nome),
       formatDate: (d, tz, fmt) => {
         const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" })

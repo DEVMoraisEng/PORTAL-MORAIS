@@ -115,11 +115,23 @@ function cenario({ venda, obra, vendedor, loteamento, corretor, props, drive, co
 const ANTIGO = { files: [{ name: "antigo.pdf", type: "file", file: { url: "https://s3.falso/velho" } }] };
 const DADOS_PESSOAIS = ["Fulano", "Sicrana", "Beltrano", "Construtora", "000.000", "Investidor", "pix@teste", "12345-6"];
 
+test("carimbo no nome do PDF: SHA-256 (8 hex) dos dados do contrato; muda quando comprador, vendedor ou valor mudam", () => {
+  const carimbo = (mud) => { const r = cenario(mud).gerar(); assert.equal(r.ok, true, JSON.stringify(r)); return /\[#([0-9a-f]{8})\]\.pdf$/.exec(r.nome)[1]; };
+  const base = carimbo({});
+  assert.equal(carimbo({}), base, "mesmos dados, mesmo carimbo");
+  assert.notEqual(carimbo({ venda: { "COMPRADOR 1 - PROFISSÃO": rt("engenheiro") } }), base, "comprador");
+  assert.notEqual(carimbo({ vendedor: { "REPRESENTANTE NOME": rt("Outro Representante") } }), base, "representante");
+  assert.notEqual(carimbo({ venda: { "CONTRATO - SINAL VALOR": num(12000) } }), base, "valor");
+  const c = cenario();
+  assert.equal(c.g.ctx.ctrCarimboDoNome_("CONTRATO - X - 01-10-2026 [#" + base + "].pdf"), base);
+  assert.equal(c.g.ctx.ctrCarimboDoNome_("CONTRATO - X - 01-10-2026.pdf"), "");
+});
+
 test("sucesso: PDF em CONTRATO GERADO substitui o anterior, sem marcadores, cópia removida", () => {
   const c = cenario({ venda: { "CONTRATO GERADO": ANTIGO } });
   const r = c.gerar();
   assert.equal(r.ok, true, JSON.stringify(r));
-  assert.match(r.nome, /^CONTRATO - RESIDENCIAL TESTE QD 07 LT 12 - CASA 3 - \d\d-\d\d-\d{4}\.pdf$/);
+  assert.match(r.nome, /^CONTRATO - RESIDENCIAL TESTE QD 07 LT 12 - CASA 3 - \d\d-\d\d-\d{4} \[#[0-9a-f]{8}\]\.pdf$/);
   assert.ok(r.url);
   const arqs = c.arquivos();
   assert.equal(arqs.length, 1);

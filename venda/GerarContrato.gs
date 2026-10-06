@@ -248,6 +248,26 @@ function apagarCopia_(id) {
   }
 }
 
+/* ---- carimbo dos dados ----
+ * 8 hex do SHA-256 do que define o conteúdo e quem assina (compradores, vendedor e representante,
+ * corretor, loteamento, imóvel, valores). Vai no nome do PDF ("… [#abcd1234].pdf"); o envio para
+ * assinatura recalcula e recusa (CONTRATO_DESATUALIZADO) se os dados mudaram depois de gerar.
+ * Fica fora o que muda sozinho (data de hoje, cidade da assinatura). */
+function ctrCarimbo_(d) {
+  var base = { modelo: d.modelo, comprador1: d.comprador1, comprador2: d.comprador2, vendedor: d.vendedor,
+               nomeProprietario: d.nomeProprietario, corretor: d.corretor, corretorNaVenda: d.corretorNaVenda,
+               loteamento: d.loteamento, imovel: d.imovel, negociacao: d.negociacao, comissao: d.comissao };
+  var b = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, JSON.stringify(base), Utilities.Charset.UTF_8);
+  var h = "";
+  for (var i = 0; i < 4; i++) h += ("0" + (b[i] & 255).toString(16)).slice(-2);
+  return h;
+}
+/* Carimbo do nome do PDF; "" quando não tem (PDF gerado antes do carimbo existir). */
+function ctrCarimboDoNome_(nome) {
+  var m = /\[#([0-9a-f]{8})\]\.pdf$/i.exec(String(nome || ""));
+  return m ? m[1].toLowerCase() : "";
+}
+
 /* ---- ações ---- */
 function ctrArquivoGerado_(pg) {
   var v = ctrPorChave_(pg.properties), pr = v[RegrasVenda.chave(ContratoVenda.COL.CONTRATO_GERADO)];
@@ -299,7 +319,8 @@ function gerarContrato_(col, sess, p) {
   catch (e) { ctrErro_("gerarContrato " + pid + " montagem falhou", e); return { ok: false, erro: "CONTRATO_FALHOU" }; }
 
   var endereco = String(f.endereco).replace(/[\\\/:*?"<>|]/g, "-");
-  var nomePdf = "CONTRATO - " + endereco + (f.casa ? " - CASA " + f.casa : "") + " - " + hoje_("dd-MM-yyyy") + ".pdf";
+  var nomePdf = "CONTRATO - " + endereco + (f.casa ? " - CASA " + f.casa : "") + " - " + hoje_("dd-MM-yyyy") +
+                " [#" + ctrCarimbo_(d) + "].pdf";
   var colGerado = f.colGerado;
 
   var copia = null;
