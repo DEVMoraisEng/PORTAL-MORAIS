@@ -330,7 +330,37 @@
   function wrapC() { return document.getElementById("contrato-wrap"); }
   function pintarC() {
     var w = wrapC(); if (!w) return;
-    w.innerHTML = htmlContrato(estadoC, uiC) + '<div id="mc-wrap">' + htmlMC(estadoM, uiM) + "</div>";
+    w.innerHTML = htmlContrato(estadoC, uiC) + '<div id="ass-wrap">' + htmlAss() + "</div>" +
+      '<div id="mc-wrap">' + htmlMC(estadoM, uiM) + "</div>";
+  }
+  /* ---- Assinatura (Clicksign): o desenho e as ações moram em venda/assinatura-ui.js
+   * (window.VendaAssinatura, carregado por iniciar()); aqui só o estado e a ligação. */
+  var ctxA = { estado: null, ocupado: null, msg: "", faltas: null, testes: false };
+  function novoCtxA() { return { estado: null, ocupado: null, msg: "", faltas: null, testes: perfilTestes() }; }
+  function htmlAss() {
+    if (!window.VendaAssinatura) return '<div class="grp">Assinatura</div><div class="vazio">carregando…</div>';
+    ctxA.contratoGerado = !!(estadoC && estadoC.gerado);
+    return window.VendaAssinatura.montarBlocoAssinatura(ctxA);
+  }
+  function pintarA() { var w = document.getElementById("ass-wrap"); if (w) w.innerHTML = htmlAss(); }
+  async function carregarAss(pageId) {
+    var r = await chamarVenda({ action: "assinaturaEstado", pageId: pageId }, 90000);
+    if (!mesmaCasaContrato(pageId)) return;
+    if (r.ok) { ctxA.estado = { situacao: r.situacao || "", envelope: !!r.envelope, signatarios: r.signatarios || [] }; ctxA.msg = ""; }
+    else ctxA.msg = window.VendaAssinatura ? window.VendaAssinatura.mensagemAssinatura(r) : "";
+    pintarA();
+  }
+  async function aoClicarAss(acao, pageId) {
+    if (!window.VendaAssinatura || ctxA.ocupado) return;
+    ctxA.contratoGerado = !!(estadoC && estadoC.gerado);
+    var novo = await window.VendaAssinatura.executarAcaoAssinatura(acao, ctxA, {
+      pageId: pageId,
+      confirmar: function (t) { return window.confirm(t); },
+      chamar: function (p) { return chamarVenda(p, 150000); },
+      pintar: function (c) { ctxA = c; pintarA(); }
+    });
+    if (!mesmaCasaContrato(pageId)) return;
+    ctxA = novo; pintarA();
   }
   /* ---- Mais Controle: mora dentro do contrato-wrap (que precisa ser o último
    * filho de #pn-body); usa o mesmo seqC para descartar resposta de outra casa. */
@@ -390,6 +420,7 @@
     var b = ev.target.closest("[data-acao]"); if (!b || b.disabled) return;
     var pageId = obraAberta(), acao = b.getAttribute("data-acao"), r, seq;
     if (pageId && paginaDoContrato === pageId && /^mc-/.test(acao)) return aoClicarMC(acao, pageId);
+    if (pageId && paginaDoContrato === pageId && /^a-/.test(acao)) return aoClicarAss(acao, pageId);
     if (!pageId || uiC.ocupadoContrato || paginaDoContrato !== pageId) return;
     if (acao === "c-ver") {
       /* abre a janela AGORA, dentro do clique (antes de qualquer await), senão o
@@ -440,20 +471,21 @@
   function garantirContrato(body, id) {
     var w = wrapC();
     if (w) { if (body.lastElementChild !== w) body.appendChild(w); return; }
-    if (paginaDoContrato !== id) { paginaDoContrato = id; seqC++; estadoC = null; uiC = novoUiC(); estadoM = null; uiM = novoUiM(); }
+    if (paginaDoContrato !== id) { paginaDoContrato = id; seqC++; estadoC = null; uiC = novoUiC(); estadoM = null; uiM = novoUiM(); ctxA = novoCtxA(); }
     w = document.createElement("div"); w.id = "contrato-wrap";
     w.addEventListener("click", aoClicarContrato);
     body.appendChild(w);
     pintarC();
     if (!estadoC) carregarContrato(id);
     if (!estadoM) carregarMC(id, seqC);
+    if (!ctxA.estado) carregarAss(id);
   }
   function garantirBloco(body) {
     var id = obraAberta();
     if (!id) {
       /* painel fechado: zera para a mesma casa recarregar o estado ao reabrir */
       if (paginaDoBloco !== null) { paginaDoBloco = null; estado = null; ui = { dois: false, ocupado: null, msg: "", testes: false }; }
-      if (paginaDoContrato !== null) { paginaDoContrato = null; seqC++; estadoC = null; uiC = novoUiC(); estadoM = null; uiM = novoUiM(); }
+      if (paginaDoContrato !== null) { paginaDoContrato = null; seqC++; estadoC = null; uiC = novoUiC(); estadoM = null; uiM = novoUiM(); ctxA = novoCtxA(); }
       return;
     }
     if (painelCarregando(body.children.length, body.firstElementChild ? body.firstElementChild.className : "",
@@ -471,6 +503,10 @@
   function iniciar() {
     var body = document.getElementById("pn-body"); if (!body) return;
     var st = document.createElement("style"); st.textContent = CSS; document.head.appendChild(st);
+    /* o bloco de assinatura mora em arquivo próprio; vendas.html continua com uma linha só */
+    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=1";
+    sa.onload = function () { pintarA(); };
+    document.head.appendChild(sa);
     new MutationObserver(function () { garantirBloco(body); }).observe(body, { childList: true });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", iniciar); else iniciar();
