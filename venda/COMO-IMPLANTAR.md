@@ -116,6 +116,40 @@ Gera o contrato de compra e venda no fim do painel da casa (PDF em
 Teste: abrir a casa de teste, preencher/conferir os campos, **Gerar contrato**;
 faltando dado, o botão lista o que falta e não gera nada.
 
+## Mais Controle (entrega 4)
+
+Botão **Ver prévia / Lançar no Mais Controle** no fim do painel, abaixo do
+Contrato. O Apps Script não fala com o ERP (o WAF exige user-agent de navegador
+e o UrlFetchApp não deixa trocar): ele pede ao GitHub que rode o workflow
+`mc-venda.yml`, que roda `python -m venda.mc.lancar` e escreve o resultado nas
+colunas da venda. O que o robô faz:
+
+1. lê a venda; recusa se faltar CPF válido, data da venda, casa ou valores, ou se a soma das
+   parcelas (Sinal, Entrada, Intermediária, FGTS, Financiamento = financiado + subsídio)
+   não bater com o que a SPE recebe;
+2. acha a **obra** pelo nome (= ENDEREÇO) e usa a **conta da obra**;
+3. procura **venda da mesma casa já lançada** (em qualquer grafia antiga) — se achar, **não cria** e anota o id;
+4. acha o **cliente pelo CPF** (cria só se não existir);
+5. na prévia, só escreve o resumo em `MC - SITUAÇÃO`; no lançamento, cria cliente (se faltar) e a venda
+   (`VENDA CASA 0N - NOME`, Parcelado, juros compostos) e grava `MC - VENDA ID`.
+
+Implantar:
+
+1. **Colunas na VENDAS** (texto): `MC - SITUAÇÃO`, `MC - VENDA ID`. No teste o script
+   `ferramentas/contrato/criar_colunas_mc_teste.py` cria (fora do repo).
+2. **PORTAL-VENDA:** arquivo novo **MaisControleVenda** (`venda/MaisControleVenda.gs`) e o
+   `PortalVenda` atualizado. Propriedades: `GITHUB_TOKEN` (token fine-grained do repositório,
+   permissão *Contents: Read and write*) e `GH_REPO_MC` (teste: `MoraisEng-Teste/PORTAL-MORAIS`;
+   produção: `DEVMoraisEng/PORTAL-MORAIS`). Nova versão.
+3. **GitHub do repositório** › Settings › Secrets and variables › Actions:
+   segredos `MC_ROBO_EMAIL` e `MC_ROBO_SENHA` (o usuário robô do Mais Controle — os mesmos dos
+   Robôs MC) e `NOTION_TOKEN` (já existe). **Variável** `MC_APLICAR`: deixe **vazia** enquanto
+   testa (tudo vira prévia, e o pedido de lançar aparece como "BLOQUEADO"); `1` libera gravar.
+4. Primeiro lançamento real: uma casa escolhida pelo dono, com ele acompanhando no ERP.
+
+O log do Actions é público: o robô só imprime situação e motivos, nunca CPF, nome ou valores
+por pessoa.
+
 ## Plano B — Anthropic
 
 A leitura por padrão é pela OpenAI (decisão do dono em 28/09/2026); a
