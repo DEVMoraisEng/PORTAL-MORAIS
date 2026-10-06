@@ -103,6 +103,14 @@ class Erp:
                                                         "size": 20, "sort": "name"}) or {}
         return [p for p in j.get("content") or [] if R.chave(p.get("name")) == alvo]
 
+    def homonimos(self, nome: str) -> list[dict]:
+        """Qualquer cadastro (cliente, fornecedor, funcionário...) com o mesmo nome: o ERP recusa
+        criar outro participante com nome igual ("Já existe um Fornecedor com este mesmo nome")."""
+        alvo = R.chave(nome)
+        j = self.pedir("GET", "/participants", params={"keyword": nome, "page": 0, "size": 20,
+                                                        "sort": "name"}) or {}
+        return [p for p in j.get("content") or [] if R.chave(p.get("name")) == alvo]
+
     def recebimentos(self, inicio: str = "2020-01-01", fim: str | None = None) -> list[dict]:
         """Parcelas de venda por data de competência — serve para achar venda já lançada.
         Lista incompleta seria pior que erro (abriria espaço para duplicata): por isso lança."""

@@ -49,6 +49,9 @@ class ErpFake:
     def cliente_por_cpf(self, cpf):
         return [c for c in self._cli if c["cpf"] == cpf]
 
+    def homonimos(self, nome):
+        return getattr(self, "_homs", [])
+
     def participante_por_nome(self, nome):
         return []
 
@@ -262,3 +265,17 @@ def test_login_que_pede_codigo_explica_e_manda_o_aparelho():
         except ErpErro as e:
             assert trecho in str(e)
     assert http.cab["x-device-code"] == "abc"
+
+
+def test_homonimo_fornecedor_recusa_na_previa_sem_criar_nada():
+    n = NotionFake(pagina())
+    e = ErpFake()
+    e._homs = [{"id": "f1", "name": "FULANO DE TAL", "role": "SUPPLIER", "cpf": None}]
+    r = L.processar("p", n, e, aplicar=False)
+    assert r["situacao"] == "RECUSADA" and r["codigo"] == "NOME_JA_CADASTRADO"
+    assert "Fornecedor" in n.gravado["MC - SITUAÇÃO"] and "diferencie o nome" in n.gravado["MC - SITUAÇÃO"]
+    e._homs = [{"id": "f1", "name": "Fulano de Tal", "role": "SUPPLIER", "cpf": CPF_OK}]
+    n = NotionFake(pagina())
+    r = L.processar("p", n, e, aplicar=False)
+    assert r["codigo"] == "NOME_JA_CADASTRADO" and "mesmo CPF" in n.gravado["MC - SITUAÇÃO"]
+    assert "marque também como Cliente" in n.gravado["MC - SITUAÇÃO"]

@@ -105,6 +105,23 @@ def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DI
         return fim("RECUSADA", "RECUSADA: " + res["motivos"][0], codigo="CPF_EM_VARIOS_CLIENTES")
     cliente_novo = None if clientes else R.corpo_cliente(d)
     res["cliente"] = {"existe": bool(clientes), "id": clientes[0]["id"] if clientes else None}
+    if cliente_novo:
+        try:
+            homs = erp.homonimos(cliente_novo["name"])
+        except ErpErro:
+            homs = None
+            res["avisos"].append("HOMONIMO_NAO_CONSULTADO")
+        if homs:
+            papeis = ", ".join(sorted({_papel(h) for h in homs}))
+            mesmo_cpf = any(R.so_digitos(h.get("cpf")) == d["comprador"]["cpf"] for h in homs)
+            res["motivos"] = ["Já existe cadastro com o mesmo nome no Mais Controle (%s)" % papeis]
+            return fim("RECUSADA", "RECUSADA: já existe no Mais Controle um cadastro de %s com o mesmo nome do comprador%s, "
+                       "e o ERP não aceita dois com nome igual. %s Depois peça a prévia de novo." % (
+                           papeis, " e o mesmo CPF" if mesmo_cpf else "",
+                           "Abra esse cadastro no Mais Controle e marque também como Cliente."
+                           if mesmo_cpf else "Confira se é a mesma pessoa: se for, marque o cadastro também como "
+                           "Cliente e ponha o CPF; se não for, diferencie o nome de um dos dois."),
+                       codigo="NOME_JA_CADASTRADO")
 
     vendedor_id = None
     if d.get("corretor"):
@@ -156,6 +173,16 @@ def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DI
     res["venda"] = {"id": venda["id"]}
     return fim("CRIADA", "CRIADA no Mais Controle (venda %s) — %s" % (venda["id"], resumo), venda["id"],
                obrigatorio=True)
+
+
+PAPEIS = {"CUSTOMER": "Cliente", "SUPPLIER": "Fornecedor", "EMPLOYEE": "Funcionário", "SELLER": "Vendedor"}
+
+
+def _papel(p: dict) -> str:
+    r = p.get("role") or p.get("roles") or ""
+    if isinstance(r, list):
+        return "/".join(PAPEIS.get(str(x), str(x)) for x in r) or "cadastro"
+    return PAPEIS.get(str(r), str(r) or "cadastro")
 
 
 def _anotar_erro(notion, page, texto, manter_erro_anterior=False) -> None:
