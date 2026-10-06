@@ -16,6 +16,8 @@ var ClicksignVenda = (function () {
   var SITUACOES = { ENVIADO: "ENVIADO", ASSINADO: "ASSINADO", RECUSADO: "RECUSADO", CANCELADO: "CANCELADO",
                     EXPIRADO: "EXPIRADO", RASCUNHO: "RASCUNHO" };
   var REENVIAVEL = ["CANCELADO", "RECUSADO", "EXPIRADO"];
+  /* situações finais: a Propriedade ASSINATURA_PAPEIS_<envelope> não serve mais e é apagada */
+  var FINAIS = ["ASSINADO", "CANCELADO", "EXPIRADO", "RECUSADO"];
 
   function txt(v) { return v === null || v === undefined ? "" : String(v).trim(); }
   function email(v) { return txt(v).toLowerCase(); }
@@ -64,13 +66,19 @@ var ClicksignVenda = (function () {
   function nomeDoPar(dados) { return ehPJ(dados) ? "ASSINATURA_TESTEMUNHAS_SPE" : "ASSINATURA_TESTEMUNHAS_PF"; }
   function testemunhas(dados, config) { return par(ehPJ(dados) ? config.testemunhasSPE : config.testemunhasPF); }
 
-  /* O representante vem do cadastro quando ele traz nome e e-mail; senão, da Propriedade (inteiro, nunca misturado). */
+  /* Mesma chave do RegrasVenda (acento/caixa/espaço); lida na hora porque no node este arquivo é carregado sozinho. */
+  function chave(s) {
+    var R = typeof RegrasVenda !== "undefined" ? RegrasVenda : (typeof require === "function" ? require("./RegrasVenda.js") : null);
+    return R.chave(s);
+  }
+  /* O representante vem do cadastro quando ele traz nome e e-mail. A Propriedade só completa o
+   * e-mail quando é a MESMA pessoa do cadastro (nome igual pela chave) — nunca troca quem assina. */
   function representante(v, config) {
     if (txt(v.representanteNome) && txt(v.representanteEmail))
       return { nome: txt(v.representanteNome), email: email(v.representanteEmail), cpf: txt(v.representanteCpf) };
     var daConfig = pessoa(config.representante);
-    if (daConfig) return daConfig;
-    /* nenhum dos dois: fica sem e-mail, e a falta aponta onde preencher */
+    if (daConfig && txt(v.representanteNome) && chave(daConfig.nome) === chave(v.representanteNome)) return daConfig;
+    /* sem e-mail: a falta pede o REPRESENTANTE E-MAIL no cadastro */
     return { nome: txt(v.representanteNome), email: "", cpf: txt(v.representanteCpf) };
   }
 
@@ -98,7 +106,6 @@ var ClicksignVenda = (function () {
     comprador1: "coluna COMPRADOR 1 - E-MAIL",
     comprador2: "coluna COMPRADOR 2 - E-MAIL",
     vendedor: "coluna E-MAIL em VENDEDORES – CONTRATO",
-    representante: "coluna REPRESENTANTE E-MAIL em VENDEDORES – CONTRATO ou Propriedade ASSINATURA_REPRESENTANTE",
     corretor: "coluna E-MAIL em CORRETORES – CONTRATO",
     testemunha: ""
   };
@@ -114,7 +121,8 @@ var ClicksignVenda = (function () {
     signatarios(dados, config).forEach(function (s) {
       var f = [];
       if (!nomeValido(s.nome)) f.push(s.papel + ": nome e sobrenome, sem números");
-      if (!s.email) f.push(s.papel + ": e-mail" + (ONDE_EMAIL[s.origem] ? " (" + ONDE_EMAIL[s.origem] + ")" : ""));
+      if (!s.email && s.origem === "representante") f.push("Vendedor: falta REPRESENTANTE E-MAIL no cadastro");
+      else if (!s.email) f.push(s.papel + ": e-mail" + (ONDE_EMAIL[s.origem] ? " (" + ONDE_EMAIL[s.origem] + ")" : ""));
       else if (!emailValido(s.email)) f.push(s.papel + ": e-mail inválido");
       else if (vistos[s.email]) f.push(s.papel + ": e-mail repetido (igual ao de " + vistos[s.email] + ")");
       else vistos[s.email] = s.papel;
@@ -163,18 +171,23 @@ var ClicksignVenda = (function () {
   function corpoNotificacao() { return { data: { type: "notifications", attributes: {} } }; }
 
   /* ---- respostas ---- */
+  /* "fulano@dominio" → "***@dominio": o detalhe da Clicksign vai para a tela e pode repetir e-mail. */
+  function mascararEmails(s) { return txt(s).replace(/[^\s@:;,<>()"']+@([^\s@:;,<>()"']+)/g, "***@$1"); }
+
+  /* 2xx sem corpo (204) ou com corpo que não é JSON conta como sucesso SEM id: quem precisa
+   * do id (envelope, documento, signatário) confere à parte (AssinaturaVenda csPasso_). */
   function interpretar(code, texto) {
     var j = null;
     try { j = JSON.parse(texto); } catch (e) { j = null; }
     if (code >= 200 && code < 300) {
-      if (!j || typeof j !== "object") return { ok: false, http: code, detalhe: "resposta sem JSON" };
+      if (!j || typeof j !== "object") return { ok: true, id: "", status: "", data: null };
       var d = j.data || null;
       return { ok: true, id: d && !Array.isArray(d) ? txt(d.id) : "",
                status: d && !Array.isArray(d) && d.attributes ? txt(d.attributes.status) : "", data: d };
     }
     var e = j && Array.isArray(j.errors) && j.errors[0] ? j.errors[0] : null;
     var det = e ? [txt(e.title), txt(e.detail)].filter(function (x) { return x; }).join(": ") : "";
-    return { ok: false, http: code, detalhe: det.slice(0, 200) };
+    return { ok: false, http: code, detalhe: mascararEmails(det).slice(0, 200) };
   }
 
   function nomesDosEventos(eventos) {
@@ -194,9 +207,10 @@ var ClicksignVenda = (function () {
       default: throw new Error("CLICKSIGN_STATUS_DESCONHECIDO: " + txt(status).slice(0, 40));
     }
   }
-  /* { signerId: assinou } — por e-mail dos eventos "sign" (formato documentado nos webhooks);
-   * envelope finalizado (closed, com prazo vencido cancelando) quer dizer que todos assinaram. */
-  function assinaram(signers, eventos, status) {
+  /* { signerId: assinou } — só pelos eventos "sign" (e-mail; formato documentado nos webhooks).
+   * Envelope closed sem o "sign" de alguém NÃO marca essa pessoa: AssinaturaVenda avisa
+   * ASSINATURAS_INCOMPLETAS (a situação continua ASSINADO, o PDF é o da Clicksign). */
+  function assinaram(signers, eventos) {
     var feitos = {};
     (eventos || []).forEach(function (e) {
       var a = (e && e.attributes) || {};
@@ -204,7 +218,7 @@ var ClicksignVenda = (function () {
     });
     var r = {};
     (signers || []).forEach(function (s) {
-      r[s.id] = status === "closed" || !!feitos[email(s.attributes && s.attributes.email)];
+      r[s.id] = !!feitos[email(s.attributes && s.attributes.email)];
     });
     return r;
   }
@@ -226,7 +240,7 @@ var ClicksignVenda = (function () {
     corpoEnvelope: corpoEnvelope, corpoDocumento: corpoDocumento, corpoSignatario: corpoSignatario,
     corpoQualificacao: corpoQualificacao, corpoAutenticacao: corpoAutenticacao, corpoAtivar: corpoAtivar,
     corpoNotificacao: corpoNotificacao, interpretar: interpretar, situacao: situacao, assinaram: assinaram,
-    podeEnviar: podeEnviar, linkAssinado: linkAssinado
+    podeEnviar: podeEnviar, linkAssinado: linkAssinado, mascararEmails: mascararEmails, FINAIS: FINAIS
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   return api;

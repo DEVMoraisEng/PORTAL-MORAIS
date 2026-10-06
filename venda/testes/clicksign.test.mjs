@@ -66,14 +66,25 @@ test("signatários, vendedor PF + casal + corretor ligado: par de testemunhas PF
   ]);
 });
 
-test("representante da Propriedade só entra quando o cadastro não traz nome e e-mail do representante", () => {
+test("representante da Propriedade só entra quando o cadastro não traz o e-mail e o nome dela bate com o do cadastro", () => {
   const cfg = CS.montarConfig(Object.assign({ ASSINATURA_REPRESENTANTE: JSON.stringify({ nome: "Diretora da Spe", email: "diretora@teste.example", cpf: "000.000.009-49" }) }, PROPS));
   const doCadastro = CS.signatarios(dadosPJ(), cfg).find((s) => s.role === "seller");
   assert.equal(doCadastro.email, "beltrano@teste.example");
-  const semEmail = dadosPJ();
-  semEmail.vendedor = Object.assign({}, semEmail.vendedor, { representanteEmail: "" });
-  const daConfig = CS.signatarios(semEmail, cfg).find((s) => s.role === "seller");
+  /* cadastro com o MESMO nome (outra grafia), sem e-mail: usa a Propriedade */
+  const mesmo = dadosPJ();
+  mesmo.vendedor = Object.assign({}, mesmo.vendedor, { representanteNome: "DIRETORA  DA SPÉ", representanteEmail: "" });
+  const daConfig = CS.signatarios(mesmo, cfg).find((s) => s.role === "seller");
   assert.deepEqual([daConfig.nome, daConfig.email, daConfig.cpf], ["Diretora da Spe", "diretora@teste.example", "000.000.009-49"]);
+  /* cadastro com OUTRO representante, sem e-mail: não troca a pessoa — falta o e-mail no cadastro */
+  const outro = dadosPJ();
+  outro.vendedor = Object.assign({}, outro.vendedor, { representanteEmail: "" });
+  const s = CS.signatarios(outro, cfg).find((x) => x.role === "seller");
+  assert.deepEqual([s.nome, s.email], ["Beltrano Representante", ""]);
+  assert.deepEqual(CS.faltasAssinatura(outro, cfg), ["Vendedor: falta REPRESENTANTE E-MAIL no cadastro"]);
+  /* cadastro sem nome de representante: a Propriedade também não entra */
+  const semNome = dadosPJ();
+  semNome.vendedor = Object.assign({}, semNome.vendedor, { representanteNome: "", representanteEmail: "" });
+  assert.equal(CS.signatarios(semNome, cfg).find((x) => x.role === "seller").email, "");
 });
 
 test("faltas: nenhuma no caso completo", () => {
@@ -104,7 +115,7 @@ test("faltas: vendedor ausente, PF sem e-mail, PJ sem representante e sem Propri
   const pj = dadosPJ();
   pj.vendedor = Object.assign({}, pj.vendedor, { representanteEmail: "" });
   assert.deepEqual(CS.faltasAssinatura(pj, cfg),
-                   ["Vendedor (representante): e-mail (coluna REPRESENTANTE E-MAIL em VENDEDORES – CONTRATO ou Propriedade ASSINATURA_REPRESENTANTE)"]);
+                   ["Vendedor: falta REPRESENTANTE E-MAIL no cadastro"]);
 });
 
 test("faltas: testemunhas não configuradas, inválidas ou só uma; par certo pelo tipo do vendedor", () => {
@@ -162,8 +173,19 @@ test("interpretar: sucesso com id e status; erro JSON:API com status e detalhe c
   const e = CS.interpretar(422, JSON.stringify({ errors: [{ title: "Erro de validação", detail: "Nome deve ter sobrenome", code: "422", status: "422" }] }));
   assert.deepEqual(e, { ok: false, http: 422, detalhe: "Erro de validação: Nome deve ter sobrenome" });
   assert.deepEqual(CS.interpretar(500, "<html>"), { ok: false, http: 500, detalhe: "" });
-  assert.deepEqual(CS.interpretar(200, "não é json"), { ok: false, http: 200, detalhe: "resposta sem JSON" });
   assert.ok(CS.interpretar(400, JSON.stringify({ errors: [{ detail: "x".repeat(500) }] })).detalhe.length <= 200);
+});
+
+test("interpretar: 2xx sem corpo (204) ou com corpo que não é JSON é sucesso, sem id", () => {
+  assert.deepEqual(CS.interpretar(204, ""), { ok: true, id: "", status: "", data: null });
+  assert.deepEqual(CS.interpretar(200, "não é json"), { ok: true, id: "", status: "", data: null });
+  assert.deepEqual(CS.interpretar(202, "null"), { ok: true, id: "", status: "", data: null });
+});
+
+test("interpretar: e-mail no detalhe do erro vira ***@domínio (a tela nunca mostra e-mail)", () => {
+  const e = CS.interpretar(422, JSON.stringify({ errors: [{ title: "Erro", detail: "Fulano.Teste@exemplo.example já é signatário; outro: a_b@x.example" }] }));
+  assert.equal(e.detalhe, "Erro: ***@exemplo.example já é signatário; outro: ***@x.example");
+  assert.equal(CS.mascararEmails("sem e-mail aqui"), "sem e-mail aqui");
 });
 
 const ev = (name, email) => ({ type: "events", attributes: { name, data: email ? { signer: { email } } : {} } });
@@ -179,10 +201,11 @@ test("situação: running → ENVIADO; closed → ASSINADO; canceled → CANCELA
   assert.throws(() => CS.situacao("outra_coisa", []), /CLICKSIGN_STATUS_DESCONHECIDO: outra_coisa/);
 });
 
-test("quem assinou: pelos eventos sign (e-mail, sem caixa); envelope fechado conta todos", () => {
+test("quem assinou: só pelos eventos sign (e-mail, sem caixa) — envelope fechado não marca ninguém sozinho", () => {
   const signers = [{ id: "s1", attributes: { email: "a@teste.example" } }, { id: "s2", attributes: { email: "b@teste.example" } }];
-  assert.deepEqual(CS.assinaram(signers, [ev("sign", "A@teste.example"), ev("upload")], "running"), { s1: true, s2: false });
-  assert.deepEqual(CS.assinaram(signers, [], "closed"), { s1: true, s2: true });
+  assert.deepEqual(CS.assinaram(signers, [ev("sign", "A@teste.example"), ev("upload")]), { s1: true, s2: false });
+  assert.deepEqual(CS.assinaram(signers, [], "closed"), { s1: false, s2: false });
+  assert.deepEqual(CS.assinaram(signers, [ev("sign", "a@teste.example"), ev("sign", "b@teste.example")], "closed"), { s1: true, s2: true });
 });
 
 test("pode enviar: sem envelope, ou com envelope cancelado/recusado/expirado; envelope sem situação conta como aberto", () => {

@@ -291,9 +291,13 @@ test("estado em andamento: quem já assinou (evento sign), sem e-mail na respost
   assert.deepEqual(c.n.pagina.properties["CONTRATO ASSINADO"].files, []);
 });
 
+const SIGN = (email) => ({ type: "events", attributes: { name: "sign", data: { signer: { email } } } });
+const TODOS_ASSINARAM = ["fulano@teste.example", "beltrano@teste.example", "t1.spe@teste.example", "t2.spe@teste.example"].map(SIGN);
+
 test("estado concluído: baixa o PDF assinado, anexa em CONTRATO ASSINADO (troca) e grava ASSINADO", () => {
   const c = cenario({ venda: { "CONTRATO ASSINADO": { files: [{ name: "antigo.pdf", type: "file", file: { url: "https://s3.falso/antigo" } }] } },
-                      cs: { arquivos: { original: "https://s3.clicksign.falso/original.pdf", signed: "https://s3.clicksign.falso/assinado.pdf" } } });
+                      cs: { eventos: TODOS_ASSINARAM,
+                            arquivos: { original: "https://s3.clicksign.falso/original.pdf", signed: "https://s3.clicksign.falso/assinado.pdf" } } });
   assert.equal(c.enviar().ok, true);
   c.c.estado.status = "closed";
   const r = c.estado();
