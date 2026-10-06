@@ -187,7 +187,7 @@ export function notionFalso({ valores = {}, s3 = {}, colunas = COLUNAS_REAIS, pa
 export const PDF_ASSINADO = "%PDF-1.4 contrato assinado de teste";
 export function clicksignFalso({ base = "https://sandbox.clicksign.com", falhar = () => null, eventos = [], arquivos, status } = {}) {
   const raiz = base + "/api/v3";
-  const chamadas = [], estado = { status: status || "draft", signers: [], baixados: 0 };
+  const chamadas = [], estado = { status: status || "draft", signers: [], baixados: 0, apagado: false };
   let seq = 0;
   const ok = (status, data) => ({ status, json: { data } });
   const erro = (status, title) => ({ status, json: { errors: [{ title, detail: "", code: String(status), status: String(status) }] } });
@@ -200,8 +200,17 @@ export function clicksignFalso({ base = "https://sandbox.clicksign.com", falhar 
     const f = falhar(metodo, caminho, corpo);
     if (f) return f;
     const env = /^\/envelopes\/([^/]+)/.exec(caminho);
-    if (metodo === "POST" && caminho === "/envelopes") return ok(201, { id: "env-1", type: "envelopes", attributes: { status: "draft", name: corpo.data.attributes.name } });
-    if (!env || env[1] !== "env-1") return erro(404, "Registro não encontrado");
+    if (metodo === "POST" && caminho === "/envelopes") {
+      Object.assign(estado, { status: "draft", apagado: false, signers: [] });
+      return ok(201, { id: "env-1", type: "envelopes", attributes: { status: "draft", name: corpo.data.attributes.name } });
+    }
+    if (!env || env[1] !== "env-1" || estado.apagado) return erro(404, "Registro não encontrado");
+    /* só rascunho pode ser apagado; a resposta é 204 sem corpo */
+    if (metodo === "DELETE" && caminho === env[0]) {
+      if (estado.status !== "draft") return erro(422, "Somente envelopes em rascunho podem ser excluídos");
+      estado.apagado = true;
+      return { status: 204, texto: "" };
+    }
     const resto = caminho.slice(env[0].length);
     if (metodo === "POST" && resto === "/documents") return ok(201, { id: "doc-1", type: "documents", attributes: { status: "draft", filename: corpo.data.attributes.filename } });
     if (metodo === "POST" && resto === "/signers") {

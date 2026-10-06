@@ -81,7 +81,23 @@ const mescla = (base, mud) => {
   return r;
 };
 
-function cenario({ venda, vendedor, props, colunas, cs = {}, semProps = [] } = {}) {
+/* Põe no último PDF de CONTRATO GERADO o carimbo dos dados (como o GerarContrato faz), ou o carimbo
+ * dado em `modo` (texto). Usa o próprio servidor falso e apaga as chamadas/logs dessa conta. */
+function carimbar(g, n, modo) {
+  const pr = n.pagina.properties["CONTRATO GERADO"], arqs = (pr && pr.files) || [];
+  if (!arqs.length) return;
+  let st = typeof modo === "string" ? modo : "";
+  if (!st) {
+    try {
+      const f = g.ctx.ctrFontes_(g.ctx.colunas_(), PAGE);
+      if (!f.fontes) return;
+      st = g.ctx.ctrCarimbo_(g.ctx.ContratoVenda.montarDadosContrato(f.fontes));
+    } catch (e) { return; } finally { g.chamadas.length = 0; g.logs.length = 0; }
+  }
+  pr.files = arqs.map((a, i) => (i === arqs.length - 1 ? Object.assign({}, a, { name: a.name.replace(/\.pdf$/, " [#" + st + "].pdf") }) : a));
+}
+
+function cenario({ venda, vendedor, props, colunas, cs = {}, semProps = [], extras, carimbo = true } = {}) {
   const bases = { "db-vend": [mescla(VENDEDOR, vendedor)], "db-lote": [LOTEAMENTO], "db-corr": [CORRETOR],
                   "db-doc": [Object.assign({ "ENDEREÇO": tit("RESIDENCIAL TESTE QD 07 LT 12") }, OBRA_PG)] };
   const cols = colunas || colunasVenda();
@@ -91,7 +107,8 @@ function cenario({ venda, vendedor, props, colunas, cs = {}, semProps = [] } = {
   const c = clicksignFalso(cs);
   const p = Object.assign({}, PROPS, props);
   for (const s of semProps) delete p[s];
-  const g = criarGas({ props: p, rotas: (url, opt) => c.rota(url, opt) || n.rota(url, opt) });
+  const g = criarGas({ props: p, rotas: (url, opt) => c.rota(url, opt) || n.rota(url, opt), extras });
+  if (carimbo) carimbar(g, n, carimbo);
   const acao = (action, tok = tokenDe()) => g.chamar({ action, token: tok, pageId: PAGE });
   const txt = (col) => (n.pagina.properties[col].rich_text || []).map((t) => t.plain_text).join("");
   return { g, n, c, p, acao, txt, enviar: (tok) => acao("assinaturaEnviar", tok), estado: (tok) => acao("assinaturaEstado", tok) };
@@ -130,7 +147,7 @@ test("envio feliz: ordem das chamadas, cabeçalhos e corpos; grava envelope e EN
   }
   const [env, doc, s1, s2, , , q1, a1] = c.c.chamadas.map((x) => x.corpo);
   assert.equal(env.data.attributes.name, "Contrato - RESIDENCIAL TESTE QD 07 LT 12");
-  assert.equal(doc.data.attributes.filename, "CONTRATO - RESIDENCIAL TESTE QD 07 LT 12 - 01-10-2026.pdf");
+  assert.match(doc.data.attributes.filename, /^CONTRATO - RESIDENCIAL TESTE QD 07 LT 12 - 01-10-2026 \[#[0-9a-f]{8}\]\.pdf$/);
   assert.equal(doc.data.attributes.content_base64, "data:application/pdf;base64," + Buffer.from(PDF_GERADO).toString("base64"));
   assert.deepEqual(s1.data.attributes, { name: "Fulano de Teste", email: "fulano@teste.example", has_documentation: true,
                                          documentation: "000.000.001-91", refusable: true });
@@ -147,6 +164,45 @@ test("envio feliz: ordem das chamadas, cabeçalhos e corpos; grava envelope e EN
   assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), "ENVIADO");
   const papeis = JSON.parse(c.p["ASSINATURA_PAPEIS_env-1"]);
   assert.deepEqual(papeis, { "sig-1": "Comprador 1", "sig-2": "Vendedor (representante)", "sig-3": "Testemunha 1", "sig-4": "Testemunha 2" });
+  /* duas gravações: o rascunho logo depois de criar o envelope, e ENVIADO depois de ativar */
+  const sits = c.n.patches.map((x) => x["ASSINATURA - SITUAÇÃO"].rich_text.map((t) => t.text.content).join(""));
+  assert.deepEqual(sits, ["RASCUNHO", "ENVIADO"]);
+  assert.ok(c.g.logs.some((l) => l.includes("por ana.teste: ok")), c.g.logs.join(" | "));
+});
+
+test("trava: chama tryLock(10 s) e solta no fim; outra pessoa enviando → ASSINATURA_OCUPADA sem chamar ninguém", () => {
+  const trava = { pedidos: [], soltas: 0, livre: true };
+  const LockService = { getScriptLock: () => ({ tryLock: (ms) => { trava.pedidos.push(ms); return trava.livre; }, releaseLock: () => { trava.soltas++; } }) };
+  const c = cenario({ extras: { LockService } });
+  assert.equal(c.enviar().ok, true);
+  assert.deepEqual(trava.pedidos, [10000]);
+  assert.equal(trava.soltas, 1);
+  trava.livre = false;
+  const d = cenario({ extras: { LockService } });
+  assert.deepEqual(d.enviar(), { ok: false, erro: "ASSINATURA_OCUPADA" });
+  assert.equal(d.c.chamadas.length, 0);
+  assert.equal(d.n.patches.length, 0);
+});
+
+test("o envelope fica anotado (RASCUNHO) logo depois de criado, antes de subir o documento", () => {
+  let visto = null, c = null;
+  c = cenario({ cs: { falhar: (m, cam) => { if (m === "POST" && cam.endsWith("/documents")) visto = [c.txt("ASSINATURA - ENVELOPE ID"), c.txt("ASSINATURA - SITUAÇÃO")]; return null; } } });
+  assert.equal(c.enviar().ok, true);
+  assert.deepEqual(visto, ["env-1", "RASCUNHO"]);
+});
+
+test("PDF sem carimbo (gerado antes desta versão) ou com carimbo de outros dados: CONTRATO_DESATUALIZADO, nada enviado", () => {
+  for (const carimbo of [false, "00000000"]) {
+    const c = cenario({ carimbo });
+    assert.deepEqual(c.enviar(), { ok: false, erro: "CONTRATO_DESATUALIZADO" }, String(carimbo));
+    assert.equal(c.c.chamadas.length, 0);
+    assert.equal(c.n.patches.length, 0);
+  }
+  /* dado mudou depois de gerar: o carimbo calculado de outro representante não bate */
+  const c = cenario();
+  const nome = c.n.pagina.properties["CONTRATO GERADO"].files.at(-1).name;
+  const d = cenario({ vendedor: { "REPRESENTANTE NOME": rt("Outro Representante Teste") }, carimbo: /\[#([0-9a-f]{8})\]/.exec(nome)[1] });
+  assert.equal(d.enviar().erro, "CONTRATO_DESATUALIZADO");
 });
 
 test("envia o ÚLTIMO PDF de CONTRATO GERADO, baixado pela URL do Notion", () => {
@@ -203,7 +259,7 @@ test("sem contrato gerado: SEM_CONTRATO_GERADO e nenhuma chamada à Clicksign", 
 });
 
 test("envelope já aberto: ENVELOPE_ABERTO; cancelado, recusado ou expirado deixam enviar de novo", () => {
-  for (const sit of ["ENVIADO", "ASSINADO", ""]) {
+  for (const sit of ["ENVIADO", "ASSINADO", "RASCUNHO", ""]) {
     const c = cenario({ venda: { "ASSINATURA - ENVELOPE ID": rt("env-velho"), "ASSINATURA - SITUAÇÃO": rt(sit) } });
     assert.deepEqual(c.enviar(), { ok: false, erro: "ENVELOPE_ABERTO", situacao: sit }, sit);
     assert.equal(c.c.chamadas.length, 0, sit);
@@ -215,28 +271,119 @@ test("envelope já aberto: ENVELOPE_ABERTO; cancelado, recusado ou expirado deix
   }
 });
 
-test("falha no meio (requisito recusado): não ativa, não grava, devolve o passo e o detalhe da Clicksign", () => {
+test("falha no meio (requisito recusado): não ativa, APAGA o rascunho, limpa as colunas e os papéis, devolve o passo e o detalhe", () => {
   let n = 0;
   const c = cenario({ cs: { falhar: (m, cam) => (m === "POST" && cam.endsWith("/requirements") && ++n === 3
-    ? { status: 422, json: { errors: [{ title: "Erro de validação", detail: "role inválido" }] } } : null) } });
+    ? { status: 422, json: { errors: [{ title: "Erro de validação", detail: "role inválido para fulano@teste.example" }] } } : null) } });
   const r = c.enviar();
-  assert.deepEqual(r, { ok: false, erro: "CLICKSIGN_FALHOU", passo: "requisitos", http: 422, detalhe: "Erro de validação: role inválido", envelopeId: "env-1" });
+  assert.deepEqual(r, { ok: false, erro: "CLICKSIGN_FALHOU", passo: "requisitos", http: 422,
+                        detalhe: "Erro de validação: role inválido para ***@teste.example", envelopeId: "env-1", rascunhoApagado: true });
   assert.ok(!c.c.chamadas.some((x) => x.metodo === "PATCH"), "ativou o envelope depois do erro");
   assert.ok(!c.c.chamadas.some((x) => x.caminho.endsWith("/notifications")));
-  assert.equal(c.c.estado.status, "draft");
-  assert.equal(c.n.patches.length, 0);
+  assert.equal(csCalls(c).at(-1), "DELETE /envelopes/env-1");
+  assert.equal(c.c.estado.apagado, true);
+  assert.equal(c.txt("ASSINATURA - ENVELOPE ID"), "");
+  assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), "");
+  assert.ok(!("ASSINATURA_PAPEIS_env-1" in c.p), "papéis ficaram nas Propriedades");
   assert.ok(c.g.logs.some((l) => l.includes("falhou no passo requisitos http 422")), c.g.logs.join(" | "));
   assert.ok(!c.g.logs.join("\n").includes("role inválido"), "detalhe da Clicksign foi para o log");
+  /* apagado: pode enviar de novo */
+  assert.equal(c.enviar().ok, true);
 });
 
 test("falha no primeiro passo e exceção de rede também viram CLICKSIGN_FALHOU com o passo", () => {
   const a = cenario({ cs: { falhar: (m, cam) => (cam === "/envelopes" ? { status: 401, json: { errors: [{ title: "Não autorizado" }] } } : null) } });
   assert.deepEqual(a.enviar(), { ok: false, erro: "CLICKSIGN_FALHOU", passo: "envelope", http: 401, detalhe: "Não autorizado", envelopeId: "" });
+  assert.equal(a.n.patches.length, 0);
   const b = cenario({ cs: { falhar: (m, cam) => (cam.endsWith("/documents") ? { lancar: "Timeout" } : null) } });
   const rb = b.enviar();
   assert.equal(rb.passo, "documento");
   assert.equal(rb.http, 0);
-  assert.equal(b.n.patches.length, 0);
+  assert.equal(rb.rascunhoApagado, true);
+  assert.equal(b.txt("ASSINATURA - ENVELOPE ID"), "");
+});
+
+test("envelope criado sem id na resposta (2xx sem corpo): falha visível no passo envelope", () => {
+  const c = cenario({ cs: { falhar: (m, cam) => (cam === "/envelopes" ? { status: 201, texto: "" } : null) } });
+  const r = c.enviar();
+  assert.deepEqual([r.ok, r.erro, r.passo, r.detalhe], [false, "CLICKSIGN_FALHOU", "envelope", "resposta sem id"]);
+  assert.equal(c.n.patches.length, 0);
+});
+
+test("rascunho que não deu para apagar: fica RASCUNHO (barra novo envio); Atualizar situação limpa quando ele some da Clicksign", () => {
+  const c = cenario({ cs: { falhar: (m, cam) => {
+    if (m === "POST" && cam.endsWith("/signers")) return { status: 422, json: { errors: [{ title: "Erro" }] } };
+    if (m === "DELETE") return { status: 500, texto: "<html>erro com https://url.secreta/x</html>" };
+    return null;
+  } } });
+  const r = c.enviar();
+  assert.deepEqual([r.erro, r.passo, r.rascunhoApagado], ["CLICKSIGN_FALHOU", "signatarios", false]);
+  assert.equal(c.txt("ASSINATURA - ENVELOPE ID"), "env-1");
+  assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), "RASCUNHO");
+  assert.ok(c.g.logs.some((l) => l.includes("rascunho nao apagado http 500")), c.g.logs.join(" | "));
+  assert.ok(!c.g.logs.join("\n").includes("url.secreta"));
+  assert.deepEqual(c.enviar(), { ok: false, erro: "ENVELOPE_ABERTO", situacao: "RASCUNHO" });
+  /* ainda existe como rascunho: Atualizar mostra RASCUNHO, sem ler documento nem signatários */
+  const antes = c.c.chamadas.length;
+  assert.deepEqual(c.estado(), { ok: true, situacao: "RASCUNHO", envelope: true, signatarios: [] });
+  assert.deepEqual(csCalls(c).slice(antes), ["GET /envelopes/env-1"]);
+  /* apagado à mão na Clicksign: Atualizar limpa as duas colunas e deixa enviar */
+  c.c.estado.apagado = true;
+  assert.deepEqual(c.estado(), { ok: true, situacao: "", envelope: false, signatarios: [] });
+  assert.equal(c.txt("ASSINATURA - ENVELOPE ID"), "");
+  assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), "");
+  /* volta a enviar (aqui falha de novo nos signatários, mas já não é ENVELOPE_ABERTO) */
+  assert.equal(c.enviar().passo, "signatarios");
+  assert.equal(c.c.chamadas.filter((x) => x.caminho === "/envelopes").length, 2);
+});
+
+test("envelope ENVIADO que sumiu (404) NÃO limpa as colunas: só rascunho é limpo", () => {
+  const c = cenario({ venda: { "ASSINATURA - ENVELOPE ID": rt("env-outro"), "ASSINATURA - SITUAÇÃO": rt("ENVIADO") } });
+  const r = c.estado();
+  assert.deepEqual([r.ok, r.erro, r.http], [false, "CLICKSIGN_FALHOU", 404]);
+  assert.equal(c.txt("ASSINATURA - ENVELOPE ID"), "env-outro");
+});
+
+test("ativar sem resposta ou com 5xx: consulta o envelope; se já está running, segue (grava ENVIADO e notifica)", () => {
+  for (const falha of [{ lancar: "Timeout" }, { status: 502, texto: "" }]) {
+    let c = null;
+    c = cenario({ cs: { falhar: (m) => { if (m === "PATCH") { c.c.estado.status = "running"; return falha; } return null; } } });
+    const r = c.enviar();
+    assert.equal(r.ok, true, JSON.stringify(r));
+    assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), "ENVIADO");
+    assert.deepEqual(csCalls(c).slice(-3), ["PATCH /envelopes/env-1", "GET /envelopes/env-1", "POST /envelopes/env-1/notifications"]);
+  }
+});
+
+test("ativar sem resposta e o envelope continua rascunho: falha antes de ativar (apaga o rascunho)", () => {
+  const c = cenario({ cs: { falhar: (m) => (m === "PATCH" ? { lancar: "Timeout" } : null) } });
+  const r = c.enviar();
+  assert.deepEqual([r.ok, r.erro, r.passo, r.http, r.rascunhoApagado], [false, "CLICKSIGN_FALHOU", "ativar", 0, true]);
+  assert.deepEqual(csCalls(c).slice(-2), ["GET /envelopes/env-1", "DELETE /envelopes/env-1"]);
+  assert.ok(!c.c.chamadas.some((x) => x.caminho.endsWith("/notifications")));
+  assert.equal(c.txt("ASSINATURA - ENVELOPE ID"), "");
+});
+
+test("ativar sem resposta e a consulta também falha: não apaga nada (pode ter ativado) e fica RASCUNHO", () => {
+  const c = cenario({ cs: { falhar: (m, cam) => (m === "PATCH" || (m === "GET" && cam === "/envelopes/env-1") ? { lancar: "Timeout" } : null) } });
+  const r = c.enviar();
+  assert.deepEqual([r.ok, r.erro, r.passo, r.incerto, r.rascunhoApagado], [false, "CLICKSIGN_FALHOU", "ativar", true, false]);
+  assert.ok(!c.c.chamadas.some((x) => x.metodo === "DELETE"));
+  assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), "RASCUNHO");
+  assert.ok("ASSINATURA_PAPEIS_env-1" in c.p, "papéis apagados de um envelope que pode estar ativo");
+});
+
+test("ativar e notificar com 204 (sem corpo) contam como sucesso", () => {
+  let c = null;
+  c = cenario({ cs: { falhar: (m, cam) => {
+    if (m === "PATCH") { c.c.estado.status = "running"; return { status: 204, texto: "" }; }
+    if (cam.endsWith("/notifications")) return { status: 204, texto: "" };
+    return null;
+  } } });
+  const r = c.enviar();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.aviso, undefined);
+  assert.ok(!c.c.chamadas.some((x) => x.metodo === "GET"), "consultou à toa");
 });
 
 test("ativou mas o aviso falhou: grava ENVIADO e devolve ok com aviso", () => {
@@ -247,16 +394,69 @@ test("ativou mas o aviso falhou: grava ENVIADO e devolve ok com aviso", () => {
   assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), "ENVIADO");
 });
 
-test("ativou mas o Notion não gravou: GRAVACAO_FALHOU com o id do envelope (para não mandar outro)", () => {
-  const c = cenario();
-  const rotaOriginal = c.g.ctx.UrlFetchApp.fetch;
+/* Notion que falha nos PATCH da página quando `cair(props)` diz; conta as tentativas. */
+function notionCaindo(c, cair) {
+  const rotaOriginal = c.g.ctx.UrlFetchApp.fetch, estado = { tentativas: 0, cair };
   c.g.ctx.UrlFetchApp.fetch = (url, opt) => {
-    if (url.startsWith("https://api.notion.com/v1/pages/") && String(opt.method).toUpperCase() === "PATCH") throw new Error("Notion fora");
+    if (url.startsWith("https://api.notion.com/v1/pages/") && String(opt.method).toUpperCase() === "PATCH") {
+      const props = JSON.parse(opt.payload).properties;
+      if (estado.cair(props)) { estado.tentativas++; throw new Error("Notion fora"); }
+    }
     return rotaOriginal(url, opt);
   };
+  return estado;
+}
+const gravaSituacao = (sit) => (props) => (props["ASSINATURA - SITUAÇÃO"].rich_text || []).map((t) => t.text.content).join("") === sit;
+
+test("Notion não grava nem o rascunho: apaga o envelope recém-criado, nada é ativado", () => {
+  const c = cenario();
+  notionCaindo(c, gravaSituacao("RASCUNHO"));
+  const r = c.enviar();
+  assert.deepEqual(r, { ok: false, erro: "GRAVACAO_FALHOU", rascunhoApagado: true });
+  assert.deepEqual(csCalls(c), ["POST /envelopes", "DELETE /envelopes/env-1"]);
+});
+
+test("ativou mas o Notion não gravou: tenta 3 vezes, guarda ASSINATURA_PENDENTE_<página>, notifica e recusa novo envio", () => {
+  const c = cenario();
+  const notion = notionCaindo(c, gravaSituacao("ENVIADO"));
   const r = c.enviar();
   assert.deepEqual([r.ok, r.erro, r.envelopeId], [false, "GRAVACAO_FALHOU", "env-1"]);
+  assert.equal(notion.tentativas, 3);
+  assert.equal(c.p["ASSINATURA_PENDENTE_" + PAGE], "env-1");
+  assert.ok(c.c.chamadas.some((x) => x.caminho.endsWith("/notifications")), "envelope ativo ficou sem aviso aos signatários");
   assert.ok(c.g.logs.some((l) => l.includes("env-1")));
+  /* mesmo com as colunas apagadas à mão, a chave pendente barra outro envio */
+  c.n.pagina.properties["ASSINATURA - ENVELOPE ID"].rich_text = [];
+  c.n.pagina.properties["ASSINATURA - SITUAÇÃO"].rich_text = [];
+  assert.equal(c.enviar().erro, "ENVELOPE_ABERTO");
+  assert.equal(c.c.chamadas.filter((x) => x.caminho === "/envelopes").length, 1);
+  /* Atualizar situação usa o id guardado, grava as duas colunas e apaga a chave */
+  c.c.estado.status = "running";
+  notion.cair = () => false;
+  const e = c.estado();
+  assert.equal(e.ok, true, JSON.stringify(e));
+  assert.equal(e.situacao, "ENVIADO");
+  assert.equal(c.txt("ASSINATURA - ENVELOPE ID"), "env-1");
+  assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), "ENVIADO");
+  assert.ok(!(("ASSINATURA_PENDENTE_" + PAGE) in c.p));
+});
+
+test("Notion falha uma vez depois de ativar: a 2ª tentativa grava e não sobra chave pendente", () => {
+  const c = cenario();
+  let vezes = 0;
+  notionCaindo(c, (props) => gravaSituacao("ENVIADO")(props) && ++vezes === 1);
+  assert.equal(c.enviar().ok, true);
+  assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), "ENVIADO");
+  assert.ok(!(("ASSINATURA_PENDENTE_" + PAGE) in c.p));
+});
+
+test("download do contrato gerado sem resposta: CONTRATO_ILEGIVEL, log sem URL", () => {
+  const c = cenario();
+  const rotaOriginal = c.g.ctx.UrlFetchApp.fetch;
+  c.g.ctx.UrlFetchApp.fetch = (url, opt) => { if (url === "https://s3.falso/gerado") throw new Error("Timeout em " + url); return rotaOriginal(url, opt); };
+  assert.deepEqual(c.enviar(), { ok: false, erro: "CONTRATO_ILEGIVEL" });
+  assert.equal(c.c.chamadas.length, 0);
+  assert.ok(!c.g.logs.join("\n").includes("s3.falso"), c.g.logs.join(" | "));
 });
 
 test("colunas novas ausentes: COLUNA_FALTANDO com os nomes", () => {
@@ -267,11 +467,12 @@ test("colunas novas ausentes: COLUNA_FALTANDO com os nomes", () => {
   assert.equal(c.c.chamadas.length, 0);
 });
 
-test("perfil TESTES não envia, mas consulta o estado", () => {
-  const c = cenario();
+test("perfil TESTES não envia nem atualiza a situação (Atualizar grava na casa)", () => {
+  const c = cenario({ venda: { "ASSINATURA - ENVELOPE ID": rt("env-1"), "ASSINATURA - SITUAÇÃO": rt("ENVIADO") } });
   assert.equal(c.enviar(tokenDe("TESTES", [])).erro, "SEM_PERMISSAO_TESTES");
+  assert.equal(c.estado(tokenDe("TESTES", [])).erro, "SEM_PERMISSAO_TESTES");
   assert.equal(c.c.chamadas.length, 0);
-  assert.equal(c.estado(tokenDe("TESTES", [])).ok, true);
+  assert.equal(c.n.patches.length, 0);
 });
 
 test("estado sem envelope: situação vazia e nenhuma chamada à Clicksign", () => {
@@ -311,9 +512,36 @@ test("estado concluído: baixa o PDF assinado, anexa em CONTRATO ASSINADO (troca
   assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), "ASSINADO");
   const baixar = c.g.chamadas.find((x) => x.url === "https://s3.clicksign.falso/assinado.pdf");
   assert.ok(!baixar.opt.headers || !baixar.opt.headers.Authorization, "mandou o token para o link do arquivo");
+  assert.equal(r.aviso, undefined);
+  assert.ok(!("ASSINATURA_PAPEIS_env-1" in c.p), "situação final: papéis apagados");
   /* segunda consulta: já assinado e anexado — não baixa de novo */
   c.estado();
   assert.equal(c.c.estado.baixados, 1);
+});
+
+test("closed sem o evento sign de alguém: continua ASSINADO, não marca essa pessoa e avisa ASSINATURAS_INCOMPLETAS", () => {
+  const c = cenario({ cs: { eventos: TODOS_ASSINARAM.slice(0, 3),
+                            arquivos: { original: "https://s3.clicksign.falso/original.pdf", signed: "https://s3.clicksign.falso/assinado.pdf" } } });
+  assert.equal(c.enviar().ok, true);
+  c.c.estado.status = "closed";
+  const r = c.estado();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.situacao, "ASSINADO");
+  assert.equal(r.aviso, "ASSINATURAS_INCOMPLETAS");
+  assert.deepEqual(r.signatarios.map((s) => s.assinou), [true, true, true, false]);
+  assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), "ASSINADO");
+  assert.ok(c.g.logs.some((l) => l.includes("assinaturas incompletas")), c.g.logs.join(" | "));
+});
+
+test("download do PDF assinado sem resposta: DOWNLOAD_ASSINADO_FALHOU, log só com o código, sem URL", () => {
+  const c = cenario({ cs: { eventos: TODOS_ASSINARAM, arquivos: { signed: "https://s3.clicksign.falso/assinado.pdf" } } });
+  assert.equal(c.enviar().ok, true);
+  c.c.estado.status = "closed";
+  const rotaOriginal = c.g.ctx.UrlFetchApp.fetch;
+  c.g.ctx.UrlFetchApp.fetch = (url, opt) => { if (url.includes("assinado.pdf")) throw new Error("Timeout em " + url); return rotaOriginal(url, opt); };
+  assert.deepEqual(c.estado(), { ok: false, erro: "DOWNLOAD_ASSINADO_FALHOU" });
+  assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), "ENVIADO");
+  assert.ok(!c.g.logs.join("\n").includes("clicksign.falso"), c.g.logs.join(" | "));
 });
 
 test("estado concluído sem link do assinado: erro visível, situação não vira ASSINADO", () => {
@@ -335,7 +563,13 @@ test("estado: cancelado, recusado e expirado gravam a situação", () => {
     c.c.estado.status = "canceled";
     assert.equal(c.estado().situacao, sit);
     assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), sit);
+    assert.ok(!("ASSINATURA_PAPEIS_env-1" in c.p), sit + ": papéis ficaram");
   }
+  /* em andamento os papéis continuam */
+  const c = cenario();
+  c.enviar(); c.c.estado.status = "running";
+  c.estado();
+  assert.ok("ASSINATURA_PAPEIS_env-1" in c.p);
 });
 
 test("estado com status desconhecido da Clicksign: erro visível, nada gravado", () => {
