@@ -106,10 +106,14 @@ class Erp:
     def homonimos(self, nome: str) -> list[dict]:
         """Qualquer cadastro (cliente, fornecedor, funcionário...) com o mesmo nome: o ERP recusa
         criar outro participante com nome igual ("Já existe um Fornecedor com este mesmo nome")."""
-        alvo = R.chave(nome)
-        j = self.pedir("GET", "/participants", params={"keyword": nome, "page": 0, "size": 20,
-                                                        "sort": "name"}) or {}
-        return [p for p in j.get("content") or [] if R.chave(p.get("name")) == alvo]
+        alvo, out = R.chave(nome), []
+        for papel in ("CUSTOMER", "SUPPLIER", "EMPLOYEE"):   # a busca exige o papel
+            j = self.pedir("GET", "/participants", params={"role": papel, "keyword": nome, "page": 0,
+                                                            "size": 20, "sort": "name"}) or {}
+            for p in j.get("content") or []:
+                if R.chave(p.get("name")) == alvo and p.get("id") not in {x.get("id") for x in out}:
+                    out.append(dict(p, role=p.get("role") or papel))
+        return out
 
     def recebimentos(self, inicio: str = "2020-01-01", fim: str | None = None) -> list[dict]:
         """Parcelas de venda por data de competência — serve para achar venda já lançada.
