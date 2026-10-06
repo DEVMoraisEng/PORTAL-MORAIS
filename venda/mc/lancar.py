@@ -196,7 +196,8 @@ def main(argv=None) -> int:
         if notion:
             _anotar_erro(notion, a.page, "o robô está sem configuração (segredos do GitHub)")
         return sair({"situacao": "ERRO", "codigo": "SEM_SEGREDOS"}, 2)
-    erp = Erp(os.environ["MC_ROBO_EMAIL"], os.environ["MC_ROBO_SENHA"])
+    erp = Erp(os.environ["MC_ROBO_EMAIL"].strip(), os.environ["MC_ROBO_SENHA"].strip("
+"))
     try:
         res = processar(a.page, notion, erp, aplicar=a.aplicar and not a.bloqueado,
                         dias=a.dias_financiamento, bloqueado=a.bloqueado)
