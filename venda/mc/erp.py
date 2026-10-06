@@ -57,8 +57,8 @@ class Erp:
         if r.status_code >= 300:
             raise ErpErro("login recusado (HTTP %s)" % r.status_code)
         j = r.json()
-        if j.get("mfaEnabled"):
-            raise ErpErro("o usuário do robô exige segundo fator; a API não passa por ele")
+        if j.get("mfaEnabled") and not j.get("accessToken"):
+            raise ErpErro("o usuário do robô exige segundo fator e o login não devolveu acesso")
         emp = j.get("companies") or []
         if not j.get("accessToken") or not emp:
             raise ErpErro("login sem accessToken ou sem empresa")
