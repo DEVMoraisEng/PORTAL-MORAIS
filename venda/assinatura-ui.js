@@ -14,12 +14,14 @@
     RECUSADO: "Recusado por um signatário — confira o motivo na Clicksign e envie de novo",
     CANCELADO: "Cancelado na Clicksign — pode enviar de novo",
     EXPIRADO: "Prazo vencido sem todas as assinaturas — pode enviar de novo",
-    RASCUNHO: "Rascunho na Clicksign (não foi enviado)"
+    RASCUNHO: "Rascunho na Clicksign (não foi enviado) — apague o rascunho na Clicksign e use Atualizar situação"
   };
   var MSG = {
     NAO_AUTORIZADO: "Sua sessão expirou — entre de novo no portal.",
     SEM_PERMISSAO: "Seu login não tem acesso a Vendas.",
-    SEM_PERMISSAO_TESTES: "O perfil TESTES só consulta; não envia para assinatura.",
+    SEM_PERMISSAO_TESTES: "O perfil TESTES não envia nem atualiza a assinatura (as duas ações gravam na casa).",
+    ASSINATURA_OCUPADA: "Há outro envio para assinatura em andamento — espere um minuto e tente de novo.",
+    CONTRATO_DESATUALIZADO: "Os dados mudaram depois de gerar o contrato — gere de novo e depois envie.",
     SEM_RESPOSTA: "O servidor não respondeu — confira a internet e tente de novo.",
     PORTAL_VENDA_NAO_CONFIGURADO: "A assinatura ainda não foi ligada neste ambiente.",
     CLICKSIGN_SEM_TOKEN: "A assinatura ainda não foi ligada neste ambiente (falta o token da Clicksign) — avise o administrador.",
@@ -46,22 +48,36 @@
     if (!e || !c.contratoGerado || c.ocupado || c.testes) return false;
     return !e.envelope || REENVIAVEL.indexOf(situacaoDe(e)) >= 0;
   }
-  function podeAtualizar(c) { return !!(c.estado && c.estado.envelope && !c.ocupado); }
+  /* Atualizar situação grava na casa: o perfil TESTES não usa (o servidor também barra). */
+  function podeAtualizar(c) { return !!(c.estado && c.estado.envelope && !c.ocupado && !c.testes); }
 
   function mensagemAssinatura(r) {
     r = r || {};
     var e = String(r.erro || "");
-    if (!e) return r.aviso === "NOTIFICACAO_FALHOU"
-      ? "Enviado, mas o e-mail de aviso falhou — use Atualizar situação; se ninguém receber, avise o desenvolvedor." : "";
+    if (!e) {
+      if (r.aviso === "NOTIFICACAO_FALHOU")
+        return "Enviado, mas o e-mail de aviso falhou — use Atualizar situação; se ninguém receber, avise o desenvolvedor.";
+      if (r.aviso === "ASSINATURAS_INCOMPLETAS")
+        return "A Clicksign finalizou o envelope, mas não registrou a assinatura de todos — confira o PDF assinado e avise o desenvolvedor.";
+      return "";
+    }
     if (e === "CLICKSIGN_FALHOU") {
       var consulta = /^consultar/.test(String(r.passo || ""));
+      if (r.incerto)
+        return "A Clicksign não respondeu ao ativar o envelope " + r.envelopeId + " e não deu para confirmar se ele foi enviado — use Atualizar situação daqui a pouco; não envie de novo.";
+      /* rascunho que não foi apagado: barra novo envio até sumir da Clicksign */
+      var sobra = r.envelopeId && r.rascunhoApagado === false
+        ? " O envelope ficou como rascunho na Clicksign (nada foi enviado aos signatários): apague o rascunho na Clicksign e use Atualizar situação." : "";
       if (!r.http) return "A Clicksign não respondeu (passo: " + r.passo + ")" +
-        (consulta ? " — tente Atualizar situação daqui a pouco." : ". Nada foi enviado aos signatários — tente de novo em alguns minutos.");
+        (consulta ? " — tente Atualizar situação daqui a pouco." : (sobra ? "." + sobra : ". Nada foi enviado aos signatários — tente de novo em alguns minutos."));
       return "A Clicksign recusou " + (consulta ? "a consulta" : "o envio") + " (passo: " + r.passo + ", código " + r.http +
-        (r.detalhe ? ": " + r.detalhe : "") + ")." + (consulta ? " Avise o desenvolvedor." : " Nada foi enviado aos signatários — avise o desenvolvedor.");
+        (r.detalhe ? ": " + r.detalhe : "") + ")." +
+        (consulta ? " Avise o desenvolvedor." : (sobra || " Nada foi enviado aos signatários — avise o desenvolvedor."));
     }
     if (e === "GRAVACAO_FALHOU" && r.envelopeId)
-      return "O envelope " + r.envelopeId + " foi criado na Clicksign, mas o portal não conseguiu anotar na casa — não envie de novo; avise o desenvolvedor.";
+      return "O envelope " + r.envelopeId + " foi enviado aos signatários, mas o portal não conseguiu anotar na casa — use Atualizar situação daqui a pouco; não envie de novo.";
+    if (e === "GRAVACAO_FALHOU" && r.rascunhoApagado)
+      return "Não consegui anotar o envelope na casa, então ele foi desfeito. Nada foi enviado aos signatários — tente de novo.";
     if (e === "GRAVACAO_FALHOU") return "Não consegui gravar a situação na casa — tente Atualizar situação de novo.";
     if (e.indexOf("CLICKSIGN_SEM_LINK_ASSINADO") === 0)
       return "A Clicksign diz que terminou, mas não entregou o link do PDF assinado — avise o desenvolvedor.";
@@ -74,7 +90,7 @@
 
   function montarBlocoAssinatura(c) {
     var h = '<div class="grp">Assinatura</div>';
-    if (c.testes) h += '<div class="dz-aviso">Perfil TESTES só consulta.</div>';
+    if (c.testes) h += '<div class="dz-aviso">Perfil TESTES não envia nem atualiza a assinatura.</div>';
     if (!c.estado) return h + '<div class="vazio">' + esc(c.msg || "carregando…") + "</div>";
     var e = c.estado, sit = situacaoDe(e);
     if (c.ocupado === "enviar") h += '<div class="dz-linha"><b>enviando… (até 1 minuto)</b></div>';
@@ -123,7 +139,16 @@
       r = { ok: false, erro: "SEM_RESPOSTA" };
     }
     r = r || { ok: false, erro: "SEM_RESPOSTA" };
-    if (!r.ok) return copia(c, { ocupado: null, faltas: r.faltas || null, msg: mensagemAssinatura(r) });
+    if (!r.ok) {
+      var falhou = { ocupado: null, faltas: r.faltas || null, msg: mensagemAssinatura(r) };
+      /* o envio deixou envelope na Clicksign (rascunho não apagado, ou ativo sem anotar), ou outra aba já
+       * tinha enviado: o bloco passa a mostrar envelope — Enviar trava e Atualizar situação aparece */
+      if (enviar && r.erro === "ENVELOPE_ABERTO")
+        falhou.estado = { situacao: r.situacao || "", envelope: true, signatarios: [] };
+      else if (enviar && r.envelopeId && r.rascunhoApagado !== true)
+        falhou.estado = { situacao: r.erro === "GRAVACAO_FALHOU" ? "" : "RASCUNHO", envelope: true, signatarios: [] };
+      return copia(c, falhou);
+    }
     var estado = { situacao: r.situacao || "", envelope: enviar ? true : !!r.envelope, signatarios: r.signatarios || [] };
     var msg = mensagemAssinatura(r) || (enviar ? "Enviado — cada signatário recebe o e-mail da Clicksign." : "Situação atualizada.");
     return copia(c, { estado: estado, ocupado: null, faltas: null, msg: msg });

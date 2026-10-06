@@ -53,7 +53,14 @@ test("envelope com situação vazia conta como aberto (não deixa mandar outro)"
   assert.match(botao(h, "a-enviar")[0], /disabled/);
 });
 
-test("ocupado ou perfil TESTES: botões desabilitados; TESTES ainda pode atualizar", () => {
+test("rascunho que ficou na Clicksign: Enviar desabilitado e orienta apagar lá e usar Atualizar situação", () => {
+  const h = A.montarBlocoAssinatura(ctx({ estado: { situacao: "RASCUNHO", envelope: true, signatarios: [] } }));
+  assert.match(botao(h, "a-enviar")[0], /disabled/);
+  assert.doesNotMatch(botao(h, "a-atualizar")[0], /disabled/);
+  assert.match(h, /Rascunho na Clicksign \(não foi enviado\) — apague o rascunho na Clicksign e use Atualizar situação/);
+});
+
+test("ocupado ou perfil TESTES: botões desabilitados; TESTES também não atualiza (Atualizar grava na casa)", () => {
   const ocup = A.montarBlocoAssinatura(ctx({ estado: ENVIADO, ocupado: "atualizar" }));
   assert.match(botao(ocup, "a-atualizar")[0], /disabled/);
   assert.match(ocup, /consultando/);
@@ -62,9 +69,9 @@ test("ocupado ou perfil TESTES: botões desabilitados; TESTES ainda pode atualiz
   assert.match(env, /enviando/);
   const t = A.montarBlocoAssinatura(ctx({ testes: true }));
   assert.match(botao(t, "a-enviar")[0], /disabled/);
-  assert.match(t, /Perfil TESTES só consulta/);
+  assert.match(t, /Perfil TESTES não envia nem atualiza a assinatura/);
   const t2 = A.montarBlocoAssinatura(ctx({ testes: true, estado: ENVIADO }));
-  assert.doesNotMatch(botao(t2, "a-atualizar")[0], /disabled/);
+  assert.match(botao(t2, "a-atualizar")[0], /disabled/);
 });
 
 test("faltas, mensagem, papel e situação são escapados", () => {
@@ -89,11 +96,20 @@ test("mensagens amigáveis por código", () => {
   assert.equal(m({ erro: "CLICKSIGN_FALHOU", passo: "requisitos", http: 422, detalhe: "role inválido" }),
                "A Clicksign recusou o envio (passo: requisitos, código 422: role inválido). Nada foi enviado aos signatários — avise o desenvolvedor.");
   assert.match(m({ erro: "CLICKSIGN_FALHOU", passo: "envelope", http: 0, detalhe: "" }), /não respondeu/);
-  assert.match(m({ erro: "GRAVACAO_FALHOU", envelopeId: "env-1" }), /env-1.*não envie de novo/);
+  assert.match(m({ erro: "GRAVACAO_FALHOU", envelopeId: "env-1" }), /env-1.*Atualizar situação.*não envie de novo/);
+  assert.match(m({ erro: "GRAVACAO_FALHOU", rascunhoApagado: true }), /Nada foi enviado.*tente de novo/);
+  assert.match(m({ erro: "ASSINATURA_OCUPADA" }), /outro envio.*em andamento/);
+  assert.match(m({ erro: "CONTRATO_DESATUALIZADO" }), /Os dados mudaram depois de gerar o contrato — gere de novo/);
+  assert.match(m({ erro: "CLICKSIGN_FALHOU", passo: "documento", http: 422, rascunhoApagado: true }), /Nada foi enviado aos signatários/);
+  assert.match(m({ erro: "CLICKSIGN_FALHOU", passo: "documento", http: 422, envelopeId: "env-1", rascunhoApagado: false }),
+               /apague o rascunho na Clicksign e use Atualizar situação/);
+  assert.match(m({ erro: "CLICKSIGN_FALHOU", passo: "ativar", http: 0, envelopeId: "env-1", rascunhoApagado: false, incerto: true }),
+               /não deu para confirmar.*Atualizar situação.*não envie de novo/);
+  assert.match(m({ ok: true, aviso: "ASSINATURAS_INCOMPLETAS" }), /não registrou a assinatura de todos/);
   assert.match(m({ erro: "CLICKSIGN_SEM_LINK_ASSINADO: original" }), /PDF assinado/);
   assert.match(m({ erro: "CLICKSIGN_STATUS_DESCONHECIDO: paused" }), /situação que o portal não conhece/);
   assert.match(m({ erro: "COLUNA_FALTANDO: CONTRATO ASSINADO" }), /coluna CONTRATO ASSINADO/);
-  assert.match(m({ erro: "SEM_PERMISSAO_TESTES" }), /só consulta/);
+  assert.match(m({ erro: "SEM_PERMISSAO_TESTES" }), /TESTES não envia nem atualiza/);
   assert.match(m({ erro: "XYZ" }), /Algo deu errado \(XYZ\)/);
   assert.match(m({ ok: true, aviso: "NOTIFICACAO_FALHOU" }), /e-mail de aviso falhou/);
 });
@@ -123,6 +139,26 @@ test("Enviar com faltas: guarda a lista e a mensagem; estado não muda", async (
   assert.deepEqual(novo.faltas, ["Comprador 1: e-mail"]);
   assert.equal(novo.estado.envelope, false);
   assert.match(novo.msg, /Complete os dados/);
+});
+
+test("Enviar que deixou envelope na Clicksign (rascunho não apagado ou não anotado): o bloco passa a mostrar envelope e Atualizar", async () => {
+  const rasc = await A.executarAcaoAssinatura("a-enviar", ctx(), { pageId: "p1", confirmar: () => true,
+    chamar: async () => ({ ok: false, erro: "CLICKSIGN_FALHOU", passo: "documento", http: 500, envelopeId: "env-1", rascunhoApagado: false }) });
+  assert.deepEqual(rasc.estado, { situacao: "RASCUNHO", envelope: true, signatarios: [] });
+  const h = A.montarBlocoAssinatura(rasc);
+  assert.match(botao(h, "a-enviar")[0], /disabled/);
+  assert.doesNotMatch(botao(h, "a-atualizar")[0], /disabled/);
+  const grav = await A.executarAcaoAssinatura("a-enviar", ctx(), { pageId: "p1", confirmar: () => true,
+    chamar: async () => ({ ok: false, erro: "GRAVACAO_FALHOU", envelopeId: "env-1" }) });
+  assert.deepEqual(grav.estado, { situacao: "", envelope: true, signatarios: [] });
+  /* apagado: continua sem envelope (pode enviar de novo) */
+  const apag = await A.executarAcaoAssinatura("a-enviar", ctx(), { pageId: "p1", confirmar: () => true,
+    chamar: async () => ({ ok: false, erro: "CLICKSIGN_FALHOU", passo: "documento", http: 500, envelopeId: "env-1", rascunhoApagado: true }) });
+  assert.equal(apag.estado.envelope, false);
+  /* ENVELOPE_ABERTO (outra aba enviou): mostra o envelope com a situação que o servidor leu */
+  const aberto = await A.executarAcaoAssinatura("a-enviar", ctx(), { pageId: "p1", confirmar: () => true,
+    chamar: async () => ({ ok: false, erro: "ENVELOPE_ABERTO", situacao: "ENVIADO" }) });
+  assert.deepEqual(aberto.estado, { situacao: "ENVIADO", envelope: true, signatarios: [] });
 });
 
 test("Atualizar: chama assinaturaEstado (sem confirmação) e troca o estado", async () => {
