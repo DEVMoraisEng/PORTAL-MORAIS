@@ -185,9 +185,10 @@ test("quem assinou: pelos eventos sign (e-mail, sem caixa); envelope fechado con
   assert.deepEqual(CS.assinaram(signers, [], "closed"), { s1: true, s2: true });
 });
 
-test("situações que deixam enviar de novo", () => {
-  for (const s of ["", "CANCELADO", "RECUSADO", "EXPIRADO"]) assert.equal(CS.podeReenviar(s), true, s);
-  for (const s of ["ENVIADO", "ASSINADO", "RASCUNHO", "qualquer"]) assert.equal(CS.podeReenviar(s), false, s);
+test("pode enviar: sem envelope, ou com envelope cancelado/recusado/expirado; envelope sem situação conta como aberto", () => {
+  for (const s of ["", "ENVIADO", "qualquer"]) assert.equal(CS.podeEnviar("", s), true, "sem envelope " + s);
+  for (const s of ["CANCELADO", "RECUSADO", "EXPIRADO", " cancelado "]) assert.equal(CS.podeEnviar("env-1", s), true, s);
+  for (const s of ["", "ENVIADO", "ASSINADO", "RASCUNHO", "qualquer"]) assert.equal(CS.podeEnviar("env-1", s), false, s);
 });
 
 test("arquivo assinado: só links.files.signed; sem ele, erro visível com as chaves que vieram", () => {

@@ -15,7 +15,7 @@ var ClicksignVenda = (function () {
   var PAPEIS = { COMPRADOR: "buyer", VENDEDOR: "seller", TESTEMUNHA: "witness", CORRETOR: "real_estate_broker" };
   var SITUACOES = { ENVIADO: "ENVIADO", ASSINADO: "ASSINADO", RECUSADO: "RECUSADO", CANCELADO: "CANCELADO",
                     EXPIRADO: "EXPIRADO", RASCUNHO: "RASCUNHO" };
-  var REENVIAVEL = ["", "CANCELADO", "RECUSADO", "EXPIRADO"];
+  var REENVIAVEL = ["CANCELADO", "RECUSADO", "EXPIRADO"];
 
   function txt(v) { return v === null || v === undefined ? "" : String(v).trim(); }
   function email(v) { return txt(v).toLowerCase(); }
@@ -208,7 +208,8 @@ var ClicksignVenda = (function () {
     });
     return r;
   }
-  function podeReenviar(sit) { return REENVIAVEL.indexOf(txt(sit).toUpperCase()) >= 0; }
+  /* Envelope com situação vazia (gravação incompleta) conta como aberto: na dúvida, não manda outro. */
+  function podeEnviar(envelopeId, sit) { return !txt(envelopeId) || REENVIAVEL.indexOf(txt(sit).toUpperCase()) >= 0; }
 
   /* Link do PDF assinado. A documentação v3 só mostra links.files.original; "signed" é suposição
    * registrada como dúvida — sem ele, falha visível com as chaves que vieram (nunca baixa o original). */
@@ -225,7 +226,7 @@ var ClicksignVenda = (function () {
     corpoEnvelope: corpoEnvelope, corpoDocumento: corpoDocumento, corpoSignatario: corpoSignatario,
     corpoQualificacao: corpoQualificacao, corpoAutenticacao: corpoAutenticacao, corpoAtivar: corpoAtivar,
     corpoNotificacao: corpoNotificacao, interpretar: interpretar, situacao: situacao, assinaram: assinaram,
-    podeReenviar: podeReenviar, linkAssinado: linkAssinado
+    podeEnviar: podeEnviar, linkAssinado: linkAssinado
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   return api;
