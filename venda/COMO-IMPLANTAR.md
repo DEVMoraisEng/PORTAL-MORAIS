@@ -127,13 +127,19 @@ link de cada página da documentação e as dúvidas em aberto:
 1. **Arquivos novos** no projeto PORTAL-VENDA (botão + › Script):
    `venda/ClicksignVenda.js` → arquivo **ClicksignVenda**;
    `venda/AssinaturaVenda.gs` → arquivo **AssinaturaVenda**. Mudaram e têm de
-   ser colados de novo: `PortalVenda.gs` (2 ações), `GerarContrato.gs` e
-   `ContratoVenda.js` (passam a levar os e-mails). Depois: Implantar ›
-   Gerenciar implantações › lápis › Nova versão › Implantar.
+   ser colados de novo: `PortalVenda.gs` (2 ações; as duas barradas para o
+   perfil TESTES, porque "Atualizar situação" também grava na casa),
+   `GerarContrato.gs` (carimbo no nome do PDF) e `ContratoVenda.js` (passam a
+   levar os e-mails). Depois: Implantar › Gerenciar implantações › lápis ›
+   Nova versão › Implantar.
+   **Contrato gerado antes desta versão não é enviado:** o nome do PDF agora
+   leva um carimbo dos dados (`… [#abcd1234].pdf`) e o envio recusa PDF sem
+   carimbo ou com carimbo de dados antigos ("Os dados mudaram depois de gerar o
+   contrato — gere de novo"). Basta clicar **Gerar contrato** de novo.
 2. **Colunas novas no Notion:**
    - VENDAS: `ASSINATURA - ENVELOPE ID` (texto), `ASSINATURA - SITUAÇÃO`
-     (texto: o portal grava ENVIADO, ASSINADO, RECUSADO, CANCELADO ou
-     EXPIRADO — não editar à mão), `CONTRATO ASSINADO` (arquivos e mídia) e
+     (texto: o portal grava RASCUNHO, ENVIADO, ASSINADO, RECUSADO, CANCELADO
+     ou EXPIRADO — não editar à mão), `CONTRATO ASSINADO` (arquivos e mídia) e
      `COMPRADOR 1 - E-MAIL` (e-mail; o do comprador 2 já existe).
    - VENDEDORES – CONTRATO: `E-MAIL` (vendedor pessoa física) e
      `REPRESENTANTE E-MAIL` (quem assina pela empresa).
@@ -150,13 +156,20 @@ link de cada página da documentação e as dúvidas em aberto:
      `[{"nome":"Nome Sobrenome","email":"a@empresa.com","cpf":"000.000.000-00"},{...}]`.
      Vendedor PJ (SPE) usa o par SPE; vendedor PF usa o par PF.
    - `ASSINATURA_REPRESENTANTE` — opcional, JSON `{"nome":…,"email":…,"cpf":…}`:
-     quem assina pela empresa quando o cadastro do vendedor não traz
-     `REPRESENTANTE NOME` e `REPRESENTANTE E-MAIL`.
+     só completa o e-mail de quem assina pela empresa quando o cadastro do
+     vendedor traz `REPRESENTANTE NOME` sem `REPRESENTANTE E-MAIL` **e o nome
+     é o mesmo** (acento, caixa e espaço não contam). Nome diferente ou vazio
+     no cadastro: o envio lista "Vendedor: falta REPRESENTANTE E-MAIL no
+     cadastro" — o portal nunca troca a pessoa que assina.
    - `ASSINATURA_INCLUIR_CORRETOR` — `SIM` para o corretor também assinar
      (padrão: não assina).
    - `ASSINATURA_PAPEIS_<envelope>` — o próprio script cria uma por envio
-     (qual signatário é comprador, testemunha…; sem dado pessoal). Não apagar
-     enquanto o envelope estiver em andamento.
+     (qual signatário é comprador, testemunha…; sem dado pessoal) e apaga
+     sozinho quando a situação fica final (ASSINADO, CANCELADO, EXPIRADO,
+     RECUSADO) ou o envio falha. Não apagar à mão enquanto estiver em andamento.
+   - `ASSINATURA_PENDENTE_<página>` — só aparece se a Clicksign ativou o
+     envelope e o Notion não gravou nem na 3ª tentativa. Barra novo envio da
+     casa; o "Atualizar situação" grava e apaga a chave. Não apagar à mão.
 4. **Token da Clicksign:** só o **administrador da conta Clicksign** gera.
    Sandbox: criar a conta em `https://sandbox.clicksign.com/signup`; nas duas
    contas o caminho é Configurações › API › Gerar Access Token › descrição ›
@@ -168,14 +181,22 @@ link de cada página da documentação e as dúvidas em aberto:
    assinar com todos › Atualizar situação › o PDF assinado aparece em
    `CONTRATO ASSINADO` e a situação vira ASSINADO. Testar também: recusar
    (situação RECUSADO e o botão volta a enviar) e cancelar o envelope na
-   Clicksign (CANCELADO). As dúvidas do `CLICKSIGN-API.md` se resolvem neste
-   teste — o código para com erro visível em cada uma delas, nunca chuta.
+   Clicksign (CANCELADO). Forçar uma falha antes de ativar (ex.: e-mail de
+   testemunha inválido na Propriedade só no sandbox): o rascunho tem de sumir
+   da Clicksign e a casa voltar a "Enviar". As dúvidas do `CLICKSIGN-API.md`
+   se resolvem neste teste — o código para com erro visível em cada uma
+   delas, nunca chuta.
 
 Quem assina, na ordem: comprador 1, comprador 2 (se houver), vendedor PF ou
 o representante da empresa, as duas testemunhas e, se ligado, o corretor.
 Faltando e-mail, nome com sobrenome ou testemunha configurada, o botão lista
-o que falta e não manda nada. Envelope em andamento ou assinado barra novo
-envio; cancelado, recusado ou expirado deixam enviar de novo.
+o que falta e não manda nada. Envelope em andamento, assinado ou em
+RASCUNHO barra novo envio; cancelado, recusado ou expirado deixam enviar de
+novo. Um envio por vez no projeto todo: se outra pessoa estiver enviando, o
+botão responde "Há outro envio para assinatura em andamento". Se o envio
+falhar antes de ativar, o portal apaga o rascunho na Clicksign e a casa volta
+a "Enviar"; se não conseguir apagar, a situação fica "Rascunho na Clicksign" —
+apagar o rascunho lá e clicar **Atualizar situação** libera a casa.
 
 ## Mais Controle (entrega 4)
 

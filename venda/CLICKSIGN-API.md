@@ -26,9 +26,31 @@ Páginas:
 ## Envio (assinaturaEnviar)
 
 Ordem: 1 → 2 → 3 (um por signatário) → 4 (dois por signatário) → 5 → 6.
-Erro em 1–4 para tudo **antes** de ativar: o envelope fica em rascunho (`draft`)
-e nada chega aos signatários. Rascunho pode ser apagado na Clicksign
-(DELETE do envelope em rascunho), mas o portal não apaga sozinho.
+
+Proteções do envio (`AssinaturaVenda.gs`):
+
+- **Um envio por vez:** ler → conferir → criar → gravar roda sob
+  `LockService.getScriptLock()` (espera até 10 s). Ocupado → erro
+  `ASSINATURA_OCUPADA`, nada é chamado.
+- **Contrato atualizado:** o nome do PDF gerado leva o carimbo dos dados
+  (`… [#abcd1234].pdf`, 8 hex do SHA-256 de compradores, vendedor/representante,
+  corretor, loteamento, imóvel e valores — `ctrCarimbo_` no `GerarContrato.gs`).
+  O envio recalcula; se não bater, ou se o PDF não tem carimbo (gerado antes
+  desta versão), recusa com `CONTRATO_DESATUALIZADO` ("gere de novo").
+- **Envelope anotado na hora:** logo depois do passo 1 o portal grava
+  `ASSINATURA - ENVELOPE ID` e `ASSINATURA - SITUAÇÃO = RASCUNHO`; RASCUNHO
+  conta como envelope aberto (barra outro envio). Se nem essa gravação der
+  certo, apaga o envelope recém-criado e devolve `GRAVACAO_FALHOU`.
+- **Erro antes de ativar** (passos 1–5): o portal **apaga o rascunho**
+  (`DELETE /api/v3/envelopes/{envelope_id}`, abaixo) e limpa as duas colunas e
+  a Propriedade `ASSINATURA_PAPEIS_<envelope>` — pode enviar de novo. Se o
+  DELETE falhar (log só com o código), a casa fica em RASCUNHO e a tela orienta
+  "apague o rascunho na Clicksign e use Atualizar situação".
+- **Resposta 2xx sem corpo** (ex.: 204) ou com corpo que não é JSON é sucesso
+  nos passos que não precisam de id (ativar, notificar, apagar). Nos que
+  precisam (envelope, documento, signatário), falta de id é falha
+  ("resposta sem id").
+- **E-mail no detalhe** do erro que vai para a tela sai como `***@domínio`.
 
 Guia passo a passo da própria Clicksign (mesma sequência):
 - https://developers.clicksign.com/recipes/criação-e-configuração-do-envelope
@@ -137,10 +159,29 @@ Páginas:
 { "data": { "id": "<envelope_id>", "type": "envelopes", "attributes": { "status": "running" } } }
 ```
 
-Status do envelope: `draft`, `running`, `canceled`, `closed`. Só depois de ativar o
-portal grava `ASSINATURA - ENVELOPE ID` e `ASSINATURA - SITUAÇÃO = ENVIADO`.
+Status do envelope: `draft`, `running`, `canceled`, `closed`. Depois de ativar o
+portal grava `ASSINATURA - SITUAÇÃO = ENVIADO` (o id já estava gravado desde o passo 1).
+
+- **Ativar sem resposta (http 0) ou 5xx:** o portal consulta
+  `GET /api/v3/envelopes/{envelope_id}`. `running` → ativou, segue (grava
+  ENVIADO e notifica). `draft` → falha antes de ativar (apaga o rascunho). Se a
+  consulta também falhar, **não apaga nada** (pode ter ativado): a casa fica em
+  RASCUNHO, a resposta traz `incerto: true` e a tela pede "Atualizar situação
+  daqui a pouco; não envie de novo".
+- **Notion não grava ENVIADO:** mais 2 tentativas (1 s entre elas). Se ainda
+  falhar, o portal guarda a Propriedade `ASSINATURA_PENDENTE_<pageId>` = id do
+  envelope, notifica mesmo assim e devolve `GRAVACAO_FALHOU` com o id. Enquanto
+  a chave existir, o envio recusa (`ENVELOPE_ABERTO`); o "Atualizar situação" usa
+  esse id, grava as duas colunas e apaga a chave.
 
 Página: https://developers.clicksign.com/reference/api-editar-envelope
+
+### Apagar rascunho — `DELETE /api/v3/envelopes/{envelope_id}`
+
+Sem corpo; só vale para envelope em `draft` (resposta 2xx, normalmente sem
+corpo). Usado só quando o envio falha antes de ativar. A página de referência
+desta rota não foi reconferida nesta revisão (feita sem acesso à rede) —
+conferir no sandbox junto com as dúvidas abaixo (dúvida 7).
 
 ### 6. Notificar todos — `POST /api/v3/envelopes/{envelope_id}/notifications`
 
@@ -149,7 +190,10 @@ Página: https://developers.clicksign.com/reference/api-editar-envelope
 ```
 
 Se falhar, o envelope já está ativo e gravado: a resposta é `ok` com
-`aviso: "NOTIFICACAO_FALHOU"`.
+`aviso: "NOTIFICACAO_FALHOU"`. Resposta 2xx sem corpo conta como sucesso.
+
+Quem enviou: o log registra só o login (`sess.u`) e o código do resultado
+(`enviar <página> por <login>: ok | <erro>`) — nada na coluna de situação.
 
 Páginas:
 - https://developers.clicksign.com/reference/api-notificar-envelope
@@ -176,12 +220,28 @@ Situação gravada (`ClicksignVenda.situacao`):
 | `canceled` | com `refusal` | RECUSADO |
 | `canceled` | com `deadline` | EXPIRADO |
 | `canceled` | nenhum dos dois | CANCELADO |
-| `draft` | — | RASCUNHO |
+| `draft` | — | RASCUNHO (só consulta o envelope; não lê documento nem signatários) |
 | outro | — | erro `CLICKSIGN_STATUS_DESCONHECIDO: <status>`, nada gravado |
+
+- Envelope em RASCUNHO que **não existe mais** (404, apagado à mão na
+  Clicksign): o portal limpa as duas colunas e a casa volta a "sem envelope"
+  (pode enviar). 404 em qualquer outra situação é só erro na tela.
+- Com `ASSINATURA_PENDENTE_<pageId>` (ver passo 5), a consulta usa esse id,
+  grava ENVELOPE ID + SITUAÇÃO e apaga a chave quando a gravação dá certo.
+- `closed` sem o evento `sign` de algum signatário: a situação continua
+  ASSINADO (o PDF é o que a Clicksign entregou), mas essa pessoa aparece como
+  "falta assinar", o log registra "assinaturas incompletas" e a resposta traz
+  `aviso: "ASSINATURAS_INCOMPLETAS"`.
+- Os dois downloads (PDF do contrato no envio, PDF assinado na consulta) que
+  ficam sem resposta viram `CONTRATO_ILEGIVEL` / `DOWNLOAD_ASSINADO_FALHOU`, com
+  log só do código (nunca a URL).
 
 Quem é quem: os ids dos signatários e o papel de cada um ficam na Propriedade
 `ASSINATURA_PAPEIS_<envelope_id>` (gravada no envio, sem dado pessoal), porque a
 listagem de requisitos da documentação não traz a ligação requisito → signatário.
+Ela é apagada quando a situação fica final (ASSINADO, CANCELADO, EXPIRADO,
+RECUSADO) e quando o envio falha antes de ativar; depois disso a lista mostra
+"Signatário" no lugar do papel.
 
 Páginas:
 - https://developers.clicksign.com/reference/api-detalhes-do-envelope
@@ -215,10 +275,17 @@ Páginas:
 4. **Formato dos eventos na API.** O exemplo da rota de eventos só mostra o
    evento `upload`; o formato de `sign` (com `data.signer.email`) vem da página do
    webhook. Quem assinou é casado por e-mail; se o formato da API for outro, a
-   lista mostra "falta assinar" para todos até o envelope fechar (`closed` conta
-   todos como assinados). Não afeta a situação nem o PDF.
+   lista mostra "falta assinar" para todos — também com o envelope `closed`,
+   que então traz o aviso `ASSINATURAS_INCOMPLETAS`. Não afeta a situação nem o
+   PDF. Conferir no sandbox: se todo envelope fechado vier com esse aviso, o
+   formato dos eventos é outro.
 5. **Ativar já avisa os signatários?** A documentação manda notificar depois de
    ativar (passo 6); não diz se a ativação sozinha já manda e-mail. Se mandar,
    cada um recebe dois avisos — conferir no sandbox.
 6. **`content_base64` de PDF grande.** A documentação não dá limite de tamanho;
    contratos gerados ficam bem abaixo de 1 MB.
+7. **DELETE do rascunho.** O portal apaga o envelope em `draft` quando o envio
+   falha antes de ativar. Conferir no sandbox (forçando uma falha, ex.: e-mail
+   de testemunha inválido na Propriedade) que o DELETE responde 2xx e o
+   envelope some; se a Clicksign recusar, a casa fica em RASCUNHO e o log
+   mostra `rascunho nao apagado http <código>`.
