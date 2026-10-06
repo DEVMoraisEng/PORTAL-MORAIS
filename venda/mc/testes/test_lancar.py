@@ -185,7 +185,7 @@ def test_main_sem_segredos_anota_erro_e_log_sem_dado(monkeypatch, capsys):
     anotado = {}
 
     class N(NotionFake):
-        def __init__(self, *_):
+        def __init__(self, *_, **__):
             super().__init__(pagina())
 
         def gravar_textos(self, pid, props, valores):
@@ -204,7 +204,7 @@ def test_main_excecao_inesperada_nao_deixa_processando(monkeypatch, capsys):
     anotado = {}
 
     class N(NotionFake):
-        def __init__(self, *_):
+        def __init__(self, *_, **__):
             super().__init__(pagina())
 
         def gravar_textos(self, pid, props, valores):
@@ -212,7 +212,7 @@ def test_main_excecao_inesperada_nao_deixa_processando(monkeypatch, capsys):
             return []
 
     class E(ErpFake):
-        def __init__(self, *_):
+        def __init__(self, *_, **__):
             super().__init__()
 
         def obras(self):
