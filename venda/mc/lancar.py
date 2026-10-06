@@ -158,9 +158,13 @@ def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DI
                obrigatorio=True)
 
 
-def _anotar_erro(notion, page, texto) -> None:
+def _anotar_erro(notion, page, texto, manter_erro_anterior=False) -> None:
     try:
         props = notion.pagina(page).get("properties") or {}
+        cel = props.get(R.COL["situacao"]) or {}
+        atual = "".join(t.get("plain_text", "") for t in cel.get("rich_text") or [])
+        if manter_erro_anterior and atual.startswith("ERRO"):
+            return   # o robô já anotou o motivo; não trocar por um aviso genérico
         notion.gravar_textos(page, props, {R.COL["situacao"]: "ERRO: " + texto[:300]})
     except Exception:
         pass
@@ -184,7 +188,8 @@ def main(argv=None) -> int:
     notion = Notion(os.environ["NOTION_TOKEN"]) if os.environ.get("NOTION_TOKEN") else None
     if a.marcar_erro is not None:
         if notion:
-            _anotar_erro(notion, a.page, a.marcar_erro or "o robô falhou — veja o GitHub Actions")
+            _anotar_erro(notion, a.page, a.marcar_erro or "o robô falhou — veja o GitHub Actions",
+                         manter_erro_anterior=True)
         return sair({"situacao": "ERRO", "codigo": "WORKFLOW_FALHOU"}, 1)
     falta = [n for n in ("NOTION_TOKEN", "MC_ROBO_EMAIL", "MC_ROBO_SENHA") if not os.environ.get(n)]
     if falta:

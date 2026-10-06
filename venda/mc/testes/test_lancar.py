@@ -222,3 +222,14 @@ def test_main_excecao_inesperada_nao_deixa_processando(monkeypatch, capsys):
     assert L.main(["--page", "a" * 32]) == 1
     assert anotado["MC - SITUAÇÃO"].startswith("ERRO: falha inesperada (ValueError)")
     assert "html no lugar" not in capsys.readouterr().out
+
+
+def test_aviso_generico_nao_apaga_o_motivo_ja_anotado():
+    n = NotionFake(pagina())
+    n.props["MC - SITUAÇÃO"] = txt("ERRO: o Mais Controle recusou — login recusado (HTTP 401)")
+    L._anotar_erro(n, "p", "o robô falhou", manter_erro_anterior=True)
+    assert n.props["MC - SITUAÇÃO"]["rich_text"][0]["plain_text"].startswith("ERRO: o Mais Controle recusou")
+    n = NotionFake(pagina())
+    n.props["MC - SITUAÇÃO"] = txt("PROCESSANDO [t=1]")
+    L._anotar_erro(n, "p", "o robô falhou", manter_erro_anterior=True)
+    assert "o robô falhou" in str(n.gravado)
