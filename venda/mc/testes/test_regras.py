@@ -109,8 +109,8 @@ def test_corpo_venda_formato_da_tela():
     assert c["description"] == "VENDA CASA 02 - FULANO DE TAL"
     assert c["interestRateAccumulateStrategy"] == "COMPOUND_INTEREST" and c["readjustmentEnabled"] is True
     tr = c["tradeReceivable"]
-    assert tr["receivingCondition"] == {"id": R.CONDICAO_PARCELADO, "deferred": True}
-    assert tr["defaultAccount"] == {"id": "conta-1"} and tr["nature"]["id"] == R.NATUREZA_VENDA
+    assert tr["receivingCondition"] == {"id": R.CONDICAO_PARCELADO, "name": "Parcelado", "deferred": True}
+    assert tr["defaultAccount"] == {"id": "conta-1"} and tr["nature"] == {"id": R.NATUREZA_VENDA, "name": "Venda"}
     assert tr["value"] == 260000 and tr["numberOfInstallments"] == 4
     p = tr["installments"][0]
     assert p["plannedValue"] == 5000 and p["readjustmentDetail"] == {

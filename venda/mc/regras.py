@@ -326,8 +326,8 @@ def corpo_venda(dados: dict, obra: dict, cliente_id: str, conta: dict,
         "value": total, "grossValue": total, "taxWithhold": 0,
         "referenceDate": dados["data_venda"],
         "numberOfInstallments": len(inst),
-        "nature": {"id": NATUREZA_VENDA},
-        "receivingCondition": {"id": CONDICAO_PARCELADO, "deferred": True},
+        "nature": {"id": NATUREZA_VENDA, "name": "Venda"},   # o ERP exige o nome (NotBlank)
+        "receivingCondition": {"id": CONDICAO_PARCELADO, "name": "Parcelado", "deferred": True},
         "defaultAccount": {"id": conta["id"]},
         "installments": inst,
     }
