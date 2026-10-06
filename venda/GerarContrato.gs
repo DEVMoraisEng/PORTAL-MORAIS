@@ -129,9 +129,9 @@ function ctrFontes_(col, pageId) {
   var venda = {
     CLIENTES: dos(C.CLIENTES), CPF: dos(C.CPF1), ENDERECO: ctrTitulo_(pg.properties),
     COMPRADOR1: { nacionalidade: dos(C.C1_NAC), estadoCivil: dos(C.C1_ESTCIV), profissao: dos(C.C1_PROF),
-                  documento: dos(C.C1_DOC), endereco: dos(C.C1_END) },
+                  documento: dos(C.C1_DOC), endereco: dos(C.C1_END), email: ctrTxt_(cv("COMPRADOR 1 - E-MAIL")) },
     COMPRADOR2: { nome: dos(C.C2_NOME), cpf: dos(C.C2_CPF), nacionalidade: dos(C.C2_NAC), estadoCivil: dos(C.C2_ESTCIV),
-                  profissao: dos(C.C2_PROF), documento: dos(C.C2_DOC), endereco: dos(C.C2_END) },
+                  profissao: dos(C.C2_PROF), documento: dos(C.C2_DOC), endereco: dos(C.C2_END), email: dos(C.C2_EMAIL) },
     ALVARA_NUMERO: cv(CV.ALVARA_NUMERO), ALVARA_DATA: cv(CV.ALVARA_DATA), HABITESE_NUMERO: cv(CV.HABITESE_NUMERO),
     MATRICULA_INDIVIDUAL: cv(CV.MATRICULA_INDIVIDUAL), CRI: cv(CV.CRI), AREA: ctrNum_(cv(CV.AREA)),
     CONFRONTACOES: cv(CV.CONFRONTACOES),
@@ -170,7 +170,8 @@ function ctrFontes_(col, pageId) {
     representanteRg: t(lv, "REPRESENTANTE RG"), representanteNacionalidade: t(lv, "REPRESENTANTE NACIONALIDADE"),
     representanteEstadoCivil: t(lv, "REPRESENTANTE ESTADO CIVIL"),
     nacionalidade: t(lv, "NACIONALIDADE"), estadoCivil: t(lv, "ESTADO CIVIL"), profissao: t(lv, "PROFISSÃO"), rg: t(lv, "RG"),
-    banco: t(lv, "BANCO"), agencia: t(lv, "AGÊNCIA"), operacao: t(lv, "OPERAÇÃO"), conta: t(lv, "CONTA"), pix: t(lv, "PIX")
+    banco: t(lv, "BANCO"), agencia: t(lv, "AGÊNCIA"), operacao: t(lv, "OPERAÇÃO"), conta: t(lv, "CONTA"), pix: t(lv, "PIX"),
+    email: t(lv, "E-MAIL"), representanteEmail: t(lv, "REPRESENTANTE E-MAIL") /* só a assinatura usa */
   } : null;
   var loteamento = ll ? {
     denominacao: t(ll, "DENOMINAÇÃO"), municipioUf: t(ll, "MUNICÍPIO/UF"), matricula: t(ll, "MATRÍCULA DO LOTEAMENTO"),
