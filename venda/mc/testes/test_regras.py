@@ -86,7 +86,7 @@ def test_intermediaria_vira_entrada_com_comentario():
                                     "VALOR FINANCIADO": num(225000)}))
     corpo = R.corpo_venda(d, {"id": "o1", "name": "x"}, "c1", {"id": "k1"})
     inter = [i for i in corpo["tradeReceivable"]["installments"] if i["comment"] == "Intermediária"]
-    assert len(inter) == 1 and inter[0]["readjustmentDetail"]["type"]["id"] == R.TIPO_ENTRADA
+    assert len(inter) == 1 and inter[0]["readjustmentDetail"]["type"]["id"] == R.TIPO_INTERMEDIARIA
     assert R.faltas(d) == []
 
 

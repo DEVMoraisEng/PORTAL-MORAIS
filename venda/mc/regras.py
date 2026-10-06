@@ -23,6 +23,10 @@ TIPO_SINAL = "00e30a7a-7a49-422e-b8b1-3ba4f927e250"
 TIPO_ENTRADA = "bc569ea7-63ae-401b-b3d1-faf65a6b4465"
 TIPO_FINANCIAMENTO = "994f6f20-cebf-4499-839c-f61afda9b174"
 TIPO_FGTS = "88da2643-8f30-4a17-9946-9039a9f1e1ce"
+# catálogo GET {legado}/readjustment-installment-types, lido em 06/10/2026
+TIPO_INTERMEDIARIA = "3a1c631a-e0db-4962-b4b5-32beee649806"
+TIPO_PARCELA = "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+TIPO_CHAVES = "aa7ff517-46d6-4b46-8856-129448181fec"
 CONDICAO_PARCELADO = "9d00aa57-cb9d-4818-b411-8b6846374d37"
 NATUREZA_VENDA = "85a40f0e-320c-4b0f-a0cc-54926c9d5aaf"
 
@@ -233,7 +237,7 @@ def parcelas(dados: dict, dias_financiamento: int = DIAS_FINANCIAMENTO) -> list[
 
     add(TIPO_SINAL, "Sinal", dados["sinal"]["valor"], dados["sinal"]["data"] or dv)
     add(TIPO_ENTRADA, "Entrada", dados["entrada"]["valor"], dados["entrada"]["data"])
-    add(TIPO_ENTRADA, "Intermediária", dados["intermediaria"]["valor"], dados["intermediaria"]["data"])
+    add(TIPO_INTERMEDIARIA, "Intermediária", dados["intermediaria"]["valor"], dados["intermediaria"]["data"])
     prev = _mais_dias(dv, dias_financiamento) if dv and _RE_ISO.match(dv) else None
     add(TIPO_FGTS, "FGTS", dados.get("fgts"), prev)
     fin = (dados.get("financiado") or 0) + (dados.get("subsidio") or 0)
