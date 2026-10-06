@@ -233,3 +233,32 @@ def test_aviso_generico_nao_apaga_o_motivo_ja_anotado():
     n.props["MC - SITUAÇÃO"] = txt("PROCESSANDO [t=1]")
     L._anotar_erro(n, "p", "o robô falhou", manter_erro_anterior=True)
     assert "o robô falhou" in str(n.gravado)
+
+
+class _Resp:
+    def __init__(self, status, corpo):
+        self.status_code, self._c = status, corpo
+
+    def json(self):
+        return self._c
+
+
+class _Http:
+    def __init__(self, resp):
+        self.resp, self.cab = resp, None
+
+    def post(self, url, json=None, headers=None, timeout=None):
+        self.cab = headers
+        return self.resp
+
+
+def test_login_que_pede_codigo_explica_e_manda_o_aparelho():
+    from venda.mc.erp import Erp, ErpErro
+    http = _Http(_Resp(401, {"mfaToken": "x"}))
+    for aparelho, trecho in (("", "falta o segredo MC_ROBO_APARELHO"), ("abc", "venceu")):
+        try:
+            Erp("e", "s", sessao=http, aparelho=aparelho).logar()
+            assert False
+        except ErpErro as e:
+            assert trecho in str(e)
+    assert http.cab["x-device-code"] == "abc"

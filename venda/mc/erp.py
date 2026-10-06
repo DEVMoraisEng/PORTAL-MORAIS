@@ -27,8 +27,9 @@ class ErpErro(Exception):
 
 
 class Erp:
-    def __init__(self, email: str, senha: str, sessao=None, timeout: int = 90):
+    def __init__(self, email: str, senha: str, sessao=None, timeout: int = 90, aparelho: str = ""):
         self._email, self._senha = email, senha
+        self._aparelho = aparelho   # deviceToken de um aparelho confiável (o site guarda no cookie MFA_DEVICE_CODES)
         self.http = sessao or requests.Session()
         self.timeout = timeout
         self.token = self.company_id = self.user_id = self.ou_id = None
@@ -39,8 +40,20 @@ class Erp:
                 "origin": ORIGEM, "referer": ORIGEM + "/", "user-agent": USER_AGENT}
 
     def logar(self) -> None:
+        h = self._base()
+        if self._aparelho:
+            h["x-device-code"] = self._aparelho
         r = self.http.post(LEGACY + "/users/login", json={"username": self._email, "password": self._senha},
-                           headers=self._base(), timeout=self.timeout)
+                           headers=h, timeout=self.timeout)
+        if r.status_code == 401:
+            try:
+                mfa = bool((r.json() or {}).get("mfaToken"))
+            except ValueError:
+                mfa = False
+            if mfa:
+                raise ErpErro("o Mais Controle pediu código de verificação (aparelho não confiável): "
+                              + ("o código de aparelho MC_ROBO_APARELHO venceu ou não vale" if self._aparelho
+                                 else "falta o segredo MC_ROBO_APARELHO"))
         if r.status_code >= 300:
             raise ErpErro("login recusado (HTTP %s)" % r.status_code)
         j = r.json()
