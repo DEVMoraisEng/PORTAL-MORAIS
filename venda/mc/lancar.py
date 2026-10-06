@@ -23,7 +23,9 @@ from .erp import Erp, ErpErro
 from .notion import Notion
 
 
-def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DIAS_FINANCIAMENTO) -> dict:
+def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DIAS_FINANCIAMENTO,
+              bloqueado: bool = False) -> dict:
+    """bloqueado=True: pediram para gravar, mas o repositório não liberou (MC_APLICAR)."""
     pg = notion.pagina(page_id)
     props = pg.get("properties") or {}
     d = R.dados_da_pagina(props)
@@ -98,7 +100,8 @@ def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DI
     resumo = "; ".join("%s R$ %.2f em %s" % (p["rotulo"], p["valor"], p["data"]) for p in res["parcelas"])
 
     if not aplicar:
-        return fim("PREVIA", "PRÉVIA OK — %s%s; conta da obra: %s; %s" % (
+        return fim("PREVIA", ("BLOQUEADO: gravar no Mais Controle está desligado neste ambiente (MC_APLICAR) — "
+                              if bloqueado else "") + "PRÉVIA OK — %s%s; conta da obra: %s; %s" % (
             "cliente novo será criado; " if cliente_novo else "cliente já existe; ",
             corpo["description"].split(" - ")[0], conta.get("name") or conta["id"], resumo))
 
@@ -121,6 +124,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--page", required=True)
     ap.add_argument("--aplicar", action="store_true")
+    ap.add_argument("--bloqueado", action="store_true", help="pediram gravar, mas MC_APLICAR não está ligado")
     ap.add_argument("--dias-financiamento", type=int, default=R.DIAS_FINANCIAMENTO)
     a = ap.parse_args(argv)
     falta = [n for n in ("NOTION_TOKEN", "MC_ROBO_EMAIL", "MC_ROBO_SENHA") if not os.environ.get(n)]
@@ -130,7 +134,8 @@ def main(argv=None) -> int:
     notion = Notion(os.environ["NOTION_TOKEN"])
     erp = Erp(os.environ["MC_ROBO_EMAIL"], os.environ["MC_ROBO_SENHA"])
     try:
-        res = processar(a.page, notion, erp, aplicar=a.aplicar, dias=a.dias_financiamento)
+        res = processar(a.page, notion, erp, aplicar=a.aplicar and not a.bloqueado,
+                        dias=a.dias_financiamento, bloqueado=a.bloqueado)
     except (ErpErro, RuntimeError) as e:
         res = {"situacao": "ERRO", "motivos": [str(e)[:400]]}
         try:

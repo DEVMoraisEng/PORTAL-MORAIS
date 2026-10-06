@@ -139,9 +139,40 @@
     return h;
   }
 
+  var MSG_MC = {
+    MC_NAO_CONFIGURADO: "O lançamento no Mais Controle não está configurado neste ambiente.",
+    MC_JA_LANCADA: "Esta venda já foi lançada no Mais Controle.",
+    MC_PROCESSANDO: "O robô ainda está processando — aguarde e clique em Atualizar.",
+    MC_SEM_PREVIA: "Veja a prévia primeiro: o lançamento só é liberado com PRÉVIA OK.",
+    MC_DISPARO_FALHOU: "Não consegui acionar o robô do Mais Controle — tente de novo."
+  };
+  function mensagemMC(r) {
+    var e = String((r && r.erro) || "");
+    return MSG_MC[e] || mensagemDeErro(e);
+  }
+  /* e = {situacao, vendaId}; u = {ocupado, msg, testes} */
+  function htmlMC(e, u) {
+    var testes = !!u.testes, processando = !!(e && /^PROCESSANDO/.test(e.situacao || ""));
+    var ocupado = !!u.ocupado || processando;
+    var h = '<div class="grp">Mais Controle</div>';
+    if (!e) return h + '<div class="vazio">' + esc(u.msg || "carregando…") + "</div>";
+    var sit = e.situacao || "ainda não lançada";
+    h += '<div class="dz-linha"><span class="dz-rot">Situação: <b>' + esc(sit) + "</b></span></div>";
+    if (e.vendaId) h += '<div class="dz-linha"><span class="dz-rot">Venda no Mais Controle: ' + esc(e.vendaId) + "</span></div>";
+    if (processando) h += '<div class="dz-linha"><b>o robô está trabalhando… (1 a 3 minutos)</b></div>';
+    var liberaLancar = /^PR[ÉE]VIA OK/i.test(sit) && !e.vendaId;
+    var d = function (x) { return (x || testes) ? " disabled" : ""; };
+    h += '<div class="dz-linha">';
+    if (!e.vendaId) h += '<button type="button" class="bt ghost bt-mini" data-acao="mc-previa"' + d(ocupado) + ">Ver prévia</button> ";
+    if (!e.vendaId) h += '<button type="button" class="bt bt-mini" data-acao="mc-lancar"' + d(ocupado || !liberaLancar) + ">Lançar no Mais Controle</button> ";
+    h += '<button type="button" class="bt ghost bt-mini" data-acao="mc-atualizar"' + (u.ocupado ? " disabled" : "") + ">Atualizar</button></div>";
+    if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
+    return h;
+  }
+
   var exportar = { URL_PORTAL_VENDA: URL_PORTAL_VENDA, DOCS: DOCS, html: html, mensagemDeErro: mensagemDeErro,
                    resumo: resumo, escala: escala, tipoAceito: tipoAceito, painelCarregando: painelCarregando,
-                   htmlContrato: htmlContrato, mensagemContrato: mensagemContrato };
+                   htmlContrato: htmlContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, mensagemMC: mensagemMC };
   if (typeof module !== "undefined" && module.exports) { module.exports = exportar; return; }
 
   /* ---------------- navegador ---------------- */
@@ -296,7 +327,46 @@
   function wrapC() { return document.getElementById("contrato-wrap"); }
   function pintarC() {
     var w = wrapC(); if (!w) return;
-    w.innerHTML = htmlContrato(estadoC, uiC);
+    w.innerHTML = htmlContrato(estadoC, uiC) + '<div id="mc-wrap">' + htmlMC(estadoM, uiM) + "</div>";
+  }
+  /* ---- Mais Controle: mora dentro do contrato-wrap (que precisa ser o último
+   * filho de #pn-body); usa o mesmo seqC para descartar resposta de outra casa. */
+  var estadoM = null, uiM = { ocupado: null, msg: "", testes: false }, esperaM = null;
+  function novoUiM() { return { ocupado: null, msg: "", testes: perfilTestes() }; }
+  function pintarM() {
+    var w = document.getElementById("mc-wrap"); if (!w) return;
+    w.innerHTML = htmlMC(estadoM, uiM);
+  }
+  async function carregarMC(pageId, seq) {
+    var r = await chamarVenda({ action: "mcEstado", pageId: pageId });
+    /* só a casa importa aqui: o seqC sobe a cada clique do Contrato e mataria o acompanhamento */
+    if (!mesmaCasaContrato(pageId)) return null;
+    if (r.ok) { estadoM = { situacao: r.situacao || "", vendaId: r.vendaId || "" }; }
+    else uiM.msg = mensagemMC(r);
+    pintarM();
+    return r;
+  }
+  function acompanharMC(pageId, seq, voltas) {
+    if (esperaM) clearTimeout(esperaM);
+    esperaM = setTimeout(async function () {
+      esperaM = null;
+      var r = await carregarMC(pageId, seq);
+      if (r && r.ok && /^PROCESSANDO/.test(r.situacao || "") && voltas > 1) acompanharMC(pageId, seq, voltas - 1);
+    }, 10000);
+  }
+  async function aoClicarMC(acao, pageId) {
+    if (uiM.ocupado) return;
+    var seq = seqC;
+    if (acao === "mc-atualizar") { uiM.msg = ""; await carregarMC(pageId, seq); return; }
+    var aplicar = acao === "mc-lancar";
+    if (aplicar && !window.confirm("Lançar esta venda no Mais Controle? Será criado o cliente (se não existir) e a venda com as parcelas da prévia.")) return;
+    uiM.ocupado = acao; uiM.msg = ""; pintarM();
+    var r = await chamarVenda({ action: "mcLancar", pageId: pageId, aplicar: aplicar });
+    if (!mesmaCasaContrato(pageId)) return;
+    uiM.ocupado = null;
+    uiM.msg = r.ok ? (aplicar ? "Lançamento pedido ao robô." : "Prévia pedida ao robô.") : mensagemMC(r);
+    await carregarMC(pageId, seq);
+    if (r.ok) acompanharMC(pageId, seq, 24);
   }
   /* seqC: contador de pedidos; sobe a cada troca de casa e a cada ação. Resposta
    * com seq diferente do capturado é descartada (caso A→B→A, em que mesmaCasaContrato
@@ -316,6 +386,7 @@
   async function aoClicarContrato(ev) {
     var b = ev.target.closest("[data-acao]"); if (!b || b.disabled) return;
     var pageId = obraAberta(), acao = b.getAttribute("data-acao"), r, seq;
+    if (pageId && paginaDoContrato === pageId && /^mc-/.test(acao)) return aoClicarMC(acao, pageId);
     if (!pageId || uiC.ocupadoContrato || paginaDoContrato !== pageId) return;
     if (acao === "c-ver") {
       /* abre a janela AGORA, dentro do clique (antes de qualquer await), senão o
@@ -366,19 +437,20 @@
   function garantirContrato(body, id) {
     var w = wrapC();
     if (w) { if (body.lastElementChild !== w) body.appendChild(w); return; }
-    if (paginaDoContrato !== id) { paginaDoContrato = id; seqC++; estadoC = null; uiC = novoUiC(); }
+    if (paginaDoContrato !== id) { paginaDoContrato = id; seqC++; estadoC = null; uiC = novoUiC(); estadoM = null; uiM = novoUiM(); }
     w = document.createElement("div"); w.id = "contrato-wrap";
     w.addEventListener("click", aoClicarContrato);
     body.appendChild(w);
     pintarC();
     if (!estadoC) carregarContrato(id);
+    if (!estadoM) carregarMC(id, seqC);
   }
   function garantirBloco(body) {
     var id = obraAberta();
     if (!id) {
       /* painel fechado: zera para a mesma casa recarregar o estado ao reabrir */
       if (paginaDoBloco !== null) { paginaDoBloco = null; estado = null; ui = { dois: false, ocupado: null, msg: "", testes: false }; }
-      if (paginaDoContrato !== null) { paginaDoContrato = null; seqC++; estadoC = null; uiC = novoUiC(); }
+      if (paginaDoContrato !== null) { paginaDoContrato = null; seqC++; estadoC = null; uiC = novoUiC(); estadoM = null; uiM = novoUiM(); }
       return;
     }
     if (painelCarregando(body.children.length, body.firstElementChild ? body.firstElementChild.className : "",

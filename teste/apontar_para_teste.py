@@ -112,7 +112,9 @@ def main():
     workflows = raiz / ".github" / "workflows"
     if workflows.is_dir():
         for f in sorted(workflows.iterdir()):
-            if f.is_file() and f.name != "pages.yml":
+            # mc-venda.yml fica: é o robô do "Lançar no Mais Controle", e no fork
+            # ele só grava com a variável MC_APLICAR=1 (sem ela, roda como prévia)
+            if f.is_file() and f.name not in ("pages.yml", "mc-venda.yml"):
                 rel = f.relative_to(raiz)
                 f.unlink()
                 alterados.append(f"{rel} (apagado)")

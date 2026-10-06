@@ -120,6 +120,13 @@ def test_ja_lancada_pelo_notion_nao_repete():
     assert r["situacao"] == "JA_LANCADA" and e.criados == []
 
 
+def test_bloqueado_vira_previa_com_aviso_e_nao_grava():
+    n, e = NotionFake(pagina()), ErpFake()
+    r = L.processar("p1", n, e, aplicar=False, bloqueado=True)
+    assert r["situacao"] == "PREVIA" and e.criados == []
+    assert n.gravado["MC - SITUAÇÃO"].startswith("BLOQUEADO:")
+
+
 def test_cpf_em_dois_clientes_recusa():
     cli = [{"id": "a", "cpf": CPF_OK}, {"id": "b", "cpf": CPF_OK}]
     n, e = NotionFake(pagina()), ErpFake(clientes=cli)
