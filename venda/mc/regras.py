@@ -115,10 +115,34 @@ def _num(x):
     s = str(x).replace("R$", "").replace(" ", "")
     if "," in s:
         s = s.replace(".", "").replace(",", ".")
+    elif re.fullmatch(r"\d{1,3}(\.\d{3})+", s):   # "250.000" é milhar, não 250,0
+        s = s.replace(".", "")
     try:
         return float(s)
     except ValueError:
         return None
+
+
+_RE_ISO = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_RE_BR = re.compile(r"^(\d{2})/(\d{2})/(\d{4})$")
+
+
+def _data(x):
+    """ISO 'aaaa-mm-dd' de uma data do Notion (date ou texto 'dd/mm/aaaa'); o resto passa como veio
+    (e faltas() recusa)."""
+    s = str(x or "").strip()[:10] if x else ""
+    m = _RE_BR.match(s)
+    if m:
+        return "%s-%s-%s" % (m.group(3), m.group(2), m.group(1))
+    return s or None
+
+
+def _casa(x):
+    """Número da casa; None se vazio OU se houver mais de um número ("1 e 2", "Casa 3 - Lote 5")."""
+    if isinstance(x, (int, float)):
+        return int(x)
+    grupos = re.findall(r"\d+", str(x or ""))
+    return int(grupos[0]) if len(grupos) == 1 else None
 
 
 def dados_da_pagina(props: dict) -> dict:
@@ -144,23 +168,46 @@ def dados_da_pagina(props: dict) -> dict:
         aquisicao = total - comissao
     else:
         aquisicao = None
-    casa = ler("casa")
+    casa_bruta = ler("casa")
     return {
         "endereco": titulo or ler("endereco") or "",
-        "casa": int(casa) if isinstance(casa, (int, float)) else (int(so_digitos(casa)) if so_digitos(casa) else None),
-        "data_venda": (ler("data_venda") or "")[:10] or None,
+        "casa": _casa(casa_bruta),
+        "casa_ambigua": casa_bruta not in (None, "") and _casa(casa_bruta) is None,
+        "data_venda": _data(ler("data_venda")),
         "comprador": {"nome": nome1, "cpf": so_digitos(ler("cpf")),
                       "email": ler("email"), "telefone": so_digitos(ler("telefone"))},
         "aquisicao": aquisicao,
-        "sinal": {"valor": _num(ler("sinal_valor")), "data": (ler("sinal_data") or "")[:10] or None},
-        "entrada": {"valor": _num(ler("entrada_valor")), "data": (ler("entrada_data") or "")[:10] or None},
-        "intermediaria": {"valor": _num(ler("intermediaria_valor")), "data": (ler("intermediaria_data") or "")[:10] or None},
+        "total": total, "comissao": comissao, "valor_na_mao": na_mao, "comissao_paga_por": paga_por,
+        "sinal": {"valor": _num(ler("sinal_valor")), "data": _data(ler("sinal_data"))},
+        "entrada": {"valor": _num(ler("entrada_valor")), "data": _data(ler("entrada_data"))},
+        "intermediaria": {"valor": _num(ler("intermediaria_valor")), "data": _data(ler("intermediaria_data"))},
         "financiado": _num(ler("financiado")),
         "subsidio": _num(ler("subsidio")),
         "fgts": _num(ler("fgts")),
         "corretor": ler("corretor"),
         "venda_id_atual": ler("venda_id"),
+        "situacao_atual": ler("situacao") or "",
     }
+
+
+def assinatura(corpo_venda: dict, cpf: str) -> str:
+    """8 caracteres que mudam se QUALQUER valor, data, parcela, obra, conta ou o CPF
+    mudar. A prévia grava; o lançamento recalcula e recusa se não bater — assim
+    só se grava o que alguém viu na prévia."""
+    import hashlib
+    import json as _json
+    base = dict(corpo_venda)
+    base.pop("customer", None)          # na prévia o cliente pode ainda não existir
+    txt = _json.dumps(base, sort_keys=True, ensure_ascii=False) + "|" + so_digitos(cpf)
+    return hashlib.sha256(txt.encode("utf-8")).hexdigest()[:8]
+
+
+_RE_ASSIN = re.compile(r"\[#([0-9a-f]{8})\]")
+
+
+def assinatura_da_situacao(texto) -> str | None:
+    m = _RE_ASSIN.search(str(texto or ""))
+    return m.group(1) if m else None
 
 
 # ---------------------------------------------------------------- parcelas
@@ -186,7 +233,7 @@ def parcelas(dados: dict, dias_financiamento: int = DIAS_FINANCIAMENTO) -> list[
     add(TIPO_SINAL, "Sinal", dados["sinal"]["valor"], dados["sinal"]["data"] or dv)
     add(TIPO_ENTRADA, "Entrada", dados["entrada"]["valor"], dados["entrada"]["data"])
     add(TIPO_ENTRADA, "Intermediária", dados["intermediaria"]["valor"], dados["intermediaria"]["data"])
-    prev = _mais_dias(dv, dias_financiamento) if dv else None
+    prev = _mais_dias(dv, dias_financiamento) if dv and _RE_ISO.match(dv) else None
     add(TIPO_FGTS, "FGTS", dados.get("fgts"), prev)
     fin = (dados.get("financiado") or 0) + (dados.get("subsidio") or 0)
     add(TIPO_FINANCIAMENTO, "Financiamento", fin or None, prev)
@@ -202,10 +249,21 @@ def faltas(dados: dict, dias_financiamento: int = DIAS_FINANCIAMENTO) -> list[st
     f = []
     if not dados.get("endereco"):
         f.append("Venda sem ENDEREÇO")
-    if not dados.get("casa"):
+    if dados.get("casa_ambigua"):
+        f.append("CASA com mais de um número — deixe só o número da casa")
+    elif not dados.get("casa"):
         f.append("Venda sem número da CASA")
     if not dados.get("data_venda"):
         f.append("Falta a DATA DA VENDA")
+    elif not _RE_ISO.match(dados["data_venda"]):
+        f.append("DATA DA VENDA em formato que não entendi")
+    pp = dados.get("comissao_paga_por")
+    if pp not in ("COMPRADOR", "VENDEDOR"):
+        f.append("Falta COMISSÃO PAGA POR (comprador ou vendedor)")
+    elif (pp == "COMPRADOR" and dados.get("valor_na_mao") and dados.get("comissao") is not None
+          and dados.get("total") is not None
+          and abs(dados["valor_na_mao"] + dados["comissao"] - dados["total"]) > TOLERANCIA):
+        f.append("Valor na mão + comissão diferente do valor do contrato")
     c = dados["comprador"]
     if not c.get("nome"):
         f.append("Falta o nome do comprador (CLIENTES)")
@@ -217,6 +275,8 @@ def faltas(dados: dict, dias_financiamento: int = DIAS_FINANCIAMENTO) -> list[st
     for p in ps:
         if not p["data"]:
             f.append("Parcela %s sem data" % p["rotulo"])
+        elif not _RE_ISO.match(p["data"]):
+            f.append("Data da parcela %s em formato que não entendi" % p["rotulo"])
     if not ps:
         f.append("Nenhuma parcela com valor (sinal, entrada, FGTS, financiamento)")
     elif dados.get("aquisicao"):
@@ -285,26 +345,37 @@ def corpo_venda(dados: dict, obra: dict, cliente_id: str, conta: dict,
 
 # ---------------------------------------------------------------- já existe?
 
-_RE_CASA = re.compile(r"\b(?:CASA|CS)\s*0*(\d+)\b")
+_RE_CASA = re.compile(r"\b(?:CASAS?|CS|UNIDADE|UN)(?![A-MO-Z])[\s.\-:#]*(?:N[º°O.]?\s*)?0*(\d+)\s*([A-Z])?\b")
 
 
 def casa_da_descricao(desc) -> int | None:
-    m = _RE_CASA.search(chave(desc))
-    return int(m.group(1)) if m else None
+    """Número da casa na descrição da venda. None se não houver, ou se houver
+    mais de um ("CASAS 01 E 02") ou sufixo de letra ("CASA 1A") — nesses casos
+    não dá para afirmar de que casa é."""
+    t = chave(desc).replace("º", "O").replace("°", "O")
+    ms = list(_RE_CASA.finditer(t))
+    if len(ms) != 1 or ms[0].group(2) or re.search(r"\bCASAS\b.*\d+\s*(?:E|,|/)\s*\d+", t):
+        return None
+    return int(ms[0].group(1))
 
 
-def venda_da_casa(recebimentos: list[dict], obra_nome: str, casa: int, total_casas: int = 0) -> list[str]:
-    """Ids de venda (saleId) da mesma obra cuja descrição aponta a mesma casa.
+def venda_da_casa(recebimentos: list[dict], obra_nome: str, casa: int) -> tuple[list[dict], list[dict]]:
+    """(vendas da mesma casa, vendas da obra cuja descrição não diz a casa).
 
-    Se a obra tem UMA casa só, qualquer venda da obra conta (a descrição antiga
-    às vezes não diz a casa)."""
+    Cada item: {id, descricao, cliente}. A segunda lista existe porque uma venda
+    lançada à mão com descrição fora do padrão pode ser desta casa: nesse caso o
+    robô recusa e pede conferência, em vez de arriscar uma venda duplicada."""
     alvo = chave(obra_nome)
-    ids = []
+    mesma, sem_casa, vistos = [], [], set()
     for r in recebimentos or []:
-        if chave(r.get("workName")) != alvo or not r.get("saleId"):
+        sid = r.get("saleId")
+        if chave(r.get("workName")) != alvo or not sid or sid in vistos:
             continue
+        vistos.add(sid)
+        item = {"id": sid, "descricao": r.get("description") or "", "cliente": r.get("customerName") or ""}
         c = casa_da_descricao(r.get("description"))
-        if c == casa or (c is None and total_casas == 1):
-            if r["saleId"] not in ids:
-                ids.append(r["saleId"])
-    return ids
+        if c == casa:
+            mesma.append(item)
+        elif c is None:
+            sem_casa.append(item)
+    return mesma, sem_casa

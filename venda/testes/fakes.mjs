@@ -32,6 +32,7 @@ export function criarGas({ props, rotas, extras = {} }) {
                                              put: (k, v) => { if (String(v).length > 100000) throw new Error("Argument too large: value"); cache.set(k, v); },
                                              remove: (k) => cache.delete(k) }) },
     ContentService: { MimeType: { JSON: "json" }, createTextOutput: (t) => ({ setMimeType: () => ({ texto: t }) }) },
+    LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) },
     Utilities: {
       base64EncodeWebSafe: (x) => b64ws(paraBuf(x)),
       base64DecodeWebSafe: (s) => comSinal(Buffer.from(s.replace(/-/g, "+").replace(/_/g, "/"), "base64")),

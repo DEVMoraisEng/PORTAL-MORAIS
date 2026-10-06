@@ -152,11 +152,14 @@
   }
   /* e = {situacao, vendaId}; u = {ocupado, msg, testes} */
   function htmlMC(e, u) {
-    var testes = !!u.testes, processando = !!(e && /^PROCESSANDO/.test(e.situacao || ""));
+    /* PROCESSANDO com mais de 15 min (carimbo [t=ms]) = o robô não respondeu: libera pedir de novo */
+    var tProc = e && /\[t=(\d+)\]/.exec(e.situacao || "");
+    var testes = !!u.testes, processando = !!(e && /^PROCESSANDO/.test(e.situacao || "") &&
+      !(tProc && (u.agora || Date.now()) - Number(tProc[1]) > 15 * 60 * 1000));
     var ocupado = !!u.ocupado || processando;
     var h = '<div class="grp">Mais Controle</div>';
     if (!e) return h + '<div class="vazio">' + esc(u.msg || "carregando…") + "</div>";
-    var sit = e.situacao || "ainda não lançada";
+    var sit = (e.situacao || "ainda não lançada").replace(/\s*\[t=\d+\]/, "");
     h += '<div class="dz-linha"><span class="dz-rot">Situação: <b>' + esc(sit) + "</b></span></div>";
     if (e.vendaId) h += '<div class="dz-linha"><span class="dz-rot">Venda no Mais Controle: ' + esc(e.vendaId) + "</span></div>";
     if (processando) h += '<div class="dz-linha"><b>o robô está trabalhando… (1 a 3 minutos)</b></div>';

@@ -47,3 +47,12 @@ test("mensagens por código", () => {
   assert.match(D.mensagemMC({ erro: "MC_SEM_PREVIA" }), /prévia primeiro/);
   assert.match(D.mensagemMC({ erro: "MC_NAO_CONFIGURADO" }), /não está configurado/);
 });
+
+test("PROCESSANDO vencido libera os botões e esconde o carimbo", () => {
+  const agora = 2000000000000;
+  const h = D.htmlMC({ situacao: "PROCESSANDO (prévia) — 06/10 01:00 [t=" + (agora - 16 * 60000) + "]", vendaId: "" }, ui({ agora }));
+  assert.doesNotMatch(botao(h, "mc-previa"), /disabled/);
+  assert.doesNotMatch(h, /\[t=/);
+  const h2 = D.htmlMC({ situacao: "PROCESSANDO (prévia) [t=" + (agora - 60000) + "]", vendaId: "" }, ui({ agora }));
+  assert.match(botao(h2, "mc-previa"), /disabled/);
+});

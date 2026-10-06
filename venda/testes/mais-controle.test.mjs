@@ -67,7 +67,7 @@ test("GitHub recusou: situação vira ERRO e a resposta diz o motivo", () => {
   const { g, n } = montar({ gh: 404 });
   const r = g.chamar({ action: "mcLancar", token: tokenDe(), pageId: PAGE_ID_PADRAO });
   assert.equal(r.erro, "MC_DISPARO_FALHOU");
-  assert.match(sit(n), /^ERRO: o GitHub recusou/);
+  assert.match(sit(n), /^ERRO: não consegui acionar o robô \(HTTP 404\)/);
 });
 
 test("colunas MC faltando: erro legível", () => {
@@ -79,4 +79,25 @@ test("estado devolve situação e id da venda (nome de coluna com espaço sobran
   const { g } = montar({ valores: { "MC - SITUAÇÃO": texto("CRIADA no Mais Controle"), "MC - VENDA ID ": texto("venda-9") } });
   const r = g.chamar({ action: "mcEstado", token: tokenDe(), pageId: PAGE_ID_PADRAO });
   assert.deepEqual(r, { ok: true, situacao: "CRIADA no Mais Controle", vendaId: "venda-9" });
+});
+
+test("PROCESSANDO vencido (mais de 15 min) libera pedir de novo; o recente não", () => {
+  const velho = Date.now() - 16 * 60 * 1000, novo = Date.now() - 60 * 1000;
+  let m = montar({ valores: { "MC - SITUAÇÃO": texto("PROCESSANDO (prévia) — 06/10 01:00 [t=" + velho + "]") } });
+  assert.equal(m.g.chamar({ action: "mcLancar", token: tokenDe(), pageId: PAGE_ID_PADRAO }).ok, true);
+  m = montar({ valores: { "MC - SITUAÇÃO": texto("PROCESSANDO (prévia) — 06/10 01:00 [t=" + novo + "]") } });
+  assert.equal(m.g.chamar({ action: "mcLancar", token: tokenDe(), pageId: PAGE_ID_PADRAO }).erro, "MC_PROCESSANDO");
+});
+
+test("lançar leva a assinatura da prévia e o carimbo de hora", () => {
+  const { g, n } = montar({ valores: { "MC - SITUAÇÃO": texto("PRÉVIA OK [#0a1b2c3d] — cliente já existe") } });
+  assert.equal(g.chamar({ action: "mcLancar", token: tokenDe(), pageId: PAGE_ID_PADRAO, aplicar: true }).ok, true);
+  assert.match(sit(n), /^PROCESSANDO \(lançamento\) — .* \[t=\d+\] \[#0a1b2c3d\]$/);
+});
+
+test("GitHub sem resposta (exceção no fetch) vira ERRO, não fica PROCESSANDO", () => {
+  const n = notionFalso({ colunas: COLS });
+  const g = criarGas({ props: PROPS, rotas: (url, opt) => (url.startsWith("https://api.github.com/") ? { lancar: "DNS" } : n.rota(url, opt)) });
+  assert.equal(g.chamar({ action: "mcLancar", token: tokenDe(), pageId: PAGE_ID_PADRAO }).erro, "MC_DISPARO_FALHOU");
+  assert.match(sit(n), /sem resposta do GitHub/);
 });

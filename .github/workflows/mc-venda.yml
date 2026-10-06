@@ -3,6 +3,8 @@ name: Venda no Mais Controle
 # Acionado pelo PORTAL-VENDA (ação mcLancar) com {pageId, aplicar}.
 # Gravar no ERP exige as DUAS chaves: aplicar=true no pedido E a variável de
 # repositório MC_APLICAR = 1. Sem ela, todo pedido roda como PRÉVIA.
+# ATENÇÃO: só existe UM Mais Controle. No fork de TESTE, MC_APLICAR nunca é 1.
+# O log deste workflow é público: o robô só imprime situação e códigos.
 on:
   repository_dispatch:
     types: [mc-venda]
@@ -27,6 +29,9 @@ jobs:
   lancar:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+      PAGINA: ${{ github.event.client_payload.pageId || inputs.pageId }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,18 +41,22 @@ jobs:
           python-version: "3.12"
       - name: Lançar (ou prévia)
         env:
-          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           MC_ROBO_EMAIL: ${{ secrets.MC_ROBO_EMAIL }}
           MC_ROBO_SENHA: ${{ secrets.MC_ROBO_SENHA }}
-          PAGINA: ${{ github.event.client_payload.pageId || inputs.pageId }}
           PEDIU_APLICAR: ${{ github.event.client_payload.aplicar || inputs.aplicar }}
           MC_APLICAR: ${{ vars.MC_APLICAR }}
+        shell: bash
         run: |
+          if [[ ! "$PAGINA" =~ ^[0-9a-fA-F-]{32,36}$ ]]; then echo "pageId inválido"; exit 1; fi
           pip install --quiet requests
-          if ! printf '%s' "$PAGINA" | grep -Eq '^[0-9a-fA-F-]{32,36}$'; then
-            echo "pageId inválido"; exit 1
-          fi
           FLAG=""
           if [ "$PEDIU_APLICAR" = "true" ] && [ "$MC_APLICAR" = "1" ]; then FLAG="--aplicar"; fi
           if [ "$PEDIU_APLICAR" = "true" ] && [ "$MC_APLICAR" != "1" ]; then echo "MC_APLICAR != 1: rodando como PRÉVIA"; FLAG="--bloqueado"; fi
           python -m venda.mc.lancar --page "$PAGINA" $FLAG
+      - name: Avisar no Notion que falhou
+        if: failure()
+        shell: bash
+        run: |
+          if [[ ! "$PAGINA" =~ ^[0-9a-fA-F-]{32,36}$ ]]; then exit 0; fi
+          pip install --quiet requests || true
+          python -m venda.mc.lancar --page "$PAGINA" --marcar-erro "o robô falhou — veja o GitHub Actions (Venda no Mais Controle)" || true

@@ -90,20 +90,24 @@ class Erp:
                                                         "size": 20, "sort": "name"}) or {}
         return [p for p in j.get("content") or [] if R.chave(p.get("name")) == alvo]
 
-    def recebimentos(self, inicio: str = "2024-01-01", fim: str | None = None) -> list[dict]:
-        """Parcelas de venda por data de competência — serve para achar venda já lançada."""
+    def recebimentos(self, inicio: str = "2020-01-01", fim: str | None = None) -> list[dict]:
+        """Parcelas de venda por data de competência — serve para achar venda já lançada.
+        Lista incompleta seria pior que erro (abriria espaço para duplicata): por isso lança."""
         fim = fim or (_dt.date.today() + _dt.timedelta(days=800)).isoformat()
         out, pagina = [], 0
-        while pagina < 30:
+        while True:
             params = [("startDate", inicio), ("endDate", fim), ("dateField", "REFERENCE_DATE"),
                       ("page", pagina), ("size", 2000)] + [("natureIds", n) for n in NATUREZAS_DE_VENDA]
-            j = self.pedir("GET", "/receipt-installments", params=params) or {}
+            j = self.pedir("GET", "/receipt-installments", params=params)
+            if not isinstance(j, dict):
+                raise ErpErro("lista de recebimentos em formato inesperado")
             lote = j.get("content") or []
             out += lote
             if j.get("last", True) or not lote:
-                break
+                return out
             pagina += 1
-        return out
+            if pagina >= 30:
+                raise ErpErro("mais de 30 páginas de recebimentos; parei para não decidir com lista incompleta")
 
     # -- gravação (só com --aplicar) ----------------------------------------
     def criar_cliente(self, corpo: dict) -> dict:

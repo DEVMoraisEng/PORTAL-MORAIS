@@ -123,18 +123,68 @@ def test_corpo_cliente_pf():
     assert c["name"] == "FULANO DE TAL" and c["phones"] == [{"number": "62900000000"}]
 
 
-def test_venda_da_casa_acha_por_obra_e_casa():
+OBRA = "RUA TESTE QD 01 LT 02"
+
+
+def test_venda_da_casa_separa_mesma_casa_e_sem_casa():
     recs = [
-        {"workName": "RUA TESTE QD 01 LT 02", "description": "CASA 02 - FULANO", "saleId": "s2"},
-        {"workName": "RUA TESTE QD 01 LT 02", "description": "VENDA CS 01 - OUTRO", "saleId": "s1"},
+        {"workName": OBRA, "description": "CASA 02 - FULANO", "saleId": "s2", "customerName": "X"},
+        {"workName": OBRA, "description": "VENDA CS 01 - OUTRO", "saleId": "s1"},
         {"workName": "OUTRA QD 09 LT 09", "description": "CASA 02", "saleId": "x"},
-        {"workName": "RUA TESTE QD 01 LT 02", "description": "1ª Sinal", "saleId": "s2"},
+        {"workName": OBRA, "description": "SO O NOME DE ALGUEM", "saleId": "s9"},
+        {"workName": OBRA, "description": "CASA 02 - FULANO", "saleId": "s2"},
     ]
-    assert R.venda_da_casa(recs, "rua teste qd 01 lt 02", 2) == ["s2"]
-    assert R.venda_da_casa(recs, "RUA TESTE QD 01 LT 02", 3) == []
+    mesma, sem = R.venda_da_casa(recs, "rua teste qd 01 lt 02", 2)
+    assert [v["id"] for v in mesma] == ["s2"] and mesma[0]["cliente"] == "X"
+    assert [v["id"] for v in sem] == ["s9"]
+    mesma, sem = R.venda_da_casa(recs, OBRA, 3)
+    assert mesma == [] and [v["id"] for v in sem] == ["s9"]
 
 
-def test_casa_da_descricao_grafias_reais():
-    for d, n in [("CASA 01", 1), ("VENDA CASA 2 - X", 2), ("VENDA CS 01 - Y", 1), ("CS 02", 2), ("CASA 3", 3)]:
-        assert R.casa_da_descricao(d) == n
-    assert R.casa_da_descricao("VENDA - SEM CASA") is None
+def test_casa_da_descricao_grafias_reais_e_variantes():
+    # as grafias medidas no ERP em 06/10/2026 (nomes trocados por inventados)
+    casos = [("VENDA CASA 02 - NOME", 2), ("CASA 02 - NOME", 2), ("CASA 01", 1), ("VENDA CS 01 - NOME", 1),
+             ("CASA 3", 3), ("VENDA CASA 02 -  NOME", 2), ("VENDA CASA 1 - NOME", 1), ("CASA 01 -  NOME", 1),
+             ("CS 02", 2), ("RPB 24 QD 26A L07 CASA 02 - NOME", 2),
+             ("CASA-01", 1), ("CASA Nº 01", 1), ("CASA N. 01", 1), ("CS.01", 1), ("UNIDADE 01", 1), ("CASA01", 1)]
+    for d, n in casos:
+        assert R.casa_da_descricao(d) == n, d
+    for d in ("SO O NOME", "CASAS 01 E 02", "CASA 1A - NOME", "CASA 1 E CASA 2"):
+        assert R.casa_da_descricao(d) is None, d
+    assert R.casa_da_descricao("CASA 1 - X") != 10 and R.casa_da_descricao("CASA 10 - X") == 10
+
+
+def test_casa_com_dois_numeros_e_falta():
+    d = R.dados_da_pagina(pagina(CASA=txt("1 e 2")))
+    assert d["casa"] is None and "CASA com mais de um número — deixe só o número da casa" in R.faltas(d)
+
+
+def test_data_em_texto_br_vira_iso_e_texto_estranho_e_falta():
+    d = R.dados_da_pagina(pagina(**{"DATA DA VENDA": txt("01/10/2026")}))
+    assert d["data_venda"] == "2026-10-01" and R.faltas(d) == []
+    d = R.dados_da_pagina(pagina(**{"DATA DA VENDA": txt("outubro")}))
+    assert "DATA DA VENDA em formato que não entendi" in R.faltas(d)
+
+
+def test_numero_com_ponto_de_milhar():
+    assert R._num("250.000") == 250000 and R._num("1.234.567") == 1234567 and R._num("250.000,50") == 250000.5
+    assert R._num("10.5") == 10.5
+
+
+def test_comissao_paga_por_obrigatoria_e_conta_da_mao():
+    d = R.dados_da_pagina(pagina(**{"CONTRATO - COMISSÃO PAGA POR": {"type": "select", "select": None}}))
+    assert "Falta COMISSÃO PAGA POR (comprador ou vendedor)" in R.faltas(d)
+    d = R.dados_da_pagina(pagina(**{"VALOR NA MÃO": num(255000)}))
+    assert "Valor na mão + comissão diferente do valor do contrato" in R.faltas(d)
+
+
+def test_assinatura_muda_com_valor_e_cpf_mas_nao_com_cliente():
+    d = R.dados_da_pagina(pagina())
+    c1 = R.corpo_venda(d, {"id": "o"}, "(CLIENTE NOVO)", {"id": "k"})
+    c2 = R.corpo_venda(d, {"id": "o"}, "cli-real", {"id": "k"})
+    assert R.assinatura(c1, CPF_OK) == R.assinatura(c2, CPF_OK)
+    assert R.assinatura(c1, CPF_OK) != R.assinatura(c1, "11144477735")
+    d2 = R.dados_da_pagina(pagina(**{"CONTRATO - SINAL VALOR": num(5001), "VALOR FINANCIADO": num(229999)}))
+    assert R.assinatura(R.corpo_venda(d2, {"id": "o"}, "x", {"id": "k"}), CPF_OK) != R.assinatura(c1, CPF_OK)
+    assert R.assinatura_da_situacao("PRÉVIA OK [#0a1b2c3d] — x") == "0a1b2c3d"
+

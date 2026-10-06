@@ -147,6 +147,16 @@ Implantar:
    testa (tudo vira prévia, e o pedido de lançar aparece como "BLOQUEADO"); `1` libera gravar.
 4. Primeiro lançamento real: uma casa escolhida pelo dono, com ele acompanhando no ERP.
 
+**Atenção — só existe UM Mais Controle.** O fork de TESTE fala com o mesmo ERP da
+produção. No fork, `MC_APLICAR` **nunca** é `1`: lá o botão serve só para a prévia
+(que só lê). Gravar de verdade é sempre pelo repositório de produção.
+
+Travas do robô: só grava o que foi visto na prévia (assinatura `[#…]` dos valores e
+do CPF; mudou algo, recusa e pede nova prévia); não cria se já existe venda da mesma
+casa (e não preenche o id, que pode ser de venda antiga); recusa se houver venda da
+obra sem a casa na descrição; uma situação PROCESSANDO com mais de 15 minutos libera
+pedir de novo; qualquer falha do workflow escreve ERRO na situação.
+
 O log do Actions é público: o robô só imprime situação e motivos, nunca CPF, nome ou valores
 por pessoa.
 

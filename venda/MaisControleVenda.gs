@@ -35,30 +35,53 @@ function mcEstado_(col, p) {
   return { ok: true, situacao: c.situacao, vendaId: c.vendaId };
 }
 
+/* PROCESSANDO carimba a hora ([t=ms]); passado este prazo sem resposta do robô
+   (workflow cancelado, GitHub fora do ar…), vale pedir de novo. */
+var MC_PRAZO_MS = 15 * 60 * 1000;
+function mcProcessandoVivo_(situacao, agora) {
+  if (!/^PROCESSANDO/.test(situacao || "")) return false;
+  var m = /\[t=(\d+)\]/.exec(situacao);
+  return !m || (agora - Number(m[1])) < MC_PRAZO_MS;
+}
+
 function mcLancar_(col, sess, p) {
   var aplicar = p.aplicar === true || p.aplicar === "true";
   var repo = prop_("GH_REPO_MC"), tk = prop_("GITHUB_TOKEN");
   if (!repo || !/^[\w.-]+\/[\w.-]+$/.test(repo) || !tk) return { ok: false, erro: "MC_NAO_CONFIGURADO" };
-  var c = mcLerColunas_(p.pageId);
-  if (c.vendaId) return { ok: false, erro: "MC_JA_LANCADA", vendaId: c.vendaId };
-  if (/^PROCESSANDO/.test(c.situacao)) return { ok: false, erro: "MC_PROCESSANDO" };
-  if (aplicar && !/^PR[ÉE]VIA OK/i.test(c.situacao)) return { ok: false, erro: "MC_SEM_PREVIA" };
+  /* trava: dois cliques ao mesmo tempo não disparam dois robôs */
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return { ok: false, erro: "MC_PROCESSANDO" };
+  try {
+    var c = mcLerColunas_(p.pageId), agora = Date.now();
+    if (c.vendaId) return { ok: false, erro: "MC_JA_LANCADA", vendaId: c.vendaId };
+    if (mcProcessandoVivo_(c.situacao, agora)) return { ok: false, erro: "MC_PROCESSANDO" };
+    if (aplicar && !/^PR[ÉE]VIA OK/i.test(c.situacao)) return { ok: false, erro: "MC_SEM_PREVIA" };
 
-  var props = {};
-  props[c.colSituacao] = { rich_text: [{ type: "text", text: { content: "PROCESSANDO (" + (aplicar ? "lançamento" : "prévia") + ") — " + hoje_("dd/MM HH:mm") } }] };
-  notion_("PATCH", "/pages/" + p.pageId, { properties: props });
+    /* o lançamento leva a assinatura da prévia vista; o robô confere de novo antes de gravar */
+    var assin = (/\[#([0-9a-f]{8})\]/.exec(c.situacao) || [])[1] || "";
+    var props = {};
+    var texto = "PROCESSANDO (" + (aplicar ? "lançamento" : "prévia") + ") — " + hoje_("dd/MM HH:mm") + " [t=" + agora + "]" +
+                (aplicar && assin ? " [#" + assin + "]" : "");
+    props[c.colSituacao] = { rich_text: [{ type: "text", text: { content: texto } }] };
+    notion_("PATCH", "/pages/" + p.pageId, { properties: props });
 
-  var r = UrlFetchApp.fetch("https://api.github.com/repos/" + repo + "/dispatches", {
-    method: "post", muteHttpExceptions: true, contentType: "application/json",
-    headers: { Authorization: "Bearer " + tk, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
-    payload: JSON.stringify({ event_type: "mc-venda", client_payload: { pageId: String(p.pageId).replace(/-/g, ""), aplicar: aplicar } })
-  });
-  if (r.getResponseCode() !== 204) {
-    props[c.colSituacao] = { rich_text: [{ type: "text", text: { content: "ERRO: o GitHub recusou o pedido (HTTP " + r.getResponseCode() + ")" } }] };
-    try { notion_("PATCH", "/pages/" + p.pageId, { properties: props }); } catch (e) {}
-    console.error("PORTAL-VENDA mcLancar dispatch HTTP " + r.getResponseCode());
-    return { ok: false, erro: "MC_DISPARO_FALHOU" };
+    var code;
+    try {
+      code = UrlFetchApp.fetch("https://api.github.com/repos/" + repo + "/dispatches", {
+        method: "post", muteHttpExceptions: true, contentType: "application/json",
+        headers: { Authorization: "Bearer " + tk, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
+        payload: JSON.stringify({ event_type: "mc-venda", client_payload: { pageId: String(p.pageId).replace(/-/g, ""), aplicar: aplicar } })
+      }).getResponseCode();
+    } catch (e) { code = 0; }
+    if (code !== 204) {
+      props[c.colSituacao] = { rich_text: [{ type: "text", text: { content: "ERRO: não consegui acionar o robô (" + (code ? "HTTP " + code : "sem resposta do GitHub") + ")" } }] };
+      try { notion_("PATCH", "/pages/" + p.pageId, { properties: props }); } catch (e) {}
+      console.error("PORTAL-VENDA mcLancar dispatch " + (code || "sem resposta"));
+      return { ok: false, erro: "MC_DISPARO_FALHOU" };
+    }
+    console.log("PORTAL-VENDA mcLancar " + String(p.pageId).slice(0, 8) + (aplicar ? " aplicar" : " previa"));
+    return { ok: true, aplicar: aplicar };
+  } finally {
+    lock.releaseLock();
   }
-  console.log("PORTAL-VENDA mcLancar " + String(p.pageId).slice(0, 8) + (aplicar ? " aplicar" : " previa"));
-  return { ok: true, aplicar: aplicar };
 }
