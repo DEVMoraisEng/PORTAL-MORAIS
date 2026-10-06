@@ -1,0 +1,233 @@
+/* ClicksignVenda — regras puras da assinatura eletrônica (entrega 3).
+ * Roda igual no Apps Script (arquivo ClicksignVenda.gs do projeto PORTAL-VENDA)
+ * e no node (testes em venda/testes). Sem rede: monta os corpos JSON:API da
+ * API v3 da Clicksign, decide quem assina e interpreta as respostas.
+ * Rotas e corpos conferidos na documentação: venda/CLICKSIGN-API.md.
+ * Repositório público: nenhum dado real aqui nem nos testes. */
+var ClicksignVenda = (function () {
+  "use strict";
+
+  /* Qualificação ("Assinar como") de cada papel — tabela "Tipos de requisitos de
+   * qualificação" da documentação. Dúvida registrada no CLICKSIGN-API.md: a
+   * página de referência do endpoint lista só sign/party/contractor; se o
+   * sandbox recusar estes valores, o envio para no passo "requisitos" com o
+   * detalhe da Clicksign (não há troca silenciosa para outro papel). */
+  var PAPEIS = { COMPRADOR: "buyer", VENDEDOR: "seller", TESTEMUNHA: "witness", CORRETOR: "real_estate_broker" };
+  var SITUACOES = { ENVIADO: "ENVIADO", ASSINADO: "ASSINADO", RECUSADO: "RECUSADO", CANCELADO: "CANCELADO",
+                    EXPIRADO: "EXPIRADO", RASCUNHO: "RASCUNHO" };
+  var REENVIAVEL = ["CANCELADO", "RECUSADO", "EXPIRADO"];
+
+  function txt(v) { return v === null || v === undefined ? "" : String(v).trim(); }
+  function email(v) { return txt(v).toLowerCase(); }
+  function emailValido(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
+  function nomeValido(v) { return /\S+\s+\S+/.test(v) && !/\d/.test(v); }
+  function soDigitos(s) { return txt(s).replace(/\D/g, ""); }
+  function cpfValido(cpf) {
+    var d = soDigitos(cpf);
+    if (d.length !== 11 || /^(\d)\1{10}$/.test(d)) return false;
+    for (var t = 9; t < 11; t++) {
+      var soma = 0;
+      for (var i = 0; i < t; i++) soma += Number(d[i]) * (t + 1 - i);
+      if ((soma * 10) % 11 % 10 !== Number(d[t])) return false;
+    }
+    return true;
+  }
+  function cpfFormatado(cpf) {
+    var d = soDigitos(cpf);
+    return d.slice(0, 3) + "." + d.slice(3, 6) + "." + d.slice(6, 9) + "-" + d.slice(9);
+  }
+
+  function lerJson(props, nome, invalidas) {
+    var bruto = txt(props[nome]);
+    if (!bruto) return null;
+    try { return JSON.parse(bruto); } catch (e) { invalidas.push(nome); return null; }
+  }
+  function pessoa(p) { return p && typeof p === "object" ? { nome: txt(p.nome), email: email(p.email), cpf: txt(p.cpf) } : null; }
+  function par(lista) {
+    if (!Array.isArray(lista) || lista.length !== 2) return null;
+    return lista.map(pessoa);
+  }
+
+  /* config a partir das Propriedades do script (strings). */
+  function montarConfig(props) {
+    props = props || {};
+    var invalidas = [];
+    var spe = lerJson(props, "ASSINATURA_TESTEMUNHAS_SPE", invalidas);
+    var pf = lerJson(props, "ASSINATURA_TESTEMUNHAS_PF", invalidas);
+    var rep = lerJson(props, "ASSINATURA_REPRESENTANTE", invalidas);
+    var inc = txt(props.ASSINATURA_INCLUIR_CORRETOR).toUpperCase();
+    return { testemunhasSPE: spe, testemunhasPF: pf, representante: rep,
+             incluirCorretor: inc === "SIM" || inc === "TRUE" || inc === "1", invalidas: invalidas };
+  }
+
+  function ehPJ(dados) { return !!dados.vendedor && txt(dados.vendedor.tipo).toUpperCase() === "PJ"; }
+  function nomeDoPar(dados) { return ehPJ(dados) ? "ASSINATURA_TESTEMUNHAS_SPE" : "ASSINATURA_TESTEMUNHAS_PF"; }
+  function testemunhas(dados, config) { return par(ehPJ(dados) ? config.testemunhasSPE : config.testemunhasPF); }
+
+  /* O representante vem do cadastro quando ele traz nome e e-mail; senão, da Propriedade (inteiro, nunca misturado). */
+  function representante(v, config) {
+    if (txt(v.representanteNome) && txt(v.representanteEmail))
+      return { nome: txt(v.representanteNome), email: email(v.representanteEmail), cpf: txt(v.representanteCpf) };
+    var daConfig = pessoa(config.representante);
+    if (daConfig) return daConfig;
+    /* nenhum dos dois: fica sem e-mail, e a falta aponta onde preencher */
+    return { nome: txt(v.representanteNome), email: "", cpf: txt(v.representanteCpf) };
+  }
+
+  /* Lista ordenada de quem assina. Cada item: { papel (rótulo legível), role, nome, email, cpf, origem }. */
+  function signatarios(dados, config) {
+    var l = [];
+    function add(papel, role, p, origem) {
+      l.push({ papel: papel, role: role, nome: txt(p && p.nome), email: email(p && p.email), cpf: txt(p && p.cpf), origem: origem });
+    }
+    add("Comprador 1", PAPEIS.COMPRADOR, dados.comprador1, "comprador1");
+    if (dados.comprador2) add("Comprador 2", PAPEIS.COMPRADOR, dados.comprador2, "comprador2");
+    var v = dados.vendedor;
+    if (v) {
+      if (ehPJ(dados)) add("Vendedor (representante)", PAPEIS.VENDEDOR, representante(v, config), "representante");
+      else add("Vendedor", PAPEIS.VENDEDOR, { nome: v.nome, email: v.email, cpf: v.cpfCnpj }, "vendedor");
+    }
+    var t = testemunhas(dados, config);
+    if (t) { add("Testemunha 1", PAPEIS.TESTEMUNHA, t[0], "testemunha"); add("Testemunha 2", PAPEIS.TESTEMUNHA, t[1], "testemunha"); }
+    if (config.incluirCorretor && dados.corretor)
+      add("Corretor", PAPEIS.CORRETOR, { nome: dados.corretor.nome, email: dados.corretor.email, cpf: dados.corretor.cpfCnpj }, "corretor");
+    return l;
+  }
+
+  var ONDE_EMAIL = {
+    comprador1: "coluna COMPRADOR 1 - E-MAIL",
+    comprador2: "coluna COMPRADOR 2 - E-MAIL",
+    vendedor: "coluna E-MAIL em VENDEDORES – CONTRATO",
+    representante: "coluna REPRESENTANTE E-MAIL em VENDEDORES – CONTRATO ou Propriedade ASSINATURA_REPRESENTANTE",
+    corretor: "coluna E-MAIL em CORRETORES – CONTRATO",
+    testemunha: ""
+  };
+
+  /* Faltas legíveis (sem dado pessoal: só papel e o que falta). */
+  function faltasAssinatura(dados, config) {
+    var faltas = [];
+    config = config || montarConfig({});
+    if (!dados.vendedor) faltas.push("Vendedor: cadastro em VENDEDORES – CONTRATO");
+    if (!testemunhas(dados, config)) faltas.push("Testemunhas: Propriedade " + nomeDoPar(dados) + " não configurada (precisa de 2)");
+    if (config.incluirCorretor && !dados.corretor) faltas.push("Corretor: cadastro em CORRETORES – CONTRATO");
+    var vistos = {}, porPessoa = [];
+    signatarios(dados, config).forEach(function (s) {
+      var f = [];
+      if (!nomeValido(s.nome)) f.push(s.papel + ": nome e sobrenome, sem números");
+      if (!s.email) f.push(s.papel + ": e-mail" + (ONDE_EMAIL[s.origem] ? " (" + ONDE_EMAIL[s.origem] + ")" : ""));
+      else if (!emailValido(s.email)) f.push(s.papel + ": e-mail inválido");
+      else if (vistos[s.email]) f.push(s.papel + ": e-mail repetido (igual ao de " + vistos[s.email] + ")");
+      else vistos[s.email] = s.papel;
+      if (s.cpf && soDigitos(s.cpf).length <= 11 && !cpfValido(s.cpf)) f.push(s.papel + ": CPF inválido");
+      porPessoa = porPessoa.concat(f);
+    });
+    return faltas.concat(porPessoa);
+  }
+
+  /* ---- corpos JSON:API (v3) ---- */
+  function nomeEnvelope(endereco) {
+    var e = txt(endereco).replace(/[\\\/]/g, "-");
+    return e ? "Contrato - " + e : "Contrato de compra e venda";
+  }
+  function nomeArquivo(nome) {
+    var n = txt(nome) || "contrato";
+    return /\.pdf$/i.test(n) ? n : n + ".pdf";
+  }
+  function corpoEnvelope(nome) {
+    return { data: { type: "envelopes", attributes: {
+      name: nome, locale: "pt-BR", auto_close: true, block_after_refusal: true,
+      /* prazo vencido com assinatura faltando cancela (o padrão "closed" finalizaria um contrato incompleto) */
+      deadline_partial_signature_action: "canceled" } } };
+  }
+  function corpoDocumento(filename, base64) {
+    return { data: { type: "documents", attributes: { filename: filename, content_base64: "data:application/pdf;base64," + base64 } } };
+  }
+  function corpoSignatario(s) {
+    var a = { name: s.nome, email: s.email, has_documentation: true };
+    if (soDigitos(s.cpf).length === 11 && cpfValido(s.cpf)) a.documentation = cpfFormatado(s.cpf);
+    a.refusable = true;
+    return { data: { type: "signers", attributes: a } };
+  }
+  function relacoes(docId, signerId) {
+    return { document: { data: { type: "documents", id: docId } }, signer: { data: { type: "signers", id: signerId } } };
+  }
+  function corpoQualificacao(docId, signerId, role) {
+    return { data: { type: "requirements", attributes: { action: "agree", role: role }, relationships: relacoes(docId, signerId) } };
+  }
+  function corpoAutenticacao(docId, signerId) {
+    return { data: { type: "requirements", attributes: { action: "provide_evidence", auth: "email" }, relationships: relacoes(docId, signerId) } };
+  }
+  function corpoAtivar(envelopeId) {
+    return { data: { id: envelopeId, type: "envelopes", attributes: { status: "running" } } };
+  }
+  function corpoNotificacao() { return { data: { type: "notifications", attributes: {} } }; }
+
+  /* ---- respostas ---- */
+  function interpretar(code, texto) {
+    var j = null;
+    try { j = JSON.parse(texto); } catch (e) { j = null; }
+    if (code >= 200 && code < 300) {
+      if (!j || typeof j !== "object") return { ok: false, http: code, detalhe: "resposta sem JSON" };
+      var d = j.data || null;
+      return { ok: true, id: d && !Array.isArray(d) ? txt(d.id) : "",
+               status: d && !Array.isArray(d) && d.attributes ? txt(d.attributes.status) : "", data: d };
+    }
+    var e = j && Array.isArray(j.errors) && j.errors[0] ? j.errors[0] : null;
+    var det = e ? [txt(e.title), txt(e.detail)].filter(function (x) { return x; }).join(": ") : "";
+    return { ok: false, http: code, detalhe: det.slice(0, 200) };
+  }
+
+  function nomesDosEventos(eventos) {
+    return (eventos || []).map(function (e) { return txt(e && e.attributes && e.attributes.name); });
+  }
+  /* Situação gravada no Notion a partir do status do envelope (draft, running, canceled, closed) e dos eventos do documento. */
+  function situacao(status, eventos) {
+    var n = nomesDosEventos(eventos);
+    switch (status) {
+      case "running": return n.indexOf("refusal") >= 0 ? SITUACOES.RECUSADO : SITUACOES.ENVIADO;
+      case "closed": return SITUACOES.ASSINADO;
+      case "canceled":
+        if (n.indexOf("refusal") >= 0) return SITUACOES.RECUSADO;
+        if (n.indexOf("deadline") >= 0) return SITUACOES.EXPIRADO;
+        return SITUACOES.CANCELADO;
+      case "draft": return SITUACOES.RASCUNHO;
+      default: throw new Error("CLICKSIGN_STATUS_DESCONHECIDO: " + txt(status).slice(0, 40));
+    }
+  }
+  /* { signerId: assinou } — por e-mail dos eventos "sign" (formato documentado nos webhooks);
+   * envelope finalizado (closed, com prazo vencido cancelando) quer dizer que todos assinaram. */
+  function assinaram(signers, eventos, status) {
+    var feitos = {};
+    (eventos || []).forEach(function (e) {
+      var a = (e && e.attributes) || {};
+      if (a.name === "sign" && a.data && a.data.signer) feitos[email(a.data.signer.email)] = true;
+    });
+    var r = {};
+    (signers || []).forEach(function (s) {
+      r[s.id] = status === "closed" || !!feitos[email(s.attributes && s.attributes.email)];
+    });
+    return r;
+  }
+  /* Envelope com situação vazia (gravação incompleta) conta como aberto: na dúvida, não manda outro. */
+  function podeEnviar(envelopeId, sit) { return !txt(envelopeId) || REENVIAVEL.indexOf(txt(sit).toUpperCase()) >= 0; }
+
+  /* Link do PDF assinado. A documentação v3 só mostra links.files.original; "signed" é suposição
+   * registrada como dúvida — sem ele, falha visível com as chaves que vieram (nunca baixa o original). */
+  function linkAssinado(doc) {
+    var f = (doc && doc.links && doc.links.files) || {};
+    if (typeof f.signed === "string" && /^https:\/\//.test(f.signed)) return f.signed;
+    var chaves = Object.keys(f);
+    throw new Error("CLICKSIGN_SEM_LINK_ASSINADO: " + (chaves.length ? chaves.join(", ") : "(nenhum)"));
+  }
+
+  var api = {
+    PAPEIS: PAPEIS, SITUACOES: SITUACOES, montarConfig: montarConfig, signatarios: signatarios,
+    faltasAssinatura: faltasAssinatura, nomeEnvelope: nomeEnvelope, nomeArquivo: nomeArquivo,
+    corpoEnvelope: corpoEnvelope, corpoDocumento: corpoDocumento, corpoSignatario: corpoSignatario,
+    corpoQualificacao: corpoQualificacao, corpoAutenticacao: corpoAutenticacao, corpoAtivar: corpoAtivar,
+    corpoNotificacao: corpoNotificacao, interpretar: interpretar, situacao: situacao, assinaram: assinaram,
+    podeEnviar: podeEnviar, linkAssinado: linkAssinado
+  };
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+  return api;
+})();

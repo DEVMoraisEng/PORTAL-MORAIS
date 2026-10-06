@@ -244,3 +244,20 @@ test("comprador 1 vindo de CLIENTES: primeira fronteira ' E ', mesmo com E dentr
   h.venda.COMPRADOR2 = Object.assign({}, h.venda.COMPRADOR2, { nome: "ANA" });
   assert.equal(C.montarDadosContrato(h).comprador1.nome, "MARIANA TESTE");
 });
+
+test("e-mails para a assinatura (entrega 3): compradores, vendedor PF e representante PJ, sem virar falta do contrato", () => {
+  const f = fontes();
+  f.venda.COMPRADOR1 = Object.assign({}, f.venda.COMPRADOR1, { email: " ana@teste.invalid " });
+  f.venda.COMPRADOR2 = { nome: "BRUNO TESTE", cpf: "222.333.444-05", email: "bruno@teste.invalid" };
+  f.vendedor = Object.assign({}, f.vendedor, { email: "spe@teste.invalid", representanteEmail: "rep@teste.invalid" });
+  const d = C.montarDadosContrato(f);
+  assert.equal(d.comprador1.email, "ana@teste.invalid");
+  assert.equal(d.comprador2.email, "bruno@teste.invalid");
+  assert.equal(d.vendedor.email, "spe@teste.invalid");
+  assert.equal(d.vendedor.representanteEmail, "rep@teste.invalid");
+  const sem = C.montarDadosContrato(fontes());
+  assert.equal(sem.comprador1.email, "");
+  assert.equal(sem.vendedor.email, "");
+  assert.equal(sem.vendedor.representanteEmail, "");
+  assert.deepEqual(C.faltasContrato(sem), []);
+});

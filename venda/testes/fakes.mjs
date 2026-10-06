@@ -27,7 +27,8 @@ export function criarGas({ props, rotas, extras = {} }) {
   const cache = new Map(), chamadas = [], logs = [];
   const ctx = {
     console: { log: (...a) => logs.push(a.join(" ")), error: (...a) => logs.push(a.join(" ")) },
-    PropertiesService: { getScriptProperties: () => ({ getProperty: (n) => (n in props ? props[n] : null) }) },
+    PropertiesService: { getScriptProperties: () => ({ getProperty: (n) => (n in props ? props[n] : null),
+                                                       setProperty: (n, v) => { props[n] = String(v); } }) },
     CacheService: { getScriptCache: () => ({ get: (k) => (cache.has(k) ? cache.get(k) : null),
                                              put: (k, v) => { if (String(v).length > 100000) throw new Error("Argument too large: value"); cache.set(k, v); },
                                              remove: (k) => cache.delete(k) }) },
@@ -60,7 +61,8 @@ export function criarGas({ props, rotas, extras = {} }) {
   };
   Object.assign(ctx, extras);
   vm.createContext(ctx);
-  for (const f of ["RegrasVenda.js", "ClaudeLeitor.js", "OpenAILeitor.js", "ContratoVenda.js", "PortalVenda.gs", "GerarContrato.gs", "MaisControleVenda.gs"])
+  for (const f of ["RegrasVenda.js", "ClaudeLeitor.js", "OpenAILeitor.js", "ContratoVenda.js", "ClicksignVenda.js",
+                   "PortalVenda.gs", "GerarContrato.gs", "AssinaturaVenda.gs", "MaisControleVenda.gs"])
     vm.runInContext(fs.readFileSync(path.join(VENDA, f), "utf8"), ctx, { filename: f });
   const chamar = (payload) => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(payload) } }).texto);
   return { ctx, chamar, chamadas, logs, cache };
@@ -165,6 +167,51 @@ export function notionFalso({ valores = {}, s3 = {}, colunas = COLUNAS_REAIS, pa
     return null;
   }
   return { rota, pagina, uploads, patches, db };
+}
+
+/* Clicksign falsa (API v3, JSON:API), no formato dos exemplos da documentação
+ * (venda/CLICKSIGN-API.md). Guarda cada chamada (método, caminho, corpo,
+ * cabeçalhos). `falhar(metodo, caminho, corpo)` pode devolver uma resposta
+ * {status, json} para simular erro num passo. Rota que não existe responde 404
+ * JSON:API — nunca um sucesso por omissão.
+ * `estado.status` é o status do envelope (draft → running na ativação);
+ * `eventos` e `arquivos` (links.files do documento) são o que o GET devolve. */
+export const PDF_ASSINADO = "%PDF-1.4 contrato assinado de teste";
+export function clicksignFalso({ base = "https://sandbox.clicksign.com", falhar = () => null, eventos = [], arquivos, status } = {}) {
+  const raiz = base + "/api/v3";
+  const chamadas = [], estado = { status: status || "draft", signers: [], baixados: 0 };
+  let seq = 0;
+  const ok = (status, data) => ({ status, json: { data } });
+  const erro = (status, title) => ({ status, json: { errors: [{ title, detail: "", code: String(status), status: String(status) }] } });
+  function rota(url, opt) {
+    if (url === "https://s3.clicksign.falso/assinado.pdf") { estado.baixados++; return { buf: Buffer.from(PDF_ASSINADO, "utf8"), mime: "application/pdf" }; }
+    if (!url.startsWith(raiz + "/")) return null;
+    const metodo = String(opt.method || "get").toUpperCase(), caminho = url.slice(raiz.length);
+    const corpo = typeof opt.payload === "string" ? JSON.parse(opt.payload) : null;
+    chamadas.push({ metodo, caminho, corpo, headers: Object.assign({}, opt.headers), contentType: opt.contentType });
+    const f = falhar(metodo, caminho, corpo);
+    if (f) return f;
+    const env = /^\/envelopes\/([^/]+)/.exec(caminho);
+    if (metodo === "POST" && caminho === "/envelopes") return ok(201, { id: "env-1", type: "envelopes", attributes: { status: "draft", name: corpo.data.attributes.name } });
+    if (!env || env[1] !== "env-1") return erro(404, "Registro não encontrado");
+    const resto = caminho.slice(env[0].length);
+    if (metodo === "POST" && resto === "/documents") return ok(201, { id: "doc-1", type: "documents", attributes: { status: "draft", filename: corpo.data.attributes.filename } });
+    if (metodo === "POST" && resto === "/signers") {
+      const s = { id: "sig-" + (++seq), type: "signers", attributes: Object.assign({}, corpo.data.attributes) };
+      estado.signers.push(s);
+      return ok(201, s);
+    }
+    if (metodo === "POST" && resto === "/requirements") return ok(201, { id: "req-" + (++seq), type: "requirements", attributes: corpo.data.attributes });
+    if (metodo === "PATCH" && resto === "") { estado.status = corpo.data.attributes.status; return ok(200, { id: "env-1", type: "envelopes", attributes: { status: estado.status } }); }
+    if (metodo === "POST" && resto === "/notifications") return ok(201, { id: "not-1", type: "notifications", attributes: { summary: [] } });
+    if (metodo === "GET" && resto === "") return ok(200, { id: "env-1", type: "envelopes", attributes: { status: estado.status } });
+    if (metodo === "GET" && resto === "/documents")
+      return ok(200, [{ id: "doc-1", type: "documents", links: { files: arquivos || { original: "https://s3.clicksign.falso/original.pdf" } }, attributes: { status: estado.status } }]);
+    if (metodo === "GET" && resto === "/documents/doc-1/events") return ok(200, eventos);
+    if (metodo === "GET" && resto === "/signers") return ok(200, estado.signers);
+    return erro(404, "rota falsa inexistente");
+  }
+  return { rota, chamadas, estado };
 }
 
 /* DocumentApp / DriveApp / Drive falsos, no mesmo rigor do Apps Script real:

@@ -116,6 +116,67 @@ Gera o contrato de compra e venda no fim do painel da casa (PDF em
 Teste: abrir a casa de teste, preencher/conferir os campos, **Gerar contrato**;
 faltando dado, o botão lista o que falta e não gera nada.
 
+## Assinatura (entrega 3)
+
+Botão "Enviar para assinatura" no painel da casa: manda o ÚLTIMO PDF de
+`CONTRATO GERADO` para a Clicksign (API v3) e, com "Atualizar situação",
+colhe o PDF assinado em `CONTRATO ASSINADO`. Rotas e corpos usados, com o
+link de cada página da documentação e as dúvidas em aberto:
+`venda/CLICKSIGN-API.md`. **Testar primeiro no sandbox** (é o padrão).
+
+1. **Arquivos novos** no projeto PORTAL-VENDA (botão + › Script):
+   `venda/ClicksignVenda.js` → arquivo **ClicksignVenda**;
+   `venda/AssinaturaVenda.gs` → arquivo **AssinaturaVenda**. Mudaram e têm de
+   ser colados de novo: `PortalVenda.gs` (2 ações), `GerarContrato.gs` e
+   `ContratoVenda.js` (passam a levar os e-mails). Depois: Implantar ›
+   Gerenciar implantações › lápis › Nova versão › Implantar.
+2. **Colunas novas no Notion:**
+   - VENDAS: `ASSINATURA - ENVELOPE ID` (texto), `ASSINATURA - SITUAÇÃO`
+     (texto: o portal grava ENVIADO, ASSINADO, RECUSADO, CANCELADO ou
+     EXPIRADO — não editar à mão), `CONTRATO ASSINADO` (arquivos e mídia) e
+     `COMPRADOR 1 - E-MAIL` (e-mail; o do comprador 2 já existe).
+   - VENDEDORES – CONTRATO: `E-MAIL` (vendedor pessoa física) e
+     `REPRESENTANTE E-MAIL` (quem assina pela empresa).
+   - CORRETORES – CONTRATO: `E-MAIL` já existe (só é usado se o corretor
+     assinar).
+3. **Propriedades do script** (Configurações do projeto):
+   - `CLICKSIGN_TOKEN` — obrigatória. Sem ela o botão responde "a
+     assinatura ainda não foi ligada" e não chama nada.
+   - `CLICKSIGN_URL` — opcional; padrão `https://sandbox.clicksign.com`.
+     Na produção, depois do teste: `https://app.clicksign.com` (e o token
+     da conta de produção — o do sandbox não vale lá).
+   - `ASSINATURA_TESTEMUNHAS_SPE` e `ASSINATURA_TESTEMUNHAS_PF` — as duas
+     testemunhas de cada caso, em JSON:
+     `[{"nome":"Nome Sobrenome","email":"a@empresa.com","cpf":"000.000.000-00"},{...}]`.
+     Vendedor PJ (SPE) usa o par SPE; vendedor PF usa o par PF.
+   - `ASSINATURA_REPRESENTANTE` — opcional, JSON `{"nome":…,"email":…,"cpf":…}`:
+     quem assina pela empresa quando o cadastro do vendedor não traz
+     `REPRESENTANTE NOME` e `REPRESENTANTE E-MAIL`.
+   - `ASSINATURA_INCLUIR_CORRETOR` — `SIM` para o corretor também assinar
+     (padrão: não assina).
+   - `ASSINATURA_PAPEIS_<envelope>` — o próprio script cria uma por envio
+     (qual signatário é comprador, testemunha…; sem dado pessoal). Não apagar
+     enquanto o envelope estiver em andamento.
+4. **Token da Clicksign:** só o **administrador da conta Clicksign** gera.
+   Sandbox: criar a conta em `https://sandbox.clicksign.com/signup`; nas duas
+   contas o caminho é Configurações › API › Gerar Access Token › descrição ›
+   Gerar, e na mesma tela associar o e-mail à API (Salvar e-mail). Quem gerar
+   **cola direto nas Propriedades do script** — nunca no chat, em e-mail, em
+   planilha ou no repositório. O token vai no cabeçalho sem "Bearer".
+5. **Teste no sandbox:** casa de teste com contrato gerado, e-mails de teste
+   que a equipe consiga abrir. Enviar para assinatura › conferir os e-mails ›
+   assinar com todos › Atualizar situação › o PDF assinado aparece em
+   `CONTRATO ASSINADO` e a situação vira ASSINADO. Testar também: recusar
+   (situação RECUSADO e o botão volta a enviar) e cancelar o envelope na
+   Clicksign (CANCELADO). As dúvidas do `CLICKSIGN-API.md` se resolvem neste
+   teste — o código para com erro visível em cada uma delas, nunca chuta.
+
+Quem assina, na ordem: comprador 1, comprador 2 (se houver), vendedor PF ou
+o representante da empresa, as duas testemunhas e, se ligado, o corretor.
+Faltando e-mail, nome com sobrenome ou testemunha configurada, o botão lista
+o que falta e não manda nada. Envelope em andamento ou assinado barra novo
+envio; cancelado, recusado ou expirado deixam enviar de novo.
+
 ## Mais Controle (entrega 4)
 
 Botão **Ver prévia / Lançar no Mais Controle** no fim do painel, abaixo do

@@ -213,12 +213,12 @@ var ContratoVenda = (function () {
       comprador1: {
         nome: nomeComprador1(v.CLIENTES, c2.nome), cpf: txt(v.CPF),
         nacionalidade: txt(c1.nacionalidade), estadoCivil: txt(c1.estadoCivil), profissao: txt(c1.profissao),
-        documento: txt(c1.documento), endereco: txt(c1.endereco)
+        documento: txt(c1.documento), endereco: txt(c1.endereco), email: txt(c1.email)
       },
       comprador2: temC2 ? {
         nome: txt(c2.nome), cpf: txt(c2.cpf),
         nacionalidade: txt(c2.nacionalidade), estadoCivil: txt(c2.estadoCivil), profissao: txt(c2.profissao),
-        documento: txt(c2.documento), endereco: txt(c2.endereco)
+        documento: txt(c2.documento), endereco: txt(c2.endereco), email: txt(c2.email)
       } : null,
       vendedor: vend ? {
         tipo: up(vend.tipo), nome: txt(vend.nome) || txt(o.proprietario), cpfCnpj: txt(vend.cpfCnpj) || txt(o.cpfCnpj),
@@ -229,7 +229,9 @@ var ContratoVenda = (function () {
         nacionalidade: txt(vend.nacionalidade), estadoCivil: txt(vend.estadoCivil),
         profissao: txt(vend.profissao), rg: txt(vend.rg),
         banco: txt(vend.banco), agencia: txt(vend.agencia), operacao: txt(vend.operacao),
-        conta: txt(vend.conta), pix: txt(vend.pix)
+        conta: txt(vend.conta), pix: txt(vend.pix),
+        /* e-mails: só a assinatura (ClicksignVenda) usa; o contrato não exige */
+        email: txt(vend.email), representanteEmail: txt(vend.representanteEmail)
       } : null,
       nomeProprietario: txt(o.proprietario),
       loteamento: f.loteamento ? {
