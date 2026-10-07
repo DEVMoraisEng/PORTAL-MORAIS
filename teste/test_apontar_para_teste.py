@@ -195,3 +195,39 @@ class Apontar(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Simulador(unittest.TestCase):
+    SIM = "https://script.google.com/macros/s/AKfySIMTESTE789/exec"
+    PROD = ("https://script.google.com/macros/s/AKfycbzwUIApU5nKXi1vG3cEs_V2DWCdkLDwY_vo0zBxO59ZBLbEihIxuOqbHdNLm-8pVVwVJQ/exec")
+
+    def montar(self, d):
+        (d / "proposta.html").write_text("var APPS_SCRIPT_URL = '" + self.PROD + "';\nvar P = '"
+                                         + "https://script.google.com/macros/s/AKfyPORTALPROD/exec';\n"
+                                         + "var DB = 'bfdc5ab532d3833983fc0130cffb8bac';\n", encoding="utf-8")
+
+    def test_com_sim_a_pagina_fala_com_o_simulador_de_teste(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = pathlib.Path(t); self.montar(d)
+            r = rodar(d, "--exec", EXEC, "--venda", EXEC_VENDA, "--sim", self.SIM)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            txt = (d / "proposta.html").read_text(encoding="utf-8")
+            self.assertIn(self.SIM, txt)
+            self.assertIn(EXEC, txt)
+            self.assertNotIn(self.PROD, txt)
+            self.assertIn("3f1c5ab532d381d38ba0d495b1bc8123", txt)
+
+    def test_sem_sim_continua_como_antes(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = pathlib.Path(t); self.montar(d)
+            r = rodar(d, "--exec", EXEC, "--venda", EXEC_VENDA)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            txt = (d / "proposta.html").read_text(encoding="utf-8")
+            self.assertNotIn(self.PROD, txt)
+            self.assertEqual(txt.count(EXEC), 2)
+
+    def test_sim_invalido_e_recusado(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = pathlib.Path(t); self.montar(d)
+            r = rodar(d, "--exec", EXEC, "--venda", EXEC_VENDA, "--sim", "https://exemplo.test/x")
+            self.assertNotEqual(r.returncode, 0)

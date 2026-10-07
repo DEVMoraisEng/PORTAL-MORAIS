@@ -20,7 +20,17 @@ IDS = {  # produção -> BRAIN TESTE (arquivo 06 da DOCUMENTACAO)
     "313c5ab532d3801e974ced0bb656c9d5": "007c5ab532d383ac9ec081556377772d",  # LIGAÇÕES
     "3c9c5ab532d380a0b78bdb2f421bc9f5": "5bbc5ab532d383629c3f81fd4f521891",  # PÓS OBRA
     "3c9c5ab532d3800f8261fdab1e4ff621": "3a4c5ab532d38385b893811ad439d0fb",  # ATIVIDADES PÓS OBRA
+    "bfdc5ab532d3833983fc0130cffb8bac": "3f1c5ab532d381d38ba0d495b1bc8123",  # VENDAS CONDOMÍNIO
+    "3dbc5ab532d3803e9ce7e0440f30a353": "3f1c5ab532d3815e898cf52433e7bdf0",  # PROPOSTAS – RESERVA DOS IPÊS
+    "3d9c5ab532d3808c8aa6e0c7625b174a": "3f1c5ab532d381038c07f4269f58fc3a",  # SIMULAÇÕES – RESERVA DOS IPÊS
+    "3d8c5ab532d3800494c2cc0f184b4c03": "3f1c5ab532d38195be94d83b247094be",  # UNIDADES RESERVA DOS IPÊS
+    "3e4c5ab532d380afbd3bf9f7af31d2a7": "3f1c5ab532d3812caaedf6c9a383aace",  # CONTAS BANCÁRIAS
+    "3e2c5ab532d38055a241db35f74e7bbc": "3f1c5ab532d381c8bb86ef8eff482456",  # PROPRIETARIOS_PAI
 }
+# Simulador do Reserva dos Ipês (Apps Script próprio). Com --sim, as páginas que falam com
+# ele (proposta, completar venda, simulações) passam a falar com o SIMULADOR-TESTE.
+SIM_PROD = "https://script.google.com/macros/s/AKfycbzwUIApU5nKXi1vG3cEs_V2DWCdkLDwY_vo0zBxO59ZBLbEihIxuOqbHdNLm-8pVVwVJQ/exec"
+MARCA_SIM = "@@URL-DO-SIMULADOR-TESTE@@"
 REPO_PROD, REPO_TESTE = "DEVMoraisEng/PORTAL-MORAIS", "MoraisEng-Teste/PORTAL-MORAIS"
 DOMINIO_PROD, DOMINIO_TESTE = "devmoraiseng.github.io/PORTAL-MORAIS", "moraiseng-teste.github.io/PORTAL-MORAIS"
 # ids de produção conhecidos além dos 10 do IDS acima — ficam desligados no
@@ -28,7 +38,6 @@ DOMINIO_PROD, DOMINIO_TESTE = "devmoraiseng.github.io/PORTAL-MORAIS", "moraiseng
 # e pelo apagamento de robos-mc.yml), então só viram AVISO, não erro.
 IDS_AVISO = {
     "306c5ab532d3812fa14fe9a281510128": "Obras",
-    "3e2c5ab532d38055a241db35f74e7bbc": "Proprietários",
 }
 EXTENSOES = {".gs", ".py", ".js", ".html", ".yml", ".yaml", ".md", ".json"}
 PULAR = {".git", "venda", "teste", "dist", "img", ".superpowers"}
@@ -77,12 +86,16 @@ def main():
     ap.add_argument("--exec", required=True, dest="url_exec")
     ap.add_argument("--venda", required=True, dest="url_venda",
                      help="URL /exec do PORTAL-VENDA-TESTE (grava em venda-dossie.js; não entra na troca genérica)")
+    ap.add_argument("--sim", default="", dest="url_sim",
+                    help="URL /exec do SIMULADOR-TESTE (sem ela, o simulador vira a URL do PORTAL-TESTE e não funciona)")
     ap.add_argument("--raiz", default=".")
     a = ap.parse_args()
     if not re.fullmatch(URL_EXEC_RE, a.url_exec):
         sys.exit("URL do PORTAL-TESTE inválida: precisa ser https://script.google.com/macros/s/<id>/exec")
     if not re.fullmatch(URL_EXEC_RE, a.url_venda):
         sys.exit("URL do PORTAL-VENDA-TESTE inválida: precisa ser https://script.google.com/macros/s/<id>/exec")
+    if a.url_sim and not re.fullmatch(URL_EXEC_RE, a.url_sim):
+        sys.exit("URL do SIMULADOR-TESTE inválida: precisa ser https://script.google.com/macros/s/<id>/exec")
     raiz = pathlib.Path(a.raiz).resolve()
     alterados = []
     avisos = []
@@ -102,7 +115,11 @@ def main():
             # gravaria a URL errada aqui numa segunda sincronização.
             s = re.sub(r'var URL_PORTAL_VENDA = "[^"]*";', 'var URL_PORTAL_VENDA = "' + a.url_venda + '";', s)
         else:
+            if a.url_sim:   # protege o simulador da troca genérica e põe o de teste
+                s = s.replace(SIM_PROD, MARCA_SIM)
             s = re.sub(URL_EXEC_RE, a.url_exec, s)
+            if a.url_sim:
+                s = s.replace(MARCA_SIM, a.url_sim)
         if p.name == "pages.yml":
             s, avisos_passo = desligar_passos_com_segredo(s)
             avisos.extend(avisos_passo)
@@ -131,7 +148,8 @@ def main():
                 # a checagem de sobras aceita só --exec em qualquer arquivo, e
                 # --venda apenas dentro de venda-dossie.js (é o único lugar
                 # onde essa URL deveria aparecer).
-                permitido = url == a.url_exec or (str(rel) == VENDA_DOSSIE and url == a.url_venda)
+                permitido = (url == a.url_exec or (str(rel) == VENDA_DOSSIE and url == a.url_venda)
+                             or (a.url_sim and url == a.url_sim))
                 if not permitido:
                     urls_sobras.append(f"{rel}: {url}")
             for i, nome in IDS_AVISO.items():
