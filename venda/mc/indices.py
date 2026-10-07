@@ -2,7 +2,7 @@
 """Tabelas de reajuste do Mais Controle alimentadas pelo Banco Central (SGS), todo mês.
 
     python -m venda.mc.indices             # só mostra o que faria
-    python -m venda.mc.indices --aplicar   # cria as tabelas que faltam, lança os meses novos e manda recalcular
+    python -m venda.mc.indices --aplicar   # cria as tabelas que faltam, lança os meses novos (o ERP recalcula ao salvar)
 
 Regras do dono (06/10/2026): pré-chaves INCC-M; pós-chaves IPCA + 1% ao mês; referência 2 meses antes
 (a referência é escolhida em cada parcela da venda, não na tabela).
@@ -104,7 +104,7 @@ def rodar(erp, aplicar: bool, series: dict) -> list[dict]:
         faltam = conferir(salva, plano)
         if faltam:
             raise ErpErro("tabela %s gravada sem os meses %s" % (t["nome"], ", ".join(faltam)))
-        erp.pedir("PUT", "/readjustment-tables/%s/process" % salva["id"])   # recalcula as vendas que usam a tabela
+        # o site só salva (PUT); a rota .../process existe no código mas dá 404 e ninguém a chama
         item.update(situacao="ATUALIZADA", id=salva["id"])
         res.append(item)
     return res

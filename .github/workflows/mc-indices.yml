@@ -1,7 +1,7 @@
 name: Índices de reajuste no Mais Controle
 
 # Todo dia às 9h (Brasília): busca INCC-M e IPCA no Banco Central e lança o mês que faltar
-# nas tabelas "INCC-M" e "IPCA + 1% a.m." do Mais Controle, depois manda recalcular as vendas.
+# nas tabelas "INCC-M" e "IPCA + 1% a.m." do Mais Controle. O ERP recalcula as vendas ao salvar a tabela.
 # Sem mês novo, não grava nada. Gravar exige a variável de repositório MC_INDICES = 1.
 # ATENÇÃO: só existe UM Mais Controle — este agendamento deve ficar ligado em UM repositório só.
 on:

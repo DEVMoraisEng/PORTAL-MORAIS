@@ -64,7 +64,8 @@ def test_rodar_aplica_cria_confere_e_recalcula_e_depois_fica_em_dia():
     erp = ErpFake()
     r = I.rodar(erp, True, SERIES)
     assert [x["situacao"] for x in r] == ["ATUALIZADA", "ATUALIZADA"]
-    assert ("PUT", "/readjustment-tables/t1/process") in erp.chamadas
+    assert ("POST", "/readjustment-tables") in erp.chamadas
+    assert not any(c.endswith("/process") for _, c in erp.chamadas)
     erp.chamadas.clear()
     r = I.rodar(erp, True, SERIES)
     assert [x["situacao"] for x in r] == ["EM_DIA", "EM_DIA"]
