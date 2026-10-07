@@ -113,8 +113,9 @@ def main():
     if workflows.is_dir():
         for f in sorted(workflows.iterdir()):
             # mc-venda.yml fica: é o robô do "Lançar no Mais Controle", e no fork
-            # ele só grava com a variável MC_APLICAR=1 (sem ela, roda como prévia)
-            if f.is_file() and f.name not in ("pages.yml", "mc-venda.yml"):
+            # ele só grava com a variável MC_APLICAR=1 (sem ela, roda como prévia).
+            # mc-indices.yml fica: índices mensais (grava só com MC_INDICES=1)
+            if f.is_file() and f.name not in ("pages.yml", "mc-venda.yml", "mc-indices.yml"):
                 rel = f.relative_to(raiz)
                 f.unlink()
                 alterados.append(f"{rel} (apagado)")

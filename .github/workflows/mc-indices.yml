@@ -1,0 +1,41 @@
+name: Índices de reajuste no Mais Controle
+
+# Todo dia às 9h (Brasília): busca INCC-M e IPCA no Banco Central e lança o mês que faltar
+# nas tabelas "INCC-M" e "IPCA + 1% a.m." do Mais Controle, depois manda recalcular as vendas.
+# Sem mês novo, não grava nada. Gravar exige a variável de repositório MC_INDICES = 1.
+# ATENÇÃO: só existe UM Mais Controle — este agendamento deve ficar ligado em UM repositório só.
+on:
+  schedule:
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: mc-indices
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  indices:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Atualizar tabelas
+        env:
+          MC_ROBO_EMAIL: ${{ secrets.MC_ROBO_EMAIL }}
+          MC_ROBO_SENHA: ${{ secrets.MC_ROBO_SENHA }}
+          MC_ROBO_APARELHO: ${{ secrets.MC_ROBO_APARELHO }}
+          MC_INDICES: ${{ vars.MC_INDICES }}
+        shell: bash
+        run: |
+          pip install --quiet requests
+          FLAG=""
+          if [ "$MC_INDICES" = "1" ]; then FLAG="--aplicar"; else echo "MC_INDICES != 1: só prévia"; fi
+          python -m venda.mc.indices $FLAG
