@@ -2872,10 +2872,33 @@ function sincronizarScroll(idTopo, idWrap){
   const tbl = wrap.querySelector("table");
   if (!tbl){ topo.style.display = "none"; return; }
   topo.style.display = "";
-  topo.firstElementChild.style.width = tbl.scrollWidth + "px";
-  let trava = false;
-  topo.onscroll = () => { if (trava) return; trava = true; wrap.scrollLeft = topo.scrollLeft; trava = false; };
-  wrap.onscroll = () => { if (trava) return; trava = true; topo.scrollLeft = wrap.scrollLeft; trava = false; };
+  /* 07/10/2026 — CORREÇÃO do "trava ao clicar na barra de rolagem":
+     1) a barra de cima tinha um curso diferente da de baixo (a de baixo perde
+        a largura da barra vertical da tabela), então cada uma "corrigia" a
+        outra para um valor que ela não alcançava e as duas ficavam brigando;
+        agora a largura é calculada para os dois cursos serem iguais;
+     2) a trava antiga não funcionava: o evento de rolagem do navegador chega
+        DEPOIS de a trava ser solta, e virava pingue-pongue. Agora cada lado
+        ignora o eco da posição que o outro acabou de mandar. */
+  const ajustar = () => {
+    const curso = Math.max(0, wrap.scrollWidth - wrap.clientWidth);
+    topo.firstElementChild.style.width = (curso + topo.clientWidth) + "px";
+  };
+  ajustar();
+  if (!wrap._ro && window.ResizeObserver){ wrap._ro = new ResizeObserver(ajustar); wrap._ro.observe(wrap); }
+  let ecoTopo = -1, ecoWrap = -1;
+  topo.onscroll = () => {
+    const x = topo.scrollLeft;
+    if (Math.abs(x - ecoTopo) <= 1){ ecoTopo = -1; return; }
+    if (Math.abs(wrap.scrollLeft - x) <= 1) return;
+    ecoWrap = x; wrap.scrollLeft = x;
+  };
+  wrap.onscroll = () => {
+    const x = wrap.scrollLeft;
+    if (Math.abs(x - ecoWrap) <= 1){ ecoWrap = -1; return; }
+    if (Math.abs(topo.scrollLeft - x) <= 1) return;   // rolagem só vertical: nada a fazer
+    ecoTopo = x; topo.scrollLeft = x;
+  };
 }
 
 /* ---------- edição direto na célula ----------
@@ -2944,9 +2967,8 @@ function ligarCliquesTabela(idBox){
     }
     const td = ev.target.closest("td.edt");
     if (td){ if (!td.querySelector("input,select")) editarCelula(td); return; }
-    if (ev.target.closest("a")) return;              // deixa o link navegar
-    const tr = ev.target.closest("tr[data-id]");
-    if (tr && tr.dataset.fonte !== "vendas") abrirLinha(tr.dataset.id);
+    /* 07/10/2026: clicar no resto da linha NÃO abre mais a ligação — atrapalhava
+       copiar CPF, UC etc. Só o endereço (.obralink, acima) abre o painel. */
   });
 }
 
@@ -3231,7 +3253,10 @@ function filtrosVendidas(){
   if (!Object.keys(anosEntrega).length) anosEntrega[String(new Date().getFullYear())] = 1;
   const MES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
   return `
-    <select id="vd-per" onchange="aoTrocarPeriodoVendidas()">
+    <!-- 07/10/2026: filtro de CONTRATO removido a pedido. O select continua
+         no HTML, escondido e sempre em "qualquer data", porque o resto do
+         código (filtro e título do PDF) ainda lê o valor dele. -->
+    <select id="vd-per" style="display:none" onchange="aoTrocarPeriodoVendidas()">
       <option value="">Contrato: qualquer data</option>
       <option value="7d">Últimos 7 dias</option>
       <option value="30d">Últimos 30 dias</option>
