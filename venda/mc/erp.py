@@ -92,7 +92,7 @@ class Erp:
         bucket, chave_aws = cfg.get("filesBucketURL"), cfg.get("filesAccessKey")
         if not bucket or not chave_aws:
             raise ErpErro("configuração de arquivos do ERP sem bucket/chave")
-        venda = self.pedir("GET", "/readjustment-sales/%s" % venda_id) or {}
+        venda = self.pedir("GET", "/sales/%s" % venda_id) or {}   # GET /readjustment-sales/{id} dá 405
         tr_id = (venda.get("tradeReceivable") or {}).get("id")
         if not tr_id:
             raise ErpErro("venda sem tradeReceivable para anexar")

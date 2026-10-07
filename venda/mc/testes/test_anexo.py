@@ -28,7 +28,7 @@ class HttpFake:
         self.chamadas.append((metodo, rota, json, params))
         if rota == "/system-configuration":
             return Resp(200, {"filesBucketURL": "https://bucket.exemplo.test", "filesAccessKey": "AK"})
-        if rota.startswith("/readjustment-sales/"):
+        if rota.startswith("/sales/"):
             return Resp(200, {"id": "v1", "tradeReceivable": {"id": "tr1"}})
         if rota == "/folder" and metodo == "GET":
             return Resp(200, self.pastas or [])
@@ -55,7 +55,7 @@ def test_anexar_cria_pasta_registra_sobe_e_confirma():
     http = HttpFake()
     assert erp_com(http).anexar("v1", "CONTRATO X.pdf", b"%PDF") == "arq1"
     rotas = [(c[0], c[1]) for c in http.chamadas]
-    assert rotas == [("GET", "/system-configuration"), ("GET", "/readjustment-sales/v1"), ("GET", "/folder"),
+    assert rotas == [("GET", "/system-configuration"), ("GET", "/sales/v1"), ("GET", "/folder"),
                      ("POST", "/folder"), ("POST", "/file"), ("S3", "https://bucket.exemplo.test"),
                      ("PATCH", "/file/set-temporary")]
     assert http.chamadas[3][2] == {"origin": "TRADE_RECEIVABLE_READJUSTED", "tradeReceivable": {"id": "tr1"}}
