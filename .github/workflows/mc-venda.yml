@@ -47,6 +47,7 @@ jobs:
           PEDIU_APLICAR: ${{ github.event.client_payload.aplicar || inputs.aplicar }}
           MC_APLICAR: ${{ vars.MC_APLICAR }}
           DB_VENDAS_COND: ${{ vars.DB_VENDAS_COND }}
+          DB_CORRETORES: ${{ vars.DB_CORRETORES }}
         shell: bash
         run: |
           if [[ ! "$PAGINA" =~ ^[0-9a-fA-F-]{32,36}$ ]]; then echo "pageId inválido"; exit 1; fi

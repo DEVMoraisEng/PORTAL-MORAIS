@@ -20,6 +20,13 @@ class NotionFake:
     def pagina(self, pid):
         return {"properties": self.props}
 
+    corretores = [{"properties": {"NOME": {"type": "title", "title": [{"plain_text": "Corretor Exemplo"}]},
+                                  "CPF/CNPJ": {"type": "rich_text", "rich_text": [{"plain_text": "111.444.777-35"}]},
+                                  "CRECI": {"type": "rich_text", "rich_text": [{"plain_text": "12345"}]}}}]
+
+    def linhas(self, db_id):
+        return self.corretores
+
     def gravar_textos(self, pid, props, valores):
         self.gravado.update(valores)
         for k, v in valores.items():   # como o Notion: a próxima leitura já vê o texto
@@ -48,6 +55,9 @@ class ErpFake:
 
     def cliente_por_cpf(self, cpf):
         return [c for c in self._cli if c["cpf"] == cpf]
+
+    def participantes_por_documento(self, doc):
+        return getattr(self, "_por_doc", [])
 
     def homonimos(self, nome):
         from venda.mc.regras import chave
@@ -308,3 +318,26 @@ def test_sem_corretor_e_falta():
     n = NotionFake(pagina(CORRETOR={"type": "select", "select": None}))
     r = L.processar("p1", n, ErpFake())
     assert r["codigo"] == "FALTAS" and "Falta o CORRETOR" in n.gravado["MC - SITUAÇÃO"]
+
+
+def test_corretor_sem_cpf_no_cadastro_recusa_na_previa():
+    n = NotionFake(pagina())
+    n.corretores = []
+    r = L.processar("p1", n, ErpFake())
+    assert r["codigo"] == "CORRETOR_SEM_CPF" and "CORRETORES – CONTRATO" in n.gravado["MC - SITUAÇÃO"]
+
+
+def test_corretor_novo_leva_cpf_e_creci_do_cadastro():
+    n, e = NotionFake(pagina()), ErpFake()
+    L.processar("p1", n, e)
+    L.processar("p1", n, e, aplicar=True)
+    cor = e.criados[0][1]
+    assert cor["cpf"] == "11144477735" and cor["type"] == "PERSON" and cor["comment"] == "Corretor — CRECI 12345"
+
+
+def test_corretor_com_cpf_ja_no_erp_com_outro_nome_reaproveita():
+    n, e = NotionFake(pagina()), ErpFake()
+    e._por_doc = [{"id": "cor-9", "name": "OUTRO NOME", "role": "SUPPLIER"}]
+    L.processar("p1", n, e)
+    L.processar("p1", n, e, aplicar=True)
+    assert [t for t, _ in e.criados] == ["cliente", "venda"] and e.criados[1][1]["seller"] == {"id": "cor-9"}

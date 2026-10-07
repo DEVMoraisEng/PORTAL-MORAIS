@@ -25,6 +25,22 @@ class Notion:
             raise RuntimeError("Notion GET página -> HTTP %s: %s" % (r.status_code, r.text[:300]))
         return r.json()
 
+    def linhas(self, db_id: str) -> list[dict]:
+        """Todas as linhas de uma base (páginas com propriedades)."""
+        out, cur = [], None
+        while True:
+            corpo = {"page_size": 100}
+            if cur:
+                corpo["start_cursor"] = cur
+            r = self.http.post(API + "/databases/%s/query" % db_id, json=corpo, headers=self._cab(), timeout=60)
+            if r.status_code >= 300:
+                raise RuntimeError("Notion query -> HTTP %s: %s" % (r.status_code, r.text[:300]))
+            j = r.json()
+            out += j.get("results") or []
+            if not j.get("has_more"):
+                return out
+            cur = j.get("next_cursor")
+
     def gravar_textos(self, page_id: str, props_atuais: dict, valores: dict) -> list[str]:
         """Grava texto nas colunas que EXISTEM (pelo nome normalizado). Devolve as que faltaram."""
         reais = {R.chave(k): (k, v.get("type")) for k, v in (props_atuais or {}).items()}

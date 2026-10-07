@@ -347,11 +347,46 @@ def corpo_cliente(dados: dict) -> dict:
     return corpo
 
 
+def cnpj_valido(cnpj) -> bool:
+    d = so_digitos(cnpj)
+    if len(d) != 14 or d == d[0] * 14:
+        return False
+    for n in (12, 13):
+        pesos = list(range(n - 7, 1, -1)) + list(range(9, 1, -1))
+        dv = sum(int(a) * b for a, b in zip(d[:n], pesos)) % 11
+        if int(d[n]) != (0 if dv < 2 else 11 - dv):
+            return False
+    return True
+
+
+def corretor_do_cadastro(linhas: list[dict], nome: str) -> dict | None:
+    """Linha do corretor na base CORRETORES – CONTRATO (a mesma do gerador de contrato), pelo NOME.
+    {"documento", "creci", "email"} ou {"repetido": True}; None se não achar."""
+    alvo, achadas = chave(nome), []
+    for ln in linhas or []:
+        props = ln.get("properties") or {}
+        por = {chave(k): v for k, v in props.items()}
+        titulo = next((_valor(v) for v in props.values() if isinstance(v, dict) and v.get("type") == "title"), None)
+        if chave(titulo) == alvo:
+            achadas.append({"documento": so_digitos(_valor(por.get("CPF/CNPJ"))) or None,
+                            "creci": _valor(por.get("CRECI")), "email": _valor(por.get("E-MAIL"))})
+    if len(achadas) > 1:
+        return {"repetido": True}
+    return achadas[0] if achadas else None
+
+
 def corpo_corretor(dados: dict) -> dict:
-    """POST {legado}/participants — corretor como Fornecedor, só com o nome (é o Vendedor da venda)."""
-    corpo = {"status": "ACTIVE", "type": "PERSON", "role": "SUPPLIER",
+    """POST {legado}/participants — corretor como Fornecedor (é o Vendedor da venda). O ERP exige CPF/CNPJ."""
+    doc = so_digitos((dados.get("corretor_cadastro") or {}).get("documento"))
+    pj = len(doc) == 14
+    corpo = {"status": "ACTIVE", "type": "COMPANY" if pj else "PERSON", "role": "SUPPLIER",
              "name": " ".join(str(dados.get("corretor") or "").upper().split()), "contacts": [], "phones": []}
-    c = dados.get("corretor_contato") or {}
+    if doc:
+        corpo["cnpj" if pj else "cpf"] = doc
+    c = dict(dados.get("corretor_contato") or {})
+    for k, v in (dados.get("corretor_cadastro") or {}).items():   # o cadastro do corretor vale mais que a pasta
+        if v and k in ("email", "creci"):
+            c[k] = v
     if c.get("email"):
         corpo["email"] = c["email"]
     if c.get("telefone"):

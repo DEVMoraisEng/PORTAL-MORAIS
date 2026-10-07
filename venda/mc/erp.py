@@ -97,6 +97,17 @@ class Erp:
                                                         "size": 20, "sort": "name"}) or {}
         return [p for p in j.get("content") or [] if R.so_digitos(p.get("cpf")) == d]
 
+    def participantes_por_documento(self, doc: str) -> list[dict]:
+        """Cadastros (de qualquer papel) com este CPF/CNPJ."""
+        d, out = R.so_digitos(doc), []
+        for papel in ("SUPPLIER", "CUSTOMER", "EMPLOYEE"):
+            j = self.pedir("GET", "/participants", params={"role": papel, "keyword": d, "page": 0,
+                                                            "size": 20, "sort": "name"}) or {}
+            for p in j.get("content") or []:
+                if d in (R.so_digitos(p.get("cpf")), R.so_digitos(p.get("cnpj"))) and                         p.get("id") not in {x.get("id") for x in out}:
+                    out.append(dict(p, role=p.get("role") or papel))
+        return out
+
     def tabelas_reajuste(self) -> list[dict]:
         return self.pedir("GET", "/readjustment-tables/all") or []
 

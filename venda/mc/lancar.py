@@ -159,6 +159,25 @@ def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DI
         res["motivos"] = ["Há %d cadastros com o nome do corretor no Mais Controle" % len(vs)]
         return fim("RECUSADA", "RECUSADA: há mais de um cadastro com o nome do corretor no Mais Controle — "
                    "deixe só um (ou diferencie o nome) e peça a prévia de novo.", codigo="CORRETOR_REPETIDO")
+    if not vs:
+        cad = R.corretor_do_cadastro(notion.linhas(os.environ["DB_CORRETORES"]), d["corretor"])             if os.environ.get("DB_CORRETORES") else None
+        doc = (cad or {}).get("documento") or ""
+        if (cad or {}).get("repetido"):
+            res["motivos"] = ["Corretor com cadastro repetido na base CORRETORES – CONTRATO"]
+            return fim("RECUSADA", "RECUSADA: o corretor aparece mais de uma vez na base CORRETORES – CONTRATO — "
+                       "deixe só um e peça a prévia de novo.", codigo="CORRETOR_REPETIDO")
+        if not (R.cpf_valido(doc) or R.cnpj_valido(doc)):
+            res["motivos"] = ["Corretor sem cadastro no Mais Controle e sem CPF/CNPJ válido na base CORRETORES – CONTRATO"]
+            return fim("RECUSADA", "RECUSADA: o corretor %s ainda não está no Mais Controle, e para cadastrá-lo o ERP "
+                       "exige CPF ou CNPJ. Preencha o CPF/CNPJ dele na base CORRETORES – CONTRATO (com o nome igual "
+                       "ao da venda) e peça a prévia de novo." % R.corpo_corretor(d)["name"], codigo="CORRETOR_SEM_CPF")
+        d["corretor_cadastro"] = cad
+        vs = erp.participantes_por_documento(doc)   # já cadastrado com outro nome? usa o mesmo
+        if len(vs) > 1:
+            vs = [v for v in vs if str(v.get("role")) == "SUPPLIER"] or vs
+        if len(vs) > 1:
+            res["motivos"] = ["CPF/CNPJ do corretor aparece em %d cadastros no Mais Controle" % len(vs)]
+            return fim("RECUSADA", "RECUSADA: " + res["motivos"][0], codigo="CORRETOR_REPETIDO")
     vendedor_id = vs[0]["id"] if vs else None
     vendedor_novo = None if vs else R.corpo_corretor(d)
 
