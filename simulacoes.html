@@ -347,6 +347,9 @@ tr.prop-dil-mud td{background:#E3F5E8 !important;color:#1D5433}
 .sim-aviso{padding:11px 13px;border-radius:8px;font-size:13px;margin-bottom:10px;display:none}
 .sim-aviso.ok{background:#e7f5ec;border:1px solid #9dd3b4;color:var(--verde-esc);display:block}
 .sim-aviso.err{background:#fbeae7;border:1px solid #e2a493;color:var(--vermelho);display:block}
+/* 07/10/2026: os avisos da conversa de e-mail ("carregando", "não achei a conversa", "falhou — tentar de novo")
+   não tinham a classe ok/err e o .sim-aviso nasce escondido — a área da conversa ficava EM BRANCO. */
+#prop-hist .sim-aviso{display:block;background:var(--bg2);border:1px solid var(--border2);color:var(--text)}
 .sim-edit{width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:var(--sup);color:var(--text)}
 /* ranking de corretores/imobiliárias lado a lado, empilha no celular (mesma
    quebra que o portal já usa para os KPIs, ver .kpis acima) */
