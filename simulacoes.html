@@ -2468,7 +2468,7 @@ function propVer(id){
     ${propQuadroFluxo(p)}
     <div class="sim-grade" style="margin-top:14px">
       ${it("Corretor",esc(p.vendedor||""))}${it("CRECI",esc(p.creci||""))}${it("Imobiliária",esc(p.imobiliaria||""))}
-      ${it("E-mail",esc(p.email||""))}${it("Celular do corretor",p.celularCorretor?simLinkTel(p.celularCorretor):"—")}
+      ${it("E-mail",esc(p.email||""))}${it("Celular do corretor",p.celularCorretor?simLinkTel(p.celularCorretor):"—")}${it("CPF do corretor",esc(p.cpfCorretor||"—"))}
       ${it("Preço da unidade",simBRL(p.preco))}${it("Crédito aprovado",simBRL(p.creditoAprovado))}
       ${it("Valor financiado",simBRL(p.valorFinanciado))}${it("Parcela",p.parcelaFinanciamento?simBRL(p.parcelaFinanciamento):"não apurada")}
       ${it("Renda aprovada",simBRL(p.rendaAprovada))}${it("Renda total",simBRL(p.rendaTotal))}
