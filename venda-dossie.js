@@ -452,7 +452,8 @@
       uiC.ocupadoContrato = null;
       if (r.ok) {
         estadoC = { gerado: true, nome: r.nome || "", url: r.url || "" };
-        uiC.msg = "Contrato gerado.";
+        /* condomínio: campos que saíram em branco ("____") no contrato não travam, mas avisam */
+        uiC.msg = r.avisos && r.avisos.length ? "Contrato gerado. Atenção: " + r.avisos.join("; ") + "." : "Contrato gerado.";
       } else if (r.erro === "FALTAM_DADOS" && r.faltas && r.faltas.length) {
         uiC.faltas = r.faltas;
       } else {

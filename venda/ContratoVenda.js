@@ -145,7 +145,9 @@ var ContratoVenda = (function () {
     return { lote: lote, quadra: quadra };
   }
 
-  function escolherModelo(obraFinalizada) {
+  /* Venda do condomínio (casa com "CONDOMÍNIO - VENDA ID") tem modelo próprio, esteja a obra pronta ou não. */
+  function escolherModelo(obraFinalizada, condominio) {
+    if (condominio) return "CONDOMINIO";
     return up(obraFinalizada) === "SIM" ? "PRONTO" : "CONSTRUCAO";
   }
 
@@ -190,13 +192,163 @@ var ContratoVenda = (function () {
     return txt(v);
   }
 
+  /* ---- condomínio ---- */
+  function R() { return typeof RegrasVenda !== "undefined" ? RegrasVenda : require("./RegrasVenda.js"); }
+  function so2(n) { return Math.round(n * 100) / 100; }
+  function positivo(n) { return typeof n === "number" && isFinite(n) && n > 0; }
+  function inteiro(n) { var x = num(n); return x === null ? null : Math.round(x); }
+  function valorExtenso(n) { return "R$ " + moedaBR(n) + " (" + valorPorExtenso(n) + ")"; }
+
+  /* Fluxo de pagamento da linha da BANCO DE DADOS VENDAS CONDOMÍNIO, já normalizado. */
+  function fluxoCondominio(x) {
+    x = x || {};
+    return {
+      assinatura: txt(x.assinatura), diaPagamento: inteiro(x.diaPagamento), entrega: txt(x.entrega),
+      valorVenda: num(x.valorVenda),
+      sinalAto: num(x.sinalAto),
+      sinal30: num(x.sinal30), data30: txt(x.data30),
+      sinal60: num(x.sinal60), data60: txt(x.data60),
+      sinal90: num(x.sinal90), data90: txt(x.data90),
+      pre1N: inteiro(x.pre1N), pre1Valor: num(x.pre1Valor), pre1Data: txt(x.pre1Data),
+      pre2N: inteiro(x.pre2N), pre2Valor: num(x.pre2Valor), pre2Data: txt(x.pre2Data),
+      balao1Valor: num(x.balao1Valor), balao1Data: txt(x.balao1Data),
+      balao2Valor: num(x.balao2Valor), balao2Data: txt(x.balao2Data),
+      posN: inteiro(x.posN), posValor: num(x.posValor), posData: txt(x.posData),
+      credito: num(x.credito), fgts: num(x.fgts), subsidio: num(x.subsidio)
+    };
+  }
+
+  /* Quanto o fluxo soma (séries = nº de parcelas × valor). */
+  function somaFluxo(fl) {
+    function serie(n, v) { return positivo(n) && positivo(v) ? n * v : 0; }
+    function val(v) { return positivo(v) ? v : 0; }
+    return so2(val(fl.sinalAto) + val(fl.sinal30) + val(fl.sinal60) + val(fl.sinal90) +
+      serie(fl.pre1N, fl.pre1Valor) + serie(fl.pre2N, fl.pre2Valor) +
+      val(fl.balao1Valor) + val(fl.balao2Valor) +
+      val(fl.credito) + val(fl.fgts) + val(fl.subsidio) + serie(fl.posN, fl.posValor));
+  }
+
+  /* "N parcelas mensais e sucessivas de R$ X (…), vencendo-se a primeira em dd/mm/aaaa e as demais no dia D dos meses subsequentes" */
+  function serieMensal(n, valor, dataIso, dia, depoisDaData) {
+    if (n === 1) return "1 parcela de " + valorExtenso(valor) + ", com vencimento em " + dataBR(dataIso) + (depoisDaData || "");
+    return n + " parcelas mensais e sucessivas de " + valorExtenso(valor) + ", vencendo-se a primeira em " +
+      dataBR(dataIso) + (depoisDaData || "") + " e as demais no dia " + (dia === null ? "" : dia) + " dos meses subsequentes";
+  }
+
+  /* Texto do item 6.1 do contrato do condomínio (uma linha por parágrafo, separadas por "\n").
+   * Incisos I a V com numeração FIXA (o 6.1-A e o 7.1 citam os incisos pelo número): linha de
+   * valor 0/vazio sai, as alíneas que sobram são reletradas; inciso sem nenhuma linha vira "não há". */
+  function formaPagamentoCondominio(fluxo) {
+    var fl = fluxoCondominio(fluxo);
+    var linhas = [];
+    linhas.push("6.1. Preço total: " + (fl.valorVenda === null ? "R$ " : valorExtenso(fl.valorVenda)) + ", a ser pago da seguinte forma:");
+    var LETRAS = "abcdefghij";
+    function inciso(titulo, itens, comLetra, depois) {
+      if (!itens.length) { linhas.push(titulo + ": não há."); return; }
+      linhas.push(titulo + ":");
+      itens.forEach(function (t, i) {
+        var fim = i === itens.length - 1 ? "." : ";";
+        linhas.push((comLetra ? LETRAS.charAt(i) + ") " : "") + t + fim);
+      });
+      if (depois) linhas.push(depois);
+    }
+    var sinal = [];
+    if (positivo(fl.sinalAto)) sinal.push(valorExtenso(fl.sinalAto) + ", no ato da assinatura deste instrumento, em " + dataBR(fl.assinatura));
+    [[fl.sinal30, fl.data30], [fl.sinal60, fl.data60], [fl.sinal90, fl.data90]].forEach(function (p) {
+      if (positivo(p[0])) sinal.push(valorExtenso(p[0]) + ", com vencimento em " + dataBR(p[1]));
+    });
+    inciso("I — SINAL (arras confirmatórias, art. 417 do Código Civil), sem correção monetária", sinal, true);
+
+    var pre = [];
+    if (positivo(fl.pre1N) && positivo(fl.pre1Valor)) pre.push("1ª etapa: " + serieMensal(fl.pre1N, fl.pre1Valor, fl.pre1Data, fl.diaPagamento));
+    if (positivo(fl.pre2N) && positivo(fl.pre2Valor)) pre.push("2ª etapa: " + serieMensal(fl.pre2N, fl.pre2Valor, fl.pre2Data, fl.diaPagamento));
+    inciso("II — PARCELAS MENSAIS DURANTE A OBRA (pré-chaves), corrigidas na forma do item 7.1, \"a\"", pre, true);
+
+    var baloes = [];
+    if (positivo(fl.balao1Valor)) baloes.push(valorExtenso(fl.balao1Valor) + ", com vencimento em " + dataBR(fl.balao1Data));
+    if (positivo(fl.balao2Valor)) baloes.push(valorExtenso(fl.balao2Valor) + ", com vencimento em " + dataBR(fl.balao2Data) +
+      ", ou na data da entrega das chaves, o que ocorrer primeiro");
+    inciso("III — PARCELAS INTERMEDIÁRIAS (balões), corrigidas na forma do item 7.1, \"a\"", baloes, true);
+
+    var terceiros = [];
+    if (positivo(fl.credito)) terceiros.push("Financiamento bancário: " + valorExtenso(fl.credito) +
+      ", a ser pago diretamente pela instituição financeira na assinatura do contrato de financiamento, observada a Cláusula Oitava");
+    if (positivo(fl.fgts)) terceiros.push("Recursos do FGTS: " + valorExtenso(fl.fgts) + ", na data do respectivo resgate (item 13.3)");
+    if (positivo(fl.subsidio)) terceiros.push("Subsídio: " + valorExtenso(fl.subsidio));
+    inciso("IV — RECURSOS DE TERCEIROS, sem correção pela VENDEDORA", terceiros, true,
+      "Na hipótese de o financiamento, o FGTS ou o subsídio serem liberados em valor inferior ao previsto, a diferença será paga pelo COMPRADOR à vista, na data da assinatura do contrato de financiamento (item 13.4).");
+
+    var pos = [];
+    if (positivo(fl.posN) && positivo(fl.posValor))
+      pos.push(serieMensal(fl.posN, fl.posValor, fl.posData, fl.diaPagamento, " (mês seguinte à entrega das chaves)"));
+    inciso("V — PARCELAS APÓS A ENTREGA DAS CHAVES (pós-chaves), corrigidas e acrescidas de juros na forma do item 7.1, \"b\"", pos, false);
+    return linhas.join("\n");
+  }
+
+  /* Quantos caracteres do começo da linha do 6.1 / dos fiadores vão em negrito (0 = nenhum). */
+  function negritoDaLinha(linha) {
+    var t = txt(linha), m;
+    if (/^(?:I|II|III|IV|V) — /.test(t)) return t.length;
+    if ((m = /^6\.1\. Preço total: [^)]*\),?/.exec(t))) return m[0].length;
+    if ((m = /^FIADOR \d:/.exec(t))) return m[0].length;
+    return 0;
+  }
+
+  function fiadorNormal(x) {
+    x = x || {};
+    return {
+      nome: txt(x.nome), cpf: R().cpfValido(x.cpf) ? R().formatarCpf(x.cpf) : txt(x.cpf), rg: txt(x.rg),
+      nacionalidade: txt(x.nacionalidade), endereco: txt(x.endereco), numero: txt(x.numero),
+      setor: txt(x.setor), cidade: txt(x.cidade), cep: txt(x.cep), email: txt(x.email)
+    };
+  }
+  /* Só os fiadores com nome, na ordem (o 1º preenchido é o FIADOR 1). */
+  function fiadoresPreenchidos(lista) {
+    return (lista || []).map(fiadorNormal).filter(function (fi) { return fi.nome !== ""; });
+  }
+  function enderecoFiador(fi) {
+    var partes = [];
+    if (fi.endereco) partes.push(fi.endereco);
+    if (fi.numero) partes.push("nº " + fi.numero.replace(/^n[ºo°]\.?\s*/i, ""));
+    if (fi.setor) partes.push(fi.setor);
+    if (fi.cidade) partes.push(fi.cidade);
+    if (fi.cep) partes.push("CEP " + fi.cep.replace(/^CEP:?\s*/i, ""));
+    return partes.join(", ");
+  }
+  function rgFiador(rg) {
+    var r = txt(rg).replace(/^RG(?![A-Za-z]):?\s*(?:n[ºo°]\.?\s*)?/i, "");
+    return r ? "RG nº " + r : "";
+  }
+  /* "FIADOR 1: nome, nacionalidade, RG nº …, CPF nº …, residente e domiciliado à …, e-mail …." (estado civil e profissão não existem na base: ficam de fora) */
+  function qualificacaoFiadores(lista) {
+    return fiadoresPreenchidos(lista).map(function (fi, i) {
+      var end = enderecoFiador(fi);
+      var partes = [fi.nome, fi.nacionalidade, rgFiador(fi.rg), fi.cpf ? "CPF nº " + fi.cpf : "",
+        end ? "residente e domiciliado à " + end : "", fi.email ? "e-mail " + fi.email : ""];
+      return "FIADOR " + (i + 1) + ": " + partes.filter(function (p) { return p !== ""; }).join(", ") + ".";
+    }).join("\n");
+  }
+
+  function montarCondominio(c) {
+    var areaPriv = num(c.areaPrivativa);
+    return {
+      nome: txt(c.nome).replace(/^CONDOM[IÍ]NIO\s+/i, ""), unidade: txt(c.unidade),
+      areaPrivativa: areaPriv, fracaoIdeal: txt(c.fracaoIdeal),
+      fluxo: fluxoCondominio(c.fluxo),
+      fiadores: fiadoresPreenchidos(c.fiadores)
+    };
+  }
+
   function montarDadosContrato(f) {
     f = f || {};
     var v = f.venda || {}, o = f.obra || {};
     var c1 = v.COMPRADOR1 || {}, c2 = v.COMPRADOR2 || {};
     var temC2 = !vazio(c2.nome);
-    var pagaPor = up(v.COMISSAO_PAGA_POR);
-    var total = num(v.VALOR_CONTRATO), comissao = num(v.COMISSAO), naMao = num(v.VALOR_NA_MAO);
+    var cond = f.condominio ? montarCondominio(f.condominio) : null;
+    /* condomínio: a comissão é paga pela incorporadora (vendedor) e não entra no preço do comprador */
+    var pagaPor = cond ? "VENDEDOR" : up(v.COMISSAO_PAGA_POR);
+    var total = cond && cond.fluxo.valorVenda !== null ? cond.fluxo.valorVenda : num(v.VALOR_CONTRATO);
+    var comissao = num(v.COMISSAO), naMao = num(v.VALOR_NA_MAO);
     var aquisicao, intermediacao;
     if (pagaPor === "VENDEDOR") {
       aquisicao = total;
@@ -208,8 +360,8 @@ var ContratoVenda = (function () {
     }
     var vend = f.vendedor || null;
     var lq = loteQuadra(v.ENDERECO);
-    return {
-      modelo: escolherModelo(o.obraFinalizada),
+    var dados = {
+      modelo: escolherModelo(o.obraFinalizada, !!cond),
       comprador1: {
         nome: nomeComprador1(v.CLIENTES, c2.nome), cpf: txt(v.CPF),
         nacionalidade: txt(c1.nacionalidade), estadoCivil: txt(c1.estadoCivil), profissao: txt(c1.profissao),
@@ -265,6 +417,9 @@ var ContratoVenda = (function () {
       hojeISO: txt(f.hojeISO),
       cidadeAssinatura: txt(f.cidadeAssinatura) || "Goiânia"
     };
+    /* só existe no condomínio: o carimbo dos contratos que não são do condomínio não muda */
+    if (cond) dados.condominio = cond;
+    return dados;
   }
 
   function faltasContrato(d) {
@@ -309,19 +464,111 @@ var ContratoVenda = (function () {
       exige(!vazio(v.pix), "Vendedor", "Pix");
     }
 
-    var l = d.loteamento;
-    if (!l) faltas.push("Loteamento: cadastro em LOTEAMENTOS – CONTRATO");
+    var l = d.loteamento, gl = d.condominio ? "Condomínio" : "Loteamento";
+    if (!l) faltas.push(d.condominio ? "Condomínio: cadastro em LOTEAMENTOS – CONTRATO (linha com o nome do condomínio, igual ao ENDEREÇO da casa)"
+                                     : "Loteamento: cadastro em LOTEAMENTOS – CONTRATO");
     else {
-      exige(!vazio(l.denominacao), "Loteamento", "denominação");
-      exige(!vazio(l.municipioUf), "Loteamento", "município/UF");
-      exige(!vazio(l.matricula), "Loteamento", "matrícula do loteamento");
-      exige(!vazio(l.cartorio), "Loteamento", "cartório");
+      exige(!vazio(l.denominacao), gl, "denominação");
+      exige(!vazio(l.municipioUf), gl, "município/UF");
+      exige(!vazio(l.matricula), gl, d.condominio ? "matrícula do empreendimento" : "matrícula do loteamento");
+      exige(!vazio(l.cartorio), gl, "cartório");
       if (pronto) {
         exige(!vazio(l.prazoPosseDias), "Loteamento", "prazo de posse (dias)");
         exige(!vazio(l.prazoChavesDias), "Loteamento", "prazo de entrega das chaves (dias)");
       }
     }
 
+    if (d.condominio) faltasCondominio(d, faltas);
+    else faltasCasaDeRua(d, faltas, pronto);
+
+    var k = d.corretor;
+    if (!k) {
+      faltas.push(vazio(d.corretorNaVenda) ? "Corretor: corretor na venda" : "Corretor: cadastro em CORRETORES – CONTRATO");
+    } else {
+      exige(!vazio(k.nome), "Corretor", "nome");
+      exige(!vazio(k.creci), "Corretor", "CRECI");
+      exige(!vazio(k.cpfCnpj), "Corretor", "CPF/CNPJ");
+    }
+    return faltas;
+  }
+
+  /* Condomínio (decisão do dono 07/10): os dados do imóvel (unidade, fração, área, matrícula, CRI,
+     alvará, prazo) PODEM ficar em branco — saem "____" no contrato e viram aviso (avisosContrato).
+     Bloqueiam: assinatura, dia de pagamento, entrega, fluxo que não fecha com o VALOR DE VENDA,
+     comprador sem nome ou sem CPF válido, fiador com nome sem CPF válido/RG/endereço. */
+  function faltasCondominio(d, faltas) {
+    function exige(cond, grupo, item) { if (!cond) faltas.push(grupo + ": " + item); }
+    var co = d.condominio, fl = co.fluxo;
+    [[d.comprador1, "Comprador 1"], [d.comprador2, "Comprador 2"]].forEach(function (p) {
+      if (p[0] && !vazio(p[0].cpf) && !R().cpfValido(p[0].cpf)) faltas.push(p[1] + ": CPF inválido");
+    });
+
+    var g = "Fluxo de pagamento";
+    exige(!vazio(fl.assinatura), g, "data de assinatura do contrato");
+    exige(fl.diaPagamento !== null && fl.diaPagamento >= 1 && fl.diaPagamento <= 31, g, "dia de pagamento das parcelas");
+    exige(!vazio(fl.entrega), g, "data da entrega");
+    exige(positivo(fl.valorVenda), g, "valor de venda");
+    function comData(valor, data, nome) { if (positivo(valor)) exige(!vazio(data), g, nome + " (data)"); }
+    function serie(n, valor, data, nome) {
+      if (!positivo(n) && !positivo(valor)) return;
+      exige(positivo(n), g, nome + " (nº de parcelas)");
+      exige(positivo(valor), g, nome + " (valor)");
+      exige(!vazio(data), g, nome + " (data da 1ª)");
+    }
+    comData(fl.sinal30, fl.data30, "sinal 30 dias");
+    comData(fl.sinal60, fl.data60, "sinal 60 dias");
+    comData(fl.sinal90, fl.data90, "sinal 90 dias");
+    serie(fl.pre1N, fl.pre1Valor, fl.pre1Data, "1ª parte pré-chaves");
+    serie(fl.pre2N, fl.pre2Valor, fl.pre2Data, "2ª parte pré-chaves");
+    comData(fl.balao1Valor, fl.balao1Data, "1º balão");
+    comData(fl.balao2Valor, fl.balao2Data, "balão da entrega das chaves");
+    serie(fl.posN, fl.posValor, fl.posData, "pós-chaves");
+    if (positivo(fl.valorVenda)) {
+      var soma = somaFluxo(fl);
+      if (Math.abs(soma - fl.valorVenda) > 0.05)
+        faltas.push(g + ": soma R$ " + moedaBR(soma) + " e não fecha com o valor de venda R$ " + moedaBR(fl.valorVenda));
+    }
+
+    co.fiadores.forEach(function (fi, i) {
+      var gf = "Fiador " + (i + 1);
+      if (vazio(fi.cpf)) faltas.push(gf + ": CPF");
+      else if (!R().cpfValido(fi.cpf)) faltas.push(gf + ": CPF inválido");
+      exige(!vazio(fi.rg), gf, "RG");
+      exige(!vazio(fi.endereco), gf, "endereço");
+    });
+  }
+
+  /* Avisos (não impedem gerar): campos que saem em branco ("____") no contrato do condomínio e
+     fiador com CPF repetido. Só nomes de campo — nenhum dado pessoal. [] fora do condomínio. */
+  function avisosContrato(d) {
+    var co = d && d.condominio;
+    if (!co) return [];
+    var a = [], im = d.imovel;
+    function branco(ok, item) { if (!ok) a.push("Em branco no contrato: " + item); }
+    branco(!vazio(co.unidade), "unidade");
+    branco(positivo(co.areaPrivativa), "área privativa");
+    branco(!vazio(co.fracaoIdeal), "fração ideal");
+    branco(!vazio(im.matriculaIndividual), "matrícula individual");
+    branco(!vazio(im.cri), "CRI da matrícula");
+    branco(!vazio(im.alvaraNumero), "alvará (número)");
+    branco(!vazio(im.alvaraData), "alvará (data)");
+    branco(!vazio(im.prazoConclusao), "prazo previsto de conclusão das obras");
+    var so = function (x) { return txt(x).replace(/\D/g, ""); };
+    var cpfsCompradores = [d.comprador1 && d.comprador1.cpf, d.comprador2 && d.comprador2.cpf]
+      .map(so).filter(function (x) { return x !== ""; });
+    var vistos = {};
+    co.fiadores.forEach(function (fi, i) {
+      var cpf = so(fi.cpf);
+      if (!cpf) return;
+      if (cpfsCompradores.indexOf(cpf) >= 0) a.push("Fiador " + (i + 1) + ": CPF igual ao de um comprador");
+      if (vistos[cpf]) a.push("Fiadores: os dois têm o mesmo CPF");
+      vistos[cpf] = true;
+    });
+    return a;
+  }
+
+  function faltasCasaDeRua(d, faltas, pronto) {
+    function exige(cond, grupo, item) { if (!cond) faltas.push(grupo + ": " + item); }
     var im = d.imovel;
     exige(!vazio(im.lote) && !vazio(im.quadra), "Imóvel", "lote e quadra no endereço");
     exige(!vazio(im.matriculaIndividual), "Imóvel", "matrícula individual");
@@ -357,16 +604,6 @@ var ContratoVenda = (function () {
     exige(!vazio(c.forma), "Negociação", "comissão (forma)");
     exige(!vazio(c.vencimento), "Negociação", "comissão (vencimento)");
     exige(c.pagaPor === "COMPRADOR" || c.pagaPor === "VENDEDOR", "Negociação", "comissão paga por");
-
-    var k = d.corretor;
-    if (!k) {
-      faltas.push(vazio(d.corretorNaVenda) ? "Corretor: corretor na venda" : "Corretor: cadastro em CORRETORES – CONTRATO");
-    } else {
-      exige(!vazio(k.nome), "Corretor", "nome");
-      exige(!vazio(k.creci), "Corretor", "CRECI");
-      exige(!vazio(k.cpfCnpj), "Corretor", "CPF/CNPJ");
-    }
-    return faltas;
   }
 
   function moedaOuVazio(n) { return n === null || n === undefined ? "" : moedaBR(n); }
@@ -386,7 +623,19 @@ var ContratoVenda = (function () {
     var ehPF = v.tipo === "PF";
     var interm = typeof n.intermediacao === "string" ? n.intermediacao
       : (n.intermediacao === null ? "" : "R$ " + moedaBR(n.intermediacao));
-    return {
+    var co = d.condominio || null, fis = co ? co.fiadores : [];
+    var m = {
+      /* condomínio (vazios fora dele; o modelo de casa de rua não usa) */
+      CONDOMINIO_NOME: co ? co.nome : "",
+      UNIDADE: co ? co.unidade : "",
+      AREA_PRIVATIVA: co ? areaTxt(co.areaPrivativa) : "",
+      FRACAO_IDEAL: co ? co.fracaoIdeal : "",
+      FORMA_PAGAMENTO_CONDOMINIO: co ? formaPagamentoCondominio(co.fluxo) : "",
+      FIADORES_QUALIFICACAO: qualificacaoFiadores(fis),
+      FIADOR1_NOME: fis[0] ? fis[0].nome : "",
+      FIADOR1_CPF: fis[0] ? fis[0].cpf : "",
+      FIADOR2_NOME: fis[1] ? fis[1].nome : "",
+      FIADOR2_CPF: fis[1] ? fis[1].cpf : "",
       COMPRADORES: compradores,
       VENDEDOR_NOME: txt(v.nome) || d.nomeProprietario,
       VENDEDOR_DOC: txt(v.cpfCnpj),
@@ -444,17 +693,26 @@ var ContratoVenda = (function () {
       PRAZO_CHAVES_DIAS: txt(l.prazoChavesDias),
       CIDADE_DATA: d.cidadeAssinatura + ", " + dataPorExtenso(d.hojeISO)
     };
+    /* condomínio: dado do imóvel em branco não trava (decisão do dono) — sai um traço para preencher à mão */
+    if (co) CAMPOS_EM_BRANCO.forEach(function (k) { if (vazio(m[k])) m[k] = EM_BRANCO; });
+    return m;
   }
+  var EM_BRANCO = "____";
+  var CAMPOS_EM_BRANCO = ["UNIDADE", "AREA_PRIVATIVA", "FRACAO_IDEAL", "MATRICULA_INDIVIDUAL", "CRI",
+    "ALVARA_NUMERO", "ALVARA_DATA", "PRAZO_CONCLUSAO"];
 
   function blocos(d) {
-    var v = d.vendedor || {}, n = d.negociacao;
+    var v = d.vendedor || {}, n = d.negociacao, fis = d.condominio ? d.condominio.fiadores : [];
     var temInterm = n.intermediariaValor !== null && n.intermediariaValor > 0;
     return {
       SE_VENDEDOR_PJ: v.tipo === "PJ",
       SE_VENDEDOR_PF: v.tipo === "PF",
       SE_INTERMEDIARIA: temInterm,
       SEM_INTERMEDIARIA: !temInterm,
-      SE_COMISSAO_VENDEDOR: d.comissao.pagaPor === "VENDEDOR"
+      SE_COMISSAO_VENDEDOR: d.comissao.pagaPor === "VENDEDOR",
+      TEM_FIADORES: fis.length > 0,
+      TEM_FIADOR1: fis.length > 0,
+      TEM_FIADOR2: fis.length > 1
     };
   }
 
@@ -463,7 +721,11 @@ var ContratoVenda = (function () {
     dataBR: dataBR, dataPorExtenso: dataPorExtenso, loteQuadra: loteQuadra,
     escolherModelo: escolherModelo, qualificacao: qualificacao,
     montarDadosContrato: montarDadosContrato, faltasContrato: faltasContrato,
-    marcadores: marcadores, blocos: blocos
+    marcadores: marcadores, blocos: blocos, avisosContrato: avisosContrato,
+    formaPagamentoCondominio: formaPagamentoCondominio, qualificacaoFiadores: qualificacaoFiadores,
+    somaFluxo: function (fl) { return somaFluxo(fluxoCondominio(fl)); }, negritoDaLinha: negritoDaLinha,
+    /* marcadores cujo valor tem várias linhas: no Docs, o parágrafo que só tem o marcador vira um parágrafo por linha */
+    MARCADORES_PARAGRAFOS: ["FORMA_PAGAMENTO_CONDOMINIO", "FIADORES_QUALIFICACAO"]
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   return api;

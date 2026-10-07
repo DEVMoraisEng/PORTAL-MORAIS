@@ -70,7 +70,8 @@ test("dados completos: nenhuma falta, modelo PRONTO, valores com comprador pagan
   assert.equal(m.COMPRADORES, "ANA TESTE, brasileira, solteira, professora, RG nº 1234567 SSP/GO, CPF nº 529.982.247-25, residente e domiciliado à RUA TESTE, 10, GOIÂNIA/GO");
   assert.equal(m.SINAL_DATA, "28/09/2026");
   const b = C.blocos(d);
-  assert.deepEqual(b, { SE_VENDEDOR_PJ: true, SE_VENDEDOR_PF: false, SE_INTERMEDIARIA: false, SEM_INTERMEDIARIA: true, SE_COMISSAO_VENDEDOR: false });
+  assert.deepEqual(b, { SE_VENDEDOR_PJ: true, SE_VENDEDOR_PF: false, SE_INTERMEDIARIA: false, SEM_INTERMEDIARIA: true, SE_COMISSAO_VENDEDOR: false,
+    TEM_FIADORES: false, TEM_FIADOR1: false, TEM_FIADOR2: false });
   for (const [k, v] of Object.entries(m)) assert.equal(typeof v, "string", k);
 });
 
@@ -99,7 +100,8 @@ test("vendedor PF, comissão paga pelo vendedor e intermediária", () => {
   const d = C.montarDadosContrato(f);
   assert.deepEqual(C.faltasContrato(d), []);
   const m = C.marcadores(d), b = C.blocos(d);
-  assert.deepEqual(b, { SE_VENDEDOR_PJ: false, SE_VENDEDOR_PF: true, SE_INTERMEDIARIA: true, SEM_INTERMEDIARIA: false, SE_COMISSAO_VENDEDOR: true });
+  assert.deepEqual(b, { SE_VENDEDOR_PJ: false, SE_VENDEDOR_PF: true, SE_INTERMEDIARIA: true, SEM_INTERMEDIARIA: false, SE_COMISSAO_VENDEDOR: true,
+    TEM_FIADORES: false, TEM_FIADOR1: false, TEM_FIADOR2: false });
   assert.equal(m.VALOR_IMOVEL, "300.000,00");
   assert.equal(m.VALOR_INTERMEDIACAO, "paga pelo VENDEDOR");
   assert.equal(m.VALOR_TOTAL, "R$ 300.000,00");

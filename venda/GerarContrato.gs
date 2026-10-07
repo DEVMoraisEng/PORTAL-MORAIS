@@ -5,8 +5,14 @@
  * pasta provisória, preenche marcadores e blocos, exporta PDF, sobe o PDF para
  * CONTRATO GERADO e APAGA a cópia (finally).
  * Propriedades do script: DB_VENDEDORES, DB_LOTEAMENTOS, DB_CORRETORES,
- * MODELO_PRONTO_ID, MODELO_CONSTRUCAO_ID, PASTA_PROVISORIA_ID, CIDADE_ASSINATURA
- * (opcional). Serviços: DocumentApp, DriveApp e Drive API avançada (v3).
+ * MODELO_PRONTO_ID, MODELO_CONSTRUCAO_ID, MODELO_CONDOMINIO_ID, PASTA_PROVISORIA_ID,
+ * DB_VENDAS_COND (venda do condomínio), CIDADE_ASSINATURA (opcional).
+ * Serviços: DocumentApp, DriveApp e Drive API avançada (v3).
+ * Condomínio: a casa com "CONDOMÍNIO - VENDA ID" preenchido lê também a linha da
+ * BANCO DE DADOS VENDAS CONDOMÍNIO (fluxo de pagamento, fiadores, unidade, corretor)
+ * e usa o modelo MODELO_CONDOMINIO_ID. O vendedor vem como nas outras casas (obra em
+ * DOCUMENTOS pelo ENDEREÇO da casa -> PROPRIETARIO DOCUMENTO -> VENDEDORES); o
+ * empreendimento vem de LOTEAMENTOS pelo ENDEREÇO da casa (nome do condomínio), não pelo SETOR.
  * Log só com ação, pageId abreviado, tempos e contagens — nunca valores. */
 
 function ctrTxt_(v) { return v === null || v === undefined ? "" : String(v); }
@@ -103,6 +109,60 @@ function ctrObraProps_(rels, endereco) {
   return achadas.length ? achadas[0] : null;
 }
 
+/* ---- condomínio ---- */
+var CTR_REGEX_ID_COND = /^[0-9a-f]{32}$|^[0-9a-f-]{36}$/i;
+/* Linha da BANCO DE DADOS VENDAS CONDOMÍNIO apontada pela casa: { c } (propriedades por chave) ou { erro } legível. */
+function ctrLerCondominio_(idCond) {
+  var db = prop_("DB_VENDAS_COND");
+  if (!db) return { erro: "Condomínio: Propriedade DB_VENDAS_COND não configurada" };
+  if (!CTR_REGEX_ID_COND.test(idCond)) return { erro: "Condomínio: CONDOMÍNIO - VENDA ID inválido na casa" };
+  var pg;
+  try { pg = notion_("GET", "/pages/" + idCond, null); }
+  catch (e) {
+    ctrErro_("contrato: pagina do condominio ilegivel", e);
+    return { erro: "Condomínio: a linha da venda do condomínio (CONDOMÍNIO - VENDA ID) não foi encontrada" };
+  }
+  var pai = String((pg.parent && pg.parent.database_id) || "").replace(/-/g, "").toLowerCase();
+  if (pai !== db.replace(/-/g, "").toLowerCase())
+    return { erro: "Condomínio: CONDOMÍNIO - VENDA ID aponta para uma página que não é da BANCO DE DADOS VENDAS CONDOMÍNIO" };
+  return { c: ctrPorChave_(pg.properties || {}) };
+}
+/* Fluxo, fiadores, unidade e corretor da linha do condomínio (nomes de coluna comparados normalizados). */
+function ctrDadosCondominio_(c) {
+  function k(nome) { return ctrCampo_(c, nome); }
+  function n(nome) { return ctrNum_(k(nome)); }
+  function t(nome) { var x = k(nome); return x === null || x === undefined ? "" : ctrTxt_(x).trim(); }
+  function fiador(i) {
+    return { nome: t("FIADOR " + i), cpf: t("CPF FIADOR " + i), rg: t("RG FIADOR " + i), nacionalidade: t("NACIONALIDADE FIADOR " + i),
+             endereco: t("ENDERECO FIADOR " + i), numero: t("NUMERO FIADOR " + i), setor: t("SETOR FIADOR " + i),
+             cidade: t("CIDADE FIADOR " + i), cep: t("CEP FIADOR " + i), email: t("EMAIL FIADOR " + i) };
+  }
+  return {
+    condominio: {
+      nome: t("CONDOMÍNIO"), unidade: t("UNIDADE"), areaPrivativa: n("CONTRATO - ÁREA PRIVATIVA (M²)"), fracaoIdeal: t("CONTRATO - FRAÇÃO IDEAL"),
+      fluxo: {
+        assinatura: t("DATA DE ASSINATURA DO CONTRATO"), diaPagamento: n("DIA PAGAMENTO PARCELAS"), entrega: t("DATA DA ENTREGA"),
+        valorVenda: n("VALOR DE VENDA"), sinalAto: n("VALOR SINAL ATO"),
+        sinal30: n("VALOR SINAL 30 DIAS"), data30: t("DATA SINAL 30 DIAS"),
+        sinal60: n("VALOR SINAL 60 DIAS"), data60: t("DATA SINAL 60 DIAS"),
+        sinal90: n("VALOR SINAL 90 DIAS"), data90: t("DATA SINAL 90 DIAS"),
+        pre1N: n("Nº PARCELAS 1º PARTE PRÉ CHAVES"), pre1Valor: n("VALOR 1º PARTE PRÉ CHAVES"), pre1Data: t("DATA 1º PARTE PRÉ CHAVES"),
+        pre2N: n("Nº PARCELAS 2º PARTE PRÉ CHAVES"), pre2Valor: n("VALOR 2º PARTE PRÉ CHAVES"), pre2Data: t("DATA 2º PARTE PRÉ CHAVES"),
+        balao1Valor: n("VALOR 1º BALÃO"), balao1Data: t("DATA 1º BALÃO (12/27)"),
+        balao2Valor: n("VALOR BALÃO ENTREGA DE CHAVES"), balao2Data: t("DATA 2º BALÃO (25º PARCELA)"),
+        posN: n("Nº PARCELAS PÓS CHAVES"), posValor: n("VALOR PÓS CHAVES"), posData: t("DATA PÓS CHAVES"),
+        credito: n("VALOR DO CRÉDITO"), fgts: n("VALOR DO FGTS"), subsidio: n("SUBISÍDIO")
+      },
+      fiadores: [fiador(1), fiador(2)]
+    },
+    /* o imóvel do condomínio mora na linha do condomínio; a casa só completa o que faltar */
+    imovel: { MATRICULA_INDIVIDUAL: t("CONTRATO - MATRÍCULA INDIVIDUAL"), CRI: t("CONTRATO - CRI DA MATRÍCULA"),
+              ALVARA_NUMERO: t("CONTRATO - ALVARÁ Nº"), ALVARA_DATA: t("CONTRATO - ALVARÁ DATA"),
+              PRAZO_CONCLUSAO: t("CONTRATO - PRAZO DE CONCLUSÃO DAS OBRAS"), CONDICOES_ESPECIAIS: t("CONTRATO - CONDIÇÕES ESPECIAIS") },
+    corretor: { nome: t("CORRETOR"), creci: t("CRECI"), cpfCnpj: t("CPF CORRETOR"), email: t("EMAIL CORRETOR") }
+  };
+}
+
 /* Colunas da VENDAS que o contrato exige além das do dossiê. */
 var CTR_COLUNAS_VENDA = ["VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)", "COMISSÃO", "VALOR NA MÃO", "CORRETOR", "SETOR", "OBRA-AUTO"];
 
@@ -146,6 +206,15 @@ function ctrFontes_(col, pageId) {
   };
   var setor = ctrTxt_(cv("SETOR"));
 
+  /* venda do condomínio: a casa aponta para a linha da BANCO DE DADOS VENDAS CONDOMÍNIO */
+  var idCond = ctrTxt_(cv(CondominioVenda.COLUNA_ID)).trim(), cond = null;
+  if (idCond) {
+    var lido = ctrLerCondominio_(idCond);
+    if (lido.erro) return { condominioErro: lido.erro };
+    cond = ctrDadosCondominio_(lido.c);
+    for (var campo in cond.imovel) if (cond.imovel[campo]) venda[campo] = cond.imovel[campo];
+  }
+
   /* a obra: relação OBRA-AUTO se aponta para DOCUMENTOS; senão, pelo ENDEREÇO (título) */
   var props = ctrObraProps_(cv("OBRA-AUTO"), venda.ENDERECO);
   if (!props) return { obraNaoEncontrada: true };
@@ -156,7 +225,8 @@ function ctrFontes_(col, pageId) {
 
   /* os três cadastros */
   var lv = ctrAcharLinha_(ctrLinhasBase_(prop_("DB_VENDEDORES")), obra.proprietario);
-  var ll = ctrAcharLinha_(ctrLinhasBase_(prop_("DB_LOTEAMENTOS")), setor);
+  /* condomínio: o empreendimento é a linha de LOTEAMENTOS com o nome do condomínio (= ENDEREÇO da casa) */
+  var ll = ctrAcharLinha_(ctrLinhasBase_(prop_("DB_LOTEAMENTOS")), cond ? venda.ENDERECO : setor);
   var lc = ctrAcharLinha_(ctrLinhasBase_(prop_("DB_CORRETORES")), venda.CORRETOR);
   var duplicados = [];
   if (lv && lv.duplicado) duplicados.push("Vendedor: cadastro duplicado em VENDEDORES – CONTRATO");
@@ -181,9 +251,16 @@ function ctrFontes_(col, pageId) {
     nome: lc.titulo, creci: t(lc, "CRECI"), cpfCnpj: t(lc, "CPF/CNPJ"), nacionalidade: t(lc, "NACIONALIDADE"),
     endereco: t(lc, "ENDEREÇO PROFISSIONAL"), email: t(lc, "E-MAIL")
   } : null;
+  /* condomínio: o corretor da linha do condomínio vale; CORRETORES – CONTRATO só completa o que faltar */
+  if (cond && cond.corretor.nome) {
+    var kc = cond.corretor, base = corretor || {};
+    corretor = { nome: kc.nome, creci: kc.creci || base.creci || "", cpfCnpj: kc.cpfCnpj || base.cpfCnpj || "",
+                 nacionalidade: base.nacionalidade || "", endereco: base.endereco || "", email: kc.email || base.email || "" };
+  }
 
   return {
     fontes: { venda: venda, obra: obra, vendedor: vendedor, loteamento: loteamento, corretor: corretor,
+              condominio: cond ? cond.condominio : null,
               hojeISO: hoje_("yyyy-MM-dd"), cidadeAssinatura: prop_("CIDADE_ASSINATURA") || "Goiânia" },
     endereco: venda.ENDERECO, casa: ctrTxt_(cv("CASA")), colGerado: nomeReal(CV.CONTRATO_GERADO)
   };
@@ -208,12 +285,43 @@ function aplicarBlocos_(body, blocos) {
     if (!manter) i = fim; /* o miolo já saiu; um bloco aninhado dentro dele não conta */
   }
 }
+/* chaves duplas no valor digitado não podem virar marcador falso nem injetar outra chave;
+   barra invertida e $ entram literais (o replaceText do Docs interpreta os dois) */
+function ctrValorSeguro_(v) {
+  return ctrTxt_(v).replace(/\{\{|\}\}/g, "").replace(/\\/g, "\\\\").replace(/\$/g, "\\$");
+}
 function aplicarMarcadores_(body, marcadores) {
+  var paragrafos = ContratoVenda.MARCADORES_PARAGRAFOS || [];
   for (var chave in marcadores) {
-    /* chaves duplas no valor digitado não podem virar marcador falso nem injetar outra chave */
-    var valor = ctrTxt_(marcadores[chave]).replace(/\{\{|\}\}/g, "").replace(/\\/g, "\\\\").replace(/\$/g, "\\$");
-    body.replaceText("\\{\\{" + chave + "\\}\\}", valor);
+    var v = ctrTxt_(marcadores[chave]);
+    if (paragrafos.indexOf(chave) >= 0) v = v.replace(/\n/g, " "); /* fora de parágrafo próprio: uma linha só */
+    body.replaceText("\\{\\{" + chave + "\\}\\}", ctrValorSeguro_(v));
   }
+}
+/* Marcador de várias linhas (ContratoVenda.MARCADORES_PARAGRAFOS) sozinho num parágrafo: vira um
+   parágrafo por linha, cópias do parágrafo do modelo (mesma formatação), com o começo da linha em
+   negrito quando ContratoVenda.negritoDaLinha pede (cabeçalho dos incisos do 6.1, "FIADOR n:"). */
+function ctrExpandirParagrafos_(body, marcadores) {
+  var nomes = ContratoVenda.MARCADORES_PARAGRAFOS || [];
+  var pars = body.getParagraphs();
+  for (var i = 0; i < pars.length; i++) {
+    var m = /^\{\{([A-Z0-9_]+)\}\}$/.exec(String(pars[i].getText()).trim());
+    if (!m || nomes.indexOf(m[1]) < 0) continue;
+    var re = "\\{\\{" + m[1] + "\\}\\}";
+    var linhas = ctrTxt_(marcadores[m[1]]).split("\n");
+    var p = pars[i], pai = p.getParent(), pos = pai.getChildIndex(p), molde = p.copy();
+    p.replaceText(re, ctrValorSeguro_(linhas[0]));
+    ctrNegrito_(p, linhas[0]);
+    for (var j = 1; j < linhas.length; j++) {
+      var novo = pai.insertParagraph(pos + j, molde.copy());
+      novo.replaceText(re, ctrValorSeguro_(linhas[j]));
+      ctrNegrito_(novo, linhas[j]);
+    }
+  }
+}
+function ctrNegrito_(p, linha) {
+  var n = Math.min(ContratoVenda.negritoDaLinha(linha), ctrTxt_(p.getText()).length);
+  if (n > 0) p.editAsText().setBold(0, n - 1, true);
 }
 /* Nomes (só nomes) dos marcadores que sobraram no texto; [] se está limpo. */
 function ctrMarcadoresNoTexto_(t) {
@@ -257,6 +365,7 @@ function ctrCarimbo_(d) {
   var base = { modelo: d.modelo, comprador1: d.comprador1, comprador2: d.comprador2, vendedor: d.vendedor,
                nomeProprietario: d.nomeProprietario, corretor: d.corretor, corretorNaVenda: d.corretorNaVenda,
                loteamento: d.loteamento, imovel: d.imovel, negociacao: d.negociacao, comissao: d.comissao };
+  if (d.condominio) base.condominio = d.condominio; /* fluxo, fiadores, unidade (só no condomínio: os carimbos antigos não mudam) */
   var b = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, JSON.stringify(base), Utilities.Charset.UTF_8);
   var h = "";
   for (var i = 0; i < 4; i++) h += ("0" + (b[i] & 255).toString(16)).slice(-2);
@@ -295,6 +404,10 @@ function gerarContrato_(col, sess, p) {
     ctrLog_("gerarContrato " + pid + " cadastro duplicado " + f.duplicados.length);
     return { ok: false, erro: "FALTAM_DADOS", faltas: f.duplicados };
   }
+  if (f.condominioErro) {
+    ctrLog_("gerarContrato " + pid + " condominio ilegivel");
+    return { ok: false, erro: "FALTAM_DADOS", faltas: [f.condominioErro] };
+  }
   if (f.obraNaoEncontrada) {
     ctrLog_("gerarContrato " + pid + " obra nao encontrada");
     return { ok: false, erro: "FALTAM_DADOS", faltas: ["Vendedor: obra da casa não encontrada em DOCUMENTOS (endereço)"] };
@@ -310,7 +423,7 @@ function gerarContrato_(col, sess, p) {
     ctrLog_("gerarContrato " + pid + " Drive API desligada");
     return { ok: false, erro: "DRIVE_API_DESLIGADA" }; /* sem ela a cópia com dado pessoal ficaria na lixeira */
   }
-  var modeloId = prop_(d.modelo === "PRONTO" ? "MODELO_PRONTO_ID" : "MODELO_CONSTRUCAO_ID"), pastaId = prop_("PASTA_PROVISORIA_ID");
+  var modeloId = prop_(d.modelo === "CONDOMINIO" ? "MODELO_CONDOMINIO_ID" : d.modelo === "PRONTO" ? "MODELO_PRONTO_ID" : "MODELO_CONSTRUCAO_ID"), pastaId = prop_("PASTA_PROVISORIA_ID");
   if (!modeloId || !pastaId) return { ok: false, erro: "MODELO_NAO_CONFIGURADO" };
   var modelo, pasta, marcadores, blocos;
   try { modelo = DriveApp.getFileById(modeloId); pasta = DriveApp.getFolderById(pastaId); }
@@ -328,6 +441,7 @@ function gerarContrato_(col, sess, p) {
     copia = modelo.makeCopy("contrato-provisorio-" + pid + "-" + Date.now(), pasta);
     var doc = DocumentApp.openById(copia.getId());
     aplicarBlocos_(doc.getBody(), blocos);
+    ctrExpandirParagrafos_(doc.getBody(), marcadores);
     ctrSecoes_(doc).forEach(function (sec) { aplicarMarcadores_(sec, marcadores); });
     var sobrando = ctrMarcadoresSobrando_(doc);
     if (sobrando.length) {
@@ -347,6 +461,7 @@ function gerarContrato_(col, sess, p) {
 
   var url = "";
   try { var a = ctrArquivoGerado_(ctrLerPaginaVenda_(p.pageId)); if (a) url = a.url; } catch (e) { ctrErro_("gerarContrato " + pid + " url", e); }
-  ctrLog_("gerarContrato " + pid + " ok " + (Date.now() - t0) + "ms");
-  return { ok: true, nome: nomePdf, url: url };
+  var avisos = ContratoVenda.avisosContrato(d);
+  ctrLog_("gerarContrato " + pid + " ok " + (Date.now() - t0) + "ms" + (avisos.length ? "; em branco " + avisos.length : ""));
+  return avisos.length ? { ok: true, nome: nomePdf, url: url, avisos: avisos } : { ok: true, nome: nomePdf, url: url };
 }

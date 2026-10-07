@@ -155,6 +155,7 @@ function assEnviarTravado_(col, p, pid) {
 
   /* mesmos dados do contrato (GerarContrato): o que foi gerado é o que se confere */
   var f = ctrFontes_(col, p.pageId);
+  if (f.condominioErro) return { ok: false, erro: "FALTAM_DADOS", faltas: [f.condominioErro] };
   if (f.obraAmbigua) return { ok: false, erro: "FALTAM_DADOS", faltas: ["Vendedor: obra ambígua em DOCUMENTOS (endereço repetido)"] };
   if (f.duplicados) return { ok: false, erro: "FALTAM_DADOS", faltas: f.duplicados };
   if (f.obraNaoEncontrada) return { ok: false, erro: "FALTAM_DADOS", faltas: ["Vendedor: obra da casa não encontrada em DOCUMENTOS (endereço)"] };

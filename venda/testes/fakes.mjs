@@ -268,8 +268,30 @@ export function driveFalso({ modelos = {}, avancado = true, falhaAbrir = null, c
   function docAberto(id) {
     const d = docs[id];
     const noCorpo = (p) => { if (!d.aberto) throw new Error("Document is closed"); return d.pars.indexOf(p); };
+    /* cópia solta (Paragraph.copy): fora do documento até insertParagraph */
+    const Solto = (p) => ({ _solto: p, copy: () => Solto({ texto: p.texto }), getText: () => p.texto });
+    /* o "pai" (Body ou TableCell): aqui o corpo é uma lista plana de parágrafos */
+    const pai = {
+      getChildIndex: (par) => { const i = noCorpo(par._p); if (i < 0) throw new Error("Element not in body"); return i; },
+      insertParagraph: (i, solto) => {
+        if (!d.aberto) throw new Error("Document is closed");
+        if (!solto || !solto._solto) throw new Error("insertParagraph precisa de um parágrafo solto (copy())");
+        const novo = { texto: solto._solto.texto };
+        d.pars.splice(i, 0, novo);
+        return pp(novo);
+      },
+    };
     const Par = (p) => ({
+      _p: p,
       getText: () => p.texto, setText: (t) => { noCorpo(p); p.texto = String(t); },
+      getParent: () => { noCorpo(p); return pai; },
+      copy: () => Solto({ texto: p.texto }),
+      replaceText: (padrao, rep) => { noCorpo(p); p.texto = p.texto.replace(new RegExp(padrao, "g"), (...a) => substituto(rep, a)); },
+      editAsText: () => ({ setBold: (ini, fim, b) => {
+        noCorpo(p);
+        if (ini < 0 || fim >= p.texto.length || fim < ini) throw new Error("Invalid range " + ini + "-" + fim);
+        (p.negrito = p.negrito || []).push([ini, fim, b]);
+      } }),
       removeFromParent: () => {
         const i = noCorpo(p);
         if (i < 0) throw new Error("Element not in body");
@@ -293,7 +315,9 @@ export function driveFalso({ modelos = {}, avancado = true, falhaAbrir = null, c
       },
       getHeader: () => secao(d, "header"),
       getFooter: () => secao(d, "footer"),
-      saveAndClose: () => { d.salvo = d.pars.map((p) => p.texto); d.aberto = false; estado.salvos[id] = { pars: d.salvo.slice(), cab: JSON.parse(JSON.stringify(d.cab)) }; },
+      saveAndClose: () => { d.salvo = d.pars.map((p) => p.texto); d.aberto = false; estado.salvos[id] = { pars: d.salvo.slice(), cab: JSON.parse(JSON.stringify(d.cab)),
+        /* trechos em negrito (editAsText().setBold) por parágrafo: [{ texto, negrito: [[ini, fim, b]] }] */
+        negritos: d.pars.filter((p) => p.negrito).map((p) => ({ texto: p.texto, negrito: p.negrito.slice() })) }; },
     };
   }
   const arquivo = (id) => {

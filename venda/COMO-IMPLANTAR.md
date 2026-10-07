@@ -21,7 +21,7 @@
    Documentos de comprador vão para a OpenAI (decisão do dono em 28/09/2026).
 4. Implantar › Nova implantação › App da Web › Executar como **Eu** › Quem pode
    acessar **Qualquer pessoa** › Implantar › autorizar (Avançado › Acessar).
-5. Teste: abrir `<URL>/exec?action=ping` → `{"ok":true,"versao":"venda-v2","papel":"VENDA"}`.
+5. Teste: abrir `<URL>/exec?action=ping` → `{"ok":true,"versao":"venda-v3","papel":"VENDA"}`.
 6. Mande a URL `/exec` no chat (não é segredo).
 
 Mudou o código? Implantar › Gerenciar implantações › lápis › Nova versão › Implantar.
@@ -326,6 +326,59 @@ Implantar:
 documentos grandes pode passar do limite de 6 minutos do Apps Script. Nesse
 caso a casa já existe: clicar de novo só abre a casa; o que faltou se anexa
 pelo Dossiê do comprador (ou com um botão configurado com `atualizar: true`).
+
+## Contrato do condomínio (entrega 6)
+
+O botão **Gerar contrato** da casa reconhece a venda do condomínio pela coluna
+`CONDOMÍNIO - VENDA ID` (preenchida pelo **Gerar venda**). Nessa casa ele lê
+também a linha da BANCO DE DADOS VENDAS CONDOMÍNIO e usa um **modelo próprio**
+(`MODELO_CONDOMINIO_ID`), com: art. 35-A da Lei 4.591/64 no quadro-resumo,
+item 1-A dos fiadores, item 3 com unidade/área privativa/fração ideal, item 6.1
+montado a partir do fluxo de pagamento (sinal, pré-chaves, balões, recursos de
+terceiros, pós-chaves), 6.1-A a 6.1-D, 7.1 com INCC-M até as chaves e IPCA + 1%
+a.m. depois, Cláusula Nona-A da fiança e assinatura dos fiadores. O ping passa a
+responder `"versao":"venda-v3"`.
+
+De onde vem cada coisa:
+
+- Fluxo, fiadores, unidade, área privativa, fração ideal, matrícula, CRI,
+  alvará, prazo de conclusão e corretor (`CORRETOR`, `CRECI`, `CPF CORRETOR`,
+  `EMAIL CORRETOR`): da **linha do condomínio** (vale sobre o que estiver na casa).
+- Compradores: da casa (como nas outras).
+- Vendedor: como nas outras casas — obra em DOCUMENTOS pelo `ENDEREÇO` da casa
+  (`CONDOMÍNIO <nome>`) → `PROPRIETARIO DOCUMENTO` → VENDEDORES – CONTRATO.
+- Empreendimento (município/UF, matrícula, cartório): linha de **LOTEAMENTOS –
+  CONTRATO cujo título é o `ENDEREÇO` da casa** (`CONDOMÍNIO <nome>`), não o SETOR.
+- Comissão: paga pela incorporadora (vendedor); não entra no preço do comprador.
+
+O que trava (lista "Faltam dados"): data de assinatura, dia de pagamento, data da
+entrega, valor de venda, fluxo que não soma o VALOR DE VENDA (tolerância de
+R$ 0,05), data/nº de parcelas de uma série preenchida, comprador sem nome ou com
+CPF inválido, fiador com nome sem CPF válido/RG/endereço, vendedor/empreendimento/
+corretor sem cadastro. O que **não** trava (decisão do dono): dados do imóvel em
+branco (saem `____` no contrato) e fiador com CPF repetido — a tela mostra
+"Contrato gerado. Atenção: …" com a lista.
+
+Implantar:
+
+1. **Modelo:** `CONTRATOS DE VENDA/modelos-portal/MODELO CONDOMINIO - portal.docx`
+   (fora do repositório) → subir na **mesma pasta dos outros modelos** do Drive
+   convertendo para Google Docs. O `{{FORMA_PAGAMENTO_CONDOMINIO}}` e o
+   `{{FIADORES_QUALIFICACAO}}` têm de ficar **sozinhos no parágrafo** (o gerador
+   troca esse parágrafo por um parágrafo por linha).
+2. **Propriedade** `MODELO_CONDOMINIO_ID` = ID desse Google Doc. `DB_VENDAS_COND`
+   já existe (entrega 5).
+3. **PORTAL-VENDA:** colar de novo `ContratoVenda`, `GerarContrato`,
+   `AssinaturaVenda` e `PortalVenda`; nova versão; conferir o ping (`venda-v3`).
+4. **Cadastros:** linha em LOTEAMENTOS – CONTRATO com título `CONDOMÍNIO <nome>`;
+   linha em DOCUMENTOS com o mesmo título e `PROPRIETARIO DOCUMENTO` = nome do
+   vendedor exatamente como em VENDEDORES – CONTRATO; coluna `CPF CORRETOR`
+   (texto) na BANCO DE DADOS VENDAS CONDOMÍNIO.
+5. Teste: casa gerada pelo **Gerar venda** → **Gerar contrato** → conferir o
+   6.1 contra a linha do condomínio e os fiadores.
+
+**Ainda não faz:** os fiadores não entram como signatários na Clicksign (o
+envio para assinatura manda só compradores, vendedor, testemunhas e corretor).
 
 ## Plano B — Anthropic
 

@@ -8,7 +8,7 @@
  * OPENAI_API_KEY (provedor openai), MODELO_IA (opcional, só openai),
  * ANTHROPIC_API_KEY (provedor anthropic, plano B).
  * Nenhum log com nome, CPF, endereço ou conteúdo de documento. */
-var VERSAO_VENDA = "venda-v2";
+var VERSAO_VENDA = "venda-v3";
 var NOTION_VERSION = "2022-06-28";
 var ERROS_CONHECIDOS = /^(COLUNA_FALTANDO|TIPO_DE_COLUNA_ERRADO|BACKEND_SEM_CONFIG|PAGINA_DE_OUTRA_BASE)/;
 var REGEX_PAGE_ID = /^[0-9a-f]{32}$|^[0-9a-f-]{36}$/i;
