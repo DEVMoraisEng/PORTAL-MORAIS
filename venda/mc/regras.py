@@ -54,6 +54,7 @@ COL = {
     "fgts": "VALOR DO FGTS",
     "subsidio": "VALOR DO SUBSÍDIO",
     "corretor": "CORRETOR",
+    "imobiliaria": "IMOBILIÁRIA",
     "situacao": "MC - SITUAÇÃO",
     "venda_id": "MC - VENDA ID",
 }
@@ -190,6 +191,7 @@ def dados_da_pagina(props: dict) -> dict:
         "subsidio": _num(ler("subsidio")),
         "fgts": _num(ler("fgts")),
         "corretor": ler("corretor"),
+        "imobiliaria": ler("imobiliaria"),
         "venda_id_atual": ler("venda_id"),
         "situacao_atual": ler("situacao") or "",
     }
@@ -308,6 +310,19 @@ def corpo_cliente(dados: dict) -> dict:
     return corpo
 
 
+def observacao(dados: dict) -> str:
+    """Dados do corretor na observação da venda (o vendedor do ERP só aceita cadastro existente)."""
+    partes = []
+    if dados.get("corretor"):
+        partes.append("Corretor: %s" % dados["corretor"])
+    if dados.get("imobiliaria"):
+        partes.append("Imobiliária: %s" % dados["imobiliaria"])
+    if dados.get("comissao"):
+        pp = {"COMPRADOR": "pelo comprador", "VENDEDOR": "pelo vendedor"}.get(dados.get("comissao_paga_por") or "", "")
+        partes.append("Comissão: R$ %s%s" % (("%.2f" % dados["comissao"]).replace(".", ","), " (paga %s)" % pp if pp else ""))
+    return " | ".join(partes)
+
+
 def corpo_venda(dados: dict, obra: dict, cliente_id: str, conta: dict,
                 responsavel_id: str | None = None, vendedor_id: str | None = None,
                 dias_financiamento: int = DIAS_FINANCIAMENTO) -> dict:
@@ -345,6 +360,9 @@ def corpo_venda(dados: dict, obra: dict, cliente_id: str, conta: dict,
     }
     if vendedor_id:
         corpo["seller"] = {"id": vendedor_id}
+    obs = observacao(dados)
+    if obs:
+        corpo["comment"] = obs
     return corpo
 
 

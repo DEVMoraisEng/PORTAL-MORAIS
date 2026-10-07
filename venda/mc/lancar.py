@@ -148,7 +148,8 @@ def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DI
                               if bloqueado else "") + "PRÉVIA OK [#%s] — %s%s; conta da obra: %s%s; %s" % (
             assin, "cliente novo será criado; " if cliente_novo else "cliente já existe; ",
             corpo["description"].split(" - ")[0], conta.get("name") or conta["id"],
-            "; vendedor: corretor" if vendedor_id else "", resumo),
+            "; vendedor: corretor" if vendedor_id else "",
+            resumo + ("; observação: " + corpo["comment"] if corpo.get("comment") else "")),
             codigo="BLOQUEADO" if bloqueado else "PREVIA")
 
     vista = R.assinatura_da_situacao(d.get("situacao_atual"))
