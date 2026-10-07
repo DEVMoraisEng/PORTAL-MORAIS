@@ -2,13 +2,13 @@
  * Projeto do Apps Script SEPARADO do PORTAL-LEITURA/ESCRITA: um upload do
  * Code.gs do portal não apaga este, e vice-versa.
  * Arquivos do projeto: RegrasVenda.gs, ClaudeLeitor.gs, OpenAILeitor.gs, ContratoVenda.gs,
- * PortalVenda.gs, GerarContrato.gs.
+ * PortalVenda.gs, GerarContrato.gs, CondominioVenda.gs, GerarVendaCondominio.gs.
  * Propriedades do script: NOTION_TOKEN, SESSION_SECRET (os MESMOS do portal
- * daquele ambiente), DB_VENDAS, PROVEDOR_IA (openai padrão | anthropic),
+ * daquele ambiente), DB_VENDAS, DB_VENDAS_COND (base das vendas do condomínio), PROVEDOR_IA (openai padrão | anthropic),
  * OPENAI_API_KEY (provedor openai), MODELO_IA (opcional, só openai),
  * ANTHROPIC_API_KEY (provedor anthropic, plano B).
  * Nenhum log com nome, CPF, endereço ou conteúdo de documento. */
-var VERSAO_VENDA = "venda-v1";
+var VERSAO_VENDA = "venda-v2";
 var NOTION_VERSION = "2022-06-28";
 var ERROS_CONHECIDOS = /^(COLUNA_FALTANDO|TIPO_DE_COLUNA_ERRADO|BACKEND_SEM_CONFIG|PAGINA_DE_OUTRA_BASE)/;
 var REGEX_PAGE_ID = /^[0-9a-f]{32}$|^[0-9a-f-]{36}$/i;
@@ -34,7 +34,8 @@ function tratar_(p) {
     var sess = verificarToken_(p.token);
     if (!sess) return { ok: false, erro: "NAO_AUTORIZADO" };
     if (!temAcessoVendas_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
-    var grava = ["tipoCasa", "lerDocumento", "conferir", "devolver", "gerarContrato", "mcLancar", "assinaturaEnviar", "assinaturaEstado"].indexOf(p.action) >= 0;
+    var grava = ["tipoCasa", "lerDocumento", "conferir", "devolver", "gerarContrato", "mcLancar", "assinaturaEnviar", "assinaturaEstado",
+                 "gerarVendaCondominio"].indexOf(p.action) >= 0;
     if (grava && String(sess.t || "").toUpperCase() === "TESTES") return { ok: false, erro: "SEM_PERMISSAO_TESTES" };
     if (p.action !== "ping" && !REGEX_PAGE_ID.test(String(p.pageId || ""))) return { ok: false, erro: "PAGINA_INVALIDA" };
     var col = colunas_();
@@ -52,6 +53,7 @@ function tratar_(p) {
       case "mcLancar":     return mcLancar_(col, sess, p);
       case "assinaturaEnviar": return assinaturaEnviar_(col, sess, p);
       case "assinaturaEstado": return assinaturaEstado_(col, p);
+      case "gerarVendaCondominio": return gerarVendaCondominio_(col, sess, p);
       default: return { ok: false, erro: "ACAO_DESCONHECIDA" };
     }
   } catch (err) {

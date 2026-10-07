@@ -1329,6 +1329,16 @@ async function boot(){
   await carregarPlanilha("hub");
   _mapaObraId=null; _vendidasPorEnd=null;   // dados novos: refaz os índices derivados
   atualizarBadgesSetores(); // 1ª passada (sem atividades ainda); a promise acima repinta
+  abrirCasaDaUrl();
+}
+/* vendas.html?abrir=<id da página>: abre direto o painel daquela casa. É o
+   caminho do "Gerar venda" da tela do condomínio (a casa acabou de nascer e
+   ainda não está no vendas.json — o abrirObra busca no Apps Script). */
+function abrirCasaDaUrl(){
+  let id="";
+  try{ id=new URLSearchParams(location.search).get("abrir")||""; }catch(e){ return; }
+  if(!/^[0-9a-f]{32}$|^[0-9a-f-]{36}$/i.test(id)) return;
+  abrirObra(id);
 }
 /* item 7: cada atividade só conta pro setor cujo "responsavel" bate com o
    RESPONSÁVEL da atividade (ver SETORES_AREA). Setor sem "responsavel"

@@ -21,7 +21,7 @@
    Documentos de comprador vão para a OpenAI (decisão do dono em 28/09/2026).
 4. Implantar › Nova implantação › App da Web › Executar como **Eu** › Quem pode
    acessar **Qualquer pessoa** › Implantar › autorizar (Avançado › Acessar).
-5. Teste: abrir `<URL>/exec?action=ping` → `{"ok":true,"versao":"venda-v1","papel":"VENDA"}`.
+5. Teste: abrir `<URL>/exec?action=ping` → `{"ok":true,"versao":"venda-v2","papel":"VENDA"}`.
 6. Mande a URL `/exec` no chat (não é segredo).
 
 Mudou o código? Implantar › Gerenciar implantações › lápis › Nova versão › Implantar.
@@ -241,6 +241,85 @@ pedir de novo; qualquer falha do workflow escreve ERRO na situação.
 
 O log do Actions é público: o robô só imprime situação e motivos, nunca CPF, nome ou valores
 por pessoa.
+
+## Gerar venda do condomínio (entrega 5)
+
+Botão **Gerar venda** em cada linha da tela do condomínio (a que lista a
+BANCO DE DADOS VENDAS CONDOMÍNIO, a "pasta do cliente" do corretor). Ele cria
+a casa na VENDAS com os dados e os documentos da pasta e abre a tela de venda
+nessa casa (`vendas.html?abrir=<id>`). Clicar de novo não duplica: devolve a
+mesma casa. O ping passa a responder `"versao":"venda-v2"`.
+
+O que vai para onde (regra completa no topo de `venda/CondominioVenda.js`):
+
+- `ENDEREÇO` = `CONDOMÍNIO <nome do condomínio>`; `CASA` = número da `UNIDADE`.
+- Comprador 1 = `PROPONENTE` (CPF, RG, profissão, nacionalidade, estado civil,
+  `Email`, `Nº Whatsapp`); endereço em texto = bloco `ENDERECO/NUMERO/SETOR/
+  CIDADE/CEP COMPRADOR 1`.
+- Comprador 2 = `COMPRADOR 1` do condomínio **só quando é outra pessoa** (nome
+  preenchido e diferente do proponente). Se o `COMPRADOR 1` estiver vazio ou for
+  o próprio proponente, o bloco "… COMPRADOR 1" completa o que faltar do
+  proponente e a casa fica com um comprador só.
+- Arquivos: `DOC. PROPONENTE` → identidade do comprador 1; `COMPROVANTE DE
+  ENDEREÇO` → comprovante do comprador 1; `DOC. COMPRADOR 1` e `COMP. END.
+  COMPRADOR 1` → comprador 2 (ou reserva do comprador 1, quando não há segundo
+  comprador); e as colunas de arquivo de mesmo nome nas duas bases
+  (`COMPROVANTE CARTÓRIO`, protocolos, vistoria). O arquivo é baixado e
+  reenviado (não é link). Arquivo que falhar não derruba a venda: a tela lista
+  quais faltaram, para anexar pelo Dossiê do comprador. Chamada com
+  `atualizar: true` (opção do botão) regrava os dados a partir do condomínio e
+  tenta de novo só as colunas de arquivo ainda vazias na casa.
+- Valores: `VALOR DE VENDA` → `VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)`,
+  `VALOR DO CRÉDITO` → `VALOR FINANCIADO`, `SUBISÍDIO` → `VALOR DO SUBSÍDIO`,
+  e todas as colunas de mesmo nome e mesmo tipo (datas, comissão, CONTRATO - …).
+  `CORRETOR` e `IMOBILIÁRIA` (texto no condomínio) viram a opção de mesmo nome
+  do select da VENDAS — ou uma opção nova, se não existir.
+- `COMPRADOR 2` e `CONJUGE` do condomínio não têm lugar na VENDAS (dois
+  compradores no máximo): não são copiados e a tela avisa.
+- Nunca copia `MC - …`, `ASSINATURA - …`, `DOSSIÊ…`, `SITUAÇÃO`, fórmulas.
+
+Implantar:
+
+1. **Coluna nova na VENDAS** (teste e produção): `CONDOMÍNIO - VENDA ID`,
+   tipo **texto**. Guarda o id da linha do condomínio (32 caracteres, sem
+   hífen); é por ela que o clique repetido acha a casa e que o robô do Mais
+   Controle lê o fluxo de parcelas do condomínio. Não editar à mão.
+2. **PORTAL-VENDA:** arquivos novos `venda/CondominioVenda.js` → arquivo
+   **CondominioVenda** e `venda/GerarVendaCondominio.gs` → arquivo
+   **GerarVendaCondominio**; colar de novo o `PortalVenda`. Propriedade nova
+   `DB_VENDAS_COND` = id da BANCO DE DADOS VENDAS CONDOMÍNIO (teste:
+   `3f1c5ab532d381d38ba0d495b1bc8123`). A conexão do Notion (`NOTION_TOKEN`)
+   tem de estar compartilhada com essa base. Nova versão e conferir o ping.
+3. **Tela do condomínio** (não está neste repositório): copiar
+   `venda/gerar-venda-condominio.js` para o lado da página, carregar depois do
+   `app.js` e criar o botão em cada linha. O desenvolvedor cola, no ponto em que
+   a linha é desenhada (`linha` = o elemento da linha; `v.id` = id da página do
+   Notion daquela linha):
+
+   ```html
+   <script src="gerar-venda-condominio.js?v=1"></script>
+   <script>
+     const URL_PORTAL_VENDA = "https://script.google.com/macros/s/…/exec"; // a mesma do venda-dossie.js
+     const URL_VENDAS = "https://<endereço do portal>/vendas.html";        // tela de venda do portal
+     function botaoGerarVenda(v) {
+       return GerarVendaCondominio.botao({ pageId: v.id, urlPortalVenda: URL_PORTAL_VENDA, urlVendas: URL_VENDAS });
+     }
+     // ao montar cada linha:  linha.appendChild(botaoGerarVenda(v));
+   </script>
+   ```
+
+   O token é o da sessão do portal (`sessao()` do `app.js` ou a chave
+   `morais_sessao`); o login precisa de acesso a Vendas e o perfil TESTES não
+   gera. Se a tela não tiver `app.js`, passe `token:` nas opções do botão.
+   `avisar: (texto, ok) => …` troca o `alert` pela mensagem da própria tela.
+4. Teste: numa pasta de teste com dois compradores e documentos, **Gerar
+   venda** → a tela de venda abre na casa nova; conferir dados e arquivos; clicar
+   de novo → "já tinha sido gerada", sem casa duplicada.
+
+**Tempo:** a cópia dos arquivos roda no próprio clique; pasta com muitos
+documentos grandes pode passar do limite de 6 minutos do Apps Script. Nesse
+caso a casa já existe: clicar de novo só abre a casa; o que faltou se anexa
+pelo Dossiê do comprador (ou com um botão configurado com `atualizar: true`).
 
 ## Plano B — Anthropic
 
