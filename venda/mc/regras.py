@@ -214,6 +214,7 @@ def assinatura(corpo_venda: dict, cpf: str) -> str:
     import json as _json
     base = dict(corpo_venda)
     base.pop("customer", None)          # na prévia o cliente pode ainda não existir
+    base.pop("seller", None)            # idem o corretor (o nome dele está na observação)
     txt = _json.dumps(base, sort_keys=True, ensure_ascii=False) + "|" + so_digitos(cpf)
     return hashlib.sha256(txt.encode("utf-8")).hexdigest()[:8]
 
@@ -305,6 +306,8 @@ def faltas(dados: dict, dias_financiamento: int = DIAS_FINANCIAMENTO) -> list[st
           and dados.get("total") is not None
           and abs(dados["valor_na_mao"] + dados["comissao"] - dados["total"]) > TOLERANCIA):
         f.append("Valor na mão + comissão diferente do valor do contrato")
+    if not str(dados.get("corretor") or "").strip():
+        f.append("Falta o CORRETOR (ele vai como Vendedor no Mais Controle)")
     c = dados["comprador"]
     if not c.get("nome"):
         f.append("Falta o nome do comprador (CLIENTES)")
@@ -342,6 +345,12 @@ def corpo_cliente(dados: dict) -> dict:
     if c.get("telefone"):
         corpo["phones"] = [{"number": c["telefone"]}]
     return corpo
+
+
+def corpo_corretor(dados: dict) -> dict:
+    """POST {legado}/participants — corretor como Fornecedor, só com o nome (é o Vendedor da venda)."""
+    return {"status": "ACTIVE", "type": "PERSON", "role": "SUPPLIER",
+            "name": " ".join(str(dados.get("corretor") or "").upper().split()), "contacts": [], "phones": []}
 
 
 def observacao(dados: dict) -> str:

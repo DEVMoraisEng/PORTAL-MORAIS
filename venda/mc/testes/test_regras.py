@@ -47,6 +47,7 @@ def pagina(**mudar):
         "VALOR FINANCIADO": num(230000),
         "VALOR DO SUBSÍDIO": num(5000),
         "VALOR DO FGTS": num(10000),
+        "CORRETOR": sel("Corretor Exemplo"),
     }
     p.update(mudar)
     return p
@@ -194,5 +195,5 @@ def test_corretor_vai_na_observacao():
     d = R.dados_da_pagina(pagina(CORRETOR=sel("Corretor Exemplo"), **{"IMOBILIÁRIA": sel("Imob Exemplo")}))
     c = R.corpo_venda(d, {"id": "o"}, "c", {"id": "k"})
     assert c["comment"] == "Corretor: Corretor Exemplo | Imobiliária: Imob Exemplo | Comissão: R$ 10000,00 (paga pelo comprador)"
-    d = R.dados_da_pagina(pagina(**{"COMISSÃO": num(None)}))
+    d = R.dados_da_pagina(pagina(**{"COMISSÃO": num(None), "CORRETOR": {"type": "select", "select": None}}))
     assert "comment" not in R.corpo_venda(d, {"id": "o"}, "c", {"id": "k"})

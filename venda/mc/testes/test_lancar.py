@@ -50,10 +50,8 @@ class ErpFake:
         return [c for c in self._cli if c["cpf"] == cpf]
 
     def homonimos(self, nome):
-        return getattr(self, "_homs", [])
-
-    def participante_por_nome(self, nome):
-        return []
+        from venda.mc.regras import chave
+        return [h for h in getattr(self, "_homs", []) if chave(h.get("name")) == chave(nome)]
 
     def criar_cliente(self, corpo):
         self.criados.append(("cliente", corpo))
@@ -87,8 +85,9 @@ def test_aplicar_depois_da_previa_cria_cliente_e_venda_e_grava_id():
     n, e = NotionFake(pagina()), ErpFake()
     r = previa_e_lanca(n, e)
     assert r["situacao"] == "CRIADA"
-    assert [t for t, _ in e.criados] == ["cliente", "venda"]
-    assert e.criados[1][1]["customer"] == {"id": "cli-novo"}
+    assert [t for t, _ in e.criados] == ["cliente", "cliente", "venda"]
+    assert e.criados[0][1]["role"] == "SUPPLIER" and e.criados[0][1]["name"] == "CORRETOR EXEMPLO"
+    assert e.criados[2][1]["customer"] == {"id": "cli-novo"} and e.criados[2][1]["seller"] == {"id": "cli-novo"}
     assert n.gravado["MC - VENDA ID"] == "venda-nova"
 
 
@@ -108,7 +107,7 @@ def test_aplicar_sem_previa_ou_com_dado_mudado_recusa():
 def test_cliente_existente_pelo_cpf_nao_cria_outro():
     n, e = NotionFake(pagina()), ErpFake(clientes=[{"id": "cli-velho", "cpf": CPF_OK}])
     previa_e_lanca(n, e)
-    assert [t for t, _ in e.criados] == ["venda"] and e.criados[0][1]["customer"] == {"id": "cli-velho"}
+    assert [t for t, _ in e.criados] == ["cliente", "venda"] and e.criados[1][1]["customer"] == {"id": "cli-velho"}
 
 
 def test_venda_da_casa_ja_lancada_nao_duplica_e_nao_preenche_venda_id():
@@ -283,3 +282,29 @@ def test_homonimo_fornecedor_recusa_na_previa_sem_criar_nada():
     r = L.processar("p", n, e, aplicar=False)
     assert r["codigo"] == "NOME_JA_CADASTRADO" and "mesmo CPF" in n.gravado["MC - SITUAÇÃO"]
     assert "marque também como Cliente" in n.gravado["MC - SITUAÇÃO"]
+
+
+def test_corretor_ja_cadastrado_vira_vendedor_sem_criar():
+    n, e = NotionFake(pagina()), ErpFake()
+    e._homs = [{"id": "cor-1", "name": "Corretor Exemplo", "role": "SUPPLIER"}]
+    L.processar("p1", n, e)
+    assert "vendedor: CORRETOR EXEMPLO (já cadastrado)" in n.gravado["MC - SITUAÇÃO"]
+    L.processar("p1", n, e, aplicar=True)
+    assert [t for t, _ in e.criados] == ["cliente", "venda"] and e.criados[1][1]["seller"] == {"id": "cor-1"}
+
+
+def test_corretor_em_dois_cadastros_prefere_fornecedor_e_recusa_se_ambiguo():
+    n, e = NotionFake(pagina()), ErpFake()
+    e._homs = [{"id": "a", "name": "CORRETOR EXEMPLO", "role": "CUSTOMER"},
+               {"id": "b", "name": "CORRETOR EXEMPLO", "role": "SUPPLIER"}]
+    assert L.processar("p1", n, e)["corpo_venda"]["seller"] == {"id": "b"}
+    e._homs = [{"id": "a", "name": "CORRETOR EXEMPLO", "role": "SUPPLIER"},
+               {"id": "b", "name": "CORRETOR EXEMPLO", "role": "SUPPLIER"}]
+    assert L.processar("p1", NotionFake(pagina()), e)["codigo"] == "CORRETOR_REPETIDO"
+
+
+def test_sem_corretor_e_falta():
+    from venda.mc.testes.test_regras import sel
+    n = NotionFake(pagina(CORRETOR={"type": "select", "select": None}))
+    r = L.processar("p1", n, ErpFake())
+    assert r["codigo"] == "FALTAS" and "Falta o CORRETOR" in n.gravado["MC - SITUAÇÃO"]

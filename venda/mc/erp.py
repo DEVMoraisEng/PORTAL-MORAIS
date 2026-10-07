@@ -97,12 +97,6 @@ class Erp:
                                                         "size": 20, "sort": "name"}) or {}
         return [p for p in j.get("content") or [] if R.so_digitos(p.get("cpf")) == d]
 
-    def participante_por_nome(self, nome: str) -> list[dict]:
-        alvo = R.chave(nome)
-        j = self.pedir("GET", "/participants", params={"role": "CUSTOMER", "keyword": nome, "page": 0,
-                                                        "size": 20, "sort": "name"}) or {}
-        return [p for p in j.get("content") or [] if R.chave(p.get("name")) == alvo]
-
     def tabelas_reajuste(self) -> list[dict]:
         return self.pedir("GET", "/readjustment-tables/all") or []
 

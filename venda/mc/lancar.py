@@ -149,16 +149,17 @@ def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DI
                            "Cliente e ponha o CPF; se não for, diferencie o nome de um dos dois."),
                        codigo="NOME_JA_CADASTRADO")
 
-    vendedor_id = None
-    if d.get("corretor"):
-        try:
-            vs = erp.participante_por_nome(d["corretor"])
-            if len(vs) == 1:
-                vendedor_id = vs[0]["id"]
-            else:
-                res["avisos"].append("CORRETOR_NAO_ACHADO")
-        except ErpErro:
-            res["avisos"].append("CORRETOR_NAO_CONSULTADO")
+    # Vendedor = corretor (regra do dono, 06/10/2026: toda venda tem Vendedor). Se não houver
+    # cadastro com o nome dele, o robô cadastra como Fornecedor na hora de gravar.
+    vs = erp.homonimos(d["corretor"])
+    if len(vs) > 1:
+        vs = [v for v in vs if str(v.get("role")) == "SUPPLIER"] or vs
+    if len(vs) > 1:
+        res["motivos"] = ["Há %d cadastros com o nome do corretor no Mais Controle" % len(vs)]
+        return fim("RECUSADA", "RECUSADA: há mais de um cadastro com o nome do corretor no Mais Controle — "
+                   "deixe só um (ou diferencie o nome) e peça a prévia de novo.", codigo="CORRETOR_REPETIDO")
+    vendedor_id = vs[0]["id"] if vs else None
+    vendedor_novo = None if vs else R.corpo_corretor(d)
 
     corpo = R.corpo_venda(d, obra, res["cliente"]["id"] or "(CLIENTE NOVO)", conta,
                           responsavel_id=getattr(erp, "user_id", None), vendedor_id=vendedor_id,
@@ -174,7 +175,8 @@ def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DI
                               if bloqueado else "") + "PRÉVIA OK [#%s] — %s%s; conta da obra: %s%s; %s" % (
             assin, "cliente novo será criado; " if cliente_novo else "cliente já existe; ",
             corpo["description"].split(" - ")[0], conta.get("name") or conta["id"],
-            "; vendedor: corretor" if vendedor_id else "",
+            "; vendedor: %s (%s)" % (R.corpo_corretor(d)["name"], "já cadastrado" if vendedor_id
+                                     else "será cadastrado como Fornecedor"),
             resumo + ("; observação: " + corpo["comment"] if corpo.get("comment") else "")),
             codigo="BLOQUEADO" if bloqueado else "PREVIA")
 
@@ -184,6 +186,14 @@ def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DI
         return fim("RECUSADA", "RECUSADA: os dados da venda mudaram depois da prévia — peça a prévia de novo e confira.",
                    codigo="PREVIA_DESATUALIZADA")
 
+    if vendedor_novo:
+        cv = erp.criar_cliente(vendedor_novo) or {}
+        if not cv.get("id"):
+            res["motivos"] = ["O ERP não devolveu o id do corretor cadastrado"]
+            return fim("ERRO", "ERRO: corretor não confirmado — confira no Mais Controle antes de repetir",
+                       codigo="CORRETOR_SEM_ID")
+        corpo["seller"] = {"id": cv["id"]}
+        res["vendedor"] = {"criado": True, "id": cv["id"]}
     if cliente_novo:
         criado = erp.criar_cliente(cliente_novo) or {}
         if not criado.get("id"):
