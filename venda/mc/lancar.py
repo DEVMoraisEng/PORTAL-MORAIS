@@ -61,8 +61,9 @@ def sondar(page_id: str, notion, erp) -> dict:
 
 
 def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DIAS_FINANCIAMENTO,
-              bloqueado: bool = False) -> dict:
-    """bloqueado=True: pediram para gravar, mas o repositório não liberou (MC_APLICAR)."""
+              bloqueado: bool = False, anexar: bool = False) -> dict:
+    """bloqueado=True: pediram para gravar, mas o repositório não liberou (MC_APLICAR).
+    anexar=True (com aplicar): numa venda JÁ LANÇADA, só anexa o contrato."""
     pg = notion.pagina(page_id)
     props = pg.get("properties") or {}
     d = R.dados_da_pagina(props)
@@ -90,6 +91,9 @@ def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DI
 
     if d.get("venda_id_atual"):
         res["venda"] = {"id": d["venda_id_atual"]}
+        if anexar and aplicar:   # venda já lançada pelo robô: só anexa o contrato
+            nota = anexar_contrato(d, notion, erp, d["venda_id_atual"], res)
+            return fim("JA_LANCADA", "JÁ LANÇADA (venda %s)%s" % (d["venda_id_atual"], nota))
         return fim("JA_LANCADA", "JÁ LANÇADA (venda %s)" % d["venda_id_atual"])
 
     fx = None
@@ -252,8 +256,26 @@ def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DI
         return fim("ERRO", "ERRO: venda não confirmada — confira no Mais Controle antes de repetir",
                    codigo="VENDA_SEM_ID")
     res["venda"] = {"id": venda["id"]}
-    return fim("CRIADA", "CRIADA no Mais Controle (venda %s) — %s" % (venda["id"], resumo), venda["id"],
+    nota = anexar_contrato(d, notion, erp, venda["id"], res)
+    return fim("CRIADA", "CRIADA no Mais Controle (venda %s)%s — %s" % (venda["id"], nota, resumo), venda["id"],
                obrigatorio=True)
+
+
+def anexar_contrato(d: dict, notion, erp, venda_id: str, res: dict) -> str:
+    """Anexa o PDF da coluna CONTRATO ASSINADO ao recebimento. Nunca derruba a venda já criada:
+    devolve um trecho para a situação dizendo o que aconteceu."""
+    arqs = d.get("contrato_arquivos") or []
+    if not arqs:
+        res["avisos"].append("SEM_CONTRATO_PARA_ANEXAR")
+        return "; contrato NÃO anexado (coluna CONTRATO ASSINADO vazia)"
+    try:
+        conteudo = notion.baixar(arqs[-1]["url"])
+        erp.anexar(venda_id, R.nome_do_contrato(d), conteudo)
+        res["contrato_anexado"] = True
+        return "; contrato anexado no recebimento"
+    except Exception as e:   # noqa: BLE001 — o anexo é complemento: a venda fica e o motivo vai na situação
+        res["avisos"].append("ANEXO_FALHOU")
+        return "; contrato NÃO anexado (%s) — anexe à mão no Mais Controle" % str(e)[:120]
 
 
 PAPEIS = {"CUSTOMER": "Cliente", "SUPPLIER": "Fornecedor", "EMPLOYEE": "Funcionário", "SELLER": "Vendedor"}
@@ -284,6 +306,7 @@ def main(argv=None) -> int:
     ap.add_argument("--aplicar", action="store_true")
     ap.add_argument("--bloqueado", action="store_true", help="pediram gravar, mas MC_APLICAR não está ligado")
     ap.add_argument("--sondar", action="store_true", help="só consulta o ERP (não cria nada)")
+    ap.add_argument("--anexar", action="store_true", help="venda já lançada: só anexa o contrato (exige --aplicar)")
     ap.add_argument("--marcar-erro", default=None, help="só anota ERRO na situação (o workflow falhou)")
     ap.add_argument("--dias-financiamento", type=int, default=R.DIAS_FINANCIAMENTO)
     a = ap.parse_args(argv)
@@ -315,7 +338,7 @@ def main(argv=None) -> int:
             return sair({"situacao": "ERRO", "codigo": "ERP_RECUSOU"}, 1)
     try:
         res = processar(a.page, notion, erp, aplicar=a.aplicar and not a.bloqueado,
-                        dias=a.dias_financiamento, bloqueado=a.bloqueado)
+                        dias=a.dias_financiamento, bloqueado=a.bloqueado, anexar=a.anexar)
     except FalhaNotion:
         # a venda pode ter sido CRIADA: falhar alto para alguém conferir antes de repetir
         _anotar_erro(notion, a.page, "a venda pode ter sido criada, mas o id não foi anotado — confira no Mais Controle antes de repetir")

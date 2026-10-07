@@ -41,6 +41,12 @@ class Notion:
                 return out
             cur = j.get("next_cursor")
 
+    def baixar(self, url: str) -> bytes:
+        r = self.http.get(url, timeout=120)
+        if r.status_code >= 300:
+            raise RuntimeError("download do arquivo -> HTTP %s" % r.status_code)
+        return r.content
+
     def gravar_textos(self, page_id: str, props_atuais: dict, valores: dict) -> list[str]:
         """Grava texto nas colunas que EXISTEM (pelo nome normalizado). Devolve as que faltaram."""
         reais = {R.chave(k): (k, v.get("type")) for k, v in (props_atuais or {}).items()}

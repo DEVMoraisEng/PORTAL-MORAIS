@@ -17,6 +17,10 @@ on:
         description: "gravar de verdade (só vale com MC_APLICAR=1)"
         type: boolean
         default: false
+      anexar:
+        description: "venda já lançada: só anexar o contrato (exige aplicar e MC_APLICAR=1)"
+        type: boolean
+        default: false
       sondar:
         description: "só consultar se a casa já tem venda no ERP (não grava nada)"
         type: boolean
@@ -50,6 +54,7 @@ jobs:
           MC_ROBO_APARELHO: ${{ secrets.MC_ROBO_APARELHO }}
           PEDIU_APLICAR: ${{ github.event.client_payload.aplicar || inputs.aplicar }}
           SONDAR: ${{ inputs.sondar }}
+          ANEXAR: ${{ inputs.anexar }}
           MC_APLICAR: ${{ vars.MC_APLICAR }}
           DB_VENDAS_COND: ${{ vars.DB_VENDAS_COND }}
           DB_CORRETORES: ${{ vars.DB_CORRETORES }}
@@ -61,6 +66,7 @@ jobs:
           if [ "$PEDIU_APLICAR" = "true" ] && [ "$MC_APLICAR" = "1" ]; then FLAG="--aplicar"; fi
           if [ "$PEDIU_APLICAR" = "true" ] && [ "$MC_APLICAR" != "1" ]; then echo "MC_APLICAR != 1: rodando como PRÉVIA"; FLAG="--bloqueado"; fi
           if [ "$SONDAR" = "true" ]; then FLAG="--sondar"; fi
+          if [ "$ANEXAR" = "true" ] && [ "$FLAG" = "--aplicar" ]; then FLAG="--aplicar --anexar"; fi
           python -m venda.mc.lancar --page "$PAGINA" $FLAG
       - name: Avisar no Notion que falhou
         if: failure()

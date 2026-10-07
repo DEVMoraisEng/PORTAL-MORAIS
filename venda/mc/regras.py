@@ -57,6 +57,7 @@ COL = {
     "imobiliaria": "IMOBILIÁRIA",
     "situacao": "MC - SITUAÇÃO",
     "venda_id": "MC - VENDA ID",
+    "contrato_assinado": "CONTRATO ASSINADO",   # files: o PDF que vai anexado no recebimento
     "condominio_id": "CONDOMÍNIO - VENDA ID",   # venda do condomínio: o fluxo de parcelas mora nessa página
 }
 
@@ -159,6 +160,25 @@ def _casa(x):
     return int(grupos[0]) if len(grupos) == 1 else None
 
 
+def _arquivos(pr) -> list[dict]:
+    """[{nome, url}] de uma coluna files do Notion."""
+    if not isinstance(pr, dict) or pr.get("type") != "files":
+        return []
+    out = []
+    for f in pr.get("files") or []:
+        url = (f.get("file") or f.get("external") or {}).get("url")
+        if url:
+            out.append({"nome": f.get("name") or "contrato.pdf", "url": url})
+    return out
+
+
+def nome_do_contrato(dados: dict) -> str:
+    """Como as vendas antigas: "CONTRATO <obra> CASA 0N - NOME.pdf"."""
+    return "CONTRATO %s CASA %02d - %s.pdf" % (" ".join(str(dados.get("endereco") or "").upper().split()),
+                                               dados.get("casa") or 0,
+                                               " ".join(str(dados["comprador"]["nome"] or "").upper().split()))
+
+
 def dados_da_pagina(props: dict) -> dict:
     """Lê as propriedades da página da venda e devolve `dados` (ver montar_venda)."""
     por_chave = {chave(k): v for k, v in (props or {}).items()}
@@ -201,6 +221,7 @@ def dados_da_pagina(props: dict) -> dict:
         "corretor": ler("corretor"),
         "imobiliaria": ler("imobiliaria"),
         "venda_id_atual": ler("venda_id"),
+        "contrato_arquivos": _arquivos(por_chave.get(chave(COL["contrato_assinado"]))),
         "condominio_id": so_hex(ler("condominio_id")),
         "situacao_atual": ler("situacao") or "",
     }

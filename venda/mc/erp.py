@@ -84,6 +84,36 @@ class Erp:
             raise ErpErro("%s %s -> HTTP %s: %s" % (metodo, caminho.split("?")[0], r.status_code, r.text[:600]))
         return r.json() if r.text.strip() else None
 
+    # -- anexo (receita lida no código do site, 06/10/2026) ------------------
+    def anexar(self, venda_id: str, nome: str, conteudo: bytes, mime: str = "application/pdf") -> str:
+        """Anexa um arquivo à pasta do recebimento da venda (a mesma "Arquivos" da tela). Devolve o id do arquivo.
+        Passos: configuração (bucket) -> pasta do tradeReceivable -> registra o arquivo -> sobe ao S3 -> confirma."""
+        cfg = self.pedir("GET", "/system-configuration") or {}
+        bucket, chave_aws = cfg.get("filesBucketURL"), cfg.get("filesAccessKey")
+        if not bucket or not chave_aws:
+            raise ErpErro("configuração de arquivos do ERP sem bucket/chave")
+        venda = self.pedir("GET", "/readjustment-sales/%s" % venda_id) or {}
+        tr_id = (venda.get("tradeReceivable") or {}).get("id")
+        if not tr_id:
+            raise ErpErro("venda sem tradeReceivable para anexar")
+        pastas = self.pedir("GET", "/folder", params={"id": tr_id, "origin": "TRADE_RECEIVABLE_READJUSTED"}) or []
+        pasta = pastas[0] if pastas else self.pedir("POST", "/folder", corpo={
+            "origin": "TRADE_RECEIVABLE_READJUSTED", "tradeReceivable": {"id": tr_id}}) or {}
+        if not pasta.get("id"):
+            raise ErpErro("o ERP não devolveu a pasta de arquivos da venda")
+        arq = self.pedir("POST", "/file", corpo={"name": nome, "type": mime, "sizeInBytes": len(conteudo)},
+                         params={"folderId": pasta["id"]}) or {}
+        if not arq.get("id"):
+            raise ErpErro("o ERP não registrou o arquivo")
+        if arq.get("saved") is not False:
+            campos = [("AWSAccessKeyId", chave_aws), ("acl", "private"), ("success_action_status", "201"),
+                      ("key", arq.get("key")), ("policy", arq.get("policy")), ("signature", arq.get("signature"))]
+            r = self.http.post(bucket, data=campos, files={"file": (nome, conteudo, mime)}, timeout=self.timeout)
+            if r.status_code >= 300:
+                raise ErpErro("upload do arquivo recusado (HTTP %s)" % r.status_code)
+        self.pedir("PATCH", "/file/set-temporary", params={"fileId": arq["id"], "temporary": "false"})
+        return arq["id"]
+
     # -- leitura -----------------------------------------------------------
     def obras(self) -> list[dict]:
         return self.pedir("GET", "/works/all-for-sale", params={"projection": "simple"}) or []
