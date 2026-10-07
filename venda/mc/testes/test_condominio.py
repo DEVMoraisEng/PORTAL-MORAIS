@@ -157,3 +157,18 @@ def test_corretor_novo_leva_email_celular_e_creci(monkeypatch):
     cor = e.criados[0][1]
     assert cor["role"] == "SUPPLIER" and cor["email"] == "corretor@exemplo.test"
     assert cor["phones"] == [{"number": "62900000001"}] and cor["comment"] == "Corretor — CRECI 12345"
+
+
+def test_condominio_financiamento_30_dias_apos_assinatura_e_cpf_do_corretor_da_pasta(monkeypatch):
+    monkeypatch.delenv("DB_VENDAS_COND", raising=False)
+    fx = C.fluxo(fluxo_props())
+    ps = C.parcelas(fx, {"data_venda": "2026-09-01", "fgts": 100, "financiado": 1000})
+    assert {p["rotulo"]: p["data"] for p in ps}["Financiamento"] == "2026-11-09"   # assinatura 10/10 + 30
+    cond = fluxo_props(**{"CPF CORRETOR": txt("111.444.777-35")})
+    n = NotionDuas(dados_venda(), cond)
+    n.corretores = []
+    e = ErpCond()
+    r = L.processar("p", n, e)
+    assert r["situacao"] == "PREVIA", r
+    L.processar("p", n, e, aplicar=True)
+    assert e.criados[0][1]["role"] == "SUPPLIER" and e.criados[0][1]["cpf"] == "11144477735"

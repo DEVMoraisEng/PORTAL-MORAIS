@@ -189,6 +189,8 @@ def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DI
                    "deixe só um (ou diferencie o nome) e peça a prévia de novo.", codigo="CORRETOR_REPETIDO")
     if not vs:
         cad = R.corretor_do_cadastro(notion.linhas(os.environ["DB_CORRETORES"]), d["corretor"])             if os.environ.get("DB_CORRETORES") else None
+        if not (cad or {}).get("documento") and (d.get("corretor_contato") or {}).get("documento"):
+            cad = dict(d["corretor_contato"])   # condomínio: CPF do corretor vem da pasta (CPF CORRETOR)
         doc = (cad or {}).get("documento") or ""
         if (cad or {}).get("repetido"):
             res["motivos"] = ["Corretor com cadastro repetido na base CORRETORES – CONTRATO"]

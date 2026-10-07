@@ -57,7 +57,8 @@ def contato_corretor(props: dict) -> dict:
     creci = ler("CRECI")
     if isinstance(creci, float) and creci.is_integer():
         creci = int(creci)
-    return {"email": (ler("EMAIL CORRETOR") or "").strip() or None,
+    return {"documento": R.so_digitos(ler("CPF CORRETOR")) or None,
+            "email": (ler("EMAIL CORRETOR") or "").strip() or None,
             "telefone": R.so_digitos(ler("CELULAR CORRETOR")) or None,
             "creci": str(creci).strip() if creci not in (None, "") else None}
 
@@ -98,7 +99,7 @@ def parcelas(fx: dict, dados: dict, dias_financiamento: int = R.DIAS_FINANCIAMEN
     add(R.TIPO_INTERMEDIARIA, "Balão 12/27", fx.get("vB1"), fx.get("dB1"), TABELA_PRE)
     add(R.TIPO_CHAVES, "Balão entrega de chaves", fx.get("vB2"), fx.get("dB2"), TABELA_PRE)
     serie(R.TIPO_PARCELA, "Pós-chaves", fx.get("nP"), fx.get("vP"), fx.get("dP"), TABELA_POS)
-    dv = dados.get("data_venda")
+    dv = fx.get("assinatura") or dados.get("data_venda")   # no condomínio o banco entra depois da assinatura
     prev = R._mais_dias(dv, dias_financiamento) if dv and R._RE_ISO.match(dv) else None
     add(R.TIPO_FGTS, "FGTS", dados.get("fgts"), prev)
     fin = (dados.get("financiado") or 0) + (dados.get("subsidio") or 0)
