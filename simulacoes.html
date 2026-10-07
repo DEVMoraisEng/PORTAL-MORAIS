@@ -316,6 +316,15 @@ section > .sec:first-child{margin-top:0}
 .sim-item{border:1px solid var(--border2);border-radius:8px;padding:9px 11px}
 .sim-item small{display:block;color:var(--text3);font-size:10px;font-weight:800;text-transform:uppercase}
 .sim-item b{font-size:14px;color:var(--azul-esc)}
+/* 07/10/2026: texto longo (e-mail) quebra dentro do quadro em vez de vazar */
+.sim-item{min-width:0}
+.sim-item b{display:block;overflow-wrap:anywhere;word-break:break-word}
+/* 07/10/2026: valores principais em destaque no topo da proposta */
+.prop-resumo{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:12px 0 14px}
+.prop-resumo div{background:var(--bg2,#F2F7F9);border:1px solid var(--border2);border-left:4px solid var(--azul);border-radius:8px;padding:8px 11px;min-width:0}
+.prop-resumo small{display:block;color:var(--text3);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.3px}
+.prop-resumo b{display:block;font-size:17px;color:var(--azul-esc);margin-top:2px;overflow-wrap:anywhere}
+.prop-resumo .verde{border-left-color:#27AE60}
 .sim-aviso{padding:11px 13px;border-radius:8px;font-size:13px;margin-bottom:10px;display:none}
 .sim-aviso.ok{background:#e7f5ec;border:1px solid #9dd3b4;color:var(--verde-esc);display:block}
 .sim-aviso.err{background:#fbeae7;border:1px solid #e2a493;color:var(--vermelho);display:block}
@@ -2451,6 +2460,19 @@ function propQuadroFluxo(p){
 }
 
 /* ---------- detalhe: decisão + e-mail (item 6) ---------- */
+/* 07/10/2026 — valores principais da proposta logo no topo do card */
+function propResumoValores(p){
+  const sn=p.sinais||{};
+  const c=(r,v,cl)=>`<div${cl?` class="${cl}"`:""}><small>${r}</small><b>${v}</b></div>`;
+  return `<div class="prop-resumo">
+    ${c("Valor da unidade",simBRL(p.preco))}
+    ${c("Valor financiado",simBRL(p.valorFinanciado))}
+    ${c("Entrada total",simBRL(sn.entradaTotal))}
+    ${c("Valor para entrada",simBRL(p.valorEntrada))}
+    ${c("FGTS",simBRL(p.fgts),"verde")}
+    ${c("Subsídio",simBRL(p.subsidio),"verde")}
+  </div>`;
+}
 function propVer(id){
   const p=PROPS.find(x=>x.id===id); if(!p) return;
   const it=(r,v)=>`<div class="sim-item"><small>${r}</small><b>${v||"—"}</b></div>`;
@@ -2465,6 +2487,7 @@ function propVer(id){
     ${chegouReservada(p,true)?`<div class="aviso-res"><b>Unidade já reservada no envio.</b>
       Esta proposta chegou quando a unidade ${esc(String(p.unidade||""))} já estava reservada —
       ela só é analisada caso haja desistência da reserva atual.</div>`:""}
+    ${propResumoValores(p)}
     ${propQuadroFluxo(p)}
     <div class="sim-grade" style="margin-top:14px">
       ${it("Corretor",esc(p.vendedor||""))}${it("CRECI",esc(p.creci||""))}${it("Imobiliária",esc(p.imobiliaria||""))}
