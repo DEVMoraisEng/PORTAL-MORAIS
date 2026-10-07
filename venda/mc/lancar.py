@@ -77,6 +77,7 @@ def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DI
             res["motivos"] = ["CONDOMÍNIO - VENDA ID não é uma página da BANCO DE DADOS VENDAS CONDOMÍNIO"]
             return fim("RECUSADA", "RECUSADA: " + res["motivos"][0], codigo="CONDOMINIO_OUTRA_BASE")
         fx = C.fluxo(cpg.get("properties") or {})
+        d["corretor_contato"] = C.contato_corretor(cpg.get("properties") or {})
         d["parcelas_prontas"] = C.parcelas(fx, d, dias)
 
     f = (C.faltas_do_fluxo(fx, d.get("casa")) if fx is not None else []) + R.faltas(d, dias)

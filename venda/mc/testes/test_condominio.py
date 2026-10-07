@@ -144,3 +144,16 @@ def test_resumo_agrupa_series():
     assert "Pré-chaves 1ª parte 2x R$ 1000.00 de 2026-11-30 a 2026-12-31" in t
     assert "Pós-chaves 3x R$ 800.00 de 2029-01-31 a 2029-03-31" in t
     assert "Sinal ato R$ 5000.00 em 2026-10-10" in t
+
+
+def test_corretor_novo_leva_email_celular_e_creci(monkeypatch):
+    monkeypatch.delenv("DB_VENDAS_COND", raising=False)
+    cond = fluxo_props(**{"EMAIL CORRETOR": txt("corretor@exemplo.test"), "CELULAR CORRETOR": txt("(62) 90000-0001"),
+                          "CRECI": num(12345)})
+    n = NotionDuas(dados_venda(), cond)
+    e = ErpCond()
+    L.processar("p", n, e)
+    L.processar("p", n, e, aplicar=True)
+    cor = e.criados[0][1]
+    assert cor["role"] == "SUPPLIER" and cor["email"] == "corretor@exemplo.test"
+    assert cor["phones"] == [{"number": "62900000001"}] and cor["comment"] == "Corretor — CRECI 12345"

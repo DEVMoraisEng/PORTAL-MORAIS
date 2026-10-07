@@ -349,8 +349,16 @@ def corpo_cliente(dados: dict) -> dict:
 
 def corpo_corretor(dados: dict) -> dict:
     """POST {legado}/participants — corretor como Fornecedor, só com o nome (é o Vendedor da venda)."""
-    return {"status": "ACTIVE", "type": "PERSON", "role": "SUPPLIER",
-            "name": " ".join(str(dados.get("corretor") or "").upper().split()), "contacts": [], "phones": []}
+    corpo = {"status": "ACTIVE", "type": "PERSON", "role": "SUPPLIER",
+             "name": " ".join(str(dados.get("corretor") or "").upper().split()), "contacts": [], "phones": []}
+    c = dados.get("corretor_contato") or {}
+    if c.get("email"):
+        corpo["email"] = c["email"]
+    if c.get("telefone"):
+        corpo["phones"] = [{"number": c["telefone"]}]
+    if c.get("creci"):
+        corpo["comment"] = "Corretor — CRECI %s" % c["creci"]
+    return corpo
 
 
 def observacao(dados: dict) -> str:

@@ -50,6 +50,18 @@ def fluxo(props: dict) -> dict:
     return out
 
 
+def contato_corretor(props: dict) -> dict:
+    """E-mail, celular e CRECI do corretor (a pasta do condomínio tem; a VENDAS das casas não)."""
+    por_chave = {R.chave(n): p for n, p in (props or {}).items()}
+    ler = lambda nome: R._valor(por_chave.get(R.chave(nome)))   # noqa: E731
+    creci = ler("CRECI")
+    if isinstance(creci, float) and creci.is_integer():
+        creci = int(creci)
+    return {"email": (ler("EMAIL CORRETOR") or "").strip() or None,
+            "telefone": R.so_digitos(ler("CELULAR CORRETOR")) or None,
+            "creci": str(creci).strip() if creci not in (None, "") else None}
+
+
 def data_no_dia(iso: str, meses: int, dia: int | None) -> str:
     """`iso` + `meses`, no `dia` escolhido (ou no mesmo dia de `iso`), limitado ao fim do mês."""
     d = _dt.date.fromisoformat(iso[:10])
