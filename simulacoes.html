@@ -319,6 +319,22 @@ section > .sec:first-child{margin-top:0}
 /* 07/10/2026: texto longo (e-mail) quebra dentro do quadro em vez de vazar */
 .sim-item{min-width:0}
 .sim-item b{display:block;overflow-wrap:anywhere;word-break:break-word}
+/* 07/10/2026: diluir balões nas parcelas (card da proposta) */
+.prop-dil{margin-top:10px;border:1px solid var(--border2);border-radius:8px;padding:10px 12px;background:var(--bg2,#F2F7F9)}
+.prop-dil-tit{font-weight:800;color:var(--azul-esc);font-size:13px;margin-bottom:4px;text-transform:uppercase;letter-spacing:.3px}
+.dil-lin{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px dashed var(--border2)}
+.dil-rot{font-size:13px;color:var(--text)}
+.dil-rot small{display:block;color:var(--text3);font-size:11px;margin-top:1px}
+.dil-bts{display:flex;flex-wrap:wrap;gap:6px}
+.dil-bt{border:1px solid var(--azul);background:transparent;color:var(--azul);border-radius:6px;padding:5px 11px;font-weight:700;font-size:12px;cursor:pointer}
+.dil-bt.on{background:var(--azul);color:#fff}
+.dil-bt:disabled{opacity:.5;cursor:default}
+.prop-dil-acoes{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.dil-acao{border:0;border-radius:7px;padding:8px 14px;font-weight:800;font-size:12.5px;cursor:pointer;background:var(--azul);color:#fff}
+.dil-acao.env{background:#27AE60}
+.dil-acao:disabled{opacity:.4;cursor:default}
+.prop-dil-av{font-size:12px;color:var(--text3);margin-top:7px}
+tr.prop-dil-mud td{background:#E3F5E8 !important;color:#1D5433}
 /* 07/10/2026: valores principais em destaque no topo da proposta */
 .prop-resumo{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:12px 0 14px}
 .prop-resumo div{background:var(--bg2,#F2F7F9);border:1px solid var(--border2);border-left:4px solid var(--azul);border-radius:8px;padding:8px 11px;min-width:0}
@@ -2391,9 +2407,120 @@ function propPillSinais(p){
 }
 
 /* ITENS 8 e 15 — fluxo agrupado e o quadro dos sinais em destaque. */
+/* 07/10/2026 — DILUIR OS BALÕES NAS PARCELAS PRÉ-CHAVES.
+   Em cada balão o operador escolhe quanto (25/50/75%) vai para as parcelas:
+   o 1º balão (dez/2027) é rateado no 1º bloco de parcelas pré-chaves e o
+   balão da entrega das chaves no 2º bloco — pelas parcelas que o bloco tiver
+   (12 → 12, 10 → 10…). "Validar e recalcular" aplica no quadro; só depois
+   disso libera "Enviar novo fluxo por e-mail", que responde para o e-mail
+   da proposta. O total não muda: os centavos do arredondamento ficam no balão.
+   ATENÇÃO: o novo fluxo NÃO é gravado no Notion — vale para o e-mail. */
+const PROP_DIL={};
+const PROP_DIL_OPC=[0,25,50,75];
+function propNumBR(v){ return Number(String(v||"").replace(/[^\d,]/g,"").replace(",","."))||0; }
+function propDilMapa(fluxo){
+  const obras=[], baloes=[];
+  fluxo.forEach((f,i)=>{ if(f.grupo==="obra") obras.push(i); else if(f.grupo==="balao") baloes.push(i); });
+  return {obras, baloes, alvo:b=>obras.length?obras[Math.min(b,obras.length-1)]:-1, mudou:new Set()};
+}
+function propDilAplicar(p, fluxo){
+  const st=PROP_DIL[p.id]; const m=propDilMapa(fluxo);
+  if(!st||!st.ok) return m;
+  m.baloes.forEach((bi,b)=>{
+    const pct=st.ok[b]||0, ai=m.alvo(b); if(!pct||ai<0) return;
+    const fb=fluxo[bi], fa=fluxo[ai];
+    const vb=propNumBR(fb.valor), va=propNumBR(fa.valor);
+    const qtd=parseInt(String(fa.quando||"").replace(/\D/g,""),10)||1;
+    const add=Math.round(vb*pct/100/qtd*100)/100;
+    fa.valor=simBRL(Math.round((va+add)*100)/100);
+    fb.valor=simBRL(Math.round((vb-add*qtd)*100)/100);
+    fa.diluido=Math.round(((fa.diluido||0)+add)*100)/100; fb.diluidoPct=pct;
+    m.mudou.add(ai); m.mudou.add(bi);
+  });
+  return m;
+}
+function propDilChave(m, o){ return m.baloes.map((_,b)=>(o&&o[b])||0).join(","); }
+function propDilBloco(p, fluxoOrig, m){
+  if(!m.baloes.length || !m.obras.length) return "";
+  const st=PROP_DIL[p.id]||{sel:{},ok:null};
+  const ro=ehSomenteLeitura(S);
+  const kSel=propDilChave(m,st.sel), kOk=propDilChave(m,st.ok);
+  const zero=m.baloes.map(()=>0).join(",");
+  const validado = !!st.ok && kSel===kOk && kOk!==zero;
+  const podeValidar = !ro && kSel!==(st.ok?kOk:zero);
+  const linhas=m.baloes.map((bi,b)=>{
+    const f=fluxoOrig[bi], fa=fluxoOrig[m.alvo(b)]||{}, sel=(st.sel&&st.sel[b])||0;
+    return `<div class="dil-lin"><div class="dil-rot"><b>${esc(f.forma||("Balão "+(b+1)))}</b> · ${esc(f.valor)}
+        <small>diluir em: ${esc(fa.forma||"parcelas pré-chaves")} (${esc(fa.quando||"")})</small></div>
+      <div class="dil-bts">${PROP_DIL_OPC.map(o=>`<button type="button" class="dil-bt${o===sel?" on":""}" ${ro?"disabled":""}
+        onclick="propDilEscolher('${p.id}',${b},${o})">${o?o+"%":"Não diluir"}</button>`).join("")}</div></div>`;
+  }).join("");
+  return `<div class="prop-dil">
+    <div class="prop-dil-tit">Diluir balões nas parcelas pré-chaves</div>
+    ${linhas}
+    <div class="prop-dil-acoes">
+      <button type="button" class="dil-acao" ${podeValidar?"":"disabled"} onclick="propDilValidar('${p.id}')">Validar e recalcular</button>
+      <button type="button" class="dil-acao env" ${validado&&!ro?"":"disabled"} onclick="propDilEnviar('${p.id}',this)">Enviar novo fluxo por e-mail</button>
+    </div>
+    <div class="prop-dil-av" id="prop-dil-av-${p.id}">${st.msg||(validado?"Fluxo recalculado (linhas em verde). Confira e envie o e-mail."
+      :(podeValidar?"Escolha feita — clique em <b>Validar e recalcular</b>.":"Escolha quanto de cada balão vai para as parcelas."))}</div>
+  </div>`;
+}
+function propDilEscolher(id,b,o){
+  const st=PROP_DIL[id]||(PROP_DIL[id]={sel:{},ok:null});
+  st.sel[b]=o; st.msg=""; propDilRepintar(id);
+}
+function propDilValidar(id){
+  const st=PROP_DIL[id]; if(!st) return;
+  st.ok=Object.assign({},st.sel); st.msg=""; propDilRepintar(id);
+}
+function propDilRepintar(id){
+  const p=PROPS.find(x=>x.id===id), cx=document.getElementById("prop-qf-"+id);
+  if(p && cx) cx.outerHTML=propQuadroFluxo(p);
+}
+async function propDilEnviar(id, bt){
+  const p=PROPS.find(x=>x.id===id), st=PROP_DIL[id]; if(!p||!st||!st.ok) return;
+  const fx=propParseEsquema(p.esquema), orig=propParseEsquema(p.esquema), m=propDilAplicar(p,fx), sn=p.sinais||{};
+  const ROT={sinal:"Sinal",obra:"Parcelas pré-chaves (durante a obra)",balao:"Balões",pos:"Pós-chaves"};
+  const td='padding:6px 9px;border-bottom:1px solid #dde4ea';
+  let ult="";
+  const linhas=fx.map((f,i)=>{
+    let cab=""; if(f.grupo!==ult && ROT[f.grupo]) cab=`<tr><td colspan="3" style="background:#E8EEF3;font-weight:bold;${td}">${ROT[f.grupo]}</td></tr>`;
+    ult=f.grupo; const mud=m.mudou.has(i);
+    return cab+`<tr${mud?' style="background:#E3F5E8"':""}><td style="${td}">${esc(f.quando||"")}</td>
+      <td style="${td};text-align:right;white-space:nowrap">${esc(f.valor||"")}${mud?' <b style="color:#1D5433">(novo)</b>':""}</td>
+      <td style="${td}">${esc(f.forma||"")}</td></tr>`;
+  }).join("");
+  const resumo=m.baloes.map((bi,b)=>{ const pc=st.ok[b]||0, fa=orig[m.alvo(b)]||{};
+    return pc?`${pc}% do ${esc(orig[bi].forma||"balão")} diluído em ${esc(fa.forma||"parcelas pré-chaves")}`:null; }).filter(Boolean).join("; ");
+  const html=`<div style="font-family:Arial,sans-serif;font-size:14px;color:#1b2b3a">
+    <p>Olá,</p>
+    <p>Segue o <b>novo fluxo de pagamento</b> da proposta ${esc(p.proposta||"")} — ${esc(p.cliente||"")}, unidade ${esc(String(p.unidade||""))}.<br>${resumo}.</p>
+    <table style="border-collapse:collapse;font-size:13px;min-width:460px">
+      <tr><td colspan="2" style="background:#1F4E79;color:#fff;font-weight:bold;padding:8px 9px">ENTRADA TOTAL A PAGAR</td>
+          <td style="background:#1F4E79;color:#fff;font-weight:bold;padding:8px 9px;text-align:right">${simBRL(sn.entradaTotal)}</td></tr>
+      ${linhas}
+    </table>
+    <p style="font-size:12px;color:#7A4A16"><b>Atenção:</b> As parcelas e os valores do fluxo podem sofrer alteração de acordo com a data de assinatura do contrato.</p>
+    <p>Morais Engenharia</p></div>`;
+  const texto="Novo fluxo de pagamento — proposta "+(p.proposta||"")+" — "+(p.cliente||"")+", unidade "+(p.unidade||"")+"\n"+
+    resumo.replace(/<[^>]+>/g,"")+"\n\n"+fx.map(f=>(f.quando||"")+" — "+(f.valor||"")+" — "+(f.forma||"")).join("\n");
+  bt.disabled=true; st.msg="Enviando…"; const av=document.getElementById("prop-dil-av-"+id); if(av) av.innerHTML="Enviando…";
+  let r=null;
+  try{ r=await chamar({action:"simsPropostaEmail", pageId:id, mensagemHtml:html, mensagem:texto,
+                       assunto:"Proposta "+(p.proposta||"")+" — novo fluxo de pagamento"}, 90000, true); }
+  catch(e){ r=null; }
+  st.msg = (r && r.ok)
+    ? '<span style="color:var(--verde-esc)">✓ Novo fluxo enviado para '+esc(r.enviadoPara||"o e-mail da proposta")+(r.naConversa?" — na mesma conversa da proposta.":".")+'</span>'
+    : '<span style="color:var(--vermelho)">Não enviou: '+esc((r&&(r.mensagem||r.erro))||"sem resposta — confira a caixa de saída antes de repetir")+'</span>';
+  propDilRepintar(id);
+}
+
 function propQuadroFluxo(p){
   const sn=p.sinais||{};
   const fluxo=propParseEsquema(p.esquema);
+  const fluxoOrig=propParseEsquema(p.esquema);
+  const dil=propDilAplicar(p, fluxo);   // 07/10: balões diluídos (se validado)
   if(!fluxo.length && !sn.sinaisTotal) return "";
   const falta=(sn.falta||0)>0.005;
   const ROT={sinal:"Sinal — abatido pelo valor para entrada (ato → 30 → 60 → 90 dias)", obra:"Parcelas durante a obra",
@@ -2417,6 +2544,8 @@ function propQuadroFluxo(p){
     const tag=f.grupo==="obra"?' <span class="prop-tag-obra">DURANTE A OBRA</span>'
              :(f.grupo==="pos"?' <span class="prop-tag-obra" style="background:#5B4A8A">PÓS A OBRA</span>':"");
     let situ="", est="";
+    if(dil.mudou.has(idx)){ est=' class="prop-dil-mud"';
+      situ='<div class="prop-ab ok">↻ '+(f.grupo==="balao"?`novo valor — ${f.diluidoPct}% diluído nas parcelas`:`novo valor — + ${simBRL(f.diluido)} por parcela (balão diluído)`)+'</div>'; }
     if(f.grupo==="sinal"){
       if(f.falta<=0.005) situ='<div class="prop-ab ok">✓ abatido pelo valor para entrada</div>';
       else {
@@ -2434,7 +2563,7 @@ function propQuadroFluxo(p){
     }
     return cab+`<tr${est}><td>${esc(f.quando)}</td><td class="num">${esc(f.valor)}</td><td style="color:var(--text3)">${esc(f.forma)}${tag}${situ}</td></tr>`+fecho;
   }).join("");
-  return `
+  return `<div id="prop-qf-${p.id}">
   <div class="prop-destaque ${falta?"ruim":"bom"}">
     <div class="prop-dest-tit">${falta?"⚠ ":"✓ "}Fluxo de pagamento — sinal × valor para entrada</div>
     <div class="prop-dest-grade">
@@ -2456,7 +2585,8 @@ function propQuadroFluxo(p){
       <tr class="sim-tot"><td colspan="2">ENTRADA TOTAL A PAGAR</td><td class="num">${simBRL(sn.entradaTotal)}</td></tr>
       ${linhas}</tbody></table></div>
     <div style="margin-top:6px;padding:7px 10px;background:#FBEEC8;border-left:3px solid #EFB700;font-size:12px;color:#7A4A16"><b>Atenção:</b> As parcelas e os valores do fluxo podem sofrer alteração de acordo com a data de assinatura do contrato.</div>`:""}
-  </div>`;
+    ${fluxo.length?propDilBloco(p, fluxoOrig, dil):""}
+  </div></div>`;
 }
 
 /* ---------- detalhe: decisão + e-mail (item 6) ---------- */
