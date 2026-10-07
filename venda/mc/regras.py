@@ -304,8 +304,11 @@ _RE_SERIE = re.compile(r"^(.*) (\d+)/(\d+)$")
 
 
 def descricao(dados: dict) -> str:
+    """Casas de rua: "VENDA CASA 02 - NOME". Condomínio (regra do dono, 07/10/2026): todas as vendas no mesmo
+    centro de custo, diferenciadas pelo cliente e por "UNIDADE 13" na descrição."""
     casa = dados.get("casa")
-    return "VENDA CASA %02d - %s" % (casa or 0, " ".join(str(dados["comprador"]["nome"] or "").upper().split()))
+    rotulo = "UNIDADE" if dados.get("condominio_id") else "CASA"
+    return "VENDA %s %02d - %s" % (rotulo, casa or 0, " ".join(str(dados["comprador"]["nome"] or "").upper().split()))
 
 
 def faltas(dados: dict, dias_financiamento: int = DIAS_FINANCIAMENTO) -> list[str]:

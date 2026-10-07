@@ -121,13 +121,8 @@ def faltas_do_fluxo(fx: dict, casa: int | None) -> list[str]:
 
 
 def escolher_obra(obras: list[dict], endereco: str, casa: int | None) -> list[dict]:
-    """Obra da venda no Mais Controle. Se houver um centro de custo próprio da casa
-    (nome com o condomínio e o número da casa, ex.: "RESERVA DOS IPÊS CASA 12"), é ele;
-    senão, a obra do condomínio inteiro (nome igual ao ENDEREÇO)."""
+    """Obra da venda no Mais Controle: o centro de custo do condomínio inteiro (nome igual ao ENDEREÇO).
+    Regra do dono (07/10/2026): NÃO há centro de custo por casa; a unidade vai na descrição
+    ("VENDA UNIDADE 13 - NOME") e as vendas se diferenciam pelo cliente."""
     alvo = R.chave(endereco)
-    nucleo = alvo[len("CONDOMINIO "):] if alvo.startswith("CONDOMINIO ") else alvo
-    da_casa = [o for o in obras if nucleo and nucleo in R.chave(o.get("name"))
-               and casa and R.casa_da_descricao(o.get("name")) == casa]
-    if da_casa:
-        return da_casa
     return [o for o in obras if R.chave(o.get("name")) == alvo]

@@ -73,10 +73,10 @@ def test_faltas_do_fluxo():
     assert any("diferente da UNIDADE" in x for x in f)
 
 
-def test_escolher_obra_prefere_centro_de_custo_da_casa():
+def test_escolher_obra_e_sempre_o_condominio_inteiro():
     obras = [{"id": "g", "name": "CONDOMÍNIO RESERVA TESTE"}, {"id": "c12", "name": "RESERVA TESTE CASA 12"},
              {"id": "c1", "name": "RESERVA TESTE CASA 1"}]
-    assert [o["id"] for o in C.escolher_obra(obras, "CONDOMÍNIO RESERVA TESTE", 12)] == ["c12"]
+    assert [o["id"] for o in C.escolher_obra(obras, "CONDOMÍNIO RESERVA TESTE", 12)] == ["g"]
     assert [o["id"] for o in C.escolher_obra(obras, "CONDOMÍNIO RESERVA TESTE", 30)] == ["g"]
     assert [o["id"] for o in C.escolher_obra(obras[:1], "Condominio Reserva Teste", 12)] == ["g"]
 
@@ -113,7 +113,7 @@ def test_previa_do_condominio_usa_tabelas_e_referencia_2(monkeypatch):
     assert pos[0]["readjustmentDetail"]["table"]["id"] == "tp"
     sinal = inst[0]
     assert sinal["readjustmentDetail"]["table"] is None and sinal["readjustmentDetail"]["reference"] == 0
-    assert r["corpo_venda"]["description"].startswith("VENDA CASA 12 - ")
+    assert r["corpo_venda"]["description"].startswith("VENDA UNIDADE 12 - ")
     assert "Pós-chaves 3x" in n.gravado["MC - SITUAÇÃO"]
 
 
@@ -172,3 +172,11 @@ def test_condominio_financiamento_30_dias_apos_assinatura_e_cpf_do_corretor_da_p
     assert r["situacao"] == "PREVIA", r
     L.processar("p", n, e, aplicar=True)
     assert e.criados[0][1]["role"] == "SUPPLIER" and e.criados[0][1]["cpf"] == "11144477735"
+
+
+def test_venda_ja_lancada_com_unidade_na_descricao_e_reconhecida():
+    recs = [{"workName": "CONDOMÍNIO RESERVA TESTE", "description": "VENDA UNIDADE 12 - OUTRO NOME", "saleId": "s12",
+             "customerName": "OUTRO"},
+            {"workName": "CONDOMÍNIO RESERVA TESTE", "description": "VENDA UNIDADE 07 - X", "saleId": "s7"}]
+    mesma, sem = R.venda_da_casa(recs, "CONDOMÍNIO RESERVA TESTE", 12)
+    assert [v["id"] for v in mesma] == ["s12"] and sem == []
