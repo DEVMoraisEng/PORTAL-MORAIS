@@ -3356,7 +3356,10 @@ function criarServico(){
     if(c.tipo === "multi_select"){
       return '<div class="campo"><label>'+esc(c.nome)+'</label><div class="ms-cx" id="'+id+'">'+
         ((c.opcoes||[]).map(o=>'<label class="ms-item"><input type="checkbox" value="'+esc(o)+'"> '+esc(o)+'</label>').join("")
-          || '<span style="font-size:12px;color:var(--text4)">sem opções cadastradas</span>')+'</div></div>';
+          || '<span style="font-size:12px;color:var(--text4)">sem opções cadastradas</span>')+'</div>'+
+        /* 07/10 — no NOVO serviço também dá para cadastrar um tipo de serviço que não existe */
+        ((podeCriarOpcao(c.nome) && !soLeitura()) ? '<button type="button" class="bt-novaopc" onclick="nsNovaOpcaoMulti(\''+esc(c.nome).replace(/'/g,"\\'")+'\', \''+id+'\')">+ Novo tipo de serviço</button>' : '')+
+        '</div>';
     }
     if(c.tipo === "select" || c.tipo === "status"){
       return '<div class="campo"><label>'+esc(c.nome)+'</label><select id="'+id+'">'+
@@ -4131,6 +4134,21 @@ async function aoTrocarSelect(prop, valor, id, el){
 }
 
 /* multi_select: cria e marca, preservando o que já estava marcado. */
+/* 07/10 — "+ Novo tipo de serviço" dentro do Novo serviço: cria a opção, mostra e já deixa marcada */
+async function nsNovaOpcaoMulti(prop, id){
+  const cx = document.getElementById(id); if(!cx) return;
+  const novo = await pedirOpcaoNova(prop);
+  if(!novo) return;
+  let inp = Array.from(cx.querySelectorAll("input[type=checkbox]")).find(i => normN(i.value) === normN(novo));
+  if(!inp){
+    const vazio = cx.querySelector("span"); if(vazio && !cx.querySelector("label")) vazio.remove();
+    const lb = document.createElement("label"); lb.className = "ms-item";
+    lb.innerHTML = '<input type="checkbox" value="'+esc(novo)+'"> '+esc(novo);
+    cx.appendChild(lb); inp = lb.querySelector("input");
+  }
+  inp.checked = true;
+  try{ inp.closest("label").scrollIntoView({block:"nearest"}); }catch(e){}
+}
 async function novaOpcaoMulti(prop, id){
   const cx = document.getElementById(id);
   const marcados = cx ? Array.from(cx.querySelectorAll("input:checked")).map(i=>i.value) : [];
