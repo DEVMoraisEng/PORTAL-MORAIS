@@ -1538,7 +1538,7 @@ function abaSetor(t){
    linha atualizada.
    ===================================================================== */
 let COND=null, COND_ABERTA=null, COND_CARREGANDO=false;
-const CD_PADRAO=["UNIDADE","CONDOMÍNIO","PROPONENTE","CORRETOR","STATUS DO CADASTRO","DATA DA VENDA","VALOR DE VENDA","COMISSÃO",
+const CD_PADRAO=["UNIDADE","CONDOMÍNIO","PROPONENTE","CORRETOR","CPF CORRETOR","STATUS DO CADASTRO","DATA DA VENDA","VALOR DE VENDA","COMISSÃO",
   "VALOR DO CRÉDITO","VALOR DA PARCELA","DATA DE ASSINATURA DO CONTRATO","DIA PAGAMENTO PARCELAS","DATA DA ENTREGA",
   "DATA SINAL 30 DIAS","DATA SINAL 60 DIAS","DATA SINAL 90 DIAS",
   "DATA 1º PARTE PRÉ CHAVES","Nº PARCELAS 1º PARTE PRÉ CHAVES","VALOR 1º PARTE PRÉ CHAVES",
@@ -1718,7 +1718,7 @@ function condFechar(){ COND_ABERTA=null; const c=document.getElementById("cd-car
 function condFluxo(l){
   const g=n=>cdVal(l,n), dia=Number(g("DIA PAGAMENTO PARCELAS"))||0;
   const L=[]; let total=0;
-  const add=(rot,qtd,val,quando)=>{ if(val==null||val==="") return; const sub=(qtd||1)*Number(val); total+=sub; L.push({rot,qtd:qtd||1,val:Number(val),sub,quando}); };
+  const add=(rot,qtd,val,quando)=>{ if(val==null||val===""||!Number(val)) return;   /* 07/10: parcela zerada no recálculo (assinatura tardia) some do quadro */ const sub=(qtd||1)*Number(val); total+=sub; L.push({rot,qtd:qtd||1,val:Number(val),sub,quando}); };
   const dt=(n)=>cdDia(g(n));
   L.push({grupo:"SINAL"});
   add("Sinal — ato da assinatura",1,g("VALOR SINAL ATO"),g("DATA DE ASSINATURA DO CONTRATO")?cdDia(g("DATA DE ASSINATURA DO CONTRATO")):"na assinatura");
@@ -1790,7 +1790,7 @@ function condAbrir(id){
     :'<tr><td>'+esc(x.rot)+'</td><td class="r">'+(x.qtd>1?x.qtd+" × ":"")+cdBRL(x.val)+'</td><td>'+esc(x.quando||"—")+'</td><td class="r">'+cdBRL(x.sub)+'</td></tr>').join("");
   document.getElementById("cd-card").innerHTML='<div class="cd-cardbox">'+
     '<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div>'+
-    '<h3>Unidade '+esc(g(tit)||"")+(g("CONDOMÍNIO")?' · '+esc(g("CONDOMÍNIO")):'')+'</h3><div class="sub">'+esc(g("PROPONENTE")||"—")+' · Proposta '+esc(g("PROPOSTA")||"—")+' · Corretor: '+esc(g("CORRETOR")||"—")+'</div></div>'+
+    '<h3>Unidade '+esc(g(tit)||"")+(g("CONDOMÍNIO")?' · '+esc(g("CONDOMÍNIO")):'')+'</h3><div class="sub">'+esc(g("PROPONENTE")||"—")+' · Proposta '+esc(g("PROPOSTA")||"—")+' · Corretor: '+esc(g("CORRETOR")||"—")+(g("CPF CORRETOR")?' · CPF '+esc(g("CPF CORRETOR")):'')+'</div></div>'+
     '<button class="cd-bt" onclick="condFechar()">✕ Fechar</button></div>'+
     '<div class="cd-kpis">'+
       '<div class="cd-kpi"><small>Valor de venda</small><b>'+cdBRL(g("VALOR DE VENDA"))+'</b></div>'+
