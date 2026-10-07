@@ -335,6 +335,9 @@ section > .sec:first-child{margin-top:0}
 .dil-acao:disabled{opacity:.4;cursor:default}
 .prop-dil-av{font-size:12px;color:var(--text3);margin-top:7px}
 tr.prop-dil-mud td{background:#E3F5E8 !important;color:#1D5433}
+.dil-ja{display:inline-block;margin-left:6px;background:#27AE60;color:#fff;border-radius:9px;padding:1px 8px;font-size:11px;font-weight:800}
+.dil-barra{height:8px;background:var(--border2);border-radius:5px;overflow:hidden;margin-top:6px}
+.dil-barra>i{display:block;height:100%;background:#27AE60;transition:width .5s}
 /* 07/10/2026: valores principais em destaque no topo da proposta */
 .prop-resumo{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:12px 0 14px}
 .prop-resumo div{background:var(--bg2,#F2F7F9);border:1px solid var(--border2);border-left:4px solid var(--azul);border-radius:8px;padding:8px 11px;min-width:0}
@@ -2416,7 +2419,10 @@ function propPillSinais(p){
    simsPropostaFluxo) — passa a ser o fluxo oficial, que vai para a venda; o
    anterior fica num comentário no Notion. Só depois de gravado libera
    "Enviar novo fluxo por e-mail" (resposta na conversa da proposta).
-   O total não muda: os centavos do arredondamento ficam no balão. */
+   O total não muda: os centavos do arredondamento ficam no balão.
+   r2: o que já foi diluído fica MARCADO (comparando com o fluxo original da
+   proposta, DADOS.esquemaOriginal), gravar/enviar mostram barra com % e o
+   e-mail usa a mesma paleta do e-mail principal da proposta. */
 const PROP_DIL={};
 const PROP_DIL_OPC=[0,25,50,75];
 function propNumBR(v){ return Number(String(v||"").replace(/[^\d,]/g,"").replace(",","."))||0; }
@@ -2426,14 +2432,36 @@ function propDilMapa(fluxo){
   fluxo.forEach((f,i)=>{ if(f.grupo==="obra") obras.push(i); else if(f.grupo==="balao") baloes.push(i); });
   return {obras, baloes, alvo:b=>obras.length?obras[Math.min(b,obras.length-1)]:-1, mudou:new Set(), previa:false};
 }
+/* fluxo original da proposta (antes de qualquer diluição) — vem do servidor
+   (esquemaOriginal) ou, nesta tela, do que estava antes de gravar */
+function propDilOriginal(p){
+  const st=PROP_DIL[p.id]||{};
+  return p.esquemaOriginal || st.orig || "";
+}
+/* % já diluído de cada balão em relação ao original (0 se nunca foi) */
+function propDilJa(p, fluxo, m){
+  const orig=propDilOriginal(p); const out={};
+  if(!orig) return out;
+  const porI={}; propParseEsquema(orig).forEach(f=>{ porI[f.i]=f.valor; });
+  m.baloes.forEach((bi,b)=>{
+    const f=fluxo[bi], o=propNumBR(porI[f.i]), a=propNumBR(f.valor);
+    if(o>0 && Math.abs(o-a)>0.009) out[b]={pct:Math.round((o-a)/o*100), era:porI[f.i]};
+  });
+  return out;
+}
 function propDilAplicar(p, fluxo){
   const st=PROP_DIL[p.id]; const m=propDilMapa(fluxo);
-  if(st && st.orig){          // já gravado nesta tela: marca o que mudou em relação ao fluxo anterior
-    const porI={}; propParseEsquema(st.orig).forEach(f=>{ porI[f.i]=f.valor; });
+  const orig=propDilOriginal(p);
+  if(orig){                   // já gravado: marca o que mudou em relação ao fluxo original
+    const porI={}; propParseEsquema(orig).forEach(f=>{ porI[f.i]=f.valor; });
     fluxo.forEach((f,ix)=>{
-      if((f.grupo==="obra"||f.grupo==="balao") && porI[f.i]!=null && propNumBR(porI[f.i])!==propNumBR(f.valor)){
-        m.mudou.add(ix); f.dilTxt=(f.grupo==="balao"?"balão reduzido — era ":"parcela com balão diluído — era ")+porI[f.i];
-      }
+      if(!(f.grupo==="obra"||f.grupo==="balao") || porI[f.i]==null) return;
+      const o=propNumBR(porI[f.i]), a=propNumBR(f.valor);
+      if(Math.abs(o-a)<=0.009) return;
+      m.mudou.add(ix);
+      f.dilTxt = f.grupo==="balao"
+        ? "✓ "+Math.round((o-a)/o*100)+"% deste balão diluído nas parcelas (era "+porI[f.i]+")"
+        : "✓ recebeu balão diluído: + "+propBRL2(a-o)+" por parcela (era "+porI[f.i]+")";
     });
   }
   if(!st || !st.sel) return m;
@@ -2446,7 +2474,7 @@ function propDilAplicar(p, fluxo){
     fa.valor=fa.novoValor=propBRL2(va+add);
     fb.valor=fb.novoValor=propBRL2(vb-add*qtd);
     fa.dilTxt="PRÉVIA — + "+propBRL2(add)+" por parcela ("+pct+"% do balão)";
-    fb.dilTxt="PRÉVIA — "+pct+"% diluído nas parcelas";
+    fb.dilTxt="PRÉVIA — "+pct+"% do valor atual diluído nas parcelas";
     m.mudou.add(ai); m.mudou.add(bi); m.previa=true;
   });
   return m;
@@ -2460,27 +2488,44 @@ function propDilEsquemaNovo(txt, fluxo){
     return mapa[k]==null ? seg : seg.replace(/R\$\s?[\d.,]+/, mapa[k]);
   }).join(";");
 }
+/* barra de andamento com % (estimado pelo tempo típico) + etapas + segundos */
+function propDilProg(av, etapas, estimSeg){
+  const t0=Date.now(); let fim=null;
+  const pintar=()=>{
+    const seg=(Date.now()-t0)/1000;
+    const pct = fim ? 100 : Math.min(95, Math.round(seg/estimSeg*100));
+    const k = fim ? etapas.length : Math.min(etapas.length-1, Math.floor(seg/(estimSeg/etapas.length)));
+    av.innerHTML = etapas.map((e,i)=>'<div style="opacity:'+(i<k?'.55':(i===k?'1':'.35'))+'">'+(i<k?'✓ ':(i===k?'⏳ ':'• '))+esc(e)+'</div>').join("")+
+      '<div class="dil-barra"><i style="width:'+pct+'%"></i></div>'+
+      '<div style="font-size:11px;color:var(--text3);margin-top:3px">'+pct+'% · '+Math.round(seg)+' s'+(fim?'':' (leva uns '+estimSeg+' s)')+'</div>';
+  };
+  pintar(); const tm=setInterval(pintar,500);
+  return ()=>{ fim=true; pintar(); clearInterval(tm); };
+}
 function propDilBloco(p, fluxoOrig, m){
   if(!m.baloes.length || !m.obras.length) return "";
   const st=PROP_DIL[p.id]||{sel:{}};
   const ro=ehSomenteLeitura(S);
   const temSel=m.baloes.some((_,b)=>(st.sel&&st.sel[b])||0);
+  const ja=propDilJa(p, fluxoOrig, m);
   const linhas=m.baloes.map((bi,b)=>{
     const f=fluxoOrig[bi], fa=fluxoOrig[m.alvo(b)]||{}, sel=(st.sel&&st.sel[b])||0;
     return `<div class="dil-lin"><div class="dil-rot"><b>${esc(f.forma||("Balão "+(b+1)))}</b> · ${esc(f.valor)}
-        <small>diluir em: ${esc(fa.forma||"parcelas pré-chaves")} (${esc(fa.quando||"")})</small></div>
+        ${ja[b]?`<span class="dil-ja">já diluído ${ja[b].pct}% · era ${esc(ja[b].era)}</span>`:""}
+        <small>diluir em: ${esc(fa.forma||"parcelas pré-chaves")} (${esc(fa.quando||"")})${ja[b]?" — a % abaixo é sobre o valor atual":""}</small></div>
       <div class="dil-bts">${PROP_DIL_OPC.map(o=>`<button type="button" class="dil-bt${o===sel?" on":""}" ${ro||st.gravando?"disabled":""}
         onclick="propDilEscolher('${p.id}',${b},${o})">${o?o+"%":"Não diluir"}</button>`).join("")}</div></div>`;
   }).join("");
+  const algumJa=Object.keys(ja).length>0;
   const msg = st.msg || (temSel
     ? "Prévia no quadro (linhas em verde). Confira e clique em <b>Validar e salvar novo fluxo</b> — ele passa a ser o fluxo da proposta e da venda."
-    : (st.salvo ? "Novo fluxo gravado na proposta. Já pode enviar o e-mail." : "Escolha quanto de cada balão vai para as parcelas."));
+    : ((st.salvo||algumJa) ? "Este é o fluxo gravado na proposta. Pode enviar o e-mail." : "Escolha quanto de cada balão vai para as parcelas."));
   return `<div class="prop-dil">
     <div class="prop-dil-tit">Diluir balões nas parcelas pré-chaves</div>
     ${linhas}
     <div class="prop-dil-acoes">
       <button type="button" class="dil-acao" ${!ro&&temSel&&!st.gravando?"":"disabled"} onclick="propDilValidar('${p.id}')">Validar e salvar novo fluxo</button>
-      <button type="button" class="dil-acao env" ${!ro&&st.salvo&&!temSel&&!st.gravando?"":"disabled"} onclick="propDilEnviar('${p.id}',this)">Enviar novo fluxo por e-mail</button>
+      <button type="button" class="dil-acao env" ${!ro&&(st.salvo||algumJa)&&!temSel&&!st.gravando?"":"disabled"} onclick="propDilEnviar('${p.id}',this)">Enviar novo fluxo por e-mail</button>
     </div>
     <div class="prop-dil-av" id="prop-dil-av-${p.id}">${msg}</div>
   </div>`;
@@ -2496,59 +2541,83 @@ async function propDilValidar(id){
   const novo=propDilEsquemaNovo(p.esquema, fx);
   if(novo===p.esquema){ st.msg="Nada mudou no fluxo."; propDilRepintar(id); return; }
   if(!confirm("Gravar este novo fluxo na proposta?\n\nEle passa a ser o fluxo oficial (é o que vai para a venda). O fluxo anterior fica guardado num comentário da proposta no Notion.")) return;
-  st.gravando=true; st.msg="Gravando o novo fluxo na proposta…"; propDilRepintar(id);
+  st.gravando=true; st.msg="Gravando…"; propDilRepintar(id);
+  const av=document.getElementById("prop-dil-av-"+id);
+  const parar=av ? propDilProg(av, ["Lendo a proposta no Notion…","Gravando o novo fluxo (ESQUEMA ENTRADA e DADOS)…","Guardando o fluxo anterior num comentário…"], 12) : ()=>{};
   let r=null;
   try{ r=await chamar({action:"simsPropostaFluxo", pageId:id, esquema:novo, anterior:p.esquema}, 90000, true); }
   catch(e){ r=null; }
+  parar();
   st.gravando=false;
   if(r && r.ok){
+    if(!p.esquemaOriginal) p.esquemaOriginal=p.esquema;
     st.orig=st.orig||p.esquema; p.esquema=novo; st.sel={}; st.salvo=true;
     st.msg='<span style="color:var(--verde-esc)">✓ Novo fluxo gravado na proposta. Já pode enviar o e-mail.</span>';
     try{ storeInvalidar("sims_propostas"); }catch(e){}
   } else {
     st.msg='<span style="color:var(--vermelho)">Não gravou: '+esc((r&&(r.mensagem||r.erro))||"sem resposta do servidor — confira antes de repetir")+'</span>';
   }
-  propDilRepintar(id);
+  setTimeout(()=>propDilRepintar(id), 600);
 }
 function propDilRepintar(id){
   const p=PROPS.find(x=>x.id===id), cx=document.getElementById("prop-qf-"+id);
   if(p && cx) cx.outerHTML=propQuadroFluxo(p);
 }
-async function propDilEnviar(id, bt){
-  const p=PROPS.find(x=>x.id===id), st=PROP_DIL[id]; if(!p||!st||!st.salvo) return;
+/* e-mail do novo fluxo — mesma paleta do e-mail principal da proposta
+   (marrom #7A4A16, faixas #F6F0E3, bordas #E7DCC7, selos azul/roxo) */
+function propDilEmailHtml(p){
   const fx=propParseEsquema(p.esquema), m=propDilAplicar(p,fx), sn=p.sinais||{};
-  const ROT={sinal:"Sinal",obra:"Parcelas pré-chaves (durante a obra)",balao:"Balões",pos:"Pós-chaves"};
-  const td='padding:6px 9px;border-bottom:1px solid #dde4ea';
-  let ult="";
+  const TD='border:1px solid #E7DCC7;padding:6px 10px';
+  const SELO=(t,c)=>' <span style="display:inline-block;background:'+c+';color:#fff;border-radius:9px;padding:1px 7px;font-size:10px;font-weight:800">'+t+'</span>';
+  const ROT={sinal:"SINAL — "+propBRL2(sn.sinaisTotal||0)+" pago com o valor para entrada: ato + parcelas em 30, 60 e 90 dias",
+             obra:"PARCELAS DURANTE A OBRA", balao:"BALÕES", pos:"PÓS-CHAVES — PÓS A OBRA"};
+  const cobre=!((sn.falta||0)>0.005);
+  let ult="", ultS=-1; fx.forEach((f,i)=>{ if(f.grupo==="sinal") ultS=i; });
   const linhas=fx.map((f,i)=>{
-    let cab=""; if(f.grupo!==ult && ROT[f.grupo]) cab=`<tr><td colspan="3" style="background:#E8EEF3;font-weight:bold;${td}">${ROT[f.grupo]}</td></tr>`;
+    let cab=""; if(f.grupo!==ult && ROT[f.grupo]) cab='<tr><td colspan="3" style="'+TD+';background:#F6F0E3;color:#7A4A16;font-weight:800;font-size:12px">'+esc(ROT[f.grupo])+'</td></tr>';
     ult=f.grupo; const mud=m.mudou.has(i);
-    return cab+`<tr${mud?' style="background:#E3F5E8"':""}><td style="${td}">${esc(f.quando||"")}</td>
-      <td style="${td};text-align:right;white-space:nowrap">${esc(f.valor||"")}${mud?' <b style="color:#1D5433">(novo)</b>':""}</td>
-      <td style="${td}">${esc(f.forma||"")}</td></tr>`;
+    const selo=f.grupo==="obra"?SELO("DURANTE A OBRA","#1F6FB2"):(f.grupo==="pos"?SELO("PÓS A OBRA","#5B4A8A"):"");
+    let situ="";
+    if(f.grupo==="sinal" && cobre) situ='<br><span style="color:#1D5433;font-weight:700;font-size:12px">✓ abatido pelo valor para entrada</span>';
+    if(mud) situ+='<br><span style="color:#1D5433;font-weight:800;font-size:12px">'+esc(String(f.dilTxt||"novo valor").replace(/^✓\s*/,"✓ NOVO — "))+'</span>';
+    let fecho="";
+    if(i===ultS && cobre) fecho='<tr><td colspan="3" style="'+TD+';background:#EAF6EF;color:#1D5433;font-weight:700">✓ O valor para entrada ('+propBRL2(sn.paraSinais||0)+') abate todo o sinal ('+propBRL2(sn.sinaisTotal||0)+').</td></tr>';
+    const fundo=mud?';background:#EAF6EF':'';
+    return cab+'<tr><td style="'+TD+fundo+'">'+esc(f.quando||"")+'</td>'+
+      '<td style="'+TD+fundo+';text-align:right;white-space:nowrap'+(mud?';font-weight:800;color:#1D5433':'')+'">'+esc(f.valor||"")+'</td>'+
+      '<td style="'+TD+fundo+'">'+esc(f.forma||"")+selo+situ+'</td></tr>'+fecho;
   }).join("");
-  const html=`<div style="font-family:Arial,sans-serif;font-size:14px;color:#1b2b3a">
-    <p>Olá,</p>
-    <p>Segue o <b>novo fluxo de pagamento</b> da proposta ${esc(p.proposta||"")} — ${esc(p.cliente||"")}, unidade ${esc(String(p.unidade||""))}.
-       Parte dos balões foi diluída nas parcelas pré-chaves; as linhas alteradas estão marcadas como <b>(novo)</b>.</p>
-    <table style="border-collapse:collapse;font-size:13px;min-width:460px">
-      <tr><td colspan="2" style="background:#1F4E79;color:#fff;font-weight:bold;padding:8px 9px">ENTRADA TOTAL A PAGAR</td>
-          <td style="background:#1F4E79;color:#fff;font-weight:bold;padding:8px 9px;text-align:right">${simBRL(sn.entradaTotal)}</td></tr>
-      ${linhas}
-    </table>
-    <p style="font-size:12px;color:#7A4A16"><b>Atenção:</b> As parcelas e os valores do fluxo podem sofrer alteração de acordo com a data de assinatura do contrato.</p>
-    <p>Morais Engenharia</p></div>`;
+  return '<div style="font-family:Segoe UI,Arial,sans-serif;color:#2A2118;max-width:700px">'+
+    '<h2 style="color:#7A4A16;margin:0 0 4px">Proposta '+esc(p.proposta||"")+' — novo fluxo de pagamento</h2>'+
+    '<p style="margin:0 0 12px;font-size:14px">'+esc(p.cliente||"")+' · Unidade '+esc(String(p.unidade||""))+'</p>'+
+    '<p style="font-size:14px">Olá! Parte dos balões foi diluída nas parcelas pré-chaves. Segue o fluxo atualizado — as linhas alteradas estão destacadas em verde.</p>'+
+    '<h3 style="color:#7A4A16;font-size:14px;margin:18px 0 6px">ENTRADA TOTAL — FLUXO DE PAGAMENTO</h3>'+
+    '<table style="border-collapse:collapse;width:100%;font-size:13px">'+
+      '<tr><td colspan="2" style="'+TD+';background:#7A4A16;color:#fff;font-weight:800">ENTRADA TOTAL A PAGAR</td>'+
+      '<td style="'+TD+';background:#7A4A16;color:#fff;font-weight:800;text-align:right">'+propBRL2(sn.entradaTotal||0)+'</td></tr>'+
+      linhas+'</table>'+
+    '<div style="margin:12px 0;padding:10px 14px;background:#FBEEC8;border:1px solid #EFB700;border-radius:6px;color:#7A4A16;font-size:13px">'+
+      '<b>Atenção:</b> As parcelas e os valores do fluxo podem sofrer alteração de acordo com a data de assinatura do contrato.</div>'+
+    '<p style="font-size:13px;color:#6B5E50">Morais Engenharia · Reserva do Ipês</p></div>';
+}
+async function propDilEnviar(id, bt){
+  const p=PROPS.find(x=>x.id===id); const st=PROP_DIL[id]||(PROP_DIL[id]={sel:{}}); if(!p) return;
+  const fx=propParseEsquema(p.esquema), m=propDilAplicar(p,fx);
+  const html=propDilEmailHtml(p);
   const texto="Novo fluxo de pagamento — proposta "+(p.proposta||"")+" — "+(p.cliente||"")+", unidade "+(p.unidade||"")+"\n\n"+
     fx.map((f,i)=>(f.quando||"")+" — "+(f.valor||"")+" — "+(f.forma||"")+(m.mudou.has(i)?" (novo)":"")).join("\n");
-  bt.disabled=true; const av=document.getElementById("prop-dil-av-"+id); if(av) av.innerHTML="Enviando…";
+  bt.disabled=true;
+  const av=document.getElementById("prop-dil-av-"+id);
+  const parar=av ? propDilProg(av, ["Montando o e-mail com o novo fluxo…","Enviando na conversa da proposta…","Confirmando o envio…"], 15) : ()=>{};
   let r=null;
   try{ r=await chamar({action:"simsPropostaEmail", pageId:id, mensagemHtml:html, mensagem:texto,
                        assunto:"Proposta "+(p.proposta||"")+" — novo fluxo de pagamento"}, 90000, true); }
   catch(e){ r=null; }
+  parar();
   st.msg = (r && r.ok)
     ? '<span style="color:var(--verde-esc)">✓ Novo fluxo enviado para '+esc(r.enviadoPara||"o e-mail da proposta")+(r.naConversa?" — na mesma conversa da proposta.":".")+'</span>'
     : '<span style="color:var(--vermelho)">Não enviou: '+esc((r&&(r.mensagem||r.erro))||"sem resposta — confira a caixa de saída antes de repetir")+'</span>';
-  propDilRepintar(id);
+  setTimeout(()=>propDilRepintar(id), 600);
 }
 
 function propQuadroFluxo(p){
