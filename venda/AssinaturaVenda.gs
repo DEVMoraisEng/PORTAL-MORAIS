@@ -340,10 +340,12 @@ function conferirAssinatura() {
   else linhas.push("AVISO Ambiente: endereço fora do padrão da Clicksign.");
   if (ok) {
     var r = cs_("get", "/envelopes?page%5Bsize%5D=1");
+    var disse = " A Clicksign disse: " + (r.detalhe || "(sem detalhe)");
     if (r.ok) linhas.push("ok    Clicksign aceitou o token (http " + r.http + ").");
-    else if (r.http === 401 || r.http === 403) falha("Clicksign recusou o token (http " + r.http + "): token errado, de outro ambiente (sandbox × produção) ou revogado.");
+    else if (r.http === 401) falha("Clicksign recusou o token (http 401): token errado, de outro ambiente (sandbox × produção) ou revogado." + disse);
+    else if (r.http === 403) falha("Clicksign reconheceu o token mas negou o acesso (http 403): confira o e-mail salvo na tela da API e a confirmação do cadastro." + disse);
     else if (r.http === 0) falha("Clicksign não respondeu (http 0). Tente de novo daqui a pouco.");
-    else falha("Clicksign respondeu http " + r.http + ".");
+    else falha("Clicksign respondeu http " + r.http + "." + disse);
   }
   var conf = ClicksignVenda.conferirConfig(assConfig_());
   conf.problemas.forEach(falha);

@@ -633,6 +633,21 @@ test("conferirAssinatura: sem token não chama nada; 'Bearer' colado e token rec
   rec.c.chamadas.length = 0;
   assert.equal(rec.g.ctx.conferirAssinatura().ok, false);
   assert.ok(rec.g.logs.join("\n").includes("Clicksign recusou o token (http 401)"), rec.g.logs.join("\n"));
+  assert.ok(rec.g.logs.join("\n").includes("A Clicksign disse: Unauthorized"), rec.g.logs.join("\n"));
+});
+
+test("conferirAssinatura: 403 mostra o motivo da Clicksign com e-mail mascarado; corpo sem JSON vira (sem detalhe)", () => {
+  const neg = cenario({ cs: { falhar: (m, cam) => (cam.startsWith("/envelopes?") ? { status: 403, json: { errors: [{ title: "Forbidden", detail: "fulano@teste.example sem permissão" }] } } : null) } });
+  neg.c.chamadas.length = 0;
+  assert.equal(neg.g.ctx.conferirAssinatura().ok, false);
+  const log = neg.g.logs.join("\n");
+  assert.ok(log.includes("negou o acesso (http 403)"), log);
+  assert.ok(log.includes("A Clicksign disse: Forbidden: ***@teste.example sem permissão"), log);
+  assert.ok(!log.includes("fulano@"), "log com e-mail");
+  const html = cenario({ cs: { falhar: (m, cam) => (cam.startsWith("/envelopes?") ? { status: 403, texto: "<html>bloqueado</html>" } : null) } });
+  html.c.chamadas.length = 0;
+  html.g.ctx.conferirAssinatura();
+  assert.ok(html.g.logs.join("\n").includes("A Clicksign disse: (sem detalhe)"), html.g.logs.join("\n"));
 });
 
 test("conferirAssinatura: URL de produção avisa; testemunha inválida derruba o ok sem mostrar quem", () => {
