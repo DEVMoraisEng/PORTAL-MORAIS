@@ -1268,7 +1268,8 @@ function simLinkTel(v){ const d=String(v||"").replace(/\D/g,""); if(!d) return "
 function simIdade(d){ const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(d||"")); if(!m) return null;
   const h=new Date(); let i=h.getFullYear()-Number(m[1]); if(h.getMonth()+1<Number(m[2])||(h.getMonth()+1===Number(m[2])&&h.getDate()<Number(m[3]))) i--; return i; }
 function simPerfilHtml(s){
-  const p=s.perfil||{}; if(!p.dataNascimento && !Object.keys(p).some(k=>p[k]===true)) return "";
+  const p=s.perfil||{};
+  if(!s.perfil) return `<div style="margin-top:14px;border:1.5px dashed var(--azul);border-radius:10px;padding:10px 14px;font-size:12.5px;color:var(--text3)"><b style="color:var(--azul)">Cliente — dados usados na simulação</b><br>Atualize a página (Ctrl+Shift+R) para carregar estes dados.</div>`;
   const idade=simIdade(p.dataNascimento), dn=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(p.dataNascimento||""));
   const marca=(ok,txt)=>`<div style="display:flex;gap:8px;align-items:center;padding:4px 0;font-size:13px;color:${ok?'var(--azul-esc)':'var(--text3)'}">`+
     `<span style="display:inline-flex;width:18px;height:18px;border-radius:4px;align-items:center;justify-content:center;font-size:12px;font-weight:800;`+
@@ -1468,6 +1469,7 @@ function simVerDet(id){
       ${it("Comissão",(s.comissaoPct?(s.comissaoPct*100).toFixed(2).replace(".",",")+"% · ":"")+simBRL(s.comissaoValor))}
       ${it("Produto",esc(s.produtos||""))}${it("Seguradora",esc(s.seguradora||""))}
     </div>
+    ${simPerfilHtml(s)}
     ${tabFluxo}${tabEncargo}
     ${s.mensagem?`<div class="sim-aviso ${simSt(s)==="ERRO"?"err":"ok"}" style="margin-top:12px">
       <b>Mensagem do processamento</b><br>${esc(s.mensagem)}</div>`:""}
