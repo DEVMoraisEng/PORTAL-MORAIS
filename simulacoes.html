@@ -1264,6 +1264,29 @@ const SIM_COLS_TXT=["cliente","cpf","corretor","imobiliaria","status","mensagem"
 function simFmtTel(v){ const d=String(v||"").replace(/\D/g,"").slice(-11); return d.length>10?`(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`:(d.length>6?`(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`:d); }
 function simLinkTel(v){ const d=String(v||"").replace(/\D/g,""); if(!d) return "—";
   return `<a href="https://wa.me/55${d.slice(-11)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--azul)">${esc(simFmtTel(d))}</a>`; }
+/* 07/10 — card do CLIENTE na simulação: idade e o que foi marcado no simulador */
+function simIdade(d){ const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(d||"")); if(!m) return null;
+  const h=new Date(); let i=h.getFullYear()-Number(m[1]); if(h.getMonth()+1<Number(m[2])||(h.getMonth()+1===Number(m[2])&&h.getDate()<Number(m[3]))) i--; return i; }
+function simPerfilHtml(s){
+  const p=s.perfil||{}; if(!p.dataNascimento && !Object.keys(p).some(k=>p[k]===true)) return "";
+  const idade=simIdade(p.dataNascimento), dn=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(p.dataNascimento||""));
+  const marca=(ok,txt)=>`<div style="display:flex;gap:8px;align-items:center;padding:4px 0;font-size:13px;color:${ok?'var(--azul-esc)':'var(--text3)'}">`+
+    `<span style="display:inline-flex;width:18px;height:18px;border-radius:4px;align-items:center;justify-content:center;font-size:12px;font-weight:800;`+
+    `background:${ok?'#DDF2E3':'#EEF1F4'};color:${ok?'#1D5433':'#9aa8b2'};border:1px solid ${ok?'#9BD3AE':'#D5DDE3'}">${ok?'✓':''}</span>${txt}</div>`;
+  return `<div style="margin-top:14px;border:1.5px solid var(--azul);border-radius:10px;padding:12px 14px">
+    <b style="font-size:13px;color:var(--azul)">Cliente — dados usados na simulação</b>
+    <div class="sim-grade" style="margin-top:8px">
+      <div class="sim-item"><small>Idade</small><b>${idade!=null?idade+" anos":"—"}</b></div>
+      <div class="sim-item"><small>Nascimento</small><b>${dn?dn[3]+"/"+dn[2]+"/"+dn[1]:"—"}</b></div>
+      <div class="sim-item"><small>Prazo do financiamento</small><b>${p.prazoMeses?esc(String(p.prazoMeses))+" meses":"—"}${p.sistema?" · "+esc(p.sistema):""}</b></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0 18px;margin-top:6px">
+      ${marca(p.possuiImovel,"Possui algum imóvel")}${marca(p.fgts3anos,"Tem 3 anos de FGTS")}
+      ${marca(p.maisDeUmComprador,"Mais de um comprador ou dependente")}${marca(p.jaBeneficiado,"Já foi beneficiado com subsídio FGTS/União")}
+      ${marca(p.relacionamentoCaixa,"Relacionamento com a CAIXA")}${marca(p.servidorPublico,"Servidor público")}
+      ${marca(p.creditoSalario,"Crédito salário na CAIXA / Previdência")}
+    </div></div>`;
+}
 function simNova(s){ const t=Date.parse(s.criadoEm||s.criado||""); return !isNaN(t) && (Date.now()-t) < 24*3600*1000; }
 
 function simSegSt(v){
@@ -1403,6 +1426,7 @@ function simVerAbaixo(id){
       ${it("Prazo da entrada",(s.prazoEntrada||"—")+" meses")}
       ${it("Produto",esc(s.produtos||""))}${it("Seguradora",esc(s.seguradora||""))}
     </div>
+    ${simPerfilHtml(s)}
     ${simFluxoHtml(s)}
     ${s.parcela?`<div style="margin-top:14px"><b style="font-size:13px;color:var(--azul)">Evolução estimada do encargo durante a obra</b>
       <div class="tbl-wrap" style="margin-top:6px;max-height:none"><table><tbody>
