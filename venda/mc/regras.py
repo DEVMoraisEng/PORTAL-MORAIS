@@ -57,8 +57,10 @@ COL = {
     "imobiliaria": "IMOBILIÁRIA",
     "situacao": "MC - SITUAÇÃO",
     "venda_id": "MC - VENDA ID",
+    "condominio_id": "CONDOMÍNIO - VENDA ID",   # venda do condomínio: o fluxo de parcelas mora nessa página
 }
 
+REFERENCIA_REAJUSTE = 2   # índice de 2 meses antes (dono, 06/10/2026)
 DIAS_FINANCIAMENTO = 30   # vencimento previsto do financiamento/FGTS: data da venda + 30
 TOLERANCIA = 0.01
 
@@ -68,6 +70,12 @@ def chave(s) -> str:
     t = unicodedata.normalize("NFD", str(s or ""))
     t = "".join(c for c in t if unicodedata.category(c) != "Mn")
     return " ".join(t.upper().split())
+
+
+def so_hex(s) -> str:
+    """Id de página do Notion (32 hex), aceitando com hífens ou dentro de um link."""
+    m = re.search(r"[0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12}", str(s or ""))
+    return m.group(0).replace("-", "").lower() if m else ""
 
 
 def so_digitos(s) -> str:
@@ -193,6 +201,7 @@ def dados_da_pagina(props: dict) -> dict:
         "corretor": ler("corretor"),
         "imobiliaria": ler("imobiliaria"),
         "venda_id_atual": ler("venda_id"),
+        "condominio_id": so_hex(ler("condominio_id")),
         "situacao_atual": ler("situacao") or "",
     }
 
@@ -230,6 +239,8 @@ def parcelas(dados: dict, dias_financiamento: int = DIAS_FINANCIAMENTO) -> list[
     Caixa na assinatura do contrato do banco). Sem data conhecida, financiamento
     e FGTS vencem na data da venda + `dias_financiamento` (é previsão; o ERP
     deixa editar a data quando o banco pagar)."""
+    if dados.get("parcelas_prontas") is not None:   # condomínio: montadas por condominio.parcelas()
+        return dados["parcelas_prontas"]
     out = []
     dv = dados.get("data_venda")
 
@@ -245,6 +256,29 @@ def parcelas(dados: dict, dias_financiamento: int = DIAS_FINANCIAMENTO) -> list[
     fin = (dados.get("financiado") or 0) + (dados.get("subsidio") or 0)
     add(TIPO_FINANCIAMENTO, "Financiamento", fin or None, prev)
     return out
+
+
+def resumo_parcelas(ps: list[dict]) -> str:
+    """Texto curto das parcelas; série "Nome 1/N".."N/N" vira "Nome Nx R$ v de d1 a dN"."""
+    partes, i = [], 0
+    while i < len(ps):
+        m = _RE_SERIE.match(ps[i]["rotulo"])
+        if m:
+            nome, n = m.group(1), int(m.group(3))
+            grupo = ps[i:i + n]
+            if len(grupo) == n and all(_RE_SERIE.match(g["rotulo"]) and _RE_SERIE.match(g["rotulo"]).group(1) == nome
+                                       for g in grupo):
+                vals = {g["valor"] for g in grupo}
+                partes.append("%s %dx R$ %s de %s a %s" % (nome, n, "%.2f" % grupo[0]["valor"] if len(vals) == 1
+                              else "variável", grupo[0]["data"], grupo[-1]["data"]))
+                i += n
+                continue
+        partes.append("%s R$ %.2f em %s" % (ps[i]["rotulo"], ps[i]["valor"], ps[i]["data"]))
+        i += 1
+    return "; ".join(partes)
+
+
+_RE_SERIE = re.compile(r"^(.*) (\d+)/(\d+)$")
 
 
 def descricao(dados: dict) -> str:
@@ -331,11 +365,14 @@ def corpo_venda(dados: dict, obra: dict, cliente_id: str, conta: dict,
     `obra` = {id, name}; `conta` = conta padrão da obra ({id, name, ...})."""
     ps = parcelas(dados, dias_financiamento)
     inst = []
+    tabelas = dados.get("tabelas") or {}
     for p in ps:
-        inst.append({"plannedValue": p["valor"], "plannedDate": p["data"],
-                     "comment": p["rotulo"] if p["rotulo"] == "Intermediária" else None,
-                     "readjustmentDetail": {"type": {"id": p["tipo"]}, "table": None,
-                                            "rawValue": p["valor"], "reference": 0}})
+        tab = p.get("tabela")
+        comentario = p["rotulo"] if (p["rotulo"] == "Intermediária" or dados.get("parcelas_prontas") is not None) else None
+        inst.append({"plannedValue": p["valor"], "plannedDate": p["data"], "comment": comentario,
+                     "readjustmentDetail": {"type": {"id": p["tipo"]},
+                                            "table": {"id": tabelas[tab], "name": tab} if tab else None,
+                                            "rawValue": p["valor"], "reference": REFERENCIA_REAJUSTE if tab else 0}})
     total = round(sum(p["valor"] for p in ps), 2)
     tr = {
         "value": total, "grossValue": total, "taxWithhold": 0,

@@ -26,6 +26,7 @@ import json
 import os
 import sys
 
+from . import condominio as C
 from . import regras as R
 from .erp import Erp, ErpErro
 from .notion import Notion
@@ -67,12 +68,26 @@ def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DI
         res["venda"] = {"id": d["venda_id_atual"]}
         return fim("JA_LANCADA", "JÁ LANÇADA (venda %s)" % d["venda_id_atual"])
 
-    f = R.faltas(d, dias)
+    fx = None
+    if d.get("condominio_id"):
+        cpg = notion.pagina(d["condominio_id"]) or {}
+        base = os.environ.get("DB_VENDAS_COND", "").replace("-", "").lower()
+        mae = str(((cpg.get("parent") or {}).get("database_id")) or "").replace("-", "").lower()
+        if base and mae != base:
+            res["motivos"] = ["CONDOMÍNIO - VENDA ID não é uma página da BANCO DE DADOS VENDAS CONDOMÍNIO"]
+            return fim("RECUSADA", "RECUSADA: " + res["motivos"][0], codigo="CONDOMINIO_OUTRA_BASE")
+        fx = C.fluxo(cpg.get("properties") or {})
+        d["parcelas_prontas"] = C.parcelas(fx, d, dias)
+
+    f = (C.faltas_do_fluxo(fx, d.get("casa")) if fx is not None else []) + R.faltas(d, dias)
     if f:
         res["motivos"] = f
         return fim("RECUSADA", "RECUSADA: " + "; ".join(f), codigo="FALTAS")
 
-    obras = [o for o in erp.obras() if R.chave(o.get("name")) == R.chave(d["endereco"])]
+    if fx is not None:
+        obras = C.escolher_obra(erp.obras(), d["endereco"], d["casa"])
+    else:
+        obras = [o for o in erp.obras() if R.chave(o.get("name")) == R.chave(d["endereco"])]
     if len(obras) != 1:
         m = "Obra '%s' %s no Mais Controle" % (d["endereco"], "não encontrada" if not obras else "repetida (%d)" % len(obras))
         res["motivos"] = [m]
@@ -98,6 +113,17 @@ def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DI
         return fim("RECUSADA", "RECUSADA: há venda desta obra no Mais Controle sem o número da casa na descrição — "
                    "%s. Confira no ERP; se for de outra casa, corrija a descrição para \"CASA 0N - NOME\" e peça a prévia de novo."
                    % lista, codigo="VENDA_SEM_CASA_NA_OBRA")
+
+    if fx is not None:
+        precisa = sorted({p["tabela"] for p in d["parcelas_prontas"] if p.get("tabela")})
+        tabs = {}
+        for t in erp.tabelas_reajuste():
+            tabs.setdefault(R.chave(t.get("name")), []).append(t)
+        faltam = [n for n in precisa if len(tabs.get(R.chave(n), [])) != 1]
+        if faltam:
+            res["motivos"] = ["Tabela de reajuste ausente ou repetida no Mais Controle: " + ", ".join(faltam)]
+            return fim("RECUSADA", "RECUSADA: " + res["motivos"][0], codigo="TABELA_DE_REAJUSTE")
+        d["tabelas"] = {n: tabs[R.chave(n)][0]["id"] for n in precisa}
 
     clientes = erp.cliente_por_cpf(d["comprador"]["cpf"])
     if len(clientes) > 1:
@@ -141,7 +167,7 @@ def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DI
     res["corpo_venda"] = corpo
     res["parcelas"] = [{"rotulo": p["rotulo"], "valor": p["valor"], "data": p["data"]}
                        for p in R.parcelas(d, dias)]
-    resumo = "; ".join("%s R$ %.2f em %s" % (p["rotulo"], p["valor"], p["data"]) for p in res["parcelas"])
+    resumo = R.resumo_parcelas(res["parcelas"])
 
     if not aplicar:
         return fim("PREVIA", ("BLOQUEADO: gravar no Mais Controle está desligado neste ambiente (MC_APLICAR) — "

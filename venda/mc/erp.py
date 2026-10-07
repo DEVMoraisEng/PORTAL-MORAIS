@@ -103,6 +103,9 @@ class Erp:
                                                         "size": 20, "sort": "name"}) or {}
         return [p for p in j.get("content") or [] if R.chave(p.get("name")) == alvo]
 
+    def tabelas_reajuste(self) -> list[dict]:
+        return self.pedir("GET", "/readjustment-tables/all") or []
+
     def homonimos(self, nome: str) -> list[dict]:
         """Qualquer cadastro (cliente, fornecedor, funcionário...) com o mesmo nome: o ERP recusa
         criar outro participante com nome igual ("Já existe um Fornecedor com este mesmo nome")."""
