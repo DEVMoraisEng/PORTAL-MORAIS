@@ -18,13 +18,14 @@ test("mapear: proponente, segundo comprador e valores da venda", () => {
   assert.equal(m["COMPRADOR 1 - ESTADO CIVIL"], "CASADA");
   assert.equal(m["COMPRADOR 1 - PROFISSÃO"], "ANALISTA", "PROFISSÃO PROPONENTE tem espaço sobrando no nome");
   assert.equal(m["COMPRADOR 1 - DOCUMENTO"], "RG 1234567 SSP/GO");
-  assert.equal(m["COMPRADOR 1 - ENDEREÇO"], "RUA DE TESTE, 10 - SETOR TESTE - CIDADE TESTE - CEP 74000-000");
+  assert.equal(m["COMPRADOR 1 - ENDEREÇO"], "RUA DO CLIENTE, 20 - SETOR DO CLIENTE - CIDADE DO CLIENTE", "endereço do proponente = ENDEREÇO/NÚMERO/SETOR/CIDADE da pasta");
+  assert.equal(m["TIPO DE CASA"], "CASA DE CONDOMÍNIO");
   assert.equal(m["COMPRADOR 2 - NOME"], "BRUNO TESTE");
   assert.equal(m["COMPRADOR 2 - CPF"], "111.444.777-35");
   assert.equal(m["COMPRADOR 2 - E-MAIL"], "bruno@exemplo.test");
   assert.equal(m["COMPRADOR 2 - TELEFONE"], "62 91111-1111");
   assert.equal(m["COMPRADOR 2 - DOCUMENTO"], "RG 7654321");
-  assert.equal(m["COMPRADOR 2 - ENDEREÇO"], m["COMPRADOR 1 - ENDEREÇO"]);
+  assert.equal(m["COMPRADOR 2 - ENDEREÇO"], "RUA DE TESTE, 10 - SETOR TESTE - CIDADE TESTE - CEP 74000-000", "o bloco … COMPRADOR 1 é do 2º comprador");
   assert.deepEqual(m["DATA DA VENDA"], { start: "2026-09-01", end: null });
   assert.equal(m["VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)"], 250000);
   assert.equal(m["VALOR FINANCIADO"], 180000);
@@ -80,7 +81,7 @@ test("propriedadesNotion: tipo de cada coluna, select resolvido, coluna inexiste
   assert.deepEqual(r.props["CORRETOR"], { select: { name: "CORRETOR TESTE" } }, "opção existente, sem diferença de caixa");
   assert.deepEqual(r.props["IMOBILIÁRIA"], { select: { name: "IMOBILIARIA TESTE" } }, "sem vírgula (o Notion recusa)");
   assert.deepEqual(r.props["Nº Whatsapp"], { phone_number: "62 90000-0000" });
-  assert.deepEqual(r.ignoradas, ["COLUNA QUE NÃO EXISTE"]);
+  assert.deepEqual(r.ignoradas.filter((c) => c !== "TIPO DE CASA"), ["COLUNA QUE NÃO EXISTE"]);
 });
 
 test("arquivosParaCopiar: com segundo comprador cada comprovante vai para o seu dono", () => {

@@ -51,7 +51,7 @@ export function linhaCondominio(extra = {}) {
     "CORRETOR": P.texto("corretor teste"), "IMOBILIÁRIA": P.texto("IMOBILIARIA, TESTE"),
     " COMISSÃO ": P.num(5000), "CONTRATO - CONDIÇÕES ESPECIAIS": P.texto("sem condições"),
     "TEM MANUAL DE OBRA?": P.sel("SIM"), "LOCALIZAÇÃO": P.url("https://mapa.exemplo.test/x"),
-    "SETOR": P.texto("SETOR DA CASA"), "ENDEREÇO": P.texto("RUA DA CASA"), "CIDADE": P.texto("CIDADE DA CASA"),
+    "SETOR": P.texto("SETOR DO CLIENTE"), "ENDEREÇO": P.texto("RUA DO CLIENTE"), "NÚMERO": P.texto("20"), "CIDADE": P.texto("CIDADE DO CLIENTE"),
     "SITUAÇÃO": P.formula(), "MC - SITUAÇÃO": P.texto("não copiar"), "ASSINATURA - SITUAÇÃO": P.texto("não copiar"),
     "DOSSIÊ - OBSERVAÇÃO DO COMPRADOR": P.texto("não copiar"),
     "DOC. PROPONENTE": P.arqs("rg-a.pdf"), "COMPROVANTE DE ENDEREÇO": P.arqs("luz-a.pdf"),

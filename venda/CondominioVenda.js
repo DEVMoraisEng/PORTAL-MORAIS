@@ -17,11 +17,12 @@
  *   um nome DIFERENTE do PROPONENTE (`temSegundo`). Vazio ou igual ao
  *   PROPONENTE: o bloco é do próprio proponente, e serve de reserva para o que
  *   faltar nos campos "… PROPONENTE".
- * - O endereço em texto do comprador 1 vem do bloco ENDERECO/NUMERO/SETOR/
- *   CIDADE/CEP COMPRADOR 1 (o ENDEREÇO/SETOR/CIDADE soltos do condomínio são da
- *   casa, não da pessoa). Com segundo comprador, o mesmo bloco também vai para o
- *   comprador 2 (é o dono do bloco; casal costuma morar junto). A leitura do
- *   comprovante pelo dossiê substitui esse texto depois, se for diferente.
+ * - O endereço em texto do comprador 1 (proponente) vem de ENDEREÇO/NÚMERO/SETOR/
+ *   CIDADE/CEP da pasta — no simulador esses campos são o grupo "endereco" do
+ *   completar venda, ou seja, o endereço do CLIENTE (não da unidade). Sem eles,
+ *   e sem segundo comprador, usa o bloco "… COMPRADOR 1". O bloco "… COMPRADOR 1"
+ *   vai para o comprador 2 quando ele existe. A leitura do comprovante pelo
+ *   dossiê substitui esse texto depois, se for diferente.
  * - Arquivos: o comprovante COMP. END. COMPRADOR 1 é de quem é dono do bloco —
  *   com segundo comprador vai para o comprador 2 e NUNCA para o 1 (não se
  *   duplica o mesmo comprovante nos dois); sem segundo, é reserva do comprador 1
@@ -106,6 +107,11 @@ var CondominioVenda = (function () {
     var cep = L.v("CEP COMPRADOR 1");
     return juntar([rua, L.v("SETOR COMPRADOR 1"), L.v("CIDADE COMPRADOR 1"), vazio(cep) ? "" : "CEP " + String(cep).trim()], " - ");
   }
+  function enderecoProponente(L) {
+    var rua = juntar([L.v("ENDEREÇO"), L.v("NÚMERO")], ", ");
+    var cep = L.v("CEP");
+    return juntar([rua, L.v("SETOR"), L.v("CIDADE"), vazio(cep) ? "" : "CEP " + String(cep).trim()], " - ");
+  }
   function numeroDaCasa(unidade) {
     var m = /\d+/.exec(String(unidade || ""));
     return m ? Number(m[0]) : null;
@@ -124,6 +130,7 @@ var CondominioVenda = (function () {
     var cond = L.v("CONDOMÍNIO");
     if (!vazio(cond)) por("ENDEREÇO", chave(cond).indexOf("CONDOMINIO") === 0 ? String(cond).trim() : "CONDOMÍNIO " + String(cond).trim());
     por("CASA", numeroDaCasa(L.v("UNIDADE")));
+    por("TIPO DE CASA", "CASA DE CONDOMÍNIO");   // libera os documentos do dossiê sem clique
 
     /* comprador 1 = PROPONENTE (com o bloco COMPRADOR 1 de reserva quando ele é o próprio proponente) */
     var res = function (doProp, doBloco) { return seg ? L.primeiro(doProp) : L.primeiro(doProp, doBloco); };
@@ -138,7 +145,7 @@ var CondominioVenda = (function () {
     por("COMPRADOR 1 - ESTADO CIVIL", L.v("ESTADO CIVIL"));
     por("COMPRADOR 1 - PROFISSÃO", res("PROFISSÃO PROPONENTE", "PROFISSÃO COMPRADOR 1"));
     por("COMPRADOR 1 - NACIONALIDADE", res("NACIONALIDADE PROPONENTE", "NACIONALIDADE COMPRADOR 1"));
-    por("COMPRADOR 1 - ENDEREÇO", enderecoBloco1(L));
+    por("COMPRADOR 1 - ENDEREÇO", enderecoProponente(L) || (seg ? "" : enderecoBloco1(L)));
     var rg1 = res("RG PROPONENTE", "RG COMPRADOR 1");
     por("COMPRADOR 1 - DOCUMENTO", vazio(rg1) ? null : (/^\s*RG\b/i.test(rg1) ? rg1 : "RG " + String(rg1).trim()));
 
