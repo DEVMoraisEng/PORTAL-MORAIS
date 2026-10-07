@@ -341,3 +341,12 @@ def test_corretor_com_cpf_ja_no_erp_com_outro_nome_reaproveita():
     L.processar("p1", n, e)
     L.processar("p1", n, e, aplicar=True)
     assert [t for t, _ in e.criados] == ["cliente", "venda"] and e.criados[1][1]["seller"] == {"id": "cor-9"}
+
+
+def test_sondar_nao_cria_nada_e_anota():
+    n, e = NotionFake(pagina()), ErpFake()
+    r = L.sondar("p1", n, e)
+    assert r["codigo"] == "SONDA_LIVRE" and e.criados == [] and n.gravado["MC - SITUAÇÃO"].startswith("SONDA: SEM venda")
+    rec = [{"workName": "RUA TESTE QD 01 LT 02", "description": "CASA 02 - X", "saleId": "s2", "customerName": "X"}]
+    n, e = NotionFake(pagina()), ErpFake(recebimentos=rec)
+    assert L.sondar("p1", n, e)["codigo"] == "SONDA_TEM_VENDA" and e.criados == []

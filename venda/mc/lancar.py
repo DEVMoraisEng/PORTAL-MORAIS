@@ -36,6 +36,30 @@ class FalhaNotion(Exception):
     pass
 
 
+def sondar(page_id: str, notion, erp) -> dict:
+    """Só CONSULTA: a casa (ENDEREÇO + CASA) tem obra no Mais Controle? Há venda/recebimento dela ou da obra?
+    Não cria nada no ERP; anota o resultado em MC - SITUAÇÃO."""
+    pg = notion.pagina(page_id)
+    props = pg.get("properties") or {}
+    d = R.dados_da_pagina(props)
+    obras = [o for o in erp.obras() if R.chave(o.get("name")) == R.chave(d["endereco"])]
+    if len(obras) != 1:
+        txt, cod = "SONDA: obra %s no Mais Controle" % ("não encontrada" if not obras else "repetida"), "SONDA_SEM_OBRA"
+    else:
+        recs = [r for r in erp.recebimentos() if R.chave(r.get("workName")) == R.chave(obras[0]["name"])]
+        mesma, sem_casa = R.venda_da_casa(recs, obras[0]["name"], d["casa"])
+        vendas_obra = {r.get("saleId") for r in recs if r.get("saleId")}
+        if mesma:
+            txt, cod = "SONDA: JÁ TEM venda desta casa no Mais Controle (%s)" % mesma[0]["id"], "SONDA_TEM_VENDA"
+        elif sem_casa:
+            txt, cod = "SONDA: a obra tem venda sem número de casa (%s) — conferir" % sem_casa[0]["id"], "SONDA_DUVIDA"
+        else:
+            txt, cod = ("SONDA: SEM venda desta casa no Mais Controle (a obra tem %d venda(s) de outras casas)"
+                        % len(vendas_obra)), "SONDA_LIVRE"
+    notion.gravar_textos(page_id, props, {R.COL["situacao"]: txt})
+    return {"situacao": "SONDA", "codigo": cod}
+
+
 def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DIAS_FINANCIAMENTO,
               bloqueado: bool = False) -> dict:
     """bloqueado=True: pediram para gravar, mas o repositório não liberou (MC_APLICAR)."""
@@ -259,6 +283,7 @@ def main(argv=None) -> int:
     ap.add_argument("--page", required=True)
     ap.add_argument("--aplicar", action="store_true")
     ap.add_argument("--bloqueado", action="store_true", help="pediram gravar, mas MC_APLICAR não está ligado")
+    ap.add_argument("--sondar", action="store_true", help="só consulta o ERP (não cria nada)")
     ap.add_argument("--marcar-erro", default=None, help="só anota ERRO na situação (o workflow falhou)")
     ap.add_argument("--dias-financiamento", type=int, default=R.DIAS_FINANCIAMENTO)
     a = ap.parse_args(argv)
@@ -282,6 +307,12 @@ def main(argv=None) -> int:
         return sair({"situacao": "ERRO", "codigo": "SEM_SEGREDOS"}, 2)
     erp = Erp(os.environ["MC_ROBO_EMAIL"].strip(), os.environ["MC_ROBO_SENHA"].strip(chr(13) + chr(10)),
               aparelho=os.environ.get("MC_ROBO_APARELHO", "").strip())
+    if a.sondar:
+        try:
+            return sair(sondar(a.page, notion, erp), 0)
+        except ErpErro as e:
+            _anotar_erro(notion, a.page, "o Mais Controle recusou — " + str(e)[:250])
+            return sair({"situacao": "ERRO", "codigo": "ERP_RECUSOU"}, 1)
     try:
         res = processar(a.page, notion, erp, aplicar=a.aplicar and not a.bloqueado,
                         dias=a.dias_financiamento, bloqueado=a.bloqueado)

@@ -17,6 +17,10 @@ on:
         description: "gravar de verdade (só vale com MC_APLICAR=1)"
         type: boolean
         default: false
+      sondar:
+        description: "só consultar se a casa já tem venda no ERP (não grava nada)"
+        type: boolean
+        default: false
 
 concurrency:
   group: mc-venda-${{ github.event.client_payload.pageId || inputs.pageId }}
@@ -45,6 +49,7 @@ jobs:
           MC_ROBO_SENHA: ${{ secrets.MC_ROBO_SENHA }}
           MC_ROBO_APARELHO: ${{ secrets.MC_ROBO_APARELHO }}
           PEDIU_APLICAR: ${{ github.event.client_payload.aplicar || inputs.aplicar }}
+          SONDAR: ${{ inputs.sondar }}
           MC_APLICAR: ${{ vars.MC_APLICAR }}
           DB_VENDAS_COND: ${{ vars.DB_VENDAS_COND }}
           DB_CORRETORES: ${{ vars.DB_CORRETORES }}
@@ -55,6 +60,7 @@ jobs:
           FLAG=""
           if [ "$PEDIU_APLICAR" = "true" ] && [ "$MC_APLICAR" = "1" ]; then FLAG="--aplicar"; fi
           if [ "$PEDIU_APLICAR" = "true" ] && [ "$MC_APLICAR" != "1" ]; then echo "MC_APLICAR != 1: rodando como PRÉVIA"; FLAG="--bloqueado"; fi
+          if [ "$SONDAR" = "true" ]; then FLAG="--sondar"; fi
           python -m venda.mc.lancar --page "$PAGINA" $FLAG
       - name: Avisar no Notion que falhou
         if: failure()
