@@ -231,3 +231,13 @@ class Simulador(unittest.TestCase):
             d = pathlib.Path(t); self.montar(d)
             r = rodar(d, "--exec", EXEC, "--venda", EXEC_VENDA, "--sim", "https://exemplo.test/x")
             self.assertNotEqual(r.returncode, 0)
+
+
+class PaginasDoFork(unittest.TestCase):
+    def test_pagina_teste_do_fork_nao_e_tocada(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = pathlib.Path(t)
+            (d / "teste-gerar-venda.html").write_text('var URL_PV = "' + EXEC_VENDA + '";', encoding="utf-8")
+            r = rodar(d, "--exec", EXEC, "--venda", EXEC_VENDA)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            self.assertIn(EXEC_VENDA, (d / "teste-gerar-venda.html").read_text(encoding="utf-8"))

@@ -103,6 +103,8 @@ def main():
         rel = p.relative_to(raiz)
         if p.is_dir() or rel.parts[0] in PULAR or p.suffix.lower() not in EXTENSOES:
             continue
+        if p.name.startswith("teste-"):   # páginas que só existem no fork já nascem com as URLs de teste
+            continue
         antes = p.read_bytes().decode("utf-8")
         s = antes
         for prod, teste in IDS.items():
@@ -140,7 +142,8 @@ def main():
     urls_sobras = []
     for p in raiz.rglob("*"):
         rel = p.relative_to(raiz)
-        if p.is_file() and rel.parts[0] not in PULAR and p.suffix.lower() in EXTENSOES:
+        if p.is_file() and rel.parts[0] not in PULAR and p.suffix.lower() in EXTENSOES \
+                and not p.name.startswith("teste-"):
             t = p.read_bytes().decode("utf-8")
             sobras += [f"{rel}: {i}" for i in IDS if i in t]
             urls = re.findall(URL_EXEC_RE, t)
