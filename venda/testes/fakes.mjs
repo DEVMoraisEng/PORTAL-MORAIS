@@ -234,7 +234,7 @@ export function clicksignFalso({ base = "https://sandbox.clicksign.com", falhar 
 }
 
 /* DocumentApp / DriveApp / Drive falsos, no mesmo rigor do Apps Script real:
-   - Body.replaceText(regex, substituto): substituto literal salvo `\x` e `$n` (um `$` solto lança);
+   - Body.replaceText(regex, substituto): substituto LITERAL (como o Docs real: "R$" sai "R$", barra sai barra);
    - Paragraph.removeFromParent() lança no último parágrafo do corpo;
    - o PDF exportado é o conteúdo SALVO (saveAndClose), não o que ainda está aberto;
    - `Drive` (serviço avançado) só existe com avancado: true; Drive.Files.remove apaga de vez (opções guardadas em estado.opcoesRemocao). */
@@ -244,21 +244,7 @@ export function driveFalso({ modelos = {}, avancado = true, falhaAbrir = null, c
   let seq = 0;
   const par = (t) => ({ texto: t });
   for (const [id, linhas] of Object.entries(modelos)) docs[id] = { pars: linhas.map(par), salvo: linhas.slice(), aberto: false, cab: cabecalhos[id] || {} };
-  const substituto = (rep, m) => {
-    let s = "";
-    for (let i = 0; i < rep.length; i++) {
-      const c = rep[i];
-      if (c === "\\") { i++; if (i >= rep.length) throw new Error("Character to be escaped is missing"); s += rep[i]; }
-      else if (c === "$") {
-        i++;
-        if (!/\d/.test(rep[i] || "")) throw new Error("Illegal group reference");
-        const g = m[Number(rep[i])];
-        if (g === undefined) throw new Error("No group " + rep[i]);
-        s += g;
-      } else s += c;
-    }
-    return s;
-  };
+  const substituto = (rep) => rep;   // literal, como o Docs real
   /* cabeçalho/rodapé: null quando o documento não tem (como no Apps Script) */
   const secao = (d, k) => {
     if (!d.aberto) throw new Error("Document is closed");

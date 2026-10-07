@@ -300,6 +300,8 @@ test("GerarContrato: casa do condomínio usa MODELO_CONDOMINIO_ID, lê fluxo/fia
   const pars = c.salvo().pars;
   assert.ok(!pars.join("\n").includes("{{"), pars.join("\n"));
   assert.equal(pars[0], "CONTRATO — CONDOMÍNIO RESERVA TESTE");
+  assert.ok(pars.join(" ").includes("R$ "), "valores com R$");
+  assert.ok(!pars.join(" ").includes(String.fromCharCode(92) + "$"), "sem barra antes do cifrão (o Docs real põe o substituto literal)");
   assert.equal(pars[1], "VENDEDOR: Construtora Teste Ltda — empreendimento Cidade Teste/GO, matrícula M-500", "empreendimento pelo nome do condomínio, não pelo SETOR");
   assert.ok(pars.includes("FIADOR 1: Fiador Um Teste, brasileiro, RG nº 1112223 SSP/GO, CPF nº 123.456.789-09, residente e domiciliado à Rua das Acácias, nº 100, Setor Teste, Cidade Teste/GO, CEP 74000-000, e-mail fiador1@teste.invalid."));
   assert.ok(pars.includes("a) Unidade autônoma nº UN 13, área privativa 70,50 m², fração ideal 0,0125"));

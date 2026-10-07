@@ -37,7 +37,7 @@ def dados_venda(**mudar):
             "CASA": num(12), "CONDOMÍNIO - VENDA ID": txt(COND_ID),
             "CONTRATO - SINAL VALOR": num(None), "CONTRATO - ENTRADA VALOR": num(None),
             "VALOR FINANCIADO": num(200000), "VALOR DO SUBSÍDIO": num(None), "VALOR DO FGTS": num(10000),
-            "VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)": num(228900 + 10000), "COMISSÃO": num(10000),
+            "VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)": num(228900), "COMISSÃO": num(10000),
             "VALOR NA MÃO": num(228900), "CONTRATO - COMISSÃO PAGA POR": sel("COMPRADOR")}
     base.update(mudar)
     return pagina(**base)
@@ -180,3 +180,12 @@ def test_venda_ja_lancada_com_unidade_na_descricao_e_reconhecida():
             {"workName": "CONDOMÍNIO RESERVA TESTE", "description": "VENDA UNIDADE 07 - X", "saleId": "s7"}]
     mesma, sem = R.venda_da_casa(recs, "CONDOMÍNIO RESERVA TESTE", 12)
     assert [v["id"] for v in mesma] == ["s12"] and sem == []
+
+
+def test_condominio_sem_comissao_paga_por_usa_valor_de_venda(monkeypatch):
+    monkeypatch.delenv("DB_VENDAS_COND", raising=False)
+    venda = dados_venda(**{"CONTRATO - COMISSÃO PAGA POR": {"type": "select", "select": None},
+                           "VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)": num(228900),
+                           "VALOR NA MÃO": num(220000)})
+    r = L.processar("p", NotionDuas(venda, fluxo_props()), ErpCond(), aplicar=False)
+    assert r["situacao"] == "PREVIA", r

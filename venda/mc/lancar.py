@@ -105,6 +105,10 @@ def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DI
             res["motivos"] = ["CONDOMÍNIO - VENDA ID não é uma página da BANCO DE DADOS VENDAS CONDOMÍNIO"]
             return fim("RECUSADA", "RECUSADA: " + res["motivos"][0], codigo="CONDOMINIO_OUTRA_BASE")
         fx = C.fluxo(cpg.get("properties") or {})
+        # regra do dono (07/10/2026): no condomínio a comissão é paga pela incorporadora —
+        # a venda no ERP é o VALOR DE VENDA inteiro, não o "valor na mão"
+        d["comissao_paga_por"] = "VENDEDOR"
+        d["aquisicao"] = d.get("total")
         d["corretor_contato"] = C.contato_corretor(cpg.get("properties") or {})
         d["parcelas_prontas"] = C.parcelas(fx, d, dias)
 

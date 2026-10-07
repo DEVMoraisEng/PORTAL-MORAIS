@@ -285,10 +285,11 @@ function aplicarBlocos_(body, blocos) {
     if (!manter) i = fim; /* o miolo já saiu; um bloco aninhado dentro dele não conta */
   }
 }
-/* chaves duplas no valor digitado não podem virar marcador falso nem injetar outra chave;
-   barra invertida e $ entram literais (o replaceText do Docs interpreta os dois) */
+/* chaves duplas no valor digitado não podem virar marcador falso nem injetar outra chave.
+   O substituto do replaceText do Docs entra LITERAL (provado no contrato da casa 13, 07/10/2026:
+   o escape "\\$" saiu impresso como "R\\$ 305.000,00") — então nada de escapar $ ou barra. */
 function ctrValorSeguro_(v) {
-  return ctrTxt_(v).replace(/\{\{|\}\}/g, "").replace(/\\/g, "\\\\").replace(/\$/g, "\\$");
+  return ctrTxt_(v).replace(/\{\{|\}\}/g, "");
 }
 function aplicarMarcadores_(body, marcadores) {
   var paragrafos = ContratoVenda.MARCADORES_PARAGRAFOS || [];

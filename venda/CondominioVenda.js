@@ -131,6 +131,7 @@ var CondominioVenda = (function () {
     if (!vazio(cond)) por("ENDEREÇO", chave(cond).indexOf("CONDOMINIO") === 0 ? String(cond).trim() : "CONDOMÍNIO " + String(cond).trim());
     por("CASA", numeroDaCasa(L.v("UNIDADE")));
     por("TIPO DE CASA", "CASA DE CONDOMÍNIO");   // libera os documentos do dossiê sem clique
+    por("CONTRATO - COMISSÃO PAGA POR", "VENDEDOR");   // condomínio: a incorporadora paga a corretagem (dono, 07/10/2026)
 
     /* comprador 1 = PROPONENTE (com o bloco COMPRADOR 1 de reserva quando ele é o próprio proponente) */
     var res = function (doProp, doBloco) { return seg ? L.primeiro(doProp) : L.primeiro(doProp, doBloco); };

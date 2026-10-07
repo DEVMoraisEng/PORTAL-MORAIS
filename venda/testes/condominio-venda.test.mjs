@@ -81,7 +81,7 @@ test("propriedadesNotion: tipo de cada coluna, select resolvido, coluna inexiste
   assert.deepEqual(r.props["CORRETOR"], { select: { name: "CORRETOR TESTE" } }, "opção existente, sem diferença de caixa");
   assert.deepEqual(r.props["IMOBILIÁRIA"], { select: { name: "IMOBILIARIA TESTE" } }, "sem vírgula (o Notion recusa)");
   assert.deepEqual(r.props["Nº Whatsapp"], { phone_number: "62 90000-0000" });
-  assert.deepEqual(r.ignoradas.filter((c) => c !== "TIPO DE CASA"), ["COLUNA QUE NÃO EXISTE"]);
+  assert.deepEqual(r.ignoradas.filter((c) => c !== "TIPO DE CASA" && c !== "CONTRATO - COMISSÃO PAGA POR"), ["COLUNA QUE NÃO EXISTE"]);
 });
 
 test("arquivosParaCopiar: com segundo comprador cada comprovante vai para o seu dono", () => {
