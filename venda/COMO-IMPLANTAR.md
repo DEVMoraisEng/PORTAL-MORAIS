@@ -176,6 +176,12 @@ link de cada página da documentação e as dúvidas em aberto:
    Gerar, e na mesma tela associar o e-mail à API (Salvar e-mail). Quem gerar
    **cola direto nas Propriedades do script** — nunca no chat, em e-mail, em
    planilha ou no repositório. O token vai no cabeçalho sem "Bearer".
+   **Conferir antes do primeiro envio:** no editor, escolher a função
+   `conferirAssinatura` na lista ao lado de "Executar" › Executar › olhar o
+   "Registro de execução". Ela diz o ambiente (sandbox/produção), se a
+   Clicksign aceitou o token (só o código HTTP) e o que falta no JSON das
+   testemunhas — sem mostrar token, nome, e-mail ou CPF, e sem gravar nada.
+   Termina em "PRONTO" ou "AINDA NÃO".
 5. **Teste no sandbox:** casa de teste com contrato gerado, e-mails de teste
    que a equipe consiga abrir. Enviar para assinatura › conferir os e-mails ›
    assinar com todos › Atualizar situação › o PDF assinado aparece em

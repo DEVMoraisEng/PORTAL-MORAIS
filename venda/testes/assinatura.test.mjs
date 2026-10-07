@@ -601,3 +601,47 @@ test("nenhum log carrega token, nome, e-mail ou CPF", () => {
     for (const s of PESSOAIS) assert.ok(!todos.includes(s), "log vazou: " + s);
   }
 });
+
+test("conferirAssinatura (rodar no editor): token aceito, testemunhas certas, sem segredo nem dado pessoal no log", () => {
+  const c = cenario();
+  c.c.chamadas.length = 0;
+  const r = c.g.ctx.conferirAssinatura();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual(csCalls(c), ["GET /envelopes?page%5Bsize%5D=1"]);
+  assert.equal(c.c.chamadas[0].headers.Authorization, TOKEN_CS);
+  const log = c.g.logs.join("\n");
+  assert.ok(log.includes("sandbox"), log);
+  assert.ok(log.includes("Clicksign aceitou o token (http 200)"), log);
+  assert.ok(!log.includes(TOKEN_CS), "log com o token");
+  for (const s of PESSOAIS) assert.ok(!log.includes(s), "log vazou: " + s);
+});
+
+test("conferirAssinatura: sem token não chama nada; 'Bearer' colado e token recusado viram orientação", () => {
+  const sem = cenario({ semProps: ["CLICKSIGN_TOKEN"] });
+  sem.c.chamadas.length = 0;
+  assert.equal(sem.g.ctx.conferirAssinatura().ok, false);
+  assert.equal(sem.c.chamadas.length, 0);
+  assert.ok(sem.g.logs.join("\n").includes("CLICKSIGN_TOKEN não está nas Propriedades do script"));
+
+  const bearer = cenario({ props: { CLICKSIGN_TOKEN: "Bearer " + TOKEN_CS } });
+  bearer.c.chamadas.length = 0;
+  assert.equal(bearer.g.ctx.conferirAssinatura().ok, false);
+  assert.equal(bearer.c.chamadas.length, 0);
+  assert.ok(bearer.g.logs.join("\n").includes("sem a palavra Bearer"));
+
+  const rec = cenario({ cs: { falhar: (m, cam) => (cam.startsWith("/envelopes?") ? { status: 401, json: { errors: [{ title: "Unauthorized" }] } } : null) } });
+  rec.c.chamadas.length = 0;
+  assert.equal(rec.g.ctx.conferirAssinatura().ok, false);
+  assert.ok(rec.g.logs.join("\n").includes("Clicksign recusou o token (http 401)"), rec.g.logs.join("\n"));
+});
+
+test("conferirAssinatura: URL de produção avisa; testemunha inválida derruba o ok sem mostrar quem", () => {
+  const prod = cenario({ props: { CLICKSIGN_URL: "https://app.clicksign.com", ASSINATURA_TESTEMUNHAS_PF: "{" }, cs: { base: "https://app.clicksign.com" } });
+  prod.c.chamadas.length = 0;
+  const r = prod.g.ctx.conferirAssinatura();
+  assert.equal(r.ok, false);
+  const log = prod.g.logs.join("\n");
+  assert.ok(log.includes("PRODUÇÃO"), log);
+  assert.ok(log.includes("ASSINATURA_TESTEMUNHAS_PF: não é um JSON válido"), log);
+  for (const s of PESSOAIS) assert.ok(!log.includes(s), "log vazou: " + s);
+});

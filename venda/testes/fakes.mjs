@@ -200,6 +200,7 @@ export function clicksignFalso({ base = "https://sandbox.clicksign.com", falhar 
     chamadas.push({ metodo, caminho, corpo, headers: Object.assign({}, opt.headers), contentType: opt.contentType });
     const f = falhar(metodo, caminho, corpo);
     if (f) return f;
+    if (metodo === "GET" && caminho.startsWith("/envelopes?")) return ok(200, []);
     const env = /^\/envelopes\/([^/]+)/.exec(caminho);
     if (metodo === "POST" && caminho === "/envelopes") {
       Object.assign(estado, { status: "draft", apagado: false, signers: [] });

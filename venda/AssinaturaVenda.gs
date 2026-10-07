@@ -323,3 +323,32 @@ function assinaturaEstado_(col, p) {
   }
   return resp;
 }
+
+/* Conferência para rodar UMA vez no editor (selecionar conferirAssinatura › Executar › ver o Registro de
+ * execução): diz se o token e a URL funcionam (GET de 1 envelope, só o código HTTP) e se o JSON das
+ * testemunhas está certo. Nunca mostra o token, nome, e-mail ou CPF. Não grava nada. */
+function conferirAssinatura() {
+  var linhas = [], ok = true;
+  function falha(t) { ok = false; linhas.push("ERRO  " + t); }
+  var token = String(prop_("CLICKSIGN_TOKEN")).trim(), base = csBase_();
+  if (!token) falha("CLICKSIGN_TOKEN não está nas Propriedades do script.");
+  else if (/^bearer\s/i.test(token)) falha("CLICKSIGN_TOKEN: cole só o código, sem a palavra Bearer.");
+  if (!base) falha("CLICKSIGN_URL inválida: use https://sandbox.clicksign.com (teste) ou https://app.clicksign.com (produção).");
+  else if (base.indexOf("https://sandbox.clicksign.com/") === 0) linhas.push("ok    Ambiente: sandbox (teste).");
+  else if (base.indexOf("https://app.clicksign.com/") === 0) linhas.push("AVISO Ambiente: PRODUÇÃO — os e-mails vão de verdade para as pessoas.");
+  else linhas.push("AVISO Ambiente: endereço fora do padrão da Clicksign.");
+  if (ok) {
+    var r = cs_("get", "/envelopes?page%5Bsize%5D=1");
+    if (r.ok) linhas.push("ok    Clicksign aceitou o token (http " + r.http + ").");
+    else if (r.http === 401 || r.http === 403) falha("Clicksign recusou o token (http " + r.http + "): token errado, de outro ambiente (sandbox × produção) ou revogado.");
+    else if (r.http === 0) falha("Clicksign não respondeu (http 0). Tente de novo daqui a pouco.");
+    else falha("Clicksign respondeu http " + r.http + ".");
+  }
+  var conf = ClicksignVenda.conferirConfig(assConfig_());
+  conf.problemas.forEach(falha);
+  conf.avisos.forEach(function (a) { linhas.push("AVISO " + a); });
+  if (!conf.problemas.length) linhas.push("ok    Pares de testemunhas SPE e PF preenchidos.");
+  linhas.push(ok ? "PRONTO: pode testar o botão Enviar para assinatura." : "AINDA NÃO: corrija os ERROS acima e rode de novo.");
+  linhas.forEach(function (l) { console.log(l); });
+  return { ok: ok, linhas: linhas };
+}

@@ -62,6 +62,31 @@ var ClicksignVenda = (function () {
              incluirCorretor: inc === "SIM" || inc === "TRUE" || inc === "1", invalidas: invalidas };
   }
 
+  /* Conferência das Propriedades (conferirAssinatura, no editor): só o nome da Propriedade e a posição
+   * da pessoa — nunca nome, e-mail ou CPF. problemas barram o envio; avisos não. */
+  function conferirConfig(config) {
+    var problemas = [], avisos = [];
+    function pessoaRuim(nomeProp, rotulo, p) {
+      var pre = nomeProp + ": " + (rotulo ? rotulo + " " : "");
+      if (!nomeValido(p.nome)) problemas.push(pre + "sem nome e sobrenome (ou com número)");
+      if (!emailValido(p.email)) problemas.push(pre + "com e-mail inválido");
+      if (!cpfValido(p.cpf)) avisos.push(pre + "sem CPF válido (vai digitar o CPF na hora de assinar)");
+    }
+    function confPar(nomeProp, lido) {
+      if ((config.invalidas || []).indexOf(nomeProp) >= 0) { problemas.push(nomeProp + ": não é um JSON válido (confira aspas, vírgulas e colchetes)"); return; }
+      if (lido === null || lido === undefined) { problemas.push(nomeProp + ": não preenchida"); return; }
+      var pr = par(lido);
+      if (!pr) { problemas.push(nomeProp + ": precisa de exatamente 2 pessoas entre [ ]"); return; }
+      pr.forEach(function (p, i) { pessoaRuim(nomeProp, "pessoa " + (i + 1), p || { nome: "", email: "", cpf: "" }); });
+      if (pr[0] && pr[1] && pr[0].email && pr[0].email === pr[1].email) problemas.push(nomeProp + ": as 2 pessoas têm o mesmo e-mail");
+    }
+    confPar("ASSINATURA_TESTEMUNHAS_SPE", config.testemunhasSPE);
+    confPar("ASSINATURA_TESTEMUNHAS_PF", config.testemunhasPF);
+    if ((config.invalidas || []).indexOf("ASSINATURA_REPRESENTANTE") >= 0) problemas.push("ASSINATURA_REPRESENTANTE: não é um JSON válido (confira aspas, vírgulas e chaves)");
+    else if (config.representante) pessoaRuim("ASSINATURA_REPRESENTANTE", "", pessoa(config.representante) || { nome: "", email: "", cpf: "" });
+    return { problemas: problemas, avisos: avisos };
+  }
+
   function ehPJ(dados) { return !!dados.vendedor && txt(dados.vendedor.tipo).toUpperCase() === "PJ"; }
   function nomeDoPar(dados) { return ehPJ(dados) ? "ASSINATURA_TESTEMUNHAS_SPE" : "ASSINATURA_TESTEMUNHAS_PF"; }
   function testemunhas(dados, config) { return par(ehPJ(dados) ? config.testemunhasSPE : config.testemunhasPF); }
@@ -235,7 +260,7 @@ var ClicksignVenda = (function () {
   }
 
   var api = {
-    PAPEIS: PAPEIS, SITUACOES: SITUACOES, montarConfig: montarConfig, signatarios: signatarios,
+    PAPEIS: PAPEIS, SITUACOES: SITUACOES, montarConfig: montarConfig, conferirConfig: conferirConfig, signatarios: signatarios,
     faltasAssinatura: faltasAssinatura, nomeEnvelope: nomeEnvelope, nomeArquivo: nomeArquivo,
     corpoEnvelope: corpoEnvelope, corpoDocumento: corpoDocumento, corpoSignatario: corpoSignatario,
     corpoQualificacao: corpoQualificacao, corpoAutenticacao: corpoAutenticacao, corpoAtivar: corpoAtivar,

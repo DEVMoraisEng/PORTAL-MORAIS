@@ -221,3 +221,34 @@ test("arquivo assinado: só links.files.signed; sem ele, erro visível com as ch
                 /CLICKSIGN_SEM_LINK_ASSINADO: original/);
   assert.throws(() => CS.linkAssinado({ id: "d1" }), /CLICKSIGN_SEM_LINK_ASSINADO: \(nenhum\)/);
 });
+
+test("conferirConfig: tudo certo não aponta nada; nunca devolve nome, e-mail ou CPF", () => {
+  const r = CS.conferirConfig(CS.montarConfig(PROPS));
+  assert.deepEqual(r, { problemas: [], avisos: [] });
+});
+
+test("conferirConfig: falta, JSON inválido, par incompleto e pessoa ruim — sem dado pessoal", () => {
+  const ruim = [{ nome: "Fulano", email: "fulano@teste.example", cpf: "000.000.005-15" },
+                { nome: "Testemunha Dois Spe", email: "sem-arroba", cpf: "123" }];
+  const r = CS.conferirConfig(CS.montarConfig({ ASSINATURA_TESTEMUNHAS_SPE: JSON.stringify(ruim), ASSINATURA_TESTEMUNHAS_PF: "[{\"nome\":" }));
+  assert.deepEqual(r.problemas, [
+    "ASSINATURA_TESTEMUNHAS_SPE: pessoa 1 sem nome e sobrenome (ou com número)",
+    "ASSINATURA_TESTEMUNHAS_SPE: pessoa 2 com e-mail inválido",
+    "ASSINATURA_TESTEMUNHAS_PF: não é um JSON válido (confira aspas, vírgulas e colchetes)",
+  ]);
+  assert.deepEqual(r.avisos, ["ASSINATURA_TESTEMUNHAS_SPE: pessoa 2 sem CPF válido (vai digitar o CPF na hora de assinar)"]);
+  const vazio = CS.conferirConfig(CS.montarConfig({ ASSINATURA_TESTEMUNHAS_SPE: JSON.stringify([TEST_SPE[0]]) }));
+  assert.deepEqual(vazio.problemas, ["ASSINATURA_TESTEMUNHAS_SPE: precisa de exatamente 2 pessoas entre [ ]",
+                                     "ASSINATURA_TESTEMUNHAS_PF: não preenchida"]);
+  const tudo = JSON.stringify([r, vazio]);
+  for (const s of ["Fulano", "fulano@", "sem-arroba", "Testemunha", "000.000"]) assert.ok(!tudo.includes(s), "vazou: " + s);
+});
+
+test("conferirConfig: mesmo e-mail duas vezes no par e representante opcional conferido", () => {
+  const dup = [TEST_PF[0], Object.assign({}, TEST_PF[1], { email: "T1.PF@teste.example" })];
+  const r = CS.conferirConfig(CS.montarConfig(Object.assign({}, PROPS, {
+    ASSINATURA_TESTEMUNHAS_PF: JSON.stringify(dup), ASSINATURA_REPRESENTANTE: JSON.stringify({ nome: "Só", email: "x@teste.example" }) })));
+  assert.deepEqual(r.problemas, ["ASSINATURA_TESTEMUNHAS_PF: as 2 pessoas têm o mesmo e-mail",
+                                 "ASSINATURA_REPRESENTANTE: sem nome e sobrenome (ou com número)"]);
+  assert.deepEqual(r.avisos, ["ASSINATURA_REPRESENTANTE: sem CPF válido (vai digitar o CPF na hora de assinar)"]);
+});
