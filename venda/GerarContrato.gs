@@ -2,8 +2,11 @@
  * Arquivo do projeto PORTAL-VENDA (depois de RegrasVenda, ContratoVenda e PortalVenda).
  * Fluxo: lê a casa + a obra + os 3 cadastros no Notion, monta os dados
  * (ContratoVenda), confere o obrigatório, copia o modelo (Google Doc) para a
- * pasta provisória, preenche marcadores e blocos, exporta PDF, sobe o PDF para
- * CONTRATO GERADO e APAGA a cópia (finally).
+ * pasta provisória, preenche marcadores e blocos, exporta PDF e APAGA a cópia (finally).
+ * Entrega 9 (pré-contrato): gerarPreContrato grava o PDF com o que o app preencheu
+ * GRIFADO na pasta provisória (Propriedade PRECONTRATO_<pageId> guarda o carimbo);
+ * aprovarPreContrato (o "Conferi") só gera o contrato final, sem grifo, em CONTRATO
+ * GERADO se os dados ainda dão o mesmo carimbo do pré-contrato.
  * Propriedades do script: DB_VENDEDORES, DB_LOTEAMENTOS, DB_CORRETORES,
  * MODELO_PRONTO_ID, MODELO_CONSTRUCAO_ID, MODELO_CONDOMINIO_ID, PASTA_PROVISORIA_ID,
  * DB_VENDAS_COND (venda do condomínio), CIDADE_ASSINATURA (opcional).
@@ -310,18 +313,45 @@ function aplicarBlocos_(body, blocos) {
 function ctrValorSeguro_(v) {
   return ctrTxt_(v).replace(/\{\{|\}\}/g, "");
 }
-function aplicarMarcadores_(body, marcadores) {
+/* Pré-contrato (entrega 9): o que o app preencheu sai grifado em amarelo; o que saiu em branco
+   ("____"), em vermelho claro. No contrato final o fundo do valor é apagado (null) — o modelo antigo
+   tinha os marcadores realçados em amarelo e o valor herdaria esse realce. */
+var CTR_GRIFO = "#FFF59D", CTR_GRIFO_BRANCO = "#FFCDD2";
+function ctrGrifar_(txt, ini, valor, grifar) {
+  if (!valor.length || ini < 0) return;
+  txt.setBackgroundColor(ini, ini + valor.length - 1, grifar ? CTR_GRIFO : null);
+  if (!grifar) return;
+  var branco = ContratoVenda.EM_BRANCO || "____";
+  for (var k = valor.indexOf(branco); k >= 0; k = valor.indexOf(branco, k + branco.length))
+    txt.setBackgroundColor(ini + k, ini + k + branco.length - 1, CTR_GRIFO_BRANCO);
+}
+/* Cada marcador é localizado com findText e trocado no lugar (insere o valor, apaga o marcador):
+   o valor entra LITERAL (nada de escapar $ ou barra) e dá para grifar exatamente o trecho inserido.
+   Vários marcadores no mesmo parágrafo e cabeçalho/rodapé (sec = corpo, cabeçalho ou rodapé) funcionam igual. */
+function aplicarMarcadores_(sec, marcadores, grifar) {
   var paragrafos = ContratoVenda.MARCADORES_PARAGRAFOS || [];
   for (var chave in marcadores) {
     var v = ctrTxt_(marcadores[chave]);
     if (paragrafos.indexOf(chave) >= 0) v = v.replace(/\n/g, " "); /* fora de parágrafo próprio: uma linha só */
-    body.replaceText("\\{\\{" + chave + "\\}\\}", ctrValorSeguro_(v));
+    v = ctrValorSeguro_(v); /* sem chaves: o valor nunca recria o marcador, e o laço termina */
+    var padrao = "\\{\\{" + chave + "\\}\\}", r, voltas = 0;
+    while ((r = sec.findText(padrao)) && voltas++ < 2000) {
+      var t = r.getElement().asText(), ini = r.getStartOffset(), fim = r.getEndOffsetInclusive();
+      if (v.length) {
+        t.insertText(ini, v);                          /* insere antes e apaga depois: o elemento nunca fica vazio */
+        t.deleteText(ini + v.length, fim + v.length);
+        ctrGrifar_(t, ini, v, !!grifar);
+      } else {
+        t.deleteText(ini, fim);
+      }
+    }
   }
 }
 /* Marcador de várias linhas (ContratoVenda.MARCADORES_PARAGRAFOS) sozinho num parágrafo: vira um
    parágrafo por linha, cópias do parágrafo do modelo (mesma formatação), com o começo da linha em
-   negrito quando ContratoVenda.negritoDaLinha pede (cabeçalho dos incisos do 6.1, "FIADOR n:"). */
-function ctrExpandirParagrafos_(body, marcadores) {
+   negrito quando ContratoVenda.negritoDaLinha pede (cabeçalho dos incisos do 6.1, "FIADOR n:").
+   No pré-contrato cada linha gerada sai grifada. */
+function ctrExpandirParagrafos_(body, marcadores, grifar) {
   var nomes = ContratoVenda.MARCADORES_PARAGRAFOS || [];
   var pars = body.getParagraphs();
   for (var i = 0; i < pars.length; i++) {
@@ -330,14 +360,16 @@ function ctrExpandirParagrafos_(body, marcadores) {
     var re = "\\{\\{" + m[1] + "\\}\\}";
     var linhas = ctrTxt_(marcadores[m[1]]).split("\n");
     var p = pars[i], pai = p.getParent(), pos = pai.getChildIndex(p), molde = p.copy();
-    p.replaceText(re, ctrValorSeguro_(linhas[0]));
-    ctrNegrito_(p, linhas[0]);
-    for (var j = 1; j < linhas.length; j++) {
-      var novo = pai.insertParagraph(pos + j, molde.copy());
-      novo.replaceText(re, ctrValorSeguro_(linhas[j]));
-      ctrNegrito_(novo, linhas[j]);
-    }
+    ctrLinhaGerada_(p, re, ctrValorSeguro_(linhas[0]), grifar);
+    for (var j = 1; j < linhas.length; j++)
+      ctrLinhaGerada_(pai.insertParagraph(pos + j, molde.copy()), re, ctrValorSeguro_(linhas[j]), grifar);
   }
+}
+function ctrLinhaGerada_(p, re, linha, grifar) {
+  var antes = String(p.getText()).search(new RegExp(re));
+  p.replaceText(re, linha);
+  ctrNegrito_(p, linha);
+  if (linha.length && antes >= 0) ctrGrifar_(p.editAsText(), antes, linha, !!grifar);
 }
 function ctrNegrito_(p, linha) {
   var n = Math.min(ContratoVenda.negritoDaLinha(linha), ctrTxt_(p.getText()).length);
@@ -406,82 +438,169 @@ function ctrArquivoGerado_(pg) {
   var f = lista[lista.length - 1];
   return { nome: ctrTxt_(f.name), url: f.type === "external" ? ((f.external || {}).url || "") : ((f.file || {}).url || "") };
 }
-function contratoEstado_(col, p) {
-  var a = ctrArquivoGerado_(ctrLerPaginaVenda_(p.pageId));
-  return a ? { ok: true, gerado: true, nome: a.nome, url: a.url } : { ok: true, gerado: false };
+/* ---- pré-contrato (entrega 9) ----
+ * Propriedade PRECONTRATO_<pageId> (JSON): { hash, nome, url, arquivoId, em, por, conferidoEm, conferidoPor }.
+ * hash = o mesmo carimbo do nome do PDF (ctrCarimbo_). Fica só nas Propriedades do script — nunca no log. */
+function ctrChavePre_(pageId) { return "PRECONTRATO_" + String(pageId || "").replace(/-/g, "").toLowerCase(); }
+function ctrLerPre_(pageId) {
+  var s = prop_(ctrChavePre_(pageId));
+  if (!s) return null;
+  try { var o = JSON.parse(s); return o && o.hash ? o : null; } catch (e) { return null; }
+}
+function ctrGravarPre_(pageId, o) {
+  PropertiesService.getScriptProperties().setProperty(ctrChavePre_(pageId), JSON.stringify(o));
 }
 
-function gerarContrato_(col, sess, p) {
-  var t0 = Date.now(), pid = String(p.pageId).slice(0, 8);
-  if (!prop_("DB_VENDEDORES") || !prop_("DB_LOTEAMENTOS") || !prop_("DB_CORRETORES") || !prop_("DB_DOCUMENTOS")) return { ok: false, erro: "CADASTRO_NAO_CONFIGURADO" };
+function contratoEstado_(col, p) {
+  var a = ctrArquivoGerado_(ctrLerPaginaVenda_(p.pageId)), pre = ctrLerPre_(p.pageId);
+  /* PRE: há pré-contrato ainda não conferido (mesmo que exista um contrato final antigo) */
+  var etapa = pre && !pre.conferidoEm ? "PRE" : a ? "FINAL" : "NENHUM";
+  var r = { ok: true, gerado: !!a, etapa: etapa, pre: null };
+  if (a) { r.nome = a.nome; r.url = a.url; }
+  if (pre) {
+    r.pre = { nome: ctrTxt_(pre.nome), url: ctrTxt_(pre.url), em: ctrTxt_(pre.em), conferido: !!pre.conferidoEm };
+    if (etapa === "PRE") r.pre.desatualizado = ctrPreDesatualizado_(col, p, pre);
+  }
+  return r;
+}
+/* true quando os dados de agora não dão o mesmo carimbo do pré-contrato (ou nem fecham mais). */
+function ctrPreDesatualizado_(col, p, pre) {
+  try {
+    var x = ctrDadosAtuais_(col, p, String(p.pageId).slice(0, 8), "contratoEstado");
+    return x.resp ? true : ctrCarimbo_(x.d) !== pre.hash;
+  } catch (e) {
+    ctrErro_("contratoEstado " + String(p.pageId).slice(0, 8) + " carimbo", e);
+    return true;
+  }
+}
 
+/* Lê as fontes e monta os dados: { f, d } ou { resp } (a resposta de erro pronta). */
+function ctrDadosAtuais_(col, p, pid, rot) {
+  if (!prop_("DB_VENDEDORES") || !prop_("DB_LOTEAMENTOS") || !prop_("DB_CORRETORES") || !prop_("DB_DOCUMENTOS")) return { resp: { ok: false, erro: "CADASTRO_NAO_CONFIGURADO" } };
   var f = ctrFontes_(col, p.pageId);
   if (f.obraAmbigua) {
-    ctrLog_("gerarContrato " + pid + " obra ambigua");
-    return { ok: false, erro: "FALTAM_DADOS", faltas: ["Vendedor: obra ambígua em DOCUMENTOS (endereço repetido)"] };
+    ctrLog_(rot + " " + pid + " obra ambigua");
+    return { resp: { ok: false, erro: "FALTAM_DADOS", faltas: ["Vendedor: obra ambígua em DOCUMENTOS (endereço repetido)"] } };
   }
   if (f.duplicados) {
-    ctrLog_("gerarContrato " + pid + " cadastro duplicado " + f.duplicados.length);
-    return { ok: false, erro: "FALTAM_DADOS", faltas: f.duplicados };
+    ctrLog_(rot + " " + pid + " cadastro duplicado " + f.duplicados.length);
+    return { resp: { ok: false, erro: "FALTAM_DADOS", faltas: f.duplicados } };
   }
   if (f.condominioErro) {
-    ctrLog_("gerarContrato " + pid + " condominio ilegivel");
-    return { ok: false, erro: "FALTAM_DADOS", faltas: [f.condominioErro] };
+    ctrLog_(rot + " " + pid + " condominio ilegivel");
+    return { resp: { ok: false, erro: "FALTAM_DADOS", faltas: [f.condominioErro] } };
   }
   if (f.obraNaoEncontrada) {
-    ctrLog_("gerarContrato " + pid + " obra nao encontrada");
-    return { ok: false, erro: "FALTAM_DADOS", faltas: ["Vendedor: obra da casa não encontrada em DOCUMENTOS (endereço)"] };
+    ctrLog_(rot + " " + pid + " obra nao encontrada");
+    return { resp: { ok: false, erro: "FALTAM_DADOS", faltas: ["Vendedor: obra da casa não encontrada em DOCUMENTOS (endereço)"] } };
   }
   var d = ContratoVenda.montarDadosContrato(f.fontes);
   var faltas = ContratoVenda.faltasContrato(d);
   if (faltas.length) {
-    ctrLog_("gerarContrato " + pid + " faltas " + faltas.length);
-    return { ok: false, erro: "FALTAM_DADOS", faltas: faltas };
+    ctrLog_(rot + " " + pid + " faltas " + faltas.length);
+    return { resp: { ok: false, erro: "FALTAM_DADOS", faltas: faltas } };
   }
+  return { f: f, d: d };
+}
 
+/* Tudo o que vem antes de mexer no Drive: dados, faltas, Drive API, modelo, pasta, marcadores. */
+function ctrPreparar_(col, p, pid, rot) {
+  var x = ctrDadosAtuais_(col, p, pid, rot);
+  if (x.resp) return x;
+  var f = x.f, d = x.d;
   if (typeof Drive === "undefined" || !Drive || !Drive.Files || !Drive.Files.remove) {
-    ctrLog_("gerarContrato " + pid + " Drive API desligada");
-    return { ok: false, erro: "DRIVE_API_DESLIGADA" }; /* sem ela a cópia com dado pessoal ficaria na lixeira */
+    ctrLog_(rot + " " + pid + " Drive API desligada");
+    return { resp: { ok: false, erro: "DRIVE_API_DESLIGADA" } }; /* sem ela a cópia com dado pessoal ficaria na lixeira */
   }
   var modeloId = prop_(d.modelo === "CONDOMINIO" ? "MODELO_CONDOMINIO_ID" : d.modelo === "PRONTO" ? "MODELO_PRONTO_ID" : "MODELO_CONSTRUCAO_ID"), pastaId = prop_("PASTA_PROVISORIA_ID");
-  if (!modeloId || !pastaId) return { ok: false, erro: "MODELO_NAO_CONFIGURADO" };
+  if (!modeloId || !pastaId) return { resp: { ok: false, erro: "MODELO_NAO_CONFIGURADO" } };
   var modelo, pasta, marcadores, blocos;
   try { modelo = DriveApp.getFileById(modeloId); pasta = DriveApp.getFolderById(pastaId); }
-  catch (e) { ctrErro_("gerarContrato " + pid + " modelo inacessivel", e); return { ok: false, erro: "MODELO_NAO_CONFIGURADO" }; }
+  catch (e) { ctrErro_(rot + " " + pid + " modelo inacessivel", e); return { resp: { ok: false, erro: "MODELO_NAO_CONFIGURADO" } }; }
   try { marcadores = ContratoVenda.marcadores(d); blocos = ContratoVenda.blocos(d); }
-  catch (e) { ctrErro_("gerarContrato " + pid + " montagem falhou", e); return { ok: false, erro: "CONTRATO_FALHOU" }; }
-
+  catch (e) { ctrErro_(rot + " " + pid + " montagem falhou", e); return { resp: { ok: false, erro: "CONTRATO_FALHOU" } }; }
+  var hash = ctrCarimbo_(d);
   var endereco = String(f.endereco).replace(/[\\\/:*?"<>|]/g, "-");
-  var nomePdf = "CONTRATO - " + endereco + (f.casa ? " - CASA " + f.casa : "") + " - " + hoje_("dd-MM-yyyy") +
-                " [#" + ctrCarimbo_(d) + "].pdf";
-  var colGerado = f.colGerado;
+  var resto = endereco + (f.casa ? " - CASA " + f.casa : "") + " - " + hoje_("dd-MM-yyyy") + " [#" + hash + "].pdf";
+  return { f: f, d: d, modelo: modelo, pasta: pasta, marcadores: marcadores, blocos: blocos, hash: hash, resto: resto };
+}
 
+/* Copia o modelo, preenche (grifar = pré-contrato), confere e exporta o PDF: { pdf } ou { resp }.
+   A cópia com dado pessoal é apagada sempre (finally). */
+function ctrGerarPdf_(prep, pid, rot, grifar) {
   var copia = null;
   try {
-    copia = modelo.makeCopy("contrato-provisorio-" + pid + "-" + Date.now(), pasta);
+    copia = prep.modelo.makeCopy("contrato-provisorio-" + pid + "-" + Date.now(), prep.pasta);
     var doc = DocumentApp.openById(copia.getId());
-    aplicarBlocos_(doc.getBody(), blocos);
-    ctrExpandirParagrafos_(doc.getBody(), marcadores);
-    ctrSecoes_(doc).forEach(function (sec) { aplicarMarcadores_(sec, marcadores); });
+    aplicarBlocos_(doc.getBody(), prep.blocos);
+    ctrExpandirParagrafos_(doc.getBody(), prep.marcadores, grifar);
+    ctrSecoes_(doc).forEach(function (sec) { aplicarMarcadores_(sec, prep.marcadores, grifar); });
     var sobrando = ctrMarcadoresSobrando_(doc);
     if (sobrando.length) {
-      ctrLog_("gerarContrato " + pid + " marcador sobrando: " + sobrando.join(", "));
+      ctrLog_(rot + " " + pid + " marcador sobrando: " + sobrando.join(", "));
       doc.saveAndClose();
-      return { ok: false, erro: "MODELO_COM_MARCADOR_SOBRANDO", marcadores: sobrando }; /* o finally apaga a cópia */
+      return { resp: { ok: false, erro: "MODELO_COM_MARCADOR_SOBRANDO", marcadores: sobrando } };
     }
     doc.saveAndClose();
-    var pdf = DriveApp.getFileById(copia.getId()).getAs("application/pdf");
-    anexarArquivo_(p.pageId, colGerado, { nome: nomePdf, mime: "application/pdf", base64: Utilities.base64Encode(pdf.getBytes()) }, true);
+    return { pdf: DriveApp.getFileById(copia.getId()).getAs("application/pdf") };
   } catch (e) {
-    ctrErro_("gerarContrato " + pid + " falhou", e);
-    return { ok: false, erro: "CONTRATO_FALHOU" };
+    ctrErro_(rot + " " + pid + " falhou", e);
+    return { resp: { ok: false, erro: "CONTRATO_FALHOU" } };
   } finally {
     if (copia) apagarCopia_(copia.getId());
   }
+}
+
+/* Pré-contrato: o mesmo documento, com o que o app preencheu grifado. PDF na pasta provisória
+   (PASTA_PROVISORIA_ID), NÃO em CONTRATO GERADO. O pré-contrato anterior desta página é apagado. */
+function gerarPreContrato_(col, sess, p) {
+  var t0 = Date.now(), pid = String(p.pageId).slice(0, 8), rot = "gerarPreContrato";
+  var prep = ctrPreparar_(col, p, pid, rot);
+  if (prep.resp) return prep.resp;
+  var g = ctrGerarPdf_(prep, pid, rot, true);
+  if (g.resp) return g.resp;
+  var nome = "PRÉ-CONTRATO - " + prep.resto, arq;
+  try { arq = prep.pasta.createFile(g.pdf.setName(nome)); }
+  catch (e) { ctrErro_(rot + " " + pid + " pdf na pasta", e); return { ok: false, erro: "CONTRATO_FALHOU" }; }
+  var antigo = ctrLerPre_(p.pageId), url = ctrTxt_(arq.getUrl());
+  ctrGravarPre_(p.pageId, { hash: prep.hash, nome: nome, url: url, arquivoId: arq.getId(), em: new Date().toISOString(),
+                            por: ctrTxt_(sess && sess.u) });
+  if (antigo && antigo.arquivoId && antigo.arquivoId !== arq.getId()) apagarCopia_(antigo.arquivoId);
+  var avisos = ContratoVenda.avisosContrato(prep.d);
+  ctrLog_(rot + " " + pid + " ok " + (Date.now() - t0) + "ms" + (avisos.length ? "; em branco " + avisos.length : ""));
+  return avisos.length ? { ok: true, nome: nome, url: url, avisos: avisos } : { ok: true, nome: nome, url: url };
+}
+
+/* "Conferi, está tudo certo — gerar contrato": só gera o contrato FINAL (sem grifos, em CONTRATO
+   GERADO) se há pré-contrato e os dados de agora dão o MESMO carimbo dele. A ação antiga
+   "gerarContrato" cai aqui também: não existe mais gerar o final direto. */
+function aprovarPreContrato_(col, sess, p) {
+  var t0 = Date.now(), pid = String(p.pageId).slice(0, 8), rot = "aprovarPreContrato";
+  /* primeiro os dados (coluna, base, faltas valem como no pré-contrato), depois o pré-contrato */
+  var prep = ctrPreparar_(col, p, pid, rot);
+  if (prep.resp) return prep.resp;
+  var pre = ctrLerPre_(p.pageId);
+  if (!pre) { ctrLog_(rot + " " + pid + " sem pre-contrato"); return { ok: false, erro: "PRECONTRATO_FALTANDO" }; }
+  if (prep.hash !== pre.hash) {
+    ctrLog_(rot + " " + pid + " dados mudaram depois do pre-contrato");
+    return { ok: false, erro: "PRECONTRATO_DESATUALIZADO" };
+  }
+  var g = ctrGerarPdf_(prep, pid, rot, false);
+  if (g.resp) return g.resp;
+  var nomePdf = "CONTRATO - " + prep.resto;
+  try {
+    anexarArquivo_(p.pageId, prep.f.colGerado, { nome: nomePdf, mime: "application/pdf", base64: Utilities.base64Encode(g.pdf.getBytes()) }, true);
+  } catch (e) {
+    ctrErro_(rot + " " + pid + " falhou", e);
+    return { ok: false, erro: "CONTRATO_FALHOU" };
+  }
+  pre.conferidoEm = new Date().toISOString();
+  pre.conferidoPor = ctrTxt_(sess && sess.u);
+  try { ctrGravarPre_(p.pageId, pre); } catch (e) { ctrErro_(rot + " " + pid + " registro da conferencia", e); }
 
   var url = "";
-  try { var a = ctrArquivoGerado_(ctrLerPaginaVenda_(p.pageId)); if (a) url = a.url; } catch (e) { ctrErro_("gerarContrato " + pid + " url", e); }
-  var avisos = ContratoVenda.avisosContrato(d);
-  ctrLog_("gerarContrato " + pid + " ok " + (Date.now() - t0) + "ms" + (avisos.length ? "; em branco " + avisos.length : ""));
+  try { var a = ctrArquivoGerado_(ctrLerPaginaVenda_(p.pageId)); if (a) url = a.url; } catch (e) { ctrErro_(rot + " " + pid + " url", e); }
+  var avisos = ContratoVenda.avisosContrato(prep.d);
+  ctrLog_(rot + " " + pid + " ok " + (Date.now() - t0) + "ms" + (avisos.length ? "; em branco " + avisos.length : ""));
   return avisos.length ? { ok: true, nome: nomePdf, url: url, avisos: avisos } : { ok: true, nome: nomePdf, url: url };
 }

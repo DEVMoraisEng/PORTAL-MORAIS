@@ -106,30 +106,60 @@
     DRIVE_API_DESLIGADA: "Ative o serviço Drive API no PORTAL-VENDA (veja COMO-IMPLANTAR).",
     CONTRATO_FALHOU: "Não consegui gerar o contrato — tente de novo.",
     MODELO_COM_MARCADOR_SOBRANDO: "O modelo do contrato tem um campo sem preenchimento — avise o suporte.",
-    FALTAM_DADOS: "Faltam dados para gerar o contrato."
+    FALTAM_DADOS: "Faltam dados para gerar o contrato.",
+    PRECONTRATO_FALTANDO: "Gere o pré-contrato e confira antes de gerar o contrato.",
+    PRECONTRATO_DESATUALIZADO: "Os dados mudaram depois do pré-contrato — gere o pré-contrato de novo e confira."
   };
   /* Nunca inclui nomes de marcador do modelo (resposta.marcadores): esses vão só para o console. */
   function mensagemContrato(r) {
     var e = String((r && r.erro) || "");
     return MSG_CONTRATO[e] || mensagemDeErro(e);
   }
+  /* "NENHUM" | "PRE" | "FINAL" (resposta antiga, sem etapa: pelo gerado) */
+  function etapaContrato(e) {
+    if (!e) return "NENHUM";
+    if (e.etapa === "PRE" || e.etapa === "FINAL" || e.etapa === "NENHUM") return e.etapa;
+    return e.gerado ? "FINAL" : "NENHUM";
+  }
+  /* resposta do contratoEstado → estado do bloco */
+  function estadoContrato(r) {
+    var p = r && r.pre;
+    return { gerado: !!(r && r.gerado), nome: (r && r.nome) || "", url: (r && r.url) || "", etapa: etapaContrato(r),
+             pre: p ? { nome: p.nome || "", url: p.url || "", em: p.em || "", conferido: !!p.conferido, desatualizado: !!p.desatualizado } : null };
+  }
+  /* a Assinatura só vale para o contrato FINAL (não para o que está sendo conferido) */
+  function contratoFinal(e) { return !!(e && e.gerado && etapaContrato(e) === "FINAL"); }
   function htmlContrato(e, u) {
     var ocupado = !!u.ocupadoContrato, testes = !!u.testes;
     var dis = (ocupado || testes) ? " disabled" : "";
     var h = '<div class="grp">Contrato</div>';
     if (testes) h += '<div class="dz-aviso">Perfil TESTES só consulta.</div>';
     if (!e) return h + '<div class="vazio">' + esc(u.msg || "carregando…") + "</div>";
-    if (u.ocupadoContrato === "gerar") h += '<div class="dz-linha"><b>gerando… (até 1 minuto)</b></div>';
+    if (u.ocupadoContrato === "pre") h += '<div class="dz-linha"><b>gerando o pré-contrato… (até 1 minuto)</b></div>';
+    if (u.ocupadoContrato === "aprovar") h += '<div class="dz-linha"><b>gerando o contrato… (até 1 minuto)</b></div>';
     if (u.faltas && u.faltas.length) {
       h += '<div class="dz-aviso">Para gerar o contrato, falta:</div><ul>' +
         u.faltas.map(function (f) { return "<li>" + esc(f) + "</li>"; }).join("") + "</ul>";
     }
-    if (e.gerado) {
+    /* entrega 9: (a) nada → Gerar pré-contrato; (b) pré-contrato a conferir → Visualizar pré-contrato,
+       "Conferi…" e Gerar pré-contrato de novo; (c) contrato final → Visualizar / Gerar de novo (volta ao pré-contrato) */
+    var etapa = etapaContrato(e);
+    if (etapa === "PRE") {
+      var pre = e.pre || {}, velho = !!pre.desatualizado;
+      h += '<div class="dz-linha"><span class="dz-rot">Pré-contrato: ' + esc(pre.nome || "") + "</span>" +
+        (/^https:\/\//.test(pre.url || "") ? '<a class="c-ver-pre" href="' + esc(pre.url) + '" target="_blank" rel="noopener">Visualizar pré-contrato</a>' : "") + "</div>";
+      h += '<div class="dz-msg">Confira no pré-contrato o que está grifado: amarelo = preenchido pelo app; vermelho = ficou em branco.</div>';
+      if (velho) h += '<div class="dz-aviso">Os dados mudaram depois deste pré-contrato — gere o pré-contrato de novo.</div>';
+      h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-aprovar"' + ((ocupado || testes || velho) ? " disabled" : "") +
+        ">Conferi, está tudo certo — gerar contrato</button> " +
+        '<button type="button" class="bt ghost bt-mini" data-acao="c-pre"' + dis + ">Gerar pré-contrato de novo</button></div>";
+      if (e.gerado) h += '<div class="dz-msg">Contrato anterior: ' + esc(e.nome) + " (será substituído ao conferir).</div>";
+    } else if (etapa === "FINAL") {
       h += '<div class="dz-linha"><span class="dz-rot">Contrato gerado: ' + esc(e.nome) + "</span>" +
         '<button type="button" class="bt bt-mini" data-acao="c-ver"' + dis + ">Visualizar</button> " +
-        '<button type="button" class="bt ghost bt-mini" data-acao="c-gerar"' + dis + ">Gerar de novo</button></div>";
+        '<button type="button" class="bt ghost bt-mini" data-acao="c-pre"' + dis + ">Gerar de novo</button></div>";
     } else {
-      h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-gerar"' + dis + ">Gerar contrato</button></div>";
+      h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-pre"' + dis + ">Gerar pré-contrato</button></div>";
     }
     if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
     if (u.link && /^https:\/\//.test(u.link)) {
@@ -202,7 +232,7 @@
 
   var exportar = { URL_PORTAL_VENDA: URL_PORTAL_VENDA, DOCS: DOCS, html: html, mensagemDeErro: mensagemDeErro,
                    resumo: resumo, escala: escala, tipoAceito: tipoAceito, painelCarregando: painelCarregando,
-                   htmlContrato: htmlContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, mensagemMC: mensagemMC,
+                   htmlContrato: htmlContrato, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, mensagemMC: mensagemMC,
                    topicosMC: topicosMC, MC_URL_VENDA: MC_URL_VENDA };
   if (typeof module !== "undefined" && module.exports) { module.exports = exportar; return; }
 
@@ -386,7 +416,7 @@
      * (window.VendaAssinatura, carregado por iniciar()); aqui só o estado e a ligação. */
     function htmlAss() {
       if (!window.VendaAssinatura) return '<div class="grp">Assinatura</div><div class="vazio">carregando…</div>';
-      ctxA.contratoGerado = !!(estadoC && estadoC.gerado);
+      ctxA.contratoGerado = contratoFinal(estadoC);
       return window.VendaAssinatura.montarBlocoAssinatura(ctxA);
     }
     function pintar() {
@@ -406,7 +436,7 @@
     }
     async function aoClicarAss(acao) {
       if (!window.VendaAssinatura || ctxA.ocupado) return;
-      ctxA.contratoGerado = !!(estadoC && estadoC.gerado);
+      ctxA.contratoGerado = contratoFinal(estadoC);
       var novo = await window.VendaAssinatura.executarAcaoAssinatura(acao, ctxA, {
         pageId: pageId,
         confirmar: function (t) { return window.confirm(t); },
@@ -458,7 +488,7 @@
       var r = await chamarVenda({ action: "contratoEstado", pageId: pageId });
       carregandoC = false;
       if (seq !== seqC || !vivo()) return;
-      if (r.ok) { estadoC = { gerado: !!r.gerado, nome: r.nome || "", url: r.url || "" }; uiC.msg = ""; }
+      if (r.ok) { estadoC = estadoContrato(r); uiC.msg = ""; }
       else uiC.msg = mensagemContrato(r);
       pintar();
     }
@@ -478,8 +508,8 @@
         r = await chamarVenda({ action: "contratoEstado", pageId: pageId });
         if (seq !== seqC || !vivo()) { if (w) { try { w.close(); } catch (e) {} } return; }
         uiC.ocupadoContrato = null;
+        if (r.ok) estadoC = estadoContrato(r);
         if (r.ok && r.gerado && /^https:\/\//.test(r.url || "")) {
-          estadoC = { gerado: true, nome: r.nome || "", url: r.url };
           if (w) { try { w.opener = null; } catch (e) {} w.location.href = r.url; }
           else uiC.link = r.url;
         } else {
@@ -489,17 +519,30 @@
         pintar();
         return;
       }
-      if (acao === "c-gerar") {
-        if (estadoC && estadoC.gerado && !window.confirm("Gerar de novo? O contrato atual será substituído.")) return;
-        uiC.ocupadoContrato = "gerar"; uiC.msg = ""; uiC.faltas = null; uiC.link = null; pintar();
+      if (acao === "c-pre" || acao === "c-aprovar") {
+        var aprovar = acao === "c-aprovar";
+        if (!aprovar && etapaContrato(estadoC) === "FINAL" &&
+            !window.confirm("Gerar de novo? Primeiro sai um pré-contrato para conferir; o contrato atual só é substituído quando você conferir.")) return;
+        if (aprovar && !window.confirm("Você conferiu o pré-contrato e está tudo certo? O contrato final será gerado (sem grifos).")) return;
+        uiC.ocupadoContrato = aprovar ? "aprovar" : "pre"; uiC.msg = ""; uiC.faltas = null; uiC.link = null; pintar();
         seq = ++seqC;
-        r = await chamarVenda({ action: "gerarContrato", pageId: pageId }, 150000);
+        r = await chamarVenda({ action: aprovar ? "aprovarPreContrato" : "gerarPreContrato", pageId: pageId }, 150000);
         if (seq !== seqC || !vivo()) return;
         uiC.ocupadoContrato = null;
         if (r.ok) {
-          estadoC = { gerado: true, nome: r.nome || "", url: r.url || "" };
-          /* condomínio: campos que saíram em branco ("____") no contrato não travam, mas avisam */
-          uiC.msg = r.avisos && r.avisos.length ? "Contrato gerado. Atenção: " + r.avisos.join("; ") + "." : "Contrato gerado.";
+          var antes = estadoC || {};
+          estadoC = aprovar
+            ? { gerado: true, nome: r.nome || "", url: r.url || "", etapa: "FINAL", pre: antes.pre ? Object.assign({}, antes.pre, { conferido: true }) : null }
+            : { gerado: !!antes.gerado, nome: antes.nome || "", url: antes.url || "", etapa: "PRE",
+                pre: { nome: r.nome || "", url: r.url || "", em: "", conferido: false, desatualizado: false } };
+          var feito = aprovar ? "Contrato gerado." : "Pré-contrato gerado — abra, confira o que está grifado e clique em Conferi.";
+          /* condomínio: campos que saíram em branco ("____") não travam, mas avisam */
+          uiC.msg = r.avisos && r.avisos.length ? feito + " Atenção: " + r.avisos.join("; ") + "." : feito;
+        } else if (r.erro === "PRECONTRATO_DESATUALIZADO" || r.erro === "PRECONTRATO_FALTANDO") {
+          /* a etapa mudou no servidor: trava o "Conferi" (desatualizado) ou volta ao começo (faltando) */
+          if (estadoC && r.erro === "PRECONTRATO_DESATUALIZADO" && estadoC.pre) estadoC.pre.desatualizado = true;
+          if (estadoC && r.erro === "PRECONTRATO_FALTANDO") { estadoC.pre = null; estadoC.etapa = estadoC.gerado ? "FINAL" : "NENHUM"; }
+          uiC.msg = mensagemContrato(r);
         } else if (r.erro === "FALTAM_DADOS" && r.faltas && r.faltas.length) {
           uiC.faltas = r.faltas;
         } else {

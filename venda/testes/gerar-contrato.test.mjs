@@ -109,7 +109,15 @@ function cenario({ venda, obra, vendedor, loteamento, corretor, props, drive, co
     const f = arquivos().at(-1);
     return n.uploads[f.file.url.split("/").pop()].buf.toString("utf8");
   };
-  return { g, n, d, acao, arquivos, pdfTexto, gerar: (tok) => acao("gerarContrato", tok) };
+  /* desde a entrega 9 o contrato final só sai de um pré-contrato conferido: gerar = pré-contrato +
+     "Conferi"; os registros do Drive falso são zerados entre os dois (os testes antigos olham só o final) */
+  const gerar = (tok) => {
+    const pre = acao("gerarPreContrato", tok);
+    if (!pre.ok) return pre;
+    d.zerar();
+    return acao("aprovarPreContrato", tok);
+  };
+  return { g, n, d, p, acao, arquivos, pdfTexto, gerar };
 }
 
 const ANTIGO = { files: [{ name: "antigo.pdf", type: "file", file: { url: "https://s3.falso/velho" } }] };
@@ -464,16 +472,18 @@ test("coluna nova ausente na VENDAS -> COLUNA_FALTANDO", () => {
 
 test("contratoEstado: sem arquivo -> gerado:false; depois de gerar -> nome e url do último", () => {
   const c = cenario();
-  assert.deepEqual(c.acao("contratoEstado"), { ok: true, gerado: false });
+  assert.deepEqual(c.acao("contratoEstado"), { ok: true, gerado: false, etapa: "NENHUM", pre: null });
   const r = c.gerar();
   const e = c.acao("contratoEstado");
   assert.equal(e.ok, true);
   assert.equal(e.gerado, true);
+  assert.equal(e.etapa, "FINAL");
+  assert.equal(e.pre.conferido, true);
   assert.equal(e.nome, r.nome);
   assert.match(e.url, /^https:\/\/s3\.falso\//);
   const dois = cenario({ venda: { "CONTRATO GERADO": { files: [
     { name: "a.pdf", type: "file", file: { url: "https://s3.falso/a" } }, { name: "b.pdf", type: "file", file: { url: "https://s3.falso/b" } }] } } });
-  assert.deepEqual(dois.acao("contratoEstado"), { ok: true, gerado: true, nome: "b.pdf", url: "https://s3.falso/b" });
+  assert.deepEqual(dois.acao("contratoEstado"), { ok: true, gerado: true, etapa: "FINAL", pre: null, nome: "b.pdf", url: "https://s3.falso/b" });
 });
 
 test("nenhum log carrega nome, CPF, Pix ou conta dos dados de teste", () => {
@@ -491,4 +501,135 @@ test("nenhum log carrega nome, CPF, Pix ou conta dos dados de teste", () => {
     for (const s of DADOS_PESSOAIS) assert.ok(!todos.includes(s), "log vazou: " + s);
   }
   assert.ok(ok.g.logs.some((l) => l.includes("01234567")));
+});
+
+/* ---------- pré-contrato (entrega 9) ---------- */
+const AMARELO = "#FFF59D", VERMELHO = "#FFCDD2";
+const MODELO_COM_CAB = { "modelo-obra": { header: "Cabeçalho {{LOTEAMENTO}}", footer: "Rodapé fixo" } };
+const preDe = (c) => JSON.parse(c.p["PRECONTRATO_" + PAGE] || "null");
+
+test("pré-contrato: valores preenchidos grifados em amarelo (vários no mesmo parágrafo e no cabeçalho), PDF na pasta provisória, CONTRATO GERADO intacto", () => {
+  const c = cenario({ venda: { "CONTRATO GERADO": ANTIGO }, drive: { realce: true, cabecalhos: MODELO_COM_CAB } });
+  const r = c.acao("gerarPreContrato");
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.match(r.nome, /^PRÉ-CONTRATO - RESIDENCIAL TESTE QD 07 LT 12 - CASA 3 - \d\d-\d\d-\d{4} \[#[0-9a-f]{8}\]\.pdf$/);
+  assert.match(r.url, /^https:\/\/drive\.falso\//);
+  /* PDF na pasta provisória com o nome do pré-contrato; nada em CONTRATO GERADO */
+  assert.deepEqual(c.d.estado.naPasta.map((x) => [x.nome, x.pasta]), [[r.nome, "pasta-prov"]]);
+  assert.equal(c.n.patches.length, 0);
+  assert.deepEqual(c.arquivos().map((f) => f.name), ["antigo.pdf"]);
+  /* a cópia de trabalho saiu */
+  assert.deepEqual(c.d.estado.removidas, [c.d.estado.copias[0].id]);
+  /* grifos: cada valor que trocou um marcador, no trecho exato; nada do realce velho do modelo */
+  const s = c.d.estado.salvos[c.d.estado.copias[0].id];
+  assert.ok(!s.pars.join("\n").includes("{{"), s.pars.join("\n"));
+  assert.ok(s.grifos.every((x) => x.cor === AMARELO), JSON.stringify(s.grifos));
+  const par0 = s.grifos.filter((x) => x.onde === "corpo" && x.par === 0).map((x) => x.trecho);
+  assert.deepEqual(par0, ["Residencial Teste", "Cidade Teste/GO"], "dois marcadores no mesmo parágrafo, o texto do modelo entre eles sem grifo");
+  assert.ok(s.grifos.some((x) => x.trecho === "R$ 300.000,00"));
+  assert.ok(s.grifos.some((x) => x.trecho === "Norte: lote 11; Sul: lote 13"));
+  assert.deepEqual(s.grifos.filter((x) => x.onde === "header").map((x) => x.trecho), ["Residencial Teste"]);
+  assert.equal(s.cab.header, "Cabeçalho Residencial Teste");
+  /* Propriedade com carimbo, link, data e quem gerou */
+  const pre = preDe(c);
+  assert.equal(pre.hash, /\[#([0-9a-f]{8})\]\.pdf$/.exec(r.nome)[1]);
+  assert.equal(pre.url, r.url);
+  assert.equal(pre.por, "ana.teste");
+  assert.ok(!Number.isNaN(Date.parse(pre.em)));
+  assert.equal(pre.conferidoEm, undefined);
+  /* contratoEstado: etapa PRE, pré-contrato em dia; o contrato antigo continua lá */
+  const e = c.acao("contratoEstado");
+  assert.equal(e.etapa, "PRE");
+  assert.equal(e.gerado, true);
+  assert.deepEqual(e.pre, { nome: r.nome, url: r.url, em: pre.em, conferido: false, desatualizado: false });
+});
+
+test("pré-contrato: valor com $ e barra entra literal e grifado", () => {
+  const c = cenario({ venda: { "CONTRATO - CONFRONTAÇÕES": rt("lote $1 e \\ fim $") } });
+  assert.equal(c.acao("gerarPreContrato").ok, true);
+  const s = c.d.estado.salvos[c.d.estado.copias[0].id];
+  assert.ok(s.pars.includes("Confrontações: lote $1 e \\ fim $"), s.pars.join("\n"));
+  assert.ok(s.grifos.some((x) => x.trecho === "lote $1 e \\ fim $" && x.cor === AMARELO));
+});
+
+test("aprovar com os mesmos dados: contrato FINAL sem grifo nenhum (nem o realce velho do modelo) em CONTRATO GERADO; registra quem conferiu", () => {
+  const c = cenario({ venda: { "CONTRATO GERADO": ANTIGO }, drive: { realce: true, cabecalhos: MODELO_COM_CAB } });
+  const pre = c.acao("gerarPreContrato");
+  assert.equal(pre.ok, true);
+  const nCopias = c.d.estado.copias.length;
+  const r = c.acao("aprovarPreContrato");
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.nome, pre.nome.replace(/^PRÉ-CONTRATO - /, "CONTRATO - "), "mesmo carimbo do pré-contrato");
+  assert.deepEqual(c.arquivos().map((f) => f.name), [r.nome]);
+  const s = c.d.estado.salvos[c.d.estado.copias[nCopias].id];
+  assert.deepEqual(s.grifos, [], JSON.stringify(s.grifos));
+  assert.ok(c.pdfTexto().includes("Contrato de Residencial Teste em Cidade Teste/GO"));
+  const reg = preDe(c);
+  assert.equal(reg.conferidoPor, "ana.teste");
+  assert.ok(!Number.isNaN(Date.parse(reg.conferidoEm)));
+  const e = c.acao("contratoEstado");
+  assert.equal(e.etapa, "FINAL");
+  assert.equal(e.nome, r.nome);
+  assert.equal(e.pre.conferido, true);
+  /* "Gerar de novo" volta ao pré-contrato: etapa PRE com o contrato antigo ainda gravado */
+  assert.equal(c.acao("gerarPreContrato").ok, true);
+  const e2 = c.acao("contratoEstado");
+  assert.equal(e2.etapa, "PRE");
+  assert.equal(e2.gerado, true);
+});
+
+test("aprovar depois de os dados mudarem: PRECONTRATO_DESATUALIZADO, nada copiado nem gravado", () => {
+  const c = cenario();
+  assert.equal(c.acao("gerarPreContrato").ok, true);
+  c.n.pagina.properties["CONTRATO - SINAL VALOR"] = { type: "number", number: 12000 };
+  assert.equal(c.acao("contratoEstado").pre.desatualizado, true);
+  const copias = c.d.estado.copias.length;
+  assert.deepEqual(c.acao("aprovarPreContrato"), { ok: false, erro: "PRECONTRATO_DESATUALIZADO" });
+  assert.equal(c.d.estado.copias.length, copias);
+  assert.equal(c.n.patches.length, 0);
+  assert.equal(preDe(c).conferidoEm, undefined);
+  /* novo pré-contrato com os dados novos libera; o PDF do pré-contrato anterior é apagado */
+  const antigo = preDe(c).arquivoId;
+  assert.equal(c.acao("gerarPreContrato").ok, true);
+  assert.ok(c.d.estado.removidas.includes(antigo));
+  assert.notEqual(preDe(c).arquivoId, antigo);
+  assert.equal(c.acao("aprovarPreContrato").ok, true);
+});
+
+test("sem pré-contrato: aprovar (e a ação antiga gerarContrato) recusam PRECONTRATO_FALTANDO sem tocar no Drive nem no Notion", () => {
+  for (const action of ["aprovarPreContrato", "gerarContrato"]) {
+    const c = cenario();
+    assert.deepEqual(c.acao(action), { ok: false, erro: "PRECONTRATO_FALTANDO" }, action);
+    assert.equal(c.d.estado.copias.length, 0);
+    assert.equal(c.n.patches.length, 0);
+  }
+  /* faltas aparecem antes da falta do pré-contrato */
+  const f = cenario({ venda: { "CONTRATO - ALVARÁ Nº": rt("") } });
+  assert.equal(f.acao("aprovarPreContrato").erro, "FALTAM_DADOS");
+});
+
+test("pré-contrato com faltas: FALTAM_DADOS, nenhuma cópia, nenhuma Propriedade", () => {
+  const c = cenario({ venda: { "CONTRATO - ALVARÁ Nº": rt("") } });
+  assert.equal(c.acao("gerarPreContrato").erro, "FALTAM_DADOS");
+  assert.equal(c.d.estado.copias.length, 0);
+  assert.equal(preDe(c), null);
+});
+
+test("perfil TESTES não gera nem aprova pré-contrato", () => {
+  const c = cenario();
+  for (const action of ["gerarPreContrato", "aprovarPreContrato"])
+    assert.equal(c.acao(action, tokenDe("TESTES", [])).erro, "SEM_PERMISSAO_TESTES", action);
+  assert.equal(c.d.estado.copias.length, 0);
+});
+
+test("pré-contrato e aprovação: nenhum log com nome, CPF, Pix, conta ou quem conferiu", () => {
+  const c = cenario();
+  c.acao("gerarPreContrato");
+  c.acao("aprovarPreContrato");
+  c.n.pagina.properties["CONTRATO - SINAL VALOR"] = { type: "number", number: 12000 };
+  c.acao("aprovarPreContrato");
+  const todos = c.g.logs.join("\n");
+  for (const s of [...DADOS_PESSOAIS, "ana.teste"]) assert.ok(!todos.includes(s), "log vazou: " + s);
+  assert.ok(c.g.logs.some((l) => l.includes("gerarPreContrato 01234567 ok")));
+  assert.ok(c.g.logs.some((l) => l.includes("aprovarPreContrato 01234567 dados mudaram")));
 });

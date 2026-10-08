@@ -109,7 +109,14 @@ function cenario({ linha = {}, sem = [], dbPagina = DB_COND, props = {}, gh = 20
   } });
   const acao = (action, extra = {}, tok = token()) => g.chamar(Object.assign({ action, token: tok, pageId: COND }, extra));
   const txt = (col) => (n.pagina.properties[col].rich_text || []).map((t) => t.plain_text).join("");
-  return { g, n, d, c, despachos, acao, txt };
+  /* entrega 9: contrato final = pré-contrato + "Conferi" (registros do Drive e chamadas zerados entre os dois) */
+  const gerarFinal = () => {
+    const pre = acao("gerarPreContrato");
+    if (!pre.ok) return pre;
+    d.zerar(); g.chamadas.length = 0;
+    return acao("aprovarPreContrato");
+  };
+  return { g, n, d, c, despachos, acao, txt, gerarFinal };
 }
 
 test("paginaVirtual: título vira ENDEREÇO = CONDOMÍNIO …, UNIDADE vira texto, a linha aponta para ela mesma", () => {
@@ -134,9 +141,8 @@ test("paginaVirtual: título vira ENDEREÇO = CONDOMÍNIO …, UNIDADE vira text
 
 test("gerarContrato na linha do condomínio: modelo do condomínio, PDF em CONTRATO GERADO da própria linha; contratoEstado vê", () => {
   const c = cenario();
-  assert.deepEqual(c.acao("contratoEstado"), { ok: true, gerado: false });
-  c.g.chamadas.length = 0;
-  const r = c.acao("gerarContrato");
+  assert.deepEqual(c.acao("contratoEstado"), { ok: true, gerado: false, etapa: "NENHUM", pre: null });
+  const r = c.gerarFinal();
   assert.equal(r.ok, true, JSON.stringify(r));
   /* a linha é lida uma vez para montar o contrato e outra para o link do PDF — sem o GET extra
      que a casa da VENDAS faz para chegar à linha do condomínio */
@@ -176,7 +182,7 @@ test("coluna nova faltando na linha do condomínio: COLUNA_FALTANDO com o nome",
 });
 
 test("página de outra base (nem VENDAS nem DB_VENDAS_COND) é recusada em todas as ações da tela de venda", () => {
-  for (const action of ["contratoEstado", "gerarContrato", "mcEstado", "mcLancar", "assinaturaEstado", "assinaturaEnviar"]) {
+  for (const action of ["contratoEstado", "gerarContrato", "gerarPreContrato", "aprovarPreContrato", "mcEstado", "mcLancar", "assinaturaEstado", "assinaturaEnviar"]) {
     const c = cenario({ dbPagina: "db-outra" });
     assert.deepEqual(c.acao(action), { ok: false, erro: "PAGINA_DE_OUTRA_BASE" }, action);
     assert.equal(c.despachos.length, 0);
@@ -200,7 +206,7 @@ test("assinatura na linha do condomínio: sem envelope; depois de gerar, envia e
   const c = cenario();
   assert.deepEqual(c.acao("assinaturaEstado"), { ok: true, situacao: "", envelope: false, signatarios: [] });
   assert.equal(c.acao("assinaturaEnviar").erro, "SEM_CONTRATO_GERADO");
-  assert.equal(c.acao("gerarContrato").ok, true);
+  assert.equal(c.gerarFinal().ok, true);
   const r = c.acao("assinaturaEnviar");
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.equal(r.situacao, "ENVIADO");
@@ -212,7 +218,7 @@ test("assinatura na linha do condomínio: sem envelope; depois de gerar, envia e
 
 test("assinatura do condomínio: dado mudado depois de gerar = CONTRATO_DESATUALIZADO", () => {
   const c = cenario();
-  assert.equal(c.acao("gerarContrato").ok, true);
+  assert.equal(c.gerarFinal().ok, true);
   c.n.pagina.properties["DIA PAGAMENTO PARCELAS"] = { type: "number", number: 15 };
   const r = c.acao("assinaturaEnviar");
   assert.equal(r.erro, "CONTRATO_DESATUALIZADO", JSON.stringify(r));
@@ -220,14 +226,14 @@ test("assinatura do condomínio: dado mudado depois de gerar = CONTRATO_DESATUAL
 
 test("perfil TESTES não grava na linha do condomínio", () => {
   const c = cenario();
-  for (const action of ["gerarContrato", "mcLancar", "assinaturaEnviar", "assinaturaEstado"])
+  for (const action of ["gerarContrato", "gerarPreContrato", "aprovarPreContrato", "mcLancar", "assinaturaEnviar", "assinaturaEstado"])
     assert.equal(c.acao(action, {}, token("TESTES")).erro, "SEM_PERMISSAO_TESTES", action);
   assert.equal(c.acao("contratoEstado", {}, token("TESTES")).ok, true);
 });
 
 test("tela de venda do condomínio: nenhum log com nome, CPF ou valor", () => {
   const c = cenario();
-  c.acao("gerarContrato"); c.acao("assinaturaEnviar"); c.acao("mcLancar");
+  c.gerarFinal(); c.acao("assinaturaEnviar"); c.acao("mcLancar");
   const todos = c.g.logs.join("\n");
   for (const s of ["Compradora", "Beltrano", "529.982", "52998224725", "305", "RESERVA", "Reserva"]) assert.ok(!todos.includes(s), "log vazou: " + s);
 });

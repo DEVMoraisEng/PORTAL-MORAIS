@@ -19,8 +19,10 @@ export function assinar(payload, segredo = SEGREDO) {
 }
 
 function blob(buf, mime, nome) {
-  return { getBytes: () => comSinal(buf), getDataAsString: () => buf.toString("utf8"),
-           getContentType: () => mime, getName: () => nome, _buf: buf };
+  const b = { getBytes: () => comSinal(buf), getDataAsString: () => buf.toString("utf8"),
+              getContentType: () => mime, getName: () => b._nome, _buf: buf, _nome: nome };
+  b.setName = (n) => { b._nome = String(n); return b; };   // como Blob.setName: devolve o próprio blob
+  return b;
 }
 
 export function criarGas({ props, rotas, extras = {} }) {
@@ -237,47 +239,119 @@ export function clicksignFalso({ base = "https://sandbox.clicksign.com", falhar 
    - Body.replaceText(regex, substituto): substituto LITERAL (como o Docs real: "R$" sai "R$", barra sai barra);
    - Paragraph.removeFromParent() lança no último parágrafo do corpo;
    - o PDF exportado é o conteúdo SALVO (saveAndClose), não o que ainda está aberto;
-   - `Drive` (serviço avançado) só existe com avancado: true; Drive.Files.remove apaga de vez (opções guardadas em estado.opcoesRemocao). */
-export function driveFalso({ modelos = {}, avancado = true, falhaAbrir = null, cabecalhos = {} } = {}) {
-  const docs = {};
-  const estado = { copias: [], removidas: [], lixeira: [], exportados: [], abertos: [], opcoesRemocao: [], salvos: {} };
+   - `Drive` (serviço avançado) só existe com avancado: true; Drive.Files.remove apaga de vez (opções guardadas em estado.opcoesRemocao);
+   - findText(padrao, desde?) no corpo/cabeçalho/rodapé devolve RangeElement (getElement().asText(), getStartOffset,
+     getEndOffsetInclusive); Text.insertText/deleteText/setBackgroundColor(ini, fim, cor|null) mexem no fundo por caractere,
+     e o texto inserido herda o fundo do caractere vizinho (como o Docs). saveAndClose guarda os grifos em salvos[id].grifos;
+   - Folder.createFile(blob) cria o arquivo (estado.naPasta) com getUrl(). */
+export function driveFalso({ modelos = {}, avancado = true, falhaAbrir = null, cabecalhos = {}, realce = false } = {}) {
+  const docs = {}, soltos = {};
+  const estado = { copias: [], removidas: [], lixeira: [], exportados: [], abertos: [], opcoesRemocao: [], salvos: {}, naPasta: [] };
   let seq = 0;
-  const par = (t) => ({ texto: t });
-  for (const [id, linhas] of Object.entries(modelos)) docs[id] = { pars: linhas.map(par), salvo: linhas.slice(), aberto: false, cab: cabecalhos[id] || {} };
-  const substituto = (rep) => rep;   // literal, como o Docs real
+  /* parágrafo = { texto, fundo }: fundo é a cor de fundo de CADA caractere (null = nenhuma).
+     realce: true imita o modelo antigo, com os marcadores {{X}} realçados em amarelo. */
+  const REALCE = "#FFFF00";
+  const par = (t) => {
+    const p = { texto: String(t), fundo: Array(String(t).length).fill(null) };
+    if (realce) for (const m of p.texto.matchAll(/\{\{[^{}]*\}\}/g)) p.fundo.fill(REALCE, m.index, m.index + m[0].length);
+    return p;
+  };
+  const clonar = (p) => ({ texto: p.texto, fundo: p.fundo.slice() });
+  for (const [id, linhas] of Object.entries(modelos)) {
+    const cab = {};
+    for (const [k, v] of Object.entries(cabecalhos[id] || {})) if (typeof v === "string") cab[k] = par(v);
+    docs[id] = { pars: linhas.map(par), aberto: false, cab };
+    docs[id].salvoP = docs[id].pars.map(clonar);
+    docs[id].salvo = linhas.slice();
+  }
+  /* Body/Paragraph/Section.replaceText: substituto LITERAL; o trecho novo herda o fundo do 1º caractere casado */
+  const trocar = (p, padrao, rep) => {
+    let out = "", f = [], ult = 0;
+    for (const m of p.texto.matchAll(new RegExp(padrao, "g"))) {
+      out += p.texto.slice(ult, m.index); f.push(...p.fundo.slice(ult, m.index));
+      out += rep; f.push(...Array(rep.length).fill(m[0].length ? p.fundo[m.index] : null));
+      ult = m.index + m[0].length;
+    }
+    p.texto = out + p.texto.slice(ult); p.fundo = f.concat(p.fundo.slice(ult));
+  };
+  /* Text (editAsText / RangeElement.getElement().asText()) sobre um parágrafo */
+  const faixa = (p, ini, fim) => { if (!(ini >= 0 && fim < p.texto.length && fim >= ini)) throw new Error("Invalid range " + ini + "-" + fim); };
+  const Texto = (p, vivo) => {
+    const t = {
+      asText: () => t, getText: () => p.texto,
+      insertText: (off, s) => {
+        vivo(); s = String(s);
+        if (!(off >= 0 && off <= p.texto.length)) throw new Error("Invalid offset " + off);
+        const cor = off > 0 ? p.fundo[off - 1] : (p.fundo.length ? p.fundo[0] : null);   // herda o fundo vizinho, como o Docs
+        p.texto = p.texto.slice(0, off) + s + p.texto.slice(off);
+        p.fundo.splice(off, 0, ...Array(s.length).fill(cor));
+        return t;
+      },
+      deleteText: (ini, fim) => { vivo(); faixa(p, ini, fim); p.texto = p.texto.slice(0, ini) + p.texto.slice(fim + 1); p.fundo.splice(ini, fim - ini + 1); return t; },
+      setBackgroundColor: (ini, fim, cor) => { vivo(); faixa(p, ini, fim); p.fundo.fill(cor === undefined ? null : cor, ini, fim + 1); return t; },
+      setBold: (ini, fim, b) => { vivo(); faixa(p, ini, fim); (p.negrito = p.negrito || []).push([ini, fim, b]); return t; },
+    };
+    return t;
+  };
+  /* findText(padrao, desde?) numa lista de parágrafos: RangeElement do 1º trecho depois de `desde` */
+  const achar = (lista, vivo, padrao, desde) => {
+    vivo();
+    let i0 = 0, pos = 0;
+    if (desde) { i0 = lista().indexOf(desde._p); pos = desde.getEndOffsetInclusive() + 1; if (i0 < 0) i0 = 0; }
+    const ps = lista();
+    for (let i = i0; i < ps.length; i++) {
+      const re = new RegExp(padrao, "g"); re.lastIndex = i === i0 ? pos : 0;
+      const m = re.exec(ps[i].texto);
+      if (m && m[0].length) {
+        const p = ps[i], ini = m.index, fim = m.index + m[0].length - 1;
+        return { _p: p, getElement: () => Texto(p, vivo), getStartOffset: () => ini, getEndOffsetInclusive: () => fim, isPartial: () => true };
+      }
+    }
+    return null;
+  };
+  /* trechos com fundo (cor não nula) de um parágrafo: [{ trecho, cor }] */
+  const trechos = (p) => {
+    const r = [];
+    for (let i = 0; i < p.texto.length; i++) {
+      const c = p.fundo[i];
+      if (!c) continue;
+      const u = r[r.length - 1];
+      if (u && u.cor === c && u.fim === i - 1) { u.trecho += p.texto[i]; u.fim = i; } else r.push({ trecho: p.texto[i], cor: c, fim: i });
+    }
+    return r.map(({ trecho, cor }) => ({ trecho, cor }));
+  };
   /* cabeçalho/rodapé: null quando o documento não tem (como no Apps Script) */
   const secao = (d, k) => {
     if (!d.aberto) throw new Error("Document is closed");
-    if (typeof d.cab[k] !== "string") return null;
-    return { getText: () => d.cab[k], replaceText: (padrao, rep) => { d.cab[k] = d.cab[k].replace(new RegExp(padrao, "g"), (...a) => substituto(rep, a)); } };
+    if (!d.cab[k]) return null;
+    const vivo = () => { if (!d.aberto) throw new Error("Document is closed"); };
+    return { getText: () => d.cab[k].texto, replaceText: (padrao, rep) => { vivo(); trocar(d.cab[k], padrao, rep); },
+             findText: (padrao, desde) => achar(() => [d.cab[k]], vivo, padrao, desde) };
   };
   function docAberto(id) {
     const d = docs[id];
-    const noCorpo = (p) => { if (!d.aberto) throw new Error("Document is closed"); return d.pars.indexOf(p); };
+    const vivo = () => { if (!d.aberto) throw new Error("Document is closed"); };
+    const noCorpo = (p) => { vivo(); return d.pars.indexOf(p); };
     /* cópia solta (Paragraph.copy): fora do documento até insertParagraph */
-    const Solto = (p) => ({ _solto: p, copy: () => Solto({ texto: p.texto }), getText: () => p.texto });
+    const Solto = (p) => ({ _solto: p, copy: () => Solto(clonar(p)), getText: () => p.texto });
     /* o "pai" (Body ou TableCell): aqui o corpo é uma lista plana de parágrafos */
     const pai = {
       getChildIndex: (par) => { const i = noCorpo(par._p); if (i < 0) throw new Error("Element not in body"); return i; },
       insertParagraph: (i, solto) => {
-        if (!d.aberto) throw new Error("Document is closed");
+        vivo();
         if (!solto || !solto._solto) throw new Error("insertParagraph precisa de um parágrafo solto (copy())");
-        const novo = { texto: solto._solto.texto };
+        const novo = clonar(solto._solto);
         d.pars.splice(i, 0, novo);
         return pp(novo);
       },
     };
     const Par = (p) => ({
       _p: p,
-      getText: () => p.texto, setText: (t) => { noCorpo(p); p.texto = String(t); },
+      getText: () => p.texto, setText: (t) => { noCorpo(p); p.texto = String(t); p.fundo = Array(p.texto.length).fill(null); },
       getParent: () => { noCorpo(p); return pai; },
-      copy: () => Solto({ texto: p.texto }),
-      replaceText: (padrao, rep) => { noCorpo(p); p.texto = p.texto.replace(new RegExp(padrao, "g"), (...a) => substituto(rep, a)); },
-      editAsText: () => ({ setBold: (ini, fim, b) => {
-        noCorpo(p);
-        if (ini < 0 || fim >= p.texto.length || fim < ini) throw new Error("Invalid range " + ini + "-" + fim);
-        (p.negrito = p.negrito || []).push([ini, fim, b]);
-      } }),
+      copy: () => Solto(clonar(p)),
+      replaceText: (padrao, rep) => { noCorpo(p); trocar(p, padrao, rep); },
+      editAsText: () => { noCorpo(p); return Texto(p, () => { if (noCorpo(p) < 0) throw new Error("Element not in body"); }); },
       removeFromParent: () => {
         const i = noCorpo(p);
         if (i < 0) throw new Error("Element not in body");
@@ -289,31 +363,41 @@ export function driveFalso({ modelos = {}, avancado = true, falhaAbrir = null, c
     const pp = (p) => { if (!cache.has(p)) cache.set(p, Par(p)); return cache.get(p); };
     return {
       getBody: () => {
-        if (!d.aberto) throw new Error("Document is closed");
+        vivo();
         return {
           getParagraphs: () => d.pars.map(pp),
           getText: () => d.pars.map((p) => p.texto).join("\n"),
-          replaceText: (padrao, rep) => {
-            const re = new RegExp(padrao, "g");
-            d.pars.forEach((p) => { p.texto = p.texto.replace(re, (...a) => substituto(rep, a)); });
-          },
+          replaceText: (padrao, rep) => { vivo(); d.pars.forEach((p) => trocar(p, padrao, rep)); },
+          findText: (padrao, desde) => achar(() => d.pars, vivo, padrao, desde),
         };
       },
       getHeader: () => secao(d, "header"),
       getFooter: () => secao(d, "footer"),
-      saveAndClose: () => { d.salvo = d.pars.map((p) => p.texto); d.aberto = false; estado.salvos[id] = { pars: d.salvo.slice(), cab: JSON.parse(JSON.stringify(d.cab)),
-        /* trechos em negrito (editAsText().setBold) por parágrafo: [{ texto, negrito: [[ini, fim, b]] }] */
-        negritos: d.pars.filter((p) => p.negrito).map((p) => ({ texto: p.texto, negrito: p.negrito.slice() })) }; },
+      saveAndClose: () => {
+        d.salvo = d.pars.map((p) => p.texto); d.salvoP = d.pars.map(clonar); d.aberto = false;
+        const cab = {}, grifos = [];
+        d.pars.forEach((p, i) => trechos(p).forEach((x) => grifos.push(Object.assign({ onde: "corpo", par: i }, x))));
+        for (const [k, p] of Object.entries(d.cab)) { cab[k] = p.texto; trechos(p).forEach((x) => grifos.push(Object.assign({ onde: k, par: 0 }, x))); }
+        estado.salvos[id] = { pars: d.salvo.slice(), cab,
+          /* trechos em negrito (editAsText().setBold) por parágrafo: [{ texto, negrito: [[ini, fim, b]] }] */
+          negritos: d.pars.filter((p) => p.negrito).map((p) => ({ texto: p.texto, negrito: p.negrito.slice() })),
+          /* trechos com fundo colorido, na ordem do documento: [{ onde, par, trecho, cor }] */
+          grifos };
+      },
     };
   }
   const arquivo = (id) => {
+    if (soltos[id]) return { getId: () => id, getName: () => soltos[id].nome, getUrl: () => soltos[id].url,
+                             setTrashed: (b) => { if (b) estado.lixeira.push(id); } };
     if (!docs[id]) throw new Error("File not found: " + id);
     return {
       getId: () => id,
       makeCopy: (nome, pasta) => {
         if (!pasta || !pasta.getId) throw new Error("makeCopy precisa de (nome, pasta)");
         const novo = "copia-" + (++seq);
-        docs[novo] = { pars: docs[id].salvo.map(par), salvo: docs[id].salvo.slice(), aberto: false, cab: JSON.parse(JSON.stringify(docs[id].cab || {})) };
+        const cab = {};
+        for (const [k, p] of Object.entries(docs[id].cab || {})) cab[k] = clonar(p);
+        docs[novo] = { pars: docs[id].salvoP.map(clonar), salvo: docs[id].salvo.slice(), salvoP: docs[id].salvoP.map(clonar), aberto: false, cab };
         estado.copias.push({ id: novo, nome, pasta: pasta.getId() });
         return arquivo(novo);
       },
@@ -325,6 +409,17 @@ export function driveFalso({ modelos = {}, avancado = true, falhaAbrir = null, c
       setTrashed: (b) => { if (b) estado.lixeira.push(id); },
     };
   };
+  /* Folder.createFile(blob): o arquivo ganha o nome do blob; fica em estado.naPasta */
+  const pasta = (pid) => ({
+    getId: () => pid,
+    createFile: (b) => {
+      if (!b || !b.getBytes) throw new Error("createFile precisa de um blob");
+      const id = "arq-" + (++seq), url = "https://drive.falso/file/d/" + id;
+      soltos[id] = { nome: b.getName(), url, pasta: pid, buf: b._buf };
+      estado.naPasta.push({ id, nome: b.getName(), pasta: pid, url });
+      return arquivo(id);
+    },
+  });
   const extras = {
     DocumentApp: { openById: (id) => {
       if (falhaAbrir) throw new Error(falhaAbrir);
@@ -332,8 +427,15 @@ export function driveFalso({ modelos = {}, avancado = true, falhaAbrir = null, c
       docs[id].aberto = true; estado.abertos.push(id);
       return docAberto(id);
     } },
-    DriveApp: { getFileById: arquivo, getFolderById: (id) => ({ getId: () => id }) },
+    DriveApp: { getFileById: arquivo, getFolderById: pasta },
   };
-  if (avancado) extras.Drive = { Files: { remove: (id, opc) => { if (!docs[id]) throw new Error("File not found: " + id); delete docs[id]; estado.removidas.push(id); estado.opcoesRemocao.push(opc); } } };
-  return { extras, estado, docs };
+  if (avancado) extras.Drive = { Files: { remove: (id, opc) => {
+    if (soltos[id]) delete soltos[id];
+    else if (docs[id]) delete docs[id];
+    else throw new Error("File not found: " + id);
+    estado.removidas.push(id); estado.opcoesRemocao.push(opc);
+  } } };
+  /* zera os registros (não os documentos): usado entre o pré-contrato e a aprovação nos testes antigos */
+  const zerar = () => { for (const k of ["copias", "removidas", "lixeira", "exportados", "abertos", "opcoesRemocao", "naPasta"]) estado[k].length = 0; };
+  return { extras, estado, docs, soltos, zerar };
 }

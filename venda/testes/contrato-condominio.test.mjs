@@ -287,7 +287,13 @@ function cenario({ casa = {}, linha = {}, props = {}, condDb = "db-cond", loteam
   }, props);
   for (const [k, v] of Object.entries(props)) if (v === null) delete p[k];
   const g = criarGas({ props: p, rotas: n.rota, extras: d.extras });
-  const gerar = () => g.chamar({ action: "gerarContrato", token: token(), pageId: PAGE });
+  /* entrega 9: o final só sai de um pré-contrato conferido (os registros do Drive são zerados entre os dois) */
+  const gerar = () => {
+    const pre = g.chamar({ action: "gerarPreContrato", token: token(), pageId: PAGE });
+    if (!pre.ok) return pre;
+    d.zerar();
+    return g.chamar({ action: "aprovarPreContrato", token: token(), pageId: PAGE });
+  };
   const salvo = () => d.estado.salvos[d.estado.copias[0].id];
   return { g, n, d, gerar, salvo };
 }
@@ -381,4 +387,29 @@ test("GerarContrato do condomínio: nenhum log com nome, CPF ou valor", () => {
   cenario({ condDb: "db-outra" }).gerar();
   const todos = c.g.logs.join("\n");
   for (const s of ["Fiador", "Compradora", "529.982", "123.456", "305", "Reserva", "RESERVA"]) assert.ok(!todos.includes(s), "log vazou: " + s);
+});
+
+test("pré-contrato do condomínio: cada linha do 6.1 e da qualificação do fiador grifada inteira; '____' em vermelho claro; o final sai sem grifo", () => {
+  const c = cenario({ casa: { "CONTRATO - MATRÍCULA INDIVIDUAL": null },
+    linha: { "CONTRATO - MATRÍCULA INDIVIDUAL": rt(""), "CONTRATO - FRAÇÃO IDEAL": rt("") } });
+  const pre = c.g.chamar({ action: "gerarPreContrato", token: token(), pageId: PAGE });
+  assert.equal(pre.ok, true, JSON.stringify(pre));
+  assert.match(pre.nome, /^PRÉ-CONTRATO - CONDOMÍNIO RESERVA TESTE - CASA 13 - /);
+  assert.deepEqual(pre.avisos, ["Em branco no contrato: fração ideal", "Em branco no contrato: matrícula individual"]);
+  const s = c.salvo();
+  const amarelos = s.grifos.filter((x) => x.cor === "#FFF59D").map((x) => x.trecho);
+  const vermelhos = s.grifos.filter((x) => x.cor === "#FFCDD2").map((x) => x.trecho);
+  /* o 6.1 inteiro: cada linha gerada é um parágrafo todo grifado */
+  for (const linha of TEXTO_61) assert.ok(amarelos.includes(linha), "linha do 6.1 sem grifo: " + linha);
+  assert.ok(amarelos.some((t) => t.startsWith("FIADOR 1: Fiador Um Teste")), "qualificação do fiador grifada");
+  /* os traços de campo em branco ficam em vermelho, separados do amarelo em volta */
+  assert.deepEqual(vermelhos, ["____", "____"]);
+  assert.ok(s.pars.includes("a) Unidade autônoma nº UN 13, área privativa 70,50 m², fração ideal ____"));
+  assert.equal(c.n.pagina.properties["CONTRATO GERADO"].files.length, 0, "pré-contrato não grava CONTRATO GERADO");
+  /* aprovado: o final tem o mesmo texto e nenhum grifo */
+  c.d.zerar();
+  const r = c.g.chamar({ action: "aprovarPreContrato", token: token(), pageId: PAGE });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual(c.salvo().grifos, []);
+  assert.deepEqual(c.salvo().pars, s.pars);
 });

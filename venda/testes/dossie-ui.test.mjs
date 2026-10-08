@@ -134,21 +134,69 @@ test("contrato: sem estado ainda mostra carregando", () => {
   const h = D.htmlContrato(null, uic());
   assert.match(h, /Contrato/);
   assert.match(h, /carregando/);
-  assert.equal(botao(h, "c-gerar"), null);
+  assert.equal(botao(h, "c-pre"), null);
 });
 
-test("contrato: nunca gerado mostra Gerar contrato habilitado e nada de Visualizar", () => {
-  const h = D.htmlContrato({ gerado: false }, uic());
-  assert.match(h, /Gerar contrato/);
-  assert.doesNotMatch(botao(h, "c-gerar"), /disabled/);
+/* entrega 9: os três estados */
+const PRE = (x = {}) => ({ gerado: false, etapa: "PRE", pre: Object.assign({ nome: "PRÉ-CONTRATO - X [#0a1b2c3d].pdf", url: "https://drive.example/p", em: "", conferido: false, desatualizado: false }, x) });
+
+test("contrato (a) sem pré-contrato: só Gerar pré-contrato, habilitado; nada de Visualizar nem Conferi", () => {
+  for (const est of [{ gerado: false }, { gerado: false, etapa: "NENHUM", pre: null }]) {
+    const h = D.htmlContrato(est, uic());
+    assert.match(h, />Gerar pré-contrato</);
+    assert.doesNotMatch(botao(h, "c-pre"), /disabled/);
+    assert.equal(botao(h, "c-ver"), null);
+    assert.equal(botao(h, "c-aprovar"), null);
+    assert.equal(botao(h, "c-gerar"), null, "o gerar direto saiu da tela");
+  }
+});
+
+test("contrato (b) pré-contrato gerado: link Visualizar pré-contrato, Conferi e Gerar pré-contrato de novo", () => {
+  const h = D.htmlContrato(PRE(), uic());
+  assert.match(h, /<a class="c-ver-pre" href="https:\/\/drive\.example\/p" target="_blank" rel="noopener">Visualizar pré-contrato<\/a>/);
+  assert.match(h, /Pré-contrato: PRÉ-CONTRATO - X \[#0a1b2c3d\]\.pdf/);
+  assert.match(h, /amarelo = preenchido pelo app; vermelho = ficou em branco/);
+  assert.match(h, />Conferi, está tudo certo — gerar contrato</);
+  assert.doesNotMatch(botao(h, "c-aprovar"), /disabled/);
+  assert.match(h, />Gerar pré-contrato de novo</);
   assert.equal(botao(h, "c-ver"), null);
+  /* link que não é https não vira âncora */
+  assert.doesNotMatch(D.htmlContrato(PRE({ url: "javascript:alert(1)" }), uic()), /Visualizar pré-contrato/);
+  /* com contrato antigo gravado, avisa que ele será substituído */
+  assert.match(D.htmlContrato(Object.assign(PRE(), { gerado: true, nome: "<b>v</b>.pdf" }), uic()), /Contrato anterior: &lt;b&gt;v&lt;\/b&gt;\.pdf \(será substituído ao conferir\)/);
 });
 
-test("contrato: gerando avisa e desabilita todos os botões", () => {
-  const h = D.htmlContrato({ gerado: true, nome: "Contrato.pdf" }, uic({ ocupadoContrato: "gerar" }));
-  assert.match(h, /gerando… \(até 1 minuto\)/);
-  assert.match(botao(h, "c-gerar"), /disabled/);
+test("contrato (b) pré-contrato desatualizado: aviso e Conferi travado; Gerar de novo liberado", () => {
+  const h = D.htmlContrato(PRE({ desatualizado: true }), uic());
+  assert.match(h, /Os dados mudaram depois deste pré-contrato/);
+  assert.match(botao(h, "c-aprovar"), /disabled/);
+  assert.doesNotMatch(botao(h, "c-pre"), /disabled/);
+});
+
+test("contrato: gerando (pré-contrato ou final) avisa e desabilita todos os botões", () => {
+  const h = D.htmlContrato({ gerado: true, nome: "Contrato.pdf", etapa: "FINAL" }, uic({ ocupadoContrato: "pre" }));
+  assert.match(h, /gerando o pré-contrato… \(até 1 minuto\)/);
+  assert.match(botao(h, "c-pre"), /disabled/);
   assert.match(botao(h, "c-ver"), /disabled/);
+  const a = D.htmlContrato(PRE(), uic({ ocupadoContrato: "aprovar" }));
+  assert.match(a, /gerando o contrato… \(até 1 minuto\)/);
+  assert.match(botao(a, "c-aprovar"), /disabled/);
+  assert.match(botao(a, "c-pre"), /disabled/);
+});
+
+test("estadoContrato e etapaContrato: resposta nova e antiga", () => {
+  assert.equal(D.etapaContrato(null), "NENHUM");
+  assert.equal(D.etapaContrato({ gerado: true }), "FINAL");
+  assert.equal(D.etapaContrato({ gerado: true, etapa: "PRE" }), "PRE");
+  assert.deepEqual(D.estadoContrato({ ok: true, gerado: false, etapa: "PRE", pre: { nome: "p.pdf", url: "https://x", em: "2026-10-07", conferido: false, desatualizado: true } }),
+    { gerado: false, nome: "", url: "", etapa: "PRE", pre: { nome: "p.pdf", url: "https://x", em: "2026-10-07", conferido: false, desatualizado: true } });
+  assert.deepEqual(D.estadoContrato({ ok: true, gerado: true, nome: "c.pdf", url: "https://c" }),
+    { gerado: true, nome: "c.pdf", url: "https://c", etapa: "FINAL", pre: null });
+});
+
+test("mensagemContrato: pré-contrato faltando ou desatualizado", () => {
+  assert.equal(D.mensagemContrato({ erro: "PRECONTRATO_FALTANDO" }), "Gere o pré-contrato e confira antes de gerar o contrato.");
+  assert.match(D.mensagemContrato({ erro: "PRECONTRATO_DESATUALIZADO" }), /^Os dados mudaram depois do pré-contrato/);
 });
 
 test("contrato: faltas viram lista escapada com o título", () => {
@@ -159,21 +207,21 @@ test("contrato: faltas viram lista escapada com o título", () => {
   assert.match(h, /&lt;img/);
 });
 
-test("contrato: gerado mostra o nome (escapado), Visualizar e Gerar de novo", () => {
-  const h = D.htmlContrato({ gerado: true, nome: "<b>C</b>.pdf" }, uic());
+test("contrato (c) final gerado: nome (escapado), Visualizar e Gerar de novo (que volta ao pré-contrato)", () => {
+  const h = D.htmlContrato({ gerado: true, etapa: "FINAL", nome: "<b>C</b>.pdf" }, uic());
   assert.match(h, /Contrato gerado: &lt;b&gt;C&lt;\/b&gt;\.pdf/);
   assert.doesNotMatch(botao(h, "c-ver"), /disabled/);
-  assert.match(h, /Gerar de novo/);
-  assert.doesNotMatch(botao(h, "c-gerar"), /disabled/);
+  assert.match(h, />Gerar de novo</);
+  assert.doesNotMatch(botao(h, "c-pre"), /disabled/);
+  assert.equal(botao(h, "c-aprovar"), null);
 });
 
 test("contrato: perfil TESTES vê o bloco com botões desabilitados", () => {
-  for (const est of [{ gerado: false }, { gerado: true, nome: "x.pdf" }]) {
+  for (const est of [{ gerado: false }, { gerado: true, nome: "x.pdf" }, PRE()]) {
     const h = D.htmlContrato(est, uic({ testes: true }));
     assert.match(h, /Perfil TESTES/);
-    assert.match(botao(h, "c-gerar"), /disabled/);
-    const ver = botao(h, "c-ver");
-    if (ver) assert.match(ver, /disabled/);
+    assert.match(botao(h, "c-pre"), /disabled/);
+    for (const outro of ["c-ver", "c-aprovar"]) { const b = botao(h, outro); if (b) assert.match(b, /disabled/); }
   }
 });
 

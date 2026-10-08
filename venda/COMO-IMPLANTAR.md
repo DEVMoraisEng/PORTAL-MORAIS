@@ -21,7 +21,7 @@
    Documentos de comprador vão para a OpenAI (decisão do dono em 28/09/2026).
 4. Implantar › Nova implantação › App da Web › Executar como **Eu** › Quem pode
    acessar **Qualquer pessoa** › Implantar › autorizar (Avançado › Acessar).
-5. Teste: abrir `<URL>/exec?action=ping` → `{"ok":true,"versao":"venda-v4","papel":"VENDA"}`.
+5. Teste: abrir `<URL>/exec?action=ping` → `{"ok":true,"versao":"venda-v5","papel":"VENDA"}`.
 6. Mande a URL `/exec` no chat (não é segredo).
 
 Mudou o código? Implantar › Gerenciar implantações › lápis › Nova versão › Implantar.
@@ -528,6 +528,70 @@ conta a pagar não foram provados ao vivo (ver DISTRATO-ERP.md); a devolução
 limpeza, a venda do portal já está limpa e o resultado/erro fica na base
 DISTRATOS para alguém resolver no ERP à mão; a cópia de arquivos aumenta o
 tempo do distrato (arquivo acima de 20 MB recusa).
+
+## Pré-contrato (entrega 9)
+
+Pedido do dono (07/10/2026): antes do contrato de verdade sai um **pré-contrato**
+para conferir. É o mesmo documento do contrato, mas com **tudo o que o app
+preencheu grifado em amarelo** (`#FFF59D`) — cada valor que trocou um marcador
+`{{X}}` (corpo, cabeçalho e rodapé, vários no mesmo parágrafo inclusive) e cada
+linha gerada (o 6.1 do condomínio e a qualificação dos fiadores). Campo que saiu
+em branco (`____`) fica grifado em **vermelho claro** (`#FFCDD2`). O ping passa a
+responder `"versao":"venda-v5"`.
+
+Fluxo na tela (casa de rua e cartão do condomínio, o mesmo código):
+
+1. **Sem pré-contrato** → botão **Gerar pré-contrato**.
+2. **Pré-contrato gerado** → link **Visualizar pré-contrato** (abre o PDF em nova
+   aba), botão **Conferi, está tudo certo — gerar contrato** e **Gerar
+   pré-contrato de novo**. Se os dados mudaram depois do pré-contrato, aparece o
+   aviso e o "Conferi" fica travado até gerar de novo.
+3. **Contrato final gerado** → como antes: **Visualizar** / **Gerar de novo** — o
+   "Gerar de novo" volta ao passo 2 (sai um pré-contrato novo; o contrato atual
+   só é trocado quando alguém conferir).
+
+A **Assinatura** só libera com o contrato FINAL (no passo 2 o "Enviar para
+assinatura" fica travado).
+
+Como funciona (PORTAL-VENDA):
+
+- `gerarPreContrato`: monta os dados como o contrato, copia o modelo, preenche
+  com grifo, exporta o PDF `PRÉ-CONTRATO - … [#carimbo].pdf` para a **pasta
+  provisória** (`PASTA_PROVISORIA_ID`) e **não** grava em `CONTRATO GERADO`. A
+  cópia de trabalho do Docs é apagada como sempre; o PDF do pré-contrato
+  anterior da mesma página é apagado. Guarda na Propriedade
+  `PRECONTRATO_<pageId>` o carimbo dos dados, o link do PDF, a data e quem gerou.
+- `aprovarPreContrato` (o "Conferi"): só gera o contrato FINAL (sem grifo, em
+  `CONTRATO GERADO`, mesmo carimbo no nome) se existe pré-contrato e os dados de
+  agora dão o **mesmo carimbo**. Senão: `PRECONTRATO_DESATUALIZADO` (os dados
+  mudaram — gere o pré-contrato de novo) ou `PRECONTRATO_FALTANDO`. Registra na
+  mesma Propriedade quem conferiu e quando (nada disso vai para o log).
+- A ação antiga `gerarContrato` agora faz o mesmo que `aprovarPreContrato` — não
+  existe mais gerar o contrato final direto.
+- `contratoEstado` devolve também `etapa` (`NENHUM` / `PRE` / `FINAL`) e `pre`
+  (`nome`, `url`, `em`, `conferido` e, na etapa PRE, `desatualizado`). Na etapa PRE
+  ele recalcula o carimbo (lê os cadastros), por isso demora um pouco mais.
+- No contrato final o fundo de cada valor é **apagado** — o realce amarelo que o
+  modelo antigo tinha nos marcadores some.
+
+Implantar:
+
+1. **PORTAL-VENDA:** colar de novo `ContratoVenda` (de `venda/ContratoVenda.js`),
+   `GerarContrato` e `PortalVenda`; nova versão; conferir o ping (`venda-v5`).
+   Propriedades: nada novo (as `PRECONTRATO_<pageId>` são criadas sozinhas).
+2. **Portal (site):** publicar `venda-dossie.js` com a `URL_PORTAL_VENDA` deste
+   ambiente preenchida.
+3. **Pasta provisória:** quem confere precisa conseguir abrir o PDF do
+   pré-contrato — compartilhar a pasta `PASTA_PROVISORIA_ID` (só leitura) com
+   quem confere os contratos. O PDF não é público.
+4. **Teste:** numa casa de teste, Gerar pré-contrato → abrir o PDF e ver os grifos
+   (amarelo e, no condomínio com campo vazio, vermelho) → mudar um valor no Notion
+   → o "Conferi" trava → Gerar pré-contrato de novo → Conferi → o contrato em
+   `CONTRATO GERADO` sai sem grifo nenhum → Enviar para assinatura libera.
+
+**Ainda não faz:** o carimbo cobre os dados, não o texto do modelo — trocar o
+modelo do Docs depois do pré-contrato não trava o "Conferi". O último PDF de
+pré-contrato de cada casa fica na pasta provisória (só o anterior é apagado).
 
 ## Plano B — Anthropic
 

@@ -20,7 +20,9 @@ HTML = """<!doctype html><html><head><meta charset="utf-8"><style>/*CSS_DO_VENDA
   window.pedidos = [];
   window.respostas = {
     estado: { ok: true, tipoCasa: "CASA DE RUA", arquivos: {}, dossie: "CONFERIDO", observacao: "", doisCompradores: false },
-    contratoEstado: { ok: true, gerado: true, nome: "Contrato.pdf", url: "https://exemplo.invalid/c.pdf" },
+    contratoEstado: { ok: true, gerado: true, etapa: "FINAL", pre: null, nome: "Contrato.pdf", url: "https://exemplo.invalid/c.pdf" },
+    gerarPreContrato: { ok: true, nome: "PRÉ-CONTRATO - Unidade 13 [#0a1b2c3d].pdf", url: "https://exemplo.invalid/pre.pdf" },
+    aprovarPreContrato: { ok: true, nome: "CONTRATO - Unidade 13 [#0a1b2c3d].pdf", url: "https://exemplo.invalid/c2.pdf" },
     assinaturaEstado: { ok: true, situacao: "", envelope: false, signatarios: [] },
     assinaturaEnviar: { ok: true, situacao: "ENVIADO" },
     mcEstado: { ok: true, situacao: "", vendaId: "" },
@@ -120,8 +122,12 @@ def main() -> int:
             desenhar = """(id) => { var c = document.getElementById('cd-card');
                 c.innerHTML = '<div class="cd-cardbox"><h3>Unidade 13</h3><div id="cd-venda"></div></div>';
                 VendaBlocos.montar(document.getElementById('cd-venda'), id); }"""
+            # a linha do condomínio ainda sem envelope: o Enviar para assinatura depende do contrato FINAL
+            pg.evaluate("() => { window.respostas.assinaturaEstado = { ok: true, situacao: '', envelope: false, signatarios: [] }; }")
             pg.evaluate(desenhar, COND)
             pg.wait_for_timeout(800)
+            ass = pg.locator('#cd-card [data-acao="a-enviar"]')
+            conf(ass.count() == 1 and ass.is_enabled(), "cartão: Enviar para assinatura habilitado com o contrato final")
             cartao = pg.inner_text("#cd-card").upper()   # o CSS do vendas.html põe os títulos em maiúsculas
             conf("CONTRATO" in cartao and "ASSINATURA" in cartao and "MAIS CONTROLE" in cartao, "cartão do condomínio mostra Contrato, Assinatura e Mais Controle")
             ped = pg.evaluate("() => window.pedidosId")
@@ -130,8 +136,24 @@ def main() -> int:
             pg.evaluate(desenhar, COND)   # o cartão se redesenha a cada gravação: não pede de novo
             pg.wait_for_timeout(500)
             conf(len(pg.evaluate("() => window.pedidosId")) == antes, "redesenhar o cartão não repete os pedidos")
-            pg.locator('#cd-card [data-acao="c-gerar"]').first.click(); pg.wait_for_timeout(500)
-            conf(("gerarContrato:%s" % COND) in pg.evaluate("() => window.pedidosId"), "Gerar de novo no cartão chama gerarContrato com o id da linha")
+            # entrega 9: "Gerar de novo" volta ao pré-contrato; o "Conferi" gera o final
+            conf(pg.locator('#cd-card [data-acao="c-gerar"]').count() == 0, "cartão: não existe mais gerar o contrato direto")
+            pg.locator('#cd-card [data-acao="c-pre"]').first.click(); pg.wait_for_timeout(500)
+            conf(("gerarPreContrato:%s" % COND) in pg.evaluate("() => window.pedidosId"), "Gerar de novo no cartão chama gerarPreContrato com o id da linha")
+            link = pg.locator('#cd-card a.c-ver-pre')
+            conf(link.count() == 1 and link.get_attribute("target") == "_blank"
+                 and link.get_attribute("href") == "https://exemplo.invalid/pre.pdf", "cartão: link Visualizar pré-contrato em nova aba")
+            aprovar = pg.locator('#cd-card [data-acao="c-aprovar"]')
+            conf(aprovar.count() == 1 and aprovar.is_enabled() and "Conferi, está tudo certo" in aprovar.inner_text(), "cartão: botão Conferi habilitado")
+            conf(pg.locator('#cd-card [data-acao="c-pre"]').inner_text() == "Gerar pré-contrato de novo", "cartão: Gerar pré-contrato de novo")
+            ass = pg.locator('#cd-card [data-acao="a-enviar"]')
+            conf(ass.count() == 1 and ass.is_disabled(), "cartão: assinatura travada enquanto o pré-contrato não é conferido")
+            aprovar.click(); pg.wait_for_timeout(500)
+            conf(("aprovarPreContrato:%s" % COND) in pg.evaluate("() => window.pedidosId"), "Conferi chama aprovarPreContrato com o id da linha")
+            conf("Contrato gerado" in pg.inner_text("#cd-card") and pg.locator('#cd-card [data-acao="c-ver"]').count() == 1, "cartão: depois do Conferi, contrato final com Visualizar")
+            ass = pg.locator('#cd-card [data-acao="a-enviar"]')
+            conf(ass.count() == 1 and ass.is_enabled(), "cartão: assinatura liberada com o contrato final")
+            conf(not any(a.startswith("gerarContrato") for a in pg.evaluate("() => window.pedidosId")), "a tela nunca chama o gerarContrato antigo")
             conf(pg.locator('#contrato-wrap').count() == 1, "o painel da casa segue com um bloco só")
             pg.evaluate("() => { VendaBlocos.soltar(); document.getElementById('cd-card').innerHTML = ''; }")
             b.close()
