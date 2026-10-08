@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       modo:
-        description: "sondar | previa | aplicar"
+        description: "sondar | previa | aplicar1 (só a 1ª) | aplicar"
         required: true
         default: "sondar"
       confirmar:
@@ -39,6 +39,6 @@ jobs:
           pip install -q requests
           case "$MODO" in
             sondar|previa) python -m venda.mc.contas_erp "$MODO" ;;
-            aplicar) if [ "$CONFIRMAR" = "APLICAR" ]; then python -m venda.mc.contas_erp aplicar; else echo "faltou digitar APLICAR"; exit 1; fi ;;
+            aplicar|aplicar1) if [ "$CONFIRMAR" = "APLICAR" ]; then python -m venda.mc.contas_erp "$MODO"; else echo "faltou digitar APLICAR"; exit 1; fi ;;
             *) echo "modo inválido"; exit 1 ;;
           esac

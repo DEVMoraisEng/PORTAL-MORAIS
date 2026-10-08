@@ -32,8 +32,16 @@ def _dig(s) -> str:
     return re.sub(r"\D", "", str(s or ""))
 
 
-def achar(contas: list, numero: str) -> list:
-    """Contas do ERP cujo nome ou número de conta contém o número pedido (só dígitos, sem o zero à esquerda)."""
+def _chave(s) -> str:
+    import unicodedata
+    t = unicodedata.normalize("NFD", str(s or ""))
+    return " ".join("".join(c for c in t if unicodedata.category(c) != "Mn").upper().split())
+
+
+def achar(contas: list, numero: str, nome: str = "") -> list:
+    """Pelo NOME exato (sem acento/caixa) quando vem; senão, contas cujo nome contém o número (só dígitos)."""
+    if nome:
+        return [c for c in contas if _chave(c.get("name")) == _chave(nome)]
     alvo = _dig(numero).lstrip("0")
     out = []
     for c in contas:
@@ -46,9 +54,8 @@ def achar(contas: list, numero: str) -> list:
 
 def mudancas(detalhe: dict, pedido: dict) -> dict:
     """Campos do detalhe da conta que mudam (só banco, agência e conta)."""
-    alvo = {"bankCode": pedido.get("banco", ""), "agency": pedido.get("agencia", ""),
-            "agencyDigit": pedido.get("agenciaDigito", ""), "account": pedido.get("conta", ""),
-            "accountDigit": pedido.get("contaDigito", "")}
+    nomes = {"banco": "bankCode", "agencia": "agency", "agenciaDigito": "agencyDigit", "conta": "account", "contaDigito": "accountDigit"}
+    alvo = {campo: pedido[k] for k, campo in nomes.items() if k in pedido}   # só o que foi pedido (o resto fica como está)
     return {k: v for k, v in alvo.items() if k in detalhe and str(detalhe.get(k) or "") != str(v or "")}
 
 
@@ -72,21 +79,23 @@ def main(argv=None) -> int:
     pedidos = json.loads(os.environ.get("CONTAS_ERP_JSON") or "[]")
     erros = 0
     for i, p in enumerate(pedidos, 1):
-        achadas = achar(contas, p.get("numero", ""))
+        achadas = achar(contas, p.get("numero", ""), p.get("nome", ""))
         if len(achadas) != 1:
             print(f"{i:02d}: {len(achadas)} contas com esse número no ERP — pulada"); erros += 1; continue
         cid = achadas[0]["id"]
         d = erp.pedir_core("GET", CAMINHO_UMA % cid) or {}
         mud = mudancas(d, p)
         print(f"{i:02d}: {'muda ' + ', '.join(sorted(mud)) if mud else 'já certa'}")
-        if modo == "aplicar" and mud:
+        if modo in ("aplicar", "aplicar1") and mud:
             corpo = dict(d); corpo.update(mud)
             try:
                 erp.pedir_core("PUT", CAMINHO_UMA % cid, corpo=corpo)
                 d2 = erp.pedir_core("GET", CAMINHO_UMA % cid) or {}
                 print(f"    gravada; conferida: {'ok' if not mudancas(d2, p) else 'DIFERENTE do pedido'}")
             except ErpErro as e:
-                print(f"    ERRO ao gravar: {str(e)[:160]}"); erros += 1
+                print(f"    ERRO ao gravar: {str(e)[:300]}"); erros += 1
+            if modo == "aplicar1":
+                print("aplicar1: parei depois da primeira conta gravada"); break
     return 1 if erros else 0
 
 
