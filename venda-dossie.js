@@ -150,6 +150,23 @@
     var e = String((r && r.erro) || "");
     return MSG_MC[e] || mensagemDeErro(e);
   }
+  var MC_URL_VENDA = "https://acessar.maiscontroleerp.com.br/#/readjustment-sale/edit/";
+  /* Situação do robô em {titulo, itens:[{texto, sub}]}. Texto novo (venda/mc/lancar.py): uma linha por
+   * tópico, a 1ª é o cabeçalho e "- " marca o detalhe das parcelas. Texto antigo, numa linha só
+   * ("CRIADA no Mais Controle (venda X) — a; b"), vira cabeçalho + tópicos separados por "; ".
+   * Os carimbos internos [t=…] e [#…] não aparecem. */
+  function topicosMC(situacao) {
+    var s = String(situacao || "").replace(/\s*\[t=\d+\]/g, "").replace(/\s*\[#[0-9a-f]{8}\]/g, "").trim();
+    var linhas = s.split(/\r?\n/).map(function (l) { return l.trim(); }).filter(function (l) { return l; });
+    if (linhas.length > 1) {
+      return { titulo: linhas[0], itens: linhas.slice(1).map(function (l) {
+        return /^- /.test(l) ? { texto: l.slice(2), sub: true } : { texto: l, sub: false };
+      }) };
+    }
+    var m = /^((?:BLOQUEADO:.*?— )?(?:PR[ÉE]VIA OK|CRIADA|J[ÁA] LAN[ÇC]ADA)[^—]*?) — (.+)$/.exec(s);
+    if (m) return { titulo: m[1], itens: m[2].split(/;\s*/).filter(function (x) { return x; }).map(function (x) { return { texto: x, sub: false }; }) };
+    return { titulo: s, itens: [] };
+  }
   /* e = {situacao, vendaId}; u = {ocupado, msg, testes} */
   function htmlMC(e, u) {
     /* PROCESSANDO com mais de 15 min (carimbo [t=ms]) = o robô não respondeu: libera pedir de novo */
@@ -160,8 +177,18 @@
     var h = '<div class="grp">Mais Controle</div>';
     if (!e) return h + '<div class="vazio">' + esc(u.msg || "carregando…") + "</div>";
     var sit = (e.situacao || "ainda não lançada").replace(/\s*\[t=\d+\]/, "");
-    h += '<div class="dz-linha"><span class="dz-rot">Situação: <b>' + esc(sit) + "</b></span></div>";
-    if (e.vendaId) h += '<div class="dz-linha"><span class="dz-rot">Venda no Mais Controle: ' + esc(e.vendaId) + "</span></div>";
+    var tp = topicosMC(sit);
+    h += '<div class="dz-linha"><span class="dz-rot">Situação: <b>' + esc(tp.titulo) + "</b></span></div>";
+    if (tp.itens.length) {
+      h += '<ul class="mc-topicos">' + tp.itens.map(function (it) {
+        return "<li" + (it.sub ? ' class="mc-sub"' : "") + ">" + esc(it.texto) + "</li>";
+      }).join("") + "</ul>";
+    }
+    if (e.vendaId) {
+      h += '<div class="dz-linha"><span class="dz-rot">Venda no Mais Controle: ' + esc(e.vendaId) + "</span>" +
+        '<a class="mc-abrir" href="' + esc(MC_URL_VENDA + encodeURIComponent(String(e.vendaId).trim())) +
+        '" target="_blank" rel="noopener noreferrer">Abrir no Mais Controle</a></div>';
+    }
     if (processando) h += '<div class="dz-linha"><b>o robô está trabalhando… (1 a 3 minutos)</b></div>';
     var liberaLancar = /^PR[ÉE]VIA OK/i.test(sit) && !e.vendaId;
     var d = function (x) { return (x || testes) ? " disabled" : ""; };
@@ -175,16 +202,27 @@
 
   var exportar = { URL_PORTAL_VENDA: URL_PORTAL_VENDA, DOCS: DOCS, html: html, mensagemDeErro: mensagemDeErro,
                    resumo: resumo, escala: escala, tipoAceito: tipoAceito, painelCarregando: painelCarregando,
-                   htmlContrato: htmlContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, mensagemMC: mensagemMC };
+                   htmlContrato: htmlContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, mensagemMC: mensagemMC,
+                   topicosMC: topicosMC, MC_URL_VENDA: MC_URL_VENDA };
   if (typeof module !== "undefined" && module.exports) { module.exports = exportar; return; }
 
   /* ---------------- navegador ---------------- */
-  var CSS = "#dossie-wrap{margin-bottom:14px}#dossie-wrap .dz-linha{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}" +
-    "#dossie-wrap .dz-rot{flex:1 1 200px}#dossie-wrap .on{outline:2px solid #4cd964}#dossie-wrap .dz-aviso{color:#E67E22;margin:6px 0}" +
-    "#dossie-wrap .dz-msg{margin-top:8px;font-weight:600}#dossie-wrap pre{white-space:pre-wrap;font:inherit;margin:4px 0}" +
-    "#contrato-wrap{margin-top:14px}#contrato-wrap .dz-linha{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}" +
-    "#contrato-wrap .dz-rot{flex:1 1 200px}#contrato-wrap .dz-aviso{color:#E67E22;margin:6px 0}" +
-    "#contrato-wrap .dz-msg{margin-top:8px;font-weight:600}#contrato-wrap ul{margin:4px 0 4px 18px}";
+  /* Mesmas margens das outras seções do painel (vendas.html): título .grp com margem de 22px e
+   * conteúdo como o .campo (padding 0 22px). Cada filho direto dos blocos (menos o título e os
+   * blocos aninhados) ganha a mesma margem lateral; o título usa o .grp do próprio vendas.html. */
+  var BLOCOS = ["#dossie-wrap", "#contrato-wrap", "#ass-wrap", "#mc-wrap"];
+  function emCada(sufixo) { return BLOCOS.map(function (b) { return b + sufixo; }).join(","); }
+  var CSS = emCada(">.dz-linha") + "{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 22px}" +
+    emCada(" .dz-rot") + "{flex:1 1 200px}#dossie-wrap .on{outline:2px solid #4cd964}" +
+    emCada(">.dz-aviso") + "{color:#E67E22;margin:6px 22px}" +
+    emCada(">.dz-msg") + "{margin:8px 22px 0;font-weight:600}" +
+    emCada(">pre") + "{white-space:pre-wrap;font:inherit;margin:4px 22px}" +
+    emCada(">ul") + "{margin:4px 22px;padding-left:18px}" +
+    emCada(" ul li") + "{margin:2px 0}" +
+    "#mc-wrap .mc-sub{list-style:circle;margin-left:14px;color:var(--text3,#555)}" +
+    "#ass-wrap .ass-ok{color:var(--verde,#2a9d5c);font-weight:700}#ass-wrap .ass-pend{color:#B45309;font-weight:700}" +
+    "#ass-wrap .ass-rec{color:#C0392B;font-weight:700}#ass-wrap .ass-data{color:var(--text3,#555);font-size:12px}" +
+    "#mc-wrap a.mc-abrir{color:var(--azul,#1d4f63);font-weight:700}";
   var estado = null, ui = { dois: false, ocupado: null, msg: "", testes: false }, paginaDoBloco = null;
 
   function obraAberta() { try { return OBRA_ABERTA; } catch (e) { return null; } }
@@ -505,7 +543,7 @@
     var body = document.getElementById("pn-body"); if (!body) return;
     var st = document.createElement("style"); st.textContent = CSS; document.head.appendChild(st);
     /* o bloco de assinatura mora em arquivo próprio; vendas.html continua com uma linha só */
-    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=1";
+    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=2";
     sa.onload = function () { pintarA(); };
     document.head.appendChild(sa);
     new MutationObserver(function () { garantirBloco(body); }).observe(body, { childList: true });

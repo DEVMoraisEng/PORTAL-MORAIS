@@ -10,8 +10,8 @@ from playwright.sync_api import sync_playwright
 
 RAIZ = pathlib.Path(__file__).resolve().parents[2]
 PAGINA = "0123456789abcdef0123456789abcdef"
-HTML = """<!doctype html><html><head><meta charset="utf-8"></head><body>
-<div id="pn-body"></div>
+HTML = """<!doctype html><html><head><meta charset="utf-8"><style>/*CSS_DO_VENDAS*/</style></head><body>
+<div class="pbody" id="pn-body" style="width:560px"></div>
 <script>
   var OBRA_ABERTA = null;
   function sessao() { return { token: "t", tipo: "GERAL" }; }
@@ -40,7 +40,10 @@ def main() -> int:
     js = (RAIZ / "venda-dossie.js").read_text(encoding="utf-8")
     js = js.replace('var URL_PORTAL_VENDA = "', 'var URL_PORTAL_VENDA = "https://script.google.com/macros/s/FALSO/exec', 1)
     (RAIZ / "_fumaca-dossie.js").write_text(js, encoding="utf-8")
-    (RAIZ / "_fumaca.html").write_text(HTML.replace('src="venda-dossie.js"', 'src="_fumaca-dossie.js"'), encoding="utf-8")
+    vendas = (RAIZ / "vendas.html").read_text(encoding="utf-8")
+    css = vendas[vendas.index("<style>") + 7:vendas.index("</style>")]   # o CSS do painel de verdade
+    html = HTML.replace('src="venda-dossie.js"', 'src="_fumaca-dossie.js"').replace("/*CSS_DO_VENDAS*/", css)
+    (RAIZ / "_fumaca.html").write_text(html, encoding="utf-8")
     try:
         with sync_playwright() as pw:
             b = pw.chromium.launch()
@@ -50,16 +53,19 @@ def main() -> int:
             pg.goto((RAIZ / "_fumaca.html").as_uri())
             # o venda-dossie.js só chama o PORTAL-VENDA se a URL for de script.google.com
             pg.evaluate("""() => {}""")
-            pg.evaluate("(id) => { OBRA_ABERTA = id; var d = document.createElement('div'); d.className='x'; d.textContent='painel'; document.getElementById('pn-body').appendChild(d); }", PAGINA)
+            # uma seção "de verdade" do painel (como o vendas.html desenha ENDEREÇO / DISTRATO)
+            pg.evaluate("(id) => { OBRA_ABERTA = id; var b = document.getElementById('pn-body');"
+                        " b.insertAdjacentHTML('beforeend', '<div class=\"grp\" id=\"grp-ref\">Distrato</div>"
+                        "<div class=\"campo\"><label id=\"campo-ref\">Endereço</label><input></div>'); }", PAGINA)
             pg.wait_for_timeout(1500)
             texto = pg.inner_text("#pn-body")
 
             def conf(cond, msg):
                 (falhas if not cond else []).append(msg)
                 print(("ok   " if cond else "FALHA ") + msg)
-            conf("Contrato" in texto, "bloco Contrato aparece")
-            conf("Assinatura" in texto, "bloco Assinatura aparece (assinatura-ui.js carregou)")
-            conf("Mais Controle" in texto, "bloco Mais Controle aparece")
+            conf("CONTRATO" in texto.upper(), "bloco Contrato aparece")
+            conf("ASSINATURA" in texto.upper(), "bloco Assinatura aparece (assinatura-ui.js carregou)")
+            conf("MAIS CONTROLE" in texto.upper(), "bloco Mais Controle aparece")
             ultimo = pg.evaluate("() => document.getElementById('pn-body').lastElementChild.id")
             conf(ultimo == "contrato-wrap", "contrato-wrap continua o último filho do painel")
             env = pg.locator('[data-acao="a-enviar"]')
@@ -74,6 +80,40 @@ def main() -> int:
             prev.click(); pg.wait_for_timeout(500)
             conf("mcLancar" in pg.evaluate("() => window.pedidos"), "clique chama mcLancar")
             conf(pg.locator('[data-acao="mc-lancar"]').is_enabled(), "com PRÉVIA OK o Lançar libera")
+            # alinhamento: título e conteúdo dos blocos na mesma margem das seções do painel
+            ref = pg.evaluate("() => ({ grp: document.getElementById('grp-ref').getBoundingClientRect().left,"
+                              " campo: document.getElementById('campo-ref').getBoundingClientRect().left,"
+                              " grpDir: document.getElementById('grp-ref').getBoundingClientRect().right })")
+            for bloco in ("dossie-wrap", "contrato-wrap", "ass-wrap", "mc-wrap"):
+                m = pg.evaluate("(id) => { var w = document.getElementById(id), g = w.querySelector(':scope > .grp'),"
+                                " c = w.querySelector(':scope > .dz-linha, :scope > .dz-aviso, :scope > ul');"
+                                " var cs = g && getComputedStyle(g);"
+                                " return { grp: g && g.getBoundingClientRect().left, grpDir: g && g.getBoundingClientRect().right,"
+                                " linha: cs && cs.borderBottomStyle + ' ' + cs.borderBottomWidth,"
+                                " cont: c && c.getBoundingClientRect().left }; }", bloco)
+                conf(m["grp"] == ref["grp"] and m["grpDir"] == ref["grpDir"], bloco + ": título na mesma margem das outras seções (%s × %s)" % (m["grp"], ref["grp"]))
+                conf(m["linha"] == "solid 2px", bloco + ": título sublinhado como as outras seções")
+                conf(m["cont"] == ref["campo"], bloco + ": conteúdo começa na margem do .campo (%s × %s)" % (m["cont"], ref["campo"]))
+            # Mais Controle criada: tópicos e link
+            pg.evaluate("() => { window.respostas.mcEstado = { ok: true, situacao: 'CRIADA | venda v-9\\nCliente: COMPRADOR EXEMPLO (já existia)\\nTotal: R$ 1,00', vendaId: 'v-9' }; }")
+            pg.locator('[data-acao="mc-atualizar"]').click(); pg.wait_for_timeout(400)
+            conf(pg.locator("#mc-wrap ul.mc-topicos li").count() == 2, "Mais Controle: situação em tópicos")
+            link = pg.locator("#mc-wrap a.mc-abrir")
+            conf(link.count() == 1 and link.get_attribute("target") == "_blank"
+                 and link.get_attribute("href").endswith("/#/readjustment-sale/edit/v-9"), "Mais Controle: link Abrir no Mais Controle em nova aba")
+            # Assinatura: lista e Reenviar link
+            pg.evaluate("() => { window.respostas.assinaturaEstado = { ok: true, situacao: 'ENVIADO', envelope: true, signatarios: ["
+                        "{ papel: 'Comprador 1', nome: 'Maria S.', assinou: true, situacao: 'assinou', data: '2026-10-07T10:20:00Z' },"
+                        "{ papel: 'Testemunha 1', nome: 'Ana C.', assinou: false, situacao: 'pendente', data: '' }] };"
+                        " window.respostas.assinaturaReenviar = { ok: true, situacao: 'ENVIADO', pendentes: 1 }; }")
+            pg.locator('[data-acao="a-atualizar"]').click(); pg.wait_for_timeout(400)
+            conf("✓ assinou" in pg.inner_text("#ass-wrap") and "pendente" in pg.inner_text("#ass-wrap"), "Assinatura: lista com assinou (marca de certo) e pendente")
+            pg.locator('[data-acao="a-reenviar"]').click(); pg.wait_for_timeout(400)
+            conf("assinaturaReenviar" in pg.evaluate("() => window.pedidos"), "Reenviar link chama assinaturaReenviar")
+            conf("Link reenviado" in pg.inner_text("#ass-wrap"), "Reenviar link mostra a confirmação")
+            import os
+            if os.environ.get("FUMACA_PRINT"):
+                pg.screenshot(path=os.environ["FUMACA_PRINT"], full_page=True)
             b.close()
     finally:
         (RAIZ / "_fumaca.html").unlink(missing_ok=True)
