@@ -461,7 +461,8 @@ var ContratoVenda = (function () {
       exige(!vazio(v.banco), "Vendedor", "banco");
       exige(!vazio(v.agencia), "Vendedor", "agência");
       exige(!vazio(v.conta), "Vendedor", "conta");
-      exige(!vazio(v.pix), "Vendedor", "Pix");
+      /* Pix é opcional (08/10/2026): a conta da obra pode não ter chave; aí o trecho "– PIX:" sai do contrato
+         (TRECHOS_SE_VAZIO) e ficam só banco, agência e conta. Com chave, saem os dois: dados bancários E Pix. */
     }
 
     var l = d.loteamento, gl = d.condominio ? "Condomínio" : "Loteamento";
@@ -727,7 +728,12 @@ var ContratoVenda = (function () {
     /* o traço do campo em branco (o pré-contrato grifa em vermelho claro) */
     EM_BRANCO: EM_BRANCO,
     /* marcadores cujo valor tem várias linhas: no Docs, o parágrafo que só tem o marcador vira um parágrafo por linha */
-    MARCADORES_PARAGRAFOS: ["FORMA_PAGAMENTO_CONDOMINIO", "FIADORES_QUALIFICACAO"]
+    MARCADORES_PARAGRAFOS: ["FORMA_PAGAMENTO_CONDOMINIO", "FIADORES_QUALIFICACAO"],
+    /* marcador VAZIO cujo rótulo sai junto: no modelo a linha é
+       "Banco: {{BANCO}} – Agência: {{AGENCIA}} – Operação: {{OPERACAO}} – Conta {{CONTA}} – PIX: {{PIX}} - Titularidade…";
+       sem Pix (ou sem operação, que a conta da obra não tem) o "– PIX: " / "– Operação: " some, em vez de ficar em branco.
+       Valor = regex (sintaxe do findText do Docs) do rótulo que vem ANTES do marcador. */
+    TRECHOS_SE_VAZIO: { PIX: "\\s*[–-]\\s*PIX:\\s*", OPERACAO: "\\s*[–-]\\s*Operação:\\s*" }
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   return api;
