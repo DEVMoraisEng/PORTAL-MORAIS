@@ -1,0 +1,35 @@
+name: Catálogo do Mais Controle (só leitura)
+
+# Procura categorias/naturezas do Mais Controle pelo nome e mostra os ids (para configurar o robô).
+# Não grava nada. O log é público: só nomes de categorias e ids.
+on:
+  workflow_dispatch:
+    inputs:
+      termo:
+        description: "parte do nome (ex.: devolu)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  buscar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Buscar
+        env:
+          MC_ROBO_EMAIL: ${{ secrets.MC_ROBO_EMAIL || secrets.MC_ROBO_USUARIO }}   # produção já tem MC_ROBO_USUARIO (robos-mc)
+          MC_ROBO_SENHA: ${{ secrets.MC_ROBO_SENHA }}
+          MC_ROBO_APARELHO: ${{ secrets.MC_ROBO_APARELHO }}
+          TERMO: ${{ inputs.termo }}
+        shell: bash
+        run: |
+          VALIDO='^[A-Za-z0-9 ]{3,40}$'
+          if [[ ! "$TERMO" =~ $VALIDO ]]; then echo "termo inválido (só letras sem acento, números e espaço)"; exit 1; fi
+          pip install --quiet requests
+          python -m venda.mc.catalogo "$TERMO"

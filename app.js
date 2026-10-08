@@ -27,6 +27,9 @@ const API_ESCRITA = "https://script.google.com/macros/s/AKfycbyoEOQfmuuN_jG817Te
    também — se esquecer, ela continua funcionando, só que pela fila errada. */
 const ACOES_NA_ESCRITA = [
   "baixa", "updateVenda", "criarVenda", "excluirVenda", "distrato", "novaOpcao",
+  /* out/26 — prévia e estado do distrato disparam/leem o robô do Mais Controle (GITHUB_TOKEN):
+     só a ESCRITA precisa ter o código novo e o token */
+  "distratoPrevia", "distratoEstado",
   "upload", "comentarioNovo", "gerarAtividadesGcap",
   "ligUpdate", "ligAnexar", "ligBaixa", "ligVendaUpdate", "ligExcluir", "ligCriar",
   "posObraServicoNovo", "posObraAtvUpdate", "posObraUpdate", "posObraAnexar",

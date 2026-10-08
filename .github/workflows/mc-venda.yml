@@ -1,0 +1,120 @@
+name: Venda no Mais Controle
+
+# Acionado pelo PORTAL-VENDA (ação mcLancar) com {pageId, aplicar} e, no DISTRATO (entrega 8),
+# pelo portal (Code.gs, ação distrato) com {acao: "distrato", pageId, aplicar, recebeu, destino}:
+# a prévia roda na página da VENDA; o aplicar, na página do arquivo em DISTRATOS (venda/mc/distrato.py).
+# Gravar no ERP exige as DUAS chaves: aplicar=true no pedido E a variável de
+# repositório MC_VENDA_APLICAR = 1 (não a MC_APLICAR dos robos-mc). Sem ela, todo pedido roda como PRÉVIA.
+# ATENÇÃO: só existe UM Mais Controle. No fork de TESTE, MC_VENDA_APLICAR nunca fica em 1.
+# O log deste workflow é público: o robô só imprime situação e códigos.
+on:
+  repository_dispatch:
+    types: [mc-venda]
+  workflow_dispatch:
+    inputs:
+      pageId:
+        description: "id da página da venda no Notion (32 caracteres)"
+        required: true
+      aplicar:
+        description: "gravar de verdade (só vale com MC_VENDA_APLICAR=1)"
+        type: boolean
+        default: false
+      anexar:
+        description: "venda já lançada: só anexar o contrato (exige aplicar e MC_VENDA_APLICAR=1)"
+        type: boolean
+        default: false
+      sondar:
+        description: "só consultar se a casa já tem venda no ERP (não grava nada)"
+        type: boolean
+        default: false
+      acao:
+        description: "lancar (padrão) ou distrato"
+        type: choice
+        options: [lancar, distrato]
+        default: lancar
+      recebeu:
+        description: "distrato: houve sinal/pagamento recebido? (sim/nao)"
+        type: choice
+        options: ["", sim, nao]
+        default: ""
+      destino:
+        description: "distrato com recebimento: retido ou devolvido"
+        type: choice
+        options: ["", retido, devolvido]
+        default: ""
+      valor:
+        description: "distrato devolvido: valor a devolver (vazio = o recebido)"
+        default: ""
+      data:
+        description: "distrato devolvido: vencimento aaaa-mm-dd (vazio = hoje + 30)"
+        default: ""
+
+concurrency:
+  group: mc-venda-${{ github.event.client_payload.pageId || inputs.pageId }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  lancar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+      PAGINA: ${{ github.event.client_payload.pageId || inputs.pageId }}
+      ACAO: ${{ github.event.client_payload.acao || inputs.acao || 'lancar' }}
+      RECEBEU: ${{ github.event.client_payload.recebeu || inputs.recebeu }}
+      DESTINO: ${{ github.event.client_payload.destino || inputs.destino }}
+      VALOR: ${{ github.event.client_payload.valor || inputs.valor }}
+      DATA: ${{ github.event.client_payload.data || inputs.data }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Lançar (ou prévia)
+        env:
+          MC_ROBO_EMAIL: ${{ secrets.MC_ROBO_EMAIL || secrets.MC_ROBO_USUARIO }}   # produção já tem MC_ROBO_USUARIO (robos-mc)
+          MC_ROBO_SENHA: ${{ secrets.MC_ROBO_SENHA }}
+          MC_ROBO_APARELHO: ${{ secrets.MC_ROBO_APARELHO }}
+          PEDIU_APLICAR: ${{ github.event.client_payload.aplicar || inputs.aplicar }}
+          SONDAR: ${{ inputs.sondar }}
+          ANEXAR: ${{ inputs.anexar }}
+          MC_APLICAR: ${{ vars.MC_VENDA_APLICAR }}   # variável PRÓPRIA da venda: o MC_APLICAR da produção já é 1 para os robos-mc
+          DB_VENDAS_COND: ${{ vars.DB_VENDAS_COND }}
+          DB_CORRETORES: ${{ vars.DB_CORRETORES }}
+          DB_DISTRATOS: ${{ vars.DB_DISTRATOS }}
+          NATUREZA_DEVOLUCAO_ID: ${{ vars.NATUREZA_DEVOLUCAO_ID }}
+          FORMA_PAGAMENTO_DEVOLUCAO_ID: ${{ vars.FORMA_PAGAMENTO_DEVOLUCAO_ID }}
+        shell: bash
+        run: |
+          if [[ ! "$PAGINA" =~ ^[0-9a-fA-F-]{32,36}$ ]]; then echo "pageId inválido"; exit 1; fi
+          pip install --quiet requests
+          FLAG=""
+          if [ "$PEDIU_APLICAR" = "true" ] && [ "$MC_APLICAR" = "1" ]; then FLAG="--aplicar"; fi
+          if [ "$PEDIU_APLICAR" = "true" ] && [ "$MC_APLICAR" != "1" ]; then echo "MC_APLICAR != 1: rodando como PRÉVIA"; FLAG="--bloqueado"; fi
+          if [ "$SONDAR" = "true" ]; then FLAG="--sondar"; fi
+          if [ "$ACAO" = "distrato" ]; then
+            if [[ ! "$RECEBEU" =~ ^(sim|nao)$ ]] || [[ ! "$DESTINO" =~ ^(retido|devolvido)?$ ]]; then echo "recebeu/destino inválidos"; exit 1; fi
+            if [[ ! "$VALOR" =~ ^[0-9.,]{0,20}$ ]] || [[ ! "$DATA" =~ ^([0-9]{4}-[0-9]{2}-[0-9]{2})?$ ]]; then echo "valor/data inválidos"; exit 1; fi
+            if [ "$FLAG" = "--sondar" ]; then FLAG=""; fi
+            python -m venda.mc.distrato --page "$PAGINA" --recebeu "$RECEBEU" --destino "$DESTINO" --valor "$VALOR" --data "$DATA" $FLAG
+            exit $?
+          fi
+          if [ "$ACAO" != "lancar" ]; then echo "acao inválida"; exit 1; fi
+          if [ "$ANEXAR" = "true" ] && [ "$FLAG" = "--aplicar" ]; then FLAG="--aplicar --anexar"; fi
+          python -m venda.mc.lancar --page "$PAGINA" $FLAG
+      - name: Avisar no Notion que falhou
+        if: failure()
+        shell: bash
+        run: |
+          if [[ ! "$PAGINA" =~ ^[0-9a-fA-F-]{32,36}$ ]]; then exit 0; fi
+          pip install --quiet requests || true
+          if [ "$ACAO" = "distrato" ]; then
+            python -m venda.mc.distrato --page "$PAGINA" --marcar-erro "o robô falhou — veja o GitHub Actions (Venda no Mais Controle)" || true
+          else
+            python -m venda.mc.lancar --page "$PAGINA" --marcar-erro "o robô falhou — veja o GitHub Actions (Venda no Mais Controle)" || true
+          fi

@@ -270,11 +270,16 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 .cola{font-size:11px;color:var(--text3);background:var(--bg3);border-radius:6px;padding:2px 7px;white-space:nowrap}
 .lapis{border:0;background:none;cursor:pointer;color:var(--text3);font-size:13px;padding:0 3px}
 .lapis:hover{color:var(--text)}
-#distoverlay .modal{background:var(--sup);border-radius:14px;padding:20px;width:min(420px,92vw);box-shadow:0 18px 50px rgba(0,0,0,.25)}
+#distoverlay .modal{background:var(--sup);border-radius:14px;padding:20px;width:min(420px,92vw);box-shadow:0 18px 50px rgba(0,0,0,.25);max-height:92vh;overflow:auto}
 #distoverlay h3{margin:0 0 6px;font-size:16px;color:var(--text)}
 .dist-obra{margin:0 0 10px;font-weight:700;color:var(--text);font-size:14px}
 .dist-aviso{margin:0 0 14px;font-size:12.5px;color:var(--text3);line-height:1.5}
 .dist-lab{display:block;font-size:12px;font-weight:700;color:var(--text3);margin-bottom:5px}
+/* entrega 8: perguntas e prévia do distrato */
+.dist-op{display:flex;gap:16px;margin:0 0 12px;font-size:13px}
+#distoverlay textarea,#distoverlay input[type=text],#distoverlay input[type=date]{width:100%;box-sizing:border-box;margin:0 0 12px;font:inherit}
+.dist-previa{white-space:pre-wrap;font-size:12.5px;line-height:1.45;margin:4px 0 12px;max-height:180px;overflow:auto}
+.dist-previa:empty{display:none}
 #dist-senha{width:100%;padding:9px 11px;border:1.5px solid var(--border);background:var(--sup);border-radius:8px;font-size:14px;box-sizing:border-box}
 .dist-erro{color:#c0392b;font-size:12.5px;min-height:18px;margin-top:6px}
 .dist-acoes{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
@@ -1039,7 +1044,26 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
     <div class="modal">
       <h3>Confirmar distrato</h3>
       <p class="dist-obra" id="dist-end"></p>
-      <p class="dist-aviso">Isto <b>apaga os dados da venda</b> e as atividades desta obra, e volta os campos de marcação para NÃO. Permanecem apenas: <span id="dist-mantem"></span>.<br><b>Não tem como desfazer pelo site.</b></p>
+      <p class="dist-aviso">Isto <b>apaga os dados da venda</b> e as atividades desta obra, e volta os campos de marcação para NÃO. Permanecem apenas: <span id="dist-mantem"></span>.<br>Antes de limpar, uma cópia completa da venda vai para a base <b>DISTRATOS</b>.<br><b>Não tem como desfazer pelo site.</b></p>
+      <!-- entrega 8: perguntas do distrato + prévia do que acontece no Mais Controle -->
+      <label class="dist-lab">Houve sinal/pagamento recebido?</label>
+      <div class="dist-op"><label><input type="radio" name="dist-sinal" value="SIM" onchange="distMudou()"> Sim</label>
+        <label><input type="radio" name="dist-sinal" value="NAO" onchange="distMudou()"> Não</label></div>
+      <div id="dist-bloco-destino" style="display:none">
+        <label class="dist-lab">O valor recebido será RETIDO ou DEVOLVIDO?</label>
+        <div class="dist-op"><label><input type="radio" name="dist-destino" value="RETIDO" onchange="distMudou()"> Retido</label>
+          <label><input type="radio" name="dist-destino" value="DEVOLVIDO" onchange="distMudou()"> Devolvido</label></div>
+      </div>
+      <div id="dist-bloco-devolucao" style="display:none">
+        <label class="dist-lab">Valor a devolver (vazio = todo o valor recebido)</label>
+        <input type="text" id="dist-valor" inputmode="decimal" placeholder="ex.: 10.000,00" oninput="distMudou()">
+        <label class="dist-lab">Data prevista da devolução (vazio = hoje + 30 dias)</label>
+        <input type="date" id="dist-data" onchange="distMudou()">
+      </div>
+      <label class="dist-lab">Motivo do distrato</label>
+      <textarea id="dist-motivo" rows="2" placeholder="Ex.: cliente desistiu; crédito negado..."></textarea>
+      <div class="dist-acoes"><button type="button" class="bt ghost" id="dist-prev-bt" onclick="pedirPreviaDistrato()">Ver o que acontece no Mais Controle</button></div>
+      <div class="dist-previa" id="dist-previa"></div>
       <label class="dist-lab">Sua senha</label>
       <!-- item 4: campo isca. O gerenciador de senhas procura um campo de
            texto para casar com o campo de senha abaixo; sem esta isca ele
@@ -1069,6 +1093,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
   <div class="toast" id="toast"></div>
 
 <script src="app.js?v=43"></script>
+<script src="venda-dossie.js?v=3"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele.
    Mesma chave (morais_tema) das outras páginas do portal. */
@@ -1405,6 +1430,16 @@ async function boot(){
   await carregarPlanilha("hub");
   _mapaObraId=null; _vendidasPorEnd=null;   // dados novos: refaz os índices derivados
   atualizarBadgesSetores(); // 1ª passada (sem atividades ainda); a promise acima repinta
+  abrirCasaDaUrl();
+}
+/* vendas.html?abrir=<id da página>: abre direto o painel daquela casa. É o
+   caminho do "Gerar venda" da tela do condomínio (a casa acabou de nascer e
+   ainda não está no vendas.json — o abrirObra busca no Apps Script). */
+function abrirCasaDaUrl(){
+  let id="";
+  try{ id=new URLSearchParams(location.search).get("abrir")||""; }catch(e){ return; }
+  if(!/^[0-9a-f]{32}$|^[0-9a-f-]{36}$/i.test(id)) return;
+  abrirObra(id);
 }
 /* item 7: cada atividade só conta pro setor cujo "responsavel" bate com o
    RESPONSÁVEL da atividade (ver SETORES_AREA). Setor sem "responsavel"
@@ -1714,7 +1749,7 @@ async function condSalvar(id,prop,valor){
 }
 
 /* ---- card da unidade ---- */
-function condFechar(){ COND_ABERTA=null; const c=document.getElementById("cd-card"); c.style.display="none"; c.innerHTML=""; }
+function condFechar(){ COND_ABERTA=null; if(window.VendaBlocos) VendaBlocos.soltar(); const c=document.getElementById("cd-card"); c.style.display="none"; c.innerHTML=""; }
 function condFluxo(l){
   const g=n=>cdVal(l,n), dia=Number(g("DIA PAGAMENTO PARCELAS"))||0;
   const L=[]; let total=0;
@@ -1804,6 +1839,7 @@ function condAbrir(id){
       '<div class="cd-prog" id="cd-prog" style="display:none;flex-basis:100%"></div>'+
     '</div>'+
     condAndamentoHtml(l)+
+    condTelaVendaHtml()+
     condLinkVendaHtml(l)+
     condAbatimentos(l,fx.total)+
     '<b style="color:var(--azul);font-size:14px">FLUXO DE PAGAMENTO PRO SOLUTO</b>'+
@@ -1814,6 +1850,13 @@ function condAbrir(id){
     (g("PENDÊNCIAS")&&g("PENDÊNCIAS")!=="nenhuma"?'<div class="cd-falta" style="margin-top:8px"><b>Pendências do cadastro:</b> '+esc(g("PENDÊNCIAS"))+'</div>':'')+
     '</div>';
   document.getElementById("cd-card").style.display="block";
+  if(window.VendaBlocos) VendaBlocos.montar(document.getElementById("cd-venda"),id);   /* entrega 7: contrato, assinatura e Mais Controle da linha */
+}
+/* 07/10 (entrega 7) — TELA DE VENDA do condomínio: os blocos CONTRATO / ASSINATURA / MAIS CONTROLE
+   da tela de venda das casas, para a própria linha (venda-dossie.js desenha em #cd-venda). */
+function condTelaVendaHtml(){
+  if(!window.VendaBlocos) return "";
+  return '<div class="cd-and"><h4>TELA DE VENDA <span style="font-weight:400;color:var(--text3)">· contrato, assinatura e Mais Controle desta unidade</span></h4><div id="cd-venda"></div></div>';
 }
 /* 02/10 — ANDAMENTO DO PROCESSO: as colunas de preenchimento do BANCO DE DADOS VENDAS
    CONDOMÍNIO (SIM/NÃO e datas — conformidade, assinatura, protocolo, manual, água, energia,
@@ -3588,30 +3631,94 @@ async function excluirObra(pageId){
 /* O que fica na obra é decidido no Apps Script (lista CAMPOS_MANTIDOS lá), não
    aqui: se a decisão morasse no navegador, bastaria abrir o DevTools pra mudar. */
 const DISTRATO_MANTEM="ENDEREÇO, CASA, TIPO, MODELO?, REF, SETOR, CIDADE, ENG. RESPONSÁVEL e SITUAÇÃO";
+/* entrega 8: o distrato pergunta sinal/destino (e, se DEVOLVIDO, valor e data),
+   mostra a PRÉVIA do robô do Mais Controle e só então libera a senha.
+   Quem decide e confere tudo é o Apps Script (ações distratoPrevia,
+   distratoEstado e distrato); aqui só se pergunta e se mostra. */
+let DIST_PAGE=null, DIST_PREVIA_OK=false, DIST_POLL=null;
+function distResp(){
+  const s=(document.querySelector('input[name="dist-sinal"]:checked')||{}).value||"";
+  const d=s==="SIM"?((document.querySelector('input[name="dist-destino"]:checked')||{}).value||""):"";
+  return { houveSinal:s, destino:d,
+           valorDevolver:d==="DEVOLVIDO"?document.getElementById("dist-valor").value.trim():"",
+           dataDevolucao:d==="DEVOLVIDO"?document.getElementById("dist-data").value:"" };
+}
+function distMudou(){
+  const r=distResp();
+  document.getElementById("dist-bloco-destino").style.display=r.houveSinal==="SIM"?"":"none";
+  document.getElementById("dist-bloco-devolucao").style.display=r.destino==="DEVOLVIDO"?"":"none";
+  // resposta mudou: a prévia antiga não vale mais
+  DIST_PREVIA_OK=false; if(DIST_POLL){ clearTimeout(DIST_POLL); DIST_POLL=null; }
+  document.getElementById("dist-previa").textContent="";
+  document.getElementById("dist-ok").disabled=true;
+}
 function pedirDistrato(pageId){
   const v=vendaPorId(pageId);
   const end=v?(getV(v.valores,"ENDEREÇO")||"esta obra"):"esta obra";
+  DIST_PAGE=pageId;
   document.getElementById("dist-end").textContent=end;
   document.getElementById("dist-mantem").textContent=DISTRATO_MANTEM;
   const senha=document.getElementById("dist-senha");
   senha.value=""; document.getElementById("dist-erro").textContent="";
-  document.getElementById("dist-ok").disabled=false;
+  document.querySelectorAll('input[name="dist-sinal"],input[name="dist-destino"]').forEach(x=>x.checked=false);
+  document.getElementById("dist-valor").value=""; document.getElementById("dist-data").value="";
+  document.getElementById("dist-motivo").value="";
+  distMudou();
   document.getElementById("dist-ok").onclick=()=>confirmarDistrato(pageId);
   document.getElementById("distoverlay").classList.add("on");
-  setTimeout(()=>senha.focus(),50);
 }
-function fecharDistrato(){ document.getElementById("distoverlay").classList.remove("on"); document.getElementById("dist-senha").value=""; }
+function fecharDistrato(){
+  document.getElementById("distoverlay").classList.remove("on"); document.getElementById("dist-senha").value="";
+  if(DIST_POLL){ clearTimeout(DIST_POLL); DIST_POLL=null; } DIST_PAGE=null;
+}
+const DIST_ERROS={ DISTRATO_SINAL_FALTA:"Responda se houve sinal/pagamento recebido.",
+  DISTRATO_DESTINO_FALTA:"Diga se o valor recebido será RETIDO ou DEVOLVIDO.",
+  DISTRATO_MOTIVO_FALTA:"Escreva o motivo do distrato.",
+  DISTRATO_VALOR_INVALIDO:"Valor a devolver inválido.", DISTRATO_DATA_INVALIDA:"Data da devolução inválida.",
+  DISTRATO_SEM_PREVIA:"Veja primeiro o que acontece no Mais Controle (prévia).",
+  DISTRATO_PREVIA_OUTRA_RESPOSTA:"As respostas mudaram depois da prévia — peça a prévia de novo.",
+  DISTRATOS_NAO_CONFIGURADO:"A base DISTRATOS não está configurada (Propriedade DB_DISTRATOS). Nada foi limpo.",
+  MC_NAO_CONFIGURADO:"O robô do Mais Controle não está configurado (GITHUB_TOKEN). Nada foi limpo.",
+  MC_DISPARO_FALHOU:"Não consegui acionar o robô do Mais Controle. Nada foi limpo — tente de novo.",
+  MC_PROCESSANDO:"O robô ainda está trabalhando nesta venda. Aguarde um pouco." };
+async function pedirPreviaDistrato(){
+  const out=document.getElementById("dist-previa"), erro=document.getElementById("dist-erro");
+  const pageId=DIST_PAGE; if(!pageId) return;
+  distMudou(); erro.textContent="";
+  out.innerHTML='<span class="load"></span> Pedindo a prévia ao robô do Mais Controle (leva 1 a 3 minutos)…';
+  let r; try{ r=await chamar(Object.assign({action:"distratoPrevia", pageId:pageId}, distResp())); }catch(e){ r={ok:false,erro:"REDE"}; }
+  if(!r||!r.ok){ out.textContent=""; erro.textContent=DIST_ERROS[(r&&r.erro)||""]||("Não foi possível: "+erroTexto((r&&r.erro)||"REDE")); return; }
+  if(r.semErp){ out.textContent=r.texto; DIST_PREVIA_OK=true; document.getElementById("dist-ok").disabled=false; return; }
+  const inicio=Date.now();
+  const olhar=async()=>{
+    if(DIST_PAGE!==pageId) return;
+    let e; try{ e=await chamar({action:"distratoEstado", pageId:pageId}); }catch(x){ e=null; }
+    if(e&&e.ok&&!e.processando){
+      out.textContent=e.texto||"(o robô não escreveu nada)";
+      DIST_PREVIA_OK=!!e.previaOk; document.getElementById("dist-ok").disabled=!DIST_PREVIA_OK;
+      if(!DIST_PREVIA_OK) erro.textContent="O robô recusou ou falhou — leia acima. O distrato não pode seguir assim.";
+      else setTimeout(()=>document.getElementById("dist-senha").focus(),50);
+      return;
+    }
+    if(Date.now()-inicio>6*60*1000){ out.textContent="O robô não respondeu em 6 minutos. Tente a prévia de novo mais tarde."; return; }
+    DIST_POLL=setTimeout(olhar,8000);
+  };
+  DIST_POLL=setTimeout(olhar,15000);
+}
 async function confirmarDistrato(pageId){
   const erro=document.getElementById("dist-erro");
   const btn=document.getElementById("dist-ok");
   const senha=document.getElementById("dist-senha").value;
+  const motivo=document.getElementById("dist-motivo").value.trim();
+  if(!DIST_PREVIA_OK){ erro.textContent=DIST_ERROS.DISTRATO_SEM_PREVIA; return; }
+  if(motivo.length<5){ erro.textContent=DIST_ERROS.DISTRATO_MOTIVO_FALTA; return; }
   if(!senha){ erro.textContent="Digite sua senha."; return; }
   if(!navigator.onLine){ erro.textContent="Sem internet. O distrato não entra na fila — precisa ser feito online."; return; }
   erro.textContent=""; btn.disabled=true; btn.innerHTML='<span class="load"></span>';
   // chamar() direto, NÃO escrever(): escrever() enfileira no localStorage quando
   // falha, e isso guardaria a senha em texto puro no navegador.
   let r;
-  try{ r=await chamar({action:"distrato", pageId:pageId, senha:senha}); }
+  try{ r=await chamar(Object.assign({action:"distrato", pageId:pageId, senha:senha, motivo:motivo}, distResp())); }
   catch(e){ r={ok:false,erro:"REDE"}; }
   document.getElementById("dist-senha").value="";
   btn.disabled=false; btn.textContent="Confirmar distrato";
@@ -3633,12 +3740,15 @@ async function confirmarDistrato(pageId){
     }
     fecharDistrato(); fecharObra();
     toast("Distrato registrado ✓ — "+(r.camposLimpos||marcados)+" campo(s) limpo(s)"+
-          (r.atividadesApagadas?(" e "+r.atividadesApagadas+" atividade(s) apagada(s)"):""));
+          (r.atividadesApagadas?(" e "+r.atividadesApagadas+" atividade(s) apagada(s)"):"")+
+          (r.erp==="ROBO_ACIONADO"?" — o robô está aplicando no Mais Controle (resultado na base DISTRATOS, coluna MC - DISTRATO)":""));
     ler({action:"atividades"},"atividades").then(x=>{ if(x&&x.ok){ ATIV_ALL=x.atividades; atualizarBadgesSetores(); if(document.getElementById("st-atividades").style.display!=="none") carregarAtividades(); } });
     carregarPlanilha(document.getElementById("view-setor").style.display!=="none"?"set":"hub");
   } else {
     const e=(r&&r.erro)||"REDE";
-    erro.textContent = e==="SENHA_INVALIDA" ? "Senha incorreta."
+    erro.textContent = DIST_ERROS[e] ? DIST_ERROS[e]
+      : /^ARQUIVO_FALHOU/.test(e) ? "Não consegui arquivar o distrato na base DISTRATOS — nada foi limpo. "+e.replace(/^ARQUIVO_FALHOU:\s*/,"")
+      : e==="SENHA_INVALIDA" ? "Senha incorreta."
       : e==="SEM_PERMISSAO" ? "Seu usuário não tem permissão para dar distrato."
       : e==="ACAO_DESCONHECIDA" ? "O Apps Script ainda não conhece a ação 'distrato' — falta colar o distrato.gs e reimplantar."
       : e==="REDE" ? "Não consegui falar com o Apps Script. Confira se a implantação é 'Nova versão' na MESMA URL /exec."
