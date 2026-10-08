@@ -158,8 +158,14 @@ test("corpos JSON:API exatamente como a documentação v3", () => {
 });
 
 test("nome do envelope e do arquivo: só o endereço, sem barra; e-mail vai em minúsculas e sem espaço", () => {
-  assert.equal(CS.nomeEnvelope("RESIDENCIAL/TESTE QD 07"), "Contrato - RESIDENCIAL-TESTE QD 07");
+  assert.equal(CS.nomeEnvelope("RESIDENCIAL/TESTE QD 07"), "RESIDENCIAL-TESTE QD 07");
   assert.equal(CS.nomeEnvelope(""), "Contrato de compra e venda");
+  /* entrega 14: "OBRA - COMPRADOR"; a casa só entra quando o endereço ainda não diz essa casa */
+  assert.equal(CS.nomePadrao("RESIDENCIAL TESTE QD 07 LT 12", "3", "Fulano de Teste"), "RESIDENCIAL TESTE QD 07 LT 12 CASA 3 - Fulano de Teste");
+  assert.equal(CS.nomePadrao("RESIDENCIAL TESTE CASA 03", "3", "Fulano de Teste"), "RESIDENCIAL TESTE CASA 03 - Fulano de Teste");
+  assert.equal(CS.nomePadrao("RESIDENCIAL TESTE CASA 13", "3", ""), "RESIDENCIAL TESTE CASA 13 CASA 3");
+  assert.equal(CS.nomePadrao("", "", "Fulano de Teste"), "Fulano de Teste");
+  assert.equal(CS.nomePadrao("QD 1/LT 2", "", "Ana: Teste"), "QD 1-LT 2 - Ana- Teste");
   assert.equal(CS.nomeArquivo("CONTRATO - X.pdf"), "CONTRATO - X.pdf");
   assert.equal(CS.nomeArquivo("contrato"), "contrato.pdf");
   const s = CS.signatarios(dadosPJ({ comprador1: { nome: "Fulano de Teste", cpf: "", email: " Fulano@Teste.EXAMPLE " } }), CS.montarConfig(PROPS))[0];

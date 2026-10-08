@@ -74,8 +74,22 @@ test("Reenviar: confirma, chama assinaturaReenviar e mostra quantos recebem; err
 
 test("assinado: mostra Assinado e Enviar continua desabilitado", () => {
   const h = A.montarBlocoAssinatura(ctx({ estado: { situacao: "ASSINADO", envelope: true, signatarios: [] } }));
-  assert.match(h, /Assinado — o PDF assinado está em CONTRATO ASSINADO/);
+  assert.match(h, /Assinado por todos/);
   assert.match(botao(h, "a-enviar")[0], /disabled/);
+  /* entrega 14: sem o PDF assinado na casa, não há o botão */
+  assert.equal(botao(h, "a-ver-assinado").length, 0);
+});
+
+test("entrega 14: título 'Enviar contrato via Clicksign'; 'Ver contrato assinado' só com ASSINADO + PDF na casa (TESTES vê)", () => {
+  const h = A.montarBlocoAssinatura(ctx({ estado: { situacao: "ASSINADO", envelope: true, signatarios: [], temAssinado: true } }));
+  assert.match(h, /<div class="grp">Enviar contrato via Clicksign<\/div>/);
+  assert.equal(botao(h, "a-ver-assinado").length, 1);
+  assert.doesNotMatch(botao(h, "a-ver-assinado")[0], /disabled/);
+  const t = A.montarBlocoAssinatura(ctx({ testes: true, estado: { situacao: "ASSINADO", envelope: true, signatarios: [], temAssinado: true } }));
+  assert.doesNotMatch(botao(t, "a-ver-assinado")[0], /disabled/);
+  const enviado = A.montarBlocoAssinatura(ctx({ estado: { situacao: "ENVIADO", envelope: true, signatarios: [], temAssinado: true } }));
+  assert.equal(botao(enviado, "a-ver-assinado").length, 0);
+  assert.match(A.mensagemAssinatura({ ok: false, erro: "SEM_ASSINADO" }), /ainda não está na casa/);
 });
 
 test("cancelado, recusado ou expirado: deixa enviar de novo", () => {
@@ -166,7 +180,7 @@ test("Enviar confirmado: chama assinaturaEnviar uma vez e mostra a situação no
     chamar: async (x) => { chamadas.push(x); return { ok: true, situacao: "ENVIADO", signatarios: [{ papel: "Comprador 1", assinou: false }] }; } });
   assert.deepEqual(chamadas, [{ action: "assinaturaEnviar", pageId: "p1" }]);
   assert.match(perguntas[0], /Enviar o contrato para assinatura\?/);
-  assert.deepEqual(novo.estado, { situacao: "ENVIADO", envelope: true, signatarios: [{ papel: "Comprador 1", assinou: false }] });
+  assert.deepEqual(novo.estado, { situacao: "ENVIADO", envelope: true, signatarios: [{ papel: "Comprador 1", assinou: false }], temAssinado: false });
   assert.equal(novo.ocupado, null);
   assert.match(novo.msg, /Enviado/);
 });

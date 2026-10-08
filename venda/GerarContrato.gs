@@ -303,6 +303,9 @@ function ctrFontes_(col, pageId) {
     COMPRADOR2: { nome: dos(C.C2_NOME), cpf: dos(C.C2_CPF), nacionalidade: dos(C.C2_NAC), estadoCivil: dos(C.C2_ESTCIV),
                   profissao: dos(C.C2_PROF), documento: dos(C.C2_DOC), endereco: dos(C.C2_END), email: dos(C.C2_EMAIL) },
     ALVARA_NUMERO: cv(CV.ALVARA_NUMERO), ALVARA_DATA: cv(CV.ALVARA_DATA), HABITESE_NUMERO: cv(CV.HABITESE_NUMERO),
+    /* entrega 14: opcionais (cv: coluna que não existe = vazio); preenchidas, valem antes da obra e do setor */
+    HABITESE_DATA: cv(CV.HABITESE_DATA), DENOMINACAO_LOTEAMENTO: ctrTxt_(cv(CV.DENOMINACAO_LOTEAMENTO)),
+    TIPO_CASA: ctrTxt_(cv(RegrasVenda.COL.TIPO_CASA)),   /* CASA PRONTA / CASA EM CONSTRUÇÃO escolhem o modelo */
     MATRICULA_INDIVIDUAL: cv(CV.MATRICULA_INDIVIDUAL), CRI: cv(CV.CRI), AREA: ctrNum_(cv(CV.AREA)),
     CONFRONTACOES: cv(CV.CONFRONTACOES),
     SINAL_VALOR: ctrNum_(cv(CV.SINAL_VALOR)), SINAL_DATA: cv(CV.SINAL_DATA),
@@ -364,7 +367,7 @@ function ctrFontes_(col, pageId) {
   if (escolha) {
     var de = escolha.contaId ? ctrDadosDaConta_(escolha.contaId) : escolha.digitada;
     if (de && (de.banco || de.conta)) {
-      vendedor.banco = de.banco; vendedor.agencia = de.agencia; vendedor.operacao = ""; vendedor.conta = de.conta; vendedor.pix = de.pix;
+      vendedor.banco = de.banco; vendedor.agencia = de.agencia; vendedor.operacao = ctrTxt_(de.operacao); vendedor.conta = de.conta; vendedor.pix = de.pix;
       usouEscolha = true;
     } else contaErro = "Conta de recebimento: a conta escolhida não foi encontrada ou está sem banco e número — escolha de novo";
   }
@@ -477,6 +480,24 @@ function ctrTirarTrechosVazios_(sec, marcadores) {
       r.getElement().asText().deleteText(r.getStartOffset(), r.getEndOffsetInclusive());
   }
 }
+/* Entrega 14: parágrafo que é só rótulo + marcador vazio (ContratoVenda.PARAGRAFOS_SE_VAZIO) sai inteiro e as
+   alíneas seguintes sobem uma letra ("d) Corretor" -> "c) Corretor"). Troca só a letra (insere e apaga no lugar),
+   para manter a formatação do modelo. */
+function ctrParagrafosVazios_(body, marcadores) {
+  if (!ContratoVenda.planoParagrafosVazios) return;
+  var pars = body.getParagraphs(), textos = pars.map(function (p) { return String(p.getText()); });
+  var plano = ContratoVenda.planoParagrafosVazios(textos, marcadores);
+  plano.trocar.forEach(function (t) {
+    var m = new RegExp(t.de).exec(textos[t.i]);
+    if (!m) return;
+    var pos = m[1].length, letra = t.texto.charAt(pos);
+    if (!letra || letra === textos[t.i].charAt(pos)) return;
+    var tx = pars[t.i].editAsText();
+    tx.insertText(pos, letra);
+    tx.deleteText(pos + 1, pos + 1);
+  });
+  plano.apagar.slice().sort(function (a, b) { return b - a; }).forEach(function (i) { ctrApagarParagrafo_(pars[i]); });
+}
 /* Marcador de várias linhas (ContratoVenda.MARCADORES_PARAGRAFOS) sozinho num parágrafo: vira um
    parágrafo por linha, cópias do parágrafo do modelo (mesma formatação), com o começo da linha em
    negrito quando ContratoVenda.negritoDaLinha pede (cabeçalho dos incisos do 6.1, "FIADOR n:").
@@ -548,6 +569,7 @@ function ctrCarimbo_(d) {
                nomeProprietario: d.nomeProprietario, corretor: d.corretor, corretorNaVenda: d.corretorNaVenda,
                loteamento: d.loteamento, imovel: d.imovel, negociacao: d.negociacao, comissao: d.comissao };
   if (d.condominio) base.condominio = d.condominio; /* fluxo, fiadores, unidade (só no condomínio: os carimbos antigos não mudam) */
+  if (d.tipoCasa) base.tipoCasa = d.tipoCasa;       /* entrega 14: só com CASA PRONTA/EM CONSTRUÇÃO (os carimbos antigos não mudam) */
   var b = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, JSON.stringify(base), Utilities.Charset.UTF_8);
   var h = "";
   for (var i = 0; i < 4; i++) h += ("0" + (b[i] & 255).toString(16)).slice(-2);
@@ -686,6 +708,7 @@ function ctrGerarPdf_(prep, pid, rot, grifar) {
     copia = prep.modelo.makeCopy("contrato-provisorio-" + pid + "-" + Date.now(), prep.pasta);
     var doc = DocumentApp.openById(copia.getId());
     aplicarBlocos_(doc.getBody(), prep.blocos);
+    ctrParagrafosVazios_(doc.getBody(), prep.marcadores);
     ctrExpandirParagrafos_(doc.getBody(), prep.marcadores, grifar);
     ctrSecoes_(doc).forEach(function (sec) {
       ctrTirarTrechosVazios_(sec, prep.marcadores);
@@ -776,8 +799,11 @@ function ctrLerContaReceb_(pageId) {
   try { o = JSON.parse(s); } catch (e) { return null; }
   if (!o || typeof o !== "object") return null;
   if (o.contaId && CTR_REGEX_ID_COND.test(String(o.contaId))) return { contaId: String(o.contaId) };
-  if (o.banco || o.conta)
-    return { digitada: { banco: ctrTxt_(o.banco), agencia: ctrTxt_(o.agencia), conta: ctrTxt_(o.conta), pix: ctrTxt_(o.pix) } };
+  if (o.banco || o.conta) {
+    var dig = { banco: ctrTxt_(o.banco), agencia: ctrTxt_(o.agencia), conta: ctrTxt_(o.conta), pix: ctrTxt_(o.pix) };
+    if (ctrTxt_(o.operacao)) dig.operacao = ctrTxt_(o.operacao);   // entrega 14: só quando foi digitada
+    return { digitada: dig };
+  }
   return null;
 }
 /* Contas da CONTAS BANCÁRIAS para a lista da tela: [{ id, nome }] (só o título). */

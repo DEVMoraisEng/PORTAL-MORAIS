@@ -193,36 +193,40 @@ def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DI
 
     # Vendedor = corretor (regra do dono, 06/10/2026: toda venda tem Vendedor). Se não houver
     # cadastro com o nome dele, o robô cadastra como Fornecedor na hora de gravar.
-    vs = erp.homonimos(d["corretor"])
-    if len(vs) > 1:
-        vs = [v for v in vs if str(v.get("role")) == "SUPPLIER"] or vs
-    if len(vs) > 1:
-        res["motivos"] = ["Há %d cadastros com o nome do corretor no Mais Controle" % len(vs)]
-        return fim("RECUSADA", "RECUSADA: há mais de um cadastro com o nome do corretor no Mais Controle — "
-                   "deixe só um (ou diferencie o nome) e peça a prévia de novo.", codigo="CORRETOR_REPETIDO")
-    if not vs:
-        cad = R.corretor_do_cadastro(notion.linhas(os.environ["DB_CORRETORES"]), d["corretor"])             if os.environ.get("DB_CORRETORES") else None
-        if not (cad or {}).get("documento") and (d.get("corretor_contato") or {}).get("documento"):
-            cad = dict(d["corretor_contato"])   # condomínio: CPF do corretor vem da pasta (CPF CORRETOR)
-        doc = (cad or {}).get("documento") or ""
-        if (cad or {}).get("repetido"):
-            res["motivos"] = ["Corretor com cadastro repetido na base CORRETORES – CONTRATO"]
-            return fim("RECUSADA", "RECUSADA: o corretor aparece mais de uma vez na base CORRETORES – CONTRATO — "
-                       "deixe só um e peça a prévia de novo.", codigo="CORRETOR_REPETIDO")
-        if not (R.cpf_valido(doc) or R.cnpj_valido(doc)):
-            res["motivos"] = ["Corretor sem cadastro no Mais Controle e sem CPF/CNPJ válido na base CORRETORES – CONTRATO"]
-            return fim("RECUSADA", "RECUSADA: o corretor %s ainda não está no Mais Controle, e para cadastrá-lo o ERP "
-                       "exige CPF ou CNPJ. Preencha o CPF/CNPJ dele na base CORRETORES – CONTRATO (com o nome igual "
-                       "ao da venda) e peça a prévia de novo." % R.corpo_corretor(d)["name"], codigo="CORRETOR_SEM_CPF")
-        d["corretor_cadastro"] = cad
-        vs = erp.participantes_por_documento(doc)   # já cadastrado com outro nome? usa o mesmo
+    # 08/10/2026 (dono): corretor sem cadastro NÃO trava mais a prévia — a venda vai sem Vendedor e o motivo
+    # aparece na prévia (corretor e comissão continuam na Observação).
+    vendedor_id, vendedor_novo, sem_vendedor = None, None, ""
+    if not str(d.get("corretor") or "").strip():
+        sem_vendedor = "a venda não tem CORRETOR"
+    else:
+        vs = erp.homonimos(d["corretor"])
         if len(vs) > 1:
             vs = [v for v in vs if str(v.get("role")) == "SUPPLIER"] or vs
         if len(vs) > 1:
-            res["motivos"] = ["CPF/CNPJ do corretor aparece em %d cadastros no Mais Controle" % len(vs)]
-            return fim("RECUSADA", "RECUSADA: " + res["motivos"][0], codigo="CORRETOR_REPETIDO")
-    vendedor_id = vs[0]["id"] if vs else None
-    vendedor_novo = None if vs else R.corpo_corretor(d)
+            sem_vendedor = "há %d cadastros com o nome do corretor no Mais Controle" % len(vs)
+        elif not vs:
+            cad = (R.corretor_do_cadastro(notion.linhas(os.environ["DB_CORRETORES"]), d["corretor"])
+                   if os.environ.get("DB_CORRETORES") else None)
+            if not (cad or {}).get("documento") and (d.get("corretor_contato") or {}).get("documento"):
+                cad = dict(d["corretor_contato"])   # condomínio: CPF do corretor vem da pasta (CPF CORRETOR)
+            doc = (cad or {}).get("documento") or ""
+            if (cad or {}).get("repetido"):
+                sem_vendedor = "o corretor aparece mais de uma vez na base CORRETORES – CONTRATO"
+            elif not (R.cpf_valido(doc) or R.cnpj_valido(doc)):
+                sem_vendedor = ("o corretor não está no Mais Controle e não tem CPF/CNPJ na base CORRETORES – CONTRATO "
+                                "(o ERP exige para cadastrar)")
+            else:
+                d["corretor_cadastro"] = cad
+                vs = erp.participantes_por_documento(doc)   # já cadastrado com outro nome? usa o mesmo
+                if len(vs) > 1:
+                    vs = [v for v in vs if str(v.get("role")) == "SUPPLIER"] or vs
+                if len(vs) > 1:
+                    sem_vendedor = "o CPF/CNPJ do corretor aparece em %d cadastros no Mais Controle" % len(vs)
+                    vs = []
+        if not sem_vendedor:
+            vendedor_id = vs[0]["id"] if vs else None
+            vendedor_novo = None if vs else R.corpo_corretor(d)
+    res["sem_vendedor"] = sem_vendedor
 
     corpo = R.corpo_venda(d, obra, res["cliente"]["id"] or "(CLIENTE NOVO)", conta,
                           responsavel_id=getattr(erp, "user_id", None), vendedor_id=vendedor_id,
@@ -241,6 +245,7 @@ def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DI
                    if bloqueado else "") + "PRÉVIA OK [#%s] | %s" % (assin, corpo["description"].split(" - ")[0]),
                   "Cliente: %s (%s)" % (nome_cliente, "novo, será criado" if cliente_novo else "já existe"),
                   "Conta da obra: %s" % (conta.get("name") or conta["id"]),
+                  ("Vendedor: sem Vendedor — %s" % sem_vendedor) if sem_vendedor else
                   "Vendedor: %s (%s)" % (R.corpo_corretor(d)["name"], "já cadastrado" if vendedor_id
                                          else "será cadastrado como Fornecedor"),
                   "Parcelas: " + R.contagem_parcelas(ps)]
