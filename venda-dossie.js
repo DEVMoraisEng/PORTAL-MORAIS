@@ -5,7 +5,7 @@
  * resto do portal segue igual. */
 (function () {
   "use strict";
-  var URL_PORTAL_VENDA = "";   // URL /exec do PORTAL-VENDA deste ambiente (Task 7 e subida)
+  var URL_PORTAL_VENDA = "https://script.google.com/macros/s/AKfycbxmdaPwqDXkfkuUbIU1MW8Ga5-J7mQRxbF_Xju-C1Zsa5kvuFgctg-dbx214f8qHfDWQA/exec";   // URL /exec do PORTAL-VENDA deste ambiente (Task 7 e subida)
 
   var DOCS = [
     { id: "C1_IDENTIDADE",  rotulo: "Comprador 1 — identidade (CNH ou RG)", comprador: 1 },
