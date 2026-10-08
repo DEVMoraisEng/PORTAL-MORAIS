@@ -231,7 +231,13 @@ def _data_imap(epoch):
 
 def codigo_do_email(desde, limite_s=180):
     """Espera o e-mail de código que chegou DEPOIS de `desde` (epoch) e devolve
-    o código. Só leitura (BODY.PEEK): não marca nada como lido."""
+    o código MAIS NOVO ainda não usado. Só leitura (BODY.PEEK).
+
+    08/10/26 (2ª rodada) — o robô de contas tenta antes o login pela API, que
+    também dispara um código; esse código chega segundos antes do da tela e o
+    MC só aceita o último. Por isso: espera uns segundos antes de ler, aceita
+    só e-mail recebido depois do clique e, se o MC recusar, passar_mfa pede o
+    próximo (o já usado fica em _codigos_usados)."""
     usuario = MC_EMAIL_USUARIO or (MC_USUARIO if MC_USUARIO.lower().endswith("@gmail.com") else "")
     if not (usuario and MC_EMAIL_SENHA_APP):
         raise SystemExit("O Mais Controle pediu o CÓDIGO DE AUTENTICAÇÃO (tela #/mfa), mas falta o secret "
@@ -239,6 +245,7 @@ def codigo_do_email(desde, limite_s=180):
                          "ler o código. Veja o cabeçalho do robo_mc_comum.py.")
     fim = time.time() + limite_s
     tentativa = 0
+    time.sleep(8)                         # deixa o e-mail do último pedido chegar
     while time.time() < fim:
         tentativa += 1
         try:
@@ -258,7 +265,7 @@ def codigo_do_email(desde, limite_s=180):
                     if not cab:
                         continue
                     quando = time.mktime(imaplib.Internaldate2tuple(cab[0]) or time.localtime(0))
-                    if quando < desde - 20:
+                    if quando < desde - 2:
                         break                                 # daqui para trás é tudo antigo
                     cod = extrair_codigo(_corpo_do_email(cab[1]))
                     if cod and cod not in _codigos_usados:
@@ -302,7 +309,28 @@ def passar_mfa(page, desde):
             print(f"  ! não achei campo de código nem opção de e-mail ({str(e)[:80]})", flush=True)
         campos = page.locator(_SEL_CAMPO_CODIGO)
 
-    codigo = codigo_do_email(desde)
+    for tentativa in range(1, 4):
+        _digitar_e_confirmar(page, campos, codigo_do_email(desde))
+        try:
+            page.wait_for_function("() => !location.hash.includes('/mfa')", timeout=20000)
+            break
+        except PWTimeout:
+            if tentativa < 3:
+                print(f"  ! MC recusou o código (tentativa {tentativa}) — busco o próximo no e-mail", flush=True)
+                continue
+            diagnostico(page, "código digitado, mas continua na tela #/mfa")
+            msg = ""
+            try:
+                msg = page.evaluate(_JS_MSG_ERRO)
+            except Exception:
+                pass
+            foto(page, "mfa_falhou")
+            raise SystemExit(f"Mais Controle não aceitou o código de autenticação. Mensagem na tela: {msg or '(nenhuma)'}")
+    esperar(page, 20000)
+    page.wait_for_timeout(1500)
+
+
+def _digitar_e_confirmar(page, campos, codigo):
     n = campos.count()
     caixas = 0
     for i in range(n):
@@ -338,19 +366,6 @@ def passar_mfa(page, desde):
             bt.first.click()
         else:
             page.keyboard.press("Enter")
-    try:
-        page.wait_for_function("() => !location.hash.includes('/mfa')", timeout=40000)
-    except PWTimeout:
-        diagnostico(page, "código digitado, mas continua na tela #/mfa")
-        msg = ""
-        try:
-            msg = page.evaluate(_JS_MSG_ERRO)
-        except Exception:
-            pass
-        foto(page, "mfa_falhou")
-        raise SystemExit(f"Mais Controle não aceitou o código de autenticação. Mensagem na tela: {msg or '(nenhuma)'}")
-    esperar(page, 20000)
-    page.wait_for_timeout(1500)
 
 
 def login(page):
