@@ -5,7 +5,9 @@
  * o UrlFetchApp não deixa trocar. Então aqui só se PEDE ao GitHub que rode o
  * workflow "mc-venda" (Python, venda/mc/lancar.py), que lê a venda no Notion,
  * fala com o ERP e escreve o resultado de volta nas colunas:
- *   MC - SITUAÇÃO  (texto)  PROCESSANDO… / PRÉVIA OK — … / CRIADA … / JÁ EXISTE … / RECUSADA: …
+ *   MC - SITUAÇÃO  (texto)  PROCESSANDO… / PRÉVIA OK [#hash] | … / CRIADA | venda <id> / JÁ EXISTE … / RECUSADA: …
+ *                           (PRÉVIA e CRIADA em linhas: cabeçalho, depois "Cliente: …", "Parcelas: …", "Total: …";
+ *                           a tela desenha cada linha como tópico; o carimbo [#hash] fica sempre na 1ª linha)
  *   MC - VENDA ID  (texto)  id da venda no ERP
  * Propriedades: GITHUB_TOKEN (fine-grained, Contents: Read and write no repo),
  * GH_REPO_MC (ex.: "MoraisEng-Teste/PORTAL-MORAIS" — SEM padrão de propósito,

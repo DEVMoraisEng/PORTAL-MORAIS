@@ -106,7 +106,7 @@ def test_venda_criada_anexa_o_contrato_com_nome_padrao():
     r = L.processar("p1", n, e, aplicar=True)
     assert r["situacao"] == "CRIADA" and r.get("contrato_anexado")
     assert e.anexos == [("venda-nova", "CONTRATO RUA TESTE QD 01 LT 02 CASA 02 - FULANO DE TAL.pdf", b"%PDF-teste")]
-    assert "contrato anexado no recebimento" in n.gravado["MC - SITUAÇÃO"]
+    assert "Contrato: anexado no recebimento" in n.gravado["MC - SITUAÇÃO"]
 
 
 def test_falha_no_anexo_nao_derruba_a_venda():
@@ -114,7 +114,7 @@ def test_falha_no_anexo_nao_derruba_a_venda():
     L.processar("p1", n, e)
     r = L.processar("p1", n, e, aplicar=True)
     assert r["situacao"] == "CRIADA" and "ANEXO_FALHOU" in r["avisos"]
-    assert n.gravado["MC - VENDA ID"] == "venda-nova" and "contrato NÃO anexado" in n.gravado["MC - SITUAÇÃO"]
+    assert n.gravado["MC - VENDA ID"] == "venda-nova" and "Contrato: não anexado" in n.gravado["MC - SITUAÇÃO"]
 
 
 def test_sem_contrato_avisa_e_venda_ja_lancada_so_anexa():

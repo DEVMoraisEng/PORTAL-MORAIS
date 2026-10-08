@@ -93,8 +93,8 @@ def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DI
         res["venda"] = {"id": d["venda_id_atual"]}
         if anexar and aplicar:   # venda já lançada pelo robô: só anexa o contrato
             nota = anexar_contrato(d, notion, erp, d["venda_id_atual"], res)
-            return fim("JA_LANCADA", "JÁ LANÇADA (venda %s)%s" % (d["venda_id_atual"], nota))
-        return fim("JA_LANCADA", "JÁ LANÇADA (venda %s)" % d["venda_id_atual"])
+            return fim("JA_LANCADA", "JÁ LANÇADA | venda %s\nContrato: %s" % (d["venda_id_atual"], nota))
+        return fim("JA_LANCADA", "JÁ LANÇADA | venda %s" % d["venda_id_atual"])
 
     fx = None
     if d.get("condominio_id"):
@@ -222,17 +222,24 @@ def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DI
     res["corpo_venda"] = corpo
     res["parcelas"] = [{"rotulo": p["rotulo"], "valor": p["valor"], "data": p["data"]}
                        for p in R.parcelas(d, dias)]
-    resumo = R.resumo_parcelas(res["parcelas"])
+    ps = res["parcelas"]
+    nome_cliente = " ".join(str(d["comprador"]["nome"] or "").upper().split()) or "?"
 
     if not aplicar:
-        return fim("PREVIA", ("BLOQUEADO: gravar no Mais Controle está desligado neste ambiente (MC_APLICAR) — "
-                              if bloqueado else "") + "PRÉVIA OK [#%s] — %s%s; conta da obra: %s%s; %s" % (
-            assin, "cliente novo será criado; " if cliente_novo else "cliente já existe; ",
-            corpo["description"].split(" - ")[0], conta.get("name") or conta["id"],
-            "; vendedor: %s (%s)" % (R.corpo_corretor(d)["name"], "já cadastrado" if vendedor_id
-                                     else "será cadastrado como Fornecedor"),
-            resumo + ("; observação: " + corpo["comment"] if corpo.get("comment") else "")),
-            codigo="BLOQUEADO" if bloqueado else "PREVIA")
+        # Texto em linhas (a tela desenha em tópicos): 1ª linha = cabeçalho com o carimbo [#hash] que o
+        # lançamento confere; as linhas "- " são o detalhe das parcelas.
+        linhas = [("BLOQUEADO: gravar no Mais Controle está desligado neste ambiente (MC_APLICAR) — "
+                   if bloqueado else "") + "PRÉVIA OK [#%s] | %s" % (assin, corpo["description"].split(" - ")[0]),
+                  "Cliente: %s (%s)" % (nome_cliente, "novo, será criado" if cliente_novo else "já existe"),
+                  "Conta da obra: %s" % (conta.get("name") or conta["id"]),
+                  "Vendedor: %s (%s)" % (R.corpo_corretor(d)["name"], "já cadastrado" if vendedor_id
+                                         else "será cadastrado como Fornecedor"),
+                  "Parcelas: " + R.contagem_parcelas(ps)]
+        linhas += ["- " + x for x in R.linhas_parcelas(ps)]
+        linhas.append("Total: " + R.total_parcelas(ps))
+        if corpo.get("comment"):
+            linhas.append("Observação: " + corpo["comment"])
+        return fim("PREVIA", "\n".join(linhas), codigo="BLOQUEADO" if bloqueado else "PREVIA")
 
     vista = R.assinatura_da_situacao(d.get("situacao_atual"))
     if vista != assin:
@@ -263,25 +270,29 @@ def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DI
                    codigo="VENDA_SEM_ID")
     res["venda"] = {"id": venda["id"]}
     nota = anexar_contrato(d, notion, erp, venda["id"], res)
-    return fim("CRIADA", "CRIADA no Mais Controle (venda %s)%s — %s" % (venda["id"], nota, resumo), venda["id"],
-               obrigatorio=True)
+    texto = "\n".join(["CRIADA | venda %s" % venda["id"],
+                       "Cliente: %s (%s)" % (nome_cliente, "criado agora" if cliente_novo else "já existia"),
+                       "Parcelas: " + R.contagem_parcelas(ps),
+                       "Total: " + R.total_parcelas(ps),
+                       "Contrato: " + nota])
+    return fim("CRIADA", texto, venda["id"], obrigatorio=True)
 
 
 def anexar_contrato(d: dict, notion, erp, venda_id: str, res: dict) -> str:
     """Anexa o PDF da coluna CONTRATO ASSINADO ao recebimento. Nunca derruba a venda já criada:
-    devolve um trecho para a situação dizendo o que aconteceu."""
+    devolve o que aconteceu, para a linha "Contrato: …" da situação."""
     arqs = d.get("contrato_arquivos") or []
     if not arqs:
         res["avisos"].append("SEM_CONTRATO_PARA_ANEXAR")
-        return "; contrato NÃO anexado (coluna CONTRATO ASSINADO vazia)"
+        return "não anexado (coluna CONTRATO ASSINADO vazia)"
     try:
         conteudo = notion.baixar(arqs[-1]["url"])
         erp.anexar(venda_id, R.nome_do_contrato(d), conteudo)
         res["contrato_anexado"] = True
-        return "; contrato anexado no recebimento"
+        return "anexado no recebimento"
     except Exception as e:   # noqa: BLE001 — o anexo é complemento: a venda fica e o motivo vai na situação
         res["avisos"].append("ANEXO_FALHOU")
-        return "; contrato NÃO anexado (%s) — anexe à mão no Mais Controle" % str(e)[:120]
+        return "não anexado (%s) — anexe à mão no Mais Controle" % str(e)[:120]
 
 
 PAPEIS = {"CUSTOMER": "Cliente", "SUPPLIER": "Fornecedor", "EMPLOYEE": "Funcionário", "SELLER": "Vendedor"}

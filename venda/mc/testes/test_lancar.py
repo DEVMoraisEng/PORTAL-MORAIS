@@ -101,6 +101,33 @@ def test_aplicar_depois_da_previa_cria_cliente_e_venda_e_grava_id():
     assert n.gravado["MC - VENDA ID"] == "venda-nova"
 
 
+def test_situacao_em_linhas_curtas_previa_e_criada():
+    n, e = NotionFake(pagina()), ErpFake()
+    L.processar("p1", n, e)
+    linhas = n.gravado["MC - SITUAÇÃO"].split("\n")
+    assert linhas[0].startswith("PRÉVIA OK [#") and " | VENDA CASA 02" in linhas[0]
+    assert linhas[1] == "Cliente: FULANO DE TAL (novo, será criado)"
+    assert any(x.startswith("Parcelas: 4 (") for x in linhas)
+    assert any(x.startswith("- Sinal R$ ") for x in linhas)
+    assert "Total: R$ 260.000,00" in linhas
+    n2, e2 = NotionFake(pagina()), ErpFake()
+    previa_e_lanca(n2, e2)
+    assert n2.gravado["MC - SITUAÇÃO"].split("\n") == [
+        "CRIADA | venda venda-nova", "Cliente: FULANO DE TAL (criado agora)",
+        "Parcelas: 4 (sinal, entrada, financiamento, FGTS)", "Total: R$ 260.000,00",
+        "Contrato: não anexado (coluna CONTRATO ASSINADO vazia)"]
+
+
+def test_contagem_e_reais():
+    ps = [{"rotulo": r, "valor": 1000.5} for r in
+          ["Sinal ato", "Sinal 30 dias", "Pré-chaves 1ª parte 1/2", "Pré-chaves 1ª parte 2/2", "Balão 12/27",
+           "Balão entrega de chaves", "Pós-chaves 1/1", "Financiamento", "FGTS", "Esquisita"]]
+    assert L.R.contagem_parcelas(ps) == ("10 (sinais 2, pré-chaves 2, balões 2, pós-chaves, financiamento, FGTS, "
+                                         "outras 1)")
+    assert L.R.total_parcelas(ps) == "R$ 10.005,00"
+    assert L.R.reais(1234567.8) == "R$ 1.234.567,80" and L.R.reais(0) == "R$ 0,00"
+
+
 def test_aplicar_sem_previa_ou_com_dado_mudado_recusa():
     n, e = NotionFake(pagina()), ErpFake()
     assert L.processar("p1", n, e, aplicar=True)["codigo"] == "PREVIA_DESATUALIZADA" and e.criados == []
@@ -298,7 +325,7 @@ def test_corretor_ja_cadastrado_vira_vendedor_sem_criar():
     n, e = NotionFake(pagina()), ErpFake()
     e._homs = [{"id": "cor-1", "name": "Corretor Exemplo", "role": "SUPPLIER"}]
     L.processar("p1", n, e)
-    assert "vendedor: CORRETOR EXEMPLO (já cadastrado)" in n.gravado["MC - SITUAÇÃO"]
+    assert "Vendedor: CORRETOR EXEMPLO (já cadastrado)" in n.gravado["MC - SITUAÇÃO"]
     L.processar("p1", n, e, aplicar=True)
     assert [t for t, _ in e.criados] == ["cliente", "venda"] and e.criados[1][1]["seller"] == {"id": "cor-1"}
 

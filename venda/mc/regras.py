@@ -282,6 +282,52 @@ def parcelas(dados: dict, dias_financiamento: int = DIAS_FINANCIAMENTO) -> list[
 
 def resumo_parcelas(ps: list[dict]) -> str:
     """Texto curto das parcelas; série "Nome 1/N".."N/N" vira "Nome Nx R$ v de d1 a dN"."""
+    return "; ".join(linhas_parcelas(ps))
+
+
+#: Grupos da contagem de parcelas (ordem de exibição): (prefixo do rótulo, singular, plural).
+_GRUPOS = [("Sinal", "sinal", "sinais"), ("Entrada", "entrada", "entradas"),
+           ("Pré-chaves", "pré-chaves", "pré-chaves"), ("Intermediária", "intermediária", "intermediárias"),
+           ("Balão", "balão", "balões"), ("Pós-chaves", "pós-chaves", "pós-chaves"),
+           ("Financiamento", "financiamento", "financiamentos"), ("FGTS", "FGTS", "FGTS")]
+
+
+def contagem_parcelas(ps: list[dict]) -> str:
+    """"N (sinais 4, pré-chaves 12, balões 2, pós-chaves 36, financiamento, FGTS)" — grupo com uma
+    parcela sai só com o nome; rótulo fora dos grupos conta como "outras"."""
+    cont, outras = {}, 0
+    for p in ps:
+        g = next((g for g in _GRUPOS if str(p.get("rotulo") or "").startswith(g[0])), None)
+        if g:
+            cont[g[0]] = cont.get(g[0], 0) + 1
+        else:
+            outras += 1
+    partes = [(g[1] if cont[g[0]] == 1 else "%s %d" % (g[2], cont[g[0]])) for g in _GRUPOS if g[0] in cont]
+    if outras:
+        partes.append("outras %d" % outras)
+    return "%d (%s)" % (len(ps), ", ".join(partes)) if partes else str(len(ps))
+
+
+def reais(v) -> str:
+    """1234.5 → "R$ 1.234,50"."""
+    s = "%.2f" % float(v or 0)
+    inteiro, cent = s.split(".")
+    neg = inteiro.startswith("-")
+    inteiro = inteiro.lstrip("-")
+    grupos = []
+    while len(inteiro) > 3:
+        grupos.insert(0, inteiro[-3:])
+        inteiro = inteiro[:-3]
+    grupos.insert(0, inteiro)
+    return "R$ %s%s,%s" % ("-" if neg else "", ".".join(grupos), cent)
+
+
+def total_parcelas(ps: list[dict]) -> str:
+    return reais(round(sum(float(p.get("valor") or 0) for p in ps), 2))
+
+
+def linhas_parcelas(ps: list[dict]) -> list[str]:
+    """Uma linha por parcela; série "Nome 1/N".."N/N" vira uma linha "Nome Nx R$ v de d1 a dN"."""
     partes, i = [], 0
     while i < len(ps):
         m = _RE_SERIE.match(ps[i]["rotulo"])
@@ -297,7 +343,7 @@ def resumo_parcelas(ps: list[dict]) -> str:
                 continue
         partes.append("%s R$ %.2f em %s" % (ps[i]["rotulo"], ps[i]["valor"], ps[i]["data"]))
         i += 1
-    return "; ".join(partes)
+    return partes
 
 
 _RE_SERIE = re.compile(r"^(.*) (\d+)/(\d+)$")
