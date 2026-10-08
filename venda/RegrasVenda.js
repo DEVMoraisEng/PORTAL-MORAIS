@@ -67,7 +67,10 @@ var RegrasVenda = (function () {
     CONFRONTACOES: "CONTRATO - CONFRONTAÇÕES",
     ALVARA_NUMERO: "CONTRATO - ALVARÁ Nº",
     ALVARA_DATA: "CONTRATO - ALVARÁ DATA",
-    HABITESE_NUMERO: "CONTRATO - HABITE-SE Nº"
+    HABITESE_NUMERO: "CONTRATO - HABITE-SE Nº",
+    /* nos contratos de 2026 o registro do loteamento é de cada condominiozinho (2–3 casas): mora na casa */
+    LOTEAMENTO_MATRICULA: "CONTRATO - MATRÍCULA DO LOTEAMENTO",
+    LOTEAMENTO_CARTORIO: "CONTRATO - CARTÓRIO DO LOTEAMENTO"
   };
   var TIPOS_IMOVEL = {};
   Object.keys(COL_IMOVEL).forEach(function (k) { TIPOS_IMOVEL[COL_IMOVEL[k]] = "rich_text"; });
@@ -338,15 +341,14 @@ var RegrasVenda = (function () {
       var conf = limpar(leitura.confrontacoes);
       if (conf.length > 1900) obs("as confrontações passam do tamanho do campo — conferir o fim do texto");
       propor(CI.CONFRONTACOES, conf, "texto");
-      /* o loteamento é do setor (LOTEAMENTOS – CONTRATO), não da casa: só volta para a tela */
+      /* registro do loteamento (matrícula e cartório) é da casa; o nome oficial do loteamento é do setor: só volta para a tela */
       var lot = { denominacao: limpar(leitura.loteamento_denominacao), matricula: limpar(leitura.loteamento_matricula),
                   cartorio: limpar(leitura.loteamento_cartorio) };
-      if (lot.denominacao || lot.matricula || lot.cartorio) {
-        plano.loteamento = lot;
-        obs("dados do loteamento encontrados (preencher uma vez no cadastro do setor em LOTEAMENTOS – CONTRATO): " +
-          [lot.denominacao && "denominação " + lot.denominacao, lot.matricula && "matrícula " + lot.matricula,
-           lot.cartorio && "cartório " + lot.cartorio].filter(function (x) { return x; }).join("; "));
-      }
+      propor(CI.LOTEAMENTO_MATRICULA, lot.matricula, "texto");
+      propor(CI.LOTEAMENTO_CARTORIO, lot.cartorio, "texto");
+      if (lot.denominacao || lot.matricula || lot.cartorio) plano.loteamento = lot;
+      if (lot.denominacao)
+        obs("nome do loteamento na certidão: " + lot.denominacao + " (fica no cadastro do setor; conferir se é o mesmo)");
     } else if (esp.tipo === "alvara" || esp.tipo === "habitese") {
       var ehAlvara = esp.tipo === "alvara";
       propor(ehAlvara ? COL_IMOVEL.ALVARA_NUMERO : COL_IMOVEL.HABITESE_NUMERO, limpar(leitura.numero), "texto");
