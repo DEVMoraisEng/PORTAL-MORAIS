@@ -43,17 +43,21 @@ const MAE = { tipo_documento: "CERTIDAO_MAE", loteamento_denominacao: "RESIDENCI
               unidade_confrontacoes: "Frente 6 m para a Rua Teste; fundo 6 m com a casa 2", unidade_area_privativa_m2: "70,50", unidade_area_total_m2: "120,00" };
 
 /* IA falsa: responde pelo tipo do pedido (esquema) e, na identidade, pelo conteúdo do arquivo */
-function iaPorTipo(mapa, erros = {}) {
+function iaPorTipo(mapa, erros = {}, classes = {}) {
   const pedidos = [];
   const rota = (url, opt) => {
     const corpo = JSON.parse(opt.payload);
     const props = Object.keys(corpo.output_config.format.schema.properties);
-    const tipo = props.includes("matricula_mae") ? "certidao_mae" : props.includes("matricula_numero") ? "matricula"
+    const tipo = props.length === 3 && props.includes("cpf") ? "classificar" : props.includes("matricula_mae") ? "certidao_mae" : props.includes("matricula_numero") ? "matricula"
       : props.includes("endereco_completo") ? "comprovante" : props.includes("rg_numero") ? "identidade"
-      : props.includes("valor_fgts") ? "aprovacao" : "habitese";
+      : props.includes("valor_fgts") ? "aprovacao"
+      : corpo.output_config.format.schema.properties.tipo_documento.enum[0] === "ALVARA" ? "alvara" : "habitese";
     const blocos = corpo.messages[0].content;
     const arquivo = Buffer.from((blocos[0].source || {}).data || "", "base64").toString();
     pedidos.push({ tipo, arquivo, texto: blocos[blocos.length - 1].text });
+    if (tipo === "classificar")
+      return { json: { stop_reason: "end_turn", usage: { input_tokens: 900, output_tokens: 20 },
+                       content: [{ type: "text", text: JSON.stringify(classes[arquivo] || { tipo_documento: "OUTRO", nome: "", cpf: "" }) }] } };
     const chave = tipo === "identidade" ? arquivo : tipo;
     if (erros[chave]) return erros[chave];
     return { json: { stop_reason: "end_turn", usage: { input_tokens: 1000, output_tokens: 50 },
@@ -274,4 +278,81 @@ test("comprador 2 com o mesmo comprovante: copia endereço e arquivos do comprad
   assert.match(txt(n, "DOSSIÊ - OBSERVAÇÃO DO COMPRADOR"), /o mesmo do comprador 1/);
   assert.deepEqual(g.chamar({ action: "estado", token: tokenDe(), pageId: PAGE }).pendentes, [], "o comprovante 2 anexado antes deixa de ser novo");
   assert.equal(r.gravados["COMPRADOR 2 - ENDEREÇO"], COMPROVANTE.endereco_completo);
+});
+
+/* ---------------- soltar todos os documentos ---------------- */
+
+const soltar = (g, conteudo, nome = "arquivo.pdf") => g.chamar({ action: "soltarDocumento", token: tokenDe(), pageId: PAGE,
+  arquivo: { nome, mime: "application/pdf", base64: b64(conteudo) } });
+const CLASSES = {
+  rgAna: { tipo_documento: "IDENTIDADE", nome: "ANA TESTE", cpf: "52998224725" },
+  rgBruno: { tipo_documento: "IDENTIDADE", nome: "Bruno da Silva Teste", cpf: "" },
+  alvara: { tipo_documento: "ALVARA", nome: "", cpf: "" },
+  foto: { tipo_documento: "OUTRO", nome: "", cpf: "" },
+  frente: { tipo_documento: "IDENTIDADE", nome: "", cpf: "" },
+  luzAna: { tipo_documento: "COMPROVANTE", nome: "ANA TESTE", cpf: "" },
+  luzMae: { tipo_documento: "COMPROVANTE", nome: "MARIA PARENTE", cpf: "" },
+};
+
+test("decidirEspaco: imóvel vai direto; documento de pessoa só SUGERE o comprador (a tela confirma)", () => {
+  const venda = { [R.COL.CLIENTES]: "ANA TESTE E BRUNO SILVA TESTE", [R.COL.CPF1]: "529.982.247-25" };
+  assert.deepEqual(R.decidirEspaco(CLASSES.alvara, venda), { espaco: "IMOVEL_ALVARA", tipo: "ALVARA" });
+  assert.equal(R.decidirEspaco({ tipo_documento: "CERTIDAO_MAE" }, venda).espaco, "IMOVEL_CERTIDAO_MAE");
+  assert.equal(R.decidirEspaco({ tipo_documento: "APROVACAO" }, venda).espaco, "APROVACAO");
+  assert.equal(R.decidirEspaco(CLASSES.foto, venda).motivo, "NAO_RECONHECIDO");
+  const ana = R.decidirEspaco({ tipo_documento: "IDENTIDADE", nome: "OUTRO NOME", cpf: "52998224725" }, venda);
+  assert.deepEqual([ana.espaco, ana.pessoa, ana.sugestao], [null, true, "C1"], "CPF ganha do nome; nunca guarda sozinho");
+  assert.equal(R.decidirEspaco(CLASSES.rgBruno, venda).sugestao, "C2");
+  assert.equal(R.decidirEspaco(CLASSES.luzAna, venda).sugestao, "C1", "comprovante: o comprador do nome do titular");
+  assert.equal(R.decidirEspaco(CLASSES.luzMae, venda).sugestao, "", "titular que não é comprador: sem sugestão");
+  assert.equal(R.decidirEspaco(CLASSES.frente, venda).sugestao, "");
+  assert.equal(R.decidirEspaco(CLASSES.frente, { [R.COL.CLIENTES]: "ANA TESTE" }).sugestao, "C1", "frente sem nome, um comprador só");
+  assert.equal(R.decidirEspaco(CLASSES.rgAna, {}).sugestao, "", "venda sem nomes: sem sugestão");
+  assert.equal(R.espacoDaPessoa("C2", "COMPROVANTE"), "C2_COMPROVANTE");
+  assert.equal(R.espacoDaPessoa("NENHUM", "IDENTIDADE"), null);
+  assert.ok(R.mesmaPessoa("Bruno da Silva Teste", "BRUNO TESTE"));
+  assert.ok(!R.mesmaPessoa("BRUNO TESTE", "ANA TESTE"));
+});
+
+test("soltar todos: dois RGs, um alvará e um desconhecido — só o alvará é guardado; os RGs esperam a confirmação", () => {
+  const ia = iaPorTipo({ rgAna: CNH1, rgBruno: CNH2, alvara: { tipo_documento: "ALVARA", numero: "ALV-1", data: "15/03/2026" }, comprovante: COMPROVANTE }, {}, CLASSES);
+  const { g, n } = montar({ ia, valores: Object.assign({}, CASA, { "CLIENTES ": texto("ANA TESTE E BRUNO TESTE") }) });
+  const r1 = soltar(g, "rgAna", "rg-ana.pdf"), r2 = soltar(g, "rgBruno"), r3 = soltar(g, "alvara"), r4 = soltar(g, "foto");
+  assert.deepEqual([r1.espaco, r2.espaco, r3.espaco, r4.espaco], [null, null, "IMOVEL_ALVARA", null]);
+  assert.deepEqual([r1.sugestao, r2.sugestao], ["C1", "C2"]);
+  assert.deepEqual([r1.pessoa.nome, r2.pessoa.nome], ["ANA TESTE", "Bruno da Silva Teste"], "o nome lido volta para a tela perguntar");
+  assert.ok(r1.pessoa.chave && r1.pessoa.chave !== r2.pessoa.chave);
+  assert.doesNotMatch(JSON.stringify(r1), /52998224725/, "CPF não volta");
+  assert.equal(r4.motivo, "NAO_RECONHECIDO");
+  assert.equal(n.pagina.properties["COMPRADOR 1 - IDENTIDADE"].files.length, 0, "nada de pessoa guardado antes de confirmar");
+  assert.equal(n.pagina.properties["COMPRADOR 2 - IDENTIDADE"].files.length, 0);
+  assert.equal(n.pagina.properties["IMÓVEL - ALVARÁ"].files.length, 1);
+  assert.deepEqual(g.chamar({ action: "estado", token: tokenDe(), pageId: PAGE }).pendentes, ["IMOVEL_ALVARA"]);
+  /* "Confirmar compradores": a tela guarda cada arquivo no espaço escolhido (anexar) — aqui o dono trocou a ordem */
+  assert.equal(anexar(g, "C2_IDENTIDADE", "rgAna").ok, true);
+  assert.equal(anexar(g, "C1_IDENTIDADE", "rgBruno").ok, true);
+  assert.equal(anexar(g, "C1_COMPROVANTE", "foto").ok, true, "o desconhecido: 'isto é: comprovante do comprador 1'");
+  ia.pedidos.length = 0;
+  const r = g.chamar({ action: "lerDocumentos", token: tokenDe(), pageId: PAGE });
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.resultados.map((x) => x.espaco), ["C1_IDENTIDADE", "C2_IDENTIDADE", "C1_COMPROVANTE", "IMOVEL_ALVARA"]);
+  assert.equal(ia.pedidos.filter((p) => p.tipo === "classificar").length, 0, "a leitura do lote não classifica de novo");
+  assert.equal(txt(n, "COMPRADOR 2 - NOME"), "ANA TESTE", "vale a escolha da pessoa na tela");
+  assert.equal(txt(n, "CONTRATO - ALVARÁ Nº"), "ALV-1");
+  const logs = g.logs.join(" | ");
+  assert.doesNotMatch(logs, /ANA|BRUNO|Bruno|529982/);
+  assert.match(logs, /classificar anthropic tokens 900.20/);
+  assert.equal(g.ctx.PropertiesService.getScriptProperties().getProperty("venda_pend_" + PAGE), null, "nada sobra nas Propriedades");
+});
+
+test("soltar: TESTES não grava; certidão mãe sem a coluna não é guardada", () => {
+  const ia = iaPorTipo({}, {}, { mae: { tipo_documento: "CERTIDAO_MAE", nome: "", cpf: "" } });
+  const sem = Object.assign({}, COLUNAS); delete sem["IMÓVEL - CERTIDÃO MÃE"];
+  const { g, n } = montar({ ia, colunas: sem });
+  assert.equal(g.chamar({ action: "soltarDocumento", token: tokenDe("TESTES", []), pageId: PAGE,
+    arquivo: { nome: "a.pdf", mime: "application/pdf", base64: b64("mae") } }).erro, "SEM_PERMISSAO_TESTES");
+  const r = soltar(g, "mae");
+  assert.equal(r.espaco, null);
+  assert.equal(r.motivo, "SEM_COLUNA");
+  assert.equal(Object.keys(n.uploads).length, 0);
 });

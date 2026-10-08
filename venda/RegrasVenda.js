@@ -117,6 +117,52 @@ var RegrasVenda = (function () {
   function pendentesValidos(pend, arquivos) {
     return ordenarEspacos(Object.keys(pend || {})).filter(function (id) { return Number((arquivos || {})[id]) > 0; });
   }
+  /* ---- "soltar todos os documentos": de que espaço é cada arquivo (entrega 13) ---- */
+  var CLASSE_ESPACO = { APROVACAO: "APROVACAO", MATRICULA: "IMOVEL_MATRICULA", CERTIDAO_MAE: "IMOVEL_CERTIDAO_MAE",
+                        ALVARA: "IMOVEL_ALVARA", HABITESE: "IMOVEL_HABITESE" };
+  var PALAVRAS_FRACAS = ["DE", "DA", "DO", "DAS", "DOS", "E"];
+  function tokensNome(s) {
+    return chave(s).replace(/[^A-Z ]/g, " ").split(" ").filter(function (t) { return t.length > 1 && PALAVRAS_FRACAS.indexOf(t) < 0; });
+  }
+  /* mesmo primeiro nome e, se os dois têm sobrenome, ao menos um sobrenome em comum */
+  function mesmaPessoa(a, b) {
+    var x = tokensNome(a), y = tokensNome(b);
+    if (!x.length || !y.length || x[0] !== y[0]) return false;
+    var curto = x.length <= y.length ? x : y, longo = curto === x ? y : x;
+    if (curto.length === 1) return true;
+    return curto.slice(1).some(function (t) { return longo.indexOf(t, 1) >= 0; });
+  }
+  /* classificação da IA ({tipo_documento, nome, cpf}) + página → o que fazer com o arquivo:
+     - documento do imóvel ou aprovação da Caixa: { espaco, tipo } — vai direto para o espaço;
+     - identidade ou comprovante (documento de PESSOA): { espaco: null, tipo, pessoa: true, sugestao: "C1"|"C2"|"" } —
+       regra do dono: a tela SEMPRE pergunta quem é o comprador 1 e o 2; a sugestão (CPF, depois nome, contra
+       CPF / CLIENTES / COMPRADOR 2 - NOME) só vem pré-selecionada. Comprovante de quem não é nenhum dos dois
+       (parente): sem sugestão;
+     - outra coisa: { espaco: null, tipo: "OUTRO", motivo: "NAO_RECONHECIDO" } — a tela pergunta "isto é: …". */
+  function decidirEspaco(leitura, atuais) {
+    leitura = leitura || {}; atuais = atuais || {};
+    var tipo = chave(leitura.tipo_documento);
+    if (Object.prototype.hasOwnProperty.call(CLASSE_ESPACO, tipo)) return { espaco: CLASSE_ESPACO[tipo], tipo: tipo };
+    if (tipo !== "IDENTIDADE" && tipo !== "COMPROVANTE") return { espaco: null, tipo: "OUTRO", motivo: "NAO_RECONHECIDO" };
+    var cli = texto(atuais[COL.CLIENTES]).trim(), posE = cli.indexOf(" E ");
+    var n1 = posE >= 0 ? cli.slice(0, posE) : cli;
+    var n2 = texto(atuais[COL.C2_NOME]).trim() || (posE >= 0 ? cli.slice(posE + 3) : "");
+    var c1 = soDigitos(atuais[COL.CPF1]), c2 = soDigitos(atuais[COL.C2_CPF]), cpf = soDigitos(leitura.cpf);
+    var e1 = false, e2 = false;
+    if (cpf.length === 11) { e1 = cpf === c1; e2 = cpf === c2; }
+    if (!e1 && !e2 && !vazio(leitura.nome)) { e1 = mesmaPessoa(leitura.nome, n1); e2 = mesmaPessoa(leitura.nome, n2); }
+    var sugestao = e1 && !e2 ? "C1" : e2 && !e1 ? "C2" : "";
+    /* identidade sem nome nem CPF lidos (ex.: frente do RG só com a foto) numa venda de um comprador só */
+    if (!sugestao && tipo === "IDENTIDADE" && vazio(leitura.nome) && soDigitos(leitura.cpf).length !== 11 && !n2 && !c2 && posE < 0) sugestao = "C1";
+    return { espaco: null, tipo: tipo, pessoa: true, sugestao: sugestao, motivo: "CONFIRMAR_COMPRADOR" };
+  }
+  /* pessoa escolhida na tela ("C1" | "C2") + tipo do documento → espaço */
+  function espacoDaPessoa(quem, tipo) {
+    if (quem !== "C1" && quem !== "C2") return null;
+    var t = chave(tipo);
+    return t === "IDENTIDADE" ? quem + "_IDENTIDADE" : t === "COMPROVANTE" ? quem + "_COMPROVANTE" : null;
+  }
+
   /* identificação da casa para a IA achar ESTA unidade na certidão mãe (texto curto, numa linha) */
   function contextoUnidade(ctx) {
     ctx = ctx || {};
@@ -452,7 +498,7 @@ var RegrasVenda = (function () {
     COL_IMOVEL: COL_IMOVEL, TIPOS_IMOVEL: TIPOS_IMOVEL, ESPACOS_IMOVEL: ESPACOS_IMOVEL, espaco: espaco,
     COL_IMOVEL_OPC: COL_IMOVEL_OPC, TIPOS_IMOVEL_OPC: TIPOS_IMOVEL_OPC, ORDEM_LEITURA: ORDEM_LEITURA,
     ordenarEspacos: ordenarEspacos, marcarPendente: marcarPendente, pendentesValidos: pendentesValidos,
-    contextoUnidade: contextoUnidade,
+    contextoUnidade: contextoUnidade, mesmaPessoa: mesmaPessoa, tokensNome: tokensNome, decidirEspaco: decidirEspaco, espacoDaPessoa: espacoDaPessoa,
     estadoImovelAposLeitura: estadoImovelAposLeitura, dataValida: dataValida, areaM2: areaM2, isoParaBR: isoParaBR,
     chave: chave, soDigitos: soDigitos, cpfValido: cpfValido, mascararCpf: mascararCpf,
     formatarCpf: formatarCpf, contemNome: contemNome, dataDoc: dataDoc, diasEntre: diasEntre,

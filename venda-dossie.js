@@ -88,6 +88,7 @@
       return '<button type="button" data-acao="dois" data-valor="' + n + '" class="bt ghost bt-mini' +
         ((ui.dois ? "2" : "1") === n ? " on" : "") + '">' + n + "</button>";
     }).join(" ") + "</div>";
+    h += htmlSoltar(e, ui);
     h += htmlLerTodos(e, ui, "topo");
     DOCS.forEach(function (d) {
       if (d.comprador === 2 && !ui.dois) return;
@@ -161,6 +162,125 @@
         return '<li class="' + (x.ok ? "dz-ok" : "dz-erro") + '">' + esc(x.texto) + "</li>";
       }).join("") + "</ul>";
     return h;
+  }
+  /* ---- entrega 13: "Soltar todos os documentos" ----
+   * s = { arquivos: [{ id, nome, estado, tipo, espaco, pessoa: {nome, chave}, sugestao, escolha, resultado }], pessoas: { chave: escolha } }
+   * estado: "classificando" | "guardado" (imóvel/aprovação, foi direto) | "pessoa" (espera Confirmar compradores)
+   *         | "desconhecido" (espera "isto é: …") | "erro" | "ignorado" | "anexado"
+   * Documento de pessoa nunca é guardado sem a confirmação (regra do dono). */
+  var TIPO_ROTULO = { IDENTIDADE: "identidade", COMPROVANTE: "comprovante de endereço", APROVACAO: "aprovação da Caixa",
+                      MATRICULA: "matrícula", CERTIDAO_MAE: "certidão mãe", ALVARA: "alvará", HABITESE: "habite-se", OUTRO: "não reconhecido" };
+  function chavePessoa(a) { return (a.pessoa && a.pessoa.chave) || "arq:" + a.id; }
+  function pessoasDoEnvio(s) {
+    var lista = [], vistas = {};
+    ((s && s.arquivos) || []).forEach(function (a) {
+      if (a.estado !== "pessoa") return;
+      var k = chavePessoa(a);
+      if (!vistas[k]) {
+        vistas[k] = { chave: k, nome: (a.pessoa && a.pessoa.nome) || "", tipos: [], arquivos: [], sugestao: a.sugestao || "" };
+        lista.push(vistas[k]);
+      }
+      var p = vistas[k];
+      if (p.tipos.indexOf(a.tipo) < 0) p.tipos.push(a.tipo);
+      p.arquivos.push(a.nome);
+      if (!p.sugestao && a.sugestao) p.sugestao = a.sugestao;
+    });
+    lista.forEach(function (p) {
+      var esc = s.pessoas && s.pessoas[p.chave];
+      p.escolha = esc !== undefined ? esc : p.sugestao;
+    });
+    return lista;
+  }
+  function espacoDaPessoa(quem, tipo) {
+    if (quem !== "C1" && quem !== "C2") return null;
+    return tipo === "IDENTIDADE" ? quem + "_IDENTIDADE" : tipo === "COMPROVANTE" ? quem + "_COMPROVANTE" : null;
+  }
+  /* o que falta escolher (ou está contraditório) antes de Confirmar compradores; "" = pode confirmar */
+  function conferirEscolhas(s) {
+    var pessoas = pessoasDoEnvio(s), uso = {};
+    for (var i = 0; i < pessoas.length; i++) {
+      var p = pessoas[i];
+      if (!p.escolha) return "Escolha quem é " + (p.nome || "a pessoa do arquivo " + p.arquivos[0]) + ".";
+      if (p.escolha !== "NAO" && p.tipos.indexOf("IDENTIDADE") >= 0 && p.nome) {
+        if (uso[p.escolha] && uso[p.escolha] !== p.chave)
+          return "Duas pessoas como " + (p.escolha === "C1" ? "Comprador 1" : "Comprador 2") + " — confira.";
+        uso[p.escolha] = p.chave;
+      }
+    }
+    var semDestino = ((s && s.arquivos) || []).filter(function (a) { return a.estado === "desconhecido" && !a.escolha; });
+    if (semDestino.length) return "Diga o que é o arquivo " + semDestino[0].nome + " (ou Ignorar).";
+    return "";
+  }
+  /* depois de confirmar: [{ id, espaco }] dos arquivos a guardar (pessoa → espaço do comprador; desconhecido → o escolhido) */
+  function destinosDoEnvio(s) {
+    var escolhaDe = {};
+    pessoasDoEnvio(s).forEach(function (p) { escolhaDe[p.chave] = p.escolha; });
+    var r = [];
+    ((s && s.arquivos) || []).forEach(function (a) {
+      var esp = a.estado === "pessoa" ? espacoDaPessoa(escolhaDe[chavePessoa(a)], a.tipo)
+        : a.estado === "desconhecido" && a.escolha && a.escolha !== "IGNORAR" ? a.escolha : null;
+      if (esp) r.push({ id: a.id, espaco: esp });
+    });
+    return r;
+  }
+  function opcoesEspacos(e) {
+    var im = e && e.imovel, sem = (im && Array.isArray(im.semColunas)) ? im.semColunas : [];
+    var lista = DOCS.map(function (d) { return [d.id, d.rotulo]; });
+    if (im && !im.erro) DOCS_IMOVEL.forEach(function (d) { if (!(d.coluna && sem.indexOf(d.coluna) >= 0)) lista.push([d.id, d.rotulo]); });
+    return lista;
+  }
+  function htmlSoltar(e, ui) {
+    var travado = !e.tipoCasa, ocupado = !!ui.ocupado, testes = !!ui.testes, s = ui.soltar;
+    var dis = (travado || ocupado || testes) ? " disabled" : "";
+    var h = '<div class="dz-soltar' + (dis ? " dz-off" : "") + '" data-soltar>' +
+      "<b>Soltar todos os documentos aqui</b> <small>(arraste os arquivos da casa de uma vez: RG/CNH, comprovantes, aprovação da Caixa, matrícula, certidão mãe, alvará, habite-se — o sistema identifica cada um)</small> " +
+      '<button type="button" class="bt bt-mini" data-acao="soltar-escolher"' + dis + ">Escolher vários arquivos</button></div>";
+    if (!s || !s.arquivos || !s.arquivos.length) return h;
+    h += '<ul class="dz-res dz-soltos">' + s.arquivos.map(function (a) {
+      var t = a.estado === "classificando" ? "identificando…" : a.estado === "erro" ? "não consegui identificar (" + (a.erro || "erro") + ")"
+        : (TIPO_ROTULO[a.tipo] || a.tipo || "") +
+          (a.estado === "pessoa" ? " de " + ((a.pessoa && a.pessoa.nome) || "nome não lido") + " — confirme o comprador abaixo"
+           : a.estado === "desconhecido" ? " — diga o que é abaixo" : a.estado === "ignorado" ? " — ignorado"
+           : a.espaco ? " → guardado em " + (ROTULOS[a.espaco] || a.espaco) : "");
+      return '<li class="' + (a.estado === "erro" ? "dz-erro" : "") + '">' + esc(a.nome) + " → " + esc(t) +
+        (a.resultado ? " → " + esc(a.resultado) : "") + "</li>";
+    }).join("") + "</ul>";
+    var pessoas = pessoasDoEnvio(s), desconhecidos = s.arquivos.filter(function (a) { return a.estado === "desconhecido"; });
+    if (pessoas.length || desconhecidos.length) {
+      var d2 = (ocupado || testes) ? " disabled" : "";
+      if (pessoas.length) {
+        h += '<div class="dz-aviso">Encontrei documentos de: ' + esc(pessoas.map(function (p) { return p.nome || "(sem nome legível)"; }).join(", ")) +
+          ". Diga quem é o Comprador 1 e o Comprador 2 — nada de pessoa é gravado antes de confirmar.</div>";
+        pessoas.forEach(function (p) {
+          h += '<div class="dz-linha"><span class="dz-rot">' + esc(p.nome || "Sem nome legível (" + p.arquivos.join(", ") + ")") +
+            " <small>(" + esc(p.tipos.map(function (t) { return TIPO_ROTULO[t] || t; }).join(", ")) + ")</small></span>" +
+            '<select data-pessoa="' + esc(p.chave) + '"' + d2 + ">" +
+            [["", "— escolha —"], ["C1", "Comprador 1"], ["C2", "Comprador 2"], ["NAO", "Não é comprador (ignorar)"]].map(function (o) {
+              return '<option value="' + o[0] + '"' + (p.escolha === o[0] ? " selected" : "") + ">" + esc(o[1]) + "</option>";
+            }).join("") + "</select></div>";
+        });
+      }
+      desconhecidos.forEach(function (a) {
+        h += '<div class="dz-linha"><span class="dz-rot">' + esc(a.nome) + " <small>isto é:</small></span>" +
+          '<select data-arquivo="' + esc(a.id) + '"' + d2 + '><option value="">— escolha —</option>' +
+          opcoesEspacos(e).map(function (o) { return '<option value="' + esc(o[0]) + '"' + (a.escolha === o[0] ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") +
+          '<option value="IGNORAR"' + (a.escolha === "IGNORAR" ? " selected" : "") + ">Ignorar este arquivo</option></select></div>";
+      });
+      var falta = conferirEscolhas(s);
+      h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="soltar-confirmar"' + ((ocupado || testes || falta) ? " disabled" : "") +
+        ">Confirmar compradores e ler</button> " + (falta ? "<small>" + esc(falta) + "</small>" : "") + "</div>";
+    }
+    return h;
+  }
+  /* resultado do lerDocumentos → texto por espaço (para a lista por arquivo) */
+  function resultadoPorEspaco(r) {
+    var m = {};
+    ((r && r.resultados) || []).forEach(function (x) {
+      var n = (x.preenchidos || []).length;
+      m[x.espaco] = x.ok ? (n ? n + (n === 1 ? " campo preenchido" : " campos preenchidos") : "lido, nenhum campo novo")
+                         : "não lido (" + (MSG[x.erro] || x.erro) + ")";
+    });
+    return m;
   }
   function resumoLote(r) {
     var res = (r && r.resultados) || [], ok = res.filter(function (x) { return x.ok; }).length;
@@ -508,6 +628,8 @@
                    grupoDoEspaco: grupoDoEspaco,
                    linhaDoc: linhaDoc, htmlLerTodos: htmlLerTodos, resultadosLote: resultadosLote, resumoLote: resumoLote,
                    detalheGravado: detalheGravado, EVENTO_GRAVADO: EVENTO_GRAVADO,
+                   htmlSoltar: htmlSoltar, pessoasDoEnvio: pessoasDoEnvio, conferirEscolhas: conferirEscolhas,
+                   destinosDoEnvio: destinosDoEnvio, resultadoPorEspaco: resultadoPorEspaco,
                    resumo: resumo, escala: escala, tipoAceito: tipoAceito, painelCarregando: painelCarregando,
                    htmlContrato: htmlContrato, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, mensagemMC: mensagemMC,
                    topicosMC: topicosMC, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas,
@@ -530,6 +652,8 @@
     /* entrega 13: espaço anexado e ainda não lido; resultado da leitura em lote */
     "#dossie-wrap .dz-novo{color:#B45309;font-weight:700}#dossie-wrap .dz-lote{margin-top:10px}" +
     "#dossie-wrap .dz-res li.dz-erro{color:#C0392B}" +
+    "#dossie-wrap .dz-soltar{margin:8px 22px;padding:14px;border:2px dashed var(--border,#b8c4cb);border-radius:10px;text-align:center}" +
+    "#dossie-wrap .dz-soltar.dz-off{opacity:.6}#dossie-wrap select{max-width:100%}" +
     /* entrega 12: formulário dos cadastros e conta de recebimento */
     ".vb-blocos input[type=text],.vb-blocos input[type=email],.vb-blocos input[type=number],.vb-blocos select{padding:6px 8px;" +
     "border:1px solid var(--border,#d6dee3);border-radius:6px;font:inherit;max-width:100%;box-sizing:border-box}" +
@@ -667,6 +791,12 @@
       r = await chamarVenda({ action: "tipoCasa", pageId: pageId, valor: b.getAttribute("data-valor") });
       return depoisDeGravar(pageId, r, "Tipo de casa gravado.");
     }
+    if (acao === "soltar-escolher") {
+      var lista = await escolherArquivo(true);
+      if (lista && lista.length && mesmaCasa(pageId)) return soltarArquivos(pageId, lista);
+      return;
+    }
+    if (acao === "soltar-confirmar") return confirmarSoltos(pageId);
     if (acao === "anexar" || acao === "trocar") return anexarNoEspaco(pageId, b.getAttribute("data-espaco"), acao === "trocar");
     if (acao === "reler") {
       var espaco = b.getAttribute("data-espaco"), grupoEsp = grupoDoEspaco(espaco);
@@ -707,6 +837,93 @@
       r = await chamarVenda({ action: "devolver", pageId: pageId, motivo: motivo, grupo: grupo });
       return depoisDeGravar(pageId, r, nomeDossie + " devolvido.", false, grupo);
     }
+  }
+  /* ---- "Soltar todos os documentos": identifica cada arquivo (3 de cada vez), guarda o que é do imóvel,
+   * pergunta quem é quem para os documentos de pessoa e, confirmado, guarda e lê tudo numa leitura só ---- */
+  var seqSolto = 0, prontosSoltos = {};   // base64 dos arquivos que esperam confirmação (só na memória da tela)
+  async function soltarArquivos(pageId, files) {
+    if (!files || !files.length || ui.ocupado || ui.testes || !estado || !estado.tipoCasa) return;
+    ui.soltar = { arquivos: [], pessoas: {} }; prontosSoltos = {};
+    ui.ocupado = "soltar"; ui.msg = ""; ui.msgGrupo = "comprador"; ui.resultados = null;
+    var lista = Array.prototype.slice.call(files).map(function (f) {
+      var a = { id: "s" + (++seqSolto), nome: f.name, estado: "classificando" };
+      ui.soltar.arquivos.push(a);
+      return { a: a, f: f };
+    });
+    pintar();
+    var fila = lista.slice();
+    async function trabalhar() {
+      while (fila.length) {
+        var x = fila.shift(), a = x.a;
+        var arq = await prepararArquivo(x.f);
+        if (arq.erro) { a.estado = "erro"; a.erro = mensagemDeErro(arq.erro); }
+        else {
+          var r = await chamarVenda({ action: "soltarDocumento", pageId: pageId, arquivo: arq }, 120000);
+          if (!r.ok) { a.estado = "erro"; a.erro = mensagemDeErro(r.erro); }
+          else {
+            a.tipo = r.tipo; a.espaco = r.espaco || null;
+            if (r.guardado) a.estado = "guardado";
+            else if (r.pessoa) { a.estado = "pessoa"; a.pessoa = r.pessoa; a.sugestao = r.sugestao || ""; prontosSoltos[a.id] = arq; }
+            else { a.estado = "desconhecido"; prontosSoltos[a.id] = arq; }
+          }
+        }
+        if (mesmaCasa(pageId)) pintar();
+      }
+    }
+    await Promise.all([trabalhar(), trabalhar(), trabalhar()]);
+    if (!mesmaCasa(pageId)) return;
+    var guardou = ui.soltar.arquivos.some(function (a) { return a.estado === "guardado"; });
+    if (guardou) avisarGravado(pageId, { ok: true });
+    var espera = ui.soltar.arquivos.some(function (a) { return a.estado === "pessoa" || a.estado === "desconhecido"; });
+    ui.ocupado = null;
+    if (espera) {
+      ui.msg = "Confira abaixo quem é cada comprador" + (guardou ? " (os documentos do imóvel já foram guardados)" : "") + " e clique em Confirmar compradores e ler.";
+      await carregarEstado(pageId);
+      return;
+    }
+    if (guardou) return lerDoEnvio(pageId);
+    ui.msg = "Nenhum arquivo foi guardado."; pintar();
+  }
+  async function confirmarSoltos(pageId) {
+    var s = ui.soltar;
+    if (!s || conferirEscolhas(s)) return;
+    ui.ocupado = "soltar"; ui.msg = ""; pintar();
+    var destinos = destinosDoEnvio(s), porId = {};
+    s.arquivos.forEach(function (a) { porId[a.id] = a; });
+    pessoasDoEnvio(s).forEach(function (p) {
+      if (p.escolha === "NAO") s.arquivos.forEach(function (a) { if (a.estado === "pessoa" && chavePessoa(a) === p.chave) a.estado = "ignorado"; });
+      if (p.escolha === "C2") ui.dois = true;
+    });
+    s.arquivos.forEach(function (a) { if (a.estado === "desconhecido" && a.escolha === "IGNORAR") a.estado = "ignorado"; });
+    for (var i = 0; i < destinos.length; i++) {
+      var a = porId[destinos[i].id];
+      var r = await chamarVenda({ action: "anexarDocumento", pageId: pageId, espaco: destinos[i].espaco, arquivo: prontosSoltos[a.id] }, 120000);
+      if (r.ok) { a.estado = "guardado"; a.espaco = destinos[i].espaco; delete prontosSoltos[a.id]; }
+      else { a.estado = "erro"; a.erro = mensagemDeErro(r.erro); }
+      if (mesmaCasa(pageId)) pintar();
+    }
+    if (!mesmaCasa(pageId)) return;
+    ui.ocupado = null;
+    return lerDoEnvio(pageId);
+  }
+  /* lê os espaços novos (o mesmo "Ler documentos") e escreve o resultado em cada arquivo do envio */
+  async function lerDoEnvio(pageId) {
+    ui.ocupado = "lote"; pintar();
+    var r = await chamarVenda({ action: "lerDocumentos", pageId: pageId }, 330000);
+    if (mesmaCasa(pageId) && ui.soltar) {
+      var por = resultadoPorEspaco(r);
+      ui.soltar.arquivos.forEach(function (a) { if (a.estado === "guardado" && a.espaco && por[a.espaco]) a.resultado = por[a.espaco]; });
+      if (r.loteamento) ui.loteamento = r.loteamento;
+    }
+    return depoisDeGravar(pageId, r, r.ok ? resumoLote(r) : "", false, "comprador");
+  }
+  function aoEscolherSolto(ev) {
+    var t = ev.target, s = ui.soltar;
+    if (!s || !t || !t.getAttribute) return;
+    if (t.hasAttribute("data-pessoa")) s.pessoas[t.getAttribute("data-pessoa")] = t.value;
+    else if (t.hasAttribute("data-arquivo")) s.arquivos.forEach(function (a) { if (a.id === t.getAttribute("data-arquivo")) a.escolha = t.value; });
+    else return;
+    pintar();
   }
   /* Anexar (soma) ou Trocar (o 1º arquivo substitui os do espaço, os outros somam): só guarda, não lê */
   async function anexarNoEspaco(pageId, espaco, trocar) {
@@ -1085,6 +1302,18 @@
       if (paginaDoBloco !== id) { paginaDoBloco = id; estado = null; ui = { dois: false, ocupado: null, msg: "", testes: perfilTestes() }; }
       var w = document.createElement("div"); w.id = "dossie-wrap";
       w.addEventListener("click", aoClicar);
+      /* entrega 13: soltar vários arquivos na área "Soltar todos os documentos aqui" */
+      w.addEventListener("change", aoEscolherSolto);
+      w.addEventListener("dragover", function (ev) {
+        if (ev.target.closest && ev.target.closest("[data-soltar]")) { ev.preventDefault(); ev.dataTransfer.dropEffect = "copy"; }
+      });
+      w.addEventListener("drop", function (ev) {
+        var zona = ev.target.closest && ev.target.closest("[data-soltar]");
+        if (!zona) return;
+        ev.preventDefault();
+        var id = obraAberta();
+        if (id && ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files.length) soltarArquivos(id, ev.dataTransfer.files);
+      });
       body.insertBefore(w, body.firstChild);
       pintar();
       if (!estado) carregarEstado(id);

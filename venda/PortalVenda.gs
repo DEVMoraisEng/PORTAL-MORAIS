@@ -34,7 +34,7 @@ function tratar_(p) {
     var sess = verificarToken_(p.token);
     if (!sess) return { ok: false, erro: "NAO_AUTORIZADO" };
     if (!temAcessoVendas_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
-    var grava = ["tipoCasa", "lerDocumento", "anexarDocumento", "lerDocumentos", "copiarComprovante", "conferir", "devolver", "gerarContrato", "gerarPreContrato", "aprovarPreContrato", "escolherTestemunhas",
+    var grava = ["tipoCasa", "lerDocumento", "anexarDocumento", "soltarDocumento", "lerDocumentos", "copiarComprovante", "conferir", "devolver", "gerarContrato", "gerarPreContrato", "aprovarPreContrato", "escolherTestemunhas",
                  "salvarCamposContrato", "escolherContaRecebimento", "mcLancar", "assinaturaEnviar", "assinaturaEstado",
                  "gerarVendaCondominio", "assinaturaReenviar"].indexOf(p.action) >= 0;
     if (grava && String(sess.t || "").toUpperCase() === "TESTES") return { ok: false, erro: "SEM_PERMISSAO_TESTES" };
@@ -45,6 +45,7 @@ function tratar_(p) {
       case "tipoCasa":     return tipoCasa_(col, p);
       case "lerDocumento": return lerDocumento_(col, sess, p);
       case "anexarDocumento": return anexarDocumento_(col, p);
+      case "soltarDocumento": return soltarDocumento_(col, p);
       case "lerDocumentos": return lerDocumentos_(col, sess, p);
       case "copiarComprovante": return copiarComprovante_(col, sess, p);
       case "conferir":     return mudarDossie_(col, sess, p, RegrasVenda.ESTADOS.CONFERIDO, "Conferido");
@@ -553,4 +554,55 @@ function copiarComprovante_(col, sess, p) {
   mudarPendentes_(p.pageId, function (x) { delete x.C2_COMPROVANTE; });
   var gravados = {}; gravados[C.C2_END] = g[C.C2_END];
   return { ok: true, pageId: p.pageId, dossie: est.estado, faltam: est.faltam, preenchidos: [C.C2_END], gravados: gravados };
+}
+
+/* "Soltar todos os documentos" (entrega 13): um arquivo por chamada (a tela manda vários em paralelo).
+ * 1) a IA só CLASSIFICA o arquivo (que documento é e, se de pessoa, nome/CPF) — pedido curto, saída mínima;
+ * 2) RegrasVenda.decidirEspaco: documento do imóvel / aprovação da Caixa → guarda no espaço e marca como novo;
+ *    identidade / comprovante (de PESSOA) → NÃO guarda: devolve o nome lido e a sugestão de comprador; a tela
+ *    pergunta "quem é o comprador 1 e o 2" e só depois de "Confirmar compradores" guarda (anexarDocumento);
+ *    não reconhecido → não guarda; a tela pergunta "isto é: …".
+ * A leitura de verdade é a do "Ler documentos" (instruções de cada espaço, arquivos do espaço juntos).
+ * O nome lido volta só para a tela de quem enviou; nada de nome/CPF em log nem nas Propriedades.
+ * pessoa.chave: hash curto do nome (ou do CPF, sem nome) para a tela juntar os arquivos da mesma pessoa. */
+function hashCurto_(pageId, s) {
+  return Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,
+    String(pageId) + "|" + s, Utilities.Charset.UTF_8)).slice(0, 16);
+}
+function soltarDocumento_(col, p) {
+  var R = RegrasVenda;
+  var chk = R.conferirArquivo(p.arquivo);
+  if (!chk.ok) return { ok: false, erro: chk.erro };
+  var a = lerPagina_(col, p.pageId);   // só página da VENDAS deste ambiente
+  var ia = leitorIA_();
+  if (ia.erro) return { ok: false, erro: ia.erro };
+  var pedido = ia.leitor.montarPedido("classificar", [p.arquivo], ia.chave, ia.modelo, "");
+  if (pedido.erro) return { ok: false, erro: pedido.erro };
+  var res;
+  try {
+    var r = UrlFetchApp.fetch(pedido.url, { method: "post", contentType: "application/json", muteHttpExceptions: true,
+                                           headers: pedido.headers, payload: JSON.stringify(pedido.corpo) });
+    res = ia.leitor.interpretarResposta(r.getResponseCode(), r.getContentText());
+  } catch (e) { res = { ok: false, erro: "LEITURA_FALHOU" }; }
+  if (!res.ok) return { ok: false, erro: res.erro };
+  console.log("PORTAL-VENDA classificar " + ia.nome + " tokens " + res.uso.entrada + "/" + res.uso.saida);
+
+  var d = R.decidirEspaco(res.leitura, a);
+  if (d.pessoa) {
+    var nome = String(res.leitura.nome || "").replace(/\s+/g, " ").trim().slice(0, 120);
+    var toks = R.tokensNome(nome), cpf = R.soDigitos(res.leitura.cpf);
+    var base = toks.length ? "nome:" + toks.join(" ") : cpf.length === 11 ? "cpf:" + cpf : "";
+    return { ok: true, pageId: p.pageId, espaco: null, tipo: d.tipo, motivo: d.motivo, sugestao: d.sugestao,
+             pessoa: { nome: nome, chave: base ? hashCurto_(p.pageId, base) : "" } };
+  }
+  var esp = d.espaco ? R.espaco(d.espaco) : null;
+  if (esp && ((esp.grupo === "imovel" && col.imovelErro) || !col.mapa[esp.coluna])) { esp = null; d = { espaco: null, tipo: d.tipo, motivo: "SEM_COLUNA" }; }
+  if (!esp) return { ok: true, pageId: p.pageId, espaco: null, tipo: d.tipo, motivo: d.motivo };
+  try { anexarArquivo_(p.pageId, col.mapa[esp.coluna], p.arquivo, false); }
+  catch (e) {
+    console.error("PORTAL-VENDA upload falhou: " + String(e.message || e).slice(0, 120));
+    return { ok: false, erro: "UPLOAD_FALHOU" };
+  }
+  mudarPendentes_(p.pageId, function (x) { R.marcarPendente(x, d.espaco, false); });
+  return { ok: true, pageId: p.pageId, espaco: d.espaco, tipo: d.tipo, guardado: true };
 }
