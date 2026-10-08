@@ -705,7 +705,10 @@
   async function carregarEstado(pageId) {
     var r = await chamarVenda({ action: "estado", pageId: pageId });
     if (!mesmaCasa(pageId)) return;
-    if (r.ok) { estado = r; if (r.doisCompradores) ui.dois = true; }
+    if (r.ok) {
+      estado = r; if (r.doisCompradores) ui.dois = true;
+      if (r.tipoCasaPelaObra) avisarGravado(pageId, { ok: true, gravados: { "TIPO DE CASA": r.tipoCasa } });   // gravado pela obra ao abrir
+    }
     else ui.msg = mensagemDeErro(r.erro);
     pintar();
   }

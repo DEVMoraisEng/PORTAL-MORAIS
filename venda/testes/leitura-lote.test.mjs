@@ -124,6 +124,8 @@ test("com certidão mãe anexada, a matrícula não troca as confrontações já
 
 test("leitores: esquema da certidão mãe igual nos dois provedores e o contexto da unidade vai no pedido", () => {
   assert.deepEqual(OA.ESQUEMAS.certidao_mae, CL.ESQUEMAS.certidao_mae);
+  assert.deepEqual(OA.ESQUEMAS.classificar, CL.ESQUEMAS.classificar);
+  assert.deepEqual(Object.keys(CL.ESQUEMAS.classificar.properties), ["tipo_documento", "nome", "cpf"]);
   const arq = [{ mime: "application/pdf", base64: b64("x") }];
   const o = OA.montarPedido("certidao_mae", arq, "k", "", "A casa desta venda: casa 'Casa 1'.");
   assert.match(JSON.stringify(o.corpo.input), /Casa 1/);
