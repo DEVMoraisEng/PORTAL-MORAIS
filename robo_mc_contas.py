@@ -120,7 +120,8 @@ def pega(pr, nome):
 # T1 — núcleo puro (sem rede)
 # ============================================================================
 
-_PADRAO_DIGITOS_NOME = re.compile(r"\d{3,}-?\d")
+# "55.694-7" (milhar com ponto) vem inteiro; antes pegava só "694-7". O ponto sai na hora de gravar.
+_PADRAO_DIGITOS_NOME = re.compile(r"\d{1,3}(?:\.\d{3})+-\d|\d{3,}-?\d")
 
 
 def _com_digito(valor, digito):
@@ -145,7 +146,7 @@ def conta_do_erp(item):
     if not numero:
         m = _PADRAO_DIGITOS_NOME.search(nome)
         if m:
-            numero = m.group(0)
+            numero = m.group(0).replace(".", "")
     return {
         "id": str(item.get("id") or ""),
         "nome": nome,
