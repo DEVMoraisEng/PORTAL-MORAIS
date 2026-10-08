@@ -1,0 +1,44 @@
+name: Contas bancárias no Mais Controle (banco, agência, conta)
+
+# sondar e previa só LEEM. aplicar grava banco/agência/conta das contas listadas no segredo
+# CONTAS_ERP_JSON (nunca no código: repositório público) e exige digitar APLICAR na confirmação.
+on:
+  workflow_dispatch:
+    inputs:
+      modo:
+        description: "sondar | previa | aplicar"
+        required: true
+        default: "sondar"
+      confirmar:
+        description: "para aplicar, digite APLICAR"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  contas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Contas
+        env:
+          MC_ROBO_EMAIL: ${{ secrets.MC_ROBO_EMAIL || secrets.MC_ROBO_USUARIO }}
+          MC_ROBO_SENHA: ${{ secrets.MC_ROBO_SENHA }}
+          MC_ROBO_APARELHO: ${{ secrets.MC_ROBO_APARELHO }}
+          CONTAS_ERP_JSON: ${{ secrets.CONTAS_ERP_JSON }}
+          MODO: ${{ inputs.modo }}
+          CONFIRMAR: ${{ inputs.confirmar }}
+        shell: bash
+        run: |
+          pip install -q requests
+          case "$MODO" in
+            sondar|previa) python -m venda.mc.contas_erp "$MODO" ;;
+            aplicar) if [ "$CONFIRMAR" = "APLICAR" ]; then python -m venda.mc.contas_erp aplicar; else echo "faltou digitar APLICAR"; exit 1; fi ;;
+            *) echo "modo inválido"; exit 1 ;;
+          esac
