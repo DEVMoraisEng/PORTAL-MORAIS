@@ -644,7 +644,10 @@ mostra "A base não tem a coluna … — avise o desenvolvedor".
 | `DOSSIÊ IMÓVEL` | Seleção (select) com `FALTA DOCUMENTO`, `LIDO PELA IA – CONFERIR`, `CONFERIDO`, `DEVOLVIDO` (o travessão é o mesmo do DOSSIÊ) |
 | `DOSSIÊ IMÓVEL - OBSERVAÇÃO` | Texto (rich_text) |
 
-As sete `CONTRATO - *` do imóvel (entrega 2) já existem e não mudam. Nenhuma
+As sete `CONTRATO - *` do imóvel são as da entrega 2 (mesmos nomes e tipos;
+`CONTRATO - ÁREA DO LOTE (M²)` número, `CONTRATO - ALVARÁ DATA` data, as outras
+texto) — na produção elas já estão na lista de colunas a criar do contrato
+(`ferramentas/contrato/previa-producao.json`, junto com as 5 novas). Nenhuma
 Propriedade nova no Apps Script.
 
 Implantar:
