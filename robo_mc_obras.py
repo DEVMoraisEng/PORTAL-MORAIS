@@ -107,6 +107,17 @@ def id_relacionado(p):
     return ids[0] if ids else ""
 
 
+# 08/10/26 — "PESSOA FISICA" no Notion = a conta do MC com esse nome (antes
+# ficava em branco de propósito).
+CONTA_PESSOA_FISICA = "PESSOA FISICA - APENAS LANÇAMENTO"
+
+
+def nome_conta_texto(valor):
+    """Função PURA: texto da coluna CONTA como nome de conta do MC."""
+    valor = str(valor or "").strip()
+    return CONTA_PESSOA_FISICA if N(valor) == "PESSOA FISICA" else valor
+
+
 def resolver_conta(prop_relacao, mapa_contas):
     """Função PURA: a partir da propriedade CONTA BANCÁRIA da obra e do mapa
     id->{"nome","numero"} do banco de contas, devolve
@@ -122,8 +133,8 @@ def resolver_conta(prop_relacao, mapa_contas):
     if (prop_relacao or {}).get("type") != "relation":
         # 23/09/26 — coluna CONTA como SELEÇÃO: o valor É o nome da opção,
         # que o robô de contas mantém igual ao nome da conta no ERP.
-        valor = str(txt(prop_relacao) or "").strip()
-        if not valor or N(valor) == "PESSOA FISICA":
+        valor = nome_conta_texto(txt(prop_relacao))
+        if not valor:
             return "", "", False
         if N(valor) in CONTA_PENDENTE:
             return "", "", True           # CRIAR CONTA / DÚVIDA: não escolhe nenhuma
@@ -201,7 +212,7 @@ def fila_de_obras(mapa_contas=None):
             "cliente": txt(pega(pr, "Proprietário")),
             "cidade": txt(pega(pr, "Cidade")).split(",")[0].strip(),
             "setor": txt(pega(pr, "SETOR")),
-            "conta": txt(pega(pr, "CONTA")),
+            "conta": nome_conta_texto(txt(pega(pr, "CONTA"))),
             "conta_exata": conta_exata,
             "conta_numero": conta_numero,
             "conta_nao_resolvida": nao_resolvida,
@@ -341,18 +352,30 @@ def escolher_na_lista(page, campo_sel, texto_busca, alvo=None, exato=False, pref
     n = opcoes.count()
     if not n:
         raise RuntimeError("a lista não abriu")
-    textos = [(opcoes.nth(i).inner_text() or "").strip() for i in range(min(n, 40))]
-    escolha = None
     alvo = alvo or texto_busca or ""
-    if criterio:
-        escolha = criterio(textos)
-    elif prefixo:
-        escolha = escolha_por_prefixo(textos, alvo, numero)
-    else:
+
+    def decidir(textos):
+        if criterio:
+            return criterio(textos)
+        if prefixo:
+            return escolha_por_prefixo(textos, alvo, numero)
         for i, t in enumerate(textos):
             if N(t) == N(alvo):
-                escolha = i
-                break
+                return i
+        return None
+
+    textos = [(opcoes.nth(i).inner_text() or "").strip() for i in range(n)]
+    escolha = decidir(textos)
+    if escolha is None:
+        # 08/10/26: alguns combos (conta bancária) NÃO filtram pelo texto e só
+        # carregam 30 opções por vez — o resto vem rolando a lista. Sem isso,
+        # conta depois da letra M ("PESSOA FISICA - APENAS LANÇAMENTO",
+        # "TERRA BELA ...") nunca aparecia.
+        mais = carregar_mais_opcoes(page, opcoes)
+        if mais > n:
+            n = mais
+            textos = [(opcoes.nth(i).inner_text() or "").strip() for i in range(n)]
+            escolha = decidir(textos)
     if escolha is None and not prefixo and not exato and not criterio:
         # melhor parecido: mais palavras em comum (o MC às vezes guarda o nome
         # sem o "LTDA" que existe no cadastro do Notion)
@@ -365,9 +388,37 @@ def escolher_na_lista(page, campo_sel, texto_busca, alvo=None, exato=False, pref
         if sigilo:
             raise RuntimeError(f"não apareceu na lista ({len(textos)} opções vistas)")
         raise RuntimeError(f"'{alvo}' não apareceu na lista (vi: {textos[:6]})")
-    opcoes.nth(escolha).click()
+    alvo_op = opcoes.nth(escolha)
+    try:
+        alvo_op.scroll_into_view_if_needed(timeout=3000)
+        alvo_op.click(timeout=6000)
+    except Exception:
+        alvo_op.evaluate("e => e.click()")
     page.wait_for_timeout(600)
     return textos[escolha]
+
+
+def carregar_mais_opcoes(page, opcoes, voltas=40):
+    """Rola a lista aberta até o fim, várias vezes, até parar de crescer.
+    Devolve quantas opções ficaram carregadas."""
+    antes = opcoes.count()
+    parado = 0
+    for _ in range(voltas):
+        try:
+            page.evaluate("""() => { const lb = document.querySelector('[role=listbox]');
+                if (lb) { lb.scrollTop = lb.scrollHeight; lb.dispatchEvent(new Event('scroll', {bubbles: true})); } }""")
+        except Exception:
+            break
+        page.wait_for_timeout(900)
+        agora = opcoes.count()
+        if agora == antes:
+            parado += 1
+            if parado >= 3:
+                break
+        else:
+            parado = 0
+        antes = agora
+    return antes
 
 
 def escolha_cliente(textos, nome):
@@ -469,9 +520,12 @@ def _garantir_orcamento(page, o):
             alvo = itens.nth(i)
             break
     if alvo is None:
-        modal.locator("button").filter(has_text="Cancelar").first.click()
-        raise RuntimeError("obra não apareceu na lista do orçamento")
-    alvo.click()
+        modal.locator("button").filter(has_text="Cancelar").first.evaluate("b => b.click()")
+        raise RuntimeError("obra não apareceu na lista do orçamento (o MC só lista obra sem orçamento)")
+    try:
+        alvo.click(timeout=8000)
+    except Exception:
+        alvo.evaluate("e => e.click()")
     page.wait_for_timeout(1500)
     # cliente (o MC costuma trazer o da obra; se não trouxe, escolhe)
     cli = modal.locator("[ng-model='$ctrl.planning.work.customer'] .select-button").first
@@ -491,7 +545,17 @@ def _garantir_orcamento(page, o):
         modal.locator("select[ng-model='$ctrl.ngModel']").first.select_option(label="Em Andamento")
     except Exception as e:
         print(f"  ! orçamento — status: {str(e)[:80]}", flush=True)
-    modal.locator("button[type=submit]").filter(has_text=re.compile("Come[cç]ar", re.I)).first.click()
+    # 08/10/26: o clique "de mouse" no Começar ficava esperando 20 s (algo da
+    # janela por cima) e o orçamento nunca era criado. Espera o botão habilitar
+    # (ele fica desabilitado enquanto o MC carrega cliente/status) e clica pelo DOM.
+    bt = modal.locator("button[type=submit]").filter(has_text=re.compile("Come[cç]ar", re.I)).first
+    bt.wait_for(state="attached", timeout=15000)
+    for _ in range(30):
+        if not bt.is_disabled():
+            break
+        page.wait_for_timeout(500)
+    print(f"  orçamento: '{codigo}' — obra e cliente escolhidos, clicando em Começar", flush=True)
+    bt.evaluate("b => b.click()")
     try:
         modal.wait_for(state="hidden", timeout=30000)
     except Exception:
@@ -775,14 +839,14 @@ def tem_conta_pedida(o):
     """Função PURA: uma conta foi PEDIDA para a obra — pela relação CONTA
     BANCÁRIA (`o["conta_exata"]`, ou a relação existe mas não se resolve:
     `o["conta_nao_resolvida"]`) ou pelo texto antigo da coluna CONTA
-    (exceto vazio/"PESSOA FISICA"). Usada por `completar_no_mc` (decidir se
+    (exceto vazio; "PESSOA FISICA" vira a conta CONTA_PESSOA_FISICA). Usada por `completar_no_mc` (decidir se
     abre a seção) e por `main` (decidir, no ramo "já existe no MC", se a
     obra precisa confirmar a conta antes de ser marcada "Criada")."""
     if o.get("conta_nao_resolvida"):
         return True
     conta_exata = (o.get("conta_exata") or "").strip()
     conta = (o.get("conta") or "").strip()
-    return bool(conta_exata) or bool(conta and N(conta) != "PESSOA FISICA")
+    return bool(conta_exata) or bool(conta)
 
 
 def tentativas_busca(texto):
@@ -842,7 +906,7 @@ def preencher_conta(page, o):
         return False
 
     conta = (o.get("conta") or "").strip()
-    if not conta or N(conta) == "PESSOA FISICA":
+    if not conta:
         print("  conta bancária: obra sem CONTA no Notion — deixei em branco", flush=True)
         return True
     for t in tentativas_busca(conta):
@@ -1149,7 +1213,7 @@ def fila_atualizar(no_mc, mapa_contas=None):
             "cliente": txt(pega(pr, "Proprietário")),
             "cidade": txt(pega(pr, "Cidade")).split(",")[0].strip(),
             "setor": txt(pega(pr, "SETOR")),
-            "conta": txt(pega(pr, "CONTA")),
+            "conta": nome_conta_texto(txt(pega(pr, "CONTA"))),
             "conta_exata": conta_exata,
             "conta_numero": conta_numero,
             "conta_nao_resolvida": nao_resolvida,
