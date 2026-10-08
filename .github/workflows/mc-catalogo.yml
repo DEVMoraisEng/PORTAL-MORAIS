@@ -29,6 +29,7 @@ jobs:
           TERMO: ${{ inputs.termo }}
         shell: bash
         run: |
-          if [[ ! "$TERMO" =~ ^[A-Za-z0-9 ]{3,40}$ ]]; then echo "termo inválido (só letras sem acento, números e espaço)"; exit 1; fi
+          VALIDO='^[A-Za-z0-9 ]{3,40}$'
+          if [[ ! "$TERMO" =~ $VALIDO ]]; then echo "termo inválido (só letras sem acento, números e espaço)"; exit 1; fi
           pip install --quiet requests
           python -m venda.mc.catalogo "$TERMO"
