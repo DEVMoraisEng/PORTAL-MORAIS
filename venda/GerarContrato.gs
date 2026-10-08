@@ -55,12 +55,25 @@ function ctrTitulo_(props) {
   return "";
 }
 
+/* Página da casa na VENDAS ou, desde a entrega 7, a própria linha da BANCO DE DADOS VENDAS
+ * CONDOMÍNIO (DB_VENDAS_COND) — essa vira a "página de venda virtual" do CondominioVenda:
+ * mesmas colunas que a VENDAS teria, e o retorno gravado nas colunas da própria linha. */
 function ctrLerPaginaVenda_(pageId) {
   var pg = notion_("GET", "/pages/" + pageId, null);
-  var dbEsperado = prop_("DB_VENDAS").replace(/-/g, "");
-  var dbAtual = String((pg.parent && pg.parent.database_id) || "").replace(/-/g, "");
-  if (dbAtual !== dbEsperado) throw new Error("PAGINA_DE_OUTRA_BASE");
-  return pg;
+  var dbAtual = vendaBaseDaPagina_(pg);
+  if (dbAtual === "VENDAS") return pg;
+  if (dbAtual === "CONDOMINIO")
+    return CondominioVenda.paginaVirtual(pg, pageId, ContratoVenda.TIPOS, [ContratoVenda.COL.CONTRATO_GERADO], CTR_GARANTIR_COND);
+  throw new Error("PAGINA_DE_OUTRA_BASE");
+}
+/* "VENDAS", "CONDOMINIO" ou "" (outra base). */
+function vendaBaseDaPagina_(pg) {
+  var limpo = function (s) { return String(s || "").replace(/-/g, "").toLowerCase(); };
+  var dbAtual = limpo(pg && pg.parent && pg.parent.database_id);
+  if (dbAtual && dbAtual === limpo(prop_("DB_VENDAS"))) return "VENDAS";
+  var cond = limpo(prop_("DB_VENDAS_COND"));
+  if (cond && dbAtual === cond) return "CONDOMINIO";
+  return "";
 }
 
 function ctrLinhasBase_(dbId, filtro) {
@@ -165,6 +178,10 @@ function ctrDadosCondominio_(c) {
 
 /* Colunas da VENDAS que o contrato exige além das do dossiê. */
 var CTR_COLUNAS_VENDA = ["VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)", "COMISSÃO", "VALOR NA MÃO", "CORRETOR", "SETOR", "OBRA-AUTO"];
+/* as mesmas, na página virtual do condomínio: entram vazias quando a linha não tem (o condomínio
+   não usa SETOR nem OBRA-AUTO; o valor e o corretor vêm de VALOR DE VENDA e CORRETOR da linha) */
+var CTR_GARANTIR_COND = { "VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)": "number", "COMISSÃO": "number", "VALOR NA MÃO": "number",
+                          "CORRETOR": "rich_text", "SETOR": "rich_text", "OBRA-AUTO": "relation" };
 
 function ctrFontes_(col, pageId) {
   var C = RegrasVenda.COL, CV = ContratoVenda.COL;
@@ -180,7 +197,8 @@ function ctrFontes_(col, pageId) {
   });
   if (errado.length) throw new Error("TIPO_DE_COLUNA_ERRADO: " + errado.join(", "));
 
-  function dos(canon) { return ctrTxt_(ctrValor_(pg.properties[col.mapa[canon]])); }
+  /* pelo nome normalizado: na página virtual do condomínio os nomes não têm o espaço sobrando da VENDAS */
+  function dos(canon) { return ctrTxt_(ctrValor_(v[RegrasVenda.chave(col.mapa[canon])])); }
   function cv(nome) { return ctrCampo_(v, nome); }
   function nomeReal(canon) {
     for (var n in pg.properties) if (RegrasVenda.chave(n) === RegrasVenda.chave(canon)) return n;
@@ -209,7 +227,8 @@ function ctrFontes_(col, pageId) {
   /* venda do condomínio: a casa aponta para a linha da BANCO DE DADOS VENDAS CONDOMÍNIO */
   var idCond = ctrTxt_(cv(CondominioVenda.COLUNA_ID)).trim(), cond = null;
   if (idCond) {
-    var lido = ctrLerCondominio_(idCond);
+    /* tela de venda do condomínio: a página já é a linha do condomínio (não lê de novo) */
+    var lido = pg.propsCondominio ? { c: ctrPorChave_(pg.propsCondominio) } : ctrLerCondominio_(idCond);
     if (lido.erro) return { condominioErro: lido.erro };
     cond = ctrDadosCondominio_(lido.c);
     for (var campo in cond.imovel) if (cond.imovel[campo]) venda[campo] = cond.imovel[campo];

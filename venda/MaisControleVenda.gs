@@ -22,8 +22,9 @@ function mcColunaReal_(props, nome) {
 
 function mcLerColunas_(pageId) {
   var pg = notion_("GET", "/pages/" + pageId, null);
-  var dbEsperado = prop_("DB_VENDAS").replace(/-/g, "");
-  if (String((pg.parent && pg.parent.database_id) || "").replace(/-/g, "") !== dbEsperado) throw new Error("PAGINA_DE_OUTRA_BASE");
+  /* casa da VENDAS ou, desde a entrega 7, a própria linha do condomínio (DB_VENDAS_COND):
+     o robô lê a linha e grava MC - SITUAÇÃO / MC - VENDA ID nela */
+  if (!vendaBaseDaPagina_(pg)) throw new Error("PAGINA_DE_OUTRA_BASE");
   var props = pg.properties || {};
   var s = mcColunaReal_(props, MC_COL_SITUACAO), v = mcColunaReal_(props, MC_COL_VENDA);
   if (!s || !v || s.tipo !== "rich_text" || v.tipo !== "rich_text") throw new Error("COLUNA_FALTANDO: " + MC_COL_SITUACAO + ", " + MC_COL_VENDA + " (texto)");

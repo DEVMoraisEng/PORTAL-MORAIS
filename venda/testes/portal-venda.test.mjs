@@ -24,7 +24,7 @@ const CNH = { tipo_documento: "CNH", nome: "ANA TESTE", cpf: "52998224725", nume
 
 test("ping responde sem token", () => {
   const { g } = montar();
-  assert.deepEqual(g.chamar({ action: "ping" }), { ok: true, versao: "venda-v3", papel: "VENDA" });
+  assert.deepEqual(g.chamar({ action: "ping" }), { ok: true, versao: "venda-v4", papel: "VENDA" });
 });
 
 test("token inválido, sem VENDAS, e TESTES tentando gravar", () => {

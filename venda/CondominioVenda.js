@@ -273,9 +273,80 @@ var CondominioVenda = (function () {
     return { props: props, ignoradas: ignoradas };
   }
 
+  /* ---- tela de venda do condomínio (entrega 7) ----
+   * A própria linha da BANCO DE DADOS VENDAS CONDOMÍNIO vira uma "página de venda virtual":
+   * as propriedades dela (com os nomes reais — é nelas que o contrato, a assinatura e o
+   * Mais Controle gravam o retorno) + as colunas da VENDAS que o mapear() deduz, no formato
+   * que a API do Notion devolve. Sem rede: quem lê a página é o PortalVenda.
+   * - o título da linha (UNIDADE) vira texto; o título passa a ser ENDEREÇO = "CONDOMÍNIO …";
+   * - "CONDOMÍNIO - VENDA ID" = a própria página (o contrato lê o fluxo e os fiadores dela);
+   * - colunas do contrato da casa de rua (tiposContrato = {nome: tipo}) que a linha não tem,
+   *   ou tem com outro tipo, entram VAZIAS no tipo certo — menos as de `devolvidas`
+   *   (CONTRATO GERADO): essas são gravadas na linha e têm de existir de verdade;
+   * - `garantir` ({nome: tipo}): colunas que só precisam existir — entram vazias se faltarem. */
+  var COLUNAS_ID_VIRTUAL = ["ENDEREÇO", "CASA"];
+  var TIPOS_SIMPLES = ["rich_text", "number", "select", "date", "email", "phone_number"];
+  function propVirtual(tipo, v) {
+    var s = vazio(v) ? "" : (v && typeof v === "object" && v.start ? v.start : String(v));
+    switch (tipo) {
+      case "title": case "rich_text":
+        var o = { type: tipo }; o[tipo] = s ? [{ type: "text", plain_text: s, text: { content: s } }] : []; return o;
+      case "number":
+        var n = typeof v === "number" ? v : (s ? R().valorBR(s) : null);
+        return { type: "number", number: n !== null && isFinite(n) ? n : null };
+      case "select": return { type: "select", select: s ? { name: s } : null };
+      case "date": return { type: "date", date: s ? { start: s, end: null } : null };
+      case "email": return { type: "email", email: s || null };
+      case "phone_number": return { type: "phone_number", phone_number: s || null };
+      case "files": return { type: "files", files: [] };
+      case "relation": return { type: "relation", relation: [] };
+      default: return { type: tipo };
+    }
+  }
+  function tipoDoValor(v) {
+    if (typeof v === "number") return "number";
+    if (v && typeof v === "object" && v.start) return "date";
+    return "rich_text";
+  }
+  function paginaVirtual(pg, pageId, tiposContrato, devolvidas, garantir) {
+    var orig = (pg && pg.properties) || {}, props = {}, porChave = {};
+    function por(nome, pr) {
+      var k = chave(nome), real = porChave[k] || nome;
+      porChave[k] = real; props[real] = pr;
+    }
+    Object.keys(orig).forEach(function (n) {
+      var pr = orig[n];
+      if (pr && pr.type === "title") pr = propVirtual("rich_text", valor(pr));
+      por(n, pr);
+    });
+    var fora = {};
+    (devolvidas || []).forEach(function (n) { fora[chave(n)] = true; });
+    Object.keys(tiposContrato || {}).forEach(function (n) {
+      if (fora[chave(n)]) return;
+      var real = porChave[chave(n)];
+      if (!real || props[real].type !== tiposContrato[n]) por(n, propVirtual(tiposContrato[n], null));
+    });
+    /* `garantir`: colunas que o contrato só procura (sem conferir o tipo) — entram vazias se faltarem */
+    Object.keys(garantir || {}).forEach(function (n) {
+      if (!porChave[chave(n)]) por(n, propVirtual(garantir[n], null));
+    });
+    var m = mapear(orig, {});
+    Object.keys(m).forEach(function (col) {
+      var real = porChave[chave(col)];
+      var tipo = COLUNAS_ID_VIRTUAL.indexOf(col) >= 0 ? (col === "CASA" ? "number" : "title")
+               : (tiposContrato && tiposContrato[col]) ||
+                 (real && TIPOS_SIMPLES.indexOf(props[real].type) >= 0 ? props[real].type : tipoDoValor(m[col]));
+      por(col, propVirtual(tipo, m[col]));
+    });
+    if (!m["ENDEREÇO"]) por("ENDEREÇO", propVirtual("title", ""));
+    por(COLUNA_ID, propVirtual("rich_text", String(pageId || pg.id || "").replace(/-/g, "").toLowerCase()));
+    return { id: pg.id, parent: pg.parent, properties: props, condominio: true, propsCondominio: orig };
+  }
+
   return {
     COLUNA_ID: COLUNA_ID, valor: valor, temSegundo: temSegundo, mapear: mapear, avisos: avisos,
-    arquivosParaCopiar: arquivosParaCopiar, propriedadesNotion: propriedadesNotion, numeroDaCasa: numeroDaCasa
+    arquivosParaCopiar: arquivosParaCopiar, propriedadesNotion: propriedadesNotion, numeroDaCasa: numeroDaCasa,
+    paginaVirtual: paginaVirtual
   };
 })();
 if (typeof module !== "undefined" && module.exports) module.exports = CondominioVenda;
