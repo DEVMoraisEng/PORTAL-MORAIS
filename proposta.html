@@ -1,0 +1,2110 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Proposta de Compra – Reserva do Ipês</title>
+<style>
+  :root{
+    --marrom:#7A4A16; --marrom2:#A86018; --amarelo:#EFB700; --amarelo2:#D8A818;
+    --rosa:#D87890; --lilas:#9078A8; --cinza:#C9C9C9;
+    --texto:#2A2118; --texto-suave:#6B5A45; --borda:#E7DCC7; --fundo:#FBF7EE;
+    --branco:#FFFFFF; --erro:#B0431F;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:"Segoe UI",Arial,sans-serif;background:var(--fundo);color:var(--texto);}
+  header{background:linear-gradient(135deg,var(--marrom),var(--marrom2));color:#fff;padding:16px 28px;display:flex;align-items:center;gap:18px;}
+  header .logos{display:flex;align-items:center;gap:12px;}
+  header .logos img{height:48px;width:auto;background:#fff;border-radius:8px;padding:4px;}
+  header .titulo{display:flex;flex-direction:column;line-height:1.25;}
+  header h1{font-size:17px;font-weight:700;margin:0;letter-spacing:.2px;}
+  header span{font-size:12px;color:var(--amarelo);font-weight:600;}
+  main{max-width:800px;margin:28px auto 80px;padding:0 20px;}
+  .passos{display:flex;gap:6px;margin-bottom:24px;}
+  .passo{flex:1;text-align:center;padding:10px 6px;font-size:13px;font-weight:600;color:var(--texto-suave);background:var(--branco);border:1px solid var(--borda);border-radius:6px;}
+  .passo.ativo{background:var(--marrom);border-color:var(--marrom);color:#fff;}
+  .passo.concluido{background:#FBEEC8;border-color:var(--amarelo);color:var(--marrom);}
+  .card{background:var(--branco);border:1px solid var(--borda);border-radius:10px;padding:26px;}
+  .card h2{margin-top:0;font-size:16px;color:var(--marrom);border-bottom:2px solid var(--amarelo);padding-bottom:12px;margin-bottom:20px;}
+  .linha{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+  .campo{display:flex;flex-direction:column;gap:6px;}
+  .campo.full{grid-column:1 / -1;}
+  label{font-size:13px;font-weight:600;color:var(--texto-suave);}
+  label .obrig{color:var(--erro);margin-left:2px;}
+  input,select{padding:10px 12px;border:1px solid var(--borda);border-radius:6px;font-size:14px;color:var(--texto);background:var(--branco);}
+  input:focus,select:focus{outline:none;border-color:var(--marrom2);box-shadow:0 0 0 3px rgba(168,96,24,.15);}
+  input[readonly]{background:#FBEEC8;color:var(--marrom);font-weight:700;}
+  .ajuda{font-size:12px;color:var(--texto-suave);}
+  .checks{display:flex;flex-direction:column;gap:10px;margin-top:4px;}
+  .check{display:flex;align-items:flex-start;gap:10px;font-size:13px;color:var(--marrom);font-weight:600;}
+  .check input{margin-top:2px;width:auto;}
+  .fixo{background:#FBEEC8;border:1px solid var(--amarelo);border-radius:6px;padding:10px 12px;font-size:14px;color:var(--marrom);font-weight:700;}
+  .rodape{display:flex;justify-content:space-between;margin-top:24px;}
+  button{padding:11px 22px;border-radius:6px;border:none;font-size:14px;font-weight:700;cursor:pointer;}
+  .btn-primario{background:var(--amarelo);color:var(--marrom);}
+  .btn-primario:hover{background:var(--amarelo2);}
+  .btn-secundario{background:var(--branco);color:var(--marrom);border:1px solid var(--borda);}
+  .btn-secundario:hover{border-color:var(--marrom2);}
+  .oculto{display:none;}
+  .prazo-opts{display:flex;gap:10px;}
+  .prazo-opt{flex:1;border:1px solid var(--borda);border-radius:8px;padding:12px;text-align:center;cursor:pointer;}
+  .prazo-opt:has(input:checked){border-color:var(--marrom2);background:#FBEEC8;}
+  .prazo-opt input{display:none;}
+  .prazo-opt b{display:block;font-size:16px;color:var(--marrom);}
+  .prazo-opt small{color:var(--texto-suave);}
+  .produtos{display:flex;flex-direction:column;gap:8px;}
+  .produto{border:1px solid var(--borda);border-left:4px solid var(--borda);border-radius:6px;padding:11px 14px;font-size:13px;font-weight:700;color:var(--texto-suave);background:#fff;cursor:pointer;display:flex;align-items:center;gap:10px;transition:.12s;}
+  .produto:hover{border-color:var(--marrom2);}
+  .produto .marca{width:18px;height:18px;border-radius:4px;border:2px solid var(--borda);flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;}
+  .produto.on{border-left-color:var(--amarelo);color:var(--marrom2);background:#FFFBF0;}
+  .produto.on .marca{background:var(--amarelo);border-color:var(--amarelo);color:var(--marrom);}
+  .comissao-box{background:var(--marrom);color:#fff;border-radius:8px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;margin-top:8px;}
+  .comissao-box b{font-size:18px;color:var(--amarelo);}
+  .aviso-offline{display:none;background:#7A2E12;color:#fff;padding:12px 20px;font-size:14px;text-align:center;}
+  .aviso-offline.visivel{display:block;}
+  .status{margin-top:20px;padding:16px;border-radius:8px;font-size:14px;line-height:1.6;border:1px solid var(--borda);}
+  .status.processando{background:#FBEEC8;border-color:var(--amarelo);color:var(--marrom);}
+  .status.ok{background:#EAF6EF;border-color:#8CC9A5;color:#1D5433;}
+  .status.erro{background:#FBEDEA;border-color:#E2A493;color:#8A2E17;}
+  /* r62 — unidade reservada: aviso azul (é informação, não erro) */
+  .status.reservada{background:#EAF2FA;border-color:#BBD5EC;border-left:4px solid #1F6FB2;color:#1F4E79;}
+  .resumo{background:var(--fundo);border:1px dashed var(--borda);border-radius:8px;padding:16px;font-size:13px;color:var(--texto-suave);line-height:1.6;}
+  .copia{font-size:12px;color:var(--texto-suave);margin-top:6px;}
+  @media(max-width:640px){.linha{grid-template-columns:1fr;}header h1{font-size:15px;}}
+
+  .tabfluxo{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px;}
+  .tabfluxo td{border:1px solid var(--borda);padding:6px 10px;}
+  .tabfluxo td.num{text-align:right;font-weight:600;}
+  .tabfluxo tr.tot td{background:#FBEEC8;color:var(--marrom);font-weight:700;}
+  .tabfluxo td small{color:var(--texto-suave);font-weight:400;}
+  .secao{font-size:14px;font-weight:700;color:var(--marrom);margin:22px 0 10px;
+         border-bottom:1px solid var(--borda);padding-bottom:6px;}
+  .secao:first-of-type{margin-top:0;}
+  .btn-voltar{margin-left:auto;align-self:center;background:rgba(255,255,255,.16);
+    border:1px solid rgba(255,255,255,.45);color:#fff;text-decoration:none;
+    padding:8px 14px;border-radius:7px;font-size:13px;font-weight:700;white-space:nowrap;}
+  .btn-voltar:hover{background:rgba(255,255,255,.3);}
+  @media(max-width:640px){ .btn-voltar{margin:8px 0 0 0;} }
+  .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(12px);
+    z-index:80;max-width:min(560px,92vw);padding:13px 42px 13px 16px;border-radius:9px;
+    font-size:13.5px;line-height:1.5;box-shadow:0 8px 26px rgba(0,0,0,.18);
+    opacity:0;pointer-events:none;transition:.22s ease;}
+  .toast.visivel{opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(0);}
+  .toast.erro{background:#FDECEA;border:1px solid #E3A79B;color:#8A2E17;}
+  .toast.ok{background:#EAF6EF;border:1px solid #8CC9A5;color:#1D5433;}
+  .toast.processando{background:#FBEEC8;border:1px solid #EFB700;color:#7A4A16;}
+  .toast .fecha{position:absolute;right:13px;top:10px;cursor:pointer;font-size:17px;opacity:.6;}
+  .faltando{border-color:#B0431F !important;box-shadow:0 0 0 3px rgba(176,67,31,.18) !important;}
+  .destaque-sim{background:#FFFBF0;border-color:var(--amarelo) !important;}
+  .produto{border:1px solid var(--borda);border-left:4px solid var(--borda);border-radius:6px;
+    padding:11px 14px;font-size:13px;font-weight:700;color:var(--texto-suave);background:#fff;
+    cursor:pointer;display:flex;align-items:center;gap:10px;transition:.12s;}
+  .produto:hover{border-color:var(--marrom2);}
+  .produto .marca{width:18px;height:18px;border-radius:4px;border:2px solid var(--borda);
+    flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;}
+  .produto.on{border-left-color:var(--amarelo);color:var(--marrom2);background:#FFFBF0;}
+  .produto.on .marca{background:var(--amarelo);border-color:var(--amarelo);color:var(--marrom);}
+  /* ITEM 15 — quadro dos sinais x valor para entrada */
+  .sinais{margin-top:12px;border:2px solid var(--amarelo);border-radius:10px;overflow:hidden;}
+  .sinais .cab{background:#FBEEC8;color:var(--marrom);font-weight:800;padding:9px 12px;font-size:13px;}
+  .sinais table{width:100%;border-collapse:collapse;font-size:13px;}
+  .sinais td{padding:6px 12px;border-top:1px solid var(--borda);}
+  .sinais td.num{text-align:right;font-weight:700;white-space:nowrap;}
+  .sinais tr.falta td{background:#FDECEA;color:#8A2E17;font-weight:800;}
+  .sinais tr.okk td{background:#EAF6EF;color:#1D5433;font-weight:800;}
+  .sinais .nota{padding:8px 12px;font-size:12px;color:var(--texto-suave);border-top:1px solid var(--borda);line-height:1.5;}
+  .tabfluxo tr.lfalta td{background:#FDECEA;color:#8A2E17;}
+  .tabfluxo tr.grupo td{background:var(--fundo);color:var(--marrom);font-weight:800;font-size:12px;letter-spacing:.3px;}
+  .tag-obra{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;background:#1F6FB2;color:#fff;
+    font-size:10px;font-weight:800;letter-spacing:.3px;vertical-align:middle;}
+  .tag-pos{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;background:#5B4A8A;color:#fff;
+    font-size:10px;font-weight:800;letter-spacing:.3px;vertical-align:middle;}
+  .tag-sinal{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;background:var(--amarelo);color:var(--marrom);
+    font-size:10px;font-weight:800;vertical-align:middle;}
+  details.fluxo-det{margin-top:10px;} details.fluxo-det summary{cursor:pointer;font-weight:700;color:var(--marrom);font-size:13px;}
+  .aviso-fluxo{margin:12px 0 4px;padding:10px 12px;border-radius:8px;background:#FBEEC8;
+    border:1px solid #EFB700;color:#7A4A16;font-size:12.5px;line-height:1.5;}
+  .aviso-legal{margin:16px 0 4px;padding:12px 14px;border:1px solid #D8CDB5;border-left:4px solid var(--marrom);
+    border-radius:6px;background:#FFFDF7;font-size:11.5px;line-height:1.55;color:var(--texto-suave);}
+  .aviso-legal b{color:var(--marrom);}
+  .anexo{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--borda);}
+  .anexo label{flex:1;min-width:0;}
+  .anexo input[type=file]{flex:0 0 auto;max-width:56%;font-size:12px;}
+  /* r51 (item 3) — no celular o campo de arquivo espremia o rótulo até ele
+     ficar em pé, uma letra por linha. Aqui cada parte fica na sua linha. */
+  @media(max-width:640px){
+    .anexo{flex-direction:column;align-items:stretch;gap:6px;padding:11px 0;}
+    .anexo label{font-size:13.5px;}
+    .anexo input[type=file]{max-width:100%;width:100%;}
+    .anexo.pedido{padding-left:8px;}
+    .tag-doc{margin-left:0;margin-top:4px;display:inline-block;}
+  }
+  .anexo label small{display:block;font-weight:400;font-size:11.5px;color:var(--texto-suave);margin-top:2px;}
+  .anexo.pedido{background:#FFFBEF;border-left:3px solid var(--amarelo);padding-left:8px;}
+  details.outros-docs{margin-top:10px;} details.outros-docs summary{cursor:pointer;font-weight:700;color:var(--marrom);font-size:13px;}
+  #listaDependentes input,#listaDependentes select{width:100%;padding:7px 9px;border:1px solid var(--borda);border-radius:6px;font:inherit;font-size:13px;}
+  @media(max-width:640px){ #listaDependentes .dep{grid-template-columns:1fr!important;} }
+  .tag-doc{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:10px;background:var(--amarelo);
+    color:var(--marrom);font-size:10px;font-weight:800;vertical-align:middle;}
+  .anexo label{flex:1;font-size:13px;color:var(--texto);font-weight:600;margin:0;}
+  .anexo input[type=file]{font-size:12px;max-width:290px;}
+  /* r66 — leitura de documentos, prazo/comissão e CRECI */
+  .prazo-opts{display:flex;gap:10px;flex-wrap:wrap;}
+  .prazo-opt{flex:1;min-width:120px;border:1px solid var(--borda);border-radius:8px;padding:12px;text-align:center;cursor:pointer;background:#fff;}
+  .prazo-opt:has(input:checked){border-color:var(--marrom);background:#FBEEC8;}
+  .prazo-opt input{display:none;}
+  .prazo-opt b{display:block;font-size:16px;color:var(--marrom);}
+  .prazo-opt small{color:var(--texto-suave);}
+  .leitor{background:#FFFDF7;border:1px dashed var(--borda);border-radius:8px;padding:12px 14px;margin-bottom:14px;}
+  .lst{font-size:12.5px;margin-top:4px;}
+  .lst.ok{color:#1D5433;font-weight:700;} .lst.err{color:#8A2E17;font-weight:700;} .lst.lendo{color:#6B5A45;}
+  input.lido{border-color:#8CC9A5 !important;background:#F3FAF6;}
+  .p1ok{font-size:12px;color:#1D5433;font-weight:700;margin-top:3px;}
+  .anexo.creci{background:#FFFBEF;border-left:3px solid var(--amarelo);padding-left:8px;}
+</style>
+</head>
+<body>
+
+<div id="toast" class="toast"></div>
+
+<div id="avisoOffline" class="aviso-offline">
+  <strong>Serviço temporariamente indisponível.</strong>
+  <span>Tente novamente em alguns minutos.</span>
+</div>
+
+<header>
+  <div class="logos">
+    <img src="assets/logo-morais.png" alt="Morais Engenharia">
+    <img src="assets/logo-ipes.jpg" alt="Reserva do Ipês">
+  </div>
+  <div class="titulo">
+    <h1>Proposta de Compra</h1>
+    <span>CONDOMÍNIO RESERVA DOS IPÊS</span>
+  </div>
+
+</header>
+
+<main>
+  <div class="passos">
+    <div class="passo ativo" data-p="1">1. Unidade e proponente</div>
+    <div class="passo" data-p="2">2. Renda e financiamento</div>
+    <div class="passo" data-p="3">3. Fiadores</div>
+    <div class="passo" data-p="4">4. Anexos</div>
+    <div class="passo" data-p="5">5. Enviar</div>
+  </div>
+
+  <form id="formProposta" autocomplete="off">
+
+  <!-- ============================ PASSO 1 ============================ -->
+  <section class="card" data-etapa="1">
+    <h2>Unidade e proponente</h2>
+
+    <div class="linha">
+      <div class="campo">
+        <label>Unidade<span class="obrig">*</span></label>
+        <select name="unidade" required></select>
+      </div>
+      <div class="campo">
+        <label>Preço</label>
+        <input type="text" id="preco" readonly>
+      </div>
+    </div>
+
+    <div id="avisoUnidade" class="status erro" style="display:none;margin-bottom:14px"></div>
+
+    <div class="linha" style="margin-bottom:6px">
+      <div class="campo full">
+        <label>Cliente com crédito aprovado na Caixa<span class="obrig">*</span></label>
+        <select name="creditoAprovadoCaixa" onchange="verCredito()">
+          <option value="SIM">SIM — já tem carta de crédito aprovada</option>
+          <option value="NAO">NÃO — ainda não passou pela análise</option>
+        </select>
+        <span class="ajuda">Sem crédito aprovado, a CAIXA é simulada só como <b>estimativa</b> do crédito do cliente e a origem da renda passa a ser obrigatória.</span>
+      </div>
+    </div>
+
+    <div class="resumo" style="margin-bottom:18px">
+      <b>3 QUARTOS SENDO 1 SUÍTE — MCMV FAIXA 3</b> · 70,27 m² · entrega 15/10/2028<br>
+      Rua RPB 24, Quadra 269, Lote 03, 75257-005, Setor Parque dos Buritis, Senador Canedo – GO<br>
+      <span>Memorial de Incorporação registrado sob R-3 da matrícula nº 64.602, Registro de Imóveis de Senador Canedo/GO.</span>
+    </div>
+
+    <div class="secao">Documento do proponente <span class="ajuda" style="font-weight:400;text-transform:none">(opcional — não trava nada)</span></div>
+    <div class="leitor">
+      <div class="linha">
+        <div class="campo"><label>Qual documento vai anexar?</label>
+          <select id="tipoDoc-proponente" onchange="montarLeitor('proponente')">
+            <option value="">Não anexar agora</option>
+            <option value="CNH">CNH (já tem tudo)</option>
+            <option value="RGCPF">RG + CPF</option>
+          </select></div>
+      </div>
+      <div class="linha" id="campos-proponente"></div>
+      <span class="ajuda">O documento é lido para preencher os campos abaixo — confira sempre. Se não for possível ler, aparece o aviso para preencher manualmente. Nada é gravado antes de você enviar a proposta.</span>
+    </div>
+
+    <div class="secao">Dados do proponente</div>
+    <div class="linha">
+      <div class="campo full"><label>Nome completo<span class="obrig">*</span></label>
+        <input type="text" name="cliente" data-pad="1" required></div>
+      <div class="campo"><label>CPF<span class="obrig">*</span></label>
+        <input type="text" name="cpf" inputmode="numeric" maxlength="14" placeholder="000.000.000-00" required>
+        <span class="ajuda" id="cpfAviso" style="display:none;color:#8A2E17">CPF inválido — confira os números.</span></div>
+      <div class="campo"><label>Identidade</label><input type="text" name="identidade" data-pad="1"></div>
+      <div class="campo"><label>Estado civil<span class="obrig">*</span></label>
+        <select name="estadoCivil" onchange="verConjuge();montarAnexos();montarFluxo();">
+          <option>SOLTEIRO</option><option>CASADO</option><option>DIVORCIADO</option>
+          <option>VIUVO</option><option>UNIAO ESTAVEL</option></select></div>
+      <div class="campo"><label>Nacionalidade</label><input type="text" name="nacionalidade" value="BR" data-pad="1"></div>
+      <div class="campo"><label>Profissão</label><input type="text" name="profissao" data-pad="1"></div>
+      <div class="campo"><label>Data de nascimento</label><input type="date" name="dataNascimento"></div>
+      <div class="campo"><label>E-mail do proponente</label><input type="email" name="emailProponente"></div>
+      <div class="campo full"><label>Endereço</label><input type="text" name="endereco" data-pad="1"></div>
+      <div class="campo"><label>Telefone</label>
+        <input type="text" name="telefone" inputmode="numeric" maxlength="15" placeholder="(00) 0000-0000"></div>
+      <div class="campo"><label>Celular<span class="obrig">*</span></label>
+        <input type="text" name="celular" inputmode="numeric" maxlength="15" placeholder="(00) 00000-0000" required></div>
+      <!-- r46 (item 1) — "Possui imóvel próprio" removido: quem responde isso
+           é o campo "Possui algum imóvel" do bloco da CAIXA, mais abaixo. -->
+    </div>
+
+    <div id="boxConjuge" style="display:none">
+      <div class="secao">Cônjuge</div>
+      <div class="secao">Documento do cônjuge <span class="ajuda" style="font-weight:400;text-transform:none">(opcional — não trava nada)</span></div>
+      <div class="leitor">
+        <div class="linha">
+          <div class="campo"><label>Qual documento vai anexar?</label>
+            <select id="tipoDoc-conjuge" onchange="montarLeitor('conjuge')">
+              <option value="">Não anexar agora</option>
+              <option value="CNH">CNH (já tem tudo)</option>
+              <option value="RGCPF">RG + CPF</option>
+            </select></div>
+        </div>
+        <div class="linha" id="campos-conjuge"></div>
+        <span class="ajuda">O documento é lido para preencher os campos abaixo — confira sempre. Se não for possível ler, aparece o aviso para preencher manualmente. Nada é gravado antes de você enviar a proposta.</span>
+      </div>
+
+      <div class="linha">
+        <div class="campo"><label>Nome do cônjuge</label><input type="text" name="conjuge" data-pad="1"></div>
+        <div class="campo"><label>CPF do cônjuge</label>
+          <input type="text" name="cpfConjuge" inputmode="numeric" maxlength="14" placeholder="000.000.000-00"></div>
+        <div class="campo"><label>Saldo FGTS do cônjuge (R$)</label>
+          <input type="text" name="saldoFgtsConjuge" inputmode="numeric" placeholder="0,00"></div>
+        <!-- ITEM 13 — sem formal/informal: uma renda aprovada só -->
+        <div class="campo"><label>Renda aprovada do cônjuge (R$)</label>
+          <input type="text" name="rendaAprovadaConjuge" inputmode="numeric" placeholder="0,00"></div>
+        <div class="campo campo-origem"><label>Origem da renda do cônjuge</label>
+          <select name="origemRendaConjuge" onchange="montarAnexos();montarFluxo();"><option value="">Selecione…</option><option>CLT</option><option>SERVIDOR PÚBLICO</option><option>EMPRESÁRIO</option><option>AUTÔNOMO</option><option>MEI</option><option>MOTORISTA DE APLICATIVO</option><option>APOSENTADO / PENSIONISTA</option><option>PROFISSIONAL LIBERAL</option><option>RURAL</option><option>OUTRO</option></select></div>
+        <!-- r41 (item 10) -->
+        <div class="campo"><label>Profissão do cônjuge</label>
+          <input type="text" name="profissaoConjuge" data-pad="1"></div>
+      </div>
+      <span class="ajuda">O saldo de FGTS do cônjuge entra na composição da entrada junto com o do titular.</span>
+    </div>
+
+    <div class="rodape">
+      <span></span>
+      <button type="button" class="btn-primario" onclick="irPara(2)">Continuar</button>
+    </div>
+  </section>
+
+  <!-- ============================ PASSO 2 ============================ -->
+  <section class="card" data-etapa="2" style="display:none">
+    <h2>Renda e financiamento</h2>
+
+    <div class="secao">Trabalho e renda</div>
+    <div class="linha">
+      <!-- r41 (item 7) — cargo e empresa removidos -->
+      <!-- r46 (item 2) — tempo de serviço removido -->
+      <!-- ITEM 13 — renda aprovada, sem distinção formal/informal -->
+      <div class="campo"><label>Renda aprovada (R$)</label>
+        <input type="text" name="rendaAprovada" inputmode="numeric" placeholder="0,00"></div>
+      <div class="campo campo-origem"><label>Origem da renda</label>
+        <select name="origemRenda" onchange="montarAnexos();montarFluxo();"><option value="">Selecione…</option><option>CLT</option><option>SERVIDOR PÚBLICO</option><option>EMPRESÁRIO</option><option>AUTÔNOMO</option><option>MEI</option><option>MOTORISTA DE APLICATIVO</option><option>APOSENTADO / PENSIONISTA</option><option>PROFISSIONAL LIBERAL</option><option>RURAL</option><option>OUTRO</option></select></div>
+      <div class="campo"><label>Renda total (proponente + cônjuge)</label><input type="text" id="rendaTotal" readonly></div>
+    </div>
+
+    <div class="secao">Recursos para a entrada</div>
+    <div class="linha">
+      <div class="campo"><label>Saldo FGTS (R$)</label>
+        <input type="text" name="saldoFgts" inputmode="numeric" placeholder="0,00"></div>
+      <!-- r41 (item 9) — sem crédito aprovado o subsídio some: quem diz é a CAIXA -->
+      <div class="campo" id="boxSubsidio"><label>Subsídio (R$)</label>
+        <input type="text" name="subsidio" inputmode="numeric" placeholder="0,00"></div>
+      <div class="campo"><label>Valor para entrada (R$)<span class="obrig">*</span></label>
+        <input type="text" name="valorEntrada" inputmode="numeric" placeholder="10.000,00" value="10.000,00">
+        <span class="ajuda">Mínimo <b>R$ 10.000,00</b> — é o valor do <b>sinal</b> (R$ 1.000 no ato +
+        3 × R$ 3.000). O sinal pode ser <b>maior</b> conforme o crédito liberado e a análise da entrada.</span></div>
+      <div class="campo" id="boxCredito"><label>Crédito aprovado (R$)<span class="obrig">*</span></label>
+        <input type="text" name="creditoAprovado" inputmode="numeric" placeholder="0,00">
+        <span class="ajuda" id="ajudaCredito">O valor que o banco aprovou na análise.</span></div>
+    </div>
+    <div id="avisoTeto" class="status processando" style="display:none;margin-bottom:10px"></div>
+    <div class="linha">
+      <div class="campo"><label>Valor financiado (R$)</label>
+        <input type="text" id="valorFinanciado" readonly>
+        <span class="ajuda">Crédito aprovado, limitado ao teto de 80% da avaliação.</span></div>
+      <div class="campo" id="boxParcela"><label>Parcela do financiamento (R$)<span class="obrig" id="obrigParcela">*</span></label>
+        <input type="text" name="parcelaFinanciamento" inputmode="numeric" placeholder="0,00">
+        <span class="ajuda" id="ajudaParcela"></span></div>
+    </div>
+
+    <div class="secao">Análise</div>
+    <div class="linha">
+      <div class="campo"><label>Banco</label><input type="text" name="banco" value="CEF FGTS" data-pad="1"></div>
+      <div class="campo"><label>Prazo (meses)</label><input type="number" name="prazo" value="420"></div>
+      <!-- r43 — sistema de amortização (PRICE é o padrão) -->
+      <div class="campo"><label>Sistema de amortização</label>
+        <select name="sistemaAmortizacao">
+          <option value="PRICE" selected>PRICE — parcela fixa</option>
+          <option value="SAC">SAC — parcela decrescente</option>
+        </select>
+        <span class="ajuda">Usado na simulação da CAIXA e registrado na proposta.</span></div>
+      <!-- ITEM 10 — saíram: plano do simulador, score, validade da análise e
+           possui financiamento / créd. pessoal / conta corrente -->
+      <div class="campo"><label>Data de referência</label>
+        <input type="date" name="dataRef" onchange="montarFluxo()">
+        <span class="ajuda">Em branco = hoje.</span></div>
+      <!-- r64 — TESTE do sistema offline -->
+      <div class="campo"><label>Sistema de simulação (teste)</label>
+        <select name="modoSiop">
+            <option value="">AUTOMÁTICO — online; se indisponível, sistema offline</option>
+            <option value="ONLINE">USAR ONLINE — só o sistema online</option>
+            <option value="OFFLINE">USAR OFFLINE — sistema offline (preliminar + definitiva depois)</option>
+          </select>
+        <span class="ajuda">Só vale quando a proposta simula na CAIXA. Deixe em <b>AUTOMÁTICO</b> no uso normal.</span></div>
+    </div>
+
+    <div class="secao" id="secaoSiop">Dados para a simulação da CAIXA</div>
+    <div id="boxSiop">
+      <p class="ajuda" style="margin:0 0 10px">
+        Quando o crédito bate no teto de 80%, o sistema roda a simulação
+        automaticamente. Ele precisa exatamente destes campos — são os mesmos do
+        simulador. Sem eles a parcela sairia de um perfil padrão, que raramente é
+        o do cliente.
+      </p>
+      <div class="linha">
+        <div class="campo"><label>Prazo do financiamento (meses)</label>
+          <input type="number" name="prazoMeses" min="60" max="420" step="1" value="420">
+          <span class="ajuda">Máximo permitido: 420 meses.</span></div>
+        <div class="campo"><label>Seguradora</label>
+          <select name="seguradora">
+            <option>CAIXA RESIDENCIAL HABITACIONAL</option>
+            <option>TOKIO MARINE SEGURADORA</option>
+            <option>TOO SEGUROS</option>
+          </select></div>
+        <!-- r46 (item 4) — % de agravamento do seguro removido -->
+      </div>
+      <div class="checks" style="margin-top:4px">
+        <label class="check"><input type="checkbox" name="possuiImovelCidade" onchange="renderProdutos()"> Possui algum imóvel</label>
+        <label class="check"><input type="checkbox" name="fgts3anos" onchange="montarAnexos();montarFluxo();"> Tem 3 anos de FGTS</label>
+        <label class="check"><input type="checkbox" name="maisDeUmComprador" onchange="verDependentes()"> Mais de um comprador ou dependente</label>
+        <!-- r47 (item 3) — quantos e quem são: cada pessoa ganha nome, CPF,
+             tipo e um campo próprio de anexo no passo 4. -->
+        <div id="boxDependentes" style="display:none;margin:8px 0 4px 22px;padding:10px 12px;border-radius:8px;
+             background:#FFFBEF;border:1px solid var(--borda)">
+          <label style="font-size:12px;font-weight:700;color:var(--marrom)">Quantas pessoas além do proponente?</label>
+          <input type="number" id="qtdDependentes" min="1" max="6" step="1" value="1"
+                 style="width:90px;margin:4px 0 8px" onchange="montarDependentes()">
+          <div id="listaDependentes"></div>
+        </div>
+        <label class="check"><input type="checkbox" name="jaBeneficiado" onchange="verSiopSub()"> Já foi beneficiado com subsídio FGTS/União</label>
+        <div class="campo" id="boxConcessaoProp" style="display:none;margin:2px 0 8px 26px;max-width:260px">
+          <label>Data da concessão do benefício</label>
+          <input type="date" name="dataConcessaoBeneficio">
+        </div>
+        <label class="check"><input type="checkbox" name="relacionamentoCaixa" onchange="verSiopSub()"> Tem ou gostaria de ter relacionamento com a CAIXA</label>
+        <div id="boxRelacionamentoProp" style="display:none;margin:2px 0 8px 26px">
+          <label class="check"><input type="checkbox" name="servidorPublico"> Algum dos participantes é servidor público</label>
+          <label class="check"><input type="checkbox" name="creditoSalarioCaixa"> Tem ou gostaria de ter crédito salário na CAIXA ou produto de Previdência</label>
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <label style="font-size:13px;font-weight:700;color:var(--marrom)">Linhas de financiamento que serão simuladas<span class="obrig">*</span></label>
+        <div id="produtos" style="display:flex;flex-direction:column;gap:7px;margin-top:7px"></div>
+        <span class="ajuda" id="produtosAjuda"></span>
+      </div>
+    </div>
+
+    <div class="secao">Prazo da entrada e comissão</div>
+    <div class="linha">
+      <div class="campo full" style="margin-bottom:16px;">
+        <label>Prazo total da entrada<span class="obrig">*</span></label>
+        <div class="prazo-opts" id="prazoOpts">
+          <label class="prazo-opt"><input type="radio" name="prazoEntrada" value="24" onchange="atualizarComissao()"><b>24 meses</b><small>comissão 5,00%</small></label>
+          <label class="prazo-opt"><input type="radio" name="prazoEntrada" value="36" onchange="atualizarComissao()"><b>36 meses</b><small>comissão 4,75%</small></label>
+          <label class="prazo-opt"><input type="radio" name="prazoEntrada" value="48" onchange="atualizarComissao()"><b>48 meses</b><small>comissão 4,50%</small></label>
+        </div>
+        <div class="comissao-box"><span>Comissão do corretor</span><b id="comissaoTxt">Escolha o prazo</b></div>
+      </div>
+    </div>
+
+    <!-- ITEM 15 — resumo da entrada e o quadro dos sinais sempre à vista; o
+         fluxo completo fica recolhido (é o mesmo que vai no e-mail). -->
+    <div id="resumoEntrada"></div>
+    <details class="fluxo-det"><summary>Ver o fluxo de pagamento completo</summary>
+      <div id="fluxo"></div></details>
+    <!-- r61 (item 2) — o fluxo na tela vem sempre acompanhado do aviso -->
+    <div class="aviso-fluxo">
+      <b>⚠ Fluxo estimado — não é garantido.</b> Estes valores são uma simulação feita com os dados
+      informados. A <b>aprovação do financiamento não é garantida</b> e é responsabilidade do comprador junto
+      à CAIXA; se o crédito aprovado for menor, a entrada aumenta. O sinal é de no mínimo R$ 10.000,00 e pode
+      ser maior. O fluxo definitivo só existe <b>após a assinatura do contrato com a CAIXA</b>.
+    </div>
+
+    <div class="rodape">
+      <button type="button" class="btn-secundario" onclick="irPara(1)">Voltar</button>
+      <button type="button" class="btn-primario" onclick="irPara(3)">Continuar</button>
+    </div>
+  </section>
+
+  <!-- ============================ PASSO 3 · FIADORES ============================ -->
+  <section class="card" data-etapa="3" style="display:none">
+    <h2>Fiadores</h2>
+    <div class="secao">Fiador 1</div>
+    <div class="linha">
+      <div class="campo full"><label>Nome</label><input type="text" name="fiador1" data-pad="1"></div>
+      <div class="campo"><label>CPF</label>
+        <input type="text" name="cpfFiador1" inputmode="numeric" maxlength="14" placeholder="000.000.000-00"></div>
+      <div class="campo"><label>E-mail</label><input type="email" name="emailFiador1"></div>
+      <div class="campo full"><label>Endereço</label><input type="text" name="enderecoFiador1" data-pad="1"></div>
+    </div>
+
+    <div class="secao">Fiador 2</div>
+    <div class="linha">
+      <div class="campo full"><label>Nome</label><input type="text" name="fiador2" data-pad="1"></div>
+      <div class="campo"><label>CPF</label>
+        <input type="text" name="cpfFiador2" inputmode="numeric" maxlength="14" placeholder="000.000.000-00"></div>
+      <div class="campo"><label>E-mail</label><input type="email" name="emailFiador2"></div>
+      <div class="campo full"><label>Endereço</label><input type="text" name="enderecoFiador2" data-pad="1"></div>
+    </div>
+
+    <div class="rodape">
+      <button type="button" class="btn-secundario" onclick="irPara(2)">Voltar</button>
+      <button type="button" class="btn-primario" onclick="irPara(4)">Continuar</button>
+    </div>
+  </section>
+
+  <!-- ============================ PASSO 4 · ANEXOS ============================ -->
+  <section class="card" data-etapa="4" style="display:none">
+    <h2>Anexos</h2>
+    <div class="resumo" style="margin-bottom:18px">
+      Os arquivos vão junto com o e-mail da proposta. Limite de <b>20 MB no total</b>.
+      Se faltar algum documento, dá para enviar depois — o que não for anexado aqui
+      pode ser juntado na página da proposta no Notion.
+    </div>
+    <div id="anexos"></div>
+    <div id="anexoResumo" class="ajuda" style="margin-top:10px"></div>
+    <div id="avisoDocs" style="display:none;margin-top:10px;padding:10px 12px;border-radius:6px;
+         background:#FBEDEA;border:1px solid #E2A493;color:#8A2E17;font-size:13px"></div>
+
+    <div class="rodape">
+      <button type="button" class="btn-secundario" onclick="irPara(3)">Voltar</button>
+      <button type="button" class="btn-primario" onclick="irPara(5)">Continuar</button>
+    </div>
+  </section>
+
+  <!-- ============================ PASSO 3 ============================ -->
+  <section class="card" data-etapa="5" style="display:none">
+    <h2>Enviar proposta</h2>
+
+    <div class="resumo" style="margin-bottom:18px">
+      A proposta entra como <b>RECEBIDA</b> e é analisada pela Morais. A unidade
+      só sai da venda quando a proposta for aceita ou reservada — você é avisado
+      por e-mail em qualquer decisão.
+    </div>
+
+    <div class="lst" id="lst-creci-p5" style="display:none;margin-bottom:10px"></div>
+    <div class="linha">
+      <div class="campo"><label>Corretor<span class="obrig">*</span></label>
+        <input type="text" name="vendedor" data-pad="1" required></div>
+      <div class="campo"><label>CRECI</label><input type="text" name="creci" data-pad="1"></div>
+      <div class="campo"><label>Imobiliária</label><input type="text" name="imobiliaria" data-pad="1"></div>
+      <div class="campo"><label>E-mail do corretor<span class="obrig">*</span></label>
+        <input type="email" name="email" required></div>
+      <div class="campo full"><label>Observações</label><input type="text" name="observacoes" data-pad="1"></div>
+    </div>
+
+    <!-- ITEM 5 (r38) — aviso legal e ciência expressa -->
+    <div class="aviso-legal">
+      <b>AVISO IMPORTANTE — CARÁTER ESTIMATIVO</b><br>
+      <b>1. Estimativa.</b> Os valores desta proposta e de qualquer simulação são <b>meramente estimativos</b>,
+      calculados só com os dados informados pelo corretor/cliente e com o simulador da CAIXA na data do envio.
+      <b>Não constituem aprovação, pré-aprovação ou promessa de crédito</b>.<br>
+      <b>2. Financiamento.</b> Possibilidade de financiamento pela CAIXA, <b>sujeita à análise e aprovação de
+      crédito, à avaliação do imóvel e às condições vigentes da instituição financeira</b>. A Morais Engenharia
+      <b>não garante que o financiamento será aprovado</b>: obter a aprovação do crédito junto à CAIXA é
+      responsabilidade do comprador. Se o crédito aprovado for menor que o estimado, a entrada e/ou o saldo
+      devido diretamente à incorporadora aumentam.<br>
+      <b>3. Sinal.</b> O sinal é de <b>no mínimo R$ 10.000,00</b> e pode ser maior conforme o crédito liberado
+      e a análise da entrada.<br>
+      <b>4. Minha Casa, Minha Vida.</b> Possibilidade de enquadramento conforme renda e perfil do adquirente,
+      valor do imóvel, regras vigentes (Lei nº 14.620/2023) e aprovação da instituição financeira.<br>
+      <b>5. Parcelamento direto.</b> Sujeito à análise cadastral e de crédito pela incorporadora, conforme a
+      política de crédito vigente na data da proposta.<br>
+      <b>6. Fluxo de pagamento.</b> Sujeito a correção (INCC até a entrega das chaves; IPCA + 1% a.m. após) e
+      <b>só é definitivo após a assinatura do contrato com a CAIXA</b>. Valem somente as condições dos contratos
+      assinados. Condições limitadas às unidades disponíveis.<br>
+      Confirme as informações diretamente com a CAIXA (CDC, Lei nº 8.078/1990, arts. 6º, III, 30, 31 e 37).
+      Dados pessoais tratados conforme a LGPD (Lei nº 13.709/2018), apenas para esta análise.
+      <span id="registroIncorp"></span>
+    </div>
+
+    <div class="checks">
+      <label class="check">
+        <input type="checkbox" id="aceite" checked>
+        <span>Autorizo o uso dos dados informados para análise desta proposta e
+        para receber o retorno por e-mail.</span>
+      </label>
+      <!-- r62 — só aparece quando a unidade escolhida está RESERVADA -->
+      <label class="check" id="boxCienciaReserva" style="display:none">
+        <input type="checkbox" id="cienciaReserva">
+        <span>Estou ciente de que a <b>unidade <span id="unCienciaReserva"></span> está reservada</b> e de que
+        esta proposta <b>só será analisada caso haja desistência</b> da reserva atual.</span>
+      </label>
+      <label class="check">
+        <input type="checkbox" id="ciencia">
+        <span>Declaro que li o aviso acima e estou ciente de que os valores são <b>estimativas</b>,
+        que <b>não há garantia de aprovação</b> pela CAIXA e que as condições definitivas são as dos
+        contratos assinados.</span>
+      </label>
+    </div>
+
+    <div class="rodape">
+      <button type="button" class="btn-secundario" onclick="irPara(4)">Voltar</button>
+      <button type="submit" class="btn-primario" id="btEnviar">Enviar proposta</button>
+    </div>
+
+    <div id="status" class="status" style="display:none"></div>
+  </section>
+
+  </form>
+
+  <p class="ajuda" style="text-align:center;margin-top:24px;">
+    <a href="index.html" style="color:var(--marrom2);font-weight:600;">← Voltar ao mapa de vendas</a> ·
+    Proposta sujeita à análise e aprovação da Morais.
+  </p>
+</main>
+
+<script>
+  /* =====================================================================
+   * PROPOSTA DE COMPRA — RESERVA DO IPÊS
+   * ---------------------------------------------------------------------
+   * Mesma porta do simulador: o Apps Script do simulador, ação
+   * 'criarProposta', que grava na base PROPOSTAS do Notion e dispara o
+   * e-mail. Chega-se aqui pelo botão "Enviar proposta" do mapa, que passa
+   * ?unidade= e ?tipo= — igual ao simulador.
+   * =================================================================== */
+  var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzwUIApU5nKXi1vG3cEs_V2DWCdkLDwY_vo0zBxO59ZBLbEihIxuOqbHdNLm-8pVVwVJQ/exec';
+
+  var UNIDADES = [], PASSO = 1;
+  var ID_ENVIO = (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+               : ('E'+Date.now()+'-'+Math.random().toString(36).slice(2));
+
+  function apiPost(p){
+    return fetch(APPS_SCRIPT_URL,{method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify(p)}).then(function(r){return r.json();});
+  }
+  function fmt(v){return (Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
+  function brl(v){return 'R$ '+fmt(v);}
+  function param(n){return new URLSearchParams(location.search).get(n)||'';}
+  var F = function(){ return document.getElementById('formProposta'); };
+
+  /* ---------- padronização: MAIÚSCULO sem acento ----------
+     A mesma regra do simulador. O Apps Script padroniza de novo na hora de
+     gravar — aqui é só para a pessoa ver o que vai ser gravado. */
+  function esc_(v){
+    return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function padrao(v){
+    return String(v==null?'':v).normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .toUpperCase().replace(/\s+/g,' ').trim();
+  }
+  var dig = function(v){ return String(v==null?'':v).replace(/\D/g,''); };
+
+  function fmtCpf(v){
+    var d=dig(v).slice(0,11);
+    if(d.length>9) return d.slice(0,3)+'.'+d.slice(3,6)+'.'+d.slice(6,9)+'-'+d.slice(9);
+    if(d.length>6) return d.slice(0,3)+'.'+d.slice(3,6)+'.'+d.slice(6);
+    if(d.length>3) return d.slice(0,3)+'.'+d.slice(3);
+    return d;
+  }
+  function cpfValido(v){
+    var c=dig(v);
+    if(c.length!==11 || /^(\d)\1{10}$/.test(c)) return false;
+    for(var t=9;t<11;t++){
+      var soma=0;
+      for(var i=0;i<t;i++) soma+=parseInt(c.charAt(i),10)*((t+1)-i);
+      var d2=(soma*10)%11; if(d2===10) d2=0;
+      if(d2!==parseInt(c.charAt(t),10)) return false;
+    }
+    return true;
+  }
+  function fmtTel(v){
+    var d=dig(v).slice(0,11);
+    if(d.length<=2) return d.length?'('+d:'';
+    if(d.length<=6) return '('+d.slice(0,2)+') '+d.slice(2);
+    if(d.length<=10) return '('+d.slice(0,2)+') '+d.slice(2,6)+'-'+d.slice(6);
+    return '('+d.slice(0,2)+') '+d.slice(2,7)+'-'+d.slice(7);
+  }
+  function moeda(v){
+    var s=String(v||'').replace(/\./g,'').replace(',','.').replace(/[^0-9.]/g,'');
+    return parseFloat(s)||0;
+  }
+
+  /* =====================================================================
+     FLUXO DA ENTRADA — regra de set/26 (itens 8 e 15)
+     ---------------------------------------------------------------------
+     1) Entrada total = preço − financiado − FGTS − subsídio − EXCEDENTE do
+        valor para entrada (o que passar de R$ 10.000).
+        Os primeiros R$ 10.000 do valor para entrada NÃO abatem a entrada:
+        eles SÃO o pagamento dos sinais.
+     2) Sinais: R$ 1.000 no ato (TRAVADO) + 3 × R$ 3.000 (30/60/90 dias).
+     3) Ordem do fluxo: sinais → parcelas DURANTE A OBRA (1–12 e 13–24) →
+        balões (dez/2027 e entrega das chaves) → pós-chaves.
+     4) Distribuição:
+        - entrada ≤ R$ 10.000: só sinais (ato até R$ 1.000, o resto nos 3);
+        - entrada até a base cheia (R$ 60.200): sinais fixos, e balões,
+          parcelas e pós-chaves encolhem na mesma proporção;
+        - entrada ACIMA da base cheia (caso fora do ideal, normalmente o
+          teto de 80% da Caixa): ato continua R$ 1.000, pós-chaves fica no
+          valor base, e o excedente sobe os 3 sinais, balões e parcelas.
+          É AQUI que os R$ 10.000 deixam de cobrir os sinais — a diferença
+          aparece como "falta pagar dos sinais".
+     A mesma regra está no Apps Script (e-mail), no portal (PDF) e no
+     worker (fluxo_entrada.py). Se mudar aqui, muda nos quatro.
+     ===================================================================== */
+  var SINAL_ATO=1000, SINAL_MES=3000, SINAIS_BASE=SINAL_ATO+3*SINAL_MES;   // 10.000
+  var VALOR_ENTRADA_MIN=10000;
+  var BALOES=[['20/12/2027',10000,'Balão em dezembro/2027'],
+              ['Entrega das chaves',7000,'Balão na entrega das chaves']];
+  var B12=12*860, B1324=12*330, BPOS=24*788.3332806666667;
+  var BALOES_BASE=17000;
+  var BASE_MEIO=BALOES_BASE+B12+B1324;              // o que encolhe junto
+  var BASE_CHEIA=SINAIS_BASE+BASE_MEIO+BPOS;        // 60.200
+
+  /* ITEM 12 — teto da Caixa: o financiado nunca passa de 80% da avaliação. */
+  function tetoFinanciamento(avaliacao){ return (Number(avaliacao)||0)*0.8; }
+  function financiadoReal(credito, avaliacao){
+    var teto=tetoFinanciamento(avaliacao);
+    if(!teto) return credito||0;
+    return Math.min(credito||0, teto);
+  }
+
+  function calcular(preco, credito, subsidio, fgts, entrada, dataRef, avaliacao){
+    var financiado=financiadoReal(credito, avaliacao);
+    var bruta=(preco||0)-financiado;
+    var informado=entrada||0;
+    var paraSinais=Math.min(informado, VALOR_ENTRADA_MIN);     // paga os sinais
+    var excedente=Math.max(0, informado-VALOR_ENTRADA_MIN);     // abate a entrada
+    var recursos=(fgts||0)+(subsidio||0)+excedente;
+    var totalCalc=bruta-recursos;
+    var sobra = totalCalc<0 ? -totalCalc : 0;
+    /* r37 — O SINAL NUNCA É MENOR QUE R$ 10.000 (ato 1.000 + 3 × 3.000).
+       FGTS, subsídio e excedente abatem os DEMAIS itens da entrada. Se eles
+       deixariam a entrada abaixo de R$ 10.000 (ou zerada), o fluxo mantém o
+       sinal cheio e a diferença é DEVOLVIDA na assinatura com o banco. */
+    var devolucao = totalCalc<SINAIS_BASE ? SINAIS_BASE-Math.max(0,totalCalc) : 0;
+    var total=Math.max(totalCalc, SINAIS_BASE);
+
+    var ato=0, s3=0, g=0, t12=0, t1324=0, tpos=0;
+    if(total<=BASE_CHEIA+0.01){   // tolerância de centavos
+      ato=SINAL_ATO; s3=SINAL_MES;
+      g=(total-SINAIS_BASE)/(BASE_MEIO+BPOS);
+      t12=B12*g; t1324=B1324*g; tpos=BPOS*g;
+    } else {
+      ato=SINAL_ATO; tpos=BPOS;
+      g=(total-SINAL_ATO-BPOS)/(3*SINAL_MES+BASE_MEIO);
+      s3=SINAL_MES*g; t12=B12*g; t1324=B1324*g;
+    }
+    var fatorBaloes = total<=SINAIS_BASE ? 0 : g;
+
+    var meses=(dataRef.getFullYear()-2026)*12+((dataRef.getMonth()+1)-11);
+    var n1=Math.max(1,Math.min(12,12-Math.max(0,meses)));
+
+    // [quando, valor, descrição, grupo]
+    var fluxo=[];
+    if(ato>0.005)  fluxo.push(['Na assinatura', ato, 'Sinal / ato', 'sinal']);
+    if(s3>0.005){
+      fluxo.push(['30 dias', s3, 'Sinal 30 dias', 'sinal']);
+      fluxo.push(['60 dias', s3, 'Sinal 60 dias', 'sinal']);
+      fluxo.push(['90 dias', s3, 'Sinal 90 dias', 'sinal']);
+    }
+    if(t12/n1>0.005)   fluxo.push([n1+' X', t12/n1, 'Parcelas meses 1 a '+n1+' - DURANTE A OBRA', 'obra']);
+    if(t1324/12>0.005) fluxo.push(['12 X', t1324/12, 'Parcelas meses 13 a 24 - DURANTE A OBRA', 'obra']);
+    if(fatorBaloes>0) BALOES.forEach(function(b){
+      fluxo.push([b[0], b[1]*fatorBaloes, b[2], 'balao']);
+    });
+    if(tpos/24>0.005)  fluxo.push(['24 X', tpos/24, 'pós-chaves - PÓS A OBRA', 'pos']);
+
+    /* r42 — FECHAMENTO DE CENTAVOS.
+       Cada linha aparece arredondada em 2 casas, e 12 × R$ 1.380,18 não
+       devolve exatamente o valor da fatia: a soma do quadro ficava R$ 0,03
+       abaixo da entrada. Agora todas as linhas são arredondadas de fato e a
+       sobra/falta de centavos entra no ÚLTIMO balão (parcela única, onde
+       centavo nenhum se multiplica). */
+    (function fecharCentavos(){
+      function qtd(rot){ var m=String(rot).match(/^(\d+)\s*X$/i); return m?parseInt(m[1],10):1; }
+      var soma=0;
+      fluxo.forEach(function(x){
+        x[1]=Math.round(x[1]*100)/100;
+        soma+=x[1]*qtd(x[0]);
+      });
+      soma=Math.round(soma*100)/100;
+      var dif=Math.round((total-soma)*100)/100;
+      if(!dif) return;
+      // último balão; se não houver, a última linha de parcela única
+      var alvo=null;
+      for(var i=fluxo.length-1;i>=0;i--){
+        if(qtd(fluxo[i][0])===1 && fluxo[i][3]!=='sinal'){ alvo=fluxo[i]; break; }
+      }
+      if(!alvo){
+        for(var j=fluxo.length-1;j>=0;j--){ if(fluxo[j][3]!=='sinal'){ alvo=fluxo[j]; break; } }
+        if(!alvo) return;
+        alvo[1]=Math.round((alvo[1]+dif/qtd(alvo[0]))*100)/100;
+        return;
+      }
+      alvo[1]=Math.round((alvo[1]+dif)*100)/100;
+    })();
+
+    var sinaisTotal=ato+3*s3;
+    var cobertos=Math.min(paraSinais, sinaisTotal);
+    var faltaSinais=Math.max(0, sinaisTotal-cobertos);
+    var sobraSinais=Math.max(0, paraSinais-sinaisTotal);
+
+    return {total:total, fluxo:fluxo, n1:n1, bruta:bruta,
+            financiado:financiado, credito:(credito||0),
+            teto:tetoFinanciamento(avaliacao), avaliacao:(avaliacao||0),
+            fgts:(fgts||0), subsidio:(subsidio||0),
+            entradaInformada:informado, paraSinais:paraSinais, excedente:excedente,
+            recursos:recursos, sobra:sobra,
+            sinaisTotal:sinaisTotal, sinaisCobertos:cobertos,
+            devolucao:devolucao, totalCalculado:totalCalc,
+            faltaSinais:faltaSinais, sobraSinais:sobraSinais,
+            saldoAposSinais:Math.max(0,total-sinaisTotal)};
+  }
+
+  /* Texto gravado em ESQUEMA ENTRADA (e lido pelo e-mail, pelo portal e pelo
+     PDF). Formato: "quando: R$ x (descrição)" separados por ";". */
+  function esquemaTexto(q){
+    return q.fluxo.map(function(x){
+      var d=x[2];
+      if(x[3]==='sinal') d+=' - pago com o valor para entrada';
+      return x[0]+': '+brl(x[1])+' ('+d+')';
+    }).join('; ');
+  }
+
+  function livresDisponiveis(){
+    return UNIDADES.some(aceitaProposta);
+  }
+  /* r62 — RESERVADA também aceita proposta (só é analisada se houver
+     desistência). Vendida e "em breve" continuam de fora. */
+  function aceitaProposta(u){
+    var e=estadoUn(u); return e==='DISPONIVEL' || e==='RESERVADA';
+  }
+  function unidadeReservada(){ return estadoUn(unidadeAtual())==='RESERVADA'; }
+  /* Aviso azul no passo 1 e a declaração de ciência no último passo. */
+  function avisarReserva(){
+    var u=unidadeAtual(), res=!!u && estadoUn(u)==='RESERVADA';
+    var av=document.getElementById('avisoUnidade');
+    /* um aviso de ERRO na tela (unidade pedida vendida, nenhuma livre) tem
+       prioridade: ele some quando a pessoa troca de unidade */
+    var erroNaTela = av.style.display==='block' && av.className.indexOf('erro')>=0;
+    if(res && erroNaTela){
+      /* mantém o erro; a declaração de ciência (abaixo) continua valendo */
+    } else if(res){
+      av.className='status reservada'; av.style.display='block';
+      av.innerHTML='<b>A unidade '+u.unidade+' está RESERVADA.</b><br>Você pode enviar a proposta normalmente, '+
+        'mas ela fica registrada e <b>só será analisada caso haja desistência</b> da reserva atual.';
+    } else if(av.className.indexOf('reservada')>=0){
+      av.style.display='none'; av.className='status erro';
+    }
+    var box=document.getElementById('boxCienciaReserva');
+    if(box){
+      box.style.display = res ? '' : 'none';
+      if(!res) document.getElementById('cienciaReserva').checked=false;
+      document.getElementById('unCienciaReserva').textContent = res ? u.unidade : '';
+    }
+  }
+  function unidadeAtual(){
+    var v=F().unidade.value;
+    for(var i=0;i<UNIDADES.length;i++) if(String(UNIDADES[i].unidade)===String(v)) return UNIDADES[i];
+    return null;
+  }
+  /* r37 — explicação da devolução quando FGTS/subsídio cobririam o sinal */
+  function avisoDevolucao(q){
+    if(!(q.devolucao>0.005)) return '';
+    return '<div class="status processando" style="margin-top:10px">'+
+      '<b>O sinal de R$ 10.000,00 é mantido.</b><br>'+
+      'FGTS, subsídio e o excedente do valor para entrada ('+brl(q.recursos)+') cobririam '+
+      (q.totalCalculado<=0 ? '<b>100% da entrada</b>' : 'a entrada até sobrar só '+brl(q.totalCalculado))+
+      ', mas o sinal nunca fica abaixo de R$ 10.000,00. '+
+      '<b>A diferença de '+brl(q.devolucao)+' será devolvida ao cliente no ato da assinatura do contrato com o banco.</b></div>';
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    var r=document.getElementById('registroIncorp');
+    if(r && REGISTRO_INCORPORACAO) r.innerHTML='<br>Memorial de Incorporação registrado sob '+REGISTRO_INCORPORACAO+'.';
+  });
+  var ULTIMO_CALCULO=null;
+  function montarFluxo(){
+    var alvo=document.getElementById('fluxo');
+    var resumo=document.getElementById('resumoEntrada');
+    var u=unidadeAtual(), f=F();
+    var comCredito=f.creditoAprovadoCaixa.value==='SIM';
+    var credito=moeda(f.creditoAprovado.value);
+    /* r38 — sem crédito aprovado: estimativa com o teto de 80% */
+    if(!comCredito && u) credito=(u.avaliacao||0)*0.8;
+    if(!u || (comCredito && !credito)){
+      alvo.innerHTML='<span class="ajuda">Informe o crédito aprovado para montar o fluxo da entrada.</span>';
+      alvo.dataset.esquema=''; if(resumo) resumo.innerHTML=''; ULTIMO_CALCULO=null; return;
+    }
+    var dtxt=f.dataRef.value;
+    var d=dtxt?new Date(dtxt+'T12:00:00'):new Date();
+    var fgtsTotal=moeda(f.saldoFgts.value)+moeda(f.saldoFgtsConjuge.value);
+    var q=calcular(u.valorVenda, credito, moeda(f.subsidio.value),
+                   fgtsTotal, moeda(f.valorEntrada.value), d, u.avaliacao);
+    ULTIMO_CALCULO=q;
+    document.getElementById('valorFinanciado').value=brl(q.financiado);
+    aplicarRegraParcela(q);
+    verBlocoSiop();
+    alvo.dataset.esquema=esquemaTexto(q);
+
+    /* ---- ITEM 15: quadro dos sinais, em destaque ---- */
+    var linhaFalta = q.faltaSinais>0.005
+      ? '<tr class="falta"><td>⚠ Falta pagar do sinal</td><td class="num">'+brl(q.faltaSinais)+'</td></tr>'
+      : '<tr class="okk"><td>✓ Sinal coberto pelo valor para entrada</td><td class="num">'+brl(q.sinaisCobertos)+'</td></tr>';
+    var nota = q.faltaSinais>0.005
+      ? 'A entrada desta unidade está <b>acima do padrão</b>, então as parcelas do sinal de 30/60/90 dias subiram '+
+        '(ficaram em '+brl(q.sinaisTotal-SINAL_ATO>0?(q.sinaisTotal-SINAL_ATO)/3:0)+' cada). '+
+        'Os R$ 10.000 do valor para entrada não cobrem tudo: <b>faltam '+brl(q.faltaSinais)+'</b>. '+
+        'A proposta segue assim para a Morais decidir.'
+      : (q.sobraSinais>0.005
+        ? 'A entrada é pequena e os sinais somam só '+brl(q.sinaisTotal)+'. '+
+          'Do valor para entrada, <b>'+brl(q.sobraSinais)+'</b> não seriam necessários.'
+        : 'O valor para entrada é o valor do sinal (R$ 1.000 no ato + 3 × R$ 3.000).');
+    var quadroSinais =
+      '<div class="sinais"><div class="cab">SINAL × VALOR PARA ENTRADA</div><table>'+
+      '<tr><td>Sinal (ato + 30/60/90 dias)</td><td class="num">'+brl(q.sinaisTotal)+'</td></tr>'+
+      '<tr><td>(–) Valor para entrada destinado ao sinal</td><td class="num">'+brl(q.paraSinais)+'</td></tr>'+
+      linhaFalta+
+      (q.excedente>0.005 ? '<tr><td>Excedente do valor para entrada (acima de R$ 10.000) — abatido da entrada</td>'+
+        '<td class="num">'+brl(q.excedente)+'</td></tr>' : '')+
+      '</table><div class="nota">'+nota+'</div></div>';
+
+    if(resumo){
+      resumo.innerHTML='<div class="resumo" style="margin:10px 0 0">'+
+        '<b>Entrada total: '+brl(q.total)+'</b><br>'+
+        'Valor de venda '+brl(u.valorVenda)+' − financiado '+brl(q.financiado)+
+        (q.fgts?' − FGTS '+brl(q.fgts):'')+
+        (q.subsidio?' − subsídio '+brl(q.subsidio):'')+
+        (q.excedente?' − excedente do valor para entrada '+brl(q.excedente):'')+'.<br>'+
+        'Depois do sinal, ficam <b>'+brl(q.saldoAposSinais)+'</b> em parcelas durante a obra, balões e pós-chaves.'+
+        '</div>'+quadroSinais+avisoDevolucao(q);
+    }
+
+    var cab='<table class="tabfluxo">'+
+      '<tr><td>Valor de venda</td><td class="num">'+brl(u.valorVenda)+'</td><td></td></tr>'+
+      '<tr><td>(–) Valor financiado pela Caixa</td><td class="num">'+brl(q.financiado)+'</td>'+
+      '<td><small>'+(q.credito>q.teto&&q.teto?'limitado ao teto de 80% da avaliação':'crédito aprovado')+'</small></td></tr>'+
+      '<tr><td><b>= Entrada</b></td><td class="num">'+brl(q.bruta)+'</td><td></td></tr>'+
+      (q.fgts?'<tr><td>(–) FGTS (titular + cônjuge)</td><td class="num">'+brl(q.fgts)+'</td><td></td></tr>':'')+
+      (q.subsidio?'<tr><td>(–) Subsídio</td><td class="num">'+brl(q.subsidio)+'</td><td></td></tr>':'')+
+      (q.excedente?'<tr><td>(–) Valor para entrada acima de R$ 10.000</td><td class="num">'+brl(q.excedente)+
+        '</td><td><small>só o excedente abate</small></td></tr>':'')+
+      '<tr class="tot"><td>= ENTRADA TOTAL A PAGAR</td><td class="num">'+brl(q.total)+'</td>'+
+      '<td><small>'+(q.fluxo.length?'dividida no fluxo abaixo':'—')+'</small></td></tr>';
+
+    var grupos={sinal:'SINAL — abatido pelo valor para entrada (ato → 30 → 60 → 90 dias)', obra:'PARCELAS DURANTE A OBRA',
+                balao:'BALÕES', pos:'PÓS-CHAVES — PÓS A OBRA'};
+    var ultimo='';
+    /* r36 — abatimento do sinal, linha a linha, na ordem ato → 30 → 60 → 90 */
+    var restoS=q.paraSinais, ultS=-1, faltasS=[];
+    q.fluxo.forEach(function(x,i){
+      if(x[3]!=='sinal') return;
+      ultS=i;
+      var ab=Math.min(x[1],Math.max(0,restoS)); restoS-=ab;
+      x.abatido=ab; x.falta=Math.round((x[1]-ab)*100)/100;
+      if(x.falta>0.005) faltasS.push(x[0]);
+    });
+    var linhas=q.fluxo.map(function(x,idx){
+      var g='';
+      if(x[3]!==ultimo){ g='<tr class="grupo"><td colspan="3">'+grupos[x[3]]+'</td></tr>'; ultimo=x[3]; }
+      var tag = x[3]==='obra' ? '<span class="tag-obra">DURANTE A OBRA</span>'
+              : (x[3]==='pos' ? '<span class="tag-pos">PÓS A OBRA</span>'
+              : (x[3]==='sinal' ? '<span class="tag-sinal">VALOR P/ ENTRADA</span>' : ''));
+      var desc = x[2].replace(' - DURANTE A OBRA','').replace(' - PÓS A OBRA','');
+      var situ='', est='';
+      if(x[3]==='sinal'){
+        if(x.falta<=0.005) situ='<br><small style="color:#1D5433;font-weight:700">✓ abatido pelo valor para entrada</small>';
+        else {
+          est=' class="lfalta"';
+          situ = x.abatido>0.005
+            ? '<br><small style="color:#8A2E17;font-weight:800">⚠ abatido '+brl(x.abatido)+' · FALTA '+brl(x.falta)+'</small>'
+            : '<br><small style="color:#8A2E17;font-weight:800">⚠ FALTA '+brl(x.falta)+' — não coberto</small>';
+        }
+      }
+      var fecho='';
+      if(idx===ultS){
+        fecho = faltasS.length
+          ? '<tr class="lfalta"><td colspan="3"><b>⚠ O valor para entrada ('+brl(q.paraSinais)+') não cobre o sinal inteiro ('+
+            brl(q.sinaisTotal)+'). Faltam '+brl(q.faltaSinais)+', nas últimas parcelas do sinal: '+faltasS.join(', ')+'.</b></td></tr>'
+          : '<tr><td colspan="3"><small style="color:#1D5433;font-weight:700">✓ O valor para entrada ('+brl(q.paraSinais)+
+            ') abate todo o sinal ('+brl(q.sinaisTotal)+').</small></td></tr>';
+      }
+      return g+'<tr'+est+'><td>'+x[0]+'</td><td class="num">'+brl(x[1])+'</td><td><small>'+desc+'</small>'+tag+situ+'</td></tr>'+fecho;
+    }).join('');
+
+    var recado=avisoDevolucao(q);
+    alvo.innerHTML=cab+linhas+'</table>'+recado;
+  }
+
+  /* ITENS 12 e 13 — teto de 80% e de onde vem a parcela.
+     Acima do teto, o valor é o que a Caixa financia e a parcela sai da
+     SIMULAÇÃO daquela unidade (é justamente o que o simulador calcula).
+     Abaixo do teto, o valor é particular daquele cliente e o simulador não
+     tem como reproduzir — então o campo fica liberado para digitar. */
+  function aplicarRegraParcela(q){
+    var av=document.getElementById('avisoTeto');
+    var aj=document.getElementById('ajudaParcela');
+    var campo=F().parcelaFinanciamento;
+    var u=unidadeAtual();
+    if(!q.teto){ av.style.display='none'; aj.textContent='Informe a parcela.'; return; }
+
+    /* r38 — ITEM 4: sem crédito aprovado também simula, como ESTIMATIVA. */
+    if(F().creditoAprovadoCaixa.value==='NAO'){
+      av.style.display='block';
+      av.className='status ok';
+      av.innerHTML='<b>Sem crédito aprovado — a CAIXA será simulada como estimativa.</b><br>'+
+        'Avaliação '+brl(q.avaliacao)+' → teto de financiamento <b>'+brl(q.teto)+'</b> (80%). '+
+        'O fluxo abaixo usa esse teto como referência.<br>'+
+        '<span style="font-size:12px">A simulação serve apenas para dar uma ideia do crédito do cliente. '+
+        '<b>O crédito real só existe depois da análise e aprovação pela CAIXA.</b></span>'+
+        listaDocumentos();
+      document.getElementById('boxParcela').style.display='none';
+      campo.value=''; campo.classList.remove('destaque-sim');
+      return;
+    }
+
+    /* A referência dos 80% aparece SEMPRE, não só quando estoura o teto:
+       é o número que o corretor precisa ter na cabeça para conversar com o
+       cliente, mesmo quando o crédito está abaixo dele. */
+    av.style.display='block';
+    /* r35 — crédito IGUAL ao teto também simula (antes só acima).
+       Só abaixo do teto a parcela é digitada. */
+    if(q.credito>=q.teto-0.5){
+      /* r38 — ITEM 1: verde quando a CAIXA simula (nada a preencher) */
+      av.className='status ok';
+      var acima = q.credito>q.teto+0.5;
+      av.innerHTML='<b>Crédito '+(acima?'acima do':'igual ao')+' teto da Caixa.</b><br>'+
+        'Avaliação '+brl(q.avaliacao)+' → teto de financiamento <b>'+brl(q.teto)+'</b> (80%).<br>'+
+        (acima
+          ? 'O crédito informado ('+brl(q.credito)+') foi limitado a esse teto, e a diferença de '+
+            '<b>'+brl(q.credito-q.teto)+'</b> voltou para a entrada.<br>'
+          : 'O crédito informado ('+brl(q.credito)+') é exatamente o teto.<br>')+
+        '<span style="font-size:12px">Como o valor bate no teto, a parcela sai da simulação '+
+        'da CAIXA — não precisa preencher.</span>';
+      /* Crédito no teto: quem sabe a parcela é o SIOP. O campo some — pedir
+         um número que o sistema vai sobrescrever só confunde. */
+      document.getElementById('boxParcela').style.display='none';
+      campo.value='';
+      campo.classList.remove('destaque-sim');
+    }else{
+      /* r38 — ITEM 1: amarelo quando a parcela PRECISA ser preenchida */
+      av.className='status processando';
+      var folga=q.teto-q.credito;
+      av.innerHTML='<b>Crédito dentro do teto da Caixa.</b><br>'+
+        'Avaliação '+brl(q.avaliacao)+' → teto de financiamento <b>'+brl(q.teto)+'</b> (80%).<br>'+
+        'O crédito informado é '+brl(q.credito)+', ou seja, <b>'+brl(folga)+'</b> abaixo do teto.<br>'+
+        '<span style="font-size:12px">A CAIXA não simula um valor abaixo do teto, então a '+
+        '<b>parcela precisa ser informada</b> logo abaixo.</span>';
+      document.getElementById('boxParcela').style.display='';
+      aj.textContent='Crédito abaixo do teto de '+brl(q.teto)+' — a CAIXA não simula esse valor, então a parcela precisa ser informada.';
+      campo.classList.add('destaque-sim');
+    }
+  }
+  function abrirSimulador(){
+    var u=unidadeAtual(); if(!u) return;
+    window.open('simulador.html?tipo='+encodeURIComponent(u.tipo)+'&unidade='+encodeURIComponent(u.unidade),'_blank');
+  }
+
+  /* ITEM 16 — sem crédito aprovado, some o campo de crédito e a origem das
+     rendas passa a ser exigida (é o que substitui a análise do banco). */
+  /* Mesmas listas do simulador — se mudarem lá, mudam aqui. São as linhas
+     que o SIOP aceita conforme o cliente já tenha imóvel na cidade. */
+  var PROD_COM=['SBPE SFH - TR - AQUISIÇÃO DE IMÓVEL RESIDENCIAL NOVO'];
+  /* r34 — na proposta, só NPMCMV (Prócotista removido) */
+  var PROD_SEM=['NPMCMV - IMÓVEL NOVO INDIVIDUAL'];
+  var produtosSelecionados=[];
+  function renderProdutos(){
+    var alvo=document.getElementById('produtos'); if(!alvo) return;
+    var comImovel=F().possuiImovelCidade.checked;
+    var l=comImovel?PROD_COM:PROD_SEM;
+    /* r41 (item 5) — sem Prócotista sobrou UMA linha em cada caso: SBPE para
+       quem tem imóvel, NPMCMV para quem não tem. Como não há escolha, já vai
+       marcada e fixa; a tela só mostra qual será simulada. */
+    produtosSelecionados=l.slice();
+    alvo.innerHTML=l.map(function(p){
+      return '<div class="produto on" style="cursor:default">'+
+             '<span class="marca">✓</span><span>'+p+'</span></div>';
+    }).join('');
+    document.getElementById('produtosAjuda').innerHTML =
+      (comImovel ? 'Cliente <b>com</b> imóvel: a linha simulada é o <b>SBPE</b>.'
+                 : 'Cliente <b>sem</b> imóvel: a linha simulada é o <b>NPMCMV</b>.') +
+      ' A linha é definida automaticamente.';
+  }
+  function alternarProduto(el){
+    el.classList.toggle('on');
+    produtosSelecionados=[].slice.call(document.querySelectorAll('#produtos .produto.on span:last-child'))
+      .map(function(x){return x.textContent;});
+  }
+
+  function verSiopSub(){
+    var f=F();
+    document.getElementById('boxConcessaoProp').style.display = f.jaBeneficiado.checked ? '' : 'none';
+    document.getElementById('boxRelacionamentoProp').style.display = f.relacionamentoCaixa.checked ? '' : 'none';
+    if(!f.jaBeneficiado.checked) f.dataConcessaoBeneficio.value='';
+    if(!f.relacionamentoCaixa.checked){ f.servidorPublico.checked=false; f.creditoSalarioCaixa.checked=false; }
+  }
+  /* O bloco do SIOP só faz sentido quando a simulação vai rodar. Fora disso
+     ele some, para não pedir dez informações que ninguém vai usar. */
+  function verBlocoSiop(){
+    var f=F(), u=unidadeAtual();
+    var vai = !!u && (u.avaliacao||0)>0 &&
+              (f.creditoAprovadoCaixa.value==='NAO' ||
+               moeda(f.creditoAprovado.value) >= (u.avaliacao||0)*0.8-0.5);
+    var antes=document.getElementById('boxSiop').style.display;
+    document.getElementById('boxSiop').style.display = vai ? '' : 'none';
+    document.getElementById('secaoSiop').style.display = vai ? '' : 'none';
+    if(vai && antes==='none') renderProdutos();
+  }
+
+  function verCredito(){
+    var com = F().creditoAprovadoCaixa.value==='SIM';
+    document.getElementById('boxCredito').style.display = com ? '' : 'none';
+    /* r47 (item 1) — a origem da renda fica SEMPRE visível: é ela que define
+       os documentos da análise, com ou sem crédito aprovado. */
+    /* r41 (item 9) — sem crédito aprovado, o subsídio quem calcula é a CAIXA */
+    var bs=document.getElementById('boxSubsidio');
+    if(bs){
+      bs.style.display = com ? '' : 'none';
+      if(!com) F().subsidio.value='';
+    }
+    if(!com){ F().creditoAprovado.value=''; }
+    montarFluxo();
+  }
+
+  function somarRenda(){
+    var f=F();
+    /* Renda total = titular + cônjuge. Na análise da Caixa é a renda
+       familiar que conta, não só a do titular. */
+    var t=moeda(f.rendaAprovada.value)+moeda(f.rendaAprovadaConjuge.value);
+    document.getElementById('rendaTotal').value = brl(t);
+  }
+  function verConjuge(){
+    var v=F().estadoCivil.value;
+    document.getElementById('boxConjuge').style.display =
+      (v==='CASADO'||v==='UNIAO ESTAVEL') ? 'block' : 'none';
+  }
+
+  /* ---------- ITEM 9: anexos ----------
+     Os arquivos seguem junto com o e-mail da proposta. Não dá para mandá-los
+     para o Notion pela API (ela só aceita arquivo por URL externa), então o
+     e-mail é o canal — e é onde o pessoal de vendas já procura mesmo. */
+  /* r45 — lista de documentos da análise de crédito.
+     [id, rótulo, dica, origens de renda que pedem este documento]
+     Os documentos de renda ganham a marca "pedido para ..." conforme a
+     origem escolhida no passo 2 (proponente e cônjuge). */
+  var DOCS=[
+    ['docProponente','RG e CPF do proponente','Documento com foto, dos dois lados.',null],
+    ['docConjuge','RG e CPF do cônjuge','Se casado ou em união estável.',null],
+    ['docParticipantes','RG e CPF dos demais participantes','Fiadores e outros compradores que entram na análise.',null],
+    ['certidao','Comprovante de estado civil','Certidão de nascimento, de casamento ou averbação de divórcio.',null],
+    ['compEndereco','Comprovante de endereço','Conta de água, luz ou telefone dos últimos 3 meses.',null],
+    ['imposto','Imposto de renda','Declaração completa + recibo de entrega, se houver declaração.',
+      ['EMPRESÁRIO','AUTÔNOMO','MEI','PROFISSIONAL LIBERAL','RURAL']],
+    ['contracheques','Dois últimos contracheques','Carteira assinada ou servidor público.',
+      ['CLT','SERVIDOR PÚBLICO']],
+    ['carteiraTrabalho','Carteira de trabalho','Física ou digital (PDF do app).',['CLT']],
+    ['proLabore','Pró-labore','Empresário, exceto MEI. Dê preferência ao imposto de renda.',['EMPRESÁRIO']],
+    ['extratos','Movimentação bancária - 4 últimos meses',
+      'Autônomo, MEI ou informal sem IR. Por extrato, a renda máxima considerada pelo sistema é R$ 2.550,00.',
+      ['AUTÔNOMO','MEI','OUTRO']],
+    ['plataforma','Extrato da plataforma - 4 últimos meses','Uber, iFood, 99 e afins.',
+      ['MOTORISTA DE APLICATIVO']],
+    /* r46 (item 7) — FGTS: pedido para quem é CLT ou marcou 3 anos de FGTS */
+    ['extratoFgts','Extrato do FGTS','Extrato do app ou do site da CAIXA, com o saldo.',['CLT'],'fgts'],
+    /* r46 (item 8) — dependente / segundo comprador */
+    ['dependente','Documentos do dependente ou 2º comprador',
+      'Criança: certidão de nascimento ou identidade. Maior de idade: documento pessoal + comprovante de estado civil.',
+      null,'dependente'],
+    /* r46 (item 9) — divorciado */
+    ['divorcio','Comprovante de divórcio','Averbação do divórcio na certidão de casamento ou sentença.',
+      null,'divorcio'],
+    ['docCreci','CRECI do corretor','Frente e verso. O documento é lido e já preenche os dados do corretor no passo 5.',null],
+    ['outros','Outros documentos','Qualquer outro documento pedido pela análise.',null]
+  ];
+
+  /* r47 (item 3) — dependentes e compradores adicionais. */
+  function verDependentes(){
+    var on=F().maisDeUmComprador.checked;
+    document.getElementById('boxDependentes').style.display = on ? '' : 'none';
+    if(on && !document.querySelectorAll('#listaDependentes .dep').length) montarDependentes();
+    if(!on) document.getElementById('listaDependentes').innerHTML='';
+    montarAnexos(); montarFluxo();
+  }
+  function montarDependentes(){
+    var n=Math.max(1, Math.min(6, parseInt(document.getElementById('qtdDependentes').value,10)||1));
+    var atuais=pessoasExtras();
+    var html='';
+    for(var i=0;i<n;i++){
+      var p=atuais[i]||{nome:'',cpf:'',tipo:'DEPENDENTE'};
+      html+='<div class="dep" style="display:grid;grid-template-columns:1fr 150px 160px;gap:8px;margin-bottom:8px">'+
+        '<input type="text" class="dep-nome" placeholder="Nome completo" value="'+esc_(p.nome)+'" oninput="montarAnexos()">'+
+        '<input type="text" class="dep-cpf" inputmode="numeric" maxlength="14" placeholder="CPF" value="'+esc_(p.cpf)+'">'+
+        '<select class="dep-tipo" onchange="montarAnexos()">'+
+          '<option'+(p.tipo==='DEPENDENTE'?' selected':'')+'>DEPENDENTE</option>'+
+          '<option'+(p.tipo==='COMPRADOR'?' selected':'')+'>COMPRADOR</option>'+
+        '</select></div>';
+    }
+    document.getElementById('listaDependentes').innerHTML=html;
+    document.querySelectorAll('.dep-cpf').forEach(function(c){
+      c.addEventListener('input', function(){
+        var v=dig(c.value).slice(0,11);
+        c.value = v.replace(/^(\d{3})(\d)/,'$1.$2').replace(/^(\d{3})\.(\d{3})(\d)/,'$1.$2.$3')
+                   .replace(/\.(\d{3})(\d)/,'.$1-$2');
+      });
+    });
+    montarAnexos();
+  }
+  function pessoasExtras(){
+    var out=[];
+    document.querySelectorAll('#listaDependentes .dep').forEach(function(d){
+      out.push({nome:(d.querySelector('.dep-nome').value||'').toUpperCase().trim(),
+                cpf:dig(d.querySelector('.dep-cpf').value),
+                tipo:d.querySelector('.dep-tipo').value});
+    });
+    return out;
+  }
+
+  /* r46 (item 3) — a lista de documentos da análise, montada conforme a
+     ORIGEM DA RENDA e a situação do cliente: o corretor vê exatamente o que
+     pedir, sem decorar a lista do WhatsApp. */
+  function listaDocumentos(){
+    var itens=[];
+    docsDaVez().forEach(function(d){
+      if(d[0]==='outros') return;
+      var f=F();
+      var origens=[(f.origemRenda&&f.origemRenda.value)||'', (f.origemRendaConjuge&&f.origemRendaConjuge.value)||''];
+      var porOrigem = d[3] && origens.some(function(o){ return o && d[3].indexOf(o)>=0; });
+      var porSituacao = d[4] && situacaoPede(d[4]);
+      var sempre = DOCS_SEMPRE.indexOf(d[0])>=0;
+      var conj = d[0]==='docConjuge' && document.getElementById('boxConjuge').style.display!=='none';
+      if(porOrigem||porSituacao||sempre||conj) itens.push('<li><b>'+d[1]+'</b> — '+d[2]+'</li>');
+    });
+    var f=F();
+    var semOrigem = !(f.origemRenda && f.origemRenda.value);
+    return '<div style="margin-top:10px;padding:10px 12px;border-radius:6px;background:#fff;border:1px solid #D8CDB5">'+
+      '<b>🏡 Documentos para aprovar o crédito</b>'+
+      (semOrigem ? '<br><span style="color:#8A2E17">Escolha a <b>origem da renda</b> (passo 2) para a lista sair completa.</span>' : '')+
+      '<ul style="margin:6px 0 0 18px;padding:0;font-size:12.5px;line-height:1.55">'+itens.join('')+'</ul>'+
+      '<span style="font-size:12px;color:#6B5A45">Anexe no passo 4. Faremos a análise de crédito e retornaremos com o resultado.</span></div>';
+  }
+
+  /* r46 — situações que pedem documento além da origem da renda. */
+  function situacaoPede(chave){
+    var f=F();
+    if(chave==='fgts') return !!(f.fgts3anos && f.fgts3anos.checked);
+    if(chave==='dependente') return !!(f.maisDeUmComprador && f.maisDeUmComprador.checked);
+    if(chave==='divorcio') return String(f.estadoCivil.value||'').indexOf('DIVORC')>=0;
+    return false;
+  }
+  /* Documentos que TODA análise pede, independentemente da renda. */
+  var DOCS_SEMPRE=['docProponente','certidao','compEndereco'];
+  var LIMITE_ANEXOS=20*1024*1024;
+  /* A lista de documentos da vez: os fixos + um campo por dependente/2º
+     comprador informado. */
+  function docsDaVez(){
+    var lista=DOCS.filter(function(d){ return d[0]!=='dependente'; });
+    var extras=pessoasExtras();
+    if(F().maisDeUmComprador.checked){
+      if(!extras.length) extras=[{nome:'',tipo:'DEPENDENTE'}];
+      extras.forEach(function(p,i){
+        var quem=p.nome ? (p.nome) : ((p.tipo==='COMPRADOR'?'2º comprador ':'dependente ')+(i+1));
+        lista.push(['dep'+i, 'Documentos de '+quem,
+          p.tipo==='COMPRADOR'
+            ? 'Documento pessoal, comprovante de estado civil e comprovação de renda.'
+            : 'Criança: certidão de nascimento ou identidade. Maior de idade: documento pessoal + comprovante de estado civil.',
+          null, 'dependente']);
+      });
+    }
+    var i0=lista.findIndex(function(d){ return d[0]==='outros'; });
+    if(i0>=0) lista.push(lista.splice(i0,1)[0]);   // "Outros documentos" por último
+    return lista;
+  }
+
+  function montarAnexos(){
+    var f=F();
+    var DOCS_ATIVOS=docsDaVez();
+    var origens=[(f.origemRenda&&f.origemRenda.value)||'', (f.origemRendaConjuge&&f.origemRendaConjuge.value)||''];
+    var guardados={};
+    document.querySelectorAll('#anexos input[type=file]').forEach(function(el){
+      if(el.files.length) guardados[el.id]=el.files;
+    });
+    var extrasHtml=[];
+    document.getElementById('anexos').innerHTML=DOCS_ATIVOS.map(function(d){
+      var porOrigem = d[3] && origens.some(function(o){ return o && d[3].indexOf(o)>=0; });
+      var porSituacao = d[4] && situacaoPede(d[4]);
+      var sempre = DOCS_SEMPRE.indexOf(d[0])>=0;
+      var conjugeObrig = d[0]==='docConjuge' && document.getElementById('boxConjuge').style.display!=='none';
+      var pedido = porOrigem || porSituacao || sempre || conjugeObrig;
+      var quem = porOrigem ? origens.filter(function(o){ return o && d[3].indexOf(o)>=0; }).join(' / ')
+               : (d[4]==='fgts' ? 'FGTS' : (d[4]==='dependente' ? 'DEPENDENTE / 2º COMPRADOR'
+               : (d[4]==='divorcio' ? 'DIVORCIADO' : 'ANÁLISE DE CRÉDITO')));
+      var ehCreci = d[0]==='docCreci';
+      var html='<div class="anexo'+(pedido?' pedido':'')+(ehCreci?' creci':'')+'">'+
+             '<label for="ax-'+d[0]+'">'+d[1]+
+             (pedido?'<span class="tag-doc">pedido para '+quem+'</span>':'')+
+             (ehCreci?'<span class="tag-doc">para o corretor · opcional</span>':'')+
+             '<small>'+d[2]+'</small>'+p1Marca(d[0])+'</label>'+
+             '<input type="file" id="ax-'+d[0]+'" data-rotulo="'+d[1]+'" multiple onchange="resumoAnexos()'+(ehCreci?';lerCreci(this)':'')+'">'+
+             (ehCreci?'<div class="lst" id="lst-creci" style="display:none"></div>':'')+'</div>';
+      /* r47 (item 4) — o que não é pedido para ESTE cliente fica escondido
+         atrás do "ver os demais documentos". */
+      if(!pedido && !ehCreci){ extrasHtml.push(html); return ''; }
+      return html;
+    }).join('') +
+    (extrasHtml.length
+      ? '<details class="outros-docs"><summary>Ver os demais documentos ('+extrasHtml.length+')</summary>'+
+        extrasHtml.join('')+'</details>'
+      : '');
+    /* mantém os arquivos já escolhidos quando a lista é redesenhada */
+    Object.keys(guardados).forEach(function(id){
+      var el=document.getElementById(id);
+      if(!el) return;
+      var dt=new DataTransfer();
+      for(var i=0;i<guardados[id].length;i++) dt.items.add(guardados[id][i]);
+      el.files=dt.files;
+    });
+    resumoAnexos();
+    pintarCreci();
+  }
+  function arquivosAnexados(){
+    var out=[];
+    /* r66 — o que foi anexado na página 1 (proponente / cônjuge) entra junto */
+    ['proponente','conjuge'].forEach(function(q){
+      if(q==='conjuge' && document.getElementById('boxConjuge').style.display==='none') return;
+      Object.keys(P1[q]).forEach(function(k){
+        (P1[q][k]||[]).forEach(function(a){ out.push({rotulo:P1_ROTULO[q], arquivo:a}); });
+      });
+    });
+    document.querySelectorAll('#anexos input[type=file]').forEach(function(el){
+      for(var i=0;i<el.files.length;i++) out.push({rotulo:el.dataset.rotulo, arquivo:el.files[i]});
+    });
+    return out;
+  }
+  function resumoAnexos(){
+    var lista=arquivosAnexados();
+    var total=lista.reduce(function(a,x){return a+x.arquivo.size;},0);
+    var el=document.getElementById('anexoResumo');
+    if(!lista.length){ el.textContent='Nenhum arquivo selecionado ainda.'; el.style.color=''; return; }
+    var mb=(total/1048576).toFixed(1);
+    el.innerHTML=lista.length+' arquivo(s) · '+mb+' MB no total.';
+    el.style.color = total>LIMITE_ANEXOS ? '#B0431F' : '';
+    if(total>LIMITE_ANEXOS) el.innerHTML+=' <b>Acima do limite de 20 MB — tire algum arquivo.</b>';
+  }
+  function lerBase64(arquivo){
+    return new Promise(function(ok,err){
+      var r=new FileReader();
+      r.onload=function(){ ok(String(r.result).split(',')[1]||''); };
+      r.onerror=function(){ err(new Error('Falha ao ler '+arquivo.name)); };
+      r.readAsDataURL(arquivo);
+    });
+  }
+
+  /* =====================================================================
+     r66 — DOCUMENTOS NA PÁGINA 1, CRECI NA PÁGINA 4 E PRAZO/COMISSÃO
+     ---------------------------------------------------------------------
+     • O proponente (e o cônjuge, se houver) pode anexar CNH ou RG + CPF já
+       na primeira página. O documento é LIDO e preenche os campos vazios;
+       se não der para ler, aparece o aviso de preencher à mão.
+     • Anexar aqui é opcional e não trava nada. O passo 4 mostra o ✓.
+     • O CRECI é anexado no passo 4; a leitura preenche o corretor no passo 5.
+     • A leitura só devolve dados; nada é gravado antes do envio.
+     ===================================================================== */
+  var P1={proponente:{}, conjuge:{}};
+  var P1_ROTULO={proponente:'RG e CPF do proponente', conjuge:'RG e CPF do cônjuge'};
+  var P1_ID={proponente:'docProponente', conjuge:'docConjuge'};
+  var P1_TIPOS={
+    CNH:[['cnh','CNH (frente e verso)','CNH']],
+    RGCPF:[['rg','RG (frente e verso)','RG'],['cpf','CPF','CPF']]
+  };
+  var MAPA_LEITURA={
+    proponente:{nome:'cliente', cpf:'cpf', rg:'identidade', dataNascimento:'dataNascimento'},
+    conjuge:{nome:'conjuge', cpf:'cpfConjuge'}
+  };
+  function p1Qtd(idInput){
+    var id=String(idInput||'').replace(/^ax-/,'');
+    var q = id==='docProponente' ? 'proponente' : (id==='docConjuge' ? 'conjuge' : '');
+    if(!q) return 0;
+    var n=0; Object.keys(P1[q]).forEach(function(k){ n+=(P1[q][k]||[]).length; });
+    return n;
+  }
+  function p1Marca(id){
+    var q = id==='docProponente' ? 'proponente' : (id==='docConjuge' ? 'conjuge' : '');
+    if(!q) return '';
+    var nomes=[]; Object.keys(P1[q]).forEach(function(k){ (P1[q][k]||[]).forEach(function(a){ nomes.push(a.name); }); });
+    return nomes.length ? '<div class="p1ok">✓ Anexado na página 1: '+nomes.map(esc_).join(', ')+'</div>' : '';
+  }
+  function montarLeitor(quem){
+    var tipo=document.getElementById('tipoDoc-'+quem).value;
+    var cx=document.getElementById('campos-'+quem);
+    P1[quem]={};                       // trocou o tipo: os arquivos de antes saem
+    if(!tipo){ cx.innerHTML=''; montarAnexos(); return; }
+    cx.innerHTML=P1_TIPOS[tipo].map(function(t){
+      return '<div class="campo"><label>'+t[1]+'</label>'+
+        '<input type="file" accept="image/*,application/pdf" multiple id="p1-'+quem+'-'+t[0]+'" '+
+        'onchange="aoAnexarP1(\''+quem+'\',\''+t[0]+'\',\''+t[2]+'\',this)">'+
+        '<div class="lst" id="lst-'+quem+'-'+t[0]+'"></div></div>';
+    }).join('');
+    montarAnexos();
+  }
+  /* Reduz a foto antes de mandar para leitura (o anexo original segue inteiro). */
+  function prepararLeitura(file){
+    return new Promise(function(ok){
+      var t=file.type||'';
+      if(t==='application/pdf'){
+        if(file.size>6*1024*1024) return ok(null);
+        return lerBase64(file).then(function(b){ ok({nome:file.name, tipo:t, base64:b}); }).catch(function(){ ok(null); });
+      }
+      if(t.indexOf('image/')!==0) return ok(null);
+      var img=new Image(), url=URL.createObjectURL(file);
+      img.onload=function(){
+        var s=Math.min(1, 1800/Math.max(img.width,img.height));
+        var c=document.createElement('canvas'); c.width=Math.round(img.width*s); c.height=Math.round(img.height*s);
+        c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+        URL.revokeObjectURL(url);
+        ok({nome:file.name.replace(/\.[^.]+$/,'')+'.jpg', tipo:'image/jpeg', base64:c.toDataURL('image/jpeg',0.85).split(',')[1]});
+      };
+      img.onerror=function(){ URL.revokeObjectURL(url); ok(null); };   // HEIC e afins
+      img.src=url;
+    });
+  }
+  function preencherDoDocumento(quem, c){
+    var f=F(), n=0, mapa=MAPA_LEITURA[quem];
+    Object.keys(mapa).forEach(function(k){
+      var v=c[k]; if(!v) return;
+      var el=f[mapa[k]]; if(!el || String(el.value||'').trim()) return;   // só preenche o que está vazio
+      if(k==='cpf') v=fmtCpf(v);
+      el.value = (el.dataset.pad==='1') ? padrao(v) : v;
+      el.classList.add('lido');
+      el.dispatchEvent(new Event('input',{bubbles:true}));
+      n++;
+    });
+    return n;
+  }
+  function aoAnexarP1(quem, chave, tipoDoc, input){
+    var arqs=Array.prototype.slice.call(input.files||[]);
+    P1[quem][chave]=arqs;
+    var st=document.getElementById('lst-'+quem+'-'+chave);
+    montarAnexos();
+    if(!arqs.length){ st.className='lst'; st.textContent=''; return; }
+    st.className='lst lendo'; st.textContent='Lendo o documento…';
+    prepararLeitura(arqs[0]).then(function(pre){
+      if(!pre) throw {semLeitura:'Arquivo grande demais ou em formato que não dá para ler.'};
+      return apiPost({acao:'lerDocumento', tipo:tipoDoc, quem:quem, arquivo:pre});
+    }).then(function(r){
+      if(r && r.ok && r.lido){
+        var n=preencherDoDocumento(quem, r.campos||{});
+        st.className='lst ok';
+        st.textContent = n ? '✓ Documento lido — '+n+' campo(s) preenchido(s). Confira.'
+                           : '✓ Documento lido — os campos já estavam preenchidos.';
+      } else {
+        st.className='lst err';
+        st.textContent='Não consegui identificar as informações do documento — preencha os dados manualmente.';
+      }
+    }).catch(function(e){
+      st.className='lst err';
+      st.textContent=(e && e.semLeitura ? e.semLeitura+' ' : 'Leitura indisponível agora. ')+'Preencha os dados manualmente.';
+    });
+  }
+
+  /* ---------- CRECI (passo 4) -> corretor (passo 5) ---------- */
+  var ESTADO_CRECI={msg:'', cls:''};
+  function pintarCreci(){
+    ['lst-creci','lst-creci-p5'].forEach(function(id){
+      var el=document.getElementById(id); if(!el) return;
+      el.className='lst '+ESTADO_CRECI.cls; el.textContent=ESTADO_CRECI.msg;
+      el.style.display = ESTADO_CRECI.msg ? 'block' : 'none';
+    });
+  }
+  function lerCreci(input){
+    var arq=input.files && input.files[0];
+    if(!arq){ ESTADO_CRECI={msg:'',cls:''}; pintarCreci(); return; }
+    ESTADO_CRECI={msg:'Lendo o CRECI…', cls:'lendo'}; pintarCreci();
+    prepararLeitura(arq).then(function(pre){
+      if(!pre) throw {semLeitura:'Arquivo grande demais ou em formato que não dá para ler.'};
+      return apiPost({acao:'lerDocumento', tipo:'CRECI', quem:'corretor', arquivo:pre});
+    }).then(function(r){
+      if(r && r.ok && r.lido){
+        var f=F(), n=0, c=r.campos||{};
+        [['nome','vendedor'],['creci','creci'],['imobiliaria','imobiliaria']].forEach(function(p){
+          var v=c[p[0]], el=f[p[1]];
+          if(!v || !el || String(el.value||'').trim()) return;
+          el.value=padrao(v); el.classList.add('lido'); n++;
+        });
+        ESTADO_CRECI={msg:'✓ CRECI lido — '+(n ? n+' campo(s) preenchido(s) no passo 5. Confira.' : 'os campos do corretor no passo 5 já estavam preenchidos.'), cls:'ok'};
+      } else {
+        ESTADO_CRECI={msg:'Não consegui identificar as informações do CRECI — preencha os dados do corretor manualmente no passo 5.', cls:'err'};
+      }
+      pintarCreci();
+    }).catch(function(e){
+      ESTADO_CRECI={msg:(e && e.semLeitura ? e.semLeitura+' ' : 'Leitura indisponível agora. ')+'Preencha os dados do corretor manualmente no passo 5.', cls:'err'};
+      pintarCreci();
+    });
+  }
+
+  /* ---------- prazo da entrada -> comissão ---------- */
+  var COMISSAO={'24':0.05,'36':0.0475,'48':0.045};
+  function prazoEscolhido(){
+    var els=document.querySelectorAll('#formProposta input[name="prazoEntrada"]');
+    for(var i=0;i<els.length;i++){ if(els[i].checked) return els[i].value; }
+    return '';
+  }
+  function atualizarComissao(){
+    var u=unidadeAtual(), p=prazoEscolhido(), el=document.getElementById('comissaoTxt');
+    if(!el) return;
+    if(!p || !u){ el.textContent='Escolha o prazo'; return; }
+    el.textContent=(COMISSAO[p]*100).toLocaleString('pt-BR',{minimumFractionDigits:2})+'%  ·  '+brl(u.valorVenda*COMISSAO[p]);
+  }
+
+  /* ---------- navegação entre os passos ---------- */
+  function irPara(n){
+    if(n>PASSO && !validarPasso(PASSO)) return;
+    /* O aviso vermelho ficava na tela mesmo depois de o campo ser
+       preenchido, dando a impressao de que o erro continuava. */
+    limparAviso();
+    PASSO=n;
+    document.querySelectorAll('[data-etapa]').forEach(function(s){
+      s.style.display = (s.dataset.etapa===String(n)) ? 'block' : 'none';
+    });
+    document.querySelectorAll('.passo').forEach(function(p){
+      var i=Number(p.dataset.p);
+      p.classList.toggle('ativo', i===n);
+      p.classList.toggle('concluido', i<n);
+    });
+    if(n===2){ montarFluxo(); atualizarComissao(); }
+    if(n===4) resumoAnexos();
+    if(n===5) pintarCreci();
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+  /* r60 (item 1) — nome completo: pelo menos DUAS palavras de 2+ letras.
+     "FELIPE" sozinho não serve para contrato nem para a CAIXA. */
+  function nomeCompleto(v){
+    return String(v||'').trim().split(/\s+/).filter(function(p){
+      return p.replace(/[^A-Za-zÀ-ÿ]/g,'').length >= 2;
+    }).length >= 2;
+  }
+  /* r61 — certidão da matrícula 64.602, emitida em 17/04/2026 */
+  var REGISTRO_INCORPORACAO = 'R-3 da matrícula nº 64.602 (CNM 028480.2.0064602-49), no Registro de Imóveis da Comarca de Senador Canedo/GO; empreendimento submetido ao regime de patrimônio de afetação (AV-4-64.602)';
+  function validarPasso(n){
+    var f=F();
+    if(n===1){
+      if(!f.unidade.value) return erro('Selecione a unidade.', f.unidade);
+      if(!f.cliente.value.trim()) return erro('Informe o <b>nome do proponente</b>.', f.cliente);
+      if(!nomeCompleto(f.cliente.value))
+        return erro('Informe o <b>nome completo</b> do proponente (nome e sobrenome).', f.cliente);
+      if(document.getElementById('boxConjuge').style.display!=='none' && f.conjuge.value.trim() &&
+         !nomeCompleto(f.conjuge.value))
+        return erro('Informe o <b>nome completo</b> do cônjuge (nome e sobrenome).', f.conjuge);
+      if(!cpfValido(f.cpf.value)){
+        document.getElementById('cpfAviso').style.display='block';
+        return erro('<b>CPF</b> inválido. Confira os números.', f.cpf);
+      }
+      if(!dig(f.celular.value)) return erro('Informe o <b>celular</b> do proponente — é por onde a Morais confirma a proposta.', f.celular);
+    }
+    if(n===2){
+      if(f.maisDeUmComprador && f.maisDeUmComprador.checked){
+        var deps=document.querySelectorAll('#listaDependentes .dep-nome');
+        for(var di=0; di<deps.length; di++){
+          if(!nomeCompleto(deps[di].value))
+            return erro('Informe o <b>nome completo</b> de cada dependente / 2º comprador.', deps[di]);
+        }
+      }
+      if(f.creditoAprovadoCaixa.value==='SIM' && !moeda(f.creditoAprovado.value))
+        return erro('Informe o <b>crédito aprovado</b> pelo banco.', f.creditoAprovado);
+      var u2=unidadeAtual(), teto2=(u2&&u2.avaliacao||0)*0.8;
+      var vaiSimular = teto2>0 && (f.creditoAprovadoCaixa.value==='NAO' ||
+                       moeda(f.creditoAprovado.value) >= teto2-0.5);
+      if(!vaiSimular && f.creditoAprovadoCaixa.value==='SIM' && !moeda(f.parcelaFinanciamento.value))
+        return erro('O crédito está abaixo do teto de 80%, então a CAIXA não simula. '+
+                    'Informe a <b>parcela do financiamento</b>.', f.parcelaFinanciamento);
+      if(vaiSimular){
+        /* Vai rodar o SIOP: sem estes campos a simulação sai com um perfil
+           padrão e devolve a parcela de outra pessoa. */
+        if(!Number(f.prazoMeses.value)) return erro('Informe o <b>prazo do financiamento</b>.', f.prazoMeses);
+        if(!String(f.dataNascimento.value||'').trim()){
+          /* O campo mora no passo 1. Sem trocar de passo, a mensagem aparecia
+             apontando para um campo que nem estava na tela. */
+          irPara(1);
+          return erro('A simulação precisa da <b>data de nascimento</b> do proponente (passo 1).', f.dataNascimento);
+        }
+        if(!moeda(document.getElementById('rendaTotal').value))
+          return erro('A simulação precisa da <b>renda aprovada</b> do proponente.', f.rendaAprovada);
+        if(f.jaBeneficiado.checked && !f.dataConcessaoBeneficio.value)
+          return erro('Informe a <b>data da concessão do benefício</b>.', f.dataConcessaoBeneficio);
+        /* r62 (item 2) — marcou relacionamento com a CAIXA: uma das duas
+           opções de baixo é obrigatória, como no SIOP. */
+        if(f.relacionamentoCaixa.checked && !f.servidorPublico.checked && !f.creditoSalarioCaixa.checked)
+          return erro('Você marcou <b>relacionamento com a CAIXA</b>: marque pelo menos uma das opções '+
+                      'abaixo dele (servidor público ou crédito salário/Previdência).', f.servidorPublico);
+        if(!produtosSelecionados.length)
+          return erro('Marque pelo menos uma <b>linha de financiamento</b> para simular.',
+                      document.querySelector('#produtos .produto'));
+      }
+      /* r46 (item 6) — a origem da renda define quais documentos a análise
+         pede, então é obrigatória com ou sem crédito aprovado. */
+      if(!f.origemRenda.value.trim())
+        return erro('Escolha a <b>origem da renda</b> — é ela que define os documentos a anexar.', f.origemRenda);
+      if(document.getElementById('boxConjuge').style.display!=='none' &&
+         moeda(f.rendaAprovadaConjuge.value) && !f.origemRendaConjuge.value.trim())
+        return erro('Escolha a <b>origem da renda do cônjuge</b>.', f.origemRendaConjuge);
+      if(!prazoEscolhido())
+        return erro('Escolha o <b>prazo total da entrada</b> — é ele que define a comissão do corretor.', document.getElementById('prazoOpts'));
+      /* ITEM 15 — valor para entrada: mínimo de R$ 10.000 (são os sinais). */
+      if(moeda(f.valorEntrada.value) < VALOR_ENTRADA_MIN)
+        return erro('O <b>valor para entrada</b> precisa ser de pelo menos <b>R$ 10.000,00</b> — '+
+                    'é o valor do sinal (R$ 1.000 no ato + 3 × R$ 3.000).', f.valorEntrada);
+    }
+    if(n===4){
+      var lista=arquivosAnexados();
+      var total=lista.reduce(function(a,x){return a+x.arquivo.size;},0);
+      if(total>LIMITE_ANEXOS) return erro('Os anexos somam mais de 20 MB. Tire algum arquivo antes de continuar.');
+      /* r46 — os documentos pedidos para ESTE cliente precisam vir anexados.
+         Sem todos em mãos, o corretor marca a caixa e a proposta segue; o
+         que faltar é juntado depois na página do Notion. */
+      var faltam=[];
+      document.querySelectorAll('#anexos .anexo.pedido input[type=file]').forEach(function(cx){
+        if(!cx.files.length && !p1Qtd(cx.id)) faltam.push(cx.dataset.rotulo);
+      });
+      var cxAviso=document.getElementById('avisoDocs');
+      var marcado=document.getElementById('semTodosDocs');
+      if(faltam.length && !(marcado && marcado.checked)){
+        cxAviso.style.display='block';
+        cxAviso.innerHTML='<b>Faltam documentos pedidos para este cliente:</b><br>'+
+          faltam.map(esc_).join('<br>')+
+          '<label class="check" style="margin-top:8px;display:flex;gap:8px;align-items:flex-start">'+
+          '<input type="checkbox" id="semTodosDocs"><span>Não tenho todos agora — enviar assim mesmo '+
+          'e juntar o que falta depois.</span></label>';
+        cxAviso.scrollIntoView({behavior:'smooth', block:'center'});
+        return erro('Anexe os documentos pedidos ou marque que vai enviar o que falta depois.');
+      }
+      if(cxAviso && !faltam.length) cxAviso.style.display='none';
+    }
+    return true;
+  }
+  /* Em vez de um alert genérico, o campo que falta ganha contorno vermelho,
+     recebe o foco e rola para a vista. "Informe o celular" sem dizer ONDE é
+     o que não dá para entender. */
+  function limparAviso(){
+    var el=document.getElementById('status'); if(el) el.style.display='none';
+    var t=document.getElementById('toast'); if(t) t.classList.remove('visivel');
+    document.querySelectorAll('.faltando').forEach(function(x){ x.classList.remove('faltando'); });
+  }
+  function erro(m, campo){
+    mostrar('erro', m);
+    if(campo){
+      document.querySelectorAll('.faltando').forEach(function(x){ x.classList.remove('faltando'); });
+      campo.classList.add('faltando');
+      try{ campo.scrollIntoView({block:'center',behavior:'smooth'}); campo.focus({preventScroll:true}); }catch(e){}
+      campo.addEventListener('input', function limpa(){ campo.classList.remove('faltando'); campo.removeEventListener('input', limpa); });
+    }
+    return false;
+  }
+  /* A caixa #status mora no ÚLTIMO passo. Nos passos 1 a 4 ela está oculta,
+     então a mensagem de "falta preencher X" era escrita onde ninguém via — e
+     o botão Continuar parecia não fazer nada. Agora existe um aviso fixo na
+     tela, que aparece em qualquer passo. */
+  function mostrar(tipo, msg){
+    var el=document.getElementById('status');
+    if(el){ el.style.display='block'; el.className='status '+tipo; el.innerHTML=msg; }
+    var t=document.getElementById('toast');
+    t.className='toast '+tipo;
+    t.innerHTML=msg+'<span class="fecha" onclick="this.parentNode.classList.remove(\'visivel\')">×</span>';
+    t.classList.add('visivel');
+    clearTimeout(t._t);
+    if(tipo!=='erro') t._t=setTimeout(function(){ t.classList.remove('visivel'); }, 6000);
+  }
+
+  /* ---------- máscaras ---------- */
+  function ligarMascaras(){
+    ['cpf','cpfConjuge','cpfFiador1','cpfFiador2'].forEach(function(nome){
+      var el=F()[nome]; if(!el) return;
+      el.addEventListener('input',function(e){
+        e.target.value=fmtCpf(e.target.value);
+        var av=document.getElementById('cpfAviso'); if(av) av.style.display='none';
+      });
+    });
+    ['telefone','celular','telRef1','telRef2'].forEach(function(nome){
+      var el=F()[nome]; if(!el) return;
+      el.addEventListener('input',function(e){ e.target.value=fmtTel(e.target.value); });
+    });
+    ['rendaAprovada','saldoFgts','subsidio','valorEntrada','creditoAprovado',
+     'saldoFgtsConjuge','rendaAprovadaConjuge','parcelaFinanciamento']
+      .forEach(function(nome){
+        var el=F()[nome]; if(!el) return;
+        el.addEventListener('input',function(e){
+          var d=dig(e.target.value);
+          e.target.value = d ? (parseInt(d,10)/100).toFixed(2).replace('.',',')
+                                  .replace(/\B(?=(\d{3})+(?!\d))/g,'.') : '';
+          /* O recálculo tem de vir DEPOIS da máscara, nunca num oninput no
+             HTML. O listener inline roda primeiro e lê o texto cru: digitar
+             7.500,00 passava "750,000" para o parser, que entendia 750 —
+             era essa a renda total errada. */
+          somarRenda(); montarFluxo();
+        });
+      });
+    document.querySelectorAll('[data-pad="1"]').forEach(function(el){
+      el.addEventListener('input',function(e){
+        var pos=e.target.selectionStart;
+        e.target.value=String(e.target.value||'').normalize('NFD')
+          .replace(/[\u0300-\u036f]/g,'').toUpperCase();
+        try{ e.target.setSelectionRange(pos,pos); }catch(x){}
+      });
+      el.addEventListener('blur',function(e){ e.target.value=padrao(e.target.value); });
+    });
+  }
+
+  /* ---------- unidades ---------- */
+  /* CORREÇÃO (r31) — "não puxou a unidade".
+     A lista só era montada depois que o Apps Script respondia, e ele leva
+     vários segundos (lê as 62 unidades no Notion). Nesse meio-tempo o campo
+     ficava vazio e parecia quebrado. Agora:
+       1) o unidades.json (mesmo servidor, instantâneo) monta a lista na hora;
+       2) o dado ao vivo chega depois e atualiza a lista, mantendo a unidade
+          escolhida. É ele que vale para o estado (reservada/vendida).
+     Enquanto nada chegou, o campo diz "Carregando unidades…". */
+  var unidadesAoVivo=false;
+  function carregarUnidades(){
+    var sel=F().unidade;
+    if(!sel.options.length) sel.innerHTML='<option value="">Carregando unidades…</option>';
+    var local=fetch('unidades.json',{cache:'no-cache'})
+      .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+      .then(function(l){
+        if(unidadesAoVivo || !l || !l.length) return;
+        UNIDADES=l; montarSelect();
+      })
+      .catch(function(){});
+    var vivo=new Promise(function(ok,err){
+      var t=setTimeout(function(){ err(new Error('tempo')); }, 20000);
+      fetch(APPS_SCRIPT_URL+'?acao=unidades').then(function(r){return r.json();})
+        .then(function(j){ clearTimeout(t); ok(j); }).catch(function(e){ clearTimeout(t); err(e); });
+    }).then(function(j){
+      if(!j || !j.ok || !(j.unidades||[]).length) throw new Error(j && j.mensagem);
+      unidadesAoVivo=true;
+      UNIDADES=j.unidades; montarSelect();
+    });
+    Promise.allSettled([local, vivo]).then(function(){
+      if(!UNIDADES.length){
+        sel.innerHTML='<option value="">Não foi possível carregar as unidades</option>';
+        document.getElementById('avisoOffline').classList.add('visivel');
+        setTimeout(carregarUnidades, 8000);   // tenta de novo sozinho
+      }
+    });
+  }
+  function estadoUn(u){
+    if(!u) return 'BREVE';
+    var cru=String(u.vendidaCru||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+    if(u.vendido===true || cru==='SIM') return 'VENDIDA';
+    if(u.reservado===true || cru==='RESERVADA' || cru==='RESERVADO') return 'RESERVADA';
+    if(u.disponivel===false) return 'BREVE';
+    return 'DISPONIVEL';
+  }
+  function montarSelect(){
+    var sel=F().unidade;
+    var escolhida=sel.dataset.escolhida||'';
+    /* ITEM 14 — vendida e "em breve" ficam de fora da lista.
+       r62 — RESERVADA entra (marcada na lista): a proposta é aceita, mas só
+       é analisada se houver desistência. */
+    var livres=UNIDADES.filter(aceitaProposta);
+    var lista=livres.length?livres:UNIDADES;
+    sel.innerHTML=lista.map(function(u){
+      return '<option value="'+u.unidade+'">Unidade '+u.unidade+' — T'+(u.tipo||'—')+
+             ' · '+brl(u.valorVenda)+(estadoUn(u)==='RESERVADA'?' · RESERVADA':'')+'</option>';
+    }).join('');
+    var pedida=escolhida || param('unidade');
+    var av=document.getElementById('avisoUnidade');
+    document.getElementById('avisoOffline').classList.remove('visivel');
+    if(pedida){
+      var achou=null;
+      for(var i=0;i<UNIDADES.length;i++) if(String(UNIDADES[i].unidade)===String(pedida)) achou=UNIDADES[i];
+      var est=achou?estadoUn(achou):'BREVE';
+      if(achou && est!=='DISPONIVEL' && est!=='RESERVADA'){
+        av.className='status erro';
+        av.style.display='block';
+        av.innerHTML='<b>A unidade '+pedida+' está '+
+          (est==='VENDIDA'?'vendida':'indisponível')+
+          '.</b><br>Não dá para enviar proposta para ela. Escolha outra unidade na lista acima — '+
+          'a <b>simulação</b> continua liberada normalmente pelo mapa.';
+      } else {
+        av.style.display='none';
+        sel.value=pedida;
+      }
+    } else {
+      av.style.display='none';
+    }
+    if(!livresDisponiveis()){
+      av.className='status erro';
+      av.style.display='block';
+      av.innerHTML='<b>Nenhuma unidade disponível para proposta no momento.</b>';
+    }
+    aoTrocarUnidade();
+  }
+  function aoTrocarUnidade(){
+    avisarReserva();
+    var u=unidadeAtual();
+    document.getElementById('preco').value = u ? brl(u.valorVenda) : '';
+    montarFluxo();
+  }
+
+  /* ---------- envio ---------- */
+  F().addEventListener('submit', function(e){
+    e.preventDefault();
+    var f=F();
+    limparAviso();
+    if(!validarPasso(1)){ irPara(1); return; }
+    if(!validarPasso(2)){ irPara(2); return; }
+    if(!validarPasso(4)){ irPara(4); return; }
+    if(!aceitaProposta(unidadeAtual())){
+      return erro('Esta unidade não está disponível para proposta.');
+    }
+    if(!f.vendedor.value.trim()) return erro('Informe o <b>corretor</b>.', f.vendedor);
+    var emailCorretor = String(f.email.value||'').trim();
+    /* O navegador so valida type=email no submit nativo, e o envio aqui e
+       por JavaScript. Sem esta linha, "felipe" (sem @) passava e o e-mail
+       nao chegava a ninguem. */
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(emailCorretor))
+      return erro('Informe um <b>e-mail válido</b> para receber a proposta.', f.email);
+    if(!document.getElementById('aceite').checked) return erro('É preciso autorizar o uso dos dados.');
+    if(!document.getElementById('ciencia').checked)
+      return erro('Marque a declaração de ciência do <b>aviso importante</b> (caráter estimativo).',
+                  document.getElementById('ciencia'));
+    if(unidadeReservada() && !document.getElementById('cienciaReserva').checked)
+      return erro('A unidade está <b>reservada</b>: marque a declaração de que a proposta só será '+
+                  'analisada caso haja desistência.', document.getElementById('cienciaReserva'));
+
+    montarFluxo();
+    var u=unidadeAtual();
+    var bt=document.getElementById('btEnviar');
+    bt.disabled=true;
+    mostrar('processando','<b>Enviando a proposta…</b>');
+
+    var dados={
+      unidade:String(u.unidade), tipo:String(u.tipo||''), preco:u.valorVenda,
+      cliente:padrao(f.cliente.value), cpf:dig(f.cpf.value),
+      identidade:padrao(f.identidade.value), estadoCivil:f.estadoCivil.value,
+      conjuge:padrao(f.conjuge.value), cpfConjuge:dig(f.cpfConjuge.value),
+      nacionalidade:padrao(f.nacionalidade.value), profissao:padrao(f.profissao.value),
+      dataNascimento:f.dataNascimento.value, endereco:padrao(f.endereco.value),
+      telefone:dig(f.telefone.value), celular:dig(f.celular.value),
+      emailProponente:String(f.emailProponente.value||'').trim().toLowerCase(),
+
+      /* ITEM 13 — renda aprovada única (proponente e cônjuge) */
+      rendaAprovada:moeda(f.rendaAprovada.value), origemRenda:padrao(f.origemRenda.value),
+      saldoFgtsConjuge:moeda(f.saldoFgtsConjuge.value),
+      rendaAprovadaConjuge:moeda(f.rendaAprovadaConjuge.value),
+      origemRendaConjuge:padrao(f.origemRendaConjuge.value),
+      profissaoConjuge:padrao(f.profissaoConjuge.value),
+      creditoAprovadoCaixa:f.creditoAprovadoCaixa.value,
+      parcelaFinanciamento:moeda(f.parcelaFinanciamento.value),
+      saldoFgts:moeda(f.saldoFgts.value), subsidio:moeda(f.subsidio.value),
+      valorEntrada:moeda(f.valorEntrada.value), creditoAprovado:moeda(f.creditoAprovado.value),
+      banco:padrao(f.banco.value), prazo:f.prazo.value, dataRef:f.dataRef.value,
+      modoSiop:(f.modoSiop ? f.modoSiop.value : ''),   /* r64 — teste ONLINE/OFFLINE */
+      sistemaAmortizacao:f.sistemaAmortizacao.value,
+      /* ITEM 12 — só é perguntado sem crédito aprovado */
+      possuiImovel:!!f.possuiImovelCidade.checked,   /* r46 — vem do bloco da CAIXA */
+      vendedor:padrao(f.vendedor.value), creci:padrao(f.creci.value),
+      imobiliaria:padrao(f.imobiliaria.value), email:String(f.email.value).trim().toLowerCase(),
+      observacoes:padrao(f.observacoes.value),
+      prazoEntrada:Number(prazoEscolhido())||0,
+      comissaoPct:COMISSAO[prazoEscolhido()]||0,
+      comissaoValor:Math.round((Number(u.valorVenda)||0)*(COMISSAO[prazoEscolhido()]||0)*100)/100,
+      fiador1:padrao(f.fiador1.value), cpfFiador1:dig(f.cpfFiador1.value),
+      emailFiador1:String(f.emailFiador1.value||'').trim().toLowerCase(),
+      enderecoFiador1:padrao(f.enderecoFiador1.value),
+      fiador2:padrao(f.fiador2.value), cpfFiador2:dig(f.cpfFiador2.value),
+      emailFiador2:String(f.emailFiador2.value||'').trim().toLowerCase(),
+      enderecoFiador2:padrao(f.enderecoFiador2.value),
+      valorFinanciado:moeda(document.getElementById('valorFinanciado').value),
+      avaliacao:u.avaliacao||0,
+      rendaTotal:moeda(document.getElementById('rendaTotal').value),
+      /* ITEM 13 — crédito no teto: o SIOP é quem sabe a parcela real, então a
+         proposta pede a simulação. Abaixo do teto o simulador não reproduz o
+         valor, e vale o que foi digitado. */
+      /* Dados que o SIOP exige. Sem eles a simulação rodaria com um perfil
+         padrão e devolveria uma parcela que não é a do cliente. */
+      prazoMeses:Math.min(420, Number(f.prazoMeses.value)||420),
+      seguradora:f.seguradora.value,
+      produtos:produtosSelecionados.slice(),
+      agravamento:0,
+      possuiImovelCidade:f.possuiImovelCidade.checked,
+      fgts3anos:f.fgts3anos.checked,
+      maisDeUmComprador:f.maisDeUmComprador.checked,
+      dependentes:(f.maisDeUmComprador.checked ? pessoasExtras() : []),
+      jaBeneficiado:f.jaBeneficiado.checked,
+      dataConcessaoBeneficio:(f.jaBeneficiado.checked ? f.dataConcessaoBeneficio.value : ''),
+      relacionamentoCaixa:f.relacionamentoCaixa.checked,
+      servidorPublico:(f.relacionamentoCaixa.checked && f.servidorPublico.checked),
+      creditoSalarioCaixa:(f.relacionamentoCaixa.checked && f.creditoSalarioCaixa.checked),
+      simularParcela:((u.avaliacao||0) > 0 &&
+                      (f.creditoAprovadoCaixa.value==='NAO' ||
+                       moeda(f.creditoAprovado.value) >= (u.avaliacao||0)*0.8 - 0.5)),
+      /* r38 — código único do envio: se a resposta se perder, o servidor não
+         duplica e a tela consegue confirmar se a proposta foi criada */
+      idEnvio:ID_ENVIO,
+      cienciaEstimativa:true,
+      /* r62 — a unidade estava reservada no envio (o servidor confere) */
+      unidadeReservada:unidadeReservada(),
+      cienciaReserva:unidadeReservada(),
+      esquema:(document.getElementById('fluxo').dataset.esquema||''),
+      /* ITEM 15 — a conta dos sinais vai pronta: é o crivo de aceite no
+         portal e no e-mail, e ninguém precisa refazer a matemática. */
+      analise:(function(q){
+        if(!q) return null;
+        var r=function(v){ return Math.round((Number(v)||0)*100)/100; };
+        return {entradaTotal:r(q.total), entradaBruta:r(q.bruta),
+                valorEntradaInformado:r(q.entradaInformada), valorEntradaSinais:r(q.paraSinais),
+                valorEntradaExcedente:r(q.excedente), sinaisTotal:r(q.sinaisTotal),
+                sinaisCobertos:r(q.sinaisCobertos), faltaSinais:r(q.faltaSinais),
+                sobraSinais:r(q.sobraSinais), saldoAposSinais:r(q.saldoAposSinais),
+                devolucao:r(q.devolucao),
+                fgts:r(q.fgts), subsidio:r(q.subsidio), financiado:r(q.financiado)};
+      })(ULTIMO_CALCULO)
+    };
+
+    var lista=arquivosAnexados();
+    var anexos=[];
+    if(lista.length) mostrar('processando','<b>Preparando '+lista.length+' anexo(s)…</b>');
+    Promise.all(lista.map(function(x){
+      return lerBase64(x.arquivo).then(function(b64){
+        return {nome:x.arquivo.name, tipo:x.arquivo.type||'application/octet-stream',
+                rotulo:x.rotulo, base64:b64};
+      });
+    })).then(function(as){
+      anexos=as;
+      ANEXOS_PENDENTES=as;
+      mostrar('processando','<b>Enviando a proposta…</b>');
+      /* r39 — a proposta é criada SEM os anexos (resposta rápida); os
+         documentos sobem em seguida, em lotes, com progresso na tela. */
+      dados.anexosDepois = as.length>0;
+      return apiPost({acao:'criarProposta', dados:dados, anexos:[]});
+    })
+      .then(function(r){
+        if(r && r.ok){ posCriacao(r); }
+        else {
+          bt.disabled=false;
+          mostrar('erro', r && r.erro==='CPF_INVALIDO' ? 'CPF inválido.' :
+            ('Não foi possível enviar: '+((r&&(r.erro||r.mensagem))||'erro desconhecido')));
+        }
+      })
+      .catch(function(){ confirmarEnvio(bt, 0); });
+  });
+
+  /* r38 — ITEM 2. Quando a resposta não chega (o Apps Script demora com os
+     anexos e a simulação), a proposta quase sempre FOI criada. Em vez de
+     jogar o erro na tela, a página pergunta ao servidor pelo código deste
+     envio durante até ~2 minutos. Mesmo que o corretor clique de novo, o
+     servidor reconhece o código e não cria outra proposta. */
+  var ANEXOS_PENDENTES=[];
+
+  /* Depois que a proposta existe: sobe os anexos e pede o e-mail. */
+  function posCriacao(r){
+    if(r.duplicada || !ANEXOS_PENDENTES.length){ sucessoEnvio(r); return; }
+    var grupos={}, ordem=[];
+    ANEXOS_PENDENTES.forEach(function(a){
+      if(!grupos[a.rotulo]){ grupos[a.rotulo]=[]; ordem.push(a.rotulo); }
+      grupos[a.rotulo].push(a);
+    });
+    var falhas=[], ok=0, i=0;
+    function proximo(){
+      if(i>=ordem.length){ return finalizar(); }
+      var rot=ordem[i], lote=grupos[rot];
+      mostrar('processando','<b>Proposta '+esc_(r.proposta)+' criada.</b><br>Enviando documentos '+
+        (i+1)+' de '+ordem.length+': '+esc_(rot)+'… <b>não feche a página.</b>');
+      var tentar=function(n){
+        return apiPost({acao:'anexarProposta', pageId:r.id, anexos:lote})
+          .then(function(x){
+            if(x && x.ok){ ok+=(x.anexosNotion&&x.anexosNotion.ok)||0;
+                           (x.anexosNotion&&x.anexosNotion.falhas||[]).forEach(function(f){ falhas.push(f); }); }
+            else throw new Error((x&&x.erro)||'falhou');
+          })
+          .catch(function(e){ if(n<1) return tentar(n+1); falhas.push(rot+': '+(e.message||'sem resposta')); });
+      };
+      tentar(0).then(function(){ i++; proximo(); });
+    }
+    function finalizar(){
+      mostrar('processando','<b>Documentos enviados.</b> Finalizando e disparando o e-mail…');
+      apiPost({acao:'finalizarProposta', pageId:r.id})
+        .then(function(x){ r.emailOk = !(x && x.ok===false && !x.simulando); if(x && x.simulando) r.simulando=true; })
+        .catch(function(){ /* o e-mail pode ter saído mesmo assim */ })
+        .then(function(){
+          r.anexosNotion={ok:ok, falhas:falhas};
+          ANEXOS_PENDENTES=[];
+          sucessoEnvio(r);
+        });
+    }
+    proximo();
+  }
+
+  function confirmarEnvio(bt, tentativa){
+    mostrar('processando','<b>Confirmando o envio…</b> A resposta está demorando — '+
+      'não feche a página e <b>não envie de novo</b>. ('+(tentativa+1)+'/20)');
+    fetch(APPS_SCRIPT_URL+'?acao=propostaPorEnvio&id='+encodeURIComponent(ID_ENVIO))
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if(j && j.encontrada){ posCriacao({ok:true, id:j.id, proposta:j.proposta, confirmadaDepois:true,
+                                           simulando:j.simulando}); return; }
+        throw 0;
+      })
+      .catch(function(){
+        if(tentativa<19){ setTimeout(function(){ confirmarEnvio(bt, tentativa+1); }, 6000); return; }
+        bt.disabled=false;
+        mostrar('erro','Não conseguimos confirmar o envio. Pode clicar em <b>Enviar proposta</b> '+
+          'de novo com segurança: o sistema reconhece este envio e <b>não cria proposta duplicada</b>.');
+      });
+  }
+
+  function sucessoEnvio(r){
+    /* r62 — a confirmação abre na página própria (enviado.html), com todas
+       as mensagens e o botão de voltar ao mapa. */
+    var f=F();
+    var semCredito=f.creditoAprovadoCaixa.value==='NAO';
+    var partes=[], alerta=false;
+    if(r.confirmadaDepois)
+      partes.push('<div class="bloco">A resposta demorou, mas a proposta foi confirmada no sistema. '+
+        'O e-mail com a proposta completa chega em alguns minutos.</div>');
+    if(r.simulando)
+      partes.push('<div class="bloco info"><b>A parcela está sendo simulada na CAIXA.</b> '+
+        (semCredito ? 'Como o cliente ainda não tem crédito aprovado, a simulação é só uma '+
+          '<b>estimativa</b> do crédito dele. '
+          : 'Como o crédito bate no teto de 80% da avaliação, a proposta entrou na fila de simulação. ')+
+        '<b>O e-mail com a proposta completa — parcela, fluxo e documentos — chega '+
+        'quando a simulação terminar</b> (alguns minutos). Se o sistema estiver fora '+
+        'do ar, a proposta fica na fila e o e-mail sai assim que ele voltar.</div>');
+    if(r.anexosNotion && r.anexosNotion.falhas && r.anexosNotion.falhas.length){
+      alerta=true;
+      partes.push('<div class="bloco alerta"><b>Alguns documentos não subiram:</b><br><span style="font-size:12px">'+
+        r.anexosNotion.falhas.map(esc_).join('<br>')+'</span><br>Envie esses arquivos para a Morais por e-mail.</div>');
+    }
+    if(r.ignoradas && r.ignoradas.length){
+      alerta=true;
+      partes.push('<div class="bloco alerta"><b>Atenção: '+r.ignoradas.length+' campo(s) não existem na base '+
+        'do Notion e não foram gravados:</b><br><span style="font-size:12px">'+
+        r.ignoradas.map(esc_).join(', ')+'</span></div>');
+    }
+    if(r.simulando===false && r.motivoSimulacao){
+      alerta=true;
+      partes.push('<div class="bloco alerta"><b>A simulação NÃO foi enfileirada.</b><br>'+
+        '<span style="font-size:12px">'+esc_(r.motivoSimulacao)+'</span></div>');
+    }
+    if(r.emailOk===false){
+      alerta=true;
+      partes.push('<div class="bloco alerta"><b>Atenção: a proposta foi gravada, mas o e-mail NÃO saiu.</b><br>'+
+        esc_(r.aviso||'')+'<br>Avise a Morais — o Apps Script precisa autorizar o envio de e-mail.</div>');
+    }
+    if(!partes.length)
+      partes.push('<div class="bloco ok">Proposta registrada. O e-mail com a proposta completa chega no endereço informado.</div>');
+    try{
+      sessionStorage.setItem('envioConcluido', JSON.stringify({tipo:'proposta', id:r.id||'',
+        numero:r.proposta||'', html:partes.join(''), alerta:alerta}));
+    }catch(x){}
+    location.replace('enviado.html?tipo=proposta&numero='+encodeURIComponent(r.proposta||''));
+  }
+
+
+  /* ===== DATA QUE DA PARA DIGITAR (celular) ============================
+     No Android o <input type="date"> so aceita o calendario — nao da para
+     digitar, e para data de nascimento isso e uma tortura (voltar 30 anos
+     mes a mes). A solucao aqui: ao lado de cada campo de data nasce um
+     campo de texto com mascara dd/mm/aaaa, que aceita digitacao direta. Os
+     dois ficam sincronizados, e o valor enviado continua sendo o do
+     <input type="date"> — nenhum outro codigo precisou mudar.
+     No computador o campo de texto fica escondido: la o nativo ja aceita
+     digitacao. ================================================== */
+  function ehCelular(){
+    return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent||'');
+  }
+  function digitarDatas(){
+    if(!ehCelular()) return;
+    document.querySelectorAll('input[type="date"]').forEach(function(el){
+      if(el.dataset.temTexto) return;
+      el.dataset.temTexto = '1';
+
+      var txt = document.createElement('input');
+      txt.type = 'text';
+      txt.inputMode = 'numeric';
+      txt.dataset.data = '1';   // r41 — a máscara de dinheiro não pega mais a data
+      txt.placeholder = 'dd/mm/aaaa';
+      txt.maxLength = 10;
+      txt.className = el.className;
+      txt.style.marginBottom = '6px';
+      el.parentNode.insertBefore(txt, el);
+
+      // do ISO (aaaa-mm-dd) para o que a pessoa le
+      function doCampo(){
+        var v = el.value;
+        txt.value = v && v.length === 10
+          ? v.slice(8,10) + '/' + v.slice(5,7) + '/' + v.slice(0,4) : '';
+      }
+      doCampo();
+      el.addEventListener('change', doCampo);
+
+      txt.addEventListener('input', function(){
+        var d = txt.value.replace(/\D/g,'').slice(0,8);
+        var m = d;
+        if(d.length > 4) m = d.slice(0,2) + '/' + d.slice(2,4) + '/' + d.slice(4);
+        else if(d.length > 2) m = d.slice(0,2) + '/' + d.slice(2);
+        txt.value = m;
+
+        if(d.length === 8){
+          var dia = d.slice(0,2), mes = d.slice(2,4), ano = d.slice(4);
+          var iso = ano + '-' + mes + '-' + dia;
+          var t = new Date(iso + 'T12:00:00');
+          // so aceita data que existe de verdade: 31/02 nao passa
+          if(!isNaN(t) && String(t.getDate()).padStart(2,'0') === dia){
+            el.value = iso;
+            txt.style.borderColor = '';
+            try{ el.dispatchEvent(new Event('change', {bubbles:true})); }catch(e){}
+          } else {
+            el.value = '';
+            txt.style.borderColor = '#B0431F';
+          }
+        } else {
+          el.value = '';
+        }
+      });
+    });
+  }
+  digitarDatas();
+
+  ligarMascaras();
+  montarAnexos();
+  verConjuge();
+  verSiopSub();
+  renderProdutos();
+  verCredito();
+  verBlocoSiop();
+  somarRenda();
+  F().unidade.addEventListener('change', function(){
+    F().unidade.dataset.escolhida = F().unidade.value;   // sobrevive à atualização ao vivo
+    /* r62 — trocou de unidade: o aviso anterior (ex.: "a unidade X está
+       vendida") não vale mais; avisarReserva mostra o da nova, se houver. */
+    var avU=document.getElementById('avisoUnidade');
+    if(avU && livresDisponiveis()){ avU.style.display='none'; avU.className='status erro'; }
+    aoTrocarUnidade();
+  });
+  carregarUnidades();
+</script>
+</body>
+</html>

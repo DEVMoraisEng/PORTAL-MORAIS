@@ -104,11 +104,71 @@
 /* v32 -> v33: entrou a analise-dados.html (ANÁLISE DE DADOS, vinda do
    CONTROLES-INTERNOS) e o index.html ganhou o card dela. */
 /* v33 -> v34: entrou a obras.html (aba de OBRAS). */
-const CACHE = "portal-morais-v34";  // limpeza só dos caches do portal (não apaga os das RAS)
+/* v34 -> v35 (23/09/26): pacote de melhorias — app.js (dicas nos botões,
+   listas grandes, rotas de escrita das obras), obras.html, ligacoes.html,
+   pos-obra.html, simulacoes.html. Sem subir este número, o navegador de quem
+   já abriu o portal continua servindo as telas ANTIGAS do cache — e foi isso
+   que mostrou a lista de contas vazia depois de tudo publicado. */
+/* v35 -> v36 (24/09/26): app.js com a faxina dos dados guardados e
+   obras.html com o acompanhamento ao vivo. */
+/* v36 -> v37 (24/09/26): botão Recarregar em todas as telas (app.js). */
+/* v37 -> v38 (24/09/26): ao vivo (app.js) e baixa otimista (obras.html). */
+/* v38 -> v39 (24/09/26): conteúdo das atividades sem travar (obras.html). */
+/* v39 -> v40 (24/09/26): comentários guardados e pela leitura (app.js, obras.html). */
+/* v40 -> v41 (25/09/26): fila offline na baixa, links clicáveis, acesso tolerante. */
+/* v41 -> v42 (25/09/26): simulações com detalhe rápido; contas insistem. */
+/* v42 -> v43 (25/09/26): app.js repete sozinho quando o Google devolve
+   página de erro no lugar da resposta. */
+/* v43 -> v44 (25/09/26): edição salva não some no build nem ao sair;
+   chips do painel na hora. */
+/* v44 -> v45 (25/09/26): leitura ao vivo antiga não apaga o que acabou de ser salvo. */
+/* v45 -> v46 (25/09/26): obra grava na hora (otimista) — alerta some ao preencher. */
+/* v46 -> v47 (25/09/26): fogos.js — fogos no painel quando a meta é batida no mês. */
+/* v47 -> v48 (25/09/26): aniversariantes do mês no painel. */
+/* v48 -> v49 (25/09/26): abas Atividades e Processos, editor de conteúdo, sino de atrasadas. */
+/* v49 -> v50 (25/09/26 tarde): Arquivos, pré-carregamento das Atividades, filtros. */
+/* v50 -> v51 (25/09/26 noite): tipo PORTAL no painel, checklist item a item, criação protegida. */
+/* v51 -> v52 (25/09/26 16h): ações novas pela ESCRITA (rf-rotas.js), criação otimista. */
+/* v52 -> v53 (25/09/26 17h): Mural, checklists de verdade, tudo pré-carregado. */
+/* v53 -> v54 (28/09/26): baixa no checklist do Mural, aniversários na hora,
+   legenda de cores e atividades próprias no calendário, imagens do Supabase. */
+/* v54 -> v55 (28/09/26 tarde): chat com envio direto ao Supabase, faixa própria,
+   baixa do Mural que não volta atrás, legenda com fundo. */
+/* v55 -> v56 (28/09/26): fotos do chat comprimidas, anexo arquivado no chat. */
+/* v56 -> v57 (28/09/26): cópias do painel não somem (Recarregar/24 h/Sair). */
+/* v57 -> v58 (28/09/26): anexo arquivado nos comentários do Notion. */
+/* v58 -> v59 (28/09/26): mensagem "enviando" guardada no navegador e retomada. */
+/* v59 -> v60 (28/09/26): baixa confirmada pelo Notion, sincronia de 1 min. */
+/* v60 -> v61 (28/09/26): Mapa de Obras no painel, status das atividades sem embolar. */
+/* v61 -> v62 (28/09/26): Mural e checklists na hora. */
+/* v62 -> v63 (28/09/26 noite): @menções, reordenar conteúdo, anexo que sumia. */
+/* v63 -> v64 (28/09/26 noite): mensagem e anexo "enviando" não somem ao fechar e abrir. */
+/* v64 -> v65 (28/09/26 noite): envio continua ao sair da página; obra com casas vendidas/entregues. */
+/* v65 -> v66 (28/09/26): index.html com o botão Conferência OC × NF em Automações.
+   v67 -> v69 (29/09/26): botão aponta para o endereço que está no ar, CONFER-NCIA-COMPRAS. */
+/* v69 -> v70 (29/09/26): atividades.html — comentários sempre atuais (relê a cada 15 s, avisa quando não atualiza, ↻). */
+/* v70 -> v71 (29/09/26): editor-blocos.js v9 — arrastar para reorganizar e fila sem "espere" (atividades, processos, arquivos). */
+/* v71 -> v72 (29/09/26): atividades.html — "Criar checklist com os responsáveis" na nova atividade. */
+/* v72 -> v73 (29/09/26): index.html (Mural com comentários no topo) e atividades.html (atividade excluída no Notion sai do portal). */
+/* v73 -> v74 (29/09/26 tarde): atividades.html + editor-blocos.js v10 (checklist se atualiza sozinho, Recarregar confere o Notion) e index.html (Mural sem item vazio). */
+/* v74 -> v75 (29/09/26 noite): obras.html (botões de ligação sem embolar) e atividades.html (arrastar no calendário muda o prazo). */
+/* v75 -> v76 (29/09/26 noite): obras.html — preencher direto na tabela de obras. */
+/* v76 -> v77 (30/09/26): atividades.html — economia de cota (releituras mais espaçadas, pausa com a tela parada). */
+/* v77 -> v78 (30/09/26): vendas.html (card do condomínio: sinais 60/90 e pós-chaves; salvar as 3 datas juntas) e simulacoes.html (documentos da venda copiados pelo servidor). */
+/* v78 -> v79 (30/09/26 tarde): simulacoes.html (decisão da proposta com status em destaque, resultado sob os botões, confirmação no Notion enquanto salva) e rf-rotas.js v11 (2 pedidos por faixa; 3ª implantação opcional). */
+/* v80 -> v81 (30/09/26 noite): vendas.html — dia de pagamento a partir do dia 5, bloco entrada/FGTS/subsídio no fluxo e todas as colunas da planilha do condomínio por padrão. */
+/* v81 -> v82 (01/10/26): pos-obra.html (validação do ADM, obra nova para todos com endereço no padrão, data de assinatura vazia por quem tem acesso), atv-alertas.js v7 (mensagens novas e validações no sino), atividades.html e index.html. */
+/* v82 -> v83 (01/10/26): analise-dados.html — ESCRITÓRIO MOURA DANTAS fora do Custo Escritório. */
+/* v94 -> v95 (05/10/26): revisão das atividades — alertas-docs.js (coluna da obra, sem cópias, CERTIDÃO DO LOTE em Projetos, alerta de emissão das certidões), documentos.html, vendas.html e index.html. */
+/* v95 -> v96 (05/10/26): editor-blocos.js v11 + atividades.html — PDFs e fotos com link vencido (InvalidJWT) renovam sozinhos. */
+/* v96 -> v97 (05/10/26): grupos de atividades fechados por padrão (documentos.html e obras.html). */
+/* v97 -> v98 (05/10/26): simulacoes.html — leituras/envios das Simulações fora da fila (Atualizar, detalhe, conversa, correspondente) e aba Servidores. */
+const CACHE = "portal-morais-v111";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
-                  "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html",
-                  "./app.js","./alertas-docs.js","./manifest.json"];
+                  "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",
+                  "./atividades.html","./processos.html","./arquivos.html",
+                  "./app.js","./alertas-docs.js","./fogos.js","./editor-blocos.js","./atv-alertas.js","./rf-rotas.js","./manifest.json"];
 
 self.addEventListener("install", e=>{
   e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ARQUIVOS)).then(()=>self.skipWaiting()));

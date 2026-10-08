@@ -1044,7 +1044,7 @@ tfoot td:last-child{border-right:none}
 
 </div><!-- /main-wrap -->
 
-<script src="app.js?v=31"></script>
+<script src="app.js?v=43"></script>
 <script>
 /* ============ ANÁLISE DE DADOS (PORTAL-MORAIS) ============
    Veio do repositório CONTROLES-INTERNOS. ACESSO: exige "ANÁLISE DE DADOS" na
@@ -1097,6 +1097,18 @@ async function carregarAnaliseDados(){
 }
 </script>
 <script>
+/* 01/10/26 — QUAIS CENTROS DE CUSTO SÃO "CUSTO ESCRITÓRIO"
+   Todo centro de custo com "ESCRIT" no nome, MENOS os da lista abaixo
+   (comparação sem acento/caixa/traço). Para tirar outro, acrescente aqui.
+   Os excluídos não somam em Custo Escritório e continuam fora das tabelas
+   de obras (lá a regra segue sendo "tem ESCRIT no nome"). */
+const ESCRITORIO_FORA = ["ESCRITORIO MOURA DANTAS EMPREENDIMENTOS"];
+function _ccNorm(cc){ return String(cc||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/[-–—]/g," ").replace(/\s+/g," ").trim(); }
+function ehCustoEscritorio(cc){
+  const n=_ccNorm(cc);
+  return /ESCRIT/.test(n) && !ESCRITORIO_FORA.some(x=>n.indexOf(_ccNorm(x))===0);
+}
+
 // ── DADOS ──
 let docs=[],vendas=[],metas=[],pags={},fats=[];
 let cdiAtual=1.0; // % a.m. padrão, atualizado via BACEN
@@ -1627,7 +1639,7 @@ function somaVgvMeses(ml){
 function somaEscMeses(ml){
   return ml.reduce((s,m)=>{
     let v=0;
-    Object.entries(pags).forEach(([cc,mp])=>{if(/ESCRIT/i.test(cc))v+=mp[m]||0;});
+    Object.entries(pags).forEach(([cc,mp])=>{if(ehCustoEscritorio(cc))v+=mp[m]||0;});
     return s+v;
   },0);
 }
@@ -1712,9 +1724,9 @@ function buildDash(){
     pFull.forEach(p=>{
       if(!set.has(p.mes))return;
       const u=(p.cc||'').toUpperCase().trim();
-      const ehEsc=/ESCRIT/i.test(u);
+      const ehEsc=ehCustoEscritorio(u);
       const ehPos=(u==='POS OBRA MORAIS ENGENHARIA');
-      const ehObra=(!ehEsc && !ehPos && endD.has(normS(p.cc)));
+      const ehObra=(!/ESCRIT/i.test(u) && !ehPos && endD.has(normS(p.cc)));
       const planoTer=(p.plano_de_conta||'').toUpperCase().includes('AQUISIÇÃO DE TERRENO')
                    || (p.plano_de_conta||'').toUpperCase().includes('AQUISICAO DE TERRENO');
       if(tipo==='escritorio'&&ehEsc) total+=p.valor||0;
@@ -1865,7 +1877,7 @@ function buildDash(){
   (window._pagFull||[]).forEach(p=>{
     if(!p.mes||p.mes==='SEM DATA')return;
     const u=(p.cc||'').toUpperCase().trim();
-    if(/ESCRIT/i.test(u))_byEsc[p.mes]=(_byEsc[p.mes]||0)+p.valor;
+    if(ehCustoEscritorio(u))_byEsc[p.mes]=(_byEsc[p.mes]||0)+p.valor;
     else if(u==='POS OBRA MORAIS ENGENHARIA')_byPos[p.mes]=(_byPos[p.mes]||0)+p.valor;
   });
   const _s=(by,ml)=>ml.reduce((s,m)=>s+(by[m]||0),0);
@@ -4004,7 +4016,7 @@ function buildCustos(){
   let totEsc=0,totPos=0;
   f.forEach(p=>{
     const u=(p.cc||'').toUpperCase().trim();
-    if(/ESCRIT/i.test(u)) totEsc+=p.valor||0;
+    if(ehCustoEscritorio(u)) totEsc+=p.valor||0;
     else if(u==='POS OBRA MORAIS ENGENHARIA') totPos+=p.valor||0;
   });
   document.getElementById('kpi-custos3').innerHTML=[

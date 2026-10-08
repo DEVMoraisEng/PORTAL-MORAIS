@@ -121,6 +121,20 @@ th.ord.on .seta{opacity:1}
 
 /* ===================== ALERTAS (item 13) ===================== */
 .alertas{display:flex;flex-direction:column;gap:9px;margin:14px 0}
+/* 01/10/26 — validação do ADM (obra/serviço criados por outra pessoa) */
+.val-faixa{display:none;margin:14px 0 0;border:1px solid #F5C26B;background:#FFF7E6;color:#8A4B00;border-radius:11px;padding:11px 13px;font-size:13px;align-items:center;gap:10px}
+.val-faixa.on{display:flex}
+.val-faixa b{font-weight:800}
+.val-it{border:1px solid var(--border2,#d0e4ec);border-radius:10px;padding:10px 12px;margin-bottom:10px}
+.val-it .t{font-weight:800;font-size:13.5px}
+.val-it .s{font-size:12px;color:var(--text3,#5a8099);margin:3px 0 6px}
+.val-it ul{margin:4px 0 8px 18px;padding:0;font-size:12.5px}
+.val-it li a{cursor:pointer;text-decoration:underline}
+.val-it .acoes{display:flex;gap:8px;justify-content:flex-end}
+.val-tag{display:inline-block;font-size:10.5px;font-weight:800;border-radius:8px;padding:1px 7px;margin-left:6px;background:#FFE7BA;color:#8A4B00;vertical-align:middle}
+.ajuda-end{font-size:11.5px;margin-top:4px;color:var(--text3,#5a8099)}
+.ajuda-end.ok{color:#15803D}.ajuda-end.err{color:#c0392b}
+html[data-tema="escuro"] .val-faixa{background:#3a2d12;border-color:#7a5a1e;color:#f0c95f}
 .al{display:flex;gap:11px;align-items:flex-start;border-radius:11px;padding:11px 13px;border:1px solid;font-size:13px}
 .al .ic{font-size:17px;line-height:1.1}
 .al .co{flex:1;min-width:0}
@@ -186,6 +200,12 @@ th.ord.on .seta{opacity:1}
    visual do aviso de material (laranja), pra ser lido como "pendencia sua",
    e nao como erro do sistema. */
 .al.falta{background:#FEF3C7;border-color:#FCD34D;color:#92400E}
+/* 23/09/26 — serviço com data passada e sem finalizar */
+.al.atraso{background:#FEF2F2;border-color:#FCA5A5;color:#991B1B}
+.al.atraso .ti{color:#991B1B}
+html[data-tema="escuro"] .al.atraso{background:#3a1e1e;border-color:#6b2c2c;color:#f3a29a}
+html[data-tema="escuro"] .al.atraso .ti{color:#f3a29a}
+.tag-criando{display:inline-block;font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:20px;background:#FEF3C7;color:#92400E;margin-left:6px}
 html[data-tema="escuro"] .al.falta{background:#3a2d12;border-color:#6b5320;color:#f0c95f}
 .falta-box{background:#FEF3C7;border:1px solid #FCD34D;border-radius:10px;padding:10px 12px;
   font-size:12.5px;color:#92400E;margin-bottom:14px;line-height:1.7}
@@ -597,6 +617,8 @@ html[data-tema="escuro"] .logo{background:#fff}
         <button class="bt az" onclick="irIndicadores()">📊 Indicadores</button>
       </div>
 
+      <!-- 01/10/26: só ADM — obras e serviços criados por outras pessoas esperando validação -->
+      <div class="val-faixa" id="val-faixa"></div>
       <div class="alertas" id="alertas-hub"></div>
 
       <div class="sec"><span class="cond">Panorama</span></div>
@@ -735,14 +757,15 @@ html[data-tema="escuro"] .logo{background:#fff}
   <div class="modal-overlay" id="no-overlay" onclick="if(event.target===this)fecharNovaObra()">
     <div class="modal-cx">
       <div class="modal-tit">Nova obra de Pós Obra</div>
-      <div class="modal-sub">A obra passa a aparecer na lista e já aceita serviços.</div>
+      <div class="modal-sub">A obra passa a aparecer na lista e já aceita serviços. <span id="no-aviso-val"></span></div>
       <!-- r33 (pedido 1): o formulário passou a trazer TODOS os campos de
            preenchimento da obra, e não só os quatro do começo. A ordem é a de
            quem digita: o que identifica a casa, quem é o cliente, onde fica e,
            por fim, o que vem do contrato. -->
       <div class="modal-corpo"><div id="no-campos">
         <div class="campo"><label>ENDEREÇO</label>
-          <input type="text" id="no-endereco" placeholder="ATALANTA QD 01 LT 21" autocomplete="off"></div>
+          <input type="text" id="no-endereco" placeholder="TB 19 QD 51 LT 14" autocomplete="off" oninput="checarEndNO()">
+          <div class="ajuda-end" id="no-end-ajuda"></div></div>
         <div class="campo"><label>CASA</label>
           <input type="number" id="no-casa" placeholder="2" autocomplete="off"></div>
         <div class="campo"><label>CLIENTE</label>
@@ -771,7 +794,20 @@ html[data-tema="escuro"] .logo{background:#fff}
       <div class="modal-sub" id="no-erro" style="display:none;color:#c0392b"></div>
       <div class="modal-acoes">
         <button class="bt ghost" onclick="fecharNovaObra()">Cancelar</button>
+        <button class="bt" id="no-continuar" onclick="confirmarNovaObra(true)" title="Cria e deixa o formulário aberto, limpando só endereço, casa e cliente">Criar e continuar</button>
         <button class="bt az" id="no-criar" onclick="confirmarNovaObra()">Criar obra</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 01/10/26: validação do ADM -->
+  <div class="modal-overlay" id="val-overlay" onclick="if(event.target===this)fecharValidacoes()">
+    <div class="modal-cx">
+      <div class="modal-tit">Criações para validar</div>
+      <div class="modal-sub">Obras e tipos de serviço criados por quem não é ADM. <b>Validar</b> mantém. <b>Recusar</b> exclui: o serviço sai dos chamados (o chamado continua, sem ele) e da lista do Notion; a obra vai para a lixeira do Notion junto com os chamados dela.</div>
+      <div class="modal-corpo"><div id="val-lista"></div></div>
+      <div class="modal-acoes">
+        <button class="bt ghost" onclick="fecharValidacoes()">Fechar</button>
       </div>
     </div>
   </div>
@@ -818,7 +854,7 @@ html[data-tema="escuro"] .logo{background:#fff}
   <input type="file" id="arq-input" style="display:none" onchange="enviarArquivo(this)">
   <div class="toast" id="toast"></div>
 
-<script src="app.js?v=29"></script>
+<script src="app.js?v=43"></script>
 <script>
 /* ===================== TABELA DE GARANTIAS =====================
  * Transcrita do "Manual do Proprietário" — as DUAS listas, como combinado:
@@ -1473,6 +1509,7 @@ function boot(){
     return;
   }
   carregar();
+  if(ehAdmTela()) setTimeout(carregarValidacoes, 2500);
 }
 
 function aplicarBoot(r){
@@ -1592,8 +1629,10 @@ function pintarUsuario(s){
   /* item 3: criar obra nova é a mesma regra — só ADM. A trava real está no
      posObraNovo_ do servidor; isto aqui é só não mostrar o que a pessoa não
      pode usar. */
+  /* 01/10/26: liberado para todos com acesso ao Pós Obra (quem não é ADM cria
+     e o ADM valida depois). O modo teste continua sem o botão. */
   const bn = document.getElementById("bt-nova-obra");
-  if(bn) bn.style.display = (s.tipo==="ADM" ? "" : "none");
+  if(bn) bn.style.display = (ehSomenteLeitura(s) ? "none" : "");
   /* pedido 4: o botão de forçar atualização também é só do ADM. Cada clique
      custa uma varredura inteira do Notion e um build do GitHub Actions —
      aberto a todos, viraria um jeito acidental de derrubar o desempenho de
@@ -1776,6 +1815,7 @@ function ehColunaServico(col){
 function calcularAlertas(obraId){
   const hoje = hojeISO(), amanha = isoMaisDias(hoje, 1);
   const doDia = [], material = [[], []];   // um balde por aviso de MATERIAL_AVISOS
+  const atrasados = [], vistosAtr = {};
   AGENDA.forEach(m=>{
     if(obraId && semHifen(m.obraId) !== semHifen(obraId)) return;
     /* Passou a olhar o andamento DAQUELE evento (pedido 5): antes, uma
@@ -1785,6 +1825,12 @@ function calcularAlertas(obraId){
     if(!ehColunaServico(m.coluna)) return;
     const d = soData(m.data);
     if(d === amanha) doDia.push(m);
+    /* 23/09/26 (PÓS OBRA item 2): a data do serviço/retorno já passou e o
+       andamento DAQUELE evento não está FINALIZADO */
+    if(d && d < hoje){
+      const k = m.atividadeId + "|" + m.coluna;
+      if(!vistosAtr[k]){ vistosAtr[k] = 1; atrasados.push(m); }
+    }
 
     /* item 9: cada status tem a sua antecedência. Data já passada continua
        entrando (d <= limite), senão o pendente sumiria justo quando mais
@@ -1812,7 +1858,8 @@ function calcularAlertas(obraId){
       faltando.push({ atividadeId:m.atividadeId, obraId:m.obraId, nome:m.nome, faltas:m.faltando });
     });
   }
-  return { doDia:doDia, material:material, faltando:faltando };
+  atrasados.sort((a,b)=>String(a.data).localeCompare(String(b.data)));
+  return { doDia:doDia, material:material, faltando:faltando, atrasados:atrasados };
 }
 function renderAlertas(){
   document.getElementById("alertas-hub").innerHTML = htmlAlertas(calcularAlertas(null), true);
@@ -1822,6 +1869,12 @@ function renderAlertas(){
 }
 function htmlAlertas(a, comObra){
   let h = "";
+  if(a.atrasados && a.atrasados.length){
+    h += '<div class="al atraso"><span class="ic">⏰</span><div class="co">'+
+      '<div class="ti">Data passada sem finalizar — '+a.atrasados.length+(a.atrasados.length===1?' serviço':' serviços')+'</div>'+
+      '<div class="li" style="margin-bottom:5px">O dia marcado já passou e o andamento ainda não está FINALIZADO. Marque como finalizado ou remarque.</div>'+
+      a.atrasados.map(m=>linhaAlerta(m, comObra)).join("")+'</div></div>';
+  }
   if(a.doDia.length){
     h += '<div class="al amanha"><span class="ic">📅</span><div class="co">'+
       '<div class="ti">Amanhã tem '+a.doDia.length+(a.doDia.length===1?' serviço marcado':' serviços marcados')+'</div>'+
@@ -1943,7 +1996,8 @@ function renderObras(){
     const st = o.status==="PÓS OBRA EM ANDAMENTO"
       ? '<span class="pill alerta">PÓS OBRA EM ANDAMENTO</span>'
       : '<span class="pill neutro">SEM PÓS OBRA</span>';
-    const nv = o.pendentes ? ' <span class="pill novo" title="criado agora, ainda subindo">+'+o.pendentes+' novo</span>' : "";
+    const nv = (o.pendentes ? ' <span class="pill novo" title="criado agora, ainda subindo">+'+o.pendentes+' novo</span>' : "") +
+               (o.pendente ? ' <span class="tag-criando">criando…</span>' : "");
     /* MELHORIAS item 3: selo na propria linha da obra, pra dar pra varrer a
        lista e ver onde falta preencher sem abrir uma por uma. */
     const inc = o.servicosIncompletos
@@ -2532,6 +2586,7 @@ function mesclarNovosNaObra(){
 
 function abrirObra(id, depois){
   if(!id) return;
+  if(String(id).indexOf("tmp-") === 0){ toast("Esta obra ainda está sendo criada."); return; }
   mostrarView("view-obra");
   document.getElementById("obra-topo").innerHTML = '<div class="vazio"><span class="load"></span> Carregando obra…</div>';
   document.getElementById("alertas-obra").innerHTML = "";
@@ -2620,7 +2675,8 @@ function pintarObra(){
          sincronia seguinte desfazia a correção. */
       od("Assinatura do contrato",
         '<span class="assin-box">'+esc(dbr(assin) || "—")+
-        (soLeitura() ? "" : ' <button class="bt-lapis" title="Editar data de assinatura" onclick="editarAssinatura(this)">✏️</button>')+
+        /* 01/10/26: quem tem acesso preenche a data VAZIA; trocar/apagar continua só com o ADM */
+        ((soLeitura() || (assin && !ehAdmTela())) ? "" : ' <button class="bt-lapis" title="'+(assin?"Editar":"Preencher")+' data de assinatura" onclick="editarAssinatura(this)">✏️</button>')+
         '</span>', true) +
       /* r33 (pedido 2): o anexo do contrato faltava aqui. A coluna FOTOS DO
          CONTRATO existe na base PÓS OBRA e o backend já aceitava anexo nela
@@ -2762,6 +2818,7 @@ const COL_ASSIN = "DATA DE ASSINATURA DO CONTRATO";
 function editarAssinatura(bt){
   if(soLeitura()){ toast("Modo teste: nada é gravado.", 3); return; }
   if(!OBRA) return;
+  if(!ehAdmTela() && ((OBRA.valores||{})[COL_ASSIN])){ toast("A data já está preenchida — só o ADM pode trocar.", 4); return; }
   const box = bt && bt.closest(".assin-box");
   if(!box) return;
   const atual = String(((OBRA.valores||{})[COL_ASSIN]) || "").slice(0,10);
@@ -2785,6 +2842,7 @@ function salvarAssinatura(){
   if(novo && !/^\d{4}-\d{2}-\d{2}$/.test(novo)){ toast("Data inválida.", 4); return; }
   if(novo && novo > hojeISO() &&
      !confirm("A data "+dbr(novo)+" está no futuro. Gravar assim mesmo?")) return;
+  if(!novo && !ehAdmTela()){ toast("Escolha uma data.", 3); return; }
   if(!novo && !confirm("Apagar a data de assinatura?\n\nIsso apaga também na VENDA e as garantias deixam de ser calculadas.")) return;
 
   inp.disabled = true;
@@ -2796,8 +2854,9 @@ function salvarAssinatura(){
     const o = obraPorId(OBRA.id); if(o) o.dataAssinatura = novo || null;
     pintarObra();
     const esp = r.resposta && r.resposta.espelhado;
+    const gc = r.resposta && r.resposta.gcapCriada;
     toast(r.enfileirado ? "Sem internet — vai subir quando reconectar."
-        : (esp ? "Salvo aqui e na venda." : "Salvo. (Sem venda correspondente para espelhar.)"), 4);
+        : (esp ? "Salvo aqui e na venda." + (gc ? " Atividade de GCAP criada." : "") : "Salvo. (Sem venda correspondente para espelhar.)"), 4);
   });
 }
 
@@ -3097,7 +3156,10 @@ window.aoSincronizar = function(feitos){
  * =================================================================== */
 let NO_OPID = null;
 function abrirNovaObra(){
-  if(!ehAdmTela() || soLeitura()) return;
+  if(soLeitura()) return;
+  const av = document.getElementById("no-aviso-val");
+  if(av) av.textContent = ehAdmTela() ? "" : "Como você não é ADM, a obra fica aguardando a validação de um ADM.";
+  setTimeout(checarEndNO, 0);
   NO_OPID = novoOpId();
   ["no-endereco","no-casa","no-clientes","no-telefone","no-setor","no-cidade",
    "no-assinatura","no-agio","no-obs"].forEach(id=>{
@@ -3127,74 +3189,76 @@ function abrirNovaObra(){
 }
 function fecharNovaObra(){ document.getElementById("no-overlay").classList.remove("on"); }
 
-function confirmarNovaObra(){
+/* 23/09/26 (PÓS OBRA item 1) — CRIAÇÃO RÁPIDA, igual à de Obras.
+   A obra entra na lista NA HORA, marcada "criando…", e a gravação segue por
+   trás. "Criar e continuar" deixa o formulário aberto para a próxima (só
+   limpa endereço, casa, cliente e telefone). Se o servidor recusar, a linha
+   provisória sai e o formulário volta com tudo preenchido e o motivo. */
+function confirmarNovaObra(continuar){
   const erro = document.getElementById("no-erro");
-  const endereco = String(document.getElementById("no-endereco").value||"").trim();
-  const clientes = String(document.getElementById("no-clientes").value||"").trim();
-  const casa     = String(document.getElementById("no-casa").value||"").trim();
-  const telefone = String(document.getElementById("no-telefone").value||"").trim();
-  const setor    = String(document.getElementById("no-setor").value||"").trim();
-  const cidade   = String(document.getElementById("no-cidade").value||"").trim();
-  const assin    = String(document.getElementById("no-assinatura").value||"").trim();
-  const agio     = String(document.getElementById("no-agio").value||"").trim();
-  const obs      = String(document.getElementById("no-obs").value||"").trim();
-  /* o controle de horário flexível pode não existir (coluna ausente no
-     Notion), ser caixa de seleção ou ser lista — os três casos aqui */
-  const elFlex   = document.getElementById("no-flex");
-  const flex     = !elFlex ? "" : (elFlex.type === "checkbox" ? (elFlex.checked ? "SIM" : "") : String(elFlex.value||"").trim());
+  const g = id => String((document.getElementById(id)||{}).value||"").trim();
+  const endereco = g("no-endereco").toUpperCase().replace(/\s+/g," "), clientes = g("no-clientes"), casa = g("no-casa");
+  const telefone = g("no-telefone"), setor = g("no-setor"), cidade = g("no-cidade");
+  const assin = g("no-assinatura"), agio = g("no-agio"), obs = g("no-obs");
+  const elFlex = document.getElementById("no-flex");
+  const flex = !elFlex ? "" : (elFlex.type === "checkbox" ? (elFlex.checked ? "SIM" : "") : String(elFlex.value||"").trim());
 
   function falha(t){ erro.textContent = t; erro.style.display = "block"; }
   if(!endereco) return falha("Informe o endereço da obra.");
+  /* 01/10/26: mesma regra de endereço da criação de obra na aba Obras */
+  const errEnd = erroEndNO(endereco);
+  if(errEnd){ checarEndNO(); return falha("Endereço: " + errEnd); }
   if(!clientes) return falha("Informe o cliente — sem ele a obra não aparece na lista.");
   if(/\bCS\b|\bCASA\b/i.test(endereco))
     return falha("Tire o \"CS\" do endereço: o número da casa vai no campo ao lado.");
-
-  /* já existe? a checagem definitiva é do servidor (que olha a base inteira),
-     esta aqui só evita a ida quando dá para ver daqui mesmo */
   const chave = normN(endereco) + "|" + (casa||"");
   if((OBRAS||[]).some(o => normN(o.endereco)+"|"+(o.casa==null?"":String(o.casa)) === chave))
     return falha("Essa obra já está cadastrada no Pós Obra.");
-
   erro.style.display = "none";
-  const bt = document.getElementById("no-criar"); if(bt) bt.disabled = true;
+
+  const opId = NO_OPID || novoOpId();
+  const valores = { endereco, clientes, casa, telefone, setor, cidade, assin, agio, obs };
+  const tmpId = "tmp-" + opId;
+  OBRAS = OBRAS || [];
+  OBRAS.push({ id:tmpId, pendente:true, endereco:endereco, casa: casa===""?null:Number(casa),
+               titulo:endereco + (casa ? " CS " + casa : ""), clientes:clientes,
+               telefone:telefone||null, dataAssinatura:assin||null, observacoes:obs,
+               horarioFlexivel:flex||null, agio:agio||null, cidade:cidade, setor:setor,
+               servicos:0, servicosAbertos:0, servicosIncompletos:0, status:"SEM PÓS OBRA" });
+  pintarHub();
+  if(continuar){
+    ["no-endereco","no-casa","no-clientes","no-telefone"].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=""; });
+    NO_OPID = novoOpId();
+    const e=document.getElementById("no-endereco"); if(e) e.focus();
+    toast("Criando " + endereco + "… o formulário continua aberto.");
+  } else { fecharNovaObra(); toast("Criando " + endereco + "…"); }
 
   escrever({action:"posObraNovo", endereco:endereco, casa:casa,
             clientes:clientes, telefone:telefone,
             setor:setor, cidade:cidade, dataAssinatura:assin,
-            agio:agio, observacoes:obs, horarioFlexivel:flex,
-            opId: NO_OPID || novoOpId()},
+            agio:agio, observacoes:obs, horarioFlexivel:flex, opId: opId},
            "criar obra pós obra").then(r=>{
-    if(bt) bt.disabled = false;
-    if(r.erro === "FALHOU_SEM_CRIAR"){
-      falha("A conexão falhou e a obra NÃO foi criada. Pode tentar de novo.");
+    const i = OBRAS.findIndex(o => o.id === tmpId);
+    if(r && r.ok && r.enfileirado){ toast("Sem internet — " + endereco + " será criada quando reconectar.", 4); return; }
+    const id = r && r.ok && r.resposta && r.resposta.id;
+    if(id){
+      if(i >= 0){ OBRAS[i].id = id; delete OBRAS[i].pendente; if(r.resposta.titulo) OBRAS[i].titulo = r.resposta.titulo; }
+      pintarHub();
+      toast(r.resposta.pendenteValidacao ? "Obra " + endereco + " criada — aguardando a validação do ADM." : "Obra " + endereco + " criada.", 5);
       return;
     }
-    if(!r.ok){ falha("Não deu para criar: " + erroTexto(r.erro)); return; }
-    if(r.enfileirado){ fecharNovaObra(); toast("Sem internet — a obra será criada quando reconectar.", 4); return; }
-    fecharNovaObra();
-    toast("Obra criada.");
-    const id = r.resposta && r.resposta.id;
-    /* a lista vem do arquivo publicado e só terá a obra no próximo build;
-       enquanto isso ela entra aqui para a pessoa já conseguir usar */
-    if(id){
-      OBRAS = OBRAS || [];
-      /* a obra entra na lista já com o que foi digitado — se ficasse só com
-         endereço e cliente, a pessoa abriria a obra recém-criada e veria os
-         campos em branco até o próximo build, achando que não gravou */
-      OBRAS.push({ id:id, endereco:endereco, casa: casa===""?null:Number(casa),
-                   titulo:(r.resposta.titulo||endereco), clientes:clientes,
-                   telefone:telefone||null, dataAssinatura:assin||null, observacoes:obs,
-                   horarioFlexivel:flex||null, agio:agio||null, cidade:cidade, setor:setor,
-                   servicos:0, servicosAbertos:0, servicosIncompletos:0,
-                   status:"SEM PÓS OBRA" });
-      pintarHub();
-      /* NÃO abre a página da obra recém-criada (pedido de set/26).
-         A lista vem do arquivo publicado e a obra só existe lá no próximo
-         build; ao abrir na hora, a tela tentava carregar os chamados de uma
-         obra que o dist/ ainda não conhece e ficava carregando sem fim. A
-         obra já aparece na lista pela linha acima — a pessoa abre quando
-         quiser, e aí o carregamento tem o que buscar. */
-    } else recarregarTudo();
+    if(r && r.ok){ if(i >= 0) OBRAS.splice(i,1); recarregarTudo(); return; }
+    if(i >= 0) OBRAS.splice(i,1);
+    pintarHub();
+    const msg = (r && r.erro === "FALHOU_SEM_CRIAR") ? "A conexão falhou e a obra NÃO foi criada. Pode tentar de novo."
+              : "Não deu para criar " + endereco + ": " + erroTexto(r && r.erro);
+    abrirNovaObra();
+    NO_OPID = opId;
+    const mapa = { "no-endereco":valores.endereco, "no-casa":valores.casa, "no-clientes":valores.clientes,
+                   "no-telefone":valores.telefone, "no-setor":valores.setor, "no-cidade":valores.cidade,
+                   "no-assinatura":valores.assin, "no-agio":valores.agio, "no-obs":valores.obs };
+    Object.keys(mapa).forEach(k=>{ const e=document.getElementById(k); if(e) e.value = mapa[k] || ""; });
+    falha(msg);
   });
 }
 
@@ -3292,7 +3356,10 @@ function criarServico(){
     if(c.tipo === "multi_select"){
       return '<div class="campo"><label>'+esc(c.nome)+'</label><div class="ms-cx" id="'+id+'">'+
         ((c.opcoes||[]).map(o=>'<label class="ms-item"><input type="checkbox" value="'+esc(o)+'"> '+esc(o)+'</label>').join("")
-          || '<span style="font-size:12px;color:var(--text4)">sem opções cadastradas</span>')+'</div></div>';
+          || '<span style="font-size:12px;color:var(--text4)">sem opções cadastradas</span>')+'</div>'+
+        /* 07/10 — no NOVO serviço também dá para cadastrar um tipo de serviço que não existe */
+        ((podeCriarOpcao(c.nome) && !soLeitura()) ? '<button type="button" class="bt-novaopc" onclick="nsNovaOpcaoMulti(\''+esc(c.nome).replace(/'/g,"\\'")+'\', \''+id+'\')">+ Novo tipo de serviço</button>' : '')+
+        '</div>';
     }
     if(c.tipo === "select" || c.tipo === "status"){
       return '<div class="campo"><label>'+esc(c.nome)+'</label><select id="'+id+'">'+
@@ -3936,6 +4003,9 @@ let SABADO_PENDENTE = null;   // { prop, valor, id } aguardando senha do ADM
    normal, com fila offline (salvarCampo). */
 function salvarCampoData(prop, valorBruto, id){
   const dataPura = String(valorBruto||"").slice(0,10);
+  /* 01/10/26 — digitando a data, o navegador dispara a gravação a cada número do ano
+     ("0002", "0020"…) e gravava 30/09/0020. Só grava com ano completo e plausível. */
+  if(dataPura){ const ano=Number(dataPura.slice(0,4)); if(!(ano>=2000 && ano<=2100)) return; }
   if(!dataPura || !ehDataAgendamento(prop)){ salvarCampo(prop, valorBruto, id); return; }
 
   if(ehFeriadoGoiania(dataPura)){
@@ -4046,7 +4116,8 @@ async function pedirOpcaoNova(prop){
     if(!campo.opcoes.some(o => normN(o) === normN(real))) campo.opcoes.push(real);
   }
   const jaTinha = (r.resposta && r.resposta.jaExistia) || r.jaExistia;
-  toast(jaTinha ? "Já existia — selecionado." : "Criado ✓");
+  const aguarda = (r.resposta && r.resposta.aguardaValidacao) || r.aguardaValidacao;
+  toast(jaTinha ? "Já existia — selecionado." : (aguarda ? "Criado ✓ — o ADM vai validar este serviço." : "Criado ✓"), aguarda ? 5 : 3);
   return real;
 }
 
@@ -4063,6 +4134,21 @@ async function aoTrocarSelect(prop, valor, id, el){
 }
 
 /* multi_select: cria e marca, preservando o que já estava marcado. */
+/* 07/10 — "+ Novo tipo de serviço" dentro do Novo serviço: cria a opção, mostra e já deixa marcada */
+async function nsNovaOpcaoMulti(prop, id){
+  const cx = document.getElementById(id); if(!cx) return;
+  const novo = await pedirOpcaoNova(prop);
+  if(!novo) return;
+  let inp = Array.from(cx.querySelectorAll("input[type=checkbox]")).find(i => normN(i.value) === normN(novo));
+  if(!inp){
+    const vazio = cx.querySelector("span"); if(vazio && !cx.querySelector("label")) vazio.remove();
+    const lb = document.createElement("label"); lb.className = "ms-item";
+    lb.innerHTML = '<input type="checkbox" value="'+esc(novo)+'"> '+esc(novo);
+    cx.appendChild(lb); inp = lb.querySelector("input");
+  }
+  inp.checked = true;
+  try{ inp.closest("label").scrollIntoView({block:"nearest"}); }catch(e){}
+}
 async function novaOpcaoMulti(prop, id){
   const cx = document.getElementById(id);
   const marcados = cx ? Array.from(cx.querySelectorAll("input:checked")).map(i=>i.value) : [];
@@ -4466,6 +4552,132 @@ function barrasH(dados){
 }
 
 boot();
+
+/* ===================== 01/10/26 — ENDEREÇO NO PADRÃO (igual à aba Obras) =====
+ * Mesma regra do obraEnderecoErro_ do Code.gs e do checarEnd() do obras.html:
+ * sem "RUA/AV", sem traço, QD e LT com 2 dígitos. Quem decide de verdade é o
+ * servidor (posObraNovo_); aqui é só avisar antes de enviar e sugerir a forma certa. */
+function padraoEndNO(s){
+  let t=String(s||"").replace(/[\u2013\u2014]/g,"-").toUpperCase().replace(/\s+/g," ").trim(); if(!t) return t;
+  t=t.replace(/\bQUADRA\b/g,"QD").replace(/\bLOTE\b/g,"LT").replace(/\b(QD|LT|CS)\.(?=\s*\d)/g,"$1");
+  t=t.replace(/\bLT\s*(\d+[A-Z]?)\s*-+\s*(\d+[A-Z]?)\b/g,"LT $1~$2").replace(/\bLT (\d+) (\d+)\b/g,"LT $1~$2");
+  t=t.replace(/\s*-+\s*/g," ").replace(/\b(QD|LT|CS)(?=\d)/g,"$1 ").replace(/^([A-Z]{1,4})(?=\d)/,"$1 ");
+  t=t.replace(/\bQD 0+ (\d+)/g,"QD $1").replace(/\bB (\d+)\b/g,"B$1");
+  t=t.replace(/\b(QD|LT) 0*(\d+)([A-Z]?)(?:~0*(\d+)([A-Z]?))?(?![\dA-Z])/g,(m,k,a,sa,b,sb)=>{
+    let r=k+" "+(a.length<2?"0"+a:a)+(sa||""); if(b) r+="-"+(b.length<2?"0"+b:b)+(sb||""); return r; });
+  return t.replace(/~/g,"-").replace(/\s+/g," ").trim();
+}
+function erroEndNO(e){
+  e=String(e||"").toUpperCase().replace(/\s+/g," ").trim();
+  if(!e) return "Informe o endereço.";
+  if(/^(RUA|R\.|AV\.?|AVENIDA|ALAMEDA|AL\.|TRAVESSA|TV\.?|ESTRADA|RODOVIA)\s/.test(e)) return "sem prefixo de rua/avenida — tire o \"RUA\", \"AV\"…";
+  if(/\bCS\b|\bCASA\b/.test(e)) return "tire o \"CS\" do endereço: o número da casa vai no campo CASA.";
+  if(padraoEndNO(e)!==e) return "fora do padrão.";
+  if(!/\bQD \d{2,}[A-Z]?\b/.test(e)||!/\bLT \d{2,}/.test(e)) return "precisa ter QD e LT, com 2 dígitos (ex.: QD 51 LT 14).";
+  return null;
+}
+function checarEndNO(){
+  const inp=document.getElementById("no-endereco"), a=document.getElementById("no-end-ajuda");
+  if(!inp||!a) return true;
+  const e=String(inp.value||"").toUpperCase().replace(/\s+/g," ").trim();
+  if(!e){ a.className="ajuda-end"; a.innerHTML='Padrão: <b>RUA QD XX LT XX</b> — sem "RUA"/"AV", sem traço, quadra e lote com 2 dígitos. Ex.: <b>TB 19 QD 51 LT 14</b>'; return false; }
+  const err=erroEndNO(e);
+  if(!err){ a.className="ajuda-end ok"; a.textContent="✓ No padrão."; return true; }
+  const sug=padraoEndNO(e.replace(/\s+(CS|CASA)\s*\d+\s*$/,""));
+  a.className="ajuda-end err";
+  a.innerHTML=esc(err.charAt(0).toUpperCase()+err.slice(1))+(sug!==e&&!erroEndNO(sug)?
+    ' <button class="bt ghost peq" type="button" onclick="document.getElementById(\'no-endereco\').value=\''+esc(sug)+'\';checarEndNO()">usar '+esc(sug)+'</button>':"");
+  return false;
+}
+
+/* ===================== 01/10/26 — VALIDAÇÃO DO ADM =====================
+ * Obra nova e tipo de SERVIÇO novo criados por quem não é ADM ficam numa fila
+ * (Supabase, via Melhorias.gs). Só o ADM vê a faixa e a janela; o servidor
+ * confere de novo (posObraPendencias_/posObraValidar_). */
+try{ if(typeof ACOES_NA_ESCRITA!=="undefined" && ACOES_NA_ESCRITA.indexOf("posObraValidar")<0) ACOES_NA_ESCRITA.push("posObraValidar"); }catch(e){}
+try{
+  Object.assign(ERROS_TEXTO, {
+    ENDERECO_OBRIGATORIO:"Informe o endereço.", ENDERECO_COM_PREFIXO:"Endereço sem prefixo de rua/avenida.",
+    ENDERECO_SEM_QD_LT:"Endereço precisa ter QD e LT com 2 dígitos.", ENDERECO_FORA_DO_PADRAO:"Endereço fora do padrão (ex.: TB 19 QD 51 LT 14).",
+    DATA_JA_PREENCHIDA_SO_ADM:"A data já está preenchida — só o ADM pode trocar.", SO_ADM_APAGA_DATA:"Só o ADM pode apagar a data.",
+    DATA_INVALIDA:"Data inválida.", APENAS_ADM:"Só o ADM pode fazer isso."
+  });
+}catch(e){}
+let VALIDACOES = [];
+async function carregarValidacoes(){
+  if(!ehAdmTela()) return;
+  const r = await ler({action:"posObraPendencias"});
+  if(!r || !r.ok){ return; }
+  VALIDACOES = r.itens || [];
+  pintarFaixaValidacoes();
+  if(location.hash==="#validar" && VALIDACOES.length) abrirValidacoes();
+}
+function pintarFaixaValidacoes(){
+  const f = document.getElementById("val-faixa"); if(!f) return;
+  const n = VALIDACOES.length;
+  if(!n){ f.classList.remove("on"); f.innerHTML=""; fecharValidacoes(); return; }
+  const ob = VALIDACOES.filter(x=>x.tipo==="obra").length, sv = n-ob;
+  f.innerHTML = '<span style="font-size:17px">🛠</span><span style="flex:1"><b>'+n+' criaç'+(n>1?"ões":"ão")+' para validar</b> — '+
+    [ob?ob+" obra"+(ob>1?"s":""):"", sv?sv+" tipo"+(sv>1?"s":"")+" de serviço":""].filter(Boolean).join(" e ")+
+    ' criad'+(n>1?"os":"o")+' por quem não é ADM.</span><button class="bt az peq" onclick="abrirValidacoes()">Ver e validar</button>';
+  f.classList.add("on");
+}
+function abrirValidacoes(){
+  const cx = document.getElementById("val-lista"); if(!cx) return;
+  const dt = iso=>{ try{ const d=new Date(iso); return d.toLocaleDateString("pt-BR")+" "+d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}); }catch(e){ return ""; } };
+  cx.innerHTML = VALIDACOES.length ? VALIDACOES.map(x=>{
+    const chs = x.chamados || [];
+    const lista = chs.length
+      ? '<ul>'+chs.slice(0,30).map(c=>'<li>'+(c.obraId||x.obraId ? '<a onclick="fecharValidacoes();abrirObra(\''+esc(c.obraId||x.obraId)+'\')">'+esc(c.titulo)+'</a>' : esc(c.titulo))+'</li>').join("")+
+        (chs.length>30?'<li>… e mais '+(chs.length-30)+'</li>':"")+'</ul>'
+      : '<div class="s">Nenhum chamado '+(x.tipo==="obra"?"nesta obra":"usando este serviço")+' ainda.</div>';
+    const tit = x.tipo==="obra"
+      ? '🏠 Obra: '+(x.obraId && !x.arquivada ? '<a style="cursor:pointer;text-decoration:underline" onclick="fecharValidacoes();abrirObra(\''+esc(x.obraId)+'\')">'+esc(x.nome)+'</a>' : esc(x.nome))+(x.arquivada?'<span class="val-tag">já está na lixeira</span>':"")
+      : '🔧 Serviço: '+esc(x.nome);
+    const sub = 'Criado por '+esc(x.por||"?")+' em '+esc(dt(x.em))+(x.tipo==="obra"&&x.clientes?' · cliente '+esc(x.clientes):"");
+    return '<div class="val-it" id="val-'+x.id+'"><div class="t">'+tit+'</div><div class="s">'+sub+'</div>'+
+      '<div class="s"><b>'+(x.tipo==="obra"?"Chamados desta obra":"Obras/chamados vinculados")+' ('+chs.length+')</b></div>'+lista+
+      (x.aviso?'<div class="s" style="color:#c0392b">'+esc(x.aviso)+'</div>':"")+
+      '<div class="acoes"><button class="bt ghost peq" onclick="decidirValidacao('+x.id+',\'recusar\')">✖ Recusar e excluir</button>'+
+      '<button class="bt az peq" onclick="decidirValidacao('+x.id+',\'aprovar\')">✔ Validar</button></div></div>';
+  }).join("") : '<div class="vazio">Nada para validar.</div>';
+  document.getElementById("val-overlay").classList.add("on");
+}
+function fecharValidacoes(){ const o=document.getElementById("val-overlay"); if(o) o.classList.remove("on"); }
+async function decidirValidacao(id, decisao){
+  const x = VALIDACOES.find(v=>v.id===id); if(!x) return;
+  if(soLeitura()){ toast("Modo teste: nada é gravado.", 3); return; }
+  if(decisao==="recusar"){
+    const n=(x.chamados||[]).length;
+    const msg = x.tipo==="obra"
+      ? "Recusar a obra "+x.nome+"?\n\nEla vai para a lixeira do Notion"+(n?" junto com "+n+" chamado"+(n>1?"s":""):"")+"."
+      : "Recusar o serviço \""+x.nome+"\"?\n\nEle sai da lista de serviços"+(n?" e de "+n+" chamado"+(n>1?"s":"")+" (os chamados continuam, sem esse serviço)":"")+".";
+    if(!confirm(msg)) return;
+  }
+  const box = document.getElementById("val-"+id);
+  if(box) box.querySelectorAll("button").forEach(b=>b.disabled=true);
+  const r = await escrever({action:"posObraValidar", id:id, decisao:decisao}, "validação");
+  if(!r || !r.ok || r.enfileirado){
+    if(box) box.querySelectorAll("button").forEach(b=>b.disabled=false);
+    toast(r && r.enfileirado ? "Sem internet — tente de novo quando reconectar." : "Não deu: "+erroTexto(r && r.erro), 5); return;
+  }
+  const res = r.resposta || {}, feito = res.feito || {};
+  VALIDACOES = VALIDACOES.filter(v=>v.id!==id);
+  if(decisao==="recusar"){
+    if(x.tipo==="obra"){
+      OBRAS = (OBRAS||[]).filter(o=>o.id!==x.obraId && String(o.id).replace(/-/g,"")!==String(x.obraId||"").replace(/-/g,""));
+      pintarHub();
+    } else {
+      const campo=(SCHEMA && SCHEMA.campos||[]).find(c=>normN(c.nome)===normN("SERVIÇO"));
+      if(campo && campo.opcoes) campo.opcoes = campo.opcoes.filter(o=>normN(o)!==normN(x.nome));
+    }
+    if(feito.avisos && feito.avisos.length) alert("Recusado, com aviso:\n\n"+feito.avisos.join("\n"));
+    toast(x.tipo==="obra" ? "Obra recusada e enviada para a lixeira." : "Serviço recusado e removido"+(feito.chamados?" de "+feito.chamados+" chamado(s)":"")+".", 5);
+  } else toast("Validado ✓", 3);
+  pintarFaixaValidacoes();
+  if(VALIDACOES.length) abrirValidacoes(); else fecharValidacoes();
+}
+window.addEventListener("hashchange",()=>{ if(location.hash==="#validar" && ehAdmTela()){ if(VALIDACOES.length) abrirValidacoes(); else carregarValidacoes(); } });
 </script>
 </body>
 </html>

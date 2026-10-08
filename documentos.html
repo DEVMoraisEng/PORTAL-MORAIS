@@ -890,6 +890,15 @@ html[data-tema="escuro"] .obralink.sem-end{color:#ff8a80}
 html[data-tema="escuro"] .cal-dia{background:var(--bg2)}
 html[data-tema="escuro"] .barra-linha .bwrap{background:#1f2f3a}
 
+
+/* 24/09/26 — card da seleção atual */
+.icard.icard-sel{border:2px solid #4ade80;background:rgba(74,222,128,.08)}
+.icard.icard-sel .ival small{font-size:.55em;opacity:.7;font-weight:600}
+/* 24/09/26 — cabeçalho clicável para ordenar */
+th.th-ord{cursor:pointer;user-select:none}
+th.th-ord:hover{filter:brightness(1.15)}
+th.th-ord.on{box-shadow:inset 0 -3px 0 #4ade80}
+th.th-ord .seta{font-size:10px;opacity:.9}
 </style>
 </head>
 <body>
@@ -931,6 +940,7 @@ html[data-tema="escuro"] .barra-linha .bwrap{background:#1f2f3a}
       <div class="toolbar">
         <select id="hub-setor" onchange="aplicarFiltros('hub')"><option value="">Todos os setores</option></select>
         <select id="hub-cidade" onchange="aplicarFiltros('hub')"><option value="">Todas as cidades</option></select>
+        <select id="hub-desp" title="Filtra pelo despachante da obra" onchange="aplicarFiltros('hub')"><option value="">Todos os despachantes</option></select>
         <select id="hub-situacao" onchange="aplicarFiltros('hub')">
           <option value="">Todas as obras</option>
           <option value="andamento">Obras em andamento</option>
@@ -992,6 +1002,7 @@ html[data-tema="escuro"] .barra-linha .bwrap{background:#1f2f3a}
         <div class="toolbar">
           <select id="set-setor" onchange="aplicarFiltros('set')"><option value="">Todos os setores</option></select>
           <select id="set-cidade" onchange="aplicarFiltros('set')"><option value="">Todas as cidades</option></select>
+          <select id="set-desp" title="Filtra pelo despachante da obra" onchange="aplicarFiltros('set')"><option value="">Todos os despachantes</option></select>
           <select id="set-situacao" onchange="aplicarFiltros('set')">
             <option value="">Todas as obras</option>
             <option value="andamento">Obras em andamento</option>
@@ -1067,7 +1078,7 @@ html[data-tema="escuro"] .barra-linha .bwrap{background:#1f2f3a}
 
   <div class="toast" id="toast"></div>
 
-<script src="app.js?v=30"></script>
+<script src="app.js?v=43"></script>
 <script src="alertas-docs.js?v=1"></script>
 <script>
 /* claro/escuro — mesma chave (morais_tema) das outras páginas do portal. */
@@ -1117,6 +1128,11 @@ const SO_LEITURA = ehSomenteLeitura(S);
 const COL_RESP = "ENG. EXECUÇÃO";
 
 let CAMPOS=[], OBRAS=[], ATIVIDADES=[], OCULTAS=[], COLSIM=[];
+/* 05/10/26: lista de atividades lida AO VIVO (docAtividades, cache de 2 min no
+   servidor). Quando chega, vale mais que a do docs.json — que só é refeito a
+   cada publicação (até 30 min). É o que faz sumir a atividade de quem marcou
+   a coluna direto no Notion. */
+let ATV_VIVO=null;
 let UPDATED="", CARREGOU=false;
 let SETOR_ATUAL="";
 let FILTRADAS={hub:[], set:[]};
@@ -1391,9 +1407,15 @@ async function boot(){
     return;
   }
   renderSetores();
+  ler({action:"docAtividades"},"docs_atv_vivo").then(r=>{
+    if(!r||!r.ok||!Array.isArray(r.atividades)||r.offline) return;
+    ATV_VIVO=r.atividades;
+    if(!CARREGOU) return;
+    ATIVIDADES=ATV_VIVO; atualizarBadges(); if(SETOR_ATUAL) repintarSetor();
+  }).catch(()=>{});
   lerEstaticoJa("docs.json","docs", r=>{
     if(!r || !r.ok){ mostrarOffline(r); if(!CARREGOU) document.getElementById("hub-wrap").innerHTML='<div class="vazio">Ainda não há dados publicados. Rode o build (fetch_documentos.py) uma vez.</div>'; return; }
-    CAMPOS=r.campos||[]; OBRAS=r.obras||[]; ATIVIDADES=r.atividades||[];
+    CAMPOS=r.campos||[]; OBRAS=r.obras||[]; ATIVIDADES=ATV_VIVO||r.atividades||[];
     OCULTAS=r.ocultas||[]; COLSIM=r.colunasSim||[]; UPDATED=r.updated_at||"";
     aplicarOpcoesLocais();      // setores criados aqui valem já no 1º desenho
     SENS_CARREGADO=false;       // dados novos: os protegidos são buscados outra vez
@@ -1430,7 +1452,14 @@ function atividadesDoSetor(nome){
   if(!s || !s.responsaveis) return [];
   const alvos=s.responsaveis.map(normNome);
   const hoje=hojeISO();
-  return ATIVIDADES.filter(a=>{
+  /* 05/10/26: lista limpa do motor (alertas-docs.js) — aberta pela coluna da
+     obra (vazio/NÃO), uma por obra+tipo. E tipo com setor fixo (CERTIDÃO DO
+     LOTE -> Departamento de Projetos) vai para lá, seja quem for o
+     Responsável no Notion. */
+  const base=MOTOR?MOTOR.atividadesAbertas(ATIVIDADES,OBRAS):ATIVIDADES;
+  return base.filter(a=>{
+    const fixo=MOTOR?MOTOR.setorDaAtividade(a):null;
+    if(fixo) return fixo===nome && !(a.dataInicial && String(a.dataInicial).slice(0,10)>hoje);
     /* Comparação por PEDAÇO, não exata: no Notion o responsável pode estar
        como "Júlio César Gomes de Morais Filho" e aqui como "Júlio César
        Gomes de Morais". Exigir igualdade escondia TODAS as atividades dele. */
@@ -1497,8 +1526,12 @@ function repintarSetor(){
 }
 
 /* ===================== ATIVIDADES ===================== */
+/* 05/10/26: grupos de atividades nascem FECHADOS; o que a pessoa abrir fica
+   aberto enquanto estiver no setor (inclusive depois de dar baixa). */
+const ATV_ABERTOS={};
 function renderAtividades(){
   const box=document.getElementById("atv-lista");
+  const abertos=ATV_ABERTOS[SETOR_ATUAL]||(ATV_ABERTOS[SETOR_ATUAL]=new Set());
   const lista=atividadesDoSetor(SETOR_ATUAL);
   document.getElementById("atv-count").textContent =
     lista.length+" atividade(s) em aberto — "+SETOR_ATUAL;
@@ -1520,9 +1553,10 @@ function renderAtividades(){
          casamento errado fica visível ANTES de alguém clicar. */
       const alvo = c ? `<span class="col-alvo" title="coluna que será marcada na obra">${esc(c.nome)}</span>`
                      : `<span class="col-alvo falta" title="nenhuma coluna casou com este tipo">sem coluna</span>`;
+      const nd=(a.dups||[]).length;
       return `<div class="atv" data-id="${a.id}">
         <span class="tipo">${esc(a.tipo||"—")}</span>
-        <span class="nm">${esc(a.nome||"(sem nome)")}</span>
+        <span class="nm">${esc(a.nome||"(sem nome)")}${nd?` <span class="col-alvo" title="o Notion tem ${nd} cópia(s) desta atividade; a baixa resolve todas">+${nd} cópia${nd>1?"s":""}</span>`:""}</span>
         <span class="dt">prazo: ${fmt(a.dataFinal)}</span>
         ${alvo}
         <span class="bx"><span class="bxlab">Marcar como</span>
@@ -1530,8 +1564,9 @@ function renderAtividades(){
           <button class="bt" ${c?"":"disabled"} onclick="darBaixa('${a.id}',this)">Dar baixa</button></span>
       </div>`;
     }).join("");
-    return `<details class="grupo" open><summary>${esc(tipo)}<span class="qtd">${itens.length}</span></summary><div class="corpo">${corpo}</div></details>`;
+    return `<details class="grupo" data-tipo="${esc(tipo)}"${abertos.has(tipo)?" open":""}><summary>${esc(tipo)}<span class="qtd">${itens.length}</span></summary><div class="corpo">${corpo}</div></details>`;
   }).join("");
+  box.querySelectorAll("details.grupo[data-tipo]").forEach(d=>d.addEventListener("toggle",()=>{ d.open?abertos.add(d.dataset.tipo):abertos.delete(d.dataset.tipo); }));
 }
 async function darBaixa(id, btn){
   const linha=btn.closest(".atv"), sel=linha.querySelector("select");
@@ -1549,7 +1584,9 @@ async function darBaixa(id, btn){
     }
     linha.classList.add("feita"); toast(r.enfileirado?"Baixa na fila ✓":"Baixa registrada ✓");
     setTimeout(()=>{
-      ATIVIDADES=ATIVIDADES.filter(x=>x.id!==id);
+      /* a baixa marca a coluna da OBRA: some a atividade e todas as cópias dela */
+      const fora=new Set([id].concat(a.dups||[]));
+      ATIVIDADES=ATIVIDADES.filter(x=>!fora.has(x.id) && !(x.obraId===a.obraId && x.tipo===a.tipo));
       renderAtividades(); atualizarBadges();
     },650);
   }else{ btn.disabled=false; btn.textContent="Dar baixa"; toast("Não deu certo: "+erroTexto(r.erro)); }
@@ -1857,8 +1894,21 @@ function repintarSetorSuave(){
 }
 
 /* ===================== PLANILHA ===================== */
+/* texto de qualquer valor (seleção, pessoas, lista) — usado no filtro e na ordenação */
+function txtVal(v){
+  if(v===undefined||v===null) return "";
+  if(Array.isArray(v)) return v.map(x=>(x&&x.name)?x.name:x).filter(Boolean).join(", ");
+  return String(v);
+}
 function montarFiltros(){
   const cSetor=campo("SETOR"), cCidade=campo("CIDADE");
+  /* despachante: as opções da coluna, ou os nomes que aparecem nas obras */
+  const desp=[...new Set(OBRAS.flatMap(o=>{ const v=val(o,"DESPACHANTE"); return Array.isArray(v)?v.map(x=>(x&&x.name)?x.name:x):[v]; })
+                .map(x=>String(x||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+  ["hub","set"].forEach(ctx=>{
+    const d=document.getElementById(ctx+"-desp");
+    if(d){ const atual=d.value; d.innerHTML='<option value="">Todos os despachantes</option>'+desp.map(x=>`<option>${esc(x)}</option>`).join("")+'<option value="__sem__">(sem despachante)</option>'; d.value=atual; }
+  });
   const setores = cSetor && cSetor.opcoes && cSetor.opcoes.length
     ? cSetor.opcoes.slice()
     : [...new Set(OBRAS.map(o=>val(o,"SETOR")).filter(Boolean))].sort();
@@ -1925,6 +1975,7 @@ function aplicarFiltros(ctx){
   const q=normNome(document.getElementById(ctx+"-busca").value);
   const fSetor=document.getElementById(ctx+"-setor").value;
   const fCidade=document.getElementById(ctx+"-cidade").value;
+  const elDesp=document.getElementById(ctx+"-desp"), fDesp=elDesp?elDesp.value:"";
   const fSit=document.getElementById(ctx+"-situacao").value;
   const campoData=document.getElementById(ctx+"-campodata").value;
   const inter=intervaloDo(ctx);
@@ -1935,6 +1986,9 @@ function aplicarFiltros(ctx){
      você pediu. */
   if(fSetor) lista=lista.filter(o=>normNome(val(o,"SETOR"))===normNome(fSetor));
   if(fCidade) lista=lista.filter(o=>normNome(val(o,"CIDADE"))===normNome(fCidade));
+  if(fDesp==="__sem__") lista=lista.filter(o=>!txtVal(val(o,"DESPACHANTE")).trim());
+  else if(fDesp) lista=lista.filter(o=>normNome(txtVal(val(o,"DESPACHANTE"))).split(/\s*,\s*/).indexOf(normNome(fDesp))>=0
+                                       || normNome(txtVal(val(o,"DESPACHANTE")))===normNome(fDesp));
   if(fSit) lista=lista.filter(o=>situacaoDa(o)===fSit);
   if(inter){
     const frags=CAMPO_DATA[campoData]||CAMPO_DATA.aquisicao;
@@ -1946,7 +2000,22 @@ function aplicarFiltros(ctx){
                 val(o,"REF."),val(o,COL_RESP),val(o,"PROPRIETARIO REAL")].map(x=>normNome(x)).join(" ");
     return alvo.indexOf(q)>=0;
   });
-  lista.sort((a,b)=>String(val(a,"ENDEREÇO")||"").localeCompare(String(val(b,"ENDEREÇO")||""),"pt-BR"));
+  const ord=ORD_TAB[ctx];
+  if(ord&&ord.col){
+    /* ordenação pela coluna clicada: número como número, data como data,
+       texto em ordem alfabética com números naturais (LT 2 antes de LT 10);
+       vazio sempre no fim, nas duas direções */
+    const chave=o=>{ const v=getV(o.valores,ord.col); return Array.isArray(v)?txtVal(v):v; };
+    lista.sort((a,b)=>{
+      const x=chave(a), y=chave(b), vx=(x===undefined||x===null||x===""), vy=(y===undefined||y===null||y==="");
+      if(vx||vy) return vx&&vy?0:(vx?1:-1);
+      let r;
+      if(typeof x==="number"&&typeof y==="number") r=x-y;
+      else if(typeof x==="boolean"||typeof y==="boolean") r=(x?1:0)-(y?1:0);
+      else r=String(x).localeCompare(String(y),"pt-BR",{numeric:true,sensitivity:"base"});
+      return r*ord.d;
+    });
+  } else lista.sort((a,b)=>String(val(a,"ENDEREÇO")||"").localeCompare(String(val(b,"ENDEREÇO")||""),"pt-BR",{numeric:true}));
   FILTRADAS[ctx]=lista;
   document.getElementById(ctx+"-count").textContent =
     lista.length+(lista.length===1?" obra":" obras")+(lista.length!==OBRAS.length?" de "+OBRAS.length:"");
@@ -1959,7 +2028,11 @@ function renderInformativo(ctx,lista){
   const fim=lista.filter(o=>situacaoDa(o)==="finalizada").length;
   const nao=lista.filter(o=>situacaoDa(o)==="nao").length;
   const casas=lista.reduce((s,o)=>{ const n=Number(val(o,"Nº DE CASAS")); return s+((!isNaN(n)&&n>0)?n:1); },0);
-  box.innerHTML=[["Obras em andamento",ini],["Obras finalizadas",fim],["Ainda não iniciadas",nao],["Casas (soma)",casas]]
+  /* 24/09/26 — card em destaque com quantas obras a seleção atual tem (filtros
+     + busca), e de quantas no total quando algum filtro está ligado */
+  const tot=OBRAS.length, filtrado=lista.length!==tot;
+  box.innerHTML=`<div class="icard icard-sel" title="Obras que passam pelos filtros e pela busca de agora"><div class="ival">${num(lista.length)}${filtrado?`<small> de ${num(tot)}</small>`:""}</div><div class="ilab">${filtrado?"Obras na seleção":"Obras (todas)"}</div></div>`+
+    [["Obras em andamento",ini],["Obras finalizadas",fim],["Ainda não iniciadas",nao],["Casas (soma)",casas]]
     .map(([l,v])=>`<div class="icard"><div class="ival">${num(v)}</div><div class="ilab">${esc(l)}</div></div>`).join("");
 }
 function celula(c,o){
@@ -1982,12 +2055,25 @@ function celula(c,o){
   if(n==="NÃO"||n==="NAO") return '<span class="tag nao">NÃO</span>';
   return esc(v);
 }
+/* ordenação por coluna, por planilha (hub = geral, set = do setor) */
+const ORD_TAB={hub:null,set:null}, COLS_TAB={};
+function ordTab(ctx,i){
+  const c=(COLS_TAB[ctx]||[])[i]; if(!c) return;
+  const o=ORD_TAB[ctx];
+  ORD_TAB[ctx]=(o&&o.col===c.nome)?(o.d===1?{col:c.nome,d:-1}:null):{col:c.nome,d:1};   // crescente → decrescente → padrão
+  aplicarFiltros(ctx);
+}
 function renderTabela(ctx,lista){
   const wrap=document.getElementById(ctx+"-wrap");
   const escopo = ctx==="set" ? escopoDoSetor(SETOR_ATUAL) : "TUDO";
   const cols=colunasDaTela(escopo);
   if(!lista.length){ wrap.innerHTML='<div class="vazio">Nenhuma obra com esses filtros.</div>'; return; }
-  const th='<th class="stick">#</th>'+cols.map(c=>`<th>${esc(c.nome.trim())}</th>`).join("");
+  COLS_TAB[ctx]=cols;
+  const ord=ORD_TAB[ctx];
+  const th='<th class="stick">#</th>'+cols.map((c,i)=>{
+    const on=ord&&ord.col===c.nome;
+    return `<th class="th-ord${on?" on":""}" onclick="ordTab('${ctx}',${i})" title="Ordenar por ${esc(c.nome.trim())}${on?(ord.d===1?" — clique de novo para decrescente":" — clique de novo para voltar à ordem padrão"):""}">${esc(c.nome.trim())}${on?`<span class="seta">${ord.d===1?" ▲":" ▼"}</span>`:""}</th>`;
+  }).join("");
   const tr=lista.map((o,i)=>{
     const end=val(o,"ENDEREÇO")||"(sem endereço)";
     const tds=cols.map((c,j)=>{

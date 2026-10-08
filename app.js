@@ -46,7 +46,22 @@ const ACOES_NA_ESCRITA = [
   /* GESTÃO DE DOCUMENTOS (set/26). Mesma regra: ação que GRAVA sai pela
      implantação de ESCRITA, para não esperar atrás de uma leitura longa.
      Precisa bater com ACOES_DOCS_ESCRITA do documentos.gs. */
-  "docUpdate", "docBaixa", "docAnexar", "docNovo", "docExcluir"
+  "docUpdate", "docBaixa", "docAnexar", "docNovo", "docExcluir",
+  /* OBRAS (23/09/26). As gravações da aba de obras estavam saindo pela
+     LEITURA e ficavam atrás do checklist das atividades (a leitura mais pesada
+     da tela) — era o "Não salvou: sem conexão" ao trocar o STATUS. Agora saem
+     pela ESCRITA. Ficam na LEITURA, de propósito: "obraNova" e "obraLiberar",
+     porque é lá que mora o ObrasSync.gs (atividades e Compatibilização).
+     obraVivo e obraComentarios não gravam, mas são curtas e acompanham uma
+     gravação: não podem esperar atrás do checklist. */
+  "obraUpdate", "obraAtvUpdate", "obraAtvCheck", "obraAtvAcao", "obraLigacoes",
+  /* 24/09/26: obraComentarios e obraComentarioNovo SAÍRAM daqui — os
+     comentários ficam prontos no cache da LEITURA (aquecimento), e o
+     comentário novo precisa apagar a cópia no MESMO projeto que a serve. */
+  "obraConta", "obraVivo", "investidorUpdate",
+  /* anexo das ligações: pedido curto (só assina o link); na fila das
+     leituras ele esperava o ligSensiveis inteiro — era o PDF de 2 minutos */
+  "ligArquivo"
   /* ===== POR QUE "agendaLink" E "docAgendaLink" SAÍRAM DAQUI (set/26) =====
      Os dois GRAVAM (a chave do link vai numa Propriedade do script), então
      por hábito estavam na faixa de ESCRITA. Só que a chave é gravada num
@@ -80,7 +95,28 @@ const CPRE  = "morais_cache_v2_";
 /* ---------- sessão ---------- */
 function sessao(){ try{ return JSON.parse(localStorage.getItem(KEY)||sessionStorage.getItem(KEY)||"null"); }catch(e){ return null; } }
 function sair(){ localStorage.removeItem(KEY); sessionStorage.removeItem(KEY); location.href = LOGIN; }
-function exigirSessao(){ const s=sessao(); if(!s||!s.token){ location.href=LOGIN; } return s; }
+/* 01/10/26 — SESSÃO VENCIDA. O token vale 30 dias a partir do login, mas a leitura vem do dist/
+   (sem passar pelo servidor): quem só olhava nunca percebia que tinha vencido, e a primeira gravação
+   voltava "sessão expirada". Agora: (1) o servidor devolve um token novo (tokenNovo) faltando menos
+   de 15 dias e esta tela troca sozinha; (2) token já vencido manda direto para o login, em vez de
+   deixar a pessoa preencher e perder. */
+function tokenExp(tok){
+  try{
+    const p=String(tok||"").split(".")[0]; if(!p) return 0;
+    const b=p.replace(/-/g,"+").replace(/_/g,"/"); const pad=b+"===".slice((b.length+3)%4);
+    const txt=decodeURIComponent(Array.prototype.map.call(atob(pad),c=>"%"+("00"+c.charCodeAt(0).toString(16)).slice(-2)).join(""));
+    return Number(JSON.parse(txt).exp)||0;
+  }catch(e){ return 0; }
+}
+function sessaoVencida(s){ const e=tokenExp(s&&s.token); return !!(e && Date.now()>e); }
+function atualizarToken(novo){
+  if(!novo) return;
+  [localStorage, sessionStorage].forEach(st=>{
+    try{ const raw=st.getItem(KEY); if(!raw) return; const o=JSON.parse(raw); if(o&&o.token){ o.token=novo; st.setItem(KEY, JSON.stringify(o)); } }catch(e){}
+  });
+}
+function irParaLogin(){ localStorage.removeItem(KEY); sessionStorage.removeItem(KEY); location.href=LOGIN; }
+function exigirSessao(){ const s=sessao(); if(!s||!s.token||sessaoVencida(s)){ irParaLogin(); } return s; }
 /* MASTER vê TODOS os sistemas do hub (Vendas etc.), como o ADM — é um perfil
    de diretor. O que ele não pode é MEXER: não edita endereço nem dá baixa em
    atividade (ver ehMaster no vendas.html). GERAL continua limitado ao que
@@ -95,7 +131,10 @@ const TIPOS_VEEM_TUDO = ["ADM","MASTER","TESTES"];
 function tipoDe(s){ return String((s&&s.tipo)||"").toUpperCase(); }
 function podeAcessar(s, chave){
   if(!s) return false;
-  return TIPOS_VEEM_TUDO.indexOf(tipoDe(s))>=0 || (s.acessos||[]).indexOf(chave)>=0;
+  /* 25/09/26: compara sem acento, caixa e espaço sobrando — uma opção
+     "OBRAS " (com espaço) na coluna ACESSOS escondia o botão sem aviso */
+  const nz=x=>String(x||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/\s+/g," ").trim();
+  return TIPOS_VEEM_TUDO.indexOf(tipoDe(s))>=0 || (s.acessos||[]).some(a=>nz(a)===nz(chave));
 }
 /* ---------- ACESSO NOVO QUE NÃO CHEGAVA NA TELA (set/26) ----------
  * A sessão gravada no navegador (tipo + ACESSOS) era escrita UMA VEZ, no
@@ -287,9 +326,25 @@ async function _chamarDireto(payload, timeoutMs){
   const s=sessao(); if(s&&s.token&&!payload.token) payload.token=s.token;
   const ctrl=new AbortController();
   const timer=setTimeout(()=>ctrl.abort(), timeoutMs||45000); // evita "Carregando…" travado pra sempre
+  /* 25/09/26 — O Google às vezes devolve uma PÁGINA DE ERRO (HTML, 404 na
+     etapa "echo") em vez da resposta, mesmo com a execução concluída — é
+     intermitente: repetido na hora, responde normal. Antes isso virava "não
+     consegui falar com o servidor" e a gravação ia parar na fila. Agora a
+     leitura e a gravação de campo (que dá no mesmo se repetir) são refeitas
+     sozinhas até 2 vezes. Ação que NÃO pode repetir (criar, enviar e-mail,
+     comentar, gerar link/PDF) continua falhando na primeira, como antes. */
+  const acao=String((payload&&payload.action)||"");
+  const repetivel=!/(Novo|Nova|Criar|criar|Email|Enviar|Acao|Ligacoes|Link|Pdf|Distrato|distrato|Refazer|Setup|aixa|pload|Anexar|xcluir|Liberar)/.test(acao);
   try{
-    const r=await fetch(urlDe(payload && payload.action),{ method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, body:JSON.stringify(payload), signal:ctrl.signal });
-    return await r.json();
+    for(let tent=0;;tent++){
+      const r=await fetch(urlDe(acao),{ method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, body:JSON.stringify(payload), signal:ctrl.signal });
+      const txt=await r.text();
+      try{ const obj=JSON.parse(txt); if(obj&&obj.tokenNovo) atualizarToken(obj.tokenNovo); return obj; }
+      catch(e){
+        if(!repetivel||tent>=2) throw new Error("RESPOSTA_INVALIDA ("+r.status+")");
+        await new Promise(ok=>setTimeout(ok, tent?1500:700));
+      }
+    }
   } finally { clearTimeout(timer); }
 }
 
@@ -403,7 +458,12 @@ async function lerStore(payload, chave, opts){
   /* Falhou e existe cópia: devolve a cópia marcada como velha, em vez de
      apagar a tela. "SESSÃO EXPIRADA" por causa de um soluço do servidor era
      justamente o que derrubava a pessoa pro login sem motivo. */
-  if(cache) return Object.assign({ doCache:true, velho:true, _ts:cache.t }, cache.v);
+  /* set/26 — a cópia velha continua sendo devolvida (a tela não apaga), mas
+     agora leva JUNTO o motivo da falha. Antes o erro sumia aqui: a tela
+     mostrava "Do cache" de um dia atrás e ninguém sabia que o servidor estava
+     recusando (foi o caso das Simulações em 23/09). */
+  if(cache) return Object.assign({ doCache:true, velho:true, _ts:cache.t,
+                                   erroAoVivo:(r && r.erro) || "SEM_RESPOSTA" }, cache.v);
   return r;
 }
 
@@ -554,7 +614,7 @@ async function escrever(payload, rotulo){
       if(r && r.erro && !ERROS_TRANSITORIOS.includes(r.erro)) return { ok:false, erro:r.erro };
       /* Sessão realmente inválida também não vira "salvo": a pessoa precisa
          relogar, e a fila só empurraria o problema. */
-      if(r && r.erro==="NAO_AUTORIZADO") return { ok:false, erro:"NAO_AUTORIZADO" };
+      if(r && r.erro==="NAO_AUTORIZADO"){ setTimeout(irParaLogin, 3500); return { ok:false, erro:"NAO_AUTORIZADO" }; }
       /* BACKEND_OCUPADO / BACKEND_SEM_CONFIG: o servidor engasgou, a gravação
          é válida. Cai pra fila e sobe sozinha depois. */
       // resposta estranha (sem ok e sem erro): cai pra fila
@@ -632,6 +692,15 @@ function tentarSincronizar(){ if(fila().length) sincronizar(); }
 setInterval(tentarSincronizar, 20000);
 document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) tentarSincronizar(); });
 window.addEventListener("load", tentarSincronizar);
+/* renova a sessão em segundo plano quando faltar menos de 15 dias (ver tokenExp) */
+window.addEventListener("load", ()=>{
+  setTimeout(()=>{
+    const s=sessao(); if(!s||!s.token||!navigator.onLine) return;
+    const e=tokenExp(s.token); if(!e || e-Date.now() > 15*24*3600*1000) return;
+    if(Date.now()>e){ return; }
+    try{ chamar({ action:"renovarSessao" }, 30000).catch(()=>{}); }catch(err){}
+  }, 4000);
+});
 
 /* Tem escrita esperando envio? Enquanto tiver, nenhuma edição local pode ser
    descartada por tempo — ela ainda não chegou ao Notion, então o arquivo
@@ -644,7 +713,7 @@ const ERROS_TEXTO = {
   SEM_DADOS_PUBLICADOS: "os dados ainda não foram publicados — rode o workflow 'Publicar site' no GitHub",
   ERRO_API: "não consegui falar com o servidor (confira se o Apps Script está publicado)",
   TEMPO_ESGOTADO: "o servidor demorou demais pra responder — tente de novo",
-  NAO_AUTORIZADO: "sessão expirada",
+  NAO_AUTORIZADO: "sua sessão venceu — abrindo o login para você entrar de novo",
   /* devolvido quando o Apps Script não conseguiu ler as Propriedades do
      script (acontece sob concorrência). NÃO é sessão expirada — a tela não
      deve deslogar ninguém por causa disso. */
@@ -875,7 +944,7 @@ function setV(obj, nome, valor){
    Ou seja: é uma ponte para cobrir a janela entre salvar e republicar, não
    um banco paralelo. */
 const EDITS       = "morais_edits_v1";
-const EDITS_TTL   = 7*24*3600*1000;   // teto de segurança: 7 dias
+const EDITS_TTL   = 24*3600*1000;     // teto de segurança: 24 h (era 7 dias; ver "DADOS GUARDADOS")
 const EDITS_FOLGA = 3*60*1000;        // publicação só "vence" a edição 3 min depois
 
 /* O fetch_vendas.py grava updated_at em UTC SEM o "Z" ("2026-08-25T13:04:00").
@@ -992,5 +1061,308 @@ function aplicarEdicoesLocais(base, updatedAt, ler, gravar){
   return aplicadas;
 }
 
+/* =======================================================================
+ * 24/09/26 — DADOS GUARDADOS NO NAVEGADOR NÃO FICAM VELHOS
+ * -----------------------------------------------------------------------
+ * O portal guarda cópias no localStorage para abrir rápido e funcionar sem
+ * sinal: cache das leituras (morais_cache_v2_*), store de sessão
+ * (morais_store_v1_*), edições ainda não publicadas (morais_edits_v1),
+ * conteúdo das atividades e lista de contas (obras_*). Isso é bom, mas não
+ * pode sobreviver a uma atualização do sistema nem a uma troca de usuário.
+ * Três regras, todas automáticas:
+ *
+ *  1. VERSÃO DOS DADOS. Quando DADOS_VERSAO muda (sobe junto com mudanças de
+ *     formato/regra), tudo que é cópia é apagado na primeira abertura. Ficam
+ *     só a sessão (não desloga ninguém) e a fila de gravações pendentes (é
+ *     trabalho de alguém que ainda vai subir).
+ *  2. TROCA DE USUÁRIO / SAIR. Ao sair, as cópias vão embora junto — o
+ *     próximo que usar o navegador não herda dados do anterior.
+ *  3. IDADE MÁXIMA. Cópia com mais de 24 h é apagada, mesmo sem versão nova.
+ *     Edição local (a "ponte" entre salvar e o Notion publicar) vale no
+ *     máximo 24 h — antes eram 7 dias.
+ *
+ * E um botão de emergência: limparDadosLocais() (também no console) apaga
+ * todas as cópias e recarrega. As telas mostram o atalho Ctrl+Shift+L.
+ * ===================================================================== */
+const DADOS_VERSAO = "2026-09-24a";
+const _PREFIXOS_COPIA = ["morais_cache_", "morais_store_", "obras_cont_", "obras_contas_", "obras_coms_", "morais_edits_"];
+function _ehCopia(k){ return _PREFIXOS_COPIA.some(p=>k.indexOf(p)===0); }
+/* 28/09/26 — CÓPIAS DO PAINEL QUE NÃO SOMEM
+ * Medido: ao entrar de manhã (cópia com mais de 24 h), depois do "Recarregar"
+ * ou de sair e entrar, o painel abria SEM Mural, SEM aniversários e com
+ * "Nenhuma atividade" até o Apps Script responder — parecia quebrado.
+ *   - DA EMPRESA (iguais para todos): aniversários e Mural. Nunca são
+ *     apagadas; a tela pinta com elas e troca quando o servidor responde.
+ *   - DA PESSOA (atividades, sino): sobrevivem ao "Recarregar" e à faxina
+ *     de 24 h (a tela sempre relê do servidor por cima), mas saem no "Sair" —
+ *     outra pessoa pode entrar no mesmo computador. */
+const _COPIAS_EMPRESA = ["morais_cache_v2_aniversariantes","morais_cache_v2_atv_mural"];
+const _COPIAS_PESSOA  = ["morais_cache_v2_atv_minhas","morais_cache_v2_atv_outras","morais_cache_v2_atv_alertas","morais_cache_v2_atv_cks","morais_cache_v2_atv_modelos"];
+function _copiaFica(k, saindo){ return _COPIAS_EMPRESA.indexOf(k)>=0 || (!saindo && _COPIAS_PESSOA.indexOf(k)>=0); }
+function limparDadosLocais(recarregar, saindo){
+  try{
+    const ks=[]; for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k&&_ehCopia(k)&&!_copiaFica(k,saindo)) ks.push(k); }
+    ks.forEach(k=>localStorage.removeItem(k));
+  }catch(e){}
+  try{ if(typeof _storeMem!=="undefined") _storeMem.clear(); }catch(e){}
+  try{ _EDITS=null; _EDITS_IDX=null; }catch(e){}
+  try{ if(window.caches) caches.keys().then(ks=>ks.filter(k=>k.indexOf("portal-morais-")===0).forEach(k=>caches.delete(k))); }catch(e){}
+  if(recarregar!==false) location.reload();
+}
+(function faxina(){
+  try{
+    if(localStorage.getItem("morais_dados_versao")!==DADOS_VERSAO){
+      limparDadosLocais(false);
+      localStorage.setItem("morais_dados_versao",DADOS_VERSAO);
+      return;
+    }
+    const lim=Date.now()-24*3600*1000;
+    for(let i=localStorage.length-1;i>=0;i--){
+      const k=localStorage.key(i); if(!k||!_ehCopia(k)||k==="morais_edits_v1"||_copiaFica(k,false)) continue;
+      let t=0; try{ const o=JSON.parse(localStorage.getItem(k)); t=(o&&(o.t||o.ts))||0; }catch(e){}
+      if(t&&t<lim) localStorage.removeItem(k);
+    }
+    const ed=JSON.parse(localStorage.getItem("morais_edits_v1")||"{}"); let mudou=false;
+    for(const k in ed){ if(!ed[k]||!ed[k].ts||ed[k].ts<lim){ delete ed[k]; mudou=true; } }
+    if(mudou) localStorage.setItem("morais_edits_v1",JSON.stringify(ed));
+  }catch(e){}
+})();
+/* sair também leva as cópias embora */
+const _sairOriginal = sair;
+sair = function(){ limparDadosLocais(false, true); _sairOriginal(); };
+document.addEventListener("keydown",e=>{
+  if(e.ctrlKey&&e.shiftKey&&(e.key==="L"||e.key==="l")){
+    e.preventDefault();
+    if(confirm("Apagar os dados guardados neste navegador e recarregar do servidor?\n(Você continua logado; gravações pendentes são mantidas.)")) limparDadosLocais();
+  }
+});
+
+/* =======================================================================
+ * 24/09/26 — BOTÃO "RECARREGAR" EM TODAS AS TELAS
+ * -----------------------------------------------------------------------
+ * Aparece sozinho no cabeçalho, ao lado do "Sair", em toda tela que carrega
+ * o app.js. O que ele faz:
+ *   - para TODOS: apaga as cópias guardadas no navegador (menos as edições
+ *     ainda não publicadas e as gravações pendentes) e recarrega a tela direto
+ *     do servidor;
+ *   - para ADM, antes disso: limpa o cache do Apps Script daquele setor e
+ *     pede ao GitHub a republicação do site (o mesmo "Atualizar dados agora"
+ *     que existia só no Pós Obra e nas Ligações) — aí o dado novo chega para
+ *     todo mundo em 1-2 min, e não só para quem clicou.
+ * O botão antigo de ADM do Pós Obra e das Ligações some: este faz o mesmo.
+ * ===================================================================== */
+function _escopoDaTela(){
+  const p=(location.pathname.split("/").pop()||"").toLowerCase();
+  if(p.indexOf("pos-obra")===0) return "POS_OBRA";
+  if(p.indexOf("ligacoes")===0) return "LIGACOES";
+  if(p.indexOf("vendas")===0||p.indexOf("casas-vendidas")===0) return "VENDAS";
+  if(p.indexOf("documentos")===0) return "DOCUMENTOS";
+  if(p.indexOf("analise")===0) return "ANALISES";
+  return "TUDO";
+}
+async function recarregarTela(bt){
+  if(bt){ bt.disabled=true; bt.textContent="🔄 Recarregando…"; }
+  const s=sessao()||{};
+  let msg="";
+  if(String(s.tipo||"").toUpperCase()==="ADM"){
+    try{
+      const r=await _chamarDireto({action:"forcarAtualizacao",escopo:_escopoDaTela()},60000);
+      msg = r&&r.ok ? (r.build?"Servidor atualizado; a publicação para todos sai em 1-2 min.":"Servidor atualizado (a publicação para todos não foi disparada).")
+                    : "Não consegui limpar o servidor — recarregando só este navegador.";
+    }catch(e){ msg="Servidor não respondeu — recarregando só este navegador."; }
+  }
+  /* cópias do navegador, menos edições não publicadas (morais_edits_) e fila */
+  try{
+    const ks=[]; for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k&&_ehCopia(k)&&k.indexOf("morais_edits_")!==0) ks.push(k); }
+    ks.forEach(k=>localStorage.removeItem(k));
+  }catch(e){}
+  try{ _storeMem.clear(); }catch(e){}
+  try{ if(msg) sessionStorage.setItem("morais_msg_recarga",msg); }catch(e){}
+  location.reload();
+}
+(function botaoRecarregar(){
+  if(typeof document==="undefined") return;
+  const css=document.createElement("style");
+  css.textContent="#bt-atualizar{display:none!important}"+
+    ".bt-recarregar{margin-right:8px;background:transparent;border:1px solid rgba(255,255,255,.45);color:inherit;border-radius:8px;padding:6px 10px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}"+
+    ".bt-recarregar:hover{background:rgba(255,255,255,.12)}.bt-recarregar:disabled{opacity:.6;cursor:wait}"+
+    "#msg-recarga{position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:9999;background:#1d5433;color:#fff;padding:8px 14px;border-radius:10px;font-size:13px;box-shadow:0 6px 18px rgba(0,0,0,.2)}";
+  document.head.appendChild(css);
+  function por(){
+    const sair=document.querySelector("button.sair");
+    if(!sair||document.querySelector(".bt-recarregar")) return;
+    const b=document.createElement("button");
+    b.className="bt-recarregar"; b.type="button"; b.textContent="🔄 Recarregar";
+    const adm=String((sessao()||{}).tipo||"").toUpperCase()==="ADM";
+    b.title=adm?"Recarrega do servidor, limpa o cache do Apps Script e republica o site para todos (ADM)"
+               :"Recarrega esta tela direto do servidor, sem as cópias guardadas no navegador";
+    b.onclick=()=>recarregarTela(b);
+    sair.parentNode.insertBefore(b, sair);
+    try{
+      const m=sessionStorage.getItem("morais_msg_recarga");
+      if(m){ sessionStorage.removeItem("morais_msg_recarga"); const d=document.createElement("div"); d.id="msg-recarga"; d.textContent=m; document.body.appendChild(d); setTimeout(()=>d.remove(),6000); }
+    }catch(e){}
+  }
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",por); else por();
+})();
+
+/* =======================================================================
+ * 24/09/26 — AO VIVO (igual a um site "de verdade")
+ * -----------------------------------------------------------------------
+ * Quando alguém grava algo pelo portal, o Apps Script manda um aviso pelo
+ * Realtime do Supabase (canal "portal"). Toda tela aberta recebe em ~1 s e
+ * dispara o evento "portal-ao-vivo" com {tela, acao, id, obraId, quem}.
+ *   - Telas que sabem se atualizar sozinhas (obras) tratam o evento e
+ *     releem só o que mudou — sem recarregar a página.
+ *   - As demais mostram uma faixa: "Fulano alterou dados desta tela —
+ *     🔄 Atualizar", que recarrega com um clique.
+ * A mensagem não carrega dado nenhum (só ids e o nome de quem gravou); o
+ * dado novo vem pelo caminho normal, com login.
+ * Sem a Propriedade SUPABASE_ANON_KEY no Apps Script, nada disso liga e o
+ * portal funciona como antes.
+ * ===================================================================== */
+(function aoVivo(){
+  if(typeof document==="undefined") return;
+  const tela=(location.pathname.split("/").pop()||"index.html").replace(/\.html$/,"")||"index";
+  const TELAS={obras:"obras",ligacoes:"ligacoes","pos-obra":"pos-obra",documentos:"documentos",simulacoes:"simulacoes",vendas:"vendas"};
+  function faixa(d){
+    if(window.AO_VIVO_TRATA===d.tela) return;                 // a tela cuida sozinha
+    if(TELAS[tela]!==d.tela) return;
+    const me=(sessao()||{}).nome||""; if(d.quem&&me&&d.quem===me) return;
+    let f=document.getElementById("faixa-ao-vivo");
+    if(!f){
+      f=document.createElement("div"); f.id="faixa-ao-vivo";
+      f.style.cssText="position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:9998;background:#1f3b57;color:#fff;padding:9px 14px;border-radius:12px;font-size:13px;box-shadow:0 6px 18px rgba(0,0,0,.25);display:flex;gap:10px;align-items:center";
+      document.body.appendChild(f);
+    }
+    f.innerHTML="<span>🟢 "+String(d.quem||"Alguém").replace(/</g,"&lt;")+" alterou dados desta tela.</span>"+
+      "<button type='button' style='background:#4ade80;color:#0b2e1a;border:0;border-radius:8px;padding:5px 10px;font-weight:700;cursor:pointer' title='Recarrega esta tela com os dados novos'>🔄 Atualizar</button>"+
+      "<button type='button' style='background:transparent;color:#fff;border:0;cursor:pointer;font-size:15px' title='Fechar'>×</button>";
+    const [bAt,bX]=f.querySelectorAll("button");
+    bAt.onclick=()=>{ if(typeof recarregarTela==="function") recarregarTela(bAt); else location.reload(); };
+    bX.onclick=()=>f.remove();
+  }
+  window.addEventListener("portal-ao-vivo",e=>faixa(e.detail||{}));
+  async function iniciar(){
+    if(!sessao()) return;
+    let cfg=null;
+    try{ cfg=JSON.parse(sessionStorage.getItem("morais_aovivo")||"null"); }catch(e){}
+    if(!cfg){
+      let r=null; try{ r=await _chamarDireto({action:"aoVivoConfig"},20000); }catch(e){}
+      if(!(r&&r.ok&&r.url&&r.anon)) return;                    // não configurado: segue sem ao vivo
+      cfg={url:r.url,anon:r.anon,canal:r.canal||"portal"};
+      try{ sessionStorage.setItem("morais_aovivo",JSON.stringify(cfg)); }catch(e){}
+    }
+    await new Promise((ok,err)=>{
+      if(window.supabase&&window.supabase.createClient) return ok();
+      const sc=document.createElement("script");
+      sc.src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js";
+      sc.onload=ok; sc.onerror=err; document.head.appendChild(sc);
+    }).catch(()=>null);
+    if(!(window.supabase&&window.supabase.createClient)) return;
+    const sb=window.supabase.createClient(cfg.url,cfg.anon,{auth:{persistSession:false,autoRefreshToken:false}});
+    sb.channel(cfg.canal).on("broadcast",{event:"mudou"},msg=>{
+      window.dispatchEvent(new CustomEvent("portal-ao-vivo",{detail:(msg&&msg.payload)||{}}));
+    }).subscribe();
+    window._aoVivo=sb;
+  }
+  /* espera a tela abrir e as primeiras leituras saírem, para não disputar a fila */
+  window.addEventListener("load",()=>setTimeout(iniciar,2500));
+})();
+
 /* ---------- service worker (abre offline) ---------- */
 if("serviceWorker" in navigator){ window.addEventListener("load", ()=>navigator.serviceWorker.register("sw.js").catch(()=>{})); }
+
+/* =======================================================================
+ * 23/09/26 — DICAS NOS BOTÕES E DESEMPENHO, EM TODAS AS TELAS
+ * -----------------------------------------------------------------------
+ * Vale para qualquer página que carregue o app.js. Duas coisas:
+ *
+ * 1) DICAS (tooltip + aria-label). Todo botão/aba/filtro sem `title` ganha
+ *    uma dica ao passar o mouse, dizendo o que ele faz. Os textos comuns do
+ *    portal ("Sair", "Cancelar", "↻ Sincronizar", "×"...) têm frases próprias;
+ *    abas viram "Abre a aba X", filtros viram "Filtra: X", e o resto usa o
+ *    próprio rótulo (útil quando ele está cortado numa tela pequena). Botão
+ *    só com ícone ganha um nome para leitor de tela. Um observador aplica o
+ *    mesmo aos botões desenhados depois (as telas montam o HTML por JS).
+ *
+ * 2) LISTAS GRANDES. Tabela com muitas linhas ganha `content-visibility`:
+ *    o navegador só desenha as linhas visíveis e as demais quando rolar.
+ *    Só entra em tabelas com 60+ linhas, para não mexer em nada pequeno.
+ * ===================================================================== */
+(function(){
+  if(typeof document==="undefined") return;
+  const DICAS={
+    "SAIR":"Sai do portal e encerra a sessão neste navegador",
+    "CANCELAR":"Fecha sem gravar nada",
+    "FECHAR":"Fecha este painel",
+    "X":"Fechar (Esc)",
+    "SALVAR":"Grava no Notion",
+    "SINCRONIZAR":"Busca no Notion os dados mais recentes",
+    "ATUALIZAR":"Recarrega os dados",
+    "ATUALIZAR DADOS AGORA":"Limpa o cache do servidor e pede um build do site — só ADM",
+    "TENTAR DE NOVO":"Tenta carregar novamente",
+    "VOLTAR":"Volta para a tela anterior",
+    "VOLTAR PARA O DASHBOARD":"Volta para a página inicial do portal",
+    "VOLTAR PARA POS OBRA":"Volta para a lista do pós obra",
+    "MARCAR TODAS":"Marca todas as opções da lista",
+    "ENVIAR":"Envia para o Notion",
+    "VISUALIZAR":"Abre o arquivo numa nova aba",
+    "ARQ.":"Abre a obra para ver os arquivos",
+    "ABRIR OBRA":"Abre o painel desta obra",
+    "CONFIRMAR DISTRATO":"Limpa os dados da venda e arquiva as atividades — não tem desfazer",
+    "CRIAR":"Grava no Notion",
+    "CRIAR OBRA":"Grava a obra e fecha o formulário",
+    "CRIAR E CONTINUAR":"Grava e deixa o formulário aberto para a próxima",
+    "NOVA OBRA":"Abre o formulário de obra nova",
+    "NOVO SERVICO":"Abre o formulário de chamado de pós obra",
+    "SERVICO DE POS OBRA":"Cria um chamado de assistência para esta obra",
+    "GERAR PDF":"Monta o PDF da proposta e guarda no Notion",
+    "COPIAR":"Copia para a área de transferência",
+    "WHATSAPP":"Abre a conversa no WhatsApp com o texto pronto",
+    "IMPRIMIR":"Abre a versão para impressão",
+    "EXPORTAR":"Baixa os dados em arquivo",
+    "DIAGNOSTICO":"Confere as colunas das bases no Notion e mostra o que falta",
+    "DAR BAIXA":"Marca a atividade como feita, gravando na obra",
+    "EXCLUIR":"Remove — no Notion fica na lixeira por 30 dias",
+    "ANEXAR":"Envia um arquivo para o Notion"
+  };
+  const N=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase()
+            .replace(/^[\s→←↻🔄✕×✓⚠📎👁🔓📷🌙+\-·•]+|[\s…:]+$/g,"").replace(/\s+/g," ").trim();
+  const POR_CLASSE=[
+    ["pfechar","Fechar (Esc)"],["hdr-fechar","Volta para a tela anterior"],["hdr-back","Volta para a tela anterior"],
+    ["btema","Alterna entre tema claro e escuro"],["bt-graf","Mostra ou esconde o gráfico"],
+    ["exp-toggle","Expande ou recolhe"],["gar-toggle","Mostra ou esconde os detalhes da garantia"],
+    ["gar-cab","Mostra ou esconde os detalhes"],["scard","Abre os detalhes"],["btn-sync","Busca no Notion os dados mais recentes"],
+    ["recarregar","Recarrega os dados"],["btn-volta-dash","Volta para a página inicial do portal"],
+    ["btn-voltar","Volta para a tela anterior"],["sair","Sai do portal e encerra a sessão neste navegador"]
+  ];
+  function dicaDe(el){
+    const cls=el.className||"";
+    for(const [c,t] of POR_CLASSE) if(el.classList.contains(c)) return t;
+    const txt=(el.innerText||el.textContent||"").trim(), n=N(txt);
+    if(DICAS[n]) return DICAS[n];
+    if(!txt||/^[^\wÀ-ÿ]{1,3}$/.test(txt)) return el.getAttribute("aria-label")||"";   // só ícone, sem rótulo conhecido
+    if(/\btab\b|sub-tab|nav-btn/.test(cls)) return "Abre: "+txt;
+    if(/seg-bt|\btg\b|\bsw\b|chip|filtro/.test(cls)) return "Filtra: "+txt;
+    if(/\bth\b/.test(el.tagName.toLowerCase())) return "Ordena por "+txt;
+    return txt;   // rótulo completo (útil quando cortado)
+  }
+  function aplicar(raiz){
+    (raiz||document).querySelectorAll("button:not([title]),[role=button]:not([title]),th.ord:not([title]),.tab:not([title]),.seg-bt:not([title])").forEach(el=>{
+      const t=dicaDe(el); if(!t) return;
+      el.title=t;
+      if(!el.getAttribute("aria-label")&&!(el.innerText||"").trim()) el.setAttribute("aria-label",t);
+    });
+    (raiz||document).querySelectorAll("table:not(.cv-rows)").forEach(tb=>{
+      if(tb.tBodies[0]&&tb.tBodies[0].rows.length>=60) tb.classList.add("cv-rows");
+    });
+  }
+  const css=document.createElement("style");
+  css.textContent=".cv-rows tbody tr{content-visibility:auto;contain-intrinsic-size:auto 44px}";
+  document.head.appendChild(css);
+  let agendado=false;
+  const obs=new MutationObserver(()=>{ if(agendado) return; agendado=true; requestAnimationFrame(()=>{ agendado=false; aplicar(); }); });
+  function iniciar(){ aplicar(); obs.observe(document.body,{childList:true,subtree:true}); }
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",iniciar); else iniciar();
+})();
