@@ -744,6 +744,126 @@ opção **Digitar outra conta** (Banco, Agência, Conta, Chave PIX opcional).
    pré-contrato. Trocar a Conta de recebimento → aviso de pré-contrato
    desatualizado → gerar de novo e ver banco/agência/conta no texto.
 
+## Entrega 14 — tela da casa, Clicksign e recebimentos
+
+Pedido do dono depois do primeiro teste real na produção (08/10).
+
+### Painel da casa (`vendas.html` + `venda/painel-casa.js`)
+
+- **Saem da lista de campos** (continuam no Notion; aparecem nos blocos):
+  `ASSINATURA - ENVELOPE ID`, `ASSINATURA - SITUAÇÃO`, `CONDOMÍNIO - VENDA ID`,
+  `MC - DISTRATO`, `MC - SITUAÇÃO`, `MC - VENDA ID`, `DOSSIÊ IMÓVEL - OBSERVAÇÃO`,
+  `CONTRATO GERADO`, `CONTRATO ASSINADO`, `CONTRATO - COMISSÃO VENCIMENTO` e todas
+  as `RECEBIMENTO - *`. A lista fica em `venda/painel-casa.js` (`OCULTOS`).
+- **Ordem**: Comprador 1 (documento, nacionalidade, estado civil, profissão,
+  e-mail, endereço — nome, CPF, WhatsApp e e-mail principal ficam no resumo
+  "Dados da Venda"), Comprador 2 (nome, CPF, documento, nacionalidade, estado
+  civil, profissão, e-mail, telefone, endereço), Contrato — pagamento e comissão
+  (sinal valor/data, entrada valor/vencimento, intermediária valor/vencimento,
+  forma de pagamento, comissão forma/paga por), Contrato — imóvel (matrícula
+  individual, CRI, área, confrontações, alvará nº/data, habite-se nº/data,
+  matrícula/cartório/denominação do loteamento, condições especiais). Cada grupo
+  tem título; o resto vem depois, em "Preenchimento", na ordem de sempre. Os
+  arquivos começam pela identidade e comprovante do comprador 1 e do 2. O setor
+  com painel enxuto (Gestor de Vendas) continua com a lista dele.
+- **Recarrega os campos** sem fechar o painel quando chega o evento
+  `venda:dados-gravados` (`window`, `detail.pageId` = a casa aberta): busca a casa
+  inteira no Apps Script (sem cache) e redesenha mantendo a rolagem. O
+  `venda-dossie.js` dispara o evento depois de confirmar um recebimento; a
+  leitura dos documentos pela IA (a outra frente desta entrega) usa o mesmo evento.
+
+### Contrato
+
+- **Data da comissão** (`CONTRATO - COMISSÃO VENCIMENTO`) não é mais exigida nem
+  aparece na tela (a coluna pode ficar ou sair do Notion). Vazia, a linha
+  `c) Vencimento: {{COMISSAO_VENCIMENTO}}` do modelo sai inteira e as seguintes
+  sobem uma letra (`d) Corretor` → `c) Corretor`, `e) Responsável pelo
+  pagamento` → `d) …`) — `ContratoVenda.PARAGRAFOS_SE_VAZIO`. Preenchida (casas
+  antigas), fica como antes.
+- **Estado civil e profissão do comprador** são opcionais: vazios, saem da
+  qualificação sem deixar `, ,` (ex.: "Fulano de Teste, brasileiro, RG nº
+  1234567 SSP/GO, CPF nº 000.000.001-91, residente e domiciliado à …").
+- **Habite-se e loteamento da casa**: `CONTRATO - HABITE-SE DATA` (data) vale
+  antes da `DATA HABITE-SE` da obra, e `CONTRATO - DENOMINAÇÃO DO LOTEAMENTO`
+  (texto) antes da `DENOMINAÇÃO` do cadastro do setor. Lidas com tolerância: sem
+  a coluna na base, vale o de antes.
+- **Conta digitada** ganhou **Operação (opcional)**: preenchida, sai
+  "Banco: 104 – Agência: 5555 – Operação: 013 – Conta 55555-5 - Titularidade…";
+  vazia, o "– Operação:" some. Fica na mesma Propriedade `CONTA_RECEB_<pageId>`
+  (campo `operacao`, só quando digitado).
+
+### Clicksign
+
+- Envelope e documento com o nome padrão **"OBRA - COMPRADOR"**: OBRA = ENDEREÇO
+  da casa + "CASA n" (quando a casa tem número e o endereço ainda não o diz);
+  COMPRADOR = nome do comprador 1. Ex.: "RESIDENCIAL TESTE QD 07 LT 12 CASA 3 -
+  Fulano de Teste" (o documento: o mesmo + ".pdf").
+- O bloco passa a se chamar **Enviar contrato via Clicksign**.
+- Com todos assinados (situação ASSINADO) e o PDF em `CONTRATO ASSINADO`, aparece
+  **Ver contrato assinado**: o PDF vem pelo próprio PORTAL-VENDA (ação
+  `verContratoAssinado`, sessão de quem está logado no portal), como o
+  "Visualizar pré-contrato" — a tela nunca recebe o link do arquivo do Notion
+  (link do S3 que vale 1 hora para qualquer um que o tenha). Só leitura (o perfil
+  TESTES também vê).
+
+### Recebimentos (bloco novo, só na casa da VENDAS)
+
+Três itens: **Sinal**, **Entrada** e **Financiamento**. Cada um mostra o valor
+esperado (só leitura: `CONTRATO - SINAL VALOR`, `CONTRATO - ENTRADA VALOR`,
+`VALOR FINANCIADO`), **Data do recebimento**, **Comprovante** (foto ou PDF, pelo
+File Upload do Notion, como os documentos do dossiê) e **Confirmar
+recebimento**. O comprovante é obrigatório na 1ª confirmação; "Confirmar de novo
+(corrigir)" troca a data (e junta outro comprovante, se escolhido). Data no
+futuro é recusada. Perfil TESTES só consulta.
+
+Depois de gravar, manda um e-mail (MailApp, da conta dona do PORTAL-VENDA) para
+a Propriedade `RECEBIMENTO_EMAILS`: assunto "Recebido: SINAL — <OBRA> — <COMPRADOR>",
+corpo com item, obra, comprador, valor esperado, data, quem confirmou e o link da
+página no Notion — **sem CPF**. Sem a Propriedade, grava e avisa "e-mail não
+configurado"; e-mail que falha não desfaz o recebimento (avisa).
+
+**Colunas novas na VENDAS (nomes exatos)** — já criadas na base de TESTE e
+listadas em `ferramentas/contrato/previa-producao-final.json` (faltam):
+
+| Coluna | Tipo |
+|---|---|
+| `RECEBIMENTO - SINAL DATA` | Data (date) |
+| `RECEBIMENTO - SINAL COMPROVANTE` | Arquivos e mídia (files) |
+| `RECEBIMENTO - SINAL POR` | Texto (rich_text) — login de quem confirmou |
+| `RECEBIMENTO - ENTRADA DATA` | Data (date) |
+| `RECEBIMENTO - ENTRADA COMPROVANTE` | Arquivos e mídia (files) |
+| `RECEBIMENTO - ENTRADA POR` | Texto (rich_text) |
+| `RECEBIMENTO - FINANCIAMENTO DATA` | Data (date) |
+| `RECEBIMENTO - FINANCIAMENTO COMPROVANTE` | Arquivos e mídia (files) |
+| `RECEBIMENTO - FINANCIAMENTO POR` | Texto (rich_text) |
+
+Sem elas, só o bloco Recebimentos mostra "A base não tem a coluna … — avise o
+desenvolvedor"; o resto segue.
+
+### Implantar
+
+1. **Notion (produção):** criar as 9 colunas acima.
+2. **PORTAL-VENDA (teste e produção):** arquivo novo `venda/RecebimentoVenda.gs` →
+   **RecebimentoVenda** (no `publicar.py`, entra na lista de fontes do
+   PORTAL-VENDA); colar de novo `ContratoVenda`, `GerarContrato`,
+   `ClicksignVenda`, `AssinaturaVenda` e `PortalVenda`; nova versão.
+3. **Autorizar o e-mail (uma vez em cada projeto):** no editor, selecionar
+   `autorizarEmailRecebimento` › Executar › aceitar a permissão "Enviar e-mail
+   como você". Sem isso o envio falha (o recebimento grava e avisa). Ela não
+   envia nada: mostra a cota do dia e quantos destinatários há.
+4. **Propriedade** `RECEBIMENTO_EMAILS` = os e-mails separados por vírgula (o
+   dono preenche na produção; nunca no repositório).
+5. **Portal (site):** publicar `vendas.html`, `venda/painel-casa.js` (novo),
+   `venda-dossie.js` (`?v=4`) e `venda/assinatura-ui.js` (`?v=3`).
+6. **Teste:** numa casa de teste — conferir que as colunas técnicas sumiram e a
+   ordem dos compradores/contrato; confirmar o Sinal com data e um PDF → linha
+   "✓ Recebido em …", e-mail chegando; enviar para assinatura no sandbox e ver o
+   nome "OBRA - COMPRADOR"; depois de assinado, Atualizar situação → Ver
+   contrato assinado abre o PDF.
+
+`VERSAO_VENDA` ficou como estava (a outra frente desta entrega sobe para
+`venda-v8`).
+
 ## Plano B — Anthropic
 
 A leitura por padrão é pela OpenAI (decisão do dono em 28/09/2026); a
