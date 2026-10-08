@@ -252,3 +252,27 @@ test("conferirConfig: mesmo e-mail duas vezes no par e representante opcional co
                                  "ASSINATURA_REPRESENTANTE: sem nome e sobrenome (ou com número)"]);
   assert.deepEqual(r.avisos, ["ASSINATURA_REPRESENTANTE: sem CPF válido (vai digitar o CPF na hora de assinar)"]);
 });
+
+test("situação de cada signatário: assinou (com data), recusou vale mais, o resto pendente", () => {
+  const ev = (name, email, created) => ({ type: "events", attributes: { name, created, data: { signer: { email } } } });
+  const signers = ["a@x.example", "b@x.example", "c@x.example"].map((e, i) => ({ id: "s" + i, attributes: { email: e } }));
+  const r = CS.situacaoDosSignatarios(signers, [ev("sign", "A@x.example", "2026-10-07T10:00:00Z"), ev("refusal", "b@x.example", "2026-10-07T11:00:00Z"),
+                                                ev("sign", "b@x.example", "2026-10-07T12:00:00Z"), ev("upload", "c@x.example")]);
+  assert.deepEqual(r, { s0: { situacao: "assinou", data: "2026-10-07T10:00:00Z" }, s1: { situacao: "recusou", data: "2026-10-07T11:00:00Z" },
+                        s2: { situacao: "pendente", data: "" } });
+  assert.deepEqual(CS.situacaoDosSignatarios(signers.slice(0, 1), [ev("sign", "a@x.example")]), { s0: { situacao: "assinou", data: "" } });
+});
+
+test("nome mascarado: primeiro nome + inicial do último", () => {
+  assert.equal(CS.nomeMascarado("MARIA exemplo da silva"), "Maria S.");
+  assert.equal(CS.nomeMascarado("  Joana  "), "Joana");
+  assert.equal(CS.nomeMascarado(""), "");
+});
+
+test("reenvio: 10 minutos por envelope", () => {
+  const t = 1700000000000;
+  assert.equal(CS.minutosParaReenviar(null, t), 0);
+  assert.equal(CS.minutosParaReenviar(String(t), t), 10);
+  assert.equal(CS.minutosParaReenviar(t - 9.5 * 60000, t), 1);
+  assert.equal(CS.minutosParaReenviar(t - 10 * 60000, t), 0);
+});

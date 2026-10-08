@@ -35,7 +35,7 @@ function tratar_(p) {
     if (!sess) return { ok: false, erro: "NAO_AUTORIZADO" };
     if (!temAcessoVendas_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
     var grava = ["tipoCasa", "lerDocumento", "conferir", "devolver", "gerarContrato", "mcLancar", "assinaturaEnviar", "assinaturaEstado",
-                 "gerarVendaCondominio"].indexOf(p.action) >= 0;
+                 "gerarVendaCondominio", "assinaturaReenviar"].indexOf(p.action) >= 0;
     if (grava && String(sess.t || "").toUpperCase() === "TESTES") return { ok: false, erro: "SEM_PERMISSAO_TESTES" };
     if (p.action !== "ping" && !REGEX_PAGE_ID.test(String(p.pageId || ""))) return { ok: false, erro: "PAGINA_INVALIDA" };
     var col = colunas_();
@@ -53,6 +53,7 @@ function tratar_(p) {
       case "mcLancar":     return mcLancar_(col, sess, p);
       case "assinaturaEnviar": return assinaturaEnviar_(col, sess, p);
       case "assinaturaEstado": return assinaturaEstado_(col, p);
+      case "assinaturaReenviar": return assinaturaReenviar_(col, sess, p);
       case "gerarVendaCondominio": return gerarVendaCondominio_(col, sess, p);
       default: return { ok: false, erro: "ACAO_DESCONHECIDA" };
     }

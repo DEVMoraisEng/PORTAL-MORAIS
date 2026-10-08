@@ -10,7 +10,8 @@
  * ASSINATURA_TESTEMUNHAS_SPE, ASSINATURA_TESTEMUNHAS_PF, ASSINATURA_REPRESENTANTE (opcional),
  * ASSINATURA_INCLUIR_CORRETOR (opcional). O script grava ASSINATURA_PAPEIS_<envelope> (id do
  * signatário → papel, sem dado pessoal; apagada quando a situação fica final) e, só se o Notion
- * não gravar depois de ativar, ASSINATURA_PENDENTE_<página> (id do envelope; apagada quando grava).
+ * não gravar depois de ativar, ASSINATURA_PENDENTE_<página> (id do envelope; apagada quando grava), e
+ * ASSINATURA_REENVIO_<envelope> (hora do último "Reenviar link"; limite de 1 a cada 10 min).
  * Log só com ação, pageId abreviado, login de quem enviou, passo, código HTTP e id do envelope —
  * nunca token, nome, e-mail, CPF, URL ou o detalhe que a Clicksign devolve. */
 
@@ -22,6 +23,7 @@ ASS_TIPOS[ASS_COL.ASSINADO] = "files";
 var CS_JSONAPI = "application/vnd.api+json";
 var ASS_PENDENTE = "ASSINATURA_PENDENTE_";
 var ASS_PAPEIS = "ASSINATURA_PAPEIS_";
+var ASS_REENVIO = "ASSINATURA_REENVIO_";   /* + id do envelope = hora (ms) do último reenvio do aviso */
 
 function assLog_(msg) { console.log("PORTAL-VENDA assinatura " + msg); }
 function assProps_() { return PropertiesService.getScriptProperties(); }
@@ -230,7 +232,9 @@ function assEnviarTravado_(col, p, pid) {
     return rg;
   }
   var r = { ok: true, situacao: S.ENVIADO,
-            signatarios: lista.map(function (s) { return { papel: s.papel, assinou: false }; }) };
+            signatarios: lista.map(function (s) {
+              return { papel: s.papel, nome: ClicksignVenda.nomeMascarado(s.nome), assinou: false, situacao: "pendente", data: "" };
+            }) };
   if (!n.ok) r.aviso = "NOTIFICACAO_FALHOU";
   assLog_("enviar " + pid + " ok envelope " + envId + " signatarios " + lista.length);
   return r;
@@ -243,6 +247,16 @@ function assNomeAssinado_(nomeGerado) {
 }
 function assPapeis_(envId) {
   try { return JSON.parse(prop_(ASS_PAPEIS + envId) || "{}") || {}; } catch (e) { return {}; }
+}
+/* Lista para a tela: papel (da Propriedade ASSINATURA_PAPEIS_<envelope>), nome mascarado ("Maria S."),
+ * situação (assinou / pendente / recusou) e data do evento. Nunca e-mail nem CPF. */
+function assListaSignatarios_(envId, signers, eventos) {
+  var papeis = assPapeis_(envId), sits = ClicksignVenda.situacaoDosSignatarios(signers, eventos);
+  return (signers || []).map(function (s) {
+    var st = sits[s.id] || { situacao: "pendente", data: "" };
+    return { papel: papeis[s.id] || "Signatário", nome: ClicksignVenda.nomeMascarado(s.attributes && s.attributes.name),
+             assinou: st.situacao === "assinou", situacao: st.situacao, data: st.data };
+  });
 }
 
 function assinaturaEstado_(col, p) {
@@ -312,17 +326,67 @@ function assinaturaEstado_(col, p) {
   }
   if (!gravar(sit)) return { ok: false, erro: "GRAVACAO_FALHOU" };
 
-  var papeis = assPapeis_(envId), feitos = ClicksignVenda.assinaram(signers, eventos);
-  if (ClicksignVenda.FINAIS.indexOf(sit) >= 0) assApagarProp_(ASS_PAPEIS + envId);
-  var resp = { ok: true, situacao: sit, envelope: true, signatarios: signers.map(function (s) {
-    return { papel: papeis[s.id] || "Signatário", assinou: !!feitos[s.id] };
-  }) };
+  var feitos = ClicksignVenda.assinaram(signers, eventos);
+  var lista = assListaSignatarios_(envId, signers, eventos);
+  if (ClicksignVenda.FINAIS.indexOf(sit) >= 0) { assApagarProp_(ASS_PAPEIS + envId); assApagarProp_(ASS_REENVIO + envId); }
+  var resp = { ok: true, situacao: sit, envelope: true, signatarios: lista };
   /* closed sem o "sign" de alguém: não inventa assinatura; o PDF é o que a Clicksign entregou */
   if (env.status === "closed" && signers.some(function (s) { return !feitos[s.id]; })) {
     assLog_("estado " + pid + " envelope " + envId + " assinaturas incompletas");
     resp.aviso = "ASSINATURAS_INCOMPLETAS";
   }
   return resp;
+}
+
+/* ---- reenviar o aviso de assinatura aos pendentes ----
+ * Só com envelope ativo (running, sem recusa) e com alguém pendente. Um por vez (LockService) e no máximo
+ * 1 reenvio a cada ClicksignVenda.REENVIO_MIN minutos por envelope (Propriedade ASSINATURA_REENVIO_<envelope>
+ * = hora do último; apagada quando a situação fica final). Rota: POST /envelopes/{id}/notifications
+ * (a mesma do envio; a Clicksign avisa quem ainda não assinou — ver CLICKSIGN-API.md). Não grava na casa. */
+function assinaturaReenviar_(col, sess, p) {
+  var pid = String(p.pageId).slice(0, 8);
+  if (!prop_("CLICKSIGN_TOKEN")) return { ok: false, erro: "CLICKSIGN_SEM_TOKEN" };
+  if (!csBase_()) return { ok: false, erro: "CLICKSIGN_URL_INVALIDA" };
+  var trava = LockService.getScriptLock();
+  if (!trava.tryLock(10000)) { assLog_("reenviar " + pid + " ocupado"); return { ok: false, erro: "ASSINATURA_OCUPADA" }; }
+  var r;
+  try { r = assReenviarTravado_(p, pid); }
+  finally { trava.releaseLock(); }
+  assLog_("reenviar " + pid + " por " + String((sess && sess.u) || "?") + ": " + (r.ok ? "ok pendentes " + r.pendentes : r.erro));
+  return r;
+}
+
+function assReenviarTravado_(p, pid) {
+  var S = ClicksignVenda.SITUACOES;
+  var pg = ctrLerPaginaVenda_(p.pageId), cols = assColunas_(pg);
+  var envId = prop_(ASS_PENDENTE + p.pageId) || assTexto_(pg, cols.ENVELOPE);
+  if (!envId) return { ok: false, erro: "SEM_ENVELOPE" };
+  var agora = Date.now(), falta = ClicksignVenda.minutosParaReenviar(prop_(ASS_REENVIO + envId), agora);
+  if (falta) return { ok: false, erro: "REENVIO_RECENTE", minutos: falta };
+  var base = "/envelopes/" + encodeURIComponent(envId), env, docs, eventos, signers, sit;
+  try {
+    env = csPasso_("consultar envelope", "get", base);
+    if (env.status !== "running") {
+      sit = env.status === "draft" ? S.RASCUNHO : (env.status === "closed" ? S.ASSINADO : S.CANCELADO);
+      return { ok: false, erro: "ENVELOPE_NAO_ATIVO", situacao: sit };
+    }
+    docs = csPasso_("consultar documento", "get", base + "/documents").data || [];
+    if (!docs.length) return { ok: false, erro: "CLICKSIGN_ENVELOPE_SEM_DOCUMENTO" };
+    eventos = csPasso_("consultar eventos", "get", base + "/documents/" + encodeURIComponent(docs[0].id) + "/events").data || [];
+    signers = csPasso_("consultar signatarios", "get", base + "/signers").data || [];
+    sit = ClicksignVenda.situacao(env.status, eventos);
+    if (sit !== S.ENVIADO) return { ok: false, erro: "ENVELOPE_NAO_ATIVO", situacao: sit };
+    var lista = assListaSignatarios_(envId, signers, eventos);
+    var pendentes = lista.filter(function (s) { return s.situacao === "pendente"; }).length;
+    if (!pendentes) return { ok: false, erro: "NINGUEM_PENDENTE", signatarios: lista };
+    csPasso_("reenviar", "post", base + "/notifications", ClicksignVenda.corpoNotificacao());
+  } catch (e) {
+    if (e.message !== "CLICKSIGN_FALHOU") throw e;
+    assLog_("reenviar " + pid + " falhou no passo " + e.passo + " http " + e.http);
+    return { ok: false, erro: "CLICKSIGN_FALHOU", passo: e.passo, http: e.http, detalhe: e.detalhe };
+  }
+  assProps_().setProperty(ASS_REENVIO + envId, String(agora));
+  return { ok: true, situacao: sit, envelope: true, pendentes: pendentes, signatarios: lista };
 }
 
 /* Conferência para rodar UMA vez no editor (selecionar conferirAssinatura › Executar › ver o Registro de

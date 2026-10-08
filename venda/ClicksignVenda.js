@@ -247,6 +247,40 @@ var ClicksignVenda = (function () {
     });
     return r;
   }
+  /* { signerId: { situacao: "assinou" | "recusou" | "pendente", data } } pelos eventos "sign" e "refusal"
+   * do documento (casados por e-mail, como em assinaram). data = attributes.created do evento (ISO) —
+   * [SUPOSIÇÃO] registrada no CLICKSIGN-API.md; sem ela, data fica "". Recusa vale mais que assinatura. */
+  function situacaoDosSignatarios(signers, eventos) {
+    var porEmail = {};
+    (eventos || []).forEach(function (e) {
+      var a = (e && e.attributes) || {};
+      if ((a.name !== "sign" && a.name !== "refusal") || !a.data || !a.data.signer) return;
+      var k = email(a.data.signer.email), atual = porEmail[k];
+      if (atual && atual.situacao === "recusou") return;
+      porEmail[k] = { situacao: a.name === "sign" ? "assinou" : "recusou", data: txt(a.created || a.created_at || "").slice(0, 40) };
+    });
+    var r = {};
+    (signers || []).forEach(function (s) {
+      r[s.id] = porEmail[email(s.attributes && s.attributes.email)] || { situacao: "pendente", data: "" };
+    });
+    return r;
+  }
+  /* "Maria Exemplo da Silva" → "Maria S." — primeiro nome + inicial do último; nunca o nome inteiro. */
+  function nomeMascarado(nome) {
+    var p = txt(nome).split(/\s+/).filter(function (x) { return x; });
+    if (!p.length) return "";
+    var primeiro = p[0].charAt(0).toUpperCase() + p[0].slice(1).toLowerCase();
+    return p.length > 1 ? primeiro + " " + p[p.length - 1].charAt(0).toUpperCase() + "." : primeiro;
+  }
+  /* Reenvio do aviso: no máximo 1 a cada REENVIO_MIN minutos por envelope. Devolve os minutos que faltam (0 = pode). */
+  var REENVIO_MIN = 10;
+  function minutosParaReenviar(ultimoMs, agoraMs) {
+    var u = Number(ultimoMs) || 0;
+    if (!u) return 0;
+    var falta = u + REENVIO_MIN * 60000 - agoraMs;
+    return falta > 0 ? Math.ceil(falta / 60000) : 0;
+  }
+
   /* Envelope com situação vazia (gravação incompleta) conta como aberto: na dúvida, não manda outro. */
   function podeEnviar(envelopeId, sit) { return !txt(envelopeId) || REENVIAVEL.indexOf(txt(sit).toUpperCase()) >= 0; }
 
@@ -265,7 +299,9 @@ var ClicksignVenda = (function () {
     corpoEnvelope: corpoEnvelope, corpoDocumento: corpoDocumento, corpoSignatario: corpoSignatario,
     corpoQualificacao: corpoQualificacao, corpoAutenticacao: corpoAutenticacao, corpoAtivar: corpoAtivar,
     corpoNotificacao: corpoNotificacao, interpretar: interpretar, situacao: situacao, assinaram: assinaram,
-    podeEnviar: podeEnviar, linkAssinado: linkAssinado, mascararEmails: mascararEmails, FINAIS: FINAIS
+    podeEnviar: podeEnviar, linkAssinado: linkAssinado, mascararEmails: mascararEmails, FINAIS: FINAIS,
+    situacaoDosSignatarios: situacaoDosSignatarios, nomeMascarado: nomeMascarado,
+    minutosParaReenviar: minutosParaReenviar, REENVIO_MIN: REENVIO_MIN
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   return api;

@@ -128,9 +128,10 @@ test("envio feliz: ordem das chamadas, cabeçalhos e corpos; grava envelope e EN
   const r = c.enviar();
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.equal(r.situacao, "ENVIADO");
+  const pend = { assinou: false, situacao: "pendente", data: "" };
   assert.deepEqual(r.signatarios, [
-    { papel: "Comprador 1", assinou: false }, { papel: "Vendedor (representante)", assinou: false },
-    { papel: "Testemunha 1", assinou: false }, { papel: "Testemunha 2", assinou: false }]);
+    Object.assign({ papel: "Comprador 1", nome: "Fulano T." }, pend), Object.assign({ papel: "Vendedor (representante)", nome: "Beltrano R." }, pend),
+    Object.assign({ papel: "Testemunha 1", nome: "Testemunha S." }, pend), Object.assign({ papel: "Testemunha 2", nome: "Testemunha S." }, pend)]);
   assert.ok(!JSON.stringify(r).includes("@"), "resposta com e-mail");
   assert.deepEqual(csCalls(c), [
     "POST /envelopes", "POST /envelopes/env-1/documents",
@@ -481,13 +482,17 @@ test("estado sem envelope: situação vazia e nenhuma chamada à Clicksign", () 
   assert.equal(c.c.chamadas.length, 0);
 });
 
-test("estado em andamento: quem já assinou (evento sign), sem e-mail na resposta", () => {
-  const c = cenario({ cs: { eventos: [{ type: "events", attributes: { name: "sign", data: { signer: { email: "FULANO@teste.example" } } } }] } });
+test("estado em andamento: quem já assinou (evento sign) com a data, nome mascarado, sem e-mail na resposta", () => {
+  const c = cenario({ cs: { eventos: [{ type: "events", attributes: { name: "sign", created: "2026-10-07T10:20:30.000-03:00",
+                                                                     data: { signer: { email: "FULANO@teste.example" } } } }] } });
   assert.equal(c.enviar().ok, true);
   const r = c.estado();
+  const pend = { assinou: false, situacao: "pendente", data: "" };
   assert.deepEqual(r, { ok: true, situacao: "ENVIADO", envelope: true, signatarios: [
-    { papel: "Comprador 1", assinou: true }, { papel: "Vendedor (representante)", assinou: false },
-    { papel: "Testemunha 1", assinou: false }, { papel: "Testemunha 2", assinou: false }] });
+    { papel: "Comprador 1", nome: "Fulano T.", assinou: true, situacao: "assinou", data: "2026-10-07T10:20:30.000-03:00" },
+    Object.assign({ papel: "Vendedor (representante)", nome: "Beltrano R." }, pend),
+    Object.assign({ papel: "Testemunha 1", nome: "Testemunha S." }, pend), Object.assign({ papel: "Testemunha 2", nome: "Testemunha S." }, pend)] });
+  assert.ok(!JSON.stringify(r).includes("@") && !JSON.stringify(r).includes("Fulano de Teste"), "resposta com e-mail ou nome inteiro");
   assert.equal(c.c.estado.baixados, 0);
   assert.deepEqual(c.n.pagina.properties["CONTRATO ASSINADO"].files, []);
 });
@@ -659,4 +664,92 @@ test("conferirAssinatura: URL de produção avisa; testemunha inválida derruba 
   assert.ok(log.includes("PRODUÇÃO"), log);
   assert.ok(log.includes("ASSINATURA_TESTEMUNHAS_PF: não é um JSON válido"), log);
   for (const s of PESSOAIS) assert.ok(!log.includes(s), "log vazou: " + s);
+});
+
+/* ---- assinaturaReenviar ---- */
+const reenviar = (c, tok) => c.acao("assinaturaReenviar", tok);
+const notificacoes = (c) => c.c.chamadas.filter((x) => x.metodo === "POST" && x.caminho === "/envelopes/env-1/notifications").length;
+
+test("reenviar: avisa os pendentes pela rota de notificações, guarda a hora e não grava na casa", () => {
+  const c = cenario({ cs: { eventos: [SIGN("fulano@teste.example")] } });
+  assert.equal(c.enviar().ok, true);
+  const antes = notificacoes(c), patches = c.n.patches.length;
+  const r = reenviar(c);
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.pendentes, 3);
+  assert.equal(r.situacao, "ENVIADO");
+  assert.deepEqual(r.signatarios.map((s) => s.situacao), ["assinou", "pendente", "pendente", "pendente"]);
+  assert.equal(notificacoes(c), antes + 1);
+  const corpo = c.c.chamadas.filter((x) => x.caminho === "/envelopes/env-1/notifications").pop().corpo;
+  assert.deepEqual(corpo, { data: { type: "notifications", attributes: {} } });
+  assert.match(c.p["ASSINATURA_REENVIO_env-1"], /^\d+$/);
+  assert.equal(c.n.patches.length, patches, "reenviar gravou na casa");
+  assert.ok(!JSON.stringify(r).includes("@"));
+  const todos = c.g.logs.join("\n");
+  for (const s of PESSOAIS) assert.ok(!todos.includes(s), "log vazou: " + s);
+  assert.match(todos, /reenviar 01234567 por ana\.teste: ok pendentes 3/);
+});
+
+test("reenviar: no máximo 1 a cada 10 minutos por envelope", () => {
+  const c = cenario();
+  c.enviar(); c.c.estado.status = "running";
+  assert.equal(reenviar(c).ok, true);
+  const n = notificacoes(c);
+  const r = reenviar(c);
+  assert.equal(r.erro, "REENVIO_RECENTE");
+  assert.equal(r.minutos, 10);
+  assert.equal(notificacoes(c), n);
+  c.p["ASSINATURA_REENVIO_env-1"] = String(Date.now() - 11 * 60000);
+  assert.equal(reenviar(c).ok, true);
+});
+
+test("reenviar: sem envelope, envelope não ativo, recusado ou ninguém pendente não notifica", () => {
+  const sem = cenario();
+  assert.deepEqual(reenviar(sem), { ok: false, erro: "SEM_ENVELOPE" });
+  assert.equal(sem.c.chamadas.length, 0);
+  for (const [status, sit] of [["closed", "ASSINADO"], ["canceled", "CANCELADO"], ["draft", "RASCUNHO"]]) {
+    const c = cenario(); c.enviar(); c.c.estado.status = status;
+    const n = notificacoes(c);
+    assert.deepEqual(reenviar(c), { ok: false, erro: "ENVELOPE_NAO_ATIVO", situacao: sit });
+    assert.equal(notificacoes(c), n);
+  }
+  const rec = cenario({ cs: { eventos: [{ type: "events", attributes: { name: "refusal", data: { signer: { email: "beltrano@teste.example" } } } }] } });
+  rec.enviar();
+  assert.deepEqual(reenviar(rec), { ok: false, erro: "ENVELOPE_NAO_ATIVO", situacao: "RECUSADO" });
+  const todos = cenario({ cs: { eventos: TODOS_ASSINARAM } });
+  todos.enviar();
+  const n = notificacoes(todos), r = reenviar(todos);
+  assert.equal(r.erro, "NINGUEM_PENDENTE");
+  assert.equal(notificacoes(todos), n);
+  assert.ok(!("ASSINATURA_REENVIO_env-1" in todos.p));
+});
+
+test("reenviar: Clicksign recusa → CLICKSIGN_FALHOU no passo reenviar, sem guardar a hora", () => {
+  let falhar = false;
+  const c = cenario({ cs: { falhar: (m, cam) => (falhar && m === "POST" && cam.endsWith("/notifications") ? { status: 422, json: { errors: [{ title: "Inválido" }] } } : null) } });
+  c.enviar(); falhar = true;
+  const r = reenviar(c);
+  assert.deepEqual([r.ok, r.erro, r.passo, r.http], [false, "CLICKSIGN_FALHOU", "reenviar", 422]);
+  assert.ok(!("ASSINATURA_REENVIO_env-1" in c.p));
+});
+
+test("reenviar: perfil TESTES não pode; trava ocupada → ASSINATURA_OCUPADA sem chamar a Clicksign; sem token avisa", () => {
+  const c = cenario(); c.enviar();
+  const n = c.c.chamadas.length;
+  assert.equal(reenviar(c, tokenDe("TESTES", [])).erro, "SEM_PERMISSAO_TESTES");
+  assert.equal(c.c.chamadas.length, n);
+  const LockService = { getScriptLock: () => ({ tryLock: () => false, releaseLock: () => {} }) };
+  const d = cenario({ venda: { "ASSINATURA - ENVELOPE ID": rt("env-1"), "ASSINATURA - SITUAÇÃO": rt("ENVIADO") }, extras: { LockService } });
+  assert.deepEqual(reenviar(d), { ok: false, erro: "ASSINATURA_OCUPADA" });
+  assert.equal(d.c.chamadas.length, 0);
+  const e = cenario({ semProps: ["CLICKSIGN_TOKEN"] });
+  assert.deepEqual(reenviar(e), { ok: false, erro: "CLICKSIGN_SEM_TOKEN" });
+});
+
+test("estado final apaga a hora do último reenvio", () => {
+  const c = cenario({ cs: { eventos: TODOS_ASSINARAM, arquivos: { original: "https://s3.clicksign.falso/original.pdf", signed: "https://s3.clicksign.falso/assinado.pdf" } } });
+  c.enviar(); c.p["ASSINATURA_REENVIO_env-1"] = "1";
+  c.c.estado.status = "closed";
+  assert.equal(c.estado().situacao, "ASSINADO");
+  assert.ok(!("ASSINATURA_REENVIO_env-1" in c.p));
 });

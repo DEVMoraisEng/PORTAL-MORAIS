@@ -243,6 +243,53 @@ Ela é apagada quando a situação fica final (ASSINADO, CANCELADO, EXPIRADO,
 RECUSADO) e quando o envio falha antes de ativar; depois disso a lista mostra
 "Signatário" no lugar do papel.
 
+### Lista de signatários na tela (quem assinou, quando)
+
+`assinaturaEstado` devolve `signatarios: [{ papel, nome, assinou, situacao, data }]`,
+um por signatário de `GET /api/v3/envelopes/{envelope_id}/signers` (na ordem que a
+Clicksign devolve):
+
+| Campo | De onde vem |
+| :-- | :-- |
+| `papel` | Propriedade `ASSINATURA_PAPEIS_<envelope>` (id do signatário → "Comprador 1", "Testemunha 2"…); sem ela, "Signatário" |
+| `nome` | `data[].attributes.name` do signatário, **mascarado** no servidor: primeiro nome + inicial do último ("Maria S."). Nunca o nome inteiro, nunca e-mail ou CPF |
+| `situacao` | `assinou` (evento `sign`), `recusou` (evento `refusal`) ou `pendente` (nenhum dos dois), casando `attributes.data.signer.email` do evento com `attributes.email` do signatário. Recusa vale mais que assinatura |
+| `data` | `attributes.created` do evento (ISO 8601); a tela mostra "dd/mm/aaaa hh:mm". Vazia em `pendente` |
+| `assinou` | `situacao === "assinou"` (mantido para quem lia o formato antigo) |
+
+- **[SUPOSIÇÃO]** O nome do campo da data do evento: a página de eventos mostra o
+  evento `upload` com `created`; o código também aceita `created_at`. Se nenhum vier,
+  a lista mostra a situação sem a data (não quebra).
+- **[SUPOSIÇÃO]** O evento `refusal` traz `data.signer.email` como o `sign` (formato
+  da página do webhook). Se não trouxer, quem recusou aparece como `pendente`; a
+  situação do envelope continua RECUSADO (vem do nome do evento, não do signatário).
+- **[SUPOSIÇÃO]** `attributes.name` vem na listagem de signatários (é o campo que o
+  portal manda na criação). Sem ele, a tela mostra só o papel.
+
+## Reenviar o link (assinaturaReenviar)
+
+`POST /api/v3/envelopes/{envelope_id}/notifications` — a mesma rota e o mesmo corpo do
+passo 6 (`{"data":{"type":"notifications","attributes":{}}}`).
+
+- **[SUPOSIÇÃO]** A notificação do envelope vai só para quem **ainda não assinou**
+  (a documentação descreve como "notificar signatários" de um envelope em andamento;
+  não deu para confirmar sem acesso se quem já assinou recebe de novo). Conferir no
+  sandbox: assinar com um signatário, reenviar e ver se ele recebe e-mail. Se
+  receber, a troca é usar a rota por signatário
+  `POST /api/v3/envelopes/{envelope_id}/signers/{signer_id}/notifications`
+  (**[SUPOSIÇÃO]**: existência dessa rota também não confirmada) só para os pendentes.
+- Antes de notificar o portal consulta (todas `GET`): o envelope (precisa estar
+  `running`), os documentos, os eventos do 1º documento e os signatários. Só reenvia
+  com situação ENVIADO e pelo menos um `pendente`.
+- Proteções: `LockService` (um por vez, 10 s; ocupado → `ASSINATURA_OCUPADA`) e no
+  máximo **1 reenvio a cada 10 minutos por envelope** — Propriedade
+  `ASSINATURA_REENVIO_<envelope_id>` = hora (ms) do último reenvio que deu certo;
+  apagada quando a situação fica final. Antes disso → `REENVIO_RECENTE` com `minutos`.
+- Erros: `SEM_ENVELOPE`, `ENVELOPE_NAO_ATIVO` (com `situacao`: RASCUNHO, ASSINADO,
+  CANCELADO ou RECUSADO), `NINGUEM_PENDENTE`, `CLICKSIGN_FALHOU` (`passo: "reenviar"`
+  ou de uma consulta). Não grava nada na casa; perfil TESTES não pode (dispara e-mail).
+- Log: `reenviar <página> por <login>: ok pendentes N | <erro>` — sem nome nem e-mail.
+
 Páginas:
 - https://developers.clicksign.com/reference/api-detalhes-do-envelope
 - https://developers.clicksign.com/reference/api-listar-documentos

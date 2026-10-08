@@ -1,9 +1,9 @@
 /* assinatura-ui.js — bloco "Assinatura" do painel da casa (entrega 3).
  * JS puro do navegador, no estilo do venda-dossie.js. Fala só com o Apps Script
- * PORTAL-VENDA (ações assinaturaEnviar e assinaturaEstado). A integração no
+ * PORTAL-VENDA (ações assinaturaEnviar, assinaturaEstado e assinaturaReenviar). A integração no
  * vendas.html / venda-dossie.js fica com quem coordena: este arquivo só desenha
- * o bloco e executa as duas ações, recebendo de fora como chamar o servidor.
- * Nunca mostra e-mail: o servidor devolve só papel e se assinou. */
+ * o bloco e executa as ações, recebendo de fora como chamar o servidor.
+ * Nunca mostra e-mail: o servidor devolve só papel, nome mascarado ("Maria S."), situação e data. */
 (function () {
   "use strict";
 
@@ -19,7 +19,7 @@
   var MSG = {
     NAO_AUTORIZADO: "Sua sessão expirou — entre de novo no portal.",
     SEM_PERMISSAO: "Seu login não tem acesso a Vendas.",
-    SEM_PERMISSAO_TESTES: "O perfil TESTES não envia nem atualiza a assinatura (as duas ações gravam na casa).",
+    SEM_PERMISSAO_TESTES: "O perfil TESTES não envia, não reenvia nem atualiza a assinatura.",
     ASSINATURA_OCUPADA: "Há outro envio para assinatura em andamento — espere um minuto e tente de novo.",
     CONTRATO_DESATUALIZADO: "Os dados mudaram depois de gerar o contrato — gere de novo e depois envie.",
     SEM_RESPOSTA: "O servidor não respondeu — confira a internet e tente de novo.",
@@ -33,7 +33,10 @@
     CONTRATO_ILEGIVEL: "Não consegui abrir o PDF do contrato gerado — gere o contrato de novo.",
     DOWNLOAD_ASSINADO_FALHOU: "Não consegui baixar o PDF assinado da Clicksign — tente Atualizar situação daqui a pouco.",
     UPLOAD_FALHOU: "Não consegui guardar o PDF assinado na casa — tente Atualizar situação de novo.",
-    CLICKSIGN_ENVELOPE_SEM_DOCUMENTO: "O envelope na Clicksign está sem documento — avise o desenvolvedor."
+    CLICKSIGN_ENVELOPE_SEM_DOCUMENTO: "O envelope na Clicksign está sem documento — avise o desenvolvedor.",
+    SEM_ENVELOPE: "Este contrato ainda não foi enviado para assinatura.",
+    NINGUEM_PENDENTE: "Todos já assinaram — não há link para reenviar. Use Atualizar situação.",
+    ENVELOPE_NAO_ATIVO: "O envelope não está mais aguardando assinaturas — use Atualizar situação."
   };
 
   function esc(s) {
@@ -50,6 +53,19 @@
   }
   /* Atualizar situação grava na casa: o perfil TESTES não usa (o servidor também barra). */
   function podeAtualizar(c) { return !!(c.estado && c.estado.envelope && !c.ocupado && !c.testes); }
+  /* situação de um signatário: a nova (assinou/pendente/recusou) ou, de resposta antiga, pelo assinou */
+  function sitSignatario(s) { return s.situacao || (s.assinou ? "assinou" : "pendente"); }
+  function pendentes(e) { return ((e && e.signatarios) || []).filter(function (s) { return sitSignatario(s) === "pendente"; }).length; }
+  /* Reenviar link: envelope aguardando assinaturas e alguém pendente. Não grava na casa, mas o TESTES não dispara e-mail. */
+  function podeReenviar(c) {
+    return !!(c.estado && c.estado.envelope && situacaoDe(c.estado) === "ENVIADO" && pendentes(c.estado) && !c.ocupado && !c.testes);
+  }
+  /* "2026-10-07T10:20:30.000-03:00" → "07/10/2026 10:20" (hora como a Clicksign mandou) */
+  function dataCurta(iso) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/.exec(String(iso || ""));
+    return m ? m[3] + "/" + m[2] + "/" + m[1] + (m[4] ? " " + m[4] + ":" + m[5] : "") : "";
+  }
+  var ROTULO_SIG = { assinou: ["ass-ok", "✓ assinou"], recusou: ["ass-rec", "✗ recusou"], pendente: ["ass-pend", "pendente"] };
 
   function mensagemAssinatura(r) {
     r = r || {};
@@ -83,6 +99,8 @@
       return "A Clicksign diz que terminou, mas não entregou o link do PDF assinado — avise o desenvolvedor.";
     if (e.indexOf("CLICKSIGN_STATUS_DESCONHECIDO") === 0)
       return "A Clicksign devolveu uma situação que o portal não conhece — avise o desenvolvedor.";
+    if (e === "REENVIO_RECENTE")
+      return "O link já foi reenviado há pouco — espere " + (Number(r.minutos) || 10) + " minuto" + (Number(r.minutos) === 1 ? "" : "s") + " para reenviar de novo.";
     if (e.indexOf("COLUNA_FALTANDO: ") === 0) return "A base não tem a coluna " + e.slice(17) + " — avise o desenvolvedor.";
     if (e.indexOf("TIPO_DE_COLUNA_ERRADO: ") === 0) return "A coluna " + e.slice(23) + " está com o tipo errado no Notion — avise o desenvolvedor.";
     return MSG[e] || "Algo deu errado (" + e + ") — tente de novo.";
@@ -90,18 +108,21 @@
 
   function montarBlocoAssinatura(c) {
     var h = '<div class="grp">Assinatura</div>';
-    if (c.testes) h += '<div class="dz-aviso">Perfil TESTES não envia nem atualiza a assinatura.</div>';
+    if (c.testes) h += '<div class="dz-aviso">Perfil TESTES não envia, não reenvia nem atualiza a assinatura.</div>';
     if (!c.estado) return h + '<div class="vazio">' + esc(c.msg || "carregando…") + "</div>";
     var e = c.estado, sit = situacaoDe(e);
     if (c.ocupado === "enviar") h += '<div class="dz-linha"><b>enviando… (até 1 minuto)</b></div>';
     if (c.ocupado === "atualizar") h += '<div class="dz-linha"><b>consultando…</b></div>';
+    if (c.ocupado === "reenviar") h += '<div class="dz-linha"><b>reenviando…</b></div>';
     if (!c.contratoGerado) h += '<div class="dz-aviso">Gere o contrato antes de enviar para assinatura.</div>';
     if (e.envelope) {
       h += '<div class="dz-linha"><span class="dz-rot">Situação: ' + esc(SITUACAO[sit] || sit || "sem situação gravada") + "</span></div>";
       var sigs = e.signatarios || [];
       if (sigs.length) {
-        h += "<ul>" + sigs.map(function (s) {
-          return "<li><span>" + esc(s.papel) + "</span> <b>" + (s.assinou ? "assinou" : "falta assinar") + "</b></li>";
+        h += '<ul class="ass-lista">' + sigs.map(function (s) {
+          var st = sitSignatario(s), rot = ROTULO_SIG[st] || ROTULO_SIG.pendente, d = dataCurta(s.data);
+          return "<li><span>" + esc(s.papel) + (s.nome ? " (" + esc(s.nome) + ")" : "") + "</span> " +
+            '<b class="' + rot[0] + '">' + rot[1] + "</b>" + (d && st !== "pendente" ? ' <span class="ass-data">em ' + esc(d) + "</span>" : "") + "</li>";
         }).join("") + "</ul>";
       }
     }
@@ -112,6 +133,8 @@
     var rotulo = e.envelope && REENVIAVEL.indexOf(sit) >= 0 ? "Enviar de novo para assinatura" : "Enviar para assinatura";
     h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="a-enviar"' + (podeEnviar(c) ? "" : " disabled") + ">" + rotulo + "</button>";
     if (e.envelope) h += ' <button type="button" class="bt ghost bt-mini" data-acao="a-atualizar"' + (podeAtualizar(c) ? "" : " disabled") + ">Atualizar situação</button>";
+    if (e.envelope && situacaoDe(e) === "ENVIADO" && pendentes(e))
+      h += ' <button type="button" class="bt ghost bt-mini" data-acao="a-reenviar"' + (podeReenviar(c) ? "" : " disabled") + ">Reenviar link de assinatura</button>";
     h += "</div>";
     if (c.msg) h += '<div class="dz-msg">' + esc(c.msg) + "</div>";
     return h;
@@ -128,6 +151,7 @@
    * pintar(ctx) opcional — chamado com o bloco ocupado antes de ir ao servidor }.
    * Devolve o contexto novo (não muda o recebido). */
   async function executarAcaoAssinatura(acao, c, deps) {
+    if (acao === "a-reenviar") return reenviarLink(c, deps);
     var enviar = acao === "a-enviar";
     if (enviar ? !podeEnviar(c) : (acao !== "a-atualizar" || !podeAtualizar(c))) return c;
     if (enviar && !deps.confirmar("Enviar o contrato para assinatura? Cada signatário recebe um e-mail da Clicksign para assinar.")) return c;
@@ -154,8 +178,27 @@
     return copia(c, { estado: estado, ocupado: null, faltas: null, msg: msg });
   }
 
+  /* Reenvia o e-mail da Clicksign a quem ainda não assinou (ação assinaturaReenviar). */
+  async function reenviarLink(c, deps) {
+    if (!podeReenviar(c)) return c;
+    var n = pendentes(c.estado);
+    if (!deps.confirmar("Reenviar o link de assinatura? " + (n === 1 ? "A pessoa que ainda não assinou recebe" : "As " + n + " pessoas que ainda não assinaram recebem") +
+                        " de novo o e-mail da Clicksign.")) return c;
+    if (typeof deps.pintar === "function") deps.pintar(copia(c, { ocupado: "reenviar", msg: "" }));
+    var r;
+    try { r = await deps.chamar({ action: "assinaturaReenviar", pageId: deps.pageId }); }
+    catch (err) { r = { ok: false, erro: "SEM_RESPOSTA" }; }
+    r = r || { ok: false, erro: "SEM_RESPOSTA" };
+    var estado = c.estado;
+    if (r.signatarios) estado = copia(c.estado, { signatarios: r.signatarios });
+    if (!r.ok) return copia(c, { estado: estado, ocupado: null, msg: mensagemAssinatura(r) });
+    var p = Number(r.pendentes) || 0;
+    return copia(c, { estado: estado, ocupado: null,
+                      msg: "Link reenviado — " + (p === 1 ? "1 pessoa que ainda não assinou recebe" : p + " pessoas que ainda não assinaram recebem") + " o e-mail de novo." });
+  }
+
   var exportar = { montarBlocoAssinatura: montarBlocoAssinatura, mensagemAssinatura: mensagemAssinatura,
-                   executarAcaoAssinatura: executarAcaoAssinatura, podeEnviar: podeEnviar };
+                   executarAcaoAssinatura: executarAcaoAssinatura, podeEnviar: podeEnviar, podeReenviar: podeReenviar };
   if (typeof module !== "undefined" && module.exports) { module.exports = exportar; return; }
   window.VendaAssinatura = exportar; /* o coordenador liga no painel (venda-dossie.js / vendas.html) */
 })();
