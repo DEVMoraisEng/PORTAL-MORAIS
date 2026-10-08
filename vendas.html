@@ -1093,7 +1093,8 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
   <div class="toast" id="toast"></div>
 
 <script src="app.js?v=43"></script>
-<script src="venda-dossie.js?v=3"></script>
+<script src="venda/painel-casa.js?v=1"></script>
+<script src="venda-dossie.js?v=4"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele.
    Mesma chave (morais_tema) das outras páginas do portal. */
@@ -1260,7 +1261,11 @@ function ocultoNoSetor(nome, ondeEstou){
      e a atividade VERIFICAÇÃO DE ENTREGA só podia ser resolvida pela baixa. */
   return (cfg.campos||[]).some(f=>n===normNome(f));
 }
-function nomeExcluido(nome, ondeEstou){ const n=normNome(nome); if(CAMPOS_EXCLUIDOS.indexOf(n)>=0) return true; if(ocultoNoSetor(nome, ondeEstou)) return true; return /\bAUTO\b|ALERTA|ELERTA/.test(n); } // item 9: nada com AUTO/ALERTA entra na planilha/obra
+/* entrega 14: colunas técnicas da venda (envelope, situação, ids, contrato gerado/assinado, recebimentos) saem do
+   painel da casa — já aparecem nos blocos de baixo; continuam no Notion (lista em venda/painel-casa.js) */
+function ocultoNoPainelCasa(nome){ try{ return !!(window.PainelCasa && window.PainelCasa.ocultoNoPainel(nome)); }catch(e){ return false; } }
+function grupoNoPainelCasa(nome){ try{ return window.PainelCasa ? window.PainelCasa.grupoDoCampo(nome) : ""; }catch(e){ return ""; } }
+function nomeExcluido(nome, ondeEstou){ const n=normNome(nome); if(CAMPOS_EXCLUIDOS.indexOf(n)>=0) return true; if(ondeEstou==="painel" && ocultoNoPainelCasa(nome)) return true; if(ocultoNoSetor(nome, ondeEstou)) return true; return /\bAUTO\b|ALERTA|ELERTA/.test(n); } // item 9: nada com AUTO/ALERTA entra na planilha/obra
 
 /* ordem pedida pelo usuário (item 5), como prefixos — casa com o nome real do campo
    assim que o schema chega do Notion, mesmo que aqui o texto esteja cortado igual ao print */
@@ -1327,7 +1332,10 @@ function ordemFormulario(){
     base.forEach(c=>{ if(!vistos[c.nome]){ vistos[c.nome]=1; saida.push(c.nome); } });
     return saida;
   }
-  return ordenarPorPrefixo(base).map(c=>c.nome);
+  /* entrega 14: compradores e contrato numa ordem lógica (venda/painel-casa.js); o resto vem depois, como antes */
+  const ord=ordenarPorPrefixo(base).map(c=>c.nome);
+  try{ if(window.PainelCasa) return window.PainelCasa.ordenar(ord); }catch(e){}
+  return ord;
 }
 function campoPorFragmento(frag){ const alvo=normNome(frag); return SCHEMA.find(c=>normNome(c.nome).indexOf(alvo)>=0)||null; }
 
@@ -3176,6 +3184,30 @@ async function abrirObra(pageId){
   cabecalhoObra(V); renderPainel(V,pageId,false);
 }
 
+/* entrega 14: recarrega os campos da casa aberta SEM fechar o painel — depois que a leitura da IA ou um bloco
+   (venda-dossie.js) grava na casa, ele dispara window "venda:dados-gravados" com detail.pageId.
+   Busca a casa inteira no Apps Script (sem cache: tem dado pessoal), atualiza a cópia em memória e redesenha
+   mantendo a rolagem. Os blocos de baixo guardam o próprio estado e voltam iguais. */
+let _recarregandoCasa=0;
+async function recarregarCamposCasa(pageId){
+  const painel=document.getElementById("painel");
+  if(!pageId || OBRA_ABERTA!==pageId || !painel || !painel.classList.contains("on")) return;
+  const seq=++_recarregandoCasa;
+  const r=await ler({action:"obra",pageId:pageId});     // sem chave de cache, de propósito
+  if(seq!==_recarregandoCasa || OBRA_ABERTA!==pageId || !painel.classList.contains("on")) return;
+  if(!r || !r.ok || !r.valores) return;                  // sem rede: fica o que está na tela
+  const local=(DADOS.set||[]).concat(DADOS.hub||[]).find(v=>v.id===pageId);
+  const V=local?local.valores:r.valores;
+  if(local) SCHEMA.forEach(c=>{ const v=getV(r.valores,c.nome); if(v!==undefined) setV(V,c.nome,v); });
+  const body=document.getElementById("pn-body"), topo=body?body.scrollTop:0;
+  cabecalhoObra(V); renderPainel(V,pageId,false);
+  if(body) body.scrollTop=topo;
+}
+window.addEventListener("venda:dados-gravados", ev=>{
+  const id=ev && ev.detail && ev.detail.pageId;
+  if(id) recarregarCamposCasa(String(id));
+});
+
 function cabecalhoObra(V){
   document.getElementById("pn-end").textContent=getV(V,"ENDEREÇO")||"(sem endereço)";
   const casaP=getV(V,"CASA");
@@ -3441,10 +3473,12 @@ function renderPainel(V,pageId,sensPendente){
   // item 2 (rodada 2): o subtítulo "Reparos e Vistoria" não desligava mais depois de ligado — REF, CIDADE,
   // SETOR e outros campos sem nada a ver ficavam presos ali embaixo dele (bug real, visto no print).
   // Agora ele liga só nos campos do bloco de reparo e desliga assim que sai desse bloco.
-  html+=`<div class="grp">Preenchimento</div>`;
-  let entrouReparo=false;
+  /* entrega 14: título por grupo (Comprador 1, Comprador 2, Contrato — …); o resto fica em "Preenchimento" */
+  let entrouReparo=false, grupoAtual=null;
   ordemFormulario().forEach(nome=>{
     const c=campoPorNome(nome); if(!c) return;
+    const grupo=grupoNoPainelCasa(nome)||"Preenchimento";
+    if(grupo!==grupoAtual){ html+=`<div class="grp">${esc(grupo)}</div>`; grupoAtual=grupo; entrouReparo=false; }
     if(BLOCO_REPARO.test(normNome(nome))){
       if(!entrouReparo){ html+=`<div class="grp sub">Reparos e Vistoria</div>`; entrouReparo=true; }
     } else if(entrouReparo){
@@ -3452,6 +3486,7 @@ function renderPainel(V,pageId,sensPendente){
     }
     html+=campoHtml(c,getV(V,nome),pageId,sensPendente);
   });
+  if(grupoAtual===null) html+=`<div class="grp">Preenchimento</div>`;
 
   // arquivos — com opção de visualizar PDFs sem sair da página (item 2 do pedido extra)
   // Ligações de água e energia: leitura, não edição — o cadastro continua
@@ -3475,7 +3510,8 @@ function renderPainel(V,pageId,sensPendente){
 
   // Anexos: as URLs do Notion são links assinados do S3 — não vão pro dist/
   // público. Chegam junto com os outros campos protegidos, ao abrir a obra.
-  const files=SCHEMA.filter(c=>c.tipo==="files" && !nomeExcluido(c.nome,"painel"));
+  let files=SCHEMA.filter(c=>c.tipo==="files" && !nomeExcluido(c.nome,"painel"));
+  try{ if(window.PainelCasa){ const ord=window.PainelCasa.ordenarArquivos(files.map(c=>c.nome)); files=ord.map(n=>files.find(c=>c.nome===n)); } }catch(e){}
   if(files.length){ html+=`<div class="grp">Arquivos</div>`;
     files.forEach(c=>{
       html+=`<div class="campo"><label>${esc(c.nome.trim())}</label>`;

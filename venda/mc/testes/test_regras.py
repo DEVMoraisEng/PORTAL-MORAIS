@@ -194,6 +194,6 @@ def test_assinatura_muda_com_valor_e_cpf_mas_nao_com_cliente():
 def test_corretor_vai_na_observacao():
     d = R.dados_da_pagina(pagina(CORRETOR=sel("Corretor Exemplo"), **{"IMOBILIÁRIA": sel("Imob Exemplo")}))
     c = R.corpo_venda(d, {"id": "o"}, "c", {"id": "k"})
-    assert c["comment"] == "Corretor: Corretor Exemplo | Imobiliária: Imob Exemplo | Comissão: R$ 10000,00 (paga pelo comprador)"
+    assert c["comment"] == "Corretor: Corretor Exemplo | Imobiliária: Imob Exemplo | Comissão: R$ 10.000,00 (paga pelo comprador)"
     d = R.dados_da_pagina(pagina(**{"COMISSÃO": num(None), "CORRETOR": {"type": "select", "select": None}}))
     assert "comment" not in R.corpo_venda(d, {"id": "o"}, "c", {"id": "k"})

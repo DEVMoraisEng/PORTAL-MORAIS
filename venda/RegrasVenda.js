@@ -72,6 +72,17 @@ var RegrasVenda = (function () {
     LOTEAMENTO_MATRICULA: "CONTRATO - MATRÍCULA DO LOTEAMENTO",
     LOTEAMENTO_CARTORIO: "CONTRATO - CARTÓRIO DO LOTEAMENTO"
   };
+  /* entrega 13: colunas novas OPCIONAIS — se faltarem, a seção do imóvel segue igual à da entrega 11
+     (sem o espaço da certidão mãe; a data do habite-se fica só na observação) */
+  var COL_IMOVEL_OPC = {
+    ARQ_CERTIDAO_MAE: "IMÓVEL - CERTIDÃO MÃE",
+    HABITESE_DATA: "CONTRATO - HABITE-SE DATA",
+    LOTEAMENTO_DENOMINACAO: "CONTRATO - DENOMINAÇÃO DO LOTEAMENTO"
+  };
+  var TIPOS_IMOVEL_OPC = {};
+  TIPOS_IMOVEL_OPC[COL_IMOVEL_OPC.ARQ_CERTIDAO_MAE] = "files";
+  TIPOS_IMOVEL_OPC[COL_IMOVEL_OPC.HABITESE_DATA] = "date";
+  TIPOS_IMOVEL_OPC[COL_IMOVEL_OPC.LOTEAMENTO_DENOMINACAO] = "rich_text";
   var TIPOS_IMOVEL = {};
   Object.keys(COL_IMOVEL).forEach(function (k) { TIPOS_IMOVEL[COL_IMOVEL[k]] = "rich_text"; });
   [COL_IMOVEL.ARQ_MATRICULA, COL_IMOVEL.ARQ_ALVARA, COL_IMOVEL.ARQ_HABITESE]
@@ -83,8 +94,84 @@ var RegrasVenda = (function () {
   var ESPACOS_IMOVEL = {
     IMOVEL_MATRICULA: { coluna: COL_IMOVEL.ARQ_MATRICULA, tipo: "matricula", grupo: "imovel", rotulo: "Matrícula do imóvel", esperado: "a certidão de matrícula do imóvel" },
     IMOVEL_ALVARA:    { coluna: COL_IMOVEL.ARQ_ALVARA,    tipo: "alvara",    grupo: "imovel", rotulo: "Alvará de construção", esperado: "o alvará de construção" },
-    IMOVEL_HABITESE:  { coluna: COL_IMOVEL.ARQ_HABITESE,  tipo: "habitese",  grupo: "imovel", rotulo: "Habite-se",            esperado: "o habite-se" }
+    IMOVEL_HABITESE:  { coluna: COL_IMOVEL.ARQ_HABITESE,  tipo: "habitese",  grupo: "imovel", rotulo: "Habite-se",            esperado: "o habite-se" },
+    /* entrega 13: certidão da matrícula-mãe do condomínio/loteamento (opcional) */
+    IMOVEL_CERTIDAO_MAE: { coluna: COL_IMOVEL_OPC.ARQ_CERTIDAO_MAE, tipo: "certidao_mae", grupo: "imovel", rotulo: "Certidão mãe",
+                           esperado: "a certidão da matrícula-mãe do condomínio ou loteamento" }
   };
+  /* ordem em que as leituras de um lote são aplicadas: a identidade do comprador 1 antes da do 2
+     (o CLIENTES junta os dois nomes) e a certidão mãe depois da matrícula (ver confrontações) */
+  var ORDEM_LEITURA = ["C1_IDENTIDADE", "C2_IDENTIDADE", "C1_COMPROVANTE", "C2_COMPROVANTE", "APROVACAO",
+                       "IMOVEL_MATRICULA", "IMOVEL_CERTIDAO_MAE", "IMOVEL_ALVARA", "IMOVEL_HABITESE"];
+  function ordenarEspacos(ids) {
+    return (ids || []).filter(function (id, i, l) { return !!espaco(id) && l.indexOf(id) === i; })
+      .sort(function (x, y) { return ORDEM_LEITURA.indexOf(x) - ORDEM_LEITURA.indexOf(y); });
+  }
+  /* espaços com arquivo anexado e ainda não lido: { espaço: "trocar" | "atualizar" }.
+     "trocar" (o arquivo novo substituiu os anteriores) não volta a "atualizar" até a leitura. */
+  function marcarPendente(pend, id, trocar) {
+    pend[id] = trocar || pend[id] === "trocar" ? "trocar" : "atualizar";
+    return pend;
+  }
+  /* os pendentes que ainda têm arquivo (alguém pode ter apagado no Notion), na ordem de leitura */
+  function pendentesValidos(pend, arquivos) {
+    return ordenarEspacos(Object.keys(pend || {})).filter(function (id) { return Number((arquivos || {})[id]) > 0; });
+  }
+  /* ---- "soltar todos os documentos": de que espaço é cada arquivo (entrega 13) ---- */
+  var CLASSE_ESPACO = { APROVACAO: "APROVACAO", MATRICULA: "IMOVEL_MATRICULA", CERTIDAO_MAE: "IMOVEL_CERTIDAO_MAE",
+                        ALVARA: "IMOVEL_ALVARA", HABITESE: "IMOVEL_HABITESE" };
+  var PALAVRAS_FRACAS = ["DE", "DA", "DO", "DAS", "DOS", "E"];
+  function tokensNome(s) {
+    return chave(s).replace(/[^A-Z ]/g, " ").split(" ").filter(function (t) { return t.length > 1 && PALAVRAS_FRACAS.indexOf(t) < 0; });
+  }
+  /* mesmo primeiro nome e, se os dois têm sobrenome, ao menos um sobrenome em comum */
+  function mesmaPessoa(a, b) {
+    var x = tokensNome(a), y = tokensNome(b);
+    if (!x.length || !y.length || x[0] !== y[0]) return false;
+    var curto = x.length <= y.length ? x : y, longo = curto === x ? y : x;
+    if (curto.length === 1) return true;
+    return curto.slice(1).some(function (t) { return longo.indexOf(t, 1) >= 0; });
+  }
+  /* classificação da IA ({tipo_documento, nome, cpf}) + página → o que fazer com o arquivo:
+     - documento do imóvel ou aprovação da Caixa: { espaco, tipo } — vai direto para o espaço;
+     - identidade ou comprovante (documento de PESSOA): { espaco: null, tipo, pessoa: true, sugestao: "C1"|"C2"|"" } —
+       regra do dono: a tela SEMPRE pergunta quem é o comprador 1 e o 2; a sugestão (CPF, depois nome, contra
+       CPF / CLIENTES / COMPRADOR 2 - NOME) só vem pré-selecionada. Comprovante de quem não é nenhum dos dois
+       (parente): sem sugestão;
+     - outra coisa: { espaco: null, tipo: "OUTRO", motivo: "NAO_RECONHECIDO" } — a tela pergunta "isto é: …". */
+  function decidirEspaco(leitura, atuais) {
+    leitura = leitura || {}; atuais = atuais || {};
+    var tipo = chave(leitura.tipo_documento);
+    if (Object.prototype.hasOwnProperty.call(CLASSE_ESPACO, tipo)) return { espaco: CLASSE_ESPACO[tipo], tipo: tipo };
+    if (tipo !== "IDENTIDADE" && tipo !== "COMPROVANTE") return { espaco: null, tipo: "OUTRO", motivo: "NAO_RECONHECIDO" };
+    var cli = texto(atuais[COL.CLIENTES]).trim(), posE = cli.indexOf(" E ");
+    var n1 = posE >= 0 ? cli.slice(0, posE) : cli;
+    var n2 = texto(atuais[COL.C2_NOME]).trim() || (posE >= 0 ? cli.slice(posE + 3) : "");
+    var c1 = soDigitos(atuais[COL.CPF1]), c2 = soDigitos(atuais[COL.C2_CPF]), cpf = soDigitos(leitura.cpf);
+    var e1 = false, e2 = false;
+    if (cpf.length === 11) { e1 = cpf === c1; e2 = cpf === c2; }
+    if (!e1 && !e2 && !vazio(leitura.nome)) { e1 = mesmaPessoa(leitura.nome, n1); e2 = mesmaPessoa(leitura.nome, n2); }
+    var sugestao = e1 && !e2 ? "C1" : e2 && !e1 ? "C2" : "";
+    /* identidade sem nome nem CPF lidos (ex.: frente do RG só com a foto) numa venda de um comprador só */
+    if (!sugestao && tipo === "IDENTIDADE" && vazio(leitura.nome) && soDigitos(leitura.cpf).length !== 11 && !n2 && !c2 && posE < 0) sugestao = "C1";
+    return { espaco: null, tipo: tipo, pessoa: true, sugestao: sugestao, motivo: "CONFIRMAR_COMPRADOR" };
+  }
+  /* pessoa escolhida na tela ("C1" | "C2") + tipo do documento → espaço */
+  function espacoDaPessoa(quem, tipo) {
+    if (quem !== "C1" && quem !== "C2") return null;
+    var t = chave(tipo);
+    return t === "IDENTIDADE" ? quem + "_IDENTIDADE" : t === "COMPROVANTE" ? quem + "_COMPROVANTE" : null;
+  }
+
+  /* identificação da casa para a IA achar ESTA unidade na certidão mãe (texto curto, numa linha) */
+  function contextoUnidade(ctx) {
+    ctx = ctx || {};
+    var end = limpar(ctx.endereco).replace(/"/g, "'").slice(0, 200);
+    var casa = limpar(ctx.casa).replace(/"/g, "'").slice(0, 80);
+    if (!end && !casa) return "";
+    return "A casa desta venda: endereço '" + end + "'" + (casa ? ", casa '" + casa + "'" : "") +
+      ". Procure na certidão a descrição DESTA unidade (casa, quadra e lote) e use só ela nos campos unidade_*.";
+  }
   /* o espaço pelo id, nos dois grupos (só chaves próprias: "constructor" não é espaço) */
   function espaco(id) {
     var k = String(id || "");
@@ -94,7 +181,14 @@ var RegrasVenda = (function () {
   }
 
   var ESTADOS = { FALTA: "FALTA DOCUMENTO", LIDO: "LIDO PELA IA – CONFERIR", CONFERIDO: "CONFERIDO", DEVOLVIDO: "DEVOLVIDO" };
-  var TIPOS_CASA = ["CASA DE RUA", "CASA DE CONDOMÍNIO"];
+  /* entrega 13 (pedido do dono): na casa de rua a escolha é CASA PRONTA × CASA EM CONSTRUÇÃO (o contrato escolhe
+     o modelo por ela). "CASA DE CONDOMÍNIO" segue só nas páginas virtuais do condomínio e "CASA DE RUA" é o valor
+     antigo — os dois continuam aceitos e, para o dossiê do comprador, valem igual (qualquer tipo libera). */
+  var TIPOS_CASA_TELA = ["CASA PRONTA", "CASA EM CONSTRUÇÃO"];
+  var TIPOS_CASA = TIPOS_CASA_TELA.concat(["CASA DE RUA", "CASA DE CONDOMÍNIO"]);
+  /* sem tipo ou com o antigo CASA DE RUA, a tela usa o tipo da obra (DOCUMENTOS "OBRA FINALIZADA?") */
+  function tipoCasaPrecisaDaObra(atual) { var k = chave(atual); return !k || k === "CASA DE RUA"; }
+  function tipoPelaObra(obraFinalizada) { return chave(obraFinalizada) === "SIM" ? "CASA PRONTA" : "CASA EM CONSTRUÇÃO"; }
 
   var ACEITOS = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
   var POR_EXTENSAO = { pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp" };
@@ -238,7 +332,7 @@ var RegrasVenda = (function () {
   function limpar(s) { return texto(s).replace(/\s+/g, " ").trim(); }
 
   var TIPOS_DOC = { identidade: ["CNH", "RG"], comprovante: ["COMPROVANTE"], aprovacao: ["APROVACAO"],
-                    matricula: ["MATRICULA"], alvara: ["ALVARA"], habitese: ["HABITESE"] };
+                    matricula: ["MATRICULA"], alvara: ["ALVARA"], habitese: ["HABITESE"], certidao_mae: ["CERTIDAO_MAE"] };
 
   function planejarGravacao(espacoId, leitura, atuais, hojeISO, modo) {
     var esp = espaco(espacoId);
@@ -340,7 +434,13 @@ var RegrasVenda = (function () {
       else propor(CI.AREA, area, "number");
       var conf = limpar(leitura.confrontacoes);
       if (conf.length > 1900) obs("as confrontações passam do tamanho do campo — conferir o fim do texto");
-      propor(CI.CONFRONTACOES, conf, "texto");
+      /* entrega 13: com certidão mãe anexada, as confrontações da unidade vêm dela (regra do dono);
+         a matrícula só preenche se o campo estiver vazio */
+      var temMae = (atuais[COL_IMOVEL_OPC.ARQ_CERTIDAO_MAE] || []).length > 0;
+      if (temMae && !vazio(atuais[CI.CONFRONTACOES])) {
+        if (conf && !iguais(conf, atuais[CI.CONFRONTACOES], "texto"))
+          obs("as confrontações da matrícula são diferentes das gravadas — mantidas as da certidão mãe, conferir");
+      } else propor(CI.CONFRONTACOES, conf, "texto");
       /* registro do loteamento (matrícula e cartório) é da casa; o nome oficial do loteamento é do setor: só volta para a tela */
       var lot = { denominacao: limpar(leitura.loteamento_denominacao), matricula: limpar(leitura.loteamento_matricula),
                   cartorio: limpar(leitura.loteamento_cartorio) };
@@ -356,10 +456,37 @@ var RegrasVenda = (function () {
       if (!vazio(leitura.data) && !dataLida) obs("não consegui ler a data do documento — conferir");
       else if (ehAlvara) propor(COL_IMOVEL.ALVARA_DATA, dataLida, "texto");
       else if (dataLida) {
-        /* a data do habite-se do contrato vem da obra (DOCUMENTOS → DATA HABITE-SE): aqui só avisa */
+        /* entrega 13: a data vai para CONTRATO - HABITE-SE DATA (o contrato prefere esta à DATA HABITE-SE
+           da obra). Sem a coluna na base, o servidor descarta o campo e a data fica só nesta observação. */
         plano.habiteseData = dataLida;
+        propor(COL_IMOVEL_OPC.HABITESE_DATA, dataLida, "texto");
         obs("data do habite-se no documento: " + isoParaBR(dataLida) +
-          " — no contrato vale a DATA HABITE-SE da obra (DOCUMENTOS); conferir se é a mesma");
+          " — gravada em CONTRATO - HABITE-SE DATA (o contrato usa esta; a DATA HABITE-SE da obra fica de reserva)");
+      }
+    } else if (esp.tipo === "certidao_mae") {
+      var CM = COL_IMOVEL, CO = COL_IMOVEL_OPC;
+      var mae = { denominacao: limpar(leitura.loteamento_denominacao), matricula: limpar(leitura.matricula_mae),
+                  cartorio: limpar(leitura.cartorio) };
+      propor(CO.LOTEAMENTO_DENOMINACAO, mae.denominacao, "texto");
+      propor(CM.LOTEAMENTO_MATRICULA, mae.matricula, "texto");
+      propor(CM.LOTEAMENTO_CARTORIO, mae.cartorio, "texto");
+      if (mae.denominacao || mae.matricula || mae.cartorio) plano.loteamento = mae;
+      /* confrontações: só quando a certidão descreve ESTA unidade (identificada pelo ENDEREÇO/CASA da venda) */
+      var achou = chave(leitura.unidade_encontrada) === "SIM";
+      var confU = limpar(leitura.unidade_confrontacoes);
+      if (achou && confU) {
+        if (confU.length > 1900) obs("as confrontações passam do tamanho do campo — conferir o fim do texto");
+        propor(CM.CONFRONTACOES, confU, "texto");
+      } else {
+        obs("a certidão não descreve esta unidade" + (limpar(leitura.unidade_identificacao) ? " (achei: " + limpar(leitura.unidade_identificacao) + ")" : "") +
+          " — confrontações não gravadas, conferir");
+      }
+      /* área: a da matrícula individual vale; a da certidão mãe só preenche o campo vazio */
+      var aPriv = areaM2(leitura.unidade_area_privativa_m2), aTot = areaM2(leitura.unidade_area_total_m2);
+      if (achou && (aPriv || aTot)) {
+        if (vazio(atuais[CM.AREA]) && aTot) gravar(CM.AREA, aTot);
+        obs("áreas da unidade na certidão mãe: " + (aPriv ? "privativa " + aPriv + " m²" : "") + (aPriv && aTot ? ", " : "") +
+          (aTot ? "total " + aTot + " m²" : "") + " — conferir com CONTRATO - ÁREA DO LOTE (M²)");
       }
     } else {
       propor(COL.FINANCIADO, valorBR(leitura.valor_financiado), "number");
@@ -375,7 +502,11 @@ var RegrasVenda = (function () {
 
   return {
     COL: COL, TIPOS: TIPOS, ESPACOS: ESPACOS, ESTADOS: ESTADOS, TIPOS_CASA: TIPOS_CASA,
+    TIPOS_CASA_TELA: TIPOS_CASA_TELA, tipoCasaPrecisaDaObra: tipoCasaPrecisaDaObra, tipoPelaObra: tipoPelaObra,
     COL_IMOVEL: COL_IMOVEL, TIPOS_IMOVEL: TIPOS_IMOVEL, ESPACOS_IMOVEL: ESPACOS_IMOVEL, espaco: espaco,
+    COL_IMOVEL_OPC: COL_IMOVEL_OPC, TIPOS_IMOVEL_OPC: TIPOS_IMOVEL_OPC, ORDEM_LEITURA: ORDEM_LEITURA,
+    ordenarEspacos: ordenarEspacos, marcarPendente: marcarPendente, pendentesValidos: pendentesValidos,
+    contextoUnidade: contextoUnidade, mesmaPessoa: mesmaPessoa, tokensNome: tokensNome, decidirEspaco: decidirEspaco, espacoDaPessoa: espacoDaPessoa,
     estadoImovelAposLeitura: estadoImovelAposLeitura, dataValida: dataValida, areaM2: areaM2, isoParaBR: isoParaBR,
     chave: chave, soDigitos: soDigitos, cpfValido: cpfValido, mascararCpf: mascararCpf,
     formatarCpf: formatarCpf, contemNome: contemNome, dataDoc: dataDoc, diasEntre: diasEntre,

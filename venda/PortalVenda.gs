@@ -2,13 +2,13 @@
  * Projeto do Apps Script SEPARADO do PORTAL-LEITURA/ESCRITA: um upload do
  * Code.gs do portal não apaga este, e vice-versa.
  * Arquivos do projeto: RegrasVenda.gs, ClaudeLeitor.gs, OpenAILeitor.gs, ContratoVenda.gs,
- * PortalVenda.gs, GerarContrato.gs, CondominioVenda.gs, GerarVendaCondominio.gs.
+ * PortalVenda.gs, GerarContrato.gs, CondominioVenda.gs, GerarVendaCondominio.gs, RecebimentoVenda.gs (entrega 14).
  * Propriedades do script: NOTION_TOKEN, SESSION_SECRET (os MESMOS do portal
  * daquele ambiente), DB_VENDAS, DB_VENDAS_COND (base das vendas do condomínio), PROVEDOR_IA (openai padrão | anthropic),
  * OPENAI_API_KEY (provedor openai), MODELO_IA (opcional, só openai),
  * ANTHROPIC_API_KEY (provedor anthropic, plano B).
  * Nenhum log com nome, CPF, endereço ou conteúdo de documento. */
-var VERSAO_VENDA = "venda-v7";   // v7: campos abertos e conta de recebimento no contrato (entrega 12); v6: documentos do imóvel lidos pela IA (entrega 11); v5: pré-contrato grifado (entrega 9)
+var VERSAO_VENDA = "venda-v8";   // v8: leitura em lote, certidão mãe e data do habite-se (entrega 13); v7: campos abertos e conta de recebimento no contrato (entrega 12); v6: documentos do imóvel lidos pela IA (entrega 11); v5: pré-contrato grifado (entrega 9)
 var NOTION_VERSION = "2022-06-28";
 var ERROS_CONHECIDOS = /^(COLUNA_FALTANDO|TIPO_DE_COLUNA_ERRADO|BACKEND_SEM_CONFIG|PAGINA_DE_OUTRA_BASE)/;
 var REGEX_PAGE_ID = /^[0-9a-f]{32}$|^[0-9a-f-]{36}$/i;
@@ -34,16 +34,21 @@ function tratar_(p) {
     var sess = verificarToken_(p.token);
     if (!sess) return { ok: false, erro: "NAO_AUTORIZADO" };
     if (!temAcessoVendas_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
-    var grava = ["tipoCasa", "lerDocumento", "conferir", "devolver", "gerarContrato", "gerarPreContrato", "aprovarPreContrato", "escolherTestemunhas",
+    var grava = ["tipoCasa", "lerDocumento", "anexarDocumento", "soltarDocumento", "lerDocumentos", "copiarComprovante", "conferir", "devolver", "gerarContrato", "gerarPreContrato", "aprovarPreContrato", "escolherTestemunhas",
                  "salvarCamposContrato", "escolherContaRecebimento", "mcLancar", "assinaturaEnviar", "assinaturaEstado",
-                 "gerarVendaCondominio", "assinaturaReenviar"].indexOf(p.action) >= 0;
+                 "gerarVendaCondominio", "assinaturaReenviar",
+                 "recebimentoConfirmar" /* entrega 14 */].indexOf(p.action) >= 0;
     if (grava && String(sess.t || "").toUpperCase() === "TESTES") return { ok: false, erro: "SEM_PERMISSAO_TESTES" };
     if (p.action !== "ping" && !REGEX_PAGE_ID.test(String(p.pageId || ""))) return { ok: false, erro: "PAGINA_INVALIDA" };
     var col = colunas_();
     switch (p.action) {
-      case "estado":       return estado_(col, p);
+      case "estado":       return estado_(col, p, sess);
       case "tipoCasa":     return tipoCasa_(col, p);
       case "lerDocumento": return lerDocumento_(col, sess, p);
+      case "anexarDocumento": return anexarDocumento_(col, p);
+      case "soltarDocumento": return soltarDocumento_(col, p);
+      case "lerDocumentos": return lerDocumentos_(col, sess, p);
+      case "copiarComprovante": return copiarComprovante_(col, sess, p);
       case "conferir":     return mudarDossie_(col, sess, p, RegrasVenda.ESTADOS.CONFERIDO, "Conferido");
       case "devolver":
         if (!String(p.motivo || "").trim()) return { ok: false, erro: "MOTIVO_OBRIGATORIO" };
@@ -62,6 +67,10 @@ function tratar_(p) {
       case "assinaturaEstado": return assinaturaEstado_(col, p);
       case "assinaturaReenviar": return assinaturaReenviar_(col, sess, p);
       case "gerarVendaCondominio": return gerarVendaCondominio_(col, sess, p);
+      /* entrega 14: contrato assinado pelo portal e recebimentos (RecebimentoVenda.gs) */
+      case "verContratoAssinado": return verContratoAssinado_(col, p);
+      case "recebimentoEstado": return recebimentoEstado_(col, p);
+      case "recebimentoConfirmar": return recebimentoConfirmar_(col, sess, p);
       default: return { ok: false, erro: "ACAO_DESCONHECIDA" };
     }
   } catch (err) {
@@ -110,7 +119,7 @@ function colunas_() {
      muitas colunas pode passar do limite de ~100 KB do CacheService e
      lançar, derrubando toda ação. Falha ao gravar no cache não é grave:
      só custa buscar o schema de novo na próxima chamada. */
-  var cache = CacheService.getScriptCache(), k = "venda_schema_v2", txt = cache.get(k), schema;
+  var cache = CacheService.getScriptCache(), k = "venda_schema_v3", txt = cache.get(k), schema;
   var R = RegrasVenda;
   if (txt) {
     schema = JSON.parse(txt);
@@ -122,10 +131,11 @@ function colunas_() {
       completo[nome] = { tipo: pr.type, opcoes: pr.type === "select" ? (pr.select.options || []).map(function (o) { return o.name; }) : [] };
     }
     var pre = R.resolverColunas(completo), preI = R.resolverColunas(completo, R.COL_IMOVEL, R.TIPOS_IMOVEL);
+    var preO = R.resolverColunas(completo, R.COL_IMOVEL_OPC, R.TIPOS_IMOVEL_OPC);
     schema = {};
-    [pre, preI].forEach(function (x) { for (var canon in x.mapa) { var real = x.mapa[canon]; schema[real] = completo[real]; } });
+    [pre, preI, preO].forEach(function (x) { for (var canon in x.mapa) { var real = x.mapa[canon]; schema[real] = completo[real]; } });
     /* sem as colunas do imóvel completas não guarda no cache: criadas no Notion, a próxima chamada já vê */
-    if (!preI.faltando.length && !preI.tipoErrado.length) {
+    if (!preI.faltando.length && !preI.tipoErrado.length && !preO.faltando.length && !preO.tipoErrado.length) {
       try { cache.put(k, JSON.stringify(schema), 1800); } catch (e) { console.error("PORTAL-VENDA cache do schema falhou: " + String(e.message || e).slice(0, 120)); }
     }
   }
@@ -137,7 +147,10 @@ function colunas_() {
   if (ri.faltando.length) imovelErro = "COLUNA_FALTANDO: " + ri.faltando.join(", ");
   else if (ri.tipoErrado.length) imovelErro = "TIPO_DE_COLUNA_ERRADO: " + ri.tipoErrado.join(", ");
   else for (var ci in ri.mapa) mapa[ci] = ri.mapa[ci];
-  return { mapa: mapa, schema: schema, imovelErro: imovelErro };
+  /* entrega 13: certidão mãe, data do habite-se e denominação do loteamento — opcionais uma a uma */
+  var ro = R.resolverColunas(schema, R.COL_IMOVEL_OPC, R.TIPOS_IMOVEL_OPC), opcFaltando = ro.faltando.concat(ro.tipoErrado);
+  if (!imovelErro) for (var co in ro.mapa) if (ro.tipoErrado.indexOf(co) < 0) mapa[co] = ro.mapa[co];
+  return { mapa: mapa, schema: schema, imovelErro: imovelErro, opcFaltando: opcFaltando };
 }
 
 function valorProp_(pr) {
@@ -154,13 +167,25 @@ function valorProp_(pr) {
     default: return null;
   }
 }
-function lerPagina_(col, pageId) {
+/* ctx (opcional): recebe { endereco, casa } da página — a identificação da unidade para a certidão mãe */
+function lerPagina_(col, pageId, ctx) {
   var pg = notion_("GET", "/pages/" + pageId, null);
   var dbEsperado = prop_("DB_VENDAS").replace(/-/g, "");
   var dbAtual = String((pg.parent && pg.parent.database_id) || "").replace(/-/g, "");
   if (dbAtual !== dbEsperado) throw new Error("PAGINA_DE_OUTRA_BASE");
   var atuais = {};
   for (var canon in col.mapa) atuais[canon] = valorProp_(pg.properties[col.mapa[canon]]);
+  if (ctx) {
+    for (var n in pg.properties) {
+      var pr = pg.properties[n] || {};
+      if (pr.type === "title") ctx.endereco = String(valorProp_(pr) || "");
+      else if (RegrasVenda.chave(n) === "OBRA-AUTO" && pr.type === "relation") ctx.obraRel = (pr.relation || []).map(function (x) { return x.id; });
+      else if (RegrasVenda.chave(n) === "CASA") {
+        var v = pr.type === "formula" ? (pr.formula || {})[(pr.formula || {}).type] : valorProp_(pr);
+        ctx.casa = v === null || v === undefined || typeof v === "object" ? "" : String(v);
+      }
+    }
+  }
   return atuais;
 }
 function propNotion_(tipo, valor) {
@@ -186,22 +211,56 @@ function gravar_(col, pageId, porCanonico) {
 function hoje_(fmt) { return Utilities.formatDate(new Date(), "America/Sao_Paulo", fmt); }
 
 /* ---- ações ---- */
-function estado_(col, p) {
-  var a = lerPagina_(col, p.pageId), C = RegrasVenda.COL;
-  return { ok: true, tipoCasa: a[C.TIPO_CASA] || "", arquivos: RegrasVenda.contarArquivos(a),
+/* entrega 13: tipo da casa pela obra (DOCUMENTOS "OBRA FINALIZADA?" = SIM → CASA PRONTA; senão CASA EM CONSTRUÇÃO).
+   Usa a busca da obra do contrato (ctrObraProps_, GerarContrato.gs: relação OBRA-AUTO ou ENDEREÇO). "" = obra não achada.
+   Guarda 10 min no cache (estado é chamado a cada abertura da casa). */
+function tipoCasaPelaObra_(pageId, ctx) {
+  if (typeof ctrObraProps_ !== "function" || typeof ctrPorChave_ !== "function") return "";
+  if (!prop_("DB_DOCUMENTOS") && !(ctx.obraRel && ctx.obraRel.length)) return "";
+  var cache = CacheService.getScriptCache(), k = "venda_tipo_obra_" + String(pageId).replace(/-/g, "");
+  var c = cache.get(k);
+  if (c !== null && c !== undefined) return c;
+  var tipo = "";
+  try {
+    var props = ctrObraProps_(ctx.obraRel || [], ctx.endereco || "", null);
+    if (props && props.ambigua !== true) tipo = RegrasVenda.tipoPelaObra(ctrCampo_(ctrPorChave_(props), "OBRA FINALIZADA?"));
+  } catch (e) { console.error("PORTAL-VENDA tipo pela obra falhou: " + String(e.message || e).slice(0, 120)); }
+  try { cache.put(k, tipo, 600); } catch (e2) {}
+  return tipo;
+}
+function estado_(col, p, sess) {
+  var ctx = {}, a = lerPagina_(col, p.pageId, ctx), C = RegrasVenda.COL, tipoAuto = false;
+  /* sem tipo, ou com o antigo CASA DE RUA: grava o tipo da obra (quem não é TESTES); a pessoa pode trocar */
+  if (RegrasVenda.tipoCasaPrecisaDaObra(a[C.TIPO_CASA])) {
+    var sugerido = tipoCasaPelaObra_(p.pageId, ctx);
+    if (sugerido && String((sess && sess.t) || "").toUpperCase() !== "TESTES") {
+      try { var g = {}; g[C.TIPO_CASA] = sugerido; gravar_(col, p.pageId, g); a[C.TIPO_CASA] = sugerido; tipoAuto = true; }
+      catch (e) { console.error("PORTAL-VENDA tipo pela obra não gravou: " + String(e.message || e).slice(0, 120)); }
+    }
+  }
+  var imovel = estadoImovel_(col, a);
+  var arqs = RegrasVenda.contarArquivos(a);
+  if (!imovel.erro) for (var k in imovel.arquivos) arqs[k] = imovel.arquivos[k];
+  return { ok: true, tipoCasa: a[C.TIPO_CASA] || "", tipoCasaPelaObra: tipoAuto, arquivos: RegrasVenda.contarArquivos(a),
            dossie: a[C.DOSSIE] || "", observacao: a[C.OBS] || "", doisCompradores: RegrasVenda.temDoisCompradores(a),
-           imovel: estadoImovel_(col, a) };
+           imovel: imovel,
+           /* entrega 13: espaços com arquivo anexado e ainda não lido (os dois grupos), na ordem de leitura */
+           pendentes: RegrasVenda.pendentesValidos(lerPendentes_(p.pageId), arqs) };
 }
 /* seção "Documentos do imóvel": arquivos por espaço, estado, observação e os dados do contrato já gravados */
 function estadoImovel_(col, a) {
   if (col.imovelErro) return { erro: col.imovelErro };
-  var CI = RegrasVenda.COL_IMOVEL;
+  var CI = RegrasVenda.COL_IMOVEL, CO = RegrasVenda.COL_IMOVEL_OPC;
   return { arquivos: RegrasVenda.contarArquivos(a, RegrasVenda.ESPACOS_IMOVEL), dossie: a[CI.DOSSIE] || "",
            observacao: a[CI.OBS] || "",
            dados: { matricula: a[CI.MATRICULA_INDIVIDUAL] || "", cri: a[CI.CRI] || "",
                     area: a[CI.AREA] === null || a[CI.AREA] === undefined ? null : a[CI.AREA],
                     confrontacoes: a[CI.CONFRONTACOES] || "", alvaraNumero: a[CI.ALVARA_NUMERO] || "",
-                    alvaraData: a[CI.ALVARA_DATA] || "", habiteseNumero: a[CI.HABITESE_NUMERO] || "" } };
+                    alvaraData: a[CI.ALVARA_DATA] || "", habiteseNumero: a[CI.HABITESE_NUMERO] || "",
+                    habiteseData: a[CO.HABITESE_DATA] || "", loteamentoDenominacao: a[CO.LOTEAMENTO_DENOMINACAO] || "",
+                    loteamentoMatricula: a[CI.LOTEAMENTO_MATRICULA] || "", loteamentoCartorio: a[CI.LOTEAMENTO_CARTORIO] || "" },
+           /* colunas opcionais da entrega 13 que faltam na base (sem IMÓVEL - CERTIDÃO MÃE o espaço some da tela) */
+           semColunas: (col.opcFaltando || []).slice() };
 }
 /* colunas de estado/observação de cada dossiê: o do comprador (padrão) ou o do imóvel */
 function colunasDossie_(grupo) {
@@ -266,70 +325,315 @@ function leitorIA_() {
   return { erro: "PROVEDOR_IA_INVALIDO" };
 }
 
+/* ---- entrega 13: anexar sem ler, leitura em lote ----
+ * Quem ainda não foi lido: Propriedade do script "venda_pend_<pageId>" = {"ESPAÇO": "trocar"|"atualizar"}.
+ * Marcada ao anexar pelo portal, apagada (por espaço) quando a leitura daquele espaço grava no Notion.
+ * Só existe enquanto há anexo sem leitura (some depois), então não acumula na cota das Propriedades.
+ * Arquivo posto direto no Notion não vira "novo": para ele, "Ler de novo". */
+function chavePendentes_(pageId) { return "venda_pend_" + String(pageId || "").replace(/-/g, "").toLowerCase(); }
+function lerPendentes_(pageId) {
+  try { var o = JSON.parse(prop_(chavePendentes_(pageId)) || "{}"); return o && typeof o === "object" ? o : {}; }
+  catch (e) { return {}; }
+}
+function mudarPendentes_(pageId, fn) {
+  var trava = null;
+  try { trava = LockService.getScriptLock(); if (!trava.tryLock(10000)) trava = null; } catch (e) { trava = null; }
+  try {
+    var pend = lerPendentes_(pageId);
+    fn(pend);
+    var sp = PropertiesService.getScriptProperties(), k = chavePendentes_(pageId);
+    if (Object.keys(pend).length) sp.setProperty(k, JSON.stringify(pend)); else sp.deleteProperty(k);
+    return pend;
+  } catch (e) {
+    console.error("PORTAL-VENDA pendentes falhou: " + String(e.message || e).slice(0, 120));
+    return null;
+  } finally { if (trava) trava.releaseLock(); }
+}
+
+/* UrlFetchApp.fetchAll com plano B: se o lote inteiro lançar (rede, tempo), pede um a um — um pedido
+   ruim não derruba os outros. Devolve [{ r: HTTPResponse } | { erro }] na ordem dos pedidos. */
+function buscarVarios_(pedidos) {
+  if (!pedidos.length) return [];
+  try {
+    return UrlFetchApp.fetchAll(pedidos).map(function (r) { return { r: r }; });
+  } catch (e) {
+    return pedidos.map(function (q) {
+      var o = {};
+      for (var k in q) if (k !== "url") o[k] = q[k];
+      try { return { r: UrlFetchApp.fetch(q.url, o) }; } catch (e2) { return { erro: String(e2.message || e2) }; }
+    });
+  }
+}
+/* baixa os arquivos (lista de arquivos do Notion) em paralelo → [{nome, mime, base64} | null (HTTP) | false (rede)] */
+function baixarVarios_(arquivos) {
+  var res = buscarVarios_(arquivos.map(function (f) {
+    return { url: f.type === "external" ? f.external.url : f.file.url, muteHttpExceptions: true };
+  }));
+  return res.map(function (x, i) {
+    if (!x.r) return false;
+    if (x.r.getResponseCode() >= 300) return null;
+    var b = x.r.getBlob();
+    return { nome: arquivos[i].name, mime: RegrasVenda.mimeDoArquivo(arquivos[i].name, b.getContentType()),
+             base64: Utilities.base64Encode(b.getBytes()) };
+  });
+}
+
+/* Lê os espaços pedidos de UMA página: baixa os arquivos de todos em paralelo, chama a IA de todos em
+ * paralelo (fetchAll) e grava tudo numa escrita só no Notion. pedidos = [{ espaco, modo }].
+ * Devolve { ok, erro?, resultados: [{espaco, ok, erro?, preenchidos, observacoes}], gravados, ... }. */
+function lerEspacos_(col, sess, pageId, pedidos) {
+  var R = RegrasVenda, ctx = {}, a;
+  try { a = lerPagina_(col, pageId, ctx); }
+  catch (e) {
+    if (/^PAGINA_DE_OUTRA_BASE/.test(String(e.message || e))) throw e;
+    console.error("PORTAL-VENDA leitura falhou: " + String(e.message || e).slice(0, 120));
+    return { ok: false, erro: "LEITURA_FALHOU", resultados: [] };
+  }
+  var itens = R.ordenarEspacos(pedidos.map(function (x) { return x.espaco; })).map(function (id) {
+    var modo = "atualizar";
+    pedidos.forEach(function (x) { if (x.espaco === id && x.modo === "trocar") modo = "trocar"; });
+    var esp = R.espaco(id), it = { espaco: id, esp: esp, modo: modo, arquivos: [], partes: [] };
+    if (esp.grupo === "imovel" && col.imovelErro) it.erro = col.imovelErro;
+    else if (!col.mapa[esp.coluna]) it.erro = "COLUNA_FALTANDO: " + esp.coluna;
+    else {
+      it.arquivos = (a[esp.coluna] || []).slice(-4);
+      if (!it.arquivos.length) it.erro = "SEM_ARQUIVO";
+    }
+    return it;
+  });
+
+  /* 1) downloads de todos os espaços num fetchAll só */
+  var todos = [];
+  itens.forEach(function (it) { if (!it.erro) it.arquivos.forEach(function (f) { todos.push({ it: it, f: f }); }); });
+  var baixados = baixarVarios_(todos.map(function (x) { return x.f; }));
+  todos.forEach(function (x, i) {
+    var b = baixados[i];
+    if (b === false) x.it.falhaRede = true;
+    else if (b && R.conferirArquivo(b).ok) x.it.partes.push(b);
+  });
+  itens.forEach(function (it) { if (!it.erro && !it.partes.length) it.erro = it.falhaRede ? "LEITURA_FALHOU" : "ARQUIVO_NAO_LEGIVEL"; });
+
+  /* 2) IA de todos os espaços num fetchAll só (OpenAI ou Claude, pela PROVEDOR_IA) */
+  var ia = leitorIA_(), envio = [];
+  itens.forEach(function (it) {
+    if (it.erro) return;
+    if (ia.erro) { it.erro = ia.erro; return; }
+    var contexto = it.esp.tipo === "certidao_mae" ? R.contextoUnidade(ctx) : "";
+    var pedido = ia.leitor.montarPedido(it.esp.tipo, it.partes, ia.chave, ia.modelo, contexto);
+    if (pedido.erro) { it.erro = pedido.erro; return; }
+    envio.push(it);
+    it.req = { url: pedido.url, method: "post", contentType: "application/json", muteHttpExceptions: true,
+               headers: pedido.headers, payload: JSON.stringify(pedido.corpo) };
+  });
+  var respostas = buscarVarios_(envio.map(function (it) { return it.req; }));
+  envio.forEach(function (it, i) {
+    var x = respostas[i], res;
+    try { res = x.r ? ia.leitor.interpretarResposta(x.r.getResponseCode(), x.r.getContentText()) : { ok: false, erro: "LEITURA_FALHOU" }; }
+    catch (e) { res = { ok: false, erro: "LEITURA_FALHOU" }; }
+    if (!res.ok) { it.erro = res.erro; return; }
+    it.leitura = res.leitura;
+    console.log("PORTAL-VENDA leitura " + ia.nome + " " + it.espaco + " tokens " + res.uso.entrada + "/" + res.uso.saida);
+  });
+
+  /* 3) planos na ORDEM_LEITURA, cada um vendo o que os anteriores preencheram; uma escrita só */
+  var hoje = hoje_("yyyy-MM-dd"), depois = {}, g = {}, obsPor = { comprador: [], imovel: [] }, grupos = {};
+  var extra = {};
+  for (var k in a) depois[k] = a[k];
+  itens.forEach(function (it) {
+    if (it.erro) return;
+    var plano = R.planejarGravacao(it.espaco, it.leitura, depois, hoje, it.modo), grupo = it.esp.grupo === "imovel" ? "imovel" : "comprador";
+    var obs = plano.observacoes.slice(), preenchidos = [];
+    for (var c in plano.props) {
+      if (!col.mapa[c]) {   // coluna opcional que a base não tem: não grava, avisa
+        obs.push(it.esp.rotulo + ": a coluna " + c + " não existe na base — o valor lido não foi gravado");
+        continue;
+      }
+      g[c] = plano.props[c]; depois[c] = plano.props[c];
+      if (plano.preenchidos.indexOf(c) >= 0) preenchidos.push(c);
+    }
+    obsPor[grupo] = obsPor[grupo].concat(obs);
+    grupos[grupo] = true;
+    if (plano.loteamento) extra.loteamento = plano.loteamento;
+    if (plano.habiteseData) extra.habiteseData = plano.habiteseData;
+    it.ok = true; it.preenchidos = preenchidos; it.observacoes = obs;
+  });
+  var est = {};
+  if (grupos.comprador) {
+    est.comprador = R.estadoAposLeitura(R.contarArquivos(depois), R.temDoisCompradores(depois));
+    g[R.COL.DOSSIE] = est.comprador.estado;
+    if (obsPor.comprador.length) g[R.COL.OBS] = R.juntarObservacoes(a[R.COL.OBS], obsPor.comprador, hoje_("dd/MM"), sess.u);
+  }
+  if (grupos.imovel) {
+    est.imovel = R.estadoImovelAposLeitura(R.contarArquivos(depois, R.ESPACOS_IMOVEL));
+    g[R.COL_IMOVEL.DOSSIE] = est.imovel.estado;
+    if (obsPor.imovel.length) g[R.COL_IMOVEL.OBS] = R.juntarObservacoes(a[R.COL_IMOVEL.OBS], obsPor.imovel, hoje_("dd/MM"), sess.u);
+  }
+  var lidos = itens.filter(function (it) { return it.ok; });
+  if (lidos.length) {
+    try { gravar_(col, pageId, g); }
+    catch (e) {
+      console.error("PORTAL-VENDA gravação falhou: " + String(e.message || e).slice(0, 120));
+      lidos.forEach(function (it) { it.ok = false; it.erro = "GRAVACAO_FALHOU"; });
+      lidos = [];
+    }
+  }
+  if (lidos.length) mudarPendentes_(pageId, function (pend) { lidos.forEach(function (it) { delete pend[it.espaco]; }); });
+
+  var gravados = {};
+  if (lidos.length) for (var c3 in g) gravados[c3] = g[c3];
+  var resp = { ok: lidos.length > 0, pageId: pageId, gravados: gravados,
+               resultados: itens.map(function (it) {
+                 return it.ok ? { espaco: it.espaco, ok: true, preenchidos: it.preenchidos, observacoes: it.observacoes }
+                              : { espaco: it.espaco, ok: false, erro: it.erro };
+               }) };
+  if (!resp.ok) resp.erro = itens.length === 1 ? itens[0].erro : "NENHUM_LIDO";
+  if (est.comprador) { resp.dossie = est.comprador.estado; resp.faltam = est.comprador.faltam; }
+  if (est.imovel) resp.imovel = { dossie: est.imovel.estado, faltam: est.imovel.faltam };
+  if (extra.loteamento) resp.loteamento = extra.loteamento;
+  if (extra.habiteseData) resp.habiteseData = extra.habiteseData;
+  return resp;
+}
+
+/* "Anexar" / "Trocar" sem ler: guarda o arquivo no espaço e marca o espaço como não lido */
+function anexarDocumento_(col, p) {
+  var esp = RegrasVenda.espaco(p.espaco);
+  if (!esp) return { ok: false, erro: "ESPACO_DESCONHECIDO" };
+  if (esp.grupo === "imovel" && col.imovelErro) return { ok: false, erro: col.imovelErro };
+  if (!col.mapa[esp.coluna]) return { ok: false, erro: "COLUNA_FALTANDO: " + esp.coluna };
+  var chk = RegrasVenda.conferirArquivo(p.arquivo);
+  if (!chk.ok) return { ok: false, erro: chk.erro };
+  lerPagina_(col, p.pageId);   // só aceita página da VENDAS deste ambiente
+  try { anexarArquivo_(p.pageId, col.mapa[esp.coluna], p.arquivo, !!p.trocar); }
+  catch (e) { console.error("PORTAL-VENDA upload falhou: " + String(e.message || e).slice(0, 120)); return { ok: false, erro: "UPLOAD_FALHOU" }; }
+  var pend = mudarPendentes_(p.pageId, function (x) { RegrasVenda.marcarPendente(x, p.espaco, !!p.trocar); });
+  return { ok: true, pageId: p.pageId, espaco: p.espaco, pendentes: pend ? RegrasVenda.ordenarEspacos(Object.keys(pend)) : null };
+}
+
+/* "Ler documentos": lê numa chamada todos os espaços anexados e ainda não lidos (os dois grupos).
+ * p.espacos (opcional): limita a esses espaços. */
+function lerDocumentos_(col, sess, p) {
+  var pend = lerPendentes_(p.pageId);
+  var ids = RegrasVenda.ordenarEspacos(Object.keys(pend));
+  if (Array.isArray(p.espacos)) ids = ids.filter(function (id) { return p.espacos.indexOf(id) >= 0; });
+  if (!ids.length) return { ok: false, erro: "NADA_NOVO", resultados: [] };
+  return lerEspacos_(col, sess, p.pageId, ids.map(function (id) { return { espaco: id, modo: pend[id] }; }));
+}
+
+/* "Enviar e ler" (com arquivo) e "Ler de novo" (sem): um espaço só, mesma leitura do lote */
 function lerDocumento_(col, sess, p) {
   var esp = RegrasVenda.espaco(p.espaco);
   if (!esp) return { ok: false, erro: "ESPACO_DESCONHECIDO" };
-  var doImovel = esp.grupo === "imovel";
-  if (doImovel && col.imovelErro) return { ok: false, erro: col.imovelErro, arquivoGuardado: false };
+  if (esp.grupo === "imovel" && col.imovelErro) return { ok: false, erro: col.imovelErro, arquivoGuardado: false };
+  if (!col.mapa[esp.coluna]) return { ok: false, erro: "COLUNA_FALTANDO: " + esp.coluna, arquivoGuardado: false };
   if (p.trocar && !p.arquivo) return { ok: false, erro: "TROCAR_SEM_ARQUIVO" };
-  var D = colunasDossie_(doImovel ? "imovel" : "comprador"), guardado = false;
+  var guardado = false;
   if (p.arquivo) {
     var chk = RegrasVenda.conferirArquivo(p.arquivo);
     if (!chk.ok) return { ok: false, erro: chk.erro, arquivoGuardado: false };
     try { anexarArquivo_(p.pageId, col.mapa[esp.coluna], p.arquivo, !!p.trocar); guardado = true; }
     catch (e) { console.error("PORTAL-VENDA upload falhou: " + String(e.message || e).slice(0, 120)); return { ok: false, erro: "UPLOAD_FALHOU", arquivoGuardado: false }; }
+    /* se a leitura falhar, o espaço fica como "novo, não lido" para o Ler documentos */
+    mudarPendentes_(p.pageId, function (x) { RegrasVenda.marcarPendente(x, p.espaco, !!p.trocar); });
   }
-  var a, arquivos, partes;
+  var modo = p.trocar || lerPendentes_(p.pageId)[p.espaco] === "trocar" ? "trocar" : "atualizar";
+  var r = lerEspacos_(col, sess, p.pageId, [{ espaco: p.espaco, modo: modo }]);
+  var um = r.resultados[0];
+  if (!r.ok) return { ok: false, erro: (um && um.erro) || r.erro, arquivoGuardado: guardado };
+  var est = esp.grupo === "imovel" ? r.imovel : { dossie: r.dossie, faltam: r.faltam };
+  var resp = { ok: true, pageId: p.pageId, preenchidos: um.preenchidos, observacoes: um.observacoes,
+               dossie: est.dossie, faltam: est.faltam, gravados: r.gravados };
+  if (esp.grupo === "imovel") {
+    resp.grupo = "imovel";
+    if (r.loteamento) resp.loteamento = r.loteamento;      // registro do loteamento gravado na casa
+    if (r.habiteseData) resp.habiteseData = r.habiteseData; // também em CONTRATO - HABITE-SE DATA (se a coluna existe)
+  }
+  return resp;
+}
+
+/* Comprador 2 com o mesmo endereço: copia o ENDEREÇO do comprador 1 e os arquivos do comprovante dele
+ * para o espaço do comprador 2 (baixa e sobe de novo: o Notion não aceita apontar o mesmo arquivo em
+ * outra coluna). Sem nova leitura da IA. A identidade não se repete: é pessoal. */
+function copiarComprovante_(col, sess, p) {
+  var R = RegrasVenda, C = R.COL, a = lerPagina_(col, p.pageId);
+  var arqs = (a[C.C1_COMPROV] || []).slice(-4);
+  if (!arqs.length) return { ok: false, erro: "SEM_COMPROVANTE_1" };
+  if (R.vazio(a[C.C1_END])) return { ok: false, erro: "COMPROVANTE_1_NAO_LIDO" };
+  var baixados = baixarVarios_(arqs);
+  if (baixados.some(function (b) { return !b || !R.conferirArquivo(b).ok; })) return { ok: false, erro: "ARQUIVO_NAO_LEGIVEL" };
   try {
-    a = lerPagina_(col, p.pageId);
-    arquivos = (a[esp.coluna] || []).slice(-4);
-    partes = [];
-    arquivos.forEach(function (f) {
-      var b = baixarArquivo_(f);
-      if (b && RegrasVenda.conferirArquivo(b).ok) partes.push(b);
+    baixados.forEach(function (b, i) {
+      anexarArquivo_(p.pageId, col.mapa[C.C2_COMPROV], { nome: b.nome || "comprovante", mime: b.mime, base64: b.base64 }, i === 0);
     });
   } catch (e) {
-    console.error("PORTAL-VENDA leitura falhou: " + String(e.message || e).slice(0, 120));
-    return { ok: false, erro: "LEITURA_FALHOU", arquivoGuardado: guardado };
+    console.error("PORTAL-VENDA cópia do comprovante falhou: " + String(e.message || e).slice(0, 120));
+    return { ok: false, erro: "UPLOAD_FALHOU" };
   }
-  if (!arquivos.length) return { ok: false, erro: "SEM_ARQUIVO", arquivoGuardado: guardado };
-  if (!partes.length) return { ok: false, erro: "ARQUIVO_NAO_LEGIVEL", arquivoGuardado: guardado };
+  var depois = {}, g = {};
+  for (var k in a) depois[k] = a[k];
+  depois[C.C2_COMPROV] = arqs;   // só a contagem importa para o estado
+  g[C.C2_END] = a[C.C1_END]; depois[C.C2_END] = a[C.C1_END];
+  var est = R.estadoAposLeitura(R.contarArquivos(depois), R.temDoisCompradores(depois));
+  g[C.DOSSIE] = est.estado;
+  g[C.OBS] = R.juntarObservacoes(a[C.OBS], [R.ESPACOS.C2_COMPROVANTE.rotulo +
+    ": o mesmo do comprador 1 (endereço copiado, sem nova leitura) — conferir; se o comprovante não estiver no nome de um dos dois, pedir a declaração"],
+    hoje_("dd/MM"), sess.u);
+  try { gravar_(col, p.pageId, g); }
+  catch (e) {
+    console.error("PORTAL-VENDA gravação falhou: " + String(e.message || e).slice(0, 120));
+    return { ok: false, erro: "GRAVACAO_FALHOU" };
+  }
+  mudarPendentes_(p.pageId, function (x) { delete x.C2_COMPROVANTE; });
+  var gravados = {}; gravados[C.C2_END] = g[C.C2_END];
+  return { ok: true, pageId: p.pageId, dossie: est.estado, faltam: est.faltam, preenchidos: [C.C2_END], gravados: gravados };
+}
 
+/* "Soltar todos os documentos" (entrega 13): um arquivo por chamada (a tela manda vários em paralelo).
+ * 1) a IA só CLASSIFICA o arquivo (que documento é e, se de pessoa, nome/CPF) — pedido curto, saída mínima;
+ * 2) RegrasVenda.decidirEspaco: documento do imóvel / aprovação da Caixa → guarda no espaço e marca como novo;
+ *    identidade / comprovante (de PESSOA) → NÃO guarda: devolve o nome lido e a sugestão de comprador; a tela
+ *    pergunta "quem é o comprador 1 e o 2" e só depois de "Confirmar compradores" guarda (anexarDocumento);
+ *    não reconhecido → não guarda; a tela pergunta "isto é: …".
+ * A leitura de verdade é a do "Ler documentos" (instruções de cada espaço, arquivos do espaço juntos).
+ * O nome lido volta só para a tela de quem enviou; nada de nome/CPF em log nem nas Propriedades.
+ * pessoa.chave: hash curto do nome (ou do CPF, sem nome) para a tela juntar os arquivos da mesma pessoa. */
+function hashCurto_(pageId, s) {
+  return Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,
+    String(pageId) + "|" + s, Utilities.Charset.UTF_8)).slice(0, 16);
+}
+function soltarDocumento_(col, p) {
+  var R = RegrasVenda;
+  var chk = R.conferirArquivo(p.arquivo);
+  if (!chk.ok) return { ok: false, erro: chk.erro };
+  var a = lerPagina_(col, p.pageId);   // só página da VENDAS deste ambiente
   var ia = leitorIA_();
-  if (ia.erro) return { ok: false, erro: ia.erro, arquivoGuardado: guardado };
-  var pedido = ia.leitor.montarPedido(esp.tipo, partes, ia.chave, ia.modelo);
-  if (pedido.erro) return { ok: false, erro: pedido.erro, arquivoGuardado: guardado };
+  if (ia.erro) return { ok: false, erro: ia.erro };
+  var pedido = ia.leitor.montarPedido("classificar", [p.arquivo], ia.chave, ia.modelo, "");
+  if (pedido.erro) return { ok: false, erro: pedido.erro };
   var res;
   try {
     var r = UrlFetchApp.fetch(pedido.url, { method: "post", contentType: "application/json", muteHttpExceptions: true,
                                            headers: pedido.headers, payload: JSON.stringify(pedido.corpo) });
     res = ia.leitor.interpretarResposta(r.getResponseCode(), r.getContentText());
   } catch (e) { res = { ok: false, erro: "LEITURA_FALHOU" }; }
-  if (!res.ok) return { ok: false, erro: res.erro, arquivoGuardado: guardado };
-  console.log("PORTAL-VENDA leitura " + ia.nome + " " + p.espaco + " tokens " + res.uso.entrada + "/" + res.uso.saida);
+  if (!res.ok) return { ok: false, erro: res.erro };
+  console.log("PORTAL-VENDA classificar " + ia.nome + " tokens " + res.uso.entrada + "/" + res.uso.saida);
 
-  var plano = RegrasVenda.planejarGravacao(p.espaco, res.leitura, a, hoje_("yyyy-MM-dd"), p.trocar ? "trocar" : "atualizar");
-  var depois = {};
-  for (var k in a) depois[k] = a[k];
-  for (var c in plano.props) depois[c] = plano.props[c];
-  var est = doImovel
-    ? RegrasVenda.estadoImovelAposLeitura(RegrasVenda.contarArquivos(depois, RegrasVenda.ESPACOS_IMOVEL))
-    : RegrasVenda.estadoAposLeitura(RegrasVenda.contarArquivos(depois), RegrasVenda.temDoisCompradores(depois));
-  var g = {};
-  for (var c2 in plano.props) g[c2] = plano.props[c2];
-  g[D.estado] = est.estado;
-  if (plano.observacoes.length) g[D.obs] = RegrasVenda.juntarObservacoes(a[D.obs], plano.observacoes, hoje_("dd/MM"), sess.u);
-  try {
-    gravar_(col, p.pageId, g);
-  } catch (e) {
-    console.error("PORTAL-VENDA gravação falhou: " + String(e.message || e).slice(0, 120));
-    return { ok: false, erro: "GRAVACAO_FALHOU", arquivoGuardado: guardado };
+  var d = R.decidirEspaco(res.leitura, a);
+  if (d.pessoa) {
+    var nome = String(res.leitura.nome || "").replace(/\s+/g, " ").trim().slice(0, 120);
+    var toks = R.tokensNome(nome), cpf = R.soDigitos(res.leitura.cpf);
+    var base = toks.length ? "nome:" + toks.join(" ") : cpf.length === 11 ? "cpf:" + cpf : "";
+    return { ok: true, pageId: p.pageId, espaco: null, tipo: d.tipo, motivo: d.motivo, sugestao: d.sugestao,
+             pessoa: { nome: nome, chave: base ? hashCurto_(p.pageId, base) : "" } };
   }
-  var resp = { ok: true, preenchidos: plano.preenchidos, observacoes: plano.observacoes, dossie: est.estado, faltam: est.faltam };
-  if (doImovel) {
-    resp.grupo = "imovel";
-    if (plano.loteamento) resp.loteamento = plano.loteamento;      // matrícula/cartório gravados na casa; o nome é do setor
-    if (plano.habiteseData) resp.habiteseData = plano.habiteseData; // o contrato usa a DATA HABITE-SE da obra
+  var esp = d.espaco ? R.espaco(d.espaco) : null;
+  if (esp && ((esp.grupo === "imovel" && col.imovelErro) || !col.mapa[esp.coluna])) { esp = null; d = { espaco: null, tipo: d.tipo, motivo: "SEM_COLUNA" }; }
+  if (!esp) return { ok: true, pageId: p.pageId, espaco: null, tipo: d.tipo, motivo: d.motivo };
+  try { anexarArquivo_(p.pageId, col.mapa[esp.coluna], p.arquivo, false); }
+  catch (e) {
+    console.error("PORTAL-VENDA upload falhou: " + String(e.message || e).slice(0, 120));
+    return { ok: false, erro: "UPLOAD_FALHOU" };
   }
-  return resp;
+  mudarPendentes_(p.pageId, function (x) { R.marcarPendente(x, d.espaco, false); });
+  return { ok: true, pageId: p.pageId, espaco: d.espaco, tipo: d.tipo, guardado: true };
 }

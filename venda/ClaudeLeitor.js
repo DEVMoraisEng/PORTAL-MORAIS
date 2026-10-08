@@ -39,6 +39,18 @@ var ClaudeLeitor = (function () {
     habitese: objeto({
       tipo_documento: { type: "string", enum: ["HABITESE", "OUTRO"] },
       numero: S, data: S
+    }),
+    /* entrega 13: certidão da matrícula-mãe do condomínio/loteamento + a descrição DESTA unidade */
+    certidao_mae: objeto({
+      tipo_documento: { type: "string", enum: ["CERTIDAO_MAE", "OUTRO"] },
+      loteamento_denominacao: S, matricula_mae: S, cartorio: S,
+      unidade_encontrada: { type: "string", enum: ["SIM", "NAO"] },
+      unidade_identificacao: S, unidade_confrontacoes: S, unidade_area_privativa_m2: S, unidade_area_total_m2: S
+    }),
+    /* entrega 13: "soltar todos os documentos" — só diz o que é o arquivo (e de quem, se for pessoal) */
+    classificar: objeto({
+      tipo_documento: { type: "string", enum: ["IDENTIDADE", "COMPROVANTE", "APROVACAO", "MATRICULA", "CERTIDAO_MAE", "ALVARA", "HABITESE", "OUTRO"] },
+      nome: S, cpf: S
     })
   };
   var INSTRUCOES = {
@@ -47,11 +59,13 @@ var ClaudeLeitor = (function () {
     aprovacao: "Os arquivos deveriam ser a aprovação de financiamento habitacional da Caixa (tela ou documento). tipo_documento: APROVACAO, ou OUTRO se não for. cpf_proponente só com números. Valores em reais como impressos (ex.: 180.000,00).",
     matricula: "Os arquivos deveriam ser a certidão de matrícula (inteiro teor) de um lote ou casa, emitida pelo cartório de registro de imóveis. tipo_documento: MATRICULA, ou OUTRO se não for. matricula_numero: só o número da matrícula individual do imóvel (ex.: 12.345), sem a palavra matrícula. cartorio: a serventia como impressa no cabeçalho (ex.: Cartório de Registro de Imóveis da 1ª Circunscrição de Cidade/UF). area_m2: a área total do lote em metros quadrados, só o número como impresso (ex.: 360,00). confrontacoes: as medidas e confrontações do lote numa linha só, como descritas (frente, fundo, lados). loteamento_denominacao, loteamento_matricula e loteamento_cartorio: o nome do loteamento, o número da matrícula (ou registro) do loteamento e o cartório onde ele foi registrado, se a certidão citar; senão string vazia.",
     alvara: "Os arquivos deveriam ser o alvará de construção (licença para construir) emitido pela prefeitura. tipo_documento: ALVARA, ou OUTRO se não for (habite-se não é alvará). numero: o número do alvará como impresso. data: a data de emissão do alvará em dd/mm/aaaa.",
-    habitese: "Os arquivos deveriam ser o habite-se (certidão de conclusão de obra / carta de habite-se) emitido pela prefeitura. tipo_documento: HABITESE, ou OUTRO se não for (alvará de construção não é habite-se). numero: o número do habite-se como impresso. data: a data de emissão do habite-se em dd/mm/aaaa."
+    habitese: "Os arquivos deveriam ser o habite-se (certidão de conclusão de obra / carta de habite-se) emitido pela prefeitura. tipo_documento: HABITESE, ou OUTRO se não for (alvará de construção não é habite-se). numero: o número do habite-se como impresso. data: a data de emissão do habite-se em dd/mm/aaaa.",
+    certidao_mae: "Os arquivos deveriam ser a certidão da matrícula-mãe (inteiro teor) de um condomínio ou loteamento, com a instituição/especificação das unidades, emitida pelo cartório de registro de imóveis. tipo_documento: CERTIDAO_MAE, ou OUTRO se não for (a matrícula individual de uma só casa não é certidão mãe). loteamento_denominacao: o nome do condomínio ou loteamento como impresso (ex.: Residencial Exemplo). matricula_mae: só o número da matrícula-mãe, sem a palavra matrícula. cartorio: a serventia como impressa no cabeçalho. unidade_encontrada: SIM se a certidão descreve a unidade indicada abaixo, NAO se não descreve ou se não houver unidade indicada. unidade_identificacao: como a certidão identifica essa unidade (ex.: Casa 1, Quadra 01, Lote 26). unidade_confrontacoes: as medidas e confrontações DESSA unidade numa linha só, como descritas (frente, fundo, lados). unidade_area_privativa_m2 e unidade_area_total_m2: as áreas dessa unidade em metros quadrados, só o número como impresso (ex.: 70,50). Campos unidade_* vazios se unidade_encontrada for NAO.",
+    classificar: "Diga que documento é este arquivo, de uma venda de imóvel. tipo_documento: IDENTIDADE (CNH, RG ou outra identidade de pessoa, frente ou verso), COMPROVANTE (conta de água, luz, telefone, internet ou outro comprovante de endereço), APROVACAO (aprovação de financiamento habitacional da Caixa), MATRICULA (certidão de matrícula de UM lote ou casa), CERTIDAO_MAE (certidão da matrícula-mãe de um condomínio ou loteamento, com várias unidades), ALVARA (alvará de construção), HABITESE (habite-se / certidão de conclusão de obra) ou OUTRO. nome: na IDENTIDADE o nome da pessoa; no COMPROVANTE o nome do titular; na APROVACAO o nome do proponente; nos outros, string vazia. cpf: o CPF dessa pessoa só com números, se aparecer; senão string vazia."
   };
   var REGRA = " Responda só com o que está escrito nos arquivos. Campo ilegível ou ausente: string vazia. Não invente nem complete.";
 
-  function montarPedido(tipo, arquivos, chaveApi) {
+  function montarPedido(tipo, arquivos, chaveApi, modelo, contexto) {   /* modelo: só a OpenAI usa (mesma ordem de argumentos) */
     if (!ESQUEMAS[tipo]) throw new Error("TIPO_DESCONHECIDO: " + tipo);
     if (!arquivos || !arquivos.length) return { erro: "SEM_ARQUIVO" };
     var blocos = [];
@@ -63,7 +77,7 @@ var ClaudeLeitor = (function () {
         blocos.push({ type: "image", source: { type: "base64", media_type: mime, data: a.base64 } });
       else return { erro: "TIPO_DE_ARQUIVO_NAO_SUPORTADO" };
     }
-    blocos.push({ type: "text", text: INSTRUCOES[tipo] + REGRA });
+    blocos.push({ type: "text", text: INSTRUCOES[tipo] + (contexto ? " " + String(contexto) : "") + REGRA });
     return {
       url: URL,
       headers: { "x-api-key": chaveApi, "anthropic-version": "2023-06-01", "anthropic-beta": "server-side-fallback-2026-07-01" },

@@ -210,10 +210,19 @@ var ClicksignVenda = (function () {
   }
 
   /* ---- corpos JSON:API (v3) ---- */
-  function nomeEnvelope(endereco) {
-    var e = txt(endereco).replace(/[\\\/]/g, "-");
-    return e ? "Contrato - " + e : "Contrato de compra e venda";
+  /* Entrega 14 — padrão do dono: "OBRA - COMPRADOR". OBRA = ENDEREÇO da casa + " CASA n" (quando a casa tem
+   * número e o endereço ainda não diz essa casa); COMPRADOR = nome do comprador 1. O mesmo nome vai no
+   * envelope e no documento (nomeArquivo + ".pdf"). Sem comprador fica só a obra; sem nada, o nome genérico. */
+  function nomePadrao(endereco, casa, comprador) {
+    var limpo = function (s) { return txt(s).replace(/[\\\/:*?"<>|]/g, "-").replace(/\s+/g, " ").trim(); };
+    var obra = limpo(endereco), n = limpo(casa).replace(/^CASA\s*/i, "");
+    if (n && !new RegExp("\\bCASA\\s*0*" + n.replace(/^0+(?=.)/, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "i").test(obra))
+      obra = (obra ? obra + " " : "") + "CASA " + n;
+    var partes = [obra, limpo(comprador)].filter(function (x) { return x; });
+    return partes.length ? partes.join(" - ").slice(0, 200) : "Contrato de compra e venda";
   }
+  /* compatível com a chamada antiga (só o endereço) */
+  function nomeEnvelope(endereco, casa, comprador) { return nomePadrao(endereco, casa, comprador); }
   function nomeArquivo(nome) {
     var n = txt(nome) || "contrato";
     return /\.pdf$/i.test(n) ? n : n + ".pdf";
@@ -347,7 +356,7 @@ var ClicksignVenda = (function () {
 
   var api = {
     PAPEIS: PAPEIS, SITUACOES: SITUACOES, montarConfig: montarConfig, conferirConfig: conferirConfig, signatarios: signatarios,
-    faltasAssinatura: faltasAssinatura, nomeEnvelope: nomeEnvelope, nomeArquivo: nomeArquivo,
+    faltasAssinatura: faltasAssinatura, nomeEnvelope: nomeEnvelope, nomeArquivo: nomeArquivo, nomePadrao: nomePadrao,
     corpoEnvelope: corpoEnvelope, corpoDocumento: corpoDocumento, corpoSignatario: corpoSignatario,
     corpoQualificacao: corpoQualificacao, corpoAutenticacao: corpoAutenticacao, corpoAtivar: corpoAtivar,
     corpoNotificacao: corpoNotificacao, interpretar: interpretar, situacao: situacao, assinaram: assinaram,
