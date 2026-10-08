@@ -4,8 +4,8 @@ name: Venda no Mais Controle
 # pelo portal (Code.gs, ação distrato) com {acao: "distrato", pageId, aplicar, recebeu, destino}:
 # a prévia roda na página da VENDA; o aplicar, na página do arquivo em DISTRATOS (venda/mc/distrato.py).
 # Gravar no ERP exige as DUAS chaves: aplicar=true no pedido E a variável de
-# repositório MC_APLICAR = 1. Sem ela, todo pedido roda como PRÉVIA.
-# ATENÇÃO: só existe UM Mais Controle. No fork de TESTE, MC_APLICAR nunca é 1.
+# repositório MC_VENDA_APLICAR = 1 (não a MC_APLICAR dos robos-mc). Sem ela, todo pedido roda como PRÉVIA.
+# ATENÇÃO: só existe UM Mais Controle. No fork de TESTE, MC_VENDA_APLICAR nunca fica em 1.
 # O log deste workflow é público: o robô só imprime situação e códigos.
 on:
   repository_dispatch:
@@ -16,11 +16,11 @@ on:
         description: "id da página da venda no Notion (32 caracteres)"
         required: true
       aplicar:
-        description: "gravar de verdade (só vale com MC_APLICAR=1)"
+        description: "gravar de verdade (só vale com MC_VENDA_APLICAR=1)"
         type: boolean
         default: false
       anexar:
-        description: "venda já lançada: só anexar o contrato (exige aplicar e MC_APLICAR=1)"
+        description: "venda já lançada: só anexar o contrato (exige aplicar e MC_VENDA_APLICAR=1)"
         type: boolean
         default: false
       sondar:
@@ -77,13 +77,13 @@ jobs:
           python-version: "3.12"
       - name: Lançar (ou prévia)
         env:
-          MC_ROBO_EMAIL: ${{ secrets.MC_ROBO_EMAIL }}
+          MC_ROBO_EMAIL: ${{ secrets.MC_ROBO_EMAIL || secrets.MC_ROBO_USUARIO }}   # produção já tem MC_ROBO_USUARIO (robos-mc)
           MC_ROBO_SENHA: ${{ secrets.MC_ROBO_SENHA }}
           MC_ROBO_APARELHO: ${{ secrets.MC_ROBO_APARELHO }}
           PEDIU_APLICAR: ${{ github.event.client_payload.aplicar || inputs.aplicar }}
           SONDAR: ${{ inputs.sondar }}
           ANEXAR: ${{ inputs.anexar }}
-          MC_APLICAR: ${{ vars.MC_APLICAR }}
+          MC_APLICAR: ${{ vars.MC_VENDA_APLICAR }}   # variável PRÓPRIA da venda: o MC_APLICAR da produção já é 1 para os robos-mc
           DB_VENDAS_COND: ${{ vars.DB_VENDAS_COND }}
           DB_CORRETORES: ${{ vars.DB_CORRETORES }}
           DB_DISTRATOS: ${{ vars.DB_DISTRATOS }}

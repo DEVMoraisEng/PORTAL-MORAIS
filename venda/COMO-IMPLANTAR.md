@@ -231,12 +231,12 @@ Implantar:
    produção: `DEVMoraisEng/PORTAL-MORAIS`). Nova versão.
 3. **GitHub do repositório** › Settings › Secrets and variables › Actions:
    segredos `MC_ROBO_EMAIL` e `MC_ROBO_SENHA` (o usuário robô do Mais Controle — os mesmos dos
-   Robôs MC) e `NOTION_TOKEN` (já existe). **Variável** `MC_APLICAR`: deixe **vazia** enquanto
+   Robôs MC) e `NOTION_TOKEN` (já existe). **Variável** `MC_VENDA_APLICAR`: deixe **vazia** enquanto
    testa (tudo vira prévia, e o pedido de lançar aparece como "BLOQUEADO"); `1` libera gravar.
 4. Primeiro lançamento real: uma casa escolhida pelo dono, com ele acompanhando no ERP.
 
 **Atenção — só existe UM Mais Controle.** O fork de TESTE fala com o mesmo ERP da
-produção. No fork, `MC_APLICAR` **nunca** é `1`: lá o botão serve só para a prévia
+produção. No fork, `MC_VENDA_APLICAR` **nunca** é `1`: lá o botão serve só para a prévia
 (que só lê). Gravar de verdade é sempre pelo repositório de produção.
 
 Travas do robô: só grava o que foi visto na prévia (assinatura `[#…]` dos valores e
@@ -445,7 +445,7 @@ Implantar:
    - trocar o número do cache do `sw.js` como de costume (vendas.html mudou).
 6. **Teste** (no ambiente de teste): abrir uma unidade com o fluxo completo →
    Gerar contrato → conferir o PDF em `CONTRATO GERADO` da linha → Enviar para
-   assinatura (sandbox) → Ver prévia do Mais Controle (com `MC_APLICAR` desligado).
+   assinatura (sandbox) → Ver prévia do Mais Controle (com `MC_VENDA_APLICAR` desligado).
 
 Cuidado: uma unidade que **já** virou casa na VENDAS pelo Gerar venda pode ser
 tocada pelos dois caminhos. O Mais Controle se protege (o robô recusa venda
@@ -512,7 +512,7 @@ o que é certo/suposição: `venda/mc/DISTRATO-ERP.md`.
    base, obrigatória para o APLICAR), **`NATUREZA_DEVOLUCAO_ID`** (id da
    categoria do título a pagar da devolução no Mais Controle; sem ela a
    devolução só é avisada) e, opcional, **`FORMA_PAGAMENTO_DEVOLUCAO_ID`**.
-   `MC_APLICAR` continua NUNCA 1 no fork de teste (o aplicar volta "BLOQUEADO").
+   `MC_VENDA_APLICAR` continua NUNCA 1 no fork de teste (o aplicar volta "BLOQUEADO").
 4. Teste: venda de teste com `MC - VENDA ID` → prévia (Não / Sim-Retido /
    Sim-Devolvido) → confirmar → conferir a linha na base DISTRATOS (dados,
    arquivos copiados, `MC - DISTRATO` = BLOQUEADO com a prévia) e a venda
@@ -520,7 +520,7 @@ o que é certo/suposição: `venda/mc/DISTRATO-ERP.md`.
 5. Produção (quando o dono disser "sobe"): o desenvolvedor leva o bloco para
    o Code.gs de produção e o modal para o `vendas.html`; Propriedade
    `DB_DISTRATOS` de produção; variáveis no repositório de produção;
-   `MC_APLICAR=1` lá já existe.
+   `MC_VENDA_APLICAR=1` lá já existe.
 
 **Riscos conhecidos:** rotas de exclusão/alteração e o favorecido-cliente na
 conta a pagar não foram provados ao vivo (ver DISTRATO-ERP.md); a devolução

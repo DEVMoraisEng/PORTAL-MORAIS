@@ -99,5 +99,5 @@ Falha na conta a pagar NUNCA desfaz a venda já alterada: o texto do resultado d
 - tela diz "recebido" mas o ERP não tem → recusa (dar baixa antes);
 - aplicar só a partir de página da base `DB_DISTRATOS`, com as respostas iguais às do arquivo e a
   assinatura `[#xxxxxxxx]` da prévia aceita igual à recalculada na hora (a venda mudou → recusa);
-- gravar exige `aplicar` no pedido E `MC_APLICAR=1` no repositório (no fork de teste: BLOQUEADO);
+- gravar exige `aplicar` no pedido E `MC_VENDA_APLICAR=1` no repositório (no fork de teste: BLOQUEADO);
 - já aplicado → não regrava.

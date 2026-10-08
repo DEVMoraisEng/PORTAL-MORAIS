@@ -4,7 +4,7 @@
 Uso:
     python -m venda.mc.lancar --page <id>              # PRÉVIA: só lê e mostra
     python -m venda.mc.lancar --page <id> --aplicar    # cria cliente (se faltar) e venda
-    python -m venda.mc.lancar --page <id> --bloqueado  # pediram gravar, mas MC_APLICAR está desligado
+    python -m venda.mc.lancar --page <id> --bloqueado  # pediram gravar, mas MC_VENDA_APLICAR está desligado
     python -m venda.mc.lancar --page <id> --marcar-erro "texto"   # o workflow falhou antes do robô
 
 Ambiente: NOTION_TOKEN, MC_ROBO_EMAIL, MC_ROBO_SENHA. Sem --aplicar NADA é
@@ -70,7 +70,7 @@ def sondar(page_id: str, notion, erp) -> dict:
 
 def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DIAS_FINANCIAMENTO,
               bloqueado: bool = False, anexar: bool = False) -> dict:
-    """bloqueado=True: pediram para gravar, mas o repositório não liberou (MC_APLICAR).
+    """bloqueado=True: pediram para gravar, mas o repositório não liberou (MC_VENDA_APLICAR).
     anexar=True (com aplicar): numa venda JÁ LANÇADA, só anexa o contrato."""
     props, d, linha_cond = _ler(page_id, notion)
     res = {"situacao": None, "codigo": None, "motivos": [], "avisos": [], "pageId": page_id,
@@ -237,7 +237,7 @@ def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DI
     if not aplicar:
         # Texto em linhas (a tela desenha em tópicos): 1ª linha = cabeçalho com o carimbo [#hash] que o
         # lançamento confere; as linhas "- " são o detalhe das parcelas.
-        linhas = [("BLOQUEADO: gravar no Mais Controle está desligado neste ambiente (MC_APLICAR) — "
+        linhas = [("BLOQUEADO: gravar no Mais Controle está desligado neste ambiente (MC_VENDA_APLICAR) — "
                    if bloqueado else "") + "PRÉVIA OK [#%s] | %s" % (assin, corpo["description"].split(" - ")[0]),
                   "Cliente: %s (%s)" % (nome_cliente, "novo, será criado" if cliente_novo else "já existe"),
                   "Conta da obra: %s" % (conta.get("name") or conta["id"]),
@@ -330,7 +330,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--page", required=True)
     ap.add_argument("--aplicar", action="store_true")
-    ap.add_argument("--bloqueado", action="store_true", help="pediram gravar, mas MC_APLICAR não está ligado")
+    ap.add_argument("--bloqueado", action="store_true", help="pediram gravar, mas MC_VENDA_APLICAR não está ligado")
     ap.add_argument("--sondar", action="store_true", help="só consulta o ERP (não cria nada)")
     ap.add_argument("--anexar", action="store_true", help="venda já lançada: só anexa o contrato (exige --aplicar)")
     ap.add_argument("--marcar-erro", default=None, help="só anota ERRO na situação (o workflow falhou)")

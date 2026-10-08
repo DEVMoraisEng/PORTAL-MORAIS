@@ -13,7 +13,7 @@
  * GH_REPO_MC (ex.: "MoraisEng-Teste/PORTAL-MORAIS" — SEM padrão de propósito,
  * para o teste nunca disparar a produção por engano).
  * Gravar de verdade no ERP exige DUAS chaves: o clique em "Lançar" (aplicar)
- * E a variável MC_APLICAR=1 no repositório do GitHub. */
+ * E a variável MC_VENDA_APLICAR=1 no repositório do GitHub. */
 var MC_COL_SITUACAO = "MC - SITUAÇÃO";
 var MC_COL_VENDA = "MC - VENDA ID";
 

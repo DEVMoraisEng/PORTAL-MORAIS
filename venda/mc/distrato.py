@@ -10,8 +10,8 @@ Regra do dono:
 
 Uso (o workflow mc-venda.yml chama com acao=distrato):
     python -m venda.mc.distrato --page <id> --recebeu sim --destino retido              # PRÉVIA
-    python -m venda.mc.distrato --page <id> --recebeu sim --destino retido --aplicar    # grava (MC_APLICAR=1)
-    python -m venda.mc.distrato --page <id> ... --bloqueado    # pediram gravar, MC_APLICAR desligado
+    python -m venda.mc.distrato --page <id> --recebeu sim --destino retido --aplicar    # grava (MC_VENDA_APLICAR=1)
+    python -m venda.mc.distrato --page <id> ... --bloqueado    # pediram gravar, MC_VENDA_APLICAR desligado
     python -m venda.mc.distrato --page <id> --marcar-erro "texto"
 
 A PRÉVIA roda na página da venda (base VENDAS, que ainda tem "MC - VENDA ID") e escreve o texto
@@ -444,7 +444,7 @@ def processar(page_id: str, notion, erp, recebeu: str, destino: str, aplicar: bo
                 forma_id=os.environ.get("FORMA_PAGAMENTO_DEVOLUCAO_ID", "").strip(), conta=conta,
                 condicao=condicao_a_vista(erp), responsavel_id=str(getattr(erp, "user_id", "") or ""))
         if not aplicar:
-            pre = ("BLOQUEADO: gravar no Mais Controle está desligado neste ambiente (MC_APLICAR) — " if bloqueado else "")
+            pre = ("BLOQUEADO: gravar no Mais Controle está desligado neste ambiente (MC_VENDA_APLICAR) — " if bloqueado else "")
             return fim("PREVIA", pre + texto_previa(pl), "BLOQUEADO" if bloqueado else "PREVIA")
         vista = assinatura_do_texto(_txt(props, COL_PREVIA_ACEITA))
         if not vista or vista != assinatura(pl):

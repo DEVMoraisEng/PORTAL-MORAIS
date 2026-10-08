@@ -23,7 +23,7 @@ jobs:
           python-version: "3.12"
       - name: Buscar
         env:
-          MC_ROBO_EMAIL: ${{ secrets.MC_ROBO_EMAIL }}
+          MC_ROBO_EMAIL: ${{ secrets.MC_ROBO_EMAIL || secrets.MC_ROBO_USUARIO }}   # produção já tem MC_ROBO_USUARIO (robos-mc)
           MC_ROBO_SENHA: ${{ secrets.MC_ROBO_SENHA }}
           MC_ROBO_APARELHO: ${{ secrets.MC_ROBO_APARELHO }}
           TERMO: ${{ inputs.termo }}
