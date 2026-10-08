@@ -49,6 +49,17 @@ jobs:
         with:
           python-version: '3.11'
 
+      # 08/10/26 — VENDAS ligada a uma obra (OBRA-AUTO) com ENDEREÇO, CASA ou
+      # SETOR vazios ganha o valor da obra (só o que está vazio, nunca
+      # sobrescreve). Roda ANTES do fetch_vendas.py para os alertas "PREENCHER
+      # ENDEREÇO/SETOR" sumirem nesta mesma publicação. Falhar não derruba o site.
+      - name: Completar Vendas pela obra
+        continue-on-error: true
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          APLICAR: "1"
+        run: python completar_vendas.py
+
       # Gera dist/*.json lendo o Notion. É isto que deixa o site rápido:
       # o navegador baixa JSON pronto em vez de esperar o Apps Script.
       - name: Buscar dados do Notion
