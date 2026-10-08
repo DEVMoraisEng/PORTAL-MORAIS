@@ -325,7 +325,7 @@ function lerDocumento_(col, sess, p) {
   var resp = { ok: true, preenchidos: plano.preenchidos, observacoes: plano.observacoes, dossie: est.estado, faltam: est.faltam };
   if (doImovel) {
     resp.grupo = "imovel";
-    if (plano.loteamento) resp.loteamento = plano.loteamento;      // do setor: só mostra, não grava na casa
+    if (plano.loteamento) resp.loteamento = plano.loteamento;      // matrícula/cartório gravados na casa; o nome é do setor
     if (plano.habiteseData) resp.habiteseData = plano.habiteseData; // o contrato usa a DATA HABITE-SE da obra
   }
   return resp;

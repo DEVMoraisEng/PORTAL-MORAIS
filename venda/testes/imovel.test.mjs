@@ -19,6 +19,7 @@ const COLUNAS_IMOVEL = {
   "CONTRATO - MATRÍCULA INDIVIDUAL": "rich_text", "CONTRATO - CRI DA MATRÍCULA": "rich_text",
   "CONTRATO - ÁREA DO LOTE (M²)": "number", "CONTRATO - CONFRONTAÇÕES": "rich_text",
   "CONTRATO - ALVARÁ Nº": "rich_text", "CONTRATO - ALVARÁ DATA": "date", "CONTRATO - HABITE-SE Nº": "rich_text",
+  "CONTRATO - MATRÍCULA DO LOTEAMENTO": "rich_text", "CONTRATO - CARTÓRIO DO LOTEAMENTO": "rich_text",
 };
 const COLUNAS = Object.assign({}, COLUNAS_REAIS, COLUNAS_IMOVEL);
 
@@ -55,9 +56,10 @@ const HABITESE = { tipo_documento: "HABITESE", numero: "HAB-2026/0042", data: "2
 
 test("tipos das colunas do imóvel batem com os que o contrato exige (ContratoVenda.TIPOS)", () => {
   for (const [col, tipo] of Object.entries(R.TIPOS_IMOVEL)) {
-    if (col.startsWith("CONTRATO - ")) assert.equal(tipo, CV.TIPOS[col], col);
+    /* as 2 do registro do loteamento são opcionais no contrato (o setor completa): não estão em ContratoVenda.TIPOS */
+    if (col.startsWith("CONTRATO - ") && !/LOTEAMENTO/.test(col)) assert.equal(tipo, CV.TIPOS[col], col);
   }
-  assert.equal(Object.keys(R.TIPOS_IMOVEL).filter((c) => c.startsWith("CONTRATO - ")).length, 7);
+  assert.equal(Object.keys(R.TIPOS_IMOVEL).filter((c) => c.startsWith("CONTRATO - ")).length, 9);
   assert.deepEqual(Object.values(COLUNAS_IMOVEL).map((t) => (typeof t === "string" ? t : t.tipo)),
     Object.keys(COLUNAS_IMOVEL).map((c) => R.TIPOS_IMOVEL[c]));
 });
@@ -84,7 +86,7 @@ test("areaM2 e dataValida normalizam e recusam lixo", () => {
   assert.equal(R.dataValida("março de 2026"), "");
 });
 
-test("matrícula: preenche os 4 campos da casa normalizados e devolve o loteamento sem gravá-lo", () => {
+test("matrícula: preenche os campos da casa (com o registro do loteamento) e devolve o nome do loteamento só para a tela", () => {
   const p = R.planejarGravacao("IMOVEL_MATRICULA", MATRICULA, {}, "2026-10-08");
   const CI = R.COL_IMOVEL;
   assert.equal(p.props[CI.MATRICULA_INDIVIDUAL], "98.765");
@@ -92,8 +94,11 @@ test("matrícula: preenche os 4 campos da casa normalizados e devolve o loteamen
   assert.equal(p.props[CI.AREA], 360.5);
   assert.equal(p.props[CI.CONFRONTACOES], "Frente: 12,00 m para a Rua Teste; fundo: 12,00 m com o lote 99; lados: 30,00 m");
   assert.deepEqual(p.loteamento, { denominacao: "LOTEAMENTO JARDIM DE TESTE", matricula: "11.111", cartorio: "CRI da 9ª Circunscrição" });
-  assert.ok(Object.keys(p.props).every((c) => c.startsWith("CONTRATO - ")), "nada do loteamento vai para a casa");
-  assert.ok(p.observacoes.some((o) => /LOTEAMENTOS – CONTRATO/.test(o)));
+  assert.ok(Object.keys(p.props).every((c) => c.startsWith("CONTRATO - ")));
+  assert.equal(p.props[CI.LOTEAMENTO_MATRICULA], "11.111", "registro do loteamento é da casa");
+  assert.equal(p.props[CI.LOTEAMENTO_CARTORIO], "CRI da 9ª Circunscrição");
+  assert.ok(!Object.values(p.props).includes("LOTEAMENTO JARDIM DE TESTE"), "o nome do loteamento é do setor");
+  assert.ok(p.observacoes.some((o) => /nome do loteamento na certidão/.test(o)));
 });
 
 test("matrícula sem loteamento não devolve loteamento; área ilegível não grava e avisa", () => {
@@ -214,7 +219,7 @@ test("matrícula ponta a ponta: sobe, lê, grava as CONTRATO - *, marca o DOSSI�
   assert.equal(n.pagina.properties["CONTRATO - ÁREA DO LOTE (M²)"].number, 360.5);
   assert.equal(n.pagina.properties["IMÓVEL - MATRÍCULA"].files.length, 1);
   assert.equal(n.pagina.properties["DOSSIÊ IMÓVEL"].select.name, "FALTA DOCUMENTO");
-  assert.match(txt(n, "DOSSIÊ IMÓVEL - OBSERVAÇÃO"), /LOTEAMENTOS – CONTRATO/);
+  assert.match(txt(n, "DOSSIÊ IMÓVEL - OBSERVAÇÃO"), /nome do loteamento na certidão/);
   assert.equal(n.pagina.properties["DOSSIÊ"].select, null, "o DOSSIÊ do comprador fica como estava");
   assert.deepEqual(n.pagina.properties["DOSSIÊ - OBSERVAÇÃO DO COMPRADOR"].rich_text, []);
 });

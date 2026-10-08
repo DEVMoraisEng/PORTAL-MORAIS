@@ -302,8 +302,10 @@ function ctrFontes_(col, pageId) {
   } : null;
   var loteamento = ll ? {
     /* município: a coluna do cadastro; sem ela, a CIDADE da obra (DOCUMENTOS) + /GO */
-    denominacao: t(ll, "DENOMINAÇÃO"), municipioUf: t(ll, "MUNICÍPIO/UF") || (obra.cidade ? obra.cidade + "/GO" : ""), matricula: t(ll, "MATRÍCULA DO LOTEAMENTO"),
-    cartorio: t(ll, "CARTÓRIO"), prazoPosseDias: t(ll, "PRAZO POSSE (DIAS)"), prazoChavesDias: t(ll, "PRAZO CHAVES (DIAS ÚTEIS)")
+    /* registro do loteamento: o da CASA (lido da certidão) vale antes do cadastro do setor */
+    denominacao: t(ll, "DENOMINAÇÃO"), municipioUf: t(ll, "MUNICÍPIO/UF") || (obra.cidade ? obra.cidade + "/GO" : ""),
+    matricula: ctrTxt_(cv("CONTRATO - MATRÍCULA DO LOTEAMENTO")) || t(ll, "MATRÍCULA DO LOTEAMENTO"),
+    cartorio: ctrTxt_(cv("CONTRATO - CARTÓRIO DO LOTEAMENTO")) || t(ll, "CARTÓRIO"), prazoPosseDias: t(ll, "PRAZO POSSE (DIAS)"), prazoChavesDias: t(ll, "PRAZO CHAVES (DIAS ÚTEIS)")
   } : null;
   var corretor = lc ? {
     nome: lc.titulo, creci: t(lc, "CRECI"), cpfCnpj: t(lc, "CPF/CNPJ"), nacionalidade: t(lc, "NACIONALIDADE"),
