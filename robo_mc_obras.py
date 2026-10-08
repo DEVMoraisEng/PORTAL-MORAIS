@@ -1071,9 +1071,11 @@ def criar_no_mc(page, o):
                            f"| rede: {rede or '(sem chamadas)'}")
     print(f"  salvou — rede: {rede or '(sem chamadas registradas)'}", flush=True)
     foto(page, "pos_salvar_" + o["titulo"].replace(" ", "_"), sensivel=True)
+    orc_ok = True
     try:
         print(f"  orçamento: {garantir_orcamento(page, o)}", flush=True)
     except Exception as e:
+        orc_ok = False
         print(f"  ! orçamento: {str(e)[:140]}", flush=True)
     if not conta_ok:
         # havia conta pedida (relação CONTA BANCÁRIA ou texto em CONTA) e não
@@ -1081,7 +1083,7 @@ def criar_no_mc(page, o):
         # painel); aviso SEM o nome da conta (repo público).
         print(f"  ! {o['titulo']}: obra criada, mas a conta bancária pedida não foi escolhida — não marco 'Criada'", flush=True)
         return "criada_sem_conta"
-    return "criada"
+    return "criada" if orc_ok else "criada_sem_orcamento"
 
 
 # =====================================================================
@@ -1178,6 +1180,12 @@ def garantir_coluna_data():
 def marcar_conferida(pid):
     agora = datetime.now(timezone.utc).isoformat()
     api("PATCH", f"/pages/{pid}", {"properties": {COL_MC_DATA: {"date": {"start": agora}}}})
+
+
+def marcar_para_rever(pid):
+    """Apaga a data de conferência: a obra volta para a fila na próxima rodada
+    (usado quando o orçamento não pôde ser criado)."""
+    api("PATCH", f"/pages/{pid}", {"properties": {COL_MC_DATA: {"date": None}}})
 
 
 def _dt(s):
@@ -1280,12 +1288,15 @@ def valor_campo(page, sel):
 
 
 def _orcamento_na_conferencia(page, o):
+    """Devolve True se a obra ficou com orçamento (ou é simulação)."""
     try:
         r = garantir_orcamento(page, o)
         if r != "já tinha orçamento":
             print(f"  {o['titulo']}: orçamento {r}", flush=True)
+        return True
     except Exception as e:
         print(f"  ! {o['titulo']}: orçamento: {str(e)[:120]}", flush=True)
+        return False
 
 
 def completar_no_mc(page, o):
@@ -1410,8 +1421,12 @@ def completar_no_mc(page, o):
     if not mudou:
         page.keyboard.press("Escape")
         page.wait_for_timeout(500)
-        _orcamento_na_conferencia(page, o)
-        return "conta não escolhida" if conta_pendente else "nada a completar"
+        orc_ok = _orcamento_na_conferencia(page, o)
+        if conta_pendente:
+            return "conta não escolhida"
+        # 08/10/26: sem orçamento não conta como conferida — a próxima rodada
+        # tenta de novo (antes ficava 7 dias sem olhar).
+        return "nada a completar" if orc_ok else "orçamento pendente"
     print(f"  {o['titulo']}: corrigindo " + " | ".join(mudou), flush=True)
     if not APLICAR:
         page.keyboard.press("Escape")
@@ -1424,11 +1439,13 @@ def completar_no_mc(page, o):
     except Exception:
         foto(page, "erro_completar_" + o["titulo"].replace(" ", "_"), sensivel=True)
         raise RuntimeError("o painel de edição continuou aberto depois de Salvar Obra")
-    _orcamento_na_conferencia(page, o)
+    orc_ok = _orcamento_na_conferencia(page, o)
     # mesmo salvando os outros campos, a conta pedida (e não escolhida) não
     # pode "passar" como conferida — main() só marca conferida para
     # "completada"/"nada a completar", nunca para este status.
-    return "conta não escolhida" if conta_pendente else "completada"
+    if conta_pendente:
+        return "conta não escolhida"
+    return "completada" if orc_ok else "orçamento pendente"
 
 
 def main():
@@ -1476,6 +1493,8 @@ def main():
                         marcar_criada(o["id"])
                         if r in ("completada", "nada a completar"):
                             marcar_conferida(o["id"])
+                        elif r == "orçamento pendente":
+                            marcar_para_rever(o["id"])
                 except Exception as e:
                     print(f"  ! {o['titulo']} (já existe, conferindo conta): {str(e)[:160]}", flush=True)
                     page.keyboard.press("Escape")
@@ -1485,6 +1504,8 @@ def main():
                     print(f"  {o['titulo']}: {r}", flush=True)
                     if r in ("completada", "nada a completar") and APLICAR:
                         marcar_conferida(o["id"])
+                    elif r == "orçamento pendente" and APLICAR:
+                        marcar_para_rever(o["id"])
                 except Exception as e:
                     print(f"  ! {o['titulo']} (completar): {str(e)[:160]}", flush=True)
                     page.keyboard.press("Escape")
@@ -1501,11 +1522,16 @@ def main():
                         print(f"  {o['titulo']} (já existia, conferindo conta): {r2}", flush=True)
                         if r2 == "conta não escolhida":
                             r = "criada_sem_conta"
+                        elif r2 == "orçamento pendente":
+                            r = "ja_existe_sem_orcamento"
                     print(f"  {o['titulo']}: {r}", flush=True)
-                    if r in ("criada", "ja_existe") and APLICAR:
+                    if r in ("criada", "ja_existe", "ja_existe_sem_orcamento", "criada_sem_orcamento") and APLICAR:
                         marcar_criada(o["id"])
                         try:
-                            marcar_conferida(o["id"])
+                            if r in ("ja_existe_sem_orcamento", "criada_sem_orcamento"):
+                                marcar_para_rever(o["id"])
+                            else:
+                                marcar_conferida(o["id"])
                         except Exception:
                             pass
                 except Exception as e:
