@@ -28,8 +28,21 @@ from pathlib import Path
 from playwright.sync_api import TimeoutError as PWTimeout
 
 MC_URL = os.environ.get("MC_URL", "").strip()
-MC_USUARIO = os.environ.get("MC_USUARIO", "").strip()
-MC_SENHA = os.environ.get("MC_SENHA", "")
+
+# Credencial: por padrão MC_USUARIO/MC_SENHA (login que os robôs sempre
+# usaram). Com MC_CRED=robo no step E MC_ROBO_USUARIO/MC_ROBO_SENHA
+# preenchidos, usa essa credencial nova (enxerga mais, ex. todas as contas
+# bancárias); faltando qualquer uma das duas, recua para MC_USUARIO/MC_SENHA
+# — o robô de clientes não seta MC_CRED e nunca sai do login antigo.
+_CRED_ROBO = os.environ.get("MC_CRED", "").strip().lower() == "robo"
+_ROBO_USUARIO = os.environ.get("MC_ROBO_USUARIO", "").strip()
+_ROBO_SENHA = os.environ.get("MC_ROBO_SENHA", "")
+if _CRED_ROBO and _ROBO_USUARIO and _ROBO_SENHA:
+    MC_USUARIO, MC_SENHA = _ROBO_USUARIO, _ROBO_SENHA
+else:
+    MC_USUARIO = os.environ.get("MC_USUARIO", "").strip()
+    MC_SENHA = os.environ.get("MC_SENHA", "")
+
 APLICAR = os.environ.get("APLICAR", "").strip().lower() in ("1", "true", "sim")
 DESCOBRIR = os.environ.get("DESCOBRIR", "").strip().lower() in ("1", "true", "sim")
 

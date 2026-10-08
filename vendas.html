@@ -308,6 +308,55 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 .pdfhead b{font-weight:700;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pdffoot{padding:10px 18px;border-top:1px solid var(--border2);text-align:right}
 
+/* ===== Planilha Casas Condomínio (r67) ===== */
+.cd-bt{border:1.5px solid var(--border);background:var(--sup);color:var(--azul);border-radius:8px;padding:8px 12px;font:inherit;font-weight:700;font-size:13px;cursor:pointer}
+.cd-bt:hover{background:var(--bg3)}
+.cd-bt.pri{background:var(--verde-btn);border-color:var(--verde-btn);color:#1a3347}
+.cd-chk{font-size:12.5px;color:var(--text3);display:flex;align-items:center;gap:5px}
+.cd-dica{font-size:12.5px;color:var(--text3);margin:0 0 10px}
+#cd-wrap table{border-collapse:collapse;font-size:12.5px;min-width:100%}
+#cd-wrap th{position:sticky;top:0;background:var(--azul);color:#fff;padding:8px 10px;text-align:left;white-space:nowrap;font-size:11.5px;z-index:2}
+#cd-wrap td{padding:7px 10px;border-bottom:1px solid var(--border2);white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis}
+#cd-wrap td.ed{background:rgba(41,87,120,.07);cursor:cell}
+#cd-wrap td.ed:hover{background:rgba(41,87,120,.16)}
+#cd-wrap td.un{position:sticky;left:0;background:var(--sup);font-weight:800;color:var(--azul);cursor:pointer;z-index:1}
+#cd-wrap td.un:hover{text-decoration:underline}
+#cd-wrap td.num{text-align:right}
+#cd-wrap td input,#cd-wrap td select{font:inherit;font-size:12.5px;padding:3px 5px;border:1.5px solid var(--verde-btn);border-radius:5px;max-width:170px}
+.cd-tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:800}
+.cd-tag.ok{background:#EAF6EF;color:#1D5433}.cd-tag.pend{background:#FDECEA;color:#8A2E17}
+.cd-ov{position:fixed;inset:0;background:rgba(15,30,45,.55);z-index:60;overflow:auto;padding:24px 12px}
+.cd-cardbox{background:var(--sup);border-radius:14px;max-width:880px;margin:0 auto;padding:20px 22px;box-shadow:0 12px 40px rgba(0,0,0,.35)}
+.cd-cardbox h3{margin:0;font-family:'Barlow Condensed',sans-serif;font-size:24px;color:var(--azul)}
+.cd-cardbox .sub{color:var(--text3);font-size:13px;margin:2px 0 14px}
+.cd-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.cd-kpi{border:1.5px solid var(--border2);border-radius:10px;padding:10px 12px;background:var(--bg2)}
+.cd-kpi small{display:block;font-size:11px;color:var(--text3);font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.cd-kpi b{font-size:19px;color:var(--azul)}
+.cd-kpi span{display:block;font-size:11.5px;color:var(--text3)}
+.cd-ent{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;background:rgba(76,217,100,.08);border:1.5px solid var(--verde-btn);border-radius:10px;padding:12px;margin-bottom:16px}
+.cd-ent label{display:block;font-size:11.5px;font-weight:700;color:var(--text3);margin-bottom:3px}
+.cd-ent input,.cd-ent select{font:inherit;padding:7px 9px;border:1.5px solid var(--border);border-radius:7px;background:var(--sup);color:var(--text)}
+.cd-fl{width:100%;border-collapse:collapse;font-size:13px}
+.cd-fl th{background:var(--azul);color:#fff;padding:7px 10px;text-align:left;font-size:12px}
+.cd-fl td{padding:7px 10px;border-bottom:1px solid var(--border2)}
+.cd-fl td.r{text-align:right;white-space:nowrap}
+.cd-fl tr.tot td{background:#FBEEC8;font-weight:800;color:#7A4A16}
+.cd-fl tr.gr td{background:var(--bg3);font-weight:800;font-size:11.5px;letter-spacing:.06em;color:var(--azul)}
+.cd-abat{margin:0 0 14px;padding:12px 14px;border:1.5px solid var(--border2);border-radius:10px;background:var(--bg2)}
+.cd-abat .cd-fl td.neg{color:#8A2E17}
+.cd-abat p{margin:8px 0 0;font-size:12.5px;color:var(--text3)}
+.cd-aviso{margin-top:10px;padding:9px 12px;background:#FBEEC8;border-left:3px solid #EFB700;font-size:12.5px;color:#7A4A16;border-radius:0 6px 6px 0}
+.cd-and{margin:0 0 16px;border:1.5px solid var(--azul,#2B5A7A);border-radius:10px;padding:12px}
+.cd-and h4{margin:0 0 10px;font-size:13px;color:var(--azul,#2B5A7A);letter-spacing:.3px}
+.cd-and .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.cd-and label{display:block;font-size:11px;font-weight:700;color:var(--text3,#5b6b78);margin-bottom:3px;text-transform:uppercase}
+.cd-and select,.cd-and input{width:100%;box-sizing:border-box}
+.cd-and .st{font-size:11px;margin-top:2px;min-height:14px}
+.cd-prog{margin-top:8px;font-size:12.5px;color:var(--azul,#2B5A7A)}
+.cd-prog .barra{height:6px;border-radius:4px;background:rgba(43,90,122,.15);overflow:hidden;margin-top:4px}
+.cd-prog .barra i{display:block;height:100%;width:0;background:var(--verde-btn,#4CD964);transition:width .4s}
+.cd-falta{margin-top:8px;padding:9px 12px;background:#FDECEA;border-left:3px solid #C0392B;font-size:12.5px;color:#8A2E17;border-radius:0 6px 6px 0}
 /* ===== Painel Casas Vendidas (era casas-vendidas.html) — escopado em #st-vendidas ===== */
 #st-vendidas *, #st-vendidas *::before, #st-vendidas *::after{box-sizing:border-box;margin:0;padding:0}
 #st-vendidas{
@@ -824,7 +873,8 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
         <button class="tab on" data-t="atividades" onclick="abaSetor('atividades')">Atividades</button>
         <button class="tab" data-t="alertas" onclick="abaSetor('alertas')">Alertas</button>
         <button class="tab" data-t="atrasados" onclick="abaSetor('atrasados')">Situação do Processo</button>
-        <button class="tab" data-t="planilha" onclick="abaSetor('planilha')">Planilha</button>
+        <button class="tab" data-t="planilha" onclick="abaSetor('planilha')">Planilha Casas de Rua</button>
+        <button class="tab" data-t="condominio" onclick="abaSetor('condominio')">Planilha Casas Condomínio</button>
         <button class="tab" data-t="modelo" onclick="abaSetor('modelo')">Casas Modelo</button>
         <button class="tab" data-t="estoque" onclick="abaSetor('estoque')">Estoque de Casas</button>
         <button class="tab" data-t="vendidas" onclick="abaSetor('vendidas')">Casas Vendidas</button>
@@ -866,6 +916,28 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
         <div class="scroll-top" id="set-stop"><div></div></div>
         <div class="tabela-wrap" id="set-wrap"><div class="vazio">Carregando…</div></div>
       </div>
+
+      <!-- PLANILHA CASAS CONDOMÍNIO (r67): BANCO DE DADOS VENDAS CONDOMÍNIO, lido ao vivo do Notion -->
+      <div id="st-condominio" style="display:none">
+        <div class="toolbar">
+          <input class="busca" type="search" id="cd-busca" placeholder="Buscar unidade, proponente, corretor…" oninput="condRender()" autocomplete="off">
+          <select id="cd-cond" onchange="try{localStorage.setItem('cd_cond',this.value)}catch(e){};condRender()" title="Condomínio">
+            <option value="">Todos os condomínios</option>
+          </select>
+          <select id="cd-status" onchange="condRender()">
+            <option value="">Todos os cadastros</option>
+            <option value="INCOMPLETO">Cadastro incompleto</option>
+            <option value="COMPLETO">Cadastro completo</option>
+          </select>
+          <label class="cd-chk"><input type="checkbox" id="cd-todas" checked onchange="try{localStorage.setItem('cd_todas',this.checked?'1':'0')}catch(e){};condRender()"> Todas as colunas</label>
+          <button class="cd-bt" onclick="condCarregar(true)">↻ Atualizar</button>
+          <span class="count" id="cd-count"></span>
+        </div>
+        <div class="cd-dica">Clique no número da <b>unidade</b> para abrir o card com o fluxo de pagamento. Clique numa célula com fundo azulado para editar.
+          Ao preencher a <b>data de assinatura</b>, o <b>dia de pagamento</b> ou a <b>data da entrega</b>, as datas, o nº de parcelas e os valores do fluxo são recalculados.</div>
+        <div class="tabela-wrap" id="cd-wrap"><div class="vazio">Carregando…</div></div>
+      </div>
+      <div id="cd-card" class="cd-ov" style="display:none" onclick="if(event.target===this)condFechar()"></div>
 
       <!-- CASAS VENDIDAS: página própria (casas-vendidas.html) em iframe.
            Em iframe de propósito: ela traz CSS e canvas próprios, e embutir
@@ -996,7 +1068,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 
   <div class="toast" id="toast"></div>
 
-<script src="app.js?v=28"></script>
+<script src="app.js?v=43"></script>
 <script src="venda-dossie.js?v=2"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele.
@@ -1061,7 +1133,7 @@ const SETORES_AREA=[
    Chaves: atividades | alertas | atrasados (Situação do Processo) | planilha |
    modelo (Casas Modelo) | estoque (Estoque de Casas). */
 const ABAS_SETOR={
-  "Secretária de Vendas":  ["atividades","alertas","atrasados","planilha","modelo"],
+  "Secretária de Vendas":  ["atividades","alertas","atrasados","planilha","condominio","modelo"],
   // Gestor de Vendas: sem alerta e sem atividade — a página dele é dado de venda
   "Gestor de Vendas":      ["vendidas","estoque","planilha","modelo"],  // vendidas primeiro
   "Departamento de Projetos":["atividades","alertas","planilha","modelo"],
@@ -1158,7 +1230,11 @@ function ocultoNoSetor(nome, ondeEstou){
   const cfg=CAMPOS_OCULTOS_SETOR[SETOR_ATUAL]; if(!cfg) return false;
   const n=normNome(nome);
   if(cfg.blocoReparo && BLOCO_REPARO.test(n)) return true;
-  return (cfg.campos||[]).some(f=>new RegExp("\\b"+normNome(f).replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\b").test(n));
+  /* 01/10/26 — NOME EXATO, não palavra solta. Com "palavra inteira", o "CASA" da lista
+     derrubava também "ENTEGOU A CASA E PEGOU TERMO DE ENTREGA?" e "CASA APTA PARA A
+     VISTORIA": a Secretária não via o campo da entrega (nem na planilha, nem no painel)
+     e a atividade VERIFICAÇÃO DE ENTREGA só podia ser resolvida pela baixa. */
+  return (cfg.campos||[]).some(f=>n===normNome(f));
 }
 function nomeExcluido(nome, ondeEstou){ const n=normNome(nome); if(CAMPOS_EXCLUIDOS.indexOf(n)>=0) return true; if(ocultoNoSetor(nome, ondeEstou)) return true; return /\bAUTO\b|ALERTA|ELERTA/.test(n); } // item 9: nada com AUTO/ALERTA entra na planilha/obra
 
@@ -1169,7 +1245,7 @@ const ORDEM_PREFIXOS=[
   "DATA DE ENVIO","MANDOU P/ CO","PROCESSO CON","ASSINOU E ARM","DATA DE ASSINA","VALOR DA PARCE","TEVE FGTS","VALOR DO FGTS","VALOR DA REN","RENDA",
   "TEM PROTOCOL","PROTOCOLO DE","TEM PROTOCOL","PROTOCOLO DE","RECEBEU TAXA VI","AGENCIA","TEM NUMERO DE","CADASTR",
   "ITBI GERADO","ITBI PAGO","DEU ENTRADA","FICOU PRONTO","DEVOLVEU NO B","RECEBEU?","CASA APTA","AGENDOU PRE VI","DATA DA PRE-VIS",
-  "TEM MANUAL DE","AGUA TRANSFER","ENERGIA TRANSF","ENTEGOU A CAS","DATA DA ENTREGA","PREENCHEU A PE","GEROU E ARMAZ",
+  "TEM MANUAL DE","AGUA TRANSFER","ENERGIA TRANSF","ENTREGOU A CAS","ENTEGOU A CAS","DATA DA ENTREGA","PREENCHEU A PE","GEROU E ARMAZ",
   "PAGOU GCAP","REPAROS PRE VIS","ANEXAR AQUIVO","ANALISE DE REPA","TITULARIDADES","SITUACAO","REF","CIDADE","SETOR",
   /* RESERVADA (nova coluna do BANCO DE DADOS VENDAS) fica logo depois de
      MODELO?, como pedido para a Secretária de Vendas. Como a ordem geral é por
@@ -1250,6 +1326,7 @@ function ehMarcador(c){ return (c.tipo==="select"||c.tipo==="status") && Array.i
    ÁGIO aprovam — NÃO e qualquer outro valor reprovam. Se quiser mudar isso
    (por ex. vazio passar a reprovar), me avisa que ajusto. */
 const PROCESSO_COMPLETO_COLS=[
+  "ENTREGOU A CASA E PEGOU TERMO DE ENTREGA?",   // 01/10: nome corrigido no Notion (era ENTEGOU)
   "ENTEGOU A CASA E PEGOU TERMO DE ENTREGA?",
   "ARMAZENOU CONTRATO COMPRA E VENDA?",
   "EMITIU RCPM?",
@@ -1358,7 +1435,11 @@ function atividadeRealmenteAberta(a){
   if(!a.coluna || !a.obraId) return true; // sem como conferir contra a obra, mantém como veio do servidor
   const vd=vendaPorId(a.obraId); if(!vd) return true; // planilha ainda não carregou — não filtra por engano
   const c=campoPorNome(a.coluna); if(!c) return true;
-  return normNome(getV(vd.valores,c.nome))!=="SIM";
+  /* 05/10/26: aberta = coluna da obra VAZIA ou NÃO. SIM, INEXISTE ou qualquer
+     outro valor fecha — mesma regra do servidor (Alertas.gs) e de Documentos. */
+  const v=getV(vd.valores,c.nome);
+  const n=normNome(Array.isArray(v)?v.join(", "):(v===true?"SIM":v));
+  return !n || n==="NAO" || n==="NO" || n==="FALSE";
 }
 function atividadesDoSetor(nome){
   const info=SETORES_AREA.find(s=>s.nome===nome);
@@ -1440,7 +1521,7 @@ function abrirSetor(nome){
 }
 function abaSetor(t){
   document.querySelectorAll("#view-setor .tab").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
-  ["atividades","alertas","atrasados","planilha","modelo","estoque","vendidas"].forEach(x=>{
+  ["atividades","alertas","atrasados","planilha","condominio","modelo","estoque","vendidas"].forEach(x=>{
     const el=document.getElementById("st-"+x); if(el) el.style.display = x===t?"block":"none";
   });
   /* CORREÇÃO (set/26) — PLANILHA FICAVA COM AS COLUNAS DO SETOR ANTERIOR:
@@ -1452,11 +1533,438 @@ function abaSetor(t){
      aberto. Agora também recarrega quando o setor da vez é diferente do que
      está desenhado (PLANILHA_SETOR). */
   if(t==="planilha" && (!DADOS.set.length || PLANILHA_SETOR!==SETOR_ATUAL)) carregarPlanilha("set");
+  if(t==="condominio") abrirCondominio();
   if(t==="alertas") renderAlertas();
   if(t==="atrasados") renderAtrasados();
   if(t==="modelo") abrirCasasModelo();
   if(t==="estoque"){ if(DOCS_OK) renderEstoque(); else carregarDocumentos().then(renderEstoque); }
   if(t==="vendidas") abrirVendidas();
+}
+
+/* =====================================================================
+   PLANILHA CASAS CONDOMÍNIO (r67) — BANCO DE DADOS VENDAS CONDOMÍNIO
+   Lê e grava ao vivo no Notion (pelo Apps Script do portal). Ao mudar a
+   DATA DE ASSINATURA, o DIA PAGAMENTO PARCELAS ou a DATA DA ENTREGA, o
+   servidor recalcula datas, nº de parcelas e valores do fluxo e devolve a
+   linha atualizada.
+   ===================================================================== */
+let COND=null, COND_ABERTA=null, COND_CARREGANDO=false;
+const CD_PADRAO=["UNIDADE","CONDOMÍNIO","PROPONENTE","CORRETOR","CPF CORRETOR","STATUS DO CADASTRO","DATA DA VENDA","VALOR DE VENDA","COMISSÃO",
+  "VALOR DO CRÉDITO","VALOR DA PARCELA","DATA DE ASSINATURA DO CONTRATO","DIA PAGAMENTO PARCELAS","DATA DA ENTREGA",
+  "DATA SINAL 30 DIAS","DATA SINAL 60 DIAS","DATA SINAL 90 DIAS",
+  "DATA 1º PARTE PRÉ CHAVES","Nº PARCELAS 1º PARTE PRÉ CHAVES","VALOR 1º PARTE PRÉ CHAVES",
+  "DATA 2º PARTE PRÉ CHAVES","Nº PARCELAS 2º PARTE PRÉ CHAVES","VALOR 2º PARTE PRÉ CHAVES",
+  "DATA 1º BALÃO (12/27)","VALOR 1º BALÃO","DATA 2º BALÃO (25º PARCELA)","VALOR BALÃO ENTREGA DE CHAVES",
+  "DATA PÓS CHAVES","Nº PARCELAS PÓS CHAVES","VALOR PÓS CHAVES","PENDÊNCIAS"];
+const CD_GATILHOS=["DATA DE ASSINATURA DO CONTRATO","DIA PAGAMENTO PARCELAS","DATA DA ENTREGA"];
+const CD_SO_LEITURA=["files","formula","rollup","relation","created_time","last_edited_time","created_by","last_edited_by","people","multi_select","title"];
+const cdNorm=t=>String(t==null?"":t).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/\s+/g," ").trim();
+const cdBRL=v=>(v==null||v===""||isNaN(v))?"—":"R$ "+Number(v).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+const cdDia=iso=>{ if(!iso) return "—"; const p=String(iso).slice(0,10).split("-"); return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:String(iso); };
+function cdCampoTipo(nome){ const c=(COND&&COND.colunas||[]).find(x=>x.nome===nome); return c?c.tipo:""; }
+function cdEhMoeda(nome,tipo){ return tipo==="number" && /VALOR|COMISS|FGTS|PARCELA|AVALIA|SUBIS|CR[EÉ]DITO/i.test(nome) && !/^N[ºO°]/i.test(nome) && !/PERCENTUAL|DIA /i.test(nome); }
+function cdEditavel(c){ return c && CD_SO_LEITURA.indexOf(c.tipo)<0; }
+/* 30/09: acha a coluna mesmo com espaço/acento diferente no nome (era por isso
+   que "Sinal 60 dias", "Sinal 90 dias" e as datas do pós-chaves saíam em branco
+   no card, mesmo gravados no Notion) */
+const cdNormK=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/\s+/g," ").trim();
+function cdVal(l,nome){
+  if(!l||!l.v) return null;
+  let v=l.v[nome];
+  if(v===undefined){ const a=cdNormK(nome); const k=Object.keys(l.v).find(x=>cdNormK(x)===a); v=k===undefined?undefined:l.v[k]; }
+  return v===undefined?null:v;
+}
+/* soma n meses a uma data ISO e coloca no dia escolhido (dia 31 em mês curto = último dia) */
+function cdAddMes(iso,n,dia){
+  const p=String(iso||"").slice(0,10).split("-").map(Number); if(p.length!==3||!p[0]) return "";
+  const t=p[0]*12+(p[1]-1)+n, y=Math.floor(t/12), m=(t%12)+1;
+  const ult=new Date(y,m,0).getDate(), d=Math.min(dia||p[2],ult);
+  return y+"-"+String(m).padStart(2,"0")+"-"+String(d).padStart(2,"0");
+}
+
+async function abrirCondominio(){ if(!COND) await condCarregar(false); else condRender(); }
+async function condCarregar(forcar){
+  if(COND_CARREGANDO) return; COND_CARREGANDO=true;
+  const wrap=document.getElementById("cd-wrap");
+  if(!COND||forcar) wrap.innerHTML='<div class="vazio"><span class="load"></span> Carregando o banco de vendas do condomínio…</div>';
+  let r=null;
+  try{ r=await chamar({action:"simsVendasCond"},70000); }catch(e){ r=null; }
+  COND_CARREGANDO=false;
+  if(!r||!r.ok){
+    wrap.innerHTML='<div class="vazio">Não consegui carregar: '+esc((r&&(r.mensagem||r.erro))||"sem resposta do servidor")+
+      '<br><button class="cd-bt" style="margin-top:8px" onclick="condCarregar(true)">↻ Tentar de novo</button></div>';
+    return;
+  }
+  COND=r; condOpcoesCond(); condRender();
+}
+/* 30/09 — filtro por CONDOMÍNIO (hoje só o Reserva dos Ipês; entra sozinho quem vier) */
+function condOpcoesCond(){
+  const sel=document.getElementById("cd-cond"); if(!sel||!COND) return;
+  try{ const t=localStorage.getItem("cd_todas"); const ck=document.getElementById("cd-todas"); if(ck&&t!==null) ck.checked=(t==="1"); }catch(e){}
+  let guardado=""; try{ guardado=localStorage.getItem("cd_cond")||""; }catch(e){}
+  const atual=sel.value||guardado;
+  const nomes=[...new Set(COND.linhas.map(l=>String(cdVal(l,"CONDOMÍNIO")||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+  const semCond=COND.linhas.some(l=>!String(cdVal(l,"CONDOMÍNIO")||"").trim());
+  sel.innerHTML='<option value="">Todos os condomínios</option>'+nomes.map(n=>'<option value="'+esc(n)+'">'+esc(n)+'</option>').join("")+
+    (semCond?'<option value="__sem__">(sem condomínio)</option>':'');
+  sel.value=[...sel.options].some(o=>o.value===atual)?atual:"";
+}
+/* 01/10 (r71) — mesma ordem da Planilha Casas de Rua, com as colunas que existirem no banco do
+   condomínio (inclusive as de preenchimento: SIM/NÃO e datas — MANDOU P/ CONFORMIDADE, ASSINOU E
+   ARMAZENOU CONTRATO, DATA DE ASSINATURA, TEM PROTOCOLO…). Depois entram as colunas próprias do
+   condomínio (fluxo de pagamento) e, com "todas as colunas", o resto. */
+const CD_ALIAS_RUA={"ENDERECO":"__TITULO__","CLIENTES":"PROPONENTE","CPF":"CPF PROPONENTE",
+  "VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)":"VALOR DE VENDA","EMAIL":"EMAIL"};
+function cdOrdemRua(){
+  let nomes=[];
+  if(typeof SCHEMA!=="undefined" && SCHEMA && SCHEMA.length){
+    const base=SCHEMA.filter(c=>c.tipo!=="rollup"&&c.tipo!=="relation"&&c.tipo!=="files"&&c.nome!=="ENDEREÇO"&&
+      RESUMO_NORM.indexOf(normNome(c.nome))<0&&!/\bAUTO\b|ALERTA|ELERTA/.test(normNome(c.nome)));
+    nomes=["ENDEREÇO",...RESUMO,...ordenarPorPrefixo(base).map(c=>c.nome)];
+  } else {
+    nomes=["ENDEREÇO",...RESUMO,...ORDEM_PREFIXOS];            // planilha de rua ainda não carregou: usa a ordem pedida
+  }
+  return nomes;
+}
+function cdAchaColuna(nomeRua, usados){
+  const alvo=cdNorm(nomeRua), alias=CD_ALIAS_RUA[alvo];
+  if(alias==="__TITULO__") return null;
+  const cands=COND.colunas.filter(c=>c.tipo!=="files"&&c.nome!==COND.titulo&&!usados.has(c.nome));
+  const a2=alias?cdNorm(alias):alvo;
+  let c=cands.find(x=>cdNorm(x.nome)===a2);
+  if(!c && a2.length>=8) c=cands.find(x=>{ const n=cdNorm(x.nome); return n.indexOf(a2)===0 || (n.length>=8 && a2.indexOf(n)===0); });
+  return c||null;
+}
+function condColunas(){
+  if(!COND) return [];
+  const todas=document.getElementById("cd-todas").checked;
+  const mapa={}; COND.colunas.forEach(c=>{ mapa[cdNorm(c.nome)]=c; });
+  const tit=COND.titulo, usados=new Set([tit]), out=[mapa[cdNorm(tit)]];
+  cdOrdemRua().forEach(n=>{ const c=cdAchaColuna(n,usados); if(c){ usados.add(c.nome); out.push(c); } });
+  CD_PADRAO.forEach(n=>{ const c=mapa[cdNorm(n)]; if(c&&!usados.has(c.nome)){ usados.add(c.nome); out.push(c); } });
+  if(todas) COND.colunas.forEach(c=>{ if(c.tipo!=="files"&&!usados.has(c.nome)){ usados.add(c.nome); out.push(c); } });
+  return out.filter(Boolean);
+}
+function condRender(){
+  if(!COND) return;
+  const cols=condColunas(), termo=cdNorm(document.getElementById("cd-busca").value), st=document.getElementById("cd-status").value;
+  const tit=COND.titulo;
+  const cf=(document.getElementById("cd-cond")||{}).value||"";
+  const linhas=COND.linhas.filter(l=>{
+    const cn=String(cdVal(l,"CONDOMÍNIO")||"").trim();
+    if(cf==="__sem__"&&cn) return false;
+    if(cf&&cf!=="__sem__"&&cdNorm(cn)!==cdNorm(cf)) return false;
+    if(st && String(cdVal(l,"STATUS DO CADASTRO")||"").toUpperCase()!==st) return false;
+    if(!termo) return true;
+    return cdNorm([cdVal(l,tit),cdVal(l,"PROPONENTE"),cdVal(l,"CORRETOR"),cdVal(l,"IMOBILIÁRIA"),cdVal(l,"PROPOSTA")].join(" ")).indexOf(termo)>=0;
+  }).sort((a,b)=>String(cdVal(a,tit)||"").localeCompare(String(cdVal(b,tit)||""),"pt-BR",{numeric:true}));
+  document.getElementById("cd-count").textContent=linhas.length+" unidade(s)";
+  if(!COND.linhas.length){ document.getElementById("cd-wrap").innerHTML='<div class="vazio">Nenhuma venda no banco ainda. Marque uma proposta como <b>VENDIDA</b> em Simulações → Propostas para ela aparecer aqui.</div>'; return; }
+  let h='<table><thead><tr>'+cols.map(c=>'<th>'+esc(c.nome)+'</th>').join("")+'</tr></thead><tbody>';
+  linhas.forEach(l=>{
+    h+='<tr data-id="'+esc(l.id)+'">'+cols.map((c,i)=>{
+      const v=cdVal(l,c.nome), ed=cdEditavel(c)&&i>0;
+      if(i===0) return '<td class="un" onclick="condAbrir(\''+esc(l.id)+'\')">'+esc(v||"(sem unidade)")+'</td>';
+      let txt="";
+      if(v==null||v==="") txt="";
+      else if(c.tipo==="date") txt=cdDia(v);
+      else if(c.tipo==="number") txt=cdEhMoeda(c.nome,c.tipo)?cdBRL(v):String(v).replace(".",",");
+      else if(c.tipo==="checkbox") txt=v?"SIM":"NÃO";
+      else txt=String(v);
+      if(c.nome==="STATUS DO CADASTRO" && txt) return '<td><span class="cd-tag '+(txt==="COMPLETO"?"ok":"pend")+'">'+esc(txt)+'</span></td>';
+      const cls=(ed?"ed":"")+(c.tipo==="number"?" num":"");
+      return '<td class="'+cls.trim()+'"'+(ed?' data-col="'+esc(c.nome)+'" data-tipo="'+c.tipo+'" onclick="condEditar(this)"':'')+' title="'+esc(txt)+'">'+esc(txt)+'</td>';
+    }).join("")+'</tr>';
+  });
+  document.getElementById("cd-wrap").innerHTML=h+'</tbody></table>';
+}
+
+/* ---- edição de célula ---- */
+function condEditar(td){
+  if(td.querySelector("input,select")) return;
+  const id=td.parentElement.dataset.id, col=td.dataset.col, tipo=td.dataset.tipo;
+  const l=COND.linhas.find(x=>x.id===id); const atual=cdVal(l,col);
+  let campo;
+  if(col==="DIA PAGAMENTO PARCELAS"){
+    campo=document.createElement("select");
+    campo.innerHTML='<option value="">—</option>'+Array.from({length:27},(_,i)=>'<option value="'+(i+5)+'"'+(String(atual)===String(i+5)?" selected":"")+'>Dia '+(i+5)+'</option>').join("");
+  } else if(tipo==="select"||tipo==="status"){
+    campo=document.createElement("select");
+    /* r71 — opções vêm do Notion (servidor); coluna vazia de SIM/NÃO também tem o que escolher */
+    const def=(COND.colunas||[]).find(x=>x.nome===col)||{};
+    let ops=(def.opcoes&&def.opcoes.length)?def.opcoes.slice():[...new Set(COND.linhas.map(x=>cdVal(x,col)).filter(Boolean))];
+    if(!ops.length && /\?\s*$/.test(col)) ops=["SIM","NÃO"];
+    campo.innerHTML='<option value="">—</option>'+ops.map(o=>'<option'+(o===atual?" selected":"")+'>'+esc(o)+'</option>').join("");
+  } else {
+    campo=document.createElement("input");
+    campo.type = tipo==="date"?"date":(tipo==="number"?"text":(tipo==="email"?"email":"text"));
+    campo.value = atual==null?"":(tipo==="date"?String(atual).slice(0,10):String(atual).replace(".",","));
+    if(tipo==="checkbox"){ campo.value=atual?"SIM":"NÃO"; }
+  }
+  td.textContent=""; td.appendChild(campo); campo.focus();
+  let feito=false;
+  const fim=async(salvar)=>{
+    if(feito) return; feito=true;
+    if(!salvar){ condRender(); return; }
+    let novo=campo.value; if(novo===(atual==null?"":String(atual).slice(0,10)) || novo===String(atual==null?"":atual)){ condRender(); return; }
+    await condSalvar(id,col,novo);
+  };
+  campo.addEventListener("keydown",e=>{ if(e.key==="Enter") fim(true); else if(e.key==="Escape") fim(false); });
+  campo.addEventListener("blur",()=>fim(true));
+  campo.addEventListener("change",()=>{ if(campo.tagName==="SELECT"||campo.type==="date") fim(true); });
+}
+async function condSalvar(id,prop,valor){
+  toast("Salvando "+prop+"…");
+  let r=null;
+  try{ r=await chamar({action:"simsVendaSalvar",pageId:id,prop:prop,valor:valor},70000); }catch(e){ r=null; }
+  if(!r||!r.ok){ toast("Não salvou: "+((r&&(r.mensagem||r.erro))||"sem resposta")); condRender(); return false; }
+  if(r.linha){ const i=COND.linhas.findIndex(x=>x.id===id); if(i>=0) COND.linhas[i]=r.linha; }
+  if(r.aviso) toast(r.aviso); else if(r.calculo) toast("Salvo — fluxo recalculado."+(r.calculo.avisos&&r.calculo.avisos.length?" "+r.calculo.avisos[0]:"")); else toast("Salvo.");
+  condRender(); if(COND_ABERTA===id) condAbrir(id);
+  return true;
+}
+
+/* ---- card da unidade ---- */
+function condFechar(){ COND_ABERTA=null; if(window.VendaBlocos) VendaBlocos.soltar(); const c=document.getElementById("cd-card"); c.style.display="none"; c.innerHTML=""; }
+function condFluxo(l){
+  const g=n=>cdVal(l,n), dia=Number(g("DIA PAGAMENTO PARCELAS"))||0;
+  const L=[]; let total=0;
+  const add=(rot,qtd,val,quando)=>{ if(val==null||val===""||!Number(val)) return;   /* 07/10: parcela zerada no recálculo (assinatura tardia) some do quadro */ const sub=(qtd||1)*Number(val); total+=sub; L.push({rot,qtd:qtd||1,val:Number(val),sub,quando}); };
+  const dt=(n)=>cdDia(g(n));
+  L.push({grupo:"SINAL"});
+  add("Sinal — ato da assinatura",1,g("VALOR SINAL ATO"),g("DATA DE ASSINATURA DO CONTRATO")?cdDia(g("DATA DE ASSINATURA DO CONTRATO")):"na assinatura");
+  add("Sinal 30 dias",1,g("VALOR SINAL 30 DIAS"),dt("DATA SINAL 30 DIAS"));
+  add("Sinal 60 dias",1,g("VALOR SINAL 60 DIAS"),dt("DATA SINAL 60 DIAS"));
+  add("Sinal 90 dias",1,g("VALOR SINAL 90 DIAS"),dt("DATA SINAL 90 DIAS"));
+  L.push({grupo:"PARCELAS PRÉ-CHAVES"});
+  const n1=Number(g("Nº PARCELAS 1º PARTE PRÉ CHAVES"))||0, d1=g("DATA 1º PARTE PRÉ CHAVES");
+  add("1ª parte pré-chaves",n1,g("VALOR 1º PARTE PRÉ CHAVES"), d1?dt("DATA 1º PARTE PRÉ CHAVES")+" a "+cdDia(cdAddMes(d1,n1-1,dia)):"—");
+  const n2=Number(g("Nº PARCELAS 2º PARTE PRÉ CHAVES"))||0, d2=g("DATA 2º PARTE PRÉ CHAVES");
+  add("2ª parte pré-chaves",n2,g("VALOR 2º PARTE PRÉ CHAVES"), d2?dt("DATA 2º PARTE PRÉ CHAVES")+" a "+cdDia(cdAddMes(d2,n2-1,dia)):"—");
+  L.push({grupo:"BALÕES"});
+  add("Balão dez/2027",1,g("VALOR 1º BALÃO"),dt("DATA 1º BALÃO (12/27)"));
+  add("Balão da entrega (25ª parcela)",1,g("VALOR BALÃO ENTREGA DE CHAVES"),dt("DATA 2º BALÃO (25º PARCELA)"));
+  L.push({grupo:"PÓS-CHAVES"});
+  const nP=Number(g("Nº PARCELAS PÓS CHAVES"))||0, dP=g("DATA PÓS CHAVES");
+  add("Pós-chaves",nP,g("VALOR PÓS CHAVES"), dP?dt("DATA PÓS CHAVES")+" a "+cdDia(cdAddMes(dP,nP-1,dia)):"—");
+  return {L,total};
+}
+/* procura, nas colunas da linha, a primeira numérica cujo nome bate (sem acento) e não cai na exclusão */
+function cdAchaNum(l,re,excl){
+  if(!l||!l.v) return null;
+  for(const k of Object.keys(l.v)){
+    const n=cdNorm(k); if(!re.test(n)||(excl&&excl.test(n))) continue;
+    const v=l.v[k]; if(v===null||v===undefined||v==="") continue;
+    const num=typeof v==="number"?v:Number(String(v).replace(/[^\d,.-]/g,"").replace(/\./g,"").replace(",","."));
+    if(!isNaN(num)) return num;
+  }
+  return null;
+}
+/* 30/09 — mostra de onde sai o pro soluto: valor de venda − crédito = entrada; FGTS e subsídio abatem a entrada */
+function condAbatimentos(l,totalFluxo){
+  const g=n=>cdVal(l,n);
+  const venda=Number(g("VALOR DE VENDA"))||null, cred=Number(g("VALOR DO CRÉDITO"))||null;
+  const fgts=cdAchaNum(l,/FGTS/,/TEVE|DOC|EXTRATO|ANOS|SALDO|N[ºO°] /);
+  const sub=cdAchaNum(l,/SUBSIDIO/,/DOC|N[ºO°] /);
+  const entr=cdAchaNum(l,/ENTRADA/,/PRAZO|DATA|DOC|N[ºO°] /);
+  const entradaCalc=(venda!=null&&cred!=null)?venda-cred:null;
+  const entrada=entr!=null?entr:entradaCalc;
+  if(venda==null&&fgts==null&&sub==null&&entrada==null) return "";
+  const linha=(rot,val,neg)=>val==null?"":'<tr><td>'+rot+'</td><td class="r'+(neg?" neg":"")+'">'+(neg?"− ":"")+cdBRL(Math.abs(val))+'</td></tr>';
+  const abat=(fgts||0)+(sub||0);
+  const esperado=entrada!=null?Math.max(entrada-abat,0):null;
+  let h='<div class="cd-abat"><b style="color:var(--azul);font-size:14px">COMO SE CHEGA NO PRO SOLUTO</b>'+
+    '<table class="cd-fl" style="margin-top:6px"><tbody>'+
+    linha("Valor de venda",venda)+
+    linha("Crédito aprovado (financiamento)",cred,true)+
+    (entr!=null?linha("Entrada (valor para entrada informado)",entr):linha("Entrada (valor de venda − crédito)",entradaCalc))+
+    linha("FGTS usado na entrada",fgts,true)+
+    linha("Subsídio usado na entrada",sub,true)+
+    '</tbody></table>';
+  if(abat>0 && esperado!=null){
+    h+='<p>O <b>FGTS</b> e o <b>subsídio</b> abatem a entrada (nunca o sinal de R$ 10.000,00). Por isso o pro soluto fica menor: entrada '+cdBRL(entrada)+
+       ' − '+cdBRL(abat)+' = <b>'+cdBRL(esperado)+'</b>'+(Math.abs(esperado-totalFluxo)>1?' (o fluxo abaixo soma '+cdBRL(totalFluxo)+').':'.')+'</p>';
+  } else if(entrada!=null){
+    h+='<p>Sem FGTS nem subsídio informados: o pro soluto é a entrada inteira.</p>';
+  }
+  return h+'</div>';
+}
+function condAbrir(id){
+  const l=COND.linhas.find(x=>x.id===id); if(!l) return;
+  COND_ABERTA=id;
+  const g=n=>cdVal(l,n), fx=condFluxo(l), tit=COND.titulo;
+  const ass=g("DATA DE ASSINATURA DO CONTRATO"), dia=g("DIA PAGAMENTO PARCELAS"), ent=g("DATA DA ENTREGA");
+  const pct=Number(g("PERCENTUAL COMISSÃO"));
+  const pctTxt=pct?((pct<1?pct*100:pct).toLocaleString("pt-BR",{maximumFractionDigits:2})+"%"):"";
+  const falta=[]; if(!ass) falta.push("data de assinatura do contrato"); if(!dia) falta.push("dia de pagamento (o cliente escolhe)"); if(!ent) falta.push("data da entrega (para as parcelas pós-chaves)");
+  const linhasH=fx.L.map(x=>x.grupo?'<tr class="gr"><td colspan="4">'+x.grupo+'</td></tr>'
+    :'<tr><td>'+esc(x.rot)+'</td><td class="r">'+(x.qtd>1?x.qtd+" × ":"")+cdBRL(x.val)+'</td><td>'+esc(x.quando||"—")+'</td><td class="r">'+cdBRL(x.sub)+'</td></tr>').join("");
+  document.getElementById("cd-card").innerHTML='<div class="cd-cardbox">'+
+    '<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div>'+
+    '<h3>Unidade '+esc(g(tit)||"")+(g("CONDOMÍNIO")?' · '+esc(g("CONDOMÍNIO")):'')+'</h3><div class="sub">'+esc(g("PROPONENTE")||"—")+' · Proposta '+esc(g("PROPOSTA")||"—")+' · Corretor: '+esc(g("CORRETOR")||"—")+(g("CPF CORRETOR")?' · CPF '+esc(g("CPF CORRETOR")):'')+'</div></div>'+
+    '<button class="cd-bt" onclick="condFechar()">✕ Fechar</button></div>'+
+    '<div class="cd-kpis">'+
+      '<div class="cd-kpi"><small>Valor de venda</small><b>'+cdBRL(g("VALOR DE VENDA"))+'</b></div>'+
+      '<div class="cd-kpi"><small>Comissão</small><b>'+cdBRL(g("COMISSÃO"))+'</b>'+(pctTxt?'<span>'+pctTxt+(g("PRAZO ENTRADA")?' · prazo '+g("PRAZO ENTRADA")+' meses':'')+'</span>':'')+'</div>'+
+    '</div>'+
+    '<div class="cd-ent">'+
+      '<div><label>Data de assinatura do contrato</label><input type="date" id="cd-ass" value="'+esc(ass?String(ass).slice(0,10):"")+'"></div>'+
+      '<div><label>Dia de pagamento (cliente escolhe)</label><select id="cd-dia"><option value="">—</option>'+Array.from({length:27},(_,i)=>'<option value="'+(i+5)+'"'+(String(dia)===String(i+5)?" selected":"")+'>Dia '+(i+5)+'</option>').join("")+'</select></div>'+
+      '<div><label>Data da entrega</label><input type="date" id="cd-ent" value="'+esc(ent?String(ent).slice(0,10):"")+'"></div>'+
+      '<button class="cd-bt pri" id="cd-calc" onclick="condCalcular(\''+esc(id)+'\')">Salvar e recalcular o fluxo</button>'+
+      '<div class="cd-prog" id="cd-prog" style="display:none;flex-basis:100%"></div>'+
+    '</div>'+
+    condAndamentoHtml(l)+
+    condTelaVendaHtml()+
+    condLinkVendaHtml(l)+
+    condAbatimentos(l,fx.total)+
+    '<b style="color:var(--azul);font-size:14px">FLUXO DE PAGAMENTO PRO SOLUTO</b>'+
+    '<table class="cd-fl" style="margin-top:6px"><thead><tr><th>Parcela</th><th>Valor</th><th>Quando</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>'+linhasH+
+    '<tr class="tot"><td colspan="3">TOTAL DO PRO SOLUTO</td><td class="r">'+cdBRL(fx.total)+'</td></tr></tbody></table>'+
+    (falta.length?'<div class="cd-falta"><b>Para fechar o fluxo falta:</b> '+falta.join("; ")+'.</div>':'')+
+    '<div class="cd-aviso"><b>Atenção:</b> As parcelas e os valores do fluxo podem sofrer alteração de acordo com a data de assinatura do contrato.</div>'+
+    (g("PENDÊNCIAS")&&g("PENDÊNCIAS")!=="nenhuma"?'<div class="cd-falta" style="margin-top:8px"><b>Pendências do cadastro:</b> '+esc(g("PENDÊNCIAS"))+'</div>':'')+
+    '</div>';
+  document.getElementById("cd-card").style.display="block";
+  if(window.VendaBlocos) VendaBlocos.montar(document.getElementById("cd-venda"),id);   /* entrega 7: contrato, assinatura e Mais Controle da linha */
+}
+/* 07/10 (entrega 7) — TELA DE VENDA do condomínio: os blocos CONTRATO / ASSINATURA / MAIS CONTROLE
+   da tela de venda das casas, para a própria linha (venda-dossie.js desenha em #cd-venda). */
+function condTelaVendaHtml(){
+  if(!window.VendaBlocos) return "";
+  return '<div class="cd-and"><h4>TELA DE VENDA <span style="font-weight:400;color:var(--text3)">· contrato, assinatura e Mais Controle desta unidade</span></h4><div id="cd-venda"></div></div>';
+}
+/* 02/10 — ANDAMENTO DO PROCESSO: as colunas de preenchimento do BANCO DE DADOS VENDAS
+   CONDOMÍNIO (SIM/NÃO e datas — conformidade, assinatura, protocolo, manual, água, energia,
+   pré-vistoria…) editáveis aqui no card, na ordem da planilha. Cada mudança grava sozinha. */
+const CD_AND_FORA=/^(DATA DA VENDA|DATA DE ASSINATURA DO CONTRATO|DATA DA ENTREGA|DATA NASCIMENTO|CONDOM[IÍ]NIO$|STATUS DO CADASTRO|DIA PAGAMENTO)|SINAL|PARCELA|BAL[AÃ]O|P[OÓ]S.CHAVES|PR[EÉ].CHAVES|NASCIMENTO|^CONTRATO -|VALIDADE|TOKEN|REGIME|ESTADO CIVIL|CORRESPONDENTE/i;
+function condAndamentoCols(){
+  if(!COND) return [];
+  const ordem=condColunasTodas();
+  return ordem.filter(c=>{
+    if(CD_AND_FORA.test(c.nome)) return false;
+    if(c.tipo==="date") return true;
+    if(c.tipo==="checkbox") return true;
+    if(c.tipo==="select"||c.tipo==="status"){
+      const ops=(c.opcoes||[]).map(o=>cdNorm(o));
+      return /\?\s*$/.test(c.nome) || (ops.length && ops.every(o=>o==="SIM"||o==="NAO"||o==="INEXISTE"||o==="AGIO"));
+    }
+    if(c.tipo==="url") return /PROTOCOLO|LINK/i.test(c.nome);
+    return false;
+  });
+}
+function condColunasTodas(){
+  /* mesma ordem da planilha (rua), com todas as colunas */
+  const mapa={}; COND.colunas.forEach(c=>{ mapa[cdNorm(c.nome)]=c; });
+  const tit=COND.titulo, usados=new Set([tit]), out=[];
+  cdOrdemRua().forEach(n=>{ const c=cdAchaColuna(n,usados); if(c){ usados.add(c.nome); out.push(c); } });
+  COND.colunas.forEach(c=>{ if(!usados.has(c.nome)&&c.nome!==tit){ usados.add(c.nome); out.push(c); } });
+  return out;
+}
+function condAndamentoHtml(l){
+  const cols=condAndamentoCols(); if(!cols.length) return "";
+  const campos=cols.map((c,k)=>{
+    const v=cdVal(l,c.nome), idc="cd-and-"+k;
+    let ctl;
+    if(c.tipo==="date") ctl='<input type="date" id="'+idc+'" value="'+esc(v?String(v).slice(0,10):"")+'">';
+    else if(c.tipo==="url") ctl='<input type="url" id="'+idc+'" placeholder="https://…" value="'+esc(v||"")+'">';
+    else if(c.tipo==="checkbox") ctl='<select id="'+idc+'"><option value="NÃO"'+(!v?" selected":"")+'>NÃO</option><option value="SIM"'+(v?" selected":"")+'>SIM</option></select>';
+    else {
+      let ops=(c.opcoes&&c.opcoes.length)?c.opcoes.slice():["SIM","NÃO"];
+      ctl='<select id="'+idc+'"><option value="">—</option>'+ops.map(o=>'<option'+(o===v?" selected":"")+'>'+esc(o)+'</option>').join("")+'</select>';
+    }
+    return '<div><label title="'+esc(c.nome)+'">'+esc(c.nome)+'</label>'+ctl+'<div class="st" id="'+idc+'-st"></div></div>';
+  }).join("");
+  setTimeout(()=>{
+    cols.forEach((c,k)=>{
+      const el=document.getElementById("cd-and-"+k); if(!el) return;
+      el.addEventListener("change",()=>condAndSalvar(l.id,c.nome,el.value,"cd-and-"+k+"-st"));
+    });
+  },0);
+  return '<div class="cd-and"><h4>ANDAMENTO DO PROCESSO <span style="font-weight:400;color:var(--text3)">· cada mudança salva sozinha no Notion</span></h4><div class="grid">'+campos+'</div></div>';
+}
+async function condAndSalvar(id,prop,valor,stId){
+  const st=document.getElementById(stId); if(st){ st.style.color="#7A6A2E"; st.textContent="⏳ salvando…"; }
+  let r=null;
+  try{ r=await chamar({action:"simsVendaSalvar",pageId:id,prop:prop,valor:valor},70000); }catch(e){ r=null; }
+  if(!r||!r.ok){ if(st){ st.style.color="#B0431F"; st.textContent="⚠ não salvou: "+((r&&(r.mensagem||r.erro))||"sem resposta"); } return; }
+  if(r.linha){ const i=COND.linhas.findIndex(x=>x.id===id); if(i>=0) COND.linhas[i]=r.linha; }
+  if(st){ st.style.color="#1D7A46"; st.textContent="✓ salvo"; }
+  condRender();
+}
+/* 02/10 (item 20) — link para o cliente/corretor completar as informações da venda */
+function condLinkVendaHtml(l){
+  const pid=cdVal(l,"ID PROPOSTA");
+  if(!pid) return "";
+  return '<div class="cd-and" style="border-color:#8a6d3b"><h4 style="color:#7A4A16">LINK PARA COMPLETAR AS INFORMAÇÕES DA VENDA</h4>'+
+    '<div style="font-size:12.5px;color:var(--text3);margin-bottom:8px">O cliente ou o corretor completa os dados e documentos da venda (cônjuge, compradores, fiadores, comprovantes) — cai direto no banco de vendas.</div>'+
+    '<button class="cd-bt pri" id="cd-vlink-bt" onclick="condGerarLinkVenda(\''+esc(String(pid))+'\')">🧾 Gerar link</button>'+
+    '<div id="cd-vlink" style="margin-top:8px"></div></div>';
+}
+async function condGerarLinkVenda(pid){
+  const bt=document.getElementById("cd-vlink-bt"), cx=document.getElementById("cd-vlink");
+  if(bt){ bt.disabled=true; bt.textContent="Gerando…"; }
+  let r=null; try{ r=await chamar({action:"simsVendaLink",pageId:pid},60000); }catch(e){ r=null; }
+  if(bt){ bt.disabled=false; bt.textContent="🧾 Gerar de novo"; }
+  if(!r||!r.ok){ cx.innerHTML='<span style="color:#B0431F">Não consegui gerar: '+esc((r&&(r.mensagem||r.erro))||"sem resposta")+'</span>'; return; }
+  cx.innerHTML='<div style="font-size:12px;color:var(--text3);margin-bottom:4px">Vale até '+esc(r.validade||"")+'. Gerar de novo invalida o anterior.</div>'+
+    '<input id="cd-vlink-url" readonly value="'+esc(r.url)+'" style="width:100%;box-sizing:border-box">'+
+    '<textarea id="cd-vlink-msg" rows="4" style="width:100%;box-sizing:border-box;margin-top:6px">'+esc(r.sugestao||"")+'</textarea>'+
+    '<div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">'+
+    '<button class="cd-bt" onclick="condCopiar(\'cd-vlink-url\',this)">Copiar o link</button>'+
+    '<button class="cd-bt" onclick="condCopiar(\'cd-vlink-msg\',this)">Copiar a mensagem</button>'+
+    '<a class="cd-bt" target="_blank" rel="noopener" href="'+esc(r.url)+'" style="text-decoration:none">Abrir</a></div>';
+}
+function condCopiar(idEl,bt){
+  const el=document.getElementById(idEl); if(!el) return;
+  const t=el.value; (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).catch(()=>{ el.select(); document.execCommand("copy"); });
+  if(bt){ const o=bt.textContent; bt.textContent="✓ Copiado"; setTimeout(()=>bt.textContent=o,1500); }
+}
+/* 02/10 (item 25) — andamento do "Salvar e recalcular": etapas e tempo, em vez de só "Calculando…" */
+function condProgresso(ativo){
+  const el=document.getElementById("cd-prog"); if(!el) return ()=>{};
+  if(!ativo){ el.style.display="none"; return ()=>{}; }
+  const etapas=["Gravando as datas no Notion…","Recalculando o fluxo de pagamento…","Atualizando as parcelas na planilha…","Conferindo pendências do cadastro…"];
+  const t0=Date.now(); el.style.display="block";
+  const pintar=()=>{
+    const s=Math.round((Date.now()-t0)/1000), k=Math.min(etapas.length-1,Math.floor(s/6));
+    el.innerHTML='<b>'+etapas[k]+'</b> <span style="color:var(--text3)">('+s+' s)</span><div class="barra"><i style="width:'+Math.min(95,(s/25)*100)+'%"></i></div>';
+  };
+  pintar(); const tm=setInterval(pintar,1000);
+  return (ok)=>{ clearInterval(tm); el.innerHTML='<b style="color:'+(ok?'#1D7A46':'#B0431F')+'">'+(ok?'✓ Salvo e fluxo recalculado':'⚠ Não terminou — veja a mensagem')+'</b>'; setTimeout(()=>{ el.style.display="none"; },4000); };
+}
+async function condCalcular(id){
+  const bt=document.getElementById("cd-calc"); bt.disabled=true; bt.textContent="Calculando…";
+  const fimProg=condProgresso(true);
+  const l=COND.linhas.find(x=>x.id===id);
+  const novos=[["DATA DE ASSINATURA DO CONTRATO",document.getElementById("cd-ass").value],
+               ["DIA PAGAMENTO PARCELAS",document.getElementById("cd-dia").value],
+               ["DATA DA ENTREGA",document.getElementById("cd-ent").value]];
+  /* 30/09: as três juntas, um recálculo só (antes: 3 gravações e 3 recálculos) */
+  const mudou={};
+  novos.forEach(([prop,val])=>{ const atual=cdVal(l,prop), a=atual==null?"":String(atual).slice(0,10);
+    if(String(val)===a) return; mudou[prop]=val; });
+  if(!Object.keys(mudou).length){ fimProg(true); toast("Nada mudou."); bt.disabled=false; bt.textContent="Salvar e recalcular o fluxo"; return; }
+  let r=null;
+  try{ r=await chamar({action:"simsVendaSalvarVarios",pageId:id,valores:mudou},90000); }catch(e){ r=null; }
+  if(r&&r.ok){
+    if(r.linha){ const i=COND.linhas.findIndex(x=>x.id===id); if(i>=0) COND.linhas[i]=r.linha; }
+    toast(r.aviso?r.aviso:(r.calculo?"Salvo — fluxo recalculado.":"Salvo."));
+    fimProg(true);
+    condRender(); if(COND_ABERTA===id) condAbrir(id);
+    const b3=document.getElementById("cd-calc"); if(b3){ b3.disabled=false; b3.textContent="Salvar e recalcular o fluxo"; }
+    return;
+  }
+  if(r&&r.erro&&!/ACAO|DESCONHECID|SEM_RESPOSTA/i.test(r.erro)){ fimProg(false); toast("Não salvou: "+(r.mensagem||r.erro)); bt.disabled=false; bt.textContent="Salvar e recalcular o fluxo"; return; }
+  /* servidor antigo: grava uma por uma, como antes */
+  for(const [prop,val] of novos){
+    const atual=cdVal(l,prop), a=atual==null?"":String(atual).slice(0,10);
+    if(String(val)===a && String(val)!=="") continue;
+    if(String(val)==="" && a==="") continue;
+    const ok=await condSalvar(id,prop,val);
+    if(!ok) break;
+  }
+  const b2=document.getElementById("cd-calc"); if(b2){ b2.disabled=false; b2.textContent="Salvar e recalcular o fluxo"; }
 }
 
 /* ---------- CASAS MODELO ---------- */
@@ -1628,8 +2136,9 @@ async function carregarAtividades(){
     // parecia que a atividade já tinha sido feita sem ninguém ter escolhido nada.
     const temAtual = atual!=null && atual!=="" && ops.indexOf(atual)>=0;
     const d=document.createElement("div"); d.className="atv";
+    const nd=(a.dups||[]).length;
     d.innerHTML=`<span class="tipo">${esc(a.tipo||"—")}</span>
-      <span class="nm">${esc(a.nome||"(sem nome)")}</span>
+      <span class="nm">${esc(a.nome||"(sem nome)")}${nd?` <small title="o Notion tem ${nd} cópia(s) desta atividade; a baixa resolve todas" style="opacity:.7">(+${nd} cópia${nd>1?"s":""})</small>`:""}</span>
       <span class="dt">prazo: ${fmt(a.dataFinal)}</span>
       <span class="bx"><span class="bxlab">Marcar como</span><select>${temAtual?"":'<option value="" selected disabled>Selecione…</option>'}${ops.map(o=>`<option${(temAtual&&o===atual)?" selected":""}>${esc(o)}</option>`).join("")}</select><button class="bt">Dar baixa</button></span>`;
     const sel=d.querySelector("select"), btn=d.querySelector("button");
@@ -1657,7 +2166,11 @@ async function darBaixa(a,valor,d,btn){
         if(!restam) grupo.remove();
         else grupo.querySelector(".qtd").textContent=restam;
       }
-      ATIV_ALL=ATIV_ALL.filter(x=>x.id!==a.id); // tira da base local pra badges/contagens ficarem certos
+      /* tira da base local (com as cópias dela) pra badges/contagens ficarem certos,
+         e marca a coluna na obra em memória: a planilha já mostra o valor novo */
+      const fora=new Set([a.id].concat(a.dups||[]));
+      ATIV_ALL=ATIV_ALL.filter(x=>!fora.has(x.id));
+      try{ const vd=vendaPorId(a.obraId), c=a.coluna?campoPorNome(a.coluna):null; if(vd&&c){ setV(vd.valores,c.nome,valor); registrarEdicao("vendas",a.obraId,c.nome,valor); } }catch(e){}
       const n=document.querySelectorAll("#atv-lista .atv").length;
       document.getElementById("atv-count").textContent=n+" atividade(s) em aberto — "+SETOR_ATUAL;
       atualizarBadgesSetores();

@@ -128,6 +128,77 @@ html[data-tema="escuro"] .delta.desce{color:#f3a29a}
 .tri{background:var(--sup);border:1px solid var(--border2);border-radius:11px;padding:13px 14px}
 .tri.corrente{border-color:var(--verde);box-shadow:0 0 0 1px var(--verde) inset}
 .tri.futuro{opacity:.5}
+/* 25/09/26 — meta batida NO MÊS: selo no cartão (o mês todo) + fogos (1x/dia por pessoa, fogos.js) */
+.kpi,.tri{position:relative}
+/* 25/09/26 — ANIVERSARIANTES DO MÊS (acima de Venda de Casas).
+   v3: bloco próprio com fundo festivo, cartões grandes com a inicial em
+   círculo colorido e nomes fortes; quem já fez aniversário no mês continua
+   em destaque (só ganha um "✓ já foi"); o aniversariante do DIA ocupa a
+   linha inteira em dourado, com brilho, "PARABÉNS" grande, bolo e fogos. */
+/* 25/09/26 (noite) — MURAL (tipo de atividade "MURAL"; as antigas "PORTAL"
+   também entram): em destaque aqui até serem finalizadas. Só leitura:
+   título, solicitante, término, descrição, checklist e comentários. */
+#bloco-portal{background:linear-gradient(135deg,rgba(41,87,120,.10),rgba(143,220,210,.18));border:1.5px solid rgba(41,87,120,.30);
+  border-radius:16px;padding:14px 16px 16px;margin-bottom:18px}
+#bloco-portal .sec{background:transparent;border-left:0;padding:0 2px;margin-bottom:10px}
+#bloco-portal .sec .cond{font-size:21px}
+.portal-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px}
+.pt{background:var(--sup);border-radius:14px;box-shadow:0 4px 14px rgba(20,50,70,.10);padding:14px 16px;border-top:4px solid var(--azul)}
+.pt.atr{border-top-color:var(--verm)}
+.pt .pt-t{font-family:'Barlow Condensed';font-weight:800;font-size:20px;color:var(--azul-esc);letter-spacing:.3px;line-height:1.1}
+.pt .pt-m{font-size:12px;color:var(--text3);margin:5px 0 8px;display:flex;gap:10px;flex-wrap:wrap}
+.pt .pt-m .atr{color:var(--verm);font-weight:800}
+.pt .pt-c{max-height:360px;overflow:auto;border-top:1px solid var(--border2);padding-top:8px;font-size:13px}
+.pt .pt-sec{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);margin:8px 0 4px}
+.pt .pt-d p{margin:0 0 5px;white-space:pre-wrap}.pt .pt-d h4{margin:6px 0 4px;font-size:14px;color:var(--azul-esc)}
+.pt .pt-d li{margin-left:18px}
+.pt .pt-d img{max-width:100%;max-height:180px;border-radius:8px;margin:4px 0;display:block}
+.pt .pt-ck{display:flex;gap:7px;align-items:flex-start;padding:3px 0;cursor:pointer}.pt .pt-ck.f span{text-decoration:line-through;color:var(--text4)}
+.pt .pt-ck input{margin:2px 0 0;width:16px;height:16px;accent-color:var(--verde);cursor:pointer;flex:none}
+.pt .pt-ck.salvando{opacity:.55}.pt .pt-ck.ro{cursor:default}
+.pt .pt-com img{max-width:100%;max-height:160px;border-radius:8px;margin-top:4px;display:block}
+.pt .pt-com .arq{display:inline-block;margin-top:3px;font-size:12px}
+.pt .pt-com{background:var(--bg2);border-radius:8px;padding:6px 9px;margin-bottom:5px}
+.pt .pt-com b{font-size:11px;color:var(--text3)}
+.pt .pt-a{display:inline-block;margin-top:8px;font-size:12px;font-weight:800;color:var(--azul)}
+html[data-tema="escuro"] .pt .pt-t{color:var(--teal)}
+@media(max-width:600px){ .portal-lista{grid-template-columns:1fr} }
+#bloco-aniv{background:linear-gradient(135deg,rgba(76,217,100,.16),rgba(143,220,210,.22) 55%,rgba(246,201,69,.18));
+  border:1.5px solid rgba(42,157,92,.35);border-radius:16px;padding:14px 16px 16px}
+#bloco-aniv .sec{background:transparent;border-left:0;padding:0 2px;margin-bottom:12px}
+#bloco-aniv .sec .cond{font-size:21px;color:var(--verde-esc)}
+.aniv-lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.aniv{display:flex;align-items:center;gap:13px;background:var(--sup);border:0;border-radius:14px;padding:13px 15px;position:relative;
+  box-shadow:0 4px 14px rgba(20,50,70,.10)}
+.aniv .av{flex:none;width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-family:'Barlow Condensed';font-weight:800;font-size:22px;color:#fff;background:var(--c,#2a9d5c);box-shadow:0 3px 8px rgba(0,0,0,.18)}
+.aniv .dt{font-family:'Barlow Condensed';font-weight:800;font-size:14px;letter-spacing:.4px;color:var(--c,#2a9d5c);text-transform:uppercase}
+.aniv .nm{font-weight:800;color:var(--azul-esc);font-size:17px;line-height:1.15}
+.aniv .cg{font-size:12px;color:var(--azul);margin-top:2px;font-weight:600}
+.aniv .foi{position:absolute;top:8px;right:10px;font-size:10px;font-weight:800;color:var(--verde-esc);background:rgba(42,157,92,.12);border-radius:20px;padding:2px 8px}
+.aniv.hoje{grid-column:1/-1;cursor:pointer;border-radius:18px;padding:20px 24px;gap:18px;
+  background:linear-gradient(120deg,#f6c945 0%,#ffe9a8 45%,#f6c945 100%);background-size:200% 100%;
+  animation:aniv-brilho 3.2s ease-in-out infinite, aniv-pulso 2.4s ease-in-out infinite}
+@keyframes aniv-brilho{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+@keyframes aniv-pulso{0%,100%{box-shadow:0 6px 22px rgba(246,201,69,.45)}50%{box-shadow:0 10px 40px rgba(246,201,69,.9)}}
+.aniv.hoje .av{width:72px;height:72px;font-size:34px;background:#7a5a00}
+.aniv.hoje .parabens{font-family:'Barlow Condensed';font-size:38px;font-weight:800;color:#4a3400;letter-spacing:.5px;line-height:1.05;text-transform:uppercase}
+.aniv.hoje .nm{color:#3b2c00;font-size:18px}
+.aniv.hoje .cg{color:#6b5000}
+.aniv.hoje .bolo{font-size:52px;margin-left:auto;animation:aniv-pula 1.6s ease-in-out infinite}
+@keyframes aniv-pula{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-6px) rotate(6deg)}}
+.aniv-vazio{font-size:13px;color:var(--text3);padding:4px 2px}
+html[data-tema="escuro"] #bloco-aniv{background:linear-gradient(135deg,rgba(47,158,99,.18),rgba(121,200,191,.12))}
+html[data-tema="escuro"] .aniv .nm{color:#e7f3ff}
+html[data-tema="escuro"] .aniv .cg{color:var(--teal)}
+html[data-tema="escuro"] .aniv.hoje .nm,html[data-tema="escuro"] .aniv.hoje .parabens{color:#3b2c00}
+@media(max-width:600px){ .aniv.hoje .parabens{font-size:26px} .aniv.hoje .bolo{display:none} }
+.meta-batida{box-shadow:0 0 0 2px #f6c945 inset, 0 6px 22px rgba(246,201,69,.28)}
+.kpi.hero.meta-batida{box-shadow:0 0 0 2px #f6c945, 0 6px 22px rgba(246,201,69,.35)}
+.selo-meta{margin-top:8px;display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:800;
+  letter-spacing:.3px;text-transform:uppercase;color:#7a5a00;background:#fff4cc;border:1px solid #f6c945;
+  border-radius:999px;padding:3px 9px;cursor:pointer}
+.kpi.hero .selo-meta{color:#3b2c00;background:#f6c945}
 .tri-lab{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;
   color:var(--text3);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .tri-lab .agora{background:var(--verde);color:#fff;border-radius:4px;padding:1px 6px;
@@ -255,6 +326,14 @@ html[data-tema="escuro"] .logo{background:#fff}
     <nav class="dash-nav" id="cards"><div class="vazio"><span class="load"></span> Carregando…</div></nav>
     <main class="dash-main">
       <div class="nota" id="nota"></div>
+      <div class="bloco" id="bloco-portal" style="display:none">
+        <div class="sec"><span class="cond">📌 Mural</span></div>
+        <div class="portal-lista" id="portal-lista"></div>
+      </div>
+      <div class="bloco" id="bloco-aniv" style="display:none">
+        <div class="sec"><span class="cond">🎂 Aniversariantes de <span id="aniv-mes"></span></span></div>
+        <div class="aniv-lista" id="aniv-lista"></div>
+      </div>
       <div class="bloco">
         <div class="sec"><span class="cond">Venda de Casas</span>
           <button class="bt-graf" id="bt-g-vendas" aria-expanded="false" onclick="alternarGrafico('vendas')"><span class="seta">▶</span> Evolução anual</button></div>
@@ -280,8 +359,11 @@ html[data-tema="escuro"] .logo{background:#fff}
     </main>
   </div>
 
-<script src="app.js?v=31"></script>
+<script src="app.js?v=44"></script>
+<script src="rf-rotas.js?v=7"></script>
 <script src="alertas-docs.js?v=1"></script>
+<script src="fogos.js?v=2"></script>
+<script src="atv-alertas.js?v=7"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele */
 const TEMA_KEY = "morais_tema";
@@ -338,7 +420,11 @@ const SISTEMAS=[
   /* ORDEM DOS SETORES (set/26): Atividades, Obras, Vendas, Documentos,
      Ligações, Pós Obra, Simulações. "embreve" = botão aparece apagado, sem
      link, para todo mundo. */
-  {chave:"ATIVIDADES",nome:"Atividades",desc:"Atividades das obras por pessoa",ico:"T",link:"#",grupo:"SETORES",embreve:true,publico:true},
+  {chave:"ATIVIDADES",nome:"Atividades",desc:"Suas atividades, checklists e equipe",ico:"T",link:"atividades.html",grupo:"SETORES",publico:true},
+  /* PROCESSOS E ARQUIVOS (25/09/26) — bloco próprio no menu; liberados para
+     todos os logados (combinado). Arquivos = página ARQUIVOS do Notion. */
+  {chave:"PROCESSOS",nome:"Processos",desc:"Regras, procedimentos e cultura da empresa",ico:"P",link:"processos.html",grupo:"PROCESSOS E ARQUIVOS",publico:true},
+  {chave:"ARQUIVOS",nome:"Arquivos",desc:"Documentos e modelos da empresa",ico:"A",link:"arquivos.html",grupo:"PROCESSOS E ARQUIVOS",publico:true},
   /* OBRAS: exige a opção "OBRAS" na coluna ACESSOS do banco LOGINS. */
   {chave:"OBRAS",nome:"Obras",desc:"Solicitação de obras, atividades e cronograma",ico:"O",link:"obras.html",grupo:"SETORES"},
   {chave:"VENDAS",nome:"Gestão de Vendas",desc:"Atividades, alertas e planilhas",ico:"V",link:"vendas.html",conta:true,grupo:"SETORES"},
@@ -361,6 +447,10 @@ const SISTEMAS=[
   {chave:"MAPA DE VENDAS",nome:"Mapa de Vendas",desc:"Disponibilidade e mapas por setor",ico:"M",link:"https://devmoraiseng.github.io/SITE-DE-VENDAS/",externo:true,grupo:"MAPAS",publico:true},
 
   /* público, igual ao Mapa de Vendas: aparece para qualquer usuário logado. */
+  /* 28/09/26 — MAPA DE OBRAS (repositório OBRAS-GERAL): status das obras por
+     lote, prazos 150/180 dias, medições da semana e calendários. Público como
+     o Mapa de Vendas; quem tem acesso a DOCUMENTOS preenche o status lá. */
+  {chave:"MAPA DE OBRAS",nome:"Mapa de Obras",desc:"Status das obras por lote, prazos e medições",ico:"M",link:"https://devmoraiseng.github.io/OBRAS-GERAL/",externo:true,grupo:"MAPAS",publico:true},
   {chave:"MAPA RESERVA DOS IPÊS",nome:"Mapa Reserva dos Ipês",desc:"Mapa de vendas e simulador do empreendimento",ico:"M",link:"https://devmoraiseng.github.io/SIMULADOR-RESERVA-DO-IP-S/",externo:true,grupo:"MAPAS",publico:true},
 
   {chave:"RAS LÍDERES",nome:"RAS Líderes",desc:"Reunião de alinhamento — Líderes",ico:"R",link:"https://devmoraiseng.github.io/RAS-SEMANAL/",externo:true,grupo:"REUNIÕES"},
@@ -381,9 +471,15 @@ const SISTEMAS=[
      Lembrete que já custou caro uma vez: "chave" tem que ser IGUAL à opção da
      coluna ACESSOS no banco LOGINS do Notion, com acento e em maiúsculas.
      Se não bater, o botão não aparece e não dá erro nenhum. */
-  {chave:"PRANCHA HUMANIZADA",nome:"Prancha Humanizada",desc:"Planta do Revit → prancha de venda no timbrado",ico:"A",link:"https://devmoraiseng.github.io/AUT-PRANCHA-HUMANIZADA/",externo:true,grupo:"AUTOMAÇÕES"}
+  {chave:"PRANCHA HUMANIZADA",nome:"Prancha Humanizada",desc:"Planta do Revit → prancha de venda no timbrado",ico:"A",link:"https://devmoraiseng.github.io/AUT-PRANCHA-HUMANIZADA/",externo:true,grupo:"AUTOMAÇÕES"},
+  /* 28/09/26 — CONFERÊNCIA OC × NF (repositório CONFER-NCIA-COMPRAS), equipe
+     de Compras. Diferente da Prancha, a página de destino TEM trava própria:
+     ela usa a sessão deste portal e o Apps Script AUT-CONFERENCIA-NF recusa
+     quem não tem "CONFERÊNCIA DE NF" na coluna ACESSOS do LOGINS (ADM,
+     MASTER e TESTES passam sempre) — é ele que guarda a chave da OpenAI. */
+  {chave:"CONFERÊNCIA DE NF",nome:"Conferência OC × NF",desc:"Ordem de compra × nota fiscal: itens, quantidades e valores",ico:"C",link:"https://devmoraiseng.github.io/CONFER-NCIA-COMPRAS/",externo:true,grupo:"AUTOMAÇÕES"}
 ];
-const GRUPOS_ORDEM=["SETORES","ANÁLISES","MAPAS","REUNIÕES","AUTOMAÇÕES"]; // setores, análises, mapas, reuniões e automações — nessa ordem
+const GRUPOS_ORDEM=["SETORES","PROCESSOS E ARQUIVOS","ANÁLISES","MAPAS","REUNIÕES","AUTOMAÇÕES"]; // setores, análises, mapas, reuniões e automações — nessa ordem
 const S=exigirSessao(); atualizarStatus();
 
 function pintarUsuario(s){ document.getElementById("u-nome").textContent=s.nome||s.login; const tb=document.getElementById("u-tipo"); tb.textContent=s.tipo; tb.className="badge"+(s.tipo==="ADM"?" adm":""); }
@@ -537,7 +633,7 @@ function faixaTrimestral(tris, metaMes, ano, unidade){
     }else{
       sub=`<div class="tri-nota">média ${dec(t.media)} por mês</div>`;
     }
-    return `<div class="tri ${cls}">
+    return `<div class="tri ${cls} tri-${t.n}">
       <div class="tri-lab">T${t.n} · ${esc(t.rotulo)}${t.corrente?'<span class="agora">agora</span>':''}</div>
       <div class="tri-val">${dec(t.total,0)}</div>${barra}${sub}</div>`;
   };
@@ -620,6 +716,24 @@ function boot(){
   //    portal_() do Code.gs, só que rodada uma vez no build).
   lerEstaticoJa("portal.json","portal", pintarKpis);
 
+  // 1-0) MURAL antes de tudo (ver lerMural)
+  try{ const cp=cacheGet("atv_mural"); if(cp&&cp.v) pintarMural(cp.v); }catch(e){}
+  lerMural();
+  // 1a) ANIVERSARIANTES (28/09/26): é dado quase fixo. Pinta com a cópia
+  //     guardada e só pergunta ao servidor se ela tiver mais de 6 h — e com
+  //     PRIORIDADE: antes ele esperava o Mural na mesma fila (medido: 29 s).
+  //     O sino (atv-alertas.js) também traz os aniversários em toda tela.
+  let _cAniv=null; try{ _cAniv=cacheGet("aniversariantes"); if(_cAniv&&_cAniv.v) pintarAniversarios(_cAniv.v); }catch(e){}
+  if(!_cAniv||!_cAniv.v){ const b=document.getElementById("bloco-aniv"), l=document.getElementById("aniv-lista");
+    if(b&&l){ document.getElementById("aniv-mes").textContent=MESES_NOME[new Date().getMonth()]; l.innerHTML=`<div class="aniv-vazio"><span class="load"></span> Carregando aniversariantes…</div>`; b.style.display=""; } }
+  if(!_cAniv||!_cAniv.v||Date.now()-_cAniv.t>6*3600*1000) lerAniversarios(0);
+
+  // 1b) (o Mural já saiu lá em cima)
+  // 1c) Processos e Arquivos já ficam guardados no navegador (abrem na hora)
+  setTimeout(()=>{ [["processos","proc"],["arquivos","arq"]].forEach(([k,b])=>{
+    const c=cacheGet(k); if(!c||Date.now()-c.t>30*60*1000) ler({action:"procLista",base:b},k).catch(()=>{}); }); },9000);
+
+
   // 2) contagem de atividades: é só um numerinho no botão de Vendas. Vai em
   //    segundo plano; se o Apps Script demorar ou falhar, o resto da tela não
   //    sofre. Só é chamada por quem TEM acesso a VENDAS: para os demais
@@ -658,6 +772,176 @@ function boot(){
       contadoresDosSetores();
     }
   }).catch(()=>{});
+}
+/* ===================== ANIVERSARIANTES (25/09/26) =====================
+ * Vem do LOGINS (colunas trazidas do (EMP) Membros) pela ação
+ * "aniversariantes" — só nome, dia, mês, cargo e setor; nunca ano/idade.
+ * Mostra o mês corrente em ordem de dia; os que já passaram ficam apagados;
+ * o de HOJE vira destaque dourado com "Parabéns" e fogos (1x por dia por
+ * pessoa que abre o painel; clicar no cartão solta de novo). */
+function nomeBonito(n){
+  const minus=["da","de","do","das","dos","e"];
+  return String(n||"").toLowerCase().split(/\s+/).filter(Boolean)
+    .map((w,i)=>i&&minus.indexOf(w)>=0?w:w.charAt(0).toUpperCase()+w.slice(1)).join(" ");
+}
+function primeiroNome(n){ return nomeBonito(n).split(" ")[0]||""; }
+function pintarAniversarios(r){
+  const bloco=document.getElementById("bloco-aniv"), box=document.getElementById("aniv-lista");
+  if(!bloco||!box||!r||!r.lista) return;
+  const agora=new Date(), mes=agora.getMonth()+1, dia=agora.getDate(), ano=agora.getFullYear();
+  document.getElementById("aniv-mes").textContent=MESES_NOME[mes-1];
+  const doMes=r.lista.filter(x=>x.mes===mes).sort((a,b)=>a.dia-b.dia);
+  bloco.style.display="";
+  if(!doMes.length){ box.innerHTML=`<div class="aniv-vazio">Nenhum aniversariante em ${MESES_NOME[mes-1]}.</div>`; return; }
+  const hoje=doMes.filter(x=>x.dia===dia), resto=doMes.filter(x=>x.dia!==dia);
+  const sub=x=>[x.cargo,x.setor].filter(Boolean).map(esc).join(" · ");
+  const CORES=["#2a9d5c","#295778","#E67E22","#8e44ad","#c0392b","#16a085","#d35400","#2c3e50"];
+  const cor=n=>CORES[[...String(n)].reduce((s,c)=>s+c.charCodeAt(0),0)%CORES.length];
+  const ini=n=>nomeBonito(n).split(" ").filter(Boolean).slice(0,2).map(p=>p[0]).join("");
+  box.innerHTML =
+    hoje.map(x=>`<div class="aniv hoje" id="aniv-${esc(x.id)}" title="Soltar os fogos de novo" onclick="fogosAniv('${esc(x.id)}',true)">
+      <div class="av">${esc(ini(x.nome))}</div>
+      <div><div class="parabens">🎉 Parabéns, ${esc(primeiroNome(x.nome))}!</div>
+        <div class="nm">${esc(nomeBonito(x.nome))} faz aniversário hoje</div><div class="cg">${sub(x)}</div></div><div class="bolo">🎂</div></div>`).join("")+
+    resto.map(x=>`<div class="aniv" style="--c:${cor(x.nome)}">
+      <div class="av">${esc(ini(x.nome))}</div>
+      <div><div class="dt">🎂 ${String(x.dia).padStart(2,"0")} de ${MESES_NOME[mes-1]}</div>
+        <div class="nm">${esc(nomeBonito(x.nome))}</div><div class="cg">${sub(x)}</div></div>
+      ${x.dia<dia?`<span class="foi">✓ já foi</span>`:""}</div>`).join("");
+  hoje.forEach((x,i)=>setTimeout(()=>fogosAniv(x.id,false), 300+i*1200));
+}
+/* ===================== MURAL (25/09/26 noite) =====================
+ * Atividades do tipo MURAL ainda não finalizadas: título, solicitante,
+ * término, descrição, checklist e comentários.
+ * 28/09/26: o CHECKLIST dá baixa aqui mesmo (todo logado, menos TESTES) —
+ * marca na hora na tela e grava pela ação atvMuralCheck. As fotos dos
+ * comentários aparecem; se um link vencer, o Mural é relido sozinho. */
+let _MURAL=null;
+/* 28/09 (noite): aniversários que "ficavam carregando" — quando a resposta
+   falhava (servidor ocupado), ninguém tentava de novo e o "Carregando…"
+   ficava para sempre. Agora tenta 4 vezes (4 s, 8 s, 12 s) e, se não vier,
+   some o bloco (o sino traz de novo na próxima atualização). */
+function lerAniversarios(tent){
+  chamar({action:"aniversariantes"},30000,true).then(r=>{ if(r&&r.ok){ cacheSet("aniversariantes",r); pintarAniversarios(r); } else throw 0; })
+    .catch(()=>{ if(tent<3) setTimeout(()=>lerAniversarios(tent+1),4000*(tent+1));
+      else { const c=cacheGet("aniversariantes"); if(!(c&&c.v)){ const b=document.getElementById("bloco-aniv"); if(b) b.style.display="none"; } } });
+}
+/* 28/09 (fim do dia): o Mural sai PRIMEIRO, com prioridade e pela faixa
+   rápida (rf-rotas.js) — não espera nenhuma outra leitura. Ele também vem
+   junto do sino em toda tela, então quase sempre já está guardado. */
+function lerMural(){ return chamar({action:"atvMural"},30000,true).then(r=>{ if(r&&r.ok){ cacheSet("atv_mural",r); pintarMural(r); } }).catch(()=>{}); }
+let _muralImgRelida=0;
+function muralImgFalhou(img){
+  if(img.dataset.f) return; img.dataset.f="1";
+  if(Date.now()-_muralImgRelida<60000) return;
+  _muralImgRelida=Date.now(); lerMural();
+}
+/* 28/09 (tarde) — BAIXA QUE NÃO VOLTA ATRÁS
+ * Marcou e saiu da página antes do servidor responder (ou voltou enquanto
+ * ele ainda gravava): a leitura seguinte trazia o valor ANTIGO e desmarcava.
+ * Agora cada marcação fica guardada no navegador como "pendente" até o
+ * servidor devolver o mesmo valor; enquanto isso, ela vence o que vier da
+ * leitura. Ao sair da página com marcação ainda não confirmada, ela é
+ * enviada de novo em segundo plano (sendBeacon) — gravar o mesmo valor duas
+ * vezes não faz mal. */
+const MURAL_PEND="mural_pend_v1", MURAL_PEND_MAX=10*60*1000;
+function muralPend(){ try{ return JSON.parse(localStorage.getItem(MURAL_PEND)||"{}")||{}; }catch(e){ return {}; } }
+function muralPendGravar(o){ try{ localStorage.setItem(MURAL_PEND,JSON.stringify(o)); }catch(e){} }
+function muralAplicarPend(r){
+  const pend=muralPend(), agora=Date.now(); let mudou=false;
+  (r&&r.atividades||[]).forEach(a=>(a.checklist||[]).forEach(x=>{
+    const p=pend[x.id]; if(!p) return;
+    if(agora-p.t>MURAL_PEND_MAX){ delete pend[x.id]; mudou=true; return; }
+    if(p.ok&&!!x.f===!!p.f){ delete pend[x.id]; mudou=true; return; }   // servidor já confirma: pendência resolvida
+    x.f=!!p.f;                                                           // ainda não confirmou: vale o que você marcou
+  }));
+  Object.keys(pend).forEach(k=>{ if(agora-pend[k].t>MURAL_PEND_MAX){ delete pend[k]; mudou=true; } });
+  if(mudou) muralPendGravar(pend);
+  return r;
+}
+window.addEventListener("pagehide",()=>{
+  const pend=muralPend(), s=sessao(); if(!s||!s.token||typeof API_ESCRITA==="undefined"||!navigator.sendBeacon) return;
+  Object.keys(pend).forEach(bid=>{ const p=pend[bid]; if(p.ok) return;
+    try{ navigator.sendBeacon(API_ESCRITA,new Blob([JSON.stringify({action:"atvMuralCheck",token:s.token,pageId:p.a,blockId:bid,f:!!p.f})],{type:"text/plain;charset=utf-8"})); }catch(e){} });
+});
+function pintarMural(r){
+  const bloco=document.getElementById("bloco-portal"), box=document.getElementById("portal-lista");
+  if(!bloco||!box||!r) return;
+  muralAplicarPend(r);
+  _MURAL=r;
+  const l=r.atividades||[];
+  if(!l.length){ bloco.style.display="none"; return; }
+  bloco.style.display="";
+  const hoje=new Date().toISOString().slice(0,10);
+  const ro=(typeof ehSomenteLeitura==="function")&&ehSomenteLeitura(S);
+  const br=d=>d?d.slice(8,10)+"/"+d.slice(5,7):"";
+  const img=(u,alt)=>`<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" alt="${esc(alt||"imagem")}" loading="lazy" onerror="muralImgFalhou(this)"></a>`;
+  const ehImg=x=>x.url&&(/^image\//.test(x.mime||"")||/\.(png|jpe?g|gif|webp|heic)(\?|$)/i.test(x.url));
+  const desc=d=>{ let h="", lista=false;
+    (d||[]).forEach(b=>{
+      const li=b.tipo==="bulleted_list_item"||b.tipo==="numbered_list_item";
+      if(li&&!lista){ h+="<ul>"; lista=true; } if(!li&&lista){ h+="</ul>"; lista=false; }
+      if(b.tipo==="arquivo") h+=b.img&&b.url?img(b.url,b.texto):`<p><a href="${esc(b.url||"#")}" target="_blank" rel="noopener">📎 ${esc(b.texto)}</a></p>`;
+      else if(/^heading/.test(b.tipo)) h+=`<h4>${esc(b.texto)}</h4>`;
+      else if(li) h+=`<li>${esc(b.texto)}</li>`;
+      else h+=`<p>${esc(b.texto)}</p>`;
+    }); if(lista) h+="</ul>"; return h; };
+  const ck=(a,x)=>{
+    const pode=!ro&&!!x.id;
+    return `<label class="pt-ck ${x.f?"f":""} ${pode?"":"ro"}" ${pode?`title="Marcar / desmarcar"`:""}>
+      <input type="checkbox" ${x.f?"checked":""} ${pode?"":"disabled"} onchange="muralMarcar('${esc(a.id)}','${esc(x.id||"")}',this.checked,this)"> <span>${esc(x.t)}</span></label>`; };
+  const com=c=>`<div class="pt-com"><b>${esc(c.autor||"")}</b>${c.texto?`<div>${esc(c.texto)}</div>`:""}${(c.anexos||[]).map(x=>
+    ehImg(x)?img(x.url,x.nome):`<a class="arq" href="${esc(x.url||"#")}" target="_blank" rel="noopener">📎 ${esc(x.nome||"arquivo")}</a>`).join("")}</div>`;
+  /* 29/09: COMENTÁRIOS NO TOPO do card (o recado mais novo primeiro), depois
+     descrição e checklist */
+  box.innerHTML=l.map(a=>{
+    const atr=a.fim&&a.fim<hoje;
+    const ckl=(a.checklist||[]).filter(x=>String(x.t||"").trim()), feitos=ckl.filter(x=>x.f).length;   // 29/09: item vazio não aparece
+    return `<div class="pt ${atr?"atr":""}"><div class="pt-t">${esc(a.titulo)}</div>
+      <div class="pt-m"><span>👤 Solicitante: ${esc(nomeBonito(a.solicitante)||"—")}</span>${a.fim?`<span class="${atr?"atr":""}">📅 Término: ${br(a.fim)}</span>`:""}</div>
+      <div class="pt-c">
+        ${(a.comentarios||[]).length?`<div class="pt-sec">Comentários</div>${a.comentarios.slice().reverse().map(com).join("")}`:""}
+        ${(a.descricao||[]).length?`<div class="pt-sec">Descrição</div><div class="pt-d">${desc(a.descricao)}</div>`:""}
+        ${ckl.length?`<div class="pt-sec">Checklist · ${feitos}/${ckl.length}</div>${ckl.map(x=>ck(a,x)).join("")}`:""}
+      </div></div>`;
+  }).join("");
+}
+/* baixa no checklist do Mural: marca na hora; se o servidor recusar, volta */
+async function muralMarcar(atvId, blockId, f, el){
+  if(!blockId||!_MURAL) return;
+  const a=(_MURAL.atividades||[]).find(x=>x.id===atvId); if(!a) return;
+  const it=(a.checklist||[]).find(x=>x.id===blockId); if(!it) return;
+  const antes=it.f; it.f=!!f;
+  const pend=muralPend(); pend[blockId]={a:atvId,f:!!f,t:Date.now(),ok:false}; muralPendGravar(pend);
+  try{ cacheSet("atv_mural",_MURAL); }catch(e){}
+  pintarMural(_MURAL);
+  const payload={action:"atvMuralCheck",pageId:atvId,blockId:blockId,f:!!f};
+  let r=null;
+  try{ r=await chamar(Object.assign({},payload),30000,true); }catch(e){}      // faixa própria (rf-rotas.js), fura a fila
+  const p2=muralPend();
+  if(r&&r.ok){ if(p2[blockId]&&p2[blockId].t&&!!p2[blockId].f===!!f){ p2[blockId].ok=true; muralPendGravar(p2); } return; }
+  if(r&&r.erro&&!(typeof ERROS_TRANSITORIOS!=="undefined"&&ERROS_TRANSITORIOS.includes(r.erro))){
+    delete p2[blockId]; muralPendGravar(p2);
+    it.f=antes; try{ cacheSet("atv_mural",_MURAL); }catch(e){}
+    pintarMural(_MURAL);
+    alert("Não marquei o item: "+(typeof erroTexto==="function"?erroTexto(r.erro):r.erro));
+    return;
+  }
+  /* sem resposta: vai para a fila de envios (sobe sozinho quando a conexão voltar) */
+  try{ await escrever(payload,"Checklist do Mural"); }catch(e){}
+}
+/* Mural quase ao vivo: além do aviso ao vivo, relê a cada 2 min com a tela aberta */
+setInterval(()=>{ if(!document.hidden) lerMural(); },120000);
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden) lerMural(); });
+let _muralT=null;
+window.addEventListener("portal-ao-vivo",ev=>{ const d=ev.detail||{}; if(!/^atv|^bloco/.test(d.acao||"")) return;
+  clearTimeout(_muralT); _muralT=setTimeout(lerMural,800); });
+
+function fogosAniv(id, forcar){
+  if(typeof soltarFogos!=="function") return;
+  const el=document.getElementById("aniv-"+id); if(!el) return;
+  const d=new Date(), chave="aniv-"+id+"-"+d.getFullYear();
+  soltarFogos(el, forcar?null:chave, {forcar:!!forcar, seletor:"#aniv-"+id, duracao:6000});
 }
 function pintarAtividades(r){ const el=document.getElementById("cnt-VENDAS"); if(el&&r&&r.ok)el.textContent=r.total; }
 
@@ -706,9 +990,14 @@ function contadoresDosSetores(){
       const hoje=new Date().toISOString().slice(0,10);
       /* mesma regra da tela do setor: atividade que ainda não começou não é
          cobrança de hoje */
-      const atv=(r.atividades||[]).filter(a=>!a.dataInicial||String(a.dataInicial).slice(0,10)<=hoje).length;
+      let atv=(r.atividades||[]).filter(a=>!a.dataInicial||String(a.dataInicial).slice(0,10)<=hoje).length;
       let alertas=0;
-      try{ alertas=criarMotorAlertas(r.campos||[]).contar(r.obras||[]).total; }catch(e){}
+      try{
+        const M=criarMotorAlertas(r.campos||[]);
+        alertas=M.contar(r.obras||[]).total;
+        /* 05/10/26: mesma lista limpa da tela (coluna da obra, sem cópias) */
+        atv=M.atividadesAbertas(r.atividades||[], r.obras||[]).length;
+      }catch(e){}
       porCnt("DOCUMENTOS", atv+alertas);
     });
   }
@@ -736,8 +1025,8 @@ function pintarKpis(r){
   const metaVendas = META_VENDAS_ANO_ANTERIOR ? (vc.metaAnoAnterior||0) : (vc.meta||0);
   const metaVMes = metaVendas?metaVendas/12:0;
   sec("kpi-vendas").innerHTML=
-    cardMeta("Casas Vendidas em "+r.ano, num(vc.total), vc.total, metaVendas, null, "hero")+
-    cardMes("Vendas em "+mesNome, vc.mesCorrente, vc.mesAnterior, antNome)+
+    cardMeta("Casas Vendidas em "+r.ano, num(vc.total), vc.total, metaVendas, null, "hero k-ano")+
+    cardMes("Vendas em "+mesNome, vc.mesCorrente, vc.mesAnterior, antNome, null, "k-mes")+
     cardMeta("Média/mês (meses fechados)", mediaTxt(vc.mediaMes), vc.mediaMes, metaVMes, notaCheios)+
     cardMes("VGV em "+mesNome, vc.vgvMes, vc.vgvMesAnterior, antNome, brl)+
     card("VGV no ano", brl(vc.vgv), num(vc.total)+" casas")+
@@ -747,8 +1036,8 @@ function pintarKpis(r){
   /* ---------- INÍCIO DE OBRAS ---------- */
   const metaOMes=ob.metaMes||0;
   sec("kpi-obras").innerHTML=
-    cardMeta("Casas Iniciadas em "+r.ano, dec(ob.iniciadas), ob.iniciadas, ob.meta, null, "hero")+
-    cardMes("Iniciadas em "+mesNome, ob.mesCorrente, ob.mesAnterior, antNome, v=>dec(v))+
+    cardMeta("Casas Iniciadas em "+r.ano, dec(ob.iniciadas), ob.iniciadas, ob.meta, null, "hero k-ano")+
+    cardMes("Iniciadas em "+mesNome, ob.mesCorrente, ob.mesAnterior, antNome, v=>dec(v), "k-mes")+
     cardMeta("Média/mês (meses fechados)", mediaTxt(ob.mediaMes), ob.mediaMes, metaOMes, notaCheios);
   sec("tri-obras").innerHTML=faixaTrimestral(ob.trimestres, metaOMes, r.ano, "casas iniciadas");
 
@@ -766,6 +1055,60 @@ function pintarKpis(r){
   pintarAtualizado(r.updated_at, r.offline, r._ts);
 
   Object.keys(GRAF).forEach(q=>{ if(GRAF[q].aberto) desenharGrafico(q); });
+
+  aplicarMetasBatidas(r, {vendasAno:metaVendas, vendasMes:metaVMes, obrasAno:ob.meta||0, obrasMes:metaOMes});
+}
+
+/* ===================== METAS BATIDAS (25/09/26) =====================
+ * Pedido: "fogos quando uma meta for batida, apenas no mês em que ela for
+ * batida, se repetindo sempre que ocorrer". Metas do painel que têm alvo:
+ *   ANUAL      casas vendidas / casas iniciadas — batida NESTE mês quando o
+ *              total do ano passou da meta E o total SEM o mês corrente ainda
+ *              não tinha passado (ou seja: foi este mês que cruzou a linha).
+ *              Batida em maio, em setembro já não solta mais.
+ *   TRIMESTRE  o trimestre em curso — mesma regra, com meta = meta mensal × 3.
+ *   MÊS        vendas/iniciadas no mês corrente ≥ meta mensal.
+ * Lotes e VGV não têm meta cadastrada: sem meta, sem fogos.
+ * O selo fica no cartão o mês inteiro; os fogos saem 1x por dia por pessoa
+ * (clicar no selo solta de novo). */
+function cruzouNesteMes(total, doMes, meta){
+  total=Number(total)||0; doMes=Number(doMes)||0; meta=Number(meta)||0;
+  return meta>0 && total>=meta && (total-doMes)<meta;
+}
+function aplicarMetasBatidas(r, m){
+  if(!r || !r.ok) return;
+  const ano=r.ano, mm=String(r.mesAtual||new Date().getMonth()+1).padStart(2,"0");
+  const mesNome=r.mesAtualNome || MESES_NOME[(r.mesAtual||1)-1] || "";
+  const alvos=[];
+  const verificar=(sec, dados, metaAno, metaMes, rotulo)=>{
+    const d=dados||{};
+    const total = sec==="vendas" ? d.total : d.iniciadas;
+    if(cruzouNesteMes(total, d.mesCorrente, metaAno))
+      alvos.push({sel:`#kpi-${sec} .k-ano`, chave:`${sec}-ano-${ano}`, txt:`Meta de ${ano} batida em ${mesNome}!`});
+    if(metaMes>0 && (Number(d.mesCorrente)||0)>=metaMes)
+      alvos.push({sel:`#kpi-${sec} .k-mes`, chave:`${sec}-mes-${ano}-${mm}`, txt:`Meta de ${mesNome} batida!`});
+    const t=(d.trimestres||[]).find(x=>x.corrente);
+    if(t && cruzouNesteMes(t.total, d.mesCorrente, metaMes*3))
+      alvos.push({sel:`#tri-${sec} .tri-${t.n}`, chave:`${sec}-tri-${ano}-T${t.n}`, txt:`Meta do T${t.n} batida!`});
+  };
+  verificar("vendas", r.vendaCasas, m.vendasAno, m.vendasMes, "vendas");
+  verificar("obras",  r.inicioObras, m.obrasAno, m.obrasMes, "obras");
+
+  alvos.forEach((a,i)=>{
+    const el=document.querySelector(a.sel); if(!el) return;
+    el.classList.add("meta-batida");
+    if(!el.querySelector(".selo-meta")){
+      el.insertAdjacentHTML("beforeend",
+        `<div class="selo-meta" title="Ver os fogos de novo" onclick="rever(this)" data-sel="${esc(a.sel)}">🎆 ${esc(a.txt)}</div>`);
+    }
+    if(typeof soltarFogos==="function")
+      setTimeout(()=>soltarFogos(document.querySelector(a.sel)||el, a.chave, {seletor:a.sel}), 500+i*1100);
+  });
+}
+function rever(selo){
+  const sel=selo.getAttribute("data-sel");
+  const el=(sel&&document.querySelector(sel))||selo.parentElement;
+  if(typeof soltarFogos==="function") soltarFogos(el, null, {forcar:true, seletor:sel});
 }
 window.aoSincronizar=async()=>{ if(podeAcessar(S,"VENDAS")) pintarAtividades(await ler({action:"atividades"},"atividades")); };
 boot();

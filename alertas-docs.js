@@ -16,6 +16,17 @@
  *     const motor = criarMotorAlertas(campos);      // campos = docs.json
  *     motor.alertasDoSetor(obras, "Júlio César")    // [{o, chave, titulo, ...}]
  *     motor.contar(obras)                           // {total, porSetor:{...}}
+ *     motor.atividadesAbertas(atividades, obras)    // (05/10) lista limpa
+ *     motor.setorDaAtividade(a)                     // (05/10) setor fixo por tipo
+ *
+ * 05/10/26 — REVISÃO DAS ATIVIDADES E ALERTAS:
+ *   • atividade em aberto = coluna da obra VAZIA ou NÃO (SIM, INEXISTE ou
+ *     qualquer outro valor fecha). Mesma regra do Alertas.gs e do
+ *     fetch_documentos.py — antes valia a fórmula do Notion, que só aceita SIM;
+ *   • uma por obra+tipo (as cópias do Notion vão em a.dups);
+ *   • CERTIDÃO DO LOTE é do Departamento de Projetos;
+ *   • alerta novo do Júlio: PREENCHER DATA DE EMISSÃO DAS CERTIDÕES (é a
+ *     fórmula "EMISSÃO CERTIDÕES" do Notion, que o portal não tinha).
  * ===================================================================== */
 (function (g) {
   "use strict";
@@ -192,6 +203,11 @@
         quando: function (o) { return ehSimEstrito(val(o, "RET ARMAZENADO")) && vazio(val(o, "DATA DE FINALIZAÇÃO DO RET", "DATA DE FINALIZACAO DO RET")); },
         alvos: ["DATA DE FINALIZAÇÃO DO RET"] },
 
+      { chave: "CERT_EMI", setores: ["Júlio César"],
+        titulo: "PREENCHER DATA DE EMISSÃO DAS CERTIDÕES",
+        quando: function (o) { return ehSimEstrito(val(o, "SAIRAM AS CERTIDOES", "SAIRAM AS CERTIDÕES")) && vazio(val(o, "DATA DE EMISSÃO DAS CERTIDÕES", "DATA DE EMISSAO DAS CERTIDOES")); },
+        alvos: ["DATA DE EMISSÃO DAS CERTIDÕES"] },
+
       { chave: "HABITE_APROV", setores: ["Júlio César"],
         titulo: "PREENCHER DATA DE APROVAÇÃO HABITE-SE",
         quando: function (o) { return ehSimEstrito(val(o, "APROVOU HABITE-SE", "APROVOU HABITE")) && vazio(val(o, "DATA DE APROVAÇÃO DO HABITE-SE", "DATA DE APROVACAO DO HABITE")); },
@@ -239,8 +255,53 @@
       return { total: total, porSetor: porSetor };
     }
 
+    /* ---------------- ATIVIDADES (05/10/26) ---------------- */
+    var TIPO_SETOR = { "CERTIDAO DO LOTE": "Departamento de Projetos" };
+    function setorDaAtividade(a) { return (a && (a.setor || TIPO_SETOR[norm(a.tipo)])) || null; }
+    function ehAberto(v) {
+      if (v === true) return false;
+      if (Array.isArray(v)) v = v.join(", ");
+      var n = norm(v);
+      return !n || n === "NAO" || n === "NO" || n === "FALSE";
+    }
+    function hojeISO() {
+      var d = new Date(); return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2);
+    }
+    /* Lista limpa: só o que já começou, ainda aberto na coluna da obra (lida
+       do arquivo + edições feitas aqui) e uma por obra+tipo. */
+    function atividadesAbertas(atividades, obras) {
+      var idx = {}, hoje = hojeISO();
+      (obras || []).forEach(function (o) { idx[String(o.id).replace(/-/g, "")] = o; });
+      var vivas = (atividades || []).filter(function (a) {
+        if (a.dataInicial && String(a.dataInicial).slice(0, 10) > hoje) return false;
+        if (!a.coluna || !a.obraId) return true;
+        var o = idx[String(a.obraId).replace(/-/g, "")]; if (!o) return true;
+        var c = campo(a.coluna); if (!c) return true;
+        var v = g.getV ? g.getV(o.valores, c.nome) : o.valores[c.nome];
+        if (v === undefined && o.sens && o.sens[c.nome] !== undefined) return true;   // valor protegido: confia no servidor
+        return ehAberto(v);
+      });
+      var grupos = {}, ordem = [];
+      vivas.forEach(function (a) {
+        var k = a.obraId ? String(a.obraId).replace(/-/g, "") + "|" + norm(a.tipo) : "id|" + a.id;
+        if (!grupos[k]) { grupos[k] = []; ordem.push(k); }
+        grupos[k].push(a);
+      });
+      return ordem.map(function (k) {
+        var gr = grupos[k].slice().sort(function (x, y) {
+          return String(x.dataFinal || "9999").localeCompare(String(y.dataFinal || "9999"));
+        });
+        var dupsOrig = function (x) { if (!x._dups0) x._dups0 = (x.dups || []).slice(); return x._dups0; };
+        var p = gr[0], dups = dupsOrig(p).slice();
+        gr.slice(1).forEach(function (x) { dups.push(x.id); dupsOrig(x).forEach(function (d) { dups.push(d); }); });
+        p.dups = dups;
+        return p;
+      });
+    }
+
     return { campo: campo, val: val, regras: REGRAS, alertasDoSetor: linhasDoSetor,
              contar: contar, colunaDoRotulo: colunaDoRotulo,
+             atividadesAbertas: atividadesAbertas, setorDaAtividade: setorDaAtividade, ehAberto: ehAberto,
              norm: norm, vazio: vazio, ehSimEstrito: ehSimEstrito, ehSimAmplo: ehSimAmplo };
   }
 

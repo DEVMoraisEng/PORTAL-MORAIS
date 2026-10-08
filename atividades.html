@@ -1,0 +1,1781 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#295778">
+<script>(function(){try{var t=localStorage.getItem("morais_tema");
+  if(t!=="claro"&&t!=="escuro") t="claro";
+  document.documentElement.dataset.tema=t;}catch(e){}})();</script>
+<link rel="manifest" href="manifest.json">
+<title>Atividades · Morais</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* =====================================================================
+   OBRAS (set/26) — mesmo sistema visual da Gestão de Documentos / Vendas:
+   cabeçalho em degradê, abas em pílula, planilha com cabeçalho azul, painel
+   lateral da obra. Dados: dist/obras.json (fetch_obras.py). Gravação: Apps
+   Script, ações obra* (blocos r40/r41 do Code.gs). Acesso: "OBRAS".
+   ===================================================================== */
+:root{color-scheme:light}
+html{background:var(--bg);min-height:100%}
+body{min-height:100vh}
+:root{
+  --azul:#295778;--azul-esc:#1e3f58;--teal:#8FDCD2;--verde:#2a9d5c;--verde-btn:#4cd964;--verde-esc:#1a6b40;
+  --bg:#EAF1F3;--bg2:#F5F9FA;--bg3:#dceaef;--border:#b8d0da;--border2:#d0e4ec;
+  --text:#1a3347;--text3:#5a8099;--text4:#8aacbb;--branco:#fff;--orange:#E67E22;--verm:#c0392b;
+  --sup:#fff;--sup2:#f7fbfc;--sombra:rgba(20,50,70,.18)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.45}
+.wrap{max-width:1320px;margin:0 auto;padding:0 20px}
+header{background:linear-gradient(120deg,var(--azul-esc),var(--azul));position:relative}
+header::after{content:"";display:block;height:4px;background:linear-gradient(90deg,var(--verde-btn),var(--teal))}
+.hbar{display:flex;align-items:center;gap:12px;padding:13px 0;flex-wrap:wrap}
+.logo{background:#fff;border-radius:9px;padding:4px 9px;display:inline-flex;align-items:center}.logo img{height:34px;display:block}
+.htitle{font-family:'Barlow Condensed';font-weight:800;font-size:22px;color:#fff;letter-spacing:.5px;text-transform:uppercase;line-height:1}
+.hsub{color:var(--teal);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
+.hspace{flex:1}
+.hupd{font-size:10.5px;color:rgba(255,255,255,.72);white-space:nowrap;text-align:right;max-width:210px}
+.user{display:flex;align-items:center;gap:9px;color:#fff}.nome{font-weight:600;font-size:13px}
+.badge{font-size:10px;font-weight:800;letter-spacing:.5px;padding:3px 8px;border-radius:20px;background:rgba(255,255,255,.18);color:#fff;text-transform:uppercase}.badge.adm{background:var(--verde-btn);color:#0c3f22}
+.sair,.btema{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;padding:6px 11px;font:inherit;font-weight:700;font-size:12px;cursor:pointer}
+.btema{font-size:15px;line-height:1;padding:6px 10px}
+main{padding:24px 20px 70px}
+.crumb{display:flex;align-items:center;gap:10px;margin-bottom:16px;color:var(--text3);font-size:13px;flex-wrap:wrap}
+.btn-voltar{display:inline-flex;align-items:center;gap:6px;background:var(--azul-esc);border:1px solid rgba(143,220,210,.4);
+  border-radius:8px;padding:9px 16px;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;
+  color:var(--teal);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;text-decoration:none}
+.btn-voltar:hover{background:#16303f}
+.sec{display:flex;align-items:center;gap:10px;background:var(--bg3);border-left:4px solid var(--verde);border-radius:8px;padding:9px 14px;margin:26px 0 16px;flex-wrap:wrap}
+.sec .cond{font-family:'Barlow Condensed',Inter,sans-serif;font-size:19px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--azul-esc)}
+.sec .qtd{margin-left:auto;background:var(--border2);color:var(--text3);border-radius:999px;padding:2px 10px;font-size:12px;font-weight:700}
+.sec:first-child{margin-top:6px}
+.tabs-outer{background:var(--bg2);border:1.5px solid var(--border);border-radius:14px;padding:12px;margin:8px 0 20px;display:flex;justify-content:center;overflow-x:auto}
+.tabs{display:flex;gap:6px;padding:6px;border:2.5px solid var(--verde-btn);border-radius:12px;background:rgba(76,217,100,.06)}
+.tab{padding:11px 30px;font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;border-radius:8px;border:2px solid transparent;background:none;white-space:nowrap}
+.tab:hover{color:var(--azul-esc);background:rgba(76,217,100,.15);border-color:rgba(76,217,100,.4)}
+.tab.on{background:var(--verde-btn);color:#1a3347;border-color:var(--verde-btn);box-shadow:0 3px 10px rgba(76,217,100,.35)}
+.tab .nb{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;border-radius:20px;background:var(--verm);color:#fff;font:800 11px Inter,sans-serif;padding:0 6px;margin-left:6px;vertical-align:2px}
+.toolbar{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.legenda{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sw{display:inline-flex;align-items:center;gap:6px;cursor:pointer;background:var(--sup);border:1.5px solid var(--border);border-radius:20px;padding:6px 13px;color:var(--text3);font-weight:600;font-size:12px;user-select:none}
+.sw:hover{border-color:var(--text3)}
+.sw.on{border-color:var(--azul);color:var(--azul);background:#e7f0f3}
+.sw b{font-weight:800}
+select,input[type=text],input[type=number],input[type=date]{border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;background:var(--sup);max-width:100%;color:var(--text)}
+select:focus,input:focus{outline:none;border-color:var(--verde);box-shadow:0 0 0 3px rgba(76,217,100,.2)}
+.busca{border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;font:inherit;font-size:13px;min-width:220px;flex:1;background:var(--sup);color:var(--text)}
+.bt{border:0;border-radius:8px;padding:9px 14px;font:inherit;font-weight:700;font-size:12.5px;color:#fff;background:var(--verde);cursor:pointer;white-space:nowrap}
+.bt:hover{filter:brightness(1.06)}.bt.az{background:var(--azul)}.bt.ghost{background:#e7f0f3;color:var(--azul)}
+.bt:disabled{opacity:.5;cursor:default}
+.bt-mini{padding:5px 10px;font-size:11.5px}
+.info-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.icard{background:var(--sup);border:1px solid var(--border2);border-radius:10px;padding:9px 16px;min-width:110px;text-align:center}
+.ival{font-family:'Barlow Condensed';font-weight:800;font-size:22px;color:var(--azul-esc);line-height:1}
+.ival.r{color:var(--verm)}
+.ilab{font-size:10px;text-transform:uppercase;letter-spacing:.3px;color:var(--text3);font-weight:700;margin-top:3px}
+.tabela-wrap{overflow:auto;max-height:72vh;border:1px solid var(--border2);border-radius:10px;background:var(--sup)}
+table{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;font-size:12.5px}
+thead th{background:var(--azul);color:#fff;text-align:left;padding:9px 11px;font-size:10px;letter-spacing:.4px;text-transform:uppercase;position:sticky;top:0;white-space:nowrap;z-index:2;font-weight:700}
+thead th.stick{left:0;z-index:3}
+tbody td{padding:8px 11px;border-top:1px solid var(--border2);white-space:nowrap;color:var(--text)}
+tbody td.stick{position:sticky;left:0;background:var(--sup);font-weight:700;z-index:1;border-right:2px solid var(--border)}
+tbody tr:nth-child(even) td{background:var(--bg2)} tbody tr:nth-child(even) td.stick{background:#eef5f7}
+tbody tr:hover td{background:#e9f6ef;cursor:pointer} tbody tr:hover td.stick{background:#dff2e6}
+.obralink{color:var(--azul);font-weight:800;cursor:pointer}.obralink:hover{text-decoration:underline}
+.tag{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;background:#e7f0f3;color:var(--azul);white-space:nowrap}
+.tag.sim{background:rgba(42,157,92,.14);color:var(--verde-esc)}.tag.nao{background:#f1e0e0;color:#9b2c2c}.tag.ine{background:#e6eefb;color:#2d5ea8}
+.prazo{font-size:12px;white-space:nowrap}
+.vazio{padding:26px;text-align:center;color:var(--text3);font-size:13px;background:var(--sup);border:1px dashed var(--border2);border-radius:10px}
+.semacesso{max-width:460px;margin:80px auto;text-align:center;color:var(--text3)}
+.al{background:var(--sup);border:1px solid var(--border2);border-left:4px solid var(--orange);border-radius:10px;padding:11px 14px;margin-bottom:9px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.al .end{font-weight:800;font-size:13.5px;color:var(--azul);cursor:pointer;min-width:170px}.al .end:hover{text-decoration:underline}
+.al .txt{color:#B45309;font-size:12.5px;flex:1;min-width:200px}
+.al .acoes{display:flex;gap:6px}
+.falta{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:#FFF3E0;color:#B45309;border:1px solid #FCD9A8;margin:2px 4px 2px 0}
+.grupo{border:1px solid var(--border2);border-radius:10px;background:var(--sup);margin-bottom:10px;overflow:hidden}
+.grupo>summary{cursor:pointer;padding:12px 14px;font-weight:700;font-size:13.5px;color:var(--text);display:flex;align-items:center;gap:10px;list-style:none}
+.grupo>summary::-webkit-details-marker{display:none}
+.grupo>summary::before{content:"▸";font-size:11px;color:var(--text3);transition:transform .15s}
+.grupo[open]>summary::before{transform:rotate(90deg)}
+.grupo[open]>summary{border-bottom:1px solid var(--border2)}
+.grupo .qtd{margin-left:auto;background:var(--border2);color:var(--text3);border-radius:999px;padding:2px 9px;font-size:12px;font-weight:700}
+.grupo .qtd.r{background:#f6dede;color:#9b2c2c}
+.grupo .corpo{padding:8px}
+/* linha de atividade */
+.atv{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) minmax(0,150px) minmax(0,100px) minmax(0,145px) minmax(0,1.1fr);gap:10px;align-items:center;
+     padding:10px 12px;border:1px solid var(--border2);border-left:5px solid var(--cor,var(--azul));border-radius:10px;background:var(--sup);margin-bottom:8px}
+.atv>div{min-width:0}
+.atv .prazo{white-space:normal;overflow-wrap:anywhere}
+.atv.atr{background:#fdecea;border-color:#f1b2ab}
+.atv.atr .nm{color:#9b2c2c}
+.atv:hover{border-color:var(--azul)}
+.atv .nm{font-weight:700;font-size:13px;cursor:pointer;color:var(--text)}
+.atv .nm:hover{color:var(--azul);text-decoration:underline}
+.atv .tp{display:inline-block;max-width:100%;font-size:10px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;color:#fff;background:var(--cor,var(--azul));padding:2px 8px;border-radius:20px;margin-bottom:4px;white-space:normal}
+.atv .k{display:none;font-size:10px;font-weight:700;color:var(--text4);text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px}
+.atv .v{font-size:12.5px;color:var(--text)}
+.atv select,.atv input{width:100%;padding:6px 8px;font-size:12.5px}
+.atv.fin{opacity:.72}
+.salvando{border-color:#F0C36D!important}.ok{border-color:var(--verde)!important}.erro{border-color:var(--verm)!important}
+.atv-cab{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) minmax(0,150px) minmax(0,100px) minmax(0,145px) minmax(0,1.1fr);gap:10px;padding:0 12px 6px 17px;
+         font-size:10px;font-weight:800;text-transform:uppercase;color:var(--text3);letter-spacing:.4px}
+.atv-cab div,th.ord{cursor:pointer;user-select:none}
+.atv-cab div:hover{color:var(--azul)}
+.seta{font-size:9px;margin-left:3px;opacity:.8}
+.acoes-atv{display:flex;gap:8px;flex-wrap:wrap;padding:0 22px}
+.lig-bts{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin-top:10px}
+.lig-bts .bt{background:var(--sup);color:var(--azul);border:1.5px solid var(--border);text-align:left}
+.lig-bts .bt:hover{border-color:var(--azul);background:#e7f0f3}
+/* painel */
+.overlay{position:fixed;inset:0;background:rgba(20,40,55,.55);display:none;z-index:40}
+.painel{position:fixed;top:0;right:0;height:100%;width:clamp(720px,68vw,100vw);background:var(--bg2);z-index:41;box-shadow:-14px 0 44px rgba(0,0,0,.3);display:none;flex-direction:column}
+.painel.p2{z-index:51;width:clamp(560px,48vw,100vw)}
+.overlay.o2{z-index:50}
+.painel.on,.overlay.on{display:flex}
+.ph{background:linear-gradient(120deg,var(--azul-esc),var(--azul));color:#fff;padding:18px 22px;position:relative}
+.ph .end{font-family:'Barlow Condensed';font-weight:800;font-size:24px;text-transform:uppercase;line-height:1.05;letter-spacing:.5px;padding-right:44px}
+.ph .loc{color:var(--teal);font-size:12px;font-weight:700;margin-top:4px}
+.pfechar{position:absolute;top:16px;right:18px;background:rgba(255,255,255,.16);border:0;color:#fff;width:32px;height:32px;border-radius:8px;font-size:18px;cursor:pointer}
+.pbody{padding:0 0 30px;overflow:auto;flex:1}
+.chips{display:flex;flex-wrap:wrap;gap:7px;padding:14px 22px 0}
+.chip{font-size:11.5px;font-weight:600;padding:5px 10px;border-radius:20px;background:#e7f0f3;color:var(--azul)}
+.chip.alerta{background:#FFF3E0;color:#B45309;border:1px solid #FCD9A8}
+.chip.ok{background:rgba(42,157,92,.14);color:var(--verde-esc);border:1px solid rgba(42,157,92,.3)}
+.grp{font-family:'Barlow Condensed';font-size:15px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--azul);margin:20px 22px 12px;padding-bottom:7px;border-bottom:2px solid var(--verde);display:flex;align-items:center;gap:8px}
+.grp .sp{flex:1}
+.resumo{padding:0 22px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px 16px}
+.ri .k{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--text4);font-weight:700;margin-bottom:5px}
+.ri input,.ri select{width:100%}
+.ro{padding:8px 10px;background:#eef3f5;border-radius:8px;color:var(--text3);font-size:13px;min-height:37px}
+.pl{padding:0 22px}
+.tg{border:1.5px solid var(--border);background:var(--sup);border-radius:20px;padding:5px 14px;font:inherit;font-weight:800;font-size:11.5px;cursor:pointer;color:var(--text3);text-transform:none;letter-spacing:0}
+.tg.on{background:var(--azul);border-color:var(--azul);color:#fff}
+/* cronograma */
+.gantt{background:var(--sup);border:1px solid var(--border2);border-radius:10px;overflow-x:auto}
+.gt{min-width:780px;position:relative}
+.gr{display:grid;grid-template-columns:230px 1fr;border-top:1px solid var(--border2);min-height:36px}
+.gl{padding:7px 10px;font-size:12px;font-weight:600;border-right:1px solid var(--border2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.gl:hover{color:var(--azul)}
+.gl small{display:block;color:var(--text4);font-weight:600;font-size:10.5px}
+.gtr{position:relative}
+.gbar{position:absolute;top:9px;height:18px;border-radius:5px;background:var(--azul);min-width:6px;color:#fff;font-size:10px;font-weight:700;line-height:18px;padding:0 6px;white-space:nowrap;overflow:hidden;cursor:pointer}
+.gbar.fin{background:var(--verde)}.gbar.atr{background:var(--verm)}
+.ghead{display:grid;grid-template-columns:230px 1fr;background:var(--azul);color:#fff;font-size:10px;font-weight:700;text-transform:uppercase}
+.ghead>div:first-child{padding:8px 10px}
+.gmeses{position:relative;height:30px}
+.gmes{position:absolute;top:0;bottom:0;border-left:1px solid rgba(255,255,255,.3);padding:8px 5px;white-space:nowrap}
+.ghoje{position:absolute;top:0;bottom:0;width:2px;background:var(--orange);z-index:2}
+/* conteúdo da atividade */
+.cont{padding:0 22px;font-size:13.5px}
+.cont h1,.cont h2,.cont h3{font-family:'Barlow Condensed';color:var(--azul-esc);margin:14px 0 6px;text-transform:uppercase;letter-spacing:.3px}
+.cont h1{font-size:20px}.cont h2{font-size:18px}.cont h3{font-size:16px}
+.cont p{margin:4px 0}
+.cont .todo{display:flex;gap:8px;align-items:flex-start;padding:5px 8px;border-radius:7px;cursor:pointer}
+.cont .todo:hover{background:var(--bg3)}
+.cont .todo input{margin-top:3px;width:17px;height:17px;accent-color:var(--verde);flex:none}
+.cont .todo.feito span{text-decoration:line-through;color:var(--text4)}
+.cont details{border:1px solid var(--border2);border-radius:8px;background:var(--sup);margin:6px 0;padding:0 10px}
+.cont details>summary{cursor:pointer;padding:8px 0;font-weight:700}
+.cont ul,.cont ol{margin:4px 0 4px 20px;padding:0}
+.cont .callout{background:var(--bg3);border-radius:8px;padding:8px 10px;margin:6px 0}
+.cont hr{border:0;border-top:1px solid var(--border2);margin:10px 0}
+.progresso{height:8px;border-radius:8px;background:var(--border2);overflow:hidden;margin:4px 22px 10px}
+.progresso>div{height:100%;background:var(--verde)}
+.load{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--verde);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* formulário */
+.mfundo{position:fixed;inset:0;background:rgba(15,30,40,.6);display:none;align-items:flex-start;justify-content:center;z-index:60;overflow-y:auto;padding:30px 12px}
+.mfundo.on{display:flex}
+.modal{background:var(--sup);border-radius:14px;width:min(760px,100%);overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,.25)}
+.modal .ph .end{font-size:22px}
+.mcorpo{padding:18px 22px}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px}
+.fgrid .full{grid-column:1/-1}
+.campo label{display:block;font-size:11px;font-weight:700;color:var(--text3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px}
+.campo label i{color:var(--verm);font-style:normal}
+.campo input,.campo select{width:100%}
+.ajuda{font-size:11.5px;color:var(--text3);margin-top:5px;line-height:1.4}
+.ajuda.err{color:var(--verm)}.ajuda.ok{color:var(--verde-esc)}
+.chk{display:flex!important;align-items:center;gap:9px;font-weight:700;color:var(--azul-esc);font-size:13px;cursor:pointer;text-transform:none!important}
+.chk input{width:18px;height:18px;accent-color:var(--verde)}
+.macoes{display:flex;justify-content:flex-end;gap:8px;padding:14px 22px;border-top:1px solid var(--border2);background:var(--bg2)}
+.merro{color:var(--verm);font-size:12.5px;min-height:18px;padding:0 22px}
+/* ===== 23/09/26 — busca nos selects, comentários, investidores ===== */
+.cb{position:relative;width:100%}
+.cb input.cb-in{width:100%;cursor:pointer;padding-right:26px;background-image:linear-gradient(45deg,transparent 50%,var(--text3) 50%),linear-gradient(135deg,var(--text3) 50%,transparent 50%);
+  background-position:calc(100% - 14px) 50%,calc(100% - 9px) 50%;background-size:5px 5px;background-repeat:no-repeat}
+.cb-lista{position:absolute;left:0;right:0;top:100%;z-index:80;max-height:260px;overflow:auto;background:var(--sup);border:1.5px solid var(--verde);border-radius:8px;box-shadow:0 10px 26px var(--sombra);display:none}
+.cb.on .cb-lista{display:block}
+.cb-op{padding:7px 10px;font-size:13px;cursor:pointer;white-space:normal}
+.cb-op:hover,.cb-op.ativo{background:#e9f6ef}
+.cb-op.novo{color:var(--verde-esc);font-weight:700;border-top:1px solid var(--border2)}
+.cb-vazio{padding:8px 10px;color:var(--text4);font-size:12px}
+html[data-tema="escuro"] .cb-op:hover,html[data-tema="escuro"] .cb-op.ativo{background:#1b2f3c}
+.cont a,.com .tx a{color:var(--azul);text-decoration:underline;word-break:break-all}
+.com-lista{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.com{background:var(--sup);border:1px solid var(--border2);border-radius:10px;padding:8px 11px}
+.com .qm{font-size:11px;color:var(--text3);font-weight:700;margin-bottom:3px}
+.com .tx{white-space:pre-wrap;font-size:13px}
+.com img{max-width:220px;max-height:180px;border-radius:8px;margin-top:6px;display:block;cursor:zoom-in;border:1px solid var(--border2)}
+.com a.arq{display:inline-block;margin-top:6px;font-size:12px;font-weight:700;color:var(--azul)}
+.com-form{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+.com-form textarea{flex:1;min-width:200px;min-height:54px;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;background:var(--sup);color:var(--text);resize:vertical}
+.com-anexo{font-size:11.5px;color:var(--text3);width:100%}
+.ja-criado{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:rgba(42,157,92,.12);border:1px solid rgba(42,157,92,.35);color:var(--verde-esc);border-radius:10px;padding:10px 13px;font-weight:700;font-size:13px;margin-top:10px}
+.atv.fixa{outline:2px dashed rgba(42,157,92,.45)}
+#procurando{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:90;background:var(--sup);border:1px solid var(--border2);box-shadow:0 6px 18px var(--sombra);border-radius:20px;padding:7px 14px;font-size:12.5px;color:var(--text3)}
+.atv.saindo{transition:opacity .4s,transform .4s;opacity:0;transform:translateX(24px)}
+.inv-cel{min-width:130px}
+.inv-cel input,.inv-cel select{width:100%;padding:5px 7px;font-size:12.5px}
+.sens{letter-spacing:2px;color:var(--text4)}
+.tentando{border-color:#F0C36D!important;background-image:none}
+/* 23/09/26 — desempenho: linhas fora da tela não são desenhadas até rolar */
+.tabela-wrap tbody tr{content-visibility:auto;contain-intrinsic-size:auto 44px}
+.atv{content-visibility:auto;contain-intrinsic-size:auto 56px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--azul-esc);color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:90;opacity:0;transition:opacity .2s;pointer-events:none;max-width:92%}
+.toast.on{opacity:1}
+.tarja-teste{display:none;align-items:center;gap:9px;background:#FFF7ED;border:1px solid #FED7AA;color:#9A3412;border-radius:10px;padding:9px 13px;font-size:12.5px;font-weight:600;margin-bottom:14px}
+.tarja-teste.on{display:flex}
+/* ===== MODO ESCURO (mesma chave morais_tema) ===== */
+html[data-tema="escuro"]{color-scheme:dark;
+  --azul:#2f6e93;--azul-esc:#122430;--teal:#79c8bf;--verde:#2f9e63;--verde-btn:#3cbf5d;--verde-esc:#17603a;
+  --bg:#0e1920;--bg2:#15222c;--bg3:#1a2c38;--border:#2d4757;--border2:#243a4a;
+  --text:#e7eff5;--text3:#9db4c4;--text4:#7794a6;--branco:#15222c;--orange:#d9843c;--sup:#15222c;--sup2:#1a2934}
+html[data-tema="escuro"] tbody tr:nth-child(even) td,html[data-tema="escuro"] tbody tr:nth-child(even) td.stick{background:#121e27}
+html[data-tema="escuro"] tbody tr:hover td{background:#1b2f3c}
+html[data-tema="escuro"] thead th,html[data-tema="escuro"] .ghead{background:var(--azul-esc);color:var(--teal)}
+html[data-tema="escuro"] .tag,html[data-tema="escuro"] .chip{background:var(--bg3);color:var(--text3)}
+html[data-tema="escuro"] .tag.sim,html[data-tema="escuro"] .chip.ok{background:#16341f;color:#8ce0a5}
+html[data-tema="escuro"] .tag.nao{background:#3a1e1e;color:#f3a29a}
+html[data-tema="escuro"] .chip.alerta,html[data-tema="escuro"] .falta{background:#3a2d12;color:#f0c95f;border-color:#57431f}
+html[data-tema="escuro"] .sec .cond,html[data-tema="escuro"] .grp,html[data-tema="escuro"] .ival,
+html[data-tema="escuro"] .cont h1,html[data-tema="escuro"] .cont h2,html[data-tema="escuro"] .cont h3{color:var(--teal)}
+html[data-tema="escuro"] .obralink,html[data-tema="escuro"] .al .end,html[data-tema="escuro"] .bt.ghost,html[data-tema="escuro"] .sw.on{color:#8fd3ee}
+html[data-tema="escuro"] .bt.ghost,html[data-tema="escuro"] .sw.on,html[data-tema="escuro"] .ro{background:var(--bg3)}
+html[data-tema="escuro"] input,html[data-tema="escuro"] select{background:var(--sup2);color:var(--text);border-color:var(--border)}
+html[data-tema="escuro"] .atv.atr{background:#3a1e1e;border-color:#6b2c2c}
+html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
+/* ===== CELULAR ===== */
+@media(max-width:1000px){
+  .atv{grid-template-columns:1fr 1fr} .atv-cab{display:none} .atv .nmcol{grid-column:1/-1} .atv .k{display:block}
+}
+@media(max-width:900px){ .hupd{display:none} .resumo{grid-template-columns:1fr 1fr} }
+@media(max-width:680px){
+  input,select{font-size:16px}
+  main{padding:16px 10px 60px}
+  .tab{padding:10px 14px;font-size:13px}
+  .tabs-outer{justify-content:flex-start}
+  .painel,.painel.p2{width:100vw}
+  .fgrid{grid-template-columns:1fr}
+  .busca{min-width:0;width:100%}
+  .ph .end{font-size:20px}
+  .pl,.resumo,.cont{padding-left:12px;padding-right:12px}
+}
+/* ===== ATIVIDADES (25/09/26) ===== */
+.lay{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:16px;align-items:start}
+.lado{position:sticky;top:12px;display:flex;flex-direction:column;gap:12px}
+.caixa{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:12px 14px}
+.caixa h3{margin:0 0 8px;font-family:'Barlow Condensed';font-weight:800;font-size:16px;letter-spacing:.4px;text-transform:uppercase;color:var(--azul-esc);display:flex;align-items:center;gap:8px}
+.caixa h3 .n{font:700 11px Inter,sans-serif;background:var(--bg3);color:var(--text3);border-radius:20px;padding:2px 8px}
+.mini{display:flex;align-items:center;gap:8px;padding:7px 4px;border-top:1px solid var(--border2);font-size:12.5px;cursor:pointer}
+.mini:first-of-type{border-top:0}
+.mini:hover{background:rgba(41,87,120,.05)}
+.mini .t{flex:1;min-width:0;font-weight:700;color:var(--text)}
+.mini .d{font-size:11px;color:var(--text3);white-space:nowrap}
+.mini .d.atr{color:var(--verm);font-weight:800}
+.prog{height:6px;border-radius:6px;background:var(--border2);overflow:hidden;margin-top:4px}.prog i{display:block;height:100%;background:var(--verde)}
+.mod{display:flex;align-items:center;gap:6px;padding:7px 0;border-top:1px solid var(--border2);font-size:12.5px}
+.mod:first-of-type{border-top:0}
+.mod .t{flex:1;min-width:0}.mod .t b{display:block}.mod .t span{font-size:11px;color:var(--text3)}
+.vis{display:inline-flex;border:1.5px solid var(--border);border-radius:9px;overflow:hidden}
+.vis button{border:0;background:var(--sup);padding:7px 13px;font:inherit;font-size:12px;font-weight:800;color:var(--text3);cursor:pointer}
+.vis button.on{background:var(--azul);color:#fff}
+.sect{margin-bottom:16px}
+.sect-h{font-family:'Barlow Condensed';font-weight:800;font-size:17px;letter-spacing:.5px;text-transform:uppercase;color:var(--azul-esc);margin:6px 0 8px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
+.sect-h .n{font:700 11px Inter,sans-serif;background:var(--bg3);color:var(--text3);border-radius:20px;padding:2px 8px}
+.sect-h.r{color:var(--verm)}
+.al-lista{display:flex;flex-direction:column;gap:6px}
+.li{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,210px) minmax(0,140px) 90px 70px;gap:12px;align-items:center;background:var(--sup);border:1px solid var(--border2);
+  border-left:4px solid var(--azul);border-radius:10px;padding:9px 12px;cursor:pointer}
+.li:hover{box-shadow:0 4px 12px var(--sombra)}
+.li.atr{border-left-color:var(--verm);background:#fff6f5}
+.li.hoje{border-left-color:var(--orange)}
+.li.fin{opacity:.6;border-left-color:var(--verde)}
+.li .t{font-weight:700;font-size:13px;min-width:0}
+.li .t small{display:block;font-weight:500;font-size:11px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.li .c{font-size:12px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 28/09: status comprido ("Aguardando análise do solicitante") não invade a coluna de quem pediu/faz */
+.li>div{min-width:0}
+.li .pill{max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+.li .c.atr{color:var(--verm);font-weight:800}
+.pill{display:inline-block;font-size:10.5px;font-weight:800;padding:3px 9px;border-radius:20px;background:#e7f0f3;color:var(--azul);white-space:nowrap}
+.pill.s0{background:#eef1f3;color:#5a6b77}.pill.s1{background:#e3eefb;color:#2d5ea8}.pill.s2{background:#fdf1dc;color:#9a5b0b}.pill.s3{background:rgba(42,157,92,.14);color:var(--verde-esc)}
+.pill.o-Obras{background:#e8e2f7;color:#5b3fa6}.pill.o-Vendas{background:#fde6ec;color:#a3284e}.pill.o-Documentos{background:#e0f2ef;color:#1d6b5f}
+.pri-Alta{color:var(--verm);font-weight:800}.pri-Média{color:#b7791f;font-weight:700}.pri-Baixa{color:var(--text3)}
+/* kanban */
+.kb{display:grid;grid-template-columns:repeat(4,minmax(220px,1fr));gap:10px;overflow-x:auto}
+.kc{background:var(--bg3);border-radius:12px;padding:9px;min-height:200px}
+.kc.sobre{outline:2px dashed var(--verde)}
+.kc h4{margin:2px 4px 8px;font-family:'Barlow Condensed';font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--azul-esc);display:flex;justify-content:space-between}
+.kk{background:var(--sup);border:1px solid var(--border2);border-radius:9px;padding:8px 10px;margin-bottom:7px;cursor:grab;font-size:12.5px}
+.kk.atr{border-left:4px solid var(--verm)}
+.kk b{display:block;margin-bottom:4px}
+.kk .m{font-size:11px;color:var(--text3);display:flex;gap:6px;flex-wrap:wrap}
+/* calendário */
+.cal-top{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.cal-top b{font-family:'Barlow Condensed';font-size:20px;text-transform:uppercase;color:var(--azul-esc);min-width:170px;text-align:center}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.cal .dw{font-size:10px;font-weight:800;text-transform:uppercase;color:var(--text3);text-align:center;padding:4px}
+.cal .dia{background:var(--sup);border:1px solid var(--border2);border-radius:8px;min-height:96px;padding:5px;font-size:11px;overflow:hidden}
+.cal .dia.fora{opacity:.4}.cal .dia.hj{border:2px solid var(--verde)}
+.cal .dn{font-weight:800;color:var(--text3);margin-bottom:3px}
+/* 28/09/26 — cor = DE ONDE vem a atividade (mesmas cores das etiquetas da
+   lista). Atrasada = borda vermelha + ⚠; concluída = riscada e apagada. */
+.cal .ev{display:block;border-radius:5px;padding:2px 5px;margin-bottom:2px;background:#e3eefb;color:#1f4f8a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;font-weight:600;border-left:3px solid transparent;text-decoration:none}
+.cal .ev.o-Obras{background:#e8e2f7;color:#5b3fa6}
+.cal .ev.o-Vendas{background:#fde6ec;color:#a3284e}
+.cal .ev.o-Documentos{background:#e0f2ef;color:#1d6b5f}
+.cal .ev.atr{border-left-color:#c0392b;font-weight:800}
+.cal .ev.fin{opacity:.55;text-decoration:line-through}
+/* 29/09 — arrastar no calendário */
+.cal .ev[draggable=true]{cursor:grab}
+.cal .ev.puxando{opacity:.35}
+.cal.arrastando .dia{transition:background .1s}
+.cal .dia.sobre{background:rgba(42,157,92,.12);outline:2px dashed var(--verde);outline-offset:-2px}
+.cal-top .bt.sobre{outline:2px dashed var(--verde)}
+/* legenda (28/09 tarde): caixa branca e amostras em cor cheia — antes as
+   cores claras sumiam no fundo da página */
+.cal-leg{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;background:var(--sup);border:1px solid var(--border2);
+  border-radius:10px;padding:8px 14px;margin:0 0 10px;font-size:12px;font-weight:800;color:var(--azul-esc);box-shadow:0 2px 8px rgba(20,50,70,.06)}
+.cal-leg .tl{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3)}
+.cal-leg span{display:inline-flex;align-items:center;gap:6px}
+.cal-leg i{display:inline-block;width:16px;height:16px;border-radius:4px}
+.cal-leg i.o-Atividades{background:#1f4f8a}.cal-leg i.o-Obras{background:#5b3fa6}
+.cal-leg i.o-Vendas{background:#a3284e}.cal-leg i.o-Documentos{background:#1d6b5f}
+.cal-leg i.leg-atr{background:#fff;border:1px solid var(--border2);border-left:4px solid #c0392b}
+.cal-leg i.leg-fin{background:#fff;border:1px solid var(--border2);position:relative}
+.cal-leg i.leg-fin::after{content:"";position:absolute;left:2px;right:2px;top:6px;border-top:2px solid #1f4f8a}
+.cal-leg .sep{width:1px;height:18px;background:var(--border2)}
+html[data-tema="escuro"] .cal-leg{color:#e7f3ff}
+.pill.o-Atividades{background:#e3eefb;color:#1f4f8a}
+.msg img{max-width:100%;max-height:260px;border-radius:8px;display:block;margin-top:5px;cursor:zoom-in}
+/* painel da atividade */
+.af{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 14px;padding:16px 22px 0}
+.af label{display:block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);margin-bottom:4px}
+.af input,.af select{width:100%}
+.af .full{grid-column:1/-1}
+.pess{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.pchip{display:inline-flex;align-items:center;gap:5px;background:#e7f0f3;color:var(--azul-esc);border-radius:20px;padding:4px 6px 4px 10px;font-size:12px;font-weight:700}
+.pchip button{border:0;background:rgba(0,0,0,.08);border-radius:50%;width:18px;height:18px;cursor:pointer;font-size:11px;line-height:1;color:inherit}
+.chat{display:flex;flex-direction:column;gap:8px;max-height:48vh;overflow:auto;padding:4px 2px 8px}
+.msg{max-width:82%;background:var(--sup);border:1px solid var(--border2);border-radius:12px 12px 12px 4px;padding:7px 11px;align-self:flex-start}
+.msg.eu{align-self:flex-end;background:#e4f5ea;border-color:#bfe5cc;border-radius:12px 12px 4px 12px}
+.msg.nt{background:#f3f4f6;border-style:dashed}
+.msg .qm{font-size:10.5px;font-weight:800;color:var(--text3);margin-bottom:2px}
+.msg .qm .env{color:#b7791f}
+.pend-ed{font-size:12px;cursor:help}
+.mencao{background:rgba(41,87,120,.12);color:var(--azul);font-weight:700;border-radius:5px;padding:0 3px}
+.mencao.eu{background:rgba(76,217,100,.25);color:var(--verde-esc)}
+.menc-caixa{display:none;position:absolute;left:0;bottom:100%;margin-bottom:4px;z-index:50;min-width:220px;max-height:240px;overflow:auto;background:var(--sup,#fff);border:1px solid var(--border2);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.menc-i{padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer}
+.menc-i.on,.menc-i:hover{background:var(--bg3,#dceaef)}.msg .qm .nao{color:var(--verm)}.msg.falhou{border-color:var(--verm)}
+.msg .tx{white-space:pre-wrap;font-size:13px;word-break:break-word}
+/* 29/09 — situação da leitura dos comentários */
+.sinc{font-size:11px;font-weight:600;color:var(--text3);letter-spacing:0;text-transform:none}
+.sinc.erro{color:var(--verm)}.sinc.aviso{color:#b7791f}
+.bt-sinc{margin-left:auto;padding:2px 9px;font-size:13px;line-height:1.3}
+.msg img{max-width:240px;max-height:200px;border-radius:8px;display:block;margin-top:6px;cursor:zoom-in;border:1px solid var(--border2)}
+.msg a.arq,.msg span.arq{display:inline-block;margin-top:5px;font-size:12px;font-weight:700;color:var(--azul)}
+.msg span.arq{color:var(--text3);cursor:help}
+.chat-form{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-top:8px}
+.chat-form textarea{flex:1;min-width:200px;min-height:50px;max-height:160px;border:1.5px solid var(--border);border-radius:10px;padding:8px 10px;font:inherit;font-size:13px;background:var(--sup);color:var(--text);resize:vertical}
+.chat-anx{font-size:11.5px;color:var(--text3);width:100%}
+.aovivo{font-size:10.5px;font-weight:800;color:var(--verde-esc);display:inline-flex;align-items:center;gap:5px}
+.aovivo:before{content:"";width:7px;height:7px;border-radius:50%;background:var(--verde);animation:aa-pulso 2s infinite}
+.sec2{padding:14px 22px 0}
+.pessoa-lista{display:flex;flex-direction:column;gap:3px;max-height:220px;overflow:auto;border:1.5px solid var(--border);border-radius:8px;padding:6px 8px;background:var(--sup)}
+.pessoa-lista label{display:flex!important;align-items:center;gap:7px;font-size:12.5px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--text);margin:0}
+textarea.campo-grande{width:100%;min-height:90px;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;background:var(--sup);color:var(--text)}
+.eq-tab td,.eq-tab th{text-align:center}.eq-tab td:first-child,.eq-tab th:first-child{text-align:left}
+.eq-tab .r{color:var(--verm);font-weight:800}.eq-tab .o{color:var(--orange);font-weight:800}
+html[data-tema="escuro"] .caixa h3,html[data-tema="escuro"] .sect-h,html[data-tema="escuro"] .kc h4,html[data-tema="escuro"] .cal-top b{color:var(--teal)}
+html[data-tema="escuro"] .li.atr{background:#2d1a1a}
+html[data-tema="escuro"] .msg.eu{background:#16341f;border-color:#245c38}
+html[data-tema="escuro"] .msg.nt{background:var(--bg3)}
+html[data-tema="escuro"] .pchip{background:var(--bg3);color:var(--text)}
+@media(max-width:1100px){ .lay{grid-template-columns:1fr} .lado{position:static} }
+@media(max-width:760px){ .li{grid-template-columns:1fr 1fr} .li .t{grid-column:1/-1} .af{grid-template-columns:1fr 1fr} .kb{grid-template-columns:repeat(4,240px)} }
+
+/* v2 — filtros com destaque e cartões clicáveis */
+.flts{display:inline-flex;align-items:center;gap:5px;background:var(--sup);border:1.5px solid var(--border);border-radius:12px;padding:4px 6px}
+.flt-l{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);padding:0 4px}
+.flt{border:2px solid transparent;background:var(--bg3);color:var(--azul-esc);border-radius:9px;padding:7px 14px;font:inherit;font-size:13px;font-weight:800;cursor:pointer}
+.flt:hover{border-color:var(--azul)}
+.flt.on{background:var(--azul);color:#fff;box-shadow:0 3px 10px rgba(41,87,120,.35)}
+.flt.o.on{background:var(--verde);box-shadow:0 3px 10px rgba(42,157,92,.35)}
+.icard.clic{cursor:pointer;transition:transform .12s,box-shadow .12s}
+.icard.clic:hover{transform:translateY(-2px);box-shadow:0 6px 16px var(--sombra)}
+.icard.on{border:2px solid var(--azul);box-shadow:0 4px 14px rgba(41,87,120,.25)}
+html[data-tema="escuro"] .flt{background:var(--bg3);color:var(--text)}
+/* v3 — lista de itens do checklist (digita, Enter, próxima linha) */
+.ck{display:flex;flex-direction:column;gap:5px;background:var(--sup);border:1.5px solid var(--border);border-radius:10px;padding:8px 10px}
+.ck-l{display:flex;align-items:center;gap:8px}
+.ck-b{color:var(--text3);font-size:15px;flex:none}
+.ck-l input{flex:1;border:0!important;border-bottom:1px dashed var(--border2)!important;border-radius:0!important;padding:6px 2px!important;background:transparent!important;box-shadow:none!important}
+.ck-l input:focus{border-bottom:2px solid var(--verde)!important}
+.ck-x{border:0;background:transparent;color:var(--text4);font-size:17px;cursor:pointer;padding:0 6px;border-radius:6px}
+.ck-x:hover{background:#fde8e6;color:var(--verm)}
+.pessoa-lista i{color:var(--verde-esc);font-style:normal;font-size:11px}
+/* v3 — a página não "corta seco": respiro no fim e colunas com a mesma altura de topo */
+main.wrap{padding-bottom:90px}
+.lay{margin-bottom:30px}
+.cal{margin-bottom:10px}
+/* v4 — lista de responsáveis (caixinha à esquerda, nome ao lado) e busca */
+.pessoa-lista label{justify-content:flex-start!important;text-align:left;padding:5px 4px;border-radius:6px;cursor:pointer}
+.pessoa-lista label:hover{background:rgba(41,87,120,.07)}
+.pessoa-lista input[type=checkbox]{width:17px!important;height:17px;flex:none;margin:0;accent-color:var(--verde)}
+.pessoa-lista label.oculto{display:none!important}
+.li.criando{opacity:.75;border-left-color:#F0C36D;border-style:dashed}
+.falhou{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:95;background:#7f1d1d;color:#fff;border-radius:12px;padding:10px 14px;
+  font-size:13px;display:flex;gap:10px;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.3);max-width:94vw}
+.falhou button{border:0;border-radius:8px;padding:6px 11px;font:inherit;font-weight:800;cursor:pointer}
+.falhou .tn{background:#fff;color:#7f1d1d}.falhou .fx{background:transparent;color:#fff;font-size:16px}
+/* v5 — checklists de verdade na coluna da direita */
+.ckc{border:1px solid var(--border2);border-radius:10px;padding:9px 10px;margin-bottom:8px;background:var(--sup2)}
+.ckc.ok{border-color:rgba(42,157,92,.5);background:rgba(42,157,92,.07)}
+.ckc.criando{opacity:.7;border-style:dashed}
+.ckc-h{display:flex;align-items:center;gap:8px;font-size:13px}.ckc-h b{flex:1;min-width:0;color:var(--azul-esc)}
+.ckc-h span{font-size:11px;font-weight:800;color:var(--text3)}
+.ckc .prog{margin:6px 0 6px}
+.ckc-i{display:flex!important;align-items:flex-start;gap:8px;font-size:13px;padding:4px 2px;cursor:pointer;border-radius:6px;text-transform:none;letter-spacing:0;font-weight:500;color:var(--text)}
+.ckc-i:hover{background:rgba(41,87,120,.06)}
+.ckc-i input{width:17px!important;height:17px;flex:none;margin:1px 0 0;accent-color:var(--verde)}
+.ckc-i.f span{text-decoration:line-through;color:var(--text4)}
+.ckc-fim{font-size:11px;font-weight:800;color:var(--verde-esc);margin-top:4px}
+.ck-prontos{margin-top:12px;border-top:1px dashed var(--border2);padding-top:8px}
+.ck-pt{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);margin-bottom:4px}
+/* v5 — "Descrição e checklist" no formulário */
+.cp{display:flex;flex-direction:column;gap:4px;background:var(--sup);border:1.5px solid var(--border);border-radius:10px;padding:8px 10px}
+.cp-l{display:flex;align-items:center;gap:8px}
+/* 29/09 — checklist com os responsáveis */
+.ck-resp{display:flex;align-items:center;gap:8px;margin-top:8px;padding:7px 10px;border:1.5px dashed var(--border);border-radius:9px;font-size:12.5px;font-weight:700;color:var(--azul-esc);cursor:pointer;text-transform:none;letter-spacing:0}
+.ck-resp input{width:16px;height:16px;accent-color:var(--verde);margin:0}
+.ck-resp .ajuda{font-weight:500;margin:0}
+.cp-l[data-resp] .cp-m{color:var(--verde)}
+.cp-m{flex:none;width:20px;text-align:center;color:var(--text3);font-weight:800}
+.cp-l input{flex:1;border:0!important;border-bottom:1px dashed var(--border2)!important;border-radius:0!important;padding:6px 2px!important;background:transparent!important;box-shadow:none!important}
+.cp-l input:focus{border-bottom:2px solid var(--verde)!important}
+.cp-l.t-heading_2 input{font-weight:800;font-size:15px}
+.cp-add{margin-top:8px}
+.cp-add button{border:1.5px dashed var(--border);background:transparent;color:var(--text3);border-radius:8px;padding:5px 10px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.cp-add button:hover{border-color:var(--verde);color:var(--verde-esc)}
+
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap hbar">
+    <span class="logo"><img src="img/logo.png" alt="Morais"></span>
+    <div><div class="htitle">Atividades</div><div class="hsub">Morais Engenharia</div></div>
+    <div class="hspace"></div>
+    <span class="hupd updated" id="updated"></span>
+    <div class="user">
+      <div style="text-align:right"><div class="nome" id="u-nome">—</div><span class="badge" id="u-tipo">—</span></div>
+      <button class="btema" id="btema" onclick="trocarTema()" title="Alternar claro/escuro">🌙</button>
+      <button class="sair" onclick="sair()">Sair</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="tarja-teste" id="tarja-teste"><span>🔍</span><span><b>MODO TESTE</b> — este login enxerga tudo, mas nenhuma alteração é gravada.</span></div>
+  <div id="app">
+    <div class="crumb"><a class="btn-voltar" href="index.html">← Voltar para o Dashboard</a></div>
+    <div class="tabs-outer"><div class="tabs" id="tabs"></div></div>
+    <div id="view"><div class="vazio"><span class="load"></span> Carregando…</div></div>
+  </div>
+</main>
+
+<div class="overlay" id="ov1" onclick="fecharAtv()"></div>
+<div class="painel" id="p1">
+  <div class="ph"><div class="end" id="p1-end"></div><div class="loc" id="p1-loc"></div>
+    <button class="pfechar" title="Fechar (Esc)" aria-label="Fechar" onclick="fecharAtv()">✕</button></div>
+  <div class="pbody" id="p1-corpo"></div>
+</div>
+
+<div class="mfundo" id="mf">
+  <div class="modal">
+    <div class="ph"><div class="end" id="mf-tit">Nova atividade</div><div class="loc" id="mf-sub">Campos com * são obrigatórios</div>
+      <button class="pfechar" title="Fechar (Esc)" aria-label="Fechar" onclick="fecharForm()">✕</button></div>
+    <div class="mcorpo" id="mf-corpo"></div>
+    <div class="merro" id="mf-erro"></div>
+    <div class="macoes" id="mf-acoes"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="app.js?v=44"></script>
+<script src="rf-rotas.js?v=7"></script>
+<script src="alertas-docs.js?v=1"></script>
+<script src="editor-blocos.js?v=11"></script>
+<script src="atv-alertas.js?v=7"></script>
+<script>
+/* ---------- tema ---------- */
+const TEMA_KEY="morais_tema";
+function temaAtual(){ return document.documentElement.dataset.tema==="escuro"?"escuro":"claro"; }
+function aplicarTema(t){ const e=t==="escuro"; document.documentElement.dataset.tema=e?"escuro":"claro";
+  const b=document.getElementById("btema"); if(b) b.textContent=e?"☀":"🌙";
+  const m=document.querySelector('meta[name="theme-color"]'); if(m) m.setAttribute("content",e?"#0f1c26":"#295778"); }
+function trocarTema(){ const n=temaAtual()==="escuro"?"claro":"escuro"; try{localStorage.setItem(TEMA_KEY,n);}catch(e){} aplicarTema(n); }
+aplicarTema(temaAtual());
+
+/* =====================================================================
+   ATIVIDADES (25/09/26) — (EMP) Atividades do Notion, 100% pelo portal.
+   MINHAS: cai direto nas atividades da pessoa — sou responsável, solicitei,
+   das outras abas (Obras, Vendas, Documentos) — em LISTA, KANBAN ou
+   CALENDÁRIO; coluna da direita "Para mim" (atividades que a pessoa criou
+   para ela mesma) e os CHECKLISTS PRONTOS (diário/semanal/mensal: "Gerar"
+   cria uma atividade nova, zerada, com os itens do modelo).
+   EQUIPE (ADM/MASTER): atividades de todos, atrasadas, vencem hoje, tempo
+   médio de conclusão por pessoa.
+   Painel da atividade: campos editáveis, COMENTÁRIOS ao vivo (com fotos e
+   documentos; antigos do Notion aparecem só para leitura) e, abaixo deles,
+   CHECKLIST E ANOTAÇÕES (corpo da página, editor-blocos.js).
+   Ações: atv* (RetaFinal.gs). Tudo grava na hora na tela e por trás.
+   ===================================================================== */
+const S=exigirSessao();
+if(S){ document.getElementById("u-nome").textContent=S.nome||S.login;
+  const tb=document.getElementById("u-tipo"); tb.textContent=S.tipo; if(S.tipo==="ADM") tb.classList.add("adm");
+  if(String(S.tipo).toUpperCase()==="TESTES") document.getElementById("tarja-teste").classList.add("on"); }
+const TIPO=String((S&&S.tipo)||"").toUpperCase();
+const EQUIPE=["ADM","MASTER","TESTES"].indexOf(TIPO)>=0;
+const RO=ehSomenteLeitura(S);
+const FIM="Finalizado", AGUARD="Aguardando análise do solicitante", PROPRIA="ATIVIDADE PRÓPRIA";
+const SID=id=>String(id||"").replace(/-/g,"");
+let ME=SID(S&&S.pessoa);
+
+let D={atividades:[],pessoas:[],opcoes:{status:[],tipo:[],prioridade:[]}}, OUT={itens:[]}, MOD={modelos:[]}, EQ=null;
+let OBRAS={}, OBRAS_L=[], ALERTAS_ABAS=[];
+let ABA="minhas", VIS=localStorage.getItem("atv_vis")||"lista", FILTRO="todas", BUSCA="", MES=new Date(); MES.setDate(1);
+let VER_FIN=false, EQ_PESSOA="", ORIG="todas", RAPIDO="";
+const ORIGENS=["Atividades","Obras","Vendas","Documentos"];
+let ABERTA=null, _poll=null, _coms=null, _comsAssin="";
+let CKS={checklists:[]};   // v5: checklists de verdade (Supabase)
+
+/* ---------- utilitários ---------- */
+function N(s){ return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().trim(); }
+function toast(t){ const e=document.getElementById("toast"); e.textContent=t; e.classList.add("on"); clearTimeout(toast._t); toast._t=setTimeout(()=>e.classList.remove("on"),3400); }
+function hojeISO(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function br(iso){ return iso?iso.slice(8,10)+"/"+iso.slice(5,7)+(iso.slice(0,4)!==String(new Date().getFullYear())?"/"+iso.slice(2,4):""):"—"; }
+function difDias(a,b){ return Math.round((new Date(b+"T12:00:00")-new Date(a+"T12:00:00"))/864e5); }
+const souResp=a=>(a.resp||[]).some(u=>u.id===ME);
+const souSolic=a=>(a.solic||[]).some(u=>u.id===ME);
+const ehPropria=a=>souResp(a)&&souSolic(a)&&(a.resp||[]).length===1;
+const aberta=a=>a.status!==FIM;
+const atrasada=a=>aberta(a)&&a.fim&&a.fim<hojeISO();
+const venceHoje=a=>aberta(a)&&a.fim===hojeISO();
+const nomes=l=>(l||[]).map(u=>primeiro(u.nome)).join(", ");
+function primeiro(n){ const p=String(n||"").trim().split(/\s+/); return p.length>1?(p[0].charAt(0).toUpperCase()+p[0].slice(1).toLowerCase()+" "+p[p.length-1].charAt(0).toUpperCase()+"."):(p[0]||""); }
+function nomeObra(id){ return id?(OBRAS[SID(id)]||""):""; }
+function stIdx(s){ const i=(D.opcoes.status||[]).indexOf(s); return i<0?0:i; }
+function pillSt(s){ return `<span class="pill s${stIdx(s)}" title="${esc(s||"")}">${esc(s||"—")}</span>`; }
+function podeEditar(a){ return !RO&&(souResp(a)||souSolic(a)||TIPO==="ADM"||TIPO==="MASTER"); }
+function busca(a){ const b=N(BUSCA); return !b||N(a.titulo+" "+(a.tipo||"")+" "+nomeObra(a.obraId)).indexOf(b)>=0; }
+function doFiltro(a){ return FILTRO==="todas"?true:FILTRO==="resp"?souResp(a):souSolic(a)&&!souResp(a); }
+
+/* ---------- carga ---------- */
+let _carregou=false;   // 28/09: até a 1ª resposta, "Carregando…" (e não "Nenhuma atividade")
+/* 29/09 (tarde): "🔄 Recarregar" ou F5 → pede ao servidor para conferir o
+   Notion NA HORA (delta + excluídas) e joga fora as cópias de conteúdo e
+   comentários guardadas neste navegador (antes elas sobreviviam ao Recarregar). */
+/* 30/09 — ECONOMIA DE COTA: cada releitura automática é uma chamada ao
+   Google (a cota diária de conexões da conta é uma só para o portal inteiro).
+   - comentários: a cada 45 s (o "ao vivo" já traz na hora os do portal);
+   - checklist: a cada 2 min;
+   - 15 min sem mexer na tela (mouse, teclado, rolagem) → pausa tudo; ao
+     mexer de novo, relê na hora. Aba esquecida aberta não gasta mais nada. */
+const ehCota=e=>/COTA_GOOGLE|muitas vezes no mesmo dia|too many times/i.test(String(e||""));
+let _usoEm=Date.now();
+const ocioso=()=>Date.now()-_usoEm>15*60*1000;
+["pointerdown","keydown","wheel","touchstart"].forEach(ev=>window.addEventListener(ev,()=>{
+  const volta=ocioso(); _usoEm=Date.now();
+  if(volta&&!document.hidden){ sincronizarNotion(); if(ABERTA){ lerComentarios(false); atualizarConteudo(); } }
+},{passive:true,capture:true}));
+let _foiRecarga=false;
+try{ const nv=performance.getEntriesByType("navigation")[0]; _foiRecarga=!!(nv&&nv.type==="reload"); }catch(e){}
+if(_foiRecarga){ try{ for(let i=localStorage.length-1;i>=0;i--){ const k=localStorage.key(i)||""; if(k.indexOf("atv_ab_")===0||k.indexOf("eb_v2_")===0) localStorage.removeItem(k); } }catch(e){} }
+function recargaUmaVez(){ const r=_foiRecarga; _foiRecarga=false; return r; }
+async function carregar(fresco){
+  const c=cacheGet("atv_minhas"); if(c&&c.v&&!fresco&&!D.atividades.length){ aplicar(c.v); }
+  const co=cacheGet("atv_outras"); if(co&&co.v&&!fresco&&!OUT.itens.length){ OUT=co.v; pintar(); }
+  /* 28/09 (fim do dia): checklists e modelos prontos pintam na hora com a
+     cópia guardada e vêm JUNTO das atividades (comCks) — antes esperavam as
+     atividades e as outras abas terminarem para só então serem pedidos. */
+  if(!fresco){ const ck=cacheGet("atv_cks"); if(ck&&ck.v&&!CKS.checklists.length) CKS=ck.v;
+    const md=cacheGet("atv_modelos"); if(md&&md.v&&!MOD.modelos.length) MOD=md.v; pintarLado(); }
+  /* 28/09: minhas + outras abas numa chamada só (antes eram duas, uma atrás da outra) */
+  const r=await ler(Object.assign({action:"atvMinhas",comOutras:true,comCks:true},(fresco||recargaUmaVez())?{fresco:true}:{}),"atv_minhas");
+  if(r&&r.ok&&r.checklists&&r.checklists.ok){ CKS={ok:true,checklists:r.checklists.checklists.concat((CKS.checklists||[]).filter(c=>c._criando))}; ckGuardar(); }
+  if(r&&r.ok&&r.modelos&&r.modelos.ok){ MOD=r.modelos; cacheSet("atv_modelos",MOD); }
+  _carregou=true;
+  if(r&&r.ok){ if(r.outras&&r.outras.ok){ OUT=r.outras; cacheSet("atv_outras",r.outras); } aplicar(r); }
+  else if(!D.atividades.length) document.getElementById("view").innerHTML=ehCota(r&&r.erro)
+    ?`<div class="vazio">⚠ O Google bloqueou as chamadas do portal por hoje (cota diária de conexões da conta esgotada). Volta sozinho quando o Google renovar a cota — não precisa mexer em nada.</div>`
+    :`<div class="vazio">Não consegui carregar suas atividades (${esc(erroTexto(r&&r.erro))}).</div>`;
+  if(!(r&&r.ok&&r.outras)){   // servidor ainda na versão anterior: pede separado
+    const o=await ler(Object.assign({action:"atvOutras"},fresco?{fresco:true}:{}),"atv_outras");
+    if(o&&o.ok){ OUT=o; pintar(); }
+  }
+  if(!(r&&r.ok&&r.modelos)) carregarModelos();          // servidor ainda sem o comCks: pede separado
+  if(!(r&&r.ok&&r.checklists)) carregarChecklists();
+  if(!fresco){ setTimeout(preCarregar,1500); if(EQUIPE&&!cacheGet("atv_equipe")) setTimeout(()=>carregarEquipe(false,true),6000); }
+}
+/* v2 — PRÉ-CARREGAMENTO: as atividades mais prováveis de serem abertas
+   (atrasadas e as próximas do prazo) já ficam guardadas no navegador com
+   comentários e checklist. Uma por vez, e para quando você abre alguma. */
+/* v5 — TUDO PRÉ-CARREGADO: numa chamada só vêm o conteúdo e os
+   comentários de TODAS as suas atividades abertas (o servidor já deixa isso
+   pronto no gatilho). Fica guardado no navegador: abrir é imediato. */
+let _lotePronto=false;
+async function preCarregar(){
+  if(_lotePronto) return; _lotePronto=true;
+  const ids=D.atividades.filter(a=>aberta(a)&&!a._criando).map(a=>a.id);
+  for(let i=0;i<ids.length;i+=40){
+    let r=null; try{ r=await chamar({action:"atvLote",ids:ids.slice(i,i+40)},60000,false); }catch(e){}
+    if(!(r&&r.ok)) break;
+    ids.slice(i,i+40).forEach(id=>{
+      const g=guardadaAtv(id)||{ok:true,pageId:id};
+      if(r.conteudos&&r.conteudos[id]) g.conteudo=r.conteudos[id];
+      if(r.comentarios&&r.comentarios[id]) g.comentarios=r.comentarios[id];
+      guardarAtv(id,g);
+    });
+  }
+}
+function guardarAtv(id,r){ try{ const k="atv_ab_"+id; localStorage.setItem(k,JSON.stringify({t:Date.now(),r}));
+  const idx=JSON.parse(localStorage.getItem("atv_ab_idx")||"[]").filter(x=>x!==k); idx.push(k);
+  while(idx.length>40) localStorage.removeItem(idx.shift()); localStorage.setItem("atv_ab_idx",JSON.stringify(idx)); }catch(e){} }
+function guardadaAtv(id){ try{ const c=JSON.parse(localStorage.getItem("atv_ab_"+id)||"null"); return c&&c.r; }catch(e){ return null; } }
+function aplicar(r){
+  D.atividades=r.atividades||[]; D.pessoas=r.pessoas||D.pessoas; D.opcoes=r.opcoes||D.opcoes;
+  aplicarPendentes(D.atividades);                     // 28/09: o que ainda não foi confirmado vence o servidor
+  if(r.me) ME=r.me;
+  if(r.aviso==="SEU_LOGIN_SEM_PESSOA") toast("Seu login não tem PESSOA no LOGINS do Notion — peça a um ADM para ligar.");
+  document.getElementById("updated").textContent="Atualizado: "+new Date(r.lidoEm||Date.now()).toLocaleTimeString("pt-BR");
+  pintar();
+  if(ABERTA){ const a=acha(ABERTA); if(a) pintarCampos(a); }
+}
+async function carregarModelos(){
+  const c=cacheGet("atv_modelos"); if(c&&c.v&&!MOD.modelos.length){ MOD=c.v; pintarLado(); }
+  const r=await ler({action:"atvModelos"},"atv_modelos"); if(r&&r.ok){ MOD=r; pintarLado(); }
+}
+function carregarObras(){
+  lerEstaticoJa("obras.json","obras",r=>{
+    if(!r||!r.obras) return;
+    OBRAS={}; OBRAS_L=r.obras.map(o=>({id:SID(o.id),titulo:o.titulo||""})).filter(o=>o.titulo).sort((a,b)=>a.titulo.localeCompare(b.titulo));
+    OBRAS_L.forEach(o=>OBRAS[o.id]=o.titulo);
+    if(podeAcessar(S,"OBRAS")){
+      const OBRIG=["setor","cidade","proprietario","proprietario_real","resp","rt","cota","data_lote","n_casas"];
+      const fim=s=>/FINALIZ|CANCEL|CONCLU/.test(N(s));
+      const n=r.obras.filter(o=>!fim(o.status)&&OBRIG.some(k=>o[k]===null||o[k]===undefined||o[k]===""||(Array.isArray(o[k])&&!o[k].length))).length;
+      setAlertaAba("Obras",n,"obras.html","obras com campos faltando");
+    }
+    pintar();
+  });
+  if(podeAcessar(S,"DOCUMENTOS")){
+    lerEstaticoJa("docs.json","docs",r=>{
+      if(!r||!r.ok) return; let n=0;
+      try{ n=criarMotorAlertas(r.campos||[]).contar(r.obras||[]).total; }catch(e){}
+      setAlertaAba("Documentos",n,"documentos.html","alertas de documentação"); pintarLado();
+    });
+  }
+}
+function setAlertaAba(nome,n,link,txt){ ALERTAS_ABAS=ALERTAS_ABAS.filter(x=>x.nome!==nome).concat(n?[{nome,n,link,txt}]:[]); }
+function acha(id){ id=SID(id); return D.atividades.find(a=>a.id===id)||(EQ&&EQ.atividades||[]).find(a=>a.id===id)||null; }
+
+/* ---------- abas ---------- */
+function pintarTabs(){
+  const atr=D.atividades.filter(a=>souResp(a)&&atrasada(a)).length+OUT.itens.filter(x=>x.fim&&x.fim<hojeISO()).length;
+  document.getElementById("tabs").innerHTML=
+    `<button class="tab ${ABA==="minhas"?"on":""}" onclick="ABA='minhas';pintar()">Minhas atividades${atr?`<span class="nb">${atr}</span>`:""}</button>`+
+    (EQUIPE?`<button class="tab ${ABA==="equipe"?"on":""}" onclick="ABA='equipe';pintar();carregarEquipe()">Equipe</button>`:"");
+}
+function pintar(){ pintarTabs(); if(ABA==="equipe") pintarEquipe(); else pintarMinhas(); }
+
+/* ---------- MINHAS ---------- */
+function pintarMinhas(){
+  const v=document.getElementById("view");
+  if(!document.getElementById("m-main")){
+    v.innerHTML=`<div class="toolbar">
+        <div class="vis">${["lista","kanban","cal"].map(k=>`<button id="vis-${k}" onclick="trocarVis('${k}')">${{lista:"☰ Lista",kanban:"▦ Kanban",cal:"📅 Calendário"}[k]}</button>`).join("")}</div>
+        <div class="flts" title="Quem"><span class="flt-l">Quem</span>${[["todas","Todas"],["resp","Sou responsável"],["solic","Solicitei"]].map(([k,r])=>`<button class="flt" id="f-${k}" onclick="FILTRO='${k}';pintarMinhas()">${r}</button>`).join("")}</div>
+        <div class="flts" title="De onde vem a atividade"><span class="flt-l">Origem</span>${[["todas","Todas"]].concat(ORIGENS.map(o=>[o,o])).map(([k,r])=>`<button class="flt o" id="o-${k}" onclick="ORIG='${k}';pintarMinhas()">${r}</button>`).join("")}</div>
+        <input class="busca" placeholder="Buscar atividade, tipo ou obra…" value="${esc(BUSCA)}" oninput="BUSCA=this.value;pintarCorpo()">
+        <button class="bt" onclick="novaAtividade(false)" title="Cria uma atividade e escolhe quem faz">+ Nova atividade</button>
+      </div>
+      <div class="info-bar" id="m-info"></div>
+      <div class="lay"><div id="m-main"></div><div class="lado" id="m-lado"></div></div>`;
+  }
+  ["lista","kanban","cal"].forEach(k=>document.getElementById("vis-"+k).classList.toggle("on",VIS===k));
+  ["todas","resp","solic"].forEach(k=>document.getElementById("f-"+k).classList.toggle("on",FILTRO===k));
+  ["todas"].concat(ORIGENS).forEach(k=>document.getElementById("o-"+k).classList.toggle("on",ORIG===k));
+  pintarCorpo(); pintarLado();
+}
+function trocarVis(k){ VIS=k; RAPIDO=""; try{localStorage.setItem("atv_vis",k);}catch(e){} pintarMinhas(); }
+function pintarCorpo(){
+  const m=document.getElementById("m-main"); if(!m) return;
+  /* 28/09: as atividades só suas (você é responsável e solicitante) também
+     entram aqui — antes ficavam só no "Para mim" e sumiam da lista, do
+     kanban e do calendário. */
+  const minhas=D.atividades;
+  const ab=minhas.filter(aberta);
+  const Q=quick();
+  const info=[["abertas","Abertas",Q.abertas.length,""],["atrasadas","Atrasadas",Q.atrasadas.length,"r"],["hoje","Vencem hoje",Q.hoje.length,""],
+    ["analise","Aguardando minha análise",Q.analise.length,""],["outras","Das outras abas",Q.outras.length,""]];
+  document.getElementById("m-info").innerHTML=info.map(([k,l,n,c])=>`<div class="icard clic ${RAPIDO===k?"on":""}" onclick="RAPIDO=RAPIDO==='${k}'?'':'${k}';pintarCorpo()" title="Ver só estas">
+    <div class="ival ${n&&c?c:""}">${n}</div><div class="ilab">${l}</div></div>`).join("")+
+    (RAPIDO?`<button class="bt ghost bt-mini" style="align-self:center" onclick="RAPIDO='';pintarCorpo()">✕ Ver tudo</button>`:"");
+  if(RAPIDO){ m.innerHTML=listaRapida(Q[RAPIDO],RAPIDO); return; }
+  if(!D.atividades.length&&!OUT.itens.length){ m.innerHTML=_carregou
+    ?`<div class="vazio">Nenhuma atividade sua por enquanto. Crie uma em “+ Nova atividade”.</div>`
+    :`<div class="vazio"><span class="load"></span> Carregando suas atividades…</div>`; return; }
+  const soEmp=ORIG==="todas"||ORIG==="Atividades";
+  if(VIS==="kanban") m.innerHTML=soEmp?kanban(minhas.filter(a=>!a._criando).filter(doFiltro).filter(busca)):`<div class="vazio">O Kanban mostra as atividades da aba Atividades. As de ${esc(ORIG)} abrem na própria aba — veja em Lista ou Calendário.</div>`;
+  else if(VIS==="cal") m.innerHTML=calendario(soEmp?minhas.filter(a=>!a._criando).filter(doFiltro).filter(busca):[]);
+  else m.innerHTML=lista(soEmp?minhas:[]);
+  if(VIS==="kanban") ligarKanban();
+  if(VIS==="cal") ligarCal();
+}
+/* recortes dos cartões de cima (clicáveis) — todas as origens juntas */
+function outrasFiltradas(){ return OUT.itens.filter(x=>ORIG==="todas"||ORIG===x.origem).filter(x=>!BUSCA||N(x.titulo+" "+(x.tipo||"")).indexOf(N(BUSCA))>=0); }
+function quick(){
+  const h=hojeISO(), emp=(ORIG==="todas"||ORIG==="Atividades")?D.atividades.filter(a=>!ehPropria(a)||true).filter(aberta).filter(busca):[];
+  const out=outrasFiltradas();
+  return {
+    abertas: emp.filter(souResp).map(a=>({a})).concat(out.map(x=>({x}))),
+    atrasadas: emp.filter(a=>souResp(a)&&atrasada(a)).map(a=>({a})).concat(out.filter(x=>x.fim&&x.fim<h).map(x=>({x}))),
+    hoje: emp.filter(a=>souResp(a)&&venceHoje(a)).map(a=>({a})).concat(out.filter(x=>x.fim===h).map(x=>({x}))),
+    analise: emp.filter(a=>souSolic(a)&&a.status===AGUARD).map(a=>({a})),
+    outras: out.map(x=>({x}))
+  };
+}
+function listaRapida(itens,k){
+  const tit={abertas:"Todas as abertas em que sou responsável",atrasadas:"⚠ Todas as atrasadas",hoje:"Vencem hoje",analise:"Aguardando minha análise",outras:"Das outras abas"}[k];
+  const ord=itens.slice().sort((p,q)=>String((p.a||p.x).fim||"9999").localeCompare(String((q.a||q.x).fim||"9999")));
+  return ord.length?`<div class="sect"><div class="sect-h ${k==="atrasadas"?"r":""}">${tit} <span class="n">${ord.length}</span></div>
+    <div class="al-lista">${ord.map(o=>o.a?linha(o.a,souResp(o.a)?"resp":"solic"):linhaOut(o.x)).join("")}</div></div>`:`<div class="vazio">Nada aqui. 🎉</div>`;
+}
+function linha(a,modo){
+  const cls=!aberta(a)?"fin":atrasada(a)?"atr":venceHoje(a)?"hoje":"";
+  const quem=modo==="solic"?"Faz: "+(nomes(a.resp)||"—"):(a.solic&&a.solic.length?"Pediu: "+nomes(a.solic):"");
+  const obra=nomeObra(a.obraId);
+  if(a._criando) return `<div class="li criando" title="Criando no Notion…"><div class="t">${esc(a.titulo)}<small>criando…</small></div><div><span class="pill s0">criando…</span></div><div class="c">${esc(nomes(a.resp))}</div><div class="c">${a.fim?br(a.fim):""}</div><div class="c"><span class="load"></span></div></div>`;
+  return `<div class="li ${cls}" onclick="abrirAtv('${a.id}')" title="Abrir a atividade">
+    <div class="t">${ehMural(a)?"📌 ":""}${esc(a.titulo)}<small>${esc([a.tipo,obra].filter(Boolean).join(" · "))}</small></div>
+    <div>${pillSt(a.status)}${temEdicaoPendente(a.id)?` <span class="pend-ed" title="Alteração ainda não confirmada pelo Notion — tenta de novo sozinha">⏳</span>`:""}</div>
+    <div class="c" title="${esc(quem)}">${esc(quem)}</div>
+    <div class="c ${atrasada(a)?"atr":""}">${a.fim?(atrasada(a)?"⚠ ":"")+br(a.fim):"sem prazo"}</div>
+    <div class="c pri-${esc(a.prioridade||"")}">${esc(a.prioridade||"")}</div></div>`;
+}
+function linhaOut(x){
+  const atr=x.fim&&x.fim<hojeISO();
+  return `<a class="li ${atr?"atr":x.fim===hojeISO()?"hoje":""}" href="${esc(x.link)}" style="text-decoration:none;color:inherit" title="Abre na aba ${esc(x.origem)}">
+    <div class="t">${esc(x.titulo||"(sem título)")}<small>${esc([x.tipo,nomeObra(x.obraId)].filter(Boolean).join(" · "))}</small></div>
+    <div><span class="pill o-${esc(x.origem)}">${esc(x.origem)}</span></div>
+    <div class="c">${esc(x.status||"")}</div>
+    <div class="c ${atr?"atr":""}">${x.fim?(atr?"⚠ ":"")+br(x.fim):"sem prazo"}</div><div class="c">↗</div></a>`;
+}
+function sec(titulo,itens,fn,cls,colapsa,chave){
+  if(!itens.length) return "";
+  const aberto=!colapsa||(chave&&window["_sec_"+chave]);
+  return `<div class="sect"><div class="sect-h ${cls||""}" ${colapsa?`onclick="window._sec_${chave}=!window._sec_${chave};pintarCorpo()"`:""}>${colapsa?(aberto?"▾ ":"▸ "):""}${titulo} <span class="n">${itens.length}</span></div>
+    ${aberto?`<div class="al-lista">${itens.map(fn).join("")}</div>`:""}</div>`;
+}
+function ordFim(a,b){ return String(a.fim||"9999").localeCompare(String(b.fim||"9999")); }
+function lista(minhas){
+  const f=minhas.filter(busca);
+  const ab=f.filter(aberta);
+  const resp=ab.filter(a=>souResp(a)&&FILTRO!=="solic").sort(ordFim);
+  const solic=ab.filter(a=>souSolic(a)&&!souResp(a)&&FILTRO!=="resp").sort(ordFim);
+  const out=(FILTRO==="solic"||ORIG==="Atividades")?[]:outrasFiltradas().sort(ordFim);
+  const fin=f.filter(a=>!aberta(a)&&doFiltro(a)).sort((a,b)=>String(b.concl||"").localeCompare(String(a.concl||"")));
+  const atr=resp.filter(atrasada);
+  return sec("⚠ Atrasadas",atr,a=>linha(a,"resp"),"r")+
+    sec("Sou responsável",resp.filter(a=>!atrasada(a)),a=>linha(a,"resp"))+
+    sec("Solicitei (outras pessoas fazem)",solic,a=>linha(a,"solic"))+
+    sec("De outras abas (Obras, Vendas, Documentos)",out,linhaOut)+
+    sec("Concluídas nos últimos 30 dias",fin,a=>linha(a,"resp"),"",true,"fin") ||
+    `<div class="vazio">Nada com esse filtro.</div>`;
+}
+/* kanban */
+function kanban(l){
+  const cols=(D.opcoes.status&&D.opcoes.status.length)?D.opcoes.status:["Não começou","Em andamento",AGUARD,FIM];
+  return `<div class="kb">${cols.map(s=>{
+    const it=l.filter(a=>a.status===s).sort(ordFim);
+    return `<div class="kc" data-st="${esc(s)}"><h4>${esc(s)}<span>${it.length}</span></h4>${it.map(a=>
+      `<div class="kk ${atrasada(a)?"atr":""}" draggable="${podeEditar(a)}" data-id="${a.id}" onclick="abrirAtv('${a.id}')">
+        <b>${temEdicaoPendente(a.id)?"⏳ ":""}${esc(a.titulo)}</b><div class="m">${a.fim?`<span class="${atrasada(a)?"pri-Alta":""}">📅 ${br(a.fim)}</span>`:""}
+        ${a.prioridade?`<span class="pri-${esc(a.prioridade)}">${esc(a.prioridade)}</span>`:""}<span>👤 ${esc(nomes(a.resp))}</span></div></div>`).join("")}</div>`;
+  }).join("")}</div><div class="ajuda" style="margin-top:6px">Arraste o cartão para mudar o status.</div>`;
+}
+function ligarKanban(){
+  document.querySelectorAll(".kk[draggable=true]").forEach(k=>k.addEventListener("dragstart",e=>{ e.dataTransfer.setData("text/plain",k.dataset.id); }));
+  document.querySelectorAll(".kc").forEach(c=>{
+    c.addEventListener("dragover",e=>{ e.preventDefault(); c.classList.add("sobre"); });
+    c.addEventListener("dragleave",()=>c.classList.remove("sobre"));
+    c.addEventListener("drop",e=>{ e.preventDefault(); c.classList.remove("sobre"); const id=e.dataTransfer.getData("text/plain"); if(id) gravar(id,"status",c.dataset.st); });
+  });
+}
+/* legenda: de onde vem cada cor (28/09) */
+const ehMural=a=>/^(MURAL|PORTAL)$/.test(N(a&&a.tipo));
+function legendaCal(){
+  const origens=ORIG==="todas"?ORIGENS:[ORIG];
+  return `<div class="cal-leg"><span class="tl">Legenda</span>`+origens.map(o=>`<span><i class="o-${o}"></i>${o}</span>`).join("")+
+    `<span class="sep"></span><span><i class="leg-atr"></i>⚠ Atrasada</span><span><i class="leg-fin"></i>Concluída</span><span>📌 Mural</span></div>`;
+}
+/* calendário (mês; cada atividade no dia do prazo final) */
+function calendario(l){
+  const ano=MES.getFullYear(), mes=MES.getMonth();
+  const ini=new Date(ano,mes,1); ini.setDate(1-ini.getDay());
+  const hoje=hojeISO();
+  const ev={};
+  l.forEach(a=>{ const d=a.fim||a.ini; if(d) (ev[d]=ev[d]||[]).push({a}); });
+  if(FILTRO!=="solic"&&ORIG!=="Atividades") outrasFiltradas().forEach(x=>{ if(x.fim) (ev[x.fim]=ev[x.fim]||[]).push({x}); });
+  let h=`<div class="cal-top"><button class="bt ghost bt-mini" data-mes="-1" title="Mês anterior (segurando uma atividade em cima, vira o mês)" onclick="MES.setMonth(MES.getMonth()-1);pintarCorpo()">◀</button>
+    <b>${MES.toLocaleDateString("pt-BR",{month:"long",year:"numeric"})}</b>
+    <button class="bt ghost bt-mini" data-mes="1" title="Próximo mês (segurando uma atividade em cima, vira o mês)" onclick="MES.setMonth(MES.getMonth()+1);pintarCorpo()">▶</button>
+    <button class="bt ghost bt-mini" onclick="MES=new Date();MES.setDate(1);pintarCorpo()">Hoje</button></div>`+legendaCal()+`<div class="cal">`+
+    ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"].map(d=>`<div class="dw">${d}</div>`).join("");
+  for(let i=0;i<42;i++){
+    const d=new Date(ini); d.setDate(ini.getDate()+i);
+    const iso=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+    const itens=(ev[iso]||[]);
+    h+=`<div class="dia ${d.getMonth()!==mes?"fora":""} ${iso===hoje?"hj":""}" data-iso="${iso}"><div class="dn">${d.getDate()}</div>${itens.map(o=>o.a?
+      `<span class="ev o-Atividades ${!aberta(o.a)?"fin":atrasada(o.a)?"atr":""}" data-id="${o.a.id}" draggable="${podeEditar(o.a)?"true":"false"}" onclick="abrirAtv('${o.a.id}')" title="${esc("Atividades: "+o.a.titulo+(atrasada(o.a)?" (atrasada)":"")+(podeEditar(o.a)?" — arraste para outro dia para mudar o prazo":""))}">${atrasada(o.a)?"⚠ ":""}${ehMural(o.a)?"📌 ":""}${esc(o.a.titulo)}</span>`:
+      `<a class="ev out o-${esc(o.x.origem)} ${o.x.fim&&o.x.fim<hoje?"atr":""}" href="${esc(o.x.link)}" title="${esc(o.x.origem+": "+o.x.titulo+(o.x.fim&&o.x.fim<hoje?" (atrasada)":""))}">${o.x.fim&&o.x.fim<hoje?"⚠ ":""}${esc(o.x.titulo)}</a>`).join("")}</div>`;
+    if(i===34&&new Date(ini.getFullYear(),ini.getMonth(),ini.getDate()+35).getMonth()!==mes) break;
+  }
+  return h+`</div><div class="ajuda" style="margin-top:6px">Arraste uma atividade para outro dia para mudar o prazo · segure em cima de ◀ ▶ para trocar de mês.</div>`;
+}
+/* 29/09 — ARRASTAR NO CALENDÁRIO: solta a atividade em outro dia e o PRAZO
+   FINAL muda (sem prazo, muda o início — é por ele que ela aparece). Se o
+   início ficar depois do novo prazo, o início vem junto para o mesmo dia.
+   Grava como qualquer edição (⏳ até o Notion confirmar; recusa volta). */
+let _calArrasto=null, _calVira=null;
+function ligarCal(){
+  const cal=document.querySelector(".cal"); if(!cal) return;
+  cal.querySelectorAll(".ev[draggable=true]").forEach(k=>{
+    k.addEventListener("dragstart",e=>{ _calArrasto=k.dataset.id; e.dataTransfer.setData("text/plain",k.dataset.id); e.dataTransfer.effectAllowed="move"; k.classList.add("puxando"); cal.classList.add("arrastando"); });
+    k.addEventListener("dragend",()=>{ _calArrasto=null; clearTimeout(_calVira); document.querySelectorAll(".cal .puxando,.cal .sobre,.cal-top .sobre").forEach(x=>x.classList.remove("puxando","sobre")); const c=document.querySelector(".cal"); if(c) c.classList.remove("arrastando"); });
+  });
+  cal.querySelectorAll(".dia[data-iso]").forEach(d=>{
+    d.addEventListener("dragover",e=>{ if(!_calArrasto) return; e.preventDefault(); e.dataTransfer.dropEffect="move"; d.classList.add("sobre"); });
+    d.addEventListener("dragleave",e=>{ if(!d.contains(e.relatedTarget)) d.classList.remove("sobre"); });
+    d.addEventListener("drop",e=>{ e.preventDefault(); d.classList.remove("sobre"); const id=_calArrasto||e.dataTransfer.getData("text/plain"); _calArrasto=null; if(id) moverNoCal(id,d.dataset.iso); });
+  });
+  /* segurar em cima de ◀ ▶ vira o mês (a atividade continua na mão) */
+  document.querySelectorAll(".cal-top [data-mes]").forEach(b=>{
+    b.addEventListener("dragover",e=>{ if(!_calArrasto) return; e.preventDefault(); if(b.classList.contains("sobre")) return; b.classList.add("sobre");
+      clearTimeout(_calVira); _calVira=setTimeout(()=>{ const id=_calArrasto; MES.setMonth(MES.getMonth()+Number(b.dataset.mes)); pintarCorpo(); _calArrasto=id; const c=document.querySelector(".cal"); if(c) c.classList.add("arrastando"); },650); });
+    b.addEventListener("dragleave",()=>{ b.classList.remove("sobre"); clearTimeout(_calVira); });
+  });
+}
+function moverNoCal(id,iso){
+  const a=acha(id); if(!a||!iso) return;
+  if(!podeEditar(a)){ toast(RO?"Modo teste: não grava.":"Só quem é responsável ou solicitante pode mudar."); return; }
+  const campo=a.fim?"fim":(a.ini?"ini":"fim");
+  if((a[campo]||"")===iso) return;
+  if(campo==="fim"&&a.ini&&a.ini>iso) gravar(id,"ini",iso);
+  gravar(id,campo,iso);
+  toast(`“${a.titulo}” — ${campo==="fim"?"prazo":"início"}: ${br(iso)}`);
+}
+/* coluna da direita */
+function pintarLado(){
+  const el=document.getElementById("m-lado"); if(!el) return;
+  const prop=D.atividades.filter(a=>ehPropria(a)&&aberta(a)).sort(ordFim);
+  const cks=CKS.checklists||[];
+  el.innerHTML=`<div class="caixa"><h3>Meus checklists <span class="n">${cks.filter(c=>!c.concluido).length}</span></h3>
+      ${cks.length?cks.map(ckHtml).join(""):`<div class="ajuda">Nenhum checklist aberto. Crie um avulso ou gere de um pronto.</div>`}
+      <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap"><button class="bt bt-mini" onclick="checklistAvulso()">☑ + Checklist avulso</button></div>
+      <div class="ck-prontos"><div class="ck-pt">Checklists prontos</div>
+        ${MOD.modelos.map(m=>`<div class="mod"><div class="t"><b>${esc(m.nome)}</b><span>${esc(m.frequencia)} · ${m.itens.length} itens${m._salvando?" · salvando…":""}</span></div>
+          <button class="bt bt-mini" title="Cria agora um checklist novo com estes itens desmarcados" onclick="gerarModelo('${m.id}',this)">▶ Gerar</button>
+          <button class="bt ghost bt-mini" title="Editar o modelo" onclick="formModelo(${JSON.stringify(m.id).replace(/"/g,"&quot;")})">✎</button></div>`).join("")||`<div class="ajuda">Monte listas que você repete (diária, semanal, mensal). “Gerar” cria um checklist novo, zerado.</div>`}
+        <div style="margin-top:8px"><button class="bt ghost bt-mini" onclick="formModelo(null)">+ Novo checklist pronto</button></div></div></div>
+    <div class="caixa"><h3>Para mim <span class="n">${prop.length}</span></h3>
+      ${prop.length?prop.map(a=>`<div class="mini" ${a._criando?`title="criando…"`:`onclick="abrirAtv('${a.id}')"`}><span>${a._criando?'<span class="load"></span>':"•"}</span>
+        <span class="t">${esc(a.titulo)}</span><span class="d ${atrasada(a)?"atr":""}">${a.fim?br(a.fim):""}</span></div>`).join("")
+      :`<div class="ajuda">Nenhuma atividade só sua em aberto.</div>`}
+      <div style="margin-top:9px"><button class="bt bt-mini" onclick="novaAtividade(true)">+ Atividade para mim</button></div></div>
+    ${ALERTAS_ABAS.length?`<div class="caixa"><h3>Alertas das abas</h3>${ALERTAS_ABAS.map(x=>`<a class="mini" href="${esc(x.link)}" style="text-decoration:none">
+      <span class="t">${esc(x.nome)}</span><span class="d atr">${x.n} ${esc(x.txt)}</span></a>`).join("")}</div>`:""}`;
+}
+
+/* ---------- v5: CHECKLISTS de verdade (dá baixa aqui mesmo) ---------- */
+function ckHtml(c){
+  const feitos=c.itens.filter(x=>x.f).length, tot=c.itens.length, pct=tot?Math.round(feitos*100/tot):0;
+  const cid=JSON.stringify(c.id).replace(/"/g,"&quot;");
+  return `<div class="ckc ${c.concluido?"ok":""} ${c._criando?"criando":""}">
+    <div class="ckc-h"><b>${esc(c.nome)}</b><span>${feitos}/${tot}</span>
+      <button class="ck-x" title="Apagar este checklist" onclick="ckExcluir(${cid})">🗑</button></div>
+    <div class="prog"><i style="width:${pct}%"></i></div>
+    ${c.itens.map((x,i)=>`<label class="ckc-i ${x.f?"f":""}"><input type="checkbox" ${x.f?"checked":""} ${c._criando?"disabled":""} onchange="ckMarcar(${cid},${i},this.checked)"> <span>${esc(x.t)}</span></label>`).join("")}
+    ${c.concluido?`<div class="ckc-fim">✓ Concluído</div>`:""}</div>`;
+}
+async function carregarChecklists(){
+  const c=cacheGet("atv_cks"); if(c&&c.v&&!CKS.checklists.length){ CKS=c.v; pintarLado(); }
+  const r=await ler({action:"ckLista"},"atv_cks"); if(r&&r.ok){ CKS=r; pintarLado(); }
+}
+function ckGuardar(){ cacheSet("atv_cks",{ok:true,checklists:CKS.checklists.filter(c=>!c._criando)}); }
+async function ckNovo(dados){
+  const tmp={id:"tmp"+Date.now(),nome:dados.nome||"Checklist",itens:(dados.itens||[]).map(t=>({t,f:false})),concluido:false,_criando:true};
+  CKS.checklists.push(tmp); pintarLado();
+  const r=await criarRF(Object.assign({action:"ckCriar"},dados.modeloId?{modeloId:dados.modeloId}:{nome:dados.nome,itens:dados.itens}));
+  const i=CKS.checklists.indexOf(tmp);
+  if(!(r&&r.ok&&r.checklist)){ if(i>=0) CKS.checklists.splice(i,1); pintarLado(); falhou("Não criou o checklist: "+msgErro(r),()=>ckNovo(dados)); return; }
+  if(i>=0) CKS.checklists[i]=r.checklist; else CKS.checklists.push(r.checklist);
+  ckGuardar(); pintarLado();
+}
+async function ckMarcar(id,i,f){
+  const c=CKS.checklists.find(x=>x.id===id); if(!c||!c.itens[i]) return;
+  c.itens[i].f=f; c.concluido=c.itens.every(x=>x.f); pintarLado(); ckGuardar();
+  if(c.concluido&&typeof soltarFogos==="function"){}           // (sem fogos aqui: só o selo ✓)
+  let r=null; try{ r=await chamar({action:"ckMarcar",id,i,f},45000,true); }catch(e){}
+  if(!(r&&r.ok)){ c.itens[i].f=!f; c.concluido=c.itens.every(x=>x.f); pintarLado(); ckGuardar(); toast("Não salvou o item: "+msgErro(r)); }
+}
+async function ckExcluir(id){
+  const c=CKS.checklists.find(x=>x.id===id); if(!c) return;
+  if(!c.concluido&&!confirm(`Apagar o checklist "${c.nome}"?`)) return;
+  const antes=CKS.checklists.slice(); CKS.checklists=CKS.checklists.filter(x=>x!==c); pintarLado(); ckGuardar();
+  if(String(id).indexOf("tmp")===0) return;
+  let r=null; try{ r=await chamar({action:"ckExcluir",id},45000,true); }catch(e){}
+  if(!(r&&r.ok)){ CKS.checklists=antes; pintarLado(); ckGuardar(); toast("Não apagou: "+msgErro(r)); }
+}
+
+/* ---------- gravar um campo (otimista) ---------- */
+/* ---------- GRAVAÇÃO CONFIRMADA PELO NOTION (28/09 noite) ----------
+ * Antes: se o servidor demorasse, a baixa ia para a "fila offline" e a tela
+ * mostrava como feita — às vezes nunca chegava ao Notion e a atividade
+ * voltava aberta. Agora:
+ *   - a mudança aparece na hora com "⏳" (ainda não confirmada);
+ *   - fica guardada no navegador até o NOTION responder;
+ *   - sem resposta, tenta de novo sozinha (5 s, 10 s, 20 s… até 2 min), mesmo
+ *     trocando de página ou recarregando;
+ *   - recusa de verdade (sem permissão, etc.): volta como estava e avisa. */
+const EDIT_KEY="atv_edit_pend_v1", _editando=new Set();
+function editPend(){ try{ return JSON.parse(localStorage.getItem(EDIT_KEY)||"{}")||{}; }catch(e){ return {}; } }
+function editPendGravar(o){ try{ localStorage.setItem(EDIT_KEY,JSON.stringify(o)); }catch(e){} }
+function editPendDe(id){ const o=editPend(); return Object.values(o).filter(x=>x.id===id); }
+function aplicarCampo(a,campo,valor){
+  if(campo==="resp"){ a.resp=(valor||[]).map(x=>{ const p=D.pessoas.find(q=>q.id===x)||(a.resp||[]).find(q=>q.id===x); return {id:x,nome:p?p.nome:""}; }); }
+  else if(campo==="obra") a.obraId=valor||null;
+  else a[campo]=valor;
+  if(campo==="status"){ if(valor===FIM&&!a.concl) a.concl=hojeISO(); if(valor!==FIM) a.concl=null; }
+}
+function valorDe(a,campo){ return campo==="resp"?(a.resp||[]).map(u=>u.id).sort().join(","):campo==="obra"?(a.obraId||""):(a[campo]==null?"":String(a[campo])); }
+function valorPend(campo,v){ return campo==="resp"?[].concat(v||[]).slice().sort().join(","):(v==null?"":String(v)); }
+/* o que veio do servidor + o que você mudou e o Notion ainda não confirmou */
+function aplicarPendentes(lista){
+  const o=editPend(); let mudou=false;
+  Object.keys(o).forEach(k=>{ const p=o[k], a=(lista||[]).find(x=>x.id===p.id); if(!a) return;
+    if(p.ok&&valorDe(a,p.campo)===valorPend(p.campo,p.valor)){ delete o[k]; mudou=true; return; }   // servidor já mostra: resolvido
+    if(Date.now()-p.t>24*3600*1000){ delete o[k]; mudou=true; return; }
+    aplicarCampo(a,p.campo,p.valor); });
+  if(mudou) editPendGravar(o);
+}
+function temEdicaoPendente(id){ return editPendDe(id).some(p=>!p.ok); }
+async function gravar(id,campo,valor,el){
+  const a=acha(id); if(!a) return;
+  if(!podeEditar(a)){ toast(RO?"Modo teste: não grava.":"Só quem é responsável ou solicitante pode mudar."); return; }
+  const k=id+"|"+campo, o=editPend();
+  o[k]={id,campo,valor,antes:(o[k]&&o[k].antes!==undefined)?o[k].antes:JSON.parse(JSON.stringify(a)),t:Date.now(),n:0,ok:false};
+  editPendGravar(o);
+  aplicarCampo(a,campo,valor);
+  pintar(); if(ABERTA===a.id) pintarCampos(a);
+  if(el){ el.classList.remove("ok","erro"); el.classList.add("salvando"); }
+  enviarEdicao(k,el);
+}
+async function enviarEdicao(k,el){
+  let p=editPend()[k]; if(!p||p.ok||_editando.has(k)) return;
+  _editando.add(k);
+  let r=null; try{ r=await chamar({action:"atvUpdate",pageId:p.id,campo:p.campo,valor:p.valor},30000,true); }catch(e){}
+  _editando.delete(k);
+  const o=editPend(); p=o[k]; if(!p) return;
+  const a=acha(p.id), el2=el&&document.body.contains(el)?el:null;
+  if(el2) el2.classList.remove("salvando");
+  if(r&&r.ok){
+    p.ok=true; editPendGravar(o);                                // confirmado pelo Notion
+    if(a&&r.atividade){ Object.assign(a,r.atividade); aplicarPendentes([a]); }
+    if(el2) el2.classList.add("ok");
+    cacheSet("atv_minhas",Object.assign({},D,{ok:true})); pintar(); if(a&&ABERTA===a.id) pintarCampos(a);
+    if(window.AtvAlertas) setTimeout(()=>AtvAlertas.atualizar(true),1500);
+    return;
+  }
+  const transit=(typeof ERROS_TRANSITORIOS!=="undefined")?ERROS_TRANSITORIOS:["NAO_AUTORIZADO","BACKEND_OCUPADO"];
+  if(r&&r.erro&&transit.indexOf(r.erro)<0){                      // recusa de verdade: volta como estava
+    const antes=p.antes; delete o[k]; editPendGravar(o);
+    if(a&&antes){ Object.assign(a,antes); pintar(); if(ABERTA===a.id) pintarCampos(a); }
+    if(el2) el2.classList.add("erro");
+    toast("Não salvou no Notion: "+erroTexto(r.erro)+" — voltou como estava.");
+    return;
+  }
+  p.n=(p.n||0)+1; editPendGravar(o); pintar();
+  if(p.n===2) toast("O Notion está demorando — sua alteração está guardada (⏳) e vai sozinha.");
+  setTimeout(()=>enviarEdicao(k),Math.min(120000,5000*Math.pow(2,p.n-1)));
+}
+function retomarEdicoes(){ Object.keys(editPend()).forEach(k=>{ if(!editPend()[k].ok) enviarEdicao(k); }); }
+
+/* ---------- painel da atividade ---------- */
+async function abrirAtv(id){
+  id=SID(id);
+  if(id.indexOf("tmp")===0){ toast("Ainda criando no Notion — já já dá para abrir."); return; }
+  let a=acha(id);
+  if(!a){
+    toast("Abrindo…");
+    const r=await chamar({action:"atvDetalhe",pageId:id},45000,true);
+    if(r&&r.excluida){ atvExcluida(id); return; }
+    if(!(r&&r.ok)){ toast("Não abriu: "+erroTexto(r&&r.erro)); return; }
+    a=r.atividade; D.atividades.push(a);
+  }
+  ABERTA=id;
+  document.getElementById("p1-corpo").innerHTML=`<div id="pa-campos"></div>
+    <div class="sec2"><div class="grp" style="display:flex;align-items:center;gap:10px">Comentários <span class="aovivo">ao vivo</span>
+      <span class="sinc" id="pa-sinc"></span><button type="button" class="bt ghost bt-mini bt-sinc" title="Buscar agora as mensagens novas (portal e Notion)" onclick="lerComentarios(true,true)">↻</button></div>
+      <div class="chat" id="pa-chat"><div class="ajuda"><span class="load"></span> Carregando comentários…</div></div>
+      ${RO?"":`<div class="chat-form"><textarea id="pa-txt" placeholder="Escreva um comentário… (Ctrl+Enter envia)"></textarea>
+        <label class="bt ghost bt-mini" title="Anexar fotos ou documentos" style="cursor:pointer">📎 Anexar<input type="file" id="pa-arq" multiple hidden
+          accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.dwg,.zip,.txt" onchange="mostrarAnexos()"></label>
+        <button class="bt" id="pa-env" onclick="enviarComentario()">Enviar</button><div class="chat-anx" id="pa-anx"></div></div>`}</div>
+    <div class="sec2"><div class="grp">Checklist e anotações</div><div id="pa-cont" style="padding:4px 0 26px"></div></div>`;
+  pintarCampos(a);
+  const g=guardadaAtv(id);
+  _comsLidoEm=0; _comsOkEm=0; _comsFalhas=0; _lendoComs=false; _relerComs=false; clearTimeout(_comsRetry);
+  if(g&&g.comentarios){ _coms=g.comentarios; _comsAssin=assinComs(_coms); pintarChat(); sinc("copia"); }
+  else sinc("lendo");
+  if(g&&g.conteudo) EditorBlocos.montar(document.getElementById("pa-cont"), id, {somenteLeitura:!podeEditar(a), dados:g.conteudo});
+  else EditorBlocos.montar(document.getElementById("pa-cont"), id, {somenteLeitura:!podeEditar(a)});   // 29/09: lê sozinho, sem esperar o atvAbrir
+  const t=document.getElementById("pa-txt");
+  if(t){ ligarMencoes(t); t.addEventListener("keydown",e=>{ if(t._mencAberta) return; if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); enviarComentario(); } }); }
+  document.getElementById("ov1").classList.add("on"); document.getElementById("p1").classList.add("on");
+  history.replaceState(null,"","#"+id);
+  try{ if(window.AA_atvVista) window.AA_atvVista(String(id).replace(/-/g,"")); }catch(e){}   // 01/10: mensagens desta atividade somem do sino
+  if(!g){ _coms=null; _comsAssin=""; if(pendDe(id).length) pintarChat(); }
+  abrirServidor(id, !!g);
+  /* 29/09: os comentários vêm JÁ, pela faixa do chat, sem esperar o conteúdo;
+     e são relidos a cada 45 s — 30/09: era 15 s (o que é escrito direto no Notion não avisa) */
+  lerComentarios(false);
+  clearInterval(_poll); _poll=setInterval(()=>{ if(!document.hidden&&ABERTA&&!ocioso()) lerComentarios(false); },window._aoVivo?45000:30000);
+  /* 29/09 (tarde): o CHECKLIST também se atualiza sozinho — a cada 30 s o
+     servidor confere no Notion se a página mudou (baixa dada no Notion ou no
+     Mural aparece aqui). A primeira conferência sai logo ao abrir. */
+  clearInterval(_pollCont); _pollCont=setInterval(atualizarConteudo,120000);
+  setTimeout(atualizarConteudo,1200);
+}
+/* tudo de uma vez: detalhe + comentários + conteúdo (1 chamada) */
+async function abrirServidor(id, temCopia){
+  let r=null; try{ r=await chamar({action:"atvAbrir",pageId:id},60000,true); }catch(e){}
+  if(r&&r.excluida){ atvExcluida(id); return; }                       // 29/09: apagada no Notion
+  if(!(r&&r.ok)){
+    if(ABERTA!==id||temCopia) return;
+    const msg=`<div class="ajuda">Não consegui abrir agora (${esc(msgErro(r))}). <a href="#" onclick="abrirServidor('${id}',false);return false">Tentar de novo</a></div>`;
+    const ch=document.getElementById("pa-chat"); if(ch) ch.innerHTML=msg;
+    const ct=document.getElementById("pa-cont"); if(ct&&!ct._eb) ct.innerHTML=msg;
+    return;
+  }
+  guardarAtv(id,r);
+  if(ABERTA!==id) return;
+  const a=acha(id); if(a&&r.atividade){ Object.assign(a,r.atividade); pintarCampos(a); }
+  if(r.comentarios){ if(aplicarComs(id,r.comentarios,Date.parse(r.comentariosLidoEm||"")||1)) sinc("ok",r.avisoNotion); }
+  else if(r.erroComentarios&&!_coms){ document.getElementById("pa-chat").innerHTML=`<div class="ajuda">Não consegui ler os comentários (${esc(r.erroComentarios)}).</div>`; }
+  const cont=document.getElementById("pa-cont");
+  if(r.conteudo&&cont&&!cont.contains(document.activeElement)) EditorBlocos.montar(cont, id, {somenteLeitura:!(a&&podeEditar(a)), dados:r.conteudo});
+}
+/* 29/09 — atividade apagada no Notion: sai da tela, da cópia do navegador e
+   fecha o painel se estiver aberta */
+function atvExcluida(id,calado){
+  id=SID(id); const tinha=D.atividades.some(a=>a.id===id);
+  D.atividades=D.atividades.filter(a=>a.id!==id);
+  try{ localStorage.removeItem("atv_ab_"+id); }catch(e){}
+  const c=cacheGet("atv_minhas"); if(c&&c.v&&c.v.atividades){ c.v.atividades=c.v.atividades.filter(a=>a.id!==id); cacheSet("atv_minhas",c.v); }
+  if(ABERTA===id){ fecharAtv(); toast("Esta atividade foi excluída no Notion — saiu do portal."); }
+  else if(tinha&&!calado) toast("Uma atividade foi excluída no Notion e saiu do portal.");
+  pintar();
+}
+let _pollCont=null;
+function atualizarConteudo(){ if(document.hidden||!ABERTA||ocioso()) return; const c=document.getElementById("pa-cont"); if(c&&c._eb) EditorBlocos.atualizar(c); }
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden&&ABERTA) atualizarConteudo(); });
+function fecharAtv(){
+  ABERTA=null; clearInterval(_poll); clearInterval(_pollCont); clearTimeout(_comsRetry);
+  document.getElementById("ov1").classList.remove("on"); document.getElementById("p1").classList.remove("on");
+  history.replaceState(null,"",location.pathname);
+}
+document.addEventListener("keydown",e=>{ if(e.key==="Escape"){ if(document.getElementById("mf").classList.contains("on")) fecharForm(); else if(ABERTA) fecharAtv(); } });
+function opts(l,v,vazio){ return (vazio?`<option value="">—</option>`:"")+(l||[]).map(x=>`<option ${x===v?"selected":""}>${esc(x)}</option>`).join(""); }
+function pintarCampos(a){
+  const el=document.getElementById("pa-campos"); if(!el) return;
+  if(el.contains(document.activeElement)&&document.activeElement.tagName==="INPUT") return;   // está digitando
+  document.getElementById("p1-end").textContent=a.titulo;
+  document.getElementById("p1-loc").textContent=[a.tipo,nomeObra(a.obraId),a.status,a.fim?"prazo "+br(a.fim):""].filter(Boolean).join(" · ");
+  const ed=podeEditar(a), dis=ed?"":"disabled";
+  const livres=D.pessoas.filter(p=>!(a.resp||[]).some(u=>u.id===p.id));
+  el.innerHTML=`<div class="af">
+    <div class="full"><label>Atividade</label><input type="text" value="${esc(a.titulo)}" ${dis} onchange="gravar('${a.id}','titulo',this.value,this)"></div>
+    <div><label>Status</label><select ${dis} onchange="gravar('${a.id}','status',this.value,this)">${opts(D.opcoes.status,a.status)}</select></div>
+    <div><label>Tipo</label><select ${dis} data-antes="${esc(a.tipo||"")}" onchange="if(this.value==='__novo__'){novoTipo(this);return;} gravar('${a.id}','tipo',this.value,this)">${opts(D.opcoes.tipo,a.tipo,true)}<option value="__novo__">＋ Novo tipo…</option></select></div>
+    <div><label>Prioridade</label><select ${dis} onchange="gravar('${a.id}','prioridade',this.value,this)">${opts(D.opcoes.prioridade,a.prioridade,true)}</select></div>
+    <div><label>Início</label><input type="date" value="${esc(a.ini||"")}" ${dis} onchange="gravar('${a.id}','ini',this.value,this)"></div>
+    <div><label>Prazo final</label><input type="date" value="${esc(a.fim||"")}" ${dis} onchange="gravar('${a.id}','fim',this.value,this)"></div>
+    <div><label>Concluída em</label><div class="ro">${a.concl?br(a.concl):"—"}</div></div>
+    <div class="full"><label>Responsáveis</label><div class="pess">${(a.resp||[]).map(u=>`<span class="pchip">${esc(u.nome)}${ed?`<button title="Tirar" onclick="tirarResp('${a.id}','${u.id}')">×</button>`:""}</span>`).join("")||`<span class="ajuda">ninguém</span>`}
+      ${ed?`<select onchange="porResp('${a.id}',this.value);this.value=''" style="max-width:220px"><option value="">+ adicionar…</option>${livres.map(p=>`<option value="${p.id}">${esc(p.nome)}</option>`).join("")}</select>`:""}</div></div>
+    <div><label>Solicitante</label><div class="ro">${esc((a.solic||[]).map(u=>u.nome).join(", ")||"—")}</div></div>
+    <div class="full" style="grid-column:span 2"><label>Obra</label><select ${dis} onchange="gravar('${a.id}','obra',this.value,this)"><option value="">— sem obra —</option>${
+      OBRAS_L.map(o=>`<option value="${o.id}" ${o.id===SID(a.obraId)?"selected":""}>${esc(o.titulo)}</option>`).join("")}${a.obraId&&!OBRAS[SID(a.obraId)]?`<option selected value="${esc(a.obraId)}">(obra ligada)</option>`:""}</select></div>
+  </div>`;
+}
+function porResp(id,pid){ const a=acha(id); if(!a||!pid) return; gravar(id,"resp",(a.resp||[]).map(u=>u.id).concat([pid])); }
+function tirarResp(id,pid){ const a=acha(id); if(!a) return; const l=(a.resp||[]).map(u=>u.id).filter(x=>x!==pid);
+  if(!l.length&&!confirm("Deixar a atividade sem responsável?")) return; gravar(id,"resp",l); }
+
+/* ---------- comentários ----------
+ * 29/09 — SEMPRE COM AS MENSAGENS NOVAS
+ * Antes: se a leitura falhasse ou passasse do tempo, a tela desistia CALADA e
+ * ficava mostrando a cópia guardada no navegador (que podia ter dias).
+ * Agora:
+ *  - relê a cada 45 s com a atividade aberta (30/09: era 15 s), e na hora ao voltar para a aba;
+ *  - falhou → tenta de novo em 5 s, 10 s… (até 30 s) e AVISA no cabeçalho
+ *    ("sem atualizar desde…"); a cópia antiga fica marcada como cópia;
+ *  - ↻ no cabeçalho busca agora, relendo o Notion na hora;
+ *  - resposta mais velha nunca cobre uma mais nova (a de atvAbrir e a desta
+ *    leitura chegam em ordens diferentes);
+ *  - texto editado no Notion também atualiza (a assinatura inclui o texto). */
+let _lendoComs=false, _relerComs=false, _comsLidoEm=0, _comsOkEm=0, _comsFalhas=0, _comsRetry=null;
+function assinComs(l){ return (l||[]).map(c=>c.id+"|"+(c.texto||"")+"|"+(c.anexos||[]).length+
+  /* 05/10: anexo com link vencido muda a assinatura -> a lista nova (links novos) repinta */
+  (c.anexos||[]).map(x=>(window.urlAssinadaVencida&&x.url&&window.urlAssinadaVencida(x.url))?"v":"").join("")).join("\n"); }
+/* 05/10: clicou num anexo de comentário com link vencido (InvalidJWT): relê os
+   comentários e abre o link novo do mesmo arquivo (editor-blocos.js chama). */
+window.renovarLinkVencido=async function(a,w){
+  const img=a.querySelector("img"), alvo=(img?img.alt:a.textContent.replace(/^\s*📎\s*/,"")).trim();
+  try{ await lerComentarios(true,true); }catch(e){}
+  let u=null; (_coms||[]).forEach(m=>(m.anexos||[]).forEach(x=>{ if(!u&&x.url&&String(x.nome||"").trim()===alvo) u=x.url; }));
+  if(u&&w) w.location.href=u; else if(w) w.close();
+};
+function hm(t){ return new Date(t).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit",second:"2-digit"}); }
+function sinc(estado,extra){
+  const el=document.getElementById("pa-sinc"); if(!el) return;
+  el.className="sinc";
+  if(estado==="ok"){
+    el.textContent="✓ atualizado às "+hm(_comsOkEm||Date.now())+(extra?" · ⚠ o Notion não respondeu: os escritos lá podem estar faltando":"");
+    if(extra){ el.className="sinc aviso"; el.title=String(extra); } else el.title="";
+  } else if(estado==="lendo"){ if(!_comsOkEm) el.textContent="buscando mensagens novas…"; }
+  else if(estado==="copia"){ el.className="sinc aviso"; el.textContent="cópia guardada — buscando as novas…"; }
+  else if(estado==="erro"){
+    el.className="sinc erro"; el.title=String(extra||"");
+    el.textContent=(_comsOkEm?"⚠ sem atualizar desde "+hm(_comsOkEm):"⚠ não consegui buscar as mensagens")+" — tentando de novo…";
+  }
+}
+/* aplica a lista do servidor; false = era mais velha que a da tela */
+function aplicarComs(id,lista,lidoEm){
+  if(ABERTA!==id||lidoEm<_comsLidoEm) return false;
+  _comsLidoEm=lidoEm; _comsOkEm=Date.now(); _comsFalhas=0;
+  const assin=assinComs(lista);
+  if(assin!==_comsAssin||!_coms){ _comsAssin=assin; _coms=lista; pintarChat(); }
+  const g=guardadaAtv(id)||{ok:true,pageId:id}; g.comentarios=(lista||[]).filter(c=>!c._env&&!c._falhou); guardarAtv(id,g);
+  return true;
+}
+async function lerComentarios(primeira,forcar){
+  const id=ABERTA; if(!id) return;
+  if(_lendoComs&&!forcar){ _relerComs=true; return; }   // já tem uma saindo: relê assim que ela voltar (o ↻ não espera)
+  _lendoComs=true; _relerComs=false; clearTimeout(_comsRetry); sinc("lendo");
+  let r; try{ r=await chamar(Object.assign({action:"atvComentarios",pageId:id},forcar?{fresco:true}:{}),25000,true); }catch(e){ r=null; }
+  _lendoComs=false;
+  if(ABERTA!==id) return;
+  if(!(r&&r.ok)){
+    _comsFalhas++;
+    const msg=erroTexto(r&&r.erro);
+    if(!_coms&&!pendDe(id).length) document.getElementById("pa-chat").innerHTML=`<div class="ajuda">Não consegui ler os comentários (${esc(msg)}). <a href="#" onclick="lerComentarios(true,true);return false">Tentar de novo</a></div>`;
+    sinc("erro",msg);
+    _comsRetry=setTimeout(()=>{ if(ABERTA===id) lerComentarios(false); },ehCota(r&&r.erro)?300000:Math.min(30000,5000*_comsFalhas));   // cota esgotada: 5 min
+    return;
+  }
+  aplicarComs(id,r.comentarios||[],Date.parse(r.lidoEm||"")||Date.now());
+  sinc("ok",r.avisoNotion);
+  if(_relerComs){ _relerComs=false; setTimeout(()=>lerComentarios(false),300); }
+}
+/* voltou para a aba/janela: relê na hora */
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden&&ABERTA) lerComentarios(false); });
+window.addEventListener("focus",()=>{ if(ABERTA&&Date.now()-_comsOkEm>5000) lerComentarios(false); });
+/* 28/09: foto que não carregar (link vencido na cópia do navegador) → relê
+   os comentários, que voltam com links novos. No máximo 1x por minuto. */
+let _chatImgRelido=0;
+function chatImgFalhou(img){
+  if(img.dataset.f) return; img.dataset.f="1";
+  if(!ABERTA||Date.now()-_chatImgRelido<60000) return;
+  _chatImgRelido=Date.now(); lerComentarios(true);
+}
+function linkar(t){ return esc(t).replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" rel="noopener">$1</a>')
+  /* 28/09: @menção — no texto vai como @[Nome|id]; aqui aparece destacada */
+  .replace(/@\[([^|\]]{1,80})\|([0-9a-fA-F-]{32,36})\]/g,(m,n,id)=>`<span class="mencao ${String(id).replace(/-/g,"")===ME?"eu":""}" title="Mencionou ${n}">@${n}</span>`); }
+/* ---------- @MENÇÕES (28/09) ----------
+ * Digitou "@" no comentário: aparece a lista de pessoas; escolheu, entra
+ * "@Nome". Ao enviar vira @[Nome|id] — a pessoa vê no sino dela e, na cópia
+ * para o Notion, vira menção de verdade (o Notion avisa ela). */
+function ligarMencoes(t){
+  t._menc={};
+  const cx=document.createElement("div"); cx.className="menc-caixa"; t.parentNode.style.position="relative"; t.parentNode.appendChild(cx);
+  let itens=[], sel=0, ini=-1;
+  const fechar=()=>{ cx.style.display="none"; t._mencAberta=false; ini=-1; };
+  const pintarLista=()=>{ cx.innerHTML=itens.map((p,i)=>`<div class="menc-i ${i===sel?"on":""}" data-i="${i}">@${esc(nomeMenc(p.nome))}</div>`).join(""); };
+  const escolher=i=>{ const p=itens[i]; if(!p) return; const nome=nomeMenc(p.nome), v=t.value, pos=t.selectionStart;
+    t.value=v.slice(0,ini)+"@"+nome+" "+v.slice(pos); const c=ini+nome.length+2; t.setSelectionRange(c,c); t._menc[nome]=p.id; fechar(); t.focus(); };
+  t.addEventListener("input",()=>{
+    const pos=t.selectionStart, antes=t.value.slice(0,pos), m=antes.match(/(^|\s)@([^\s@]{0,30})$/);
+    if(!m){ fechar(); return; }
+    ini=pos-m[2].length-1; const q=N(m[2]);
+    itens=(D.pessoas||[]).filter(p=>!q||N(p.nome).split(/\s+/).some(w=>w.indexOf(q)===0)||N(p.nome).indexOf(q)>=0).slice(0,7);
+    if(!itens.length){ fechar(); return; }
+    sel=0; pintarLista(); cx.style.display="block"; t._mencAberta=true;
+  });
+  t.addEventListener("keydown",e=>{
+    if(!t._mencAberta) return;
+    if(e.key==="ArrowDown"){ e.preventDefault(); sel=(sel+1)%itens.length; pintarLista(); }
+    else if(e.key==="ArrowUp"){ e.preventDefault(); sel=(sel-1+itens.length)%itens.length; pintarLista(); }
+    else if(e.key==="Enter"||e.key==="Tab"){ e.preventDefault(); escolher(sel); }
+    else if(e.key==="Escape"){ e.preventDefault(); fechar(); }
+  });
+  cx.addEventListener("mousedown",e=>{ const d=e.target.closest("[data-i]"); if(d){ e.preventDefault(); escolher(+d.dataset.i); } });
+  t.addEventListener("blur",()=>setTimeout(fechar,150));
+}
+function nomeMenc(n){ const minus=["da","de","do","das","dos","e"];
+  return String(n||"").toLowerCase().split(/\s+/).filter(Boolean).map((w,i)=>i&&minus.includes(w)?w:w.charAt(0).toUpperCase()+w.slice(1)).join(" "); }
+function comMencoes(t,texto){
+  const m=(t&&t._menc)||{};
+  Object.keys(m).sort((a,b)=>b.length-a.length).forEach(nome=>{ texto=texto.split("@"+nome).join("@["+nome+"|"+m[nome]+"]"); });
+  return texto;
+}
+function pintarChat(){
+  const c=document.getElementById("pa-chat"); if(!c) return;
+  const noFim=c.scrollHeight-c.scrollTop-c.clientHeight<60;
+  const meuNome=(S&&S.nome)||"";
+  /* 28/09: as mensagens que VOCÊ mandou e ainda estão saindo (ou falharam)
+     ficam guardadas neste navegador e aparecem aqui — mesmo fechando a
+     atividade, trocando de página ou recarregando. Os outros só veem quando
+     o servidor confirma. */
+  const doServ=(_coms||[]).filter(m=>!m._env&&!m._falhou), idsServ=new Set(doServ.map(m=>m.id));
+  /* enviada e já na lista do servidor: sai da lista de pendentes */
+  Object.values(_PEND).forEach(m=>{ if(m._ok&&((m._idServ&&idsServ.has(m._idServ))||Date.now()-(m._okEm||0)>10*60*1000)&&(m.atv===ABERTA||Date.now()-(m._okEm||0)>10*60*1000)) pendTirar(m.id); });
+  const todos=doServ.concat(pendDe(ABERTA).filter(m=>!(m._idServ&&idsServ.has(m._idServ))));
+  c.innerHTML=todos.length?todos.map(m=>{
+    const eu=m.pessoa?m.pessoa===ME:(m.autor===meuNome);
+    const quando=m.criadoEm?new Date(m.criadoEm).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"";
+    const est=m._env?` · <span class="env">${esc(m._passo||"enviando…")}</span>`:m._falhou?` · <b class="nao">não enviou (${esc(m._erro||"erro")})</b> <a href="#" onclick="reenviarComentario('${m.id}');return false">Tentar de novo</a> · <a href="#" onclick="descartarComentario('${m.id}');return false">Descartar</a>`:"";
+    return `<div class="msg ${eu?"eu":""} ${m.notion?"nt":""} ${m._falhou?"falhou":""}"><div class="qm">${esc(m.autor||"")} · ${quando}${m.notion?" · (Notion)":""}${est}</div>
+      ${m.texto?`<div class="tx">${linkar(m.texto)}</div>`:""}
+      ${(m.anexos||[]).map(x=>x.url&&/^image\//.test(x.mime||"")||(x.url&&/\.(png|jpe?g|gif|webp)(\?|$)/i.test(x.url))?`<a href="${esc(x.url)}" target="_blank" rel="noopener"><img src="${esc(x.url)}" alt="${esc(x.nome)}" loading="lazy" onerror="chatImgFalhou(this)"></a>`:
+        x.arquivado?(x.noComentario?`<span class="arq" title="Guardado nos comentários desta atividade no Notion">🗄 ${esc(x.nome||"arquivo")} · arquivado no Notion</span>`
+          :`<span class="arq" title="Guardado no corpo desta atividade (Checklist e anotações, logo abaixo)">🗄 ${esc(x.nome||"arquivo")} · arquivado ↓</span>`):
+        `<a class="arq" href="${esc(x.url||"#")}" target="_blank" rel="noopener">📎 ${esc(x.nome||"arquivo")}</a>`).join("")}</div>`;
+  }).join(""):`<div class="ajuda">Nenhum comentário ainda. Escreva o primeiro.</div>`;
+  if(noFim||!c._rolou){ c.scrollTop=c.scrollHeight; c._rolou=true; }
+}
+function mostrarAnexos(){
+  const f=document.getElementById("pa-arq").files;
+  document.getElementById("pa-anx").textContent=f.length?[...f].map(x=>x.name+" ("+Math.round(x.size/1024)+" KB)").join(" · "):"";
+}
+const lerB64=f=>new Promise((ok,err)=>{ const rd=new FileReader(); rd.onload=()=>ok(String(rd.result).split(",")[1]); rd.onerror=err; rd.readAsDataURL(f); });
+/* 28/09 (tarde) — ENVIO QUE NÃO TRAVA
+ * - O arquivo vai DIRETO para o Supabase (link de envio pedido ao servidor):
+ *   antes o PDF subia em base64 pelo Apps Script e prendia o chat inteiro.
+ * - Cada mensagem tem o próprio estado: "enviando…" → some quando o servidor
+ *   confirma; se falhar, fica na tela com "Tentar de novo" (nada se perde).
+ * - Pode mandar outra mensagem enquanto a anterior ainda está saindo.
+ * - Anda numa faixa própria (rf-rotas.js v7): não espera o pré-carregamento. */
+/* ---------- PENDENTES (28/09 noite) ----------
+ * Cada mensagem enviada fica guardada até o servidor confirmar:
+ *   - texto e estado no localStorage (atv_pend_v1);
+ *   - arquivos no IndexedDB do navegador (não cabem no localStorage).
+ * Se a página fechar no meio do envio, na próxima vez que a aba Atividades
+ * abrir o envio continua sozinho, com o MESMO opId — o servidor nunca cria
+ * duas vezes (e, depois de 6 h, confere pelo texto: "retomada"). */
+const PEND_KEY="atv_pend_v1", _PEND={}, _mandando=new Set(), _previa={};
+function pendGravar(){
+  const o={}; Object.keys(_PEND).forEach(k=>{ const m=_PEND[k];
+    o[k]={id:m.id,atv:m.atv,autor:m.autor,pessoa:m.pessoa,texto:m.texto,criadoEm:m.criadoEm,opId:m.opId,prontos:m.prontos||null,
+          anexos:(m.anexos||[]).map(x=>({nome:x.nome,mime:x.mime})),nArq:m.nArq||0,_falhou:!!m._falhou,_erro:m._erro||"",
+          _ok:!!m._ok,_idServ:m._idServ||null,_okEm:m._okEm||0}; });
+  try{ localStorage.setItem(PEND_KEY,JSON.stringify(o)); }catch(e){}
+}
+function pendCarregar(){
+  let o={}; try{ o=JSON.parse(localStorage.getItem(PEND_KEY)||"{}")||{}; }catch(e){}
+  Object.keys(o).forEach(k=>{ if(!_PEND[k]) _PEND[k]=Object.assign(o[k],{_env:!o[k]._falhou&&!o[k]._ok,_retomada:!o[k]._ok}); });
+}
+function pendDe(atv){ if(!atv) return []; return Object.values(_PEND).filter(m=>m.atv===atv).sort((a,b)=>String(a.criadoEm).localeCompare(String(b.criadoEm)))
+  .map(m=>Object.assign({},m,{anexos:(m.anexos||[]).map((x,i)=>Object.assign({},x,{url:(_previa[m.id]||[])[i]||null}))})); }
+function pendTirar(id){ delete _PEND[id]; pendGravar(); idbArq("delete",id).catch(()=>{}); (_previa[id]||[]).forEach(u=>{ try{ URL.revokeObjectURL(u); }catch(e){} }); delete _previa[id]; }
+/* IndexedDB mínimo: guarda a lista de arquivos de cada mensagem */
+function idbArq(op,id,valor){
+  return new Promise((ok,err)=>{
+    if(!window.indexedDB) return op==="get"?ok(null):ok();
+    const rq=indexedDB.open("morais_pend",1);
+    rq.onupgradeneeded=()=>rq.result.createObjectStore("arquivos");
+    rq.onerror=()=>err(rq.error);
+    rq.onsuccess=()=>{ const db=rq.result, tx=db.transaction("arquivos",op==="get"?"readonly":"readwrite"), st=tx.objectStore("arquivos");
+      const r=op==="get"?st.get(id):op==="put"?st.put(valor,id):st.delete(id);
+      r.onsuccess=()=>ok(r.result); r.onerror=()=>err(r.error); tx.oncomplete=()=>db.close(); };
+  });
+}
+async function enviarComentario(){
+  const id=ABERTA, t=document.getElementById("pa-txt"), inp=document.getElementById("pa-arq");
+  const texto=comMencoes(t,t.value.trim()), fs=[...(inp.files||[])].slice(0,5);
+  if(!texto&&!fs.length) return;
+  if(fs.some(f=>f.size>20*1024*1024&&!/^image\//.test(f.type))){ toast("Arquivo acima de 20 MB — mande um menor (ou um link)."); return; }
+  const tid="tmp"+Date.now()+Math.random().toString(36).slice(2,6);
+  const m={id:tid,atv:id,autor:(S&&S.nome)||"",pessoa:ME,texto,criadoEm:new Date().toISOString(),_env:true,
+    opId:(typeof novoOpId==="function"?novoOpId():tid),nArq:fs.length,anexos:fs.map(f=>({nome:f.name,mime:f.type}))};
+  _previa[tid]=fs.map(f=>/^image\//.test(f.type)?URL.createObjectURL(f):null);
+  _PEND[tid]=m; pendGravar();
+  t.value=""; t._menc={}; inp.value=""; mostrarAnexos(); pintarChat();
+  if(fs.length){ try{ await idbArq("put",tid,fs); }catch(e){} }
+  mandar(tid,fs);
+}
+async function mandar(tid,arquivosNaMao){
+  const m=_PEND[tid]; if(!m||_mandando.has(tid)) return;
+  _mandando.add(tid);
+  const pinta=passo=>{ m._passo=passo; if(ABERTA===m.atv) pintarChat(); };
+  m._env=true; m._falhou=false; pendGravar(); pinta(m.nArq&&!m.prontos?"enviando arquivo…":"enviando…");
+  try{
+    let fs=arquivosNaMao||null, arquivos=[];
+    if(m.nArq&&!m.prontos){
+      if(!fs){ try{ fs=await idbArq("get",tid); }catch(e){} }
+      if(!fs||!fs.length) throw new Error("o arquivo não ficou guardado neste navegador — anexe de novo");
+      pinta("preparando foto…"); fs=await Promise.all(fs.map(comprimirFoto));
+      let u=null; try{ u=await chamar({action:"atvAnexoUrl",pageId:m.atv,arquivos:fs.map(f=>({nome:f.name,mime:f.type||"",tam:f.size}))},30000,true); }catch(x){}
+      if(u&&u.ok&&u.envios){
+        const prontos=[];
+        for(let i=0;i<u.envios.length;i++){
+          const f=fs[i], v=u.envios[i];
+          pinta(`enviando arquivo ${i+1}/${u.envios.length}…`);
+          const r=await fetch(v.url,{method:"PUT",headers:{"Content-Type":f.type||"application/octet-stream","x-upsert":"true"},body:f});
+          if(!r.ok) throw new Error("o arquivo "+f.name+" não subiu ("+r.status+")");
+          prontos.push({nome:v.nome,mime:v.mime||f.type||"",caminho:v.caminho});
+        }
+        m.prontos=prontos; pendGravar();                // arquivo já está no Supabase: não sobe de novo
+      } else if(!(u&&/ACAO_DESCONHECIDA/.test(String(u.erro||"")))) throw new Error(msgErro(u));
+      else arquivos=await Promise.all(fs.map(async f=>({filename:f.name,mimeType:f.type||"application/octet-stream",dataBase64:await lerB64(f)})));
+    }
+    pinta("enviando…");
+    const r=await criarRF({action:"atvComentarioNovo",pageId:m.atv,texto:m.texto,anexosProntos:m.prontos||[],arquivos,opId:m.opId,retomada:!!m._retomada});
+    if(!(r&&r.ok)) throw new Error(msgErro(r));
+    /* 28/09 (noite): enviada NÃO some — fica na tela (sem "enviando") até a
+       lista do servidor já trazer ela; antes ela sumia por um instante */
+    m._env=false; m._ok=true; m._idServ=r.id||null; m._okEm=Date.now(); pendGravar();
+    if(ABERTA===m.atv){ pintarChat(); lerComentarios(true); }
+  }catch(x){
+    m._env=false; m._falhou=true; m._erro=String((x&&x.message)||x||"erro").slice(0,80); pendGravar();
+    if(ABERTA===m.atv) pintarChat();
+  }finally{ _mandando.delete(tid); }
+}
+/* retoma, em ordem, o que ficou saindo quando a página fechou */
+async function retomarPendentes(){
+  pendCarregar();
+  const l=Object.values(_PEND).filter(m=>!m._falhou&&!m._ok).sort((a,b)=>String(a.criadoEm).localeCompare(String(b.criadoEm)));
+  for(const m of l) await mandar(m.id);
+}
+function reenviarComentario(tid){ if(_PEND[tid]) mandar(tid); }
+function descartarComentario(tid){ if(!confirm("Descartar esta mensagem? Ela não foi enviada.")) return; pendTirar(tid); pintarChat(); }
+/* fechar no meio do envio: a mensagem fica guardada e continua quando a aba Atividades abrir de novo */
+
+/* ---------- formulários (v3 — 25/09 noite) ----------
+   - Checklist item por item: digita, Enter, aparece a próxima linha (colar
+     várias linhas também funciona). Sem "um por linha" num quadro de texto.
+   - Responsáveis em TODOS os formulários, com busca (na "para mim" você já
+     vem marcado).
+   - "+ Novo tipo…" no Tipo (grava o tipo novo no Notion na hora de salvar).
+   - Anexos já na criação: vão como o primeiro comentário da atividade.
+   - Checklist avulso: uma lista rápida só sua, sem modelo.
+   - Criação protegida (criarRF): se a resposta demorar, a tela pergunta
+     "criou?" em vez de dar "erro desconhecido" — e nunca cria duas vezes. */
+function abrirForm(tit,sub,corpo,acoes){
+  document.getElementById("mf-tit").textContent=tit; document.getElementById("mf-sub").textContent=sub||"";
+  document.getElementById("mf-corpo").innerHTML=corpo; document.getElementById("mf-acoes").innerHTML=acoes;
+  document.getElementById("mf-erro").textContent=""; document.getElementById("mf").classList.add("on");
+}
+function fecharForm(){ document.getElementById("mf").classList.remove("on"); }
+function msgErro(r){
+  if(!r) return "o servidor não respondeu a tempo — confira na lista antes de tentar de novo";
+  return erroTexto(r.erro||"erro sem detalhe");
+}
+/* criação à prova de demora (opId + pergunta "criou?") */
+async function criarRF(payload,rotulo){
+  payload.opId=payload.opId||(typeof novoOpId==="function"?novoOpId():Date.now()+"_"+Math.random().toString(36).slice(2));
+  const transit=(typeof ERROS_TRANSITORIOS!=="undefined")?ERROS_TRANSITORIOS:["NAO_AUTORIZADO","BACKEND_OCUPADO"];
+  for(let tent=0;tent<2;tent++){
+    let r=null; try{ r=await chamar(Object.assign({},payload),90000,true); }catch(e){}
+    if(r&&r.ok) return r;
+    if(r&&r.erro&&r.erro!=="EM_ANDAMENTO"&&transit.indexOf(r.erro)<0) return r;
+    for(let i=0;i<12;i++){
+      await new Promise(ok=>setTimeout(ok,i?4000:2000));
+      let c=null; try{ c=await chamar({action:"atvOp",opId:payload.opId},20000,true); }catch(e){}
+      if(c&&c.ok&&c.resultado) return c.resultado;
+      if(c&&c.ok&&!c.andando) break;                         // não começou: manda de novo (mesmo opId)
+    }
+  }
+  return null;
+}
+/* ---- lista de itens (checklist) ---- */
+function itensHtml(id,itens,ph){
+  return `<div class="ck" id="${id}">${(itens||[]).map(t=>ckLinha(t)).join("")}${ckLinha("",ph||"Digite um item e aperte Enter")}</div>
+    <div class="ajuda">Enter cria a próxima linha · colar várias linhas também funciona · × tira o item</div>`;
+}
+function ckLinha(t,ph){ return `<div class="ck-l"><span class="ck-b">☐</span><input type="text" value="${esc(t||"")}" placeholder="${esc(ph||"")}"><button type="button" class="ck-x" title="Tirar este item" tabindex="-1">×</button></div>`; }
+function ligarItens(id){
+  const box=document.getElementById(id); if(!box) return;
+  box.addEventListener("keydown",e=>{
+    if(e.target.tagName!=="INPUT") return;
+    const linha=e.target.closest(".ck-l");
+    if(e.key==="Enter"){ e.preventDefault();
+      if(!e.target.value.trim()) return;
+      let prox=linha.nextElementSibling;
+      if(!prox||prox.querySelector("input").value.trim()){ linha.insertAdjacentHTML("afterend",ckLinha("","Próximo item…")); prox=linha.nextElementSibling; }
+      prox.querySelector("input").focus();
+    }else if(e.key==="Backspace"&&!e.target.value&&box.querySelectorAll(".ck-l").length>1){
+      e.preventDefault(); const ant=linha.previousElementSibling||linha.nextElementSibling; linha.remove(); if(ant) ant.querySelector("input").focus();
+    }
+  });
+  box.addEventListener("paste",e=>{
+    if(e.target.tagName!=="INPUT") return;
+    const tx=(e.clipboardData||window.clipboardData).getData("text");
+    if(tx.indexOf("\n")<0) return;
+    e.preventDefault();
+    const partes=tx.split(/\r?\n/).map(x=>x.replace(/^[\s\-•*☐☑✓\d.)]+/,"").trim()).filter(Boolean);
+    const linha=e.target.closest(".ck-l"); e.target.value=partes.shift()||"";
+    let ult=linha; partes.forEach(p=>{ ult.insertAdjacentHTML("afterend",ckLinha(p)); ult=ult.nextElementSibling; });
+    ult.insertAdjacentHTML("afterend",ckLinha("","Próximo item…"));
+  });
+  box.addEventListener("click",e=>{ const x=e.target.closest(".ck-x"); if(!x) return;
+    const l=x.closest(".ck-l"); if(box.querySelectorAll(".ck-l").length>1) l.remove(); else l.querySelector("input").value=""; });
+}
+function lerItens(id){ return [...document.querySelectorAll("#"+id+" input")].map(i=>i.value.trim()).filter(Boolean); }
+/* ---- responsáveis com busca ---- */
+function respHtml(marcados){
+  const ids=marcados||[];
+  const ord=D.pessoas.slice().sort((a,b)=>(ids.indexOf(b.id)>=0)-(ids.indexOf(a.id)>=0)||a.nome.localeCompare(b.nome));
+  return `<input type="text" class="busca" style="min-width:0;width:100%;margin-bottom:6px" placeholder="Buscar pessoa…" oninput="filtrarPessoas(this.value)">
+    <div class="pessoa-lista" id="n-pessoas">${ord.map(p=>`<label data-n="${esc(N(p.nome))}"><input type="checkbox" value="${p.id}" class="n-resp" ${ids.indexOf(p.id)>=0?"checked":""}> ${esc(p.nome)}${p.id===ME?" <i>(você)</i>":""}</label>`).join("")||`<span class="ajuda">Lista de pessoas ainda carregando…</span>`}</div>`;
+}
+function filtrarPessoas(t){ const n=N(t); document.querySelectorAll("#n-pessoas label").forEach(l=>l.classList.toggle("oculto",!!n&&l.dataset.n.indexOf(n)<0)); }
+/* ---- tipo com "+ Novo tipo…" ---- */
+function tipoSelect(id,valor,extra){
+  return `<select id="${id}" ${extra||""} onchange="if(this.value==='__novo__') novoTipo(this)">${opts(D.opcoes.tipo,valor,true)}<option value="__novo__">＋ Novo tipo…</option></select>`;
+}
+function novoTipo(sel){
+  const t=(prompt("Nome do novo tipo de atividade:")||"").trim();
+  if(!t){ sel.value=sel.dataset.antes||""; return; }
+  if((D.opcoes.tipo||[]).indexOf(t)<0){ D.opcoes.tipo=(D.opcoes.tipo||[]).concat([t]); }
+  const op=document.createElement("option"); op.textContent=t; op.value=t; sel.insertBefore(op,sel.lastElementChild); sel.value=t;
+  sel.dispatchEvent(new Event("change"));
+}
+/* ---- nova atividade / para mim ---- */
+function novaAtividade(paraMim){
+  if(RO){ toast("Modo teste: não grava."); return; }
+  const hoje=hojeISO();
+  abrirForm(paraMim?"Atividade para mim":"Nova atividade", paraMim?"Você já vem como responsável — marque mais gente se quiser":"Você fica como solicitante",
+    `<div class="fgrid">
+      <div class="campo full"><label>Atividade <i>*</i></label><input type="text" id="n-tit" placeholder="O que precisa ser feito"></div>
+      <div class="campo"><label>Tipo</label>${tipoSelect("n-tipo",paraMim?PROPRIA:"")}</div>
+      <div class="campo"><label>Prioridade</label><select id="n-pri">${opts(D.opcoes.prioridade,"Média",true)}</select></div>
+      <div class="campo"><label>Início</label><input type="date" id="n-ini" value="${hoje}"></div>
+      <div class="campo"><label>Prazo final <i>*</i></label><input type="date" id="n-fim" value="${paraMim?hoje:""}"></div>
+      <div class="campo full"><label>Responsáveis <i>*</i></label>${respHtml(paraMim?[ME]:[])}
+        <label class="ck-resp" title="Cada responsável marcado vira uma tarefa com o nome dele — marcar/desmarcar pessoa atualiza a lista">
+          <input type="checkbox" id="n-ckresp"> ☑ Criar checklist com os responsáveis <span class="ajuda">— uma tarefa para cada um, em Descrição e checklist</span></label></div>
+      <div class="campo full"><label>Obra</label><select id="n-obra"><option value="">— sem obra —</option>${OBRAS_L.map(o=>`<option value="${o.id}">${esc(o.titulo)}</option>`).join("")}</select></div>
+      <div class="campo full"><label>Descrição e checklist</label>${compositorHtml("n-cp")}
+        ${anexoCampo("n-arq-d","📎 Anexar na descrição")}</div>
+      <div class="campo full"><label>Comentário</label><textarea class="campo-grande" id="n-com" style="min-height:60px" placeholder="Primeiro comentário da atividade (opcional) — aparece em Comentários"></textarea>
+        ${anexoCampo("n-arq-c","📎 Anexar no comentário")}</div>
+    </div>`,
+    `<button class="bt ghost" onclick="fecharForm()">Cancelar</button><button class="bt" id="n-ok" onclick="criarAtividade()">Criar atividade</button>`);
+  ligarCompositor("n-cp");
+  ligarCkResp();
+  setTimeout(()=>{ const x=document.getElementById("n-tit"); if(x) x.focus(); },50);
+}
+/* 29/09 — CHECKLIST COM OS RESPONSÁVEIS
+   Ligado: cada responsável marcado vira uma Tarefa com o nome dele em
+   "Descrição e checklist" (cada um dá baixa na sua). Marcar/desmarcar pessoa
+   depois atualiza a lista; a linha em que você escreveu algo a mais (ex.:
+   "Ana Paula — revisar planta") não some ao desmarcar a pessoa. */
+function ligarCkResp(){
+  const ck=document.getElementById("n-ckresp"), box=document.getElementById("n-cp"), lista=document.getElementById("n-pessoas");
+  if(!ck||!box) return;
+  const vazia=l=>l&&!l.dataset.resp&&!l.querySelector("input").value.trim();
+  function sinc(){
+    const marcados=ck.checked?[...document.querySelectorAll(".n-resp:checked")].map(x=>x.value):[];
+    box.querySelectorAll(".cp-l[data-resp]").forEach(l=>{
+      if(marcados.indexOf(l.dataset.resp)>=0) return;
+      if(l.querySelector("input").value.trim()===l.dataset.nome) l.remove(); else l.removeAttribute("data-resp");
+    });
+    marcados.forEach(id=>{
+      if(box.querySelector(`.cp-l[data-resp="${id}"]`)) return;
+      const nome=((D.pessoas.find(p=>p.id===id)||{}).nome)||""; if(!nome) return;
+      while(box.children.length&&vazia(box.lastElementChild)) box.lastElementChild.remove();     // tira a linha vazia do fim
+      const html=cpLinha("to_do",nome).replace('class="cp-l',`data-resp="${id}" data-nome="${esc(nome)}" class="cp-l`);
+      const ult=[...box.querySelectorAll(".cp-l[data-resp]")].pop();
+      if(ult) ult.insertAdjacentHTML("afterend",html); else box.insertAdjacentHTML("beforeend",html);
+    });
+    if(!box.children.length) box.insertAdjacentHTML("beforeend",cpLinha("paragraph",""));
+  }
+  ck.addEventListener("change",()=>{
+    if(ck.checked&&!document.querySelector(".n-resp:checked")) toast("Marque os responsáveis — cada um vira uma tarefa.");
+    sinc();
+  });
+  if(lista) lista.addEventListener("change",e=>{ if(ck.checked&&e.target.classList.contains("n-resp")) sinc(); });
+}
+/* v5 — "Descrição e checklist" com os mesmos botões do conteúdo da atividade */
+const CP_TIPOS={paragraph:["¶","Texto"],to_do:["☐","Tarefa"],heading_2:["H","Título"],bulleted_list_item:["•","Lista"],numbered_list_item:["1.","Lista numerada"],quote:["❝","Citação"],callout:["💡","Destaque"]};
+function cpLinha(tipo,texto){ const [ic,rot]=CP_TIPOS[tipo]||CP_TIPOS.paragraph;
+  return `<div class="cp-l t-${tipo}" data-tipo="${tipo}"><span class="cp-m">${ic}</span><input type="text" value="${esc(texto||"")}" placeholder="${rot}…"><button type="button" class="ck-x" tabindex="-1" title="Tirar">×</button></div>`; }
+function compositorHtml(id){
+  return `<div class="cp" id="${id}">${cpLinha("paragraph","")}</div>
+    <div class="eb-add cp-add" data-cp="${id}">${Object.keys(CP_TIPOS).map(t=>`<button type="button" data-t="${t}">${CP_TIPOS[t][0]} + ${CP_TIPOS[t][1]}</button>`).join("")}</div>
+    <div class="ajuda">Enter cria a próxima linha do mesmo tipo · colar várias linhas também funciona</div>`;
+}
+function ligarCompositor(id){
+  const box=document.getElementById(id), bar=document.querySelector(`[data-cp="${id}"]`); if(!box) return;
+  const CONT={to_do:1,bulleted_list_item:1,numbered_list_item:1};
+  bar.addEventListener("click",e=>{ const b=e.target.closest("button[data-t]"); if(!b) return;
+    const vazia=[...box.querySelectorAll(".cp-l")].pop(); 
+    if(vazia&&!vazia.querySelector("input").value.trim()) vazia.remove();
+    box.insertAdjacentHTML("beforeend",cpLinha(b.dataset.t,"")); box.lastElementChild.querySelector("input").focus(); });
+  box.addEventListener("keydown",e=>{ if(e.target.tagName!=="INPUT") return; const l=e.target.closest(".cp-l");
+    if(e.key==="Enter"){ e.preventDefault(); const t=CONT[l.dataset.tipo]?l.dataset.tipo:"paragraph";
+      l.insertAdjacentHTML("afterend",cpLinha(t,"")); l.nextElementSibling.querySelector("input").focus(); }
+    else if(e.key==="Backspace"&&!e.target.value&&box.children.length>1){ e.preventDefault(); const ant=l.previousElementSibling||l.nextElementSibling; l.remove(); if(ant) ant.querySelector("input").focus(); } });
+  box.addEventListener("paste",e=>{ if(e.target.tagName!=="INPUT") return; const tx=(e.clipboardData||window.clipboardData).getData("text"); if(tx.indexOf("\n")<0) return;
+    e.preventDefault(); const l=e.target.closest(".cp-l"), partes=tx.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+    e.target.value=partes.shift()||""; let ult=l; partes.forEach(p=>{ ult.insertAdjacentHTML("afterend",cpLinha(l.dataset.tipo,p)); ult=ult.nextElementSibling; }); });
+  box.addEventListener("click",e=>{ const x=e.target.closest(".ck-x"); if(!x) return; const l=x.closest(".cp-l"); if(box.children.length>1) l.remove(); else l.querySelector("input").value=""; });
+}
+function lerCompositor(id){ return [...document.querySelectorAll("#"+id+" .cp-l")].map(l=>({tipo:l.dataset.tipo,texto:l.querySelector("input").value.trim()})).filter(b=>b.texto); }
+function anexoCampo(id,rot){
+  return `<div style="margin-top:6px"><label class="bt ghost bt-mini" style="display:inline-flex;cursor:pointer">${rot}<input type="file" id="${id}" multiple hidden
+    accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.dwg,.zip,.txt" onchange="document.getElementById('${id}-l').textContent=[...this.files].map(f=>f.name).join(' · ')"></label>
+    <span class="ajuda" id="${id}-l"></span></div>`;
+}
+async function lerArquivos(id){
+  const fs=[...((document.getElementById(id)||{}).files||[])];
+  if(fs.some(f=>f.size>15*1024*1024)) throw new Error("Tem arquivo acima de 15 MB — mande um menor.");
+  return Promise.all(fs.slice(0,5).map(async f=>({filename:f.name,mimeType:f.type||"application/octet-stream",dataBase64:await lerB64(f)})));
+}
+function checklistAvulso(){
+  if(RO){ toast("Modo teste: não grava."); return; }
+  const hoje=hojeISO();
+  abrirForm("Checklist avulso","Uma lista rápida só sua — fica na coluna da direita e você dá baixa lá mesmo",
+    `<div class="fgrid">
+      <div class="campo full"><label>Nome</label><input type="text" id="n-tit" value="Checklist ${hoje.slice(8,10)}/${hoje.slice(5,7)}"></div>
+      <div class="campo full"><label>Itens <i>*</i></label>${itensHtml("n-itens",[],"Primeiro item e Enter")}</div>
+    </div>`,
+    `<button class="bt ghost" onclick="fecharForm()">Cancelar</button><button class="bt" id="n-ok" onclick="criarAvulso()">Criar checklist</button>`);
+  ligarItens("n-itens");
+  setTimeout(()=>{ const x=document.querySelector("#n-itens input"); if(x) x.focus(); },50);
+}
+/* v4 — CRIAÇÃO OTIMISTA (igual à obra): o formulário fecha NA HORA, a
+   atividade aparece na lista como "criando…" e o servidor grava por trás.
+   Deu certo: troca pela de verdade. Deu errado: some e aparece a faixa
+   vermelha com o motivo e "Tentar de novo" (sem perder o que foi digitado). */
+function temporaria(dados){
+  const a={id:"tmp"+Date.now()+Math.random().toString(36).slice(2,6),titulo:dados.titulo,status:"Não começou",tipo:dados.tipo||"",
+    prioridade:dados.prioridade||"",ini:dados.ini||hojeISO(),fim:dados.fim||"",concl:null,
+    resp:(dados.resp||[]).map(id=>({id,nome:((D.pessoas.find(p=>p.id===id)||{}).nome)||""})),
+    solic:[{id:ME,nome:(S&&S.nome)||""}],obraId:dados.obraId||null,_criando:true};
+  D.atividades.push(a); pintar(); return a;
+}
+function falhou(msg,repetir){
+  let f=document.getElementById("falhou"); if(f) f.remove();
+  f=document.createElement("div"); f.id="falhou"; f.className="falhou";
+  f.innerHTML=`<span>⚠ ${esc(msg)}</span><button class="tn">Tentar de novo</button><button class="fx" title="Fechar">×</button>`;
+  document.body.appendChild(f);
+  f.querySelector(".tn").onclick=()=>{ f.remove(); repetir(); };
+  f.querySelector(".fx").onclick=()=>f.remove();
+}
+async function criarEmSegundoPlano(payload,extra){
+  const tmp=temporaria(payload);
+  const r=await criarRF(Object.assign({},payload));
+  D.atividades=D.atividades.filter(x=>x!==tmp);
+  if(!(r&&r.ok)){ pintar(); falhou(`Não criou "${payload.titulo}": ${msgErro(r)}`,()=>criarEmSegundoPlano(payload,extra)); return null; }
+  adotar(r.atividade);
+  if(extra&&r.atividade&&extra.anexosDescricao&&extra.anexosDescricao.length){
+    const d=await criarRF({action:"blocoAnexar",pageId:r.atividade.id,arquivos:extra.anexosDescricao});
+    if(!(d&&d.ok)) falhou(`A atividade foi criada, mas o anexo da descrição não subiu: ${msgErro(d)}`,()=>criarRF({action:"blocoAnexar",pageId:r.atividade.id,arquivos:extra.anexosDescricao}));
+    else { const gg=guardadaAtv(r.atividade.id)||{ok:true,pageId:r.atividade.id}; if(d.conteudo) gg.conteudo=d.conteudo; guardarAtv(r.atividade.id,gg); }
+  }
+  if(extra&&r.atividade&&(extra.texto||(extra.arquivos&&extra.arquivos.length))){
+    const c=await criarRF({action:"atvComentarioNovo",pageId:r.atividade.id,texto:extra.texto||"📎 Anexos enviados na criação da atividade",arquivos:extra.arquivos||[]});
+    if(!(c&&c.ok)) falhou(`A atividade foi criada, mas o comentário/anexo não subiu: ${msgErro(c)}`,()=>criarRF({action:"atvComentarioNovo",pageId:r.atividade.id,texto:extra.texto||"📎 Anexos",arquivos:extra.arquivos||[]}));
+    else toast("Atividade criada"+(extra.arquivos&&extra.arquivos.length?" com os anexos.":" com o comentário."));
+  } else toast("Atividade criada.");
+  return r.atividade;
+}
+async function criarAvulso(){
+  const g=id=>document.getElementById(id), err=g("mf-erro"), itens=lerItens("n-itens");
+  if(!itens.length){ err.textContent="Escreva pelo menos um item."; return; }
+  const nome=g("n-tit").value.trim()||"Checklist";
+  fecharForm(); ckNovo({nome,itens});
+}
+function adotar(a){
+  if(!a) return;
+  const i=D.atividades.findIndex(x=>x.id===a.id); if(i>=0) D.atividades[i]=a; else D.atividades.push(a);
+  cacheSet("atv_minhas",Object.assign({},D,{ok:true,me:ME,atividades:D.atividades.filter(x=>!x._criando)})); pintar();
+  if(window.AtvAlertas) setTimeout(()=>AtvAlertas.atualizar(true),2500);
+}
+async function criarAtividade(){
+  const g=id=>document.getElementById(id), err=g("mf-erro");
+  const titulo=g("n-tit").value.trim(), fim=g("n-fim").value;
+  const resp=[...document.querySelectorAll(".n-resp:checked")].map(x=>x.value);
+  if(!titulo){ err.textContent="Escreva o que precisa ser feito."; return; }
+  if(!fim){ err.textContent="Informe o prazo final."; return; }
+  if(!resp.length){ err.textContent="Escolha pelo menos um responsável."; return; }
+  let anexDesc=[], anexCom=[];
+  try{ anexDesc=await lerArquivos("n-arq-d"); anexCom=await lerArquivos("n-arq-c"); }catch(e){ err.textContent=e.message||"Não consegui ler o arquivo."; return; }
+  const tipo=g("n-tipo").value==="__novo__"?"":g("n-tipo").value;
+  const payload={action:"atvCriar",titulo,tipo,prioridade:g("n-pri").value,ini:g("n-ini").value,fim,
+    resp,obraId:g("n-obra").value||"",blocos:lerCompositor("n-cp")};
+  const com=g("n-com").value.trim();
+  fecharForm();
+  criarEmSegundoPlano(payload,{texto:com,arquivos:anexCom,anexosDescricao:anexDesc});
+}
+/* ---- checklists prontos ---- */
+function formModelo(id){
+  if(RO){ toast("Modo teste: não grava."); return; }
+  const m=id?MOD.modelos.find(x=>x.id===id):{nome:"",frequencia:"diário",itens:[]};
+  if(!m) return;
+  abrirForm(id?"Editar checklist pronto":"Novo checklist pronto","“Gerar” cria uma atividade nova com estes itens, todos desmarcados",
+    `<div class="fgrid">
+      <div class="campo"><label>Nome <i>*</i></label><input type="text" id="m-nome" value="${esc(m.nome)}" placeholder="Ex.: Abertura do escritório"></div>
+      <div class="campo"><label>Frequência</label><select id="m-freq">${["diário","semanal","mensal"].map(f=>`<option ${f===m.frequencia?"selected":""}>${f}</option>`).join("")}</select></div>
+      <div class="campo full"><label>Itens <i>*</i></label>${itensHtml("m-itens",m.itens)}</div>
+    </div>`,
+    `${id?`<button class="bt ghost" style="margin-right:auto" onclick="excluirModelo(${id})">🗑 Excluir</button>`:""}<button class="bt ghost" onclick="fecharForm()">Cancelar</button>
+     <button class="bt" id="m-ok" onclick="salvarModelo(${id||"null"})">Salvar</button>`);
+  ligarItens("m-itens");
+  setTimeout(()=>{ const x=document.getElementById("m-nome"); if(x) x.focus(); },50);
+}
+async function salvarModelo(id){
+  const nome=document.getElementById("m-nome").value.trim(), itens=lerItens("m-itens"), freq=document.getElementById("m-freq").value;
+  const err=document.getElementById("mf-erro");
+  if(!nome||!itens.length){ err.textContent="Dê um nome e pelo menos um item."; return; }
+  /* aparece NA HORA na coluna da direita; o servidor grava por trás */
+  const antes=JSON.parse(JSON.stringify(MOD.modelos));
+  const tmp=id?MOD.modelos.find(x=>x.id===id):{id:"tmp"+Date.now()};
+  Object.assign(tmp,{nome,frequencia:freq,itens,_salvando:true}); if(!id) MOD.modelos.push(tmp);
+  fecharForm(); pintarLado();
+  tmp._p=(async()=>{ let r=null; try{ r=await chamar({action:"atvModeloUpdate",id:id||"",nome,frequencia:freq,itens},60000,true); }catch(e){} return r; })();
+  const r=await tmp._p;
+  if(!(r&&r.ok)){ MOD.modelos=antes; pintarLado(); falhou("Não salvou o checklist pronto: "+msgErro(r),()=>{ formModelo(null); }); return; }
+  tmp.id=r.id||tmp.id; delete tmp._salvando; delete tmp._p; cacheSet("atv_modelos",MOD); pintarLado(); toast("Checklist pronto salvo.");
+}
+async function excluirModelo(id){
+  if(!confirm("Excluir este checklist pronto? (As atividades já geradas continuam.)")) return;
+  const r=await chamar({action:"atvModeloExcluir",id},45000,true).catch(()=>null);
+  if(r&&r.ok){ MOD.modelos=MOD.modelos.filter(m=>m.id!==id); cacheSet("atv_modelos",MOD); fecharForm(); pintarLado(); }
+  else toast("Não excluiu: "+msgErro(r));
+}
+async function gerarModelo(id,bt){
+  if(RO){ toast("Modo teste: não grava."); return; }
+  const m=MOD.modelos.find(x=>String(x.id)===String(id));
+  if(m&&m._p){ bt.disabled=true; bt.textContent="Salvando…"; await m._p; bt.disabled=false; bt.textContent="▶ Gerar"; id=m.id; }
+  if(!m||String(m.id).indexOf("tmp")===0){ toast("O modelo não foi salvo — veja a mensagem vermelha."); return; }
+  const hoje=hojeISO(), f=N(m.frequencia);
+  const rot=f.indexOf("MENS")===0?hoje.slice(5,7)+"/"+hoje.slice(0,4):hoje.slice(8,10)+"/"+hoje.slice(5,7);
+  ckNovo({modeloId:m.id,nome:m.nome+" · "+rot,itens:m.itens});
+}
+
+/* ---------- EQUIPE (ADM/MASTER) ---------- */
+async function carregarEquipe(fresco,silencioso){
+  if(!EQUIPE) return;
+  const c=cacheGet("atv_equipe"); if(c&&c.v&&!EQ){ EQ=c.v; if(ABA==="equipe") pintar(); }
+  const r=await ler(Object.assign({action:"atvEquipe"},fresco?{fresco:true}:{}),"atv_equipe");
+  if(r&&r.ok){ EQ=r; if(ABA==="equipe") pintar(); }
+  else if(!EQ&&!silencioso&&ABA==="equipe") document.getElementById("view").innerHTML=`<div class="vazio">Não consegui carregar a equipe (${esc(erroTexto(r&&r.erro))}).</div>`;
+}
+function pintarEquipe(){
+  const v=document.getElementById("view");
+  if(!EQ){ v.innerHTML=`<div class="vazio"><span class="load"></span> Carregando a equipe…</div>`; return; }
+  const hoje=hojeISO(), l=EQ.atividades||[];
+  const P={};
+  const add=(u,a)=>{ const p=P[u.id]=P[u.id]||{id:u.id,nome:u.nome,ab:0,atr:0,hj:0,fin:0,dias:[]};
+    if(aberta(a)){ p.ab++; if(atrasada(a)) p.atr++; if(a.fim===hoje) p.hj++; }
+    else if(a.concl){ p.fin++; const base=a.ini||a.criado; if(base) p.dias.push(Math.max(0,difDias(base,a.concl))); } };
+  l.forEach(a=>{ (a.resp&&a.resp.length?a.resp:[{id:"_",nome:"(sem responsável)"}]).forEach(u=>add(u,a)); });
+  const pess=Object.values(P).sort((a,b)=>b.atr-a.atr||b.ab-a.ab);
+  const media=p=>p.dias.length?(p.dias.reduce((s,x)=>s+x,0)/p.dias.length).toFixed(1).replace(".",","):"—";
+  const ab=l.filter(aberta);
+  const filtro=a=>!EQ_PESSOA||(a.resp||[]).some(u=>u.id===EQ_PESSOA)||(EQ_PESSOA==="_"&&!(a.resp||[]).length);
+  const atr=ab.filter(atrasada).filter(filtro).sort(ordFim), hj=ab.filter(a=>a.fim===hoje).filter(filtro);
+  const todas=ab.filter(filtro).filter(a=>!atrasada(a)&&a.fim!==hoje).sort(ordFim);
+  v.innerHTML=`<div class="info-bar">
+      <div class="icard"><div class="ival">${ab.length}</div><div class="ilab">Abertas</div></div>
+      <div class="icard"><div class="ival r">${ab.filter(atrasada).length}</div><div class="ilab">Atrasadas</div></div>
+      <div class="icard"><div class="ival">${ab.filter(a=>a.fim===hoje).length}</div><div class="ilab">Terminam hoje</div></div>
+      <div class="icard"><div class="ival">${l.filter(a=>!aberta(a)).length}</div><div class="ilab">Concluídas (90 dias)</div></div>
+      <button class="bt ghost bt-mini" style="align-self:center" onclick="carregarEquipe(true)">↻ Atualizar</button></div>
+    <div class="sect"><div class="sect-h">Por pessoa</div>
+    <div class="tabela-wrap" style="max-height:none"><table class="eq-tab"><thead><tr><th>Pessoa</th><th>Abertas</th><th>Atrasadas</th><th>Terminam hoje</th><th>Concluídas 90d</th><th>Média p/ concluir</th></tr></thead>
+      <tbody>${pess.map(p=>`<tr onclick="EQ_PESSOA=EQ_PESSOA==='${p.id}'?'':'${p.id}';pintarEquipe()" style="${EQ_PESSOA===p.id?"outline:2px solid var(--verde)":""}">
+        <td><b>${esc(p.nome)}</b></td><td>${p.ab}</td><td class="${p.atr?"r":""}">${p.atr}</td><td class="${p.hj?"o":""}">${p.hj}</td><td>${p.fin}</td><td>${media(p)} dias</td></tr>`).join("")}</tbody></table></div>
+    <div class="ajuda">Clique numa pessoa para ver só as atividades dela. Média p/ concluir = da data de início (ou criação) até a conclusão.</div></div>
+    ${EQ_PESSOA?`<div class="ajuda" style="margin-bottom:8px">Filtrando: <b>${esc((P[EQ_PESSOA]||{}).nome||"")}</b> · <a href="#" onclick="EQ_PESSOA='';pintarEquipe();return false">ver todos</a></div>`:""}
+    ${sec("⚠ Atrasadas",atr,a=>linha(a,"eq"),"r")}${sec("Terminam hoje",hj,a=>linha(a,"eq"))}${sec("Demais em aberto",todas,a=>linha(a,"eq"),"",true,"eqab")}`;
+}
+
+/* ---------- ao vivo ---------- */
+window.AO_VIVO_TRATA="atividades";
+let _recarga=null;
+window.addEventListener("portal-ao-vivo",ev=>{
+  const d=ev.detail||{}; if(!/^atv|^bloco/.test(d.acao||"")) return;
+  const did=SID(d.id);
+  if(ABERTA&&did===ABERTA&&d.acao==="atvComentarioNovo"){ lerComentarios(false); return; }
+  if(d.acao==="atvMuralCheck") return;                  // o conteúdo aberto se relê sozinho (editor-blocos)
+  const me=(S||{}).nome||""; if(d.quem&&d.quem===me) return;
+  clearTimeout(_recarga); _recarga=setTimeout(()=>{ carregar(true); if(ABA==="equipe") carregarEquipe(true); },800);
+});
+
+/* ---------- início ---------- */
+carregarObras();
+pendCarregar();
+/* 28/09 (noite): o que ficou saindo retoma JÁ (antes esperava a lista das
+   atividades carregar — a mensagem ficava "enviando" esse tempo todo) */
+setTimeout(retomarPendentes,300); setTimeout(retomarEdicoes,300);
+carregar(false).then(()=>{ const h=location.hash.slice(1); if(h) abrirAtv(h); });
+/* página fechando: comentário (sem arquivo por subir) e alteração ainda não
+   confirmados saem assim mesmo, num pedido pequeno que o navegador termina
+   mesmo depois de a página fechar (keepalive). O servidor não duplica (opId). */
+window.addEventListener("pagehide",()=>{
+  const s0=sessao(); if(!s0||!s0.token||typeof API_ESCRITA==="undefined") return;
+  const manda=corpo=>{ try{ fetch(API_ESCRITA,{method:"POST",keepalive:true,headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(Object.assign({token:s0.token},corpo))}); }catch(e){} };
+  Object.values(_PEND).forEach(m=>{ if(m._ok||m._falhou) return; if(m.nArq&&!m.prontos) return;
+    manda({action:"atvComentarioNovo",pageId:m.atv,texto:m.texto,anexosProntos:m.prontos||[],opId:m.opId,retomada:true}); });
+  const ed=editPend(); Object.keys(ed).forEach(k=>{ const p=ed[k]; if(p.ok) return; manda({action:"atvUpdate",pageId:p.id,campo:p.campo,valor:p.valor}); });
+});
+/* 28/09 — SINCRONIA COM O NOTION: com a tela aberta, pergunta a cada 1 min o
+   que mudou no Notion (atvDelta). O servidor consulta só o que foi editado
+   desde a última olhada, então é leve. Mudou no Notion → aparece aqui em ~1 min. */
+async function sincronizarNotion(){
+  if(document.hidden||ocioso()) return;
+  let r=null; try{ r=await chamar({action:"atvDelta"},30000,false); }catch(e){}
+  if(!(r&&r.ok)) return;
+  (r.excluidas||[]).forEach(id=>{ if(SID(id)===ABERTA||D.atividades.some(a=>a.id===SID(id))) atvExcluida(id,true); });   // 29/09
+  if(r.outras&&r.outras.ok){ OUT=r.outras; cacheSet("atv_outras",r.outras); }
+  cacheSet("atv_minhas",r);
+  const ae=document.activeElement; if(ae&&/INPUT|SELECT|TEXTAREA/.test(ae.tagName)&&document.getElementById("pa-campos")&&document.getElementById("pa-campos").contains(ae)) return;   // editando: não troca por baixo
+  aplicar(r);
+}
+setInterval(sincronizarNotion,60000);
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden) sincronizarNotion(); });
+window.addEventListener("hashchange",()=>{ const h=location.hash.slice(1); if(h&&h!==ABERTA) abrirAtv(h); });
+
+</script>
+</body>
+</html>

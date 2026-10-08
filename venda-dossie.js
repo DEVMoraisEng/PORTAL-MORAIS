@@ -207,22 +207,26 @@
   if (typeof module !== "undefined" && module.exports) { module.exports = exportar; return; }
 
   /* ---------------- navegador ---------------- */
-  /* Mesmas margens das outras seções do painel (vendas.html): título .grp com margem de 22px e
-   * conteúdo como o .campo (padding 0 22px). Cada filho direto dos blocos (menos o título e os
-   * blocos aninhados) ganha a mesma margem lateral; o título usa o .grp do próprio vendas.html. */
-  var BLOCOS = ["#dossie-wrap", "#contrato-wrap", "#ass-wrap", "#mc-wrap"];
-  function emCada(sufixo) { return BLOCOS.map(function (b) { return b + sufixo; }).join(","); }
-  var CSS = emCada(">.dz-linha") + "{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 22px}" +
-    emCada(" .dz-rot") + "{flex:1 1 200px}#dossie-wrap .on{outline:2px solid #4cd964}" +
-    emCada(">.dz-aviso") + "{color:#E67E22;margin:6px 22px}" +
-    emCada(">.dz-msg") + "{margin:8px 22px 0;font-weight:600}" +
-    emCada(">pre") + "{white-space:pre-wrap;font:inherit;margin:4px 22px}" +
+  /* Painel da casa (vendas.html): mesmas margens das outras seções — título .grp com margem de 22px e
+   * conteúdo como o .campo (padding 0 22px). No cartão do condomínio (.cd-cardbox) os blocos não têm
+   * esse recuo. Os blocos de contrato/assinatura/Mais Controle moram em .vb-blocos (.vb-ass / .vb-mc). */
+  var NO_PAINEL = ["#dossie-wrap", "#pn-body .vb-blocos", "#pn-body .vb-ass", "#pn-body .vb-mc"];
+  function emCada(sufixo) { return NO_PAINEL.map(function (b) { return b + sufixo; }).join(","); }
+  var CSS = "#dossie-wrap .dz-linha,.vb-blocos .dz-linha{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}" +
+    "#dossie-wrap .dz-rot,.vb-blocos .dz-rot{flex:1 1 200px}#dossie-wrap .on{outline:2px solid #4cd964}" +
+    "#dossie-wrap .dz-aviso,.vb-blocos .dz-aviso{color:#E67E22;margin:6px 0}" +
+    "#dossie-wrap .dz-msg,.vb-blocos .dz-msg{margin-top:8px;font-weight:600}" +
+    "#dossie-wrap pre,.vb-blocos pre{white-space:pre-wrap;font:inherit;margin:4px 0}" +
+    ".vb-blocos ul{margin:4px 0 4px 18px}.vb-blocos ul li{margin:2px 0}" +
+    emCada(">.dz-linha") + "{margin:6px 22px}" + emCada(">.dz-aviso") + "{margin:6px 22px}" +
+    emCada(">.dz-msg") + "{margin:8px 22px 0}" + emCada(">pre") + "{margin:4px 22px}" +
     emCada(">ul") + "{margin:4px 22px;padding-left:18px}" +
-    emCada(" ul li") + "{margin:2px 0}" +
-    "#mc-wrap .mc-sub{list-style:circle;margin-left:14px;color:var(--text3,#555)}" +
-    "#ass-wrap .ass-ok{color:var(--verde,#2a9d5c);font-weight:700}#ass-wrap .ass-pend{color:#B45309;font-weight:700}" +
-    "#ass-wrap .ass-rec{color:#C0392B;font-weight:700}#ass-wrap .ass-data{color:var(--text3,#555);font-size:12px}" +
-    "#mc-wrap a.mc-abrir{color:var(--azul,#1d4f63);font-weight:700}";
+    ".vb-mc .mc-sub{list-style:circle;margin-left:14px;color:var(--text3,#555)}" +
+    ".vb-ass .ass-ok{color:var(--verde,#2a9d5c);font-weight:700}.vb-ass .ass-pend{color:#B45309;font-weight:700}" +
+    ".vb-ass .ass-rec{color:#C0392B;font-weight:700}.vb-ass .ass-data{color:var(--text3,#555);font-size:12px}" +
+    ".vb-mc a.mc-abrir{color:var(--azul,#1d4f63);font-weight:700}" +
+    /* no cartão do condomínio os títulos não têm o recuo do painel da casa */
+    ".cd-cardbox .vb-blocos .grp{margin:14px 0 8px}.cd-cardbox .vb-blocos .vazio{padding:10px}";
   var estado = null, ui = { dois: false, ocupado: null, msg: "", testes: false }, paginaDoBloco = null;
 
   function obraAberta() { try { return OBRA_ABERTA; } catch (e) { return null; } }
@@ -361,170 +365,213 @@
       return depoisDeGravar(pageId, r, "Dossiê devolvido.");
     }
   }
-  /* ---- bloco Contrato: estado próprio, separado do dossiê ---- */
-  var seqC = 0, carregandoC = null, estadoC = null, uiC = { ocupadoContrato: null, faltas: null, msg: "", testes: false }, paginaDoContrato = null;
+  /* ---- blocos Contrato / Assinatura / Mais Controle ----
+   * Um conjunto por página: a casa da VENDAS no painel (#pn-body) ou, desde a entrega 7, a
+   * linha do condomínio no cartão da "Planilha Casas Condomínio" (window.VendaBlocos.montar).
+   * Cada conjunto guarda o próprio estado; `ativo(conjunto)` diz se ele ainda é o da tela —
+   * resposta de um conjunto que saiu da tela é descartada. Ao abrir, os três estados são
+   * pedidos em paralelo, uma vez só: redesenhar a tela (anexar de novo) não pede outra vez. */
   function novoUiC() { return { ocupadoContrato: null, faltas: null, msg: "", testes: perfilTestes() }; }
-  function mesmaCasaContrato(pageId) { return obraAberta() === pageId && paginaDoContrato === pageId; }
-  function wrapC() { return document.getElementById("contrato-wrap"); }
-  function pintarC() {
-    var w = wrapC(); if (!w) return;
-    w.innerHTML = htmlContrato(estadoC, uiC) + '<div id="ass-wrap">' + htmlAss() + "</div>" +
-      '<div id="mc-wrap">' + htmlMC(estadoM, uiM) + "</div>";
-  }
-  /* ---- Assinatura (Clicksign): o desenho e as ações moram em venda/assinatura-ui.js
-   * (window.VendaAssinatura, carregado por iniciar()); aqui só o estado e a ligação. */
-  var ctxA = { estado: null, ocupado: null, msg: "", faltas: null, testes: false };
-  function novoCtxA() { return { estado: null, ocupado: null, msg: "", faltas: null, testes: perfilTestes() }; }
-  function htmlAss() {
-    if (!window.VendaAssinatura) return '<div class="grp">Assinatura</div><div class="vazio">carregando…</div>';
-    ctxA.contratoGerado = !!(estadoC && estadoC.gerado);
-    return window.VendaAssinatura.montarBlocoAssinatura(ctxA);
-  }
-  function pintarA() { var w = document.getElementById("ass-wrap"); if (w) w.innerHTML = htmlAss(); }
-  async function carregarAss(pageId) {
-    var r = await chamarVenda({ action: "assinaturaEstado", pageId: pageId }, 90000);
-    if (!mesmaCasaContrato(pageId)) return;
-    if (r.ok) { ctxA.estado = { situacao: r.situacao || "", envelope: !!r.envelope, signatarios: r.signatarios || [] }; ctxA.msg = ""; }
-    else ctxA.msg = window.VendaAssinatura ? window.VendaAssinatura.mensagemAssinatura(r) : "";
-    pintarA();
-  }
-  async function aoClicarAss(acao, pageId) {
-    if (!window.VendaAssinatura || ctxA.ocupado) return;
-    ctxA.contratoGerado = !!(estadoC && estadoC.gerado);
-    var novo = await window.VendaAssinatura.executarAcaoAssinatura(acao, ctxA, {
-      pageId: pageId,
-      confirmar: function (t) { return window.confirm(t); },
-      chamar: function (p) { return chamarVenda(p, 150000); },
-      pintar: function (c) { ctxA = c; pintarA(); }
-    });
-    if (!mesmaCasaContrato(pageId)) return;
-    ctxA = novo; pintarA();
-  }
-  /* ---- Mais Controle: mora dentro do contrato-wrap (que precisa ser o último
-   * filho de #pn-body); usa o mesmo seqC para descartar resposta de outra casa. */
-  var estadoM = null, uiM = { ocupado: null, msg: "", testes: false }, esperaM = null;
   function novoUiM() { return { ocupado: null, msg: "", testes: perfilTestes() }; }
-  function pintarM() {
-    var w = document.getElementById("mc-wrap"); if (!w) return;
-    w.innerHTML = htmlMC(estadoM, uiM);
-  }
-  async function carregarMC(pageId, seq) {
-    var r = await chamarVenda({ action: "mcEstado", pageId: pageId });
-    /* só a casa importa aqui: o seqC sobe a cada clique do Contrato e mataria o acompanhamento */
-    if (!mesmaCasaContrato(pageId)) return null;
-    if (r.ok) { estadoM = { situacao: r.situacao || "", vendaId: r.vendaId || "" }; }
-    else uiM.msg = mensagemMC(r);
-    pintarM();
-    return r;
-  }
-  function acompanharMC(pageId, seq, voltas) {
-    if (esperaM) clearTimeout(esperaM);
-    esperaM = setTimeout(async function () {
-      esperaM = null;
-      var r = await carregarMC(pageId, seq);
-      if (r && r.ok && /^PROCESSANDO/.test(r.situacao || "") && voltas > 1) acompanharMC(pageId, seq, voltas - 1);
-    }, 10000);
-  }
-  async function aoClicarMC(acao, pageId) {
-    if (uiM.ocupado) return;
-    var seq = seqC;
-    if (acao === "mc-atualizar") { uiM.msg = ""; await carregarMC(pageId, seq); return; }
-    var aplicar = acao === "mc-lancar";
-    if (aplicar && !window.confirm("Lançar esta venda no Mais Controle? Será criado o cliente (se não existir) e a venda com as parcelas da prévia.")) return;
-    uiM.ocupado = acao; uiM.msg = ""; pintarM();
-    var r = await chamarVenda({ action: "mcLancar", pageId: pageId, aplicar: aplicar });
-    if (!mesmaCasaContrato(pageId)) return;
-    uiM.ocupado = null;
-    uiM.msg = r.ok ? (aplicar ? "Lançamento pedido ao robô." : "Prévia pedida ao robô.") : mensagemMC(r);
-    await carregarMC(pageId, seq);
-    if (r.ok) acompanharMC(pageId, seq, 24);
-  }
-  /* seqC: contador de pedidos; sobe a cada troca de casa e a cada ação. Resposta
-   * com seq diferente do capturado é descartada (caso A→B→A, em que mesmaCasaContrato
-   * sozinho enganaria). carregandoC evita pedidos paralelos quando o bloco é recriado
-   * enquanto o estado ainda carrega. */
-  async function carregarContrato(pageId) {
-    if (carregandoC === pageId) return;
-    carregandoC = pageId;
-    var seq = ++seqC;
-    var r = await chamarVenda({ action: "contratoEstado", pageId: pageId });
-    if (carregandoC === pageId) carregandoC = null;
-    if (seq !== seqC || !mesmaCasaContrato(pageId)) return;
-    if (r.ok) { estadoC = { gerado: !!r.gerado, nome: r.nome || "", url: r.url || "" }; uiC.msg = ""; }
-    else uiC.msg = mensagemContrato(r);
-    pintarC();
-  }
-  async function aoClicarContrato(ev) {
-    var b = ev.target.closest("[data-acao]"); if (!b || b.disabled) return;
-    var pageId = obraAberta(), acao = b.getAttribute("data-acao"), r, seq;
-    if (pageId && paginaDoContrato === pageId && /^mc-/.test(acao)) return aoClicarMC(acao, pageId);
-    if (pageId && paginaDoContrato === pageId && /^a-/.test(acao)) return aoClicarAss(acao, pageId);
-    if (!pageId || uiC.ocupadoContrato || paginaDoContrato !== pageId) return;
-    if (acao === "c-ver") {
-      /* abre a janela AGORA, dentro do clique (antes de qualquer await), senão o
-       * navegador a bloqueia; depois só troca o endereço. Sem "noopener" aqui
-       * (devolveria null): o opener é zerado à mão. */
-      var w = window.open("about:blank", "_blank");
-      uiC.ocupadoContrato = "ver"; uiC.msg = ""; uiC.link = null; pintarC();
-      seq = ++seqC;
-      r = await chamarVenda({ action: "contratoEstado", pageId: pageId });
-      if (seq !== seqC || !mesmaCasaContrato(pageId)) { if (w) { try { w.close(); } catch (e) {} } return; }
-      uiC.ocupadoContrato = null;
-      if (r.ok && r.gerado && /^https:\/\//.test(r.url || "")) {
-        estadoC = { gerado: true, nome: r.nome || "", url: r.url };
-        if (w) { try { w.opener = null; } catch (e) {} w.location.href = r.url; }
-        else uiC.link = r.url;
-      } else {
-        if (w) { try { w.close(); } catch (e) {} }
-        uiC.msg = r.ok ? "Ainda não há contrato gerado." : mensagemContrato(r);
-      }
-      pintarC();
-      return;
+  function novoCtxA() { return { estado: null, ocupado: null, msg: "", faltas: null, testes: perfilTestes() }; }
+
+  function criarBlocosVenda(pageId, ativo) {
+    var eu = { pageId: pageId };
+    var raiz = null, seqC = 0, carregandoC = false, estadoC = null, uiC = novoUiC();
+    var estadoM = null, uiM = novoUiM(), esperaM = null, ctxA = novoCtxA();
+    function vivo() { return !!ativo(eu); }
+    function dentro(sel) { return raiz ? raiz.querySelector(sel) : null; }
+
+    /* Assinatura (Clicksign): o desenho e as ações moram em venda/assinatura-ui.js
+     * (window.VendaAssinatura, carregado por iniciar()); aqui só o estado e a ligação. */
+    function htmlAss() {
+      if (!window.VendaAssinatura) return '<div class="grp">Assinatura</div><div class="vazio">carregando…</div>';
+      ctxA.contratoGerado = !!(estadoC && estadoC.gerado);
+      return window.VendaAssinatura.montarBlocoAssinatura(ctxA);
     }
-    if (acao === "c-gerar") {
-      if (estadoC && estadoC.gerado && !window.confirm("Gerar de novo? O contrato atual será substituído.")) return;
-      uiC.ocupadoContrato = "gerar"; uiC.msg = ""; uiC.faltas = null; uiC.link = null; pintarC();
-      seq = ++seqC;
-      r = await chamarVenda({ action: "gerarContrato", pageId: pageId }, 150000);
-      if (seq !== seqC || !mesmaCasaContrato(pageId)) return;
-      uiC.ocupadoContrato = null;
-      if (r.ok) {
-        estadoC = { gerado: true, nome: r.nome || "", url: r.url || "" };
-        /* condomínio: campos que saíram em branco ("____") no contrato não travam, mas avisam */
-        uiC.msg = r.avisos && r.avisos.length ? "Contrato gerado. Atenção: " + r.avisos.join("; ") + "." : "Contrato gerado.";
-      } else if (r.erro === "FALTAM_DADOS" && r.faltas && r.faltas.length) {
-        uiC.faltas = r.faltas;
-      } else {
-        if (r.erro === "MODELO_COM_MARCADOR_SOBRANDO" && typeof console !== "undefined") console.warn("contrato: marcadores sobrando", r.marcadores);
-        uiC.msg = mensagemContrato(r);
-      }
-      pintarC();
-      /* sem resposta: o servidor pode ter gerado mesmo assim — olha de novo */
-      if (!r.ok && r.erro === "SEM_RESPOSTA") carregarContrato(pageId);
+    function pintar() {
+      if (!raiz) return;
+      raiz.innerHTML = htmlContrato(estadoC, uiC) + '<div class="vb-ass">' + htmlAss() + "</div>" +
+        '<div class="vb-mc">' + htmlMC(estadoM, uiM) + "</div>";
     }
+    function pintarA() { var w = dentro(".vb-ass"); if (w) w.innerHTML = htmlAss(); }
+    function pintarM() { var w = dentro(".vb-mc"); if (w) w.innerHTML = htmlMC(estadoM, uiM); }
+
+    async function carregarAss() {
+      var r = await chamarVenda({ action: "assinaturaEstado", pageId: pageId }, 90000);
+      if (!vivo()) return;
+      if (r.ok) { ctxA.estado = { situacao: r.situacao || "", envelope: !!r.envelope, signatarios: r.signatarios || [] }; ctxA.msg = ""; }
+      else ctxA.msg = window.VendaAssinatura ? window.VendaAssinatura.mensagemAssinatura(r) : "";
+      pintarA();
+    }
+    async function aoClicarAss(acao) {
+      if (!window.VendaAssinatura || ctxA.ocupado) return;
+      ctxA.contratoGerado = !!(estadoC && estadoC.gerado);
+      var novo = await window.VendaAssinatura.executarAcaoAssinatura(acao, ctxA, {
+        pageId: pageId,
+        confirmar: function (t) { return window.confirm(t); },
+        chamar: function (p) { return chamarVenda(p, 150000); },
+        pintar: function (c) { ctxA = c; pintarA(); }
+      });
+      if (!vivo()) return;
+      ctxA = novo; pintarA();
+    }
+
+    /* Mais Controle */
+    async function carregarMC() {
+      var r = await chamarVenda({ action: "mcEstado", pageId: pageId });
+      if (!vivo()) return null;
+      if (r.ok) { estadoM = { situacao: r.situacao || "", vendaId: r.vendaId || "" }; }
+      else uiM.msg = mensagemMC(r);
+      pintarM();
+      return r;
+    }
+    function acompanharMC(voltas) {
+      if (esperaM) clearTimeout(esperaM);
+      esperaM = setTimeout(async function () {
+        esperaM = null;
+        if (!vivo()) return;
+        var r = await carregarMC();
+        if (r && r.ok && /^PROCESSANDO/.test(r.situacao || "") && voltas > 1) acompanharMC(voltas - 1);
+      }, 10000);
+    }
+    async function aoClicarMC(acao) {
+      if (uiM.ocupado) return;
+      if (acao === "mc-atualizar") { uiM.msg = ""; await carregarMC(); return; }
+      var aplicar = acao === "mc-lancar";
+      if (aplicar && !window.confirm("Lançar esta venda no Mais Controle? Será criado o cliente (se não existir) e a venda com as parcelas da prévia.")) return;
+      uiM.ocupado = acao; uiM.msg = ""; pintarM();
+      var r = await chamarVenda({ action: "mcLancar", pageId: pageId, aplicar: aplicar });
+      if (!vivo()) return;
+      uiM.ocupado = null;
+      uiM.msg = r.ok ? (aplicar ? "Lançamento pedido ao robô." : "Prévia pedida ao robô.") : mensagemMC(r);
+      await carregarMC();
+      if (r.ok) acompanharMC(24);
+    }
+
+    /* Contrato. seqC: sobe a cada ação; resposta com seq diferente do capturado é descartada.
+     * carregandoC evita pedidos paralelos quando o bloco é recriado enquanto o estado carrega. */
+    async function carregarContrato() {
+      if (carregandoC) return;
+      carregandoC = true;
+      var seq = ++seqC;
+      var r = await chamarVenda({ action: "contratoEstado", pageId: pageId });
+      carregandoC = false;
+      if (seq !== seqC || !vivo()) return;
+      if (r.ok) { estadoC = { gerado: !!r.gerado, nome: r.nome || "", url: r.url || "" }; uiC.msg = ""; }
+      else uiC.msg = mensagemContrato(r);
+      pintar();
+    }
+    async function aoClicar(ev) {
+      var b = ev.target.closest("[data-acao]"); if (!b || b.disabled || !vivo()) return;
+      var acao = b.getAttribute("data-acao"), r, seq;
+      if (/^mc-/.test(acao)) return aoClicarMC(acao);
+      if (/^a-/.test(acao)) return aoClicarAss(acao);
+      if (uiC.ocupadoContrato) return;
+      if (acao === "c-ver") {
+        /* abre a janela AGORA, dentro do clique (antes de qualquer await), senão o
+         * navegador a bloqueia; depois só troca o endereço. Sem "noopener" aqui
+         * (devolveria null): o opener é zerado à mão. */
+        var w = window.open("about:blank", "_blank");
+        uiC.ocupadoContrato = "ver"; uiC.msg = ""; uiC.link = null; pintar();
+        seq = ++seqC;
+        r = await chamarVenda({ action: "contratoEstado", pageId: pageId });
+        if (seq !== seqC || !vivo()) { if (w) { try { w.close(); } catch (e) {} } return; }
+        uiC.ocupadoContrato = null;
+        if (r.ok && r.gerado && /^https:\/\//.test(r.url || "")) {
+          estadoC = { gerado: true, nome: r.nome || "", url: r.url };
+          if (w) { try { w.opener = null; } catch (e) {} w.location.href = r.url; }
+          else uiC.link = r.url;
+        } else {
+          if (w) { try { w.close(); } catch (e) {} }
+          uiC.msg = r.ok ? "Ainda não há contrato gerado." : mensagemContrato(r);
+        }
+        pintar();
+        return;
+      }
+      if (acao === "c-gerar") {
+        if (estadoC && estadoC.gerado && !window.confirm("Gerar de novo? O contrato atual será substituído.")) return;
+        uiC.ocupadoContrato = "gerar"; uiC.msg = ""; uiC.faltas = null; uiC.link = null; pintar();
+        seq = ++seqC;
+        r = await chamarVenda({ action: "gerarContrato", pageId: pageId }, 150000);
+        if (seq !== seqC || !vivo()) return;
+        uiC.ocupadoContrato = null;
+        if (r.ok) {
+          estadoC = { gerado: true, nome: r.nome || "", url: r.url || "" };
+          /* condomínio: campos que saíram em branco ("____") no contrato não travam, mas avisam */
+          uiC.msg = r.avisos && r.avisos.length ? "Contrato gerado. Atenção: " + r.avisos.join("; ") + "." : "Contrato gerado.";
+        } else if (r.erro === "FALTAM_DADOS" && r.faltas && r.faltas.length) {
+          uiC.faltas = r.faltas;
+        } else {
+          if (r.erro === "MODELO_COM_MARCADOR_SOBRANDO" && typeof console !== "undefined") console.warn("contrato: marcadores sobrando", r.marcadores);
+          uiC.msg = mensagemContrato(r);
+        }
+        pintar();
+        /* sem resposta: o servidor pode ter gerado mesmo assim — olha de novo */
+        if (!r.ok && r.erro === "SEM_RESPOSTA") carregarContrato();
+      }
+    }
+
+    /* Põe os blocos em `el` (o conteúdo dele é trocado). Só pede ao servidor o que ainda não tem. */
+    eu.anexar = function (el) {
+      raiz = el;
+      if (el.classList) el.classList.add("vb-blocos");
+      if (!el.__vbLigado) { el.__vbLigado = true; el.addEventListener("click", function (ev) { if (raiz === el) aoClicar(ev); }); }
+      pintar();
+      if (!estadoC) carregarContrato();
+      if (!estadoM) carregarMC();
+      if (!ctxA.estado) carregarAss();
+    };
+    eu.raiz = function () { return raiz; };
+    eu.pintarAssinatura = pintarA;
+    eu.parar = function () { if (esperaM) clearTimeout(esperaM); esperaM = null; };
+    return eu;
   }
-  /* Contrato é sempre o ÚLTIMO filho de #pn-body. Sem laço de observer: o
-   * MutationObserver só reage a childList de #pn-body, e aqui só mexemos quando
-   * o bloco falta ou não está por último; depois de anexar/mover ele está
-   * por último, então a chamada disparada pela própria mutação não faz nada. */
+
+  /* casa da VENDAS: o bloco é sempre o ÚLTIMO filho de #pn-body. Sem laço de observer: o
+   * MutationObserver só reage a childList de #pn-body, e aqui só mexemos quando o bloco
+   * falta ou não está por último; depois de anexar/mover ele está por último, então a
+   * chamada disparada pela própria mutação não faz nada. */
+  var blocosCasa = null;
   function garantirContrato(body, id) {
-    var w = wrapC();
-    if (w) { if (body.lastElementChild !== w) body.appendChild(w); return; }
-    if (paginaDoContrato !== id) { paginaDoContrato = id; seqC++; estadoC = null; uiC = novoUiC(); estadoM = null; uiM = novoUiM(); ctxA = novoCtxA(); }
+    if (!blocosCasa || blocosCasa.pageId !== id) {
+      if (blocosCasa) blocosCasa.parar();
+      blocosCasa = criarBlocosVenda(id, function (b) { return blocosCasa === b && obraAberta() === id; });
+    }
+    var w = blocosCasa.raiz();
+    if (w && w.parentNode === body) { if (body.lastElementChild !== w) body.appendChild(w); return; }
+    var velho = document.getElementById("contrato-wrap");   // de outra casa que ficou no painel
+    if (velho && velho.parentNode) velho.parentNode.removeChild(velho);
     w = document.createElement("div"); w.id = "contrato-wrap";
-    w.addEventListener("click", aoClicarContrato);
     body.appendChild(w);
-    pintarC();
-    if (!estadoC) carregarContrato(id);
-    if (!estadoM) carregarMC(id, seqC);
-    if (!ctxA.estado) carregarAss(id);
+    blocosCasa.anexar(w);
   }
+
+  /* linha do condomínio (entrega 7): o cartão da unidade em vendas.html chama
+   *   VendaBlocos.montar(elemento, pageIdDaLinha)   depois de desenhar o cartão (e a cada redesenho)
+   *   VendaBlocos.soltar()                          ao fechar o cartão                              */
+  var blocosCond = null;
+  var REGEX_ID = /^[0-9a-f]{32}$|^[0-9a-f-]{36}$/i;
+  function montarCondominio(el, pageId) {
+    if (!el || !REGEX_ID.test(String(pageId || ""))) return;
+    if (!blocosCond || blocosCond.pageId !== pageId) {
+      if (blocosCond) blocosCond.parar();
+      blocosCond = criarBlocosVenda(pageId, function (b) {
+        var r = b.raiz();
+        return blocosCond === b && !!r && r.isConnected !== false;
+      });
+    }
+    blocosCond.anexar(el);
+  }
+  function soltarCondominio() { if (blocosCond) blocosCond.parar(); blocosCond = null; }
+  window.VendaBlocos = { montar: montarCondominio, soltar: soltarCondominio };
+
   function garantirBloco(body) {
     var id = obraAberta();
     if (!id) {
       /* painel fechado: zera para a mesma casa recarregar o estado ao reabrir */
       if (paginaDoBloco !== null) { paginaDoBloco = null; estado = null; ui = { dois: false, ocupado: null, msg: "", testes: false }; }
-      if (paginaDoContrato !== null) { paginaDoContrato = null; seqC++; estadoC = null; uiC = novoUiC(); estadoM = null; uiM = novoUiM(); ctxA = novoCtxA(); }
+      if (blocosCasa) { blocosCasa.parar(); blocosCasa = null; }
       return;
     }
     if (painelCarregando(body.children.length, body.firstElementChild ? body.firstElementChild.className : "",
@@ -540,12 +587,13 @@
     garantirContrato(body, id);
   }
   function iniciar() {
-    var body = document.getElementById("pn-body"); if (!body) return;
     var st = document.createElement("style"); st.textContent = CSS; document.head.appendChild(st);
-    /* o bloco de assinatura mora em arquivo próprio; vendas.html continua com uma linha só */
+    /* o bloco de assinatura mora em arquivo próprio; vendas.html continua com uma linha só.
+       Carrega mesmo sem o painel da casa: o cartão do condomínio também usa. */
     var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=2";
-    sa.onload = function () { pintarA(); };
+    sa.onload = function () { [blocosCasa, blocosCond].forEach(function (b) { if (b) b.pintarAssinatura(); }); };
     document.head.appendChild(sa);
+    var body = document.getElementById("pn-body"); if (!body) return;
     new MutationObserver(function () { garantirBloco(body); }).observe(body, { childList: true });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", iniciar); else iniciar();

@@ -189,3 +189,105 @@ def test_condominio_sem_comissao_paga_por_usa_valor_de_venda(monkeypatch):
                            "VALOR NA MÃO": num(220000)})
     r = L.processar("p", NotionDuas(venda, fluxo_props()), ErpCond(), aplicar=False)
     assert r["situacao"] == "PREVIA", r
+
+
+# ---------------- entrega 7: o robô lê a própria linha do condomínio ----------------
+LINHA_ID = "d" * 32
+DB_COND = "e" * 32
+
+
+def linha_cond(**mudar):
+    """Linha da BANCO DE DADOS VENDAS CONDOMÍNIO com tudo que a venda precisa (fluxo que fecha em 228.900)."""
+    p = fluxo_props(**{
+        "CONDOMÍNIO": sel("RESERVA TESTE"), "PROPONENTE": txt("Fulana De Teste"), "CPF PROPONENTE": txt("529.982.247-25"),
+        "Email": {"type": "email", "email": "fulana@exemplo.test"}, "Nº Whatsapp": {"type": "phone_number", "phone_number": "(62) 90000-0000"},
+        "DATA DA VENDA": data("2026-09-01"), "VALOR DE VENDA": num(228900), "VALOR DO CRÉDITO": num(200000),
+        "SUBISÍDIO": num(None), "VALOR DO FGTS": num(10000), " COMISSÃO ": num(10000),
+        "CORRETOR": txt("Corretor Exemplo"), "IMOBILIÁRIA": txt("Imobiliária Exemplo"),
+        "CONTRATO ASSINADO": {"type": "files", "files": [{"name": "assinado.pdf", "file": {"url": "https://s3.falso/assinado"}}]},
+    })
+    p.update(mudar)
+    return p
+
+
+class NotionLinha(NotionFake):
+    """Notion com UMA página: a linha do condomínio (parent = DB_COND)."""
+    def __init__(self, props, mae=DB_COND):
+        super().__init__(props)
+        self.mae = mae
+        self.lidas = []
+
+    def pagina(self, pid):
+        self.lidas.append(pid)
+        return {"properties": self.props, "parent": {"database_id": self.mae}}
+
+    def baixar(self, url):
+        return b"%PDF-1.4 assinado"
+
+
+class ErpLinha(ErpCond):
+    def anexar(self, venda_id, nome, conteudo):
+        self.criados.append(("anexo", nome))
+
+
+def test_linha_do_condominio_e_reconhecida_pela_base_ou_pelo_titulo():
+    pg = {"properties": linha_cond(), "parent": {"database_id": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"}}
+    assert C.e_linha_do_condominio(pg, DB_COND)
+    assert not C.e_linha_do_condominio(pg, "f" * 32)
+    assert C.e_linha_do_condominio(pg, "")   # sem DB_VENDAS_COND: o título UNIDADE decide
+    assert not C.e_linha_do_condominio({"properties": dados_venda()}, "")
+
+
+def test_dados_da_linha_comprador_valores_corretor_e_colunas_de_retorno():
+    d = C.dados_da_linha(linha_cond(**{"MC - SITUAÇÃO": txt("PRÉVIA OK [#0a1b2c3d] — x"), "MC - VENDA ID": txt("")}), LINHA_ID)
+    assert d["endereco"] == "CONDOMÍNIO RESERVA TESTE" and d["casa"] == 12
+    assert d["comprador"] == {"nome": "Fulana De Teste", "cpf": "52998224725", "email": "fulana@exemplo.test", "telefone": "62900000000"}
+    assert (d["total"], d["aquisicao"], d["comissao_paga_por"]) == (228900, 228900, "VENDEDOR")
+    assert (d["financiado"], d["fgts"], d["subsidio"]) == (200000, 10000, None)
+    assert (d["corretor"], d["imobiliaria"], d["data_venda"]) == ("Corretor Exemplo", "Imobiliária Exemplo", "2026-09-01")
+    assert d["condominio_id"] == LINHA_ID and d["situacao_atual"].startswith("PRÉVIA OK")
+    assert d["contrato_arquivos"] == [{"nome": "assinado.pdf", "url": "https://s3.falso/assinado"}]
+    assert C.dados_da_linha(linha_cond(**{"CONDOMÍNIO": sel("Condomínio Reserva Teste")}), LINHA_ID)["endereco"] == "Condomínio Reserva Teste"
+
+
+def test_previa_e_lancamento_pela_linha_do_condominio(monkeypatch):
+    monkeypatch.setenv("DB_VENDAS_COND", DB_COND)
+    n, e = NotionLinha(linha_cond()), ErpLinha()
+    r = L.processar(LINHA_ID, n, e)
+    assert r["situacao"] == "PREVIA", r
+    assert n.lidas == [LINHA_ID], "a linha é lida uma vez (não procura CONDOMÍNIO - VENDA ID)"
+    corpo = r["corpo_venda"]
+    assert corpo["description"].startswith("VENDA UNIDADE 12 - FULANA DE TESTE")
+    assert len(corpo["tradeReceivable"]["installments"]) == 12
+    assert n.gravado["MC - SITUAÇÃO"].startswith("PRÉVIA OK [#")
+    assin = R.assinatura_da_situacao(n.gravado["MC - SITUAÇÃO"])
+    n.props["MC - SITUAÇÃO"] = txt("PROCESSANDO (lançamento) — 07/10 10:00 [t=1] [#%s]" % assin)
+    r = L.processar(LINHA_ID, n, e, aplicar=True)
+    assert r["situacao"] == "CRIADA", r
+    assert n.gravado["MC - VENDA ID"] == "venda-nova"
+    assert ("anexo", "CONTRATO CONDOMÍNIO RESERVA TESTE CASA 12 - FULANA DE TESTE.pdf") in e.criados
+    assert [t for t, _ in e.criados] == ["cliente", "cliente", "venda", "anexo"]
+
+
+def test_linha_do_condominio_ja_lancada_nao_repete(monkeypatch):
+    monkeypatch.setenv("DB_VENDAS_COND", DB_COND)
+    n, e = NotionLinha(linha_cond()), ErpLinha()
+    n.props["MC - VENDA ID"] = txt("venda-9")   # o NotionFake zera as duas colunas ao nascer
+    r = L.processar(LINHA_ID, n, e, aplicar=True)
+    assert r["situacao"] == "JA_LANCADA" and e.criados == []
+
+
+def test_linha_do_condominio_com_faltas_recusa_sem_falar_com_o_erp(monkeypatch):
+    monkeypatch.setenv("DB_VENDAS_COND", DB_COND)
+    n = NotionLinha(linha_cond(**{"CPF PROPONENTE": txt("529.982.247-24"), "DIA PAGAMENTO PARCELAS": num(None)}))
+    r = L.processar(LINHA_ID, n, ErpLinha())
+    assert r["codigo"] == "FALTAS"
+    assert "CPF do comprador" in n.gravado["MC - SITUAÇÃO"] and "DIA PAGAMENTO" in n.gravado["MC - SITUAÇÃO"]
+
+
+def test_caminho_antigo_continua_casa_da_vendas_com_condominio_venda_id(monkeypatch):
+    monkeypatch.setenv("DB_VENDAS_COND", "b" * 32)
+    n = NotionDuas(dados_venda(), fluxo_props())
+    r = L.processar("p", n, ErpCond(), aplicar=False)
+    assert r["situacao"] == "PREVIA", r
+    assert r["corpo_venda"]["description"].startswith("VENDA UNIDADE 12 - ")

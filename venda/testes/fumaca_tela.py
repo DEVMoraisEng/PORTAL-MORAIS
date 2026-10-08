@@ -10,8 +10,10 @@ from playwright.sync_api import sync_playwright
 
 RAIZ = pathlib.Path(__file__).resolve().parents[2]
 PAGINA = "0123456789abcdef0123456789abcdef"
+COND = "00112233445566778899aabbccddeeff"
 HTML = """<!doctype html><html><head><meta charset="utf-8"><style>/*CSS_DO_VENDAS*/</style></head><body>
 <div class="pbody" id="pn-body" style="width:560px"></div>
+<div id="cd-card"></div>
 <script>
   var OBRA_ABERTA = null;
   function sessao() { return { token: "t", tipo: "GERAL" }; }
@@ -25,7 +27,7 @@ HTML = """<!doctype html><html><head><meta charset="utf-8"><style>/*CSS_DO_VENDA
     mcLancar: { ok: true, aplicar: false }
   };
   window.fetch = async function (url, opt) {
-    var p = JSON.parse(opt.body); window.pedidos.push(p.action);
+    var p = JSON.parse(opt.body); window.pedidos.push(p.action); (window.pedidosId = window.pedidosId || []).push(p.action + ":" + p.pageId);
     var r = window.respostas[p.action] || { ok: false, erro: "ACAO_DESCONHECIDA" };
     return { json: async function () { return JSON.parse(JSON.stringify(r)); } };
   };
@@ -72,7 +74,7 @@ def main() -> int:
             conf(env.count() == 1 and env.is_enabled(), "Enviar para assinatura habilitado com contrato gerado")
             env.click(); pg.wait_for_timeout(500)
             conf("assinaturaEnviar" in pg.evaluate("() => window.pedidos"), "clique chama assinaturaEnviar")
-            conf("Enviado" in pg.inner_text("#ass-wrap"), "situação ENVIADO aparece")
+            conf("Enviado" in pg.inner_text("#contrato-wrap .vb-ass"), "situação ENVIADO aparece")
             prev = pg.locator('[data-acao="mc-previa"]')
             conf(prev.count() == 1 and prev.is_enabled(), "Ver prévia habilitado")
             conf(pg.locator('[data-acao="mc-lancar"]').is_disabled(), "Lançar travado sem PRÉVIA OK")
@@ -84,8 +86,8 @@ def main() -> int:
             ref = pg.evaluate("() => ({ grp: document.getElementById('grp-ref').getBoundingClientRect().left,"
                               " campo: document.getElementById('campo-ref').getBoundingClientRect().left,"
                               " grpDir: document.getElementById('grp-ref').getBoundingClientRect().right })")
-            for bloco in ("dossie-wrap", "contrato-wrap", "ass-wrap", "mc-wrap"):
-                m = pg.evaluate("(id) => { var w = document.getElementById(id), g = w.querySelector(':scope > .grp'),"
+            for bloco in ("#dossie-wrap", "#contrato-wrap", "#pn-body .vb-ass", "#pn-body .vb-mc"):
+                m = pg.evaluate("(sel) => { var w = document.querySelector(sel), g = w.querySelector(':scope > .grp'),"
                                 " c = w.querySelector(':scope > .dz-linha, :scope > .dz-aviso, :scope > ul');"
                                 " var cs = g && getComputedStyle(g);"
                                 " return { grp: g && g.getBoundingClientRect().left, grpDir: g && g.getBoundingClientRect().right,"
@@ -97,8 +99,8 @@ def main() -> int:
             # Mais Controle criada: tópicos e link
             pg.evaluate("() => { window.respostas.mcEstado = { ok: true, situacao: 'CRIADA | venda v-9\\nCliente: COMPRADOR EXEMPLO (já existia)\\nTotal: R$ 1,00', vendaId: 'v-9' }; }")
             pg.locator('[data-acao="mc-atualizar"]').click(); pg.wait_for_timeout(400)
-            conf(pg.locator("#mc-wrap ul.mc-topicos li").count() == 2, "Mais Controle: situação em tópicos")
-            link = pg.locator("#mc-wrap a.mc-abrir")
+            conf(pg.locator("#pn-body .vb-mc ul.mc-topicos li").count() == 2, "Mais Controle: situação em tópicos")
+            link = pg.locator("#pn-body .vb-mc a.mc-abrir")
             conf(link.count() == 1 and link.get_attribute("target") == "_blank"
                  and link.get_attribute("href").endswith("/#/readjustment-sale/edit/v-9"), "Mais Controle: link Abrir no Mais Controle em nova aba")
             # Assinatura: lista e Reenviar link
@@ -107,13 +109,31 @@ def main() -> int:
                         "{ papel: 'Testemunha 1', nome: 'Ana C.', assinou: false, situacao: 'pendente', data: '' }] };"
                         " window.respostas.assinaturaReenviar = { ok: true, situacao: 'ENVIADO', pendentes: 1 }; }")
             pg.locator('[data-acao="a-atualizar"]').click(); pg.wait_for_timeout(400)
-            conf("✓ assinou" in pg.inner_text("#ass-wrap") and "pendente" in pg.inner_text("#ass-wrap"), "Assinatura: lista com assinou (marca de certo) e pendente")
+            conf("✓ assinou" in pg.inner_text("#pn-body .vb-ass") and "pendente" in pg.inner_text("#pn-body .vb-ass"), "Assinatura: lista com assinou (marca de certo) e pendente")
             pg.locator('[data-acao="a-reenviar"]').click(); pg.wait_for_timeout(400)
             conf("assinaturaReenviar" in pg.evaluate("() => window.pedidos"), "Reenviar link chama assinaturaReenviar")
-            conf("Link reenviado" in pg.inner_text("#ass-wrap"), "Reenviar link mostra a confirmação")
+            conf("Link reenviado" in pg.inner_text("#pn-body .vb-ass"), "Reenviar link mostra a confirmação")
             import os
             if os.environ.get("FUMACA_PRINT"):
                 pg.screenshot(path=os.environ["FUMACA_PRINT"], full_page=True)
+            # entrega 7: o cartão do condomínio monta os mesmos blocos para a linha do condomínio
+            desenhar = """(id) => { var c = document.getElementById('cd-card');
+                c.innerHTML = '<div class="cd-cardbox"><h3>Unidade 13</h3><div id="cd-venda"></div></div>';
+                VendaBlocos.montar(document.getElementById('cd-venda'), id); }"""
+            pg.evaluate(desenhar, COND)
+            pg.wait_for_timeout(800)
+            cartao = pg.inner_text("#cd-card").upper()   # o CSS do vendas.html põe os títulos em maiúsculas
+            conf("CONTRATO" in cartao and "ASSINATURA" in cartao and "MAIS CONTROLE" in cartao, "cartão do condomínio mostra Contrato, Assinatura e Mais Controle")
+            ped = pg.evaluate("() => window.pedidosId")
+            conf(all(("%s:%s" % (a, COND)) in ped for a in ("contratoEstado", "mcEstado", "assinaturaEstado")), "os três estados pedidos para a linha do condomínio")
+            antes = len(pg.evaluate("() => window.pedidosId"))
+            pg.evaluate(desenhar, COND)   # o cartão se redesenha a cada gravação: não pede de novo
+            pg.wait_for_timeout(500)
+            conf(len(pg.evaluate("() => window.pedidosId")) == antes, "redesenhar o cartão não repete os pedidos")
+            pg.locator('#cd-card [data-acao="c-gerar"]').first.click(); pg.wait_for_timeout(500)
+            conf(("gerarContrato:%s" % COND) in pg.evaluate("() => window.pedidosId"), "Gerar de novo no cartão chama gerarContrato com o id da linha")
+            conf(pg.locator('#contrato-wrap').count() == 1, "o painel da casa segue com um bloco só")
+            pg.evaluate("() => { VendaBlocos.soltar(); document.getElementById('cd-card').innerHTML = ''; }")
             b.close()
     finally:
         (RAIZ / "_fumaca.html").unlink(missing_ok=True)

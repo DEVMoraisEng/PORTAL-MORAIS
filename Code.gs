@@ -82,7 +82,11 @@
    implantação de LEITURA, que é onde a chave é lida (era a causa do "Este link
    não vale mais"); e entrou a rotina da coluna REMARCAÇÕES do pós obra
    (conferirRemarcacoes / preencherRemarcacoes), no fim do arquivo. */
-var VERSAO_GS = "2026-09-10 r36";
+/* r37 (05/10/26): atividades de VENDAS e DOCUMENTOS passam a ser decididas
+   pela COLUNA DA OBRA (vazio/NÃO = aberta), sem duplicadas e sem as que ainda
+   não começaram — a regra mora no Alertas.gs (alDocsAbertas_/alVendasAbertas_).
+   Aqui só mudaram atividades_, baixa_, docAtividades_ e a limpeza de cache. */
+var VERSAO_GS = "2026-10-05 r37";
 
 /* =======================================================================
  * r32 — DUAS IMPLANTAÇÕES, DUAS FILAS
@@ -1046,33 +1050,16 @@ function _portalCalc_() {
 }
 /* ===================== ATIVIDADES (setor vendas) ===================== */
 function atividades_(sess, p) {
-  var hoje = Utilities.formatDate(new Date(), "America/Sao_Paulo", "yyyy-MM-dd");
-  var and = [
-    { property: "DATA INICIAL",       date: { on_or_before: hoje } },
-    { property: "ATIVIDADE FINALIZADA", formula: { string: { contains: "NÃO" } } }
-  ];
-  if (!vePorTodos_(sess) && sess.p) and.push({ property: "RESPONSÁVEL", people: { contains: sess.p } });
-
-  var rows = queryAll_(CONFIG.DB.ATIVIDADES_VENDAS, {
-    filter: { and: and },
-    sorts: [{ property: "DATA FINAL PREVISTA", direction: "ascending" }]
-  });
-
-  var lista = rows.map(function (r) {
-    var pr = r.properties;
-    var rel = (pr["OBRA"] && pr["OBRA"].relation) || [];
-    return {
-      id: r.id,
-      nome: titulo_(pr["Nome"]),
-      tipo: sel_(pr["TIPO"]),
-      dataInicial: dt_(pr["DATA INICIAL"]),
-      dataFinal: dt_(pr["DATA FINAL PREVISTA"]),
-      responsavel: pessoas_(pr["RESPONSÁVEL"]),
-      obraId: rel[0] ? rel[0].id : null,
-      coluna: BAIXA_MAP[sel_(pr["TIPO"])] || null
-    };
-  });
-  return { ok: true, total: lista.length, atividades: lista };
+  /* r37: lista única (Alertas.gs) — aberta pela coluna da obra, sem
+     duplicadas, só o que já começou. Quem não é ADM/MASTER/TESTES vê só as
+     suas, como antes. */
+  var r = alVendasAbertas_(!!(p && p.fresco));
+  var lista = r.atividades;
+  if (!vePorTodos_(sess) && sess.p) {
+    var me = String(sess.p).replace(/-/g, "");
+    lista = lista.filter(function (a) { return (a.respIds || []).indexOf(me) >= 0; });
+  }
+  return { ok: true, total: lista.length, duplicadas: r.duplicadas, lidoEm: r.lidoEm, atividades: lista };
 }
 
 function baixa_(sess, p) {
@@ -1083,7 +1070,7 @@ function baixa_(sess, p) {
   var atv = notion_("GET", "/pages/" + atvId, null);
   var pr = atv.properties;
   var tipo = sel_(pr["TIPO"]);
-  var coluna = BAIXA_MAP[tipo];
+  var coluna = alColunaVendas_(tipo);          // r37: tolera acento/caixa no TIPO
   if (!coluna) return { ok: false, erro: "TIPO_SEM_MAPEAMENTO: " + tipo };
 
   var rel = (pr["OBRA"] && pr["OBRA"].relation) || [];
@@ -1091,6 +1078,7 @@ function baixa_(sess, p) {
 
   var props = {}; props[coluna] = { select: { name: valor } };
   notion_("PATCH", "/pages/" + rel[0].id, { properties: props });
+  try { cacheRemover_(AL_CH_VENDAS); cacheRemover_(RF_SNAP_OUT); } catch (e) {}
   return { ok: true, coluna: coluna, valor: valor };
 }
 
@@ -2866,6 +2854,8 @@ function updateVenda_(sess, p) {
   if (EDITAVEL_[p.tipo] !== true) return { ok: false, erro: "CAMPO_NAO_EDITAVEL: " + p.tipo };
   var props = {}; props[p.prop] = buildValue_(p.tipo, p.valor);
   notion_("PATCH", "/pages/" + p.pageId, { properties: props });
+  /* r37: marcou a coluna direto na planilha -> a atividade some na próxima leitura */
+  try { cacheRemover_(AL_CH_VENDAS); } catch (e) {}
 
   if (posObraEhGatilho_(p.prop)) {
     try {
@@ -5709,39 +5699,9 @@ function docObra_(sess, p) {
  * Mesma regra do atividades_ do setor de vendas: só o que já começou
  * (DATA INICIAL <= hoje) e ainda não terminou. */
 function docAtividades_(sess, p) {
-  return comCache_("docs_atividades_v1", 120, function () {
-    var hoje = Utilities.formatDate(new Date(), "America/Sao_Paulo", "yyyy-MM-dd");
-    var rows = queryAll_(DB_ATIVIDADES_DOCS, {});
-    var colunasSim = docsColunasSim_();
-    var lista = [];
-    rows.forEach(function (r) {
-      var pr = r.properties || {};
-      if (docsAtvFeita_(pr)) return;                  // já resolvida
-
-      var rel = [], resp = [];
-      for (var nome in pr) {
-        if (pr[nome].type === "relation" && normDist_(nome).indexOf("OBRA") >= 0)
-          rel = (pr[nome].relation || []);
-        if (pr[nome].type === "people" && normDist_(nome).indexOf("RESPONS") >= 0)
-          resp = pessoas_(pr[nome]);
-      }
-      var di = dt_(getTol_(pr, "DATA INICIAL"));
-      if (di && di.slice(0, 10) > hoje) return;        // ainda não começou
-
-      var tipo = sel_(getTol_(pr, "TIPO"));
-      lista.push({
-        id: r.id, nome: tituloDe_(pr), tipo: tipo, responsavel: resp,
-        obraId: rel[0] ? rel[0].id : null,
-        dataInicial: di,
-        dataFinal: dt_(getTol_(pr, "DATA FINAL PREVISTA")) || dt_(getTol_(pr, "DATA FINAL")),
-        coluna: docsColunaDaBaixa_(tipo, colunasSim)
-      });
-    });
-    lista.sort(function (a, b) {
-      return String(a.dataFinal || "9999").localeCompare(String(b.dataFinal || "9999"));
-    });
-    return { ok: true, total: lista.length, lidoEm: new Date().toISOString(), atividades: lista };
-  });
+  /* r37: a lista vem do Alertas.gs — aberta pela coluna da obra (vazio/NÃO),
+     sem duplicadas, com CERTIDÃO DO LOTE no Departamento de Projetos. */
+  return alDocsAbertas_(!!(p && p.fresco));
 }
 
 /* ===================== ESTA ATIVIDADE JÁ FOI RESOLVIDA? ===================
@@ -5900,7 +5860,7 @@ function docBaixa_(sess, p) {
 
   var props = {}; props[campo.nome] = buildValue_(campo.tipo, real);
   notion_("PATCH", "/pages/" + rel[0].id, { properties: props });
-  try { cacheRemover_("docs_atividades_v1"); } catch (e) {}
+  try { cacheRemover_("docs_atividades_v1"); cacheRemover_(AL_CH_DOCS); cacheRemover_(RF_SNAP_OUT); } catch (e) {}
   console.log("DOCUMENTOS: " + sess.u + " deu baixa em " + p.atividadeId +
               " (" + tipo + ") -> " + campo.nome + " = " + real);
   return { ok: true, coluna: campo.nome, valor: real };
@@ -5942,7 +5902,7 @@ function docUpdate_(sess, p) {
 
   var props = {}; props[campo.nome] = buildValue_(campo.tipo, valor);
   notion_("PATCH", "/pages/" + p.pageId, { properties: props });
-  try { cacheRemover_("docs_atividades_v1"); } catch (e) {}
+  try { cacheRemover_("docs_atividades_v1"); cacheRemover_(AL_CH_DOCS); } catch (e) {}
   console.log("DOCUMENTOS: " + sess.u + " gravou " + campo.nome + " em " + p.pageId);
   return { ok: true, prop: campo.nome, tipo: campo.tipo };
 }
