@@ -150,9 +150,20 @@ var ContratoVenda = (function () {
     return { lote: lote, quadra: quadra };
   }
 
-  /* Venda do condomínio (casa com "CONDOMÍNIO - VENDA ID") tem modelo próprio, esteja a obra pronta ou não. */
-  function escolherModelo(obraFinalizada, condominio) {
+  /* Venda do condomínio (casa com "CONDOMÍNIO - VENDA ID") tem modelo próprio, esteja a obra pronta ou não.
+     Entrega 14 (dono, 08/10): o TIPO DE CASA da casa de rua decide — "CASA PRONTA" -> PRONTO, "CASA EM CONSTRUÇÃO" ->
+     CONSTRUCAO; vazio ou o antigo "CASA DE RUA" -> pelo "OBRA FINALIZADA?" da obra (DOCUMENTOS), como antes. */
+  function semAcento(v) { return up(v).normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
+  function tipoDoModelo(tipoCasa) {
+    var t = semAcento(tipoCasa);
+    if (t === "CASA PRONTA") return "PRONTO";
+    if (t === "CASA EM CONSTRUCAO") return "CONSTRUCAO";
+    return "";
+  }
+  function escolherModelo(obraFinalizada, condominio, tipoCasa) {
     if (condominio) return "CONDOMINIO";
+    var pelaCasa = tipoDoModelo(tipoCasa);
+    if (pelaCasa) return pelaCasa;
     return up(obraFinalizada) === "SIM" ? "PRONTO" : "CONSTRUCAO";
   }
 
@@ -366,7 +377,7 @@ var ContratoVenda = (function () {
     var vend = f.vendedor || null;
     var lq = loteQuadra(v.ENDERECO);
     var dados = {
-      modelo: escolherModelo(o.obraFinalizada, !!cond),
+      modelo: escolherModelo(o.obraFinalizada, !!cond, v.TIPO_CASA),
       comprador1: {
         nome: nomeComprador1(v.CLIENTES, c2.nome), cpf: txt(v.CPF),
         nacionalidade: txt(c1.nacionalidade), estadoCivil: txt(c1.estadoCivil), profissao: txt(c1.profissao),
@@ -424,6 +435,11 @@ var ContratoVenda = (function () {
     };
     /* só existe no condomínio: o carimbo dos contratos que não são do condomínio não muda */
     if (cond) dados.condominio = cond;
+    /* entrega 14: tipo escolhido na casa (só os valores novos; entra no carimbo) e o que a obra diz (só para o aviso) */
+    if (!cond && tipoDoModelo(v.TIPO_CASA)) {
+      dados.tipoCasa = tipoDoModelo(v.TIPO_CASA);
+      dados.obraFinalizadaDoc = up(o.obraFinalizada);
+    }
     return dados;
   }
 
@@ -548,7 +564,7 @@ var ContratoVenda = (function () {
      fiador com CPF repetido. Só nomes de campo — nenhum dado pessoal. [] fora do condomínio. */
   function avisosContrato(d) {
     var co = d && d.condominio;
-    if (!co) return [];
+    if (!co) return avisoTipoCasa(d);
     var a = [], im = d.imovel;
     function branco(ok, item) { if (!ok) a.push("Em branco no contrato: " + item); }
     branco(!vazio(co.unidade), "unidade");
@@ -571,6 +587,17 @@ var ContratoVenda = (function () {
       vistos[cpf] = true;
     });
     return a;
+  }
+
+  /* TIPO DE CASA diferente do "OBRA FINALIZADA?" da obra: não trava, só avisa (obra sem a marcação: nada) */
+  function avisoTipoCasa(d) {
+    if (!d || !d.tipoCasa) return [];
+    var f = d.obraFinalizadaDoc;
+    if (d.tipoCasa === "PRONTO" && (f === "NÃO" || f === "NAO"))
+      return ["Tipo de casa: CASA PRONTA, mas a obra está marcada como não finalizada na DOCUMENTOS (OBRA FINALIZADA?)"];
+    if (d.tipoCasa === "CONSTRUCAO" && f === "SIM")
+      return ["Tipo de casa: CASA EM CONSTRUÇÃO, mas a obra está marcada como finalizada na DOCUMENTOS (OBRA FINALIZADA?)"];
+    return [];
   }
 
   function faltasCasaDeRua(d, faltas, pronto) {

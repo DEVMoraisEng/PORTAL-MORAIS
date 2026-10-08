@@ -305,6 +305,7 @@ function ctrFontes_(col, pageId) {
     ALVARA_NUMERO: cv(CV.ALVARA_NUMERO), ALVARA_DATA: cv(CV.ALVARA_DATA), HABITESE_NUMERO: cv(CV.HABITESE_NUMERO),
     /* entrega 14: opcionais (cv: coluna que não existe = vazio); preenchidas, valem antes da obra e do setor */
     HABITESE_DATA: cv(CV.HABITESE_DATA), DENOMINACAO_LOTEAMENTO: ctrTxt_(cv(CV.DENOMINACAO_LOTEAMENTO)),
+    TIPO_CASA: ctrTxt_(cv(RegrasVenda.COL.TIPO_CASA)),   /* CASA PRONTA / CASA EM CONSTRUÇÃO escolhem o modelo */
     MATRICULA_INDIVIDUAL: cv(CV.MATRICULA_INDIVIDUAL), CRI: cv(CV.CRI), AREA: ctrNum_(cv(CV.AREA)),
     CONFRONTACOES: cv(CV.CONFRONTACOES),
     SINAL_VALOR: ctrNum_(cv(CV.SINAL_VALOR)), SINAL_DATA: cv(CV.SINAL_DATA),
@@ -568,6 +569,7 @@ function ctrCarimbo_(d) {
                nomeProprietario: d.nomeProprietario, corretor: d.corretor, corretorNaVenda: d.corretorNaVenda,
                loteamento: d.loteamento, imovel: d.imovel, negociacao: d.negociacao, comissao: d.comissao };
   if (d.condominio) base.condominio = d.condominio; /* fluxo, fiadores, unidade (só no condomínio: os carimbos antigos não mudam) */
+  if (d.tipoCasa) base.tipoCasa = d.tipoCasa;       /* entrega 14: só com CASA PRONTA/EM CONSTRUÇÃO (os carimbos antigos não mudam) */
   var b = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, JSON.stringify(base), Utilities.Charset.UTF_8);
   var h = "";
   for (var i = 0; i < 4; i++) h += ("0" + (b[i] & 255).toString(16)).slice(-2);

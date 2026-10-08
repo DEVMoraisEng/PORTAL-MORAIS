@@ -206,3 +206,50 @@ test("autorizarEmailRecebimento: só cota e quantidade, sem enviar nada", () => 
   assert.equal(c.enviados.length, 0);
   assert.ok(!c.g.logs.join("\n").includes("a@exemplo"));
 });
+
+/* ---------------- TIPO DE CASA escolhe o modelo (ajuste do dono, 08/10) ---------------- */
+const comTipo = (tipo, finalizada, x = {}) => Object.assign({
+  venda: Object.assign({ "TIPO DE CASA": sel(tipo), "CONTRATO - HABITE-SE Nº": rt("HB-1") }, x.venda || {}),
+  obra: { "OBRA FINALIZADA?": sel(finalizada) } }, x.resto || {});
+const modeloUsado = (c) => (textoPre(c).startsWith("MODELO PRONTO") ? "PRONTO" : "CONSTRUCAO");
+
+test("TIPO DE CASA = CASA PRONTA: modelo PRONTO mesmo com a obra não finalizada — só avisa", () => {
+  const c = cenario(comTipo("CASA PRONTA", "NÃO"));
+  const r = c.acao("gerarPreContrato");
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(modeloUsado(c), "PRONTO");
+  assert.deepEqual(r.avisos, ["Tipo de casa: CASA PRONTA, mas a obra está marcada como não finalizada na DOCUMENTOS (OBRA FINALIZADA?)"]);
+});
+
+test("TIPO DE CASA = CASA EM CONSTRUÇÃO: modelo CONSTRUÇÃO mesmo com a obra finalizada — só avisa", () => {
+  const c = cenario(comTipo("CASA EM CONSTRUÇÃO", "SIM"));
+  const r = c.acao("gerarPreContrato");
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(modeloUsado(c), "CONSTRUCAO");
+  assert.deepEqual(r.avisos, ["Tipo de casa: CASA EM CONSTRUÇÃO, mas a obra está marcada como finalizada na DOCUMENTOS (OBRA FINALIZADA?)"]);
+  /* tipo e obra de acordo: sem aviso */
+  const ok = cenario(comTipo("CASA EM CONSTRUÇÃO", "NÃO")).acao("gerarPreContrato");
+  assert.equal(ok.ok, true); assert.equal(ok.avisos, undefined);
+});
+
+test("TIPO DE CASA vazio ou CASA DE RUA (casas antigas): vale o OBRA FINALIZADA? da obra, sem aviso", () => {
+  for (const [tipo, fin, esperado] of [["CASA DE RUA", "SIM", "PRONTO"], ["CASA DE RUA", "NÃO", "CONSTRUCAO"], [null, "SIM", "PRONTO"], [null, "NÃO", "CONSTRUCAO"]]) {
+    const c = cenario(comTipo(tipo, fin));
+    const r = c.acao("gerarPreContrato");
+    assert.equal(r.ok, true, JSON.stringify(r));
+    assert.equal(modeloUsado(c), esperado, tipo + "/" + fin);
+    assert.equal(r.avisos, undefined);
+  }
+  assert.equal(CV.escolherModelo("SIM", true, "CASA EM CONSTRUÇÃO"), "CONDOMINIO", "condomínio continua com o modelo próprio");
+});
+
+test("TIPO DE CASA entra no carimbo: mudar o tipo deixa o pré-contrato desatualizado; CASA DE RUA = vazio", () => {
+  const carimbo = (tipo) => { const r = cenario(comTipo(tipo, "NÃO")).acao("gerarPreContrato"); assert.equal(r.ok, true); return /\[#([0-9a-f]{8})\]/.exec(r.nome)[1]; };
+  assert.equal(carimbo("CASA DE RUA"), carimbo(null), "casa antiga: carimbo de antes");
+  assert.notEqual(carimbo("CASA EM CONSTRUÇÃO"), carimbo(null), "mesmo modelo, mas a escolha conta");
+  const c = cenario(comTipo(null, "NÃO"));
+  assert.equal(c.acao("gerarPreContrato").ok, true);
+  assert.equal(c.acao("contratoEstado").pre.desatualizado, false);
+  c.n.pagina.properties["TIPO DE CASA"] = { type: "select", select: { name: "CASA EM CONSTRUÇÃO" } };
+  assert.equal(c.acao("contratoEstado").pre.desatualizado, true);
+});

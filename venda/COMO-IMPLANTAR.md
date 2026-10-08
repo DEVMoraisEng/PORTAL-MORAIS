@@ -787,6 +787,15 @@ Pedido do dono depois do primeiro teste real na produção (08/10).
   antes da `DATA HABITE-SE` da obra, e `CONTRATO - DENOMINAÇÃO DO LOTEAMENTO`
   (texto) antes da `DENOMINAÇÃO` do cadastro do setor. Lidas com tolerância: sem
   a coluna na base, vale o de antes.
+- **TIPO DE CASA escolhe o modelo** (casa de rua): `CASA PRONTA` → modelo
+  PRONTO; `CASA EM CONSTRUÇÃO` → modelo CONSTRUÇÃO; vazio ou o antigo
+  `CASA DE RUA` → pelo `OBRA FINALIZADA?` da obra (DOCUMENTOS), como antes;
+  condomínio continua com o modelo próprio. Se o tipo escolhido divergir do
+  `OBRA FINALIZADA?`, **não trava**: o pré-contrato/contrato sai e avisa
+  ("…a obra está marcada como (não) finalizada na DOCUMENTOS"). A escolha entra no
+  carimbo (mudar o tipo deixa o pré-contrato desatualizado); casas com o tipo
+  vazio ou `CASA DE RUA` mantêm o carimbo de antes. As opções novas do select
+  são criadas pela outra frente (botões do dossiê).
 - **Conta digitada** ganhou **Operação (opcional)**: preenchida, sai
   "Banco: 104 – Agência: 5555 – Operação: 013 – Conta 55555-5 - Titularidade…";
   vazia, o "– Operação:" some. Fica na mesma Propriedade `CONTA_RECEB_<pageId>`
