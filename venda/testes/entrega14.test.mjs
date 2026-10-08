@@ -113,9 +113,9 @@ test("RecebimentoVenda puro: colunas, datas, destinatários, assunto e corpo sem
   assert.equal(REC.assunto("sinal", "OBRA TESTE CASA 3", "Fulano de Teste"), "Recebido: SINAL — OBRA TESTE CASA 3 — Fulano de Teste");
   assert.equal(REC.assunto("ENTRADA", "", ""), "Recebido: ENTRADA");
   const b = REC.corpo({ id: "SINAL", obra: "OBRA TESTE", comprador: "Fulano de Teste", esperado: 10000, data: "2026-10-05", por: "ana.teste",
-                        link: "https://www.notion.so/abc" });
+                        link: "https://mc.exemplo.test/venda/abc" });
   assert.ok(b.includes("Valor esperado (contrato): R$ 10.000,00") && b.includes("Data do recebimento: 05/10/2026") &&
-            b.includes("Confirmado por: ana.teste") && b.includes("Notion: https://www.notion.so/abc"), b);
+            b.includes("Confirmado por: ana.teste") && b.includes("Faturamento no Mais Controle: https://mc.exemplo.test/venda/abc") && !b.includes("notion"), b);
   assert.ok(REC.corpo({ id: "ENTRADA", esperado: null }).includes("não informado"));
 });
 
@@ -167,7 +167,8 @@ test("confirmar: grava data, comprovante e login; e-mail com assunto padrão, se
   const m = c.enviados[0];
   assert.equal(m.to, "financeiro@exemplo.test,diretoria@exemplo.test");
   assert.equal(m.subject, "Recebido: SINAL — RESIDENCIAL TESTE QD 07 LT 12 CASA 3 — Fulano de Teste");
-  assert.ok(m.body.includes("R$ 10.000,00") && m.body.includes("01/10/2026") && m.body.includes("https://www.notion.so/" + PAGE), m.body);
+  assert.ok(m.body.includes("R$ 10.000,00") && m.body.includes("01/10/2026") && !m.body.includes("notion.so"), m.body);
+  assert.equal((m.attachments || []).length, 1, "comprovante anexado no e-mail");
   assert.ok(!m.body.includes("000.000.001-91") && !m.subject.includes("000.000"), "e-mail com CPF");
   const s = r.itens.find((x) => x.id === "SINAL");
   assert.deepEqual([s.confirmado, s.data, s.por, s.comprovantes], [true, "2026-10-01", "ana.teste", 1]);

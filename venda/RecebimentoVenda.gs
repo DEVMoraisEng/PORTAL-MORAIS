@@ -75,8 +75,8 @@ var RecebimentoVenda = (function () {
       "Valor esperado (contrato): " + (moedaBR(x.esperado) || "não informado"),
       "Data do recebimento: " + (dataBR(x.data) || "—"),
       "Confirmado por: " + (umaLinha(x.por) || "—"),
-      "Comprovante: anexado na casa (coluna " + colunas(it.id).comprovante + ")"];
-    if (/^https:\/\//.test(txt(x.link))) linhas.push("Notion: " + txt(x.link));
+      "Comprovante: " + (x.comprovante === false ? "não anexado" : "anexado na casa (coluna " + colunas(it.id).comprovante + ")")];
+    if (/^https:\/\//.test(txt(x.link))) linhas.push("Faturamento no Mais Controle: " + txt(x.link));
     return linhas.join("\n");
   }
   var api = { ITENS: ITENS, TIPOS: TIPOS, item: item, colunas: colunas, colunasNecessarias: colunasNecessarias,
@@ -144,6 +144,7 @@ function recConfirmarTravado_(p, sess, it, pid) {
   if (x.erro) return { ok: false, erro: x.erro };
   var c = RecebimentoVenda.colunas(it.id);
   /* comprovante é opcional (decisão do dono, 08/10): a confirmação vale só com a data */
+  var jaTemComprovante = (ctrValor_(x.pg.properties[x.real[c.comprovante]]) || []).length > 0;
   var guardado = false;
   if (p.arquivo) {
     try { anexarArquivo_(p.pageId, x.real[c.comprovante], p.arquivo, false); guardado = true; }
@@ -161,11 +162,24 @@ function recConfirmarTravado_(p, sess, it, pid) {
   else {
     var obra = ClicksignVenda.nomePadrao(ctrTitulo_(x.pg.properties), ctrTxt_(ctrCampo_(x.c, "CASA")), "");
     var comprador = ContratoVenda.nomeComprador1(ctrTxt_(ctrCampo_(x.c, RegrasVenda.COL.CLIENTES)), ctrTxt_(ctrCampo_(x.c, RegrasVenda.COL.C2_NOME)));
+    /* o comprovante vai anexado no e-mail (dono, 08/10): o enviado agora ou, sem ele, o último já guardado na casa */
+    var anexos = [];
     try {
-      MailApp.sendEmail({ to: dest.join(","), subject: RecebimentoVenda.assunto(it.id, obra, comprador),
+      if (p.arquivo && p.arquivo.base64) anexos.push(Utilities.newBlob(Utilities.base64Decode(p.arquivo.base64), p.arquivo.mime, p.arquivo.nome));
+      else if (jaTemComprovante) {
+        var fs = ctrValor_(x.pg.properties[x.real[c.comprovante]]) || [], b = baixarArquivo_(fs[fs.length - 1]);
+        if (b && b.base64) anexos.push(Utilities.newBlob(Utilities.base64Decode(b.base64), b.mime, (fs[fs.length - 1] || {}).name || "comprovante"));
+      }
+    } catch (eAnx) { ctrErro_("recebimento " + pid + " anexo do e-mail", eAnx); }
+    try {
+      MailApp.sendEmail({ to: dest.join(","), subject: RecebimentoVenda.assunto(it.id, obra, comprador), attachments: anexos,
                           body: RecebimentoVenda.corpo({ id: it.id, obra: obra, comprador: comprador,
                                                          esperado: ctrNum_(ctrCampo_(x.c, it.esperado)), data: p.data, por: por,
-                                                         link: "https://www.notion.so/" + String(p.pageId).replace(/-/g, "") }) });
+                                                         comprovante: !!(p.arquivo || jaTemComprovante),
+                                                         /* link do faturamento no Mais Controle (dono, 08/10); sem venda lançada, sem link */
+                                                         link: ctrTxt_(ctrCampo_(x.c, "MC - VENDA ID")) ?
+                                                           "https://acessar.maiscontroleerp.com.br/#/readjustment-sale/edit/" +
+                                                           encodeURIComponent(ctrTxt_(ctrCampo_(x.c, "MC - VENDA ID")).trim()) : "" }) });
       resp.emails = dest.length;
     } catch (e) { ctrErro_("recebimento " + pid + " e-mail", e); resp.aviso = "EMAIL_FALHOU"; }
   }

@@ -141,9 +141,9 @@ def test_resumo_agrupa_series():
     fx = C.fluxo(fluxo_props())
     ps = C.parcelas(fx, {"data_venda": "2026-10-10"})
     t = R.resumo_parcelas(ps)
-    assert "Pré-chaves 1ª parte 2x R$ 1000.00 de 2026-11-30 a 2026-12-31" in t
-    assert "Pós-chaves 3x R$ 800.00 de 2029-01-31 a 2029-03-31" in t
-    assert "Sinal ato R$ 5000.00 em 2026-10-10" in t
+    assert "Pré-chaves 1ª parte 2x R$ 1.000,00 de 30/11/2026 a 31/12/2026" in t
+    assert "Pós-chaves 3x R$ 800,00 de 31/01/2029 a 31/03/2029" in t
+    assert "Sinal ato R$ 5.000,00 em 10/10/2026" in t
 
 
 def test_corretor_novo_leva_email_celular_e_creci(monkeypatch):

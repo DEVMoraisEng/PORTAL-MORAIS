@@ -322,6 +322,12 @@ def reais(v) -> str:
     return "R$ %s%s,%s" % ("-" if neg else "", ".".join(grupos), cent)
 
 
+def data_br(iso) -> str:
+    """"2026-10-05" → "05/10/2026" (o que não for data ISO volta como veio)."""
+    s = str(iso or "")
+    return "%s/%s/%s" % (s[8:10], s[5:7], s[:4]) if len(s) >= 10 and s[4] == "-" and s[7] == "-" else s
+
+
 def total_parcelas(ps: list[dict]) -> str:
     return reais(round(sum(float(p.get("valor") or 0) for p in ps), 2))
 
@@ -337,11 +343,11 @@ def linhas_parcelas(ps: list[dict]) -> list[str]:
             if len(grupo) == n and all(_RE_SERIE.match(g["rotulo"]) and _RE_SERIE.match(g["rotulo"]).group(1) == nome
                                        for g in grupo):
                 vals = {g["valor"] for g in grupo}
-                partes.append("%s %dx R$ %s de %s a %s" % (nome, n, "%.2f" % grupo[0]["valor"] if len(vals) == 1
-                              else "variável", grupo[0]["data"], grupo[-1]["data"]))
+                partes.append("%s %dx %s de %s a %s" % (nome, n, reais(grupo[0]["valor"]) if len(vals) == 1
+                              else "valor variável", data_br(grupo[0]["data"]), data_br(grupo[-1]["data"])))
                 i += n
                 continue
-        partes.append("%s R$ %.2f em %s" % (ps[i]["rotulo"], ps[i]["valor"], ps[i]["data"]))
+        partes.append("%s %s em %s" % (ps[i]["rotulo"], reais(ps[i]["valor"]), data_br(ps[i]["data"])))
         i += 1
     return partes
 
@@ -474,7 +480,7 @@ def observacao(dados: dict) -> str:
         partes.append("Imobiliária: %s" % dados["imobiliaria"])
     if dados.get("comissao"):
         pp = {"COMPRADOR": "pelo comprador", "VENDEDOR": "pelo vendedor"}.get(dados.get("comissao_paga_por") or "", "")
-        partes.append("Comissão: R$ %s%s" % (("%.2f" % dados["comissao"]).replace(".", ","), " (paga %s)" % pp if pp else ""))
+        partes.append("Comissão: %s%s" % (reais(dados["comissao"]), " (paga %s)" % pp if pp else ""))
     return " | ".join(partes)
 
 
