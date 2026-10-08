@@ -145,7 +145,7 @@ link de cada página da documentação e as dúvidas em aberto:
    - VENDAS: `ASSINATURA - ENVELOPE ID` (texto), `ASSINATURA - SITUAÇÃO`
      (texto: o portal grava RASCUNHO, ENVIADO, ASSINADO, RECUSADO, CANCELADO
      ou EXPIRADO — não editar à mão), `CONTRATO ASSINADO` (arquivos e mídia) e
-     `COMPRADOR 1 - E-MAIL` (e-mail; o do comprador 2 já existe).
+     `Email` (já existe na produção: é o e-mail do comprador 1).
    - VENDEDORES – CONTRATO: `E-MAIL` (vendedor pessoa física) e
      `REPRESENTANTE E-MAIL` (quem assina pela empresa).
    - CORRETORES – CONTRATO: `E-MAIL` já existe (só é usado se o corretor

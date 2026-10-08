@@ -66,7 +66,7 @@ const VENDA = {
   "CONTRATO - ENTRADA VALOR": num(20000), "CONTRATO - ENTRADA VENCIMENTO": dat("2026-10-15"),
   "CONTRATO - FORMA DE PAGAMENTO": sel("PIX"), "CONTRATO - COMISSÃO FORMA": sel("PIX"),
   "CONTRATO - COMISSÃO VENCIMENTO": rt("na assinatura do financiamento"), "CONTRATO - COMISSÃO PAGA POR": sel("COMPRADOR"),
-  "CONTRATO - PRAZO DE CONCLUSÃO DAS OBRAS": dat("2027-06-30"),
+  "DATA DA ENTREGA": dat("2027-06-30"),
 };
 const OBRA_PG = {
   "PROPRIETARIO DOCUMENTO": rt("Construtora Teste Ltda"), "CPF/CNPJ ": sel("00.000.000/0001-00"),
@@ -644,4 +644,30 @@ test("Visualizar pré-contrato: o portal entrega o PDF (base64) a quem está log
   assert.equal(v.ok, true, JSON.stringify(v));
   assert.equal(v.nome, r.nome);
   assert.ok(v.base64 && v.base64.length > 10, "veio o conteúdo do PDF");
+});
+
+/* ---- produção (08/10): fontes que já existem na Brain real ---- */
+test("produção: vendedor da PROPRIETARIOS_PAI sem coluna TIPO — PJ/PF pelo número de dígitos do CPF/CNPJ", () => {
+  const pj = cenario({ vendedor: { TIPO: null } });
+  assert.equal(pj.gerar().ok, true);
+  assert.ok(pj.pdfTexto().includes("PJ: Construtora Teste Ltda representada por Beltrano Representante"));
+  const pf = cenario({ vendedor: { TIPO: null, "CPF/CNPJ": rt("000.000.009-49"), NACIONALIDADE: rt("brasileiro"),
+                                   "ESTADO CIVIL": rt("solteiro"), "PROFISSÃO": rt("investidor"), RG: rt("RG 1 SSP/GO") } });
+  const r = pf.gerar();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.ok(!pf.pdfTexto().includes("PJ: Construtora Teste Ltda"), "11 dígitos = pessoa física");
+});
+
+test("produção: loteamento achado pela coluna SETOR (título vazio, como a DISPONIBILIDADES POR SETOR) e município pela CIDADE da obra", () => {
+  const c = cenario({ loteamento: { SETOR: sel("Setor Teste"), "OBSERVAÇÃO": tit(""), "MUNICÍPIO/UF": null } });
+  const r = c.gerar();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.ok(c.pdfTexto().includes("Contrato de Residencial Teste em Cidade Teste/GO"), c.pdfTexto().slice(0, 300));
+});
+
+test("produção: endereço da casa sem o zero à esquerda acha a obra (\"QD 7\" = \"QD 07\")", () => {
+  const c = cenario({ obraDb: "db-outra", linhasDoc: [LINHA_DOC("RESIDENCIAL TESTE QD 7 LT 12", "Construtora Teste Ltda")] });
+  const r = c.gerar();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.ok(c.pdfTexto().includes("PJ: Construtora Teste Ltda"));
 });
