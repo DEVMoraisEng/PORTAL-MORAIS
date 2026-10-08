@@ -380,6 +380,82 @@ Implantar:
 **Ainda não faz:** os fiadores não entram como signatários na Clicksign (o
 envio para assinatura manda só compradores, vendedor, testemunhas e corretor).
 
+## Distrato (entrega 8)
+
+Pedido do dono (07/10/2026): o botão **DISTRATO** da tela de venda passa a
+(a) ARQUIVAR a venda numa base própria antes de limpar e (b) acertar a venda
+no Mais Controle — única exceção à regra "a automação nunca altera/exclui
+venda do ERP", e só por aqui, com prévia e senha.
+
+**Regra no Mais Controle:** houve recebimento (retido ou devolvido) → na
+venda ficam só as parcelas recebidas e a descrição ganha ` (Distrato)`;
+DEVOLVIDO → também lança a CONTA A PAGAR da devolução (valor e data da tela;
+padrão: o recebido, hoje + 30); nada recebido → a venda é EXCLUÍDA. Rotas e
+o que é certo/suposição: `venda/mc/DISTRATO-ERP.md`.
+
+**Onde está o código:**
+- backend: Code.gs do portal (projeto PORTAL-TESTE primeiro) — ações
+  `distratoPrevia`, `distratoEstado` e a `distrato` reescrita (bloco
+  "DISTRATO — ARQUIVO E MAIS CONTROLE"). O Code.gs não mora neste
+  repositório: a versão de teste está na pasta local do dono (`portal-gs-vivo/teste/code.gs.txt`);
+- tela: `vendas.html` (modal do distrato) — mudança mínima neste branch, para
+  o desenvolvedor incorporar;
+- robô: `venda/mc/distrato.py`, acionado pelo mesmo workflow `mc-venda.yml`
+  com `acao=distrato`, `recebeu=sim|nao`, `destino=retido|devolvido`,
+  `valor`, `data`.
+
+### O diálogo novo da tela
+
+1. Pergunta **"Houve sinal/pagamento recebido?"** (Sim/Não).
+2. Se Sim: **"O valor recebido será RETIDO ou DEVOLVIDO?"**. Se DEVOLVIDO:
+   **valor a devolver** (vazio = todo o recebido) e **data prevista** (vazio = hoje + 30).
+3. **Motivo** (obrigatório).
+4. Botão **"Ver o que acontece no Mais Controle"**: o portal aciona o robô
+   em PRÉVIA (nada é gravado) e a tela mostra, em 1–3 minutos, o texto que
+   ele escreveu na coluna `MC - DISTRATO` da venda: parcelas mantidas e
+   removidas, a descrição nova, a conta a pagar da devolução — ou "EXCLUIR a
+   venda" — ou a RECUSA com o motivo. Venda sem `MC - VENDA ID`: a tela diz
+   que nada será feito no ERP.
+5. Só com a prévia OK o botão **Confirmar distrato** libera; pede a **senha**.
+   Mudou qualquer resposta depois da prévia → precisa de prévia nova.
+6. Ao confirmar, o Apps Script: confere a senha e que a prévia é destas
+   respostas → ARQUIVA na base DISTRATOS (copiando os arquivos) → aciona o
+   robô em APLICAR a partir do arquivo → limpa a venda e apaga as atividades
+   (como antes). Falhou o arquivo ou o acionamento → **nada é limpo**.
+7. O resultado do ERP aparece na base DISTRATOS, coluna `MC - DISTRATO`.
+
+### O que o dono cria / cola / configura (teste primeiro)
+
+1. Notion: base **DISTRATOS** com as colunas de `venda/DISTRATOS-ESQUEMA.md`;
+   coluna **`MC - DISTRATO`** (Texto) na base VENDAS (de teste e, depois, de
+   produção). Dar acesso às integrações (portal e robô) à base nova.
+2. Apps Script (PORTAL-TESTE): colar o `code.gs.txt` de teste atualizado;
+   Propriedade **`DB_DISTRATOS`** = id da base DISTRATOS de teste. O
+   `GITHUB_TOKEN` já existe (o do aviso de build) e precisa poder disparar
+   `repository_dispatch` no repositório onde mora o `mc-venda.yml`
+   (Contents: Read and write). Opcional: `GH_REPO_MC` (sem ela vale o
+   `GH_REPO` do arquivo). Nova versão da implantação.
+3. GitHub (fork de teste) → Settings → Variables: **`DB_DISTRATOS`** (id da
+   base, obrigatória para o APLICAR), **`NATUREZA_DEVOLUCAO_ID`** (id da
+   categoria do título a pagar da devolução no Mais Controle; sem ela a
+   devolução só é avisada) e, opcional, **`FORMA_PAGAMENTO_DEVOLUCAO_ID`**.
+   `MC_APLICAR` continua NUNCA 1 no fork de teste (o aplicar volta "BLOQUEADO").
+4. Teste: venda de teste com `MC - VENDA ID` → prévia (Não / Sim-Retido /
+   Sim-Devolvido) → confirmar → conferir a linha na base DISTRATOS (dados,
+   arquivos copiados, `MC - DISTRATO` = BLOQUEADO com a prévia) e a venda
+   limpa. Também: sem `DB_DISTRATOS` o distrato recusa e não limpa.
+5. Produção (quando o dono disser "sobe"): o desenvolvedor leva o bloco para
+   o Code.gs de produção e o modal para o `vendas.html`; Propriedade
+   `DB_DISTRATOS` de produção; variáveis no repositório de produção;
+   `MC_APLICAR=1` lá já existe.
+
+**Riscos conhecidos:** rotas de exclusão/alteração e o favorecido-cliente na
+conta a pagar não foram provados ao vivo (ver DISTRATO-ERP.md); a devolução
+é lançada só como conta a pagar (não paga nada); se o robô falhar DEPOIS da
+limpeza, a venda do portal já está limpa e o resultado/erro fica na base
+DISTRATOS para alguém resolver no ERP à mão; a cópia de arquivos aumenta o
+tempo do distrato (arquivo acima de 20 MB recusa).
+
 ## Plano B — Anthropic
 
 A leitura por padrão é pela OpenAI (decisão do dono em 28/09/2026); a
