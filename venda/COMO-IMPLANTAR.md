@@ -873,6 +873,151 @@ desenvolvedor"; o resto segue.
 `VERSAO_VENDA` ficou como estava (a outra frente desta entrega sobe para
 `venda-v8`).
 
+## Entrega 13 — leitura em lote e certidão mãe
+
+O que muda no painel da casa (dossiê do comprador + documentos do imóvel). O ping
+passa a responder `"versao":"venda-v8"`.
+
+**Anexar sem ler, ler uma vez só.** Cada espaço tem **Anexar** (soma arquivos —
+frente e verso de uma vez, aceita vários), **Trocar** (o primeiro arquivo
+substitui os do espaço) e **Ler de novo** (lê só aquele espaço, como antes).
+Anexar e Trocar só guardam: o espaço fica marcado **novo, não lido**. O botão
+**Ler documentos (N novos)** — no topo do dossiê e de novo no fim dos documentos
+do imóvel; os dois fazem a mesma coisa — lê numa chamada só todos os espaços
+novos da casa (comprador e imóvel) e mostra o resultado de cada um. Um espaço
+que falha (IA ocupada, arquivo ilegível) continua novo; os outros são gravados.
+
+**Como a leitura em lote é paralela:** o servidor lê a página uma vez, baixa os
+arquivos de todos os espaços num `UrlFetchApp.fetchAll` e manda os pedidos à IA
+(OpenAI ou Claude, pela `PROVEDOR_IA`, com as mesmas instruções de cada espaço)
+num segundo `fetchAll` — o tempo total é o do documento mais lento, não a soma.
+Se o `fetchAll` inteiro lançar (rede, tempo), pede um a um, para um pedido ruim
+não derrubar os outros. As leituras são aplicadas em ordem fixa (identidade do
+comprador 1 antes da do 2; matrícula antes da certidão mãe) e tudo vai numa
+**escrita só** no Notion (campos + DOSSIÊ + DOSSIÊ IMÓVEL + observações).
+
+**Quem é "novo":** Propriedade do script `venda_pend_<pageId>` =
+`{"ESPAÇO": "trocar"|"atualizar"}`, marcada ao anexar pelo portal e apagada por
+espaço quando a leitura dele grava no Notion. Só existe enquanto há anexo sem
+leitura, então não acumula na cota das Propriedades. Arquivo posto direto no
+Notion não vira "novo" — para ele, Ler de novo. Trocar pendente faz a leitura
+limpar os campos que o documento novo não traz (como o Trocar antigo).
+
+**Soltar todos os documentos.** Área no topo do dossiê ("Soltar todos os
+documentos aqui" — arrastar ou "Escolher vários arquivos"):
+
+1. cada arquivo vai ao servidor (3 de cada vez) e a IA só **classifica**
+   (pedido curto: tipo + nome/CPF): identidade, comprovante, aprovação da
+   Caixa, matrícula, certidão mãe, alvará, habite-se ou não reconhecido;
+2. documento do imóvel e aprovação da Caixa vão direto para o espaço (ficam
+   novos);
+3. **documento de pessoa (RG/CNH, comprovante) nunca é gravado sozinho**: a tela
+   mostra "Encontrei documentos de: …" com um seletor por pessoa — Comprador 1 /
+   Comprador 2 / Não é comprador — pré-selecionado pelo CPF e pelo nome
+   (`CPF`, `CLIENTES`, `COMPRADOR 2 - NOME`); comprovante de quem não é nenhum
+   dos dois (parente) vem sem sugestão. Duas pessoas com identidade no mesmo
+   comprador não deixam confirmar;
+4. não reconhecido: seletor "isto é: …" (qualquer espaço ou Ignorar);
+5. **Confirmar compradores e ler** guarda cada arquivo no espaço escolhido e faz
+   o mesmo Ler documentos; a lista mostra arquivo → tipo → espaço → o que
+   preencheu. Sem nada a perguntar, a leitura sai sozinha.
+
+Por que classificar antes e ler depois (e não tudo numa chamada por arquivo):
+a classificação é curta e roda enquanto os arquivos sobem; a leitura usa as
+instruções próprias de cada espaço e junta os arquivos do mesmo espaço (frente e
+verso do RG) — mais certa que uma leitura genérica por arquivo. O nome lido só
+volta para a tela de quem enviou; nada de nome/CPF em log nem nas Propriedades.
+Os arquivos que esperam a confirmação ficam só na memória da tela (fechar a casa
+descarta).
+
+**Comprador 2 com o mesmo endereço.** No comprovante do comprador 2, **Usar o
+mesmo do comprador 1** copia o `COMPRADOR 1 - ENDEREÇO` para o `COMPRADOR 2 -
+ENDEREÇO` e os arquivos do comprovante do 1 para o espaço do 2 (baixa e sobe de
+novo — o Notion não aceita o mesmo arquivo em duas colunas), sem nova leitura, e
+anota na observação. Precisa do comprovante do 1 já lido. A identidade **não**
+tem essa opção: é pessoal de cada comprador.
+
+**Certidão mãe** (novo espaço nos documentos do imóvel; opcional — o estado
+continua exigindo matrícula + alvará). A IA recebe o ENDEREÇO e a CASA da venda
+para achar a descrição DESTA unidade na certidão. Grava:
+
+| Lido | Coluna |
+|---|---|
+| denominação do condomínio/loteamento | `CONTRATO - DENOMINAÇÃO DO LOTEAMENTO` (nova; o contrato prefere este valor ao do cadastro do setor) |
+| nº da matrícula-mãe | `CONTRATO - MATRÍCULA DO LOTEAMENTO` |
+| cartório | `CONTRATO - CARTÓRIO DO LOTEAMENTO` |
+| confrontações da unidade | `CONTRATO - CONFRONTAÇÕES` — só se a certidão descreve a unidade; senão avisa e não mexe |
+| área privativa/total da unidade | só na observação; a área total preenche `CONTRATO - ÁREA DO LOTE (M²)` apenas se estiver vazia (a da matrícula individual vale) |
+
+Regra das confrontações (dono: "vêm da certidão mãe"): com arquivo no espaço da
+certidão mãe, a leitura da matrícula individual **não troca** confrontações já
+gravadas (só avisa se forem diferentes); sem certidão mãe vale o de sempre, o
+último documento lido. Num mesmo lote a certidão mãe é aplicada depois da
+matrícula, então ela vence.
+
+**Habite-se:** a data lida vai para `CONTRATO - HABITE-SE DATA` (nova, data) e
+continua na observação. O contrato passa a preferir esta data à `DATA HABITE-SE`
+da obra (feito na outra frente, GerarContrato).
+
+**Tipo de casa: CASA PRONTA / CASA EM CONSTRUÇÃO.** Na casa de rua os botões
+viraram **CASA PRONTA** e **CASA EM CONSTRUÇÃO** (mesma coluna `TIPO DE CASA`,
+opções novas). Sem tipo, ou com o antigo `CASA DE RUA`, ao abrir a casa o portal
+grava o tipo pela obra (DOCUMENTOS `OBRA FINALIZADA?` = SIM → CASA PRONTA; senão
+CASA EM CONSTRUÇÃO; obra achada pela OBRA-AUTO ou pelo ENDEREÇO, como no
+contrato; 10 min de cache) e mostra "(pela obra — pode trocar)". O perfil
+TESTES não grava. `CASA DE CONDOMÍNIO` continua só nas páginas virtuais do
+condomínio; `CASA DE RUA` ainda é aceito (libera os documentos, mostra "escolha
+pronta ou em construção"). Para os documentos exigidos, qualquer tipo vale igual.
+O contrato usa o tipo para escolher o modelo (outra frente).
+
+**Atualização do painel:** depois de qualquer gravação (anexar, ler, ler em
+lote, soltar, copiar comprovante, tipo, conferir, devolver) a tela dispara
+`window.dispatchEvent(new CustomEvent("venda:dados-gravados", {detail: {pageId,
+gravados}}))` — `gravados` = `{coluna: valor}` quando a resposta traz. O
+vendas.html recarrega os campos da casa com esse evento (outra frente). As
+respostas de `lerDocumento`, `lerDocumentos` e `copiarComprovante` trazem
+`pageId` e `gravados`.
+
+**Colunas novas são opcionais**, uma a uma: sem `IMÓVEL - CERTIDÃO MÃE` o espaço
+some da tela; sem `CONTRATO - HABITE-SE DATA` a data fica só na observação; sem
+`CONTRATO - DENOMINAÇÃO DO LOTEAMENTO` a denominação fica só na tela e na
+observação ("a coluna … não existe na base"). O resto segue.
+
+Ações novas no PORTAL-VENDA (todas bloqueadas para TESTES): `anexarDocumento`,
+`soltarDocumento`, `lerDocumentos`, `copiarComprovante`. `lerDocumento` (Enviar
+e ler / Ler de novo) continua igual por fora.
+
+### O que criar na VENDAS de produção (nomes exatos)
+
+| Coluna | Tipo |
+|---|---|
+| `IMÓVEL - CERTIDÃO MÃE` | Arquivos e mídia (files) |
+| `CONTRATO - HABITE-SE DATA` | Data (date) |
+| `CONTRATO - DENOMINAÇÃO DO LOTEAMENTO` | Texto (rich_text) |
+| `TIPO DE CASA` | Seleção com `CASA PRONTA`, `CASA EM CONSTRUÇÃO`, `CASA DE RUA`, `CASA DE CONDOMÍNIO` |
+
+Já criadas na base de TESTE e anotadas em
+`ferramentas/contrato/previa-producao-final.json` (colunas → BANCO DE DADOS
+VENDAS → faltam; `TIPO DE CASA` com as 4 opções).
+
+Implantar:
+
+1. **Notion (produção):** criar as colunas acima (rodada da prévia).
+2. **PORTAL-VENDA:** colar de novo `RegrasVenda`, `OpenAILeitor`, `ClaudeLeitor` e
+   `PortalVenda`; nova versão; ping `venda-v8`. Nenhuma Propriedade nova.
+3. **Portal (site):** publicar `venda-dossie.js`.
+4. **Code.gs do portal (ESCRITA):** se o `DISTRATO_MANTIDOS` for estendido com
+   os dados do imóvel (passo 4 da entrega 11), incluir também `IMÓVEL - CERTIDÃO
+   MÃE`, `CONTRATO - HABITE-SE DATA` e `CONTRATO - DENOMINAÇÃO DO LOTEAMENTO`.
+5. **Teste:** numa casa de teste, soltar juntos dois RGs (um de cada comprador),
+   um comprovante, a matrícula, a certidão mãe e o alvará → confirmar os
+   compradores → conferir o resultado por arquivo, os campos da casa (sem
+   reabrir) e o estado `LIDO PELA IA – CONFERIR`.
+
+**Não verificado sem a IA de verdade:** a qualidade da classificação (tipo/nome)
+e se a certidão mãe acha a unidade pela CASA/ENDEREÇO; o tempo real do lote
+(limite do Apps Script: 6 min por chamada; a tela espera até 5,5 min).
+
 ## Plano B — Anthropic
 
 A leitura por padrão é pela OpenAI (decisão do dono em 28/09/2026); a

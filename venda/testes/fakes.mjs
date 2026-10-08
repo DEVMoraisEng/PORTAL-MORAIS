@@ -67,6 +67,8 @@ export function criarGas({ props, rotas, extras = {} }) {
         return { getResponseCode: () => r.status || 200, getContentText: () => buf.toString("utf8"),
                  getBlob: () => blob(buf, r.mime || "application/octet-stream", "arquivo") };
       },
+      /* como o Apps Script: um pedido que lança derruba o lote inteiro (o servidor tem plano B) */
+      fetchAll: (pedidos) => { ctx.UrlFetchApp.lotes = (ctx.UrlFetchApp.lotes || 0) + 1; return pedidos.map((q) => ctx.UrlFetchApp.fetch(q.url, q)); },
     },
   };
   Object.assign(ctx, extras);
