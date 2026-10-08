@@ -11,7 +11,7 @@ const ui = (x = {}) => Object.assign({ dois: false, ocupado: null, msg: "" }, x)
 test("sem tipo de casa: aviso e botões de envio desabilitados", () => {
   const h = D.html(Object.assign({}, base, { tipoCasa: "" }), ui());
   assert.match(h, /Escolha o tipo de casa/);
-  const enviar = h.match(/<button[^>]*data-acao="enviar"[^>]*>/g);
+  const enviar = h.match(/<button[^>]*data-acao="anexar"[^>]*>/g);
   assert.equal(enviar.length, 3);
   assert.ok(enviar.every((b) => b.includes("disabled")));
 });
@@ -31,7 +31,7 @@ test("dois compradores mostra os espaços do comprador 2", () => {
 test("lendo: o espaço ocupado avisa e todos os botões ficam desabilitados", () => {
   const h = D.html(base, ui({ ocupado: "C1_IDENTIDADE" }));
   assert.match(h, /lendo/);
-  const botoes = h.match(/<button[^>]*data-acao="(enviar|reler|conferir|devolver)"[^>]*>/g);
+  const botoes = h.match(/<button[^>]*data-acao="(anexar|reler|conferir|devolver)"[^>]*>/g);
   assert.ok(botoes.every((b) => b.includes("disabled")));
 });
 
@@ -92,14 +92,14 @@ test("escala reduz o lado maior a 1600 e não amplia foto pequena", () => {
 test("perfil TESTES desabilita os botões que gravam e avisa que só consulta", () => {
   const h = D.html(base, ui({ testes: true }));
   assert.match(h, /Perfil TESTES só consulta/);
-  const gravam = h.match(/<button[^>]*data-acao="(tipo|enviar|reler|conferir|devolver)"[^>]*>/g);
+  const gravam = h.match(/<button[^>]*data-acao="(tipo|anexar|reler|conferir|devolver|ler-todos|copiar-comprovante)"[^>]*>/g);
   assert.ok(gravam.every((b) => b.includes("disabled")));
 });
 
 test("sem perfil TESTES, os botões seguem habilitados normalmente", () => {
   const h = D.html(base, ui());
   assert.doesNotMatch(h, /Perfil TESTES só consulta/);
-  const enviar = h.match(/<button[^>]*data-acao="enviar"[^>]*>/g);
+  const enviar = h.match(/<button[^>]*data-acao="anexar"[^>]*>/g);
   assert.ok(enviar.some((b) => !b.includes("disabled")));
 });
 

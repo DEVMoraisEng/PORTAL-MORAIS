@@ -308,7 +308,7 @@ const ui = (x = {}) => Object.assign({ dois: false, ocupado: null, msg: "" }, x)
 test("tela: seção Documentos do imóvel com os três espaços, dados gravados e conferir/devolver do imóvel", () => {
   const h = D.html(base, ui());
   assert.match(h, /Documentos do imóvel/);
-  for (const id of ["IMOVEL_MATRICULA", "IMOVEL_ALVARA", "IMOVEL_HABITESE"]) assert.match(h, new RegExp('data-acao="enviar" data-espaco="' + id + '"'));
+  for (const id of ["IMOVEL_MATRICULA", "IMOVEL_ALVARA", "IMOVEL_HABITESE", "IMOVEL_CERTIDAO_MAE"]) assert.match(h, new RegExp('data-acao="anexar" data-espaco="' + id + '"'));
   assert.match(h, /Matrícula: 98\.765/);
   assert.match(h, /Área do lote: 360,50 m²/);
   assert.match(h, /Alvará: nº A-1 de 15\/03\/2026/);

@@ -27,7 +27,13 @@
     ARQUIVO_NAO_LEGIVEL: "Não consegui abrir os arquivos desse espaço — envie de novo em JPG, PNG ou PDF.",
     MOTIVO_OBRIGATORIO: "Escreva o motivo da devolução.",
     SEM_RESPOSTA: "O servidor não respondeu — confira a internet e tente de novo.",
-    PORTAL_VENDA_NAO_CONFIGURADO: "O dossiê ainda não foi ligado neste ambiente."
+    PORTAL_VENDA_NAO_CONFIGURADO: "O dossiê ainda não foi ligado neste ambiente.",
+    NADA_NOVO: "Não há documento novo para ler — para ler de novo um que já foi lido, use Ler de novo na linha dele.",
+    NENHUM_LIDO: "Nenhum documento foi lido — veja o motivo de cada um abaixo.",
+    SEM_COMPROVANTE_1: "O comprador 1 ainda não tem comprovante de endereço.",
+    COMPROVANTE_1_NAO_LIDO: "Leia o comprovante do comprador 1 antes (o endereço dele ainda está vazio).",
+    GRAVACAO_FALHOU: "Não consegui gravar no Notion — tente de novo.",
+    LEITURA_FALHOU: "Não consegui ler agora — tente de novo."
   };
 
   function esc(s) {
@@ -82,22 +88,84 @@
       return '<button type="button" data-acao="dois" data-valor="' + n + '" class="bt ghost bt-mini' +
         ((ui.dois ? "2" : "1") === n ? " on" : "") + '">' + n + "</button>";
     }).join(" ") + "</div>";
+    h += htmlLerTodos(e, ui, "topo");
     DOCS.forEach(function (d) {
       if (d.comprador === 2 && !ui.dois) return;
-      var n = Number((e.arquivos && e.arquivos[d.id]) || 0) || 0;
-      h += '<div class="dz-linha"><span class="dz-rot">' + esc(d.rotulo) + ' <small>' +
-        (n ? n + (n === 1 ? " arquivo" : " arquivos") : "nenhum arquivo") + "</small>" +
-        (ui.ocupado === d.id ? " <b>lendo…</b>" : "") + "</span>" +
-        '<button type="button" class="bt bt-mini" data-acao="enviar" data-espaco="' + d.id + '"' + dis(travado || ocupado || testes) + ">Enviar e ler</button> " +
-        '<button type="button" class="bt ghost bt-mini" data-acao="reler" data-espaco="' + d.id + '"' + dis(travado || ocupado || testes || !n) + ">Ler de novo</button> " +
-        '<button type="button" class="bt ghost bt-mini" data-acao="trocar" data-espaco="' + d.id + '"' + dis(travado || ocupado || testes || !n) + ">Trocar</button></div>";
+      var n = Number((e.arquivos && e.arquivos[d.id]) || 0) || 0, extra = "";
+      /* entrega 13: o comprador 2 costuma morar com o 1 — repete só o comprovante (a identidade é pessoal) */
+      if (d.id === "C2_COMPROVANTE") {
+        var n1 = Number((e.arquivos && e.arquivos.C1_COMPROVANTE) || 0) || 0;
+        extra = ' <button type="button" class="bt ghost bt-mini" data-acao="copiar-comprovante"' + dis(travado || ocupado || testes || !n1) +
+          ">Usar o mesmo do comprador 1</button>";
+      }
+      h += linhaDoc(d, n, e, ui, travado, extra);
     });
     h += '<div class="dz-linha"><span class="dz-rot">Dossiê: <b>' + esc(e.dossie || "—") + "</b></span>" +
       '<button type="button" class="bt bt-mini" data-acao="conferir"' + dis(travado || ocupado || testes) + ">Marcar conferido</button> " +
       '<button type="button" class="bt ghost bt-mini" data-acao="devolver"' + dis(travado || ocupado || testes) + ">Devolver</button></div>";
     if (e.observacao) h += "<pre>" + esc(e.observacao) + "</pre>";
-    if (ui.msg && ui.msgGrupo !== "imovel") h += '<div class="dz-msg">' + esc(ui.msg) + "</div>";
+    if (ui.msg && (ui.msgGrupo || "comprador") === "comprador") h += '<div class="dz-msg">' + esc(ui.msg) + "</div>";
     return h + htmlImovel(e, ui);
+  }
+
+  /* ---- entrega 13: anexar sem ler + "Ler documentos" (uma leitura para todos os novos da casa) ---- */
+  function pendentesDe(e) { return (e && Array.isArray(e.pendentes)) ? e.pendentes : []; }
+  /* uma linha de documento: Anexar (soma arquivos: frente e verso), Trocar (substitui), Ler de novo (só este) */
+  function linhaDoc(d, n, e, ui, travado, extra) {
+    var ocupado = !!ui.ocupado, testes = !!ui.testes;
+    var dis = function (cond) { return cond ? " disabled" : ""; };
+    var novo = n > 0 && pendentesDe(e).indexOf(d.id) >= 0;
+    return '<div class="dz-linha"><span class="dz-rot">' + esc(d.rotulo) + ' <small>' +
+      (n ? n + (n === 1 ? " arquivo" : " arquivos") : "nenhum arquivo") + "</small>" +
+      (novo ? ' <small class="dz-novo">novo, não lido</small>' : "") +
+      (ui.ocupado === d.id ? " <b>" + esc(ui.ocupadoTexto || "lendo…") + "</b>" : "") + "</span>" +
+      '<button type="button" class="bt bt-mini" data-acao="anexar" data-espaco="' + d.id + '"' + dis(travado || ocupado || testes) + ">Anexar</button> " +
+      '<button type="button" class="bt ghost bt-mini" data-acao="trocar" data-espaco="' + d.id + '"' + dis(travado || ocupado || testes || !n) + ">Trocar</button> " +
+      '<button type="button" class="bt ghost bt-mini" data-acao="reler" data-espaco="' + d.id + '"' + dis(travado || ocupado || testes || !n) + ">Ler de novo</button>" +
+      (extra || "") + "</div>";
+  }
+  /* botão único da casa: lê comprador e imóvel juntos (uma chamada, uma escrita). Aparece no topo do
+     dossiê e no fim dos documentos do imóvel; a mensagem sai junto do botão clicado (onde). */
+  function htmlLerTodos(e, ui, onde) {
+    var travado = !e.tipoCasa, ocupado = !!ui.ocupado, testes = !!ui.testes, n = pendentesDe(e).length;
+    var h = '<div class="dz-linha dz-lote"><span class="dz-rot">' + (ui.ocupado === "lote" ? "<b>lendo " + n + (n === 1 ? " documento" : " documentos") + "… (até 3 minutos)</b>"
+      : n ? n + (n === 1 ? " documento novo para ler" : " documentos novos para ler") : "Nenhum documento novo") + "</span>" +
+      '<button type="button" class="bt bt-mini" data-acao="ler-todos" data-onde="' + esc(onde) + '"' + ((travado || ocupado || testes || !n) ? " disabled" : "") + ">Ler documentos" +
+      (n ? " (" + n + (n === 1 ? " novo" : " novos") + ")" : "") + "</button></div>";
+    if (ui.msgGrupo === "lote-" + onde) h += htmlMsgLote(ui);
+    return h;
+  }
+  var ROTULOS = {};
+  [{ id: "C1_IDENTIDADE", r: "Identidade do comprador 1" }, { id: "C1_COMPROVANTE", r: "Comprovante do comprador 1" },
+   { id: "C2_IDENTIDADE", r: "Identidade do comprador 2" }, { id: "C2_COMPROVANTE", r: "Comprovante do comprador 2" },
+   { id: "APROVACAO", r: "Aprovação da Caixa" }, { id: "IMOVEL_MATRICULA", r: "Matrícula" }, { id: "IMOVEL_CERTIDAO_MAE", r: "Certidão mãe" },
+   { id: "IMOVEL_ALVARA", r: "Alvará" }, { id: "IMOVEL_HABITESE", r: "Habite-se" }].forEach(function (x) { ROTULOS[x.id] = x.r; });
+  /* resultado do lerDocumentos → [{ok, texto}] por espaço */
+  function resultadosLote(r) {
+    return ((r && r.resultados) || []).map(function (x) {
+      var rot = ROTULOS[x.espaco] || x.espaco;
+      if (!x.ok) {
+        var e = String(x.erro || ""), m = /^(COLUNA_FALTANDO|TIPO_DE_COLUNA_ERRADO)/.test(e) ? mensagemDeErro(e)
+          : (MSG[e] || "a leitura falhou (" + e + ").") + " Continua como novo: clique em Ler documentos de novo ou em Ler de novo.";
+        return { ok: false, texto: rot + ": não lido — " + m };
+      }
+      var n = (x.preenchidos || []).length, o = (x.observacoes || []).length;
+      return { ok: true, texto: rot + ": " + (n ? n + (n === 1 ? " campo preenchido" : " campos preenchidos") : "nenhum campo novo") +
+        (o ? "; " + o + (o === 1 ? " observação" : " observações") : "") };
+    });
+  }
+  function htmlMsgLote(ui) {
+    var h = ui.msg ? '<div class="dz-msg">' + esc(ui.msg) + "</div>" : "";
+    if (ui.resultados && ui.resultados.length)
+      h += '<ul class="dz-res">' + ui.resultados.map(function (x) {
+        return '<li class="' + (x.ok ? "dz-ok" : "dz-erro") + '">' + esc(x.texto) + "</li>";
+      }).join("") + "</ul>";
+    return h;
+  }
+  function resumoLote(r) {
+    var res = (r && r.resultados) || [], ok = res.filter(function (x) { return x.ok; }).length;
+    var s = ok === res.length ? "Lidos " + ok + (ok === 1 ? " documento." : " documentos.") : "Lidos " + ok + " de " + res.length + " documentos.";
+    return s + " Confira os dados e marque Conferido.";
   }
 
   /* entrega 11: "Documentos do imóvel" — matrícula, alvará e habite-se lidos pela IA, que
@@ -107,7 +175,9 @@
   var DOCS_IMOVEL = [
     { id: "IMOVEL_MATRICULA", rotulo: "Matrícula (certidão do cartório)" },
     { id: "IMOVEL_ALVARA",    rotulo: "Alvará de construção" },
-    { id: "IMOVEL_HABITESE",  rotulo: "Habite-se" }
+    { id: "IMOVEL_HABITESE",  rotulo: "Habite-se" },
+    /* entrega 13: certidão da matrícula-mãe do condomínio/loteamento (opcional; some se a coluna não existe) */
+    { id: "IMOVEL_CERTIDAO_MAE", rotulo: "Certidão mãe (matrícula-mãe do condomínio/loteamento)", coluna: "IMÓVEL - CERTIDÃO MÃE" }
   ];
   function isoBR(s) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || "")); return m ? m[3] + "/" + m[2] + "/" + m[1] : String(s || ""); }
   function areaBR(n) {
@@ -119,7 +189,10 @@
     if (!d) return [];
     var alv = [d.alvaraNumero ? "nº " + d.alvaraNumero : "", d.alvaraData ? "de " + isoBR(d.alvaraData) : ""].filter(Boolean).join(" ");
     return [["Matrícula", d.matricula], ["CRI", d.cri], ["Área do lote", areaBR(d.area)], ["Confrontações", d.confrontacoes],
-            ["Alvará", alv], ["Habite-se", d.habiteseNumero ? "nº " + d.habiteseNumero : ""]]
+            ["Alvará", alv],
+            ["Habite-se", [d.habiteseNumero ? "nº " + d.habiteseNumero : "", d.habiteseData ? "de " + isoBR(d.habiteseData) : ""].filter(Boolean).join(" ")],
+            ["Condomínio/loteamento", d.loteamentoDenominacao],
+            ["Matrícula-mãe", [d.loteamentoMatricula, d.loteamentoCartorio].filter(Boolean).join(" — ")]]
       .filter(function (x) { return x[1]; });
   }
   function htmlLoteamento(l) {
@@ -127,7 +200,7 @@
     var itens = [["Denominação", l.denominacao], ["Matrícula do loteamento", l.matricula], ["Cartório", l.cartorio]]
       .filter(function (x) { return x[1]; });
     if (!itens.length) return "";
-    return '<div class="dz-aviso">Dados do loteamento encontrados (preencher uma vez no cadastro do setor, em LOTEAMENTOS – CONTRATO):</div><ul>' +
+    return '<div class="dz-aviso">Dados do loteamento encontrados (matrícula e cartório ficam gravados na casa; o nome fica na casa quando vem da certidão mãe — se veio só da matrícula, preencher uma vez no cadastro do setor, em LOTEAMENTOS – CONTRATO):</div><ul>' +
       itens.map(function (x) { return "<li>" + esc(x[0]) + ": " + esc(x[1]) + "</li>"; }).join("") + "</ul>";
   }
   function htmlImovel(e, ui) {
@@ -140,14 +213,11 @@
     var travado = !e.tipoCasa, ocupado = !!ui.ocupado, testes = !!ui.testes;
     var dis = function (cond) { return cond ? " disabled" : ""; };
     if (travado) h += '<div class="dz-aviso">Escolha o tipo de casa para liberar os documentos.</div>';
+    var semColunas = Array.isArray(im.semColunas) ? im.semColunas : [];
     DOCS_IMOVEL.forEach(function (d) {
+      if (d.coluna && semColunas.indexOf(d.coluna) >= 0) return;
       var n = Number((im.arquivos && im.arquivos[d.id]) || 0) || 0;
-      h += '<div class="dz-linha"><span class="dz-rot">' + esc(d.rotulo) + ' <small>' +
-        (n ? n + (n === 1 ? " arquivo" : " arquivos") : "nenhum arquivo") + "</small>" +
-        (ui.ocupado === d.id ? " <b>lendo…</b>" : "") + "</span>" +
-        '<button type="button" class="bt bt-mini" data-acao="enviar" data-espaco="' + d.id + '"' + dis(travado || ocupado || testes) + ">Enviar e ler</button> " +
-        '<button type="button" class="bt ghost bt-mini" data-acao="reler" data-espaco="' + d.id + '"' + dis(travado || ocupado || testes || !n) + ">Ler de novo</button> " +
-        '<button type="button" class="bt ghost bt-mini" data-acao="trocar" data-espaco="' + d.id + '"' + dis(travado || ocupado || testes || !n) + ">Trocar</button></div>";
+      h += linhaDoc(d, n, e, ui, travado, "");
     });
     var dados = dadosImovel(im.dados);
     if (dados.length) h += "<ul>" + dados.map(function (x) { return "<li>" + esc(x[0]) + ": " + esc(x[1]) + "</li>"; }).join("") + "</ul>";
@@ -157,7 +227,15 @@
     if (im.observacao) h += "<pre>" + esc(im.observacao) + "</pre>";
     h += htmlLoteamento(ui.loteamento);
     if (ui.msg && ui.msgGrupo === "imovel") h += '<div class="dz-msg">' + esc(ui.msg) + "</div>";
-    return h;
+    return h + htmlLerTodos(e, ui, "imovel");
+  }
+  /* entrega 13: depois de gravar no Notion, o painel da casa (vendas.html) recarrega os campos ao ouvir
+     window "venda:dados-gravados" com detail { pageId, gravados? } (gravados: { coluna: valor } quando há) */
+  var EVENTO_GRAVADO = "venda:dados-gravados";
+  function detalheGravado(pageId, r) {
+    var d = { pageId: pageId };
+    if (r && r.gravados && typeof r.gravados === "object" && Object.keys(r.gravados).length) d.gravados = r.gravados;
+    return d;
   }
   /* espaço IMOVEL_* = seção do imóvel (a mensagem aparece lá) */
   function grupoDoEspaco(id) { return /^IMOVEL_/.test(String(id || "")) ? "imovel" : "comprador"; }
@@ -428,6 +506,8 @@
   var exportar = { URL_PORTAL_VENDA: URL_PORTAL_VENDA, DOCS: DOCS, html: html, mensagemDeErro: mensagemDeErro,
                    DOCS_IMOVEL: DOCS_IMOVEL, htmlImovel: htmlImovel, dadosImovel: dadosImovel, htmlLoteamento: htmlLoteamento,
                    grupoDoEspaco: grupoDoEspaco,
+                   linhaDoc: linhaDoc, htmlLerTodos: htmlLerTodos, resultadosLote: resultadosLote, resumoLote: resumoLote,
+                   detalheGravado: detalheGravado, EVENTO_GRAVADO: EVENTO_GRAVADO,
                    resumo: resumo, escala: escala, tipoAceito: tipoAceito, painelCarregando: painelCarregando,
                    htmlContrato: htmlContrato, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, mensagemMC: mensagemMC,
                    topicosMC: topicosMC, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas,
@@ -447,6 +527,9 @@
     "#dossie-wrap .dz-msg,.vb-blocos .dz-msg{margin-top:8px;font-weight:600}" +
     "#dossie-wrap pre,.vb-blocos pre{white-space:pre-wrap;font:inherit;margin:4px 0}" +
     ".vb-blocos ul{margin:4px 0 4px 18px}.vb-blocos ul li{margin:2px 0}" +
+    /* entrega 13: espaço anexado e ainda não lido; resultado da leitura em lote */
+    "#dossie-wrap .dz-novo{color:#B45309;font-weight:700}#dossie-wrap .dz-lote{margin-top:10px}" +
+    "#dossie-wrap .dz-res li.dz-erro{color:#C0392B}" +
     /* entrega 12: formulário dos cadastros e conta de recebimento */
     ".vb-blocos input[type=text],.vb-blocos input[type=email],.vb-blocos input[type=number],.vb-blocos select{padding:6px 8px;" +
     "border:1px solid var(--border,#d6dee3);border-radius:6px;font:inherit;max-width:100%;box-sizing:border-box}" +
@@ -525,10 +608,12 @@
     } catch (e) { return { erro: "TIPO_DE_ARQUIVO_NAO_SUPORTADO" }; }
     finally { URL.revokeObjectURL(url); }
   }
-  function escolherArquivo() {
+  /* multiplo: devolve a lista de arquivos escolhidos (Anexar: frente e verso de uma vez) */
+  function escolherArquivo(multiplo) {
     return new Promise(function (ok) {
       var inp = document.createElement("input");
       inp.type = "file"; inp.accept = "image/jpeg,image/png,image/webp,application/pdf";
+      if (multiplo) inp.multiple = true;
       var resolvido = false;
       function resolver(f) {
         if (resolvido) return;
@@ -546,7 +631,7 @@
           if (!resolvido && !(inp.files && inp.files.length)) resolver(null);
         }, 500);
       }
-      inp.onchange = function () { resolver(inp.files && inp.files[0]); };
+      inp.onchange = function () { resolver(multiplo ? Array.prototype.slice.call(inp.files || []) : inp.files && inp.files[0]); };
       inp.addEventListener("cancel", function () { resolver(null); });
       /* Com "cancel" nativo, o cancelamento já chega por esse evento — a
        * folga de 500 ms do fallback "focus" pode descartar um arquivo
@@ -555,9 +640,16 @@
       inp.click();
     });
   }
+  function avisarGravado(pageId, r) {
+    try { window.dispatchEvent(new CustomEvent(EVENTO_GRAVADO, { detail: detalheGravado(pageId, r) })); }
+    catch (e) { /* navegador sem CustomEvent: o painel só atualiza ao reabrir a casa */ }
+  }
   async function depoisDeGravar(pageId, r, texto, foiLerDocumento, grupo) {
+    /* entrega 13: avisa o painel mesmo se a casa já saiu da tela (ele decide se recarrega) */
+    if (r && r.ok) avisarGravado(pageId, r);
     if (!mesmaCasa(pageId)) return;
-    ui.ocupado = null;
+    ui.ocupado = null; ui.ocupadoTexto = "";
+    if (!/^lote-/.test(grupo || "")) ui.resultados = null;
     ui.msgGrupo = grupo || "comprador";
     ui.msg = r.ok ? texto : mensagemDeErro(r.erro, r.arquivoGuardado, foiLerDocumento);
     if (r.ok && r.loteamento) ui.loteamento = r.loteamento;
@@ -575,26 +667,31 @@
       r = await chamarVenda({ action: "tipoCasa", pageId: pageId, valor: b.getAttribute("data-valor") });
       return depoisDeGravar(pageId, r, "Tipo de casa gravado.");
     }
-    if (acao === "enviar" || acao === "reler" || acao === "trocar") {
-      if (acao === "trocar" && !window.confirm("Trocar o documento? O arquivo atual será removido e os campos deste documento serão lidos de novo.")) return;
-      var espaco = b.getAttribute("data-espaco"), payload = { action: "lerDocumento", pageId: pageId, espaco: espaco };
-      var grupoEsp = grupoDoEspaco(espaco);
-      if (acao === "trocar") payload.trocar = true;
-      ui.ocupado = espaco; ui.msg = ""; ui.msgGrupo = grupoEsp;
+    if (acao === "anexar" || acao === "trocar") return anexarNoEspaco(pageId, b.getAttribute("data-espaco"), acao === "trocar");
+    if (acao === "reler") {
+      var espaco = b.getAttribute("data-espaco"), grupoEsp = grupoDoEspaco(espaco);
+      ui.ocupado = espaco; ui.ocupadoTexto = "lendo…"; ui.msg = ""; ui.msgGrupo = grupoEsp; ui.resultados = null;
       if (grupoEsp === "imovel") ui.loteamento = null;
       pintar();
-      if (acao === "enviar" || acao === "trocar") {
-        var f = await escolherArquivo();
-        if (!f) { if (mesmaCasa(pageId)) { ui.ocupado = null; pintar(); } return; }
-        var arq = await prepararArquivo(f);
-        if (arq.erro) {
-          if (mesmaCasa(pageId)) { ui.ocupado = null; ui.msg = mensagemDeErro(arq.erro); pintar(); }
-          return;
-        }
-        payload.arquivo = arq;
-      }
-      r = await chamarVenda(payload, 150000);
+      r = await chamarVenda({ action: "lerDocumento", pageId: pageId, espaco: espaco }, 150000);
       return depoisDeGravar(pageId, r, r.ok ? resumo(r) : "", true, grupoEsp);
+    }
+    if (acao === "ler-todos") {
+      var onde = b.getAttribute("data-onde") === "imovel" ? "imovel" : "topo";
+      ui.ocupado = "lote"; ui.msg = ""; ui.msgGrupo = "lote-" + onde; ui.resultados = null; ui.loteamento = null;
+      pintar();
+      r = await chamarVenda({ action: "lerDocumentos", pageId: pageId }, 330000);
+      if (mesmaCasa(pageId)) {
+        ui.resultados = resultadosLote(r);
+        if (r.loteamento) ui.loteamento = r.loteamento;
+      }
+      return depoisDeGravar(pageId, r, r.ok ? resumoLote(r) : "", false, "lote-" + onde);
+    }
+    if (acao === "copiar-comprovante") {
+      if (!window.confirm("Usar o mesmo comprovante de endereço do comprador 1 para o comprador 2? O endereço do comprador 1 é copiado e o arquivo dele vai para o espaço do comprador 2 (substitui o que estiver lá).")) return;
+      ui.ocupado = "C2_COMPROVANTE"; ui.ocupadoTexto = "copiando…"; ui.msg = ""; ui.msgGrupo = "comprador"; pintar();
+      r = await chamarVenda({ action: "copiarComprovante", pageId: pageId }, 150000);
+      return depoisDeGravar(pageId, r, "Comprovante e endereço do comprador 1 copiados para o comprador 2 — confira.", false, "comprador");
     }
     var grupo = b.getAttribute("data-grupo") === "imovel" ? "imovel" : "comprador";
     var nomeDossie = grupo === "imovel" ? "Dossiê do imóvel" : "Dossiê";
@@ -610,6 +707,29 @@
       r = await chamarVenda({ action: "devolver", pageId: pageId, motivo: motivo, grupo: grupo });
       return depoisDeGravar(pageId, r, nomeDossie + " devolvido.", false, grupo);
     }
+  }
+  /* Anexar (soma) ou Trocar (o 1º arquivo substitui os do espaço, os outros somam): só guarda, não lê */
+  async function anexarNoEspaco(pageId, espaco, trocar) {
+    if (trocar && !window.confirm("Trocar o documento? Os arquivos atuais deste espaço serão removidos. A leitura acontece em Ler documentos.")) return;
+    var grupoEsp = grupoDoEspaco(espaco);
+    ui.ocupado = espaco; ui.ocupadoTexto = "escolha o arquivo…"; ui.msg = ""; ui.msgGrupo = grupoEsp; ui.resultados = null; pintar();
+    var lista = await escolherArquivo(true);
+    if (!lista || !lista.length) { if (mesmaCasa(pageId)) { ui.ocupado = null; pintar(); } return; }
+    var r = { ok: false, erro: "SEM_ARQUIVO" }, feitos = 0;
+    for (var i = 0; i < lista.length; i++) {
+      if (mesmaCasa(pageId)) { ui.ocupadoTexto = "anexando " + (i + 1) + " de " + lista.length + "…"; pintar(); }
+      var arq = await prepararArquivo(lista[i]);
+      if (arq.erro) { r = { ok: false, erro: arq.erro }; break; }
+      r = await chamarVenda({ action: "anexarDocumento", pageId: pageId, espaco: espaco, arquivo: arq, trocar: trocar && i === 0 }, 120000);
+      if (!r.ok) break;
+      feitos++;
+    }
+    var texto = feitos === 1 ? "Arquivo anexado — clique em Ler documentos quando terminar de anexar." :
+      feitos + " arquivos anexados — clique em Ler documentos quando terminar de anexar.";
+    if (feitos && !r.ok) {
+      return depoisDeGravar(pageId, { ok: true }, feitos + " de " + lista.length + " anexados; o seguinte falhou: " + mensagemDeErro(r.erro), false, grupoEsp);
+    }
+    return depoisDeGravar(pageId, r, texto, false, grupoEsp);
   }
   /* ---- blocos Contrato / Assinatura / Mais Controle ----
    * Um conjunto por página: a casa da VENDAS no painel (#pn-body) ou, desde a entrega 7, a
