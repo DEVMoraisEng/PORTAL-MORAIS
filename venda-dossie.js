@@ -608,7 +608,9 @@
     if (!e) return h + '<div class="vazio">' + esc(u.msg || "carregando…") + "</div>";
     var sit = (e.situacao || "ainda não lançada").replace(/\s*\[t=\d+\]/, "");
     var tp = topicosMC(sit);
-    h += '<div class="dz-linha"><span class="dz-rot">Situação: <b>' + esc(tp.titulo) + "</b></span></div>";
+    /* o id da venda já aparece na linha de baixo (e no link): não repete entre parênteses (pedido do dono, 08/10) */
+    var tituloMC = String(tp.titulo || "").replace(/\s*\(venda [0-9a-f-]{8,}\)/i, "");
+    h += '<div class="dz-linha"><span class="dz-rot">Situação: <b>' + esc(tituloMC) + "</b></span></div>";
     if (tp.itens.length) {
       h += '<ul class="mc-topicos">' + tp.itens.map(function (it) {
         return "<li" + (it.sub ? ' class="mc-sub"' : "") + ">" + esc(it.texto) + "</li>";
