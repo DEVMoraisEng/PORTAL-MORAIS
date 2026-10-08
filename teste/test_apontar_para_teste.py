@@ -241,3 +241,15 @@ class PaginasDoFork(unittest.TestCase):
             r = rodar(d, "--exec", EXEC, "--venda", EXEC_VENDA)
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
             self.assertIn(EXEC_VENDA, (d / "teste-gerar-venda.html").read_text(encoding="utf-8"))
+
+
+class SimuladorJaApontado(unittest.TestCase):
+    SIM = "https://script.google.com/macros/s/AKfySIMTESTE789/exec"
+
+    def test_segunda_rodada_mantem_o_simulador_de_teste(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = pathlib.Path(t)
+            (d / "proposta.html").write_text("var APPS_SCRIPT_URL = '" + self.SIM + "';", encoding="utf-8")
+            r = rodar(d, "--exec", EXEC, "--venda", EXEC_VENDA, "--sim", self.SIM)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            self.assertIn(self.SIM, (d / "proposta.html").read_text(encoding="utf-8"))

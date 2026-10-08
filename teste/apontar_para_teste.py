@@ -117,8 +117,8 @@ def main():
             # gravaria a URL errada aqui numa segunda sincronização.
             s = re.sub(r'var URL_PORTAL_VENDA = "[^"]*";', 'var URL_PORTAL_VENDA = "' + a.url_venda + '";', s)
         else:
-            if a.url_sim:   # protege o simulador da troca genérica e põe o de teste
-                s = s.replace(SIM_PROD, MARCA_SIM)
+            if a.url_sim:   # protege o simulador (o de produção E o de teste já apontado) da troca genérica
+                s = s.replace(SIM_PROD, MARCA_SIM).replace(a.url_sim, MARCA_SIM)
             s = re.sub(URL_EXEC_RE, a.url_exec, s)
             if a.url_sim:
                 s = s.replace(MARCA_SIM, a.url_sim)
