@@ -90,6 +90,11 @@ def main(argv=None) -> int:
         d = erp.pedir_core("GET", CAMINHO_UMA % cid) or {}
         mud = mudancas(d, p)
         print(f"{i:02d}: {'muda ' + ', '.join(sorted(mud)) if mud else 'já certa'}")
+        if modo == "previa" and mud and i <= 2:   # diagnóstico sem valor: tipo, tamanho e se os dígitos batem
+            for k in sorted(mud):
+                at = d.get(k)
+                print(f"    {k}: atual {type(at).__name__} len {len(str(at)) if at is not None else 0}, "
+                      f"dígitos iguais ao pedido: {_dig(at) == _dig(mud[k])}")
         if modo in ("aplicar", "aplicar1") and mud:
             corpo = dict(d); corpo.update(mud)
             try:
