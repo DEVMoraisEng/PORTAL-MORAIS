@@ -173,12 +173,22 @@
     FALTAM_DADOS: "Faltam dados para gerar o contrato.",
     PRECONTRATO_FALTANDO: "Gere o pré-contrato e confira antes de gerar o contrato.",
     PRECONTRATO_GRANDE: "O pré-contrato ficou grande demais para abrir pelo portal — avise o desenvolvedor.",
-    PRECONTRATO_DESATUALIZADO: "Os dados mudaram depois do pré-contrato — gere o pré-contrato de novo e confira."
+    PRECONTRATO_DESATUALIZADO: "Os dados mudaram depois do pré-contrato — gere o pré-contrato de novo e confira.",
+    CAMPOS_INVALIDOS: "Confira os campos.",
+    VENDEDOR_SEM_CADASTRO: "O dono da obra não está no cadastro de vendedores — o cadastro do vendedor é feito no Notion, não pelo portal.",
+    CORRETOR_NA_VENDA_FALTANDO: "A venda não tem corretor preenchido — preencha o CORRETOR na venda.",
+    LOTEAMENTO_SEM_SETOR: "A venda não tem SETOR preenchido — sem ele não dá para criar o cadastro do loteamento.",
+    CONTA_INVALIDA: "Essa conta não está mais na lista — recarregue e escolha de novo.",
+    GRAVACAO_FALHOU: "Não consegui gravar no cadastro — tente de novo."
   };
-  /* Nunca inclui nomes de marcador do modelo (resposta.marcadores): esses vão só para o console. */
+  /* Nunca inclui nomes de marcador do modelo (resposta.marcadores): esses vão só para o console.
+     CAMPOS_INVALIDOS: os motivos (só nomes de campo) vão junto. */
   function mensagemContrato(r) {
     var e = String((r && r.erro) || "");
-    return MSG_CONTRATO[e] || mensagemDeErro(e);
+    if (e === "CAMPOS_INVALIDOS" && r && Array.isArray(r.erros) && r.erros.length) return "Confira: " + r.erros.join("; ") + ".";
+    var m = MSG_CONTRATO[e] || mensagemDeErro(e);
+    if (r && Array.isArray(r.salvos) && r.salvos.length && e !== "FALTAM_DADOS") m = "Dados salvos (" + r.salvos.join(", ") + "), mas: " + m;
+    return m;
   }
   /* "NENHUM" | "PRE" | "FINAL" (resposta antiga, sem etapa: pelo gerado) */
   function etapaContrato(e) {
@@ -194,7 +204,101 @@
            };
     var t = testemunhasDoEstado(r && r.testemunhas);
     if (t) o.testemunhas = t;
+    var c = contaDoEstado(r && r.conta);
+    if (c) o.conta = c;
     return o;
+  }
+  /* entrega 12: "Conta de recebimento" — lista (id e título), a escolha desta venda e a conta da obra */
+  function contaDoEstado(c) {
+    if (!c || !Array.isArray(c.opcoes)) return null;
+    var esc = c.escolhida, escolhida = null;
+    if (esc && esc.id) escolhida = { id: String(esc.id) };
+    else if (esc && (esc.banco || esc.conta))
+      escolhida = { banco: String(esc.banco || ""), agencia: String(esc.agencia || ""), conta: String(esc.conta || ""), pix: String(esc.pix || "") };
+    return { opcoes: c.opcoes.map(function (o) { return { id: String(o.id || ""), nome: String(o.nome || "") }; }),
+             escolhida: escolhida, padrao: String(c.padrao || "") };
+  }
+  var CONTA_DIGITAR = "__digitar";
+  var CAMPOS_CONTA = [["banco", "Banco"], ["agencia", "Agência"], ["conta", "Conta"], ["pix", "Chave PIX (opcional)"]];
+  /* modo "Digitar outra conta": escolhido agora na tela (u.contaDigitar) ou a escolha gravada é digitada */
+  function contaDigitando(conta, u) {
+    if (u && typeof u.contaDigitar === "boolean") return u.contaDigitar;
+    return !!(conta && conta.escolhida && !conta.escolhida.id);
+  }
+  function htmlConta(conta, u, dis) {
+    if (!conta) return "";   // servidor antigo
+    u = u || {};
+    var rasc = u.rascunho || {}, digitar = contaDigitando(conta, u), esc = conta.escolhida || {};
+    var ids = conta.opcoes.map(function (o) { return o.id; });
+    var atual = digitar ? CONTA_DIGITAR : (esc.id || (ids.indexOf(conta.padrao) >= 0 ? conta.padrao : ""));
+    var h = '<div class="dz-linha"><span class="dz-rot">Conta de recebimento (vai no contrato):</span><select data-conta' + dis + ">";
+    if (!atual) h += '<option value="" selected>' + (conta.padrao ? "Conta da obra (padrão)" : "— escolha a conta —") + "</option>";
+    h += conta.opcoes.map(function (o) {
+      return '<option value="' + esc_(o.id) + '"' + (o.id === atual ? " selected" : "") + ">" + esc_(o.nome) +
+        (o.id === conta.padrao ? " (conta da obra)" : "") + "</option>";
+    }).join("");
+    h += '<option value="' + CONTA_DIGITAR + '"' + (digitar ? " selected" : "") + ">Digitar outra conta</option></select></div>";
+    if (digitar) {
+      h += '<div class="dz-linha dz-conta">' + CAMPOS_CONTA.map(function (x) {
+        var k = "conta|" + x[0], v = k in rasc ? rasc[k] : (esc.id ? "" : (esc[x[0]] || ""));
+        return '<label class="dz-campo">' + esc_(x[1]) + ' <input type="text" maxlength="120" data-conta-campo="' + x[0] + '" value="' + esc_(v) + '"' + dis + "></label>";
+      }).join(" ") + ' <button type="button" class="bt bt-mini" data-acao="c-salvar-conta"' + dis + ">Salvar conta</button></div>";
+      h += '<div class="dz-msg dz-nota">A conta digitada vale só para esta venda (não muda o cadastro).</div>';
+    }
+    return h;
+  }
+  function esc_(s) { return esc(s); }
+  /* entrega 12: formulário com os campos que faltam nos cadastros (vendedor, corretor, loteamento) */
+  var SUB_GRUPO = { vendedor: "cadastro do dono da obra", corretor: "cadastro do corretor", loteamento: "cadastro do setor" };
+  function htmlCampos(campos, u, dis) {
+    if (!campos || (!(campos.grupos || []).length && !campos.conta)) return "";
+    var rasc = (u && u.rascunho) || {}, h = '<div class="dz-aviso">Faltam dados do cadastro — preencha aqui (fica salvo no cadastro do Notion):</div>';
+    (campos.grupos || []).forEach(function (g) {
+      h += '<div class="dz-linha dz-grupo"><b>' + esc(g.titulo) + "</b> <small>(" +
+        esc(g.criar ? "novo cadastro" : (SUB_GRUPO[g.grupo] || "cadastro")) + ")</small></div>";
+      (g.campos || []).forEach(function (c) {
+        var k = g.grupo + "|" + c.coluna, v = rasc[k] || "", attr = ' data-campo="' + esc(k) + '"' + dis;
+        var inp;
+        if (c.tipo === "opcao") {
+          inp = "<select" + attr + '><option value="">—</option>' + (c.opcoes || []).map(function (o) {
+            return '<option value="' + esc(o) + '"' + (o === v ? " selected" : "") + ">" + esc(o) + "</option>";
+          }).join("") + "</select>";
+        } else {
+          var tipo = c.tipo === "email" ? "email" : c.tipo === "inteiro" ? "number" : "text";
+          inp = '<input type="' + tipo + '"' + (tipo === "number" ? ' min="1" step="1"' : ' maxlength="300"') + attr + ' value="' + esc(v) + '">';
+        }
+        h += '<div class="dz-linha"><label class="dz-rot">' + esc(c.rotulo) + "</label>" + inp + "</div>";
+      });
+    });
+    if (campos.conta) h += '<div class="dz-aviso">Banco, agência e conta: escolha ou digite em "Conta de recebimento", abaixo.</div>';
+    h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-salvar-campos"' + dis + ">Salvar dados e gerar pré-contrato</button></div>";
+    return h;
+  }
+  /* entradas da tela [{chave: "grupo|COLUNA", valor}] + conta digitada (ou null) -> pedido do salvarCamposContrato */
+  function pedidoCampos(entradas, contaDigitada) {
+    var campos = {}, n = 0;
+    (entradas || []).forEach(function (x) {
+      var i = String(x.chave || "").indexOf("|"), v = String(x.valor === null || x.valor === undefined ? "" : x.valor).trim();
+      if (i <= 0 || !v) return;
+      var g = x.chave.slice(0, i), col = x.chave.slice(i + 1);
+      if (!campos[g]) campos[g] = {};
+      campos[g][col] = v; n++;
+    });
+    var p = { campos: campos };
+    if (contaDigitada) p.conta = contaDigitada;
+    return n || contaDigitada ? p : null;
+  }
+  /* resposta FALTAM_DADOS -> { faltas (as que o formulário não cobre), campos (ou null: servidor antigo) } */
+  function faltasDaResposta(r) {
+    var c = r && r.campos;
+    if (c && Array.isArray(c.grupos)) return { faltas: Array.isArray(c.outras) ? c.outras : [], campos: c };
+    return { faltas: (r && r.faltas) || [], campos: null };
+  }
+  /* conta digitada nas caixas: null se as três obrigatórias estão vazias */
+  function contaDasEntradas(v) {
+    v = v || {};
+    var c = { banco: String(v.banco || "").trim(), agencia: String(v.agencia || "").trim(), conta: String(v.conta || "").trim(), pix: String(v.pix || "").trim() };
+    return c.banco || c.agencia || c.conta || c.pix ? c : null;
   }
   function testemunhasDoEstado(t) {
     if (!t || !Array.isArray(t.opcoes)) return null;
@@ -223,10 +327,13 @@
     if (!e) return h + '<div class="vazio">' + esc(u.msg || "carregando…") + "</div>";
     if (u.ocupadoContrato === "pre") h += '<div class="dz-linha"><b>gerando o pré-contrato… (até 1 minuto)</b></div>';
     if (u.ocupadoContrato === "aprovar") h += '<div class="dz-linha"><b>gerando o contrato… (até 1 minuto)</b></div>';
+    if (u.ocupadoContrato === "salvar") h += '<div class="dz-linha"><b>salvando os dados e gerando o pré-contrato… (até 1 minuto)</b></div>';
+    /* entrega 12: o que o formulário cobre sai da lista (u.faltas = só as outras) */
     if (u.faltas && u.faltas.length) {
       h += '<div class="dz-aviso">Para gerar o contrato, falta:</div><ul>' +
         u.faltas.map(function (f) { return "<li>" + esc(f) + "</li>"; }).join("") + "</ul>";
     }
+    h += htmlCampos(u.campos, u, dis);
     /* entrega 9: (a) nada → Gerar pré-contrato; (b) pré-contrato a conferir → Visualizar pré-contrato,
        "Conferi…" e Gerar pré-contrato de novo; (c) contrato final → Visualizar / Gerar de novo (volta ao pré-contrato) */
     var etapa = etapaContrato(e);
@@ -247,6 +354,7 @@
     } else {
       h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-pre"' + dis + ">Gerar pré-contrato</button></div>";
     }
+    h += htmlConta(e.conta, u, dis);
     h += htmlTestemunhas(e.testemunhas, dis);
     if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
     if (u.link && /^https:\/\//.test(u.link)) {
@@ -322,7 +430,9 @@
                    grupoDoEspaco: grupoDoEspaco,
                    resumo: resumo, escala: escala, tipoAceito: tipoAceito, painelCarregando: painelCarregando,
                    htmlContrato: htmlContrato, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, mensagemMC: mensagemMC,
-                   topicosMC: topicosMC, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas };
+                   topicosMC: topicosMC, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas,
+                   htmlCampos: htmlCampos, htmlConta: htmlConta, contaDoEstado: contaDoEstado, pedidoCampos: pedidoCampos,
+                   contaDasEntradas: contaDasEntradas, faltasDaResposta: faltasDaResposta };
   if (typeof module !== "undefined" && module.exports) { module.exports = exportar; return; }
 
   /* ---------------- navegador ---------------- */
@@ -337,6 +447,11 @@
     "#dossie-wrap .dz-msg,.vb-blocos .dz-msg{margin-top:8px;font-weight:600}" +
     "#dossie-wrap pre,.vb-blocos pre{white-space:pre-wrap;font:inherit;margin:4px 0}" +
     ".vb-blocos ul{margin:4px 0 4px 18px}.vb-blocos ul li{margin:2px 0}" +
+    /* entrega 12: formulário dos cadastros e conta de recebimento */
+    ".vb-blocos input[type=text],.vb-blocos input[type=email],.vb-blocos input[type=number],.vb-blocos select{padding:6px 8px;" +
+    "border:1px solid var(--border,#d6dee3);border-radius:6px;font:inherit;max-width:100%;box-sizing:border-box}" +
+    ".vb-blocos .dz-linha>input{flex:1 1 220px}.vb-blocos .dz-campo{display:inline-flex;gap:4px;align-items:center;flex-wrap:wrap}" +
+    ".vb-blocos .dz-grupo{margin-top:12px}.vb-blocos .dz-nota{font-weight:400;color:var(--text3,#555)}" +
     emCada(">.dz-linha") + "{margin:6px 22px}" + emCada(">.dz-aviso") + "{margin:6px 22px}" +
     emCada(">.dz-msg") + "{margin:8px 22px 0}" + emCada(">pre") + "{margin:4px 22px}" +
     emCada(">ul") + "{margin:4px 22px;padding-left:18px}" +
@@ -502,7 +617,7 @@
    * Cada conjunto guarda o próprio estado; `ativo(conjunto)` diz se ele ainda é o da tela —
    * resposta de um conjunto que saiu da tela é descartada. Ao abrir, os três estados são
    * pedidos em paralelo, uma vez só: redesenhar a tela (anexar de novo) não pede outra vez. */
-  function novoUiC() { return { ocupadoContrato: null, faltas: null, msg: "", testes: perfilTestes() }; }
+  function novoUiC() { return { ocupadoContrato: null, faltas: null, campos: null, rascunho: {}, msg: "", testes: perfilTestes() }; }
   function novoUiM() { return { ocupado: null, msg: "", testes: perfilTestes() }; }
   function novoCtxA() { return { estado: null, ocupado: null, msg: "", faltas: null, testes: perfilTestes() }; }
 
@@ -520,8 +635,22 @@
       ctxA.contratoGerado = contratoFinal(estadoC);
       return window.VendaAssinatura.montarBlocoAssinatura(ctxA);
     }
+    /* entrega 12: o que já foi digitado no formulário e nas caixas da conta sobrevive ao redesenho */
+    function guardarRascunho() {
+      if (!raiz || !raiz.querySelectorAll) return;
+      raiz.querySelectorAll("[data-campo]").forEach(function (x) { uiC.rascunho[x.getAttribute("data-campo")] = x.value; });
+      raiz.querySelectorAll("[data-conta-campo]").forEach(function (x) { uiC.rascunho["conta|" + x.getAttribute("data-conta-campo")] = x.value; });
+    }
+    function contaDigitadaNaTela() {
+      if (!raiz) return null;
+      var v = {};
+      raiz.querySelectorAll("[data-conta-campo]").forEach(function (x) { v[x.getAttribute("data-conta-campo")] = x.value; });
+      return contaDasEntradas(v);
+    }
+    function limparRascunhoConta() { Object.keys(uiC.rascunho).forEach(function (k) { if (/^conta\|/.test(k)) delete uiC.rascunho[k]; }); }
     function pintar() {
       if (!raiz) return;
+      guardarRascunho();
       raiz.innerHTML = htmlContrato(estadoC, uiC) + '<div class="vb-ass">' + htmlAss() + "</div>" +
         '<div class="vb-mc">' + htmlMC(estadoM, uiM) + "</div>";
     }
@@ -647,36 +776,88 @@
         if (!aprovar && etapaContrato(estadoC) === "FINAL" &&
             !window.confirm("Gerar de novo? Primeiro sai um pré-contrato para conferir; o contrato atual só é substituído quando você conferir.")) return;
         if (aprovar && !window.confirm("Você conferiu o pré-contrato e está tudo certo? O contrato final será gerado (sem grifos).")) return;
-        uiC.ocupadoContrato = aprovar ? "aprovar" : "pre"; uiC.msg = ""; uiC.faltas = null; uiC.link = null; pintar();
+        uiC.ocupadoContrato = aprovar ? "aprovar" : "pre"; uiC.msg = ""; uiC.faltas = null; uiC.campos = null; uiC.link = null; pintar();
         seq = ++seqC;
         r = await chamarVenda({ action: aprovar ? "aprovarPreContrato" : "gerarPreContrato", pageId: pageId }, 150000);
         if (seq !== seqC || !vivo()) return;
-        uiC.ocupadoContrato = null;
-        if (r.ok) {
-          var antes = estadoC || {};
-          estadoC = aprovar
-            ? { gerado: true, nome: r.nome || "", url: r.url || "", etapa: "FINAL", pre: antes.pre ? Object.assign({}, antes.pre, { conferido: true }) : null }
-            : { gerado: !!antes.gerado, nome: antes.nome || "", url: antes.url || "", etapa: "PRE",
-                pre: { nome: r.nome || "", url: r.url || "", em: "", conferido: false, desatualizado: false } };
-          estadoC.testemunhas = antes.testemunhas || null;
-          var feito = aprovar ? "Contrato gerado." : "Pré-contrato gerado — abra, confira o que está grifado e clique em Conferi.";
-          /* condomínio: campos que saíram em branco ("____") não travam, mas avisam */
-          uiC.msg = r.avisos && r.avisos.length ? feito + " Atenção: " + r.avisos.join("; ") + "." : feito;
-        } else if (r.erro === "PRECONTRATO_DESATUALIZADO" || r.erro === "PRECONTRATO_FALTANDO") {
-          /* a etapa mudou no servidor: trava o "Conferi" (desatualizado) ou volta ao começo (faltando) */
-          if (estadoC && r.erro === "PRECONTRATO_DESATUALIZADO" && estadoC.pre) estadoC.pre.desatualizado = true;
-          if (estadoC && r.erro === "PRECONTRATO_FALTANDO") { estadoC.pre = null; estadoC.etapa = estadoC.gerado ? "FINAL" : "NENHUM"; }
-          uiC.msg = mensagemContrato(r);
-        } else if (r.erro === "FALTAM_DADOS" && r.faltas && r.faltas.length) {
-          uiC.faltas = r.faltas;
-        } else {
-          if (r.erro === "MODELO_COM_MARCADOR_SOBRANDO" && typeof console !== "undefined") console.warn("contrato: marcadores sobrando", r.marcadores);
-          uiC.msg = mensagemContrato(r);
-        }
-        pintar();
-        /* sem resposta: o servidor pode ter gerado mesmo assim — olha de novo */
-        if (!r.ok && r.erro === "SEM_RESPOSTA") carregarContrato();
+        return tratarGeracao(r, aprovar);
       }
+      if (acao === "c-salvar-campos") {
+        /* entrega 12: grava no cadastro o que foi digitado (e a conta digitada, se houver) e gera o pré-contrato */
+        guardarRascunho();
+        var entradas = [];
+        raiz.querySelectorAll("[data-campo]").forEach(function (x) { entradas.push({ chave: x.getAttribute("data-campo"), valor: x.value }); });
+        var contaTela = contaDigitando(estadoC && estadoC.conta, uiC) ? contaDigitadaNaTela() : null;
+        var pedido = pedidoCampos(entradas, contaTela);
+        if (!pedido) { uiC.msg = "Preencha ao menos um campo."; pintar(); return; }
+        uiC.ocupadoContrato = "salvar"; uiC.msg = ""; uiC.link = null; pintar();
+        seq = ++seqC;
+        r = await chamarVenda({ action: "salvarCamposContrato", pageId: pageId, campos: pedido.campos, conta: pedido.conta }, 150000);
+        if (seq !== seqC || !vivo()) return;
+        if (r.conta && estadoC) { estadoC.conta = contaDoEstado(r.conta); uiC.contaDigitar = undefined; limparRascunhoConta(); }
+        if (r.ok) uiC.rascunho = {};
+        return tratarGeracao(r, false);
+      }
+      if (acao === "c-salvar-conta") {
+        var conta = contaDigitadaNaTela();
+        if (!conta) { uiC.msg = "Digite banco, agência e conta."; pintar(); return; }
+        return salvarConta(conta);
+      }
+    }
+    /* resposta de gerarPreContrato / aprovarPreContrato / salvarCamposContrato */
+    function tratarGeracao(r, aprovar) {
+      uiC.ocupadoContrato = null;
+      if (r.ok) {
+        var antes = estadoC || {};
+        estadoC = aprovar
+          ? { gerado: true, nome: r.nome || "", url: r.url || "", etapa: "FINAL", pre: antes.pre ? Object.assign({}, antes.pre, { conferido: true }) : null }
+          : { gerado: !!antes.gerado, nome: antes.nome || "", url: antes.url || "", etapa: "PRE",
+              pre: { nome: r.nome || "", url: r.url || "", em: "", conferido: false, desatualizado: false } };
+        estadoC.testemunhas = antes.testemunhas || null;
+        if (antes.conta) estadoC.conta = antes.conta;
+        uiC.faltas = null; uiC.campos = null;
+        var feito = aprovar ? "Contrato gerado." : "Pré-contrato gerado — abra, confira o que está grifado e clique em Conferi.";
+        /* condomínio: campos que saíram em branco ("____") não travam, mas avisam */
+        uiC.msg = r.avisos && r.avisos.length ? feito + " Atenção: " + r.avisos.join("; ") + "." : feito;
+      } else if (r.erro === "PRECONTRATO_DESATUALIZADO" || r.erro === "PRECONTRATO_FALTANDO") {
+        /* a etapa mudou no servidor: trava o "Conferi" (desatualizado) ou volta ao começo (faltando) */
+        if (estadoC && r.erro === "PRECONTRATO_DESATUALIZADO" && estadoC.pre) estadoC.pre.desatualizado = true;
+        if (estadoC && r.erro === "PRECONTRATO_FALTANDO") { estadoC.pre = null; estadoC.etapa = estadoC.gerado ? "FINAL" : "NENHUM"; }
+        uiC.msg = mensagemContrato(r);
+      } else if (r.erro === "FALTAM_DADOS" && r.faltas && r.faltas.length) {
+        var fr = faltasDaResposta(r);
+        uiC.faltas = fr.faltas; uiC.campos = fr.campos;
+        if (r.salvos && r.salvos.length) uiC.msg = "Dados salvos. Ainda falta o que está abaixo.";
+      } else {
+        if (r.erro === "MODELO_COM_MARCADOR_SOBRANDO" && typeof console !== "undefined") console.warn("contrato: marcadores sobrando", r.marcadores);
+        uiC.msg = mensagemContrato(r);
+      }
+      pintar();
+      /* sem resposta: o servidor pode ter gerado mesmo assim — olha de novo */
+      if (!r.ok && r.erro === "SEM_RESPOSTA") carregarContrato();
+    }
+
+    /* entrega 12: "Conta de recebimento" — escolha da lista grava na hora; "Digitar outra conta" abre as caixas */
+    async function aoEscolherConta(valor) {
+      if (!raiz || uiC.ocupadoContrato || !vivo()) return;
+      if (valor === CONTA_DIGITAR) { uiC.contaDigitar = true; pintar(); return; }
+      return salvarConta(valor ? { id: valor } : {});
+    }
+    async function salvarConta(conta) {
+      uiC.ocupadoContrato = "conta"; uiC.msg = ""; pintar();
+      var seq = ++seqC;
+      var r = await chamarVenda({ action: "escolherContaRecebimento", pageId: pageId, conta: conta });
+      if (seq !== seqC || !vivo()) return;
+      uiC.ocupadoContrato = null;
+      if (r.ok) {
+        if (estadoC) {
+          estadoC.conta = contaDoEstado(r.conta);
+          if (r.desatualizado && estadoC.pre && etapaContrato(estadoC) === "PRE") estadoC.pre.desatualizado = true;
+        }
+        uiC.contaDigitar = undefined; limparRascunhoConta();
+        uiC.msg = "Conta de recebimento salva." + (r.desatualizado ? " Gere o pré-contrato de novo." : "");
+      } else uiC.msg = mensagemContrato(r);
+      pintar();
     }
 
     /* entrega 10: grava quando as duas listas fecham (duas pessoas diferentes) ou as duas voltam ao padrão */
@@ -715,7 +896,11 @@
       if (!el.__vbLigado) {
         el.__vbLigado = true;
         el.addEventListener("click", function (ev) { if (raiz === el) aoClicar(ev); });
-        el.addEventListener("change", function (ev) { if (raiz === el && ev.target.hasAttribute("data-testemunha")) aoEscolherTestemunha(); });
+        el.addEventListener("change", function (ev) {
+          if (raiz !== el) return;
+          if (ev.target.hasAttribute("data-testemunha")) aoEscolherTestemunha();
+          else if (ev.target.hasAttribute("data-conta")) aoEscolherConta(ev.target.value);
+        });
       }
       pintar();
       if (!estadoC) carregarContrato();
