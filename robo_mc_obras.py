@@ -1386,14 +1386,9 @@ def completar_no_mc(page, o):
     except Exception as e:
         print(f"  ! endereço: {str(e)[:90]}", flush=True)
 
-    # --- exibir obra para
-    try:
-        abrir_secao(page, "Exibir obra para")
-        m = ajustar_exibir(page)
-        if m:
-            mudou.append("exibir obra para: " + ", ".join(m))
-    except Exception as e:
-        print(f"  ! Exibir obra para: {str(e)[:90]}", flush=True)
+    # --- exibir obra para: NÃO mexe na conferência (08/10/26). "Só Lançamento
+    # e Faturamento" vale apenas para obra NOVA (criar_no_mc); nas existentes,
+    # Compras ligado/desligado é decisão de quem cuida da obra.
 
     # --- conta bancária
     conta_pendente = False
