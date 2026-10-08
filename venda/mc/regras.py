@@ -38,7 +38,7 @@ COL = {
     "clientes": "CLIENTES",
     "cpf": "CPF",
     "email": "EMAIL",
-    "email1": "COMPRADOR 1 - E-MAIL",
+    "email1": "Email",
     "telefone": "Nº Whatsapp",
     "valor_contrato": "VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)",
     "comissao": "COMISSÃO",

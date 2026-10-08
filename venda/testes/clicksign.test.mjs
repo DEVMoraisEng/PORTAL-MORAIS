@@ -98,7 +98,7 @@ test("faltas legíveis: sem e-mail, e-mail inválido, nome sem sobrenome ou com 
   d.vendedor = Object.assign({}, d.vendedor, { representanteNome: "Beltrano 2" });
   const f = CS.faltasAssinatura(d, CS.montarConfig(PROPS));
   assert.deepEqual(f, [
-    "Comprador 1: e-mail (coluna COMPRADOR 1 - E-MAIL)",
+    "Comprador 1: e-mail (coluna Email)",
     "Comprador 2: nome e sobrenome, sem números",
     "Comprador 2: e-mail inválido",
     "Comprador 2: CPF inválido",

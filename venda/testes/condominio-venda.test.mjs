@@ -13,7 +13,7 @@ test("mapear: proponente, segundo comprador e valores da venda", () => {
   assert.equal(m["CLIENTES"], "ANA TESTE E BRUNO TESTE");
   assert.equal(m["CPF"], "529.982.247-25");
   assert.equal(m["Email"], "ana@exemplo.test");
-  assert.equal(m["COMPRADOR 1 - E-MAIL"], "ana@exemplo.test");
+  assert.equal(m["Email"], "ana@exemplo.test");
   assert.equal(m["Nº Whatsapp"], "62 90000-0000");
   assert.equal(m["COMPRADOR 1 - ESTADO CIVIL"], "CASADA");
   assert.equal(m["COMPRADOR 1 - PROFISSÃO"], "ANALISTA", "PROFISSÃO PROPONENTE tem espaço sobrando no nome");

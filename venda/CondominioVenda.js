@@ -141,7 +141,7 @@ var CondominioVenda = (function () {
     por("CPF", vazio(cpf1) ? null : formatarCpfSeValido(cpf1));
     var email1 = res("Email", "EMAIL COMPRADOR 1");
     por("Email", email1);
-    por("COMPRADOR 1 - E-MAIL", email1);
+    por("Email", email1);
     por("Nº Whatsapp", res("Nº Whatsapp", "CELULAR COMPRADOR 1"));
     por("COMPRADOR 1 - ESTADO CIVIL", L.v("ESTADO CIVIL"));
     por("COMPRADOR 1 - PROFISSÃO", res("PROFISSÃO PROPONENTE", "PROFISSÃO COMPRADOR 1"));

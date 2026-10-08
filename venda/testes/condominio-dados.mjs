@@ -15,7 +15,7 @@ export const P = {
 /* VENDAS de exemplo (nomes com espaço sobrando, como na base real) */
 export const SCHEMA_VENDAS = {
   "ENDEREÇO": "title", "CASA": "number", "CLIENTES ": "rich_text", "CPF ": "rich_text", "Email": "email",
-  "COMPRADOR 1 - E-MAIL": "email", "Nº Whatsapp": "phone_number", "DATA DA VENDA": "date",
+  "Email": "email", "Nº Whatsapp": "phone_number", "DATA DA VENDA": "date",
   "DATA DE ASSINATURA DO CONTRATO": "date", "VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)": "number",
   "VALOR FINANCIADO": "number", "VALOR DO SUBSÍDIO": "number", "VALOR DO FGTS": "number",
   "COMPRADOR 1 - ESTADO CIVIL": "rich_text", "COMPRADOR 1 - PROFISSÃO": "rich_text", "COMPRADOR 1 - NACIONALIDADE": "rich_text",

@@ -34,7 +34,7 @@ function colunasVenda(sem = []) {
   const c = Object.assign({}, COLUNAS_REAIS, {
     " VALOR NA MÃO ": "number", "VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)": "number", " COMISSÃO ": "number",
     CORRETOR: { tipo: "select", opcoes: ["Corretor Teste"] }, SETOR: { tipo: "select", opcoes: ["Setor Teste"] },
-    "OBRA-AUTO": "relation", CASA: "rich_text", "COMPRADOR 1 - E-MAIL": "email",
+    "OBRA-AUTO": "relation", CASA: "rich_text", "Email": "email",
     "ASSINATURA - ENVELOPE ID": "rich_text", "ASSINATURA - SITUAÇÃO": "rich_text", "CONTRATO ASSINADO": "files",
   });
   for (const [nome, tipo] of Object.entries(CV.TIPOS))
@@ -48,7 +48,7 @@ const GERADO = { files: [{ name: "velho.pdf", type: "file", file: { url: "https:
 const PDF_GERADO = "%PDF-1.4 contrato gerado de teste";
 const VENDA = {
   "ENDEREÇO": tit("RESIDENCIAL TESTE QD 07 LT 12"), CASA: rt("3"),
-  "CLIENTES ": rt("Fulano de Teste"), "CPF ": rt("000.000.001-91"), "COMPRADOR 1 - E-MAIL": eml("fulano@teste.example"),
+  "CLIENTES ": rt("Fulano de Teste"), "CPF ": rt("000.000.001-91"), "Email": eml("fulano@teste.example"),
   "COMPRADOR 1 - DOCUMENTO": rt("RG 1234567 SSP/GO"), "COMPRADOR 1 - NACIONALIDADE": rt("brasileiro"),
   "COMPRADOR 1 - ESTADO CIVIL": rt("solteiro"), "COMPRADOR 1 - PROFISSÃO": rt("analista"),
   "COMPRADOR 1 - ENDEREÇO": rt("Rua das Palmeiras, 10, Setor Teste"),
@@ -61,7 +61,7 @@ const VENDA = {
   "CONTRATO - ENTRADA VALOR": num(20000), "CONTRATO - ENTRADA VENCIMENTO": dat("2026-10-15"),
   "CONTRATO - FORMA DE PAGAMENTO": sel("PIX"), "CONTRATO - COMISSÃO FORMA": sel("PIX"),
   "CONTRATO - COMISSÃO VENCIMENTO": rt("na assinatura do financiamento"), "CONTRATO - COMISSÃO PAGA POR": sel("COMPRADOR"),
-  "CONTRATO - PRAZO DE CONCLUSÃO DAS OBRAS": dat("2027-06-30"),
+  "DATA DA ENTREGA": dat("2027-06-30"),
   "CONTRATO GERADO": GERADO,
 };
 const OBRA_PG = { "PROPRIETARIO DOCUMENTO": rt("Construtora Teste Ltda"), "CPF/CNPJ ": sel("00.000.000/0001-00"), "OBRA FINALIZADA?": sel("NÃO") };
@@ -228,11 +228,11 @@ test("vendedor PF + corretor ligado: testemunhas PF e corretor como real_estate_
 });
 
 test("faltas de assinatura: FALTAM_DADOS legível e nenhuma chamada à Clicksign", () => {
-  const c = cenario({ venda: { "COMPRADOR 1 - E-MAIL": eml(null) }, semProps: ["ASSINATURA_TESTEMUNHAS_SPE"] });
+  const c = cenario({ venda: { "Email": eml(null) }, semProps: ["ASSINATURA_TESTEMUNHAS_SPE"] });
   const r = c.enviar();
   assert.equal(r.erro, "FALTAM_DADOS");
   assert.deepEqual(r.faltas, ["Testemunhas: Propriedade ASSINATURA_TESTEMUNHAS_SPE não configurada (precisa de 2)",
-                              "Comprador 1: e-mail (coluna COMPRADOR 1 - E-MAIL)"]);
+                              "Comprador 1: e-mail (coluna Email)"]);
   assert.equal(c.c.chamadas.length, 0);
   assert.equal(c.n.patches.length, 0);
 });

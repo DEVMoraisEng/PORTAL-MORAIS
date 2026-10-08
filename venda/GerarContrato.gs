@@ -105,24 +105,56 @@ function ctrAcharLinha_(linhas, nome) {
   return achada;
 }
 
-/* Propriedades da linha de DOCUMENTOS (a obra) da casa, null (não achou) ou { ambigua: true } (endereço repetido). */
+/* Endereço comparável: chave do RegrasVenda sem zero à esquerda nos números ("TB 6 QD 40" = "TB 06 QD 40"). */
+function ctrChaveEndereco_(s) { return RegrasVenda.chave(s).replace(/\b0+(\d)/g, "$1"); }
+
+/* Propriedades da linha de DOCUMENTOS (a obra) da casa, null (não achou) ou { ambigua: true } (endereço repetido).
+   OBRA-AUTO: se aponta para DOCUMENTOS, vale direto; se aponta para outra base (na produção é o (EMP) Projeto 2.0),
+   o título da página relacionada entra como segundo endereço para achar a linha de DOCUMENTOS. */
 function ctrObraProps_(rels, endereco) {
-  var db = prop_("DB_DOCUMENTOS"), dbLimpo = db.replace(/-/g, "");
+  var db = prop_("DB_DOCUMENTOS"), dbLimpo = db.replace(/-/g, ""), outroEndereco = "";
   if (rels && rels.length) {
     try {
       var pg = notion_("GET", "/pages/" + rels[0], null);
       if (String((pg.parent && pg.parent.database_id) || "").replace(/-/g, "") === dbLimpo) return pg.properties || {};
+      outroEndereco = ctrTitulo_(pg.properties || {});
     } catch (e) { ctrErro_("contrato: relacao da obra ilegivel", e); }
   }
-  var k = RegrasVenda.chave(endereco);
-  if (!k) return null;
+  if (!RegrasVenda.chave(endereco) && !RegrasVenda.chave(outroEndereco)) return null;
   var linhas = [];
   try { linhas = ctrLinhasBase_(db, { property: "ENDEREÇO", title: { equals: endereco } }); }
   catch (e) { ctrErro_("contrato: filtro por endereco falhou", e); }
   if (!linhas.length) linhas = ctrLinhasBase_(db, null);
-  var achadas = linhas.filter(function (l) { return RegrasVenda.chave(ctrTitulo_(l)) === k; });
-  if (achadas.length > 1) return { ambigua: true };
-  return achadas.length ? achadas[0] : null;
+  var tentativas = [endereco, outroEndereco];
+  for (var t = 0; t < tentativas.length; t++) {
+    var k = ctrChaveEndereco_(tentativas[t]);
+    if (!k) continue;
+    var achadas = linhas.filter(function (l) { return ctrChaveEndereco_(ctrTitulo_(l)) === k; });
+    if (achadas.length > 1) return { ambigua: true };
+    if (achadas.length) return achadas[0];
+    if (t === 0 && outroEndereco && linhas.length < 2) linhas = ctrLinhasBase_(db, null);   // o filtro exato só trouxe a casa
+  }
+  return null;
+}
+
+/* Linha de cadastro pelo título OU por uma coluna (ex.: SETOR na DISPONIBILIDADES POR SETOR, cujo título é
+   OBSERVAÇÃO). Lê uma ou mais bases (ids separados por vírgula na Propriedade). */
+function ctrLinhasDasBases_(ids) {
+  var linhas = [];
+  String(ids || "").split(",").forEach(function (id) { id = id.trim(); if (id) linhas = linhas.concat(ctrLinhasBase_(id)); });
+  return linhas;
+}
+function ctrAcharLinhaPor_(linhas, nome, coluna) {
+  var k = RegrasVenda.chave(nome), achada = null;
+  if (!k) return null;
+  for (var i = 0; i < linhas.length; i++) {
+    var c = ctrPorChave_(linhas[i]);
+    var bate = RegrasVenda.chave(ctrTitulo_(linhas[i])) === k || (coluna && RegrasVenda.chave(ctrTxt_(ctrCampo_(c, coluna))) === k);
+    if (!bate) continue;
+    if (achada) return { duplicado: true };
+    achada = { titulo: ctrTitulo_(linhas[i]), c: c };
+  }
+  return achada;
 }
 
 /* ---- condomínio ---- */
@@ -210,7 +242,7 @@ function ctrFontes_(col, pageId) {
   var venda = {
     CLIENTES: dos(C.CLIENTES), CPF: dos(C.CPF1), ENDERECO: ctrTitulo_(pg.properties),
     COMPRADOR1: { nacionalidade: dos(C.C1_NAC), estadoCivil: dos(C.C1_ESTCIV), profissao: dos(C.C1_PROF),
-                  documento: dos(C.C1_DOC), endereco: dos(C.C1_END), email: ctrTxt_(cv("COMPRADOR 1 - E-MAIL")) },
+                  documento: dos(C.C1_DOC), endereco: dos(C.C1_END), email: ctrTxt_(cv("Email")) },
     COMPRADOR2: { nome: dos(C.C2_NOME), cpf: dos(C.C2_CPF), nacionalidade: dos(C.C2_NAC), estadoCivil: dos(C.C2_ESTCIV),
                   profissao: dos(C.C2_PROF), documento: dos(C.C2_DOC), endereco: dos(C.C2_END), email: dos(C.C2_EMAIL) },
     ALVARA_NUMERO: cv(CV.ALVARA_NUMERO), ALVARA_DATA: cv(CV.ALVARA_DATA), HABITESE_NUMERO: cv(CV.HABITESE_NUMERO),
@@ -243,12 +275,14 @@ function ctrFontes_(col, pageId) {
   if (props.ambigua === true) return { obraAmbigua: true };
   var op = ctrPorChave_(props);
   var obra = { obraFinalizada: ctrTxt_(ctrCampo_(op, "OBRA FINALIZADA?")), proprietario: ctrTxt_(ctrCampo_(op, "PROPRIETARIO DOCUMENTO")),
-               cpfCnpj: ctrTxt_(ctrCampo_(op, "CPF/CNPJ")), dataHabitese: ctrTxt_(ctrCampo_(op, "DATA HABITE-SE")) };
+               cpfCnpj: ctrTxt_(ctrCampo_(op, "CPF/CNPJ")), dataHabitese: ctrTxt_(ctrCampo_(op, "DATA HABITE-SE")),
+               cidade: ctrTxt_(ctrCampo_(op, "CIDADE")) };
 
   /* os três cadastros */
   var lv = ctrAcharLinha_(ctrLinhasBase_(prop_("DB_VENDEDORES")), obra.proprietario);
   /* condomínio: o empreendimento é a linha de LOTEAMENTOS com o nome do condomínio (= ENDEREÇO da casa) */
-  var ll = ctrAcharLinha_(ctrLinhasBase_(prop_("DB_LOTEAMENTOS")), cond ? venda.ENDERECO : setor);
+  /* produção: DB_LOTEAMENTOS = "DISPONIBILIDADES POR SETOR,Empreendimentos" (uma linha por SETOR; o condomínio pelo nome) */
+  var ll = ctrAcharLinhaPor_(ctrLinhasDasBases_(prop_("DB_LOTEAMENTOS")), cond ? venda.ENDERECO : setor, "SETOR");
   var lc = ctrAcharLinha_(ctrLinhasBase_(prop_("DB_CORRETORES")), venda.CORRETOR);
   var duplicados = [];
   if (lv && lv.duplicado) duplicados.push("Vendedor: cadastro duplicado em VENDEDORES – CONTRATO");
@@ -257,7 +291,8 @@ function ctrFontes_(col, pageId) {
   if (duplicados.length) return { duplicados: duplicados };
   function t(l, nome) { return ctrTxt_(ctrCampo_(l.c, nome)); }
   var vendedor = lv ? {
-    tipo: t(lv, "TIPO"), nome: lv.titulo, cpfCnpj: t(lv, "CPF/CNPJ"), endereco: t(lv, "ENDEREÇO / SEDE"),
+    /* produção: o vendedor é a linha da PROPRIETARIOS_PAI (sem coluna TIPO): 14 dígitos = PJ, 11 = PF */
+    tipo: t(lv, "TIPO") || ({ 14: "PJ", 11: "PF" })[t(lv, "CPF/CNPJ").replace(/\D/g, "").length] || "", nome: lv.titulo, cpfCnpj: t(lv, "CPF/CNPJ"), endereco: t(lv, "ENDEREÇO / SEDE"),
     representanteNome: t(lv, "REPRESENTANTE NOME"), representanteCpf: t(lv, "REPRESENTANTE CPF"),
     representanteRg: t(lv, "REPRESENTANTE RG"), representanteNacionalidade: t(lv, "REPRESENTANTE NACIONALIDADE"),
     representanteEstadoCivil: t(lv, "REPRESENTANTE ESTADO CIVIL"),
@@ -266,7 +301,8 @@ function ctrFontes_(col, pageId) {
     email: t(lv, "E-MAIL"), representanteEmail: t(lv, "REPRESENTANTE E-MAIL") /* só a assinatura usa */
   } : null;
   var loteamento = ll ? {
-    denominacao: t(ll, "DENOMINAÇÃO"), municipioUf: t(ll, "MUNICÍPIO/UF"), matricula: t(ll, "MATRÍCULA DO LOTEAMENTO"),
+    /* município: a coluna do cadastro; sem ela, a CIDADE da obra (DOCUMENTOS) + /GO */
+    denominacao: t(ll, "DENOMINAÇÃO"), municipioUf: t(ll, "MUNICÍPIO/UF") || (obra.cidade ? obra.cidade + "/GO" : ""), matricula: t(ll, "MATRÍCULA DO LOTEAMENTO"),
     cartorio: t(ll, "CARTÓRIO"), prazoPosseDias: t(ll, "PRAZO POSSE (DIAS)"), prazoChavesDias: t(ll, "PRAZO CHAVES (DIAS ÚTEIS)")
   } : null;
   var corretor = lc ? {

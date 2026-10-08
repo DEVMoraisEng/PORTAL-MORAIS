@@ -188,12 +188,12 @@ test("sem DB_VENDAS_COND ou sem a coluna CONDOMÍNIO - VENDA ID: erro claro, nad
 
 test("coluna que a VENDAS não tem vai para colunasIgnoradas e a casa é criada", () => {
   const semAlgumas = Object.assign({}, COLS);
-  delete semAlgumas["COMPRADOR 1 - E-MAIL"]; delete semAlgumas["COMPROVANTE CARTÓRIO"]; delete semAlgumas["CASA"];
+  delete semAlgumas["Email"]; delete semAlgumas["COMPROVANTE CARTÓRIO"]; delete semAlgumas["CASA"];
   const { g, n } = montar({ colunas: semAlgumas });
   const r = gerar(g);
   assert.equal(r.ok, true);
   assert.equal(n.criadas.length, 1);
-  for (const c of ["COMPRADOR 1 - E-MAIL", "CASA"]) assert.ok(r.colunasIgnoradas.includes(c), c);
+  for (const c of ["Email", "CASA"]) assert.ok(r.colunasIgnoradas.includes(c), c);
   assert.ok(!r.arquivosCopiados.some((a) => a.arquivo === "cartorio.pdf"), "coluna inexistente não é copiada");
 });
 

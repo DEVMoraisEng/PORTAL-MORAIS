@@ -180,7 +180,7 @@ var ClicksignVenda = (function () {
   }
 
   var ONDE_EMAIL = {
-    comprador1: "coluna COMPRADOR 1 - E-MAIL",
+    comprador1: "coluna Email",
     comprador2: "coluna COMPRADOR 2 - E-MAIL",
     vendedor: "coluna E-MAIL em VENDEDORES – CONTRATO",
     corretor: "coluna E-MAIL em CORRETORES – CONTRATO",
