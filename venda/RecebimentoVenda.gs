@@ -122,7 +122,7 @@ function recebimentoEstado_(col, p) {
 }
 
 /* p = { item: SINAL|ENTRADA|FINANCIAMENTO, data: "aaaa-mm-dd", arquivo?: {nome, mime, base64} }.
-   Comprovante obrigatório na 1ª confirmação; confirmar de novo pode só corrigir a data (ou juntar outro arquivo). */
+   Comprovante opcional (dono, 08/10); confirmar de novo corrige a data ou junta outro arquivo. */
 function recebimentoConfirmar_(col, sess, p) {
   var pid = String(p.pageId).slice(0, 8), it = RecebimentoVenda.item(p.item);
   if (!it) return { ok: false, erro: "ITEM_INVALIDO" };
@@ -143,8 +143,7 @@ function recConfirmarTravado_(p, sess, it, pid) {
   var x = recPagina_(p.pageId);
   if (x.erro) return { ok: false, erro: x.erro };
   var c = RecebimentoVenda.colunas(it.id);
-  var jaTem = (ctrValor_(x.pg.properties[x.real[c.comprovante]]) || []).length;
-  if (!p.arquivo && !jaTem) return { ok: false, erro: "COMPROVANTE_OBRIGATORIO" };
+  /* comprovante é opcional (decisão do dono, 08/10): a confirmação vale só com a data */
   var guardado = false;
   if (p.arquivo) {
     try { anexarArquivo_(p.pageId, x.real[c.comprovante], p.arquivo, false); guardado = true; }

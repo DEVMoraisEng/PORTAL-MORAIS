@@ -119,7 +119,7 @@ function colunas_() {
      muitas colunas pode passar do limite de ~100 KB do CacheService e
      lançar, derrubando toda ação. Falha ao gravar no cache não é grave:
      só custa buscar o schema de novo na próxima chamada. */
-  var cache = CacheService.getScriptCache(), k = "venda_schema_v2", txt = cache.get(k), schema;
+  var cache = CacheService.getScriptCache(), k = "venda_schema_v3", txt = cache.get(k), schema;
   var R = RegrasVenda;
   if (txt) {
     schema = JSON.parse(txt);

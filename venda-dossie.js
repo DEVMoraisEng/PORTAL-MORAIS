@@ -1100,7 +1100,6 @@
       guardarRascunhoR();
       var data = String(uiR.rascunho[id] || "").trim(), f = uiR.arquivos[id] || null;
       if (!data) { uiR.msg = "Informe a data do recebimento do " + it.rotulo + "."; pintarR(); return; }
-      if (!f && !it.comprovantes) { uiR.msg = MSG_REC.COMPROVANTE_OBRIGATORIO; pintarR(); return; }
       if (!window.confirm("Confirmar o recebimento do " + it.rotulo + " em " + dataRec(data) + "?" +
                           (estadoR.emailConfigurado ? " Um e-mail de aviso será enviado." : ""))) return;
       uiR.ocupado = id; uiR.msg = ""; pintarR();

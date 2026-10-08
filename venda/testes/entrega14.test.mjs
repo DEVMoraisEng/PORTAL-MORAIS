@@ -175,9 +175,9 @@ test("confirmar: grava data, comprovante e login; e-mail com assunto padrão, se
   for (const x of ["financeiro@", "Fulano", "2026-10-01", "10.000"]) assert.ok(!logs.includes(x), "log vazou: " + x);
 });
 
-test("confirmar: sem comprovante na 1ª vez é recusado; de novo, só a data, vale; data/itens inválidos", () => {
+test("confirmar: comprovante opcional (só a data vale); data/itens inválidos", () => {
   const c = cenarioRec();
-  assert.deepEqual(chamar(c, { action: "recebimentoConfirmar", item: "ENTRADA", data: "2026-10-01" }), { ok: false, erro: "COMPROVANTE_OBRIGATORIO" });
+  assert.equal(chamar(cenarioRec(), { action: "recebimentoConfirmar", item: "ENTRADA", data: "2026-10-01" }).ok, true, "sem comprovante também confirma");
   assert.deepEqual(chamar(c, { action: "recebimentoConfirmar", item: "PARCELA", data: "2026-10-01", arquivo: PDF }), { ok: false, erro: "ITEM_INVALIDO" });
   assert.deepEqual(chamar(c, { action: "recebimentoConfirmar", item: "ENTRADA", data: "2999-01-01", arquivo: PDF }), { ok: false, erro: "DATA_INVALIDA" });
   assert.deepEqual(chamar(c, { action: "recebimentoConfirmar", item: "ENTRADA", data: "2026-10-01",
