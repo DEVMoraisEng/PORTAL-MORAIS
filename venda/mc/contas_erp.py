@@ -56,7 +56,11 @@ def mudancas(detalhe: dict, pedido: dict) -> dict:
     """Campos do detalhe da conta que mudam (só banco, agência e conta)."""
     nomes = {"banco": "bankCode", "agencia": "agency", "agenciaDigito": "agencyDigit", "conta": "account", "contaDigito": "accountDigit"}
     alvo = {campo: pedido[k] for k, campo in nomes.items() if k in pedido}   # só o que foi pedido (o resto fica como está)
-    return {k: v for k, v in alvo.items() if k in detalhe and str(detalhe.get(k) or "") != str(v or "")}
+    def igual(k, atual, novo):   # "00050022" = "50022" (zeros à esquerda na conta/agência não mudam o número)
+        if k in ("account", "agency") and _dig(atual) and _dig(atual).lstrip("0") == _dig(novo).lstrip("0"):
+            return True
+        return str(atual or "") == str(novo or "")
+    return {k: v for k, v in alvo.items() if k in detalhe and not igual(k, detalhe.get(k), v)}
 
 
 def main(argv=None) -> int:
