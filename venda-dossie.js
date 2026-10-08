@@ -14,7 +14,9 @@
     { id: "C2_COMPROVANTE", rotulo: "Comprador 2 — comprovante de endereço", comprador: 2 },
     { id: "APROVACAO",      rotulo: "Aprovação da Caixa", comprador: 0 }
   ];
-  var TIPOS_CASA = ["CASA DE RUA", "CASA DE CONDOMÍNIO"];
+  /* entrega 13: casa de rua escolhe pronta × em construção (CASA DE CONDOMÍNIO só nas páginas do condomínio;
+     CASA DE RUA é o valor antigo — ainda libera os documentos, mas nenhum botão fica marcado) */
+  var TIPOS_CASA = ["CASA PRONTA", "CASA EM CONSTRUÇÃO"];
   var MSG = {
     NAO_AUTORIZADO: "Sua sessão expirou — entre de novo no portal.",
     SEM_PERMISSAO: "Seu login não tem acesso a Vendas.",
@@ -82,7 +84,8 @@
     h += '<div class="dz-linha"><span class="dz-rot">Tipo de casa</span>' + TIPOS_CASA.map(function (t) {
       return '<button type="button" data-acao="tipo" data-valor="' + esc(t) + '" class="bt ghost bt-mini' +
         (e.tipoCasa === t ? " on" : "") + '"' + dis(ocupado || testes) + ">" + esc(t) + "</button>";
-    }).join(" ") + "</div>";
+    }).join(" ") + (e.tipoCasaPelaObra ? " <small>(pela obra — pode trocar)</small>"
+      : e.tipoCasa && TIPOS_CASA.indexOf(e.tipoCasa) < 0 ? " <small>(hoje: " + esc(e.tipoCasa) + " — escolha pronta ou em construção)</small>" : "") + "</div>";
     if (travado) h += '<div class="dz-aviso">Escolha o tipo de casa para liberar os documentos.</div>';
     h += '<div class="dz-linha"><span class="dz-rot">Compradores</span>' + ["1", "2"].map(function (n) {
       return '<button type="button" data-acao="dois" data-valor="' + n + '" class="bt ghost bt-mini' +

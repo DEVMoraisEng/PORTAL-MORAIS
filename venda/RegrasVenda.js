@@ -181,7 +181,14 @@ var RegrasVenda = (function () {
   }
 
   var ESTADOS = { FALTA: "FALTA DOCUMENTO", LIDO: "LIDO PELA IA – CONFERIR", CONFERIDO: "CONFERIDO", DEVOLVIDO: "DEVOLVIDO" };
-  var TIPOS_CASA = ["CASA DE RUA", "CASA DE CONDOMÍNIO"];
+  /* entrega 13 (pedido do dono): na casa de rua a escolha é CASA PRONTA × CASA EM CONSTRUÇÃO (o contrato escolhe
+     o modelo por ela). "CASA DE CONDOMÍNIO" segue só nas páginas virtuais do condomínio e "CASA DE RUA" é o valor
+     antigo — os dois continuam aceitos e, para o dossiê do comprador, valem igual (qualquer tipo libera). */
+  var TIPOS_CASA_TELA = ["CASA PRONTA", "CASA EM CONSTRUÇÃO"];
+  var TIPOS_CASA = TIPOS_CASA_TELA.concat(["CASA DE RUA", "CASA DE CONDOMÍNIO"]);
+  /* sem tipo ou com o antigo CASA DE RUA, a tela usa o tipo da obra (DOCUMENTOS "OBRA FINALIZADA?") */
+  function tipoCasaPrecisaDaObra(atual) { var k = chave(atual); return !k || k === "CASA DE RUA"; }
+  function tipoPelaObra(obraFinalizada) { return chave(obraFinalizada) === "SIM" ? "CASA PRONTA" : "CASA EM CONSTRUÇÃO"; }
 
   var ACEITOS = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
   var POR_EXTENSAO = { pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp" };
@@ -495,6 +502,7 @@ var RegrasVenda = (function () {
 
   return {
     COL: COL, TIPOS: TIPOS, ESPACOS: ESPACOS, ESTADOS: ESTADOS, TIPOS_CASA: TIPOS_CASA,
+    TIPOS_CASA_TELA: TIPOS_CASA_TELA, tipoCasaPrecisaDaObra: tipoCasaPrecisaDaObra, tipoPelaObra: tipoPelaObra,
     COL_IMOVEL: COL_IMOVEL, TIPOS_IMOVEL: TIPOS_IMOVEL, ESPACOS_IMOVEL: ESPACOS_IMOVEL, espaco: espaco,
     COL_IMOVEL_OPC: COL_IMOVEL_OPC, TIPOS_IMOVEL_OPC: TIPOS_IMOVEL_OPC, ORDEM_LEITURA: ORDEM_LEITURA,
     ordenarEspacos: ordenarEspacos, marcarPendente: marcarPendente, pendentesValidos: pendentesValidos,

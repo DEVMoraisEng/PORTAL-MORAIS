@@ -356,3 +356,53 @@ test("soltar: TESTES não grava; certidão mãe sem a coluna não é guardada", 
   assert.equal(r.motivo, "SEM_COLUNA");
   assert.equal(Object.keys(n.uploads).length, 0);
 });
+
+/* ---------------- tipo de casa: pronta × em construção (pela obra) ---------------- */
+
+const OBRA_ID = "fedcba9876543210fedcba9876543210";
+function montarObra({ finalizada, tipo, props: extraProps = {} }) {
+  const colunas = Object.assign({}, COLUNAS, { "OBRA-AUTO": "relation",
+    "TIPO DE CASA": { tipo: "select", opcoes: ["CASA PRONTA", "CASA EM CONSTRUÇÃO", "CASA DE RUA", "CASA DE CONDOMÍNIO"] } });
+  const valores = Object.assign({}, CASA, { "OBRA-AUTO": { relation: [{ id: OBRA_ID }] },
+    "TIPO DE CASA": { select: tipo ? { name: tipo } : null } });
+  const n = notionFalso({ valores, colunas, paginasExtras: { [OBRA_ID]: { "OBRA FINALIZADA?": { select: { name: finalizada } } } },
+                          paginasDb: { [OBRA_ID]: "db-doc" } });
+  const g = criarGas({ props: Object.assign({}, PROPS, { DB_DOCUMENTOS: "db-doc" }, extraProps), rotas: n.rota });
+  return { n, g };
+}
+
+test("tipo de casa: sem tipo ou com o antigo CASA DE RUA, grava o da obra; a pessoa pode trocar", () => {
+  assert.deepEqual(R.TIPOS_CASA_TELA, ["CASA PRONTA", "CASA EM CONSTRUÇÃO"]);
+  assert.equal(R.tipoPelaObra("SIM"), "CASA PRONTA");
+  assert.equal(R.tipoPelaObra("NÃO"), "CASA EM CONSTRUÇÃO");
+  assert.equal(R.tipoPelaObra(""), "CASA EM CONSTRUÇÃO");
+  const a = montarObra({ finalizada: "SIM", tipo: "CASA DE RUA" });
+  const e = a.g.chamar({ action: "estado", token: tokenDe(), pageId: PAGE });
+  assert.equal(e.tipoCasa, "CASA PRONTA");
+  assert.equal(e.tipoCasaPelaObra, true);
+  assert.equal(a.n.pagina.properties["TIPO DE CASA"].select.name, "CASA PRONTA");
+  assert.equal(a.g.chamar({ action: "tipoCasa", token: tokenDe(), pageId: PAGE, valor: "CASA EM CONSTRUÇÃO" }).ok, true);
+  const depois = a.g.chamar({ action: "estado", token: tokenDe(), pageId: PAGE });
+  assert.deepEqual([depois.tipoCasa, depois.tipoCasaPelaObra], ["CASA EM CONSTRUÇÃO", false], "a escolha da pessoa fica");
+  const b = montarObra({ finalizada: "NÃO", tipo: "" });
+  assert.equal(b.g.chamar({ action: "estado", token: tokenDe(), pageId: PAGE }).tipoCasa, "CASA EM CONSTRUÇÃO");
+  const t = montarObra({ finalizada: "SIM", tipo: "" });
+  assert.equal(t.g.chamar({ action: "estado", token: tokenDe("TESTES", []), pageId: PAGE }).tipoCasa, "", "TESTES não grava");
+  assert.equal(t.n.patches.length, 0);
+  const c = montarObra({ finalizada: "SIM", tipo: "CASA EM CONSTRUÇÃO" });
+  assert.equal(c.g.chamar({ action: "estado", token: tokenDe(), pageId: PAGE }).tipoCasa, "CASA EM CONSTRUÇÃO");
+  assert.equal(c.n.patches.length, 0, "tipo novo já escolhido não é trocado");
+});
+
+test("tela do tipo de casa: só PRONTA e EM CONSTRUÇÃO; avisa quando veio da obra e quando é o valor antigo", () => {
+  const D = require("../../venda-dossie.js");
+  const e = { tipoCasa: "CASA PRONTA", tipoCasaPelaObra: true, arquivos: {}, pendentes: [] };
+  const h = D.html(e, { dois: false, ocupado: null, msg: "" });
+  assert.match(h, /data-valor="CASA PRONTA"[^>]*class="[^"]*on/);
+  assert.match(h, /data-valor="CASA EM CONSTRUÇÃO"/);
+  assert.doesNotMatch(h, /data-valor="CASA DE (RUA|CONDOMÍNIO)"/);
+  assert.match(h, /pela obra — pode trocar/);
+  const velho = D.html(Object.assign({}, e, { tipoCasa: "CASA DE RUA", tipoCasaPelaObra: false }), { dois: false, ocupado: null, msg: "" });
+  assert.match(velho, /hoje: CASA DE RUA — escolha pronta ou em construção/);
+  assert.doesNotMatch(velho, /Escolha o tipo de casa para liberar/, "o valor antigo ainda libera os documentos");
+});

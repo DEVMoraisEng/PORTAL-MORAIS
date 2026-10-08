@@ -41,7 +41,7 @@ function tratar_(p) {
     if (p.action !== "ping" && !REGEX_PAGE_ID.test(String(p.pageId || ""))) return { ok: false, erro: "PAGINA_INVALIDA" };
     var col = colunas_();
     switch (p.action) {
-      case "estado":       return estado_(col, p);
+      case "estado":       return estado_(col, p, sess);
       case "tipoCasa":     return tipoCasa_(col, p);
       case "lerDocumento": return lerDocumento_(col, sess, p);
       case "anexarDocumento": return anexarDocumento_(col, p);
@@ -174,6 +174,7 @@ function lerPagina_(col, pageId, ctx) {
     for (var n in pg.properties) {
       var pr = pg.properties[n] || {};
       if (pr.type === "title") ctx.endereco = String(valorProp_(pr) || "");
+      else if (RegrasVenda.chave(n) === "OBRA-AUTO" && pr.type === "relation") ctx.obraRel = (pr.relation || []).map(function (x) { return x.id; });
       else if (RegrasVenda.chave(n) === "CASA") {
         var v = pr.type === "formula" ? (pr.formula || {})[(pr.formula || {}).type] : valorProp_(pr);
         ctx.casa = v === null || v === undefined || typeof v === "object" ? "" : String(v);
@@ -205,12 +206,37 @@ function gravar_(col, pageId, porCanonico) {
 function hoje_(fmt) { return Utilities.formatDate(new Date(), "America/Sao_Paulo", fmt); }
 
 /* ---- ações ---- */
-function estado_(col, p) {
-  var a = lerPagina_(col, p.pageId), C = RegrasVenda.COL;
+/* entrega 13: tipo da casa pela obra (DOCUMENTOS "OBRA FINALIZADA?" = SIM → CASA PRONTA; senão CASA EM CONSTRUÇÃO).
+   Usa a busca da obra do contrato (ctrObraProps_, GerarContrato.gs: relação OBRA-AUTO ou ENDEREÇO). "" = obra não achada.
+   Guarda 10 min no cache (estado é chamado a cada abertura da casa). */
+function tipoCasaPelaObra_(pageId, ctx) {
+  if (typeof ctrObraProps_ !== "function" || typeof ctrPorChave_ !== "function") return "";
+  if (!prop_("DB_DOCUMENTOS") && !(ctx.obraRel && ctx.obraRel.length)) return "";
+  var cache = CacheService.getScriptCache(), k = "venda_tipo_obra_" + String(pageId).replace(/-/g, "");
+  var c = cache.get(k);
+  if (c !== null && c !== undefined) return c;
+  var tipo = "";
+  try {
+    var props = ctrObraProps_(ctx.obraRel || [], ctx.endereco || "", null);
+    if (props && props.ambigua !== true) tipo = RegrasVenda.tipoPelaObra(ctrCampo_(ctrPorChave_(props), "OBRA FINALIZADA?"));
+  } catch (e) { console.error("PORTAL-VENDA tipo pela obra falhou: " + String(e.message || e).slice(0, 120)); }
+  try { cache.put(k, tipo, 600); } catch (e2) {}
+  return tipo;
+}
+function estado_(col, p, sess) {
+  var ctx = {}, a = lerPagina_(col, p.pageId, ctx), C = RegrasVenda.COL, tipoAuto = false;
+  /* sem tipo, ou com o antigo CASA DE RUA: grava o tipo da obra (quem não é TESTES); a pessoa pode trocar */
+  if (RegrasVenda.tipoCasaPrecisaDaObra(a[C.TIPO_CASA])) {
+    var sugerido = tipoCasaPelaObra_(p.pageId, ctx);
+    if (sugerido && String((sess && sess.t) || "").toUpperCase() !== "TESTES") {
+      try { var g = {}; g[C.TIPO_CASA] = sugerido; gravar_(col, p.pageId, g); a[C.TIPO_CASA] = sugerido; tipoAuto = true; }
+      catch (e) { console.error("PORTAL-VENDA tipo pela obra não gravou: " + String(e.message || e).slice(0, 120)); }
+    }
+  }
   var imovel = estadoImovel_(col, a);
   var arqs = RegrasVenda.contarArquivos(a);
   if (!imovel.erro) for (var k in imovel.arquivos) arqs[k] = imovel.arquivos[k];
-  return { ok: true, tipoCasa: a[C.TIPO_CASA] || "", arquivos: RegrasVenda.contarArquivos(a),
+  return { ok: true, tipoCasa: a[C.TIPO_CASA] || "", tipoCasaPelaObra: tipoAuto, arquivos: RegrasVenda.contarArquivos(a),
            dossie: a[C.DOSSIE] || "", observacao: a[C.OBS] || "", doisCompradores: RegrasVenda.temDoisCompradores(a),
            imovel: imovel,
            /* entrega 13: espaços com arquivo anexado e ainda não lido (os dois grupos), na ordem de leitura */

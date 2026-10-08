@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const D = require("../../venda-dossie.js");
 
-const base = { tipoCasa: "CASA DE RUA", arquivos: { C1_IDENTIDADE: 1, C1_COMPROVANTE: 0, C2_IDENTIDADE: 0, C2_COMPROVANTE: 0, APROVACAO: 0 },
+const base = { tipoCasa: "CASA PRONTA", arquivos: { C1_IDENTIDADE: 1, C1_COMPROVANTE: 0, C2_IDENTIDADE: 0, C2_COMPROVANTE: 0, APROVACAO: 0 },
                dossie: "FALTA DOCUMENTO", observacao: "", doisCompradores: false };
 const ui = (x = {}) => Object.assign({ dois: false, ocupado: null, msg: "" }, x);
 
@@ -18,7 +18,7 @@ test("sem tipo de casa: aviso e botões de envio desabilitados", () => {
 
 test("com tipo de casa: marca a escolha, mostra só comprador 1 e a Caixa", () => {
   const h = D.html(base, ui());
-  assert.match(h, /data-valor="CASA DE RUA"[^>]*class="[^"]*on/);
+  assert.match(h, /data-valor="CASA PRONTA"[^>]*class="[^"]*on/);
   assert.doesNotMatch(h, /data-espaco="C2_IDENTIDADE"/);
   assert.match(h, /data-espaco="APROVACAO"/);
   assert.match(h, /1 arquivo/);
