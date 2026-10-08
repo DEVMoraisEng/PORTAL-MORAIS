@@ -545,15 +545,19 @@ def _garantir_orcamento(page, o):
         modal.locator("select[ng-model='$ctrl.ngModel']").first.select_option(label="Em Andamento")
     except Exception as e:
         print(f"  ! orçamento — status: {str(e)[:80]}", flush=True)
-    # 08/10/26: o clique "de mouse" no Começar ficava esperando 20 s (algo da
-    # janela por cima) e o orçamento nunca era criado. Espera o botão habilitar
-    # (ele fica desabilitado enquanto o MC carrega cliente/status) e clica pelo DOM.
-    bt = modal.locator("button[type=submit]").filter(has_text=re.compile("Come[cç]ar", re.I)).first
+    # 08/10/26: o botão é <button type="submit button" title="Começar"
+    # class="c-upsert-planning-modal__footer--confirm"> (o type NÃO é "submit").
+    # Ele fica desabilitado sem a permissão EDIT_PLANNING do usuário. Espera
+    # habilitar e clica pelo DOM.
+    bt = modal.locator("button.c-upsert-planning-modal__footer--confirm, button[title='Começar']").first
     bt.wait_for(state="attached", timeout=15000)
     for _ in range(30):
         if not bt.is_disabled():
             break
         page.wait_for_timeout(500)
+    if bt.is_disabled():
+        modal.locator("button").filter(has_text="Cancelar").first.evaluate("b => b.click()")
+        raise RuntimeError("botão Começar desabilitado — o usuário do robô precisa da permissão de editar orçamento (EDIT_PLANNING)")
     print(f"  orçamento: '{codigo}' — obra e cliente escolhidos, clicando em Começar", flush=True)
     bt.evaluate("b => b.click()")
     try:
