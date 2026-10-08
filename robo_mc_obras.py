@@ -24,7 +24,7 @@ import sys
 from playwright.sync_api import sync_playwright
 
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from robo_mc_comum import N, foto, abrir, login, ir_menu, clicar_texto, APLICAR, MC_URL
 from fetch_vendas import ler_banco, api
@@ -213,6 +213,7 @@ def fila_de_obras(mapa_contas=None):
             "cidade": txt(pega(pr, "Cidade")).split(",")[0].strip(),
             "setor": txt(pega(pr, "SETOR")),
             "conta": nome_conta_texto(txt(pega(pr, "CONTA"))),
+            "mc_erro": txt(pega(pr, COL_MC_ERRO)) or "",
             "conta_exata": conta_exata,
             "conta_numero": conta_numero,
             "conta_nao_resolvida": nao_resolvida,
@@ -1200,6 +1201,7 @@ def criar_no_mc(page, o):
         print(f"  orçamento: {garantir_orcamento(page, o)}", flush=True)
     except Exception as e:
         orc_ok = False
+        o["_erro_orc"] = str(e)
         print(f"  ! orçamento: {str(e)[:140]}", flush=True)
     if not conta_ok:
         # havia conta pedida (relação CONTA BANCÁRIA ou texto em CONTA) e não
@@ -1292,6 +1294,79 @@ def conta_confere(valor_mc, o):
     return bool(texto) and escolha_por_prefixo([valor_mc], texto) is not None
 
 
+# 08/10/26 — todo problema do robô com uma obra vai para a coluna MC ERRO do
+# Notion, que vira ALERTA na aba Obras do portal (com a explicação). Some
+# sozinho quando a obra passa sem erro.
+COL_MC_ERRO = "MC ERRO"
+
+
+def explicar_erro(motivo, o=None):
+    """Função PURA: texto curto, em português, do problema — o que aparece no
+    alerta do portal. NUNCA leva nome/número de conta (o portal é público)."""
+    o = o or {}
+    m = str(motivo or "").strip()
+    n = N(m)
+    if m == "sem_proprietario":
+        return "Proprietário vazio no Notion — preencha para o robô criar a obra no Mais Controle."
+    if m == "conta_nao_resolvida":
+        return ("Conta bancária ainda não definida (CONTA = CRIAR CONTA/DÚVIDA) — escolha a conta "
+                "para o robô criar a obra.")
+    if m == "conta_nao_escolhida":
+        return ("A conta bancária do Notion não apareceu na lista do Mais Controle — confira se ela existe "
+                "em Financeiro > Contas Bancárias com o mesmo nome. A obra fica sem conta até isso.")
+    if m.startswith("orcamento:"):
+        det = explicar_erro(m[len("orcamento:"):], o)
+        return "Obra está no Mais Controle, mas o orçamento 'sem orça' não foi criado: " + det + \
+               " O robô tenta de novo na próxima rodada."
+    if "NAO APARECEU IGUAL NA LISTA DO MC" in n and "CLIENTE" in n:
+        return (f"Cliente '{o.get('cliente') or ''}' não encontrado no Mais Controle (busquei pelo nome e "
+                "pela razão social). Cadastre o cliente no MC ou corrija o Proprietário no Notion.").replace("'' ", "")
+    if "PAINEL CONTINUOU ABERTO DEPOIS DE SALVAR OBRA" in n:
+        tela = m.split("Erros na tela:", 1)[1].split("| rede:")[0].strip() if "Erros na tela:" in m else ""
+        return "O Mais Controle não aceitou salvar a obra" + (f": {tela}" if tela and tela != "(nenhum)" else ".")
+    if "EDIT_PLANNING" in n or "COMECAR DESABILITADO" in n:
+        return "o usuário do robô está sem permissão para criar orçamento no Mais Controle."
+    if "OBRA NAO APARECEU NA LISTA DO ORCAMENTO" in n:
+        return "a obra não apareceu para escolher na tela de orçamento do Mais Controle."
+    if "CODIGO" in n and ("NAO CONSEGUI" in n or "NAO APARECEU" in n):
+        return "o Mais Controle não aceitou o código 'sem orça'."
+    if "TIMEOUT" in n:
+        return "o Mais Controle demorou a responder (tempo esgotado)."
+    return re.sub(r"\s+", " ", m)[:200] or "erro sem detalhe."
+
+
+def marcar_erro(o, motivo):
+    texto = explicar_erro(motivo, o)
+    agora = datetime.now(timezone(timedelta(hours=-3))).strftime("%d/%m %H:%M")
+    print(f"  ALERTA {o['titulo']}: {texto}", flush=True)
+    if APLICAR:
+        try:
+            api("PATCH", f"/pages/{o['id']}", {"properties": {COL_MC_ERRO: {"rich_text": [
+                {"text": {"content": f"{texto} (robô, {agora})"[:1900]}}]}}})
+            o["mc_erro"] = texto
+        except (Exception, SystemExit) as e:
+            print(f"  ! não gravei o alerta no Notion: {str(e)[:100]}", flush=True)
+
+
+def limpar_erro(o):
+    if o.get("mc_erro") and APLICAR:
+        try:
+            api("PATCH", f"/pages/{o['id']}", {"properties": {COL_MC_ERRO: {"rich_text": []}}})
+            o["mc_erro"] = ""
+            print(f"  {o['titulo']}: alerta do robô resolvido (MC ERRO limpo)", flush=True)
+        except (Exception, SystemExit) as e:
+            print(f"  ! não limpei o alerta no Notion: {str(e)[:100]}", flush=True)
+
+
+def garantir_coluna_erro():
+    esq = api("GET", f"/databases/{ID_OBRAS}").get("properties") or {}
+    if any(N(k) == N(COL_MC_ERRO) for k in esq):
+        return
+    print(f"Coluna {COL_MC_ERRO} não existe — " + ("criando." if APLICAR else "seria criada."), flush=True)
+    if APLICAR:
+        api("PATCH", f"/databases/{ID_OBRAS}", {"properties": {COL_MC_ERRO: {"rich_text": {}}}})
+
+
 def garantir_coluna_data():
     esq = api("GET", f"/databases/{ID_OBRAS}").get("properties") or {}
     if any(N(k) == N(COL_MC_DATA) for k in esq):
@@ -1350,6 +1425,7 @@ def fila_atualizar(no_mc, mapa_contas=None):
             "cidade": txt(pega(pr, "Cidade")).split(",")[0].strip(),
             "setor": txt(pega(pr, "SETOR")),
             "conta": nome_conta_texto(txt(pega(pr, "CONTA"))),
+            "mc_erro": txt(pega(pr, COL_MC_ERRO)) or "",
             "conta_exata": conta_exata,
             "conta_numero": conta_numero,
             "conta_nao_resolvida": nao_resolvida,
@@ -1419,6 +1495,7 @@ def _orcamento_na_conferencia(page, o):
             print(f"  {o['titulo']}: orçamento {r}", flush=True)
         return True
     except Exception as e:
+        o["_erro_orc"] = str(e)
         print(f"  ! {o['titulo']}: orçamento: {str(e)[:120]}", flush=True)
         return False
 
@@ -1578,20 +1655,20 @@ def main():
     # (como antes) deixaria a conta sem ninguém olhar de novo — passa pelo
     # completar_no_mc (abre a edição e tenta escolher) e só é marcada depois,
     # e só se a conta ficou preenchida.
-    ja_sem_conta = [o for o in ja if not tem_conta_pedida(o)]
-    ja_com_conta = [o for o in ja if tem_conta_pedida(o)]
-    for o in ja_sem_conta:
-        print(f"  já existe no MC: {o['titulo']}" + (" -> marcada Criada" if APLICAR else ""), flush=True)
-        if APLICAR:
-            marcar_criada(o["id"])
+    # 08/10/26: TODA obra "Criar" que já existe no MC passa pelo
+    # completar_no_mc (conta, orçamento, demais campos) antes de virar Criada
+    # — antes, a sem conta pedida era marcada direto e ficava sem orçamento.
+    ja_com_conta = list(ja)
     if ja_com_conta:
-        print(f"  {len(ja_com_conta)} já existem no MC e pedem conta bancária — confiro antes de marcar Criada", flush=True)
+        print(f"  {len(ja_com_conta)} já existem no MC — confiro (conta, orçamento) antes de marcar Criada", flush=True)
+    garantir_coluna_data()
+    garantir_coluna_erro()
     faltando = [o for o in fazer if not o["cliente"]]
     for o in faltando:
         print(f"  ! {o['titulo']}: sem Proprietário — pulei", flush=True)
+        marcar_erro(o, "sem_proprietario")
     fazer = [o for o in fazer if o["cliente"]]
 
-    garantir_coluna_data()
     completar = fila_atualizar(no_mc, mapa_contas)[:LIMITE_POR_RODADA]
     # obras do ja_com_conta já vão ser abertas no completar_no_mc abaixo —
     # tirar da lista de "completar" para não abrir a mesma obra duas vezes.
@@ -1611,15 +1688,17 @@ def main():
             for o in ja_com_conta:
                 try:
                     r = completar_no_mc(page, o)
-                    print(f"  {o['titulo']} (já existe, conferindo conta): {r}", flush=True)
+                    print(f"  {o['titulo']} (já existe, conferindo): {r}", flush=True)
                     if r != "conta não escolhida" and APLICAR:
                         marcar_criada(o["id"])
                         if r in ("completada", "nada a completar"):
                             marcar_conferida(o["id"])
                         elif r == "orçamento pendente":
                             marcar_para_rever(o["id"])
+                    _alerta_do_resultado(o, r)
                 except Exception as e:
-                    print(f"  ! {o['titulo']} (já existe, conferindo conta): {str(e)[:160]}", flush=True)
+                    print(f"  ! {o['titulo']} (já existe, conferindo): {str(e)[:160]}", flush=True)
+                    marcar_erro(o, str(e))
                     page.keyboard.press("Escape")
             for o in completar:
                 try:
@@ -1629,8 +1708,10 @@ def main():
                         marcar_conferida(o["id"])
                     elif r == "orçamento pendente" and APLICAR:
                         marcar_para_rever(o["id"])
+                    _alerta_do_resultado(o, r)
                 except Exception as e:
                     print(f"  ! {o['titulo']} (completar): {str(e)[:160]}", flush=True)
+                    marcar_erro(o, str(e))
                     page.keyboard.press("Escape")
             for o in fazer:
                 try:
@@ -1640,7 +1721,7 @@ def main():
                     # conferência ao vivo diz "ja_existe" e ela era marcada
                     # Criada sem ninguém escolher a conta. Agora, se pede
                     # conta, abre a edição e só marca se a conta entrar.
-                    if r == "ja_existe" and tem_conta_pedida(o):
+                    if r == "ja_existe":
                         r2 = completar_no_mc(page, o)
                         print(f"  {o['titulo']} (já existia, conferindo conta): {r2}", flush=True)
                         if r2 == "conta não escolhida":
@@ -1657,14 +1738,35 @@ def main():
                                 marcar_conferida(o["id"])
                         except Exception:
                             pass
+                    _alerta_do_resultado(o, r)
                 except Exception as e:
                     print(f"  ! {o['titulo']}: {str(e)[:160]}", flush=True)
+                    marcar_erro(o, str(e))
                     foto(page, "erro_" + o["titulo"].replace(" ", "_"), sensivel=True)
                     page.keyboard.press("Escape")
         finally:
             b.close()
     print("APLICADO" if APLICAR else "SIMULAÇÃO — nada foi salvo no MC nem no Notion", flush=True)
     return 0
+
+
+def motivo_do_resultado(r, o):
+    """Função PURA: resultado de criar/completar -> motivo do alerta (None = ok)."""
+    if r in ("conta não escolhida", "criada_sem_conta"):
+        return "conta_nao_escolhida"
+    if r == "conta_nao_resolvida":
+        return "conta_nao_resolvida"
+    if r in ("orçamento pendente", "criada_sem_orcamento", "ja_existe_sem_orcamento"):
+        return "orcamento:" + (o.get("_erro_orc") or "")
+    return None
+
+
+def _alerta_do_resultado(o, r):
+    motivo = motivo_do_resultado(r, o)
+    if motivo:
+        marcar_erro(o, motivo)
+    elif r != "simulado":
+        limpar_erro(o)
 
 
 if __name__ == "__main__":

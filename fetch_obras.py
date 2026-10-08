@@ -301,6 +301,8 @@ def main():
             "area_habite": txt(pega(ip, "ÁREA PÓS HABITE-SE")),
             "estudo_layout": txt(pega(ip, "PRECISA DE ESTUDO DE LAYOUT")),
             "mais_controle": txt(pega(ip, "MAIS CONTROLE")),
+            # 08/10/26: problema do robô do Mais Controle com esta obra (explicado) -> Alertas
+            "mc_erro": txt(pega(ip, "MC ERRO")),
             "em_mc": (None if no_mc is None else padronizar_endereco(txt(pega(ip, "Projeto"))) in no_mc),
             # 23/09/26 — CONTA virou seleção com o nome real da conta. O NOME não
             # sai aqui (arquivo público); só a situação, para os Alertas:

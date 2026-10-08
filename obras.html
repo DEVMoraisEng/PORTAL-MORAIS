@@ -609,10 +609,14 @@ const alertasCampos=()=>D.obras.filter(o=>!fim(o.status) && faltasDe(o).length);
 /* 23/09/26 — conta bancária marcada CRIAR CONTA (a conta ainda não existe no
    Mais Controle) ou DÚVIDA (a conversão da fórmula antiga não teve certeza) */
 const alertasConta=()=>D.obras.filter(o=>!fim(o.status) && (o.conta_alerta==="CRIAR CONTA"||o.conta_alerta==="DÚVIDA"));
+/* 08/10/26 — o robô do Mais Controle grava em MC ERRO o que deu errado ao
+   criar/conferir a obra (cliente não cadastrado, conta, orçamento…); some
+   sozinho quando a obra passa sem erro */
+const alertasRobo=()=>D.obras.filter(o=>o.mc_erro && !fim(o.status));
 
 /* ---------- abas ---------- */
 function pintarTabs(){
-  const nAl=alertasMc().length+alertasCampos().length+alertasConta().length;
+  const nAl=alertasRobo().length+alertasMc().length+alertasCampos().length+alertasConta().length;
   document.getElementById("tabs").innerHTML=[["obras","Obras"],["atividades","Atividades"],["alertas","Alertas"],["contas","Contas bancárias"],["investidores","Cadastros investidores"]].map(([k,r])=>
     `<button class="tab ${ABA===k?"on":""}" title="${({obras:"Lista de obras e formulário de obra nova",atividades:"Atividades por pessoa — abre nas suas",alertas:"O que falta preencher ou decidir",contas:"Contas do Mais Controle e quais aparecem para escolha",investidores:"Cadastro de proprietários/investidores (só consulta)"})[k]||""}" onclick="ABA='${k}';FIXAS.clear();pintar()">${r}${k==="alertas"&&nAl?`<span class="nb">${nAl}</span>`:""}</button>`).join("");
 }
@@ -950,9 +954,14 @@ function repintarAtvs(){ if(OBRA) pintarObraPainel(); if(ABA==="atividades") pin
 
 /* ===================== ABA ALERTAS ===================== */
 function pintarAlertas(){
-  const mc=alertasMc(), cp=alertasCampos(), ct=alertasConta();
+  const mc=alertasMc(), cp=alertasCampos(), ct=alertasConta(), rb=alertasRobo();
   const leuMc=D.obras.some(o=>o.em_mc===true||o.em_mc===false);
   document.getElementById("view").innerHTML=`
+    <div class="sec"><span class="cond">Problemas do robô no Mais Controle</span><span class="qtd">${rb.length}</span></div>
+    ${rb.length?rb.map(o=>`<div class="al"><span class="end" onclick="abrirObra('${o.id}')">${esc(o.titulo)}</span>
+        <span class="txt"><span class="falta">${esc(o.mc_erro)}</span></span>
+        <span class="acoes"><button class="bt bt-mini az" onclick="abrirObra('${o.id}')">Abrir obra</button></span></div>`).join("")
+      :`<div class="vazio">Nenhum problema do robô na criação/conferência das obras.</div>`}
     <div class="sec"><span class="cond">Obras que não estão no Mais Controle</span><span class="qtd">${mc.length}</span></div>
     ${!leuMc?`<div class="vazio">Não foi possível ler a lista de obras do Mais Controle neste build.</div>`:
       mc.length?mc.map(o=>`<div class="al"><span class="end" onclick="abrirObra('${o.id}')">${esc(o.titulo)}</span>
@@ -1074,6 +1083,7 @@ function chipsObraHtml(o){
     ${o.controle_prazo?`<span class="chip ${N(o.controle_prazo).indexOf("ATRASO")>=0?"alerta":""}">${esc(o.controle_prazo)}</span>`:""}
     ${normais.length?`<span class="chip ok">${feitas} de ${normais.length} atividades concluídas</span>`:""}
     ${o.em_mc===true?`<span class="chip ok">No Mais Controle</span>`:o.em_mc===false?`<span class="chip alerta">Fora do Mais Controle${o.mais_controle?" · "+esc(o.mais_controle):""}</span>`:""}
+    ${o.mc_erro?`<span class="chip alerta" title="${esc(o.mc_erro)}">Robô MC: ${esc(o.mc_erro.length>90?o.mc_erro.slice(0,90)+"…":o.mc_erro)}</span>`:""}
     ${falt.length?`<span class="chip alerta">Falta: ${esc(falt.join(", "))}</span>`:""}
     ${chipsCasasObra(o)}`;
 }
