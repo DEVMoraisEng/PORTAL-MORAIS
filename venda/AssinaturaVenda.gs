@@ -202,14 +202,16 @@ function assEnviarTravado_(col, p, pid) {
   if (!pdf || pdf.mime !== "application/pdf") { assLog_("enviar " + pid + " contrato gerado ilegivel"); return { ok: false, erro: "CONTRATO_ILEGIVEL" }; }
 
   var lista = ClicksignVenda.signatarios(d, config), envId = "", base = "", papeis = {};
+  /* entrega 14: envelope e documento com o nome padrão "OBRA - COMPRADOR" */
+  var nomeCs = ClicksignVenda.nomePadrao(f.endereco, f.casa, d.comprador1 && d.comprador1.nome);
   try {
-    envId = csPasso_("envelope", "post", "/envelopes", ClicksignVenda.corpoEnvelope(ClicksignVenda.nomeEnvelope(f.endereco)), true).id;
+    envId = csPasso_("envelope", "post", "/envelopes", ClicksignVenda.corpoEnvelope(nomeCs), true).id;
     base = "/envelopes/" + encodeURIComponent(envId);
     /* anota já: qualquer leitura seguinte vê envelope aberto (RASCUNHO conta como aberto) */
     try { assGravarTextos_(p.pageId, assColunasEnvelope_(cols, envId, S.RASCUNHO)); }
     catch (e) { ctrErro_("assinatura enviar " + pid + " rascunho nao anotado", e); throw new Error("RASCUNHO_NAO_GRAVADO"); }
     var docId = csPasso_("documento", "post", base + "/documents",
-                         ClicksignVenda.corpoDocumento(ClicksignVenda.nomeArquivo(gerado.nome), pdf.base64), true).id;
+                         ClicksignVenda.corpoDocumento(ClicksignVenda.nomeArquivo(nomeCs), pdf.base64), true).id;
     var ids = lista.map(function (s) {
       var id = csPasso_("signatarios", "post", base + "/signers", ClicksignVenda.corpoSignatario(s), true).id;
       papeis[id] = s.papel;
@@ -344,13 +346,14 @@ function assinaturaEstado_(col, p) {
                                                  base64: Utilities.base64Encode(r.getBlob().getBytes()) }, true);
     } catch (e) { ctrErro_("assinatura estado " + pid + " anexo falhou", e); return { ok: false, erro: "UPLOAD_FALHOU" }; }
     assLog_("estado " + pid + " envelope " + envId + " assinado anexado");
+    semArquivo = false;
   }
   if (!gravar(sit)) return { ok: false, erro: "GRAVACAO_FALHOU" };
 
   var feitos = ClicksignVenda.assinaram(signers, eventos);
   var lista = assListaSignatarios_(envId, signers, eventos);
   if (ClicksignVenda.FINAIS.indexOf(sit) >= 0) { assApagarProp_(ASS_PAPEIS + envId); assApagarProp_(ASS_REENVIO + envId); }
-  var resp = { ok: true, situacao: sit, envelope: true, signatarios: lista };
+  var resp = { ok: true, situacao: sit, envelope: true, signatarios: lista, temAssinado: !semArquivo };
   /* closed sem o "sign" de alguém: não inventa assinatura; o PDF é o que a Clicksign entregou */
   if (env.status === "closed" && signers.some(function (s) { return !feitos[s.id]; })) {
     assLog_("estado " + pid + " envelope " + envId + " assinaturas incompletas");
@@ -408,6 +411,25 @@ function assReenviarTravado_(p, pid) {
   }
   assProps_().setProperty(ASS_REENVIO + envId, String(agora));
   return { ok: true, situacao: sit, envelope: true, pendentes: pendentes, signatarios: lista };
+}
+
+/* ---- entrega 14: "Ver contrato assinado" ----
+ * O PDF vem pelo próprio PORTAL-VENDA (sessão de quem está logado no portal, com acesso a Vendas), como o
+ * "Visualizar pré-contrato": o servidor baixa o último arquivo de CONTRATO ASSINADO do Notion e devolve em base64.
+ * A tela nunca recebe o link do arquivo (link do S3 do Notion vale por 1 hora para QUALQUER um que o tenha).
+ * Só leitura — nada é gravado. Log só com pageId abreviado e o resultado. */
+var ASS_MAX_BYTES = 15 * 1024 * 1024;
+function verContratoAssinado_(col, p) {
+  var pid = String(p.pageId).slice(0, 8);
+  var pg = ctrLerPaginaVenda_(p.pageId), cols = assColunas_(pg);
+  var lista = ctrValor_(pg.properties[cols.ASSINADO]) || [];
+  if (!lista.length) return { ok: false, erro: "SEM_ASSINADO" };
+  var f = lista[lista.length - 1], b = null;
+  try { b = baixarArquivo_(f); } catch (e) { b = null; }
+  if (!b || b.mime !== "application/pdf") { assLog_("ver assinado " + pid + " ilegivel"); return { ok: false, erro: "ASSINADO_ILEGIVEL" }; }
+  if (b.base64.length * 3 / 4 > ASS_MAX_BYTES) return { ok: false, erro: "ASSINADO_GRANDE" };
+  assLog_("ver assinado " + pid + " ok");
+  return { ok: true, nome: ctrTxt_(f.name) || "contrato-assinado.pdf", base64: b.base64 };
 }
 
 /* Conferência para rodar UMA vez no editor (selecionar conferirAssinatura › Executar › ver o Registro de

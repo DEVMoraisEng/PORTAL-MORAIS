@@ -147,8 +147,9 @@ test("envio feliz: ordem das chamadas, cabeçalhos e corpos; grava envelope e EN
     assert.equal(x.contentType, "application/vnd.api+json");
   }
   const [env, doc, s1, s2, , , q1, a1] = c.c.chamadas.map((x) => x.corpo);
-  assert.equal(env.data.attributes.name, "Contrato - RESIDENCIAL TESTE QD 07 LT 12");
-  assert.match(doc.data.attributes.filename, /^CONTRATO - RESIDENCIAL TESTE QD 07 LT 12 - 01-10-2026 \[#[0-9a-f]{8}\]\.pdf$/);
+  /* entrega 14: padrão "OBRA - COMPRADOR" (obra = endereço + CASA n) no envelope e no documento */
+  assert.equal(env.data.attributes.name, "RESIDENCIAL TESTE QD 07 LT 12 CASA 3 - Fulano de Teste");
+  assert.equal(doc.data.attributes.filename, "RESIDENCIAL TESTE QD 07 LT 12 CASA 3 - Fulano de Teste.pdf");
   assert.equal(doc.data.attributes.content_base64, "data:application/pdf;base64," + Buffer.from(PDF_GERADO).toString("base64"));
   assert.deepEqual(s1.data.attributes, { name: "Fulano de Teste", email: "fulano@teste.example", has_documentation: true,
                                          documentation: "000.000.001-91", refusable: true });
@@ -488,7 +489,7 @@ test("estado em andamento: quem já assinou (evento sign) com a data, nome masca
   assert.equal(c.enviar().ok, true);
   const r = c.estado();
   const pend = { assinou: false, situacao: "pendente", data: "" };
-  assert.deepEqual(r, { ok: true, situacao: "ENVIADO", envelope: true, signatarios: [
+  assert.deepEqual(r, { ok: true, situacao: "ENVIADO", envelope: true, temAssinado: false, signatarios: [
     { papel: "Comprador 1", nome: "Fulano T.", assinou: true, situacao: "assinou", data: "2026-10-07T10:20:30.000-03:00" },
     Object.assign({ papel: "Vendedor (representante)", nome: "Beltrano R." }, pend),
     Object.assign({ papel: "Testemunha 1", nome: "Testemunha S." }, pend), Object.assign({ papel: "Testemunha 2", nome: "Testemunha S." }, pend)] });
@@ -784,4 +785,22 @@ test("testemunhas (entrega 10): as escolhidas são as que vão para a Clicksign;
   const aberto = cenario({ props: { ASSINATURA_TESTEMUNHAS_OPCOES: JSON.stringify(OPS) },
                            venda: { "ASSINATURA - ENVELOPE ID": rt("env-velho"), "ASSINATURA - SITUAÇÃO": rt("ENVIADO") } });
   assert.equal(aberto.g.chamar({ action: "escolherTestemunhas", token: tokenDe(), pageId: PAGE, ids }).erro, "ENVELOPE_ABERTO");
+});
+
+test("entrega 14: temAssinado no estado e Ver contrato assinado pelo portal (base64, sem link; TESTES pode ver)", () => {
+  const c = cenario({ cs: { eventos: TODOS_ASSINARAM,
+                            arquivos: { original: "https://s3.clicksign.falso/original.pdf", signed: "https://s3.clicksign.falso/assinado.pdf" } } });
+  assert.deepEqual(c.acao("verContratoAssinado"), { ok: false, erro: "SEM_ASSINADO" });
+  assert.equal(c.enviar().ok, true);
+  assert.equal(c.estado().temAssinado, false, "enviado: ainda sem PDF assinado");
+  c.c.estado.status = "closed";
+  const r = c.estado();
+  assert.equal(r.situacao, "ASSINADO");
+  assert.equal(r.temAssinado, true);
+  const v = c.acao("verContratoAssinado", tokenDe("TESTES"));
+  assert.equal(v.ok, true, JSON.stringify(v).slice(0, 200));
+  assert.equal(Buffer.from(v.base64, "base64").toString("utf8"), PDF_ASSINADO);
+  assert.match(v.nome, /^CONTRATO ASSINADO - /);
+  assert.ok(!JSON.stringify(v).includes("https://"), "a resposta não leva link");
+  assert.ok(!c.g.logs.join("\n").includes("s3."), "log sem URL");
 });

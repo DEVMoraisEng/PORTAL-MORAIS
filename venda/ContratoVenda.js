@@ -24,6 +24,10 @@ var ContratoVenda = (function () {
     COMISSAO_VENCIMENTO: "CONTRATO - COMISSÃO VENCIMENTO",
     COMISSAO_PAGA_POR: "CONTRATO - COMISSÃO PAGA POR",
     PRAZO_CONCLUSAO: "DATA DA ENTREGA",   // decisão do dono 08/10: a VENDAS já tem a data
+    /* entrega 14: escritas pela leitura dos documentos do imóvel; opcionais (lidas com cv()) e, quando
+       preenchidas, valem antes da DATA HABITE-SE da obra e da DENOMINAÇÃO do cadastro do setor */
+    HABITESE_DATA: "CONTRATO - HABITE-SE DATA",
+    DENOMINACAO_LOTEAMENTO: "CONTRATO - DENOMINAÇÃO DO LOTEAMENTO",
     CONDICOES_ESPECIAIS: "CONTRATO - CONDIÇÕES ESPECIAIS",
     CONTRATO_GERADO: "CONTRATO GERADO"
   };
@@ -44,7 +48,8 @@ var ContratoVenda = (function () {
   TIPOS[COL.INTERMEDIARIA_VENCIMENTO] = "date";
   TIPOS[COL.FORMA_PAGAMENTO] = "select";
   TIPOS[COL.COMISSAO_FORMA] = "select";
-  TIPOS[COL.COMISSAO_VENCIMENTO] = "rich_text";
+  /* COMISSAO_VENCIMENTO saiu dos TIPOS (entrega 14): deixou de ser exigida e é lida com cv() — a coluna
+     pode faltar na base */
   TIPOS[COL.COMISSAO_PAGA_POR] = "select";
   TIPOS[COL.PRAZO_CONCLUSAO] = "date";
   TIPOS[COL.CONDICOES_ESPECIAIS] = "rich_text";
@@ -387,7 +392,7 @@ var ContratoVenda = (function () {
       } : null,
       nomeProprietario: txt(o.proprietario),
       loteamento: f.loteamento ? {
-        denominacao: txt(f.loteamento.denominacao), municipioUf: txt(f.loteamento.municipioUf),
+        denominacao: txt(v.DENOMINACAO_LOTEAMENTO) || txt(f.loteamento.denominacao), municipioUf: txt(f.loteamento.municipioUf),
         matricula: txt(f.loteamento.matricula), cartorio: txt(f.loteamento.cartorio),
         prazoPosseDias: txt(f.loteamento.prazoPosseDias), prazoChavesDias: txt(f.loteamento.prazoChavesDias)
       } : null,
@@ -396,7 +401,7 @@ var ContratoVenda = (function () {
         area: num(v.AREA), confrontacoes: txt(v.CONFRONTACOES),
         matriculaIndividual: txt(v.MATRICULA_INDIVIDUAL), cri: txt(v.CRI),
         alvaraNumero: txt(v.ALVARA_NUMERO), alvaraData: txt(v.ALVARA_DATA),
-        habiteseNumero: txt(v.HABITESE_NUMERO), habiteseData: txt(o.dataHabitese),
+        habiteseNumero: txt(v.HABITESE_NUMERO), habiteseData: txt(v.HABITESE_DATA) || txt(o.dataHabitese),
         prazoConclusao: txt(v.PRAZO_CONCLUSAO), condicoesEspeciais: txt(v.CONDICOES_ESPECIAIS)
       },
       negociacao: {
@@ -425,11 +430,11 @@ var ContratoVenda = (function () {
   function faltasContrato(d) {
     var faltas = [];
     function exige(cond, grupo, item) { if (!cond) faltas.push(grupo + ": " + item); }
+    /* entrega 14 (dono, 08/10): estado civil e profissão do comprador são opcionais — vazios, saem
+       da qualificação sem deixar ", ," (qualificacao só junta as partes preenchidas) */
     function comprador(c, grupo) {
       exige(!vazio(c.nome), grupo, "nome");
       exige(!vazio(c.nacionalidade), grupo, "nacionalidade");
-      exige(!vazio(c.estadoCivil), grupo, "estado civil");
-      exige(!vazio(c.profissao), grupo, "profissão");
       exige(!vazio(c.documento), grupo, "RG");
       exige(!vazio(c.cpf), grupo, "CPF");
       exige(!vazio(c.endereco), grupo, "endereço");
@@ -603,7 +608,8 @@ var ContratoVenda = (function () {
     exige(!vazio(n.formaPagamento), "Negociação", "forma de pagamento");
     exige(c.valor !== null && c.valor > 0, "Negociação", "comissão (valor)");
     exige(!vazio(c.forma), "Negociação", "comissão (forma)");
-    exige(!vazio(c.vencimento), "Negociação", "comissão (vencimento)");
+    /* comissão (vencimento) deixou de ser exigida (dono, 08/10): vazia, a linha "c) Vencimento:" sai do
+       contrato e as letras seguintes sobem (PARAGRAFOS_SE_VAZIO) */
     exige(c.pagaPor === "COMPRADOR" || c.pagaPor === "VENDEDOR", "Negociação", "comissão paga por");
   }
 
@@ -893,27 +899,66 @@ var ContratoVenda = (function () {
     return { ok: !erros.length, valores: valores, erros: erros, total: total };
   }
 
-  /* Conta de recebimento digitada (por venda; não vai para o Notion). { ok, conta: {banco, agencia, conta, pix} } ou { ok:false, erros }. */
+  /* Conta de recebimento digitada (por venda; não vai para o Notion). { ok, conta: {banco, agencia, conta, pix[, operacao]} }
+     ou { ok:false, erros }. Operação (entrega 14) é opcional: vazia, nem entra no JSON (as escolhas antigas não mudam)
+     e o "– Operação:" sai do contrato (TRECHOS_SE_VAZIO). */
   function validarContaDigitada(c) {
     if (!c || typeof c !== "object" || Array.isArray(c)) return { ok: false, erros: ["Conta: formato inválido"] };
     var o = {}, erros = [];
-    [["banco", "Banco", true], ["agencia", "Agência", true], ["conta", "Conta", true], ["pix", "Chave PIX", false]].forEach(function (x) {
+    [["banco", "Banco", true], ["agencia", "Agência", true], ["operacao", "Operação", false], ["conta", "Conta", true], ["pix", "Chave PIX", false]].forEach(function (x) {
       var b = c[x[0]];
       if (b !== null && b !== undefined && typeof b !== "string" && typeof b !== "number") { erros.push("Conta — " + x[1] + ": formato inválido"); return; }
       var v = txt(b).replace(/\{\{|\}\}/g, "").replace(/\s+/g, " ").trim();
       if (x[2] && !v) erros.push("Conta — " + x[1] + ": obrigatório");
       else if (v.length > 120) erros.push("Conta — " + x[1] + ": texto longo demais");
-      o[x[0]] = v;
+      if (x[0] !== "operacao" || v) o[x[0]] = v;
     });
     return erros.length ? { ok: false, erros: erros } : { ok: true, conta: o };
   }
 
+  /* ---- entrega 14: parágrafo que some quando o marcador está vazio ----
+   * PARAGRAFOS_SE_VAZIO[chave] = { so: regex do parágrafo que é SÓ rótulo + marcador, reletrar: [[regex do começo de
+   * um parágrafo seguinte, começo novo]] }. Vazio o marcador, o parágrafo inteiro sai (nada de "c) Vencimento:" em
+   * branco) e as alíneas seguintes da mesma lista sobem uma letra. Parágrafo com mais texto além do rótulo não
+   * casa com `so`: fica, e o marcador sai vazio como sempre. Regex em sintaxe JS (o GerarContrato lê o texto). */
+  var PARAGRAFOS_SE_VAZIO = {
+    COMISSAO_VENCIMENTO: {
+      so: "^\\s*c\\)\\s*Vencimento:?\\s*\\{\\{COMISSAO_VENCIMENTO\\}\\}\\s*[.;]?\\s*$",
+      reletrar: [["^(\\s*)d\\)(\\s*Corretor:)", "$1c)$2"], ["^(\\s*)e\\)(\\s*Responsável pelo pagamento:)", "$1d)$2"]]
+    }
+  };
+  /* Plano sobre os textos dos parágrafos (na ordem do documento): { apagar: [índices], trocar: [{ i, texto }] }.
+     Só mexe quando o marcador está vazio e o parágrafo "só rótulo" existe; as trocas valem só para os
+     parágrafos DEPOIS dele, até 12 parágrafos adiante (a mesma lista de alíneas). */
+  function planoParagrafosVazios(textos, marcadores) {
+    var plano = { apagar: [], trocar: [] };
+    textos = textos || []; marcadores = marcadores || {};
+    Object.keys(PARAGRAFOS_SE_VAZIO).forEach(function (chave) {
+      if (!(chave in marcadores) || txt(marcadores[chave])) return;
+      var regra = PARAGRAFOS_SE_VAZIO[chave], so = new RegExp(regra.so);
+      for (var i = 0; i < textos.length; i++) {
+        if (!so.test(String(textos[i]))) continue;
+        plano.apagar.push(i);
+        (regra.reletrar || []).forEach(function (r) {
+          var re = new RegExp(r[0]);
+          for (var j = i + 1; j < textos.length && j <= i + 12; j++) {
+            if (!re.test(String(textos[j]))) continue;
+            plano.trocar.push({ i: j, de: r[0], para: r[1], texto: String(textos[j]).replace(re, r[1]) });
+            break;
+          }
+        });
+      }
+    });
+    return plano;
+  }
+
   var api = {
+    PARAGRAFOS_SE_VAZIO: PARAGRAFOS_SE_VAZIO, planoParagrafosVazios: planoParagrafosVazios,
     CAMPOS_CADASTRO: CAMPOS_CADASTRO, camposAbertos: camposAbertos, validarCampos: validarCampos,
     validarContaDigitada: validarContaDigitada, cnpjValido: cnpjValido,
     COL: COL, TIPOS: TIPOS, moedaBR: moedaBR, valorPorExtenso: valorPorExtenso,
     dataBR: dataBR, dataPorExtenso: dataPorExtenso, loteQuadra: loteQuadra,
-    escolherModelo: escolherModelo, qualificacao: qualificacao,
+    escolherModelo: escolherModelo, qualificacao: qualificacao, nomeComprador1: nomeComprador1,
     montarDadosContrato: montarDadosContrato, faltasContrato: faltasContrato,
     marcadores: marcadores, blocos: blocos, avisosContrato: avisosContrato,
     formaPagamentoCondominio: formaPagamentoCondominio, qualificacaoFiadores: qualificacaoFiadores,

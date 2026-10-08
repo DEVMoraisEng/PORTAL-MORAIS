@@ -89,7 +89,9 @@ test("comprador 2 incompleto é falta", () => {
   f.venda.COMPRADOR2 = { nome: "BRUNO TESTE", cpf: "", nacionalidade: "", estadoCivil: "", profissao: "", documento: "", endereco: "" };
   const faltas = C.faltasContrato(C.montarDadosContrato(f));
   assert.ok(faltas.includes("Comprador 2: CPF"));
-  assert.ok(faltas.includes("Comprador 2: profissão"));
+  /* entrega 14: estado civil e profissão viraram opcionais */
+  assert.ok(!faltas.includes("Comprador 2: profissão"));
+  assert.ok(!faltas.includes("Comprador 2: estado civil"));
 });
 
 test("vendedor PF, comissão paga pelo vendedor e intermediária", () => {
