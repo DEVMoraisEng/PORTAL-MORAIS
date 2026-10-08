@@ -21,7 +21,7 @@
    Documentos de comprador vão para a OpenAI (decisão do dono em 28/09/2026).
 4. Implantar › Nova implantação › App da Web › Executar como **Eu** › Quem pode
    acessar **Qualquer pessoa** › Implantar › autorizar (Avançado › Acessar).
-5. Teste: abrir `<URL>/exec?action=ping` → `{"ok":true,"versao":"venda-v6","papel":"VENDA"}`.
+5. Teste: abrir `<URL>/exec?action=ping` → `{"ok":true,"versao":"venda-v7","papel":"VENDA"}`.
 6. Mande a URL `/exec` no chat (não é segredo).
 
 Mudou o código? Implantar › Gerenciar implantações › lápis › Nova versão › Implantar.
@@ -669,6 +669,80 @@ Implantar:
 **Ainda não faz:** não grava o loteamento no cadastro do setor (só mostra); não
 confere se a matrícula é da mesma quadra/lote do endereço; certidão com mais de
 4 arquivos no espaço só tem os 4 últimos lidos.
+
+## Entrega 12 — campos abertos na tela do contrato
+
+Quando falta dado do **vendedor**, do **corretor** ou do **loteamento**, o bloco
+Contrato deixa de mostrar só a lista: mostra um formulário com exatamente os
+campos que faltam, por grupo (Vendedor — com o representante quando é PJ —,
+Corretor, Loteamento/Condomínio), e o botão **Salvar dados e gerar
+pré-contrato**. As outras faltas (comprador, imóvel, negociação) continuam em
+lista. A tela só recebe o NOME dos campos — nunca CPF, e-mail ou outro dado
+de ninguém.
+
+O que é digitado vai para a linha do cadastro:
+
+| Grupo | Linha | Se não existe |
+|---|---|---|
+| Vendedor | a de `DB_VENDEDORES` do PROPRIETARIO DOCUMENTO da obra | **não cria** (o cadastro do dono é oficial): fica o erro |
+| Corretor | a de `DB_CORRETORES` com o nome do CORRETOR da venda | cria (título = nome do corretor da venda) |
+| Loteamento | a de `DB_LOTEAMENTOS` do SETOR da casa (condomínio: a do nome do condomínio) | cria na **1ª** base de `DB_LOTEAMENTOS`; o SETOR vai na coluna `SETOR` se a base tiver, senão no título |
+
+- Grava **só** as colunas enviadas (preencher ou trocar), e só colunas que
+  existem na linha/base, nos tipos texto, número, e-mail, seleção ou telefone.
+  Coluna que a base não tem volta como erro, sem gravar nada.
+- Lista branca (`ContratoVenda.CAMPOS_CADASTRO`) = os nomes exatos que o
+  contrato lê. Vendedor: `CPF/CNPJ`, `TIPO`, `ENDEREÇO / SEDE`,
+  `REPRESENTANTE NOME|CPF|RG|NACIONALIDADE|ESTADO CIVIL|E-MAIL`,
+  `NACIONALIDADE`, `ESTADO CIVIL`, `PROFISSÃO`, `RG`, `E-MAIL`. Corretor:
+  `CRECI`, `CPF/CNPJ`, `NACIONALIDADE`, `ENDEREÇO PROFISSIONAL`, `E-MAIL`.
+  Loteamento: `DENOMINAÇÃO`, `MUNICÍPIO/UF`, `MATRÍCULA DO LOTEAMENTO`,
+  `CARTÓRIO`, `PRAZO POSSE (DIAS)`, `PRAZO CHAVES (DIAS ÚTEIS)`. Os dados
+  bancários do vendedor ficam **fora** de propósito: a conta vai pela "Conta
+  de recebimento" (abaixo), por venda.
+- Confere CPF e CNPJ pelo dígito, e-mail, prazos (número inteiro de dias) e
+  PJ/PF; tira `{{ }}`; recusa nome de campo fora da lista.
+- Depois de gravar, gera o pré-contrato como o botão de sempre (o que foi
+  digitado sai grifado em amarelo como todo campo preenchido pelo app). Se
+  ainda faltar algo, o formulário volta só com o que falta.
+- Perfil TESTES não grava.
+
+### Conta de recebimento (por venda)
+
+No bloco Contrato, o campo **Conta de recebimento** lista as contas da CONTAS
+BANCÁRIAS (só o título), já na conta da obra quando a obra tem uma, e tem a
+opção **Digitar outra conta** (Banco, Agência, Conta, Chave PIX opcional).
+
+- A escolha vale **só para esta venda**: Propriedade do script
+  `CONTA_RECEB_<pageId>` = `{"contaId": "…"}` ou
+  `{"banco","agencia","conta","pix"}`. A conta digitada **não** é gravada no
+  Notion (decisão: é coisa daquela venda; cadastro de conta continua no
+  Notion/robô de contas).
+- Ordem: conta escolhida/digitada → conta da obra → conta do cadastro do
+  vendedor. Conta escolhida que sumiu da base vira falta ("escolha de novo"),
+  nunca troca sozinha por outra.
+- O contrato sempre leva banco, agência e conta; o PIX só quando existe.
+- A conta entra no carimbo: trocar a conta depois do pré-contrato deixa o
+  pré-contrato **desatualizado** (gere de novo antes do "Conferi").
+
+### Implantar
+
+1. **Notion TESTE:** a base `CONTAS BANCÁRIAS` do teste já existia (criada
+   pelo robô de contas em 06/10, sem linhas); ganhou a coluna `CHAVE PIX`
+   (texto) e 2 contas inventadas (CONTA TESTE ALFA e BETA). Id:
+   `3f1c5ab532d3812caaedf6c9a383aace`. **Produção:** nenhuma coluna nova
+   (`DB_CONTAS_BANCARIAS` já existe).
+2. **PORTAL-VENDA:** colar de novo `ContratoVenda`, `GerarContrato` e
+   `PortalVenda`; nova versão; ping `venda-v7`. No **PORTAL-VENDA-TESTE**,
+   Propriedade nova `DB_CONTAS_BANCARIAS` = `3f1c5ab532d3812caaedf6c9a383aace`
+   (sem ela a lista fica vazia e só aparece "Digitar outra conta").
+3. **Portal (site):** publicar `venda-dossie.js` e `vendas.html` (o
+   `venda-dossie.js?v=3` força o navegador a pegar o arquivo novo).
+4. **Teste:** numa casa de teste com o corretor sem cadastro → Gerar
+   pré-contrato → o formulário pede CRECI e CPF/CNPJ do corretor → preencher →
+   Salvar dados e gerar pré-contrato → conferir a linha nova em CORRETORES e o
+   pré-contrato. Trocar a Conta de recebimento → aviso de pré-contrato
+   desatualizado → gerar de novo e ver banco/agência/conta no texto.
 
 ## Plano B — Anthropic
 

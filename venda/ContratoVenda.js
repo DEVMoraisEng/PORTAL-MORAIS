@@ -717,7 +717,200 @@ var ContratoVenda = (function () {
     };
   }
 
+  /* ---- entrega 12: campos abertos na tela do contrato ----
+   * Quando falta dado do vendedor, do corretor ou do loteamento, a tela mostra um formulário só com
+   * esses campos; o que é digitado vai para a linha do cadastro. A lista branca de cada grupo são os
+   * nomes EXATOS das colunas que o contrato lê (GerarContrato.ctrFontes_). Os dados bancários do
+   * vendedor ficam de fora de propósito: a conta de depósito é escolhida por venda ("Conta de
+   * recebimento"), não gravada no cadastro do dono.
+   * tipo: texto | cpf | cpfcnpj | email | inteiro | opcao (com opcoes). */
+  var CAMPOS_CADASTRO = {
+    vendedor: [
+      { coluna: "CPF/CNPJ", rotulo: "CPF/CNPJ", tipo: "cpfcnpj" },
+      { coluna: "TIPO", rotulo: "Tipo (PJ ou PF)", tipo: "opcao", opcoes: ["PJ", "PF"] },
+      { coluna: "ENDEREÇO / SEDE", rotulo: "Endereço / sede", tipo: "texto" },
+      { coluna: "REPRESENTANTE NOME", rotulo: "Representante — nome", tipo: "texto" },
+      { coluna: "REPRESENTANTE CPF", rotulo: "Representante — CPF", tipo: "cpf" },
+      { coluna: "REPRESENTANTE RG", rotulo: "Representante — RG", tipo: "texto" },
+      { coluna: "REPRESENTANTE NACIONALIDADE", rotulo: "Representante — nacionalidade", tipo: "texto" },
+      { coluna: "REPRESENTANTE ESTADO CIVIL", rotulo: "Representante — estado civil", tipo: "texto" },
+      { coluna: "REPRESENTANTE E-MAIL", rotulo: "Representante — e-mail", tipo: "email" },
+      { coluna: "NACIONALIDADE", rotulo: "Nacionalidade", tipo: "texto" },
+      { coluna: "ESTADO CIVIL", rotulo: "Estado civil", tipo: "texto" },
+      { coluna: "PROFISSÃO", rotulo: "Profissão", tipo: "texto" },
+      { coluna: "RG", rotulo: "RG", tipo: "texto" },
+      { coluna: "E-MAIL", rotulo: "E-mail", tipo: "email" }
+    ],
+    corretor: [
+      { coluna: "CRECI", rotulo: "CRECI", tipo: "texto" },
+      { coluna: "CPF/CNPJ", rotulo: "CPF/CNPJ", tipo: "cpfcnpj" },
+      { coluna: "NACIONALIDADE", rotulo: "Nacionalidade", tipo: "texto" },
+      { coluna: "ENDEREÇO PROFISSIONAL", rotulo: "Endereço profissional", tipo: "texto" },
+      { coluna: "E-MAIL", rotulo: "E-mail", tipo: "email" }
+    ],
+    loteamento: [
+      { coluna: "DENOMINAÇÃO", rotulo: "Denominação", tipo: "texto" },
+      { coluna: "MUNICÍPIO/UF", rotulo: "Município/UF", tipo: "texto" },
+      { coluna: "MATRÍCULA DO LOTEAMENTO", rotulo: "Matrícula", tipo: "texto" },
+      { coluna: "CARTÓRIO", rotulo: "Cartório", tipo: "texto" },
+      { coluna: "PRAZO POSSE (DIAS)", rotulo: "Prazo de posse (dias)", tipo: "inteiro" },
+      { coluna: "PRAZO CHAVES (DIAS ÚTEIS)", rotulo: "Prazo de entrega das chaves (dias úteis)", tipo: "inteiro" }
+    ]
+  };
+  var GRUPOS_CADASTRO = ["vendedor", "corretor", "loteamento"];
+  function campoDe(grupo, coluna) {
+    var lista = CAMPOS_CADASTRO[grupo] || [];
+    for (var i = 0; i < lista.length; i++) if (lista[i].coluna === coluna) return lista[i];
+    return null;
+  }
+  /* falta (texto do faltasContrato, sem o grupo) -> colunas do formulário */
+  var FALTA_VENDEDOR = {
+    "CPF/CNPJ": ["CPF/CNPJ"], "tipo (PJ ou PF)": ["TIPO"], "endereço / sede": ["ENDEREÇO / SEDE"], "endereço": ["ENDEREÇO / SEDE"],
+    "representante (nome)": ["REPRESENTANTE NOME"], "representante (CPF)": ["REPRESENTANTE CPF"],
+    "representante (RG)": ["REPRESENTANTE RG"], "representante (nacionalidade)": ["REPRESENTANTE NACIONALIDADE"],
+    "representante (estado civil)": ["REPRESENTANTE ESTADO CIVIL"],
+    "nacionalidade": ["NACIONALIDADE"], "estado civil": ["ESTADO CIVIL"], "profissão": ["PROFISSÃO"], "RG": ["RG"]
+  };
+  var FALTA_CONTA = { "banco": 1, "agência": 1, "conta": 1 };
+  var FALTA_CORRETOR = { "CRECI": ["CRECI"], "CPF/CNPJ": ["CPF/CNPJ"], "cadastro em CORRETORES – CONTRATO": ["CRECI", "CPF/CNPJ"] };
+  var FALTA_LOTEAMENTO = {
+    "denominação": ["DENOMINAÇÃO"], "município/UF": ["MUNICÍPIO/UF"], "matrícula do loteamento": ["MATRÍCULA DO LOTEAMENTO"],
+    "matrícula do empreendimento": ["MATRÍCULA DO LOTEAMENTO"], "cartório": ["CARTÓRIO"],
+    "prazo de posse (dias)": ["PRAZO POSSE (DIAS)"], "prazo de entrega das chaves (dias)": ["PRAZO CHAVES (DIAS ÚTEIS)"]
+  };
+
+  /* Formulário da tela a partir das faltas: { grupos: [{grupo, titulo, criar, campos:[{coluna, rotulo, tipo, opcoes?}]}],
+   * conta: true quando falta banco/agência/conta (resolve na "Conta de recebimento"), outras: faltas que o formulário
+   * não cobre (continuam em lista). opts: { modelo, chaveLoteamento (SETOR ou nome do condomínio) }.
+   * Só nomes de campo — nenhum valor de ninguém. */
+  function camposAbertos(faltas, opts) {
+    opts = opts || {};
+    var por = { vendedor: [], corretor: [], loteamento: [] }, criar = { corretor: false, loteamento: false };
+    var outras = [], conta = false, tituloLot = "Loteamento";
+    function poe(grupo, colunas) {
+      colunas.forEach(function (c) { if (por[grupo].indexOf(c) < 0) por[grupo].push(c); });
+    }
+    (faltas || []).forEach(function (f) {
+      var s = txt(f), i = s.indexOf(": "), g = i > 0 ? s.slice(0, i) : "", item = i > 0 ? s.slice(i + 2) : s;
+      if (g === "Vendedor" && FALTA_VENDEDOR[item]) return poe("vendedor", FALTA_VENDEDOR[item]);
+      if (g === "Vendedor" && FALTA_CONTA[item]) { conta = true; return; }
+      if (g === "Conta de recebimento") { conta = true; outras.push(s); return; }
+      if (g === "Corretor" && FALTA_CORRETOR[item]) {
+        if (/^cadastro/.test(item)) criar.corretor = true;
+        return poe("corretor", FALTA_CORRETOR[item]);
+      }
+      if (g === "Loteamento" || g === "Condomínio") {
+        if (/^cadastro em LOTEAMENTOS/.test(item)) {
+          if (!txt(opts.chaveLoteamento)) { outras.push(s); return; }   // sem SETOR (ou nome) não há linha para criar
+          criar.loteamento = true;
+          if (g === "Condomínio") tituloLot = "Condomínio";
+          poe("loteamento", ["DENOMINAÇÃO", "MUNICÍPIO/UF", "MATRÍCULA DO LOTEAMENTO", "CARTÓRIO"]);
+          if (opts.modelo === "PRONTO") poe("loteamento", ["PRAZO POSSE (DIAS)", "PRAZO CHAVES (DIAS ÚTEIS)"]);
+          return;
+        }
+        if (FALTA_LOTEAMENTO[item]) {
+          if (g === "Condomínio") tituloLot = "Condomínio";
+          return poe("loteamento", FALTA_LOTEAMENTO[item]);
+        }
+      }
+      outras.push(s);
+    });
+    var TITULOS = { vendedor: "Vendedor", corretor: "Corretor", loteamento: tituloLot };
+    var grupos = [];
+    GRUPOS_CADASTRO.forEach(function (g) {
+      if (!por[g].length) return;
+      grupos.push({ grupo: g, titulo: TITULOS[g], criar: !!criar[g], campos: por[g].map(function (c) {
+        var d = campoDe(g, c), o = { coluna: d.coluna, rotulo: d.rotulo, tipo: d.tipo };
+        if (d.opcoes) o.opcoes = d.opcoes.slice();
+        return o;
+      }) });
+    });
+    return { grupos: grupos, conta: conta, outras: outras };
+  }
+
+  function cnpjValido(v) {
+    var d = txt(v).replace(/\D/g, "");
+    if (d.length !== 14 || /^(\d)\1{13}$/.test(d)) return false;
+    function dv(n) {
+      var pesos = n === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2], s = 0;
+      for (var i = 0; i < n; i++) s += Number(d[i]) * pesos[i];
+      var r = s % 11;
+      return r < 2 ? 0 : 11 - r;
+    }
+    return dv(12) === Number(d[12]) && dv(13) === Number(d[13]);
+  }
+  function formatarCnpj(v) {
+    var d = txt(v).replace(/\D/g, "");
+    return d.slice(0, 2) + "." + d.slice(2, 5) + "." + d.slice(5, 8) + "/" + d.slice(8, 12) + "-" + d.slice(12);
+  }
+  function emailValido(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(txt(v)); }
+  var NOMES_GRUPO = { vendedor: "Vendedor", corretor: "Corretor", loteamento: "Loteamento" };
+
+  /* Confere o que veio da tela: { ok, valores: {grupo: {coluna: valor normalizado}}, erros: ["Grupo — rótulo: motivo"] }.
+   * Coluna fora da lista branca, grupo desconhecido ou valor não texto = erro. Valor vazio é ignorado (não apaga nada).
+   * Os erros têm só o nome do campo, nunca o valor digitado. */
+  function validarCampos(campos) {
+    var valores = {}, erros = [], total = 0;
+    if (!campos || typeof campos !== "object" || Array.isArray(campos)) return { ok: false, valores: {}, erros: ["Nenhum campo enviado"], total: 0 };
+    Object.keys(campos).forEach(function (g) {
+      var grupo = campos[g];
+      if (GRUPOS_CADASTRO.indexOf(g) < 0) { erros.push("Grupo desconhecido: " + String(g).slice(0, 40)); return; }
+      if (!grupo || typeof grupo !== "object" || Array.isArray(grupo)) { erros.push(NOMES_GRUPO[g] + ": formato inválido"); return; }
+      Object.keys(grupo).forEach(function (coluna) {
+        var def = campoDe(g, coluna), nome = NOMES_GRUPO[g] + " — " + (def ? def.rotulo : String(coluna).slice(0, 40));
+        if (!def) { erros.push(nome + ": campo não permitido"); return; }
+        var bruto = grupo[coluna];
+        if (bruto !== null && bruto !== undefined && typeof bruto !== "string" && typeof bruto !== "number") { erros.push(nome + ": formato inválido"); return; }
+        var v = txt(bruto).replace(/\{\{|\}\}/g, "").replace(/\s+/g, " ").trim();
+        if (!v) return;
+        if (v.length > 300) { erros.push(nome + ": texto longo demais"); return; }
+        var d = v.replace(/\D/g, "");
+        if (def.tipo === "cpf") {
+          if (!R().cpfValido(v)) { erros.push(nome + ": CPF inválido"); return; }
+          v = R().formatarCpf(v);
+        } else if (def.tipo === "cpfcnpj") {
+          if (d.length === 11) { if (!R().cpfValido(v)) { erros.push(nome + ": CPF inválido"); return; } v = R().formatarCpf(v); }
+          else if (d.length === 14) { if (!cnpjValido(v)) { erros.push(nome + ": CNPJ inválido"); return; } v = formatarCnpj(v); }
+          else { erros.push(nome + ": CPF (11 dígitos) ou CNPJ (14 dígitos)"); return; }
+        } else if (def.tipo === "email") {
+          if (!emailValido(v)) { erros.push(nome + ": e-mail inválido"); return; }
+          v = v.toLowerCase();
+        } else if (def.tipo === "inteiro") {
+          if (!/^\d{1,4}$/.test(v) || Number(v) < 1) { erros.push(nome + ": número de dias inválido"); return; }
+          v = Number(v);
+        } else if (def.tipo === "opcao") {
+          var op = null;
+          def.opcoes.forEach(function (o) { if (o.toUpperCase() === v.toUpperCase()) op = o; });
+          if (!op) { erros.push(nome + ": escolha " + def.opcoes.join(" ou ")); return; }
+          v = op;
+        }
+        if (!valores[g]) valores[g] = {};
+        valores[g][coluna] = v;
+        total++;
+      });
+    });
+    if (!erros.length && !total) erros.push("Nenhum campo preenchido");
+    return { ok: !erros.length, valores: valores, erros: erros, total: total };
+  }
+
+  /* Conta de recebimento digitada (por venda; não vai para o Notion). { ok, conta: {banco, agencia, conta, pix} } ou { ok:false, erros }. */
+  function validarContaDigitada(c) {
+    if (!c || typeof c !== "object" || Array.isArray(c)) return { ok: false, erros: ["Conta: formato inválido"] };
+    var o = {}, erros = [];
+    [["banco", "Banco", true], ["agencia", "Agência", true], ["conta", "Conta", true], ["pix", "Chave PIX", false]].forEach(function (x) {
+      var b = c[x[0]];
+      if (b !== null && b !== undefined && typeof b !== "string" && typeof b !== "number") { erros.push("Conta — " + x[1] + ": formato inválido"); return; }
+      var v = txt(b).replace(/\{\{|\}\}/g, "").replace(/\s+/g, " ").trim();
+      if (x[2] && !v) erros.push("Conta — " + x[1] + ": obrigatório");
+      else if (v.length > 120) erros.push("Conta — " + x[1] + ": texto longo demais");
+      o[x[0]] = v;
+    });
+    return erros.length ? { ok: false, erros: erros } : { ok: true, conta: o };
+  }
+
   var api = {
+    CAMPOS_CADASTRO: CAMPOS_CADASTRO, camposAbertos: camposAbertos, validarCampos: validarCampos,
+    validarContaDigitada: validarContaDigitada, cnpjValido: cnpjValido,
     COL: COL, TIPOS: TIPOS, moedaBR: moedaBR, valorPorExtenso: valorPorExtenso,
     dataBR: dataBR, dataPorExtenso: dataPorExtenso, loteQuadra: loteQuadra,
     escolherModelo: escolherModelo, qualificacao: qualificacao,
