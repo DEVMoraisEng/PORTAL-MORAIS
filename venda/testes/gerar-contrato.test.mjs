@@ -46,6 +46,7 @@ const MODELO_OBRA = [
   "{{#SE_INTERMEDIARIA}}", "Intermediária {{INTERMEDIARIA_VALOR}} em {{INTERMEDIARIA_VENCIMENTO}}", "{{/SE_INTERMEDIARIA}}",
   "{{#SEM_INTERMEDIARIA}}", "Não há intermediária.", "{{/SEM_INTERMEDIARIA}}",
   "Valor: {{VALOR_TOTAL}} ({{VALOR_TOTAL_EXTENSO}})",
+  "Banco: {{BANCO}} – Agência: {{AGENCIA}} – Operação: {{OPERACAO}} – Conta {{CONTA}} – PIX: {{PIX}} - Titularidade da VENDEDORA",
   "{{CIDADE_DATA}}",
   "{{#SE_COMISSAO_VENDEDOR}}", "Comissão paga pelo vendedor {{COMISSAO_RESPONSAVEL}}", "{{/SE_COMISSAO_VENDEDOR}}",
 ];
@@ -670,4 +671,88 @@ test("produção: endereço da casa sem o zero à esquerda acha a obra (\"QD 7\"
   const r = c.gerar();
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.ok(c.pdfTexto().includes("PJ: Construtora Teste Ltda"));
+});
+
+/* 08/10/2026 — "a conta bancária vem sempre da obra": OBRA-AUTO -> (EMP) Projeto 2.0 (outra base) com a
+   relação CONTA -> linha da CONTAS BANCÁRIAS. Dados inventados. */
+const CONTA_ID = "c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0";
+const rtT = (s) => Object.assign({ type: "rich_text" }, rt(s));
+function rotaConta(props) {
+  return (url, opt) => (String(opt.method || "get").toUpperCase() === "GET" && url.endsWith("/pages/" + CONTA_ID)
+    ? { json: { id: CONTA_ID, parent: { database_id: "db-contas" }, properties: props } } : null);
+}
+const CONTA_PG = {
+  Conta: Object.assign({ type: "title" }, tit("CONTA FICTICIA OBRA")), Banco: rtT("756"), "Agência": rtT("9999"),
+  "Número": rtT("77777-7"), "CHAVE PIX": rtT("chave-ficticia@exemplo.test"),
+};
+
+test("conta da obra: banco, agência, número E Pix da CONTAS BANCÁRIAS no contrato (operação some)", () => {
+  const c = cenario({ obraDb: "db-obras", obra: { CONTA: rel(CONTA_ID) }, rotaExtra: rotaConta(CONTA_PG) });
+  const r = c.gerar();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const t = c.pdfTexto();
+  assert.ok(t.includes("Banco: 756 – Agência: 9999 – Conta 77777-7 – PIX: chave-ficticia@exemplo.test - Titularidade da VENDEDORA"), t);
+  assert.ok(!t.includes("Banco Teste") && !t.includes("12345-6") && !t.includes("pix@teste") && !t.includes("Operação"), t);
+  const logs = c.g.logs.join("\n");
+  for (const s of ["77777-7", "9999", "chave-ficticia"]) assert.ok(!logs.includes(s), "log vazou: " + s);
+});
+
+test("conta da obra sem chave Pix: só os dados bancários, sem 'PIX:' em branco", () => {
+  const c = cenario({ obraDb: "db-obras", obra: { CONTA: rel(CONTA_ID) },
+    rotaExtra: rotaConta(Object.assign({}, CONTA_PG, { "CHAVE PIX": rtT("") })) });
+  const r = c.gerar();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const t = c.pdfTexto();
+  assert.ok(t.includes("Banco: 756 – Agência: 9999 – Conta 77777-7 - Titularidade da VENDEDORA"), t);
+  assert.ok(!t.includes("PIX") && !t.includes("pix@teste"), t);
+});
+
+test("conta da obra sem banco nem número: fica a conta do cadastro do vendedor", () => {
+  const vazia = Object.assign({}, CONTA_PG, { Banco: rtT(""), "Número": rtT("") });
+  const c = cenario({ obraDb: "db-obras", obra: { CONTA: rel(CONTA_ID) }, rotaExtra: rotaConta(vazia) });
+  assert.equal(c.gerar().ok, true);
+  assert.ok(c.pdfTexto().includes("Banco: Banco Teste – Agência: 0001 – Operação: 013 – Conta 12345-6 – PIX: pix@teste.example"));
+});
+
+test("obra sem relação CONTA (teste: OBRA-AUTO em DOCUMENTOS, ou outra base sem CONTA): conta do vendedor, como antes", () => {
+  for (const obraDb of ["db-doc", "db-obras"]) {
+    let leuConta = false;
+    const c = cenario({ obraDb, rotaExtra: (url) => { if (url.endsWith("/pages/" + CONTA_ID)) leuConta = true; return null; } });
+    const r = c.gerar();
+    assert.equal(r.ok, true, JSON.stringify(r));
+    assert.ok(c.pdfTexto().includes("Banco: Banco Teste – Agência: 0001 – Operação: 013 – Conta 12345-6 – PIX: pix@teste.example - Titularidade"));
+    assert.equal(leuConta, false);
+  }
+});
+
+test("vendedor sem Pix e sem operação: a linha do banco sai sem os rótulos vazios e o contrato não trava", () => {
+  const c = cenario({ vendedor: { PIX: rt(""), "OPERAÇÃO": rt("") } });
+  const r = c.gerar();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.ok(c.pdfTexto().includes("Banco: Banco Teste – Agência: 0001 – Conta 12345-6 - Titularidade da VENDEDORA"), c.pdfTexto());
+});
+
+test("a página da OBRA-AUTO é lida uma vez só", () => {
+  let leituras = 0;
+  const c = cenario({ obraDb: "db-obras", obra: { CONTA: rel(CONTA_ID) }, rotaExtra: (url, opt) => {
+    if (url.endsWith("/pages/" + OBRA)) leituras++;
+    return rotaConta(CONTA_PG)(url, opt);
+  } });
+  assert.equal(c.acao("gerarPreContrato").ok, true);
+  assert.equal(leituras, 1);
+});
+
+test("conta da obra como SELEÇÃO (produção): acha a linha da CONTAS BANCÁRIAS pelo nome (DB_CONTAS_BANCARIAS)", () => {
+  const linha = { id: CONTA_ID, properties: CONTA_PG };
+  const outra = { id: "d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0", properties: Object.assign({}, CONTA_PG, { Conta: Object.assign({ type: "title" }, tit("OUTRA CONTA")) }) };
+  const c = cenario({ obraDb: "db-obras", obra: { CONTA: { type: "select", select: { name: "conta ficticia obra" } } },
+    props: { DB_CONTAS_BANCARIAS: "db-contas" },
+    rotaExtra: (url, opt) => (url.endsWith("/databases/db-contas/query") ? { json: { results: [outra, linha], has_more: false } } : rotaConta(CONTA_PG)(url, opt)) });
+  const r = c.gerar();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.ok(c.pdfTexto().includes("Banco: 756 – Agência: 9999 – Conta 77777-7 – PIX: chave-ficticia@exemplo.test"), c.pdfTexto());
+  /* sem a Propriedade: fica a conta do vendedor, como antes */
+  const sem = cenario({ obraDb: "db-obras", obra: { CONTA: { type: "select", select: { name: "CONTA FICTICIA OBRA" } } } });
+  assert.equal(sem.gerar().ok, true);
+  assert.ok(!sem.pdfTexto().includes("77777-7"));
 });

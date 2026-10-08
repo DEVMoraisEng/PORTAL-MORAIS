@@ -108,17 +108,68 @@ function ctrAcharLinha_(linhas, nome) {
 /* Endereço comparável: chave do RegrasVenda sem zero à esquerda nos números ("TB 6 QD 40" = "TB 06 QD 40"). */
 function ctrChaveEndereco_(s) { return RegrasVenda.chave(s).replace(/\b0+(\d)/g, "$1"); }
 
+/* Página apontada pela OBRA-AUTO: { pg } (pg = null sem relação ou se a leitura falhou). */
+function ctrLerObraAuto_(rels) {
+  if (!rels || !rels.length) return { pg: null };
+  try { return { pg: notion_("GET", "/pages/" + rels[0], null) }; }
+  catch (e) { ctrErro_("contrato: relacao da obra ilegivel", e); return { pg: null }; }
+}
+
+/* "A conta bancária vem sempre da obra" (regra do dono, 08/10/2026): na produção a OBRA-AUTO aponta para a
+   (EMP) Projeto 2.0, cuja coluna CONTA é uma relação com a CONTAS BANCÁRIAS. Id da 1ª conta relacionada, ou ""
+   (sem coluna CONTA do tipo relação — no teste a OBRA-AUTO aponta para DOCUMENTOS — ou relação vazia). */
+function ctrContaDaObra_(pg) {
+  var props = (pg && pg.properties) || {};
+  for (var n in props) {
+    var p = props[n];
+    if (RegrasVenda.chave(n) !== RegrasVenda.chave("CONTA") || !p) continue;
+    if (p.type === "relation" && p.relation && p.relation.length) return String(p.relation[0].id || "");
+    /* na produção (08/10) a CONTA da (EMP) Projeto 2.0 é SELEÇÃO com o nome da conta: acha a linha da
+       CONTAS BANCÁRIAS (Propriedade DB_CONTAS_BANCARIAS) pelo título ou pela coluna "Nome na obra" */
+    if (p.type === "select" && p.select && p.select.name) return ctrContaPorNome_(p.select.name);
+  }
+  return "";
+}
+function ctrContaPorNome_(nome) {
+  var db = prop_("DB_CONTAS_BANCARIAS"), k = RegrasVenda.chave(nome);
+  if (!db || !k) return "";
+  try {
+    var achadas = [], cursor = null, voltas = 0;
+    do {
+      var corpo = { page_size: 100 };
+      if (cursor) corpo.start_cursor = cursor;
+      var r = notion_("POST", "/databases/" + db + "/query", corpo);
+      (r.results || []).forEach(function (l) {
+        var c = ctrPorChave_(l.properties || {});
+        if (RegrasVenda.chave(ctrTitulo_(l.properties || {})) === k || RegrasVenda.chave(ctrTxt_(ctrCampo_(c, "Nome na obra"))) === k)
+          achadas.push(String(l.id || ""));
+      });
+      cursor = r.has_more ? r.next_cursor : null;
+    } while (cursor && ++voltas < 10);
+    if (achadas.length !== 1) { ctrLog_("contrato: conta da obra pelo nome: " + achadas.length + " linhas"); return ""; }
+    return achadas[0];
+  } catch (e) { ctrErro_("contrato: conta da obra pelo nome", e); return ""; }
+}
+/* Dados de depósito da linha da CONTAS BANCÁRIAS: { banco, agencia, conta, pix } ou null (ilegível).
+   Banco sai como está ("756" ou "756 - Sicoob"; sem tabela de nomes). Log só com id, nunca valor. */
+function ctrDadosDaConta_(contaId) {
+  try {
+    var c = ctrPorChave_(notion_("GET", "/pages/" + contaId, null).properties || {});
+    function t(nome) { return ctrTxt_(ctrCampo_(c, nome)).trim(); }
+    return { banco: t("Banco"), agencia: t("Agência"), conta: t("Número"), pix: t("CHAVE PIX") };
+  } catch (e) { ctrErro_("contrato: conta da obra " + String(contaId).slice(0, 8) + " ilegivel", e); return null; }
+}
+
 /* Propriedades da linha de DOCUMENTOS (a obra) da casa, null (não achou) ou { ambigua: true } (endereço repetido).
    OBRA-AUTO: se aponta para DOCUMENTOS, vale direto; se aponta para outra base (na produção é o (EMP) Projeto 2.0),
-   o título da página relacionada entra como segundo endereço para achar a linha de DOCUMENTOS. */
-function ctrObraProps_(rels, endereco) {
+   o título da página relacionada entra como segundo endereço para achar a linha de DOCUMENTOS.
+   `lida` (opcional) = ctrLerObraAuto_(rels) já feito por quem chama — evita um segundo GET da mesma página. */
+function ctrObraProps_(rels, endereco, lida) {
   var db = prop_("DB_DOCUMENTOS"), dbLimpo = db.replace(/-/g, ""), outroEndereco = "";
-  if (rels && rels.length) {
-    try {
-      var pg = notion_("GET", "/pages/" + rels[0], null);
-      if (String((pg.parent && pg.parent.database_id) || "").replace(/-/g, "") === dbLimpo) return pg.properties || {};
-      outroEndereco = ctrTitulo_(pg.properties || {});
-    } catch (e) { ctrErro_("contrato: relacao da obra ilegivel", e); }
+  var pg = (lida || ctrLerObraAuto_(rels)).pg;
+  if (pg) {
+    if (String((pg.parent && pg.parent.database_id) || "").replace(/-/g, "") === dbLimpo) return pg.properties || {};
+    outroEndereco = ctrTitulo_(pg.properties || {});
   }
   if (!RegrasVenda.chave(endereco) && !RegrasVenda.chave(outroEndereco)) return null;
   var linhas = [];
@@ -270,7 +321,8 @@ function ctrFontes_(col, pageId) {
   }
 
   /* a obra: relação OBRA-AUTO se aponta para DOCUMENTOS; senão, pelo ENDEREÇO (título) */
-  var props = ctrObraProps_(cv("OBRA-AUTO"), venda.ENDERECO);
+  var obraAuto = ctrLerObraAuto_(cv("OBRA-AUTO"));
+  var props = ctrObraProps_(cv("OBRA-AUTO"), venda.ENDERECO, obraAuto);
   if (!props) return { obraNaoEncontrada: true };
   if (props.ambigua === true) return { obraAmbigua: true };
   var op = ctrPorChave_(props);
@@ -300,6 +352,15 @@ function ctrFontes_(col, pageId) {
     banco: t(lv, "BANCO"), agencia: t(lv, "AGÊNCIA"), operacao: t(lv, "OPERAÇÃO"), conta: t(lv, "CONTA"), pix: t(lv, "PIX"),
     email: t(lv, "E-MAIL"), representanteEmail: t(lv, "REPRESENTANTE E-MAIL") /* só a assinatura usa */
   } : null;
+  /* conta de depósito: a da obra (CONTA da (EMP) Projeto 2.0 -> CONTAS BANCÁRIAS) vale antes da linha do vendedor,
+     desde que traga ao menos banco ou número; sem ela, fica a do cadastro do vendedor, como antes */
+  var contaId = vendedor ? ctrContaDaObra_(obraAuto.pg) : "";
+  if (contaId) {
+    var dc = ctrDadosDaConta_(contaId);
+    if (dc && (dc.banco || dc.conta)) {
+      vendedor.banco = dc.banco; vendedor.agencia = dc.agencia; vendedor.operacao = ""; vendedor.conta = dc.conta; vendedor.pix = dc.pix;
+    } else ctrLog_("contrato: conta da obra " + contaId.slice(0, 8) + " sem banco nem numero; ficou a do vendedor");
+  }
   var loteamento = ll ? {
     /* município: a coluna do cadastro; sem ela, a CIDADE da obra (DOCUMENTOS) + /GO */
     /* registro do loteamento: o da CASA (lido da certidão) vale antes do cadastro do setor */
@@ -383,6 +444,17 @@ function aplicarMarcadores_(sec, marcadores, grifar) {
         t.deleteText(ini, fim);
       }
     }
+  }
+}
+/* Marcador vazio com rótulo (ContratoVenda.TRECHOS_SE_VAZIO): sai o rótulo junto com o marcador
+   ("Conta 1234-5 – PIX: {{PIX}} - Titularidade" -> "Conta 1234-5 - Titularidade"), nunca um "PIX:" em branco. */
+function ctrTirarTrechosVazios_(sec, marcadores) {
+  var trechos = ContratoVenda.TRECHOS_SE_VAZIO || {};
+  for (var chave in trechos) {
+    if (!(chave in marcadores) || ctrTxt_(marcadores[chave]).trim()) continue;
+    var padrao = trechos[chave] + "\\{\\{" + chave + "\\}\\}", r, voltas = 0;
+    while ((r = sec.findText(padrao)) && voltas++ < 50)
+      r.getElement().asText().deleteText(r.getStartOffset(), r.getEndOffsetInclusive());
   }
 }
 /* Marcador de várias linhas (ContratoVenda.MARCADORES_PARAGRAFOS) sozinho num parágrafo: vira um
@@ -590,7 +662,10 @@ function ctrGerarPdf_(prep, pid, rot, grifar) {
     var doc = DocumentApp.openById(copia.getId());
     aplicarBlocos_(doc.getBody(), prep.blocos);
     ctrExpandirParagrafos_(doc.getBody(), prep.marcadores, grifar);
-    ctrSecoes_(doc).forEach(function (sec) { aplicarMarcadores_(sec, prep.marcadores, grifar); });
+    ctrSecoes_(doc).forEach(function (sec) {
+      ctrTirarTrechosVazios_(sec, prep.marcadores);
+      aplicarMarcadores_(sec, prep.marcadores, grifar);
+    });
     var sobrando = ctrMarcadoresSobrando_(doc);
     if (sobrando.length) {
       ctrLog_(rot + " " + pid + " marcador sobrando: " + sobrando.join(", "));
