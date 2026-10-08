@@ -56,11 +56,32 @@ function assColunasEnvelope_(cols, envId, sit) {
   return g;
 }
 
-function assConfig_() {
+/* pageId (opcional): traz a escolha de testemunhas gravada para essa venda (TESTEMUNHAS_<pageId>) */
+var ASS_TESTEMUNHAS = "TESTEMUNHAS_";
+function assConfig_(pageId) {
   return ClicksignVenda.montarConfig({
     ASSINATURA_TESTEMUNHAS_SPE: prop_("ASSINATURA_TESTEMUNHAS_SPE"), ASSINATURA_TESTEMUNHAS_PF: prop_("ASSINATURA_TESTEMUNHAS_PF"),
+    ASSINATURA_TESTEMUNHAS_OPCOES: prop_("ASSINATURA_TESTEMUNHAS_OPCOES"),
+    TESTEMUNHAS_ESCOLHIDAS: pageId ? prop_(ASS_TESTEMUNHAS + pageId) : "",
     ASSINATURA_REPRESENTANTE: prop_("ASSINATURA_REPRESENTANTE"), ASSINATURA_INCLUIR_CORRETOR: prop_("ASSINATURA_INCLUIR_CORRETOR")
   });
+}
+
+/* Entrega 10: grava as 2 testemunhas desta venda (ids da lista da tela). ids vazio = volta ao par padrão.
+ * Com a assinatura já enviada (envelope aberto) não muda mais. */
+function escolherTestemunhas_(col, sess, p) {
+  var pg = ctrLerPaginaVenda_(p.pageId), cols = assColunas_(pg);
+  if (prop_(ASS_PENDENTE + p.pageId) || !ClicksignVenda.podeEnviar(assTexto_(pg, cols.ENVELOPE), assTexto_(pg, cols.SITUACAO)))
+    return { ok: false, erro: "ENVELOPE_ABERTO" };
+  var ids = Array.isArray(p.ids) ? p.ids.map(function (x) { return String(x || "").trim(); }) : [];
+  if (!ids.length || (!ids[0] && !ids[1])) {
+    assApagarProp_(ASS_TESTEMUNHAS + p.pageId);
+    return { ok: true, testemunhas: ClicksignVenda.testemunhasParaTela(assConfig_(p.pageId)) };
+  }
+  if (!ClicksignVenda.escolhidas(assConfig_(), ids)) return { ok: false, erro: "TESTEMUNHAS_INVALIDAS" };
+  assProps_().setProperty(ASS_TESTEMUNHAS + p.pageId, JSON.stringify(ids));
+  assLog_("testemunhas " + String(p.pageId).slice(0, 8) + " escolhidas");
+  return { ok: true, testemunhas: ClicksignVenda.testemunhasParaTela(assConfig_(p.pageId)) };
 }
 
 /* ---- Clicksign ---- */
@@ -161,7 +182,7 @@ function assEnviarTravado_(col, p, pid) {
   if (f.obraAmbigua) return { ok: false, erro: "FALTAM_DADOS", faltas: ["Vendedor: obra ambígua em DOCUMENTOS (endereço repetido)"] };
   if (f.duplicados) return { ok: false, erro: "FALTAM_DADOS", faltas: f.duplicados };
   if (f.obraNaoEncontrada) return { ok: false, erro: "FALTAM_DADOS", faltas: ["Vendedor: obra da casa não encontrada em DOCUMENTOS (endereço)"] };
-  var d = ContratoVenda.montarDadosContrato(f.fontes), config = assConfig_();
+  var d = ContratoVenda.montarDadosContrato(f.fontes), config = assConfig_(p.pageId);
   var faltas = config.invalidas.map(function (n) { return "Propriedade " + n + ": JSON inválido"; })
     .concat(ContratoVenda.faltasContrato(d), ClicksignVenda.faltasAssinatura(d, config));
   if (faltas.length) {
@@ -415,6 +436,7 @@ function conferirAssinatura() {
   conf.problemas.forEach(falha);
   conf.avisos.forEach(function (a) { linhas.push("AVISO " + a); });
   if (!conf.problemas.length) linhas.push("ok    Pares de testemunhas SPE e PF preenchidos.");
+  linhas.push("ok    Lista de escolha na tela: " + ClicksignVenda.opcoesTestemunhas(assConfig_()).length + " pessoa(s).");
   linhas.push(ok ? "PRONTO: pode testar o botão Enviar para assinatura." : "AINDA NÃO: corrija os ERROS acima e rode de novo.");
   linhas.forEach(function (l) { console.log(l); });
   return { ok: ok, linhas: linhas };

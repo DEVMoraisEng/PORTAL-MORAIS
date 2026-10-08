@@ -34,7 +34,7 @@ function tratar_(p) {
     var sess = verificarToken_(p.token);
     if (!sess) return { ok: false, erro: "NAO_AUTORIZADO" };
     if (!temAcessoVendas_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
-    var grava = ["tipoCasa", "lerDocumento", "conferir", "devolver", "gerarContrato", "gerarPreContrato", "aprovarPreContrato", "mcLancar", "assinaturaEnviar", "assinaturaEstado",
+    var grava = ["tipoCasa", "lerDocumento", "conferir", "devolver", "gerarContrato", "gerarPreContrato", "aprovarPreContrato", "escolherTestemunhas", "mcLancar", "assinaturaEnviar", "assinaturaEstado",
                  "gerarVendaCondominio", "assinaturaReenviar"].indexOf(p.action) >= 0;
     if (grava && String(sess.t || "").toUpperCase() === "TESTES") return { ok: false, erro: "SEM_PERMISSAO_TESTES" };
     if (p.action !== "ping" && !REGEX_PAGE_ID.test(String(p.pageId || ""))) return { ok: false, erro: "PAGINA_INVALIDA" };
@@ -48,6 +48,7 @@ function tratar_(p) {
         if (!String(p.motivo || "").trim()) return { ok: false, erro: "MOTIVO_OBRIGATORIO" };
         return mudarDossie_(col, sess, p, RegrasVenda.ESTADOS.DEVOLVIDO, "Devolvido: " + String(p.motivo).trim());
       case "contratoEstado": return contratoEstado_(col, p);
+      case "escolherTestemunhas": return escolherTestemunhas_(col, sess, p);
       case "gerarPreContrato": return gerarPreContrato_(col, sess, p);
       case "verPreContrato": return verPreContrato_(col, p);
       case "aprovarPreContrato":

@@ -472,7 +472,8 @@ test("coluna nova ausente na VENDAS -> COLUNA_FALTANDO", () => {
 
 test("contratoEstado: sem arquivo -> gerado:false; depois de gerar -> nome e url do último", () => {
   const c = cenario();
-  assert.deepEqual(c.acao("contratoEstado"), { ok: true, gerado: false, etapa: "NENHUM", pre: null });
+  const est0 = c.acao("contratoEstado"); delete est0.testemunhas;   /* a lista de testemunhas tem teste próprio */
+  assert.deepEqual(est0, { ok: true, gerado: false, etapa: "NENHUM", pre: null });
   const r = c.gerar();
   const e = c.acao("contratoEstado");
   assert.equal(e.ok, true);

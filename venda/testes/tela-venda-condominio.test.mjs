@@ -141,7 +141,8 @@ test("paginaVirtual: título vira ENDEREÇO = CONDOMÍNIO …, UNIDADE vira text
 
 test("gerarContrato na linha do condomínio: modelo do condomínio, PDF em CONTRATO GERADO da própria linha; contratoEstado vê", () => {
   const c = cenario();
-  assert.deepEqual(c.acao("contratoEstado"), { ok: true, gerado: false, etapa: "NENHUM", pre: null });
+  const est0 = c.acao("contratoEstado"); delete est0.testemunhas;   /* a lista de testemunhas tem teste próprio */
+  assert.deepEqual(est0, { ok: true, gerado: false, etapa: "NENHUM", pre: null });
   const r = c.gerarFinal();
   assert.equal(r.ok, true, JSON.stringify(r));
   /* a linha é lida uma vez para montar o contrato e outra para o link do PDF — sem o GET extra

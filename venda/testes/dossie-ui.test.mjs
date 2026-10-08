@@ -259,3 +259,15 @@ test("contrato: link de reserva só aparece com https, escapado, e com o aviso",
   assert.doesNotMatch(D.htmlContrato(est, uic({ link: "javascript:alert(1)" })), /Abrir contrato/);
   assert.doesNotMatch(D.htmlContrato(est, uic({ link: "http://inseguro.test" })), /Abrir contrato/);
 });
+
+test("contrato: listas de testemunhas (entrega 10) — só com 2+ opções, marca a escolhida, padrão vazio", () => {
+  const t = { opcoes: [{ id: "a", nome: "Pessoa <A>" }, { id: "b", nome: "Pessoa B" }], escolhidas: ["b", "a"] };
+  const h = D.htmlTestemunhas(t, "");
+  assert.equal((h.match(/<select data-testemunha="/g) || []).length, 2);
+  assert.match(h, /<option value="">— padrão —<\/option>/);
+  assert.match(h, /data-testemunha="0"[^]*value="b" selected[^]*data-testemunha="1"[^]*value="a" selected/);
+  assert.match(h, /Pessoa &lt;A&gt;/);
+  assert.equal(D.htmlTestemunhas({ opcoes: [{ id: "a", nome: "Só Uma" }], escolhidas: [] }, ""), "");
+  assert.equal(D.htmlTestemunhas(null, ""), "");
+  assert.match(D.htmlTestemunhas(t, " disabled"), /<select data-testemunha="0" disabled>/);
+});

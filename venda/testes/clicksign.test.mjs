@@ -276,3 +276,43 @@ test("reenvio: 10 minutos por envelope", () => {
   assert.equal(CS.minutosParaReenviar(t - 9.5 * 60000, t), 1);
   assert.equal(CS.minutosParaReenviar(t - 10 * 60000, t), 0);
 });
+
+/* ---- entrega 10: testemunhas escolhidas na tela ---- */
+const OPCOES = [{ nome: "Opcao Um Teste", email: "op1@teste.example", cpf: "000.000.001-91" },
+                { nome: "Opcao Dois Teste", email: "op2@teste.example", cpf: "" },
+                { nome: "Sem Email", email: "" },
+                { nome: "Testemunha Um Spe", email: "t1.spe@teste.example" }];   /* repetida do par SPE: some */
+const cfgOp = (esc) => CS.montarConfig(Object.assign({ ASSINATURA_TESTEMUNHAS_OPCOES: JSON.stringify(OPCOES),
+  TESTEMUNHAS_ESCOLHIDAS: esc === undefined ? "" : JSON.stringify(esc) }, PROPS));
+
+test("testemunhas: opções = lista + pares padrão, sem repetir e sem quem não tem e-mail; a tela só vê id e nome", () => {
+  const ops = CS.opcoesTestemunhas(cfgOp());
+  assert.deepEqual(ops.map((o) => o.nome), ["Opcao Um Teste", "Opcao Dois Teste", "Testemunha Um Spe", "Testemunha Dois Spe",
+                                            "Testemunha Um Pf", "Testemunha Dois Pf"]);
+  const tela = CS.testemunhasParaTela(cfgOp());
+  assert.deepEqual(tela.escolhidas, []);
+  assert.ok(tela.opcoes.every((o) => Object.keys(o).join() === "id,nome"), "nada de e-mail ou CPF na tela");
+  assert.doesNotMatch(JSON.stringify(tela), /@|000\.000/);
+});
+
+test("testemunhas: a escolha da venda substitui o par padrão; escolha ruim volta ao padrão", () => {
+  const ids = CS.opcoesTestemunhas(cfgOp()).map((o) => o.id);
+  const l = CS.signatarios(dadosPJ(), cfgOp([ids[1], ids[0]])).filter((s) => s.origem === "testemunha");
+  assert.deepEqual(l.map((s) => s.email), ["op2@teste.example", "op1@teste.example"]);
+  assert.deepEqual(CS.testemunhasParaTela(cfgOp([ids[1], ids[0]])).escolhidas, [ids[1], ids[0]]);
+  for (const ruim of [[ids[0], ids[0]], [ids[0]], ["nao-existe", ids[1]], "x"]) {
+    const t = CS.signatarios(dadosPJ(), cfgOp(ruim)).filter((s) => s.origem === "testemunha");
+    assert.deepEqual(t.map((s) => s.email), ["t1.spe@teste.example", "t2.spe@teste.example"], JSON.stringify(ruim));
+  }
+  assert.equal(CS.escolhidas(cfgOp(), [ids[2], ids[3]]).length, 2);
+});
+
+test("testemunhas: conferência da lista de opções (JSON ruim barra; pessoa ruim só avisa)", () => {
+  const ruim = CS.conferirConfig(CS.montarConfig(Object.assign({ ASSINATURA_TESTEMUNHAS_OPCOES: "[{x" }, PROPS)));
+  assert.ok(ruim.problemas.some((p) => /ASSINATURA_TESTEMUNHAS_OPCOES: não é um JSON/.test(p)));
+  const c = CS.conferirConfig(cfgOp());
+  assert.ok(!c.problemas.some((p) => /OPCOES/.test(p)));
+  assert.ok(c.avisos.some((a) => /OPCOES: pessoa 3 sem nome/.test(a)));
+  assert.ok(c.avisos.some((a) => /OPCOES: pessoa 2 sem CPF/.test(a)));
+  assert.doesNotMatch(c.avisos.join(" "), /@|Opcao/, "conferência não mostra nome nem e-mail");
+});

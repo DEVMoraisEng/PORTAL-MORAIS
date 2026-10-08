@@ -469,6 +469,11 @@ function contratoEstado_(col, p) {
   /* PRE: há pré-contrato ainda não conferido (mesmo que exista um contrato final antigo) */
   var etapa = pre && !pre.conferidoEm ? "PRE" : a ? "FINAL" : "NENHUM";
   var r = { ok: true, gerado: !!a, etapa: etapa, pre: null };
+  /* entrega 10: lista de testemunhas (só id e nome) e a escolha desta venda */
+  if (typeof assConfig_ === "function") {
+    try { var t = ClicksignVenda.testemunhasParaTela(assConfig_(p.pageId)); if (t.opcoes.length >= 2) r.testemunhas = t; }
+    catch (e) { ctrErro_("contratoEstado testemunhas", e); }
+  }
   if (a) { r.nome = a.nome; r.url = a.url; }
   if (pre) {
     r.pre = { nome: ctrTxt_(pre.nome), url: ctrTxt_(pre.url), em: ctrTxt_(pre.em), conferido: !!pre.conferidoEm };

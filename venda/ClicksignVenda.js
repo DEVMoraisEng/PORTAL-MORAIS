@@ -57,9 +57,47 @@ var ClicksignVenda = (function () {
     var spe = lerJson(props, "ASSINATURA_TESTEMUNHAS_SPE", invalidas);
     var pf = lerJson(props, "ASSINATURA_TESTEMUNHAS_PF", invalidas);
     var rep = lerJson(props, "ASSINATURA_REPRESENTANTE", invalidas);
+    var opc = lerJson(props, "ASSINATURA_TESTEMUNHAS_OPCOES", invalidas);
+    /* escolha gravada para ESTA venda (Propriedade TESTEMUNHAS_<pageId>); ruim = volta ao par padrão */
+    var esc = null;
+    try { esc = JSON.parse(txt(props.TESTEMUNHAS_ESCOLHIDAS) || "null"); } catch (e) { esc = null; }
     var inc = txt(props.ASSINATURA_INCLUIR_CORRETOR).toUpperCase();
-    return { testemunhasSPE: spe, testemunhasPF: pf, representante: rep,
+    return { testemunhasSPE: spe, testemunhasPF: pf, representante: rep, testemunhasOpcoes: opc,
+             testemunhasEscolhidas: Array.isArray(esc) ? esc.map(txt) : null,
              incluirCorretor: inc === "SIM" || inc === "TRUE" || inc === "1", invalidas: invalidas };
+  }
+
+  /* Entrega 10 — testemunhas escolhidas na hora de gerar o contrato. As opções são as pessoas de
+   * ASSINATURA_TESTEMUNHAS_OPCOES mais as dos dois pares padrão (SPE e PF), sem repetir e-mail.
+   * O id que vai para a tela é a chave do nome (a tela só vê nomes — nunca e-mail ou CPF). */
+  function opcoesTestemunhas(config) {
+    var todas = [].concat(Array.isArray(config.testemunhasOpcoes) ? config.testemunhasOpcoes : [],
+                          Array.isArray(config.testemunhasSPE) ? config.testemunhasSPE : [],
+                          Array.isArray(config.testemunhasPF) ? config.testemunhasPF : []);
+    var vistosEmail = {}, vistosId = {}, l = [];
+    todas.map(pessoa).forEach(function (p) {
+      if (!p || !nomeValido(p.nome) || !emailValido(p.email)) return;
+      var id = chave(p.nome);
+      if (!id || vistosEmail[p.email] || vistosId[id]) return;
+      vistosEmail[p.email] = vistosId[id] = true;
+      p.id = id;
+      l.push(p);
+    });
+    return l;
+  }
+  /* as 2 pessoas escolhidas (na ordem) ou null quando a escolha não fecha com as opções de agora */
+  function escolhidas(config, ids) {
+    ids = ids === undefined ? config.testemunhasEscolhidas : ids;
+    if (!Array.isArray(ids) || ids.length !== 2 || !ids[0] || ids[0] === ids[1]) return null;
+    var ops = opcoesTestemunhas(config);
+    var pr = ids.map(function (id) { return ops.filter(function (o) { return o.id === txt(id); })[0] || null; });
+    return pr[0] && pr[1] ? pr : null;
+  }
+  /* o que a tela recebe: só id e nome */
+  function testemunhasParaTela(config) {
+    var e = escolhidas(config);
+    return { opcoes: opcoesTestemunhas(config).map(function (o) { return { id: o.id, nome: o.nome }; }),
+             escolhidas: e ? [e[0].id, e[1].id] : [] };
   }
 
   /* Conferência das Propriedades (conferirAssinatura, no editor): só o nome da Propriedade e a posição
@@ -84,12 +122,26 @@ var ClicksignVenda = (function () {
     confPar("ASSINATURA_TESTEMUNHAS_PF", config.testemunhasPF);
     if ((config.invalidas || []).indexOf("ASSINATURA_REPRESENTANTE") >= 0) problemas.push("ASSINATURA_REPRESENTANTE: não é um JSON válido (confira aspas, vírgulas e chaves)");
     else if (config.representante) pessoaRuim("ASSINATURA_REPRESENTANTE", "", pessoa(config.representante) || { nome: "", email: "", cpf: "" });
+    /* opções de testemunha: opcionais; quem estiver ruim não aparece na tela */
+    if ((config.invalidas || []).indexOf("ASSINATURA_TESTEMUNHAS_OPCOES") >= 0) problemas.push("ASSINATURA_TESTEMUNHAS_OPCOES: não é um JSON válido (confira aspas, vírgulas e colchetes)");
+    else if (config.testemunhasOpcoes !== null && config.testemunhasOpcoes !== undefined) {
+      if (!Array.isArray(config.testemunhasOpcoes)) problemas.push("ASSINATURA_TESTEMUNHAS_OPCOES: precisa ser uma lista entre [ ]");
+      else config.testemunhasOpcoes.forEach(function (p, i) {
+        var pp = pessoa(p) || { nome: "", email: "", cpf: "" };
+        if (!nomeValido(pp.nome) || !emailValido(pp.email)) avisos.push("ASSINATURA_TESTEMUNHAS_OPCOES: pessoa " + (i + 1) + " sem nome e sobrenome ou e-mail válido (não aparece na lista)");
+        else if (!cpfValido(pp.cpf)) avisos.push("ASSINATURA_TESTEMUNHAS_OPCOES: pessoa " + (i + 1) + " sem CPF válido (vai digitar o CPF na hora de assinar)");
+      });
+    }
     return { problemas: problemas, avisos: avisos };
   }
 
   function ehPJ(dados) { return !!dados.vendedor && txt(dados.vendedor.tipo).toUpperCase() === "PJ"; }
   function nomeDoPar(dados) { return ehPJ(dados) ? "ASSINATURA_TESTEMUNHAS_SPE" : "ASSINATURA_TESTEMUNHAS_PF"; }
-  function testemunhas(dados, config) { return par(ehPJ(dados) ? config.testemunhasSPE : config.testemunhasPF); }
+  function testemunhas(dados, config) {
+    var e = escolhidas(config);
+    if (e) return e.map(function (p) { return { nome: p.nome, email: p.email, cpf: p.cpf }; });
+    return par(ehPJ(dados) ? config.testemunhasSPE : config.testemunhasPF);
+  }
 
   /* Mesma chave do RegrasVenda (acento/caixa/espaço); lida na hora porque no node este arquivo é carregado sozinho. */
   function chave(s) {
@@ -301,7 +353,8 @@ var ClicksignVenda = (function () {
     corpoNotificacao: corpoNotificacao, interpretar: interpretar, situacao: situacao, assinaram: assinaram,
     podeEnviar: podeEnviar, linkAssinado: linkAssinado, mascararEmails: mascararEmails, FINAIS: FINAIS,
     situacaoDosSignatarios: situacaoDosSignatarios, nomeMascarado: nomeMascarado,
-    minutosParaReenviar: minutosParaReenviar, REENVIO_MIN: REENVIO_MIN
+    minutosParaReenviar: minutosParaReenviar, REENVIO_MIN: REENVIO_MIN,
+    opcoesTestemunhas: opcoesTestemunhas, escolhidas: escolhidas, testemunhasParaTela: testemunhasParaTela
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   return api;

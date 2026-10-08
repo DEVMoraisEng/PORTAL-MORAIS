@@ -102,6 +102,8 @@
 
   var MSG_CONTRATO = {
     MODELO_NAO_CONFIGURADO: "O modelo do contrato não está configurado neste ambiente.",
+    TESTEMUNHAS_INVALIDAS: "Essas testemunhas não estão mais na lista — recarregue e escolha de novo.",
+    ENVELOPE_ABERTO: "A assinatura já foi enviada — as testemunhas não mudam mais.",
     CADASTRO_NAO_CONFIGURADO: "Os cadastros do contrato não estão configurados neste ambiente.",
     DRIVE_API_DESLIGADA: "Ative o serviço Drive API no PORTAL-VENDA (veja COMO-IMPLANTAR).",
     CONTRATO_FALHOU: "Não consegui gerar o contrato — tente de novo.",
@@ -125,8 +127,29 @@
   /* resposta do contratoEstado → estado do bloco */
   function estadoContrato(r) {
     var p = r && r.pre;
-    return { gerado: !!(r && r.gerado), nome: (r && r.nome) || "", url: (r && r.url) || "", etapa: etapaContrato(r),
-             pre: p ? { nome: p.nome || "", url: p.url || "", em: p.em || "", conferido: !!p.conferido, desatualizado: !!p.desatualizado } : null };
+    var o = { gerado: !!(r && r.gerado), nome: (r && r.nome) || "", url: (r && r.url) || "", etapa: etapaContrato(r),
+             pre: p ? { nome: p.nome || "", url: p.url || "", em: p.em || "", conferido: !!p.conferido, desatualizado: !!p.desatualizado } : null,
+           };
+    var t = testemunhasDoEstado(r && r.testemunhas);
+    if (t) o.testemunhas = t;
+    return o;
+  }
+  function testemunhasDoEstado(t) {
+    if (!t || !Array.isArray(t.opcoes)) return null;
+    return { opcoes: t.opcoes.map(function (o) { return { id: String(o.id || ""), nome: String(o.nome || "") }; }),
+             escolhidas: Array.isArray(t.escolhidas) ? t.escolhidas.map(String) : [] };
+  }
+  /* entrega 10: duas listas "Testemunha 1/2"; vazio = o par padrão das Propriedades (SPE ou PF) */
+  function htmlTestemunhas(t, dis) {
+    if (!t || t.opcoes.length < 2) return "";
+    function sel(n) {
+      var atual = t.escolhidas[n] || "";
+      return '<select data-testemunha="' + n + '"' + dis + '><option value="">— padrão —</option>' +
+        t.opcoes.map(function (o) {
+          return '<option value="' + esc(o.id) + '"' + (o.id === atual ? " selected" : "") + ">" + esc(o.nome) + "</option>";
+        }).join("") + "</select>";
+    }
+    return '<div class="dz-linha"><span class="dz-rot">Testemunhas da assinatura:</span>' + sel(0) + " " + sel(1) + "</div>";
   }
   /* a Assinatura só vale para o contrato FINAL (não para o que está sendo conferido) */
   function contratoFinal(e) { return !!(e && e.gerado && etapaContrato(e) === "FINAL"); }
@@ -162,6 +185,7 @@
     } else {
       h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-pre"' + dis + ">Gerar pré-contrato</button></div>";
     }
+    h += htmlTestemunhas(e.testemunhas, dis);
     if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
     if (u.link && /^https:\/\//.test(u.link)) {
       h += '<div class="dz-msg">O navegador bloqueou a janela — clique em Abrir contrato. ' +
@@ -234,7 +258,7 @@
   var exportar = { URL_PORTAL_VENDA: URL_PORTAL_VENDA, DOCS: DOCS, html: html, mensagemDeErro: mensagemDeErro,
                    resumo: resumo, escala: escala, tipoAceito: tipoAceito, painelCarregando: painelCarregando,
                    htmlContrato: htmlContrato, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, mensagemMC: mensagemMC,
-                   topicosMC: topicosMC, MC_URL_VENDA: MC_URL_VENDA };
+                   topicosMC: topicosMC, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas };
   if (typeof module !== "undefined" && module.exports) { module.exports = exportar; return; }
 
   /* ---------------- navegador ---------------- */
@@ -257,7 +281,12 @@
     ".vb-ass .ass-rec{color:#C0392B;font-weight:700}.vb-ass .ass-data{color:var(--text3,#555);font-size:12px}" +
     ".vb-mc a.mc-abrir{color:var(--azul,#1d4f63);font-weight:700}" +
     /* no cartão do condomínio os títulos não têm o recuo do painel da casa */
-    ".cd-cardbox .vb-blocos .grp{margin:14px 0 8px}.cd-cardbox .vb-blocos .vazio{padding:10px}";
+    ".cd-cardbox .vb-blocos .grp{margin:14px 0 8px}.cd-cardbox .vb-blocos .vazio{padding:10px}" +
+    /* ...e os botões seguem os do próprio cartão (.cd-bt / .cd-bt.pri do vendas.html), não os do painel */
+    ".cd-cardbox .vb-blocos .bt{border:1.5px solid var(--verde-btn,#4cd964);background:var(--verde-btn,#4cd964);color:#1a3347;" +
+    "border-radius:8px;padding:8px 12px;font-size:13px}" +
+    ".cd-cardbox .vb-blocos .bt.ghost{border-color:var(--border,#d6dee3);background:var(--sup,#fff);color:var(--azul,#295778)}" +
+    ".cd-cardbox .vb-blocos .bt.ghost:hover{background:var(--bg3,#eef3f5)}";
   var estado = null, ui = { dois: false, ocupado: null, msg: "", testes: false }, paginaDoBloco = null;
 
   function obraAberta() { try { return OBRA_ABERTA; } catch (e) { return null; } }
@@ -558,6 +587,7 @@
             ? { gerado: true, nome: r.nome || "", url: r.url || "", etapa: "FINAL", pre: antes.pre ? Object.assign({}, antes.pre, { conferido: true }) : null }
             : { gerado: !!antes.gerado, nome: antes.nome || "", url: antes.url || "", etapa: "PRE",
                 pre: { nome: r.nome || "", url: r.url || "", em: "", conferido: false, desatualizado: false } };
+          estadoC.testemunhas = antes.testemunhas || null;
           var feito = aprovar ? "Contrato gerado." : "Pré-contrato gerado — abra, confira o que está grifado e clique em Conferi.";
           /* condomínio: campos que saíram em branco ("____") não travam, mas avisam */
           uiC.msg = r.avisos && r.avisos.length ? feito + " Atenção: " + r.avisos.join("; ") + "." : feito;
@@ -578,11 +608,44 @@
       }
     }
 
+    /* entrega 10: grava quando as duas listas fecham (duas pessoas diferentes) ou as duas voltam ao padrão */
+    async function aoEscolherTestemunha() {
+      if (!raiz || uiC.ocupadoContrato || !vivo()) return;
+      var s = raiz.querySelectorAll("select[data-testemunha]");
+      if (s.length !== 2) return;
+      var ids = [s[0].value, s[1].value];
+      if (!!ids[0] !== !!ids[1]) { uiC.msg = "Escolha as duas testemunhas (ou deixe as duas no padrão)."; pintarMsgTestemunha(); return; }
+      if (ids[0] && ids[0] === ids[1]) { uiC.msg = "Escolha duas pessoas diferentes."; pintarMsgTestemunha(); return; }
+      uiC.ocupadoContrato = "testemunhas"; uiC.msg = ""; pintar();
+      var seq = ++seqC;
+      var r = await chamarVenda({ action: "escolherTestemunhas", pageId: pageId, ids: ids[0] ? ids : [] });
+      if (seq !== seqC || !vivo()) return;
+      uiC.ocupadoContrato = null;
+      if (r.ok) { if (estadoC) estadoC.testemunhas = testemunhasDoEstado(r.testemunhas); uiC.msg = "Testemunhas salvas."; }
+      else uiC.msg = mensagemContrato(r);
+      pintar();
+    }
+    /* mensagem sem repintar as listas (não desfaz a 1ª escolha enquanto falta a 2ª) */
+    function pintarMsgTestemunha() {
+      var m = raiz && raiz.querySelector(".dz-msg-test");
+      if (!m) {
+        var s = raiz && raiz.querySelector("select[data-testemunha]");
+        if (!s) return;
+        m = document.createElement("div"); m.className = "dz-msg dz-msg-test";
+        s.parentNode.parentNode.insertBefore(m, s.parentNode.nextSibling);
+      }
+      m.textContent = uiC.msg; uiC.msg = "";
+    }
+
     /* Põe os blocos em `el` (o conteúdo dele é trocado). Só pede ao servidor o que ainda não tem. */
     eu.anexar = function (el) {
       raiz = el;
       if (el.classList) el.classList.add("vb-blocos");
-      if (!el.__vbLigado) { el.__vbLigado = true; el.addEventListener("click", function (ev) { if (raiz === el) aoClicar(ev); }); }
+      if (!el.__vbLigado) {
+        el.__vbLigado = true;
+        el.addEventListener("click", function (ev) { if (raiz === el) aoClicar(ev); });
+        el.addEventListener("change", function (ev) { if (raiz === el && ev.target.hasAttribute("data-testemunha")) aoEscolherTestemunha(); });
+      }
       pintar();
       if (!estadoC) carregarContrato();
       if (!estadoM) carregarMC();

@@ -753,3 +753,35 @@ test("estado final apaga a hora do último reenvio", () => {
   assert.equal(c.estado().situacao, "ASSINADO");
   assert.ok(!("ASSINATURA_REENVIO_env-1" in c.p));
 });
+
+test("testemunhas (entrega 10): contratoEstado lista só id e nome; escolherTestemunhas grava, recusa ruim e TESTES, e volta ao padrão", () => {
+  const OPS = [{ nome: "Escolha Um Teste", email: "e1@teste.example", cpf: "" }, { nome: "Escolha Dois Teste", email: "e2@teste.example", cpf: "" }];
+  const c = cenario({ props: { ASSINATURA_TESTEMUNHAS_OPCOES: JSON.stringify(OPS) } });
+  const t = c.acao("contratoEstado").testemunhas;
+  const ids = t.opcoes.filter((o) => /Escolha/.test(o.nome)).map((o) => o.id);
+  assert.equal(ids.length, 2);
+  assert.doesNotMatch(JSON.stringify(t), /@/);
+  const escolher = (x, tok = tokenDe()) => c.g.chamar({ action: "escolherTestemunhas", token: tok, pageId: PAGE, ids: x });
+  assert.equal(escolher([ids[1], ids[0]], tokenDe("TESTES", [])).erro, "SEM_PERMISSAO_TESTES");
+  assert.equal(escolher([ids[0], ids[0]]).erro, "TESTEMUNHAS_INVALIDAS");
+  assert.equal(escolher(["nao-existe", ids[0]]).erro, "TESTEMUNHAS_INVALIDAS");
+  const r = escolher([ids[1], ids[0]]);
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.testemunhas.escolhidas, [ids[1], ids[0]]);
+  assert.deepEqual(c.acao("contratoEstado").testemunhas.escolhidas, [ids[1], ids[0]]);
+  assert.deepEqual(escolher([]).testemunhas.escolhidas, []);
+  assert.deepEqual(c.acao("contratoEstado").testemunhas.escolhidas, []);
+});
+
+test("testemunhas (entrega 10): as escolhidas são as que vão para a Clicksign; com envelope aberto não mudam", () => {
+  const OPS = [{ nome: "Escolha Um Teste", email: "e1@teste.example", cpf: "" }, { nome: "Escolha Dois Teste", email: "e2@teste.example", cpf: "" }];
+  const c = cenario({ props: { ASSINATURA_TESTEMUNHAS_OPCOES: JSON.stringify(OPS) } });
+  const ids = c.acao("contratoEstado").testemunhas.opcoes.filter((o) => /Escolha/.test(o.nome)).map((o) => o.id);
+  assert.equal(c.g.chamar({ action: "escolherTestemunhas", token: tokenDe(), pageId: PAGE, ids }).ok, true);
+  assert.equal(c.enviar().ok, true);
+  const corpos = c.c.chamadas.filter((x) => x.metodo === "POST" && /\/signers$/.test(x.caminho)).map((x) => JSON.stringify(x.corpo));
+  assert.ok(corpos.some((b) => b.includes("e1@teste.example")) && corpos.some((b) => b.includes("e2@teste.example")), "escolhidas enviadas");
+  const aberto = cenario({ props: { ASSINATURA_TESTEMUNHAS_OPCOES: JSON.stringify(OPS) },
+                           venda: { "ASSINATURA - ENVELOPE ID": rt("env-velho"), "ASSINATURA - SITUAÇÃO": rt("ENVIADO") } });
+  assert.equal(aberto.g.chamar({ action: "escolherTestemunhas", token: tokenDe(), pageId: PAGE, ids }).erro, "ENVELOPE_ABERTO");
+});
