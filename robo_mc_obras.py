@@ -37,10 +37,28 @@ TIPO_PADRAO = "Genérico"     # sem Nº DE CASAS ainda: entra como genérico
 
 # "Visível para": ficam só os engenheiros de execução (e o estagiário deles)
 # que são os responsáveis da obra. Os demais são desmarcados.
+# 08/10/26 — nomes EXATOS como aparecem na lista "Visível para" do MC. Antes
+# era só "Guilherme": a lista tem "Guilherme Filipe" ANTES de "Guilherme
+# Gouveia" (e "Felipe Guilherme Berçan"), e o robô desmarcava o errado — o
+# Gouveia continuava vendo as obras do João Marcos.
 EQUIPES = {
-    "GUILHERME GOUVEIA": ["Guilherme", "alefe"],
+    "GUILHERME GOUVEIA": ["Guilherme Gouveia", "Alefe"],
     "JOAO MARCOS VIEIRA CABRAL MENEZES": ["João Marcos", "Ian"],
-    "ISAAC NATAN": ["Isaac", "Icaro"],
+    "ISAAC NATAN": ["Isaac Natan", "Icaro"],
+}
+
+STATUS_OBRA = "Em andamento"       # 08/10/26: obra nova nasce Em andamento (o MC sugere "Em orçamento")
+
+# 08/10/26 — Endereço completo no MC: "Rua TB 19, s/n, Terrabela Cerrado II,
+# 75264264, Senador Canedo - GO". Bairro oficial de cada setor do Notion (o
+# nome que o Correios/ViaCEP e as obras antigas do MC usam). O CEP vem do
+# ViaCEP pela rua; sem CEP achado, fica só o bairro (e o log avisa).
+SETORES_END = {
+    "TERRABELA CERRADO": "Terrabela Cerrado II",
+    "RAVENA": "Residencial Ravena",
+    "SOLAR VILLE": "Residencial Solar Ville",
+    "PQ DOS BURITIS": "Residencial Parque dos Buritis",
+    "ACROPOLE": "Residencial Acrópole II",
 }
 
 
@@ -181,7 +199,8 @@ def fila_de_obras(mapa_contas=None):
             "rt": txt(pega(pr, "ENGENHEIRO RT")),
             "resp": txt(pega(pr, "Responsável Pela Obra")),
             "cliente": txt(pega(pr, "Proprietário")),
-            "cidade": txt(pega(pr, "Cidade")),
+            "cidade": txt(pega(pr, "Cidade")).split(",")[0].strip(),
+            "setor": txt(pega(pr, "SETOR")),
             "conta": txt(pega(pr, "CONTA")),
             "conta_exata": conta_exata,
             "conta_numero": conta_numero,
@@ -293,7 +312,8 @@ def escolha_por_prefixo(textos, alvo, numero=""):
     return candidatos[0] if len(candidatos) == 1 else None
 
 
-def escolher_na_lista(page, campo_sel, texto_busca, alvo=None, exato=False, prefixo=False, sigilo=False, numero=""):
+def escolher_na_lista(page, campo_sel, texto_busca, alvo=None, exato=False, prefixo=False, sigilo=False, numero="",
+                      criterio=None):
     """Abre a lista do campo, digita (quando o campo aceita busca) e clica na
     opção. Devolve o texto da opção escolhida.
 
@@ -324,14 +344,16 @@ def escolher_na_lista(page, campo_sel, texto_busca, alvo=None, exato=False, pref
     textos = [(opcoes.nth(i).inner_text() or "").strip() for i in range(min(n, 40))]
     escolha = None
     alvo = alvo or texto_busca or ""
-    if prefixo:
+    if criterio:
+        escolha = criterio(textos)
+    elif prefixo:
         escolha = escolha_por_prefixo(textos, alvo, numero)
     else:
         for i, t in enumerate(textos):
             if N(t) == N(alvo):
                 escolha = i
                 break
-    if escolha is None and not prefixo and not exato:
+    if escolha is None and not prefixo and not exato and not criterio:
         # melhor parecido: mais palavras em comum (o MC às vezes guarda o nome
         # sem o "LTDA" que existe no cadastro do Notion)
         pal = set(N(alvo).split())
@@ -346,6 +368,118 @@ def escolher_na_lista(page, campo_sel, texto_busca, alvo=None, exato=False, pref
     opcoes.nth(escolha).click()
     page.wait_for_timeout(600)
     return textos[escolha]
+
+
+def escolha_cliente(textos, nome):
+    """Função PURA: índice da ÚNICA opção que é o cliente `nome` (igual,
+    ignorando caixa/acento/LTDA). 08/10/26: antes caía no "mais parecido" e,
+    com vários clientes MORAIS ... SPE, escolhia a SPE errada."""
+    iguais = [i for i, t in enumerate(textos) if mesmo_nome(nome, t)]
+    return iguais[0] if len(iguais) == 1 else None
+
+
+def escolher_cliente(page, nome):
+    for busca in (nome[:25], nome[:12]):
+        try:
+            return escolher_na_lista(page, CAMPO["cliente"], busca, alvo=nome,
+                                     criterio=lambda textos: escolha_cliente(textos, nome))
+        except Exception as e:
+            ultimo = e
+    raise RuntimeError(f"cliente '{nome}' não apareceu igual na lista do MC ({str(ultimo)[:80]})")
+
+
+# ---------------------------------------------------------------- orçamento
+# 08/10/26 — toda obra nova ganha um orçamento em Obras > Orçamento, com o
+# código "sem orça N" (N = maior "sem orça" que já existe + 1).
+_SEM_ORCA = re.compile(r"sem\s+or[cç]a\s*(\d+)", re.I)
+
+
+def proximo_sem_orca(textos):
+    """Função PURA: próximo número a partir dos textos da lista de orçamentos."""
+    nums = [int(m.group(1)) for t in textos for m in _SEM_ORCA.finditer(str(t or ""))]
+    return (max(nums) + 1) if nums else 1
+
+
+def _url_orcamentos():
+    return (MC_URL.split("#")[0] or "https://acessar.maiscontroleerp.com.br/").rstrip("/") + "/#/estimate"
+
+
+def _buscar_orcamentos(page, texto):
+    busca = page.locator("input[placeholder='Digite aqui sua busca']").first
+    busca.wait_for(state="visible", timeout=25000)
+    busca.fill("")
+    busca.type(texto, delay=30)
+    page.wait_for_timeout(3000)
+    # rola até o fim para a lista carregar tudo (é lista infinita)
+    for _ in range(8):
+        page.mouse.wheel(0, 4000)
+        page.wait_for_timeout(500)
+    return page.locator("table tbody tr").all_inner_texts()
+
+
+def garantir_orcamento(page, o):
+    """Cria o orçamento 'sem orça N' da obra, se ela ainda não tiver nenhum.
+    Devolve um texto curto do que aconteceu."""
+    titulo = o["titulo"]
+    page.goto(_url_orcamentos())
+    linhas = _buscar_orcamentos(page, titulo)
+    if any(N(titulo) in N(l) for l in linhas):
+        return "já tinha orçamento"
+    codigo = f"sem orça {proximo_sem_orca(_buscar_orcamentos(page, 'sem orça'))}"
+    if not APLICAR:
+        return f"criaria '{codigo}'"
+    page.locator("a[ng-click*='onClickNew']").first.click()      # o "Novo" da lista (não o do menu)
+    modal = page.locator(".modal.in, .modal-dialog").last
+    cod = modal.locator("input[ng-model='$ctrl.planning.code']").first
+    cod.wait_for(state="visible", timeout=15000)
+    cod.fill(codigo)
+    # obra
+    modal.locator("[ng-model='$ctrl.planning.work'] .select-button").first.click()
+    page.wait_for_timeout(600)
+    busca = page.locator("input[ng-model='$parent.searchText']:visible").first
+    busca.type(titulo, delay=30)
+    page.wait_for_timeout(2500)
+    itens = page.locator("li.ng-scope:visible")
+    alvo = None
+    for i in range(min(itens.count(), 30)):
+        if N(itens.nth(i).inner_text()) == N(titulo):
+            alvo = itens.nth(i)
+            break
+    if alvo is None:
+        modal.locator("button").filter(has_text="Cancelar").first.click()
+        raise RuntimeError("obra não apareceu na lista do orçamento")
+    alvo.click()
+    page.wait_for_timeout(1500)
+    # cliente (o MC costuma trazer o da obra; se não trouxe, escolhe)
+    cli = modal.locator("[ng-model='$ctrl.planning.work.customer'] .select-button").first
+    if o.get("cliente") and "SELECIONE" in N(cli.inner_text()):
+        cli.click()
+        page.wait_for_timeout(600)
+        b2 = page.locator("input[ng-model='$parent.searchText']:visible").first
+        b2.type(o["cliente"][:25], delay=30)
+        page.wait_for_timeout(2500)
+        it2 = page.locator("li.ng-scope:visible")
+        idx = escolha_cliente([it2.nth(i).inner_text() for i in range(min(it2.count(), 30))], o["cliente"])
+        if idx is not None:
+            it2.nth(idx).click()
+            page.wait_for_timeout(800)
+    # status da obra
+    try:
+        modal.locator("select[ng-model='$ctrl.ngModel']").first.select_option(label="Em Andamento")
+    except Exception as e:
+        print(f"  ! orçamento — status: {str(e)[:80]}", flush=True)
+    modal.locator("button[type=submit]").filter(has_text=re.compile("Come[cç]ar", re.I)).first.click()
+    try:
+        modal.wait_for(state="hidden", timeout=30000)
+    except Exception:
+        pass
+    page.wait_for_timeout(3000)
+    # confere na lista
+    page.goto(_url_orcamentos())
+    linhas = _buscar_orcamentos(page, titulo)
+    if any(N(titulo) in N(l) and N(codigo) in N(l) for l in linhas):
+        return f"criado '{codigo}'"
+    raise RuntimeError(f"cliquei em Começar, mas '{codigo}' não apareceu na lista de orçamentos")
 
 
 def abrir_secao(page, titulo):
@@ -380,61 +514,230 @@ def fechar_replicar(page):
     page.keyboard.press("Escape")
 
 
-def ajustar_visiveis(page, resp):
-    """Deixa marcados só os usuários da equipe do responsável pela obra."""
+def equipe_do_responsavel(resp):
+    """Função PURA: (manter, tirar) — nomes da lista "Visível para"."""
     manter = []
     for eng, nomes in EQUIPES.items():
-        if N(eng) in N(resp) or N(resp) in N(eng):
+        if resp and (N(eng) in N(resp) or N(resp) in N(eng)):
             manter = nomes
     if not manter:
-        # responsável que não é engenheiro de execução (ex.: obra lançada por
-        # outra pessoa): não dá para saber qual equipe fica — não tira ninguém
-        print(f"  Visível para: '{resp or '(vazio)'}' não é engenheiro de execução — deixei todo mundo", flush=True)
-        return
-    fora = [n for eng, nomes in EQUIPES.items() for n in nomes if n not in manter]
-    # a caixa é um select com lista de checkboxes (label id=select-checkbox-list-label)
-    page.locator("xpath=//label[@id='select-checkbox-list-label']/following-sibling::div[1]").first.click(force=True)
+        return [], []
+    tirar = [n for eng, nomes in EQUIPES.items() for n in nomes if n not in manter]
+    return manter, tirar
+
+
+_JS_VISIVEIS = """(args) => {
+  const norm = s => (s || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toUpperCase().replace(/\\s+/g, ' ').trim();
+  const b = [...document.querySelectorAll('input')].find(i => /usu/i.test(i.placeholder || ''));
+  let c = b;
+  for (let k = 0; k < 8 && c; k++) { c = c.parentElement; if (c && c.querySelectorAll('input[type=checkbox]').length > 3) break; }
+  if (!c) return null;
+  const linhas = [...c.querySelectorAll('input[type=checkbox]')].map(x => {
+    const r = x.closest('li,label') || x.parentElement;
+    return { x, r, nome: (r ? r.innerText : '').trim() };
+  });
+  const mudou = [];
+  if (args.aplicar) {
+    for (const l of linhas) {
+      const n = norm(l.nome);
+      const querMarcado = args.manter.includes(n) ? true : (args.tirar.includes(n) ? false : null);
+      if (querMarcado === null || l.x.checked === querMarcado) continue;
+      (l.r || l.x).click();
+      mudou.push((querMarcado ? '+' : '-') + l.nome);
+    }
+  }
+  return { mudou, estado: linhas.map(l => [l.nome, l.x.checked]) };
+}"""
+
+
+def ajustar_visiveis(page, resp, aplicar=True):
+    """Deixa marcados só os usuários da equipe do responsável pela obra e tira
+    os das OUTRAS equipes de engenharia (os demais usuários ficam como estão).
+    Devolve a lista do que mudou (vazia = já estava certo)."""
+    manter, tirar = equipe_do_responsavel(resp)
+    if not manter:
+        print(f"  Visível para: '{resp or '(vazio)'}' não é engenheiro de execução — deixei como está", flush=True)
+        return []
+    caixa = page.locator("xpath=//label[@id='select-checkbox-list-label']/following-sibling::div[1]").first
+    caixa.click(force=True)
     page.wait_for_timeout(900)
-    tirados = []
-    busca = page.locator("input[placeholder='Busque um usuário']")
-    for nome in fora:
-        try:
-            if busca.count():
-                busca.first.evaluate(JS_SET, nome)
-                page.wait_for_timeout(700)
-            linha = page.locator("li, label").filter(has_text=nome).first
-            cx = linha.locator("input[type=checkbox]").first
-            if cx.count() and cx.is_checked():
-                linha.click()
-                tirados.append(nome)
-                page.wait_for_timeout(300)
-        except Exception:
-            continue
-    if busca.count():
-        busca.first.evaluate(JS_SET, "")
+    args = {"manter": [N(x) for x in manter], "tirar": [N(x) for x in tirar], "aplicar": aplicar}
+    r = page.evaluate(_JS_VISIVEIS, args) or {}
+    page.wait_for_timeout(500)
+    # confere: lê de novo e vê se ficou como deveria
+    r2 = page.evaluate(_JS_VISIVEIS, dict(args, aplicar=False)) or {}
+    errados = [nome for nome, marcado in (r2.get("estado") or [])
+               if (N(nome) in args["manter"] and not marcado) or (N(nome) in args["tirar"] and marcado)]
     page.keyboard.press("Escape")
     page.wait_for_timeout(500)
-    print(f"  Visível para: mantive {manter}, tirei {tirados}", flush=True)
+    mudou = r.get("mudou") or []
+    print(f"  Visível para: equipe {manter}; mudou {mudou or 'nada'}" +
+          (f" | ! continuam errados: {errados}" if errados else ""), flush=True)
+    return mudou
 
 
-def preencher_endereco(page, o):
-    """Logradouro = rua (o que vem antes do QD); complemento = QD/LT."""
-    titulo = o["titulo"]
-    corte = titulo.find(" QD ")
-    rua = titulo[:corte].strip() if corte > 0 else titulo
-    compl = titulo[corte:].strip() if corte > 0 else ""
-    if rua:
-        escrever(page, CAMPO["logradouro"], rua)
-    if compl:
-        escrever(page, CAMPO["complemento"], compl)
+def ajustar_exibir(page):
+    """'Exibir obra para': Lançamento e Faturamento ATIVADOS, Compras DESATIVADO.
+    Pelo name de cada interruptor (antes ia pela ordem das caixas da tela e
+    errava quando havia outra caixa visível)."""
+    alvo = {"enabledForPayment": True, "enabledForReceipt": True, "enabledForPurchasing": False}
+    rot = {"enabledForPayment": "Lançamento", "enabledForReceipt": "Faturamento", "enabledForPurchasing": "Compras"}
+    mudou = []
+    for nome, quer in alvo.items():
+        cx = page.locator(f"input[type=checkbox][name={nome}]").first
+        try:
+            if not cx.count():
+                print(f"  ! Exibir obra para: não achei '{rot[nome]}'", flush=True)
+                continue
+            if cx.is_checked() != quer:
+                cx.scroll_into_view_if_needed()
+                cx.click(force=True)
+                page.wait_for_timeout(300)
+                mudou.append(f"{rot[nome]} {'ativado' if quer else 'desativado'}")
+        except Exception as e:
+            print(f"  ! Exibir obra para ({rot[nome]}): {str(e)[:80]}", flush=True)
+    return mudou
+
+
+def status_atual(page):
     try:
-        escolher_na_lista(page, "#state", "Goi", alvo="Goiás")
-        if o.get("cidade"):
-            page.wait_for_timeout(900)
-            escolher_na_lista(page, "#city", o["cidade"][:12], alvo=o["cidade"])
-    except Exception as e:
-        print(f"  ! estado/cidade: {str(e)[:110]}", flush=True)
-    print(f"  endereço: logradouro='{rua}' complemento='{compl}'", flush=True)
+        return page.locator(CAMPO["status"]).first.evaluate("""e => {
+            const q = e.parentElement.querySelector('[role=combobox], .MuiSelect-select');
+            return (q ? q.innerText : '').trim(); }""")
+    except Exception:
+        return ""
+
+
+def escolher_status(page, alvo=STATUS_OBRA):
+    atual = status_atual(page)
+    if N(atual) == N(alvo):
+        return ""
+    escolher_na_lista(page, CAMPO["status"], "", alvo=alvo, exato=True)
+    return f"status {atual or '(vazio)'} -> {alvo}"
+
+
+# ---------------------------------------------------------------- endereço
+_cache_cep = {}
+
+
+def _variantes_rua(rua):
+    """'TB 06' -> ['TB 06', 'TB 6', 'TB-06', 'TB-6']."""
+    sem_zero = re.sub(r"\b0+(\d)", r"\1", rua)
+    vs = [rua, sem_zero, rua.replace(" ", "-"), sem_zero.replace(" ", "-")]
+    out = []
+    for v in vs:
+        if v and v not in out:
+            out.append(v)
+    return out
+
+
+def escolher_cep(resultados, bairro_esperado):
+    """Função PURA: entre os resultados do ViaCEP, o único que é do bairro
+    esperado (pela 1ª palavra relevante do bairro). Sem bairro esperado, só
+    aceita resultado único. Devolve o dict ou None."""
+    res = [r for r in (resultados or []) if isinstance(r, dict) and r.get("cep")]
+    if bairro_esperado:
+        chaves = [w for w in N(bairro_esperado).split() if w not in ("RESIDENCIAL", "SETOR", "JARDIM", "PARQUE", "DOS", "DAS", "DO", "DA", "DE", "II", "I")]
+        if chaves:
+            res = [r for r in res if chaves[0] in N(r.get("bairro"))]
+    return res[0] if len(res) == 1 else None
+
+
+def buscar_cep(rua, cidade, bairro_esperado):
+    """ViaCEP (público, sem chave) pela rua. Nunca derruba o robô."""
+    chave = (N(rua), N(cidade), N(bairro_esperado))
+    if chave in _cache_cep:
+        return _cache_cep[chave]
+    achado = None
+    if rua and cidade:
+        import requests
+        from urllib.parse import quote
+        for v in _variantes_rua(rua):
+            try:
+                r = requests.get(f"https://viacep.com.br/ws/GO/{quote(cidade)}/{quote(v)}/json/", timeout=15)
+                if r.status_code == 200:
+                    achado = escolher_cep(r.json(), bairro_esperado)
+            except Exception as e:
+                print(f"  ! ViaCEP: {str(e)[:80]}", flush=True)
+                break
+            if achado:
+                break
+    _cache_cep[chave] = achado
+    return achado
+
+
+def endereco_da_obra(o, viacep=None):
+    """Função PURA (com `viacep` = resultado de buscar_cep): os campos do bloco
+    Endereço do MC para a obra."""
+    rua, compl = partes_endereco(o["titulo"])
+    bairro = SETORES_END.get(N(o.get("setor")), "") or (o.get("setor") or "").strip()
+    logradouro = rua if re.match(r"(?i)^(rua|av|avenida|alameda|travessa|rodovia)\b", rua) else f"Rua {rua}"
+    cep = ""
+    if viacep:
+        cep = re.sub(r"\D", "", viacep.get("cep") or "")
+        if viacep.get("logradouro"):
+            logradouro = viacep["logradouro"]
+        if viacep.get("bairro") and not SETORES_END.get(N(o.get("setor"))):
+            bairro = viacep["bairro"]
+    return {"cep": cep, "logradouro": logradouro, "numero": "s/n", "complemento": compl,
+            "bairro": bairro, "cidade": o.get("cidade") or ""}
+
+
+CAMPO_END = {
+    "cep": "input[name='address.zipCode']",
+    "logradouro": "input[name='address.address']",
+    "numero": "input[name='address.addressNumber']",
+    "complemento": "input[name='address.complement']",
+    "bairro": "input[name='address.neighborhood']",
+}
+
+
+def ler_endereco_mc(page):
+    v = {k: valor_campo(page, sel) for k, sel in CAMPO_END.items()}
+    v["cep"] = re.sub(r"\D", "", v["cep"])
+    v["estado"] = valor_campo(page, "#state")
+    v["cidade"] = valor_campo(page, "#city")
+    return v
+
+
+def diferencas_endereco(alvo, atual):
+    """Função PURA: campos do endereço do MC que não batem com o alvo. Campo
+    vazio no alvo (ex.: CEP não achado) não conta como diferença."""
+    dif = []
+    for k in ("cep", "logradouro", "numero", "complemento", "bairro", "cidade"):
+        if alvo.get(k) and N(alvo[k]) != N(atual.get(k)):
+            dif.append(k)
+    if N(atual.get("estado")) not in ("GOIAS", "GO"):
+        dif.append("estado")
+    return dif
+
+
+def preencher_endereco(page, o, so=None):
+    """Bloco Endereço completo: CEP, Rua, s/n, QD/LT, bairro, Goiás, cidade.
+    `so` = lista de campos a escrever (conferência); None = todos (criação).
+    Devolve o texto do endereço montado."""
+    viacep = buscar_cep(partes_endereco(o["titulo"])[0], o.get("cidade"),
+                        SETORES_END.get(N(o.get("setor")), ""))
+    e = endereco_da_obra(o, viacep)
+    todos = so is None
+    so = set(so or [])
+    for k in ("cep", "logradouro", "numero", "complemento", "bairro"):
+        if e[k] and (todos or k in so):
+            escrever(page, CAMPO_END[k], e[k])
+    if todos or "estado" in so or "cidade" in so:
+        try:
+            if todos or "estado" in so:
+                escolher_na_lista(page, "#state", "Goi", alvo="Goiás")
+                page.wait_for_timeout(900)
+            if e["cidade"]:
+                escolher_na_lista(page, "#city", e["cidade"][:12], alvo=e["cidade"])
+        except Exception as ex:
+            print(f"  ! estado/cidade: {str(ex)[:110]}", flush=True)
+    texto = f"{e['logradouro']}, {e['numero']}, {e['bairro']}, {e['cep'] or '(sem CEP)'}, {e['cidade']} - GO ({e['complemento']})"
+    if not e["cep"]:
+        print(f"  ! {o['titulo']}: CEP não achado no ViaCEP para '{e['logradouro']}' — ficou sem CEP", flush=True)
+    print(f"  endereço: {texto}", flush=True)
+    return e
 
 
 def tem_conta_pedida(o):
@@ -577,6 +880,11 @@ def criar_no_mc(page, o):
         print(f"  tipo: {tipo}", flush=True)
     except Exception as e:
         print(f"  ! tipo '{tipo}': {str(e)[:110]}", flush=True)
+    try:
+        escolher_status(page)
+        print(f"  status: {STATUS_OBRA}", flush=True)
+    except Exception as e:
+        print(f"  ! status: {str(e)[:110]}", flush=True)
 
     try:
         ajustar_visiveis(page, o.get("resp") or "")
@@ -595,7 +903,7 @@ def criar_no_mc(page, o):
         print(f"  ! dados gerais: {str(e)[:110]}", flush=True)
 
     abrir_secao(page, "Dados do cliente")
-    cliente = escolher_na_lista(page, CAMPO["cliente"], o["cliente"][:25], alvo=o["cliente"])
+    cliente = escolher_cliente(page, o["cliente"])
     print(f"  cliente: {cliente}", flush=True)
     fechar_replicar(page)
 
@@ -613,9 +921,11 @@ def criar_no_mc(page, o):
         conta_ok = False
     abrir_secao(page, "Exibir obra para")
     try:
-        desmarcar_compras(page)
+        m = ajustar_exibir(page)
+        print(f"  Exibir obra para: Lançamento e Faturamento ativados, Compras desativado"
+              + (f" ({', '.join(m)})" if m else ""), flush=True)
     except Exception as e:
-        print(f"  ! Compras: {str(e)[:110]}", flush=True)
+        print(f"  ! Exibir obra para: {str(e)[:110]}", flush=True)
 
     # sensivel=True: a tela mostra a conta bancária escolhida, e o artefato
     # mc-evidencias do Actions é público (repo público) — só com DESCOBRIR=1
@@ -662,6 +972,10 @@ def criar_no_mc(page, o):
                            f"| rede: {rede or '(sem chamadas)'}")
     print(f"  salvou — rede: {rede or '(sem chamadas registradas)'}", flush=True)
     foto(page, "pos_salvar_" + o["titulo"].replace(" ", "_"), sensivel=True)
+    try:
+        print(f"  orçamento: {garantir_orcamento(page, o)}", flush=True)
+    except Exception as e:
+        print(f"  ! orçamento: {str(e)[:140]}", flush=True)
     if not conta_ok:
         # havia conta pedida (relação CONTA BANCÁRIA ou texto em CONTA) e não
         # foi escolhida na lista — não marco "Criada" (o dono revisita pelo
@@ -686,10 +1000,71 @@ def criar_no_mc(page, o):
 # Para não abrir 90 obras todo dia: a coluna MC ATUALIZADO EM guarda quando
 # a obra foi conferida; ela só volta para a fila se for editada no Notion
 # depois disso. Primeira rodada: no máximo LIMITE_POR_RODADA obras.
+#
+# 08/10/26 — CONFERÊNCIA DO QUE JÁ ESTÁ PREENCHIDO. Antes o robô só preenchia
+# campo VAZIO no MC; valor errado ficava errado para sempre. Agora o Notion é
+# a fonte: campo do MC diferente do Notion é CORRIGIDO (tipo, área, RT,
+# responsável, cliente, logradouro/complemento/cidade, conta bancária). Campo
+# vazio no Notion nunca apaga o que está no MC. Toda obra ativa volta para a
+# fila a cada REVER_DIAS dias, mesmo sem edição no Notion (pega o que alguém
+# mudou direto no MC); as editadas no Notion vêm primeiro.
 # =====================================================================
 COL_MC_DATA = "MC ATUALIZADO EM"
 LIMITE_POR_RODADA = 35
+REVER_DIAS = 7
 FIM = ("FINALIZADO", "CANCELADO", "CONCLUIDO")
+
+
+# ---- comparações PURAS (sem Playwright) — testadas em tests/ -------------
+_SUFIXOS_EMPRESA = {"LTDA", "ME", "EPP", "EIRELI", "SA", "S/A", "S.A", "S.A."}
+
+
+def mesmo_nome(a, b):
+    """Nome do Notion x nome no MC: igual ignorando acento/caixa/espaço e os
+    sufixos de empresa (LTDA, ME…), que o MC às vezes guarda sem."""
+    def base(x):
+        return [w for w in N(x).replace(",", " ").split() if w not in _SUFIXOS_EMPRESA]
+    return bool(N(a)) and base(a) == base(b)
+
+
+def numero_mc(texto):
+    """'1.234,56' / '123,4' / '123.45' -> float; vazio/ilegível -> None."""
+    t = re.sub(r"[^0-9,.\-]", "", str(texto or ""))
+    if not t:
+        return None
+    if "," in t:
+        t = t.replace(".", "").replace(",", ".")
+    try:
+        return float(t)
+    except ValueError:
+        return None
+
+
+def mesma_area(notion, mc):
+    a, b = numero_mc(notion), numero_mc(mc)
+    if a is None:
+        return True                    # Notion vazio: não mexe
+    return b is not None and abs(a - b) < 0.01
+
+
+def partes_endereco(titulo):
+    """'TB 15 QD 45 LT 39' -> ('TB 15', 'QD 45 LT 39')."""
+    corte = titulo.find(" QD ")
+    return (titulo[:corte].strip(), titulo[corte:].strip()) if corte > 0 else (titulo, "")
+
+
+def conta_confere(valor_mc, o):
+    """A conta escolhida no MC é a pedida no Notion? Sem conta pedida, qualquer
+    uma serve (não mexe)."""
+    if not tem_conta_pedida(o):
+        return True
+    if not str(valor_mc or "").strip():
+        return False
+    exata = (o.get("conta_exata") or "").strip()
+    if exata:
+        return escolha_por_prefixo([valor_mc], exata, o.get("conta_numero") or "") is not None
+    texto = (o.get("conta") or "").strip()
+    return bool(texto) and escolha_por_prefixo([valor_mc], texto) is not None
 
 
 def garantir_coluna_data():
@@ -727,25 +1102,31 @@ def fila_atualizar(no_mc, mapa_contas=None):
         conf = _dt(conf.get("start")) if conf else None
         editada = _dt(pg.get("last_edited_time"))
         # gravar a própria data mexe na última edição: 3 min de folga
-        if conf and editada and (editada - conf).total_seconds() < 180:
+        mudou_no_notion = not (conf and editada and (editada - conf).total_seconds() < 180)
+        vencida = (not conf) or (datetime.now(timezone.utc) - conf).days >= REVER_DIAS
+        if not mudou_no_notion and not vencida:
             continue
         a1, a2 = txt(pega(pr, "ÁREA CONSTRUÍDA AVERBADA")), txt(pega(pr, "ÁREA PÓS HABITE-SE"))
         conta_exata, conta_numero, nao_resolvida = resolver_conta(prop_conta(pr), mapa_contas)
         fila.append({
             "id": pg["id"], "titulo": titulo, "conferida": bool(conf),
+            "mudou_no_notion": bool(conf) and mudou_no_notion, "conf_em": conf,
             "casas": txt(pega(pr, "Nº DE CASAS")),
             "area": ((a1 or 0) + (a2 or 0)) or None,
             "rt": txt(pega(pr, "ENGENHEIRO RT")),
             "resp": txt(pega(pr, "Responsável Pela Obra")),
             "cliente": txt(pega(pr, "Proprietário")),
-            "cidade": txt(pega(pr, "Cidade")),
+            "cidade": txt(pega(pr, "Cidade")).split(",")[0].strip(),
+            "setor": txt(pega(pr, "SETOR")),
             "conta": txt(pega(pr, "CONTA")),
             "conta_exata": conta_exata,
             "conta_numero": conta_numero,
             "conta_nao_resolvida": nao_resolvida,
         })
-    # as nunca conferidas por último: primeiro o que mudou de verdade
-    fila.sort(key=lambda o: o["conferida"], reverse=True)
+    # ordem: 1) editadas no Notion depois da última conferência; 2) as que
+    # nunca foram conferidas; 3) as conferidas há mais tempo (rodízio semanal)
+    antigo = datetime(2000, 1, 1, tzinfo=timezone.utc)
+    fila.sort(key=lambda o: (not o["mudou_no_notion"], o["conferida"], o["conf_em"] or antigo))
     return fila
 
 
@@ -799,14 +1180,25 @@ def valor_campo(page, sel):
     return ""
 
 
+def _orcamento_na_conferencia(page, o):
+    try:
+        r = garantir_orcamento(page, o)
+        if r != "já tinha orçamento":
+            print(f"  {o['titulo']}: orçamento {r}", flush=True)
+    except Exception as e:
+        print(f"  ! {o['titulo']}: orçamento: {str(e)[:120]}", flush=True)
+
+
 def completar_no_mc(page, o):
+    """Abre a obra no MC e deixa cada campo IGUAL ao Notion: preenche o vazio
+    e corrige o diferente (08/10/26). Campo vazio no Notion não mexe no MC.
+    Conta bancária: nunca imprime nome/número (log público)."""
     abrir_edicao(page, o["titulo"])
     mudou = []
 
+    # --- tipo da obra (pelo Nº DE CASAS)
     n = int(o["casas"]) if isinstance(o["casas"], (int, float)) else 0
     # o valor do input é um id (uuid); o NOME do tipo fica no quadro do select.
-    # Ler o "pai" inteiro trazia junto o rótulo "Tipo da obra", e a comparação
-    # com "Genérico" nunca batia — por isso a PARAISO não teve o tipo trocado.
     tipo_atual = ""
     try:
         tipo_atual = page.locator(CAMPO["tipo"]).first.evaluate("""e => {
@@ -817,72 +1209,111 @@ def completar_no_mc(page, o):
     print(f"  {o['titulo']}: no MC hoje -> tipo '{tipo_atual or '(vazio)'}' | nº de casas no Notion: {n or '(vazio)'}", flush=True)
     if N(tipo_atual) in ("SELECIONE UM TIPO", ""):
         tipo_atual = ""                     # é só o texto de exemplo do campo vazio
-    if n in TIPOS and N(tipo_atual) != N(TIPOS[n]) and (not tipo_atual or N(tipo_atual) == N(TIPO_PADRAO)):
+    if n in TIPOS and N(tipo_atual) != N(TIPOS[n]):
         try:
             escolher_na_lista(page, CAMPO["tipo"], "", alvo=TIPOS[n], exato=True)
             mudou.append(f"tipo {tipo_atual or '(vazio)'} -> {TIPOS[n]}")
         except Exception as e:
             print(f"  ! tipo: {str(e)[:90]}", flush=True)
 
+    # --- status: obra que ficou "Em orçamento" (padrão do MC) vira Em andamento.
+    # Paralisada/Finalizada/A iniciar são decisões de alguém: não mexe.
+    if N(status_atual(page)) in ("EM ORCAMENTO", ""):
+        try:
+            m = escolher_status(page)
+            if m:
+                mudou.append(m)
+        except Exception as e:
+            print(f"  ! status: {str(e)[:90]}", flush=True)
+
+    # --- visível para (equipe do responsável)
+    try:
+        m = ajustar_visiveis(page, o.get("resp") or "")
+        if m:
+            mudou.append("visível para " + ", ".join(m))
+    except Exception as e:
+        print(f"  ! Visível para: {str(e)[:90]}", flush=True)
+
+    # --- dados gerais: área, responsável técnico, responsável da obra
     area_atual = valor_campo(page, CAMPO["area"])
     rt_atual, resp_atual = valor_campo(page, CAMPO["rt"]), valor_campo(page, CAMPO["resp"])
-    if (o["area"] and area_atual in ("", "0", "0,00")) or (o["rt"] and not rt_atual) or (o["resp"] and not resp_atual):
+    area_dif = bool(o["area"]) and not mesma_area(o["area"], area_atual)
+    rt_dif = bool(o["rt"]) and N(rt_atual) != N(o["rt"])
+    resp_dif = bool(o["resp"]) and N(resp_atual) != N(o["resp"])
+    if area_dif or rt_dif or resp_dif:
         abrir_secao(page, "Dados gerais")
-        if o["area"] and area_atual in ("", "0", "0,00"):
+        if area_dif:
             escrever(page, CAMPO["area"], f"{float(o['area']):.2f}".replace(".", ","))
-            mudou.append(f"área {o['area']}")
-        if o["rt"] and not rt_atual:
-            escrever(page, CAMPO["rt"], o["rt"]); mudou.append("responsável técnico")
-        if o["resp"] and not resp_atual:
-            escrever(page, CAMPO["resp"], o["resp"]); mudou.append("responsável da obra")
+            mudou.append(f"área {area_atual or '(vazio)'} -> {o['area']}")
+        if rt_dif:
+            escrever(page, CAMPO["rt"], o["rt"])
+            mudou.append(f"responsável técnico {rt_atual or '(vazio)'} -> {o['rt']}")
+        if resp_dif:
+            escrever(page, CAMPO["resp"], o["resp"])
+            mudou.append(f"responsável da obra {resp_atual or '(vazio)'} -> {o['resp']}")
 
-    if o["cliente"] and not valor_campo(page, CAMPO["cliente"]):
+    # --- cliente (= Proprietário)
+    cliente_atual = valor_campo(page, CAMPO["cliente"])
+    if o["cliente"] and not mesmo_nome(o["cliente"], cliente_atual):
         abrir_secao(page, "Dados do cliente")
         try:
-            c = escolher_na_lista(page, CAMPO["cliente"], o["cliente"][:25], alvo=o["cliente"])
+            c = escolher_cliente(page, o["cliente"])
             fechar_replicar(page)
-            mudou.append(f"cliente {c}")
+            mudou.append(f"cliente {cliente_atual or '(vazio)'} -> {c}")
         except Exception as e:
             print(f"  ! cliente: {str(e)[:90]}", flush=True)
 
-    if not valor_campo(page, CAMPO["logradouro"]) or not valor_campo(page, "#state"):
-        abrir_secao(page, "Endereço")
-        try:
-            if not valor_campo(page, CAMPO["logradouro"]):
-                preencher_endereco(page, o)
-                mudou.append("endereço")
-            elif not valor_campo(page, "#state"):
-                escolher_na_lista(page, "#state", "Goi", alvo="Goiás")
-                if o.get("cidade"):
-                    page.wait_for_timeout(900)
-                    escolher_na_lista(page, "#city", o["cidade"][:12], alvo=o["cidade"])
-                mudou.append("estado/cidade")
-        except Exception as e:
-            print(f"  ! endereço: {str(e)[:90]}", flush=True)
+    # --- endereço completo (CEP, Rua, s/n, QD/LT, bairro, Goiás, cidade)
+    try:
+        alvo_end = endereco_da_obra(o, buscar_cep(partes_endereco(o["titulo"])[0], o.get("cidade"),
+                                                   SETORES_END.get(N(o.get("setor")), "")))
+        atual_end = ler_endereco_mc(page)
+        dif = diferencas_endereco(alvo_end, atual_end)
+        if dif:
+            abrir_secao(page, "Endereço")
+            preencher_endereco(page, o, so=dif)
+            mudou.append("endereço (" + ", ".join(dif) + ")")
+    except Exception as e:
+        print(f"  ! endereço: {str(e)[:90]}", flush=True)
 
+    # --- exibir obra para
+    try:
+        abrir_secao(page, "Exibir obra para")
+        m = ajustar_exibir(page)
+        if m:
+            mudou.append("exibir obra para: " + ", ".join(m))
+    except Exception as e:
+        print(f"  ! Exibir obra para: {str(e)[:90]}", flush=True)
+
+    # --- conta bancária
     conta_pendente = False
     if o.get("conta_nao_resolvida"):
         # relação que não se resolve: mesmo com a conta do MC preenchida, não
         # dá para conferir que é a pedida — não conta como conferida/Criada
         conta_pendente = True
         print(f"  ! {o['titulo']}: conta bancária pedida pela relação não se resolve — não conto como conferida", flush=True)
-    elif tem_conta_pedida(o) and not valor_campo(page, CAMPO["conta"]):
-        abrir_secao(page, "Conta bancária padrão")
-        try:
-            if preencher_conta(page, o):
-                mudou.append("conta bancária")
-            else:
+    elif tem_conta_pedida(o):
+        conta_atual = valor_campo(page, CAMPO["conta"])
+        if not conta_confere(conta_atual, o):
+            print(f"  {o['titulo']}: conta bancária " + ("vazia" if not conta_atual else "diferente do Notion")
+                  + " — vou escolher a do Notion", flush=True)
+            abrir_secao(page, "Conta bancária padrão")
+            try:
+                if preencher_conta(page, o):     # escolhe só a opção que é a do Notion
+                    mudou.append("conta bancária")
+                else:
+                    conta_pendente = True
+                    print(f"  ! {o['titulo']}: conta bancária pedida não foi escolhida — não conto como conferida", flush=True)
+            except Exception as e:
+                print(f"  ! conta: {str(e)[:90]}", flush=True)
                 conta_pendente = True
-                print(f"  ! {o['titulo']}: conta bancária pedida não foi escolhida — não conto como conferida", flush=True)
-        except Exception as e:
-            print(f"  ! conta: {str(e)[:90]}", flush=True)
-            conta_pendente = True
 
     if not mudou:
         page.keyboard.press("Escape")
         page.wait_for_timeout(500)
+        _orcamento_na_conferencia(page, o)
         return "conta não escolhida" if conta_pendente else "nada a completar"
-    print(f"  {o['titulo']}: completando {', '.join(mudou)}", flush=True)
+    print(f"  {o['titulo']}: corrigindo " + " | ".join(mudou), flush=True)
     if not APLICAR:
         page.keyboard.press("Escape")
         return "simulado"
@@ -894,6 +1325,7 @@ def completar_no_mc(page, o):
     except Exception:
         foto(page, "erro_completar_" + o["titulo"].replace(" ", "_"), sensivel=True)
         raise RuntimeError("o painel de edição continuou aberto depois de Salvar Obra")
+    _orcamento_na_conferencia(page, o)
     # mesmo salvando os outros campos, a conta pedida (e não escolhida) não
     # pode "passar" como conferida — main() só marca conferida para
     # "completada"/"nada a completar", nunca para este status.
