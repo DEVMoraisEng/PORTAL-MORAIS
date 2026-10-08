@@ -376,8 +376,7 @@ def faltas(dados: dict, dias_financiamento: int = DIAS_FINANCIAMENTO) -> list[st
           and dados.get("total") is not None
           and abs(dados["valor_na_mao"] + dados["comissao"] - dados["total"]) > TOLERANCIA):
         f.append("Valor na mão + comissão diferente do valor do contrato")
-    if not str(dados.get("corretor") or "").strip():
-        f.append("Falta o CORRETOR (ele vai como Vendedor no Mais Controle)")
+    # corretor é opcional desde 08/10/2026: sem ele a venda vai sem Vendedor (ver lancar.py)
     c = dados["comprador"]
     if not c.get("nome"):
         f.append("Falta o nome do comprador (CLIENTES)")

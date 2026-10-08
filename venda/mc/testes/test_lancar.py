@@ -337,21 +337,24 @@ def test_corretor_em_dois_cadastros_prefere_fornecedor_e_recusa_se_ambiguo():
     assert L.processar("p1", n, e)["corpo_venda"]["seller"] == {"id": "b"}
     e._homs = [{"id": "a", "name": "CORRETOR EXEMPLO", "role": "SUPPLIER"},
                {"id": "b", "name": "CORRETOR EXEMPLO", "role": "SUPPLIER"}]
-    assert L.processar("p1", NotionFake(pagina()), e)["codigo"] == "CORRETOR_REPETIDO"
+    n2 = NotionFake(pagina())
+    r = L.processar("p1", n2, e)
+    assert r["codigo"] == "PREVIA" and "sem Vendedor" in n2.gravado["MC - SITUAÇÃO"] and "seller" not in r["corpo_venda"]
 
 
-def test_sem_corretor_e_falta():
-    from venda.mc.testes.test_regras import sel
+def test_sem_corretor_vai_sem_vendedor():
     n = NotionFake(pagina(CORRETOR={"type": "select", "select": None}))
     r = L.processar("p1", n, ErpFake())
-    assert r["codigo"] == "FALTAS" and "Falta o CORRETOR" in n.gravado["MC - SITUAÇÃO"]
+    assert r["codigo"] == "PREVIA" and "sem Vendedor" in n.gravado["MC - SITUAÇÃO"] and "seller" not in r["corpo_venda"]
 
 
-def test_corretor_sem_cpf_no_cadastro_recusa_na_previa():
-    n = NotionFake(pagina())
+def test_corretor_sem_cpf_no_cadastro_vai_sem_vendedor():
+    n, e = NotionFake(pagina()), ErpFake()
     n.corretores = []
-    r = L.processar("p1", n, ErpFake())
-    assert r["codigo"] == "CORRETOR_SEM_CPF" and "CORRETORES – CONTRATO" in n.gravado["MC - SITUAÇÃO"]
+    r = L.processar("p1", n, e)
+    assert r["codigo"] == "PREVIA" and "CORRETORES – CONTRATO" in n.gravado["MC - SITUAÇÃO"]
+    L.processar("p1", n, e, aplicar=True)
+    assert [t for t, _ in e.criados] == ["cliente", "venda"] and "seller" not in e.criados[-1][1]
 
 
 def test_corretor_novo_leva_cpf_e_creci_do_cadastro():
