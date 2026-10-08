@@ -56,20 +56,25 @@ CPF/nome, log só com tokens.
 
 ## Produção (quando o dono disser "sobe")
 
-1. Desenvolvedor cria as 24 colunas na VENDAS de produção (arquivo 10 da DOCUMENTACAO).
-2. Projeto **PORTAL-VENDA** igual ao de teste, com `NOTION_TOKEN` e `SESSION_SECRET`
-   **iguais aos do PORTAL-ESCRITA**, `DB_VENDAS` = `33cc5ab532d38047ae3aee8b87ac1f4d`,
-   `PROVEDOR_IA` = `openai`, `OPENAI_API_KEY` = a chave da OpenAI e `MODELO_IA`
-   opcional. Implantar e testar o `ping`.
-3. Subir `venda-dossie.js` com a URL `/exec` de produção na constante `URL_PORTAL_VENDA`.
-4. No `vendas.html` de produção, depois da linha do `app.js`, acrescentar
-   `<script src="venda-dossie.js?v=1"></script>`.
-5. Conferir numa casa: o bloco aparece; tipo de casa grava; um documento lê.
-   Se o bloco não aparecer: Ctrl+F5 (o `sw.js` guarda páginas em cache).
+Roteiro completo, por quem faz e por sistema: `PRODUCAO - 2026-10-07 venda checklist.md` (fora do repositório).
 
-**Desfazer:** tirar a linha do `vendas.html`. As colunas podem ficar.
+1. **Projeto PORTAL-VENDA de produção — já criado (07/10)** pelo clasp, com o código desta versão e o arquivo
+   `ConfigProducao` (só existe lá). No editor: selecionar `configurarProducao` › Executar › autorizar. Ela preenche as
+   Propriedades que não são segredo (bases, Clicksign de produção, repositório) e cria a pasta privada dos
+   pré-contratos; o registro lista o que falta colar.
+2. Segredos, colados à mão: `NOTION_TOKEN`, `SESSION_SECRET` e `GITHUB_TOKEN` **copiados do PORTAL-ESCRITA**
+   (o `GITHUB_TOKEN` dele já é do PORTAL-MORAIS com Contents R/W); `OPENAI_API_KEY` do PORTAL-VENDA-TESTE (o portal
+   real não tem); `CLICKSIGN_TOKEN` de produção. Modelos (`MODELO_*_ID`): os mesmos Google Docs do teste.
+   Colar o `GITHUB_TOKEN` por último: é ele que liga o botão do Mais Controle.
+3. Desenvolvedor: bases e colunas do Notion (checklist, seção 5) e o bloco do distrato no Code.gs do
+   PORTAL-ESCRITA (entrega 8). A prévia/estado do distrato saem pela ESCRITA (`app.js`).
+4. GitHub de produção: variável `MC_VENDA_APLICAR` **vazia** no começo (o botão só faz a prévia); segredo
+   `MC_ROBO_APARELHO` se o login do robô pedir código. Os workflows aceitam `MC_ROBO_USUARIO` como e-mail do robô.
+   Apagar `MC_INDICES` no fork de teste antes de ligar na produção.
+5. Versão do site: branch `producao/venda` (sem `teste/`, `URL_PORTAL_VENDA` de produção, cache novo do `sw.js`),
+   revisada pelo desenvolvedor antes de entrar na `main`. Conferir numa casa: Ctrl+F5 se o bloco não aparecer.
 
-**Não sobe para produção:** a pasta `teste/` e o commit do apontador.
+**Desfazer:** tirar a linha do `venda-dossie.js` do `vendas.html`. As colunas podem ficar.
 
 ## Contrato (entrega 2)
 
@@ -581,9 +586,9 @@ Implantar:
    Propriedades: nada novo (as `PRECONTRATO_<pageId>` são criadas sozinhas).
 2. **Portal (site):** publicar `venda-dossie.js` com a `URL_PORTAL_VENDA` deste
    ambiente preenchida.
-3. **Pasta provisória:** quem confere precisa conseguir abrir o PDF do
-   pré-contrato — compartilhar a pasta `PASTA_PROVISORIA_ID` (só leitura) com
-   quem confere os contratos. O PDF não é público.
+3. **Pasta provisória:** não compartilhe. O "Visualizar pré-contrato" entrega o
+   PDF pelo próprio portal (`verPreContrato`) a quem está logado; a pasta fica
+   privada da conta dona e o PDF nunca tem link público.
 4. **Teste:** numa casa de teste, Gerar pré-contrato → abrir o PDF e ver os grifos
    (amarelo e, no condomínio com campo vazio, vermelho) → mudar um valor no Notion
    → o "Conferi" trava → Gerar pré-contrato de novo → Conferi → o contrato em
