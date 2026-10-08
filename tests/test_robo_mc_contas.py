@@ -871,3 +871,11 @@ def test_preparar_banco_fixo_nao_apaga_nem_mexe_na_chave_pix(monkeypatch):
     r.preparar_banco_fixo("banco-contas")
     for corpo in gravado:
         assert not any(r.N(k) == r.N("CHAVE PIX") for k in (corpo.get("properties") or {}))
+
+
+def test_numero_do_nome_com_ponto_de_milhar_vem_inteiro():
+    """'55.694-7' no nome virava '694-7' (pegava só o último grupo)."""
+    import robo_mc_contas as R
+    assert R.conta_do_erp({"id": "1", "name": "EMPRESA TESTE - MAE - 55.694-7 - SICOOB"})["numero"] == "55694-7"
+    assert R.conta_do_erp({"id": "2", "name": "EMPRESA TESTE SICOOB 10774-3"})["numero"] == "10774-3"
+    assert R.conta_do_erp({"id": "3", "name": "EMPRESA - Conta corrente: 56.144-4 - SICOOB"})["numero"] == "56144-4"
