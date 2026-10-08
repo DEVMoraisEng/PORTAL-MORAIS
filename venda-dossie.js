@@ -214,12 +214,14 @@
     var esc = c.escolhida, escolhida = null;
     if (esc && esc.id) escolhida = { id: String(esc.id) };
     else if (esc && (esc.banco || esc.conta))
-      escolhida = { banco: String(esc.banco || ""), agencia: String(esc.agencia || ""), conta: String(esc.conta || ""), pix: String(esc.pix || "") };
+      escolhida = { banco: String(esc.banco || ""), agencia: String(esc.agencia || ""), operacao: String(esc.operacao || ""),
+                    conta: String(esc.conta || ""), pix: String(esc.pix || "") };
     return { opcoes: c.opcoes.map(function (o) { return { id: String(o.id || ""), nome: String(o.nome || "") }; }),
              escolhida: escolhida, padrao: String(c.padrao || "") };
   }
   var CONTA_DIGITAR = "__digitar";
-  var CAMPOS_CONTA = [["banco", "Banco"], ["agencia", "Agência"], ["conta", "Conta"], ["pix", "Chave PIX (opcional)"]];
+  /* entrega 14: Operação (opcional) — vazia, o "– Operação:" sai do contrato */
+  var CAMPOS_CONTA = [["banco", "Banco"], ["agencia", "Agência"], ["operacao", "Operação (opcional)"], ["conta", "Conta"], ["pix", "Chave PIX (opcional)"]];
   /* modo "Digitar outra conta": escolhido agora na tela (u.contaDigitar) ou a escolha gravada é digitada */
   function contaDigitando(conta, u) {
     if (u && typeof u.contaDigitar === "boolean") return u.contaDigitar;
@@ -298,6 +300,8 @@
   function contaDasEntradas(v) {
     v = v || {};
     var c = { banco: String(v.banco || "").trim(), agencia: String(v.agencia || "").trim(), conta: String(v.conta || "").trim(), pix: String(v.pix || "").trim() };
+    var op = String(v.operacao || "").trim();
+    if (op) c.operacao = op;   // entrega 14: só vai quando foi digitada
     return c.banco || c.agencia || c.conta || c.pix ? c : null;
   }
   function testemunhasDoEstado(t) {
@@ -425,7 +429,66 @@
     return h;
   }
 
+  /* ---- entrega 14: bloco "Recebimentos" (Sinal, Entrada, Financiamento) ----
+   * e = { itens: [{ id, rotulo, esperado, data, comprovantes, por, confirmado }], emailConfigurado } (recebimentoEstado);
+   * u = { ocupado: id|null, msg, testes, rascunho: { id: data digitada }, arquivos: { id: File escolhido } }. */
+  var MSG_REC = {
+    COMPROVANTE_OBRIGATORIO: "Escolha o comprovante (foto ou PDF) antes de confirmar.",
+    DATA_INVALIDA: "Data do recebimento inválida (não pode ser depois de hoje).",
+    ITEM_INVALIDO: "Item de recebimento desconhecido — recarregue a página.",
+    SO_CASA: "Recebimentos só existem na casa da VENDAS.",
+    RECEBIMENTO_OCUPADO: "Outro recebimento está sendo salvo — tente de novo em instantes.",
+    SEM_PERMISSAO_TESTES: "O perfil TESTES só consulta; não confirma recebimento.",
+    ACAO_DESCONHECIDA: "Os recebimentos ainda não foram ligados neste ambiente (falta atualizar o PORTAL-VENDA)."
+  };
+  function dataRec(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || "")); return m ? m[3] + "/" + m[2] + "/" + m[1] : ""; }
+  function moedaRec(n) {
+    if (typeof n !== "number" || !isFinite(n)) return "";
+    return "R$ " + n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  /* rotulo = o item confirmado (mensagem de sucesso) */
+  function mensagemRec(r, rotulo) {
+    r = r || {};
+    var e = String(r.erro || "");
+    if (!e) {
+      var feito = "Recebimento" + (rotulo ? " do " + rotulo : "") + " confirmado";
+      if (r.aviso === "EMAIL_NAO_CONFIGURADO") return feito + ", mas o e-mail de aviso não está configurado (RECEBIMENTO_EMAILS) — avise o administrador.";
+      if (r.aviso === "EMAIL_FALHOU") return feito + ", mas o e-mail de aviso não saiu — avise o administrador.";
+      return feito + (r.emails ? " — e-mail de aviso enviado." : ".");
+    }
+    if (e === "GRAVACAO_FALHOU" && r.arquivoGuardado) return "O comprovante foi guardado, mas a data não — confirme de novo.";
+    return MSG_REC[e] || mensagemDeErro(e);
+  }
+  function htmlRecebimentos(e, u) {
+    u = u || {};
+    var testes = !!u.testes, ocupado = !!u.ocupado;
+    var h = '<div class="grp">Recebimentos</div>';
+    if (testes) h += '<div class="dz-aviso">Perfil TESTES só consulta.</div>';
+    if (!e) return h + '<div class="vazio">' + esc(u.msg || "carregando…") + "</div>";
+    var dis = (ocupado || testes) ? " disabled" : "", rasc = u.rascunho || {}, arqs = u.arquivos || {};
+    (e.itens || []).forEach(function (it) {
+      var id = esc(it.id), esperado = moedaRec(it.esperado);
+      h += '<div class="dz-linha rec-item"><span class="dz-rot"><b>' + esc(it.rotulo) + "</b> — valor esperado: " +
+        (esperado ? "<b>" + esc(esperado) + "</b>" : "<i>sem valor no contrato</i>") + "</span></div>";
+      h += '<div class="dz-linha"><span class="dz-rot">' + (it.confirmado
+        ? '<span class="rec-ok">✓ Recebido em ' + esc(dataRec(it.data)) + "</span>" + (it.por ? " por " + esc(it.por) : "") +
+          " · " + (it.comprovantes ? it.comprovantes + (it.comprovantes === 1 ? " comprovante" : " comprovantes") : "sem comprovante")
+        : '<span class="rec-pend">Aguardando confirmação</span>') + "</span></div>";
+      var data = it.id in rasc ? rasc[it.id] : (it.data || "");
+      var escolhido = arqs[it.id] && arqs[it.id].name ? ' <small class="rec-arq">escolhido: ' + esc(arqs[it.id].name) + "</small>" : "";
+      h += '<div class="dz-linha"><label class="dz-campo">Data do recebimento <input type="date" data-rec-data="' + id + '" value="' + esc(data) + '"' + dis + "></label> " +
+        '<label class="dz-campo">Comprovante <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" data-rec-arq="' + id + '"' + dis + "></label>" + escolhido + " " +
+        '<button type="button" class="bt bt-mini" data-acao="r-confirmar" data-item="' + id + '"' + dis + ">" +
+        (it.confirmado ? "Confirmar de novo (corrigir)" : "Confirmar recebimento") + "</button>" +
+        (u.ocupado === it.id ? " <b>salvando…</b>" : "") + "</div>";
+    });
+    if (e.emailConfigurado === false) h += '<div class="dz-msg dz-nota">O e-mail de aviso ainda não está configurado: o recebimento grava, mas ninguém é avisado.</div>';
+    if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
+    return h;
+  }
+
   var exportar = { URL_PORTAL_VENDA: URL_PORTAL_VENDA, DOCS: DOCS, html: html, mensagemDeErro: mensagemDeErro,
+                   htmlRecebimentos: htmlRecebimentos, mensagemRec: mensagemRec,
                    DOCS_IMOVEL: DOCS_IMOVEL, htmlImovel: htmlImovel, dadosImovel: dadosImovel, htmlLoteamento: htmlLoteamento,
                    grupoDoEspaco: grupoDoEspaco,
                    resumo: resumo, escala: escala, tipoAceito: tipoAceito, painelCarregando: painelCarregando,
@@ -439,7 +502,7 @@
   /* Painel da casa (vendas.html): mesmas margens das outras seções — título .grp com margem de 22px e
    * conteúdo como o .campo (padding 0 22px). No cartão do condomínio (.cd-cardbox) os blocos não têm
    * esse recuo. Os blocos de contrato/assinatura/Mais Controle moram em .vb-blocos (.vb-ass / .vb-mc). */
-  var NO_PAINEL = ["#dossie-wrap", "#pn-body .vb-blocos", "#pn-body .vb-ass", "#pn-body .vb-mc"];
+  var NO_PAINEL = ["#dossie-wrap", "#pn-body .vb-blocos", "#pn-body .vb-ass", "#pn-body .vb-rec", "#pn-body .vb-mc"];
   function emCada(sufixo) { return NO_PAINEL.map(function (b) { return b + sufixo; }).join(","); }
   var CSS = "#dossie-wrap .dz-linha,.vb-blocos .dz-linha{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}" +
     "#dossie-wrap .dz-rot,.vb-blocos .dz-rot{flex:1 1 200px}#dossie-wrap .on{outline:2px solid #4cd964}" +
@@ -459,6 +522,10 @@
     ".vb-ass .ass-ok{color:var(--verde,#2a9d5c);font-weight:700}.vb-ass .ass-pend{color:#B45309;font-weight:700}" +
     ".vb-ass .ass-rec{color:#C0392B;font-weight:700}.vb-ass .ass-data{color:var(--text3,#555);font-size:12px}" +
     ".vb-mc a.mc-abrir{color:var(--azul,#1d4f63);font-weight:700}" +
+    /* entrega 14: Recebimentos */
+    ".vb-rec .rec-ok{color:var(--verde,#2a9d5c);font-weight:700}.vb-rec .rec-pend{color:#B45309;font-weight:700}" +
+    ".vb-rec .rec-item{margin-top:12px}.vb-rec .rec-arq{color:var(--text3,#555)}" +
+    ".vb-blocos input[type=date]{padding:6px 8px;border:1px solid var(--border,#d6dee3);border-radius:6px;font:inherit}" +
     /* no cartão do condomínio os títulos não têm o recuo do painel da casa */
     ".cd-cardbox .vb-blocos .grp{margin:14px 0 8px}.cd-cardbox .vb-blocos .vazio{padding:10px}" +
     /* ...e os botões seguem os do próprio cartão (.cd-bt / .cd-bt.pri do vendas.html), não os do painel */
@@ -621,17 +688,31 @@
   function novoUiM() { return { ocupado: null, msg: "", testes: perfilTestes() }; }
   function novoCtxA() { return { estado: null, ocupado: null, msg: "", faltas: null, testes: perfilTestes() }; }
 
-  function criarBlocosVenda(pageId, ativo) {
-    var eu = { pageId: pageId };
+  function novoUiR() { return { ocupado: null, msg: "", testes: perfilTestes(), rascunho: {}, arquivos: {} }; }
+  /* um PDF em base64 (vindo pela sessão do portal) vira um endereço blob: local para a janela aberta no clique */
+  function urlDoPdf(base64) {
+    var bin = atob(base64), bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+  }
+  /* entrega 14: avisa o painel da casa (vendas.html) que a casa mudou no Notion — ele recarrega os campos */
+  function avisarDadosGravados(pageId) {
+    try { window.dispatchEvent(new CustomEvent("venda:dados-gravados", { detail: { pageId: pageId } })); } catch (e) {}
+  }
+
+  /* opts.recebimentos: o bloco Recebimentos (só a casa da VENDAS; o cartão do condomínio não tem) */
+  function criarBlocosVenda(pageId, ativo, opts) {
+    var eu = { pageId: pageId }, comRec = !!(opts && opts.recebimentos);
     var raiz = null, seqC = 0, carregandoC = false, estadoC = null, uiC = novoUiC();
     var estadoM = null, uiM = novoUiM(), esperaM = null, ctxA = novoCtxA();
+    var estadoR = null, uiR = novoUiR();
     function vivo() { return !!ativo(eu); }
     function dentro(sel) { return raiz ? raiz.querySelector(sel) : null; }
 
     /* Assinatura (Clicksign): o desenho e as ações moram em venda/assinatura-ui.js
      * (window.VendaAssinatura, carregado por iniciar()); aqui só o estado e a ligação. */
     function htmlAss() {
-      if (!window.VendaAssinatura) return '<div class="grp">Assinatura</div><div class="vazio">carregando…</div>';
+      if (!window.VendaAssinatura) return '<div class="grp">Enviar contrato via Clicksign</div><div class="vazio">carregando…</div>';
       ctxA.contratoGerado = contratoFinal(estadoC);
       return window.VendaAssinatura.montarBlocoAssinatura(ctxA);
     }
@@ -651,8 +732,69 @@
     function pintar() {
       if (!raiz) return;
       guardarRascunho();
+      guardarRascunhoR();
       raiz.innerHTML = htmlContrato(estadoC, uiC) + '<div class="vb-ass">' + htmlAss() + "</div>" +
+        (comRec ? '<div class="vb-rec">' + htmlRecebimentos(estadoR, uiR) + "</div>" : "") +
         '<div class="vb-mc">' + htmlMC(estadoM, uiM) + "</div>";
+    }
+    /* entrega 14: Recebimentos — a data digitada sobrevive ao redesenho; o arquivo escolhido fica em uiR.arquivos */
+    function guardarRascunhoR() {
+      if (!raiz || !raiz.querySelectorAll) return;
+      raiz.querySelectorAll("[data-rec-data]").forEach(function (x) { uiR.rascunho[x.getAttribute("data-rec-data")] = x.value; });
+    }
+    function pintarR() { var w = dentro(".vb-rec"); if (w) { guardarRascunhoR(); w.innerHTML = htmlRecebimentos(estadoR, uiR); } }
+    async function carregarRec() {
+      var r = await chamarVenda({ action: "recebimentoEstado", pageId: pageId });
+      if (!vivo()) return;
+      if (r.ok) { estadoR = { itens: r.itens || [], emailConfigurado: !!r.emailConfigurado }; uiR.msg = ""; }
+      else uiR.msg = mensagemRec(r);
+      pintarR();
+    }
+    async function confirmarRec(b) {
+      if (uiR.ocupado || !estadoR) return;
+      var id = b.getAttribute("data-item"), it = (estadoR.itens || []).filter(function (x) { return x.id === id; })[0];
+      if (!it) return;
+      guardarRascunhoR();
+      var data = String(uiR.rascunho[id] || "").trim(), f = uiR.arquivos[id] || null;
+      if (!data) { uiR.msg = "Informe a data do recebimento do " + it.rotulo + "."; pintarR(); return; }
+      if (!f && !it.comprovantes) { uiR.msg = MSG_REC.COMPROVANTE_OBRIGATORIO; pintarR(); return; }
+      if (!window.confirm("Confirmar o recebimento do " + it.rotulo + " em " + dataRec(data) + "?" +
+                          (estadoR.emailConfigurado ? " Um e-mail de aviso será enviado." : ""))) return;
+      uiR.ocupado = id; uiR.msg = ""; pintarR();
+      var payload = { action: "recebimentoConfirmar", pageId: pageId, item: id, data: data };
+      if (f) {
+        var arq = await prepararArquivo(f);
+        if (arq.erro) { if (vivo()) { uiR.ocupado = null; uiR.msg = mensagemDeErro(arq.erro); pintarR(); } return; }
+        payload.arquivo = arq;
+      }
+      var r = await chamarVenda(payload, 150000);
+      if (!vivo()) return;
+      uiR.ocupado = null;
+      if (r.ok) {
+        if (r.itens) estadoR.itens = r.itens;
+        delete uiR.arquivos[id]; delete uiR.rascunho[id];
+        uiR.msg = mensagemRec(r, it.rotulo);
+      } else uiR.msg = mensagemRec(r);
+      pintarR();
+      if (r.ok) avisarDadosGravados(pageId);
+      else if (r.erro === "SEM_RESPOSTA") carregarRec();   // o servidor pode ter gravado mesmo assim
+    }
+    /* entrega 14: "Ver contrato assinado" — o PDF vem pela sessão do portal, como o pré-contrato */
+    async function verAssinado() {
+      if (ctxA.ocupado) return;
+      var w = window.open("about:blank", "_blank");
+      ctxA.ocupado = "ver"; ctxA.msg = ""; pintarA();
+      var r = await chamarVenda({ action: "verContratoAssinado", pageId: pageId }, 90000);
+      if (!vivo()) { if (w) { try { w.close(); } catch (e) {} } return; }
+      ctxA.ocupado = null;
+      if (r.ok && r.base64) {
+        if (w) { try { w.opener = null; } catch (e) {} w.location.href = urlDoPdf(r.base64); }
+        else ctxA.msg = "O navegador bloqueou a janela — libere pop-ups para o portal e clique de novo.";
+      } else {
+        if (w) { try { w.close(); } catch (e) {} }
+        ctxA.msg = window.VendaAssinatura ? window.VendaAssinatura.mensagemAssinatura(r) : mensagemDeErro(r.erro);
+      }
+      pintarA();
     }
     function pintarA() { var w = dentro(".vb-ass"); if (w) w.innerHTML = htmlAss(); }
     function pintarM() { var w = dentro(".vb-mc"); if (w) w.innerHTML = htmlMC(estadoM, uiM); }
@@ -660,7 +802,7 @@
     async function carregarAss() {
       var r = await chamarVenda({ action: "assinaturaEstado", pageId: pageId }, 90000);
       if (!vivo()) return;
-      if (r.ok) { ctxA.estado = { situacao: r.situacao || "", envelope: !!r.envelope, signatarios: r.signatarios || [] }; ctxA.msg = ""; }
+      if (r.ok) { ctxA.estado = { situacao: r.situacao || "", envelope: !!r.envelope, signatarios: r.signatarios || [], temAssinado: !!r.temAssinado }; ctxA.msg = ""; }
       else ctxA.msg = window.VendaAssinatura ? window.VendaAssinatura.mensagemAssinatura(r) : "";
       pintarA();
     }
@@ -726,7 +868,9 @@
       var b = ev.target.closest("[data-acao]"); if (!b || b.disabled || !vivo()) return;
       var acao = b.getAttribute("data-acao"), r, seq;
       if (/^mc-/.test(acao)) return aoClicarMC(acao);
+      if (acao === "a-ver-assinado") return verAssinado();
       if (/^a-/.test(acao)) return aoClicarAss(acao);
+      if (acao === "r-confirmar") return confirmarRec(b);
       if (uiC.ocupadoContrato) return;
       if (acao === "c-ver") {
         /* abre a janela AGORA, dentro do clique (antes de qualquer await), senão o
@@ -891,6 +1035,8 @@
 
     /* Põe os blocos em `el` (o conteúdo dele é trocado). Só pede ao servidor o que ainda não tem. */
     eu.anexar = function (el) {
+      /* o painel foi redesenhado (ex.: recarregou os campos da casa): guarda o que estava digitado no bloco antigo */
+      if (raiz && raiz !== el) { guardarRascunho(); guardarRascunhoR(); }
       raiz = el;
       if (el.classList) el.classList.add("vb-blocos");
       if (!el.__vbLigado) {
@@ -900,12 +1046,17 @@
           if (raiz !== el) return;
           if (ev.target.hasAttribute("data-testemunha")) aoEscolherTestemunha();
           else if (ev.target.hasAttribute("data-conta")) aoEscolherConta(ev.target.value);
+          else if (ev.target.hasAttribute("data-rec-arq")) {
+            var fl = ev.target.files && ev.target.files[0], k = ev.target.getAttribute("data-rec-arq");
+            if (fl) uiR.arquivos[k] = fl; else delete uiR.arquivos[k];
+          }
         });
       }
       pintar();
       if (!estadoC) carregarContrato();
       if (!estadoM) carregarMC();
       if (!ctxA.estado) carregarAss();
+      if (comRec && !estadoR) carregarRec();
     };
     eu.raiz = function () { return raiz; };
     eu.pintarAssinatura = pintarA;
@@ -921,7 +1072,7 @@
   function garantirContrato(body, id) {
     if (!blocosCasa || blocosCasa.pageId !== id) {
       if (blocosCasa) blocosCasa.parar();
-      blocosCasa = criarBlocosVenda(id, function (b) { return blocosCasa === b && obraAberta() === id; });
+      blocosCasa = criarBlocosVenda(id, function (b) { return blocosCasa === b && obraAberta() === id; }, { recebimentos: true });
     }
     var w = blocosCasa.raiz();
     if (w && w.parentNode === body) { if (body.lastElementChild !== w) body.appendChild(w); return; }
@@ -975,7 +1126,7 @@
     var st = document.createElement("style"); st.textContent = CSS; document.head.appendChild(st);
     /* o bloco de assinatura mora em arquivo próprio; vendas.html continua com uma linha só.
        Carrega mesmo sem o painel da casa: o cartão do condomínio também usa. */
-    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=2";
+    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=3";
     sa.onload = function () { [blocosCasa, blocosCond].forEach(function (b) { if (b) b.pintarAssinatura(); }); };
     document.head.appendChild(sa);
     var body = document.getElementById("pn-body"); if (!body) return;

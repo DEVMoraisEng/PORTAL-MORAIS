@@ -10,7 +10,7 @@
   var REENVIAVEL = ["CANCELADO", "RECUSADO", "EXPIRADO"];
   var SITUACAO = {
     ENVIADO: "Enviado — aguardando assinaturas",
-    ASSINADO: "Assinado — o PDF assinado está em CONTRATO ASSINADO",
+    ASSINADO: "Assinado por todos",
     RECUSADO: "Recusado por um signatário — confira o motivo na Clicksign e envie de novo",
     CANCELADO: "Cancelado na Clicksign — pode enviar de novo",
     EXPIRADO: "Prazo vencido sem todas as assinaturas — pode enviar de novo",
@@ -36,7 +36,11 @@
     CLICKSIGN_ENVELOPE_SEM_DOCUMENTO: "O envelope na Clicksign está sem documento — avise o desenvolvedor.",
     SEM_ENVELOPE: "Este contrato ainda não foi enviado para assinatura.",
     NINGUEM_PENDENTE: "Todos já assinaram — não há link para reenviar. Use Atualizar situação.",
-    ENVELOPE_NAO_ATIVO: "O envelope não está mais aguardando assinaturas — use Atualizar situação."
+    ENVELOPE_NAO_ATIVO: "O envelope não está mais aguardando assinaturas — use Atualizar situação.",
+    /* entrega 14: Ver contrato assinado */
+    SEM_ASSINADO: "O PDF assinado ainda não está na casa — use Atualizar situação.",
+    ASSINADO_ILEGIVEL: "Não consegui abrir o PDF assinado guardado na casa — use Atualizar situação ou avise o desenvolvedor.",
+    ASSINADO_GRANDE: "O PDF assinado ficou grande demais para abrir pelo portal — abra pelo Notion."
   };
 
   function esc(s) {
@@ -51,6 +55,8 @@
     if (!e || !c.contratoGerado || c.ocupado || c.testes) return false;
     return !e.envelope || REENVIAVEL.indexOf(situacaoDe(e)) >= 0;
   }
+  /* entrega 14: todos assinaram e o PDF assinado já está na casa (CONTRATO ASSINADO) */
+  function podeVerAssinado(c) { return !!(c.estado && situacaoDe(c.estado) === "ASSINADO" && c.estado.temAssinado); }
   /* Atualizar situação grava na casa: o perfil TESTES não usa (o servidor também barra). */
   function podeAtualizar(c) { return !!(c.estado && c.estado.envelope && !c.ocupado && !c.testes); }
   /* situação de um signatário: a nova (assinou/pendente/recusou) ou, de resposta antiga, pelo assinou */
@@ -107,13 +113,14 @@
   }
 
   function montarBlocoAssinatura(c) {
-    var h = '<div class="grp">Assinatura</div>';
+    var h = '<div class="grp">Enviar contrato via Clicksign</div>';
     if (c.testes) h += '<div class="dz-aviso">Perfil TESTES não envia, não reenvia nem atualiza a assinatura.</div>';
     if (!c.estado) return h + '<div class="vazio">' + esc(c.msg || "carregando…") + "</div>";
     var e = c.estado, sit = situacaoDe(e);
     if (c.ocupado === "enviar") h += '<div class="dz-linha"><b>enviando… (até 1 minuto)</b></div>';
     if (c.ocupado === "atualizar") h += '<div class="dz-linha"><b>consultando…</b></div>';
     if (c.ocupado === "reenviar") h += '<div class="dz-linha"><b>reenviando…</b></div>';
+    if (c.ocupado === "ver") h += '<div class="dz-linha"><b>abrindo o contrato assinado…</b></div>';
     if (!c.contratoGerado) h += '<div class="dz-aviso">Gere o contrato antes de enviar para assinatura.</div>';
     if (e.envelope) {
       h += '<div class="dz-linha"><span class="dz-rot">Situação: ' + esc(SITUACAO[sit] || sit || "sem situação gravada") + "</span></div>";
@@ -135,6 +142,8 @@
     if (e.envelope) h += ' <button type="button" class="bt ghost bt-mini" data-acao="a-atualizar"' + (podeAtualizar(c) ? "" : " disabled") + ">Atualizar situação</button>";
     if (e.envelope && situacaoDe(e) === "ENVIADO" && pendentes(e))
       h += ' <button type="button" class="bt ghost bt-mini" data-acao="a-reenviar"' + (podeReenviar(c) ? "" : " disabled") + ">Reenviar link de assinatura</button>";
+    /* só leitura: o perfil TESTES também vê */
+    if (podeVerAssinado(c)) h += ' <button type="button" class="bt bt-mini" data-acao="a-ver-assinado"' + (c.ocupado ? " disabled" : "") + ">Ver contrato assinado</button>";
     h += "</div>";
     if (c.msg) h += '<div class="dz-msg">' + esc(c.msg) + "</div>";
     return h;
@@ -173,7 +182,7 @@
         falhou.estado = { situacao: r.erro === "GRAVACAO_FALHOU" ? "" : "RASCUNHO", envelope: true, signatarios: [] };
       return copia(c, falhou);
     }
-    var estado = { situacao: r.situacao || "", envelope: enviar ? true : !!r.envelope, signatarios: r.signatarios || [] };
+    var estado = { situacao: r.situacao || "", envelope: enviar ? true : !!r.envelope, signatarios: r.signatarios || [], temAssinado: !!r.temAssinado };
     var msg = mensagemAssinatura(r) || (enviar ? "Enviado — cada signatário recebe o e-mail da Clicksign." : "Situação atualizada.");
     return copia(c, { estado: estado, ocupado: null, faltas: null, msg: msg });
   }
@@ -198,7 +207,8 @@
   }
 
   var exportar = { montarBlocoAssinatura: montarBlocoAssinatura, mensagemAssinatura: mensagemAssinatura,
-                   executarAcaoAssinatura: executarAcaoAssinatura, podeEnviar: podeEnviar, podeReenviar: podeReenviar };
+                   executarAcaoAssinatura: executarAcaoAssinatura, podeEnviar: podeEnviar, podeReenviar: podeReenviar,
+                   podeVerAssinado: podeVerAssinado };
   if (typeof module !== "undefined" && module.exports) { module.exports = exportar; return; }
   window.VendaAssinatura = exportar; /* o coordenador liga no painel (venda-dossie.js / vendas.html) */
 })();
