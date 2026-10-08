@@ -134,7 +134,7 @@ def main():
             # mc-venda.yml fica: é o robô do "Lançar no Mais Controle", e no fork
             # ele só grava com a variável MC_APLICAR=1 (sem ela, roda como prévia).
             # mc-indices.yml fica: índices mensais (grava só com MC_INDICES=1)
-            if f.is_file() and f.name not in ("pages.yml", "mc-venda.yml", "mc-indices.yml"):
+            if f.is_file() and f.name not in ("pages.yml", "mc-venda.yml", "mc-indices.yml", "mc-catalogo.yml"):
                 rel = f.relative_to(raiz)
                 f.unlink()
                 alterados.append(f"{rel} (apagado)")

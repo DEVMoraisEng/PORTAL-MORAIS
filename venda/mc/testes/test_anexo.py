@@ -129,3 +129,19 @@ def test_sem_contrato_avisa_e_venda_ja_lancada_so_anexa():
     assert r["situacao"] == "JA_LANCADA" and e2.anexos[0][0] == "venda-antiga" and e2.criados == []
     r = L.processar("p1", n2, ErpAnexa(), aplicar=False, anexar=True)
     assert r["situacao"] == "JA_LANCADA"
+
+
+def test_catalogo_busca_por_nome_nas_duas_listas():
+    from venda.mc import catalogo
+
+    class E:
+        def pedir(self, metodo, caminho, corpo=None, params=None):
+            if caminho == "/categories/all":
+                return [{"id": "c1", "name": "Devolução sinal / entrada"}, {"id": "c2", "name": "Outra"}]
+            if caminho == "/natures/all":
+                raise ErpErro("404")
+            if caminho == "/natures":
+                return {"content": [{"id": "n1", "name": "DEVOLUCAO X"}]}
+            return []
+    r = catalogo.buscar(E(), "devolu")
+    assert [(x["lista"], x["id"]) for x in r] == [("categories", "c1"), ("natures", "n1")]
