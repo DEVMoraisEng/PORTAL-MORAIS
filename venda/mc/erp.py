@@ -15,6 +15,7 @@ from . import regras as R
 
 LEGACY = "https://legacy-api.maiscontroleerp.com.br/maiscontrole/services"
 ORIGEM = "https://acessar.maiscontroleerp.com.br"
+CORE = "https://prod-erp-api.maiscontroleerp.com.br"   # API nova (Financeiro > Contas bancárias); usa o jwtToken
 USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
 NATUREZAS_DE_VENDA = ("85a40f0e-320c-4b0f-a0cc-54926c9d5aaf",
@@ -63,6 +64,7 @@ class Erp:
         if not j.get("accessToken") or not emp:
             raise ErpErro("login sem accessToken ou sem empresa")
         self.token, self.company_id = j["accessToken"], str(emp[0].get("id"))
+        self.jwt = str(j.get("jwtToken") or "")
         self.user_id, self.ou_id = str(j.get("id") or ""), str(j.get("organizationUnitId") or "")
 
     def _cab(self) -> dict:
@@ -81,6 +83,22 @@ class Erp:
             return self.pedir(metodo, caminho, corpo, params, True)
         if r.status_code >= 300:
             # guarda o CORPO da recusa: é ele que diz o campo que falta
+            raise ErpErro("%s %s -> HTTP %s: %s" % (metodo, caminho.split("?")[0], r.status_code, r.text[:600]))
+        return r.json() if r.text.strip() else None
+
+    def pedir_core(self, metodo: str, caminho: str, corpo=None, params=None, _de_novo=False):
+        """Mesma ideia do pedir, na API nova (CORE), com o jwtToken do login."""
+        if not self.token:
+            self.logar()
+        if not getattr(self, "jwt", ""):
+            raise ErpErro("o login não devolveu jwtToken (API nova)")
+        h = self._base()
+        h.update({"authorization": "Bearer " + self.jwt, "company-id": self.company_id})
+        r = self.http.request(metodo, CORE + caminho, json=corpo, params=params, headers=h, timeout=self.timeout)
+        if r.status_code == 401 and not _de_novo:
+            self.logar()
+            return self.pedir_core(metodo, caminho, corpo, params, True)
+        if r.status_code >= 300:
             raise ErpErro("%s %s -> HTTP %s: %s" % (metodo, caminho.split("?")[0], r.status_code, r.text[:600]))
         return r.json() if r.text.strip() else None
 
