@@ -110,7 +110,7 @@ export const DB_ID_PADRAO = "db-falso";
 /* Notion falso: uma base (as colunas acima, ou `colunas`) e uma página
    (PAGE_ID_PADRAO por padrão, ou `pageId`), com `parent.database_id` = `dbId`. */
 export function notionFalso({ valores = {}, s3 = {}, colunas = COLUNAS_REAIS, pageId = PAGE_ID_PADRAO, dbId = DB_ID_PADRAO,
-                              paginasExtras = {}, paginasDb = {}, bases = {} } = {}) {
+                              paginasExtras = {}, paginasDb = {}, bases = {}, esquemas = {} } = {}) {
   const db = { properties: {} };
   for (const [nome, t] of Object.entries(colunas)) {
     const tipo = typeof t === "string" ? t : t.tipo;
@@ -119,7 +119,7 @@ export function notionFalso({ valores = {}, s3 = {}, colunas = COLUNAS_REAIS, pa
   const pagina = { id: pageId, parent: { database_id: dbId }, properties: {} };
   for (const [nome, p] of Object.entries(db.properties)) pagina.properties[nome] = Object.assign({ type: p.type }, vazioDe(p.type));
   for (const [nome, v] of Object.entries(valores)) Object.assign(pagina.properties[nome], v);
-  const uploads = {}, patches = [];
+  const uploads = {}, patches = [], escritas = [];
   let seq = 0;
 
   function aplicar(props) {
@@ -141,14 +141,35 @@ export function notionFalso({ valores = {}, s3 = {}, colunas = COLUNAS_REAIS, pa
     const corpo = typeof opt.payload === "string" ? JSON.parse(opt.payload) : null;
     if (url.startsWith("https://api.notion.com/v1")) {
       const u = url.slice("https://api.notion.com/v1".length);
+      /* esquema de uma base de cadastro (entrega 12: criar linha); sem esquema próprio, o da VENDAS */
+      if (m === "GET" && u.startsWith("/databases/") && esquemas[u.slice(11)])
+        return { json: { properties: Object.fromEntries(Object.entries(esquemas[u.slice(11)]).map(([n, t]) => [n, { type: t, [t]: {} }])) } };
       if (m === "GET" && u.startsWith("/databases/")) return { json: db };
+      /* entrega 12: grava numa linha de cadastro (id "<base>-linha-<i>") ou cria uma linha nova */
+      const lp = /^\/pages\/(.+)-linha-(\d+)$/.exec(u);
+      if (m === "PATCH" && lp && bases[lp[1]] && bases[lp[1]][Number(lp[2])]) {
+        const linha = bases[lp[1]][Number(lp[2])], cols = esquemas[lp[1]] || {};
+        for (const nome of Object.keys(corpo.properties))
+          if (!(nome in linha) && !(nome in cols)) return { status: 400, json: { message: "Could not find property " + nome } };
+        escritas.push({ metodo: "PATCH", base: lp[1], linha: Number(lp[2]), props: corpo.properties });
+        Object.assign(linha, JSON.parse(JSON.stringify(corpo.properties)));
+        return { json: { id: lp[0] } };
+      }
+      if (m === "POST" && u === "/pages" && corpo.parent && bases[corpo.parent.database_id]) {
+        const base = corpo.parent.database_id, cols = esquemas[base] || {};
+        for (const nome of Object.keys(corpo.properties))
+          if (!(nome in cols)) return { status: 400, json: { message: "Could not find property " + nome } };
+        escritas.push({ metodo: "POST", base, props: corpo.properties });
+        bases[base].push(JSON.parse(JSON.stringify(corpo.properties)));
+        return { json: { id: base + "-linha-" + (bases[base].length - 1) } };
+      }
       if (m === "GET" && u === "/pages/" + pageId) return { json: pagina };
       /* páginas extras (ex.: a obra) e linhas de bases de cadastro, em ordem de declaração */
       if (m === "GET" && u.startsWith("/pages/") && paginasExtras[u.slice(7)])
         return { json: { id: u.slice(7), parent: { database_id: paginasDb[u.slice(7)] || "db-extra" }, properties: tipar(paginasExtras[u.slice(7)]) } };
       const q = /^\/databases\/([^/]+)\/query$/.exec(u);
       if (m === "POST" && q && bases[q[1]]) {
-        let linhas = bases[q[1]].map((p) => tipar(p));
+        let linhas = bases[q[1]].map((p, i) => Object.defineProperty(tipar(p), "__i", { value: i }));
         const fl = corpo && corpo.filter;
         if (fl) { /* como o Notion: a propriedade do filtro tem de existir e ser de título */
           if (!fl.title || !linhas.every((l) => l[fl.property] && l[fl.property].type === "title"))
@@ -156,7 +177,7 @@ export function notionFalso({ valores = {}, s3 = {}, colunas = COLUNAS_REAIS, pa
           const tx = (l) => l[fl.property].title.map((t) => t.plain_text).join("");
           linhas = linhas.filter((l) => tx(l) === fl.title.equals);
         }
-        return { json: { results: linhas.map((p, i) => ({ id: "linha-" + i, properties: p })), has_more: false } };
+        return { json: { results: linhas.map((p) => ({ id: q[1] + "-linha-" + p.__i, properties: p })), has_more: false } };
       }
       if (m === "PATCH" && u === "/pages/" + pageId) { patches.push(corpo.properties); return aplicar(corpo.properties); }
       if (m === "POST" && u === "/file_uploads") {
@@ -177,7 +198,7 @@ export function notionFalso({ valores = {}, s3 = {}, colunas = COLUNAS_REAIS, pa
     }
     return null;
   }
-  return { rota, pagina, uploads, patches, db };
+  return { rota, pagina, uploads, patches, db, escritas, bases };
 }
 
 /* Clicksign falsa (API v3, JSON:API), no formato dos exemplos da documentação

@@ -86,7 +86,13 @@ function ctrLinhasBase_(dbId, filtro) {
     if (filtro) corpo.filter = filtro;
     if (cursor) corpo.start_cursor = cursor;
     var r = notion_("POST", "/databases/" + dbId + "/query", corpo);
-    (r.results || []).forEach(function (l) { linhas.push(l.properties || {}); });
+    (r.results || []).forEach(function (l) {
+      var pr = l.properties || {};
+      /* id da linha e da base, fora do for-in (entrega 12: o formulário grava na linha achada) */
+      try { Object.defineProperty(pr, "__id", { value: String(l.id || ""), enumerable: false });
+            Object.defineProperty(pr, "__db", { value: String(dbId), enumerable: false }); } catch (e) {}
+      linhas.push(pr);
+    });
     cursor = r.has_more ? r.next_cursor : null;
   } while (cursor && ++voltas < 10);
   if (cursor) ctrLog_("contrato: base " + dbId + " atingiu o limite de " + linhas.length + " linhas"); /* o resto ficou sem ler */
@@ -100,7 +106,7 @@ function ctrAcharLinha_(linhas, nome) {
   for (var i = 0; i < linhas.length; i++) {
     if (RegrasVenda.chave(ctrTitulo_(linhas[i])) !== k) continue;
     if (achada) return { duplicado: true };
-    achada = { titulo: ctrTitulo_(linhas[i]), c: ctrPorChave_(linhas[i]) };
+    achada = { titulo: ctrTitulo_(linhas[i]), c: ctrPorChave_(linhas[i]), props: linhas[i], id: linhas[i].__id || "" };
   }
   return achada;
 }
@@ -203,7 +209,7 @@ function ctrAcharLinhaPor_(linhas, nome, coluna) {
     var bate = RegrasVenda.chave(ctrTitulo_(linhas[i])) === k || (coluna && RegrasVenda.chave(ctrTxt_(ctrCampo_(c, coluna))) === k);
     if (!bate) continue;
     if (achada) return { duplicado: true };
-    achada = { titulo: ctrTitulo_(linhas[i]), c: c };
+    achada = { titulo: ctrTitulo_(linhas[i]), c: c, props: linhas[i], id: linhas[i].__id || "" };
   }
   return achada;
 }
@@ -352,9 +358,19 @@ function ctrFontes_(col, pageId) {
     banco: t(lv, "BANCO"), agencia: t(lv, "AGÊNCIA"), operacao: t(lv, "OPERAÇÃO"), conta: t(lv, "CONTA"), pix: t(lv, "PIX"),
     email: t(lv, "E-MAIL"), representanteEmail: t(lv, "REPRESENTANTE E-MAIL") /* só a assinatura usa */
   } : null;
+  /* entrega 12: a "Conta de recebimento" escolhida (ou digitada) para ESTA venda vale antes de tudo.
+     Conta escolhida que sumiu da CONTAS BANCÁRIAS vira falta — nunca troca sozinha por outra conta. */
+  var contaErro = "", escolha = vendedor ? ctrLerContaReceb_(pageId) : null, usouEscolha = false;
+  if (escolha) {
+    var de = escolha.contaId ? ctrDadosDaConta_(escolha.contaId) : escolha.digitada;
+    if (de && (de.banco || de.conta)) {
+      vendedor.banco = de.banco; vendedor.agencia = de.agencia; vendedor.operacao = ""; vendedor.conta = de.conta; vendedor.pix = de.pix;
+      usouEscolha = true;
+    } else contaErro = "Conta de recebimento: a conta escolhida não foi encontrada ou está sem banco e número — escolha de novo";
+  }
   /* conta de depósito: a da obra (CONTA da (EMP) Projeto 2.0 -> CONTAS BANCÁRIAS) vale antes da linha do vendedor,
      desde que traga ao menos banco ou número; sem ela, fica a do cadastro do vendedor, como antes */
-  var contaId = vendedor ? ctrContaDaObra_(obraAuto.pg) : "";
+  var contaId = vendedor && !escolha ? ctrContaDaObra_(obraAuto.pg) : "";
   if (contaId) {
     var dc = ctrDadosDaConta_(contaId);
     if (dc && (dc.banco || dc.conta)) {
@@ -383,7 +399,11 @@ function ctrFontes_(col, pageId) {
     fontes: { venda: venda, obra: obra, vendedor: vendedor, loteamento: loteamento, corretor: corretor,
               condominio: cond ? cond.condominio : null,
               hojeISO: hoje_("yyyy-MM-dd"), cidadeAssinatura: prop_("CIDADE_ASSINATURA") || "Goiânia" },
-    endereco: venda.ENDERECO, casa: ctrTxt_(cv("CASA")), colGerado: nomeReal(CV.CONTRATO_GERADO)
+    endereco: venda.ENDERECO, casa: ctrTxt_(cv("CASA")), colGerado: nomeReal(CV.CONTRATO_GERADO),
+    contaErro: contaErro, usouEscolha: usouEscolha,
+    /* entrega 12: onde o formulário grava (linhas achadas) e com que nome/chave cria a que falta */
+    alvos: { vendedor: lv || null, corretor: lc || null, loteamento: ll || null,
+             nomeCorretor: venda.CORRETOR || (cond ? cond.corretor.nome : ""), chaveLoteamento: cond ? venda.ENDERECO : setor }
   };
 }
 
@@ -585,6 +605,8 @@ function contratoEstado_(col, p) {
     catch (e) { ctrErro_("contratoEstado testemunhas", e); }
   }
   if (a) { r.nome = a.nome; r.url = a.url; }
+  /* entrega 12: lista de contas (só id e título), a escolha desta venda e a da obra */
+  try { r.conta = contaRecebEstado_(p.pageId); } catch (e) { ctrErro_("contratoEstado conta", e); }
   if (pre) {
     r.pre = { nome: ctrTxt_(pre.nome), url: ctrTxt_(pre.url), em: ctrTxt_(pre.em), conferido: !!pre.conferidoEm };
     if (etapa === "PRE") r.pre.desatualizado = ctrPreDesatualizado_(col, p, pre);
@@ -624,9 +646,12 @@ function ctrDadosAtuais_(col, p, pid, rot) {
   }
   var d = ContratoVenda.montarDadosContrato(f.fontes);
   var faltas = ContratoVenda.faltasContrato(d);
+  if (f.contaErro) faltas.push(f.contaErro);
   if (faltas.length) {
     ctrLog_(rot + " " + pid + " faltas " + faltas.length);
-    return { resp: { ok: false, erro: "FALTAM_DADOS", faltas: faltas } };
+    /* entrega 12: o formulário da tela (só nomes de campo) */
+    var campos = ContratoVenda.camposAbertos(faltas, { modelo: d.modelo, chaveLoteamento: f.alvos ? f.alvos.chaveLoteamento : "" });
+    return { resp: { ok: false, erro: "FALTAM_DADOS", faltas: faltas, campos: campos } };
   }
   return { f: f, d: d };
 }
@@ -734,4 +759,219 @@ function aprovarPreContrato_(col, sess, p) {
   var avisos = ContratoVenda.avisosContrato(prep.d);
   ctrLog_(rot + " " + pid + " ok " + (Date.now() - t0) + "ms" + (avisos.length ? "; em branco " + avisos.length : ""));
   return avisos.length ? { ok: true, nome: nomePdf, url: url, avisos: avisos } : { ok: true, nome: nomePdf, url: url };
+}
+
+/* ---- entrega 12: conta de recebimento por venda ----
+ * Propriedade CONTA_RECEB_<pageId> (JSON): { contaId } (linha da CONTAS BANCÁRIAS) ou
+ * { banco, agencia, conta, pix } (digitada; fica só aqui, não vai para o Notion). Sem a Propriedade,
+ * vale a conta da obra (ctrContaDaObra_) e, sem ela, a do cadastro do vendedor. Nunca no log. */
+var CTR_CONTA_RECEB = "CONTA_RECEB_";
+function ctrIdLimpo_(id) { return String(id || "").replace(/-/g, "").toLowerCase(); }
+function ctrChaveContaReceb_(pageId) { return CTR_CONTA_RECEB + ctrIdLimpo_(pageId); }
+/* { contaId } | { digitada: {banco, agencia, conta, pix} } | null */
+function ctrLerContaReceb_(pageId) {
+  var s = prop_(ctrChaveContaReceb_(pageId));
+  if (!s) return null;
+  var o;
+  try { o = JSON.parse(s); } catch (e) { return null; }
+  if (!o || typeof o !== "object") return null;
+  if (o.contaId && CTR_REGEX_ID_COND.test(String(o.contaId))) return { contaId: String(o.contaId) };
+  if (o.banco || o.conta)
+    return { digitada: { banco: ctrTxt_(o.banco), agencia: ctrTxt_(o.agencia), conta: ctrTxt_(o.conta), pix: ctrTxt_(o.pix) } };
+  return null;
+}
+/* Contas da CONTAS BANCÁRIAS para a lista da tela: [{ id, nome }] (só o título). */
+function ctrListaContas_() {
+  var db = prop_("DB_CONTAS_BANCARIAS"), lista = [];
+  if (!db) return lista;
+  var cursor = null, voltas = 0;
+  do {
+    var corpo = { page_size: 100 };
+    if (cursor) corpo.start_cursor = cursor;
+    var r = notion_("POST", "/databases/" + db + "/query", corpo);
+    (r.results || []).forEach(function (l) {
+      var nome = ctrTitulo_(l.properties || {}).trim();
+      if (nome && l.id) lista.push({ id: ctrIdLimpo_(l.id), nome: nome });
+    });
+    cursor = r.has_more ? r.next_cursor : null;
+  } while (cursor && ++voltas < 10);
+  lista.sort(function (a, b) { return a.nome.localeCompare(b.nome, "pt-BR"); });
+  return lista;
+}
+/* Estado do campo "Conta de recebimento": { opcoes, escolhida: {id} | {banco, agencia, conta, pix} | null, padrao: id da obra | "" }.
+   Só títulos de conta e dados bancários (vão no contrato) — nenhum CPF nem e-mail. */
+function contaRecebEstado_(pageId) {
+  var opcoes = [];
+  try { opcoes = ctrListaContas_(); } catch (e) { ctrErro_("conta: lista ilegivel", e); }
+  var padrao = "";
+  try {
+    var v = ctrPorChave_(ctrLerPaginaVenda_(pageId).properties || {});
+    padrao = ctrIdLimpo_(ctrContaDaObra_(ctrLerObraAuto_(ctrCampo_(v, "OBRA-AUTO")).pg));
+  } catch (e) { ctrErro_("conta: conta da obra", e); }
+  var esc = ctrLerContaReceb_(pageId), escolhida = null;
+  if (esc && esc.contaId) escolhida = { id: ctrIdLimpo_(esc.contaId) };
+  else if (esc) escolhida = esc.digitada;
+  return { opcoes: opcoes, escolhida: escolhida, padrao: padrao };
+}
+/* Confere a conta vinda da tela SEM gravar: { ok, valor (o JSON a gravar) | null (= voltar ao padrão) } ou { ok:false, erro, erros? }. */
+function ctrConferirContaReceb_(c) {
+  if (c === null || c === undefined || (typeof c === "object" && !Array.isArray(c) && !Object.keys(c).length)) return { ok: true, valor: null };
+  if (typeof c !== "object" || Array.isArray(c)) return { ok: false, erro: "CONTA_INVALIDA" };
+  if ("id" in c) {
+    var id = String(c.id || "").trim();
+    if (!id) return { ok: true, valor: null };
+    if (!CTR_REGEX_ID_COND.test(id)) return { ok: false, erro: "CONTA_INVALIDA" };
+    var db = prop_("DB_CONTAS_BANCARIAS");
+    if (!db) return { ok: false, erro: "CONTA_INVALIDA" };
+    var pg;
+    try { pg = notion_("GET", "/pages/" + id, null); } catch (e) { ctrErro_("conta: escolhida ilegivel", e); return { ok: false, erro: "CONTA_INVALIDA" }; }
+    if (ctrIdLimpo_(pg.parent && pg.parent.database_id) !== ctrIdLimpo_(db)) return { ok: false, erro: "CONTA_INVALIDA" };
+    return { ok: true, valor: { contaId: ctrIdLimpo_(id) } };
+  }
+  var v = ContratoVenda.validarContaDigitada(c);
+  if (!v.ok) return { ok: false, erro: "CAMPOS_INVALIDOS", erros: v.erros };
+  return { ok: true, valor: v.conta };
+}
+function ctrGravarContaReceb_(pageId, valor) {
+  var ps = PropertiesService.getScriptProperties(), k = ctrChaveContaReceb_(pageId);
+  if (valor === null) ps.deleteProperty(k);
+  else ps.setProperty(k, JSON.stringify(valor));
+}
+/* Ação "escolherContaRecebimento": p.conta = { id } | { banco, agencia, conta, pix } | {} (volta ao padrão). */
+function escolherContaRecebimento_(col, sess, p) {
+  ctrLerPaginaVenda_(p.pageId);   // mesma checagem de base das outras ações
+  var c = ctrConferirContaReceb_(p.conta);
+  if (!c.ok) return c.erros ? { ok: false, erro: c.erro, erros: c.erros } : { ok: false, erro: c.erro };
+  ctrGravarContaReceb_(p.pageId, c.valor);
+  ctrLog_("escolherContaRecebimento " + String(p.pageId).slice(0, 8) + (c.valor === null ? " padrao" : c.valor.contaId ? " lista" : " digitada"));
+  var r = { ok: true, conta: contaRecebEstado_(p.pageId) };
+  var pre = ctrLerPre_(p.pageId);
+  if (pre && !pre.conferidoEm) r.desatualizado = ctrPreDesatualizado_(col, p, pre);
+  return r;
+}
+
+/* ---- entrega 12: formulário dos cadastros ----
+ * Grava na linha do cadastro só as colunas enviadas (lista branca do ContratoVenda.CAMPOS_CADASTRO) e só
+ * colunas que existem; cria a linha do corretor (título = CORRETOR da venda) ou do loteamento (SETOR ou nome do
+ * condomínio) que falta. Nunca cria vendedor. Depois gera o pré-contrato como a ação gerarPreContrato. */
+var CTR_TIPOS_GRAVAVEIS = { rich_text: 1, number: 1, email: 1, select: 1, phone_number: 1 };
+function ctrValorCadastro_(tipo, v) {
+  var s = String(v);
+  switch (tipo) {
+    case "rich_text": return { rich_text: [{ type: "text", text: { content: s.slice(0, 1900) } }] };
+    case "title": return { title: [{ type: "text", text: { content: s.slice(0, 1900) } }] };
+    case "number": return /^-?\d+(?:[.,]\d+)?$/.test(s) ? { number: Number(s.replace(",", ".")) } : null;
+    case "email": return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) ? { email: s } : null;
+    case "select": return s.indexOf(",") < 0 ? { select: { name: s.slice(0, 100) } } : null;
+    case "phone_number": return { phone_number: s };
+    default: return null;
+  }
+}
+/* Propriedades a gravar de um grupo; problemas vão para `erros` (só nomes de campo).
+   tipos = { chave da coluna: { real, tipo } } (da própria linha ou do esquema da base). */
+function ctrPropsCadastro_(grupo, valores, tipos, erros) {
+  var props = {}, NOME = { vendedor: "Vendedor", corretor: "Corretor", loteamento: "Loteamento" }[grupo];
+  Object.keys(valores).forEach(function (coluna) {
+    var def = null;
+    (ContratoVenda.CAMPOS_CADASTRO[grupo] || []).forEach(function (d) { if (d.coluna === coluna) def = d; });
+    var nome = NOME + " — " + (def ? def.rotulo : coluna), t = tipos[RegrasVenda.chave(coluna)];
+    if (!t) { erros.push(nome + ": a base não tem essa coluna"); return; }
+    if (!CTR_TIPOS_GRAVAVEIS[t.tipo]) { erros.push(nome + ": coluna de tipo que o portal não grava (" + t.tipo + ")"); return; }
+    var pv = ctrValorCadastro_(t.tipo, valores[coluna]);
+    if (!pv) { erros.push(nome + ": valor não cabe no tipo da coluna (" + t.tipo + ")"); return; }
+    props[t.real] = pv;
+  });
+  return props;
+}
+function ctrTiposDaLinha_(props) {
+  var t = {};
+  for (var n in props) if (props[n] && props[n].type) t[RegrasVenda.chave(n)] = { real: n, tipo: props[n].type };
+  return t;
+}
+function ctrTiposDaBase_(dbId) {
+  var db = notion_("GET", "/databases/" + dbId, null), t = {}, titulo = "";
+  for (var n in (db.properties || {})) {
+    var pr = db.properties[n];
+    t[RegrasVenda.chave(n)] = { real: n, tipo: pr.type };
+    if (pr.type === "title") titulo = n;
+  }
+  return { tipos: t, titulo: titulo };
+}
+
+/* Ação "salvarCamposContrato": p.campos = { vendedor: {COLUNA: valor}, corretor: {...}, loteamento: {...} },
+   p.conta (opcional) = a mesma da escolherContaRecebimento. Confere tudo antes de gravar qualquer coisa. */
+function salvarCamposContrato_(col, sess, p) {
+  var pid = String(p.pageId).slice(0, 8), rot = "salvarCamposContrato";
+  var campos = p.campos && typeof p.campos === "object" && !Array.isArray(p.campos) ? p.campos : {};
+  var temCampos = Object.keys(campos).length > 0;
+  var temConta = p.conta !== undefined && p.conta !== null;
+  if (!temCampos && !temConta) return { ok: false, erro: "CAMPOS_INVALIDOS", erros: ["Nenhum campo preenchido"] };
+  var val = { valores: {}, total: 0 };
+  if (temCampos) {
+    val = ContratoVenda.validarCampos(campos);
+    if (!val.ok && temConta && !val.total && val.erros.length === 1 && val.erros[0] === "Nenhum campo preenchido") val = { ok: true, valores: {}, total: 0 };
+    if (!val.ok) { ctrLog_(rot + " " + pid + " invalidos " + val.erros.length); return { ok: false, erro: "CAMPOS_INVALIDOS", erros: val.erros }; }
+  }
+  var conta = temConta ? ctrConferirContaReceb_(p.conta) : null;
+  if (conta && !conta.ok) return conta.erros ? { ok: false, erro: conta.erro, erros: conta.erros } : { ok: false, erro: conta.erro };
+
+  var salvos = [], plano = [];
+  if (val.total) {
+    if (!prop_("DB_VENDEDORES") || !prop_("DB_LOTEAMENTOS") || !prop_("DB_CORRETORES") || !prop_("DB_DOCUMENTOS")) return { ok: false, erro: "CADASTRO_NAO_CONFIGURADO" };
+    var f = ctrFontes_(col, p.pageId);
+    if (f.obraAmbigua || f.duplicados || f.condominioErro || f.obraNaoEncontrada) {
+      var x = ctrDadosAtuais_(col, p, pid, rot);   // a mesma resposta FALTAM_DADOS da geração; nada é gravado
+      return x.resp || { ok: false, erro: "FALTAM_DADOS", faltas: [] };
+    }
+    var A = f.alvos, erros = [], V = val.valores;
+    if (V.vendedor) {
+      if (!A.vendedor || !A.vendedor.id) return { ok: false, erro: "VENDEDOR_SEM_CADASTRO" };
+      plano.push({ grupo: "vendedor", id: A.vendedor.id, props: ctrPropsCadastro_("vendedor", V.vendedor, ctrTiposDaLinha_(A.vendedor.props), erros) });
+    }
+    if (V.corretor) {
+      if (A.corretor && A.corretor.id) {
+        plano.push({ grupo: "corretor", id: A.corretor.id, props: ctrPropsCadastro_("corretor", V.corretor, ctrTiposDaLinha_(A.corretor.props), erros) });
+      } else {
+        if (!ctrTxt_(A.nomeCorretor).trim()) return { ok: false, erro: "CORRETOR_NA_VENDA_FALTANDO" };
+        var dbc = String(prop_("DB_CORRETORES")).split(",")[0].trim(), bc = ctrTiposDaBase_(dbc);
+        var pc = ctrPropsCadastro_("corretor", V.corretor, bc.tipos, erros);
+        if (!bc.titulo) erros.push("Corretor: a base CORRETORES não tem coluna de título");
+        else pc[bc.titulo] = ctrValorCadastro_("title", ctrTxt_(A.nomeCorretor).trim());
+        plano.push({ grupo: "corretor", criarEm: dbc, props: pc });
+      }
+    }
+    if (V.loteamento) {
+      if (A.loteamento && A.loteamento.id) {
+        plano.push({ grupo: "loteamento", id: A.loteamento.id, props: ctrPropsCadastro_("loteamento", V.loteamento, ctrTiposDaLinha_(A.loteamento.props), erros) });
+      } else {
+        var chave = ctrTxt_(A.chaveLoteamento).trim();
+        if (!chave) return { ok: false, erro: "LOTEAMENTO_SEM_SETOR" };
+        /* a 1ª base de DB_LOTEAMENTOS; o SETOR (ou o nome do condomínio) na coluna SETOR se existir, senão no título */
+        var dbl = String(prop_("DB_LOTEAMENTOS")).split(",")[0].trim(), bl = ctrTiposDaBase_(dbl);
+        var pl = ctrPropsCadastro_("loteamento", V.loteamento, bl.tipos, erros), cs = bl.tipos[RegrasVenda.chave("SETOR")];
+        if (cs && (cs.tipo === "rich_text" || cs.tipo === "select" || cs.tipo === "title")) pl[cs.real] = ctrValorCadastro_(cs.tipo, chave);
+        else if (bl.titulo) pl[bl.titulo] = ctrValorCadastro_("title", chave);
+        else erros.push("Loteamento: a base LOTEAMENTOS não tem coluna de título");
+        plano.push({ grupo: "loteamento", criarEm: dbl, props: pl });
+      }
+    }
+    if (erros.length) { ctrLog_(rot + " " + pid + " colunas " + erros.length); return { ok: false, erro: "CAMPOS_INVALIDOS", erros: erros }; }
+    for (var i = 0; i < plano.length; i++) {
+      var it = plano[i];
+      try {
+        if (it.criarEm) notion_("POST", "/pages", { parent: { database_id: it.criarEm }, properties: it.props });
+        else notion_("PATCH", "/pages/" + it.id, { properties: it.props });
+        salvos.push(it.grupo);
+      } catch (e) {
+        ctrErro_(rot + " " + pid + " gravar " + it.grupo, e);
+        return { ok: false, erro: "GRAVACAO_FALHOU", salvos: salvos };
+      }
+    }
+  }
+  if (conta) { ctrGravarContaReceb_(p.pageId, conta.valor); salvos.push("conta"); }
+  ctrLog_(rot + " " + pid + " salvos " + salvos.join(",") + (plano.some(function (x) { return x.criarEm; }) ? " (com linha nova)" : ""));
+  var r = gerarPreContrato_(col, sess, p);
+  r.salvos = salvos;
+  if (conta) { try { r.conta = contaRecebEstado_(p.pageId); } catch (e) { ctrErro_(rot + " conta", e); } }
+  return r;
 }
