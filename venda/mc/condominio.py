@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """Venda do condomínio: as parcelas saem do fluxo que o simulador grava na
 BANCO DE DADOS VENDAS CONDOMÍNIO (uma linha por unidade). Puro: sem rede.
+Desde a entrega 7 o robô aceita a PRÓPRIA linha do condomínio (dados_da_linha): comprador,
+valores, corretor e o fluxo saem dela, e MC - SITUAÇÃO / MC - VENDA ID são gravados nela.
 
 Regras do dono (06/10/2026):
 - pré-chaves (parcelas mensais) e balões: reajuste INCC-M;
@@ -61,6 +63,76 @@ def contato_corretor(props: dict) -> dict:
             "email": (ler("EMAIL CORRETOR") or "").strip() or None,
             "telefone": R.so_digitos(ler("CELULAR CORRETOR")) or None,
             "creci": str(creci).strip() if creci not in (None, "") else None}
+
+
+#: tela de venda do condomínio (entrega 7): o robô lê direto a linha da BANCO DE DADOS VENDAS CONDOMÍNIO
+COL_LINHA = {
+    "condominio": "CONDOMÍNIO", "unidade": "UNIDADE", "data_venda": "DATA DA VENDA",
+    "proponente": "PROPONENTE", "cpf": "CPF PROPONENTE", "email": "Email", "telefone": "Nº Whatsapp",
+    "total": "VALOR DE VENDA", "comissao": "COMISSÃO", "fgts": "VALOR DO FGTS", "financiado": "VALOR DO CRÉDITO",
+    "subsidio": "SUBISÍDIO", "corretor": "CORRETOR", "imobiliaria": "IMOBILIÁRIA",
+}
+
+
+def _compacto(s) -> str:
+    return str(s or "").replace("-", "").lower()
+
+
+def e_linha_do_condominio(pg: dict, db_cond: str | None) -> bool:
+    """A página é a própria linha da BANCO DE DADOS VENDAS CONDOMÍNIO? Com DB_VENDAS_COND configurada
+    decide pela base-mãe; sem ela, pelo título (UNIDADE na linha do condomínio, ENDEREÇO na VENDAS)."""
+    if db_cond:
+        mae = ((pg or {}).get("parent") or {}).get("database_id")
+        return bool(mae) and _compacto(mae) == _compacto(db_cond)
+    for n, p in ((pg or {}).get("properties") or {}).items():
+        if isinstance(p, dict) and p.get("type") == "title":
+            return R.chave(n) == R.chave(COL_LINHA["unidade"])
+    return False
+
+
+def endereco_do_condominio(nome) -> str:
+    """"CONDOMÍNIO <nome>" — o ENDEREÇO que a casa teria na VENDAS (e o nome do centro de custo no ERP)."""
+    nome = " ".join(str(nome or "").split())
+    if not nome:
+        return ""
+    return nome if R.chave(nome).startswith("CONDOMINIO") else "CONDOMÍNIO " + nome
+
+
+def dados_da_linha(props: dict, page_id: str) -> dict:
+    """O mesmo `dados` de regras.dados_da_pagina, lido da linha do condomínio. Comissão paga pelo
+    vendedor (regra do dono, 07/10/2026): a venda no ERP é o VALOR DE VENDA inteiro."""
+    por_chave = {R.chave(k): v for k, v in (props or {}).items()}
+
+    def ler(nome):
+        return R._valor(por_chave.get(R.chave(nome)))
+
+    def campo(k):
+        return ler(COL_LINHA[k])
+
+    unidade = campo("unidade")
+    total = R._num(campo("total"))
+    return {
+        "endereco": endereco_do_condominio(campo("condominio")),
+        "casa": R._casa(unidade),
+        "casa_ambigua": unidade not in (None, "") and R._casa(unidade) is None,
+        "data_venda": R._data(campo("data_venda")),
+        "comprador": {"nome": " ".join(str(campo("proponente") or "").split()), "cpf": R.so_digitos(campo("cpf")),
+                      "email": campo("email") or ler("EMAIL"), "telefone": R.so_digitos(campo("telefone"))},
+        "aquisicao": total,
+        "total": total, "comissao": R._num(campo("comissao")), "valor_na_mao": None, "comissao_paga_por": "VENDEDOR",
+        "sinal": {"valor": None, "data": None},
+        "entrada": {"valor": None, "data": None},
+        "intermediaria": {"valor": None, "data": None},
+        "financiado": R._num(campo("financiado")),
+        "subsidio": R._num(campo("subsidio")),
+        "fgts": R._num(campo("fgts")),
+        "corretor": campo("corretor"),
+        "imobiliaria": campo("imobiliaria"),
+        "venda_id_atual": ler(R.COL["venda_id"]),
+        "contrato_arquivos": R._arquivos(por_chave.get(R.chave(R.COL["contrato_assinado"]))),
+        "condominio_id": R.so_hex(page_id) or _compacto(page_id),
+        "situacao_atual": ler(R.COL["situacao"]) or "",
+    }
 
 
 def data_no_dia(iso: str, meses: int, dia: int | None) -> str:

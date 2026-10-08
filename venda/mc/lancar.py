@@ -36,12 +36,20 @@ class FalhaNotion(Exception):
     pass
 
 
+def _ler(page_id: str, notion) -> tuple[dict, dict, bool]:
+    """(props, dados, linha_do_condominio). A página pode ser a casa da VENDAS ou, desde a entrega 7,
+    a própria linha da BANCO DE DADOS VENDAS CONDOMÍNIO (tela de venda do condomínio)."""
+    pg = notion.pagina(page_id) or {}
+    props = pg.get("properties") or {}
+    if C.e_linha_do_condominio(pg, os.environ.get("DB_VENDAS_COND", "")):
+        return props, C.dados_da_linha(props, page_id), True
+    return props, R.dados_da_pagina(props), False
+
+
 def sondar(page_id: str, notion, erp) -> dict:
     """Só CONSULTA: a casa (ENDEREÇO + CASA) tem obra no Mais Controle? Há venda/recebimento dela ou da obra?
     Não cria nada no ERP; anota o resultado em MC - SITUAÇÃO."""
-    pg = notion.pagina(page_id)
-    props = pg.get("properties") or {}
-    d = R.dados_da_pagina(props)
+    props, d, _ = _ler(page_id, notion)
     obras = [o for o in erp.obras() if R.chave(o.get("name")) == R.chave(d["endereco"])]
     if len(obras) != 1:
         txt, cod = "SONDA: obra %s no Mais Controle" % ("não encontrada" if not obras else "repetida"), "SONDA_SEM_OBRA"
@@ -64,9 +72,7 @@ def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DI
               bloqueado: bool = False, anexar: bool = False) -> dict:
     """bloqueado=True: pediram para gravar, mas o repositório não liberou (MC_APLICAR).
     anexar=True (com aplicar): numa venda JÁ LANÇADA, só anexa o contrato."""
-    pg = notion.pagina(page_id)
-    props = pg.get("properties") or {}
-    d = R.dados_da_pagina(props)
+    props, d, linha_cond = _ler(page_id, notion)
     res = {"situacao": None, "codigo": None, "motivos": [], "avisos": [], "pageId": page_id,
            "obra": d["endereco"], "casa": d["casa"]}
 
@@ -97,13 +103,16 @@ def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DI
         return fim("JA_LANCADA", "JÁ LANÇADA (venda %s)" % d["venda_id_atual"])
 
     fx = None
-    if d.get("condominio_id"):
-        cpg = notion.pagina(d["condominio_id"]) or {}
-        base = os.environ.get("DB_VENDAS_COND", "").replace("-", "").lower()
-        mae = str(((cpg.get("parent") or {}).get("database_id")) or "").replace("-", "").lower()
-        if base and mae != base:
-            res["motivos"] = ["CONDOMÍNIO - VENDA ID não é uma página da BANCO DE DADOS VENDAS CONDOMÍNIO"]
-            return fim("RECUSADA", "RECUSADA: " + res["motivos"][0], codigo="CONDOMINIO_OUTRA_BASE")
+    if linha_cond or d.get("condominio_id"):
+        if linha_cond:   # a própria linha do condomínio: o fluxo e o corretor estão nela
+            cpg = {"properties": props}
+        else:            # casa da VENDAS que aponta para a linha (caminho antigo, "Gerar venda")
+            cpg = notion.pagina(d["condominio_id"]) or {}
+            base = os.environ.get("DB_VENDAS_COND", "").replace("-", "").lower()
+            mae = str(((cpg.get("parent") or {}).get("database_id")) or "").replace("-", "").lower()
+            if base and mae != base:
+                res["motivos"] = ["CONDOMÍNIO - VENDA ID não é uma página da BANCO DE DADOS VENDAS CONDOMÍNIO"]
+                return fim("RECUSADA", "RECUSADA: " + res["motivos"][0], codigo="CONDOMINIO_OUTRA_BASE")
         fx = C.fluxo(cpg.get("properties") or {})
         # regra do dono (07/10/2026): no condomínio a comissão é paga pela incorporadora —
         # a venda no ERP é o VALOR DE VENDA inteiro, não o "valor na mão"
