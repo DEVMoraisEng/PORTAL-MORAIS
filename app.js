@@ -599,6 +599,41 @@ async function criarProtegido(payload){
   } finally { _criando--; }
 }
 
+/* 08/10/26 — CONFERÊNCIA DA SESSÃO ANTES DE DESLOGAR
+ * Um NAO_AUTORIZADO isolado no meio de várias gravações não prova que o token
+ * venceu (o token dura 30 dias; ver ERROS_TRANSITORIOS). Esta função pergunta
+ * "quem sou eu?" (ação "me") na MESMA implantação que recusou, fora da fila
+ * das faixas, até 3 vezes com pausa. Só devolve false (= sessão inválida de
+ * verdade) quando o token já venceu no relógio ou o servidor recusar duas
+ * vezes seguidas. Na dúvida (rede caiu, servidor ocupado), NÃO desloga.
+ * Várias gravações falhando juntas dividem a MESMA conferência. */
+let _confSessao = null;
+function confirmarSessao(action){
+  if(_confSessao) return _confSessao;
+  _confSessao = (async ()=>{
+    const s = sessao();
+    if(!s || !s.token || sessaoVencida(s)) return false;
+    let recusas = 0;
+    for(let t=0; t<3; t++){
+      if(t) await new Promise(ok=>setTimeout(ok, 2500*t));
+      const ctrl = new AbortController(), timer = setTimeout(()=>ctrl.abort(), 25000);
+      try{
+        const resp = await fetch(urlDe(action||"me"), { method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" },
+                                 body:JSON.stringify({ action:"me", token:(sessao()||s).token }), signal:ctrl.signal });
+        const o = JSON.parse(await resp.text());
+        if(o && o.ok) return true;
+        if(o && o.erro==="NAO_AUTORIZADO"){ if(++recusas>=2) return false; }
+        else recusas = 0;
+      }catch(e){ /* página de erro do Google / rede: não conta como recusa */ }
+      finally{ clearTimeout(timer); }
+    }
+    return true;
+  })();
+  const p = _confSessao;
+  p.finally(()=>setTimeout(()=>{ if(_confSessao===p) _confSessao=null; }, 20000));
+  return p;
+}
+
 async function escrever(payload, rotulo){
   if(!payload.opId) payload.opId = novoOpId();
 
@@ -617,7 +652,17 @@ async function escrever(payload, rotulo){
       if(r && r.erro && !ERROS_TRANSITORIOS.includes(r.erro)) return { ok:false, erro:r.erro };
       /* Sessão realmente inválida também não vira "salvo": a pessoa precisa
          relogar, e a fila só empurraria o problema. */
-      if(r && r.erro==="NAO_AUTORIZADO"){ setTimeout(irParaLogin, 3500); return { ok:false, erro:"NAO_AUTORIZADO" }; }
+      /* 08/10/26 — antes daqui saía direto para o login. Com várias edições
+         seguidas (Atividades: conteúdo, checklist, campos), UMA resposta
+         NAO_AUTORIZADO perdida no meio da rajada derrubava a pessoa, mesmo com
+         o token valendo. Agora a sessão é CONFERIDA antes (ver
+         confirmarSessao): só desloga se o servidor recusar o token de novo,
+         com calma. Se a sessão estiver boa, a gravação vai para a fila e sobe
+         sozinha, como os outros soluços do servidor. */
+      if(r && r.erro==="NAO_AUTORIZADO"){
+        const valida = await confirmarSessao(payload.action);
+        if(!valida){ setTimeout(irParaLogin, 3500); return { ok:false, erro:"NAO_AUTORIZADO" }; }
+      }
       /* BACKEND_OCUPADO / BACKEND_SEM_CONFIG: o servidor engasgou, a gravação
          é válida. Cai pra fila e sobe sozinha depois. */
       // resposta estranha (sem ok e sem erro): cai pra fila
