@@ -960,6 +960,16 @@ def main():
             for o in fazer:
                 try:
                     r = criar_no_mc(page, o)
+                    # 08/10/26 — a planilha do ERP atrasa: obra criada numa
+                    # rodada anterior SEM a conta volta como "para criar", a
+                    # conferência ao vivo diz "ja_existe" e ela era marcada
+                    # Criada sem ninguém escolher a conta. Agora, se pede
+                    # conta, abre a edição e só marca se a conta entrar.
+                    if r == "ja_existe" and tem_conta_pedida(o):
+                        r2 = completar_no_mc(page, o)
+                        print(f"  {o['titulo']} (já existia, conferindo conta): {r2}", flush=True)
+                        if r2 == "conta não escolhida":
+                            r = "criada_sem_conta"
                     print(f"  {o['titulo']}: {r}", flush=True)
                     if r in ("criada", "ja_existe") and APLICAR:
                         marcar_criada(o["id"])

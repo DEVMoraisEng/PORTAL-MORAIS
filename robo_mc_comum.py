@@ -14,14 +14,21 @@ MODOS (variáveis de ambiente):
                eu preciso ver para acertar um seletor que falhe. Sem ela,
                só salva as telas de navegação (sem dado de cliente).
 
-SECRETS: MC_URL (endereço da tela de login), MC_USUARIO, MC_SENHA, NOTION_TOKEN.
+SECRETS: MC_URL (endereço da tela de login), MC_USUARIO, MC_SENHA, NOTION_TOKEN,
+         MC_EMAIL_SENHA_APP (08/10/26 — senha de app do Gmail da conta do robô,
+         para ler o código que o MC manda por e-mail a cada login).
 
 Os seletores são por TEXTO visível (os rótulos que aparecem na tela:
 "Contatos", "Clientes", "Nova Obra", "Nome da obra"…), não por classe CSS —
 é o que menos quebra quando o MC muda o visual.
 """
 
+import email
+import html as _html
+import imaplib
 import os
+import re
+import time
 import unicodedata
 from pathlib import Path
 
@@ -44,6 +51,19 @@ else:
     MC_SENHA = os.environ.get("MC_SENHA", "")
 
 APLICAR = os.environ.get("APLICAR", "").strip().lower() in ("1", "true", "sim")
+
+# 08/10/26 — CÓDIGO DE AUTENTICAÇÃO POR E-MAIL. Desde 05/10 (troca para a conta
+# moraisengdev@gmail.com) o MC manda TODO login de aparelho novo para a tela
+# #/mfa e envia "O seu código de autenticação chegou" para o e-mail da conta —
+# mesmo com a autenticação de dois fatores DESATIVADA nas configurações. O robô
+# abre um navegador limpo a cada rodada, então para o MC é sempre aparelho
+# novo. Solução: ler o código no Gmail da conta por IMAP (senha de app).
+#   MC_EMAIL_SENHA_APP  senha de app do Google (16 letras) — secret
+#   MC_EMAIL_USUARIO    opcional; sem ele, usa o próprio usuário do MC
+MC_EMAIL_USUARIO = os.environ.get("MC_EMAIL_USUARIO", "").strip()
+MC_EMAIL_SENHA_APP = os.environ.get("MC_EMAIL_SENHA_APP", "").replace(" ", "").strip()
+REMETENTE_CODIGO = "nao-responda@maiscontroleerp.com.br"
+_codigos_usados = set()
 DESCOBRIR = os.environ.get("DESCOBRIR", "").strip().lower() in ("1", "true", "sim")
 
 SAIDA = Path("mc_evidencias")
@@ -168,6 +188,186 @@ def diagnostico(page, rotulo):
         print(f"  (diagnóstico falhou: {e})", flush=True)
 
 
+# ---------------------------------------------------------------------------
+# Código de autenticação (tela #/mfa) — lido no Gmail da conta
+# ---------------------------------------------------------------------------
+
+def extrair_codigo(texto):
+    """Código do e-mail "O seu código de autenticação chegou". O corpo é HTML:
+    tira as tags e pega o primeiro número de 6 dígitos (4 a 8 como recuo)
+    DEPOIS de "código abaixo" — evita pegar CNPJ/telefone do rodapé."""
+    t = re.sub(r"(?is)<(style|script)[^>]*>.*?</\1>", " ", str(texto or ""))
+    t = re.sub(r"<[^>]+>", " ", t)
+    t = N(_html.unescape(t))
+    i = t.find("CODIGO ABAIXO")
+    trecho = t[i:] if i >= 0 else t
+    for padrao in (r"(?<![\d.,/-])(\d{6})(?![\d.,/-])", r"(?<![\d.,/-])(\d{4,8})(?![\d.,/-])"):
+        m = re.search(padrao, trecho)
+        if m:
+            return m.group(1)
+    # código com espaço entre os dígitos ("5 9 6 1 6 4")
+    m = re.search(r"(?<!\d)((?:\d ){5}\d)(?!\d)", trecho)
+    return m.group(1).replace(" ", "") if m else None
+
+
+def _corpo_do_email(bruto):
+    msg = email.message_from_bytes(bruto)
+    partes = []
+    for parte in (msg.walk() if msg.is_multipart() else [msg]):
+        if parte.get_content_type() in ("text/html", "text/plain"):
+            try:
+                carga = parte.get_payload(decode=True) or b""
+                partes.append(carga.decode(parte.get_content_charset() or "utf-8", "replace"))
+            except Exception:
+                pass
+    return "\n".join(partes)
+
+
+def _data_imap(epoch):
+    meses = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    t = time.gmtime(epoch)
+    return f"{t.tm_mday:02d}-{meses[t.tm_mon - 1]}-{t.tm_year}"
+
+
+def codigo_do_email(desde, limite_s=180):
+    """Espera o e-mail de código que chegou DEPOIS de `desde` (epoch) e devolve
+    o código MAIS NOVO ainda não usado. Só leitura (BODY.PEEK).
+
+    08/10/26 (2ª rodada) — o robô de contas tenta antes o login pela API, que
+    também dispara um código; esse código chega segundos antes do da tela e o
+    MC só aceita o último. Por isso: espera uns segundos antes de ler, aceita
+    só e-mail recebido depois do clique e, se o MC recusar, passar_mfa pede o
+    próximo (o já usado fica em _codigos_usados)."""
+    usuario = MC_EMAIL_USUARIO or (MC_USUARIO if MC_USUARIO.lower().endswith("@gmail.com") else "")
+    if not (usuario and MC_EMAIL_SENHA_APP):
+        raise SystemExit("O Mais Controle pediu o CÓDIGO DE AUTENTICAÇÃO (tela #/mfa), mas falta o secret "
+                         "MC_EMAIL_SENHA_APP (senha de app do Gmail da conta do robô) — sem ele não dá para "
+                         "ler o código. Veja o cabeçalho do robo_mc_comum.py.")
+    fim = time.time() + limite_s
+    tentativa = 0
+    time.sleep(8)                         # deixa o e-mail do último pedido chegar
+    while time.time() < fim:
+        tentativa += 1
+        try:
+            M = imaplib.IMAP4_SSL("imap.gmail.com", 993, timeout=30)
+            try:
+                M.login(usuario, MC_EMAIL_SENHA_APP)
+            except imaplib.IMAP4.error as e:
+                raise SystemExit(f"Gmail recusou a senha de app de {usuario}: {e} — confira o secret MC_EMAIL_SENHA_APP "
+                                 "(precisa da verificação em duas etapas do Google ligada e do IMAP habilitado).")
+            try:
+                M.select("INBOX", readonly=True)
+                _, d = M.search(None, f'(FROM "{REMETENTE_CODIGO}" SINCE {_data_imap(desde - 86400)})')
+                ids = (d[0] or b"").split()[-15:]
+                for num in reversed(ids):                     # mais novo primeiro
+                    _, dados = M.fetch(num, "(INTERNALDATE BODY.PEEK[])")
+                    cab = next((x for x in dados if isinstance(x, tuple)), None)
+                    if not cab:
+                        continue
+                    quando = time.mktime(imaplib.Internaldate2tuple(cab[0]) or time.localtime(0))
+                    if quando < desde - 2:
+                        break                                 # daqui para trás é tudo antigo
+                    cod = extrair_codigo(_corpo_do_email(cab[1]))
+                    if cod and cod not in _codigos_usados:
+                        _codigos_usados.add(cod)
+                        print(f"MC: código de autenticação lido no e-mail ({len(cod)} dígitos, tentativa {tentativa})", flush=True)
+                        return cod
+            finally:
+                try:
+                    M.logout()
+                except Exception:
+                    pass
+        except SystemExit:
+            raise
+        except Exception as e:
+            print(f"  ! leitura do Gmail falhou ({str(e)[:120]}) — tento de novo", flush=True)
+        time.sleep(6)
+    raise SystemExit(f"O código de autenticação do Mais Controle não chegou ao Gmail em {limite_s}s.")
+
+
+_SEL_CAMPO_CODIGO = ("input:visible:not([type=checkbox]):not([type=radio]):not([type=hidden])"
+                     ":not([type=password]):not([type=email])")
+
+
+def passar_mfa(page, desde):
+    """Tela #/mfa: (se pedir) escolhe e-mail, lê o código no Gmail, digita e confirma."""
+    foto(page, "mfa")
+    diagnostico(page, "tela de código de autenticação (#/mfa)")
+    campos = page.locator(_SEL_CAMPO_CODIGO)
+    if not campos.count():
+        # tela de escolha do canal antes do código: e-mail, depois enviar
+        try:
+            page.get_by_text(re.compile(r"e-?mail", re.I)).first.click(timeout=4000)
+            page.wait_for_timeout(800)
+            bt = page.locator("button:visible").filter(has_text=re.compile(r"enviar|continuar|receber", re.I))
+            if bt.count():
+                bt.first.click()
+            esperar(page, 10000)
+            page.wait_for_timeout(1500)
+            diagnostico(page, "depois de escolher e-mail")
+        except Exception as e:
+            print(f"  ! não achei campo de código nem opção de e-mail ({str(e)[:80]})", flush=True)
+        campos = page.locator(_SEL_CAMPO_CODIGO)
+
+    for tentativa in range(1, 4):
+        _digitar_e_confirmar(page, campos, codigo_do_email(desde))
+        try:
+            page.wait_for_function("() => !location.hash.includes('/mfa')", timeout=20000)
+            break
+        except PWTimeout:
+            if tentativa < 3:
+                print(f"  ! MC recusou o código (tentativa {tentativa}) — busco o próximo no e-mail", flush=True)
+                continue
+            diagnostico(page, "código digitado, mas continua na tela #/mfa")
+            msg = ""
+            try:
+                msg = page.evaluate(_JS_MSG_ERRO)
+            except Exception:
+                pass
+            foto(page, "mfa_falhou")
+            raise SystemExit(f"Mais Controle não aceitou o código de autenticação. Mensagem na tela: {msg or '(nenhuma)'}")
+    esperar(page, 20000)
+    page.wait_for_timeout(1500)
+
+
+def _digitar_e_confirmar(page, campos, codigo):
+    n = campos.count()
+    caixas = 0
+    for i in range(n):
+        try:
+            if (campos.nth(i).get_attribute("maxlength") or "") == "1":
+                caixas += 1
+        except Exception:
+            pass
+    if caixas >= 4:                     # uma caixinha por dígito
+        for i, dig in enumerate(codigo[:caixas]):
+            campos.nth(i).click()
+            campos.nth(i).press_sequentially(dig, delay=40)
+    elif n:
+        _fill(campos.first, codigo)
+    else:
+        page.keyboard.type(codigo, delay=40)
+
+    # "lembrar/confiar neste dispositivo", se existir
+    try:
+        lembrar = page.get_by_label(re.compile(r"lembr|confi|dispositivo", re.I))
+        if lembrar.count():
+            lembrar.first.check(timeout=2000)
+    except Exception:
+        pass
+
+    bt = page.locator("button:visible, input[type=submit]:visible").filter(
+        has_text=re.compile(r"validar|confirmar|autenticar|verificar|continuar|entrar|acessar|enviar", re.I)
+    ).filter(has_not_text=re.compile(r"reenviar|voltar|cancelar", re.I))
+    page.wait_for_timeout(500)
+    if "/mfa" in page.url:              # há telas que já enviam ao completar os dígitos
+        if bt.count():
+            print(f"MC: confirmando o código (botão \"{(bt.first.inner_text() or '').strip()[:30]}\")", flush=True)
+            bt.first.click()
+        else:
+            page.keyboard.press("Enter")
+
+
 def login(page):
     if not (MC_URL and MC_USUARIO and MC_SENHA):
         raise SystemExit("Faltam os secrets MC_URL, MC_USUARIO e/ou MC_SENHA.")
@@ -191,6 +391,7 @@ def login(page):
     if not bt.count():
         bt = page.locator("button[type=submit]:visible, input[type=submit]:visible")
     page._rede.clear()
+    desde = time.time() - 5          # o e-mail de código chega depois disto
     if bt.count():
         print(f"MC: clicando no botão \"{(bt.first.inner_text() or '').strip()[:30]}\"", flush=True)
         bt.first.click()
@@ -222,6 +423,13 @@ def login(page):
             pass
         raise SystemExit("Login no Mais Controle falhou — a tela de senha continua aberta. "
                          f"Mensagem na tela: {msg or '(nenhuma)'} — veja o DIAGNÓSTICO acima e mc_evidencias.")
+    # 08/10/26 — antes o robô dava "login ok" PARADO na tela #/mfa e todo o
+    # resto falhava por não achar menu/campo. Agora passa pelo código.
+    if "/mfa" in page.url:
+        print("MC: o sistema pediu código de autenticação (#/mfa) — buscando no e-mail", flush=True)
+        passar_mfa(page, desde)
+        if "/mfa" in page.url or "/login" in page.url:
+            raise SystemExit(f"Login no Mais Controle não passou da autenticação ({page.url}).")
     print(f"MC: login ok ({page.url})", flush=True)
 
 

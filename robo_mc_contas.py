@@ -470,7 +470,10 @@ _JS_COMPANY_NO_STORAGE = """() => {
       const v = store.getItem(k);
       try {
         const parsed = JSON.parse(v);
-        const empresas = parsed && (parsed.companies || (parsed.company && [parsed.company]));
+        // 08/10/26 — MC novo: MC_LAST_ACTIVE_COMPANY = {companyId}, MC_COMPANIES = [{id}]
+        if (k === "MC_LAST_ACTIVE_COMPANY" && parsed && parsed.companyId) return String(parsed.companyId);
+        const empresas = Array.isArray(parsed) ? parsed
+          : parsed && (parsed.companies || (parsed.company && [parsed.company]));
         if (empresas && empresas[0] && empresas[0].id) return String(empresas[0].id);
       } catch (e) { /* não era JSON — segue */ }
     }
@@ -495,6 +498,30 @@ def _achar_no_storage(page, script):
         return page.evaluate(script)
     except Exception:
         return None
+
+
+def token_de_cookie(nome, valor):
+    """08/10/26 — o MC novo guarda a sessão em cookie (AUTHORIZATION-TOKEN), não
+    mais no localStorage. Devolve o JWT se o cookie for dele; senão None."""
+    from urllib.parse import unquote
+    n = (nome or "").upper()
+    if "AUTHORIZATION" not in n and "JWT" not in n:
+        return None
+    v = unquote(valor or "").strip().strip('"')
+    if v.lower().startswith("bearer "):
+        v = v[7:].strip()
+    return v if v.count(".") == 2 else None       # cara de JWT (cabeçalho.corpo.assinatura)
+
+
+def _token_no_cookie(page):
+    try:
+        for c in page.context.cookies():
+            tk = token_de_cookie(c.get("name"), c.get("value"))
+            if tk:
+                return tk
+    except Exception:
+        pass
+    return None
 
 
 def listar_contas_playwright(page, jwt_token, company_id):
@@ -541,15 +568,25 @@ def _contas_via_playwright(usuario, senha):
     capturado = {}
 
     def _resp(r):
+        # 08/10/26 — com o código de autenticação (#/mfa), o jwtToken não vem
+        # mais na resposta do /users/login (que agora só pede o código), e sim
+        # na resposta da validação do código. Aceito QUALQUER resposta JSON
+        # que traga jwtToken.
         if capturado.get("jwt"):
             return
         try:
-            if r.request.method == "POST" and "/users/login" in r.url:
-                corpo = r.json()
-                jwt = corpo.get("jwtToken")
-                empresas = corpo.get("companies") or []
-                if jwt:
-                    capturado["jwt"] = jwt
+            if r.request.resource_type not in ("xhr", "fetch"):
+                return
+            if "json" not in (r.headers.get("content-type") or ""):
+                return
+            corpo = r.json()
+            if not isinstance(corpo, dict):
+                return
+            jwt = corpo.get("jwtToken")
+            empresas = corpo.get("companies") or []
+            if jwt:
+                capturado["jwt"] = jwt
+                if empresas:
                     capturado["company"] = str((empresas[0] or {}).get("id") or "")
         except Exception:
             pass
@@ -559,7 +596,8 @@ def _contas_via_playwright(usuario, senha):
         try:
             page.on("response", _resp)
             comum.login(page)
-            jwt_token = capturado.get("jwt") or _achar_no_storage(page, _JS_TOKEN_NO_STORAGE)
+            jwt_token = (capturado.get("jwt") or _achar_no_storage(page, _JS_TOKEN_NO_STORAGE)
+                         or _token_no_cookie(page))
             company_id = capturado.get("company") or _achar_no_storage(page, _JS_COMPANY_NO_STORAGE)
             if not jwt_token:
                 raise SystemExit("recuo por Playwright: não achei o jwtToken (nem no storage, nem na resposta do login).")

@@ -13,7 +13,7 @@
 # relação, só com texto na coluna CONTA) à conta certa, casando pelos dígitos.
 #
 # Secrets: MC_URL, MC_USUARIO, MC_SENHA, MC_ROBO_USUARIO, MC_ROBO_SENHA,
-# NOTION_TOKEN
+# NOTION_TOKEN, MC_EMAIL_SENHA_APP (código de autenticação por e-mail, 08/10/26)
 name: Robô de contas bancárias
 
 on:
@@ -50,6 +50,7 @@ jobs:
       MC_SENHA: ${{ secrets.MC_SENHA }}
       MC_ROBO_USUARIO: ${{ secrets.MC_ROBO_USUARIO }}
       MC_ROBO_SENHA: ${{ secrets.MC_ROBO_SENHA }}
+      MC_EMAIL_SENHA_APP: ${{ secrets.MC_EMAIL_SENHA_APP }}
       APLICAR: ${{ (github.event_name == 'workflow_dispatch' && inputs.aplicar) && '1' || (github.event_name != 'workflow_dispatch' && vars.MC_APLICAR) || '' }}
     steps:
       - uses: actions/checkout@v4
