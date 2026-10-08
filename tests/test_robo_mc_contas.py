@@ -788,3 +788,86 @@ def test_main_chama_a_coluna_conta_com_a_mesma_decisao_de_gravar(monkeypatch):
     _preparar_main(monkeypatch, notion, erp, aplicar=False)
     assert r.main() == 0
     assert notion.coluna == [("banco-contas", 1, False)]
+
+
+# ============================================================================
+# 08/10/26 — vazio do ERP não apaga o Notion; banco pelo código; CHAVE PIX
+# ============================================================================
+
+def test_planejar_vazio_do_erp_nao_apaga_banco_agencia_numero_nem_nome():
+    erp = [_conta_erp(nome="", banco="", agencia="", numero="")]
+    notion = [_pagina_notion(nome="CONTA MODELO 1", banco="756 - Sicoob", agencia="3299", numero="1000-1")]
+    plano = r.planejar(erp, notion, primeira_carga=False)
+    assert plano["atualizar"] == []
+
+
+def test_planejar_banco_compara_pelo_codigo_do_comeco():
+    notion = [_pagina_notion(banco="756 - Sicoob")]
+    assert r.planejar([_conta_erp(banco="756")], notion, primeira_carga=False)["atualizar"] == []
+    plano = r.planejar([_conta_erp(banco="001")], notion, primeira_carga=False)
+    assert plano["atualizar"] == [{"id": "p1", "campos": {"banco": "001"}}]
+
+
+def test_planejar_banco_sem_codigo_no_notion_compara_texto():
+    plano = r.planejar([_conta_erp(banco="756")], [_pagina_notion(banco="Sicoob")], primeira_carga=False)
+    assert plano["atualizar"] == [{"id": "p1", "campos": {"banco": "756"}}]
+
+
+def test_planejar_agencia_e_numero_comparam_so_digitos():
+    notion = [_pagina_notion(agencia="3.299", numero="1000-1")]
+    erp = [_conta_erp(agencia="3299", numero="10001")]
+    assert r.planejar(erp, notion, primeira_carga=False)["atualizar"] == []
+
+
+def test_planejar_agencia_com_digito_diferente_erp_preenchido_vence():
+    # "3299" x "3299-9": dígitos diferentes; sem adivinhar DV, o ERP (preenchido) vence
+    plano = r.planejar([_conta_erp(agencia="3299")], [_pagina_notion(agencia="3299-9")], primeira_carga=False)
+    assert plano["atualizar"] == [{"id": "p1", "campos": {"agencia": "3299"}}]
+
+
+def test_planejar_agencia_vazia_no_erp_mantem_a_digitada_no_notion():
+    plano = r.planejar([_conta_erp(agencia="")], [_pagina_notion(agencia="3299")], primeira_carga=False)
+    assert plano["atualizar"] == []
+
+
+def test_codigo_banco():
+    assert r.codigo_banco("756") == "756"
+    assert r.codigo_banco(" 756 - Sicoob") == "756"
+    assert r.codigo_banco("Sicoob") == ""
+    assert r.codigo_banco(None) == ""
+
+
+def test_tokens_conta_entende_banco_digitado_com_nome():
+    assert "SICOOB" in r._tokens_conta({"nome": "CONTA MODELO", "banco": "756 - Sicoob"})
+
+
+def test_main_nunca_toca_chave_pix(monkeypatch):
+    pagina = _pagina_conta_notion("pg-a", "e1", "CONTA MODELO A", "1000-1")
+    pagina["properties"]["CHAVE PIX"] = {"type": "rich_text", "rich_text": [{"plain_text": "chave-ficticia"}]}
+    notion = _NotionFalso([pagina], [])
+    erp = [{"id": "e1", "nome": "CONTA MODELO A - NOVO", "banco": "001", "agencia": "9-9", "numero": "1000-1"},
+           {"id": "e2", "nome": "CONTA MODELO B", "banco": "756", "agencia": "", "numero": "2000-2"}]
+    _preparar_main(monkeypatch, notion, erp)
+
+    assert r.main() == 0
+    assert notion.gravacoes, "o cenário deveria gravar (atualizar e criar)"
+    for _metodo, _caminho, corpo in notion.gravacoes:
+        props = (corpo or {}).get("properties") or {}
+        assert not any(r.N(k) == r.N("CHAVE PIX") for k in props)
+
+
+def test_preparar_banco_fixo_nao_apaga_nem_mexe_na_chave_pix(monkeypatch):
+    gravado = []
+    esquema = {"properties": {
+        "Conta": {"type": "title"}, "CHAVE PIX": {"type": "rich_text"},
+    }, "title": [{"plain_text": "CONTAS BANCÁRIAS"}]}
+
+    def api(metodo, caminho, corpo=None):
+        if metodo == "GET":
+            return esquema
+        gravado.append(corpo)
+        return {}
+    monkeypatch.setattr(r, "api", api)
+    r.preparar_banco_fixo("banco-contas")
+    for corpo in gravado:
+        assert not any(r.N(k) == r.N("CHAVE PIX") for k in (corpo.get("properties") or {}))

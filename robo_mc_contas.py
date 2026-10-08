@@ -157,6 +157,46 @@ def conta_do_erp(item):
 
 _CAMPOS_COMPARADOS = ("nome", "banco", "agencia", "numero")
 _SITUACAO_SUMIU = "SUMIU DO ERP"
+_CODIGO_BANCO_INICIO = re.compile(r"^\s*(\d+)")
+
+
+def codigo_banco(texto):
+    """Código do banco no COMEÇO do texto: "756" -> "756";
+    "756 - Sicoob" -> "756"; "Sicoob" -> "" (sem código)."""
+    m = _CODIGO_BANCO_INICIO.match(str(texto or ""))
+    return m.group(1) if m else ""
+
+
+def _campo_mudou(campo, valor_erp, valor_notion):
+    """O ERP manda no Notion, com duas exceções (08/10/26, pedido do dono):
+
+    1. Valor VAZIO no ERP nunca apaga valor preenchido no Notion — o dono
+       preenche à mão o que o ERP não tem (ex.: Banco "756 - Sicoob" e a
+       agência das contas Sicoob, que no ERP vem quase sempre vazia). Vale
+       também para "nome": um nome vazio no ERP apagaria o TÍTULO da página
+       (a "Conta"), que é por onde o dono e a coluna CONTA das obras acham a
+       conta — o mesmo raciocínio, então a mesma regra.
+    2. Comparação tolerante ao jeito que o dono escreve:
+       - banco: pelo código numérico do começo ("756" == "756 - Sicoob");
+         sem código em um dos lados, compara o texto normalizado;
+       - agência/número: só os dígitos ("3299" == "3.299"). NÃO tentamos
+         adivinhar dígito verificador: "3299" e "3299-9" têm dígitos
+         diferentes e, com o ERP preenchido, o ERP vence — é o ERP que
+         movimenta a conta, e "ignorar o DV" faria contas diferentes
+         ("3299-1" x "3299-2") parecerem iguais.
+       - nome: texto exato, como sempre foi."""
+    valor_erp = str(valor_erp or "").strip()
+    valor_notion = str(valor_notion or "").strip()
+    if not valor_erp:
+        return False
+    if campo == "banco":
+        a, b = codigo_banco(valor_erp), codigo_banco(valor_notion)
+        if a and b:
+            return a != b
+        return N(valor_erp) != N(valor_notion)
+    if campo in ("agencia", "numero"):
+        return so_digitos(valor_erp) != so_digitos(valor_notion)
+    return valor_erp != valor_notion
 
 
 def planejar(erp, notion, primeira_carga):
@@ -193,7 +233,7 @@ def planejar(erp, notion, primeira_carga):
             continue
         mudou = {
             campo: c.get(campo, "") for campo in _CAMPOS_COMPARADOS
-            if c.get(campo, "") != existente.get(campo, "")
+            if _campo_mudou(campo, c.get(campo, ""), existente.get(campo, ""))
         }
         if mudou:
             atualizar.append({"id": existente["page_id"], "campos": mudou})
@@ -237,6 +277,7 @@ def _banco_bate_no_texto(banco_conta, grupos_digitos, texto_n):
     banco_conta = str(banco_conta or "").strip()
     if not banco_conta:
         return False
+    banco_conta = codigo_banco(banco_conta) or banco_conta  # "756 - Sicoob" -> "756"
     if banco_conta.isdigit():
         if banco_conta in grupos_digitos:
             return True
@@ -718,6 +759,7 @@ def _tokens(texto):
 def _tokens_conta(c):
     tk = _tokens(c.get("nome"))
     banco = str(c.get("banco") or "").strip()
+    banco = codigo_banco(banco) or banco  # "756 - Sicoob" (digitado à mão) -> "756"
     if banco in BANCOS_CONHECIDOS:
         tk.add(N(BANCOS_CONHECIDOS[banco]))
     if "CAIXA" in tk:
