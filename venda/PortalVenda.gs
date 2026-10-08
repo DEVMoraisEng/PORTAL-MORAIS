@@ -8,7 +8,7 @@
  * OPENAI_API_KEY (provedor openai), MODELO_IA (opcional, só openai),
  * ANTHROPIC_API_KEY (provedor anthropic, plano B).
  * Nenhum log com nome, CPF, endereço ou conteúdo de documento. */
-var VERSAO_VENDA = "venda-v5";   // v5: pré-contrato grifado antes do contrato final (entrega 9)
+var VERSAO_VENDA = "venda-v6";   // v6: documentos do imóvel lidos pela IA (entrega 11); v5: pré-contrato grifado (entrega 9)
 var NOTION_VERSION = "2022-06-28";
 var ERROS_CONHECIDOS = /^(COLUNA_FALTANDO|TIPO_DE_COLUNA_ERRADO|BACKEND_SEM_CONFIG|PAGINA_DE_OUTRA_BASE)/;
 var REGEX_PAGE_ID = /^[0-9a-f]{32}$|^[0-9a-f-]{36}$/i;
@@ -107,7 +107,8 @@ function colunas_() {
      muitas colunas pode passar do limite de ~100 KB do CacheService e
      lançar, derrubando toda ação. Falha ao gravar no cache não é grave:
      só custa buscar o schema de novo na próxima chamada. */
-  var cache = CacheService.getScriptCache(), k = "venda_schema_v1", txt = cache.get(k), schema;
+  var cache = CacheService.getScriptCache(), k = "venda_schema_v2", txt = cache.get(k), schema;
+  var R = RegrasVenda;
   if (txt) {
     schema = JSON.parse(txt);
   } else {
@@ -117,15 +118,23 @@ function colunas_() {
       var pr = db.properties[nome];
       completo[nome] = { tipo: pr.type, opcoes: pr.type === "select" ? (pr.select.options || []).map(function (o) { return o.name; }) : [] };
     }
-    var pre = RegrasVenda.resolverColunas(completo);
+    var pre = R.resolverColunas(completo), preI = R.resolverColunas(completo, R.COL_IMOVEL, R.TIPOS_IMOVEL);
     schema = {};
-    for (var canon in pre.mapa) { var real = pre.mapa[canon]; schema[real] = completo[real]; }
-    try { cache.put(k, JSON.stringify(schema), 1800); } catch (e) { console.error("PORTAL-VENDA cache do schema falhou: " + String(e.message || e).slice(0, 120)); }
+    [pre, preI].forEach(function (x) { for (var canon in x.mapa) { var real = x.mapa[canon]; schema[real] = completo[real]; } });
+    /* sem as colunas do imóvel completas não guarda no cache: criadas no Notion, a próxima chamada já vê */
+    if (!preI.faltando.length && !preI.tipoErrado.length) {
+      try { cache.put(k, JSON.stringify(schema), 1800); } catch (e) { console.error("PORTAL-VENDA cache do schema falhou: " + String(e.message || e).slice(0, 120)); }
+    }
   }
-  var r = RegrasVenda.resolverColunas(schema);
+  var r = R.resolverColunas(schema);
   if (r.faltando.length) { try { cache.remove(k); } catch (e) {} throw new Error("COLUNA_FALTANDO: " + r.faltando.join(", ")); }
   if (r.tipoErrado.length) { try { cache.remove(k); } catch (e) {} throw new Error("TIPO_DE_COLUNA_ERRADO: " + r.tipoErrado.join(", ")); }
-  return { mapa: r.mapa, schema: schema };
+  /* documentos do imóvel (entrega 11): colunas opcionais — se faltarem, só aquela seção para */
+  var ri = R.resolverColunas(schema, R.COL_IMOVEL, R.TIPOS_IMOVEL), mapa = r.mapa, imovelErro = "";
+  if (ri.faltando.length) imovelErro = "COLUNA_FALTANDO: " + ri.faltando.join(", ");
+  else if (ri.tipoErrado.length) imovelErro = "TIPO_DE_COLUNA_ERRADO: " + ri.tipoErrado.join(", ");
+  else for (var ci in ri.mapa) mapa[ci] = ri.mapa[ci];
+  return { mapa: mapa, schema: schema, imovelErro: imovelErro };
 }
 
 function valorProp_(pr) {
@@ -138,6 +147,7 @@ function valorProp_(pr) {
     case "email": return pr.email;
     case "phone_number": return pr.phone_number;
     case "files": return pr.files || [];
+    case "date": return pr.date ? pr.date.start : null;
     default: return null;
   }
 }
@@ -157,6 +167,7 @@ function propNotion_(tipo, valor) {
     case "select": return { select: valor ? { name: String(valor) } : null };
     case "email": return { email: vazio ? null : String(valor) };
     case "phone_number": return { phone_number: vazio ? null : String(valor) };
+    case "date": return { date: vazio ? null : { start: String(valor).slice(0, 10) } };
     default: return { rich_text: vazio ? [] : [{ type: "text", text: { content: String(valor).slice(0, 1900) } }] };
   }
 }
@@ -175,7 +186,24 @@ function hoje_(fmt) { return Utilities.formatDate(new Date(), "America/Sao_Paulo
 function estado_(col, p) {
   var a = lerPagina_(col, p.pageId), C = RegrasVenda.COL;
   return { ok: true, tipoCasa: a[C.TIPO_CASA] || "", arquivos: RegrasVenda.contarArquivos(a),
-           dossie: a[C.DOSSIE] || "", observacao: a[C.OBS] || "", doisCompradores: RegrasVenda.temDoisCompradores(a) };
+           dossie: a[C.DOSSIE] || "", observacao: a[C.OBS] || "", doisCompradores: RegrasVenda.temDoisCompradores(a),
+           imovel: estadoImovel_(col, a) };
+}
+/* seção "Documentos do imóvel": arquivos por espaço, estado, observação e os dados do contrato já gravados */
+function estadoImovel_(col, a) {
+  if (col.imovelErro) return { erro: col.imovelErro };
+  var CI = RegrasVenda.COL_IMOVEL;
+  return { arquivos: RegrasVenda.contarArquivos(a, RegrasVenda.ESPACOS_IMOVEL), dossie: a[CI.DOSSIE] || "",
+           observacao: a[CI.OBS] || "",
+           dados: { matricula: a[CI.MATRICULA_INDIVIDUAL] || "", cri: a[CI.CRI] || "",
+                    area: a[CI.AREA] === null || a[CI.AREA] === undefined ? null : a[CI.AREA],
+                    confrontacoes: a[CI.CONFRONTACOES] || "", alvaraNumero: a[CI.ALVARA_NUMERO] || "",
+                    alvaraData: a[CI.ALVARA_DATA] || "", habiteseNumero: a[CI.HABITESE_NUMERO] || "" } };
+}
+/* colunas de estado/observação de cada dossiê: o do comprador (padrão) ou o do imóvel */
+function colunasDossie_(grupo) {
+  return grupo === "imovel" ? { estado: RegrasVenda.COL_IMOVEL.DOSSIE, obs: RegrasVenda.COL_IMOVEL.OBS }
+                            : { estado: RegrasVenda.COL.DOSSIE, obs: RegrasVenda.COL.OBS };
 }
 function tipoCasa_(col, p) {
   if (RegrasVenda.TIPOS_CASA.indexOf(p.valor) < 0) return { ok: false, erro: "TIPO_DE_CASA_INVALIDO" };
@@ -184,9 +212,11 @@ function tipoCasa_(col, p) {
   return { ok: true };
 }
 function mudarDossie_(col, sess, p, estado, nota) {
-  var C = RegrasVenda.COL, a = lerPagina_(col, p.pageId), g = {};
-  g[C.DOSSIE] = estado;
-  g[C.OBS] = RegrasVenda.juntarObservacoes(a[C.OBS], [nota], hoje_("dd/MM"), sess.u);
+  var grupo = p.grupo === "imovel" ? "imovel" : "comprador";
+  if (grupo === "imovel" && col.imovelErro) return { ok: false, erro: col.imovelErro };
+  var D = colunasDossie_(grupo), a = lerPagina_(col, p.pageId), g = {};
+  g[D.estado] = estado;
+  g[D.obs] = RegrasVenda.juntarObservacoes(a[D.obs], [nota], hoje_("dd/MM"), sess.u);
   gravar_(col, p.pageId, g);
   return { ok: true };
 }
@@ -234,10 +264,12 @@ function leitorIA_() {
 }
 
 function lerDocumento_(col, sess, p) {
-  var esp = RegrasVenda.ESPACOS[p.espaco];
+  var esp = RegrasVenda.espaco(p.espaco);
   if (!esp) return { ok: false, erro: "ESPACO_DESCONHECIDO" };
+  var doImovel = esp.grupo === "imovel";
+  if (doImovel && col.imovelErro) return { ok: false, erro: col.imovelErro, arquivoGuardado: false };
   if (p.trocar && !p.arquivo) return { ok: false, erro: "TROCAR_SEM_ARQUIVO" };
-  var C = RegrasVenda.COL, guardado = false;
+  var D = colunasDossie_(doImovel ? "imovel" : "comprador"), guardado = false;
   if (p.arquivo) {
     var chk = RegrasVenda.conferirArquivo(p.arquivo);
     if (!chk.ok) return { ok: false, erro: chk.erro, arquivoGuardado: false };
@@ -277,16 +309,24 @@ function lerDocumento_(col, sess, p) {
   var depois = {};
   for (var k in a) depois[k] = a[k];
   for (var c in plano.props) depois[c] = plano.props[c];
-  var est = RegrasVenda.estadoAposLeitura(RegrasVenda.contarArquivos(depois), RegrasVenda.temDoisCompradores(depois));
+  var est = doImovel
+    ? RegrasVenda.estadoImovelAposLeitura(RegrasVenda.contarArquivos(depois, RegrasVenda.ESPACOS_IMOVEL))
+    : RegrasVenda.estadoAposLeitura(RegrasVenda.contarArquivos(depois), RegrasVenda.temDoisCompradores(depois));
   var g = {};
   for (var c2 in plano.props) g[c2] = plano.props[c2];
-  g[C.DOSSIE] = est.estado;
-  if (plano.observacoes.length) g[C.OBS] = RegrasVenda.juntarObservacoes(a[C.OBS], plano.observacoes, hoje_("dd/MM"), sess.u);
+  g[D.estado] = est.estado;
+  if (plano.observacoes.length) g[D.obs] = RegrasVenda.juntarObservacoes(a[D.obs], plano.observacoes, hoje_("dd/MM"), sess.u);
   try {
     gravar_(col, p.pageId, g);
   } catch (e) {
     console.error("PORTAL-VENDA gravação falhou: " + String(e.message || e).slice(0, 120));
     return { ok: false, erro: "GRAVACAO_FALHOU", arquivoGuardado: guardado };
   }
-  return { ok: true, preenchidos: plano.preenchidos, observacoes: plano.observacoes, dossie: est.estado, faltam: est.faltam };
+  var resp = { ok: true, preenchidos: plano.preenchidos, observacoes: plano.observacoes, dossie: est.estado, faltam: est.faltam };
+  if (doImovel) {
+    resp.grupo = "imovel";
+    if (plano.loteamento) resp.loteamento = plano.loteamento;      // do setor: só mostra, não grava na casa
+    if (plano.habiteseData) resp.habiteseData = plano.habiteseData; // o contrato usa a DATA HABITE-SE da obra
+  }
+  return resp;
 }

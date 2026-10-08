@@ -21,7 +21,7 @@
    Documentos de comprador vão para a OpenAI (decisão do dono em 28/09/2026).
 4. Implantar › Nova implantação › App da Web › Executar como **Eu** › Quem pode
    acessar **Qualquer pessoa** › Implantar › autorizar (Avançado › Acessar).
-5. Teste: abrir `<URL>/exec?action=ping` → `{"ok":true,"versao":"venda-v5","papel":"VENDA"}`.
+5. Teste: abrir `<URL>/exec?action=ping` → `{"ok":true,"versao":"venda-v6","papel":"VENDA"}`.
 6. Mande a URL `/exec` no chat (não é segredo).
 
 Mudou o código? Implantar › Gerenciar implantações › lápis › Nova versão › Implantar.
@@ -597,6 +597,75 @@ Implantar:
 **Ainda não faz:** o carimbo cobre os dados, não o texto do modelo — trocar o
 modelo do Docs depois do pré-contrato não trava o "Conferi". O último PDF de
 pré-contrato de cada casa fica na pasta provisória (só o anterior é apagado).
+
+## Documentos do imóvel (entrega 11)
+
+No painel da casa, abaixo do dossiê do comprador, a seção **Documentos do
+imóvel** tem três espaços: **Matrícula** (certidão de matrícula / inteiro teor
+do cartório), **Alvará de construção** e **Habite-se**. Mesmo fluxo do dossiê do
+comprador: Enviar e ler / Ler de novo / Trocar → a IA (OpenAI padrão, Claude
+plano B — as mesmas Propriedades) lê → preenche as colunas do contrato da casa →
+**DOSSIÊ IMÓVEL** fica `LIDO PELA IA – CONFERIR` → alguém confere (Marcar
+conferido / Devolver, que aqui mexem só no dossiê do imóvel). Vale "o último
+documento enviado vale": valor lido substitui o atual; Trocar remove os arquivos
+anteriores do espaço. O ping passa a responder `"versao":"venda-v6"`.
+
+O que a IA lê de cada documento:
+
+| Documento | Campos lidos | Onde grava |
+|---|---|---|
+| Matrícula | nº da matrícula individual, cartório (CRI), área total (m², número), confrontações | `CONTRATO - MATRÍCULA INDIVIDUAL`, `CONTRATO - CRI DA MATRÍCULA`, `CONTRATO - ÁREA DO LOTE (M²)`, `CONTRATO - CONFRONTAÇÕES` |
+| Matrícula | loteamento (denominação, matrícula do loteamento, cartório), se a certidão citar | **não grava na casa**: aparece na tela e na observação como "dados do loteamento encontrados — preencher uma vez no cadastro do setor (LOTEAMENTOS – CONTRATO)" |
+| Alvará | número e data | `CONTRATO - ALVARÁ Nº`, `CONTRATO - ALVARÁ DATA` |
+| Habite-se | número e data | `CONTRATO - HABITE-SE Nº`; a **data não grava**: o contrato usa a `DATA HABITE-SE` da obra (DOCUMENTOS) — a data lida vai para a observação para conferir |
+
+Validação: datas viram ISO e só se existirem no calendário (31/02 não grava e
+avisa); a área tem de ser número > 0 (`360,50 m²` → 360,5); textos sem espaços
+sobrando. Documento trocado de lugar (alvará no espaço do habite-se, outra coisa
+qualquer) não preenche nada e avisa. O estado fica `FALTA DOCUMENTO` até ter
+matrícula **e** alvará; o habite-se não segura (só existe com a obra pronta, e o
+contrato só o exige nesse caso). Os logs continuam só com espaço e tokens.
+
+**Casa de condomínio:** a seção só avisa que os dados do imóvel vêm da linha do
+condomínio (VENDAS CONDOMÍNIO). O cartão do condomínio (`.cd-cardbox`) não tem
+dossiê, então lá não muda nada.
+
+**Colunas são opcionais para o resto do app:** se faltarem na VENDAS, o dossiê
+do comprador, contrato, assinatura e Mais Controle seguem; só a seção do imóvel
+mostra "A base não tem a coluna … — avise o desenvolvedor".
+
+### O que criar na VENDAS de produção (nomes exatos)
+
+| Coluna | Tipo |
+|---|---|
+| `IMÓVEL - MATRÍCULA` | Arquivos e mídia (files) |
+| `IMÓVEL - ALVARÁ` | Arquivos e mídia (files) |
+| `IMÓVEL - HABITE-SE` | Arquivos e mídia (files) |
+| `DOSSIÊ IMÓVEL` | Seleção (select) com `FALTA DOCUMENTO`, `LIDO PELA IA – CONFERIR`, `CONFERIDO`, `DEVOLVIDO` (o travessão é o mesmo do DOSSIÊ) |
+| `DOSSIÊ IMÓVEL - OBSERVAÇÃO` | Texto (rich_text) |
+
+As sete `CONTRATO - *` do imóvel (entrega 2) já existem e não mudam. Nenhuma
+Propriedade nova no Apps Script.
+
+Implantar:
+
+1. **Notion (produção):** criar as 5 colunas acima (já criadas na base de TESTE).
+2. **PORTAL-VENDA:** colar de novo `RegrasVenda`, `OpenAILeitor`, `ClaudeLeitor` e
+   `PortalVenda`; nova versão; ping `venda-v6`.
+3. **Portal (site):** publicar `venda-dossie.js` com a `URL_PORTAL_VENDA` do
+   ambiente.
+4. **Code.gs do portal (ESCRITA):** o `DISTRATO_MANTIDOS` passa a manter
+   `TIPO DE CASA`, as sete `CONTRATO - *` do imóvel, as três `IMÓVEL - *`,
+   `DOSSIÊ IMÓVEL` e `DOSSIÊ IMÓVEL - OBSERVAÇÃO` (são dados da casa, não do
+   comprador: sobrevivem ao distrato).
+5. **Teste:** numa casa de rua de teste, enviar uma matrícula (PDF) → conferir os
+   4 campos e o aviso do loteamento → enviar o alvará → estado `LIDO PELA IA –
+   CONFERIR` → Marcar conferido → gerar o pré-contrato e ver matrícula, CRI, área,
+   confrontações e alvará grifados.
+
+**Ainda não faz:** não grava o loteamento no cadastro do setor (só mostra); não
+confere se a matrícula é da mesma quadra/lote do endereço; certidão com mais de
+4 arquivos no espaço só tem os 4 últimos lidos.
 
 ## Plano B — Anthropic
 
