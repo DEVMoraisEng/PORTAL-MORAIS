@@ -405,11 +405,14 @@ def _url_orcamentos():
 
 
 def _buscar_orcamentos(page, texto):
+    """A busca da lista (AngularJS) só filtra com input+change — digitar tecla
+    a tecla não filtrava e o robô via só a 1ª página (08/10/26)."""
     busca = page.locator("input[placeholder='Digite aqui sua busca']").first
     busca.wait_for(state="visible", timeout=25000)
-    busca.fill("")
-    busca.type(texto, delay=30)
-    page.wait_for_timeout(3000)
+    busca.evaluate("""(e, v) => { e.focus(); e.value = v;
+        e.dispatchEvent(new Event('input', {bubbles: true}));
+        e.dispatchEvent(new Event('change', {bubbles: true})); }""", texto)
+    page.wait_for_timeout(3500)
     # rola até o fim para a lista carregar tudo (é lista infinita)
     for _ in range(8):
         page.mouse.wheel(0, 4000)
@@ -417,13 +420,33 @@ def _buscar_orcamentos(page, texto):
     return page.locator("table tbody tr").all_inner_texts()
 
 
+def tem_orcamento(linhas, titulo):
+    """Função PURA: alguma linha da lista é desta obra? ('LT 1' não casa 'LT 16')."""
+    alvo = re.compile(r"(^|\s)" + re.escape(N(titulo)) + r"(\s|$)")
+    return any(alvo.search(N(l)) for l in linhas)
+
+
 def garantir_orcamento(page, o):
     """Cria o orçamento 'sem orça N' da obra, se ela ainda não tiver nenhum.
-    Devolve um texto curto do que aconteceu."""
+    Devolve um texto curto do que aconteceu. Se der erro no meio, recarrega a
+    página: um modal aberto que sobra bloqueia os cliques da próxima obra."""
+    try:
+        return _garantir_orcamento(page, o)
+    except Exception:
+        try:
+            page.keyboard.press("Escape")
+            page.reload()
+            page.wait_for_timeout(3000)
+        except Exception:
+            pass
+        raise
+
+
+def _garantir_orcamento(page, o):
     titulo = o["titulo"]
     page.goto(_url_orcamentos())
     linhas = _buscar_orcamentos(page, titulo)
-    if any(N(titulo) in N(l) for l in linhas):
+    if tem_orcamento(linhas, titulo):
         return "já tinha orçamento"
     codigo = f"sem orça {proximo_sem_orca(_buscar_orcamentos(page, 'sem orça'))}"
     if not APLICAR:
@@ -477,7 +500,7 @@ def garantir_orcamento(page, o):
     # confere na lista
     page.goto(_url_orcamentos())
     linhas = _buscar_orcamentos(page, titulo)
-    if any(N(titulo) in N(l) and N(codigo) in N(l) for l in linhas):
+    if tem_orcamento([l for l in linhas if N(codigo) in N(l)], titulo):
         return f"criado '{codigo}'"
     raise RuntimeError(f"cliquei em Começar, mas '{codigo}' não apareceu na lista de orçamentos")
 
@@ -536,6 +559,9 @@ _JS_VISIVEIS = """(args) => {
     const r = x.closest('li,label') || x.parentElement;
     return { x, r, nome: (r ? r.innerText : '').trim() };
   });
+  // UM clique por chamada: a lista é controlada pelo React e dois cliques
+  // seguidos usam o estado velho — o segundo desfazia o primeiro (08/10/26:
+  // o Gouveia continuava marcado porque o clique no Ian veio logo depois).
   const mudou = [];
   if (args.aplicar) {
     for (const l of linhas) {
@@ -544,6 +570,7 @@ _JS_VISIVEIS = """(args) => {
       if (querMarcado === null || l.x.checked === querMarcado) continue;
       (l.r || l.x).click();
       mudou.push((querMarcado ? '+' : '-') + l.nome);
+      break;
     }
   }
   return { mudou, estado: linhas.map(l => [l.nome, l.x.checked]) };
@@ -562,15 +589,19 @@ def ajustar_visiveis(page, resp, aplicar=True):
     caixa.click(force=True)
     page.wait_for_timeout(900)
     args = {"manter": [N(x) for x in manter], "tirar": [N(x) for x in tirar], "aplicar": aplicar}
-    r = page.evaluate(_JS_VISIVEIS, args) or {}
-    page.wait_for_timeout(500)
+    mudou = []
+    for _ in range(12):                      # um clique por vez, esperando o React
+        r = page.evaluate(_JS_VISIVEIS, args) or {}
+        if not r.get("mudou"):
+            break
+        mudou += r["mudou"]
+        page.wait_for_timeout(600)
     # confere: lê de novo e vê se ficou como deveria
     r2 = page.evaluate(_JS_VISIVEIS, dict(args, aplicar=False)) or {}
     errados = [nome for nome, marcado in (r2.get("estado") or [])
                if (N(nome) in args["manter"] and not marcado) or (N(nome) in args["tirar"] and marcado)]
     page.keyboard.press("Escape")
     page.wait_for_timeout(500)
-    mudou = r.get("mudou") or []
     print(f"  Visível para: equipe {manter}; mudou {mudou or 'nada'}" +
           (f" | ! continuam errados: {errados}" if errados else ""), flush=True)
     return mudou
