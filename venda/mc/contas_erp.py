@@ -56,11 +56,11 @@ def main(argv=None) -> int:
     modo = (argv if argv is not None else sys.argv[1:] or ["sondar"])[0]
     erp = Erp(os.environ["MC_ROBO_EMAIL"].strip(), os.environ["MC_ROBO_SENHA"].strip(chr(13) + chr(10)),
               aparelho=os.environ.get("MC_ROBO_APARELHO", "").strip())
-    contas = _itens(erp.pedir("GET", CAMINHO_TODAS))
+    contas = _itens(erp.pedir_core("GET", CAMINHO_TODAS))
     print("contas no ERP:", len(contas))
     if modo == "sondar":
         if contas:
-            d = erp.pedir("GET", CAMINHO_UMA % contas[0]["id"])
+            d = erp.pedir_core("GET", CAMINHO_UMA % contas[0]["id"])
             print("campos da lista:", sorted(contas[0].keys()))
             print("campos do detalhe:", sorted((d or {}).keys()))
             for k in ("bankCode", "agency", "agencyDigit", "account", "accountDigit", "bank"):
@@ -76,14 +76,14 @@ def main(argv=None) -> int:
         if len(achadas) != 1:
             print(f"{i:02d}: {len(achadas)} contas com esse número no ERP — pulada"); erros += 1; continue
         cid = achadas[0]["id"]
-        d = erp.pedir("GET", CAMINHO_UMA % cid) or {}
+        d = erp.pedir_core("GET", CAMINHO_UMA % cid) or {}
         mud = mudancas(d, p)
         print(f"{i:02d}: {'muda ' + ', '.join(sorted(mud)) if mud else 'já certa'}")
         if modo == "aplicar" and mud:
             corpo = dict(d); corpo.update(mud)
             try:
-                erp.pedir("PUT", CAMINHO_UMA % cid, corpo=corpo)
-                d2 = erp.pedir("GET", CAMINHO_UMA % cid) or {}
+                erp.pedir_core("PUT", CAMINHO_UMA % cid, corpo=corpo)
+                d2 = erp.pedir_core("GET", CAMINHO_UMA % cid) or {}
                 print(f"    gravada; conferida: {'ok' if not mudancas(d2, p) else 'DIFERENTE do pedido'}")
             except ErpErro as e:
                 print(f"    ERRO ao gravar: {str(e)[:160]}"); erros += 1
