@@ -25,3 +25,12 @@ test("abrirObra ainda marca o painel como carregando com um único filho .vazio 
   // é este placeholder, e só ele, que venda-dossie.js espera para saber que o painel ainda está carregando
   assert.match(vendas, /body\.innerHTML\s*=\s*['"]<div class="vazio"><span class="load"><\/span> Carregando…<\/div>['"]/);
 });
+test("cartão do condomínio (entrega 7): condAbrir monta a tela de venda na linha e condFechar solta", () => {
+  const abrir = vendas.slice(vendas.indexOf("function condAbrir(id){"), vendas.indexOf("function condTelaVendaHtml(){"));
+  assert.match(abrir, /condAndamentoHtml\(l\)\+\s*condTelaVendaHtml\(\)\+/);
+  assert.match(abrir, /VendaBlocos\.montar\(document\.getElementById\("cd-venda"\),id\)/);
+  assert.match(vendas, /function condTelaVendaHtml\(\)\{[^}]*id="cd-venda"/);
+  assert.match(vendas, /function condFechar\(\)\{[^\n]*VendaBlocos\.soltar\(\)/);
+  const dossie = fs.readFileSync(path.join(RAIZ, "venda-dossie.js"), "utf8");
+  assert.match(dossie, /window\.VendaBlocos = \{ montar: montarCondominio, soltar: soltarCondominio \}/);
+});

@@ -1069,7 +1069,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
   <div class="toast" id="toast"></div>
 
 <script src="app.js?v=43"></script>
-<script src="venda-dossie.js?v=1"></script>
+<script src="venda-dossie.js?v=2"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele.
    Mesma chave (morais_tema) das outras páginas do portal. */
@@ -1725,7 +1725,7 @@ async function condSalvar(id,prop,valor){
 }
 
 /* ---- card da unidade ---- */
-function condFechar(){ COND_ABERTA=null; const c=document.getElementById("cd-card"); c.style.display="none"; c.innerHTML=""; }
+function condFechar(){ COND_ABERTA=null; if(window.VendaBlocos) VendaBlocos.soltar(); const c=document.getElementById("cd-card"); c.style.display="none"; c.innerHTML=""; }
 function condFluxo(l){
   const g=n=>cdVal(l,n), dia=Number(g("DIA PAGAMENTO PARCELAS"))||0;
   const L=[]; let total=0;
@@ -1815,6 +1815,7 @@ function condAbrir(id){
       '<div class="cd-prog" id="cd-prog" style="display:none;flex-basis:100%"></div>'+
     '</div>'+
     condAndamentoHtml(l)+
+    condTelaVendaHtml()+
     condLinkVendaHtml(l)+
     condAbatimentos(l,fx.total)+
     '<b style="color:var(--azul);font-size:14px">FLUXO DE PAGAMENTO PRO SOLUTO</b>'+
@@ -1825,6 +1826,13 @@ function condAbrir(id){
     (g("PENDÊNCIAS")&&g("PENDÊNCIAS")!=="nenhuma"?'<div class="cd-falta" style="margin-top:8px"><b>Pendências do cadastro:</b> '+esc(g("PENDÊNCIAS"))+'</div>':'')+
     '</div>';
   document.getElementById("cd-card").style.display="block";
+  if(window.VendaBlocos) VendaBlocos.montar(document.getElementById("cd-venda"),id);   /* entrega 7: contrato, assinatura e Mais Controle da linha */
+}
+/* 07/10 (entrega 7) — TELA DE VENDA do condomínio: os blocos CONTRATO / ASSINATURA / MAIS CONTROLE
+   da tela de venda das casas, para a própria linha (venda-dossie.js desenha em #cd-venda). */
+function condTelaVendaHtml(){
+  if(!window.VendaBlocos) return "";
+  return '<div class="cd-and"><h4>TELA DE VENDA <span style="font-weight:400;color:var(--text3)">· contrato, assinatura e Mais Controle desta unidade</span></h4><div id="cd-venda"></div></div>';
 }
 /* 02/10 — ANDAMENTO DO PROCESSO: as colunas de preenchimento do BANCO DE DADOS VENDAS
    CONDOMÍNIO (SIM/NÃO e datas — conformidade, assinatura, protocolo, manual, água, energia,

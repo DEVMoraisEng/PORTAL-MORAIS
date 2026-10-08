@@ -10,8 +10,10 @@ from playwright.sync_api import sync_playwright
 
 RAIZ = pathlib.Path(__file__).resolve().parents[2]
 PAGINA = "0123456789abcdef0123456789abcdef"
+COND = "00112233445566778899aabbccddeeff"
 HTML = """<!doctype html><html><head><meta charset="utf-8"></head><body>
 <div id="pn-body"></div>
+<div id="cd-card"></div>
 <script>
   var OBRA_ABERTA = null;
   function sessao() { return { token: "t", tipo: "GERAL" }; }
@@ -25,7 +27,7 @@ HTML = """<!doctype html><html><head><meta charset="utf-8"></head><body>
     mcLancar: { ok: true, aplicar: false }
   };
   window.fetch = async function (url, opt) {
-    var p = JSON.parse(opt.body); window.pedidos.push(p.action);
+    var p = JSON.parse(opt.body); window.pedidos.push(p.action); (window.pedidosId = window.pedidosId || []).push(p.action + ":" + p.pageId);
     var r = window.respostas[p.action] || { ok: false, erro: "ACAO_DESCONHECIDA" };
     return { json: async function () { return JSON.parse(JSON.stringify(r)); } };
   };
@@ -66,7 +68,7 @@ def main() -> int:
             conf(env.count() == 1 and env.is_enabled(), "Enviar para assinatura habilitado com contrato gerado")
             env.click(); pg.wait_for_timeout(500)
             conf("assinaturaEnviar" in pg.evaluate("() => window.pedidos"), "clique chama assinaturaEnviar")
-            conf("Enviado" in pg.inner_text("#ass-wrap"), "situação ENVIADO aparece")
+            conf("Enviado" in pg.inner_text("#contrato-wrap .vb-ass"), "situação ENVIADO aparece")
             prev = pg.locator('[data-acao="mc-previa"]')
             conf(prev.count() == 1 and prev.is_enabled(), "Ver prévia habilitado")
             conf(pg.locator('[data-acao="mc-lancar"]').is_disabled(), "Lançar travado sem PRÉVIA OK")
@@ -74,6 +76,24 @@ def main() -> int:
             prev.click(); pg.wait_for_timeout(500)
             conf("mcLancar" in pg.evaluate("() => window.pedidos"), "clique chama mcLancar")
             conf(pg.locator('[data-acao="mc-lancar"]').is_enabled(), "com PRÉVIA OK o Lançar libera")
+            # entrega 7: o cartão do condomínio monta os mesmos blocos para a linha do condomínio
+            desenhar = """(id) => { var c = document.getElementById('cd-card');
+                c.innerHTML = '<div class="cd-cardbox"><h3>Unidade 13</h3><div id="cd-venda"></div></div>';
+                VendaBlocos.montar(document.getElementById('cd-venda'), id); }"""
+            pg.evaluate(desenhar, COND)
+            pg.wait_for_timeout(800)
+            cartao = pg.inner_text("#cd-card")
+            conf("Contrato" in cartao and "Assinatura" in cartao and "Mais Controle" in cartao, "cartão do condomínio mostra Contrato, Assinatura e Mais Controle")
+            ped = pg.evaluate("() => window.pedidosId")
+            conf(all(("%s:%s" % (a, COND)) in ped for a in ("contratoEstado", "mcEstado", "assinaturaEstado")), "os três estados pedidos para a linha do condomínio")
+            antes = len(pg.evaluate("() => window.pedidosId"))
+            pg.evaluate(desenhar, COND)   # o cartão se redesenha a cada gravação: não pede de novo
+            pg.wait_for_timeout(500)
+            conf(len(pg.evaluate("() => window.pedidosId")) == antes, "redesenhar o cartão não repete os pedidos")
+            pg.locator('#cd-card [data-acao="c-gerar"]').first.click(); pg.wait_for_timeout(500)
+            conf(("gerarContrato:%s" % COND) in pg.evaluate("() => window.pedidosId"), "Gerar de novo no cartão chama gerarContrato com o id da linha")
+            conf(pg.locator('#contrato-wrap').count() == 1, "o painel da casa segue com um bloco só")
+            pg.evaluate("() => { VendaBlocos.soltar(); document.getElementById('cd-card').innerHTML = ''; }")
             b.close()
     finally:
         (RAIZ / "_fumaca.html").unlink(missing_ok=True)
