@@ -741,3 +741,18 @@ test("a página da OBRA-AUTO é lida uma vez só", () => {
   assert.equal(c.acao("gerarPreContrato").ok, true);
   assert.equal(leituras, 1);
 });
+
+test("conta da obra como SELEÇÃO (produção): acha a linha da CONTAS BANCÁRIAS pelo nome (DB_CONTAS_BANCARIAS)", () => {
+  const linha = { id: CONTA_ID, properties: CONTA_PG };
+  const outra = { id: "d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0", properties: Object.assign({}, CONTA_PG, { Conta: Object.assign({ type: "title" }, tit("OUTRA CONTA")) }) };
+  const c = cenario({ obraDb: "db-obras", obra: { CONTA: { type: "select", select: { name: "conta ficticia obra" } } },
+    props: { DB_CONTAS_BANCARIAS: "db-contas" },
+    rotaExtra: (url, opt) => (url.endsWith("/databases/db-contas/query") ? { json: { results: [outra, linha], has_more: false } } : rotaConta(CONTA_PG)(url, opt)) });
+  const r = c.gerar();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.ok(c.pdfTexto().includes("Banco: 756 – Agência: 9999 – Conta 77777-7 – PIX: chave-ficticia@exemplo.test"), c.pdfTexto());
+  /* sem a Propriedade: fica a conta do vendedor, como antes */
+  const sem = cenario({ obraDb: "db-obras", obra: { CONTA: { type: "select", select: { name: "CONTA FICTICIA OBRA" } } } });
+  assert.equal(sem.gerar().ok, true);
+  assert.ok(!sem.pdfTexto().includes("77777-7"));
+});

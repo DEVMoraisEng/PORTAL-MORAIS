@@ -122,10 +122,33 @@ function ctrContaDaObra_(pg) {
   var props = (pg && pg.properties) || {};
   for (var n in props) {
     var p = props[n];
-    if (RegrasVenda.chave(n) !== RegrasVenda.chave("CONTA") || !p || p.type !== "relation") continue;
-    if (p.relation && p.relation.length) return String(p.relation[0].id || "");
+    if (RegrasVenda.chave(n) !== RegrasVenda.chave("CONTA") || !p) continue;
+    if (p.type === "relation" && p.relation && p.relation.length) return String(p.relation[0].id || "");
+    /* na produção (08/10) a CONTA da (EMP) Projeto 2.0 é SELEÇÃO com o nome da conta: acha a linha da
+       CONTAS BANCÁRIAS (Propriedade DB_CONTAS_BANCARIAS) pelo título ou pela coluna "Nome na obra" */
+    if (p.type === "select" && p.select && p.select.name) return ctrContaPorNome_(p.select.name);
   }
   return "";
+}
+function ctrContaPorNome_(nome) {
+  var db = prop_("DB_CONTAS_BANCARIAS"), k = RegrasVenda.chave(nome);
+  if (!db || !k) return "";
+  try {
+    var achadas = [], cursor = null, voltas = 0;
+    do {
+      var corpo = { page_size: 100 };
+      if (cursor) corpo.start_cursor = cursor;
+      var r = notion_("POST", "/databases/" + db + "/query", corpo);
+      (r.results || []).forEach(function (l) {
+        var c = ctrPorChave_(l.properties || {});
+        if (RegrasVenda.chave(ctrTitulo_(l.properties || {})) === k || RegrasVenda.chave(ctrTxt_(ctrCampo_(c, "Nome na obra"))) === k)
+          achadas.push(String(l.id || ""));
+      });
+      cursor = r.has_more ? r.next_cursor : null;
+    } while (cursor && ++voltas < 10);
+    if (achadas.length !== 1) { ctrLog_("contrato: conta da obra pelo nome: " + achadas.length + " linhas"); return ""; }
+    return achadas[0];
+  } catch (e) { ctrErro_("contrato: conta da obra pelo nome", e); return ""; }
 }
 /* Dados de depósito da linha da CONTAS BANCÁRIAS: { banco, agencia, conta, pix } ou null (ilegível).
    Banco sai como está ("756" ou "756 - Sicoob"; sem tabela de nomes). Log só com id, nunca valor. */
