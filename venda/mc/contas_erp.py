@@ -97,8 +97,13 @@ def main(argv=None) -> int:
                       f"dígitos iguais ao pedido: {_dig(at) == _dig(mud[k])}")
         if modo in ("aplicar", "aplicar1") and mud:
             try:
-                # PUT do detalhe inteiro gravou só o banco (08/10): agência e conta vão pelo PATCH (só o que muda)
-                erp.pedir_core("PATCH", CAMINHO_UMA % cid, corpo=dict(mud))
+                # 08/10, provado: o BANCO só grava pelo PUT do detalhe inteiro; agência e conta só pelo PATCH
+                if "bankCode" in mud:
+                    corpo = dict(d); corpo["bankCode"] = mud["bankCode"]
+                    erp.pedir_core("PUT", CAMINHO_UMA % cid, corpo=corpo)
+                resto = {k: v for k, v in mud.items() if k != "bankCode"}
+                if resto:
+                    erp.pedir_core("PATCH", CAMINHO_UMA % cid, corpo=resto)
                 d2 = erp.pedir_core("GET", CAMINHO_UMA % cid) or {}
                 print(f"    gravada; conferida: {'ok' if not mudancas(d2, p) else 'DIFERENTE do pedido'}")
             except ErpErro as e:
