@@ -129,11 +129,11 @@ test("alvará: número e data ISO; data impossível não grava e avisa", () => {
   assert.ok(ruim.observacoes.some((o) => /data do documento/.test(o)));
 });
 
-test("habite-se: grava o número; a data só volta e vira observação (o contrato usa a DATA HABITE-SE da obra)", () => {
+test("habite-se: grava o número e a data (CONTRATO - HABITE-SE DATA, entrega 13); a data também vai para a observação", () => {
   const p = R.planejarGravacao("IMOVEL_HABITESE", HABITESE, {}, "2026-10-08");
-  assert.deepEqual(p.props, { [R.COL_IMOVEL.HABITESE_NUMERO]: "HAB-2026/0042" });
+  assert.deepEqual(p.props, { [R.COL_IMOVEL.HABITESE_NUMERO]: "HAB-2026/0042", [R.COL_IMOVEL_OPC.HABITESE_DATA]: "2026-09-20" });
   assert.equal(p.habiteseData, "2026-09-20");
-  assert.ok(p.observacoes.some((o) => /20\/09\/2026/.test(o) && /DATA HABITE-SE/.test(o)));
+  assert.ok(p.observacoes.some((o) => /20\/09\/2026/.test(o) && /HABITE-SE DATA/.test(o)));
 });
 
 test("documento trocado de lugar (OUTRO, ou alvará no espaço do habite-se) não preenche nada", () => {
@@ -179,7 +179,7 @@ test("estado traz a seção do imóvel (arquivos, situação, dados) quando as c
   }) });
   const r = g.chamar({ action: "estado", token: tokenDe(), pageId: PAGE });
   assert.equal(r.ok, true);
-  assert.deepEqual(r.imovel.arquivos, { IMOVEL_MATRICULA: 1, IMOVEL_ALVARA: 0, IMOVEL_HABITESE: 0 });
+  assert.deepEqual(r.imovel.arquivos, { IMOVEL_MATRICULA: 1, IMOVEL_ALVARA: 0, IMOVEL_HABITESE: 0, IMOVEL_CERTIDAO_MAE: 0 });
   assert.equal(r.imovel.dossie, "FALTA DOCUMENTO");
   assert.equal(r.imovel.dados.area, 250);
   assert.equal(r.imovel.dados.alvaraData, "2026-03-15");
