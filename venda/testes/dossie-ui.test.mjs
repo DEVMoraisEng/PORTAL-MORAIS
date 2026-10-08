@@ -151,17 +151,18 @@ test("contrato (a) sem pré-contrato: só Gerar pré-contrato, habilitado; nada 
   }
 });
 
-test("contrato (b) pré-contrato gerado: link Visualizar pré-contrato, Conferi e Gerar pré-contrato de novo", () => {
+test("contrato (b) pré-contrato gerado: botão Visualizar pré-contrato (PDF vem pelo portal), Conferi e Gerar pré-contrato de novo", () => {
   const h = D.htmlContrato(PRE(), uic());
-  assert.match(h, /<a class="c-ver-pre" href="https:\/\/drive\.example\/p" target="_blank" rel="noopener">Visualizar pré-contrato<\/a>/);
+  assert.match(h, /data-acao="c-ver-pre"[^>]*>Visualizar pré-contrato</);
+  assert.doesNotMatch(h, /drive\.example/, "o link do Drive não vai para a tela");
   assert.match(h, /Pré-contrato: PRÉ-CONTRATO - X \[#0a1b2c3d\]\.pdf/);
   assert.match(h, /amarelo = preenchido pelo app; vermelho = ficou em branco/);
   assert.match(h, />Conferi, está tudo certo — gerar contrato</);
   assert.doesNotMatch(botao(h, "c-aprovar"), /disabled/);
   assert.match(h, />Gerar pré-contrato de novo</);
   assert.equal(botao(h, "c-ver"), null);
-  /* link que não é https não vira âncora */
-  assert.doesNotMatch(D.htmlContrato(PRE({ url: "javascript:alert(1)" }), uic()), /Visualizar pré-contrato/);
+  /* nenhuma URL vinda do servidor vira âncora */
+  assert.doesNotMatch(D.htmlContrato(PRE({ url: "javascript:alert(1)" }), uic()), /javascript:/);
   /* com contrato antigo gravado, avisa que ele será substituído */
   assert.match(D.htmlContrato(Object.assign(PRE(), { gerado: true, nome: "<b>v</b>.pdf" }), uic()), /Contrato anterior: &lt;b&gt;v&lt;\/b&gt;\.pdf \(será substituído ao conferir\)/);
 });

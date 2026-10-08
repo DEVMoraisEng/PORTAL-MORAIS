@@ -451,6 +451,19 @@ function ctrGravarPre_(pageId, o) {
   PropertiesService.getScriptProperties().setProperty(ctrChavePre_(pageId), JSON.stringify(o));
 }
 
+/* "Visualizar pré-contrato": quem está logado no portal (com acesso a Vendas) recebe o PDF pelo próprio
+ * PORTAL-VENDA, que roda com a conta dona do Drive — a pasta provisória não precisa ser compartilhada
+ * e o PDF (com CPF, endereço, valores) não fica com link público. */
+var PRE_MAX_BYTES = 15 * 1024 * 1024;
+function verPreContrato_(col, p) {
+  ctrLerPaginaVenda_(p.pageId);   // mesma checagem de base das outras ações
+  var pre = ctrLerPre_(p.pageId);
+  if (!pre || !pre.arquivoId) return { ok: false, erro: "PRECONTRATO_FALTANDO" };
+  var arq = DriveApp.getFileById(pre.arquivoId);
+  if (arq.getSize && arq.getSize() > PRE_MAX_BYTES) return { ok: false, erro: "PRECONTRATO_GRANDE" };
+  return { ok: true, nome: ctrTxt_(pre.nome), base64: Utilities.base64Encode(arq.getBlob().getBytes()) };
+}
+
 function contratoEstado_(col, p) {
   var a = ctrArquivoGerado_(ctrLerPaginaVenda_(p.pageId)), pre = ctrLerPre_(p.pageId);
   /* PRE: há pré-contrato ainda não conferido (mesmo que exista um contrato final antigo) */

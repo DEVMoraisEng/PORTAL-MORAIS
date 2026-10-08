@@ -388,6 +388,8 @@ export function driveFalso({ modelos = {}, avancado = true, falhaAbrir = null, c
   }
   const arquivo = (id) => {
     if (soltos[id]) return { getId: () => id, getName: () => soltos[id].nome, getUrl: () => soltos[id].url,
+                             getSize: () => (soltos[id].buf || Buffer.alloc(0)).length,
+                             getBlob: () => blob(soltos[id].buf || Buffer.alloc(0), "application/pdf", soltos[id].nome),
                              setTrashed: (b) => { if (b) estado.lixeira.push(id); } };
     if (!docs[id]) throw new Error("File not found: " + id);
     return {

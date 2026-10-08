@@ -108,6 +108,7 @@
     MODELO_COM_MARCADOR_SOBRANDO: "O modelo do contrato tem um campo sem preenchimento — avise o suporte.",
     FALTAM_DADOS: "Faltam dados para gerar o contrato.",
     PRECONTRATO_FALTANDO: "Gere o pré-contrato e confira antes de gerar o contrato.",
+    PRECONTRATO_GRANDE: "O pré-contrato ficou grande demais para abrir pelo portal — avise o desenvolvedor.",
     PRECONTRATO_DESATUALIZADO: "Os dados mudaram depois do pré-contrato — gere o pré-contrato de novo e confira."
   };
   /* Nunca inclui nomes de marcador do modelo (resposta.marcadores): esses vão só para o console. */
@@ -147,7 +148,7 @@
     if (etapa === "PRE") {
       var pre = e.pre || {}, velho = !!pre.desatualizado;
       h += '<div class="dz-linha"><span class="dz-rot">Pré-contrato: ' + esc(pre.nome || "") + "</span>" +
-        (/^https:\/\//.test(pre.url || "") ? '<a class="c-ver-pre" href="' + esc(pre.url) + '" target="_blank" rel="noopener">Visualizar pré-contrato</a>' : "") + "</div>";
+        '<button type="button" class="bt bt-mini" data-acao="c-ver-pre"' + (ocupado ? " disabled" : "") + ">Visualizar pré-contrato</button></div>";
       h += '<div class="dz-msg">Confira no pré-contrato o que está grifado: amarelo = preenchido pelo app; vermelho = ficou em branco.</div>';
       if (velho) h += '<div class="dz-aviso">Os dados mudaram depois deste pré-contrato — gere o pré-contrato de novo.</div>';
       h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-aprovar"' + ((ocupado || testes || velho) ? " disabled" : "") +
@@ -515,6 +516,28 @@
         } else {
           if (w) { try { w.close(); } catch (e) {} }
           uiC.msg = r.ok ? "Ainda não há contrato gerado." : mensagemContrato(r);
+        }
+        pintar();
+        return;
+      }
+      if (acao === "c-ver-pre") {
+        /* o PDF vem pelo portal (sessão de quem está logado), não por link do Drive. A janela abre
+         * já, dentro do clique, senão o navegador bloqueia; depois recebe o PDF. */
+        var wp = window.open("about:blank", "_blank");
+        uiC.ocupadoContrato = "ver"; uiC.msg = ""; pintar();
+        seq = ++seqC;
+        r = await chamarVenda({ action: "verPreContrato", pageId: pageId }, 90000);
+        if (seq !== seqC || !vivo()) { if (wp) { try { wp.close(); } catch (e) {} } return; }
+        uiC.ocupadoContrato = null;
+        if (r.ok && r.base64) {
+          var bin = atob(r.base64), bytes = new Uint8Array(bin.length);
+          for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          var urlPdf = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+          if (wp) { try { wp.opener = null; } catch (e) {} wp.location.href = urlPdf; }
+          else uiC.msg = "O navegador bloqueou a janela — libere pop-ups para o portal e clique de novo.";
+        } else {
+          if (wp) { try { wp.close(); } catch (e) {} }
+          uiC.msg = mensagemContrato(r);
         }
         pintar();
         return;

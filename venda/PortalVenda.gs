@@ -49,6 +49,7 @@ function tratar_(p) {
         return mudarDossie_(col, sess, p, RegrasVenda.ESTADOS.DEVOLVIDO, "Devolvido: " + String(p.motivo).trim());
       case "contratoEstado": return contratoEstado_(col, p);
       case "gerarPreContrato": return gerarPreContrato_(col, sess, p);
+      case "verPreContrato": return verPreContrato_(col, p);
       case "aprovarPreContrato":
       case "gerarContrato": return aprovarPreContrato_(col, sess, p);   /* o final só sai de um pré-contrato conferido */
       case "mcEstado":     return mcEstado_(col, p);

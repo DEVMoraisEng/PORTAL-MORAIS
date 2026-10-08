@@ -633,3 +633,14 @@ test("pré-contrato e aprovação: nenhum log com nome, CPF, Pix, conta ou quem 
   assert.ok(c.g.logs.some((l) => l.includes("gerarPreContrato 01234567 ok")));
   assert.ok(c.g.logs.some((l) => l.includes("aprovarPreContrato 01234567 dados mudaram")));
 });
+
+test("Visualizar pré-contrato: o portal entrega o PDF (base64) a quem está logado, sem link do Drive", () => {
+  const c = cenario();
+  assert.equal(c.acao("verPreContrato").erro, "PRECONTRATO_FALTANDO");
+  const r = c.acao("gerarPreContrato");
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const v = c.acao("verPreContrato");
+  assert.equal(v.ok, true, JSON.stringify(v));
+  assert.equal(v.nome, r.nome);
+  assert.ok(v.base64 && v.base64.length > 10, "veio o conteúdo do PDF");
+});

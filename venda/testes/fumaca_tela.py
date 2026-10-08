@@ -140,9 +140,9 @@ def main() -> int:
             conf(pg.locator('#cd-card [data-acao="c-gerar"]').count() == 0, "cartão: não existe mais gerar o contrato direto")
             pg.locator('#cd-card [data-acao="c-pre"]').first.click(); pg.wait_for_timeout(500)
             conf(("gerarPreContrato:%s" % COND) in pg.evaluate("() => window.pedidosId"), "Gerar de novo no cartão chama gerarPreContrato com o id da linha")
-            link = pg.locator('#cd-card a.c-ver-pre')
-            conf(link.count() == 1 and link.get_attribute("target") == "_blank"
-                 and link.get_attribute("href") == "https://exemplo.invalid/pre.pdf", "cartão: link Visualizar pré-contrato em nova aba")
+            ver = pg.locator('#cd-card [data-acao="c-ver-pre"]')
+            conf(ver.count() == 1 and pg.locator('#cd-card a[href*="exemplo.invalid"]').count() == 0,
+                 "cartão: Visualizar pré-contrato é botão (PDF pelo portal), sem link do Drive")
             aprovar = pg.locator('#cd-card [data-acao="c-aprovar"]')
             conf(aprovar.count() == 1 and aprovar.is_enabled() and "Conferi, está tudo certo" in aprovar.inner_text(), "cartão: botão Conferi habilitado")
             conf(pg.locator('#cd-card [data-acao="c-pre"]').inner_text() == "Gerar pré-contrato de novo", "cartão: Gerar pré-contrato de novo")
