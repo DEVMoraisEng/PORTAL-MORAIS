@@ -429,6 +429,55 @@ def escolha_cliente(textos, nome):
     return iguais[0] if len(iguais) == 1 else None
 
 
+def escolha_nome_fantasia(nomes, nome):
+    """Função PURA: entre os nomes que a busca de Contatos > Clientes do MC
+    devolveu (a coluna Nome = nome FANTASIA), qual é o cliente do Notion.
+    08/10/26: o Notion guarda a RAZÃO SOCIAL ("... SPE I LTDA") e o combo da
+    obra mostra o nome fantasia ("... SPE"); a busca do MC acha pela razão
+    social e pelo CNPJ. Igual (ignorando LTDA/acento) > resultado único >
+    nada (nunca chuta entre vários)."""
+    nomes = [str(x or "").strip() for x in nomes if str(x or "").strip()]
+    iguais = [x for x in nomes if mesmo_nome(nome, x)]
+    if len(iguais) == 1:
+        return iguais[0]
+    if len(nomes) == 1:
+        return nomes[0]
+    return None
+
+
+_cache_cliente = {}
+
+
+def nome_cliente_no_mc(page, nome):
+    """Nome do cliente como aparece nos combos do MC (nome fantasia), buscando
+    o nome do Notion (razão social) em Contatos > Clientes. Sem achar, devolve
+    o próprio nome."""
+    nome = (nome or "").strip()
+    if not nome:
+        return nome
+    if N(nome) in _cache_cliente:
+        return _cache_cliente[N(nome)]
+    achado = nome
+    try:
+        base = (MC_URL.split("#")[0] or "https://acessar.maiscontroleerp.com.br/").rstrip("/") + "/#/customer"
+        page.goto(base)
+        page.locator("table tbody tr").first.wait_for(state="visible", timeout=20000)
+        busca = page.locator("input[placeholder*='Digite aqui sua busca']").first
+        busca.fill(nome)
+        page.wait_for_timeout(3000)
+        nomes = page.locator("table tbody tr").evaluate_all(
+            "rs => rs.map(r => { const td = r.querySelectorAll('td'); return td.length > 1 ? td[1].innerText.trim() : ''; })")
+        escolha = escolha_nome_fantasia(nomes, nome)
+        if escolha:
+            achado = escolha
+            if N(escolha) != N(nome):
+                print(f"  cliente: '{nome}' no MC é '{escolha}' (nome fantasia)", flush=True)
+    except Exception as e:
+        print(f"  ! cliente '{nome}': busca em Contatos > Clientes falhou ({str(e)[:80]})", flush=True)
+    _cache_cliente[N(nome)] = achado
+    return achado
+
+
 def escolher_cliente(page, nome):
     for busca in (nome[:25], nome[:12]):
         try:
@@ -506,7 +555,13 @@ def _garantir_orcamento(page, o):
     modal = page.locator(".modal.in, .modal-dialog").last
     cod = modal.locator("input[ng-model='$ctrl.planning.code']").first
     cod.wait_for(state="visible", timeout=15000)
-    cod.fill(codigo)
+    # 08/10/26: o MC preenche sozinho o próximo número (123, 124…) logo DEPOIS
+    # que o campo aparece — escrever o código aqui era apagado por ele. O
+    # código só é escrito no fim, antes do Começar, e conferido.
+    for _ in range(20):
+        if (cod.input_value() or "").strip():
+            break
+        page.wait_for_timeout(500)
     # obra
     modal.locator("[ng-model='$ctrl.planning.work'] .select-button").first.click()
     page.wait_for_timeout(600)
@@ -545,6 +600,10 @@ def _garantir_orcamento(page, o):
         modal.locator("select[ng-model='$ctrl.ngModel']").first.select_option(label="Em Andamento")
     except Exception as e:
         print(f"  ! orçamento — status: {str(e)[:80]}", flush=True)
+    # código "sem orça N" — por último, e conferido no campo e no modelo do MC
+    if not _escrever_codigo(page, cod, codigo):
+        modal.locator("button").filter(has_text="Cancelar").first.evaluate("b => b.click()")
+        raise RuntimeError(f"não consegui escrever o código '{codigo}' no orçamento")
     # 08/10/26: o botão é <button type="submit button" title="Começar"
     # class="c-upsert-planning-modal__footer--confirm"> (o type NÃO é "submit").
     # Ele fica desabilitado sem a permissão EDIT_PLANNING do usuário. Espera
@@ -565,12 +624,77 @@ def _garantir_orcamento(page, o):
     except Exception:
         pass
     page.wait_for_timeout(3000)
+    # o MC abre o orçamento novo; se o título não começa pelo código pedido,
+    # corrige pelo lápis "Editar informações do orçamento"
+    renomeado = ""
+    try:
+        cab = page.locator("span[ng-click*='openNewTabTitle']").first
+        cab.wait_for(state="visible", timeout=20000)
+        if not N(cab.inner_text()).startswith(N(codigo) + " "):
+            renomear_orcamento(page, codigo)
+            renomeado = " (código corrigido depois de criar)"
+    except Exception as e:
+        print(f"  ! orçamento: conferência do código na página: {str(e)[:90]}", flush=True)
     # confere na lista
     page.goto(_url_orcamentos())
     linhas = _buscar_orcamentos(page, titulo)
     if tem_orcamento([l for l in linhas if N(codigo) in N(l)], titulo):
-        return f"criado '{codigo}'"
+        return f"criado '{codigo}'{renomeado}"
+    # criou com outro código: acha o da obra e renomeia
+    if tem_orcamento(linhas, titulo):
+        abrir_orcamento_da_lista(page, titulo)
+        renomear_orcamento(page, codigo)
+        page.goto(_url_orcamentos())
+        linhas = _buscar_orcamentos(page, titulo)
+        if tem_orcamento([l for l in linhas if N(codigo) in N(l)], titulo):
+            return f"criado '{codigo}' (código corrigido depois de criar)"
     raise RuntimeError(f"cliquei em Começar, mas '{codigo}' não apareceu na lista de orçamentos")
+
+
+def _escrever_codigo(page, cod, codigo):
+    for _ in range(3):
+        cod.fill(codigo)
+        page.wait_for_timeout(400)
+        valor = (cod.input_value() or "").strip()
+        try:
+            modelo = cod.evaluate("e => { try { return angular.element(e).scope().$ctrl.planning.code || ''; } catch (x) { return null; } }")
+        except Exception:
+            modelo = None
+        if valor == codigo and (not modelo or modelo == codigo):
+            return True
+        page.wait_for_timeout(800)
+    return False
+
+
+def abrir_orcamento_da_lista(page, titulo):
+    """Na lista (já filtrada pela obra), abre o orçamento da obra."""
+    alvo = re.compile(r"(^|\s)" + re.escape(N(titulo)) + r"(\s|$)")
+    linhas = page.locator("table tbody tr")
+    for i in range(linhas.count()):
+        if alvo.search(N(linhas.nth(i).inner_text())):
+            linhas.nth(i).locator("td").nth(2).click()
+            page.locator("span[ng-click*='onEdit']").first.wait_for(state="visible", timeout=20000)
+            return
+    raise RuntimeError("não achei o orçamento da obra na lista para corrigir o código")
+
+
+def renomear_orcamento(page, codigo):
+    """Na página do orçamento: lápis -> Código do orçamento -> Salvar."""
+    page.locator("span[ng-click*='onEdit']").first.click()
+    modal = page.locator(".modal.in, .modal-dialog").last
+    cod = modal.locator("input[ng-model$='.code']").first
+    cod.wait_for(state="visible", timeout=15000)
+    page.wait_for_timeout(800)
+    if not _escrever_codigo(page, cod, codigo):
+        modal.locator("button").filter(has_text="Cancelar").first.evaluate("b => b.click()")
+        raise RuntimeError(f"não consegui corrigir o código para '{codigo}'")
+    modal.locator("button").filter(has_text=re.compile("Salvar", re.I)).first.evaluate("b => b.click()")
+    try:
+        modal.wait_for(state="hidden", timeout=20000)
+    except Exception:
+        pass
+    page.wait_for_timeout(1500)
+    print(f"  orçamento: código corrigido para '{codigo}'", flush=True)
 
 
 def abrir_secao(page, titulo):
@@ -1480,6 +1604,10 @@ def main():
         b, page = abrir(p)
         try:
             login(page)
+            # 08/10/26: Proprietário do Notion (razão social) -> nome fantasia do MC
+            for o in ja_com_conta + completar + fazer:
+                if o.get("cliente"):
+                    o["cliente"] = nome_cliente_no_mc(page, o["cliente"])
             for o in ja_com_conta:
                 try:
                     r = completar_no_mc(page, o)
