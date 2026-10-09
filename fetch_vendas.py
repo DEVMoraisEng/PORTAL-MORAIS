@@ -396,6 +396,24 @@ def achar(campos_norm, *fragmentos):
     return None
 
 
+# Regra do dono (08/10/2026): no MAPA DE VENDAS, venda nova fica RESERVADA até o sinal ser confirmado no
+# portal. Só vale para DATA DA VENDA a partir desta data (ou sem data): vendas antigas nunca tiveram o sinal
+# registrado no portal e continuam "vendidas".
+INICIO_RESERVA_ATE_SINAL = "2026-10-08"
+
+
+def aguardando_sinal(sinal_data, data_venda) -> bool:
+    """True quando a casa tem comprador mas o sinal ainda não foi confirmado (bloco Recebimentos)."""
+    def iso(x):
+        if isinstance(x, dict):
+            x = x.get("start")
+        return str(x or "").strip()[:10]
+    if iso(sinal_data):
+        return False
+    dv = iso(data_venda)
+    return not dv or dv >= INICIO_RESERVA_ATE_SINAL
+
+
 def gravar(nome, obj):
     caminho = os.path.join(SAIDA, nome)
     with open(caminho, "w", encoding="utf-8") as f:
@@ -591,6 +609,13 @@ def main():
         v = reg["valores"]
         sens = reg.get("sens") or {}
         vendida = any(norm(k).startswith("CLIENTE") and sens[k] for k in sens)
+        reservada = simples(campo_mv(v, "RESERVADA")) or ""
+        data_reserva = simples(campo_mv(v, "DATA DA RESERVA", "DATA RESERVA"))
+        # 08/10/2026 (pedido do dono): venda nova com comprador e SEM o sinal confirmado no portal
+        # (bloco Recebimentos -> RECEBIMENTO - SINAL DATA) aparece como RESERVADA, não vendida.
+        # Vendas com DATA DA VENDA antes da regra seguem como estavam (nunca tiveram o sinal no portal).
+        if vendida and aguardando_sinal(campo_mv(v, "RECEBIMENTO - SINAL DATA"), campo_mv(v, "DATA DA VENDA")):
+            vendida, reservada, data_reserva = False, "SIM", None
         ref = simples(campo_mv(v, "REF")) or ""
         setor = simples(campo_mv(v, "SETOR")) or setor_por_ref(ref)
         mv.append({
@@ -615,8 +640,8 @@ def main():
             # RESERVADA: SIM pinta a casa de azul por 24h no mapa.
             # dataReserva é preenchida pelo Apps Script do mapa
             # (verificarReservas), não por gente — é dela que sai a contagem.
-            "reservada": simples(campo_mv(v, "RESERVADA")) or "",
-            "dataReserva": simples(campo_mv(v, "DATA DA RESERVA", "DATA RESERVA")),
+            "reservada": reservada,
+            "dataReserva": data_reserva,
         })
     gravar("mapa_vendas.json", {
         "ok": True, "total": len(mv), "rows": mv, "updated_at": agora,
