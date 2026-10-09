@@ -614,8 +614,9 @@ def main():
         # 08/10/2026 (pedido do dono): venda nova com comprador e SEM o sinal confirmado no portal
         # (bloco Recebimentos -> RECEBIMENTO - SINAL DATA) aparece como RESERVADA, não vendida.
         # Vendas com DATA DA VENDA antes da regra seguem como estavam (nunca tiveram o sinal no portal).
+        motivo_reserva = ""
         if vendida and aguardando_sinal(campo_mv(v, "RECEBIMENTO - SINAL DATA"), campo_mv(v, "DATA DA VENDA")):
-            vendida, reservada, data_reserva = False, "SIM", None
+            vendida, reservada, data_reserva, motivo_reserva = False, "SIM", None, "SINAL"
         ref = simples(campo_mv(v, "REF")) or ""
         setor = simples(campo_mv(v, "SETOR")) or setor_por_ref(ref)
         mv.append({
@@ -642,6 +643,8 @@ def main():
             # (verificarReservas), não por gente — é dela que sai a contagem.
             "reservada": reservada,
             "dataReserva": data_reserva,
+            # "SINAL" = reservada até o sinal ser confirmado (sem prazo de 24 h; o mapa mostra "aguardando sinal")
+            "motivoReserva": motivo_reserva,
         })
     gravar("mapa_vendas.json", {
         "ok": True, "total": len(mv), "rows": mv, "updated_at": agora,
