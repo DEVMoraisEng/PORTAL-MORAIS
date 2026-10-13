@@ -634,10 +634,57 @@ function confirmarSessao(action){
   return p;
 }
 
+/* 13/10/26 — GRAVAÇÃO EM SEGUNDO PLANO (sair da página não perde mais nada)
+ * O caso: na aba Obras a pessoa trocou o Liberar de várias obras e saiu da
+ * página. Ao voltar, estavam "Não" de novo. Motivo: o pedido só ia para a
+ * fila GUARDADA (localStorage) depois de FALHAR. Enquanto esperava a vez na
+ * fila do navegador (uma por vez, e o Liberar demora porque cria as
+ * atividades), ele vivia só na memória da página — fechar ou trocar de página
+ * jogava fora. E 3 min depois a leitura ao vivo do Notion (ainda "Não")
+ * derrubava o valor da tela.
+ * Agora as ações de "gravar valor num campo" são guardadas na fila ANTES de
+ * sair e só saem dela quando o servidor confirma. Se a página fechar no meio,
+ * a próxima página aberta (qualquer uma do portal) termina o envio sozinha, e
+ * a tela continua mostrando o valor novo enquanto ele estiver na fila.
+ * Só entram aqui ações que dá para repetir sem estrago (gravar o mesmo valor
+ * de novo; o Liberar confere se as atividades já existem antes de criar). */
+const GRAVA_ANTES = ["obraUpdate", "obraLiberar", "obraConta", "obraAtvUpdate",
+                     "updateVenda", "docUpdate", "posObraUpdate", "posObraAtvUpdate"];
+const _emVooFila = new Set();          // itens da fila que ESTA página está enviando agora
+function _chaveCampo(q){
+  q = q || {};
+  return [q.action, String(q.pageId||"").replace(/-/g,""), q.prop || (q.conta!==undefined ? "#conta" : "")].join("|");
+}
+function _guardarAntes(payload, rotulo){
+  if(GRAVA_ANTES.indexOf(payload.action) < 0) return null;
+  if(payload.admSenha || payload.senha) return null;        // senha nunca vai para o localStorage
+  const id = Date.now()+"_"+Math.random().toString(36).slice(2,7);
+  const chave = _chaveCampo(payload);
+  /* edição mais nova do MESMO campo substitui a antiga que ainda não saiu */
+  const a = fila().filter(it => !(it && it.payload && _chaveCampo(it.payload)===chave && !_emVooFila.has(it.id)));
+  a.push({ id:id, payload:payload, rotulo:rotulo||payload.action, ts:Date.now() });
+  if(!filaSet(a)) return null;
+  _emVooFila.add(id);
+  atualizarBadge();
+  return id;
+}
+function _tirarDaFila(id){
+  if(!id) return;
+  _emVooFila.delete(id);
+  filaSet(fila().filter(it => it && it.id !== id));
+  atualizarBadge();
+}
+
 async function escrever(payload, rotulo){
   if(!payload.opId) payload.opId = novoOpId();
 
   if(SEM_FILA.indexOf(payload.action) >= 0) return criarProtegido(payload);
+
+  const guardado = _guardarAntes(payload, rotulo);
+  if(guardado){
+    try{ return await _escreverGuardado(payload, guardado); }
+    finally{ _emVooFila.delete(guardado); }
+  }
 
   if(navigator.onLine){
     try{
@@ -673,6 +720,21 @@ async function escrever(payload, rotulo){
   return { ok:true, enfileirado:true };
 }
 
+/* caminho da gravação já guardada na fila (ver GRAVA_ANTES) */
+async function _escreverGuardado(payload, id){
+  if(!navigator.onLine) return { ok:true, enfileirado:true };
+  let r;
+  try{ r = await chamar(payload); }
+  catch(e){ return { ok:true, enfileirado:true }; }          // rede caiu: fica na fila e sobe sozinha
+  if(r && r.ok){ _tirarDaFila(id); return { ok:true, enviado:true, resposta:r }; }
+  if(r && r.erro && !ERROS_TRANSITORIOS.includes(r.erro)){ _tirarDaFila(id); return { ok:false, erro:r.erro }; }
+  if(r && r.erro==="NAO_AUTORIZADO"){
+    const valida = await confirmarSessao(payload.action);
+    if(!valida){ _tirarDaFila(id); setTimeout(irParaLogin, 3500); return { ok:false, erro:"NAO_AUTORIZADO" }; }
+  }
+  return { ok:true, enfileirado:true };                      // servidor engasgou: fica na fila
+}
+
 /* ---------- SINCRONIZAÇÃO da fila ---------- */
 let _sinc=false;
 async function sincronizar(){
@@ -680,9 +742,15 @@ async function sincronizar(){
   _sinc=true;
   let feitos=[];
   try{
-    let a=fila();
-    while(a.length){
-      const item=a[0];
+    /* 13/10/26: anda pelos itens por id (a fila agora também recebe itens da
+       gravação em segundo plano enquanto esta rodada acontece) e pula o que
+       esta própria página já está enviando, para não mandar duas vezes */
+    const tentados=new Set();
+    for(;;){
+      const item=fila().find(it=>it && !tentados.has(it.id) && !_emVooFila.has(it.id));
+      if(!item) break;
+      tentados.add(item.id);
+      _emVooFila.add(item.id);
       try{
         const r=await chamar(item.payload);
         /* BURACO QUE ISTO FECHA: até aqui a resposta do reenvio era jogada
@@ -697,9 +765,9 @@ async function sincronizar(){
            item aqui perderia a escrita de vez; melhor parar e tentar depois,
            igual ao NAO_AUTORIZADO. */
         const transitorio = r && r.erro && (r.erro==="NAO_AUTORIZADO" || r.erro==="BACKEND_SEM_CONFIG");
-        if(r && (r.ok || (r.erro && !transitorio))){ a.shift(); filaSet(a); atualizarBadge(); }
-        else break;
-      }catch(e){ break; }        // rede caiu de novo → para
+        if(r && (r.ok || (r.erro && !transitorio))){ _emVooFila.delete(item.id); _tirarDaFila(item.id); }
+        else { _emVooFila.delete(item.id); break; }
+      }catch(e){ _emVooFila.delete(item.id); break; }        // rede caiu de novo → para
     }
   } finally {
     _sinc=false; atualizarBadge();

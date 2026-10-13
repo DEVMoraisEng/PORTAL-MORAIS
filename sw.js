@@ -164,7 +164,7 @@
 /* v96 -> v97 (05/10/26): grupos de atividades fechados por padrão (documentos.html e obras.html). */
 /* v97 -> v98 (05/10/26): simulacoes.html — leituras/envios das Simulações fora da fila (Atualizar, detalhe, conversa, correspondente) e aba Servidores. */
 /* v113 -> v114 (08/10/26): app.js — NAO_AUTORIZADO numa gravação não desloga mais sem conferir a sessão (deslogava no meio de várias edições nas Atividades). */
-const CACHE = "portal-morais-v114";  // limpeza só dos caches do portal (não apaga os das RAS)
+const CACHE = "portal-morais-v115";  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",
