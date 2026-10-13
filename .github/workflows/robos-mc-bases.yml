@@ -1,0 +1,59 @@
+# Espelho diário do Mais Controle no Notion (robo_mc_bases.py):
+#   MC - OBRAS ATIVAS  (endereço, quadra, lote, setor, CEP + proprietário e documento)
+#   MC - FORNECEDORES  (documento, segmento, categoria, contatos, endereço, PIX)
+# Só LÊ o Mais Controle e grava no Notion. Os bancos são criados pelo próprio
+# robô na primeira rodada, na mesma página da (EMP) Projeto 2.0.
+# Usa o mesmo grupo de concorrência dos outros robôs do MC: nunca entra no MC
+# ao mesmo tempo que eles (o código de e-mail do MFA não se mistura).
+name: Robô MC - Bases no Notion
+
+on:
+  schedule:
+    - cron: "17 10 * * *"       # 07:17 de Brasília, depois dos Robôs Mais Controle
+  workflow_dispatch:
+    inputs:
+      simular:
+        description: "Só simular (lê o MC e mostra o que faria, sem gravar no Notion)"
+        type: boolean
+        default: false
+  repository_dispatch:
+    types: [robos-mc-bases]
+
+concurrency:
+  group: robos-mc
+  cancel-in-progress: false
+
+jobs:
+  bases:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+      MC_URL: ${{ secrets.MC_URL }}
+      MC_USUARIO: ${{ secrets.MC_USUARIO }}
+      MC_SENHA: ${{ secrets.MC_SENHA }}
+      MC_ROBO_USUARIO: ${{ secrets.MC_ROBO_USUARIO }}
+      MC_ROBO_SENHA: ${{ secrets.MC_ROBO_SENHA }}
+      MC_EMAIL_SENHA_APP: ${{ secrets.MC_EMAIL_SENHA_APP }}
+      SIMULAR: ${{ inputs.simular && '1' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Instalar Playwright
+        run: |
+          pip install playwright requests
+          python -m playwright install --with-deps chromium
+
+      - name: Obras ativas e fornecedores do MC → Notion
+        run: python robo_mc_bases.py
+
+      - name: Prints em caso de erro
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mc-bases-evidencias
+          path: mc_evidencias/
+          retention-days: 3
+          if-no-files-found: ignore
