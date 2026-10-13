@@ -1466,7 +1466,7 @@ function simVerAbaixo(id){
         <tr>${simEncargo(s.parcela).map(v=>`<td class="num" style="text-align:center">${simBRL(v)}</td>`).join("")}</tr>
       </tbody></table></div></div>`:""}
     ${s.mensagem?`<div class="sim-aviso ${simSt(s)==="ERRO"?"err":"ok"}" style="margin-top:12px">
-      <b>Mensagem do processamento</b><br>${esc(s.mensagem)}</div>`:""}
+      <b>Mensagem do processamento</b><br><span style="white-space:pre-line">${esc(s.mensagem)}</span></div>`:""}
     ${simSt(s)==="ERRO" && !ehSomenteLeitura(S)
       ? `<div style="margin-top:12px"><button class="bt az" onclick="simRefazer('${s.id}')">↻ Tentar de novo</button></div>`:""}`;
   cx.scrollIntoView({behavior:"smooth", block:"nearest"});
@@ -1503,7 +1503,7 @@ function simVerDet(id){
     ${simPerfilHtml(s)}
     ${tabFluxo}${tabEncargo}
     ${s.mensagem?`<div class="sim-aviso ${simSt(s)==="ERRO"?"err":"ok"}" style="margin-top:12px">
-      <b>Mensagem do processamento</b><br>${esc(s.mensagem)}</div>`:""}
+      <b>Mensagem do processamento</b><br><span style="white-space:pre-line">${esc(s.mensagem)}</span></div>`:""}
     <div style="display:flex;gap:9px;margin-top:16px;flex-wrap:wrap">
       ${simSt(s)==="ERRO" && !ehSomenteLeitura(S)
         ? `<button class="bt az" onclick="simRefazer('${s.id}')">↻ Tentar de novo</button>` : ""}
