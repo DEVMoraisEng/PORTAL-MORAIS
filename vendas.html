@@ -1182,7 +1182,19 @@ function mostrarOffline(r){ const av=document.getElementById("aviso"); if(r&&r.o
 function fmt(d){ if(!d)return "—"; const p=String(d).slice(0,10).split("-"); return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:d; }
 
 /* ---------- normalização / ordem custom dos campos do Notion ---------- */
-function normNome(s){ return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/\s+/g," ").trim(); }
+/* DESEMPENHO (out/26): normNome é chamada milhões de vezes ao desenhar a
+   planilha. Com as colunas novas de contrato (COMPRADOR/CONTRATO/ASSINATURA…)
+   o esquema passou de ~90 para 157 colunas e o desenho foi de ~1 s para 12 s.
+   Guarda o resultado de cada texto já normalizado (o conjunto de nomes de
+   coluna e valores é pequeno); limpa se passar de 50 mil entradas. */
+const _NORM_CACHE=new Map();
+function _normNomeBruto(s){ return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/\s+/g," ").trim(); }
+function normNome(s){
+  if(typeof s!=="string") return _normNomeBruto(s);
+  let r=_NORM_CACHE.get(s);
+  if(r===undefined){ if(_NORM_CACHE.size>50000) _NORM_CACHE.clear(); r=_normNomeBruto(s); _NORM_CACHE.set(s,r); }
+  return r;
+}
 /* Argumento seguro para handler inline (onclick='fn(...)').
    FALHA CORRIGIDA: usava-se JSON.stringify() cru dentro de um atributo entre
    ASPAS SIMPLES. JSON.stringify escapa " mas NÃO escapa ' — então um valor
@@ -1378,8 +1390,11 @@ function ehColProcessoCompleto(nome){
     return n===a || (a.length>=10 && n.indexOf(a)===0);
   });
 }
+/* a lista de colunas só muda quando o SCHEMA é trocado — calcula uma vez por SCHEMA */
+let _PC_COLS=null, _PC_SCHEMA=null;
 function processoCompleto(valores){
-  const marcadores=SCHEMA.filter(c=>ehColProcessoCompleto(c.nome));
+  if(_PC_SCHEMA!==SCHEMA){ _PC_SCHEMA=SCHEMA; _PC_COLS=SCHEMA.filter(c=>ehColProcessoCompleto(c.nome)); }
+  const marcadores=_PC_COLS;
   if(!marcadores.length) return false;
   return marcadores.every(c=>{ const v=getV(valores,c.nome); if(v==null||v==="") return true;
     const s=normNome(v); return s==="SIM" || s.indexOf("AGIO")>=0; });
@@ -2305,7 +2320,18 @@ function paraNumero(v){
   }                                             // senão o ponto é decimal de verdade ("1200.50") -> deixa
   const n=parseFloat(s); return isNaN(n)?null:n;
 }
-function colunasDeFaixa(){ return FAIXA_COLS.map(f=>campoExatoOuFrag(f)).filter(Boolean); }
+/* DESEMPENHO (out/26): era recalculada a CADA célula da planilha (43 mil
+   vezes), varrendo o esquema inteiro — era o que travava a tela depois das
+   colunas de contrato. Agora calcula uma vez por SCHEMA. */
+let _FX_COLS=null, _FX_NOMES=null, _FX_SCHEMA=null;
+function _faixaPronta(){
+  if(_FX_SCHEMA!==SCHEMA){
+    _FX_SCHEMA=SCHEMA;
+    _FX_COLS=FAIXA_COLS.map(f=>campoExatoOuFrag(f)).filter(Boolean);
+    _FX_NOMES=new Set(_FX_COLS.map(c=>normNome(c.nome)));
+  }
+}
+function colunasDeFaixa(){ _faixaPronta(); return _FX_COLS; }
 /* devolve {n} se o valor está preenchido E fora da faixa; senão null */
 function valorForaDaFaixa(valores, c){
   const n=paraNumero(getV(valores,c.nome));
@@ -2316,7 +2342,8 @@ function setorTemAlertaFaixa(){ return FAIXA_SETORES.indexOf(SETOR_ATUAL)>=0; }
 /* usado na planilha (celulaHtml) pra pintar a célula fora da faixa */
 function celulaForaDaFaixa(c, valores){
   if(!setorTemAlertaFaixa()) return false;
-  return colunasDeFaixa().some(cf=>normNome(cf.nome)===normNome(c.nome)) && !!valorForaDaFaixa(valores,c);
+  _faixaPronta();
+  return _FX_NOMES.has(normNome(c.nome)) && !!valorForaDaFaixa(valores,c);
 }
 
 function renderAlertas(){
@@ -2679,8 +2706,26 @@ function situacoesDe(valores,rec){
 function anoDe(valores){ const d=getV(valores,"DATA DA VENDA"); return d?String(d).slice(0,4):""; }
 /* cor da linha vem da fórmula SITUAÇÃO DO PROCESSO do Notion:
    1 = ⏳ >20 dias | 2 = ⚠️ >45 dias | 3 = 🚨 >45 dias e não recebeu | "-" = sem cor */
+/* CORREÇÃO (out/26) — FILTROS DE PRAZO NÃO FILTRAVAM: procurava a coluna
+   por "contém SITUAÇÃO", e a coluna nova ASSINATURA - SITUAÇÃO (contratos /
+   Clicksign) vem antes na lista — então lia a assinatura (sempre vazia), toda
+   obra caía em "sem pendência", as cores sumiam e os chips ⏳/⚠️/🚨 zeravam a
+   tabela. Agora usa o nome exato SITUAÇÃO DO PROCESSO (calculado uma vez por
+   SCHEMA); o fragmento antigo só entra se essa coluna não existir. */
+let _SIT_COL=null, _SIT_SCHEMA=null;
+function colunaSituacao(){
+  if(_SIT_SCHEMA!==SCHEMA){
+    _SIT_SCHEMA=SCHEMA;
+    const alvo=normNome("SITUAÇÃO DO PROCESSO");
+    _SIT_COL=SCHEMA.find(c=>normNome(c.nome)===alvo)
+          || SCHEMA.find(c=>normNome(c.nome).indexOf(alvo)>=0)
+          || SCHEMA.find(c=>{ const n=normNome(c.nome); return n.indexOf("SITUACAO")>=0 && n.indexOf("ASSINATURA")<0 && n.indexOf("MC -")<0; })
+          || null;
+  }
+  return _SIT_COL;
+}
 function corSituacao(valores){
-  const c=campoPorFragmento("SITUACAO"); if(!c) return "";
+  const c=colunaSituacao(); if(!c) return "";
   const bruto=getV(valores,c.nome);
   if(bruto==null||bruto==="") return "";
   const s=String(bruto);
