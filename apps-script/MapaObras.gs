@@ -67,7 +67,7 @@
  * fazer a conferência da conclusão, além do ADM).
  *************************************************************************/
 
-var MO_VERSAO = "2026-10-16 mo4";
+var MO_VERSAO = "2026-10-16 mo5";
 var MO_EVENTO = "obras_notion_update";            // TEM que bater com o types: do fetch_notion.yml
 var MO_JANELA_MS = 2 * 60 * 1000;                  // no máximo 1 build a cada 2 min
 var MO_CAMPOS = {
@@ -122,6 +122,7 @@ function moRotear_(action, sess, p) {
     case "obraEndValidar":   return moEndValidar_(sess, p || {});
     case "atvOutraAbrir":    return moOutraAbrir_(sess, p || {});
     case "atvOutraGravar":   return moOutraGravar_(sess, p || {});
+    case "mapaRecontarApta": return moRecontarApta_(sess, p || {});
     case "mapaVersao":       return { ok: true, versao: MO_VERSAO };
     default:                 return null;
   }
@@ -256,12 +257,72 @@ function moTravar_(t, dia) { if (t.ret && !t.trav) { t.acc = (t.acc || 0) + Math
 function moRetomar_(t, dia) { if (t.trav || !t.ret) { t.ret = dia; t.trav = null; } }
 function moReiniciar_(t, dia) { t.ini = dia; t.acc = 0; t.ret = dia; t.trav = null; }
 
+/* v5 (16/10): a atividade VISTORIA PRÉVIA nasce quando PROCESSO CONFORME? = SIM,
+   então a data dela É o início do prazo de 7 dias (nada a ver com a venda).
+   Índice venda → data da atividade mais antiga, tolerante ao nome da coluna
+   (TIPO/Tipo, OBRA/qualquer relação com "OBRA" ou "VENDA") e ao acento do tipo. */
+function moEhTipoApta_(t) { var n = normDist_(t || ""); return n.indexOf("VISTORIA PREVIA") >= 0 || n.indexOf("VISTORIA PRE") === 0; }
+function moAtvAptaIndice_() {
+  var c = null; try { c = cacheGet_("mo_atv_apta_idx"); } catch (e) {}
+  if (c && c.datas) return c;
+  var datas = {}, tipos = {}, total = 0, erro = "";
+  try {
+    queryAll_(CONFIG.DB.ATIVIDADES_VENDAS, {}).forEach(function (r) {
+      total++;
+      var R = r.properties || {}, t = sel_(getTol_(R, "TIPO")) || "";
+      var nt = normDist_(t); tipos[nt] = (tipos[nt] || 0) + 1;
+      if (!moEhTipoApta_(t)) return;
+      var d = moDia_(dt_(getTol_(R, "DATA INICIAL")) || r.created_time);
+      for (var n in R) if (R[n] && R[n].type === "relation" && /OBRA|VENDA|CASA/.test(normDist_(n)))
+        (R[n].relation || []).forEach(function (x) { var k = String(x.id).replace(/-/g, ""); if (d && (!datas[k] || d < datas[k])) datas[k] = d; });
+    });
+  } catch (e) { erro = String(e).slice(0, 160); console.log("MAPA índice VISTORIA PRÉVIA: " + e); }
+  var out = { datas: datas, tipos: tipos, total: total, erro: erro };
+  if (!erro) { try { cachePut_("mo_atv_apta_idx", out, 1800); } catch (e) {} }
+  return out;
+}
+/* ADM: refaz o início do prazo "casa apta" pela data da atividade (onde ficou
+   com a data da venda). Sem p.aplicar só mostra o que mudaria. */
+function moRecontarApta_(sess, p) {
+  if (!ehAdm_(sess)) return { ok: false, erro: "APENAS_ADM" };
+  try { cacheRemover_("mo_atv_apta_idx"); } catch (e) {}
+  var idx = moAtvAptaIndice_(), cols = moColunasVendas_();
+  if (!cols.contador) return { ok: false, erro: "COLUNA_NAO_ENCONTRADA" };
+  var nomes = ["contador", "processo_conforme", "entregou_casa", "conferencia"].map(function (k) { return cols[k] && cols[k].nome; }).filter(Boolean).concat(["DATA DA VENDA", "ENDEREÇO", "CASA"]);
+  var ler = function (P, k) { var cc = cols[k]; var pp = cc && P[cc.nome]; return pp ? (sel_(pp) || texto_(pp) || "") : ""; };
+  var linhas = alQueryColunas_(CONFIG.DB.VENDAS, nomes), hoje = moHoje_(), lista = [], mudou = 0;
+  linhas.forEach(function (pg) {
+    var P = pg.properties || {};
+    if (normDist_(ler(P, "processo_conforme")) !== "SIM") return;
+    var ent = normDist_(ler(P, "entregou_casa")); if (ent === "SIM" || ent === "AGIO" || ent === "INEXISTE") return;
+    if (normDist_(ler(P, "conferencia")) === normDist_(MO_CONF_OK)) return;
+    var id = String(pg.id).replace(/-/g, ""), c = null; try { c = JSON.parse(ler(P, "contador") || "null"); } catch (e) {}
+    var a = (c && c.a) || null, nova = idx.datas[id] || "";
+    var item = { id: id, endereco: moTextoProp_(P["ENDEREÇO"]) || "", casa: (P["CASA"] && P["CASA"].number) || null,
+                 venda: P["DATA DA VENDA"] && P["DATA DA VENDA"].date ? moDia_(P["DATA DA VENDA"].date.start) : "", ini: a && a.ini || "", atividade: nova };
+    lista.push(item);
+    if (!nova || !a || a.ini === nova) return;
+    var antigo = a.ini;
+    if (a.ret === antigo) a.ret = nova;
+    if (a.trav && a.ret === nova) a.acc = Math.max(0, moDif_(nova, a.trav));
+    a.ini = nova; c.a = a; c.origem = "atividade"; c.em = new Date().toISOString();
+    item.mudou = true;
+    if (p.aplicar) {
+      var pr = {}; pr[cols.contador.nome] = moRich_(JSON.stringify(c));
+      try { notion_("PATCH", "/pages/" + pg.id, { properties: pr }); mudou++; } catch (e) { item.erro = String(e).slice(0, 80); }
+    }
+  });
+  if (mudou) { try { moAvisarGitHub_("contadores", true); } catch (e) {} }
+  var tipos = Object.keys(idx.tipos).sort(function (x, y) { return idx.tipos[y] - idx.tipos[x]; }).slice(0, 25).map(function (k) { return k + " (" + idx.tipos[k] + ")"; });
+  return { ok: true, aplicado: !!p.aplicar, mudou: mudou, atividades: idx.total, comData: Object.keys(idx.datas).length, erro: idx.erro, tipos: tipos, casas: lista };
+}
+
 /* Data em que a atividade VISTORIA PRÉVIA desta casa foi criada (a mais antiga em aberto) */
 function moAtvCriada_(vendaId, tipo) {
   try {
     var l = queryAll_(CONFIG.DB.ATIVIDADES_VENDAS, { filter: { property: "OBRA", relation: { contains: vendaId } } });
-    var datas = l.filter(function (r) { return normDist_(sel_((r.properties || {})["TIPO"]) || "") === normDist_(tipo); })
-                 .map(function (r) { return moDia_(dt_((r.properties || {})["DATA INICIAL"]) || r.created_time); })
+    var datas = l.filter(function (r) { var t = sel_(getTol_(r.properties || {}, "TIPO")) || ""; return tipo === MO_TIPO_APTA ? moEhTipoApta_(t) : normDist_(t) === normDist_(tipo); })
+                 .map(function (r) { return moDia_(dt_(getTol_(r.properties || {}, "DATA INICIAL")) || r.created_time); })
                  .filter(Boolean).sort();
     return datas[0] || "";
   } catch (e) { console.log("MAPA atividade criada: " + e); return ""; }
@@ -383,15 +444,7 @@ function moPreencherContadores_(limite) {
     var ent = normDist_(ler(P, "entregou_casa"));
     if (ent === "SIM" || ent === "AGIO" || ent === "INEXISTE") return;
     if (normDist_(ler(P, "processo_conforme")) !== "SIM") return;
-    if (atv === null) {
-      atv = {};
-      try {
-        queryAll_(CONFIG.DB.ATIVIDADES_VENDAS, { filter: { property: "TIPO", select: { equals: MO_TIPO_APTA } } }).forEach(function (r) {
-          var R = r.properties || {}, d = moDia_(dt_(R["DATA INICIAL"]) || r.created_time);
-          ((R["OBRA"] && R["OBRA"].relation) || []).forEach(function (x) { var k = String(x.id).replace(/-/g, ""); if (d && (!atv[k] || d < atv[k])) atv[k] = d; });
-        });
-      } catch (e) { console.log("MAPA contadores: atividades — " + e); }
-    }
+    if (atv === null) atv = moAtvAptaIndice_().datas;
     var id = String(pg.id).replace(/-/g, "");
     var dv = P["DATA DA VENDA"] && P["DATA DA VENDA"].date ? moDia_(P["DATA DA VENDA"].date.start) : "";
     var ini = atv[id] || dv || moDia_(pg.created_time) || hoje;
