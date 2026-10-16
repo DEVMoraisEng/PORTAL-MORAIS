@@ -67,7 +67,7 @@
  * fazer a conferência da conclusão, além do ADM).
  *************************************************************************/
 
-var MO_VERSAO = "2026-10-16 mo9";
+var MO_VERSAO = "2026-10-16 mo10";
 var MO_EVENTO = "obras_notion_update";            // TEM que bater com o types: do fetch_notion.yml
 var MO_JANELA_MS = 2 * 60 * 1000;                  // no máximo 1 build a cada 2 min
 var MO_CAMPOS = {
@@ -92,7 +92,9 @@ var MO_VENDA = {
   obs_conferencia:      ["OBS. CONFERÊNCIA", "rich_text"],
   contador:             ["CONTADOR VISTORIA (PORTAL)", "rich_text"],
   vist_completo:        ["VISTORIA - RELATÓRIO COMPLETO", "files"],
-  vist_prestador:       ["VISTORIA - POR PRESTADOR", "files"]
+  vist_prestador:       ["VISTORIA - POR PRESTADOR", "files"],
+  /* 16/10: telefone do corretor (planilha de vendas, logo depois de CORRETOR) */
+  telefone_corretor:    ["TELEFONE CORRETOR", "phone_number"]
 };
 /* colunas que a tela pode gravar pelo mapaVendaUpdate (as outras são do sistema) */
 var MO_VENDA_EDITAVEIS = ["processo_conforme", "casa_apta_vistoria", "agendou_pre_vistoria", "data_pre_vistoria",
@@ -123,6 +125,7 @@ function moRotear_(action, sess, p) {
     case "atvOutraAbrir":    return moOutraAbrir_(sess, p || {});
     case "atvOutraGravar":   return moOutraGravar_(sess, p || {});
     case "mapaRecontarApta": return moRecontarApta_(sess, p || {});
+    case "mapaPrepararVendas": return ehAdm_(sess) ? moGarantirColunas_() : { ok: false, erro: "APENAS_ADM" };
     case "obraAtvTexto":     return moAtvTexto_(sess, p || {});
     case "obraAtvAnexo":     return moAtvAnexo_(sess, p || {});
     case "obraAtvArquivos":  return moAtvArquivos_(sess, p || {});
@@ -229,7 +232,8 @@ function moGarantirColunas_() {
     obs_conferencia: { rich_text: {} },
     contador:        { rich_text: {} },
     vist_completo:   { files: {} },
-    vist_prestador:  { files: {} }
+    vist_prestador:  { files: {} },
+    telefone_corretor: { phone_number: {} }
   };
   Object.keys(novas).forEach(function (k) {
     if (moAcharColuna_(props, [MO_VENDA[k][0]].concat(MO_VENDA[k][2] || []))) return;
