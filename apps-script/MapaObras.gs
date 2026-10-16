@@ -67,7 +67,7 @@
  * fazer a conferência da conclusão, além do ADM).
  *************************************************************************/
 
-var MO_VERSAO = "2026-10-16 mo5";
+var MO_VERSAO = "2026-10-16 mo6";
 var MO_EVENTO = "obras_notion_update";            // TEM que bater com o types: do fetch_notion.yml
 var MO_JANELA_MS = 2 * 60 * 1000;                  // no máximo 1 build a cada 2 min
 var MO_CAMPOS = {
@@ -265,7 +265,7 @@ function moEhTipoApta_(t) { var n = normDist_(t || ""); return n.indexOf("VISTOR
 function moAtvAptaIndice_() {
   var c = null; try { c = cacheGet_("mo_atv_apta_idx"); } catch (e) {}
   if (c && c.datas) return c;
-  var datas = {}, tipos = {}, total = 0, erro = "";
+  var datas = {}, tipos = {}, total = 0, erro = "", titulos = [], amostra = [];
   try {
     queryAll_(CONFIG.DB.ATIVIDADES_VENDAS, {}).forEach(function (r) {
       total++;
@@ -273,13 +273,32 @@ function moAtvAptaIndice_() {
       var nt = normDist_(t); tipos[nt] = (tipos[nt] || 0) + 1;
       if (!moEhTipoApta_(t)) return;
       var d = moDia_(dt_(getTol_(R, "DATA INICIAL")) || r.created_time);
-      for (var n in R) if (R[n] && R[n].type === "relation" && /OBRA|VENDA|CASA/.test(normDist_(n)))
-        (R[n].relation || []).forEach(function (x) { var k = String(x.id).replace(/-/g, ""); if (d && (!datas[k] || d < datas[k])) datas[k] = d; });
+      var tit = "";
+      for (var n in R) {
+        if (!R[n]) continue;
+        if (R[n].type === "title") tit = (R[n].title || []).map(function (x) { return x.plain_text || ""; }).join("");
+        if (R[n].type === "relation")   /* qualquer relação: a da VENDA é a que bate com o id da casa */
+          (R[n].relation || []).forEach(function (x) { var k = String(x.id).replace(/-/g, ""); if (d && (!datas[k] || d < datas[k])) datas[k] = d; });
+      }
+      if (d) titulos.push({ t: normDist_(tit), d: d });
+      if (amostra.length < 4) amostra.push({ titulo: tit, criada: r.created_time, props: Object.keys(R).map(function (n) { var q = R[n] || {}; return n + ":" + q.type + (q.type === "relation" ? "(" + (q.relation || []).length + ")" : ""); }) });
     });
   } catch (e) { erro = String(e).slice(0, 160); console.log("MAPA índice VISTORIA PRÉVIA: " + e); }
-  var out = { datas: datas, tipos: tipos, total: total, erro: erro };
+  var out = { datas: datas, tipos: tipos, total: total, erro: erro, titulos: titulos, amostra: amostra };
   if (!erro) { try { cachePut_("mo_atv_apta_idx", out, 1800); } catch (e) {} }
   return out;
+}
+/* sem relação com a casa: procura pelo título da atividade (endereço + casa) */
+function moAptaPorTitulo_(idx, endereco, casa) {
+  var e = normDist_(endereco || ""); if (!e || !idx.titulos) return "";
+  var best = "";
+  idx.titulos.forEach(function (x) {
+    if (x.t.indexOf(e) < 0) return;
+    var m = x.t.slice(x.t.indexOf(e) + e.length).match(/\b(?:CASA|CS)\s*0*(\d+)/);
+    if (m && casa != null && String(+m[1]) !== String(casa)) return;
+    if (!best || x.d < best) best = x.d;
+  });
+  return best;
 }
 /* ADM: refaz o início do prazo "casa apta" pela data da atividade (onde ficou
    com a data da venda). Sem p.aplicar só mostra o que mudaria. */
@@ -297,8 +316,9 @@ function moRecontarApta_(sess, p) {
     var ent = normDist_(ler(P, "entregou_casa")); if (ent === "SIM" || ent === "AGIO" || ent === "INEXISTE") return;
     if (normDist_(ler(P, "conferencia")) === normDist_(MO_CONF_OK)) return;
     var id = String(pg.id).replace(/-/g, ""), c = null; try { c = JSON.parse(ler(P, "contador") || "null"); } catch (e) {}
-    var a = (c && c.a) || null, nova = idx.datas[id] || "";
-    var item = { id: id, endereco: moTextoProp_(P["ENDEREÇO"]) || "", casa: (P["CASA"] && P["CASA"].number) || null,
+    var end = moTextoProp_(P["ENDEREÇO"]) || "", ncasa = (P["CASA"] && P["CASA"].number);
+    var a = (c && c.a) || null, nova = idx.datas[id] || moAptaPorTitulo_(idx, end, ncasa) || "";
+    var item = { id: id, endereco: end, casa: (P["CASA"] && P["CASA"].number) || null,
                  venda: P["DATA DA VENDA"] && P["DATA DA VENDA"].date ? moDia_(P["DATA DA VENDA"].date.start) : "", ini: a && a.ini || "", atividade: nova };
     lista.push(item);
     if (!nova || !a || a.ini === nova) return;
@@ -314,7 +334,7 @@ function moRecontarApta_(sess, p) {
   });
   if (mudou) { try { moAvisarGitHub_("contadores", true); } catch (e) {} }
   var tipos = Object.keys(idx.tipos).sort(function (x, y) { return idx.tipos[y] - idx.tipos[x]; }).slice(0, 25).map(function (k) { return k + " (" + idx.tipos[k] + ")"; });
-  return { ok: true, aplicado: !!p.aplicar, mudou: mudou, atividades: idx.total, comData: Object.keys(idx.datas).length, erro: idx.erro, tipos: tipos, casas: lista };
+  return { ok: true, aplicado: !!p.aplicar, mudou: mudou, atividades: idx.total, comData: Object.keys(idx.datas).length, erro: idx.erro, tipos: tipos, amostra: idx.amostra, casas: lista };
 }
 
 /* Data em que a atividade VISTORIA PRÉVIA desta casa foi criada (a mais antiga em aberto) */
@@ -434,7 +454,7 @@ function moPreencherContadores() { var n = moPreencherContadores_(200); Logger.l
 function moPreencherContadores_(limite) {
   var cols = moColunasVendas_(); if (!cols.contador) return 0;
   var nomes = ["contador", "processo_conforme", "entregou_casa", "casa_apta_vistoria", "reparos_pre_vistoria", "data_pre_vistoria"]
-              .map(function (k) { return cols[k] && cols[k].nome; }).filter(Boolean).concat(["DATA DA VENDA", "CLIENTES"]);
+              .map(function (k) { return cols[k] && cols[k].nome; }).filter(Boolean).concat(["DATA DA VENDA", "CLIENTES", "ENDEREÇO", "CASA"]);
   var linhas = alQueryColunas_(CONFIG.DB.VENDAS, nomes), hoje = moHoje_(), atv = null, n = 0;
   var ler = function (P, k) { var c = cols[k]; var pp = c && P[c.nome]; return pp ? (sel_(pp) || texto_(pp) || (pp.date && pp.date.start) || "") : ""; };
   linhas.forEach(function (pg) {
@@ -447,12 +467,13 @@ function moPreencherContadores_(limite) {
     if (atv === null) atv = moAtvAptaIndice_().datas;
     var id = String(pg.id).replace(/-/g, "");
     var dv = P["DATA DA VENDA"] && P["DATA DA VENDA"].date ? moDia_(P["DATA DA VENDA"].date.start) : "";
-    var ini = atv[id] || dv || moDia_(pg.created_time) || hoje;
+    var aT = atv[id] || moAptaPorTitulo_(moAtvAptaIndice_(), moTextoProp_(P["ENDEREÇO"]), P["CASA"] && P["CASA"].number);
+    var ini = aT || dv || moDia_(pg.created_time) || hoje;
     var a = { ini: ini, acc: 0, ret: ini, trav: null }, rr = {};
     if (normDist_(ler(P, "casa_apta_vistoria")) === "SIM") { a.acc = Math.max(0, moDif_(ini, hoje)); a.trav = hoje; }
     var dpv = moDia_(ler(P, "data_pre_vistoria"));
     if (dpv) { rr = { ini: dpv, acc: 0, ret: dpv, trav: null }; if (normDist_(ler(P, "reparos_pre_vistoria")) === "SIM") { rr.acc = Math.max(0, moDif_(dpv, hoje)); rr.trav = hoje; } }
-    var pr = {}; pr[cols.contador.nome] = moRich_(JSON.stringify({ a: a, r: rr, em: new Date().toISOString(), por: "sistema", origem: atv[id] ? "atividade" : "venda" }));
+    var pr = {}; pr[cols.contador.nome] = moRich_(JSON.stringify({ a: a, r: rr, em: new Date().toISOString(), por: "sistema", origem: aT ? "atividade" : "venda" }));
     try { notion_("PATCH", "/pages/" + pg.id, { properties: pr }); n++; } catch (e) { console.log("MAPA contador " + id + ": " + e); }
   });
   if (n) { try { moAvisarGitHub_("contadores", true); } catch (e) {} }
