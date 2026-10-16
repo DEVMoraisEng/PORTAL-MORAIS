@@ -67,7 +67,7 @@
  * fazer a conferência da conclusão, além do ADM).
  *************************************************************************/
 
-var MO_VERSAO = "2026-10-16 mo3";
+var MO_VERSAO = "2026-10-16 mo4";
 var MO_EVENTO = "obras_notion_update";            // TEM que bater com o types: do fetch_notion.yml
 var MO_JANELA_MS = 2 * 60 * 1000;                  // no máximo 1 build a cada 2 min
 var MO_CAMPOS = {
@@ -657,16 +657,24 @@ function moEndValidar_(sess, p) {
 }
 
 /* ============ ATIVIDADES DAS OUTRAS ABAS, EDITADAS NA ABA ATIVIDADES ============ */
+/* só o retrato que JÁ está pronto (refazer aqui custava ~15 s por clique) */
 function moOutraItem_(id) {
   var alvo = String(id || "").replace(/-/g, "");
-  var s = rfSnapOutras_();
-  for (var i = 0; i < (s.itens || []).length; i++) if (s.itens[i].id === alvo) return s.itens[i];
+  var s = (typeof RF_SNAP_OUT !== "undefined") ? cacheGet_(RF_SNAP_OUT) : null;
+  for (var i = 0; i < ((s && s.itens) || []).length; i++) if (s.itens[i].id === alvo) return s.itens[i];
   return null;
 }
-function moOutraPode_(sess, item, origem) {
+/* responsável direto na página da atividade (quando o retrato não tem o item) */
+function moRespDaPagina_(P, me) {
+  for (var n in P) if (P[n] && P[n].type === "people" && normDist_(n).indexOf("RESPONS") >= 0)
+    if ((P[n].people || []).some(function (u) { return String(u.id).replace(/-/g, "") === me; })) return true;
+  return false;
+}
+function moOutraPode_(sess, item, origem, P) {
   if (vePorTodos_(sess) && !ehTestes_(sess)) return true;
   var me = String(sess.p || "").replace(/-/g, "");
   if (item && me && (item.resp || []).indexOf(me) >= 0) return true;
+  if (!item && P && me && moRespDaPagina_(P, me)) return true;
   var aba = { Vendas: "VENDAS", Documentos: "DOCUMENTOS", Obras: "OBRAS" }[origem || (item && item.origem)];
   return !!(aba && temAcesso_(sess, aba) && !ehTestes_(sess));
 }
@@ -676,10 +684,10 @@ function moOutraAbrir_(sess, p) {
   var item = moOutraItem_(p.id);
   var origem = (item && item.origem) || p.origem;
   if (!origem) return { ok: false, erro: "ATIVIDADE_NAO_ENCONTRADA" };
-  if (!moOutraPode_(sess, item, origem)) return { ok: false, erro: "SEM_PERMISSAO" };
   var atv = notion_("GET", "/pages/" + p.id, null), P = atv.properties || {};
+  if (!moOutraPode_(sess, item, origem, P)) return { ok: false, erro: "SEM_PERMISSAO" };
   var out = { ok: true, id: String(atv.id).replace(/-/g, ""), origem: origem, titulo: tituloDe_(P), campos: [],
-              link: (item && item.link) || "", podeAba: temAcesso_(sess, { Vendas: "VENDAS", Documentos: "DOCUMENTOS", Obras: "OBRAS" }[origem]),
+              link: (item && item.link) || ({ Vendas: "vendas.html", Documentos: "documentos.html", Obras: "obras.html" }[origem] || ""), podeAba: temAcesso_(sess, { Vendas: "VENDAS", Documentos: "DOCUMENTOS", Obras: "OBRAS" }[origem]),
               podeConferir: moPodeConferir_(sess) };
   if (origem === "Obras") {
     var sch = obraAtvSchema_();
@@ -740,7 +748,9 @@ function moOutraGravar_(sess, p) {
   if (ehTestes_(sess)) return { ok: false, erro: "MODO_TESTE" };
   var item = moOutraItem_(p.id), origem = (item && item.origem) || p.origem;
   if (!origem) return { ok: false, erro: "ATIVIDADE_NAO_ENCONTRADA" };
-  if (!moOutraPode_(sess, item, origem)) return { ok: false, erro: "SEM_PERMISSAO" };
+  var atvP = null;
+  if (!item && !vePorTodos_(sess)) { try { atvP = notion_("GET", "/pages/" + p.id, null).properties || {}; } catch (e) {} }
+  if (!moOutraPode_(sess, item, origem, atvP)) return { ok: false, erro: "SEM_PERMISSAO" };
   var k = String(p.k || ""), valor = p.valor === "" ? null : p.valor, r;
   if (origem === "Obras") {
     var mapa = { status: "Status", fim: "Data Final Prevista", conclusao: "Data De Conclusão da Atividade" };
@@ -761,10 +771,28 @@ function moOutraGravar_(sess, p) {
     r = docBaixa_(sess, { atividadeId: p.id, valor: valor || "SIM" });
   } else return { ok: false, erro: "CAMPO_NAO_LIBERADO" };
   if (!r || !r.ok) return r || { ok: false, erro: "SEM_RESPOSTA" };
-  /* a lista das outras abas é refeita na próxima leitura */
+  /* a atividade fechou? (sem refazer a lista inteira — o gatilho refaz depois) */
   try { cacheRemover_(origem === "Vendas" ? AL_CH_VENDAS : AL_CH_DOCS); } catch (e) {}
   var fechou = false;
-  try { rfSnapOutrasConstruir_(); fechou = !moOutraItem_(p.id); } catch (e) {}
+  try {
+    if (origem === "Obras") fechou = (k === "status" && /finaliz|conclu|cancel/i.test(String(valor || ""))) || (k === "conclusao" && !!valor);
+    else if (k === "baixa") fechou = !alAberto_(valor || "SIM");
+    else if (k.indexOf("v:") === 0) {
+      var at = notion_("GET", "/pages/" + p.id, null), tipo = sel_(getTol_(at.properties || {}, "TIPO")) || "";
+      var vp = notion_("GET", "/pages/" + p.vendaId, null).properties || {};
+      var regra = alVendaFechada_(tipo, vp);
+      if (regra !== null) fechou = regra;
+      else { var col = alColunaVendas_(tipo), pc = col ? alProp_(vp, col) : null; fechou = !!(pc && !alAberto_(alTexto_(pc))); }
+    }
+  } catch (e) { console.log("ATIVIDADES fechou? " + e); }
+  try {
+    var sn = cacheGet_(RF_SNAP_OUT), alvo = String(p.id).replace(/-/g, "");
+    if (sn && sn.itens) {
+      if (fechou) sn.itens = sn.itens.filter(function (x) { return x.id !== alvo; });
+      else if (k === "fim") sn.itens.forEach(function (x) { if (x.id === alvo) x.fim = valor; });
+      cachePut_(RF_SNAP_OUT, sn, 21600);
+    }
+  } catch (e) {}
   if (origem !== "Obras") { try { avisarGitHub_("atividade " + origem); } catch (e) {} }
   r.fechada = fechou;
   console.log("ATIVIDADES: " + (sess.u || "?") + " editou (" + origem + ") " + p.id + " · " + k + " = " + valor + (fechou ? " · concluída" : ""));
