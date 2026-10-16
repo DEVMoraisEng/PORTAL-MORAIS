@@ -469,7 +469,7 @@ function ponteAtividades(publicadoEm){ ponteAplicar("obras-atv",D.atividades,p=>
    salvo, refaz o que deriva deles (nome da pessoa a partir do id, situação
    da conta). Antes, uma leitura atrasada trazia o alerta de volta. */
 function ponteObras(publicadoEm){
-  ponteAplicar("obras",D.obras,p=>{ const c=CAMPOS.find(x=>x[2]===p); return c?c[1]:null; },publicadoEm);
+  ponteAplicar("obras",D.obras,p=>{ if(p==="Projeto") return "titulo"; const c=CAMPOS.find(x=>x[2]===p); return c?c[1]:null; },publicadoEm);
   D.obras.forEach(o=>{
     ["resp_ids","rt_ids"].forEach(k=>{
       const ids=o[k]; if(!Array.isArray(ids)||!ids.length) return;
@@ -613,10 +613,16 @@ const alertasConta=()=>D.obras.filter(o=>!fim(o.status) && (o.conta_alerta==="CR
    criar/conferir a obra (cliente não cadastrado, conta, orçamento…); some
    sozinho quando a obra passa sem erro */
 const alertasRobo=()=>D.obras.filter(o=>o.mc_erro && !fim(o.status));
+/* 16/10/26 — endereço da obra alterado (pelo portal ou direto no Notion): o
+   servidor leva o endereço novo para DOCUMENTOS, VENDAS, PÓS OBRA, LIGAÇÕES e
+   o nome das atividades, e o robô renomeia no Mais Controle. Fica aqui até um
+   ADM conferir e clicar em Validar. */
+const alertasEnd=()=>D.obras.filter(o=>String(o.end_alterado||"").trim() && !(_END_VALIDADOS[o.id]));
+const _END_VALIDADOS={};
 
 /* ---------- abas ---------- */
 function pintarTabs(){
-  const nAl=alertasRobo().length+alertasMc().length+alertasCampos().length+alertasConta().length;
+  const nAl=alertasEnd().length+alertasRobo().length+alertasMc().length+alertasCampos().length+alertasConta().length;
   document.getElementById("tabs").innerHTML=[["obras","Obras"],["atividades","Atividades"],["alertas","Alertas"],["contas","Contas bancárias"],["investidores","Cadastros investidores"]].map(([k,r])=>
     `<button class="tab ${ABA===k?"on":""}" title="${({obras:"Lista de obras e formulário de obra nova",atividades:"Atividades por pessoa — abre nas suas",alertas:"O que falta preencher ou decidir",contas:"Contas do Mais Controle e quais aparecem para escolha",investidores:"Cadastro de proprietários/investidores (só consulta)"})[k]||""}" onclick="ABA='${k}';FIXAS.clear();pintar()">${r}${k==="alertas"&&nAl?`<span class="nb">${nAl}</span>`:""}</button>`).join("");
 }
@@ -954,9 +960,16 @@ function repintarAtvs(){ if(OBRA) pintarObraPainel(); if(ABA==="atividades") pin
 
 /* ===================== ABA ALERTAS ===================== */
 function pintarAlertas(){
-  const mc=alertasMc(), cp=alertasCampos(), ct=alertasConta(), rb=alertasRobo();
+  const mc=alertasMc(), cp=alertasCampos(), ct=alertasConta(), rb=alertasRobo(), ea=alertasEnd();
   const leuMc=D.obras.some(o=>o.em_mc===true||o.em_mc===false);
+  const linhasEnd=t=>String(t||"").split("\n").filter(x=>x.trim()).map(x=>`<span class="falta" style="display:block;white-space:normal;margin:2px 0">${esc(x)}</span>`).join("");
   document.getElementById("view").innerHTML=`
+    <div class="sec"><span class="cond">Endereço alterado — conferir</span><span class="qtd">${ea.length}</span></div>
+    ${ea.length?ea.map(o=>`<div class="al"><span class="end" onclick="abrirObra('${o.id}')">${esc(o.titulo)}</span>
+        <span class="txt">${linhasEnd(o.end_alterado)}</span>
+        <span class="acoes">${ehAdmTela()?`<button class="bt bt-mini" title="Conferi DOCUMENTOS, VENDAS, Pós Obra, Ligações e o Mais Controle — tirar o alerta" onclick="validarEnd('${o.id}',this)">Validar</button>`:""}
+        <button class="bt bt-mini az" onclick="abrirObra('${o.id}')">Abrir obra</button></span></div>`).join("")
+      :`<div class="vazio">Nenhuma alteração de endereço esperando conferência.</div>`}
     <div class="sec"><span class="cond">Problemas do robô no Mais Controle</span><span class="qtd">${rb.length}</span></div>
     ${rb.length?rb.map(o=>`<div class="al"><span class="end" onclick="abrirObra('${o.id}')">${esc(o.titulo)}</span>
         <span class="txt"><span class="falta">${esc(o.mc_erro)}</span></span>
@@ -979,6 +992,32 @@ function pintarAlertas(){
         <span class="txt"><span class="falta">${o.conta_alerta==="CRIAR CONTA"?"CRIAR CONTA — conta ainda não existe no Mais Controle":"DÚVIDA — confirme qual é a conta"}</span></span>
         <span class="acoes"><button class="bt bt-mini az" title="Abre a obra para escolher a conta bancária" onclick="abrirObra('${o.id}')">Escolher conta</button></span></div>`).join("")
       :`<div class="vazio">Nenhuma obra em andamento com conta pendente.</div>`}`;
+}
+async function validarEnd(id,bt){
+  if(bt) bt.disabled=true;
+  let r; try{ r=await chamar({action:"obraEndValidar",pageId:id},45000); }catch(e){ r={ok:false,erro:"sem conexão"}; }
+  if(r&&r.ok){ _END_VALIDADOS[id]=1; const o=obraDe(id); if(o) o.end_alterado=""; toast("Alteração de endereço validada."); pintar(); }
+  else { if(bt) bt.disabled=false; toast("Não validou: "+errMsg(r)); }
+}
+/* 16/10/26 — ALTERAR O ENDEREÇO DA OBRA (só ADM). O servidor confere o padrão
+   (RUA QD XX LT XX) e leva o endereço novo para DOCUMENTOS, VENDAS, PÓS OBRA,
+   LIGAÇÕES e o Mais Controle; o resumo aparece nos Alertas para validar. */
+async function alterarEndereco(id){
+  const o=obraDe(id); if(!o) return;
+  const novo=(prompt("Endereço novo da obra (padrão RUA QD XX LT XX, ex.: TB 21 QD 51 LT 34):",o.titulo||"")||"").toUpperCase().replace(/\s+/g," ").trim();
+  if(!novo||N(novo)===N(o.titulo)) return;
+  if(!confirm("Trocar o endereço\n\nDE: "+o.titulo+"\nPARA: "+novo+"\n\nO endereço novo vai também para DOCUMENTOS, VENDAS, PÓS OBRA, LIGAÇÕES, o nome das atividades e o Mais Controle.")) return;
+  toast("Alterando o endereço e levando para as outras bases…");
+  let r; try{ r=await chamar({action:"obraUpdate",pageId:id,prop:"Projeto",valor:novo},180000); }catch(e){ r={ok:false,erro:"sem conexão"}; }
+  if(r&&r.ok){
+    const antigo=o.titulo; o.titulo=novo; const pg=r.propagado||{};
+    o.end_alterado=(o.end_alterado?o.end_alterado+"\n":"")+"DE "+antigo+" PARA "+novo+" · DOCUMENTOS "+(pg.documentos||0)+" · VENDAS "+(pg.vendas||0)+" · PÓS OBRA "+(pg.posObra||0)+" · LIGAÇÕES "+(pg.ligacoes||0)+" · MAIS CONTROLE: "+(pg.mc||"—");
+    ponteGuardar("obras",o.id,"Projeto",novo);
+    toast("Endereço alterado. DOCUMENTOS "+(pg.documentos||0)+" · VENDAS "+(pg.vendas||0)+" · PÓS OBRA "+(pg.posObra||0)+" · LIGAÇÕES "+(pg.ligacoes||0)+(pg.erros&&pg.erros.length?" · com avisos — veja os Alertas":""));
+    pintar(); if(OBRA===id) pintarObraPainel();
+  } else {
+    const e=r&&r.erro; toast("Não alterou: "+(e==="APENAS_ADM"?"só ADM altera o endereço":ERROS[e]||errMsg(r))+(r&&r.sugestao?" — sugestão: "+r.sugestao:""));
+  }
 }
 async function decidirMc(id,valor){
   const o=obraDe(id); if(!o) return;
@@ -1046,7 +1085,8 @@ function pintarObraPainel(){
   const atv=atvsDaObra(o.id);
   const normais=atv.filter(a=>!ehLig(a)).sort(ordenaAtv), lig=atv.filter(ehLig).sort(ordenaAtv);
   let h=`<div class="chips">${chipsObraHtml(o)}</div>`;
-  h+=`<div class="grp">Dados da obra</div><div class="resumo">${CAMPOS.map((c,i)=>campoHtml(o,c,i)).join("")}</div>`;
+  if(o.end_alterado&&!_END_VALIDADOS[o.id]) h+=`<div class="aviso" style="margin:8px 0;white-space:pre-line">⚠ Endereço alterado — confira nos Alertas:\n${esc(o.end_alterado)}</div>`;
+  h+=`<div class="grp">Dados da obra ${ehAdmTela()?`<span class="sp"></span><button class="tg" title="Trocar o endereço desta obra (vai junto para DOCUMENTOS, VENDAS, PÓS OBRA, LIGAÇÕES e Mais Controle)" onclick="alterarEndereco('${o.id}')">✏️ Alterar endereço</button>`:""}</div><div class="resumo">${CAMPOS.map((c,i)=>campoHtml(o,c,i)).join("")}</div>`;
   h+=`<div class="grp">Atividades <span class="sp"></span>
       <button class="tg ${MODO==="lista"?"on":""}" title="Atividades em lista, por tipo" onclick="MODO='lista';pintarObraPainel()">Lista</button>
       <button class="tg ${MODO==="crono"?"on":""}" title="Atividades no tempo (início → prazo)" onclick="MODO='crono';pintarObraPainel()">Cronograma</button></div><div class="pl">`;

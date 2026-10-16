@@ -1394,13 +1394,47 @@ def _dt(s):
         return None
 
 
+# 16/10/26 — ENDEREÇO ALTERADO NA OBRA. O portal (MapaObras.gs) grava em
+# MC NOME ANTERIOR o nome que a obra TEM no Mais Controle quando o endereço
+# muda no Notion. O robô abre a obra pelo nome antigo, troca o "Nome da obra"
+# (e o endereço completo, pela conferência normal) e limpa a coluna.
+COL_MC_ANT = "MC NOME ANTERIOR"
+COL_END_ALT = "ENDEREÇO ALTERADO"
+
+
+def renomeada_ok(o, como="renomeada"):
+    """Limpa o MC NOME ANTERIOR e anota no ENDEREÇO ALTERADO (alerta do portal)."""
+    if not APLICAR:
+        return
+    agora = datetime.now(timezone(timedelta(hours=-3))).strftime("%d/%m %H:%M")
+    try:
+        pg = api("GET", f"/pages/{o['id']}")
+        pr = pg.get("properties") or {}
+        alt = txt(pega(pr, COL_END_ALT)) or ""
+        props = {COL_MC_ANT: {"rich_text": []}}
+        if any(N(k) == N(COL_END_ALT) for k in pr):
+            nota = f"MAIS CONTROLE: obra {como} de {o.get('nome_mc')} para {o['titulo']} ({agora})"
+            conteudo = (((alt + "\n") if alt else "") + nota)[-1900:]
+            props[COL_END_ALT] = {"rich_text": [{"text": {"content": conteudo}}]}
+        api("PATCH", f"/pages/{o['id']}", {"properties": props})
+        print(f"  {o['titulo']}: MC NOME ANTERIOR limpo ({como})", flush=True)
+    except (Exception, SystemExit) as e:
+        print(f"  ! não limpei o MC NOME ANTERIOR: {str(e)[:100]}", flush=True)
+
+
 def fila_atualizar(no_mc, mapa_contas=None):
     mapa_contas = mapa_contas or {}
     fila = []
     for pg in ler_banco(ID_OBRAS, "OBRAS"):
         pr = pg.get("properties") or {}
         titulo = padronizar_endereco(txt(pega(pr, "Projeto")))
-        if not titulo or titulo not in no_mc:
+        ant = padronizar_endereco(txt(pega(pr, COL_MC_ANT)) or "")
+        nome_mc = ""
+        if titulo and ant and N(ant) != N(titulo):
+            # renomear: no MC ainda está com o nome antigo (ou a planilha do ERP ainda não viu o novo)
+            if titulo not in no_mc or ant in no_mc:
+                nome_mc = ant
+        if not titulo or (titulo not in no_mc and not nome_mc):
             continue
         if N(txt(pega(pr, "Status"))) in FIM:
             continue
@@ -1410,13 +1444,15 @@ def fila_atualizar(no_mc, mapa_contas=None):
         # gravar a própria data mexe na última edição: 3 min de folga
         mudou_no_notion = not (conf and editada and (editada - conf).total_seconds() < 180)
         vencida = (not conf) or (datetime.now(timezone.utc) - conf).days >= REVER_DIAS
-        if not mudou_no_notion and not vencida:
+        if not mudou_no_notion and not vencida and not nome_mc:
             continue
         a1, a2 = txt(pega(pr, "ÁREA CONSTRUÍDA AVERBADA")), txt(pega(pr, "ÁREA PÓS HABITE-SE"))
         conta_exata, conta_numero, nao_resolvida = resolver_conta(prop_conta(pr), mapa_contas)
+        if nome_mc:
+            mudou_no_notion = True
         fila.append({
-            "id": pg["id"], "titulo": titulo, "conferida": bool(conf),
-            "mudou_no_notion": bool(conf) and mudou_no_notion, "conf_em": conf,
+            "id": pg["id"], "titulo": titulo, "conferida": bool(conf), "nome_mc": nome_mc,
+            "mudou_no_notion": (bool(conf) and mudou_no_notion) or bool(nome_mc), "conf_em": conf,
             "casas": txt(pega(pr, "Nº DE CASAS")),
             "area": ((a1 or 0) + (a2 or 0)) or None,
             "rt": txt(pega(pr, "ENGENHEIRO RT")),
@@ -1504,8 +1540,21 @@ def completar_no_mc(page, o):
     """Abre a obra no MC e deixa cada campo IGUAL ao Notion: preenche o vazio
     e corrige o diferente (08/10/26). Campo vazio no Notion não mexe no MC.
     Conta bancária: nunca imprime nome/número (log público)."""
-    abrir_edicao(page, o["titulo"])
     mudou = []
+    # 16/10/26: obra com endereço alterado no Notion — abre pelo nome que ainda está no MC
+    if o.get("nome_mc"):
+        try:
+            abrir_edicao(page, o["nome_mc"])
+        except Exception:
+            # já foi renomeada (por outra rodada ou à mão): abre pelo nome novo
+            abrir_edicao(page, o["titulo"])
+            o["_renomeada_antes"] = True
+        nome_atual = valor_campo(page, CAMPO["nome"])
+        if N(nome_atual) != N(o["titulo"]):
+            escrever(page, CAMPO["nome"], o["titulo"])
+            mudou.append(f"nome {nome_atual or '(vazio)'} -> {o['titulo']}")
+    else:
+        abrir_edicao(page, o["titulo"])
 
     # --- tipo da obra (pelo Nº DE CASAS)
     n = int(o["casas"]) if isinstance(o["casas"], (int, float)) else 0
@@ -1617,6 +1666,8 @@ def completar_no_mc(page, o):
     if not mudou:
         page.keyboard.press("Escape")
         page.wait_for_timeout(500)
+        if o.get("nome_mc"):
+            renomeada_ok(o, "já estava com o nome novo")
         orc_ok = _orcamento_na_conferencia(page, o)
         if conta_pendente:
             return "conta não escolhida"
@@ -1635,6 +1686,8 @@ def completar_no_mc(page, o):
     except Exception:
         foto(page, "erro_completar_" + o["titulo"].replace(" ", "_"), sensivel=True)
         raise RuntimeError("o painel de edição continuou aberto depois de Salvar Obra")
+    if o.get("nome_mc"):
+        renomeada_ok(o)
     orc_ok = _orcamento_na_conferencia(page, o)
     # mesmo salvando os outros campos, a conta pedida (e não escolhida) não
     # pode "passar" como conferida — main() só marca conferida para

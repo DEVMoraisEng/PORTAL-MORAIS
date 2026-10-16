@@ -76,7 +76,9 @@
       (msgs.length?`${a.length||h.length?" · ":""}💬 ${msgs.length}`:"")+
       (val.length?`${a.length||h.length||mn.length||msgs.length?" · ":""}🛠 ${val.length}`:"");
     if(!a.length&&(msgs.length||val.length)) bt.classList.add("so-hoje");
-    const item=(x,atr)=>`<a class="aa-i" href="${e(x.link)}"><b>${e(x.titulo)}</b><span>${e(x.origem)} · ${atr?`<span class="atr">venceu ${br(x.fim)}</span>`:"vence hoje"}</span></a>`;
+    /* 16/10: atividade de Obras/Vendas/Documentos abre na aba Atividades (dá para dar baixa sem ter acesso à aba de origem) */
+    const lk=x=>(x.origem&&x.origem!=="Atividades"&&x.id)?"atividades.html#outra="+String(x.id).replace(/-/g,""):x.link;
+    const item=(x,atr)=>`<a class="aa-i" href="${e(lk(x))}"><b>${e(x.titulo)}</b><span>${e(x.origem)} · ${atr?`<span class="atr">venceu ${br(x.fim)}</span>`:"vence hoje"}</span></a>`;
     const itemM=x=>`<a class="aa-i" href="${e(x.link)}" onclick="AA_mencaoVista('${e(x.id)}')"><b>${vs.indexOf(x.id)<0?"🔵 ":""}${e(x.autor)} te mencionou · ${e(x.titulo)}</b><span>${e(x.texto)} · ${br(String(x.em||"").slice(0,10))}</span></a>`;
     const itemMsg=x=>`<a class="aa-i" href="${e(x.link)}" onclick="AA_atvVista('${e(x.atv)}')"><b>🔵 ${e(x.autor)}${x.mencao?" te mencionou":""} · ${e(x.titulo)}</b><span>${e(x.texto)} · ${br(String(x.em||"").slice(0,10))} ${e(String(x.em||"").slice(11,16))}</span></a>`;
     const itemVal=x=>`<a class="aa-i" href="pos-obra.html#validar"><b>${x.tipo==="obra"?"🏠 Obra":"🔧 Serviço"}: ${e(x.nome)}</b><span>criado por ${e(x.por||"?")} · ${br(String(x.em||"").slice(0,10))} · aguardando validação</span></a>`;

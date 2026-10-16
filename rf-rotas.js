@@ -11,6 +11,7 @@
  *
  * Tem que ser carregado DEPOIS do app.js (usa a lista ACOES_NA_ESCRITA dele).
  * v7 (28/09): faixa própria para chat e Mural (ver o fim do arquivo).
+ * v12 (16/10): atvOutraAbrir/atvOutraGravar (atividade de outra aba editada aqui).
  * ------------------------------------------------------------------------ */
 (function(){
   try{
@@ -20,7 +21,8 @@
      "atvComentarios","atvComentarioNovo","atvModelos","atvModeloUpdate","atvModeloExcluir","atvModeloCriar",
      "atvOp","atvPortal","aniversariantes",
      /* v5 */ "atvMural","procLote","atvLote","blocoAnexar","ckLista","ckCriar","ckMarcar","ckExcluir",
-     /* v6 (28/09) */ "atvMuralCheck", /* v7 */ "atvAnexoUrl", /* v8 */ "atvDelta", /* v9 */ "blocoMover", /* v10 */ "blocoAnexarUrl", "blocoAnexarDoSupa"
+     /* v6 (28/09) */ "atvMuralCheck", /* v7 */ "atvAnexoUrl", /* v8 */ "atvDelta", /* v9 */ "blocoMover", /* v10 */ "blocoAnexarUrl", "blocoAnexarDoSupa",
+     /* v12 (16/10) — atividade de outra aba aberta/gravada na aba Atividades */ "atvOutraAbrir", "atvOutraGravar"
     ].forEach(a=>{ if(ACOES_NA_ESCRITA.indexOf(a)<0) ACOES_NA_ESCRITA.push(a); });
   }catch(e){}
 })();
@@ -37,7 +39,7 @@
     /* v8 (28/09 noite): atvUpdate também — a baixa não espera o pré-carregamento */
     /* v9 (28/09 fim do dia): Mural, aniversários e checklists também — são o que a tela mostra primeiro */
     const CHAT=["atvComentarios","atvComentarioNovo","atvAnexoUrl","atvOp","atvMuralCheck","atvUpdate",
-                "atvMural","aniversariantes","ckLista","atvModelos"];
+                "atvMural","aniversariantes","ckLista","atvModelos","atvOutraAbrir","atvOutraGravar"];
     if(!_faixas.chat) _faixas.chat={ max:1, emVoo:0, fila:[] };
     const original=faixaDe;
     faixaDe=function(action){ return CHAT.indexOf(action)>=0 ? _faixas.chat : original(action); };
@@ -67,7 +69,8 @@ const API_ATIVIDADES = "https://script.google.com/macros/s/AKfycbwmGaVaSo9kt2gId
       "atvMinhas","atvOutras","atvAlertas","atvEquipe","atvDetalhe","atvAbrir","atvCriar","atvUpdate",
       "atvComentarios","atvComentarioNovo","atvModelos","atvModeloUpdate","atvModeloExcluir","atvModeloCriar",
       "atvOp","atvPortal","aniversariantes","atvMural","procLote","atvLote","blocoAnexar","ckLista","ckCriar",
-      "ckMarcar","ckExcluir","atvMuralCheck","atvAnexoUrl","atvDelta","blocoMover","blocoAnexarUrl","blocoAnexarDoSupa"];
+      "ckMarcar","ckExcluir","atvMuralCheck","atvAnexoUrl","atvDelta","blocoMover","blocoAnexarUrl","blocoAnexarDoSupa",
+      "atvOutraAbrir","atvOutraGravar"];
     const urlAntes=urlDe;
     urlDe=function(action){ return RF.indexOf(action)>=0 ? API_ATIVIDADES : urlAntes(action); };
     if(!_faixas.atv) _faixas.atv={ max:2, emVoo:0, fila:[] };

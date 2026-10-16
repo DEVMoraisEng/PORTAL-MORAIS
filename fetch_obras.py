@@ -303,6 +303,8 @@ def main():
             "mais_controle": txt(pega(ip, "MAIS CONTROLE")),
             # 08/10/26: problema do robô do Mais Controle com esta obra (explicado) -> Alertas
             "mc_erro": txt(pega(ip, "MC ERRO")),
+            # 16/10/26: endereço alterado (pelo portal ou no Notion) -> Alertas, até o ADM validar
+            "end_alterado": txt(pega(ip, "ENDEREÇO ALTERADO")),
             "em_mc": (None if no_mc is None else padronizar_endereco(txt(pega(ip, "Projeto"))) in no_mc),
             # 23/09/26 — CONTA virou seleção com o nome real da conta. O NOME não
             # sai aqui (arquivo público); só a situação, para os Alertas:

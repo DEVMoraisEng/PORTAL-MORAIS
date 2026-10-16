@@ -517,7 +517,7 @@ main.wrap{padding-bottom:90px}
 <div class="toast" id="toast"></div>
 
 <script src="app.js?v=45"></script>
-<script src="rf-rotas.js?v=7"></script>
+<script src="rf-rotas.js?v=8"></script>
 <script src="alertas-docs.js?v=1"></script>
 <script src="editor-blocos.js?v=11"></script>
 <script src="atv-alertas.js?v=7"></script>
@@ -778,13 +778,16 @@ function linha(a,modo){
     <div class="c ${atrasada(a)?"atr":""}">${a.fim?(atrasada(a)?"⚠ ":"")+br(a.fim):"sem prazo"}</div>
     <div class="c pri-${esc(a.prioridade||"")}">${esc(a.prioridade||"")}</div></div>`;
 }
+/* 16/10: a atividade das outras abas ABRE AQUI (não leva mais para a aba de
+   origem) — quem é responsável dá baixa/edita mesmo sem acesso a Vendas,
+   Documentos ou Obras. O ↗ continua levando para a aba, para quem tem acesso. */
 function linhaOut(x){
   const atr=x.fim&&x.fim<hojeISO();
-  return `<a class="li ${atr?"atr":x.fim===hojeISO()?"hoje":""}" href="${esc(x.link)}" style="text-decoration:none;color:inherit" title="Abre na aba ${esc(x.origem)}">
+  return `<div class="li ${atr?"atr":x.fim===hojeISO()?"hoje":""}" onclick="abrirOutra('${esc(x.id)}')" title="Abrir e editar aqui">
     <div class="t">${esc(x.titulo||"(sem título)")}<small>${esc([x.tipo,nomeObra(x.obraId)].filter(Boolean).join(" · "))}</small></div>
     <div><span class="pill o-${esc(x.origem)}">${esc(x.origem)}</span></div>
     <div class="c">${esc(x.status||"")}</div>
-    <div class="c ${atr?"atr":""}">${x.fim?(atr?"⚠ ":"")+br(x.fim):"sem prazo"}</div><div class="c">↗</div></a>`;
+    <div class="c ${atr?"atr":""}">${x.fim?(atr?"⚠ ":"")+br(x.fim):"sem prazo"}</div><div class="c"><a href="${esc(x.link)}" onclick="event.stopPropagation()" title="Abrir na aba ${esc(x.origem)} (precisa ter acesso a ela)" style="text-decoration:none">↗</a></div></div>`;
 }
 function sec(titulo,itens,fn,cls,colapsa,chave){
   if(!itens.length) return "";
@@ -853,7 +856,7 @@ function calendario(l){
     const itens=(ev[iso]||[]);
     h+=`<div class="dia ${d.getMonth()!==mes?"fora":""} ${iso===hoje?"hj":""}" data-iso="${iso}"><div class="dn">${d.getDate()}</div>${itens.map(o=>o.a?
       `<span class="ev o-Atividades ${!aberta(o.a)?"fin":atrasada(o.a)?"atr":""}" data-id="${o.a.id}" draggable="${podeEditar(o.a)?"true":"false"}" onclick="abrirAtv('${o.a.id}')" title="${esc("Atividades: "+o.a.titulo+(atrasada(o.a)?" (atrasada)":"")+(podeEditar(o.a)?" — arraste para outro dia para mudar o prazo":""))}">${atrasada(o.a)?"⚠ ":""}${ehMural(o.a)?"📌 ":""}${esc(o.a.titulo)}</span>`:
-      `<a class="ev out o-${esc(o.x.origem)} ${o.x.fim&&o.x.fim<hoje?"atr":""}" href="${esc(o.x.link)}" title="${esc(o.x.origem+": "+o.x.titulo+(o.x.fim&&o.x.fim<hoje?" (atrasada)":""))}">${o.x.fim&&o.x.fim<hoje?"⚠ ":""}${esc(o.x.titulo)}</a>`).join("")}</div>`;
+      `<a class="ev out o-${esc(o.x.origem)} ${o.x.fim&&o.x.fim<hoje?"atr":""}" href="#" onclick="abrirOutra('${esc(o.x.id)}');return false" title="${esc(o.x.origem+": "+o.x.titulo+(o.x.fim&&o.x.fim<hoje?" (atrasada)":""))}">${o.x.fim&&o.x.fim<hoje?"⚠ ":""}${esc(o.x.titulo)}</a>`).join("")}</div>`;
     if(i===34&&new Date(ini.getFullYear(),ini.getMonth(),ini.getDate()+35).getMonth()!==mes) break;
   }
   return h+`</div><div class="ajuda" style="margin-top:6px">Arraste uma atividade para outro dia para mudar o prazo · segure em cima de ◀ ▶ para trocar de mês.</div>`;
@@ -1748,7 +1751,78 @@ pendCarregar();
 /* 28/09 (noite): o que ficou saindo retoma JÁ (antes esperava a lista das
    atividades carregar — a mensagem ficava "enviando" esse tempo todo) */
 setTimeout(retomarPendentes,300); setTimeout(retomarEdicoes,300);
-carregar(false).then(()=>{ const h=location.hash.slice(1); if(h) abrirAtv(h); });
+
+/* ===================== 16/10 — ATIVIDADES DAS OUTRAS ABAS, EDITADAS AQUI =====================
+ * Antes, clicar numa atividade de Obras/Vendas/Documentos levava para a aba
+ * de origem — e quem não tinha acesso àquela aba não conseguia dar baixa.
+ * Agora abre nesta janela: o servidor (atvOutraAbrir/atvOutraGravar, no
+ * MapaObras.gs) libera quem é RESPONSÁVEL pela atividade, mesmo sem o acesso.
+ * Vendas/Documentos: a "baixa" é a coluna da obra que fecha a atividade
+ * (como na aba de origem). VISTORIA PRÉVIA e REPAROS VISTORIA seguem as
+ * regras novas da entrega (conferência do Caio / entregou a casa). */
+let OUTRA=null;
+const ORIGEM_ABA={Vendas:"vendas.html",Documentos:"documentos.html",Obras:"obras.html"};
+async function abrirOutra(id){
+  id=String(id||"").replace(/-/g,"");
+  const x=(OUT.itens||[]).find(i=>i.id===id)||{id,titulo:"Atividade",origem:""};
+  OUTRA={id,origem:x.origem,titulo:x.titulo,campos:[],carregando:true,x};
+  pintarOutra();
+  document.getElementById("mf").classList.add("on");
+  let r=null; try{ r=await chamar({action:"atvOutraAbrir",id,origem:x.origem},60000,true); }catch(e){ r=null; }
+  if(!OUTRA||OUTRA.id!==id) return;
+  if(r&&r.ok){ OUTRA=Object.assign({x},r); }
+  else { OUTRA.carregando=false; OUTRA.erro=(r&&r.erro)||"sem conexão"; }
+  pintarOutra();
+}
+function campoOutra(c){
+  const ro=c.soLeitura||RO, v=c.valor==null?"":c.valor, id="ou-"+c.k.replace(/[^a-z0-9]/gi,"_");
+  let ctl;
+  if(ro) ctl=`<div class="ro" style="padding:8px 10px;border:1px solid var(--border2);border-radius:8px;min-height:36px;white-space:pre-wrap">${c.tipo==="date"?(v?br(v):"—"):esc(v||"—")}</div>`;
+  else if(c.tipo==="date") ctl=`<input type="date" id="${id}" value="${esc(String(v).slice(0,10))}" onchange="gravarOutra('${esc(c.k)}',this.value,this)">`;
+  else if(c.tipo==="rich_text") ctl=`<textarea id="${id}" rows="5" style="width:100%;font:inherit;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--sup);color:var(--text)" placeholder="O que ficou pendente (Enter quebra a linha)">${esc(v)}</textarea>
+      <div style="text-align:right;margin-top:6px"><button class="bt bt-mini" onclick="gravarOutra('${esc(c.k)}',document.getElementById('${id}').value,this)">Salvar observações</button></div>`;
+  else { const ops=(c.opcoes||[]).slice(); if(v&&ops.indexOf(v)<0) ops.unshift(v);
+    ctl=`<select id="${id}" onchange="gravarOutra('${esc(c.k)}',this.value,this)"><option value="">—</option>${ops.map(o=>`<option ${o===v?"selected":""}>${esc(o)}</option>`).join("")}</select>`; }
+  return `<div class="campo ${c.tipo==="rich_text"?"full":""}"><label>${esc(c.label)}</label>${ctl}</div>`;
+}
+function pintarOutra(){
+  const o=OUTRA; if(!o) return;
+  document.getElementById("mf-tit").textContent=o.titulo||"Atividade";
+  document.getElementById("mf-sub").textContent=[o.origem,o.tipo,o.endereco].filter(Boolean).join(" · ")||"Atividade de outra aba";
+  document.getElementById("mf-erro").textContent=o.erro?("Não abriu: "+(o.erro==="SEM_PERMISSAO"?"você não é responsável por esta atividade nem tem acesso à aba "+(o.origem||""):erroTexto(o.erro))):"";
+  const corpo=document.getElementById("mf-corpo");
+  if(o.carregando){ corpo.innerHTML=`<div class="ajuda"><span class="load"></span> Abrindo a atividade…</div>`; }
+  else if(o.erro){ corpo.innerHTML=`<div class="ajuda">${o.x&&o.x.fim?"Prazo: "+br(o.x.fim):""}</div>`; }
+  else {
+    const ajuda=normTipo(o.tipo)==="VISTORIA PREVIA"?`<div class="ajuda full" style="grid-column:1/-1">Marcar <b>SIM</b> trava o contador e espera a <b>conferência da conclusão</b> (Caio): <b>Conferido OK</b> conclui a atividade; <b>Necessita de intervenções</b> volta para executando reparos.</div>`
+      :normTipo(o.tipo)==="REPAROS VISTORIA"?`<div class="ajuda full" style="grid-column:1/-1">A atividade só é concluída com <b>Entregou a casa = SIM</b>. Reparos = SIM trava o contador.</div>`
+      :o.origem!=="Obras"?`<div class="ajuda full" style="grid-column:1/-1">Preencher a coluna abaixo dá a baixa (o mesmo que fazer pela aba ${esc(o.origem)}). Vazio ou NÃO = continua em aberto.</div>`:"";
+    corpo.innerHTML=`<div class="fgrid">${(o.campos||[]).map(campoOutra).join("")||`<div class="ajuda full">Esta atividade não tem campo para editar por aqui.</div>`}${ajuda}</div>`;
+  }
+  const vis=o.vistoria&&o.vendaId?`<a class="bt az" href="https://devmoraiseng.github.io/OBRAS-GERAL/#vist=${esc(o.vendaId)}" target="_blank" rel="noopener">📋 Formulário de vistoria</a>`:"";
+  const aba=o.podeAba&&ORIGEM_ABA[o.origem]?`<a class="bt ghost" href="${ORIGEM_ABA[o.origem]}">Abrir na aba ${esc(o.origem)} ↗</a>`:"";
+  document.getElementById("mf-acoes").innerHTML=`${vis}${aba}<button class="bt ghost" onclick="fecharOutra()">Fechar</button>`;
+}
+const normTipo=t=>String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().trim();
+function fecharOutra(){ OUTRA=null; fecharForm(); if(location.hash.indexOf("#outra=")===0) history.replaceState(null,"",location.pathname); }
+async function gravarOutra(k,valor,el){
+  const o=OUTRA; if(!o||RO) return;
+  if(el) el.disabled=true; document.getElementById("mf-erro").textContent="";
+  let r=null; try{ r=await chamar({action:"atvOutraGravar",id:o.id,origem:o.origem,vendaId:o.vendaId,k,valor:valor||null,quando:hojeISO()},90000,true); }catch(e){ r=null; }
+  if(el) el.disabled=false;
+  if(!(r&&r.ok)){ const msg=r&&r.erro==="SO_CAIO_OU_ADM_CONFEREM"?"só o Caio ou um ADM fazem a conferência":r&&r.erro==="SEM_PERMISSAO"?"sem permissão":erroTexto(r&&r.erro||"sem conexão");
+    document.getElementById("mf-erro").textContent="Não gravou: "+msg; toast("Não gravou: "+msg); return; }
+  (o.campos||[]).forEach(c=>{ if(c.k===k) c.valor=valor||""; });
+  if(r.valores) Object.keys(r.valores).forEach(kk=>{ (o.campos||[]).forEach(c=>{ if(c.k==="v:"+kk) c.valor=r.valores[kk]||""; }); });
+  if(k==="fim"){ const it=(OUT.itens||[]).find(i=>i.id===o.id); if(it) it.fim=valor||null; }
+  if(r.fechada){
+    OUT.itens=(OUT.itens||[]).filter(i=>i.id!==o.id); try{ cacheSet("atv_outras",OUT); }catch(e){}
+    toast("Gravado ✓ — atividade concluída, saiu da sua lista"); fecharOutra(); pintar(); return;
+  }
+  try{ cacheSet("atv_outras",OUT); }catch(e){}
+  toast("Gravado no Notion ✓"); pintarOutra(); pintar();
+}
+carregar(false).then(()=>{ const h=location.hash.slice(1); if(h.indexOf("outra=")===0) abrirOutra(h.slice(6)); else if(h) abrirAtv(h); });
 /* página fechando: comentário (sem arquivo por subir) e alteração ainda não
    confirmados saem assim mesmo, num pedido pequeno que o navegador termina
    mesmo depois de a página fechar (keepalive). O servidor não duplica (opId). */
@@ -1774,7 +1848,7 @@ async function sincronizarNotion(){
 }
 setInterval(sincronizarNotion,60000);
 document.addEventListener("visibilitychange",()=>{ if(!document.hidden) sincronizarNotion(); });
-window.addEventListener("hashchange",()=>{ const h=location.hash.slice(1); if(h&&h!==ABERTA) abrirAtv(h); });
+window.addEventListener("hashchange",()=>{ const h=location.hash.slice(1); if(h.indexOf("outra=")===0){ abrirOutra(h.slice(6)); return; } if(h&&h!==ABERTA) abrirAtv(h); });
 
 </script>
 </body>

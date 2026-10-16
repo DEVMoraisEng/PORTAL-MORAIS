@@ -1482,3 +1482,9 @@ if("serviceWorker" in navigator){ window.addEventListener("load", ()=>navigator.
   function iniciar(){ aplicar(); obs.observe(document.body,{childList:true,subtree:true}); }
   if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",iniciar); else iniciar();
 })();
+
+/* 16/10/26 — MODO ESCURO LEGÍVEL: confere o contraste dos textos no tema
+   escuro e clareia a cor que ficou ruim (ver tema-escuro.js). Carregado aqui
+   para valer em todas as páginas que usam o app.js. */
+(function(){ try{ if(window.__temaEscuroOk||document.querySelector('script[src*="tema-escuro.js"]')) return;
+  const s=document.createElement("script"); s.src="tema-escuro.js?v=1"; s.async=true; (document.head||document.documentElement).appendChild(s); }catch(e){} })();
