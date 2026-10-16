@@ -150,6 +150,14 @@
   .eb-rico code{background:#eef3f5;border-radius:4px;padding:0 4px;font-size:12.5px}
   .eb-ed{position:absolute;right:26px;top:3px;display:none;border:0;background:transparent;cursor:pointer;color:var(--text4);font-size:12px;padding:2px 5px;border-radius:6px}
   .eb-b:hover .eb-ed{display:block}.eb-ed:hover{background:#e7f0f3;color:var(--azul)}
+  /* v12 (16/10): o ✎ ficava em cima do ↓ (os dois em right:26px). Agora os
+     botões ficam lado a lado — 🗑 · ↓ · ↑ · ✎ — e o texto reserva o espaço
+     deles, para nada ficar por baixo dos botões. */
+  .eb-b:has(> .eb-mv){padding-right:78px}
+  .eb-b:has(> .eb-ed){padding-right:54px}
+  .eb-b:has(> .eb-ed):has(> .eb-mv){padding-right:102px}
+  .eb-b:has(> .eb-mv) > .eb-ed{right:76px}
+  @media (hover:none){ .eb-b .eb-ed{display:block} }
   .eb-pg{display:inline-flex;align-items:center;gap:7px;font-weight:700;color:var(--azul);cursor:pointer;padding:3px 6px;border-radius:7px}
   .eb-pg:hover{background:#e7f0f3}
   .eb-nav{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:12.5px;color:var(--text3)}
