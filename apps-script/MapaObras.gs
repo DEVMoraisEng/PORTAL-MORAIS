@@ -67,7 +67,7 @@
  * fazer a conferência da conclusão, além do ADM).
  *************************************************************************/
 
-var MO_VERSAO = "2026-10-16 mo8";
+var MO_VERSAO = "2026-10-16 mo9";
 var MO_EVENTO = "obras_notion_update";            // TEM que bater com o types: do fetch_notion.yml
 var MO_JANELA_MS = 2 * 60 * 1000;                  // no máximo 1 build a cada 2 min
 var MO_CAMPOS = {
@@ -127,6 +127,8 @@ function moRotear_(action, sess, p) {
     case "obraAtvAnexo":     return moAtvAnexo_(sess, p || {});
     case "obraAtvArquivos":  return moAtvArquivos_(sess, p || {});
     case "obraAtvTirar":     return moAtvTirar_(sess, p || {});
+    case "atvOutraConteudo": return moOutraConteudo_(sess, p || {});
+    case "atvOutraCheck":    return moOutraCheck_(sess, p || {});
     case "mapaVersao":       return { ok: true, versao: MO_VERSAO };
     default:                 return null;
   }
@@ -1002,6 +1004,20 @@ function moTesteGitHub() { Logger.log(JSON.stringify(moAvisarGitHub_("teste manu
  * atividade informada (sobe pelos pais e confere).
  * ====================================================================== */
 function moPodeObrasEditar_(sess) { return ehAdm_(sess) || temAcesso_(sess, "OBRAS"); }
+/* mo9: a página é uma ATIVIDADE (Obras, Vendas ou Documentos) e a pessoa pode
+   mexer nela — quem tem a aba, o responsável ou ADM (igual à janela da aba
+   Atividades). Devolve a origem. */
+function moAtvPagina_(sess, pageId) {
+  var pg = notion_("GET", "/pages/" + pageId, null);
+  var db = moId_((pg.parent || {}).database_id), origem = null;
+  if (db === moId_(OBRA_ATIV_DB)) origem = "Obras";
+  else if (db === moId_(CONFIG.DB.ATIVIDADES_VENDAS)) origem = "Vendas";
+  else if (typeof DB_ATIVIDADES_DOCS !== "undefined" && db === moId_(DB_ATIVIDADES_DOCS)) origem = "Documentos";
+  if (!origem) throw "NAO_E_ATIVIDADE";
+  if (ehTestes_(sess)) throw "MODO_TESTE";
+  if (!(moOutraPode_(sess, null, origem, pg.properties || {}) || (origem === "Obras" && moPodeObrasEditar_(sess)))) throw "SEM_PERMISSAO";
+  return origem;
+}
 function moId_(x) { return String(x || "").replace(/-/g, ""); }
 function moBlocoDaAtv_(blockId, pageId) {
   var b = notion_("GET", "/blocks/" + blockId, null), pai = b.parent || {}, voltas = 0;
@@ -1022,11 +1038,9 @@ function moAtvConteudoVelho_(pageId) {
   try { _cache_().remove("atv_cont_t_" + moId_(pageId)); } catch (e) {}
 }
 function moAtvTexto_(sess, p) {
-  if (!moPodeObrasEditar_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
-  if (ehTestes_(sess)) return { ok: false, erro: "MODO_TESTE" };
   if (!p.pageId || (!p.blockId && !p.depoisDe)) return { ok: false, erro: "FALTA_PARAM" };
   var feito = moOpFeito_(p.opId); if (feito) return feito;
-  try { obraAtvConfere_(p.pageId); } catch (e) { return { ok: false, erro: String(e) }; }
+  try { moAtvPagina_(sess, p.pageId); } catch (e) { return { ok: false, erro: String(e) }; }
   var rt = moRtLongo_(p.texto), id;
   try {
     if (p.blockId) {
@@ -1047,12 +1061,10 @@ function moAtvTexto_(sess, p) {
   return moOpGuardar_(p.opId, { ok: true, id: moId_(id) });
 }
 function moAtvAnexo_(sess, p) {
-  if (!moPodeObrasEditar_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
-  if (ehTestes_(sess)) return { ok: false, erro: "MODO_TESTE" };
   var a = p.arquivo || {};
   if (!p.pageId || !p.depoisDe || !a.dataBase64) return { ok: false, erro: "FALTA_PARAM" };
   var feito = moOpFeito_(p.opId); if (feito) return feito;
-  try { obraAtvConfere_(p.pageId); } catch (e) { return { ok: false, erro: String(e) }; }
+  try { moAtvPagina_(sess, p.pageId); } catch (e) { return { ok: false, erro: String(e) }; }
   try {
     var d = moBlocoDaAtv_(p.depoisDe, p.pageId);
     var mime = String(a.mime || "application/octet-stream"), nome = String(a.nome || "arquivo").replace(/[\\/:*?"<>|]+/g, "_").slice(0, 90);
@@ -1069,8 +1081,8 @@ function moAtvAnexo_(sess, p) {
   } catch (e) { return { ok: false, erro: String(e).slice(0, 160) }; }
 }
 function moAtvArquivos_(sess, p) {
-  if (!moPodeObrasEditar_(sess) && !temAcesso_(sess, "DOCUMENTOS")) return { ok: false, erro: "SEM_PERMISSAO" };
   if (!p.pageId) return { ok: false, erro: "FALTA_PARAM" };
+  try { moAtvPagina_(sess, p.pageId); } catch (e) { return { ok: false, erro: String(e) }; }
   var ids = [].concat(p.ids || []).map(moId_).filter(function (x) { return /^[0-9a-f]{32}$/.test(x); }).slice(0, 30);
   if (!ids.length) return { ok: true, arquivos: {} };
   var tok = tokenNotion_(), out = {}, alvo = moId_(p.pageId);
@@ -1092,11 +1104,9 @@ function moAtvArquivos_(sess, p) {
 }
 /* tirar uma foto/vídeo/arquivo anexado errado (só anexo — texto e perguntas não) */
 function moAtvTirar_(sess, p) {
-  if (!moPodeObrasEditar_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
-  if (ehTestes_(sess)) return { ok: false, erro: "MODO_TESTE" };
   if (!p.pageId || !p.blockId) return { ok: false, erro: "FALTA_PARAM" };
   try {
-    obraAtvConfere_(p.pageId);
+    moAtvPagina_(sess, p.pageId);
     var b = moBlocoDaAtv_(p.blockId, p.pageId);
     if (["image", "video", "file", "pdf", "audio"].indexOf(b.type) < 0) return { ok: false, erro: "SO_ANEXO" };
     notion_("DELETE", "/blocks/" + b.id, null);
@@ -1105,3 +1115,58 @@ function moAtvTirar_(sess, p) {
   console.log("OBRAS formulário: " + (sess.n || sess.u) + " tirou o anexo " + moId_(p.blockId) + " de " + moId_(p.pageId));
   return { ok: true };
 }
+
+/* mo9 — CONTEÚDO na janela da aba Atividades (atividade de outra aba).
+   Mesmo formato do obraAtvConteudo (id, tipo, texto, links, marcado, filhos). */
+function moLerBlocos_(pageId) {
+  var tok = tokenNotion_();
+  function pedido(x) {
+    return { url: "https://api.notion.com/v1/blocks/" + x.id + "/children?page_size=100" + (x.cursor ? "&start_cursor=" + x.cursor : ""),
+             method: "get", muteHttpExceptions: true,
+             headers: { Authorization: "Bearer " + tok, "Notion-Version": CONFIG.NOTION_VERSION } };
+  }
+  function texto(rt) { return (rt || []).map(function (x) { return x.plain_text || ""; }).join(""); }
+  var raiz = { filhos: [] }, fila = [{ id: pageId, destino: raiz, nivel: 1 }], total = 0, voltas = 0;
+  while (fila.length && voltas++ < 40) {
+    var lote = fila.splice(0, 8), resps = UrlFetchApp.fetchAll(lote.map(pedido)), atrasou = false;
+    resps.forEach(function (r, i) {
+      var x = lote[i], code = r.getResponseCode();
+      if (code === 429 || code >= 500) { fila.push(x); atrasou = true; return; }
+      if (code >= 300) return;
+      var j = JSON.parse(r.getContentText());
+      (j.results || []).forEach(function (b) {
+        if (total++ > 500) return;
+        var t = b.type, d = b[t] || {};
+        var item = { id: b.id, tipo: t, texto: texto(d.rich_text) };
+        var lk = (d.rich_text || []).filter(function (z) { return z.href; }).map(function (z) { return { t: z.plain_text || "", h: z.href }; });
+        if (lk.length) item.links = lk;
+        if (t === "to_do") item.marcado = !!d.checked;
+        if (t === "child_page") item.texto = d.title || "";
+        x.destino.filhos.push(item);
+        if (b.has_children && x.nivel < 4 && t !== "child_page" && t !== "child_database") { item.filhos = []; fila.push({ id: b.id, destino: item, nivel: x.nivel + 1 }); }
+      });
+      if (j.has_more) fila.push({ id: x.id, destino: x.destino, nivel: x.nivel, cursor: j.next_cursor });
+    });
+    if (atrasou) Utilities.sleep(1200);
+  }
+  return raiz.filhos;
+}
+function moOutraConteudo_(sess, p) {
+  var id = p.pageId || p.id;
+  if (!id) return { ok: false, erro: "FALTA_PARAM" };
+  var origem;
+  try { origem = moAtvPagina_(sess, id); } catch (e) { return { ok: false, erro: String(e) }; }
+  return { ok: true, origem: origem, blocos: moLerBlocos_(id) };
+}
+function moOutraCheck_(sess, p) {
+  if (!p.pageId || !p.blockId) return { ok: false, erro: "FALTA_PARAM" };
+  try {
+    moAtvPagina_(sess, p.pageId);
+    var b = moBlocoDaAtv_(p.blockId, p.pageId);
+    if (b.type !== "to_do") return { ok: false, erro: "NAO_E_CHECKLIST" };
+    notion_("PATCH", "/blocks/" + b.id, { to_do: { checked: !!p.marcado } });
+  } catch (e) { return { ok: false, erro: String(e).slice(0, 160) }; }
+  moAtvConteudoVelho_(p.pageId);
+  return { ok: true };
+}
+
