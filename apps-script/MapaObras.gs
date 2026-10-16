@@ -67,7 +67,7 @@
  * fazer a conferência da conclusão, além do ADM).
  *************************************************************************/
 
-var MO_VERSAO = "2026-10-16 mo6";
+var MO_VERSAO = "2026-10-16 mo7";
 var MO_EVENTO = "obras_notion_update";            // TEM que bater com o types: do fetch_notion.yml
 var MO_JANELA_MS = 2 * 60 * 1000;                  // no máximo 1 build a cada 2 min
 var MO_CAMPOS = {
@@ -272,15 +272,18 @@ function moAtvAptaIndice_() {
       var R = r.properties || {}, t = sel_(getTol_(R, "TIPO")) || "";
       var nt = normDist_(t); tipos[nt] = (tipos[nt] || 0) + 1;
       if (!moEhTipoApta_(t)) return;
-      var d = moDia_(dt_(getTol_(R, "DATA INICIAL")) || r.created_time);
+      /* data = quando a atividade foi CRIADA (é quando PROCESSO CONFORME? virou SIM) */
+      var d = moDia_(r.created_time) || moDia_(dt_(getTol_(R, "DATA INICIAL")));
+      var fin = R["ATIVIDADE FINALIZADA"] && R["ATIVIDADE FINALIZADA"].formula, aberta = true;
+      if (fin) aberta = !(fin.boolean === true || /SIM|FINALIZ|TRUE|✅/i.test(String(fin.string || "")));
       var tit = "";
       for (var n in R) {
         if (!R[n]) continue;
         if (R[n].type === "title") tit = (R[n].title || []).map(function (x) { return x.plain_text || ""; }).join("");
         if (R[n].type === "relation")   /* qualquer relação: a da VENDA é a que bate com o id da casa */
-          (R[n].relation || []).forEach(function (x) { var k = String(x.id).replace(/-/g, ""); if (d && (!datas[k] || d < datas[k])) datas[k] = d; });
+          (R[n].relation || []).forEach(function (x) { var k = String(x.id).replace(/-/g, ""); if (d && moAptaMelhor_(datas[k], d, aberta)) datas[k] = { d: d, aberta: aberta }; });
       }
-      if (d) titulos.push({ t: normDist_(tit), d: d });
+      if (d) titulos.push({ t: normDist_(tit), d: d, aberta: aberta });
       if (amostra.length < 4) amostra.push({ titulo: tit, criada: r.created_time, props: Object.keys(R).map(function (n) { var q = R[n] || {}; return n + ":" + q.type + (q.type === "relation" ? "(" + (q.relation || []).length + ")" : ""); }) });
     });
   } catch (e) { erro = String(e).slice(0, 160); console.log("MAPA índice VISTORIA PRÉVIA: " + e); }
@@ -288,17 +291,31 @@ function moAtvAptaIndice_() {
   if (!erro) { try { cachePut_("mo_atv_apta_idx", out, 1800); } catch (e) {} }
   return out;
 }
-/* sem relação com a casa: procura pelo título da atividade (endereço + casa) */
+/* a atividade que vale: a EM ABERTO mais recente; sem nenhuma aberta, a mais recente */
+function moAptaMelhor_(atual, d, aberta) {
+  if (!atual) return true;
+  if (aberta !== atual.aberta) return aberta;
+  return d > atual.d;
+}
+function moAptaData_(idx, id, endereco, casa) {
+  var r = idx.datas[id];
+  if (r) return typeof r === "string" ? r : r.d;
+  return moAptaPorTitulo_(idx, endereco, casa);
+}
+/* sem relação com a casa: procura pelo título da atividade
+   ("CONFERIR SE A CASA 1TB 21 QD 51 LT 35 ESTA APTA PARA A VISTORIA") */
 function moAptaPorTitulo_(idx, endereco, casa) {
   var e = normDist_(endereco || ""); if (!e || !idx.titulos) return "";
-  var best = "";
+  var best = null;
   idx.titulos.forEach(function (x) {
-    if (x.t.indexOf(e) < 0) return;
-    var m = x.t.slice(x.t.indexOf(e) + e.length).match(/\b(?:CASA|CS)\s*0*(\d+)/);
+    var i = x.t.indexOf(e); if (i < 0) return;
+    var depois = x.t.slice(i + e.length);
+    if (/^\s*-?\s*\d/.test(depois) && !/^\s*(CS|CASA)/.test(depois)) return;     /* LT 3 ≠ LT 35 */
+    var m = x.t.slice(0, i).match(/(?:CASA|CS)\s*0*(\d+)\s*$/) || depois.match(/^\s*-?\s*(?:CASA|CS)\s*0*(\d+)/);
     if (m && casa != null && String(+m[1]) !== String(casa)) return;
-    if (!best || x.d < best) best = x.d;
+    if (moAptaMelhor_(best, x.d, x.aberta)) best = { d: x.d, aberta: x.aberta };
   });
-  return best;
+  return best ? best.d : "";
 }
 /* ADM: refaz o início do prazo "casa apta" pela data da atividade (onde ficou
    com a data da venda). Sem p.aplicar só mostra o que mudaria. */
@@ -317,7 +334,7 @@ function moRecontarApta_(sess, p) {
     if (normDist_(ler(P, "conferencia")) === normDist_(MO_CONF_OK)) return;
     var id = String(pg.id).replace(/-/g, ""), c = null; try { c = JSON.parse(ler(P, "contador") || "null"); } catch (e) {}
     var end = moTextoProp_(P["ENDEREÇO"]) || "", ncasa = (P["CASA"] && P["CASA"].number);
-    var a = (c && c.a) || null, nova = idx.datas[id] || moAptaPorTitulo_(idx, end, ncasa) || "";
+    var a = (c && c.a) || null, nova = moAptaData_(idx, id, end, ncasa) || "";
     var item = { id: id, endereco: end, casa: (P["CASA"] && P["CASA"].number) || null,
                  venda: P["DATA DA VENDA"] && P["DATA DA VENDA"].date ? moDia_(P["DATA DA VENDA"].date.start) : "", ini: a && a.ini || "", atividade: nova };
     lista.push(item);
@@ -467,7 +484,7 @@ function moPreencherContadores_(limite) {
     if (atv === null) atv = moAtvAptaIndice_().datas;
     var id = String(pg.id).replace(/-/g, "");
     var dv = P["DATA DA VENDA"] && P["DATA DA VENDA"].date ? moDia_(P["DATA DA VENDA"].date.start) : "";
-    var aT = atv[id] || moAptaPorTitulo_(moAtvAptaIndice_(), moTextoProp_(P["ENDEREÇO"]), P["CASA"] && P["CASA"].number);
+    var aT = moAptaData_(moAtvAptaIndice_(), id, moTextoProp_(P["ENDEREÇO"]), P["CASA"] && P["CASA"].number);
     var ini = aT || dv || moDia_(pg.created_time) || hoje;
     var a = { ini: ini, acc: 0, ret: ini, trav: null }, rr = {};
     if (normDist_(ler(P, "casa_apta_vistoria")) === "SIM") { a.acc = Math.max(0, moDif_(ini, hoje)); a.trav = hoje; }
