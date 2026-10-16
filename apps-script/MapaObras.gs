@@ -67,7 +67,7 @@
  * fazer a conferência da conclusão, além do ADM).
  *************************************************************************/
 
-var MO_VERSAO = "2026-10-16 mo7";
+var MO_VERSAO = "2026-10-16 mo8";
 var MO_EVENTO = "obras_notion_update";            // TEM que bater com o types: do fetch_notion.yml
 var MO_JANELA_MS = 2 * 60 * 1000;                  // no máximo 1 build a cada 2 min
 var MO_CAMPOS = {
@@ -123,6 +123,10 @@ function moRotear_(action, sess, p) {
     case "atvOutraAbrir":    return moOutraAbrir_(sess, p || {});
     case "atvOutraGravar":   return moOutraGravar_(sess, p || {});
     case "mapaRecontarApta": return moRecontarApta_(sess, p || {});
+    case "obraAtvTexto":     return moAtvTexto_(sess, p || {});
+    case "obraAtvAnexo":     return moAtvAnexo_(sess, p || {});
+    case "obraAtvArquivos":  return moAtvArquivos_(sess, p || {});
+    case "obraAtvTirar":     return moAtvTirar_(sess, p || {});
     case "mapaVersao":       return { ok: true, versao: MO_VERSAO };
     default:                 return null;
   }
@@ -982,3 +986,122 @@ function moRemoverGatilho() {
 }
 /* teste pelo editor: dispara um build do mapa agora */
 function moTesteGitHub() { Logger.log(JSON.stringify(moAvisarGitHub_("teste manual", true))); }
+
+/* ======================================================================
+ * mo8 (16/10) — FORMULÁRIOS DAS ATIVIDADES DA ABA OBRAS
+ * Os formulários (ex.: FORMULÁRIO PARA INÍCIO DE OBRA) têm perguntas com um
+ * título "Resposta:" embaixo. A tela da obra só mostrava o conteúdo e marcava
+ * os quadradinhos — não dava para escrever a resposta nem anexar foto/vídeo.
+ *   obraAtvTexto    grava a resposta: altera o parágrafo que já existe embaixo
+ *                   do "Resposta:" ou cria um parágrafo logo depois dele;
+ *   obraAtvAnexo    foto / vídeo / PDF logo depois da resposta (no lugar
+ *                   certo da página, não no fim);
+ *   obraAtvArquivos endereço (que vence em 1 h no Notion) das fotos e
+ *                   arquivos que já estão na página, para a tela mostrar.
+ * Quem pode: quem tem OBRAS (ou ADM). O bloco tem que estar DENTRO da
+ * atividade informada (sobe pelos pais e confere).
+ * ====================================================================== */
+function moPodeObrasEditar_(sess) { return ehAdm_(sess) || temAcesso_(sess, "OBRAS"); }
+function moId_(x) { return String(x || "").replace(/-/g, ""); }
+function moBlocoDaAtv_(blockId, pageId) {
+  var b = notion_("GET", "/blocks/" + blockId, null), pai = b.parent || {}, voltas = 0;
+  while (pai.type === "block_id" && voltas++ < 6) pai = (notion_("GET", "/blocks/" + pai.block_id, null).parent || {});
+  if (pai.type !== "page_id" || moId_(pai.page_id) !== moId_(pageId)) throw "BLOCO_FORA_DA_ATIVIDADE";
+  return b;
+}
+function moPaiDoBloco_(b) { var q = b.parent || {}; return q.type === "page_id" ? q.page_id : q.block_id; }
+function moOpFeito_(opId) { if (!opId) return null; try { return cacheGet_("mo_op_" + opId); } catch (e) { return null; } }
+function moOpGuardar_(opId, r) { if (opId) { try { cachePut_("mo_op_" + opId, r, 3600); } catch (e) {} } return r; }
+function moRtLongo_(txt) {
+  var t = String(txt || ""), out = [];
+  for (var i = 0; i < t.length && out.length < 50; i += 1900) out.push({ type: "text", text: { content: t.slice(i, i + 1900) } });
+  return out;
+}
+function moAtvConteudoVelho_(pageId) {
+  try { cacheRemover_("atv_cont_" + moId_(pageId)); } catch (e) {}
+  try { _cache_().remove("atv_cont_t_" + moId_(pageId)); } catch (e) {}
+}
+function moAtvTexto_(sess, p) {
+  if (!moPodeObrasEditar_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
+  if (ehTestes_(sess)) return { ok: false, erro: "MODO_TESTE" };
+  if (!p.pageId || (!p.blockId && !p.depoisDe)) return { ok: false, erro: "FALTA_PARAM" };
+  var feito = moOpFeito_(p.opId); if (feito) return feito;
+  try { obraAtvConfere_(p.pageId); } catch (e) { return { ok: false, erro: String(e) }; }
+  var rt = moRtLongo_(p.texto), id;
+  try {
+    if (p.blockId) {
+      var b = moBlocoDaAtv_(p.blockId, p.pageId);
+      if (b.type !== "paragraph") return { ok: false, erro: "NAO_E_TEXTO" };
+      notion_("PATCH", "/blocks/" + b.id, { paragraph: { rich_text: rt } });
+      id = b.id;
+    } else {
+      var d = moBlocoDaAtv_(p.depoisDe, p.pageId);
+      var r = notion_("PATCH", "/blocks/" + moPaiDoBloco_(d) + "/children",
+        { children: [{ object: "block", type: "paragraph", paragraph: { rich_text: rt } }], after: d.id });
+      id = ((r.results || [])[0] || {}).id;
+      if (!id) return { ok: false, erro: "NOTION_NAO_CRIOU" };
+    }
+  } catch (e) { return { ok: false, erro: String(e).slice(0, 160) }; }
+  moAtvConteudoVelho_(p.pageId);
+  console.log("OBRAS formulário: " + (sess.n || sess.u) + " respondeu em " + moId_(p.pageId));
+  return moOpGuardar_(p.opId, { ok: true, id: moId_(id) });
+}
+function moAtvAnexo_(sess, p) {
+  if (!moPodeObrasEditar_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
+  if (ehTestes_(sess)) return { ok: false, erro: "MODO_TESTE" };
+  var a = p.arquivo || {};
+  if (!p.pageId || !p.depoisDe || !a.dataBase64) return { ok: false, erro: "FALTA_PARAM" };
+  var feito = moOpFeito_(p.opId); if (feito) return feito;
+  try { obraAtvConfere_(p.pageId); } catch (e) { return { ok: false, erro: String(e) }; }
+  try {
+    var d = moBlocoDaAtv_(p.depoisDe, p.pageId);
+    var mime = String(a.mime || "application/octet-stream"), nome = String(a.nome || "arquivo").replace(/[\\/:*?"<>|]+/g, "_").slice(0, 90);
+    var fu = melSubirArquivo_(nome, mime, a.dataBase64);
+    var tipo = mime.indexOf("image/") === 0 ? "image" : mime.indexOf("video/") === 0 ? "video" : mime === "application/pdf" ? "pdf" : "file";
+    var bl = { object: "block", type: tipo }; bl[tipo] = { type: "file_upload", file_upload: { id: fu } };
+    if (tipo === "file") bl[tipo].name = nome;
+    var r = notion_("PATCH", "/blocks/" + moPaiDoBloco_(d) + "/children", { children: [bl], after: d.id });
+    var id = ((r.results || [])[0] || {}).id;
+    if (!id) return { ok: false, erro: "NOTION_NAO_CRIOU" };
+    moAtvConteudoVelho_(p.pageId);
+    console.log("OBRAS formulário: " + (sess.n || sess.u) + " anexou " + tipo + " (" + nome + ") em " + moId_(p.pageId));
+    return moOpGuardar_(p.opId, { ok: true, id: moId_(id), tipo: tipo, nome: nome });
+  } catch (e) { return { ok: false, erro: String(e).slice(0, 160) }; }
+}
+function moAtvArquivos_(sess, p) {
+  if (!moPodeObrasEditar_(sess) && !temAcesso_(sess, "DOCUMENTOS")) return { ok: false, erro: "SEM_PERMISSAO" };
+  if (!p.pageId) return { ok: false, erro: "FALTA_PARAM" };
+  var ids = [].concat(p.ids || []).map(moId_).filter(function (x) { return /^[0-9a-f]{32}$/.test(x); }).slice(0, 30);
+  if (!ids.length) return { ok: true, arquivos: {} };
+  var tok = tokenNotion_(), out = {}, alvo = moId_(p.pageId);
+  var rs = UrlFetchApp.fetchAll(ids.map(function (id) {
+    return { url: "https://api.notion.com/v1/blocks/" + id, method: "get", muteHttpExceptions: true,
+             headers: { Authorization: "Bearer " + tok, "Notion-Version": CONFIG.NOTION_VERSION } };
+  }));
+  rs.forEach(function (r, i) {
+    if (r.getResponseCode() >= 300) return;
+    var b = JSON.parse(r.getContentText()), q = b.parent || {};
+    /* só blocos desta atividade (direto na página ou um nível abaixo) */
+    if (!(q.type === "page_id" && moId_(q.page_id) === alvo) && q.type !== "block_id") return;
+    var d = b[b.type] || {}, f = d.file || d.external || null;
+    if (!f || !f.url) return;
+    var nome = d.name || ((d.caption || [])[0] || {}).plain_text || decodeURIComponent(String(f.url).split("?")[0].split("/").pop() || "");
+    out[ids[i]] = { url: f.url, nome: nome, tipo: b.type };
+  });
+  return { ok: true, arquivos: out };
+}
+/* tirar uma foto/vídeo/arquivo anexado errado (só anexo — texto e perguntas não) */
+function moAtvTirar_(sess, p) {
+  if (!moPodeObrasEditar_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
+  if (ehTestes_(sess)) return { ok: false, erro: "MODO_TESTE" };
+  if (!p.pageId || !p.blockId) return { ok: false, erro: "FALTA_PARAM" };
+  try {
+    obraAtvConfere_(p.pageId);
+    var b = moBlocoDaAtv_(p.blockId, p.pageId);
+    if (["image", "video", "file", "pdf", "audio"].indexOf(b.type) < 0) return { ok: false, erro: "SO_ANEXO" };
+    notion_("DELETE", "/blocks/" + b.id, null);
+  } catch (e) { return { ok: false, erro: String(e).slice(0, 160) }; }
+  moAtvConteudoVelho_(p.pageId);
+  console.log("OBRAS formulário: " + (sess.n || sess.u) + " tirou o anexo " + moId_(p.blockId) + " de " + moId_(p.pageId));
+  return { ok: true };
+}
