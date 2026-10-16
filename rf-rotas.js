@@ -39,7 +39,7 @@
     /* v8 (28/09 noite): atvUpdate também — a baixa não espera o pré-carregamento */
     /* v9 (28/09 fim do dia): Mural, aniversários e checklists também — são o que a tela mostra primeiro */
     const CHAT=["atvComentarios","atvComentarioNovo","atvAnexoUrl","atvOp","atvMuralCheck","atvUpdate",
-                "atvMural","aniversariantes","ckLista","atvModelos","atvOutraAbrir","atvOutraGravar"];
+                "atvMural","aniversariantes","ckLista","atvModelos"];
     if(!_faixas.chat) _faixas.chat={ max:1, emVoo:0, fila:[] };
     const original=faixaDe;
     faixaDe=function(action){ return CHAT.indexOf(action)>=0 ? _faixas.chat : original(action); };
@@ -76,5 +76,19 @@ const API_ATIVIDADES = "https://script.google.com/macros/s/AKfycbwmGaVaSo9kt2gId
     if(!_faixas.atv) _faixas.atv={ max:2, emVoo:0, fila:[] };
     const faixaAntes=faixaDe;
     faixaDe=function(action){ const f=faixaAntes(action); return (RF.indexOf(action)>=0 && f!==_faixas.chat) ? _faixas.atv : f; };
+  }catch(e){}
+})();
+
+/* v9 (16/10) — FAIXA SÓ PARA "ABRIR/GRAVAR ATIVIDADE DE OUTRA ABA"
+ * Medido ao vivo: o servidor responde em 2–5 s, mas a janela ficava 20–30 s em
+ * "Abrindo a atividade…" porque o pedido esperava, na faixa do chat, o Mural,
+ * os aniversários e os checklists que a tela carrega ao abrir. Agora tem faixa
+ * própria (mesma implantação PORTAL-ATIVIDADES) e não espera ninguém. */
+(function(){
+  try{
+    if(typeof _faixas!=="object"||typeof faixaDe!=="function") return;
+    if(!_faixas.outra) _faixas.outra={ max:2, emVoo:0, fila:[] };
+    const antes=faixaDe, SO=["atvOutraAbrir","atvOutraGravar"];
+    faixaDe=function(action){ return SO.indexOf(action)>=0 ? _faixas.outra : antes(action); };
   }catch(e){}
 })();
