@@ -198,6 +198,21 @@ tbody tr:hover td{background:#e9f6ef;cursor:pointer} tbody tr:hover td.stick{bac
 .cont details>summary{cursor:pointer;padding:8px 0;font-weight:700}
 .cont ul,.cont ol{margin:4px 0 4px 20px;padding:0}
 .cont .callout{background:var(--bg3);border-radius:8px;padding:8px 10px;margin:6px 0}
+/* 16/10: formulário — caixa de resposta embaixo de "Resposta:" + fotos/vídeos */
+.cont .resp{border:1.5px solid var(--border2);border-radius:10px;background:var(--sup);padding:8px;margin:2px 0 10px}
+.cont .resp:focus-within{border-color:var(--verde)}
+.cont .resp-t{width:100%;box-sizing:border-box;min-height:56px;resize:vertical;border:0;outline:none;background:transparent;color:var(--text);font:inherit;font-size:14px;line-height:1.45}
+.cont .resp-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px}
+.cont .resp-bar label{cursor:pointer}
+.cont .resp-st{font-size:11.5px;color:var(--text3);font-weight:600}
+.cont .resp-st.er{color:var(--verm)}
+.cont .resp-anx{display:flex;flex-wrap:wrap;gap:8px}
+.cont .resp-anx:empty{display:none}
+.cont .anx{display:inline-flex;flex-direction:column;gap:3px;max-width:100%;font-size:12px;color:var(--text3)}
+.cont .anx img{max-width:220px;max-height:180px;border-radius:8px;border:1px solid var(--border2);object-fit:cover;display:block}
+.cont .anx video{max-width:320px;max-height:220px;border-radius:8px;background:#000;display:block}
+.cont .anx a{color:var(--azul);font-weight:600}
+.cont>.anx{margin:6px 0}
 .cont hr{border:0;border-top:1px solid var(--border2);margin:10px 0}
 .progresso{height:8px;border-radius:8px;background:var(--border2);overflow:hidden;margin:4px 22px 10px}
 .progresso>div{height:100%;background:var(--verde)}
@@ -411,6 +426,8 @@ let CONTAS=(function(){ try{ const x=JSON.parse(localStorage.getItem(CONTAS_KEY)
 let ABA="obras", FILTRO="andamento", PESSOA=null, VER_FIN=false, OBRA=null, ATV=null, MODO="lista", CONT=null;
 let SORT_OB={k:"data_prevista",d:1}, SORT_ATV={k:null,d:1};
 /* conteúdo das atividades: memória + localStorage (abre na hora, confere por trás) */
+/* 16/10: resposta e anexo do formulário gravam pela ESCRITA, como o checklist */
+try{ if(typeof ACOES_NA_ESCRITA!=="undefined") ["obraAtvTexto","obraAtvAnexo","obraAtvTirar"].forEach(a=>{ if(ACOES_NA_ESCRITA.indexOf(a)<0) ACOES_NA_ESCRITA.push(a); }); }catch(e){}
 const CONT_KEY="obras_cont_v1", CONT_MEM=(function(){ try{ return JSON.parse(localStorage.getItem(CONT_KEY)||"{}")||{}; }catch(e){ return {}; } })();
 function contGuardar(id,blocos){
   CONT_MEM[id]={blocos:blocos,t:Date.now()};
@@ -1271,6 +1288,7 @@ function pintarAtvPainel(){
       :conteudoHtml(CONT.blocos)}</div>
     <div class="grp">Comentários e imagens</div><div class="pl" id="com-atv">${comentariosHtml(a.id)}</div>`;
   document.getElementById("p2-corpo").innerHTML=h;
+  if(CONT&&CONT.blocos) carregarArquivos();
 }
 async function carregarConteudo(id, tentativa){
   /* 24/09/26: 25 s por tentativa e UMA nova tentativa automática (antes: 60 s
@@ -1284,6 +1302,8 @@ async function carregarConteudo(id, tentativa){
   if(!(r&&r.ok)&&CONT_MEM[id]) return;   // falhou mas já temos uma cópia: fica com ela
   const box=document.getElementById("p2-cont"), abertos=box?[...box.querySelectorAll("details")].map(d=>d.open):[];
   CONT=(r&&r.ok)?CONT_MEM[id]:{erro:errMsg(r)};
+  /* 16/10: alguém escrevendo uma resposta — não refaz a tela por baixo dele */
+  const foc=document.activeElement; if(foc&&foc.tagName==="TEXTAREA"&&foc.closest&&foc.closest("#p2-cont")) return;
   pintarAtvPainel();
   const nb=document.getElementById("p2-cont"); if(nb) [...nb.querySelectorAll("details")].forEach((d,i)=>{ if(abertos[i]) d.open=true; });
 }
@@ -1302,17 +1322,52 @@ function linkar(txt,links){
     h=h.replace(e,`<a href="${esc(l.h)}" target="_blank" rel="noopener" title="Abre o link numa nova aba">${e}</a>`); });
   return h.replace(/(^|[\s(])(https?:\/\/[^\s<"]+[^\s<".,;:!?)\]])/gi,(m,a,u)=>a+`<a href="${u}" target="_blank" rel="noopener" title="Abre o link numa nova aba">${u}</a>`);
 }
+/* 16/10: formulários. Embaixo de um título/linha "Resposta:" vem uma caixa
+   para escrever (grava no parágrafo logo abaixo dele no Notion — ou cria) e
+   o botão de foto/vídeo, que entra logo depois da resposta. Fotos, vídeos e
+   arquivos da página aparecem (antes não apareciam). */
+/* campo de resposta: "Resposta:" (qualquer tipo) ou um TÍTULO terminado em ":"
+   ("Especificações adicionais (se houver):", "Protocolo:") que não seja
+   seguido de quadradinhos/lista */
+const LISTAS={to_do:1,bulleted_list_item:1,numbered_list_item:1};
+function ehResposta(b,nxt){
+  if(!b||LISTAS[b.tipo]) return false;
+  const t=String(b.texto||"");
+  if(/^\s*resposta\s*:?\s*$/i.test(t)) return true;
+  return /^heading_/.test(b.tipo)&&/:\s*$/.test(t)&&!(nxt&&LISTAS[nxt.tipo]);
+}
+/* o parágrafo logo abaixo é a resposta — se não for outro rótulo ("CREA:") */
+const ehRespPar=x=>x&&x.tipo==="paragraph"&&!/:\s*$/.test(x.texto||"");
+const ARQ_TIPOS={image:1,video:1,file:1,pdf:1,audio:1};
+function anxHtml(b,respId){ return `<div class="anx" data-arq="${esc(b.id)}" data-tipo="${esc(b.tipo)}" ${respId?`data-de="${esc(respId)}"`:""}>${b.tipo==="image"?"🖼 carregando a foto…":b.tipo==="video"?"🎥 carregando o vídeo…":"📎 carregando…"}</div>`; }
+function respHtml(b,ans,anexos){
+  return `<div class="resp" data-resp="${esc(b.id)}">
+    <textarea class="resp-t" data-depois="${esc(b.id)}" placeholder="Escreva a resposta aqui…" onblur="salvarResp(this)">${esc(ans?ans.texto||"":"")}</textarea>
+    <div class="resp-anx" data-anx="${esc(b.id)}">${anexos.map(x=>anxHtml(x,b.id)).join("")}</div>
+    <div class="resp-bar"><label class="bt bt-mini ghost" title="Foto, vídeo ou PDF desta resposta">📷 Foto / 🎥 Vídeo<input type="file" accept="image/*,video/*,application/pdf" multiple hidden onchange="anexarResp(this,'${esc(b.id)}')"></label>
+      <span class="resp-st" data-st="${esc(b.id)}"></span></div></div>`;
+}
 function blocosHtml(bs){
   let h="", lista=null;
   const fecha=()=>{ if(lista){ h+=`</${lista}>`; lista=null; } };
-  (bs||[]).forEach(b=>{
+  bs=bs||[];
+  for(let i=0;i<bs.length;i++){
+    const b=bs[i];
     const t=linkar(b.texto||"",b.links), filhos=b.filhos&&b.filhos.length?blocosHtml(b.filhos):"";
     if(b.tipo==="bulleted_list_item"||b.tipo==="numbered_list_item"){
       const tag=b.tipo==="bulleted_list_item"?"ul":"ol";
       if(lista!==tag){ fecha(); h+=`<${tag}>`; lista=tag; }
-      h+=`<li>${t}${filhos}</li>`; return;
+      h+=`<li>${t}${filhos}</li>`; continue;
     }
     fecha();
+    if(ehResposta(b,bs[i+1])){
+      const tag=b.tipo==="heading_1"?"h1":b.tipo==="heading_2"?"h2":b.tipo==="heading_3"?"h3":"p";
+      let j=i+1, ans=null; const anexos=[];
+      if(ehRespPar(bs[j])){ ans=bs[j]; j++; }
+      while(bs[j]&&ARQ_TIPOS[bs[j].tipo]){ anexos.push(bs[j]); j++; }
+      h+=`<${tag}>${t}</${tag}>`+respHtml(b,ans,anexos)+filhos;
+      i=j-1; continue;
+    }
     if(b.tipo==="heading_1") h+=`<h1>${t}</h1>${filhos}`;
     else if(b.tipo==="heading_2") h+=`<h2>${t}</h2>${filhos}`;
     else if(b.tipo==="heading_3") h+=`<h3>${t}</h3>${filhos}`;
@@ -1320,12 +1375,101 @@ function blocosHtml(bs){
     else if(b.tipo==="toggle") h+=`<details><summary>${t||"(sem título)"}</summary>${filhos}</details>`;
     else if(b.tipo==="callout"||b.tipo==="quote") h+=`<div class="callout">${t}${filhos}</div>`;
     else if(b.tipo==="divider") h+=`<hr>`;
-    else if(b.tipo==="image"&&b.url) h+=`<a href="${esc(b.url)}" target="_blank" rel="noopener"><img src="${esc(b.url)}" style="max-width:100%;border-radius:8px;margin:6px 0"></a>`;
-    else if((b.tipo==="file"||b.tipo==="pdf")&&b.url) h+=`<p><a href="${esc(b.url)}" target="_blank" rel="noopener">📎 ${esc(b.texto||"arquivo")}</a></p>`;
+    else if(ARQ_TIPOS[b.tipo]) h+=anxHtml(b);
     else if(t||filhos) h+=(t?`<p>${t}</p>`:"")+filhos;
-  });
+  }
   fecha();
   return h;
+}
+/* --- a resposta e os anexos de um "Resposta:" dentro do conteúdo guardado --- */
+function respCadeia(blocos,respId){
+  const ach=(bs)=>{ for(const b of bs||[]){ if(b.id===respId) return bs; const x=ach(b.filhos); if(x) return x; } return null; };
+  const l=ach(blocos); if(!l) return null;
+  const i=l.findIndex(b=>b.id===respId); let j=i+1, ans=null; const anexos=[];
+  if(ehRespPar(l[j])){ ans=l[j]; j++; }
+  while(l[j]&&ARQ_TIPOS[l[j].tipo]){ anexos.push(l[j]); j++; }
+  return {lista:l, i, ans, anexos, ultimo:(anexos.length?anexos[anexos.length-1]:ans||l[i]).id, fimIdx:j};
+}
+const RESP_FILA={};
+function respFila(chave,fn){ const p=(RESP_FILA[chave]||Promise.resolve()).catch(()=>{}).then(fn); RESP_FILA[chave]=p; return p; }
+function respSt(respId,txt,erro){ document.querySelectorAll(`[data-st="${respId}"]`).forEach(e=>{ e.textContent=txt; e.classList.toggle("er",!!erro); }); }
+const opIdNovo=()=>Date.now()+"_"+Math.random().toString(36).slice(2,8);
+function salvarResp(el){
+  const respId=el.dataset.depois, pid=ATV, blocos=CONT&&CONT.blocos; if(!pid||!blocos) return;
+  const txt=el.value.replace(/\s+$/,""), c=respCadeia(blocos,respId); if(!c) return;
+  if(c.ans){ if((c.ans.texto||"")===txt&&String(c.ans.id).indexOf("tmp")!==0) return; c.ans.texto=txt; }
+  else { if(!txt) return; c.ans={id:"tmp"+opIdNovo(),tipo:"paragraph",texto:txt,_op:opIdNovo()}; c.lista.splice(c.i+1,0,c.ans); }
+  const ans=c.ans;
+  respSt(respId,"salvando…");
+  respFila(respId,async()=>{
+    const novo=String(ans.id).indexOf("tmp")===0;
+    const pay=novo?{action:"obraAtvTexto",pageId:pid,depoisDe:respId,texto:ans.texto,opId:ans._op}
+                  :{action:"obraAtvTexto",pageId:pid,blockId:ans.id,texto:ans.texto,opId:opIdNovo()};
+    let r; try{ r=await chamar(pay,60000,true); }catch(e){ r={ok:false,erro:"sem conexão"}; }
+    if(r&&r.ok){ if(novo) ans.id=r.id; delete ans._op; contGuardar(pid,blocos); if(ATV===pid&&CONT) CONT=CONT_MEM[pid]; respSt(respId,"✓ resposta salva"); }
+    else { respSt(respId,"⚠ não salvou: "+errMsg(r)+" — clique fora da caixa de novo para tentar",true); if(!novo) ans.texto=null; }
+  });
+}
+function lerB64(f){ return new Promise((ok,er)=>{ const rd=new FileReader(); rd.onload=()=>ok(String(rd.result).split(",")[1]); rd.onerror=er; rd.readAsDataURL(f); }); }
+function reduzirFoto(f){
+  return new Promise((ok,er)=>{ const u=URL.createObjectURL(f), im=new Image();
+    im.onload=()=>{ const m=1600, k=Math.min(1,m/Math.max(im.width,im.height)), cv=document.createElement("canvas");
+      cv.width=Math.round(im.width*k); cv.height=Math.round(im.height*k); cv.getContext("2d").drawImage(im,0,0,cv.width,cv.height); URL.revokeObjectURL(u);
+      ok({nome:String(f.name||"foto").replace(/\.[^.]+$/,"")+".jpg",mime:"image/jpeg",dataBase64:cv.toDataURL("image/jpeg",0.82).split(",")[1]}); };
+    im.onerror=()=>{ URL.revokeObjectURL(u); er(new Error("não consegui ler a foto")); }; im.src=u; });
+}
+function anexarResp(inp,respId){
+  const fs=[...(inp.files||[])].slice(0,8); inp.value=""; if(!fs.length) return;
+  const pid=ATV, blocos=CONT&&CONT.blocos; if(!pid||!blocos) return;
+  fs.forEach((f,n)=>{
+    const foto=/^image\//.test(f.type)&&!/gif|svg/.test(f.type);
+    if(!foto&&f.size>20*1024*1024){ toast(f.name+": acima de 20 MB (limite do Notion). Grave um vídeo mais curto."); return; }
+    respSt(respId,"⏳ enviando "+f.name+"…");
+    const op=opIdNovo();
+    respFila(respId,async()=>{
+      let arq; try{ arq=foto?await reduzirFoto(f):{nome:f.name,mime:f.type||"application/octet-stream",dataBase64:await lerB64(f)}; }
+      catch(e){ respSt(respId,"⚠ "+f.name+": "+e.message,true); return; }
+      const c=respCadeia(blocos,respId); if(!c) return;
+      if(String(c.ultimo).indexOf("tmp")===0){ respSt(respId,"⚠ salve a resposta antes de anexar",true); return; }
+      respSt(respId,`⏳ enviando ${f.name} (${Math.max(1,Math.round(arq.dataBase64.length*0.75/1024/1024))} MB)…`);
+      let r; try{ r=await chamar({action:"obraAtvAnexo",pageId:pid,depoisDe:c.ultimo,arquivo:arq,opId:op},300000,true); }catch(e){ r={ok:false,erro:"sem conexão"}; }
+      if(!(r&&r.ok)){ respSt(respId,"⚠ "+f.name+" não foi: "+errMsg(r),true); return; }
+      const c2=respCadeia(blocos,respId); c2.lista.splice(c2.fimIdx,0,{id:r.id,tipo:r.tipo,texto:""});
+      contGuardar(pid,blocos); if(ATV===pid&&CONT) CONT=CONT_MEM[pid];
+      if(ATV===pid){ const box=document.querySelector(`[data-anx="${respId}"]`), c3=respCadeia(blocos,respId); if(box&&c3) box.innerHTML=c3.anexos.map(x=>anxHtml(x,respId)).join(""); carregarArquivos(); }
+      respSt(respId,"✓ "+f.name+" anexado");
+    });
+  });
+}
+/* endereço das fotos/vídeos (o do Notion vence em 1 h: guarda 50 min) */
+const ARQ_URL={};
+async function carregarArquivos(){
+  const els=[...document.querySelectorAll("#p2-cont [data-arq]")]; if(!els.length||!ATV) return;
+  const pid=ATV, falta=[...new Set(els.map(e=>e.dataset.arq).filter(id=>!(ARQ_URL[id]&&Date.now()-ARQ_URL[id].t<50*60000)))];
+  for(let i=0;i<falta.length;i+=25){
+    let r; try{ r=await chamar({action:"obraAtvArquivos",pageId:pid,ids:falta.slice(i,i+25)},45000); }catch(e){ r=null; }
+    if(r&&r.ok) Object.keys(r.arquivos||{}).forEach(id=>{ ARQ_URL[id]=Object.assign({t:Date.now()},r.arquivos[id]); });
+  }
+  if(ATV!==pid) return;
+  document.querySelectorAll("#p2-cont [data-arq]").forEach(e=>{
+    const a=ARQ_URL[e.dataset.arq]; if(!a){ if(!e._tentou){ e._tentou=1; e.textContent="📎 arquivo (abra no Notion)"; } return; }
+    if(e._ok===a.url) return; e._ok=a.url;
+    const tipo=a.tipo||e.dataset.tipo, tirar=e.dataset.de?`<button type="button" class="bt bt-mini ghost" title="Tirar este anexo" onclick="tirarAnexo('${esc(e.dataset.de)}','${esc(e.dataset.arq)}')">🗑 tirar</button>`:"";
+    e.innerHTML=(tipo==="image"?`<a href="${esc(a.url)}" target="_blank" rel="noopener" title="Abrir a foto"><img src="${esc(a.url)}" alt="${esc(a.nome||"foto")}" loading="lazy"></a>`
+      :tipo==="video"?`<video src="${esc(a.url)}" controls preload="metadata" playsinline></video><a href="${esc(a.url)}" target="_blank" rel="noopener">⬇ baixar o vídeo</a>`
+      :`<a href="${esc(a.url)}" target="_blank" rel="noopener">📎 ${esc(a.nome||"arquivo")}</a>`)+tirar;
+  });
+}
+async function tirarAnexo(respId,id){
+  if(!confirm("Tirar este anexo da resposta?")) return;
+  const pid=ATV, blocos=CONT&&CONT.blocos; if(!pid||!blocos) return;
+  respSt(respId,"tirando…");
+  let r; try{ r=await chamar({action:"obraAtvTirar",pageId:pid,blockId:id},45000,true); }catch(e){ r={ok:false,erro:"sem conexão"}; }
+  if(!(r&&r.ok)){ respSt(respId,"⚠ não tirou: "+errMsg(r),true); return; }
+  const c=respCadeia(blocos,respId); if(c){ const k=c.lista.findIndex(x=>x.id===id); if(k>=0) c.lista.splice(k,1); }
+  contGuardar(pid,blocos); if(ATV===pid&&CONT) CONT=CONT_MEM[pid];
+  document.querySelectorAll(`[data-arq="${id}"]`).forEach(e=>e.remove());
+  respSt(respId,"✓ anexo tirado");
 }
 function acharBloco(bs,id){ for(const b of bs||[]){ if(b.id===id) return b; const x=acharBloco(b.filhos,id); if(x) return x; } return null; }
 async function marcar(blockId,el){
@@ -1338,6 +1482,7 @@ async function marcar(blockId,el){
     const box=document.getElementById("p2-cont"), abertos=[...box.querySelectorAll("details")].map(d=>d.open);
     box.innerHTML=conteudoHtml(CONT.blocos);
     [...box.querySelectorAll("details")].forEach((d,i)=>{ if(abertos[i]) d.open=true; });
+    carregarArquivos();
   }else{ el.checked=!v; toast("Não salvou: "+errMsg(r)); }
 }
 
