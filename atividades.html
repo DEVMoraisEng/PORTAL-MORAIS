@@ -1768,7 +1768,15 @@ async function abrirOutra(id){
   OUTRA={id,origem:x.origem,titulo:x.titulo,campos:[],carregando:true,x};
   pintarOutra();
   document.getElementById("mf").classList.add("on");
-  let r=null; try{ r=await chamar({action:"atvOutraAbrir",id,origem:x.origem},60000,true); }catch(e){ r=null; }
+  /* 16/10 (tarde): não espera fila nenhuma (vai direto ao servidor), desiste em
+     35 s e tenta mais uma vez; enquanto isso a janela diz o que está acontecendo */
+  const lento=setTimeout(()=>{ if(OUTRA&&OUTRA.id===id&&OUTRA.carregando){ OUTRA.lento=true; pintarOutra(); } },8000);
+  const pedir=()=>{ const pay={action:"atvOutraAbrir",id,origem:x.origem};
+    const p=(typeof _chamarDireto==="function")?_chamarDireto(pay,35000):chamar(pay,35000,true);
+    return Promise.race([p,new Promise(ok=>setTimeout(()=>ok({ok:false,erro:"TEMPO_ESGOTADO"}),37000))]).catch(()=>({ok:false,erro:"sem conexão"})); };
+  let r=await pedir();
+  if(!(r&&r.ok)&&OUTRA&&OUTRA.id===id&&!/SEM_PERMISSAO|NAO_ENCONTRADA/.test(String(r&&r.erro||""))){ OUTRA.lento=true; OUTRA.tentando=true; pintarOutra(); r=await pedir(); }
+  clearTimeout(lento);
   if(!OUTRA||OUTRA.id!==id) return;
   if(r&&r.ok){ OUTRA=Object.assign({x},r); }
   else { OUTRA.carregando=false; OUTRA.erro=(r&&r.erro)||"sem conexão"; }
@@ -1791,8 +1799,8 @@ function pintarOutra(){
   document.getElementById("mf-sub").textContent=[o.origem,o.tipo,o.endereco].filter(Boolean).join(" · ")||"Atividade de outra aba";
   document.getElementById("mf-erro").textContent=o.erro?("Não abriu: "+(o.erro==="SEM_PERMISSAO"?"você não é responsável por esta atividade nem tem acesso à aba "+(o.origem||""):erroTexto(o.erro))):"";
   const corpo=document.getElementById("mf-corpo");
-  if(o.carregando){ corpo.innerHTML=`<div class="ajuda"><span class="load"></span> Abrindo a atividade…</div>`; }
-  else if(o.erro){ corpo.innerHTML=`<div class="ajuda">${o.x&&o.x.fim?"Prazo: "+br(o.x.fim):""}</div>`; }
+  if(o.carregando){ corpo.innerHTML=`<div class="ajuda"><span class="load"></span> ${o.tentando?"O servidor não respondeu — tentando de novo…":o.lento?"Abrindo a atividade… o servidor está demorando, aguarde mais um pouco.":"Abrindo a atividade…"}</div>`; }
+  else if(o.erro){ corpo.innerHTML=`<div class="ajuda">${o.x&&o.x.fim?"Prazo: "+br(o.x.fim)+" · ":""}<button class="bt bt-mini" onclick="abrirOutra('${esc(o.id)}')">↻ Tentar de novo</button></div>`; }
   else {
     const ajuda=normTipo(o.tipo)==="VISTORIA PREVIA"?`<div class="ajuda full" style="grid-column:1/-1">Marcar <b>SIM</b> trava o contador e espera a <b>conferência da conclusão</b> (Caio): <b>Conferido OK</b> conclui a atividade; <b>Necessita de intervenções</b> volta para executando reparos.</div>`
       :normTipo(o.tipo)==="REPAROS VISTORIA"?`<div class="ajuda full" style="grid-column:1/-1">A atividade só é concluída com <b>Entregou a casa = SIM</b>. Reparos = SIM trava o contador.</div>`
@@ -1800,7 +1808,7 @@ function pintarOutra(){
     corpo.innerHTML=`<div class="fgrid">${(o.campos||[]).map(campoOutra).join("")||`<div class="ajuda full">Esta atividade não tem campo para editar por aqui.</div>`}${ajuda}</div>`;
   }
   const vis=o.vistoria&&o.vendaId?`<a class="bt az" href="https://devmoraiseng.github.io/OBRAS-GERAL/#vist=${esc(o.vendaId)}" target="_blank" rel="noopener">📋 Formulário de vistoria</a>`:"";
-  const aba=o.podeAba&&ORIGEM_ABA[o.origem]?`<a class="bt ghost" href="${ORIGEM_ABA[o.origem]}">Abrir na aba ${esc(o.origem)} ↗</a>`:"";
+  const aba=(o.podeAba||(o.carregando||o.erro)&&o.origem)&&ORIGEM_ABA[o.origem]?`<a class="bt ghost" href="${ORIGEM_ABA[o.origem]}">Abrir na aba ${esc(o.origem)} ↗</a>`:"";
   document.getElementById("mf-acoes").innerHTML=`${vis}${aba}<button class="bt ghost" onclick="fecharOutra()">Fechar</button>`;
 }
 const normTipo=t=>String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().trim();
