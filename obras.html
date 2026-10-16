@@ -1405,7 +1405,12 @@ function salvarResp(el){
     const novo=String(ans.id).indexOf("tmp")===0;
     const pay=novo?{action:"obraAtvTexto",pageId:pid,depoisDe:respId,texto:ans.texto,opId:ans._op}
                   :{action:"obraAtvTexto",pageId:pid,blockId:ans.id,texto:ans.texto,opId:opIdNovo()};
-    let r; try{ r=await chamar(pay,60000,true); }catch(e){ r={ok:false,erro:"sem conexão"}; }
+    let r=null;
+    for(let tent=0;tent<3&&!(r&&r.ok);tent++){                       /* mesmo opId: o servidor não duplica */
+      if(tent){ respSt(respId,"salvando… (tentando de novo)"); await new Promise(ok=>setTimeout(ok,3000*tent)); }
+      try{ r=await chamar(pay,60000,true); }catch(e){ r={ok:false,erro:"sem conexão"}; }
+      if(r&&!r.ok&&/SEM_PERMISSAO|MODO_TESTE|FORA_DA_ATIVIDADE|NAO_E_/.test(String(r.erro||""))) break;
+    }
     if(r&&r.ok){ if(novo) ans.id=r.id; delete ans._op; contGuardar(pid,blocos); if(ATV===pid&&CONT) CONT=CONT_MEM[pid]; respSt(respId,"✓ resposta salva"); }
     else { respSt(respId,"⚠ não salvou: "+errMsg(r)+" — clique fora da caixa de novo para tentar",true); if(!novo) ans.texto=null; }
   });
@@ -1432,7 +1437,12 @@ function anexarResp(inp,respId){
       const c=respCadeia(blocos,respId); if(!c) return;
       if(String(c.ultimo).indexOf("tmp")===0){ respSt(respId,"⚠ salve a resposta antes de anexar",true); return; }
       respSt(respId,`⏳ enviando ${f.name} (${Math.max(1,Math.round(arq.dataBase64.length*0.75/1024/1024))} MB)…`);
-      let r; try{ r=await chamar({action:"obraAtvAnexo",pageId:pid,depoisDe:c.ultimo,arquivo:arq,opId:op},300000,true); }catch(e){ r={ok:false,erro:"sem conexão"}; }
+      let r=null;
+      for(let tent=0;tent<2&&!(r&&r.ok);tent++){
+        if(tent){ respSt(respId,"⏳ "+f.name+": tentando de novo…"); await new Promise(ok=>setTimeout(ok,4000)); }
+        try{ r=await chamar({action:"obraAtvAnexo",pageId:pid,depoisDe:c.ultimo,arquivo:arq,opId:op},300000,true); }catch(e){ r={ok:false,erro:"sem conexão"}; }
+        if(r&&!r.ok&&/SEM_PERMISSAO|MODO_TESTE|FORA_DA_ATIVIDADE|FALTA_PARAM/.test(String(r.erro||""))) break;
+      }
       if(!(r&&r.ok)){ respSt(respId,"⚠ "+f.name+" não foi: "+errMsg(r),true); return; }
       const c2=respCadeia(blocos,respId); c2.lista.splice(c2.fimIdx,0,{id:r.id,tipo:r.tipo,texto:""});
       contGuardar(pid,blocos); if(ATV===pid&&CONT) CONT=CONT_MEM[pid];
