@@ -1134,7 +1134,9 @@ let SCHEMA=[], SCAMPO={}, ATIV=[], ATIV_ALL=[], DADOS={hub:[], set:[], mod:[]}, 
    null = nada desenhado ainda. */
 let PLANILHA_SETOR=null;
 /* item 9: Nº Whatsapp e Email vêm logo depois do CPF (antes ficavam perto de CORRESPONDENTE) */
-const RESUMO=["CLIENTES","CPF","Nº Whatsapp","Email","DATA DA VENDA","VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)","CORRETOR","IMOBILIÁRIA","CORRESPONDENTE","BANCO"];
+/* 16/10: TELEFONE CORRETOR logo depois de CORRETOR (planilha geral, Secretária de Vendas e painel da casa).
+   Enquanto a coluna não existir no Notion, ela simplesmente não aparece. */
+const RESUMO=["CLIENTES","CPF","Nº Whatsapp","Email","DATA DA VENDA","VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)","CORRETOR","TELEFONE CORRETOR","IMOBILIÁRIA","CORRESPONDENTE","BANCO"];
 
 /* Departamentos da área de vendas — "Gestores de Vendas" virou "Secretária de Vendas"
    e foi criado o novo departamento "Gestor de Vendas".

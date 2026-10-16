@@ -165,12 +165,12 @@
 /* v97 -> v98 (05/10/26): simulacoes.html — leituras/envios das Simulações fora da fila (Atualizar, detalhe, conversa, correspondente) e aba Servidores. */
 /* v113 -> v114 (08/10/26): app.js — NAO_AUTORIZADO numa gravação não desloga mais sem conferir a sessão (deslogava no meio de várias edições nas Atividades). */
 /* v116 -> v117 (15/10/26): vendas.html — filtros de prazo leem SITUAÇÃO DO PROCESSO (não ASSINATURA - SITUAÇÃO) e planilha 10x mais rápida (cache do normNome/faixa/processo completo). */
-const CACHE = "portal-morais-v122";  /* 16/10 (v122: atividade de outra aba abre direto, com nova tentativa; v121: obras — resposta e foto/vídeo nos formulários; v120: editor de blocos — ✎ não fica mais em cima do ↓; v119: faixa própria p/ atividades de outras abas): tema-escuro.js, Atividades (outras abas editáveis), obras (endereço alterado) */ //  // limpeza só dos caches do portal (não apaga os das RAS)
+const CACHE = "portal-morais-v124";  /* 16/10 (v124: vendas — TELEFONE CORRETOR; v123: conteúdo da atividade na janela de outras abas — conteudo-atv.js; v122: atividade de outra aba abre direto, com nova tentativa; v121: obras — resposta e foto/vídeo nos formulários; v120: editor de blocos — ✎ não fica mais em cima do ↓; v119: faixa própria p/ atividades de outras abas): tema-escuro.js, Atividades (outras abas editáveis), obras (endereço alterado) */ //  // limpeza só dos caches do portal (não apaga os das RAS)
 const ARQUIVOS = ["./","./index.html","./login.html","./vendas.html","./ligacoes.html",
                   "./pos-obra.html","./casas-vendidas.html","./servicos.html",
                   "./analise.html","./analise-dados.html","./obras.html","./documentos.html","./demandas.html","./simulacoes.html",
                   "./atividades.html","./processos.html","./arquivos.html",
-                  "./app.js","./alertas-docs.js","./fogos.js","./editor-blocos.js","./atv-alertas.js","./rf-rotas.js","./tema-escuro.js","./manifest.json"];
+                  "./app.js","./alertas-docs.js","./fogos.js","./editor-blocos.js","./atv-alertas.js","./rf-rotas.js","./tema-escuro.js","./conteudo-atv.js","./manifest.json"];
 
 self.addEventListener("install", e=>{
   e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ARQUIVOS)).then(()=>self.skipWaiting()));

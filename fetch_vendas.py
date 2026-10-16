@@ -150,6 +150,13 @@ def norm(s):
     return " ".join(s.upper().split())
 
 
+# Colunas que têm palavra "sensível" no nome mas NÃO são dado do comprador —
+# publicadas a pedido (16/10/26): TELEFONE CORRETOR é contato profissional do
+# corretor e precisa aparecer direto na planilha. Para voltar a esconder,
+# apague a linha.
+CAMPOS_PUBLICOS = ["TELEFONE CORRETOR"]
+
+
 def eh_sensivel(nome):
     """True se o nome da coluna casar com algum fragmento de CAMPOS_SENSIVEIS.
     Compara sobre o nome normalizado (sem acento, sem caixa, sem espaço
@@ -158,6 +165,8 @@ def eh_sensivel(nome):
     "ENCARGOS" e a coluna sumiria da planilha sem ninguém entender por quê.
     Palavra inteira ainda pega "CPF/CNPJ", "TELEFONE 1", "E-mail do cliente"."""
     n = norm(nome)
+    if n in [norm(x) for x in CAMPOS_PUBLICOS]:
+        return False
     # S? no fim: "PARCELA" pega "PARCELAS", "CLIENTE" pega "CLIENTES"
     return any(re.search(r"\b" + re.escape(frag) + r"S?\b", n) for frag in _SENS_NORM)
 

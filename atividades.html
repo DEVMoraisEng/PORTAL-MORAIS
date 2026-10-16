@@ -200,6 +200,8 @@ tbody tr:hover td{background:#e9f6ef;cursor:pointer} tbody tr:hover td.stick{bac
 .ajuda.err{color:var(--verm)}.ajuda.ok{color:var(--verde-esc)}
 .chk{display:flex!important;align-items:center;gap:9px;font-weight:700;color:var(--azul-esc);font-size:13px;cursor:pointer;text-transform:none!important}
 .chk input{width:18px;height:18px;accent-color:var(--verde)}
+.mf-cont-tit{font-family:'Barlow Condensed';font-weight:800;font-size:13px;letter-spacing:.6px;text-transform:uppercase;color:var(--text3);border-bottom:2px solid var(--verde);padding-bottom:4px;margin:18px 0 8px}
+.mf-cont{max-height:none}
 .macoes{display:flex;justify-content:flex-end;gap:8px;padding:14px 22px;border-top:1px solid var(--border2);background:var(--bg2)}
 .merro{color:var(--verm);font-size:12.5px;min-height:18px;padding:0 22px}
 /* ===== 23/09/26 — busca nos selects, comentários, investidores ===== */
@@ -518,6 +520,7 @@ main.wrap{padding-bottom:90px}
 
 <script src="app.js?v=45"></script>
 <script src="rf-rotas.js?v=9"></script>
+<script src="conteudo-atv.js?v=1"></script>
 <script src="alertas-docs.js?v=1"></script>
 <script src="editor-blocos.js?v=12"></script>
 <script src="atv-alertas.js?v=7"></script>
@@ -1805,7 +1808,14 @@ function pintarOutra(){
     const ajuda=normTipo(o.tipo)==="VISTORIA PREVIA"?`<div class="ajuda full" style="grid-column:1/-1">Marcar <b>SIM</b> trava o contador e espera a <b>conferência da conclusão</b> (Caio): <b>Conferido OK</b> conclui a atividade; <b>Necessita de intervenções</b> volta para executando reparos.</div>`
       :normTipo(o.tipo)==="REPAROS VISTORIA"?`<div class="ajuda full" style="grid-column:1/-1">A atividade só é concluída com <b>Entregou a casa = SIM</b>. Reparos = SIM trava o contador.</div>`
       :o.origem!=="Obras"?`<div class="ajuda full" style="grid-column:1/-1">Preencher a coluna abaixo dá a baixa (o mesmo que fazer pela aba ${esc(o.origem)}). Vazio ou NÃO = continua em aberto.</div>`:"";
-    corpo.innerHTML=`<div class="fgrid">${(o.campos||[]).map(campoOutra).join("")||`<div class="ajuda full">Esta atividade não tem campo para editar por aqui.</div>`}${ajuda}</div>`;
+    corpo.innerHTML=`<div class="fgrid">${(o.campos||[]).map(campoOutra).join("")||`<div class="ajuda full">Esta atividade não tem campo para editar por aqui.</div>`}${ajuda}</div>
+      <div class="mf-cont-tit">Conteúdo da atividade</div>`;
+    /* 16/10: o conteúdo da página no Notion (checklist, formulário, fotos) —
+       carrega uma vez por atividade e sobrevive às regravações dos campos */
+    if(window.ConteudoAtv){
+      if(!o._contEl){ o._contEl=document.createElement("div"); o._contEl.className="mf-cont"; ConteudoAtv.montar(o._contEl,o.id,{somenteLeitura:RO}); }
+      corpo.appendChild(o._contEl);
+    }
   }
   const vis=o.vistoria&&o.vendaId?`<a class="bt az" href="https://devmoraiseng.github.io/OBRAS-GERAL/#vist=${esc(o.vendaId)}" target="_blank" rel="noopener">📋 Formulário de vistoria</a>`:"";
   const aba=(o.podeAba||(o.carregando||o.erro)&&o.origem)&&ORIGEM_ABA[o.origem]?`<a class="bt ghost" href="${ORIGEM_ABA[o.origem]}">Abrir na aba ${esc(o.origem)} ↗</a>`:"";
