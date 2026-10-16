@@ -1,0 +1,11 @@
+    /* 16/10/26 — o endereço novo vai junto para DOCUMENTOS, VENDAS, PÓS OBRA,
+       LIGAÇÕES e o Mais Controle, e vira alerta para validar (MapaObras.gs mo3) */
+    var antigoEnd = "";
+    try { antigoEnd = titulo_((notion_("GET", "/pages/" + p.pageId, null).properties || {})[col]); } catch (eA) {}
+    var pt = {}; pt[col] = buildValue_("title", e);
+    notion_("PATCH", "/pages/" + p.pageId, { properties: pt });
+    var propagado = null;
+    if (antigoEnd && normDist_(antigoEnd) !== normDist_(e) && typeof moEnderecoMudou_ === "function") {
+      try { propagado = moEnderecoMudou_(sess, p.pageId, antigoEnd, e); } catch (eM) { propagado = { erros: [String(eM).slice(0, 160)] }; }
+    }
+    return { ok: true, prop: col, propagado: propagado };

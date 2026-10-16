@@ -1,0 +1,3 @@
+    var pt = {}; pt[col] = buildValue_("title", e);
+    notion_("PATCH", "/pages/" + p.pageId, { properties: pt });
+    return { ok: true, prop: col };
