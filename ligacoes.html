@@ -784,6 +784,11 @@ const V = {
   // a SANESC ou a SANEAGO, conforme a que atende a obra.
   UC_ENERGIA:    "UC EQUATORIAL",
   UC_AGUA:       "UC ÁGUA",
+  /* 19/10/26: STATUS da ligação de cada concessionária (base de ligações),
+     no lugar de ENERGIA/AGUA TRANSFERIDA da base de vendas, que repetiam a
+     mesma informação e ficavam desatualizadas. */
+  ST_ENERGIA:    "STATUS ENERGIA",
+  ST_AGUA:       "STATUS ÁGUA",
   ASSINOU:       "ASSINOU E ARMAZENOU CONTRATO DO BANCO?",
   /* Data de verificação das contas: o nome REAL vem do arquivo publicado
      (ver resolverColunaVerificacao). Na lista de colunas da aba entra este
@@ -1061,7 +1066,7 @@ const ABAS = {
     fonte: "vendas",
     colunas: [V.OBRA_CASA, V.DT_ENTREGA, V.DT_ASSIN, V.CLIENTES, V.WHATS,
               V.TEM_PROT_AGUA, V.PROT_AGUA, V.TEM_PROT_ENER, V.PROT_ENER,
-              V.ENER_TRANSF, V.UC_ENERGIA, V.AGUA_TRANSF, V.UC_AGUA,
+              V.ST_ENERGIA, V.UC_ENERGIA, V.ST_AGUA, V.UC_AGUA,
               V.DT_VERIF],
     // esta aba tem filtros próprios (período do contrato + cidade), montados
     // por filtrosVendidas() — não são filtros de coluna como nas outras
@@ -1073,8 +1078,10 @@ const ABAS = {
     // partir do qual a transferência passa a ser cobrável. E some da lista
     // quando ÁGUA e ENERGIA já estão as duas transferidas: aí não é mais
     // "não transferida", e deixar na tela só faz a fila parecer maior do que é.
+    /* Transferida = o STATUS da ligação daquela concessionária é TRANSFERIDO
+       (sem linha de ligação, vale o SIM antigo da base de vendas). */
     base: l => normN(getL(l, V.ASSINOU)) === "SIM" &&
-               !(normN(getL(l, V.ENER_TRANSF)) === "SIM" && normN(getL(l, V.AGUA_TRANSF)) === "SIM")
+               !(transferidaVenda(l, "energia") && transferidaVenda(l, "agua"))
   }
 };
 
@@ -1641,6 +1648,8 @@ function pintarSchemaVendas(r){
   VSCHEMA.push({ nome: V.OBRA_CASA,  tipo: "rich_text", editavel: false });
   VSCHEMA.push({ nome: V.UC_ENERGIA, tipo: "rich_text", editavel: false });
   VSCHEMA.push({ nome: V.UC_AGUA,    tipo: "rich_text", editavel: false });
+  VSCHEMA.push({ nome: V.ST_ENERGIA, tipo: "rich_text", editavel: false });
+  VSCHEMA.push({ nome: V.ST_AGUA,    tipo: "rich_text", editavel: false });
   VSCAMPO = {}; VSCHEMA.forEach(c => VSCAMPO[c.nome] = c);
   registrarColunaVerificacao();
   if (SETOR_ATUAL && ABAS[ABA_ATUAL] && ABAS[ABA_ATUAL].fonte === "vendas") renderAba();
@@ -1679,6 +1688,23 @@ function ucDaVenda(v, tipo){
   if (!achou.length) return null;
   const ucs = achou.map(l => txt(getL(l, C.UC)).trim()).filter(x => x && x !== "-");
   return ucs.length ? ucs.join(" / ") : "";
+}
+
+/* STATUS da(s) ligação(ões) daquela casa na concessionária pedida. null =
+   não existe linha de ligação; "" = existe mas está sem status. */
+function statusDaVenda(v, tipo){
+  const linhas = indiceLigacoes()[chaveObraVenda(v)] || [];
+  const quais = (tipo === "energia" ? CONC_ENERGIA : CONC_AGUA).map(normN);
+  const achou = linhas.filter(l => quais.indexOf(normN(sel(l, C.CONC))) >= 0);
+  if (!achou.length) return null;
+  const sts = [];
+  achou.forEach(l => { const s0 = String(sel(l, C.STATUS) || "").trim(); if (s0 && sts.indexOf(s0) < 0) sts.push(s0); });
+  return sts.join(" / ");
+}
+function transferidaVenda(v, tipo){
+  const st = statusDaVenda(v, tipo);
+  if (st === null) return normN(getL(v, tipo === "energia" ? V.ENER_TRANSF : V.AGUA_TRANSF)) === "SIM";
+  return !!st && st.split(" / ").every(x => normN(x) === "TRANSFERIDO");
 }
 
 function pintarVendas(r){
@@ -2603,14 +2629,25 @@ function colunasVisiveis(){
 /* Texto puro de uma célula — é o que vai pro PDF, e o que a versão HTML usa
    por baixo. Separado do celula() porque o PDF não entende marcação. */
 /* Texto das colunas de UC (só existem na aba de casas vendidas). */
+/* (e as de STATUS da ligação, montadas do mesmo jeito) */
 function textoUc(l, nome){
-  const uc = ucDaVenda(l, normN(nome) === normN(V.UC_ENERGIA) ? "energia" : "agua");
+  const n = normN(nome);
+  if (n === normN(V.ST_ENERGIA) || n === normN(V.ST_AGUA)){
+    const st = statusDaVenda(l, n === normN(V.ST_ENERGIA) ? "energia" : "agua");
+    if (st === null) return "sem ligação cadastrada";
+    return st || "—";
+  }
+  const uc = ucDaVenda(l, n === normN(V.UC_ENERGIA) ? "energia" : "agua");
   if (uc === null) return "sem ligação cadastrada";
   return uc || "—";
 }
+function ehColunaStatusVenda(nome){
+  const n = normN(nome);
+  return n === normN(V.ST_ENERGIA) || n === normN(V.ST_AGUA);
+}
 function ehColunaUc(nome){
   const n = normN(nome);
-  return n === normN(V.UC_ENERGIA) || n === normN(V.UC_AGUA);
+  return n === normN(V.UC_ENERGIA) || n === normN(V.UC_AGUA) || n === normN(V.ST_ENERGIA) || n === normN(V.ST_AGUA);
 }
 
 function celulaTexto(l, nome, fonte){
@@ -2648,7 +2685,9 @@ function celula(l, nome, fonte){
     const t = textoUc(l, nome);
     return t === "sem ligação cadastrada"
       ? '<span class="sem-lig" title="Nenhuma linha desta concessionária para esta obra na base de ligações">sem ligação</span>'
-      : esc(t);
+      : (ehColunaStatusVenda(nome) && t !== "—"
+          ? t.split(" / ").map(x => `<span class="pill ${normN(x) === "TRANSFERIDO" ? "sim" : (normN(x) === "NAO LIGADO" ? "nao" : "neutro")}">${esc(x)}</span>`).join(" ")
+          : esc(t));
   }
   const campo = campoDe(nome, fonte);
   const tipo = campo ? campo.tipo : "rich_text";
