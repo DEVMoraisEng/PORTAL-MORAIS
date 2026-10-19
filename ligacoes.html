@@ -1058,6 +1058,7 @@ const ABAS = {
     alertaCor: ALERTA_COLS_TODAS,
     sensiveis: true,
     pdf: true,
+    semContador: true,       // 19/10: é a planilha inteira, não fila de pendência — sem número na aba
     base: () => true
   },
   vendidas: {
@@ -2025,6 +2026,23 @@ function contarAba(chave){
   return doSetor.filter(def.base).length;
 }
 
+/* Número que aparece na aba e soma no cartão do setor (19/10):
+   - aba com vencimento: só as contas VENCIDAS (a lista continua mostrando todas);
+   - aba marcada semContador (controle de contas geral): sem número;
+   - demais: todas as linhas da aba. */
+function contarBadge(chave){
+  const def = ABAS[chave];
+  if (!def || chave === "planilha" || def.semContador) return null;
+  if (def.vencimento){
+    const fonte = fonteDaAba(chave);
+    const arr = fonte === "vendas" ? VEN : LIGF();
+    const doSetor = (SETOR_ATUAL && SETOR_ATUAL.filtroBase && fonte === "ligacoes")
+      ? arr.filter(SETOR_ATUAL.filtroBase) : arr;
+    return doSetor.filter(def.base).filter(l => situacaoVenc(l) === "vencida").length;
+  }
+  return contarAba(chave);
+}
+
 function renderSetores(){
   const box = document.getElementById("setores");
   box.innerHTML = SETORES_LIG.map((s,i) => {
@@ -2038,7 +2056,7 @@ function renderSetores(){
          inteiras faria o cartão dizer "120 pendências" para alguém que não
          tem nenhuma. */
       if (FILTRO_RESP && fonteDaAba(a) === "vendas") return;
-      n += contarAba(a);
+      n += contarBadge(a) || 0;
     });
     const temDado = LIG.length > 0;
     return `<button class="scard ${temDado?"tem-cnt":""}" data-i="${i}">
@@ -2149,7 +2167,7 @@ function renderTabs(){
   // o número na aba é a contagem de pendências daquela lista — pedido do PDF
   // ("mostrar também quantas pendências tem em cada item")
   document.getElementById("tabs").innerHTML = SETOR_ATUAL.abas.map(a => {
-    const n = (a === "planilha") ? null : contarAba(a);
+    const n = contarBadge(a);
     return `<button class="tab ${a===ABA_ATUAL?'on':''}" onclick="trocarAba('${a}')">${esc(ABAS[a].titulo)}` +
            (n === null ? "" : `<span class="tab-n">${num(n)}</span>`) + `</button>`;
   }).join("");
