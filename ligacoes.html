@@ -2969,6 +2969,10 @@ function ehEditavelVendas(coluna){
 }
 
 function podeEditarNaTabela(coluna, fonte){
+  /* STATUS ENERGIA / STATUS ÁGUA (casas vendidas): a coluna é montada, mas o
+     clique edita o STATUS da(s) linha(s) de ligação daquela casa. */
+  if (fonte === "vendas" && ehColunaStatusVenda(coluna))
+    return !!campoDe(C.STATUS, "ligacoes") && podeEditarCampo(C.STATUS);
   const campo = campoDe(coluna, fonte);
   if (!campo) return false;
   /* O endereço não se edita na célula: o clique nele ABRE a obra, como no
@@ -3083,6 +3087,7 @@ function editarCelula(td){
   const id = tr.dataset.id, fonte = tr.dataset.fonte || "ligacoes", col = td.dataset.col;
   const campo = campoDe(col, fonte);
   const linha = (fonte === "vendas" ? VEN : LIG).find(x => x.id === id);
+  if (linha && fonte === "vendas" && ehColunaStatusVenda(col)){ editarStatusVenda(td, linha, col); return; }
   if (!campo || !linha) return;
 
   const atual = getL(linha, col);
@@ -3169,6 +3174,59 @@ function editarCelula(td){
     if (e.key === "Escape") encerrar(false);
     if (e.key === "Enter" && el.tagName !== "SELECT") encerrar(true);
   });
+}
+
+/* Edita, a partir da aba Casas vendidas, o STATUS da ligação daquela casa.
+   Grava na base de LIGAÇÕES (ligUpdate), em todas as linhas da concessionária
+   daquela casa — a coluna mostra o status delas juntas. */
+function ligacoesDaVenda(v, tipo){
+  const linhas = indiceLigacoes()[chaveObraVenda(v)] || [];
+  const quais = (tipo === "energia" ? CONC_ENERGIA : CONC_AGUA).map(normN);
+  return linhas.filter(l => quais.indexOf(normN(sel(l, C.CONC))) >= 0);
+}
+function editarStatusVenda(td, venda, col){
+  const tipo = normN(col) === normN(V.ST_ENERGIA) ? "energia" : "agua";
+  const ligs = ligacoesDaVenda(venda, tipo);
+  if (!ligs.length){ toast("Esta casa não tem linha de " + (tipo === "energia" ? "energia" : "água") + " na base de ligações."); return; }
+  const campoSt = campoDe(C.STATUS, "ligacoes");
+  if (!campoSt) return;
+  const sts = ligs.map(l => String(sel(l, C.STATUS) || ""));
+  const atual = sts.every(x => x === sts[0]) ? sts[0] : "";
+  const antigo = td.innerHTML;
+  const el = document.createElement("select");
+  el.innerHTML = `<option value=""></option>` +
+    (campoSt.opcoes || []).map(o => `<option${o === atual ? " selected" : ""}>${esc(o)}</option>`).join("");
+  const emCelular = window.matchMedia && window.matchMedia("(max-width:680px)").matches;
+  el.style.cssText = "width:100%;min-width:150px;padding:4px 7px;font-size:" + (emCelular ? "16px" : "12.5px");
+  td.innerHTML = ""; td.appendChild(el);
+  el.focus();
+  if (el.showPicker){ try { el.showPicker(); } catch(e){} }
+  let encerrado = false;
+  const encerrar = async (salvar) => {
+    if (encerrado) return;
+    encerrado = true;
+    const novo = el.value;
+    const mudar = salvar ? ligs.filter(l => String(sel(l, C.STATUS) || "") !== novo) : [];
+    if (!mudar.length){ td.innerHTML = antigo; return; }
+    td.innerHTML = '<span class="load"></span>';
+    let falhou = null;
+    for (const l of mudar){
+      const r = await salvarCampo(l, campoSt.nome, campoSt.tipo, novo, "ligacoes");
+      if (!r.ok){ falhou = r; break; }
+    }
+    if (falhou){
+      td.innerHTML = antigo;
+      td.classList.add("recusado");
+      td.title = "Não salvou: " + erroTexto(falhou.erro);
+      setTimeout(() => td.classList.remove("recusado"), 6000);
+    } else {
+      if (mudar.length > 1) toast("Salvo nas " + mudar.length + " linhas de ligação desta casa.");
+      renderAba();
+    }
+  };
+  el.addEventListener("change", () => encerrar(true));
+  el.addEventListener("blur", () => encerrar(true));
+  el.addEventListener("keydown", e => { if (e.key === "Escape") encerrar(false); });
 }
 
 /* ---------- vencimento: classificação, cor e legenda ----------
