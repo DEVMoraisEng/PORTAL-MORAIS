@@ -1045,11 +1045,15 @@ const ABAS = {
   },
   contasGeral: {
     titulo: "Controle de contas geral (tudo)",
-    colunas: [C.OBRA, C.CONC, C.UC, C.CPF, C.NASC, C.STATUS, C.VENC, C.OBS_CONTAS],
-    filtros: [C.CONC],
+    /* 19/10/26: é a planilha inteira, igual à "Planilha do setor" da
+       primeira página — todas as obras e todas as colunas. Antes só mostrava
+       UC PREENCHIDA = SIM e STATUS = LIGADO (214 de todas) e 8 colunas. */
+    colunas: null,           // null = todas as colunas visíveis
+    filtros: [C.CONC, C.STATUS, C.UC_OK, C.LIBERADO, C.FEZ, C.APROVADA, C.RESP],
+    alertaCor: ALERTA_COLS_TODAS,
     sensiveis: true,
     pdf: true,
-    base: l => sel(l, C.UC_OK) === "SIM" && sel(l, C.STATUS) === "LIGADO"
+    base: () => true
   },
   vendidas: {
     titulo: "Casas vendidas e não transferidas",
@@ -1961,7 +1965,7 @@ const PRAZOS_NA_PLANILHA = [CALC.PRAZO_LIBER, CALC.LIG_CORRIDO, CALC.PRAZO_UC];
 function colunasDaAba(chave){
   const def = ABAS[chave];
   let base = (def && def.colunas) ? def.colunas : colunasVisiveis();
-  if (chave === "planilha") base = base.concat(PRAZOS_NA_PLANILHA);
+  if (chave === "planilha" || chave === "contasGeral") base = base.concat(PRAZOS_NA_PLANILHA);
   const fonte = fonteDaAba(chave);
   const schema = (fonte === "vendas") ? VSCHEMA : SCHEMA;
   return base.map(c => c === V.DT_VERIF ? COL_VERIF : c)
