@@ -2719,6 +2719,13 @@ function entTextoPagoCliente(c, B){
   if(c.sobra>0.005) return `Paga o sinal <b>integralmente</b> (${B(c.cobertos)}) e sobram <b>${B(c.sobra)}</b>, que abatem o saldo devedor da entrada.`;
   return `Valor destinado <b>integralmente</b> ao pagamento do sinal.`;
 }
+/* 20/10/26: o "(valor para entrada)" do título vira a situação do sinal */
+function entRotuloPagoCliente(c){
+  if(!c.informado) return "Pago pelo cliente (sem valor informado)";
+  if(c.falta>0.005) return "Pago pelo cliente (sinal parcial)";
+  if(c.sobra>0.005) return "Pago pelo cliente (sinal integral + abatimento do saldo)";
+  return "Pago pelo cliente (sinal integral)";
+}
 /* Cartões do topo (proposta e simulação) */
 function entResumoHtml(c){
   const it=(r,v,cl)=>`<div${cl?` class="${cl}"`:""}><small>${r}</small><b>${v}</b></div>`;
@@ -2754,7 +2761,7 @@ function entQuadroHtml(c, opc){
   /* 2 */
   const partes=[];
   if(c.recursos>0.005) partes.push(["FGTS + subsídio",c.recursos,"#2a9d5c"]);
-  partes.push(["Pago pelo cliente (valor para entrada)",c.informado,"#C98A1E"]);
+  partes.push([entRotuloPagoCliente(c),c.informado,"#C98A1E"]);
   partes.push(["Saldo devedor com a construtora",c.saldo,"#7A4A16"]);
   const tot=partes.reduce((a,p)=>a+p[1],0)||1;
   h+=`<div><div class="ent-passo">2. Como a entrada total é paga</div>
@@ -2762,7 +2769,7 @@ function entQuadroHtml(c, opc){
     <div class="ent-leg">${partes.map(p=>`<span><i style="background:${p[2]}"></i>${p[0]}: <b>${B(p[1])}</b></span>`).join("")}</div>
     <div class="ent-div">
       ${c.recursos>0.005?`<div class="ent-bloco fg"><h5>FGTS + subsídio</h5><div class="v">${B(c.recursos)}</div><div class="d">${c.fgts?"FGTS "+B(c.fgts):""}${c.fgts&&c.sub?" · ":""}${c.sub?"subsídio "+B(c.sub):""}. Abatidos da entrada.</div></div>`:""}
-      <div class="ent-bloco cli"><h5>Pago pelo cliente (valor para entrada)</h5><div class="v">${B(c.informado)}</div><div class="d">${entTextoPagoCliente(c,B)}</div></div>
+      <div class="ent-bloco cli"><h5>${entRotuloPagoCliente(c)}</h5><div class="v">${B(c.informado)}</div><div class="d">${entTextoPagoCliente(c,B)}</div></div>
       <div class="ent-bloco con"><h5>Saldo devedor com a construtora</h5><div class="v">${B(c.saldo)}</div><div class="d">${c.saldo>0.005?(c.prazo?"Em "+c.prazo+" meses: ":"")+(falta?"restante do sinal, ":"")+"parcelas da obra, balões"+(c.resto.some(f=>f.grupo==="pos")?" e pós-chaves":"")+".":"Não há saldo para parcelar."}</div></div>
     </div></div>`;
   /* 3 — Fluxo 1 (todo verde: é o que o valor para entrada paga) */
@@ -2812,7 +2819,7 @@ function entEmailHtml(c, opc){
   let l2='';
   if(c.fgts) l2+=linha('FGTS (titular + cônjuge)',B(c.fgts),'abatido da entrada','color:#1D5433');
   if(c.sub) l2+=linha('Subsídio',B(c.sub),'abatido da entrada','color:#1D5433');
-  l2+=linha('Pago pelo cliente (valor para entrada)',B(c.informado),entTextoPagoCliente(c,B),'color:#7A4A16;font-weight:700');
+  l2+=linha(entRotuloPagoCliente(c),B(c.informado),entTextoPagoCliente(c,B),'color:#7A4A16;font-weight:700');
   l2+=linha('Saldo devedor com a construtora',B(c.saldo),'Fluxo 2','font-weight:700');
   if(c.devol>0.005) l2+=linha('(–) Diferença devolvida ao cliente',B(c.devol),'na assinatura do contrato com o banco','background:#FBEEC8;color:#7A4A16');
   l2+=linha('<b>= ENTRADA TOTAL</b>','<b>'+B(c.entradaTotal)+'</b>','','background:#F6F0E3;color:#7A4A16');
