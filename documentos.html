@@ -1351,7 +1351,11 @@ const ORDEM_TABELA=[
   "ENDEREÇO","Nº DE CASAS","IMPLANTAÇÃO","SETOR","CIDADE","DATA DE AQUISIÇÃO DO LOTE",
   "COTA DA EMPRESA","PROPRIETARIO DOCUMENTO","PROPRIETARIO REAL","CPF/CNPJ","MESTRE",
   "DESPACHANTE","ENG. EXECUÇÃO","ENGENHEIRO RT","PREVISÃO DE INÍCIO DE OBRA",
-  "OBRA INCIADA","DATA DE INÍCIO DA OBRA","OBRA FINALIZADA","DATA DE TÉRMINO DE OBRA","REF."
+  "OBRA INCIADA","DATA DE INÍCIO DA OBRA","OBRA FINALIZADA","DATA DE TÉRMINO DE OBRA","REF.",
+  /* 20/10/26: escritura do lote, juntas e na ordem do processo (pedido do
+     Júlio César — no Notion elas ficavam espalhadas em ordem alfabética e
+     "não apareciam" no meio das outras 60 colunas) */
+  "ESCRITURA ASSINADA POR TODOS","ITBI PAGO","REGISTRO PAGO","ESCRITURA REGISTRADA"
 ];
 function ordenarColunas(cols){
   const pos=c=>{
