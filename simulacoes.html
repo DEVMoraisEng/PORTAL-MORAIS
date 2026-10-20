@@ -354,7 +354,7 @@ tr.prop-dil-mud td{background:#E3F5E8 !important;color:#1D5433}
 .ent.ruim .ent-cab{background:var(--vermelho)}
 .ent-cab h4{margin:0;font-family:'Barlow Condensed',Inter,sans-serif;font-size:19px;font-weight:800;text-transform:uppercase;letter-spacing:.4px}
 .ent-cab .st{background:#fff;border-radius:20px;padding:3px 11px;font-size:12px;font-weight:800}
-.ent-cab .st.ok{color:var(--verde-esc)}.ent-cab .st.no{color:var(--vermelho)}
+.ent-cab .st.ok{color:var(--verde-esc)}.ent-cab .st.no{color:var(--vermelho)}.ent-cab .st.meio{color:#7A4A16;background:#FBEEC8}
 .ent-corpo{padding:14px;display:flex;flex-direction:column;gap:14px}
 .ent-passo{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:6px}
 .ent-eqs{display:flex;flex-wrap:wrap;align-items:stretch;gap:6px}
@@ -376,6 +376,14 @@ tr.prop-dil-mud td{background:#E3F5E8 !important;color:#1D5433}
 .ent-bloco .d{font-size:12px;color:var(--text3)}
 .ent-expl{margin-top:10px;background:#FFF8E6;border:1px solid #E8C860;border-left:4px solid #C98A1E;border-radius:8px;padding:9px 12px;font-size:12.5px;color:#5C4A1C;line-height:1.55}
 html[data-tema="escuro"] .ent-expl{background:var(--bg2);color:var(--text);border-color:#8a6a2a}
+.ent-expl.ok{background:#EAF6EF;border-color:#8CC9A5;border-left-color:#2E8B57;color:#1D5433}
+html[data-tema="escuro"] .ent-expl.ok{background:var(--bg2);color:var(--text);border-color:#2E8B57}
+.ent-verde td{background:#EEF8F1!important;color:#1D5433}
+tr.ent-sub.ok td{background:#2E8B57!important;color:#fff}
+tr.ent-conta.tot td{background:#F6F0E3;color:#7A4A16}
+tr.ent-falta td{background:#FDF4F2;color:#8A2E17}
+.prop-grp.ent-grp-falta{background:#FBE3DF!important;color:#8A2E17}
+html[data-tema="escuro"] .ent-verde td,html[data-tema="escuro"] tr.ent-falta td,html[data-tema="escuro"] tr.ent-conta.tot td{background:var(--bg2)!important}
 .ent-fl{width:100%;border-collapse:collapse;font-size:13px}
 .ent-fl td{padding:8px 11px;border-bottom:1px solid var(--border2);white-space:normal}
 .ent-fl td:nth-child(2){text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -2646,12 +2654,16 @@ async function propDilEnviar(id, bt){
  *   1. Quanto é a entrada — ENTRADA TOTAL = unidade − financiado (antes de
  *      FGTS e subsídio, igual ao e-mail);
  *   2. Como a entrada total é paga — FGTS/subsídio, cliente, construtora;
- *   3. Fluxo 1 — SINAL e como o valor para entrada o abate;
- *   4. Fluxo 2 — SALDO DEVEDOR RESTANTE PARA PARCELAR COM A CONSTRUTORA
- *      (= entrada total − FGTS/subsídio − sinal − sobra do sinal).
+ *   3. Fluxo 1 — SINAL: só o que o valor para entrada paga (todo verde). Esse
+ *      valor é exclusivo do sinal e pode seguir as datas ou ser adiantado;
+ *   4. Fluxo 2 — SALDO DEVEDOR RESTANTE PARA PARCELAR COM A CONSTRUTORA:
+ *      conta passo a passo (entrada total − FGTS/subsídio − sinal pago −
+ *      sobra do valor para entrada) e as parcelas. A parte do sinal que o
+ *      valor para entrada não cobre vem para cá, na data e no valor que o
+ *      cliente ainda vai pagar.
  * entCalcular() é a mesma conta do e-mail (emailBlocoEntrada_ no Apps
- * Script do simulador); entQuadroHtml() é a tela; entEmailHtml() o e-mail
- * do novo fluxo (balões diluídos).
+ * Script do simulador e bloco_entrada no worker); entQuadroHtml() é a tela;
+ * entEmailHtml() o e-mail do novo fluxo (balões diluídos).
  * o = {preco, financiado, fgts, subsidio, informado, prazo, entradaPagar,
  *      devolucao, fluxo:[{quando, valor (texto "R$ …"), forma, grupo, ...}]}
  * ------------------------------------------------------------------- */
@@ -2669,10 +2681,20 @@ function entCalcular(o){
   const cobertos=entR2(Math.min(paraSinais, sinaisTotal));
   const falta=entR2(Math.max(0, sinaisTotal-cobertos));
   const sobra=entR2(Math.max(0, informado-ENT_SINAL_PADRAO));
-  const saldo=resto.length ? soma(resto) : entR2(Math.max(0,(Number(o.entradaPagar)||0)-sinaisTotal));
+  /* o valor para entrada paga o sinal na ordem ato → 30 → 60 → 90; o que
+     ele não cobre de cada parcela vai para o saldo devedor */
+  let resta=cobertos; const sinalPago=[], sinalFalta=[];
+  sinais.forEach(f=>{
+    const v=propNumBR(f.valor)*entQtd(f.quando), p=entR2(Math.min(v,Math.max(0,resta)));
+    resta=entR2(resta-p);
+    if(p>0.004) sinalPago.push({quando:f.quando, forma:f.forma, valor:p, parcial:p<v-0.005, cheio:v});
+    if(v-p>0.004) sinalFalta.push({quando:f.quando, forma:f.forma, valor:entR2(v-p)});
+  });
+  const saldoParcelas=resto.length ? soma(resto) : entR2(Math.max(0,(Number(o.entradaPagar)||0)-sinaisTotal));
+  const saldo=entR2(saldoParcelas+falta);
   return { preco, fin, fgts, sub, recursos:entR2(fgts+sub), informado, entradaTotal:entR2(preco-fin),
-           sinais, resto, sinaisTotal, paraSinais, cobertos, falta, sobra, saldo,
-           devol:entR2(o.devolucao), prazo:Number(o.prazo)||0 };
+           sinais, resto, sinalPago, sinalFalta, sinaisTotal, paraSinais, cobertos, falta, sobra,
+           saldo, saldoParcelas, devol:entR2(o.devolucao), prazo:Number(o.prazo)||0 };
 }
 /* Devolução quando FGTS/subsídio cobririam a entrada abaixo do sinal mínimo
    (mesma conta do simulador) — para a simulação, que não traz o número pronto. */
@@ -2680,12 +2702,14 @@ function entDevolucao(preco, fin, fgts, sub, informado){
   const calc=(Number(preco)||0)-(Number(fin)||0)-(Number(fgts)||0)-(Number(sub)||0)-Math.max(0,(Number(informado)||0)-ENT_SINAL_PADRAO);
   return calc<ENT_SINAL_PADRAO ? entR2(ENT_SINAL_PADRAO-Math.max(0,calc)) : 0;
 }
-function entExplicacao(c){
-  const B=simBRL;
-  if(!c.informado) return `O sinal de <b>${B(c.sinaisTotal)}</b> é pago pelo cliente: ${B(1000)} na assinatura e o restante em 30, 60 e 90 dias.`;
-  if(c.falta>0.005) return `O valor para entrada informado foi de <b>${B(c.informado)}</b>. Ele paga <b>${B(c.cobertos)}</b> do sinal de ${B(c.sinaisTotal)}. Os <b>${B(c.falta)}</b> que faltam o cliente paga nas datas do sinal (últimas parcelas).`;
-  if(c.sobra>0.005) return `O valor para entrada informado foi de <b>${B(c.informado)}</b>. Os primeiros <b>${B(c.paraSinais)}</b> pagam o sinal (${B(1000)} na assinatura + parcelas em 30, 60 e 90 dias). Os <b>${B(c.sobra)}</b> que sobram <b>não são um pagamento a mais</b>: eles diminuem o saldo devedor parcelado com a construtora.`;
-  return `O valor para entrada informado, de <b>${B(c.informado)}</b>, é o valor do sinal: ${B(1000)} na assinatura + parcelas em 30, 60 e 90 dias.`;
+/* texto do Fluxo 1 — para que serve o valor para entrada */
+function entTextoSinal(c, B){
+  B=B||simBRL;
+  if(!c.informado) return `Nenhum valor para entrada foi informado. O sinal de <b>${B(c.sinaisTotal)}</b> inteiro está no saldo devedor (Fluxo 2), nas datas do sinal.`;
+  let t=`Do valor de <b>${B(c.informado)}</b> informado para a entrada, <b>${B(c.cobertos)}</b> são destinados <b>exclusivamente ao sinal</b>. Esse valor pode ser pago seguindo as datas abaixo (${B(1000)} na assinatura + 30, 60 e 90 dias) ou <b>adiantando as parcelas</b>.`;
+  if(c.sobra>0.005) t+=` Os <b>${B(c.sobra)}</b> que sobram <b>não são um pagamento a mais</b>: serão <b>abatidos do saldo devedor</b> (Fluxo 2).`;
+  if(c.falta>0.005) t+=` O sinal desta unidade é de ${B(c.sinaisTotal)}: os <b>${B(c.falta)}</b> que o valor para entrada não cobre foram para o <b>saldo devedor</b> (Fluxo 2), na data em que o cliente ainda vai pagar.`;
+  return t;
 }
 /* Cartões do topo (proposta e simulação) */
 function entResumoHtml(c){
@@ -2699,24 +2723,31 @@ function entResumoHtml(c){
     ${it("Prazo da entrada",c.prazo?c.prazo+" meses":"—")}
   </div>`;
 }
+/* linhas da conta do saldo devedor (tela e e-mail) */
+function entContaSaldo(c){
+  const L=[["Entrada total", c.entradaTotal, ""]];
+  if(c.recursos>0.005) L.push(["(−) FGTS e subsídio", c.recursos, ""]);
+  L.push(["(−) Sinal pago com o valor para entrada", c.cobertos, "Fluxo 1"]);
+  if(c.sobra>0.005) L.push(["(−) Sobra do valor para entrada", c.sobra, "abatida aqui"]);
+  if(c.devol>0.005) L.push(["(+) Diferença devolvida ao cliente", c.devol, "na assinatura com o banco"]);
+  return L;
+}
 /* o quadro da tela. opc = {mudou:Set de f.i alterados, notaFluxo, extra (html no fim)} */
 function entQuadroHtml(c, opc){
   opc=opc||{};
   const B=simBRL, falta=c.falta>0.005;
-  const st=falta?`<span class="st no">⚠ Falta ${B(c.falta)} do sinal</span>`:`<span class="st ok">✓ Sinal pago pelo cliente</span>`;
-  let h=`<div class="ent${falta?" ruim":""}"><div class="ent-cab"><h4>Entrada da proposta</h4>${st}</div><div class="ent-corpo">`;
+  const st=falta?`<span class="st meio">${B(c.falta)} do sinal no saldo devedor</span>`:`<span class="st ok">✓ Sinal pago com o valor para entrada</span>`;
+  let h=`<div class="ent"><div class="ent-cab"><h4>Entrada da proposta</h4>${st}</div><div class="ent-corpo">`;
   /* 1 */
   h+=`<div><div class="ent-passo">1. Quanto é a entrada</div><div class="ent-eqs">
       <div class="ent-eq"><small>Valor da unidade</small><b>${B(c.preco)}</b></div><span class="ent-op">−</span>
       <div class="ent-eq"><small>Financiado</small><b>${B(c.fin)}</b></div><span class="ent-op">=</span>
       <div class="ent-eq res"><small>Entrada total</small><b>${B(c.entradaTotal)}</b></div></div></div>`;
   /* 2 */
-  const pagoCli=entR2(c.cobertos+c.sobra);
   const partes=[];
   if(c.recursos>0.005) partes.push(["FGTS + subsídio",c.recursos,"#2a9d5c"]);
-  partes.push(["Pago pelo cliente",pagoCli,"#C98A1E"]);
-  if(falta) partes.push(["Sinal ainda a pagar",c.falta,"var(--vermelho)"]);
-  partes.push(["Parcelado com a construtora",c.saldo,"#7A4A16"]);
+  partes.push(["Pago pelo cliente (valor para entrada)",c.informado,"#C98A1E"]);
+  partes.push(["Saldo devedor com a construtora",c.saldo,"#7A4A16"]);
   const tot=partes.reduce((a,p)=>a+p[1],0)||1;
   h+=`<div><div class="ent-passo">2. Como a entrada total é paga</div>
     <div class="ent-barra">${partes.map(p=>`<span style="width:${p[1]/tot*100}%;background:${p[2]}"></span>`).join("")}</div>
@@ -2725,39 +2756,36 @@ function entQuadroHtml(c, opc){
       ${c.recursos>0.005?`<div class="ent-bloco fg"><h5>FGTS + subsídio</h5><div class="v">${B(c.recursos)}</div><div class="d">${c.fgts?"FGTS "+B(c.fgts):""}${c.fgts&&c.sub?" · ":""}${c.sub?"subsídio "+B(c.sub):""}. Abatidos da entrada.</div></div>`:""}
       <div class="ent-bloco cli"><h5>Pago pelo cliente (valor para entrada)</h5><div class="v">${B(c.informado)}</div><div class="d">${
         !c.informado ? "Valor para entrada não informado."
-        : (falta ? `Paga ${B(c.cobertos)} do sinal de ${B(c.sinaisTotal)}. Faltam <b>${B(c.falta)}</b>, pagos nas datas do sinal.`
-                 : `${B(c.paraSinais)} pagam o sinal${c.sobra>0.005?` e <b>${B(c.sobra)}</b> sobram e diminuem o saldo devedor`:""}.`)}</div></div>
-      <div class="ent-bloco con"><h5>Parcelado com a construtora</h5><div class="v">${B(c.saldo)}</div><div class="d">${c.saldo>0.005?(c.prazo?"Em "+c.prazo+" meses: ":"")+"parcelas da obra, balões"+(c.resto.some(f=>f.grupo==="pos")?" e pós-chaves":"")+".":"Não há saldo para parcelar."}</div></div>
-    </div>
-    <div class="ent-expl"><b>Valor para entrada × sinal.</b> ${entExplicacao(c)}</div></div>`;
-  /* 3 — Fluxo 1 */
-  let resta=c.cobertos;
-  const l1=c.sinais.map(f=>{
-    const v=propNumBR(f.valor)*entQtd(f.quando), p=Math.min(resta,v); resta=entR2(resta-p);
-    const s=p>=v-0.005?'<span class="ent-st ok">pago com o valor para entrada</span>'
-           :(p>0.005?`<span class="ent-st meio">${B(p)} pago · falta ${B(v-p)}</span>`:'<span class="ent-st no">cliente paga nesta data</span>');
-    return `<tr${p<v-0.005?' class="prop-lfalta"':""}><td>${esc(f.quando)} — ${esc(f.forma||"")}${s}</td><td>${esc(f.valor)}</td></tr>`;
-  }).join("");
-  h+=`<div><div class="ent-passo">3. Fluxo 1 — Sinal</div><div class="tbl-wrap" style="max-height:none"><table class="ent-fl"><tbody>
-    <tr class="ent-sub cli"><td>Sinal: ato + 30, 60 e 90 dias</td><td>${B(c.sinaisTotal)}</td></tr>${l1}
-    ${c.sobra>0.005?`<tr class="ent-sobra"><td>Sobra do valor para entrada — vai para o Fluxo 2 e diminui o saldo devedor</td><td>− ${B(c.sobra)}</td></tr>`:""}
-    </tbody></table></div></div>`;
+        : `<b>${B(c.cobertos)}</b> exclusivamente para o sinal${c.sobra>0.005?` · <b>${B(c.sobra)}</b> abatidos do saldo devedor`:""}.`}</div></div>
+      <div class="ent-bloco con"><h5>Saldo devedor com a construtora</h5><div class="v">${B(c.saldo)}</div><div class="d">${c.saldo>0.005?(c.prazo?"Em "+c.prazo+" meses: ":"")+(falta?"restante do sinal, ":"")+"parcelas da obra, balões"+(c.resto.some(f=>f.grupo==="pos")?" e pós-chaves":"")+".":"Não há saldo para parcelar."}</div></div>
+    </div></div>`;
+  /* 3 — Fluxo 1 (todo verde: é o que o valor para entrada paga) */
+  const l1=c.sinalPago.map(f=>`<tr><td>${esc(f.quando)} — ${esc(f.forma||"")}${f.parcial?` <span class="ent-qd">(parte de ${B(f.cheio)}; o restante está no Fluxo 2)</span>`:""}</td><td>${B(f.valor)}</td></tr>`).join("");
+  h+=`<div><div class="ent-passo">3. Fluxo 1 — Sinal (pago com o valor para entrada)</div>
+    <div class="ent-expl ok">${entTextoSinal(c)}</div>
+    ${c.sinalPago.length?`<div class="tbl-wrap" style="max-height:none;margin-top:8px"><table class="ent-fl ent-verde"><tbody>
+    <tr class="ent-sub ok"><td>Sinal pago com o valor para entrada</td><td>${B(c.cobertos)}</td></tr>${l1}
+    ${c.sobra>0.005?`<tr class="ent-sobra"><td>Sobra do valor para entrada → abatida do saldo devedor (Fluxo 2)</td><td>${B(c.sobra)}</td></tr>`:""}
+    </tbody></table></div>`:""}</div>`;
   /* 4 — Fluxo 2 */
+  const conta=entContaSaldo(c).map(l=>`<tr class="ent-conta"><td>${l[0]}${l[2]?` <span class="ent-qd">${l[2]}</span>`:""}</td><td>${B(l[1])}</td></tr>`).join("")+
+    `<tr class="ent-conta tot"><td><b>= Saldo devedor para parcelar</b></td><td><b>${B(c.saldo)}</b></td></tr>`;
   const NOME={obra:"Durante a obra",balao:"Balões",pos:"Depois das chaves",outro:"Outros"};
   let ant="";
+  const lf=c.sinalFalta.length?`<tr><td colspan="2" class="prop-grp ent-grp-falta">Restante do sinal — o cliente ainda paga</td></tr>`+
+    c.sinalFalta.map(f=>`<tr class="ent-falta"><td>${esc(f.forma||"")}<div class="ent-qd">não coberto pelo valor para entrada</div></td><td>${B(f.valor)}<div class="ent-qd">${esc(f.quando)}</div></td></tr>`).join(""):"";
   const l2=c.resto.map(f=>{
     const cab=f.grupo!==ant?`<tr><td colspan="2" class="prop-grp">${NOME[f.grupo]||""}</td></tr>`:""; ant=f.grupo;
     const mud=opc.mudou&&opc.mudou.has(f.i);
     const tag=f.grupo==="obra"?' <span class="prop-tag-obra">DURANTE A OBRA</span>':(f.grupo==="pos"?' <span class="prop-tag-obra" style="background:#5B4A8A">PÓS A OBRA</span>':"");
     return cab+`<tr${mud?' class="prop-dil-mud"':""}><td>${esc(f.forma||"")}${tag}${mud&&f.dilTxt?`<div class="prop-ab ok">↻ ${esc(f.dilTxt)}</div>`:""}</td><td>${entQtd(f.quando)>1?entQtd(f.quando)+" × ":""}${esc(f.valor)}${/^\d+\s*X$/i.test(String(f.quando||"").trim())?"":`<div class="ent-qd">${esc(f.quando)}</div>`}</td></tr>`;
   }).join("");
-  const conta=`Entrada total ${B(c.entradaTotal)}${c.recursos>0.005?" − FGTS e subsídio "+B(c.recursos):""} − sinal ${B(c.sinaisTotal)}${c.sobra>0.005?" − sobra do valor para entrada "+B(c.sobra):""}${c.devol>0.005?" + diferença devolvida "+B(c.devol):""} = <b>${B(c.saldo)}</b>`;
   h+=`<div><div class="ent-passo">4. Fluxo 2 — Saldo devedor restante para parcelar com a construtora</div><div class="tbl-wrap" style="max-height:none"><table class="ent-fl"><tbody>
     <tr class="ent-sub con"><td>Saldo devedor para parcelar com a construtora</td><td>${B(c.saldo)}</td></tr>
-    <tr class="ent-conta"><td colspan="2">${conta}</td></tr>
-    ${l2||'<tr><td colspan="2" style="color:var(--text3)">Não há saldo para parcelar com a construtora.</td></tr>'}
+    ${conta}
+    ${lf}${l2}${!lf&&!l2?'<tr><td colspan="2" style="color:var(--text3)">Não há saldo para parcelar com a construtora.</td></tr>':""}
     </tbody></table></div></div>`;
-  h+=`<div class="ent-conf">Confere: <b>${B(c.entradaTotal)}</b> de entrada total = ${c.recursos>0.005?B(c.recursos)+" de FGTS e subsídio + ":""}${B(pagoCli)} pagos pelo cliente${falta?" + "+B(c.falta)+" de sinal a pagar":""} + ${B(c.saldo)} parcelados${c.devol>0.005?" − "+B(c.devol)+" devolvidos":""}.</div>`;
+  h+=`<div class="ent-conf">Confere: <b>${B(c.entradaTotal)}</b> de entrada total = ${c.recursos>0.005?B(c.recursos)+" de FGTS e subsídio + ":""}${B(c.informado)} pagos pelo cliente + ${B(c.saldo)} de saldo devedor${c.devol>0.005?" − "+B(c.devol)+" devolvidos":""}.</div>`;
   if(c.sinaisTotal>ENT_SINAL_PADRAO+0.005) h+=`<div class="ent-alerta">Entrada acima do padrão: o sinal subiu para ${B(c.sinaisTotal)} (as parcelas de 30, 60 e 90 dias aumentaram). Avalie antes de aceitar.</div>`;
   if(c.devol>0.005) h+=`<div class="ent-devol">FGTS e subsídio cobririam a entrada abaixo do sinal de R$ 10.000,00. O sinal é mantido e o cliente recebe de volta <b>${B(c.devol)}</b> na assinatura do contrato com o banco.</div>`;
   if(opc.notaFluxo) h+=`<div class="prop-dest-nota">${opc.notaFluxo}</div>`;
@@ -2772,33 +2800,38 @@ function entEmailHtml(c, opc){
   const linha=(c1,c2,c3,est)=>'<tr><td style="'+TD+';'+(est||'')+'">'+c1+'</td><td style="'+TD+';text-align:right;white-space:nowrap;'+(est||'')+'">'+c2+'</td><td style="'+TD+';color:#6B5A45;font-size:12px;'+(est||'')+'">'+(c3||'')+'</td></tr>';
   const tit=t=>'<h3 style="color:#7A4A16;font-size:14px;margin:18px 0 6px">'+t+'</h3>';
   const TAB='<table style="border-collapse:collapse;width:100%;font-size:13px">';
+  const VERDE='background:#EAF6EF;color:#1D5433';
   let h=tit('COMPOSIÇÃO DA ENTRADA')+TAB+linha('Valor de venda',B(c.preco),'')+linha('(–) Valor financiado pela Caixa',B(c.fin),'')+
     linha('<b>= ENTRADA TOTAL</b>','<b>'+B(c.entradaTotal)+'</b>','valor de venda − valor financiado','background:#FBEEC8;color:#5A3A0B')+'</table>';
   let l2='';
   if(c.fgts) l2+=linha('FGTS (titular + cônjuge)',B(c.fgts),'abatido da entrada','color:#1D5433');
   if(c.sub) l2+=linha('Subsídio',B(c.sub),'abatido da entrada','color:#1D5433');
-  l2+=linha('Sinal pago com o <b>valor para entrada</b>',B(c.cobertos),'ato + 30, 60 e 90 dias — Fluxo 1','color:#7A4A16;font-weight:700');
-  if(c.falta>0.005) l2+=linha('⚠ Sinal ainda a pagar pelo cliente',B(c.falta),'nas datas do sinal — Fluxo 1','background:#FDECEA;color:#8A2E17;font-weight:800');
-  if(c.sobra>0.005) l2+=linha('Sobra do valor para entrada',B(c.sobra),'abatida do saldo devedor','color:#1D5433;font-weight:700');
-  l2+=linha('Saldo devedor parcelado com a construtora',B(c.saldo),'Fluxo 2','font-weight:700');
+  l2+=linha('Pago pelo cliente (valor para entrada)',B(c.informado),c.sobra>0.005?B(c.cobertos)+' para o sinal + '+B(c.sobra)+' abatidos do saldo devedor':'exclusivamente para o sinal — Fluxo 1','color:#7A4A16;font-weight:700');
+  l2+=linha('Saldo devedor com a construtora',B(c.saldo),'Fluxo 2','font-weight:700');
   if(c.devol>0.005) l2+=linha('(–) Diferença devolvida ao cliente',B(c.devol),'na assinatura do contrato com o banco','background:#FBEEC8;color:#7A4A16');
   l2+=linha('<b>= ENTRADA TOTAL</b>','<b>'+B(c.entradaTotal)+'</b>','','background:#F6F0E3;color:#7A4A16');
   h+=tit('COMO A ENTRADA TOTAL É PAGA')+TAB+l2+'</table>';
-  h+='<div style="margin:12px 0 0;padding:12px 14px;background:#FFF8E6;border:1px solid #E8C860;border-left:4px solid #C98A1E;border-radius:6px;color:#5C4A1C;font-size:13px;line-height:1.6"><b>Valor para entrada × sinal.</b> '+
-     entExplicacao(c)+'</div>';
-  let resta=c.cobertos, s1='';
-  c.sinais.forEach(f=>{
-    const v=propNumBR(f.valor)*entQtd(f.quando), ab=Math.min(v,Math.max(0,resta)); resta=entR2(resta-ab);
-    const fl=entR2(v-ab);
-    const situ=fl<=0.005?'<span style="color:#1D5433;font-weight:700">✓ pago com o valor para entrada</span>'
-      :(ab>0.005?'<span style="color:#8A2E17;font-weight:800">⚠ '+B(ab)+' pago · falta '+B(fl)+'</span>':'<span style="color:#8A2E17;font-weight:800">⚠ cliente paga nesta data</span>');
-    s1+=linha(esc(f.quando)+' — '+esc(f.forma||''),esc(f.valor),situ,fl>0.005?'background:#FDECEA':'');
-  });
-  if(c.sobra>0.005) s1+=linha('Sobra do valor para entrada','– '+B(c.sobra),'vai para o Fluxo 2 e diminui o saldo devedor','background:#EAF6EF;color:#1D5433;font-weight:700');
-  if(c.sinais.length) h+=tit('FLUXO 1 — SINAL')+TAB+'<tr><td colspan="2" style="'+TD+';background:#C98A1E;color:#fff;font-weight:800">SINAL — ATO + 30, 60 E 90 DIAS</td><td style="'+TD+';background:#C98A1E;color:#fff;font-weight:800;text-align:right">'+B(c.sinaisTotal)+'</td></tr>'+s1+'</table>';
+  /* Fluxo 1 — todo verde */
+  h+=tit('FLUXO 1 — SINAL (PAGO COM O VALOR PARA ENTRADA)')+
+     '<div style="margin:0 0 6px;padding:12px 14px;'+VERDE+';border:1px solid #8CC9A5;border-left:4px solid #2E8B57;border-radius:6px;font-size:13px;line-height:1.6">'+entTextoSinal(c,B)+'</div>';
+  if(c.sinalPago.length){
+    let s1='';
+    c.sinalPago.forEach(f=>{ s1+=linha(esc(f.quando)+' — '+esc(f.forma||''),B(f.valor),f.parcial?'parte de '+B(f.cheio)+'; o restante está no Fluxo 2':'✓ pago com o valor para entrada',VERDE); });
+    if(c.sobra>0.005) s1+=linha('Sobra do valor para entrada',B(c.sobra),'→ abatida do saldo devedor (Fluxo 2)',VERDE+';font-weight:700');
+    h+=TAB+'<tr><td colspan="2" style="'+TD+';background:#2E8B57;color:#fff;font-weight:800">SINAL PAGO COM O VALOR PARA ENTRADA</td><td style="'+TD+';background:#2E8B57;color:#fff;font-weight:800;text-align:right">'+B(c.cobertos)+'</td></tr>'+s1+'</table>';
+  }
+  /* Fluxo 2 — conta passo a passo + parcelas */
   const NOME={obra:'PARCELAS DURANTE A OBRA',balao:'BALÕES',pos:'PÓS-CHAVES — PÓS A OBRA',outro:'OUTROS'};
   const SELO=(t,cor)=>' <span style="display:inline-block;background:'+cor+';color:#fff;border-radius:9px;padding:1px 7px;font-size:10px;font-weight:800">'+t+'</span>';
-  let ant='', s2='';
+  let conta='';
+  entContaSaldo(c).forEach(l=>{ conta+=linha(l[0],B(l[1]),l[2],'background:#FFFDF7;color:#5C4A1C'); });
+  conta+=linha('<b>= Saldo devedor para parcelar</b>','<b>'+B(c.saldo)+'</b>','','background:#F6F0E3;color:#7A4A16');
+  let s2='';
+  if(c.sinalFalta.length){
+    s2+='<tr><td colspan="3" style="'+TD+';background:#FDECEA;color:#8A2E17;font-weight:800;font-size:12px">RESTANTE DO SINAL — O CLIENTE AINDA PAGA</td></tr>';
+    c.sinalFalta.forEach(f=>{ s2+=linha(esc(f.quando),B(f.valor),esc(f.forma||'')+' — não coberto pelo valor para entrada','background:#FDF4F2;color:#8A2E17'); });
+  }
+  let ant='';
   c.resto.forEach(f=>{
     if(f.grupo!==ant){ s2+='<tr><td colspan="3" style="'+TD+';background:#F6F0E3;color:#7A4A16;font-weight:800;font-size:12px">'+(NOME[f.grupo]||'')+'</td></tr>'; ant=f.grupo; }
     const mud=opc.mudou&&opc.mudou.has(f.i), fundo=mud?';background:#EAF6EF':'';
@@ -2806,11 +2839,9 @@ function entEmailHtml(c, opc){
     const novo=mud?'<br><span style="color:#1D5433;font-weight:800;font-size:12px">'+esc(String(f.dilTxt||'novo valor').replace(/^✓\s*/,'✓ NOVO — '))+'</span>':'';
     s2+='<tr><td style="'+TD+fundo+'">'+esc(f.quando||'')+'</td><td style="'+TD+fundo+';text-align:right;white-space:nowrap'+(mud?';font-weight:800;color:#1D5433':'')+'">'+esc(f.valor||'')+'</td><td style="'+TD+fundo+'">'+esc(f.forma||'')+selo+novo+'</td></tr>';
   });
-  const conta='Entrada total '+B(c.entradaTotal)+(c.recursos>0.005?' − FGTS e subsídio '+B(c.recursos):'')+' − sinal '+B(c.sinaisTotal)+(c.sobra>0.005?' − sobra do valor para entrada '+B(c.sobra):'')+(c.devol>0.005?' + diferença devolvida '+B(c.devol):'')+' = <b>'+B(c.saldo)+'</b>';
   h+=tit('FLUXO 2 — SALDO DEVEDOR RESTANTE PARA PARCELAR COM A CONSTRUTORA')+TAB+
     '<tr><td colspan="2" style="'+TD+';background:#7A4A16;color:#fff;font-weight:800">SALDO DEVEDOR PARA PARCELAR</td><td style="'+TD+';background:#7A4A16;color:#fff;font-weight:800;text-align:right">'+B(c.saldo)+'</td></tr>'+
-    '<tr><td colspan="3" style="'+TD+';background:#FFFDF7;color:#6B5A45;font-size:12px">'+conta+'</td></tr>'+
-    (s2||'<tr><td colspan="3" style="'+TD+';color:#6B5A45">Não há saldo para parcelar com a construtora.</td></tr>')+'</table>';
+    conta+(s2||'<tr><td colspan="3" style="'+TD+';color:#6B5A45">Não há saldo para parcelar com a construtora.</td></tr>')+'</table>';
   if(c.devol>0.005) h+='<div style="margin:12px 0;padding:12px 14px;background:#FBEEC8;border:1px solid #EFB700;border-radius:6px;color:#7A4A16;font-size:13px"><b>O sinal de R$ 10.000,00 é mantido.</b><br>FGTS e subsídio cobririam a entrada abaixo desse valor, mas o sinal nunca fica menor que R$ 10.000,00. <b>A diferença de '+B(c.devol)+' será devolvida ao cliente no ato da assinatura do contrato com o banco.</b></div>';
   h+='<p style="margin:8px 0 0;padding:8px 10px;background:#FBEEC8;border-left:3px solid #EFB700;font-size:12px;color:#7A4A16"><b>Atenção:</b> As parcelas e os valores do fluxo podem sofrer alteração de acordo com a data de assinatura do contrato.</p>';
   return h;
