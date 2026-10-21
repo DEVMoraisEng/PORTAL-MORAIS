@@ -1468,7 +1468,7 @@ function simContatoCells(s){
   return `<td onclick="event.stopPropagation()" style="width:1%"><select id="sc-c-${s.id}" ${dis} style="width:74px;padding:4px 4px;border-radius:6px;border:1px solid var(--border2);font-size:12px;${cor}" onchange="simContato('${s.id}','contato',this)">
       <option value=""${!c?" selected":""}>—</option><option${c==="SIM"?" selected":""}>SIM</option><option${c==="NÃO"?" selected":""}>NÃO</option></select></td>
     <td onclick="event.stopPropagation()" style="width:1%"><input type="date" id="sc-d-${s.id}" value="${esc(s.dataContato||"")}" ${dis} style="width:128px;padding:3px 4px;border-radius:6px;border:1px solid var(--border2);font-size:12px" onchange="simContato('${s.id}','dataContato',this)"></td>
-    <td onclick="event.stopPropagation();${ro?"":`simObsAbrir('${s.id}')`}" id="sc-o-${s.id}" title="${esc(obs||"Clique para escrever o que aconteceu")}"
+    <td onclick="event.stopPropagation();${ro?"":`simRecObsAbrir('${s.id}')`}" id="sc-o-${s.id}" title="${esc(obs||"Clique para escrever o que aconteceu")}"
         style="min-width:150px;max-width:220px;white-space:normal;cursor:${ro?"default":"pointer"};font-size:12px;line-height:1.3">${simObsResumo(obs)}</td>`;
 }
 function simObsResumo(obs){
@@ -1476,35 +1476,37 @@ function simObsResumo(obs){
   return obs ? `<div style="max-height:2.6em;overflow:hidden;color:var(--text)">${esc(obs.length>90?obs.slice(0,90)+"…":obs)}</div>`
              : '<span style="color:var(--text4)">✎ escrever…</span>';
 }
-/* r96i — observações num quadro próprio: clica na célula, abre, escreve e salva */
-function simObsAbrir(id){
+/* r96i — observações num quadro próprio: clica na célula, abre, escreve e salva.
+   21/10: nomes próprios (simRec…, sim-recObs…) — o simObsAbrir/sim-recObsModal já
+   existia mais abaixo (observação da UNIDADE) e engolia este: o clique não abria nada. */
+function simRecObsAbrir(id){
   const s=SIMS.find(x=>x.id===id); if(!s) return;
-  let ov=document.getElementById("sim-obsModal");
-  if(!ov){ ov=document.createElement("div"); ov.id="sim-obsModal"; ov.className="modal-ov";
-    ov.onclick=e=>{ if(e.target===ov) simObsFechar(); }; document.body.appendChild(ov); }
+  let ov=document.getElementById("sim-recObsModal");
+  if(!ov){ ov=document.createElement("div"); ov.id="sim-recObsModal"; ov.className="modal-ov";
+    ov.onclick=e=>{ if(e.target===ov) simRecObsFechar(); }; document.body.appendChild(ov); }
   ov.classList.remove("hide");
   ov.innerHTML=`<div class="modal-cx" style="max-width:560px">
     <div class="modal-tit">Observações do contato</div>
     <div class="modal-sub">${esc(s.cliente||"—")} · Un. ${esc(String(s.unidade||"—"))} · corretor ${esc(s.corretor||"—")}${s.contato?` · contato: <b>${esc(s.contato)}</b>`:""}${s.dataContato?` em ${esc(s.dataContato.split("-").reverse().join("/"))}`:""}</div>
-    <textarea id="sim-obsTxt" rows="7" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid var(--border2);font:inherit;font-size:13px;resize:vertical"
+    <textarea id="sim-recObsTxt" rows="7" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid var(--border2);font:inherit;font-size:13px;resize:vertical"
       placeholder="O que aconteceu no contato com o cliente…">${esc(s.obsContato||"")}</textarea>
-    <div id="sim-obsAv" style="font-size:12px;margin-top:6px;color:var(--text3)"></div>
+    <div id="sim-recObsAv" style="font-size:12px;margin-top:6px;color:var(--text3)"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
-      <button class="bt" type="button" onclick="simObsFechar()">Cancelar</button>
-      <button class="bt" type="button" style="background:var(--azul);color:#fff" onclick="simObsSalvar('${id}',this)">Salvar</button>
+      <button class="bt" type="button" onclick="simRecObsFechar()">Cancelar</button>
+      <button class="bt" type="button" style="background:var(--azul);color:#fff" onclick="simRecObsSalvar('${id}',this)">Salvar</button>
     </div></div>`;
-  setTimeout(()=>{ const t=document.getElementById("sim-obsTxt"); if(t){ t.focus(); t.setSelectionRange(t.value.length,t.value.length); } }, 50);
+  setTimeout(()=>{ const t=document.getElementById("sim-recObsTxt"); if(t){ t.focus(); t.setSelectionRange(t.value.length,t.value.length); } }, 50);
 }
-function simObsFechar(){ const ov=document.getElementById("sim-obsModal"); if(ov){ ov.classList.add("hide"); ov.innerHTML=""; } }
-async function simObsSalvar(id, bt){
+function simRecObsFechar(){ const ov=document.getElementById("sim-recObsModal"); if(ov){ ov.classList.add("hide"); ov.innerHTML=""; } }
+async function simRecObsSalvar(id, bt){
   const s=SIMS.find(x=>x.id===id); if(!s) return;
-  const t=document.getElementById("sim-obsTxt"), av=document.getElementById("sim-obsAv");
+  const t=document.getElementById("sim-recObsTxt"), av=document.getElementById("sim-recObsAv");
   bt.disabled=true; av.textContent="Gravando…";
   const ant=s.obsContato; s.obsContato=t.value.trim();
   const r=await simContatoGravar(s);
   bt.disabled=false;
   if(r&&r.ok){ const cel=document.getElementById("sc-o-"+id); if(cel){ cel.innerHTML=simObsResumo(s.obsContato); cel.title=s.obsContato||"Clique para escrever o que aconteceu"; }
-    simObsFechar(); }
+    simRecObsFechar(); }
   else { s.obsContato=ant; av.innerHTML='<span style="color:#C0392B">Não gravou: '+esc((r&&(r.erro||r.mensagem))||"sem resposta do servidor")+'</span>'; }
 }
 async function simContatoGravar(s){
