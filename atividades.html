@@ -377,6 +377,7 @@ html[data-tema="escuro"] .cal-leg{color:#e7f3ff}
 .msg.nt{background:#f3f4f6;border-style:dashed}
 .msg .qm{font-size:10.5px;font-weight:800;color:var(--text3);margin-bottom:2px}
 .msg .qm .env{color:#b7791f}
+.msg .qm .excl{margin-left:6px;text-decoration:none;opacity:.45;font-size:11px}.msg .qm .excl:hover{opacity:1}
 .pend-ed{font-size:12px;cursor:help}
 .mencao{background:rgba(41,87,120,.12);color:var(--azul);font-weight:700;border-radius:5px;padding:0 3px}
 .mencao.eu{background:rgba(76,217,100,.25);color:var(--verde-esc)}
@@ -519,7 +520,7 @@ main.wrap{padding-bottom:90px}
 <div class="toast" id="toast"></div>
 
 <script src="app.js?v=45"></script>
-<script src="rf-rotas.js?v=9"></script>
+<script src="rf-rotas.js?v=10"></script>
 <script src="conteudo-atv.js?v=1"></script>
 <script src="alertas-docs.js?v=1"></script>
 <script src="editor-blocos.js?v=12"></script>
@@ -1277,7 +1278,10 @@ function pintarChat(){
     const eu=m.pessoa?m.pessoa===ME:(m.autor===meuNome);
     const quando=m.criadoEm?new Date(m.criadoEm).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"";
     const est=m._env?` · <span class="env">${esc(m._passo||"enviando…")}</span>`:m._falhou?` · <b class="nao">não enviou (${esc(m._erro||"erro")})</b> <a href="#" onclick="reenviarComentario('${m.id}');return false">Tentar de novo</a> · <a href="#" onclick="descartarComentario('${m.id}');return false">Descartar</a>`:"";
-    return `<div class="msg ${eu?"eu":""} ${m.notion?"nt":""} ${m._falhou?"falhou":""}"><div class="qm">${esc(m.autor||"")} · ${quando}${m.notion?" · (Notion)":""}${est}</div>
+    /* 21/10: 🗑 excluir — comentário do portal: quem escreveu ou ADM; do Notion: só ADM */
+    const idS=String(m.id||""), podeExcl=!m._env&&!m._falhou&&((idS.charAt(0)==="s"&&(eu||TIPO==="ADM"))||(idS.charAt(0)==="n"&&TIPO==="ADM"));
+    const excl=podeExcl?` <a href="#" class="excl" title="Excluir comentário" onclick="excluirComentario('${esc(idS)}');return false">🗑</a>`:"";
+    return `<div class="msg ${eu?"eu":""} ${m.notion?"nt":""} ${m._falhou?"falhou":""}" data-cid="${esc(idS)}"><div class="qm">${esc(m.autor||"")} · ${quando}${m.notion?" · (Notion)":""}${est}${excl}</div>
       ${m.texto?`<div class="tx">${linkar(m.texto)}</div>`:""}
       ${(m.anexos||[]).map(x=>x.url&&/^image\//.test(x.mime||"")||(x.url&&/\.(png|jpe?g|gif|webp)(\?|$)/i.test(x.url))?`<a href="${esc(x.url)}" target="_blank" rel="noopener"><img src="${esc(x.url)}" alt="${esc(x.nome)}" loading="lazy" onerror="chatImgFalhou(this)"></a>`:
         x.arquivado?(x.noComentario?`<span class="arq" title="Guardado nos comentários desta atividade no Notion">🗄 ${esc(x.nome||"arquivo")} · arquivado no Notion</span>`
@@ -1285,6 +1289,27 @@ function pintarChat(){
         `<a class="arq" href="${esc(x.url||"#")}" target="_blank" rel="noopener">📎 ${esc(x.nome||"arquivo")}</a>`).join("")}</div>`;
   }).join(""):`<div class="ajuda">Nenhum comentário ainda. Escreva o primeiro.</div>`;
   if(noFim||!c._rolou){ c.scrollTop=c.scrollHeight; c._rolou=true; }
+}
+/* 21/10 — EXCLUIR COMENTÁRIO
+ * Comentário escrito pelo portal: quem escreveu (ou um ADM) exclui — sai do
+ * portal e da cópia no Notion. Comentário escrito direto no Notion: só ADM, e o
+ * Notion só deixa apagar os que a integração escreveu; os outros, só lá. */
+async function excluirComentario(cid){
+  const id=ABERTA; if(!id||!cid) return;
+  const m=(_coms||[]).find(x=>x.id===cid);
+  const prev=m&&m.texto?`\n\n"${String(m.texto).replace(/@\[([^|\]]+)\|[^\]]+\]/g,"@$1").slice(0,120)}${String(m.texto).length>120?"…":""}"`:"";
+  if(!confirm("Excluir este comentário? Não dá para desfazer."+prev)) return;
+  const el=document.querySelector(`#pa-chat .msg[data-cid="${CSS.escape(cid)}"]`); if(el) el.style.opacity=".4";
+  let r=null; try{ r=await chamar({action:"atvComentarioExcluir",pageId:id,comentarioId:cid},30000,true); }catch(e){ r=null; }
+  if(!(r&&r.ok)){
+    if(el) el.style.opacity="";
+    alert("Não consegui excluir: "+((r&&r.mensagem)||msgErro(r)));
+    return;
+  }
+  if(ABERTA!==id) return;
+  _coms=(_coms||[]).filter(x=>x.id!==cid); _comsAssin=assinComs(_coms); pintarChat();
+  const g=guardadaAtv(id); if(g){ g.comentarios=(g.comentarios||[]).filter(x=>x.id!==cid); guardarAtv(id,g); }
+  setTimeout(()=>{ if(ABERTA===id) lerComentarios(false,true); },1500);
 }
 function mostrarAnexos(){
   const f=document.getElementById("pa-arq").files;
