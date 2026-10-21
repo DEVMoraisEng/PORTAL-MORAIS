@@ -162,6 +162,7 @@ td.conf-roxo{background:#EDE4FF !important;color:#5B21B6;font-weight:700}
 .aviso-conf{display:flex;gap:10px;align-items:flex-start;background:#F3EEFF;border:1px solid #C4B5FD;color:#5B21B6;border-radius:10px;padding:9px 12px;font-size:12.5px;margin:8px 0}
 .aviso-conf .pt{width:12px;height:12px;border-radius:3px;background:#C4B5FD;border:1px solid #8B5CF6;flex:none;margin-top:3px}
 .aviso-conf.leve{background:var(--sup);border-color:var(--border);color:var(--text2)}
+.conf-escrever{color:var(--text3);opacity:.75}
 .conf-obs small{font-weight:800;color:var(--text3)}.conf-obs em{color:var(--text3);font-style:normal;font-weight:700}
 .txt-hist{max-height:240px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:6px 10px;margin:6px 0 8px;background:var(--sup)}
 .txt-hist .h-it{padding:6px 0;border-bottom:1px dashed var(--border)}.txt-hist .h-it:last-child{border-bottom:0}
@@ -948,17 +949,46 @@ function tituloColuna(nome){
  * O Apps Script (PORTAL-ESCRITA, r56) cria as colunas na primeira gravação. Até
  * o arquivo publicado trazê-las, o schema delas é completado aqui
  * (garantirSchemaConf). */
-const CONF_ETAPA = { liberadas: "LIBERADAS", acompanhamento: "SANESC", conferencias: "CONFERÊNCIAS", semUc: "SEM UC" };
+/* 21/10 (tarde): também CONTROLE DE CONTAS VENCIDAS (só a observação com
+ * histórico, no lugar da OBS. CONTAS) e CASAS VENDIDAS E NÃO TRANSFERIDAS
+ * (conferiu, data e observação — grava na base de VENDAS, sem anexo).
+ * "legado": a observação antiga da aba. Enquanto o histórico novo estiver
+ * vazio, ela aparece como o registro mais antigo, e entra no histórico na
+ * primeira gravação — nada do que já estava escrito some da tela. */
+const CONF_ETAPA = {
+  liberadas:      { etapa: "LIBERADAS",       papeis: ["SEM", "DATA", "OBS", "ANEXO"], fonte: "ligacoes", legado: "OBS. LIGAÇÕES" },
+  acompanhamento: { etapa: "SANESC",          papeis: ["SEM", "DATA", "OBS", "ANEXO"], fonte: "ligacoes", legado: "OBS. LIGAÇÕES" },
+  conferencias:   { etapa: "CONFERÊNCIAS",    papeis: ["SEM", "DATA", "OBS", "ANEXO"], fonte: "ligacoes", legado: null },
+  semUc:          { etapa: "SEM UC",          papeis: ["SEM", "DATA", "OBS", "ANEXO"], fonte: "ligacoes", legado: "OBS. CONTAS" },
+  vencidas:       { etapa: "CONTAS VENCIDAS", papeis: ["OBS"],                         fonte: "ligacoes", legado: "OBS. CONTAS", tituloObs: "OBSERVAÇÕES" },
+  vendidas:       { etapa: "TRANSFERÊNCIA",   papeis: ["SEM", "DATA", "OBS"],          fonte: "vendas",   legado: null }
+};
 const CONF_PAPEIS = { SEM: ["CONFERIU NA SEMANA", "select"], DATA: ["DATA DA CONFERÊNCIA", "date"],
                       OBS: ["OBS. CONFERÊNCIA", "rich_text"], ANEXO: ["ANEXO CONFERÊNCIA", "files"] };
-const CONF_INFO = {};   // normN(nome) -> { papel, aba, tipo, titulo, nome }
-function confNome(aba, papel){ return CONF_PAPEIS[papel][0] + " (" + CONF_ETAPA[aba] + ")"; }
-Object.keys(CONF_ETAPA).forEach(aba => Object.keys(CONF_PAPEIS).forEach(p => {
-  const nome = confNome(aba, p);
-  CONF_INFO[normN(nome)] = { papel: p, aba: aba, tipo: CONF_PAPEIS[p][1], titulo: CONF_PAPEIS[p][0], nome: nome };
+const CONF_INFO = {};   // normN(nome) -> { papel, aba, tipo, titulo, nome, fonte }
+function confNome(aba, papel){ return CONF_PAPEIS[papel][0] + " (" + CONF_ETAPA[aba].etapa + ")"; }
+Object.keys(CONF_ETAPA).forEach(aba => CONF_ETAPA[aba].papeis.forEach(p => {
+  const nome = confNome(aba, p), e = CONF_ETAPA[aba];
+  CONF_INFO[normN(nome)] = { papel: p, aba: aba, tipo: CONF_PAPEIS[p][1], nome: nome, fonte: e.fonte,
+                             titulo: (p === "OBS" && e.tituloObs) ? e.tituloObs : CONF_PAPEIS[p][0] };
 }));
-function confColunas(aba){ return ["SEM", "DATA", "OBS", "ANEXO"].map(p => confNome(aba, p)); }
+function confCol(aba, papel){ return confNome(aba, papel); }
+function confTemSemana(aba){ return !!(CONF_ETAPA[aba] && CONF_ETAPA[aba].papeis.indexOf("SEM") >= 0); }
 function confDe(nome){ return CONF_INFO[normN(nome)] || null; }
+/* texto da observação antiga da aba (só quando o histórico novo ainda está vazio) */
+function confLegado(l, aba){
+  const e = CONF_ETAPA[aba]; if (!e || !e.legado) return "";
+  const v = getL(l, e.legado);
+  const t = String(v == null ? "" : v).trim();
+  return (t && t !== "-") ? t : "";
+}
+/* histórico completo da observação: o novo + (se ainda não migrou) o antigo, por último */
+function confTextoObs(l, cf){
+  const atual = String(getL(l, cf.nome) == null ? "" : getL(l, cf.nome)).trim();
+  if (atual) return atual;
+  const leg = confLegado(l, cf.aba);
+  return leg ? (CONF_MARCA + "anterior (" + CONF_ETAPA[cf.aba].legado + ")\n" + leg) : "";
+}
 /* domingo desta semana, em AAAA-MM-DD (hora local) */
 function confInicioSemana(){
   const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() - d.getDay());
@@ -979,10 +1009,11 @@ function confAtrasada(l, aba){ const n = confDias(l, aba); return n === null || 
 function garantirSchemaConf(){
   Object.keys(CONF_INFO).forEach(k => {
     const ci = CONF_INFO[k];
-    if (campoDe(ci.nome)) return;
+    if (campoDe(ci.nome, ci.fonte)) return;
     const c = { nome: ci.nome, tipo: ci.tipo, opcoes: ci.tipo === "select" ? ["SIM", "NÃO"] : null, editavel: true };
     if (ci.tipo === "files") c.sensivel = true;
-    SCHEMA.push(c); SCAMPO[c.nome] = c;
+    if (ci.fonte === "vendas"){ if (!VSCHEMA.length) return; VSCHEMA.push(c); VSCAMPO[c.nome] = c; }
+    else { if (!SCHEMA.length) return; SCHEMA.push(c); SCAMPO[c.nome] = c; }
   });
 }
 /* histórico da observação: cada registro começa com "▸ dd/mm/aaaa hh:mm · Nome" */
@@ -1028,8 +1059,11 @@ const ABAS = {
     titulo: "Acompanhamento de solicitação SANESC",
     /* Só SANESC: a aprovação da solicitação só existe nela. Por isso a coluna
        de concessionária saiu — seria a mesma palavra em todas as linhas. */
-    colunas: [C.OBRA, C.APROVADA, C.DT_LIBER, C.DT_SOL, C.DT_APROV,
-              CALC.PROC_SANESC, C.RESP, C.ALERTA_SOL, C.OBS, ...confColunas("acompanhamento")],
+    /* 21/10: OBS. LIGAÇÕES saiu (virou o histórico OBS. CONFERÊNCIA); a conferência
+       semanal vem logo depois do SIM/NÃO da etapa */
+    colunas: [C.OBRA, C.APROVADA, confCol("acompanhamento","SEM"), confCol("acompanhamento","DATA"),
+              C.DT_LIBER, C.DT_SOL, C.DT_APROV, CALC.PROC_SANESC, C.RESP, C.ALERTA_SOL,
+              confCol("acompanhamento","OBS"), confCol("acompanhamento","ANEXO")],
     filtros: [C.RESP],
     filtroData: [C.DT_LIBER, C.DT_SOL, C.DT_APROV],
     pdf: true,
@@ -1056,8 +1090,12 @@ const ABAS = {
        tabela inteira com o rolamento horizontal — e na prática a coluna nem
        aparecia na tela sem rolar. Agora a data e os dias que correram desde
        ela ficam lado a lado. */
+    /* 21/10: OBS. LIGAÇÕES saiu (virou o histórico OBS. CONFERÊNCIA); CONFERIU NA
+       SEMANA e DATA DA CONFERÊNCIA logo depois do FEZ A SOLICITAÇÃO? */
     colunas: [C.OBRA, C.CONC, C.DT_LIBER, CALC.PRAZO_LIBER, C.DT_SOL, C.FEZ,
-              C.NF_MEDIDOR, C.RESP, C.OBS, C.CPF, C.ALERTA_INFO, ...confColunas("liberadas")],
+              confCol("liberadas","SEM"), confCol("liberadas","DATA"),
+              C.NF_MEDIDOR, C.RESP, C.CPF, C.ALERTA_INFO,
+              confCol("liberadas","OBS"), confCol("liberadas","ANEXO")],
     filtros: [C.CONC, C.RESP, C.FEZ],
     filtroData: [C.DT_LIBER, C.DT_SOL],
     sensiveis: true,
@@ -1076,7 +1114,9 @@ const ABAS = {
     /* CPF/CNPJ (a fórmula que já junta V1 e V2) em vez de "CPF/CNPJ V1": na
        base real a V1 vinha vazia e a coluna aparecia só com "—". */
     colunas: [C.OBRA, C.CONC, C.CPF, C.DT_SOL, C.DT_LIG,
-              CALC.LIG_CORRIDO, C.RESP, C.STATUS, C.ALERTA_LIG, ...confColunas("conferencias")],
+              CALC.LIG_CORRIDO, C.RESP, C.STATUS,
+              confCol("conferencias","SEM"), confCol("conferencias","DATA"),   // 21/10: logo depois do STATUS
+              C.ALERTA_LIG, confCol("conferencias","OBS"), confCol("conferencias","ANEXO")],
     filtros: [C.CONC, C.RESP],
     filtroData: [C.DT_SOL, C.DT_LIG, C.DT_LIBER],
     sensiveis: true,
@@ -1100,7 +1140,10 @@ const ABAS = {
   },
   semUc: {
     titulo: "Ligações sem UC (ligadas mas sem UC)",
-    colunas: [C.OBRA, C.CONC, C.CPF, C.NASC, CALC.PRAZO_UC, C.DT_UC, C.UC, C.UC_OK, C.DT_LIG, C.RESP, C.OBS_CONTAS, C.ALERTA_UC, ...confColunas("semUc")],
+    /* 21/10: OBS. CONTAS saiu (virou o histórico); conferência logo depois do UC PREENCHIDA */
+    colunas: [C.OBRA, C.CONC, C.CPF, C.NASC, CALC.PRAZO_UC, C.DT_UC, C.UC, C.UC_OK,
+              confCol("semUc","SEM"), confCol("semUc","DATA"),
+              C.DT_LIG, C.RESP, C.ALERTA_UC, confCol("semUc","OBS"), confCol("semUc","ANEXO")],
     filtros: [C.CONC, C.RESP, C.UC_OK],
     filtroData: [C.DT_LIG, C.DT_UC],
     sensiveis: true,
@@ -1115,7 +1158,8 @@ const ABAS = {
   /* ---------- setor CONTROLE DE CONTAS ---------- */
   vencidas: {
     titulo: "Controle de contas vencidas no sistema",
-    colunas: [C.OBRA, C.CONC, C.DT_UC, C.UC, C.VENC, C.NASC, C.CPF, C.STATUS, C.OBS_CONTAS],
+    /* 21/10: OBS. CONTAS virou OBSERVAÇÕES com histórico (data de cada registro) */
+    colunas: [C.OBRA, C.CONC, C.DT_UC, C.UC, C.VENC, C.NASC, C.CPF, C.STATUS, confCol("vencidas","OBS")],
     filtros: [C.CONC],
     sensiveis: true,
     pdf: true,
@@ -1158,7 +1202,9 @@ const ABAS = {
     titulo: "Casas vendidas e não transferidas",
     // Esta aba NÃO vem da base de ligações: vem de VENDAS (dist/vendas.json).
     fonte: "vendas",
+    /* 21/10: conferência semanal logo depois do Nº Whatsapp */
     colunas: [V.OBRA_CASA, V.DT_ENTREGA, V.DT_ASSIN, V.CLIENTES, V.WHATS,
+              confCol("vendidas","SEM"), confCol("vendidas","DATA"), confCol("vendidas","OBS"),
               V.TEM_PROT_AGUA, V.PROT_AGUA, V.TEM_PROT_ENER, V.PROT_ENER,
               V.ST_ENERGIA, V.UC_ENERGIA, V.ST_AGUA, V.UC_AGUA,
               V.DT_VERIF],
@@ -1745,6 +1791,7 @@ function pintarSchemaVendas(r){
   VSCHEMA.push({ nome: V.ST_ENERGIA, tipo: "rich_text", editavel: false });
   VSCHEMA.push({ nome: V.ST_AGUA,    tipo: "rich_text", editavel: false });
   VSCAMPO = {}; VSCHEMA.forEach(c => VSCAMPO[c.nome] = c);
+  garantirSchemaConf();   // 21/10: conferência da aba Casas vendidas
   registrarColunaVerificacao();
   if (SETOR_ATUAL && ABAS[ABA_ATUAL] && ABAS[ABA_ATUAL].fonte === "vendas") renderAba();
 }
@@ -2765,8 +2812,9 @@ function ehColunaUc(nome){
 
 function celulaTexto(l, nome, fonte){
   if (ehCalculada(nome)){ const d = CALC_DEF[nome].valor(l); return d == null ? "—" : String(d); }
-  const cf = (fonte !== "vendas") ? confDe(nome) : null;
+  const cf = confDe(nome);
   if (cf && cf.papel === "SEM") return confSemanaOk(l, cf.aba) ? "SIM" : "NÃO";
+  if (cf && cf.papel === "OBS") return confTextoObs(l, cf) || "—";
   if (cf && cf.papel === "DATA"){ const d = confData(l, cf.aba); return d ? fmtData(d) : "nunca conferida"; }
   if (fonte === "vendas" && ehColunaUc(nome)) return textoUc(l, nome);
   const campo = campoDe(nome, fonte);
@@ -2798,7 +2846,7 @@ function celula(l, nome, fonte){
     return d == null ? "—" : `<b>${d}</b>`;
   }
   /* 21/10: conferência semanal (ver CONF_INFO) */
-  const cf = (fonte !== "vendas") ? confDe(nome) : null;
+  const cf = confDe(nome);
   if (cf && cf.papel === "SEM")
     return confSemanaOk(l, cf.aba) ? '<span class="tag sim">SIM</span>'
       : '<span class="tag nao" title="Ainda não conferida nesta semana (volta para NÃO todo domingo)">NÃO</span>';
@@ -2808,8 +2856,8 @@ function celula(l, nome, fonte){
     return `<span title="${n === 0 ? "hoje" : (n + (n === 1 ? " dia" : " dias") + " atrás")}${n > 7 ? " — mais de uma semana sem conferir" : ""}">${fmtData(d)}</span>`;
   }
   if (cf && cf.papel === "OBS"){
-    const h = confHistorico(getL(l, nome));
-    if (!h.length) return "—";
+    const h = confHistorico(confTextoObs(l, cf));
+    if (!h.length) return '<span class="conf-escrever">✎ escrever…</span>';
     return `<span class="conf-obs" title="${esc(h.length + (h.length === 1 ? " registro" : " registros") + " — clique para ver o histórico e escrever")}">${h[0].quando ? `<small>${esc(h[0].quando.split(" · ")[0])}</small> ` : ""}${esc(h[0].texto)}${h.length > 1 ? ` <em>(+${h.length - 1})</em>` : ""}</span>`;
   }
   if (fonte === "vendas" && ehColunaUc(nome)){
@@ -3019,7 +3067,7 @@ function tabelaHtml(linhas, colunas, extras, fonte, corDe, ctx){
   const tr = linhas.map(l => {
     const tds = cols.map((c,i) => {
       const ed = podeEditarNaTabela(c, fonte);
-      const cfc = (fonte !== "vendas") ? confDe(c) : null;   // 21/10: data da conferência vencida = roxo
+      const cfc = confDe(c);   // 21/10: data da conferência vencida = roxo
       const roxo = cfc && cfc.papel === "DATA" && confAtrasada(l, cfc.aba);
       const cls = [i===0?"stick":"", ed?"edt":"", ehAlerta(c)?"wide":"", roxo?"conf-roxo":""].filter(Boolean).join(" ");
       const attrs = (cls ? ` class="${cls}"` : "") +
@@ -3098,6 +3146,9 @@ function ehEditavelVendas(coluna){
   // a data de verificação das contas é preenchida por quem confere, então
   // ela é editável aqui (o nome real vem do arquivo publicado — ver COL_VERIF)
   if (COL_VERIF && alvo === normN(COL_VERIF)) return true;
+  /* 21/10: conferência semanal da aba (a DATA é carimbada ao marcar SIM) */
+  const cf = confDe(coluna);
+  if (cf && cf.fonte === "vendas") return cf.papel === "SEM" || cf.papel === "OBS";
   return VENDAS_EDITAVEIS.some(n => normN(n) === alvo);
 }
 
@@ -3181,7 +3232,7 @@ function abrirCaixaTexto(linha, col, fonte, campo){
   const cfH = confDe(col), hist = document.getElementById("txt-hist");
   CX_TEXTO.historico = !!(cfH && cfH.papel === "OBS");
   if (CX_TEXTO.historico){
-    hist.innerHTML = confHistoricoHtml(atual); hist.style.display = "";
+    hist.innerHTML = confHistoricoHtml(confTextoObs(linha, cfH)); hist.style.display = "";
     ta.value = ""; ta.placeholder = "Novo registro — entra no histórico com a data e a hora de agora. Enter pula de linha.";
   } else {
     hist.style.display = "none"; hist.innerHTML = "";
@@ -3204,7 +3255,7 @@ async function salvarCaixaTexto(){
   const atual = getL(linha, col);
   if (CX_TEXTO.historico){
     if (!novo.trim()){ fecharCaixaTexto(); return; }
-    const ant = String(atual == null ? "" : atual).trim();
+    const ant = confTextoObs(linha, confDe(col));   // inclui a observação antiga, se ainda não migrou
     novo = confNovaEntrada(novo) + (ant ? "\n\n" + ant : "");
   }
   if (String(atual == null ? "" : atual) === novo){ fecharCaixaTexto(); return; }
@@ -3241,8 +3292,8 @@ function editarCelula(td){
 
   const atual = getL(linha, col);
   /* 21/10: CONFERIU NA SEMANA abre com o valor DA SEMANA (o SIM antigo já vale NÃO) */
-  const cfE = (fonte !== "vendas") ? confDe(col) : null;
-  if (cfE && cfE.papel === "SEM"){ editarConferiu(td, linha, cfE); return; }
+  const cfE = confDe(col);
+  if (cfE && cfE.papel === "SEM"){ editarConferiu(td, linha, cfE, fonte); return; }
   // observação abre em quadro próprio, com espaço e quebra de linha
   if (ehTextoLongo(col, campo)){ abrirCaixaTexto(linha, col, fonte, campo); return; }
   const antigo = td.innerHTML;
@@ -3331,7 +3382,7 @@ function editarCelula(td){
 /* 21/10: CONFERIU NA SEMANA na célula. SIM grava SIM e carimba a DATA DA
    CONFERÊNCIA com hoje (o carimbo é feito no salvarCampo); NÃO grava só o NÃO
    e mantém a última data. */
-function editarConferiu(td, linha, cf){
+function editarConferiu(td, linha, cf, fonte){
   const antigo = td.innerHTML, atual = confSemanaOk(linha, cf.aba) ? "SIM" : "NÃO";
   const el = document.createElement("select");
   el.innerHTML = ["SIM", "NÃO"].map(o => `<option${o === atual ? " selected" : ""}>${o}</option>`).join("");
@@ -3345,8 +3396,8 @@ function editarConferiu(td, linha, cf){
     const novo = el.value;
     if (!salvar || novo === atual){ td.innerHTML = antigo; return; }
     td.innerHTML = '<span class="load"></span>';
-    const r = await salvarCampo(linha, cf.nome, "select", novo);
-    if (r.ok){ td.innerHTML = celula(linha, cf.nome, "ligacoes"); renderAba(); }
+    const r = await salvarCampo(linha, cf.nome, "select", novo, fonte);
+    if (r.ok){ td.innerHTML = celula(linha, cf.nome, fonte); renderAba(); }
     else {
       td.innerHTML = antigo; td.classList.add("recusado");
       td.title = "Não salvou: " + erroTexto(r.erro);
@@ -3910,7 +3961,7 @@ function renderAba(){
   if (def.vencimento) html += LEGENDA_VENC;
   else if (def.alertaCor) html += LEGENDA_ALERTA;
   /* 21/10: aviso da conferência semanal (a data fica roxa na tabela) */
-  if (CONF_ETAPA[ABA_ATUAL] && fonte === "ligacoes" && linhas.length){
+  if (confTemSemana(ABA_ATUAL) && linhas.length){
     const atr = linhas.filter(l => confAtrasada(l, ABA_ATUAL));
     const nunca = atr.filter(l => !confData(l, ABA_ATUAL)).length;
     const naoSemana = linhas.filter(l => !confSemanaOk(l, ABA_ATUAL)).length;
@@ -4299,7 +4350,7 @@ const EDITAVEIS = [
   C.APROVADA, C.DT_APROV, C.DT_LIG, C.UC, C.UC_OK, C.DT_UC, C.VENC,
   C.LINK, C.OBS, C.OBS_CONTAS, C.RESP,
   /* 21/10: conferência semanal — a DATA não entra: é carimbada ao marcar SIM */
-  ...Object.keys(CONF_INFO).map(k => CONF_INFO[k]).filter(c => c.papel === "SEM" || c.papel === "OBS").map(c => c.nome)
+  ...Object.keys(CONF_INFO).map(k => CONF_INFO[k]).filter(c => c.fonte === "ligacoes" && (c.papel === "SEM" || c.papel === "OBS")).map(c => c.nome)
 ];
 function ehEditavel(nome){ return EDITAVEIS.some(n => normN(n) === normN(nome)); }
 
@@ -5019,16 +5070,16 @@ async function salvarCampo(l, prop, tipo, valor, fonte){
      acompanhando a obra. */
 
   // ---- 21/10: CONFERIU NA SEMANA = SIM -> carimba a DATA DA CONFERÊNCIA com hoje ----
-  const cfS = (fonte !== "vendas") ? confDe(real) : null;
+  const cfS = confDe(real);
   if (cfS && cfS.papel === "SEM" && normN(novo) === "SIM"){
     const nomeData = confNome(cfS.aba, "DATA"), hoje = hojeISO();
     const antesData = getL(l, nomeData);
     if (l.v) setV(l.v, nomeData, hoje);
-    registrarEdicao("ligacoes", l.id, nomeData, hoje);
-    const r3 = await escrever({action:"ligUpdate", pageId: l.id, prop: nomeData, tipo: "date", valor: hoje},
-                              "ligação: " + nomeData);
+    registrarEdicao(baseEd, l.id, nomeData, hoje);
+    const r3 = await escrever({action: acao, pageId: l.id, prop: nomeData, tipo: "date", valor: hoje},
+                              (fonte === "vendas" ? "venda: " : "ligação: ") + nomeData);
     if (r3.ok) toast(r3.enfileirado ? "Conferência marcada — sobe quando reconectar." : "Conferência registrada em " + fmtData(hoje) + ".");
-    else { if (l.v) setV(l.v, nomeData, antesData); esquecerEdicao("ligacoes", l.id, nomeData);
+    else { if (l.v) setV(l.v, nomeData, antesData); esquecerEdicao(baseEd, l.id, nomeData);
            toast("Marcou SIM, mas a data da conferência não salvou: " + erroTexto(r3.erro), 8); }
   }
 
