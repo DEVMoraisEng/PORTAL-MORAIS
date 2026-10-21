@@ -1451,8 +1451,8 @@ function simRenderRecebidas(){
     <td>${simData(s.criadoEm)}</td>
     ${simContatoCells(s)}
     <td>${simTagSt(s.status)}</td>
-    <td style="max-width:320px;font-size:12px;color:var(--text3)"
-        title="${esc(s.mensagem||"")}">${esc(String(s.mensagem||"—").slice(0,90))}${String(s.mensagem||"").length>90?"…":""}</td></tr>`).join("");
+    <td style="min-width:220px;max-width:300px;white-space:normal;font-size:12px;line-height:1.35;color:var(--text3)"
+        title="${esc(s.mensagem||"")}">${esc(String(s.mensagem||"—").slice(0,120))}${String(s.mensagem||"").length>120?"…":""}</td></tr>`).join("");
   document.getElementById("sim-tabRec").innerHTML=cab+"<tbody>"+corpo+"</tbody>";
 }
 
@@ -1462,12 +1462,58 @@ function simRenderRecebidas(){
 function simHojeIso(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
 function simContatoCells(s){
   const ro=ehSomenteLeitura(S), c=String(s.contato||"").toUpperCase().replace("NAO","NÃO");
-  const st=e=>`onclick="event.stopPropagation()" ${ro?"disabled":""}`;
+  const dis=ro?"disabled":"";
   const cor = c==="SIM" ? "background:#E6F4EA;border-color:#9BD3AE" : (c==="NÃO" ? "background:#FDECEA;border-color:#E2A493" : "");
-  return `<td onclick="event.stopPropagation()"><select id="sc-c-${s.id}" ${st()} style="padding:4px 6px;border-radius:6px;border:1px solid var(--border2);font-size:12px;${cor}" onchange="simContato('${s.id}','contato',this)">
+  const obs=String(s.obsContato||"");
+  return `<td onclick="event.stopPropagation()" style="width:1%"><select id="sc-c-${s.id}" ${dis} style="width:74px;padding:4px 4px;border-radius:6px;border:1px solid var(--border2);font-size:12px;${cor}" onchange="simContato('${s.id}','contato',this)">
       <option value=""${!c?" selected":""}>—</option><option${c==="SIM"?" selected":""}>SIM</option><option${c==="NÃO"?" selected":""}>NÃO</option></select></td>
-    <td onclick="event.stopPropagation()"><input type="date" id="sc-d-${s.id}" value="${esc(s.dataContato||"")}" ${st()} style="padding:3px 5px;border-radius:6px;border:1px solid var(--border2);font-size:12px" onchange="simContato('${s.id}','dataContato',this)"></td>
-    <td onclick="event.stopPropagation()" style="min-width:200px"><input type="text" id="sc-o-${s.id}" value="${esc(s.obsContato||"")}" placeholder="o que aconteceu…" ${st()} style="width:100%;padding:4px 6px;border-radius:6px;border:1px solid var(--border2);font-size:12px" onchange="simContato('${s.id}','obsContato',this)"></td>`;
+    <td onclick="event.stopPropagation()" style="width:1%"><input type="date" id="sc-d-${s.id}" value="${esc(s.dataContato||"")}" ${dis} style="width:128px;padding:3px 4px;border-radius:6px;border:1px solid var(--border2);font-size:12px" onchange="simContato('${s.id}','dataContato',this)"></td>
+    <td onclick="event.stopPropagation();${ro?"":`simObsAbrir('${s.id}')`}" id="sc-o-${s.id}" title="${esc(obs||"Clique para escrever o que aconteceu")}"
+        style="min-width:150px;max-width:220px;white-space:normal;cursor:${ro?"default":"pointer"};font-size:12px;line-height:1.3">${simObsResumo(obs)}</td>`;
+}
+function simObsResumo(obs){
+  obs=String(obs||"");
+  return obs ? `<div style="max-height:2.6em;overflow:hidden;color:var(--text)">${esc(obs.length>90?obs.slice(0,90)+"…":obs)}</div>`
+             : '<span style="color:var(--text4)">✎ escrever…</span>';
+}
+/* r96i — observações num quadro próprio: clica na célula, abre, escreve e salva */
+function simObsAbrir(id){
+  const s=SIMS.find(x=>x.id===id); if(!s) return;
+  let ov=document.getElementById("sim-obsModal");
+  if(!ov){ ov=document.createElement("div"); ov.id="sim-obsModal"; ov.className="modal-ov";
+    ov.onclick=e=>{ if(e.target===ov) simObsFechar(); }; document.body.appendChild(ov); }
+  ov.classList.remove("hide");
+  ov.innerHTML=`<div class="modal-cx" style="max-width:560px">
+    <div class="modal-tit">Observações do contato</div>
+    <div class="modal-sub">${esc(s.cliente||"—")} · Un. ${esc(String(s.unidade||"—"))} · corretor ${esc(s.corretor||"—")}${s.contato?` · contato: <b>${esc(s.contato)}</b>`:""}${s.dataContato?` em ${esc(s.dataContato.split("-").reverse().join("/"))}`:""}</div>
+    <textarea id="sim-obsTxt" rows="7" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid var(--border2);font:inherit;font-size:13px;resize:vertical"
+      placeholder="O que aconteceu no contato com o cliente…">${esc(s.obsContato||"")}</textarea>
+    <div id="sim-obsAv" style="font-size:12px;margin-top:6px;color:var(--text3)"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+      <button class="bt" type="button" onclick="simObsFechar()">Cancelar</button>
+      <button class="bt" type="button" style="background:var(--azul);color:#fff" onclick="simObsSalvar('${id}',this)">Salvar</button>
+    </div></div>`;
+  setTimeout(()=>{ const t=document.getElementById("sim-obsTxt"); if(t){ t.focus(); t.setSelectionRange(t.value.length,t.value.length); } }, 50);
+}
+function simObsFechar(){ const ov=document.getElementById("sim-obsModal"); if(ov){ ov.classList.add("hide"); ov.innerHTML=""; } }
+async function simObsSalvar(id, bt){
+  const s=SIMS.find(x=>x.id===id); if(!s) return;
+  const t=document.getElementById("sim-obsTxt"), av=document.getElementById("sim-obsAv");
+  bt.disabled=true; av.textContent="Gravando…";
+  const ant=s.obsContato; s.obsContato=t.value.trim();
+  const r=await simContatoGravar(s);
+  bt.disabled=false;
+  if(r&&r.ok){ const cel=document.getElementById("sc-o-"+id); if(cel){ cel.innerHTML=simObsResumo(s.obsContato); cel.title=s.obsContato||"Clique para escrever o que aconteceu"; }
+    simObsFechar(); }
+  else { s.obsContato=ant; av.innerHTML='<span style="color:#C0392B">Não gravou: '+esc((r&&(r.erro||r.mensagem))||"sem resposta do servidor")+'</span>'; }
+}
+async function simContatoGravar(s){
+  let r=null;
+  try{ r=await chamar({action:"simsContato", pageId:s.id, contato:s.contato||"", dataContato:s.dataContato||"", obsContato:s.obsContato||""}, 45000, true); }
+  catch(e){ r=null; }
+  if(r&&r.ok){ if(r.dataContato!==undefined && r.dataContato!==s.dataContato){ s.dataContato=r.dataContato; const d=document.getElementById("sc-d-"+s.id); if(d) d.value=s.dataContato; }
+    try{ storeInvalidar("sims_lista"); }catch(e){} }
+  return r;
 }
 async function simContato(id, campo, el){
   const s=SIMS.find(x=>x.id===id); if(!s) return;
@@ -1475,14 +1521,10 @@ async function simContato(id, campo, el){
   if(campo==="contato" && el.value==="SIM" && !s.dataContato){ s.dataContato=simHojeIso(); const d=document.getElementById("sc-d-"+id); if(d) d.value=s.dataContato; }
   if(campo==="contato") el.style.background = el.value==="SIM" ? "#E6F4EA" : (el.value==="NÃO" ? "#FDECEA" : "");
   el.style.outline="2px solid #EFB700";
-  let r=null;
-  try{ r=await chamar({action:"simsContato", pageId:id, contato:s.contato||"", dataContato:s.dataContato||"", obsContato:s.obsContato||""}, 45000, true); }
-  catch(e){ r=null; }
+  const r=await simContatoGravar(s);
   el.style.outline = (r&&r.ok) ? "2px solid #2E8B57" : "2px solid #C0392B";
   el.title = (r&&r.ok) ? "Gravado no Notion" : ("Não gravou: "+((r&&(r.erro||r.mensagem))||"sem resposta do servidor"));
-  if(r&&r.ok){ if(r.dataContato!==undefined && r.dataContato!==s.dataContato){ s.dataContato=r.dataContato; const d=document.getElementById("sc-d-"+id); if(d) d.value=s.dataContato; }
-    try{ storeInvalidar("sims_lista"); }catch(e){}
-    setTimeout(()=>{ el.style.outline=""; }, 1500); }
+  if(r&&r.ok) setTimeout(()=>{ el.style.outline=""; }, 1500);
 }
 
 function simTagSt(st){
