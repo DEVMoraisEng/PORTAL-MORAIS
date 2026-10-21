@@ -122,9 +122,12 @@ th.ord.on .seta{opacity:1}
 /* ===================== ALERTAS (item 13) ===================== */
 .alertas{display:flex;flex-direction:column;gap:9px;margin:14px 0}
 /* 01/10/26 — validação do ADM (obra/serviço criados por outra pessoa) */
-.val-faixa{display:none;margin:14px 0 0;border:1px solid #F5C26B;background:#FFF7E6;color:#8A4B00;border-radius:11px;padding:11px 13px;font-size:13px;align-items:center;gap:10px}
-.val-faixa.on{display:flex}
-.val-faixa b{font-weight:800}
+.val-faixa{display:none;margin:14px 0 0}
+.val-faixa.on{display:block}
+/* 21/10: validação do ADM no mesmo padrão dos outros alertas */
+.al.validar{background:#FFF7E6;border-color:#F5C26B;color:#8A4B00}
+.al.validar .ti{color:#8A4B00}
+.al.validar .acao{margin-top:7px}
 .val-it{border:1px solid var(--border2,#d0e4ec);border-radius:10px;padding:10px 12px;margin-bottom:10px}
 .val-it .t{font-weight:800;font-size:13.5px}
 .val-it .s{font-size:12px;color:var(--text3,#5a8099);margin:3px 0 6px}
@@ -134,7 +137,8 @@ th.ord.on .seta{opacity:1}
 .val-tag{display:inline-block;font-size:10.5px;font-weight:800;border-radius:8px;padding:1px 7px;margin-left:6px;background:#FFE7BA;color:#8A4B00;vertical-align:middle}
 .ajuda-end{font-size:11.5px;margin-top:4px;color:var(--text3,#5a8099)}
 .ajuda-end.ok{color:#15803D}.ajuda-end.err{color:#c0392b}
-html[data-tema="escuro"] .val-faixa{background:#3a2d12;border-color:#7a5a1e;color:#f0c95f}
+html[data-tema="escuro"] .al.validar{background:#3a2d12;border-color:#7a5a1e;color:#f0c95f}
+html[data-tema="escuro"] .al.validar .ti{color:#f0c95f}
 .al{display:flex;gap:11px;align-items:flex-start;border-radius:11px;padding:11px 13px;border:1px solid;font-size:13px}
 .al .ic{font-size:17px;line-height:1.1}
 .al .co{flex:1;min-width:0}
@@ -1608,6 +1612,7 @@ function recarregarTudo(){
      disso é a ponte local (ver "SERVIÇOS CRIADOS AGORA"). */
   storeInvalidar(CH_BOOT);
   carregarPeloBackend(true);
+  if(ehAdmTela()) carregarValidacoes();
 }
 
 function mostrarAviso(r){
@@ -4603,23 +4608,49 @@ try{
     DATA_INVALIDA:"Data inválida.", APENAS_ADM:"Só o ADM pode fazer isso."
   });
 }catch(e){}
+/* 21/10: o alerta às vezes não aparecia — se a leitura falhava (servidor
+ * ocupado, tempo esgotado) a tela desistia calada e só tentava de novo ao
+ * recarregar a página. Agora: mostra na hora a última lista guardada neste
+ * navegador, tenta de novo (5 s, 15 s, 45 s) quando falha e relê a cada 10 min,
+ * ao voltar para a aba e no "Recarregar". */
 let VALIDACOES = [];
+const CH_VAL = "pos_obra_validar";
+let _valTent = 0, _valTimer = null, _valLendo = false, _valOkEm = 0;
+try{ const c = JSON.parse(localStorage.getItem(CH_VAL)||"null"); if(c && Array.isArray(c.itens) && Date.now()-c.t < 24*3600*1000) VALIDACOES = c.itens; }catch(e){}
+/* (o boot() roda antes desta linha — por isso a cópia guardada é pintada aqui) */
+try{ if(ehAdmTela() && podeAcessar(S,"PÓS OBRA") && VALIDACOES.length) pintarFaixaValidacoes(); }catch(e){}
 async function carregarValidacoes(){
-  if(!ehAdmTela()) return;
-  const r = await ler({action:"posObraPendencias"});
-  if(!r || !r.ok){ return; }
+  if(!ehAdmTela() || _valLendo) return;
+  if(VALIDACOES.length) pintarFaixaValidacoes();
+  _valLendo = true; clearTimeout(_valTimer);
+  let r = null; try{ r = await ler({action:"posObraPendencias"}); }catch(e){ r = null; }
+  _valLendo = false;
+  if(!r || !r.ok){
+    if(_valTent < 3){ const ms=[5000,15000,45000][_valTent++]; _valTimer = setTimeout(carregarValidacoes, ms); }
+    else { _valTent = 0; _valTimer = setTimeout(carregarValidacoes, RECARGA_MIN*60*1000); }
+    return;
+  }
+  _valTent = 0; _valOkEm = Date.now();
   VALIDACOES = r.itens || [];
+  try{ localStorage.setItem(CH_VAL, JSON.stringify({t:Date.now(), itens:VALIDACOES})); }catch(e){}
   pintarFaixaValidacoes();
   if(location.hash==="#validar" && VALIDACOES.length) abrirValidacoes();
+  _valTimer = setTimeout(carregarValidacoes, RECARGA_MIN*60*1000);
 }
+document.addEventListener("visibilitychange", ()=>{ if(!document.hidden && ehAdmTela() && Date.now()-_valOkEm > 60000) carregarValidacoes(); });
 function pintarFaixaValidacoes(){
   const f = document.getElementById("val-faixa"); if(!f) return;
   const n = VALIDACOES.length;
   if(!n){ f.classList.remove("on"); f.innerHTML=""; fecharValidacoes(); return; }
   const ob = VALIDACOES.filter(x=>x.tipo==="obra").length, sv = n-ob;
-  f.innerHTML = '<span style="font-size:17px">🛠</span><span style="flex:1"><b>'+n+' criaç'+(n>1?"ões":"ão")+' para validar</b> — '+
-    [ob?ob+" obra"+(ob>1?"s":""):"", sv?sv+" tipo"+(sv>1?"s":"")+" de serviço":""].filter(Boolean).join(" e ")+
-    ' criad'+(n>1?"os":"o")+' por quem não é ADM.</span><button class="bt az peq" onclick="abrirValidacoes()">Ver e validar</button>';
+  const dia = iso=>{ try{ return new Date(iso).toLocaleDateString("pt-BR"); }catch(e){ return ""; } };
+  f.innerHTML = '<div class="al validar"><span class="ic">🛠</span><div class="co">'+
+    '<div class="ti">Para validar — '+n+(n===1?' criação':' criações')+'</div>'+
+    '<div class="li" style="margin-bottom:5px">'+[ob?ob+" obra"+(ob>1?"s":""):"", sv?sv+" tipo"+(sv>1?"s":"")+" de serviço":""].filter(Boolean).join(" e ")+
+    ' criad'+(n>1?"os":"o")+' por quem não é ADM. Valide ou recuse.</div>'+
+    VALIDACOES.slice(0,10).map(x=>'<div class="li">• <b onclick="abrirValidacoes()">'+(x.tipo==="obra"?"🏠 Obra: ":"🔧 Serviço: ")+esc(x.nome)+'</b> — criado por '+esc(x.por||"?")+' em '+esc(dia(x.em))+'</div>').join("")+
+    (n>10?'<div class="li">… e mais '+(n-10)+'</div>':"")+
+    '<div class="acao"><button class="bt az peq" onclick="abrirValidacoes()">Ver e validar</button></div></div></div>';
   f.classList.add("on");
 }
 function abrirValidacoes(){
@@ -4663,6 +4694,7 @@ async function decidirValidacao(id, decisao){
   }
   const res = r.resposta || {}, feito = res.feito || {};
   VALIDACOES = VALIDACOES.filter(v=>v.id!==id);
+  try{ localStorage.setItem(CH_VAL, JSON.stringify({t:Date.now(), itens:VALIDACOES})); }catch(e){}
   if(decisao==="recusar"){
     if(x.tipo==="obra"){
       OBRAS = (OBRAS||[]).filter(o=>o.id!==x.obraId && String(o.id).replace(/-/g,"")!==String(x.obraId||"").replace(/-/g,""));
