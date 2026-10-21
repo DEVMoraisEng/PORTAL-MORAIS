@@ -157,6 +157,17 @@ td.edt:hover{outline:2px solid var(--verde);outline-offset:-2px;background:#f0fb
 /* gravação recusada pelo servidor: a célula pisca em vermelho por alguns
    segundos — o toast some rápido demais para um erro que precisa de ação */
 td.recusado{background:#FEE2E2 !important;outline:2px solid var(--vermelho);outline-offset:-2px}
+/* 21/10: conferência semanal */
+td.conf-roxo{background:#EDE4FF !important;color:#5B21B6;font-weight:700}
+.aviso-conf{display:flex;gap:10px;align-items:flex-start;background:#F3EEFF;border:1px solid #C4B5FD;color:#5B21B6;border-radius:10px;padding:9px 12px;font-size:12.5px;margin:8px 0}
+.aviso-conf .pt{width:12px;height:12px;border-radius:3px;background:#C4B5FD;border:1px solid #8B5CF6;flex:none;margin-top:3px}
+.aviso-conf.leve{background:var(--sup);border-color:var(--border);color:var(--text2)}
+.conf-obs small{font-weight:800;color:var(--text3)}.conf-obs em{color:var(--text3);font-style:normal;font-weight:700}
+.txt-hist{max-height:240px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:6px 10px;margin:6px 0 8px;background:var(--sup)}
+.txt-hist .h-it{padding:6px 0;border-bottom:1px dashed var(--border)}.txt-hist .h-it:last-child{border-bottom:0}
+.txt-hist .h-q{font-size:11px;font-weight:800;color:var(--text3)}
+.txt-hist .h-t{white-space:pre-wrap;font-size:13px;word-break:break-word}
+.txt-hist .h-vazio{font-size:12px;color:var(--text3);padding:4px 0}
 td.sens{color:var(--text4)}
 /* coluna de alerta: sem limite de largura e sem reticências — o texto inteiro
    é o recado ("ATRASADO! VERIFICAR SE A LIGAÇÃO FOI FEITA") */
@@ -424,6 +435,8 @@ html[data-tema="escuro"] body{background:var(--bg)}
 html[data-tema="escuro"] table.grade tbody tr:nth-child(even):not([class*="lin-"]) td{background:#121e27}
 html[data-tema="escuro"] td.edt:hover{background:#1c3d2c !important}
 html[data-tema="escuro"] td.recusado{background:#4a2020 !important}
+html[data-tema="escuro"] td.conf-roxo{background:#3b2a5c !important;color:#d8c7ff}
+html[data-tema="escuro"] .aviso-conf{background:#2a2040;border-color:#5b4a8a;color:#d8c7ff}
 html[data-tema="escuro"] tbody tr.lin-vencida td{background:#4a2222}
 html[data-tema="escuro"] tbody tr.lin-vencida td.stick{background:#5c2a2a}
 html[data-tema="escuro"] tbody tr.lin-emdia td{background:#1b3a2a}
@@ -612,6 +625,8 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
     <div class="modal-cx">
       <div class="modal-tit" id="txt-tit">Observações</div>
       <div class="txt-sub" id="txt-sub"></div>
+      <!-- 21/10: OBS. CONFERÊNCIA — histórico (só leitura) acima do campo do registro novo -->
+      <div class="txt-hist" id="txt-hist" style="display:none"></div>
       <textarea class="txt-area" id="txt-area" placeholder="Escreva aqui. Enter pula de linha."></textarea>
       <div class="txt-dica">Enter pula de linha · Ctrl+Enter salva · Esc fecha</div>
       <div class="modal-acoes">
@@ -909,6 +924,7 @@ const RENOMEADAS_TELA = {};
 RENOMEADAS_TELA[normN(C.LIBERADO)] = "MEDIDOR COMPRADO";
 function tituloColuna(nome){
   if (ehCalculada(nome)) return CALC_DEF[nome].titulo;
+  const cf = confDe(nome); if (cf) return cf.titulo;   // 21/10: sem o "(ETAPA)" — a aba já diz qual é
   const r = RENOMEADAS_TELA[normN(nome)];
   return r || nome;
 }
@@ -917,6 +933,83 @@ function tituloColuna(nome){
    Os filtros fixos são exatamente os das views do Notion que você mandou
    por print — ficam aqui, no código, e não em opção de tela, pra que a aba
    signifique sempre a mesma coisa pra todo mundo que abrir. */
+/* ===================== 21/10/26 — CONFERÊNCIA SEMANAL =====================
+ * Cada aba do setor ACOMPANHAMENTO DE LIGAÇÕES tem as SUAS 4 colunas no Notion
+ * (separadas por etapa — conferir numa aba não mexe na outra):
+ *   CONFERIU NA SEMANA (etapa) — SIM/NÃO. Volta para NÃO todo domingo: o SIM só
+ *     vale se a DATA DA CONFERÊNCIA for desta semana (de domingo em diante).
+ *     Nada precisa rodar no domingo — a tela calcula.
+ *   DATA DA CONFERÊNCIA (etapa) — carimbada com hoje ao marcar SIM e mantida até
+ *     o próximo SIM. Mais de 7 dias (ou nunca conferida) = célula ROXA e aviso
+ *     no topo da aba.
+ *   OBS. CONFERÊNCIA (etapa) — histórico: cada registro novo entra no topo com
+ *     data, hora e quem escreveu; os anteriores continuam lá.
+ *   ANEXO CONFERÊNCIA (etapa) — arquivos (mesmo anexo da NF MEDIDOR).
+ * O Apps Script (PORTAL-ESCRITA, r56) cria as colunas na primeira gravação. Até
+ * o arquivo publicado trazê-las, o schema delas é completado aqui
+ * (garantirSchemaConf). */
+const CONF_ETAPA = { liberadas: "LIBERADAS", acompanhamento: "SANESC", conferencias: "CONFERÊNCIAS", semUc: "SEM UC" };
+const CONF_PAPEIS = { SEM: ["CONFERIU NA SEMANA", "select"], DATA: ["DATA DA CONFERÊNCIA", "date"],
+                      OBS: ["OBS. CONFERÊNCIA", "rich_text"], ANEXO: ["ANEXO CONFERÊNCIA", "files"] };
+const CONF_INFO = {};   // normN(nome) -> { papel, aba, tipo, titulo, nome }
+function confNome(aba, papel){ return CONF_PAPEIS[papel][0] + " (" + CONF_ETAPA[aba] + ")"; }
+Object.keys(CONF_ETAPA).forEach(aba => Object.keys(CONF_PAPEIS).forEach(p => {
+  const nome = confNome(aba, p);
+  CONF_INFO[normN(nome)] = { papel: p, aba: aba, tipo: CONF_PAPEIS[p][1], titulo: CONF_PAPEIS[p][0], nome: nome };
+}));
+function confColunas(aba){ return ["SEM", "DATA", "OBS", "ANEXO"].map(p => confNome(aba, p)); }
+function confDe(nome){ return CONF_INFO[normN(nome)] || null; }
+/* domingo desta semana, em AAAA-MM-DD (hora local) */
+function confInicioSemana(){
+  const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() - d.getDay());
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+}
+function confData(l, aba){ return dataReal(l, confNome(aba, "DATA")); }
+function confSemanaOk(l, aba){
+  const d = confData(l, aba);
+  return normN(sel(l, confNome(aba, "SEM"))) === "SIM" && !!d && d >= confInicioSemana();
+}
+function confDias(l, aba){
+  const d = confData(l, aba); if (!d) return null;
+  return Math.round((Date.parse(hojeISO() + "T00:00:00") - Date.parse(d + "T00:00:00")) / 86400000);
+}
+/* atrasada = mais de uma semana desde a última conferência, ou nunca conferida */
+function confAtrasada(l, aba){ const n = confDias(l, aba); return n === null || n > 7; }
+/* completa o schema com as colunas de conferência que o arquivo publicado ainda não traz */
+function garantirSchemaConf(){
+  Object.keys(CONF_INFO).forEach(k => {
+    const ci = CONF_INFO[k];
+    if (campoDe(ci.nome)) return;
+    const c = { nome: ci.nome, tipo: ci.tipo, opcoes: ci.tipo === "select" ? ["SIM", "NÃO"] : null, editavel: true };
+    if (ci.tipo === "files") c.sensivel = true;
+    SCHEMA.push(c); SCAMPO[c.nome] = c;
+  });
+}
+/* histórico da observação: cada registro começa com "▸ dd/mm/aaaa hh:mm · Nome" */
+const CONF_MARCA = "▸ ";
+function confHistorico(texto){
+  const s = String(texto == null ? "" : texto).trim();
+  if (!s) return [];
+  return s.split(/^▸ /m).map((parte, i) => {
+    const t = parte.replace(/\s+$/, "");
+    if (!t.trim()) return null;
+    if (i === 0 && !s.startsWith(CONF_MARCA)) return { quando: "", texto: t.trim() };   // texto antigo, sem data
+    const nl = t.indexOf("\n");
+    return { quando: (nl < 0 ? t : t.slice(0, nl)).trim(), texto: (nl < 0 ? "" : t.slice(nl + 1)).trim() };
+  }).filter(Boolean);
+}
+function confNovaEntrada(texto){
+  const d = new Date();
+  const q = d.toLocaleDateString("pt-BR") + " " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  const quem = (S && (S.nome || S.u)) || "";
+  return CONF_MARCA + q + (quem ? " · " + quem : "") + "\n" + String(texto).trim();
+}
+function confHistoricoHtml(texto){
+  const h = confHistorico(texto);
+  if (!h.length) return '<div class="h-vazio">Nenhum registro ainda.</div>';
+  return h.map(x => `<div class="h-it">${x.quando ? `<div class="h-q">${esc(x.quando)}</div>` : '<div class="h-q">registro sem data</div>'}<div class="h-t">${esc(x.texto)}</div></div>`).join("");
+}
+
 const ABAS = {
   aptas: {
     titulo: "Verificar se a obra está apta para a solicitação",
@@ -936,7 +1029,7 @@ const ABAS = {
     /* Só SANESC: a aprovação da solicitação só existe nela. Por isso a coluna
        de concessionária saiu — seria a mesma palavra em todas as linhas. */
     colunas: [C.OBRA, C.APROVADA, C.DT_LIBER, C.DT_SOL, C.DT_APROV,
-              CALC.PROC_SANESC, C.RESP, C.ALERTA_SOL, C.OBS],
+              CALC.PROC_SANESC, C.RESP, C.ALERTA_SOL, C.OBS, ...confColunas("acompanhamento")],
     filtros: [C.RESP],
     filtroData: [C.DT_LIBER, C.DT_SOL, C.DT_APROV],
     pdf: true,
@@ -964,7 +1057,7 @@ const ABAS = {
        aparecia na tela sem rolar. Agora a data e os dias que correram desde
        ela ficam lado a lado. */
     colunas: [C.OBRA, C.CONC, C.DT_LIBER, CALC.PRAZO_LIBER, C.DT_SOL, C.FEZ,
-              C.NF_MEDIDOR, C.RESP, C.OBS, C.CPF, C.ALERTA_INFO],
+              C.NF_MEDIDOR, C.RESP, C.OBS, C.CPF, C.ALERTA_INFO, ...confColunas("liberadas")],
     filtros: [C.CONC, C.RESP, C.FEZ],
     filtroData: [C.DT_LIBER, C.DT_SOL],
     sensiveis: true,
@@ -983,7 +1076,7 @@ const ABAS = {
     /* CPF/CNPJ (a fórmula que já junta V1 e V2) em vez de "CPF/CNPJ V1": na
        base real a V1 vinha vazia e a coluna aparecia só com "—". */
     colunas: [C.OBRA, C.CONC, C.CPF, C.DT_SOL, C.DT_LIG,
-              CALC.LIG_CORRIDO, C.RESP, C.STATUS, C.ALERTA_LIG],
+              CALC.LIG_CORRIDO, C.RESP, C.STATUS, C.ALERTA_LIG, ...confColunas("conferencias")],
     filtros: [C.CONC, C.RESP],
     filtroData: [C.DT_SOL, C.DT_LIG, C.DT_LIBER],
     sensiveis: true,
@@ -1007,7 +1100,7 @@ const ABAS = {
   },
   semUc: {
     titulo: "Ligações sem UC (ligadas mas sem UC)",
-    colunas: [C.OBRA, C.CONC, C.CPF, C.NASC, CALC.PRAZO_UC, C.DT_UC, C.UC, C.UC_OK, C.DT_LIG, C.RESP, C.OBS_CONTAS, C.ALERTA_UC],
+    colunas: [C.OBRA, C.CONC, C.CPF, C.NASC, CALC.PRAZO_UC, C.DT_UC, C.UC, C.UC_OK, C.DT_LIG, C.RESP, C.OBS_CONTAS, C.ALERTA_UC, ...confColunas("semUc")],
     filtros: [C.CONC, C.RESP, C.UC_OK],
     filtroData: [C.DT_LIG, C.DT_UC],
     sensiveis: true,
@@ -1825,6 +1918,7 @@ function pintarTudo(r){
   LIG = r.ligacoes;
   SCHEMA = r.schema || [];
   SCAMPO = {}; SCHEMA.forEach(c => SCAMPO[c.nome] = c);
+  garantirSchemaConf();   // 21/10: colunas de conferência que o arquivo ainda não traz
   reaplicarEdicoes("ligacoes", r.updated_at);
   montarFiltros("filtros-hub", FILTROS_HUB, "hub", renderPlanilha);
   montarAnos();
@@ -2634,7 +2728,8 @@ window.addEventListener("resize", () => { clearTimeout(window._rz); window._rz =
    ocultas do PDF, na ordem que faz sentido pra quem trabalha na tela. */
 function colunasVisiveis(){
   const ocultas = OCULTAS.map(normN);
-  const doSchema = SCHEMA.map(c=>c.nome).filter(n => ocultas.indexOf(normN(n)) < 0);
+  /* 21/10: as 16 colunas de conferência semanal ficam só nas abas delas */
+  const doSchema = SCHEMA.map(c=>c.nome).filter(n => ocultas.indexOf(normN(n)) < 0 && !confDe(n));
   const ordem = [C.OBRA, C.CONC, C.SISTEMA, C.STATUS, C.LIBERADO, C.DT_LIBER, C.NF_MEDIDOR,
                  C.FEZ, C.DT_SOL, C.APROVADA, C.DT_APROV, C.DT_LIG, C.DT_UC, C.UC, C.UC_OK, C.VENC,
                  C.RESP, C.LINK, C.OBS, C.OBS_CONTAS];
@@ -2670,6 +2765,9 @@ function ehColunaUc(nome){
 
 function celulaTexto(l, nome, fonte){
   if (ehCalculada(nome)){ const d = CALC_DEF[nome].valor(l); return d == null ? "—" : String(d); }
+  const cf = (fonte !== "vendas") ? confDe(nome) : null;
+  if (cf && cf.papel === "SEM") return confSemanaOk(l, cf.aba) ? "SIM" : "NÃO";
+  if (cf && cf.papel === "DATA"){ const d = confData(l, cf.aba); return d ? fmtData(d) : "nunca conferida"; }
   if (fonte === "vendas" && ehColunaUc(nome)) return textoUc(l, nome);
   const campo = campoDe(nome, fonte);
   const tipo = campo ? campo.tipo : "rich_text";
@@ -2698,6 +2796,21 @@ function celula(l, nome, fonte){
   if (ehCalculada(nome)){
     const d = CALC_DEF[nome].valor(l);
     return d == null ? "—" : `<b>${d}</b>`;
+  }
+  /* 21/10: conferência semanal (ver CONF_INFO) */
+  const cf = (fonte !== "vendas") ? confDe(nome) : null;
+  if (cf && cf.papel === "SEM")
+    return confSemanaOk(l, cf.aba) ? '<span class="tag sim">SIM</span>'
+      : '<span class="tag nao" title="Ainda não conferida nesta semana (volta para NÃO todo domingo)">NÃO</span>';
+  if (cf && cf.papel === "DATA"){
+    const d = confData(l, cf.aba), n = confDias(l, cf.aba);
+    if (!d) return '<span title="Nunca conferida">nunca</span>';
+    return `<span title="${n === 0 ? "hoje" : (n + (n === 1 ? " dia" : " dias") + " atrás")}${n > 7 ? " — mais de uma semana sem conferir" : ""}">${fmtData(d)}</span>`;
+  }
+  if (cf && cf.papel === "OBS"){
+    const h = confHistorico(getL(l, nome));
+    if (!h.length) return "—";
+    return `<span class="conf-obs" title="${esc(h.length + (h.length === 1 ? " registro" : " registros") + " — clique para ver o histórico e escrever")}">${h[0].quando ? `<small>${esc(h[0].quando.split(" · ")[0])}</small> ` : ""}${esc(h[0].texto)}${h.length > 1 ? ` <em>(+${h.length - 1})</em>` : ""}</span>`;
   }
   if (fonte === "vendas" && ehColunaUc(nome)){
     const t = textoUc(l, nome);
@@ -2906,7 +3019,9 @@ function tabelaHtml(linhas, colunas, extras, fonte, corDe, ctx){
   const tr = linhas.map(l => {
     const tds = cols.map((c,i) => {
       const ed = podeEditarNaTabela(c, fonte);
-      const cls = [i===0?"stick":"", ed?"edt":"", ehAlerta(c)?"wide":""].filter(Boolean).join(" ");
+      const cfc = (fonte !== "vendas") ? confDe(c) : null;   // 21/10: data da conferência vencida = roxo
+      const roxo = cfc && cfc.papel === "DATA" && confAtrasada(l, cfc.aba);
+      const cls = [i===0?"stick":"", ed?"edt":"", ehAlerta(c)?"wide":"", roxo?"conf-roxo":""].filter(Boolean).join(" ");
       const attrs = (cls ? ` class="${cls}"` : "") +
                     (ed ? ` data-col="${esc(c)}" title="Clique para editar"` : "");
       // a primeira coluna (o endereço) é o link que abre a obra
@@ -3060,7 +3175,18 @@ function abrirCaixaTexto(linha, col, fonte, campo){
   document.getElementById("txt-sub").textContent = linha.obra || "";
   const ta = document.getElementById("txt-area");
   const atual = getL(linha, col);
-  ta.value = (atual == null ? "" : String(atual));
+  /* 21/10: observação da conferência = histórico. O que já foi escrito fica à
+     vista e não se edita; o campo é só para o registro novo, que entra no topo
+     com data, hora e quem escreveu. */
+  const cfH = confDe(col), hist = document.getElementById("txt-hist");
+  CX_TEXTO.historico = !!(cfH && cfH.papel === "OBS");
+  if (CX_TEXTO.historico){
+    hist.innerHTML = confHistoricoHtml(atual); hist.style.display = "";
+    ta.value = ""; ta.placeholder = "Novo registro — entra no histórico com a data e a hora de agora. Enter pula de linha.";
+  } else {
+    hist.style.display = "none"; hist.innerHTML = "";
+    ta.value = (atual == null ? "" : String(atual)); ta.placeholder = "Escreva aqui. Enter pula de linha.";
+  }
   document.getElementById("txt-overlay").style.display = "flex";
   document.getElementById("txt-salvar").disabled = false;
   setTimeout(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 30);
@@ -3074,8 +3200,13 @@ function fecharCaixaTexto(){
 async function salvarCaixaTexto(){
   if (!CX_TEXTO) return;
   const { linha, col, fonte, tipo } = CX_TEXTO;
-  const novo = document.getElementById("txt-area").value;
+  let novo = document.getElementById("txt-area").value;
   const atual = getL(linha, col);
+  if (CX_TEXTO.historico){
+    if (!novo.trim()){ fecharCaixaTexto(); return; }
+    const ant = String(atual == null ? "" : atual).trim();
+    novo = confNovaEntrada(novo) + (ant ? "\n\n" + ant : "");
+  }
   if (String(atual == null ? "" : atual) === novo){ fecharCaixaTexto(); return; }
   const bt = document.getElementById("txt-salvar");
   bt.disabled = true; bt.textContent = "Salvando…";
@@ -3109,6 +3240,9 @@ function editarCelula(td){
   if (!campo || !linha) return;
 
   const atual = getL(linha, col);
+  /* 21/10: CONFERIU NA SEMANA abre com o valor DA SEMANA (o SIM antigo já vale NÃO) */
+  const cfE = (fonte !== "vendas") ? confDe(col) : null;
+  if (cfE && cfE.papel === "SEM"){ editarConferiu(td, linha, cfE); return; }
   // observação abre em quadro próprio, com espaço e quebra de linha
   if (ehTextoLongo(col, campo)){ abrirCaixaTexto(linha, col, fonte, campo); return; }
   const antigo = td.innerHTML;
@@ -3192,6 +3326,36 @@ function editarCelula(td){
     if (e.key === "Escape") encerrar(false);
     if (e.key === "Enter" && el.tagName !== "SELECT") encerrar(true);
   });
+}
+
+/* 21/10: CONFERIU NA SEMANA na célula. SIM grava SIM e carimba a DATA DA
+   CONFERÊNCIA com hoje (o carimbo é feito no salvarCampo); NÃO grava só o NÃO
+   e mantém a última data. */
+function editarConferiu(td, linha, cf){
+  const antigo = td.innerHTML, atual = confSemanaOk(linha, cf.aba) ? "SIM" : "NÃO";
+  const el = document.createElement("select");
+  el.innerHTML = ["SIM", "NÃO"].map(o => `<option${o === atual ? " selected" : ""}>${o}</option>`).join("");
+  const emCelular = window.matchMedia && window.matchMedia("(max-width:680px)").matches;
+  el.style.cssText = "width:100%;min-width:90px;padding:4px 7px;font-size:" + (emCelular ? "16px" : "12.5px");
+  td.innerHTML = ""; td.appendChild(el); el.focus();
+  if (el.showPicker){ try { el.showPicker(); } catch(e){} }
+  let feito = false;
+  const fim = async (salvar) => {
+    if (feito) return; feito = true;
+    const novo = el.value;
+    if (!salvar || novo === atual){ td.innerHTML = antigo; return; }
+    td.innerHTML = '<span class="load"></span>';
+    const r = await salvarCampo(linha, cf.nome, "select", novo);
+    if (r.ok){ td.innerHTML = celula(linha, cf.nome, "ligacoes"); renderAba(); }
+    else {
+      td.innerHTML = antigo; td.classList.add("recusado");
+      td.title = "Não salvou: " + erroTexto(r.erro);
+      setTimeout(() => td.classList.remove("recusado"), 6000);
+    }
+  };
+  el.addEventListener("change", () => fim(true));
+  el.addEventListener("blur", () => fim(true));
+  el.addEventListener("keydown", e => { if (e.key === "Escape") fim(false); });
 }
 
 /* Edita, a partir da aba Casas vendidas, o STATUS da ligação daquela casa.
@@ -3745,6 +3909,14 @@ function renderAba(){
   let html = "";
   if (def.vencimento) html += LEGENDA_VENC;
   else if (def.alertaCor) html += LEGENDA_ALERTA;
+  /* 21/10: aviso da conferência semanal (a data fica roxa na tabela) */
+  if (CONF_ETAPA[ABA_ATUAL] && fonte === "ligacoes" && linhas.length){
+    const atr = linhas.filter(l => confAtrasada(l, ABA_ATUAL));
+    const nunca = atr.filter(l => !confData(l, ABA_ATUAL)).length;
+    const naoSemana = linhas.filter(l => !confSemanaOk(l, ABA_ATUAL)).length;
+    if (atr.length) html += `<div class="aviso-conf"><span class="pt"></span><div><b>${atr.length} ${atr.length === 1 ? "obra está" : "obras estão"} com a conferência atrasada</b> — mais de uma semana desde a última${nunca ? ` (${nunca} nunca ${nunca === 1 ? "foi conferida" : "foram conferidas"})` : ""}. A data aparece em roxo.${naoSemana ? ` · ${naoSemana} ainda sem conferência nesta semana.` : ""}</div></div>`;
+    else if (naoSemana) html += `<div class="aviso-conf leve"><span class="pt"></span><div>${naoSemana} ${naoSemana === 1 ? "obra ainda não foi conferida" : "obras ainda não foram conferidas"} nesta semana.</div></div>`;
+  }
   if (def.sensiveis && !(fonte === "vendas" ? SENS_VEN : SENS_LIG)){
     html += SENS_ERRO
       ? `<div class="aviso-inline">Não consegui buscar os dados protegidos (${esc(erroTexto(SENS_ERRO))}) — as colunas de CPF, nascimento, cliente e WhatsApp aparecem como •••.</div>`
@@ -4125,7 +4297,9 @@ function baixarRelatorio(){
 const EDITAVEIS = [
   C.OBRA, C.CONC, C.SISTEMA, C.STATUS, C.LIBERADO, C.DT_LIBER, C.FEZ, C.DT_SOL,
   C.APROVADA, C.DT_APROV, C.DT_LIG, C.UC, C.UC_OK, C.DT_UC, C.VENC,
-  C.LINK, C.OBS, C.OBS_CONTAS, C.RESP
+  C.LINK, C.OBS, C.OBS_CONTAS, C.RESP,
+  /* 21/10: conferência semanal — a DATA não entra: é carimbada ao marcar SIM */
+  ...Object.keys(CONF_INFO).map(k => CONF_INFO[k]).filter(c => c.papel === "SEM" || c.papel === "OBS").map(c => c.nome)
 ];
 function ehEditavel(nome){ return EDITAVEIS.some(n => normN(n) === normN(nome)); }
 
@@ -4843,6 +5017,20 @@ async function salvarCampo(l, prop, tipo, valor, fonte){
      aprovada foi REMOVIDO em 24/08/2026 a pedido: o status passou a ser
      controlado à mão, e a mudança automática atropelava quem estava
      acompanhando a obra. */
+
+  // ---- 21/10: CONFERIU NA SEMANA = SIM -> carimba a DATA DA CONFERÊNCIA com hoje ----
+  const cfS = (fonte !== "vendas") ? confDe(real) : null;
+  if (cfS && cfS.papel === "SEM" && normN(novo) === "SIM"){
+    const nomeData = confNome(cfS.aba, "DATA"), hoje = hojeISO();
+    const antesData = getL(l, nomeData);
+    if (l.v) setV(l.v, nomeData, hoje);
+    registrarEdicao("ligacoes", l.id, nomeData, hoje);
+    const r3 = await escrever({action:"ligUpdate", pageId: l.id, prop: nomeData, tipo: "date", valor: hoje},
+                              "ligação: " + nomeData);
+    if (r3.ok) toast(r3.enfileirado ? "Conferência marcada — sobe quando reconectar." : "Conferência registrada em " + fmtData(hoje) + ".");
+    else { if (l.v) setV(l.v, nomeData, antesData); esquecerEdicao("ligacoes", l.id, nomeData);
+           toast("Marcou SIM, mas a data da conferência não salvou: " + erroTexto(r3.erro), 8); }
+  }
 
   // ---- automatismo: liberou a obra -> carimba a DATA DE LIBERAÇÃO ----
   // É esta data que separa o que entrou no controle novo do que já estava
