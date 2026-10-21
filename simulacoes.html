@@ -329,6 +329,10 @@ section > .sec:first-child{margin-top:0}
 .dil-bt{border:1px solid var(--azul);background:transparent;color:var(--azul);border-radius:6px;padding:5px 11px;font-weight:700;font-size:12px;cursor:pointer}
 .dil-bt.on{background:var(--azul);color:#fff}
 .dil-bt:disabled{opacity:.5;cursor:default}
+/* r96e — prévia ao vivo da diluição, logo abaixo dos botões */
+.dil-prev{flex-basis:100%;font-size:12px;border-radius:6px;padding:5px 9px;background:rgba(127,127,127,.08);color:var(--text2,var(--text))}
+.dil-prev.on{background:rgba(46,139,87,.13);color:var(--verde-esc,#1D5433)}
+.dil-prev s{opacity:.65}
 .prop-dil-acoes{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .dil-acao{border:0;border-radius:7px;padding:8px 14px;font-weight:800;font-size:12.5px;cursor:pointer;background:var(--azul);color:#fff}
 .dil-acao.env{background:#27AE60}
@@ -2555,7 +2559,7 @@ function propDilProg(av, etapas, estimSeg){
   pintar(); const tm=setInterval(pintar,500);
   return ()=>{ fim=true; pintar(); clearInterval(tm); };
 }
-function propDilBloco(p, fluxoOrig, m){
+function propDilBloco(p, fluxoOrig, m, fluxoPrev){
   if(!m.baloes.length || !m.obras.length) return "";
   const st=PROP_DIL[p.id]||{sel:{}};
   const ro=ehSomenteLeitura(S);
@@ -2567,7 +2571,7 @@ function propDilBloco(p, fluxoOrig, m){
         ${ja[b]?`<span class="dil-ja">já diluído ${ja[b].pct}% · era ${esc(ja[b].era)}</span>`:""}
         <small>diluir em: ${esc(fa.forma||"parcelas pré-chaves")} (${esc(fa.quando||"")})${ja[b]?" — a % abaixo é sobre o valor atual":""}</small></div>
       <div class="dil-bts">${PROP_DIL_OPC.map(o=>`<button type="button" class="dil-bt${o===sel?" on":""}" ${ro||st.gravando?"disabled":""}
-        onclick="propDilEscolher('${p.id}',${b},${o})">${o?o+"%":"Não diluir"}</button>`).join("")}</div></div>`;
+        onclick="propDilEscolher('${p.id}',${b},${o})">${o?o+"%":"Não diluir"}</button>`).join("")}</div>${propDilPrevia(fluxoOrig, fluxoPrev, bi, m.alvo(b), sel)}</div>`;
   }).join("");
   const algumJa=Object.keys(ja).length>0;
   const msg = st.msg || (temSel
@@ -2582,6 +2586,16 @@ function propDilBloco(p, fluxoOrig, m){
     </div>
     <div class="prop-dil-av" id="prop-dil-av-${p.id}">${msg}</div>
   </div>`;
+}
+/* r96e (21/10/26) — prévia AO VIVO de cada balão antes de validar: como fica
+   o balão e as parcelas que recebem a diluição */
+function propDilPrevia(orig, prev, bi, ai, sel){
+  const fb=orig[bi]||{}, fa=orig[ai]||{};
+  const limpa=t=>String(t||"").replace(/\s*-\s*DURANTE A OBRA/i,"");
+  if(!sel || !prev || !prev[bi] || !prev[ai])
+    return `<div class="dil-prev">Sem diluição agora — balão de <b>${esc(fb.valor||"")}</b> (${esc(fb.quando||"")}).</div>`;
+  return `<div class="dil-prev on">Prévia: balão <s>${esc(fb.valor)}</s> → <b>${esc(prev[bi].valor)}</b> · ${esc(limpa(fa.forma))}: `+
+    `<s>${esc(fa.quando)} ${esc(fa.valor)}</s> → <b>${esc(prev[ai].quando)} ${esc(prev[ai].valor)}</b></div>`;
 }
 function propDilEscolher(id,b,o){
   const st=PROP_DIL[id]||(PROP_DIL[id]={sel:{}});
@@ -2929,7 +2943,7 @@ function propQuadroFluxo(p){
   return `<div id="prop-qf-${p.id}">${entQuadroHtml(c,{
     mudou:mudouI,
     notaFluxo: sn.calculado===false?'<i>Proposta antiga: fluxo lido da coluna do Notion.</i>':'',
-    extra: fluxo.length?propDilBloco(p, fluxoOrig, dil):""})}</div>`;
+    extra: fluxo.length?propDilBloco(p, fluxoOrig, dil, fluxo):""})}</div>`;
 }
 
 /* ---------- detalhe: decisão + e-mail (item 6) ---------- */
