@@ -609,6 +609,8 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
         <input class="busca" type="search" readonly onfocus="this.removeAttribute('readonly')" id="set-busca" name="q_lig_set" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Buscar por obra…" oninput="renderAba()">
         <span class="count" id="set-count"></span>
       </div>
+      <!-- 21/10: legenda e avisos FORA da área que rola de lado (antes rolavam junto e saíam do quadro) -->
+      <div id="set-topo"></div>
       <div class="scroll-top" id="set-stop"><div></div></div>
       <div class="tabela-wrap" id="set-wrap"><div class="vazio">Carregando…</div></div>
     </section>
@@ -3908,6 +3910,7 @@ function renderAba(){
     document.getElementById("set-busca").style.display = "none";
     const n = (ATV_TRANSF || []).length;
     document.getElementById("set-count").textContent = ATV_TRANSF ? (n + " pendência" + (n===1?"":"s")) : "";
+    document.getElementById("set-topo").innerHTML = "";
     document.getElementById("set-wrap").innerHTML = blocoAtividades();
     document.getElementById("set-stop").style.display = "none";
     renderTabs();
@@ -3974,7 +3977,10 @@ function renderAba(){
       : `<div class="aviso-inline"><span class="load"></span> buscando CPF, nascimento e contato… (não ficam no arquivo público do site)</div>`;
   }
   const corLinha = def.vencimento ? corVenc : (def.alertaCor ? corPorAlertas(def.alertaCor) : null);
-  html += tabelaHtml(linhas, cols, false, fonte, corLinha, "set");
+  /* 21/10: legenda e avisos vão para #set-topo, fora da tabela que rola de lado */
+  const topo = document.getElementById("set-topo");
+  if (topo && topo.innerHTML !== html) topo.innerHTML = html;
+  html = tabelaHtml(linhas, cols, false, fonte, corLinha, "set");
   if (!pintarTabela("set-wrap", html)){ renderTabs(); return; }
   ligarCliquesTabela("set-wrap");
   sincronizarScroll("set-stop", "set-wrap");
