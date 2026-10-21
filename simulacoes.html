@@ -1349,14 +1349,17 @@ const SIM_COLS_REC=[
   ["renda","Renda",true],["financiado","Financiado",true],
   /* entradaInformada = "VALOR PARA ENTRADA" digitado pelo corretor;
      entrada = o que sobrou para pagar depois de FGTS, subsídio e ele. */
-  ["entradaInformada","Valor p/ entrada",true],
+  ["entradaInformada","Valor p/ sinal",true],   // r96i: todo o valor do cliente vai para o sinal
   ["entrada","Entrada a pagar",true],
-  ["parcela","Parcela",true],["criadoEm","Data",false],["status","Status",false],
+  ["parcela","Parcela",true],["criadoEm","Data",false],
+  /* r96i (21/10) — acompanhamento: entrou em contato (SIM/NÃO), data do contato e observações */
+  ["contato","Contato",false],["dataContato","Data do contato",false],["obsContato","Observações",false],
+  ["status","Status",false],
   /* O motivo do erro sempre esteve gravado na coluna MENSAGEM do Notion —
      só nunca aparecia na tela. Sem ele, "ERRO" não dizia nada. */
   ["mensagem","Motivo",false]
 ];
-const SIM_COLS_TXT=["cliente","cpf","corretor","imobiliaria","status","mensagem"];
+const SIM_COLS_TXT=["cliente","cpf","corretor","imobiliaria","status","mensagem","contato","dataContato","obsContato"];
 /* 02/10 (item 6) — simulação nova = chegou nas últimas 24 h */
 /* 06/10 — celular do corretor: formatado e com link para WhatsApp */
 function simFmtTel(v){ const d=String(v||"").replace(/\D/g,"").slice(-11); return d.length>10?`(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`:(d.length>6?`(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`:d); }
@@ -1446,10 +1449,40 @@ function simRenderRecebidas(){
     <td class="num">${s.entrada?simBRL(s.entrada):"—"}</td>
     <td class="num">${s.parcela?simBRL(s.parcela):"—"}</td>
     <td>${simData(s.criadoEm)}</td>
+    ${simContatoCells(s)}
     <td>${simTagSt(s.status)}</td>
     <td style="max-width:320px;font-size:12px;color:var(--text3)"
         title="${esc(s.mensagem||"")}">${esc(String(s.mensagem||"—").slice(0,90))}${String(s.mensagem||"").length>90?"…":""}</td></tr>`).join("");
   document.getElementById("sim-tabRec").innerHTML=cab+"<tbody>"+corpo+"</tbody>";
+}
+
+/* r96i (21/10) — SIMULAÇÕES RECEBIDAS: entrou em contato / data do contato / observações.
+   Grava na hora no Notion (ação simsContato, colunas criadas sozinhas). Marcar SIM sem
+   data preenche com a data de hoje. */
+function simHojeIso(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function simContatoCells(s){
+  const ro=ehSomenteLeitura(S), c=String(s.contato||"").toUpperCase().replace("NAO","NÃO");
+  const st=e=>`onclick="event.stopPropagation()" ${ro?"disabled":""}`;
+  const cor = c==="SIM" ? "background:#E6F4EA;border-color:#9BD3AE" : (c==="NÃO" ? "background:#FDECEA;border-color:#E2A493" : "");
+  return `<td onclick="event.stopPropagation()"><select id="sc-c-${s.id}" ${st()} style="padding:4px 6px;border-radius:6px;border:1px solid var(--border2);font-size:12px;${cor}" onchange="simContato('${s.id}','contato',this)">
+      <option value=""${!c?" selected":""}>—</option><option${c==="SIM"?" selected":""}>SIM</option><option${c==="NÃO"?" selected":""}>NÃO</option></select></td>
+    <td onclick="event.stopPropagation()"><input type="date" id="sc-d-${s.id}" value="${esc(s.dataContato||"")}" ${st()} style="padding:3px 5px;border-radius:6px;border:1px solid var(--border2);font-size:12px" onchange="simContato('${s.id}','dataContato',this)"></td>
+    <td onclick="event.stopPropagation()" style="min-width:200px"><input type="text" id="sc-o-${s.id}" value="${esc(s.obsContato||"")}" placeholder="o que aconteceu…" ${st()} style="width:100%;padding:4px 6px;border-radius:6px;border:1px solid var(--border2);font-size:12px" onchange="simContato('${s.id}','obsContato',this)"></td>`;
+}
+async function simContato(id, campo, el){
+  const s=SIMS.find(x=>x.id===id); if(!s) return;
+  s[campo]=el.value;
+  if(campo==="contato" && el.value==="SIM" && !s.dataContato){ s.dataContato=simHojeIso(); const d=document.getElementById("sc-d-"+id); if(d) d.value=s.dataContato; }
+  if(campo==="contato") el.style.background = el.value==="SIM" ? "#E6F4EA" : (el.value==="NÃO" ? "#FDECEA" : "");
+  el.style.outline="2px solid #EFB700";
+  let r=null;
+  try{ r=await chamar({action:"simsContato", pageId:id, contato:s.contato||"", dataContato:s.dataContato||"", obsContato:s.obsContato||""}, 45000, true); }
+  catch(e){ r=null; }
+  el.style.outline = (r&&r.ok) ? "2px solid #2E8B57" : "2px solid #C0392B";
+  el.title = (r&&r.ok) ? "Gravado no Notion" : ("Não gravou: "+((r&&(r.erro||r.mensagem))||"sem resposta do servidor"));
+  if(r&&r.ok){ if(r.dataContato!==undefined && r.dataContato!==s.dataContato){ s.dataContato=r.dataContato; const d=document.getElementById("sc-d-"+id); if(d) d.value=s.dataContato; }
+    try{ storeInvalidar("sims_lista"); }catch(e){}
+    setTimeout(()=>{ el.style.outline=""; }, 1500); }
 }
 
 function simTagSt(st){
@@ -2410,9 +2443,12 @@ function propDonoDoc(rot){ const m=String(rot||"").match(/^(.*) \(((?:cônjuge|c
 /* 06/10 — contexto da proposta para os documentos: cônjuge em outro endereço e compradores (com a origem de cada um) */
 function propCtxDocs(campos){
   let d={}; try{ d=JSON.parse((campos||{})["DADOS"]||"{}"); }catch(e){}
+  const comCred=PROP_NORM((campos||{})["CLIENTE COM CREDITO APROVADO NA CAIXA"]||"")==="SIM";   // r96i
   const comps=(d.dependentes||[]).filter(x=>x && String(x.tipo||"").toUpperCase()==="COMPRADOR").slice(0,2).map(x=>x.origemRenda||"");
   const mesmoCol=PROP_NORM((campos||{})["CONJUGE MESMO ENDERECO"]||"");
-  return {conjMesmo: mesmoCol ? mesmoCol!=="NAO" : d.conjugeMesmoEndereco!==false, comp: comps};
+  const civ=PROP_NORM((campos||{})["ESTADO CIVIL"]||"");
+  return {conjMesmo: mesmoCol ? mesmoCol!=="NAO" : d.conjugeMesmoEndereco!==false, comp: comps, comCredito: comCred,
+          temConjuge: civ.indexOf("CASAD")>=0 || civ.indexOf("UNIAO")>=0};
 }
 function propPedido(doc, origens, civil){
   /* 02/10 (item 11) — compara SEM acento. 05/10 (item 5) — cada documento olha a origem da renda
@@ -2420,7 +2456,7 @@ function propPedido(doc, origens, civil){
   const dd=propDonoDoc(doc), o0=PROP_NORM((origens||[])[0]||""), o1=PROP_NORM((origens||[])[1]||"");
   const ctx=(origens&&origens.ctx)||{};
   if(dd.dono==="cônjuge"){
-    if(doc==="RG e CPF do cônjuge") return !!o1;
+    if(doc==="RG e CPF do cônjuge") return !!(o1 || ctx.temConjuge);   // r96i: casado sempre entrega o RG/CPF do cônjuge
     if(dd.base==="Comprovante de endereço") return ctx.conjMesmo===false;   // 06/10: só quando mora em outro endereço
     return !!(o1 && PEND_REGRA[dd.base] && PEND_REGRA[dd.base].some(r=>PROP_NORM(r)===o1));
   }
@@ -2431,7 +2467,11 @@ function propPedido(doc, origens, civil){
     if(dd.base==="Documento" || dd.base==="Comprovante de endereço") return true;
     return !!(oc && PEND_REGRA[dd.base] && PEND_REGRA[dd.base].some(r=>PROP_NORM(r)===oc));
   }
+  /* r96i — a venda sempre tem os dois fiadores: documento e comprovante de endereço de cada um */
+  if(/^fiador [12]$/.test(dd.dono)) return dd.base==="Documento" || dd.base==="Comprovante de endereço";
   if(dd.dono!=="proponente") return false;
+  /* r96i — print da tela de aprovação da CAIXA: pendência quando há crédito aprovado */
+  if(doc==="Print da aprovação da CAIXA") return !!ctx.comCredito;
   return PEND_SEMPRE.indexOf(doc)>=0 ||
     (PEND_REGRA[doc] && PEND_REGRA[doc].some(r=>PROP_NORM(r)===o0)) ||
     (doc==="Comprovante de divórcio" && String(civil||"").indexOf("DIVORC")>=0);
@@ -2440,20 +2480,29 @@ function propPendenciasHtml(p, pend){
   pend = pend || p.pendencias;
   if(!pend) return '<div class="sim-aviso ok"><span class="load"></span> Conferindo pendências…</div>';
   const origens=[String(p.origemRenda||""), String(p.origemRendaConjuge||"")];
-  origens.ctx=p.ctxDocs||{};
   const civil=String(p.estadoCivil||"");
+  const civN=PROP_NORM(civil);
+  origens.ctx=Object.assign({comCredito:!!p.comCredito, temConjuge: civN.indexOf("CASAD")>=0 || civN.indexOf("UNIAO")>=0}, p.ctxDocs||{});   // r96i
   /* r55 — só conta o que ESTE cliente precisa entregar. Documento que a
      análise não exige para o perfil dele não é pendência. */
   const pedidos=(pend.documentos||[]).filter(d=>propPedido(d,origens,civil));
-  const outros=(pend.documentos||[]).filter(d=>!propPedido(d,origens,civil));
-  const total=(pend.campos||[]).length+pedidos.length;
+  const campos=pend.campos||[];
+  const total=campos.length+pedidos.length;
   if(!total) return '<div class="sim-aviso ok"><b>Proposta completa.</b> Todos os campos obrigatórios '+
     'e todos os documentos exigidos para este perfil foram entregues.</div>';
+  /* r96i (21/10) — tudo o que falta, separado por PESSOA (proponente, cônjuge, fiador 1, fiador 2…):
+     primeiro os campos a preencher, depois os documentos a anexar */
+  const ordem=["proponente","cônjuge","comprador 1","comprador 2","dependentes","fiador 1","fiador 2"];
+  const grupos=lista=>{ const g={}; lista.forEach(x=>{ const d=propDonoDoc(x); (g[d.dono]=g[d.dono]||[]).push(d.base); });
+    return Object.keys(g).sort((a,b)=>(ordem.indexOf(a)+99)%99-(ordem.indexOf(b)+99)%99); };
+  const bloco=(titulo, lista)=>{ if(!lista.length) return "";
+    const g={}; lista.forEach(x=>{ const d=propDonoDoc(x); (g[d.dono]=g[d.dono]||[]).push(d.base); });
+    return '<div style="margin-top:8px"><b>'+titulo+' ('+lista.length+'):</b>'+
+      grupos(lista).map(k=>'<div style="margin:3px 0 0 10px"><span style="display:inline-block;min-width:92px;font-weight:700;text-transform:capitalize">'+esc(k)+':</span> '+
+        g[k].map(esc).join(' · ')+'</div>').join("")+'</div>'; };
   return '<div class="sim-aviso err"><b>Faltam '+total+' item(ns) nesta proposta.</b>'+
-    ((pend.campos||[]).length ? '<br><b>Campos:</b> '+pend.campos.map(esc).join(' · ') : '')+
-    (pedidos.length ? '<br><b>Documentos pedidos para este cliente'+
-      (origens.filter(Boolean).length?' ('+origens.filter(Boolean).map(esc).join(' / ')+')':'')+':</b> '+
-      pedidos.map(esc).join(' · ') : '')+
+    bloco("Campos a preencher", campos)+
+    bloco("Documentos a anexar"+(origens.filter(Boolean).length?' — renda: '+origens.filter(Boolean).map(esc).join(' / '):''), pedidos)+
     '</div>';   /* r57 — documento não exigido não é citado aqui */
 }
 
@@ -2481,7 +2530,7 @@ function propPillSinais(p){
    proposta, DADOS.esquemaOriginal), gravar/enviar mostram barra com % e o
    e-mail usa a mesma paleta do e-mail principal da proposta. */
 const PROP_DIL={};
-const PROP_DIL_OPC=[0,25,50,75];
+const PROP_DIL_OPC=[0,25,50,75,100];   // r96i: 100% também
 function propNumBR(v){ return Number(String(v||"").replace(/[^\d,]/g,"").replace(",","."))||0; }
 function propBRL2(n){ return "R$ "+(Math.round(n*100)/100).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function propDilMapa(fluxo){
@@ -2527,7 +2576,7 @@ function propDilAplicar(p, fluxo){
     const fb=fluxo[bi], fa=fluxo[ai];
     const vb=propNumBR(fb.valor), va=propNumBR(fa.valor);
     const qtd=parseInt(String(fa.quando||"").replace(/\D/g,""),10)||1;
-    const add=Math.round(vb*pct/100/qtd*100)/100;
+    const add = pct===100 ? Math.floor(vb/qtd*100+1e-6)/100 : Math.round(vb*pct/100/qtd*100)/100;   // 100%: não deixa o balão negativo
     fa.valor=fa.novoValor=propBRL2(va+add);
     fb.valor=fb.novoValor=propBRL2(vb-add*qtd);
     fa.dilTxt="PRÉVIA — + "+propBRL2(add)+" por parcela ("+pct+"% do balão)";
@@ -2771,7 +2820,7 @@ function fpHtml_(c, opc){
     linha2('(−) Valor financiado pela Caixa', B(c.fin), opc.notaFinanciado || '') +
     linha2('(−) FGTS', B(c.fgts)) +
     linha2('(−) Subsídio', B(c.sub)) +
-    linha2('(−) Valor para a entrada (cliente)', B(c.informado), '', 'color:#7A4A16;font-weight:700') +
+    linha2('(−) Valor para o sinal', B(c.informado), '', 'color:#7A4A16;font-weight:700') +
     linha2('<b>= ENTRADA TOTAL</b>', '<b>' + B(Math.max(0, c.E)) + '</b>', '', 'background:#FBEEC8;color:#5A3A0B') +
     (c.devol > 0.005 ? linha2('Diferença devolvida ao cliente', B(c.devol), 'no ato da assinatura do contrato com o banco', 'background:#FBEEC8;color:#7A4A16') : '') +
     '</table>';
@@ -2783,7 +2832,7 @@ function fpHtml_(c, opc){
     h += '<div style="margin:0 0 8px;padding:12px 14px;background:#FDECEA;border:2px solid #C0392B;border-radius:6px;color:#8A2E17;font-size:13px;line-height:1.6">' +
       '<b>REFAÇA A SIMULAÇÃO.</b> ' + (menor ? 'O financiamento confirmado pela CAIXA (<b>' + B(c.fin) + '</b>) ficou menor que o estimado (<b>' +
       B(opc.financiadoBase) + '</b>) e o sinal subiu para <b>' + B(c.S) + '</b>. ' : 'O sinal desta unidade ficou em <b>' + B(c.S) + '</b>. ') +
-      'O valor para a entrada informado (<b>' + B(c.informado) + '</b>) não cobre o sinal: faça uma nova simulação com valor para a entrada de no mínimo <b>' + B(c.S) + '</b>.</div>';
+      'O valor para o sinal informado (<b>' + B(c.informado) + '</b>) é menor que o sinal mínimo: faça uma nova simulação com valor para o sinal de no mínimo <b>' + B(c.S) + '</b>.</div>';
   }
   var forma = fpFormaSinal_(c.sinais, B) + (c.nSinal > 1 ? ' (ou à vista)' : '');
   var t = TAB + grupo('FLUXO DE PAGAMENTO — A PAGAR (entrada total)', B(c.aPagar), '#5A3A0B');
@@ -2863,7 +2912,7 @@ function entResumoHtml(c){
     ${it("Valor da unidade",simBRL(c.preco))}
     ${it("Valor financiado",simBRL(c.fin))}
     ${it("FGTS + subsídio",simBRL(c.fgts+c.sub),"verde")}
-    ${it("Valor para a entrada (cliente)",simBRL(c.informado),"ouro")}
+    ${it("Valor para o sinal",simBRL(c.informado),"ouro")}
     ${it("Entrada total (fluxo)",simBRL(Math.max(0,c.E)),"escuro")}
     ${it("Sinal",c.nSinal?simBRL(c.S)+" · "+c.nSinal+"x":"—")}
     ${it("Prazo da entrada",c.prazo?c.prazo+" meses":"—")}
@@ -2883,7 +2932,7 @@ function entQuadroHtml(c, opc){
     ${L("(−) Valor financiado pela Caixa",B(c.fin))}
     ${L("(−) FGTS",B(c.fgts))}
     ${L("(−) Subsídio",B(c.sub))}
-    ${L("<b>(−) Valor para a entrada (cliente)</b>","<b>"+B(c.informado)+"</b>")}
+    ${L("<b>(−) Valor para o sinal</b>","<b>"+B(c.informado)+"</b>")}
     ${L("<b>= Entrada total</b>","<b>"+B(Math.max(0,c.E))+"</b>","ent-conta tot")}
     ${c.devol>0.005?L("Diferença devolvida ao cliente",B(c.devol),"ent-conta","no ato da assinatura do contrato com o banco"):""}
   </tbody></table></div></div>`;
