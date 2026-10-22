@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#295778">
+<script>(function(){try{var t=localStorage.getItem("morais_tema");
+  if(t!=="claro"&&t!=="escuro") t="claro";
+  document.documentElement.dataset.tema=t;}catch(e){}})();</script>
+<title>Modelo 3D · Morais Engenharia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --azul:#295778;--azul-esc:#1e3f58;--teal:#8FDCD2;--verde:#2a9d5c;--verde-btn:#4cd964;--verde-esc:#1a6b40;
+  --bg:#EAF1F3;--bg2:#F5F9FA;--bg3:#dceaef;--border:#b8d0da;--border2:#d0e4ec;
+  --text:#1a3347;--text3:#5a8099;--text4:#8aacbb;--sup:#fff;--hover:#e9f6ef;--vermelho:#c0392b;
+  --sel:#fff1db;--sel-bd:#ff9f1a;--sombra:rgba(20,40,55,.25);
+}
+html[data-tema="escuro"]{
+  color-scheme:dark;
+  --azul:#2f6e93;--azul-esc:#122430;--teal:#79c8bf;--verde:#2f9e63;--verde-btn:#3cbf5d;--verde-esc:#17603a;
+  --bg:#0e1920;--bg2:#15222c;--bg3:#1a2c38;--border:#2d4757;--border2:#243a4a;
+  --text:#e7eff5;--text3:#9db4c4;--text4:#7794a6;--sup:#15222c;--hover:#1d3a2c;--vermelho:#e0604f;
+  --sel:#3a2a12;--sel-bd:#ff9f1a;--sombra:rgba(0,0,0,.55);
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--text);font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;
+  display:flex;flex-direction:column;overflow:hidden}
+.cond{font-family:'Barlow Condensed',Inter,sans-serif}
+header{background:linear-gradient(120deg,var(--azul-esc),var(--azul));flex:0 0 auto}
+header::after{content:"";display:block;height:4px;background:linear-gradient(90deg,var(--verde-btn),var(--teal))}
+.hbar{display:flex;align-items:center;gap:13px;padding:10px 16px}
+.logo{background:#fff;border-radius:9px;padding:4px 9px;display:inline-flex}.logo img{height:32px;display:block}
+.htitle{font-family:'Barlow Condensed';font-weight:800;font-size:22px;color:#fff;text-transform:uppercase;letter-spacing:.5px;line-height:1}
+.hsub{color:var(--teal);font-size:11px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;margin-top:2px}
+.hspace{flex:1}
+.hbtn{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;
+  padding:7px 12px;font:inherit;font-weight:700;font-size:12.5px;cursor:pointer;text-decoration:none}
+.hbtn:hover{background:rgba(255,255,255,.22)}
+#gerado{font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap}
+
+.corpo{flex:1;display:flex;min-height:0}
+#lado{width:440px;min-width:280px;background:var(--sup);border-right:1px solid var(--border2);display:flex;flex-direction:column;min-height:0}
+#divisor{width:6px;cursor:col-resize;background:transparent;flex:0 0 6px;margin-left:-3px;z-index:3}
+#divisor:hover{background:var(--border)}
+.bloco{padding:12px 14px;border-bottom:1px solid var(--border2)}
+.btit{font-family:'Barlow Condensed';font-weight:800;font-size:14px;text-transform:uppercase;letter-spacing:.5px;color:var(--azul-esc);margin-bottom:8px}
+html[data-tema="escuro"] .btit{color:var(--teal)}
+#disciplinas{display:flex;flex-wrap:wrap;gap:7px}
+.disc{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border);background:var(--bg2);color:var(--text3);
+  border-radius:20px;padding:6px 12px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;opacity:.55}
+.disc i{width:10px;height:10px;border-radius:50%;display:inline-block}
+.disc.on{opacity:1;color:var(--text);background:var(--sup)}
+.disc:hover{border-color:var(--azul)}
+#abas{display:flex;align-items:center;gap:8px;padding:12px 14px 0;flex:0 0 auto}
+.seltab{flex:1;min-width:0;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;
+  font-weight:700;background:var(--sup);color:var(--text)}
+.ntab{font-size:11px;color:var(--text4);white-space:nowrap}
+.busca{margin:8px 14px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;
+  background:var(--sup);color:var(--text)}
+#tabela{flex:1;overflow:auto;min-height:0;border-top:1px solid var(--border2)}
+table.q{border-collapse:separate;border-spacing:0;width:100%;font-size:12.5px}
+table.q th{position:sticky;top:0;background:var(--azul);color:#fff;font-size:10px;letter-spacing:.4px;text-transform:uppercase;
+  padding:8px 9px;text-align:left;font-weight:700;z-index:1;white-space:nowrap}
+table.q th.n,table.q td.n{text-align:right}
+table.q td{padding:8px 9px;border-top:1px solid var(--border2);cursor:pointer}
+table.q tbody tr:nth-child(even) td{background:var(--bg2)}
+table.q tbody tr:hover td{background:var(--hover)}
+table.q tbody tr.sel td{background:var(--sel);box-shadow:inset 0 1px 0 var(--sel-bd),inset 0 -1px 0 var(--sel-bd)}
+table.q tbody tr.sel td:first-child{box-shadow:inset 4px 0 0 var(--sel-bd),inset 0 1px 0 var(--sel-bd),inset 0 -1px 0 var(--sel-bd)}
+table.q tbody tr.sem3d td{color:var(--text4);cursor:default}
+table.q tbody tr.grupo td{background:var(--bg3) !important;color:var(--azul-esc);font-weight:800;font-size:11px;
+  text-transform:uppercase;letter-spacing:.3px;cursor:default;padding:7px 9px}
+html[data-tema="escuro"] table.q tbody tr.grupo td{color:var(--teal)}
+table.q tfoot td{position:sticky;bottom:0;background:var(--bg3);font-weight:800;padding:8px 9px;border-top:2px solid var(--border)}
+.tvazia{padding:20px;text-align:center;color:var(--text4);font-size:12.5px}
+.dica{font-size:11px;color:var(--text4);padding:8px 14px;border-top:1px solid var(--border2)}
+
+#area{flex:1;position:relative;min-width:0}
+#tela3d{position:absolute;inset:0}
+.barra{position:absolute;top:12px;left:12px;display:flex;gap:7px;flex-wrap:wrap;z-index:2;max-width:calc(100% - 24px)}
+.bt{border:1px solid var(--border);background:var(--sup);color:var(--azul);border-radius:8px;padding:8px 12px;
+  font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px var(--sombra)}
+html[data-tema="escuro"] .bt{color:#8fd3ee}
+.bt:hover:not([disabled]){background:var(--azul);color:#fff;border-color:var(--azul)}
+.bt[disabled]{opacity:.45;cursor:default}
+.bt.prim{background:var(--azul);color:#fff;border-color:var(--azul)}
+.bt.ativo{background:var(--verde);color:#fff;border-color:var(--verde)}
+.bt kbd{font:inherit;font-size:10px;opacity:.6;margin-left:4px}
+
+#props{position:absolute;right:12px;top:12px;width:300px;max-height:calc(100% - 24px);overflow:auto;background:var(--sup);
+  border:1px solid var(--border2);border-radius:12px;box-shadow:0 8px 24px var(--sombra);display:none;z-index:2}
+#props.on{display:block}
+.ptopo{display:flex;align-items:center;padding:10px 12px;background:var(--azul-esc);color:#fff;border-radius:12px 12px 0 0}
+.ptopo b{font-family:'Barlow Condensed';font-weight:800;font-size:15px;text-transform:uppercase;letter-spacing:.4px;flex:1}
+.ptopo button{border:0;background:rgba(255,255,255,.16);color:#fff;width:26px;height:26px;border-radius:7px;cursor:pointer;font-size:16px;line-height:1}
+#props-corpo{padding:6px 12px 10px}
+.pl{display:flex;flex-direction:column;padding:6px 0;border-top:1px solid var(--border2)}
+.pl:first-child{border-top:0}
+.pl .k{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text3)}
+.pl .v{font-size:13px;font-weight:600;overflow-wrap:anywhere}
+
+#status{position:absolute;inset:0;display:none;align-items:center;justify-content:center;gap:10px;
+  background:color-mix(in srgb,var(--bg) 70%,transparent);font-weight:700;color:var(--azul-esc);z-index:4}
+html[data-tema="escuro"] #status{color:var(--teal)}
+.load{display:inline-block;width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--verde);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#vazio{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:3;padding:20px}
+.vcx{background:var(--sup);border:2px dashed var(--border);border-radius:16px;padding:28px 30px;max-width:520px;text-align:center}
+.vcx h2{font-family:'Barlow Condensed';font-weight:800;text-transform:uppercase;color:var(--azul-esc);margin:0 0 8px;letter-spacing:.4px}
+html[data-tema="escuro"] .vcx h2{color:var(--teal)}
+.vcx p{color:var(--text3);margin:6px 0 14px;line-height:1.5}
+body.drop .vcx{border-color:var(--verde);background:var(--hover)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);background:var(--azul-esc);color:#fff;padding:10px 16px;
+  border-radius:10px;font-size:13px;font-weight:600;opacity:0;pointer-events:none;transition:.2s;z-index:60}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+@media(max-width:820px){
+  .corpo{flex-direction:column-reverse}
+  #lado{width:100% !important;height:42vh;border-right:0;border-top:1px solid var(--border2)}
+  #divisor{display:none}
+  #area{min-height:0}
+  #props{left:12px;right:12px;width:auto;top:auto;bottom:12px;max-height:45%}
+  .hsub,#gerado{display:none}
+  .bt kbd{display:none}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="hbar">
+    <span class="logo"><img src="img/logo.png" alt="Morais" onerror="this.parentNode.style.display='none'"></span>
+    <div style="min-width:0">
+      <div class="htitle" id="titulo">Modelo 3D</div>
+      <div class="hsub">Morais Engenharia · visualizador de projetos</div>
+    </div>
+    <div class="hspace"></div>
+    <span id="gerado"></span>
+    <a class="hbtn" href="obras.html" title="Voltar para Obras">← Obras</a>
+    <button class="hbtn" id="btema" onclick="(function(){var e=document.documentElement,t=e.dataset.tema==='escuro'?'claro':'escuro';e.dataset.tema=t;try{localStorage.setItem('morais_tema',t)}catch(x){};location.reload()})()" title="Alternar claro/escuro">◐</button>
+  </div>
+</header>
+
+<div class="corpo">
+  <aside id="lado">
+    <div class="bloco">
+      <div class="btit">Disciplinas <span style="font-family:Inter;font-weight:600;font-size:11px;color:var(--text4);text-transform:none;letter-spacing:0">· clique para ligar/desligar</span></div>
+      <div id="disciplinas"><span style="font-size:12px;color:var(--text4)">Nenhum modelo aberto.</span></div>
+    </div>
+    <div id="abas"></div>
+    <input class="busca" id="busca" type="search" placeholder="Buscar na tabela…" autocomplete="off">
+    <div id="tabela"><div class="tvazia">Os quantitativos aparecem aqui.</div></div>
+    <div class="dica">Clique numa linha para ver os elementos no 3D · clique no 3D para achar a linha · Esc limpa</div>
+  </aside>
+  <div id="divisor"></div>
+  <section id="area">
+    <div id="tela3d"></div>
+    <div class="barra">
+      <button class="bt prim" id="b-isolar" disabled title="Mostrar só o que está selecionado">Isolar<kbd>I</kbd></button>
+      <button class="bt" id="b-ocultar" disabled title="Esconder o que está selecionado">Ocultar<kbd>H</kbd></button>
+      <button class="bt" id="b-tudo" title="Voltar a mostrar tudo">Mostrar tudo<kbd>M</kbd></button>
+      <button class="bt" id="b-enquadrar" title="Enquadrar a seleção (ou o modelo inteiro)">Enquadrar<kbd>F</kbd></button>
+      <button class="bt" id="b-limpar" title="Limpar a seleção">Limpar<kbd>Esc</kbd></button>
+      <button class="bt" id="b-proj" title="Alternar perspectiva/ortogonal">Ortogonal</button>
+    </div>
+    <div id="props">
+      <div class="ptopo"><b>Seleção</b><button id="props-x" title="Fechar">×</button></div>
+      <div id="props-corpo"></div>
+    </div>
+    <div id="vazio" style="display:none">
+      <div class="vcx">
+        <h2>Abrir modelo</h2>
+        <p id="vazio-msg">Arraste para cá os arquivos <b>.ifc</b> das disciplinas (ARQ.ifc, HID.ifc…) e o <b>quantitativos.json</b>, ou escolha abaixo.</p>
+        <label class="bt prim" style="display:inline-block">Escolher arquivos<input type="file" id="escolher" multiple accept=".ifc,.txt,.json" style="display:none"></label>
+      </div>
+    </div>
+    <div id="status"><span class="load"></span><span></span></div>
+  </section>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+/* mostra a caixa de abrir quando não veio nada pela URL */
+(function(){var q=new URLSearchParams(location.search);if(!q.get("obra")&&!q.get("pacote"))document.getElementById("vazio").style.display="flex";})();
+</script>
+<script src="app.js?v=45"></script>
+<script>
+/* ===== PONTE COM O PORTAL (22/10/26) =====================================
+ * visualizador-3d.html?obra=<id da obra no Notion>
+ * Os arquivos ficam na coluna MODELO 3D da obra ((EMP) Projeto 2.0), postos
+ * lá pelo botão "Publicar 3D" do pyRevit. Quem entrega a lista é o Apps
+ * Script (ação modelo3d, com o login do portal e o acesso OBRAS).
+ * Download: primeiro direto do link do Notion; se o navegador bloquear
+ * (CORS), em pedaços de 6 MB pelo Apps Script (ação modelo3dParte).
+ * ===================================================================== */
+const S = exigirSessao();
+if (S && !podeAcessar(S, "OBRAS")) {
+  document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("vazio").style.display = "flex";
+    document.getElementById("vazio-msg").innerHTML = "Seu login não tem o acesso <b>OBRAS</b>. Fale com um ADM.";
+  });
+}
+const PARTE_3D = 6 * 1024 * 1024;
+function _b64(b64) { const bin = atob(b64); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+async function _parte(obraId, nome, inicio) {
+  for (let t = 0; t < 3; t++) {
+    const r = await chamar({ action: "modelo3dParte", pageId: obraId, nome: nome, inicio: inicio }, 120000, true);
+    if (r && r.ok) return r;
+    if (t === 2) throw new Error("Não consegui baixar " + nome + ": " + erroTexto(r && r.erro));
+    await new Promise(ok => setTimeout(ok, 1500));
+  }
+}
+async function baixarModelo3d(obraId, a, prog) {
+  try {
+    const resp = await fetch(a.url);
+    if (resp.ok) {
+      const total = Number(resp.headers.get("content-length")) || 0;
+      if (!resp.body || !total) return new Uint8Array(await resp.arrayBuffer());
+      const leitor = resp.body.getReader(), out = new Uint8Array(total); let pos = 0;
+      for (;;) { const { done, value } = await leitor.read(); if (done) break; out.set(value, pos); pos += value.length; if (prog) prog(pos / total); }
+      return out;
+    }
+  } catch (e) { /* bloqueado pelo navegador: vai pelo Apps Script */ }
+  const p1 = await _parte(obraId, a.nome, 0);
+  const out = new Uint8Array(p1.total); out.set(_b64(p1.base64), 0);
+  let feito = p1.tamanho; if (prog) prog(feito / p1.total);
+  const inicios = []; for (let i = p1.tamanho; i < p1.total; i += PARTE_3D) inicios.push(i);
+  let k = 0;
+  async function trabalhador() {
+    while (k < inicios.length) {
+      const ini = inicios[k++];
+      const r = await _parte(obraId, a.nome, ini);
+      out.set(_b64(r.base64), r.inicio); feito += r.tamanho; if (prog) prog(feito / p1.total);
+    }
+  }
+  await Promise.all([trabalhador(), trabalhador(), trabalhador()]);
+  return out;
+}
+window.MODELO3D_ENDPOINT = async function (obraId) {
+  const r = await chamar({ action: "modelo3d", pageId: obraId }, 60000, true);
+  if (!r || !r.ok) {
+    const e = r && r.erro;
+    return { ok: false, erro: e === "SEM_COLUNA_MODELO_3D" ? "A base de obras ainda não tem a coluna MODELO 3D. No Revit: MORAIS → Geral → Publicar 3D (ela cria a coluna)."
+                       : "Não consegui buscar o modelo desta obra: " + erroTexto(e) };
+  }
+  return { ok: true, titulo: r.titulo, arquivos: r.arquivos, obter: (a, prog) => baixarModelo3d(obraId, a, prog) };
+};
+</script>
+<script src="js/visualizador-3d.js?v=1"></script>
+</body>
+</html>

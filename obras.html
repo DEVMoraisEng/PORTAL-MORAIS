@@ -1104,6 +1104,10 @@ function pintarObraPainel(){
   let h=`<div class="chips">${chipsObraHtml(o)}</div>`;
   if(o.end_alterado&&!_END_VALIDADOS[o.id]) h+=`<div class="aviso" style="margin:8px 0;white-space:pre-line">⚠ Endereço alterado — confira nos Alertas:\n${esc(o.end_alterado)}</div>`;
   h+=`<div class="grp">Dados da obra ${ehAdmTela()?`<span class="sp"></span><button class="tg" title="Trocar o endereço desta obra (vai junto para DOCUMENTOS, VENDAS, PÓS OBRA, LIGAÇÕES e Mais Controle)" onclick="alterarEndereco('${o.id}')">✏️ Alterar endereço</button>`:""}</div><div class="resumo">${CAMPOS.map((c,i)=>campoHtml(o,c,i)).join("")}</div>`;
+  /* 22/10/26 — MODELO 3D: o visualizador abre os arquivos que o botão
+     MORAIS → Geral → Publicar 3D (pyRevit) gravou na coluna MODELO 3D da obra */
+  h+=`<div class="grp">Modelo 3D <span class="sp"></span><a class="tg" style="text-decoration:none" href="visualizador-3d.html?obra=${encodeURIComponent(o.id)}" target="_blank" rel="noopener" title="Abre o 3D das disciplinas (ARQ, HID…) com as tabelas de quantitativos publicadas pelo Revit">🧊 Abrir modelo 3D</a></div>
+      <div class="ajuda" style="margin:0 22px 6px">Arquitetura, hidrossanitário e as outras disciplinas na mesma cena, com os quantitativos: clique numa linha para ver no 3D. Para publicar ou atualizar: no Revit, <b>MORAIS → Geral → Publicar 3D</b>.</div>`;
   h+=`<div class="grp">Atividades <span class="sp"></span>
       <button class="tg ${MODO==="lista"?"on":""}" title="Atividades em lista, por tipo" onclick="MODO='lista';pintarObraPainel()">Lista</button>
       <button class="tg ${MODO==="crono"?"on":""}" title="Atividades no tempo (início → prazo)" onclick="MODO='crono';pintarObraPainel()">Cronograma</button></div><div class="pl">`;
