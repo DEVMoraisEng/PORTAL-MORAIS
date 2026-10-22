@@ -1,0 +1,54 @@
+name: Auditoria Financeira (madrugada)
+
+# Roda 1x por dia às 04:23 de Brasília (07:23 UTC). A API para relatórios do
+# Mais Controle atualiza os dados às 03:00 — rodar antes disso pegaria o dia
+# anterior. Minuto 23 de propósito: topo de hora é o horário mais disputado do
+# agendador do GitHub.
+#
+# Também roda:
+#   - à mão: Actions > Auditoria Financeira > Run workflow
+#   - pelo botão "Reprocessar agora" da aba Manual do portal (Apps Script manda
+#     o repository_dispatch "auditoria_update" — se este bloco sair daqui, o
+#     GitHub ignora o pedido sem dar erro nenhum).
+on:
+  schedule:
+    - cron: '23 7 * * *'
+  workflow_dispatch:
+  repository_dispatch:
+    types: [auditoria_update]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auditoria-financeira
+  cancel-in-progress: false
+
+jobs:
+  auditar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependências
+        run: pip install pandas requests openpyxl
+
+      - name: Rodar a auditoria
+        env:
+          MC_API_USUARIO: ${{ secrets.MC_API_USUARIO }}
+          MC_API_SENHA: ${{ secrets.MC_API_SENHA }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          # se a API do MC falhar, usa as planilhas publicadas da Análise de Dados
+          ERP_CSV_PAGAMENTOS: ${{ secrets.ERP_CSV_PAGAMENTOS }}
+          ERP_CSV_OBRAS: ${{ secrets.ERP_CSV_OBRAS }}
+          ERP_CSV_RECEBIMENTOS: ${{ secrets.ERP_CSV_RECEBIMENTOS }}
+        run: python robo_auditoria_fin.py

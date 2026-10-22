@@ -1,0 +1,1637 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex,nofollow">
+<meta name="color-scheme" content="light only">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#295778">
+<script>(function(){try{var t=localStorage.getItem("morais_tema");
+  if(t!=="claro"&&t!=="escuro") t="claro";
+  document.documentElement.dataset.tema=t;}catch(e){}})();</script>
+<link rel="manifest" href="manifest.json">
+<title>Auditoria Financeira · Morais Engenharia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============ AUDITORIA FINANCEIRA (PORTAL-MORAIS · 22/10/26) ============
+   Mesmo visual do Orçado × Realizado (analise.html): cabeçalho azul com faixa
+   verde, abas em pílula, cartões brancos, tabela com cabeçalho azul. */
+:root{color-scheme:light}
+html{background:var(--bg);min-height:100%}
+:root{
+  --azul:#295778;--azul-esc:#1e3f58;--teal:#8FDCD2;--verde:#2a9d5c;--verde-btn:#4cd964;--verde-esc:#1a6b40;
+  --bg:#EAF1F3;--bg2:#F5F9FA;--bg3:#dceaef;--border:#b8d0da;--border2:#d0e4ec;
+  --text:#1a3347;--text3:#5a8099;--text4:#8aacbb;--branco:#fff;
+  --vermelho:#c0392b;--laranja:#d46a1a;--amarelo:#c9a227;--sup:#fff;
+  /* situações do auditor */
+  --s-ok:#2F8F80;--s-div:#C4453A;--s-mix:#A8436A;--s-gen:#C98A1E;--s-desc:#6F5AA0;--s-sd:#7D8299;--s-cc:#2F7FAE;--s-cad:#56687A;--s-na:#B9C0CA;
+  /* validação */
+  --v-pend:#8aacbb;--v-conf:#2a9d5c;--v-corr:#c0392b;--v-feito:#1B5173;--v-exc:#5b8c3a;
+}
+html[data-tema="escuro"]{
+  --bg:#0f1a22;--bg2:#16242e;--bg3:#1c2f3b;--border:#2a4553;--border2:#22323f;
+  --text:#e6f0f4;--text3:#9fc0cf;--text4:#6d8a99;--sup:#16242e;
+  --s-ok:#5FC0B1;--s-div:#E8705F;--s-mix:#D5739A;--s-gen:#E3AE4B;--s-desc:#A792D6;--s-sd:#A3A8BE;--s-cc:#62AEDB;--s-cad:#8FA3B6;--s-na:#4A5068;
+  --v-pend:#6d8a99;--v-conf:#8ce0a5;--v-corr:#f3a29a;--v-feito:#8FDCD2;--v-exc:#b8e08c;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.45;display:flex;flex-direction:column;min-height:100vh;font-variant-numeric:tabular-nums}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--verde);outline-offset:2px}
+.cond{font-family:'Barlow Condensed',Inter,sans-serif}
+.wrap{max-width:1440px;margin:0 auto;padding:0 20px;width:100%}
+header{background:linear-gradient(120deg,var(--azul-esc),var(--azul));position:relative}
+header::after{content:"";display:block;height:4px;background:linear-gradient(90deg,var(--verde-btn),var(--teal))}
+.hbar{display:flex;align-items:center;gap:13px;padding:14px 0;flex-wrap:wrap}
+.logo{background:#fff;border-radius:9px;padding:5px 10px;display:inline-flex}.logo img{height:38px;display:block}
+.htitle{font-family:'Barlow Condensed';font-weight:800;font-size:23px;color:#fff;text-transform:uppercase;letter-spacing:.5px;line-height:1}
+.hsub{color:var(--teal);font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase}
+.hspace{flex:1}
+.net{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;padding:3px 9px;border-radius:20px}
+.net.on{background:rgba(76,217,100,.22);color:#CFF9DC}.net.off{background:rgba(255,180,120,.28);color:#FFE2C6}
+.user{display:flex;align-items:center;gap:10px;color:#fff}.nome{font-weight:600;font-size:13.5px}
+.badge{font-size:10px;font-weight:800;letter-spacing:.5px;padding:3px 8px;border-radius:20px;background:rgba(255,255,255,.18);color:#fff;text-transform:uppercase}.badge.adm{background:var(--verde-btn);color:#0c3f22}
+.sair,.btema{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;padding:7px 12px;font-weight:700;font-size:12.5px;cursor:pointer}
+.btema{padding:7px 10px}
+main{flex:1;width:100%;padding:0 0 60px}
+.crumb{display:flex;align-items:center;gap:10px;margin:16px 0 14px;font-size:13px;color:var(--text3);flex-wrap:wrap}
+.btn-voltar{display:inline-flex;align-items:center;gap:6px;background:var(--azul-esc);border:1px solid rgba(143,220,210,.4);border-radius:8px;padding:9px 16px;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;color:var(--teal);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;text-decoration:none}
+.btn-voltar:hover{background:#16303f}
+.chip-extr{font-size:11px;font-weight:700;color:var(--text3);background:var(--bg3);border:1px solid var(--border2);border-radius:20px;padding:4px 11px;white-space:nowrap}
+.sec{display:flex;align-items:center;gap:10px;background:var(--bg3);border-left:4px solid var(--verde);border-radius:8px;padding:9px 14px;margin:24px 0 14px;flex-wrap:wrap}
+.sec:first-child{margin-top:0}
+.sec .cond{font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--azul-esc)}
+html[data-tema="escuro"] .sec .cond{color:var(--teal)}
+.sec .sp{flex:1}
+.tabs-outer{background:var(--bg2);border:1.5px solid var(--border);border-radius:14px;padding:12px;margin:0 0 16px;display:block;text-align:center}
+.tabs{display:inline-flex;flex-wrap:wrap;justify-content:center;gap:6px;padding:6px;border:2.5px solid var(--verde-btn);border-radius:12px;background:rgba(76,217,100,.06)}
+.tab{padding:10px 17px;font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;color:var(--text3);letter-spacing:.06em;text-transform:uppercase;cursor:pointer;border-radius:8px;border:2px solid transparent;background:none;transition:all .2s;white-space:nowrap;position:relative}
+.tab:hover:not(.on){color:var(--azul-esc);background:rgba(76,217,100,.15);border-color:rgba(76,217,100,.4)}
+html[data-tema="escuro"] .tab:hover:not(.on){color:var(--teal)}
+.tab.on{background:var(--verde-btn);color:#1a3347;border-color:var(--verde-btn);box-shadow:0 3px 10px rgba(76,217,100,.35)}
+.tab .cnt{display:inline-block;min-width:18px;padding:0 5px;margin-left:5px;border-radius:10px;background:var(--vermelho);color:#fff;font-family:Inter;font-size:10.5px;font-weight:800;line-height:17px;letter-spacing:0}
+/* filtros globais */
+.gfil{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:12px 14px;margin-bottom:18px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.gfil .tit{font-family:'Barlow Condensed';font-weight:800;font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:var(--azul-esc);align-self:center;margin-right:4px}
+html[data-tema="escuro"] .gfil .tit{color:var(--teal)}
+.fcampo{display:flex;flex-direction:column;gap:4px;min-width:0}
+.fcampo label{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--text3)}
+.fcampo input,.fcampo select,.fcampo textarea{font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--sup);color:var(--text);min-width:130px}
+.fcampo textarea{min-height:76px;resize:vertical;width:100%}
+.fcampo input:focus,.fcampo select:focus,.fcampo textarea:focus{outline:none;border-color:var(--verde);box-shadow:0 0 0 3px rgba(129,201,192,.25)}
+.fcampo.w2 input,.fcampo.w2 select{min-width:220px}
+.gfil .fcampo select,.gfil .fcampo input{max-width:260px}
+.gfil .fcampo.w2 input{min-width:260px;max-width:340px}
+.fcampo.cheio{flex:1 1 100%}.fcampo.cheio input,.fcampo.cheio select{width:100%}
+.ativos{display:flex;gap:6px;flex-wrap:wrap;flex-basis:100%}
+.ativo{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;background:var(--bg3);border:1px solid var(--border2);border-radius:20px;padding:3px 4px 3px 10px;color:var(--text)}
+.ativo button{border:0;background:var(--border2);color:var(--text);width:18px;height:18px;border-radius:50%;cursor:pointer;line-height:1;padding:0}
+.bt{font-weight:700;font-size:13px;padding:8px 14px;border-radius:8px;cursor:pointer;border:1px solid transparent;white-space:nowrap}
+.bt.az{background:var(--azul);color:#fff}.bt.az:hover{background:var(--azul-esc)}
+.bt.vd{background:var(--verde);color:#fff}.bt.vd:hover{background:var(--verde-esc)}
+.bt.vm{background:var(--vermelho);color:#fff}.bt.vm:hover{filter:brightness(.92)}
+.bt.ghost{background:var(--sup);border-color:var(--border);color:var(--text3)}.bt.ghost:hover{background:var(--bg3)}
+.bt.sm{padding:5px 10px;font-size:12px}
+.bt:disabled{opacity:.5;cursor:not-allowed}
+.lnk{border:0;background:none;padding:0;color:var(--azul);font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+html[data-tema="escuro"] .lnk{color:var(--teal)}
+/* KPIs */
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}
+@media(max-width:1000px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kpi{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:14px 16px 13px;min-width:0}
+.kpi.clk{cursor:pointer}.kpi.clk:hover{border-color:var(--verde)}
+.kpi .lab{font-size:10px;letter-spacing:.4px;text-transform:uppercase;color:var(--text3);font-weight:700}
+.kpi .val{font-family:'Barlow Condensed';font-size:29px;font-weight:800;line-height:1;margin-top:8px;color:var(--azul-esc);word-break:break-word}
+html[data-tema="escuro"] .kpi .val{color:var(--teal)}
+.kpi .sub{font-size:11px;color:var(--text4);margin-top:6px}
+.kpi .val.r{color:var(--vermelho)}.kpi .val.g{color:var(--verde-esc)}
+html[data-tema="escuro"] .kpi .val.r{color:#f3a29a}html[data-tema="escuro"] .kpi .val.g{color:#8ce0a5}
+.kpi.hero{background:linear-gradient(135deg,var(--azul),var(--azul-esc));border:0}
+.kpi.hero .lab{color:rgba(255,255,255,.85)}.kpi.hero .val{color:#fff}.kpi.hero .sub{color:var(--teal)}
+.delta{font-size:11px;font-weight:700}.delta.up{color:var(--vermelho)}.delta.dn{color:var(--verde-esc)}
+html[data-tema="escuro"] .delta.up{color:#f3a29a}html[data-tema="escuro"] .delta.dn{color:#8ce0a5}
+.card{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:16px 18px;margin-bottom:18px}
+.card h3{font-family:'Barlow Condensed';font-size:17px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--azul-esc);margin:0 0 4px}
+html[data-tema="escuro"] .card h3{color:var(--teal)}
+.card .desc{font-size:12px;color:var(--text3);margin:0 0 12px}
+.g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+@media(max-width:1000px){.g2,.g3{grid-template-columns:1fr}}
+/* régua de situações */
+.ruler{display:flex;height:30px;border-radius:6px;overflow:hidden;background:var(--bg3);margin:4px 0 10px}
+.ruler button{border:0;padding:0;cursor:pointer;height:100%;min-width:2px;transition:filter .15s}
+.ruler button:hover{filter:brightness(1.12)}
+.legend{display:flex;flex-wrap:wrap;gap:4px 16px}
+.legend button{background:none;border:0;cursor:pointer;display:flex;align-items:center;gap:7px;padding:3px 0;text-align:left;color:var(--text);font-size:12.5px}
+.sw{width:11px;height:11px;border-radius:3px;flex:none;display:inline-block}
+.legend b{font-weight:700}
+/* tabela */
+.tbl-wrap{overflow:auto;border-radius:10px;border:1px solid var(--border2);max-height:70vh;background:var(--sup)}
+.tbl-wrap.baixa{max-height:420px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:8px 11px;text-align:left;border-right:1px solid var(--border2);vertical-align:top}
+th:last-child,td:last-child{border-right:0}
+thead th{background:var(--azul);color:#fff;padding:9px 11px;font-size:10px;letter-spacing:.4px;text-transform:uppercase;position:sticky;top:0;z-index:2;font-weight:700;white-space:nowrap;border-right:1px solid rgba(255,255,255,.22)}
+thead th.ord{cursor:pointer;user-select:none}thead th.ord:hover{background:var(--azul-esc)}
+thead th .arr{opacity:.6;font-size:10px;margin-left:3px}
+tbody td{border-top:1px solid var(--border2)}
+tbody tr:nth-child(even) td{background:var(--bg2)}
+tbody tr.clk{cursor:pointer}
+tbody tr.clk:hover td{background:var(--bg3)}
+tbody tr.sel td{background:rgba(76,217,100,.12)!important}
+td.num,th.num{text-align:right;white-space:nowrap}
+td.nw{white-space:nowrap}
+.small{font-size:11.5px;color:var(--text3)}
+.muted{color:var(--text4)}
+.desc-c{max-width:360px;word-break:break-word}
+.desc-c.vazio{color:var(--text4);font-style:italic}
+.st{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;white-space:nowrap}
+.st i{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
+.sug{color:var(--verde-esc);font-weight:700;font-size:12.5px}
+html[data-tema="escuro"] .sug{color:#8ce0a5}
+.pl{color:var(--text4);font-size:11px;font-weight:500}
+.vbadge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:800;padding:3px 9px;border-radius:20px;white-space:nowrap;border:1.5px solid currentColor}
+.vbadge.PENDENTE{color:var(--v-pend);border-style:dashed}
+.vbadge.CONFORME{color:var(--v-conf)}.vbadge.CORRIGIR{color:var(--v-corr)}.vbadge.CORRIGIDO{color:var(--v-feito)}.vbadge.EXCECAO{color:var(--v-exc)}
+.vacts{display:flex;gap:4px;margin-top:5px}
+.vbt{border:1px solid var(--border);background:var(--sup);border-radius:6px;padding:2px 7px;font-size:11px;font-weight:700;cursor:pointer;color:var(--text3);white-space:nowrap}
+.vbt.ok:hover{border-color:var(--v-conf);color:var(--v-conf)}.vbt.cx:hover{border-color:var(--v-corr);color:var(--v-corr)}
+.vquem{font-size:10.5px;color:var(--text4);margin-top:3px;white-space:nowrap}
+mark{background:var(--teal);color:#0f2a35;border-radius:2px;padding:0 1px}
+/* lançamentos: filtros laterais */
+.lgrid{display:grid;grid-template-columns:270px minmax(0,1fr);gap:18px;align-items:start}
+@media(max-width:1000px){.lgrid{grid-template-columns:1fr}}
+.lado{position:sticky;top:10px;display:flex;flex-direction:column;gap:14px;background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:14px}
+@media(max-width:1000px){.lado{position:static}}
+.lado .fcampo input,.lado .fcampo select{width:100%;min-width:0}
+.chips{display:flex;flex-direction:column;gap:1px}
+.chip{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;cursor:pointer;border:0;background:none;text-align:left;width:100%;font-size:12.5px;color:var(--text)}
+.chip:hover{background:var(--bg3)}
+.chip .c{margin-left:auto;color:var(--text4);font-size:11.5px}
+.chip.off{opacity:.42}
+.chip.solo{background:var(--bg3);font-weight:700}
+.dica{font-size:10.5px;color:var(--text4);margin-top:4px}
+.resbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.resbar .count{font-weight:700}.resbar .count span{color:var(--text3);font-weight:500}
+.bulk{display:none;align-items:center;gap:8px;flex-wrap:wrap;background:rgba(76,217,100,.12);border:1.5px solid var(--verde-btn);border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:13px}
+.bulk.on{display:flex}
+.pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:10px;color:var(--text3);font-size:12.5px}
+input[type=checkbox]{width:16px;height:16px;accent-color:var(--verde);cursor:pointer;vertical-align:middle}
+/* gaveta de detalhe */
+.scrim{position:fixed;inset:0;background:rgba(15,26,34,.45);z-index:70;display:none}
+.scrim.on{display:block}
+.drawer{position:fixed;inset:0 0 0 auto;width:min(560px,100%);background:var(--sup);border-left:1px solid var(--border);box-shadow:-12px 0 30px rgba(0,0,0,.18);transform:translateX(102%);transition:transform .2s ease;z-index:71;display:flex;flex-direction:column}
+.drawer.on{transform:none}
+.drawer .hd{padding:16px 20px 12px;border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;gap:12px;align-items:flex-start;background:var(--bg2)}
+.drawer .hd h3{margin:0;font-size:16px;font-weight:700;line-height:1.3}
+.drawer .bd{padding:16px 20px 30px;overflow:auto}
+.xf{border:0;background:none;font-size:24px;cursor:pointer;line-height:1;color:var(--text3)}
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border2);border:1px solid var(--border2);border-radius:8px;overflow:hidden;margin:12px 0}
+.compare>div{background:var(--sup);padding:11px 13px}
+.compare h4{margin:0 0 5px;font-size:10.5px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.compare .big{font-weight:700;font-size:14.5px;line-height:1.3}
+.compare .to .big{color:var(--verde-esc)}
+html[data-tema="escuro"] .compare .to .big{color:#8ce0a5}
+.why{border-left:3px solid var(--s-div);padding:4px 0 4px 11px;margin:8px 0 14px;font-size:13px}
+.manualtxt{background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;font-size:12.5px;margin-bottom:14px}
+dl.kv{display:grid;grid-template-columns:132px 1fr;gap:5px 12px;margin:0;font-size:12.5px}
+dl.kv dt{color:var(--text3)}dl.kv dd{margin:0;word-break:break-word}
+.vbox{border:1.5px solid var(--border);border-radius:10px;padding:12px 14px;margin:14px 0;background:var(--bg2)}
+.vbox h4{margin:0 0 8px;font-family:'Barlow Condensed';font-size:15px;text-transform:uppercase;letter-spacing:.04em;color:var(--azul-esc)}
+html[data-tema="escuro"] .vbox h4{color:var(--teal)}
+.radios{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.radios label{display:flex;align-items:center;gap:6px;border:1.5px solid var(--border);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:12.5px;font-weight:600;background:var(--sup)}
+.radios input{accent-color:var(--verde)}
+/* modal */
+.modal-ov{position:fixed;inset:0;background:rgba(15,26,34,.55);z-index:90;display:flex;align-items:center;justify-content:center;padding:18px}
+.modal-cx{background:var(--sup);border-radius:14px;padding:18px 20px;width:100%;max-width:640px;max-height:88vh;overflow:auto;box-shadow:0 18px 50px rgba(0,0,0,.3)}
+.modal-cx.larga{max-width:900px}
+.modal-tit{font-family:'Barlow Condensed';font-size:19px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--azul-esc);margin-bottom:4px}
+html[data-tema="escuro"] .modal-tit{color:var(--teal)}
+.modal-sub{font-size:12px;color:var(--text3);margin:0 0 12px}
+.modal-bts{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px}
+.fgrid .fcampo input,.fgrid .fcampo select{width:100%;min-width:0}
+.fgrid .full{grid-column:1/-1}
+@media(max-width:640px){.fgrid{grid-template-columns:1fr}}
+/* barras HTML */
+.barras{display:flex;flex-direction:column;gap:6px}
+.bl{display:grid;grid-template-columns:minmax(150px,32%) 1fr minmax(96px,auto);gap:10px;align-items:center;font-size:12.5px}
+.bl-nome{white-space:normal;word-break:break-word;line-height:1.25;font-weight:600}
+.bl-trilho{background:var(--bg3);border-radius:5px;height:16px;overflow:hidden}
+.bl-barra{height:100%;border-radius:5px;background:var(--azul)}
+html[data-tema="escuro"] .bl-barra{background:var(--teal)}
+.bl-barra.r{background:var(--vermelho)}
+.bl-val{text-align:right;font-weight:700;white-space:nowrap}
+.minibar{display:flex;height:8px;border-radius:3px;overflow:hidden;background:var(--bg3);min-width:110px}
+.minibar i{display:block;height:100%}
+.chart{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:14px;overflow-x:auto;margin-bottom:18px}
+.chart svg{display:block}
+.chart text{fill:var(--text3);font-size:11px;font-family:Inter,sans-serif}
+.seg{display:inline-flex;border:2px solid var(--border);border-radius:8px;overflow:hidden;background:var(--sup)}
+.seg-bt{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:6px 12px;border:0;background:transparent;color:var(--text3);cursor:pointer}
+.seg-bt.on{background:var(--azul);color:#fff}
+.callout{background:var(--sup);border:1px solid var(--border2);border-left:4px solid var(--s-gen);border-radius:10px;padding:13px 16px;margin-bottom:16px}
+.callout.r{border-left-color:var(--vermelho)}.callout.b{border-left-color:var(--azul)}
+.callout h4{margin:0 0 5px;font-size:14.5px}
+.callout p{margin:0 0 6px;color:var(--text3);font-size:13px}
+.vazio{background:var(--sup);border:1px dashed var(--border);border-radius:12px;padding:24px;color:var(--text3);text-align:center;font-size:13px}
+.semacesso{background:var(--sup);border:1px solid var(--border);border-radius:14px;padding:34px;text-align:center;max-width:520px;margin:40px auto}
+.semacesso h2{font-family:'Barlow Condensed';color:var(--vermelho);margin:0 0 10px}
+.load{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--azul);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.hide{display:none!important}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--azul-esc);color:#fff;padding:10px 18px;border-radius:10px;font-weight:600;font-size:13px;z-index:120;box-shadow:0 10px 30px rgba(0,0,0,.25);max-width:92vw}
+.toast.err{background:var(--vermelho)}
+/* fiscalização */
+.fcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;margin-bottom:16px}
+.fcard{background:var(--sup);border:1.5px solid var(--border2);border-radius:12px;padding:12px 14px;cursor:pointer;text-align:left}
+.fcard:hover{border-color:var(--verde)}
+.fcard.on{border-color:var(--verde-btn);box-shadow:0 0 0 3px rgba(76,217,100,.2)}
+.fcard .n{font-family:'Barlow Condensed';font-size:26px;font-weight:800;color:var(--azul-esc);line-height:1}
+html[data-tema="escuro"] .fcard .n{color:var(--teal)}
+.fcard .t{font-weight:700;font-size:13px;margin-top:5px}
+.fcard .d{font-size:11.5px;color:var(--text3);margin-top:3px}
+.fcard .v{font-size:11.5px;color:var(--text4);margin-top:4px}
+.fcard.zero{opacity:.55}
+/* manual */
+.mparte{margin-bottom:22px}
+.mparte>h2{font-family:'Barlow Condensed';font-size:21px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:var(--azul-esc);margin:0 0 4px}
+html[data-tema="escuro"] .mparte>h2{color:var(--teal)}
+.mparte>.nota{color:var(--text3);font-size:12.5px;margin:0 0 10px}
+details.msec{background:var(--sup);border:1px solid var(--border2);border-radius:12px;margin-bottom:10px;overflow:hidden}
+details.msec>summary{list-style:none;cursor:pointer;padding:12px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+details.msec>summary::-webkit-details-marker{display:none}
+details.msec>summary .chev{transition:transform .15s;color:var(--text4)}
+details.msec[open]>summary .chev{transform:rotate(90deg)}
+details.msec>summary .tt{font-weight:800;font-size:14.5px}
+details.msec>summary .meta{font-size:11.5px;color:var(--text3)}
+details.msec>summary .sp{flex:1}
+.mcats{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px;padding:0 16px 16px}
+.mcat{border:1px solid var(--border2);border-radius:10px;padding:11px 13px;background:var(--bg2);display:flex;flex-direction:column;gap:6px}
+.mcat.inativa{opacity:.55}
+.mcat .nm{font-weight:800;font-size:13.5px;display:flex;gap:6px;align-items:flex-start;justify-content:space-between}
+.mcat .tx{font-size:12.5px;color:var(--text)}
+.mcat .ex{font-size:11.5px;color:var(--text3)}
+.mcat .ex b{color:var(--text)}
+.tags{display:flex;gap:5px;flex-wrap:wrap}
+.tag{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:20px;background:var(--bg3);color:var(--text3);white-space:nowrap}
+.tag.gen{background:rgba(201,138,30,.16);color:#9a6812}.tag.desc{background:rgba(111,90,160,.16);color:#5a4590}
+.tag.res{background:rgba(86,104,122,.16);color:var(--s-cad)}.tag.ok{background:rgba(47,143,128,.14);color:#1f6c60}
+html[data-tema="escuro"] .tag.gen{color:#E3AE4B}html[data-tema="escuro"] .tag.desc{color:#A792D6}html[data-tema="escuro"] .tag.ok{color:#5FC0B1}
+.busca-manual{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.busca-manual input{flex:1;min-width:240px;font-size:15px;padding:11px 14px;border:2px solid var(--verde-btn);border-radius:10px;background:var(--sup)}
+.resultados{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px;margin-top:12px}
+.res{border:1px solid var(--border2);border-radius:10px;padding:10px 12px;background:var(--bg2);cursor:pointer}
+.res:hover{border-color:var(--verde)}
+.res .onde{font-weight:800;font-size:13px}.res .tx{font-size:12px;color:var(--text3);margin-top:3px}
+.lista-ed{display:flex;flex-direction:column;gap:6px}
+.lista-ed .ln{display:grid;grid-template-columns:1fr 1fr 30px;gap:6px}
+.lista-ed input{padding:6px 9px;border:1px solid var(--border);border-radius:7px;background:var(--sup);font-size:12.5px}
+@media print{header,.crumb,.tabs-outer,.gfil{display:none}}
+</style>
+</head>
+<body>
+  <header>
+    <div class="wrap hbar">
+      <span class="logo"><img src="img/logo.png" alt="Morais" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-block'"><b style="display:none;font-family:'Barlow Condensed';font-weight:800;font-size:16px;color:var(--azul-esc);padding:0 4px">MORAIS</b></span>
+      <div><div class="htitle">Auditoria Financeira</div><div class="hsub">Morais Engenharia · Plano de contas, juros e fiscalização</div></div>
+      <div class="hspace"></div>
+      <span class="net on" id="net-status">online</span>
+      <div class="user">
+        <div style="text-align:right"><div class="nome" id="u-nome">—</div><span class="badge" id="u-tipo">—</span></div>
+        <button class="btema" id="btema" onclick="afTrocarTema()" title="Alternar claro/escuro" aria-label="Alternar claro/escuro">🌙</button>
+        <button class="sair" onclick="sair()">Sair</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="crumb">
+      <a class="btn-voltar" href="index.html">← Voltar para o Dashboard</a>
+      <span style="flex:1"></span>
+      <span class="chip-extr" id="chip-gerado">—</span>
+      <span class="chip-extr" id="chip-perfil" title="O que este login pode fazer nesta tela">—</span>
+      <button class="bt ghost sm" id="bt-atualizar" onclick="afCarregar(true)">↻ Atualizar</button>
+    </div>
+
+    <div id="sem-acesso" class="semacesso hide">
+      <h2>Sem acesso</h2>
+      <p>Seu login não tem o acesso <b>FINANCEIRO</b> nem <b>GFINANCEIRO</b>. Fale com um ADM.</p>
+      <a class="bt az" href="index.html" style="display:inline-block;margin-top:10px;text-decoration:none">Voltar ao portal</a>
+    </div>
+    <div id="carregando" class="vazio" style="margin-top:20px"><span class="load"></span> Carregando a auditoria…</div>
+    <div id="aviso-erro" class="callout r hide"></div>
+
+    <div id="conteudo" class="hide">
+      <div class="tabs-outer"><div class="tabs" id="tabs">
+        <button class="tab on" data-tab="visao">Visão Geral</button>
+        <button class="tab" data-tab="lanc">Lançamentos</button>
+        <button class="tab" data-tab="corr">A Corrigir<span class="cnt hide" id="cnt-corr"></span></button>
+        <button class="tab" data-tab="cats">Por Categoria</button>
+        <button class="tab" data-tab="recl">Reclassificações</button>
+        <button class="tab" data-tab="juros">Juros e Atrasos</button>
+        <button class="tab" data-tab="fisc">Fiscalização</button>
+        <button class="tab" data-tab="evo">Evolução</button>
+        <button class="tab" data-tab="man">Manual</button>
+      </div></div>
+
+      <!-- filtros globais: valem para todas as abas menos o Manual -->
+      <div class="gfil" id="gfil">
+        <span class="tit">Filtros</span>
+        <div class="fcampo"><label for="g-base">Período por</label>
+          <select id="g-base"><option value="dp">Data de pagamento</option><option value="dc">Competência</option></select></div>
+        <div class="fcampo"><label for="g-de">De</label><input type="month" id="g-de"></div>
+        <div class="fcampo"><label for="g-ate">Até</label><input type="month" id="g-ate"></div>
+        <div class="fcampo w2"><label for="g-cc">Centro de custo / obra</label><input id="g-cc" list="dl-cc" placeholder="Digite o endereço ou CC" autocomplete="off"></div>
+        <div class="fcampo"><label for="g-cb">Conta bancária</label><select id="g-cb"></select></div>
+        <div class="fcampo"><label for="g-ro">Responsável da obra</label><select id="g-ro"></select></div>
+        <div class="fcampo"><label for="g-pl">Plano de conta</label><select id="g-pl"></select></div>
+        <div class="fcampo"><label>&nbsp;</label><button class="bt ghost" onclick="afLimparGlobais()">Limpar</button></div>
+        <div class="ativos" id="g-ativos"></div>
+        <datalist id="dl-cc"></datalist>
+      </div>
+
+      <section id="tab-visao"></section>
+      <section id="tab-lanc" class="hide">
+        <div class="lgrid">
+          <aside class="lado">
+            <div class="fcampo"><label for="l-q">Pesquisar</label><input type="search" id="l-q" placeholder="Descrição, fornecedor, nº, CC, ID…" autocomplete="off"></div>
+            <div><div class="fcampo"><label>Situação do auditor</label></div><div class="chips" id="l-st"></div>
+              <div class="dica">Clique = só ela · Ctrl+clique = somar outra</div>
+              <div style="display:flex;gap:12px;margin-top:6px"><button class="lnk" onclick="afSt.clear();afRenderLanc(true)">Todas</button><button class="lnk" onclick="afSoProblemas()">Só problemas</button></div></div>
+            <div><div class="fcampo"><label>Validação</label></div><div class="chips" id="l-vl"></div></div>
+            <div class="fcampo"><label for="l-cat">Categoria</label><select id="l-cat"></select></div>
+            <div class="fcampo"><label for="l-sug">Sugestão do auditor</label><select id="l-sug"></select></div>
+            <div class="fcampo"><label for="l-forn">Fornecedor</label><input id="l-forn" list="dl-forn" placeholder="Todos" autocomplete="off"></div>
+            <datalist id="dl-forn"></datalist>
+            <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="l-sosug"> Só com sugestão de categoria</label>
+            <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="l-fisc"> Só com alerta de fiscalização</label>
+            <button class="bt ghost" onclick="afLimparLanc()">Limpar estes filtros</button>
+          </aside>
+          <div>
+            <div class="resbar">
+              <div class="count" id="l-count"></div>
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                <button class="bt ghost sm" onclick="afExportarCSV('lanc')">⬇ Excel (CSV)</button>
+                <label class="small" for="l-sort">Ordenar</label>
+                <select id="l-sort" class="bt ghost sm"><option value="dp-">Pagamento (recente)</option><option value="dp+">Pagamento (antigo)</option><option value="dc-">Competência (recente)</option><option value="v-">Maior valor</option><option value="st">Situação</option><option value="vl">Validação</option></select>
+              </div>
+            </div>
+            <div class="bulk" id="l-bulk"></div>
+            <div class="tbl-wrap"><table>
+              <thead><tr id="l-head"></tr></thead>
+              <tbody id="l-rows"></tbody></table></div>
+            <div class="pager"><button class="bt ghost sm" id="l-prev">Anterior</button><span id="l-pg"></span><button class="bt ghost sm" id="l-next">Próxima</button></div>
+          </div>
+        </div>
+      </section>
+      <section id="tab-corr" class="hide"></section>
+      <section id="tab-cats" class="hide"></section>
+      <section id="tab-recl" class="hide"></section>
+      <section id="tab-juros" class="hide"></section>
+      <section id="tab-fisc" class="hide"></section>
+      <section id="tab-evo" class="hide"></section>
+      <section id="tab-man" class="hide"></section>
+    </div>
+  </main>
+
+  <div class="scrim" id="scrim"></div>
+  <aside class="drawer" id="drawer" aria-hidden="true" role="dialog" aria-labelledby="d-tit">
+    <div class="hd"><h3 id="d-tit"></h3><button class="xf" id="d-fechar" aria-label="Fechar">×</button></div>
+    <div class="bd" id="d-corpo"></div>
+  </aside>
+  <div id="modais"></div>
+
+<script src="app.js?v=45"></script>
+<script>
+/* ============ AUDITORIA FINANCEIRA · PORTAL-MORAIS · 22/10/26 ============
+   ACESSO: "FINANCEIRO" (vê tudo) ou "GFINANCEIRO" (vê + valida + edita o
+   manual) na coluna ACESSOS do banco LOGINS. ADM, MASTER e TESTES passam
+   sempre. Quem decide de verdade é o servidor (AuditoriaFin.gs): esconder
+   botão aqui é só conforto, não segurança.
+   DADOS: o robô robo_auditoria_fin.py (GitHub Actions, de madrugada) grava o
+   arquivo no bucket PRIVADO "analise" do Supabase. A ação afBoot confere o
+   login e devolve um link assinado de 2 min + validações + manual.
+   Nomes globais desta tela começam com "af" — o app.js já usa brl, num, esc,
+   ler, fila, sair… e redeclarar qualquer um derruba a página inteira. */
+const S_AF = exigirSessao();
+
+const AF_ST = {
+  DIVERGENTE:{l:"Categoria errada",c:"--s-div"}, MISTO:{l:"Lançamento misto",c:"--s-mix"},
+  GENERICA:{l:"Categoria genérica",c:"--s-gen"}, DESCONTINUADA:{l:"Categoria descontinuada",c:"--s-desc"},
+  SEM_DESCRICAO:{l:"Descrição insuficiente",c:"--s-sd"}, CC:{l:"Centro de custo a revisar",c:"--s-cc"},
+  CADASTRO:{l:"Cadastro fora do manual",c:"--s-cad"}, NAO_AVALIADO:{l:"Não avaliado",c:"--s-na"},
+  OK:{l:"Conforme",c:"--s-ok"}
+};
+const AF_ST_ORD = Object.keys(AF_ST);
+const AF_PROB = ["DIVERGENTE","MISTO","GENERICA","DESCONTINUADA","SEM_DESCRICAO","CC","CADASTRO"];
+const AF_VL = {
+  PENDENTE:{l:"Pendente"}, CONFORME:{l:"Conforme (validado)"}, CORRIGIR:{l:"A corrigir"},
+  CORRIGIDO:{l:"Corrigido"}, EXCECAO:{l:"Conforme por exceção"}
+};
+const AF_LAC = ["Energia de obra/unidade (sem categoria no manual)","Água de obra/unidade (sem categoria no manual)"];
+const AF_POR_PAG = 50;
+
+/* ---------- estado ---------- */
+let AF_D=null, AF_C=null, AF_DIC=null, AF_N=0, AF_BOOT=null, AF_PERM={gerir:false,quem:""};
+let AF_VAL=new Map(), AF_EXC=[], AF_MANUAL=null;
+let AF_VST=[];               // validação efetiva por linha
+let AF_FISC_ROW=new Map();   // linha -> [[tipo, texto]]
+let AF_KIDX=new Map();       // chave -> linha
+let AF_TAB="visao";
+let afSt=new Set(), afVl=new Set(), afSel=new Set();
+let afLancPg=0;
+let AF_BASE=[];              // linhas que passam nos filtros globais (cache)
+
+/* ---------- formatação ---------- */
+const fR = v => (Number(v)||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+const fR0 = v => (Number(v)||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL",maximumFractionDigits:0});
+const fN = v => (Number(v)||0).toLocaleString("pt-BR");
+const fP = (v,d=1) => ((Number(v)||0)*100).toLocaleString("pt-BR",{minimumFractionDigits:d,maximumFractionDigits:d})+"%";
+const fD = s => s ? s.slice(8,10)+"/"+s.slice(5,7)+"/"+s.slice(0,4) : "—";
+const fM = m => m ? m.slice(5,7)+"/"+m.slice(2,4) : "";
+const fMl = m => { if(!m) return ""; const n=["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"]; return n[+m.slice(5,7)-1]+"/"+m.slice(0,4); };
+const afNz = s => String(s==null?"":s).normalize("NFD").replace(/[̀-ͯ]/g,"").toUpperCase().replace(/\s+/g," ").trim();
+const afCor = s => `var(${(AF_ST[s]||AF_ST.NAO_AVALIADO).c})`;
+const afHoje = () => (AF_D && AF_D.hoje) || new Date().toISOString().slice(0,10);
+function afDias(a,b){ if(!a||!b) return null; return Math.round((Date.parse(b)-Date.parse(a))/864e5); }
+function afMesAtual(){ return afHoje().slice(0,7); }
+function afMesAnt(m){ let y=+m.slice(0,4), mm=+m.slice(5,7)-1; if(mm<1){mm=12;y--;} return y+"-"+String(mm).padStart(2,"0"); }
+function afHl(t,q){ const s=esc(t); if(!q) return s; try{ const re=new RegExp("("+q.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+")","ig"); return s.replace(re,"<mark>$1</mark>"); }catch(e){ return s; } }
+
+/* ---------- acesso às colunas ---------- */
+const cat = i => AF_DIC.cat[AF_C.c[i]];
+const sug = i => AF_DIC.cat[AF_C.sc[i]];
+const sugPl = i => AF_DIC.plano[AF_C.sp[i]];
+const st = i => AF_DIC.st[AF_C.st[i]];
+const forn = i => AF_DIC.f[AF_C.f[i]];
+const ccv = i => AF_DIC.cc[AF_C.cc[i]];
+const cbv = i => AF_DIC.cb[AF_C.cb[i]];
+const plv = i => AF_DIC.plano[AF_C.p[i]];
+const rov = i => AF_DIC.ro[AF_C.ro[i]];
+const grv = i => AF_DIC.g[AF_C.g[i]];
+const fpv = i => AF_DIC.fp[AF_C.fp[i]];
+const mot = i => AF_DIC.m[AF_C.m[i]];
+const alrt = i => (AF_DIC.a[AF_C.a[i]]||"").split(" || ").filter(Boolean);
+
+/* ---------- utilidades de tela ---------- */
+function afToast(msg, erro){
+  const t=document.createElement("div"); t.className="toast"+(erro?" err":""); t.textContent=msg;
+  document.body.appendChild(t); setTimeout(()=>t.remove(), erro?6500:3500);
+}
+function afTrocarTema(){
+  const novo=document.documentElement.dataset.tema==="escuro"?"claro":"escuro";
+  document.documentElement.dataset.tema=novo;
+  try{ localStorage.setItem("morais_tema",novo); }catch(e){}
+  document.getElementById("btema").textContent=novo==="escuro"?"☀️":"🌙";
+  if(["evo","juros","visao"].includes(AF_TAB)) afRender();
+}
+function afModal(titulo, sub, corpo, botoes, larga){
+  const box=document.getElementById("modais");
+  const ov=document.createElement("div"); ov.className="modal-ov";
+  ov.innerHTML=`<div class="modal-cx${larga?" larga":""}" role="dialog" aria-modal="true">
+    <div class="modal-tit">${esc(titulo)}</div>${sub?`<p class="modal-sub">${sub}</p>`:""}
+    <div class="modal-corpo">${corpo}</div><div class="modal-bts"></div></div>`;
+  const bts=ov.querySelector(".modal-bts");
+  const fechar=()=>ov.remove();
+  (botoes||[{t:"Fechar",cls:"ghost"}]).forEach(b=>{
+    const el=document.createElement("button"); el.className="bt "+(b.cls||"az"); el.textContent=b.t;
+    el.onclick=async()=>{ if(b.fn){ el.disabled=true; const r=await b.fn(ov); el.disabled=false; if(r===false) return; } fechar(); };
+    bts.appendChild(el);
+  });
+  ov.addEventListener("keydown",e=>{ if(e.key==="Escape") fechar(); });
+  box.appendChild(ov);
+  const f=ov.querySelector("input,textarea,select"); if(f) setTimeout(()=>f.focus(),30);
+  return ov;
+}
+function afStBadge(s){ return `<span class="st"><i style="background:${afCor(s)}"></i>${esc((AF_ST[s]||{}).l||s)}</span>`; }
+function afVlBadge(v){ return v ? `<span class="vbadge ${v}">${v==="CONFORME"||v==="EXCECAO"?"✓ ":v==="CORRIGIR"?"✎ ":v==="CORRIGIDO"?"✔ ":""}${esc(AF_VL[v].l)}</span>` : ""; }
+
+/* =====================================================================
+   VALIDAÇÃO EFETIVA DE CADA LINHA
+   ===================================================================== */
+function afExcAtiva(id){ return AF_EXC.some(e=>e.id===id && e.ativo!==false); }
+function afExcCasa(e, i){
+  if(e.ativo===false) return false;
+  if(!e.fornecedor && !e.categoria) return false;
+  if(e.fornecedor && afNz(e.fornecedor)!==afNz(forn(i))) return false;
+  if(e.categoria && afNz(e.categoria)!==afNz(cat(i))) return false;
+  if(e.centro_de_custo && afNz(e.centro_de_custo)!==afNz(ccv(i))) return false;
+  return true;
+}
+function afRecalcVal(){
+  AF_VST=new Array(AF_N);
+  const novas=AF_EXC.filter(e=>e.ativo!==false);
+  for(let i=0;i<AF_N;i++){
+    const v=AF_VAL.get(AF_C.k[i]);
+    if(v){ AF_VST[i]=v.status; continue; }
+    const s=st(i);
+    if(s==="OK"){ AF_VST[i]=""; continue; }
+    if(AF_C.ex[i] && afExcAtiva(AF_C.ex[i])){ AF_VST[i]="EXCECAO"; continue; }
+    AF_VST[i]=novas.some(e=>afExcCasa(e,i)) ? "EXCECAO" : "PENDENTE";
+  }
+  const n=[...AF_VAL.values()].filter(v=>v.status==="CORRIGIR").length;
+  const c=document.getElementById("cnt-corr");
+  c.textContent=n; c.classList.toggle("hide", !n);
+}
+function afItem(i, status, motivo, obs, tipo){
+  tipo=tipo||"AUDIT";
+  const k=AF_C.k[i];
+  return { chave: tipo==="AUDIT"?k:tipo+":"+k, tipo, status, motivo:motivo||"", obs:obs||"",
+    categoria_atual:cat(i), categoria_sugerida:sug(i)||"", situacao:st(i), id_lancamento:AF_C.id[i],
+    centro_de_custo:ccv(i), fornecedor:forn(i), descricao:(AF_C.d[i]||"").slice(0,300), valor:AF_C.v[i],
+    data_pagamento:AF_C.dp[i]||undefined };
+}
+async function afSalvarVal(itens){
+  if(!AF_PERM.gerir){ afToast("Seu login só visualiza (FINANCEIRO). Quem valida é o GFINANCEIRO.", true); return false; }
+  let r;
+  try{ r=await chamar({action:"afValidar", itens}, 60000, true); }
+  catch(e){ afToast("Não consegui falar com o servidor: "+e.message, true); return false; }
+  if(!r||!r.ok){ afToast("Não salvou: "+erroTexto(r&&r.erro), true); return false; }
+  itens.forEach(it=>{
+    if(it.status==="PENDENTE") AF_VAL.delete(it.chave);
+    else AF_VAL.set(it.chave, Object.assign({}, AF_VAL.get(it.chave)||{}, it, {por:r.por, em:r.em},
+      it.status==="CORRIGIDO"?{corrigido_em:r.em, corrigido_por:r.por}:{}));
+  });
+  afRecalcVal();
+  afToast(itens.length===1 ? "Validação salva." : itens.length+" validações salvas.");
+  return true;
+}
+/* pergunta (modal) e salva: usado pelos botões rápidos, pelo lote e pela fiscalização */
+function afPerguntarVal(linhas, status, tipo){
+  tipo=tipo||"AUDIT";
+  const n=linhas.length;
+  const ehConf=status==="CONFORME";
+  const corpo=`<div class="fcampo cheio"><label for="mv-mot">${ehConf?"Justificativa (obrigatória)":"O que corrigir (opcional)"}</label>
+      <textarea id="mv-mot" placeholder="${ehConf?"Ex.: lançamento correto — combinado com a contabilidade":"Ex.: trocar para Despachante / Serviços Cartorários"}"></textarea></div>
+    ${ehConf&&n===1&&tipo==="AUDIT"?`<label class="small" style="display:flex;gap:8px;align-items:flex-start;margin-top:10px"><input type="checkbox" id="mv-exc">
+      <span>Aplicar a todos os parecidos — mesmo fornecedor <b>${esc(forn(linhas[0])||"—")}</b> + categoria <b>${esc(cat(linhas[0]))}</b>
+      <label style="display:flex;gap:6px;align-items:center;margin-top:4px"><input type="checkbox" id="mv-exc-cc"> e só neste centro de custo</label></span></label>`:""}`;
+  afModal(ehConf?"Marcar como conforme":"Marcar para corrigir",
+    n+" lançamento"+(n>1?"s":"")+(tipo!=="AUDIT"?" · alerta: "+esc(((AF_D.fiscal_tipos||{})[tipo]||{}).t||tipo):""),
+    corpo,
+    [{t:"Cancelar",cls:"ghost"},
+     {t:ehConf?"Salvar como conforme":"Salvar como a corrigir",cls:ehConf?"vd":"vm",fn:async ov=>{
+        const m=ov.querySelector("#mv-mot").value.trim();
+        if(ehConf&&!m){ afToast("Escreva a justificativa.", true); return false; }
+        const ok=await afSalvarVal(linhas.map(i=>afItem(i,status,ehConf?m:"",ehConf?"":m,tipo)));
+        if(!ok) return false;
+        const ex=ov.querySelector("#mv-exc");
+        if(ex&&ex.checked){
+          const i=linhas[0];
+          const r=await chamar({action:"afExcecao", acao:"criar", fornecedor:forn(i), categoria:cat(i),
+            centro_de_custo: ov.querySelector("#mv-exc-cc").checked?ccv(i):"", motivo:m}, 45000, true).catch(e=>({ok:false,erro:e.message}));
+          if(r&&r.ok&&r.excecao){ AF_EXC.unshift(r.excecao); afRecalcVal(); afToast("Exceção criada: parecidos também ficam conformes."); }
+          else afToast("A validação foi salva, mas a exceção não: "+erroTexto(r&&r.erro), true);
+        }
+        afSel.clear(); afRender(); if(document.getElementById("drawer").classList.contains("on")) afFecharDrawer();
+     }}]);
+}
+async function afLimparVal(linhas, tipo){
+  const itens=linhas.map(i=>({chave:(tipo&&tipo!=="AUDIT"?tipo+":":"")+AF_C.k[i], status:"PENDENTE"}));
+  if(await afSalvarVal(itens)){ afSel.clear(); afRender(); }
+}
+async function afMarcarCorrigido(chaves){
+  const itens=chaves.map(ch=>{ const v=AF_VAL.get(ch)||{chave:ch}; return Object.assign({},v,{status:"CORRIGIDO"}); });
+  itens.forEach(x=>{ delete x.por; delete x.em; delete x.corrigido_em; delete x.corrigido_por; });
+  if(await afSalvarVal(itens)) afRender();
+}
+
+/* =====================================================================
+   FILTROS GLOBAIS
+   ===================================================================== */
+const AF_G={base:"dp",de:"",ate:"",cc:"",cb:"",ro:"",pl:""};
+function afGlobalOk(i){
+  const g=AF_G;
+  if(g.de||g.ate){ const d=(g.base==="dc"?AF_C.dc[i]:AF_C.dp[i])||""; const m=d.slice(0,7);
+    if(!m) return false; if(g.de&&m<g.de) return false; if(g.ate&&m>g.ate) return false; }
+  if(g.cc){ const c=afNz(ccv(i)); if(g._ccExato ? c!==g._ccN : c.indexOf(g._ccN)<0) return false; }
+  if(g.cb && cbv(i)!==g.cb) return false;
+  if(g.ro && rov(i)!==g.ro) return false;
+  if(g.pl && plv(i)!==g.pl) return false;
+  return true;
+}
+function afAplicarGlobais(){
+  AF_G.base=document.getElementById("g-base").value;
+  AF_G.de=document.getElementById("g-de").value; AF_G.ate=document.getElementById("g-ate").value;
+  AF_G.cc=document.getElementById("g-cc").value.trim(); AF_G._ccN=afNz(AF_G.cc);
+  AF_G._ccExato=AF_DIC.cc.some(c=>afNz(c)===AF_G._ccN);
+  AF_G.cb=document.getElementById("g-cb").value; AF_G.ro=document.getElementById("g-ro").value; AF_G.pl=document.getElementById("g-pl").value;
+  AF_BASE=[]; for(let i=0;i<AF_N;i++) if(afGlobalOk(i)) AF_BASE.push(i);
+  const at=[];
+  const add=(rot,val,campo)=>at.push(`<span class="ativo">${esc(rot)}: <b>${esc(val)}</b><button title="Tirar" onclick="afTirarGlobal('${campo}')">×</button></span>`);
+  if(AF_G.de||AF_G.ate) add(AF_G.base==="dc"?"Competência":"Pagamento",(AF_G.de?fMl(AF_G.de):"…")+" a "+(AF_G.ate?fMl(AF_G.ate):"…"),"per");
+  if(AF_G.cc) add("CC",AF_G.cc,"cc"); if(AF_G.cb) add("Conta",AF_G.cb,"cb");
+  if(AF_G.ro) add("Responsável",AF_G.ro,"ro"); if(AF_G.pl) add("Plano",AF_G.pl,"pl");
+  document.getElementById("g-ativos").innerHTML=at.length?at.join("")+`<span class="small" style="align-self:center">${fN(AF_BASE.length)} de ${fN(AF_N)} pagamentos</span>`:"";
+  afSalvarHash(); afSel.clear(); afLancPg=0; afRender();
+}
+function afTirarGlobal(c){
+  if(c==="per"){ document.getElementById("g-de").value=""; document.getElementById("g-ate").value=""; }
+  else document.getElementById("g-"+c).value="";
+  afAplicarGlobais();
+}
+function afLimparGlobais(){ ["g-de","g-ate","g-cc","g-cb","g-ro","g-pl"].forEach(id=>document.getElementById(id).value=""); afAplicarGlobais(); }
+function afSalvarHash(){
+  const p=new URLSearchParams(); p.set("aba",AF_TAB);
+  Object.entries(AF_G).forEach(([k,v])=>{ if(!k.startsWith("_")&&v&&!(k==="base"&&v==="dp")) p.set(k,v); });
+  history.replaceState(null,"","#"+p.toString());
+}
+function afLerHash(){
+  const p=new URLSearchParams(location.hash.slice(1));
+  const map={base:"g-base",de:"g-de",ate:"g-ate",cc:"g-cc",cb:"g-cb",ro:"g-ro",pl:"g-pl"};
+  Object.entries(map).forEach(([k,id])=>{ if(p.get(k)) document.getElementById(id).value=p.get(k); });
+  return p.get("aba");
+}
+function afOpcoes(id, valores, todos){
+  const el=document.getElementById(id); const atual=el.value;
+  el.innerHTML=`<option value="">${todos||"Todos"}</option>`+valores.map(v=>`<option>${esc(v)}</option>`).join("");
+  if(valores.includes(atual)) el.value=atual;
+}
+
+/* =====================================================================
+   ABAS
+   ===================================================================== */
+function afTrocarTab(t){
+  AF_TAB=t;
+  document.querySelectorAll("#tabs .tab").forEach(b=>b.classList.toggle("on",b.dataset.tab===t));
+  document.querySelectorAll("#conteudo > section").forEach(s=>s.classList.toggle("hide",s.id!=="tab-"+t));
+  document.getElementById("gfil").classList.toggle("hide", t==="man");
+  afSalvarHash(); afRender();
+  window.scrollTo({top:0,behavior:"instant"});
+}
+function afRender(){
+  if(!AF_D) return;
+  ({visao:afRenderVisao,lanc:afRenderLanc,corr:afRenderCorr,cats:afRenderCats,recl:afRenderRecl,
+    juros:afRenderJuros,fisc:afRenderFisc,evo:afRenderEvo,man:afRenderManual}[AF_TAB]||afRenderVisao)();
+}
+function afIrLanc(cfg){
+  afSt=new Set(cfg.st||[]); afVl=new Set(cfg.vl||[]);
+  document.getElementById("l-q").value=cfg.q||"";
+  document.getElementById("l-cat").value=cfg.cat||"";
+  document.getElementById("l-sug").value=cfg.sug||"";
+  document.getElementById("l-forn").value=cfg.forn||"";
+  document.getElementById("l-sosug").checked=!!cfg.soSug;
+  document.getElementById("l-fisc").checked=!!cfg.fisc;
+  afLancPg=0; afSel.clear(); afTrocarTab("lanc");
+}
+
+/* =====================================================================
+   VISÃO GERAL
+   ===================================================================== */
+function afContar(linhas){
+  const n={}, v={}; AF_ST_ORD.forEach(s=>{n[s]=0;v[s]=0;});
+  linhas.forEach(i=>{ const s=st(i); n[s]++; v[s]+=AF_C.v[i]; });
+  return {n,v};
+}
+function afGenMes(linhas, mes){
+  let t=0,g=0; linhas.forEach(i=>{ if((AF_C.dc[i]||"").slice(0,7)===mes){ t++; const c=cat(i); if(c==="Outras Despesas"||c==="Taxas gerais") g++; } });
+  return t?{t,g,p:g/t}:null;
+}
+function afJurosMes(linhas, mes){
+  let j=0,pago=0,n=0,at=0,dias=0,des=0;
+  linhas.forEach(i=>{ const dp=AF_C.dp[i]; if(!dp||dp.slice(0,7)!==mes) return;
+    n++; j+=AF_C.jm[i]; pago+=AF_C.vp[i]; des+=AF_C.de[i];
+    const d=afDias(AF_C.dv[i],dp); if(d!==null&&d>0){ at++; dias+=d; } });
+  return {j,pago,n,at,des,pAt:n?at/n:0,dMed:at?dias/at:0};
+}
+function afRenderVisao(){
+  const L=AF_BASE, tot=L.length, {n,v}=afContar(L);
+  const prob=AF_PROB.reduce((a,s)=>a+n[s],0), probV=AF_PROB.reduce((a,s)=>a+v[s],0);
+  const totV=L.reduce((a,i)=>a+AF_C.v[i],0);
+  const mesF=afMesAnt(afMesAtual()), gm=afGenMes(L,mesF);
+  const jm=afJurosMes(L,afMesAtual()), jmAnt=afJurosMes(L,mesF);
+  const hoje=afHoje();
+  const venc=(AF_D.pagar||[]).filter(r=>r[3]&&r[3]<hoje&&afPagarOk(r));
+  const vencV=venc.reduce((a,r)=>a+r[5],0);
+  let pend=0,conf=0,corr=0,feito=0,exc=0;
+  L.forEach(i=>{ const x=AF_VST[i]; if(x==="PENDENTE")pend++; else if(x==="CONFORME")conf++; else if(x==="CORRIGIR")corr++; else if(x==="CORRIGIDO")feito++; else if(x==="EXCECAO")exc++; });
+  const mud=AF_D.mudancas||{};
+  const fis=Object.entries((AF_D.fiscal_tipos||{})).map(([t,o])=>({t,o,n:(AF_D.fiscal||[]).filter(f=>f[0]===t&&afGlobalOk(f[1])).length})).filter(x=>x.n);
+  const recl=afGruposRecl(L).slice(0,8);
+  const fora=(AF_D.cad||[]).filter(c=>c.tipo==="FORA");
+  const ruler=AF_ST_ORD.filter(s=>n[s]).map(s=>`<button style="flex:${n[s]};background:${afCor(s)}" title="${esc(AF_ST[s].l)}: ${fN(n[s])}" onclick="afIrLanc({st:['${s}']})"></button>`).join("");
+  const leg=AF_ST_ORD.map(s=>`<button onclick="afIrLanc({st:['${s}']})"><i class="sw" style="background:${afCor(s)}"></i><b>${fN(n[s])}</b> ${esc(AF_ST[s].l)}</button>`).join("");
+  document.getElementById("tab-visao").innerHTML=`
+    <div class="sec"><span class="cond">Panorama da classificação</span><span class="sp"></span><span class="small">${fN(tot)} pagamentos · ${fR0(totV)}</span></div>
+    <div class="kpis">
+      <div class="kpi hero"><div class="lab">Precisam de ajuste</div><div class="val">${fN(prob)}</div><div class="sub">${fR0(probV)} · ${tot?fP(prob/tot):"—"} dos pagamentos</div></div>
+      <div class="kpi clk" onclick="afIrLanc({st:['OK']})"><div class="lab">Conformes</div><div class="val g">${tot?fP(n.OK/tot):"—"}</div><div class="sub">${fN(n.OK)} pagamentos</div></div>
+      <div class="kpi clk" onclick="afIrLanc({st:${JSON.stringify(AF_PROB)},vl:['PENDENTE']})"><div class="lab">Ainda sem validação</div><div class="val">${fN(pend)}</div><div class="sub">problemas que ninguém olhou</div></div>
+      <div class="kpi clk" onclick="afTrocarTab('corr')"><div class="lab">A corrigir no ERP</div><div class="val r">${fN(corr)}</div><div class="sub">${fN(feito)} já corrigidos</div></div>
+      <div class="kpi"><div class="lab">Genéricas em ${fMl(mesF)}</div><div class="val ${gm&&gm.p>0.02?"r":"g"}">${gm?fP(gm.p):"—"}</div><div class="sub">"Outras Despesas" + "Taxas gerais" · meta ≤ 2%</div></div>
+      <div class="kpi clk" onclick="afTrocarTab('juros')"><div class="lab">Juros e multas em ${fMl(afMesAtual())}</div><div class="val ${jm.j>0?"r":""}">${fR(jm.j)}</div><div class="sub">${fMl(mesF)}: ${fR(jmAnt.j)}</div></div>
+      <div class="kpi clk" onclick="afTrocarTab('juros')"><div class="lab">Pagos com atraso em ${fMl(afMesAtual())}</div><div class="val">${fP(jm.pAt)}</div><div class="sub">${fN(jm.at)} de ${fN(jm.n)} · ${fMl(mesF)}: ${fP(jmAnt.pAt)}</div></div>
+      <div class="kpi clk" onclick="afTrocarTab('juros')"><div class="lab">Vencido e não pago hoje</div><div class="val ${vencV?"r":""}">${fR0(vencV)}</div><div class="sub">${fN(venc.length)} parcelas em aberto</div></div>
+    </div>
+    <div class="card"><h3>Situação dos pagamentos</h3><p class="desc">Clique numa faixa para ver os lançamentos dela.</p>
+      <div class="ruler">${ruler}</div><div class="legend">${leg}</div></div>
+    <div class="g2">
+      <div class="card"><h3>Validação dos problemas</h3><p class="desc">Do que o auditor apontou, o que o financeiro já conferiu.</p>
+        ${afBarras([["Sem validação",pend,"--v-pend",{vl:["PENDENTE"]}],["Conforme (validado)",conf,"--v-conf",{vl:["CONFORME"]}],["Conforme por exceção",exc,"--v-exc",{vl:["EXCECAO"]}],["A corrigir",corr,"--v-corr",{vl:["CORRIGIR"]}],["Corrigido",feito,"--v-feito",{vl:["CORRIGIDO"]}]])}
+      </div>
+      <div class="card"><h3>Desde a última coleta</h3><p class="desc">${mud.anterior?"Comparado com a rodada de "+esc(mud.anterior):"Primeira rodada — sem comparação ainda."}</p>
+        ${mud.anterior?`<dl class="kv"><dt>Pagamentos novos</dt><dd><b>${fN(mud.novos)}</b> ${mud.novos_por_status?"· "+Object.entries(mud.novos_por_status).filter(([s])=>s!=="OK").map(([s,q])=>fN(q)+" "+esc((AF_ST[s]||{}).l||s).toLowerCase()).join(", "):""}</dd>
+          <dt>Corrigidos no ERP</dt><dd><b>${fN(mud.recategorizados)}</b> mudaram de categoria · <b>${fN(mud.resolvidos)}</b> viraram conformes</dd>
+          <dt>Removidos</dt><dd>${fN(mud.removidos)}</dd></dl>`:""}
+      </div>
+    </div>
+    ${fora.length||AF_D.lacuna&&AF_D.lacuna.n?`<div class="callout"><h4>Pendências do manual</h4>
+      ${AF_D.lacuna&&AF_D.lacuna.n?`<p><b>${fN(AF_D.lacuna.n)}</b> pagamentos (${fR0(AF_D.lacuna.v)}) de energia e água das casas em obra não têm categoria no manual — <button class="lnk" onclick="afIrLanc({sug:'${esc(AF_LAC[0])}'})">ver energia</button> · <button class="lnk" onclick="afIrLanc({sug:'${esc(AF_LAC[1])}'})">ver água</button>.</p>`:""}
+      ${fora.length?`<p>Categorias usadas no ERP e que não estão no manual: ${fora.map(c=>`<b>${esc(c.cat)}</b> (${fN(c.n)})`).join(", ")} — <button class="lnk" onclick="afTrocarTab('man')">resolver no Manual</button>.</p>`:""}</div>`:""}
+    <div class="g2">
+      <div class="card"><h3>Maiores reclassificações</h3><p class="desc">Está em → deveria estar em. Clique para abrir os lançamentos.</p>
+        ${recl.length?`<div class="tbl-wrap baixa"><table><thead><tr><th>Está em</th><th>Deveria estar em</th><th class="num">Lanç.</th><th class="num">Valor</th></tr></thead><tbody>
+        ${recl.map(g=>`<tr class="clk" onclick='afIrLanc({cat:${JSON.stringify(g.de)},sug:${JSON.stringify(g.para)}})'><td>${esc(g.de)}</td><td class="sug">${esc(g.para)}</td><td class="num">${fN(g.n)}</td><td class="num">${fR0(g.v)}</td></tr>`).join("")}
+        </tbody></table></div>`:`<div class="vazio">Nada para reclassificar.</div>`}</div>
+      <div class="card"><h3>Fiscalização</h3><p class="desc">Alertas do período filtrado. Clique para ver.</p>
+        ${fis.length?`<div class="barras">${fis.sort((a,b)=>b.n-a.n).map(x=>`<div class="bl" style="cursor:pointer" onclick="afFiscTipo='${x.t}';afTrocarTab('fisc')"><div class="bl-nome">${esc(x.o.t)}</div><div class="bl-trilho"><div class="bl-barra r" style="width:${Math.max(2,x.n/Math.max(...fis.map(y=>y.n))*100)}%"></div></div><div class="bl-val">${fN(x.n)}</div></div>`).join("")}</div>`:`<div class="vazio">Nenhum alerta.</div>`}</div>
+    </div>`;
+}
+function afBarras(itens){
+  const max=Math.max(1,...itens.map(x=>x[1]));
+  return `<div class="barras">${itens.map(x=>`<div class="bl" style="cursor:pointer" onclick='afIrLanc(${JSON.stringify(x[3])})'><div class="bl-nome">${esc(x[0])}</div><div class="bl-trilho"><div class="bl-barra" style="width:${x[1]?Math.max(2,x[1]/max*100):0}%;background:var(${x[2]})"></div></div><div class="bl-val">${fN(x[1])}</div></div>`).join("")}</div>`;
+}
+
+/* =====================================================================
+   LANÇAMENTOS
+   ===================================================================== */
+function afLancFiltro(){
+  const q=afNz(document.getElementById("l-q").value);
+  const c=document.getElementById("l-cat").value, s=document.getElementById("l-sug").value;
+  const fo=afNz(document.getElementById("l-forn").value);
+  const soSug=document.getElementById("l-sosug").checked, soF=document.getElementById("l-fisc").checked;
+  const out=[];
+  for(const i of AF_BASE){
+    if(afSt.size && !afSt.has(st(i))) continue;
+    if(afVl.size && !afVl.has(AF_VST[i])) continue;
+    if(c && cat(i)!==c) continue;
+    if(s && sug(i)!==s) continue;
+    if(soSug && !sug(i)) continue;
+    if(soF && !AF_FISC_ROW.has(i)) continue;
+    if(fo && afNz(forn(i)).indexOf(fo)<0) continue;
+    if(q){ const hay=afNz(AF_C.d[i]+" | "+forn(i)+" | "+ccv(i)+" | "+AF_C.id[i]+" | "+AF_C.nd[i]+" | "+cat(i)); if(hay.indexOf(q)<0) continue; }
+    out.push(i);
+  }
+  const so=document.getElementById("l-sort").value;
+  const cmpS=(a,b)=>(b||"").localeCompare(a||"");
+  if(so==="dp-") out.sort((a,b)=>cmpS(AF_C.dp[a],AF_C.dp[b]));
+  else if(so==="dp+") out.sort((a,b)=>(AF_C.dp[a]||"9").localeCompare(AF_C.dp[b]||"9"));
+  else if(so==="dc-") out.sort((a,b)=>cmpS(AF_C.dc[a],AF_C.dc[b]));
+  else if(so==="v-") out.sort((a,b)=>AF_C.v[b]-AF_C.v[a]);
+  else if(so==="st") out.sort((a,b)=>AF_ST_ORD.indexOf(st(a))-AF_ST_ORD.indexOf(st(b)));
+  else if(so==="vl"){ const o=["CORRIGIR","PENDENTE","CORRIGIDO","CONFORME","EXCECAO",""]; out.sort((a,b)=>o.indexOf(AF_VST[a])-o.indexOf(AF_VST[b])); }
+  return out;
+}
+let AF_LANC_ULT=[];
+function afRenderLanc(resetPg){
+  if(resetPg===true){ afLancPg=0; }
+  // chips (contagem dentro dos filtros globais)
+  const cs={}, cv={}; AF_ST_ORD.forEach(s=>cs[s]=0); Object.keys(AF_VL).forEach(v=>cv[v]=0);
+  AF_BASE.forEach(i=>{ cs[st(i)]++; if(AF_VST[i]) cv[AF_VST[i]]++; });
+  document.getElementById("l-st").innerHTML=AF_ST_ORD.map(s=>`<button class="chip${afSt.size&&!afSt.has(s)?" off":""}${afSt.size===1&&afSt.has(s)?" solo":""}" data-s="${s}"><i class="sw" style="background:${afCor(s)}"></i>${esc(AF_ST[s].l)}<span class="c">${fN(cs[s])}</span></button>`).join("");
+  document.getElementById("l-vl").innerHTML=Object.keys(AF_VL).map(v=>`<button class="chip${afVl.size&&!afVl.has(v)?" off":""}${afVl.size===1&&afVl.has(v)?" solo":""}" data-v="${v}">${afVlBadge(v)}<span class="c">${fN(cv[v])}</span></button>`).join("")
+    +`<button class="lnk" style="margin-top:4px;align-self:flex-start" onclick="afVl.clear();afRenderLanc(true)">Todas</button>`;
+  const L=afLancFiltro(); AF_LANC_ULT=L;
+  const pgs=Math.max(1,Math.ceil(L.length/AF_POR_PAG)); if(afLancPg>=pgs) afLancPg=pgs-1;
+  const pag=L.slice(afLancPg*AF_POR_PAG,(afLancPg+1)*AF_POR_PAG);
+  const tv=L.reduce((a,i)=>a+AF_C.v[i],0);
+  document.getElementById("l-count").innerHTML=`${fN(L.length)} pagamentos <span>· ${fR(tv)}</span>`;
+  const g=AF_PERM.gerir;
+  document.getElementById("l-head").innerHTML=(g?`<th style="width:34px"><input type="checkbox" id="l-all" title="Marcar esta página"></th>`:"")+
+    `<th>Pagamento</th><th>Descrição · fornecedor · CC</th><th>Lançado como</th><th>Deveria ser</th><th class="num">Valor</th><th>Situação</th><th>Validação</th>`;
+  const q=document.getElementById("l-q").value.trim();
+  document.getElementById("l-rows").innerHTML=pag.length?pag.map(i=>{
+    const s=st(i), sg=sug(i), vs=AF_VST[i], v=AF_VAL.get(AF_C.k[i]);
+    const fis=AF_FISC_ROW.get(i);
+    return `<tr class="clk${afSel.has(i)?" sel":""}" data-i="${i}">
+      ${g?`<td onclick="event.stopPropagation()"><input type="checkbox" class="l-ck" data-i="${i}"${afSel.has(i)?" checked":""}></td>`:""}
+      <td class="small nw">${fD(AF_C.dp[i])}<div class="muted">comp. ${fM((AF_C.dc[i]||"").slice(0,7))}</div></td>
+      <td class="desc-c${AF_C.d[i]?"":" vazio"}">${AF_C.d[i]?afHl(AF_C.d[i],q):"sem descrição"}
+        <div class="small">${afHl(forn(i)||"—",q)} · ${afHl(ccv(i)||"—",q)}</div>
+        ${fis?`<div class="small" style="color:var(--vermelho)">⚑ ${fis.map(f=>esc(((AF_D.fiscal_tipos||{})[f[0]]||{}).t||f[0])).join(" · ")}</div>`:""}</td>
+      <td>${esc(cat(i))}<div class="pl">${esc(plv(i))}</div></td>
+      <td>${sg?`<span class="sug">${esc(sg)}</span><div class="pl">${esc(sugPl(i))}</div>`:'<span class="muted">—</span>'}</td>
+      <td class="num">${fR(AF_C.v[i])}</td>
+      <td>${afStBadge(s)}</td>
+      <td>${afVlBadge(vs)||'<span class="muted">—</span>'}
+        ${v&&v.por?`<div class="vquem">${esc(v.por)} · ${fD((v.em||"").slice(0,10))}</div>`:""}
+        ${g?`<div class="vacts"><button class="vbt ok" data-a="conf" data-i="${i}" title="Está certo assim">✓ Conforme</button><button class="vbt cx" data-a="corr" data-i="${i}" title="Precisa corrigir no ERP">✎ Corrigir</button></div>`:""}</td>
+    </tr>`; }).join(""):`<tr><td colspan="8"><div class="vazio">Nenhum pagamento com estes filtros.</div></td></tr>`;
+  document.getElementById("l-pg").textContent=`Página ${afLancPg+1} de ${pgs}`;
+  document.getElementById("l-prev").disabled=afLancPg===0; document.getElementById("l-next").disabled=afLancPg>=pgs-1;
+  afRenderBulk();
+  const all=document.getElementById("l-all");
+  if(all){ all.checked=pag.length&&pag.every(i=>afSel.has(i)); all.onchange=()=>{ pag.forEach(i=>all.checked?afSel.add(i):afSel.delete(i)); afRenderLanc(); }; }
+}
+function afRenderBulk(){
+  const b=document.getElementById("l-bulk");
+  if(!AF_PERM.gerir || !afSel.size){ b.classList.remove("on"); b.innerHTML=""; return; }
+  const arr=[...afSel];
+  b.classList.add("on");
+  b.innerHTML=`<b>${fN(arr.length)} selecionado${arr.length>1?"s":""}</b>
+    <button class="bt vd sm" onclick="afPerguntarVal([...afSel],'CONFORME')">✓ Conforme</button>
+    <button class="bt vm sm" onclick="afPerguntarVal([...afSel],'CORRIGIR')">✎ Corrigir</button>
+    <button class="bt ghost sm" onclick="afLimparVal([...afSel])">Voltar para pendente</button>
+    <span style="flex:1"></span>
+    ${AF_LANC_ULT.length>arr.length?`<button class="lnk" onclick="AF_LANC_ULT.forEach(i=>afSel.add(i));afRenderLanc()">Selecionar todos os ${fN(AF_LANC_ULT.length)} filtrados</button>`:""}
+    <button class="lnk" onclick="afSel.clear();afRenderLanc()">Limpar seleção</button>`;
+}
+function afSoProblemas(){ afSt=new Set(AF_PROB); afRenderLanc(true); }
+function afLimparLanc(){ afSt.clear(); afVl.clear(); ["l-q","l-cat","l-sug","l-forn"].forEach(id=>document.getElementById(id).value=""); document.getElementById("l-sosug").checked=false; document.getElementById("l-fisc").checked=false; afRenderLanc(true); }
+function afClicarChip(set, val, e){
+  /* PEDIDO 1: clique simples mostra SÓ o que foi clicado; clicar de novo no
+     mesmo volta a mostrar tudo; Ctrl/⌘/Shift+clique soma (ou tira) da seleção */
+  if(e.ctrlKey||e.metaKey||e.shiftKey){ set.has(val)?set.delete(val):set.add(val); }
+  else if(set.size===1&&set.has(val)) set.clear();
+  else { set.clear(); set.add(val); }
+}
+
+/* ---------- gaveta de detalhe ---------- */
+function afAbrirDrawer(i){
+  const s=st(i), sg=sug(i), v=AF_VAL.get(AF_C.k[i]), vs=AF_VST[i];
+  const man=afManualCat(cat(i)), manS=sg?afManualCat(sg):null;
+  const fis=AF_FISC_ROW.get(i)||[];
+  const at=afDias(AF_C.dv[i],AF_C.dp[i]);
+  document.getElementById("d-tit").innerHTML=`${esc(AF_C.d[i]||"(sem descrição)")}<div class="small" style="margin-top:4px">${esc(forn(i)||"—")} · ${fR(AF_C.v[i])}</div>`;
+  const exc=AF_C.ex[i]?AF_EXC.find(e=>e.id===AF_C.ex[i]):null;
+  document.getElementById("d-corpo").innerHTML=`
+    <div>${afStBadge(s)} ${afVlBadge(vs)}</div>
+    <div class="compare"><div><h4>Lançado como</h4><div class="big">${esc(cat(i))}</div><div class="pl">${esc(plv(i))} · classificação: ${esc(grv(i)||"Oculta na Gestão")}</div></div>
+      <div class="to"><h4>Deveria ser</h4><div class="big">${sg?esc(sg):"—"}</div><div class="pl">${sg?esc(sugPl(i)):"sem sugestão"}</div></div></div>
+    <div class="why">${esc(mot(i))}</div>
+    ${alrt(i).length?`<div class="small" style="margin-bottom:12px">${alrt(i).map(a=>"• "+esc(a)).join("<br>")}</div>`:""}
+    ${fis.length?`<div class="callout r" style="margin:0 0 12px"><h4>Fiscalização</h4>${fis.map(f=>`<p><b>${esc(((AF_D.fiscal_tipos||{})[f[0]]||{}).t||f[0])}</b> — ${esc(f[1])}</p>`).join("")}</div>`:""}
+    ${man?`<div class="manualtxt"><b>Manual · ${esc(cat(i))}:</b> ${esc(man.texto||"")}</div>`:""}
+    ${manS&&sg!==cat(i)?`<div class="manualtxt"><b>Manual · ${esc(sg)}:</b> ${esc(manS.texto||"")}</div>`:""}
+    <div class="vbox"><h4>Validação</h4>
+      ${v?`<p class="small" style="margin:0 0 8px">${esc(AF_VL[v.status].l)} por <b>${esc(v.por||"?")}</b> em ${fD((v.em||"").slice(0,10))}${v.motivo?` — “${esc(v.motivo)}”`:""}${v.obs?` — ${esc(v.obs)}`:""}${v.corrigido_em?`<br>Corrigido em ${fD(v.corrigido_em.slice(0,10))} por ${esc(v.corrigido_por||"?")}`:""}</p>`:""}
+      ${exc?`<p class="small" style="margin:0 0 8px">Conforme pela exceção de <b>${esc(exc.por||"?")}</b>: “${esc(exc.motivo||"")}” ${AF_PERM.gerir?`<button class="lnk" onclick="afDesativarExc(${exc.id})">desfazer exceção</button>`:""}</p>`:""}
+      ${AF_PERM.gerir?`<div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="bt vd sm" onclick="afPerguntarVal([${i}],'CONFORME')">✓ Está certo (conforme)</button>
+        <button class="bt vm sm" onclick="afPerguntarVal([${i}],'CORRIGIR')">✎ Corrigir no ERP</button>
+        ${v&&v.status==="CORRIGIR"?`<button class="bt az sm" onclick="afMarcarCorrigido(['${esc(AF_C.k[i])}']).then(afFecharDrawer)">✔ Já corrigi</button>`:""}
+        ${v?`<button class="bt ghost sm" onclick="afLimparVal([${i}]).then(afFecharDrawer)">Voltar para pendente</button>`:""}
+        ${fis.map(f=>`<button class="bt ghost sm" onclick="afPerguntarVal([${i}],'CORRIGIR','${f[0]}')">⚑ Corrigir alerta</button>`).join("")}</div>`
+        :`<p class="small" style="margin:0">Seu acesso é <b>FINANCEIRO</b>: você vê tudo, mas quem valida é o <b>GFINANCEIRO</b>.</p>`}
+    </div>
+    <dl class="kv">
+      <dt>ID lançamento</dt><dd>${AF_C.id[i]} · parcela ${esc(AF_C.np[i]||"—")}</dd>
+      <dt>Pagamento</dt><dd>${fD(AF_C.dp[i])}</dd>
+      <dt>Vencimento</dt><dd>${fD(AF_C.dv[i])}${at>0?` · <b style="color:var(--vermelho)">pago ${at} dia${at>1?"s":""} depois</b>`:""}</dd>
+      <dt>Competência</dt><dd>${fD(AF_C.dc[i])}</dd>
+      <dt>Valor da parcela</dt><dd>${fR(AF_C.v[i])}</dd>
+      <dt>Valor pago</dt><dd>${fR(AF_C.vp[i])}${AF_C.jm[i]?` · juros/multa ${fR(AF_C.jm[i])}`:""}${AF_C.de[i]?` · desconto ${fR(AF_C.de[i])}`:""}</dd>
+      <dt>Centro de custo</dt><dd>${esc(ccv(i)||"—")}</dd>
+      <dt>Responsável da obra</dt><dd>${esc(rov(i)||"—")}</dd>
+      <dt>Conta bancária</dt><dd>${esc(cbv(i)||"—")}</dd>
+      <dt>Forma</dt><dd>${esc(fpv(i)||"—")}</dd>
+      <dt>Nº documento</dt><dd>${esc(AF_C.nd[i]||"—")}</dd>
+      <dt>Ordem de compra</dt><dd>${esc(AF_C.oc[i]||"—")}</dd>
+    </dl>`;
+  document.getElementById("drawer").classList.add("on"); document.getElementById("scrim").classList.add("on");
+  document.getElementById("drawer").setAttribute("aria-hidden","false");
+}
+function afFecharDrawer(){ document.getElementById("drawer").classList.remove("on"); document.getElementById("scrim").classList.remove("on"); document.getElementById("drawer").setAttribute("aria-hidden","true"); }
+async function afDesativarExc(id){
+  const r=await chamar({action:"afExcecao",acao:"desativar",id},45000,true).catch(e=>({ok:false,erro:e.message}));
+  if(!r||!r.ok){ afToast("Não desfez: "+erroTexto(r&&r.erro),true); return; }
+  const e=AF_EXC.find(x=>x.id===id); if(e) e.ativo=false;
+  for(let i=0;i<AF_N;i++) if(AF_C.ex[i]===id) AF_C.ex[i]=0;
+  afRecalcVal(); afFecharDrawer(); afRender(); afToast("Exceção desfeita.");
+}
+
+/* =====================================================================
+   A CORRIGIR (pedido 2: filtro próprio + PDF)
+   ===================================================================== */
+function afLinhasCorr(){
+  const fs=(document.getElementById("c-st")||{}).value||"CORRIGIR";
+  const ag=(document.getElementById("c-ag")||{}).value||"cc";
+  const q=afNz((document.getElementById("c-q")||{}).value||"");
+  const out=[];
+  AF_VAL.forEach(v=>{
+    if(fs==="CORRIGIR"&&v.status!=="CORRIGIR") return;
+    if(fs==="CORRIGIDO"&&v.status!=="CORRIGIDO") return;
+    if(fs==="TODOS"&&v.status==="CONFORME") return;
+    if(v.status==="CONFORME") return;
+    const k=(v.chave||"").includes(":")?v.chave.split(":").slice(1).join(":"):v.chave;
+    const i=AF_KIDX.has(k)?AF_KIDX.get(k):null;
+    if(i!==null && !afGlobalOk(i)) return;
+    if(i===null && (AF_G.cc||AF_G.cb||AF_G.ro||AF_G.pl)) return;
+    const r={v,i,
+      cc: i!==null?ccv(i):(v.centro_de_custo||""), ro: i!==null?rov(i):"", cat: i!==null?cat(i):(v.categoria_atual||""),
+      forn: i!==null?forn(i):(v.fornecedor||""), desc: i!==null?AF_C.d[i]:(v.descricao||""),
+      valor: i!==null?AF_C.v[i]:Number(v.valor)||0, dp: i!==null?AF_C.dp[i]:(v.data_pagamento||""),
+      id: i!==null?AF_C.id[i]:v.id_lancamento, sug: i!==null?sug(i):(v.categoria_sugerida||""),
+      tipo: v.tipo&&v.tipo!=="AUDIT"?(((AF_D.fiscal_tipos||{})[v.tipo]||{}).t||v.tipo):"Classificação",
+      quem: v.por||"" };
+    if(q && afNz([r.cc,r.cat,r.forn,r.desc,r.id,v.obs,v.motivo].join(" | ")).indexOf(q)<0) return;
+    r.grupo = ag==="cc"?r.cc : ag==="ro"?(r.ro||"(sem responsável no ERP)") : ag==="cat"?r.cat : ag==="tipo"?r.tipo : ag==="quem"?r.quem : "Todos";
+    out.push(r);
+  });
+  out.sort((a,b)=>(a.grupo||"").localeCompare(b.grupo||"")||(b.dp||"").localeCompare(a.dp||""));
+  return out;
+}
+function afRenderCorr(){
+  const el=document.getElementById("tab-corr");
+  if(!el.dataset.ok){
+    el.innerHTML=`<div class="sec"><span class="cond">Lançamentos a corrigir no Mais Controle</span><span class="sp"></span>
+        <button class="bt az sm" onclick="afPdfCorr()">⬇ Exportar PDF</button><button class="bt ghost sm" onclick="afExportarCSV('corr')">⬇ Excel (CSV)</button></div>
+      <div class="kpis" id="c-kpis"></div>
+      <div class="card"><div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+        <div class="fcampo"><label for="c-st">Mostrar</label><select id="c-st"><option value="CORRIGIR">A corrigir</option><option value="CORRIGIDO">Já corrigidos</option><option value="TODOS">Todos (a corrigir + corrigidos)</option></select></div>
+        <div class="fcampo"><label for="c-ag">Agrupar por</label><select id="c-ag"><option value="cc">Centro de custo</option><option value="ro">Responsável da obra</option><option value="cat">Categoria atual</option><option value="tipo">Tipo (classificação / alerta)</option><option value="quem">Quem marcou</option><option value="nada">Sem agrupar</option></select></div>
+        <div class="fcampo w2"><label for="c-q">Pesquisar</label><input id="c-q" type="search" placeholder="CC, fornecedor, descrição, observação…"></div>
+      </div></div>
+      <div id="c-lista"></div>`;
+    el.dataset.ok="1";
+    ["c-st","c-ag"].forEach(id=>document.getElementById(id).addEventListener("change",afRenderCorr));
+    document.getElementById("c-q").addEventListener("input",()=>{ clearTimeout(afRenderCorr._t); afRenderCorr._t=setTimeout(afRenderCorr,200); });
+  }
+  let nc=0,vc=0,nf=0,nf30=0; const lim=new Date(Date.now()-30*864e5).toISOString();
+  AF_VAL.forEach(v=>{ if(v.status==="CORRIGIR"){ nc++; vc+=Number(v.valor)||0; } else if(v.status==="CORRIGIDO"){ nf++; if((v.corrigido_em||"")>=lim) nf30++; } });
+  const pend=AF_BASE.filter(i=>AF_VST[i]==="PENDENTE").length;
+  document.getElementById("c-kpis").innerHTML=`
+    <div class="kpi hero"><div class="lab">A corrigir</div><div class="val">${fN(nc)}</div><div class="sub">${fR0(vc)}</div></div>
+    <div class="kpi"><div class="lab">Corrigidos nos últimos 30 dias</div><div class="val g">${fN(nf30)}</div><div class="sub">${fN(nf)} no total · o robô dá baixa sozinho quando o ERP muda</div></div>
+    <div class="kpi clk" onclick="afIrLanc({st:${JSON.stringify(AF_PROB)},vl:['PENDENTE']})"><div class="lab">Problemas ainda sem validação</div><div class="val">${fN(pend)}</div><div class="sub">no filtro atual</div></div>
+    <div class="kpi"><div class="lab">Taxa de correção</div><div class="val">${nc+nf?fP(nf/(nc+nf),0):"—"}</div><div class="sub">corrigidos ÷ (a corrigir + corrigidos)</div></div>`;
+  const L=afLinhasCorr(), g=AF_PERM.gerir;
+  if(!L.length){ document.getElementById("c-lista").innerHTML=`<div class="vazio">Nada aqui. Para mandar corrigir, use o botão ✎ Corrigir na aba Lançamentos ou na Fiscalização.</div>`; return; }
+  const grupos=[]; L.forEach(r=>{ const u=grupos[grupos.length-1]; if(!u||u.nome!==r.grupo) grupos.push({nome:r.grupo,itens:[r]}); else u.itens.push(r); });
+  document.getElementById("c-lista").innerHTML=grupos.map(gr=>`<div class="card"><h3>${esc(gr.nome||"—")}</h3><p class="desc">${fN(gr.itens.length)} lançamento${gr.itens.length>1?"s":""} · ${fR(gr.itens.reduce((a,r)=>a+r.valor,0))}</p>
+    <div class="tbl-wrap baixa"><table><thead><tr><th>Pagamento</th><th>Lançamento</th><th>Como está</th><th>O que corrigir</th><th class="num">Valor</th><th>Status</th>${g?"<th></th>":""}</tr></thead><tbody>
+    ${gr.itens.map(r=>`<tr${r.i!==null?` class="clk" onclick="afAbrirDrawer(${r.i})"`:""}><td class="small nw">${fD(r.dp)}</td>
+      <td class="desc-c">${esc(r.desc||"—")}<div class="small">${esc(r.forn||"—")} · ID ${esc(r.id||"")}${(AF_G.cc||document.getElementById("c-ag").value==="cc")?"":" · "+esc(r.cc)}</div></td>
+      <td>${esc(r.cat)}<div class="pl">${esc(r.tipo)}</div></td>
+      <td>${r.v.obs?esc(r.v.obs):r.sug?`<span class="sug">${esc(r.sug)}</span>`:'<span class="muted">ver motivo</span>'}<div class="vquem">${esc(r.v.por||"")} · ${fD((r.v.em||"").slice(0,10))}</div></td>
+      <td class="num">${fR(r.valor)}</td><td>${afVlBadge(r.v.status)}${r.v.corrigido_em?`<div class="vquem">${fD(r.v.corrigido_em.slice(0,10))} · ${esc(r.v.corrigido_por||"")}</div>`:""}</td>
+      ${g?`<td onclick="event.stopPropagation()">${r.v.status==="CORRIGIR"?`<button class="vbt ok" onclick="afMarcarCorrigido(['${esc(r.v.chave)}'])">✔ Já corrigi</button>`:""}</td>`:""}</tr>`).join("")}
+    </tbody></table></div></div>`).join("");
+}
+
+/* =====================================================================
+   POR CATEGORIA
+   ===================================================================== */
+let AF_CATS_ORD={k:"n",d:-1};
+function afRenderCats(){
+  const el=document.getElementById("tab-cats");
+  if(!el.dataset.ok){
+    el.innerHTML=`<div class="sec"><span class="cond">Saúde de cada categoria</span></div>
+      <div class="card"><div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+        <div class="fcampo w2"><label for="k-q">Pesquisar</label><input id="k-q" type="search" placeholder="Categoria ou plano"></div>
+        <div class="fcampo"><label for="k-uso">Uso no manual</label><select id="k-uso"><option value="">Todos</option><option value="ok">Normal</option><option value="generica">Último recurso</option><option value="descontinuada">Descontinuada</option><option value="restrita">Uso restrito</option><option value="fora">Fora do manual</option></select></div>
+        <div class="fcampo"><label for="k-pct">% conforme</label><select id="k-pct"><option value="">Qualquer</option><option value="0.5">abaixo de 50%</option><option value="0.75">abaixo de 75%</option><option value="0.9">abaixo de 90%</option></select></div>
+        <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="k-prob"> Só com problemas</label>
+      </div></div><div class="tbl-wrap" id="k-tab"></div>`;
+    el.dataset.ok="1";
+    ["k-uso","k-pct","k-prob"].forEach(id=>document.getElementById(id).addEventListener("change",afRenderCats));
+    document.getElementById("k-q").addEventListener("input",()=>{ clearTimeout(afRenderCats._t); afRenderCats._t=setTimeout(afRenderCats,200); });
+  }
+  const M={};
+  AF_BASE.forEach(i=>{ const c=cat(i); const o=M[c]||(M[c]={cat:c,plano:plv(i),n:0,v:0,st:{},desc:{},corr:0,pend:0});
+    o.n++; o.v+=AF_C.v[i]; o.st[st(i)]=(o.st[st(i)]||0)+1; if(AF_C.d[i]) o.desc[AF_C.d[i]]=(o.desc[AF_C.d[i]]||0)+1;
+    if(AF_VST[i]==="CORRIGIR") o.corr++; if(AF_VST[i]==="PENDENTE") o.pend++; });
+  const q=afNz(document.getElementById("k-q").value), uso=document.getElementById("k-uso").value, pct=+document.getElementById("k-pct").value||0, prob=document.getElementById("k-prob").checked;
+  let L=Object.values(M).map(o=>{ o.ok=(o.st.OK||0)/o.n; const m=afManualCat(o.cat); o.uso=m?(m.uso||"ok"):"fora"; return o; });
+  L=L.filter(o=>(!q||afNz(o.cat+" "+o.plano).indexOf(q)>=0)&&(!uso||o.uso===uso)&&(!pct||o.ok<pct)&&(!prob||o.ok<1));
+  const k=AF_CATS_ORD.k, d=AF_CATS_ORD.d;
+  L.sort((a,b)=>{ const x=a[k], y=b[k]; return (typeof x==="string"?x.localeCompare(y):(x-y))*d; });
+  const usoTag={ok:"",generica:'<span class="tag gen">último recurso</span>',descontinuada:'<span class="tag desc">descontinuada</span>',restrita:'<span class="tag res">uso restrito</span>',fora:'<span class="tag res">fora do manual</span>'};
+  const th=(k,t,cls)=>`<th class="ord ${cls||""}" data-k="${k}">${t}<span class="arr">${AF_CATS_ORD.k===k?(AF_CATS_ORD.d>0?"▲":"▼"):"↕"}</span></th>`;
+  document.getElementById("k-tab").innerHTML=`<table><thead><tr>${th("cat","Categoria")}${th("plano","Plano")}${th("n","Lanç.","num")}${th("v","Valor","num")}${th("ok","% conforme","num")}<th>Composição</th>${th("pend","Sem validação","num")}${th("corr","A corrigir","num")}<th>Descrições mais comuns</th></tr></thead><tbody>
+    ${L.map(o=>`<tr class="clk" data-cat="${esc(o.cat)}"><td><b>${esc(o.cat)}</b> ${usoTag[o.uso]||""}</td><td class="small">${esc(o.plano)}</td><td class="num">${fN(o.n)}</td><td class="num">${fR0(o.v)}</td><td class="num">${fP(o.ok,0)}</td>
+      <td><div class="minibar">${AF_ST_ORD.filter(s=>o.st[s]).map(s=>`<i style="width:${o.st[s]/o.n*100}%;background:${afCor(s)}" title="${esc(AF_ST[s].l)}: ${o.st[s]}"></i>`).join("")}</div></td>
+      <td class="num">${o.pend?fN(o.pend):"—"}</td><td class="num">${o.corr?fN(o.corr):"—"}</td>
+      <td class="small" style="max-width:380px">${Object.entries(o.desc).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([t,c])=>esc(t)+` <span class="muted">(${c})</span>`).join(" · ")}</td></tr>`).join("")}
+    </tbody></table>`;
+  document.querySelectorAll("#k-tab th.ord").forEach(t=>t.onclick=()=>{ const k=t.dataset.k; AF_CATS_ORD = AF_CATS_ORD.k===k?{k,d:-AF_CATS_ORD.d}:{k,d:(k==="cat"||k==="plano")?1:-1}; afRenderCats(); });
+  document.querySelectorAll("#k-tab tr[data-cat]").forEach(t=>t.onclick=()=>afIrLanc({cat:t.dataset.cat}));
+}
+
+/* =====================================================================
+   RECLASSIFICAÇÕES
+   ===================================================================== */
+function afGruposRecl(L){
+  const G={};
+  L.forEach(i=>{ const s=sug(i); if(!s||s===cat(i)) return; const key=cat(i)+"→"+s;
+    const g=G[key]||(G[key]={de:cat(i),para:s,plano:sugPl(i),n:0,v:0,linhas:[],pend:0,corr:0,conf:0});
+    g.n++; g.v+=AF_C.v[i]; g.linhas.push(i); const x=AF_VST[i];
+    if(x==="PENDENTE")g.pend++; else if(x==="CORRIGIR"||x==="CORRIGIDO")g.corr++; else if(x==="CONFORME"||x==="EXCECAO")g.conf++; });
+  return Object.values(G).sort((a,b)=>b.n-a.n);
+}
+function afRenderRecl(){
+  const el=document.getElementById("tab-recl");
+  if(!el.dataset.ok){
+    el.innerHTML=`<div class="sec"><span class="cond">De onde para onde</span></div>
+      <p class="small" style="margin:-6px 0 12px">Cada linha é um grupo de lançamentos que a descrição indica estar na categoria errada, genérica ou descontinuada. É a lista de correções a fazer no Mais Controle.</p>
+      <div class="card"><div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+        <div class="fcampo w2"><label for="r-q">Pesquisar</label><input id="r-q" type="search" placeholder="Categoria atual ou sugerida"></div>
+        <div class="fcampo"><label for="r-vl">Validação</label><select id="r-vl"><option value="">Todos os grupos</option><option value="pend">Com pendentes</option><option value="ok">Totalmente validados</option></select></div>
+        <div class="fcampo"><label for="r-min">Mínimo de lançamentos</label><select id="r-min"><option value="1">1</option><option value="2">2</option><option value="5">5</option><option value="10">10</option></select></div>
+      </div></div><div class="tbl-wrap" id="r-tab"></div>`;
+    el.dataset.ok="1";
+    ["r-vl","r-min"].forEach(id=>document.getElementById(id).addEventListener("change",afRenderRecl));
+    document.getElementById("r-q").addEventListener("input",()=>{ clearTimeout(afRenderRecl._t); afRenderRecl._t=setTimeout(afRenderRecl,200); });
+  }
+  const q=afNz(document.getElementById("r-q").value), vl=document.getElementById("r-vl").value, mn=+document.getElementById("r-min").value||1;
+  const G=afGruposRecl(AF_BASE).filter(g=>g.n>=mn&&(!q||afNz(g.de+" "+g.para).indexOf(q)>=0)&&(!vl||(vl==="pend"?g.pend>0:g.pend===0)));
+  AF_RECL_ULT=G;
+  const gerir=AF_PERM.gerir;
+  document.getElementById("r-tab").innerHTML=G.length?`<table><thead><tr><th>Está em</th><th></th><th>Deveria estar em</th><th class="num">Lanç.</th><th class="num">Valor</th><th class="num">Sem validação</th><th class="num">A corrigir/corrigido</th><th class="num">Conforme</th>${gerir?"<th>Validar o grupo</th>":""}</tr></thead><tbody>
+    ${G.map((g,ix)=>`<tr class="clk" data-ix="${ix}"><td>${esc(g.de)}</td><td class="muted">→</td><td><span class="sug">${esc(g.para)}</span><div class="pl">${esc(g.plano)}</div></td><td class="num">${fN(g.n)}</td><td class="num">${fR0(g.v)}</td><td class="num">${fN(g.pend)}</td><td class="num">${fN(g.corr)}</td><td class="num">${fN(g.conf)}</td>
+      ${gerir?`<td onclick="event.stopPropagation()" class="nw"><button class="vbt ok" onclick="afPerguntarVal(AF_RECL_ULT[${ix}].linhas.filter(i=>AF_VST[i]==='PENDENTE'),'CONFORME')"${g.pend?"":" disabled"}>✓ Conforme</button> <button class="vbt cx" onclick="afPerguntarVal(AF_RECL_ULT[${ix}].linhas.filter(i=>AF_VST[i]==='PENDENTE'),'CORRIGIR')"${g.pend?"":" disabled"}>✎ Corrigir</button></td>`:""}</tr>`).join("")}
+    </tbody></table>`:`<div class="vazio">Nenhum grupo com estes filtros.</div>`;
+  document.querySelectorAll("#r-tab tr[data-ix]").forEach(t=>t.onclick=()=>{ const g=AF_RECL_ULT[+t.dataset.ix]; afIrLanc({cat:g.de,sug:g.para}); });
+}
+let AF_RECL_ULT=[];
+
+/* =====================================================================
+   JUROS E ATRASOS (pedido 4)
+   ===================================================================== */
+function afPagarOk(r){
+  // linhas das contas em aberto: [cc, fornecedor/cliente, categoria/natureza, venc, valor, aberto, desc, id, parcela, conta]
+  if(AF_G.cc){ const c=afNz(r[0]); if(AF_G._ccExato?c!==AF_G._ccN:c.indexOf(AF_G._ccN)<0) return false; }
+  if(AF_G.cb && r[9]!==AF_G.cb) return false;
+  return true;
+}
+let AF_JUROS_JAN="mes";
+function afMesesDisp(){
+  const s=new Set(); AF_BASE.forEach(i=>{ const d=AF_C.dp[i]; if(d) s.add(d.slice(0,7)); });
+  return [...s].filter(m=>m<=afMesAtual()).sort().reverse();
+}
+function afRenderJuros(){
+  const el=document.getElementById("tab-juros");
+  const meses=afMesesDisp();
+  if(!el.dataset.ok){
+    el.innerHTML=`<div class="sec"><span class="cond">Juros, multas e atrasos</span><span class="sp"></span>
+        <div class="fcampo" style="flex-direction:row;align-items:center;gap:8px"><label for="j-mes" style="margin:0">Mês de referência</label><select id="j-mes"></select></div></div>
+      <div class="kpis" id="j-kpis"></div>
+      <div class="g2"><div class="chart" id="j-ch1"></div><div class="chart" id="j-ch2"></div></div>
+      <div class="sec"><span class="cond">Onde estão os juros</span><span class="sp"></span>
+        <div class="seg"><button class="seg-bt" data-j="mes">Mês de referência</button><button class="seg-bt" data-j="12">Últimos 12 meses</button></div></div>
+      <div class="g3" id="j-rank"></div>
+      <div class="card"><h3>Guias fiscais pagas em atraso</h3><p class="desc">FGTS, INSS, DARFs, ISS, IPTU, ITBI e regularização pagos depois do vencimento — é onde a multa costuma ser maior.</p><div id="j-fisc"></div></div>
+      <div class="sec"><span class="cond">Contas a pagar em aberto</span><span class="sp"></span><button class="bt ghost sm" onclick="afExportarCSV('pagar')">⬇ Excel (CSV)</button></div>
+      <div class="card"><div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">
+        <div class="fcampo"><label for="p-jan">Mostrar</label><select id="p-jan"><option value="venc">Vencidas</option><option value="7">Vencem em 7 dias</option><option value="30">Vencem em 30 dias</option><option value="todas">Todas em aberto</option></select></div>
+        <div class="fcampo w2"><label for="p-q">Pesquisar</label><input id="p-q" type="search" placeholder="Fornecedor, CC, categoria…"></div></div>
+        <div id="p-tab"></div></div>
+      <div class="sec"><span class="cond">Contas a receber vencidas</span><span class="sp"></span><button class="bt ghost sm" onclick="afExportarCSV('receber')">⬇ Excel (CSV)</button></div>
+      <div class="card"><p class="desc">Parcelas de faturamento com vencimento já passado e saldo em aberto (mesma conta da coluna "Recebimentos em aberto" da planilha do Mais Controle).</p><div id="rc-tab"></div></div>`;
+    el.dataset.ok="1";
+    document.getElementById("j-mes").addEventListener("change",afRenderJuros);
+    ["p-jan"].forEach(id=>document.getElementById(id).addEventListener("change",afRenderJuros));
+    document.getElementById("p-q").addEventListener("input",()=>{ clearTimeout(afRenderJuros._t); afRenderJuros._t=setTimeout(afRenderJuros,200); });
+    el.querySelectorAll("[data-j]").forEach(b=>b.onclick=()=>{ AF_JUROS_JAN=b.dataset.j; afRenderJuros(); });
+  }
+  const sel=document.getElementById("j-mes"), atual=sel.value;
+  sel.innerHTML=meses.map(m=>`<option value="${m}">${fMl(m)}${m===afMesAtual()?" (em aberto)":""}</option>`).join("");
+  if(meses.includes(atual)) sel.value=atual;
+  const ref=sel.value||afMesAtual(), ant=afMesAnt(ref);
+  const a=afJurosMes(AF_BASE,ref), b=afJurosMes(AF_BASE,ant);
+  const dl=(x,y,inv)=>{ if(!y) return ""; const d=(x-y)/y; if(!isFinite(d)||Math.abs(d)<0.005) return ""; const up=d>0; return `<span class="delta ${up!==!!inv?"up":"dn"}">${up?"▲":"▼"} ${fP(Math.abs(d),0)}</span>`; };
+  const hoje=afHoje(), em7=new Date(Date.parse(hoje)+7*864e5).toISOString().slice(0,10), em30=new Date(Date.parse(hoje)+30*864e5).toISOString().slice(0,10);
+  const pag=(AF_D.pagar||[]).filter(afPagarOk);
+  const venc=pag.filter(r=>r[3]&&r[3]<hoje), a7=pag.filter(r=>r[3]>=hoje&&r[3]<=em7), a30=pag.filter(r=>r[3]>=hoje&&r[3]<=em30);
+  const rec=(AF_D.receber||[]).filter(afPagarOk).filter(r=>r[3]&&r[3]<hoje);
+  const soma=l=>l.reduce((s,r)=>s+r[5],0);
+  document.getElementById("j-kpis").innerHTML=`
+    <div class="kpi hero"><div class="lab">Juros e multas pagos · ${fMl(ref)}</div><div class="val">${fR(a.j)}</div><div class="sub">${a.pago?fP(a.j/a.pago,2):"—"} do valor pago · ${fMl(ant)}: ${fR(b.j)}</div></div>
+    <div class="kpi"><div class="lab">Pagos com atraso</div><div class="val ${a.pAt>0.1?"r":""}">${fP(a.pAt)}</div><div class="sub">${fN(a.at)} de ${fN(a.n)} pagamentos ${dl(a.pAt,b.pAt)}</div></div>
+    <div class="kpi"><div class="lab">Atraso médio</div><div class="val">${a.at?a.dMed.toLocaleString("pt-BR",{maximumFractionDigits:1})+" dias":"—"}</div><div class="sub">só entre os pagos depois do vencimento</div></div>
+    <div class="kpi"><div class="lab">Descontos obtidos</div><div class="val g">${fR(a.des)}</div><div class="sub">${fMl(ant)}: ${fR(b.des)}</div></div>
+    <div class="kpi"><div class="lab">Vencido e não pago (hoje)</div><div class="val ${venc.length?"r":""}">${fR0(soma(venc))}</div><div class="sub">${fN(venc.length)} parcelas</div></div>
+    <div class="kpi"><div class="lab">Vence em 7 dias</div><div class="val">${fR0(soma(a7))}</div><div class="sub">${fN(a7.length)} parcelas</div></div>
+    <div class="kpi"><div class="lab">Vence em 30 dias</div><div class="val">${fR0(soma(a30))}</div><div class="sub">${fN(a30.length)} parcelas</div></div>
+    <div class="kpi"><div class="lab">A receber vencido</div><div class="val ${rec.length?"r":""}">${fR0(soma(rec))}</div><div class="sub">${fN(rec.length)} parcelas de clientes</div></div>`;
+  // gráficos 12 meses
+  const ult=[]; let m=ref; for(let k=0;k<12;k++){ ult.unshift(m); m=afMesAnt(m); }
+  const porMes=ult.map(mm=>({m:mm, ...afJurosMes(AF_BASE,mm)}));
+  afBarChart(document.getElementById("j-ch1"), porMes.map(x=>({lab:fM(x.m),segs:[{v:x.j,c:"var(--vermelho)",n:"Juros e multas"}],tot:x.j})),
+    {titulo:"Juros e multas pagos por mês", fmt:v=>fR0(v), destaque:ref});
+  afBarChart(document.getElementById("j-ch2"), porMes.map(x=>({lab:fM(x.m),segs:[{v:x.pAt,c:"var(--s-gen)",n:"% com atraso"}],tot:x.pAt})),
+    {titulo:"% de pagamentos feitos depois do vencimento", fmt:v=>fP(v,0), destaque:ref});
+  // rankings
+  document.querySelectorAll("#tab-juros [data-j]").forEach(b=>b.classList.toggle("on",b.dataset.j===AF_JUROS_JAN));
+  const janela=AF_JUROS_JAN==="mes"?new Set([ref]):new Set(ult);
+  const L=AF_BASE.filter(i=>AF_C.dp[i]&&janela.has(AF_C.dp[i].slice(0,7))&&AF_C.jm[i]>0);
+  const rk=(fn)=>{ const o={}; L.forEach(i=>{ const k=fn(i)||"—"; o[k]=(o[k]||0)+AF_C.jm[i]; }); return Object.entries(o).sort((a,b)=>b[1]-a[1]).slice(0,10); };
+  const bloco=(t,arr,campo)=>{ const mx=Math.max(1,...arr.map(x=>x[1])); return `<div class="card"><h3>${t}</h3>${arr.length?`<div class="barras">${arr.map(([k,v])=>`<div class="bl" style="cursor:pointer" onclick='afIrLanc({${campo}:${JSON.stringify(k)}})'><div class="bl-nome">${esc(k)}</div><div class="bl-trilho"><div class="bl-barra r" style="width:${Math.max(2,v/mx*100)}%"></div></div><div class="bl-val">${fR(v)}</div></div>`).join("")}</div>`:`<div class="vazio">Sem juros nesse período.</div>`}</div>`; };
+  document.getElementById("j-rank").innerHTML=bloco("Por fornecedor",rk(forn),"forn")+bloco("Por categoria",rk(cat),"cat")+bloco("Por centro de custo",rk(ccv),"q");
+  // guias fiscais em atraso
+  const fis=new Set(AF_D.cats_fiscais||[]);
+  const G=AF_BASE.filter(i=>AF_C.dp[i]&&janela.has(AF_C.dp[i].slice(0,7))&&fis.has(afNz(cat(i)))&&(afDias(AF_C.dv[i],AF_C.dp[i])||0)>0)
+    .sort((x,y)=>AF_C.jm[y]-AF_C.jm[x]);
+  document.getElementById("j-fisc").innerHTML=G.length?`<div class="tbl-wrap baixa"><table><thead><tr><th>Pagamento</th><th>Guia</th><th>Categoria</th><th>Centro de custo</th><th class="num">Dias de atraso</th><th class="num">Valor</th><th class="num">Juros/multa</th></tr></thead><tbody>
+    ${G.slice(0,300).map(i=>`<tr class="clk" onclick="afAbrirDrawer(${i})"><td class="small nw">${fD(AF_C.dp[i])}<div class="muted">venc. ${fD(AF_C.dv[i])}</div></td><td class="desc-c">${esc(AF_C.d[i]||"—")}</td><td>${esc(cat(i))}</td><td class="small">${esc(ccv(i))}</td><td class="num">${afDias(AF_C.dv[i],AF_C.dp[i])}</td><td class="num">${fR(AF_C.v[i])}</td><td class="num">${AF_C.jm[i]?fR(AF_C.jm[i]):"—"}</td></tr>`).join("")}
+    </tbody></table></div>`:`<div class="vazio">Nenhuma guia fiscal paga em atraso no período.</div>`;
+  // contas a pagar
+  const jan=document.getElementById("p-jan").value, q=afNz(document.getElementById("p-q").value);
+  let P=jan==="venc"?venc:jan==="7"?a7:jan==="30"?a30:pag;
+  if(q) P=P.filter(r=>afNz(r[0]+" "+r[1]+" "+r[2]+" "+r[6]).indexOf(q)>=0);
+  P=[...P].sort((x,y)=>(x[3]||"").localeCompare(y[3]||""));
+  AF_PAGAR_ULT=P;
+  document.getElementById("p-tab").innerHTML=P.length?`<p class="small" style="margin:0 0 8px">${fN(P.length)} parcelas · ${fR(soma(P))} em aberto</p><div class="tbl-wrap baixa"><table><thead><tr><th>Vencimento</th><th>Fornecedor</th><th>Descrição</th><th>Categoria</th><th>Centro de custo</th><th class="num">Parcela</th><th class="num">Em aberto</th></tr></thead><tbody>
+    ${P.slice(0,500).map(r=>{ const d=afDias(r[3],hoje); return `<tr><td class="nw">${fD(r[3])}${d>0?`<div class="small" style="color:var(--vermelho)">${d} dia${d>1?"s":""} vencida</div>`:""}</td><td>${esc(r[1]||"—")}</td><td class="desc-c">${esc(r[6]||"—")}<div class="small">ID ${esc(r[7])} · parc. ${esc(r[8])}</div></td><td>${esc(r[2])}</td><td class="small">${esc(r[0])}</td><td class="num">${fR(r[4])}</td><td class="num"><b>${fR(r[5])}</b></td></tr>`; }).join("")}
+    </tbody></table></div>${P.length>500?`<p class="small">Mostrando 500 de ${fN(P.length)} — use o Excel (CSV) para ver todas.</p>`:""}`:`<div class="vazio">Nada em aberto nesse recorte.</div>`;
+  const R=[...rec].sort((x,y)=>(x[3]||"").localeCompare(y[3]||""));
+  AF_RECEBER_ULT=R;
+  document.getElementById("rc-tab").innerHTML=R.length?`<p class="small" style="margin:0 0 8px">${fN(R.length)} parcelas · ${fR(soma(R))}</p><div class="tbl-wrap baixa"><table><thead><tr><th>Vencimento</th><th>Cliente</th><th>Natureza</th><th>Centro de custo</th><th class="num">Parcela</th><th class="num">Em aberto</th></tr></thead><tbody>
+    ${R.slice(0,500).map(r=>`<tr><td class="nw">${fD(r[3])}<div class="small" style="color:var(--vermelho)">${afDias(r[3],hoje)} dias</div></td><td>${esc(r[1]||"—")}</td><td>${esc(r[2])}</td><td class="small">${esc(r[0])}</td><td class="num">${fR(r[4])}</td><td class="num"><b>${fR(r[5])}</b></td></tr>`).join("")}
+    </tbody></table></div>`:`<div class="vazio">Nenhuma parcela de cliente vencida em aberto.</div>`;
+}
+let AF_PAGAR_ULT=[], AF_RECEBER_ULT=[];
+
+/* =====================================================================
+   FISCALIZAÇÃO (pedido 5)
+   ===================================================================== */
+let afFiscTipo="";
+function afRenderFisc(){
+  const el=document.getElementById("tab-fisc");
+  const T=AF_D.fiscal_tipos||{};
+  if(!el.dataset.ok){
+    el.innerHTML=`<div class="sec"><span class="cond">Alertas de fiscalização</span><span class="sp"></span><span class="small" id="f-notion"></span><button class="bt ghost sm" onclick="afExportarCSV('fisc')">⬇ Excel (CSV)</button></div>
+      <p class="small" style="margin:-6px 0 12px">Conferências automáticas feitas toda madrugada. Cada alerta pode ser validado como <b>Conforme</b> (está certo, com justificativa) ou <b>Corrigir</b> — o que for marcado para corrigir entra na aba A Corrigir e no PDF.</p>
+      <div class="fcards" id="f-cards"></div>
+      <div class="card"><div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">
+        <div class="fcampo w2"><label for="f-q">Pesquisar</label><input id="f-q" type="search" placeholder="Fornecedor, CC, descrição…"></div>
+        <div class="fcampo"><label for="f-vl">Validação</label><select id="f-vl"><option value="">Todas</option><option value="PENDENTE">Pendentes</option><option value="CONFORME">Conforme</option><option value="CORRIGIR">A corrigir</option><option value="CORRIGIDO">Corrigido</option></select></div></div>
+        <div id="f-tab"></div></div>
+      <div class="sec"><span class="cond">Custo por m² das obras</span></div>
+      <div class="card"><p class="desc">Materiais + mão de obra + locação pagos, divididos pela área total cadastrada na obra no Mais Controle. Obras com mais de 1,5× a mediana ficam em vermelho.</p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px"><div class="fcampo"><label for="m2-st">Status da obra (ERP)</label><select id="m2-st"></select></div></div><div id="f-m2"></div></div>
+      <div class="g2"><div class="card"><h3>Despesas pessoais dos sócios</h3><p class="desc">"Despesa JC pessoal" e "Despesa JV pessoal" por mês de pagamento.</p><div id="f-pes"></div></div>
+        <div class="card"><h3>Concentração por fornecedor</h3><p class="desc">Os 10 fornecedores que mais receberam no período filtrado.</p><div id="f-conc"></div></div></div>`;
+    el.dataset.ok="1";
+    document.getElementById("f-vl").addEventListener("change",afRenderFisc);
+    document.getElementById("m2-st").addEventListener("change",afRenderFisc);
+    document.getElementById("f-q").addEventListener("input",()=>{ clearTimeout(afRenderFisc._t); afRenderFisc._t=setTimeout(afRenderFisc,200); });
+  }
+  document.getElementById("f-notion").textContent=AF_D.notion==="ok"?"Cruzamentos com o Notion: ligados":"Cruzamentos com o Notion: "+(AF_D.notion||"—");
+  const F=(AF_D.fiscal||[]).filter(f=>afGlobalOk(f[1]));
+  const cont={}; F.forEach(f=>{ const o=cont[f[0]]||(cont[f[0]]={n:0,v:0}); o.n++; o.v+=AF_C.v[f[1]]; });
+  document.getElementById("f-cards").innerHTML=Object.entries(T).map(([t,o])=>{ const c=cont[t]||{n:0,v:0};
+    return `<button class="fcard${afFiscTipo===t?" on":""}${c.n?"":" zero"}" data-t="${t}"><div class="n">${fN(c.n)}</div><div class="t">${esc(o.t)}</div><div class="d">${esc(o.d)}</div><div class="v">${fR0(c.v)}</div></button>`; }).join("");
+  document.querySelectorAll("#f-cards .fcard").forEach(b=>b.onclick=()=>{ afFiscTipo=afFiscTipo===b.dataset.t?"":b.dataset.t; afRenderFisc(); });
+  const q=afNz(document.getElementById("f-q").value), vl=document.getElementById("f-vl").value, g=AF_PERM.gerir;
+  const vOf=f=>{ const v=AF_VAL.get(f[0]+":"+AF_C.k[f[1]]); return v?v.status:"PENDENTE"; };
+  let L=F.filter(f=>(!afFiscTipo||f[0]===afFiscTipo)&&(!vl||vOf(f)===vl)&&(!q||afNz(AF_C.d[f[1]]+" "+forn(f[1])+" "+ccv(f[1])+" "+f[2]).indexOf(q)>=0));
+  L.sort((a,b)=>(AF_C.dp[b[1]]||"").localeCompare(AF_C.dp[a[1]]||""));
+  AF_FISC_ULT=L;
+  document.getElementById("f-tab").innerHTML=L.length?`<p class="small" style="margin:0 0 8px">${fN(L.length)} alertas · ${fR(L.reduce((a,f)=>a+AF_C.v[f[1]],0))}</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Alerta</th><th>Pagamento</th><th>Lançamento</th><th>Categoria</th><th class="num">Valor</th><th>Detalhe</th><th>Validação</th></tr></thead><tbody>
+    ${L.slice(0,400).map((f,ix)=>{ const i=f[1], v=AF_VAL.get(f[0]+":"+AF_C.k[i]); return `<tr class="clk" onclick="afAbrirDrawer(${i})"><td><b>${esc((T[f[0]]||{}).t||f[0])}</b></td><td class="small nw">${fD(AF_C.dp[i])}</td>
+      <td class="desc-c">${esc(AF_C.d[i]||"—")}<div class="small">${esc(forn(i)||"—")} · ${esc(ccv(i))} · ID ${AF_C.id[i]}</div></td><td>${esc(cat(i))}</td><td class="num">${fR(AF_C.v[i])}</td><td class="small">${esc(f[2])}${f[0]==="CONTA_OBRA"?`<div>Pago por: ${esc(cbv(i))}</div>`:""}</td>
+      <td onclick="event.stopPropagation()">${afVlBadge(v?v.status:"PENDENTE")}${v&&v.por?`<div class="vquem">${esc(v.por)} · ${fD((v.em||"").slice(0,10))}</div>`:""}
+        ${g?`<div class="vacts"><button class="vbt ok" onclick="afPerguntarVal([${i}],'CONFORME','${f[0]}')">✓ Conforme</button><button class="vbt cx" onclick="afPerguntarVal([${i}],'CORRIGIR','${f[0]}')">✎ Corrigir</button></div>`:""}</td></tr>`; }).join("")}
+    </tbody></table></div>${L.length>400?`<p class="small">Mostrando 400 de ${fN(L.length)} — use o Excel (CSV) para ver todos.</p>`:""}`:`<div class="vazio">Nenhum alerta com estes filtros.</div>`;
+  // custo por m²
+  const M2=AF_D.m2||[];
+  const sts=[...new Set(M2.map(r=>r[5]).filter(Boolean))].sort();
+  const sel=document.getElementById("m2-st"), atual=sel.value;
+  sel.innerHTML=`<option value="">Todos</option>`+sts.map(s=>`<option>${esc(s)}</option>`).join(""); if(sts.includes(atual)) sel.value=atual;
+  let R=M2.filter(r=>(!sel.value||r[5]===sel.value)&&(!AF_G.cc||afNz(r[0]).indexOf(AF_G._ccN)>=0)&&(!AF_G.ro||r[6]===AF_G.ro)&&r[3]>=20000);
+  const vals=R.map(r=>r[4]).sort((a,b)=>a-b), med=vals.length?vals[Math.floor(vals.length/2)]:0;
+  R=[...R].sort((a,b)=>b[4]-a[4]);
+  document.getElementById("f-m2").innerHTML=R.length?`<p class="small" style="margin:0 0 8px">${fN(R.length)} obras com pelo menos R$ 20 mil pagos · mediana <b>${fR(med)}/m²</b></p><div class="tbl-wrap baixa"><table><thead><tr><th>Obra (CC)</th><th>Status</th><th>Responsável</th><th class="num">Área (m²)</th><th class="num">Pago (obra direta)</th><th class="num">R$/m²</th><th class="num">× mediana</th></tr></thead><tbody>
+    ${R.map(r=>{ const x=med?r[4]/med:0; return `<tr class="clk" onclick='document.getElementById("g-cc").value=${JSON.stringify(r[0])};afAplicarGlobais()'><td>${esc(r[0])}</td><td class="small">${esc(r[5])}</td><td class="small">${esc(r[6])}</td><td class="num">${fN(r[2])}</td><td class="num">${fR0(r[3])}</td><td class="num"><b${x>1.5?' style="color:var(--vermelho)"':""}>${fR0(r[4])}</b></td><td class="num">${x.toLocaleString("pt-BR",{maximumFractionDigits:2})}×</td></tr>`; }).join("")}
+    </tbody></table></div>`:`<div class="vazio">Sem obras com área cadastrada no Mais Controle.</div>`;
+  // despesas pessoais
+  const pes={}; AF_BASE.forEach(i=>{ const c=cat(i); if(c!=="Despesa JC pessoal"&&c!=="Despesa JV pessoal"||!AF_C.dp[i]) return; const m=AF_C.dp[i].slice(0,7); const o=pes[m]||(pes[m]={jc:0,jv:0}); o[c==="Despesa JC pessoal"?"jc":"jv"]+=AF_C.v[i]; });
+  const pm=Object.keys(pes).sort().reverse().slice(0,12);
+  document.getElementById("f-pes").innerHTML=pm.length?`<div class="tbl-wrap baixa"><table><thead><tr><th>Mês</th><th class="num">JC</th><th class="num">JV</th><th class="num">Total</th></tr></thead><tbody>${pm.map(m=>`<tr><td>${fMl(m)}</td><td class="num">${fR(pes[m].jc)}</td><td class="num">${fR(pes[m].jv)}</td><td class="num"><b>${fR(pes[m].jc+pes[m].jv)}</b></td></tr>`).join("")}</tbody></table></div>`:`<div class="vazio">Sem despesas pessoais no período.</div>`;
+  // concentração
+  const fo={}; let tot=0; AF_BASE.forEach(i=>{ const f=forn(i)||"(sem fornecedor)"; fo[f]=(fo[f]||0)+AF_C.v[i]; tot+=AF_C.v[i]; });
+  const top=Object.entries(fo).sort((a,b)=>b[1]-a[1]).slice(0,10), mx=top.length?top[0][1]:1;
+  document.getElementById("f-conc").innerHTML=top.length?`<div class="barras">${top.map(([f,v])=>`<div class="bl" style="cursor:pointer" onclick='afIrLanc({forn:${JSON.stringify(f)}})'><div class="bl-nome">${esc(f)}</div><div class="bl-trilho"><div class="bl-barra" style="width:${Math.max(2,v/mx*100)}%"></div></div><div class="bl-val">${fR0(v)} · ${fP(v/tot,0)}</div></div>`).join("")}</div>`:`<div class="vazio">—</div>`;
+}
+let AF_FISC_ULT=[];
+
+/* =====================================================================
+   EVOLUÇÃO
+   ===================================================================== */
+let AF_EVO_MET="n";
+function afRenderEvo(){
+  const el=document.getElementById("tab-evo");
+  if(!el.dataset.ok){
+    el.innerHTML=`<div class="sec"><span class="cond">Uso de "Outras Despesas" e "Taxas gerais" por mês</span></div>
+      <p class="small" style="margin:-6px 0 12px">Meta do manual: no máximo 2% dos lançamentos do mês nessas duas categorias. Por competência; meses com menos de 20 lançamentos e competências futuras ficam de fora.</p>
+      <div class="chart" id="e-ch1"></div>
+      <div class="sec"><span class="cond">Problemas por mês</span><span class="sp"></span>
+        <div class="seg"><button class="seg-bt" data-m="n">Quantidade</button><button class="seg-bt" data-m="v">Valor (R$)</button></div></div>
+      <div class="legend" id="e-leg" style="margin:0 0 10px"></div><div class="chart" id="e-ch2"></div>
+      <div class="sec"><span class="cond">Validações por mês</span></div>
+      <p class="small" style="margin:-6px 0 12px">Quanto o financeiro conferiu e quanto foi corrigido no ERP, pela data da validação.</p>
+      <div class="chart" id="e-ch3"></div>`;
+    el.dataset.ok="1";
+    el.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>{ AF_EVO_MET=b.dataset.m; afRenderEvo(); });
+  }
+  el.querySelectorAll("[data-m]").forEach(b=>b.classList.toggle("on",b.dataset.m===AF_EVO_MET));
+  const cur=afMesAtual(), por={};
+  AF_BASE.forEach(i=>{ const m=(AF_C.dc[i]||"").slice(0,7); if(!m||m>cur) return; const o=por[m]||(por[m]={t:0,g:0,s:{},v:{}}); o.t++; const c=cat(i); if(c==="Outras Despesas"||c==="Taxas gerais") o.g++; const s=st(i); o.s[s]=(o.s[s]||0)+1; o.v[s]=(o.v[s]||0)+AF_C.v[i]; });
+  const meses=Object.keys(por).filter(m=>por[m].t>=20).sort().slice(-24);
+  afBarChart(document.getElementById("e-ch1"), meses.map(m=>({lab:fM(m),segs:[{v:por[m].g/por[m].t,c:por[m].g/por[m].t>0.02?"var(--s-gen)":"var(--s-ok)",n:"% genéricas"}],tot:por[m].g/por[m].t})),
+    {titulo:"% de lançamentos em categorias genéricas", fmt:v=>fP(v,0), meta:0.02, destaque:cur});
+  document.getElementById("e-leg").innerHTML=AF_PROB.map(s=>`<span class="small" style="display:flex;align-items:center;gap:6px"><i class="sw" style="background:${afCor(s)}"></i>${esc(AF_ST[s].l)}</span>`).join("");
+  const k=AF_EVO_MET==="v"?"v":"s";
+  afBarChart(document.getElementById("e-ch2"), meses.map(m=>({lab:fM(m),segs:AF_PROB.map(s=>({v:por[m][k][s]||0,c:afCor(s),n:AF_ST[s].l})),tot:AF_PROB.reduce((a,s)=>a+(por[m][k][s]||0),0)})),
+    {titulo:AF_EVO_MET==="v"?"Valor dos lançamentos com problema":"Lançamentos com problema", fmt:v=>AF_EVO_MET==="v"?fR0(v):fN(Math.round(v)), destaque:cur});
+  const vm={}; AF_VAL.forEach(v=>{ const m=(v.em||"").slice(0,7); if(!m) return; const o=vm[m]||(vm[m]={c:0,x:0,f:0}); if(v.status==="CONFORME")o.c++; else if(v.status==="CORRIGIR")o.x++; else if(v.status==="CORRIGIDO")o.f++; });
+  const vms=Object.keys(vm).sort().slice(-12);
+  if(vms.length) afBarChart(document.getElementById("e-ch3"), vms.map(m=>({lab:fM(m),segs:[{v:vm[m].c,c:"var(--v-conf)",n:"Conforme"},{v:vm[m].x,c:"var(--v-corr)",n:"A corrigir"},{v:vm[m].f,c:"var(--v-feito)",n:"Corrigido"}],tot:vm[m].c+vm[m].x+vm[m].f})),{titulo:"Validações registradas (verde conforme · vermelho a corrigir · azul corrigido)",fmt:v=>fN(Math.round(v))});
+  else document.getElementById("e-ch3").innerHTML=`<div class="vazio">Ainda não há validações.</div>`;
+}
+
+/* gráfico de barras empilhadas em SVG puro */
+function afBarChart(el, dados, o){
+  if(!dados.length){ el.innerHTML=`<div class="vazio">Sem dados no período.</div>`; return; }
+  const W=Math.max(560,(el.clientWidth||700)-30), H=250, pl=62, pr=12, pt=28, pb=30;
+  const raw=Math.max(...dados.map(d=>d.tot), o.meta||0)||1;
+  const pot=Math.pow(10,Math.floor(Math.log10(raw))), passo=[1,2,2.5,5,10].map(x=>x*pot).find(x=>raw/x<=5)||pot*10;
+  const max=Math.ceil(raw/passo)*passo, y=v=>pt+(H-pt-pb)*(1-v/max), bw=(W-pl-pr)/dados.length;
+  let g=`<svg width="${W}" height="${H}" role="img" aria-label="${esc(o.titulo||"")}"><text x="${pl}" y="16" style="font-weight:700;fill:var(--text)">${esc(o.titulo||"")}</text>`;
+  for(let v=0;v<=max+1e-9;v+=passo){ g+=`<line x1="${pl}" x2="${W-pr}" y1="${y(v)}" y2="${y(v)}" stroke="var(--border2)"/><text x="${pl-6}" y="${y(v)+4}" text-anchor="end">${esc(o.fmt(v))}</text>`; }
+  dados.forEach((d,ix)=>{ let acc=0; const x=pl+ix*bw+bw*0.16, w=bw*0.68;
+    d.segs.forEach(s=>{ if(!s.v) return; const y1=y(acc+s.v), y0=y(acc); g+=`<rect x="${x}" y="${y1}" width="${w}" height="${Math.max(0,y0-y1)}" fill="${s.c}" rx="2"><title>${esc(d.lab)} · ${esc(s.n)}: ${esc(o.fmt(s.v))}</title></rect>`; acc+=s.v; });
+    g+=`<text x="${x+w/2}" y="${H-10}" text-anchor="middle"${o.destaque&&d.lab===fM(o.destaque)?' style="font-weight:800;fill:var(--text)"':""}>${esc(d.lab)}</text>`; });
+  if(o.meta){ g+=`<line x1="${pl}" x2="${W-pr}" y1="${y(o.meta)}" y2="${y(o.meta)}" stroke="var(--vermelho)" stroke-dasharray="5 4"/><text x="${pl+6}" y="${y(o.meta)-5}" style="fill:var(--vermelho);font-weight:700">meta ${esc(o.fmt(o.meta))}</text>`; }
+  el.innerHTML=g+"</svg>";
+}
+
+/* =====================================================================
+   MANUAL (pedido 6)
+   ===================================================================== */
+const AF_ESCOPOS={ADM:"Escritório (CC ESCRITÓRIO)",OBRA:"Obra (CC da obra/lote)",SOC:"CC de aportes e distribuições",ADIANT:"CC de adiantamentos de comissão",ANY:"Qualquer centro de custo"};
+const AF_USOS={ok:"Normal",generica:"Último recurso (genérica)",descontinuada:"Descontinuada — não usar",restrita:"Uso restrito (não auditada)"};
+const AF_CLASSIF=["Outros","Oculta na Gestão","Mão de Obra (Terceirizada)","Materiais","Equipamentos","Compra de Terreno"];
+function afManualCat(nome){ return AF_MANUAL&&(AF_MANUAL.categorias||[]).find(c=>c.categoria===nome)||null; }
+function afTxt(k){ return (AF_MANUAL&&AF_MANUAL.textos&&AF_MANUAL.textos[k])||""; }
+function afManualStats(){
+  const s={}; for(let i=0;i<AF_N;i++){ const c=cat(i); const o=s[c]||(s[c]={n:0,ok:0}); o.n++; if(st(i)==="OK") o.ok++; } return s;
+}
+function afRenderManual(){
+  const el=document.getElementById("tab-man");
+  if(!AF_MANUAL){ el.innerHTML=`<div class="vazio">O manual ainda não foi carregado. Rode o robô uma vez (ele semeia o manual de ago/2026 no Supabase).</div>`; return; }
+  const g=AF_PERM.gerir, sts=afManualStats(), ex=AF_D.exemplos||{};
+  const secoes=[...(AF_MANUAL.secoes||[])].sort((a,b)=>(a.ordem||0)-(b.ordem||0));
+  const cats=AF_MANUAL.categorias||[];
+  const partes=(afTxt("partes")||{});
+  const fora=(AF_D.cad||[]).filter(c=>c.tipo==="FORA"&&!afManualCat(c.cat));
+  const outros=(AF_D.cad||[]).filter(c=>c.tipo!=="FORA");
+  const atualiz=cats.map(c=>c.atualizado_em||"").sort().pop();
+  const usoTag=u=>u==="generica"?'<span class="tag gen">último recurso</span>':u==="descontinuada"?'<span class="tag desc">não usar</span>':u==="restrita"?'<span class="tag res">uso restrito</span>':"";
+  const ed=(k)=>g?`<button class="lnk" onclick="afEditarTexto('${k}')">✎ editar</button>`:"";
+  let html=`<div class="sec"><span class="cond">${esc(afTxt("titulo")||"Manual do Plano de Contas e Categorias")}</span><span class="sp"></span>
+      <span class="small">${esc(afTxt("versao")||"")}${atualiz?" · atualizado em "+fD(atualiz.slice(0,10)):""}</span>
+      <button class="bt az sm" onclick="afPdfManual()">⬇ Exportar PDF</button>
+      ${g?`<button class="bt vd sm" onclick="afEditarCat(null)">+ Nova categoria</button><button class="bt ghost sm" onclick="afEditarSecao(null)">+ Nova seção</button><button class="bt ghost sm" onclick="afReprocessar()">↻ Reprocessar auditoria</button>`:""}
+      <button class="bt ghost sm" onclick="afVerHistorico()">Histórico</button></div>
+    <p class="small" style="margin:-6px 0 14px">${esc(afTxt("subtitulo")||"")}. ${g?"Você pode editar: as mudanças valem para a auditoria na próxima rodada do robô (de madrugada) ou na hora, com <b>Reprocessar auditoria</b>.":"Para alterar o manual, fale com quem tem o acesso GFINANCEIRO."}</p>
+    <div class="card"><h3>Onde lanço isto?</h3><p class="desc">Digite o que vai pagar — ex.: "IPTU do lote", "exame admissional", "caçamba".</p>
+      <div class="busca-manual"><input id="m-q" type="search" placeholder="O que é o pagamento?" autocomplete="off"></div><div class="resultados" id="m-res"></div></div>`;
+  if(fora.length) html+=`<div class="callout r"><h4>Categorias do ERP que não estão no manual</h4><p>O manual diz para não criar categoria por conta própria. Inclua no manual ou peça para deixarem de usar.</p>
+    ${fora.map(c=>`<p><b>${esc(c.cat)}</b> — ${fN(c.n)} lançamentos · ${esc(c.atual)}. <span class="small">${esc(c.esperado)}</span> ${g?`<button class="lnk" onclick='afEditarCat(null,${JSON.stringify(c.cat)})'>Incluir no manual</button>`:""}</p>`).join("")}</div>`;
+  if(AF_D.lacuna&&AF_D.lacuna.n) html+=`<div class="callout"><h4>Falta categoria para energia e água das casas em obra</h4><p>${fN(AF_D.lacuna.n)} pagamentos (${fR0(AF_D.lacuna.v)}) — ${fN(AF_D.lacuna.ne)} de energia e ${fN(AF_D.lacuna.na)} de água — estão nas categorias antigas "Conta de energia" e "Conta de água". O manual proíbe essas categorias e reserva Utilidades só para o escritório, mas não diz onde lançar o consumo da obra.</p>${g?`<p>Para resolver: crie a categoria nova aqui (ex.: em "Custos de Obra — Taxas e Legalização") com as palavras-chave ENERGIA, EQUATORIAL, SANEAGO… e reprocesse.</p>`:""}</div>`;
+  html+=`<div class="g2">
+      <div class="card"><h3>Como usar ${ed("como_usar")}</h3><p style="margin:0;font-size:13px">${esc(afTxt("como_usar"))}</p></div>
+      <div class="card"><h3>Regra de ouro ${ed("regra_ouro")}</h3><p style="margin:0 0 10px;font-size:13px">${esc(afTxt("regra_ouro"))}</p>
+        <h3>Lançamentos mistos ${ed("mistos")}</h3><p style="margin:0 0 10px;font-size:13px">${esc(afTxt("mistos"))}</p>
+        <h3>Classificação (Gestão de Obra) ${ed("classificacao")}</h3><p style="margin:0;font-size:13px">${esc(afTxt("classificacao"))}</p></div></div>
+    <details class="msec"><summary><span class="chev">▶</span><span class="tt">Índice rápido — "Onde lanço isto?"</span><span class="meta">${fN((afTxt("indice")||[]).length)} linhas</span><span class="sp"></span>${g?`<button class="lnk" onclick="event.preventDefault();afEditarLista('indice')">✎ editar</button>`:""}</summary>
+      <div style="padding:0 16px 16px"><div class="tbl-wrap baixa"><table><thead><tr><th>Se o pagamento for…</th><th>Lance em (Plano » Categoria)</th></tr></thead><tbody>${(afTxt("indice")||[]).map(r=>`<tr><td>${esc(r[0])}</td><td><b>${esc(r[1])}</b></td></tr>`).join("")}</tbody></table></div></div></details>`;
+  [1,2,3].forEach(pn=>{
+    const ss=secoes.filter(s=>+s.parte===pn); if(!ss.length) return;
+    const pt=partes[String(pn)]||{};
+    html+=`<div class="mparte"><h2>${esc(pt.titulo||"Parte "+pn)} ${g?`<button class="lnk" style="font-family:Inter;font-size:12px;text-transform:none;letter-spacing:0" onclick="afEditarPartes()">✎</button>`:""}</h2><p class="nota">${esc(pt.nota||"")}</p>
+      ${ss.map(s=>{ const cs=cats.filter(c=>c.secao_id===s.id).sort((a,b)=>(a.ordem||0)-(b.ordem||0));
+        return `<details class="msec"${pn<3&&s.ordem===101?" open":""}><summary><span class="chev">▶</span><span class="tt">${esc(s.titulo)}</span>
+          <span class="meta">${[s.resultado?"Resultado: "+s.resultado:"",s.classificacao?"Classificação: "+s.classificacao:"",s.escopo?"Escopo: "+s.escopo:""].filter(Boolean).map(esc).join(" · ")}</span><span class="sp"></span>
+          <span class="small">${cs.filter(c=>c.ativo!==false).length} categorias</span>${g?`<button class="lnk" onclick="event.preventDefault();afEditarSecao('${esc(s.id)}')">✎ seção</button><button class="lnk" onclick="event.preventDefault();afEditarCat(null,'',${JSON.stringify(s.id).replace(/"/g,"&quot;")})">+ categoria</button>`:""}</summary>
+          ${s.nota?`<p class="small" style="padding:0 16px">${esc(s.nota)}</p>`:""}
+          <div class="mcats">${cs.map(c=>{ const x=sts[c.categoria]||{n:0,ok:0}; const e=(ex[c.categoria]||[]).slice(0,4);
+            return `<div class="mcat${c.ativo===false?" inativa":""}"><div class="nm"><span>${esc(c.categoria)}</span>${g?`<button class="lnk" onclick='afEditarCat(${JSON.stringify(c.categoria)})'>✎</button>`:""}</div>
+              <div class="tags">${usoTag(c.uso)}${c.ativo===false?'<span class="tag res">desativada</span>':""}<span class="tag">${esc(AF_ESCOPOS[c.escopo]||c.escopo||"")}</span><span class="tag">${esc(c.plano||"")}</span>${c.classificacao?`<span class="tag">${esc(c.classificacao)}</span>`:""}</div>
+              <div class="tx">${esc(c.texto||"")}</div>
+              ${e.length?`<div class="ex"><b>Exemplos reais:</b> ${e.map(esc).join(" · ")}</div>`:""}
+              ${c.palavras?`<div class="ex"><b>Palavras-chave:</b> ${esc(c.palavras)}</div>`:""}
+              <div class="ex">${x.n?`<button class="lnk" onclick='afIrLanc({cat:${JSON.stringify(c.categoria)}})'>${fN(x.n)} lançamentos</button> · ${fP(x.ok/x.n,0)} conformes`:"Nenhum lançamento no ERP com este nome"}</div></div>`; }).join("")||'<p class="small" style="padding:0 0 0 4px">Sem categorias.</p>'}</div></details>`; }).join("")}</div>`;
+  });
+  html+=`<div class="card"><h3>Erros mais comuns (não repetir) ${g?`<button class="lnk" onclick="afEditarLista('erros')">✎ editar</button>`:""}</h3>
+      <div class="tbl-wrap baixa"><table><thead><tr><th>Erro</th><th>Como fazer certo</th></tr></thead><tbody>${(afTxt("erros")||[]).map(r=>`<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join("")}</tbody></table></div></div>
+    <div class="card"><h3>Cadastro das categorias no ERP</h3><p class="desc">Problemas no cadastro da categoria no Mais Controle (plano ou classificação da Gestão de Obra) — afetam todos os lançamentos dela.</p>
+      ${outros.length?`<div class="tbl-wrap baixa"><table><thead><tr><th>Categoria</th><th>Como está</th><th>O que ajustar</th><th class="num">Lanç.</th></tr></thead><tbody>${outros.map(c=>`<tr><td><b>${esc(c.cat)}</b></td><td class="small">${esc(c.atual)}</td><td>${esc(c.esperado)}</td><td class="num">${fN(c.n)}</td></tr>`).join("")}</tbody></table></div>`:`<div class="vazio">Nenhuma inconsistência.</div>`}</div>`;
+  el.innerHTML=html;
+  const inp=document.getElementById("m-q");
+  inp.addEventListener("input",()=>{ clearTimeout(afRenderManual._t); afRenderManual._t=setTimeout(afBuscarManual,150); });
+}
+function afBuscarManual(){
+  const q=afNz(document.getElementById("m-q").value), box=document.getElementById("m-res");
+  if(q.length<2){ box.innerHTML=""; return; }
+  /* radical: "ADMISSIONAL" acha "ADMISSIONAIS", "CACAMBA" acha "CACAMBAS" */
+  const termos=q.split(" ").filter(t=>t.length>2&&!["DE","DO","DA","DOS","DAS","PARA","COM"].includes(t)).map(t=>t.length>5?t.slice(0,t.length-2):t);
+  const ex=AF_D.exemplos||{}, sec=Object.fromEntries((AF_MANUAL.secoes||[]).map(s=>[s.id,s.titulo]));
+  const pts=[];
+  (AF_MANUAL.categorias||[]).filter(c=>c.ativo!==false).forEach(c=>{
+    const hay=afNz([c.categoria,c.texto,c.palavras,c.plano,(ex[c.categoria]||[]).join(" ")].join(" "));
+    const nome=afNz(c.categoria);
+    let p=0; termos.forEach(t=>{ if(nome.indexOf(t)>=0) p+=3; else if(hay.indexOf(t)>=0) p+=2; });
+    if(p&&c.uso==="descontinuada") p-=1;
+    if(p>0) pts.push({p,onde:(sec[c.secao_id]||c.plano||"")+" » "+c.categoria,tx:c.texto,cat:c.categoria,uso:c.uso});
+  });
+  (afTxt("indice")||[]).forEach(r=>{ const hay=afNz(r[0]+" "+r[1]); let p=0; termos.forEach(t=>{ if(hay.indexOf(t)>=0) p+=1; }); if(p) pts.push({p:p+0.5,onde:r[1],tx:"Índice rápido: "+r[0]}); });
+  pts.sort((a,b)=>b.p-a.p);
+  box.innerHTML=pts.length?pts.slice(0,12).map(r=>`<div class="res"${r.cat?` onclick='afIrLanc({cat:${JSON.stringify(r.cat)}})' title="Ver lançamentos desta categoria"`:""}><div class="onde">${esc(r.onde)} ${r.uso==="descontinuada"?'<span class="tag desc">não usar</span>':r.uso==="generica"?'<span class="tag gen">último recurso</span>':""}</div><div class="tx">${esc(r.tx||"")}</div></div>`).join(""):`<div class="small">Nada encontrado. Se for algo novo, alinhe com o financeiro — o plano é padronizado.</div>`;
+}
+/* ---------- edição ---------- */
+async function afSalvarManual(tipo, dados, original){
+  const r=await chamar({action:"afManualSalvar",tipo,dados,original:original||""},60000,true).catch(e=>({ok:false,erro:e.message}));
+  if(!r||!r.ok){ afToast("Não salvou: "+erroTexto(r&&r.erro),true); return false; }
+  return r;
+}
+function afEditarCat(nome, novoNome, secaoPadrao){
+  const c=nome?afManualCat(nome):null, s=(AF_MANUAL.secoes||[]).slice().sort((a,b)=>(a.ordem||0)-(b.ordem||0));
+  const planos=[...new Set([...(AF_MANUAL.categorias||[]).map(x=>x.plano),...AF_DIC.plano])].filter(Boolean).sort();
+  const v=c||{categoria:novoNome||"",secao_id:secaoPadrao||"",plano:"",classificacao:"Outros",escopo:"ANY",uso:"ok",texto:"",palavras:"",ordem:99,ativo:true};
+  if(!c&&novoNome){ for(let i=0;i<AF_N;i++) if(cat(i)===novoNome){ v.plano=plv(i); v.classificacao=grv(i)||"Oculta na Gestão"; break; } }
+  const corpo=`<div class="fgrid">
+    <div class="fcampo full"><label>Nome da categoria — igual ao do Mais Controle</label><input id="mc-nome" value="${esc(v.categoria)}"></div>
+    <div class="fcampo"><label>Seção do manual</label><select id="mc-sec">${s.map(x=>`<option value="${esc(x.id)}"${x.id===v.secao_id?" selected":""}>${esc(x.titulo)}</option>`).join("")}</select></div>
+    <div class="fcampo"><label>Plano de conta esperado</label><input id="mc-plano" list="mc-dl-pl" value="${esc(v.plano||"")}"><datalist id="mc-dl-pl">${planos.map(p=>`<option>${esc(p)}</option>`).join("")}</datalist></div>
+    <div class="fcampo"><label>Classificação (Gestão de Obra)</label><input id="mc-cls" list="mc-dl-cls" value="${esc(v.classificacao||"")}"><datalist id="mc-dl-cls">${AF_CLASSIF.map(p=>`<option>${esc(p)}</option>`).join("")}</datalist></div>
+    <div class="fcampo"><label>Centro de custo permitido</label><select id="mc-esc">${Object.entries(AF_ESCOPOS).map(([k,t])=>`<option value="${k}"${k===v.escopo?" selected":""}>${esc(t)}</option>`).join("")}</select></div>
+    <div class="fcampo"><label>Uso</label><select id="mc-uso">${Object.entries(AF_USOS).map(([k,t])=>`<option value="${k}"${k===v.uso?" selected":""}>${esc(t)}</option>`).join("")}</select></div>
+    <div class="fcampo"><label>Ordem na seção</label><input id="mc-ord" type="number" value="${esc(v.ordem||0)}"></div>
+    <div class="fcampo full"><label>Para que serve / exemplos</label><textarea id="mc-tx">${esc(v.texto||"")}</textarea></div>
+    <div class="fcampo full"><label>Palavras-chave (separadas por vírgula) — quando a descrição tiver uma delas, o auditor entende que é esta categoria</label><input id="mc-pal" value="${esc(v.palavras||"")}" placeholder="Ex.: IPVA, LICENCIAMENTO, DETRAN"></div>
+    <label class="small full" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="mc-at"${v.ativo!==false?" checked":""}> Ativa (desmarque para tirar do manual sem apagar o histórico)</label></div>`;
+  afModal(c?"Editar categoria":"Nova categoria", c?"Alterações ficam no histórico do manual.":"O nome precisa ser exatamente o do Mais Controle para o auditor reconhecer os lançamentos.", corpo,
+    [{t:"Cancelar",cls:"ghost"},{t:"Salvar",cls:"vd",fn:async ov=>{
+      const q=id=>ov.querySelector(id);
+      const d={categoria:q("#mc-nome").value.trim(),secao_id:q("#mc-sec").value,plano:q("#mc-plano").value.trim(),classificacao:q("#mc-cls").value.trim(),
+        escopo:q("#mc-esc").value,uso:q("#mc-uso").value,ordem:+q("#mc-ord").value||0,texto:q("#mc-tx").value.trim(),palavras:q("#mc-pal").value.trim(),ativo:q("#mc-at").checked};
+      if(!d.categoria){ afToast("Informe o nome.",true); return false; }
+      const r=await afSalvarManual("categoria",d,c?c.categoria:""); if(!r) return false;
+      const lista=AF_MANUAL.categorias; const ix=lista.findIndex(x=>x.categoria===(c?c.categoria:d.categoria));
+      const novo=Object.assign({},c||{},d,{atualizado_por:AF_PERM.quem,atualizado_em:new Date().toISOString()});
+      if(ix>=0) lista[ix]=novo; else lista.push(novo);
+      afToast("Categoria salva. A auditoria usa a regra nova na próxima rodada — ou clique em Reprocessar auditoria."); afRenderManual();
+    }}], true);
+}
+function afEditarSecao(id){
+  const s=id?(AF_MANUAL.secoes||[]).find(x=>x.id===id):null;
+  const v=s||{id:"",parte:2,titulo:"",resultado:"",classificacao:"Outros",escopo:"",nota:"",ordem:250};
+  const corpo=`<div class="fgrid">
+    <div class="fcampo"><label>Código</label><input id="ms-id" value="${esc(v.id)}"${s?" disabled":""} placeholder="Ex.: P2-19"></div>
+    <div class="fcampo"><label>Parte</label><select id="ms-pt">${[1,2,3].map(p=>`<option value="${p}"${+v.parte===p?" selected":""}>Parte ${p}</option>`).join("")}</select></div>
+    <div class="fcampo full"><label>Título</label><input id="ms-tit" value="${esc(v.titulo)}" placeholder="Ex.: 19. Consumo de Obra"></div>
+    <div class="fcampo"><label>Resultado (DRE)</label><input id="ms-res" value="${esc(v.resultado||"")}"></div>
+    <div class="fcampo"><label>Classificação</label><input id="ms-cls" list="mc-dl-cls2" value="${esc(v.classificacao||"")}"><datalist id="mc-dl-cls2">${AF_CLASSIF.map(p=>`<option>${esc(p)}</option>`).join("")}</datalist></div>
+    <div class="fcampo"><label>Escopo</label><input id="ms-esc" value="${esc(v.escopo||"")}" placeholder="ESCRITÓRIO / OBRA"></div>
+    <div class="fcampo"><label>Ordem</label><input id="ms-ord" type="number" value="${esc(v.ordem||0)}"></div>
+    <div class="fcampo full"><label>Nota</label><textarea id="ms-nota">${esc(v.nota||"")}</textarea></div></div>`;
+  afModal(s?"Editar seção":"Nova seção","",corpo,[{t:"Cancelar",cls:"ghost"},{t:"Salvar",cls:"vd",fn:async ov=>{
+    const q=x=>ov.querySelector(x);
+    const d={id:(s?s.id:q("#ms-id").value.trim().toUpperCase()),parte:+q("#ms-pt").value,titulo:q("#ms-tit").value.trim(),resultado:q("#ms-res").value.trim(),
+      classificacao:q("#ms-cls").value.trim(),escopo:q("#ms-esc").value.trim(),nota:q("#ms-nota").value.trim(),ordem:+q("#ms-ord").value||0};
+    if(!d.id||!d.titulo){ afToast("Código e título são obrigatórios.",true); return false; }
+    if(!await afSalvarManual("secao",d)) return false;
+    const L=AF_MANUAL.secoes; const ix=L.findIndex(x=>x.id===d.id); if(ix>=0) L[ix]=Object.assign({},L[ix],d); else L.push(d);
+    afToast("Seção salva."); afRenderManual(); }}], true);
+}
+function afEditarTexto(k){
+  const rot={como_usar:"Como usar",regra_ouro:"Regra de ouro",mistos:"Lançamentos mistos",classificacao:"Classificação (Gestão de Obra)"}[k]||k;
+  afModal("Editar · "+rot,"",`<div class="fcampo cheio"><textarea id="mt-v" style="min-height:160px">${esc(afTxt(k))}</textarea></div>`,
+    [{t:"Cancelar",cls:"ghost"},{t:"Salvar",cls:"vd",fn:async ov=>{ const val=ov.querySelector("#mt-v").value.trim();
+      if(!await afSalvarManual("texto",{chave:k,valor:val})) return false; AF_MANUAL.textos[k]=val; afToast("Texto salvo."); afRenderManual(); }}], true);
+}
+function afEditarPartes(){
+  const p=Object.assign({},afTxt("partes")||{});
+  afModal("Títulos das partes","",[1,2,3].map(n=>`<div class="fgrid" style="margin-bottom:10px"><div class="fcampo full"><label>Parte ${n} — título</label><input id="mp-t${n}" value="${esc((p[n]||{}).titulo||"")}"></div><div class="fcampo full"><label>Parte ${n} — nota</label><input id="mp-n${n}" value="${esc((p[n]||{}).nota||"")}"></div></div>`).join(""),
+    [{t:"Cancelar",cls:"ghost"},{t:"Salvar",cls:"vd",fn:async ov=>{ const val={}; [1,2,3].forEach(n=>val[n]={titulo:ov.querySelector("#mp-t"+n).value.trim(),nota:ov.querySelector("#mp-n"+n).value.trim()});
+      if(!await afSalvarManual("texto",{chave:"partes",valor:val})) return false; AF_MANUAL.textos.partes=val; afToast("Salvo."); afRenderManual(); }}], true);
+}
+function afEditarLista(k){
+  const rot=k==="indice"?["Se o pagamento for…","Lance em (Plano » Categoria)"]:["Erro","Como fazer certo"];
+  const linhas=(afTxt(k)||[]).map(r=>[r[0],r[1]]);
+  const desenhar=ov=>{ ov.querySelector(".lista-ed").innerHTML=linhas.map((r,ix)=>`<div class="ln"><input data-ix="${ix}" data-c="0" value="${esc(r[0])}" placeholder="${esc(rot[0])}"><input data-ix="${ix}" data-c="1" value="${esc(r[1])}" placeholder="${esc(rot[1])}"><button class="vbt cx" data-del="${ix}" title="Tirar">×</button></div>`).join("");
+    ov.querySelectorAll(".lista-ed input").forEach(inp=>inp.oninput=()=>{ linhas[+inp.dataset.ix][+inp.dataset.c]=inp.value; });
+    ov.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{ linhas.splice(+b.dataset.del,1); desenhar(ov); }); };
+  const ov=afModal(k==="indice"?"Editar índice rápido":"Editar erros mais comuns","",`<div class="lista-ed"></div><button class="bt ghost sm" style="margin-top:8px" id="ml-add">+ Linha</button>`,
+    [{t:"Cancelar",cls:"ghost"},{t:"Salvar",cls:"vd",fn:async()=>{ const val=linhas.filter(r=>(r[0]||"").trim()||(r[1]||"").trim()).map(r=>[r[0].trim(),r[1].trim()]);
+      if(!await afSalvarManual("texto",{chave:k,valor:val})) return false; AF_MANUAL.textos[k]=val; afToast("Salvo."); afRenderManual(); }}], true);
+  desenhar(ov); ov.querySelector("#ml-add").onclick=()=>{ linhas.push(["",""]); desenhar(ov); };
+}
+async function afVerHistorico(){
+  const r=await chamar({action:"afHistorico",limite:300},45000).catch(e=>({ok:false,erro:e.message}));
+  if(!r||!r.ok){ afToast("Não consegui ler o histórico: "+erroTexto(r&&r.erro),true); return; }
+  const H=r.historico||[];
+  afModal("Histórico do manual",fN(H.length)+" alterações mais recentes",H.length?`<div class="tbl-wrap baixa"><table><thead><tr><th>Quando</th><th>Quem</th><th>O quê</th><th>Item</th></tr></thead><tbody>${H.map(h=>`<tr><td class="small nw">${fD((h.em||"").slice(0,10))} ${(h.em||"").slice(11,16)}</td><td>${esc(h.por||"")}</td><td>${esc(h.acao||"")}</td><td>${esc(h.alvo||"")}</td></tr>`).join("")}</tbody></table></div>`:`<div class="vazio">Nenhuma alteração ainda.</div>`,null,true);
+}
+async function afReprocessar(){
+  const r=await chamar({action:"afReprocessar"},45000,true).catch(e=>({ok:false,erro:e.message}));
+  if(!r||!r.ok){ afToast("Não pedi: "+erroTexto(r&&r.erro),true); return; }
+  afToast(r.pulou?`Já foi pedido há pouco — espere ${r.faltamMin} min.`:"Pedido enviado ao robô. Em 2 a 5 minutos clique em ↻ Atualizar.");
+}
+
+/* =====================================================================
+   EXPORTAÇÕES (PDF pela janela de impressão, Excel como CSV)
+   ===================================================================== */
+function afJanelaPdf(titulo, corpo, paisagem){
+  const w=window.open("","_blank");
+  if(!w){ afToast("O navegador bloqueou a janela. Libere pop-ups para este site.",true); return; }
+  const logo=new URL("img/logo.png",location.href).href;
+  w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(titulo)}</title>
+  <style>@page{size:A4 ${paisagem?"landscape":"portrait"};margin:14mm 12mm}
+  *{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#1a3347;font-size:10.5px;margin:0}
+  .topo{display:flex;align-items:center;gap:14px;border-bottom:3px solid #4cd964;padding-bottom:8px;margin-bottom:12px}
+  .topo img{height:40px}.topo h1{font-size:17px;margin:0;color:#1e3f58;text-transform:uppercase;letter-spacing:.4px}.topo .s{color:#5a8099;font-size:10.5px}
+  h2{font-size:13px;color:#1e3f58;margin:16px 0 6px;padding:5px 8px;background:#dceaef;border-left:4px solid #2a9d5c;text-transform:uppercase;letter-spacing:.3px;page-break-after:avoid}
+  h3{font-size:11.5px;margin:12px 0 4px;color:#295778;page-break-after:avoid}
+  p{margin:0 0 6px;line-height:1.4}
+  table{width:100%;border-collapse:collapse;margin-bottom:10px;page-break-inside:auto;font-size:10px}
+  th{background:#295778;color:#fff;text-align:left;padding:5px 6px;font-size:9px;text-transform:uppercase;letter-spacing:.3px}
+  td{padding:4px 6px;border-bottom:1px solid #d0e4ec;vertical-align:top}
+  tr{page-break-inside:avoid}tr:nth-child(even) td{background:#f5f9fa}
+  .num{text-align:right;white-space:nowrap}.mut{color:#8aacbb}.tot td{font-weight:bold;background:#eaf1f3}
+  .sug{color:#1a6b40;font-weight:bold}.tag{display:inline-block;border:1px solid #b8d0da;border-radius:10px;padding:0 6px;font-size:8.5px;margin-right:3px;color:#5a8099}
+  .rod{position:fixed;bottom:0;left:0;right:0;font-size:8.5px;color:#8aacbb;text-align:right}
+  @media screen{body{padding:20px;max-width:1100px;margin:auto}}</style></head><body>
+  <div class="topo"><img src="${logo}" onerror="this.remove()"><div><h1>${esc(titulo)}</h1><div class="s">Morais Engenharia e Construção · gerado em ${new Date().toLocaleString("pt-BR")} por ${esc(AF_PERM.quem||(S_AF&&S_AF.nome)||"")}</div></div></div>
+  ${corpo}<div class="rod">Auditoria Financeira · Portal Morais</div>
+  <script>window.onload=function(){setTimeout(function(){window.print();},400);};<\/script></body></html>`);
+  w.document.close();
+}
+function afFiltrosTexto(){
+  const t=[]; if(AF_G.de||AF_G.ate) t.push((AF_G.base==="dc"?"Competência ":"Pagamento ")+(AF_G.de?fMl(AF_G.de):"…")+" a "+(AF_G.ate?fMl(AF_G.ate):"…"));
+  if(AF_G.cc) t.push("CC: "+AF_G.cc); if(AF_G.cb) t.push("Conta: "+AF_G.cb); if(AF_G.ro) t.push("Responsável: "+AF_G.ro); if(AF_G.pl) t.push("Plano: "+AF_G.pl);
+  return t.length?"Filtros: "+t.join(" · "):"Sem filtros (todos os pagamentos)";
+}
+function afPdfCorr(){
+  const L=afLinhasCorr();
+  if(!L.length){ afToast("Nada para exportar com estes filtros.",true); return; }
+  const grupos=[]; L.forEach(r=>{ const u=grupos[grupos.length-1]; if(!u||u.nome!==r.grupo) grupos.push({nome:r.grupo,itens:[r]}); else u.itens.push(r); });
+  const tot=L.reduce((a,r)=>a+r.valor,0);
+  const sel=document.getElementById("c-st").value;
+  const corpo=`<p><b>${fN(L.length)}</b> lançamentos · <b>${fR(tot)}</b> · ${esc({CORRIGIR:"a corrigir",CORRIGIDO:"já corrigidos",TODOS:"a corrigir e corrigidos"}[sel])} · ${esc(afFiltrosTexto())}</p>
+    ${grupos.map(g=>`<h2>${esc(g.nome||"—")} — ${fN(g.itens.length)} · ${fR(g.itens.reduce((a,r)=>a+r.valor,0))}</h2>
+    <table><thead><tr><th>Pagamento</th><th>ID</th><th>Descrição · fornecedor</th><th>Centro de custo</th><th>Como está</th><th>O que corrigir</th><th class="num">Valor</th><th>Marcado por</th></tr></thead><tbody>
+    ${g.itens.map(r=>`<tr><td>${fD(r.dp)}</td><td>${esc(r.id||"")}</td><td>${esc(r.desc||"—")}<br><span class="mut">${esc(r.forn||"—")}</span></td><td>${esc(r.cc)}</td><td>${esc(r.cat)}<br><span class="mut">${esc(r.tipo)}</span></td>
+      <td>${r.v.obs?esc(r.v.obs)+"<br>":""}${r.sug?`<span class="sug">${esc(r.sug)}</span>`:""}${r.v.status==="CORRIGIDO"?`<br><span class="mut">corrigido ${fD((r.v.corrigido_em||"").slice(0,10))}</span>`:""}</td><td class="num">${fR(r.valor)}</td><td>${esc(r.v.por||"")}<br><span class="mut">${fD((r.v.em||"").slice(0,10))}</span></td></tr>`).join("")}
+    </tbody></table>`).join("")}`;
+  afJanelaPdf("Lançamentos a corrigir no Mais Controle", corpo, true);
+}
+function afPdfManual(){
+  const T=k=>afTxt(k), partes=T("partes")||{}, ex=AF_D.exemplos||{};
+  const secoes=[...(AF_MANUAL.secoes||[])].sort((a,b)=>(a.ordem||0)-(b.ordem||0));
+  const cats=(AF_MANUAL.categorias||[]).filter(c=>c.ativo!==false);
+  let c=`<p class="mut">${esc(T("subtitulo")||"")} — ${esc(T("versao")||"")}</p>
+    <h2>Como usar este manual</h2><p>${esc(T("como_usar"))}</p>
+    <p><b>Regra de ouro:</b> ${esc(T("regra_ouro"))}</p><p><b>Lançamentos mistos:</b> ${esc(T("mistos"))}</p><p><b>Classificação (Gestão de Obra):</b> ${esc(T("classificacao"))}</p>
+    <h2>Índice rápido — "Onde lanço isto?"</h2><table><thead><tr><th>Se o pagamento for…</th><th>Lance em (Plano » Categoria)</th></tr></thead><tbody>${(T("indice")||[]).map(r=>`<tr><td>${esc(r[0])}</td><td><b>${esc(r[1])}</b></td></tr>`).join("")}</tbody></table>`;
+  [1,2,3].forEach(pn=>{ const ss=secoes.filter(s=>+s.parte===pn); if(!ss.length) return; const pt=partes[String(pn)]||{};
+    c+=`<h2>${esc(pt.titulo||"Parte "+pn)}</h2>${pt.nota?`<p>${esc(pt.nota)}</p>`:""}`;
+    ss.forEach(s=>{ const cs=cats.filter(x=>x.secao_id===s.id).sort((a,b)=>(a.ordem||0)-(b.ordem||0)); if(!cs.length) return;
+      c+=`<h3>${esc(s.titulo)}</h3>${s.resultado||s.classificacao?`<p class="mut">${[s.resultado?"Resultado: "+s.resultado:"",s.classificacao?"Classificação: "+s.classificacao:""].filter(Boolean).map(esc).join(" · ")}</p>`:""}
+        <table><thead><tr><th style="width:28%">Categoria</th><th>Para que serve / exemplos reais</th></tr></thead><tbody>${cs.map(x=>`<tr><td><b>${esc(x.categoria)}</b>${pn===3?`<br><span class="mut">Plano: ${esc(x.plano||"")}</span>`:""}${x.uso==="generica"?'<br><span class="tag">último recurso</span>':x.uso==="descontinuada"?'<br><span class="tag">não usar</span>':x.uso==="restrita"?'<br><span class="tag">uso restrito</span>':""}</td><td>${esc(x.texto||"")}${(ex[x.categoria]||[]).length?`<br><span class="mut">Ex. do ERP: ${(ex[x.categoria]||[]).slice(0,3).map(esc).join(" · ")}</span>`:""}</td></tr>`).join("")}</tbody></table>`; }); });
+  c+=`<h2>Erros mais comuns (não repetir)</h2><table><thead><tr><th>Erro</th><th>Como fazer certo</th></tr></thead><tbody>${(T("erros")||[]).map(r=>`<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join("")}</tbody></table>`;
+  afJanelaPdf(T("titulo")||"Manual do Plano de Contas e Categorias", c, false);
+}
+function afCSV(nome, cab, linhas){
+  const q=v=>{ const s=v==null?"":String(v); return /[;"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; };
+  const n=v=>typeof v==="number"?String(v).replace(".",","):v;
+  const txt="﻿"+[cab.join(";"),...linhas.map(l=>l.map(x=>q(n(x))).join(";"))].join("\r\n");
+  const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([txt],{type:"text/csv;charset=utf-8"}));
+  a.download=nome+"-"+afHoje()+".csv"; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },500);
+}
+function afExportarCSV(qual){
+  const V=i=>AF_VST[i]?AF_VL[AF_VST[i]].l:"";
+  if(qual==="lanc"){ const L=AF_LANC_ULT.length?AF_LANC_ULT:afLancFiltro();
+    afCSV("auditoria-lancamentos",["Situação","Validação","ID lançamento","Parcela","Pagamento","Vencimento","Competência","Descrição","Fornecedor","Centro de custo","Responsável obra","Conta bancária","Valor parcela","Valor pago","Juros/multa","Desconto","Plano atual","Categoria atual","Classificação","Plano sugerido","Categoria sugerida","Motivo","Outros alertas","Nº documento","Ordem de compra"],
+      L.map(i=>[AF_ST[st(i)].l,V(i),AF_C.id[i],AF_C.np[i],fD(AF_C.dp[i]),fD(AF_C.dv[i]),fD(AF_C.dc[i]),AF_C.d[i],forn(i),ccv(i),rov(i),cbv(i),AF_C.v[i],AF_C.vp[i],AF_C.jm[i],AF_C.de[i],plv(i),cat(i),grv(i),sugPl(i),sug(i),mot(i),alrt(i).join(" | "),AF_C.nd[i],AF_C.oc[i]])); }
+  else if(qual==="corr"){ const L=afLinhasCorr();
+    afCSV("auditoria-a-corrigir",["Grupo","Status","Tipo","Pagamento","ID","Descrição","Fornecedor","Centro de custo","Categoria atual","Sugestão","O que corrigir","Justificativa","Valor","Marcado por","Em","Corrigido em"],
+      L.map(r=>[r.grupo,AF_VL[r.v.status].l,r.tipo,fD(r.dp),r.id,r.desc,r.forn,r.cc,r.cat,r.sug,r.v.obs||"",r.v.motivo||"",r.valor,r.v.por||"",fD((r.v.em||"").slice(0,10)),fD((r.v.corrigido_em||"").slice(0,10))])); }
+  else if(qual==="pagar"){ afCSV("contas-a-pagar-em-aberto",["Vencimento","Fornecedor","Descrição","Categoria","Centro de custo","Conta","Valor parcela","Em aberto","ID","Parcela"],
+      AF_PAGAR_ULT.map(r=>[fD(r[3]),r[1],r[6],r[2],r[0],r[9],r[4],r[5],r[7],r[8]])); }
+  else if(qual==="receber"){ afCSV("contas-a-receber-vencidas",["Vencimento","Cliente","Natureza","Centro de custo","Conta","Valor parcela","Em aberto","ID","Parcela"],
+      AF_RECEBER_ULT.map(r=>[fD(r[3]),r[1],r[2],r[0],r[9],r[4],r[5],r[7],r[8]])); }
+  else if(qual==="fisc"){ const T=AF_D.fiscal_tipos||{};
+    afCSV("fiscalizacao",["Alerta","Detalhe","Validação","Pagamento","ID","Descrição","Fornecedor","Centro de custo","Conta","Categoria","Valor"],
+      AF_FISC_ULT.map(f=>{ const i=f[1], v=AF_VAL.get(f[0]+":"+AF_C.k[i]); return [(T[f[0]]||{}).t||f[0],f[2],v?AF_VL[v.status].l:"Pendente",fD(AF_C.dp[i]),AF_C.id[i],AF_C.d[i],forn(i),ccv(i),cbv(i),cat(i),AF_C.v[i]]; })); }
+}
+
+/* =====================================================================
+   CARGA (afBoot + link assinado + cache local por versão)
+   ===================================================================== */
+const AF_IDB="morais_auditoria", AF_IDB_V=1;
+function afIdb(){ return new Promise((ok,falha)=>{ try{ const r=indexedDB.open(AF_IDB,AF_IDB_V); r.onupgradeneeded=()=>r.result.createObjectStore("arq"); r.onsuccess=()=>ok(r.result); r.onerror=()=>falha(r.error); }catch(e){ falha(e); } }); }
+async function afIdbGet(k){ try{ const db=await afIdb(); return await new Promise(ok=>{ const t=db.transaction("arq").objectStore("arq").get(k); t.onsuccess=()=>ok(t.result||null); t.onerror=()=>ok(null); }); }catch(e){ return null; } }
+async function afIdbPut(k,v){ try{ const db=await afIdb(); await new Promise(ok=>{ const t=db.transaction("arq","readwrite"); t.objectStore("arq").put(v,k); t.oncomplete=ok; t.onerror=ok; }); }catch(e){} }
+
+async function afCarregar(manual){
+  const bt=document.getElementById("bt-atualizar"); bt.disabled=true;
+  const av=document.getElementById("aviso-erro"); av.classList.add("hide");
+  if(!AF_D) document.getElementById("carregando").classList.remove("hide");
+  try{
+    let r;
+    try{ r=await chamar({action:"afBoot"},60000); }
+    catch(e){ let v="?"; try{ const pg=await chamar({action:"afVersao"},15000); v=(pg&&pg.versao)||"sem AuditoriaFin.gs"; }catch(_){}
+      throw new Error("O Apps Script não respondeu para afBoot ("+e.message+"). Versão da auditoria no ar: "+v+" — confira se o AuditoriaFin.gs foi colado e publicado como Nova versão."); }
+    if(!r||!r.ok){
+      if(r&&r.erro==="NAO_AUTORIZADO"){ sair(); return; }
+      if(r&&r.erro==="SEM_PERMISSAO"){ document.getElementById("sem-acesso").classList.remove("hide"); document.getElementById("carregando").classList.add("hide"); document.getElementById("conteudo").classList.add("hide"); return; }
+      throw new Error(erroTexto(r&&r.erro)||"sem resposta do servidor");
+    }
+    AF_BOOT=r; AF_PERM=r.perm||{gerir:false};
+    AF_VAL=new Map((r.validacoes||[]).map(v=>[v.chave,v])); AF_EXC=r.excecoes||[];
+    if(!r.url){ throw new Error("O robô da auditoria ainda não gerou o arquivo. Rode Actions › Auditoria Financeira › Run workflow no GitHub (e confira os secrets MC_API_USUARIO / MC_API_SENHA)."); }
+    let dados=null; const marca=r.gerado||"";
+    const cache=await afIdbGet("auditoria");
+    if(cache&&cache.marca&&cache.marca===marca) dados=cache.dados;
+    if(!dados){
+      const resp=await fetch(r.url,{cache:"no-store"});
+      if(!resp.ok) throw new Error("Supabase respondeu HTTP "+resp.status+" ao baixar o arquivo da auditoria");
+      dados=await resp.json();
+      afIdbPut("auditoria",{marca,dados});
+    }
+    afPreparar(dados);
+    AF_MANUAL=r.manual||dados.manual;
+    if(AF_MANUAL&&!AF_MANUAL.textos) AF_MANUAL.textos={};
+    if(AF_MANUAL&&dados.manual&&dados.manual.textos) AF_MANUAL.textos=Object.assign({},dados.manual.textos,AF_MANUAL.textos);
+    afRecalcVal();
+    document.getElementById("carregando").classList.add("hide");
+    document.getElementById("conteudo").classList.remove("hide");
+    document.getElementById("chip-gerado").textContent="Dados do ERP de "+(dados.gerado||"—")+" · "+fN(AF_N)+" pagamentos";
+    document.getElementById("chip-gerado").title=dados.fonte||"";
+    document.getElementById("chip-perfil").textContent=AF_PERM.gerir?"GFINANCEIRO · valida e edita o manual":"FINANCEIRO · só visualiza";
+    const ult=(r.coletas||[])[0];
+    if(ult&&!ult.ok){ av.innerHTML=`<h4>A última rodada do robô falhou</h4><p>${esc(fD((ult.em||"").slice(0,10)))} — ${esc(ult.erro||"")}. A tela mostra a rodada anterior.</p>`; av.classList.remove("hide"); }
+    afAplicarGlobais();
+    if(manual) afToast("Dados atualizados.");
+  }catch(e){
+    document.getElementById("carregando").classList.add("hide");
+    av.innerHTML=`<h4>Não consegui carregar a auditoria</h4><p>${esc(e.message||e)}</p>`; av.classList.remove("hide");
+  }finally{ bt.disabled=false; }
+}
+function afPreparar(d){
+  AF_D=d; AF_C=d.cols; AF_DIC=d.dict; AF_N=AF_C.k.length;
+  AF_KIDX=new Map(); for(let i=0;i<AF_N;i++) AF_KIDX.set(AF_C.k[i],i);
+  AF_FISC_ROW=new Map(); (d.fiscal||[]).forEach(f=>{ const a=AF_FISC_ROW.get(f[1])||[]; a.push([f[0],f[2]]); AF_FISC_ROW.set(f[1],a); });
+  const uniq=(arr)=>[...new Set(arr.filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+  document.getElementById("dl-cc").innerHTML=uniq(AF_DIC.cc).map(c=>`<option value="${esc(c)}">`).join("");
+  document.getElementById("dl-forn").innerHTML=uniq(AF_DIC.f).map(c=>`<option value="${esc(c)}">`).join("");
+  afOpcoes("g-cb",uniq(AF_DIC.cb),"Todas"); afOpcoes("g-ro",uniq(AF_DIC.ro)); afOpcoes("g-pl",uniq(AF_DIC.plano));
+  afOpcoes("l-cat",uniq(AF_DIC.cat),"Todas");
+  const sugs=new Set(); for(let i=0;i<AF_N;i++){ const s=sug(i); if(s) sugs.add(s); }
+  afOpcoes("l-sug",[...sugs].sort(),"Todas");
+}
+
+/* =====================================================================
+   EVENTOS E INÍCIO
+   ===================================================================== */
+function afIniciar(){
+  document.getElementById("u-nome").textContent=(S_AF&&(S_AF.nome||S_AF.login))||"—";
+  const tipo=String((S_AF&&S_AF.tipo)||"").toUpperCase(), b=document.getElementById("u-tipo"); b.textContent=tipo||"—"; if(tipo==="ADM") b.classList.add("adm");
+  document.getElementById("btema").textContent=document.documentElement.dataset.tema==="escuro"?"☀️":"🌙";
+  try{ atualizarStatus(); }catch(e){}
+  if(!S_AF) return;
+  if(!podeAcessar(S_AF,"FINANCEIRO")&&!podeAcessar(S_AF,"GFINANCEIRO")){
+    document.getElementById("sem-acesso").classList.remove("hide"); document.getElementById("carregando").classList.add("hide"); return;
+  }
+  const aba=afLerHash(); if(aba&&document.querySelector(`#tabs [data-tab="${aba}"]`)) AF_TAB=aba;
+  document.querySelectorAll("#tabs .tab").forEach(b=>b.onclick=()=>afTrocarTab(b.dataset.tab));
+  document.querySelectorAll("#tabs .tab").forEach(b=>b.classList.toggle("on",b.dataset.tab===AF_TAB));
+  document.querySelectorAll("#conteudo > section").forEach(s=>s.classList.toggle("hide",s.id!=="tab-"+AF_TAB));
+  document.getElementById("gfil").classList.toggle("hide",AF_TAB==="man");
+  ["g-base","g-de","g-ate","g-cb","g-ro","g-pl"].forEach(id=>document.getElementById(id).addEventListener("change",afAplicarGlobais));
+  const gcc=document.getElementById("g-cc");
+  gcc.addEventListener("change",afAplicarGlobais);
+  gcc.addEventListener("keydown",e=>{ if(e.key==="Enter") afAplicarGlobais(); });
+  // lançamentos
+  const re=()=>afRenderLanc(true);
+  document.getElementById("l-q").addEventListener("input",()=>{ clearTimeout(re._t); re._t=setTimeout(re,220); });
+  ["l-cat","l-sug","l-sosug","l-fisc","l-sort"].forEach(id=>document.getElementById(id).addEventListener("change",re));
+  document.getElementById("l-forn").addEventListener("change",re);
+  document.getElementById("l-st").addEventListener("click",e=>{ const b=e.target.closest("[data-s]"); if(!b) return; afClicarChip(afSt,b.dataset.s,e); re(); });
+  document.getElementById("l-vl").addEventListener("click",e=>{ const b=e.target.closest("[data-v]"); if(!b) return; afClicarChip(afVl,b.dataset.v,e); re(); });
+  document.getElementById("l-rows").addEventListener("click",e=>{
+    const vb=e.target.closest("[data-a]"); if(vb){ afPerguntarVal([+vb.dataset.i], vb.dataset.a==="conf"?"CONFORME":"CORRIGIR"); return; }
+    if(e.target.classList.contains("l-ck")) return;
+    const tr=e.target.closest("tr[data-i]"); if(tr) afAbrirDrawer(+tr.dataset.i);
+  });
+  document.getElementById("l-rows").addEventListener("change",e=>{ if(!e.target.classList.contains("l-ck")) return; const i=+e.target.dataset.i; e.target.checked?afSel.add(i):afSel.delete(i); e.target.closest("tr").classList.toggle("sel",e.target.checked); afRenderBulk(); });
+  document.getElementById("l-prev").onclick=()=>{ afLancPg--; afRenderLanc(); document.querySelector("#tab-lanc .tbl-wrap").scrollTop=0; };
+  document.getElementById("l-next").onclick=()=>{ afLancPg++; afRenderLanc(); document.querySelector("#tab-lanc .tbl-wrap").scrollTop=0; };
+  document.getElementById("d-fechar").onclick=afFecharDrawer; document.getElementById("scrim").onclick=afFecharDrawer;
+  document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&!document.querySelector(".modal-ov")) afFecharDrawer(); });
+  let rz; window.addEventListener("resize",()=>{ clearTimeout(rz); rz=setTimeout(()=>{ if(["evo","juros"].includes(AF_TAB)) afRender(); },250); });
+  afCarregar(false);
+}
+afIniciar();
+
+</script>
+</body>
+</html>
