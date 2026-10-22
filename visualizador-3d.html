@@ -175,6 +175,37 @@ body.drop .vcx{border-color:var(--verde);background:var(--hover)}
   border-radius:10px;font-size:13px;font-weight:600;opacity:0;pointer-events:none;transition:.2s;z-index:60}
 .toast.on{opacity:1;transform:translate(-50%,0)}
 
+#exibir{position:absolute;right:12px;top:62px;width:260px;background:var(--sup);border:1px solid var(--border2);border-radius:12px;
+  box-shadow:0 8px 24px var(--sombra);padding:10px 12px 12px;z-index:3;display:none}
+#exibir.on{display:block}
+#exibir .ct{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+#exibir .ct b{font-family:'Barlow Condensed';font-weight:800;font-size:14px;text-transform:uppercase;letter-spacing:.4px;color:var(--azul-esc)}
+html[data-tema="escuro"] #exibir .ct b{color:var(--teal)}
+#exibir .ct button{border:0;background:var(--bg3);color:var(--text3);width:24px;height:24px;border-radius:6px;cursor:pointer;font-size:15px;line-height:1}
+#exibir .ck{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;padding:5px 0;cursor:pointer}
+#exibir .ck input{width:16px;height:16px;accent-color:#2e86de}
+#exibir .ck.dis{opacity:.5;cursor:default}
+#exibir small{color:var(--text4);font-weight:500}
+#exibir .fx{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
+#exibir .fx span{font-size:12px;font-weight:700;color:var(--text3);margin-right:2px}
+#exibir .fd{width:24px;height:24px;border-radius:6px;border:1px solid var(--border);cursor:pointer;padding:0}
+#exibir .fd.on{outline:2px solid #2e86de;outline-offset:1px}
+#fundo-cor{width:30px;height:26px;border:0;padding:0;background:none;cursor:pointer}
+#legenda{position:absolute;left:12px;bottom:12px;max-width:290px;max-height:46%;display:none;flex-direction:column;
+  background:color-mix(in srgb,var(--sup) 94%,transparent);border:1px solid var(--border2);border-radius:12px;box-shadow:0 6px 20px var(--sombra);z-index:2;overflow:hidden}
+#legenda.on{display:flex}
+#legenda .lh{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 10px}
+#legenda .lh b{font-family:'Barlow Condensed';font-weight:800;font-size:13.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--azul-esc)}
+html[data-tema="escuro"] #legenda .lh b{color:var(--teal)}
+#legenda .lh button{border:0;background:var(--bg3);color:var(--text3);width:22px;height:22px;border-radius:6px;cursor:pointer;font-size:14px;line-height:1}
+#legenda .lc{overflow:auto;padding:0 8px 8px}
+#legenda.min .lc{display:none}
+#legenda .ld{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text4);margin:6px 2px 3px}
+#legenda .li{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;color:var(--text);font:inherit;font-size:12px;
+  font-weight:600;text-align:left;padding:4px 4px;border-radius:6px;cursor:pointer}
+#legenda .li:hover{background:var(--hover)}
+#legenda .li i{width:22px;height:12px;border-radius:3px;border:1px solid rgba(0,0,0,.35);flex:none}
+#legenda .li small{margin-left:auto;color:var(--text4);font-weight:600}
 /* ---------- CELULAR ---------- */
 .so-mob{display:none}
 #drone-pad{position:absolute;right:14px;bottom:14px;z-index:3;display:none;grid-template-columns:repeat(3,52px);grid-template-rows:repeat(3,52px);gap:6px;
@@ -200,6 +231,8 @@ body.drone #drone-pad{display:grid}
   .barra .bt{flex:none;padding:7px 10px;font-size:12px}
   #props{left:6px;right:6px;width:auto;top:auto !important;bottom:6px;max-height:50%}
   #corte,#raiox{left:6px;right:6px;width:auto}
+  #exibir{left:6px;right:6px;width:auto}
+  #legenda{left:6px;bottom:6px;max-width:70%;max-height:38%}
   #corte{bottom:6px}
   #drone-dica{bottom:auto;top:52px;font-size:11px;padding:5px 9px}
   #drone-dica .tec{display:none}
@@ -254,6 +287,7 @@ body.drone #drone-pad{display:grid}
       <button class="bt" id="b-enquadrar" title="Enquadrar a seleção (ou o modelo inteiro)">Enquadrar<kbd>F</kbd></button>
       <button class="bt" id="b-limpar" title="Limpar a seleção">Limpar<kbd>Esc</kbd></button>
       <button class="bt" id="b-raiox" title="Deixa a arquitetura (ou as disciplinas que você escolher) transparente para conferir incompatibilidades">Raio-X<kbd>R</kbd></button>
+      <button class="bt" id="b-exibir" title="Fundo, móveis, portas, cores do projeto e legenda">👁 Exibir</button>
       <button class="bt" id="b-corte" title="Cortar o 3D (planta, cortes) e escolher a vista da câmera">✂ Corte e vistas<kbd>C</kbd></button>
       <button class="bt" id="b-medir" title="Clique em dois pontos para medir a distância">📏 Medir<kbd>D</kbd></button>
       <button class="bt" id="b-drone" title="Andar livremente pela casa (primeira pessoa)">🚁 Drone</button>
@@ -291,6 +325,8 @@ body.drone #drone-pad{display:grid}
       <button class="a" data-k="a">◀</button><button class="ru" data-k="shift">rápido</button><button class="d" data-k="d">▶</button>
       <button class="s" data-k="s">▼</button>
     </div>
+    <div id="exibir"></div>
+    <div id="legenda"></div>
     <div id="medidas"></div>
     <div id="info3d"></div>
     <div id="vazio" style="display:none">
@@ -375,6 +411,6 @@ window.MODELO3D_ENDPOINT = async function (obraId) {
   return { ok: true, titulo: r.titulo, arquivos: r.arquivos, obter: (a, prog) => baixarModelo3d(obraId, a, prog) };
 };
 </script>
-<script src="js/visualizador-3d.js?v=5"></script>
+<script src="js/visualizador-3d.js?v=6"></script>
 </body>
 </html>
