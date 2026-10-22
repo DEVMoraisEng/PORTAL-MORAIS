@@ -2166,14 +2166,14 @@ function renderCasasModelo(){
 /* ---------- CASAS LIBERADAS SEM TIPO (22/10/26) ----------
    "Liberada" = mesma regra do mapa de vendas (SITE-DE-VENDAS): a casa sai do
    "em breve" quando o VALOR NA MÃO é preenchido. Sem TIPO, o mapa não consegue
-   ligar a casa à casa modelo (fotos, layout, localização). Entra aqui toda casa
-   com VALOR NA MÃO e TIPO vazio, vendida ou não. Ao preencher o TIPO a linha
-   sai da lista. */
+   ligar a casa à casa modelo (fotos, layout, localização). Entra aqui a casa
+   com VALOR NA MÃO e TIPO vazio que AINDA NÃO FOI VENDIDA (22/10: vendida não
+   precisa aparecer). Ao preencher o TIPO a linha sai da lista. */
 const COLS_SEMTIPO=["ENDEREÇO","CASA","TIPO"];
 function vazioSt(x){ return x==null || x==="" || (Array.isArray(x)&&!x.length); }
-function ehLiberadaSemTipo(valores){
-  const cTipo=campoExatoOuFrag("TIPO");
-  return !vazioSt(getV(valores,"VALOR NA MÃO")) && (!cTipo || vazioSt(getV(valores,cTipo.nome)));
+function ehLiberadaSemTipo(rec){
+  const valores=rec.valores, cTipo=campoExatoOuFrag("TIPO");
+  return !temCliente(rec) && !vazioSt(getV(valores,"VALOR NA MÃO")) && (!cTipo || vazioSt(getV(valores,cTipo.nome)));
 }
 async function abrirSemTipo(){
   if(!DADOS.hub.length && !DADOS.set.length){ await carregarPlanilha("set"); }
@@ -2185,11 +2185,11 @@ function renderSemTipo(){
   if(cols.length<COLS_SEMTIPO.length){ wrap.innerHTML='<div class="vazio">Schema ainda não carregado.</div>'; return; }
   const busca=(document.getElementById("stp-busca").value||"").toLowerCase();
   const lista=(DADOS.hub.length?DADOS.hub:DADOS.set).filter(v=>
-    ehLiberadaSemTipo(v.valores) &&
+    ehLiberadaSemTipo(v) &&
     (!busca || String(getV(v.valores,"ENDEREÇO")||"").toLowerCase().indexOf(busca)>=0));
   document.getElementById("stp-count").textContent=lista.length+" casa(s) liberada(s) sem tipo";
   if(!lista.length){
-    wrap.innerHTML=`<div class="vazio">${busca?"Nenhuma casa para esta busca.":"Todas as casas liberadas no mapa já têm TIPO. 🎉"}</div>`;
+    wrap.innerHTML=`<div class="vazio">${busca?"Nenhuma casa para esta busca.":"Nenhuma casa liberada no mapa (e ainda não vendida) está sem TIPO. 🎉"}</div>`;
     DADOS.stp=[]; return;
   }
   let html='<table><thead><tr>'+cols.map((c,i)=>thCol(c,i,"stp")).join("")+'</tr></thead><tbody>';
