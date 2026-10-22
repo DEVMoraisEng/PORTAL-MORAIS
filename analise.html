@@ -285,6 +285,7 @@ section > .sec:first-child{margin-top:0}
         <button class="tab on" data-tab="principal" onclick="trocarTab('principal')">Visão Geral</button>
         <button class="tab" data-tab="obra" onclick="trocarTab('obra')">Por Obra / Grupo</button>
         <button class="tab" data-tab="insumos" onclick="trocarTab('insumos')">Todos os Insumos</button>
+        <button class="tab" data-tab="historico" onclick="trocarTab('historico')">Histórico por Insumo</button>
         <button class="tab" data-tab="curva" onclick="trocarTab('curva')">Curva ABC</button>
       </div></div>
 
@@ -429,6 +430,61 @@ section > .sec:first-child{margin-top:0}
             </div>
           </div>
           <div id="t-insumos" class="tbl-wrap alta"></div>
+        </div>
+      </section>
+
+      <!-- ==================== ABA HISTÓRICO POR INSUMO (22/10/26) ==================== -->
+      <section id="tab-historico" class="hide">
+        <div class="sec"><span class="cond">Histórico por insumo</span></div>
+        <div class="card">
+          <h3>Quanto cada obra costuma pedir</h3>
+          <p class="desc">Para cada insumo: quantas obras pediram, a <b>média</b> e a <b>moda</b> (a quantidade
+            que mais se repete) do que foi <b>pedido por obra</b> (realizado), ao lado da média que tinha sido
+            <b>orçada</b> nessas mesmas obras. Só entram as obras que pediram o insumo. Obra finalizada =
+            <b>OBRA FINALIZADA?</b> = SIM no banco DOCUMENTOS (casado pelo endereço).
+            Clique no insumo para ver obra a obra.</p>
+          <div class="filtros">
+            <div class="fcampo">
+              <label>Obras</label>
+              <select id="hist-base" onchange="renderHistorico()">
+                <option value="fin">Só finalizadas (DOCUMENTOS)</option>
+                <option value="todas">Todas as obras</option>
+              </select>
+            </div>
+            <div class="fcampo">
+              <label>Início da obra</label>
+              <select id="hist-periodo" onchange="aoTrocarPeriodoHist()">
+                <option value="">Qualquer data</option>
+                <option value="4">Iniciadas há mais de 4 meses</option>
+                <option value="6">Iniciadas há mais de 6 meses</option>
+                <option value="12">Iniciadas há mais de 12 meses</option>
+                <option value="intervalo">Intervalo…</option>
+              </select>
+            </div>
+            <div class="fcampo hide" id="hist-de-cx">
+              <label>De</label>
+              <input type="date" id="hist-de" onchange="renderHistorico()">
+            </div>
+            <div class="fcampo hide" id="hist-ate-cx">
+              <label>Até</label>
+              <input type="date" id="hist-ate" onchange="renderHistorico()">
+            </div>
+            <div class="fcampo">
+              <label>Mín. de obras</label>
+              <select id="hist-min" onchange="renderHistorico()">
+                <option value="1">1</option>
+                <option value="3">3</option>
+                <option value="5">5</option>
+                <option value="10">10</option>
+              </select>
+            </div>
+            <div class="fcampo">
+              <label>Buscar insumo</label>
+              <input type="text" id="busca-hist" placeholder="nome do insumo…" oninput="renderHistorico()">
+            </div>
+          </div>
+          <p class="desc" id="hist-info"></p>
+          <div id="t-hist" class="tbl-wrap alta"></div>
         </div>
       </section>
 
@@ -1428,11 +1484,188 @@ function renderCurvaAbc(){
 }
 
 /* ---------- abas ---------- */
+/* ==================== ABA HISTÓRICO POR INSUMO (22/10/26) ====================
+   Pedido: média e moda históricas da quantidade PEDIDA por obra de cada
+   insumo, para acertar mais nos orçamentos, olhando de preferência só as
+   obras já terminadas (obra em andamento ainda não pediu tudo e puxa a média
+   para baixo).
+
+   - "Pedido" = qtd_realizada do Orçado x Realizado. O mesmo insumo pode vir
+     em várias ETAPAS da mesma obra: soma por obra antes de calcular (mesma
+     regra do modal "obras que usam este insumo").
+   - Só entram as obras que pediram o insumo (pedido > 0). A média orçada é
+     das MESMAS obras, para a comparação ser justa.
+   - Moda: quantidade arredondada a 2 casas que mais se repete. Se nenhuma
+     se repete, não há moda ("—"). Empate: fica a menor.
+   - Obra finalizada: OBRA FINALIZADA? começando por SIM (SIM / SIM SEM
+     PRAZO) no banco DOCUMENTOS (dist/docs.json), casado pelo ENDEREÇO. A
+     data de início vem de DATA DE INÍCIO DA OBRA, do mesmo banco. Obra do
+     ERP sem cadastro no DOCUMENTOS (condomínios, escritório, reforma) só
+     entra em "Todas as obras" sem filtro de data.
+   Tudo roda no navegador, com o analise_detalhe.json que a tela já usa. */
+let HIST_DOCS=null, _histDocsProm=null, ordHist={col:"obras",dir:-1};
+function normEnd(s){
+  return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase()
+    .replace(/[^A-Z0-9]+/g," ").replace(/\b0+(\d)/g,"$1").trim();   // "LT 08-11" = "LT 8-11"
+}
+async function carregarDocsObras(){
+  if(HIST_DOCS) return HIST_DOCS;
+  if(_histDocsProm) return _histDocsProm;
+  _histDocsProm=(async()=>{
+    try{
+      const r=await fetch("dist/docs.json?v="+Math.floor(Date.now()/600000),{cache:"no-cache"});
+      if(!r.ok) throw new Error("HTTP "+r.status);
+      const j=await r.json(), mapa={};
+      (j.obras||[]).forEach(o=>{
+        const v=o.valores||{};
+        const fin=String(getV(v,"OBRA FINALIZADA?")||"").trim().toUpperCase();
+        mapa[normEnd(getV(v,"ENDEREÇO"))]={
+          fin: fin.indexOf("SIM")===0, finTxt: fin||"—",
+          inicio: getV(v,"DATA DE INÍCIO DA OBRA") ? String(getV(v,"DATA DE INÍCIO DA OBRA")).slice(0,10) : null,
+          termino: getV(v,"DATA DE TÉRMINO DE OBRA") ? String(getV(v,"DATA DE TÉRMINO DE OBRA")).slice(0,10) : null
+        };
+      });
+      HIST_DOCS=mapa; return mapa;
+    }catch(e){ console.warn("docs.json indisponível:", e); return null; }
+    finally{ _histDocsProm=null; }
+  })();
+  return _histDocsProm;
+}
+async function carregarHistorico(){
+  const box=document.getElementById("t-hist");
+  if(!DET_TUDO || !HIST_DOCS) box.innerHTML='<div class="vazio"><span class="load"></span> Carregando o histórico das obras…</div>';
+  const [j,docs]=await Promise.all([carregarDetalheEstatico(), carregarDocsObras()]);
+  if(!j){ box.innerHTML='<div class="vazio">Não foi possível carregar o detalhe das obras.</div>'; return; }
+  if(!docs){
+    document.getElementById("hist-base").value="todas";
+    document.getElementById("hist-base").disabled=true;
+  }
+  renderHistorico();
+}
+function aoTrocarPeriodoHist(){
+  const iv=document.getElementById("hist-periodo").value==="intervalo";
+  document.getElementById("hist-de-cx").classList.toggle("hide",!iv);
+  document.getElementById("hist-ate-cx").classList.toggle("hide",!iv);
+  renderHistorico();
+}
+function isoMesesAtras(n){
+  const d=new Date(); d.setMonth(d.getMonth()-n);
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+function calcularHistorico(){
+  const j=DET_TUDO, p=detPos(j), docs=HIST_DOCS||{};
+  const base=document.getElementById("hist-base").value;
+  const per=document.getElementById("hist-periodo").value;
+  let de=null, ate=null;
+  if(per==="intervalo"){ de=document.getElementById("hist-de").value||null; ate=document.getElementById("hist-ate").value||null; }
+  else if(per){ ate=isoMesesAtras(Number(per)); }
+
+  // quais obras entram
+  const entra=j.obras.map(o=>{
+    const d=docs[normEnd(o[1])];
+    if(base==="fin" && !(d && d.fin)) return false;
+    if(de||ate){
+      if(!d || !d.inicio) return false;
+      if(de && d.inicio<de) return false;
+      if(ate && d.inicio>ate) return false;
+    }
+    return true;
+  });
+  const nObras=entra.filter(Boolean).length;
+
+  // soma por insumo x obra
+  const grupos=new Map();
+  for(let i=0;i<j.linhas.length;i++){
+    const l=j.linhas[i], oi=l[p.obra];
+    if(!entra[oi]) continue;
+    const k=normNome(l[p.insumo])+"|"+normNome(l[p.unidade]);
+    let g=grupos.get(k);
+    if(!g){ g={insumo:l[p.insumo], unidade:l[p.unidade], porObra:new Map()}; grupos.set(k,g); }
+    const e=g.porObra.get(oi)||{o:0,r:0};
+    e.o+=Number(l[p.qtd_orcada])||0; e.r+=Number(l[p.qtd_realizada])||0;
+    g.porObra.set(oi,e);
+  }
+
+  const out=[];
+  grupos.forEach(g=>{
+    const pedidas=[...g.porObra.values()].filter(e=>e.r>0);
+    if(!pedidas.length) return;
+    const n=pedidas.length;
+    const soma=pedidas.reduce((a,e)=>a+e.r,0), somaO=pedidas.reduce((a,e)=>a+e.o,0);
+    const freq=new Map();
+    pedidas.forEach(e=>{ const q=Math.round(e.r*100)/100; freq.set(q,(freq.get(q)||0)+1); });
+    let moda=null, modaN=0;
+    freq.forEach((c,q)=>{ if(c>modaN || (c===modaN && q<moda)){ moda=q; modaN=c; } });
+    if(modaN<2){ moda=null; modaN=0; }
+    const media=soma/n, mediaOrc=somaO/n;
+    out.push({ insumo:g.insumo, unidade:g.unidade, obras:n, media, moda, modaN,
+      min:Math.min(...pedidas.map(e=>e.r)), max:Math.max(...pedidas.map(e=>e.r)),
+      media_orc:mediaOrc, dif_pct: mediaOrc>0 ? (media-mediaOrc)/mediaOrc*100 : null });
+  });
+  return { lista:out, nObras, totalObras:j.obras.length };
+}
+function renderHistorico(){
+  const box=document.getElementById("t-hist");
+  if(!DET_TUDO){ carregarHistorico(); return; }
+  const r=calcularHistorico();
+  const termo=(document.getElementById("busca-hist").value||"").toLowerCase();
+  const minO=Number(document.getElementById("hist-min").value)||1;
+  let arr=r.lista.filter(m=>m.obras>=minO && (!termo || String(m.insumo).toLowerCase().includes(termo)));
+
+  const base=document.getElementById("hist-base").value;
+  document.getElementById("hist-info").innerHTML=
+    `Base: <b>${r.nObras}</b> de ${r.totalObras} obras`+
+    (base==="fin"?" (finalizadas no DOCUMENTOS)":"")+
+    ` · <b>${arr.length}</b> insumo(s) listado(s)`+
+    (r.nObras<3?" · <b>poucas obras nesta base — média e moda ainda pouco confiáveis</b>":"");
+
+  const c=ordHist.col, d=ordHist.dir;
+  arr.sort((a,b)=>{
+    let va=a[c], vb=b[c];
+    if(typeof va==="string"||typeof vb==="string") return String(va||"").localeCompare(String(vb||""),"pt-BR")*d;
+    if(va==null) return 1; if(vb==null) return -1;   // sem moda / sem orçado: sempre no fim
+    return (va-vb)*d;
+  });
+
+  const cols=[
+    ["insumo","Insumo",false],["unidade","Un",false],["obras","Obras que pediram",true],
+    ["media","Média pedida / obra",true],["moda","Moda pedida / obra",true],
+    ["min","Mín",true],["max","Máx",true],
+    ["media_orc","Média orçada / obra",true],["dif_pct","Pedido × orçado",true]
+  ];
+  let h='<table><thead><tr>';
+  cols.forEach(([k,rot,n])=>{
+    const s=ordHist.col===k?(ordHist.dir<0?"sortD":"sortA"):"";
+    const ico=ordHist.col===k?(ordHist.dir<0?"▼":"▲"):"↕";
+    h+=`<th class="${s}" style="${n?'text-align:right':''}" onclick="sortHistorico('${k}')">${rot}<span class="arr">${ico}</span></th>`;
+  });
+  h+='</tr></thead><tbody>';
+  if(!arr.length) h+=`<tr><td colspan="${cols.length}" style="text-align:center;color:var(--text3);padding:22px">Nada encontrado com estes filtros.</td></tr>`;
+  arr.forEach(m=>{
+    h+=`<tr><td class="insumo link" title="Ver em quais obras" onclick="verObrasDoInsumo(this.dataset.i)" data-i="${esc(m.insumo)}">${esc(m.insumo)}</td>`+
+       `<td class="col-un">${esc(m.unidade||"")}</td>`+
+       `<td class="num">${fmtNum(m.obras)}</td>`+
+       `<td class="num"><b>${fmtNum(m.media)}</b></td>`+
+       `<td class="num">${m.moda==null?'<span title="Nenhuma quantidade se repetiu" style="color:var(--text3)">—</span>'
+                         :`<b>${fmtNum(m.moda)}</b> <span style="color:var(--text3);font-size:11px">(${m.modaN} obras)</span>`}</td>`+
+       `<td class="num">${fmtNum(m.min)}</td><td class="num">${fmtNum(m.max)}</td>`+
+       `<td class="num">${fmtNum(m.media_orc)}</td>`+
+       `<td class="num">${m.dif_pct==null?"—":pctPill(m.dif_pct)}</td></tr>`;
+  });
+  box.innerHTML=h+'</tbody></table>';
+  atualizarScrollsTopo();
+}
+function sortHistorico(col){
+  if(ordHist.col===col) ordHist.dir*=-1; else { ordHist.col=col; ordHist.dir=(col==="insumo"||col==="unidade")?1:-1; }
+  renderHistorico();
+}
+
 function trocarTab(nome){
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t.dataset.tab===nome));
-  ["principal","obra","insumos","curva"].forEach(n=>
+  ["principal","obra","insumos","historico","curva"].forEach(n=>
     document.getElementById("tab-"+n).classList.toggle("hide", n!==nome));
   if(nome==="insumos") carregarInsumos();
+  if(nome==="historico") carregarHistorico();
   if(nome==="curva") carregarCurvaAbc();
 }
 
