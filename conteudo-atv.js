@@ -205,14 +205,32 @@
       const r=await pedir({action:"obraAtvArquivos",pageId:st.pageId,ids:falta.slice(i,i+25)},45000);
       if(r&&r.ok) Object.keys(r.arquivos||{}).forEach(id=>{ URLS[id]=Object.assign({t:Date.now()},r.arquivos[id]); });
     }
+    let faltou=false;
     st.el.querySelectorAll("[data-arq]").forEach(x=>{
-      const a=URLS[x.dataset.arq]; if(!a){ x.textContent="📎 arquivo (abra no Notion)"; return; }
+      const a=URLS[x.dataset.arq];
+      /* 22/10: sem endereço = botão que busca na hora e abre (e nova tentativa automática) */
+      if(!a){ faltou=true; if(!x._tentou){ x._tentou=1; x.innerHTML=`<button type="button" class="bt bt-mini ghost" data-abrir-arq="${e(x.dataset.arq)}">📎 abrir arquivo</button>`; } return; }
       if(x._ok===a.url) return; x._ok=a.url;
       const tipo=a.tipo||x.dataset.tipo, tb=x.dataset.de?`<button type="button" class="bt bt-mini ghost" data-tirar="${e(x.dataset.arq)}" data-de="${e(x.dataset.de)}">🗑 tirar</button>`:"";
       x.innerHTML=(tipo==="image"?`<a href="${e(a.url)}" target="_blank" rel="noopener" title="Abrir a foto"><img src="${e(a.url)}" alt="${e(a.nome||"foto")}" loading="lazy"></a>`
         :tipo==="video"?`<video src="${e(a.url)}" controls preload="metadata" playsinline></video><a href="${e(a.url)}" target="_blank" rel="noopener">⬇ baixar o vídeo</a>`
         :`<a href="${e(a.url)}" target="_blank" rel="noopener">📎 ${e(a.nome||"arquivo")}</a>`)+tb;
     });
+    st._arqN=st._arqN||0;
+    if(faltou && st._arqN<2 && !st._arqT){ st._arqT=setTimeout(()=>{ st._arqT=null; st._arqN++; arquivos(st); }, st._arqN?20000:6000); }
+  }
+  async function abrirArq(st,btn,id){
+    btn.disabled=true; btn.textContent="⏳ buscando o arquivo…";
+    let r=null;
+    for(let k=0;k<2&&!(r&&r.ok&&r.arquivos&&r.arquivos[id]);k++){
+      if(k) await new Promise(ok=>setTimeout(ok,2500));
+      r=await pedir({action:"obraAtvArquivos",pageId:st.pageId,ids:[id]},45000);
+    }
+    const a=r&&r.ok&&r.arquivos&&r.arquivos[id];
+    if(!a){ btn.disabled=false; btn.textContent="⚠ não consegui ("+(r&&r.ok?"o Notion ainda não liberou o arquivo":errTxt(r))+") — tentar de novo"; return; }
+    URLS[id]=Object.assign({t:Date.now()},a);
+    window.open(a.url,"_blank","noopener");
+    arquivos(st);
   }
   function aviso(t){ try{ if(typeof toast==="function") return toast(t); }catch(x){} alert(t); }
   function ligar(st){
@@ -220,7 +238,9 @@
     st.el.addEventListener("change",ev=>{ const s=st.el._ca; if(!s||s.ro) return;
       const t=ev.target; if(t.matches("[data-chk]")) marcar(s,t); else if(t.matches("[data-anx-de]")) anexar(s,t); });
     st.el.addEventListener("focusout",ev=>{ const s=st.el._ca; if(!s||s.ro) return; if(ev.target.matches("textarea[data-depois]")) salvarResp(s,ev.target); });
-    st.el.addEventListener("click",ev=>{ const s=st.el._ca; const b=ev.target.closest("[data-tirar]"); if(s&&b&&!s.ro) tirar(s,b.dataset.de,b.dataset.tirar); });
+    st.el.addEventListener("click",ev=>{ const s=st.el._ca;
+      const ab=ev.target.closest("[data-abrir-arq]"); if(s&&ab){ abrirArq(s,ab,ab.dataset.abrirArq); return; }
+      const b=ev.target.closest("[data-tirar]"); if(s&&b&&!s.ro) tirar(s,b.dataset.de,b.dataset.tirar); });
   }
   async function montar(el,pageId,opts){
     if(!el||!pageId) return; css(); opts=opts||{};

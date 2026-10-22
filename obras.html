@@ -1457,6 +1457,25 @@ function anexarResp(inp,respId){
 }
 /* endereço das fotos/vídeos (o do Notion vence em 1 h: guarda 50 min) */
 const ARQ_URL={};
+/* 22/10: anexo cujo endereço não veio (servidor ocupado, arquivo recém-
+   enviado ainda processando no Notion) não fica mais parado em "abra no
+   Notion": a tela tenta de novo sozinha (6 s, 20 s) e o próprio anexo vira um
+   botão "📎 abrir arquivo" que busca o endereço na hora e abre. */
+let _arqRetry={pid:null,n:0,t:null};
+async function abrirArqFalhou(btn,id){
+  const pid=ATV; if(!pid) return;
+  btn.disabled=true; btn.textContent="⏳ buscando o arquivo…";
+  let r=null;
+  for(let k=0;k<2&&!(r&&r.ok&&r.arquivos&&r.arquivos[id]);k++){
+    if(k) await new Promise(ok=>setTimeout(ok,2500));
+    try{ r=await chamar({action:"obraAtvArquivos",pageId:pid,ids:[id]},45000); }catch(e){ r={ok:false,erro:"sem conexão"}; }
+  }
+  const a=r&&r.ok&&r.arquivos&&r.arquivos[id];
+  if(!a){ btn.disabled=false; btn.textContent="⚠ não consegui ("+(r&&r.ok?"o Notion ainda não liberou o arquivo":errMsg(r))+") — tentar de novo"; return; }
+  ARQ_URL[id]=Object.assign({t:Date.now()},a);
+  window.open(a.url,"_blank","noopener");
+  carregarArquivos();
+}
 async function carregarArquivos(){
   const els=[...document.querySelectorAll("#p2-cont [data-arq]")]; if(!els.length||!ATV) return;
   const pid=ATV, falta=[...new Set(els.map(e=>e.dataset.arq).filter(id=>!(ARQ_URL[id]&&Date.now()-ARQ_URL[id].t<50*60000)))];
@@ -1465,14 +1484,21 @@ async function carregarArquivos(){
     if(r&&r.ok) Object.keys(r.arquivos||{}).forEach(id=>{ ARQ_URL[id]=Object.assign({t:Date.now()},r.arquivos[id]); });
   }
   if(ATV!==pid) return;
+  let faltou=false;
   document.querySelectorAll("#p2-cont [data-arq]").forEach(e=>{
-    const a=ARQ_URL[e.dataset.arq]; if(!a){ if(!e._tentou){ e._tentou=1; e.textContent="📎 arquivo (abra no Notion)"; } return; }
+    const a=ARQ_URL[e.dataset.arq];
+    if(!a){ if(!e._tentou){ e._tentou=1; e.innerHTML=`<button type="button" class="bt bt-mini ghost" title="Buscar o endereço do arquivo e abrir" onclick="abrirArqFalhou(this,'${esc(e.dataset.arq)}')">📎 abrir arquivo</button>`; } faltou=true; return; }
     if(e._ok===a.url) return; e._ok=a.url;
     const tipo=a.tipo||e.dataset.tipo, tirar=e.dataset.de?`<button type="button" class="bt bt-mini ghost" title="Tirar este anexo" onclick="tirarAnexo('${esc(e.dataset.de)}','${esc(e.dataset.arq)}')">🗑 tirar</button>`:"";
     e.innerHTML=(tipo==="image"?`<a href="${esc(a.url)}" target="_blank" rel="noopener" title="Abrir a foto"><img src="${esc(a.url)}" alt="${esc(a.nome||"foto")}" loading="lazy"></a>`
       :tipo==="video"?`<video src="${esc(a.url)}" controls preload="metadata" playsinline></video><a href="${esc(a.url)}" target="_blank" rel="noopener">⬇ baixar o vídeo</a>`
       :`<a href="${esc(a.url)}" target="_blank" rel="noopener">📎 ${esc(a.nome||"arquivo")}</a>`)+tirar;
   });
+  /* faltou algum endereço: tenta de novo sozinho, duas vezes */
+  if(_arqRetry.pid!==pid) _arqRetry={pid:pid,n:0,t:null};
+  if(faltou && _arqRetry.n<2 && !_arqRetry.t){
+    _arqRetry.t=setTimeout(()=>{ _arqRetry.t=null; _arqRetry.n++; if(ATV===pid) carregarArquivos(); }, _arqRetry.n?20000:6000);
+  }
 }
 async function tirarAnexo(respId,id){
   if(!confirm("Tirar este anexo da resposta?")) return;
