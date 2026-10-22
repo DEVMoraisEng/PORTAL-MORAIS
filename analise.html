@@ -991,7 +991,10 @@ function normNome(s){
   return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"")
     .toUpperCase().replace(/\s+/g," ").trim();
 }
-async function verObrasDoInsumo(nome){
+/* 22/10: "soObras" (Set de endereços normalizados) — vindo do Histórico por
+   Insumo, o modal mostra só as obras da base filtrada (setor, nº de casas,
+   condomínio, finalizadas, início), e não todas as obras do ERP. */
+async function verObrasDoInsumo(nome, soObras){
   if(!nome) return;
   const ov = document.getElementById("ins-ov");
   document.getElementById("ins-tit").textContent = nome;
@@ -1023,10 +1026,12 @@ async function verObrasDoInsumo(nome){
     body.innerHTML = '<div class="vazio">Não consegui buscar: <b>'+esc(r&&r.erro||"erro")+'</b>'+det+'</div>';
     return;
   }
-  const l = r.obras || [];
-  if(!l.length){ body.innerHTML = '<div class="vazio">Nenhuma obra encontrada.</div>'; return; }
+  const l = soObras ? (r.obras || []).filter(o => soObras.has(normEnd(o.obra_nome))) : (r.obras || []);
+  if(!l.length){ body.innerHTML = '<div class="vazio">Nenhuma obra encontrada'+(soObras?' com os filtros do histórico':'')+'.</div>'; return; }
+  const pediram = l.filter(o => (Number(o.qtd_realizada)||0) > 0).length;
   document.getElementById("ins-sub").textContent =
-    l.length + (l.length===1 ? " obra usa este insumo" : " obras usam este insumo");
+    l.length + (l.length===1 ? " obra usa este insumo" : " obras usam este insumo") +
+    (soObras ? " · só as obras dos filtros do histórico (" + pediram + " pediram)" : "");
   const qtd = (MODO === "qtd");
   let h = '<div class="tbl-wrap"><table><thead><tr><th>Obra</th>'+
     (qtd ? '<th class="col-num">Qtd orçada</th><th class="col-num">Qtd realizada</th><th class="col-num">Dif</th>'
@@ -1520,7 +1525,7 @@ function renderCurvaAbc(){
      ERP sem cadastro no DOCUMENTOS (condomínios, escritório, reforma) só
      entra em "Todas as obras" sem filtro de data.
    Tudo roda no navegador, com o analise_detalhe.json que a tela já usa. */
-let HIST_DOCS=null, _histDocsProm=null, ordHist={col:"obras",dir:-1};
+let HIST_DOCS=null, _histDocsProm=null, ordHist={col:"obras",dir:-1}, HIST_BASE_NOMES=null;
 function normEnd(s){
   return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase()
     .replace(/[^A-Z0-9]+/g," ").replace(/\b0+(\d)/g,"$1").trim();   // "LT 08-11" = "LT 8-11"
@@ -1620,6 +1625,7 @@ function calcularHistorico(){
     return true;
   });
   const nObras=entra.filter(Boolean).length;
+  HIST_BASE_NOMES=new Set(j.obras.filter((o,i)=>entra[i]).map(o=>normEnd(o[1])));   // 22/10: o modal do insumo usa a mesma base
 
   // soma por insumo x obra
   const grupos=new Map();
@@ -1693,7 +1699,7 @@ function renderHistorico(){
   h+='</tr></thead><tbody>';
   if(!arr.length) h+=`<tr><td colspan="${cols.length}" style="text-align:center;color:var(--text3);padding:22px">Nada encontrado com estes filtros.</td></tr>`;
   arr.forEach(m=>{
-    h+=`<tr><td class="insumo link" title="Ver em quais obras" onclick="verObrasDoInsumo(this.dataset.i)" data-i="${esc(m.insumo)}">${esc(m.insumo)}</td>`+
+    h+=`<tr><td class="insumo link" title="Ver em quais obras (só as dos filtros acima)" onclick="verObrasDoInsumo(this.dataset.i, HIST_BASE_NOMES)" data-i="${esc(m.insumo)}">${esc(m.insumo)}</td>`+
        `<td class="col-un">${esc(m.unidade||"")}</td>`+
        `<td class="num">${fmtNum(m.obras)}</td>`+
        `<td class="num"><b>${fmtNum(m.media)}</b></td>`+
