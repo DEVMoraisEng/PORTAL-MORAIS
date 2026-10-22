@@ -3405,18 +3405,26 @@ function propPerfilHtml(campos){
   campos=campos||{};
   const ach=(re)=>{ const k=Object.keys(campos).find(k=>re.test(PROP_NORM(k))); return k?campos[k]:""; };
   const brl=v=>{ const n=Number(String(v||"").replace(/[^\d,.-]/g,"").replace(/\.(?=\d{3})/g,"").replace(",",".")); return isNaN(n)||!n ? (v||"—") : simBRL(n); };
+  /* 22/10 — idade (data de nascimento da coluna do Notion ou do DADOS da proposta) */
+  let dd={}; try{ dd=JSON.parse(campos["DADOS"]||"{}")||{}; }catch(e){ dd={}; }
+  const idade=(v)=>{ const t=String(v||"").trim(); let a,m,d;
+    let x=t.match(/^(\d{4})-(\d{2})-(\d{2})/); if(x){ a=+x[1]; m=+x[2]; d=+x[3]; }
+    else { x=t.match(/^(\d{2})\/(\d{2})\/(\d{4})/); if(x){ d=+x[1]; m=+x[2]; a=+x[3]; } }
+    if(!a) return "—";
+    const h=new Date(), n=h.getFullYear()-a-((h.getMonth()+1<m||(h.getMonth()+1===m&&h.getDate()<d))?1:0);
+    return (n>=0&&n<130) ? n+" anos" : "—"; };
   const linhas=[];
-  linhas.push(["Proponente", ach(/^CLIENTE$/), ach(/^PROFISSAO$/), ach(/^ORIGEM (DA )?RENDA$/), brl(ach(/^RENDA( APROVADA| TITULAR)?$/)), ach(/^ESTADO CIVIL$/), ach(/^REGIME( DE BENS)?$/)]);
+  linhas.push(["Proponente", ach(/^CLIENTE$/), idade(ach(/^DATA (DE )?NASCIMENTO$/)||dd.dataNascimento), ach(/^PROFISSAO$/), ach(/^ORIGEM (DA )?RENDA$/), brl(ach(/^RENDA( APROVADA| TITULAR)?$/)), ach(/^ESTADO CIVIL$/), ach(/^REGIME( DE BENS)?$/)]);
   const conj=ach(/^CONJUGE$/);
-  if(conj) linhas.push(["Cônjuge", conj, ach(/^PROFISSAO CONJUGE$/), ach(/^ORIGEM (DA )?RENDA CONJUGE$/), brl(ach(/^RENDA( APROVADA)? CONJUGE$/)), ach(/^ESTADO CIVIL$/), ach(/^REGIME( DE BENS)?$/)]);
-  let deps=[]; try{ const d=JSON.parse(campos["DADOS"]||"{}"); deps=(d.dependentes||d.pessoas||[]); }catch(e){}
+  if(conj) linhas.push(["Cônjuge", conj, idade(ach(/^DATA (DE )?NASCIMENTO (DO |DA )?CONJUGE$/)||dd.dataNascimentoConjuge), ach(/^PROFISSAO CONJUGE$/), ach(/^ORIGEM (DA )?RENDA CONJUGE$/), brl(ach(/^RENDA( APROVADA)? CONJUGE$/)), ach(/^ESTADO CIVIL$/), ach(/^REGIME( DE BENS)?$/)]);
+  let deps=(dd.dependentes||dd.pessoas||[]);
   (Array.isArray(deps)?deps:[]).forEach((x,i)=>{ if(!x||!x.nome) return;
-    linhas.push([(PROP_NORM(x.tipo)==="COMPRADOR"?"Comprador ":"Dependente ")+(i+1), x.nome, x.profissao||"", x.origemRenda||"", x.renda?brl(x.renda):"—", "", ""]); });
+    linhas.push([(PROP_NORM(x.tipo)==="COMPRADOR"?"Comprador ":"Dependente ")+(i+1), x.nome, idade(x.dataNascimento), x.profissao||"", x.origemRenda||"", x.renda?brl(x.renda):"—", "", ""]); });
   const td='style="padding:6px 8px;border-bottom:1px solid var(--border)"';
   return '<div style="margin:0 0 14px;border:1.5px solid var(--azul);border-radius:10px;padding:10px 12px">'+
     '<b style="font-size:13px;color:var(--azul)">Perfil dos compradores</b>'+
     '<div class="tbl-wrap" style="margin-top:6px"><table style="width:100%;font-size:12.5px"><thead><tr>'+
-    ['','Nome','Profissão','Origem da renda','Renda','Estado civil','Regime de bens'].map(h=>'<th '+td+'>'+h+'</th>').join("")+
+    ['','Nome','Idade','Profissão','Origem da renda','Renda','Estado civil','Regime de bens'].map(h=>'<th '+td+'>'+h+'</th>').join("")+
     '</tr></thead><tbody>'+linhas.map(l=>'<tr>'+l.map((v,k)=>'<td '+td+'>'+(k===0?'<b>'+esc(v)+'</b>':esc(v||"—"))+'</td>').join("")+'</tr>').join("")+
     '</tbody></table></div></div>';
 }
