@@ -42,8 +42,9 @@ jobs:
 
       - name: Rodar a auditoria
         env:
-          MC_API_USUARIO: ${{ secrets.MC_API_USUARIO }}
-          MC_API_SENHA: ${{ secrets.MC_API_SENHA }}
+          # sem os MC_API_*, tenta o login dos robôs (MC_USUARIO/MC_SENHA); se a API recusar, cai nas planilhas
+          MC_API_USUARIO: ${{ secrets.MC_API_USUARIO || secrets.MC_USUARIO }}
+          MC_API_SENHA: ${{ secrets.MC_API_SENHA || secrets.MC_SENHA }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
