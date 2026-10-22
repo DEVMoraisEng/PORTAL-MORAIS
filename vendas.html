@@ -881,6 +881,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
         <button class="tab" data-t="planilha" onclick="abaSetor('planilha')">Planilha Casas de Rua</button>
         <button class="tab" data-t="condominio" onclick="abaSetor('condominio')">Planilha Casas Condomínio</button>
         <button class="tab" data-t="modelo" onclick="abaSetor('modelo')">Casas Modelo</button>
+        <button class="tab" data-t="semtipo" onclick="abaSetor('semtipo')">Casas Liberadas sem Tipo</button>
         <button class="tab" data-t="estoque" onclick="abaSetor('estoque')">Estoque de Casas</button>
         <button class="tab" data-t="vendidas" onclick="abaSetor('vendidas')">Casas Vendidas</button>
       </div></div>
@@ -1030,6 +1031,17 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
         </div>
         <div class="tabela-wrap" id="mod-wrap"><div class="vazio">Carregando…</div></div>
       </div>
+
+      <!-- 22/10/26 — CASAS LIBERADAS SEM TIPO: já saíram do "em breve" no mapa
+           de vendas (VALOR NA MÃO preenchido) e estão com o TIPO vazio. Só
+           endereço, número da casa e o TIPO, que se preenche aqui mesmo. -->
+      <div id="st-semtipo" style="display:none">
+        <div class="toolbar">
+          <input class="busca" type="search" readonly onfocus="this.removeAttribute('readonly')" id="stp-busca" name="q_semtipo" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" placeholder="Buscar por endereço…" oninput="renderSemTipo()">
+          <span class="count" id="stp-count"></span>
+        </div>
+        <div class="tabela-wrap" id="stp-wrap"><div class="vazio">Carregando…</div></div>
+      </div>
     </section>
     <div class="updated"></div>
   </main>
@@ -1129,7 +1141,7 @@ if(SO_LEITURA){
   });
 }
 atualizarStatus(); atualizarBadge();
-let SCHEMA=[], SCAMPO={}, ATIV=[], ATIV_ALL=[], DADOS={hub:[], set:[], mod:[]}, SETOR_ATUAL="Secretária de Vendas";
+let SCHEMA=[], SCAMPO={}, ATIV=[], ATIV_ALL=[], DADOS={hub:[], set:[], mod:[], stp:[]}, SETOR_ATUAL="Secretária de Vendas";
 /* De qual setor é a planilha que está desenhada agora (ver abaSetor).
    null = nada desenhado ainda. */
 let PLANILHA_SETOR=null;
@@ -1158,14 +1170,14 @@ const SETORES_AREA=[
 
 /* Quais abas cada setor mostra, na ordem. A primeira da lista é a que abre.
    Chaves: atividades | alertas | atrasados (Situação do Processo) | planilha |
-   modelo (Casas Modelo) | estoque (Estoque de Casas). */
+   modelo (Casas Modelo) | semtipo (Casas Liberadas sem Tipo) | estoque (Estoque de Casas). */
 const ABAS_SETOR={
   "Secretária de Vendas":  ["atividades","alertas","atrasados","planilha","condominio","modelo"],
   // Gestor de Vendas: sem alerta e sem atividade — a página dele é dado de venda
   "Gestor de Vendas":      ["vendidas","estoque","planilha","modelo"],  // vendidas primeiro
   "Departamento de Projetos":["atividades","alertas","planilha","modelo"],
-  // Júlio: todas menos Casas Modelo
-  "Júlio César":           ["atividades","alertas","atrasados","planilha"]
+  // Júlio (22/10/26): + Casas Modelo e Casas Liberadas sem Tipo
+  "Júlio César":           ["atividades","alertas","atrasados","planilha","modelo","semtipo"]
 };
 const ABAS_PADRAO=["atividades","alertas","atrasados","planilha","modelo"];
 function abasDoSetor(nome){ return ABAS_SETOR[nome]||ABAS_PADRAO; }
@@ -1570,7 +1582,7 @@ function abrirSetor(nome){
 }
 function abaSetor(t){
   document.querySelectorAll("#view-setor .tab").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
-  ["atividades","alertas","atrasados","planilha","condominio","modelo","estoque","vendidas"].forEach(x=>{
+  ["atividades","alertas","atrasados","planilha","condominio","modelo","semtipo","estoque","vendidas"].forEach(x=>{
     const el=document.getElementById("st-"+x); if(el) el.style.display = x===t?"block":"none";
   });
   /* CORREÇÃO (set/26) — PLANILHA FICAVA COM AS COLUNAS DO SETOR ANTERIOR:
@@ -1586,6 +1598,7 @@ function abaSetor(t){
   if(t==="alertas") renderAlertas();
   if(t==="atrasados") renderAtrasados();
   if(t==="modelo") abrirCasasModelo();
+  if(t==="semtipo") abrirSemTipo();
   if(t==="estoque"){ if(DOCS_OK) renderEstoque(); else carregarDocumentos().then(renderEstoque); }
   if(t==="vendidas") abrirVendidas();
 }
@@ -2148,6 +2161,49 @@ function renderCasasModelo(){
   DADOS.mod=lista;
   ligarTabela("mod");
   ordenarDom("mod");   // reaplica a ordem por clique (a tabela foi reconstruída)
+}
+
+/* ---------- CASAS LIBERADAS SEM TIPO (22/10/26) ----------
+   "Liberada" = mesma regra do mapa de vendas (SITE-DE-VENDAS): a casa sai do
+   "em breve" quando o VALOR NA MÃO é preenchido. Sem TIPO, o mapa não consegue
+   ligar a casa à casa modelo (fotos, layout, localização). Entra aqui toda casa
+   com VALOR NA MÃO e TIPO vazio, vendida ou não. Ao preencher o TIPO a linha
+   sai da lista. */
+const COLS_SEMTIPO=["ENDEREÇO","CASA","TIPO"];
+function vazioSt(x){ return x==null || x==="" || (Array.isArray(x)&&!x.length); }
+function ehLiberadaSemTipo(valores){
+  const cTipo=campoExatoOuFrag("TIPO");
+  return !vazioSt(getV(valores,"VALOR NA MÃO")) && (!cTipo || vazioSt(getV(valores,cTipo.nome)));
+}
+async function abrirSemTipo(){
+  if(!DADOS.hub.length && !DADOS.set.length){ await carregarPlanilha("set"); }
+  renderSemTipo();
+}
+function renderSemTipo(){
+  const wrap=document.getElementById("stp-wrap");
+  const cols=COLS_SEMTIPO.map(campoExatoOuFrag).filter(Boolean);
+  if(cols.length<COLS_SEMTIPO.length){ wrap.innerHTML='<div class="vazio">Schema ainda não carregado.</div>'; return; }
+  const busca=(document.getElementById("stp-busca").value||"").toLowerCase();
+  const lista=(DADOS.hub.length?DADOS.hub:DADOS.set).filter(v=>
+    ehLiberadaSemTipo(v.valores) &&
+    (!busca || String(getV(v.valores,"ENDEREÇO")||"").toLowerCase().indexOf(busca)>=0));
+  document.getElementById("stp-count").textContent=lista.length+" casa(s) liberada(s) sem tipo";
+  if(!lista.length){
+    wrap.innerHTML=`<div class="vazio">${busca?"Nenhuma casa para esta busca.":"Todas as casas liberadas no mapa já têm TIPO. 🎉"}</div>`;
+    DADOS.stp=[]; return;
+  }
+  let html='<table><thead><tr>'+cols.map((c,i)=>thCol(c,i,"stp")).join("")+'</tr></thead><tbody>';
+  lista.forEach(v=>{
+    html+=`<tr data-id="${esc(v.id)}">`+
+      `<td class="stick"><span class="obralink" data-obra="${esc(v.id)}">${esc(getV(v.valores,cols[0].nome)||"(sem endereço)")}</span></td>`+
+      `<td>${esc(celulaTexto(cols[1],getV(v.valores,cols[1].nome))||"—")}</td>`+   // nº da casa: só leitura
+      celulaHtml(cols[2],getV(v.valores,cols[2].nome),v)+                          // TIPO: clica e preenche
+      '</tr>';
+  });
+  wrap.innerHTML=html+'</tbody></table>';
+  DADOS.stp=lista;          // editarCelula acha o registro por aqui
+  ligarTabela("stp");
+  ordenarDom("stp");
 }
 
 /* ---------- ATIVIDADES ---------- */
@@ -2815,6 +2871,7 @@ function ordenarPor(ctx, colNome){
     if(o.dir>0) o.dir=-1; else delete ORDEM_TAB[ctx];
   } else ORDEM_TAB[ctx]={col:colNome, dir:1};
   if(ctx==="mod"){ renderCasasModelo(); }        // mod reconstrói a tabela inteira
+  else if(ctx==="stp"){ renderSemTipo(); }
   else { renumerarTabela(ctx); atualizarSetas(ctx); }
 }
 
@@ -2941,6 +2998,7 @@ function editarCelula(ctx,td){
       // na Casas Modelo a célula de link tem formatação própria (botão + lápis),
       // que o celulaHtml não sabe montar — redesenha a tabela inteira
       if(ctx==="mod"){ renderCasasModelo(); }
+      else if(ctx==="stp"){ renderSemTipo(); }   // ganhou TIPO: sai da lista
       else td.outerHTML=celulaHtml(c,novo,reg);   // repinta com o valor novo (formata R$ e reavalia o alerta de faixa na hora)
       toast(r.enfileirado?"Na fila ✓":"Salvo ✓");
     }else{
