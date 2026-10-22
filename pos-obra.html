@@ -3367,9 +3367,14 @@ function criarServico(){
         '</div>';
     }
     if(c.tipo === "select" || c.tipo === "status"){
+      /* 22/10: RESPONSÁVEL novo direto no Novo serviço (quem não é ADM: entra na validação) */
+      const criavel = c.tipo === "select" && podeCriarOpcao(c.nome) && !soLeitura();
+      const rot = normN(c.nome)===normN("RESPONSÁVEL") ? "+ Novo responsável" : "+ Nova opção";
       return '<div class="campo"><label>'+esc(c.nome)+'</label><select id="'+id+'">'+
         '<option value="">—</option>'+
-        (c.opcoes||[]).map(o=>'<option value="'+esc(o)+'">'+esc(o)+'</option>').join("")+'</select></div>';
+        (c.opcoes||[]).map(o=>'<option value="'+esc(o)+'">'+esc(o)+'</option>').join("")+'</select>'+
+        (criavel ? '<button type="button" class="bt-novaopc" onclick="nsNovaOpcaoSelect(\''+esc(c.nome).replace(/'/g,"\\'")+'\', \''+id+'\')">'+rot+'</button>' : '')+
+        '</div>';
     }
     if(c.tipo === "date"){
       const tipo = campoComHora(c.nome) ? "datetime-local" : "date";
@@ -3831,7 +3836,7 @@ function campoHtml(c, v){
     return '<div class="campo" id="cx_'+id+'">'+lab+'<select id="'+id+'"'+ro+
       ' data-anterior="'+esc(val==null?"":String(val))+'"'+
       ' onchange="'+(criavel?'aoTrocarSelect':'salvarCampo')+'('+jsNome+', this.value, \''+id+'\', this)">'+
-      ops+(criavel?'<option value="__novo__">+ Novo…</option>':'')+'</select></div>';
+      ops+(criavel?'<option value="__novo__">'+(normN(c.nome)===normN("RESPONSÁVEL")?"+ Novo responsável…":"+ Novo…")+'</option>':'')+'</select></div>';
   }
   if(c.tipo === "multi_select"){
     const sel = Array.isArray(val) ? val.map(normN) : [];
@@ -4122,7 +4127,7 @@ async function pedirOpcaoNova(prop){
   }
   const jaTinha = (r.resposta && r.resposta.jaExistia) || r.jaExistia;
   const aguarda = (r.resposta && r.resposta.aguardaValidacao) || r.aguardaValidacao;
-  toast(jaTinha ? "Já existia — selecionado." : (aguarda ? "Criado ✓ — o ADM vai validar este serviço." : "Criado ✓"), aguarda ? 5 : 3);
+  toast(jaTinha ? "Já existia — selecionado." : (aguarda ? "Criado ✓ — o ADM vai validar "+(normN(prop)===normN("RESPONSÁVEL")?"este responsável.":"este serviço.") : "Criado ✓"), aguarda ? 5 : 3);
   return real;
 }
 
@@ -4153,6 +4158,15 @@ async function nsNovaOpcaoMulti(prop, id){
   }
   inp.checked = true;
   try{ inp.closest("label").scrollIntoView({block:"nearest"}); }catch(e){}
+}
+/* 22/10 — "+ Novo responsável" no Novo serviço: cria a opção, põe no select e já seleciona */
+async function nsNovaOpcaoSelect(prop, id){
+  const sel = document.getElementById(id); if(!sel) return;
+  const novo = await pedirOpcaoNova(prop);
+  if(!novo) return;
+  let op = Array.from(sel.options).find(o => normN(o.value) === normN(novo));
+  if(!op){ op = document.createElement("option"); op.value = novo; op.textContent = novo; sel.appendChild(op); }
+  sel.value = op.value;
 }
 async function novaOpcaoMulti(prop, id){
   const cx = document.getElementById(id);
@@ -4614,6 +4628,8 @@ try{
  * navegador, tenta de novo (5 s, 15 s, 45 s) quando falha e relê a cada 10 min,
  * ao voltar para a aba e no "Recarregar". */
 let VALIDACOES = [];
+/* 22/10: RESPONSÁVEL novo também passa pela validação (tipo "responsavel") */
+function valRotulo(t){ return t==="obra" ? "🏠 Obra: " : (t==="responsavel" ? "👤 Responsável: " : "🔧 Serviço: "); }
 const CH_VAL = "pos_obra_validar";
 let _valTent = 0, _valTimer = null, _valLendo = false, _valOkEm = 0;
 try{ const c = JSON.parse(localStorage.getItem(CH_VAL)||"null"); if(c && Array.isArray(c.itens) && Date.now()-c.t < 24*3600*1000) VALIDACOES = c.itens; }catch(e){}
@@ -4642,13 +4658,13 @@ function pintarFaixaValidacoes(){
   const f = document.getElementById("val-faixa"); if(!f) return;
   const n = VALIDACOES.length;
   if(!n){ f.classList.remove("on"); f.innerHTML=""; fecharValidacoes(); return; }
-  const ob = VALIDACOES.filter(x=>x.tipo==="obra").length, sv = n-ob;
+  const ob = VALIDACOES.filter(x=>x.tipo==="obra").length, rs = VALIDACOES.filter(x=>x.tipo==="responsavel").length, sv = n-ob-rs;
   const dia = iso=>{ try{ return new Date(iso).toLocaleDateString("pt-BR"); }catch(e){ return ""; } };
   f.innerHTML = '<div class="al validar"><span class="ic">🛠</span><div class="co">'+
     '<div class="ti">Para validar — '+n+(n===1?' criação':' criações')+'</div>'+
-    '<div class="li" style="margin-bottom:5px">'+[ob?ob+" obra"+(ob>1?"s":""):"", sv?sv+" tipo"+(sv>1?"s":"")+" de serviço":""].filter(Boolean).join(" e ")+
+    '<div class="li" style="margin-bottom:5px">'+[ob?ob+" obra"+(ob>1?"s":""):"", sv?sv+" tipo"+(sv>1?"s":"")+" de serviço":"", rs?rs+" responsáve"+(rs>1?"is":"l"):""].filter(Boolean).join(", ").replace(/, ([^,]*)$/," e $1")+
     ' criad'+(n>1?"os":"o")+' por quem não é ADM. Valide ou recuse.</div>'+
-    VALIDACOES.slice(0,10).map(x=>'<div class="li">• <b onclick="abrirValidacoes()">'+(x.tipo==="obra"?"🏠 Obra: ":"🔧 Serviço: ")+esc(x.nome)+'</b> — criado por '+esc(x.por||"?")+' em '+esc(dia(x.em))+'</div>').join("")+
+    VALIDACOES.slice(0,10).map(x=>'<div class="li">• <b onclick="abrirValidacoes()">'+valRotulo(x.tipo)+esc(x.nome)+'</b> — criado por '+esc(x.por||"?")+' em '+esc(dia(x.em))+'</div>').join("")+
     (n>10?'<div class="li">… e mais '+(n-10)+'</div>':"")+
     '<div class="acao"><button class="bt az peq" onclick="abrirValidacoes()">Ver e validar</button></div></div></div>';
   f.classList.add("on");
@@ -4661,10 +4677,10 @@ function abrirValidacoes(){
     const lista = chs.length
       ? '<ul>'+chs.slice(0,30).map(c=>'<li>'+(c.obraId||x.obraId ? '<a onclick="fecharValidacoes();abrirObra(\''+esc(c.obraId||x.obraId)+'\')">'+esc(c.titulo)+'</a>' : esc(c.titulo))+'</li>').join("")+
         (chs.length>30?'<li>… e mais '+(chs.length-30)+'</li>':"")+'</ul>'
-      : '<div class="s">Nenhum chamado '+(x.tipo==="obra"?"nesta obra":"usando este serviço")+' ainda.</div>';
+      : '<div class="s">Nenhum chamado '+(x.tipo==="obra"?"nesta obra":(x.tipo==="responsavel"?"com este responsável":"usando este serviço"))+' ainda.</div>';
     const tit = x.tipo==="obra"
       ? '🏠 Obra: '+(x.obraId && !x.arquivada ? '<a style="cursor:pointer;text-decoration:underline" onclick="fecharValidacoes();abrirObra(\''+esc(x.obraId)+'\')">'+esc(x.nome)+'</a>' : esc(x.nome))+(x.arquivada?'<span class="val-tag">já está na lixeira</span>':"")
-      : '🔧 Serviço: '+esc(x.nome);
+      : valRotulo(x.tipo)+esc(x.nome);
     const sub = 'Criado por '+esc(x.por||"?")+' em '+esc(dt(x.em))+(x.tipo==="obra"&&x.clientes?' · cliente '+esc(x.clientes):"");
     return '<div class="val-it" id="val-'+x.id+'"><div class="t">'+tit+'</div><div class="s">'+sub+'</div>'+
       '<div class="s"><b>'+(x.tipo==="obra"?"Chamados desta obra":"Obras/chamados vinculados")+' ('+chs.length+')</b></div>'+lista+
@@ -4682,7 +4698,9 @@ async function decidirValidacao(id, decisao){
     const n=(x.chamados||[]).length;
     const msg = x.tipo==="obra"
       ? "Recusar a obra "+x.nome+"?\n\nEla vai para a lixeira do Notion"+(n?" junto com "+n+" chamado"+(n>1?"s":""):"")+"."
-      : "Recusar o serviço \""+x.nome+"\"?\n\nEle sai da lista de serviços"+(n?" e de "+n+" chamado"+(n>1?"s":"")+" (os chamados continuam, sem esse serviço)":"")+".";
+      : (x.tipo==="responsavel"
+        ? "Recusar o responsável \""+x.nome+"\"?\n\nEle sai da lista de responsáveis"+(n?" e de "+n+" chamado"+(n>1?"s":"")+" (os chamados continuam, sem responsável)":"")+"."
+        : "Recusar o serviço \""+x.nome+"\"?\n\nEle sai da lista de serviços"+(n?" e de "+n+" chamado"+(n>1?"s":"")+" (os chamados continuam, sem esse serviço)":"")+".");
     if(!confirm(msg)) return;
   }
   const box = document.getElementById("val-"+id);
@@ -4700,11 +4718,11 @@ async function decidirValidacao(id, decisao){
       OBRAS = (OBRAS||[]).filter(o=>o.id!==x.obraId && String(o.id).replace(/-/g,"")!==String(x.obraId||"").replace(/-/g,""));
       pintarHub();
     } else {
-      const campo=(SCHEMA && SCHEMA.campos||[]).find(c=>normN(c.nome)===normN("SERVIÇO"));
+      const campo=(SCHEMA && SCHEMA.campos||[]).find(c=>normN(c.nome)===normN(x.tipo==="responsavel"?"RESPONSÁVEL":"SERVIÇO"));
       if(campo && campo.opcoes) campo.opcoes = campo.opcoes.filter(o=>normN(o)!==normN(x.nome));
     }
     if(feito.avisos && feito.avisos.length) alert("Recusado, com aviso:\n\n"+feito.avisos.join("\n"));
-    toast(x.tipo==="obra" ? "Obra recusada e enviada para a lixeira." : "Serviço recusado e removido"+(feito.chamados?" de "+feito.chamados+" chamado(s)":"")+".", 5);
+    toast(x.tipo==="obra" ? "Obra recusada e enviada para a lixeira." : (x.tipo==="responsavel"?"Responsável":"Serviço")+" recusado e removido"+(feito.chamados?" de "+feito.chamados+" chamado(s)":"")+".", 5);
   } else toast("Validado ✓", 3);
   pintarFaixaValidacoes();
   if(VALIDACOES.length) abrirValidacoes(); else fecharValidacoes();

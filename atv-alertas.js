@@ -81,7 +81,7 @@
     const item=(x,atr)=>`<a class="aa-i" href="${e(lk(x))}"><b>${e(x.titulo)}</b><span>${e(x.origem)} · ${atr?`<span class="atr">venceu ${br(x.fim)}</span>`:"vence hoje"}</span></a>`;
     const itemM=x=>`<a class="aa-i" href="${e(x.link)}" onclick="AA_mencaoVista('${e(x.id)}')"><b>${vs.indexOf(x.id)<0?"🔵 ":""}${e(x.autor)} te mencionou · ${e(x.titulo)}</b><span>${e(x.texto)} · ${br(String(x.em||"").slice(0,10))}</span></a>`;
     const itemMsg=x=>`<a class="aa-i" href="${e(x.link)}" onclick="AA_atvVista('${e(x.atv)}')"><b>🔵 ${e(x.autor)}${x.mencao?" te mencionou":""} · ${e(x.titulo)}</b><span>${e(x.texto)} · ${br(String(x.em||"").slice(0,10))} ${e(String(x.em||"").slice(11,16))}</span></a>`;
-    const itemVal=x=>`<a class="aa-i" href="pos-obra.html#validar"><b>${x.tipo==="obra"?"🏠 Obra":"🔧 Serviço"}: ${e(x.nome)}</b><span>criado por ${e(x.por||"?")} · ${br(String(x.em||"").slice(0,10))} · aguardando validação</span></a>`;
+    const itemVal=x=>`<a class="aa-i" href="pos-obra.html#validar"><b>${x.tipo==="obra"?"🏠 Obra":(x.tipo==="responsavel"?"👤 Responsável":"🔧 Serviço")}: ${e(x.nome)}</b><span>criado por ${e(x.por||"?")} · ${br(String(x.em||"").slice(0,10))} · aguardando validação</span></a>`;
     cx.innerHTML=(val.length?`<div class="aa-h">🛠 Pós Obra — para validar (${val.length})</div>`+val.slice(0,8).map(itemVal).join(""):"")+
       (msgs.length?`<div class="aa-h">💬 Mensagens novas (${msgs.length})</div>`+msgs.slice(0,12).map(itemMsg).join(""):"")+
       (m.length?`<div class="aa-h">💬 Mencionaram você (${mn.length} nova${mn.length===1?"":"s"})</div>`+m.slice(0,8).map(itemM).join(""):"")+

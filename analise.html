@@ -469,6 +469,23 @@ section > .sec:first-child{margin-top:0}
               <label>Até</label>
               <input type="date" id="hist-ate" onchange="renderHistorico()">
             </div>
+            <!-- 22/10: condomínio fora por padrão (distorce as quantidades), setor e nº de casas (DOCUMENTOS) -->
+            <div class="fcampo">
+              <label>Condomínios</label>
+              <select id="hist-cond" onchange="renderHistorico()">
+                <option value="fora">Fora da lista</option>
+                <option value="incluir">Incluir</option>
+                <option value="so">Só condomínios</option>
+              </select>
+            </div>
+            <div class="fcampo">
+              <label>Setor</label>
+              <select id="hist-setor" onchange="renderHistorico()"><option value="">Todos</option></select>
+            </div>
+            <div class="fcampo">
+              <label>Nº de casas</label>
+              <select id="hist-casas" onchange="renderHistorico()"><option value="">Todas</option></select>
+            </div>
             <div class="fcampo">
               <label>Mín. de obras</label>
               <select id="hist-min" onchange="renderHistorico()">
@@ -1522,7 +1539,12 @@ async function carregarDocsObras(){
         mapa[normEnd(getV(v,"ENDEREÇO"))]={
           fin: fin.indexOf("SIM")===0, finTxt: fin||"—",
           inicio: getV(v,"DATA DE INÍCIO DA OBRA") ? String(getV(v,"DATA DE INÍCIO DA OBRA")).slice(0,10) : null,
-          termino: getV(v,"DATA DE TÉRMINO DE OBRA") ? String(getV(v,"DATA DE TÉRMINO DE OBRA")).slice(0,10) : null
+          termino: getV(v,"DATA DE TÉRMINO DE OBRA") ? String(getV(v,"DATA DE TÉRMINO DE OBRA")).slice(0,10) : null,
+          /* 22/10: setor e nº de casas também vêm do DOCUMENTOS (120 das 124
+             obras do ERP casam pelo endereço; as que não casam são os
+             condomínios, o escritório e a reforma) */
+          setor: String(getV(v,"SETOR")||getV(v,"SETOR-AUTO")||"").trim().toUpperCase() || null,
+          casas: (getV(v,"Nº DE CASAS")!=null && getV(v,"Nº DE CASAS")!=="") ? Number(getV(v,"Nº DE CASAS")) : null
         };
       });
       HIST_DOCS=mapa; return mapa;
@@ -1540,7 +1562,20 @@ async function carregarHistorico(){
     document.getElementById("hist-base").value="todas";
     document.getElementById("hist-base").disabled=true;
   }
+  montarFiltrosHist(j, docs||{});
   renderHistorico();
+}
+/* 22/10: condomínio = obra do ERP com nome começando por CONDOMÍNIO */
+function ehCondominio(nome){ return /^COND(OMINIO)?\b/.test(normEnd(nome)); }
+/* opções de setor e de nº de casas: só as que existem nas obras do ERP */
+function montarFiltrosHist(j, docs){
+  const selS=document.getElementById("hist-setor"), selC=document.getElementById("hist-casas");
+  if(selS.dataset.ok) return;
+  const setores=new Set(), casas=new Set();
+  j.obras.forEach(o=>{ const d=docs[normEnd(o[1])]; if(!d) return; if(d.setor) setores.add(d.setor); if(d.casas) casas.add(d.casas); });
+  selS.innerHTML='<option value="">Todos</option>'+[...setores].sort((a,b)=>a.localeCompare(b,"pt-BR")).map(x=>`<option>${esc(x)}</option>`).join("");
+  selC.innerHTML='<option value="">Todas</option>'+[...casas].sort((a,b)=>a-b).map(x=>`<option value="${x}">${x} casa${x===1?"":"s"}</option>`).join("");
+  if(setores.size) selS.dataset.ok="1";
 }
 function aoTrocarPeriodoHist(){
   const iv=document.getElementById("hist-periodo").value==="intervalo";
@@ -1560,9 +1595,22 @@ function calcularHistorico(){
   if(per==="intervalo"){ de=document.getElementById("hist-de").value||null; ate=document.getElementById("hist-ate").value||null; }
   else if(per){ ate=isoMesesAtras(Number(per)); }
 
+  const cond=document.getElementById("hist-cond").value;
+  const setor=document.getElementById("hist-setor").value;
+  const casas=Number(document.getElementById("hist-casas").value)||0;
   // quais obras entram
   const entra=j.obras.map(o=>{
+    /* 22/10: condomínio fica fora por padrão (as quantidades de um condomínio
+       inteiro distorcem a média por obra). "Incluir" põe junto com as demais;
+       "Só condomínios" analisa só eles. Condomínio não tem cadastro no
+       DOCUMENTOS, então os filtros que vêm de lá (finalizada, início, setor,
+       casas) não se aplicam a ele. */
+    const ehC=ehCondominio(o[1]);
+    if(cond==="so") return ehC;
+    if(ehC) return cond==="incluir" && !setor && !casas;
     const d=docs[normEnd(o[1])];
+    if(setor && !(d && d.setor===setor)) return false;
+    if(casas && !(d && d.casas===casas)) return false;
     if(base==="fin" && !(d && d.fin)) return false;
     if(de||ate){
       if(!d || !d.inicio) return false;
@@ -1612,10 +1660,13 @@ function renderHistorico(){
   const minO=Number(document.getElementById("hist-min").value)||1;
   let arr=r.lista.filter(m=>m.obras>=minO && (!termo || String(m.insumo).toLowerCase().includes(termo)));
 
-  const base=document.getElementById("hist-base").value;
+  const base=document.getElementById("hist-base").value, cond=document.getElementById("hist-cond").value;
+  const setorF=document.getElementById("hist-setor").value, casasF=document.getElementById("hist-casas").value;
   document.getElementById("hist-info").innerHTML=
     `Base: <b>${r.nObras}</b> de ${r.totalObras} obras`+
-    (base==="fin"?" (finalizadas no DOCUMENTOS)":"")+
+    (cond==="so"?" (só condomínios)":(base==="fin"?" (finalizadas no DOCUMENTOS)":""))+
+    (cond==="fora"?" · condomínios fora":(cond==="incluir"?" · com condomínios":""))+
+    (setorF&&cond!=="so"?` · setor <b>${esc(setorF)}</b>`:"")+(casasF&&cond!=="so"?` · <b>${esc(casasF)}</b> casas`:"")+
     ` · <b>${arr.length}</b> insumo(s) listado(s)`+
     (r.nObras<3?" · <b>poucas obras nesta base — média e moda ainda pouco confiáveis</b>":"");
 
