@@ -43,7 +43,8 @@ const LINHA = {
   "Nº PARCELAS PÓS CHAVES": num(24), "VALOR PÓS CHAVES": num(705.89), "DATA  PÓS CHAVES ": dat("2029-01-10"),
   "VALOR DO CRÉDITO": num(244800), "VALOR DO FGTS": num(5250), "SUBISÍDIO": num(null),
   CORRETOR: rt("Corretor Teste"), CRECI: num(40167), "CPF CORRETOR": rt("246.813.579-28"), "EMAIL CORRETOR": eml("corretor@teste.example"),
-  " COMISSÃO ": num(15250),
+  "CELULAR CORRETOR": { phone_number: "62 91111-1111" },
+  " COMISSÃO ": num(13725),   // 4,5% de 305.000 (24 pós-chaves), a regra do contrato de 21/10
   /* colunas novas da entrega 7 (venda/COLUNAS-CONDOMINIO.md) */
   "CONTRATO GERADO": { files: [] }, "CONTRATO ASSINADO": { files: [] },
   "ASSINATURA - ENVELOPE ID": rt(""), "ASSINATURA - SITUAÇÃO": rt(""), "MC - SITUAÇÃO": rt(""), "MC - VENDA ID": rt(""),
@@ -67,6 +68,7 @@ const MODELO_COND = [
   "COMPRADOR: {{COMPRADORES}}",
   "Valor: {{VALOR_TOTAL}}; intermediação {{VALOR_INTERMEDIACAO}}",
   "{{FORMA_PAGAMENTO_CONDOMINIO}}",
+  "QUADRO: {{COMPRADORES_QUADRO}} | {{CORRETOR_QUADRO}} | {{COMISSAO_PCT}}% | {{MEIO_PAGAMENTO}} | casa {{CASA_NUMERO}}",
   "TESTEMUNHAS",
 ];
 
@@ -153,8 +155,12 @@ test("gerarContrato na linha do condomínio: modelo do condomínio, PDF em CONTR
   const pars = c.d.estado.salvos[c.d.estado.copias[0].id].pars;
   assert.equal(pars[0], "CONTRATO — CONDOMÍNIO RESERVA TESTE — UNIDADE 13");
   assert.ok(pars[1].includes("Compradora de Teste") && pars[1].includes("529.982.247-25"), pars[1]);
-  assert.equal(pars[2], "Valor: R$ 305.000,00; intermediação paga pelo VENDEDOR");
+  assert.equal(pars[2], "Valor: R$ 305.000,00; intermediação R$ 13.725,00");   // 21/10: comprador paga, 4,5% (24 pós-chaves)
   assert.ok(pars.some((l) => l.startsWith("6.1. Preço total: R$ 305.000,00")));
+  /* quadro-resumo (21/10): e-mail e telefone do comprador e do corretor, % da comissão pela regra, meio de pagamento padrão */
+  const q = pars.find((l) => l.startsWith("QUADRO: "));
+  assert.ok(q.includes("CPF nº 529.982.247-25, residente e domiciliado(a) à ") && q.includes(", e-mail compradora@teste.example, telefone 62 90000-0000 | "), q);
+  assert.ok(q.includes("| Corretor Teste, CRECI nº 40167, CPF nº 246.813.579-28, e-mail corretor@teste.example, telefone 62 91111-1111 | 4,5% | boleto bancário ou PIX | casa 13"), q);
   assert.equal(c.n.pagina.properties["CONTRATO GERADO"].files.length, 1);
   assert.equal(c.n.pagina.properties["CONTRATO GERADO"].files[0].name, r.nome);
   const e = c.acao("contratoEstado");
@@ -166,7 +172,9 @@ test("gerarContrato do condomínio: fluxo que não fecha trava com a falta (nada
   const c = cenario({ linha: { "VALOR DE VENDA": num(310000) } });
   const r = c.acao("gerarContrato");
   assert.equal(r.erro, "FALTAM_DADOS");
-  assert.deepEqual(r.faltas, ["Fluxo de pagamento: soma R$ 305.000,00 e não fecha com o valor de venda R$ 310.000,00"]);
+  /* preço mudou sem mexer na comissão: a regra (21/10) também acusa */
+  assert.deepEqual(r.faltas, ["Fluxo de pagamento: soma R$ 305.000,00 e não fecha com o valor de venda R$ 310.000,00",
+    "Comissão: R$ 13.725,00 na venda, mas a regra (24 parcelas pós-chaves = 4,5%) dá R$ 13.950,00"]);
   assert.equal(c.d.estado.copias.length, 0);
 });
 

@@ -73,7 +73,7 @@ export function criarGas({ props, rotas, extras = {} }) {
   };
   Object.assign(ctx, extras);
   vm.createContext(ctx);
-  for (const f of ["RegrasVenda.js", "ClaudeLeitor.js", "OpenAILeitor.js", "ContratoVenda.js", "ClicksignVenda.js",
+  for (const f of ["RegrasVenda.js", "ClaudeLeitor.js", "OpenAILeitor.js", "UnidadesCondominio.js", "ContratoVenda.js", "ClicksignVenda.js",
                    "PortalVenda.gs", "GerarContrato.gs", "AssinaturaVenda.gs", "MaisControleVenda.gs",
                    "CondominioVenda.js", "GerarVendaCondominio.gs", "RecebimentoVenda.gs"])
     vm.runInContext(fs.readFileSync(path.join(VENDA, f), "utf8"), ctx, { filename: f });

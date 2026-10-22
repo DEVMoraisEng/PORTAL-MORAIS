@@ -258,13 +258,16 @@ function ctrDadosCondominio_(c) {
         posN: n("Nº PARCELAS PÓS CHAVES"), posValor: n("VALOR PÓS CHAVES"), posData: t("DATA PÓS CHAVES"),
         credito: n("VALOR DO CRÉDITO"), fgts: n("VALOR DO FGTS"), subsidio: n("SUBISÍDIO")
       },
-      fiadores: [fiador(1), fiador(2)]
+      fiadores: [fiador(1), fiador(2)],
+      /* quadro-resumo (21/10): a comissão gravada pelo simulador; vazia, o contrato calcula pela regra */
+      comissao: n("COMISSÃO")
     },
     /* o imóvel do condomínio mora na linha do condomínio; a casa só completa o que faltar */
     imovel: { MATRICULA_INDIVIDUAL: t("CONTRATO - MATRÍCULA INDIVIDUAL"), CRI: t("CONTRATO - CRI DA MATRÍCULA"),
               ALVARA_NUMERO: t("CONTRATO - ALVARÁ Nº"), ALVARA_DATA: t("CONTRATO - ALVARÁ DATA"),
               PRAZO_CONCLUSAO: t("CONTRATO - PRAZO DE CONCLUSÃO DAS OBRAS"), CONDICOES_ESPECIAIS: t("CONTRATO - CONDIÇÕES ESPECIAIS") },
-    corretor: { nome: t("CORRETOR"), creci: t("CRECI"), cpfCnpj: t("CPF CORRETOR"), email: t("EMAIL CORRETOR") }
+    corretor: { nome: t("CORRETOR"), creci: t("CRECI"), cpfCnpj: t("CPF CORRETOR"), email: t("EMAIL CORRETOR"),
+                telefone: t("CELULAR CORRETOR") }
   };
 }
 
@@ -299,9 +302,11 @@ function ctrFontes_(col, pageId) {
   var venda = {
     CLIENTES: dos(C.CLIENTES), CPF: dos(C.CPF1), ENDERECO: ctrTitulo_(pg.properties),
     COMPRADOR1: { nacionalidade: dos(C.C1_NAC), estadoCivil: dos(C.C1_ESTCIV), profissao: dos(C.C1_PROF),
-                  documento: dos(C.C1_DOC), endereco: dos(C.C1_END), email: ctrTxt_(cv("Email")) },
+                  documento: dos(C.C1_DOC), endereco: dos(C.C1_END), email: ctrTxt_(cv("Email")),
+                  telefone: ctrTxt_(cv("Nº Whatsapp")) /* só o contrato do condomínio usa */ },
     COMPRADOR2: { nome: dos(C.C2_NOME), cpf: dos(C.C2_CPF), nacionalidade: dos(C.C2_NAC), estadoCivil: dos(C.C2_ESTCIV),
-                  profissao: dos(C.C2_PROF), documento: dos(C.C2_DOC), endereco: dos(C.C2_END), email: dos(C.C2_EMAIL) },
+                  profissao: dos(C.C2_PROF), documento: dos(C.C2_DOC), endereco: dos(C.C2_END), email: dos(C.C2_EMAIL),
+                  telefone: ctrTxt_(cv(C.C2_TEL)) },
     ALVARA_NUMERO: cv(CV.ALVARA_NUMERO), ALVARA_DATA: cv(CV.ALVARA_DATA), HABITESE_NUMERO: cv(CV.HABITESE_NUMERO),
     /* entrega 14: opcionais (cv: coluna que não existe = vazio); preenchidas, valem antes da obra e do setor */
     HABITESE_DATA: cv(CV.HABITESE_DATA), DENOMINACAO_LOTEAMENTO: ctrTxt_(cv(CV.DENOMINACAO_LOTEAMENTO)),
@@ -395,13 +400,16 @@ function ctrFontes_(col, pageId) {
   if (cond && cond.corretor.nome) {
     var kc = cond.corretor, base = corretor || {};
     corretor = { nome: kc.nome, creci: kc.creci || base.creci || "", cpfCnpj: kc.cpfCnpj || base.cpfCnpj || "",
-                 nacionalidade: base.nacionalidade || "", endereco: base.endereco || "", email: kc.email || base.email || "" };
+                 nacionalidade: base.nacionalidade || "", endereco: base.endereco || "", email: kc.email || base.email || "",
+                 telefone: kc.telefone || "" };
   }
 
   return {
     fontes: { venda: venda, obra: obra, vendedor: vendedor, loteamento: loteamento, corretor: corretor,
               condominio: cond ? cond.condominio : null,
-              hojeISO: hoje_("yyyy-MM-dd"), cidadeAssinatura: prop_("CIDADE_ASSINATURA") || "Goiânia" },
+              hojeISO: hoje_("yyyy-MM-dd"), cidadeAssinatura: prop_("CIDADE_ASSINATURA") || "Goiânia",
+              /* condomínio, item 4.2.1 g): vazio = "boleto bancário ou PIX" */
+              meioPagamento: prop_("MEIO_PAGAMENTO_CONDOMINIO") || "" },
     endereco: venda.ENDERECO, casa: ctrTxt_(cv("CASA")), colGerado: nomeReal(CV.CONTRATO_GERADO),
     contaErro: contaErro, usouEscolha: usouEscolha,
     /* entrega 12: onde o formulário grava (linhas achadas) e com que nome/chave cria a que falta */

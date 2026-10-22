@@ -301,6 +301,99 @@ var ContratoVenda = (function () {
     return linhas.join("\n");
   }
 
+  /* ---- contrato do condomínio do advogado (21/10/2026): quadro-resumo ----
+   * O fluxo da venda continua o do simulador (sinais, duas partes, balões, pós-chaves); o item 4.2.1
+   * o resume por grupos (decisão do dono 21/10: "24 parcelas mensais, todo dia XX, a primeira em …").
+   * A comissão é paga pelo COMPRADOR, por fora do preço: valor da operação = imóvel + comissão. */
+  function U() { return typeof UnidadesCondominio !== "undefined" ? UnidadesCondominio : require("./UnidadesCondominio.js"); }
+  /* item 5 b): o percentual sai do número de parcelas pós-chaves (é a mesma regra do simulador) */
+  var COMISSAO_POR_POS = { 0: 0.05, 12: 0.0475, 24: 0.045 };
+  function comissaoPctPelaRegra(posN) {
+    var n = positivo(posN) ? posN : 0;
+    return Object.prototype.hasOwnProperty.call(COMISSAO_POR_POS, n) ? COMISSAO_POR_POS[n] : null;
+  }
+  /* 0,045 -> "4,5"; 0,05 -> "5" */
+  function pctBR(frac) { return String(Number((frac * 100).toFixed(4))).replace(".", ","); }
+  function pct2(parte, todo) { return positivo(todo) ? (parte / todo * 100).toFixed(2).replace(".", ",") : ""; }
+
+  function valoresCondominio(co) {
+    var fl = co.fluxo, preco = positivo(fl.valorVenda) ? fl.valorVenda : null;
+    function val(v) { return positivo(v) ? v : 0; }
+    var financiamento = so2(val(fl.credito) + val(fl.fgts) + val(fl.subsidio));
+    var pctRegra = comissaoPctPelaRegra(fl.posN);
+    var comissao = positivo(co.comissao) ? co.comissao : (pctRegra !== null && preco !== null ? so2(preco * pctRegra) : null);
+    var entrada = preco === null ? null : so2(preco - financiamento);
+    return {
+      preco: preco, financiamento: financiamento, temFgtsSubsidio: val(fl.fgts) + val(fl.subsidio) > 0,
+      pctRegra: pctRegra, comissao: comissao, operacao: preco !== null && comissao !== null ? so2(preco + comissao) : null,
+      entrada: entrada, saldoEntrada: entrada === null ? null : so2(entrada - val(fl.sinalAto))
+    };
+  }
+
+  function mensais(n, valor, dataIso, dia) {
+    if (n === 1) return "1 parcela de " + valorExtenso(valor) + ", com vencimento em " + dataBR(dataIso);
+    return n + " parcelas mensais e sucessivas de " + valorExtenso(valor) + " cada, vencendo todo dia " +
+      (dia === null ? "" : dia) + ", a primeira em " + dataBR(dataIso);
+  }
+  function emLista(itens) {
+    return itens.length < 2 ? itens.join("") : itens.slice(0, -1).join("; ") + "; e " + itens[itens.length - 1];
+  }
+  /* 4.2.1 c): sinais 30/60/90 (agrupados quando iguais), 1ª e 2ª parte, balões */
+  function parcelasPreChaves(fl) {
+    var itens = [], total = 0;
+    var sinais = [[fl.sinal30, fl.data30], [fl.sinal60, fl.data60], [fl.sinal90, fl.data90]].filter(function (p) { return positivo(p[0]); });
+    var iguais = sinais.length > 1 && sinais.every(function (p) { return p[0] === sinais[0][0]; });
+    if (iguais) {
+      var datas = sinais.map(function (p) { return dataBR(p[1]); });
+      itens.push(sinais.length + " parcelas de " + valorExtenso(sinais[0][0]) + ", com vencimentos em " +
+        datas.slice(0, -1).join(", ") + " e " + datas[datas.length - 1]);
+    } else sinais.forEach(function (p) { itens.push(mensais(1, p[0], p[1])); });
+    total += sinais.length;
+    [[fl.pre1N, fl.pre1Valor, fl.pre1Data], [fl.pre2N, fl.pre2Valor, fl.pre2Data]].forEach(function (s) {
+      if (!positivo(s[0]) || !positivo(s[1])) return;
+      itens.push(mensais(s[0], s[1], s[2], fl.diaPagamento));
+      total += s[0];
+    });
+    if (positivo(fl.balao1Valor)) { itens.push("1 parcela intermediária de " + valorExtenso(fl.balao1Valor) + ", com vencimento em " + dataBR(fl.balao1Data)); total++; }
+    if (positivo(fl.balao2Valor)) {
+      itens.push("1 parcela intermediária de " + valorExtenso(fl.balao2Valor) + ", com vencimento em " + dataBR(fl.balao2Data) +
+        " ou na data da entrega das chaves, o que ocorrer primeiro");
+      total++;
+    }
+    if (!itens.length) return "não há.";
+    return emLista(itens) + "; " + (total > 1 ? "todas corrigidas" : "corrigida") + " pelo INCC-M, nos termos do item 6.1.";
+  }
+  /* 4.2.1 e) */
+  function parcelasPosChaves(fl) {
+    if (!positivo(fl.posN) || !positivo(fl.posValor)) return "não há.";
+    return mensais(fl.posN, fl.posValor, fl.posData, fl.diaPagamento) + ", " + (fl.posN === 1 ? "corrigida" : "corrigidas") +
+      " pelo IPCA/IBGE, acrescido de juros remuneratórios de 1% (um por cento) ao mês, nos termos do item 6.1.";
+  }
+
+  function contato(c) {
+    return [txt(c.email) ? "e-mail " + txt(c.email) : "", txt(c.telefone) ? "telefone " + txt(c.telefone) : ""];
+  }
+  function semVazios(partes) { return partes.filter(function (p) { return p !== ""; }).join(", "); }
+  /* item 1 do quadro: "[Nome], [nacionalidade], [estado civil], [profissão], RG nº, CPF nº, residente …, e-mail, telefone" */
+  function qualificacaoQuadro(c) {
+    c = c || {};
+    return semVazios([txt(c.nome), txt(c.nacionalidade), txt(c.estadoCivil), txt(c.profissao), documentoComRotulo(c.documento),
+      txt(c.cpf) ? "CPF nº " + txt(c.cpf) : "", txt(c.endereco) ? "residente e domiciliado(a) à " + txt(c.endereco) : ""].concat(contato(c)));
+  }
+  function docRotulo(doc) {
+    var d = txt(doc);
+    if (!d) return "";
+    return (d.replace(/\D/g, "").length === 14 ? "CNPJ nº " : "CPF nº ") + d;
+  }
+  /* "[Nome], CRECI nº, CPF/CNPJ nº, residente …, e-mail, telefone" */
+  function qualificacaoCorretor(k) {
+    k = k || {};
+    return semVazios([txt(k.nome), txt(k.creci) ? "CRECI nº " + txt(k.creci) : "", docRotulo(k.cpfCnpj),
+      txt(k.endereco) ? "residente e domiciliado(a) à " + txt(k.endereco) : ""].concat(contato(k)));
+  }
+  var FRASE_CASA_MODELO = " Unidade correspondente à “Casa Modelo” (Casa 01), sujeita às condições específicas previstas neste instrumento.";
+  var MEIO_PAGAMENTO_PADRAO = "boleto bancário ou PIX";
+
   /* Quantos caracteres do começo da linha do 6.1 / dos fiadores vão em negrito (0 = nenhum). */
   function negritoDaLinha(linha) {
     var t = txt(linha), m;
@@ -351,7 +444,10 @@ var ContratoVenda = (function () {
       nome: txt(c.nome).replace(/^CONDOM[IÍ]NIO\s+/i, ""), unidade: txt(c.unidade),
       areaPrivativa: areaPriv, fracaoIdeal: txt(c.fracaoIdeal),
       fluxo: fluxoCondominio(c.fluxo),
-      fiadores: fiadoresPreenchidos(c.fiadores)
+      fiadores: fiadoresPreenchidos(c.fiadores),
+      /* quadro-resumo (21/10): casa pela tabela do memorial; comissão da linha (vazia = pela regra) */
+      tabela: U().unidade(c.nome, c.unidade),
+      comissao: num(c.comissao)
     };
   }
 
@@ -361,12 +457,17 @@ var ContratoVenda = (function () {
     var c1 = v.COMPRADOR1 || {}, c2 = v.COMPRADOR2 || {};
     var temC2 = !vazio(c2.nome);
     var cond = f.condominio ? montarCondominio(f.condominio) : null;
-    /* condomínio: a comissão é paga pela incorporadora (vendedor) e não entra no preço do comprador */
-    var pagaPor = cond ? "VENDEDOR" : up(v.COMISSAO_PAGA_POR);
+    /* condomínio (contrato do advogado, 21/10/2026): a comissão é paga pelo COMPRADOR, por fora do preço
+       do imóvel (valor da operação = VALOR DE VENDA + comissão). Antes (07/10) era paga pela incorporadora. */
+    var pagaPor = cond ? "COMPRADOR" : up(v.COMISSAO_PAGA_POR);
     var total = cond && cond.fluxo.valorVenda !== null ? cond.fluxo.valorVenda : num(v.VALOR_CONTRATO);
     var comissao = num(v.COMISSAO), naMao = num(v.VALOR_NA_MAO);
     var aquisicao, intermediacao;
-    if (pagaPor === "VENDEDOR") {
+    if (cond) {
+      comissao = valoresCondominio(cond).comissao;
+      aquisicao = total;
+      intermediacao = comissao;
+    } else if (pagaPor === "VENDEDOR") {
       aquisicao = total;
       intermediacao = "paga pelo VENDEDOR";
     } else {
@@ -434,7 +535,14 @@ var ContratoVenda = (function () {
       cidadeAssinatura: txt(f.cidadeAssinatura) || "Goiânia"
     };
     /* só existe no condomínio: o carimbo dos contratos que não são do condomínio não muda */
-    if (cond) dados.condominio = cond;
+    if (cond) {
+      dados.condominio = cond;
+      /* quadro-resumo: telefone dos compradores e do corretor, meio de pagamento da entrada */
+      dados.comprador1.telefone = txt(c1.telefone);
+      if (dados.comprador2) dados.comprador2.telefone = txt(c2.telefone);
+      if (dados.corretor) dados.corretor.telefone = txt(f.corretor.telefone);
+      dados.meioPagamento = txt(f.meioPagamento) || MEIO_PAGAMENTO_PADRAO;
+    }
     /* entrega 14: tipo escolhido na casa (só os valores novos; entra no carimbo) e o que a obra diz (só para o aviso) */
     if (!cond && tipoDoModelo(v.TIPO_CASA)) {
       dados.tipoCasa = tipoDoModelo(v.TIPO_CASA);
@@ -479,21 +587,26 @@ var ContratoVenda = (function () {
         exige(!vazio(v.profissao), "Vendedor", "profissão");
         exige(!vazio(v.rg), "Vendedor", "RG");
       }
-      exige(!vazio(v.banco), "Vendedor", "banco");
-      exige(!vazio(v.agencia), "Vendedor", "agência");
-      exige(!vazio(v.conta), "Vendedor", "conta");
+      /* condomínio (contrato de 21/10): a conta da vendedora já vem escrita no texto (item 4.5) */
+      if (!d.condominio) {
+        exige(!vazio(v.banco), "Vendedor", "banco");
+        exige(!vazio(v.agencia), "Vendedor", "agência");
+        exige(!vazio(v.conta), "Vendedor", "conta");
+      }
       /* Pix é opcional (08/10/2026): a conta da obra pode não ter chave; aí o trecho "– PIX:" sai do contrato
          (TRECHOS_SE_VAZIO) e ficam só banco, agência e conta. Com chave, saem os dois: dados bancários E Pix. */
     }
 
-    var l = d.loteamento, gl = d.condominio ? "Condomínio" : "Loteamento";
-    if (!l) faltas.push(d.condominio ? "Condomínio: cadastro em LOTEAMENTOS – CONTRATO (linha com o nome do condomínio, igual ao ENDEREÇO da casa)"
-                                     : "Loteamento: cadastro em LOTEAMENTOS – CONTRATO");
+    /* condomínio (contrato de 21/10): empreendimento, matrícula e cartório já vêm escritos no texto —
+       o cadastro em LOTEAMENTOS não é mais exigido */
+    var l = d.loteamento;
+    if (d.condominio) { /* nada a exigir */ }
+    else if (!l) faltas.push("Loteamento: cadastro em LOTEAMENTOS – CONTRATO");
     else {
-      exige(!vazio(l.denominacao), gl, "denominação");
-      exige(!vazio(l.municipioUf), gl, "município/UF");
-      exige(!vazio(l.matricula), gl, d.condominio ? "matrícula do empreendimento" : "matrícula do loteamento");
-      exige(!vazio(l.cartorio), gl, "cartório");
+      exige(!vazio(l.denominacao), "Loteamento", "denominação");
+      exige(!vazio(l.municipioUf), "Loteamento", "município/UF");
+      exige(!vazio(l.matricula), "Loteamento", "matrícula do loteamento");
+      exige(!vazio(l.cartorio), "Loteamento", "cartório");
       if (pronto) {
         exige(!vazio(l.prazoPosseDias), "Loteamento", "prazo de posse (dias)");
         exige(!vazio(l.prazoChavesDias), "Loteamento", "prazo de entrega das chaves (dias)");
@@ -551,6 +664,17 @@ var ContratoVenda = (function () {
         faltas.push(g + ": soma R$ " + moedaBR(soma) + " e não fecha com o valor de venda R$ " + moedaBR(fl.valorVenda));
     }
 
+    /* comissão (item 5): o percentual sai do nº de parcelas pós-chaves; a da linha tem de bater com a regra */
+    var va = valoresCondominio(co);
+    if (va.pctRegra === null) faltas.push("Comissão: " + fl.posN + " parcelas pós-chaves não estão na tabela (0, 12 ou 24)");
+    else if (positivo(co.comissao) && va.preco !== null) {
+      var pelaRegra = so2(va.preco * va.pctRegra);
+      if (Math.abs(co.comissao - pelaRegra) > 0.05)
+        faltas.push("Comissão: R$ " + moedaBR(co.comissao) + " na venda, mas a regra (" +
+          (positivo(fl.posN) ? fl.posN + " parcelas pós-chaves" : "sem parcelas pós-chaves") + " = " + pctBR(va.pctRegra) +
+          "%) dá R$ " + moedaBR(pelaRegra));
+    }
+
     co.fiadores.forEach(function (fi, i) {
       var gf = "Fiador " + (i + 1);
       if (vazio(fi.cpf)) faltas.push(gf + ": CPF");
@@ -568,13 +692,9 @@ var ContratoVenda = (function () {
     var a = [], im = d.imovel;
     function branco(ok, item) { if (!ok) a.push("Em branco no contrato: " + item); }
     branco(!vazio(co.unidade), "unidade");
-    branco(positivo(co.areaPrivativa), "área privativa");
-    branco(!vazio(co.fracaoIdeal), "fração ideal");
-    branco(!vazio(im.matriculaIndividual), "matrícula individual");
-    branco(!vazio(im.cri), "CRI da matrícula");
-    branco(!vazio(im.alvaraNumero), "alvará (número)");
-    branco(!vazio(im.alvaraData), "alvará (data)");
-    branco(!vazio(im.prazoConclusao), "prazo previsto de conclusão das obras");
+    /* tipo, planta, áreas e fração vêm da tabela do memorial (UnidadesCondominio), não mais da linha */
+    branco(!vazio(co.unidade) ? !!co.tabela : true, "tipo e áreas da casa (casa fora da tabela do condomínio)");
+    /* matrícula, CRI, alvará e prazo de conclusão já vêm escritos no texto do contrato de 21/10: sem aviso */
     var so = function (x) { return txt(x).replace(/\D/g, ""); };
     var cpfsCompradores = [d.comprador1 && d.comprador1.cpf, d.comprador2 && d.comprador2.cpf]
       .map(so).filter(function (x) { return x !== ""; });
@@ -662,8 +782,8 @@ var ContratoVenda = (function () {
       /* condomínio (vazios fora dele; o modelo de casa de rua não usa) */
       CONDOMINIO_NOME: co ? co.nome : "",
       UNIDADE: co ? co.unidade : "",
-      AREA_PRIVATIVA: co ? areaTxt(co.areaPrivativa) : "",
-      FRACAO_IDEAL: co ? co.fracaoIdeal : "",
+      AREA_PRIVATIVA: co ? (co.tabela ? moedaBR(co.tabela.areaPrivativaConstruida) : areaTxt(co.areaPrivativa)) : "",
+      FRACAO_IDEAL: co ? (co.tabela ? moedaBR(co.tabela.fracaoM2) + " m² (" + co.tabela.fracaoPct + "%)" : co.fracaoIdeal) : "",
       FORMA_PAGAMENTO_CONDOMINIO: co ? formaPagamentoCondominio(co.fluxo) : "",
       FIADORES_QUALIFICACAO: qualificacaoFiadores(fis),
       FIADOR1_NOME: fis[0] ? fis[0].nome : "",
@@ -725,15 +845,59 @@ var ContratoVenda = (function () {
       PIX: txt(v.pix),
       PRAZO_POSSE_DIAS: txt(l.prazoPosseDias),
       PRAZO_CHAVES_DIAS: txt(l.prazoChavesDias),
-      CIDADE_DATA: d.cidadeAssinatura + ", " + dataPorExtenso(d.hojeISO)
+      /* condomínio: a data é a da assinatura do contrato (sem ela, hoje) */
+      CIDADE_DATA: d.cidadeAssinatura + ", " + dataPorExtenso(co && co.fluxo.assinatura ? co.fluxo.assinatura : d.hojeISO)
     };
+    Object.assign(m, marcadoresQuadro(d));
     /* condomínio: dado do imóvel em branco não trava (decisão do dono) — sai um traço para preencher à mão */
     if (co) CAMPOS_EM_BRANCO.forEach(function (k) { if (vazio(m[k])) m[k] = EM_BRANCO; });
     return m;
   }
   var EM_BRANCO = "____";
   var CAMPOS_EM_BRANCO = ["UNIDADE", "AREA_PRIVATIVA", "FRACAO_IDEAL", "MATRICULA_INDIVIDUAL", "CRI",
-    "ALVARA_NUMERO", "ALVARA_DATA", "PRAZO_CONCLUSAO"];
+    "ALVARA_NUMERO", "ALVARA_DATA", "PRAZO_CONCLUSAO", "CASA_NUMERO", "CASA_TIPO", "CASA_PLANTA",
+    "AREA_PRIVATIVA_CONSTRUIDA", "AREA_TOTAL_CONSTRUIDA", "FRACAO_IDEAL_M2", "FRACAO_IDEAL_PCT"];
+
+  /* Marcadores do contrato do condomínio do advogado (21/10/2026). Fora do condomínio, todos vazios. */
+  var CHAVES_QUADRO = ["COMPRADORES_QUADRO", "CORRETOR_QUADRO", "CORRETOR_DOC_ROTULO", "CASA_NUMERO", "CASA_TIPO", "CASA_PLANTA",
+    "CASA_MODELO_FRASE", "AREA_PRIVATIVA_CONSTRUIDA", "AREA_TOTAL_CONSTRUIDA", "FRACAO_IDEAL_M2", "FRACAO_IDEAL_PCT",
+    "VALOR_OPERACAO_EXTENSO", "VALOR_IMOVEL_EXTENSO", "COMISSAO_EXTENSO", "SINAL_EXTENSO", "SINAL_VENCIMENTO",
+    "ENTRADA_TOTAL", "ENTRADA_PCT", "ENTRADA_SALDO", "PARCELAS_PRE_CHAVES", "PARCELAS_POS_CHAVES", "MEIO_PAGAMENTO",
+    "FINANCIAMENTO_VALOR", "FINANCIAMENTO_PCT", "FINANCIAMENTO_FRASE", "COMISSAO_PCT"];
+  function marcadoresQuadro(d) {
+    var co = d.condominio, m = {};
+    if (!co) { CHAVES_QUADRO.forEach(function (k) { m[k] = ""; }); return m; }
+    var fl = co.fluxo, va = valoresCondominio(co), tb = co.tabela, k = d.corretor || {};
+    function ext(n) { return n === null ? "" : valorExtenso(n); }
+    var num2 = /\d+/.exec(co.unidade);
+    m.COMPRADORES_QUADRO = qualificacaoQuadro(d.comprador1) + (d.comprador2 ? "; e " + qualificacaoQuadro(d.comprador2) : "");
+    m.CORRETOR_QUADRO = qualificacaoCorretor(k);
+    m.CORRETOR_DOC_ROTULO = docRotulo(k.cpfCnpj);
+    m.CASA_NUMERO = num2 ? (num2[0].length < 2 ? "0" + num2[0] : num2[0]) : "";
+    m.CASA_TIPO = tb ? tb.tipo : "";
+    m.CASA_PLANTA = tb ? tb.planta : "";
+    m.CASA_MODELO_FRASE = tb && tb.casaModelo ? FRASE_CASA_MODELO : "";
+    m.AREA_PRIVATIVA_CONSTRUIDA = tb ? moedaBR(tb.areaPrivativaConstruida) : "";
+    m.AREA_TOTAL_CONSTRUIDA = tb ? moedaBR(tb.areaTotalConstruida) : "";
+    m.FRACAO_IDEAL_M2 = tb ? moedaBR(tb.fracaoM2) : "";
+    m.FRACAO_IDEAL_PCT = tb ? tb.fracaoPct : "";
+    m.VALOR_OPERACAO_EXTENSO = ext(va.operacao);
+    m.VALOR_IMOVEL_EXTENSO = ext(va.preco);
+    m.COMISSAO_EXTENSO = ext(va.comissao);
+    m.SINAL_EXTENSO = positivo(fl.sinalAto) ? valorExtenso(fl.sinalAto) : "";
+    m.SINAL_VENCIMENTO = dataBR(fl.assinatura);
+    m.ENTRADA_TOTAL = moedaOuVazio(va.entrada);
+    m.ENTRADA_PCT = va.entrada === null ? "" : pct2(va.entrada, va.preco);
+    m.ENTRADA_SALDO = moedaOuVazio(va.saldoEntrada);
+    m.PARCELAS_PRE_CHAVES = parcelasPreChaves(fl);
+    m.PARCELAS_POS_CHAVES = parcelasPosChaves(fl);
+    m.MEIO_PAGAMENTO = d.meioPagamento || MEIO_PAGAMENTO_PADRAO;
+    m.FINANCIAMENTO_VALOR = moedaBR(va.financiamento);
+    m.FINANCIAMENTO_PCT = pct2(va.financiamento, va.preco);
+    m.FINANCIAMENTO_FRASE = va.temFgtsSubsidio ? ", incluídos os recursos do FGTS e/ou subsídio, quando houver" : "";
+    m.COMISSAO_PCT = va.pctRegra === null ? "" : pctBR(va.pctRegra);
+    return m;
+  }
 
   function blocos(d) {
     var v = d.vendedor || {}, n = d.negociacao, fis = d.condominio ? d.condominio.fiadores : [];
@@ -989,6 +1153,7 @@ var ContratoVenda = (function () {
     montarDadosContrato: montarDadosContrato, faltasContrato: faltasContrato,
     marcadores: marcadores, blocos: blocos, avisosContrato: avisosContrato,
     formaPagamentoCondominio: formaPagamentoCondominio, qualificacaoFiadores: qualificacaoFiadores,
+    comissaoPctPelaRegra: comissaoPctPelaRegra,
     somaFluxo: function (fl) { return somaFluxo(fluxoCondominio(fl)); }, negritoDaLinha: negritoDaLinha,
     /* o traço do campo em branco (o pré-contrato grifa em vermelho claro) */
     EM_BRANCO: EM_BRANCO,
