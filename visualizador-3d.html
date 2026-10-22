@@ -90,18 +90,31 @@ html[data-tema="escuro"] .bt{color:#8fd3ee}
 .bt.ativo{background:var(--verde);color:#fff;border-color:var(--verde)}
 .bt kbd{font:inherit;font-size:10px;opacity:.6;margin-left:4px}
 
-#props{position:absolute;right:12px;top:12px;width:300px;max-height:calc(100% - 24px);overflow:auto;background:var(--sup);
-  border:1px solid var(--border2);border-radius:12px;box-shadow:0 8px 24px var(--sombra);display:none;z-index:2}
-#props.on{display:block}
-.ptopo{display:flex;align-items:center;padding:10px 12px;background:var(--azul-esc);color:#fff;border-radius:12px 12px 0 0}
-.ptopo b{font-family:'Barlow Condensed';font-weight:800;font-size:15px;text-transform:uppercase;letter-spacing:.4px;flex:1}
-.ptopo button{border:0;background:rgba(255,255,255,.16);color:#fff;width:26px;height:26px;border-radius:7px;cursor:pointer;font-size:16px;line-height:1}
-#props-corpo{padding:6px 12px 10px}
-.pl{display:flex;flex-direction:column;padding:6px 0;border-top:1px solid var(--border2)}
-.pl:first-child{border-top:0}
-.pl .k{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text3)}
-.pl .v{font-size:13px;font-weight:600;overflow-wrap:anywhere}
-
+#corte{position:absolute;right:12px;bottom:12px;width:250px;background:var(--sup);border:1px solid var(--border2);border-radius:12px;
+  box-shadow:0 8px 24px var(--sombra);padding:10px 12px 12px;z-index:3;display:none}
+#corte.on{display:block}
+#corte .ct{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+#corte .ct b{font-family:'Barlow Condensed';font-weight:800;font-size:14px;text-transform:uppercase;letter-spacing:.4px;color:var(--azul-esc)}
+html[data-tema="escuro"] #corte .ct b{color:var(--teal)}
+#corte .ct button{border:0;background:var(--bg3);color:var(--text3);width:24px;height:24px;border-radius:6px;cursor:pointer;font-size:15px;line-height:1}
+#corte .md,#corte .vs{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+#corte .md button,#corte .vs button,#corte-inv{border:1px solid var(--border);background:var(--bg2);color:var(--text);border-radius:7px;
+  padding:6px 4px;font:inherit;font-size:11.5px;font-weight:700;cursor:pointer}
+#corte .md button.on{background:var(--azul);color:#fff;border-color:var(--azul)}
+#corte .vs button:hover,#corte .md button:hover{border-color:var(--azul)}
+#corte-pos{width:100%;margin:10px 0 4px;accent-color:#2e86de}
+#corte .cl{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:11px;color:var(--text3)}
+#corte-inv{padding:4px 8px;font-size:10.5px}
+#medidas{position:absolute;inset:0;pointer-events:none;z-index:2;overflow:hidden}
+.medida{position:absolute;transform:translate(-50%,-50%);background:#e74c3c;color:#fff;border-radius:8px;
+  padding:4px 9px;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.25);text-align:center;line-height:1.25}
+.medida span{display:block;font-size:10px;font-weight:600;opacity:.9}
+#info3d{position:absolute;z-index:3;display:none;gap:10px;align-items:center;flex-wrap:wrap;max-width:250px;
+  background:rgba(30,63,88,.88);color:#fff;border-radius:10px;padding:7px 11px;font-size:12.5px;font-weight:700;
+  box-shadow:0 4px 14px rgba(0,0,0,.25);pointer-events:none;backdrop-filter:blur(3px)}
+#info3d.on{display:flex}
+#info3d b{font-family:'Barlow Condensed';font-size:14px;text-transform:uppercase;letter-spacing:.4px;color:#8FDCD2;width:100%}
+#info3d span{font-size:10px;font-weight:700;color:#b8d0da;text-transform:uppercase;margin-right:3px}
 #status{position:absolute;inset:0;display:none;align-items:center;justify-content:center;gap:10px;
   background:color-mix(in srgb,var(--bg) 70%,transparent);font-weight:700;color:var(--azul-esc);z-index:4}
 html[data-tema="escuro"] #status{color:var(--teal)}
@@ -122,7 +135,6 @@ body.drop .vcx{border-color:var(--verde);background:var(--hover)}
   #lado{width:100% !important;height:42vh;border-right:0;border-top:1px solid var(--border2)}
   #divisor{display:none}
   #area{min-height:0}
-  #props{left:12px;right:12px;width:auto;top:auto;bottom:12px;max-height:45%}
   .hsub,#gerado{display:none}
   .bt kbd{display:none}
 }
@@ -163,12 +175,30 @@ body.drop .vcx{border-color:var(--verde);background:var(--hover)}
       <button class="bt" id="b-tudo" title="Voltar a mostrar tudo">Mostrar tudo<kbd>M</kbd></button>
       <button class="bt" id="b-enquadrar" title="Enquadrar a seleção (ou o modelo inteiro)">Enquadrar<kbd>F</kbd></button>
       <button class="bt" id="b-limpar" title="Limpar a seleção">Limpar<kbd>Esc</kbd></button>
+      <button class="bt" id="b-raiox" title="Deixa tudo meio transparente para conferir incompatibilidades">Raio-X<kbd>R</kbd></button>
+      <button class="bt" id="b-corte" title="Cortar o 3D (planta, cortes) e escolher a vista da câmera">✂ Corte e vistas<kbd>C</kbd></button>
+      <button class="bt" id="b-medir" title="Clique em dois pontos para medir a distância">📏 Medir<kbd>D</kbd></button>
+      <button class="bt" id="b-limpar-med" style="display:none" title="Apaga todas as medidas">Limpar medidas</button>
+      <button class="bt" id="b-desfazer" disabled title="Desfaz a última ação (ocultar, isolar, medida…)">↶ Desfazer<kbd>Ctrl+Z</kbd></button>
       <button class="bt" id="b-proj" title="Alternar perspectiva/ortogonal">Ortogonal</button>
     </div>
-    <div id="props">
-      <div class="ptopo"><b>Seleção</b><button id="props-x" title="Fechar">×</button></div>
-      <div id="props-corpo"></div>
+    <div id="corte">
+      <div class="ct"><b>Corte</b><button id="corte-x" title="Fechar">×</button></div>
+      <div class="md">
+        <button data-m="planta" title="Tira tudo acima da altura escolhida — vira planta">Planta</button>
+        <button data-m="long" title="Corte no sentido do comprimento (eixo X)">Longitudinal</button>
+        <button data-m="trans" title="Corte no outro sentido (eixo Z)">Transversal</button>
+      </div>
+      <input type="range" id="corte-pos" min="0" max="100" value="50" disabled>
+      <div class="cl"><span id="corte-txt">sem corte</span><button id="corte-inv" title="Mostrar o outro lado do corte">⇅ inverter</button></div>
+      <div class="ct" style="margin-top:10px"><b>Vista</b></div>
+      <div class="vs">
+        <button data-v="topo">Topo</button><button data-v="frente">Frente</button><button data-v="fundos">Fundos</button>
+        <button data-v="esq">Esquerda</button><button data-v="dir">Direita</button><button data-v="iso">3D</button>
+      </div>
     </div>
+    <div id="medidas"></div>
+    <div id="info3d"></div>
     <div id="vazio" style="display:none">
       <div class="vcx">
         <h2>Abrir modelo</h2>
@@ -247,6 +277,6 @@ window.MODELO3D_ENDPOINT = async function (obraId) {
   return { ok: true, titulo: r.titulo, arquivos: r.arquivos, obter: (a, prog) => baixarModelo3d(obraId, a, prog) };
 };
 </script>
-<script src="js/visualizador-3d.js?v=1"></script>
+<script src="js/visualizador-3d.js?v=3"></script>
 </body>
 </html>
