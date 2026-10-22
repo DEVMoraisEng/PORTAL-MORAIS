@@ -115,6 +115,51 @@ html[data-tema="escuro"] #corte .ct b{color:var(--teal)}
 #info3d.on{display:flex}
 #info3d b{font-family:'Barlow Condensed';font-size:14px;text-transform:uppercase;letter-spacing:.4px;color:#8FDCD2;width:100%}
 #info3d span{font-size:10px;font-weight:700;color:#b8d0da;text-transform:uppercase;margin-right:3px}
+#snap{position:absolute;z-index:3;display:none;pointer-events:none;transform:translate(-50%,-50%)}
+#snap.on{display:block}
+#snap::before{content:"";display:block;width:12px;height:12px;border:2.5px solid #00b894;background:rgba(0,184,148,.18);box-sizing:border-box}
+#snap.v::before{width:14px;height:14px}
+#snap.a::before{border-radius:50%}
+#snap.m::before{width:0;height:0;border:0;background:none;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:13px solid #00b894}
+#snap.f::before{width:8px;height:8px;border-radius:50%;background:#e74c3c;border-color:#fff;border-width:1.5px}
+#snap::after{content:attr(data-rot);position:absolute;left:14px;top:12px;white-space:nowrap;background:#1e3f58;color:#fff;font-size:10.5px;font-weight:700;padding:2px 6px;border-radius:5px}
+#snap.f::after{display:none}
+.medida.temp{background:rgba(231,76,60,.75)}
+#raiox{position:absolute;right:12px;top:62px;width:250px;background:var(--sup);border:1px solid var(--border2);border-radius:12px;
+  box-shadow:0 8px 24px var(--sombra);padding:10px 12px 12px;z-index:3;display:none}
+#raiox.on{display:block}
+#raiox .ct{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+#raiox .ct b{font-family:'Barlow Condensed';font-weight:800;font-size:14px;text-transform:uppercase;letter-spacing:.4px;color:var(--azul-esc)}
+html[data-tema="escuro"] #raiox .ct b{color:var(--teal)}
+#raiox .ct button{border:0;background:var(--bg3);color:var(--text3);width:24px;height:24px;border-radius:6px;cursor:pointer;font-size:15px;line-height:1}
+#raiox p{margin:0 0 6px;font-size:11px;color:var(--text3)}
+#raiox-disc{display:flex;flex-wrap:wrap;gap:5px}
+#raiox-op{width:100%;margin:10px 0 0;accent-color:#2e86de}
+#props{position:absolute;left:12px;top:62px;width:310px;max-height:calc(100% - 90px);display:none;flex-direction:column;
+  background:color-mix(in srgb,var(--sup) 94%,transparent);border:1px solid var(--border2);border-radius:12px;box-shadow:0 8px 24px var(--sombra);z-index:3;overflow:hidden}
+#props.on{display:flex}
+#props .ph{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:10px 12px 6px}
+#props .ph small{display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text4)}
+#props .ph b{display:block;font-family:'Barlow Condensed';font-weight:800;font-size:15px;line-height:1.15;color:var(--azul-esc);word-break:break-word}
+html[data-tema="escuro"] #props .ph b{color:var(--teal)}
+#props .ph button{border:0;background:var(--bg3);color:var(--text3);width:24px;height:24px;border-radius:6px;cursor:pointer;font-size:15px;line-height:1;flex:none}
+#props .pbt{display:flex;gap:6px;padding:0 12px 8px}
+#props .pbt .bt{padding:5px 9px;font-size:11.5px;box-shadow:none}
+#props .pab{margin:0 12px 8px;padding:6px 9px;border-radius:8px;background:var(--bg2);font-size:12px;font-weight:700}
+#props .pab span{font-size:10px;color:var(--text4);text-transform:uppercase;margin:0 3px 0 6px}
+#props .pc{overflow:auto;padding:0 12px 10px}
+#props details{border-top:1px solid var(--border);padding:5px 0}
+#props summary{cursor:pointer;font-size:12px;font-weight:700;color:var(--text);padding:3px 0}
+#props summary i{font-style:normal;font-weight:600;color:var(--text4);font-size:10.5px}
+#props table{width:100%;border-collapse:collapse;font-size:11.5px;margin:3px 0}
+#props th{text-align:left;font-weight:600;color:var(--text3);padding:2px 8px 2px 0;vertical-align:top;width:45%;word-break:break-word}
+#props td{color:var(--text);padding:2px 0;word-break:break-word}
+#props .pvz{font-size:11px;color:var(--text4);padding:6px 0}
+#drone-dica{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);display:none;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;
+  background:rgba(30,63,88,.9);color:#fff;border-radius:10px;padding:7px 12px;font-size:12px;font-weight:600;z-index:3;pointer-events:none;max-width:92%}
+#drone-dica.on{display:flex}
+#drone-dica kbd{font:inherit;font-size:11px;font-weight:800;background:rgba(255,255,255,.16);border-radius:4px;padding:1px 5px}
+#drone-dica b{color:#8FDCD2}
 #status{position:absolute;inset:0;display:none;align-items:center;justify-content:center;gap:10px;
   background:color-mix(in srgb,var(--bg) 70%,transparent);font-weight:700;color:var(--azul-esc);z-index:4}
 html[data-tema="escuro"] #status{color:var(--teal)}
@@ -175,9 +220,10 @@ body.drop .vcx{border-color:var(--verde);background:var(--hover)}
       <button class="bt" id="b-tudo" title="Voltar a mostrar tudo">Mostrar tudo<kbd>M</kbd></button>
       <button class="bt" id="b-enquadrar" title="Enquadrar a seleção (ou o modelo inteiro)">Enquadrar<kbd>F</kbd></button>
       <button class="bt" id="b-limpar" title="Limpar a seleção">Limpar<kbd>Esc</kbd></button>
-      <button class="bt" id="b-raiox" title="Deixa tudo meio transparente para conferir incompatibilidades">Raio-X<kbd>R</kbd></button>
+      <button class="bt" id="b-raiox" title="Deixa a arquitetura (ou as disciplinas que você escolher) transparente para conferir incompatibilidades">Raio-X<kbd>R</kbd></button>
       <button class="bt" id="b-corte" title="Cortar o 3D (planta, cortes) e escolher a vista da câmera">✂ Corte e vistas<kbd>C</kbd></button>
       <button class="bt" id="b-medir" title="Clique em dois pontos para medir a distância">📏 Medir<kbd>D</kbd></button>
+      <button class="bt" id="b-drone" title="Andar livremente pela casa (primeira pessoa)">🚁 Drone</button>
       <button class="bt" id="b-limpar-med" style="display:none" title="Apaga todas as medidas">Limpar medidas</button>
       <button class="bt" id="b-desfazer" disabled title="Desfaz a última ação (ocultar, isolar, medida…)">↶ Desfazer<kbd>Ctrl+Z</kbd></button>
       <button class="bt" id="b-proj" title="Alternar perspectiva/ortogonal">Ortogonal</button>
@@ -197,6 +243,16 @@ body.drop .vcx{border-color:var(--verde);background:var(--hover)}
         <button data-v="esq">Esquerda</button><button data-v="dir">Direita</button><button data-v="iso">3D</button>
       </div>
     </div>
+    <div id="raiox">
+      <div class="ct"><b>Raio-X</b><button id="raiox-x" title="Desligar o raio-X">×</button></div>
+      <p>Marcadas ficam transparentes; as outras continuam sólidas por cima.</p>
+      <div id="raiox-disc"></div>
+      <input type="range" id="raiox-op" min="5" max="90" value="22" title="Transparência">
+    </div>
+    <div id="snap"></div>
+    <div id="props"></div>
+    <div id="drone-dica"><b>🚁 Drone</b><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> andar</span><span><kbd>Q</kbd>/<kbd>E</kbd> descer/subir</span>
+      <span>arraste para olhar</span><span><kbd>Shift</kbd> rápido</span><span>roda: velocidade <b id="drone-vel">2,5 m/s</b></span><span><kbd>Esc</kbd> sai</span></div>
     <div id="medidas"></div>
     <div id="info3d"></div>
     <div id="vazio" style="display:none">
@@ -277,6 +333,6 @@ window.MODELO3D_ENDPOINT = async function (obraId) {
   return { ok: true, titulo: r.titulo, arquivos: r.arquivos, obter: (a, prog) => baixarModelo3d(obraId, a, prog) };
 };
 </script>
-<script src="js/visualizador-3d.js?v=3"></script>
+<script src="js/visualizador-3d.js?v=4"></script>
 </body>
 </html>
