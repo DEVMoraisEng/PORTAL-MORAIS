@@ -285,8 +285,13 @@ function lerEstaticoJa(arquivo, chaveCache, pintar){
    Agora são duas filas independentes, uma por implantação. Cada uma continua
    com uma requisição por vez (o Apps Script serializa por implantação mesmo),
    mas leitura e escrita não se enxergam. */
+/* 22/10/26 — MEDIDO AO VIVO: 4 chamadas juntas na implantação de LEITURA
+   terminaram em 2,7–3,6 s; UMA sozinha leva 2,3–2,7 s. O servidor atende em
+   paralelo; quem empilhava era esta fila (Ligações abria com 3 chamadas em
+   fila ≈ 7 s). A LEITURA passa a ter 4 em voo. A ESCRITA continua curta (o
+   rf-rotas.js a deixa em 2) para gravações do mesmo campo não trocarem de ordem. */
 const _faixas = {
-  leitura: { max: 1, emVoo: 0, fila: [] },
+  leitura: { max: 4, emVoo: 0, fila: [] },
   escrita: { max: 1, emVoo: 0, fila: [] }
 };
 /* Sem a segunda implantação configurada, as duas faixas apontariam para a
@@ -740,7 +745,7 @@ let _sinc=false;
 async function sincronizar(){
   if(_sinc || !navigator.onLine) return;
   _sinc=true;
-  let feitos=[];
+  let feitos=[], saiu=0;   // saiu: itens que deixaram a fila (gravados OU recusados de vez)
   try{
     /* 13/10/26: anda pelos itens por id (a fila agora também recebe itens da
        gravação em segundo plano enquanto esta rodada acontece) e pula o que
@@ -765,13 +770,17 @@ async function sincronizar(){
            item aqui perderia a escrita de vez; melhor parar e tentar depois,
            igual ao NAO_AUTORIZADO. */
         const transitorio = r && r.erro && (r.erro==="NAO_AUTORIZADO" || r.erro==="BACKEND_SEM_CONFIG");
-        if(r && (r.ok || (r.erro && !transitorio))){ _emVooFila.delete(item.id); _tirarDaFila(item.id); }
+        if(r && (r.ok || (r.erro && !transitorio))){ _emVooFila.delete(item.id); _tirarDaFila(item.id); saiu++; }
         else { _emVooFila.delete(item.id); break; }
       }catch(e){ _emVooFila.delete(item.id); break; }        // rede caiu de novo → para
     }
   } finally {
     _sinc=false; atualizarBadge();
-    if(typeof window.aoSincronizar==="function") window.aoSincronizar(feitos);
+    /* 22/10/26 — só avisa a tela quando algum item SAIU da fila (gravou ou foi recusado). Antes rodava a cada
+       tentativa, mesmo com o item preso na fila: em Ligações isso rebaixava o
+       ligacoes.json (1,3 MB), redesenhava tudo e forçava a leitura ao vivo a
+       cada 20–30 s (146 chamadas "ligacoes" de uma pessoa só, numa hora). */
+    if(saiu && typeof window.aoSincronizar==="function") window.aoSincronizar(feitos);
   }
 }
 
@@ -791,8 +800,8 @@ window.addEventListener("online",  ()=>{ atualizarStatus(); sincronizar(); });
    o item ficava parado indefinidamente. Estas duas linhas cobrem o buraco:
    tenta de tempos em tempos e ao voltar para a aba. Só faz algo quando há
    fila (ver tentarSincronizar). */
-setInterval(tentarSincronizar, 30000);
-document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) tentarSincronizar(); });
+/* 22/10/26: o setInterval de 30 s e o visibilitychange que ficavam aqui eram
+   duplicata dos de baixo (20 s) — a fila era tentada nos dois ritmos. */
 window.addEventListener("offline", atualizarStatus);
 
 /* CAUSA DO "PREENCHI E SUMIU DE NOVO": quando a chamada ao Apps Script falha
