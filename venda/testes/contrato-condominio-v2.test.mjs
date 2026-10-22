@@ -66,7 +66,7 @@ test("regra da comissão: sem pós-chaves 5%, 12 pós-chaves 4,75%, 24 pós-chav
   assert.equal(C.comissaoPctPelaRegra(36), null);
 });
 
-test("condomínio completo: sem faltas, comissão paga pelo COMPRADOR por fora do preço; marcadores do quadro-resumo", () => {
+test("condomínio completo: sem faltas; comissão do COMPRADOR DENTRO do valor de venda (dono 22/10); marcadores do quadro-resumo", () => {
   const d = dados();
   assert.equal(d.modelo, "CONDOMINIO");
   assert.deepEqual(C.faltasContrato(d), []);
@@ -85,14 +85,14 @@ test("condomínio completo: sem faltas, comissão paga pelo COMPRADOR por fora d
   assert.equal(m.AREA_TOTAL_CONSTRUIDA, "71,97");
   assert.equal(m.FRACAO_IDEAL_M2, "257,79");
   assert.equal(m.FRACAO_IDEAL_PCT, "1,613");
-  assert.equal(m.VALOR_OPERACAO_EXTENSO, "R$ 318.725,00 (trezentos e dezoito mil setecentos e vinte e cinco reais)");
-  assert.equal(m.VALOR_IMOVEL_EXTENSO, "R$ 305.000,00 (trezentos e cinco mil reais)");
+  assert.equal(m.VALOR_OPERACAO_EXTENSO, "R$ 305.000,00 (trezentos e cinco mil reais)");
+  assert.equal(m.VALOR_IMOVEL_EXTENSO, "R$ 291.275,00 (duzentos e noventa e um mil duzentos e setenta e cinco reais)", "305.000 − 13.725");
   assert.equal(m.COMISSAO_EXTENSO, "R$ 13.725,00 (treze mil setecentos e vinte e cinco reais)");
-  assert.equal(m.SINAL_EXTENSO, "R$ 1.000,00 (mil reais)");
-  assert.equal(m.SINAL_VENCIMENTO, "07/10/2026");
+  assert.equal(m.SINAL_EXTENSO, "R$ 10.000,00 (dez mil reais)", "ato + 30/60/90");
+  assert.equal(m.SINAL_VENCIMENTO, "07/10/2026 (R$ 1.000,00), 07/11/2026 (R$ 3.000,00), 07/12/2026 (R$ 3.000,00) e 07/01/2027 (R$ 3.000,00)");
   assert.equal(m.ENTRADA_TOTAL, "54.950,00");
   assert.equal(m.ENTRADA_PCT, "18,02");
-  assert.equal(m.ENTRADA_SALDO, "53.950,00");
+  assert.equal(m.ENTRADA_SALDO, "44.950,00", "entrada − sinal");
   assert.equal(m.FINANCIAMENTO_VALOR, "250.050,00");
   assert.equal(m.FINANCIAMENTO_PCT, "81,98");
   assert.equal(m.FINANCIAMENTO_FRASE, ", incluídos os recursos do FGTS e/ou subsídio, quando houver");
@@ -103,23 +103,22 @@ test("condomínio completo: sem faltas, comissão paga pelo COMPRADOR por fora d
   assert.equal(m.CIDADE_DATA, "Goiânia, 7 de outubro de 2026", "condomínio: a data da assinatura, não a de hoje");
 });
 
-test("resumo das parcelas antes das chaves: sinais iguais agrupados, séries por dia de vencimento, balões; INCC-M no fim", () => {
+test("resumo das parcelas antes das chaves: sem os sinais (vão no 4.1.3), séries por dia de vencimento, balões; INCC-M no fim", () => {
   assert.equal(C.marcadores(dados()).PARCELAS_PRE_CHAVES,
-    "3 parcelas de R$ 3.000,00 (três mil reais), com vencimentos em 07/11/2026, 07/12/2026 e 07/01/2027; " +
     "10 parcelas mensais e sucessivas de R$ 924,07 (novecentos e vinte e quatro reais e sete centavos) cada, vencendo todo dia 10, a primeira em 10/11/2026; " +
     "12 parcelas mensais e sucessivas de R$ 295,49 (duzentos e noventa e cinco reais e quarenta e nove centavos) cada, vencendo todo dia 10, a primeira em 10/09/2027; " +
     "1 parcela intermediária de R$ 8.954,18 (oito mil novecentos e cinquenta e quatro reais e dezoito centavos), com vencimento em 10/12/2027; e " +
     "1 parcela intermediária de R$ 6.267,88 (seis mil duzentos e sessenta e sete reais e oitenta e oito centavos), com vencimento em 10/11/2028 " +
     "ou na data da entrega das chaves, o que ocorrer primeiro; todas corrigidas pelo INCC-M, nos termos do item 6.1.");
-  const sinaisDiferentes = C.marcadores(dados({ condominio: { fluxo: { ...FLUXO, sinal30: 2000, sinal60: 4000, pre2N: 0, pre2Valor: 0,
-    balao1Valor: 0, balao2Valor: 0, valorVenda: 305000 - 12 * 295.49 - 8954.18 - 6267.88 } } })).PARCELAS_PRE_CHAVES;
-  assert.equal(sinaisDiferentes,
-    "1 parcela de R$ 2.000,00 (dois mil reais), com vencimento em 07/11/2026; " +
-    "1 parcela de R$ 4.000,00 (quatro mil reais), com vencimento em 07/12/2026; " +
-    "1 parcela de R$ 3.000,00 (três mil reais), com vencimento em 07/01/2027; e " +
-    "10 parcelas mensais e sucessivas de R$ 924,07 (novecentos e vinte e quatro reais e sete centavos) cada, vencendo todo dia 10, a primeira em 10/11/2026; " +
-    "todas corrigidas pelo INCC-M, nos termos do item 6.1.");
-  const nada = { sinal30: 0, sinal60: 0, sinal90: 0, pre1N: 0, pre1Valor: 0, pre2N: 0, pre2Valor: 0, balao1Valor: 0, balao2Valor: 0 };
+  const so1 = C.marcadores(dados({ condominio: { fluxo: { ...FLUXO, pre2N: 0, pre2Valor: 0, balao1Valor: 0, balao2Valor: 0,
+    valorVenda: 305000 - 12 * 295.49 - 8954.18 - 6267.88 } } })).PARCELAS_PRE_CHAVES;
+  assert.equal(so1, "10 parcelas mensais e sucessivas de R$ 924,07 (novecentos e vinte e quatro reais e sete centavos) cada, vencendo todo dia 10, " +
+    "a primeira em 10/11/2026; todas corrigidas pelo INCC-M, nos termos do item 6.1.");
+  /* só o sinal no ato: o vencimento é a data da assinatura, sem lista */
+  const soAto = C.marcadores(dados({ condominio: { fluxo: { ...FLUXO, sinal30: 0, sinal60: 0, sinal90: 0, pre1Valor: 924.07 + 900 } } }));
+  assert.equal(soAto.SINAL_VENCIMENTO, "07/10/2026");
+  assert.equal(soAto.SINAL_EXTENSO, "R$ 1.000,00 (mil reais)");
+  const nada = { pre1N: 0, pre1Valor: 0, pre2N: 0, pre2Valor: 0, balao1Valor: 0, balao2Valor: 0 };
   assert.equal(C.marcadores(dados({ condominio: { fluxo: { ...FLUXO, ...nada } } })).PARCELAS_PRE_CHAVES, "não há.");
 });
 

@@ -304,7 +304,7 @@ var ContratoVenda = (function () {
   /* ---- contrato do condomínio do advogado (21/10/2026): quadro-resumo ----
    * O fluxo da venda continua o do simulador (sinais, duas partes, balões, pós-chaves); o item 4.2.1
    * o resume por grupos (decisão do dono 21/10: "24 parcelas mensais, todo dia XX, a primeira em …").
-   * A comissão é paga pelo COMPRADOR, por fora do preço: valor da operação = imóvel + comissão. */
+   * A comissão é do COMPRADOR e está dentro do VALOR DE VENDA (dono 22/10): operação = venda; imóvel = venda − comissão. */
   function U() { return typeof UnidadesCondominio !== "undefined" ? UnidadesCondominio : require("./UnidadesCondominio.js"); }
   /* item 5 b): o percentual sai do número de parcelas pós-chaves (é a mesma regra do simulador) */
   var COMISSAO_POR_POS = { 0: 0.05, 12: 0.0475, 24: 0.045 };
@@ -322,11 +322,17 @@ var ContratoVenda = (function () {
     var financiamento = so2(val(fl.credito) + val(fl.fgts) + val(fl.subsidio));
     var pctRegra = comissaoPctPelaRegra(fl.posN);
     var comissao = positivo(co.comissao) ? co.comissao : (pctRegra !== null && preco !== null ? so2(preco * pctRegra) : null);
+    /* dono 22/10: a comissão está DENTRO do VALOR DE VENDA (305 mil a 5% = 15.250 do corretor); o cliente paga à
+       Morais e a Morais repassa ao corretor depois que o sinal inteiro é pago. Operação = VALOR DE VENDA;
+       imóvel = venda − comissão. Sinal = ato + 30/60/90; entrada (4.2.1 a) = tudo que não é CAIXA/FGTS/subsídio,
+       sinal incluído (como o texto do advogado: o saldo da entrada é a entrada menos o sinal). */
+    var sinal = so2(val(fl.sinalAto) + val(fl.sinal30) + val(fl.sinal60) + val(fl.sinal90));
     var entrada = preco === null ? null : so2(preco - financiamento);
     return {
       preco: preco, financiamento: financiamento, temFgtsSubsidio: val(fl.fgts) + val(fl.subsidio) > 0,
-      pctRegra: pctRegra, comissao: comissao, operacao: preco !== null && comissao !== null ? so2(preco + comissao) : null,
-      entrada: entrada, saldoEntrada: entrada === null ? null : so2(entrada - val(fl.sinalAto))
+      pctRegra: pctRegra, comissao: comissao, operacao: preco,
+      imovel: preco !== null && comissao !== null ? so2(preco - comissao) : null,
+      sinal: sinal, entrada: entrada, saldoEntrada: entrada === null ? null : so2(entrada - sinal)
     };
   }
 
@@ -338,17 +344,17 @@ var ContratoVenda = (function () {
   function emLista(itens) {
     return itens.length < 2 ? itens.join("") : itens.slice(0, -1).join("; ") + "; e " + itens[itens.length - 1];
   }
-  /* 4.2.1 c): sinais 30/60/90 (agrupados quando iguais), 1ª e 2ª parte, balões */
+  /* 4.1.3: vencimentos do sinal (ato + 30/60/90). Só o ato: a data; mais de um: "dd/mm/aaaa (R$ x), … e …" */
+  function vencimentosSinal(fl) {
+    var ps = [[fl.sinalAto, fl.assinatura], [fl.sinal30, fl.data30], [fl.sinal60, fl.data60], [fl.sinal90, fl.data90]]
+      .filter(function (p) { return positivo(p[0]); });
+    if (ps.length < 2) return ps.length ? dataBR(ps[0][1]) : dataBR(fl.assinatura);
+    var t = ps.map(function (p) { return dataBR(p[1]) + " (R$ " + moedaBR(p[0]) + ")"; });
+    return t.slice(0, -1).join(", ") + " e " + t[t.length - 1];
+  }
+  /* 4.2.1 c): a entrada começa depois do sinal — 1ª e 2ª parte e balões (os sinais ficam no 4.1.3) */
   function parcelasPreChaves(fl) {
     var itens = [], total = 0;
-    var sinais = [[fl.sinal30, fl.data30], [fl.sinal60, fl.data60], [fl.sinal90, fl.data90]].filter(function (p) { return positivo(p[0]); });
-    var iguais = sinais.length > 1 && sinais.every(function (p) { return p[0] === sinais[0][0]; });
-    if (iguais) {
-      var datas = sinais.map(function (p) { return dataBR(p[1]); });
-      itens.push(sinais.length + " parcelas de " + valorExtenso(sinais[0][0]) + ", com vencimentos em " +
-        datas.slice(0, -1).join(", ") + " e " + datas[datas.length - 1]);
-    } else sinais.forEach(function (p) { itens.push(mensais(1, p[0], p[1])); });
-    total += sinais.length;
     [[fl.pre1N, fl.pre1Valor, fl.pre1Data], [fl.pre2N, fl.pre2Valor, fl.pre2Data]].forEach(function (s) {
       if (!positivo(s[0]) || !positivo(s[1])) return;
       itens.push(mensais(s[0], s[1], s[2], fl.diaPagamento));
@@ -465,7 +471,7 @@ var ContratoVenda = (function () {
     var aquisicao, intermediacao;
     if (cond) {
       comissao = valoresCondominio(cond).comissao;
-      aquisicao = total;
+      aquisicao = total !== null && comissao !== null ? so2(total - comissao) : total;   /* comissão dentro do preço (22/10) */
       intermediacao = comissao;
     } else if (pagaPor === "VENDEDOR") {
       aquisicao = total;
@@ -882,10 +888,10 @@ var ContratoVenda = (function () {
     m.FRACAO_IDEAL_M2 = tb ? moedaBR(tb.fracaoM2) : "";
     m.FRACAO_IDEAL_PCT = tb ? tb.fracaoPct : "";
     m.VALOR_OPERACAO_EXTENSO = ext(va.operacao);
-    m.VALOR_IMOVEL_EXTENSO = ext(va.preco);
+    m.VALOR_IMOVEL_EXTENSO = ext(va.imovel);
     m.COMISSAO_EXTENSO = ext(va.comissao);
-    m.SINAL_EXTENSO = positivo(fl.sinalAto) ? valorExtenso(fl.sinalAto) : "";
-    m.SINAL_VENCIMENTO = dataBR(fl.assinatura);
+    m.SINAL_EXTENSO = positivo(va.sinal) ? valorExtenso(va.sinal) : "";
+    m.SINAL_VENCIMENTO = vencimentosSinal(fl);
     m.ENTRADA_TOTAL = moedaOuVazio(va.entrada);
     m.ENTRADA_PCT = va.entrada === null ? "" : pct2(va.entrada, va.preco);
     m.ENTRADA_SALDO = moedaOuVazio(va.saldoEntrada);

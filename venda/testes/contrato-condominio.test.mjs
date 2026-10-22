@@ -105,7 +105,7 @@ test("condomínio completo: modelo CONDOMINIO, sem faltas; casa fora da tabela s
   assert.deepEqual(C.faltasContrato(d), []);
   assert.deepEqual(C.avisosContrato(d), ["Em branco no contrato: tipo e áreas da casa (casa fora da tabela do condomínio)"]);
   assert.equal(d.comissao.pagaPor, "COMPRADOR");
-  assert.equal(d.negociacao.aquisicao, 305000);
+  assert.equal(d.negociacao.aquisicao, 291275, "imóvel = venda − comissão (dono 22/10)");
   const m = C.marcadores(d), b = C.blocos(d);
   assert.equal(m.VALOR_TOTAL, "R$ 305.000,00");
   assert.equal(m.VALOR_INTERMEDIACAO, "R$ 13.725,00", "pela regra: 24 pós-chaves = 4,5%");
