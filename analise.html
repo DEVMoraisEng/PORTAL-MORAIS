@@ -440,7 +440,9 @@ section > .sec:first-child{margin-top:0}
           <h3>Quanto cada obra costuma pedir</h3>
           <p class="desc">Para cada insumo: quantas obras pediram, a <b>média</b> e a <b>moda</b> (a quantidade
             que mais se repete) do que foi <b>pedido por obra</b> (realizado), ao lado da média que tinha sido
-            <b>orçada</b> nessas mesmas obras. Só entram as obras que pediram o insumo. Obra finalizada =
+            <b>orçada</b> nessas mesmas obras. Por padrão só entram as obras que pediram o insumo; com
+            <b>Itens zerados = Considerar na média</b>, entram todas as obras que têm o insumo no orçamento ou no
+            realizado, e o zero conta nos dois lados. Obra finalizada =
             <b>OBRA FINALIZADA?</b> = SIM no banco DOCUMENTOS (casado pelo endereço).
             Clique no insumo para ver obra a obra.</p>
           <div class="filtros">
@@ -485,6 +487,14 @@ section > .sec:first-child{margin-top:0}
             <div class="fcampo">
               <label>Nº de casas</label>
               <select id="hist-casas" onchange="renderHistorico()"><option value="">Todas</option></select>
+            </div>
+            <!-- 23/10: zeros na média (pedido do Claudio/Morais) -->
+            <div class="fcampo">
+              <label>Itens zerados</label>
+              <select id="hist-zeros" onchange="renderHistorico()">
+                <option value="fora">Fora da média</option>
+                <option value="dentro">Considerar na média</option>
+              </select>
             </div>
             <div class="fcampo">
               <label>Mín. de obras</label>
@@ -1627,6 +1637,13 @@ function calcularHistorico(){
   const nObras=entra.filter(Boolean).length;
   HIST_BASE_NOMES=new Set(j.obras.filter((o,i)=>entra[i]).map(o=>normEnd(o[1])));   // 22/10: o modal do insumo usa a mesma base
 
+  /* 23/10: "Itens zerados". Fora (padrão): só as obras que PEDIRAM o insumo
+     (realizado > 0) entram na média — as duas médias (pedida e orçada) usam
+     essas obras. Dentro: entra toda obra da base que tem o insumo no ORÇADO ou
+     no REALIZADO, e o zero conta nos dois lados (média, moda, mín e máx). Obra
+     que não tem o insumo em nenhum dos dois não entra — o insumo não faz parte
+     dela. */
+  const comZeros=document.getElementById("hist-zeros").value==="dentro";
   // soma por insumo x obra
   const grupos=new Map();
   for(let i=0;i<j.linhas.length;i++){
@@ -1642,7 +1659,7 @@ function calcularHistorico(){
 
   const out=[];
   grupos.forEach(g=>{
-    const pedidas=[...g.porObra.values()].filter(e=>e.r>0);
+    const pedidas=[...g.porObra.values()].filter(e=> comZeros ? (e.r>0 || e.o>0) : e.r>0);
     if(!pedidas.length) return;
     const n=pedidas.length;
     const soma=pedidas.reduce((a,e)=>a+e.r,0), somaO=pedidas.reduce((a,e)=>a+e.o,0);
@@ -1673,6 +1690,7 @@ function renderHistorico(){
     (cond==="so"?" (só condomínios)":(base==="fin"?" (finalizadas no DOCUMENTOS)":""))+
     (cond==="fora"?" · condomínios fora":(cond==="incluir"?" · com condomínios":""))+
     (setorF&&cond!=="so"?` · setor <b>${esc(setorF)}</b>`:"")+(casasF&&cond!=="so"?` · <b>${esc(casasF)}</b> casas`:"")+
+    (document.getElementById("hist-zeros").value==="dentro"?" · <b>zeros na média</b>":"")+
     ` · <b>${arr.length}</b> insumo(s) listado(s)`+
     (r.nObras<3?" · <b>poucas obras nesta base — média e moda ainda pouco confiáveis</b>":"");
 
@@ -1685,7 +1703,8 @@ function renderHistorico(){
   });
 
   const cols=[
-    ["insumo","Insumo",false],["unidade","Un",false],["obras","Obras que pediram",true],
+    ["insumo","Insumo",false],["unidade","Un",false],
+    ["obras", document.getElementById("hist-zeros").value==="dentro" ? "Obras na média" : "Obras que pediram", true],
     ["media","Média pedida / obra",true],["moda","Moda pedida / obra",true],
     ["min","Mín",true],["max","Máx",true],
     ["media_orc","Média orçada / obra",true],["dif_pct","Pedido × orçado",true]
