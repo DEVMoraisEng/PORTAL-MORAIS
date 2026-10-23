@@ -86,10 +86,26 @@ def main():
             print("login ok", flush=True)
             ligar(page)
             VISTOS.clear()
-            mc.ir_menu(page, "Obras", "Medição de Contratos")
-            page.wait_for_timeout(6000)
-            cabecalhos(page)
-            despejar("LISTA de Medição de Contratos")
+            # a tela abre por rota (o menu lateral não responde na tela de onboarding)
+            for rota in ("#/work-measurements", "#/contracts", "#/measurements", "#/work-contracts",
+                         "#/contract-measurements", "#/work-measurement"):
+                try:
+                    page.evaluate("h => { location.hash = h }", rota)
+                    page.wait_for_timeout(6000)
+                    print(f"\n--- rota {rota} -> {page.url.split('#')[-1][:80]}", flush=True)
+                    cabecalhos(page)
+                    despejar(f"rota {rota}")
+                    if page.locator("th:visible, [role=columnheader]:visible").count():
+                        break
+                except Exception as e:
+                    print(f"rota {rota}: {str(e)[:100]}")
+            try:
+                mc.ir_menu(page, "Obras", "Medição de Contratos")
+                page.wait_for_timeout(6000)
+                cabecalhos(page)
+                despejar("LISTA de Medição de Contratos (menu)")
+            except Exception as e:
+                print("menu Obras > Medição de Contratos:", str(e)[:120])
 
             # abre o primeiro contrato da lista
             alvo = page.locator("tbody tr:visible, [role=row]:visible").nth(1)
