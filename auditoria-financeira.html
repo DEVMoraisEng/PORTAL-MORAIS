@@ -312,7 +312,6 @@ html[data-tema="escuro"] .tag.gen{color:#E3AE4B}html[data-tema="escuro"] .tag.de
       <a class="btn-voltar" href="index.html">← Voltar para o Dashboard</a>
       <span style="flex:1"></span>
       <span class="chip-extr" id="chip-gerado">—</span>
-      <span class="chip-extr" id="chip-perfil" title="O que este login pode fazer nesta tela">—</span>
       <button class="bt ghost sm" id="bt-atualizar" onclick="afCarregar(true)">↻ Atualizar</button>
     </div>
 
@@ -329,8 +328,6 @@ html[data-tema="escuro"] .tag.gen{color:#E3AE4B}html[data-tema="escuro"] .tag.de
         <button class="tab on" data-tab="visao">Visão Geral</button>
         <button class="tab" data-tab="lanc">Lançamentos</button>
         <button class="tab" data-tab="corr">A Corrigir<span class="cnt hide" id="cnt-corr"></span></button>
-        <button class="tab" data-tab="cats">Por Categoria</button>
-        <button class="tab" data-tab="recl">Reclassificações</button>
         <button class="tab" data-tab="juros">Juros e Atrasos</button>
         <button class="tab" data-tab="fisc">Fiscalização</button>
         <button class="tab" data-tab="evo">Evolução</button>
@@ -363,6 +360,7 @@ html[data-tema="escuro"] .tag.gen{color:#E3AE4B}html[data-tema="escuro"] .tag.de
               <div style="display:flex;gap:12px;margin-top:6px"><button class="lnk" onclick="afSt.clear();afRenderLanc(true)">Todas</button><button class="lnk" onclick="afSoProblemas()">Só problemas</button></div></div>
             <div><div class="fcampo"><label>Validação</label></div><div class="chips" id="l-vl"></div></div>
             <div class="fcampo"><label for="l-cat">Categoria</label><select id="l-cat"></select></div>
+            <div class="fcampo"><label for="l-uso">Uso da categoria no manual</label><select id="l-uso"><option value="">Todos</option><option value="ok">Normal</option><option value="generica">Último recurso</option><option value="descontinuada">Descontinuada</option><option value="restrita">Uso restrito</option><option value="fora">Fora do manual</option></select></div>
             <div class="fcampo"><label for="l-sug">Sugestão do auditor</label><select id="l-sug"></select></div>
             <div class="fcampo"><label for="l-forn">Fornecedor</label><input id="l-forn" list="dl-forn" placeholder="Todos" autocomplete="off"></div>
             <datalist id="dl-forn"></datalist>
@@ -374,22 +372,29 @@ html[data-tema="escuro"] .tag.gen{color:#E3AE4B}html[data-tema="escuro"] .tag.de
             <div class="resbar">
               <div class="count" id="l-count"></div>
               <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                <label class="small" for="l-agr">Ver</label>
+                <select id="l-agr" class="bt ghost sm"><option value="lista">Lista de pagamentos</option><option value="cat">Agrupado por categoria</option><option value="recl">Agrupado por reclassificação</option></select>
                 <button class="bt ghost sm" onclick="afExportarCSV('lanc')">⬇ Excel (CSV)</button>
-                <label class="small" for="l-sort">Ordenar</label>
-                <select id="l-sort" class="bt ghost sm"><option value="dp-">Pagamento (recente)</option><option value="dp+">Pagamento (antigo)</option><option value="dc-">Competência (recente)</option><option value="v-">Maior valor</option><option value="st">Situação</option><option value="vl">Validação</option></select>
+                <label class="small l-solista" for="l-sort">Ordenar</label>
+                <select id="l-sort" class="bt ghost sm l-solista"><option value="dp-">Pagamento (recente)</option><option value="dp+">Pagamento (antigo)</option><option value="dc-">Competência (recente)</option><option value="v-">Maior valor</option><option value="st">Situação</option><option value="vl">Validação</option></select>
               </div>
             </div>
+            <div id="l-gfil" class="card hide" style="padding:10px 12px;margin-bottom:10px"><div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+              <div class="fcampo" id="l-gpct-w"><label for="l-gpct">% conforme do grupo</label><select id="l-gpct"><option value="">Qualquer</option><option value="0.5">abaixo de 50%</option><option value="0.75">abaixo de 75%</option><option value="0.9">abaixo de 90%</option><option value="1">abaixo de 100%</option></select></div>
+              <div class="fcampo"><label for="l-gmin">Mínimo de lançamentos</label><select id="l-gmin"><option value="1">1</option><option value="2">2</option><option value="5">5</option><option value="10">10</option></select></div>
+              <div class="fcampo" id="l-gvl-w"><label for="l-gvl">Validação do grupo</label><select id="l-gvl"><option value="">Todos os grupos</option><option value="pend">Com pendentes</option><option value="ok">Totalmente validados</option></select></div>
+              <span class="small" style="margin-left:auto;max-width:420px">Os grupos respeitam todos os filtros da esquerda. Clique num grupo para ver os pagamentos dele.</span>
+            </div></div>
+            <div class="tbl-wrap hide" id="l-grupo"></div>
             <div class="bulk" id="l-bulk"></div>
-            <div class="tbl-wrap"><table>
+            <div class="tbl-wrap" id="l-lista"><table>
               <thead><tr id="l-head"></tr></thead>
               <tbody id="l-rows"></tbody></table></div>
-            <div class="pager"><button class="bt ghost sm" id="l-prev">Anterior</button><span id="l-pg"></span><button class="bt ghost sm" id="l-next">Próxima</button></div>
+            <div class="pager" id="l-pager"><button class="bt ghost sm" id="l-prev">Anterior</button><span id="l-pg"></span><button class="bt ghost sm" id="l-next">Próxima</button></div>
           </div>
         </div>
       </section>
       <section id="tab-corr" class="hide"></section>
-      <section id="tab-cats" class="hide"></section>
-      <section id="tab-recl" class="hide"></section>
       <section id="tab-juros" class="hide"></section>
       <section id="tab-fisc" class="hide"></section>
       <section id="tab-evo" class="hide"></section>
@@ -655,6 +660,7 @@ function afOpcoes(id, valores, todos){
    ABAS
    ===================================================================== */
 function afTrocarTab(t){
+  if(t==="cats"||t==="recl"){ document.getElementById("l-agr").value=t==="cats"?"cat":"recl"; t="lanc"; }
   AF_TAB=t;
   document.querySelectorAll("#tabs .tab").forEach(b=>b.classList.toggle("on",b.dataset.tab===t));
   document.querySelectorAll("#conteudo > section").forEach(s=>s.classList.toggle("hide",s.id!=="tab-"+t));
@@ -664,7 +670,7 @@ function afTrocarTab(t){
 }
 function afRender(){
   if(!AF_D) return;
-  ({visao:afRenderVisao,lanc:afRenderLanc,corr:afRenderCorr,cats:afRenderCats,recl:afRenderRecl,
+  ({visao:afRenderVisao,lanc:afRenderLanc,corr:afRenderCorr,
     juros:afRenderJuros,fisc:afRenderFisc,evo:afRenderEvo,man:afRenderManual}[AF_TAB]||afRenderVisao)();
 }
 function afIrLanc(cfg){
@@ -675,6 +681,8 @@ function afIrLanc(cfg){
   document.getElementById("l-forn").value=cfg.forn||"";
   document.getElementById("l-sosug").checked=!!cfg.soSug;
   document.getElementById("l-fisc").checked=!!cfg.fisc;
+  document.getElementById("l-uso").value=cfg.uso||"";
+  document.getElementById("l-agr").value=cfg.agr||"lista";
   afLancPg=0; afSel.clear(); afTrocarTab("lanc");
 }
 
@@ -742,7 +750,7 @@ function afRenderVisao(){
       ${AF_D.lacuna&&AF_D.lacuna.n?`<p><b>${fN(AF_D.lacuna.n)}</b> pagamentos (${fR0(AF_D.lacuna.v)}) de energia e água das casas em obra não têm categoria no manual — <button class="lnk" onclick="afIrLanc({sug:'${esc(AF_LAC[0])}'})">ver energia</button> · <button class="lnk" onclick="afIrLanc({sug:'${esc(AF_LAC[1])}'})">ver água</button>.</p>`:""}
       ${fora.length?`<p>Categorias usadas no ERP e que não estão no manual: ${fora.map(c=>`<b>${esc(c.cat)}</b> (${fN(c.n)})`).join(", ")} — <button class="lnk" onclick="afTrocarTab('man')">resolver no Manual</button>.</p>`:""}</div>`:""}
     <div class="g2">
-      <div class="card"><h3>Maiores reclassificações</h3><p class="desc">Está em → deveria estar em. Clique para abrir os lançamentos.</p>
+      <div class="card"><h3>Maiores reclassificações</h3><p class="desc">Está em → deveria estar em. Clique para abrir os lançamentos · <button class="lnk" onclick="afIrLanc({agr:'recl'})">ver todas</button></p>
         ${recl.length?`<div class="tbl-wrap baixa"><table><thead><tr><th>Está em</th><th>Deveria estar em</th><th class="num">Lanç.</th><th class="num">Valor</th></tr></thead><tbody>
         ${recl.map(g=>`<tr class="clk" onclick='afIrLanc({cat:${JSON.stringify(g.de)},sug:${JSON.stringify(g.para)}})'><td>${esc(g.de)}</td><td class="sug">${esc(g.para)}</td><td class="num">${fN(g.n)}</td><td class="num">${fR0(g.v)}</td></tr>`).join("")}
         </tbody></table></div>`:`<div class="vazio">Nada para reclassificar.</div>`}</div>
@@ -763,11 +771,14 @@ function afLancFiltro(){
   const c=document.getElementById("l-cat").value, s=document.getElementById("l-sug").value;
   const fo=afNz(document.getElementById("l-forn").value);
   const soSug=document.getElementById("l-sosug").checked, soF=document.getElementById("l-fisc").checked;
+  const uso=document.getElementById("l-uso").value, usoC=new Map();
+  const usoDe=c=>{ if(!usoC.has(c)){ const m=afManualCat(c); usoC.set(c,m?(m.uso||"ok"):"fora"); } return usoC.get(c); };
   const out=[];
   for(const i of AF_BASE){
     if(afSt.size && !afSt.has(st(i))) continue;
     if(afVl.size && !afVl.has(AF_VST[i])) continue;
     if(c && cat(i)!==c) continue;
+    if(uso && usoDe(cat(i))!==uso) continue;
     if(s && sug(i)!==s) continue;
     if(soSug && !sug(i)) continue;
     if(soF && !AF_FISC_ROW.has(i)) continue;
@@ -795,6 +806,19 @@ function afRenderLanc(resetPg){
   document.getElementById("l-vl").innerHTML=Object.keys(AF_VL).map(v=>`<button class="chip${afVl.size&&!afVl.has(v)?" off":""}${afVl.size===1&&afVl.has(v)?" solo":""}" data-v="${v}">${afVlBadge(v)}<span class="c">${fN(cv[v])}</span></button>`).join("")
     +`<button class="lnk" style="margin-top:4px;align-self:flex-start" onclick="afVl.clear();afRenderLanc(true)">Todas</button>`;
   const L=afLancFiltro(); AF_LANC_ULT=L;
+  const agr=document.getElementById("l-agr").value;
+  ["l-lista","l-pager","l-bulk"].forEach(id=>document.getElementById(id).classList.toggle("hide",agr!=="lista"));
+  document.querySelectorAll(".l-solista").forEach(e=>e.classList.toggle("hide",agr!=="lista"));
+  document.getElementById("l-grupo").classList.toggle("hide",agr==="lista");
+  document.getElementById("l-gfil").classList.toggle("hide",agr==="lista");
+  if(agr!=="lista"){
+    document.getElementById("l-gpct-w").classList.toggle("hide",agr!=="cat");
+    document.getElementById("l-gvl-w").classList.toggle("hide",agr!=="recl");
+    const tv0=L.reduce((a,i)=>a+AF_C.v[i],0);
+    document.getElementById("l-count").innerHTML=`${fN(L.length)} pagamentos <span>· ${fR(tv0)}</span>`;
+    if(agr==="cat") afGrupoCats(L); else afGrupoRecl(L);
+    return;
+  }
   const pgs=Math.max(1,Math.ceil(L.length/AF_POR_PAG)); if(afLancPg>=pgs) afLancPg=pgs-1;
   const pag=L.slice(afLancPg*AF_POR_PAG,(afLancPg+1)*AF_POR_PAG);
   const tv=L.reduce((a,i)=>a+AF_C.v[i],0);
@@ -840,7 +864,7 @@ function afRenderBulk(){
     <button class="lnk" onclick="afSel.clear();afRenderLanc()">Limpar seleção</button>`;
 }
 function afSoProblemas(){ afSt=new Set(AF_PROB); afRenderLanc(true); }
-function afLimparLanc(){ afSt.clear(); afVl.clear(); ["l-q","l-cat","l-sug","l-forn"].forEach(id=>document.getElementById(id).value=""); document.getElementById("l-sosug").checked=false; document.getElementById("l-fisc").checked=false; afRenderLanc(true); }
+function afLimparLanc(){ afSt.clear(); afVl.clear(); ["l-q","l-cat","l-sug","l-forn","l-uso"].forEach(id=>document.getElementById(id).value=""); document.getElementById("l-sosug").checked=false; document.getElementById("l-fisc").checked=false; afRenderLanc(true); }
 function afClicarChip(set, val, e){
   /* PEDIDO 1: clique simples mostra SÓ o que foi clicado; clicar de novo no
      mesmo volta a mostrar tudo; Ctrl/⌘/Shift+clique soma (ou tira) da seleção */
@@ -973,47 +997,33 @@ function afRenderCorr(){
 }
 
 /* =====================================================================
-   POR CATEGORIA
+   AGRUPAMENTOS DE LANÇAMENTOS (antes eram as abas Por Categoria e
+   Reclassificações — 23/10: viraram um "Ver" dentro de Lançamentos e
+   respeitam os mesmos filtros da lateral)
    ===================================================================== */
 let AF_CATS_ORD={k:"n",d:-1};
-function afRenderCats(){
-  const el=document.getElementById("tab-cats");
-  if(!el.dataset.ok){
-    el.innerHTML=`<div class="sec"><span class="cond">Saúde de cada categoria</span></div>
-      <div class="card"><div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
-        <div class="fcampo w2"><label for="k-q">Pesquisar</label><input id="k-q" type="search" placeholder="Categoria ou plano"></div>
-        <div class="fcampo"><label for="k-uso">Uso no manual</label><select id="k-uso"><option value="">Todos</option><option value="ok">Normal</option><option value="generica">Último recurso</option><option value="descontinuada">Descontinuada</option><option value="restrita">Uso restrito</option><option value="fora">Fora do manual</option></select></div>
-        <div class="fcampo"><label for="k-pct">% conforme</label><select id="k-pct"><option value="">Qualquer</option><option value="0.5">abaixo de 50%</option><option value="0.75">abaixo de 75%</option><option value="0.9">abaixo de 90%</option></select></div>
-        <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="k-prob"> Só com problemas</label>
-      </div></div><div class="tbl-wrap" id="k-tab"></div>`;
-    el.dataset.ok="1";
-    ["k-uso","k-pct","k-prob"].forEach(id=>document.getElementById(id).addEventListener("change",afRenderCats));
-    document.getElementById("k-q").addEventListener("input",()=>{ clearTimeout(afRenderCats._t); afRenderCats._t=setTimeout(afRenderCats,200); });
-  }
+function afGrupoCats(Lf){
   const M={};
-  AF_BASE.forEach(i=>{ const c=cat(i); const o=M[c]||(M[c]={cat:c,plano:plv(i),n:0,v:0,st:{},desc:{},corr:0,pend:0});
+  Lf.forEach(i=>{ const c=cat(i); const o=M[c]||(M[c]={cat:c,plano:plv(i),n:0,v:0,st:{},desc:{},corr:0,pend:0});
     o.n++; o.v+=AF_C.v[i]; o.st[st(i)]=(o.st[st(i)]||0)+1; if(AF_C.d[i]) o.desc[AF_C.d[i]]=(o.desc[AF_C.d[i]]||0)+1;
     if(AF_VST[i]==="CORRIGIR") o.corr++; if(AF_VST[i]==="PENDENTE") o.pend++; });
-  const q=afNz(document.getElementById("k-q").value), uso=document.getElementById("k-uso").value, pct=+document.getElementById("k-pct").value||0, prob=document.getElementById("k-prob").checked;
+  const pct=+document.getElementById("l-gpct").value||0, mn=+document.getElementById("l-gmin").value||1;
   let L=Object.values(M).map(o=>{ o.ok=(o.st.OK||0)/o.n; const m=afManualCat(o.cat); o.uso=m?(m.uso||"ok"):"fora"; return o; });
-  L=L.filter(o=>(!q||afNz(o.cat+" "+o.plano).indexOf(q)>=0)&&(!uso||o.uso===uso)&&(!pct||o.ok<pct)&&(!prob||o.ok<1));
+  L=L.filter(o=>o.n>=mn&&(!pct||o.ok<pct));
   const k=AF_CATS_ORD.k, d=AF_CATS_ORD.d;
   L.sort((a,b)=>{ const x=a[k], y=b[k]; return (typeof x==="string"?x.localeCompare(y):(x-y))*d; });
   const usoTag={ok:"",generica:'<span class="tag gen">último recurso</span>',descontinuada:'<span class="tag desc">descontinuada</span>',restrita:'<span class="tag res">uso restrito</span>',fora:'<span class="tag res">fora do manual</span>'};
   const th=(k,t,cls)=>`<th class="ord ${cls||""}" data-k="${k}">${t}<span class="arr">${AF_CATS_ORD.k===k?(AF_CATS_ORD.d>0?"▲":"▼"):"↕"}</span></th>`;
-  document.getElementById("k-tab").innerHTML=`<table><thead><tr>${th("cat","Categoria")}${th("plano","Plano")}${th("n","Lanç.","num")}${th("v","Valor","num")}${th("ok","% conforme","num")}<th>Composição</th>${th("pend","Sem validação","num")}${th("corr","A corrigir","num")}<th>Descrições mais comuns</th></tr></thead><tbody>
+  const el=document.getElementById("l-grupo");
+  el.innerHTML=L.length?`<table><thead><tr>${th("cat","Categoria")}${th("plano","Plano")}${th("n","Lanç.","num")}${th("v","Valor","num")}${th("ok","% conforme","num")}<th>Composição</th>${th("pend","Sem validação","num")}${th("corr","A corrigir","num")}<th>Descrições mais comuns</th></tr></thead><tbody>
     ${L.map(o=>`<tr class="clk" data-cat="${esc(o.cat)}"><td><b>${esc(o.cat)}</b> ${usoTag[o.uso]||""}</td><td class="small">${esc(o.plano)}</td><td class="num">${fN(o.n)}</td><td class="num">${fR0(o.v)}</td><td class="num">${fP(o.ok,0)}</td>
       <td><div class="minibar">${AF_ST_ORD.filter(s=>o.st[s]).map(s=>`<i style="width:${o.st[s]/o.n*100}%;background:${afCor(s)}" title="${esc(AF_ST[s].l)}: ${o.st[s]}"></i>`).join("")}</div></td>
       <td class="num">${o.pend?fN(o.pend):"—"}</td><td class="num">${o.corr?fN(o.corr):"—"}</td>
       <td class="small" style="max-width:380px">${Object.entries(o.desc).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([t,c])=>esc(t)+` <span class="muted">(${c})</span>`).join(" · ")}</td></tr>`).join("")}
-    </tbody></table>`;
-  document.querySelectorAll("#k-tab th.ord").forEach(t=>t.onclick=()=>{ const k=t.dataset.k; AF_CATS_ORD = AF_CATS_ORD.k===k?{k,d:-AF_CATS_ORD.d}:{k,d:(k==="cat"||k==="plano")?1:-1}; afRenderCats(); });
-  document.querySelectorAll("#k-tab tr[data-cat]").forEach(t=>t.onclick=()=>afIrLanc({cat:t.dataset.cat}));
+    </tbody></table>`:`<div class="vazio">Nenhuma categoria com estes filtros.</div>`;
+  el.querySelectorAll("th.ord").forEach(t=>t.onclick=()=>{ const k=t.dataset.k; AF_CATS_ORD = AF_CATS_ORD.k===k?{k,d:-AF_CATS_ORD.d}:{k,d:(k==="cat"||k==="plano")?1:-1}; afGrupoCats(AF_LANC_ULT); });
+  el.querySelectorAll("tr[data-cat]").forEach(t=>t.onclick=()=>{ document.getElementById("l-cat").value=t.dataset.cat; document.getElementById("l-agr").value="lista"; afRenderLanc(true); });
 }
-
-/* =====================================================================
-   RECLASSIFICAÇÕES
-   ===================================================================== */
 function afGruposRecl(L){
   const G={};
   L.forEach(i=>{ const s=sug(i); if(!s||s===cat(i)) return; const key=cat(i)+"→"+s;
@@ -1022,31 +1032,18 @@ function afGruposRecl(L){
     if(x==="PENDENTE")g.pend++; else if(x==="CORRIGIR"||x==="CORRIGIDO")g.corr++; else if(x==="CONFORME"||x==="EXCECAO")g.conf++; });
   return Object.values(G).sort((a,b)=>b.n-a.n);
 }
-function afRenderRecl(){
-  const el=document.getElementById("tab-recl");
-  if(!el.dataset.ok){
-    el.innerHTML=`<div class="sec"><span class="cond">De onde para onde</span></div>
-      <p class="small" style="margin:-6px 0 12px">Cada linha é um grupo de lançamentos que a descrição indica estar na categoria errada, genérica ou descontinuada. É a lista de correções a fazer no Mais Controle.</p>
-      <div class="card"><div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
-        <div class="fcampo w2"><label for="r-q">Pesquisar</label><input id="r-q" type="search" placeholder="Categoria atual ou sugerida"></div>
-        <div class="fcampo"><label for="r-vl">Validação</label><select id="r-vl"><option value="">Todos os grupos</option><option value="pend">Com pendentes</option><option value="ok">Totalmente validados</option></select></div>
-        <div class="fcampo"><label for="r-min">Mínimo de lançamentos</label><select id="r-min"><option value="1">1</option><option value="2">2</option><option value="5">5</option><option value="10">10</option></select></div>
-      </div></div><div class="tbl-wrap" id="r-tab"></div>`;
-    el.dataset.ok="1";
-    ["r-vl","r-min"].forEach(id=>document.getElementById(id).addEventListener("change",afRenderRecl));
-    document.getElementById("r-q").addEventListener("input",()=>{ clearTimeout(afRenderRecl._t); afRenderRecl._t=setTimeout(afRenderRecl,200); });
-  }
-  const q=afNz(document.getElementById("r-q").value), vl=document.getElementById("r-vl").value, mn=+document.getElementById("r-min").value||1;
-  const G=afGruposRecl(AF_BASE).filter(g=>g.n>=mn&&(!q||afNz(g.de+" "+g.para).indexOf(q)>=0)&&(!vl||(vl==="pend"?g.pend>0:g.pend===0)));
+let AF_RECL_ULT=[];
+function afGrupoRecl(Lf){
+  const vl=document.getElementById("l-gvl").value, mn=+document.getElementById("l-gmin").value||1;
+  const G=afGruposRecl(Lf).filter(g=>g.n>=mn&&(!vl||(vl==="pend"?g.pend>0:g.pend===0)));
   AF_RECL_ULT=G;
-  const gerir=AF_PERM.gerir;
-  document.getElementById("r-tab").innerHTML=G.length?`<table><thead><tr><th>Está em</th><th></th><th>Deveria estar em</th><th class="num">Lanç.</th><th class="num">Valor</th><th class="num">Sem validação</th><th class="num">A corrigir/corrigido</th><th class="num">Conforme</th>${gerir?"<th>Validar o grupo</th>":""}</tr></thead><tbody>
+  const gerir=AF_PERM.gerir, el=document.getElementById("l-grupo");
+  el.innerHTML=G.length?`<table><thead><tr><th>Está em</th><th></th><th>Deveria estar em</th><th class="num">Lanç.</th><th class="num">Valor</th><th class="num">Sem validação</th><th class="num">A corrigir/corrigido</th><th class="num">Conforme</th>${gerir?"<th>Validar o grupo</th>":""}</tr></thead><tbody>
     ${G.map((g,ix)=>`<tr class="clk" data-ix="${ix}"><td>${esc(g.de)}</td><td class="muted">→</td><td><span class="sug">${esc(g.para)}</span><div class="pl">${esc(g.plano)}</div></td><td class="num">${fN(g.n)}</td><td class="num">${fR0(g.v)}</td><td class="num">${fN(g.pend)}</td><td class="num">${fN(g.corr)}</td><td class="num">${fN(g.conf)}</td>
       ${gerir?`<td onclick="event.stopPropagation()" class="nw"><button class="vbt ok" onclick="afPerguntarVal(AF_RECL_ULT[${ix}].linhas.filter(i=>AF_VST[i]==='PENDENTE'),'CONFORME')"${g.pend?"":" disabled"}>✓ Conforme</button> <button class="vbt cx" onclick="afPerguntarVal(AF_RECL_ULT[${ix}].linhas.filter(i=>AF_VST[i]==='PENDENTE'),'CORRIGIR')"${g.pend?"":" disabled"}>✎ Corrigir</button></td>`:""}</tr>`).join("")}
-    </tbody></table>`:`<div class="vazio">Nenhum grupo com estes filtros.</div>`;
-  document.querySelectorAll("#r-tab tr[data-ix]").forEach(t=>t.onclick=()=>{ const g=AF_RECL_ULT[+t.dataset.ix]; afIrLanc({cat:g.de,sug:g.para}); });
+    </tbody></table>`:`<div class="vazio">Nenhuma reclassificação com estes filtros.</div>`;
+  el.querySelectorAll("tr[data-ix]").forEach(t=>t.onclick=()=>{ const g=AF_RECL_ULT[+t.dataset.ix]; document.getElementById("l-cat").value=g.de; document.getElementById("l-sug").value=g.para; document.getElementById("l-agr").value="lista"; afRenderLanc(true); });
 }
-let AF_RECL_ULT=[];
 
 /* =====================================================================
    JUROS E ATRASOS (pedido 4)
@@ -1566,7 +1563,7 @@ async function afCarregar(manual){
     document.getElementById("conteudo").classList.remove("hide");
     document.getElementById("chip-gerado").textContent="Dados do ERP de "+(dados.gerado||"—")+" · "+fN(AF_N)+" pagamentos";
     document.getElementById("chip-gerado").title=dados.fonte||"";
-    document.getElementById("chip-perfil").textContent=AF_PERM.gerir?"GFINANCEIRO · valida e edita o manual":"FINANCEIRO · só visualiza";
+
     const ult=(r.coletas||[])[0];
     if(ult&&!ult.ok){ av.innerHTML=`<h4>A última rodada do robô falhou</h4><p>${esc(fD((ult.em||"").slice(0,10)))} — ${esc(ult.erro||"")}. A tela mostra a rodada anterior.</p>`; av.classList.remove("hide"); }
     afAplicarGlobais();
@@ -1601,7 +1598,7 @@ function afIniciar(){
   if(!podeAcessar(S_AF,"FINANCEIRO")&&!podeAcessar(S_AF,"GFINANCEIRO")){
     document.getElementById("sem-acesso").classList.remove("hide"); document.getElementById("carregando").classList.add("hide"); return;
   }
-  const aba=afLerHash(); if(aba&&document.querySelector(`#tabs [data-tab="${aba}"]`)) AF_TAB=aba;
+  let aba=afLerHash(); if(aba==="cats"||aba==="recl"){ document.getElementById("l-agr").value=aba==="cats"?"cat":"recl"; aba="lanc"; } if(aba&&document.querySelector(`#tabs [data-tab="${aba}"]`)) AF_TAB=aba;
   document.querySelectorAll("#tabs .tab").forEach(b=>b.onclick=()=>afTrocarTab(b.dataset.tab));
   document.querySelectorAll("#tabs .tab").forEach(b=>b.classList.toggle("on",b.dataset.tab===AF_TAB));
   document.querySelectorAll("#conteudo > section").forEach(s=>s.classList.toggle("hide",s.id!=="tab-"+AF_TAB));
@@ -1613,7 +1610,7 @@ function afIniciar(){
   // lançamentos
   const re=()=>afRenderLanc(true);
   document.getElementById("l-q").addEventListener("input",()=>{ clearTimeout(re._t); re._t=setTimeout(re,220); });
-  ["l-cat","l-sug","l-sosug","l-fisc","l-sort"].forEach(id=>document.getElementById(id).addEventListener("change",re));
+  ["l-cat","l-sug","l-sosug","l-fisc","l-sort","l-uso","l-agr","l-gpct","l-gmin","l-gvl"].forEach(id=>document.getElementById(id).addEventListener("change",re));
   document.getElementById("l-forn").addEventListener("change",re);
   document.getElementById("l-st").addEventListener("click",e=>{ const b=e.target.closest("[data-s]"); if(!b) return; afClicarChip(afSt,b.dataset.s,e); re(); });
   document.getElementById("l-vl").addEventListener("click",e=>{ const b=e.target.closest("[data-v]"); if(!b) return; afClicarChip(afVl,b.dataset.v,e); re(); });
