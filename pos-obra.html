@@ -2658,7 +2658,10 @@ function pintarObra(){
   const tel = v["TELEFONE"] || "";   // formatado por fmtTel logo abaixo
   const assin = v["DATA DE ASSINATURA DO CONTRATO"];
   document.getElementById("obra-topo").innerHTML =
-    '<div class="obra-nome">'+esc(OBRA.titulo)+'</div>'+
+    /* 23/10/26: ADM corrige ENDEREÇO e CASA da obra (ver editarEnderecoObra) */
+    '<div class="obra-nome" id="obra-nome">'+esc(OBRA.titulo)+
+      ((ehAdmTela() && !soLeitura()) ? ' <button class="bt-lapis" title="Editar endereço e número da casa (ADM)" onclick="editarEnderecoObra()">✏️</button>' : '')+
+    '</div>'+
     '<div class="obra-dados">'+
       od("Cliente", v["CLIENTES"] || "—") +
       /* MELHORIAS item 4: o telefone agora é editável AQUI. Ele grava no PÓS
@@ -2812,6 +2815,91 @@ function editarEspelho(coluna, rotulo){
     toast(r.enfileirado ? "Sem internet — vai subir quando reconectar."
         : (esp ? "Salvo aqui e na venda." : "Salvo. (Sem venda correspondente para espelhar.)"), 4);
   });
+}
+
+/* ===== 23/10/26 — ADM EDITA ENDEREÇO E NÚMERO DA CASA ======================
+ * O endereço + casa é o que liga esta linha à venda (sincronia VENDAS -> PÓS
+ * OBRA). Por isso o servidor (posObraEndereco_, PORTAL-ESCRITA):
+ *   - RECUSA a troca se existir venda com o endereço/casa atuais (TEM_VENDA):
+ *     trocar só aqui faria a sincronia recriar a linha antiga. Aí a correção
+ *     é feita em Vendas/Obras e a sincronia traz para cá;
+ *   - recusa se o endereço/casa novos já forem de outra obra (JA_EXISTE);
+ *   - renomeia junto os chamados da obra ("ENDEREÇO CS N…").
+ * Vai direto ao servidor (sem fila offline): a resposta pode ser uma recusa
+ * que a pessoa precisa ver na hora. */
+function editarEnderecoObra(){
+  if(soLeitura()){ toast("Modo teste: nada é gravado.", 3); return; }
+  if(!OBRA || !ehAdmTela()) return;
+  const box = document.getElementById("obra-nome"); if(!box) return;
+  const est = 'font:inherit;font-size:15px;padding:4px 8px;border:1px solid var(--line,#ccc);border-radius:6px;text-transform:uppercase';
+  box.innerHTML =
+    '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
+      '<input type="text" id="oe-end" value="'+esc(OBRA.endereco||"")+'" placeholder="TB 19 QD 51 LT 14" autocomplete="off" '+
+        'style="'+est+';min-width:260px;flex:1 1 260px" onkeydown="if(event.key===\'Enter\')salvarEnderecoObra();if(event.key===\'Escape\')pintarObra();">'+
+      '<span style="font-size:14px">CS</span>'+
+      '<input type="number" id="oe-casa" min="0" step="1" value="'+esc(OBRA.casa==null?"":OBRA.casa)+'" placeholder="—" '+
+        'style="'+est+';width:80px" onkeydown="if(event.key===\'Enter\')salvarEnderecoObra();if(event.key===\'Escape\')pintarObra();">'+
+      '<button class="bt-lapis" style="opacity:1" title="Salvar" id="oe-ok" onclick="salvarEnderecoObra()">✔️</button>'+
+      '<button class="bt-lapis" style="opacity:1" title="Cancelar" onclick="pintarObra()">✖️</button>'+
+    '</div>'+
+    '<div id="oe-aviso" style="font-family:inherit;font-size:12px;font-weight:600;text-transform:none;color:var(--text3);margin-top:4px">'+
+      'O número da casa vai no campo CS. Os chamados desta obra são renomeados junto.</div>';
+  const e = document.getElementById("oe-end"); if(e){ e.focus(); e.select(); }
+}
+async function salvarEnderecoObra(){
+  if(!OBRA || !ehAdmTela() || soLeitura()) return;
+  const inpE = document.getElementById("oe-end"), inpC = document.getElementById("oe-casa");
+  const av = document.getElementById("oe-aviso"), bt = document.getElementById("oe-ok");
+  if(!inpE || !inpC) return;
+  const aviso = (t, erro)=>{ if(av){ av.textContent = t; av.style.color = erro ? "var(--vermelho,#c0392b)" : "var(--text3)"; } };
+
+  const end = String(inpE.value||"").toUpperCase().replace(/\s+/g," ").trim();
+  const err = erroEndNO(end);
+  if(err){
+    const sug = padraoEndNO(end);
+    if(sug && sug !== end && !erroEndNO(sug)){ inpE.value = sug; aviso("Ajustei para o padrão: "+sug+" — confira e clique ✔️ de novo.", false); return; }
+    aviso("Endereço "+err, true); return;
+  }
+  const casaTxt = String(inpC.value||"").trim();
+  if(casaTxt !== "" && !/^\d+$/.test(casaTxt)){ aviso("O número da casa tem que ser um número inteiro.", true); return; }
+  const casa = casaTxt === "" ? null : Number(casaTxt);
+
+  const antTit = OBRA.titulo;
+  const novoTit = end + (casa === null ? "" : " CS " + casa);
+  if(normN(end) === normN(OBRA.endereco||"") && String(casa) === String(OBRA.casa==null?null:OBRA.casa)){ pintarObra(); return; }
+  if(!confirm("Trocar \""+antTit+"\" por \""+novoTit+"\"?\n\nOs chamados desta obra serão renomeados junto.")) return;
+
+  if(bt) bt.disabled = true;
+  aviso("Gravando…", false);
+  let r;
+  try{ r = await chamar({action:"posObraEndereco", pageId:OBRA.id, endereco:end, casa:casa}, 90000, true); }
+  catch(e){ r = { ok:false, erro: navigator.onLine ? "ERRO_API" : "OFFLINE" }; }
+  if(bt) bt.disabled = false;
+
+  if(!r || !r.ok){
+    const cod = r && r.erro, det = r && r.detalhe;
+    const msg = cod === "TEM_VENDA" ? "Esta obra tem venda ("+(det||antTit)+"). Corrija o endereço/casa em Vendas (ou em Obras) — a sincronia traz para cá. Trocar só aqui duplicaria a obra."
+              : cod === "JA_EXISTE" ? "Já existe outra obra no Pós Obra com "+(det||novoTit)+"."
+              : cod === "ENDERECO_FORA_PADRAO" ? "Endereço fora do padrão: "+(det||"")
+              : cod === "APENAS_ADM" ? "Só o ADM pode trocar o endereço."
+              : cod === "OFFLINE" ? "Sem internet — tente de novo quando reconectar."
+              : "Não gravou: "+erroTexto(cod);
+    aviso(msg, true);
+    return;
+  }
+
+  // aplica na tela: obra aberta, lista e nomes dos chamados
+  OBRA.endereco = r.endereco; OBRA.casa = r.casa; OBRA.titulo = r.titulo;
+  const o = obraPorId(OBRA.id);
+  if(o){ o.endereco = r.endereco; o.casa = r.casa; o.titulo = r.titulo; }
+  (r.renomeados||[]).forEach(x=>{
+    const a = (OBRA.atividades||[]).find(y=>semHifen(y.id) === semHifen(x.id));
+    if(a) a.nome = x.nome;
+  });
+  pintarObra();
+  try{ renderObras(); }catch(e){}
+  toast(r.semMudanca ? "Nada mudou." :
+        ("Endereço trocado para "+r.titulo+((r.renomeados||[]).length ? " · "+r.renomeados.length+" chamado(s) renomeado(s)" : "")+"."), 5);
 }
 
 /* DATA DE ASSINATURA DO CONTRATO (set/26) — edição inline com calendário.
