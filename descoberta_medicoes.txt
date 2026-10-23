@@ -80,37 +80,112 @@ MC: confirmando o código (botão "CONTINUAR")
 MC: login ok (https://acessar.maiscontroleerp.com.br/#/onboarding)
 login ok
 
---- rota #/work-measurements -> /app/dashboard
-colunas visíveis: ['Obra', 'Evolução física', 'Custo Orçado', 'Custo Realizado', 'Saldo']
-abas visíveis: ['Em andamento', 'Paralisada', 'Finalizada']
-url: https://acessar.maiscontroleerp.com.br/#/app/dashboard
+--- rota #/contracts -> /contracts
+colunas visíveis: ['Contrato', 'Fornecedor', 'Obra', 'Valor Contrato', 'Medições aprovadas', 'Total pago', 'Status']
+abas visíveis: ['Visão geral', 'Medições', 'Contratos']
+url: https://acessar.maiscontroleerp.com.br/#/contracts
 
-===== rota #/work-measurements — 5 chamadas distintas =====
-GET legacy-api /maiscontrole/services/cash-flow/chart  x1  status=[200]  params=['accountOwner', 'considerAccountOpeningBalance', 'costCentreType', 'filterType', 'from', 'to']
-    {"revenues": {"202610": "float", "202609": "float"}, "expenses": {"202610": "float", "202609": "float"}, "summaries": {"202610": "float", "202609": "float"}}
-GET prod-erp-api /dashboard/payable  x1  status=[200]  params=['costCentreType']
-    {"summaries": ["lista[4]", {"status": "str", "value": "float", "amount": "int"}], "totalAmount": "int"}
-GET prod-erp-api /fiscal/invoices/unlinked-summary  x1  status=[200]  params=['mode']
-    {"count": "int", "totalValue": "float"}
-GET prod-erp-api /work-management/dashboard  x1  status=[200]  params=['pageIndex', 'pageSize', 'workStatus']
-    {"lastUpdate": "str", "pagination": {"pageIndex": "int", "pageSize": "int"}, "totalPages": "int", "totalElements": "int", "hasNextPage": "bool", "items": ["lista[5]", {"planningId": "str", "workId": "str", "workName": "str", "workStatus": "str", "customerName": "str", "budgetTotalCost": "float", "budgetManpowerCost": "float", "budgetProductCost": "float", "budgetEquipmentCost": "float", "budgetOtherCost": "float", "physicalFinancialPct": "float", "manpowerAccomplished": "int", "productAccomplished": "float", "equipmentAccomplished": "int", "otherAccomplished": "float", "consumedProductCost": "int", "consumedEquipmentCost": "int", "consumedOtherCost": "int", "consumedTotalCost": "int", "availableTotalCost": "int", "accomplishedValue": "float", "accomplishedPct": "float", "manpowerPct": "float", "productPct": "float", "equipmentPct": "float", "othersPct": "float"}]}
-POST api-data-event /event  x2  status=[200]  params=[]
+===== LISTA de contratos (#/contracts) — 7 chamadas distintas =====
+GET prod-erp-api /contacts/participants  x1  status=[200]  params=['pageIndex', 'rolesList', 'statusesList']
+    {"pagination": {"pageIndex": "int", "pageSize": "int"}, "totalPages": "NoneType", "totalElements": "NoneType", "hasNextPage": "bool", "items": ["lista[10]", {"id": "str", "name": "str", "email": "str", "documentNumber": "str", "role": "str", "status": "str", "organizationUnitId": "str", "supplierSegmentName": "str", "inputName": "NoneType"}]}
+GET prod-erp-api /plannings/contract/has-contract-planning/  x1  status=[200]  params=[]
+    {"result": "bool"}
+GET prod-erp-api /plannings/contracts  x1  status=[200]  params=['pageIndex']
+    {"pagination": {"pageIndex": "int", "pageSize": "int"}, "totalPages": "NoneType", "totalElements": "NoneType", "hasNextPage": "bool", "items": ["lista[10]", {"id": "str", "code": "str", "title": "str", "totalPrice": "float", "status": "str", "workResponse": "{2 campos}", "participantResponse": "{2 campos}", "serviceTypeResponse": "{2 campos}", "workMeasurementResponse": "{6 campos}"}]}
+GET prod-erp-api /plannings/contracts/paid-values  x1  status=[200]  params=['contractPlanningIds']
+    ["lista[10]", {"contractPlanningId": "str", "totalPrice": "float", "paidValue": "int", "paidPercentage": "int"}]
+GET prod-erp-api /plannings/contracts/summaries  x1  status=[200]  params=[]
+    {"totalPrice": "float", "measuredTotalPrice": "float", "paidValue": "float", "measuredPercentage": "float", "paidPercentage": "float", "priceToMeasure": "float", "percentageToMeasure": "float"}
+GET prod-erp-api /work-management/works  x1  status=[200]  params=['pageIndex', 'workStatusExcluded']
+    {"pagination": {"pageIndex": "int", "pageSize": "int"}, "totalPages": "NoneType", "totalElements": "NoneType", "hasNextPage": "bool", "items": ["lista[10]", {"id": "str", "workName": "str"}]}
+POST api-data-event /event  x1  status=[200]  params=[]
     {"PublishResponse": {"PublishResult": {"MessageId": "str", "SequenceNumber": "NoneType"}, "ResponseMetadata": {"RequestId": "str"}}}
-menu Obras > Medição de Contratos: Locator.hover: Timeout 20000ms exceeded.
-Call log:
-  - waiting for get_by_text("Obras", exact=True).first
-    - locator 
+
+===== lista — clique em 'Em andamento' — 4 chamadas distintas =====
+GET legacy-api /maiscontrole/services/organization-units/{id}  x1  status=[200]  params=[]
+    {"id": "str", "creationDate": "str", "modificationDate": "str", "acronym": "str", "name": "str", "tradeName": "str", "cpf": "NoneType", "cnpj": "str", "stateTaxNumber": "str", "cityRegistration": "str", "email": "str", "foundationDate": "NoneType", "defaultChargeValue": "float", "numberOfAllowedUser": "int", "contractedCompanies": "int", "defaultChargeType": "str", "segment": {"id": "str", "creationDate": "str", "modificationDate": "str", "name": "str", "type": "str", "order": "int", "new": "bool"}, "companySize": "NoneType", "recurrenceMonthsAmount": "int", "calendar": {"id": "str", "creationDate": "str", "modificationDate": "str", "morningShiftStart": "str", "morningShiftEnd": "str", "afternoonShiftStart": "str", "afternoonShiftEnd": "str", "weekStartDay": "str", "weekEndDay": "str", "new": "bool"}, "phones": ["lista[0]"], "tags": ["lista[0]"], "accountStatus": "str", "billingProvider": "str", "ecommerceId": "str", "trialExpirationDate": "NoneType", "expirationDate": "NoneType", "ecommerceData": {"inDebtStatus": "NoneType", "billetLink": "NoneType", "awaitingContract": "bool", "awaitingBilletLink": "bool", "coupon": "NoneType", "bills": ["lista[0]"]}, "configuration": {"id": "str", "creationDate": "str", "modificationDate": "str", "defaultSinapiState": {"id": "str", "creationDate": "str", "modificationDate": "str", "abbreviation": "str", "name": "str", "new": "bool"}, "defaultSinapiDescription": "NoneType", "defaultSinapiDischarged": "bool", "defaultCompositionBase": "NoneType", "defaultInputBase": {"id": "str", "creationDate": "str", "modificationDate": "str", "name": "str", "new": "bool"}, "canDetachPurchaseOrder": "bool", "mandatoryParticipantCnpjCpf": "bool", "mandatoryTradePayableDocument": "bool", "mandatoryPaymentDocument": "bool", "dailyFieldDetailsVisible": "bool", "autoOpenTradePayableTaskItemsEnabled": "bool", "defaultBdiType": "str", "defaultRoundingType": "str", "new": "bool"}, "defaultStorageSizeInBytes": "int", "extraStorageSizeInBytes": "int", "usedStorageSizeInBytes": "int", "firstAccessInfo": {"mainSegment": "str", "segmentType": "str", "legacyTool": "str", "simultaneousWorksAmount": "str", "adminAmount": "str", "employeesAmount": "str"}, "implementation": "str", "hasCoupon": "bool", "allPhoneInformation": "str", "demoOrganization": "bool", "saleReadjustmentEnabled": "bool", "workReadjustmentEnabled": "bool", "purchasingEnabled": "bool", "inventoryEnabled": "bool", "dailyFieldEnabled": "bool", "workMeasurementEnabled": "bool", "dataExpo
+GET prod-erp-api /plannings/{id}/contract  x1  status=[200]  params=[]
+    {"id": "str", "code": "str", "title": "str", "status": "str", "discriminator": "str", "creationDate": "str", "planningEdited": "bool", "isReprocessingInProgress": "bool", "totalCost": "float", "measuredTotalCost": "float", "editionModeInfoResponse": {"editionEnabled": "bool", "userAccountId": "NoneType", "userAccountName": "str", "date": "str"}, "workResponse": {"workId": "str", "workName": "str"}, "participantResponse": {"participantId": "str", "participantName": "str"}, "serviceTypeResponse": {"serviceTypeId": "str", "serviceTypeName": "str"}, "creatorResponse": {"createdBy": "str", "createdByName": "str"}, "contractStartDate": "str", "contractEndDate": "str"}
+GET prod-erp-api /plannings/{id}/contract/has-item  x1  status=[200]  params=[]
+    {"result": "bool"}
+POST api-data-event /event  x1  status=[200]  params=[]
+    {"PublishResponse": {"PublishResult": {"MessageId": "str", "SequenceNumber": "NoneType"}, "ResponseMetadata": {"RequestId": "str"}}}
 não consegui abrir um contrato: Locator.click: Timeout 5000ms exceeded.
 Call log:
   - waiting for locator("a:visible").filter(has_text=re.compile(r"\d")
-colunas visíveis: ['Obra', 'Evolução física', 'Custo Orçado', 'Custo Realizado', 'Saldo']
-abas visíveis: ['Em andamento', 'Paralisada', 'Finalizada']
-url: https://acessar.maiscontroleerp.com.br/#/app/dashboard
+colunas visíveis: []
+abas visíveis: ['Serviços', 'Medições', 'Pagamentos', 'Arquivos', 'Contrato\nNovo']
+url: https://acessar.maiscontroleerp.com.br/#/contracts/028f4d07-e52a-4b36-8a79-9dfee1deb580/contract/items
 
-===== CONTRATO aberto (aba Serviços) — 0 chamadas distintas =====
-aba Medições não abriu: Locator.click: Timeout 5000ms exceeded.
-Call log:
-  - waiting for get_by_text("Medições", exact=True
-aba Pagamentos não abriu: Locator.click: Timeout 5000ms exceeded.
-Call log:
-  - waiting for get_by_text("Pagamentos", exact=Tr
+===== CONTRATO aberto — 0 chamadas distintas =====
+colunas visíveis: ['Número', 'Data da medição', 'Título', 'Status', 'Preço total medido', '% medido', 'Desconto', 'Retenção', 'Criado por', 'Vínculos', '$']
+abas visíveis: ['Serviços', 'Medições', 'Pagamentos', 'Arquivos', 'Contrato\nNovo', 'Lista de Medições', 'Mapa de Medições']
+url: https://acessar.maiscontroleerp.com.br/#/contracts/028f4d07-e52a-4b36-8a79-9dfee1deb580/measurements
+
+===== CONTRATO — measurements — 6 chamadas distintas =====
+GET prod-erp-api /plannings/{id}/contract  x1  status=[200]  params=[]
+    {"id": "str", "code": "str", "title": "str", "status": "str", "discriminator": "str", "creationDate": "str", "planningEdited": "bool", "isReprocessingInProgress": "bool", "totalCost": "float", "measuredTotalCost": "float", "editionModeInfoResponse": {"editionEnabled": "bool", "userAccountId": "NoneType", "userAccountName": "str", "date": "str"}, "workResponse": {"workId": "str", "workName": "str"}, "participantResponse": {"participantId": "str", "participantName": "str"}, "serviceTypeResponse": {"serviceTypeId": "str", "serviceTypeName": "str"}, "creatorResponse": {"createdBy": "str", "createdByName": "str"}, "contractStartDate": "str", "contractEndDate": "str"}
+GET prod-erp-api /plannings/{id}/contract/has-item  x1  status=[200]  params=[]
+    {"result": "bool"}
+GET prod-erp-api /work-measurements/has-work-measurement  x1  status=[200]  params=['planningId', 'planningOption']
+    {"result": "bool"}
+GET prod-erp-api /work-measurements/{id}/measurements  x1  status=[200]  params=['dateFilter', 'endDate', 'pageIndex', 'planningOption', 'startDate']
+    {"pagination": {"pageIndex": "int", "pageSize": "int"}, "totalPages": "NoneType", "totalElements": "NoneType", "hasNextPage": "bool", "items": ["lista[2]", {"id": "str", "number": "int", "creationDate": "str", "measurementDate": "str", "measurementStatus": "str", "discountTotal": "float", "taxWithholdTotal": "float", "measuredTotalPrice": "float", "measuredPercentage": "float", "title": "str", "creatorName": "str", "financialData": "{4 campos}"}]}
+GET prod-erp-api /work-measurements/{id}/summaries  x1  status=[200]  params=['dateFilter', 'endDate', 'planningOption', 'startDate']
+    {"measuredPercentage": "float", "measuredTotalPrice": "float", "discountTotal": "float", "taxWithholdTotal": "float", "saleTotal": "float"}
+POST api-data-event /event  x1  status=[200]  params=[]
+    {"PublishResponse": {"PublishResult": {"MessageId": "str", "SequenceNumber": "NoneType"}, "ResponseMetadata": {"RequestId": "str"}}}
+colunas visíveis: ['Mapa de medições', 'Total orçado (Custo)\n\nR$\xa047.125,00', 'Total Medido\n\nR$\xa013.650,00\n\n28.97%', 'Saldo a medir\n\nR$\xa033.475,00\n\n71.03%', 'Etapas do Orçamento', 'Qtde', 'Valor total', 'Qtde', 'Valor', '%', 'Qtde', 'Valor', '%']
+abas visíveis: ['Serviços', 'Medições', 'Pagamentos', 'Arquivos', 'Contrato\nNovo', 'Lista de Medições', 'Mapa de Medições']
+url: https://acessar.maiscontroleerp.com.br/#/contracts/028f4d07-e52a-4b36-8a79-9dfee1deb580/measurements-map
+
+===== CONTRATO — measurements-map — 3 chamadas distintas =====
+GET prod-erp-api /work-measurements/{id}/map  x1  status=[200]  params=['planningOption']
+    ["lista[1]", {"planningItemTaskId": "str", "planningItemDiscriminator": "str", "planningItemIndex": "str", "planningItemName": "str", "planningItemAuxiliaryDescription": "NoneType", "planningItemUnitName": "NoneType", "costs": {"planningItemAmount": "NoneType", "planningItemUnitValue": "NoneType", "planningItemTotal": "float", "accumulatedAmount": "NoneType", "accumulatedValue": "float", "accumulatedPercentage": "float", "valueToMeasure": "float", "amountToMeasure": "NoneType", "percentageToMeasure": "float"}, "prices": {"planningItemAmount": "NoneType", "planningItemUnitValue": "NoneType", "planningItemTotal": "float", "accumulatedAmount": "NoneType", "accumulatedValue": "float", "accumulatedPercentage": "float", "valueToMeasure": "float", "amountToMeasure": "NoneType", "percentageToMeasure": "float"}}]
+GET prod-erp-api /work-measurements/{id}/work  x1  status=[200]  params=[]
+    {"planningId": "str", "planningEdited": "bool", "isReprocessingInProgress": "bool", "workName": "str", "workStatus": "str", "lastMeasurementDateApproval": "str", "costs": {"measuredTotalValue": "float", "planningTotalValue": "float", "measuredPercentage": "float", "totalValueToMeasure": "float", "percentageToMeasure": "float"}, "prices": {"measuredTotalValue": "float", "planningTotalValue": "float", "measuredPercentage": "float", "totalValueToMeasure": "float", "percentageToMeasure": "float"}}
+POST api-data-event /event  x1  status=[200]  params=[]
+    {"PublishResponse": {"PublishResult": {"MessageId": "str", "SequenceNumber": "NoneType"}, "ResponseMetadata": {"RequestId": "str"}}}
+colunas visíveis: ['Data Lançamento', 'Valor e Descrição', 'Nº Medição', 'Valor Medição', 'Retenções', 'Desconto', 'Valor Pago', 'Valor em aberto']
+abas visíveis: ['Serviços', 'Medições', 'Pagamentos', 'Arquivos', 'Contrato\nNovo']
+url: https://acessar.maiscontroleerp.com.br/#/contracts/028f4d07-e52a-4b36-8a79-9dfee1deb580/payments
+
+===== CONTRATO — payments — 4 chamadas distintas =====
+GET prod-erp-api /payables/by-contract-planning  x1  status=[200]  params=['contractPlanningId', 'pageIndex']
+    {"pagination": {"pageIndex": "int", "pageSize": "int"}, "totalPages": "NoneType", "totalElements": "NoneType", "hasNextPage": "bool", "items": ["lista[1]", {"tradePayableId": "str", "referenceDate": "str", "plannedValue": "int", "description": "str", "documentNumber": "NoneType", "paidValue": "int", "paidValueWithoutTax": "int", "pendingValue": "int", "workMeasurementData": "{6 campos}"}]}
+GET prod-erp-api /payables/summary-by-contract-planning  x1  status=[200]  params=['contractPlanningId']
+    {"plannedValue": "int", "paidValue": "int", "paidValueWithoutTax": "int", "pendingValue": "int", "workMeasurementSummary": {"measuredTotalPrice": "float", "taxWithholdTotal": "float", "discountTotal": "float", "netMeasuredValue": "float"}}
+GET prod-erp-api /plannings/{id}/contract  x1  status=[200]  params=[]
+    {"id": "str", "code": "str", "title": "str", "status": "str", "discriminator": "str", "creationDate": "str", "planningEdited": "bool", "isReprocessingInProgress": "bool", "totalCost": "float", "measuredTotalCost": "float", "editionModeInfoResponse": {"editionEnabled": "bool", "userAccountId": "NoneType", "userAccountName": "str", "date": "str"}, "workResponse": {"workId": "str", "workName": "str"}, "participantResponse": {"participantId": "str", "participantName": "str"}, "serviceTypeResponse": {"serviceTypeId": "str", "serviceTypeName": "str"}, "creatorResponse": {"createdBy": "str", "createdByName": "str"}, "contractStartDate": "str", "contractEndDate": "str"}
+POST api-data-event /event  x1  status=[200]  params=[]
+    {"PublishResponse": {"PublishResult": {"MessageId": "str", "SequenceNumber": "NoneType"}, "ResponseMetadata": {"RequestId": "str"}}}
+colunas visíveis: ['Número', 'Data da medição', 'Título', 'Status', 'Preço total medido', '% medido', 'Desconto', 'Retenção', 'Criado por', 'Vínculos', '$']
+abas visíveis: ['Serviços', 'Medições', 'Pagamentos', 'Arquivos', 'Contrato\nNovo', 'Lista de Medições', 'Mapa de Medições']
+url: https://acessar.maiscontroleerp.com.br/#/contracts/028f4d07-e52a-4b36-8a79-9dfee1deb580/measurements
+
+===== CONTRATO — aba Medições — 6 chamadas distintas =====
+GET prod-erp-api /plannings/{id}/contract  x1  status=[200]  params=[]
+    {"id": "str", "code": "str", "title": "str", "status": "str", "discriminator": "str", "creationDate": "str", "planningEdited": "bool", "isReprocessingInProgress": "bool", "totalCost": "float", "measuredTotalCost": "float", "editionModeInfoResponse": {"editionEnabled": "bool", "userAccountId": "NoneType", "userAccountName": "str", "date": "str"}, "workResponse": {"workId": "str", "workName": "str"}, "participantResponse": {"participantId": "str", "participantName": "str"}, "serviceTypeResponse": {"serviceTypeId": "str", "serviceTypeName": "str"}, "creatorResponse": {"createdBy": "str", "createdByName": "str"}, "contractStartDate": "str", "contractEndDate": "str"}
+GET prod-erp-api /plannings/{id}/contract/has-item  x1  status=[200]  params=[]
+    {"result": "bool"}
+GET prod-erp-api /work-measurements/has-work-measurement  x1  status=[200]  params=['planningId', 'planningOption']
+    {"result": "bool"}
+GET prod-erp-api /work-measurements/{id}/measurements  x1  status=[200]  params=['dateFilter', 'endDate', 'pageIndex', 'planningOption', 'startDate']
+    {"pagination": {"pageIndex": "int", "pageSize": "int"}, "totalPages": "NoneType", "totalElements": "NoneType", "hasNextPage": "bool", "items": ["lista[2]", {"id": "str", "number": "int", "creationDate": "str", "measurementDate": "str", "measurementStatus": "str", "discountTotal": "float", "taxWithholdTotal": "float", "measuredTotalPrice": "float", "measuredPercentage": "float", "title": "str", "creatorName": "str", "financialData": "{4 campos}"}]}
+GET prod-erp-api /work-measurements/{id}/summaries  x1  status=[200]  params=['dateFilter', 'endDate', 'planningOption', 'startDate']
+    {"measuredPercentage": "float", "measuredTotalPrice": "float", "discountTotal": "float", "taxWithholdTotal": "float", "saleTotal": "float"}
+POST api-data-event /event  x1  status=[200]  params=[]
+    {"PublishResponse": {"PublishResult": {"MessageId": "str", "SequenceNumber": "NoneType"}, "ResponseMetadata": {"RequestId": "str"}}}
+colunas visíveis: ['Data Lançamento', 'Valor e Descrição', 'Nº Medição', 'Valor Medição', 'Retenções', 'Desconto', 'Valor Pago', 'Valor em aberto']
+abas visíveis: ['Serviços', 'Medições', 'Pagamentos', 'Arquivos', 'Contrato\nNovo']
+url: https://acessar.maiscontroleerp.com.br/#/contracts/028f4d07-e52a-4b36-8a79-9dfee1deb580/payments
+
+===== CONTRATO — aba Pagamentos — 4 chamadas distintas =====
+GET prod-erp-api /payables/by-contract-planning  x1  status=[200]  params=['contractPlanningId', 'pageIndex']
+    {"pagination": {"pageIndex": "int", "pageSize": "int"}, "totalPages": "NoneType", "totalElements": "NoneType", "hasNextPage": "bool", "items": ["lista[1]", {"tradePayableId": "str", "referenceDate": "str", "plannedValue": "int", "description": "str", "documentNumber": "NoneType", "paidValue": "int", "paidValueWithoutTax": "int", "pendingValue": "int", "workMeasurementData": "{6 campos}"}]}
+GET prod-erp-api /payables/summary-by-contract-planning  x1  status=[200]  params=['contractPlanningId']
+    {"plannedValue": "int", "paidValue": "int", "paidValueWithoutTax": "int", "pendingValue": "int", "workMeasurementSummary": {"measuredTotalPrice": "float", "taxWithholdTotal": "float", "discountTotal": "float", "netMeasuredValue": "float"}}
+GET prod-erp-api /plannings/{id}/contract  x1  status=[200]  params=[]
+    {"id": "str", "code": "str", "title": "str", "status": "str", "discriminator": "str", "creationDate": "str", "planningEdited": "bool", "isReprocessingInProgress": "bool", "totalCost": "float", "measuredTotalCost": "float", "editionModeInfoResponse": {"editionEnabled": "bool", "userAccountId": "NoneType", "userAccountName": "str", "date": "str"}, "workResponse": {"workId": "str", "workName": "str"}, "participantResponse": {"participantId": "str", "participantName": "str"}, "serviceTypeResponse": {"serviceTypeId": "str", "serviceTypeName": "str"}, "creatorResponse": {"createdBy": "str", "createdByName": "str"}, "contractStartDate": "str", "contractEndDate": "str"}
+POST api-data-event /event  x1  status=[200]  params=[]
+    {"PublishResponse": {"PublishResult": {"MessageId": "str", "SequenceNumber": "NoneType"}, "ResponseMetadata": {"RequestId": "str"}}}
