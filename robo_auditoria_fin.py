@@ -73,7 +73,8 @@ CATS_SEM_DOC_OK = {N(x) for x in [
     "ISSQN Retido s/ Serviços de Obra", "Ganho de Capital", "Tarifas Bancárias", "IOF / Juros Bancários",
     "Financiamento Sala Comercial", "Amortização do Financiamento", "Juros Fase de Obras",
     "Juros Fase de Amortização", "Tarifa de Administração Caixa", "Aquisição de terreno",
-    "Devolução sinal / entrada /  vlr a mais creditado", "Distrato", "Despesa JC pessoal", "Despesa JV pessoal"]}
+    "Devolução sinal / entrada /  vlr a mais creditado", "Distrato", "Despesa JC pessoal", "Despesa JV pessoal",
+    "Mão de Obra Terceirizada"]}   # 23/10: medição de empreiteiro não tem nota/boleto
 CATS_OBRA_DIRETA = {N(x) for x in ["Materiais (Obras)", "Mão de Obra Terceirizada", "Locação de equipamentos"]}
 CATS_UTIL = {N(x) for x in ["Conta de energia", "Conta de água", "Energia (Escritório)", "Fatura de Água"]}
 # cobradas por unidade (mesmo valor várias vezes no mesmo dia é o normal)
@@ -88,11 +89,11 @@ CATS_FISCAIS = {N(x) for x in ["FGTS", "INSS / IRRF Folha", "IRPJ / CSLL", "PIS 
 
 FISCAL_TIPOS = {
     "DUP": ("Possível pagamento em duplicidade",
-            "Mesmo fornecedor, mesmo valor e mesmo centro de custo em lançamentos diferentes, pagos com até 3 dias de diferença."),
+            "Mesmo fornecedor e mesmo valor em lançamentos diferentes com o MESMO nº de documento (NF/boleto) ou a MESMA ordem de compra. Valor igual sozinho não conta."),
     "SEM_OC": ("Material pago sem ordem de compra",
                "Materiais (Obras) a partir de R$ 1.000 sem ordem de compra vinculada no Mais Controle."),
     "SEM_DOC": ("Pagamento alto sem nº de documento",
-                "A partir de R$ 10.000, sem nota/boleto informado (folha, impostos, aportes e tarifas ficam de fora)."),
+                "A partir de R$ 10.000, sem nota/boleto informado (folha, mão de obra terceirizada, impostos, aportes e tarifas ficam de fora)."),
     "TARDIO": ("Lançado muito depois do pagamento",
                "O título foi criado no Mais Controle mais de 30 dias depois da data do pagamento."),
     "COMPET": ("Competência distante do pagamento",
@@ -100,7 +101,7 @@ FISCAL_TIPOS = {
     "FORN_NOVO": ("Fornecedor novo com valor alto",
                   "Primeiro pagamento nos últimos 60 dias e já soma R$ 20.000 ou mais."),
     "A_CLASSIFICAR": ("Centro de custo \"A CLASSIFICAR\"",
-                      "Pagamentos esperando a definição da obra — quanto mais antigo, pior para o custo da obra."),
+                      "Pagamentos há mais de 30 dias no CC provisório A CLASSIFICAR — já deveriam ter ido para o CC da obra."),
     "CONTA_OBRA": ("Pago por conta diferente da conta da obra",
                    "A conta bancária do pagamento não é a CONTA cadastrada na obra ((EMP) Projeto 2.0)."),
     "OBRA_FINALIZADA": ("Custo de obra depois do término",
@@ -486,26 +487,32 @@ def fiscalizar(p, lanc):
     def add(t, i, texto):
         achados.append([t, int(i), texto])
 
-    # DUP — mesmo fornecedor, valor, CC; lançamentos diferentes; até 3 dias
+    # DUP (23/10) — só com prova: mesmo fornecedor + mesmo valor + MESMO nº de
+    # documento (NF/boleto) ou MESMA ordem de compra, em lançamentos diferentes.
+    # Valor e descrição iguais sozinhos não contam (aporte, aluguel, parcela fixa
+    # se repetem de verdade). "7/10", "CASA 2" e textos sem número não são
+    # documento: o nº precisa ter 3+ dígitos e não pode ser "parcela x/y".
+    def doc_ok(x):
+        x = N(x)
+        return bool(x) and not re.search(r"\d+\s*/\s*\d+", x) and len(re.sub(r"\D", "", x)) >= 3
+    sem0 = lambda x: re.sub(r"\.0+$", "", str(x or "").strip())
     cand = p[(p.f != "") & (p.v >= 300) & p.dp.notna() & (~p.c.map(N).isin(CATS_POR_UNIDADE))].copy()
-    cand["nd_n"] = cand.nd.map(N)
-    for _, g in cand.groupby([cand.f.map(N), cand.v.round(2), cand.cc.map(N)]):
-        if len(g) < 2 or g.id.nunique() < 2:
-            continue
-        g = g.sort_values("dp")
-        linhas = list(g.itertuples())
-        for a_i, a in enumerate(linhas):
-            for b in linhas[a_i + 1:]:
-                dias = (b.dp - a.dp).days
-                if dias > 3:
-                    break
-                if a.id == b.id:
+    cand["f_n"], cand["v_r"] = cand.f.map(N), cand.v.round(2)
+    cand["nd_n"] = cand.nd.map(lambda x: re.sub(r"\s+", "", N(sem0(x))) if doc_ok(x) else "")
+    cand["oc_n"] = cand.oc.map(sem0)
+    ja = set()
+    for chave, rotulo in (("nd_n", "nº de documento"), ("oc_n", "ordem de compra")):
+        for _, g in cand[cand[chave] != ""].groupby(["f_n", chave, "v_r"]):
+            if g.id.nunique() < 2:
+                continue
+            g = g.sort_values("dp")
+            prim = g.iloc[0]
+            for r in g.itertuples():
+                if r.id == prim.id or r.Index in ja:
                     continue
-                mesmo_doc = a.nd_n and a.nd_n == b.nd_n
-                mesma_desc = N(a.d) == N(b.d)
-                if not (mesmo_doc or mesma_desc):
-                    continue
-                add("DUP", b.Index, f"Igual ao lançamento {a.id} — {a.dp.strftime('%d/%m/%Y')}, {brl(a.v)}")
+                ja.add(r.Index)
+                add("DUP", r.Index, f"Mesmo {rotulo} ({getattr(r, chave)}) do lançamento {prim.id} — "
+                                    f"{prim.dp.strftime('%d/%m/%Y')}, {brl(prim.v)}")
     # SEM_OC
     for r in p[(p.c.map(N) == N("Materiais (Obras)")) & (p.v >= 1000) & (p.oc == "")].itertuples():
         add("SEM_OC", r.Index, "Sem ordem de compra")
@@ -538,6 +545,8 @@ def fiscalizar(p, lanc):
     # A_CLASSIFICAR
     for r in p[p.cc.map(lambda x: "A CLASSIFICAR" in N(x))].itertuples():
         idade = (HOJE - r.dp).days if r.dp else None
+        if idade is not None and idade <= 30:      # 23/10: CC provisório — só alerta depois de 30 dias
+            continue
         add("A_CLASSIFICAR", r.Index, f"Há {idade} dias sem obra definida" if idade is not None else "Sem obra definida")
     return achados
 

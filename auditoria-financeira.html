@@ -1214,7 +1214,16 @@ let AF_EVO_MET="n";
 function afRenderEvo(){
   const el=document.getElementById("tab-evo");
   if(!el.dataset.ok){
-    el.innerHTML=`<div class="sec"><span class="cond">Uso de "Outras Despesas" e "Taxas gerais" por mês</span></div>
+    el.innerHTML=`<div class="sec"><span class="cond">Gastos por mês</span><span class="sp"></span>
+        <div class="seg"><button class="seg-bt" data-g="dest">Por destino</button><button class="seg-bt" data-g="grupo">Por grupo do ERP</button></div></div>
+      <p class="small" style="margin:-6px 0 12px">Valor pago por mês de pagamento, nos filtros do topo. Aportes, distribuições e cota capital ficam fora (são movimento dos sócios) — <label style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="e-soc"> incluir</label>.</p>
+      <div class="kpis" id="e-kpis"></div>
+      <div class="legend" id="e-legg" style="margin:0 0 10px"></div><div class="chart" id="e-chg"></div>
+      <div class="g2">
+        <div class="card"><h3>Categorias que mais mudaram</h3><p class="desc" id="e-dcat"></p><div class="tbl-wrap baixa" id="e-tcat"></div></div>
+        <div class="card"><h3>Centros de custo que mais gastaram</h3><p class="desc" id="e-dcc"></p><div class="tbl-wrap baixa" id="e-tcc"></div></div>
+      </div>
+      <div class="sec"><span class="cond">Uso de "Outras Despesas" e "Taxas gerais" por mês</span></div>
       <p class="small" style="margin:-6px 0 12px">Meta do manual: no máximo 2% dos lançamentos do mês nessas duas categorias. Por competência; meses com menos de 20 lançamentos e competências futuras ficam de fora.</p>
       <div class="chart" id="e-ch1"></div>
       <div class="sec"><span class="cond">Problemas por mês</span><span class="sp"></span>
@@ -1225,7 +1234,11 @@ function afRenderEvo(){
       <div class="chart" id="e-ch3"></div>`;
     el.dataset.ok="1";
     el.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>{ AF_EVO_MET=b.dataset.m; afRenderEvo(); });
+    el.querySelectorAll("[data-g]").forEach(b=>b.onclick=()=>{ AF_EVO_G=b.dataset.g; afRenderEvo(); });
+    document.getElementById("e-soc").addEventListener("change",afRenderEvo);
   }
+  el.querySelectorAll("[data-g]").forEach(b=>b.classList.toggle("on",b.dataset.g===AF_EVO_G));
+  afRenderGastos();
   el.querySelectorAll("[data-m]").forEach(b=>b.classList.toggle("on",b.dataset.m===AF_EVO_MET));
   const cur=afMesAtual(), por={};
   AF_BASE.forEach(i=>{ const m=(AF_C.dc[i]||"").slice(0,7); if(!m||m>cur) return; const o=por[m]||(por[m]={t:0,g:0,s:{},v:{}}); o.t++; const c=cat(i); if(c==="Outras Despesas"||c==="Taxas gerais") o.g++; const s=st(i); o.s[s]=(o.s[s]||0)+1; o.v[s]=(o.v[s]||0)+AF_C.v[i]; });
@@ -1240,6 +1253,71 @@ function afRenderEvo(){
   const vms=Object.keys(vm).sort().slice(-12);
   if(vms.length) afBarChart(document.getElementById("e-ch3"), vms.map(m=>({lab:fM(m),segs:[{v:vm[m].c,c:"var(--v-conf)",n:"Conforme"},{v:vm[m].x,c:"var(--v-corr)",n:"A corrigir"},{v:vm[m].f,c:"var(--v-feito)",n:"Corrigido"}],tot:vm[m].c+vm[m].x+vm[m].f})),{titulo:"Validações registradas (verde conforme · vermelho a corrigir · azul corrigido)",fmt:v=>fN(Math.round(v))});
   else document.getElementById("e-ch3").innerHTML=`<div class="vazio">Ainda não há validações.</div>`;
+}
+
+/* ---------- gastos por mês (23/10) ---------- */
+let AF_EVO_G="dest";
+const AF_DEST={obra:["Obra (material, mão de obra, equipamento)","--s-ok"],taxas:["Taxas, impostos e seguros de obra","--s-cc"],ter:["Terreno (compra, comissão, ITBI, cartório)","--s-desc"],
+  venda:["Custo da venda (comissão, RET, GCAP)","--s-gen"],esc:["Escritório","--s-na"],pos:["Pós-obra","--s-mix"],pend:["A classificar","--s-div"],outros:["Outros","--s-sd"],soc:["Aportes e distribuições","--s-cad"]};
+const AF_D_TER=new Set(["Aquisição de terreno","Comissão Aquisição de Lote","ITBI","Escritura","Registro de lote"]);
+const AF_D_VEN=new Set(["Comissão Venda de Casa","Ganho de Capital","DARF RET (Incorporação)"]);
+const AF_D_SOC=new Set(["Aporte Capital","Distribuição de Lucros","Cota Capital"]);
+const AF_D_OBRA=new Set(["Materiais (Obras)","Mão de Obra Terceirizada","Locação de equipamentos","Sistema de monitoramento","Arquitetura"]);
+const tcv = i => AF_DIC.tc?AF_DIC.tc[AF_C.tc[i]]:"";
+function afDestino(i){
+  const c=cat(i), t=tcv(i), cc=afNz(ccv(i)), m=afManualCat(c), sec=m&&m.secao_id||"";
+  if(t==="SOC"||AF_D_SOC.has(c)) return "soc";
+  if(AF_D_TER.has(c)) return "ter";
+  if(AF_D_VEN.has(c)) return "venda";
+  if(t==="ADM") return "esc";
+  if(cc.startsWith("POS OBRA")) return "pos";
+  if(t==="PENDENTE") return "pend";
+  if(AF_D_OBRA.has(c)) return "obra";
+  if(/^P2-1[5-8]$/.test(sec)||(sec==="P1-09"&&m&&m.escopo==="OBRA")) return "taxas";
+  return "outros";
+}
+function afMesesAntes(m,n){ const r=[]; let x=m; for(let k=0;k<n;k++){ x=afMesAnt(x); r.push(x); } return r; }
+function afSpark(vals){ const W=96,H=22,mx=Math.max(1,...vals); const pts=vals.map((v,k)=>`${(k/(Math.max(1,vals.length-1))*W).toFixed(1)},${(H-2-(v/mx)*(H-4)).toFixed(1)}`).join(" ");
+  return `<svg width="${W}" height="${H}" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="var(--azul)" stroke-width="1.6"/><circle cx="${W}" cy="${(H-2-(vals[vals.length-1]/mx)*(H-4)).toFixed(1)}" r="2.2" fill="var(--azul)"/></svg>`; }
+function afRenderGastos(){
+  const soc=document.getElementById("e-soc").checked, cur=afMesAtual(), mesF=afMesAnt(cur), ant3=afMesesAntes(mesF,3);
+  const porM={}, cats={}, ccs={}, fornM={};
+  AF_BASE.forEach(i=>{ const dp=AF_C.dp[i]; if(!dp) return; const m=dp.slice(0,7); if(m>cur) return;
+    const d=afDestino(i); if(d==="soc"&&!soc) return; const v=AF_C.vp[i]||0;
+    const k=AF_EVO_G==="dest"?d:(grv(i)||"(sem grupo)");
+    const o=porM[m]||(porM[m]={tot:0,n:0,k:{}}); o.tot+=v; o.n++; o.k[k]=(o.k[k]||0)+v;
+    const c=cat(i); (cats[c]||(cats[c]={}))[m]=(cats[c][m]||0)+v;
+    const cc=ccv(i)||"—"; (ccs[cc]||(ccs[cc]={}))[m]=(ccs[cc][m]||0)+v;
+    (fornM[m]||(fornM[m]=new Set())).add(forn(i)); });
+  const meses=Object.keys(porM).sort().slice(-18);
+  let chaves=AF_EVO_G==="dest"?Object.keys(AF_DEST).filter(k=>meses.some(m=>porM[m].k[k])):[...new Set(meses.flatMap(m=>Object.keys(porM[m].k)))];
+  const paleta=["--s-ok","--s-cc","--s-desc","--s-gen","--s-na","--s-mix","--s-div","--s-sd","--s-cad"];
+  const cor=(k,ix)=>`var(${AF_EVO_G==="dest"?AF_DEST[k][1]:paleta[ix%paleta.length]})`, nome=k=>AF_EVO_G==="dest"?AF_DEST[k][0]:k;
+  if(AF_EVO_G!=="dest") chaves.sort((a,b)=>meses.reduce((s,m)=>s+(porM[m].k[b]||0),0)-meses.reduce((s,m)=>s+(porM[m].k[a]||0),0));
+  document.getElementById("e-legg").innerHTML=chaves.map((k,ix)=>`<span class="small" style="display:flex;align-items:center;gap:6px"><i class="sw" style="background:${cor(k,ix)}"></i>${esc(nome(k))}</span>`).join("");
+  afBarChart(document.getElementById("e-chg"), meses.map(m=>({lab:fM(m),segs:chaves.map((k,ix)=>({v:porM[m].k[k]||0,c:cor(k,ix),n:nome(k)})),tot:porM[m].tot})),
+    {titulo:"Valor pago por mês"+(meses.includes(cur)?" (o mês atual ainda está em andamento)":""), fmt:v=>v>=1e6?"R$ "+(v/1e6).toLocaleString("pt-BR",{maximumFractionDigits:1})+" mi":fR0(v), destaque:cur});
+  const sm=(o,ms)=>ms.reduce((a,m)=>a+((o||{})[m]||0),0);
+  const vF=porM[mesF]?porM[mesF].tot:0, med=ant3.reduce((a,m)=>a+(porM[m]?porM[m].tot:0),0)/3, dv=med?vF/med-1:null;
+  const vC=porM[cur]?porM[cur].tot:0, nF=porM[mesF]?porM[mesF].n:0;
+  document.getElementById("e-kpis").innerHTML=`
+    <div class="kpi"><div class="lab">Pago em ${fMl(mesF)}</div><div class="val">${fR0(vF)}</div><div class="sub">${fN(nF)} pagamentos · ${fN((fornM[mesF]||new Set()).size)} fornecedores</div></div>
+    <div class="kpi"><div class="lab">Média dos 3 meses antes</div><div class="val">${fR0(med)}</div><div class="sub">${ant3.slice().reverse().map(fMl).join(" · ")}</div></div>
+    <div class="kpi"><div class="lab">Variação de ${fMl(mesF)}</div><div class="val ${dv>0.15?"r":dv<-0.15?"g":""}">${dv==null?"—":(dv>0?"+":"")+fP(dv,0)}</div><div class="sub">contra a média dos 3 meses</div></div>
+    <div class="kpi"><div class="lab">${fMl(cur)} até hoje</div><div class="val">${fR0(vC)}</div><div class="sub">mês em andamento</div></div>`;
+  const ult12=meses.slice(-12);
+  function tabela(obj,elId,descId,descTxt,clk,ordem){
+    let L=Object.entries(obj).map(([k,o])=>{ const f=sm(o,[mesF]), md=sm(o,ant3)/3; return {k,f,md,d:f-md,sp:ult12.map(m=>o[m]||0)}; }).filter(x=>x.f||x.md);
+    L.sort(ordem); L=L.slice(0,12);
+    document.getElementById(descId).textContent=descTxt;
+    document.getElementById(elId).innerHTML=L.length?`<table><thead><tr><th></th><th class="num">${fMl(mesF)}</th><th class="num">Média 3m</th><th class="num">Diferença</th><th>12 meses</th></tr></thead><tbody>
+      ${L.map(x=>`<tr class="clk" data-k="${esc(x.k)}"><td>${esc(x.k)}</td><td class="num">${fR0(x.f)}</td><td class="num">${fR0(x.md)}</td><td class="num" style="color:${x.d>0?"var(--vermelho)":"var(--verde)"}">${x.d>0?"+":""}${fR0(x.d)}</td><td>${afSpark(x.sp)}</td></tr>`).join("")}</tbody></table>`:`<div class="vazio">Sem dados.</div>`;
+    document.querySelectorAll(`#${elId} tr[data-k]`).forEach(t=>t.onclick=()=>clk(t.dataset.k));
+  }
+  tabela(cats,"e-tcat","e-dcat",`${fMl(mesF)} contra a média dos 3 meses anteriores, ordenado pela maior diferença. Clique para ver os lançamentos.`,
+    k=>afIrLanc({cat:k}),(a,b)=>Math.abs(b.d)-Math.abs(a.d));
+  tabela(ccs,"e-tcc","e-dcc",`Os 12 que mais gastaram em ${fMl(mesF)}, com a média dos 3 meses anteriores. Clique para filtrar pelo centro de custo.`,
+    k=>{ document.getElementById("g-cc").value=k; afAplicarGlobais(); afTrocarTab("lanc"); },(a,b)=>b.f-a.f);
 }
 
 /* gráfico de barras empilhadas em SVG puro */
