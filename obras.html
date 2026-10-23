@@ -1095,6 +1095,32 @@ function abrirObra(id){
 function fecharObra(){ OBRA=null; document.getElementById("ov1").classList.remove("on"); document.getElementById("p1").classList.remove("on");
   /* 25/09/26: ao fechar, a lista de trás mostra o que acabou de ser preenchido */
   pintarTabs(); if(ABA==="alertas") pintarAlertas(); else if(ABA==="obras"&&document.getElementById("lista-obras")) pintarLista(); }
+/* 23/10/26 — MESMO LAYOUT: obra igual a outra abre o 3D (e os quantitativos)
+   dela. Grava a relação 3D DA OBRA da (EMP) Projeto 2.0 (ação modelo3dLayout,
+   PORTAL-LEITURA). Obra com o próprio 3D publicado continua com o dela. */
+const _LAY3D={};
+async function carregarLayout3d(id,forcar){
+  const box=document.getElementById("m3d-lay"); if(!box) return;
+  let r=!forcar&&_LAY3D[id];
+  if(!r){ try{ r=await chamar({action:"modelo3dInfo",pageId:id},30000,true); }catch(e){ r=null; } if(r&&r.ok) _LAY3D[id]=r; }
+  if(OBRA!==id) return;
+  const b=document.getElementById("m3d-lay"); if(!b) return;
+  if(!r||!r.ok){ b.innerHTML=`<span class="ajuda">Mesmo layout: não consegui ler agora${r&&r.erro?" ("+esc(String(r.erro))+")":""}.</span>`; return; }
+  const ops=D.obras.filter(x=>x.id!==id).slice().sort((a,c)=>String(a.titulo||"").localeCompare(String(c.titulo||""),"pt-BR"));
+  b.innerHTML=`<label style="font-weight:700;color:var(--text3);margin-right:6px">Mesmo layout de</label>
+    <select id="m3d-sel" onchange="gravarLayout3d('${id}',this.value)" style="max-width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:7px;font:inherit;font-size:12.5px;background:var(--sup);color:var(--text)">
+      <option value="">— nenhuma (usa o 3D desta obra)</option>${ops.map(x=>`<option value="${esc(x.id)}"${x.id===r.link?" selected":""}>${esc(x.titulo||"(sem endereço)")}</option>`).join("")}</select>
+    <div class="ajuda">${r.tem3d?"Esta obra tem o <b>próprio 3D</b> publicado — ele vale na frente do vínculo."
+      :r.link?(r.linkTem3d?"Abre o 3D e os quantitativos de <b>"+esc(r.linkTitulo)+"</b>.":"⚠ <b>"+esc(r.linkTitulo)+"</b> ainda não tem 3D publicado.")
+      :"Escolha a obra de mesmo layout que já tem o 3D publicado para esta abrir o dela."}</div>`;
+}
+async function gravarLayout3d(id,base){
+  const sel=document.getElementById("m3d-sel"); if(sel) sel.disabled=true;
+  let r; try{ r=await chamar({action:"modelo3dLayout",pageId:id,base:base||""},45000); }catch(e){ r={ok:false,erro:"sem conexão"}; }
+  if(r&&r.ok){ _LAY3D[id]=r; toast(base?"Vínculo de layout gravado.":"Vínculo de layout removido."); }
+  else toast("Não gravou o vínculo: "+((r&&r.erro)||"erro"));
+  carregarLayout3d(id,!(r&&r.ok));
+}
 function pintarObraPainel(){
   const o=obraDe(OBRA); if(!o) return;
   document.getElementById("p1-end").textContent=o.titulo||"(sem endereço)";
@@ -1107,7 +1133,8 @@ function pintarObraPainel(){
   /* 22/10/26 — MODELO 3D: o visualizador abre os arquivos que o botão
      MORAIS → Geral → Publicar 3D (pyRevit) gravou na coluna MODELO 3D da obra */
   h+=`<div class="grp">Modelo 3D <span class="sp"></span><a class="tg" style="text-decoration:none" href="visualizador-3d.html?obra=${encodeURIComponent(o.id)}" target="_blank" rel="noopener" title="Abre o 3D das disciplinas (ARQ, HID…) com as tabelas de quantitativos publicadas pelo Revit">🧊 Abrir modelo 3D</a></div>
-      <div class="ajuda" style="margin:0 22px 6px">Arquitetura, hidrossanitário e as outras disciplinas na mesma cena, com os quantitativos: clique numa linha para ver no 3D. Para publicar ou atualizar: no Revit, <b>MORAIS → Geral → Publicar 3D</b>.</div>`;
+      <div class="ajuda" style="margin:0 22px 6px">Arquitetura, hidrossanitário e as outras disciplinas na mesma cena, com os quantitativos: clique numa linha para ver no 3D. Para publicar ou atualizar: no Revit, <b>MORAIS → Geral → Publicar 3D</b>.</div>
+      <div class="m3d-lay" id="m3d-lay" style="margin:4px 22px 10px;font-size:12.5px"><span class="ajuda">Mesmo layout: carregando…</span></div>`;
   h+=`<div class="grp">Atividades <span class="sp"></span>
       <button class="tg ${MODO==="lista"?"on":""}" title="Atividades em lista, por tipo" onclick="MODO='lista';pintarObraPainel()">Lista</button>
       <button class="tg ${MODO==="crono"?"on":""}" title="Atividades no tempo (início → prazo)" onclick="MODO='crono';pintarObraPainel()">Cronograma</button></div><div class="pl">`;
@@ -1131,6 +1158,7 @@ function pintarObraPainel(){
   h+=`</div><div class="grp">Comentários e imagens</div><div class="pl" id="com-obra">${comentariosHtml(o.id)}</div>`;
   document.getElementById("p1-corpo").innerHTML=h;
   aplicarCombos(document.getElementById("p1-corpo"));
+  carregarLayout3d(o.id);
 }
 /* 25/09/26 — GRAVAÇÃO OTIMISTA NA OBRA (mesma ideia da baixa de atividade).
    Antes a obra só mudava na memória DEPOIS da resposta do servidor: quem
