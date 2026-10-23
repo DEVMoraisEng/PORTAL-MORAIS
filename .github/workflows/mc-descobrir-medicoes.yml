@@ -1,0 +1,28 @@
+name: Descobrir medições de contrato no Mais Controle (só leitura)
+
+# 23/10/26: levantamento para o Mapa de Obras mostrar as medições de TODOS os
+# contratos em aberto de cada obra (mestre, pintor, eletricista…). Não grava nada
+# e não imprime valores — só caminhos de API e nomes de campos.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  descobrir:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Descobrir
+        env:
+          MC_ROBO_EMAIL: ${{ secrets.MC_ROBO_EMAIL || secrets.MC_ROBO_USUARIO }}
+          MC_ROBO_SENHA: ${{ secrets.MC_ROBO_SENHA }}
+          MC_ROBO_APARELHO: ${{ secrets.MC_ROBO_APARELHO }}
+        run: |
+          pip install --quiet requests
+          python -m venda.mc.descobrir_medicoes
