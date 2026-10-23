@@ -34,7 +34,8 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: Descobrir
         run: |
-          python -u robo_mc_descobrir_medicoes.py > /tmp/descoberta_medicoes.txt 2>&1 || echo "(saiu com erro)" >> /tmp/descoberta_medicoes.txt
+          SO_CODIGO=1 python -u -m venda.mc.descobrir_medicoes > /tmp/descoberta_medicoes.txt 2>&1 || echo "(código: saiu com erro)" >> /tmp/descoberta_medicoes.txt
+          python -u robo_mc_descobrir_medicoes.py >> /tmp/descoberta_medicoes.txt 2>&1 || echo "(saiu com erro)" >> /tmp/descoberta_medicoes.txt
           tail -5 /tmp/descoberta_medicoes.txt
       - name: Guardar o resultado no ramo robo-descobertas
         if: always()

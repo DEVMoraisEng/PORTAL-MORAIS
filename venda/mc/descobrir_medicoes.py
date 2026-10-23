@@ -93,6 +93,15 @@ def main() -> int:
     for c in lista[:400]:
         print("  ", c)
 
+    # contexto do código em volta das palavras (o código do site é público)
+    for termo in ("Medição de Contratos", "Medição de contratos", "contract-measurement", "work-contract",
+                  "/contracts", "measurement", "planningId}/contract", "contracts?", "/supplier-contract"):
+        achou = [m.start() for m in re.finditer(re.escape(termo), texto)][:12]
+        print("\n### %s (%d ocorrências)" % (termo, len(re.findall(re.escape(termo), texto))))
+        for i in achou:
+            print("   …" + texto[max(0, i - 220):i + 260].replace("\n", " ") + "…")
+    if os.environ.get("SO_CODIGO"):
+        return 0
     erp = Erp((os.environ.get("MC_ROBO_EMAIL") or "").strip(), (os.environ.get("MC_ROBO_SENHA") or "").strip("\r\n"),
               aparelho=os.environ.get("MC_ROBO_APARELHO", "").strip())
     erp.logar()
