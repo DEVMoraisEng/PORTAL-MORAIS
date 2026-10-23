@@ -158,6 +158,9 @@ html[data-tema="escuro"] #props .ph b{color:var(--teal)}
 #drone-dica{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);display:none;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;
   background:rgba(30,63,88,.9);color:#fff;border-radius:10px;padding:7px 12px;font-size:12px;font-weight:600;z-index:3;pointer-events:none;max-width:92%}
 #drone-dica.on{display:flex}
+.so-pessoa{display:none}body.humano .so-pessoa{display:inline-flex;gap:5px;align-items:center}body.humano .so-drone{display:none}
+#pessoa-alt{font:inherit;font-size:12px;border:0;border-radius:6px;padding:2px 4px;background:rgba(255,255,255,.92);color:#1e3f58}
+body.humano #drone-pad .su,body.humano #drone-pad .de{visibility:hidden}
 #drone-dica kbd{font:inherit;font-size:11px;font-weight:800;background:rgba(255,255,255,.16);border-radius:4px;padding:1px 5px}
 #drone-dica b{color:#8FDCD2}
 #status{position:absolute;inset:0;display:none;align-items:center;justify-content:center;gap:10px;
@@ -290,7 +293,8 @@ body.drone #drone-pad{display:grid}
       <button class="bt" id="b-exibir" title="Fundo, móveis, portas, cores do projeto e legenda">👁 Exibir</button>
       <button class="bt" id="b-corte" title="Cortar o 3D (planta, cortes) e escolher a vista da câmera">✂ Corte e vistas<kbd>C</kbd></button>
       <button class="bt" id="b-medir" title="Clique em dois pontos para medir a distância">📏 Medir<kbd>D</kbd></button>
-      <button class="bt" id="b-drone" title="Andar livremente pela casa (primeira pessoa)">🚁 Drone</button>
+      <button class="bt" id="b-drone" title="Voar livremente pela casa">🚁 Drone</button>
+      <button class="bt" id="b-pessoa" title="Andar pela casa na altura dos olhos de uma pessoa (não atravessa parede; passa por porta e portão)">🚶 Pessoa</button>
       <button class="bt" id="b-limpar-med" style="display:none" title="Apaga todas as medidas">Limpar medidas</button>
       <button class="bt" id="b-desfazer" disabled title="Desfaz a última ação (ocultar, isolar, medida…)">↶ Desfazer<kbd>Ctrl+Z</kbd></button>
       <button class="bt" id="b-proj" title="Alternar perspectiva/ortogonal">Ortogonal</button>
@@ -318,7 +322,8 @@ body.drone #drone-pad{display:grid}
     </div>
     <div id="snap"></div>
     <div id="props"></div>
-    <div id="drone-dica"><b>🚁 Drone</b><span class="tec"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> andar</span><span class="tec"><kbd>Q</kbd>/<kbd>E</kbd> descer/subir</span>
+    <div id="drone-dica"><b id="drone-tit">🚁 Drone</b><span class="tec"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> andar</span><span class="tec so-drone"><kbd>Q</kbd>/<kbd>E</kbd> descer/subir</span>
+      <label class="so-pessoa">altura <select id="pessoa-alt"><option value="1.7">Adulto 1,70 m</option><option value="1.85">Alto 1,85 m</option><option value="1.55">Baixo 1,55 m</option><option value="1.1">Criança 1,10 m</option><option value="1.3">Cadeirante (olhos 1,20 m)</option><option value="outra">Outra…</option></select></label>
       <span>arraste para olhar</span><span class="tec"><kbd>Shift</kbd> rápido</span><span class="tec">roda: velocidade <b id="drone-vel">2,5 m/s</b></span><span class="tec"><kbd>Esc</kbd> sai</span></div>
     <div id="drone-pad">
       <button class="su" data-k="e">subir</button><button class="w" data-k="w">▲</button><button class="de" data-k="q">descer</button>
@@ -410,7 +415,42 @@ window.MODELO3D_ENDPOINT = async function (obraId) {
   }
   return { ok: true, titulo: r.titulo, base: r.base || null, arquivos: r.arquivos, obter: (a, prog) => baixarModelo3d(obraId, a, prog) };
 };
+/* ===== MODO REUNIÃO (23/10/26) ===========================================
+ * Várias pessoas no mesmo 3D: bonecos, laser, apresentar, chat e voz.
+ * Usa o mesmo Supabase Realtime do aviso "ao vivo" do portal (ação
+ * aoVivoConfig do Apps Script) — canal v3d-<id da obra>. Sem essa
+ * configuração o botão Reunião avisa e o resto do 3D segue normal.
+ * ===================================================================== */
+window.REUNIAO_CFG = (function () {
+  const id = new URLSearchParams(location.search).get("obra");
+  if (!id || !S) return null;
+  let cli = null;
+  return {
+    sala: String(id).replace(/-/g, "").toLowerCase(),
+    eu: { nome: S.nome || S.u || "Alguém" },
+    cliente: async function () {
+      if (cli) return cli;
+      let cfg = null;
+      try { cfg = JSON.parse(sessionStorage.getItem("morais_aovivo") || "null"); } catch (e) {}
+      if (!cfg) {
+        const r = await chamar({ action: "aoVivoConfig" }, 20000, true);
+        if (!(r && r.ok && r.url && r.anon)) throw new Error("o portal está sem a conexão ao vivo configurada");
+        cfg = { url: r.url, anon: r.anon, canal: r.canal || "portal" };
+        try { sessionStorage.setItem("morais_aovivo", JSON.stringify(cfg)); } catch (e) {}
+      }
+      if (!(window.supabase && window.supabase.createClient)) {
+        await new Promise((ok, err) => {
+          const sc = document.createElement("script");
+          sc.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js";
+          sc.onload = ok; sc.onerror = () => err(new Error("não carregou a biblioteca de tempo real")); document.head.appendChild(sc);
+        });
+      }
+      cli = window.supabase.createClient(cfg.url, cfg.anon, { auth: { persistSession: false, autoRefreshToken: false }, realtime: { params: { eventsPerSecond: 20 } } });
+      return cli;
+    }
+  };
+})();
 </script>
-<script src="js/visualizador-3d.js?v=8"></script>
+<script src="js/visualizador-3d.js?v=9"></script>
 </body>
 </html>
