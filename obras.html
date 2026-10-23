@@ -1106,16 +1106,23 @@ async function carregarLayout3d(id,forcar){
   if(OBRA!==id) return;
   const b=document.getElementById("m3d-lay"); if(!b) return;
   if(!r||!r.ok){ b.innerHTML=`<span class="ajuda">Mesmo layout: não consegui ler agora${r&&r.erro?" ("+esc(String(r.erro))+")":""}.</span>`; return; }
-  const ops=D.obras.filter(x=>x.id!==id).slice().sort((a,c)=>String(a.titulo||"").localeCompare(String(c.titulo||""),"pt-BR"));
+  /* o Notion devolve o id com ou sem traços: compara sem eles (era isso que voltava a "nenhuma" depois de gravar) */
+  const sT=v=>String(v||"").replace(/-/g,"").toLowerCase(), lk=sT(r.link);
+  const ops=D.obras.filter(x=>sT(x.id)!==sT(id)).slice().sort((a,c)=>String(a.titulo||"").localeCompare(String(c.titulo||""),"pt-BR"));
+  if(lk&&!ops.some(x=>sT(x.id)===lk)) ops.unshift({id:r.link,titulo:r.linkTitulo||"(obra vinculada)"});
   b.innerHTML=`<label style="font-weight:700;color:var(--text3);margin-right:6px">Mesmo layout de</label>
     <select id="m3d-sel" onchange="gravarLayout3d('${id}',this.value)" style="max-width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:7px;font:inherit;font-size:12.5px;background:var(--sup);color:var(--text)">
-      <option value="">— nenhuma (usa o 3D desta obra)</option>${ops.map(x=>`<option value="${esc(x.id)}"${x.id===r.link?" selected":""}>${esc(x.titulo||"(sem endereço)")}</option>`).join("")}</select>
+      <option value="">— nenhuma (usa o 3D desta obra)</option>${ops.map(x=>`<option value="${esc(x.id)}"${lk&&sT(x.id)===lk?" selected":""}>${esc(x.titulo||"(sem endereço)")}</option>`).join("")}</select>
     <div class="ajuda">${r.tem3d?"Esta obra tem o <b>próprio 3D</b> publicado — ele vale na frente do vínculo."
       :r.link?(r.linkTem3d?"Abre o 3D e os quantitativos de <b>"+esc(r.linkTitulo)+"</b>.":"⚠ <b>"+esc(r.linkTitulo)+"</b> ainda não tem 3D publicado.")
       :"Escolha a obra de mesmo layout que já tem o 3D publicado para esta abrir o dela."}</div>`;
+  /* com busca: digita parte do nome da obra (mesma caixa dos outros campos) */
+  const sel=document.getElementById("m3d-sel");
+  if(sel&&typeof comboMontar==="function"){ sel.dataset.combo="1"; comboMontar(sel); if(sel._cb) sel._cb.inp.placeholder="Digite o nome da obra…"; }
 }
 async function gravarLayout3d(id,base){
   const sel=document.getElementById("m3d-sel"); if(sel) sel.disabled=true;
+  if(sel&&sel._cb) sel._cb.inp.disabled=true;
   let r; try{ r=await chamar({action:"modelo3dLayout",pageId:id,base:base||""},45000); }catch(e){ r={ok:false,erro:"sem conexão"}; }
   if(r&&r.ok){ _LAY3D[id]=r; toast(base?"Vínculo de layout gravado.":"Vínculo de layout removido."); }
   else toast("Não gravou o vínculo: "+((r&&r.erro)||"erro"));
