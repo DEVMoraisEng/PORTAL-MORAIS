@@ -408,9 +408,9 @@ window.MODELO3D_ENDPOINT = async function (obraId) {
     return { ok: false, erro: e === "SEM_COLUNA_MODELO_3D" ? "A base de obras ainda não tem a coluna MODELO 3D. No Revit: MORAIS → Geral → Publicar 3D (ela cria a coluna)."
                        : "Não consegui buscar o modelo desta obra: " + erroTexto(e) };
   }
-  return { ok: true, titulo: r.titulo, arquivos: r.arquivos, obter: (a, prog) => baixarModelo3d(obraId, a, prog) };
+  return { ok: true, titulo: r.titulo, base: r.base || null, arquivos: r.arquivos, obter: (a, prog) => baixarModelo3d(obraId, a, prog) };
 };
 </script>
-<script src="js/visualizador-3d.js?v=7"></script>
+<script src="js/visualizador-3d.js?v=8"></script>
 </body>
 </html>
