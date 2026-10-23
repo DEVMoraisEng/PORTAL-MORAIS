@@ -1,0 +1,26 @@
+scripts: 52
+arquivos JS lidos: 52 · tamanho: 7199676
+
+=== caminhos no código do site com contrato/medição (10) ===
+   /contract-document
+   /contract/files
+   /contract/items
+   /contracts/{planningId}/contract/files
+   /contracts/{planningId}/contract/items
+   /contracts/{planningId}/measurement/{measurementId}
+   /estimate/{planningId}/contract-document/{contractDocumentId}
+   /measurement/
+   /measurements
+   /work-measurements/{planningId}/measurement/{measurementId}
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/runner/work/PORTAL-MORAIS/PORTAL-MORAIS/venda/mc/descobrir_medicoes.py", line 115, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/home/runner/work/PORTAL-MORAIS/PORTAL-MORAIS/venda/mc/descobrir_medicoes.py", line 98, in main
+    erp.logar()
+  File "/home/runner/work/PORTAL-MORAIS/PORTAL-MORAIS/venda/mc/erp.py", line 55, in logar
+    raise ErpErro("o Mais Controle pediu código de verificação (aparelho não confiável): "
+venda.mc.erp.ErpErro: o Mais Controle pediu código de verificação (aparelho não confiável): falta o segredo MC_ROBO_APARELHO
+(saiu com erro)
