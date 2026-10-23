@@ -20,17 +20,33 @@ MC: código de autenticação lido no e-mail (6 dígitos, tentativa 1)
 MC: confirmando o código (botão "CONTINUAR")
 MC: login ok (https://acessar.maiscontroleerp.com.br/#/onboarding)
 login ok
-colunas visíveis: []
-abas visíveis: []
-url: https://acessar.maiscontroleerp.com.br/#/onboarding
 
-===== LISTA de Medição de Contratos — 0 chamadas distintas =====
+--- rota #/work-measurements -> /app/dashboard
+colunas visíveis: ['Obra', 'Evolução física', 'Custo Orçado', 'Custo Realizado', 'Saldo']
+abas visíveis: ['Em andamento', 'Paralisada', 'Finalizada']
+url: https://acessar.maiscontroleerp.com.br/#/app/dashboard
+
+===== rota #/work-measurements — 5 chamadas distintas =====
+GET legacy-api /maiscontrole/services/cash-flow/chart  x1  status=[200]  params=['accountOwner', 'considerAccountOpeningBalance', 'costCentreType', 'filterType', 'from', 'to']
+    {"revenues": {"202610": "float", "202609": "float"}, "expenses": {"202610": "float", "202609": "float"}, "summaries": {"202610": "float", "202609": "float"}}
+GET prod-erp-api /dashboard/payable  x1  status=[200]  params=['costCentreType']
+    {"summaries": ["lista[4]", {"status": "str", "value": "float", "amount": "int"}], "totalAmount": "int"}
+GET prod-erp-api /fiscal/invoices/unlinked-summary  x1  status=[200]  params=['mode']
+    {"count": "int", "totalValue": "float"}
+GET prod-erp-api /work-management/dashboard  x1  status=[200]  params=['pageIndex', 'pageSize', 'workStatus']
+    {"lastUpdate": "str", "pagination": {"pageIndex": "int", "pageSize": "int"}, "totalPages": "int", "totalElements": "int", "hasNextPage": "bool", "items": ["lista[5]", {"planningId": "str", "workId": "str", "workName": "str", "workStatus": "str", "customerName": "str", "budgetTotalCost": "float", "budgetManpowerCost": "float", "budgetProductCost": "float", "budgetEquipmentCost": "float", "budgetOtherCost": "float", "physicalFinancialPct": "float", "manpowerAccomplished": "int", "productAccomplished": "float", "equipmentAccomplished": "int", "otherAccomplished": "float", "consumedProductCost": "int", "consumedEquipmentCost": "int", "consumedOtherCost": "int", "consumedTotalCost": "int", "availableTotalCost": "int", "accomplishedValue": "float", "accomplishedPct": "float", "manpowerPct": "float", "productPct": "float", "equipmentPct": "float", "othersPct": "float"}]}
+POST api-data-event /event  x2  status=[200]  params=[]
+    {"PublishResponse": {"PublishResult": {"MessageId": "str", "SequenceNumber": "NoneType"}, "ResponseMetadata": {"RequestId": "str"}}}
+menu Obras > Medição de Contratos: Locator.hover: Timeout 20000ms exceeded.
+Call log:
+  - waiting for get_by_text("Obras", exact=True).first
+    - locator 
 não consegui abrir um contrato: Locator.click: Timeout 5000ms exceeded.
 Call log:
   - waiting for locator("a:visible").filter(has_text=re.compile(r"\d")
-colunas visíveis: []
-abas visíveis: []
-url: https://acessar.maiscontroleerp.com.br/#/onboarding
+colunas visíveis: ['Obra', 'Evolução física', 'Custo Orçado', 'Custo Realizado', 'Saldo']
+abas visíveis: ['Em andamento', 'Paralisada', 'Finalizada']
+url: https://acessar.maiscontroleerp.com.br/#/app/dashboard
 
 ===== CONTRATO aberto (aba Serviços) — 0 chamadas distintas =====
 aba Medições não abriu: Locator.click: Timeout 5000ms exceeded.
