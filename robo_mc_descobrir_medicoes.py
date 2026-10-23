@@ -86,39 +86,40 @@ def main():
             print("login ok", flush=True)
             ligar(page)
             VISTOS.clear()
-            # a tela abre por rota (o menu lateral não responde na tela de onboarding)
-            for rota in ("#/work-measurements", "#/contracts", "#/measurements", "#/work-contracts",
-                         "#/contract-measurements", "#/work-measurement"):
+            # Obras > Medição de Contratos = rota #/contracts (lido no código do site:
+            # state "base.contracts"; o contrato abre em #/contracts/{id}/contract/items
+            # e as medições em #/contracts/{id}/measurements)
+            page.evaluate("h => { location.hash = h }", "#/contracts")
+            page.wait_for_timeout(9000)
+            print(f"\n--- rota #/contracts -> {page.url.split('#')[-1][:80]}", flush=True)
+            cabecalhos(page)
+            despejar("LISTA de contratos (#/contracts)")
+            # próxima página / outro status, para ver os parâmetros da lista
+            for rot in ("Em andamento", "A iniciar", "Finalizado"):
                 try:
-                    page.evaluate("h => { location.hash = h }", rota)
-                    page.wait_for_timeout(6000)
-                    print(f"\n--- rota {rota} -> {page.url.split('#')[-1][:80]}", flush=True)
-                    cabecalhos(page)
-                    despejar(f"rota {rota}")
-                    if page.locator("th:visible, [role=columnheader]:visible").count():
-                        break
-                except Exception as e:
-                    print(f"rota {rota}: {str(e)[:100]}")
-            try:
-                mc.ir_menu(page, "Obras", "Medição de Contratos")
-                page.wait_for_timeout(6000)
-                cabecalhos(page)
-                despejar("LISTA de Medição de Contratos (menu)")
-            except Exception as e:
-                print("menu Obras > Medição de Contratos:", str(e)[:120])
-
+                    page.get_by_text(rot, exact=True).first.click(timeout=3000)
+                    page.wait_for_timeout(4000)
+                    despejar(f"lista — clique em '{rot}'")
+                except Exception:
+                    pass
             # abre o primeiro contrato da lista
-            alvo = page.locator("tbody tr:visible, [role=row]:visible").nth(1)
             try:
-                alvo.click(timeout=8000)
+                page.locator("tbody tr:visible, [role=row]:visible").nth(1).click(timeout=8000)
             except Exception:
                 try:
                     page.locator("a:visible").filter(has_text=re.compile(r"\d")).first.click(timeout=5000)
                 except Exception as e:
                     print("não consegui abrir um contrato:", str(e)[:120])
-            page.wait_for_timeout(6000)
+            page.wait_for_timeout(7000)
             cabecalhos(page)
-            despejar("CONTRATO aberto (aba Serviços)")
+            despejar("CONTRATO aberto")
+            m = re.search(r"#/contracts/([0-9a-f-]{36})", page.url)
+            if m:
+                for sub in ("measurements", "measurements-map", "payments"):
+                    page.evaluate("h => { location.hash = h }", f"#/contracts/{m.group(1)}/{sub}")
+                    page.wait_for_timeout(6000)
+                    cabecalhos(page)
+                    despejar(f"CONTRATO — {sub}")
             for aba in ("Medições", "Pagamentos"):
                 try:
                     page.get_by_text(aba, exact=True).first.click(timeout=5000)
