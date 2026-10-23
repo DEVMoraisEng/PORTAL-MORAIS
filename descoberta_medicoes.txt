@@ -1,26 +1,41 @@
-scripts: 52
-arquivos JS lidos: 52 · tamanho: 7199676
+--- DIAGNÓSTICO (login preenchido, antes de clicar) ---
+  título: Login | Mais Controle | rota: #/login | captcha: False
+  campo: email#username name=- ph="Digite seu e-mail cadastrado" valor=22ch
+  campo: password#userpassword name=- ph="6 dígitos ou mais" valor=9ch
+  botão: "ver senha" type=button
+  botão: "ENTRAR" type=submit
+  iframe: https://recorder.jam.dev/capture
+  iframe: 
+MC: clicando no botão "ENTRAR"
+MC: o sistema pediu código de autenticação (#/mfa) — buscando no e-mail
+--- DIAGNÓSTICO (tela de código de autenticação (#/mfa)) ---
+  título: Mais Controle | rota: #/mfa | captcha: False
+  campo: text#confirmationCode name=- ph="Digite aqui o código de autenticação" valor=0ch
+  campo: checkbox#trustDevice name=- ph="" valor=2ch
+  botão: "Reenviar código" type=button
+  botão: "CONTINUAR" type=submit
+  iframe: https://recorder.jam.dev/capture
+  iframe: 
+MC: código de autenticação lido no e-mail (6 dígitos, tentativa 1)
+MC: confirmando o código (botão "CONTINUAR")
+MC: login ok (https://acessar.maiscontroleerp.com.br/#/onboarding)
+login ok
+colunas visíveis: []
+abas visíveis: []
+url: https://acessar.maiscontroleerp.com.br/#/onboarding
 
-=== caminhos no código do site com contrato/medição (10) ===
-   /contract-document
-   /contract/files
-   /contract/items
-   /contracts/{planningId}/contract/files
-   /contracts/{planningId}/contract/items
-   /contracts/{planningId}/measurement/{measurementId}
-   /estimate/{planningId}/contract-document/{contractDocumentId}
-   /measurement/
-   /measurements
-   /work-measurements/{planningId}/measurement/{measurementId}
-Traceback (most recent call last):
-  File "<frozen runpy>", line 198, in _run_module_as_main
-  File "<frozen runpy>", line 88, in _run_code
-  File "/home/runner/work/PORTAL-MORAIS/PORTAL-MORAIS/venda/mc/descobrir_medicoes.py", line 115, in <module>
-    sys.exit(main())
-             ^^^^^^
-  File "/home/runner/work/PORTAL-MORAIS/PORTAL-MORAIS/venda/mc/descobrir_medicoes.py", line 98, in main
-    erp.logar()
-  File "/home/runner/work/PORTAL-MORAIS/PORTAL-MORAIS/venda/mc/erp.py", line 55, in logar
-    raise ErpErro("o Mais Controle pediu código de verificação (aparelho não confiável): "
-venda.mc.erp.ErpErro: o Mais Controle pediu código de verificação (aparelho não confiável): falta o segredo MC_ROBO_APARELHO
-(saiu com erro)
+===== LISTA de Medição de Contratos — 0 chamadas distintas =====
+não consegui abrir um contrato: Locator.click: Timeout 5000ms exceeded.
+Call log:
+  - waiting for locator("a:visible").filter(has_text=re.compile(r"\d")
+colunas visíveis: []
+abas visíveis: []
+url: https://acessar.maiscontroleerp.com.br/#/onboarding
+
+===== CONTRATO aberto (aba Serviços) — 0 chamadas distintas =====
+aba Medições não abriu: Locator.click: Timeout 5000ms exceeded.
+Call log:
+  - waiting for get_by_text("Medições", exact=True
+aba Pagamentos não abriu: Locator.click: Timeout 5000ms exceeded.
+Call log:
+  - waiting for get_by_text("Pagamentos", exact=Tr
