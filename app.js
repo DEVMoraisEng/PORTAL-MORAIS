@@ -34,6 +34,7 @@ const ACOES_NA_ESCRITA = [
   "ligUpdate", "ligAnexar", "ligBaixa", "ligVendaUpdate", "ligExcluir", "ligCriar",
   "posObraServicoNovo", "posObraAtvUpdate", "posObraUpdate", "posObraAnexar",
   "posObraRetornoExcluir", "posObraAtvExcluir", "posObraNovo",
+  "posObraEndereco",   /* 23/10/26: ADM troca endereço/casa (PosObraEndereco.gs, só na ESCRITA) */
   /* set/26 r2 — simsUnidadeUpdate NAO entra aqui, de proposito.
      Na rodada anterior ela foi movida para a faixa de ESCRITA e o "Salvar
      tudo" passou a devolver NAO_AUTORIZADO: a implantacao de LEITURA
