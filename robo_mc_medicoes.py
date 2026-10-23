@@ -42,9 +42,9 @@ RESUMO = {}
 # Contrato "fechado" — sai do mapa. O resto (a iniciar, em andamento, paralisado…)
 # entra. Lista por segurança em vários formatos: o robô imprime os status que
 # encontrou, e qualquer status novo entra como "em aberto".
-FECHADOS = {"FINISHED", "FINALIZADO", "FINALIZED", "CLOSED", "CANCELED", "CANCELLED", "CANCELADO", "CONCLUDED",
+FECHADOS = {"DRAFT", "RASCUNHO", "FINISHED", "FINALIZADO", "FINALIZED", "CLOSED", "CANCELED", "CANCELLED", "CANCELADO", "CONCLUDED",
             "CONCLUIDO", "DONE", "INACTIVE"}
-ROTULO_STATUS = {"TO_START": "A iniciar", "IN_PROGRESS": "Em andamento", "PARALYZED": "Paralisado",
+ROTULO_STATUS = {"DRAFT": "Rascunho", "TO_START": "A iniciar", "IN_PROGRESS": "Em andamento", "PARALYZED": "Paralisado",
                  "FINISHED": "Finalizado", "CANCELED": "Cancelado", "CANCELLED": "Cancelado"}
 
 
@@ -188,16 +188,20 @@ def main():
                     log("workMeasurementResponse:", json.dumps(estrutura(wm[0]), ensure_ascii=False))
             abertos = [c for c in lista if limpo(c.get("status")).upper() not in FECHADOS]
             log(f"Em aberto: {len(abertos)}")
+            # 23/10: a própria lista já traz o resumo das medições de cada contrato
+            # (workMeasurementResponse: nº de medições, data da última aprovação e
+            # % medido) — sem uma chamada por contrato.
             saida, st_med = [], {}
-            for i, c in enumerate(abertos, 1):
-                meds = erp.medicoes(c.get("id"))
-                for m in meds or []:
-                    k = limpo(m.get("measurementStatus")).upper()
-                    st_med[k] = st_med.get(k, 0) + 1
-                saida.append(registro(c, ultima_medicao(meds), None if meds is None else len(meds)))
-                if i % 25 == 0:
-                    log(f"  … {i}/{len(abertos)} contratos lidos")
-            log(f"Status das medições encontradas: {st_med}")
+            for c in abertos:
+                wm = c.get("workMeasurementResponse") or {}
+                n = wm.get("numberOfMeasurements")
+                ult = None
+                if wm:
+                    ult = {"data_aprovacao": str(wm.get("lastMeasurementDateApproval") or "")[:10] or None,
+                           "pct": round(float(wm.get("measuredPercentage") or 0), 2)}
+                st_med["com medição" if n else "sem medição"] = st_med.get("com medição" if n else "sem medição", 0) + 1
+                saida.append(registro(c, ult, n))
+            log(f"Medições: {st_med}")
             RESUMO.update({"contratos_por_status": st, "medicoes_por_status": st_med, "em_aberto": len(abertos)})
             if DESCOBRIR and lista:
                 RESUMO["campos_contrato"] = estrutura(lista[0])
