@@ -2871,6 +2871,8 @@ async function salvarEnderecoObra(){
 
   if(bt) bt.disabled = true;
   aviso("Gravando…", false);
+  /* garante a rota da ESCRITA mesmo com um app.js antigo no cache do navegador */
+  try{ if(typeof ACOES_NA_ESCRITA!=="undefined" && ACOES_NA_ESCRITA.indexOf("posObraEndereco")<0) ACOES_NA_ESCRITA.push("posObraEndereco"); }catch(e){}
   let r;
   try{ r = await chamar({action:"posObraEndereco", pageId:OBRA.id, endereco:end, casa:casa}, 90000, true); }
   catch(e){ r = { ok:false, erro: navigator.onLine ? "ERRO_API" : "OFFLINE" }; }
