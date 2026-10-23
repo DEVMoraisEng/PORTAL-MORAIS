@@ -12,7 +12,8 @@ name: Auditoria Financeira (madrugada)
 #     GitHub ignora o pedido sem dar erro nenhum).
 on:
   schedule:
-    - cron: '23 7 * * *'
+    - cron: '23 7 * * *'     # 04:23 de Brasília
+    - cron: '41 9 * * *'     # 06:41 — RESERVA: só trabalha se a das 04:23 não rodou (o GitHub às vezes pula)
   workflow_dispatch:
   repository_dispatch:
     types: [auditoria_update]
@@ -52,4 +53,5 @@ jobs:
           ERP_CSV_PAGAMENTOS: ${{ secrets.ERP_CSV_PAGAMENTOS }}
           ERP_CSV_OBRAS: ${{ secrets.ERP_CSV_OBRAS }}
           ERP_CSV_RECEBIMENTOS: ${{ secrets.ERP_CSV_RECEBIMENTOS }}
+          SO_SE_FALTOU: ${{ github.event.schedule == '41 9 * * *' && '1' || '' }}
         run: python robo_auditoria_fin.py

@@ -692,9 +692,26 @@ def resumo_mensal_genericas(p):
     return {k: v for k, v in sorted(m.items())}
 
 
+def ja_rodou_hoje():
+    """Rodada de reserva (SO_SE_FALTOU=1): o agendador do GitHub às vezes
+    pula o horário. A segunda hora só trabalha se não houver coleta ok hoje."""
+    try:
+        ult = sb_get("fin_coletas", "select=em&ok=eq.true&order=em.desc&limit=1")
+    except Exception as e:
+        log(f"  (não consegui ver a última coleta: {e} — sigo)")
+        return False
+    if not ult:
+        return False
+    em = datetime.fromisoformat(str(ult[0]["em"]).replace("Z", "+00:00")).astimezone(TZ).date()
+    return em == HOJE
+
+
 def main():
     t0 = time.time()
     log(f"AUDITORIA FINANCEIRA {VERSAO} — {HOJE.isoformat()}")
+    if os.environ.get("SO_SE_FALTOU") and sb_ok() and ja_rodou_hoje():
+        log("Já houve coleta hoje — rodada de reserva dispensada.")
+        return
     dados, origem = coletar()
     if dados["pagamentos"].empty:
         msg = "Sem pagamentos — confira MC_API_USUARIO / MC_API_SENHA (Senha da API, não a de login)."
