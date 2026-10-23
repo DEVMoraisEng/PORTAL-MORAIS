@@ -1,0 +1,67 @@
+name: Robô MC - Medições de contratos (Mapa de Obras)
+
+# 23/10/26: lê no Mais Controle (Obras > Medição de Contratos) todos os
+# contratos em aberto de cada obra — mestre, pintor, eletricista… — e grava
+# dist/mc_medicoes/contratos.json, que o Mapa de Obras usa nas "Medições da
+# semana". Só LEITURA no MC. Sem valores em R$ no arquivo.
+on:
+  workflow_dispatch:
+    inputs:
+      descobrir:
+        description: "Imprimir também os status e campos encontrados (DESCOBRIR=1)"
+        type: boolean
+        default: false
+  schedule:
+    - cron: '20 10-22/2 * * 1-6'   # 07h20 às 19h20 (Brasília), de 2 em 2 h, seg a sáb
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: robos-mc
+  cancel-in-progress: false
+
+jobs:
+  medicoes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MC_URL: ${{ secrets.MC_URL }}
+      MC_USUARIO: ${{ secrets.MC_USUARIO }}
+      MC_SENHA: ${{ secrets.MC_SENHA }}
+      MC_EMAIL_SENHA_APP: ${{ secrets.MC_EMAIL_SENHA_APP }}
+      DESCOBRIR: ${{ inputs.descobrir && '1' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Instalar Playwright
+        run: |
+          pip install --quiet playwright requests
+          python -m playwright install --with-deps chromium
+
+      - name: Contratos em aberto do MC → dist/mc_medicoes/contratos.json
+        run: python robo_mc_medicoes.py
+
+      - name: Publicar (commit + site)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add dist/mc_medicoes/contratos.json
+          if git diff --staged --quiet; then echo "sem mudança"; exit 0; fi
+          git commit -q -m "Medições de contratos do MC $(date -u +%FT%TZ) [skip ci]"
+          for i in 1 2 3; do git pull -q --rebase origin main && git push -q origin HEAD:main && break; sleep 5; done
+          gh workflow run pages.yml --ref main || true
+
+      - name: Prints em caso de erro
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mc-medicoes-evidencias
+          path: mc_evidencias/
+          retention-days: 3
+          if-no-files-found: ignore
