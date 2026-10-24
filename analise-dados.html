@@ -361,6 +361,34 @@ tfoot td:last-child{border-right:none}
   .controles{gap:8px}
   .controles select,.controles input{max-width:100%}
 }
+
+/* ===== Configurações (24/10) ===== */
+.cfg-aviso{border:1.5px solid var(--border);border-left:4px solid #d4a017;border-radius:8px;background:var(--branco);padding:10px 14px;font-size:13px;color:var(--text);margin-bottom:14px}
+.cfg-aviso.ok{border-left-color:var(--verde)}
+.cfg-sec{background:var(--branco);border:1.5px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:18px}
+.cfg-sec h3{font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--azul);margin:0 0 4px}
+.cfg-sec .desc{font-size:12.5px;color:var(--text3);margin:0 0 10px;max-width:980px}
+.cfg-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.cfg-bar input[type=search],.cfg-bar select{padding:6px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--branco);color:var(--text)}
+.cfg-bar input[type=search]{flex:1 1 220px;min-width:0}
+.cfg-bar .cnt{font-size:12px;color:var(--text3);margin-left:auto}
+.cfg-btn{font-family:'Barlow Condensed',sans-serif;font-weight:800;letter-spacing:.05em;text-transform:uppercase;font-size:13px;padding:7px 14px;border-radius:7px;border:1.5px solid var(--azul);background:var(--azul);color:#fff;cursor:pointer}
+.cfg-btn:disabled{opacity:.45;cursor:not-allowed}
+.cfg-btn.sec{background:transparent;color:var(--azul)}
+.cfg-tw{max-height:62vh;overflow:auto;border:1.5px solid var(--border);border-radius:8px}
+.cfg-tw table{font-size:12.5px}
+.cfg-tw thead th{position:sticky;top:0;z-index:1;font-size:11.5px;padding:8px 10px;white-space:nowrap}
+.cfg-tw td{padding:6px 10px;text-align:left;vertical-align:top}
+.cfg-tw td.nr{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.cfg-tw select{padding:4px 6px;border:1.5px solid var(--border);border-radius:6px;font-size:12.5px;background:var(--branco);color:var(--text);max-width:200px}
+.cfg-tw select.mud{border-color:var(--azul);font-weight:700}
+.cfg-tw tr.plano td{background:var(--bg3);font-weight:800;color:var(--azul);font-family:'Barlow Condensed',sans-serif;letter-spacing:.04em;text-transform:uppercase;font-size:12px}
+.cfg-flag{display:inline-block;font-size:10.5px;font-weight:700;border-radius:10px;padding:1px 7px;margin:2px 4px 0 0;background:#fbf1dc;color:#8a5a00}
+.cfg-flag.az{background:rgba(41,87,120,.12);color:var(--azul)}
+.cfg-auto{font-size:11px;color:var(--text3)}
+.cfg-res{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.cfg-res div{background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;font-size:12.5px}
+.cfg-res b{font-family:'Barlow Condensed',sans-serif;font-size:18px;margin-right:4px}
 </style>
 </head>
 <body>
@@ -392,6 +420,7 @@ tfoot td:last-child{border-right:none}
     <button class="nav-btn" onclick="irPara('metas','Metas',this)">Metas</button>
     <button class="nav-btn" onclick="irPara('prazos','Análise de Prazos',this)">Análise de Prazos</button>
     <button class="nav-btn" onclick="irPara('custos','Análise de Custos',this)">Análise de Custos</button>
+    <button class="nav-btn" onclick="irPara('config','Configurações',this)">Configurações</button>
   </nav>
   <div class="dash-main">
     <div class="sel-bar">
@@ -693,9 +722,15 @@ tfoot td:last-child{border-right:none}
           min-width:300px;padding:6px 0;margin-top:4px"></div>
         <div id="fluxo-selecionadas" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px"></div>
       </div>
+      <span class="sel-lbl">Tipo:</span>
+      <select id="sel-imo-fluxo" onchange="initObrasFluxo();buildFluxo()"><option value="">Todos</option><option value="COND">Condomínio</option><option value="RUA">Casa de rua</option></select>
       <label style="font-size:12px;color:var(--text3);display:flex;align-items:center;gap:6px;cursor:pointer;margin-left:4px">
         <input type="checkbox" id="chk-fluxo-soConcluidas" onchange="initObrasFluxo();buildFluxo()" style="cursor:pointer;width:14px;height:14px">
         Somente obras concluídas (todas as casas recebidas)
+      </label>
+      <label style="font-size:12px;color:var(--text3);display:flex;align-items:center;gap:6px;cursor:pointer;margin-left:4px" title="Aportes e distribuições de lucro nunca contam como gasto, receita ou lucro. Ligado, eles entram só no fluxo mês a mês e na exposição de caixa.">
+        <input type="checkbox" id="chk-fluxo-soc" onchange="buildFluxo()" style="cursor:pointer;width:14px;height:14px">
+        Incluir aportes e distribuições no fluxo mês a mês
       </label>
     </div>
 
@@ -763,6 +798,8 @@ tfoot td:last-child{border-right:none}
         <option value="morais">Morais</option>
         <option value="invest">Investidor</option>
       </select>
+      <span class="sel-lbl">Tipo:</span>
+      <select id="sel-imo-st" onchange="initObrasSetor();buildSetor()"><option value="">Todos</option><option value="COND">Condomínio</option><option value="RUA">Casa de rua</option></select>
       <span class="sel-lbl">Obras:</span>
       <div class="obra-search-wrap" id="obra-search-wrap" style="position:relative">
         <input type="text" id="obra-search-input" placeholder="🔍 Digite para buscar endereço..." autocomplete="off"
@@ -983,6 +1020,15 @@ tfoot td:last-child{border-right:none}
   </div><!-- /setor-sub-comp -->
 </div><!-- /page-setor -->
 
+<!-- CONFIGURAÇÕES (24/10) -->
+<div class="page" id="page-config">
+  <div class="pg-hdr">
+    <button class="btn-volta-dash" onclick="voltarDash()">← Voltar para o Dashboard</button>
+    <div class="pg-hdr-title">Configurações</div>
+  </div>
+  <div class="pg-body" id="cfg-body"></div>
+</div>
+
 <!-- ANÁLISE DE CUSTOS -->
 <div class="page" id="page-custos">
   <div class="pg-hdr">
@@ -1017,6 +1063,10 @@ tfoot td:last-child{border-right:none}
       <select id="sel-prop-cu" onchange="buildCustos()">
         <option value="">Todos</option><option value="morais">Morais</option><option value="invest">Investidor</option>
       </select>
+      <span class="sel-lbl">Tipo:</span>
+      <select id="sel-imo-cu" onchange="buildCustos()"><option value="">Todos</option><option value="COND">Condomínio</option><option value="RUA">Casa de rua</option></select>
+      <label style="font-size:12px;color:var(--text3);display:flex;align-items:center;gap:6px;cursor:pointer" title="Aportes, distribuições e cota capital ficam fora dos totais, salvo se marcado">
+        <input type="checkbox" id="chk-soc-cu" onchange="buildCustos()" style="width:14px;height:14px"> Incluir aportes e distribuições</label>
     </div>
     <!-- KPIs de custos -->
     <div class="kpi-row r4" id="kpi-custos" style="margin-bottom:14px"></div>
@@ -1130,12 +1180,87 @@ const CLIENTES_MORAIS = new Set([
 // Map normS(endereco) → cliente ERP (populado no init a partir de data.obras_erp)
 let obrasClienteMap = {}; // { 'ENDERECO NORMALIZADO': 'NOME DO CLIENTE' }
 
-// Retorna true se a obra é da Morais (pelo cliente ERP)
-function ehObraMorais(endereco){
-  const cliente = (obrasClienteMap[normS(endereco)] || '').toUpperCase().trim();
-  if(!cliente) return true; // sem info = assume Morais (mesma lógica do filtro atual)
-  return CLIENTES_MORAIS.has(cliente);
+/* ===================== CONFIGURAÇÕES (24/10/26) =====================
+   Tudo que decide "onde cada pagamento conta" passa por aqui:
+   - CLIENTE do Mais Controle -> Grupo Morais ou Investidor
+   - CENTRO DE CUSTO -> tipo (obra, escritório, pós-obra, sócios, ignorar),
+     dono (Grupo Morais / Investidor) e imóvel (condomínio / casa de rua)
+   - CATEGORIA -> em que item conta (custo de obra, terreno, custo de venda,
+     escritório, pós-obra, não conta, movimento dos sócios)
+   - NATUREZA do recebimento -> receita, movimento dos sócios ou não conta
+   A regra automática fica no código; a aba Configurações grava só o que foi
+   MUDADO (Supabase ad_config, ações adCfgLer/adCfgSalvar do AuditoriaFin.gs).
+   Aporte, distribuição de lucros e cota capital NUNCA contam como gasto nem
+   como receita/lucro: só aparecem no fluxo de caixa mês a mês, se ligado. */
+const nzC=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().replace(/[-–—]/g,' ').replace(/\s+/g,' ').trim();
+let CFG={clientes:{},ccs:{},cats:{},naturezas:{}}, CFG_META={}, CFG_PODE=false, CFG_OK=false, CFG_ERRO='';
+const CFG_SOC=new Set(['APORTE CAPITAL','DISTRIBUICAO DE LUCROS','COTA CAPITAL']);
+const CFG_TER=new Set(['AQUISICAO DE TERRENO','COMISSAO AQUISICAO DE LOTE','ITBI','ESCRITURA','REGISTRO DE LOTE']);
+const CFG_VENDA=new Set(['COMISSAO VENDA DE CASA','GANHO DE CAPITAL','DARF RET (INCORPORACAO)']);
+const CFG_NAO_OBRA=new Set(['DEVOLUCAO SINAL / ENTRADA / VLR A MAIS CREDITADO','DISTRATO','ADIANTAMENTO DE COMISSAO','DESPESA JC PESSOAL','DESPESA JV PESSOAL']);
+const CFG_NAO_ESC=new Set(['FINANCIAMENTO SALA COMERCIAL','ADIANTAMENTO DE COMISSAO','DESPESA JC PESSOAL','DESPESA JV PESSOAL','DEVOLUCAO SINAL / ENTRADA / VLR A MAIS CREDITADO','DISTRATO']);
+const CFG_NAT={'VENDA':'receita','PRESTACAO DE SERVICOS':'receita','EXECUCAO DE OBRAS':'receita','APORTE DE CAPITAL':'socios','APORTE DE INVESTIDOR':'socios'};
+const CFG_CLI_MORAIS=new Set([...CLIENTES_MORAIS].map(nzC).concat(['MORAIS FLORENCA SPE','MORAIS PARTICIPACOES IMOBILIARIAS SPE','MORAIS VALE DAS BRISAS SPE LTDA']));
+const ROT_TIPO={obra:'Obra',esc:'Escritório',pos:'Pós-obra',soc:'Sócios (aportes/distribuições)',ign:'Não conta'};
+const ROT_DONO={MORAIS:'Grupo Morais',INVESTIDOR:'Investidor'};
+const ROT_IMO={COND:'Condomínio',RUA:'Casa de rua'};
+const ROT_OBRA={obra:'Custo de obra',ter:'Terreno',venda:'Custo de venda',nao:'Não conta'};
+let OBRAS_ERP={}, DOC_IDX={}, FATS_TODOS=[], PAGS_SOC={}, FATS_SOC=[];
+function grupoAuto(cli){const n=nzC(cli); if(!n) return ''; if(CFG_CLI_MORAIS.has(n)) return 'MORAIS';
+  if(/^MORAIS\b.*\b(SPE|LTDA|ENGENHARIA|EMPREENDIMENTOS|INCORPORACOES|PARTICIPACOES)\b/.test(n)||/\bMORAIS\b.*\bSPE\b/.test(n)) return 'MORAIS'; return 'INVESTIDOR';}
+function grupoCli(cli){const n=nzC(cli); return CFG.clientes[n]||grupoAuto(cli);}
+function ccTipoAuto(cc){const n=nzC(cc);
+  if(/APORTE/.test(n)) return 'soc';
+  if(/MOURA DANTAS/.test(n)&&/ESCRIT/.test(n)) return 'ign';
+  if(/ESCRIT|FOLHA DE PAGAMENTO|^EMPRESA$|^REEMBOLSO EMPRESA|^SALA 1212/.test(n)) return 'esc';
+  if(n==='POS OBRA MORAIS ENGENHARIA') return 'pos';
+  if(/^POS OBRA|CHACARA GUAPO|REFORMA SALA|ADIANTAMENTO COMISS|FATURAMENTO|OBRA TESTE/.test(n)) return 'ign';
+  return 'obra';}
+function imovelAuto(cc){const n=nzC(cc),d=DOC_IDX[n],o=OBRAS_ERP[n];
+  if(/^CONDOMINIO/.test(n)) return 'COND';
+  if(d&&/^COND/.test(nzC(d.setor))) return 'COND';
+  if(o&&/CONDOMINIO/.test(nzC(o.tipo))) return 'COND';
+  return 'RUA';}
+function donoAuto(cc){const n=nzC(cc),o=OBRAS_ERP[n],d=DOC_IDX[n];
+  if(o&&o.cliente) return {v:grupoCli(o.cliente),por:'cliente'};
+  if(d&&d.cota_empresa!=null&&d.cota_empresa!=='') return {v:Number(d.cota_empresa)>0?'MORAIS':'INVESTIDOR',por:'cota'};
+  return {v:'MORAIS',por:'sem'};}
+const _ccC=new Map();
+function ccInfo(cc){const n=nzC(cc); if(_ccC.has(n)) return _ccC.get(n);
+  const o=CFG.ccs[n]||{}, da=donoAuto(cc);
+  const r={n,tipo:o.tipo||ccTipoAuto(cc),dono:o.dono||da.v,donoPor:o.dono?'manual':da.por,imovel:o.imovel||imovelAuto(cc),manual:!!(o.tipo||o.dono||o.imovel)};
+  _ccC.set(n,r); return r;}
+function catAuto(cat,esc){const n=nzC(cat);
+  if(esc==='soc') return CFG_SOC.has(n);
+  if(esc==='obra') return CFG_TER.has(n)?'ter':CFG_VENDA.has(n)?'venda':CFG_NAO_OBRA.has(n)?'nao':'obra';
+  if(esc==='esc') return CFG_NAO_ESC.has(n)?'nao':'conta';
+  return 'conta';}
+function catDest(cat,esc){const o=CFG.cats[nzC(cat)]||{};
+  const soc=o.soc!==undefined?o.soc:catAuto(cat,'soc'); if(soc) return 'soc';
+  if(esc==='obra'||esc==='esc'||esc==='pos') return o[esc]||catAuto(cat,esc);
+  return 'nao';}
+/* {t: tipo do CC, i: obra|ter|venda|conta|nao|soc} */
+function cls(p){const c=ccInfo(p.cc);
+  if(c.tipo==='soc') return {t:'soc',i:'soc',c};
+  const d=catDest(p.categoria,c.tipo);
+  if(d==='soc') return {t:c.tipo,i:'soc',c};
+  if(c.tipo==='ign') return {t:'ign',i:'nao',c};
+  return {t:c.tipo,i:d,c};}
+function natDest(nat){const n=nzC(nat); if(!n) return 'receita'; return CFG.naturezas[n]||CFG_NAT[n]||'nao';}
+/* Remonta pags (pagamento de obra por CC/mês) e fats (receita de obra) pela configuração. */
+function aplicarConfig(){
+  _ccC.clear();
+  const pg={}, ps={};
+  (window._pagFull||[]).forEach(p=>{ if(!p.mes||!p.cc) return; const k=cls(p);
+    if(k.i==='soc'){ (ps[p.cc]=ps[p.cc]||{})[p.mes]=(ps[p.cc][p.mes]||0)+p.valor; return; }
+    if(k.t==='obra'&&(k.i==='obra'||k.i==='ter'||k.i==='venda')){ (pg[p.cc]=pg[p.cc]||{})[p.mes]=(pg[p.cc][p.mes]||0)+p.valor; } });
+  pags=pg; PAGS_SOC=ps; fats=[]; FATS_SOC=[];
+  FATS_TODOS.forEach(f=>{ const c=ccInfo(f.cc||''); const d=c.tipo==='soc'?'socios':natDest(f.nat);
+    if(d==='socios') FATS_SOC.push(f); else if(d==='receita'&&c.tipo==='obra') fats.push(f); });
 }
+// Retorna true se a obra é do Grupo Morais (cliente do ERP -> Configurações)
+function ehObraMorais(endereco){ return ccInfo(endereco).dono==='MORAIS'; }
+function imoOk(cc,imo){ return !imo || ccInfo(cc).imovel===imo; }
 
 // ── MODO STANDALONE (aberto diretamente, fora do iframe) ──
 (function(){
@@ -1210,6 +1335,7 @@ function renderPagina(id){
     else{initCompObras('a');initCompObras('b');buildComp('a');buildComp('b');}
   }
   else if(id==='custos'){initCustosSelects();buildCustos();}
+  else if(id==='config'){renderConfig();}
 }
 
 // Controla sub-abas da Análise de Desempenho
@@ -1637,11 +1763,9 @@ function somaVgvMeses(ml){
             .reduce((a,v)=>a+(v.valor_venda_contrato||0),0),0);
 }
 function somaEscMeses(ml){
-  return ml.reduce((s,m)=>{
-    let v=0;
-    Object.entries(pags).forEach(([cc,mp])=>{if(ehCustoEscritorio(cc))v+=mp[m]||0;});
-    return s+v;
-  },0);
+  const set=new Set(ml); let v=0;
+  (window._pagFull||[]).forEach(p=>{ if(!set.has(p.mes)) return; const k=cls(p); if(k.t==='esc'&&k.i==='conta') v+=p.valor||0; });
+  return v;
 }
 
 // ── DASHBOARD ──
@@ -1723,17 +1847,13 @@ function buildDash(){
     let total=0;
     pFull.forEach(p=>{
       if(!set.has(p.mes))return;
-      const u=(p.cc||'').toUpperCase().trim();
-      const ehEsc=ehCustoEscritorio(u);
-      const ehPos=(u==='POS OBRA MORAIS ENGENHARIA');
-      const ehObra=(!/ESCRIT/i.test(u) && !ehPos && endD.has(normS(p.cc)));
-      const planoTer=(p.plano_de_conta||'').toUpperCase().includes('AQUISIÇÃO DE TERRENO')
-                   || (p.plano_de_conta||'').toUpperCase().includes('AQUISICAO DE TERRENO');
-      if(tipo==='escritorio'&&ehEsc) total+=p.valor||0;
-      else if(tipo==='pos_obra'&&ehPos) total+=p.valor||0;
-      else if(tipo==='obra_total'&&ehObra) total+=p.valor||0;
-      else if(tipo==='obra_sem_terreno'&&ehObra&&!planoTer) total+=p.valor||0;
-      else if(tipo==='so_terreno'&&ehObra&&planoTer) total+=p.valor||0;
+      const k=cls(p);   /* 24/10: regra da aba Configurações */
+      if(tipo==='escritorio'&&k.t==='esc'&&k.i==='conta') total+=p.valor||0;
+      else if(tipo==='pos_obra'&&k.t==='pos'&&k.i==='conta') total+=p.valor||0;
+      else if(tipo==='obra_total'&&k.t==='obra'&&(k.i==='obra'||k.i==='ter')) total+=p.valor||0;
+      else if(tipo==='obra_sem_terreno'&&k.t==='obra'&&k.i==='obra') total+=p.valor||0;
+      else if(tipo==='so_terreno'&&k.t==='obra'&&k.i==='ter') total+=p.valor||0;
+      else if(tipo==='venda'&&k.t==='obra'&&k.i==='venda') total+=p.valor||0;
     });
     return total;
   }
@@ -1782,6 +1902,7 @@ function buildDash(){
   const cPosMes=somaCustoEm('pos_obra',[mes]);
   const cPosAno=somaCustoEm('pos_obra',mesesAno);
   const cPos12=somaCustoEm('pos_obra',meses12);
+  const cVenMes=somaCustoEm('venda',[mes]), cVenAno=somaCustoEm('venda',mesesAno), cVen12=somaCustoEm('venda',meses12);
 
   // === Ratios ===
   const vgvTri=somaVgvEm(meses3);
@@ -1836,7 +1957,7 @@ function buildDash(){
         <div class="kpi-ext-item">
           <div class="kpi-ext-lbl">Anual (${ano})</div>
           <div class="kpi-ext-val">${fmtBRL(vgvAno)}</div>
-          ${metaAno?`<div class="kpi-ext-extra"><strong>${casasAno}</strong>/${metaAno} casas</div>`:`<div class="kpi-ext-extra"><strong>${casasAno}</strong> casa(s)</div>`}
+          ${metaAno?`<div class="kpi-ext-extra" title="A meta de vendas do ano é o número de casas construídas no ano anterior (METAS ${ano-1})"><strong>${casasAno}</strong>/${metaAno} casas · meta = casas construídas em ${ano-1}</div>`:`<div class="kpi-ext-extra"><strong>${casasAno}</strong> casa(s)</div>`}
         </div>
         <div class="kpi-ext-item">
           <div class="kpi-ext-lbl">Média/Mês</div>
@@ -1876,9 +1997,9 @@ function buildDash(){
   const _byEsc={},_byPos={};
   (window._pagFull||[]).forEach(p=>{
     if(!p.mes||p.mes==='SEM DATA')return;
-    const u=(p.cc||'').toUpperCase().trim();
-    if(ehCustoEscritorio(u))_byEsc[p.mes]=(_byEsc[p.mes]||0)+p.valor;
-    else if(u==='POS OBRA MORAIS ENGENHARIA')_byPos[p.mes]=(_byPos[p.mes]||0)+p.valor;
+    const k=cls(p);
+    if(k.t==='esc'&&k.i==='conta')_byEsc[p.mes]=(_byEsc[p.mes]||0)+p.valor;
+    else if(k.t==='pos'&&k.i==='conta')_byPos[p.mes]=(_byPos[p.mes]||0)+p.valor;
   });
   const _s=(by,ml)=>ml.reduce((s,m)=>s+(by[m]||0),0);
   const mediaEscMes12Dash=_ml12.length?_s(_byEsc,_ml12)/_ml12.length:0;
@@ -1904,6 +2025,9 @@ function buildDash(){
       ${blocoCusto('🏗 Custo Obra (s/ Terreno)',cObraSemTer12,cObraSemTerAno,cObraSemTerMes)}
       ${blocoCusto('🏞 Compra de Terreno',cTer12,cTerAno,cTerMes)}
       ${blocoCusto('Σ Custo Obra Total',cObraTot12,cObraTotAno,cObraTotMes)}
+    </div>
+    <div class="kpi-ext-row r1">
+      ${blocoCusto('💼 Custo de Venda (comissão, RET, ganho de capital)',cVen12,cVenAno,cVenMes)}
     </div>
     <div class="kpi-ext-row r2">
       ${blocoEscPosDash('🏢 Custo Escritório',cEsc12,cEscAno,mediaEscMes12Dash,mediaEscMesAnoDash,cEscMes)}
@@ -2850,6 +2974,7 @@ function initObrasSetor(){
   let arr=docs.filter(d=>obrasCompletas.has(normS(d.endereco)));
   if(cid)arr=arr.filter(d=>d.cidade===cid);
   if(set)arr=arr.filter(d=>d.setor===set);
+  const imoS=document.getElementById('sel-imo-st')?.value||''; if(imoS)arr=arr.filter(d=>imoOk(d.endereco,imoS));
   obrasLista=[...new Set(arr.map(d=>d.endereco).filter(Boolean))].sort();
   obrasSelecionadas=new Set([...obrasSelecionadas].filter(o=>obrasLista.includes(o)));
   renderObrasDropdown('');
@@ -3025,6 +3150,8 @@ function buildFluxo(){
   const set = document.getElementById('sel-set-fluxo')?.value||'';
   const prop = document.getElementById('sel-prop-fluxo')?.value||'';
   const soConcluidas = document.getElementById('chk-fluxo-soConcluidas')?.checked||false;
+  const imo = document.getElementById('sel-imo-fluxo')?.value||'';
+  const comSoc = document.getElementById('chk-fluxo-soc')?.checked||false;
   const obrasSel = fluxoSelecionadas.size>0?fluxoSelecionadas:null; // null=todas
 
   // Agregar pagamentos e recebimentos com filtros aplicados
@@ -3042,6 +3169,7 @@ function buildFluxo(){
   if(prop==='morais') docsAtivos=docsAtivos.filter(d=>ehObraMorais(d.endereco));
   else if(prop==='invest') docsAtivos=docsAtivos.filter(d=>!ehObraMorais(d.endereco));
   if(obrasSel) docsAtivos=docsAtivos.filter(d=>obrasSel.has(d.endereco));
+  if(imo) docsAtivos=docsAtivos.filter(d=>imoOk(d.endereco,imo));
 
   // Filtro "somente concluídas": TODAS as linhas de venda do lote (com ou sem cliente)
   // têm recebeu OK, E o número de casas vendidas (com cliente) bate com n_casas do doc
@@ -3082,6 +3210,7 @@ function buildFluxo(){
     // Aplicar filtro de seleção: se há filtros ativos, só CCs que existem em docs e passam o filtro
     const noNotion=endD.has(u);
     if(noNotion && !endAtivos.has(u))return;
+    if(!imoOk(cc,imo))return;
     // Se não está no Notion e há filtros de cidade/setor/obra, pular
     if(!noNotion && (cid||set||(obrasSel&&obrasSel.size>0)))return;
     // Filtro proprietário para CCs sem docs
@@ -3103,6 +3232,7 @@ function buildFluxo(){
     const u=normS(f.cc||'');
     const noNotion=endD.has(u);
     if(noNotion && !endAtivos.has(u))return;
+    if(!imoOk(f.cc||'',imo))return;
     if(!noNotion && (cid||set||(obrasSel&&obrasSel.size>0)))return;
     if(!noNotion && prop)return;
     const morais=ehObraMorais(f.cc||'');
@@ -3168,7 +3298,16 @@ function buildFluxo(){
 
   const gastos=ms.map(m=>pagMes[m]||0);
   const receitas=ms.map(m=>fatMes[m]||0);
-  const fluxo=ms.map((_,i)=>receitas[i]-gastos[i]);
+  /* 24/10: aporte/distribuição só entram aqui, no mês a mês, se ligado — nunca em pago, recebido ou lucro */
+  const socMes={};
+  if(comSoc){
+    const okCC=cc=>{const u=normS(cc||''); const noN=endD.has(u); if(noN&&!endAtivos.has(u))return false; if(!imoOk(cc,imo))return false;
+      if(!noN&&(cid||set||(obrasSel&&obrasSel.size>0)||prop))return false; const mo=ehObraMorais(cc); if(prop==='morais'&&!mo)return false; if(prop==='invest'&&mo)return false; return true;};
+    Object.entries(PAGS_SOC).forEach(([cc,mp])=>{ if(!okCC(cc))return; Object.entries(mp).forEach(([m,v])=>{ socMes[m]=(socMes[m]||0)-v; }); });
+    FATS_SOC.forEach(f=>{ if(!okCC(f.cc)||!/^\d{4}-\d{2}$/.test(f.mes||''))return; socMes[f.mes]=(socMes[f.mes]||0)+f.valor; });
+  }
+  const socios=ms.map(m=>socMes[m]||0);
+  const fluxo=ms.map((_,i)=>receitas[i]-gastos[i]+socios[i]);
   const expCaixa=[];let ac=0;fluxo.forEach(v=>{ac+=v;expCaixa.push(ac);});
 
   const totalGasto=gastos.reduce((a,b)=>a+b,0);
@@ -3223,6 +3362,7 @@ function buildFluxo(){
       <td><strong>${fmtM(m)}</strong></td>
       <td class="nr">${fmtBRL2(gastos[i])}</td>
       <td class="nr">${receitas[i]>0?fmtBRL2(receitas[i]):'—'}</td>
+      ${comSoc?`<td class="nr">${socios[i]?fmtBRL2(socios[i]):'—'}</td>`:''}
       <td class="nr" style="${corExp}">${fmtBRL2(v)}</td>
       <td class="nr">${mult[i]}</td>
       <td class="nr">${fmtBRL2(expProp[i])}</td>
@@ -3230,13 +3370,14 @@ function buildFluxo(){
   }).join('');
   document.getElementById('tbl-fluxo').innerHTML=`<table>
     <thead><tr>
-      <th class="left">Mês</th><th>Total Pago</th><th>Total Recebido</th>
+      <th class="left">Mês</th><th>Total Pago</th><th>Total Recebido</th>${comSoc?'<th>Sócios (aportes − distribuições)</th>':''}
       <th>Exposição de Caixa</th><th>Multiplicador</th><th>Exp. Proporcional</th>
     </tr></thead>
     <tbody>${rows}</tbody>
     <tfoot><tr>
       <td>TOTAL</td><td class="nr">${fmtBRL2(totalGasto)}</td>
       <td class="nr">${fmtBRL2(totalRecebido)}</td>
+      ${comSoc?`<td class="nr">${fmtBRL2(socios.reduce((a,b)=>a+b,0))}</td>`:''}
       <td class="nr"></td><td class="nr">${somaMultip}</td>
       <td class="nr">${fmtBRL2(expProp.reduce((a,b)=>a+b,0))}</td>
     </tr></tfoot>
@@ -3256,6 +3397,7 @@ function buildFluxo(){
     // Aplicar mesmo filtro de cima
     const noNotion=endD.has(u);
     if(noNotion&&!endAtivos.has(u))return;
+    if(!imoOk(cc,imo))return;
     if(!noNotion&&(cid||set||(obrasSel&&obrasSel.size>0)))return;
     const morais=ehObraMorais(cc);
     if(prop==='morais'&&!morais)return;
@@ -3329,6 +3471,8 @@ async function buildSetor(){
   if(obrasSel)docsF=docsF.filter(d=>obrasSel.includes(d.endereco));
   // Filtro proprietário: usa ehObraMorais baseado no cliente ERP
   const propSt=document.getElementById('sel-prop-st')?.value||'';
+  const imoSt=document.getElementById('sel-imo-st')?.value||'';
+  if(imoSt)docsF=docsF.filter(d=>imoOk(d.endereco,imoSt));
   if(propSt==='morais')docsF=docsF.filter(d=>ehObraMorais(d.endereco));
   else if(propSt==='invest')docsF=docsF.filter(d=>!ehObraMorais(d.endereco));
   const enderecosSel=new Set(docsF.map(d=>normS(d.endereco)));
@@ -3865,13 +4009,21 @@ async function buscarCDI(){
 // ── INIT ──
 async function init(){
   try{
+    const pCfg=chamar({action:"adCfgLer"},30000).catch(e=>({ok:false,erro:String(e&&e.message||e)}));
     const data=await carregarAnaliseDados(); if(!data) return;
+    const rc=await pCfg;
+    if(rc&&rc.ok){ CFG=Object.assign({clientes:{},ccs:{},cats:{},naturezas:{}},rc.cfg||{}); CFG_META=rc.meta||{}; CFG_PODE=!!rc.podeEditar; CFG_OK=true; }
+    else CFG_ERRO=(rc&&(rc.erro||rc.detalhe))||'sem resposta';
     docs=data.documentos||[];
     vendas=data.vendas||[];
     metas=data.metas||[];
     pags=data.pagamentos_detalhe||{};
     fats=data.faturamentos_erp||[];
     window._pagFull=data.pagamentos_full||[];
+    FATS_TODOS=fats.slice();
+    DOC_IDX={}; docs.forEach(d=>{ if(d.endereco) DOC_IDX[nzC(d.endereco)]=d; });
+    OBRAS_ERP={}; Object.entries(Array.isArray(data.obras_erp)?{}:(data.obras_erp||{})).forEach(([nome,o])=>{ OBRAS_ERP[nzC(nome)]=(o&&typeof o==='object')?o:{cliente:String(o||'')}; });
+    aplicarConfig();
 
     // Popular mapa endereço→cliente ERP para distinguir Morais vs investidor
     const obrasErpArr = data.obras_erp || {};
@@ -3932,6 +4084,119 @@ async function init(){
         Erro ao carregar dados:<br><code>${e.message}</code></div>`;
   }
 }
+
+/* ===================== ABA CONFIGURAÇÕES ===================== */
+let CFG_ED=null, CFG_SUJO={};
+const jq=t=>esc(String(t).replace(/\\/g,'\\\\').replace(/'/g,"\\'"));
+const fmt0=v=>'R$ '+Math.round(v||0).toLocaleString('pt-BR');
+function cfgEd(){ if(!CFG_ED) CFG_ED=JSON.parse(JSON.stringify(CFG)); return CFG_ED; }
+function cfgMeses12(){ const h=new Date(); const r=new Set(); for(let i=0;i<12;i++){ const d=new Date(h.getFullYear(),h.getMonth()-i,1); r.add(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')); } return r; }
+function cfgSel(lista,val,auto,attrs){ return `<select ${attrs}>${lista.map(([v,t])=>`<option value="${v}"${v===val?' selected':''}>${t}${v===auto?' (auto)':''}</option>`).join('')}</select>`; }
+function cfgSet(chave,k,campo,v,auto){ const ed=cfgEd(); ed[chave]=ed[chave]||{};
+  if(campo===null){ if(v===auto) delete ed[chave][k]; else ed[chave][k]=v; }
+  else { const o=Object.assign({},ed[chave][k]||{}); if(v===auto||v===undefined) delete o[campo]; else o[campo]=v; if(Object.keys(o).length) ed[chave][k]=o; else delete ed[chave][k]; }
+  CFG_SUJO[chave]=true; const b=document.getElementById('cfg-salvar-'+chave); if(b) b.disabled=!CFG_PODE; }
+async function cfgSalvar(chave){
+  const b=document.getElementById('cfg-salvar-'+chave), st=document.getElementById('cfg-st-'+chave);
+  if(!CFG_PODE){ st.textContent='Seu login só pode ver. Quem salva é GFINANCEIRO ou ADM.'; return; }
+  b.disabled=true; st.textContent='Salvando…';
+  try{ const r=await chamar({action:'adCfgSalvar',chave,valor:JSON.stringify(cfgEd()[chave]||{})},30000);
+    if(!r||!r.ok) throw new Error((r&&r.erro)||'sem resposta');
+    CFG[chave]=JSON.parse(JSON.stringify(cfgEd()[chave]||{})); CFG_META[chave]={por:r.por,em:r.em}; CFG_SUJO[chave]=false;
+    aplicarConfig(); buildDash();
+    st.textContent='Salvo por '+r.por+' às '+new Date(r.em).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+'. Todas as telas já usam a regra nova.';
+  }catch(e){ b.disabled=false; st.textContent='Não salvou: '+e.message+(String(e.message).includes('ACAO_DESCONHECIDA')?' — falta a Nova versão do Apps Script.':''); }
+}
+function cfgMetaTxt(chave){ const m=CFG_META[chave]; return m&&m.em?`Última alteração: ${esc(m.por||'?')} em ${new Date(m.em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}`:'Usando só a regra automática.'; }
+function cfgRodape(chave){ return `<div class="cfg-bar" style="margin:10px 0 0"><button class="cfg-btn" id="cfg-salvar-${chave}" onclick="cfgSalvar('${chave}')" disabled>Salvar</button><span class="cfg-auto" id="cfg-st-${chave}">${cfgMetaTxt(chave)}</span></div>`; }
+
+function renderConfig(){
+  CFG_ED=null; CFG_SUJO={}; _ccC.clear();
+  const el=document.getElementById('cfg-body'); const m12=cfgMeses12();
+  // ---- dados de apoio ----
+  const cc={}; const addCC=(nome)=>{ const n=nzC(nome); if(!n) return null; return cc[n]||(cc[n]={nome,n,p12:0,pt:0,rec:0}); };
+  (window._pagFull||[]).forEach(p=>{ const o=addCC(p.cc); if(!o) return; o.pt+=p.valor||0; if(m12.has(p.mes)) o.p12+=p.valor||0; });
+  FATS_TODOS.forEach(f=>{ const o=addCC(f.cc); if(o) o.rec+=f.valor||0; });
+  docs.forEach(d=>addCC(d.endereco));
+  const cats={}; (window._pagFull||[]).forEach(p=>{ const k=nzC(p.categoria); if(!k) return; const o=cats[k]||(cats[k]={nome:p.categoria,n:k,planos:{},p12:0,nl:0}); o.nl++; o.planos[p.plano_de_conta||'(sem plano)']=(o.planos[p.plano_de_conta||'(sem plano)']||0)+1; if(m12.has(p.mes)) o.p12+=p.valor||0; });
+  const clis={}; Object.entries(OBRAS_ERP).forEach(([n,o])=>{ const c=nzC(o.cliente); if(!c) return; const x=clis[c]||(clis[c]={nome:o.cliente,n:c,obras:0,p12:0}); x.obras++; x.p12+=(cc[n]&&cc[n].p12)||0; });
+  const nats={}; FATS_TODOS.forEach(f=>{ const k=nzC(f.nat||''); if(!k) return; const o=nats[k]||(nats[k]={nome:f.nat,n:k,v:0,q:0}); o.v+=f.valor||0; o.q++; });
+  // ---- resumo ----
+  const ccL=Object.values(cc); const tCnt={}; ccL.forEach(o=>{ const t=ccInfo(o.nome).tipo; tCnt[t]=(tCnt[t]||0)+1; });
+  const cliL=Object.values(clis); const gm=cliL.filter(c=>grupoCli(c.nome)==='MORAIS').length;
+  el.innerHTML=`
+  <div class="cfg-aviso ${CFG_OK?'ok':''}">${CFG_OK?(CFG_PODE?'Você pode editar. Cada bloco tem o próprio <b>Salvar</b>; o que você não mexer segue a regra automática (marcada "(auto)").':'Seu login só vê as configurações. Quem edita é GFINANCEIRO ou ADM.')
+    :'As configurações salvas não puderam ser lidas ('+esc(CFG_ERRO)+'). A tela está usando só a regra automática. Se o erro for ACAO_DESCONHECIDA, falta a Nova versão do Apps Script.'}</div>
+  <div class="cfg-aviso">Aporte de capital, distribuição de lucros e cota capital <b>não contam como gasto nem como receita ou lucro</b> em nenhuma tela. Eles só aparecem no <b>Fluxo de Caixa mês a mês</b>, quando a opção "Incluir aportes e distribuições" estiver ligada.</div>
+  <div class="cfg-res">
+    <div><b>${gm}</b>clientes do Grupo Morais</div><div><b>${cliL.length-gm}</b>investidores</div>
+    ${Object.entries(tCnt).map(([t,q])=>`<div><b>${q}</b>CCs: ${esc(ROT_TIPO[t]||t)}</div>`).join('')}
+  </div>
+
+  <div class="cfg-sec"><h3>1 · Clientes do Mais Controle</h3>
+    <p class="desc">O cliente da obra no ERP diz se ela é do Grupo Morais ou de investidor. A regra automática considera Grupo Morais a Morais Engenharia, as SPEs e empresas com "MORAIS" no nome, a VXZ, o Júlio César e o João Vitor. Pessoas físicas com sobrenome Morais ficam como investidor: confira.</p>
+    <div class="cfg-bar"><input type="search" id="cfg-q-cli" placeholder="Buscar cliente…" oninput="cfgFiltrar('cli')"><span class="cnt" id="cfg-c-cli"></span></div>
+    <div class="cfg-tw"><table><thead><tr><th class="left">Cliente no Mais Controle</th><th>Obras</th><th>Pago 12 meses</th><th class="left">Grupo</th></tr></thead><tbody id="cfg-t-cli">
+    ${cliL.sort((a,b)=>b.obras-a.obras).map(c=>{ const a=grupoAuto(c.nome), v=grupoCli(c.nome), pf=!/(SPE|LTDA|S\/A|\bSA\b|ENGENHARIA|EMPREENDIMENTOS|INCORPORA|PARTICIPA|CONSTRUTORA)/.test(c.n);
+      return `<tr data-q="${esc(c.n)}"><td>${esc(c.nome)} ${pf&&/MORAIS|CABRAL/.test(c.n)?'<span class="cfg-flag">pessoa física da família — confira</span>':''}</td><td class="nr">${c.obras}</td><td class="nr">${fmt0(c.p12)}</td>
+      <td>${cfgSel([['MORAIS','Grupo Morais'],['INVESTIDOR','Investidor']],v,a,`${CFG_PODE?'':'disabled'} class="${v!==a?'mud':''}" onchange="cfgSet('clientes','${jq(c.n)}',null,this.value,'${a}');this.classList.toggle('mud',this.value!=='${a}')"`)}</td></tr>`; }).join('')}
+    </tbody></table></div>${cfgRodape('clientes')}</div>
+
+  <div class="cfg-sec"><h3>2 · Centros de custo e obras</h3>
+    <p class="desc">Para cada centro de custo: o <b>tipo</b> (obra, escritório, pós-obra, sócios ou não conta), o <b>dono</b> (vem do cliente do ERP; sem cliente, vem da cota da empresa no Notion) e se é <b>condomínio ou casa de rua</b> (vem do setor no Notion, do nome do CC ou do tipo da obra no ERP). Os avisos mostram o que vale conferir.</p>
+    <div class="cfg-bar"><input type="search" id="cfg-q-cc" placeholder="Buscar centro de custo…" oninput="cfgFiltrar('cc')">
+      <select id="cfg-f-cc" onchange="cfgFiltrar('cc')"><option value="">Todos os tipos</option>${Object.entries(ROT_TIPO).map(([k,t])=>`<option value="${k}">${t}</option>`).join('')}</select>
+      <select id="cfg-a-cc" onchange="cfgFiltrar('cc')"><option value="">Com e sem aviso</option><option value="1">Só com aviso</option><option value="m">Só os alterados</option></select><span class="cnt" id="cfg-c-cc"></span></div>
+    <div class="cfg-tw"><table><thead><tr><th class="left">Centro de custo</th><th class="left">Cliente no ERP</th><th>Cota Morais (Notion)</th><th>Pago 12m</th><th class="left">Tipo</th><th class="left">Dono</th><th class="left">Imóvel</th></tr></thead><tbody id="cfg-t-cc">
+    ${ccL.sort((a,b)=>b.p12-a.p12||a.nome.localeCompare(b.nome)).map(o=>{
+      const n=o.n, ov=CFG.ccs[n]||{}, ta=ccTipoAuto(o.nome), da=donoAuto(o.nome), ia=imovelAuto(o.nome), inf=ccInfo(o.nome);
+      const oe=OBRAS_ERP[n], d=DOC_IDX[n], cota=d&&d.cota_empresa!=null&&d.cota_empresa!==''?Number(d.cota_empresa):null;
+      const fl=[]; if(inf.tipo==='obra'){ if(!d) fl.push('fora do Notion'); if(!oe||!oe.cliente) fl.push('sem cliente no ERP'+(da.por==='cota'?' — dono pela cota':' — assumido Morais'));
+        if(cota!=null&&inf.dono==='MORAIS'&&cota===0) fl.push('cota da Morais 0% no Notion'); if(cota!=null&&inf.dono==='INVESTIDOR'&&cota>0) fl.push(`Morais tem ${Math.round(cota*100)}% no Notion`); }
+      const att=(campo,auto)=>`${CFG_PODE?'':'disabled'} onchange="cfgSet('ccs','${jq(n)}','${campo}',this.value,'${auto}');this.classList.toggle('mud',this.value!=='${auto}')"`;
+      return `<tr data-q="${esc(n)}" data-t="${inf.tipo}" data-a="${fl.length?1:0}" data-m="${(ov.tipo||ov.dono||ov.imovel)?1:0}"><td>${esc(o.nome)}<div>${fl.map(f=>`<span class="cfg-flag">${esc(f)}</span>`).join('')}</div></td>
+        <td>${esc(oe&&oe.cliente||'—')}${oe&&oe.tipo?`<div class="cfg-auto">${esc(oe.tipo)}</div>`:''}</td><td class="nr">${cota==null?'—':Math.round(cota*100)+'%'}</td><td class="nr">${o.p12?fmt0(o.p12):'—'}</td>
+        <td>${cfgSel(Object.entries(ROT_TIPO),inf.tipo,ta,att('tipo',ta)+(inf.tipo!==ta?' class="mud"':''))}</td>
+        <td>${cfgSel(Object.entries(ROT_DONO),inf.dono,da.v,att('dono',da.v)+(inf.dono!==da.v?' class="mud"':''))}</td>
+        <td>${cfgSel(Object.entries(ROT_IMO),inf.imovel,ia,att('imovel',ia)+(inf.imovel!==ia?' class="mud"':''))}</td></tr>`; }).join('')}
+    </tbody></table></div>${cfgRodape('ccs')}</div>
+
+  <div class="cfg-sec"><h3>3 · Categorias: em que item cada uma conta</h3>
+    <p class="desc">O item depende do tipo do centro de custo onde a categoria foi lançada. Exemplo: ITBI lançado em CC de obra conta em <b>Terreno</b>. "Não conta" tira a categoria de todos os cards e do Fluxo/Desempenho. Marcar <b>Sócios</b> tira de todos os gastos e lucros e leva só para o fluxo mês a mês.</p>
+    <div class="cfg-bar"><input type="search" id="cfg-q-cat" placeholder="Buscar categoria ou plano…" oninput="cfgFiltrar('cat')"><span class="cnt" id="cfg-c-cat"></span></div>
+    <div class="cfg-tw"><table><thead><tr><th class="left">Categoria</th><th>Lanç.</th><th>Pago 12m</th><th class="left">Em CC de obra</th><th class="left">Em CC de escritório</th><th class="left">Em pós-obra</th><th>Sócios</th></tr></thead><tbody id="cfg-t-cat">
+    ${(()=>{ const L=Object.values(cats).map(c=>{ c.plano=Object.entries(c.planos).sort((a,b)=>b[1]-a[1])[0][0]; return c; }).sort((a,b)=>a.plano.localeCompare(b.plano)||b.p12-a.p12);
+      let ult='', h=''; L.forEach(c=>{ if(c.plano!==ult){ ult=c.plano; h+=`<tr class="plano" data-q="${esc(nzC(c.plano))}" data-pl="1"><td colspan="7">${esc(c.plano)}</td></tr>`; }
+        const o=CFG.cats[c.n]||{}, ao=catAuto(c.nome,'obra'), ae=catAuto(c.nome,'esc'), ap='conta', as=catAuto(c.nome,'soc');
+        const vo=o.obra||ao, ve=o.esc||ae, vp=o.pos||ap, vs=o.soc!==undefined?o.soc:as;
+        const att=(campo,auto)=>`${CFG_PODE?'':'disabled'} onchange="cfgSet('cats','${jq(c.n)}','${campo}',this.value,'${auto}');this.classList.toggle('mud',this.value!=='${auto}')"`;
+        h+=`<tr data-q="${esc(c.n+' '+nzC(c.plano))}"><td>${esc(c.nome)}</td><td class="nr">${c.nl}</td><td class="nr">${c.p12?fmt0(c.p12):'—'}</td>
+          <td>${cfgSel(Object.entries(ROT_OBRA),vo,ao,att('obra',ao)+(vo!==ao?' class="mud"':''))}</td>
+          <td>${cfgSel([['conta','Conta'],['nao','Não conta']],ve,ae,att('esc',ae)+(ve!==ae?' class="mud"':''))}</td>
+          <td>${cfgSel([['conta','Conta'],['nao','Não conta']],vp,ap,att('pos',ap)+(vp!==ap?' class="mud"':''))}</td>
+          <td style="text-align:center"><input type="checkbox" ${vs?'checked':''} ${CFG_PODE?'':'disabled'} onchange="cfgSetSoc('${jq(c.n)}',this.checked,${as})" title="Movimento dos sócios: não conta como gasto nem lucro"></td></tr>`; });
+      return h; })()}
+    </tbody></table></div>${cfgRodape('cats')}</div>
+
+  <div class="cfg-sec"><h3>4 · Recebimentos: natureza</h3>
+    <p class="desc">Só conta como receita de obra (Fluxo, Desempenho, ROI) o recebimento cuja natureza estiver como <b>Receita</b> e que caia num CC do tipo Obra. Aportes ficam como <b>Sócios</b>.</p>
+    ${Object.keys(nats).length?`<div class="cfg-tw"><table><thead><tr><th class="left">Natureza no Mais Controle</th><th>Recebimentos</th><th>Valor</th><th class="left">Conta como</th></tr></thead><tbody>
+    ${Object.values(nats).sort((a,b)=>b.v-a.v).map(x=>{ const a=CFG_NAT[x.n]||'nao', v=CFG.naturezas[x.n]||a;
+      return `<tr><td>${esc(x.nome)}</td><td class="nr">${x.q}</td><td class="nr">${fmt0(x.v)}</td><td>${cfgSel([['receita','Receita'],['socios','Sócios (aporte)'],['nao','Não conta']],v,a,`${CFG_PODE?'':'disabled'} class="${v!==a?'mud':''}" onchange="cfgSet('naturezas','${jq(x.n)}',null,this.value,'${a}');this.classList.toggle('mud',this.value!=='${a}')"`)}</td></tr>`; }).join('')}
+    </tbody></table></div>${cfgRodape('naturezas')}`:`<div class="cfg-aviso">A natureza dos recebimentos ainda não veio nos dados. Ela chega na próxima rodada do robô da Análise de Dados; até lá, todo recebimento em CC de obra conta como receita e o CC de aportes conta como sócios.</div>`}
+  </div>`;
+  ['cli','cc','cat'].forEach(cfgFiltrar);
+}
+function cfgSetSoc(n,v,auto){ cfgSet('cats',n,'soc',v===auto?undefined:v,undefined); }
+function cfgFiltrar(q){
+  const inp=document.getElementById('cfg-q-'+q); if(!inp) return; const t=nzC(inp.value);
+  const ft=q==='cc'?document.getElementById('cfg-f-cc').value:'', fa=q==='cc'?document.getElementById('cfg-a-cc').value:'';
+  let n=0, tot=0; document.querySelectorAll('#cfg-t-'+q+' tr').forEach(tr=>{ if(tr.dataset.pl){ return; } tot++;
+    const ok=(!t||tr.dataset.q.includes(t))&&(!ft||tr.dataset.t===ft)&&(!fa||(fa==='1'?tr.dataset.a==='1':tr.dataset.m==='1')); tr.hidden=!ok; if(ok) n++; });
+  if(q==='cat') document.querySelectorAll('#cfg-t-cat tr[data-pl]').forEach(tr=>{ let x=tr.nextElementSibling, vis=false; while(x&&!x.dataset.pl){ if(!x.hidden) vis=true; x=x.nextElementSibling; } tr.hidden=!vis; });
+  const c=document.getElementById('cfg-c-'+q); if(c) c.textContent=n+' de '+tot;
+}
+
 // ── ANÁLISE DE CUSTOS ──
 function initCustosSelects(){
   const pF=window._pagFull||[];
@@ -3993,8 +4258,12 @@ function buildCustos(){
   if(cat)f=f.filter(p=>p.categoria===cat);
   if(pln)f=f.filter(p=>p.plano_de_conta===pln);
   if(frn)f=f.filter(p=>p.fornecedor===frn);
-  if(prp==='morais'){const mEnd=new Set(docs.filter(d=>cotaM(d)>0).map(d=>normS(d.endereco)));f=f.filter(p=>mEnd.has(normS(p.cc)));}
-  else if(prp==='invest'){const iEnd=new Set(docs.filter(d=>cotaM(d)<1).map(d=>normS(d.endereco)));f=f.filter(p=>iEnd.has(normS(p.cc)));}
+  /* 24/10: dono e tipo pela aba Configurações; aportes/distribuições fora salvo marcado */
+  if(prp==='morais')f=f.filter(p=>{const c=ccInfo(p.cc);return c.tipo==='obra'&&c.dono==='MORAIS';});
+  else if(prp==='invest')f=f.filter(p=>{const c=ccInfo(p.cc);return c.tipo==='obra'&&c.dono==='INVESTIDOR';});
+  const imoCu=document.getElementById('sel-imo-cu')?.value||'';
+  if(imoCu)f=f.filter(p=>{const c=ccInfo(p.cc);return c.tipo==='obra'&&c.imovel===imoCu;});
+  if(!document.getElementById('chk-soc-cu')?.checked)f=f.filter(p=>cls(p).i!=='soc');
   // KPIs
   const total=f.reduce((s,p)=>s+p.valor,0);
   const totalJM=f.reduce((s,p)=>s+(p.juros_multa||0),0);
@@ -4015,9 +4284,9 @@ function buildCustos(){
   // KPIs simples de Escritório e Pós-Obra na aba Custos
   let totEsc=0,totPos=0;
   f.forEach(p=>{
-    const u=(p.cc||'').toUpperCase().trim();
-    if(ehCustoEscritorio(u)) totEsc+=p.valor||0;
-    else if(u==='POS OBRA MORAIS ENGENHARIA') totPos+=p.valor||0;
+    const k=cls(p);
+    if(k.t==='esc'&&k.i==='conta') totEsc+=p.valor||0;
+    else if(k.t==='pos'&&k.i==='conta') totPos+=p.valor||0;
   });
   document.getElementById('kpi-custos3').innerHTML=[
     kpi('🏢 Custo Escritório',fmtBRL(totEsc),totEsc>0?'Centro de custo ESCRITÓRIO':'Sem registros'),

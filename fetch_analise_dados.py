@@ -423,19 +423,30 @@ def buscar_erp():
 
 
 def buscar_obras_erp():
+    """24/10: todas as obras do ERP (antes só as com área), com cliente, tipo e
+    status — a aba Configurações da Análise de Dados classifica dono (Grupo
+    Morais × investidor) e condomínio × casa de rua a partir daqui."""
     obras = {}
+
+    def campo(row, *nomes):
+        for k in row:
+            if k and k.strip().lower() in nomes:
+                return (row[k] or "").strip()
+        return ""
     for row in erp_csv(ERP_CSV_OBRAS, "obras"):
         nome = padronizar_endereco(row.get("nome"))
-        area = row.get("area_total")
-        cliente = next((row[k] for k in row if "cliente" in k.lower()), "") or ""
-        if not nome or not area:
+        if not nome:
             continue
+        cliente = next((row[k] for k in row if k and "cliente" in k.lower()), "") or ""
         try:
-            val = float(str(area).replace(",", "."))
+            val = float(str(row.get("area_total") or "0").replace(",", "."))
         except ValueError:
-            continue
-        obras[nome] = {"area_total": obras.get(nome, {}).get("area_total", 0) + val,
-                       "cliente": cliente.strip().upper()}
+            val = 0.0
+        o = obras.setdefault(nome, {"area_total": 0.0, "cliente": "", "tipo": "", "status": ""})
+        o["area_total"] += val
+        o["cliente"] = o["cliente"] or cliente.strip().upper()
+        o["tipo"] = o["tipo"] or campo(row, "tipo_obra", "tipo de obra", "tipo")
+        o["status"] = o["status"] or campo(row, "status_obra", "status")
     return obras
 
 
@@ -456,6 +467,7 @@ def buscar_recebimentos_erp():
     c_val = achar(["valor_recebido", "Valor Recebido", "VALOR RECEBIDO"], ["valor_receb", "valor receb"])
     c_dt = achar(["data_recebimento", "Data Recebimento", "DATA RECEBIMENTO"], ["data_receb", "data receb", "data"])
     c_cc = achar(["centro_de_custo", "centro de custo", "Centro de Custo", "CENTRO DE CUSTO"], ["centro", "custo", "obra"])
+    c_nat = achar(["natureza", "Natureza", "NATUREZA"], ["natureza"])   # 24/10: Venda, Aporte, Empréstimo…
     if not c_val:
         print(f"  ERP recebimentos: coluna de valor não encontrada em {cols}", flush=True)
         return []
@@ -465,7 +477,8 @@ def buscar_recebimentos_erp():
         v = num_br(row.get(c_val, ""))
         if not cc or not v or v <= 0:
             continue
-        rec.append({"cc": cc, "valor": v, "mes": mes_de((row.get(c_dt, "") if c_dt else "").strip())})
+        rec.append({"cc": cc, "valor": v, "mes": mes_de((row.get(c_dt, "") if c_dt else "").strip()),
+                    "nat": (row.get(c_nat, "") if c_nat else "").strip()})
     return rec
 
 
