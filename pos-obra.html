@@ -2663,7 +2663,10 @@ function pintarObra(){
       ((ehAdmTela() && !soLeitura()) ? ' <button class="bt-lapis" title="Editar endereço e número da casa (ADM)" onclick="editarEnderecoObra()">✏️</button>' : '')+
     '</div>'+
     '<div class="obra-dados">'+
-      od("Cliente", v["CLIENTES"] || "—") +
+      /* 26/10/26: cliente editável aqui também (grava no PÓS OBRA e espelha em VENDAS) */
+      od("Cliente",
+        esc(v["CLIENTES"] || "—")+
+        (soLeitura() ? "" : ' <button class="bt-lapis" title="Editar cliente" onclick="editarEspelho(\'CLIENTES\',\'Cliente\')">✏️</button>'), true) +
       /* MELHORIAS item 4: o telefone agora é editável AQUI. Ele grava no PÓS
          OBRA e espelha em VENDAS (posObraUpdate_), que é o que impede a
          sincronia de trazer o valor antigo de volta na passada seguinte. */
@@ -2798,17 +2801,26 @@ function controleFlex(){
 function editarEspelho(coluna, rotulo){
   if(soLeitura()){ toast("Modo teste: nada é gravado.", 3); return; }
   if(!OBRA) return;
-  const mapa = { TELEFONE:"telefone", CIDADE:"cidade", SETOR:"setor" };
+  const mapa = { TELEFONE:"telefone", CIDADE:"cidade", SETOR:"setor", CLIENTES:"clientes" };
   const chave = mapa[coluna];
-  const atual = (coluna === "TELEFONE") ? fmtTel(OBRA[chave]) : (OBRA[chave] || "");
+  const ehCli = coluna === "CLIENTES";
+  const atual = (coluna === "TELEFONE") ? fmtTel(OBRA[chave])
+              : ehCli ? ((OBRA.valores||{})["CLIENTES"] || "") : (OBRA[chave] || "");
   const novo = window.prompt(rotulo + " de " + OBRA.titulo + ":", atual);
   if(novo === null) return;                      // cancelou
-  const limpo = String(novo).trim();
+  let limpo = String(novo).trim();
+  /* 26/10/26: cliente — maiúsculas como no resto da base; vazio não pode
+     (a obra sem cliente some da lista do pós obra) */
+  if(ehCli){
+    limpo = limpo.replace(/\s+/g," ").toUpperCase();
+    if(!limpo){ toast("O cliente não pode ficar vazio.", 4); return; }
+  }
   if(limpo === String(atual).trim()) return;     // não mudou: não gasta chamada
 
   escrever({action:"posObraUpdate", pageId:OBRA.id, prop:coluna, valor:limpo}, rotulo).then(r=>{
     if(!r.ok){ toast("Não gravou: "+erroTexto(r.erro), 5); return; }
     OBRA[chave] = limpo || null;
+    if(ehCli){ OBRA.valores = OBRA.valores || {}; OBRA.valores["CLIENTES"] = limpo; }
     const o = obraPorId(OBRA.id); if(o) o[chave] = OBRA[chave];
     pintarObra();
     const esp = r.resposta && r.resposta.espelhado;
