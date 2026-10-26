@@ -49,6 +49,13 @@
  *   - clicar num link vencido busca o link novo e abre (sem a tela de erro);
  *   - window.urlAssinadaVencida(url) fica disponível para a aba Atividades
  *     usar nos anexos dos comentários.
+ * v13 (26/10): ITEM NOVO SEM ID AINDA ("Notion 400: path.block_id should be
+ *  a valid uuid, instead was tmp…"). A linha nova aparece na hora com um id
+ *  provisório; quem escrevia e saía da linha antes do Notion criar o bloco
+ *  mandava esse id provisório e o texto não salvava. Agora o texto, a baixa,
+ *  o apagar e o próximo item (Enter) esperam o id verdadeiro; a linha nova já
+ *  abre pronta para digitar e a troca do id não apaga o que está sendo
+ *  escrito. Se der erro ao salvar, clicar no trecho e sair tenta de novo.
  * v2 (25/09 tarde):
  *  - Abre NA HORA com a última cópia guardada no navegador e atualiza por trás.
  *  - Aceita os dados já prontos (opts.dados — a aba Atividades traz tudo numa
@@ -203,6 +210,7 @@
     if(!st.el.isConnected||st.pageId!==alvo) return;
     if(filaAtiva(alvo)&&!st._forcar&&st.blocos) return;   // v9: a fila de mudanças está indo — ela mesma atualiza no fim
     st._forcar=false;
+    if(silencioso&&temProvisorio(st.blocos)) return;     // v13: item novo ainda sem id do Notion — não troca por baixo
     if(!r||!r.ok){ if(silencioso) return;
       st.el.innerHTML=`<div class="eb-vazio">Não consegui abrir o conteúdo (${e((r&&r.erro)||"erro")}). <a href="#" onclick="return false">Tentar de novo</a></div>`;
       st.el.querySelector("a").onclick=()=>{ carregar(st,true); return false; }; return; }
@@ -315,14 +323,40 @@
     el.querySelectorAll("[data-cel]").forEach(c=>{ c._orig=c.innerText; c.addEventListener("blur",()=>salvarLinha(st,c));
       c.addEventListener("keydown",ev=>{ if(ev.key==="Enter"&&!ev.shiftKey){ ev.preventDefault(); c.blur(); } }); });
   }
+  /* v13 (26/10): ITEM RECÉM-CRIADO ("tmp…")
+   * A linha nova aparece na hora, mas o Notion demora alguns segundos para
+   * devolver o id dela. Antes, escrever e sair da linha nesse meio tempo
+   * mandava o id provisório para o Notion ("path.block_id should be a valid
+   * uuid, instead was tmp…") e o texto não salvava. Agora texto, baixa,
+   * apagar e o próximo item (Enter) ESPERAM o id verdadeiro e seguem sozinhos. */
+  const CRIANDO={};   // id provisório → Promise(id do Notion | null se não criou)
+  const ehProvisorio=id=>String(id).indexOf("tmp")===0;
+  async function idReal(id){
+    if(!ehProvisorio(id)) return id;
+    return CRIANDO[id]?await CRIANDO[id]:null;
+  }
+  function temProvisorio(bs){ return (bs||[]).some(b=>ehProvisorio(b.id)||temProvisorio(b.filhos)); }
+  /* troca o id provisório pelo do Notion na tela, sem repintar (não atrapalha quem está digitando) */
+  function trocarIdNaTela(st,velho,novoId){
+    ["data-id","data-t","data-chk","data-x","data-ed","data-up","data-dn"].forEach(a=>
+      st.el.querySelectorAll(`[${a}="${velho}"]`).forEach(n=>n.setAttribute(a,novoId)));
+  }
+  function noDaTela(st,attr,id,reserva){ return st.el.querySelector(`[${attr}="${id}"]`)||reserva; }
   async function salvarTexto(st,t){
-    const id=t.getAttribute("data-t"), txt=t.innerText.replace(/\n$/,"");
+    let id=t.getAttribute("data-t"); const txt=t.innerText.replace(/\n$/,"");
     if(txt===t._orig) return;
     const b=acha(st.blocos,id); if(b) b.texto=txt;
-    t._orig=txt; t.classList.add("eb-salvando");
-    const r=await (typeof escrever==="function"?escrever({action:"blocoUpdate",blockId:id,pageId:st.pageId,texto:txt},"Conteúdo"):pedir({action:"blocoUpdate",blockId:id,pageId:st.pageId,texto:txt}));
-    t.classList.remove("eb-salvando");
-    if(!r||!r.ok){ t.classList.add("eb-erro"); aviso("Não salvou este trecho: "+((r&&r.erro)||"erro")); }
+    t._orig=txt; t.classList.remove("eb-erro"); t.classList.add("eb-salvando");
+    let r;
+    const real=await idReal(id);
+    if(!real) r={ok:false,erro:"o item não foi criado no Notion"};
+    else {
+      id=real;
+      r=await (typeof escrever==="function"?escrever({action:"blocoUpdate",blockId:id,pageId:st.pageId,texto:txt},"Conteúdo"):pedir({action:"blocoUpdate",blockId:id,pageId:st.pageId,texto:txt}));
+    }
+    const n=noDaTela(st,"data-t",id,t);                 // a tela pode ter sido repintada enquanto esperava
+    n.classList.remove("eb-salvando"); t.classList.remove("eb-salvando");
+    if(!r||!r.ok){ n.classList.add("eb-erro"); n._orig=null; aviso("Não salvou este trecho: "+((r&&r.erro)||"erro")+" — clique nele e saia de novo para tentar outra vez."); }
     else { if(b){ delete b.rt; } guardar(st.pageId,{blocos:st.blocos}); }
   }
   async function salvarLinha(st,c){
@@ -336,11 +370,17 @@
     if(!r||!r.ok){ c.classList.add("eb-erro"); aviso("Não salvou a linha da tabela: "+((r&&r.erro)||"erro")); }
   }
   async function marcar(st,c){
-    const id=c.getAttribute("data-chk"), b=acha(st.blocos,id);
-    if(b) b.feito=c.checked;
-    const linha=c.closest(".eb-b"); if(linha) linha.classList.toggle("feito",c.checked);
-    const r=await (typeof escrever==="function"?escrever({action:"blocoUpdate",blockId:id,pageId:st.pageId,feito:c.checked},"Checklist"):pedir({action:"blocoUpdate",blockId:id,pageId:st.pageId,feito:c.checked}));
-    if(!r||!r.ok){ c.checked=!c.checked; if(b) b.feito=c.checked; if(linha) linha.classList.toggle("feito",c.checked); aviso("Não salvou: "+((r&&r.erro)||"erro")); }
+    let id=c.getAttribute("data-chk"); const b=acha(st.blocos,id), feito=c.checked;
+    if(b) b.feito=feito;
+    const linha=c.closest(".eb-b"); if(linha) linha.classList.toggle("feito",feito);
+    let r;
+    const real=await idReal(id);                         // v13: item recém-criado espera o id do Notion
+    if(!real) r={ok:false,erro:"o item não foi criado no Notion"};
+    else { id=real;
+      r=await (typeof escrever==="function"?escrever({action:"blocoUpdate",blockId:id,pageId:st.pageId,feito},"Checklist"):pedir({action:"blocoUpdate",blockId:id,pageId:st.pageId,feito})); }
+    if(!r||!r.ok){ if(b) b.feito=!feito;
+      const c2=noDaTela(st,"data-chk",id,c); c2.checked=!feito; const l2=c2.closest(".eb-b"); if(l2) l2.classList.toggle("feito",!feito);
+      aviso("Não salvou: "+((r&&r.erro)||"erro")); }
     guardar(st.pageId,{blocos:st.blocos});
     if(typeof st.aoMudar==="function") st.aoMudar();
     const ev=new CustomEvent("eb-checklist",{detail:{pageId:st.pageId,blocos:st.blocos}}); window.dispatchEvent(ev);
@@ -357,18 +397,45 @@
     }
   }
   async function novo(st,tipo,depoisDe,texto,focar){
-    const temp={id:"tmp"+Date.now(),tipo,texto:texto||"",editavel:tipo!=="divider",feito:false};
+    const tid="tmp"+Date.now()+Math.random().toString(36).slice(2,6);
+    const temp={id:tid,tipo,texto:texto||"",editavel:tipo!=="divider",feito:false};
     const onde=depoisDe?paiDe(st.blocos,depoisDe):null;
     const arr=onde?onde.lista:st.blocos;
     const idx=depoisDe?arr.findIndex(b=>b.id===depoisDe)+1:arr.length;
     arr.splice(idx,0,temp); pintar(st);
-    const payload={action:"blocoNovo",pageId:st.pageId,tipo,texto:texto||""};
-    if(onde&&onde.pai) payload.paiId=onde.pai.id;
-    if(depoisDe) payload.depoisDe=depoisDe;
-    const r=await pedir(payload);
-    if(!r||!r.ok||!r.ids||!r.ids[0]){ arr.splice(arr.indexOf(temp),1); pintar(st); aviso("Não criou o item: "+((r&&r.erro)||"erro")); return; }
-    temp.id=r.ids[0]; pintar(st);
-    if(focar){ const n=st.el.querySelector(`[data-t="${temp.id}"]`); if(n) n.focus(); }
+    /* v13: a linha nova já fica pronta para escrever (não espera o Notion) */
+    if(focar){ const n=st.el.querySelector(`[data-t="${tid}"]`); if(n) n.focus(); }
+    let terminou; CRIANDO[tid]=new Promise(ok=>terminou=ok);
+    let r=null;
+    try{
+      const payload={action:"blocoNovo",pageId:st.pageId,tipo,texto:texto||""};
+      if(onde&&onde.pai){ const pid=await idReal(onde.pai.id); if(pid) payload.paiId=pid; else r={ok:false,erro:"o item de cima não foi criado no Notion"}; }
+      if(!r&&depoisDe){
+        /* "depois de" = quem está logo acima AGORA (o de cima pode ser outro item
+           novo ainda sem id, ou pode ter sido apagado nesse meio tempo) */
+        for(let n=0;n<10;n++){
+          const i=arr.indexOf(temp), ant=i>0?arr[i-1]:null;
+          if(!ant){ delete payload.depoisDe; break; }
+          const aid=await idReal(ant.id);
+          if(aid&&arr.indexOf(temp)>0&&arr[arr.indexOf(temp)-1]===ant){ payload.depoisDe=aid; break; }
+        }
+      }
+      if(!r&&arr.indexOf(temp)<0) r={ok:true,ids:[],apagado:true};       // apagou antes de criar: nem manda
+      if(!r) r=await pedir(payload);
+    }catch(err){ r={ok:false,erro:String((err&&err.message)||err)}; }
+    if(r&&r.apagado){ terminou(null); delete CRIANDO[tid]; return; }
+    if(!r||!r.ok||!r.ids||!r.ids[0]){
+      terminou(null); delete CRIANDO[tid];
+      const i=arr.indexOf(temp), digitado=(noDaTela(st,"data-t",tid,{}).innerText||temp.texto||"").trim();
+      if(i>=0){ arr.splice(i,1); pintar(st); }
+      aviso("Não criou o item: "+((r&&r.erro)||"erro")+(digitado?" (o texto era: "+digitado+")":""));
+      return;
+    }
+    temp.id=r.ids[0];
+    terminou(temp.id);                                   // quem ainda segura o id provisório acha o novo
+    if(arr.indexOf(temp)<0) return;                                      // apagado na tela: apagar() exclui no Notion
+    if(st.el.contains(document.activeElement)) trocarIdNaTela(st,tid,temp.id);   // está digitando: não repinta
+    else pintar(st);
   }
   /* ---------- REORDENAR (v9, 29/09) ----------
    * O Notion não move bloco: o servidor RECRIA um bloco depois de outro (ou
@@ -558,8 +625,10 @@
     if(!focarAnterior && b && b.texto && !confirm("Apagar este item?")) return;
     onde.lista.splice(i,1); pintar(st);
     if(focarAnterior&&i>0){ const ant=st.el.querySelector(`[data-t="${onde.lista[i-1].id}"]`); if(ant){ ant.focus(); document.getSelection().selectAllChildren(ant); document.getSelection().collapseToEnd(); } }
-    if(String(id).indexOf("tmp")===0) return;
-    const r=await pedir({action:"blocoExcluir",blockId:id,pageId:st.pageId});
+    /* v13: item recém-criado — espera o id do Notion e apaga lá também
+       (antes sumia só da tela e ficava uma linha vazia no Notion) */
+    const real=await idReal(id); if(!real) return;
+    const r=await pedir({action:"blocoExcluir",blockId:real,pageId:st.pageId});
     if(!r||!r.ok){ onde.lista.splice(i,0,b); pintar(st); aviso("Não apagou: "+((r&&r.erro)||"erro")); }
   }
   /* v5 — anexo no CORPO da página (foto/documento junto da descrição) */
