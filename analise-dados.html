@@ -147,7 +147,10 @@ html[data-tema="escuro"] .dc-t{filter:brightness(1.35)}
 @media (max-width:700px){.dv-g,.dv-g.c5,.dv-g.c3{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .dv-i{min-width:0;padding:8px 10px;border-radius:10px;background:var(--bg2);transition:transform .12s,box-shadow .12s;container-type:inline-size;overflow:hidden}
 /* 27/10: o valor encolhe junto com o card (11cqi ≈ 16 caracteres na largura) */
-.dv-i .dv{font-size:min(24px,11cqi)}.dv-i .dv.hero{font-size:min(31px,11cqi)}.ind .dv{font-size:min(32px,12cqi)!important}.ind{container-type:inline-size;overflow:hidden}
+.dv-i .dv{font-size:min(26px,12cqi)}.dv-i .dv.hero{font-size:min(34px,12.2cqi)}
+.dv-g.c5{grid-template-columns:repeat(3,minmax(0,1fr))!important}.dv-g.c5>.dv-i:first-child{grid-row:span 2;display:flex;flex-direction:column;justify-content:center}.ind .dv{font-size:min(32px,12cqi)!important}.ind{container-type:inline-size;overflow:hidden}
+.dv-g{border-radius:10px}
+.dv-g .dv-i{border:1px solid var(--border2)}
 .dv-i:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(20,50,70,.12)}
 .dv-l{font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.07em}
 .dv{font-family:'Barlow Condensed',sans-serif;font-size:clamp(17px,1.3vw,24px);font-weight:800;color:var(--text);line-height:1.1;white-space:nowrap}
@@ -174,15 +177,18 @@ html[data-tema="escuro"] .pill.bom{color:#5fd68f}html[data-tema="escuro"] .pill.
 .dt-w .dt3 tr.tot td{font-size:clamp(11.5px,calc((100cqi - 190px) / 23.5),22px)}
 .dt-w .dt td:first-child{font-size:12px}
 .dt tbody tr:hover td{background:var(--bg2)!important}
+.dt td+td,.dt th+th{border-left:1px solid var(--border2)!important}
+.dt th{padding-bottom:6px!important}
 .dc-ch{margin-top:4px;overflow-x:auto}
 .dc-ch svg{width:100%;min-width:480px;height:auto;display:block}
 .dc-ch svg text{font-family:'Barlow',sans-serif}
-.dc-ch .col{fill:transparent}.dc-ch .col:hover{fill:color-mix(in srgb,var(--ac) 10%,transparent)}
+.dc-ch .col{fill:transparent;cursor:pointer}.dc-ch .col:hover{fill:color-mix(in srgb,var(--ac) 10%,transparent)}.dc-ch .col.sel{fill:color-mix(in srgb,var(--ac) 18%,transparent)}
 .dc-ch .ttl{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin:6px 0 2px}
 .lg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:11.5px;color:var(--text);margin:2px 0 4px}
 .lg i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 .lg i.ln{height:3px;border-radius:2px;width:16px;vertical-align:3px}
 .ind-g{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:6px 0 12px}
+.ind-g.c2{grid-template-columns:repeat(2,minmax(0,1fr))}
 @media (max-width:1000px){.ind-g{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .ind{border:1.5px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--bg2)}
 .ind .dv{font-size:clamp(24px,2vw,32px)}
@@ -4534,10 +4540,11 @@ function buildRentab(){
 
 
 /* ===================== VISÃO GERAL 27/10: cards com gráfico ===================== */
-let TIP_NS='x', DASH_M=null;
+let TIP_NS='x', DASH_M=null, DASH_ANIM=true;
 let DASH_MODO=(()=>{ try{ return JSON.parse(localStorage.getItem('ad_dash_modo')||'{}'); }catch(e){ return {}; } })();
 function tipNS(ns){ TIP_NS=ns; TIPS[ns]={}; }
-function dashModo(k,v){ DASH_MODO[k]=v; try{ localStorage.setItem('ad_dash_modo',JSON.stringify(DASH_MODO)); }catch(e){} buildDash(); }
+function dashModo(k,v){ DASH_MODO[k]=v; try{ localStorage.setItem('ad_dash_modo',JSON.stringify(DASH_MODO)); }catch(e){} const y=window.scrollY; DASH_ANIM=false; buildDash(); DASH_ANIM=true; window.scrollTo(0,y); }
+document.addEventListener('click',e=>{ const b=e.target.closest('[data-modo]'); if(!b) return; e.preventDefault(); e.stopPropagation(); const [k,v]=b.dataset.modo.split('|'); dashModo(k,v); },true);
 const fmtK=v=>{ const a=Math.abs(v||0), s=v<0?'-':''; if(a>=1e6) return s+'R$ '+fmtN(a/1e6,a>=1e7?1:2)+' mi'; if(a>=1e3) return s+'R$ '+fmtN(a/1e3,0)+' mil'; return s+'R$ '+fmtN(a,0); };
 function dashAgg(){
   const M={}; const g=m=>M[m]||(M[m]={oR:0,oC:0,tR:0,tC:0,vgv:0,vgvR:0,vgvC:0,cas:0,ven:0,venC:{},esc:0,escC:{},pos:0,posC:{},eo:0,so:0,en:0,sn:0,cR:{},cC:{},enC:{},snC:{},eoC:{},soC:{}});
@@ -4563,7 +4570,7 @@ function topK(obj,n){ const e=Object.entries(obj).sort((a,b)=>b[1]-a[1]); return
 const CORES_CH=['#295778','#e08a1e','#2bb3a3','#8e5bb5','#d4a017','#5c8fb8','#c0392b','#7f8c8d'];
 function pillTend(vMes,media,custo){ if(!(media>0)||!vMes) return ''; const d=(vMes/media-1)*100; if(Math.abs(d)<1) return ''; const sobe=d>0, bom=custo?!sobe:sobe; return `<span class="pill ${bom?'bom':'ruim'}" title="Mês contra a média mensal dos 12 meses">${sobe?'▲':'▼'} ${fmtN(Math.abs(d),0)}%</span>`; }
 function dvItem(l,v,tip,extra,cls){ return `<div class="dv-i"${tip?` data-tip="${tip}"`:''}><div class="dv-l">${l}</div><div class="dv ${cls||''}">${v}</div>${extra?`<div class="dv-s">${extra}</div>`:''}</div>`; }
-function dcard(ac,ic,tit,sub,hdrExtra,corpo){ return `<div class="dc" style="--ac:${ac}"><div class="dc-h"><span class="dc-i">${ic}</span><span class="dc-t">${tit}</span>${sub?`<span class="dc-st">${sub}</span>`:''}${hdrExtra||''}</div>${corpo}</div>`; }
+function dcard(ac,ic,tit,sub,hdrExtra,corpo){ return `<div class="dc" style="--ac:${ac}${DASH_ANIM?'':';animation:none'}"><div class="dc-h"><span class="dc-i">${ic}</span><span class="dc-t">${tit}</span>${sub?`<span class="dc-st">${sub}</span>`:''}${hdrExtra||''}</div>${corpo}</div>`; }
 function legHtml(bars,lines){ return `<div class="lg">${(bars||[]).map(b=>`<span><i style="background:${b.cor}"></i>${esc(b.n)}</span>`).join('')}${(lines||[]).map(l=>`<span><i class="ln" style="background:${l.cor}"></i>${esc(l.n)}</span>`).join('')}</div>`; }
 /* gráfico SVG: barras empilhadas (positivas para cima, negativas para baixo) + linhas; cada mês tem resumo ao passar o mouse */
 function dashChart(key,ml,o){
@@ -4586,8 +4593,8 @@ function dashChart(key,ml,o){
     if(seg.length>1) g+=`<polyline fill="none" stroke="${l.cor}" stroke-width="${l.w||2.6}" stroke-linejoin="round" stroke-linecap="round" ${l.dash?`stroke-dasharray="${l.dash}"`:''} points="${seg.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')}"/>`;
     seg.forEach(p=>{ g+=`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.2" fill="${l.cor}" stroke="${cv('--branco','#fff')}" stroke-width="1.2"/>`; }); });
   ml.forEach((m,i)=>{ const rows=[...bars.map(b=>[b.n,b.v[i]||0,b.cor]),...lines.map(l=>[l.n,l.v[i],l.cor])].filter(r=>r[1]!=null&&(r[1]!==0||lines.some(l=>l.n===r[0])));
-    const tot=bars.length>1?`<tr><td><b>Total das barras</b></td><td><b>${fm(bars.reduce((a,b)=>a+(b.v[i]||0),0))}</b></td></tr>`:'';
-    const html=`<h4>${esc(o.titulo||'')} · ${fmtM(m)}</h4><table>${rows.map(r=>`<tr><td><i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${r[2]};margin-right:6px"></i>${esc(r[0])}</td><td>${fm(r[1])}</td></tr>`).join('')}${tot}</table>${o.nota?`<div class="fora" style="margin-top:6px">${o.nota}</div>`:''}`;
+    const fv=pct?(v=>fmtN(v,2)+'%'):fmtBRL; const tot=bars.length>1?`<tr><td><b>Total das barras</b></td><td><b>${fv(bars.reduce((a,b)=>a+(b.v[i]||0),0))}</b></td></tr>`:'';
+    const html=`<h4>${esc(o.titulo||'')} · ${fmtM(m)}</h4><table>${rows.map(r=>`<tr><td><i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${r[2]};margin-right:6px"></i>${esc(r[0])}</td><td>${fv(r[1])}</td></tr>`).join('')}${tot}</table>${o.nota?`<div class="fora" style="margin-top:6px">${o.nota}</div>`:''}`;
     g+=`<rect class="col" x="${(L+bw*i).toFixed(1)}" y="${T}" width="${bw.toFixed(1)}" height="${H-T-B}"${tipX(key+'_'+i,html)}/>`; });
   return `${o.ttl?`<div class="ttl">${o.ttl}</div>`:''}${legHtml(bars,lines)}<div class="dc-ch"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${g}</svg></div>`;
 }
@@ -4613,25 +4620,29 @@ function dashNovo(P){
   const tri=m=>[mAdd(m,-3),mAdd(m,-2),mAdd(m,-1)];
   const rE=m12.map(m=>{ const v=dS('vgv',tri(m)); return v>0?dS('esc',tri(m))/v*100:null; });
   const rP=m12.map(m=>{ const v=dS('oR',tri(m))+dS('oC',tri(m)); return v>0?dS('pos',tri(m))/v*100:null; });
-  const escCh=`<div class="ch-g"><div>${dashChart('esc',m12,{titulo:'Escritório',ttl:'Escritório por mês',bars:compBars('escC',m12,4,['#295778','#5c8fb8','#2bb3a3','#d4a017']),h:180})}</div>
-    <div>${dashChart('pos',m12,{titulo:'Pós-obra',ttl:'Pós-obra por mês',bars:compBars('posC',m12,3,['#2bb3a3','#8e5bb5','#e08a1e']),h:180})}</div>
-    <div>${dashChart('rEsc',m12,{titulo:'Escritório ÷ VGV',ttl:'Escritório ÷ VGV · 3 meses antes de cada mês',pct:true,meta:4,lines:[{n:'Escritório ÷ VGV',cor:'#295778',v:rE}],h:170,nota:'Mesma conta do indicador trimestral: soma dos 3 meses anteriores.'})}</div>
-    <div>${dashChart('rPos',m12,{titulo:'Pós-obra ÷ obra',ttl:'Pós-obra ÷ custo de obra · 3 meses antes de cada mês',pct:true,meta:1,lines:[{n:'Pós-obra ÷ obra',cor:'#2bb3a3',v:rP}],h:170,nota:'Custo de obra sem terreno, casas de rua + condomínio.'})}</div></div>`;
-  h+=`<div class="dg c1">${dcard('#295778','🏢','Escritório e pós-obra','custos fixos e indicadores','',
-     `<div class="eo-split"><div><h5>🏢 Custo escritório</h5>${ep(E,'esc','#295778')}</div><div><h5>🔧 Custo pós-obra</h5>${ep(Po,'pos','#2bb3a3')}</div></div><div class="ind-g">${inds}</div>${escCh}`)}</div>`;
+  const indH=(rs)=>rs.map(([k,l,v,meta,sub])=>{ const ok=v!=null&&v<=meta, w=v==null?0:Math.min(100,v/(meta*2)*100);
+    return `<div class="ind" data-tip="rat:${k}"><div class="dv-l">${l}</div><div class="dv ${v==null?'':ok?'g':'r'}">${v!=null?fmtN(v,2)+'%':'—'}</div><div class="ind-b"><span style="width:${w}%;background:${ok?VERDE:'#c0392b'}"></span></div><div class="dv-s">${sub}</div></div>`; }).join('');
+  const escBody=ep(E,'esc','#295778')+`<div class="ind-g c2">${indH(P.rat.slice(0,2))}</div>`+
+    dashChart('esc',m12,{titulo:'Escritório',ttl:'Escritório por mês',bars:compBars('escC',m12,4,['#295778','#5c8fb8','#2bb3a3','#d4a017']),h:190})+
+    dashChart('rEsc',m12,{titulo:'Escritório ÷ VGV',ttl:'Escritório ÷ VGV · 3 meses antes de cada mês',pct:true,meta:4,lines:[{n:'Escritório ÷ VGV',cor:'#295778',v:rE}],h:170,nota:'Mesma conta do indicador trimestral: soma dos 3 meses anteriores.'});
+  const posBody=ep(Po,'pos','#2bb3a3')+`<div class="ind-g c2">${indH(P.rat.slice(2,4))}</div>`+
+    dashChart('pos',m12,{titulo:'Pós-obra',ttl:'Pós-obra por mês',bars:compBars('posC',m12,3,['#2bb3a3','#8e5bb5','#e08a1e']),h:190})+
+    dashChart('rPos',m12,{titulo:'Pós-obra ÷ obra',ttl:'Pós-obra ÷ custo de obra · 3 meses antes de cada mês',pct:true,meta:1,lines:[{n:'Pós-obra ÷ obra',cor:'#2bb3a3',v:rP}],h:170,nota:'Custo de obra sem terreno, casas de rua + condomínio.'});
+  h+=`<div class="dg c2">${dcard('#295778','🏢','Escritório','custo fixo · meta ≤ 4% do VGV','',escBody)}${dcard('#2bb3a3','🔧','Pós-obra','assistência · meta ≤ 1% do custo de obra','',posBody)}</div>`;
   // ---------- Obras: casas de rua × condomínio ----------
   const obraCard=(T,nome,ic,ac)=>{ const o='o'+T, t='t'+T, vg='vgv'+T, imo=T==='R'?'RUA':'COND', modo=DASH_MODO[imo]||'linha';
-    const lin=(rot,f,tk,cls,custo)=>{ const t12=dS(f,m12), ta=dS(f,mA), vm=dS(f,M1); return `<tr class="${cls||''}"><td>${rot}</td><td data-tip="${tk}@${imo}:12">${fmtBRL(t12)}</td><td data-tip="${tk}@${imo}:ano">${fmtBRL(ta)}</td><td data-tip="${tk}@${imo}:med">${fmtBRL(t12/12)}</td><td data-tip="${tk}@${imo}:mes">${fmtBRL(vm)}</td></tr>`; };
+    const esc_=document.documentElement.dataset.tema==='escuro', corObra=T==='R'?(esc_?'#f3c27a':'#8a5a12'):(esc_?'#9cc3f0':'#1f4f8a'), mk=c=>`<i style="display:inline-block;width:12px;height:4px;border-radius:2px;background:${c};margin-right:6px;vertical-align:3px"></i>`;
+    const lin=(rot,f,tk,cls,custo,cor)=>{ const t12=dS(f,m12), ta=dS(f,mA), vm=dS(f,M1); return `<tr class="${cls||''}"><td>${cor?mk(cor):''}${rot}</td><td data-tip="${tk}@${imo}:12">${fmtBRL(t12)}</td><td data-tip="${tk}@${imo}:ano">${fmtBRL(ta)}</td><td data-tip="${tk}@${imo}:med">${fmtBRL(t12/12)}</td><td data-tip="${tk}@${imo}:mes">${fmtBRL(vm)}</td></tr>`; };
     const totM=m=>dS(o,[m])+dS(t,[m]);
     const tab=`<table class="dt"><thead><tr><th></th><th>12 meses</th><th>Ano ${ano}</th><th>Média/mês</th><th>Mês ${fmtM(mes)}</th></tr></thead><tbody>
-      ${lin('Custo de obra (s/ terreno)',o,'obra','',true)}${lin('Compra de terreno',t,'ter','',true)}
-      <tr class="tot"><td>Σ Custo total</td><td data-tip="tot@${imo}:12">${fmtBRL(dS(o,m12)+dS(t,m12))}</td><td data-tip="tot@${imo}:ano">${fmtBRL(dS(o,mA)+dS(t,mA))}</td><td data-tip="tot@${imo}:med">${fmtBRL((dS(o,m12)+dS(t,m12))/12)}</td><td data-tip="tot@${imo}:mes">${fmtBRL(totM(mes))}</td></tr>
-      ${lin('VGV '+nome.toLowerCase(),vg,'vgv','vgv',false)}</tbody></table>`;
+      ${lin('Custo de obra (s/ terreno)',o,'obra','',true,corObra)}${lin('Compra de terreno',t,'ter','',true,'#a0522d')}
+      <tr class="tot"><td>${mk(ac)}Σ Custo total</td><td data-tip="tot@${imo}:12">${fmtBRL(dS(o,m12)+dS(t,m12))}</td><td data-tip="tot@${imo}:ano">${fmtBRL(dS(o,mA)+dS(t,mA))}</td><td data-tip="tot@${imo}:med">${fmtBRL((dS(o,m12)+dS(t,m12))/12)}</td><td data-tip="tot@${imo}:mes">${fmtBRL(totM(mes))}</td></tr>
+      ${lin('VGV '+nome.toLowerCase(),vg,'vgv','vgv',false,VERDE)}</tbody></table>`;
     const vgvL={n:'VGV '+nome.toLowerCase(),cor:VERDE,v:m12.map(m=>dS(vg,[m])),w:3};
     const ch=modo==='barra'
       ? dashChart('ob'+T,m12,{titulo:'Obras · '+nome,bars:compBars('c'+T,m12,4,CORES_CH,[{n:'Terreno',cor:'#a0522d',v:m12.map(m=>dS(t,[m]))}]),lines:[vgvL],nota:'Barras: composição do custo (terreno + maiores categorias de obra). Linha verde: VGV do mês.'})
-      : dashChart('ob'+T,m12,{titulo:'Obras · '+nome,lines:[{n:'Custo de obra (s/ terreno)',cor:ac,v:m12.map(m=>dS(o,[m]))},{n:'Terreno',cor:'#a0522d',v:m12.map(m=>dS(t,[m])),w:2,dash:'5 4'},{n:'Custo total',cor:cv('--text','#223'),v:m12.map(totM),w:2},vgvL]});
-    const tg=`<span class="dc-tg"><button class="${modo==='linha'?'on':''}" onclick="dashModo('${imo}','linha')">Linha</button><button class="${modo==='barra'?'on':''}" onclick="dashModo('${imo}','barra')">Barras</button></span>`;
+      : dashChart('ob'+T,m12,{titulo:'Obras · '+nome,lines:[{n:'Σ Custo total',cor:ac,v:m12.map(totM),w:3.4},{n:'Custo de obra (s/ terreno)',cor:corObra,v:m12.map(m=>dS(o,[m])),w:2},{n:'Terreno',cor:'#a0522d',v:m12.map(m=>dS(t,[m])),w:2,dash:'5 4'},vgvL]});
+    const tg=`<span class="dc-tg"><button type="button" data-modo="${imo}|linha" class="${modo==='linha'?'on':''}">Linha</button><button type="button" data-modo="${imo}|barra" class="${modo==='barra'?'on':''}">Barras</button></span>`;
     return dcard(ac,ic,nome,'custo de obra × VGV',tg,'<div class="dt-w">'+tab+'</div>'+ch); };
   h+=`<div class="dg c2">${obraCard('R','Casas de rua','🏠','#e08a1e')}${obraCard('C','Condomínio','🏘','#3d7cc9')}</div>`;
   // ---------- Operacional × não operacional ----------
@@ -4718,13 +4729,21 @@ function tipConteudo(ch){
     <div class="tr">Maiores centros de custo</div><table>${tipTop(ccs,3).map(([c,x])=>linha(c,x.v)).join('')}</table>
     ${fora?`<div class="fora" style="margin-top:6px">${fora}</div>`:''}<div class="fora">As regras mudam na aba Configurações.</div>`;
 }
-(function(){ let alvo=null; const tip=()=>document.getElementById('ad-tip');
-  function mostrar(el){ const t=tip(); if(!t) return; try{ t.innerHTML=tipConteudo(el.dataset.tip); }catch(e){ t.innerHTML='<div class="fora">Sem resumo para este valor.</div>'; }
-    t.style.display='block'; const r=el.getBoundingClientRect(), w=t.offsetWidth, h=t.offsetHeight;
-    let x=Math.min(Math.max(8,r.left), window.innerWidth-w-8), y=r.bottom+8; if(y+h>window.innerHeight-8) y=Math.max(8,r.top-h-8); t.style.left=x+'px'; t.style.top=y+'px'; }
-  document.addEventListener('mouseover',e=>{ const el=e.target.closest('[data-tip]'); if(el===alvo) return; alvo=el; if(el) mostrar(el); else { const t=tip(); if(t) t.style.display='none'; } });
-  document.addEventListener('click',e=>{ const el=e.target.closest('[data-tip]'); if(el&&matchMedia('(hover: none)').matches){ mostrar(el); } else if(!el){ const t=tip(); if(t) t.style.display='none'; } });
-  window.addEventListener('scroll',()=>{ const t=tip(); if(t) t.style.display='none'; alvo=null; },true);
+(function(){ let alvo=null, fixo=null; const tip=()=>document.getElementById('ad-tip');
+  const ehCol=el=>el&&el.classList&&el.classList.contains('col');
+  function mostrar(el,ev){ const t=tip(); if(!t) return; let html=''; try{ html=tipConteudo(el.dataset.tip); }catch(e){ html='<div class="fora">Sem resumo para este valor.</div>'; }
+    t.innerHTML=html+(fixo===el?'<div class="fora" style="margin-top:6px">📌 fixado — clique fora para fechar</div>':''); t.style.display='block';
+    const w=t.offsetWidth, h=t.offsetHeight; let x, y;
+    if(ehCol(el)&&ev){ x=ev.clientX+14; y=ev.clientY+14; if(x+w>window.innerWidth-8) x=ev.clientX-w-14; if(y+h>window.innerHeight-8) y=ev.clientY-h-14; x=Math.max(8,x); y=Math.max(8,y); }
+    else { const r=el.getBoundingClientRect(); x=Math.min(Math.max(8,r.left), window.innerWidth-w-8); y=r.bottom+8; if(y+h>window.innerHeight-8) y=Math.max(8,r.top-h-8); }
+    t.style.left=x+'px'; t.style.top=y+'px'; }
+  function marcar(el){ document.querySelectorAll('.dc-ch .col.sel').forEach(c=>c.classList.remove('sel')); if(ehCol(el)) el.classList.add('sel'); }
+  document.addEventListener('mouseover',e=>{ if(fixo) return; const el=e.target.closest('[data-tip]'); if(el===alvo) return; alvo=el; if(el) mostrar(el,e); else { const t=tip(); if(t) t.style.display='none'; } });
+  document.addEventListener('mousemove',e=>{ if(fixo||!alvo||!ehCol(alvo)) return; mostrar(alvo,e); });
+  document.addEventListener('click',e=>{ if(e.target.closest('[data-modo]')) return; const el=e.target.closest('[data-tip]'); const t=tip();
+    if(el&&(ehCol(el)||matchMedia('(hover: none)').matches)){ fixo=ehCol(el)?el:null; marcar(el); mostrar(el,e); return; }
+    if(!el){ fixo=null; marcar(null); if(t) t.style.display='none'; alvo=null; } });
+  window.addEventListener('scroll',()=>{ const t=tip(); if(t) t.style.display='none'; alvo=null; fixo=null; marcar(null); },true);
 })();
 
 /* ===================== ABA CONFIGURAÇÕES ===================== */
