@@ -343,9 +343,11 @@ var ContratoVenda = (function () {
     [fl.sinalAto, fl.sinal30, fl.sinal60, fl.sinal90].forEach(function (v) { if (positivo(v)) s += v; });
     s = so2(s);
     var ab = so2(Math.min(s, positivo(co.valorParaEntrada) ? co.valorParaEntrada : 0)), pix = so2(s - ab);
-    var sinal = !(s > 0) ? "" : pix <= 0.005 ? "sinal (item 4.1.3) abatido do valor para entrada informado na proposta"
+    /* dono 27/10: mesmo quitado com o valor para entrada, continua sendo sinal (retido em caso de desistência) */
+    var nat = ", mantida sua natureza de sinal e princípio de pagamento";
+    var sinal = !(s > 0) ? "" : pix <= 0.005 ? "sinal (item 4.1.3) quitado com o valor para entrada informado na proposta" + nat
       : ab <= 0.005 ? "sinal (item 4.1.3) por PIX"
-      : "sinal (item 4.1.3): " + valorExtenso(ab) + " abatidos do valor para entrada informado na proposta e " + valorExtenso(pix) + " por PIX";
+      : "sinal (item 4.1.3): " + valorExtenso(ab) + " quitados com o valor para entrada informado na proposta" + nat + ", e " + valorExtenso(pix) + " por PIX";
     return (sinal ? sinal + "; " : "") + "parcelas da entrada por boleto bancário";
   }
   function mensais(n, valor, dataIso, dia) {
