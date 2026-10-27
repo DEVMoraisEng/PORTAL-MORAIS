@@ -242,3 +242,23 @@ test("botão desabilitado não age (ex.: Enviar com envelope aberto)", async () 
   assert.equal(chamou, false);
   assert.equal(novo.estado, ENVIADO);
 });
+
+test("termo de pré-reserva (27/10): botões com prefixo p-, textos do termo e doc PRE_RESERVA nas chamadas", async () => {
+  const h = A.montarBlocoAssinatura(ctx({ doc: "PRE_RESERVA", contratoGerado: false }));
+  assert.match(h, /Enviar termo de pré-reserva via Clicksign/);
+  assert.match(h, /Gere o termo antes/);
+  assert.equal(botao(h, "a-enviar").length, 0);
+  assert.match(botao(h, "p-enviar")[0], /disabled/);
+  const h2 = A.montarBlocoAssinatura(ctx({ doc: "PRE_RESERVA", estado: ENVIADO }));
+  assert.equal(botao(h2, "p-atualizar").length, 1);
+  assert.equal(botao(h2, "p-reenviar").length, 1);
+  const chamadas = [];
+  const novo = await A.executarAcaoAssinatura("p-enviar", ctx({ doc: "PRE_RESERVA" }), { pageId: "p", confirmar: (t) => /termo de pré-reserva/.test(t),
+    chamar: async (x) => { chamadas.push(x); return { ok: true, situacao: "ENVIADO", signatarios: [] }; } });
+  assert.deepEqual(chamadas, [{ action: "assinaturaEnviar", pageId: "p", doc: "PRE_RESERVA" }]);
+  assert.equal(novo.estado.situacao, "ENVIADO");
+  const ch2 = [];
+  await A.executarAcaoAssinatura("a-atualizar", ctx({ estado: ENVIADO }), { pageId: "p", confirmar: () => true,
+    chamar: async (x) => { ch2.push(x); return { ok: true, situacao: "ENVIADO", envelope: true, signatarios: [] }; } });
+  assert.deepEqual(ch2, [{ action: "assinaturaEstado", pageId: "p" }], "contrato: sem doc");
+});

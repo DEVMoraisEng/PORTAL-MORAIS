@@ -112,16 +112,19 @@
     return MSG[e] || "Algo deu errado (" + e + ") — tente de novo.";
   }
 
+  function ehTermo(c) { return !!(c && c.doc === "PRE_RESERVA"); }
+  function pre(c) { return ehTermo(c) ? "p-" : "a-"; }
   function montarBlocoAssinatura(c) {
-    var h = '<div class="grp">Enviar contrato via Clicksign</div>';
+    var termo = ehTermo(c), x = pre(c);
+    var h = '<div class="grp">' + (termo ? "Enviar termo de pré-reserva via Clicksign" : "Enviar contrato via Clicksign") + "</div>";
     if (c.testes) h += '<div class="dz-aviso">Perfil TESTES não envia, não reenvia nem atualiza a assinatura.</div>';
     if (!c.estado) return h + '<div class="vazio">' + esc(c.msg || "carregando…") + "</div>";
     var e = c.estado, sit = situacaoDe(e);
     if (c.ocupado === "enviar") h += '<div class="dz-linha"><b>enviando… (até 1 minuto)</b></div>';
     if (c.ocupado === "atualizar") h += '<div class="dz-linha"><b>consultando…</b></div>';
     if (c.ocupado === "reenviar") h += '<div class="dz-linha"><b>reenviando…</b></div>';
-    if (c.ocupado === "ver") h += '<div class="dz-linha"><b>abrindo o contrato assinado…</b></div>';
-    if (!c.contratoGerado) h += '<div class="dz-aviso">Gere o contrato antes de enviar para assinatura.</div>';
+    if (c.ocupado === "ver") h += '<div class="dz-linha"><b>abrindo o ' + (termo ? "termo" : "contrato") + ' assinado…</b></div>';
+    if (!c.contratoGerado) h += '<div class="dz-aviso">Gere o ' + (termo ? "termo" : "contrato") + ' antes de enviar para assinatura.</div>';
     if (e.envelope) {
       h += '<div class="dz-linha"><span class="dz-rot">Situação: ' + esc(SITUACAO[sit] || sit || "sem situação gravada") + "</span></div>";
       var sigs = e.signatarios || [];
@@ -138,17 +141,18 @@
         c.faltas.map(function (f) { return "<li>" + esc(f) + "</li>"; }).join("") + "</ul>";
     }
     var rotulo = e.envelope && REENVIAVEL.indexOf(sit) >= 0 ? "Enviar de novo para assinatura" : "Enviar para assinatura";
-    h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="a-enviar"' + (podeEnviar(c) ? "" : " disabled") + ">" + rotulo + "</button>";
-    if (e.envelope) h += ' <button type="button" class="bt ghost bt-mini" data-acao="a-atualizar"' + (podeAtualizar(c) ? "" : " disabled") + ">Atualizar situação</button>";
+    h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="' + x + 'enviar"' + (podeEnviar(c) ? "" : " disabled") + ">" + rotulo + "</button>";
+    if (e.envelope) h += ' <button type="button" class="bt ghost bt-mini" data-acao="' + x + 'atualizar"' + (podeAtualizar(c) ? "" : " disabled") + ">Atualizar situação</button>";
     if (e.envelope && situacaoDe(e) === "ENVIADO" && pendentes(e))
-      h += ' <button type="button" class="bt ghost bt-mini" data-acao="a-reenviar"' + (podeReenviar(c) ? "" : " disabled") + ">Reenviar link de assinatura</button>";
+      h += ' <button type="button" class="bt ghost bt-mini" data-acao="' + x + 'reenviar"' + (podeReenviar(c) ? "" : " disabled") + ">Reenviar link de assinatura</button>";
     /* só leitura: o perfil TESTES também vê */
-    if (podeVerAssinado(c)) h += ' <button type="button" class="bt bt-mini" data-acao="a-ver-assinado"' + (c.ocupado ? " disabled" : "") + ">Ver contrato assinado</button>";
+    if (podeVerAssinado(c)) h += ' <button type="button" class="bt bt-mini" data-acao="' + x + 'ver-assinado"' + (c.ocupado ? " disabled" : "") + ">Ver " + (termo ? "termo" : "contrato") + " assinado</button>";
     h += "</div>";
     if (c.msg) h += '<div class="dz-msg">' + esc(c.msg) + "</div>";
     return h;
   }
 
+  function comDoc(c, payload) { if (ehTermo(c)) payload.doc = "PRE_RESERVA"; return payload; }
   function copia(c, mud) {
     var n = {};
     for (var k in c) n[k] = c[k];
@@ -160,14 +164,15 @@
    * pintar(ctx) opcional — chamado com o bloco ocupado antes de ir ao servidor }.
    * Devolve o contexto novo (não muda o recebido). */
   async function executarAcaoAssinatura(acao, c, deps) {
+    acao = String(acao || "").replace(/^p-/, "a-");   /* termo: mesmos cliques com prefixo p- */
     if (acao === "a-reenviar") return reenviarLink(c, deps);
     var enviar = acao === "a-enviar";
     if (enviar ? !podeEnviar(c) : (acao !== "a-atualizar" || !podeAtualizar(c))) return c;
-    if (enviar && !deps.confirmar("Enviar o contrato para assinatura? Cada signatário recebe um e-mail da Clicksign para assinar.")) return c;
+    if (enviar && !deps.confirmar("Enviar o " + (ehTermo(c) ? "termo de pré-reserva" : "contrato") + " para assinatura? Cada signatário recebe um e-mail da Clicksign para assinar.")) return c;
     if (typeof deps.pintar === "function") deps.pintar(copia(c, { ocupado: enviar ? "enviar" : "atualizar", msg: "", faltas: null }));
     var r;
     try {
-      r = await deps.chamar({ action: enviar ? "assinaturaEnviar" : "assinaturaEstado", pageId: deps.pageId });
+      r = await deps.chamar(comDoc(c, { action: enviar ? "assinaturaEnviar" : "assinaturaEstado", pageId: deps.pageId }));
     } catch (err) {
       r = { ok: false, erro: "SEM_RESPOSTA" };
     }
@@ -195,7 +200,7 @@
                         " de novo o e-mail da Clicksign.")) return c;
     if (typeof deps.pintar === "function") deps.pintar(copia(c, { ocupado: "reenviar", msg: "" }));
     var r;
-    try { r = await deps.chamar({ action: "assinaturaReenviar", pageId: deps.pageId }); }
+    try { r = await deps.chamar(comDoc(c, { action: "assinaturaReenviar", pageId: deps.pageId })); }
     catch (err) { r = { ok: false, erro: "SEM_RESPOSTA" }; }
     r = r || { ok: false, erro: "SEM_RESPOSTA" };
     var estado = c.estado;
