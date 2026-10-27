@@ -300,7 +300,7 @@ function assCriarEnvelope_(p, pid, cols, doc, gerado, lista, nomeCs) {
   }
   var r = { ok: true, situacao: S.ENVIADO,
             signatarios: lista.map(function (s) {
-              return { papel: s.papel, nome: ClicksignVenda.nomeMascarado(s.nome), assinou: false, situacao: "pendente", data: "" };
+              return { papel: s.papel, nome: ClicksignVenda.nomeMascarado(s.nome), email: String(s.email || ""), assinou: false, situacao: "pendente", data: "" };
             }) };
   if (!n.ok) r.aviso = "NOTIFICACAO_FALHOU";
   assLog_("enviar " + pid + " ok envelope " + envId + " signatarios " + lista.length);
@@ -322,7 +322,9 @@ function assListaSignatarios_(envId, signers, eventos) {
   var papeis = assPapeis_(envId), sits = ClicksignVenda.situacaoDosSignatarios(signers, eventos);
   return (signers || []).map(function (s) {
     var st = sits[s.id] || { situacao: "pendente", data: "" };
+    /* 27/10 (dono): a tela mostra para qual e-mail a Clicksign mandou (a equipe confere se está certo) */
     return { papel: papeis[s.id] || "Signatário", nome: ClicksignVenda.nomeMascarado(s.attributes && s.attributes.name),
+             email: String((s.attributes && s.attributes.email) || ""),
              assinou: st.situacao === "assinou", situacao: st.situacao, data: st.data };
   });
 }

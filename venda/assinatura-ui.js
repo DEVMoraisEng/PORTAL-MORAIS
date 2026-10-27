@@ -131,7 +131,8 @@
       if (sigs.length) {
         h += '<ul class="ass-lista">' + sigs.map(function (s) {
           var st = sitSignatario(s), rot = ROTULO_SIG[st] || ROTULO_SIG.pendente, d = dataCurta(s.data);
-          return "<li><span>" + esc(s.papel) + (s.nome ? " (" + esc(s.nome) + ")" : "") + "</span> " +
+          return "<li><span>" + esc(s.papel) + (s.nome ? " (" + esc(s.nome) + ")" : "") + "</span>" +
+            (s.email ? ' <span class="ass-data">&lt;' + esc(s.email) + "&gt;</span>" : "") + " " +
             '<b class="' + rot[0] + '">' + rot[1] + "</b>" + (d && st !== "pendente" ? ' <span class="ass-data">em ' + esc(d) + "</span>" : "") + "</li>";
         }).join("") + "</ul>";
       }

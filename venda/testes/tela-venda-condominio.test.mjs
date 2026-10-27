@@ -234,7 +234,7 @@ test("assinatura na linha do condomínio: sem envelope; depois de gerar, envia e
   assert.ok(r.signatarios.some((s) => s.papel === "Comprador 1"));
   assert.equal(c.txt("ASSINATURA - ENVELOPE ID"), "env-1");
   assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), "ENVIADO");
-  assert.ok(!JSON.stringify(r).includes("@"), "resposta com e-mail");
+  assert.ok(!JSON.stringify({ ...r, signatarios: r.signatarios.map(({ email, ...s }) => s) }).includes("@"), "e-mail fora do campo email");
 });
 
 test("assinatura do condomínio: dado mudado depois de gerar = CONTRATO_DESATUALIZADO", () => {

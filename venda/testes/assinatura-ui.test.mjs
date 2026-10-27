@@ -276,3 +276,11 @@ test("27/10: atalho 'Corrigir e-mail' abre a tela do portal numa aba nova; sem t
     chamar: async () => ({ ok: false, erro: "FALTAM_DADOS", faltas: ["x"], corrigir: [{ quem: "comprador", rotulo: "C" }, { quem: "vendedor", rotulo: "V" }] }) });
   assert.deepEqual(c.corrigir, [{ rotulo: "C", url: "vendas.html?abrir=p" }, { rotulo: "V", url: "" }]);
 });
+
+test("27/10: cada signatário mostra o e-mail para onde a Clicksign mandou (escapado)", () => {
+  const h = A.montarBlocoAssinatura(ctx({ estado: { situacao: "ENVIADO", envelope: true,
+    signatarios: [{ papel: "Comprador 1", nome: "Fulano T.", email: "fulano@teste.example", assinou: false, situacao: "pendente" },
+                  { papel: "Testemunha 1", nome: "X", email: "<b>@x", assinou: false, situacao: "pendente" }] } }));
+  assert.match(h, /Comprador 1 \(Fulano T\.\)<\/span> <span class="ass-data">&lt;fulano@teste\.example&gt;<\/span>/);
+  assert.doesNotMatch(h, /<b>@x/);
+});
