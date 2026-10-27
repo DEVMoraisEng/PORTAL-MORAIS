@@ -145,7 +145,9 @@ html[data-tema="escuro"] .dc-t{filter:brightness(1.35)}
 .dv-g.c5{grid-template-columns:repeat(5,minmax(0,1fr))}
 .dv-g.c3{grid-template-columns:repeat(3,minmax(0,1fr))}
 @media (max-width:700px){.dv-g,.dv-g.c5,.dv-g.c3{grid-template-columns:repeat(2,minmax(0,1fr))}}
-.dv-i{min-width:0;padding:8px 10px;border-radius:10px;background:var(--bg2);transition:transform .12s,box-shadow .12s}
+.dv-i{min-width:0;padding:8px 10px;border-radius:10px;background:var(--bg2);transition:transform .12s,box-shadow .12s;container-type:inline-size;overflow:hidden}
+/* 27/10: o valor encolhe junto com o card (11cqi ≈ 16 caracteres na largura) */
+.dv-i .dv{font-size:min(24px,11cqi)}.dv-i .dv.hero{font-size:min(31px,11cqi)}.ind .dv{font-size:min(32px,12cqi)!important}.ind{container-type:inline-size;overflow:hidden}
 .dv-i:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(20,50,70,.12)}
 .dv-l{font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.07em}
 .dv{font-family:'Barlow Condensed',sans-serif;font-size:clamp(17px,1.3vw,24px);font-weight:800;color:var(--text);line-height:1.1;white-space:nowrap}
@@ -165,7 +167,12 @@ html[data-tema="escuro"] .pill.bom{color:#5fd68f}html[data-tema="escuro"] .pill.
 .dt tr.tot td:first-child{font-weight:800;font-size:13.5px}
 .dt tr.vgv td{color:var(--verde)}
 .dt tr td.g,.dt tr.tot td.g{color:var(--verde)}.dt tr td.r,.dt tr.tot td.r{color:#c0392b}
-.dt-w{overflow-x:auto}
+.dt-w{overflow-x:auto;container-type:inline-size}
+.dt-w .dt td{font-size:clamp(11px,calc((100cqi - 175px) / 34),19px)}
+.dt-w .dt tr.tot td{font-size:clamp(11.5px,calc((100cqi - 175px) / 32),21px)}
+.dt-w .dt3 td{font-size:clamp(11px,calc((100cqi - 190px) / 25),20px)}
+.dt-w .dt3 tr.tot td{font-size:clamp(11.5px,calc((100cqi - 190px) / 23.5),22px)}
+.dt-w .dt td:first-child{font-size:12px}
 .dt tbody tr:hover td{background:var(--bg2)!important}
 .dc-ch{margin-top:4px;overflow-x:auto}
 .dc-ch svg{width:100%;min-width:480px;height:auto;display:block}
@@ -4632,7 +4639,7 @@ function dashNovo(P){
   const opCard=(op)=>{ const fe=op?'eo':'en', fs=op?'so':'sn', ce=op?'Eo':'En', cs=op?'So':'Sn';
     const linha=(rot,f,ch,cls)=>`<tr><td>${rot}</td>${PER.map(([k,,ml])=>`<td class="${cls}" data-tip="op${ch}:${k}">${fmtBRL(dS(f,ml))}</td>`).join('')}</tr>`;
     const res=PER.map(([k,,ml])=>{ const v=dS(fe,ml)-dS(fs,ml); return `<td class="${v>=0?'g':'r'}"${op?` data-tip="opRes:${k}"`:''}>${fmtBRL(v)}</td>`; }).join('');
-    const tab=`<table class="dt"><thead><tr><th></th>${PER.map(p=>`<th>${p[1]}</th>`).join('')}</tr></thead><tbody>
+    const tab=`<table class="dt dt3"><thead><tr><th></th>${PER.map(p=>`<th>${p[1]}</th>`).join('')}</tr></thead><tbody>
       ${linha(op?'Entradas operacionais':'Entradas não operacionais',fe,ce,'g')}${linha(op?'Saídas operacionais':'Saídas não operacionais',fs,cs,'r')}
       <tr class="tot"><td>${op?'Resultado operacional':'Saldo não operacional'}</td>${res}</tr></tbody></table>`;
     const ch=dashChart(op?'op':'nop',m12,{titulo:op?'Operacional':'Não operacional',
