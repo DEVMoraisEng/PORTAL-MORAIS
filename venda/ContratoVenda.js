@@ -453,7 +453,8 @@ var ContratoVenda = (function () {
       fiadores: fiadoresPreenchidos(c.fiadores),
       /* quadro-resumo (21/10): casa pela tabela do memorial; comissão da linha (vazia = pela regra) */
       tabela: U().unidade(c.nome, c.unidade),
-      comissao: num(c.comissao)
+      comissao: num(c.comissao),
+      preReserva: c.preReserva && c.preReserva.assinado && positivo(c.preReserva.valor) ? { valor: c.preReserva.valor } : null
     };
   }
 
@@ -891,7 +892,8 @@ var ContratoVenda = (function () {
     m.VALOR_IMOVEL_EXTENSO = ext(va.imovel);
     m.COMISSAO_EXTENSO = ext(va.comissao);
     m.SINAL_EXTENSO = positivo(va.sinal) ? valorExtenso(va.sinal) : "";
-    m.SINAL_VENCIMENTO = vencimentosSinal(fl);
+    m.SINAL_VENCIMENTO = vencimentosSinal(fl) + (co.preReserva ? ", sendo " + valorExtenso(co.preReserva.valor) +
+      " já pagos a título de pré-reserva (Termo de Pré-Reserva), abatidos do sinal" : "");
     m.ENTRADA_TOTAL = moedaOuVazio(va.entrada);
     m.ENTRADA_PCT = va.entrada === null ? "" : pct2(va.entrada, va.preco);
     m.ENTRADA_SALDO = moedaOuVazio(va.saldoEntrada);

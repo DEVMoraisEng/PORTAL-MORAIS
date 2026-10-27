@@ -260,7 +260,10 @@ function ctrDadosCondominio_(c) {
       },
       fiadores: [fiador(1), fiador(2)],
       /* quadro-resumo (21/10): a comissão gravada pelo simulador; vazia, o contrato calcula pela regra */
-      comissao: n("COMISSÃO")
+      comissao: n("COMISSÃO"),
+      /* 27/10: termo de pré-reserva ASSINADO = o valor dele já foi pago e é abatido do sinal (dono) */
+      preReserva: { assinado: t("PRÉ-RESERVA - SITUAÇÃO").toUpperCase() === "ASSINADO",
+                    valor: typeof PreReservaVenda !== "undefined" ? PreReservaVenda.valorDe(prop_("PRE_RESERVA_VALOR")) : null }
     },
     /* o imóvel do condomínio mora na linha do condomínio; a casa só completa o que faltar */
     imovel: { MATRICULA_INDIVIDUAL: t("CONTRATO - MATRÍCULA INDIVIDUAL"), CRI: t("CONTRATO - CRI DA MATRÍCULA"),

@@ -188,3 +188,11 @@ test("fora do condomínio os marcadores novos saem vazios e o carimbo dos contra
   for (const k of ["COMPRADORES_QUADRO", "CASA_TIPO", "PARCELAS_PRE_CHAVES", "ENTRADA_TOTAL", "COMISSAO_PCT"]) assert.equal(m[k], "", k);
   assert.equal("telefone" in rua.comprador1, false, "telefone só entra nos dados do condomínio");
 });
+
+test("pré-reserva assinada (27/10): o valor já pago é abatido do sinal no 4.1.3; sem termo assinado, nada muda", () => {
+  const m = C.marcadores(dados({ condominio: { preReserva: { assinado: true, valor: 3000 } } }));
+  assert.equal(m.SINAL_VENCIMENTO, "07/10/2026 (R$ 1.000,00), 07/11/2026 (R$ 3.000,00), 07/12/2026 (R$ 3.000,00) e 07/01/2027 (R$ 3.000,00), " +
+    "sendo R$ 3.000,00 (três mil reais) já pagos a título de pré-reserva (Termo de Pré-Reserva), abatidos do sinal");
+  assert.equal(C.marcadores(dados({ condominio: { preReserva: { assinado: false, valor: 3000 } } })).SINAL_VENCIMENTO,
+    "07/10/2026 (R$ 1.000,00), 07/11/2026 (R$ 3.000,00), 07/12/2026 (R$ 3.000,00) e 07/01/2027 (R$ 3.000,00)");
+});
