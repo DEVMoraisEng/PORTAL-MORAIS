@@ -216,6 +216,9 @@ class ErpPeloPorteiro(Erp):
                 self._aba = AbaPorteiro.abrir()
             except PorteiroErro as e:
                 raise ErpErro(str(e)) from None
+            # 28/10 (prova no servidor): a aba ficava aberta no Chrome do porteiro depois do robô — fecha ao sair
+            import atexit
+            atexit.register(self.fechar)
         leg, core = self._aba.cabecalhos(HOST_LEGACY), self._aba.cabecalhos(HOST_CORE)
         if not leg.get("authorization") or not leg.get("company-id"):
             raise ErpErro("o Chrome do porteiro não está logado no Mais Controle — o porteiro precisa entrar")
@@ -223,6 +226,15 @@ class ErpPeloPorteiro(Erp):
         self.token, self.company_id = sem(leg["authorization"]), str(leg["company-id"])
         self.user_id, self.ou_id = str(leg.get("user-id") or ""), str(leg.get("organization-unit-id") or "")
         self.jwt = sem(core.get("authorization"))
+
+    def fechar(self) -> None:
+        """Fecha a aba deste robô (o Chrome do porteiro continua aberto e logado)."""
+        if self._aba is not None:
+            try:
+                self._aba.fechar()
+            except Exception:
+                pass
+            self._aba = None
 
     def _pela_aba(self, metodo, base, caminho, cab, corpo, params, de_novo, refazer):
         url = base + caminho

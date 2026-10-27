@@ -119,3 +119,13 @@ def test_tela_no_login_e_porteiro_deslogado():
     aba = P.AbaPorteiro(PageFalsa([], url="https://acessar.maiscontroleerp.com.br/#/login"))
     with pytest.raises(P.PorteiroErro, match="não está logado"):
         aba.capturar(espera=5)
+
+
+def test_fechar_fecha_a_aba_do_robo_e_pode_repetir():
+    fechou = []
+    aba = AbaFalsa([])
+    aba.fechar = lambda: fechou.append(1)
+    erp = E.ErpPeloPorteiro(aba)
+    erp.fechar()
+    erp.fechar()
+    assert fechou == [1]
