@@ -4536,7 +4536,7 @@ function renderConfig(){
   el.innerHTML=`
   <div class="cfg-aviso ${CFG_OK?'ok':''}">${CFG_OK?(CFG_PODE?'Você pode editar. Cada bloco tem o próprio <b>Salvar</b>; o que você não mexer segue a regra automática (marcada "(auto)").':'Seu login só vê as configurações. Quem edita é GFINANCEIRO ou ADM.')
     :'As configurações salvas não puderam ser lidas ('+esc(CFG_ERRO)+'). A tela está usando só a regra automática. Se o erro for ACAO_DESCONHECIDA, falta a Nova versão do Apps Script.'}</div>
-  <div class="cfg-aviso">Aporte de capital, distribuição de lucros e cota capital <b>não contam como gasto nem como receita ou lucro</b> em nenhuma tela. Eles só aparecem no <b>Fluxo de Caixa mês a mês</b>, quando a opção "Incluir aportes e distribuições" estiver ligada.</div>
+  <div class="cfg-aviso">Aporte de capital, distribuição de lucros e cota capital <b>não contam como gasto nem como receita ou lucro</b> em nenhuma tela. Eles entram só na <b>exposição de caixa</b> (coluna "Sócios" no Fluxo de Caixa e no Desempenho).</div>
   <div class="cfg-res">
     <div><b>${gm}</b>clientes do Grupo Morais</div><div><b>${cliL.length-gm}</b>investidores</div>
     ${Object.entries(tCnt).map(([t,q])=>`<div><b>${q}</b>CCs: ${esc(ROT_TIPO[t]||t)}</div>`).join('')}
