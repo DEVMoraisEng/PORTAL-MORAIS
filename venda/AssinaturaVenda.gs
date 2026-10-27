@@ -199,7 +199,7 @@ function assEnviarTravado_(col, p, pid) {
     .concat(ContratoVenda.faltasContrato(d), ClicksignVenda.faltasAssinatura(d, config));
   if (faltas.length) {
     assLog_("enviar " + pid + " faltas " + faltas.length);
-    return { ok: false, erro: "FALTAM_DADOS", faltas: faltas };
+    return { ok: false, erro: "FALTAM_DADOS", faltas: faltas, corrigir: assCorrigir_(faltas, p.pageId, f.alvos) };
   }
   /* o PDF tem de ser destes dados: carimbo no nome (GerarContrato) igual ao recalculado agora */
   var carimbo = ctrCarimboDoNome_(gerado.nome);
@@ -225,11 +225,21 @@ function assEnviarTermo_(col, p, pid, cols, doc, gerado) {
   cfg.incluirCorretor = false;
   var faltas = config.invalidas.map(function (n) { return "Propriedade " + n + ": JSON inválido"; })
     .concat(PreReservaVenda.faltas(x.t), ClicksignVenda.faltasAssinatura(dAss, cfg));
-  if (faltas.length) { assLog_("enviar termo " + pid + " faltas " + faltas.length); return { ok: false, erro: "FALTAM_DADOS", faltas: faltas }; }
+  if (faltas.length) {
+    assLog_("enviar termo " + pid + " faltas " + faltas.length);
+    return { ok: false, erro: "FALTAM_DADOS", faltas: faltas, corrigir: assCorrigir_(faltas, p.pageId, x.f.alvos) };
+  }
   var carimbo = ctrCarimboDoNome_(gerado.nome);
   if (!carimbo || carimbo !== prCarimbo_(x.t)) { assLog_("enviar termo " + pid + " carimbo diferente"); return { ok: false, erro: "CONTRATO_DESATUALIZADO" }; }
   var nomeCs = "PRÉ-RESERVA - " + ClicksignVenda.nomePadrao(x.f.endereco, x.f.casa, dAss.comprador1 && dAss.comprador1.nome);
   return assCriarEnvelope_(p, pid, cols, doc, gerado, ClicksignVenda.signatarios(dAss, cfg), nomeCs);
+}
+
+/* Atalhos "Corrigir e-mail" (abrem a página do Notion numa aba nova): a linha da venda e as linhas achadas. */
+function assCorrigir_(faltas, pageId, alvos) {
+  alvos = alvos || {};
+  return ClicksignVenda.linksCorrigirEmail(faltas, { venda: pageId, vendedor: alvos.vendedor && alvos.vendedor.id,
+                                                     corretor: alvos.corretor && alvos.corretor.id });
 }
 
 /* Cria envelope → documento → signatários → requisitos → ativa → grava → notifica (contrato e termo). */

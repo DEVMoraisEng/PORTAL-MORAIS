@@ -209,6 +209,19 @@ var ClicksignVenda = (function () {
     return faltas.concat(porPessoa);
   }
 
+  /* 27/10 (dono): falta de e-mail vem com o atalho para corrigir numa aba nova (página do Notion onde o
+   * e-mail mora). ids = { venda, vendedor, corretor } (ids de página); e-mail repetido abre as duas pontas. */
+  function linksCorrigirEmail(faltas, ids) {
+    ids = ids || {};
+    var t = (faltas || []).filter(function (f) { return /e-mail/i.test(f); }).join("\n"), l = [];
+    function url(id) { return id ? "https://www.notion.so/" + String(id).replace(/-/g, "") : ""; }
+    function por(id, rotulo) { if (url(id) && !l.some(function (x) { return x.url === url(id); })) l.push({ rotulo: rotulo, url: url(id) }); }
+    if (/(Comprador [12]|Pré-reservante)[^\n]*e-mail|igual ao de (Comprador|Pré-reservante)/.test(t)) por(ids.venda, "Corrigir e-mail do comprador");
+    if (/Vendedor[^\n]*e-mail|igual ao de Vendedor/.test(t)) por(ids.vendedor, "Corrigir e-mail do vendedor/representante");
+    if (/Corretor[^\n]*e-mail|igual ao de Corretor/.test(t)) por(ids.corretor, "Corrigir e-mail do corretor");
+    return l;
+  }
+
   /* ---- corpos JSON:API (v3) ---- */
   /* Entrega 14 — padrão do dono: "OBRA - COMPRADOR". OBRA = ENDEREÇO da casa + " CASA n" (quando a casa tem
    * número e o endereço ainda não diz essa casa); COMPRADOR = nome do comprador 1. O mesmo nome vai no
@@ -356,7 +369,7 @@ var ClicksignVenda = (function () {
 
   var api = {
     PAPEIS: PAPEIS, SITUACOES: SITUACOES, montarConfig: montarConfig, conferirConfig: conferirConfig, signatarios: signatarios,
-    faltasAssinatura: faltasAssinatura, nomeEnvelope: nomeEnvelope, nomeArquivo: nomeArquivo, nomePadrao: nomePadrao,
+    faltasAssinatura: faltasAssinatura, linksCorrigirEmail: linksCorrigirEmail, nomeEnvelope: nomeEnvelope, nomeArquivo: nomeArquivo, nomePadrao: nomePadrao,
     corpoEnvelope: corpoEnvelope, corpoDocumento: corpoDocumento, corpoSignatario: corpoSignatario,
     corpoQualificacao: corpoQualificacao, corpoAutenticacao: corpoAutenticacao, corpoAtivar: corpoAtivar,
     corpoNotificacao: corpoNotificacao, interpretar: interpretar, situacao: situacao, assinaram: assinaram,

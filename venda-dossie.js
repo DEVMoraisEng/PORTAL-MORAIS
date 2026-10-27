@@ -1036,16 +1036,51 @@
    * Comandos: pr-salvar-conta (grava a conta para devolução na linha), pr-gerar, pr-ver (PDF pelo portal). */
   function brl(n) { return typeof n === "number" ? n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ""; }
   function dataBRpr(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || "")); return m ? m[3] + "/" + m[2] + "/" + m[1] : ""; }
+  /* lista para a busca do banco (código COMPE - nome); dá para digitar um que não esteja aqui */
+  var BANCOS_BR = ["001 - BANCO DO BRASIL", "104 - CAIXA ECONÔMICA FEDERAL", "237 - BRADESCO", "341 - ITAÚ UNIBANCO", "033 - SANTANDER",
+    "756 - SICOOB", "748 - SICREDI", "077 - BANCO INTER", "260 - NUBANK", "336 - C6 BANK", "290 - PAGBANK", "323 - MERCADO PAGO",
+    "380 - PICPAY", "212 - BANCO ORIGINAL", "208 - BTG PACTUAL", "655 - BANCO BV", "422 - SAFRA", "070 - BRB", "041 - BANRISUL",
+    "004 - BANCO DO NORDESTE", "003 - BANCO DA AMAZÔNIA", "021 - BANESTES", "136 - UNICRED", "085 - AILOS", "623 - BANCO PAN",
+    "102 - XP INVESTIMENTOS", "348 - BANCO XP", "197 - STONE", "403 - CORA", "364 - EFÍ", "461 - ASAAS", "389 - MERCANTIL DO BRASIL",
+    "707 - DAYCOVAL", "318 - BANCO BMG", "246 - ABC BRASIL", "634 - TRIBANCO", "121 - AGIBANK", "735 - NEON", "637 - SOFISA"];
+  var TIPOS_CONTA_PR = ["corrente", "poupança", "pagamento"];
+  /* campos da tela a partir do estado (o servidor manda contaCampos já desmontado) */
+  function contaDaTela(e) {
+    var o = (e && e.contaCampos) || {}, c = {};
+    ["forma", "chave", "banco", "agencia", "conta", "tipo", "livre"].forEach(function (k) { c[k] = o[k] || ""; });
+    return c;
+  }
   function htmlPreReserva(e, u) {
     u = u || {};
     var h = '<div class="grp">Termo de pré-reserva</div>';
     if (!e) return h + '<div class="vazio">' + esc(u.msg || "carregando…") + "</div>";
     h += '<div class="dz-linha"><span class="dz-rot">Pré-reserva de R$ ' + esc(brl(e.valor) || "—") + " até " + esc(dataBRpr(e.dataLimite) || "—") +
       " (Propriedades PRE_RESERVA_VALOR e PRE_RESERVA_DATA_LIMITE)</span></div>";
-    var trava = u.testes || !!u.ocupado;
-    h += '<div class="dz-linha"><label class="dz-rot" style="display:block">Conta do pré-reservante para devolução (banco, agência e conta ou chave PIX)</label>' +
-      '<input type="text" data-pr-conta maxlength="300" style="width:100%;max-width:520px" value="' + esc(u.contaDigitada !== undefined ? u.contaDigitada : (e.conta || "")) + '"' + (trava ? " disabled" : "") + "> " +
-      '<button type="button" class="bt ghost bt-mini" data-acao="pr-salvar-conta"' + (trava ? " disabled" : "") + ">Salvar conta</button></div>";
+    var trava = u.testes || !!u.ocupado, dis = trava ? " disabled" : "";
+    /* 27/10 (dono): PIX (chave + banco) ou dados bancários (banco com busca, agência, conta e tipo) */
+    var c = u.contaDigitada || contaDaTela(e), sel = function (v) { return c.forma === v ? " selected" : ""; };
+    var caixa = function (rot, inner) {
+      return '<label style="display:inline-block;margin:4px 12px 4px 0;vertical-align:top"><span class="dz-rot" style="display:block">' + rot + "</span>" + inner + "</label>";
+    };
+    var campo = function (rot, k, ph, extra) {
+      return caixa(rot, '<input type="text" data-pr-c="' + k + '" value="' + esc(c[k] || "") + '" placeholder="' + ph + '"' + (extra || "") + dis + ">");
+    };
+    var banco = campo("Banco", "banco", "digite para buscar", ' list="pr-bancos" maxlength="120" style="min-width:260px"');
+    h += '<div class="dz-linha"><label class="dz-rot" style="display:block">Conta do pré-reservante para devolução</label>' +
+      '<select data-pr-c="forma"' + dis + '><option value="">Escolha…</option><option value="PIX"' + sel("PIX") + ">PIX</option>" +
+      '<option value="BANCO"' + sel("BANCO") + ">Dados bancários</option></select></div>";
+    if (c.livre) h += '<div class="dz-aviso">Conta salva no formato antigo ("' + esc(c.livre) + '"): escolha PIX ou dados bancários e salve de novo.</div>';
+    if (c.forma === "PIX")
+      h += '<div class="dz-linha">' + campo("Chave PIX", "chave", "CPF, e-mail, celular ou chave aleatória", ' maxlength="120" style="min-width:260px"') + banco + "</div>";
+    if (c.forma === "BANCO")
+      h += '<div class="dz-linha">' + banco +
+        campo("Agência", "agencia", "0000", ' maxlength="10" inputmode="numeric" style="width:90px"') +
+        campo("Conta (com dígito)", "conta", "00000-0", ' maxlength="20" style="width:130px"') +
+        caixa("Tipo de conta", '<select data-pr-c="tipo"' + dis + '><option value="">Escolha…</option>' +
+          TIPOS_CONTA_PR.map(function (x) { return '<option value="' + x + '"' + (c.tipo === x ? " selected" : "") + ">" + x.charAt(0).toUpperCase() + x.slice(1) + "</option>"; }).join("") +
+          "</select>") + "</div>";
+    if (c.forma) h += '<div class="dz-linha"><button type="button" class="bt ghost bt-mini" data-acao="pr-salvar-conta"' + dis + ">Salvar conta</button></div>";
+    h += '<datalist id="pr-bancos">' + BANCOS_BR.map(function (b) { return '<option value="' + esc(b) + '">'; }).join("") + "</datalist>";
     if (u.ocupado === "gerar") h += '<div class="dz-linha"><b>gerando o termo… (até 1 minuto)</b></div>';
     if (u.ocupado === "ver") h += '<div class="dz-linha"><b>abrindo o termo…</b></div>';
     if (u.ocupado === "conta") h += '<div class="dz-linha"><b>salvando a conta…</b></div>';
@@ -1061,7 +1096,9 @@
   }
   function mensagemPR(r) {
     var e = (r && r.erro) || "";
-    var M = { CONTA_CURTA: "Digite a conta completa (banco, agência e conta, ou a chave PIX).", CONTA_LONGA: "A conta passou de 300 caracteres.",
+    var M = { FORMA_CONTA: "Escolha PIX ou dados bancários.", PIX_SEM_CHAVE: "Digite a chave PIX completa.", SEM_BANCO: "Informe o banco.",
+              AGENCIA_INVALIDA: "Agência: só números (e hífen, se tiver dígito).", CONTA_INVALIDA: "Conta: números com o dígito (ex.: 12345-6).",
+              TIPO_CONTA_INVALIDO: "Escolha o tipo de conta.", CONTA_LONGA: "A chave ou o banco ficou longo demais.",
               MODELO_NAO_CONFIGURADO: "O modelo do termo (MODELO_PRE_RESERVA_ID) não está configurado — avise o desenvolvedor.",
               SEM_TERMO_GERADO: "Ainda não há termo gerado.", SO_CONDOMINIO: "O termo de pré-reserva é só do condomínio.",
               SEM_PERMISSAO_TESTES: "Perfil TESTES não gera nem grava.", SEM_RESPOSTA: "O servidor não respondeu — tente de novo." };
@@ -1189,7 +1226,12 @@
       ctxP.contratoGerado = !!(estadoP && estadoP.gerado);
       return window.VendaAssinatura.montarBlocoAssinatura(ctxP);
     }
-    function guardarContaPR() { var x = dentro("[data-pr-conta]"); if (x) uiP.contaDigitada = x.value; }
+    function guardarContaPR() {
+      var w = dentro(".vb-pr"); if (!w || !w.querySelector("[data-pr-c]")) return;
+      var c = uiP.contaDigitada || contaDaTela(estadoP);
+      Array.prototype.forEach.call(w.querySelectorAll("[data-pr-c]"), function (x) { c[x.getAttribute("data-pr-c")] = x.value; });
+      uiP.contaDigitada = c;
+    }
     function pintarP() {
       var w = dentro(".vb-pr"); if (w) { guardarContaPR(); w.innerHTML = htmlPreReserva(estadoP, uiP); }
       var a = dentro(".vb-pr-ass"); if (a) a.innerHTML = htmlAssPR();
@@ -1197,7 +1239,7 @@
     async function carregarPR() {
       var r = await chamarVenda({ action: "preReservaEstado", pageId: pageId });
       if (!vivo()) return;
-      if (r.ok) { estadoP = { conta: r.conta || "", gerado: !!r.gerado, nome: r.nome || "", valor: r.valor, dataLimite: r.dataLimite || "" }; uiP.msg = ""; }
+      if (r.ok) { estadoP = { conta: r.conta || "", contaCampos: r.contaCampos || null, gerado: !!r.gerado, nome: r.nome || "", valor: r.valor, dataLimite: r.dataLimite || "" }; uiP.msg = ""; }
       else uiP.msg = mensagemPR(r);
       pintarP();
     }
@@ -1233,10 +1275,15 @@
       if (acao === "pr-salvar-conta") {
         guardarContaPR();
         uiP.ocupado = "conta"; uiP.msg = ""; pintarP();
-        var rc = await chamarVenda({ action: "salvarContaPreReserva", pageId: pageId, conta: uiP.contaDigitada || "" });
+        var cs = uiP.contaDigitada || contaDaTela(estadoP), envio = { forma: cs.forma, banco: cs.banco };
+        if (cs.forma === "PIX") envio.chave = cs.chave; else { envio.agencia = cs.agencia; envio.conta = cs.conta; envio.tipo = cs.tipo; }
+        var rc = await chamarVenda({ action: "salvarContaPreReserva", pageId: pageId, conta: envio });
         if (!vivo()) return;
         uiP.ocupado = null;
-        if (rc.ok) { estadoP.conta = rc.conta; uiP.contaDigitada = undefined; uiP.msg = "Conta salva."; }
+        if (rc.ok) {
+          estadoP.conta = rc.conta; estadoP.contaCampos = rc.contaCampos || null; uiP.contaDigitada = undefined;
+          uiP.msg = "Conta salva: " + rc.conta + (estadoP.gerado ? " — gere o termo de novo para valer." : "");
+        }
         else uiP.msg = mensagemPR(rc);
         pintarP();
         return;
@@ -1526,6 +1573,7 @@
         el.addEventListener("click", function (ev) { if (raiz === el) aoClicar(ev); });
         el.addEventListener("change", function (ev) {
           if (raiz !== el) return;
+          if (ev.target.getAttribute("data-pr-c") === "forma") { guardarContaPR(); pintarP(); return; }
           if (ev.target.hasAttribute("data-testemunha")) aoEscolherTestemunha();
           else if (ev.target.hasAttribute("data-conta")) aoEscolherConta(ev.target.value);
           else if (ev.target.hasAttribute("data-rec-arq")) {
@@ -1622,7 +1670,7 @@
     var st = document.createElement("style"); st.textContent = CSS; document.head.appendChild(st);
     /* o bloco de assinatura mora em arquivo próprio; vendas.html continua com uma linha só.
        Carrega mesmo sem o painel da casa: o cartão do condomínio também usa. */
-    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=4";
+    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=5";
     sa.onload = function () { [blocosCasa, blocosCond].forEach(function (b) { if (b) b.pintarAssinatura(); }); };
     document.head.appendChild(sa);
     var body = document.getElementById("pn-body"); if (!body) return;

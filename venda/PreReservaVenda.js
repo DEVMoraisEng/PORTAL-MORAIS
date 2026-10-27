@@ -71,7 +71,8 @@ var PreReservaVenda = (function () {
     exige(!vazio(p.email), "Pré-reservante: e-mail (coluna Email)");
     exige(!vazio(t.unidade), "Unidade");
     if (!vazio(t.unidade)) exige(!!t.tabela, "Unidade: fora da tabela do condomínio (tipo da casa)");
-    exige(!vazio(t.conta), "Conta para devolução (preencha no cartão)");
+    if (vazio(t.conta)) f.push("Conta para devolução (preencha no cartão)");
+    else if (!lerConta(t.conta).forma) f.push("Conta para devolução: escolha PIX ou dados bancários e salve de novo");
     exige(t.valor !== null, "Propriedade PRE_RESERVA_VALOR (valor da pré-reserva)");
     exige(!vazio(t.dataLimite), "Propriedade PRE_RESERVA_DATA_LIMITE (dia da assinatura do contrato)");
     return f;
@@ -101,16 +102,54 @@ var PreReservaVenda = (function () {
              conta: t.conta, valor: t.valor, dataLimite: t.dataLimite };
   }
 
-  /* Conta digitada no cartão: texto livre curto (banco, agência, conta ou chave PIX). { ok, valor } ou { ok:false, erro } */
+  /* 27/10 (dono): a conta deixou de ser texto livre. O cartão escolhe PIX (chave + banco) ou dados
+   * bancários (banco, agência, conta e tipo); a coluna guarda a frase pronta que entra no termo
+   * ("qual seja: ...") e lerConta a desmonta de volta para a tela. */
+  var TIPOS_CONTA = ["corrente", "poupança", "pagamento"];
+  var RE_PIX = /^PIX, chave (.+), no banco (.+)$/;
+  var RE_BANCO = /^Banco (.+), agência ([0-9][0-9-]*), conta (corrente|poupança|pagamento) nº ([0-9][0-9xX-]*)$/;
+  function limpa(v) { return txt(v).replace(/\{\{|\}\}/g, "").replace(/\s+/g, " ").trim(); }
+
+  /* o = { forma: "PIX", chave, banco } | { forma: "BANCO", banco, agencia, conta, tipo } -> { ok, valor } ou { ok:false, erro } */
+  function montarConta(o) {
+    o = o || {};
+    var forma = limpa(o.forma).toUpperCase(), banco = limpa(o.banco).replace(/,/g, " ").replace(/\s+/g, " ");
+    if (forma === "PIX") {
+      var chave = limpa(o.chave).replace(/,/g, "");
+      if (chave.length < 5) return { ok: false, erro: "PIX_SEM_CHAVE" };
+      if (chave.length > 120) return { ok: false, erro: "CONTA_LONGA" };
+      if (banco.length < 2) return { ok: false, erro: "SEM_BANCO" };
+      return { ok: true, valor: "PIX, chave " + chave + ", no banco " + banco.slice(0, 120) };
+    }
+    if (forma === "BANCO") {
+      var ag = limpa(o.agencia).replace(/\s/g, ""), ct = limpa(o.conta).replace(/\s/g, ""), tipo = limpa(o.tipo).toLowerCase();
+      if (banco.length < 2) return { ok: false, erro: "SEM_BANCO" };
+      if (!/^[0-9][0-9-]{0,9}$/.test(ag)) return { ok: false, erro: "AGENCIA_INVALIDA" };
+      if (!/^[0-9][0-9xX-]{0,19}$/.test(ct)) return { ok: false, erro: "CONTA_INVALIDA" };
+      if (TIPOS_CONTA.indexOf(tipo) < 0) return { ok: false, erro: "TIPO_CONTA_INVALIDO" };
+      return { ok: true, valor: "Banco " + banco.slice(0, 120) + ", agência " + ag + ", conta " + tipo + " nº " + ct };
+    }
+    return { ok: false, erro: "FORMA_CONTA" };
+  }
+  /* frase gravada -> objeto da tela; texto antigo (livre) volta como { forma: "", livre } */
+  function lerConta(s) {
+    s = txt(s);
+    var m;
+    if ((m = RE_PIX.exec(s))) return { forma: "PIX", chave: m[1], banco: m[2] };
+    if ((m = RE_BANCO.exec(s))) return { forma: "BANCO", banco: m[1], agencia: m[2], tipo: m[3], conta: m[4] };
+    return { forma: "", livre: s };
+  }
+  /* Entrada do cartão: objeto estruturado (o normal) ou a frase já montada. { ok, valor } ou { ok:false, erro } */
   function validarConta(v) {
-    var s = txt(v).replace(/\{\{|\}\}/g, "").replace(/\s+/g, " ").trim();
-    if (s.length < 5) return { ok: false, erro: "CONTA_CURTA" };
-    if (s.length > 300) return { ok: false, erro: "CONTA_LONGA" };
-    return { ok: true, valor: s };
+    if (v && typeof v === "object") return montarConta(v);
+    var s = limpa(v);
+    if (!s) return { ok: false, erro: "FORMA_CONTA" };
+    return lerConta(s).forma ? { ok: true, valor: s } : { ok: false, erro: "FORMA_CONTA" };
   }
 
   var api = { COL: COL, TIPOS: TIPOS, montar: montar, faltas: faltas, marcadores: marcadores, baseCarimbo: baseCarimbo,
-              validarConta: validarConta, valorDe: valorDe, dataIso: dataIso };
+              validarConta: validarConta, montarConta: montarConta, lerConta: lerConta, TIPOS_CONTA: TIPOS_CONTA,
+              valorDe: valorDe, dataIso: dataIso };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   return api;
 })();

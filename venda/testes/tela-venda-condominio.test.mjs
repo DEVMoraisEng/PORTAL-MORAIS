@@ -264,20 +264,21 @@ const cenarioPR = (o = {}) => cenario({ docEnd: "CONDOMÍNIO RESERVA DOS IPÊS",
 
 test("termo: estado, falta a conta, salva a conta, gera o PDF com o carimbo na coluna própria", () => {
   const c = cenarioPR();
-  assert.deepEqual(c.acao("preReservaEstado"), { ok: true, conta: "", gerado: false, nome: "", valor: 3000, dataLimite: "2026-10-31" });
+  assert.deepEqual(c.acao("preReservaEstado"), { ok: true, conta: "", contaCampos: { forma: "", livre: "" }, gerado: false, nome: "", valor: 3000, dataLimite: "2026-10-31" });
   const sem = c.acao("gerarTermoPreReserva");
   assert.equal(sem.erro, "FALTAM_DADOS");
   assert.deepEqual(sem.faltas, ["Conta para devolução (preencha no cartão)"]);
-  assert.equal(c.acao("salvarContaPreReserva", { conta: "abc" }).erro, "CONTA_CURTA");
-  assert.deepEqual(c.acao("salvarContaPreReserva", { conta: "PIX CPF da compradora" }), { ok: true, conta: "PIX CPF da compradora" });
-  assert.equal(c.txt("PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO"), "PIX CPF da compradora");
+  assert.equal(c.acao("salvarContaPreReserva", { conta: "abc" }).erro, "FORMA_CONTA");
+  assert.deepEqual(c.acao("salvarContaPreReserva", { conta: { forma: "PIX", chave: "529.982.247-25", banco: "756 - SICOOB" } }),
+    { ok: true, conta: "PIX, chave 529.982.247-25, no banco 756 - SICOOB", contaCampos: { forma: "PIX", chave: "529.982.247-25", banco: "756 - SICOOB" } });
+  assert.equal(c.txt("PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO"), "PIX, chave 529.982.247-25, no banco 756 - SICOOB");
   const r = c.acao("gerarTermoPreReserva");
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.match(r.nome, /^TERMO DE PRÉ-RESERVA - CONDOMÍNIO RESERVA DOS IPÊS - CASA 13 - .* \[#[0-9a-f]{8}\]\.pdf$/);
   const pars = c.d.estado.salvos[c.d.estado.copias[0].id].pars;
   assert.ok(pars[0].includes("Compradora de Teste") && pars[0].includes("CPF nº 529.982.247-25") && pars[0].includes("telefone 62 90000-0000"), pars[0]);
   assert.equal(pars[1], "Casa 13 Tipo 02 até 31/10/2026 por R$ 3.000,00 (três mil reais) (3.000,00)");
-  assert.equal(pars[2], "Devolução: PIX CPF da compradora");
+  assert.equal(pars[2], "Devolução: PIX, chave 529.982.247-25, no banco 756 - SICOOB");
   assert.equal(c.n.pagina.properties["PRÉ-RESERVA - TERMO GERADO"].files[0].name, r.nome);
   assert.equal(c.n.pagina.properties["CONTRATO GERADO"].files.length, 0, "o termo não mexe no contrato");
   const e = c.acao("preReservaEstado");
@@ -288,7 +289,7 @@ test("termo: estado, falta a conta, salva a conta, gera o PDF com o carimbo na c
 });
 
 test("termo na Clicksign: envia com doc PRE_RESERVA (pré-reservante, vendedora, testemunhas), colunas do termo; contrato intocado", () => {
-  const c = cenarioPR({ linha: { "PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO": texto("PIX CPF da compradora") } });
+  const c = cenarioPR({ linha: { "PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO": texto("PIX, chave 529.982.247-25, no banco 756 - SICOOB") } });
   assert.equal(c.acao("assinaturaEnviar", { doc: "PRE_RESERVA" }).erro, "SEM_TERMO_GERADO");
   assert.equal(c.acao("gerarTermoPreReserva").ok, true);
   const r = c.acao("assinaturaEnviar", { doc: "PRE_RESERVA" });
@@ -304,9 +305,9 @@ test("termo na Clicksign: envia com doc PRE_RESERVA (pré-reservante, vendedora,
 });
 
 test("termo: conta mudada depois de gerar = CONTRATO_DESATUALIZADO; perfil TESTES não grava", () => {
-  const c = cenarioPR({ linha: { "PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO": texto("PIX CPF da compradora") } });
+  const c = cenarioPR({ linha: { "PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO": texto("PIX, chave 529.982.247-25, no banco 756 - SICOOB") } });
   assert.equal(c.acao("gerarTermoPreReserva").ok, true);
-  c.n.pagina.properties["PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO"] = { type: "rich_text", rich_text: [{ plain_text: "outra conta" }] };
+  c.n.pagina.properties["PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO"] = { type: "rich_text", rich_text: [{ plain_text: "PIX, chave outra-chave, no banco 001 - BB" }] };
   assert.equal(c.acao("assinaturaEnviar", { doc: "PRE_RESERVA" }).erro, "CONTRATO_DESATUALIZADO");
   for (const action of ["gerarTermoPreReserva", "salvarContaPreReserva"])
     assert.equal(c.acao(action, { conta: "conta de teste" }, token("TESTES")).erro, "SEM_PERMISSAO_TESTES", action);
@@ -316,7 +317,7 @@ test("termo: conta mudada depois de gerar = CONTRATO_DESATUALIZADO; perfil TESTE
 test("termo: coluna faltando e logs sem dado pessoal", () => {
   const c = cenarioPR({ sem: ["PRÉ-RESERVA - TERMO GERADO"] });
   assert.equal(c.acao("preReservaEstado").erro, "COLUNA_FALTANDO: PRÉ-RESERVA - TERMO GERADO");
-  const d = cenarioPR({ linha: { "PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO": texto("PIX CPF da compradora") } });
+  const d = cenarioPR({ linha: { "PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO": texto("PIX, chave 529.982.247-25, no banco 756 - SICOOB") } });
   d.acao("gerarTermoPreReserva"); d.acao("assinaturaEnviar", { doc: "PRE_RESERVA" });
   const todos = d.g.logs.join(" | ");
   for (const s of ["Compradora", "529.982", "PIX CPF", "3.000"]) assert.ok(!todos.includes(s), "log vazou: " + s);

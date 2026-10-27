@@ -139,6 +139,11 @@
     if (c.faltas && c.faltas.length) {
       h += '<div class="dz-aviso">Para enviar, falta:</div><ul>' +
         c.faltas.map(function (f) { return "<li>" + esc(f) + "</li>"; }).join("") + "</ul>";
+      /* 27/10: atalho para corrigir o e-mail numa aba nova; depois é só clicar em Enviar de novo */
+      if (c.corrigir && c.corrigir.length)
+        h += '<div class="dz-linha">' + c.corrigir.filter(function (l) { return /^https:\/\/www\.notion\.so\//.test(l.url); }).map(function (l) {
+          return '<a class="bt ghost bt-mini" target="_blank" rel="noopener" href="' + esc(l.url) + '">' + esc(l.rotulo) + " &#8599;</a>";
+        }).join(" ") + ' <span class="ass-data">corrija na aba que abrir e clique em Enviar de novo</span></div>';
     }
     var rotulo = e.envelope && REENVIAVEL.indexOf(sit) >= 0 ? "Enviar de novo para assinatura" : "Enviar para assinatura";
     h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="' + x + 'enviar"' + (podeEnviar(c) ? "" : " disabled") + ">" + rotulo + "</button>";
@@ -169,7 +174,7 @@
     var enviar = acao === "a-enviar";
     if (enviar ? !podeEnviar(c) : (acao !== "a-atualizar" || !podeAtualizar(c))) return c;
     if (enviar && !deps.confirmar("Enviar o " + (ehTermo(c) ? "termo de pré-reserva" : "contrato") + " para assinatura? Cada signatário recebe um e-mail da Clicksign para assinar.")) return c;
-    if (typeof deps.pintar === "function") deps.pintar(copia(c, { ocupado: enviar ? "enviar" : "atualizar", msg: "", faltas: null }));
+    if (typeof deps.pintar === "function") deps.pintar(copia(c, { ocupado: enviar ? "enviar" : "atualizar", msg: "", faltas: null, corrigir: null }));
     var r;
     try {
       r = await deps.chamar(comDoc(c, { action: enviar ? "assinaturaEnviar" : "assinaturaEstado", pageId: deps.pageId }));
@@ -178,7 +183,7 @@
     }
     r = r || { ok: false, erro: "SEM_RESPOSTA" };
     if (!r.ok) {
-      var falhou = { ocupado: null, faltas: r.faltas || null, msg: mensagemAssinatura(r) };
+      var falhou = { ocupado: null, faltas: r.faltas || null, corrigir: r.corrigir || null, msg: mensagemAssinatura(r) };
       /* o envio deixou envelope na Clicksign (rascunho não apagado, ou ativo sem anotar), ou outra aba já
        * tinha enviado: o bloco passa a mostrar envelope — Enviar trava e Atualizar situação aparece */
       if (enviar && r.erro === "ENVELOPE_ABERTO")
@@ -189,7 +194,7 @@
     }
     var estado = { situacao: r.situacao || "", envelope: enviar ? true : !!r.envelope, signatarios: r.signatarios || [], temAssinado: !!r.temAssinado };
     var msg = mensagemAssinatura(r) || (enviar ? "Enviado — cada signatário recebe o e-mail da Clicksign." : "Situação atualizada.");
-    return copia(c, { estado: estado, ocupado: null, faltas: null, msg: msg });
+    return copia(c, { estado: estado, ocupado: null, faltas: null, corrigir: null, msg: msg });
   }
 
   /* Reenvia o e-mail da Clicksign a quem ainda não assinou (ação assinaturaReenviar). */

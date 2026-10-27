@@ -18,7 +18,7 @@ function dados(c1 = {}, cond = {}) {
     hojeISO: "2026-10-27",
   });
 }
-const X = { conta: "PIX CPF da compradora", valor: "3000", dataLimite: "2026-10-31", hojeISO: "2026-10-27" };
+const X = { conta: "PIX, chave 529.982.247-25, no banco 756 - SICOOB", valor: "3000", dataLimite: "2026-10-31", hojeISO: "2026-10-27" };
 
 test("termo completo: sem faltas e todos os marcadores preenchidos", () => {
   const t = P.montar(dados(), X);
@@ -31,7 +31,7 @@ test("termo completo: sem faltas e todos os marcadores preenchidos", () => {
   assert.equal(m.PRE_RESERVA_VALOR, "3.000,00");
   assert.equal(m.PRE_RESERVA_VALOR_EXTENSO, "R$ 3.000,00 (três mil reais)");
   assert.equal(m.PRE_RESERVA_DATA_LIMITE, "31/10/2026");
-  assert.equal(m.PRE_RESERVANTE_CONTA, "PIX CPF da compradora");
+  assert.equal(m.PRE_RESERVANTE_CONTA, "PIX, chave 529.982.247-25, no banco 756 - SICOOB");
   assert.equal(m.PRE_RESERVANTE_NOME, "COMPRADORA TESTE");
   assert.equal(m.PRE_RESERVANTE_CPF, "529.982.247-25");
   assert.equal(m.CIDADE_DATA, "Goiânia, 27 de outubro de 2026");
@@ -66,8 +66,26 @@ test("carimbo: muda com a conta e com o valor; não muda com a data de hoje", ()
   assert.notEqual(JSON.stringify(P.baseCarimbo(P.montar(dados(), { ...X, valor: "3500" }))), a);
 });
 
-test("conta digitada: curta, longa, chaves de marcador fora", () => {
-  assert.deepEqual(P.validarConta("abc"), { ok: false, erro: "CONTA_CURTA" });
-  assert.deepEqual(P.validarConta("x".repeat(301)), { ok: false, erro: "CONTA_LONGA" });
-  assert.deepEqual(P.validarConta("  Banco 001  {{AG}} 1234 "), { ok: true, valor: "Banco 001 AG 1234" });
+test("conta: PIX (chave + banco) ou dados bancários (banco, agência, conta, tipo)", () => {
+  assert.deepEqual(P.validarConta({ forma: "PIX", chave: " 62 99999-0000 ", banco: "077 - INTER" }),
+    { ok: true, valor: "PIX, chave 62 99999-0000, no banco 077 - INTER" });
+  assert.deepEqual(P.validarConta({ forma: "BANCO", banco: "756 - SICOOB", agencia: "3001", conta: "12345-6", tipo: "Corrente" }),
+    { ok: true, valor: "Banco 756 - SICOOB, agência 3001, conta corrente nº 12345-6" });
+  assert.equal(P.validarConta({ forma: "PIX", chave: "abc", banco: "INTER" }).erro, "PIX_SEM_CHAVE");
+  assert.equal(P.validarConta({ forma: "PIX", chave: "abcdef", banco: "" }).erro, "SEM_BANCO");
+  assert.equal(P.validarConta({ forma: "BANCO", banco: "SICOOB", agencia: "ag 1", conta: "1", tipo: "corrente" }).erro, "AGENCIA_INVALIDA");
+  assert.equal(P.validarConta({ forma: "BANCO", banco: "SICOOB", agencia: "1", conta: "", tipo: "corrente" }).erro, "CONTA_INVALIDA");
+  assert.equal(P.validarConta({ forma: "BANCO", banco: "SICOOB", agencia: "1", conta: "2", tipo: "salário" }).erro, "TIPO_CONTA_INVALIDO");
+  assert.equal(P.validarConta({}).erro, "FORMA_CONTA");
+  assert.equal(P.validarConta("64993060877").erro, "FORMA_CONTA");      // texto livre não vale mais
+  assert.equal(P.validarConta({ forma: "PIX", chave: "{{X}}chave1", banco: "B, C" }).valor, "PIX, chave Xchave1, no banco B C");
+});
+
+test("conta: a frase gravada volta para a tela; texto antigo pede para escolher de novo", () => {
+  for (const o of [{ forma: "PIX", chave: "a@b.com", banco: "001 - BANCO DO BRASIL" },
+                   { forma: "BANCO", banco: "104 - CAIXA", agencia: "0012", conta: "000123-4", tipo: "poupança" }])
+    assert.deepEqual(P.lerConta(P.montarConta(o).valor), o);
+  assert.deepEqual(P.lerConta("64993060877"), { forma: "", livre: "64993060877" });
+  assert.ok(P.faltas(P.montar(dados(), { ...X, conta: "64993060877" }))
+    .includes("Conta para devolução: escolha PIX ou dados bancários e salve de novo"));
 });

@@ -47,7 +47,8 @@ function prDados_(col, p, pid, rot) {
 
 function preReservaEstado_(col, p) {
   var pg = ctrLerPaginaVenda_(p.pageId), g = prArquivoGerado_(pg);
-  return { ok: true, conta: prTexto_(pg, PreReservaVenda.COL.CONTA), gerado: !!g, nome: g ? g.nome : "",
+  var conta = prTexto_(pg, PreReservaVenda.COL.CONTA);
+  return { ok: true, conta: conta, contaCampos: PreReservaVenda.lerConta(conta), gerado: !!g, nome: g ? g.nome : "",
            valor: PreReservaVenda.valorDe(prop_("PRE_RESERVA_VALOR")), dataLimite: PreReservaVenda.dataIso(prop_("PRE_RESERVA_DATA_LIMITE")) };
 }
 
@@ -58,7 +59,7 @@ function salvarContaPreReserva_(col, sess, p) {
   props[prCol_(pg, PreReservaVenda.COL.CONTA)] = propNotion_("rich_text", v.valor);
   notion_("PATCH", "/pages/" + p.pageId, { properties: props });
   ctrLog_("salvarContaPreReserva " + pid + " por " + ctrTxt_(sess && sess.u));
-  return { ok: true, conta: v.valor };
+  return { ok: true, conta: v.valor, contaCampos: PreReservaVenda.lerConta(v.valor) };
 }
 
 function gerarTermoPreReserva_(col, sess, p) {
