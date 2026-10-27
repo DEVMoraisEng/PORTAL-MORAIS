@@ -35,7 +35,7 @@ import os
 import sys
 
 from . import regras as R
-from .erp import Erp, ErpErro
+from .erp import Erp, ErpErro, do_ambiente, faltam_segredos
 
 SUFIXO = " (Distrato)"
 COL_VENDA_ID = "MC - VENDA ID"
@@ -490,12 +490,11 @@ def main(argv=None) -> int:
     if a.marcar_erro is not None:
         anotar(a.marcar_erro or "o robô falhou — veja o GitHub Actions", so_se_processando=True)
         return sair({"situacao": "ERRO", "codigo": "WORKFLOW_FALHOU"}, 1)
-    falta = [n for n in ("NOTION_TOKEN", "MC_ROBO_EMAIL", "MC_ROBO_SENHA") if not os.environ.get(n)]
+    falta = faltam_segredos(("NOTION_TOKEN",))
     if falta:
         anotar("o robô está sem configuração (segredos do GitHub)")
         return sair({"situacao": "ERRO", "codigo": "SEM_SEGREDOS"}, 2)
-    erp = Erp(os.environ["MC_ROBO_EMAIL"].strip(), os.environ["MC_ROBO_SENHA"].strip(chr(13) + chr(10)),
-              aparelho=os.environ.get("MC_ROBO_APARELHO", "").strip())
+    erp = do_ambiente()
     try:
         res = processar(a.page, notion, erp, a.recebeu, a.destino,
                         aplicar=a.aplicar and not a.bloqueado, bloqueado=a.bloqueado, valor=a.valor, data=a.data)

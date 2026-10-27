@@ -9,7 +9,7 @@ import os
 import sys
 
 from . import regras as R
-from .erp import Erp, ErpErro
+from .erp import Erp, ErpErro, do_ambiente, faltam_segredos
 
 
 def _itens(resp):
@@ -46,8 +46,7 @@ def main(argv=None) -> int:
     if len(termo) < 3:
         print("informe um termo com 3+ letras")
         return 2
-    erp = Erp(os.environ["MC_ROBO_EMAIL"].strip(), os.environ["MC_ROBO_SENHA"].strip(chr(13) + chr(10)),
-              aparelho=os.environ.get("MC_ROBO_APARELHO", "").strip())
+    erp = do_ambiente()
     achados = buscar(erp, termo)
     print(json.dumps(achados, ensure_ascii=False, indent=1))
     return 0

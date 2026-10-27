@@ -16,7 +16,7 @@ import sys
 
 import requests
 
-from venda.mc.erp import Erp, ErpErro
+from venda.mc.erp import Erp, ErpErro, do_ambiente, faltam_segredos
 
 SGS = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.%d/dados"
 DESDE = "2025-01"   # meses anteriores não servem a nenhuma venda nova
@@ -114,13 +114,12 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--aplicar", action="store_true")
     a = ap.parse_args(argv)
-    falta = [n for n in ("MC_ROBO_EMAIL", "MC_ROBO_SENHA") if not os.environ.get(n)]
+    falta = faltam_segredos()
     if falta:
         print(json.dumps({"situacao": "ERRO", "codigo": "SEM_SEGREDOS"}))
         return 2
     series = {t["serie"]: serie_bcb(t["serie"]) for t in TABELAS}
-    erp = Erp(os.environ["MC_ROBO_EMAIL"].strip(), os.environ["MC_ROBO_SENHA"].strip(chr(13) + chr(10)),
-              aparelho=os.environ.get("MC_ROBO_APARELHO", "").strip())
+    erp = do_ambiente()
     try:
         res = rodar(erp, a.aplicar, series)
     except ErpErro as e:

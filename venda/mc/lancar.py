@@ -28,7 +28,7 @@ import sys
 
 from . import condominio as C
 from . import regras as R
-from .erp import Erp, ErpErro
+from .erp import Erp, ErpErro, do_ambiente, faltam_segredos
 from .notion import Notion
 
 
@@ -354,13 +354,12 @@ def main(argv=None) -> int:
             _anotar_erro(notion, a.page, a.marcar_erro or "o robô falhou — veja o GitHub Actions",
                          manter_erro_anterior=True)
         return sair({"situacao": "ERRO", "codigo": "WORKFLOW_FALHOU"}, 1)
-    falta = [n for n in ("NOTION_TOKEN", "MC_ROBO_EMAIL", "MC_ROBO_SENHA") if not os.environ.get(n)]
+    falta = faltam_segredos(("NOTION_TOKEN",))
     if falta:
         if notion:
             _anotar_erro(notion, a.page, "o robô está sem configuração (segredos do GitHub)")
         return sair({"situacao": "ERRO", "codigo": "SEM_SEGREDOS"}, 2)
-    erp = Erp(os.environ["MC_ROBO_EMAIL"].strip(), os.environ["MC_ROBO_SENHA"].strip(chr(13) + chr(10)),
-              aparelho=os.environ.get("MC_ROBO_APARELHO", "").strip())
+    erp = do_ambiente()
     if a.sondar:
         try:
             return sair(sondar(a.page, notion, erp), 0)
