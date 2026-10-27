@@ -99,7 +99,7 @@ test("condomínio completo: sem faltas; comissão do COMPRADOR DENTRO do valor d
   assert.equal(m.COMISSAO_PCT, "4,5");
   assert.equal(m.COMISSAO_VALOR, "13.725,00");
   assert.equal(m.CORRETOR_DOC_ROTULO, "CPF nº 246.813.579-28");
-  assert.equal(m.MEIO_PAGAMENTO, "boleto bancário ou PIX");
+  assert.equal(m.MEIO_PAGAMENTO, "sinal (item 4.1.3) por PIX; parcelas da entrada por boleto bancário");   // 27/10: sem proposta = sinal por PIX
   assert.equal(m.CIDADE_DATA, "Goiânia, 7 de outubro de 2026", "condomínio: a data da assinatura, não a de hoje");
 });
 
@@ -195,4 +195,13 @@ test("pré-reserva assinada (27/10): o valor já pago é abatido do sinal no 4.1
     "sendo R$ 3.000,00 (três mil reais) já pagos a título de pré-reserva (Termo de Pré-Reserva), abatidos do sinal");
   assert.equal(C.marcadores(dados({ condominio: { preReserva: { assinado: false, valor: 3000 } } })).SINAL_VENCIMENTO,
     "07/10/2026 (R$ 1.000,00), 07/11/2026 (R$ 3.000,00), 07/12/2026 (R$ 3.000,00) e 07/01/2027 (R$ 3.000,00)");
+});
+
+test("27/10 (dono): meio de pagamento — sinal por PIX ou abatido pelo valor para entrada da proposta; parcelas por boleto", () => {
+  const co = (vpe) => ({ fluxo: { sinalAto: 1000, sinal30: 3000, sinal60: 3000, sinal90: 3000 }, valorParaEntrada: vpe });
+  assert.equal(C.meioPagamentoCondominio(co(null)), "sinal (item 4.1.3) por PIX; parcelas da entrada por boleto bancário");
+  assert.equal(C.meioPagamentoCondominio(co(20000)), "sinal (item 4.1.3) abatido do valor para entrada informado na proposta; parcelas da entrada por boleto bancário");
+  assert.equal(C.meioPagamentoCondominio(co(4000)),
+    "sinal (item 4.1.3): R$ 4.000,00 (quatro mil reais) abatidos do valor para entrada informado na proposta e R$ 6.000,00 (seis mil reais) por PIX; parcelas da entrada por boleto bancário");
+  assert.equal(C.meioPagamentoCondominio({ fluxo: {} }), "parcelas da entrada por boleto bancário");
 });

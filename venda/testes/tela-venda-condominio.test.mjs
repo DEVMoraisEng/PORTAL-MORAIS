@@ -172,7 +172,7 @@ test("gerarContrato na linha do condomínio: modelo do condomínio, PDF em CONTR
   /* quadro-resumo (21/10): e-mail e telefone do comprador e do corretor, % da comissão pela regra, meio de pagamento padrão */
   const q = pars.find((l) => l.startsWith("QUADRO: "));
   assert.ok(q.includes("CPF nº 529.982.247-25, residente e domiciliado(a) à ") && q.includes(", e-mail compradora@teste.example, telefone 62 90000-0000 | "), q);
-  assert.ok(q.includes("| Corretor Teste, CRECI nº 40167, CPF nº 246.813.579-28, e-mail corretor@teste.example, telefone 62 91111-1111 | 4,5% | boleto bancário ou PIX | casa 13"), q);
+  assert.ok(q.includes("| Corretor Teste, CRECI nº 40167, CPF nº 246.813.579-28, e-mail corretor@teste.example, telefone 62 91111-1111 | 4,5% | sinal (item 4.1.3) por PIX; parcelas da entrada por boleto bancário | casa 13"), q);
   assert.equal(c.n.pagina.properties["CONTRATO GERADO"].files.length, 1);
   assert.equal(c.n.pagina.properties["CONTRATO GERADO"].files[0].name, r.nome);
   const e = c.acao("contratoEstado");

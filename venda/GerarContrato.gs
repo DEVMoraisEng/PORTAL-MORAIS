@@ -234,6 +234,16 @@ function ctrLerCondominio_(idCond) {
   return { c: ctrPorChave_(pg.properties || {}) };
 }
 /* Fluxo, fiadores, unidade e corretor da linha do condomínio (nomes de coluna comparados normalizados). */
+/* 27/10: VALOR PARA ENTRADA da proposta (o simulador abate o sinal com ele, na ordem ato → 30 → 60 → 90).
+   Sem proposta legível: null (o contrato diz "por PIX"). */
+function ctrValorParaEntrada_(idProposta) {
+  if (!/^[0-9a-f-]{32,36}$/i.test(String(idProposta || ""))) return null;
+  try {
+    var pp = notion_("GET", "/pages/" + idProposta, null);
+    var x = pp && pp.properties ? ctrCampo_(ctrPorChave_(pp.properties), "VALOR PARA ENTRADA") : null;
+    return x === null || x === undefined ? null : ctrNum_(x);
+  } catch (e) { ctrErro_("valor para entrada da proposta", e); return null; }
+}
 function ctrDadosCondominio_(c) {
   function k(nome) { return ctrCampo_(c, nome); }
   function n(nome) { return ctrNum_(k(nome)); }
@@ -263,6 +273,8 @@ function ctrDadosCondominio_(c) {
       /* quadro-resumo (21/10): a comissão gravada pelo simulador; vazia, o contrato calcula pela regra */
       comissao: n("COMISSÃO"),
       /* 27/10: termo de pré-reserva ASSINADO = o valor dele já foi pago e é abatido do sinal (dono) */
+      /* 27/10 (dono): sinal "por PIX ou abatimento" — o abatimento é o VALOR PARA ENTRADA da proposta (ctrFontes_) */
+      idProposta: t("ID PROPOSTA"),
       preReserva: { assinado: t("PRÉ-RESERVA - SITUAÇÃO").toUpperCase() === "ASSINADO",
                     valor: typeof PreReservaVenda !== "undefined" ? PreReservaVenda.valorDe(prop_("PRE_RESERVA_VALOR")) : null }
     },
@@ -335,6 +347,7 @@ function ctrFontes_(col, pageId) {
     var lido = pg.propsCondominio ? { c: ctrPorChave_(pg.propsCondominio) } : ctrLerCondominio_(idCond);
     if (lido.erro) return { condominioErro: lido.erro };
     cond = ctrDadosCondominio_(lido.c);
+    cond.condominio.valorParaEntrada = ctrValorParaEntrada_(cond.condominio.idProposta);
     for (var campo in cond.imovel) if (cond.imovel[campo]) venda[campo] = cond.imovel[campo];
   }
 

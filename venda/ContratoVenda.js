@@ -336,6 +336,18 @@ var ContratoVenda = (function () {
     };
   }
 
+  /* 4.2.1 g) (dono 27/10): sinal por PIX ou abatido (o VALOR PARA ENTRADA da proposta cobre o sinal na ordem
+     ato → 30 → 60 → 90, como no simulador); parcelas da entrada por boleto bancário. */
+  function meioPagamentoCondominio(co) {
+    var fl = co.fluxo || {}, s = 0;
+    [fl.sinalAto, fl.sinal30, fl.sinal60, fl.sinal90].forEach(function (v) { if (positivo(v)) s += v; });
+    s = so2(s);
+    var ab = so2(Math.min(s, positivo(co.valorParaEntrada) ? co.valorParaEntrada : 0)), pix = so2(s - ab);
+    var sinal = !(s > 0) ? "" : pix <= 0.005 ? "sinal (item 4.1.3) abatido do valor para entrada informado na proposta"
+      : ab <= 0.005 ? "sinal (item 4.1.3) por PIX"
+      : "sinal (item 4.1.3): " + valorExtenso(ab) + " abatidos do valor para entrada informado na proposta e " + valorExtenso(pix) + " por PIX";
+    return (sinal ? sinal + "; " : "") + "parcelas da entrada por boleto bancário";
+  }
   function mensais(n, valor, dataIso, dia) {
     if (n === 1) return "1 parcela de " + valorExtenso(valor) + ", com vencimento em " + dataBR(dataIso);
     return n + " parcelas mensais e sucessivas de " + valorExtenso(valor) + " cada, vencendo todo dia " +
@@ -454,7 +466,8 @@ var ContratoVenda = (function () {
       /* quadro-resumo (21/10): casa pela tabela do memorial; comissão da linha (vazia = pela regra) */
       tabela: U().unidade(c.nome, c.unidade),
       comissao: num(c.comissao),
-      preReserva: c.preReserva && c.preReserva.assinado && positivo(c.preReserva.valor) ? { valor: c.preReserva.valor } : null
+      preReserva: c.preReserva && c.preReserva.assinado && positivo(c.preReserva.valor) ? { valor: c.preReserva.valor } : null,
+      valorParaEntrada: num(c.valorParaEntrada)
     };
   }
 
@@ -548,7 +561,7 @@ var ContratoVenda = (function () {
       dados.comprador1.telefone = txt(c1.telefone);
       if (dados.comprador2) dados.comprador2.telefone = txt(c2.telefone);
       if (dados.corretor) dados.corretor.telefone = txt(f.corretor.telefone);
-      dados.meioPagamento = txt(f.meioPagamento) || MEIO_PAGAMENTO_PADRAO;
+      dados.meioPagamento = txt(f.meioPagamento) || meioPagamentoCondominio(cond);
     }
     /* entrega 14: tipo escolhido na casa (só os valores novos; entra no carimbo) e o que a obra diz (só para o aviso) */
     if (!cond && tipoDoModelo(v.TIPO_CASA)) {
@@ -1161,7 +1174,7 @@ var ContratoVenda = (function () {
     montarDadosContrato: montarDadosContrato, faltasContrato: faltasContrato,
     marcadores: marcadores, blocos: blocos, avisosContrato: avisosContrato,
     formaPagamentoCondominio: formaPagamentoCondominio, qualificacaoFiadores: qualificacaoFiadores,
-    comissaoPctPelaRegra: comissaoPctPelaRegra, qualificacaoQuadro: qualificacaoQuadro, valorExtenso: valorExtenso,
+    comissaoPctPelaRegra: comissaoPctPelaRegra, qualificacaoQuadro: qualificacaoQuadro, valorExtenso: valorExtenso, meioPagamentoCondominio: meioPagamentoCondominio,
     somaFluxo: function (fl) { return somaFluxo(fluxoCondominio(fl)); }, negritoDaLinha: negritoDaLinha,
     /* o traço do campo em branco (o pré-contrato grifa em vermelho claro) */
     EM_BRANCO: EM_BRANCO,
