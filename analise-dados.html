@@ -5,6 +5,11 @@
 <meta name="robots" content="noindex,nofollow">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<meta name="theme-color" content="#295778">
+<script>(function(){try{var t=localStorage.getItem("morais_tema");
+  if(t!=="claro"&&t!=="escuro") t="claro";
+  document.documentElement.dataset.tema=t;}catch(e){}})();</script>
 <title>Morais Engenharia · Análise de Dados</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -114,6 +119,13 @@ select:focus{border-color:var(--teal)}
 .kpi-ext-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .kpi-ext-grid.cols4{grid-template-columns:repeat(4,1fr)}
 .kpi-ext-grid.cols5{grid-template-columns:repeat(5,1fr)}
+.kpi-ext-val{white-space:nowrap}
+.kpi-ext-row.r2 .cols5 .kpi-ext-val{font-size:clamp(14px,1.3vw,20px)}
+@media (max-width:1800px){.kpi-ext-row.r3 .kpi-ext-grid.cols4{grid-template-columns:repeat(2,1fr)}}
+[data-tip]{cursor:help}
+.tbl-wide{max-width:none}
+.tbl-wide td.av{white-space:normal;min-width:200px;text-align:left;font-size:11.5px;color:var(--text3)}
+#page-setor .sub-tab{padding:9px 24px;font-size:14px}
 .kpi-ext-item{display:flex;flex-direction:column;gap:2px;min-width:0}
 .kpi-ext-lbl{font-size:10px;font-weight:700;color:var(--text3);
              text-transform:uppercase;letter-spacing:.07em}
@@ -389,6 +401,73 @@ tfoot td:last-child{border-right:none}
 .cfg-res{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
 .cfg-res div{background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;font-size:12.5px}
 .cfg-res b{font-family:'Barlow Condensed',sans-serif;font-size:18px;margin-right:4px}
+
+/* ===== PADRÃO DO PORTAL (27/10): cabeçalho, voltar, abas e tema escuro — igual à Auditoria Financeira ===== */
+html{background:var(--bg)}
+html[data-tema="escuro"]{--bg:#0f1a22;--bg2:#16242e;--bg3:#1c2f3b;--border:#2a4553;--border2:#22323f;--text:#e6f0f4;--text3:#9fc0cf;--text4:#6d8a99;--branco:#16242e;--card:#16242e}
+.pt-header{background:linear-gradient(120deg,var(--azul-esc),var(--azul));position:relative;flex-shrink:0}
+.pt-header::after{content:"";display:block;height:4px;background:linear-gradient(90deg,var(--verde-btn),var(--teal))}
+.pt-wrap{max-width:1600px;margin:0 auto;padding:0 20px;width:100%}
+.pt-hbar{display:flex;align-items:center;gap:13px;padding:14px 0;flex-wrap:wrap}
+.pt-logo{background:#fff;border-radius:9px;padding:5px 10px;display:inline-flex}.pt-logo img{height:38px;display:block}
+.pt-title{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:23px;color:#fff;text-transform:uppercase;letter-spacing:.5px;line-height:1}
+.pt-sub{color:var(--teal);font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase}
+.pt-space{flex:1}
+.pt-net{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;padding:3px 9px;border-radius:20px;background:rgba(76,217,100,.22);color:#CFF9DC}
+.pt-user{display:flex;align-items:center;gap:10px;color:#fff}.pt-nome{font-weight:600;font-size:13.5px}
+.pt-badge{font-size:10px;font-weight:800;letter-spacing:.5px;padding:3px 8px;border-radius:20px;background:rgba(255,255,255,.18);color:#fff;text-transform:uppercase}.pt-badge.adm{background:var(--verde-btn);color:#0c3f22}
+.pt-bt{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;padding:7px 12px;font-weight:700;font-size:12.5px;cursor:pointer;font-family:inherit}
+.pt-crumb{display:flex;align-items:center;gap:10px;margin:16px 0 14px;flex-wrap:wrap}
+.pt-voltar{display:inline-flex;align-items:center;gap:6px;background:var(--azul-esc);border:1px solid rgba(143,220,210,.4);border-radius:8px;padding:9px 16px;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;color:var(--teal);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;text-decoration:none}
+.pt-voltar:hover{background:#16303f}
+.pt-chip{font-size:11px;font-weight:700;color:var(--text3);background:var(--bg3);border:1px solid var(--border2);border-radius:20px;padding:4px 11px;white-space:nowrap}
+.pt-ghost{border:1.5px solid var(--border);background:var(--branco);color:var(--azul);border-radius:8px;padding:6px 12px;font-weight:700;font-size:12.5px;cursor:pointer;font-family:inherit}
+.pt-tabs-outer{background:var(--bg2);border:1.5px solid var(--border);border-radius:14px;padding:12px;margin:0 0 6px;text-align:center}
+.pt-tabs{display:inline-flex;flex-wrap:wrap;justify-content:center;gap:6px;padding:6px;border:2.5px solid var(--verde-btn);border-radius:12px;background:rgba(76,217,100,.06)}
+.pt-tab{padding:10px 17px;font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;color:var(--text3);letter-spacing:.06em;text-transform:uppercase;cursor:pointer;border-radius:8px;border:2px solid transparent;background:none;transition:all .2s;white-space:nowrap}
+.pt-tab:hover:not(.on){color:var(--azul-esc);background:rgba(76,217,100,.15);border-color:rgba(76,217,100,.4)}
+html[data-tema="escuro"] .pt-tab:hover:not(.on){color:var(--teal)}
+.pt-tab.on{background:var(--verde-btn);color:#1a3347;border-color:var(--verde-btn);box-shadow:0 3px 10px rgba(76,217,100,.35)}
+.header,.dash-nav,.pg-hdr,.metas-hdr{display:none!important}
+#page-dash{flex-direction:column!important}
+.main-wrap{max-width:1600px;margin:0 auto;width:100%}
+.dash-main,.pg-body{padding-top:8px}
+html[data-tema="escuro"] select,html[data-tema="escuro"] input{background:var(--bg2);color:var(--text);border-color:var(--border)}
+html[data-tema="escuro"] thead th{background:#1d4a66}
+html[data-tema="escuro"] .blk-title{background:var(--bg3);color:var(--teal)}
+@media(max-width:700px){.pt-tab{padding:8px 11px;font-size:13px}.pt-title{font-size:19px}}
+/* resumo ao passar o mouse */
+[data-tip]{cursor:help}
+[data-tip]:hover .kpi-ext-val,[data-tip]:hover{outline-offset:2px}
+.kpi-ext-item[data-tip]:hover{background:var(--bg2);border-radius:8px}
+#ad-tip{position:fixed;z-index:900;max-width:440px;width:calc(100vw - 24px);background:var(--branco);color:var(--text);border:1.5px solid var(--azul);border-radius:10px;box-shadow:0 12px 32px rgba(10,30,45,.28);padding:12px 14px;font-size:12.5px;line-height:1.45;pointer-events:none;display:none}
+#ad-tip h4{font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--azul);margin:0 0 2px}
+html[data-tema="escuro"] #ad-tip h4{color:var(--teal)}
+#ad-tip .tv{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:800;margin-bottom:4px}
+#ad-tip .tp{color:var(--text3);font-size:11.5px;margin-bottom:6px}
+#ad-tip .tr{margin:6px 0 2px;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)}
+#ad-tip table{width:100%;border-collapse:collapse;font-size:12px}
+#ad-tip td{padding:2px 0;border:0;color:var(--text);text-align:left;background:none}
+#ad-tip td:last-child{text-align:right;font-family:'DM Mono',monospace;white-space:nowrap;padding-left:10px}
+#ad-tip .fora{color:var(--text3);font-size:11.5px}
+/* operacional × não operacional */
+.op-tab{width:100%;border-collapse:collapse;font-size:13px}
+.op-tab th,.op-tab td{padding:8px 10px;border-bottom:1px solid var(--border2);text-align:right;background:none;color:var(--text)}
+.op-tab th{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);font-weight:700}
+.op-tab td:first-child,.op-tab th:first-child{text-align:left}
+.op-tab td.v{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800}
+.op-tab tr.res td{border-top:2px solid var(--border);font-weight:800}
+.op-tab .g{color:var(--verde)}.op-tab .r{color:#c0392b}
+/* avisos de datas */
+.av-box{border:1.5px solid var(--border);border-left:4px solid #d4a017;border-radius:8px;background:var(--branco);margin:0 0 14px}
+.av-box summary{cursor:pointer;padding:9px 14px;font-weight:700;font-size:13px;color:var(--text)}
+.av-box .av-l{max-height:260px;overflow:auto;padding:0 14px 10px;font-size:12.5px}
+.av-box .av-l div{padding:3px 0;border-bottom:1px solid var(--border2)}
+/* gráfico de linhas SVG */
+.svg-ch{background:var(--branco);border:1.5px solid var(--border);border-radius:10px;padding:12px;overflow-x:auto;margin-bottom:16px}
+.svg-ch svg text{fill:var(--text3);font-size:11px;font-family:'Barlow',sans-serif}
+.leg-l{display:flex;flex-wrap:wrap;gap:6px 14px;margin:0 0 8px;font-size:12px;color:var(--text)}
+.leg-l i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
 </style>
 </head>
 <body>
@@ -397,18 +476,39 @@ tfoot td:last-child{border-right:none}
   <div style="font-size:13px;color:var(--text3)">Carregando dados…</div>
 </div>
 
-<header class="header">
-  <button class="hdr-back" id="btn-back" onclick="voltarOuFechar()" style="display:none">← Voltar</button>
-  <img src="img/logo.png" class="hdr-logo" alt="Morais">
-  <div class="hdr-info">
-    <div class="hdr-sup">Morais Engenharia · Portal</div>
-    <div class="hdr-title" id="hdr-title">Análise de Dados</div>
+<header class="pt-header">
+  <div class="pt-wrap pt-hbar">
+    <span class="pt-logo"><img src="img/logo.png" alt="Morais"></span>
+    <div><div class="pt-title">Análise de Dados</div><div class="pt-sub">Morais Engenharia · Financeiro, metas, prazos e desempenho</div></div>
+    <div class="pt-space"></div>
+    <span class="pt-net">online</span>
+    <div class="pt-user">
+      <div style="text-align:right"><div class="pt-nome" id="u-nome">—</div><span class="pt-badge" id="u-tipo">—</span></div>
+      <button class="pt-bt" id="btema" onclick="adTrocarTema()" title="Alternar claro/escuro" aria-label="Alternar claro/escuro">🌙</button>
+      <button class="pt-bt" onclick="sair()">Sair</button>
+    </div>
   </div>
-  <div class="hdr-right">
-    <div class="updated" id="updated-at"></div>
-    <button class="hdr-fechar" onclick="fechar()">← Voltar</button>
-  </div>
+  <!-- elementos antigos que o código ainda usa -->
+  <span id="hdr-title" hidden></span><button id="btn-back" hidden></button>
 </header>
+<div class="pt-wrap">
+  <div class="pt-crumb">
+    <a class="pt-voltar" href="index.html">← Voltar para o Dashboard</a>
+    <span style="flex:1"></span>
+    <span class="pt-chip" id="updated-at">—</span>
+    <button class="pt-ghost" onclick="location.reload()">↻ Atualizar</button>
+  </div>
+  <div class="pt-tabs-outer"><div class="pt-tabs" id="pt-tabs">
+    <button class="pt-tab on" data-pg="dash">Visão Geral</button>
+    <button class="pt-tab" data-pg="fluxo">Fluxo de Caixa</button>
+    <button class="pt-tab" data-pg="setor">Desempenho</button>
+    <button class="pt-tab" data-pg="metas">Metas</button>
+    <button class="pt-tab" data-pg="prazos">Prazos</button>
+    <button class="pt-tab" data-pg="custos">Custos</button>
+    <button class="pt-tab" data-pg="config">Configurações</button>
+  </div></div>
+</div>
+<div id="ad-tip" role="tooltip"></div>
 
 <div class="main-wrap">
 
@@ -728,10 +828,7 @@ tfoot td:last-child{border-right:none}
         <input type="checkbox" id="chk-fluxo-soConcluidas" onchange="initObrasFluxo();buildFluxo()" style="cursor:pointer;width:14px;height:14px">
         Somente obras concluídas (todas as casas recebidas)
       </label>
-      <label style="font-size:12px;color:var(--text3);display:flex;align-items:center;gap:6px;cursor:pointer;margin-left:4px" title="Aportes e distribuições de lucro nunca contam como gasto, receita ou lucro. Ligado, eles entram só no fluxo mês a mês e na exposição de caixa.">
-        <input type="checkbox" id="chk-fluxo-soc" onchange="buildFluxo()" style="cursor:pointer;width:14px;height:14px">
-        Incluir aportes e distribuições no fluxo mês a mês
-      </label>
+      <span style="font-size:12px;color:var(--text3)" title="Aportes e distribuições nunca contam como gasto, receita ou lucro.">Aportes e distribuições: só na exposição de caixa</span>
     </div>
 
     <!-- KPIs resumo -->
@@ -780,26 +877,27 @@ tfoot td:last-child{border-right:none}
   <div class="sub-tabs-outer">
     <div class="sub-tabs-box">
       <button class="sub-tab active" id="tab-setor-analise" onclick="showSetorSub('analise',this)">Análise de Desempenho</button>
+      <button class="sub-tab" id="tab-setor-tempo" onclick="showSetorSub('tempo',this)">Tempo × Custo</button>
+      <button class="sub-tab" id="tab-setor-rent" onclick="showSetorSub('rent',this)">Rentabilidade</button>
       <button class="sub-tab" id="tab-setor-comp" onclick="showSetorSub('comp',this)">Modo Comparativo</button>
     </div>
   </div>
 
-  <!-- SUB: ANÁLISE DE DESEMPENHO -->
-  <div class="sub-pg active metas-body" id="setor-sub-analise" style="overflow-y:auto">
-    <div style="padding:24px 28px 40px">
+  <!-- FILTROS COMPARTILHADOS (Análise, Tempo × Custo, Rentabilidade) -->
+  <div id="setor-filtros" style="padding:16px 28px 0">
     <div class="controles">
       <span class="sel-lbl">Cidade:</span>
-      <select id="sel-cid-st" onchange="initObrasSetor();buildSetor()"><option value="">Todas</option></select>
+      <select id="sel-cid-st" onchange="setorFiltrou()"><option value="">Todas</option></select>
       <span class="sel-lbl">Setor:</span>
-      <select id="sel-set-st" onchange="initObrasSetor();buildSetor()"><option value="">Todos</option></select>
+      <select id="sel-set-st" onchange="setorFiltrou()"><option value="">Todos</option></select>
       <span class="sel-lbl">Proprietário:</span>
-      <select id="sel-prop-st" onchange="initObrasSetor();buildSetor()">
+      <select id="sel-prop-st" onchange="setorFiltrou()">
         <option value="">Todos</option>
         <option value="morais">Morais</option>
         <option value="invest">Investidor</option>
       </select>
       <span class="sel-lbl">Tipo:</span>
-      <select id="sel-imo-st" onchange="initObrasSetor();buildSetor()"><option value="">Todos</option><option value="COND">Condomínio</option><option value="RUA">Casa de rua</option></select>
+      <select id="sel-imo-st" onchange="setorFiltrou()"><option value="">Todos</option><option value="COND">Condomínio</option><option value="RUA">Casa de rua</option></select>
       <span class="sel-lbl">Obras:</span>
       <div class="obra-search-wrap" id="obra-search-wrap" style="position:relative">
         <input type="text" id="obra-search-input" placeholder="🔍 Digite para buscar endereço..." autocomplete="off"
@@ -813,6 +911,28 @@ tfoot td:last-child{border-right:none}
         <div id="obras-selecionadas" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px"></div>
       </div>
     </div>
+    <div class="controles" style="margin-top:-6px">
+      <span class="sel-lbl" title="Quais obras do Grupo Morais entram na análise">Obras Morais:</span>
+      <select id="sel-sit-mor" onchange="setorFiltrou()">
+        <option value="ret">Prontas + RET armazenado + todas as casas recebidas</option>
+        <option value="prontas">Só obras prontas</option>
+        <option value="todas">Todas (inclui em andamento)</option>
+        <option value="nenhuma">Nenhuma</option>
+      </select>
+      <span class="sel-lbl" title="Quais obras de investidores entram na análise">Obras de investidores:</span>
+      <select id="sel-sit-inv" onchange="setorFiltrou()">
+        <option value="fin">Só finalizadas</option>
+        <option value="todas">Todas (inclui em andamento)</option>
+        <option value="nenhuma">Nenhuma</option>
+      </select>
+      <span id="sit-cont" class="cfg-auto"></span>
+    </div>
+    <details class="av-box" id="av-sit" style="display:none"><summary></summary><div class="av-l"></div></details>
+  </div>
+
+  <!-- SUB: ANÁLISE DE DESEMPENHO -->
+  <div class="sub-pg active metas-body" id="setor-sub-analise" style="overflow-y:auto">
+    <div style="padding:8px 28px 40px">
 
     <!-- aviso Morais vs Investidor -->
     <div id="aviso-setor-prop" style="display:none" class="aviso" style="margin-bottom:12px"></div>
@@ -890,6 +1010,43 @@ tfoot td:last-child{border-right:none}
   </div>
 
   <!-- SUB: COMPARATIVO DE DESEMPENHO -->
+  <!-- SUB: TEMPO × CUSTO -->
+  <div class="sub-pg metas-body" id="setor-sub-tempo" style="overflow-y:auto">
+    <div style="padding:8px 28px 40px">
+      <div class="controles">
+        <span class="sel-lbl">Mostrar:</span>
+        <select id="tc-modo" onchange="buildTempoCusto()"><option value="pct">% do custo final</option><option value="m2">R$ por m²</option><option value="tot">R$ total</option></select>
+        <span class="sel-lbl">Custo:</span>
+        <select id="tc-base" onchange="buildTempoCusto()"><option value="o">Obra (sem terreno)</option><option value="ot">Obra + terreno</option></select>
+        <span class="cfg-auto">Mês 0 = mês da data de início da obra no Notion. Pagamentos anteriores entram no mês 0.</span>
+      </div>
+      <div class="roi-grid" id="tc-kpis" style="margin-bottom:16px"></div>
+      <div class="svg-ch"><div class="leg-l" id="tc-leg"></div><div id="tc-graf"></div></div>
+      <div class="tbl-wrap tbl-wide" style="overflow-x:auto"><table class="tbl" id="tc-tab"></table></div>
+    </div>
+  </div>
+
+  <!-- SUB: RENTABILIDADE -->
+  <div class="sub-pg metas-body" id="setor-sub-rent" style="overflow-y:auto">
+    <div style="padding:8px 28px 40px">
+      <div class="controles">
+        <span class="sel-lbl">Janela:</span>
+        <select id="rt-jan" onchange="buildRentab()">
+          <option value="n5">Últimas 5 obras</option><option value="n10" selected>Últimas 10 obras</option><option value="n20">Últimas 20 obras</option>
+          <option value="m12">Terminadas nos últimos 12 meses</option><option value="m24">Terminadas nos últimos 24 meses</option><option value="todas">Todas</option>
+        </select>
+        <span class="sel-lbl">Agrupar:</span>
+        <select id="rt-grp" onchange="buildRentab()"><option value="cli">Por investidor / cliente</option><option value="dono">Morais × investidores</option></select>
+        <span class="cfg-auto">"Últimas" = ordenadas pela data de término no Notion; a janela vale para cada grupo.</span>
+      </div>
+      <div class="roi-grid" id="rt-kpis" style="margin-bottom:16px"></div>
+      <div class="blk-title" style="margin:6px 0 8px">Média por grupo</div>
+      <div class="tbl-wrap tbl-wide" style="margin-bottom:18px;overflow-x:auto"><table class="tbl" id="rt-grupos"></table></div>
+      <div class="blk-title" style="margin:6px 0 8px">Obras na janela</div>
+      <div class="tbl-wrap tbl-wide" style="overflow-x:auto"><table class="tbl" id="rt-obras"></table></div>
+    </div>
+  </div>
+
   <div class="sub-pg metas-body" id="setor-sub-comp" style="overflow-y:auto">
     <div style="padding:24px 28px 40px">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
@@ -1103,6 +1260,9 @@ tfoot td:last-child{border-right:none}
    analiseDados), que confere o login no servidor — mesmo desenho do
    Orçado × Realizado. Ver fetch_analise_dados.py e o bloco r37 do Code.gs. */
 const S_AD = exigirSessao();
+document.addEventListener('DOMContentLoaded',()=>{ try{ document.getElementById('u-nome').textContent=(S_AD&&(S_AD.nome||S_AD.login))||'—';
+  const t=String((S_AD&&S_AD.tipo)||'').toUpperCase(), b=document.getElementById('u-tipo'); b.textContent=t||'—'; if(t==='ADM') b.classList.add('adm');
+  document.getElementById('btema').textContent=document.documentElement.dataset.tema==='escuro'?'☀️':'🌙'; }catch(e){} });
 if(S_AD && !podeAcessar(S_AD,"ANÁLISE DE DADOS")) location.replace("index.html");
 
 /* Os pagamentos chegam em colunas com dicionário (~500 KB em vez de 3,7 MB);
@@ -1205,7 +1365,7 @@ const ROT_TIPO={obra:'Obra',esc:'Escritório',pos:'Pós-obra',soc:'Sócios (apor
 const ROT_DONO={MORAIS:'Grupo Morais',INVESTIDOR:'Investidor'};
 const ROT_IMO={COND:'Condomínio',RUA:'Casa de rua'};
 const ROT_OBRA={obra:'Custo de obra',ter:'Terreno',venda:'Custo de venda',nao:'Não conta'};
-let OBRAS_ERP={}, DOC_IDX={}, FATS_TODOS=[], PAGS_SOC={}, FATS_SOC=[];
+let OBRAS_ERP={}, DOC_IDX={}, FATS_TODOS=[], PAGS_SOC={}, FATS_SOC=[], OB_FIN={};
 function grupoAuto(cli){const n=nzC(cli); if(!n) return ''; if(CFG_CLI_MORAIS.has(n)) return 'MORAIS';
   if(/^MORAIS\b.*\b(SPE|LTDA|ENGENHARIA|EMPREENDIMENTOS|INCORPORACOES|PARTICIPACOES)\b/.test(n)||/\bMORAIS\b.*\bSPE\b/.test(n)) return 'MORAIS'; return 'INVESTIDOR';}
 function grupoCli(cli){const n=nzC(cli); return CFG.clientes[n]||grupoAuto(cli);}
@@ -1255,8 +1415,13 @@ function aplicarConfig(){
     if(k.i==='soc'){ (ps[p.cc]=ps[p.cc]||{})[p.mes]=(ps[p.cc][p.mes]||0)+p.valor; return; }
     if(k.t==='obra'&&(k.i==='obra'||k.i==='ter'||k.i==='venda')){ (pg[p.cc]=pg[p.cc]||{})[p.mes]=(pg[p.cc][p.mes]||0)+p.valor; } });
   pags=pg; PAGS_SOC=ps; fats=[]; FATS_SOC=[];
+  /* 27/10: mês a mês por obra — o (custo de obra), t (terreno), v (custo de venda), r (receita), s (sócios: aporte + / distribuição −) */
+  OB_FIN={}; const ob=cc=>{ const k=normS(cc); return OB_FIN[k]||(OB_FIN[k]={o:{},t:{},v:{},r:{},s:{}}); };
+  (window._pagFull||[]).forEach(p=>{ if(!p.mes||!p.cc||!/^\d{4}-\d{2}$/.test(p.mes)) return; const k=cls(p); if(k.t!=='obra'&&k.i!=='soc') return;
+    const o=ob(p.cc), m=p.mes; if(k.i==='soc') o.s[m]=(o.s[m]||0)-p.valor; else if(k.i==='obra') o.o[m]=(o.o[m]||0)+p.valor; else if(k.i==='ter') o.t[m]=(o.t[m]||0)+p.valor; else if(k.i==='venda') o.v[m]=(o.v[m]||0)+p.valor; });
   FATS_TODOS.forEach(f=>{ const c=ccInfo(f.cc||''); const d=c.tipo==='soc'?'socios':natDest(f.nat);
-    if(d==='socios') FATS_SOC.push(f); else if(d==='receita'&&c.tipo==='obra') fats.push(f); });
+    if(d==='socios') FATS_SOC.push(f); else if(d==='receita'&&c.tipo==='obra') fats.push(f);
+    if(/^\d{4}-\d{2}$/.test(f.mes||'')&&(d==='socios'||(d==='receita'&&c.tipo==='obra'))){ const k=normS(f.cc||''); const o=OB_FIN[k]||(OB_FIN[k]={o:{},t:{},v:{},r:{},s:{}}); if(d==='socios') o.s[f.mes]=(o.s[f.mes]||0)+f.valor; else o.r[f.mes]=(o.r[f.mes]||0)+f.valor; } });
 }
 // Retorna true se a obra é do Grupo Morais (cliente do ERP -> Configurações)
 function ehObraMorais(endereco){ return ccInfo(endereco).dono==='MORAIS'; }
@@ -1288,7 +1453,15 @@ function fechar(){
     }
   }catch(e){history.back();}
 }
+const PT_NOMES={dash:'Análise de Dados',fluxo:'Fluxo de Caixa',setor:'Análise de Desempenho',metas:'Metas',prazos:'Análise de Prazos',custos:'Análise de Custos',config:'Configurações'};
+function ptMarcar(id){ document.querySelectorAll('#pt-tabs .pt-tab').forEach(b=>b.classList.toggle('on',b.dataset.pg===id)); }
+document.addEventListener('click',e=>{ const b=e.target.closest('#pt-tabs .pt-tab'); if(!b) return; const id=b.dataset.pg; if(id==='dash') voltarDash(); else irPara(id,PT_NOMES[id],null); window.scrollTo({top:0}); });
+function adTrocarTema(){ const novo=document.documentElement.dataset.tema==="escuro"?"claro":"escuro"; document.documentElement.dataset.tema=novo;
+  try{localStorage.setItem("morais_tema",novo);}catch(e){} document.getElementById("btema").textContent=novo==="escuro"?"☀️":"🌙";
+  if(paginaAtual==='dash') buildDash(); else renderPagina(paginaAtual); }
+function cv(nome,pad){ try{ const v=getComputedStyle(document.documentElement).getPropertyValue(nome).trim(); return v||pad; }catch(e){ return pad; } }
 function voltarDash(){
+  ptMarcar('dash');
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-dash').classList.add('active');
   document.getElementById('btn-back').style.display='none';
@@ -1298,6 +1471,7 @@ function voltarDash(){
   paginaAtual='dash';
 }
 function irPara(id,titulo,btn){
+  ptMarcar(id);
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   document.getElementById('btn-back').style.display='none'; // botão voltar via header próprio
@@ -1344,8 +1518,12 @@ function showSetorSub(id,btn){
   document.querySelectorAll('#page-setor .sub-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('setor-sub-'+id).classList.add('active');
   if(btn)btn.classList.add('active');
+  const fl=document.getElementById('setor-filtros'); if(fl) fl.style.display=id==='comp'?'none':'';
+  SETOR_SUB=id;
   setTimeout(()=>{
     if(id==='analise')buildSetor();
+    else if(id==='tempo')buildTempoCusto();
+    else if(id==='rent')buildRentab();
     else{initCompObras('a');initCompObras('b');buildComp('a');buildComp('b');}
   },60);
 }
@@ -1460,14 +1638,14 @@ function drawBars(id,labels,datasets,fmtV,mediaM,mediaI,mediaRealM,mediaRealI){
   ctx.clearRect(0,0,W,H);
 
   // Grade
-  ctx.strokeStyle='#d0e4ec';ctx.lineWidth=1;
-  ctx.fillStyle='#5a8099';ctx.font="500 10px 'Barlow',sans-serif";ctx.textAlign='right';
+  ctx.strokeStyle=cv('--border2','#d0e4ec');ctx.lineWidth=1;
+  ctx.fillStyle=cv('--text3','#5a8099');ctx.font="500 10px 'Barlow',sans-serif";ctx.textAlign='right';
   for(let i=0;i<=4;i++){
     const v=niceStep*i,y=P.t+cH*(1-v/yMax);
     ctx.beginPath();ctx.moveTo(P.l,y);ctx.lineTo(P.l+cW,y);ctx.stroke();
     ctx.fillText(fmtV?fmtV(v):fmtN(v,v<10?1:0),P.l-5,y+3.5);
   }
-  ctx.fillStyle='#5a8099';ctx.font="600 10.5px 'Barlow',sans-serif";ctx.textAlign='center';
+  ctx.fillStyle=cv('--text3','#5a8099');ctx.font="600 10.5px 'Barlow',sans-serif";ctx.textAlign='center';
   labelsF.forEach((lb,i)=>{ctx.fillText(lb,P.l+(i+.5)*(cW/n),H-P.b+16);});
 
   const gW=cW/n,nD=datasetsF.length,bW=Math.min((gW*0.78)/nD,38),gPad=(gW-bW*nD)/2;
@@ -1480,7 +1658,7 @@ function drawBars(id,labels,datasets,fmtV,mediaM,mediaI,mediaRealM,mediaRealI){
       if(ctx.roundRect)ctx.roundRect(x,y,bW-1,bH,[3,3,0,0]);
       else ctx.rect(x,y,bW-1,bH);
       ctx.fill();
-      ctx.fillStyle='#1a3347';ctx.font="600 10px 'DM Mono',monospace";ctx.textAlign='center';
+      ctx.fillStyle=cv('--text','#1a3347');ctx.font="600 10px 'DM Mono',monospace";ctx.textAlign='center';
       ctx.fillText(fmtV?fmtV(v):fmtN(v,v<10?1:0),x+(bW-1)/2,y-5);
     });
   });
@@ -1527,14 +1705,14 @@ function drawLinesComMedias(id,labels,datasets,mediaM,mediaI,mediaRealM,mediaRea
   const xOf=i=>P.l+(i+.5)*(cW/n);
   const yOf=v=>P.t+cH*(1-(v-yMin)/(yMax-yMin));
   ctx.clearRect(0,0,W,H);
-  ctx.strokeStyle='#d0e4ec';ctx.lineWidth=1;
+  ctx.strokeStyle=cv('--border2','#d0e4ec');ctx.lineWidth=1;
   for(let i=0;i<=4;i++){
     const v=yMin+(yMax-yMin)*i/4,y=yOf(v);
     ctx.beginPath();ctx.moveTo(P.l,y);ctx.lineTo(P.l+cW,y);ctx.stroke();
-    ctx.fillStyle='#5a8099';ctx.font="500 10px 'Barlow',sans-serif";ctx.textAlign='right';
+    ctx.fillStyle=cv('--text3','#5a8099');ctx.font="500 10px 'Barlow',sans-serif";ctx.textAlign='right';
     ctx.fillText(v>=10?Math.round(v):v.toFixed(1),P.l-5,y+3.5);
   }
-  ctx.fillStyle='#5a8099';ctx.font="600 10.5px 'Barlow',sans-serif";ctx.textAlign='center';
+  ctx.fillStyle=cv('--text3','#5a8099');ctx.font="600 10.5px 'Barlow',sans-serif";ctx.textAlign='center';
   labelsF.forEach((lb,i)=>ctx.fillText(lb,xOf(i),H-P.b+16));
   datasetsF.forEach(ds=>{
     if(ds.data.every(v=>!v))return;
@@ -1544,7 +1722,7 @@ function drawLinesComMedias(id,labels,datasets,mediaM,mediaI,mediaRealM,mediaRea
     ds.data.forEach((v,i)=>{
       ctx.beginPath();ctx.arc(xOf(i),yOf(v),4,0,Math.PI*2);
       ctx.fillStyle=ds.color;ctx.fill();
-      ctx.fillStyle='#1a3347';ctx.font="600 10px 'DM Mono',monospace";ctx.textAlign='center';
+      ctx.fillStyle=cv('--text','#1a3347');ctx.font="600 10px 'DM Mono',monospace";ctx.textAlign='center';
       ctx.fillText(v.toFixed(1),xOf(i),yOf(v)-10);
     });
   });
@@ -1602,12 +1780,12 @@ function drawLines(id,labels,datasets,fmtV,mediaLinha){
   const yMin=minV<0?minV-pad:0,yMax=maxV+pad;
 
   ctx.clearRect(0,0,W,H);
-  ctx.strokeStyle='#d0e4ec';ctx.lineWidth=1;
+  ctx.strokeStyle=cv('--border2','#d0e4ec');ctx.lineWidth=1;
   const steps=4;
   for(let i=0;i<=steps;i++){
     const v=yMin+(yMax-yMin)*i/steps,y=P.t+cH*(1-(v-yMin)/(yMax-yMin));
     ctx.beginPath();ctx.moveTo(P.l,y);ctx.lineTo(P.l+cW,y);ctx.stroke();
-    ctx.fillStyle='#5a8099';ctx.font="500 10px 'Barlow',sans-serif";ctx.textAlign='right';
+    ctx.fillStyle=cv('--text3','#5a8099');ctx.font="500 10px 'Barlow',sans-serif";ctx.textAlign='right';
     ctx.fillText(fmtV?fmtV(v):fmtN(v,v<10?1:0),P.l-5,y+3.5);
   }
   if(yMin<0){
@@ -1615,7 +1793,7 @@ function drawLines(id,labels,datasets,fmtV,mediaLinha){
     ctx.save();ctx.strokeStyle='#295778';ctx.lineWidth=1.5;
     ctx.beginPath();ctx.moveTo(P.l,y0);ctx.lineTo(P.l+cW,y0);ctx.stroke();ctx.restore();
   }
-  ctx.fillStyle='#5a8099';ctx.font="600 10.5px 'Barlow',sans-serif";ctx.textAlign='center';
+  ctx.fillStyle=cv('--text3','#5a8099');ctx.font="600 10.5px 'Barlow',sans-serif";ctx.textAlign='center';
   labelsF.forEach((lb,i)=>{ctx.fillText(lb,P.l+(i+.5)*(cW/n),H-P.b+16);});
 
   const xOf=i=>P.l+(i+.5)*(cW/n);
@@ -1633,7 +1811,7 @@ function drawLines(id,labels,datasets,fmtV,mediaLinha){
       const x=xOf(i),y=yOf(v);
       ctx.beginPath();ctx.arc(x,y,4,0,Math.PI*2);
       ctx.fillStyle=ds.color||'#295778';ctx.fill();
-      ctx.fillStyle='#1a3347';ctx.font="600 10px 'DM Mono',monospace";ctx.textAlign='center';
+      ctx.fillStyle=cv('--text','#1a3347');ctx.font="600 10px 'DM Mono',monospace";ctx.textAlign='center';
       ctx.fillText(fmtV?fmtV(v):fmtN(v,v<10?1:0),x,y-10);
     });
   });
@@ -1693,12 +1871,12 @@ function drawLinesExposicao(id,labels,valores){
 
   // Grade horizontal — 4 steps
   const steps=4;
-  ctx.strokeStyle='#d0e4ec';ctx.lineWidth=1;
+  ctx.strokeStyle=cv('--border2','#d0e4ec');ctx.lineWidth=1;
   for(let i=0;i<=steps;i++){
     const v=yMin+(yMax-yMin)*i/steps,y=yOf(v);
     ctx.beginPath();ctx.moveTo(P.l,y);ctx.lineTo(P.l+cW,y);ctx.stroke();
     // Rótulo eixo Y: alinhado à direita com gap de 8px antes da linha
-    ctx.fillStyle='#5a8099';ctx.font="500 10px 'Barlow',sans-serif";ctx.textAlign='right';
+    ctx.fillStyle=cv('--text3','#5a8099');ctx.font="500 10px 'Barlow',sans-serif";ctx.textAlign='right';
     ctx.fillText(fmtEixo(v),P.l-8,y+3.5);
   }
 
@@ -1711,7 +1889,7 @@ function drawLinesExposicao(id,labels,valores){
   }
 
   // Labels eixo X
-  ctx.fillStyle='#5a8099';ctx.font="600 10.5px 'Barlow',sans-serif";ctx.textAlign='center';
+  ctx.fillStyle=cv('--text3','#5a8099');ctx.font="600 10.5px 'Barlow',sans-serif";ctx.textAlign='center';
   const step=n>14?3:n>9?2:1;
   labels.forEach((lb,i)=>{if(i%step===0||i===n-1)ctx.fillText(lb,xOf(i),H-P.b+16);});
 
@@ -1863,6 +2041,7 @@ function buildDash(){
   const mesesAnoAteMes=listaMesesAteMes(mes);             // Jan até mês selecionado
   const meses12=listaMesesAntes(mes,12);                  // Últimos 12 meses até o mês selecionado
   const meses3=listaMesesTriAnterior(mes);               // Trimestre: 3 meses ANTES do mês atual
+  DASH_P={mes,ano,m12:meses12,ano12:mesesAno,tri:meses3};
 
   // === VGV ===
   const vgvMes=somaVgvEm([mes]);
@@ -1950,20 +2129,20 @@ function buildDash(){
     <div class="kpi-ext-card">
       <div class="kpi-ext-title">📈 VGV</div>
       <div class="kpi-ext-grid cols4">
-        <div class="kpi-ext-item">
+        <div class="kpi-ext-item" data-tip="vgv:12">
           <div class="kpi-ext-lbl">12 Meses</div>
           <div class="kpi-ext-val">${fmtBRL(vgv12)}</div>
         </div>
-        <div class="kpi-ext-item">
+        <div class="kpi-ext-item" data-tip="vgv:ano">
           <div class="kpi-ext-lbl">Anual (${ano})</div>
           <div class="kpi-ext-val">${fmtBRL(vgvAno)}</div>
           ${metaAno?`<div class="kpi-ext-extra" title="A meta de vendas do ano é o número de casas construídas no ano anterior (METAS ${ano-1})"><strong>${casasAno}</strong>/${metaAno} casas · meta = casas construídas em ${ano-1}</div>`:`<div class="kpi-ext-extra"><strong>${casasAno}</strong> casa(s)</div>`}
         </div>
-        <div class="kpi-ext-item">
+        <div class="kpi-ext-item" data-tip="vgv:med">
           <div class="kpi-ext-lbl">Média/Mês</div>
           <div class="kpi-ext-val">${fmtBRL(vgvMedia)}</div>
         </div>
-        <div class="kpi-ext-item">
+        <div class="kpi-ext-item" data-tip="vgv:mes">
           <div class="kpi-ext-lbl">Mês (${fmtM(mes)})</div>
           <div${corClass(corVgvMes)}>${fmtBRL(vgvMes)}</div>
           ${metaMes?`<div class="kpi-ext-extra"><strong>${casasMes}</strong>/${fmtN(metaMes,1)} casas</div>`:`<div class="kpi-ext-extra"><strong>${casasMes}</strong> casa(s)</div>`}
@@ -1973,16 +2152,16 @@ function buildDash(){
     </div>`;
 
   // === Card Custo Obra (subdividido em 3) ===
-  function blocoCusto(titulo,v12,vAno,vMes){
-    const media=v12/12;
+  function blocoCusto(titulo,v12,vAno,vMes,ch){
+    const media=v12/12, t=per=>ch?` data-tip="${ch}:${per}"`:'';
     return `
       <div class="kpi-ext-card">
         <div class="kpi-ext-title">${titulo}</div>
         <div class="kpi-ext-grid cols4">
-          <div class="kpi-ext-item"><div class="kpi-ext-lbl">12 Meses</div><div class="kpi-ext-val">${fmtBRL(v12)}</div></div>
-          <div class="kpi-ext-item"><div class="kpi-ext-lbl">Anual (${ano})</div><div class="kpi-ext-val">${fmtBRL(vAno)}</div></div>
-          <div class="kpi-ext-item"><div class="kpi-ext-lbl">Média/Mês</div><div class="kpi-ext-val">${fmtBRL(media)}</div></div>
-          <div class="kpi-ext-item"><div class="kpi-ext-lbl">Mês (${fmtM(mes)})</div><div class="kpi-ext-val">${fmtBRL(vMes)}</div></div>
+          <div class="kpi-ext-item"${t('12')}><div class="kpi-ext-lbl">12 Meses</div><div class="kpi-ext-val">${fmtBRL(v12)}</div></div>
+          <div class="kpi-ext-item"${t('ano')}><div class="kpi-ext-lbl">Anual (${ano})</div><div class="kpi-ext-val">${fmtBRL(vAno)}</div></div>
+          <div class="kpi-ext-item"${t('med')}><div class="kpi-ext-lbl">Média/Mês</div><div class="kpi-ext-val">${fmtBRL(media)}</div></div>
+          <div class="kpi-ext-item"${t('mes')}><div class="kpi-ext-lbl">Mês (${fmtM(mes)})</div><div class="kpi-ext-val">${fmtBRL(vMes)}</div></div>
         </div>
       </div>`;
   }
@@ -2006,32 +2185,35 @@ function buildDash(){
   const mediaPosM12Dash =_ml12.length?_s(_byPos,_ml12)/_ml12.length:0;
   const mediaEscMesAnoDash=_mlAno.length?_s(_byEsc,_mlAno)/_mlAno.length:0;
   const mediaPosMesAnoDash=_mlAno.length?_s(_byPos,_mlAno)/_mlAno.length:0;
-  function blocoEscPosDash(titulo,tot12,totAno,mediaMes12,mediaMesAno,vMes){
+  function blocoEscPosDash(titulo,tot12,totAno,mediaMes12,mediaMesAno,vMes,ch){
+    const t=per=>ch?` data-tip="${ch}:${per}"`:'';
     return `
       <div class="kpi-ext-card">
         <div class="kpi-ext-title">${titulo}</div>
         <div class="kpi-ext-grid cols5">
-          <div class="kpi-ext-item"><div class="kpi-ext-lbl">12 Meses (2026+)</div><div class="kpi-ext-val">${fmtBRL(tot12)}</div></div>
-          <div class="kpi-ext-item"><div class="kpi-ext-lbl">Média/Mês (12m)</div><div class="kpi-ext-val">${fmtBRL(mediaMes12)}</div></div>
-          <div class="kpi-ext-item"><div class="kpi-ext-lbl">Anual (${_anoRef})</div><div class="kpi-ext-val">${fmtBRL(totAno)}</div></div>
-          <div class="kpi-ext-item"><div class="kpi-ext-lbl">Média/Mês (${_anoRef})</div><div class="kpi-ext-val">${fmtBRL(mediaMesAno)}</div></div>
-          <div class="kpi-ext-item"><div class="kpi-ext-lbl">Mês (${fmtM(mes)})</div><div class="kpi-ext-val">${fmtBRL(vMes)}</div></div>
+          <div class="kpi-ext-item"${t('12')}><div class="kpi-ext-lbl">12 Meses</div><div class="kpi-ext-val">${fmtBRL(tot12)}</div></div>
+          <div class="kpi-ext-item"${t('m12')}><div class="kpi-ext-lbl">Média/Mês (12m)</div><div class="kpi-ext-val">${fmtBRL(mediaMes12)}</div></div>
+          <div class="kpi-ext-item"${t('ano')}><div class="kpi-ext-lbl">Anual (${_anoRef})</div><div class="kpi-ext-val">${fmtBRL(totAno)}</div></div>
+          <div class="kpi-ext-item"${t('mano')}><div class="kpi-ext-lbl">Média/Mês (${_anoRef})</div><div class="kpi-ext-val">${fmtBRL(mediaMesAno)}</div></div>
+          <div class="kpi-ext-item"${t('mes')}><div class="kpi-ext-lbl">Mês (${fmtM(mes)})</div><div class="kpi-ext-val">${fmtBRL(vMes)}</div></div>
         </div>
       </div>`;
   }
   const finExtHtml=`
     <div class="kpi-ext-row r1">${vgvCard}</div>
     <div class="kpi-ext-row r3">
-      ${blocoCusto('🏗 Custo Obra (s/ Terreno)',cObraSemTer12,cObraSemTerAno,cObraSemTerMes)}
-      ${blocoCusto('🏞 Compra de Terreno',cTer12,cTerAno,cTerMes)}
-      ${blocoCusto('Σ Custo Obra Total',cObraTot12,cObraTotAno,cObraTotMes)}
+      ${blocoCusto('🏗 Custo Obra (s/ Terreno)',cObraSemTer12,cObraSemTerAno,cObraSemTerMes,'obra')}
+      ${blocoCusto('🏞 Compra de Terreno',cTer12,cTerAno,cTerMes,'ter')}
+      ${blocoCusto('Σ Custo Obra Total',cObraTot12,cObraTotAno,cObraTotMes,'tot')}
     </div>
     <div class="kpi-ext-row r1">
-      ${blocoCusto('💼 Custo de Venda (comissão, RET, ganho de capital)',cVen12,cVenAno,cVenMes)}
+      ${blocoCusto('💼 Custo de Venda (comissão, RET, ganho de capital)',cVen12,cVenAno,cVenMes,'venda')}
     </div>
     <div class="kpi-ext-row r2">
-      ${blocoEscPosDash('🏢 Custo Escritório',cEsc12,cEscAno,mediaEscMes12Dash,mediaEscMesAnoDash,cEscMes)}
-      ${blocoEscPosDash('🔧 Custo Pós-Obra',cPos12,cPosAno,mediaPosM12Dash,mediaPosMesAnoDash,cPosMes)}
+      ${blocoEscPosDash('🏢 Custo Escritório',cEsc12,cEscAno,mediaEscMes12Dash,mediaEscMesAnoDash,cEscMes,'esc')}
+      ${blocoEscPosDash('🔧 Custo Pós-Obra',cPos12,cPosAno,mediaPosM12Dash,mediaPosMesAnoDash,cPosMes,'pos')}
+    </div>
+    <div class="kpi-ext-row r1">${blocoOperacional()}
     </div>`;
   document.getElementById('kpi-fin-ext').innerHTML=finExtHtml;
 
@@ -2078,10 +2260,10 @@ function buildDash(){
   const subPos12  = subRatio(ratPos12,1)  + subDetAno('Pós',cPos12,'Obra',cObraSemTer12);
 
   document.getElementById('kpi-rat').innerHTML=[
-    kpi('Custo Escritório / VGV Trimestral',ratEscTri!=null?fmtN(ratEscTri,2)+'%':'—',subEscTri,corRatio(ratEscTri,4)),
-    kpi('Custo Escritório / VGV Anual (12m)',ratEsc12!=null?fmtN(ratEsc12,2)+'%':'—',subEsc12,corRatio(ratEsc12,4)),
-    kpi('Custo Pós-Obra / Custo Obra Trim.',ratPosTri!=null?fmtN(ratPosTri,2)+'%':'—',subPosTri,corRatio(ratPosTri,1)),
-    kpi('Custo Pós-Obra / Custo Obra (12m)',ratPos12!=null?fmtN(ratPos12,2)+'%':'—',subPos12,corRatio(ratPos12,1)),
+    `<div data-tip="rat:escTri">`+kpi('Custo Escritório / VGV Trimestral',ratEscTri!=null?fmtN(ratEscTri,2)+'%':'—',subEscTri,corRatio(ratEscTri,4))+'</div>',
+    `<div data-tip="rat:esc12">`+kpi('Custo Escritório / VGV Anual (12m)',ratEsc12!=null?fmtN(ratEsc12,2)+'%':'—',subEsc12,corRatio(ratEsc12,4))+'</div>',
+    `<div data-tip="rat:posTri">`+kpi('Custo Pós-Obra / Custo Obra Trim.',ratPosTri!=null?fmtN(ratPosTri,2)+'%':'—',subPosTri,corRatio(ratPosTri,1))+'</div>',
+    `<div data-tip="rat:pos12">`+kpi('Custo Pós-Obra / Custo Obra (12m)',ratPos12!=null?fmtN(ratPos12,2)+'%':'—',subPos12,corRatio(ratPos12,1))+'</div>',
   ].join('');
 
   // === Alerta de divergência ERP × Notion ===
@@ -2968,13 +3150,7 @@ function getObrasCompletas(){
 }
 
 function initObrasSetor(){
-  const cid=document.getElementById('sel-cid-st')?.value||'';
-  const set=document.getElementById('sel-set-st')?.value||'';
-  const obrasCompletas = getObrasCompletas();
-  let arr=docs.filter(d=>obrasCompletas.has(normS(d.endereco)));
-  if(cid)arr=arr.filter(d=>d.cidade===cid);
-  if(set)arr=arr.filter(d=>d.setor===set);
-  const imoS=document.getElementById('sel-imo-st')?.value||''; if(imoS)arr=arr.filter(d=>imoOk(d.endereco,imoS));
+  let arr=docsSetorFiltrados(true);
   obrasLista=[...new Set(arr.map(d=>d.endereco).filter(Boolean))].sort();
   obrasSelecionadas=new Set([...obrasSelecionadas].filter(o=>obrasLista.includes(o)));
   renderObrasDropdown('');
@@ -3151,7 +3327,7 @@ function buildFluxo(){
   const prop = document.getElementById('sel-prop-fluxo')?.value||'';
   const soConcluidas = document.getElementById('chk-fluxo-soConcluidas')?.checked||false;
   const imo = document.getElementById('sel-imo-fluxo')?.value||'';
-  const comSoc = document.getElementById('chk-fluxo-soc')?.checked||false;
+  const comSoc = true;   /* 27/10: aportes e distribuições sempre entram na exposição (nunca no pago, recebido ou lucro) */
   const obrasSel = fluxoSelecionadas.size>0?fluxoSelecionadas:null; // null=todas
 
   // Agregar pagamentos e recebimentos com filtros aplicados
@@ -3457,24 +3633,8 @@ function buildFluxo(){
 }
 
 async function buildSetor(){
-  // Item 2: obras qualificadas — recebeu OK + pagamentos no ERP
-  const obrasCompletas = getObrasCompletas();
-
-  const endD=new Set(docs.map(d=>normS(d.endereco)));
-  const cid=document.getElementById('sel-cid-st')?.value||'';
-  const set=document.getElementById('sel-set-st')?.value||'';
-  const obrasSel=getEnderecosSelecionados(); // null=todas, array=selecionadas
-
-  let docsF=docs.filter(d=>obrasCompletas.has(normS(d.endereco)));
-  if(cid)docsF=docsF.filter(d=>d.cidade===cid);
-  if(set)docsF=docsF.filter(d=>d.setor===set);
-  if(obrasSel)docsF=docsF.filter(d=>obrasSel.includes(d.endereco));
-  // Filtro proprietário: usa ehObraMorais baseado no cliente ERP
-  const propSt=document.getElementById('sel-prop-st')?.value||'';
-  const imoSt=document.getElementById('sel-imo-st')?.value||'';
-  if(imoSt)docsF=docsF.filter(d=>imoOk(d.endereco,imoSt));
-  if(propSt==='morais')docsF=docsF.filter(d=>ehObraMorais(d.endereco));
-  else if(propSt==='invest')docsF=docsF.filter(d=>!ehObraMorais(d.endereco));
+  // 27/10: obras escolhidas pela situação (Notion) + filtros da barra
+  let docsF=docsSetorFiltrados(false);
   const enderecosSel=new Set(docsF.map(d=>normS(d.endereco)));
 
   // Detectar se a seleção tem obras Morais / Investidor para decidir o que exibir
@@ -3608,10 +3768,13 @@ async function buildSetor(){
   const gastos=meses.map(m=>pagMes[m]||0);
   const receitas=meses.map(m=>fatMes[m]||0);
   const fluxoLiq=meses.map((_,i)=>receitas[i]-gastos[i]);
+  /* 27/10: aportes e distribuições das obras selecionadas entram só na exposição */
+  const endsExp=temMorais?enderecosMorais:enderecosSel;
+  const socios=meses.map(m=>{ let v=0; endsExp.forEach(e=>{ const o=OB_FIN[e]; if(o&&o.s[m]) v+=o.s[m]; }); return v; });
 
   // Exposição de caixa acumulada
   const expCaixa=[];let acc=0;
-  fluxoLiq.forEach(f=>{acc+=f;expCaixa.push(acc);});
+  fluxoLiq.forEach((f,i)=>{acc+=f+socios[i];expCaixa.push(acc);});
   // Exposição positiva = dinheiro investido (negativo no fluxo)
   const expPos=expCaixa.map(v=>-v>0?-v:0);
 
@@ -3669,7 +3832,7 @@ async function buildSetor(){
 
   // ── Linha 1: Lucros (Total + Morais + Investidores) ──
   const kpisLucros=[];
-  const lucroTotal=lucroLiq+(temInvest?lucroInvest:0);
+  const lucroTotal=temMorais?lucroLiq+(temInvest?lucroInvest:0):lucroInvest;  /* 27/10: só investidor não soma duas vezes */
   kpisLucros.push(`<div class="roi-card"><div class="roi-lbl">Lucro Líquido Total</div><div class="roi-val ${lucroTotal>=0?'g':'r'}">${fmtBRL(lucroTotal)}</div><div class="roi-sub">Morais + Investidores</div></div>`);
   if(temMorais)
     kpisLucros.push(`<div class="roi-card"><div class="roi-lbl">Lucro Líquido (Morais)</div><div class="roi-val ${lucroLiq>=0?'g':''}">${fmtBRL(lucroLiq)}</div><div class="roi-sub">Recebido − Gasto (Morais)</div></div>`);
@@ -3723,6 +3886,7 @@ async function buildSetor(){
       <td><strong>${fmtM(m)}</strong></td>
       <td class="nr">${fmtBRL2(gastos[i])}</td>
       <td class="nr">${receitas[i]>0?fmtBRL2(receitas[i]):'—'}</td>
+      <td class="nr">${socios[i]?fmtBRL2(socios[i]):'—'}</td>
       <td class="nr" style="${corExp}">${fmtBRL2(v)}</td>
       <td class="nr">${mult[i]}</td>
       <td class="nr">${fmtBRL2(expProp[i])}</td>
@@ -3734,6 +3898,7 @@ async function buildSetor(){
       <th class="left">Mês</th>
       <th>Valor Gasto</th>
       <th>Valor Recebido</th>
+      <th>Sócios (aportes − distribuições)</th>
       <th>Exposição de Caixa</th>
       <th>Multiplicador</th>
       <th>Exp. Proporcional</th>
@@ -3743,6 +3908,7 @@ async function buildSetor(){
       <td>TOTAL</td>
       <td class="nr">${fmtBRL2(totalGasto)}</td>
       <td class="nr">${fmtBRL2(totalRecebido)}</td>
+      <td class="nr">${fmtBRL2(socios.reduce((a,b)=>a+b,0))}</td>
       <td class="nr"></td>
       <td class="nr">${somaMultip}</td>
       <td class="nr">${fmtBRL2(somaExpProp)}</td>
@@ -4038,7 +4204,7 @@ async function init(){
 
     if(data.updated_at)
       document.getElementById('updated-at').textContent=
-        'Atualizado: '+new Date(data.updated_at).toLocaleString('pt-BR');
+        'Dados de '+new Date(data.updated_at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
 
     initSelMes();buildDash();
 
@@ -4084,6 +4250,249 @@ async function init(){
         Erro ao carregar dados:<br><code>${e.message}</code></div>`;
   }
 }
+
+
+
+/* ===================== DESEMPENHO: SITUAÇÃO DAS OBRAS, TEMPO × CUSTO, RENTABILIDADE (27/10) ===================== */
+let SETOR_SUB='analise', _vendEnd=null, _vendRef=null, TIPS={};
+const OK_REC=new Set(['SIM','INEXISTE','ÁGIO','AGIO']);
+const SN=x=>String(x||'').toUpperCase().trim();
+function vendasPorEnd(){ if(_vendRef!==vendas){ _vendRef=vendas; _vendEnd={}; vendas.forEach(v=>{ const e=normS(v.endereco||''); if(e)(_vendEnd[e]=_vendEnd[e]||[]).push(v); }); } return _vendEnd; }
+function sitObra(d){
+  const e=normS(d.endereco||''), ini=SN(d.obra_iniciada)==='SIM', fin=SN(d.obra_finalizada)==='SIM', av=[];
+  if(ini&&!d.data_inicio_obra) av.push('"Obra iniciada" = SIM sem data de início');
+  if(fin&&!d.data_termino_obra) av.push('"Obra finalizada" = SIM sem data de término');
+  if(!ini&&d.data_inicio_obra) av.push('tem data de início, mas "obra iniciada" não está SIM');
+  if(!fin&&d.data_termino_obra) av.push('tem data de término, mas "obra finalizada" não está SIM');
+  if(fin&&!ini&&!d.data_inicio_obra) av.push('finalizada sem início marcado');
+  if(d.data_inicio_obra&&d.data_termino_obra&&d.data_termino_obra<d.data_inicio_obra) av.push('término antes do início');
+  const vs=vendasPorEnd()[e]||[], nV=vs.filter(v=>v.clientes).length;
+  const rec=vs.length>0&&vs.every(v=>OK_REC.has(SN(v.recebeu)))&&nV>=(d.n_casas||1);
+  return {ini,fin,pronta:fin||!!d.data_termino_obra,ret:SN(d.ret_armazenado)==='SIM',rec,av};
+}
+function obrasSituacao(){
+  const sm=document.getElementById('sel-sit-mor')?.value||'ret', si=document.getElementById('sel-sit-inv')?.value||'fin';
+  const comPag=new Set(Object.keys(pags).filter(cc=>Object.values(pags[cc]).some(v=>v>0)).map(normS));
+  const ok=new Set(), info={};
+  docs.forEach(d=>{ const e=normS(d.endereco||''); if(!e||!comPag.has(e)) return; const s=sitObra(d), mor=ehObraMorais(d.endereco), r=mor?sm:si;
+    const entra=r==='todas'?true:r==='nenhuma'?false:r==='ret'?(s.pronta&&s.ret&&s.rec):s.pronta;
+    if(entra) ok.add(e); info[e]={...s,mor,entra}; });
+  return {ok,info};
+}
+function docsSetorFiltrados(semSelecao){
+  const {ok,info}=obrasSituacao(); window._SIT=info;
+  const cid=document.getElementById('sel-cid-st')?.value||'', st=document.getElementById('sel-set-st')?.value||'';
+  const prop=document.getElementById('sel-prop-st')?.value||'', imo=document.getElementById('sel-imo-st')?.value||'';
+  const base=d=>(!cid||d.cidade===cid)&&(!st||d.setor===st)&&(!imo||imoOk(d.endereco,imo))&&(prop!=='morais'||ehObraMorais(d.endereco))&&(prop!=='invest'||!ehObraMorais(d.endereco));
+  // avisos: obras da barra de filtros (entrando ou não) com datas faltando no Notion
+  const vist=new Set(), avs=[];
+  docs.forEach(d=>{ const e=normS(d.endereco||''); const i=info[e]; if(!i||vist.has(e)||!base(d)) return; vist.add(e); if(i.av.length) avs.push({d,i}); });
+  const box=document.getElementById('av-sit');
+  if(box){ box.style.display=avs.length?'':'none';
+    box.querySelector('summary').textContent=`⚠ ${avs.length} obra${avs.length>1?'s':''} com data faltando ou inconsistente no Notion (OBRA INICIADA / DATA DE INÍCIO / OBRA FINALIZADA? / DATA DE TÉRMINO)`;
+    box.querySelector('.av-l').innerHTML=avs.sort((a,b)=>String(a.d.endereco).localeCompare(b.d.endereco)).map(({d,i})=>`<div><b>${esc(d.endereco)}</b> <span class="cfg-auto">${i.mor?'Morais':'Investidor'} · ${i.entra?'entra na análise':'fora da análise'}</span> — ${esc(i.av.join('; '))}</div>`).join(''); }
+  let a=docs.filter(d=>ok.has(normS(d.endereco))&&base(d));
+  const cont=document.getElementById('sit-cont'); if(cont){ const u=new Set(a.map(d=>normS(d.endereco))); const nm=[...u].filter(e=>info[e]&&info[e].mor).length; cont.textContent=`${u.size} obras na análise (${nm} Morais, ${u.size-nm} investidores)`; }
+  if(!semSelecao){ const sel=getEnderecosSelecionados(); if(sel) a=a.filter(d=>sel.includes(d.endereco)); }
+  return a;
+}
+function setorFiltrou(){ initObrasSetor(); if(SETOR_SUB==='tempo') buildTempoCusto(); else if(SETOR_SUB==='rent') buildRentab(); else buildSetor(); }
+const mDif=(a,b)=>{ const [ay,am]=a.split('-').map(Number),[by,bm]=b.split('-').map(Number); return (by-ay)*12+(bm-am); };
+const mAdd=(a,n)=>{ let [y,m]=a.split('-').map(Number); m+=n; while(m>12){m-=12;y++;} while(m<1){m+=12;y--;} return y+'-'+String(m).padStart(2,'0'); };
+const MES_HOJE=(()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');})();
+const somaO=o=>Object.values(o||{}).reduce((a,b)=>a+b,0);
+function obrasUnicas(arr){ const m=new Map(); arr.forEach(d=>{ const e=normS(d.endereco||''); if(e&&!m.has(e)) m.set(e,d); }); return [...m.entries()]; }
+function areaObra(d){ const o=OBRAS_ERP[nzC(d.endereco||'')]; const a=Number(o&&o.area_total); return a>0?a:null; }
+function clienteObra(d){ const o=OBRAS_ERP[nzC(d.endereco||'')]; return (o&&o.cliente)||'(cliente não informado)'; }
+function tipX(id,html){ TIPS[id]=html; return ` data-tip="#${id}"`; }
+
+function buildTempoCusto(){
+  TIPS={};
+  const modo=document.getElementById('tc-modo')?.value||'pct', base=document.getElementById('tc-base')?.value||'o';
+  const lista=obrasUnicas(docsSetorFiltrados(false));
+  const linhas=[], semIni=[];
+  lista.forEach(([e,d])=>{ const f=OB_FIN[e]; if(!f) return; const mm={}; Object.entries(f.o).forEach(([m,v])=>mm[m]=(mm[m]||0)+v); if(base==='ot') Object.entries(f.t).forEach(([m,v])=>mm[m]=(mm[m]||0)+v);
+    const tot=somaO(mm); if(!(tot>0)) return;
+    if(!d.data_inicio_obra){ semIni.push(d.endereco); return; }
+    const m0=mesD(d.data_inicio_obra), mFim=d.data_termino_obra?mesD(d.data_termino_obra):null;
+    const meses=Object.keys(mm).sort(), ult=meses[meses.length-1];
+    const nOff=Math.max(0,mDif(m0,ult)); const cum=[]; let acc=0;
+    for(let k=0;k<=nOff;k++){ const m=mAdd(m0,k); if(k===0) meses.forEach(x=>{ if(x<=m0) acc+=mm[x]; }); else acc+=mm[m]||0; cum.push(acc); }
+    const dur=mFim?mDif(m0,mFim):null, area=areaObra(d), n=d.n_casas||1;
+    const ateFim=mFim?meses.filter(x=>x<=mFim).reduce((a,x)=>a+mm[x],0):null;
+    const k50=cum.findIndex(v=>v>=tot*0.5);
+    const lim=mDif(m0,MES_HOJE);  // meses observáveis
+    linhas.push({e,d,m0,mFim,dur,cum,tot,area,n,ateFim,depois:ateFim!=null?tot-ateFim:null,k50,lim,mor:ehObraMorais(d.endereco),ter:somaO(f.t)});
+  });
+  const fmtV=v=>modo==='pct'?fmtN(v,0)+'%':fmtBRL(v);
+  const val=(l,v)=>modo==='pct'?v/l.tot*100:modo==='m2'?(l.area?v/l.area:null):v;
+  const usa=linhas.filter(l=>modo!=='m2'||l.area);
+  // média por mês desde o início (só obras que já chegaram naquele mês)
+  const maxK=Math.min(48,Math.max(0,...usa.map(l=>l.cum.length-1)));
+  const media=[]; for(let k=0;k<=maxK;k++){ const vs=usa.filter(l=>k<=l.lim).map(l=>val(l,l.cum[Math.min(k,l.cum.length-1)])).filter(v=>v!=null); media.push(vs.length>=2?vs.reduce((a,b)=>a+b,0)/vs.length:null); }
+  // KPIs
+  const comDur=linhas.filter(l=>l.dur!=null), comA=linhas.filter(l=>l.area);
+  const durM=comDur.length?comDur.reduce((a,l)=>a+l.dur,0)/comDur.length:null;
+  const m2=comA.length?comA.reduce((a,l)=>a+l.tot,0)/comA.reduce((a,l)=>a+l.area,0):null;
+  const casa=linhas.length?linhas.reduce((a,l)=>a+l.tot,0)/linhas.reduce((a,l)=>a+l.n,0):null;
+  const k50=linhas.filter(l=>l.k50>=0); const k50m=k50.length?k50.reduce((a,l)=>a+l.k50,0)/k50.length:null;
+  const dep=linhas.filter(l=>l.depois!=null); const depP=dep.length?dep.reduce((a,l)=>a+l.depois,0)/dep.reduce((a,l)=>a+l.tot,0)*100:null;
+  const rot=base==='o'?'custo de obra (sem terreno)':'custo de obra + terreno';
+  document.getElementById('tc-kpis').innerHTML=[
+    `<div class="roi-card"${tipX('tc1',`<h4>Obras no gráfico</h4><div>Obras que passaram nos filtros, têm pagamentos de ${rot} e data de início no Notion.</div>${semIni.length?`<div class="fora" style="margin-top:6px">${semIni.length} ficaram de fora por não ter data de início: ${esc(semIni.slice(0,8).join(', '))}${semIni.length>8?'…':''}</div>`:''}`)}><div class="roi-lbl">Obras</div><div class="roi-val">${linhas.length}</div><div class="roi-sub">${semIni.length?semIni.length+' sem data de início':'com data de início'}</div></div>`,
+    `<div class="roi-card"${tipX('tc2',`<h4>Duração média da obra</h4><div>Meses entre a data de início e a data de término do Notion, só das obras com as duas datas (${comDur.length}).</div>`)}><div class="roi-lbl">Duração média</div><div class="roi-val">${durM!=null?fmtN(durM,1)+' meses':'—'}</div><div class="roi-sub">${comDur.length} obras com término</div></div>`,
+    `<div class="roi-card"${tipX('tc3',`<h4>Custo médio por m²</h4><div>Soma do ${rot} ÷ soma da área construída (área total do ERP), das ${comA.length} obras com área.</div>`)}><div class="roi-lbl">Custo / m²</div><div class="roi-val">${fmtBRL(m2)}</div><div class="roi-sub">${comA.length} obras com área</div></div>`,
+    `<div class="roi-card"${tipX('tc4',`<h4>Custo médio por casa</h4><div>Soma do ${rot} ÷ soma do nº de casas (Notion).</div>`)}><div class="roi-lbl">Custo / casa</div><div class="roi-val">${fmtBRL(casa)}</div><div class="roi-sub">${rot}</div></div>`,
+    `<div class="roi-card"${tipX('tc5',`<h4>Metade do custo</h4><div>Em média, quantos meses depois do início a obra já pagou 50% do custo total dela.</div>`)}><div class="roi-lbl">50% do custo em</div><div class="roi-val">${k50m!=null?fmtN(k50m,1)+' meses':'—'}</div><div class="roi-sub">desde o início</div></div>`,
+    `<div class="roi-card"${tipX('tc6',`<h4>Pago depois do término</h4><div>Parte do custo paga depois do mês de término no Notion (acertos, boletos atrasados, pós-entrega), sobre o custo das ${dep.length} obras com término.</div>`)}><div class="roi-lbl">Pago após término</div><div class="roi-val">${depP!=null?fmtN(depP,1)+'%':'—'}</div><div class="roi-sub">do custo total</div></div>`
+  ].join('');
+  // gráfico SVG
+  const W=Math.max(720,Math.min(1100,(document.getElementById('tc-graf')?.clientWidth||900))), H=330, L=70, R=16, T=12, B=34;
+  const vals=usa.flatMap(l=>l.cum.slice(0,maxK+1).map(v=>val(l,v))).filter(v=>v!=null);
+  const yMax=modo==='pct'?100:Math.max(1,...vals)*1.05;
+  const X=k=>L+(maxK?k/maxK:0)*(W-L-R), Y=v=>T+(1-v/yMax)*(H-T-B);
+  const cores=['#295778','#2bb3a3','#e08a1e','#8e5bb5','#c0392b','#4cd964','#d4a017','#5c8fb8'];
+  let g='';
+  for(let i=0;i<=4;i++){ const v=yMax*i/4, y=Y(v); g+=`<line x1="${L}" x2="${W-R}" y1="${y}" y2="${y}" stroke="${cv('--border2')}"/><text x="${L-6}" y="${y+4}" text-anchor="end">${modo==='pct'?fmtN(v,0)+'%':v>=1e6?fmtN(v/1e6,1)+' mi':fmtN(v/1e3,0)+' mil'}</text>`; }
+  const passo=maxK>24?6:maxK>12?3:1; for(let k=0;k<=maxK;k+=passo) g+=`<text x="${X(k)}" y="${H-12}" text-anchor="middle">${k}</text>`;
+  g+=`<text x="${(L+W-R)/2}" y="${H-1}" text-anchor="middle">meses desde o início da obra</text>`;
+  usa.forEach((l,i)=>{ const pts=l.cum.slice(0,maxK+1).map((v,k)=>[X(k),Y(val(l,v))]); if(!pts.length) return;
+    g+=`<polyline fill="none" stroke="${cores[i%cores.length]}" stroke-opacity=".45" stroke-width="1.4" points="${pts.map(p=>p.join(',')).join(' ')}"><title>${esc(l.d.endereco)} — ${fmtBRL(l.tot)}${l.dur!=null?' · '+l.dur+' meses':''}</title></polyline>`;
+    if(l.dur!=null&&l.dur<=maxK){ const k=l.dur; g+=`<circle cx="${X(k)}" cy="${Y(val(l,l.cum[Math.min(k,l.cum.length-1)]))}" r="2.6" fill="${cores[i%cores.length]}"><title>${esc(l.d.endereco)}: término no mês ${k}</title></circle>`; } });
+  const mp=media.map((v,k)=>v==null?null:[X(k),Y(v)]).filter(Boolean);
+  if(mp.length>1) g+=`<polyline fill="none" stroke="${cv('--text')}" stroke-width="3.2" points="${mp.map(p=>p.join(',')).join(' ')}"><title>Média</title></polyline>`;
+  document.getElementById('tc-graf').innerHTML=usa.length?`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${g}</svg>`:'<div style="padding:30px;text-align:center;color:var(--text4)">Sem obras com data de início e pagamentos para os filtros escolhidos'+(modo==='m2'?' (ou sem área no ERP)':'')+'.</div>';
+  document.getElementById('tc-leg').innerHTML=`<span><i style="background:${cv('--text')};height:4px"></i><b>Média</b> (só obras que já chegaram naquele mês)</span><span><i style="background:#295778;opacity:.5"></i>cada linha fina = uma obra (passe o mouse para ver o nome)</span><span>● = mês de término</span>`;
+  // tabela
+  const ls=linhas.slice().sort((a,b)=>(b.m0||'').localeCompare(a.m0||''));
+  document.getElementById('tc-tab').innerHTML=`<thead><tr><th>Obra</th><th>Dono</th><th>Início</th><th>Término</th><th>Duração</th><th>${base==='o'?'Custo obra':'Obra + terreno'}</th><th>Área</th><th>R$/m²</th><th>R$/casa</th><th>50% do custo</th><th>Pago após término</th><th>Aviso</th></tr></thead><tbody>`+
+    ls.map(l=>{ const sit=(window._SIT||{})[l.e]; const av=[...(sit?sit.av:[])]; if(!l.area) av.push('sem área no ERP'); if(!l.mFim) av.push('em andamento');
+      return `<tr><td>${esc(l.d.endereco)}</td><td>${l.mor?'Morais':'Investidor'}</td><td>${fmtM(l.m0)}</td><td>${l.mFim?fmtM(l.mFim):'—'}</td><td class="nr">${l.dur!=null?l.dur+' m':'—'}</td><td class="nr">${fmtBRL(l.tot)}</td><td class="nr">${l.area?fmtN(l.area,0)+' m²':'—'}</td><td class="nr">${l.area?fmtBRL(l.tot/l.area):'—'}</td><td class="nr">${fmtBRL(l.tot/l.n)}</td><td class="nr">${l.k50>=0?'mês '+l.k50:'—'}</td><td class="nr">${l.depois!=null?fmtBRL(l.depois)+' ('+fmtN(l.depois/l.tot*100,0)+'%)':'—'}</td><td class="av">${esc(av.join('; '))}</td></tr>`; }).join('')+'</tbody>';
+}
+
+function rentObra(e,d){
+  const f=OB_FIN[e]; if(!f) return null;
+  const meses=[...new Set([...Object.keys(f.o),...Object.keys(f.t),...Object.keys(f.v),...Object.keys(f.r)])].sort(); if(!meses.length) return null;
+  const custo=somaO(f.o)+somaO(f.t)+somaO(f.v), rec=somaO(f.r); if(!(custo>0)) return null;
+  const fl=[]; for(let m=meses[0];m<=meses[meses.length-1];m=mAdd(m,1)) fl.push((f.r[m]||0)-(f.o[m]||0)-(f.t[m]||0)-(f.v[m]||0));
+  /* TIR só faz sentido quando o fluxo começa investindo (negativo) e depois volta; fora de -100%…+1000% a.a. é descartada */
+  const i0=fl.findIndex(v=>Math.abs(v)>1); let tir=(i0>=0&&fl[i0]<0&&fl.some(v=>v>0))?calcTIR(fl.slice(i0),0.02):null;
+  if(tir!=null){ const aa=(Math.pow(1+tir,12)-1)*100; if(!isFinite(aa)||aa<-100||aa>1000) tir=null; }
+  const lucro=rec-custo;
+  const ini=d.data_inicio_obra?mesD(d.data_inicio_obra):null, fim=d.data_termino_obra?mesD(d.data_termino_obra):null;
+  // exposição máxima (com aportes/distribuições, como na Análise)
+  let acc=0, expMax=0; for(let m=meses[0],i=0;m<=meses[meses.length-1];m=mAdd(m,1),i++){ acc+=fl[i]+(f.s[m]||0); if(-acc>expMax) expMax=-acc; }
+  if(tir!=null&&(expMax<custo*0.1||(lucro>0)!==(tir>0))) tir=null;  // sem capital exposto de verdade ou sinal incoerente: TIR não informa
+  return {e,d,custo,rec,lucro,roi:lucro/custo*100,margem:rec>0?lucro/rec*100:null,tir:tir!=null?(Math.pow(1+tir,12)-1)*100:null,
+    dur:ini&&fim?mDif(ini,fim):null,ciclo:fl.length,fim,ini,ultimo:meses[meses.length-1],n:d.n_casas||1,mor:ehObraMorais(d.endereco),cli:clienteObra(d),expMax};
+}
+function buildRentab(){
+  TIPS={};
+  const jan=document.getElementById('rt-jan')?.value||'n10', grp=document.getElementById('rt-grp')?.value||'cli';
+  const todas=obrasUnicas(docsSetorFiltrados(false)).map(([e,d])=>rentObra(e,d)).filter(Boolean);
+  const chave=o=>grp==='dono'?(o.mor?'Grupo Morais':'Investidores'):(o.mor?'Grupo Morais · '+o.cli:o.cli);
+  const grupos={}; todas.forEach(o=>(grupos[chave(o)]=grupos[chave(o)]||[]).push(o));
+  const ref=o=>o.fim||o.ultimo; const semFim=todas.filter(o=>!o.fim).length;
+  const janela=arr=>{ const a=arr.slice().sort((x,y)=>ref(y).localeCompare(ref(x)));
+    if(jan.startsWith('n')) return a.slice(0,+jan.slice(1));
+    if(jan.startsWith('m')){ const lim=mAdd(MES_HOJE,-(+jan.slice(1))); return a.filter(o=>o.fim&&o.fim>lim); }
+    return a; };
+  const sel=[]; const linG=Object.entries(grupos).map(([g,arr])=>{ const w=janela(arr); sel.push(...w); return [g,w,arr.length]; }).filter(x=>x[1].length).sort((a,b)=>b[1].reduce((s,o)=>s+o.lucro,0)-a[1].reduce((s,o)=>s+o.lucro,0));
+  const agg=w=>{ const c=w.reduce((a,o)=>a+o.custo,0), r=w.reduce((a,o)=>a+o.rec,0), l=r-c, t=w.filter(o=>o.tir!=null), du=w.filter(o=>o.dur!=null), n=w.reduce((a,o)=>a+o.n,0);
+    return {q:w.length,c,r,l,roi:c?l/c*100:null,tir:t.length?(()=>{const v=t.map(o=>o.tir).sort((x,y)=>x-y),h=v.length>>1;return v.length%2?v[h]:(v[h-1]+v[h])/2;})():null,nTir:t.length,dur:du.length?du.reduce((a,o)=>a+o.dur,0)/du.length:null,ciclo:w.length?w.reduce((a,o)=>a+o.ciclo,0)/w.length:null,lObra:w.length?l/w.length:null,lCasa:n?l/n:null,exp:w.reduce((a,o)=>a+o.expMax,0)}; };
+  const T=agg(sel);
+  const janTxt=document.getElementById('rt-jan')?.selectedOptions[0]?.textContent||'';
+  const regra=`<div class="fora" style="margin-top:6px">Custo = custo de obra + terreno + custo de venda do CC da obra. Recebido = entradas com natureza Receita. Aportes e distribuições não entram no lucro.</div>`;
+  document.getElementById('rt-kpis').innerHTML=[
+    `<div class="roi-card"${tipX('r1',`<h4>Obras na janela</h4><div>${esc(janTxt)} de cada grupo, entre as obras que passaram nos filtros e na situação escolhida.</div>${semFim?`<div class="fora" style="margin-top:6px">${semFim} obra(s) sem data de término no Notion: para ordenar, usei o último mês com pagamento ou recebimento.</div>`:''}`)}><div class="roi-lbl">Obras</div><div class="roi-val">${T.q}</div><div class="roi-sub">${linG.length} grupo(s)</div></div>`,
+    `<div class="roi-card"${tipX('r2',`<h4>Lucro total</h4><div class="tv">${fmtBRL(T.l)}</div><table><tr><td>Recebido</td><td>${fmtBRL(T.r)}</td></tr><tr><td>− Custo</td><td>${fmtBRL(T.c)}</td></tr></table>${regra}`)}><div class="roi-lbl">Lucro total</div><div class="roi-val ${T.l>=0?'g':'r'}">${fmtBRL(T.l)}</div><div class="roi-sub">${fmtBRL(T.lObra)} por obra</div></div>`,
+    `<div class="roi-card"${tipX('r3',`<h4>ROI ponderado</h4><div>Soma dos lucros ÷ soma dos custos das obras da janela. Obra grande pesa mais.</div>${regra}`)}><div class="roi-lbl">ROI</div><div class="roi-val ${T.roi>=0?'g':'r'}">${T.roi!=null?fmtN(T.roi,1)+'%':'—'}</div><div class="roi-sub">lucro ÷ custo</div></div>`,
+    `<div class="roi-card"${tipX('r4',`<h4>TIR mediana (a.a.)</h4><div>Mediana da TIR anual das obras (metade das obras rendeu mais, metade menos). A TIR de cada obra usa o fluxo mês a mês (recebido − pago) do primeiro ao último movimento do CC.</div><div class="fora" style="margin-top:6px">Sem TIR quando o fluxo começa recebendo ou a exposição de caixa foi menor que 10% do custo (ex.: investidor que adianta o dinheiro), quando o sinal não bate com o lucro, ou quando o resultado sai do intervalo −100% a +1000% a.a. Calculada em ${T.nTir||0} de ${T.q} obras.</div>`)}><div class="roi-lbl">TIR mediana a.a.</div><div class="roi-val">${T.tir!=null?fmtN(T.tir,1)+'%':'—'}</div><div class="roi-sub">por obra</div></div>`,
+    `<div class="roi-card"${tipX('r5',`<h4>Tempo médio</h4><div><b>Obra</b>: início → término no Notion. <b>Ciclo de caixa</b>: do primeiro pagamento ao último movimento do CC (inclui compra do terreno e venda).</div>`)}><div class="roi-lbl">Tempo de obra</div><div class="roi-val">${T.dur!=null?fmtN(T.dur,1)+' m':'—'}</div><div class="roi-sub">ciclo de caixa ${T.ciclo!=null?fmtN(T.ciclo,0)+' m':'—'}</div></div>`,
+    `<div class="roi-card"${tipX('r6',`<h4>Lucro por casa</h4><div>Lucro total ÷ número de casas (Notion) das obras da janela.</div>`)}><div class="roi-lbl">Lucro / casa</div><div class="roi-val">${fmtBRL(T.lCasa)}</div><div class="roi-sub">média</div></div>`
+  ].join('');
+  document.getElementById('rt-grupos').innerHTML=`<thead><tr><th>${grp==='dono'?'Grupo':'Investidor / cliente'}</th><th>Obras</th><th>Recebido</th><th>Custo</th><th>Lucro</th><th>Lucro/obra</th><th>Lucro/casa</th><th>ROI</th><th>TIR mediana a.a.</th><th>Tempo de obra</th><th>Ciclo de caixa</th></tr></thead><tbody>`+
+    linG.map(([g,w,tot])=>{ const a=agg(w); return `<tr><td>${esc(g)}</td><td class="nr">${a.q}${tot>a.q?` <span class="cfg-auto">de ${tot}</span>`:''}</td><td class="nr">${fmtBRL(a.r)}</td><td class="nr">${fmtBRL(a.c)}</td><td class="nr" style="color:${a.l>=0?'var(--verde)':'#c0392b'};font-weight:700">${fmtBRL(a.l)}</td><td class="nr">${fmtBRL(a.lObra)}</td><td class="nr">${fmtBRL(a.lCasa)}</td><td class="nr">${a.roi!=null?fmtN(a.roi,1)+'%':'—'}</td><td class="nr">${a.tir!=null?fmtN(a.tir,1)+'%':'—'}</td><td class="nr">${a.dur!=null?fmtN(a.dur,1)+' m':'—'}</td><td class="nr">${a.ciclo!=null?fmtN(a.ciclo,0)+' m':'—'}</td></tr>`; }).join('')+
+    (linG.length>1?`<tr style="font-weight:800"><td>Total</td><td class="nr">${T.q}</td><td class="nr">${fmtBRL(T.r)}</td><td class="nr">${fmtBRL(T.c)}</td><td class="nr">${fmtBRL(T.l)}</td><td class="nr">${fmtBRL(T.lObra)}</td><td class="nr">${fmtBRL(T.lCasa)}</td><td class="nr">${T.roi!=null?fmtN(T.roi,1)+'%':'—'}</td><td class="nr">${T.tir!=null?fmtN(T.tir,1)+'%':'—'}</td><td class="nr">${T.dur!=null?fmtN(T.dur,1)+' m':'—'}</td><td class="nr">${T.ciclo!=null?fmtN(T.ciclo,0)+' m':'—'}</td></tr>`:'')+'</tbody>';
+  document.getElementById('rt-obras').innerHTML=`<thead><tr><th>Obra</th><th>${grp==='dono'?'Grupo':'Investidor / cliente'}</th><th>Término</th><th>Casas</th><th>Recebido</th><th>Custo</th><th>Lucro</th><th>ROI</th><th>TIR a.a.</th><th>Exposição máx.</th><th>Tempo de obra</th><th>Aviso</th></tr></thead><tbody>`+
+    sel.sort((a,b)=>ref(b).localeCompare(ref(a))).map(o=>{ const sit=(window._SIT||{})[o.e]; const av=[...(sit?sit.av:[])]; if(o.rec<=0) av.push('sem recebimento no ERP'); if(!o.fim) av.push('sem término');
+      return `<tr><td>${esc(o.d.endereco)}</td><td>${esc(chave(o))}</td><td>${o.fim?fmtM(o.fim):'—'}</td><td class="nr">${o.n}</td><td class="nr">${fmtBRL(o.rec)}</td><td class="nr">${fmtBRL(o.custo)}</td><td class="nr" style="color:${o.lucro>=0?'var(--verde)':'#c0392b'};font-weight:700">${fmtBRL(o.lucro)}</td><td class="nr">${fmtN(o.roi,1)}%</td><td class="nr">${o.tir!=null?fmtN(o.tir,1)+'%':'—'}</td><td class="nr">${fmtBRL(o.expMax)}</td><td class="nr">${o.dur!=null?o.dur+' m':'—'}</td><td class="av">${esc(av.join('; '))}</td></tr>`; }).join('')+'</tbody>';
+  if(!sel.length) document.getElementById('rt-obras').innerHTML='<tbody><tr><td style="padding:20px;text-align:center;color:var(--text4)">Nenhuma obra para os filtros e a janela escolhidos.</td></tr></tbody>';
+}
+
+/* ===================== OPERACIONAL × NÃO OPERACIONAL e RESUMO AO PASSAR O MOUSE (27/10) ===================== */
+let DASH_P=null;
+const ROT_ITEM={obra:'Custo de obra (s/ terreno)',ter:'Compra de terreno',tot:'Custo de obra total',venda:'Custo de venda',esc:'Custo escritório',pos:'Custo pós-obra'};
+function predItem(item){ return p=>{ const k=cls(p);
+  if(item==='obra') return k.t==='obra'&&k.i==='obra'; if(item==='ter') return k.t==='obra'&&k.i==='ter'; if(item==='tot') return k.t==='obra'&&(k.i==='obra'||k.i==='ter');
+  if(item==='venda') return k.t==='obra'&&k.i==='venda'; if(item==='esc') return k.t==='esc'&&k.i==='conta'; if(item==='pos') return k.t==='pos'&&k.i==='conta';
+  if(item==='saiOp') return (k.t==='obra'&&(k.i==='obra'||k.i==='ter'||k.i==='venda'))||((k.t==='esc'||k.t==='pos')&&k.i==='conta');
+  if(item==='saiNop') return !((k.t==='obra'&&(k.i==='obra'||k.i==='ter'||k.i==='venda'))||((k.t==='esc'||k.t==='pos')&&k.i==='conta'));
+  return false; }; }
+function recOp(f){ const c=ccInfo(f.cc||''); return c.tipo!=='soc'&&c.tipo!=='ign'&&natDest(f.nat)==='receita'; }
+function somaPag(item,ml){ const set=new Set(ml), pr=predItem(item); let t=0; (window._pagFull||[]).forEach(p=>{ if(set.has(p.mes)&&pr(p)) t+=p.valor||0; }); return t; }
+function somaRec(op,ml){ const set=new Set(ml); let t=0; FATS_TODOS.forEach(f=>{ if(set.has(f.mes)&&(recOp(f)===op)) t+=f.valor||0; }); return t; }
+function blocoOperacional(){
+  if(!DASH_P) return '';
+  const P=[['12','12 meses',DASH_P.m12],['ano','Anual ('+DASH_P.ano+')',DASH_P.ano12],['mes','Mês ('+fmtM(DASH_P.mes)+')',[DASH_P.mes]]];
+  const v=P.map(([k,,ml])=>({k,eo:somaRec(true,ml),so:somaPag('saiOp',ml),en:somaRec(false,ml),sn:somaPag('saiNop',ml)}));
+  const cel=(x,campo,cls)=>`<td class="v ${cls||''}" data-tip="op${campo}:${x.k}">${fmtBRL(x[campo==='Eo'?'eo':campo==='So'?'so':campo==='En'?'en':'sn'])}</td>`;
+  const res=x=>x.eo-x.so;
+  return `<div class="kpi-ext-card"><div class="kpi-ext-title">⚖ Operacional × não operacional</div>
+    <table class="op-tab"><thead><tr><th></th>${P.map(p=>`<th>${p[1]}</th>`).join('')}</tr></thead><tbody>
+    <tr><td>Entradas operacionais <span class="cfg-auto">(vendas, serviços, execução de obra)</span></td>${v.map(x=>cel(x,'Eo','g')).join('')}</tr>
+    <tr><td>Saídas operacionais <span class="cfg-auto">(obra, terreno, venda, escritório, pós-obra)</span></td>${v.map(x=>cel(x,'So','r')).join('')}</tr>
+    <tr class="res"><td>Resultado operacional</td>${v.map(x=>`<td class="v ${res(x)>=0?'g':'r'}" data-tip="opRes:${x.k}">${fmtBRL(res(x))}</td>`).join('')}</tr>
+    <tr><td>Entradas não operacionais <span class="cfg-auto">(aportes, empréstimos, estornos…)</span></td>${v.map(x=>cel(x,'En','')).join('')}</tr>
+    <tr><td>Saídas não operacionais <span class="cfg-auto">(distribuições, financiamento da sala, devoluções…)</span></td>${v.map(x=>cel(x,'Sn','')).join('')}</tr>
+    </tbody></table><div class="cfg-auto" style="margin-top:6px">Resultado de caixa no período, não lucro das obras: entra o que foi pago e recebido no mês, de obras em andamento e prontas.</div></div>`;
+}
+function tipMeses(per){ if(!DASH_P) return []; return per==='mes'?[DASH_P.mes]:per==='ano'||per==='mano'?DASH_P.ano12:DASH_P.m12; }
+function tipPeriodoTxt(ml){ const m=ml.filter(Boolean).slice().sort(); return m.length>1?fmtM(m[0])+' a '+fmtM(m[m.length-1]):fmtM(m[0]); }
+function tipTop(obj,n){ return Object.entries(obj).sort((a,b)=>b[1].v-a[1].v).slice(0,n); }
+function tipConteudo(ch){
+  if(ch[0]==='#') return TIPS[ch.slice(1)]||'';
+  const [k,per]=ch.split(':'); const ml=tipMeses(per); const set=new Set(ml);
+  const linha=(t,v)=>`<tr><td>${esc(t)}</td><td>${fmtBRL(v)}</td></tr>`;
+  if(k==='vgv'){ const vs=vendas.filter(v=>v.clientes&&set.has(mesD(v.data_venda))); const t=vs.reduce((a,v)=>a+(v.valor_venda_contrato||0),0);
+    const st={}; vs.forEach(v=>{const x=st[v.setor||'—']||(st[v.setor||'—']={v:0,n:0}); x.v+=v.valor_venda_contrato||0; x.n++;});
+    return `<h4>VGV ${per==='med'?'— média por mês':''}</h4><div class="tv">${fmtBRL(per==='med'?t/12:t)}</div><div class="tp">${tipPeriodoTxt(ml)} · ${vs.length} casas vendidas${per==='med'?' · 12 meses ÷ 12':''}</div>
+      <div>Soma do <b>valor de compra e venda no contrato</b> das casas da base VENDAS (Notion) com cliente, pela <b>data da venda</b>. Não usa o ERP.</div>
+      <div class="tr">Por setor</div><table>${tipTop(st,6).map(([n,x])=>linha(n+' ('+x.n+')',x.v)).join('')}</table>
+      ${per==='ano'?`<div class="fora" style="margin-top:6px">Meta de vendas do ano = casas construídas no ano anterior (METAS ${DASH_P.ano-1}).</div>`:''}`; }
+  if(k==='rat'){ const tx={escTri:['Custo escritório ÷ VGV (trimestre)','Escritório dos 3 meses antes do mês escolhido ÷ VGV dos mesmos meses. Meta ≤ 4%.'],esc12:['Custo escritório ÷ VGV (12 meses)','Escritório dos 12 meses ÷ VGV dos 12 meses. Meta ≤ 4%.'],posTri:['Pós-obra ÷ custo de obra (trimestre)','Pós-obra dos 3 meses antes ÷ custo de obra sem terreno dos mesmos meses. Meta ≤ 1%.'],pos12:['Pós-obra ÷ custo de obra (12 meses)','Pós-obra dos 12 meses ÷ custo de obra sem terreno dos 12 meses. Meta ≤ 1%.']}[per]||['',''];
+    return `<h4>${tx[0]}</h4><div class="tp">${per.endsWith('Tri')?tipPeriodoTxt(DASH_P.tri):tipPeriodoTxt(DASH_P.m12)}</div><div>${tx[1]}</div><div class="fora" style="margin-top:6px">Os dois lados seguem as regras da aba Configurações; passe o mouse nos cards de custo para ver o que entra em cada um.</div>`; }
+  if(k.startsWith('op')){ const tipo=k.slice(2);
+    if(tipo==='Eo'||tipo==='En'){ const op=tipo==='Eo'; const g={}; let t=0; FATS_TODOS.forEach(f=>{ if(!set.has(f.mes)||recOp(f)!==op) return; t+=f.valor||0; const n=(f.nat||'(sem natureza)')+(op?'':' · '+(ROT_TIPO[ccInfo(f.cc||'').tipo]||'')); const x=g[n]||(g[n]={v:0}); x.v+=f.valor||0; });
+      return `<h4>Entradas ${op?'operacionais':'não operacionais'}</h4><div class="tv">${fmtBRL(t)}</div><div class="tp">${tipPeriodoTxt(ml)}</div>
+        <div>${op?'Recebimentos com natureza marcada como <b>Receita</b> (Configurações › 4), fora dos CCs de sócios e dos marcados como "não conta".':'Todo o resto que entrou: aportes de capital e de investidor, empréstimos, estornos, reembolsos e recebimentos em CCs que não contam.'}</div>
+        <div class="tr">Por natureza</div><table>${tipTop(g,8).map(([n,x])=>linha(n,x.v)).join('')}</table>`; }
+    if(tipo==='Res'){ const eo=somaRec(true,ml), so=somaPag('saiOp',ml); return `<h4>Resultado operacional</h4><div class="tv">${fmtBRL(eo-so)}</div><div class="tp">${tipPeriodoTxt(ml)}</div><table>${linha('Entradas operacionais',eo)}${linha('− Saídas operacionais',so)}</table><div class="fora" style="margin-top:6px">Aportes e distribuições ficam de fora.</div>`; }
+    k=tipo==='So'?'saiOp':'saiNop'; }
+  const item=k, pr=predItem(item); const cats={}, ccs={}; let t=0, n=0;
+  (window._pagFull||[]).forEach(p=>{ if(!set.has(p.mes)||!pr(p)) return; t+=p.valor||0; n++; const kc=cls(p);
+    const c=item==='saiNop'?(p.categoria||'—')+' · '+(kc.i==='soc'?'sócios':kc.t==='ign'?'CC não conta':'não conta'):(p.categoria||'—');
+    (cats[c]=cats[c]||{v:0}).v+=p.valor||0; (ccs[p.cc]=ccs[p.cc]||{v:0}).v+=p.valor||0; });
+  const media=per==='med'?t/12:per==='m12'?null:per==='mano'?null:null;
+  const tit=item==='saiOp'?'Saídas operacionais':item==='saiNop'?'Saídas não operacionais':ROT_ITEM[item];
+  const regra={obra:'Pagamentos em CCs do tipo <b>Obra</b>, nas categorias marcadas como <b>Custo de obra</b>.',ter:'Pagamentos em CCs do tipo <b>Obra</b>, nas categorias marcadas como <b>Terreno</b> (aquisição, comissão de lote, ITBI, escritura, registro).',tot:'Custo de obra + terreno, nos CCs do tipo Obra.',venda:'Pagamentos em CCs do tipo Obra nas categorias marcadas como <b>Custo de venda</b> (comissão de venda, DARF RET, ganho de capital).',esc:'Pagamentos em CCs do tipo <b>Escritório</b>, nas categorias que contam para o escritório.',pos:'Pagamentos em CCs do tipo <b>Pós-obra</b>.',saiOp:'Custo de obra, terreno, custo de venda, escritório e pós-obra.',saiNop:'Aportes e distribuições, categorias marcadas como "não conta" e CCs que não contam.'}[item]||'';
+  const fora={obra:'Fica de fora: terreno, custo de venda, aportes/distribuições e categorias "não conta" (devoluções, distratos, adiantamentos, despesas pessoais).',ter:'Fica de fora: tudo que não está marcado como Terreno.',esc:'Fica de fora: financiamento da sala, cota capital, adiantamentos e despesas pessoais.',pos:'Pós-obra dos sócios (JC/JV) não entra.'}[item]||'';
+  const ePer=per==='med'?' · 12 meses ÷ 12':per==='m12'?' · média dos meses de 2026 até hoje':per==='mano'?' · média dos meses já fechados de 2026':'';
+  const nCC=Object.keys(ccs).length;
+  return `<h4>${tit}</h4><div class="tv">${fmtBRL(per==='med'?t/12:t)}</div><div class="tp">${tipPeriodoTxt(ml)} · ${n} pagamentos · ${nCC} centros de custo${ePer}</div>
+    <div>${regra}</div>
+    <div class="tr">Maiores categorias</div><table>${tipTop(cats,6).map(([c,x])=>linha(c,x.v)).join('')}</table>
+    <div class="tr">Maiores centros de custo</div><table>${tipTop(ccs,3).map(([c,x])=>linha(c,x.v)).join('')}</table>
+    ${fora?`<div class="fora" style="margin-top:6px">${fora}</div>`:''}<div class="fora">As regras mudam na aba Configurações.</div>`;
+}
+(function(){ let alvo=null; const tip=()=>document.getElementById('ad-tip');
+  function mostrar(el){ const t=tip(); if(!t) return; try{ t.innerHTML=tipConteudo(el.dataset.tip); }catch(e){ t.innerHTML='<div class="fora">Sem resumo para este valor.</div>'; }
+    t.style.display='block'; const r=el.getBoundingClientRect(), w=t.offsetWidth, h=t.offsetHeight;
+    let x=Math.min(Math.max(8,r.left), window.innerWidth-w-8), y=r.bottom+8; if(y+h>window.innerHeight-8) y=Math.max(8,r.top-h-8); t.style.left=x+'px'; t.style.top=y+'px'; }
+  document.addEventListener('mouseover',e=>{ const el=e.target.closest('[data-tip]'); if(el===alvo) return; alvo=el; if(el) mostrar(el); else { const t=tip(); if(t) t.style.display='none'; } });
+  document.addEventListener('click',e=>{ const el=e.target.closest('[data-tip]'); if(el&&matchMedia('(hover: none)').matches){ mostrar(el); } else if(!el){ const t=tip(); if(t) t.style.display='none'; } });
+  window.addEventListener('scroll',()=>{ const t=tip(); if(t) t.style.display='none'; alvo=null; },true);
+})();
 
 /* ===================== ABA CONFIGURAÇÕES ===================== */
 let CFG_ED=null, CFG_SUJO={};
