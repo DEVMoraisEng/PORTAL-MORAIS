@@ -148,8 +148,8 @@ html[data-tema="escuro"] .dc-t{filter:brightness(1.35)}
 .dv-i{min-width:0;padding:8px 10px;border-radius:10px;background:var(--bg2);transition:transform .12s,box-shadow .12s}
 .dv-i:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(20,50,70,.12)}
 .dv-l{font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.07em}
-.dv{font-family:'Barlow Condensed',sans-serif;font-size:clamp(18px,1.45vw,26px);font-weight:800;color:var(--text);line-height:1.1;white-space:nowrap}
-.dv.hero{font-size:clamp(22px,1.75vw,32px);color:var(--ac)}
+.dv{font-family:'Barlow Condensed',sans-serif;font-size:clamp(17px,1.3vw,24px);font-weight:800;color:var(--text);line-height:1.1;white-space:nowrap}
+.dv.hero{font-size:clamp(20px,1.55vw,29px);color:var(--ac)}
 html[data-tema="escuro"] .dv.hero{filter:brightness(1.35)}
 .dv.g{color:var(--verde)}.dv.r{color:#c0392b}
 .dv-s{font-size:11px;color:var(--text3);margin-top:2px}
@@ -159,9 +159,9 @@ html[data-tema="escuro"] .pill.bom{color:#5fd68f}html[data-tema="escuro"] .pill.
 .dt{width:100%;border-collapse:separate;border-spacing:0;margin-bottom:10px}
 .dt th{background:none!important;color:var(--text3)!important;font:700 10.5px 'Barlow',sans-serif!important;text-transform:uppercase;letter-spacing:.07em;padding:4px 8px!important;text-align:right!important;border:0!important}
 .dt th:first-child{text-align:left!important}
-.dt td{background:none!important;border:0!important;border-bottom:1px solid var(--border2)!important;padding:7px 8px!important;text-align:right!important;font-family:'Barlow Condensed',sans-serif;font-size:clamp(14px,1.05vw,20px);font-weight:800;color:var(--text);white-space:nowrap}
-.dt td:first-child{text-align:left!important;font-family:'Barlow',sans-serif;font-size:12.5px;font-weight:600;color:var(--text2,var(--text))}
-.dt tr.tot td{color:var(--ac);font-size:clamp(16px,1.25vw,23px)}
+.dt td{background:none!important;border:0!important;border-bottom:1px solid var(--border2)!important;padding:6px 5px!important;text-align:right!important;font-family:'Barlow Condensed',sans-serif;font-size:clamp(13px,.95vw,18px);font-weight:800;color:var(--text);white-space:nowrap}
+.dt td:first-child{white-space:normal!important;min-width:105px;text-align:left!important;font-family:'Barlow',sans-serif;font-size:12px;font-weight:600;color:var(--text2,var(--text))}
+.dt tr.tot td{color:var(--ac);font-size:clamp(15px,1.1vw,21px)}
 .dt tr.tot td:first-child{font-weight:800;font-size:13.5px}
 .dt tr.vgv td{color:var(--verde)}
 .dt tr td.g,.dt tr.tot td.g{color:var(--verde)}.dt tr td.r,.dt tr.tot td.r{color:#c0392b}
@@ -1601,7 +1601,7 @@ function showSetorSub(id,btn){
 const MPT=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MFU=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const fmtM=ym=>{if(!ym)return'—';const[y,m]=ym.split('-');return MPT[+m-1]+'/'+y.slice(2);};
-const fmtBRL=v=>v==null||isNaN(v)?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
+const fmtBRL=v=>v==null||isNaN(v)?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});  /* 27/10: sempre com centavos */
 const fmtBRL2=v=>v==null||isNaN(v)?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtN=(v,d=1)=>v==null||isNaN(v)?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const fmtPct=(v,d=2)=>v==null||isNaN(v)?'—':fmtN(v,d)+'%';
@@ -4723,7 +4723,7 @@ function tipConteudo(ch){
 /* ===================== ABA CONFIGURAÇÕES ===================== */
 let CFG_ED=null, CFG_SUJO={};
 const jq=t=>esc(String(t).replace(/\\/g,'\\\\').replace(/'/g,"\\'"));
-const fmt0=v=>'R$ '+Math.round(v||0).toLocaleString('pt-BR');
+const fmt0=v=>fmtBRL(v||0);
 function cfgEd(){ if(!CFG_ED) CFG_ED=JSON.parse(JSON.stringify(CFG)); return CFG_ED; }
 function cfgMeses12(){ const h=new Date(); const r=new Set(); for(let i=0;i<12;i++){ const d=new Date(h.getFullYear(),h.getMonth()-i,1); r.add(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')); } return r; }
 function cfgSel(lista,val,auto,attrs){ return `<select ${attrs}>${lista.map(([v,t])=>`<option value="${v}"${v===val?' selected':''}>${t}${v===auto?' (auto)':''}</option>`).join('')}</select>`; }
