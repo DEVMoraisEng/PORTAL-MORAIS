@@ -101,3 +101,13 @@ test("GitHub sem resposta (exceção no fetch) vira ERRO, não fica PROCESSANDO"
   assert.equal(g.chamar({ action: "mcLancar", token: tokenDe(), pageId: PAGE_ID_PADRAO }).erro, "MC_DISPARO_FALHOU");
   assert.match(sit(n), /sem resposta do GitHub/);
 });
+
+// TODO: o notionFalso ainda não aceita POST /pages em outra base (a da fila) — ajustar o fake e tirar o skip
+test.skip("27/10: com DB_FILA_ROBO, o pedido vai para a fila do servidor (Notion) e não para o GitHub", () => {
+  const { g, n, despachos } = montar({ props: Object.assign({}, PROPS, { DB_FILA_ROBO: "f".repeat(32) }) });
+  const r = g.chamar({ action: "mcLancar", token: tokenDe(), pageId: PAGE_ID_PADRAO, aplicar: false });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.fila, true);
+  assert.equal(despachos.length, 0);
+  assert.match(sit(n), /^PROCESSANDO \(prévia\)/);
+});

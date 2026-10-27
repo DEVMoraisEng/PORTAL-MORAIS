@@ -49,8 +49,8 @@ function mcProcessandoVivo_(situacao, agora) {
 
 function mcLancar_(col, sess, p) {
   var aplicar = p.aplicar === true || p.aplicar === "true";
-  var repo = prop_("GH_REPO_MC"), tk = prop_("GITHUB_TOKEN");
-  if (!repo || !/^[\w.-]+\/[\w.-]+$/.test(repo) || !tk) return { ok: false, erro: "MC_NAO_CONFIGURADO" };
+  var repo = prop_("GH_REPO_MC"), tk = prop_("GITHUB_TOKEN"), fila = roboUsaFila_();   /* 27/10: fila do servidor */
+  if (!fila && (!repo || !/^[\w.-]+\/[\w.-]+$/.test(repo) || !tk)) return { ok: false, erro: "MC_NAO_CONFIGURADO" };
   /* trava: dois cliques ao mesmo tempo não disparam dois robôs */
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(10000)) return { ok: false, erro: "MC_PROCESSANDO" };
@@ -67,6 +67,23 @@ function mcLancar_(col, sess, p) {
                 (aplicar && assin ? " [#" + assin + "]" : "");
     props[c.colSituacao] = { rich_text: [{ type: "text", text: { content: texto } }] };
     notion_("PATCH", "/pages/" + p.pageId, { properties: props });
+
+    if (fila) {
+      /* o robô do servidor pega em até 1 min; sem sinal dele, a situação já diz que o pedido espera */
+      var f = roboFilaPor_("mc-venda", { pageId: String(p.pageId).replace(/-/g, ""), aplicar: aplicar });
+      if (!f.ok) {
+        props[c.colSituacao] = { rich_text: [{ type: "text", text: { content: "ERRO: não consegui pôr o pedido na fila do servidor" } }] };
+        try { notion_("PATCH", "/pages/" + p.pageId, { properties: props }); } catch (e) {}
+        return { ok: false, erro: "MC_DISPARO_FALHOU" };
+      }
+      var aviso = roboAvisoSinal_(f.sinal, Date.now());
+      if (aviso) {
+        props[c.colSituacao] = { rich_text: [{ type: "text", text: { content: texto + aviso } }] };
+        try { notion_("PATCH", "/pages/" + p.pageId, { properties: props }); } catch (e) {}
+      }
+      console.log("PORTAL-VENDA mcLancar " + String(p.pageId).slice(0, 8) + (aplicar ? " aplicar" : " previa") + " (fila)");
+      return { ok: true, aplicar: aplicar, fila: true, semSinal: !!aviso };
+    }
 
     var code;
     try {
