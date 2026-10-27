@@ -63,6 +63,17 @@ const TEST_SPE = [{ nome: "Testemunha Um Spe", email: "t1.spe@teste.example", cp
 const TEST_PF = [{ nome: "Testemunha Um Pf", email: "t1.pf@teste.example", cpf: "000.000.007-87" },
                  { nome: "Testemunha Dois Pf", email: "t2.pf@teste.example", cpf: "000.000.008-68" }];
 
+/* termo de pré-reserva (27/10/2026): modelo de teste com todos os marcadores do termo */
+const MODELO_PR = [
+  "TERMO — PRÉ-RESERVANTE: {{PRE_RESERVANTE_QUADRO}}",
+  "Casa {{CASA_NUMERO}} Tipo {{CASA_TIPO}} até {{PRE_RESERVA_DATA_LIMITE}} por {{PRE_RESERVA_VALOR_EXTENSO}} ({{PRE_RESERVA_VALOR}})",
+  "Devolução: {{PRE_RESERVANTE_CONTA}}",
+  "{{CIDADE_DATA}}",
+  "{{PRE_RESERVANTE_NOME}} — CPF {{PRE_RESERVANTE_CPF}}",
+];
+const COLS_PR = { "PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO": texto(""), "PRÉ-RESERVA - TERMO GERADO": { files: [] }, "PRÉ-RESERVA - TERMO ASSINADO": { files: [] },
+  "PRÉ-RESERVA - ENVELOPE ID": texto(""), "PRÉ-RESERVA - SITUAÇÃO": texto(""), "CONDOMÍNIO": sel("RESERVA DOS IPÊS") };
+
 const MODELO_COND = [
   "CONTRATO — CONDOMÍNIO {{CONDOMINIO_NOME}} — UNIDADE {{UNIDADE}}",
   "COMPRADOR: {{COMPRADORES}}",
@@ -87,19 +98,20 @@ const SCHEMA_VENDAS = { properties: Object.fromEntries(Object.entries(COLUNAS_RE
   return [n, { type: tipo, [tipo]: tipo === "select" ? { options: t.opcoes.map((o) => ({ name: o })) } : {} }];
 })) };
 
-function cenario({ linha = {}, sem = [], dbPagina = DB_COND, props = {}, gh = 204 } = {}) {
+function cenario({ linha = {}, sem = [], dbPagina = DB_COND, props = {}, gh = 204, docEnd = "CONDOMÍNIO RESERVA TESTE" } = {}) {
   const valores = Object.assign({}, LINHA, linha);
   for (const s of sem) delete valores[s];
   const n = notionFalso({ colunas: colunasDe(valores), valores, pageId: COND, dbId: dbPagina,
     bases: { "db-vend": [VENDEDOR], "db-lote": [EMPREENDIMENTO], "db-corr": [],
-             "db-doc": [Object.assign({ "ENDEREÇO": tit("CONDOMÍNIO RESERVA TESTE") }, OBRA_PG)] } });
-  const d = driveFalso({ modelos: { "modelo-cond": MODELO_COND, "modelo-obra": ["OBRA"], "modelo-pronto": ["PRONTO"] } });
+             "db-doc": [Object.assign({ "ENDEREÇO": tit(docEnd) }, OBRA_PG)] } });
+  const d = driveFalso({ modelos: { "modelo-cond": MODELO_COND, "modelo-obra": ["OBRA"], "modelo-pronto": ["PRONTO"], "modelo-pr": MODELO_PR } });
   const c = clicksignFalso();
   const despachos = [];
   const p = Object.assign({
     NOTION_TOKEN: "ntn-teste", SESSION_SECRET: "segredo-de-teste", DB_VENDAS: DB_ID_PADRAO, DB_VENDAS_COND: DB_COND,
     DB_VENDEDORES: "db-vend", DB_LOTEAMENTOS: "db-lote", DB_CORRETORES: "db-corr", DB_DOCUMENTOS: "db-doc",
     MODELO_PRONTO_ID: "modelo-pronto", MODELO_CONSTRUCAO_ID: "modelo-obra", MODELO_CONDOMINIO_ID: "modelo-cond", PASTA_PROVISORIA_ID: "pasta-prov",
+    MODELO_PRE_RESERVA_ID: "modelo-pr", PRE_RESERVA_VALOR: "3000", PRE_RESERVA_DATA_LIMITE: "2026-10-31",
     CLICKSIGN_TOKEN: "token-clicksign-de-teste",
     ASSINATURA_TESTEMUNHAS_SPE: JSON.stringify(TEST_SPE), ASSINATURA_TESTEMUNHAS_PF: JSON.stringify(TEST_PF),
     GITHUB_TOKEN: "gh-teste", GH_REPO_MC: "Org-Teste/REPO-TESTE",
@@ -245,4 +257,67 @@ test("tela de venda do condomínio: nenhum log com nome, CPF ou valor", () => {
   c.gerarFinal(); c.acao("assinaturaEnviar"); c.acao("mcLancar");
   const todos = c.g.logs.join("\n");
   for (const s of ["Compradora", "Beltrano", "529.982", "52998224725", "305", "RESERVA", "Reserva"]) assert.ok(!todos.includes(s), "log vazou: " + s);
+});
+
+/* ---------------- 27/10/2026: Termo de Pré-Reserva ---------------- */
+const cenarioPR = (o = {}) => cenario({ docEnd: "CONDOMÍNIO RESERVA DOS IPÊS", ...o, linha: { ...COLS_PR, ...(o.linha || {}) } });
+
+test("termo: estado, falta a conta, salva a conta, gera o PDF com o carimbo na coluna própria", () => {
+  const c = cenarioPR();
+  assert.deepEqual(c.acao("preReservaEstado"), { ok: true, conta: "", gerado: false, nome: "", valor: 3000, dataLimite: "2026-10-31" });
+  const sem = c.acao("gerarTermoPreReserva");
+  assert.equal(sem.erro, "FALTAM_DADOS");
+  assert.deepEqual(sem.faltas, ["Conta para devolução (preencha no cartão)"]);
+  assert.equal(c.acao("salvarContaPreReserva", { conta: "abc" }).erro, "CONTA_CURTA");
+  assert.deepEqual(c.acao("salvarContaPreReserva", { conta: "PIX CPF da compradora" }), { ok: true, conta: "PIX CPF da compradora" });
+  assert.equal(c.txt("PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO"), "PIX CPF da compradora");
+  const r = c.acao("gerarTermoPreReserva");
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.match(r.nome, /^TERMO DE PRÉ-RESERVA - CONDOMÍNIO RESERVA DOS IPÊS - CASA 13 - .* \[#[0-9a-f]{8}\]\.pdf$/);
+  const pars = c.d.estado.salvos[c.d.estado.copias[0].id].pars;
+  assert.ok(pars[0].includes("Compradora de Teste") && pars[0].includes("CPF nº 529.982.247-25") && pars[0].includes("telefone 62 90000-0000"), pars[0]);
+  assert.equal(pars[1], "Casa 13 Tipo 02 até 31/10/2026 por R$ 3.000,00 (três mil reais) (3.000,00)");
+  assert.equal(pars[2], "Devolução: PIX CPF da compradora");
+  assert.equal(c.n.pagina.properties["PRÉ-RESERVA - TERMO GERADO"].files[0].name, r.nome);
+  assert.equal(c.n.pagina.properties["CONTRATO GERADO"].files.length, 0, "o termo não mexe no contrato");
+  const e = c.acao("preReservaEstado");
+  assert.equal(e.gerado, true);
+  assert.equal(e.nome, r.nome);
+  const v = c.acao("verTermoPreReserva");
+  assert.equal(v.ok, true);
+});
+
+test("termo na Clicksign: envia com doc PRE_RESERVA (pré-reservante, vendedora, testemunhas), colunas do termo; contrato intocado", () => {
+  const c = cenarioPR({ linha: { "PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO": texto("PIX CPF da compradora") } });
+  assert.equal(c.acao("assinaturaEnviar", { doc: "PRE_RESERVA" }).erro, "SEM_TERMO_GERADO");
+  assert.equal(c.acao("gerarTermoPreReserva").ok, true);
+  const r = c.acao("assinaturaEnviar", { doc: "PRE_RESERVA" });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual(r.signatarios.map((s) => s.papel), ["Comprador 1", "Vendedor (representante)", "Testemunha 1", "Testemunha 2"]);
+  assert.equal(c.txt("PRÉ-RESERVA - ENVELOPE ID"), "env-1");
+  assert.equal(c.txt("PRÉ-RESERVA - SITUAÇÃO"), "ENVIADO");
+  assert.equal(c.txt("ASSINATURA - ENVELOPE ID"), "", "o envelope do contrato não muda");
+  const est = c.acao("assinaturaEstado", { doc: "PRE_RESERVA" });
+  assert.equal(est.ok, true);
+  assert.equal(est.envelope, true);
+  assert.deepEqual(c.acao("assinaturaEstado"), { ok: true, situacao: "", envelope: false, signatarios: [] });
+});
+
+test("termo: conta mudada depois de gerar = CONTRATO_DESATUALIZADO; perfil TESTES não grava", () => {
+  const c = cenarioPR({ linha: { "PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO": texto("PIX CPF da compradora") } });
+  assert.equal(c.acao("gerarTermoPreReserva").ok, true);
+  c.n.pagina.properties["PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO"] = { type: "rich_text", rich_text: [{ plain_text: "outra conta" }] };
+  assert.equal(c.acao("assinaturaEnviar", { doc: "PRE_RESERVA" }).erro, "CONTRATO_DESATUALIZADO");
+  for (const action of ["gerarTermoPreReserva", "salvarContaPreReserva"])
+    assert.equal(c.acao(action, { conta: "conta de teste" }, token("TESTES")).erro, "SEM_PERMISSAO_TESTES", action);
+  assert.equal(c.acao("preReservaEstado", {}, token("TESTES")).ok, true);
+});
+
+test("termo: coluna faltando e logs sem dado pessoal", () => {
+  const c = cenarioPR({ sem: ["PRÉ-RESERVA - TERMO GERADO"] });
+  assert.equal(c.acao("preReservaEstado").erro, "COLUNA_FALTANDO: PRÉ-RESERVA - TERMO GERADO");
+  const d = cenarioPR({ linha: { "PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO": texto("PIX CPF da compradora") } });
+  d.acao("gerarTermoPreReserva"); d.acao("assinaturaEnviar", { doc: "PRE_RESERVA" });
+  const todos = d.g.logs.join(" | ");
+  for (const s of ["Compradora", "529.982", "PIX CPF", "3.000"]) assert.ok(!todos.includes(s), "log vazou: " + s);
 });

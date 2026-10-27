@@ -25,18 +25,29 @@ var ASS_PENDENTE = "ASSINATURA_PENDENTE_";
 var ASS_PAPEIS = "ASSINATURA_PAPEIS_";
 var ASS_REENVIO = "ASSINATURA_REENVIO_";   /* + id do envelope = hora (ms) do último reenvio do aviso */
 
+/* 27/10/2026: o mesmo fluxo assina o CONTRATO (padrão) e o TERMO DE PRÉ-RESERVA (p.doc = "PRE_RESERVA").
+ * Cada documento tem as suas 3 colunas na linha e a sua chave de pendente (ASSINATURA_PENDENTE_PR_<página>). */
+function assDoc_(p) {
+  if (p && p.doc === "PRE_RESERVA") {
+    var C = PreReservaVenda.COL;
+    return { pre: true, chave: "PR_", cols: { ENVELOPE: C.ENVELOPE, SITUACAO: C.SITUACAO, ASSINADO: C.ASSINADO },
+             gerado: prArquivoGerado_, semGerado: "SEM_TERMO_GERADO" };
+  }
+  return { pre: false, chave: "", cols: ASS_COL, gerado: ctrArquivoGerado_, semGerado: "SEM_CONTRATO_GERADO" };
+}
+
 function assLog_(msg) { console.log("PORTAL-VENDA assinatura " + msg); }
 function assProps_() { return PropertiesService.getScriptProperties(); }
 function assApagarProp_(nome) { try { assProps_().deleteProperty(nome); } catch (e) { assLog_("propriedade nao apagada"); } }
 
 /* Nomes reais das 3 colunas da assinatura na página (tolerante a acento/caixa/espaço). */
-function assColunas_(pg) {
-  var porChave = {}, faltando = [], errado = [], r = {};
+function assColunas_(pg, doc) {
+  var porChave = {}, faltando = [], errado = [], r = {}, cols = (doc || assDoc_()).cols;
   for (var n in pg.properties) porChave[RegrasVenda.chave(n)] = n;
-  for (var k in ASS_COL) {
-    var nome = ASS_COL[k], real = porChave[RegrasVenda.chave(nome)];
+  for (var k in cols) {
+    var nome = cols[k], real = porChave[RegrasVenda.chave(nome)];
     if (!real) { faltando.push(nome); continue; }
-    if (pg.properties[real].type !== ASS_TIPOS[nome]) errado.push(nome);
+    if (pg.properties[real].type !== (k === "ASSINADO" ? "files" : "rich_text")) errado.push(nome);
     r[k] = real;
   }
   if (faltando.length) throw new Error("COLUNA_FALTANDO: " + faltando.join(", "));
@@ -163,19 +174,20 @@ function assinaturaEnviar_(col, sess, p) {
 }
 
 function assEnviarTravado_(col, p, pid) {
-  var S = ClicksignVenda.SITUACOES;
-  var pg = ctrLerPaginaVenda_(p.pageId), cols = assColunas_(pg);
+  var doc = assDoc_(p);
+  var pg = ctrLerPaginaVenda_(p.pageId), cols = assColunas_(pg, doc);
   var envAtual = assTexto_(pg, cols.ENVELOPE), sitAtual = assTexto_(pg, cols.SITUACAO);
   /* envelope ativo que o Notion não gravou: a chave pendente vale mais que as colunas */
-  var pendente = prop_(ASS_PENDENTE + p.pageId);
+  var pendente = prop_(ASS_PENDENTE + doc.chave + p.pageId);
   if (pendente || !ClicksignVenda.podeEnviar(envAtual, sitAtual)) {
     assLog_("enviar " + pid + " recusado: envelope aberto" + (pendente ? " (pendente " + pendente + ")" : ""));
     return { ok: false, erro: "ENVELOPE_ABERTO", situacao: sitAtual };
   }
-  var gerado = ctrArquivoGerado_(pg);
-  if (!gerado || !gerado.url) return { ok: false, erro: "SEM_CONTRATO_GERADO" };
+  var gerado = doc.gerado(pg);
+  if (!gerado || !gerado.url) return { ok: false, erro: doc.semGerado };
   if (!prop_("DB_VENDEDORES") || !prop_("DB_LOTEAMENTOS") || !prop_("DB_CORRETORES") || !prop_("DB_DOCUMENTOS")) return { ok: false, erro: "CADASTRO_NAO_CONFIGURADO" };
 
+  if (doc.pre) return assEnviarTermo_(col, p, pid, cols, doc, gerado);
   /* mesmos dados do contrato (GerarContrato): o que foi gerado é o que se confere */
   var f = ctrFontes_(col, p.pageId);
   if (f.condominioErro) return { ok: false, erro: "FALTAM_DADOS", faltas: [f.condominioErro] };
@@ -196,14 +208,40 @@ function assEnviarTravado_(col, p, pid) {
     return { ok: false, erro: "CONTRATO_DESATUALIZADO" };
   }
 
+  var nomeCs = ClicksignVenda.nomePadrao(f.endereco, f.casa, d.comprador1 && d.comprador1.nome);
+  return assCriarEnvelope_(p, pid, cols, doc, gerado, ClicksignVenda.signatarios(d, config), nomeCs);
+}
+
+/* Termo de pré-reserva: assinam o pré-reservante (comprador 1), a vendedora e as 2 testemunhas — sem
+ * comprador 2 nem corretor. Faltas do termo + da assinatura; o carimbo do PDF tem de bater com o de agora. */
+function assEnviarTermo_(col, p, pid, cols, doc, gerado) {
+  var x = prDados_(col, p, pid, "assinatura termo");
+  if (x.resp) return x.resp;
+  var dAss = {}, k;
+  for (k in x.d) dAss[k] = x.d[k];
+  dAss.comprador2 = null; dAss.corretor = null;
+  var config = assConfig_(p.pageId), cfg = {};
+  for (k in config) cfg[k] = config[k];
+  cfg.incluirCorretor = false;
+  var faltas = config.invalidas.map(function (n) { return "Propriedade " + n + ": JSON inválido"; })
+    .concat(PreReservaVenda.faltas(x.t), ClicksignVenda.faltasAssinatura(dAss, cfg));
+  if (faltas.length) { assLog_("enviar termo " + pid + " faltas " + faltas.length); return { ok: false, erro: "FALTAM_DADOS", faltas: faltas }; }
+  var carimbo = ctrCarimboDoNome_(gerado.nome);
+  if (!carimbo || carimbo !== prCarimbo_(x.t)) { assLog_("enviar termo " + pid + " carimbo diferente"); return { ok: false, erro: "CONTRATO_DESATUALIZADO" }; }
+  var nomeCs = "PRÉ-RESERVA - " + ClicksignVenda.nomePadrao(x.f.endereco, x.f.casa, dAss.comprador1 && dAss.comprador1.nome);
+  return assCriarEnvelope_(p, pid, cols, doc, gerado, ClicksignVenda.signatarios(dAss, cfg), nomeCs);
+}
+
+/* Cria envelope → documento → signatários → requisitos → ativa → grava → notifica (contrato e termo). */
+function assCriarEnvelope_(p, pid, cols, doc, gerado, lista, nomeCs) {
+  var S = ClicksignVenda.SITUACOES;
   var pdf = null;
   try { pdf = baixarArquivo_({ name: gerado.nome, type: "file", file: { url: gerado.url } }); }
   catch (e) { assLog_("enviar " + pid + " contrato gerado sem resposta"); pdf = null; }
   if (!pdf || pdf.mime !== "application/pdf") { assLog_("enviar " + pid + " contrato gerado ilegivel"); return { ok: false, erro: "CONTRATO_ILEGIVEL" }; }
 
-  var lista = ClicksignVenda.signatarios(d, config), envId = "", base = "", papeis = {};
-  /* entrega 14: envelope e documento com o nome padrão "OBRA - COMPRADOR" */
-  var nomeCs = ClicksignVenda.nomePadrao(f.endereco, f.casa, d.comprador1 && d.comprador1.nome);
+  var envId = "", base = "", papeis = {};
+  /* entrega 14: envelope e documento com o nome padrão "OBRA - COMPRADOR" (termo: "PRÉ-RESERVA - OBRA - COMPRADOR") */
   try {
     envId = csPasso_("envelope", "post", "/envelopes", ClicksignVenda.corpoEnvelope(nomeCs), true).id;
     base = "/envelopes/" + encodeURIComponent(envId);
@@ -244,7 +282,7 @@ function assEnviarTravado_(col, p, pid) {
   /* ativo: daqui em diante nada se desfaz */
   var gravou = assGravarComRetentativa_(p.pageId, assColunasEnvelope_(cols, envId, S.ENVIADO), pid);
   if (!gravou) {
-    assProps_().setProperty(ASS_PENDENTE + p.pageId, envId);
+    assProps_().setProperty(ASS_PENDENTE + doc.chave + p.pageId, envId);
     assLog_("enviar " + pid + " envelope " + envId + " ativo mas nao gravado: pendente guardado");
   }
   var n = cs_("post", base + "/notifications", ClicksignVenda.corpoNotificacao());
@@ -266,6 +304,7 @@ function assEnviarTravado_(col, p, pid) {
 /* ---- estado ---- */
 function assNomeAssinado_(nomeGerado) {
   var n = String(nomeGerado || "contrato.pdf").replace(/ \[#[0-9a-f]{8}\](\.pdf)$/i, "$1");
+  if (/^TERMO DE PRÉ-RESERVA - /.test(n)) return "TERMO DE PRÉ-RESERVA ASSINADO - " + n.slice(23);
   return /^CONTRATO - /.test(n) ? "CONTRATO ASSINADO - " + n.slice(11) : "ASSINADO - " + n;
 }
 function assPapeis_(envId) {
@@ -283,11 +322,11 @@ function assListaSignatarios_(envId, signers, eventos) {
 }
 
 function assinaturaEstado_(col, p) {
-  var pid = String(p.pageId).slice(0, 8), S = ClicksignVenda.SITUACOES;
-  var pg = ctrLerPaginaVenda_(p.pageId), cols = assColunas_(pg);
+  var pid = String(p.pageId).slice(0, 8), S = ClicksignVenda.SITUACOES, doc = assDoc_(p);
+  var pg = ctrLerPaginaVenda_(p.pageId), cols = assColunas_(pg, doc);
   var envId = assTexto_(pg, cols.ENVELOPE), sitAtual = assTexto_(pg, cols.SITUACAO);
   /* envelope ativo que o envio não conseguiu gravar: usa o id guardado e grava agora */
-  var pendente = prop_(ASS_PENDENTE + p.pageId);
+  var pendente = prop_(ASS_PENDENTE + doc.chave + p.pageId);
   if (pendente) envId = pendente;
   if (!envId) return { ok: true, situacao: "", envelope: false, signatarios: [] };
   if (!prop_("CLICKSIGN_TOKEN")) return { ok: false, erro: "CLICKSIGN_SEM_TOKEN" };
@@ -299,7 +338,7 @@ function assinaturaEstado_(col, p) {
     g[cols.SITUACAO] = sit;
     try { assGravarTextos_(p.pageId, g); }
     catch (e) { ctrErro_("assinatura estado " + pid + " gravacao", e); return false; }
-    if (pendente) assApagarProp_(ASS_PENDENTE + p.pageId);
+    if (pendente) assApagarProp_(ASS_PENDENTE + doc.chave + p.pageId);
     return true;
   }
 
@@ -340,7 +379,7 @@ function assinaturaEstado_(col, p) {
     try { r = UrlFetchApp.fetch(link, { muteHttpExceptions: true }); } /* link pré-assinado: sem o token */
     catch (e) { assLog_("estado " + pid + " download do assinado sem resposta"); return { ok: false, erro: "DOWNLOAD_ASSINADO_FALHOU" }; }
     if (r.getResponseCode() >= 300) { assLog_("estado " + pid + " download do assinado http " + r.getResponseCode()); return { ok: false, erro: "DOWNLOAD_ASSINADO_FALHOU" }; }
-    var gerado = ctrArquivoGerado_(pg);
+    var gerado = doc.gerado(pg);
     try {
       anexarArquivo_(p.pageId, cols.ASSINADO, { nome: assNomeAssinado_(gerado && gerado.nome), mime: "application/pdf",
                                                  base64: Utilities.base64Encode(r.getBlob().getBytes()) }, true);
@@ -382,8 +421,8 @@ function assinaturaReenviar_(col, sess, p) {
 
 function assReenviarTravado_(p, pid) {
   var S = ClicksignVenda.SITUACOES;
-  var pg = ctrLerPaginaVenda_(p.pageId), cols = assColunas_(pg);
-  var envId = prop_(ASS_PENDENTE + p.pageId) || assTexto_(pg, cols.ENVELOPE);
+  var doc = assDoc_(p), pg = ctrLerPaginaVenda_(p.pageId), cols = assColunas_(pg, doc);
+  var envId = prop_(ASS_PENDENTE + doc.chave + p.pageId) || assTexto_(pg, cols.ENVELOPE);
   if (!envId) return { ok: false, erro: "SEM_ENVELOPE" };
   var agora = Date.now(), falta = ClicksignVenda.minutosParaReenviar(prop_(ASS_REENVIO + envId), agora);
   if (falta) return { ok: false, erro: "REENVIO_RECENTE", minutos: falta };
@@ -421,7 +460,7 @@ function assReenviarTravado_(p, pid) {
 var ASS_MAX_BYTES = 15 * 1024 * 1024;
 function verContratoAssinado_(col, p) {
   var pid = String(p.pageId).slice(0, 8);
-  var pg = ctrLerPaginaVenda_(p.pageId), cols = assColunas_(pg);
+  var pg = ctrLerPaginaVenda_(p.pageId), cols = assColunas_(pg, assDoc_(p));
   var lista = ctrValor_(pg.properties[cols.ASSINADO]) || [];
   if (!lista.length) return { ok: false, erro: "SEM_ASSINADO" };
   var f = lista[lista.length - 1], b = null;
