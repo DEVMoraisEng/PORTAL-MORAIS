@@ -330,3 +330,13 @@ test("27/10: condomínio tem conta fixa (texto do item 4.5 do modelo); escolher 
   assert.deepEqual(e.conta, { fixa: "Dados bancários da VENDEDORA para pagamento das parcelas da ENTRADA: Banco Teste, conta 1-1." });
   assert.equal(c.acao("escolherContaRecebimento", { conta: { contaId: "x" } }).erro, "CONTA_FIXA_CONDOMINIO");
 });
+
+test("28/10: condomínio sem linha na DOCUMENTOS usa a vendedora da Propriedade CONDOMINIO_VENDEDOR; sem ela, falta legível", () => {
+  const sem = cenario({ docEnd: "OUTRA OBRA QUALQUER" });
+  const r0 = sem.gerarFinal();
+  assert.equal(r0.ok, false);
+  assert.ok(JSON.stringify(r0).includes("obra da casa não encontrada"), JSON.stringify(r0));
+  const c = cenario({ docEnd: "OUTRA OBRA QUALQUER", props: { CONDOMINIO_VENDEDOR: "Construtora Teste Ltda" } });
+  const r = c.gerarFinal();
+  assert.equal(r.ok, true, JSON.stringify(r));
+});

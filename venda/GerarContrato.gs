@@ -354,6 +354,13 @@ function ctrFontes_(col, pageId) {
   /* a obra: relação OBRA-AUTO se aponta para DOCUMENTOS; senão, pelo ENDEREÇO (título) */
   var obraAuto = ctrLerObraAuto_(cv("OBRA-AUTO"));
   var props = ctrObraProps_(cv("OBRA-AUTO"), venda.ENDERECO, obraAuto);
+  /* 28/10: o condomínio não precisa de linha na DOCUMENTOS (criar uma "obra" lá dispara os alertas de
+     documentos): do cadastro da obra o contrato do condomínio só usa a vendedora, que vem da Propriedade
+     CONDOMINIO_VENDEDOR (o nome como está em VENDEDORES – CONTRATO). */
+  if (!props && cond && String(prop_("CONDOMINIO_VENDEDOR") || "").trim()) {
+    props = {};
+    props["PROPRIETARIO DOCUMENTO"] = { type: "rich_text", rich_text: [{ plain_text: String(prop_("CONDOMINIO_VENDEDOR")).trim() }] };
+  }
   if (!props) return { obraNaoEncontrada: true };
   if (props.ambigua === true) return { obraAmbigua: true };
   var op = ctrPorChave_(props);
