@@ -1956,7 +1956,7 @@ function condAbrir(id){
     '<div class="cd-ent">'+
       '<div><label>Data de assinatura do contrato</label><input type="date" id="cd-ass" value="'+esc(ass?String(ass).slice(0,10):"")+'"></div>'+
       '<div><label>Dia de pagamento (cliente escolhe)</label><select id="cd-dia"><option value="">—</option>'+Array.from({length:27},(_,i)=>'<option value="'+(i+5)+'"'+(String(dia)===String(i+5)?" selected":"")+'>Dia '+(i+5)+'</option>').join("")+'</select></div>'+
-      '<div><label>Data da entrega</label><input type="date" id="cd-ent" value="'+esc(ent?String(ent).slice(0,10):"")+'"></div>'+
+      '<div><label>Data da entrega</label><input type="date" id="cd-ent" value="'+esc(ent?String(ent).slice(0,10):COND_ENTREGA_PADRAO)+'"'+(ent?'':' title="Padrão do contrato (item 8 a); grava ao salvar"')+'></div>'+
       '<button class="cd-bt pri" id="cd-calc" onclick="condCalcular(\''+esc(id)+'\')">Salvar e recalcular o fluxo</button>'+
       '<div class="cd-prog" id="cd-prog" style="display:none;flex-basis:100%"></div>'+
     '</div>'+
@@ -2079,6 +2079,9 @@ function condProgresso(ativo){
   pintar(); const tm=setInterval(pintar,1000);
   return (ok)=>{ clearInterval(tm); el.innerHTML='<b style="color:'+(ok?'#1D7A46':'#B0431F')+'">'+(ok?'✓ Salvo e fluxo recalculado':'⚠ Não terminou — veja a mensagem')+'</b>'; setTimeout(()=>{ el.style.display="none"; },4000); };
 }
+/* 27/10 (dono): unidade sem DATA DA ENTREGA abre com a data prevista do contrato do condomínio
+   (Quadro Resumo, item 8 a: "conclusão da obra e entrega das chaves: 30/11/2028"); salvar grava. */
+const COND_ENTREGA_PADRAO="2028-11-30";
 async function condCalcular(id){
   const bt=document.getElementById("cd-calc"); bt.disabled=true; bt.textContent="Calculando…";
   const fimProg=condProgresso(true);
