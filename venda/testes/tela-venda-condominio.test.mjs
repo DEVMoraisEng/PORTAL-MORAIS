@@ -98,13 +98,13 @@ const SCHEMA_VENDAS = { properties: Object.fromEntries(Object.entries(COLUNAS_RE
   return [n, { type: tipo, [tipo]: tipo === "select" ? { options: t.opcoes.map((o) => ({ name: o })) } : {} }];
 })) };
 
-function cenario({ linha = {}, sem = [], dbPagina = DB_COND, props = {}, gh = 204, docEnd = "CONDOMÍNIO RESERVA TESTE" } = {}) {
+function cenario({ linha = {}, sem = [], dbPagina = DB_COND, props = {}, gh = 204, docEnd = "CONDOMÍNIO RESERVA TESTE", modeloCond = MODELO_COND } = {}) {
   const valores = Object.assign({}, LINHA, linha);
   for (const s of sem) delete valores[s];
   const n = notionFalso({ colunas: colunasDe(valores), valores, pageId: COND, dbId: dbPagina,
     bases: { "db-vend": [VENDEDOR], "db-lote": [EMPREENDIMENTO], "db-corr": [],
              "db-doc": [Object.assign({ "ENDEREÇO": tit(docEnd) }, OBRA_PG)] } });
-  const d = driveFalso({ modelos: { "modelo-cond": MODELO_COND, "modelo-obra": ["OBRA"], "modelo-pronto": ["PRONTO"], "modelo-pr": MODELO_PR } });
+  const d = driveFalso({ modelos: { "modelo-cond": modeloCond, "modelo-obra": ["OBRA"], "modelo-pronto": ["PRONTO"], "modelo-pr": MODELO_PR } });
   const c = clicksignFalso();
   const despachos = [];
   const p = Object.assign({
@@ -321,4 +321,12 @@ test("termo: coluna faltando e logs sem dado pessoal", () => {
   d.acao("gerarTermoPreReserva"); d.acao("assinaturaEnviar", { doc: "PRE_RESERVA" });
   const todos = d.g.logs.join(" | ");
   for (const s of ["Compradora", "529.982", "PIX CPF", "3.000"]) assert.ok(!todos.includes(s), "log vazou: " + s);
+});
+
+test("27/10: condomínio tem conta fixa (texto do item 4.5 do modelo); escolher conta é recusado", () => {
+  const c = cenario({ modeloCond: MODELO_COND.concat(["4.5. Dados bancários da VENDEDORA para pagamento das parcelas da ENTRADA: Banco Teste, conta 1-1."]) });
+  const e = c.acao("contratoEstado");
+  assert.equal(e.ok, true);
+  assert.deepEqual(e.conta, { fixa: "Dados bancários da VENDEDORA para pagamento das parcelas da ENTRADA: Banco Teste, conta 1-1." });
+  assert.equal(c.acao("escolherContaRecebimento", { conta: { contaId: "x" } }).erro, "CONTA_FIXA_CONDOMINIO");
 });

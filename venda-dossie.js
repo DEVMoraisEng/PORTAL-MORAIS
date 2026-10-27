@@ -430,6 +430,8 @@
   }
   function htmlConta(conta, u, dis) {
     if (!conta) return "";   // servidor antigo
+    /* 27/10 (dono): condomínio tem conta fixa (item 4.5 do contrato) — só mostra, não deixa trocar */
+    if (conta.fixa) return '<div class="dz-linha"><span class="dz-rot">Conta de recebimento (fixa do condomínio, item 4.5 do contrato):</span> ' + esc_(conta.fixa) + "</div>";
     u = u || {};
     var rasc = u.rascunho || {}, digitar = contaDigitando(conta, u), esc = conta.escolhida || {};
     var ids = conta.opcoes.map(function (o) { return o.id; });

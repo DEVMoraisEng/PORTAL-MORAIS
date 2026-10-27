@@ -61,9 +61,10 @@ function ctrTitulo_(props) {
 /* Página da casa na VENDAS ou, desde a entrega 7, a própria linha da BANCO DE DADOS VENDAS
  * CONDOMÍNIO (DB_VENDAS_COND) — essa vira a "página de venda virtual" do CondominioVenda:
  * mesmas colunas que a VENDAS teria, e o retorno gravado nas colunas da própria linha. */
-function ctrLerPaginaVenda_(pageId) {
+function ctrLerPaginaVenda_(pageId, info) {
   var pg = notion_("GET", "/pages/" + pageId, null);
   var dbAtual = vendaBaseDaPagina_(pg);
+  if (info) info.base = dbAtual;
   if (dbAtual === "VENDAS") return pg;
   if (dbAtual === "CONDOMINIO")
     return CondominioVenda.paginaVirtual(pg, pageId, ContratoVenda.TIPOS, [ContratoVenda.COL.CONTRATO_GERADO], CTR_GARANTIR_COND);
@@ -371,7 +372,8 @@ function ctrFontes_(col, pageId) {
   } : null;
   /* entrega 12: a "Conta de recebimento" escolhida (ou digitada) para ESTA venda vale antes de tudo.
      Conta escolhida que sumiu da CONTAS BANCÁRIAS vira falta — nunca troca sozinha por outra conta. */
-  var contaErro = "", escolha = vendedor ? ctrLerContaReceb_(pageId) : null, usouEscolha = false;
+  /* 27/10 (dono): no condomínio a conta é sempre a mesma e já está escrita no modelo (item 4.5) — escolha não vale */
+  var contaErro = "", escolha = vendedor && !cond ? ctrLerContaReceb_(pageId) : null, usouEscolha = false;
   if (escolha) {
     var de = escolha.contaId ? ctrDadosDaConta_(escolha.contaId) : escolha.digitada;
     if (de && (de.banco || de.conta)) {
@@ -628,7 +630,7 @@ function verPreContrato_(col, p) {
 }
 
 function contratoEstado_(col, p) {
-  var a = ctrArquivoGerado_(ctrLerPaginaVenda_(p.pageId)), pre = ctrLerPre_(p.pageId);
+  var info = {}, a = ctrArquivoGerado_(ctrLerPaginaVenda_(p.pageId, info)), pre = ctrLerPre_(p.pageId);
   /* PRE: há pré-contrato ainda não conferido (mesmo que exista um contrato final antigo) */
   var etapa = pre && !pre.conferidoEm ? "PRE" : a ? "FINAL" : "NENHUM";
   var r = { ok: true, gerado: !!a, etapa: etapa, pre: null };
@@ -639,7 +641,8 @@ function contratoEstado_(col, p) {
   }
   if (a) { r.nome = a.nome; r.url = a.url; }
   /* entrega 12: lista de contas (só id e título), a escolha desta venda e a da obra */
-  try { r.conta = contaRecebEstado_(p.pageId); } catch (e) { ctrErro_("contratoEstado conta", e); }
+  if (info.base === "CONDOMINIO") r.conta = { fixa: ctrContaFixaCondominio_() };
+  else try { r.conta = contaRecebEstado_(p.pageId); } catch (e) { ctrErro_("contratoEstado conta", e); }
   if (pre) {
     r.pre = { nome: ctrTxt_(pre.nome), url: ctrTxt_(pre.url), em: ctrTxt_(pre.em), conferido: !!pre.conferidoEm };
     if (etapa === "PRE") r.pre.desatualizado = ctrPreDesatualizado_(col, p, pre);
@@ -875,8 +878,26 @@ function ctrGravarContaReceb_(pageId, valor) {
   else ps.setProperty(k, JSON.stringify(valor));
 }
 /* Ação "escolherContaRecebimento": p.conta = { id } | { banco, agencia, conta, pix } | {} (volta ao padrão). */
+/* 27/10 (dono): a conta do condomínio é fixa — o texto do item 4.5 do próprio modelo (nada de dado
+   bancário no repositório). Sem o modelo legível, uma frase genérica. */
+function ctrContaFixaCondominio_() {
+  var padrao = "a conta fixa do condomínio, escrita no item 4.5 do contrato";
+  try {
+    var id = prop_("MODELO_CONDOMINIO_ID");
+    if (!id) return padrao;
+    var ps = DocumentApp.openById(id).getBody().getParagraphs();
+    for (var i = 0; i < ps.length; i++) {
+      var s = ctrTxt_(ps[i].getText()).trim();
+      if (/^4\.5\.?\s*Dados banc/i.test(s)) return s.replace(/^4\.5\.?\s*/, "");
+    }
+  } catch (e) { ctrErro_("conta fixa do condominio", e); }
+  return padrao;
+}
+
 function escolherContaRecebimento_(col, sess, p) {
-  ctrLerPaginaVenda_(p.pageId);   // mesma checagem de base das outras ações
+  var info = {};
+  ctrLerPaginaVenda_(p.pageId, info);   // mesma checagem de base das outras ações
+  if (info.base === "CONDOMINIO") return { ok: false, erro: "CONTA_FIXA_CONDOMINIO" };
   var c = ctrConferirContaReceb_(p.conta);
   if (!c.ok) return c.erros ? { ok: false, erro: c.erro, erros: c.erros } : { ok: false, erro: c.erro };
   ctrGravarContaReceb_(p.pageId, c.valor);
