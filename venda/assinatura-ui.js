@@ -139,10 +139,12 @@
     if (c.faltas && c.faltas.length) {
       h += '<div class="dz-aviso">Para enviar, falta:</div><ul>' +
         c.faltas.map(function (f) { return "<li>" + esc(f) + "</li>"; }).join("") + "</ul>";
-      /* 27/10: atalho para corrigir o e-mail numa aba nova; depois é só clicar em Enviar de novo */
+      /* 27/10: atalho para corrigir o e-mail numa aba nova, na tela do portal; sem tela, só o aviso */
       if (c.corrigir && c.corrigir.length)
-        h += '<div class="dz-linha">' + c.corrigir.filter(function (l) { return /^https:\/\/www\.notion\.so\//.test(l.url); }).map(function (l) {
-          return '<a class="bt ghost bt-mini" target="_blank" rel="noopener" href="' + esc(l.url) + '">' + esc(l.rotulo) + " &#8599;</a>";
+        h += '<div class="dz-linha">' + c.corrigir.map(function (l) {
+          if (/^vendas\.html\?[\w=&%.-]+$/.test(l.url || ""))
+            return '<a class="bt ghost bt-mini" target="_blank" rel="noopener" href="' + esc(l.url) + '">' + esc(l.rotulo) + " &#8599;</a>";
+          return '<span class="ass-data">' + esc(l.rotulo) + ": no cadastro de vendedores/corretores (ainda sem tela no portal)</span>";
         }).join(" ") + ' <span class="ass-data">corrija na aba que abrir e clique em Enviar de novo</span></div>';
     }
     var rotulo = e.envelope && REENVIAVEL.indexOf(sit) >= 0 ? "Enviar de novo para assinatura" : "Enviar para assinatura";
@@ -183,7 +185,10 @@
     }
     r = r || { ok: false, erro: "SEM_RESPOSTA" };
     if (!r.ok) {
-      var falhou = { ocupado: null, faltas: r.faltas || null, corrigir: r.corrigir || null, msg: mensagemAssinatura(r) };
+      var falhou = { ocupado: null, faltas: r.faltas || null, msg: mensagemAssinatura(r),
+                     corrigir: (r.corrigir || []).map(function (x) {
+                       return { rotulo: x.rotulo, url: typeof deps.linkCorrigir === "function" ? deps.linkCorrigir(x.quem) || "" : "" };
+                     }) };
       /* o envio deixou envelope na Clicksign (rascunho não apagado, ou ativo sem anotar), ou outra aba já
        * tinha enviado: o bloco passa a mostrar envelope — Enviar trava e Atualizar situação aparece */
       if (enviar && r.erro === "ENVELOPE_ABERTO")

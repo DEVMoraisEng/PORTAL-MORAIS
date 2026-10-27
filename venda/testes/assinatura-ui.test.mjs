@@ -263,13 +263,16 @@ test("termo de pré-reserva (27/10): botões com prefixo p-, textos do termo e d
   assert.deepEqual(ch2, [{ action: "assinaturaEstado", pageId: "p" }], "contrato: sem doc");
 });
 
-test("27/10: atalho 'Corrigir e-mail' abre aba nova (só link do Notion)", async () => {
-  const corrigir = [{ rotulo: "Corrigir e-mail do comprador", url: "https://www.notion.so/abc123" },
+test("27/10: atalho 'Corrigir e-mail' abre a tela do portal numa aba nova; sem tela, só o aviso", async () => {
+  const corrigir = [{ rotulo: "Corrigir e-mail do comprador", url: "vendas.html?cond=abc-123&editar=Email" },
+                    { rotulo: "Corrigir e-mail do vendedor/representante", url: "" },
                     { rotulo: "ruim", url: "javascript:alert(1)" }];
-  const h = A.montarBlocoAssinatura(ctx({ faltas: ["Vendedor (representante): e-mail repetido (igual ao de Comprador 1)"], corrigir }));
-  assert.match(h, /<a class="bt ghost bt-mini" target="_blank" rel="noopener" href="https:\/\/www\.notion\.so\/abc123">Corrigir e-mail do comprador/);
-  assert.doesNotMatch(h, /javascript:/);
+  const h = A.montarBlocoAssinatura(ctx({ faltas: ["x"], corrigir }));
+  assert.match(h, /<a class="bt ghost bt-mini" target="_blank" rel="noopener" href="vendas.html\?cond=abc-123&amp;editar=Email">Corrigir e-mail do comprador/);
+  assert.match(h, /Corrigir e-mail do vendedor\/representante: no cadastro/);
+  assert.doesNotMatch(h, /href="javascript/);
   const c = await A.executarAcaoAssinatura("a-enviar", ctx(), { pageId: "p", confirmar: () => true,
-    chamar: async () => ({ ok: false, erro: "FALTAM_DADOS", faltas: ["x e-mail"], corrigir: [corrigir[0]] }) });
-  assert.deepEqual(c.corrigir, [corrigir[0]]);
+    linkCorrigir: (q) => (q === "comprador" ? "vendas.html?abrir=p" : ""),
+    chamar: async () => ({ ok: false, erro: "FALTAM_DADOS", faltas: ["x"], corrigir: [{ quem: "comprador", rotulo: "C" }, { quem: "vendedor", rotulo: "V" }] }) });
+  assert.deepEqual(c.corrigir, [{ rotulo: "C", url: "vendas.html?abrir=p" }, { rotulo: "V", url: "" }]);
 });

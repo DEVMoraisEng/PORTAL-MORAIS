@@ -1128,7 +1128,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 
 <script src="app.js?v=45"></script>
 <script src="venda/painel-casa.js?v=1"></script>
-<script src="venda-dossie.js?v=6"></script>
+<script src="venda-dossie.js?v=7"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele.
    Mesma chave (morais_tema) das outras páginas do portal. */
@@ -1495,10 +1495,24 @@ async function boot(){
    caminho do "Gerar venda" da tela do condomínio (a casa acabou de nascer e
    ainda não está no vendas.json — o abrirObra busca no Apps Script). */
 function abrirCasaDaUrl(){
-  let id="";
-  try{ id=new URLSearchParams(location.search).get("abrir")||""; }catch(e){ return; }
+  let id="", cond="", editar="";
+  try{ const q=new URLSearchParams(location.search); id=q.get("abrir")||""; cond=q.get("cond")||""; editar=q.get("editar")||""; }catch(e){ return; }
+  if(/^[0-9a-f]{32}$|^[0-9a-f-]{36}$/i.test(cond)) return abrirCondNaCelula(cond, editar);
   if(!/^[0-9a-f]{32}$|^[0-9a-f-]{36}$/i.test(id)) return;
   abrirObra(id);
+}
+/* 27/10 (dono): vendas.html?cond=<id da linha>&editar=Email — atalho "Corrigir e-mail" da assinatura.
+   Abre a Planilha Casas Condomínio, rola até a unidade e já abre a célula para editar. */
+async function abrirCondNaCelula(id, col){
+  const setor=Object.keys(ABAS_SETOR).find(s=>(ABAS_SETOR[s]||[]).indexOf("condominio")>=0);
+  if(!setor) return;
+  abrirSetor(setor); abaSetor("condominio");
+  for(let i=0;i<120 && !(COND&&COND.linhas);i++) await new Promise(r=>setTimeout(r,500));
+  const tr=document.querySelector('#cd-wrap tr[data-id="'+CSS.escape(id)+'"]');
+  if(!tr){ alert("Não achei esta unidade na Planilha Casas Condomínio."); return; }
+  const td=[...tr.querySelectorAll("td[data-col]")].find(x=>cdNorm(x.dataset.col)===cdNorm(col||"Email"));
+  tr.scrollIntoView({block:"center",inline:"nearest"});
+  if(td){ td.scrollIntoView({block:"center",inline:"center"}); condEditar(td); }
 }
 /* item 7: cada atividade só conta pro setor cujo "responsavel" bate com o
    RESPONSÁVEL da atividade (ver SETORES_AREA). Setor sem "responsavel"

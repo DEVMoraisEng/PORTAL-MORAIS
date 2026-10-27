@@ -199,7 +199,7 @@ function assEnviarTravado_(col, p, pid) {
     .concat(ContratoVenda.faltasContrato(d), ClicksignVenda.faltasAssinatura(d, config));
   if (faltas.length) {
     assLog_("enviar " + pid + " faltas " + faltas.length);
-    return { ok: false, erro: "FALTAM_DADOS", faltas: faltas, corrigir: assCorrigir_(faltas, p.pageId, f.alvos) };
+    return { ok: false, erro: "FALTAM_DADOS", faltas: faltas, corrigir: assCorrigir_(faltas) };
   }
   /* o PDF tem de ser destes dados: carimbo no nome (GerarContrato) igual ao recalculado agora */
   var carimbo = ctrCarimboDoNome_(gerado.nome);
@@ -227,7 +227,7 @@ function assEnviarTermo_(col, p, pid, cols, doc, gerado) {
     .concat(PreReservaVenda.faltas(x.t), ClicksignVenda.faltasAssinatura(dAss, cfg));
   if (faltas.length) {
     assLog_("enviar termo " + pid + " faltas " + faltas.length);
-    return { ok: false, erro: "FALTAM_DADOS", faltas: faltas, corrigir: assCorrigir_(faltas, p.pageId, x.f.alvos) };
+    return { ok: false, erro: "FALTAM_DADOS", faltas: faltas, corrigir: assCorrigir_(faltas) };
   }
   var carimbo = ctrCarimboDoNome_(gerado.nome);
   if (!carimbo || carimbo !== prCarimbo_(x.t)) { assLog_("enviar termo " + pid + " carimbo diferente"); return { ok: false, erro: "CONTRATO_DESATUALIZADO" }; }
@@ -235,12 +235,8 @@ function assEnviarTermo_(col, p, pid, cols, doc, gerado) {
   return assCriarEnvelope_(p, pid, cols, doc, gerado, ClicksignVenda.signatarios(dAss, cfg), nomeCs);
 }
 
-/* Atalhos "Corrigir e-mail" (abrem a página do Notion numa aba nova): a linha da venda e as linhas achadas. */
-function assCorrigir_(faltas, pageId, alvos) {
-  alvos = alvos || {};
-  return ClicksignVenda.linksCorrigirEmail(faltas, { venda: pageId, vendedor: alvos.vendedor && alvos.vendedor.id,
-                                                     corretor: alvos.corretor && alvos.corretor.id });
-}
+/* Atalhos "Corrigir e-mail" (a tela abre a página do portal numa aba nova). */
+function assCorrigir_(faltas) { return ClicksignVenda.linksCorrigirEmail(faltas); }
 
 /* Cria envelope → documento → signatários → requisitos → ativa → grava → notifica (contrato e termo). */
 function assCriarEnvelope_(p, pid, cols, doc, gerado, lista, nomeCs) {

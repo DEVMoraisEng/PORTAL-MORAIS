@@ -1226,6 +1226,12 @@
       ctxP.contratoGerado = !!(estadoP && estadoP.gerado);
       return window.VendaAssinatura.montarBlocoAssinatura(ctxP);
     }
+    /* 27/10 (dono): "Corrigir e-mail" abre a tela do PORTAL numa aba nova. Comprador: a célula Email da
+       Planilha Casas Condomínio (condomínio) ou o painel da casa (rua). Vendedor e corretor ainda não têm tela. */
+    function linkCorrigir(quem) {
+      if (quem !== "comprador") return "";
+      return "vendas.html?" + (comPR ? "cond=" + encodeURIComponent(pageId) + "&editar=Email" : "abrir=" + encodeURIComponent(pageId));
+    }
     function guardarContaPR() {
       var w = dentro(".vb-pr"); if (!w || !w.querySelector("[data-pr-c]")) return;
       var c = uiP.contaDigitada || contaDaTela(estadoP);
@@ -1308,7 +1314,8 @@
         pageId: pageId,
         confirmar: function (t) { return window.confirm(t); },
         chamar: function (p) { return chamarVenda(p, 150000); },
-        pintar: function (c) { ctxP = c; pintarP(); }
+        pintar: function (c) { ctxP = c; pintarP(); },
+        linkCorrigir: linkCorrigir
       });
       if (!vivo()) return;
       ctxP = novo; pintarP();
@@ -1339,7 +1346,8 @@
         pageId: pageId,
         confirmar: function (t) { return window.confirm(t); },
         chamar: function (p) { return chamarVenda(p, 150000); },
-        pintar: function (c) { ctxA = c; pintarA(); }
+        pintar: function (c) { ctxA = c; pintarA(); },
+        linkCorrigir: linkCorrigir
       });
       if (!vivo()) return;
       ctxA = novo; pintarA();
@@ -1670,7 +1678,7 @@
     var st = document.createElement("style"); st.textContent = CSS; document.head.appendChild(st);
     /* o bloco de assinatura mora em arquivo próprio; vendas.html continua com uma linha só.
        Carrega mesmo sem o painel da casa: o cartão do condomínio também usa. */
-    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=5";
+    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=6";
     sa.onload = function () { [blocosCasa, blocosCond].forEach(function (b) { if (b) b.pintarAssinatura(); }); };
     document.head.appendChild(sa);
     var body = document.getElementById("pn-body"); if (!body) return;

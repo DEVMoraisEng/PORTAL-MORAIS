@@ -209,16 +209,14 @@ var ClicksignVenda = (function () {
     return faltas.concat(porPessoa);
   }
 
-  /* 27/10 (dono): falta de e-mail vem com o atalho para corrigir numa aba nova (página do Notion onde o
-   * e-mail mora). ids = { venda, vendedor, corretor } (ids de página); e-mail repetido abre as duas pontas. */
-  function linksCorrigirEmail(faltas, ids) {
-    ids = ids || {};
-    var t = (faltas || []).filter(function (f) { return /e-mail/i.test(f); }).join("\n"), l = [];
-    function url(id) { return id ? "https://www.notion.so/" + String(id).replace(/-/g, "") : ""; }
-    function por(id, rotulo) { if (url(id) && !l.some(function (x) { return x.url === url(id); })) l.push({ rotulo: rotulo, url: url(id) }); }
-    if (/(Comprador [12]|Pré-reservante)[^\n]*e-mail|igual ao de (Comprador|Pré-reservante)/.test(t)) por(ids.venda, "Corrigir e-mail do comprador");
-    if (/Vendedor[^\n]*e-mail|igual ao de Vendedor/.test(t)) por(ids.vendedor, "Corrigir e-mail do vendedor/representante");
-    if (/Corretor[^\n]*e-mail|igual ao de Corretor/.test(t)) por(ids.corretor, "Corrigir e-mail do corretor");
+  /* 27/10 (dono): falta de e-mail vem com o atalho para corrigir numa aba nova, na tela do PORTAL onde o
+   * e-mail mora (não no Notion). Devolve [{ quem, rotulo }] — quem: comprador | vendedor | corretor; a
+   * tela monta o endereço. E-mail repetido aponta as duas pontas. */
+  function linksCorrigirEmail(faltas) {
+    var t = (faltas || []).filter(function (f) { return /e-mail/i.test(f); }).join(" | "), l = [];
+    if (/(Comprador [12]|Pré-reservante)[^|]*e-mail|igual ao de (Comprador|Pré-reservante)/.test(t)) l.push({ quem: "comprador", rotulo: "Corrigir e-mail do comprador" });
+    if (/Vendedor[^|]*e-mail|igual ao de Vendedor/.test(t)) l.push({ quem: "vendedor", rotulo: "Corrigir e-mail do vendedor/representante" });
+    if (/Corretor[^|]*e-mail|igual ao de Corretor/.test(t)) l.push({ quem: "corretor", rotulo: "Corrigir e-mail do corretor" });
     return l;
   }
 
