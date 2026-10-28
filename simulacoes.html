@@ -2333,7 +2333,7 @@ function propAlerta24(){
 
 /* ---------- lista ---------- */
 const PROP_ROTULO={ "RECEBIDA":"RECEBIDA","EM ANALISE":"EM ANÁLISE","ACEITA":"ACEITA",
-                    "RESERVADA":"RESERVADA","NEGADA":"NEGADA","VENDIDA":"VENDIDA" };
+                    "RESERVADA":"RESERVADA","NEGADA":"NEGADA","VENDIDA":"VENDIDA","DISTRATO":"DISTRATO" };
 function propSegCredito(v){
   propFiltroCredito=v;
   document.querySelectorAll("#seg-credito .seg-bt").forEach(b=>b.classList.toggle("on", b.dataset.pc===v));
@@ -2346,7 +2346,7 @@ function propSeg(v){
 }
 function propTag(st){
   const n=PROP_NORM(st)||"RECEBIDA";
-  const cls = (n==="ACEITA"||n==="VENDIDA") ? "pos" : (n==="NEGADA" ? "neg" : "zero");
+  const cls = (n==="ACEITA"||n==="VENDIDA") ? "pos" : ((n==="NEGADA"||n==="DISTRATO") ? "neg" : "zero");
   return `<span class="pill ${cls}">${PROP_ROTULO[n]||n}</span>`;
 }
 /* 02/10 (item 6) — selo do STATUS INTERNO da unidade na lista de propostas */
@@ -2938,11 +2938,11 @@ function entCalcular(o){
   c.prazo=Number(o.prazo)||0;
   return c;
 }
-/* devolução (simulação, que não traz o número pronto): o valor de entrada paga
-   o sinal real; só o excedente abate. Sinal mínimo de R$ 10.000. */
+/* devolução (simulação, que não traz o número pronto). r96p (28/10): desde a r96i
+   todo o valor para o sinal vai para o sinal — a devolução só existe quando a entrada
+   inteira (imóvel − financiado − FGTS − subsídio) fica abaixo do sinal mínimo de R$ 10.000. */
 function entDevolucao(preco, fin, fgts, sub, informado, sinal){
-  const S=Number(sinal)||ENT_SINAL_PADRAO;
-  const calc=(Number(preco)||0)-(Number(fin)||0)-(Number(fgts)||0)-(Number(sub)||0)-Math.max(0,(Number(informado)||0)-S);
+  const calc=(Number(preco)||0)-(Number(fin)||0)-(Number(fgts)||0)-(Number(sub)||0);
   return calc<ENT_SINAL_PADRAO ? entR2(ENT_SINAL_PADRAO-Math.max(0,calc)) : 0;
 }
 /* texto da explicação valor de entrada × sinal (mesmo do e-mail) */
@@ -2964,7 +2964,7 @@ function entResumoHtml(c){
     ${it("Valor financiado",simBRL(c.fin))}
     ${it("FGTS + subsídio",simBRL(c.fgts+c.sub),"verde")}
     ${it("Valor para o sinal",simBRL(c.informado),"ouro")}
-    ${it("Entrada total (fluxo)",simBRL(Math.max(0,c.E)),"escuro")}
+    ${it("Entrada restante (fluxo)",simBRL(Math.max(0,c.E)),"escuro")}
     ${it("Sinal",c.nSinal?simBRL(c.S)+" · "+c.nSinal+"x":"—")}
     ${it("Prazo da entrada",c.prazo?c.prazo+" meses":"—")}
   </div>`;
@@ -2984,7 +2984,7 @@ function entQuadroHtml(c, opc){
     ${L("(−) FGTS",B(c.fgts))}
     ${L("(−) Subsídio",B(c.sub))}
     ${L("<b>(−) Valor para o sinal</b>","<b>"+B(c.informado)+"</b>")}
-    ${L("<b>= Entrada total</b>","<b>"+B(Math.max(0,c.E))+"</b>","ent-conta tot")}
+    ${L("<b>= Entrada restante</b>","<b>"+B(Math.max(0,c.E))+"</b>","ent-conta tot")}
     ${c.devol>0.005?L("Diferença devolvida ao cliente",B(c.devol),"ent-conta","no ato da assinatura do contrato com o banco"):""}
   </tbody></table></div></div>`;
   /* 2 — fluxo de pagamento: soma só o que o cliente ainda paga (= entrada total);
@@ -3105,7 +3105,6 @@ function propVer(id){
       <div class="prop-dec ${PROP_NORM(p.status)?'tem-status':''}" style="display:flex;gap:9px;margin-top:8px;flex-wrap:wrap">
         <button class="bt az ${PROP_NORM(p.status)==='RESERVADA'?'atual':''}" onclick="propStatus('${p.id}','RESERVADA')">Reservar</button>
         <button class="bt vermelho ${PROP_NORM(p.status)==='NEGADA'?'atual':''}" onclick="propStatus('${p.id}','NEGADA')">Negar</button>
-        <button class="bt ${PROP_NORM(p.status)==='VENDIDA'?'atual':''}" style="background:#5B2A86;color:#fff" onclick="propStatus('${p.id}','VENDIDA')">Vendida</button>
       </div>
       <div id="prop-detAviso" class="sim-aviso" style="margin-top:8px"></div>
       <!-- 02/10 (item 10) -->
@@ -3114,9 +3113,10 @@ function propVer(id){
       <div style="font-size:12px;color:var(--text3);margin-top:6px">
         <b>Reservar</b> marca a unidade ${esc(String(p.unidade||""))} como RESERVADA no Notion
         (e ela fica azul no mapa de vendas). <b>Negar</b> devolve a unidade para NÃO.
-        <b>Vendida</b> muda a unidade para VENDIDA = SIM e preenche o BANCO DE DADOS VENDAS CONDOMÍNIO.
+        A venda (vendida, pagou preferência, distrato) fica no <b>status interno</b> logo abaixo.
       </div>
     </div>
+    ${propSIBloco(p)}
 
     <div style="margin-top:16px"><b style="font-size:13px;color:var(--azul)">Documento da proposta</b>
       <div style="display:flex;gap:9px;margin-top:8px;flex-wrap:wrap;align-items:center">
@@ -3770,6 +3770,125 @@ function propSincronizarTudo(){
   try{ propCarregar(true); }catch(e){}
   try{ simCarregarUnidades(true); }catch(e){}
 }
+/* =====================================================================
+ * r96p (28/10/26) — STATUS INTERNO NA PROPOSTA
+ * DISPONÍVEL · RESERVADA · PAGOU PREFERÊNCIA · VENDIDA · DISTRATO. Grava na
+ * proposta e na unidade (mapa interno) e mexe na venda:
+ *   PAGOU PREFERÊNCIA → cria a linha no BANCO DE DADOS VENDAS CONDOMÍNIO;
+ *   VENDIDA           → o "Vendida" de sempre (unidade, e-mail ao corretor) e
+ *                       revalida a linha da venda;
+ *   DISTRATO          → a venda vai para a base DISTRATOS CONDOMÍNIO (com os
+ *                       arquivos), sai da base de vendas e a unidade volta a
+ *                       DISPONÍVEL.
+ * ------------------------------------------------------------------- */
+const PROP_SI=[["DISPONÍVEL","#1a6b40"],["RESERVADA","#1F6FB2"],["PAGOU PREFERÊNCIA","#7B4FA0"],["VENDIDA","#C0392B"],["DISTRATO","#6B5A45"]];
+function propSIAtual(p){
+  let k=PROP_NORM(p.statusInterno||((p.dados||{}).statusInterno)||"");
+  if(PROP_NORM(p.status)==="DISTRATO") k="DISTRATO";
+  else if(!k && PROP_NORM(p.status)==="VENDIDA") k="VENDIDA";
+  return k;
+}
+function propSIBloco(p){
+  if(ehSomenteLeitura(S)) return "";
+  const at=propSIAtual(p);
+  const bts=PROP_SI.map(([nome,cor])=>{
+    const k=PROP_NORM(nome);
+    const clique = k==="DISTRATO" ? `propSIDistratoAbrir('${p.id}')` : `propStatusInterno('${p.id}','${nome}')`;
+    return `<button class="bt ${at===k?'atual':''}" data-si="${k}" style="background:${cor};color:#fff" onclick="${clique}">${nome}</button>`;
+  }).join("");
+  return `<div style="margin-top:16px"><b style="font-size:13px;color:var(--azul)">Status interno</b>
+      <span style="font-size:12px;color:var(--text3)"> · unidade ${esc(String(p.unidade||""))}${propSeloInterno(p.unidade)}</span>
+      <div class="prop-si ${at?'tem-status':''}" style="display:flex;gap:9px;margin-top:8px;flex-wrap:wrap">${bts}</div>
+      <div id="prop-siDist" class="hide" style="margin-top:10px;padding:12px;border:1px solid #E7A3A3;background:#FDF1F1;border-radius:10px">
+        <b style="color:#8A2E17">Distrato da unidade ${esc(String(p.unidade||""))}</b>
+        <div style="font-size:12px;color:var(--text3);margin:4px 0 8px">A venda é copiada (com os arquivos) para a base <b>DISTRATOS CONDOMÍNIO</b>,
+          sai do BANCO DE DADOS VENDAS CONDOMÍNIO e a unidade volta a <b>DISPONÍVEL</b>. A proposta fica como DISTRATO.</div>
+        <textarea id="prop-siMotivo" rows="3" placeholder="Motivo do distrato (obrigatório)" style="width:100%;box-sizing:border-box;font-family:inherit;font-size:13px"></textarea>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+          <button class="bt vermelho" onclick="propStatusInterno('${p.id}','DISTRATO')">Confirmar distrato</button>
+          <button class="bt" onclick="document.getElementById('prop-siDist').classList.add('hide')">Cancelar</button>
+        </div>
+      </div>
+      <div id="prop-siAviso" class="sim-aviso" style="margin-top:8px"></div>
+      <div style="font-size:12px;color:var(--text3);margin-top:6px">
+        <b>Pagou preferência</b> já cria a linha no BANCO DE DADOS VENDAS CONDOMÍNIO (a unidade fica roxa no mapa interno).
+        <b>Vendida</b> marca a unidade como VENDIDA, revalida os dados da venda e avisa o corretor.
+        <b>Distrato</b> arquiva a venda e libera a unidade.
+      </div>
+    </div>`;
+}
+function propSIDistratoAbrir(id){
+  const b=document.getElementById("prop-siDist"); if(!b) return;
+  b.classList.remove("hide");
+  const t=document.getElementById("prop-siMotivo"); if(t) setTimeout(()=>t.focus(),50);
+}
+function propSIMarcar(k){
+  document.querySelectorAll(".prop-si .bt").forEach(b=>b.classList.toggle("atual", b.dataset.si===k));
+  const box=document.querySelector(".prop-si"); if(box) box.classList.add("tem-status");
+}
+async function propStatusInterno(id, nome){
+  const p=PROPS.find(x=>x.id===id)||{};
+  const k=PROP_NORM(nome);
+  let motivo="";
+  if(k==="DISTRATO"){
+    motivo=((document.getElementById("prop-siMotivo")||{}).value||"").trim();
+    if(!motivo){ const av0=document.getElementById("prop-siAviso"); av0.className="sim-aviso err"; av0.textContent="Escreva o motivo do distrato."; return; }
+    if(!confirm("Confirmar o DISTRATO da unidade "+(p.unidade||"")+"?\n\nA venda sai do BANCO DE DADOS VENDAS CONDOMÍNIO (fica guardada em DISTRATOS CONDOMÍNIO) e a unidade volta a DISPONÍVEL.")) return;
+  } else if(k==="VENDIDA"){
+    if(!confirm("Marcar a unidade "+(p.unidade||"")+" como VENDIDA?\n\nA unidade passa para VENDIDA = SIM, os dados da venda são revalidados no BANCO DE DADOS VENDAS CONDOMÍNIO e o corretor recebe o e-mail.")) return;
+  } else if(k==="PAGOU PREFERENCIA"){
+    if(!confirm("Marcar PAGOU PREFERÊNCIA na unidade "+(p.unidade||"")+"?\n\nA linha da venda já é criada no BANCO DE DADOS VENDAS CONDOMÍNIO.")) return;
+  }
+  const av=document.getElementById("prop-siAviso");
+  const etapas = k==="DISTRATO"
+    ? ["Copiando a venda e os arquivos para DISTRATOS CONDOMÍNIO…","Tirando a linha do BANCO DE DADOS VENDAS CONDOMÍNIO…","Liberando a unidade e marcando a proposta…"]
+    : (k==="VENDIDA"
+      ? ["Gravando VENDIDA na proposta e na unidade…","Revalidando os dados no BANCO DE DADOS VENDAS CONDOMÍNIO…","E-mail ao corretor e mapa…"]
+      : (k==="PAGOU PREFERENCIA"
+        ? ["Marcando a unidade (mapa interno)…","Criando a linha no BANCO DE DADOS VENDAS CONDOMÍNIO…","Copiando os documentos da proposta…"]
+        : ["Gravando o status interno na proposta e na unidade…"]));
+  const t0=Date.now();
+  const pintar=()=>{ const sg=Math.round((Date.now()-t0)/1000), e=Math.min(etapas.length-1,Math.floor(sg/8));
+    av.className="sim-aviso ok"; av.innerHTML=etapas.map((x,i)=>'<div style="opacity:'+(i<e?'.55':(i===e?'1':'.3'))+'">'+(i<e?'✓ ':(i===e?'⏳ ':'• '))+esc(x)+'</div>').join("")+'<div style="font-size:11px;color:var(--text3);margin-top:4px">'+sg+' s</div>'; };
+  pintar(); const tm=setInterval(pintar,1000);
+  let r=null;
+  try{ r=await chamar({action:"simsStatusInternoAcao", pageId:id, status:nome, motivo:motivo}, 240000, true); }
+  catch(e){ r={ok:false, erro:(e&&e.name==="AbortError")?"TEMPO_ESGOTADO":"SEM_CONEXAO"}; }
+  clearInterval(tm);
+  if(!r || !r.ok){
+    av.className="sim-aviso err";
+    av.innerHTML = (r&&r.erro==="MODO_TESTE") ? "Perfil TESTES não grava." :
+      esc((r&&(r.mensagem||r.erro))||"Não gravou.")+((r&&r.erro==="TEMPO_ESGOTADO")?" — o servidor pode ter terminado: atualize a lista antes de repetir.":"");
+    return;
+  }
+  p.statusInterno=nome; if(p.dados) p.dados.statusInterno=nome;
+  if(k==="DISTRATO") p.status="DISTRATO";
+  if(k==="VENDIDA") p.status="VENDIDA";
+  propSIMarcar(k);
+  if(k==="VENDIDA" && r.venda){ propMarcarAtual("VENDIDA"); await propPosVendida(id, r, av); try{ simCarregarUnidades(true); }catch(e){} }
+  else {
+    let h="<b>✓ Status interno: "+esc(nome)+".</b>";
+    if(k==="PAGOU PREFERENCIA"){
+      const v=r.venda||{}; const pend=(v.pendencias||[]).length;
+      h+="<br>Banco de vendas: linha da unidade "+esc(String(v.unidade||p.unidade||""))+(v.criou?" criada":" atualizada")+
+         (pend?" — <b>"+pend+" pendência(s)</b> para completar (gere o link da venda acima).":" — cadastro completo.");
+      const cd=v.copiaDocs; if(cd&&cd.pedidos) h+="<br><span style='font-size:12px'>Documentos da proposta: "+(cd.copiados||0)+" copiado(s)"+(cd.naFila?" · "+cd.naFila+" copiando em segundo plano":"")+"</span>";
+    }
+    if(k==="DISTRATO"){
+      const a=r.arquivos||{};
+      h+= r.semVenda ? "<br>Não havia linha desta proposta no banco de vendas — unidade liberada e proposta marcada como DISTRATO."
+        : "<br>Venda guardada em <b>DISTRATOS CONDOMÍNIO</b>"+(r.distratoUrl?' (<a href="'+esc(r.distratoUrl)+'" target="_blank" rel="noopener">abrir no Notion</a>)':"")+
+          " e retirada do BANCO DE DADOS VENDAS CONDOMÍNIO. Unidade "+esc(String(r.unidade||""))+" DISPONÍVEL."+
+          "<br><span style='font-size:12px'>Arquivos: "+(a.copiados||0)+" copiado(s)"+(a.naFila?" · "+a.naFila+" coluna(s) terminando em segundo plano":"")+
+          ((a.falhas||[]).length?" · <span style='color:var(--vermelho)'>"+esc(a.falhas.join("; "))+"</span>":"")+"</span>";
+      const bd=document.getElementById("prop-siDist"); if(bd) bd.classList.add("hide");
+    }
+    if(r.aviso) h+="<br><span style='font-size:12px'>"+esc(r.aviso)+"</span>";
+    if(r.avisoUnidade) h+="<br><span style='font-size:12px;color:var(--vermelho)'>Unidade: "+esc(r.avisoUnidade)+"</span>";
+    av.className="sim-aviso ok"; av.innerHTML=h;
+  }
+  propSincronizarTudo();
+}
 async function propStatus(id, status){
   if(status==="VENDIDA" && !confirm("Marcar esta proposta como VENDIDA?\n\nA unidade passa para VENDIDA = SIM no mapa e os dados vão para o BANCO DE DADOS VENDAS CONDOMÍNIO.")) return;
   const av=document.getElementById("prop-detAviso");
@@ -3833,6 +3952,9 @@ function propEstiloEditor(){
     .prop-dec.tem-status .bt{opacity:.5}
     .prop-dec .bt.atual{opacity:1;outline:3px solid var(--azul);outline-offset:2px;transform:scale(1.06);font-weight:800}
     .prop-dec .bt.atual::after{content:" ✓"}
+    .prop-si.tem-status .bt{opacity:.5}
+    .prop-si .bt.atual{opacity:1;outline:3px solid var(--azul);outline-offset:2px;transform:scale(1.06);font-weight:800}
+    .prop-si .bt.atual::after{content:" ✓"}
     .prop-email{margin-top:18px;border:1.5px solid var(--border);border-radius:10px;
       padding:14px 14px 16px;background:var(--bg2);}
     .prop-email-tit{font-size:14px;font-weight:800;color:var(--azul-esc);display:flex;
