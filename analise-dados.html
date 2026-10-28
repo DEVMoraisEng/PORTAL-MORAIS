@@ -2124,7 +2124,8 @@ function buildDash(){
   };
   const contaCasasEm=(ml)=>{
     const set=new Set(ml);
-    return vendasVGV().filter(v=>v.clientes&&set.has(mesD(v.data_venda))).length;
+    /* 28/10: meta de vendas (nº de casas) é só das casas de rua — condomínio tem meta de valor (Configurações › 5) */
+    return vendas.filter(v=>v.clientes&&set.has(mesD(v.data_venda))&&ccInfo(v.endereco||'').imovel!=='COND').length;
   };
   const listaVendasEm=(ml)=>{
     const set=new Set(ml);
@@ -4577,6 +4578,26 @@ function buildRentab(){
 
 /* ===================== VISÃO GERAL 27/10: cards com gráfico ===================== */
 
+
+/* 28/10: gráfico do VGV por tipo (casas de rua / condomínios / todos); o resumo do mês lista as vendas */
+function vgvVendasMes(m,t){ return vendasVGV().filter(v=>v.clientes&&mesD(v.data_venda)===m&&(t==='todos'||((ccInfo(v.endereco||'').imovel==='COND')===(t==='cond')))); }
+function vgvListaHtml(vs){
+  if(!vs.length) return '';
+  const ls=vs.slice().sort((a,b)=>String(a.data_venda||'').localeCompare(String(b.data_venda||''))), max=30;
+  const dd=d=>d?String(d).slice(8,10)+'/'+String(d).slice(5,7):'';
+  const nomeV=v=>v._cond?((condoDe(v.endereco)||{}).nome||v.condominio||'Condomínio')+(v.unidade?' · unid. '+v.unidade:''):(v.endereco||'?')+(v.casa?' · casa '+v.casa:'');
+  return `<div class="tr">${ls.length} venda${ls.length>1?'s':''}</div><table>${ls.slice(0,max).map(v=>`<tr><td style="color:var(--text3);width:38px">${dd(v.data_venda)}</td><td>${esc(nomeV(v))}</td><td>${v.valor_venda_contrato?fmtBRL(v.valor_venda_contrato):'<span style="color:#c0392b">sem valor</span>'}</td></tr>`).join('')}</table>${ls.length>max?`<div class="fora">+ ${ls.length-max} venda(s)</div>`:''}`;
+}
+function vgvChartHtml(){
+  if(!DASH_PP) return ''; const {m12}=DASH_PP, t=DASH_MODO.VGVV||'rua', VERDE='#2a9d5c';
+  let bars, lines=[], tit;
+  if(t==='rua'){ tit='VGV · casas de rua'; bars=[{n:'Casas de rua',cor:'#e08a1e',v:m12.map(m=>dS('vgvR',[m]))}]; }
+  else if(t==='cond'){ tit='VGV · condomínios'; const cs=condoLista().filter(c=>m12.some(m=>dS('vgv#'+c.k,[m])>0));
+    bars=cs.length?cs.map((c,i)=>({n:c.nome,cor:['#3d7cc9','#8e5bb5','#2bb3a3','#d4a017'][i%4],v:m12.map(m=>dS('vgv#'+c.k,[m]))})):[{n:'Condomínios',cor:'#3d7cc9',v:m12.map(m=>dS('vgvC',[m]))}]; }
+  else { tit='VGV · todos'; bars=[{n:'Casas de rua',cor:'#e08a1e',v:m12.map(m=>dS('vgvR',[m]))},{n:'Condomínios',cor:'#3d7cc9',v:m12.map(m=>dS('vgvC',[m]))}]; lines=[{n:'VGV total',cor:VERDE,v:m12.map(m=>dS('vgv',[m])),w:3}]; }
+  return dashChart('vgv',m12,{titulo:tit,bars,lines,extra:i=>vgvListaHtml(vgvVendasMes(m12[i],t)),nota:'Valor de contrato das casas vendidas no mês (Notion › VENDAS e VENDAS CONDOMÍNIO). Clique no mês para fixar a lista.'});
+}
+
 /* ===================== OBRAS: casas de rua × condomínios num card só (28/10) ===================== */
 let DASH_PP=null, _condC=new Map(), COND_UN={}, COND_UN_EM=null;
 const URL_UN_IPES='https://devmoraiseng.github.io/SIMULADOR-RESERVA-DO-IP-S/unidades.json';
@@ -4655,6 +4676,7 @@ let DASH_MODO=(()=>{ try{ return JSON.parse(localStorage.getItem('ad_dash_modo')
 function tipNS(ns){ TIP_NS=ns; TIPS[ns]={}; }
 function dashModo(k,v){ DASH_MODO[k]=v; if(k==='OBV'&&v==='rua') {} try{ localStorage.setItem('ad_dash_modo',JSON.stringify(DASH_MODO)); }catch(e){}
   if(/^OB[VMC]$/.test(k)&&document.getElementById('dc-obras')){ requestAnimationFrame(rerenderObras); return; }
+  if(k==='VGVV'&&document.getElementById('vgv-ch')){ requestAnimationFrame(()=>{ TIP_NS='d'; TIPS.d=TIPS.d||{}; document.getElementById('vgv-ch').innerHTML=vgvChartHtml(); document.querySelectorAll('[data-modo^="VGVV|"]').forEach(b=>b.classList.toggle('on',b.dataset.modo==='VGVV|'+v)); }); return; }
   const y=window.scrollY; DASH_ANIM=false; buildDash(); DASH_ANIM=true; window.scrollTo(0,y); }
 document.addEventListener('click',e=>{ const b=e.target.closest('[data-modo]'); if(!b) return; e.preventDefault(); e.stopPropagation(); const [k,v]=b.dataset.modo.split('|'); dashModo(k,v); },true);
 const fmtK=v=>{ const a=Math.abs(v||0), s=v<0?'-':''; if(a>=1e6) return s+'R$ '+fmtN(a/1e6,a>=1e7?1:2)+' mi'; if(a>=1e3) return s+'R$ '+fmtN(a/1e3,0)+' mil'; return s+'R$ '+fmtN(a,0); };
@@ -4707,7 +4729,7 @@ function dashChart(key,ml,o){
     seg.forEach(p=>{ g+=`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.2" fill="${l.cor}" stroke="${cv('--branco','#fff')}" stroke-width="1.2"/>`; }); });
   ml.forEach((m,i)=>{ const rows=[...bars.map(b=>[b.n,b.v[i]||0,b.cor]),...lines.map(l=>[l.n,l.v[i],l.cor])].filter(r=>r[1]!=null&&(r[1]!==0||lines.some(l=>l.n===r[0])));
     const fv=pct?(v=>fmtN(v,2)+'%'):fmtBRL; const tot=bars.length>1?`<tr><td><b>Total das barras</b></td><td><b>${fv(bars.reduce((a,b)=>a+(b.v[i]||0),0))}</b></td></tr>`:'';
-    const html=`<h4>${esc(o.titulo||'')} · ${fmtM(m)}</h4><table>${rows.map(r=>`<tr><td><i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${r[2]};margin-right:6px"></i>${esc(r[0])}</td><td>${fv(r[1])}</td></tr>`).join('')}${tot}</table>${o.nota?`<div class="fora" style="margin-top:6px">${o.nota}</div>`:''}`;
+    const html=`<h4>${esc(o.titulo||'')} · ${fmtM(m)}</h4><table>${rows.map(r=>`<tr><td><i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${r[2]};margin-right:6px"></i>${esc(r[0])}</td><td>${fv(r[1])}</td></tr>`).join('')}${tot}</table>${o.extra?o.extra(i):''}${o.nota?`<div class="fora" style="margin-top:6px">${o.nota}</div>`:''}`;
     g+=`<rect class="col" x="${(L+bw*i).toFixed(1)}" y="${T}" width="${bw.toFixed(1)}" height="${H-T-B}"${tipX(key+'_'+i,html)}/>`; });
   return `${o.ttl?`<div class="ttl">${o.ttl}</div>`:''}${legHtml(bars,lines)}<div class="dc-ch"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${g}</svg></div>`;
 }
@@ -4720,16 +4742,17 @@ function dashNovo(P){
   const per4=(f,tipK,custo,cls)=>{ const t12=dS(f,m12), ta=dS(f,mA), md=t12/12, vm=dS(f,M1);
     return dvItem('12 meses',fmtBRL(t12),tipK+':12','',`hero ${cls||''}`)+dvItem(`Ano ${ano}`,fmtBRL(ta),tipK+':ano')+dvItem('Média / mês',fmtBRL(md),tipK+':med')+dvItem(`Mês ${fmtM(mes)}`,fmtBRL(vm),tipK+':mes',pillTend(vm,md,custo)?pillTend(vm,md,custo)+' vs média':''); };
   // ---------- VGV + custo de venda ----------
+  DASH_PP={mes,ano,m12,mA};
   const vgvMes=dS('vgv',M1), vgvMed=dS('vgv',m12)/12;
   const mkV=c=>`<i style="display:inline-block;width:12px;height:4px;border-radius:2px;background:${c};margin-right:6px;vertical-align:3px"></i>`;
   const vlin=(rot,f,tk,cls,cor,nf)=>{ const t12=dS(f,m12), vm=dS(f,M1), nA=dS(nf,mA), nM=dS(nf,M1); return `<tr class="${cls||''}"><td>${mkV(cor)}${rot}</td><td data-tip="${tk}:12">${fmtBRL(t12)}</td><td data-tip="${tk}:ano">${fmtBRL(dS(f,mA))}<div class="dv-s">${nA} casa${nA===1?'':'s'}</div></td><td data-tip="${tk}:med">${fmtBRL(t12/12)}</td><td data-tip="${tk}:mes">${fmtBRL(vm)}<div class="dv-s">${nM} casa${nM===1?'':'s'}</div></td></tr>`; };
   const vgvBody=`<div class="dt-w"><table class="dt"><thead><tr><th></th><th>12 meses</th><th>Ano ${ano}</th><th>Média/mês</th><th>Mês ${fmtM(mes)}</th></tr></thead><tbody>
       ${vlin('🏠 Casas de rua','vgvR','vgv@RUA','','#e08a1e','nR')}${vlin('🏘 Condomínios','vgvC','vgv@COND','','#3d7cc9','nC')}
       ${vlin('Σ VGV total','vgv','vgv','tot vgvt',VERDE,'cas')}</tbody></table></div>
-    <div class="dv-s" style="margin:-4px 0 6px">${P.metaAno?`Meta de vendas ${ano}: <b>${P.casasAno}</b>/${P.metaAno} casas (= construídas em ${ano-1})`:`<b>${P.casasAno}</b> casas no ano`} · mês: <b>${P.casasMes}</b>${P.metaMes?'/'+fmtN(P.metaMes,1):''} ${pillTend(vgvMes,vgvMed,false)}</div>${P.alertaVgv||''}`+
-    dashChart('vgv',m12,{titulo:'VGV',bars:[{n:'Casas de rua',cor:'#e08a1e',v:m12.map(m=>dS('vgvR',[m]))},{n:'Condomínios',cor:'#3d7cc9',v:m12.map(m=>dS('vgvC',[m]))}],lines:[{n:'VGV total',cor:VERDE,v:m12.map(m=>dS('vgv',[m])),w:3}],nota:'Valor de contrato das casas vendidas no mês (Notion › VENDAS e VENDAS CONDOMÍNIO).'});
+    <div class="dv-s" style="margin:-4px 0 6px">🏠 ${P.metaAno?`Meta de vendas das casas de rua ${ano}: <b>${P.casasAno}</b>/${P.metaAno} casas (= construídas em ${ano-1})`:`<b>${P.casasAno}</b> casas de rua no ano`} · mês: <b>${P.casasMes}</b>${P.metaMes?'/'+fmtN(P.metaMes,1):''} ${pillTend(dS('vgvR',M1),dS('vgvR',m12)/12,false)} · 🏘 condomínios seguem a meta de valor de cada um (card Obras › Condomínios)</div>${P.alertaVgv||''}`+
+    `<div id="vgv-ch">${vgvChartHtml()}</div>`;
   const venBody=`<div class="dv-g">${per4('ven','venda',true)}</div>`+dashChart('ven',m12,{titulo:'Custo de venda',bars:compBars('venC',m12,4,['#8e5bb5','#d4a017','#2bb3a3','#e08a1e']),lines:[],nota:'Composição por categoria: comissão de venda, DARF RET, ganho de capital…'});
-  let h=`<div class="dg c2">${dcard(VERDE,'📈','VGV','vendas pelo contrato','',vgvBody)}${dcard('#8e5bb5','💼','Custo de venda','comissão · RET · ganho de capital','',venBody)}</div>`;
+  let h=`<div class="dg c2">${dcard(VERDE,'📈','VGV','vendas pelo contrato',`<span class="dc-tg">${[['rua','🏠 Casas de rua'],['cond','🏘 Condomínios'],['todos','Σ Todos']].map(([v,t])=>`<button type="button" data-modo="VGVV|${v}" class="${(DASH_MODO.VGVV||'rua')===v?'on':''}">${t}</button>`).join('')}</span>`,vgvBody)}${dcard('#8e5bb5','💼','Custo de venda','comissão · RET · ganho de capital','',venBody)}</div>`;
   // ---------- Escritório + pós-obra + indicadores ----------
   /* 28/10: escritório e pós-obra contam a partir de mar/2026 até existirem 12 meses de fato */
   const mE=m12.filter(m=>m>=INI_FIXOS), mAE=mA.filter(m=>m>=INI_FIXOS), hojeM=MES_HOJE, mFech=mAE.filter(m=>m<hojeM), nE=mE.length||1;
