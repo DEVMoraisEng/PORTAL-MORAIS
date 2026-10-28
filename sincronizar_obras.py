@@ -342,7 +342,9 @@ def main():
         m = []
         for c in CAMPOS:
             co, ca = achar(esq_obra, c[1]), achar(esq_alvo, c[idx]) if c[idx] else None
-            if co and ca:
+            if co and ca and esq_alvo[ca].get("type") not in GRAVAVEIS:
+                print(f"  {base}: {c[0]:<26} — '{ca}' é {esq_alvo[ca].get('type')} (calculada no Notion, acompanha sozinha)", flush=True)
+            elif co and ca:
                 m.append((c[0], co, ca))
                 print(f"  {base}: {c[0]:<26} obra '{co}' ({esq_obra[co].get('type')}) -> '{ca}' ({esq_alvo[ca].get('type')})", flush=True)
             elif c[idx]:
