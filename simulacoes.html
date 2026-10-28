@@ -3527,7 +3527,9 @@ function propPintarDetalhe(id, r){
  * ------------------------------------------------------------------- */
 function propNumDe(id){ const p=(PROPS||[]).find(x=>x.id===id); return String((p&&p.proposta)||"").toUpperCase(); }
 function propHistCorrHtml(id, r){
-  const h=r.historicoCorresp;
+  let h=r.historicoCorresp;
+  /* encaminhamentos internos (vendas → portal) repetem a conversa: ficam de fora */
+  if(h && h.mensagens) h=Object.assign({}, h, {mensagens:h.mensagens.filter(m=>!(/^\s*(fwd?|enc|encaminhad[ao])\s*:/i.test(m.assunto||"") && /vendasreservadosipes|moraisengdev/i.test(m.de||"")))});
   const adiado = (h && h.motivo==="ADIADO") || (h===undefined && r.historicoEmail && r.historicoEmail.motivo==="ADIADO");
   if(adiado) return '<div class="sim-aviso" style="margin-top:10px"><span class="load"></span> Carregando a conversa com o correspondente…</div>';
   if(!h) return '<div class="sim-aviso" style="margin-top:10px">A conversa com o correspondente aparece aqui depois que o Apps Script do portal for publicado (r96q).</div>';
