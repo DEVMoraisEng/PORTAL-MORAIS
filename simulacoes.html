@@ -2421,11 +2421,11 @@ function propRender(){
   vis.sort((a,b)=> propOrdem==="desc" ? tempo(b)-tempo(a) : tempo(a)-tempo(b));
   /* estilo do editor injetado uma vez */
   propEstiloEditor();
-  /* 28/10 — crédito, valores e sinal logo depois da unidade */
-  const cab='<thead><tr><th>Proposta</th><th>Unidade</th><th>Crédito Caixa</th>'+
+  /* 28/10 — ordem: proposta · unidade · crédito · sinal · cliente · corretor · valor · entrada · resto */
+  const cab='<thead><tr><th>Proposta</th><th>Unidade</th><th>Crédito Caixa</th><th>Sinal</th>'+
+            '<th>Cliente</th><th>Corretor</th>'+
             '<th class="col-num">Valor</th><th class="col-num">Entrada</th>'+
-            '<th class="col-num">Renda</th><th>Sinal</th>'+
-            '<th>Cliente</th><th>CPF</th><th>Corretor</th><th>Imobiliária</th>'+
+            '<th class="col-num">Renda</th><th>CPF</th><th>Imobiliária</th>'+
             '<th style="cursor:pointer" title="Clique para inverter a ordem" onclick="propOrdenar(propOrdem===\'asc\'?\'desc\':\'asc\')">'+
             'Criada <span class="arr">'+(propOrdem==="desc"?"▼":"▲")+'</span></th><th>Status</th></tr></thead>';
   if(!vis.length){
@@ -2444,12 +2444,12 @@ function propRender(){
       <td>${p.comCredito
             ? '<span class="pill bom">APROVADO</span>'
             : '<span class="pill ruim">SEM CARTA</span>'+propCorrCelula(p)}</td>
+      <td>${propPillSinais(p)}</td>
+      <td>${esc(p.cliente||"—")}</td><td>${esc(p.vendedor||"—")}</td>
       <td class="num">${p.creditoAprovado?simBRL(p.creditoAprovado):"—"}</td>
       <td class="num">${p.valorEntrada?simBRL(p.valorEntrada):"—"}</td>
       <td class="num">${p.rendaTotal?simBRL(p.rendaTotal):"—"}</td>
-      <td>${propPillSinais(p)}</td>
-      <td>${esc(p.cliente||"—")}</td><td class="col-un">${esc(p.cpf||"—")}</td>
-      <td>${esc(p.vendedor||"—")}</td><td>${esc(p.imobiliaria||"—")}</td>
+      <td class="col-un">${esc(p.cpf||"—")}</td><td>${esc(p.imobiliaria||"—")}</td>
       <td>${simData(p.criadoEm)}</td>
       <td>${propTag(p.status)}${venc?' <span style="color:#C0392B;font-weight:700">+24h</span>':''}</td></tr>`;
   }).join("");
