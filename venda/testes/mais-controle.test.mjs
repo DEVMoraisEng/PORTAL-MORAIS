@@ -10,8 +10,8 @@ const PROPS = { NOTION_TOKEN: "ntn-teste", SESSION_SECRET: "segredo-de-teste", D
                 GITHUB_TOKEN: "gh-teste", GH_REPO_MC: "Org-Teste/REPO-TESTE" };
 const COLS = Object.assign({}, COLUNAS_REAIS, { "MC - SITUAÇÃO": "rich_text", "MC - VENDA ID ": "rich_text" });
 
-function montar({ props = PROPS, valores = {}, colunas = COLS, gh = 204 } = {}) {
-  const n = notionFalso({ colunas, valores });
+function montar({ props = PROPS, valores = {}, colunas = COLS, gh = 204, bases, esquemas } = {}) {
+  const n = notionFalso({ colunas, valores, bases, esquemas });
   const despachos = [];
   const g = criarGas({ props, rotas: (url, opt) => {
     if (url.startsWith("https://api.github.com/")) { despachos.push({ url, corpo: JSON.parse(opt.payload), opt }); return { status: gh, texto: "" }; }
@@ -102,12 +102,28 @@ test("GitHub sem resposta (exceção no fetch) vira ERRO, não fica PROCESSANDO"
   assert.match(sit(n), /sem resposta do GitHub/);
 });
 
-// TODO: o notionFalso ainda não aceita POST /pages em outra base (a da fila) — ajustar o fake e tirar o skip
-test.skip("27/10: com DB_FILA_ROBO, o pedido vai para a fila do servidor (Notion) e não para o GitHub", () => {
-  const { g, n, despachos } = montar({ props: Object.assign({}, PROPS, { DB_FILA_ROBO: "f".repeat(32) }) });
+test("27/10: com DB_FILA_ROBO, o pedido vai para a fila do servidor (Notion) e não para o GitHub", () => {
+  const FILA = "f".repeat(32);
+  const { g, n, despachos } = montar({ props: Object.assign({}, PROPS, { DB_FILA_ROBO: FILA }), bases: { [FILA]: [] },
+    esquemas: { [FILA]: { PEDIDO: "title", TIPO: "select", PAYLOAD: "rich_text", "SITUAÇÃO": "select", "PEDIDO EM": "date" } } });
   const r = g.chamar({ action: "mcLancar", token: tokenDe(), pageId: PAGE_ID_PADRAO, aplicar: false });
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.equal(r.fila, true);
-  assert.equal(despachos.length, 0);
-  assert.match(sit(n), /^PROCESSANDO \(prévia\)/);
+  assert.equal(r.semSinal, true, "servidor nunca deu sinal");
+  assert.equal(despachos.length, 0, "não chama o GitHub");
+  const linha = n.escritas.find((e) => e.metodo === "POST");
+  assert.ok(linha, "pôs a linha na fila");
+  assert.equal(linha.props["TIPO"].select.name, "mc-venda");
+  assert.equal(linha.props["SITUAÇÃO"].select.name, "PENDENTE");
+  assert.deepEqual(JSON.parse(linha.props["PAYLOAD"].rich_text[0].text.content), { pageId: PAGE_ID_PADRAO, aplicar: false });
+  assert.match(sit(n), /^PROCESSANDO \(prévia\).*o servidor ainda não deu sinal/);
+});
+
+test("27/10: sinal do servidor — velho depois de 5 min, e o aviso diz desde quando", () => {
+  const { g } = montar();
+  const agora = Date.parse("2026-10-27T15:00:00Z");
+  assert.equal(g.ctx.roboSinalVelho_("2026-10-27T14:57:00Z", agora), false);
+  assert.equal(g.ctx.roboSinalVelho_("2026-10-27T14:50:00Z", agora), true);
+  assert.equal(g.ctx.roboSinalVelho_("", agora), true);
+  assert.equal(g.ctx.roboAvisoSinal_("2026-10-27T14:59:00Z", agora), "");
 });
