@@ -2426,8 +2426,10 @@ function propSeloInterno(unidade, p){
   if(!est) return "";
   const dono=p ? propDonoUnidade(unidade) : null;
   if(p && dono && dono.id!==p.id){
-    const nome=String(dono.cliente||"outro cliente").split(/\s+/).slice(0,2).join(" ");
-    return ' <span title="Status interno da unidade — proposta '+esc(dono.proposta||"")+'" style="font-size:10px;font-weight:800;color:#6B5A45;background:#F1ECE4;border:1px dashed #C9B89A;border-radius:8px;padding:1px 6px">'+est[0]+' para '+esc(nome)+'</span>';
+    /* nome e último sobrenome ("HELCIO FERREIRA"); preferência é PAGA POR, reserva/venda é PARA */
+    const pn=String(dono.cliente||"outro cliente").trim().split(/\s+/), nome=pn.length>1 ? pn[0]+" "+pn[pn.length-1] : pn[0];
+    const txt = k==="PAGOU PREFERENCIA" ? "PREFERÊNCIA PAGA POR "+nome : est[0]+" PARA "+nome;
+    return ' <span title="Status interno da unidade — proposta '+esc(dono.proposta||"")+' · '+esc(dono.cliente||"")+'" style="font-size:10px;font-weight:800;color:#6B5A45;background:#F1ECE4;border:1px dashed #C9B89A;border-radius:8px;padding:1px 6px">'+esc(txt)+'</span>';
   }
   return ' <span title="status interno da unidade'+(p&&!dono?' — marque na proposta certa pelo Status interno':'')+'" style="font-size:10px;font-weight:800;color:'+est[1]+';background:'+est[2]+';border:1px solid '+est[3]+';border-radius:8px;padding:1px 6px">'+est[0]+' (interno)</span>';
 }
