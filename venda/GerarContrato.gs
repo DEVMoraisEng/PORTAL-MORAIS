@@ -267,6 +267,7 @@ function ctrDadosCondominio_(c) {
         balao1Valor: n("VALOR 1º BALÃO"), balao1Data: t("DATA 1º BALÃO (12/27)"),
         balao2Valor: n("VALOR BALÃO ENTREGA DE CHAVES"), balao2Data: t("DATA 2º BALÃO (25º PARCELA)"),
         posN: n("Nº PARCELAS PÓS CHAVES"), posValor: n("VALOR PÓS CHAVES"), posData: t("DATA PÓS CHAVES"),
+        prazoEntrada: n("PRAZO ENTRADA"),   /* 28/10: a comissão sai do prazo (24x 5%, 36x 4,75%, 48x 4,5%) */
         credito: n("VALOR DO CRÉDITO"), fgts: n("VALOR DO FGTS"), subsidio: n("SUBISÍDIO")
       },
       fiadores: [fiador(1), fiador(2)],

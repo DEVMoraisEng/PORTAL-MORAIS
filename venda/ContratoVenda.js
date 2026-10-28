@@ -230,6 +230,7 @@ var ContratoVenda = (function () {
       balao1Valor: num(x.balao1Valor), balao1Data: txt(x.balao1Data),
       balao2Valor: num(x.balao2Valor), balao2Data: txt(x.balao2Data),
       posN: inteiro(x.posN), posValor: num(x.posValor), posData: txt(x.posData),
+      prazoEntrada: inteiro(x.prazoEntrada),
       credito: num(x.credito), fgts: num(x.fgts), subsidio: num(x.subsidio)
     };
   }
@@ -306,11 +307,20 @@ var ContratoVenda = (function () {
    * o resume por grupos (decisão do dono 21/10: "24 parcelas mensais, todo dia XX, a primeira em …").
    * A comissão é do COMPRADOR e está dentro do VALOR DE VENDA (dono 22/10): operação = venda; imóvel = venda − comissão. */
   function U() { return typeof UnidadesCondominio !== "undefined" ? UnidadesCondominio : require("./UnidadesCondominio.js"); }
-  /* item 5 b): o percentual sai do número de parcelas pós-chaves (é a mesma regra do simulador) */
-  var COMISSAO_POR_POS = { 0: 0.05, 12: 0.0475, 24: 0.045 };
-  function comissaoPctPelaRegra(posN) {
-    var n = positivo(posN) ? posN : 0;
-    return Object.prototype.hasOwnProperty.call(COMISSAO_POR_POS, n) ? COMISSAO_POR_POS[n] : null;
+  /* item 5 b) — regra do dono (28/10): a comissão sai do PRAZO DA ENTRADA escolhido na proposta, como no simulador:
+     24x = 5%, 36x = 4,75%, 48x = 4,5%. O simulador grava o prazo com um mês a menos por mês passado de nov/2026
+     (24/36/48 → 23/35/47…), por isso vale a faixa. Sem PRAZO ENTRADA (venda antiga), o prazo sai das parcelas
+     pós-chaves pela tabela do simulador (0 → 24x, 12 → 36x, 24 → 48x). */
+  var PRAZO_POR_POS = { 0: 24, 12: 36, 24: 48 };
+  function prazoOpcao(prazo, posN) {
+    var p = positivo(prazo) ? prazo : null;
+    if (p === null) { var n = positivo(posN) ? posN : 0; return Object.prototype.hasOwnProperty.call(PRAZO_POR_POS, n) ? PRAZO_POR_POS[n] : null; }
+    return p <= 24 ? 24 : p <= 36 ? 36 : p <= 48 ? 48 : null;
+  }
+  var COMISSAO_POR_PRAZO = { 24: 0.05, 36: 0.0475, 48: 0.045 };
+  function comissaoPctPelaRegra(prazo, posN) {
+    var op = prazoOpcao(prazo, posN);
+    return op === null ? null : COMISSAO_POR_PRAZO[op];
   }
   /* 0,045 -> "4,5"; 0,05 -> "5" */
   function pctBR(frac) { return String(Number((frac * 100).toFixed(4))).replace(".", ","); }
@@ -320,7 +330,7 @@ var ContratoVenda = (function () {
     var fl = co.fluxo, preco = positivo(fl.valorVenda) ? fl.valorVenda : null;
     function val(v) { return positivo(v) ? v : 0; }
     var financiamento = so2(val(fl.credito) + val(fl.fgts) + val(fl.subsidio));
-    var pctRegra = comissaoPctPelaRegra(fl.posN);
+    var pctRegra = comissaoPctPelaRegra(fl.prazoEntrada, fl.posN);
     var comissao = positivo(co.comissao) ? co.comissao : (pctRegra !== null && preco !== null ? so2(preco * pctRegra) : null);
     /* dono 22/10: a comissão está DENTRO do VALOR DE VENDA (305 mil a 5% = 15.250 do corretor); o cliente paga à
        Morais e a Morais repassa ao corretor depois que o sinal inteiro é pago. Operação = VALOR DE VENDA;
@@ -700,12 +710,12 @@ var ContratoVenda = (function () {
 
     /* comissão (item 5): o percentual sai do nº de parcelas pós-chaves; a da linha tem de bater com a regra */
     var va = valoresCondominio(co);
-    if (va.pctRegra === null) faltas.push("Comissão: " + fl.posN + " parcelas pós-chaves não estão na tabela (0, 12 ou 24)");
+    if (va.pctRegra === null) faltas.push("Comissão: prazo da entrada " + (fl.prazoEntrada || "vazio") + " fora da tabela (24, 36 ou 48 meses)");
     else if (positivo(co.comissao) && va.preco !== null) {
       var pelaRegra = so2(va.preco * va.pctRegra);
       if (Math.abs(co.comissao - pelaRegra) > 0.05)
         faltas.push("Comissão: R$ " + moedaBR(co.comissao) + " na venda, mas a regra (" +
-          (positivo(fl.posN) ? fl.posN + " parcelas pós-chaves" : "sem parcelas pós-chaves") + " = " + pctBR(va.pctRegra) +
+          "prazo da entrada de " + prazoOpcao(fl.prazoEntrada, fl.posN) + " meses = " + pctBR(va.pctRegra) +
           "%) dá R$ " + moedaBR(pelaRegra));
     }
 

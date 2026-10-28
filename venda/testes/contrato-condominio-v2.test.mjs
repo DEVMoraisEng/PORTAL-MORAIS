@@ -58,12 +58,24 @@ test("tabela das casas do Reserva dos Ipês: tipo pelo memorial (casa 62 é tipo
   assert.equal(U.unidade("OUTRO CONDOMÍNIO", "1"), null);
 });
 
-test("regra da comissão: sem pós-chaves 5%, 12 pós-chaves 4,75%, 24 pós-chaves 4,5%; outro número = null", () => {
-  assert.equal(C.comissaoPctPelaRegra(0), 0.05);
-  assert.equal(C.comissaoPctPelaRegra(null), 0.05);
-  assert.equal(C.comissaoPctPelaRegra(12), 0.0475);
-  assert.equal(C.comissaoPctPelaRegra(24), 0.045);
-  assert.equal(C.comissaoPctPelaRegra(36), null);
+test("28/10 (dono): comissão pelo PRAZO DA ENTRADA — 24x 5%, 36x 4,75%, 48x 4,5%; prazo gravado com mês a menos vale a faixa", () => {
+  assert.equal(C.comissaoPctPelaRegra(24), 0.05);
+  assert.equal(C.comissaoPctPelaRegra(23), 0.05);
+  assert.equal(C.comissaoPctPelaRegra(36), 0.0475);
+  assert.equal(C.comissaoPctPelaRegra(35), 0.0475);
+  assert.equal(C.comissaoPctPelaRegra(48), 0.045);
+  assert.equal(C.comissaoPctPelaRegra(60), null);
+  /* sem prazo gravado (venda antiga): pela tabela do simulador, 0/12/24 pós-chaves = 24/36/48x */
+  assert.equal(C.comissaoPctPelaRegra(null, 0), 0.05);
+  assert.equal(C.comissaoPctPelaRegra(null, 12), 0.0475);
+  assert.equal(C.comissaoPctPelaRegra(null, 24), 0.045);
+  assert.equal(C.comissaoPctPelaRegra(null, 6), null);
+});
+
+test("28/10: unidade 17 — 36x com 24 pós-chaves no fluxo: a comissão de 4,75% vale (o prazo manda, não as parcelas)", () => {
+  const d = dados({ condominio: { comissao: 14487.5, fluxo: { ...FLUXO, prazoEntrada: 36 } } });
+  assert.ok(!C.faltasContrato(d).some((f) => /^Comissão/.test(f)), C.faltasContrato(d).join(" | "));
+  assert.equal(C.marcadores(d).COMISSAO_PCT, "4,75");
 });
 
 test("condomínio completo: sem faltas; comissão do COMPRADOR DENTRO do valor de venda (dono 22/10); marcadores do quadro-resumo", () => {
@@ -153,10 +165,10 @@ test("comissão: vazia na linha sai pela regra; diferente da regra trava; nº de
   assert.deepEqual(C.faltasContrato(vazia), []);
   assert.equal(C.marcadores(vazia).COMISSAO_VALOR, "13.725,00");
   assert.deepEqual(C.faltasContrato(dados({ condominio: { comissao: 15250 } })),
-    ["Comissão: R$ 15.250,00 na venda, mas a regra (24 parcelas pós-chaves = 4,5%) dá R$ 13.725,00"]);
+    ["Comissão: R$ 15.250,00 na venda, mas a regra (prazo da entrada de 48 meses = 4,5%) dá R$ 13.725,00"]);
   assert.deepEqual(C.faltasContrato(dados({ condominio: { comissao: 13725.04 } })), [], "até 5 centavos passa");
   const fora = dados({ condominio: { fluxo: { ...FLUXO, posN: 6, posValor: 705.89 * 4 } } });
-  assert.deepEqual(C.faltasContrato(fora), ["Comissão: 6 parcelas pós-chaves não estão na tabela (0, 12 ou 24)"]);
+  assert.deepEqual(C.faltasContrato(fora), ["Comissão: prazo da entrada vazio fora da tabela (24, 36 ou 48 meses)"]);
 });
 
 test("casa fora da tabela: tipo e áreas em branco viram aviso, não travam", () => {

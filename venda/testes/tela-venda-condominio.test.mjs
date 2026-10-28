@@ -186,7 +186,7 @@ test("gerarContrato do condomínio: fluxo que não fecha trava com a falta (nada
   assert.equal(r.erro, "FALTAM_DADOS");
   /* preço mudou sem mexer na comissão: a regra (21/10) também acusa */
   assert.deepEqual(r.faltas, ["Fluxo de pagamento: soma R$ 305.000,00 e não fecha com o valor de venda R$ 310.000,00",
-    "Comissão: R$ 13.725,00 na venda, mas a regra (24 parcelas pós-chaves = 4,5%) dá R$ 13.950,00"]);
+    "Comissão: R$ 13.725,00 na venda, mas a regra (prazo da entrada de 48 meses = 4,5%) dá R$ 13.950,00"]);
   assert.equal(c.d.estado.copias.length, 0);
 });
 
