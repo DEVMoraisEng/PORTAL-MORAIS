@@ -295,6 +295,45 @@ def anotar_alerta(obra_id, nota, esq_obra):
     api("PATCH", f"/pages/{obra_id}", {"properties": {col: {"rich_text": [{"text": {"content": conteudo}}]}}})
 
 
+# 28/10/26 — a coluna ENDEREÇO ALTERADO só nascia quando um endereço era
+# trocado pelo portal (moColunasObra_ no Apps Script). Sem ela, a 1ª rodada
+# corrigiu 30 linhas (engenheiro Caio Araujo -> João Marcos, Terrabela) e não
+# teve onde anotar. Agora o script cria a coluna e, nessa criação, anota o
+# alerta dessas 30 correções (RETRO), para conferir e validar.
+_RETRO_DOCS = ["TB 19 QD 51 LT 15", "TB 19 QD 51 LT 14", "TB 19 QD 51 LT 13", "TB 14 QD 42 LT 19", "TB 16 QD 47 LT 40"]
+_RETRO_VENDAS = ["TB 21 QD 51 LT 23", "TB 25 QD 47 LT 44", "TB 21 QD 51 LT 26", "TB 16 QD 47 LT 40", "TB 21 QD 51 LT 29",
+                 "TB 19 QD 51 LT 14", "TB 19 QD 51 LT 13", "TB 19 QD 51 LT 16", "TB 14 QD 42 LT 19", "TB 21 QD 51 LT 28",
+                 "TB 19 QD 51 LT 15", "TB 18 QD 49 LT 30"]
+
+
+def retro_28_10(obras, esq_obra):
+    troca = ("ENGENHEIRO", "Caio Araujo", "João Marcos Vieira Cabral Menezes")
+    por_tit = {N(titulo(pg.get("properties"))): oid for oid, pg in obras.items()}
+    for t in sorted(set(_RETRO_DOCS) | set(_RETRO_VENDAS)):
+        oid = por_tit.get(N(t))
+        if not oid:
+            print(f"  ! retroativo: obra {t} não encontrada", flush=True)
+            continue
+        nota = texto_alerta([troca] if t in _RETRO_DOCS else [],
+                            {"1": [troca], "2": [troca]} if t in _RETRO_VENDAS else {}, "28/10 11:52")
+        try:
+            anotar_alerta(oid, nota, esq_obra)
+        except (Exception, SystemExit) as e:
+            print(f"  ! retroativo {t}: {str(e)[:100]}", flush=True)
+    print("Alertas retroativos da 1ª rodada (28/10) anotados.", flush=True)
+
+
+def garantir_coluna_alerta(esq_obra):
+    """Cria a coluna de alerta se faltar. Devolve (esquema, criou_agora)."""
+    if achar(esq_obra, [COL_ALERTA]):
+        return esq_obra, False
+    print(f"Coluna {COL_ALERTA} não existe na base de obras — " + ("criando." if APLICAR else "seria criada."), flush=True)
+    if not APLICAR:
+        return esq_obra, False
+    api("PATCH", f"/databases/{ID_OBRAS}", {"properties": {COL_ALERTA: {"rich_text": {}}}})
+    return api("GET", f"/databases/{ID_OBRAS}").get("properties") or {}, True
+
+
 # ---------------------------------------------------------------- Mais Controle
 def hash_mc(props, esq_obra):
     vals = []
@@ -355,6 +394,9 @@ def main():
     mapa_docs, mapa_vend = montar(esq_docs, 2, "DOCUMENTOS"), montar(esq_vend, 3, "VENDAS")
 
     obras = {pg["id"].replace("-", ""): pg for pg in ler_banco(ID_OBRAS, "OBRAS")}
+    esq_obra, criou_coluna = garantir_coluna_alerta(esq_obra)
+    if criou_coluna:
+        retro_28_10(obras, esq_obra)
     pendentes = []        # (base, pagina, patch, trocas, obra_id, casa)
     avisos = {}
     for base, banco, mapa, esq in (("DOCUMENTOS", ID_DOCS, mapa_docs, esq_docs), ("VENDAS", ID_VENDAS, mapa_vend, esq_vend)):
