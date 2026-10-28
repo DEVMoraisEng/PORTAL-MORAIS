@@ -1422,6 +1422,30 @@ def renomeada_ok(o, como="renomeada"):
         print(f"  ! não limpei o MC NOME ANTERIOR: {str(e)[:100]}", flush=True)
 
 
+def anotar_correcao_mc(o, mudou):
+    """28/10/26: toda correção que o robô faz numa obra do MC vira alerta na
+    aba Obras › Alertas ("Alterações na obra — conferir"), na mesma coluna
+    ENDEREÇO ALTERADO, dizendo o que foi trocado. O renomear já anota sozinho
+    (renomeada_ok); a conta bancária sai sem nome/número."""
+    itens = [m for m in mudou if not m.startswith("nome ")]
+    if not itens or not APLICAR:
+        return
+    agora = datetime.now(timezone(timedelta(hours=-3))).strftime("%d/%m %H:%M")
+    try:
+        pg = api("GET", f"/pages/{o['id']}")
+        pr = pg.get("properties") or {}
+        col = next((k for k in pr if N(k) == N(COL_END_ALT)), None)
+        if not col:
+            return
+        alt = txt(pr.get(col)) or ""
+        nota = "MAIS CONTROLE corrigido pelo Notion: " + "; ".join(i.replace(" -> ", " → ") for i in itens) + f" ({agora})"
+        conteudo = (((alt + "\n") if alt else "") + nota)[-1900:]
+        api("PATCH", f"/pages/{o['id']}", {"properties": {col: {"rich_text": [{"text": {"content": conteudo}}]}}})
+        print(f"  {o['titulo']}: alerta da correção no MC anotado", flush=True)
+    except (Exception, SystemExit) as e:
+        print(f"  ! não anotei o alerta da correção no MC: {str(e)[:100]}", flush=True)
+
+
 def fila_atualizar(no_mc, mapa_contas=None):
     mapa_contas = mapa_contas or {}
     fila = []
@@ -1688,6 +1712,7 @@ def completar_no_mc(page, o):
         raise RuntimeError("o painel de edição continuou aberto depois de Salvar Obra")
     if o.get("nome_mc"):
         renomeada_ok(o)
+    anotar_correcao_mc(o, mudou)
     orc_ok = _orcamento_na_conferencia(page, o)
     # mesmo salvando os outros campos, a conta pedida (e não escolhida) não
     # pode "passar" como conferida — main() só marca conferida para
