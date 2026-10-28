@@ -6,8 +6,9 @@ robo_mc_medicoes.py — PORTAL-MORAIS · SÓ LEITURA no Mais Controle (23/10/26)
 O Mapa de Obras mostrava UMA medição por obra, presa ao MESTRE da base
 DOCUMENTOS. Mas cada obra tem vários empreiteiros (mestre, pintor,
 eletricista…) e o mestre pode mudar no meio da obra. Este robô lê, no Mais
-Controle, Obras > Medição de Contratos: TODOS os contratos em aberto de cada
-obra, com o fornecedor, o tipo de serviço e a última medição lançada.
+Controle, Obras > Medição de Contratos: TODOS os contratos de cada obra (28/10:
+também paralisados, finalizados e rascunhos — só o cancelado fica de fora), com
+o STATUS DO CONTRATO, o fornecedor, o tipo de serviço e a última medição.
 
 Grava dist/mc_medicoes/contratos.json (servido pelo GitHub Pages; o Mapa de
 Obras lê dali). Vai a público: obra, fornecedor, tipo de serviço, título e
@@ -39,11 +40,12 @@ SAIDA = Path("dist/mc_medicoes/contratos.json")
 DESCOBRIR = os.environ.get("DESCOBRIR", "").strip().lower() in ("1", "true", "sim")
 RESUMO = {}
 
-# Contrato "fechado" — sai do mapa. O resto (a iniciar, em andamento, paralisado…)
-# entra. Lista por segurança em vários formatos: o robô imprime os status que
-# encontrou, e qualquer status novo entra como "em aberto".
-FECHADOS = {"DRAFT", "RASCUNHO", "FINISHED", "FINALIZADO", "FINALIZED", "CLOSED", "CANCELED", "CANCELLED", "CANCELADO", "CONCLUDED",
-            "CONCLUIDO", "DONE", "INACTIVE"}
+# 28/10/26: o arquivo leva TODOS os contratos (rascunho, a iniciar, em
+# andamento, paralisado e finalizado) com o STATUS DO CONTRATO. Quem decide é o
+# Mapa de Obras: rascunho / a iniciar / em andamento aparecem nas medições;
+# paralisado, finalizado e 100% medido ficam no filtro "Paralisados /
+# finalizados". Só o cancelado fica de fora.
+FECHADOS = {"CANCELED", "CANCELLED", "CANCELADO", "INACTIVE"}
 ROTULO_STATUS = {"DRAFT": "Rascunho", "TO_START": "A iniciar", "IN_PROGRESS": "Em andamento", "PARALYZED": "Paralisado",
                  "FINISHED": "Finalizado", "CANCELED": "Cancelado", "CANCELLED": "Cancelado"}
 
@@ -187,7 +189,7 @@ def main():
                 if wm:
                     log("workMeasurementResponse:", json.dumps(estrutura(wm[0]), ensure_ascii=False))
             abertos = [c for c in lista if limpo(c.get("status")).upper() not in FECHADOS]
-            log(f"Em aberto: {len(abertos)}")
+            log(f"No arquivo (todos menos cancelados): {len(abertos)}")
             # 23/10: a própria lista já traz o resumo das medições de cada contrato
             # (workMeasurementResponse: nº de medições, data da última aprovação e
             # % medido) — sem uma chamada por contrato.
@@ -221,7 +223,7 @@ def main():
         "contratos": saida,
     }, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     obras = len({x["obra"] for x in saida})
-    log(f"Gravado {SAIDA}: {len(saida)} contratos em aberto em {obras} obras.")
+    log(f"Gravado {SAIDA}: {len(saida)} contratos (todos os status, menos cancelados) em {obras} obras.")
 
 
 if __name__ == "__main__":

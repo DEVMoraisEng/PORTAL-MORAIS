@@ -57,7 +57,7 @@ import json
 
 import requests
 
-from fetch_vendas import ler_banco, valor, norm, TOKEN
+from fetch_vendas import ler_banco, valor, norm, TOKEN, api
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "").strip()
@@ -303,6 +303,50 @@ def parse_venda(page):
     }
 
 
+# ─── VENDAS DOS CONDOMÍNIOS (28/10) ──────────────────────────────────────
+# BANCO DE DADOS VENDAS CONDOMÍNIO (o botão VENDIDA das propostas preenche).
+# ID: variável DB_VENDAS_COND do GitHub (a mesma do mc-venda.yml); sem ela,
+# procura o banco pelo título. Só o que a análise usa — nada de nome/CPF.
+def achar_banco_vendas_cond():
+    db = os.environ.get("DB_VENDAS_COND", "").strip()
+    if db:
+        return db
+    try:
+        r = api("POST", "/search", {"query": "VENDAS CONDOM", "filter": {"property": "object", "value": "database"}, "page_size": 20})
+        for d in r.get("results", []):
+            nome = "".join(t.get("plain_text", "") for t in d.get("title", []))
+            if "VENDAS" in norm(nome) and "CONDOM" in norm(nome):
+                return d.get("id", "").replace("-", "")
+    except (Exception, SystemExit) as e:      # api() sai com SystemExit em erro do Notion
+        print(f"  ! busca do banco de vendas do condomínio falhou: {e}", flush=True)
+    return ""
+
+
+def parse_venda_cond(page):
+    p = indice_props(page.get("properties"))
+    s = lambda *n: txt(p, *n)
+    return {
+        "condominio": s("CONDOMÍNIO", "CONDOMINIO") or "RESERVA DOS IPÊS",
+        "unidade": s("UNIDADE"),
+        "data_venda": data(p, "DATA DA VENDA", "DATA VENDIDA", "DATA DE ASSINATURA DO CONTRATO"),
+        "valor_venda_contrato": num(p, "VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)", "VALOR DE VENDA"),
+        "clientes": bool(s("CLIENTES", "PROPONENTE")),
+        "recebeu": s("RECEBEU?"),
+    }
+
+
+def buscar_vendas_cond():
+    db = achar_banco_vendas_cond()
+    if not db:
+        print("  ! BANCO DE DADOS VENDAS CONDOMÍNIO não encontrado — compartilhe o banco com a integração do Notion", flush=True)
+        return []
+    try:
+        return [parse_venda_cond(pg) for pg in ler_banco(db, "VENDAS CONDOMÍNIO")]
+    except (Exception, SystemExit) as e:      # sem acesso ao banco: segue sem ele
+        print(f"  ! leitura do BANCO DE DADOS VENDAS CONDOMÍNIO falhou: {e} — compartilhe o banco com a integração do Notion", flush=True)
+        return []
+
+
 # ─── METAS ────────────────────────────────────────────────────────────────
 def buscar_metas():
     metas = []
@@ -537,6 +581,9 @@ def main():
     print("ANÁLISE DE DADOS — lendo VENDAS…", flush=True)
     vendas = [parse_venda(p) for p in ler_banco(ID_VENDAS, "VENDAS")]
 
+    print("ANÁLISE DE DADOS — lendo VENDAS CONDOMÍNIO…", flush=True)
+    vendas_cond = buscar_vendas_cond()
+
     print("ANÁLISE DE DADOS — lendo METAS…", flush=True)
     metas = buscar_metas()
 
@@ -578,6 +625,7 @@ def main():
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "documentos": documentos,
             "vendas": vendas,
+            "vendas_cond": vendas_cond,
             "pagamentos_detalhe": pagos_detalhe,
             "obras_erp": obras_erp,
             "faturamentos_erp": faturamentos_erp,
@@ -587,7 +635,7 @@ def main():
         "pagamentos": compactar_pagamentos(pagamentos_full),
     })
     print(f"ANÁLISE DE DADOS: {len(documentos)} docs, {len(vendas)} vendas, "
-          f"{len(pagamentos_full)} pagamentos, {len(metas)} metas", flush=True)
+          f"{len(pagamentos_full)} pagamentos, {len(metas)} metas, {len(vendas_cond)} vendas de condomínio", flush=True)
 
 
 if __name__ == "__main__":

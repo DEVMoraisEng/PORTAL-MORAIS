@@ -26,7 +26,7 @@ on:
     types: [portal_update]
 
 permissions:
-  contents: read
+  contents: write     # 28/10/26: o sincronizar_obras.py dispara os Robôs do MC (repository_dispatch)
   pages: write
   id-token: write
 
@@ -48,6 +48,20 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
+      # 28/10/26 — a OBRA manda: setor, engenheiro, engenheiro RT, cidade,
+      # proprietário, CPF/CNPJ, nº de casas, cota, data do lote e implantação
+      # alterados na (EMP) Projeto 2.0 vão para DOCUMENTOS e VENDAS (sobrescreve),
+      # com alerta DE → PARA na aba Obras › Alertas; se mudou campo que o Mais
+      # Controle usa, dispara os Robôs do MC. Trava: mais de 120 linhas numa
+      # rodada não grava (rodar à mão com "forcar"). Falhar não derruba o site.
+      - name: Levar os dados da obra para Documentos e Vendas
+        continue-on-error: true
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          APLICAR: "1"
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python sincronizar_obras.py
 
       # 08/10/26 — VENDAS ligada a uma obra (OBRA-AUTO) com ENDEREÇO, CASA ou
       # SETOR vazios ganha o valor da obra (só o que está vazio, nunca
@@ -104,6 +118,7 @@ jobs:
           ERP_CSV_PAGAMENTOS: ${{ secrets.ERP_CSV_PAGAMENTOS }}
           ERP_CSV_OBRAS: ${{ secrets.ERP_CSV_OBRAS }}
           ERP_CSV_RECEBIMENTOS: ${{ secrets.ERP_CSV_RECEBIMENTOS }}
+          DB_VENDAS_COND: ${{ vars.DB_VENDAS_COND }}
         run: pip install requests && python fetch_analise_dados.py
 
       # ABA DE OBRAS — gera dist/obras.json (obras + atividades de projetos,
