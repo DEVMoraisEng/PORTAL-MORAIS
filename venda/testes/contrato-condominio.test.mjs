@@ -169,9 +169,9 @@ test("comprador: CPF inválido trava no condomínio", () => {
   assert.deepEqual(faltas, ["Comprador 1: CPF inválido"]);
 });
 
-test("fiador com nome exige CPF válido, RG e endereço; CPF repetido (comprador ou entre fiadores) é só aviso", () => {
+test("fiador com nome exige CPF válido (28/10: RG e endereço não mais — só nome e CPF); CPF repetido (comprador ou entre fiadores) é só aviso", () => {
   const d = C.montarDadosContrato(fontes({ fiadores: [{ ...FIADOR, cpf: "123.456.789-00", rg: "", endereco: "" }, { nome: "FIADORA DOIS TESTE" }] }));
-  assert.deepEqual(C.faltasContrato(d), ["Fiador 1: CPF inválido", "Fiador 1: RG", "Fiador 1: endereço", "Fiador 2: CPF", "Fiador 2: RG", "Fiador 2: endereço"]);
+  assert.deepEqual(C.faltasContrato(d), ["Fiador 1: CPF inválido", "Fiador 2: CPF"]);
   const rep = C.montarDadosContrato(fontes({ fiadores: [{ ...FIADOR, cpf: "529.982.247-25" }, { ...FIADOR, nome: "FIADORA DOIS TESTE", cpf: "52998224725" }] }));
   assert.deepEqual(C.faltasContrato(rep), []);
   assert.deepEqual(C.avisosContrato(rep), ["Em branco no contrato: tipo e áreas da casa (casa fora da tabela do condomínio)", "Fiador 1: CPF igual ao de um comprador", "Fiador 2: CPF igual ao de um comprador", "Fiadores: os dois têm o mesmo CPF"]);

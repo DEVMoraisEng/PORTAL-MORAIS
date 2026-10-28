@@ -98,14 +98,14 @@ const SCHEMA_VENDAS = { properties: Object.fromEntries(Object.entries(COLUNAS_RE
   return [n, { type: tipo, [tipo]: tipo === "select" ? { options: t.opcoes.map((o) => ({ name: o })) } : {} }];
 })) };
 
-function cenario({ linha = {}, sem = [], dbPagina = DB_COND, props = {}, gh = 204, docEnd = "CONDOMÍNIO RESERVA TESTE", modeloCond = MODELO_COND } = {}) {
+function cenario({ linha = {}, sem = [], dbPagina = DB_COND, props = {}, gh = 204, docEnd = "CONDOMÍNIO RESERVA TESTE", modeloCond = MODELO_COND, modelosExtra = {}, cs = {} } = {}) {
   const valores = Object.assign({}, LINHA, linha);
   for (const s of sem) delete valores[s];
   const n = notionFalso({ colunas: colunasDe(valores), valores, pageId: COND, dbId: dbPagina,
     bases: { "db-vend": [VENDEDOR], "db-lote": [EMPREENDIMENTO], "db-corr": [],
              "db-doc": [Object.assign({ "ENDEREÇO": tit(docEnd) }, OBRA_PG)] } });
-  const d = driveFalso({ modelos: { "modelo-cond": modeloCond, "modelo-obra": ["OBRA"], "modelo-pronto": ["PRONTO"], "modelo-pr": MODELO_PR } });
-  const c = clicksignFalso();
+  const d = driveFalso({ modelos: Object.assign({ "modelo-cond": modeloCond, "modelo-obra": ["OBRA"], "modelo-pronto": ["PRONTO"], "modelo-pr": MODELO_PR }, modelosExtra) });
+  const c = clicksignFalso(cs);
   const despachos = [];
   const p = Object.assign({
     NOTION_TOKEN: "ntn-teste", SESSION_SECRET: "segredo-de-teste", DB_VENDAS: DB_ID_PADRAO, DB_VENDAS_COND: DB_COND,
@@ -339,4 +339,85 @@ test("28/10: condomínio sem linha na DOCUMENTOS usa a vendedora da Propriedade 
   const c = cenario({ docEnd: "OUTRA OBRA QUALQUER", props: { CONDOMINIO_VENDEDOR: "Construtora Teste Ltda" } });
   const r = c.gerarFinal();
   assert.equal(r.ok, true, JSON.stringify(r));
+});
+
+/* ---- 28/10/2026: termos de confissão de dívida (Confissao.gs) ---- */
+const COLS_CFD = {
+  "FIADOR 1": rt("Fiador Um Teste"), "CPF FIADOR 1": rt("111.444.777-35"), "EMAIL FIADOR 1": eml("f1@teste.example"),
+  "FIADOR 2": rt("Fiador Dois Teste"), "CPF FIADOR 2": rt("246.813.579-28"), "EMAIL FIADOR 2": eml("f2@teste.example"),
+  "CONFISSÃO PRÉ-CHAVES - GERADA": { files: [] }, "CONFISSÃO PRÉ-CHAVES - ASSINADA": { files: [] },
+  "CONFISSÃO PÓS-CHAVES - GERADA": { files: [] }, "CONFISSÃO PÓS-CHAVES - ASSINADA": { files: [] },
+};
+const MODELOS_CFD = {
+  "modelo-cfd-pre": ["TERMO PRÉ casa {{CASA_NUMERO}} de {{DATA_CONTRATO}}: {{TCD_TOTAL_EXTENSO}} — {{TCD_PARCELAS}}", "{{FIADOR1_QUADRO}} | {{FIADOR2_QUADRO}}"],
+  "modelo-cfd-pos": ["TERMO PÓS {{TCD_TOTAL_EXTENSO}} — {{TCD_PARCELAS}}", "{{FIADOR1_NOME}} {{FIADOR2_CPF}}"],
+};
+const cenarioCfd = (o = {}) => cenario({ ...o, linha: { ...COLS_CFD, ...(o.linha || {}) }, modelosExtra: MODELOS_CFD,
+  props: { MODELO_CONFISSAO_PRE_ID: "modelo-cfd-pre", MODELO_CONFISSAO_POS_ID: "modelo-cfd-pos", ...(o.props || {}) } });
+
+test("28/10: contrato final gera os dois termos com o mesmo carimbo, nas colunas próprias", () => {
+  const c = cenarioCfd();
+  const r = c.gerarFinal();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.termos.length, 2);
+  const pre = c.n.pagina.properties["CONFISSÃO PRÉ-CHAVES - GERADA"].files, pos = c.n.pagina.properties["CONFISSÃO PÓS-CHAVES - GERADA"].files;
+  assert.equal(pre.length, 1); assert.equal(pos.length, 1);
+  const hash = /\[#([0-9a-f]{8})\]\.pdf$/.exec(r.nome)[1];
+  assert.ok(pre[0].name.startsWith("CONFISSÃO PRÉ-CHAVES - ") && pre[0].name.endsWith("[#" + hash + "].pdf"), pre[0].name);
+  assert.ok(pos[0].name.startsWith("CONFISSÃO PÓS-CHAVES - ") && pos[0].name.endsWith("[#" + hash + "].pdf"), pos[0].name);
+  const e = c.acao("contratoEstado");
+  assert.deepEqual(e.confissao.map((x) => x.tipo), ["PRE", "POS"]);
+  assert.equal(c.acao("verConfissao", { tipo: "POS" }).ok, true);
+});
+
+test("28/10: sem os fiadores, o contrato com os termos ligados não sai (falta nome e CPF)", () => {
+  const c = cenarioCfd({ linha: { "FIADOR 2": rt(""), "CPF FIADOR 2": rt("") } });
+  const r = c.acao("gerarPreContrato");
+  assert.equal(r.erro, "FALTAM_DADOS");
+  assert.ok(r.faltas.includes("Fiador 2 (termo de confissão): nome"), r.faltas.join(" | "));
+});
+
+test("28/10: Clicksign — contrato e termos no MESMO envelope; fiadores assinam só os termos; termos assinados nas colunas deles", () => {
+  const c = cenarioCfd({ cs: { arquivos: { original: "https://s3.clicksign.falso/original.pdf", signed: "https://s3.clicksign.falso/assinado.pdf" } } });
+  assert.equal(c.gerarFinal().ok, true);
+  const r = c.acao("assinaturaEnviar");
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual(r.signatarios.map((s) => s.papel).slice(-2), ["Fiador 1", "Fiador 2"]);
+  const docs = c.c.chamadas.filter((x) => x.metodo === "POST" && x.caminho === "/envelopes/env-1/documents");
+  assert.equal(docs.length, 3);
+  assert.ok(docs[1].corpo.data.attributes.filename.startsWith("CONFISSÃO PRÉ-CHAVES - ") && !/\[#/.test(docs[1].corpo.data.attributes.filename));
+  const sigs = c.c.estado.signers, fiador = sigs.find((s) => s.attributes.email === "f1@teste.example");
+  const reqs = c.c.chamadas.filter((x) => x.metodo === "POST" && x.caminho === "/envelopes/env-1/requirements");
+  const docsDo = (id) => [...new Set(reqs.filter((q) => q.corpo.data.relationships.signer.data.id === id).map((q) => q.corpo.data.relationships.document.data.id))].sort();
+  assert.deepEqual(docsDo(fiador.id), ["doc-2", "doc-3"], "fiador: só os termos");
+  const comprador = sigs.find((s) => s.attributes.email === "compradora@teste.example");
+  assert.deepEqual(docsDo(comprador.id), ["doc-1", "doc-2", "doc-3"]);
+  const papelFiador = reqs.find((q) => q.corpo.data.relationships.signer.data.id === fiador.id && q.corpo.data.attributes.role);
+  assert.equal(papelFiador.corpo.data.attributes.role, "guarantor");
+  /* tudo assinado: o contrato e os dois termos assinados vão para as colunas */
+  c.c.estado.status = "closed";
+  const e = c.acao("assinaturaEstado");
+  assert.equal(e.situacao, "ASSINADO", JSON.stringify(e));
+  assert.equal(c.n.pagina.properties["CONTRATO ASSINADO"].files.length, 1);
+  assert.equal(c.n.pagina.properties["CONFISSÃO PRÉ-CHAVES - ASSINADA"].files.length, 1);
+  assert.equal(c.n.pagina.properties["CONFISSÃO PÓS-CHAVES - ASSINADA"].files.length, 1);
+});
+
+test("28/10: termos de outro carimbo (dado mudou e só o contrato foi refeito) = CONFISSAO_DESATUALIZADA", () => {
+  const c = cenarioCfd();
+  assert.equal(c.gerarFinal().ok, true);
+  c.n.pagina.properties["CONFISSÃO PÓS-CHAVES - GERADA"].files[0].name = "CONFISSÃO PÓS-CHAVES - X [#00000000].pdf";
+  assert.equal(c.acao("assinaturaEnviar").erro, "CONFISSAO_DESATUALIZADA");
+});
+
+test("28/10: sem fiador com e-mail a assinatura não sai; sem os modelos dos termos tudo segue como antes", () => {
+  const c = cenarioCfd({ linha: { "EMAIL FIADOR 2": eml("") } });
+  assert.equal(c.gerarFinal().ok, true);
+  const r = c.acao("assinaturaEnviar");
+  assert.equal(r.erro, "FALTAM_DADOS");
+  assert.ok(r.faltas.some((f) => /^Fiador 2: e-mail/.test(f)), r.faltas.join(" | "));
+  const semModelo = cenario({ linha: COLS_CFD });
+  const g = semModelo.gerarFinal();
+  assert.equal(g.ok, true);
+  assert.equal(g.termos, undefined);
 });

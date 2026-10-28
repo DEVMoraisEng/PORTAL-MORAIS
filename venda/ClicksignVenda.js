@@ -12,7 +12,7 @@ var ClicksignVenda = (function () {
    * página de referência do endpoint lista só sign/party/contractor; se o
    * sandbox recusar estes valores, o envio para no passo "requisitos" com o
    * detalhe da Clicksign (não há troca silenciosa para outro papel). */
-  var PAPEIS = { COMPRADOR: "buyer", VENDEDOR: "seller", TESTEMUNHA: "witness", CORRETOR: "real_estate_broker" };
+  var PAPEIS = { COMPRADOR: "buyer", VENDEDOR: "seller", TESTEMUNHA: "witness", CORRETOR: "real_estate_broker", FIADOR: "guarantor" };
   var SITUACOES = { ENVIADO: "ENVIADO", ASSINADO: "ASSINADO", RECUSADO: "RECUSADO", CANCELADO: "CANCELADO",
                     EXPIRADO: "EXPIRADO", RASCUNHO: "RASCUNHO" };
   var REENVIAVEL = ["CANCELADO", "RECUSADO", "EXPIRADO"];
@@ -176,6 +176,11 @@ var ClicksignVenda = (function () {
     if (t) { add("Testemunha 1", PAPEIS.TESTEMUNHA, t[0], "testemunha"); add("Testemunha 2", PAPEIS.TESTEMUNHA, t[1], "testemunha"); }
     if (config.incluirCorretor && dados.corretor)
       add("Corretor", PAPEIS.CORRETOR, { nome: dados.corretor.nome, email: dados.corretor.email, cpf: dados.corretor.cpfCnpj }, "corretor");
+    /* 28/10: termos de confissão de dívida no mesmo envelope — os dois fiadores assinam SÓ os termos */
+    if (config.comFiadores && dados.condominio) (dados.condominio.fiadores || []).slice(0, 2).forEach(function (fi, i) {
+      add("Fiador " + (i + 1), PAPEIS.FIADOR, { nome: fi.nome, email: fi.email, cpf: fi.cpf }, "fiador" + (i + 1));
+      l[l.length - 1].soTermos = true;
+    });
     return l;
   }
 
@@ -184,6 +189,7 @@ var ClicksignVenda = (function () {
     comprador2: "coluna COMPRADOR 2 - E-MAIL",
     vendedor: "coluna E-MAIL em VENDEDORES – CONTRATO",
     corretor: "coluna E-MAIL em CORRETORES – CONTRATO",
+    fiador1: "coluna EMAIL FIADOR 1", fiador2: "coluna EMAIL FIADOR 2",
     testemunha: ""
   };
 

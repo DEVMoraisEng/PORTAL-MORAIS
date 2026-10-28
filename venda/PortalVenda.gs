@@ -75,6 +75,8 @@ function tratar_(p) {
       case "salvarContaPreReserva": return salvarContaPreReserva_(col, sess, p);
       case "gerarTermoPreReserva": return gerarTermoPreReserva_(col, sess, p);
       case "verTermoPreReserva": return verTermoPreReserva_(col, p);
+      /* 28/10: termos de confissão de dívida (Confissao.gs) */
+      case "verConfissao": return verConfissao_(col, p);
       case "recebimentoEstado": return recebimentoEstado_(col, p);
       case "recebimentoConfirmar": return recebimentoConfirmar_(col, sess, p);
       default: return { ok: false, erro: "ACAO_DESCONHECIDA" };

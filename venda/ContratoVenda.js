@@ -723,8 +723,8 @@ var ContratoVenda = (function () {
       var gf = "Fiador " + (i + 1);
       if (vazio(fi.cpf)) faltas.push(gf + ": CPF");
       else if (!R().cpfValido(fi.cpf)) faltas.push(gf + ": CPF inválido");
-      exige(!vazio(fi.rg), gf, "RG");
-      exige(!vazio(fi.endereco), gf, "endereço");
+      /* 28/10 (dono com a diretoria): dos fiadores só nome e CPF (e o e-mail para assinar os termos de
+         confissão) — o contrato final só os cita; RG e endereço deixaram de ser exigidos */
     });
   }
 
@@ -1200,6 +1200,7 @@ var ContratoVenda = (function () {
     formaPagamentoCondominio: formaPagamentoCondominio, qualificacaoFiadores: qualificacaoFiadores,
     comissaoPctPelaRegra: comissaoPctPelaRegra, qualificacaoQuadro: qualificacaoQuadro, valorExtenso: valorExtenso, meioPagamentoCondominio: meioPagamentoCondominio, excedenteSinal: excedenteSinal,
     somaFluxo: function (fl) { return somaFluxo(fluxoCondominio(fl)); }, negritoDaLinha: negritoDaLinha,
+    parcelasPreChaves: parcelasPreChaves, parcelasPosChaves: parcelasPosChaves,   /* 28/10: termos de confissão */
     /* o traço do campo em branco (o pré-contrato grifa em vermelho claro) */
     EM_BRANCO: EM_BRANCO,
     /* marcadores cujo valor tem várias linhas: no Docs, o parágrafo que só tem o marcador vira um parágrafo por linha */
