@@ -2403,13 +2403,33 @@ function propTag(st){
   return `<span class="pill ${cls}">${PROP_ROTULO[n]||n}</span>`;
 }
 /* 02/10 (item 6) — selo do STATUS INTERNO da unidade na lista de propostas */
-function propSeloInterno(unidade){
+/* 28/10 — a unidade é uma só, mas pode ter várias propostas: o selo cheio fica só na proposta
+   DONA do status (a que recebeu o status interno pela proposta; senão a vendida / reservada /
+   aceita mais recente). Nas outras propostas da mesma unidade aparece "… para <cliente>". */
+function propDonoUnidade(unidade){
+  const u=(UNS||[]).find(x=>String(x.unidade)===String(unidade)); if(!u) return null;
+  const k=PROP_NORM(u.statusInterno||""); if(!k || k==="DISPONIVEL") return null;
+  const desta=(PROPS||[]).filter(x=>String(x.unidade)===String(unidade) && !["NEGADA","DISTRATO"].includes(PROP_NORM(x.status)));
+  const quando=x=>String(((x.dados||{}).statusInternoEm)||x.dataVendida||x.dataReserva||x.dataAceite||x.criadoEm||"");
+  let c=desta.filter(x=>PROP_NORM(x.statusInterno||((x.dados||{}).statusInterno)||"")===k);
+  if(!c.length){
+    const ordem = k==="VENDIDA" ? ["VENDIDA"] : ["VENDIDA","RESERVADA","ACEITA"];
+    for(const st of ordem){ c=desta.filter(x=>PROP_NORM(x.status)===st); if(c.length) break; }
+  }
+  if(!c.length) return null;
+  return c.sort((a,b)=>quando(b).localeCompare(quando(a)))[0];
+}
+function propSeloInterno(unidade, p){
   const u=(UNS||[]).find(x=>String(x.unidade)===String(unidade)); if(!u) return "";
   const k=PROP_NORM(u.statusInterno||"");
-  if(k==="RESERVADA") return ' <span title="status interno da unidade" style="font-size:10px;font-weight:800;color:#1B4F7A;background:#E1ECF8;border:1px solid #9CC3E4;border-radius:8px;padding:1px 6px">RESERVADA (interno)</span>';
-  if(k==="PAGOU PREFERENCIA") return ' <span title="status interno da unidade" style="font-size:10px;font-weight:800;color:#5B3285;background:#EDE3F6;border:1px solid #B79AD6;border-radius:8px;padding:1px 6px">PAGOU PREFERÊNCIA (interno)</span>';
-  if(k==="VENDIDA") return ' <span title="status interno da unidade" style="font-size:10px;font-weight:800;color:#8A2E17;background:#FBE1E1;border:1px solid #E7A3A3;border-radius:8px;padding:1px 6px">VENDIDA (interno)</span>';
-  return "";
+  const est={"RESERVADA":["RESERVADA","#1B4F7A","#E1ECF8","#9CC3E4"],"PAGOU PREFERENCIA":["PAGOU PREFERÊNCIA","#5B3285","#EDE3F6","#B79AD6"],"VENDIDA":["VENDIDA","#8A2E17","#FBE1E1","#E7A3A3"]}[k];
+  if(!est) return "";
+  const dono=p ? propDonoUnidade(unidade) : null;
+  if(p && dono && dono.id!==p.id){
+    const nome=String(dono.cliente||"outro cliente").split(/\s+/).slice(0,2).join(" ");
+    return ' <span title="Status interno da unidade — proposta '+esc(dono.proposta||"")+'" style="font-size:10px;font-weight:800;color:#6B5A45;background:#F1ECE4;border:1px dashed #C9B89A;border-radius:8px;padding:1px 6px">'+est[0]+' para '+esc(nome)+'</span>';
+  }
+  return ' <span title="status interno da unidade'+(p&&!dono?' — marque na proposta certa pelo Status interno':'')+'" style="font-size:10px;font-weight:800;color:'+est[1]+';background:'+est[2]+';border:1px solid '+est[3]+';border-radius:8px;padding:1px 6px">'+est[0]+' (interno)</span>';
 }
 function propRender(){
   const termo=(document.getElementById("prop-busca").value||"").toLowerCase();
@@ -2444,7 +2464,7 @@ function propRender(){
     const estilo = venc ? ' style="background:#F6D6D2"' : (nova ? ' style="background:#FFF3C4"' : '');
     return `<tr class="clicavel${res?' linha-res':''}"${estilo}${res?' title="Enviada com a unidade já reservada — só é analisada se houver desistência"':''} onclick="propVer('${p.id}')">
       <td><b>${esc(p.proposta||"—")}</b>${propEmailSelos(p)}</td>
-      <td>Un. ${esc(String(p.unidade||"—"))}${propSeloInterno(p.unidade)}</td>
+      <td>Un. ${esc(String(p.unidade||"—"))}${propSeloInterno(p.unidade, p)}</td>
       <td>${p.comCredito
             ? '<span class="pill bom">APROVADO</span>'
             : '<span class="pill ruim">SEM CARTA</span>'+propCorrCelula(p)}</td>
@@ -3980,7 +4000,7 @@ function propSIBloco(p){
     return `<button class="bt ${at===k?'atual':''}" data-si="${k}" style="background:${cor};color:#fff" onclick="${clique}">${nome}</button>`;
   }).join("");
   return `<div style="margin-top:16px"><b style="font-size:13px;color:var(--azul)">Status interno</b>
-      <span style="font-size:12px;color:var(--text3)"> · unidade ${esc(String(p.unidade||""))}${propSeloInterno(p.unidade)}</span>
+      <span style="font-size:12px;color:var(--text3)"> · unidade ${esc(String(p.unidade||""))}${propSeloInterno(p.unidade, p)}</span>
       <div class="prop-si ${at?'tem-status':''}" style="display:flex;gap:9px;margin-top:8px;flex-wrap:wrap">${bts}</div>
       <div id="prop-siDist" class="hide" style="margin-top:10px;padding:12px;border:1px solid #E7A3A3;background:#FDF1F1;border-radius:10px">
         <b style="color:#8A2E17">Distrato da unidade ${esc(String(p.unidade||""))}</b>
