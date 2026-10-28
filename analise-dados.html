@@ -169,6 +169,8 @@ html[data-tema="escuro"] .pill.bom{color:#5fd68f}html[data-tema="escuro"] .pill.
 .dt tr.tot td{color:var(--ac);font-size:clamp(15px,1.1vw,21px)}
 .dt tr.tot td:first-child{font-weight:800;font-size:13.5px}
 .dt tr.vgv td{color:var(--verde)}
+.dt tr.vgvt td{color:var(--verde)!important}
+.dt td .dv-s{font-family:'Barlow',sans-serif;font-weight:600;font-size:10.5px;margin:0}
 .dt tr td.g,.dt tr.tot td.g{color:var(--verde)}.dt tr td.r,.dt tr.tot td.r{color:#c0392b}
 .dt-w{overflow-x:auto;container-type:inline-size}
 .ob-g{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start}
@@ -184,6 +186,7 @@ html[data-tema="escuro"] .pill.bom{color:#5fd68f}html[data-tema="escuro"] .pill.
 .dt-w .dt3 td{font-size:clamp(11px,calc((100cqi - 190px) / 25),20px)}
 .dt-w .dt3 tr.tot td{font-size:clamp(11.5px,calc((100cqi - 190px) / 23.5),22px)}
 .dt-w .dt td:first-child{font-size:12px}
+.dt-w .dt tr td:first-child{font-size:12.5px!important}.dt-w .dt tr.tot td:first-child{font-size:13.5px!important}
 .dt tbody tr:hover td{background:var(--bg2)!important}
 .dt td+td,.dt th+th{border-left:1px solid var(--border2)!important}
 .dt th{padding-bottom:6px!important}
@@ -4671,7 +4674,7 @@ function dashAgg(){
   FATS_TODOS.forEach(f=>{ if(!/^\d{4}-\d{2}$/.test(f.mes||'')) return; const o=g(f.mes), v=f.valor||0, n=f.nat||'(sem natureza)';
     if(recOp(f)){ o.eo+=v; add(o.eoC,n,v); } else { o.en+=v; add(o.enC,ccInfo(f.cc||'').tipo==='soc'?'Aportes / sócios: '+n:n,v); } });
   vendasVGV().forEach(v=>{ if(!v.clientes) return; const m=mesD(v.data_venda); if(!m) return; const o=g(m), x=v.valor_venda_contrato||0; o.vgv+=x; o.cas++;
-    if(ccInfo(v.endereco||'').imovel==='COND'){ o.vgvC+=x; const cd=condoDe(v.endereco||''); if(cd){ o['vgv#'+cd.k]=(o['vgv#'+cd.k]||0)+x; o['n#'+cd.k]=(o['n#'+cd.k]||0)+1; } } else o.vgvR+=x; });
+    if(ccInfo(v.endereco||'').imovel==='COND'){ o.vgvC+=x; o.nC=(o.nC||0)+1; const cd=condoDe(v.endereco||''); if(cd){ o['vgv#'+cd.k]=(o['vgv#'+cd.k]||0)+x; o['n#'+cd.k]=(o['n#'+cd.k]||0)+1; } } else { o.vgvR+=x; o.nR=(o.nR||0)+1; } });
   return M;
 }
 const dS=(f,ml)=>ml.reduce((a,m)=>a+((DASH_M[m]||{})[f]||0),0);
@@ -4718,26 +4721,41 @@ function dashNovo(P){
     return dvItem('12 meses',fmtBRL(t12),tipK+':12','',`hero ${cls||''}`)+dvItem(`Ano ${ano}`,fmtBRL(ta),tipK+':ano')+dvItem('Média / mês',fmtBRL(md),tipK+':med')+dvItem(`Mês ${fmtM(mes)}`,fmtBRL(vm),tipK+':mes',pillTend(vm,md,custo)?pillTend(vm,md,custo)+' vs média':''); };
   // ---------- VGV + custo de venda ----------
   const vgvMes=dS('vgv',M1), vgvMed=dS('vgv',m12)/12;
-  const vgvBody=`<div class="dv-g">${dvItem('12 meses',fmtBRL(dS('vgv',m12)),'vgv:12','','hero')}${dvItem(`Ano ${ano}`,fmtBRL(dS('vgv',mA)),'vgv:ano',P.metaAno?`<b>${P.casasAno}</b>/${P.metaAno} casas · meta = construídas em ${ano-1}`:`<b>${P.casasAno}</b> casas`)}${dvItem('Média / mês',fmtBRL(vgvMed),'vgv:med')}${dvItem(`Mês ${fmtM(mes)}`,fmtBRL(vgvMes),'vgv:mes',(P.metaMes?`<b>${P.casasMes}</b>/${fmtN(P.metaMes,1)} casas`:`<b>${P.casasMes}</b> casas`)+pillTend(vgvMes,vgvMed,false),vgvMes>=vgvMed&&vgvMes>0?'g':'')}</div>${P.alertaVgv||''}`+
-    dashChart('vgv',m12,{titulo:'VGV',bars:[{n:'Casa de rua',cor:'#e08a1e',v:m12.map(m=>dS('vgvR',[m]))},{n:'Condomínio',cor:'#3d7cc9',v:m12.map(m=>dS('vgvC',[m]))}],lines:[{n:'VGV total',cor:VERDE,v:m12.map(m=>dS('vgv',[m])),w:3}],nota:'Valor de contrato das casas vendidas no mês (Notion › VENDAS).'});
+  const mkV=c=>`<i style="display:inline-block;width:12px;height:4px;border-radius:2px;background:${c};margin-right:6px;vertical-align:3px"></i>`;
+  const vlin=(rot,f,tk,cls,cor,nf)=>{ const t12=dS(f,m12), vm=dS(f,M1), nA=dS(nf,mA), nM=dS(nf,M1); return `<tr class="${cls||''}"><td>${mkV(cor)}${rot}</td><td data-tip="${tk}:12">${fmtBRL(t12)}</td><td data-tip="${tk}:ano">${fmtBRL(dS(f,mA))}<div class="dv-s">${nA} casa${nA===1?'':'s'}</div></td><td data-tip="${tk}:med">${fmtBRL(t12/12)}</td><td data-tip="${tk}:mes">${fmtBRL(vm)}<div class="dv-s">${nM} casa${nM===1?'':'s'}</div></td></tr>`; };
+  const vgvBody=`<div class="dt-w"><table class="dt"><thead><tr><th></th><th>12 meses</th><th>Ano ${ano}</th><th>Média/mês</th><th>Mês ${fmtM(mes)}</th></tr></thead><tbody>
+      ${vlin('🏠 Casas de rua','vgvR','vgv@RUA','','#e08a1e','nR')}${vlin('🏘 Condomínios','vgvC','vgv@COND','','#3d7cc9','nC')}
+      ${vlin('Σ VGV total','vgv','vgv','tot vgvt',VERDE,'cas')}</tbody></table></div>
+    <div class="dv-s" style="margin:-4px 0 6px">${P.metaAno?`Meta de vendas ${ano}: <b>${P.casasAno}</b>/${P.metaAno} casas (= construídas em ${ano-1})`:`<b>${P.casasAno}</b> casas no ano`} · mês: <b>${P.casasMes}</b>${P.metaMes?'/'+fmtN(P.metaMes,1):''} ${pillTend(vgvMes,vgvMed,false)}</div>${P.alertaVgv||''}`+
+    dashChart('vgv',m12,{titulo:'VGV',bars:[{n:'Casas de rua',cor:'#e08a1e',v:m12.map(m=>dS('vgvR',[m]))},{n:'Condomínios',cor:'#3d7cc9',v:m12.map(m=>dS('vgvC',[m]))}],lines:[{n:'VGV total',cor:VERDE,v:m12.map(m=>dS('vgv',[m])),w:3}],nota:'Valor de contrato das casas vendidas no mês (Notion › VENDAS e VENDAS CONDOMÍNIO).'});
   const venBody=`<div class="dv-g">${per4('ven','venda',true)}</div>`+dashChart('ven',m12,{titulo:'Custo de venda',bars:compBars('venC',m12,4,['#8e5bb5','#d4a017','#2bb3a3','#e08a1e']),lines:[],nota:'Composição por categoria: comissão de venda, DARF RET, ganho de capital…'});
   let h=`<div class="dg c2">${dcard(VERDE,'📈','VGV','vendas pelo contrato','',vgvBody)}${dcard('#8e5bb5','💼','Custo de venda','comissão · RET · ganho de capital','',venBody)}</div>`;
   // ---------- Escritório + pós-obra + indicadores ----------
-  const E=P.esc, Po=P.pos;
-  const ep=(x,ch,ac)=>`<div class="dv-g c5" style="--ac:${ac}">${dvItem('12 meses',fmtBRL(x.t12),ch+':12','','hero')}${dvItem('Média/mês (12m)',fmtBRL(x.m12),ch+':m12')}${dvItem('Ano '+x.anoRef,fmtBRL(x.tAno),ch+':ano')}${dvItem('Média/mês '+x.anoRef,fmtBRL(x.mAno),ch+':mano')}${dvItem('Mês '+fmtM(mes),fmtBRL(x.mes),ch+':mes',pillTend(x.mes,x.m12,true)?pillTend(x.mes,x.m12,true)+' vs média':'')}</div>`;
+  /* 28/10: escritório e pós-obra contam a partir de mar/2026 até existirem 12 meses de fato */
+  const mE=m12.filter(m=>m>=INI_FIXOS), mAE=mA.filter(m=>m>=INI_FIXOS), hojeM=MES_HOJE, mFech=mAE.filter(m=>m<hojeM), nE=mE.length||1;
+  const fixo=f=>({t12:dS(f,mE),m12:dS(f,mE)/nE,tAno:dS(f,mAE),mAno:mFech.length?dS(f,mFech)/mFech.length:0,mes:dS(f,M1),anoRef:String(ano)});
+  const E=fixo('esc'), Po=fixo('pos'), rotJan=mE.length<12?`Desde ${fmtM(INI_FIXOS)} (${mE.length} meses)`:'12 meses';
+  const fC=v=>!v?'R$ 0':Math.abs(v)>=1e6?'R$ '+fmtN(v/1e6,2)+'M':Math.abs(v)>=1e3?'R$ '+fmtN(v/1e3,0)+'k':fmtBRL(v);
+  const vgvE=dS('vgv',mE), obE=dS('oR',mE)+dS('oC',mE);
+  const rEsc12=vgvE>0?E.t12/vgvE*100:null, rPos12=obE>0?Po.t12/obE*100:null;
+  const okS=(v,mt)=>v==null?'':v<=mt?`<span style="color:var(--verde);font-weight:700">✓ ≤ meta ${mt}%</span>`:`<span style="color:#c0392b;font-weight:700">⚠ > meta ${mt}%</span>`;
+  P.rat[1]=['esc12','Escritório ÷ VGV · '+(mE.length<12?'desde '+fmtM(INI_FIXOS):'12 meses'),rEsc12,4,okS(rEsc12,4)+`<div style="font-size:10.5px;color:var(--text3);line-height:1.4">Esc total: <strong style="color:var(--text)">${fC(E.t12)}</strong> · VGV total: <strong style="color:var(--text)">${fC(vgvE)}</strong></div>`];
+  P.rat[3]=['pos12','Pós-obra ÷ obra · '+(mE.length<12?'desde '+fmtM(INI_FIXOS):'12 meses'),rPos12,1,okS(rPos12,1)+`<div style="font-size:10.5px;color:var(--text3);line-height:1.4">Pós total: <strong style="color:var(--text)">${fC(Po.t12)}</strong> · Obra total: <strong style="color:var(--text)">${fC(obE)}</strong></div>`];
+  const ep=(x,ch,ac)=>`<div class="dv-g c5" style="--ac:${ac}">${dvItem(rotJan,fmtBRL(x.t12),ch+':12','','hero')}${dvItem('Média/mês ('+(mE.length<12?'desde '+fmtM(INI_FIXOS):'12m')+')',fmtBRL(x.m12),ch+':m12')}${dvItem('Ano '+x.anoRef+(mE.length<12?' (desde '+fmtM(INI_FIXOS)+')':''),fmtBRL(x.tAno),ch+':ano')}${dvItem('Média/mês '+x.anoRef+' · meses fechados',fmtBRL(x.mAno),ch+':mano')}${dvItem('Mês '+fmtM(mes),fmtBRL(x.mes),ch+':mes',pillTend(x.mes,x.m12,true)?pillTend(x.mes,x.m12,true)+' vs média':'')}</div>`;
   const inds=P.rat.map(([k,l,v,meta,sub])=>{ const ok=v!=null&&v<=meta, w=v==null?0:Math.min(100,v/(meta*2)*100);
     return `<div class="ind" data-tip="rat:${k}"><div class="dv-l">${l}</div><div class="dv ${v==null?'':ok?'g':'r'}">${v!=null?fmtN(v,2)+'%':'—'}</div><div class="ind-b"><span style="width:${w}%;background:${ok?VERDE:'#c0392b'}"></span></div><div class="dv-s">${sub}</div></div>`; }).join('');
   const tri=m=>[mAdd(m,-3),mAdd(m,-2),mAdd(m,-1)];
-  const rE=m12.map(m=>{ const v=dS('vgv',tri(m)); return v>0?dS('esc',tri(m))/v*100:null; });
-  const rP=m12.map(m=>{ const v=dS('oR',tri(m))+dS('oC',tri(m)); return v>0?dS('pos',tri(m))/v*100:null; });
+  const triOk=m=>tri(m)[0]>=INI_FIXOS;
+  const rE=mE.map(m=>{ const v=dS('vgv',tri(m)); return triOk(m)&&v>0?dS('esc',tri(m))/v*100:null; });
+  const rP=mE.map(m=>{ const v=dS('oR',tri(m))+dS('oC',tri(m)); return triOk(m)&&v>0?dS('pos',tri(m))/v*100:null; });
   const indH=(rs)=>rs.map(([k,l,v,meta,sub])=>{ const ok=v!=null&&v<=meta, w=v==null?0:Math.min(100,v/(meta*2)*100);
     return `<div class="ind" data-tip="rat:${k}"><div class="dv-l">${l}</div><div class="dv ${v==null?'':ok?'g':'r'}">${v!=null?fmtN(v,2)+'%':'—'}</div><div class="ind-b"><span style="width:${w}%;background:${ok?VERDE:'#c0392b'}"></span></div><div class="dv-s">${sub}</div></div>`; }).join('');
   const escBody=ep(E,'esc','#295778')+`<div class="ind-g c2">${indH(P.rat.slice(0,2))}</div>`+
-    dashChart('esc',m12,{titulo:'Escritório',ttl:'Escritório por mês',bars:compBars('escC',m12,4,['#295778','#5c8fb8','#2bb3a3','#d4a017']),h:190})+
-    dashChart('rEsc',m12,{titulo:'Escritório ÷ VGV',ttl:'Escritório ÷ VGV · 3 meses antes de cada mês',pct:true,meta:4,lines:[{n:'Escritório ÷ VGV',cor:'#295778',v:rE}],h:170,nota:'Mesma conta do indicador trimestral: soma dos 3 meses anteriores.'});
+    dashChart('esc',mE,{titulo:'Escritório',ttl:'Escritório por mês',bars:compBars('escC',mE,4,['#295778','#5c8fb8','#2bb3a3','#d4a017']),h:190})+
+    dashChart('rEsc',mE,{titulo:'Escritório ÷ VGV',ttl:'Escritório ÷ VGV · 3 meses antes de cada mês',pct:true,meta:4,lines:[{n:'Escritório ÷ VGV',cor:'#295778',v:rE}],h:170,nota:'Mesma conta do indicador trimestral: soma dos 3 meses anteriores.'});
   const posBody=ep(Po,'pos','#2bb3a3')+`<div class="ind-g c2">${indH(P.rat.slice(2,4))}</div>`+
-    dashChart('pos',m12,{titulo:'Pós-obra',ttl:'Pós-obra por mês',bars:compBars('posC',m12,3,['#2bb3a3','#8e5bb5','#e08a1e']),h:190})+
-    dashChart('rPos',m12,{titulo:'Pós-obra ÷ obra',ttl:'Pós-obra ÷ custo de obra · 3 meses antes de cada mês',pct:true,meta:1,lines:[{n:'Pós-obra ÷ obra',cor:'#2bb3a3',v:rP}],h:170,nota:'Custo de obra sem terreno, casas de rua + condomínio.'});
+    dashChart('pos',mE,{titulo:'Pós-obra',ttl:'Pós-obra por mês',bars:compBars('posC',mE,3,['#2bb3a3','#8e5bb5','#e08a1e']),h:190})+
+    dashChart('rPos',mE,{titulo:'Pós-obra ÷ obra',ttl:'Pós-obra ÷ custo de obra · 3 meses antes de cada mês',pct:true,meta:1,lines:[{n:'Pós-obra ÷ obra',cor:'#2bb3a3',v:rP}],h:170,nota:'Custo de obra sem terreno, casas de rua + condomínio.'});
   h+=`<div class="dg c2">${dcard('#295778','🏢','Escritório','custo fixo · meta ≤ 4% do VGV','',escBody)}${dcard('#2bb3a3','🔧','Pós-obra','assistência · meta ≤ 1% do custo de obra','',posBody)}</div>`;
   // ---------- Obras: casas de rua × condomínio ----------
   DASH_PP={mes,ano,m12,mA};
@@ -4752,15 +4770,18 @@ function dashNovo(P){
       <tr class="tot"><td>${op?'Resultado operacional':'Saldo não operacional'}</td>${res}</tr></tbody></table>`;
     const ch=dashChart(op?'op':'nop',m12,{titulo:op?'Operacional':'Não operacional',
       bars:[{n:'Entradas',cor:VERDE,v:m12.map(m=>dS(fe,[m]))},{n:'Saídas',cor:'#c0392b',v:m12.map(m=>-dS(fs,[m]))}],
-      lines:[{n:op?'Resultado':'Saldo',cor:op?cv('--text','#223'):'#d4a017',v:m12.map(m=>dS(fe,[m])-dS(fs,[m])),w:3}],
+      lines:[{n:op?'Resultado':'Saldo',cor:op?cv('--text','#223'):'#d4a017',v:m12.map(m=>dS(fe,[m])-dS(fs,[m])),w:3}].concat(op?[]:[{n:'Média móvel 12 meses do saldo',cor:cv('--text','#223'),dash:'6 4',w:2.4,v:m12.map(m=>{ const ul=[...Array(12)].map((_,i)=>mAdd(m,-i)); return (dS(fe,ul)-dS(fs,ul))/12; })}]),
       nota:op?'Entradas: recebimentos com natureza Receita. Saídas: obra, terreno, venda, escritório e pós-obra.':'Entradas: aportes, empréstimos, estornos. Saídas: distribuições, financiamento da sala, devoluções e o que é marcado "não conta".'});
-    return dcard(op?'#2a9d5c':'#b08d1a',op?'⚙':'🏦',op?'Operacional':'Não operacional',op?'o que a empresa faz':'aportes, distribuições e o resto','','<div class="dt-w">'+tab+'</div>'+ch+`<div class="dv-s">Resultado de caixa do período (pago e recebido no mês), não lucro das obras.</div>`); };
+    const mm=(dS(fe,m12)-dS(fs,m12))/12, refM=Math.max(1,(dS(fe,m12)+dS(fs,m12))/24), pctM=Math.abs(mm)/refM*100;
+    const medTxt=op?'':`<div class="dv-s" style="margin:-4px 0 6px" data-tip="opSn:12">Média do saldo nos 12 meses: <b style="color:${pctM<=15?'var(--verde)':'#c0392b'}">${fmtBRL(mm)}/mês</b> · ${pctM<=15?'✓ perto de zero':'⚠ longe de zero'} (${fmtN(pctM,0)}% da média de entradas + saídas). A longo prazo deve tender a zero.</div>`;
+    return dcard(op?'#2a9d5c':'#b08d1a',op?'⚙':'🏦',op?'Operacional':'Não operacional',op?'o que a empresa faz':'aportes, distribuições e o resto','','<div class="dt-w">'+tab+'</div>'+medTxt+ch+`<div class="dv-s">Resultado de caixa do período (pago e recebido no mês), não lucro das obras.</div>`); };
   h+=`<div class="dg c2">${opCard(true)}${opCard(false)}</div>`;
   return h;
 }
 
 /* ===================== OPERACIONAL × NÃO OPERACIONAL e RESUMO AO PASSAR O MOUSE (27/10) ===================== */
 let DASH_P=null;
+const INI_FIXOS='2026-03';   /* 28/10: escritório e pós-obra só contam a partir de mar/2026 */
 const ROT_ITEM={obra:'Custo de obra (s/ terreno)',ter:'Compra de terreno',tot:'Custo de obra total',venda:'Custo de venda',esc:'Custo escritório',pos:'Custo pós-obra'};
 function predItem(item){ return p=>{ const k=cls(p);
   if(item==='obra') return k.t==='obra'&&k.i==='obra'; if(item==='ter') return k.t==='obra'&&k.i==='ter'; if(item==='tot') return k.t==='obra'&&(k.i==='obra'||k.i==='ter');
@@ -4791,7 +4812,7 @@ function tipPeriodoTxt(ml){ const m=ml.filter(Boolean).slice().sort(); return m.
 function tipTop(obj,n){ return Object.entries(obj).sort((a,b)=>b[1].v-a[1].v).slice(0,n); }
 function tipConteudo(ch){
   if(ch[0]==='#'){ const i=ch.indexOf('.'); return ((TIPS[ch.slice(1,i)]||{})[ch.slice(i+1)])||''; }
-  let [k,per]=ch.split(':'); const ml=tipMeses(per); const set=new Set(ml);
+  let [k,per]=ch.split(':'); let ml=tipMeses(per).slice(); const set=new Set(ml);
   let IMO=''; if(k.includes('@')){ [k,IMO]=k.split('@'); }
   const CK=IMO.startsWith('C#')?IMO.slice(2):''; const imoTxt=CK?' · '+((condoLista().find(c=>c.k===CK)||{}).nome||CK):IMO==='COND'?' · condomínios':IMO==='RUA'?' · casas de rua':'';
   const imoOkP=cc=>!IMO||(CK?((condoDe(cc||'')||{}).k===CK):((ccInfo(cc||'').imovel==='COND')===(IMO==='COND')));
@@ -4802,8 +4823,8 @@ function tipConteudo(ch){
       <div>Soma do <b>valor de compra e venda no contrato</b> das casas vendidas no Notion (VENDAS das casas de rua com cliente + BANCO DE DADOS VENDAS CONDOMÍNIO), pela <b>data da venda</b>. Não usa o ERP.</div>
       <div class="tr">Por setor</div><table>${tipTop(st,6).map(([n,x])=>linha(n+' ('+x.n+')',x.v)).join('')}</table>
       ${per==='ano'?`<div class="fora" style="margin-top:6px">Meta de vendas do ano = casas construídas no ano anterior (METAS ${DASH_P.ano-1}).</div>`:''}`; }
-  if(k==='rat'){ const tx={escTri:['Custo escritório ÷ VGV (trimestre)','Escritório dos 3 meses antes do mês escolhido ÷ VGV dos mesmos meses. Meta ≤ 4%.'],esc12:['Custo escritório ÷ VGV (12 meses)','Escritório dos 12 meses ÷ VGV dos 12 meses. Meta ≤ 4%.'],posTri:['Pós-obra ÷ custo de obra (trimestre)','Pós-obra dos 3 meses antes ÷ custo de obra sem terreno dos mesmos meses. Meta ≤ 1%.'],pos12:['Pós-obra ÷ custo de obra (12 meses)','Pós-obra dos 12 meses ÷ custo de obra sem terreno dos 12 meses. Meta ≤ 1%.']}[per]||['',''];
-    return `<h4>${tx[0]}</h4><div class="tp">${per.endsWith('Tri')?tipPeriodoTxt(DASH_P.tri):tipPeriodoTxt(DASH_P.m12)}</div><div>${tx[1]}</div><div class="fora" style="margin-top:6px">Os dois lados seguem as regras da aba Configurações; passe o mouse nos cards de custo para ver o que entra em cada um.</div>`; }
+  if(k==='rat'){ const tx={escTri:['Custo escritório ÷ VGV (trimestre)','Escritório dos 3 meses antes do mês escolhido ÷ VGV dos mesmos meses. Meta ≤ 4%.'],esc12:['Custo escritório ÷ VGV','Escritório ÷ VGV dos mesmos meses, contando a partir de '+fmtM(INI_FIXOS)+' até fechar 12 meses. Meta ≤ 4%.'],posTri:['Pós-obra ÷ custo de obra (trimestre)','Pós-obra dos 3 meses antes ÷ custo de obra sem terreno dos mesmos meses. Meta ≤ 1%.'],pos12:['Pós-obra ÷ custo de obra','Pós-obra ÷ custo de obra sem terreno dos mesmos meses, contando a partir de '+fmtM(INI_FIXOS)+' até fechar 12 meses. Meta ≤ 1%.']}[per]||['',''];
+    return `<h4>${tx[0]}</h4><div class="tp">${per.endsWith('Tri')?tipPeriodoTxt(DASH_P.tri):tipPeriodoTxt(DASH_P.m12.filter(m=>m>=INI_FIXOS))}</div><div>${tx[1]}</div><div class="fora" style="margin-top:6px">Os dois lados seguem as regras da aba Configurações; passe o mouse nos cards de custo para ver o que entra em cada um.</div>`; }
   if(k.startsWith('op')){ const tipo=k.slice(2);
     if(tipo==='Eo'||tipo==='En'){ const op=tipo==='Eo'; const g={}; let t=0; FATS_TODOS.forEach(f=>{ if(!set.has(f.mes)||recOp(f)!==op) return; t+=f.valor||0; const n=(f.nat||'(sem natureza)')+(op?'':' · '+(ROT_TIPO[ccInfo(f.cc||'').tipo]||'')); const x=g[n]||(g[n]={v:0}); x.v+=f.valor||0; });
       return `<h4>Entradas ${op?'operacionais':'não operacionais'}</h4><div class="tv">${fmtBRL(t)}</div><div class="tp">${tipPeriodoTxt(ml)}</div>
@@ -4811,6 +4832,7 @@ function tipConteudo(ch){
         <div class="tr">Por natureza</div><table>${tipTop(g,8).map(([n,x])=>linha(n,x.v)).join('')}</table>`; }
     if(tipo==='Res'){ const eo=somaRec(true,ml), so=somaPag('saiOp',ml); return `<h4>Resultado operacional</h4><div class="tv">${fmtBRL(eo-so)}</div><div class="tp">${tipPeriodoTxt(ml)}</div><table>${linha('Entradas operacionais',eo)}${linha('− Saídas operacionais',so)}</table><div class="fora" style="margin-top:6px">Aportes e distribuições ficam de fora.</div>`; }
     k=tipo==='So'?'saiOp':'saiNop'; }
+  if((k==='esc'||k==='pos')&&per!=='mes'){ ml=ml.filter(m=>m>=INI_FIXOS&&(per!=='mano'||m<MES_HOJE)); set.clear(); ml.forEach(m=>set.add(m)); }
   const item=k, pr0=predItem(item), pr=IMO?(p=>pr0(p)&&imoOkP(p.cc)):pr0; const cats={}, ccs={}; let t=0, n=0;
   (window._pagFull||[]).forEach(p=>{ if(!set.has(p.mes)||!pr(p)) return; t+=p.valor||0; n++; const kc=cls(p);
     const c=item==='saiNop'?(p.categoria||'—')+' · '+(kc.i==='soc'?'sócios':kc.t==='ign'?'CC não conta':'não conta'):(p.categoria||'—');
@@ -4819,9 +4841,9 @@ function tipConteudo(ch){
   const tit=item==='saiOp'?'Saídas operacionais':item==='saiNop'?'Saídas não operacionais':ROT_ITEM[item];
   const regra={obra:'Pagamentos em CCs do tipo <b>Obra</b>, nas categorias marcadas como <b>Custo de obra</b>.',ter:'Pagamentos em CCs do tipo <b>Obra</b>, nas categorias marcadas como <b>Terreno</b> (aquisição, comissão de lote, ITBI, escritura, registro).',tot:'Custo de obra + terreno, nos CCs do tipo Obra.',venda:'Pagamentos em CCs do tipo Obra nas categorias marcadas como <b>Custo de venda</b> (comissão de venda, DARF RET, ganho de capital).',esc:'Pagamentos em CCs do tipo <b>Escritório</b>, nas categorias que contam para o escritório.',pos:'Pagamentos em CCs do tipo <b>Pós-obra</b>.',saiOp:'Custo de obra, terreno, custo de venda, escritório e pós-obra.',saiNop:'Aportes e distribuições, categorias marcadas como "não conta" e CCs que não contam.'}[item]||'';
   const fora={obra:'Fica de fora: terreno, custo de venda, aportes/distribuições e categorias "não conta" (devoluções, distratos, adiantamentos, despesas pessoais).',ter:'Fica de fora: tudo que não está marcado como Terreno.',esc:'Fica de fora: financiamento da sala, cota capital, adiantamentos e despesas pessoais.',pos:'Pós-obra dos sócios (JC/JV) não entra.'}[item]||'';
-  const ePer=per==='med'?' · 12 meses ÷ 12':per==='m12'?' · média dos meses de 2026 até hoje':per==='mano'?' · média dos meses já fechados de 2026':'';
+  const ePer=per==='med'?' · 12 meses ÷ 12':per==='m12'?` · média dos meses desde ${fmtM(INI_FIXOS)}`:per==='mano'?` · média dos meses já fechados desde ${fmtM(INI_FIXOS)}`:'';
   const nCC=Object.keys(ccs).length;
-  return `<h4>${tit}${imoTxt}</h4><div class="tv">${fmtBRL(per==='med'?t/12:t)}</div><div class="tp">${tipPeriodoTxt(ml)} · ${n} pagamentos · ${nCC} centros de custo${ePer}</div>
+  return `<h4>${tit}${imoTxt}</h4><div class="tv">${fmtBRL(per==='med'?t/12:(per==='m12'||per==='mano')&&ml.length?t/ml.length:t)}</div><div class="tp">${tipPeriodoTxt(ml)} · ${n} pagamentos · ${nCC} centros de custo${ePer}</div>
     <div>${regra}</div>
     <div class="tr">Maiores categorias</div><table>${tipTop(cats,6).map(([c,x])=>linha(c,x.v)).join('')}</table>
     <div class="tr">Maiores centros de custo</div><table>${tipTop(ccs,3).map(([c,x])=>linha(c,x.v)).join('')}</table>
