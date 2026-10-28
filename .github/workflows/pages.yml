@@ -104,6 +104,7 @@ jobs:
           ERP_CSV_PAGAMENTOS: ${{ secrets.ERP_CSV_PAGAMENTOS }}
           ERP_CSV_OBRAS: ${{ secrets.ERP_CSV_OBRAS }}
           ERP_CSV_RECEBIMENTOS: ${{ secrets.ERP_CSV_RECEBIMENTOS }}
+          DB_VENDAS_COND: ${{ vars.DB_VENDAS_COND }}
         run: pip install requests && python fetch_analise_dados.py
 
       # ABA DE OBRAS — gera dist/obras.json (obras + atividades de projetos,

@@ -1455,6 +1455,7 @@ const ROT_TIPO={obra:'Obra',esc:'Escritório',pos:'Pós-obra',soc:'Sócios (apor
 const ROT_DONO={MORAIS:'Grupo Morais',INVESTIDOR:'Investidor'};
 const ROT_IMO={COND:'Condomínio',RUA:'Casa de rua'};
 const ROT_OBRA={obra:'Custo de obra',ter:'Terreno',venda:'Custo de venda',nao:'Não conta'};
+let VENDAS_COND=[]; const vendasVGV=()=>VENDAS_COND.length?vendas.concat(VENDAS_COND):vendas;
 let OBRAS_ERP={}, DOC_IDX={}, FATS_TODOS=[], PAGS_SOC={}, FATS_SOC=[], OB_FIN={};
 function grupoAuto(cli){const n=nzC(cli); if(!n) return ''; if(CFG_CLI_MORAIS.has(n)) return 'MORAIS';
   if(/^MORAIS\b.*\b(SPE|LTDA|ENGENHARIA|EMPREENDIMENTOS|INCORPORACOES|PARTICIPACOES)\b/.test(n)||/\bMORAIS\b.*\bSPE\b/.test(n)) return 'MORAIS'; return 'INVESTIDOR';}
@@ -2096,16 +2097,16 @@ function buildDash(){
   // === Soma de VGV em lista de meses ===
   const somaVgvEm=(ml)=>{
     const set=new Set(ml);
-    return vendas.filter(v=>v.clientes&&set.has(mesD(v.data_venda)))
+    return vendasVGV().filter(v=>v.clientes&&set.has(mesD(v.data_venda)))
                  .reduce((s,v)=>s+(v.valor_venda_contrato||0),0);
   };
   const contaCasasEm=(ml)=>{
     const set=new Set(ml);
-    return vendas.filter(v=>v.clientes&&set.has(mesD(v.data_venda))).length;
+    return vendasVGV().filter(v=>v.clientes&&set.has(mesD(v.data_venda))).length;
   };
   const listaVendasEm=(ml)=>{
     const set=new Set(ml);
-    return vendas.filter(v=>v.clientes&&set.has(mesD(v.data_venda)));
+    return vendasVGV().filter(v=>v.clientes&&set.has(mesD(v.data_venda)));
   };
 
   // === Soma de custos por classificação ===
@@ -4315,6 +4316,8 @@ async function init(){
     window._pagFull=data.pagamentos_full||[];
     FATS_TODOS=fats.slice();
     DOC_IDX={}; docs.forEach(d=>{ if(d.endereco) DOC_IDX[nzC(d.endereco)]=d; });
+    /* 28/10: vendas dos condomínios (BANCO DE DADOS VENDAS CONDOMÍNIO) entram no VGV */
+    VENDAS_COND=(Array.isArray(data.vendas_cond)?data.vendas_cond:[]).filter(v=>v&&(v.data_venda||v.valor_venda_contrato)).map(v=>Object.assign({},v,{clientes:true,endereco:'CONDOMÍNIO '+(v.condominio||'RESERVA DOS IPÊS'),setor:'CONDOMÍNIO '+(v.condominio||'RESERVA DOS IPÊS'),_cond:true}));
     OBRAS_ERP={}; Object.entries(Array.isArray(data.obras_erp)?{}:(data.obras_erp||{})).forEach(([nome,o])=>{ OBRAS_ERP[nzC(nome)]=(o&&typeof o==='object')?o:{cliente:String(o||'')}; });
     aplicarConfig();
 
@@ -4571,8 +4574,11 @@ function condMeta(K){ const c=(CFG.ccs||{})['META_COND|'+K]||{}; const un=COND_U
   return {preco:Number(c.preco)||META_PADRAO[K]||null, unidades:Number(c.unidades)||(un?un.length:null)||nDoc||null, unidadesFonte:c.unidades?'Configurações':un?'mapa de vendas':nDoc?'Notion (nº de casas)':'', orcamento:Number(c.orcamento)||null, temCfg:!!(c.preco||c.unidades||c.orcamento)}; }
 function condResumo(K){ const mt=condMeta(K), un=COND_UN[K], custo=dSall('o#'+K)+dSall('t#'+K);
   let vend=0, nV=0, est=0, nE=0, tot=0, fonte='';
-  if(un&&un.length){ fonte='mapa de vendas (simulador)'; un.forEach(u=>{ const v=Number(u.valorVenda)||0; tot+=v; if(u.vendido||String(u.vendidaCru||'').toUpperCase()==='SIM'){ vend+=v; nV++; } else { est+=v; nE++; } }); }
-  else { fonte='VENDAS (Notion)'; vend=dSall('vgv#'+K); nV=dSall('n#'+K); }
+  const regV=dSall('vgv#'+K), regN=dSall('n#'+K);   /* vendas registradas no Notion (valor de contrato) */
+  const soldU=new Set(VENDAS_COND.filter(v=>(condoDe(v.endereco)||{}).k===K).map(v=>String(v.unidade||'').replace(/^0+/,'')).filter(Boolean));
+  if(un&&un.length){ fonte='mapa de vendas (simulador)'; un.forEach(u=>{ const v=Number(u.valorVenda)||0; tot+=v; if(u.vendido||String(u.vendidaCru||'').toUpperCase()==='SIM'||soldU.has(String(u.unidade||'').replace(/^0+/,''))){ vend+=v; nV++; } else { est+=v; nE++; } });
+    if(regN){ fonte='vendas registradas (valor de contrato) + estoque do mapa de vendas'; vend=regV; nV=regN; tot=vend+est; } }
+  else { fonte=VENDAS_COND.some(v=>(condoDe(v.endereco)||{}).k===K)?'BANCO DE DADOS VENDAS CONDOMÍNIO':'VENDAS (Notion)'; vend=regV; nV=regN; }
   const nU=mt.unidades||((un&&un.length)||null);
   return {mt,un:!!(un&&un.length),fonte,custo,vend,nV,est,nE,tot,nU,medV:nV?vend/nV:null,medE:nE?est/nE:null,medG:(nV+nE)?(vend+est)/(nV+nE):null}; }
 async function carregarUnidadesCond(){ try{ const r=await fetch(URL_UN_IPES+'?t='+Date.now(),{cache:'no-store'}); if(!r.ok) return; const j=await r.json(); if(Array.isArray(j)&&j.length){ COND_UN['RESERVA DOS IPES']=j; COND_UN_EM=new Date(); const el=document.getElementById('dc-obras'); if(el&&DASH_PP&&(DASH_MODO.OBV==='cond')) rerenderObras(); } }catch(e){} }
@@ -4643,7 +4649,7 @@ function dashAgg(){
     else if(k.t==='pos'&&k.i==='conta'){ o.pos+=v; add(o.posC,cat,v); } });
   FATS_TODOS.forEach(f=>{ if(!/^\d{4}-\d{2}$/.test(f.mes||'')) return; const o=g(f.mes), v=f.valor||0, n=f.nat||'(sem natureza)';
     if(recOp(f)){ o.eo+=v; add(o.eoC,n,v); } else { o.en+=v; add(o.enC,ccInfo(f.cc||'').tipo==='soc'?'Aportes / sócios: '+n:n,v); } });
-  vendas.forEach(v=>{ if(!v.clientes) return; const m=mesD(v.data_venda); if(!m) return; const o=g(m), x=v.valor_venda_contrato||0; o.vgv+=x; o.cas++;
+  vendasVGV().forEach(v=>{ if(!v.clientes) return; const m=mesD(v.data_venda); if(!m) return; const o=g(m), x=v.valor_venda_contrato||0; o.vgv+=x; o.cas++;
     if(ccInfo(v.endereco||'').imovel==='COND'){ o.vgvC+=x; const cd=condoDe(v.endereco||''); if(cd){ o['vgv#'+cd.k]=(o['vgv#'+cd.k]||0)+x; o['n#'+cd.k]=(o['n#'+cd.k]||0)+1; } } else o.vgvR+=x; });
   return M;
 }
@@ -4769,10 +4775,10 @@ function tipConteudo(ch){
   const CK=IMO.startsWith('C#')?IMO.slice(2):''; const imoTxt=CK?' · '+((condoLista().find(c=>c.k===CK)||{}).nome||CK):IMO==='COND'?' · condomínios':IMO==='RUA'?' · casas de rua':'';
   const imoOkP=cc=>!IMO||(CK?((condoDe(cc||'')||{}).k===CK):((ccInfo(cc||'').imovel==='COND')===(IMO==='COND')));
   const linha=(t,v)=>`<tr><td>${esc(t)}</td><td>${fmtBRL(v)}</td></tr>`;
-  if(k==='vgv'){ const vs=vendas.filter(v=>v.clientes&&set.has(mesD(v.data_venda))&&imoOkP(v.endereco)); const t=vs.reduce((a,v)=>a+(v.valor_venda_contrato||0),0);
+  if(k==='vgv'){ const vs=vendasVGV().filter(v=>v.clientes&&set.has(mesD(v.data_venda))&&imoOkP(v.endereco)); const t=vs.reduce((a,v)=>a+(v.valor_venda_contrato||0),0);
     const st={}; vs.forEach(v=>{const x=st[v.setor||'—']||(st[v.setor||'—']={v:0,n:0}); x.v+=v.valor_venda_contrato||0; x.n++;});
     return `<h4>VGV${imoTxt} ${per==='med'?'— média por mês':''}</h4><div class="tv">${fmtBRL(per==='med'?t/12:t)}</div><div class="tp">${tipPeriodoTxt(ml)} · ${vs.length} casas vendidas${per==='med'?' · 12 meses ÷ 12':''}</div>
-      <div>Soma do <b>valor de compra e venda no contrato</b> das casas da base VENDAS (Notion) com cliente, pela <b>data da venda</b>. Não usa o ERP.</div>
+      <div>Soma do <b>valor de compra e venda no contrato</b> das casas vendidas no Notion (VENDAS das casas de rua com cliente + BANCO DE DADOS VENDAS CONDOMÍNIO), pela <b>data da venda</b>. Não usa o ERP.</div>
       <div class="tr">Por setor</div><table>${tipTop(st,6).map(([n,x])=>linha(n+' ('+x.n+')',x.v)).join('')}</table>
       ${per==='ano'?`<div class="fora" style="margin-top:6px">Meta de vendas do ano = casas construídas no ano anterior (METAS ${DASH_P.ano-1}).</div>`:''}`; }
   if(k==='rat'){ const tx={escTri:['Custo escritório ÷ VGV (trimestre)','Escritório dos 3 meses antes do mês escolhido ÷ VGV dos mesmos meses. Meta ≤ 4%.'],esc12:['Custo escritório ÷ VGV (12 meses)','Escritório dos 12 meses ÷ VGV dos 12 meses. Meta ≤ 4%.'],posTri:['Pós-obra ÷ custo de obra (trimestre)','Pós-obra dos 3 meses antes ÷ custo de obra sem terreno dos mesmos meses. Meta ≤ 1%.'],pos12:['Pós-obra ÷ custo de obra (12 meses)','Pós-obra dos 12 meses ÷ custo de obra sem terreno dos 12 meses. Meta ≤ 1%.']}[per]||['',''];
