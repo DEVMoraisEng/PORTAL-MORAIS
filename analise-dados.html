@@ -1625,6 +1625,25 @@ const MPT=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','De
 const MFU=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const fmtM=ym=>{if(!ym)return'—';const[y,m]=ym.split('-');return MPT[+m-1]+'/'+y.slice(2);};
 const fmtBRL=v=>v==null||isNaN(v)?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});  /* 27/10: sempre com centavos */
+
+/* 28/10: ao passar o mouse numa linha da "Tabela por mês" mostra os endereços das casas vendidas */
+var VV_TIPS={};
+function vvEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function vvTipHtml(rot,lista,fmt){
+  const ls=lista.slice().sort((a,b)=>String(a.data_venda||'').localeCompare(String(b.data_venda||''))||String(a.endereco||'').localeCompare(String(b.endereco||'')));
+  const dd=d=>d?String(d).slice(8,10)+'/'+String(d).slice(5,7):'';
+  return `<div style="font:800 14px 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.05em;color:var(--azul,#295778);margin-bottom:6px">${vvEsc(rot)} · ${ls.length} casa${ls.length>1?'s':''} vendida${ls.length>1?'s':''}</div>`+
+    `<table style="width:100%;border-collapse:collapse;font-size:12px">`+ls.map(x=>`<tr><td style="padding:2px 8px 2px 0;border:0;background:none;color:var(--text3,#678);white-space:nowrap">${dd(x.data_venda)}</td><td style="padding:2px 8px 2px 0;border:0;background:none;color:var(--text,#223);text-align:left;white-space:nowrap">${vvEsc(x.endereco||'?')}${x.casa?' · casa '+vvEsc(x.casa):''}${x.unidade?' · unid. '+vvEsc(x.unidade):''}</td><td style="padding:2px 0;border:0;background:none;color:var(--text,#223);text-align:right;white-space:nowrap;font-family:'DM Mono',monospace">${fmt(x.valor_venda_contrato||x.valor_na_mao||0)}</td></tr>`).join('')+`</table>`;
+}
+(function(){ if(window._vvTipOk) return; window._vvTipOk=1;
+  let t=null; const tip=()=>{ if(!t){ t=document.createElement('div'); t.id='vv-tip';
+    t.style.cssText='position:fixed;z-index:950;display:none;max-width:520px;max-height:70vh;overflow:hidden;background:var(--branco,#fff);color:var(--text,#223);border:1.5px solid var(--azul,#295778);border-radius:10px;box-shadow:0 12px 32px rgba(10,30,45,.28);padding:10px 12px;pointer-events:none';
+    document.body.appendChild(t); } return t; };
+  const pos=e=>{ const x=tip(), w=x.offsetWidth, h=x.offsetHeight; let l=e.clientX+16, tp=e.clientY+14; if(l+w>innerWidth-8) l=e.clientX-w-16; if(tp+h>innerHeight-8) tp=Math.max(8,innerHeight-h-8); x.style.left=Math.max(8,l)+'px'; x.style.top=tp+'px'; };
+  document.addEventListener('mouseover',e=>{ const tr=e.target.closest&&e.target.closest('tr[data-vv]'); const x=tip(); if(!tr||!VV_TIPS[tr.dataset.vv]){ x.style.display='none'; return; } x.innerHTML=VV_TIPS[tr.dataset.vv]; x.style.display='block'; pos(e); });
+  document.addEventListener('mousemove',e=>{ if(t&&t.style.display==='block') pos(e); });
+  window.addEventListener('scroll',()=>{ if(t) t.style.display='none'; },true);
+})();
 const fmtBRL2=v=>v==null||isNaN(v)?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtN=(v,d=1)=>v==null||isNaN(v)?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const fmtPct=(v,d=2)=>v==null||isNaN(v)?'—':fmtN(v,d)+'%';
@@ -2745,8 +2764,8 @@ function buildVendas(){
   const pm={};
   v.forEach(x=>{
     const m=mesD(x.data_venda);if(!m)return;
-    if(!pm[m])pm[m]={qt:0,vgvMao:0,vgvCont:0};
-    pm[m].qt++;pm[m].vgvMao+=(x.valor_na_mao||0);pm[m].vgvCont+=(x.valor_venda_contrato||0);
+    if(!pm[m])pm[m]={qt:0,vgvMao:0,vgvCont:0,lista:[]};
+    pm[m].lista.push(x); pm[m].qt++;pm[m].vgvMao+=(x.valor_na_mao||0);pm[m].vgvCont+=(x.valor_venda_contrato||0);
   });
   const dQ=ms.map(m=>pm[m]?.qt||0),lb=ms.map(fmtM);
   const tQ=v.length,tVmao=v.reduce((s,x)=>s+(x.valor_na_mao||0),0),tVcont=v.reduce((s,x)=>s+(x.valor_venda_contrato||0),0);
@@ -2808,9 +2827,11 @@ function buildVendas(){
   const dataAcum=ms.map(m=>{ acum+=(pm[m]?.vgvMao||0); return acum; });
   drawLines('ch-vgv-acum',lb,[{data:dataAcum,color:'#1a6b40'}],v=>fmtBRL(v));
 
+  VV_TIPS={};
   const body=ms.map((m,i)=>{
     if(!dQ[i])return'';
-    return`<tr><td><strong>${fmtM(m)}</strong></td><td class="nr">${dQ[i]}</td>
+    VV_TIPS['m'+i]=vvTipHtml(fmtM(m),(pm[m]&&pm[m].lista)||[],fmtBRL);
+    return`<tr data-vv="m${i}" style="cursor:help"><td><strong>${fmtM(m)}</strong></td><td class="nr">${dQ[i]}</td>
       <td class="nr">${fmtBRL(pm[m]?.vgvMao||0)}</td><td class="nr">${fmtBRL(pm[m]?.vgvCont||0)}</td></tr>`;
   }).join('');
   document.getElementById('tbl-vendas').innerHTML=`<table>
