@@ -124,6 +124,17 @@ select:focus{border-color:var(--teal)}
 @media (max-width:1800px){.kpi-ext-row.r3 .kpi-ext-grid.cols4{grid-template-columns:repeat(2,1fr)}}
 [data-tip]{cursor:help}
 .tbl-wide{max-width:none}
+/* plano de aportes (28/10) */
+.pa{background:var(--branco);border:1.5px solid var(--border);border-top:5px solid #2a9d5c;border-radius:14px;padding:16px 20px;margin-bottom:16px}
+.pa h3{margin:0 0 4px;font:800 19px 'Barlow Condensed',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#2a9d5c}
+.pa .pa-in{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:flex-end;margin:10px 0 12px}
+.pa label{display:flex;flex-direction:column;gap:3px;font:700 10.5px 'Barlow',sans-serif;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)}
+.pa input{padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;background:var(--branco);color:var(--text);font:600 14px 'Barlow',sans-serif;width:170px}
+.pa-g{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:1100px){.pa-g{grid-template-columns:minmax(0,1fr)}}
+.pa table td.pk,.pa table tr.pk td{background:rgba(42,157,92,.12)!important;font-weight:800}
+.pa .tot td{font-weight:800;border-top:2px solid var(--border)!important}
+
 /* ===== VISÃO GERAL 27/10 — cards com gráfico ===== */
 @keyframes dcUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .dg{display:grid;gap:16px;margin-bottom:16px}
@@ -1114,6 +1125,7 @@ html[data-tema="escuro"] #ad-tip h4{color:var(--teal)}
         <span class="cfg-auto">Mês 0 = mês da data de início da obra no Notion. Pagamentos anteriores entram no mês 0.</span>
       </div>
       <div class="roi-grid" id="tc-kpis" style="margin-bottom:16px"></div>
+      <div id="tc-aporte"></div>
       <div class="svg-ch"><div class="leg-l" id="tc-leg"></div><div id="tc-graf"></div></div>
       <div class="tbl-wrap tbl-wide" style="overflow-x:auto"><table class="tbl" id="tc-tab"></table></div>
     </div>
@@ -4519,10 +4531,70 @@ function buildTempoCusto(){
   document.getElementById('tc-graf').innerHTML=usa.length?`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${g}</svg>`:'<div style="padding:30px;text-align:center;color:var(--text4)">Sem obras com data de início e pagamentos para os filtros escolhidos'+(modo==='m2'?' (ou sem área no ERP)':'')+'.</div>';
   document.getElementById('tc-leg').innerHTML=`<span><i style="background:${cv('--text')};height:4px"></i><b>Média</b> (só obras que já chegaram naquele mês)</span><span><i style="background:#295778;opacity:.5"></i>cada linha fina = uma obra (passe o mouse para ver o nome)</span><span>● = mês de término</span>`;
   // tabela
+  renderPlanoAportes(linhas,rot);
   const ls=linhas.slice().sort((a,b)=>(b.m0||'').localeCompare(a.m0||''));
   document.getElementById('tc-tab').innerHTML=`<thead><tr><th>Obra</th><th>Dono</th><th>Início</th><th>Término</th><th>Duração</th><th>${base==='o'?'Custo obra':'Obra + terreno'}</th><th>Área</th><th>R$/m²</th><th>R$/casa</th><th>50% do custo</th><th>Pago após término</th><th>Aviso</th></tr></thead><tbody>`+
     ls.map(l=>{ const sit=(window._SIT||{})[l.e]; const av=[...(sit?sit.av:[])]; if(!l.area) av.push('sem área no ERP'); if(!l.mFim) av.push('em andamento');
       return `<tr><td>${esc(l.d.endereco)}</td><td>${l.mor?'Morais':'Investidor'}</td><td>${fmtM(l.m0)}</td><td>${l.mFim?fmtM(l.mFim):'—'}</td><td class="nr">${l.dur!=null?l.dur+' m':'—'}</td><td class="nr">${fmtBRL(l.tot)}</td><td class="nr">${l.area?fmtN(l.area,0)+' m²':'—'}</td><td class="nr">${l.area?fmtBRL(l.tot/l.area):'—'}</td><td class="nr">${fmtBRL(l.tot/l.n)}</td><td class="nr">${l.k50>=0?'mês '+l.k50:'—'}</td><td class="nr">${l.depois!=null?fmtBRL(l.depois)+' ('+fmtN(l.depois/l.tot*100,0)+'%)':'—'}</td><td class="av">${esc(av.join('; '))}</td></tr>`; }).join('')+'</tbody>';
+}
+
+
+/* ===================== PLANO DE APORTES (28/10) =====================
+   Curva média de quanto do custo sai em cada mês desde o início da obra (obras com término).
+   O último aporte cai no último pico de gastos e já leva o que ainda será gasto depois dele. */
+let PA_IN={custo:'',area:'',ini:'',cauda:'somar'}, PA_CURVA=null;
+function renderPlanoAportes(linhas,rot){
+  const el=document.getElementById('tc-aporte'); if(!el) return;
+  let base=linhas.filter(l=>l.mFim&&l.tot>0), parcial=false;
+  if(base.length<3){ base=linhas.filter(l=>l.tot>0); parcial=true; }
+  if(!base.length){ el.innerHTML=''; return; }
+  const K=Math.max(...base.map(l=>l.cum.length));
+  const s=[...Array(K)].map((_,k)=>base.reduce((a,l)=>{ const c=l.cum, inc=k<c.length?(c[k]-(k?c[k-1]:0)):0; return a+inc/l.tot; },0)/base.length*100);
+  const somaS=s.reduce((a,b)=>a+b,0)||1; for(let k=0;k<K;k++) s[k]=s[k]/somaS*100;
+  const mx=Math.max(...s); let pico=s.indexOf(mx);
+  for(let k=1;k<K;k++){ const prox=k+1<K?s[k+1]:0; if(s[k]>=s[k-1]&&s[k]>prox&&s[k]>=mx*0.5) pico=k; }
+  const cauda=s.slice(pico+1).reduce((a,b)=>a+b,0);
+  const ap=s.slice(0,pico+1).map((v,k)=>k===pico?v+cauda:v);
+  const comA=base.filter(l=>l.area), m2=comA.length?comA.reduce((a,l)=>a+l.tot,0)/comA.reduce((a,l)=>a+l.area,0):null;
+  const custoMed=base.reduce((a,l)=>a+l.tot,0)/base.length;
+  PA_CURVA={s,ap,pico,cauda,m2,custoMed,n:base.length,parcial,rot,K};
+  el.innerHTML=`<div class="pa"><h3>💰 Plano de aportes</h3>
+    <div class="cfg-auto">Quanto sai por mês, em média, desde o início da obra (${base.length} obra${base.length>1?'s':''} ${parcial?'— poucas obras com término, usei também as em andamento':'com término'} · ${esc(rot)}). O <b>último aporte</b> fica no último pico de gastos (mês ${pico}) e já cobre os ${fmtN(cauda,1)}% que ainda saem depois dele.</div>
+    <div class="pa-in">
+      <label>Custo previsto da obra (R$)<input id="pa-custo" placeholder="${fmtBRL(custoMed).replace('R$ ','')}" value="${esc(PA_IN.custo)}" oninput="PA_IN.custo=this.value;paDesenhar()"></label>
+      <label>ou área construída (m²)<input id="pa-area" placeholder="${m2?'× '+fmtBRL(m2)+'/m²':'sem área nas obras'}" value="${esc(PA_IN.area)}" oninput="PA_IN.area=this.value;paDesenhar()"></label>
+      <label>Mês de início da obra<input type="month" id="pa-ini" value="${esc(PA_IN.ini)}" oninput="PA_IN.ini=this.value;paDesenhar()"></label>
+      <label>Gasto depois do último pico<select id="pa-cauda" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;background:var(--branco);color:var(--text);font:600 13px 'Barlow',sans-serif" onchange="PA_IN.cauda=this.value;paDesenhar()"><option value="somar"${PA_IN.cauda==='somar'?' selected':''}>Somar no último aporte</option><option value="fora"${PA_IN.cauda==='fora'?' selected':''}>Não aportar (coberto pelos recebimentos)</option></select></label>
+      <span class="cfg-auto" id="pa-base"></span>
+    </div>
+    <div class="pa-g"><div class="tbl-wrap tbl-wide" style="overflow-x:auto"><table class="tbl" id="pa-tab"></table></div><div id="pa-graf"></div></div></div>`;
+  paDesenhar();
+}
+function paDesenhar(){
+  const C=PA_CURVA; if(!C) return;
+  const area=numBR(PA_IN.area), custoIn=numBR(PA_IN.custo);
+  const custo=custoIn&&custoIn>0?custoIn:(area&&C.m2?area*C.m2:C.custoMed);
+  const fonte=custoIn&&custoIn>0?'custo informado':(area&&C.m2?`${fmtN(area,0)} m² × ${fmtBRL(C.m2)}/m² (média das obras)`:'custo médio das obras analisadas');
+  const bEl=document.getElementById('pa-base'); if(bEl) bEl.innerHTML=`Base: <b>${fmtBRL(custo)}</b> · ${fonte}`;
+  const mesRot=k=>PA_IN.ini&&/^\d{4}-\d{2}$/.test(PA_IN.ini)?fmtM(mAdd(PA_IN.ini,k)):'mês '+k;
+  const somar=PA_IN.cauda!=='fora', apX=somar?C.ap:C.s.slice(0,C.pico+1), totAp=custo*apX.reduce((a,b)=>a+b,0)/100;
+  let acc=0, accG=0;
+  const rows=apX.map((p,k)=>{ const v=custo*p/100; acc+=v; accG+=C.s[k]; const pk=k===C.pico;
+    return `<tr class="${pk?'pk':''}"><td><b>${mesRot(k)}</b>${pk?' <span class="cfg-auto">· último aporte</span>':''}</td><td class="nr">${fmtN(C.s[k],1)}%</td><td class="nr">${fmtN(p,1)}%</td><td class="nr"><b>${fmtBRL(v)}</b></td><td class="nr">${fmtBRL(acc)}</td><td class="nr">${fmtN(acc/custo*100,1)}%</td></tr>`; }).join('')+(somar?'':`<tr><td colspan="6" class="cfg-auto" style="text-align:left">Depois de ${mesRot(C.pico)} ainda saem <b>${fmtN(C.cauda,1)}%</b> (${fmtBRL(custo*C.cauda/100)}) — neste cenário cobertos pelos recebimentos da obra.</td></tr>`);
+  const t=document.getElementById('pa-tab'); if(t) t.innerHTML=`<thead><tr><th class="left">Mês</th><th>Gasto médio no mês</th><th>% do aporte</th><th>Aporte</th><th>Aportado acumulado</th><th>% acumulado</th></tr></thead><tbody>${rows}
+    <tr class="tot"><td>Total aportado</td><td class="nr">${fmtN(C.s.slice(0,C.pico+1).reduce((a,b)=>a+b,0),1)}% até o pico</td><td class="nr">${fmtN(totAp/custo*100,1)}%</td><td class="nr">${fmtBRL(totAp)}</td><td></td><td></td></tr></tbody>`;
+  // gráfico: barras = gasto médio de cada mês (todos os meses), verde = meses com aporte; linha = aporte
+  const g=document.getElementById('pa-graf'); if(!g) return;
+  const K=C.K, W=640, H=260, L=46, R=10, T=14, B=34, bw=(W-L-R)/K, mx=Math.max(...C.s,...apX)*1.1||1;
+  const X=k=>L+bw*k+bw/2, Y=v=>T+(1-v/mx)*(H-T-B), ct=cv('--text3','#678'), cg=cv('--border2','#dde');
+  let sv='';
+  for(let i=0;i<=4;i++){ const v=mx*i/4, y=Y(v); sv+=`<line x1="${L}" x2="${W-R}" y1="${y}" y2="${y}" stroke="${cg}"/><text x="${L-6}" y="${y+3.5}" text-anchor="end" font-size="10" fill="${ct}">${fmtN(v,0)}%</text>`; }
+  C.s.forEach((v,k)=>{ const w=Math.max(3,bw*.6), y=Y(v); sv+=`<rect x="${X(k)-w/2}" y="${y}" width="${w}" height="${Math.max(.5,Y(0)-y)}" rx="2" fill="${k<=C.pico?'#2a9d5c':'#9aa9b5'}" opacity="${k===C.pico?1:.75}"><title>${mesRot(k)}: gasto médio ${fmtN(v,1)}% (${fmtBRL(custo*v/100)})</title></rect>`;
+    if(K<=24||k%2===0) sv+=`<text x="${X(k)}" y="${H-18}" text-anchor="middle" font-size="10" fill="${ct}">${PA_IN.ini?mesRot(k):k}</text>`; });
+  const pts=apX.map((v,k)=>[X(k),Y(v)]);
+  sv+=`<polyline fill="none" stroke="${cv('--text','#223')}" stroke-width="2.6" points="${pts.map(p=>p.join(',')).join(' ')}"/>`+pts.map((p,k)=>`<circle cx="${p[0]}" cy="${p[1]}" r="3.4" fill="${cv('--text','#223')}"><title>${mesRot(k)}: aporte ${fmtN(apX[k],1)}% = ${fmtBRL(custo*apX[k]/100)}</title></circle>`).join('');
+  sv+=`<text x="${(L+W-R)/2}" y="${H-3}" text-anchor="middle" font-size="10" fill="${ct}">${PA_IN.ini?'mês':'meses desde o início da obra'}</text>`;
+  g.innerHTML=`<div class="lg"><span><i style="background:#2a9d5c"></i>gasto médio do mês (meses com aporte)</span><span><i style="background:#9aa9b5"></i>gasto depois do último pico (${somar?'somado no último aporte':'coberto pelos recebimentos'})</span><span><i class="ln" style="background:${cv('--text','#223')}"></i>aporte do mês</span></div><div class="dc-ch"><svg viewBox="0 0 ${W} ${H}">${sv}</svg></div>`;
 }
 
 function rentObra(e,d){
