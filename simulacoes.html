@@ -2294,6 +2294,7 @@ function propPintar(r){
   if(!r || !r.propostas) return;
   PROPS = r.propostas;
   propRender(); propKpis(); propRankings(); propAlerta24(); analiseRender();
+  propEmailsIniciar();   // r96q (28/10) — aviso de e-mail novo (proposta / correspondente)
   /* r47 — as simulações antigas decidem a linha azul pelo histórico das
      propostas; com as propostas carregadas, a tabela delas é redesenhada. */
   try{ if(SIMS.length) simRenderRecebidas(); }catch(e){}
@@ -2372,13 +2373,16 @@ function propAlerta24(){
   const el=document.getElementById("prop-alerta24"); if(!el) return;
   const vencidas=PROPS.filter(propVencida);
   const corr=PROPS.filter(propCorrVencida);   // 28/10 — sem carta: correspondente passou de 24 h
-  if(!vencidas.length && !corr.length){ el.classList.add("hide"); return; }
+  const emls=(typeof propEmailsLista==="function") ? propEmailsLista() : [];   // r96q — e-mail novo
+  if(!vencidas.length && !corr.length && !emls.length){ el.classList.add("hide"); return; }
   el.classList.remove("hide");
   el.innerHTML = (vencidas.length ? "<b>"+vencidas.length+" proposta(s) reservada(s) há mais de 24 horas.</b><br>" +
     vencidas.map(p=>"Un. "+esc(String(p.unidade||"—"))+" · "+esc(p.cliente||"—")+
       " · "+Math.floor(propHorasReservada(p))+" h").join("<br>") : "") +
     (corr.length ? (vencidas.length?"<br><br>":"")+"<b>"+corr.length+" proposta(s) SEM CARTA enviada(s) ao correspondente há mais de 24 horas.</b><br>" +
-    corr.map(p=>{ const e=propCorrEnvio(p); return "Un. "+esc(String(p.unidade||"—"))+" · "+esc(p.cliente||"—")+" · "+esc(e.nomes.join(" / "))+" · "+propHorasTxt(e.horas); }).join("<br>") : "");
+    corr.map(p=>{ const e=propCorrEnvio(p); return "Un. "+esc(String(p.unidade||"—"))+" · "+esc(p.cliente||"—")+" · "+esc(e.nomes.join(" / "))+" · "+propHorasTxt(e.horas); }).join("<br>") : "") +
+    (emls.length ? ((vencidas.length||corr.length)?"<br><br>":"")+"<b>✉ "+emls.length+" e-mail(s) novo(s) sem abrir.</b><br>" +
+    emls.map(x=>'<a href="#" onclick="propVer(\''+x.p.id+'\');return false" style="color:inherit">'+esc(x.p.proposta||"")+" · Un. "+esc(String(x.p.unidade||"—"))+" · "+esc(x.p.cliente||"—")+"</a> — "+(x.t==='c'?'correspondente':'proposta')+(x.e.de?" ("+esc(x.e.de)+")":"")+" · "+simData(x.e.data)).join("<br>") : "");
 }
 
 /* ---------- lista ---------- */
@@ -2400,13 +2404,33 @@ function propTag(st){
   return `<span class="pill ${cls}">${PROP_ROTULO[n]||n}</span>`;
 }
 /* 02/10 (item 6) — selo do STATUS INTERNO da unidade na lista de propostas */
-function propSeloInterno(unidade){
+/* 28/10 — a unidade é uma só, mas pode ter várias propostas: o selo cheio fica só na proposta
+   DONA do status (a que recebeu o status interno pela proposta; senão a vendida / reservada /
+   aceita mais recente). Nas outras propostas da mesma unidade aparece "… para <cliente>". */
+function propDonoUnidade(unidade){
+  const u=(UNS||[]).find(x=>String(x.unidade)===String(unidade)); if(!u) return null;
+  const k=PROP_NORM(u.statusInterno||""); if(!k || k==="DISPONIVEL") return null;
+  const desta=(PROPS||[]).filter(x=>String(x.unidade)===String(unidade) && !["NEGADA","DISTRATO"].includes(PROP_NORM(x.status)));
+  const quando=x=>String(((x.dados||{}).statusInternoEm)||x.dataVendida||x.dataReserva||x.dataAceite||x.criadoEm||"");
+  let c=desta.filter(x=>PROP_NORM(x.statusInterno||((x.dados||{}).statusInterno)||"")===k);
+  if(!c.length){
+    const ordem = k==="VENDIDA" ? ["VENDIDA"] : ["VENDIDA","RESERVADA","ACEITA"];
+    for(const st of ordem){ c=desta.filter(x=>PROP_NORM(x.status)===st); if(c.length) break; }
+  }
+  if(!c.length) return null;
+  return c.sort((a,b)=>quando(b).localeCompare(quando(a)))[0];
+}
+function propSeloInterno(unidade, p){
   const u=(UNS||[]).find(x=>String(x.unidade)===String(unidade)); if(!u) return "";
   const k=PROP_NORM(u.statusInterno||"");
-  if(k==="RESERVADA") return ' <span title="status interno da unidade" style="font-size:10px;font-weight:800;color:#1B4F7A;background:#E1ECF8;border:1px solid #9CC3E4;border-radius:8px;padding:1px 6px">RESERVADA (interno)</span>';
-  if(k==="PAGOU PREFERENCIA") return ' <span title="status interno da unidade" style="font-size:10px;font-weight:800;color:#5B3285;background:#EDE3F6;border:1px solid #B79AD6;border-radius:8px;padding:1px 6px">PAGOU PREFERÊNCIA (interno)</span>';
-  if(k==="VENDIDA") return ' <span title="status interno da unidade" style="font-size:10px;font-weight:800;color:#8A2E17;background:#FBE1E1;border:1px solid #E7A3A3;border-radius:8px;padding:1px 6px">VENDIDA (interno)</span>';
-  return "";
+  const est={"RESERVADA":["RESERVADA","#1B4F7A","#E1ECF8","#9CC3E4"],"PAGOU PREFERENCIA":["PAGOU PREFERÊNCIA","#5B3285","#EDE3F6","#B79AD6"],"VENDIDA":["VENDIDA","#8A2E17","#FBE1E1","#E7A3A3"]}[k];
+  if(!est) return "";
+  const dono=p ? propDonoUnidade(unidade) : null;
+  if(p && dono && dono.id!==p.id){
+    const nome=String(dono.cliente||"outro cliente").split(/\s+/).slice(0,2).join(" ");
+    return ' <span title="Status interno da unidade — proposta '+esc(dono.proposta||"")+'" style="font-size:10px;font-weight:800;color:#6B5A45;background:#F1ECE4;border:1px dashed #C9B89A;border-radius:8px;padding:1px 6px">'+est[0]+' para '+esc(nome)+'</span>';
+  }
+  return ' <span title="status interno da unidade'+(p&&!dono?' — marque na proposta certa pelo Status interno':'')+'" style="font-size:10px;font-weight:800;color:'+est[1]+';background:'+est[2]+';border:1px solid '+est[3]+';border-radius:8px;padding:1px 6px">'+est[0]+' (interno)</span>';
 }
 function propRender(){
   const termo=(document.getElementById("prop-busca").value||"").toLowerCase();
@@ -2440,8 +2464,8 @@ function propRender(){
     const nova = !venc && PROP_NORM(p.status)==="RECEBIDA";      // 02/10 (item 6) — novas em destaque
     const estilo = venc ? ' style="background:#F6D6D2"' : (nova ? ' style="background:#FFF3C4"' : '');
     return `<tr class="clicavel${res?' linha-res':''}"${estilo}${res?' title="Enviada com a unidade já reservada — só é analisada se houver desistência"':''} onclick="propVer('${p.id}')">
-      <td><b>${esc(p.proposta||"—")}</b></td>
-      <td>Un. ${esc(String(p.unidade||"—"))}${propSeloInterno(p.unidade)}</td>
+      <td><b>${esc(p.proposta||"—")}</b>${propEmailSelos(p)}</td>
+      <td>Un. ${esc(String(p.unidade||"—"))}${propSeloInterno(p.unidade, p)}</td>
       <td>${p.comCredito
             ? '<span class="pill bom">APROVADO</span>'
             : '<span class="pill ruim">SEM CARTA</span>'+propCorrCelula(p)}</td>
@@ -3218,6 +3242,8 @@ function propVer(id){
         No corpo do e-mail vai o cabeçalho desta proposta. Cópia para vendasreservadosipes@gmail.com.
       </div>
       <div id="prop-correspHist" style="font-size:12px;margin-top:6px">${propHistCorresp(p.envioCorrespondente)}</div>
+      <!-- r96q (28/10) — conversa com o correspondente, numa caixa só dela -->
+      <div id="prop-histCorr"><div class="sim-aviso" style="margin-top:10px"><span class="load"></span> Carregando a conversa com o correspondente…</div></div>
     </div>
 
     <!-- ITEM 5 — quadro do e-mail: assunto, barra de formatação (negrito,
@@ -3373,9 +3399,9 @@ function propPintarDetalhe(id, r){
     ? '<div class="sim-aviso" style="margin-top:12px"><span class="load"></span> Carregando a conversa de e-mail…</div>'
     : (hist.mensagens && hist.mensagens.length)
     /* r54 — a conversa nasce sempre FECHADA: quem quiser ler abre. */
-    ? '<details class="card hist-email" style="margin-top:14px;background:var(--bg2)">'+
-      '<summary><b style="font-size:13px;color:var(--azul)">Conversa por e-mail · '+
-      hist.mensagens.length+' mensagem(ns)</b>'+
+    ? '<details class="card hist-email" style="margin-top:14px;background:var(--bg2)" ontoggle="if(this.open)propEmailVisto(\''+esc(propNumDe(id))+'\',\'p\')">'+
+      '<summary><b style="font-size:13px;color:var(--azul)">Conversa da proposta (corretor) · '+
+      hist.mensagens.length+' mensagem(ns)</b>'+propEmailSeloBox(propNumDe(id),'p')+
       '<span style="font-size:11.5px;color:var(--text3);display:block;margin-top:2px">'+
       esc(hist.assunto||'')+' — clique para ver tudo</span></summary>'+
       hist.mensagens.map((m,i)=>'<div class="hist-msg">'+
@@ -3483,6 +3509,105 @@ function propPintarDetalhe(id, r){
   /* r53 — a conversa mora abaixo do campo de resposta, não aqui. */
   const cxH = document.getElementById("prop-hist");
   if(cxH) cxH.innerHTML = cxHist;
+  /* r96q — conversa com o correspondente (caixa separada, na parte do correspondente) */
+  const cxHC = document.getElementById("prop-histCorr");
+  if(cxHC) cxHC.innerHTML = propHistCorrHtml(id, r);
+}
+/* =====================================================================
+ * r96q (28/10/2026) — CONVERSA COM O CORRESPONDENTE + AVISO DE E-MAIL NOVO
+ * A conversa do correspondente (assunto "Documentação <nº> …") aparece numa caixa
+ * própria. Os envios a partir da r96q fazem a resposta voltar também para a conta
+ * do portal; nos envios antigos a resposta foi só para vendasreservadosipes.
+ * Aviso de e-mail novo: a cada 3 min o portal pergunta a última mensagem RECEBIDA
+ * de cada conversa (simsEmailsNovos). O que chegou depois da última vez que VOCÊ
+ * abriu aquela conversa aparece como ✉ na lista, no quadro de alertas, no título
+ * da aba e numa notificação no canto da tela. Abrir a conversa marca como vista.
+ * Vale por navegador (cada pessoa tem o seu "já vi").
+ * ------------------------------------------------------------------- */
+function propNumDe(id){ const p=(PROPS||[]).find(x=>x.id===id); return String((p&&p.proposta)||"").toUpperCase(); }
+function propHistCorrHtml(id, r){
+  const h=r.historicoCorresp;
+  const adiado = (h && h.motivo==="ADIADO") || (h===undefined && r.historicoEmail && r.historicoEmail.motivo==="ADIADO");
+  if(adiado) return '<div class="sim-aviso" style="margin-top:10px"><span class="load"></span> Carregando a conversa com o correspondente…</div>';
+  if(!h) return '<div class="sim-aviso" style="margin-top:10px">A conversa com o correspondente aparece aqui depois que o Apps Script do portal for publicado (r96q).</div>';
+  const num=propNumDe(id);
+  if(!(h.mensagens&&h.mensagens.length)){
+    return '<div class="sim-aviso" style="margin-top:10px">'+(h.motivo==="SEM_ACESSO"
+      ? 'Não consegui ler a conversa com o correspondente agora.'
+      : 'Nenhum e-mail com o correspondente encontrado para esta proposta.')+'</div>';
+  }
+  return '<details class="card hist-email" style="margin-top:12px;background:#F6F1FB;border-color:#B79AD6" ontoggle="if(this.open)propEmailVisto(\''+esc(num)+'\',\'c\')">'+
+    '<summary><b style="font-size:13px;color:#5B3285">Conversa com o correspondente · '+h.mensagens.length+' mensagem(ns)</b>'+propEmailSeloBox(num,'c')+
+    '<span style="font-size:11.5px;color:var(--text3);display:block;margin-top:2px">'+(h.conversas>1?h.conversas+' conversas (um e-mail por correspondente) — ':'')+'clique para ver tudo</span></summary>'+
+    h.mensagens.map(m=>'<div class="hist-msg">'+
+      '<div class="hist-cab"><b>'+esc(m.de)+'</b><span>'+simData(m.data)+'</span>'+(m.para?'<span>para '+esc(m.para)+'</span>':'')+'</div>'+
+      (m.assunto?'<div style="font-size:11px;color:var(--text3);margin:-2px 0 4px">'+esc(m.assunto)+'</div>':'')+
+      (m.html?'<div class="hist-corpo email">'+propLimparHtml(m.html)+'</div>':'<div class="hist-corpo">'+esc(m.resumo)+'</div>')+
+      '</div>').join('')+
+    '<div style="font-size:11.5px;color:var(--text3);margin-top:8px">Envios feitos antes de 28/10: a resposta do correspondente foi só para vendasreservadosipes@gmail.com e pode não aparecer aqui.</div></details>';
+}
+const EMV_KEY="morais_emails_vistos_v1";
+let EMAILS_NOVOS={}, EMAILS_TIMER=null, EMAILS_AVISADOS={};
+function emvLer(){ try{ return JSON.parse(localStorage.getItem(EMV_KEY)||"null"); }catch(e){ return null; } }
+function emvGravar(o){ try{ localStorage.setItem(EMV_KEY, JSON.stringify(o)); }catch(e){} }
+function propEmailNovo(num, tipo){
+  const k=String(num||"").toUpperCase(), e=(EMAILS_NOVOS[k]||{})[tipo]; if(!e) return null;
+  const v=emvLer(); if(!v) return null;
+  const visto=(((v.v||{})[k]||{})[tipo])||v.base||"";
+  return String(e.data)>String(visto) ? e : null;
+}
+function propEmailSeloBox(num, tipo){
+  const e=propEmailNovo(num, tipo); if(!e) return "";
+  return ' <span class="pill" style="background:#C0392B;color:#fff;font-size:10.5px;margin-left:6px" title="'+esc(e.de||"")+'">🔔 nova mensagem · '+esc(simData(e.data))+'</span>';
+}
+function propEmailSelos(p){
+  const n=String(p.proposta||"").toUpperCase(), a=propEmailNovo(n,'p'), b=propEmailNovo(n,'c');
+  return (a?' <span class="pill" style="background:#1F6FB2;color:#fff;font-size:10px" title="Resposta na conversa da proposta — '+esc(a.de||"")+'">✉ proposta</span>':'')+
+         (b?' <span class="pill" style="background:#7B4FA0;color:#fff;font-size:10px" title="Resposta do correspondente — '+esc(b.de||"")+'">✉ correspondente</span>':'');
+}
+function propEmailsLista(){
+  const out=[];
+  (PROPS||[]).forEach(p=>{ const n=String(p.proposta||"").toUpperCase();
+    ['p','c'].forEach(t=>{ const e=propEmailNovo(n,t); if(e) out.push({p, t, e}); }); });
+  return out;
+}
+function propEmailVisto(num, tipo){
+  const v=emvLer()||{base:new Date().toISOString(), v:{}}; const k=String(num||"").toUpperCase(); if(!k) return;
+  v.v=v.v||{}; v.v[k]=v.v[k]||{}; v.v[k][tipo]=new Date().toISOString(); emvGravar(v);
+  propEmailsPintar();
+}
+const PROP_TITULO_BASE=document.title.replace(/^\(\d+\)\s*/,"");
+function propEmailsPintar(){
+  const l=propEmailsLista();
+  try{ propRender(); propAlerta24(); }catch(e){}
+  document.title=(l.length?"("+l.length+") ":"")+PROP_TITULO_BASE;
+}
+function propEmailsToast(itens){
+  let t=document.getElementById("prop-emToast");
+  if(!t){ t=document.createElement("div"); t.id="prop-emToast";
+    t.style.cssText="position:fixed;right:16px;bottom:16px;z-index:9998;max-width:360px;background:#1B2B3A;color:#fff;border-radius:12px;padding:12px 14px;box-shadow:0 8px 30px rgba(0,0,0,.3);font-size:13px;line-height:1.45";
+    document.body.appendChild(t); }
+  t.innerHTML='<div style="display:flex;justify-content:space-between;gap:10px"><b>✉ E-mail novo</b><span style="cursor:pointer;opacity:.7" onclick="this.closest(\'#prop-emToast\').remove()">✕</span></div>'+
+    itens.slice(0,4).map(x=>'<div style="margin-top:6px;cursor:pointer;text-decoration:underline" onclick="if(window.trocarTab)trocarTab(\'propostas\');propVer(\''+x.p.id+'\')">'+
+      esc(x.p.proposta||"")+' · Un. '+esc(String(x.p.unidade||""))+' — '+(x.t==='c'?'correspondente':'proposta')+(x.e.de?' ('+esc(x.e.de)+')':'')+'</div>').join("")+
+    (itens.length>4?'<div style="margin-top:4px;opacity:.75">+ '+(itens.length-4)+'</div>':'');
+  try{ if(window.Notification && Notification.permission==="granted") new Notification("E-mail novo — Reserva do Ipês", {body: itens.map(x=>x.p.proposta+" ("+(x.t==='c'?'correspondente':'proposta')+")").join("\n")}); }catch(e){}
+}
+async function propEmailsCarregar(forcar){
+  let r=null; try{ r=await simDireto({action:"simsEmailsNovos", forcar:!!forcar}, 60000); }catch(e){ r=null; }
+  if(!r || !r.ok) return;
+  if(!emvLer()) emvGravar({base:new Date().toISOString(), v:{}});   // 1ª vez neste navegador: avisa só do que chegar daqui para frente
+  EMAILS_NOVOS=r.emails||{};
+  const l=propEmailsLista(), novos=l.filter(x=>!EMAILS_AVISADOS[x.p.id+x.t+x.e.data]);
+  l.forEach(x=>{ EMAILS_AVISADOS[x.p.id+x.t+x.e.data]=1; });
+  propEmailsPintar();
+  if(novos.length) propEmailsToast(novos);
+}
+function propEmailsIniciar(){
+  if(EMAILS_TIMER) return;
+  EMAILS_TIMER=setInterval(()=>{ if(!document.hidden) propEmailsCarregar(); }, 180000);
+  setTimeout(()=>propEmailsCarregar(), 1500);
+  try{ if(window.Notification && Notification.permission==="default") document.addEventListener("click", function pedir(){ document.removeEventListener("click", pedir); try{ Notification.requestPermission(); }catch(e){} }); }catch(e){}
 }
 
 /* 02/10 (item 12) — quadro só com o perfil de quem compra: profissão, origem da renda, renda,
@@ -3876,7 +4001,7 @@ function propSIBloco(p){
     return `<button class="bt ${at===k?'atual':''}" data-si="${k}" style="background:${cor};color:#fff" onclick="${clique}">${nome}</button>`;
   }).join("");
   return `<div style="margin-top:16px"><b style="font-size:13px;color:var(--azul)">Status interno</b>
-      <span style="font-size:12px;color:var(--text3)"> · unidade ${esc(String(p.unidade||""))}${propSeloInterno(p.unidade)}</span>
+      <span style="font-size:12px;color:var(--text3)"> · unidade ${esc(String(p.unidade||""))}${propSeloInterno(p.unidade, p)}</span>
       <div class="prop-si ${at?'tem-status':''}" style="display:flex;gap:9px;margin-top:8px;flex-wrap:wrap">${bts}</div>
       <div id="prop-siDist" class="hide" style="margin-top:10px;padding:12px;border:1px solid #E7A3A3;background:#FDF1F1;border-radius:10px">
         <b style="color:#8A2E17">Distrato da unidade ${esc(String(p.unidade||""))}</b>
