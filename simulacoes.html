@@ -2451,12 +2451,12 @@ function propRender(){
   const cab='<thead><tr><th>Proposta</th><th>Unidade</th><th>Crédito Caixa</th><th>Sinal</th>'+
             '<th>Cliente</th><th>Corretor</th>'+
             '<th class="col-num">Valor</th><th class="col-num">Entrada</th>'+
-            '<th class="col-num">Renda</th><th>CPF</th><th>Imobiliária</th>'+
+            '<th class="col-num">Renda</th><th>CPF</th><th>Imobiliária</th><th>Observações</th>'+
             '<th style="cursor:pointer" title="Clique para inverter a ordem" onclick="propOrdenar(propOrdem===\'asc\'?\'desc\':\'asc\')">'+
             'Criada <span class="arr">'+(propOrdem==="desc"?"▼":"▲")+'</span></th><th>Status</th></tr></thead>';
   if(!vis.length){
     document.getElementById("prop-tab").innerHTML=cab+
-      '<tbody><tr><td colspan="13" style="text-align:center;color:var(--text3);padding:22px">Nenhuma proposta encontrada.</td></tr></tbody>';
+      '<tbody><tr><td colspan="14" style="text-align:center;color:var(--text3);padding:22px">Nenhuma proposta encontrada.</td></tr></tbody>';
     return;
   }
   const corpo=vis.map(p=>{
@@ -2476,6 +2476,7 @@ function propRender(){
       <td class="num">${p.valorEntrada?simBRL(p.valorEntrada):"—"}</td>
       <td class="num">${p.rendaTotal?simBRL(p.rendaTotal):"—"}</td>
       <td class="col-un">${esc(p.cpf||"—")}</td><td>${esc(p.imobiliaria||"—")}</td>
+      <td class="prop-obs-td" onclick="event.stopPropagation();propObsAbrir('${p.id}')" title="Clique para ver o histórico e escrever">${propObsCelula(p)}</td>
       <td>${simData(p.criadoEm)}</td>
       <td>${propTag(p.status)}${venc?' <span style="color:#C0392B;font-weight:700">+24h</span>':''}</td></tr>`;
   }).join("");
@@ -3727,6 +3728,89 @@ function propBotoesCorresp(id, lista){
    "dd/mm/aaaa hh:mm · NOME (e-mail) ...", a mais nova no topo). Cópias ao corretor
    não contam como envio ao correspondente. AMAZONAS e DANIELA são o mesmo. */
 let PROP_ENVIO_ATUAL = "";
+/* =====================================================================
+ * r96r (28/10/2026) — OBSERVAÇÕES INTERNAS DA PROPOSTA, COM HISTÓRICO
+ * (o mesmo das Ligações): a célula mostra o registro mais recente; clicar
+ * abre o quadro com todo o histórico (só leitura) e o campo do registro novo,
+ * que entra no TOPO com data, hora e quem escreveu. Coluna "OBS. INTERNA" da
+ * base de propostas (o servidor cria na primeira gravação). Não é a
+ * "Observações" que o corretor escreve na proposta.
+ * ------------------------------------------------------------------- */
+const PROP_OBS_MARCA="▸ ";
+function propObsHist(texto){
+  const s=String(texto==null?"":texto).trim(); if(!s) return [];
+  return s.split(/^▸ /m).map((parte,i)=>{
+    const t=parte.replace(/\s+$/,""); if(!t.trim()) return null;
+    if(i===0 && !s.startsWith(PROP_OBS_MARCA)) return {quando:"", texto:t.trim()};
+    const nl=t.indexOf("\n");
+    return {quando:(nl<0?t:t.slice(0,nl)).trim(), texto:(nl<0?"":t.slice(nl+1)).trim()};
+  }).filter(Boolean);
+}
+function propObsEntrada(texto){
+  const d=new Date();
+  const q=d.toLocaleDateString("pt-BR")+" "+d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+  const quem=(typeof S!=="undefined" && S && (S.nome||S.u)) || "";
+  return PROP_OBS_MARCA+q+(quem?" · "+quem:"")+"\n"+String(texto).trim();
+}
+function propObsCelula(p){
+  const h=propObsHist(p.obsInterna);
+  if(!h.length) return '<span style="color:var(--text3);opacity:.75;white-space:nowrap">✎ escrever…</span>';
+  const t=h[0].texto.length>60 ? h[0].texto.slice(0,60)+"…" : h[0].texto;
+  return '<span style="display:inline-block;max-width:240px;white-space:normal;font-size:12.5px;line-height:1.35">'+
+    (h[0].quando?'<small style="font-weight:800;color:var(--text3)">'+esc(h[0].quando.split(" · ")[0])+'</small> ':'')+esc(t)+
+    (h.length>1?' <em style="color:var(--text3);font-style:normal;font-weight:700">(+'+(h.length-1)+')</em>':'')+'</span>';
+}
+let PROP_OBS_ID=null;
+function propObsAbrir(id){
+  const p=(PROPS||[]).find(x=>x.id===id); if(!p) return;
+  if(typeof ehSomenteLeitura==="function" && ehSomenteLeitura(S)){ alert("Perfil somente leitura."); return; }
+  PROP_OBS_ID=id;
+  let m=document.getElementById("prop-obsModal");
+  if(!m){
+    m=document.createElement("div"); m.id="prop-obsModal";
+    m.style.cssText="position:fixed;inset:0;background:rgba(10,25,35,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px";
+    m.innerHTML='<div style="background:var(--bg,#fff);color:var(--text,#2A2118);border-radius:12px;max-width:640px;width:100%;padding:18px 18px 14px;box-shadow:0 10px 40px rgba(0,0,0,.25)">'+
+      '<b id="prop-obsTit" style="font-size:15px;color:var(--azul)"></b>'+
+      '<div id="prop-obsSub" style="font-size:12.5px;color:var(--text3);margin:2px 0 8px"></div>'+
+      '<div id="prop-obsHist" style="max-height:260px;overflow:auto;border:1px solid var(--border2,#d9e3ea);border-radius:8px;padding:6px 10px;margin:6px 0 8px;background:var(--bg2,#F2F7F9)"></div>'+
+      '<textarea id="prop-obsTxt" rows="5" placeholder="Novo registro — entra no histórico com a data e a hora de agora. Enter pula de linha." style="width:100%;box-sizing:border-box;font-family:inherit;font-size:14px;line-height:1.5;resize:vertical;padding:10px"></textarea>'+
+      '<div style="font-size:11.5px;color:var(--text3);margin-top:6px">Enter pula de linha · Ctrl+Enter salva · Esc fecha</div>'+
+      '<div id="prop-obsErro" style="font-size:12.5px;color:#C0392B;margin-top:6px"></div>'+
+      '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">'+
+      '<button class="bt" type="button" onclick="propObsFechar()">Cancelar</button>'+
+      '<button class="bt az" type="button" id="prop-obsOk" onclick="propObsSalvar()">Salvar</button></div></div>';
+    document.body.appendChild(m);
+    m.addEventListener("click",e=>{ if(e.target===m) propObsFechar(); });
+    m.addEventListener("keydown",e=>{ if(e.key==="Escape"){ e.stopPropagation(); propObsFechar(); } else if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); propObsSalvar(); } });
+  }
+  document.getElementById("prop-obsTit").textContent="Observações — "+(p.proposta||"")+" · Un. "+(p.unidade||"");
+  document.getElementById("prop-obsSub").textContent=(p.cliente||"")+(p.vendedor?" · corretor "+p.vendedor:"");
+  const h=propObsHist(p.obsInterna);
+  document.getElementById("prop-obsHist").innerHTML = h.length
+    ? h.map(x=>'<div style="padding:6px 0;border-bottom:1px dashed var(--border2,#d9e3ea)"><div style="font-size:11px;font-weight:800;color:var(--text3)">'+esc(x.quando||"registro sem data")+'</div><div style="white-space:pre-wrap;font-size:13px;word-break:break-word">'+esc(x.texto)+'</div></div>').join("")
+    : '<div style="font-size:12px;color:var(--text3);padding:4px 0">Nenhum registro ainda.</div>';
+  const t=document.getElementById("prop-obsTxt"); t.value="";
+  document.getElementById("prop-obsErro").textContent="";
+  const bt=document.getElementById("prop-obsOk"); bt.disabled=false; bt.textContent="Salvar";
+  m.style.display="flex"; setTimeout(()=>t.focus(),50);
+}
+function propObsFechar(){ const m=document.getElementById("prop-obsModal"); if(m) m.style.display="none"; PROP_OBS_ID=null; }
+async function propObsSalvar(){
+  const id=PROP_OBS_ID; if(!id) return;
+  const t=document.getElementById("prop-obsTxt"), txt=t.value.trim();
+  if(!txt){ propObsFechar(); return; }
+  const bt=document.getElementById("prop-obsOk"), er=document.getElementById("prop-obsErro");
+  bt.disabled=true; bt.textContent="Salvando…"; er.textContent="";
+  let r=null; try{ r=await chamar({action:"simsPropostaObsNova", pageId:id, entrada:propObsEntrada(txt)}, 60000, true); }catch(e){ r=null; }
+  if(r && r.ok){
+    const p=(PROPS||[]).find(x=>x.id===id); if(p) p.obsInterna=r.texto;
+    try{ storeInvalidar("sims_propostas"); }catch(e){}
+    propObsFechar(); propRender();
+  } else {
+    bt.disabled=false; bt.textContent="Salvar";
+    er.textContent = (r&&r.erro==="MODO_TESTE") ? "Perfil TESTES não grava." : ("Não salvou: "+((r&&(r.mensagem||r.erro))||"sem resposta — confira antes de repetir")+".");
+  }
+}
 function propCorrNorm(n){ n=PROP_NORM(n||""); return n==="DANIELA" ? "AMAZONAS" : n; }
 function propEnviosCorresp(txt){
   const mapa={};
