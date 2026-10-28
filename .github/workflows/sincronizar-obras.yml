@@ -34,4 +34,15 @@ jobs:
           APLICAR: ${{ inputs.aplicar && '1' || '' }}
           FORCAR: ${{ inputs.forcar && '1' || '' }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python sincronizar_obras.py
+        run: |
+          set -o pipefail
+          python sincronizar_obras.py | tee saida.txt
+      # o log bruto não sai por todo lugar; o resumo vira anotação da rodada
+      - name: Resumo
+        if: always()
+        run: |
+          python - <<'PY'
+          L=[l.rstrip() for l in open("saida.txt",encoding="utf-8") if l.strip() and not l.startswith("Lendo")]
+          for i in range(0,min(len(L),450),45):
+              print("::notice title=sincronizar obras %d::"%(i//45+1)+"%0A".join(x.replace("%","%25") for x in L[i:i+45]))
+          PY

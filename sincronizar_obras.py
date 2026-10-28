@@ -75,6 +75,7 @@ CAMPOS = [
     ("ÁREA PÓS HABITE-SE", ["ÁREA PÓS HABITE-SE"], ["ÁREA PÓS HABITE-SE"], []),
 ]
 SIGILO = {"CPF/CNPJ"}                       # valor nunca vai para log/alerta
+LOG_SIGILO = SIGILO | {"PROPRIETÁRIO", "PROPRIETÁRIO REAL"}   # o log do Actions é público: nomes de dono ficam só no alerta
 CRIA_OPCAO = {"CPF/CNPJ"}                   # select que pode ganhar opção nova (dado, não categoria)
 # campos que o robô do Mais Controle confere (mudou → dispara o robô)
 CAMPOS_MC = ["Nº DE CASAS", "ÁREA CONSTRUÍDA AVERBADA", "ÁREA PÓS HABITE-SE", "ENGENHEIRO RT",
@@ -240,7 +241,7 @@ def diferencas(linha_props, obra_props, mapa, esq_obra, esq_alvo):
 
 
 def mostrar(rotulo, txt):
-    return "***" if rotulo in SIGILO else txt
+    return "***" if rotulo in LOG_SIGILO else txt
 
 
 def titulo(props):
