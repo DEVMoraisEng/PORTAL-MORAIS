@@ -3607,7 +3607,9 @@ async function propEmailsCarregar(forcar){
 }
 function propEmailsIniciar(){
   if(EMAILS_TIMER) return;
-  EMAILS_TIMER=setInterval(()=>{ if(!document.hidden) propEmailsCarregar(); }, 180000);
+  /* confere mesmo com a aba em segundo plano — é aí que a notificação mais ajuda */
+  EMAILS_TIMER=setInterval(()=>{ propEmailsCarregar(); }, 180000);
+  document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) propEmailsCarregar(); });
   setTimeout(()=>propEmailsCarregar(), 1500);
   try{ if(window.Notification && Notification.permission==="default") document.addEventListener("click", function pedir(){ document.removeEventListener("click", pedir); try{ Notification.requestPermission(); }catch(e){} }); }catch(e){}
 }
