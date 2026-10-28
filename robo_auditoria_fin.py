@@ -89,26 +89,50 @@ CATS_FISCAIS = {N(x) for x in ["FGTS", "INSS / IRRF Folha", "IRPJ / CSLL", "PIS 
 
 FISCAL_TIPOS = {
     "DUP": ("Possível pagamento em duplicidade",
-            "Mesmo fornecedor e mesmo valor em lançamentos diferentes com o MESMO nº de documento (NF/boleto) ou a MESMA ordem de compra. Valor igual sozinho não conta."),
+            "Mesmo fornecedor e mesmo valor em lançamentos diferentes com o MESMO nº de documento (NF/boleto) ou a MESMA ordem de compra. "
+            "Contas de energia e água: MESMA UC (unidade consumidora) e MESMO mês de referência pagos em lançamentos diferentes. Valor igual sozinho não conta."),
     "SEM_OC": ("Material pago sem ordem de compra",
                "Materiais (Obras) a partir de R$ 1.000 sem ordem de compra vinculada no Mais Controle."),
     "SEM_DOC": ("Pagamento alto sem nº de documento",
                 "A partir de R$ 10.000, sem nota/boleto informado (folha, mão de obra terceirizada, impostos, aportes e tarifas ficam de fora)."),
     "TARDIO": ("Lançado muito depois do pagamento",
                "O título foi criado no Mais Controle mais de 30 dias depois da data do pagamento."),
-    "COMPET": ("Competência distante do pagamento",
-               "Competência mais de 90 dias antes ou depois do pagamento — conferir a data de competência."),
     "FORN_NOVO": ("Fornecedor novo com valor alto",
                   "Primeiro pagamento nos últimos 60 dias e já soma R$ 20.000 ou mais."),
     "A_CLASSIFICAR": ("Centro de custo \"A CLASSIFICAR\"",
                       "Pagamentos há mais de 30 dias no CC provisório A CLASSIFICAR — já deveriam ter ido para o CC da obra."),
-    "CONTA_OBRA": ("Pago por conta diferente da conta da obra",
-                   "A conta bancária do pagamento não é a CONTA cadastrada na obra ((EMP) Projeto 2.0)."),
     "OBRA_FINALIZADA": ("Custo de obra depois do término",
                         "Material, mão de obra ou locação pagos mais de 60 dias depois da DATA DE TÉRMINO DE OBRA (DOCUMENTOS)."),
     "UTIL_ENTREGUE": ("Energia/água paga depois da entrega",
                       "Conta de consumo com competência mais de 45 dias depois da DATA DA ENTREGA da casa (VENDAS) — titularidade não transferida?"),
 }
+
+
+MES_RX = (r"(?:JAN(?:EIRO)?|FEV(?:EREIRO)?|MAR(?:CO)?|ABR(?:IL)?|MAI(?:O)?|JUN(?:HO)?|JUL(?:HO)?|AGO(?:STO)?|"
+          r"SET(?:EMBRO)?|OUT(?:UBRO)?|NOV(?:EMBRO)?|DEZ(?:EMBRO)?)")
+MES_NUM = {"JAN": 1, "FEV": 2, "MAR": 3, "ABR": 4, "MAI": 5, "JUN": 6, "JUL": 7, "AGO": 8, "SET": 9, "OUT": 10, "NOV": 11, "DEZ": 12}
+
+
+def uc_da_desc(desc):
+    """Nº da unidade consumidora na descrição ("UC: 2841550-7", "UC 445389501248") — só os dígitos."""
+    m = re.search(r"\bUC\b\s*[:#.\-]?\s*(\d[\d.\- ]{3,}\d)", N(desc))
+    d = re.sub(r"\D", "", m.group(1)) if m else ""
+    return d if len(d) >= 6 else ""
+
+
+def refs_da_desc(desc):
+    """Meses de referência ("REF DEZ, JAN E FEV/2026" → 2025-12, 2026-01, 2026-02). O ano vale para os
+    meses antes dele; mês maior que o último da lista é do ano anterior."""
+    out = set()
+    for b in re.finditer(r"((?:\b" + MES_RX + r"(?![A-Z])[\s,E/]*)+)(?:DE\s*)?(\d{4}|\d{2})\b", N(desc)):
+        ms = [MES_NUM[x[:3]] for x in re.findall(r"\b(" + MES_RX + r")(?![A-Z])", b.group(1))]
+        if not ms:
+            continue
+        a = int(b.group(2))
+        a = a + 2000 if a < 100 else a
+        for m in ms:
+            out.add(f"{a - 1 if m > ms[-1] else a}-{m:02d}")
+    return sorted(out)
 
 
 def log(*a):
@@ -513,6 +537,29 @@ def fiscalizar(p, lanc):
                 ja.add(r.Index)
                 add("DUP", r.Index, f"Mesmo {rotulo} ({getattr(r, chave)}) do lançamento {prim.id} — "
                                     f"{prim.dp.strftime('%d/%m/%Y')}, {brl(prim.v)}")
+    # DUP de energia/água (28/10) — mesma UC + mesmo mês de referência em lançamentos
+    # diferentes. A UC e o "REF MÊS/ANO" vêm da descrição ("UC: 2841550-7 REF DEZ, JAN E FEV/2026
+    # CASA 1"); sem REF, vale o mês da competência. Conta de R$ 1,00 (lançamento provisório) também
+    # aparece: é justamente o que costuma gerar o pagamento em dobro.
+    por_uc = defaultdict(list)
+    for r in p[p.c.map(N).isin(CATS_UTIL) & p.dp.notna()].itertuples():
+        uc = uc_da_desc(r.d)
+        if not uc:
+            continue
+        refs = refs_da_desc(r.d) or ([f"{r.dc.year}-{r.dc.month:02d}"] if r.dc else [])
+        for ref in refs:
+            por_uc[(uc, ref)].append(r)
+    for (uc, ref), rs in por_uc.items():
+        if len({x.id for x in rs}) < 2:
+            continue
+        rs = sorted(rs, key=lambda x: x.dp)
+        prim = rs[0]
+        for r in rs[1:]:
+            if r.id == prim.id or r.Index in ja:
+                continue
+            ja.add(r.Index)
+            add("DUP", r.Index, f"Mesma UC {uc} e mesma referência {ref[5:]}/{ref[:4]} do lançamento {prim.id} — "
+                                f"{prim.dp.strftime('%d/%m/%Y')}, {brl(prim.v)}")
     # SEM_OC
     for r in p[(p.c.map(N) == N("Materiais (Obras)")) & (p.v >= 1000) & (p.oc == "")].itertuples():
         add("SEM_OC", r.Index, "Sem ordem de compra")
@@ -531,10 +578,7 @@ def fiscalizar(p, lanc):
                 add("TARDIO", r.Index, f"Lançado em {r.dl.strftime('%d/%m/%Y')} — {(r.dl - r.dp).days} dias depois do pagamento")
     else:
         p["dl"] = None
-    # COMPET
-    for r in p.itertuples():
-        if r.dc and r.dp and abs((r.dc - r.dp).days) > 90:
-            add("COMPET", r.Index, f"Competência {r.dc.strftime('%m/%Y')} × pagamento {r.dp.strftime('%d/%m/%Y')}")
+    # COMPET removido em 28/10 (pedido do Morais)
     # FORN_NOVO
     lim = HOJE - timedelta(days=60)
     for forn, g in p[p.f != ""].groupby(p.f.map(N)):
@@ -565,23 +609,7 @@ def cruzar_notion(p):
     achados = []
     pad = fad.padronizar_endereco
     p["cc_pad"] = p.cc.map(pad)
-    try:
-        # 1) CONTA da obra — (EMP) Projeto 2.0
-        obras = fv.ler_banco("306c5ab532d3812fa14fe9a281510128", "OBRAS")
-        conta_por_end = {}
-        for pg in obras:
-            ip = fad.indice_props(pg.get("properties"))
-            end = fad.txt(ip, "Projeto", "ENDEREÇO")
-            conta = fad.txt(ip, "CONTA")
-            if end and conta and N(conta) not in ("CRIAR CONTA", "DUVIDA", "DÚVIDA", "VAZIA"):
-                conta_por_end[pad(end)] = conta
-        for r in p.itertuples():
-            conta = conta_por_end.get(r.cc_pad)
-            if conta and r.cb and N(conta) != N(r.cb) and r.dp and (HOJE - r.dp).days <= 365:
-                achados.append(["CONTA_OBRA", int(r.Index), f"Conta da obra: {conta}"])
-        log(f"  Notion OBRAS: {len(conta_por_end)} obras com CONTA")
-    except Exception as e:
-        log(f"  ! cruzamento CONTA falhou: {e}")
+    # 1) CONTA da obra (CONTA_OBRA) removido em 28/10 (pedido do Morais)
     try:
         # 2) obra finalizada — DOCUMENTOS
         docs = [fad.parse_doc(pg) for pg in fv.ler_banco(fv.DB_DOCS, "DOCUMENTOS")]

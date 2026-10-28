@@ -1181,7 +1181,7 @@ function afRenderFisc(){
   document.getElementById("f-tab").innerHTML=L.length?`<p class="small" style="margin:0 0 8px">${fN(L.length)} alertas · ${fR(L.reduce((a,f)=>a+AF_C.v[f[1]],0))}</p>
     <div class="tbl-wrap"><table><thead><tr><th>Alerta</th><th>Pagamento</th><th>Lançamento</th><th>Categoria</th><th class="num">Valor</th><th>Detalhe</th><th>Validação</th></tr></thead><tbody>
     ${L.slice(0,400).map((f,ix)=>{ const i=f[1], v=AF_VAL.get(f[0]+":"+AF_C.k[i]); return `<tr class="clk" onclick="afAbrirDrawer(${i})"><td><b>${esc((T[f[0]]||{}).t||f[0])}</b></td><td class="small nw">${fD(AF_C.dp[i])}</td>
-      <td class="desc-c">${esc(AF_C.d[i]||"—")}<div class="small">${esc(forn(i)||"—")} · ${esc(ccv(i))} · ID ${AF_C.id[i]}</div></td><td>${esc(cat(i))}</td><td class="num">${fR(AF_C.v[i])}</td><td class="small">${esc(f[2])}${f[0]==="CONTA_OBRA"?`<div>Pago por: ${esc(cbv(i))}</div>`:""}</td>
+      <td class="desc-c">${esc(AF_C.d[i]||"—")}<div class="small">${esc(forn(i)||"—")} · ${esc(ccv(i))} · ID ${AF_C.id[i]}</div></td><td>${esc(cat(i))}</td><td class="num">${fR(AF_C.v[i])}</td><td class="small">${esc(f[2])}</td>
       <td onclick="event.stopPropagation()">${afVlBadge(v?v.status:"PENDENTE")}${v&&v.por?`<div class="vquem">${esc(v.por)} · ${fD((v.em||"").slice(0,10))}</div>`:""}
         ${g?`<div class="vacts"><button class="vbt ok" onclick="afPerguntarVal([${i}],'CONFORME','${f[0]}')">✓ Conforme</button><button class="vbt cx" onclick="afPerguntarVal([${i}],'CORRIGIR','${f[0]}')">✎ Corrigir</button></div>`:""}</td></tr>`; }).join("")}
     </tbody></table></div>${L.length>400?`<p class="small">Mostrando 400 de ${fN(L.length)} — use o Excel (CSV) para ver todos.</p>`:""}`:`<div class="vazio">Nenhum alerta com estes filtros.</div>`;
