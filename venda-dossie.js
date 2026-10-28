@@ -1136,7 +1136,9 @@
     var estadoM = null, uiM = novoUiM(), esperaM = null, ctxA = novoCtxA();
     var estadoR = null, uiR = novoUiR();
     /* 27/10/2026: termo de pré-reserva (condomínio) */
-    var comPR = !!(opts && opts.preReserva), estadoP = null, uiP = { msg: "", faltas: null, ocupado: null, testes: perfilTestes() };
+    /* 28/10: soPR = só os blocos da pré-reserva (a janela do "Pagou preferência" na tela de propostas) */
+    var soPR = !!(opts && opts.soPreReserva);
+    var comPR = soPR || !!(opts && opts.preReserva), estadoP = null, uiP = { msg: "", faltas: null, ocupado: null, testes: perfilTestes() };
     var ctxP = novoCtxA(); ctxP.doc = "PRE_RESERVA";
     function vivo() { return !!ativo(eu); }
     function dentro(sel) { return raiz ? raiz.querySelector(sel) : null; }
@@ -1165,6 +1167,7 @@
       if (!raiz) return;
       guardarRascunho();
       guardarRascunhoR();
+      if (soPR) { raiz.innerHTML = '<div class="vb-pr">' + htmlPreReserva(estadoP, uiP) + '</div><div class="vb-pr-ass">' + htmlAssPR() + "</div>"; return; }
       raiz.innerHTML = (comPR ? '<div class="vb-pr">' + htmlPreReserva(estadoP, uiP) + '</div><div class="vb-pr-ass">' + htmlAssPR() + "</div>" : "") +
         htmlContrato(estadoC, uiC) + '<div class="vb-ass">' + htmlAss() + "</div>" +
         (comRec ? '<div class="vb-rec">' + htmlRecebimentos(estadoR, uiR) + "</div>" : "") +
@@ -1621,6 +1624,11 @@
         });
       }
       pintar();
+      if (soPR) {
+        if (!estadoP) carregarPR();
+        if (!ctxP.estado) carregarAssPR();
+        return;
+      }
       if (!estadoC) carregarContrato();
       if (!estadoM) carregarMC();
       if (!ctxA.estado) carregarAss();
@@ -1629,7 +1637,7 @@
       if (comPR && !ctxP.estado) carregarAssPR();
     };
     eu.raiz = function () { return raiz; };
-    eu.pintarAssinatura = pintarA;
+    eu.pintarAssinatura = function () { pintarA(); if (comPR) { var a = dentro(".vb-pr-ass"); if (a) a.innerHTML = htmlAssPR(); } };
     eu.parar = function () { if (esperaM) clearTimeout(esperaM); esperaM = null; };
     return eu;
   }
@@ -1670,7 +1678,22 @@
     blocosCond.anexar(el);
   }
   function soltarCondominio() { if (blocosCond) blocosCond.parar(); blocosCond = null; }
-  window.VendaBlocos = { montar: montarCondominio, soltar: soltarCondominio };
+  /* 28/10/2026: só o termo de pré-reserva (conta de devolução, gerar, ver, Clicksign) — a tela de propostas
+   *   VendaBlocos.montarPreReserva(elemento, pageIdDaLinhaDaVenda)  depois do "Pagou preferência"           */
+  var blocosPR = null;
+  function montarPreReserva(el, pageId) {
+    if (!el || !REGEX_ID.test(String(pageId || ""))) return;
+    if (!blocosPR || blocosPR.pageId !== pageId) {
+      if (blocosPR) blocosPR.parar();
+      blocosPR = criarBlocosVenda(pageId, function (b) {
+        var r = b.raiz();
+        return blocosPR === b && !!r && r.isConnected !== false;
+      }, { soPreReserva: true });
+    }
+    blocosPR.anexar(el);
+  }
+  function soltarPreReserva() { if (blocosPR) blocosPR.parar(); blocosPR = null; }
+  window.VendaBlocos = { montar: montarCondominio, soltar: soltarCondominio, montarPreReserva: montarPreReserva, soltarPreReserva: soltarPreReserva };
 
   function garantirBloco(body) {
     var id = obraAberta();
@@ -1708,8 +1731,8 @@
     var st = document.createElement("style"); st.textContent = CSS; document.head.appendChild(st);
     /* o bloco de assinatura mora em arquivo próprio; vendas.html continua com uma linha só.
        Carrega mesmo sem o painel da casa: o cartão do condomínio também usa. */
-    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=7";
-    sa.onload = function () { [blocosCasa, blocosCond].forEach(function (b) { if (b) b.pintarAssinatura(); }); };
+    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=8";
+    sa.onload = function () { [blocosCasa, blocosCond, blocosPR].forEach(function (b) { if (b) b.pintarAssinatura(); }); };
     document.head.appendChild(sa);
     var body = document.getElementById("pn-body"); if (!body) return;
     new MutationObserver(function () { garantirBloco(body); }).observe(body, { childList: true });

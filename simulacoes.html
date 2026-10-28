@@ -699,6 +699,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
   </div>
 
 <script src="app.js?v=45"></script>
+<script src="venda-dossie.js?v=10" defer></script><!-- 28/10: termo de pré-reserva pela proposta (VendaBlocos.montarPreReserva) -->
 <script>
 
 /* =====================================================================
@@ -3948,6 +3949,8 @@ async function propStatusInterno(id, nome){
     let h="<b>✓ Status interno: "+esc(nome)+".</b>";
     if(k==="PAGOU PREFERENCIA"){
       const v=r.venda||{}; const pend=(v.pendencias||[]).length;
+      /* 28/10 (dono): pagou a preferência = hora do TERMO DE PRÉ-RESERVA — a mesma tela do cartão da unidade */
+      if(v.linha) h+='<div style="margin-top:8px"><button class="bt" style="background:#7B4FA0;color:#fff" onclick="propAbrirPreReserva(\''+esc(String(v.linha))+'\')">Termo de pré-reserva</button></div>';
       h+="<br>Banco de vendas: linha da unidade "+esc(String(v.unidade||p.unidade||""))+(v.criou?" criada":" atualizada")+
          (pend?" — <b>"+pend+" pendência(s)</b> para completar (gere o link da venda acima).":" — cadastro completo.");
       const cd=v.copiaDocs; if(cd&&cd.pedidos) h+="<br><span style='font-size:12px'>Documentos da proposta: "+(cd.copiados||0)+" copiado(s)"+(cd.naFila?" · "+cd.naFila+" copiando em segundo plano":"")+"</span>";
@@ -3964,8 +3967,32 @@ async function propStatusInterno(id, nome){
     if(r.aviso) h+="<br><span style='font-size:12px'>"+esc(r.aviso)+"</span>";
     if(r.avisoUnidade) h+="<br><span style='font-size:12px;color:var(--vermelho)'>Unidade: "+esc(r.avisoUnidade)+"</span>";
     av.className="sim-aviso ok"; av.innerHTML=h;
+    if(k==="PAGOU PREFERENCIA" && r.venda && r.venda.linha &&
+       confirm("Preferência paga. Gerar o termo de pré-reserva agora?\n\n(Se não, ele fica no cartão da unidade, na Planilha Casas Condomínio.)"))
+      propAbrirPreReserva(String(r.venda.linha));
   }
   propSincronizarTudo();
+}
+/* 28/10/2026 — TERMO DE PRÉ-RESERVA pela proposta: abre por cima a mesma tela do cartão da unidade
+   (conta para devolução, gerar, ver e enviar à Clicksign), desenhada pelo venda-dossie.js na linha da venda. */
+function propAbrirPreReserva(linha){
+  if(!window.VendaBlocos || !VendaBlocos.montarPreReserva){ alert("A tela do termo ainda está carregando — tente de novo em instantes."); return; }
+  let fundo=document.getElementById("prop-pr-fundo");
+  if(!fundo){
+    fundo=document.createElement("div"); fundo.id="prop-pr-fundo";
+    fundo.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:24px 12px";
+    fundo.innerHTML='<div style="background:var(--card,#fff);color:var(--text,#1f2328);border-radius:12px;max-width:760px;width:100%;padding:16px 18px;box-shadow:0 10px 30px rgba(0,0,0,.25)">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><b style="font-size:15px">Termo de pré-reserva</b>'+
+      '<button class="bt" onclick="propFecharPreReserva()">Fechar</button></div><div id="prop-pr-tela" style="margin-top:10px"></div></div>';
+    fundo.addEventListener("click",e=>{ if(e.target===fundo) propFecharPreReserva(); });
+    document.body.appendChild(fundo);
+  }
+  fundo.style.display="flex";
+  VendaBlocos.montarPreReserva(document.getElementById("prop-pr-tela"), linha);
+}
+function propFecharPreReserva(){
+  const f=document.getElementById("prop-pr-fundo"); if(f) f.style.display="none";
+  if(window.VendaBlocos && VendaBlocos.soltarPreReserva) VendaBlocos.soltarPreReserva();
 }
 async function propStatus(id, status){
   if(status==="VENDIDA" && !confirm("Marcar esta proposta como VENDIDA?\n\nA unidade passa para VENDIDA = SIM no mapa e os dados vão para o BANCO DE DADOS VENDAS CONDOMÍNIO.")) return;

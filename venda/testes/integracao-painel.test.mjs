@@ -32,5 +32,5 @@ test("cartão do condomínio (entrega 7): condAbrir monta a tela de venda na lin
   assert.match(vendas, /function condTelaVendaHtml\(\)\{[^}]*id="cd-venda"/);
   assert.match(vendas, /function condFechar\(\)\{[^\n]*VendaBlocos\.soltar\(\)/);
   const dossie = fs.readFileSync(path.join(RAIZ, "venda-dossie.js"), "utf8");
-  assert.match(dossie, /window\.VendaBlocos = \{ montar: montarCondominio, soltar: soltarCondominio \}/);
+  assert.match(dossie, /window\.VendaBlocos = \{ montar: montarCondominio, soltar: soltarCondominio, montarPreReserva: montarPreReserva, soltarPreReserva: soltarPreReserva \}/);
 });
