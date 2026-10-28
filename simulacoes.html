@@ -2559,6 +2559,10 @@ function propPendenciasHtml(p, pend){
 
 /* ITEM 15 — pílula da lista: o crivo de aceite à vista sem abrir a proposta */
 function propPillSinais(p){
+  /* r96p — sinal fora da regra (mínimo / valor para o sinal) aparece na lista */
+  try{ const k=entSinalConferir(entDaProposta(p));
+    if(k.erro) return `<span class="pill ruim" title="Sinal mínimo ${simBRL(k.min)} · valor para o sinal ${simBRL(p.valorEntrada)}">⚠ sinal deveria ser ${simBRL(k.esperado)}</span>`;
+  }catch(e){}
   const sn=p.sinais||{};
   if(!sn.sinaisTotal) return '<span style="color:var(--text4)">—</span>';
   return sn.falta>0.005
@@ -2956,6 +2960,25 @@ function entTextoSinal(c, B){
   return `O valor de entrada do cliente (<b>${B(c.informado)}</b>) é destinado ao <b>sinal</b> de <b>${B(c.S)}</b> (${forma}). O sinal foi <b>abatido</b> com esse valor: no fluxo ele vale <b>R$ 0,00</b> e aparece só para mostrar a destinação do valor de entrada.`+
     (c.exc>0.005?` Os <b>${B(c.exc)}</b> que passaram do sinal foram usados para <b>abater o pré-chaves e o pós-chaves</b>.`:"")+alt;
 }
+/* r96p (28/10) — SINAL MÍNIMO (mesma conta do fpcGerar do simulador): R$ 10.000 até a
+   entrada de R$ 60.200; acima disso cresce na proporção do fluxo padrão. O nº de parcelas
+   pós-chaves sai do fluxo gravado (ou do prazo, se o fluxo não tiver pós-chaves).
+   Sinal esperado = o valor para o sinal, nunca abaixo do mínimo nem acima da entrada. */
+function entSinalMinimo(c){
+  const POS_UNIT=788.3332806666667, BASE_CHEIA=10000+17000+12*860+12*330+24*POS_UNIT;
+  const nPosF=(c.pos||[]).reduce((a,x)=>a+fpQtd_(x.quando),0);
+  const pz=({23:24,24:24,35:36,36:36,47:48,48:48})[Number(c.prazo)]||48;
+  const nPos=nPosF || ({24:0,36:12,48:24})[pz];
+  const basePos=nPos*POS_UNIT, baseMeio=BASE_CHEIA-10000-basePos;
+  const T=Math.max(Number(c.entradaCliente)||0,10000);
+  if(T<=BASE_CHEIA+0.01) return 10000;
+  return entR2(1000+9000*(T-1000-basePos)/(9000+baseMeio));
+}
+function entSinalConferir(c){
+  const min=entSinalMinimo(c), ent=Math.max(Number(c.entradaCliente)||0,10000);
+  const esperado=entR2(Math.max(min, Math.min(Number(c.informado)||0, ent)));
+  return {min, esperado, erro: !!c.nSinal && Math.abs((Number(c.S)||0)-esperado)>0.05};
+}
 /* Cartões do topo (proposta e simulação) */
 function entResumoHtml(c){
   const it=(r,v,cl)=>`<div${cl?` class="${cl}"`:""}><small>${r}</small><b>${v}</b></div>`;
@@ -2966,6 +2989,9 @@ function entResumoHtml(c){
     ${it("Valor para o sinal",simBRL(c.informado),"ouro")}
     ${it("Entrada restante (fluxo)",simBRL(Math.max(0,c.E)),"escuro")}
     ${it("Sinal",c.nSinal?simBRL(c.S)+" · "+c.nSinal+"x":"—")}
+    ${(()=>{ const k=entSinalConferir(c);
+      return `<div style="${k.erro?'border-color:#C0392B;background:#FDECEA':''}"><small>Sinal mínimo</small><b>${simBRL(k.min)}</b>`+
+        (k.erro?`<small style="color:#C0392B;font-weight:800;margin-top:3px">⚠ sinal deveria ser ${simBRL(k.esperado)}</small>`:'')+`</div>`; })()}
     ${it("Prazo da entrada",c.prazo?c.prazo+" meses":"—")}
   </div>`;
 }
