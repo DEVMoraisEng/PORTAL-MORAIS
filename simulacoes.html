@@ -296,6 +296,13 @@ html[data-tema="escuro"] tbody tr.linha-res:hover td{background:rgba(31,111,178,
 html[data-tema="escuro"] .aviso-res{background:rgba(31,111,178,.18);border-color:rgba(31,111,178,.5);color:#cfe3f6}
 .corresp-bt{min-width:150px;text-align:left;line-height:1.25}
 .corresp-bt small{display:block;font-weight:400;font-size:11px;opacity:.75}
+/* 27/10/2026 — correspondente que JÁ recebeu a proposta fica destacado */
+.corresp-bt.enviado{background:#1D7A45;border-color:#1D7A45;box-shadow:0 0 0 3px #BFE5CC}
+.corresp-bt .corresp-ok{display:block;margin-top:4px;font-size:10.5px;font-weight:700;letter-spacing:.3px;
+  background:#fff;color:#1D7A45;border-radius:10px;padding:1px 8px;width:max-content}
+.corresp-enviado{margin-top:8px;padding:9px 12px;border:1px solid #9FD3B1;border-left:4px solid #1D7A45;
+  border-radius:6px;background:#EAF7EF;color:#1D5A36;font-size:12.5px;line-height:1.45}
+.corresp-enviado b{color:#1D7A45}
 /* chip da data da extração — antes era um texto solto no canto, que não
    parecia parte de nada. Mesmo formato do "Última atualização" das outras
    telas. */
@@ -3389,6 +3396,7 @@ function propPintarDetalhe(id, r){
       let lista=r.correspondentes.filter(c=>!/TESTE/i.test(c.nome||c.chave)||true);
       if(cPref==="AUDICRED"||cPref==="AMAZONAS") lista=r.correspondentes.filter(c=>casa(c,cPref) || /TESTE/i.test(c.nome||c.chave||""));   // o TESTE fica sempre, por enquanto
       cxC.innerHTML = propBotoesCorresp(id, lista.length?lista:r.correspondentes);
+      propPintarEnviados(r.envioCorrespondente!==undefined ? r.envioCorrespondente : undefined);   // 27/10 — destaca quem já recebeu
       if(info) info.innerHTML = cPref ? 'Preferência do corretor: <b>'+esc(campos["CORRESPONDENTE PREFERIDO"])+'</b>.' : '';
     }
   }
@@ -3496,21 +3504,59 @@ async function propPdf(id){
  * a lista do servidor (SIM_CORRESPONDENTES_ no Simulacoes.gs). */
 const PROP_CORRESP_PADRAO = [
   {chave:"AUDICRED", nome:"AUDICRED", email:"audicred.aprovacoes@gmail.com"},
-  {chave:"DANIELA",  nome:"DANIELA",  email:"analises@amazonasintermedicoes.com"},
+  {chave:"DANIELA",  nome:"AMAZONAS", email:"analises@amazonasintermediacoes.com.br"},
   {chave:"TESTE",    nome:"TESTE",    email:"felipebercan@gmail.com"}
 ];
 const PROP_ARQ_TOTAL = {};
 function propBotoesCorresp(id, lista){
   return (lista||[]).map(c=>
-    `<button class="bt az corresp-bt" data-chave="${esc(c.chave)}"
+    `<button class="bt az corresp-bt" data-chave="${esc(c.chave)}" data-nome="${esc(c.nome)}"
        onclick="propEnviarCorresp('${id}','${esc(c.chave)}','${esc(c.nome)}','${esc(c.email)}')">
        ✉ ${esc(c.nome)}<small>${esc(c.email)}</small></button>`).join("");
 }
+/* 27/10/2026 — quem JÁ recebeu: lê o registro "ENVIO CORRESPONDENTE" (linhas
+   "dd/mm/aaaa hh:mm · NOME (e-mail) ...", a mais nova no topo). Cópias ao corretor
+   não contam como envio ao correspondente. AMAZONAS e DANIELA são o mesmo. */
+let PROP_ENVIO_ATUAL = "";
+function propCorrNorm(n){ n=PROP_NORM(n||""); return n==="DANIELA" ? "AMAZONAS" : n; }
+function propEnviosCorresp(txt){
+  const mapa={};
+  String(txt||"").split(/\n+/).map(t=>t.trim()).filter(Boolean).forEach(l=>{
+    if(/c[oó]pia ao corretor/i.test(l)) return;
+    const m=l.match(/^(.+?) · (.+?) \(([^)]+@[^)]+)\)/);
+    if(!m) return;
+    const k=propCorrNorm(m[2]);
+    if(!mapa[k]) mapa[k]={nome:m[2].trim(), quando:m[1].trim(), email:m[3].trim(), vezes:0};
+    mapa[k].vezes++;
+  });
+  return mapa;
+}
+function propPintarEnviados(txt){
+  if(txt!==undefined) PROP_ENVIO_ATUAL = String(txt||"");
+  const env = propEnviosCorresp(PROP_ENVIO_ATUAL);
+  document.querySelectorAll("#prop-corresp .corresp-bt").forEach(b=>{
+    const e = env[propCorrNorm(b.dataset.nome)] || env[propCorrNorm(b.dataset.chave)];
+    b.classList.toggle("enviado", !!e);
+    let tag=b.querySelector(".corresp-ok");
+    if(e){
+      if(!tag){ tag=document.createElement("span"); tag.className="corresp-ok"; b.appendChild(tag); }
+      tag.textContent="✓ ENVIADO "+e.quando+(e.vezes>1?" ("+e.vezes+"x)":"");
+    } else if(tag) tag.remove();
+  });
+}
 function propHistCorresp(txt){
+  PROP_ENVIO_ATUAL = String(txt||"");
+  setTimeout(()=>propPintarEnviados(), 0);
   const linhas=String(txt||"").split(/\n+/).map(t=>t.trim()).filter(Boolean);
   if(!linhas.length) return '<span style="color:var(--text3)">Ainda não enviada a nenhum correspondente.</span>';
-  return '<b style="color:var(--text2)">Já enviada:</b><br>'+linhas.slice(0,6).map(esc).join("<br>")+
-         (linhas.length>6?'<br><span style="color:var(--text3)">+ '+(linhas.length-6)+' envio(s) antigo(s)</span>':'');
+  const env=propEnviosCorresp(txt), nomes=Object.keys(env);
+  const destaque = nomes.length
+    ? '<div class="corresp-enviado">✓ Proposta <b>enviada para '+nomes.map(k=>esc(env[k].nome)).join(" e ")+'</b><br>'+
+        nomes.map(k=>esc(env[k].nome)+' — '+esc(env[k].email)+' — em <b>'+esc(env[k].quando)+'</b>'+
+          (env[k].vezes>1?' (enviada '+env[k].vezes+' vezes)':'')).join('<br>')+'</div>'
+    : '';
+  return destaque+'<div style="margin-top:6px"><b style="color:var(--text2)">Histórico de envios:</b><br>'+linhas.slice(0,6).map(esc).join("<br>")+
+         (linhas.length>6?'<br><span style="color:var(--text3)">+ '+(linhas.length-6)+' envio(s) antigo(s)</span>':'')+'</div>';
 }
 async function propEnviarCorresp(id, chave, nome, email){
   const p=PROPS.find(x=>x.id===id)||{};
@@ -3519,7 +3565,7 @@ async function propEnviarCorresp(id, chave, nome, email){
   if(!cx || cx.dataset.enviando) return;
   const n=PROP_ARQ_TOTAL[id];
   const hist=String((document.getElementById("prop-correspHist")||{}).textContent||"");
-  const jaFoi = hist.indexOf("· "+nome+" (")>=0;
+  const jaFoi = !!propEnviosCorresp(PROP_ENVIO_ATUAL||p.envioCorrespondente||"")[propCorrNorm(nome)];
   if(!confirm("Enviar a documentação da proposta "+(p.proposta||"")+" ("+(p.cliente||"")+" · Un. "+(p.unidade||"")+")\n"+
               "para "+nome+" — "+email+"?\n\n"+
               "Vai o PDF da proposta"+(n===undefined?" e os documentos anexados":" + "+n+" documento(s) anexado(s)")+"."+
