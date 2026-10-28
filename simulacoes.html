@@ -2321,14 +2321,63 @@ function propHorasReservada(p){
   return (Date.now()-d.getTime())/36e5;
 }
 function propVencida(p){ const h=propHorasReservada(p); return h!==null && h>24; }
+/* 28/10/2026 — SEM CARTA × CORRESPONDENTE: a lista mostra se a proposta já foi enviada
+   ao correspondente e conta 24 h a partir do PRIMEIRO envio (registro "ENVIO
+   CORRESPONDENTE", "dd/mm/aaaa hh:mm · NOME (e-mail)", o mais novo no topo — vale
+   também para o que já foi enviado). Passou de 24 h sem carta: alerta, aqui e no
+   quadro de alertas do topo. Negada / distrato / vendida não contam. */
+const PROP_CORR_PRAZO_H = 24;
+function propDataBR(t){
+  const m=String(t||"").match(/(\d{2})\/(\d{2})\/(\d{4})(?:[ ,]+(\d{1,2}):(\d{2}))?/);
+  if(m) return new Date(+m[3], +m[2]-1, +m[1], +(m[4]||0), +(m[5]||0)).getTime();
+  const d=new Date(t); return isNaN(d) ? 0 : d.getTime();
+}
+function propCorrEnvio(p){
+  if(p.comCredito) return null;
+  const linhas=String(p.envioCorrespondente||"").split(/\n+/).map(t=>t.trim()).filter(Boolean)
+    .filter(l=>!/c[oó]pia ao corretor/i.test(l) && /^(.+?) · (.+?) \(([^)]+@[^)]+)\)/.test(l));
+  if(!linhas.length) return {enviado:false};
+  const primeira=linhas[linhas.length-1], m=primeira.match(/^(.+?) · (.+?) \(/);
+  const t0=propDataBR(m[1]);
+  const nomes=[...new Set(linhas.map(l=>(l.match(/^(.+?) · (.+?) \(/)||[])[2]).filter(Boolean).map(x=>x.trim()))];
+  return {enviado:true, t0, nomes, horas: t0 ? (Date.now()-t0)/3600000 : null};
+}
+function propCorrAtivo(p){ return !["NEGADA","DISTRATO","VENDIDA"].includes(PROP_NORM(p.status)); }
+function propCorrVencida(p){
+  const e=propCorrEnvio(p); return !!(e && e.enviado && e.horas!=null && e.horas>PROP_CORR_PRAZO_H && propCorrAtivo(p));
+}
+function propHorasTxt(h){ h=Math.max(0,h); const d=Math.floor(h/24), r=Math.floor(h%24); return d ? d+"d "+r+"h" : Math.floor(h)+"h"+String(Math.floor((h%1)*60)).padStart(2,"0"); }
+function propCorrCelula(p){
+  const e=propCorrEnvio(p); if(!e) return "";
+  if(!e.enviado) return '<div style="font-size:10.5px;font-weight:800;color:#9A6A00;margin-top:3px;white-space:nowrap">✉ não enviada ao correspondente</div>';
+  const quem=esc(e.nomes.join(" / "));
+  if(e.horas==null) return '<div style="font-size:10.5px;font-weight:800;color:#1F6FB2;margin-top:3px;white-space:nowrap">📤 '+quem+'</div>';
+  const ativo=propCorrAtivo(p), venc=ativo && e.horas>PROP_CORR_PRAZO_H;
+  const txt = !ativo ? "enviada há "+propHorasTxt(e.horas)
+    : (venc ? "⚠ "+propHorasTxt(e.horas)+" sem retorno (prazo 24h)" : "⏱ "+propHorasTxt(e.horas)+" · faltam "+propHorasTxt(PROP_CORR_PRAZO_H-e.horas));
+  return '<div class="prop-corr-t" data-t0="'+e.t0+'" data-ativo="'+(ativo?1:0)+'" style="font-size:10.5px;font-weight:800;margin-top:3px;white-space:nowrap;'+
+    (venc?'color:#fff;background:#C0392B;border-radius:6px;padding:1px 6px;display:inline-block':'color:#1F6FB2')+'">📤 '+quem+' · <span>'+txt+'</span></div>';
+}
+/* relógio: atualiza os contadores da lista a cada minuto (sem redesenhar a tabela) */
+setInterval(function(){
+  document.querySelectorAll(".prop-corr-t").forEach(function(el){
+    const t0=+el.dataset.t0; if(!t0 || el.dataset.ativo!=="1") return;
+    const h=(Date.now()-t0)/3600000, venc=h>PROP_CORR_PRAZO_H, sp=el.querySelector("span");
+    if(sp) sp.textContent = venc ? "⚠ "+propHorasTxt(h)+" sem retorno (prazo 24h)" : "⏱ "+propHorasTxt(h)+" · faltam "+propHorasTxt(PROP_CORR_PRAZO_H-h);
+    if(venc){ el.style.color="#fff"; el.style.background="#C0392B"; el.style.borderRadius="6px"; el.style.padding="1px 6px"; el.style.display="inline-block"; }
+  });
+}, 60000);
 function propAlerta24(){
   const el=document.getElementById("prop-alerta24"); if(!el) return;
   const vencidas=PROPS.filter(propVencida);
-  if(!vencidas.length){ el.classList.add("hide"); return; }
+  const corr=PROPS.filter(propCorrVencida);   // 28/10 — sem carta: correspondente passou de 24 h
+  if(!vencidas.length && !corr.length){ el.classList.add("hide"); return; }
   el.classList.remove("hide");
-  el.innerHTML = "<b>"+vencidas.length+" proposta(s) reservada(s) há mais de 24 horas.</b><br>" +
+  el.innerHTML = (vencidas.length ? "<b>"+vencidas.length+" proposta(s) reservada(s) há mais de 24 horas.</b><br>" +
     vencidas.map(p=>"Un. "+esc(String(p.unidade||"—"))+" · "+esc(p.cliente||"—")+
-      " · "+Math.floor(propHorasReservada(p))+" h").join("<br>");
+      " · "+Math.floor(propHorasReservada(p))+" h").join("<br>") : "") +
+    (corr.length ? (vencidas.length?"<br><br>":"")+"<b>"+corr.length+" proposta(s) SEM CARTA enviada(s) ao correspondente há mais de 24 horas.</b><br>" +
+    corr.map(p=>{ const e=propCorrEnvio(p); return "Un. "+esc(String(p.unidade||"—"))+" · "+esc(p.cliente||"—")+" · "+esc(e.nomes.join(" / "))+" · "+propHorasTxt(e.horas); }).join("<br>") : "");
 }
 
 /* ---------- lista ---------- */
@@ -2372,10 +2421,11 @@ function propRender(){
   vis.sort((a,b)=> propOrdem==="desc" ? tempo(b)-tempo(a) : tempo(a)-tempo(b));
   /* estilo do editor injetado uma vez */
   propEstiloEditor();
-  const cab='<thead><tr><th>Proposta</th><th>Unidade</th><th>Cliente</th><th>CPF</th>'+
-            '<th>Corretor</th><th>Imobiliária</th><th>Crédito Caixa</th>'+
+  /* 28/10 — crédito, valores e sinal logo depois da unidade */
+  const cab='<thead><tr><th>Proposta</th><th>Unidade</th><th>Crédito Caixa</th>'+
             '<th class="col-num">Valor</th><th class="col-num">Entrada</th>'+
             '<th class="col-num">Renda</th><th>Sinal</th>'+
+            '<th>Cliente</th><th>CPF</th><th>Corretor</th><th>Imobiliária</th>'+
             '<th style="cursor:pointer" title="Clique para inverter a ordem" onclick="propOrdenar(propOrdem===\'asc\'?\'desc\':\'asc\')">'+
             'Criada <span class="arr">'+(propOrdem==="desc"?"▼":"▲")+'</span></th><th>Status</th></tr></thead>';
   if(!vis.length){
@@ -2391,15 +2441,15 @@ function propRender(){
     return `<tr class="clicavel${res?' linha-res':''}"${estilo}${res?' title="Enviada com a unidade já reservada — só é analisada se houver desistência"':''} onclick="propVer('${p.id}')">
       <td><b>${esc(p.proposta||"—")}</b></td>
       <td>Un. ${esc(String(p.unidade||"—"))}${propSeloInterno(p.unidade)}</td>
-      <td>${esc(p.cliente||"—")}</td><td class="col-un">${esc(p.cpf||"—")}</td>
-      <td>${esc(p.vendedor||"—")}</td><td>${esc(p.imobiliaria||"—")}</td>
       <td>${p.comCredito
             ? '<span class="pill bom">APROVADO</span>'
-            : '<span class="pill ruim">SEM CARTA</span>'}</td>
+            : '<span class="pill ruim">SEM CARTA</span>'+propCorrCelula(p)}</td>
       <td class="num">${p.creditoAprovado?simBRL(p.creditoAprovado):"—"}</td>
       <td class="num">${p.valorEntrada?simBRL(p.valorEntrada):"—"}</td>
       <td class="num">${p.rendaTotal?simBRL(p.rendaTotal):"—"}</td>
       <td>${propPillSinais(p)}</td>
+      <td>${esc(p.cliente||"—")}</td><td class="col-un">${esc(p.cpf||"—")}</td>
+      <td>${esc(p.vendedor||"—")}</td><td>${esc(p.imobiliaria||"—")}</td>
       <td>${simData(p.criadoEm)}</td>
       <td>${propTag(p.status)}${venc?' <span style="color:#C0392B;font-weight:700">+24h</span>':''}</td></tr>`;
   }).join("");
