@@ -61,9 +61,10 @@ function ctrTitulo_(props) {
 /* Página da casa na VENDAS ou, desde a entrega 7, a própria linha da BANCO DE DADOS VENDAS
  * CONDOMÍNIO (DB_VENDAS_COND) — essa vira a "página de venda virtual" do CondominioVenda:
  * mesmas colunas que a VENDAS teria, e o retorno gravado nas colunas da própria linha. */
-function ctrLerPaginaVenda_(pageId) {
+function ctrLerPaginaVenda_(pageId, info) {
   var pg = notion_("GET", "/pages/" + pageId, null);
   var dbAtual = vendaBaseDaPagina_(pg);
+  if (info) info.base = dbAtual;
   if (dbAtual === "VENDAS") return pg;
   if (dbAtual === "CONDOMINIO")
     return CondominioVenda.paginaVirtual(pg, pageId, ContratoVenda.TIPOS, [ContratoVenda.COL.CONTRATO_GERADO], CTR_GARANTIR_COND);
@@ -233,6 +234,16 @@ function ctrLerCondominio_(idCond) {
   return { c: ctrPorChave_(pg.properties || {}) };
 }
 /* Fluxo, fiadores, unidade e corretor da linha do condomínio (nomes de coluna comparados normalizados). */
+/* 27/10: VALOR PARA ENTRADA da proposta (o simulador abate o sinal com ele, na ordem ato → 30 → 60 → 90).
+   Sem proposta legível: null (o contrato diz "por PIX"). */
+function ctrValorParaEntrada_(idProposta) {
+  if (!/^[0-9a-f-]{32,36}$/i.test(String(idProposta || ""))) return null;
+  try {
+    var pp = notion_("GET", "/pages/" + idProposta, null);
+    var x = pp && pp.properties ? ctrCampo_(ctrPorChave_(pp.properties), "VALOR PARA ENTRADA") : null;
+    return x === null || x === undefined ? null : ctrNum_(x);
+  } catch (e) { ctrErro_("valor para entrada da proposta", e); return null; }
+}
 function ctrDadosCondominio_(c) {
   function k(nome) { return ctrCampo_(c, nome); }
   function n(nome) { return ctrNum_(k(nome)); }
@@ -258,13 +269,21 @@ function ctrDadosCondominio_(c) {
         posN: n("Nº PARCELAS PÓS CHAVES"), posValor: n("VALOR PÓS CHAVES"), posData: t("DATA PÓS CHAVES"),
         credito: n("VALOR DO CRÉDITO"), fgts: n("VALOR DO FGTS"), subsidio: n("SUBISÍDIO")
       },
-      fiadores: [fiador(1), fiador(2)]
+      fiadores: [fiador(1), fiador(2)],
+      /* quadro-resumo (21/10): a comissão gravada pelo simulador; vazia, o contrato calcula pela regra */
+      comissao: n("COMISSÃO"),
+      /* 27/10: termo de pré-reserva ASSINADO = o valor dele já foi pago e é abatido do sinal (dono) */
+      /* 27/10 (dono): sinal "por PIX ou abatimento" — o abatimento é o VALOR PARA ENTRADA da proposta (ctrFontes_) */
+      idProposta: t("ID PROPOSTA"),
+      preReserva: { assinado: t("PRÉ-RESERVA - SITUAÇÃO").toUpperCase() === "ASSINADO",
+                    valor: typeof PreReservaVenda !== "undefined" ? PreReservaVenda.valorDe(prop_("PRE_RESERVA_VALOR")) : null }
     },
     /* o imóvel do condomínio mora na linha do condomínio; a casa só completa o que faltar */
     imovel: { MATRICULA_INDIVIDUAL: t("CONTRATO - MATRÍCULA INDIVIDUAL"), CRI: t("CONTRATO - CRI DA MATRÍCULA"),
               ALVARA_NUMERO: t("CONTRATO - ALVARÁ Nº"), ALVARA_DATA: t("CONTRATO - ALVARÁ DATA"),
               PRAZO_CONCLUSAO: t("CONTRATO - PRAZO DE CONCLUSÃO DAS OBRAS"), CONDICOES_ESPECIAIS: t("CONTRATO - CONDIÇÕES ESPECIAIS") },
-    corretor: { nome: t("CORRETOR"), creci: t("CRECI"), cpfCnpj: t("CPF CORRETOR"), email: t("EMAIL CORRETOR") }
+    corretor: { nome: t("CORRETOR"), creci: t("CRECI"), cpfCnpj: t("CPF CORRETOR"), email: t("EMAIL CORRETOR"),
+                telefone: t("CELULAR CORRETOR") }
   };
 }
 
@@ -299,9 +318,11 @@ function ctrFontes_(col, pageId) {
   var venda = {
     CLIENTES: dos(C.CLIENTES), CPF: dos(C.CPF1), ENDERECO: ctrTitulo_(pg.properties),
     COMPRADOR1: { nacionalidade: dos(C.C1_NAC), estadoCivil: dos(C.C1_ESTCIV), profissao: dos(C.C1_PROF),
-                  documento: dos(C.C1_DOC), endereco: dos(C.C1_END), email: ctrTxt_(cv("Email")) },
+                  documento: dos(C.C1_DOC), endereco: dos(C.C1_END), email: ctrTxt_(cv("Email")),
+                  telefone: ctrTxt_(cv("Nº Whatsapp")) /* só o contrato do condomínio usa */ },
     COMPRADOR2: { nome: dos(C.C2_NOME), cpf: dos(C.C2_CPF), nacionalidade: dos(C.C2_NAC), estadoCivil: dos(C.C2_ESTCIV),
-                  profissao: dos(C.C2_PROF), documento: dos(C.C2_DOC), endereco: dos(C.C2_END), email: dos(C.C2_EMAIL) },
+                  profissao: dos(C.C2_PROF), documento: dos(C.C2_DOC), endereco: dos(C.C2_END), email: dos(C.C2_EMAIL),
+                  telefone: ctrTxt_(cv(C.C2_TEL)) },
     ALVARA_NUMERO: cv(CV.ALVARA_NUMERO), ALVARA_DATA: cv(CV.ALVARA_DATA), HABITESE_NUMERO: cv(CV.HABITESE_NUMERO),
     /* entrega 14: opcionais (cv: coluna que não existe = vazio); preenchidas, valem antes da obra e do setor */
     HABITESE_DATA: cv(CV.HABITESE_DATA), DENOMINACAO_LOTEAMENTO: ctrTxt_(cv(CV.DENOMINACAO_LOTEAMENTO)),
@@ -326,12 +347,20 @@ function ctrFontes_(col, pageId) {
     var lido = pg.propsCondominio ? { c: ctrPorChave_(pg.propsCondominio) } : ctrLerCondominio_(idCond);
     if (lido.erro) return { condominioErro: lido.erro };
     cond = ctrDadosCondominio_(lido.c);
+    cond.condominio.valorParaEntrada = ctrValorParaEntrada_(cond.condominio.idProposta);
     for (var campo in cond.imovel) if (cond.imovel[campo]) venda[campo] = cond.imovel[campo];
   }
 
   /* a obra: relação OBRA-AUTO se aponta para DOCUMENTOS; senão, pelo ENDEREÇO (título) */
   var obraAuto = ctrLerObraAuto_(cv("OBRA-AUTO"));
   var props = ctrObraProps_(cv("OBRA-AUTO"), venda.ENDERECO, obraAuto);
+  /* 28/10: o condomínio não precisa de linha na DOCUMENTOS (criar uma "obra" lá dispara os alertas de
+     documentos): do cadastro da obra o contrato do condomínio só usa a vendedora, que vem da Propriedade
+     CONDOMINIO_VENDEDOR (o nome como está em VENDEDORES – CONTRATO). */
+  if (!props && cond && String(prop_("CONDOMINIO_VENDEDOR") || "").trim()) {
+    props = {};
+    props["PROPRIETARIO DOCUMENTO"] = { type: "rich_text", rich_text: [{ plain_text: String(prop_("CONDOMINIO_VENDEDOR")).trim() }] };
+  }
   if (!props) return { obraNaoEncontrada: true };
   if (props.ambigua === true) return { obraAmbigua: true };
   var op = ctrPorChave_(props);
@@ -363,7 +392,8 @@ function ctrFontes_(col, pageId) {
   } : null;
   /* entrega 12: a "Conta de recebimento" escolhida (ou digitada) para ESTA venda vale antes de tudo.
      Conta escolhida que sumiu da CONTAS BANCÁRIAS vira falta — nunca troca sozinha por outra conta. */
-  var contaErro = "", escolha = vendedor ? ctrLerContaReceb_(pageId) : null, usouEscolha = false;
+  /* 27/10 (dono): no condomínio a conta é sempre a mesma e já está escrita no modelo (item 4.5) — escolha não vale */
+  var contaErro = "", escolha = vendedor && !cond ? ctrLerContaReceb_(pageId) : null, usouEscolha = false;
   if (escolha) {
     var de = escolha.contaId ? ctrDadosDaConta_(escolha.contaId) : escolha.digitada;
     if (de && (de.banco || de.conta)) {
@@ -395,13 +425,16 @@ function ctrFontes_(col, pageId) {
   if (cond && cond.corretor.nome) {
     var kc = cond.corretor, base = corretor || {};
     corretor = { nome: kc.nome, creci: kc.creci || base.creci || "", cpfCnpj: kc.cpfCnpj || base.cpfCnpj || "",
-                 nacionalidade: base.nacionalidade || "", endereco: base.endereco || "", email: kc.email || base.email || "" };
+                 nacionalidade: base.nacionalidade || "", endereco: base.endereco || "", email: kc.email || base.email || "",
+                 telefone: kc.telefone || "" };
   }
 
   return {
     fontes: { venda: venda, obra: obra, vendedor: vendedor, loteamento: loteamento, corretor: corretor,
               condominio: cond ? cond.condominio : null,
-              hojeISO: hoje_("yyyy-MM-dd"), cidadeAssinatura: prop_("CIDADE_ASSINATURA") || "Goiânia" },
+              hojeISO: hoje_("yyyy-MM-dd"), cidadeAssinatura: prop_("CIDADE_ASSINATURA") || "Goiânia",
+              /* condomínio, item 4.2.1 g): vazio = "boleto bancário ou PIX" */
+              meioPagamento: prop_("MEIO_PAGAMENTO_CONDOMINIO") || "" },
     endereco: venda.ENDERECO, casa: ctrTxt_(cv("CASA")), colGerado: nomeReal(CV.CONTRATO_GERADO),
     contaErro: contaErro, usouEscolha: usouEscolha,
     /* entrega 12: onde o formulário grava (linhas achadas) e com que nome/chave cria a que falta */
@@ -617,7 +650,7 @@ function verPreContrato_(col, p) {
 }
 
 function contratoEstado_(col, p) {
-  var a = ctrArquivoGerado_(ctrLerPaginaVenda_(p.pageId)), pre = ctrLerPre_(p.pageId);
+  var info = {}, a = ctrArquivoGerado_(ctrLerPaginaVenda_(p.pageId, info)), pre = ctrLerPre_(p.pageId);
   /* PRE: há pré-contrato ainda não conferido (mesmo que exista um contrato final antigo) */
   var etapa = pre && !pre.conferidoEm ? "PRE" : a ? "FINAL" : "NENHUM";
   var r = { ok: true, gerado: !!a, etapa: etapa, pre: null };
@@ -628,7 +661,8 @@ function contratoEstado_(col, p) {
   }
   if (a) { r.nome = a.nome; r.url = a.url; }
   /* entrega 12: lista de contas (só id e título), a escolha desta venda e a da obra */
-  try { r.conta = contaRecebEstado_(p.pageId); } catch (e) { ctrErro_("contratoEstado conta", e); }
+  if (info.base === "CONDOMINIO") r.conta = { fixa: ctrContaFixaCondominio_() };
+  else try { r.conta = contaRecebEstado_(p.pageId); } catch (e) { ctrErro_("contratoEstado conta", e); }
   if (pre) {
     r.pre = { nome: ctrTxt_(pre.nome), url: ctrTxt_(pre.url), em: ctrTxt_(pre.em), conferido: !!pre.conferidoEm };
     if (etapa === "PRE") r.pre.desatualizado = ctrPreDesatualizado_(col, p, pre);
@@ -864,8 +898,26 @@ function ctrGravarContaReceb_(pageId, valor) {
   else ps.setProperty(k, JSON.stringify(valor));
 }
 /* Ação "escolherContaRecebimento": p.conta = { id } | { banco, agencia, conta, pix } | {} (volta ao padrão). */
+/* 27/10 (dono): a conta do condomínio é fixa — o texto do item 4.5 do próprio modelo (nada de dado
+   bancário no repositório). Sem o modelo legível, uma frase genérica. */
+function ctrContaFixaCondominio_() {
+  var padrao = "a conta fixa do condomínio, escrita no item 4.5 do contrato";
+  try {
+    var id = prop_("MODELO_CONDOMINIO_ID");
+    if (!id) return padrao;
+    var ps = DocumentApp.openById(id).getBody().getParagraphs();
+    for (var i = 0; i < ps.length; i++) {
+      var s = ctrTxt_(ps[i].getText()).trim();
+      if (/^4\.5\.?\s*Dados banc/i.test(s)) return s.replace(/^4\.5\.?\s*/, "");
+    }
+  } catch (e) { ctrErro_("conta fixa do condominio", e); }
+  return padrao;
+}
+
 function escolherContaRecebimento_(col, sess, p) {
-  ctrLerPaginaVenda_(p.pageId);   // mesma checagem de base das outras ações
+  var info = {};
+  ctrLerPaginaVenda_(p.pageId, info);   // mesma checagem de base das outras ações
+  if (info.base === "CONDOMINIO") return { ok: false, erro: "CONTA_FIXA_CONDOMINIO" };
   var c = ctrConferirContaReceb_(p.conta);
   if (!c.ok) return c.erros ? { ok: false, erro: c.erro, erros: c.erros } : { ok: false, erro: c.erro };
   ctrGravarContaReceb_(p.pageId, c.valor);

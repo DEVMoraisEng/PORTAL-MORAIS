@@ -129,10 +129,11 @@ test("envio feliz: ordem das chamadas, cabeçalhos e corpos; grava envelope e EN
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.equal(r.situacao, "ENVIADO");
   const pend = { assinou: false, situacao: "pendente", data: "" };
-  assert.deepEqual(r.signatarios, [
+  assert.ok(r.signatarios.every((s) => /@/.test(s.email)), "27/10: cada um com o e-mail para onde foi");
+  assert.deepEqual(r.signatarios.map(({ email, ...s }) => s), [
     Object.assign({ papel: "Comprador 1", nome: "Fulano T." }, pend), Object.assign({ papel: "Vendedor (representante)", nome: "Beltrano R." }, pend),
     Object.assign({ papel: "Testemunha 1", nome: "Testemunha S." }, pend), Object.assign({ papel: "Testemunha 2", nome: "Testemunha S." }, pend)]);
-  assert.ok(!JSON.stringify(r).includes("@"), "resposta com e-mail");
+  assert.ok(!JSON.stringify({ ...r, signatarios: r.signatarios.map(({ email, ...s }) => s) }).includes("@"), "e-mail fora do campo email");
   assert.deepEqual(csCalls(c), [
     "POST /envelopes", "POST /envelopes/env-1/documents",
     "POST /envelopes/env-1/signers", "POST /envelopes/env-1/signers", "POST /envelopes/env-1/signers", "POST /envelopes/env-1/signers",
@@ -483,17 +484,19 @@ test("estado sem envelope: situação vazia e nenhuma chamada à Clicksign", () 
   assert.equal(c.c.chamadas.length, 0);
 });
 
-test("estado em andamento: quem já assinou (evento sign) com a data, nome mascarado, sem e-mail na resposta", () => {
+test("estado em andamento: quem já assinou (evento sign) com a data, nome mascarado, e-mail só no campo email de cada um (27/10)", () => {
   const c = cenario({ cs: { eventos: [{ type: "events", attributes: { name: "sign", created: "2026-10-07T10:20:30.000-03:00",
                                                                      data: { signer: { email: "FULANO@teste.example" } } } }] } });
   assert.equal(c.enviar().ok, true);
   const r = c.estado();
   const pend = { assinou: false, situacao: "pendente", data: "" };
-  assert.deepEqual(r, { ok: true, situacao: "ENVIADO", envelope: true, temAssinado: false, signatarios: [
+  assert.ok(r.signatarios.every((s) => /@/.test(s.email)));
+  assert.deepEqual({ ...r, signatarios: r.signatarios.map(({ email, ...s }) => s) }, { ok: true, situacao: "ENVIADO", envelope: true, temAssinado: false, signatarios: [
     { papel: "Comprador 1", nome: "Fulano T.", assinou: true, situacao: "assinou", data: "2026-10-07T10:20:30.000-03:00" },
     Object.assign({ papel: "Vendedor (representante)", nome: "Beltrano R." }, pend),
     Object.assign({ papel: "Testemunha 1", nome: "Testemunha S." }, pend), Object.assign({ papel: "Testemunha 2", nome: "Testemunha S." }, pend)] });
-  assert.ok(!JSON.stringify(r).includes("@") && !JSON.stringify(r).includes("Fulano de Teste"), "resposta com e-mail ou nome inteiro");
+  const semEmail = JSON.stringify({ ...r, signatarios: r.signatarios.map(({ email, ...s }) => s) });
+  assert.ok(!semEmail.includes("@") && !JSON.stringify(r).includes("Fulano de Teste"), "e-mail fora do campo email ou nome inteiro");
   assert.equal(c.c.estado.baixados, 0);
   assert.deepEqual(c.n.pagina.properties["CONTRATO ASSINADO"].files, []);
 });
@@ -685,7 +688,7 @@ test("reenviar: avisa os pendentes pela rota de notificações, guarda a hora e 
   assert.deepEqual(corpo, { data: { type: "notifications", attributes: {} } });
   assert.match(c.p["ASSINATURA_REENVIO_env-1"], /^\d+$/);
   assert.equal(c.n.patches.length, patches, "reenviar gravou na casa");
-  assert.ok(!JSON.stringify(r).includes("@"));
+  assert.ok(!JSON.stringify({ ...r, signatarios: (r.signatarios || []).map(({ email, ...s }) => s) }).includes("@"));
   const todos = c.g.logs.join("\n");
   for (const s of PESSOAIS) assert.ok(!todos.includes(s), "log vazou: " + s);
   assert.match(todos, /reenviar 01234567 por ana\.teste: ok pendentes 3/);

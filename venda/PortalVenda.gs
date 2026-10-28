@@ -2,13 +2,14 @@
  * Projeto do Apps Script SEPARADO do PORTAL-LEITURA/ESCRITA: um upload do
  * Code.gs do portal não apaga este, e vice-versa.
  * Arquivos do projeto: RegrasVenda.gs, ClaudeLeitor.gs, OpenAILeitor.gs, ContratoVenda.gs,
- * PortalVenda.gs, GerarContrato.gs, CondominioVenda.gs, GerarVendaCondominio.gs, RecebimentoVenda.gs (entrega 14).
+ * PortalVenda.gs, GerarContrato.gs, CondominioVenda.gs, GerarVendaCondominio.gs, RecebimentoVenda.gs (entrega 14),
+ * UnidadesCondominio.gs, PreReservaVenda.gs e PreReserva.gs (27/10/2026: contrato final e termo de pré-reserva).
  * Propriedades do script: NOTION_TOKEN, SESSION_SECRET (os MESMOS do portal
  * daquele ambiente), DB_VENDAS, DB_VENDAS_COND (base das vendas do condomínio), PROVEDOR_IA (openai padrão | anthropic),
  * OPENAI_API_KEY (provedor openai), MODELO_IA (opcional, só openai),
  * ANTHROPIC_API_KEY (provedor anthropic, plano B).
  * Nenhum log com nome, CPF, endereço ou conteúdo de documento. */
-var VERSAO_VENDA = "venda-v8";   // v8: leitura em lote, certidão mãe e data do habite-se (entrega 13); v7: campos abertos e conta de recebimento no contrato (entrega 12); v6: documentos do imóvel lidos pela IA (entrega 11); v5: pré-contrato grifado (entrega 9)
+var VERSAO_VENDA = "venda-v9";   // v9: contrato final do condomínio, termo de pré-reserva e etapas da venda (27/10/2026); v8: leitura em lote, certidão mãe e data do habite-se (entrega 13); v7: campos abertos e conta de recebimento no contrato (entrega 12); v6: documentos do imóvel lidos pela IA (entrega 11); v5: pré-contrato grifado (entrega 9)
 var NOTION_VERSION = "2022-06-28";
 var ERROS_CONHECIDOS = /^(COLUNA_FALTANDO|TIPO_DE_COLUNA_ERRADO|BACKEND_SEM_CONFIG|PAGINA_DE_OUTRA_BASE)/;
 var REGEX_PAGE_ID = /^[0-9a-f]{32}$|^[0-9a-f-]{36}$/i;
@@ -36,7 +37,7 @@ function tratar_(p) {
     if (!temAcessoVendas_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
     var grava = ["tipoCasa", "lerDocumento", "anexarDocumento", "soltarDocumento", "lerDocumentos", "copiarComprovante", "conferir", "devolver", "gerarContrato", "gerarPreContrato", "aprovarPreContrato", "escolherTestemunhas",
                  "salvarCamposContrato", "escolherContaRecebimento", "mcLancar", "assinaturaEnviar", "assinaturaEstado",
-                 "gerarVendaCondominio", "assinaturaReenviar",
+                 "gerarVendaCondominio", "assinaturaReenviar", "salvarContaPreReserva", "gerarTermoPreReserva",
                  "recebimentoConfirmar" /* entrega 14 */].indexOf(p.action) >= 0;
     if (grava && String(sess.t || "").toUpperCase() === "TESTES") return { ok: false, erro: "SEM_PERMISSAO_TESTES" };
     if (p.action !== "ping" && !REGEX_PAGE_ID.test(String(p.pageId || ""))) return { ok: false, erro: "PAGINA_INVALIDA" };
@@ -69,6 +70,11 @@ function tratar_(p) {
       case "gerarVendaCondominio": return gerarVendaCondominio_(col, sess, p);
       /* entrega 14: contrato assinado pelo portal e recebimentos (RecebimentoVenda.gs) */
       case "verContratoAssinado": return verContratoAssinado_(col, p);
+      /* 27/10/2026: Termo de Pré-Reserva (PreReserva.gs); a assinatura usa as ações acima com doc = "PRE_RESERVA" */
+      case "preReservaEstado": return preReservaEstado_(col, p);
+      case "salvarContaPreReserva": return salvarContaPreReserva_(col, sess, p);
+      case "gerarTermoPreReserva": return gerarTermoPreReserva_(col, sess, p);
+      case "verTermoPreReserva": return verTermoPreReserva_(col, p);
       case "recebimentoEstado": return recebimentoEstado_(col, p);
       case "recebimentoConfirmar": return recebimentoConfirmar_(col, sess, p);
       default: return { ok: false, erro: "ACAO_DESCONHECIDA" };

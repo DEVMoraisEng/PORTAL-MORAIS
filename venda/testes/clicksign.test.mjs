@@ -322,3 +322,12 @@ test("testemunhas: conferência da lista de opções (JSON ruim barra; pessoa ru
   assert.ok(c.avisos.some((a) => /OPCOES: pessoa 2 sem CPF/.test(a)));
   assert.doesNotMatch(c.avisos.join(" "), /@|Opcao/, "conferência não mostra nome nem e-mail");
 });
+
+test("27/10: falta de e-mail traz o atalho para a tela do portal (repetido aponta as duas pontas)", () => {
+  assert.deepEqual(CS.linksCorrigirEmail(["Vendedor (representante): e-mail repetido (igual ao de Comprador 1)"]), [
+    { quem: "comprador", rotulo: "Corrigir e-mail do comprador" },
+    { quem: "vendedor", rotulo: "Corrigir e-mail do vendedor/representante" }]);
+  assert.deepEqual(CS.linksCorrigirEmail(["Corretor: e-mail inválido"]).map((l) => l.quem), ["corretor"]);
+  assert.deepEqual(CS.linksCorrigirEmail(["Comprador 2: e-mail (coluna COMPRADOR 2 - E-MAIL)"]).map((l) => l.quem), ["comprador"]);
+  assert.deepEqual(CS.linksCorrigirEmail(["Comprador 1: CPF inválido", "Corretor: CRECI"]), []);
+});

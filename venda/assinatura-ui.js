@@ -112,23 +112,27 @@
     return MSG[e] || "Algo deu errado (" + e + ") — tente de novo.";
   }
 
+  function ehTermo(c) { return !!(c && c.doc === "PRE_RESERVA"); }
+  function pre(c) { return ehTermo(c) ? "p-" : "a-"; }
   function montarBlocoAssinatura(c) {
-    var h = '<div class="grp">Enviar contrato via Clicksign</div>';
+    var termo = ehTermo(c), x = pre(c);
+    var h = '<div class="grp">' + (termo ? "Enviar termo de pré-reserva via Clicksign" : "Enviar contrato via Clicksign") + "</div>";
     if (c.testes) h += '<div class="dz-aviso">Perfil TESTES não envia, não reenvia nem atualiza a assinatura.</div>';
     if (!c.estado) return h + '<div class="vazio">' + esc(c.msg || "carregando…") + "</div>";
     var e = c.estado, sit = situacaoDe(e);
     if (c.ocupado === "enviar") h += '<div class="dz-linha"><b>enviando… (até 1 minuto)</b></div>';
     if (c.ocupado === "atualizar") h += '<div class="dz-linha"><b>consultando…</b></div>';
     if (c.ocupado === "reenviar") h += '<div class="dz-linha"><b>reenviando…</b></div>';
-    if (c.ocupado === "ver") h += '<div class="dz-linha"><b>abrindo o contrato assinado…</b></div>';
-    if (!c.contratoGerado) h += '<div class="dz-aviso">Gere o contrato antes de enviar para assinatura.</div>';
+    if (c.ocupado === "ver") h += '<div class="dz-linha"><b>abrindo o ' + (termo ? "termo" : "contrato") + ' assinado…</b></div>';
+    if (!c.contratoGerado) h += '<div class="dz-aviso">Gere o ' + (termo ? "termo" : "contrato") + ' antes de enviar para assinatura.</div>';
     if (e.envelope) {
       h += '<div class="dz-linha"><span class="dz-rot">Situação: ' + esc(SITUACAO[sit] || sit || "sem situação gravada") + "</span></div>";
       var sigs = e.signatarios || [];
       if (sigs.length) {
         h += '<ul class="ass-lista">' + sigs.map(function (s) {
           var st = sitSignatario(s), rot = ROTULO_SIG[st] || ROTULO_SIG.pendente, d = dataCurta(s.data);
-          return "<li><span>" + esc(s.papel) + (s.nome ? " (" + esc(s.nome) + ")" : "") + "</span> " +
+          return "<li><span>" + esc(s.papel) + (s.nome ? " (" + esc(s.nome) + ")" : "") + "</span>" +
+            (s.email ? ' <span class="ass-data">&lt;' + esc(s.email) + "&gt;</span>" : "") + " " +
             '<b class="' + rot[0] + '">' + rot[1] + "</b>" + (d && st !== "pendente" ? ' <span class="ass-data">em ' + esc(d) + "</span>" : "") + "</li>";
         }).join("") + "</ul>";
       }
@@ -136,19 +140,27 @@
     if (c.faltas && c.faltas.length) {
       h += '<div class="dz-aviso">Para enviar, falta:</div><ul>' +
         c.faltas.map(function (f) { return "<li>" + esc(f) + "</li>"; }).join("") + "</ul>";
+      /* 27/10: atalho para corrigir o e-mail numa aba nova, na tela do portal; sem tela, só o aviso */
+      if (c.corrigir && c.corrigir.length)
+        h += '<div class="dz-linha">' + c.corrigir.map(function (l) {
+          if (/^vendas\.html\?[\w=&%.-]+$/.test(l.url || ""))
+            return '<a class="bt ghost bt-mini" target="_blank" rel="noopener" href="' + esc(l.url) + '">' + esc(l.rotulo) + " &#8599;</a>";
+          return '<span class="ass-data">' + esc(l.rotulo) + ": no cadastro de vendedores/corretores (ainda sem tela no portal)</span>";
+        }).join(" ") + ' <span class="ass-data">corrija na aba que abrir e clique em Enviar de novo</span></div>';
     }
     var rotulo = e.envelope && REENVIAVEL.indexOf(sit) >= 0 ? "Enviar de novo para assinatura" : "Enviar para assinatura";
-    h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="a-enviar"' + (podeEnviar(c) ? "" : " disabled") + ">" + rotulo + "</button>";
-    if (e.envelope) h += ' <button type="button" class="bt ghost bt-mini" data-acao="a-atualizar"' + (podeAtualizar(c) ? "" : " disabled") + ">Atualizar situação</button>";
+    h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="' + x + 'enviar"' + (podeEnviar(c) ? "" : " disabled") + ">" + rotulo + "</button>";
+    if (e.envelope) h += ' <button type="button" class="bt ghost bt-mini" data-acao="' + x + 'atualizar"' + (podeAtualizar(c) ? "" : " disabled") + ">Atualizar situação</button>";
     if (e.envelope && situacaoDe(e) === "ENVIADO" && pendentes(e))
-      h += ' <button type="button" class="bt ghost bt-mini" data-acao="a-reenviar"' + (podeReenviar(c) ? "" : " disabled") + ">Reenviar link de assinatura</button>";
+      h += ' <button type="button" class="bt ghost bt-mini" data-acao="' + x + 'reenviar"' + (podeReenviar(c) ? "" : " disabled") + ">Reenviar link de assinatura</button>";
     /* só leitura: o perfil TESTES também vê */
-    if (podeVerAssinado(c)) h += ' <button type="button" class="bt bt-mini" data-acao="a-ver-assinado"' + (c.ocupado ? " disabled" : "") + ">Ver contrato assinado</button>";
+    if (podeVerAssinado(c)) h += ' <button type="button" class="bt bt-mini" data-acao="' + x + 'ver-assinado"' + (c.ocupado ? " disabled" : "") + ">Ver " + (termo ? "termo" : "contrato") + " assinado</button>";
     h += "</div>";
     if (c.msg) h += '<div class="dz-msg">' + esc(c.msg) + "</div>";
     return h;
   }
 
+  function comDoc(c, payload) { if (ehTermo(c)) payload.doc = "PRE_RESERVA"; return payload; }
   function copia(c, mud) {
     var n = {};
     for (var k in c) n[k] = c[k];
@@ -160,20 +172,24 @@
    * pintar(ctx) opcional — chamado com o bloco ocupado antes de ir ao servidor }.
    * Devolve o contexto novo (não muda o recebido). */
   async function executarAcaoAssinatura(acao, c, deps) {
+    acao = String(acao || "").replace(/^p-/, "a-");   /* termo: mesmos cliques com prefixo p- */
     if (acao === "a-reenviar") return reenviarLink(c, deps);
     var enviar = acao === "a-enviar";
     if (enviar ? !podeEnviar(c) : (acao !== "a-atualizar" || !podeAtualizar(c))) return c;
-    if (enviar && !deps.confirmar("Enviar o contrato para assinatura? Cada signatário recebe um e-mail da Clicksign para assinar.")) return c;
-    if (typeof deps.pintar === "function") deps.pintar(copia(c, { ocupado: enviar ? "enviar" : "atualizar", msg: "", faltas: null }));
+    if (enviar && !deps.confirmar("Enviar o " + (ehTermo(c) ? "termo de pré-reserva" : "contrato") + " para assinatura? Cada signatário recebe um e-mail da Clicksign para assinar.")) return c;
+    if (typeof deps.pintar === "function") deps.pintar(copia(c, { ocupado: enviar ? "enviar" : "atualizar", msg: "", faltas: null, corrigir: null }));
     var r;
     try {
-      r = await deps.chamar({ action: enviar ? "assinaturaEnviar" : "assinaturaEstado", pageId: deps.pageId });
+      r = await deps.chamar(comDoc(c, { action: enviar ? "assinaturaEnviar" : "assinaturaEstado", pageId: deps.pageId }));
     } catch (err) {
       r = { ok: false, erro: "SEM_RESPOSTA" };
     }
     r = r || { ok: false, erro: "SEM_RESPOSTA" };
     if (!r.ok) {
-      var falhou = { ocupado: null, faltas: r.faltas || null, msg: mensagemAssinatura(r) };
+      var falhou = { ocupado: null, faltas: r.faltas || null, msg: mensagemAssinatura(r),
+                     corrigir: (r.corrigir || []).map(function (x) {
+                       return { rotulo: x.rotulo, url: typeof deps.linkCorrigir === "function" ? deps.linkCorrigir(x.quem) || "" : "" };
+                     }) };
       /* o envio deixou envelope na Clicksign (rascunho não apagado, ou ativo sem anotar), ou outra aba já
        * tinha enviado: o bloco passa a mostrar envelope — Enviar trava e Atualizar situação aparece */
       if (enviar && r.erro === "ENVELOPE_ABERTO")
@@ -184,7 +200,7 @@
     }
     var estado = { situacao: r.situacao || "", envelope: enviar ? true : !!r.envelope, signatarios: r.signatarios || [], temAssinado: !!r.temAssinado };
     var msg = mensagemAssinatura(r) || (enviar ? "Enviado — cada signatário recebe o e-mail da Clicksign." : "Situação atualizada.");
-    return copia(c, { estado: estado, ocupado: null, faltas: null, msg: msg });
+    return copia(c, { estado: estado, ocupado: null, faltas: null, corrigir: null, msg: msg });
   }
 
   /* Reenvia o e-mail da Clicksign a quem ainda não assinou (ação assinaturaReenviar). */
@@ -195,7 +211,7 @@
                         " de novo o e-mail da Clicksign.")) return c;
     if (typeof deps.pintar === "function") deps.pintar(copia(c, { ocupado: "reenviar", msg: "" }));
     var r;
-    try { r = await deps.chamar({ action: "assinaturaReenviar", pageId: deps.pageId }); }
+    try { r = await deps.chamar(comDoc(c, { action: "assinaturaReenviar", pageId: deps.pageId })); }
     catch (err) { r = { ok: false, erro: "SEM_RESPOSTA" }; }
     r = r || { ok: false, erro: "SEM_RESPOSTA" };
     var estado = c.estado;

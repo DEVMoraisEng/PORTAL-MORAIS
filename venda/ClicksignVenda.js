@@ -209,6 +209,17 @@ var ClicksignVenda = (function () {
     return faltas.concat(porPessoa);
   }
 
+  /* 27/10 (dono): falta de e-mail vem com o atalho para corrigir numa aba nova, na tela do PORTAL onde o
+   * e-mail mora (não no Notion). Devolve [{ quem, rotulo }] — quem: comprador | vendedor | corretor; a
+   * tela monta o endereço. E-mail repetido aponta as duas pontas. */
+  function linksCorrigirEmail(faltas) {
+    var t = (faltas || []).filter(function (f) { return /e-mail/i.test(f); }).join(" | "), l = [];
+    if (/(Comprador [12]|Pré-reservante)[^|]*e-mail|igual ao de (Comprador|Pré-reservante)/.test(t)) l.push({ quem: "comprador", rotulo: "Corrigir e-mail do comprador" });
+    if (/Vendedor[^|]*e-mail|igual ao de Vendedor/.test(t)) l.push({ quem: "vendedor", rotulo: "Corrigir e-mail do vendedor/representante" });
+    if (/Corretor[^|]*e-mail|igual ao de Corretor/.test(t)) l.push({ quem: "corretor", rotulo: "Corrigir e-mail do corretor" });
+    return l;
+  }
+
   /* ---- corpos JSON:API (v3) ---- */
   /* Entrega 14 — padrão do dono: "OBRA - COMPRADOR". OBRA = ENDEREÇO da casa + " CASA n" (quando a casa tem
    * número e o endereço ainda não diz essa casa); COMPRADOR = nome do comprador 1. O mesmo nome vai no
@@ -356,7 +367,7 @@ var ClicksignVenda = (function () {
 
   var api = {
     PAPEIS: PAPEIS, SITUACOES: SITUACOES, montarConfig: montarConfig, conferirConfig: conferirConfig, signatarios: signatarios,
-    faltasAssinatura: faltasAssinatura, nomeEnvelope: nomeEnvelope, nomeArquivo: nomeArquivo, nomePadrao: nomePadrao,
+    faltasAssinatura: faltasAssinatura, linksCorrigirEmail: linksCorrigirEmail, nomeEnvelope: nomeEnvelope, nomeArquivo: nomeArquivo, nomePadrao: nomePadrao,
     corpoEnvelope: corpoEnvelope, corpoDocumento: corpoDocumento, corpoSignatario: corpoSignatario,
     corpoQualificacao: corpoQualificacao, corpoAutenticacao: corpoAutenticacao, corpoAtivar: corpoAtivar,
     corpoNotificacao: corpoNotificacao, interpretar: interpretar, situacao: situacao, assinaram: assinaram,
