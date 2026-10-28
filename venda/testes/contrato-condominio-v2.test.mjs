@@ -205,3 +205,14 @@ test("27/10 (dono): meio de pagamento — sinal por PIX ou abatido pelo valor pa
     "sinal (item 4.1.3): R$ 4.000,00 (quatro mil reais) quitados com o valor para entrada informado na proposta, mantida sua natureza de sinal e princípio de pagamento, e R$ 6.000,00 (seis mil reais) por PIX; parcelas da entrada por boleto bancário");
   assert.equal(C.meioPagamentoCondominio({ fluxo: {} }), "parcelas da entrada por boleto bancário");
 });
+
+test("28/10: valor para entrada acima do sinal — o excedente fecha a soma e vai no 4.2.1 c) como pagamento na assinatura", () => {
+  const fl = { ...FLUXO, balao2Valor: FLUXO.balao2Valor - 1000 };           // o simulador tirou os R$ 1.000 do fluxo
+  const sem = dados({ condominio: { fluxo: fl } });
+  assert.ok(C.faltasContrato(sem).some((f) => /soma R\$ 304\.000,00 e não fecha/.test(f)), C.faltasContrato(sem).join(" | "));
+  const d = dados({ condominio: { fluxo: fl, valorParaEntrada: 11000 } });
+  assert.deepEqual(C.faltasContrato(d), []);
+  assert.match(C.marcadores(d).PARCELAS_PRE_CHAVES,
+    /^pagamento único de R\$ 1\.000,00 \(mil reais\), na assinatura deste contrato \(parte do valor para entrada informado na proposta que excede o sinal\); 10 parcelas/);
+  assert.equal(C.excedenteSinal({ fluxo: FLUXO, valorParaEntrada: 9000 }), 0, "abaixo do sinal não há excedente");
+});

@@ -338,6 +338,15 @@ var ContratoVenda = (function () {
 
   /* 4.2.1 g) (dono 27/10): sinal por PIX ou abatido (o VALOR PARA ENTRADA da proposta cobre o sinal na ordem
      ato → 30 → 60 → 90, como no simulador); parcelas da entrada por boleto bancário. */
+  /* 28/10 (teste no portal oficial): o VALOR PARA ENTRADA ("valor para o sinal") da proposta paga o sinal e o que
+     PASSA dele abate a entrada (simulador: "só o excedente abate"). Esse excedente não está em coluna nenhuma do
+     fluxo — sem ele a soma não fechava (11 mil para o sinal, sinal de 10 mil: faltava R$ 1.000). */
+  function excedenteSinal(co) {
+    var fl = co.fluxo || {}, s = 0;
+    [fl.sinalAto, fl.sinal30, fl.sinal60, fl.sinal90].forEach(function (v) { if (positivo(v)) s += v; });
+    var vpe = positivo(co.valorParaEntrada) ? co.valorParaEntrada : 0;
+    return so2(Math.max(0, vpe - s));
+  }
   function meioPagamentoCondominio(co) {
     var fl = co.fluxo || {}, s = 0;
     [fl.sinalAto, fl.sinal30, fl.sinal60, fl.sinal90].forEach(function (v) { if (positivo(v)) s += v; });
@@ -367,8 +376,11 @@ var ContratoVenda = (function () {
     return t.slice(0, -1).join(", ") + " e " + t[t.length - 1];
   }
   /* 4.2.1 c): a entrada começa depois do sinal — 1ª e 2ª parte e balões (os sinais ficam no 4.1.3) */
-  function parcelasPreChaves(fl) {
+  function parcelasPreChaves(fl, excedente) {
     var itens = [], total = 0;
+    /* o excedente do valor para entrada é pago na assinatura e abate o saldo da entrada (não é corrigido) */
+    var exc = positivo(excedente) ? "pagamento único de " + valorExtenso(excedente) + ", na assinatura deste contrato " +
+      "(parte do valor para entrada informado na proposta que excede o sinal)" : "";
     [[fl.pre1N, fl.pre1Valor, fl.pre1Data], [fl.pre2N, fl.pre2Valor, fl.pre2Data]].forEach(function (s) {
       if (!positivo(s[0]) || !positivo(s[1])) return;
       itens.push(mensais(s[0], s[1], s[2], fl.diaPagamento));
@@ -380,8 +392,8 @@ var ContratoVenda = (function () {
         " ou na data da entrega das chaves, o que ocorrer primeiro");
       total++;
     }
-    if (!itens.length) return "não há.";
-    return emLista(itens) + "; " + (total > 1 ? "todas corrigidas" : "corrigida") + " pelo INCC-M, nos termos do item 6.1.";
+    if (!itens.length) return exc ? exc + "." : "não há.";
+    return (exc ? exc + "; " : "") + emLista(itens) + "; " + (total > 1 ? "todas corrigidas" : "corrigida") + " pelo INCC-M, nos termos do item 6.1.";
   }
   /* 4.2.1 e) */
   function parcelasPosChaves(fl) {
@@ -681,7 +693,7 @@ var ContratoVenda = (function () {
     comData(fl.balao2Valor, fl.balao2Data, "balão da entrega das chaves");
     serie(fl.posN, fl.posValor, fl.posData, "pós-chaves");
     if (positivo(fl.valorVenda)) {
-      var soma = somaFluxo(fl);
+      var soma = so2(somaFluxo(fl) + excedenteSinal(co));
       if (Math.abs(soma - fl.valorVenda) > 0.05)
         faltas.push(g + ": soma R$ " + moedaBR(soma) + " e não fecha com o valor de venda R$ " + moedaBR(fl.valorVenda));
     }
@@ -912,7 +924,7 @@ var ContratoVenda = (function () {
     m.ENTRADA_TOTAL = moedaOuVazio(va.entrada);
     m.ENTRADA_PCT = va.entrada === null ? "" : pct2(va.entrada, va.preco);
     m.ENTRADA_SALDO = moedaOuVazio(va.saldoEntrada);
-    m.PARCELAS_PRE_CHAVES = parcelasPreChaves(fl);
+    m.PARCELAS_PRE_CHAVES = parcelasPreChaves(fl, excedenteSinal(co));
     m.PARCELAS_POS_CHAVES = parcelasPosChaves(fl);
     m.MEIO_PAGAMENTO = d.meioPagamento || MEIO_PAGAMENTO_PADRAO;
     m.FINANCIAMENTO_VALOR = moedaBR(va.financiamento);
@@ -1176,7 +1188,7 @@ var ContratoVenda = (function () {
     montarDadosContrato: montarDadosContrato, faltasContrato: faltasContrato,
     marcadores: marcadores, blocos: blocos, avisosContrato: avisosContrato,
     formaPagamentoCondominio: formaPagamentoCondominio, qualificacaoFiadores: qualificacaoFiadores,
-    comissaoPctPelaRegra: comissaoPctPelaRegra, qualificacaoQuadro: qualificacaoQuadro, valorExtenso: valorExtenso, meioPagamentoCondominio: meioPagamentoCondominio,
+    comissaoPctPelaRegra: comissaoPctPelaRegra, qualificacaoQuadro: qualificacaoQuadro, valorExtenso: valorExtenso, meioPagamentoCondominio: meioPagamentoCondominio, excedenteSinal: excedenteSinal,
     somaFluxo: function (fl) { return somaFluxo(fluxoCondominio(fl)); }, negritoDaLinha: negritoDaLinha,
     /* o traço do campo em branco (o pré-contrato grifa em vermelho claro) */
     EM_BRANCO: EM_BRANCO,
