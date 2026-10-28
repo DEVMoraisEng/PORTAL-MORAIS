@@ -3131,6 +3131,7 @@ function propVer(id){
       <div class="prop-dec ${PROP_NORM(p.status)?'tem-status':''}" style="display:flex;gap:9px;margin-top:8px;flex-wrap:wrap">
         <button class="bt az ${PROP_NORM(p.status)==='RESERVADA'?'atual':''}" onclick="propStatus('${p.id}','RESERVADA')">Reservar</button>
         <button class="bt vermelho ${PROP_NORM(p.status)==='NEGADA'?'atual':''}" onclick="propStatus('${p.id}','NEGADA')">Negar</button>
+        <button class="bt ${PROP_NORM(p.status)==='VENDIDA'?'atual':''}" style="background:#5B2A86;color:#fff" onclick="propStatus('${p.id}','VENDIDA')">Vendida</button>
       </div>
       <div id="prop-detAviso" class="sim-aviso" style="margin-top:8px"></div>
       <!-- 02/10 (item 10) -->
@@ -3139,7 +3140,7 @@ function propVer(id){
       <div style="font-size:12px;color:var(--text3);margin-top:6px">
         <b>Reservar</b> marca a unidade ${esc(String(p.unidade||""))} como RESERVADA no Notion
         (e ela fica azul no mapa de vendas). <b>Negar</b> devolve a unidade para NÃO.
-        A venda (vendida, pagou preferência, distrato) fica no <b>status interno</b> logo abaixo.
+        <b>Vendida</b> é o definitivo: muda a unidade para VENDIDA = SIM no mapa e preenche/revalida o BANCO DE DADOS VENDAS CONDOMÍNIO.
       </div>
     </div>
     ${propSIBloco(p)}
@@ -3807,7 +3808,8 @@ function propSincronizarTudo(){
  *                       arquivos), sai da base de vendas e a unidade volta a
  *                       DISPONÍVEL.
  * ------------------------------------------------------------------- */
-const PROP_SI=[["DISPONÍVEL","#1a6b40"],["RESERVADA","#1F6FB2"],["PAGOU PREFERÊNCIA","#7B4FA0"],["VENDIDA","#C0392B"],["DISTRATO","#6B5A45"]];
+/* 28/10: VENDIDA é só o definitivo (Decisão) e DISPONÍVEL volta sozinho no distrato */
+const PROP_SI=[["RESERVADA","#1F6FB2"],["PAGOU PREFERÊNCIA","#7B4FA0"],["DISTRATO","#6B5A45"]];
 function propSIAtual(p){
   let k=PROP_NORM(p.statusInterno||((p.dados||{}).statusInterno)||"");
   if(PROP_NORM(p.status)==="DISTRATO") k="DISTRATO";
@@ -3838,8 +3840,8 @@ function propSIBloco(p){
       <div id="prop-siAviso" class="sim-aviso" style="margin-top:8px"></div>
       <div style="font-size:12px;color:var(--text3);margin-top:6px">
         <b>Pagou preferência</b> já cria a linha no BANCO DE DADOS VENDAS CONDOMÍNIO (a unidade fica roxa no mapa interno).
-        <b>Vendida</b> marca a unidade como VENDIDA, revalida os dados da venda e avisa o corretor.
-        <b>Distrato</b> arquiva a venda e libera a unidade.
+        <b>Distrato</b> guarda a venda em DISTRATOS CONDOMÍNIO, tira do banco de vendas e a unidade volta a DISPONÍVEL.
+        O definitivo é o <b>Vendida</b> da Decisão, acima.
       </div>
     </div>`;
 }
