@@ -786,6 +786,8 @@ function gerarPreContrato_(col, sess, p) {
                             por: ctrTxt_(sess && sess.u) });
   if (antigo && antigo.arquivoId && antigo.arquivoId !== arq.getId()) apagarCopia_(antigo.arquivoId);
   var avisos = ContratoVenda.avisosContrato(prep.d);
+  /* 28/10: conferência dos documentos — só avisa (não trava) */
+  if (prep.d.condominio) { var av = confAviso_(p.pageId, prep.hash); if (av) avisos.push(av); }
   ctrLog_(rot + " " + pid + " ok " + (Date.now() - t0) + "ms" + (avisos.length ? "; em branco " + avisos.length : ""));
   return avisos.length ? { ok: true, nome: nome, url: url, avisos: avisos } : { ok: true, nome: nome, url: url };
 }

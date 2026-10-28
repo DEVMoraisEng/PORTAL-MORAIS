@@ -396,7 +396,7 @@ test("pré-contrato do condomínio: cada linha do 6.1 e da qualificação do fia
   const pre = c.g.chamar({ action: "gerarPreContrato", token: token(), pageId: PAGE });
   assert.equal(pre.ok, true, JSON.stringify(pre));
   assert.match(pre.nome, /^PRÉ-CONTRATO - CONDOMÍNIO RESERVA TESTE - CASA 13 - /);
-  assert.deepEqual(pre.avisos, ["Em branco no contrato: tipo e áreas da casa (casa fora da tabela do condomínio)"]);
+  assert.deepEqual(pre.avisos, ["Em branco no contrato: tipo e áreas da casa (casa fora da tabela do condomínio)", "Conferência dos documentos: não foi feita"]);
   const s = c.salvo();
   const amarelos = s.grifos.filter((x) => x.cor === "#FFF59D").map((x) => x.trecho);
   const vermelhos = s.grifos.filter((x) => x.cor === "#FFCDD2").map((x) => x.trecho);

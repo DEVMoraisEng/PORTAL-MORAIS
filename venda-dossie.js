@@ -1059,6 +1059,42 @@
     ["forma", "chave", "banco", "agencia", "conta", "tipo", "livre"].forEach(function (k) { c[k] = o[k] || ""; });
     return c;
   }
+  /* ---- 28/10/2026: Conferência dos documentos (Conferencia.gs) ----
+   * e = { feito, linhas, confirmados, em, por, atual } (conferenciaEstado); u = { ocupado, msg, testes }.
+   * Comandos: d-conferir, d-abrir-<i> (o documento pelo portal), d-ok-<i> ("Conferi, está certo"). */
+  var SIT_CONF = { ok: ["ass-ok", "✓ confere"], diverge: ["ass-recusou", "⚠ diverge"], ilegivel: ["ass-pend", "? ilegível"] };
+  function htmlConferencia(e, u) {
+    u = u || {};
+    var h = '<div class="grp">Conferência dos documentos</div>';
+    if (!e) return h + '<div class="vazio">' + esc(u.msg || "carregando…") + "</div>";
+    var trava = u.testes || !!u.ocupado, dis = trava ? " disabled" : "";
+    if (u.ocupado === "conferir") h += '<div class="dz-linha"><b>lendo os documentos pela IA… (até 1 minuto)</b></div>';
+    if (!e.feito) {
+      h += '<div class="dz-linha">Ainda não conferido. A IA lê os documentos anexados (identidade, comprovante de endereço, certidão, fiadores) e compara com o que vai no contrato.</div>';
+    } else {
+      var dq = new Date(e.em || ""), quando = isNaN(dq) ? "" : dq.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });   /* hora local, não UTC */
+      h += '<div class="dz-linha"><span class="dz-rot">Conferido em ' + esc(quando) + (e.por ? " por " + esc(e.por) : "") + "</span></div>";
+      if (!e.atual) h += '<div class="dz-aviso">Os dados mudaram depois desta conferência — confira de novo.</div>';
+      h += '<div style="overflow-x:auto"><table class="dz-tab" style="width:100%;border-collapse:collapse;font-size:13px">' +
+        "<tr><th>Pessoa · documento</th><th>Campo</th><th>No contrato</th><th>No documento</th><th>Situação</th></tr>" +
+        (e.linhas || []).map(function (l, i) {
+          var s = SIT_CONF[l.situacao] || SIT_CONF.ilegivel, conf = (e.confirmados || {})[i];
+          var acao = "";
+          if (l.situacao !== "ok") {
+            acao = conf ? '<div class="ass-data">conferido' + (conf.por ? " por " + esc(conf.por) : "") + "</div>"
+              : '<div style="margin-top:4px"><button type="button" class="bt ghost bt-mini" data-acao="d-abrir-' + i + '"' + dis + ">Abrir documento</button> " +
+                '<button type="button" class="bt bt-mini" data-acao="d-ok-' + i + '"' + dis + ">Conferi, está certo</button></div>";
+          }
+          return "<tr><td>" + esc(l.pessoa) + " · " + esc(l.documento) + "</td><td>" + esc(l.rotulo) + "</td><td>" + esc(l.esperado) +
+            "</td><td>" + (l.lido ? esc(l.lido) : '<span class="ass-data">' + esc(l.motivo || "não lido") + "</span>") +
+            '</td><td><b class="' + s[0] + '">' + s[1] + "</b>" + acao + "</td></tr>";
+        }).join("") + "</table></div>";
+    }
+    h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="d-conferir"' + dis + ">" +
+      (e.feito ? "Conferir de novo" : "Conferir documentos") + "</button></div>";
+    if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
+    return h;
+  }
   function htmlPreReserva(e, u) {
     u = u || {};
     var h = '<div class="grp">Termo de pré-reserva</div>';
@@ -1138,6 +1174,7 @@
     /* 27/10/2026: termo de pré-reserva (condomínio) */
     /* 28/10: soPR = só os blocos da pré-reserva (a janela do "Pagou preferência" na tela de propostas) */
     var soPR = !!(opts && opts.soPreReserva);
+    var estadoD = null, uiD = { ocupado: null, msg: "", testes: perfilTestes() };   /* 28/10: conferência dos documentos */
     var comPR = soPR || !!(opts && opts.preReserva), estadoP = null, uiP = { msg: "", faltas: null, ocupado: null, testes: perfilTestes() };
     var ctxP = novoCtxA(); ctxP.doc = "PRE_RESERVA";
     function vivo() { return !!ativo(eu); }
@@ -1168,7 +1205,8 @@
       guardarRascunho();
       guardarRascunhoR();
       if (soPR) { raiz.innerHTML = '<div class="vb-pr">' + htmlPreReserva(estadoP, uiP) + '</div><div class="vb-pr-ass">' + htmlAssPR() + "</div>"; return; }
-      raiz.innerHTML = (comPR ? '<div class="vb-pr">' + htmlPreReserva(estadoP, uiP) + '</div><div class="vb-pr-ass">' + htmlAssPR() + "</div>" : "") +
+      raiz.innerHTML = (comPR ? '<div class="vb-pr">' + htmlPreReserva(estadoP, uiP) + '</div><div class="vb-pr-ass">' + htmlAssPR() + "</div>" +
+                                 '<div class="vb-conf">' + htmlConferencia(estadoD, uiD) + "</div>" : "") +
         htmlContrato(estadoC, uiC) + '<div class="vb-ass">' + htmlAss() + "</div>" +
         (comRec ? '<div class="vb-rec">' + htmlRecebimentos(estadoR, uiR) + "</div>" : "") +
         '<div class="vb-mc">' + htmlMC(estadoM, uiM) + "</div>";
@@ -1253,6 +1291,55 @@
     function pintarP() {
       var w = dentro(".vb-pr"); if (w) { guardarContaPR(); w.innerHTML = htmlPreReserva(estadoP, uiP); }
       var a = dentro(".vb-pr-ass"); if (a) a.innerHTML = htmlAssPR();
+    }
+    function pintarD() { var w = dentro(".vb-conf"); if (w) w.innerHTML = htmlConferencia(estadoD, uiD); }
+    async function carregarConf() {
+      var r = await chamarVenda({ action: "conferenciaEstado", pageId: pageId }, 90000);
+      if (!vivo()) return;
+      if (r.ok) { estadoD = r; uiD.msg = ""; } else uiD.msg = mensagemContrato(r);
+      pintarD();
+    }
+    async function aoClicarConf(acao) {
+      if (uiD.ocupado) return;
+      if (acao === "d-conferir") {
+        uiD.ocupado = "conferir"; uiD.msg = ""; pintarD();
+        var r = await chamarVenda({ action: "conferirDocumentos", pageId: pageId }, 150000);
+        if (!vivo()) return;
+        uiD.ocupado = null;
+        if (r.ok) { estadoD = { feito: true, linhas: r.linhas, confirmados: r.confirmados || {}, em: r.em, por: "", atual: true }; }
+        else uiD.msg = r.erro === "FALTAM_DADOS" ? "Faltam dados: " + (r.faltas || []).join("; ") : mensagemContrato(r);
+        pintarD();
+        return;
+      }
+      var m = /^d-(abrir|ok)-(\d+)$/.exec(acao), i = m ? Number(m[2]) : -1, l = estadoD && estadoD.linhas && estadoD.linhas[i];
+      if (!l) return;
+      if (m[1] === "abrir") {
+        var w = window.open("about:blank", "_blank");
+        uiD.ocupado = "abrir"; pintarD();
+        var rv = await chamarVenda({ action: "verDocumentoConferencia", pageId: pageId, coluna: l.coluna }, 90000);
+        if (!vivo()) { if (w) { try { w.close(); } catch (e) {} } return; }
+        uiD.ocupado = null;
+        if (rv.ok && rv.base64) {
+          var bin = atob(rv.base64), bytes = new Uint8Array(bin.length);
+          for (var k = 0; k < bin.length; k++) bytes[k] = bin.charCodeAt(k);
+          var url = URL.createObjectURL(new Blob([bytes], { type: rv.mime || "application/pdf" }));
+          if (w) { try { w.opener = null; } catch (e) {} w.location.href = url; }
+          else uiD.msg = "O navegador bloqueou a janela — libere pop-ups para o portal e clique de novo.";
+          if (rv.total > 1) uiD.msg = "Este documento tem " + rv.total + " arquivos; abriu o último (o Notion mostra todos).";
+        } else {
+          if (w) { try { w.close(); } catch (e) {} }
+          uiD.msg = rv.erro === "SEM_ARQUIVO" ? "Não há arquivo anexado para este documento." : mensagemContrato(rv);
+        }
+        pintarD();
+        return;
+      }
+      if (!window.confirm("Você abriu o documento e confere que está certo (" + l.pessoa + " · " + l.rotulo + ")?")) return;
+      uiD.ocupado = "ok"; pintarD();
+      var ro = await chamarVenda({ action: "confirmarConferencia", pageId: pageId, indice: i });
+      if (!vivo()) return;
+      uiD.ocupado = null;
+      if (ro.ok) estadoD.confirmados = ro.confirmados; else uiD.msg = mensagemContrato(ro);
+      pintarD();
     }
     async function carregarPR() {
       var r = await chamarVenda({ action: "preReservaEstado", pageId: pageId });
@@ -1415,6 +1502,7 @@
       var acao = b.getAttribute("data-acao"), r, seq;
       if (/^mc-/.test(acao)) return aoClicarMC(acao);
       if (/^pr-/.test(acao)) return aoClicarPR(acao);
+      if (/^d-/.test(acao)) return aoClicarConf(acao);
       if (acao === "p-ver-assinado") return verAssinadoPR();
       if (/^p-/.test(acao)) return aoClicarAssPR(acao);
       if (acao === "a-ver-assinado") return verAssinado();
@@ -1630,6 +1718,7 @@
         return;
       }
       if (!estadoC) carregarContrato();
+      if (comPR && !estadoD) carregarConf();
       if (!estadoM) carregarMC();
       if (!ctxA.estado) carregarAss();
       if (comRec && !estadoR) carregarRec();
