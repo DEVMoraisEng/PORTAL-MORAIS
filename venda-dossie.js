@@ -407,10 +407,13 @@
     if (t) o.testemunhas = t;
     var c = contaDoEstado(r && r.conta);
     if (c) o.conta = c;
+    /* 28/10: termos de confissão de dívida gerados com o contrato (condomínio) */
+    if (r && Array.isArray(r.confissao)) o.confissao = r.confissao.map(function (x) { return { tipo: x.tipo === "POS" ? "POS" : "PRE", nome: String(x.nome || "") }; });
     return o;
   }
   /* entrega 12: "Conta de recebimento" — lista (id e título), a escolha desta venda e a conta da obra */
   function contaDoEstado(c) {
+    if (c && c.fixa) return { fixa: String(c.fixa) };   /* 28/10: condomínio — conta fixa do item 4.5 (antes sumia aqui) */
     if (!c || !Array.isArray(c.opcoes)) return null;
     var esc = c.escolhida, escolhida = null;
     if (esc && esc.id) escolhida = { id: String(esc.id) };
@@ -558,6 +561,10 @@
       h += '<div class="dz-linha"><span class="dz-rot">Contrato gerado: ' + esc(e.nome) + "</span>" +
         '<button type="button" class="bt bt-mini" data-acao="c-ver"' + dis + ">Visualizar</button> " +
         '<button type="button" class="bt ghost bt-mini" data-acao="c-pre"' + dis + ">Gerar de novo</button></div>";
+      (e.confissao || []).forEach(function (x) {
+        h += '<div class="dz-linha"><span class="dz-rot">Termo de confissão ' + (x.tipo === "POS" ? "pós-chaves" : "pré-chaves") + ": " + esc(x.nome) + "</span>" +
+          '<button type="button" class="bt ghost bt-mini" data-acao="c-ver-cfd-' + (x.tipo === "POS" ? "pos" : "pre") + '"' + dis + ">Visualizar</button></div>";
+      });
     } else {
       h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-pre"' + dis + ">Gerar pré-contrato</button></div>";
     }
@@ -1428,6 +1435,27 @@
         } else {
           if (w) { try { w.close(); } catch (e) {} }
           uiC.msg = r.ok ? "Ainda não há contrato gerado." : mensagemContrato(r);
+        }
+        pintar();
+        return;
+      }
+      if (acao === "c-ver-cfd-pre" || acao === "c-ver-cfd-pos") {
+        /* 28/10: termo de confissão — o PDF vem pelo portal, como o pré-contrato */
+        var wc = window.open("about:blank", "_blank");
+        uiC.ocupadoContrato = "ver"; uiC.msg = ""; pintar();
+        seq = ++seqC;
+        r = await chamarVenda({ action: "verConfissao", pageId: pageId, tipo: acao === "c-ver-cfd-pos" ? "POS" : "PRE" }, 90000);
+        if (seq !== seqC || !vivo()) { if (wc) { try { wc.close(); } catch (e) {} } return; }
+        uiC.ocupadoContrato = null;
+        if (r.ok && r.base64) {
+          var binC = atob(r.base64), bytesC = new Uint8Array(binC.length);
+          for (var j = 0; j < binC.length; j++) bytesC[j] = binC.charCodeAt(j);
+          var urlC = URL.createObjectURL(new Blob([bytesC], { type: "application/pdf" }));
+          if (wc) { try { wc.opener = null; } catch (e) {} wc.location.href = urlC; }
+          else uiC.msg = "O navegador bloqueou a janela — libere pop-ups para o portal e clique de novo.";
+        } else {
+          if (wc) { try { wc.close(); } catch (e) {} }
+          uiC.msg = mensagemContrato(r);
         }
         pintar();
         return;
