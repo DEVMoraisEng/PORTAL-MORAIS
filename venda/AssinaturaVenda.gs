@@ -534,6 +534,41 @@ function assReenviarTravado_(p, pid) {
   return { ok: true, situacao: sit, envelope: true, pendentes: pendentes, signatarios: lista };
 }
 
+/* ---- 29/10/2026: cancelar o envelope (pedido do dono) ----
+ * Só com envelope ativo (running). PATCH /envelopes/{id} com status "canceled" (ninguém mais assina; a
+ * Clicksign avisa os signatários) e depois o "Atualizar situação" de sempre grava CANCELADO na casa e limpa as
+ * Propriedades do envelope — daí o Enviar de novo fica liberado. Um por vez (LockService). */
+function assinaturaCancelar_(col, sess, p) {
+  var pid = String(p.pageId).slice(0, 8), S = ClicksignVenda.SITUACOES;
+  if (!prop_("CLICKSIGN_TOKEN")) return { ok: false, erro: "CLICKSIGN_SEM_TOKEN" };
+  if (!csBase_()) return { ok: false, erro: "CLICKSIGN_URL_INVALIDA" };
+  var trava = LockService.getScriptLock();
+  if (!trava.tryLock(10000)) { assLog_("cancelar " + pid + " ocupado"); return { ok: false, erro: "ASSINATURA_OCUPADA" }; }
+  var r = null;
+  try {
+    var doc = assDoc_(p), pg = ctrLerPaginaVenda_(p.pageId), cols = assColunas_(pg, doc);
+    var envId = prop_(ASS_PENDENTE + doc.chave + p.pageId) || assTexto_(pg, cols.ENVELOPE);
+    if (!envId) r = { ok: false, erro: "SEM_ENVELOPE" };
+    else {
+      var base = "/envelopes/" + encodeURIComponent(envId);
+      try {
+        var env = csPasso_("consultar envelope", "get", base);
+        if (env.status !== "running")
+          r = { ok: false, erro: "ENVELOPE_NAO_ATIVO", situacao: env.status === "draft" ? S.RASCUNHO : (env.status === "closed" ? S.ASSINADO : S.CANCELADO) };
+        else csPasso_("cancelar", "patch", base, ClicksignVenda.corpoCancelar(envId));
+      } catch (e) {
+        if (e.message !== "CLICKSIGN_FALHOU") throw e;
+        r = { ok: false, erro: "CLICKSIGN_FALHOU", passo: e.passo, http: e.http, detalhe: e.detalhe };
+      }
+    }
+  } finally { trava.releaseLock(); }
+  assLog_("cancelar " + pid + " por " + String((sess && sess.u) || "?") + ": " + (r ? r.erro : "ok"));
+  if (r) return r;
+  var est = assinaturaEstado_(col, p);   /* grava CANCELADO e limpa as Propriedades do envelope */
+  est.cancelou = true;
+  return est;
+}
+
 /* ---- entrega 14: "Ver contrato assinado" ----
  * O PDF vem pelo próprio PORTAL-VENDA (sessão de quem está logado no portal, com acesso a Vendas), como o
  * "Visualizar pré-contrato": o servidor baixa o último arquivo de CONTRATO ASSINADO do Notion e devolve em base64.

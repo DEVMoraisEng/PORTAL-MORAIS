@@ -665,6 +665,7 @@ function contratoEstado_(col, p) {
   if (info.base === "CONDOMINIO") {
     r.conta = { fixa: ctrContaFixaCondominio_() };
     try { var cf = cfdEstado_(pgE); if (cf) r.confissao = cf; } catch (e) { ctrErro_("contratoEstado confissao", e); }
+    try { r.condicoes = condEspEstado_(p.pageId, pgE); } catch (e) { ctrErro_("contratoEstado condicoes", e); }
   }
   else try { r.conta = contaRecebEstado_(p.pageId); } catch (e) { ctrErro_("contratoEstado conta", e); }
   if (pre) {
@@ -788,6 +789,9 @@ function gerarPreContrato_(col, sess, p) {
   var avisos = ContratoVenda.avisosContrato(prep.d);
   /* 28/10: conferência dos documentos — só avisa (não trava) */
   if (prep.d.condominio) { var av = confAviso_(p.pageId, prep.hash); if (av) avisos.push(av); }
+  /* 29/10: condições especiais desta venda — quem aprova vê antes de gerar o final */
+  if (prep.d.condominio && prep.d.imovel && ctrTxt_(prep.d.imovel.condicoesEspeciais).trim())
+    avisos.push("Condições especiais: este contrato tem texto próprio no item 16 do quadro-resumo — confira antes de aprovar");
   ctrLog_(rot + " " + pid + " ok " + (Date.now() - t0) + "ms" + (avisos.length ? "; em branco " + avisos.length : ""));
   return avisos.length ? { ok: true, nome: nome, url: url, avisos: avisos } : { ok: true, nome: nome, url: url };
 }
@@ -991,6 +995,66 @@ function ctrTiposDaBase_(dbId) {
     if (pr.type === "title") titulo = n;
   }
   return { tipos: t, titulo: titulo };
+}
+
+/* ---- 29/10/2026: CONDIÇÕES ESPECIAIS desta venda (item 16 do quadro-resumo do condomínio) ----
+ * Texto livre por venda na coluna "CONTRATO - CONDIÇÕES ESPECIAIS" da linha do condomínio; vazio = "Não há.".
+ * Quem gravou e quando ficam na Propriedade CONDESP_<página>. Mudar o texto muda o carimbo: o pré-contrato
+ * gerado antes fica desatualizado e é preciso gerar de novo. */
+var CONDESP_COL = "CONTRATO - CONDIÇÕES ESPECIAIS", CONDESP_MAX = 1900;
+function condEspEstado_(pageId, pg) {
+  var texto = ctrTxt_(ctrCampo_(ctrPorChave_(pg.properties), CONDESP_COL)).trim(), meta = {};
+  try { meta = JSON.parse(prop_("CONDESP_" + pageId) || "{}") || {}; } catch (e) { meta = {}; }
+  var tem = !!ctrPorChave_(pg.properties)[RegrasVenda.chave(CONDESP_COL)];
+  return { coluna: tem, texto: texto, por: ctrTxt_(meta.por), em: ctrTxt_(meta.em), max: CONDESP_MAX };
+}
+function salvarCondicoesEspeciais_(col, sess, p) {
+  var pid = String(p.pageId).slice(0, 8);
+  if (typeof p.texto !== "string") return { ok: false, erro: "CAMPOS_INVALIDOS", erros: ["Texto das condições especiais"] };
+  var texto = p.texto.replace(/\r/g, "").trim();
+  if (texto.length > CONDESP_MAX) return { ok: false, erro: "CAMPOS_INVALIDOS", erros: ["Condições especiais: até " + CONDESP_MAX + " caracteres"] };
+  var info = {}, pg = ctrLerPaginaVenda_(p.pageId, info);
+  if (info.base !== "CONDOMINIO") return { ok: false, erro: "SO_CONDOMINIO" };
+  var real = null;
+  for (var n in pg.properties) if (RegrasVenda.chave(n) === RegrasVenda.chave(CONDESP_COL)) real = n;
+  if (!real) return { ok: false, erro: "COLUNA_FALTANDO", coluna: CONDESP_COL };
+  var props = {};
+  props[real] = propNotion_("rich_text", texto);
+  notion_("PATCH", "/pages/" + p.pageId, { properties: props });
+  var meta = { por: ctrTxt_(sess && sess.u), em: new Date().toISOString() };
+  PropertiesService.getScriptProperties().setProperty("CONDESP_" + p.pageId, JSON.stringify(meta));
+  ctrLog_("salvarCondicoesEspeciais " + pid + " por " + (meta.por || "?") + ": " + (texto ? texto.length + " caracteres" : "vazio"));
+  return { ok: true, condicoes: { coluna: true, texto: texto, por: meta.por, em: meta.em, max: CONDESP_MAX } };
+}
+
+/* 29/10: "Redigir com IA" — a pessoa escreve o pedido em linguagem comum, a OpenAI devolve a redação do item 16
+   com base no texto do modelo do condomínio (MODELO_CONDOMINIO_ID). NÃO grava: a tela põe o texto no campo e a
+   pessoa lê, ajusta e clica em Salvar. Números de cláusula citados que não existem no modelo voltam como aviso. */
+function redigirCondicoesEspeciais_(col, sess, p) {
+  var pid = String(p.pageId).slice(0, 8), pedidoTxt = String(p.pedido || "").trim();
+  if (!pedidoTxt || pedidoTxt.length > 1000) return { ok: false, erro: "CAMPOS_INVALIDOS", erros: ["Pedido para a IA: de 1 a 1000 caracteres"] };
+  var ia = leitorIA_();
+  if (ia.erro) return { ok: false, erro: ia.erro };
+  if (ia.nome !== "openai") return { ok: false, erro: "IA_SO_OPENAI" };
+  var idModelo = prop_("MODELO_CONDOMINIO_ID");
+  if (!idModelo) return { ok: false, erro: "MODELO_NAO_CONFIGURADO" };
+  var textoModelo;
+  try { textoModelo = DocumentApp.openById(idModelo).getBody().getText(); }
+  catch (e) { ctrErro_("redigirCondicoesEspeciais " + pid + " modelo", e); return { ok: false, erro: "MODELO_ILEGIVEL" }; }
+  var pedido = OpenAILeitor.montarPedidoClausula(pedidoTxt, textoModelo, String(p.atual || "").slice(0, CONDESP_MAX), ia.chave, ia.modelo);
+  if (pedido.erro) return { ok: false, erro: pedido.erro };
+  var res;
+  try {
+    var r = UrlFetchApp.fetch(pedido.url, { method: "post", contentType: "application/json", muteHttpExceptions: true,
+                                           headers: pedido.headers, payload: JSON.stringify(pedido.corpo) });
+    res = OpenAILeitor.interpretarResposta(r.getResponseCode(), r.getContentText());
+  } catch (e) { res = { ok: false, erro: "LEITURA_FALHOU" }; }
+  if (!res.ok) return { ok: false, erro: res.erro };
+  var L = res.leitura || {}, redacao = ctrTxt_(L.redacao).trim().slice(0, CONDESP_MAX);
+  var inexistentes = OpenAILeitor.clausulasInexistentes(L.clausulas_citadas, textoModelo);
+  ctrLog_("redigirCondicoesEspeciais " + pid + " por " + ctrTxt_(sess && sess.u) + " tokens " + res.uso.entrada + "/" + res.uso.saida +
+          (inexistentes.length ? "; citou inexistente " + inexistentes.join(",") : ""));
+  return { ok: true, redacao: redacao, observacao: ctrTxt_(L.observacao).trim(), inexistentes: inexistentes };
 }
 
 /* Ação "salvarCamposContrato": p.campos = { vendedor: {COLUNA: valor}, corretor: {...}, loteamento: {...} },

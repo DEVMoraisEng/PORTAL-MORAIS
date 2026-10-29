@@ -271,6 +271,10 @@ var ClicksignVenda = (function () {
   function corpoAtivar(envelopeId) {
     return { data: { id: envelopeId, type: "envelopes", attributes: { status: "running" } } };
   }
+  /* 29/10: cancelar o envelope ativo (o mesmo PATCH da ativação, com status canceled) */
+  function corpoCancelar(envelopeId) {
+    return { data: { id: envelopeId, type: "envelopes", attributes: { status: "canceled" } } };
+  }
   function corpoNotificacao() { return { data: { type: "notifications", attributes: {} } }; }
 
   /* ---- respostas ---- */
@@ -375,7 +379,7 @@ var ClicksignVenda = (function () {
     PAPEIS: PAPEIS, SITUACOES: SITUACOES, montarConfig: montarConfig, conferirConfig: conferirConfig, signatarios: signatarios,
     faltasAssinatura: faltasAssinatura, linksCorrigirEmail: linksCorrigirEmail, nomeEnvelope: nomeEnvelope, nomeArquivo: nomeArquivo, nomePadrao: nomePadrao,
     corpoEnvelope: corpoEnvelope, corpoDocumento: corpoDocumento, corpoSignatario: corpoSignatario,
-    corpoQualificacao: corpoQualificacao, corpoAutenticacao: corpoAutenticacao, corpoAtivar: corpoAtivar,
+    corpoQualificacao: corpoQualificacao, corpoAutenticacao: corpoAutenticacao, corpoAtivar: corpoAtivar, corpoCancelar: corpoCancelar,
     corpoNotificacao: corpoNotificacao, interpretar: interpretar, situacao: situacao, assinaram: assinaram,
     podeEnviar: podeEnviar, linkAssinado: linkAssinado, mascararEmails: mascararEmails, FINAIS: FINAIS,
     situacaoDosSignatarios: situacaoDosSignatarios, nomeMascarado: nomeMascarado,

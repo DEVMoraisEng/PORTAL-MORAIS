@@ -156,7 +156,7 @@ test("paginaVirtual: título vira ENDEREÇO = CONDOMÍNIO …, UNIDADE vira text
 
 test("gerarContrato na linha do condomínio: modelo do condomínio, PDF em CONTRATO GERADO da própria linha; contratoEstado vê", () => {
   const c = cenario();
-  const est0 = c.acao("contratoEstado"); delete est0.testemunhas; delete est0.conta;   /* testemunhas e conta de recebimento têm testes próprios */
+  const est0 = c.acao("contratoEstado"); delete est0.testemunhas; delete est0.conta; delete est0.condicoes;   /* testemunhas, conta de recebimento e condições especiais têm testes próprios */
   assert.deepEqual(est0, { ok: true, gerado: false, etapa: "NENHUM", pre: null });
   const r = c.gerarFinal();
   assert.equal(r.ok, true, JSON.stringify(r));
@@ -472,4 +472,45 @@ test("28/10: conferir documentos — lê pela IA, compara, guarda; ilegível con
   /* dado mudou: a conferência fica velha */
   c.n.pagina.properties["DIA PAGAMENTO PARCELAS"] = { type: "number", number: 15 };
   assert.equal(c.acao("conferenciaEstado").atual, false);
+});
+
+/* ---- 29/10: condições especiais desta venda (item 16 do quadro-resumo) ---- */
+test("29/10 condições especiais: grava na coluna, guarda quem e quando, avisa no pré-contrato e desatualiza o pré gerado antes", () => {
+  const c = cenario({ linha: { "CONTRATO - CONDIÇÕES ESPECIAIS": rt("") } });
+  assert.equal(c.acao("contratoEstado").condicoes.texto, "");
+  const pre0 = c.acao("gerarPreContrato");
+  assert.equal(pre0.ok, true, JSON.stringify(pre0));
+  assert.ok(!(pre0.avisos || []).some((a) => /Condições especiais/.test(a)), JSON.stringify(pre0.avisos));
+  const r = c.acao("salvarCondicoesEspeciais", { texto: "Na cláusula 9.2, onde se lê 30 dias,\nleia-se 45 dias." });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(c.txt("CONTRATO - CONDIÇÕES ESPECIAIS"), "Na cláusula 9.2, onde se lê 30 dias,\nleia-se 45 dias.");
+  const e = c.acao("contratoEstado");
+  assert.match(e.condicoes.texto, /leia-se 45 dias/);
+  assert.equal(e.condicoes.por, "ana.teste");
+  assert.ok(e.pre.desatualizado, "o pré-contrato de antes devia ficar desatualizado");
+  const pre1 = c.acao("gerarPreContrato");
+  assert.ok(pre1.avisos.some((a) => /Condições especiais: este contrato tem texto próprio no item 16/.test(a)), JSON.stringify(pre1.avisos));
+  assert.equal(c.acao("salvarCondicoesEspeciais", { texto: "x".repeat(1901) }).erro, "CAMPOS_INVALIDOS");
+});
+
+test("29/10 Redigir com IA: manda o pedido e o texto do modelo à OpenAI, devolve a redação SEM gravar e avisa cláusula inexistente", () => {
+  let corpo = null;
+  const ia = (url, opt) => {
+    corpo = JSON.parse(opt.payload);
+    const resp = { redacao: "Na cláusula 99.9, onde se lê 30 dias, leia-se 45 dias.", clausulas_citadas: ["99.9"], observacao: "Prazo trocado." };
+    return { json: { status: "completed", output: [{ content: [{ type: "output_text", text: JSON.stringify(resp) }] }], usage: { input_tokens: 10, output_tokens: 5 } } };
+  };
+  const c = cenario({ props: { OPENAI_API_KEY: "sk-teste" }, ia, linha: { "CONTRATO - CONDIÇÕES ESPECIAIS": rt("") } });
+  const patches = c.n.patches.length;
+  const r = c.acao("redigirCondicoesEspeciais", { pedido: "cliente quer 45 dias em vez de 30", atual: "" });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.match(r.redacao, /leia-se 45 dias/);
+  assert.deepEqual(r.inexistentes, ["99.9"]);
+  assert.equal(corpo.text.format.name, "condicoes_especiais");
+  assert.match(corpo.input[0].content[0].text, /PEDIDO: cliente quer 45 dias/);
+  assert.match(corpo.input[0].content[0].text, /CONTRATO MODELO:\n.*CONDOMÍNIO/s);
+  assert.equal(c.n.patches.length, patches, "redigir não pode gravar na venda");
+  assert.equal(c.acao("redigirCondicoesEspeciais", { pedido: "" }).erro, "CAMPOS_INVALIDOS");
+  const semChave = cenario({ linha: { "CONTRATO - CONDIÇÕES ESPECIAIS": rt("") } });
+  assert.equal(semChave.acao("redigirCondicoesEspeciais", { pedido: "x" }).erro, "CHAVE_IA_FALTANDO");
 });
