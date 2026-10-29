@@ -14,7 +14,7 @@ import os
 import re
 import sys
 
-from .erp import Erp, ErpErro
+from .erp import Erp, ErpErro, do_ambiente, faltam_segredos
 
 CAMINHO_TODAS = "/financial/bank-accounts/all"
 CAMINHO_UMA = "/financial/bank-accounts/%s"
@@ -65,8 +65,7 @@ def mudancas(detalhe: dict, pedido: dict) -> dict:
 
 def main(argv=None) -> int:
     modo = (argv if argv is not None else sys.argv[1:] or ["sondar"])[0]
-    erp = Erp(os.environ["MC_ROBO_EMAIL"].strip(), os.environ["MC_ROBO_SENHA"].strip(chr(13) + chr(10)),
-              aparelho=os.environ.get("MC_ROBO_APARELHO", "").strip())
+    erp = do_ambiente()
     contas = _itens(erp.pedir_core("GET", CAMINHO_TODAS))
     print("contas no ERP:", len(contas))
     if modo == "sondar":

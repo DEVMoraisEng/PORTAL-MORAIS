@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import datetime as _dt
 import json
+import os
+from urllib.parse import urlencode
 
 import requests
 
@@ -196,6 +198,98 @@ class Erp:
 
     def criar_venda(self, corpo: dict) -> dict:
         return self.pedir("POST", "/readjustment-sales", corpo=corpo)
+
+
+class ErpPeloPorteiro(Erp):
+    """O mesmo cliente, mas pela aba do Chrome do porteiro (servidor): nenhum login, nenhum código de aparelho.
+    A autenticação é a que a própria tela usa (copiada do tráfego dela); um 401 manda a aba recapturar
+    e repete UMA vez — 401 quer dizer que o ERP recusou antes de fazer qualquer coisa."""
+
+    def __init__(self, aba=None, timeout: int = 90):
+        super().__init__("", "", timeout=timeout)
+        self._aba = aba            # sem aba: abre na 1ª chamada (o erro cai no try de quem chamou, como o login)
+
+    def logar(self) -> None:
+        from .porteiro import HOST_CORE, HOST_LEGACY, AbaPorteiro, PorteiroErro
+        if self._aba is None:
+            try:
+                self._aba = AbaPorteiro.abrir()
+            except PorteiroErro as e:
+                raise ErpErro(str(e)) from None
+            # 28/10 (prova no servidor): a aba ficava aberta no Chrome do porteiro depois do robô — fecha ao sair
+            import atexit
+            atexit.register(self.fechar)
+        leg, core = self._aba.cabecalhos(HOST_LEGACY), self._aba.cabecalhos(HOST_CORE)
+        if not leg.get("authorization") or not leg.get("company-id"):
+            raise ErpErro("o Chrome do porteiro não está logado no Mais Controle — o porteiro precisa entrar")
+        sem = lambda v: str(v or "").replace("Bearer ", "", 1).strip()   # noqa: E731
+        self.token, self.company_id = sem(leg["authorization"]), str(leg["company-id"])
+        self.user_id, self.ou_id = str(leg.get("user-id") or ""), str(leg.get("organization-unit-id") or "")
+        self.jwt = sem(core.get("authorization"))
+
+    def fechar(self) -> None:
+        """Fecha a aba deste robô (o Chrome do porteiro continua aberto e logado)."""
+        if self._aba is not None:
+            try:
+                self._aba.fechar()
+            except Exception:
+                pass
+            self._aba = None
+
+    def _pela_aba(self, metodo, base, caminho, cab, corpo, params, de_novo, refazer):
+        url = base + caminho
+        if params:
+            url += ("&" if "?" in url else "?") + urlencode(params, doseq=True)
+        st, texto = self._aba.fetch(metodo, url, cab, corpo)
+        if st == 401 and not de_novo:
+            try:
+                self._aba.capturar()
+            except Exception as e:
+                raise ErpErro(str(e)) from None
+            self.logar()
+            return refazer()
+        if st >= 300:
+            # mesma mensagem do login por senha: o CORPO da recusa diz o campo que falta
+            raise ErpErro("%s %s -> HTTP %s: %s" % (metodo, caminho.split("?")[0], st, texto[:600]))
+        return json.loads(texto) if texto.strip() else None
+
+    def _cab_pagina(self, token: str) -> dict:
+        return {"authorization": "Bearer " + token, "company-id": str(self.company_id)}
+
+    def pedir(self, metodo: str, caminho: str, corpo=None, params=None, _de_novo=False):
+        if not self.token:
+            self.logar()
+        cab = self._cab_pagina(self.token)
+        cab.update({"user-id": self.user_id or "", "organization-unit-id": self.ou_id or ""})
+        return self._pela_aba(metodo, LEGACY, caminho, cab, corpo, params, _de_novo,
+                              lambda: self.pedir(metodo, caminho, corpo, params, True))
+
+    def pedir_core(self, metodo: str, caminho: str, corpo=None, params=None, _de_novo=False):
+        if not self.token:
+            self.logar()
+        if not getattr(self, "jwt", ""):
+            raise ErpErro("a tela do porteiro não mostrou o token da API nova (prod-erp-api)")
+        return self._pela_aba(metodo, CORE, caminho, self._cab_pagina(self.jwt), corpo, params, _de_novo,
+                              lambda: self.pedir_core(metodo, caminho, corpo, params, True))
+
+
+def pelo_porteiro() -> bool:
+    """MC_VIA=porteiro: o robô roda no servidor e fala com o ERP pelo Chrome do porteiro."""
+    return os.environ.get("MC_VIA", "").strip().lower() == "porteiro"
+
+
+def faltam_segredos(outros=()) -> list:
+    """Segredos que faltam. Pelo porteiro não há senha do robô: só os `outros` (ex.: NOTION_TOKEN)."""
+    nomes = tuple(outros) + (() if pelo_porteiro() else ("MC_ROBO_EMAIL", "MC_ROBO_SENHA"))
+    return [n for n in nomes if not os.environ.get(n)]
+
+
+def do_ambiente() -> Erp:
+    """O cliente do ERP certo para onde o robô está: servidor (porteiro) ou GitHub (login com senha, plano B)."""
+    if pelo_porteiro():
+        return ErpPeloPorteiro()
+    return Erp(os.environ["MC_ROBO_EMAIL"].strip(), os.environ["MC_ROBO_SENHA"].strip(chr(13) + chr(10)),
+               aparelho=os.environ.get("MC_ROBO_APARELHO", "").strip())
 
 
 def resumo(obj) -> str:

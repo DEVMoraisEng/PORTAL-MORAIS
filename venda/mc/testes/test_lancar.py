@@ -257,7 +257,7 @@ def test_main_excecao_inesperada_nao_deixa_processando(monkeypatch, capsys):
         def obras(self):
             raise ValueError("html no lugar de json")
     monkeypatch.setattr(L, "Notion", N)
-    monkeypatch.setattr(L, "Erp", E)
+    monkeypatch.setattr(L, "do_ambiente", lambda: E())
     assert L.main(["--page", "a" * 32]) == 1
     assert anotado["MC - SITUAÇÃO"].startswith("ERRO: falha inesperada (ValueError)")
     assert "html no lugar" not in capsys.readouterr().out
