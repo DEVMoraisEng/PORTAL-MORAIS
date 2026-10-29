@@ -6,6 +6,7 @@ Uso (Agendador de Tarefas do Windows, a cada 1 minuto):
     python servidor\\robo_fila.py                # dá sinal e atende os pedidos pendentes de todas as filas
     python servidor\\robo_fila.py --indices      # índices de reajuste (tarefa das 9h)
     python servidor\\robo_fila.py --verificar    # só confere a configuração e o porteiro; não roda nada
+    python servidor\\robo_fila.py --robo contas  # 30/10: robôs que rodavam no GitHub (contas, bases, medicoes)
 
 Configuração (FORA do repositório, só no servidor): C:\\AUTOMAÇÕES MAIS CONTROLE\\_central\\robos-portal.json
     {"filas": [{"nome": "teste", "db_fila": "<id da base FILA DO ROBÔ>", "notion_token_arquivo": "<arquivo>",
@@ -268,6 +269,91 @@ def indices() -> int:
     return r.returncode
 
 
+# ---------------------------------------------------------------- robôs que rodavam no GitHub (30/10/2026)
+# Mesmos scripts e mesma ordem dos workflows; aqui entram pela aba do porteiro (MC_VIA=porteiro, sem login).
+# Configuração em robos-portal.json, chave "robos": {"notion_token_arquivo": "...", "vars": {...},
+# "github_token_arquivo": "..." (só medições: publica dist/mc_medicoes/contratos.json no repositório)}.
+# Gravar (APLICAR=1) exige o arquivo _central\ROBOS_APLICAR.txt — o dono cria.
+ROBOS = {
+    "contas": ["robo_mc_contas.py", "robo_mc_clientes.py", "robo_mc_obras.py"],   # robos-mc.yml (06:23)
+    "bases": ["robo_mc_bases.py"],                                                # robos-mc-bases.yml (07:17)
+    "medicoes": ["robo_mc_medicoes.py"],                                          # robos-mc-medicoes.yml (2/2 h)
+}
+REPO_GH = "DEVMoraisEng/PORTAL-MORAIS"
+ARQ_MEDICOES = "dist/mc_medicoes/contratos.json"
+PRAZO_ROBO_ANTIGO_S = 40 * 60
+
+
+def env_robos(cfg: dict) -> dict:
+    e = dict(os.environ)
+    e.update({k: str(v) for k, v in (cfg.get("vars") or {}).items()})
+    tok = pathlib.Path(cfg["notion_token_arquivo"]).read_text(encoding="utf-8").strip()
+    e.update({"NOTION_TOKEN": tok, "MC_VIA": "porteiro", "PYTHONIOENCODING": "utf-8",
+              "APLICAR": "1" if (CENTRAL / "ROBOS_APLICAR.txt").exists() else ""})
+    for n in ("MC_USUARIO", "MC_SENHA", "MC_ROBO_USUARIO", "MC_ROBO_SENHA", "MC_ROBO_EMAIL", "MC_ROBO_APARELHO",
+              "MC_EMAIL_SENHA_APP"):
+        e.pop(n, None)                     # no servidor nunca há senha: quem está logado é o porteiro
+    return e
+
+
+def publicar_medicoes(cfg: dict) -> str:
+    """Sobe dist/mc_medicoes/contratos.json pela API do GitHub (o Mapa de Obras lê do site) e devolve o clone limpo."""
+    import base64
+    arq = RAIZ / ARQ_MEDICOES
+    if not arq.exists():
+        return "sem arquivo"
+    tok_arq = cfg.get("github_token_arquivo")
+    try:
+        if not tok_arq:
+            return "sem github_token_arquivo na configuração — não publiquei"
+        tok = pathlib.Path(tok_arq).read_text(encoding="utf-8").strip()
+        novo = arq.read_bytes()
+        url = "https://api.github.com/repos/%s/contents/%s" % (REPO_GH, ARQ_MEDICOES)
+        cab = {"Authorization": "Bearer " + tok, "Accept": "application/vnd.github+json", "User-Agent": "robo-servidor"}
+        atual = json.loads(urllib.request.urlopen(urllib.request.Request(url + "?ref=main", headers=cab), timeout=60).read())
+        if base64.b64decode(atual.get("content") or "") == novo:
+            return "sem mudança"
+        corpo = {"message": "Medições de contratos do MC %s (servidor) [skip ci]" % agora_iso(), "branch": "main",
+                 "sha": atual["sha"], "content": base64.b64encode(novo).decode()}
+        req = urllib.request.Request(url, method="PUT", data=json.dumps(corpo).encode(), headers=cab)
+        urllib.request.urlopen(req, timeout=60).read()
+        return "publicado"
+    finally:
+        subprocess.run(["git", "checkout", "--", ARQ_MEDICOES], cwd=RAIZ, capture_output=True)
+
+
+def robo_antigo(nome: str) -> int:
+    if nome not in ROBOS:
+        log("[robo] desconhecido: %s" % nome)
+        return 2
+    cfg = json.loads(CONFIG.read_text(encoding="utf-8")).get("robos")
+    if not cfg:
+        log("[%s] sem a chave \"robos\" em %s" % (nome, CONFIG.name))
+        return 2
+    env, pior = env_robos(cfg), 0
+    for script in ROBOS[nome]:
+        try:
+            r = subprocess.run([sys.executable, script], cwd=RAIZ, env=env, capture_output=True, text=True,
+                               encoding="utf-8", errors="replace", timeout=PRAZO_ROBO_ANTIGO_S)
+            codigo, fim = r.returncode, ((r.stdout or "").strip().splitlines() or [""])[-1]
+            if codigo:
+                fim = ((r.stderr or "").strip().splitlines() or [fim])[-1]
+        except subprocess.TimeoutExpired:
+            codigo, fim = 124, "passou de %d min" % (PRAZO_ROBO_ANTIGO_S // 60)
+        log("[%s] %s código %s %s" % (nome, script, codigo, str(fim)[:200]))
+        pior = pior or codigo
+    if nome == "medicoes" and not pior:
+        try:
+            log("[medicoes] site: %s" % publicar_medicoes(cfg))
+        except Exception as e:
+            log("[medicoes] publicar FALHOU %s: %s" % (type(e).__name__, str(e)[:200]))
+            pior = 1
+    saude = json.loads(SAUDE.read_text(encoding="utf-8")) if SAUDE.exists() else {}
+    saude.setdefault("robos", {})[nome] = {"em": agora_iso(), "codigo": pior}
+    SAUDE.write_text(json.dumps(saude, ensure_ascii=False, indent=1), encoding="utf-8")
+    return pior
+
+
 def verificar() -> int:
     ok = True
     print("clone do portal:", RAIZ)
@@ -291,11 +377,14 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--indices", action="store_true")
     ap.add_argument("--verificar", action="store_true")
+    ap.add_argument("--robo", choices=sorted(ROBOS))
     a = ap.parse_args(argv)
     if a.verificar:
         return verificar()
     if a.indices:
         return com_trava(indices)
+    if a.robo:
+        return robo_antigo(a.robo)      # sem a trava da fila: os robôs antigos não usam a fila
     return com_trava(rodada)
 
 

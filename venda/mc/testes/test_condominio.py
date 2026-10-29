@@ -291,3 +291,18 @@ def test_caminho_antigo_continua_casa_da_vendas_com_condominio_venda_id(monkeypa
     r = L.processar("p", n, ErpCond(), aplicar=False)
     assert r["situacao"] == "PREVIA", r
     assert r["corpo_venda"]["description"].startswith("VENDA UNIDADE 12 - ")
+
+
+# 30/10/2026 (dono): o endereço do cliente no Mais Controle é a unidade que ele está comprando
+def test_endereco_do_cliente_e_a_unidade_comprada():
+    assert C.endereco_do_cliente("RESERVA DOS IPÊS", 7) == "CONDOMÍNIO RESERVA DOS IPÊS - SENADOR CANEDO, UNIDADE 07"
+    assert C.endereco_do_cliente("Condomínio Reserva Teste", 31) == "CONDOMÍNIO RESERVA TESTE, UNIDADE 31"
+    assert C.endereco_do_cliente("", 31) == "" and C.endereco_do_cliente("RESERVA DOS IPÊS", None) == ""
+
+
+def test_corpo_cliente_do_condominio_leva_o_endereco_da_unidade():
+    d = C.dados_da_linha(linha_cond(), LINHA_ID)
+    corpo = R.corpo_cliente(d)
+    assert corpo["address"]["address"].startswith("CONDOMÍNIO RESERVA TESTE, UNIDADE ")
+    rua = R.corpo_cliente(R.dados_da_pagina(pagina()))
+    assert "address" not in rua             # casa de rua: como antes

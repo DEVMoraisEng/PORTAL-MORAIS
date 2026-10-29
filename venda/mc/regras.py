@@ -419,6 +419,9 @@ def corpo_cliente(dados: dict) -> dict:
         corpo["email"] = c["email"]
     if c.get("telefone"):
         corpo["phones"] = [{"number": c["telefone"]}]
+    # 30/10/2026 (dono): condomínio — o endereço do cliente é a unidade comprada
+    if dados.get("endereco_cliente"):
+        corpo["address"] = {"address": dados["endereco_cliente"]}
     return corpo
 
 

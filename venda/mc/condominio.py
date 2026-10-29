@@ -90,6 +90,19 @@ def e_linha_do_condominio(pg: dict, db_cond: str | None) -> bool:
     return False
 
 
+# 30/10/2026 (dono): no cadastro do CLIENTE no Mais Controle, o endereço é a unidade que ele está comprando
+CIDADE_DO_CONDOMINIO = {"RESERVA DOS IPES": "SENADOR CANEDO"}
+
+
+def endereco_do_cliente(nome_condominio, casa) -> str:
+    """"CONDOMÍNIO RESERVA DOS IPÊS - SENADOR CANEDO, UNIDADE 31" ("" sem condomínio ou sem unidade)."""
+    cond = endereco_do_condominio(nome_condominio)
+    if not cond or casa in (None, ""):
+        return ""
+    cidade = next((c for k, c in CIDADE_DO_CONDOMINIO.items() if k in R.chave(cond)), "")
+    return "%s%s, UNIDADE %02d" % (cond.upper(), " - " + cidade if cidade else "", int(casa))
+
+
 def endereco_do_condominio(nome) -> str:
     """"CONDOMÍNIO <nome>" — o ENDEREÇO que a casa teria na VENDAS (e o nome do centro de custo no ERP)."""
     nome = " ".join(str(nome or "").split())
@@ -114,6 +127,7 @@ def dados_da_linha(props: dict, page_id: str) -> dict:
     return {
         "endereco": endereco_do_condominio(campo("condominio")),
         "casa": R._casa(unidade),
+        "endereco_cliente": endereco_do_cliente(campo("condominio"), R._casa(unidade)),
         "casa_ambigua": unidade not in (None, "") and R._casa(unidade) is None,
         "data_venda": R._data(campo("data_venda")),
         "comprador": {"nome": " ".join(str(campo("proponente") or "").split()), "cpf": R.so_digitos(campo("cpf")),
