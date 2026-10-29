@@ -73,6 +73,13 @@ def test_faltas_do_fluxo():
     assert any("diferente da UNIDADE" in x for x in f)
 
 
+def test_fluxo_alterado_no_portal_trava_o_robo_ate_a_etapa_3():
+    sem = C.fluxo(fluxo_props())
+    assert sem["personalizado"] is False and not any("FLUXO PERSONALIZADO" in x for x in C.faltas_do_fluxo(sem, sem["unidade"]))
+    com = C.fluxo(fluxo_props(**{"FLUXO PERSONALIZADO": {"type": "rich_text", "rich_text": [{"plain_text": '{"v":1}'}]}}))
+    assert any("FLUXO PERSONALIZADO" in x for x in C.faltas_do_fluxo(com, com["unidade"]))
+
+
 def test_escolher_obra_e_sempre_o_condominio_inteiro():
     obras = [{"id": "g", "name": "CONDOMÍNIO RESERVA TESTE"}, {"id": "c12", "name": "RESERVA TESTE CASA 12"},
              {"id": "c1", "name": "RESERVA TESTE CASA 1"}]

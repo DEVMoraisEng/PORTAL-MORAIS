@@ -37,7 +37,7 @@ function tratar_(p) {
     if (!temAcessoVendas_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
     var grava = ["tipoCasa", "lerDocumento", "anexarDocumento", "soltarDocumento", "lerDocumentos", "copiarComprovante", "conferir", "devolver", "gerarContrato", "gerarPreContrato", "aprovarPreContrato", "escolherTestemunhas",
                  "salvarCamposContrato", "escolherContaRecebimento", "mcLancar", "assinaturaEnviar", "assinaturaEstado",
-                 "gerarVendaCondominio", "assinaturaReenviar", "assinaturaCancelar" /* 29/10 */, "salvarCondicoesEspeciais" /* 29/10 */, "redigirCondicoesEspeciais", "salvarContaPreReserva", "gerarTermoPreReserva",
+                 "gerarVendaCondominio", "assinaturaReenviar", "assinaturaCancelar" /* 29/10 */, "salvarCondicoesEspeciais" /* 29/10 */, "redigirCondicoesEspeciais", "salvarFluxo" /* 29/10 */, "salvarContaPreReserva", "gerarTermoPreReserva",
                  "conferirDocumentos", "confirmarConferencia" /* 28/10 */,
                  "recebimentoConfirmar" /* entrega 14 */].indexOf(p.action) >= 0;
     if (grava && String(sess.t || "").toUpperCase() === "TESTES") return { ok: false, erro: "SEM_PERMISSAO_TESTES" };
@@ -71,6 +71,8 @@ function tratar_(p) {
       case "assinaturaCancelar": return assinaturaCancelar_(col, sess, p);   /* 29/10: botão Cancelar envelope */
       case "salvarCondicoesEspeciais": return salvarCondicoesEspeciais_(col, sess, p);   /* 29/10: item 16 do quadro-resumo */
       case "redigirCondicoesEspeciais": return redigirCondicoesEspeciais_(col, sess, p);   /* 29/10: só sugere, não grava */
+      case "fluxoEditar":  return fluxoEditar_(col, p);              /* 29/10: Alterar fluxo (FluxoVenda.gs) */
+      case "salvarFluxo":  return salvarFluxo_(col, sess, p);
       case "gerarVendaCondominio": return gerarVendaCondominio_(col, sess, p);
       /* entrega 14: contrato assinado pelo portal e recebimentos (RecebimentoVenda.gs) */
       case "verContratoAssinado": return verContratoAssinado_(col, p);

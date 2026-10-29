@@ -49,6 +49,8 @@ def fluxo(props: dict) -> dict:
             out[k] = R._casa(v)
         else:
             out[k] = R._num(v)
+    # 29/10/2026: "Alterar fluxo" no portal grava a lista em FLUXO PERSONALIZADO; o robô passa a ler na etapa 3
+    out["personalizado"] = bool(str(R._valor(por_chave.get(R.chave("FLUXO PERSONALIZADO"))) or "").strip())
     return out
 
 
@@ -195,6 +197,8 @@ def parcelas(fx: dict, dados: dict, dias_financiamento: int = R.DIAS_FINANCIAMEN
 
 def faltas_do_fluxo(fx: dict, casa: int | None) -> list[str]:
     f = []
+    if fx.get("personalizado"):
+        f.append("O fluxo desta venda foi alterado no portal (FLUXO PERSONALIZADO) e o robô ainda não lança fluxo alterado")
     if not fx.get("assinatura"):
         f.append("Falta a DATA DE ASSINATURA DO CONTRATO na venda do condomínio")
     if not fx.get("dia"):

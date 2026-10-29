@@ -387,7 +387,12 @@
     CORRETOR_NA_VENDA_FALTANDO: "A venda não tem corretor preenchido — preencha o CORRETOR na venda.",
     LOTEAMENTO_SEM_SETOR: "A venda não tem SETOR preenchido — sem ele não dá para criar o cadastro do loteamento.",
     CONTA_INVALIDA: "Essa conta não está mais na lista — recarregue e escolha de novo.",
-    GRAVACAO_FALHOU: "Não consegui gravar no cadastro — tente de novo."
+    GRAVACAO_FALHOU: "Não consegui gravar no cadastro — tente de novo.",
+    /* 29/10: Alterar fluxo */
+    FLUXO_VENDA_LANCADA: "A venda já foi lançada no Mais Controle — o fluxo não muda mais por aqui.",
+    FLUXO_CONTRATO_ASSINADO: "O contrato já foi assinado — mudar o fluxo agora exige aditivo.",
+    FLUXO_ASSINATURA_ABERTA: "O contrato está na Clicksign esperando assinatura — cancele o envelope antes de alterar o fluxo.",
+    FLUXO_JA_E_O_DA_PROPOSTA: "O fluxo desta venda já é o da proposta."
   };
   /* Nunca inclui nomes de marcador do modelo (resposta.marcadores): esses vão só para o console.
      CAMPOS_INVALIDOS: os motivos (só nomes de campo) vão junto. */
@@ -416,6 +421,8 @@
     if (c) o.conta = c;
     /* 28/10: termos de confissão de dívida gerados com o contrato (condomínio) */
     if (r && Array.isArray(r.confissao)) o.confissao = r.confissao.map(function (x) { return { tipo: x.tipo === "POS" ? "POS" : "PRE", nome: String(x.nome || "") }; });
+    /* 29/10: Alterar fluxo (FluxoVenda.gs) */
+    if (r && r.fluxo && typeof r.fluxo === "object") o.fluxo = fluxoDoEstado(r.fluxo);
     /* 29/10: condições especiais desta venda (item 16 do quadro-resumo do condomínio) */
     if (r && r.condicoes && typeof r.condicoes === "object")
       o.condicoes = { coluna: !!r.condicoes.coluna, texto: String(r.condicoes.texto || ""), por: String(r.condicoes.por || ""),
@@ -581,6 +588,7 @@
     }
     h += htmlConta(e.conta, u, dis);
     h += htmlTestemunhas(e.testemunhas, dis);
+    h += htmlFluxo(e.fluxo, u, dis);
     h += htmlCondicoes(e.condicoes, u, dis);
     if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
     if (u.link && /^https:\/\//.test(u.link)) {
@@ -608,6 +616,97 @@
       '<div style="margin-top:6px"><button type="button" class="bt bt-mini" data-acao="c-condesp-salvar"' + dis + ">Salvar condições especiais</button>" +
       (c.por ? ' <span class="ass-data">última gravação: ' + esc(c.por) + (c.em ? " em " + esc(dataHoraBR(c.em)) : "") + "</span>" : "") + "</div></div>";
     if (c.texto) h += '<div class="dz-aviso">Este contrato tem condições especiais — confira o item 16 no pré-contrato antes de aprovar.</div>';
+    return h;
+  }
+  /* ---- 29/10: "Alterar fluxo" — exceção na mesa (pedido do diretor). Lista livre de pagamentos; o tipo decide o
+     reajuste. Regra do dono: qualquer redistribuição vale, mas só salva com a soma batendo AO CENTAVO com o valor
+     da casa. As regras moram em venda/FluxoLivre.js (as mesmas do servidor). ---- */
+  function FL() { return typeof FluxoLivre !== "undefined" ? FluxoLivre : require("./venda/FluxoLivre.js"); }
+  function fluxoDoEstado(f) {
+    return { coluna: !!f.coluna, alterado: !!f.alterado, trava: String(f.trava || ""), por: String(f.por || ""),
+             em: String(f.em || ""), alteracoes: Number(f.alteracoes) || 0 };
+  }
+  var TRAVA_FLUXO = { FLUXO_VENDA_LANCADA: 1, FLUXO_CONTRATO_ASSINADO: 1, FLUXO_ASSINATURA_ABERTA: 1 };
+  function numBR(v) { return (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function lerNumBR(s) {
+    s = String(s || "").replace(/[^\d,.-]/g, "");
+    if (s.indexOf(",") >= 0 || /^-?\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, "").replace(",", ".");   /* "10.000" = dez mil */
+    var n = parseFloat(s);
+    return isNaN(n) ? 0 : Math.round(n * 100) / 100;
+  }
+  /* editor aberto: u.fluxoEd = { valor, valorOriginal, entrega, linhas, padrao, historico, alterado, motivo, motivoPreco } */
+  function htmlFluxo(f, u, dis) {
+    if (!f) return "";
+    var h = '<div class="dz-grupo"><b>Fluxo de pagamento</b> <span class="dz-nota">(exceção desta venda: muda o contrato e o Mais Controle juntos)</span></div>';
+    if (!f.coluna) return h + '<div class="dz-aviso">Falta a coluna FLUXO PERSONALIZADO na base de vendas do condomínio.</div>';
+    var ed = u.fluxoEd;
+    if (u.ocupadoContrato === "fluxo") h += '<div class="dz-linha"><b>carregando o fluxo…</b></div>';
+    if (u.ocupadoContrato === "fluxo-salvar") h += '<div class="dz-linha"><b>salvando o fluxo…</b></div>';
+    if (!ed) {
+      h += '<div class="dz-linha">' + (f.alterado ? "Fluxo <b>alterado no portal</b>" + (f.por ? " — última alteração por " + esc(f.por) + (f.em ? " em " + esc(dataHoraBR(f.em)) : "") : "") + "."
+                                                   : "Fluxo da proposta (simulador).") + "</div>";
+      if (f.trava && TRAVA_FLUXO[f.trava]) h += '<div class="dz-msg">' + esc(MSG_CONTRATO[f.trava]) + "</div>";
+      h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-fluxo-abrir"' + (dis || (f.trava ? " disabled" : "")) + ">Alterar fluxo</button></div>";
+      if (f.alterado) h += '<div class="dz-aviso">O contrato com fluxo alterado chega na próxima versão do portal. Para gerar o contrato antes disso, abra o fluxo e use "Voltar ao fluxo da proposta".</div>';
+      return h;
+    }
+    var F = FL(), ops = F.ORDEM.map(function (t) { return [t, F.TIPOS[t].nome]; });
+    h += '<div class="dz-linha vb-fx"><label class="dz-campo">Valor da casa (R$) <input type="text" inputmode="decimal" data-fx="valor" value="' + esc(numBR(ed.valor)) + '"' + dis + ' style="width:9em;text-align:right"></label>' +
+      (ed.entrega ? ' <span class="dz-nota">entrega das chaves: ' + esc(F.dataBR(ed.entrega)) + "</span>" : "") + "</div>";
+    h += '<div class="vb-fx-tab" style="overflow-x:auto"><table class="tbl-fx" style="border-collapse:collapse;width:100%;font-size:.9em">' +
+      "<thead><tr><th>Tipo</th><th>Valor de cada (R$)</th><th>Qtde</th><th>1ª data</th><th>A cada (meses)</th><th>Descrição</th><th>Total</th><th></th></tr></thead><tbody>";
+    ed.linhas.forEach(function (l, k) {
+      var tp = F.TIPOS[l.t] || { reajuste: "" };
+      h += '<tr data-fx-linha="' + k + '"><td><select data-fx="t" data-k="' + k + '"' + dis + ">" +
+        ops.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === l.t ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") +
+        '</select><div class="dz-nota">' + (tp.reajuste ? "reajuste " + esc(tp.reajuste) : "sem correção") + "</div></td>" +
+        '<td><input type="text" inputmode="decimal" data-fx="v" data-k="' + k + '" value="' + esc(numBR(l.v)) + '"' + dis + ' style="width:7.5em;text-align:right">' +
+        (l.u && l.n > 1 ? '<div class="dz-nota">última: ' + esc(numBR(l.u)) + "</div>" : "") + "</td>" +
+        '<td><input type="number" min="1" data-fx="n" data-k="' + k + '" value="' + esc(l.n) + '"' + dis + ' style="width:4.5em"></td>' +
+        '<td><input type="date" data-fx="d" data-k="' + k + '" value="' + esc(l.d) + '"' + dis + "></td>" +
+        '<td><input type="number" min="1" max="24" data-fx="i" data-k="' + k + '" value="' + esc(l.i || 1) + '"' + dis + ' style="width:4em"></td>' +
+        '<td><input type="text" maxlength="120" data-fx="x" data-k="' + k + '" value="' + esc(l.x || "") + '"' + dis +
+        ' placeholder="' + (l.t === "permuta" ? "veículo marca/modelo/ano/placa" : "opcional") + '" style="min-width:10em"></td>' +
+        '<td class="vb-fx-tot" data-k="' + k + '" style="white-space:nowrap;text-align:right">' + esc(F.moeda(F.totalLinha(l))) + "</td>" +
+        '<td style="white-space:nowrap"><button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-red" data-k="' + k + '"' + dis + ' title="Joga a diferença inteira nesta linha">Redistribuir</button> ' +
+        '<button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-del" data-k="' + k + '"' + dis + ' aria-label="Apagar linha">✕</button></td></tr>';
+    });
+    h += "</tbody></table></div>";
+    h += '<div class="dz-linha"><button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-add"' + dis + ">+ linha</button> " +
+      '<button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-padrao"' + dis + ">Recomeçar do fluxo da proposta</button></div>";
+    h += '<div class="vb-fx-viva">' + htmlFluxoVivo(ed, dis) + "</div>";
+    var mudouPreco = Math.round(ed.valor * 100) !== Math.round(ed.valorOriginal * 100);
+    h += '<div class="dz-linha"><label class="dz-campo" style="display:block">Motivo da alteração (obrigatório) <input type="text" maxlength="300" data-fx="motivo" value="' + esc(ed.motivo || "") + '"' + dis +
+      ' placeholder="ex.: cliente pediu mais um balão e parcelas menores" style="width:100%;box-sizing:border-box"></label></div>';
+    h += '<div class="dz-linha vb-fx-mp"' + (mudouPreco ? "" : " hidden") + '><label class="dz-campo" style="display:block">Motivo da mudança no valor da casa (obrigatório) ' +
+      '<input type="text" maxlength="300" data-fx="motivoPreco" value="' + esc(ed.motivoPreco || "") + '"' + dis + ' style="width:100%;box-sizing:border-box"></label></div>';
+    h += '<div class="dz-linha"><button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-fechar"' + dis + ">Fechar sem salvar</button>" +
+      (ed.alterado ? ' <button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-voltar"' + dis + ">Voltar ao fluxo da proposta</button>" : "") + "</div>";
+    if (ed.historico && ed.historico.length) {
+      h += '<details class="dz-linha"><summary>Alterações do fluxo (' + ed.historico.length + ")</summary><ul>" +
+        ed.historico.slice().reverse().map(function (x) {
+          return "<li>" + esc(dataHoraBR(x.em) || "") + " — " + esc(x.por || "?") + ": " + esc(x.voltou ? "voltou ao fluxo da proposta. " : "") + esc(x.motivo || "") +
+            (x.motivoPreco ? " (valor da casa: " + esc(x.motivoPreco) + ")" : "") + "</li>";
+        }).join("") + "</ul></details>";
+    }
+    return h;
+  }
+  /* placar + o que falta + Salvar: redesenhado a cada tecla sem mexer na tabela (não perde o foco) */
+  function htmlFluxoVivo(ed, dis) {
+    var F = FL(), r = F.validar({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }), soma = F.soma(ed.linhas), dif = r.diferenca;
+    var mudouPreco = Math.round(ed.valor * 100) !== Math.round(ed.valorOriginal * 100);
+    var motivoOk = !!String(ed.motivo || "").trim() && (!mudouPreco || !!String(ed.motivoPreco || "").trim());
+    var bate = Math.round(dif * 100) === 0, ok = r.ok && motivoOk;
+    var h = '<div class="vb-fx-placar" style="display:flex;flex-wrap:wrap;gap:4px 18px;margin:6px 0;padding:6px 10px;border-radius:6px;' +
+      (bate ? "background:rgba(29,107,67,.14)" : "background:rgba(163,39,31,.14)") + '">' +
+      "<span>Valor da casa: <b>" + esc(F.moeda(ed.valor)) + "</b></span><span>Soma do fluxo: <b>" + esc(F.moeda(soma)) + "</b></span>" +
+      "<span>" + (bate ? "Diferença: <b>R$ 0,00 ✓</b>" : (dif > 0 ? "Faltam" : "Sobram") + ": <b>" + esc(F.moeda(Math.abs(dif))) + "</b>") + "</span></div>";
+    var faltas = r.erros.filter(function (x) { return !/^(Faltam|Sobram) /.test(x); });
+    if (!motivoOk) faltas.push("Falta o motivo" + (mudouPreco ? " (e o motivo da mudança no valor da casa)" : ""));
+    if (faltas.length) h += '<ul class="dz-msg">' + faltas.slice(0, 6).map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>";
+    if (r.avisos.length) h += '<div class="dz-aviso">' + r.avisos.map(esc).join("; ") + ".</div>";
+    h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-fluxo-salvar"' + ((dis || !ok) ? " disabled" : "") + ">" +
+      (bate ? "Salvar fluxo" : (dif > 0 ? "Faltam " : "Sobram ") + esc(F.moeda(Math.abs(dif)))) + "</button></div>";
     return h;
   }
   function dataHoraBR(iso) {
@@ -749,7 +848,7 @@
                    resumo: resumo, escala: escala, tipoAceito: tipoAceito, painelCarregando: painelCarregando,
                    htmlContrato: htmlContrato, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, mensagemMC: mensagemMC,
                    topicosMC: topicosMC, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas,
-                   htmlCampos: htmlCampos, htmlConta: htmlConta, contaDoEstado: contaDoEstado, pedidoCampos: pedidoCampos,
+                   htmlCampos: htmlCampos, htmlConta: htmlConta, htmlFluxo: htmlFluxo, htmlFluxoVivo: htmlFluxoVivo, lerNumBR: lerNumBR, contaDoEstado: contaDoEstado, pedidoCampos: pedidoCampos,
                    contaDasEntradas: contaDasEntradas, faltasDaResposta: faltasDaResposta };
   if (typeof module !== "undefined" && module.exports) { module.exports = exportar; return; }
 
@@ -1640,6 +1739,7 @@
         return tratarGeracao(r, false);
       }
       if (acao === "c-condesp-ia" || acao === "c-condesp-salvar") return aoClicarCondEsp(acao);
+      if (/^c-fluxo-/.test(acao)) return aoClicarFluxo(acao, b);
       if (acao === "c-salvar-conta") {
         var conta = contaDigitadaNaTela();
         if (!conta) { uiC.msg = "Digite banco, agência e conta."; pintar(); return; }
@@ -1683,6 +1783,73 @@
       } else uiC.msg = mensagemContrato(rs);
       pintar();
     }
+    /* 29/10: Alterar fluxo — abrir (lê do servidor), editar na tela, salvar ou voltar ao fluxo da proposta */
+    function copiaLinhas(ls) { return (ls || []).map(function (l) { var x = { t: l.t, v: l.v, n: l.n, d: l.d, i: l.i || 1, x: l.x || "" }; if (l.u) x.u = l.u; return x; }); }
+    async function aoClicarFluxo(acao, b) {
+      var ed = uiC.fluxoEd, k = Number(b.getAttribute("data-k"));
+      if (acao === "c-fluxo-abrir") {
+        uiC.ocupadoContrato = "fluxo"; uiC.msg = ""; pintar();
+        var r = await chamarVenda({ action: "fluxoEditar", pageId: pageId });
+        if (!vivo()) return;
+        uiC.ocupadoContrato = null;
+        if (r.ok) uiC.fluxoEd = { valor: r.atual.valor, valorOriginal: r.padrao.valor, entrega: r.atual.entrega || r.padrao.entrega,
+                                  linhas: copiaLinhas(r.atual.linhas), padrao: r.padrao, historico: r.historico || [], alterado: !!r.alterado,
+                                  motivo: "", motivoPreco: "" };
+        else uiC.msg = mensagemContrato(r);
+        pintar();
+        return;
+      }
+      if (!ed) return;
+      if (acao === "c-fluxo-fechar") { uiC.fluxoEd = null; pintar(); return; }
+      if (acao === "c-fluxo-add") { ed.linhas.push({ t: "balao", v: 0, n: 1, d: "", i: 1, x: "" }); pintar(); return; }
+      if (acao === "c-fluxo-del") { ed.linhas.splice(k, 1); pintar(); return; }
+      if (acao === "c-fluxo-padrao") { ed.linhas = copiaLinhas(ed.padrao.linhas); ed.valor = ed.padrao.valor; pintar(); return; }
+      if (acao === "c-fluxo-red") {
+        var rd = FL().redistribuir({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, k);
+        if (rd.erro) uiC.msg = rd.erro; else { ed.linhas = rd.linhas; uiC.msg = ""; }
+        pintar();
+        return;
+      }
+      var voltar = acao === "c-fluxo-voltar";
+      if (acao !== "c-fluxo-salvar" && !voltar) return;
+      if (!String(ed.motivo || "").trim()) { uiC.msg = "Escreva o motivo da alteração."; pintar(); return; }
+      if (!window.confirm(voltar ? "Voltar ao fluxo da proposta (simulador)? A alteração fica guardada no histórico."
+                                 : "Salvar este fluxo? O pré-contrato precisa ser gerado de novo e fica registrado quem alterou e o motivo.")) return;
+      uiC.ocupadoContrato = "fluxo-salvar"; pintar();
+      var rs = await chamarVenda(voltar ? { action: "salvarFluxo", pageId: pageId, voltar: true, motivo: ed.motivo }
+        : { action: "salvarFluxo", pageId: pageId, fluxo: { valor: ed.valor, linhas: ed.linhas }, motivo: ed.motivo, motivoPreco: ed.motivoPreco || "" });
+      if (!vivo()) return;
+      uiC.ocupadoContrato = null;
+      if (rs.ok) {
+        estadoC.fluxo = fluxoDoEstado(rs.fluxo || {});
+        uiC.fluxoEd = null;
+        if (estadoC.pre) estadoC.pre.desatualizado = true;
+        uiC.msg = voltar ? "Fluxo da proposta restaurado — gere o pré-contrato de novo." : "Fluxo salvo.";
+      } else uiC.msg = mensagemContrato(rs);
+      pintar();
+    }
+    /* digitando no editor: guarda no estado e redesenha só o total da linha e o placar (não perde o foco) */
+    function aoDigitarFluxo(alvo) {
+      var ed = uiC.fluxoEd, campo = alvo.getAttribute("data-fx");
+      if (!ed || !campo) return;
+      if (campo === "valor") ed.valor = lerNumBR(alvo.value);
+      else if (campo === "motivo" || campo === "motivoPreco") ed[campo] = alvo.value;
+      else {
+        var l = ed.linhas[Number(alvo.getAttribute("data-k"))];
+        if (!l) return;
+        if (campo === "v") { l.v = lerNumBR(alvo.value); delete l.u; }
+        else if (campo === "n") { l.n = parseInt(alvo.value, 10) || 0; delete l.u; }
+        else if (campo === "i") l.i = parseInt(alvo.value, 10) || 1;
+        else if (campo === "d") l.d = alvo.value;
+        else if (campo === "x") l.x = alvo.value;
+        else if (campo === "t") l.t = alvo.value;
+        var tot = raiz.querySelector('.vb-fx-tot[data-k="' + alvo.getAttribute("data-k") + '"]');
+        if (tot) tot.textContent = FL().moeda(FL().totalLinha(l));
+      }
+      var viva = dentro(".vb-fx-viva"), mp = dentro(".vb-fx-mp");
+      if (viva) viva.innerHTML = htmlFluxoVivo(ed, "");
+      if (mp) mp.hidden = Math.round(ed.valor * 100) === Math.round(ed.valorOriginal * 100);
+    }
     /* resposta de gerarPreContrato / aprovarPreContrato / salvarCamposContrato */
     function tratarGeracao(r, aprovar) {
       uiC.ocupadoContrato = null;
@@ -1694,6 +1861,8 @@
               pre: { nome: r.nome || "", url: r.url || "", em: "", conferido: false, desatualizado: false } };
         estadoC.testemunhas = antes.testemunhas || null;
         if (antes.conta) estadoC.conta = antes.conta;
+        if (antes.fluxo) estadoC.fluxo = antes.fluxo;              /* 29/10: os blocos do fluxo e das condições */
+        if (antes.condicoes) estadoC.condicoes = antes.condicoes;  /* especiais não somem depois de gerar */
         uiC.faltas = null; uiC.campos = null;
         var feito = aprovar ? "Contrato gerado." : "Pré-contrato gerado — abra, confira o que está grifado e clique em Conferi.";
         /* condomínio: campos que saíram em branco ("____") não travam, mas avisam */
@@ -1780,12 +1949,21 @@
         /* 29/10: o que se digita nas condições especiais sobrevive a um redesenho do bloco */
         el.addEventListener("input", function (ev) {
           if (raiz !== el || !ev.target.classList) return;
+          if (ev.target.hasAttribute("data-fx")) { aoDigitarFluxo(ev.target); return; }
           if (ev.target.classList.contains("vb-condesp")) uiC.condRasc = ev.target.value;
           else if (ev.target.classList.contains("vb-condesp-pedido")) uiC.condPedido = ev.target.value;
         });
         el.addEventListener("change", function (ev) {
           if (raiz !== el) return;
           if (ev.target.getAttribute("data-pr-c") === "forma") { guardarContaPR(); pintarP(); return; }
+          var fx = ev.target.getAttribute("data-fx");
+          if (fx === "t") { aoDigitarFluxo(ev.target); if (uiC.fluxoEd) pintar(); return; }   /* o tipo muda o reajuste mostrado */
+          if (fx === "v" || fx === "valor") {
+            /* sai formatado ao sair do campo — sem repintar: repintar no blur engoliria o clique num botão */
+            aoDigitarFluxo(ev.target);
+            ev.target.value = numBR(lerNumBR(ev.target.value));
+            return;
+          }
           if (ev.target.hasAttribute("data-testemunha")) aoEscolherTestemunha();
           else if (ev.target.hasAttribute("data-conta")) aoEscolherConta(ev.target.value);
           else if (ev.target.hasAttribute("data-rec-arq")) {
