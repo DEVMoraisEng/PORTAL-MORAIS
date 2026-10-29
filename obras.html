@@ -630,7 +630,10 @@ const alertasConta=()=>D.obras.filter(o=>!fim(o.status) && (o.conta_alerta==="CR
    criar/conferir a obra (cliente não cadastrado, conta, orçamento…); some
    sozinho quando a obra passa sem erro */
 const alertasRobo=()=>D.obras.filter(o=>o.mc_erro && !fim(o.status));
-/* 16/10/26 — endereço da obra alterado (pelo portal ou direto no Notion): o
+/* 28/10/26 — vale também para os demais campos: o sincronizar_obras.py (build)
+   leva setor, engenheiro, cidade, proprietário… para DOCUMENTOS e VENDAS e
+   anota aqui DE → PARA; o robô do MC anota o que corrigiu lá.
+   16/10/26 — endereço da obra alterado (pelo portal ou direto no Notion): o
    servidor leva o endereço novo para DOCUMENTOS, VENDAS, PÓS OBRA, LIGAÇÕES e
    o nome das atividades, e o robô renomeia no Mais Controle. Fica aqui até um
    ADM conferir e clicar em Validar. */
@@ -981,12 +984,12 @@ function pintarAlertas(){
   const leuMc=D.obras.some(o=>o.em_mc===true||o.em_mc===false);
   const linhasEnd=t=>String(t||"").split("\n").filter(x=>x.trim()).map(x=>`<span class="falta" style="display:block;white-space:normal;margin:2px 0">${esc(x)}</span>`).join("");
   document.getElementById("view").innerHTML=`
-    <div class="sec"><span class="cond">Endereço alterado — conferir</span><span class="qtd">${ea.length}</span></div>
+    <div class="sec"><span class="cond">Alterações na obra — conferir</span><span class="qtd">${ea.length}</span></div>
     ${ea.length?ea.map(o=>`<div class="al"><span class="end" onclick="abrirObra('${o.id}')">${esc(o.titulo)}</span>
         <span class="txt">${linhasEnd(o.end_alterado)}</span>
-        <span class="acoes">${ehAdmTela()?`<button class="bt bt-mini" title="Conferi DOCUMENTOS, VENDAS, Pós Obra, Ligações e o Mais Controle — tirar o alerta" onclick="validarEnd('${o.id}',this)">Validar</button>`:""}
+        <span class="acoes">${ehAdmTela()?`<button class="bt bt-mini" title="Conferi o que foi levado para DOCUMENTOS, VENDAS, Pós Obra, Ligações e o Mais Controle — tirar o alerta" onclick="validarEnd('${o.id}',this)">Validar</button>`:""}
         <button class="bt bt-mini az" onclick="abrirObra('${o.id}')">Abrir obra</button></span></div>`).join("")
-      :`<div class="vazio">Nenhuma alteração de endereço esperando conferência.</div>`}
+      :`<div class="vazio">Nenhuma alteração da obra esperando conferência (endereço, campos levados para DOCUMENTOS/VENDAS ou correções no Mais Controle).</div>`}
     <div class="sec"><span class="cond">Problemas do robô no Mais Controle</span><span class="qtd">${rb.length}</span></div>
     ${rb.length?rb.map(o=>`<div class="al"><span class="end" onclick="abrirObra('${o.id}')">${esc(o.titulo)}</span>
         <span class="txt"><span class="falta">${esc(o.mc_erro)}</span></span>
@@ -1013,7 +1016,7 @@ function pintarAlertas(){
 async function validarEnd(id,bt){
   if(bt) bt.disabled=true;
   let r; try{ r=await chamar({action:"obraEndValidar",pageId:id},45000); }catch(e){ r={ok:false,erro:"sem conexão"}; }
-  if(r&&r.ok){ _END_VALIDADOS[id]=1; const o=obraDe(id); if(o) o.end_alterado=""; toast("Alteração de endereço validada."); pintar(); }
+  if(r&&r.ok){ _END_VALIDADOS[id]=1; const o=obraDe(id); if(o) o.end_alterado=""; toast("Alteração validada."); pintar(); }
   else { if(bt) bt.disabled=false; toast("Não validou: "+errMsg(r)); }
 }
 /* 16/10/26 — ALTERAR O ENDEREÇO DA OBRA (só ADM). O servidor confere o padrão
@@ -1135,7 +1138,7 @@ function pintarObraPainel(){
   const atv=atvsDaObra(o.id);
   const normais=atv.filter(a=>!ehLig(a)).sort(ordenaAtv), lig=atv.filter(ehLig).sort(ordenaAtv);
   let h=`<div class="chips">${chipsObraHtml(o)}</div>`;
-  if(o.end_alterado&&!_END_VALIDADOS[o.id]) h+=`<div class="aviso" style="margin:8px 0;white-space:pre-line">⚠ Endereço alterado — confira nos Alertas:\n${esc(o.end_alterado)}</div>`;
+  if(o.end_alterado&&!_END_VALIDADOS[o.id]) h+=`<div class="aviso" style="margin:8px 0;white-space:pre-line">⚠ Alterações nesta obra — confira nos Alertas:\n${esc(o.end_alterado)}</div>`;
   h+=`<div class="grp">Dados da obra ${ehAdmTela()?`<span class="sp"></span><button class="tg" title="Trocar o endereço desta obra (vai junto para DOCUMENTOS, VENDAS, PÓS OBRA, LIGAÇÕES e Mais Controle)" onclick="alterarEndereco('${o.id}')">✏️ Alterar endereço</button>`:""}</div><div class="resumo">${CAMPOS.map((c,i)=>campoHtml(o,c,i)).join("")}</div>`;
   /* 22/10/26 — MODELO 3D: o visualizador abre os arquivos que o botão
      MORAIS → Geral → Publicar 3D (pyRevit) gravou na coluna MODELO 3D da obra */

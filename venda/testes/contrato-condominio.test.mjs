@@ -99,16 +99,16 @@ function fontes({ condominio = {}, venda = {}, fiadores = [FIADOR] } = {}) {
   };
 }
 
-test("condomínio completo: modelo CONDOMINIO, sem faltas nem avisos, comissão paga pelo vendedor fora do preço", () => {
+test("condomínio completo: modelo CONDOMINIO, sem faltas; casa fora da tabela só avisa; comissão paga pelo COMPRADOR (contrato de 21/10)", () => {
   const d = C.montarDadosContrato(fontes());
   assert.equal(d.modelo, "CONDOMINIO");
   assert.deepEqual(C.faltasContrato(d), []);
-  assert.deepEqual(C.avisosContrato(d), []);
-  assert.equal(d.comissao.pagaPor, "VENDEDOR");
-  assert.equal(d.negociacao.aquisicao, 305000);
+  assert.deepEqual(C.avisosContrato(d), ["Em branco no contrato: tipo e áreas da casa (casa fora da tabela do condomínio)"]);
+  assert.equal(d.comissao.pagaPor, "COMPRADOR");
+  assert.equal(d.negociacao.aquisicao, 291275, "imóvel = venda − comissão (dono 22/10)");
   const m = C.marcadores(d), b = C.blocos(d);
   assert.equal(m.VALOR_TOTAL, "R$ 305.000,00");
-  assert.equal(m.VALOR_INTERMEDIACAO, "paga pelo VENDEDOR");
+  assert.equal(m.VALOR_INTERMEDIACAO, "R$ 13.725,00", "pela regra: 24 pós-chaves = 4,5%");
   assert.equal(m.CONDOMINIO_NOME, "RESERVA TESTE");
   assert.equal(m.UNIDADE, "13");
   assert.equal(m.AREA_PRIVATIVA, "70,50");
@@ -141,10 +141,8 @@ test("dados do imóvel em branco NÃO travam: viram aviso e '____' no contrato (
   const d = C.montarDadosContrato(fontes({ condominio: { unidade: "", areaPrivativa: null, fracaoIdeal: "" },
     venda: { MATRICULA_INDIVIDUAL: "", CRI: "", ALVARA_NUMERO: "", ALVARA_DATA: "", PRAZO_CONCLUSAO: "" } }));
   assert.deepEqual(C.faltasContrato(d), []);
-  assert.deepEqual(C.avisosContrato(d), [
-    "Em branco no contrato: unidade", "Em branco no contrato: área privativa", "Em branco no contrato: fração ideal",
-    "Em branco no contrato: matrícula individual", "Em branco no contrato: CRI da matrícula", "Em branco no contrato: alvará (número)",
-    "Em branco no contrato: alvará (data)", "Em branco no contrato: prazo previsto de conclusão das obras"]);
+  /* 21/10: matrícula, CRI, alvará e prazo já vêm escritos no contrato do advogado — só a unidade avisa */
+  assert.deepEqual(C.avisosContrato(d), ["Em branco no contrato: unidade"]);
   const m = C.marcadores(d);
   for (const k of ["UNIDADE", "AREA_PRIVATIVA", "FRACAO_IDEAL", "MATRICULA_INDIVIDUAL", "CRI", "ALVARA_NUMERO", "ALVARA_DATA", "PRAZO_CONCLUSAO"])
     assert.equal(m[k], "____", k);
@@ -171,20 +169,24 @@ test("comprador: CPF inválido trava no condomínio", () => {
   assert.deepEqual(faltas, ["Comprador 1: CPF inválido"]);
 });
 
-test("fiador com nome exige CPF válido, RG e endereço; CPF repetido (comprador ou entre fiadores) é só aviso", () => {
+test("fiador com nome exige CPF válido (28/10: RG e endereço não mais — só nome e CPF); CPF repetido (comprador ou entre fiadores) é só aviso", () => {
   const d = C.montarDadosContrato(fontes({ fiadores: [{ ...FIADOR, cpf: "123.456.789-00", rg: "", endereco: "" }, { nome: "FIADORA DOIS TESTE" }] }));
-  assert.deepEqual(C.faltasContrato(d), ["Fiador 1: CPF inválido", "Fiador 1: RG", "Fiador 1: endereço", "Fiador 2: CPF", "Fiador 2: RG", "Fiador 2: endereço"]);
+  assert.deepEqual(C.faltasContrato(d), ["Fiador 1: CPF inválido", "Fiador 2: CPF"]);
   const rep = C.montarDadosContrato(fontes({ fiadores: [{ ...FIADOR, cpf: "529.982.247-25" }, { ...FIADOR, nome: "FIADORA DOIS TESTE", cpf: "52998224725" }] }));
   assert.deepEqual(C.faltasContrato(rep), []);
-  assert.deepEqual(C.avisosContrato(rep), ["Fiador 1: CPF igual ao de um comprador", "Fiador 2: CPF igual ao de um comprador", "Fiadores: os dois têm o mesmo CPF"]);
+  assert.deepEqual(C.avisosContrato(rep), ["Em branco no contrato: tipo e áreas da casa (casa fora da tabela do condomínio)", "Fiador 1: CPF igual ao de um comprador", "Fiador 2: CPF igual ao de um comprador", "Fiadores: os dois têm o mesmo CPF"]);
   const semFiador = C.montarDadosContrato(fontes({ fiadores: [{ nome: "" }, { nome: "" }] }));
   assert.deepEqual(C.faltasContrato(semFiador), []);
   assert.deepEqual([C.blocos(semFiador).TEM_FIADORES, C.marcadores(semFiador).FIADORES_QUALIFICACAO], [false, ""]);
 });
 
-test("empreendimento (LOTEAMENTOS) ausente no condomínio: falta que diz qual linha criar", () => {
-  const faltas = C.faltasContrato(C.montarDadosContrato({ ...fontes(), loteamento: null }));
-  assert.deepEqual(faltas, ["Condomínio: cadastro em LOTEAMENTOS – CONTRATO (linha com o nome do condomínio, igual ao ENDEREÇO da casa)"]);
+test("condomínio (contrato de 21/10): sem cadastro em LOTEAMENTOS e sem conta da vendedora não trava — já vêm no texto", () => {
+  const f = fontes();
+  f.vendedor = { ...f.vendedor, banco: "", agencia: "", conta: "" };
+  assert.deepEqual(C.faltasContrato(C.montarDadosContrato({ ...f, loteamento: null })), []);
+  /* fora do condomínio continua exigido */
+  const rua = C.faltasContrato(C.montarDadosContrato({ ...f, loteamento: null, condominio: null }));
+  assert.ok(rua.includes("Loteamento: cadastro em LOTEAMENTOS – CONTRATO") && rua.includes("Vendedor: banco"), rua.join(" | "));
 });
 
 /* ---------------- GerarContrato.gs com Notion/Docs/Drive falsos ---------------- */
@@ -302,7 +304,7 @@ test("GerarContrato: casa do condomínio usa MODELO_CONDOMINIO_ID, lê fluxo/fia
   const c = cenario();
   const r = c.gerar();
   assert.equal(r.ok, true, JSON.stringify(r));
-  assert.equal(r.avisos, undefined);
+  assert.deepEqual(r.avisos, ["Em branco no contrato: tipo e áreas da casa (casa fora da tabela do condomínio)"]);
   const pars = c.salvo().pars;
   assert.ok(!pars.join("\n").includes("{{"), pars.join("\n"));
   assert.equal(pars[0], "CONTRATO — CONDOMÍNIO RESERVA TESTE");
@@ -312,7 +314,7 @@ test("GerarContrato: casa do condomínio usa MODELO_CONDOMINIO_ID, lê fluxo/fia
   assert.ok(pars.includes("FIADOR 1: Fiador Um Teste, brasileiro, RG nº 1112223 SSP/GO, CPF nº 123.456.789-09, residente e domiciliado à Rua das Acácias, nº 100, Setor Teste, Cidade Teste/GO, CEP 74000-000, e-mail fiador1@teste.invalid."));
   assert.ok(pars.includes("a) Unidade autônoma nº UN 13, área privativa 70,50 m², fração ideal 0,0125"));
   assert.ok(pars.includes("b) Matrícula M-13, CRI de 1º CRI de Teste; alvará AL-1 de 10/01/2026; conclusão 01/12/2028"), "a linha do condomínio vence a casa");
-  assert.ok(pars.includes("Valor: R$ 305.000,00; intermediação paga pelo VENDEDOR"));
+  assert.ok(pars.includes("Valor: R$ 305.000,00; intermediação R$ 13.725,00"));
   const i = pars.indexOf(TEXTO_61[0]);
   assert.ok(i > 0, "6.1 sozinho no parágrafo");
   assert.deepEqual(pars.slice(i, i + TEXTO_61.length), TEXTO_61, "uma linha por parágrafo, na ordem");
@@ -333,7 +335,7 @@ test("GerarContrato: dado do imóvel em branco gera com '____' e devolve avisos;
     linha: { "CONTRATO - MATRÍCULA INDIVIDUAL": rt(""), "CONTRATO - FRAÇÃO IDEAL": rt(""), "CPF FIADOR 1": rt("529.982.247-25") } });
   const r = c.gerar();
   assert.equal(r.ok, true, JSON.stringify(r));
-  assert.deepEqual(r.avisos, ["Em branco no contrato: fração ideal", "Em branco no contrato: matrícula individual", "Fiador 1: CPF igual ao de um comprador"]);
+  assert.deepEqual(r.avisos, ["Em branco no contrato: tipo e áreas da casa (casa fora da tabela do condomínio)", "Fiador 1: CPF igual ao de um comprador"]);
   const pars = c.salvo().pars;
   assert.ok(pars.includes("a) Unidade autônoma nº UN 13, área privativa 70,50 m², fração ideal ____"), pars.join("\n"));
   assert.ok(pars.some((l) => l.startsWith("b) Matrícula ____, CRI de 1º CRI de Teste")));
@@ -367,10 +369,9 @@ test("GerarContrato: sem MODELO_CONDOMINIO_ID -> MODELO_NAO_CONFIGURADO (não ca
   assert.equal(c.d.estado.copias.length, 0);
 });
 
-test("GerarContrato: sem a linha do empreendimento em LOTEAMENTOS, a falta diz o que criar (o SETOR não é usado)", () => {
+test("GerarContrato: sem a linha do empreendimento em LOTEAMENTOS o condomínio gera assim mesmo (contrato de 21/10)", () => {
   const r = cenario({ loteamentos: [LOTEAMENTO_DO_SETOR] }).gerar();
-  assert.equal(r.erro, "FALTAM_DADOS");
-  assert.deepEqual(r.faltas, ["Condomínio: cadastro em LOTEAMENTOS – CONTRATO (linha com o nome do condomínio, igual ao ENDEREÇO da casa)"]);
+  assert.equal(r.ok, true, JSON.stringify(r));
 });
 
 test("GerarContrato: carimbo do condomínio muda com o fluxo e com o fiador", () => {
@@ -395,7 +396,7 @@ test("pré-contrato do condomínio: cada linha do 6.1 e da qualificação do fia
   const pre = c.g.chamar({ action: "gerarPreContrato", token: token(), pageId: PAGE });
   assert.equal(pre.ok, true, JSON.stringify(pre));
   assert.match(pre.nome, /^PRÉ-CONTRATO - CONDOMÍNIO RESERVA TESTE - CASA 13 - /);
-  assert.deepEqual(pre.avisos, ["Em branco no contrato: fração ideal", "Em branco no contrato: matrícula individual"]);
+  assert.deepEqual(pre.avisos, ["Em branco no contrato: tipo e áreas da casa (casa fora da tabela do condomínio)", "Conferência dos documentos: não foi feita"]);
   const s = c.salvo();
   const amarelos = s.grifos.filter((x) => x.cor === "#FFF59D").map((x) => x.trecho);
   const vermelhos = s.grifos.filter((x) => x.cor === "#FFCDD2").map((x) => x.trecho);
@@ -412,4 +413,11 @@ test("pré-contrato do condomínio: cada linha do 6.1 e da qualificação do fia
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.deepEqual(c.salvo().grifos, []);
   assert.deepEqual(c.salvo().pars, s.pars);
+});
+
+test("29/10 marcador CONDICOES_ESPECIAIS: vazio = 'Não há.'; texto com quebra de linha vira uma linha só", () => {
+  const vazio = C.marcadores(C.montarDadosContrato(fontes({ venda: { CONDICOES_ESPECIAIS: "" } })));
+  assert.equal(vazio.CONDICOES_ESPECIAIS, "Não há.");
+  const com = C.marcadores(C.montarDadosContrato(fontes({ venda: { CONDICOES_ESPECIAIS: "Na cláusula 9.2,\n  leia-se 45 dias." } })));
+  assert.equal(com.CONDICOES_ESPECIAIS, "Na cláusula 9.2, leia-se 45 dias.");
 });

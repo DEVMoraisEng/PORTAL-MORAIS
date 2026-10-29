@@ -313,6 +313,28 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 .pdfhead b{font-weight:700;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pdffoot{padding:10px 18px;border-top:1px solid var(--border2);text-align:right}
 
+/* ===== 27/10/2026: etapas da venda no cartão da unidade e na lista ===== */
+.cd-etapas{display:grid;grid-template-columns:repeat(5,1fr);margin:14px 0 8px}
+.cd-et{position:relative;text-align:center;padding:0 4px;cursor:pointer}
+.cd-et::before{content:"";position:absolute;top:15px;left:-50%;width:100%;height:3px;background:var(--border2)}
+.cd-et:first-child::before{display:none}
+.cd-et.feito::before,.cd-et.agora::before{background:var(--verde)}
+.cd-et .bol{position:relative;z-index:1;width:32px;height:32px;border-radius:50%;margin:0 auto 6px;display:grid;place-items:center;font-weight:700;border:2px solid var(--border);background:var(--sup);color:var(--text4)}
+.cd-et.feito .bol{background:var(--verde);border-color:var(--verde);color:#fff}
+.cd-et.agora .bol{border:3px solid #B7791F;color:#8a5a12;background:#FFF6DD}
+.cd-et b{display:block;font-size:12.5px;color:var(--text)}
+.cd-et small{display:block;color:var(--text3);font-size:11.5px}
+.cd-et.agora small{color:#8a5a12;font-weight:600}
+.cd-prox{display:flex;gap:10px;align-items:center;justify-content:space-between;background:var(--bg2);border:1px solid var(--border2);border-left:4px solid #B7791F;border-radius:10px;padding:9px 12px;margin-bottom:12px;font-size:13px}
+.cd-prox.ok{border-left-color:var(--verde)}
+.cd-etapa{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;border:1px solid #B7791F;color:#8a5a12;background:#FFF6DD;white-space:nowrap}
+.cd-etapa.ok{border-color:var(--verde);color:var(--verde-esc,#1a6b40);background:transparent}
+@media (max-width:640px){
+  .cd-etapas{grid-template-columns:1fr;gap:6px}
+  .cd-et{display:grid;grid-template-columns:32px 1fr;gap:10px;text-align:left;align-items:center}
+  .cd-et::before{display:none}.cd-et .bol{margin:0;grid-row:span 2}
+  .cd-prox{flex-direction:column;align-items:flex-start}
+}
 /* ===== Planilha Casas Condomínio (r67) ===== */
 .cd-bt{border:1.5px solid var(--border);background:var(--sup);color:var(--azul);border-radius:8px;padding:8px 12px;font:inherit;font-weight:700;font-size:13px;cursor:pointer}
 .cd-bt:hover{background:var(--bg3)}
@@ -1106,7 +1128,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 
 <script src="app.js?v=45"></script>
 <script src="venda/painel-casa.js?v=1"></script>
-<script src="venda-dossie.js?v=4"></script>
+<script src="venda-dossie.js?v=14"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele.
    Mesma chave (morais_tema) das outras páginas do portal. */
@@ -1174,13 +1196,28 @@ const SETORES_AREA=[
 const ABAS_SETOR={
   "Secretária de Vendas":  ["atividades","alertas","atrasados","planilha","condominio","modelo"],
   // Gestor de Vendas: sem alerta e sem atividade — a página dele é dado de venda
-  "Gestor de Vendas":      ["vendidas","estoque","planilha","modelo"],  // vendidas primeiro
+  "Gestor de Vendas":      ["vendidas","estoque","planilha","condominio","modelo"],  // vendidas primeiro; 28/10: + condomínio
   "Departamento de Projetos":["atividades","alertas","planilha","modelo"],
   // Júlio (22/10/26): + Casas Modelo e Casas Liberadas sem Tipo
-  "Júlio César":           ["atividades","alertas","atrasados","planilha","modelo","semtipo"]
+  "Júlio César":           ["atividades","alertas","atrasados","planilha","condominio","modelo","semtipo"]   // 28/10: + condomínio
 };
 const ABAS_PADRAO=["atividades","alertas","atrasados","planilha","modelo"];
-function abasDoSetor(nome){ return ABAS_SETOR[nome]||ABAS_PADRAO; }
+/* 28/10/26 (dono): a Planilha Casas Condomínio (com a Tela de Venda) também por PESSOA — quem tem o acesso
+   "CONDOMÍNIO" na coluna ACESSOS da base LOGINS vê a aba em qualquer setor que abrir (ex.: o Felipe, no
+   Departamento de Projetos, sem abrir para o setor inteiro). Só o acesso marcado conta: ADM/MASTER não ganham
+   a aba em todo setor por isso. */
+function temAcessoCondominio(){
+  const nz=x=>String(x||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/\s+/g," ").trim();
+  return typeof S!=="undefined" && !!S && (S.acessos||[]).some(a=>nz(a)==="CONDOMINIO");
+}
+function abasDoSetor(nome){
+  const abas=(ABAS_SETOR[nome]||ABAS_PADRAO).slice();
+  if(abas.indexOf("condominio")<0 && temAcessoCondominio()){
+    const i=abas.indexOf("planilha");
+    abas.splice(i>=0?i+1:abas.length,0,"condominio");
+  }
+  return abas;
+}
 
 function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("on"); setTimeout(()=>t.classList.remove("on"),1900); }
 /* MASTER: vê tudo o que o ADM vê, mas não edita
@@ -1473,10 +1510,24 @@ async function boot(){
    caminho do "Gerar venda" da tela do condomínio (a casa acabou de nascer e
    ainda não está no vendas.json — o abrirObra busca no Apps Script). */
 function abrirCasaDaUrl(){
-  let id="";
-  try{ id=new URLSearchParams(location.search).get("abrir")||""; }catch(e){ return; }
+  let id="", cond="", editar="";
+  try{ const q=new URLSearchParams(location.search); id=q.get("abrir")||""; cond=q.get("cond")||""; editar=q.get("editar")||""; }catch(e){ return; }
+  if(/^[0-9a-f]{32}$|^[0-9a-f-]{36}$/i.test(cond)) return abrirCondNaCelula(cond, editar);
   if(!/^[0-9a-f]{32}$|^[0-9a-f-]{36}$/i.test(id)) return;
   abrirObra(id);
+}
+/* 27/10 (dono): vendas.html?cond=<id da linha>&editar=Email — atalho "Corrigir e-mail" da assinatura.
+   Abre a Planilha Casas Condomínio, rola até a unidade e já abre a célula para editar. */
+async function abrirCondNaCelula(id, col){
+  const setor=Object.keys(ABAS_SETOR).find(s=>(ABAS_SETOR[s]||[]).indexOf("condominio")>=0);
+  if(!setor) return;
+  abrirSetor(setor); abaSetor("condominio");
+  for(let i=0;i<120 && !(COND&&COND.linhas);i++) await new Promise(r=>setTimeout(r,500));
+  const tr=document.querySelector('#cd-wrap tr[data-id="'+CSS.escape(id)+'"]');
+  if(!tr){ alert("Não achei esta unidade na Planilha Casas Condomínio."); return; }
+  const td=[...tr.querySelectorAll("td[data-col]")].find(x=>cdNorm(x.dataset.col)===cdNorm(col||"Email"));
+  tr.scrollIntoView({block:"center",inline:"nearest"});
+  if(td){ td.scrollIntoView({block:"center",inline:"center"}); condEditar(td); }
 }
 /* item 7: cada atividade só conta pro setor cujo "responsavel" bate com o
    RESPONSÁVEL da atividade (ver SETORES_AREA). Setor sem "responsavel"
@@ -1722,11 +1773,11 @@ function condRender(){
   }).sort((a,b)=>String(cdVal(a,tit)||"").localeCompare(String(cdVal(b,tit)||""),"pt-BR",{numeric:true}));
   document.getElementById("cd-count").textContent=linhas.length+" unidade(s)";
   if(!COND.linhas.length){ document.getElementById("cd-wrap").innerHTML='<div class="vazio">Nenhuma venda no banco ainda. Marque uma proposta como <b>VENDIDA</b> em Simulações → Propostas para ela aparecer aqui.</div>'; return; }
-  let h='<table><thead><tr>'+cols.map(c=>'<th>'+esc(c.nome)+'</th>').join("")+'</tr></thead><tbody>';
+  let h='<table><thead><tr>'+cols.map((c,i)=>'<th>'+esc(c.nome)+'</th>'+(i===0?'<th>Etapa</th>':'')).join("")+'</tr></thead><tbody>';
   linhas.forEach(l=>{
     h+='<tr data-id="'+esc(l.id)+'">'+cols.map((c,i)=>{
       const v=cdVal(l,c.nome), ed=cdEditavel(c)&&i>0;
-      if(i===0) return '<td class="un" onclick="condAbrir(\''+esc(l.id)+'\')">'+esc(v||"(sem unidade)")+'</td>';
+      if(i===0) return '<td class="un" onclick="condAbrir(\''+esc(l.id)+'\')">'+esc(v||"(sem unidade)")+'</td><td>'+condEtapaTag(l)+'</td>';
       let txt="";
       if(v==null||v==="") txt="";
       else if(c.tipo==="date") txt=cdDia(v);
@@ -1851,6 +1902,53 @@ function condAbatimentos(l,totalFluxo){
   }
   return h+'</div>';
 }
+/* 27/10/2026 — ETAPAS DA VENDA (só leitura): calculadas das colunas que o portal já grava na linha.
+   Pré-reserva → Datas do fluxo → Contrato → Assinaturas → Mais Controle. Clique numa etapa leva ao bloco dela. */
+function cdTemArq(v){ return Array.isArray(v)?v.length>0:!!(v&&String(v).trim()); }
+function cdSit(l,col){ return String(cdVal(l,col)||"").trim().toUpperCase(); }
+function condEtapas(l){
+  const g=n=>cdVal(l,n);
+  const prSit=cdSit(l,"PRÉ-RESERVA - SITUAÇÃO"), aSit=cdSit(l,"ASSINATURA - SITUAÇÃO"), mcSit=cdSit(l,"MC - SITUAÇÃO");
+  const it=[
+    {nome:"Pré-reserva", alvo:".vb-pr", feito:prSit==="ASSINADO",
+     sub:prSit==="ASSINADO"?"assinado":prSit==="ENVIADO"?"assinando":cdTemArq(g("PRÉ-RESERVA - TERMO GERADO"))?"termo gerado":"a fazer",
+     prox:prSit==="ENVIADO"?"esperar a assinatura do termo (ou reenviar o link)":cdTemArq(g("PRÉ-RESERVA - TERMO GERADO"))?"enviar o termo de pré-reserva para assinatura":"preencher a conta para devolução e gerar o termo de pré-reserva"},
+    {nome:"Datas do fluxo", alvo:"#cd-ass", feito:!!(g("DATA DE ASSINATURA DO CONTRATO")&&g("DIA PAGAMENTO PARCELAS")&&g("DATA DA ENTREGA")),
+     sub:"", prox:"preencher data de assinatura, dia de pagamento e entrega e salvar o fluxo"},
+    {nome:"Contrato", alvo:".vb-pr-ass + .grp", feito:cdTemArq(g("CONTRATO GERADO"))||!!aSit,
+     sub:"", prox:"gerar o pré-contrato, conferir e gerar o contrato"},
+    {nome:"Assinaturas", alvo:".vb-ass", feito:aSit==="ASSINADO",
+     sub:aSit==="ENVIADO"?"assinando":aSit==="ASSINADO"?"assinado":"", prox:aSit==="ENVIADO"?"esperar as assinaturas (ou reenviar o link)":"enviar o contrato para assinatura na Clicksign"},
+    {nome:"Mais Controle", alvo:".vb-mc", feito:!!String(g("MC - VENDA ID")||"").trim(),
+     sub:/^PR[ÉE]VIA OK/.test(mcSit)?"prévia ok":/^PROCESSANDO/.test(mcSit)?"processando":"", prox:/^PR[ÉE]VIA OK/.test(mcSit)?"lançar a venda no Mais Controle":"ver a prévia e lançar no Mais Controle"}
+  ];
+  it[1].sub=it[1].feito?"preenchidas":"faltam datas"; it[2].sub=it[2].sub||(it[2].feito?"gerado":"");
+  if(it[3].feito) it[3].sub="assinado"; if(it[4].feito) it[4].sub="lançada";
+  let atual=it.findIndex(x=>!x.feito);
+  return {itens:it, atual:atual};   /* atual = -1: tudo feito */
+}
+function condEtapaTag(l){
+  const e=condEtapas(l);
+  if(e.atual<0) return '<span class="cd-etapa ok">Concluída</span>';
+  const x=e.itens[e.atual];
+  return '<span class="cd-etapa">'+esc(x.nome)+(x.sub?' · '+esc(x.sub):'')+'</span>';
+}
+function condEtapasHtml(l){
+  const e=condEtapas(l);
+  const faixa='<div class="cd-etapas">'+e.itens.map((x,i)=>{
+    const cl=x.feito?"feito":(i===e.atual?"agora":"");
+    return '<div class="cd-et '+cl+'" onclick="condIrEtapa(\''+x.alvo+'\')" title="Ir para o bloco"><div class="bol">'+(x.feito?"✓":(i+1))+'</div><b>'+esc(x.nome)+'</b><small>'+esc(x.sub||"—")+'</small></div>';
+  }).join("")+'</div>';
+  const prox=e.atual<0
+    ?'<div class="cd-prox ok"><span><b>Venda concluída.</b> Termo e contrato assinados e venda lançada no Mais Controle.</span></div>'
+    :'<div class="cd-prox"><span><b>Próximo passo:</b> '+esc(e.itens[e.atual].prox)+'.</span><button class="cd-bt pri" onclick="condIrEtapa(\''+e.itens[e.atual].alvo+'\')">Ir para lá ↓</button></div>';
+  return faixa+prox;
+}
+function condIrEtapa(sel){
+  const box=document.getElementById("cd-card"); if(!box) return;
+  const el=box.querySelector(sel); if(!el) return;
+  el.scrollIntoView({behavior:"smooth",block:"start"});
+}
 function condAbrir(id){
   const l=COND.linhas.find(x=>x.id===id); if(!l) return;
   COND_ABERTA=id;
@@ -1865,6 +1963,7 @@ function condAbrir(id){
     '<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div>'+
     '<h3>Unidade '+esc(g(tit)||"")+(g("CONDOMÍNIO")?' · '+esc(g("CONDOMÍNIO")):'')+'</h3><div class="sub">'+esc(g("PROPONENTE")||"—")+' · Proposta '+esc(g("PROPOSTA")||"—")+' · Corretor: '+esc(g("CORRETOR")||"—")+(g("CPF CORRETOR")?' · CPF '+esc(g("CPF CORRETOR")):'')+'</div></div>'+
     '<button class="cd-bt" onclick="condFechar()">✕ Fechar</button></div>'+
+    condEtapasHtml(l)+
     '<div class="cd-kpis">'+
       '<div class="cd-kpi"><small>Valor de venda</small><b>'+cdBRL(g("VALOR DE VENDA"))+'</b></div>'+
       '<div class="cd-kpi"><small>Comissão</small><b>'+cdBRL(g("COMISSÃO"))+'</b>'+(pctTxt?'<span>'+pctTxt+(g("PRAZO ENTRADA")?' · prazo '+g("PRAZO ENTRADA")+' meses':'')+'</span>':'')+'</div>'+
@@ -1872,7 +1971,7 @@ function condAbrir(id){
     '<div class="cd-ent">'+
       '<div><label>Data de assinatura do contrato</label><input type="date" id="cd-ass" value="'+esc(ass?String(ass).slice(0,10):"")+'"></div>'+
       '<div><label>Dia de pagamento (cliente escolhe)</label><select id="cd-dia"><option value="">—</option>'+Array.from({length:27},(_,i)=>'<option value="'+(i+5)+'"'+(String(dia)===String(i+5)?" selected":"")+'>Dia '+(i+5)+'</option>').join("")+'</select></div>'+
-      '<div><label>Data da entrega</label><input type="date" id="cd-ent" value="'+esc(ent?String(ent).slice(0,10):"")+'"></div>'+
+      '<div><label>Data da entrega</label><input type="date" id="cd-ent" value="'+esc(ent?String(ent).slice(0,10):COND_ENTREGA_PADRAO)+'"'+(ent?'':' title="Padrão do contrato (item 8 a); grava ao salvar"')+'></div>'+
       '<button class="cd-bt pri" id="cd-calc" onclick="condCalcular(\''+esc(id)+'\')">Salvar e recalcular o fluxo</button>'+
       '<div class="cd-prog" id="cd-prog" style="display:none;flex-basis:100%"></div>'+
     '</div>'+
@@ -1995,6 +2094,9 @@ function condProgresso(ativo){
   pintar(); const tm=setInterval(pintar,1000);
   return (ok)=>{ clearInterval(tm); el.innerHTML='<b style="color:'+(ok?'#1D7A46':'#B0431F')+'">'+(ok?'✓ Salvo e fluxo recalculado':'⚠ Não terminou — veja a mensagem')+'</b>'; setTimeout(()=>{ el.style.display="none"; },4000); };
 }
+/* 27/10 (dono): unidade sem DATA DA ENTREGA abre com a data prevista do contrato do condomínio
+   (Quadro Resumo, item 8 a: "conclusão da obra e entrega das chaves: 30/11/2028"); salvar grava. */
+const COND_ENTREGA_PADRAO="2028-11-30";
 async function condCalcular(id){
   const bt=document.getElementById("cd-calc"); bt.disabled=true; bt.textContent="Calculando…";
   const fimProg=condProgresso(true);
@@ -3960,6 +4062,25 @@ const MPT=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','De
 const MFU=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const fmtM=ym=>{if(!ym)return'—';const[y,m]=ym.split('-');return MPT[+m-1]+'/'+y.slice(2);};
 const fmtBRL=v=>v==null||isNaN(v)?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
+
+/* 28/10: ao passar o mouse numa linha da "Tabela por mês" mostra os endereços das casas vendidas */
+var VV_TIPS={};
+function vvEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function vvTipHtml(rot,lista,fmt){
+  const ls=lista.slice().sort((a,b)=>String(a.data_venda||'').localeCompare(String(b.data_venda||''))||String(a.endereco||'').localeCompare(String(b.endereco||'')));
+  const dd=d=>d?String(d).slice(8,10)+'/'+String(d).slice(5,7):'';
+  return `<div style="font:800 14px 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.05em;color:var(--azul,#295778);margin-bottom:6px">${vvEsc(rot)} · ${ls.length} casa${ls.length>1?'s':''} vendida${ls.length>1?'s':''}</div>`+
+    `<table style="width:100%;border-collapse:collapse;font-size:12px">`+ls.map(x=>`<tr><td style="padding:2px 8px 2px 0;border:0;background:none;color:var(--text3,#678);white-space:nowrap">${dd(x.data_venda)}</td><td style="padding:2px 8px 2px 0;border:0;background:none;color:var(--text,#223);text-align:left;white-space:nowrap">${vvEsc(x.endereco||'?')}${x.casa?' · casa '+vvEsc(x.casa):''}${x.unidade?' · unid. '+vvEsc(x.unidade):''}</td><td style="padding:2px 0;border:0;background:none;color:var(--text,#223);text-align:right;white-space:nowrap;font-family:'DM Mono',monospace">${fmt(x.valor_venda_contrato||x.valor_na_mao||0)}</td></tr>`).join('')+`</table>`;
+}
+(function(){ if(window._vvTipOk) return; window._vvTipOk=1;
+  let t=null; const tip=()=>{ if(!t){ t=document.createElement('div'); t.id='vv-tip';
+    t.style.cssText='position:fixed;z-index:950;display:none;max-width:520px;max-height:70vh;overflow:hidden;background:var(--branco,#fff);color:var(--text,#223);border:1.5px solid var(--azul,#295778);border-radius:10px;box-shadow:0 12px 32px rgba(10,30,45,.28);padding:10px 12px;pointer-events:none';
+    document.body.appendChild(t); } return t; };
+  const pos=e=>{ const x=tip(), w=x.offsetWidth, h=x.offsetHeight; let l=e.clientX+16, tp=e.clientY+14; if(l+w>innerWidth-8) l=e.clientX-w-16; if(tp+h>innerHeight-8) tp=Math.max(8,innerHeight-h-8); x.style.left=Math.max(8,l)+'px'; x.style.top=tp+'px'; };
+  document.addEventListener('mouseover',e=>{ const tr=e.target.closest&&e.target.closest('tr[data-vv]'); const x=tip(); if(!tr||!VV_TIPS[tr.dataset.vv]){ x.style.display='none'; return; } x.innerHTML=VV_TIPS[tr.dataset.vv]; x.style.display='block'; pos(e); });
+  document.addEventListener('mousemove',e=>{ if(t&&t.style.display==='block') pos(e); });
+  window.addEventListener('scroll',()=>{ if(t) t.style.display='none'; },true);
+})();
 const fmtBRL2=v=>v==null||isNaN(v)?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtN=(v,d=1)=>v==null||isNaN(v)?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const fmtPct=(v,d=2)=>v==null||isNaN(v)?'—':fmtN(v,d)+'%';
@@ -4257,8 +4378,8 @@ function buildVendas(){
   const pm={};
   v.forEach(x=>{
     const m=balde(x);if(!m)return;
-    if(!pm[m])pm[m]={qt:0,vgvMao:0,vgvCont:0};
-    pm[m].qt++;pm[m].vgvMao+=(x.valor_na_mao||0);pm[m].vgvCont+=(x.valor_venda_contrato||0);
+    if(!pm[m])pm[m]={qt:0,vgvMao:0,vgvCont:0,lista:[]};
+    pm[m].lista.push(x); pm[m].qt++;pm[m].vgvMao+=(x.valor_na_mao||0);pm[m].vgvCont+=(x.valor_venda_contrato||0);
   });
   const dQ=ms.map(m=>pm[m]?.qt||0),lb=ms.map(rotulo);
   const tQ=v.length,tVmao=v.reduce((s,x)=>s+(x.valor_na_mao||0),0),tVcont=v.reduce((s,x)=>s+(x.valor_venda_contrato||0),0);
@@ -4321,9 +4442,11 @@ function buildVendas(){
   const dataAcum=ms.map(m=>{ acum+=(pm[m]?.vgvMao||0); return acum; });
   drawLines('ch-vgv-acum',lb,[{data:dataAcum,color:'#1a6b40'}],v=>fmtBRL(v));
 
+  VV_TIPS={};
   const body=ms.map((m,i)=>{
     if(!dQ[i])return'';
-    return`<tr><td><strong>${rotulo(m)}</strong></td><td class="nr">${dQ[i]}</td>
+    VV_TIPS['m'+i]=vvTipHtml(rotulo(m),(pm[m]&&pm[m].lista)||[],fmtBRL);
+    return`<tr data-vv="m${i}" style="cursor:help"><td><strong>${rotulo(m)}</strong></td><td class="nr">${dQ[i]}</td>
       <td class="nr">${fmtBRL(pm[m]?.vgvMao||0)}</td><td class="nr">${fmtBRL(pm[m]?.vgvCont||0)}</td></tr>`;
   }).join('');
   document.getElementById('tbl-vendas').innerHTML=`<table>

@@ -336,3 +336,12 @@ Páginas:
    de testemunha inválido na Propriedade) que o DELETE responde 2xx e o
    envelope some; se a Clicksign recusar, a casa fica em RASCUNHO e o log
    mostra `rascunho nao apagado http <código>`.
+
+## Cancelar o envelope (29/10/2026) — `assinaturaCancelar`
+
+`PATCH /api/v3/envelopes/{envelope_id}` com
+`{ "data": { "id": "<envelope_id>", "type": "envelopes", "attributes": { "status": "canceled" } } }`.
+Só com o envelope `running`; depois o portal roda o mesmo "Atualizar situação", que grava
+`CANCELADO` na casa e apaga as Propriedades do envelope — o "Enviar de novo" fica liberado.
+Erros: `SEM_ENVELOPE`, `ENVELOPE_NAO_ATIVO` (com a situação), `CLICKSIGN_FALHOU` (`passo: "cancelar"`),
+`ASSINATURA_OCUPADA`. Perfil TESTES não cancela.

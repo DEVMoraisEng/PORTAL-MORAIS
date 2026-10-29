@@ -61,9 +61,10 @@ function ctrTitulo_(props) {
 /* Página da casa na VENDAS ou, desde a entrega 7, a própria linha da BANCO DE DADOS VENDAS
  * CONDOMÍNIO (DB_VENDAS_COND) — essa vira a "página de venda virtual" do CondominioVenda:
  * mesmas colunas que a VENDAS teria, e o retorno gravado nas colunas da própria linha. */
-function ctrLerPaginaVenda_(pageId) {
+function ctrLerPaginaVenda_(pageId, info) {
   var pg = notion_("GET", "/pages/" + pageId, null);
   var dbAtual = vendaBaseDaPagina_(pg);
+  if (info) info.base = dbAtual;
   if (dbAtual === "VENDAS") return pg;
   if (dbAtual === "CONDOMINIO")
     return CondominioVenda.paginaVirtual(pg, pageId, ContratoVenda.TIPOS, [ContratoVenda.COL.CONTRATO_GERADO], CTR_GARANTIR_COND);
@@ -233,12 +234,22 @@ function ctrLerCondominio_(idCond) {
   return { c: ctrPorChave_(pg.properties || {}) };
 }
 /* Fluxo, fiadores, unidade e corretor da linha do condomínio (nomes de coluna comparados normalizados). */
+/* 27/10: VALOR PARA ENTRADA da proposta (o simulador abate o sinal com ele, na ordem ato → 30 → 60 → 90).
+   Sem proposta legível: null (o contrato diz "por PIX"). */
+function ctrValorParaEntrada_(idProposta) {
+  if (!/^[0-9a-f-]{32,36}$/i.test(String(idProposta || ""))) return null;
+  try {
+    var pp = notion_("GET", "/pages/" + idProposta, null);
+    var x = pp && pp.properties ? ctrCampo_(ctrPorChave_(pp.properties), "VALOR PARA ENTRADA") : null;
+    return x === null || x === undefined ? null : ctrNum_(x);
+  } catch (e) { ctrErro_("valor para entrada da proposta", e); return null; }
+}
 function ctrDadosCondominio_(c) {
   function k(nome) { return ctrCampo_(c, nome); }
   function n(nome) { return ctrNum_(k(nome)); }
   function t(nome) { var x = k(nome); return x === null || x === undefined ? "" : ctrTxt_(x).trim(); }
   function fiador(i) {
-    return { nome: t("FIADOR " + i), cpf: t("CPF FIADOR " + i), rg: t("RG FIADOR " + i), nacionalidade: t("NACIONALIDADE FIADOR " + i),
+    return { nome: t("FIADOR " + i), cpf: RegrasVenda.cpfDoNotion(t("CPF FIADOR " + i)), rg: t("RG FIADOR " + i), nacionalidade: t("NACIONALIDADE FIADOR " + i),
              endereco: t("ENDERECO FIADOR " + i), numero: t("NUMERO FIADOR " + i), setor: t("SETOR FIADOR " + i),
              cidade: t("CIDADE FIADOR " + i), cep: t("CEP FIADOR " + i), email: t("EMAIL FIADOR " + i) };
   }
@@ -256,15 +267,24 @@ function ctrDadosCondominio_(c) {
         balao1Valor: n("VALOR 1º BALÃO"), balao1Data: t("DATA 1º BALÃO (12/27)"),
         balao2Valor: n("VALOR BALÃO ENTREGA DE CHAVES"), balao2Data: t("DATA 2º BALÃO (25º PARCELA)"),
         posN: n("Nº PARCELAS PÓS CHAVES"), posValor: n("VALOR PÓS CHAVES"), posData: t("DATA PÓS CHAVES"),
+        prazoEntrada: n("PRAZO ENTRADA"),   /* 28/10: a comissão sai do prazo (24x 5%, 36x 4,75%, 48x 4,5%) */
         credito: n("VALOR DO CRÉDITO"), fgts: n("VALOR DO FGTS"), subsidio: n("SUBISÍDIO")
       },
-      fiadores: [fiador(1), fiador(2)]
+      fiadores: [fiador(1), fiador(2)],
+      /* quadro-resumo (21/10): a comissão gravada pelo simulador; vazia, o contrato calcula pela regra */
+      comissao: n("COMISSÃO"),
+      /* 27/10: termo de pré-reserva ASSINADO = o valor dele já foi pago e é abatido do sinal (dono) */
+      /* 27/10 (dono): sinal "por PIX ou abatimento" — o abatimento é o VALOR PARA ENTRADA da proposta (ctrFontes_) */
+      idProposta: t("ID PROPOSTA"),
+      preReserva: { assinado: t("PRÉ-RESERVA - SITUAÇÃO").toUpperCase() === "ASSINADO",
+                    valor: typeof PreReservaVenda !== "undefined" ? PreReservaVenda.valorDe(prop_("PRE_RESERVA_VALOR")) : null }
     },
     /* o imóvel do condomínio mora na linha do condomínio; a casa só completa o que faltar */
     imovel: { MATRICULA_INDIVIDUAL: t("CONTRATO - MATRÍCULA INDIVIDUAL"), CRI: t("CONTRATO - CRI DA MATRÍCULA"),
               ALVARA_NUMERO: t("CONTRATO - ALVARÁ Nº"), ALVARA_DATA: t("CONTRATO - ALVARÁ DATA"),
               PRAZO_CONCLUSAO: t("CONTRATO - PRAZO DE CONCLUSÃO DAS OBRAS"), CONDICOES_ESPECIAIS: t("CONTRATO - CONDIÇÕES ESPECIAIS") },
-    corretor: { nome: t("CORRETOR"), creci: t("CRECI"), cpfCnpj: t("CPF CORRETOR"), email: t("EMAIL CORRETOR") }
+    corretor: { nome: t("CORRETOR"), creci: t("CRECI"), cpfCnpj: t("CPF CORRETOR"), email: t("EMAIL CORRETOR"),
+                telefone: t("CELULAR CORRETOR") }
   };
 }
 
@@ -297,11 +317,13 @@ function ctrFontes_(col, pageId) {
     return canon;
   }
   var venda = {
-    CLIENTES: dos(C.CLIENTES), CPF: dos(C.CPF1), ENDERECO: ctrTitulo_(pg.properties),
+    CLIENTES: dos(C.CLIENTES), CPF: RegrasVenda.cpfDoNotion(dos(C.CPF1)), ENDERECO: ctrTitulo_(pg.properties),
     COMPRADOR1: { nacionalidade: dos(C.C1_NAC), estadoCivil: dos(C.C1_ESTCIV), profissao: dos(C.C1_PROF),
-                  documento: dos(C.C1_DOC), endereco: dos(C.C1_END), email: ctrTxt_(cv("Email")) },
-    COMPRADOR2: { nome: dos(C.C2_NOME), cpf: dos(C.C2_CPF), nacionalidade: dos(C.C2_NAC), estadoCivil: dos(C.C2_ESTCIV),
-                  profissao: dos(C.C2_PROF), documento: dos(C.C2_DOC), endereco: dos(C.C2_END), email: dos(C.C2_EMAIL) },
+                  documento: dos(C.C1_DOC), endereco: dos(C.C1_END), email: ctrTxt_(cv("Email")),
+                  telefone: ctrTxt_(cv("Nº Whatsapp")) /* só o contrato do condomínio usa */ },
+    COMPRADOR2: { nome: dos(C.C2_NOME), cpf: RegrasVenda.cpfDoNotion(dos(C.C2_CPF)), nacionalidade: dos(C.C2_NAC), estadoCivil: dos(C.C2_ESTCIV),
+                  profissao: dos(C.C2_PROF), documento: dos(C.C2_DOC), endereco: dos(C.C2_END), email: dos(C.C2_EMAIL),
+                  telefone: ctrTxt_(cv(C.C2_TEL)) },
     ALVARA_NUMERO: cv(CV.ALVARA_NUMERO), ALVARA_DATA: cv(CV.ALVARA_DATA), HABITESE_NUMERO: cv(CV.HABITESE_NUMERO),
     /* entrega 14: opcionais (cv: coluna que não existe = vazio); preenchidas, valem antes da obra e do setor */
     HABITESE_DATA: cv(CV.HABITESE_DATA), DENOMINACAO_LOTEAMENTO: ctrTxt_(cv(CV.DENOMINACAO_LOTEAMENTO)),
@@ -326,12 +348,20 @@ function ctrFontes_(col, pageId) {
     var lido = pg.propsCondominio ? { c: ctrPorChave_(pg.propsCondominio) } : ctrLerCondominio_(idCond);
     if (lido.erro) return { condominioErro: lido.erro };
     cond = ctrDadosCondominio_(lido.c);
+    cond.condominio.valorParaEntrada = ctrValorParaEntrada_(cond.condominio.idProposta);
     for (var campo in cond.imovel) if (cond.imovel[campo]) venda[campo] = cond.imovel[campo];
   }
 
   /* a obra: relação OBRA-AUTO se aponta para DOCUMENTOS; senão, pelo ENDEREÇO (título) */
   var obraAuto = ctrLerObraAuto_(cv("OBRA-AUTO"));
   var props = ctrObraProps_(cv("OBRA-AUTO"), venda.ENDERECO, obraAuto);
+  /* 28/10: o condomínio não precisa de linha na DOCUMENTOS (criar uma "obra" lá dispara os alertas de
+     documentos): do cadastro da obra o contrato do condomínio só usa a vendedora, que vem da Propriedade
+     CONDOMINIO_VENDEDOR (o nome como está em VENDEDORES – CONTRATO). */
+  if (!props && cond && String(prop_("CONDOMINIO_VENDEDOR") || "").trim()) {
+    props = {};
+    props["PROPRIETARIO DOCUMENTO"] = { type: "rich_text", rich_text: [{ plain_text: String(prop_("CONDOMINIO_VENDEDOR")).trim() }] };
+  }
   if (!props) return { obraNaoEncontrada: true };
   if (props.ambigua === true) return { obraAmbigua: true };
   var op = ctrPorChave_(props);
@@ -363,7 +393,8 @@ function ctrFontes_(col, pageId) {
   } : null;
   /* entrega 12: a "Conta de recebimento" escolhida (ou digitada) para ESTA venda vale antes de tudo.
      Conta escolhida que sumiu da CONTAS BANCÁRIAS vira falta — nunca troca sozinha por outra conta. */
-  var contaErro = "", escolha = vendedor ? ctrLerContaReceb_(pageId) : null, usouEscolha = false;
+  /* 27/10 (dono): no condomínio a conta é sempre a mesma e já está escrita no modelo (item 4.5) — escolha não vale */
+  var contaErro = "", escolha = vendedor && !cond ? ctrLerContaReceb_(pageId) : null, usouEscolha = false;
   if (escolha) {
     var de = escolha.contaId ? ctrDadosDaConta_(escolha.contaId) : escolha.digitada;
     if (de && (de.banco || de.conta)) {
@@ -395,13 +426,16 @@ function ctrFontes_(col, pageId) {
   if (cond && cond.corretor.nome) {
     var kc = cond.corretor, base = corretor || {};
     corretor = { nome: kc.nome, creci: kc.creci || base.creci || "", cpfCnpj: kc.cpfCnpj || base.cpfCnpj || "",
-                 nacionalidade: base.nacionalidade || "", endereco: base.endereco || "", email: kc.email || base.email || "" };
+                 nacionalidade: base.nacionalidade || "", endereco: base.endereco || "", email: kc.email || base.email || "",
+                 telefone: kc.telefone || "" };
   }
 
   return {
     fontes: { venda: venda, obra: obra, vendedor: vendedor, loteamento: loteamento, corretor: corretor,
               condominio: cond ? cond.condominio : null,
-              hojeISO: hoje_("yyyy-MM-dd"), cidadeAssinatura: prop_("CIDADE_ASSINATURA") || "Goiânia" },
+              hojeISO: hoje_("yyyy-MM-dd"), cidadeAssinatura: prop_("CIDADE_ASSINATURA") || "Goiânia",
+              /* condomínio, item 4.2.1 g): vazio = "boleto bancário ou PIX" */
+              meioPagamento: prop_("MEIO_PAGAMENTO_CONDOMINIO") || "" },
     endereco: venda.ENDERECO, casa: ctrTxt_(cv("CASA")), colGerado: nomeReal(CV.CONTRATO_GERADO),
     contaErro: contaErro, usouEscolha: usouEscolha,
     /* entrega 12: onde o formulário grava (linhas achadas) e com que nome/chave cria a que falta */
@@ -617,7 +651,7 @@ function verPreContrato_(col, p) {
 }
 
 function contratoEstado_(col, p) {
-  var a = ctrArquivoGerado_(ctrLerPaginaVenda_(p.pageId)), pre = ctrLerPre_(p.pageId);
+  var info = {}, pgE = ctrLerPaginaVenda_(p.pageId, info), a = ctrArquivoGerado_(pgE), pre = ctrLerPre_(p.pageId);
   /* PRE: há pré-contrato ainda não conferido (mesmo que exista um contrato final antigo) */
   var etapa = pre && !pre.conferidoEm ? "PRE" : a ? "FINAL" : "NENHUM";
   var r = { ok: true, gerado: !!a, etapa: etapa, pre: null };
@@ -628,7 +662,12 @@ function contratoEstado_(col, p) {
   }
   if (a) { r.nome = a.nome; r.url = a.url; }
   /* entrega 12: lista de contas (só id e título), a escolha desta venda e a da obra */
-  try { r.conta = contaRecebEstado_(p.pageId); } catch (e) { ctrErro_("contratoEstado conta", e); }
+  if (info.base === "CONDOMINIO") {
+    r.conta = { fixa: ctrContaFixaCondominio_() };
+    try { var cf = cfdEstado_(pgE); if (cf) r.confissao = cf; } catch (e) { ctrErro_("contratoEstado confissao", e); }
+    try { r.condicoes = condEspEstado_(p.pageId, pgE); } catch (e) { ctrErro_("contratoEstado condicoes", e); }
+  }
+  else try { r.conta = contaRecebEstado_(p.pageId); } catch (e) { ctrErro_("contratoEstado conta", e); }
   if (pre) {
     r.pre = { nome: ctrTxt_(pre.nome), url: ctrTxt_(pre.url), em: ctrTxt_(pre.em), conferido: !!pre.conferidoEm };
     if (etapa === "PRE") r.pre.desatualizado = ctrPreDesatualizado_(col, p, pre);
@@ -669,6 +708,8 @@ function ctrDadosAtuais_(col, p, pid, rot) {
   var d = ContratoVenda.montarDadosContrato(f.fontes);
   var faltas = ContratoVenda.faltasContrato(d);
   if (f.contaErro) faltas.push(f.contaErro);
+  /* 28/10: termos de confissão ligados = os fiadores (nome e CPF) entram nas faltas do contrato do condomínio */
+  if (d.condominio && cfdLigado_()) faltas = faltas.concat(ConfissaoVenda.faltas(d));
   if (faltas.length) {
     ctrLog_(rot + " " + pid + " faltas " + faltas.length);
     /* entrega 12: o formulário da tela (só nomes de campo) */
@@ -746,6 +787,11 @@ function gerarPreContrato_(col, sess, p) {
                             por: ctrTxt_(sess && sess.u) });
   if (antigo && antigo.arquivoId && antigo.arquivoId !== arq.getId()) apagarCopia_(antigo.arquivoId);
   var avisos = ContratoVenda.avisosContrato(prep.d);
+  /* 28/10: conferência dos documentos — só avisa (não trava) */
+  if (prep.d.condominio) { var av = confAviso_(p.pageId, prep.hash); if (av) avisos.push(av); }
+  /* 29/10: condições especiais desta venda — quem aprova vê antes de gerar o final */
+  if (prep.d.condominio && prep.d.imovel && ctrTxt_(prep.d.imovel.condicoesEspeciais).trim())
+    avisos.push("Condições especiais: este contrato tem texto próprio no item 16 do quadro-resumo — confira antes de aprovar");
   ctrLog_(rot + " " + pid + " ok " + (Date.now() - t0) + "ms" + (avisos.length ? "; em branco " + avisos.length : ""));
   return avisos.length ? { ok: true, nome: nome, url: url, avisos: avisos } : { ok: true, nome: nome, url: url };
 }
@@ -764,6 +810,13 @@ function aprovarPreContrato_(col, sess, p) {
     ctrLog_(rot + " " + pid + " dados mudaram depois do pre-contrato");
     return { ok: false, erro: "PRECONTRATO_DESATUALIZADO" };
   }
+  /* 28/10: os termos de confissão saem ANTES do contrato e com o mesmo carimbo (se falharem, nada do final muda) */
+  var termos = [];
+  if (prep.d.condominio && cfdLigado_()) {
+    var tc = cfdGerarTermos_(prep, p, pid, rot);
+    if (tc.resp) return tc.resp;
+    termos = tc.nomes;
+  }
   var g = ctrGerarPdf_(prep, pid, rot, false);
   if (g.resp) return g.resp;
   var nomePdf = "CONTRATO - " + prep.resto;
@@ -781,7 +834,9 @@ function aprovarPreContrato_(col, sess, p) {
   try { var a = ctrArquivoGerado_(ctrLerPaginaVenda_(p.pageId)); if (a) url = a.url; } catch (e) { ctrErro_(rot + " " + pid + " url", e); }
   var avisos = ContratoVenda.avisosContrato(prep.d);
   ctrLog_(rot + " " + pid + " ok " + (Date.now() - t0) + "ms" + (avisos.length ? "; em branco " + avisos.length : ""));
-  return avisos.length ? { ok: true, nome: nomePdf, url: url, avisos: avisos } : { ok: true, nome: nomePdf, url: url };
+  var r = avisos.length ? { ok: true, nome: nomePdf, url: url, avisos: avisos } : { ok: true, nome: nomePdf, url: url };
+  if (termos.length) r.termos = termos;
+  return r;
 }
 
 /* ---- entrega 12: conta de recebimento por venda ----
@@ -864,8 +919,26 @@ function ctrGravarContaReceb_(pageId, valor) {
   else ps.setProperty(k, JSON.stringify(valor));
 }
 /* Ação "escolherContaRecebimento": p.conta = { id } | { banco, agencia, conta, pix } | {} (volta ao padrão). */
+/* 27/10 (dono): a conta do condomínio é fixa — o texto do item 4.5 do próprio modelo (nada de dado
+   bancário no repositório). Sem o modelo legível, uma frase genérica. */
+function ctrContaFixaCondominio_() {
+  var padrao = "a conta fixa do condomínio, escrita no item 4.5 do contrato";
+  try {
+    var id = prop_("MODELO_CONDOMINIO_ID");
+    if (!id) return padrao;
+    var ps = DocumentApp.openById(id).getBody().getParagraphs();
+    for (var i = 0; i < ps.length; i++) {
+      var s = ctrTxt_(ps[i].getText()).trim();
+      if (/^4\.5\.?\s*Dados banc/i.test(s)) return s.replace(/^4\.5\.?\s*/, "");
+    }
+  } catch (e) { ctrErro_("conta fixa do condominio", e); }
+  return padrao;
+}
+
 function escolherContaRecebimento_(col, sess, p) {
-  ctrLerPaginaVenda_(p.pageId);   // mesma checagem de base das outras ações
+  var info = {};
+  ctrLerPaginaVenda_(p.pageId, info);   // mesma checagem de base das outras ações
+  if (info.base === "CONDOMINIO") return { ok: false, erro: "CONTA_FIXA_CONDOMINIO" };
   var c = ctrConferirContaReceb_(p.conta);
   if (!c.ok) return c.erros ? { ok: false, erro: c.erro, erros: c.erros } : { ok: false, erro: c.erro };
   ctrGravarContaReceb_(p.pageId, c.valor);
@@ -922,6 +995,66 @@ function ctrTiposDaBase_(dbId) {
     if (pr.type === "title") titulo = n;
   }
   return { tipos: t, titulo: titulo };
+}
+
+/* ---- 29/10/2026: CONDIÇÕES ESPECIAIS desta venda (item 16 do quadro-resumo do condomínio) ----
+ * Texto livre por venda na coluna "CONTRATO - CONDIÇÕES ESPECIAIS" da linha do condomínio; vazio = "Não há.".
+ * Quem gravou e quando ficam na Propriedade CONDESP_<página>. Mudar o texto muda o carimbo: o pré-contrato
+ * gerado antes fica desatualizado e é preciso gerar de novo. */
+var CONDESP_COL = "CONTRATO - CONDIÇÕES ESPECIAIS", CONDESP_MAX = 1900;
+function condEspEstado_(pageId, pg) {
+  var texto = ctrTxt_(ctrCampo_(ctrPorChave_(pg.properties), CONDESP_COL)).trim(), meta = {};
+  try { meta = JSON.parse(prop_("CONDESP_" + pageId) || "{}") || {}; } catch (e) { meta = {}; }
+  var tem = !!ctrPorChave_(pg.properties)[RegrasVenda.chave(CONDESP_COL)];
+  return { coluna: tem, texto: texto, por: ctrTxt_(meta.por), em: ctrTxt_(meta.em), max: CONDESP_MAX };
+}
+function salvarCondicoesEspeciais_(col, sess, p) {
+  var pid = String(p.pageId).slice(0, 8);
+  if (typeof p.texto !== "string") return { ok: false, erro: "CAMPOS_INVALIDOS", erros: ["Texto das condições especiais"] };
+  var texto = p.texto.replace(/\r/g, "").trim();
+  if (texto.length > CONDESP_MAX) return { ok: false, erro: "CAMPOS_INVALIDOS", erros: ["Condições especiais: até " + CONDESP_MAX + " caracteres"] };
+  var info = {}, pg = ctrLerPaginaVenda_(p.pageId, info);
+  if (info.base !== "CONDOMINIO") return { ok: false, erro: "SO_CONDOMINIO" };
+  var real = null;
+  for (var n in pg.properties) if (RegrasVenda.chave(n) === RegrasVenda.chave(CONDESP_COL)) real = n;
+  if (!real) return { ok: false, erro: "COLUNA_FALTANDO", coluna: CONDESP_COL };
+  var props = {};
+  props[real] = propNotion_("rich_text", texto);
+  notion_("PATCH", "/pages/" + p.pageId, { properties: props });
+  var meta = { por: ctrTxt_(sess && sess.u), em: new Date().toISOString() };
+  PropertiesService.getScriptProperties().setProperty("CONDESP_" + p.pageId, JSON.stringify(meta));
+  ctrLog_("salvarCondicoesEspeciais " + pid + " por " + (meta.por || "?") + ": " + (texto ? texto.length + " caracteres" : "vazio"));
+  return { ok: true, condicoes: { coluna: true, texto: texto, por: meta.por, em: meta.em, max: CONDESP_MAX } };
+}
+
+/* 29/10: "Redigir com IA" — a pessoa escreve o pedido em linguagem comum, a OpenAI devolve a redação do item 16
+   com base no texto do modelo do condomínio (MODELO_CONDOMINIO_ID). NÃO grava: a tela põe o texto no campo e a
+   pessoa lê, ajusta e clica em Salvar. Números de cláusula citados que não existem no modelo voltam como aviso. */
+function redigirCondicoesEspeciais_(col, sess, p) {
+  var pid = String(p.pageId).slice(0, 8), pedidoTxt = String(p.pedido || "").trim();
+  if (!pedidoTxt || pedidoTxt.length > 1000) return { ok: false, erro: "CAMPOS_INVALIDOS", erros: ["Pedido para a IA: de 1 a 1000 caracteres"] };
+  var ia = leitorIA_();
+  if (ia.erro) return { ok: false, erro: ia.erro };
+  if (ia.nome !== "openai") return { ok: false, erro: "IA_SO_OPENAI" };
+  var idModelo = prop_("MODELO_CONDOMINIO_ID");
+  if (!idModelo) return { ok: false, erro: "MODELO_NAO_CONFIGURADO" };
+  var textoModelo;
+  try { textoModelo = DocumentApp.openById(idModelo).getBody().getText(); }
+  catch (e) { ctrErro_("redigirCondicoesEspeciais " + pid + " modelo", e); return { ok: false, erro: "MODELO_ILEGIVEL" }; }
+  var pedido = OpenAILeitor.montarPedidoClausula(pedidoTxt, textoModelo, String(p.atual || "").slice(0, CONDESP_MAX), ia.chave, ia.modelo);
+  if (pedido.erro) return { ok: false, erro: pedido.erro };
+  var res;
+  try {
+    var r = UrlFetchApp.fetch(pedido.url, { method: "post", contentType: "application/json", muteHttpExceptions: true,
+                                           headers: pedido.headers, payload: JSON.stringify(pedido.corpo) });
+    res = OpenAILeitor.interpretarResposta(r.getResponseCode(), r.getContentText());
+  } catch (e) { res = { ok: false, erro: "LEITURA_FALHOU" }; }
+  if (!res.ok) return { ok: false, erro: res.erro };
+  var L = res.leitura || {}, redacao = ctrTxt_(L.redacao).trim().slice(0, CONDESP_MAX);
+  var inexistentes = OpenAILeitor.clausulasInexistentes(L.clausulas_citadas, textoModelo);
+  ctrLog_("redigirCondicoesEspeciais " + pid + " por " + ctrTxt_(sess && sess.u) + " tokens " + res.uso.entrada + "/" + res.uso.saida +
+          (inexistentes.length ? "; citou inexistente " + inexistentes.join(",") : ""));
+  return { ok: true, redacao: redacao, observacao: ctrTxt_(L.observacao).trim(), inexistentes: inexistentes };
 }
 
 /* Ação "salvarCamposContrato": p.campos = { vendedor: {COLUNA: valor}, corretor: {...}, loteamento: {...} },

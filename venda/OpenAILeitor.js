@@ -48,6 +48,11 @@ var OpenAILeitor = (function () {
       unidade_identificacao: S, unidade_confrontacoes: S, unidade_area_privativa_m2: S, unidade_area_total_m2: S
     }),
     /* entrega 13: "soltar todos os documentos" — só diz o que é o arquivo (e de quem, se for pessoal) */
+    /* 28/10: conferência dos documentos — a certidão diz o estado civil */
+    certidao_civil: objeto({
+      tipo_documento: { type: "string", enum: ["CERTIDAO_NASCIMENTO", "CERTIDAO_CASAMENTO", "AVERBACAO_DIVORCIO", "CERTIDAO_OBITO", "OUTRO"] },
+      nome: S, estado_civil: S, regime_bens: S
+    }),
     classificar: objeto({
       tipo_documento: { type: "string", enum: ["IDENTIDADE", "COMPROVANTE", "APROVACAO", "MATRICULA", "CERTIDAO_MAE", "ALVARA", "HABITESE", "OUTRO"] },
       nome: S, cpf: S
@@ -61,6 +66,7 @@ var OpenAILeitor = (function () {
     alvara: "Os arquivos deveriam ser o alvará de construção (licença para construir) emitido pela prefeitura. tipo_documento: ALVARA, ou OUTRO se não for (habite-se não é alvará). numero: o número do alvará como impresso. data: a data de emissão do alvará em dd/mm/aaaa.",
     habitese: "Os arquivos deveriam ser o habite-se (certidão de conclusão de obra / carta de habite-se) emitido pela prefeitura. tipo_documento: HABITESE, ou OUTRO se não for (alvará de construção não é habite-se). numero: o número do habite-se como impresso. data: a data de emissão do habite-se em dd/mm/aaaa.",
     certidao_mae: "Os arquivos deveriam ser a certidão da matrícula-mãe (inteiro teor) de um condomínio ou loteamento, com a instituição/especificação das unidades, emitida pelo cartório de registro de imóveis. tipo_documento: CERTIDAO_MAE, ou OUTRO se não for (a matrícula individual de uma só casa não é certidão mãe). loteamento_denominacao: o nome do condomínio ou loteamento como impresso (ex.: Residencial Exemplo). matricula_mae: só o número da matrícula-mãe, sem a palavra matrícula. cartorio: a serventia como impressa no cabeçalho. unidade_encontrada: SIM se a certidão descreve a unidade indicada abaixo, NAO se não descreve ou se não houver unidade indicada. unidade_identificacao: como a certidão identifica essa unidade (ex.: Casa 1, Quadra 01, Lote 26). unidade_confrontacoes: as medidas e confrontações DESSA unidade numa linha só, como descritas (frente, fundo, lados). unidade_area_privativa_m2 e unidade_area_total_m2: as áreas dessa unidade em metros quadrados, só o número como impresso (ex.: 70,50). Campos unidade_* vazios se unidade_encontrada for NAO.",
+    certidao_civil: "Os arquivos deveriam ser a certidão de estado civil de um comprador de imóvel (nascimento, casamento, casamento com averbação de divórcio, ou óbito do cônjuge). tipo_documento: CERTIDAO_NASCIMENTO, CERTIDAO_CASAMENTO, AVERBACAO_DIVORCIO (casamento com divórcio averbado), CERTIDAO_OBITO, ou OUTRO se não for certidão. nome: o nome do registrado (na de casamento, os dois cônjuges separados por ' e '). estado_civil: SOLTEIRO, CASADO, DIVORCIADO ou VIUVO, conforme a certidão e as averbações. regime_bens: o regime de bens como impresso, se for casamento; senão string vazia.",
     classificar: "Diga que documento é este arquivo, de uma venda de imóvel. tipo_documento: IDENTIDADE (CNH, RG ou outra identidade de pessoa, frente ou verso), COMPROVANTE (conta de água, luz, telefone, internet ou outro comprovante de endereço), APROVACAO (aprovação de financiamento habitacional da Caixa), MATRICULA (certidão de matrícula de UM lote ou casa), CERTIDAO_MAE (certidão da matrícula-mãe de um condomínio ou loteamento, com várias unidades), ALVARA (alvará de construção), HABITESE (habite-se / certidão de conclusão de obra) ou OUTRO. nome: na IDENTIDADE o nome da pessoa; no COMPROVANTE o nome do titular; na APROVACAO o nome do proponente; nos outros, string vazia. cpf: o CPF dessa pessoa só com números, se aparecer; senão string vazia."
   };
   var REGRA = " Responda só com o que está escrito nos arquivos. Campo ilegível ou ausente: string vazia. Não invente nem complete.";
@@ -122,6 +128,54 @@ var OpenAILeitor = (function () {
     return { ok: true, leitura: leitura, uso: { entrada: u.input_tokens || 0, saida: u.output_tokens || 0 } };
   }
 
-  return { MODELO_PADRAO: MODELO_PADRAO, ESQUEMAS: ESQUEMAS, montarPedido: montarPedido, interpretarResposta: interpretarResposta };
+  /* 29/10/2026: redigir as CONDIÇÕES ESPECIAIS de uma venda (item 16 do quadro-resumo do condomínio).
+     A IA só sugere o texto; quem grava é a pessoa, depois de ler (salvarCondicoesEspeciais). */
+  var ESQUEMA_CLAUSULA = objeto({
+    redacao: S,
+    clausulas_citadas: { type: "array", items: S },
+    observacao: S
+  });
+  var INSTRUCAO_CLAUSULA =
+    "Você redige o item 'CONDIÇÕES ESPECIAIS DESTA VENDA' de um contrato de promessa de compra e venda de imóvel " +
+    "(Brasil). O contrato modelo inteiro vem abaixo. O pedido vem em linguagem comum. Escreva a redação jurídica " +
+    "curta, em português formal, que altera só o que foi pedido, citando o número exato da cláusula ou item do " +
+    "contrato modelo (ex.: 'Na cláusula 7.3.2, onde se lê \"...\", leia-se \"...\"' ou 'Não se aplica a este " +
+    "contrato a cláusula X'). Não invente cláusulas que não estão no modelo, não mude preço, prazo de pagamento, " +
+    "nomes ou dados das partes (isso vem dos dados da venda), não dê conselho jurídico. Se já houver texto atual, " +
+    "mantenha o que nele não conflita e acrescente o novo. Em clausulas_citadas, liste os números citados. Em " +
+    "observacao, diga em uma frase o que mudou ou por que não deu para redigir (pedido vago, cláusula inexistente, " +
+    "mudança que precisa de advogado); se não deu, redacao vazia. Escreva no MESMO estilo do contrato modelo: " +
+    "partes sempre como COMPRADOR, VENDEDORA, INTERMEDIADOR e FIADORES em caixa alta, números por extenso entre " +
+    "parênteses como no modelo (ex.: 45 (quarenta e cinco) dias), mesmo vocabulário e mesma forma de citar itens.";
+  function montarPedidoClausula(pedido, textoContrato, atual, chaveApi, modelo) {
+    var p = String(pedido || "").trim();
+    if (!p) return { erro: "PEDIDO_VAZIO" };
+    var contrato = String(textoContrato || "").slice(0, 150000);
+    var texto = INSTRUCAO_CLAUSULA + "\n\nPEDIDO: " + p + "\n\nTEXTO ATUAL DO ITEM (pode estar vazio): " + String(atual || "") +
+      "\n\nCONTRATO MODELO:\n" + contrato;
+    return {
+      url: URL,
+      headers: { "Authorization": "Bearer " + chaveApi },
+      corpo: {
+        model: modelo || MODELO_PADRAO,
+        max_output_tokens: 4000,
+        input: [{ role: "user", content: [{ type: "input_text", text: texto }] }],
+        text: { format: { type: "json_schema", name: "condicoes_especiais", schema: ESQUEMA_CLAUSULA, strict: true } }
+      }
+    };
+  }
+  /* números citados que não aparecem no modelo (ex.: "9.7" quando o contrato vai até 9.4) */
+  function clausulasInexistentes(citadas, textoContrato) {
+    var t = String(textoContrato || "");
+    return (citadas || []).map(function (c) { return String(c).replace(/^(cl[áa]usula|item)\s+/i, "").trim(); })
+      .filter(function (c) {
+        if (!c) return false;
+        var esc = c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        return !new RegExp("(^|[^0-9.])" + esc + "\\.?([^0-9]|$)").test(t);
+      });
+  }
+
+  return { MODELO_PADRAO: MODELO_PADRAO, ESQUEMAS: ESQUEMAS, montarPedido: montarPedido, interpretarResposta: interpretarResposta,
+           montarPedidoClausula: montarPedidoClausula, clausulasInexistentes: clausulasInexistentes };
 })();
 if (typeof module !== "undefined" && module.exports) module.exports = OpenAILeitor;

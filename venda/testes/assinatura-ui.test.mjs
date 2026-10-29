@@ -31,7 +31,7 @@ test("envelope aberto: Enviar desabilitado, situação, quem assinou e Atualizar
   assert.match(h, />Atualizar situação</);
   assert.match(h, /Enviado — aguardando assinaturas/);
   assert.match(h, /Comprador 1[^<]*<\/span>\s*<b class="ass-ok">✓ assinou<\/b>/);
-  assert.match(h, /Testemunha 1[^<]*<\/span>\s*<b class="ass-pend">pendente<\/b>/);
+  assert.match(h, /Testemunha 1[^<]*<\/span>\s*<b class="ass-pend">⏳ pendente<\/b>/);
 });
 
 test("lista nova: nome mascarado, ✓ com data, recusou, pendente; Reenviar link só com pendente e ENVIADO", () => {
@@ -41,7 +41,7 @@ test("lista nova: nome mascarado, ✓ com data, recusou, pendente; Reenviar link
   const h = A.montarBlocoAssinatura(ctx({ estado: { situacao: "ENVIADO", envelope: true, signatarios: sigs } }));
   assert.match(h, /<li><span>Comprador 1 \(Maria S\.\)<\/span> <b class="ass-ok">✓ assinou<\/b> <span class="ass-data">em 07\/10\/2026 10:20<\/span><\/li>/);
   assert.match(h, /Vendedor \(Joao P\.\)<\/span> <b class="ass-rec">✗ recusou<\/b> <span class="ass-data">em 07\/10\/2026 11:05/);
-  assert.match(h, /Testemunha 1 \(Ana C\.\)<\/span> <b class="ass-pend">pendente<\/b><\/li>/);
+  assert.match(h, /Testemunha 1 \(Ana C\.\)<\/span> <b class="ass-pend">⏳ pendente<\/b><\/li>/);
   assert.doesNotMatch(botao(h, "a-reenviar")[0], /disabled/);
   assert.match(h, />Reenviar link de assinatura</);
   const todos = A.montarBlocoAssinatura(ctx({ estado: { situacao: "ENVIADO", envelope: true, signatarios: [sigs[0]] } }));
@@ -121,7 +121,7 @@ test("ocupado ou perfil TESTES: botões desabilitados; TESTES também não atual
   assert.match(env, /enviando/);
   const t = A.montarBlocoAssinatura(ctx({ testes: true }));
   assert.match(botao(t, "a-enviar")[0], /disabled/);
-  assert.match(t, /Perfil TESTES não envia, não reenvia nem atualiza a assinatura/);
+  assert.match(t, /Perfil TESTES não envia, não reenvia, não cancela nem atualiza a assinatura/);
   const t2 = A.montarBlocoAssinatura(ctx({ testes: true, estado: ENVIADO }));
   assert.match(botao(t2, "a-atualizar")[0], /disabled/);
 });
@@ -161,7 +161,7 @@ test("mensagens amigáveis por código", () => {
   assert.match(m({ erro: "CLICKSIGN_SEM_LINK_ASSINADO: original" }), /PDF assinado/);
   assert.match(m({ erro: "CLICKSIGN_STATUS_DESCONHECIDO: paused" }), /situação que o portal não conhece/);
   assert.match(m({ erro: "COLUNA_FALTANDO: CONTRATO ASSINADO" }), /coluna CONTRATO ASSINADO/);
-  assert.match(m({ erro: "SEM_PERMISSAO_TESTES" }), /TESTES não envia, não reenvia nem atualiza/);
+  assert.match(m({ erro: "SEM_PERMISSAO_TESTES" }), /TESTES não envia, não reenvia, não cancela nem atualiza/);
   assert.match(m({ erro: "XYZ" }), /Algo deu errado \(XYZ\)/);
   assert.match(m({ ok: true, aviso: "NOTIFICACAO_FALHOU" }), /e-mail de aviso falhou/);
 });
@@ -241,4 +241,71 @@ test("botão desabilitado não age (ex.: Enviar com envelope aberto)", async () 
     chamar: async () => { chamou = true; return { ok: true }; } });
   assert.equal(chamou, false);
   assert.equal(novo.estado, ENVIADO);
+});
+
+test("termo de pré-reserva (27/10): botões com prefixo p-, textos do termo e doc PRE_RESERVA nas chamadas", async () => {
+  const h = A.montarBlocoAssinatura(ctx({ doc: "PRE_RESERVA", contratoGerado: false }));
+  assert.match(h, /Enviar termo de pré-reserva via Clicksign/);
+  assert.match(h, /Gere o termo antes/);
+  assert.equal(botao(h, "a-enviar").length, 0);
+  assert.match(botao(h, "p-enviar")[0], /disabled/);
+  const h2 = A.montarBlocoAssinatura(ctx({ doc: "PRE_RESERVA", estado: ENVIADO }));
+  assert.equal(botao(h2, "p-atualizar").length, 1);
+  assert.equal(botao(h2, "p-reenviar").length, 1);
+  const chamadas = [];
+  const novo = await A.executarAcaoAssinatura("p-enviar", ctx({ doc: "PRE_RESERVA" }), { pageId: "p", confirmar: (t) => /termo de pré-reserva/.test(t),
+    chamar: async (x) => { chamadas.push(x); return { ok: true, situacao: "ENVIADO", signatarios: [] }; } });
+  assert.deepEqual(chamadas, [{ action: "assinaturaEnviar", pageId: "p", doc: "PRE_RESERVA" }]);
+  assert.equal(novo.estado.situacao, "ENVIADO");
+  const ch2 = [];
+  await A.executarAcaoAssinatura("a-atualizar", ctx({ estado: ENVIADO }), { pageId: "p", confirmar: () => true,
+    chamar: async (x) => { ch2.push(x); return { ok: true, situacao: "ENVIADO", envelope: true, signatarios: [] }; } });
+  assert.deepEqual(ch2, [{ action: "assinaturaEstado", pageId: "p" }], "contrato: sem doc");
+});
+
+test("27/10: atalho 'Corrigir e-mail' abre a tela do portal numa aba nova; sem tela, só o aviso", async () => {
+  const corrigir = [{ rotulo: "Corrigir e-mail do comprador", url: "vendas.html?cond=abc-123&editar=Email" },
+                    { rotulo: "Corrigir e-mail do vendedor/representante", url: "" },
+                    { rotulo: "ruim", url: "javascript:alert(1)" }];
+  const h = A.montarBlocoAssinatura(ctx({ faltas: ["x"], corrigir }));
+  assert.match(h, /<a class="bt ghost bt-mini" target="_blank" rel="noopener" href="vendas.html\?cond=abc-123&amp;editar=Email">Corrigir e-mail do comprador/);
+  assert.match(h, /Corrigir e-mail do vendedor\/representante: no cadastro/);
+  assert.doesNotMatch(h, /href="javascript/);
+  const c = await A.executarAcaoAssinatura("a-enviar", ctx(), { pageId: "p", confirmar: () => true,
+    linkCorrigir: (q) => (q === "comprador" ? "vendas.html?abrir=p" : ""),
+    chamar: async () => ({ ok: false, erro: "FALTAM_DADOS", faltas: ["x"], corrigir: [{ quem: "comprador", rotulo: "C" }, { quem: "vendedor", rotulo: "V" }] }) });
+  assert.deepEqual(c.corrigir, [{ rotulo: "C", url: "vendas.html?abrir=p" }, { rotulo: "V", url: "" }]);
+});
+
+test("27/10: cada signatário mostra o e-mail para onde a Clicksign mandou (escapado)", () => {
+  const h = A.montarBlocoAssinatura(ctx({ estado: { situacao: "ENVIADO", envelope: true,
+    signatarios: [{ papel: "Comprador 1", nome: "Fulano T.", email: "fulano@teste.example", assinou: false, situacao: "pendente" },
+                  { papel: "Testemunha 1", nome: "X", email: "<b>@x", assinou: false, situacao: "pendente" }] } }));
+  assert.match(h, /Comprador 1 \(Fulano T\.\)<\/span> <span class="ass-data">&lt;fulano@teste\.example&gt;<\/span>/);
+  assert.doesNotMatch(h, /<b>@x/);
+});
+
+test("29/10 Cancelar envelope: só com ENVIADO; confirma, chama assinaturaCancelar e mostra CANCELADO (Enviar de novo liberado)", async () => {
+  const pend = { papel: "Testemunha 1", assinou: false, situacao: "pendente", data: "" };
+  const c0 = ctx({ estado: { situacao: "ENVIADO", envelope: true, signatarios: [pend] } });
+  const h = A.montarBlocoAssinatura(c0);
+  assert.doesNotMatch(botao(h, "a-cancelar")[0], /disabled/);
+  assert.match(h, />Cancelar envelope</);
+  const assinado = A.montarBlocoAssinatura(ctx({ estado: { situacao: "ASSINADO", envelope: true, signatarios: [] } }));
+  assert.equal(botao(assinado, "a-cancelar").length, 0);
+  const t = A.montarBlocoAssinatura(ctx({ testes: true, estado: { situacao: "ENVIADO", envelope: true, signatarios: [pend] } }));
+  assert.match(botao(t, "a-cancelar")[0], /disabled/);
+  const chamadas = [];
+  const nao = await A.executarAcaoAssinatura("a-cancelar", c0, { pageId: "p", confirmar: () => false, chamar: async (x) => { chamadas.push(x); return {}; } });
+  assert.equal(nao, c0);
+  assert.equal(chamadas.length, 0);
+  const ok = await A.executarAcaoAssinatura("a-cancelar", c0, { pageId: "p", confirmar: () => true,
+    chamar: async (x) => { chamadas.push(x); return { ok: true, cancelou: true, situacao: "CANCELADO", envelope: true, signatarios: [pend] }; } });
+  assert.deepEqual(chamadas, [{ action: "assinaturaCancelar", pageId: "p" }]);
+  assert.equal(ok.estado.situacao, "CANCELADO");
+  assert.match(ok.msg, /Envelope cancelado/);
+  assert.equal(A.podeEnviar(ok), true);
+  const termo = await A.executarAcaoAssinatura("p-cancelar", ctx({ doc: "PRE_RESERVA", estado: c0.estado }), { pageId: "p", confirmar: () => true,
+    chamar: async (x) => { chamadas.push(x); return { ok: false, erro: "ENVELOPE_NAO_ATIVO" }; } });
+  assert.match(termo.msg, /não está mais aguardando/);
 });

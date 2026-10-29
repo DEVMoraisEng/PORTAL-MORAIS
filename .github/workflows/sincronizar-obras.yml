@@ -1,0 +1,48 @@
+name: Sincronizar obra → DOCUMENTOS/VENDAS (manual)
+
+# 28/10/26 — rodada MANUAL do sincronizar_obras.py (a rodada normal é dentro
+# do pages.yml, a cada publicação). Sem marcar "aplicar" é SIMULAÇÃO: só mostra
+# no log o que seria trocado. "forcar" deixa passar mais de 120 linhas.
+on:
+  workflow_dispatch:
+    inputs:
+      aplicar:
+        description: "Gravar de verdade (sem marcar = simulação)"
+        type: boolean
+        default: false
+      forcar:
+        description: "Passar da trava de 120 linhas"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  sincronizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Sincronizar
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          APLICAR: ${{ inputs.aplicar && '1' || '' }}
+          FORCAR: ${{ inputs.forcar && '1' || '' }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -o pipefail
+          python sincronizar_obras.py | tee saida.txt
+      # o log bruto não sai por todo lugar; o resumo vira anotação da rodada
+      - name: Resumo
+        if: always()
+        run: |
+          python - <<'PY'
+          L=[l.rstrip() for l in open("saida.txt",encoding="utf-8") if l.strip() and not l.startswith("Lendo")]
+          for i in range(0,min(len(L),450),45):
+              print("::notice title=sincronizar obras %d::"%(i//45+1)+"%0A".join(x.replace("%","%25") for x in L[i:i+45]))
+          PY
