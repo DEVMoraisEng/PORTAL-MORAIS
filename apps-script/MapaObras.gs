@@ -67,7 +67,7 @@
  * fazer a conferência da conclusão, além do ADM).
  *************************************************************************/
 
-var MO_VERSAO = "2026-10-29 mo11";   // mo11: estagiários lançam a medição da semana
+var MO_VERSAO = "2026-10-29 mo12";   // mo12: vistoria na nuvem (quem criou edita de qualquer aparelho) · mo11: estagiários lançam a medição
 var MO_EVENTO = "obras_notion_update";            // TEM que bater com o types: do fetch_notion.yml
 var MO_JANELA_MS = 2 * 60 * 1000;                  // no máximo 1 build a cada 2 min
 var MO_CAMPOS = {
@@ -132,6 +132,10 @@ function moRotear_(action, sess, p) {
     case "obraAtvTirar":     return moAtvTirar_(sess, p || {});
     case "atvOutraConteudo": return moOutraConteudo_(sess, p || {});
     case "atvOutraCheck":    return moOutraCheck_(sess, p || {});
+    case "vistNuvemSalvar":  return moVistNuvemSalvar_(sess, p || {});
+    case "vistNuvemLista":   return moVistNuvemLista_(sess, p || {});
+    case "vistNuvemAbrir":   return moVistNuvemAbrir_(sess, p || {});
+    case "vistNuvemApagar":  return moVistNuvemApagar_(sess, p || {});
     case "mapaVersao":       return { ok: true, versao: MO_VERSAO };
     default:                 return null;
   }
@@ -1188,3 +1192,103 @@ function moOutraCheck_(sess, p) {
   return { ok: true };
 }
 
+/* ================= mo12 — VISTORIA NA NUVEM (29/10/26) =================
+ * Antes a vistoria (rascunho, fotos, assinaturas, conferência) ficava só no
+ * aparelho onde foi criada. Agora cada vistoria também vai para o Supabase
+ * Storage (bucket PRIVADO "vistorias", um JSON por vistoria + um índice por
+ * casa). QUEM CRIOU edita de qualquer aparelho — vale o login do portal; os
+ * demais abrem só para ler (o ADM também edita).
+ *   vistNuvemSalvar  grava a vistoria (dono ou ADM)
+ *   vistNuvemLista   vistorias da casa (só o resumo, sem fotos)
+ *   vistNuvemAbrir   a vistoria inteira (com fotos e assinaturas)
+ *   vistNuvemApagar  apaga um rascunho (dono ou ADM)
+ * ===================================================================== */
+var MO_VIST_BUCKET = "vistorias";
+function moStorage_(method, caminho, corpo, extra) {
+  var cfg = supaCfg_();
+  var h = { apikey: cfg.key, Authorization: "Bearer " + cfg.key };
+  for (var k in (extra || {})) h[k] = extra[k];
+  var opt = { method: method, muteHttpExceptions: true, headers: h };
+  if (corpo !== undefined && corpo !== null) { opt.contentType = "application/json"; opt.payload = typeof corpo === "string" ? corpo : JSON.stringify(corpo); }
+  var r = UrlFetchApp.fetch(cfg.url + "/storage/v1/" + caminho, opt);
+  return { code: r.getResponseCode(), txt: r.getContentText() };
+}
+function moVistBucket_() {
+  var c = CacheService.getScriptCache();
+  if (c.get("mo_vist_bucket")) return;
+  var r = moStorage_("post", "bucket", { id: MO_VIST_BUCKET, name: MO_VIST_BUCKET, "public": false });
+  if (r.code >= 300 && !/exist|duplicate|409/i.test(r.txt + " " + r.code)) throw "STORAGE_BUCKET_" + r.code + ": " + r.txt.slice(0, 150);
+  c.put("mo_vist_bucket", "1", 21600);
+}
+function moVistLer_(path) {
+  var r = moStorage_("get", "object/" + MO_VIST_BUCKET + "/" + path);
+  if (r.code === 404 || r.code === 400) return null;
+  if (r.code >= 300) throw "STORAGE_" + r.code + ": " + r.txt.slice(0, 150);
+  try { return JSON.parse(r.txt); } catch (e) { return null; }
+}
+function moVistGravar_(path, obj) {
+  var r = moStorage_("post", "object/" + MO_VIST_BUCKET + "/" + path, JSON.stringify(obj), { "x-upsert": "true" });
+  if (r.code >= 300) throw "STORAGE_" + r.code + ": " + r.txt.slice(0, 150);
+}
+var moVistSeg_ = function (s) { return String(s || "").replace(/[^A-Za-z0-9_-]/g, ""); };
+var moVistLogin_ = function (sess) { return String((sess && sess.u) || "").trim().toLowerCase(); };
+function moVistMeta_(v) {
+  var it = v.itens || [], d = v.dados || {};
+  return { id: v.id, vendaId: v.vendaId, status: v.status || "rascunho", rodada: v.rodada || 1, anteriorData: v.anteriorData || null,
+           dataVistoria: d.dataVistoria || "", respNome: d.respNome || "", clienteNome: d.clienteNome || "",
+           nItens: it.length, nFeitos: it.filter(function (x) { return x && x.feito; }).length,
+           criador: v.criador || "", criadorNome: v.criadorNome || "", criadoEm: v.criadoEm || "", atualizadoEm: v.atualizadoEm || "" };
+}
+function moVistNuvemSalvar_(sess, p) {
+  if (!sess || ehTestes_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
+  var v = p.vist || {};
+  var dir = moVistSeg_(v.vendaId), id = moVistSeg_(v.id);
+  if (!dir || !id) return { ok: false, erro: "FALTA_PARAM" };
+  var eu = moVistLogin_(sess);
+  var lock = LockService.getScriptLock(); lock.waitLock(25000);
+  try {
+    moVistBucket_();
+    var idx = moVistLer_(dir + "/_indice.json") || {};
+    var ant = idx[id];
+    if (ant && ant.criador && ant.criador !== eu && !ehAdm_(sess)) return { ok: false, erro: "SEM_PERMISSAO", criador: ant.criadorNome || ant.criador };
+    v.criador = (ant && ant.criador) || eu;
+    v.criadorNome = (ant && ant.criadorNome) || sess.n || eu;
+    v.nuvemEm = new Date().toISOString();
+    delete v.nuvemPend; delete v._nuvem;
+    moVistGravar_(dir + "/" + id + ".json", v);
+    idx[id] = moVistMeta_(v);
+    moVistGravar_(dir + "/_indice.json", idx);
+    return { ok: true, em: v.nuvemEm, criador: v.criador, criadorNome: v.criadorNome };
+  } finally { lock.releaseLock(); }
+}
+function moVistNuvemLista_(sess, p) {
+  var dir = moVistSeg_(p.vendaId); if (!dir) return { ok: false, erro: "FALTA_PARAM" };
+  moVistBucket_();
+  var idx = moVistLer_(dir + "/_indice.json") || {}, l = [];
+  for (var k in idx) l.push(idx[k]);
+  l.sort(function (a, b) { return String(b.criadoEm).localeCompare(String(a.criadoEm)); });
+  return { ok: true, lista: l, eu: moVistLogin_(sess), adm: ehAdm_(sess) };
+}
+function moVistNuvemAbrir_(sess, p) {
+  var dir = moVistSeg_(p.vendaId), id = moVistSeg_(p.id);
+  if (!dir || !id) return { ok: false, erro: "FALTA_PARAM" };
+  var v = moVistLer_(dir + "/" + id + ".json");
+  if (!v || v.apagada) return { ok: false, erro: "NAO_ENCONTRADA" };
+  return { ok: true, vist: v };
+}
+function moVistNuvemApagar_(sess, p) {
+  if (!sess || ehTestes_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
+  var dir = moVistSeg_(p.vendaId), id = moVistSeg_(p.id), eu = moVistLogin_(sess);
+  if (!dir || !id) return { ok: false, erro: "FALTA_PARAM" };
+  var lock = LockService.getScriptLock(); lock.waitLock(25000);
+  try {
+    var idx = moVistLer_(dir + "/_indice.json") || {}, ant = idx[id];
+    if (!ant) return { ok: true };
+    if (ant.criador && ant.criador !== eu && !ehAdm_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
+    if (ant.status && ant.status !== "rascunho") return { ok: false, erro: "SO_RASCUNHO" };
+    delete idx[id];
+    moVistGravar_(dir + "/_indice.json", idx);
+    moVistGravar_(dir + "/" + id + ".json", { apagada: true, em: new Date().toISOString(), por: eu });
+    return { ok: true };
+  } finally { lock.releaseLock(); }
+}
