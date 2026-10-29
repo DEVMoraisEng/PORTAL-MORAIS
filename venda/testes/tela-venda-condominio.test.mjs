@@ -156,7 +156,7 @@ test("paginaVirtual: título vira ENDEREÇO = CONDOMÍNIO …, UNIDADE vira text
 
 test("gerarContrato na linha do condomínio: modelo do condomínio, PDF em CONTRATO GERADO da própria linha; contratoEstado vê", () => {
   const c = cenario();
-  const est0 = c.acao("contratoEstado"); delete est0.testemunhas; delete est0.conta; delete est0.condicoes;   /* testemunhas, conta de recebimento e condições especiais têm testes próprios */
+  const est0 = c.acao("contratoEstado"); delete est0.testemunhas; delete est0.conta; delete est0.condicoes; delete est0.fluxo;   /* testemunhas, conta de recebimento e condições especiais têm testes próprios */
   assert.deepEqual(est0, { ok: true, gerado: false, etapa: "NENHUM", pre: null });
   const r = c.gerarFinal();
   assert.equal(r.ok, true, JSON.stringify(r));
@@ -513,4 +513,86 @@ test("29/10 Redigir com IA: manda o pedido e o texto do modelo à OpenAI, devolv
   assert.equal(c.acao("redigirCondicoesEspeciais", { pedido: "" }).erro, "CAMPOS_INVALIDOS");
   const semChave = cenario({ linha: { "CONTRATO - CONDIÇÕES ESPECIAIS": rt("") } });
   assert.equal(semChave.acao("redigirCondicoesEspeciais", { pedido: "x" }).erro, "CHAVE_IA_FALTANDO");
+});
+
+/* ---- 29/10: Alterar fluxo (etapa 1 — tela, gravação e histórico; o contrato ainda não lê a lista) ---- */
+const cenarioFluxo = (o = {}) => cenario({ ...o, linha: { "FLUXO PERSONALIZADO": rt(""), ...(o.linha || {}) } });
+const FluxoLivre = req("../FluxoLivre.js");
+/* mais um balão de 10 mil e as pós-chaves menores (Redistribuir: centavos na última) */
+const comBalao = (f) => {
+  const g = { valor: f.valor, linhas: [...f.linhas, { t: "balao", v: 10000, n: 1, d: "2027-06-10", i: 1, x: "" }] };
+  return { valor: f.valor, linhas: FluxoLivre.redistribuir(g, g.linhas.findIndex((l) => l.t === "pos")).linhas };
+};
+
+test("29/10 fluxo: contratoEstado diz se pode alterar; fluxoEditar traz o fluxo da proposta como lista que fecha", () => {
+  const c = cenarioFluxo();
+  assert.deepEqual(c.acao("contratoEstado").fluxo, { coluna: true, alterado: false, trava: "", por: "", em: "", alteracoes: 0 });
+  const e = c.acao("fluxoEditar");
+  assert.equal(e.ok, true, JSON.stringify(e));
+  assert.equal(e.atual.valor, 305000);
+  assert.equal(e.atual.entrega, "2028-12-01");
+  assert.deepEqual(e.atual.linhas.map((l) => l.t), ["sinal", "sinal", "sinal", "sinal", "pre", "pre", "balao", "balao", "pos", "fin", "fgts"]);
+  assert.equal(e.atual.linhas.reduce((s, l) => s + Math.round(l.v * 100) * l.n, 0), 30500000);
+  assert.equal(cenario().acao("fluxoEditar").erro, "COLUNA_FALTANDO");
+});
+
+test("29/10 fluxo: salva só com a conta fechando e com motivo; grava a lista, o histórico e trava o contrato até a etapa 2", () => {
+  const c = cenarioFluxo();
+  const pre0 = c.acao("gerarPreContrato");
+  assert.equal(pre0.ok, true, JSON.stringify(pre0));
+  const base = c.acao("fluxoEditar").atual;
+  const solto = { valor: base.valor, linhas: [...base.linhas, { t: "balao", v: 10000, n: 1, d: "2027-06-10", i: 1 }] };
+  const r1 = c.acao("salvarFluxo", { fluxo: solto, motivo: "mais um balão" });
+  assert.equal(r1.erro, "CAMPOS_INVALIDOS");
+  assert.match(r1.erros[0], /^Sobram R\$ 10\.000,00/);
+  assert.equal(c.acao("salvarFluxo", { fluxo: comBalao(base), motivo: "  " }).erro, "CAMPOS_INVALIDOS");
+  const ok = c.acao("salvarFluxo", { fluxo: comBalao(base), motivo: "cliente pediu mais um balão e parcelas menores" });
+  assert.equal(ok.ok, true, JSON.stringify(ok));
+  assert.equal(ok.fluxo.alterado, true);
+  const gravado = JSON.parse(c.txt("FLUXO PERSONALIZADO"));
+  assert.equal(gravado.linhas.length, 12);
+  assert.equal(gravado.entrega, "2028-12-01", "a entrega é a da linha, não a da tela");
+  const est = c.acao("contratoEstado");
+  assert.deepEqual([est.fluxo.alterado, est.fluxo.por, est.fluxo.alteracoes], [true, "ana.teste", 1]);
+  assert.equal(est.pre.desatualizado, true, "pré-contrato de antes fica desatualizado");
+  const pre1 = c.acao("gerarPreContrato");
+  assert.equal(pre1.erro, "FALTAM_DADOS");
+  assert.match(pre1.faltas[0], /fluxo alterado ainda não está disponível/);
+  const h = c.acao("fluxoEditar");
+  assert.equal(h.alterado, true);
+  assert.equal(h.atual.linhas.length, 12);
+  assert.deepEqual(h.historico.map((x) => [x.por, x.motivo, x.voltou]), [["ana.teste", "cliente pediu mais um balão e parcelas menores", false]]);
+  assert.ok(!("antes" in h.historico[0]), "a tela não recebe os fluxos antigos inteiros");
+  /* voltar ao fluxo da proposta: limpa a coluna e o contrato volta a gerar */
+  assert.equal(c.acao("salvarFluxo", { voltar: true, motivo: "cliente desistiu da mudança" }).ok, true);
+  assert.equal(c.txt("FLUXO PERSONALIZADO"), "");
+  assert.equal(c.acao("gerarPreContrato").ok, true);
+  assert.equal(c.acao("salvarFluxo", { voltar: true, motivo: "de novo" }).erro, "FLUXO_JA_E_O_DA_PROPOSTA");
+  assert.equal(c.acao("fluxoEditar").historico.length, 2);
+});
+
+test("29/10 fluxo: valor da casa mudou pede o segundo motivo", () => {
+  const c = cenarioFluxo();
+  const base = c.acao("fluxoEditar").atual;
+  const f = { valor: 300000, linhas: base.linhas.map((l) => (l.t === "fin" ? { ...l, v: l.v - 5000 } : l)) };
+  const r = c.acao("salvarFluxo", { fluxo: f, motivo: "desconto" });
+  assert.equal(r.erro, "CAMPOS_INVALIDOS");
+  assert.match(r.erros[0], /R\$ 305\.000,00 → R\$ 300\.000,00/);
+  assert.equal(c.acao("salvarFluxo", { fluxo: f, motivo: "desconto", motivoPreco: "aprovado pelo diretor" }).ok, true);
+  assert.equal(JSON.parse(c.txt("FLUXO PERSONALIZADO")).valor, 300000);
+});
+
+test("29/10 fluxo: venda lançada no MC, envelope aberto ou contrato assinado não deixam alterar; envelope cancelado deixa", () => {
+  const f = (c) => comBalao(c.acao("fluxoEditar").atual);
+  const lancada = cenarioFluxo({ linha: { "MC - VENDA ID": rt("12345") } });
+  assert.equal(lancada.acao("contratoEstado").fluxo.trava, "FLUXO_VENDA_LANCADA");
+  assert.equal(lancada.acao("salvarFluxo", { fluxo: f(lancada), motivo: "x" }).erro, "FLUXO_VENDA_LANCADA");
+  const aberta = cenarioFluxo({ linha: { "ASSINATURA - ENVELOPE ID": rt("env-1"), "ASSINATURA - SITUAÇÃO": rt("ENVIADO") } });
+  assert.equal(aberta.acao("salvarFluxo", { fluxo: f(aberta), motivo: "x" }).erro, "FLUXO_ASSINATURA_ABERTA");
+  const assinada = cenarioFluxo({ linha: { "ASSINATURA - ENVELOPE ID": rt("env-1"), "ASSINATURA - SITUAÇÃO": rt("ASSINADO") } });
+  assert.equal(assinada.acao("salvarFluxo", { fluxo: f(assinada), motivo: "x" }).erro, "FLUXO_CONTRATO_ASSINADO");
+  const cancelada = cenarioFluxo({ linha: { "ASSINATURA - ENVELOPE ID": rt("env-1"), "ASSINATURA - SITUAÇÃO": rt("CANCELADO") } });
+  assert.equal(cancelada.acao("salvarFluxo", { fluxo: f(cancelada), motivo: "x" }).ok, true);
+  const testes = cenarioFluxo();
+  assert.equal(testes.acao("salvarFluxo", { fluxo: f(testes), motivo: "x" }, token("TESTES")).erro, "SEM_PERMISSAO_TESTES");
 });

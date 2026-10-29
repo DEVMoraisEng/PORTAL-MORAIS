@@ -283,6 +283,8 @@ function ctrDadosCondominio_(c) {
     imovel: { MATRICULA_INDIVIDUAL: t("CONTRATO - MATRÍCULA INDIVIDUAL"), CRI: t("CONTRATO - CRI DA MATRÍCULA"),
               ALVARA_NUMERO: t("CONTRATO - ALVARÁ Nº"), ALVARA_DATA: t("CONTRATO - ALVARÁ DATA"),
               PRAZO_CONCLUSAO: t("CONTRATO - PRAZO DE CONCLUSÃO DAS OBRAS"), CONDICOES_ESPECIAIS: t("CONTRATO - CONDIÇÕES ESPECIAIS") },
+    /* 29/10: "Alterar fluxo" (FluxoVenda.gs) — texto cru da lista; vazio = fluxo do simulador */
+    fluxoPersonalizado: t("FLUXO PERSONALIZADO"),
     corretor: { nome: t("CORRETOR"), creci: t("CRECI"), cpfCnpj: t("CPF CORRETOR"), email: t("EMAIL CORRETOR"),
                 telefone: t("CELULAR CORRETOR") }
   };
@@ -438,6 +440,7 @@ function ctrFontes_(col, pageId) {
               meioPagamento: prop_("MEIO_PAGAMENTO_CONDOMINIO") || "" },
     endereco: venda.ENDERECO, casa: ctrTxt_(cv("CASA")), colGerado: nomeReal(CV.CONTRATO_GERADO),
     contaErro: contaErro, usouEscolha: usouEscolha,
+    fluxoAlterado: !!(cond && cond.fluxoPersonalizado),
     /* entrega 12: onde o formulário grava (linhas achadas) e com que nome/chave cria a que falta */
     alvos: { vendedor: lv || null, corretor: lc || null, loteamento: ll || null,
              nomeCorretor: venda.CORRETOR || (cond ? cond.corretor.nome : ""), chaveLoteamento: cond ? venda.ENDERECO : setor }
@@ -666,6 +669,7 @@ function contratoEstado_(col, p) {
     r.conta = { fixa: ctrContaFixaCondominio_() };
     try { var cf = cfdEstado_(pgE); if (cf) r.confissao = cf; } catch (e) { ctrErro_("contratoEstado confissao", e); }
     try { r.condicoes = condEspEstado_(p.pageId, pgE); } catch (e) { ctrErro_("contratoEstado condicoes", e); }
+    try { r.fluxo = fluxoEstado_(p.pageId, pgE); } catch (e) { ctrErro_("contratoEstado fluxo", e); }
   }
   else try { r.conta = contaRecebEstado_(p.pageId); } catch (e) { ctrErro_("contratoEstado conta", e); }
   if (pre) {
@@ -704,6 +708,11 @@ function ctrDadosAtuais_(col, p, pid, rot) {
   if (f.obraNaoEncontrada) {
     ctrLog_(rot + " " + pid + " obra nao encontrada");
     return { resp: { ok: false, erro: "FALTAM_DADOS", faltas: ["Vendedor: obra da casa não encontrada em DOCUMENTOS (endereço)"] } };
+  }
+  /* 29/10 (etapa 1 do Alterar fluxo): o contrato ainda não lê a lista — com fluxo alterado não gera */
+  if (f.fluxoAlterado) {
+    ctrLog_(rot + " " + pid + " fluxo alterado");
+    return { resp: { ok: false, erro: "FALTAM_DADOS", faltas: [FLUXO_FALTA_CONTRATO] } };
   }
   var d = ContratoVenda.montarDadosContrato(f.fontes);
   var faltas = ContratoVenda.faltasContrato(d);
