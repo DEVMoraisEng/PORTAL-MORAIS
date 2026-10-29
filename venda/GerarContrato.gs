@@ -267,6 +267,7 @@ function ctrDadosCondominio_(c) {
         balao1Valor: n("VALOR 1º BALÃO"), balao1Data: t("DATA 1º BALÃO (12/27)"),
         balao2Valor: n("VALOR BALÃO ENTREGA DE CHAVES"), balao2Data: t("DATA 2º BALÃO (25º PARCELA)"),
         posN: n("Nº PARCELAS PÓS CHAVES"), posValor: n("VALOR PÓS CHAVES"), posData: t("DATA PÓS CHAVES"),
+        prazoEntrada: n("PRAZO ENTRADA"),   /* 28/10: a comissão sai do prazo (24x 5%, 36x 4,75%, 48x 4,5%) */
         credito: n("VALOR DO CRÉDITO"), fgts: n("VALOR DO FGTS"), subsidio: n("SUBISÍDIO")
       },
       fiadores: [fiador(1), fiador(2)],
@@ -650,7 +651,7 @@ function verPreContrato_(col, p) {
 }
 
 function contratoEstado_(col, p) {
-  var info = {}, a = ctrArquivoGerado_(ctrLerPaginaVenda_(p.pageId, info)), pre = ctrLerPre_(p.pageId);
+  var info = {}, pgE = ctrLerPaginaVenda_(p.pageId, info), a = ctrArquivoGerado_(pgE), pre = ctrLerPre_(p.pageId);
   /* PRE: há pré-contrato ainda não conferido (mesmo que exista um contrato final antigo) */
   var etapa = pre && !pre.conferidoEm ? "PRE" : a ? "FINAL" : "NENHUM";
   var r = { ok: true, gerado: !!a, etapa: etapa, pre: null };
@@ -661,7 +662,10 @@ function contratoEstado_(col, p) {
   }
   if (a) { r.nome = a.nome; r.url = a.url; }
   /* entrega 12: lista de contas (só id e título), a escolha desta venda e a da obra */
-  if (info.base === "CONDOMINIO") r.conta = { fixa: ctrContaFixaCondominio_() };
+  if (info.base === "CONDOMINIO") {
+    r.conta = { fixa: ctrContaFixaCondominio_() };
+    try { var cf = cfdEstado_(pgE); if (cf) r.confissao = cf; } catch (e) { ctrErro_("contratoEstado confissao", e); }
+  }
   else try { r.conta = contaRecebEstado_(p.pageId); } catch (e) { ctrErro_("contratoEstado conta", e); }
   if (pre) {
     r.pre = { nome: ctrTxt_(pre.nome), url: ctrTxt_(pre.url), em: ctrTxt_(pre.em), conferido: !!pre.conferidoEm };
@@ -703,6 +707,8 @@ function ctrDadosAtuais_(col, p, pid, rot) {
   var d = ContratoVenda.montarDadosContrato(f.fontes);
   var faltas = ContratoVenda.faltasContrato(d);
   if (f.contaErro) faltas.push(f.contaErro);
+  /* 28/10: termos de confissão ligados = os fiadores (nome e CPF) entram nas faltas do contrato do condomínio */
+  if (d.condominio && cfdLigado_()) faltas = faltas.concat(ConfissaoVenda.faltas(d));
   if (faltas.length) {
     ctrLog_(rot + " " + pid + " faltas " + faltas.length);
     /* entrega 12: o formulário da tela (só nomes de campo) */
@@ -780,6 +786,8 @@ function gerarPreContrato_(col, sess, p) {
                             por: ctrTxt_(sess && sess.u) });
   if (antigo && antigo.arquivoId && antigo.arquivoId !== arq.getId()) apagarCopia_(antigo.arquivoId);
   var avisos = ContratoVenda.avisosContrato(prep.d);
+  /* 28/10: conferência dos documentos — só avisa (não trava) */
+  if (prep.d.condominio) { var av = confAviso_(p.pageId, prep.hash); if (av) avisos.push(av); }
   ctrLog_(rot + " " + pid + " ok " + (Date.now() - t0) + "ms" + (avisos.length ? "; em branco " + avisos.length : ""));
   return avisos.length ? { ok: true, nome: nome, url: url, avisos: avisos } : { ok: true, nome: nome, url: url };
 }
@@ -798,6 +806,13 @@ function aprovarPreContrato_(col, sess, p) {
     ctrLog_(rot + " " + pid + " dados mudaram depois do pre-contrato");
     return { ok: false, erro: "PRECONTRATO_DESATUALIZADO" };
   }
+  /* 28/10: os termos de confissão saem ANTES do contrato e com o mesmo carimbo (se falharem, nada do final muda) */
+  var termos = [];
+  if (prep.d.condominio && cfdLigado_()) {
+    var tc = cfdGerarTermos_(prep, p, pid, rot);
+    if (tc.resp) return tc.resp;
+    termos = tc.nomes;
+  }
   var g = ctrGerarPdf_(prep, pid, rot, false);
   if (g.resp) return g.resp;
   var nomePdf = "CONTRATO - " + prep.resto;
@@ -815,7 +830,9 @@ function aprovarPreContrato_(col, sess, p) {
   try { var a = ctrArquivoGerado_(ctrLerPaginaVenda_(p.pageId)); if (a) url = a.url; } catch (e) { ctrErro_(rot + " " + pid + " url", e); }
   var avisos = ContratoVenda.avisosContrato(prep.d);
   ctrLog_(rot + " " + pid + " ok " + (Date.now() - t0) + "ms" + (avisos.length ? "; em branco " + avisos.length : ""));
-  return avisos.length ? { ok: true, nome: nomePdf, url: url, avisos: avisos } : { ok: true, nome: nomePdf, url: url };
+  var r = avisos.length ? { ok: true, nome: nomePdf, url: url, avisos: avisos } : { ok: true, nome: nomePdf, url: url };
+  if (termos.length) r.termos = termos;
+  return r;
 }
 
 /* ---- entrega 12: conta de recebimento por venda ----

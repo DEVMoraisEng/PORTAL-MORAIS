@@ -75,7 +75,7 @@ export function criarGas({ props, rotas, extras = {} }) {
   vm.createContext(ctx);
   for (const f of ["RegrasVenda.js", "ClaudeLeitor.js", "OpenAILeitor.js", "UnidadesCondominio.js", "ContratoVenda.js", "PreReservaVenda.js", "ClicksignVenda.js",
                    "PortalVenda.gs", "GerarContrato.gs", "AssinaturaVenda.gs", "MaisControleVenda.gs",
-                   "CondominioVenda.js", "GerarVendaCondominio.gs", "RecebimentoVenda.gs", "PreReserva.gs"])
+                   "CondominioVenda.js", "GerarVendaCondominio.gs", "RecebimentoVenda.gs", "ConfissaoVenda.js", "Confissao.gs", "PreReserva.gs", "ConferenciaDocs.js", "Conferencia.gs"])
     vm.runInContext(fs.readFileSync(path.join(VENDA, f), "utf8"), ctx, { filename: f });
   const chamar = (payload) => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(payload) } }).texto);
   return { ctx, chamar, chamadas, logs, cache };
@@ -218,7 +218,7 @@ export function clicksignFalso({ base = "https://sandbox.clicksign.com", falhar 
   const ok = (status, data) => ({ status, json: { data } });
   const erro = (status, title) => ({ status, json: { errors: [{ title, detail: "", code: String(status), status: String(status) }] } });
   function rota(url, opt) {
-    if (url === "https://s3.clicksign.falso/assinado.pdf") { estado.baixados++; return { buf: Buffer.from(PDF_ASSINADO, "utf8"), mime: "application/pdf" }; }
+    if (/^https:\/\/s3\.clicksign\.falso\/assinado(-doc-\d+)?\.pdf$/.test(url)) { estado.baixados++; return { buf: Buffer.from(PDF_ASSINADO, "utf8"), mime: "application/pdf" }; }
     if (!url.startsWith(raiz + "/")) return null;
     const metodo = String(opt.method || "get").toUpperCase(), caminho = url.slice(raiz.length);
     const corpo = typeof opt.payload === "string" ? JSON.parse(opt.payload) : null;
@@ -239,7 +239,13 @@ export function clicksignFalso({ base = "https://sandbox.clicksign.com", falhar 
       return { status: 204, texto: "" };
     }
     const resto = caminho.slice(env[0].length);
-    if (metodo === "POST" && resto === "/documents") return ok(201, { id: "doc-1", type: "documents", attributes: { status: "draft", filename: corpo.data.attributes.filename } });
+    /* 28/10: vários documentos no envelope (contrato + termos de confissão): doc-1, doc-2, … */
+    if (metodo === "POST" && resto === "/documents") {
+      estado.docs = estado.docs || [];
+      const d = { id: "doc-" + (estado.docs.length + 1), filename: corpo.data.attributes.filename };
+      estado.docs.push(d);
+      return ok(201, { id: d.id, type: "documents", attributes: { status: "draft", filename: d.filename } });
+    }
     if (metodo === "POST" && resto === "/signers") {
       const s = { id: "sig-" + (++seq), type: "signers", attributes: Object.assign({}, corpo.data.attributes) };
       estado.signers.push(s);
@@ -249,9 +255,14 @@ export function clicksignFalso({ base = "https://sandbox.clicksign.com", falhar 
     if (metodo === "PATCH" && resto === "") { estado.status = corpo.data.attributes.status; return ok(200, { id: "env-1", type: "envelopes", attributes: { status: estado.status } }); }
     if (metodo === "POST" && resto === "/notifications") return ok(201, { id: "not-1", type: "notifications", attributes: { summary: [] } });
     if (metodo === "GET" && resto === "") return ok(200, { id: "env-1", type: "envelopes", attributes: { status: estado.status } });
-    if (metodo === "GET" && resto === "/documents")
-      return ok(200, [{ id: "doc-1", type: "documents", links: { files: arquivos || { original: "https://s3.clicksign.falso/original.pdf" } }, attributes: { status: estado.status } }]);
-    if (metodo === "GET" && resto === "/documents/doc-1/events") return ok(200, eventos);
+    if (metodo === "GET" && resto === "/documents") {
+      const docs = (estado.docs && estado.docs.length) ? estado.docs : [{ id: "doc-1" }];
+      return ok(200, docs.map((d, i) => ({ id: d.id, type: "documents",
+        links: { files: i === 0 ? (arquivos || { original: "https://s3.clicksign.falso/original.pdf" })
+                                : (arquivos && arquivos.signed ? { signed: arquivos.signed.replace(/\.pdf$/, "-" + d.id + ".pdf") } : { original: "https://s3.clicksign.falso/original.pdf" }) },
+        attributes: { status: estado.status, filename: d.filename } })));
+    }
+    if (metodo === "GET" && /^\/documents\/doc-\d+\/events$/.test(resto)) return ok(200, resto === "/documents/doc-1/events" ? eventos : []);
     if (metodo === "GET" && resto === "/signers") return ok(200, estado.signers);
     return erro(404, "rota falsa inexistente");
   }

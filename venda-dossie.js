@@ -407,10 +407,13 @@
     if (t) o.testemunhas = t;
     var c = contaDoEstado(r && r.conta);
     if (c) o.conta = c;
+    /* 28/10: termos de confissão de dívida gerados com o contrato (condomínio) */
+    if (r && Array.isArray(r.confissao)) o.confissao = r.confissao.map(function (x) { return { tipo: x.tipo === "POS" ? "POS" : "PRE", nome: String(x.nome || "") }; });
     return o;
   }
   /* entrega 12: "Conta de recebimento" — lista (id e título), a escolha desta venda e a conta da obra */
   function contaDoEstado(c) {
+    if (c && c.fixa) return { fixa: String(c.fixa) };   /* 28/10: condomínio — conta fixa do item 4.5 (antes sumia aqui) */
     if (!c || !Array.isArray(c.opcoes)) return null;
     var esc = c.escolhida, escolhida = null;
     if (esc && esc.id) escolhida = { id: String(esc.id) };
@@ -558,6 +561,10 @@
       h += '<div class="dz-linha"><span class="dz-rot">Contrato gerado: ' + esc(e.nome) + "</span>" +
         '<button type="button" class="bt bt-mini" data-acao="c-ver"' + dis + ">Visualizar</button> " +
         '<button type="button" class="bt ghost bt-mini" data-acao="c-pre"' + dis + ">Gerar de novo</button></div>";
+      (e.confissao || []).forEach(function (x) {
+        h += '<div class="dz-linha"><span class="dz-rot">Termo de confissão ' + (x.tipo === "POS" ? "pós-chaves" : "pré-chaves") + ": " + esc(x.nome) + "</span>" +
+          '<button type="button" class="bt ghost bt-mini" data-acao="c-ver-cfd-' + (x.tipo === "POS" ? "pos" : "pre") + '"' + dis + ">Visualizar</button></div>";
+      });
     } else {
       h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-pre"' + dis + ">Gerar pré-contrato</button></div>";
     }
@@ -1052,6 +1059,42 @@
     ["forma", "chave", "banco", "agencia", "conta", "tipo", "livre"].forEach(function (k) { c[k] = o[k] || ""; });
     return c;
   }
+  /* ---- 28/10/2026: Conferência dos documentos (Conferencia.gs) ----
+   * e = { feito, linhas, confirmados, em, por, atual } (conferenciaEstado); u = { ocupado, msg, testes }.
+   * Comandos: d-conferir, d-abrir-<i> (o documento pelo portal), d-ok-<i> ("Conferi, está certo"). */
+  var SIT_CONF = { ok: ["ass-ok", "✓ confere"], diverge: ["ass-recusou", "⚠ diverge"], ilegivel: ["ass-pend", "? ilegível"] };
+  function htmlConferencia(e, u) {
+    u = u || {};
+    var h = '<div class="grp">Conferência dos documentos</div>';
+    if (!e) return h + '<div class="vazio">' + esc(u.msg || "carregando…") + "</div>";
+    var trava = u.testes || !!u.ocupado, dis = trava ? " disabled" : "";
+    if (u.ocupado === "conferir") h += '<div class="dz-linha"><b>lendo os documentos pela IA… (até 1 minuto)</b></div>';
+    if (!e.feito) {
+      h += '<div class="dz-linha">Ainda não conferido. A IA lê os documentos anexados (identidade, comprovante de endereço, certidão, fiadores) e compara com o que vai no contrato.</div>';
+    } else {
+      var dq = new Date(e.em || ""), quando = isNaN(dq) ? "" : dq.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });   /* hora local, não UTC */
+      h += '<div class="dz-linha"><span class="dz-rot">Conferido em ' + esc(quando) + (e.por ? " por " + esc(e.por) : "") + "</span></div>";
+      if (!e.atual) h += '<div class="dz-aviso">Os dados mudaram depois desta conferência — confira de novo.</div>';
+      h += '<div style="overflow-x:auto"><table class="dz-tab" style="width:100%;border-collapse:collapse;font-size:13px">' +
+        "<tr><th>Pessoa · documento</th><th>Campo</th><th>No contrato</th><th>No documento</th><th>Situação</th></tr>" +
+        (e.linhas || []).map(function (l, i) {
+          var s = SIT_CONF[l.situacao] || SIT_CONF.ilegivel, conf = (e.confirmados || {})[i];
+          var acao = "";
+          if (l.situacao !== "ok") {
+            acao = conf ? '<div class="ass-data">conferido' + (conf.por ? " por " + esc(conf.por) : "") + "</div>"
+              : '<div style="margin-top:4px"><button type="button" class="bt ghost bt-mini" data-acao="d-abrir-' + i + '"' + dis + ">Abrir documento</button> " +
+                '<button type="button" class="bt bt-mini" data-acao="d-ok-' + i + '"' + dis + ">Conferi, está certo</button></div>";
+          }
+          return "<tr><td>" + esc(l.pessoa) + " · " + esc(l.documento) + "</td><td>" + esc(l.rotulo) + "</td><td>" + esc(l.esperado) +
+            "</td><td>" + (l.lido ? esc(l.lido) : '<span class="ass-data">' + esc(l.motivo || "não lido") + "</span>") +
+            '</td><td><b class="' + s[0] + '">' + s[1] + "</b>" + acao + "</td></tr>";
+        }).join("") + "</table></div>";
+    }
+    h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="d-conferir"' + dis + ">" +
+      (e.feito ? "Conferir de novo" : "Conferir documentos") + "</button></div>";
+    if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
+    return h;
+  }
   function htmlPreReserva(e, u) {
     u = u || {};
     var h = '<div class="grp">Termo de pré-reserva</div>';
@@ -1129,7 +1172,10 @@
     var estadoM = null, uiM = novoUiM(), esperaM = null, ctxA = novoCtxA();
     var estadoR = null, uiR = novoUiR();
     /* 27/10/2026: termo de pré-reserva (condomínio) */
-    var comPR = !!(opts && opts.preReserva), estadoP = null, uiP = { msg: "", faltas: null, ocupado: null, testes: perfilTestes() };
+    /* 28/10: soPR = só os blocos da pré-reserva (a janela do "Pagou preferência" na tela de propostas) */
+    var soPR = !!(opts && opts.soPreReserva);
+    var estadoD = null, uiD = { ocupado: null, msg: "", testes: perfilTestes() };   /* 28/10: conferência dos documentos */
+    var comPR = soPR || !!(opts && opts.preReserva), estadoP = null, uiP = { msg: "", faltas: null, ocupado: null, testes: perfilTestes() };
     var ctxP = novoCtxA(); ctxP.doc = "PRE_RESERVA";
     function vivo() { return !!ativo(eu); }
     function dentro(sel) { return raiz ? raiz.querySelector(sel) : null; }
@@ -1158,7 +1204,9 @@
       if (!raiz) return;
       guardarRascunho();
       guardarRascunhoR();
-      raiz.innerHTML = (comPR ? '<div class="vb-pr">' + htmlPreReserva(estadoP, uiP) + '</div><div class="vb-pr-ass">' + htmlAssPR() + "</div>" : "") +
+      if (soPR) { raiz.innerHTML = '<div class="vb-pr">' + htmlPreReserva(estadoP, uiP) + '</div><div class="vb-pr-ass">' + htmlAssPR() + "</div>"; return; }
+      raiz.innerHTML = (comPR ? '<div class="vb-pr">' + htmlPreReserva(estadoP, uiP) + '</div><div class="vb-pr-ass">' + htmlAssPR() + "</div>" +
+                                 '<div class="vb-conf">' + htmlConferencia(estadoD, uiD) + "</div>" : "") +
         htmlContrato(estadoC, uiC) + '<div class="vb-ass">' + htmlAss() + "</div>" +
         (comRec ? '<div class="vb-rec">' + htmlRecebimentos(estadoR, uiR) + "</div>" : "") +
         '<div class="vb-mc">' + htmlMC(estadoM, uiM) + "</div>";
@@ -1243,6 +1291,55 @@
     function pintarP() {
       var w = dentro(".vb-pr"); if (w) { guardarContaPR(); w.innerHTML = htmlPreReserva(estadoP, uiP); }
       var a = dentro(".vb-pr-ass"); if (a) a.innerHTML = htmlAssPR();
+    }
+    function pintarD() { var w = dentro(".vb-conf"); if (w) w.innerHTML = htmlConferencia(estadoD, uiD); }
+    async function carregarConf() {
+      var r = await chamarVenda({ action: "conferenciaEstado", pageId: pageId }, 90000);
+      if (!vivo()) return;
+      if (r.ok) { estadoD = r; uiD.msg = ""; } else uiD.msg = mensagemContrato(r);
+      pintarD();
+    }
+    async function aoClicarConf(acao) {
+      if (uiD.ocupado) return;
+      if (acao === "d-conferir") {
+        uiD.ocupado = "conferir"; uiD.msg = ""; pintarD();
+        var r = await chamarVenda({ action: "conferirDocumentos", pageId: pageId }, 150000);
+        if (!vivo()) return;
+        uiD.ocupado = null;
+        if (r.ok) { estadoD = { feito: true, linhas: r.linhas, confirmados: r.confirmados || {}, em: r.em, por: "", atual: true }; }
+        else uiD.msg = r.erro === "FALTAM_DADOS" ? "Faltam dados: " + (r.faltas || []).join("; ") : mensagemContrato(r);
+        pintarD();
+        return;
+      }
+      var m = /^d-(abrir|ok)-(\d+)$/.exec(acao), i = m ? Number(m[2]) : -1, l = estadoD && estadoD.linhas && estadoD.linhas[i];
+      if (!l) return;
+      if (m[1] === "abrir") {
+        var w = window.open("about:blank", "_blank");
+        uiD.ocupado = "abrir"; pintarD();
+        var rv = await chamarVenda({ action: "verDocumentoConferencia", pageId: pageId, coluna: l.coluna }, 90000);
+        if (!vivo()) { if (w) { try { w.close(); } catch (e) {} } return; }
+        uiD.ocupado = null;
+        if (rv.ok && rv.base64) {
+          var bin = atob(rv.base64), bytes = new Uint8Array(bin.length);
+          for (var k = 0; k < bin.length; k++) bytes[k] = bin.charCodeAt(k);
+          var url = URL.createObjectURL(new Blob([bytes], { type: rv.mime || "application/pdf" }));
+          if (w) { try { w.opener = null; } catch (e) {} w.location.href = url; }
+          else uiD.msg = "O navegador bloqueou a janela — libere pop-ups para o portal e clique de novo.";
+          if (rv.total > 1) uiD.msg = "Este documento tem " + rv.total + " arquivos; abriu o último (o Notion mostra todos).";
+        } else {
+          if (w) { try { w.close(); } catch (e) {} }
+          uiD.msg = rv.erro === "SEM_ARQUIVO" ? "Não há arquivo anexado para este documento." : mensagemContrato(rv);
+        }
+        pintarD();
+        return;
+      }
+      if (!window.confirm("Você abriu o documento e confere que está certo (" + l.pessoa + " · " + l.rotulo + ")?")) return;
+      uiD.ocupado = "ok"; pintarD();
+      var ro = await chamarVenda({ action: "confirmarConferencia", pageId: pageId, indice: i });
+      if (!vivo()) return;
+      uiD.ocupado = null;
+      if (ro.ok) estadoD.confirmados = ro.confirmados; else uiD.msg = mensagemContrato(ro);
+      pintarD();
     }
     async function carregarPR() {
       var r = await chamarVenda({ action: "preReservaEstado", pageId: pageId });
@@ -1405,6 +1502,7 @@
       var acao = b.getAttribute("data-acao"), r, seq;
       if (/^mc-/.test(acao)) return aoClicarMC(acao);
       if (/^pr-/.test(acao)) return aoClicarPR(acao);
+      if (/^d-/.test(acao)) return aoClicarConf(acao);
       if (acao === "p-ver-assinado") return verAssinadoPR();
       if (/^p-/.test(acao)) return aoClicarAssPR(acao);
       if (acao === "a-ver-assinado") return verAssinado();
@@ -1428,6 +1526,27 @@
         } else {
           if (w) { try { w.close(); } catch (e) {} }
           uiC.msg = r.ok ? "Ainda não há contrato gerado." : mensagemContrato(r);
+        }
+        pintar();
+        return;
+      }
+      if (acao === "c-ver-cfd-pre" || acao === "c-ver-cfd-pos") {
+        /* 28/10: termo de confissão — o PDF vem pelo portal, como o pré-contrato */
+        var wc = window.open("about:blank", "_blank");
+        uiC.ocupadoContrato = "ver"; uiC.msg = ""; pintar();
+        seq = ++seqC;
+        r = await chamarVenda({ action: "verConfissao", pageId: pageId, tipo: acao === "c-ver-cfd-pos" ? "POS" : "PRE" }, 90000);
+        if (seq !== seqC || !vivo()) { if (wc) { try { wc.close(); } catch (e) {} } return; }
+        uiC.ocupadoContrato = null;
+        if (r.ok && r.base64) {
+          var binC = atob(r.base64), bytesC = new Uint8Array(binC.length);
+          for (var j = 0; j < binC.length; j++) bytesC[j] = binC.charCodeAt(j);
+          var urlC = URL.createObjectURL(new Blob([bytesC], { type: "application/pdf" }));
+          if (wc) { try { wc.opener = null; } catch (e) {} wc.location.href = urlC; }
+          else uiC.msg = "O navegador bloqueou a janela — libere pop-ups para o portal e clique de novo.";
+        } else {
+          if (wc) { try { wc.close(); } catch (e) {} }
+          uiC.msg = mensagemContrato(r);
         }
         pintar();
         return;
@@ -1593,7 +1712,13 @@
         });
       }
       pintar();
+      if (soPR) {
+        if (!estadoP) carregarPR();
+        if (!ctxP.estado) carregarAssPR();
+        return;
+      }
       if (!estadoC) carregarContrato();
+      if (comPR && !estadoD) carregarConf();
       if (!estadoM) carregarMC();
       if (!ctxA.estado) carregarAss();
       if (comRec && !estadoR) carregarRec();
@@ -1601,7 +1726,7 @@
       if (comPR && !ctxP.estado) carregarAssPR();
     };
     eu.raiz = function () { return raiz; };
-    eu.pintarAssinatura = pintarA;
+    eu.pintarAssinatura = function () { pintarA(); if (comPR) { var a = dentro(".vb-pr-ass"); if (a) a.innerHTML = htmlAssPR(); } };
     eu.parar = function () { if (esperaM) clearTimeout(esperaM); esperaM = null; };
     return eu;
   }
@@ -1642,7 +1767,22 @@
     blocosCond.anexar(el);
   }
   function soltarCondominio() { if (blocosCond) blocosCond.parar(); blocosCond = null; }
-  window.VendaBlocos = { montar: montarCondominio, soltar: soltarCondominio };
+  /* 28/10/2026: só o termo de pré-reserva (conta de devolução, gerar, ver, Clicksign) — a tela de propostas
+   *   VendaBlocos.montarPreReserva(elemento, pageIdDaLinhaDaVenda)  depois do "Pagou preferência"           */
+  var blocosPR = null;
+  function montarPreReserva(el, pageId) {
+    if (!el || !REGEX_ID.test(String(pageId || ""))) return;
+    if (!blocosPR || blocosPR.pageId !== pageId) {
+      if (blocosPR) blocosPR.parar();
+      blocosPR = criarBlocosVenda(pageId, function (b) {
+        var r = b.raiz();
+        return blocosPR === b && !!r && r.isConnected !== false;
+      }, { soPreReserva: true });
+    }
+    blocosPR.anexar(el);
+  }
+  function soltarPreReserva() { if (blocosPR) blocosPR.parar(); blocosPR = null; }
+  window.VendaBlocos = { montar: montarCondominio, soltar: soltarCondominio, montarPreReserva: montarPreReserva, soltarPreReserva: soltarPreReserva };
 
   function garantirBloco(body) {
     var id = obraAberta();
@@ -1680,8 +1820,8 @@
     var st = document.createElement("style"); st.textContent = CSS; document.head.appendChild(st);
     /* o bloco de assinatura mora em arquivo próprio; vendas.html continua com uma linha só.
        Carrega mesmo sem o painel da casa: o cartão do condomínio também usa. */
-    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=7";
-    sa.onload = function () { [blocosCasa, blocosCond].forEach(function (b) { if (b) b.pintarAssinatura(); }); };
+    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=8";
+    sa.onload = function () { [blocosCasa, blocosCond, blocosPR].forEach(function (b) { if (b) b.pintarAssinatura(); }); };
     document.head.appendChild(sa);
     var body = document.getElementById("pn-body"); if (!body) return;
     new MutationObserver(function () { garantirBloco(body); }).observe(body, { childList: true });

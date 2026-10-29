@@ -98,14 +98,14 @@ const SCHEMA_VENDAS = { properties: Object.fromEntries(Object.entries(COLUNAS_RE
   return [n, { type: tipo, [tipo]: tipo === "select" ? { options: t.opcoes.map((o) => ({ name: o })) } : {} }];
 })) };
 
-function cenario({ linha = {}, sem = [], dbPagina = DB_COND, props = {}, gh = 204, docEnd = "CONDOMÍNIO RESERVA TESTE", modeloCond = MODELO_COND } = {}) {
+function cenario({ linha = {}, sem = [], dbPagina = DB_COND, props = {}, gh = 204, docEnd = "CONDOMÍNIO RESERVA TESTE", modeloCond = MODELO_COND, modelosExtra = {}, cs = {}, s3 = {}, ia = null } = {}) {
   const valores = Object.assign({}, LINHA, linha);
   for (const s of sem) delete valores[s];
-  const n = notionFalso({ colunas: colunasDe(valores), valores, pageId: COND, dbId: dbPagina,
+  const n = notionFalso({ colunas: colunasDe(valores), valores, pageId: COND, dbId: dbPagina, s3,
     bases: { "db-vend": [VENDEDOR], "db-lote": [EMPREENDIMENTO], "db-corr": [],
              "db-doc": [Object.assign({ "ENDEREÇO": tit(docEnd) }, OBRA_PG)] } });
-  const d = driveFalso({ modelos: { "modelo-cond": modeloCond, "modelo-obra": ["OBRA"], "modelo-pronto": ["PRONTO"], "modelo-pr": MODELO_PR } });
-  const c = clicksignFalso();
+  const d = driveFalso({ modelos: Object.assign({ "modelo-cond": modeloCond, "modelo-obra": ["OBRA"], "modelo-pronto": ["PRONTO"], "modelo-pr": MODELO_PR }, modelosExtra) });
+  const c = clicksignFalso(cs);
   const despachos = [];
   const p = Object.assign({
     NOTION_TOKEN: "ntn-teste", SESSION_SECRET: "segredo-de-teste", DB_VENDAS: DB_ID_PADRAO, DB_VENDAS_COND: DB_COND,
@@ -118,6 +118,7 @@ function cenario({ linha = {}, sem = [], dbPagina = DB_COND, props = {}, gh = 20
   }, props);
   const g = criarGas({ props: p, extras: d.extras, rotas: (url, opt) => {
     if (url.startsWith("https://api.github.com/")) { despachos.push(JSON.parse(opt.payload)); return { status: gh, texto: "" }; }
+    if (ia && url.startsWith("https://api.openai.com/")) return ia(url, opt);
     if (url === "https://api.notion.com/v1/databases/" + DB_ID_PADRAO && String(opt.method || "get").toUpperCase() === "GET") return { json: SCHEMA_VENDAS };
     return c.rota(url, opt) || n.rota(url, opt);
   } });
@@ -186,7 +187,7 @@ test("gerarContrato do condomínio: fluxo que não fecha trava com a falta (nada
   assert.equal(r.erro, "FALTAM_DADOS");
   /* preço mudou sem mexer na comissão: a regra (21/10) também acusa */
   assert.deepEqual(r.faltas, ["Fluxo de pagamento: soma R$ 305.000,00 e não fecha com o valor de venda R$ 310.000,00",
-    "Comissão: R$ 13.725,00 na venda, mas a regra (24 parcelas pós-chaves = 4,5%) dá R$ 13.950,00"]);
+    "Comissão: R$ 13.725,00 na venda, mas a regra (prazo da entrada de 48 meses = 4,5%) dá R$ 13.950,00"]);
   assert.equal(c.d.estado.copias.length, 0);
 });
 
@@ -339,4 +340,129 @@ test("28/10: condomínio sem linha na DOCUMENTOS usa a vendedora da Propriedade 
   const c = cenario({ docEnd: "OUTRA OBRA QUALQUER", props: { CONDOMINIO_VENDEDOR: "Construtora Teste Ltda" } });
   const r = c.gerarFinal();
   assert.equal(r.ok, true, JSON.stringify(r));
+});
+
+/* ---- 28/10/2026: termos de confissão de dívida (Confissao.gs) ---- */
+const COLS_CFD = {
+  "FIADOR 1": rt("Fiador Um Teste"), "CPF FIADOR 1": rt("111.444.777-35"), "EMAIL FIADOR 1": eml("f1@teste.example"),
+  "FIADOR 2": rt("Fiador Dois Teste"), "CPF FIADOR 2": rt("246.813.579-28"), "EMAIL FIADOR 2": eml("f2@teste.example"),
+  "CONFISSÃO PRÉ-CHAVES - GERADA": { files: [] }, "CONFISSÃO PRÉ-CHAVES - ASSINADA": { files: [] },
+  "CONFISSÃO PÓS-CHAVES - GERADA": { files: [] }, "CONFISSÃO PÓS-CHAVES - ASSINADA": { files: [] },
+};
+const MODELOS_CFD = {
+  "modelo-cfd-pre": ["TERMO PRÉ casa {{CASA_NUMERO}} de {{DATA_CONTRATO}}: {{TCD_TOTAL_EXTENSO}} — {{TCD_PARCELAS}}", "{{FIADOR1_QUADRO}} | {{FIADOR2_QUADRO}}"],
+  "modelo-cfd-pos": ["TERMO PÓS {{TCD_TOTAL_EXTENSO}} — {{TCD_PARCELAS}}", "{{FIADOR1_NOME}} {{FIADOR2_CPF}}"],
+};
+const cenarioCfd = (o = {}) => cenario({ ...o, linha: { ...COLS_CFD, ...(o.linha || {}) }, modelosExtra: MODELOS_CFD,
+  props: { MODELO_CONFISSAO_PRE_ID: "modelo-cfd-pre", MODELO_CONFISSAO_POS_ID: "modelo-cfd-pos", ...(o.props || {}) } });
+
+test("28/10: contrato final gera os dois termos com o mesmo carimbo, nas colunas próprias", () => {
+  const c = cenarioCfd();
+  const r = c.gerarFinal();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.termos.length, 2);
+  const pre = c.n.pagina.properties["CONFISSÃO PRÉ-CHAVES - GERADA"].files, pos = c.n.pagina.properties["CONFISSÃO PÓS-CHAVES - GERADA"].files;
+  assert.equal(pre.length, 1); assert.equal(pos.length, 1);
+  const hash = /\[#([0-9a-f]{8})\]\.pdf$/.exec(r.nome)[1];
+  assert.ok(pre[0].name.startsWith("CONFISSÃO PRÉ-CHAVES - ") && pre[0].name.endsWith("[#" + hash + "].pdf"), pre[0].name);
+  assert.ok(pos[0].name.startsWith("CONFISSÃO PÓS-CHAVES - ") && pos[0].name.endsWith("[#" + hash + "].pdf"), pos[0].name);
+  const e = c.acao("contratoEstado");
+  assert.deepEqual(e.confissao.map((x) => x.tipo), ["PRE", "POS"]);
+  assert.equal(c.acao("verConfissao", { tipo: "POS" }).ok, true);
+});
+
+test("28/10: sem os fiadores, o contrato com os termos ligados não sai (falta nome e CPF)", () => {
+  const c = cenarioCfd({ linha: { "FIADOR 2": rt(""), "CPF FIADOR 2": rt("") } });
+  const r = c.acao("gerarPreContrato");
+  assert.equal(r.erro, "FALTAM_DADOS");
+  assert.ok(r.faltas.includes("Fiador 2 (termo de confissão): nome"), r.faltas.join(" | "));
+});
+
+test("28/10: Clicksign — contrato e termos no MESMO envelope; fiadores assinam só os termos; termos assinados nas colunas deles", () => {
+  const c = cenarioCfd({ cs: { arquivos: { original: "https://s3.clicksign.falso/original.pdf", signed: "https://s3.clicksign.falso/assinado.pdf" } } });
+  assert.equal(c.gerarFinal().ok, true);
+  const r = c.acao("assinaturaEnviar");
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual(r.signatarios.map((s) => s.papel).slice(-2), ["Fiador 1", "Fiador 2"]);
+  const docs = c.c.chamadas.filter((x) => x.metodo === "POST" && x.caminho === "/envelopes/env-1/documents");
+  assert.equal(docs.length, 3);
+  assert.ok(docs[1].corpo.data.attributes.filename.startsWith("CONFISSÃO PRÉ-CHAVES - ") && !/\[#/.test(docs[1].corpo.data.attributes.filename));
+  const sigs = c.c.estado.signers, fiador = sigs.find((s) => s.attributes.email === "f1@teste.example");
+  const reqs = c.c.chamadas.filter((x) => x.metodo === "POST" && x.caminho === "/envelopes/env-1/requirements");
+  const docsDo = (id) => [...new Set(reqs.filter((q) => q.corpo.data.relationships.signer.data.id === id).map((q) => q.corpo.data.relationships.document.data.id))].sort();
+  assert.deepEqual(docsDo(fiador.id), ["doc-2", "doc-3"], "fiador: só os termos");
+  const comprador = sigs.find((s) => s.attributes.email === "compradora@teste.example");
+  assert.deepEqual(docsDo(comprador.id), ["doc-1", "doc-2", "doc-3"]);
+  const papelFiador = reqs.find((q) => q.corpo.data.relationships.signer.data.id === fiador.id && q.corpo.data.attributes.role);
+  assert.equal(papelFiador.corpo.data.attributes.role, "guarantor");
+  /* tudo assinado: o contrato e os dois termos assinados vão para as colunas */
+  c.c.estado.status = "closed";
+  const e = c.acao("assinaturaEstado");
+  assert.equal(e.situacao, "ASSINADO", JSON.stringify(e));
+  assert.equal(c.n.pagina.properties["CONTRATO ASSINADO"].files.length, 1);
+  assert.equal(c.n.pagina.properties["CONFISSÃO PRÉ-CHAVES - ASSINADA"].files.length, 1);
+  assert.equal(c.n.pagina.properties["CONFISSÃO PÓS-CHAVES - ASSINADA"].files.length, 1);
+});
+
+test("28/10: termos de outro carimbo (dado mudou e só o contrato foi refeito) = CONFISSAO_DESATUALIZADA", () => {
+  const c = cenarioCfd();
+  assert.equal(c.gerarFinal().ok, true);
+  c.n.pagina.properties["CONFISSÃO PÓS-CHAVES - GERADA"].files[0].name = "CONFISSÃO PÓS-CHAVES - X [#00000000].pdf";
+  assert.equal(c.acao("assinaturaEnviar").erro, "CONFISSAO_DESATUALIZADA");
+});
+
+test("28/10: sem fiador com e-mail a assinatura não sai; sem os modelos dos termos tudo segue como antes", () => {
+  const c = cenarioCfd({ linha: { "EMAIL FIADOR 2": eml("") } });
+  assert.equal(c.gerarFinal().ok, true);
+  const r = c.acao("assinaturaEnviar");
+  assert.equal(r.erro, "FALTAM_DADOS");
+  assert.ok(r.faltas.some((f) => /^Fiador 2: e-mail/.test(f)), r.faltas.join(" | "));
+  const semModelo = cenario({ linha: COLS_CFD });
+  const g = semModelo.gerarFinal();
+  assert.equal(g.ok, true);
+  assert.equal(g.termos, undefined);
+});
+
+/* ---- 28/10/2026: conferência dos documentos pela IA (Conferencia.gs) ---- */
+test("28/10: conferir documentos — lê pela IA, compara, guarda; ilegível confirmado; o pré-contrato só avisa", () => {
+  const PDF = { buf: Buffer.from("%PDF-1.4 documento de teste", "utf8"), mime: "application/pdf" };
+  const leituras = {
+    leitura_identidade: { tipo_documento: "CNH", nome: "COMPRADORA DE TESTE", cpf: "52998224725", numero_documento: "", orgao_emissor: "",
+                          nacionalidade: "", data_nascimento: "", rg_numero: "1234567", rg_orgao_uf: "" },
+    leitura_comprovante: { tipo_documento: "COMPROVANTE", titular: "", endereco_completo: "Avenida Diferente 999, Outro Bairro, Outra Cidade 75999-000", data_emissao: "" },
+  };
+  const pedidos = [];
+  const ia = (url, opt) => {
+    const corpo = JSON.parse(opt.payload), nome = corpo.text.format.name;
+    pedidos.push(nome);
+    return { json: { status: "completed", output: [{ content: [{ type: "output_text", text: JSON.stringify(leituras[nome]) }] }], usage: {} } };
+  };
+  const arq = (id) => ({ files: [{ name: id + ".pdf", type: "file", file: { url: "https://s3.falso/" + id } }] });
+  const c = cenario({ props: { OPENAI_API_KEY: "sk-teste" }, ia, s3: { cnh: PDF, luz: PDF },
+                      linha: { "DOC. PROPONENTE": arq("cnh"), "COMPROVANTE DE ENDEREÇO": arq("luz"), "CERTIDÕES": { files: [] } } });
+  assert.deepEqual(c.acao("conferenciaEstado"), { ok: true, feito: false });
+  const r = c.acao("conferirDocumentos");
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual(pedidos.sort(), ["leitura_comprovante", "leitura_identidade"]);
+  const sit = Object.fromEntries(r.linhas.map((l) => [l.item + ":" + l.campo, l.situacao]));
+  assert.equal(sit["c1-id:nome"], "ok");
+  assert.equal(sit["c1-id:cpf"], "ok");
+  assert.equal(sit["c1-end:endereco"], "diverge");
+  assert.equal(sit["c1-civil:estado_civil"], "ilegivel", "certidão não anexada");
+  /* o pré-contrato sai, com o aviso */
+  const pre = c.acao("gerarPreContrato");
+  assert.equal(pre.ok, true, JSON.stringify(pre));
+  assert.ok(pre.avisos.some((a) => /^Conferência dos documentos: 1 divergência e 1 item sem conferir/.test(a)), pre.avisos.join(" | "));
+  /* abrir o documento e confirmar visualmente */
+  const doc = c.acao("verDocumentoConferencia", { coluna: "DOC. PROPONENTE" });
+  assert.equal(doc.ok, true); assert.equal(doc.total, 1);
+  assert.equal(c.acao("verDocumentoConferencia", { coluna: "CPF PROPONENTE" }).erro, "COLUNA_INVALIDA");
+  r.linhas.forEach((l, i) => { if (l.situacao !== "ok") assert.equal(c.acao("confirmarConferencia", { indice: i }).ok, true); });
+  const e = c.acao("conferenciaEstado");
+  assert.equal(e.feito, true); assert.equal(e.atual, true);
+  const pre2 = c.acao("gerarPreContrato");
+  assert.ok(!(pre2.avisos || []).some((a) => /^Conferência/.test(a)), "tudo conferido: sem aviso");
+  /* dado mudou: a conferência fica velha */
+  c.n.pagina.properties["DIA PAGAMENTO PARCELAS"] = { type: "number", number: 15 };
+  assert.equal(c.acao("conferenciaEstado").atual, false);
 });

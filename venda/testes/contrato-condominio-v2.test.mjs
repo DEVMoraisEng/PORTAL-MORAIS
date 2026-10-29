@@ -58,12 +58,24 @@ test("tabela das casas do Reserva dos Ipês: tipo pelo memorial (casa 62 é tipo
   assert.equal(U.unidade("OUTRO CONDOMÍNIO", "1"), null);
 });
 
-test("regra da comissão: sem pós-chaves 5%, 12 pós-chaves 4,75%, 24 pós-chaves 4,5%; outro número = null", () => {
-  assert.equal(C.comissaoPctPelaRegra(0), 0.05);
-  assert.equal(C.comissaoPctPelaRegra(null), 0.05);
-  assert.equal(C.comissaoPctPelaRegra(12), 0.0475);
-  assert.equal(C.comissaoPctPelaRegra(24), 0.045);
-  assert.equal(C.comissaoPctPelaRegra(36), null);
+test("28/10 (dono): comissão pelo PRAZO DA ENTRADA — 24x 5%, 36x 4,75%, 48x 4,5%; prazo gravado com mês a menos vale a faixa", () => {
+  assert.equal(C.comissaoPctPelaRegra(24), 0.05);
+  assert.equal(C.comissaoPctPelaRegra(23), 0.05);
+  assert.equal(C.comissaoPctPelaRegra(36), 0.0475);
+  assert.equal(C.comissaoPctPelaRegra(35), 0.0475);
+  assert.equal(C.comissaoPctPelaRegra(48), 0.045);
+  assert.equal(C.comissaoPctPelaRegra(60), null);
+  /* sem prazo gravado (venda antiga): pela tabela do simulador, 0/12/24 pós-chaves = 24/36/48x */
+  assert.equal(C.comissaoPctPelaRegra(null, 0), 0.05);
+  assert.equal(C.comissaoPctPelaRegra(null, 12), 0.0475);
+  assert.equal(C.comissaoPctPelaRegra(null, 24), 0.045);
+  assert.equal(C.comissaoPctPelaRegra(null, 6), null);
+});
+
+test("28/10: unidade 17 — 36x com 24 pós-chaves no fluxo: a comissão de 4,75% vale (o prazo manda, não as parcelas)", () => {
+  const d = dados({ condominio: { comissao: 14487.5, fluxo: { ...FLUXO, prazoEntrada: 36 } } });
+  assert.ok(!C.faltasContrato(d).some((f) => /^Comissão/.test(f)), C.faltasContrato(d).join(" | "));
+  assert.equal(C.marcadores(d).COMISSAO_PCT, "4,75");
 });
 
 test("condomínio completo: sem faltas; comissão do COMPRADOR DENTRO do valor de venda (dono 22/10); marcadores do quadro-resumo", () => {
@@ -153,10 +165,10 @@ test("comissão: vazia na linha sai pela regra; diferente da regra trava; nº de
   assert.deepEqual(C.faltasContrato(vazia), []);
   assert.equal(C.marcadores(vazia).COMISSAO_VALOR, "13.725,00");
   assert.deepEqual(C.faltasContrato(dados({ condominio: { comissao: 15250 } })),
-    ["Comissão: R$ 15.250,00 na venda, mas a regra (24 parcelas pós-chaves = 4,5%) dá R$ 13.725,00"]);
+    ["Comissão: R$ 15.250,00 na venda, mas a regra (prazo da entrada de 48 meses = 4,5%) dá R$ 13.725,00"]);
   assert.deepEqual(C.faltasContrato(dados({ condominio: { comissao: 13725.04 } })), [], "até 5 centavos passa");
   const fora = dados({ condominio: { fluxo: { ...FLUXO, posN: 6, posValor: 705.89 * 4 } } });
-  assert.deepEqual(C.faltasContrato(fora), ["Comissão: 6 parcelas pós-chaves não estão na tabela (0, 12 ou 24)"]);
+  assert.deepEqual(C.faltasContrato(fora), ["Comissão: prazo da entrada vazio fora da tabela (24, 36 ou 48 meses)"]);
 });
 
 test("casa fora da tabela: tipo e áreas em branco viram aviso, não travam", () => {
@@ -204,4 +216,15 @@ test("27/10 (dono): meio de pagamento — sinal por PIX ou abatido pelo valor pa
   assert.equal(C.meioPagamentoCondominio(co(4000)),
     "sinal (item 4.1.3): R$ 4.000,00 (quatro mil reais) quitados com o valor para entrada informado na proposta, mantida sua natureza de sinal e princípio de pagamento, e R$ 6.000,00 (seis mil reais) por PIX; parcelas da entrada por boleto bancário");
   assert.equal(C.meioPagamentoCondominio({ fluxo: {} }), "parcelas da entrada por boleto bancário");
+});
+
+test("28/10: valor para entrada acima do sinal — o excedente fecha a soma e vai no 4.2.1 c) como pagamento na assinatura", () => {
+  const fl = { ...FLUXO, balao2Valor: FLUXO.balao2Valor - 1000 };           // o simulador tirou os R$ 1.000 do fluxo
+  const sem = dados({ condominio: { fluxo: fl } });
+  assert.ok(C.faltasContrato(sem).some((f) => /soma R\$ 304\.000,00 e não fecha/.test(f)), C.faltasContrato(sem).join(" | "));
+  const d = dados({ condominio: { fluxo: fl, valorParaEntrada: 11000 } });
+  assert.deepEqual(C.faltasContrato(d), []);
+  assert.match(C.marcadores(d).PARCELAS_PRE_CHAVES,
+    /^pagamento único de R\$ 1\.000,00 \(mil reais\), na assinatura deste contrato \(parte do valor para entrada informado na proposta que excede o sinal\); 10 parcelas/);
+  assert.equal(C.excedenteSinal({ fluxo: FLUXO, valorParaEntrada: 9000 }), 0, "abaixo do sinal não há excedente");
 });

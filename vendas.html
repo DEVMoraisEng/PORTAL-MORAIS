@@ -1128,7 +1128,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 
 <script src="app.js?v=45"></script>
 <script src="venda/painel-casa.js?v=1"></script>
-<script src="venda-dossie.js?v=9"></script>
+<script src="venda-dossie.js?v=11"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele.
    Mesma chave (morais_tema) das outras páginas do portal. */
@@ -1196,13 +1196,28 @@ const SETORES_AREA=[
 const ABAS_SETOR={
   "Secretária de Vendas":  ["atividades","alertas","atrasados","planilha","condominio","modelo"],
   // Gestor de Vendas: sem alerta e sem atividade — a página dele é dado de venda
-  "Gestor de Vendas":      ["vendidas","estoque","planilha","modelo"],  // vendidas primeiro
+  "Gestor de Vendas":      ["vendidas","estoque","planilha","condominio","modelo"],  // vendidas primeiro; 28/10: + condomínio
   "Departamento de Projetos":["atividades","alertas","planilha","modelo"],
   // Júlio (22/10/26): + Casas Modelo e Casas Liberadas sem Tipo
-  "Júlio César":           ["atividades","alertas","atrasados","planilha","modelo","semtipo"]
+  "Júlio César":           ["atividades","alertas","atrasados","planilha","condominio","modelo","semtipo"]   // 28/10: + condomínio
 };
 const ABAS_PADRAO=["atividades","alertas","atrasados","planilha","modelo"];
-function abasDoSetor(nome){ return ABAS_SETOR[nome]||ABAS_PADRAO; }
+/* 28/10/26 (dono): a Planilha Casas Condomínio (com a Tela de Venda) também por PESSOA — quem tem o acesso
+   "CONDOMÍNIO" na coluna ACESSOS da base LOGINS vê a aba em qualquer setor que abrir (ex.: o Felipe, no
+   Departamento de Projetos, sem abrir para o setor inteiro). Só o acesso marcado conta: ADM/MASTER não ganham
+   a aba em todo setor por isso. */
+function temAcessoCondominio(){
+  const nz=x=>String(x||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/\s+/g," ").trim();
+  return typeof S!=="undefined" && !!S && (S.acessos||[]).some(a=>nz(a)==="CONDOMINIO");
+}
+function abasDoSetor(nome){
+  const abas=(ABAS_SETOR[nome]||ABAS_PADRAO).slice();
+  if(abas.indexOf("condominio")<0 && temAcessoCondominio()){
+    const i=abas.indexOf("planilha");
+    abas.splice(i>=0?i+1:abas.length,0,"condominio");
+  }
+  return abas;
+}
 
 function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("on"); setTimeout(()=>t.classList.remove("on"),1900); }
 /* MASTER: vê tudo o que o ADM vê, mas não edita

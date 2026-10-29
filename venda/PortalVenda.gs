@@ -38,6 +38,7 @@ function tratar_(p) {
     var grava = ["tipoCasa", "lerDocumento", "anexarDocumento", "soltarDocumento", "lerDocumentos", "copiarComprovante", "conferir", "devolver", "gerarContrato", "gerarPreContrato", "aprovarPreContrato", "escolherTestemunhas",
                  "salvarCamposContrato", "escolherContaRecebimento", "mcLancar", "assinaturaEnviar", "assinaturaEstado",
                  "gerarVendaCondominio", "assinaturaReenviar", "salvarContaPreReserva", "gerarTermoPreReserva",
+                 "conferirDocumentos", "confirmarConferencia" /* 28/10 */,
                  "recebimentoConfirmar" /* entrega 14 */].indexOf(p.action) >= 0;
     if (grava && String(sess.t || "").toUpperCase() === "TESTES") return { ok: false, erro: "SEM_PERMISSAO_TESTES" };
     if (p.action !== "ping" && !REGEX_PAGE_ID.test(String(p.pageId || ""))) return { ok: false, erro: "PAGINA_INVALIDA" };
@@ -75,6 +76,13 @@ function tratar_(p) {
       case "salvarContaPreReserva": return salvarContaPreReserva_(col, sess, p);
       case "gerarTermoPreReserva": return gerarTermoPreReserva_(col, sess, p);
       case "verTermoPreReserva": return verTermoPreReserva_(col, p);
+      /* 28/10: termos de confissão de dívida (Confissao.gs) */
+      case "verConfissao": return verConfissao_(col, p);
+      /* 28/10: conferência dos documentos pela IA (Conferencia.gs) */
+      case "conferirDocumentos": return conferirDocumentos_(col, sess, p);
+      case "conferenciaEstado": return conferenciaEstado_(col, p);
+      case "confirmarConferencia": return confirmarConferencia_(col, sess, p);
+      case "verDocumentoConferencia": return verDocumentoConferencia_(col, p);
       case "recebimentoEstado": return recebimentoEstado_(col, p);
       case "recebimentoConfirmar": return recebimentoConfirmar_(col, sess, p);
       default: return { ok: false, erro: "ACAO_DESCONHECIDA" };

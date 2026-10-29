@@ -230,6 +230,7 @@ var ContratoVenda = (function () {
       balao1Valor: num(x.balao1Valor), balao1Data: txt(x.balao1Data),
       balao2Valor: num(x.balao2Valor), balao2Data: txt(x.balao2Data),
       posN: inteiro(x.posN), posValor: num(x.posValor), posData: txt(x.posData),
+      prazoEntrada: inteiro(x.prazoEntrada),
       credito: num(x.credito), fgts: num(x.fgts), subsidio: num(x.subsidio)
     };
   }
@@ -306,11 +307,20 @@ var ContratoVenda = (function () {
    * o resume por grupos (decisão do dono 21/10: "24 parcelas mensais, todo dia XX, a primeira em …").
    * A comissão é do COMPRADOR e está dentro do VALOR DE VENDA (dono 22/10): operação = venda; imóvel = venda − comissão. */
   function U() { return typeof UnidadesCondominio !== "undefined" ? UnidadesCondominio : require("./UnidadesCondominio.js"); }
-  /* item 5 b): o percentual sai do número de parcelas pós-chaves (é a mesma regra do simulador) */
-  var COMISSAO_POR_POS = { 0: 0.05, 12: 0.0475, 24: 0.045 };
-  function comissaoPctPelaRegra(posN) {
-    var n = positivo(posN) ? posN : 0;
-    return Object.prototype.hasOwnProperty.call(COMISSAO_POR_POS, n) ? COMISSAO_POR_POS[n] : null;
+  /* item 5 b) — regra do dono (28/10): a comissão sai do PRAZO DA ENTRADA escolhido na proposta, como no simulador:
+     24x = 5%, 36x = 4,75%, 48x = 4,5%. O simulador grava o prazo com um mês a menos por mês passado de nov/2026
+     (24/36/48 → 23/35/47…), por isso vale a faixa. Sem PRAZO ENTRADA (venda antiga), o prazo sai das parcelas
+     pós-chaves pela tabela do simulador (0 → 24x, 12 → 36x, 24 → 48x). */
+  var PRAZO_POR_POS = { 0: 24, 12: 36, 24: 48 };
+  function prazoOpcao(prazo, posN) {
+    var p = positivo(prazo) ? prazo : null;
+    if (p === null) { var n = positivo(posN) ? posN : 0; return Object.prototype.hasOwnProperty.call(PRAZO_POR_POS, n) ? PRAZO_POR_POS[n] : null; }
+    return p <= 24 ? 24 : p <= 36 ? 36 : p <= 48 ? 48 : null;
+  }
+  var COMISSAO_POR_PRAZO = { 24: 0.05, 36: 0.0475, 48: 0.045 };
+  function comissaoPctPelaRegra(prazo, posN) {
+    var op = prazoOpcao(prazo, posN);
+    return op === null ? null : COMISSAO_POR_PRAZO[op];
   }
   /* 0,045 -> "4,5"; 0,05 -> "5" */
   function pctBR(frac) { return String(Number((frac * 100).toFixed(4))).replace(".", ","); }
@@ -320,7 +330,7 @@ var ContratoVenda = (function () {
     var fl = co.fluxo, preco = positivo(fl.valorVenda) ? fl.valorVenda : null;
     function val(v) { return positivo(v) ? v : 0; }
     var financiamento = so2(val(fl.credito) + val(fl.fgts) + val(fl.subsidio));
-    var pctRegra = comissaoPctPelaRegra(fl.posN);
+    var pctRegra = comissaoPctPelaRegra(fl.prazoEntrada, fl.posN);
     var comissao = positivo(co.comissao) ? co.comissao : (pctRegra !== null && preco !== null ? so2(preco * pctRegra) : null);
     /* dono 22/10: a comissão está DENTRO do VALOR DE VENDA (305 mil a 5% = 15.250 do corretor); o cliente paga à
        Morais e a Morais repassa ao corretor depois que o sinal inteiro é pago. Operação = VALOR DE VENDA;
@@ -338,6 +348,15 @@ var ContratoVenda = (function () {
 
   /* 4.2.1 g) (dono 27/10): sinal por PIX ou abatido (o VALOR PARA ENTRADA da proposta cobre o sinal na ordem
      ato → 30 → 60 → 90, como no simulador); parcelas da entrada por boleto bancário. */
+  /* 28/10 (teste no portal oficial): o VALOR PARA ENTRADA ("valor para o sinal") da proposta paga o sinal e o que
+     PASSA dele abate a entrada (simulador: "só o excedente abate"). Esse excedente não está em coluna nenhuma do
+     fluxo — sem ele a soma não fechava (11 mil para o sinal, sinal de 10 mil: faltava R$ 1.000). */
+  function excedenteSinal(co) {
+    var fl = co.fluxo || {}, s = 0;
+    [fl.sinalAto, fl.sinal30, fl.sinal60, fl.sinal90].forEach(function (v) { if (positivo(v)) s += v; });
+    var vpe = positivo(co.valorParaEntrada) ? co.valorParaEntrada : 0;
+    return so2(Math.max(0, vpe - s));
+  }
   function meioPagamentoCondominio(co) {
     var fl = co.fluxo || {}, s = 0;
     [fl.sinalAto, fl.sinal30, fl.sinal60, fl.sinal90].forEach(function (v) { if (positivo(v)) s += v; });
@@ -367,8 +386,11 @@ var ContratoVenda = (function () {
     return t.slice(0, -1).join(", ") + " e " + t[t.length - 1];
   }
   /* 4.2.1 c): a entrada começa depois do sinal — 1ª e 2ª parte e balões (os sinais ficam no 4.1.3) */
-  function parcelasPreChaves(fl) {
+  function parcelasPreChaves(fl, excedente) {
     var itens = [], total = 0;
+    /* o excedente do valor para entrada é pago na assinatura e abate o saldo da entrada (não é corrigido) */
+    var exc = positivo(excedente) ? "pagamento único de " + valorExtenso(excedente) + ", na assinatura deste contrato " +
+      "(parte do valor para entrada informado na proposta que excede o sinal)" : "";
     [[fl.pre1N, fl.pre1Valor, fl.pre1Data], [fl.pre2N, fl.pre2Valor, fl.pre2Data]].forEach(function (s) {
       if (!positivo(s[0]) || !positivo(s[1])) return;
       itens.push(mensais(s[0], s[1], s[2], fl.diaPagamento));
@@ -380,8 +402,8 @@ var ContratoVenda = (function () {
         " ou na data da entrega das chaves, o que ocorrer primeiro");
       total++;
     }
-    if (!itens.length) return "não há.";
-    return emLista(itens) + "; " + (total > 1 ? "todas corrigidas" : "corrigida") + " pelo INCC-M, nos termos do item 6.1.";
+    if (!itens.length) return exc ? exc + "." : "não há.";
+    return (exc ? exc + "; " : "") + emLista(itens) + "; " + (total > 1 ? "todas corrigidas" : "corrigida") + " pelo INCC-M, nos termos do item 6.1.";
   }
   /* 4.2.1 e) */
   function parcelasPosChaves(fl) {
@@ -681,19 +703,19 @@ var ContratoVenda = (function () {
     comData(fl.balao2Valor, fl.balao2Data, "balão da entrega das chaves");
     serie(fl.posN, fl.posValor, fl.posData, "pós-chaves");
     if (positivo(fl.valorVenda)) {
-      var soma = somaFluxo(fl);
+      var soma = so2(somaFluxo(fl) + excedenteSinal(co));
       if (Math.abs(soma - fl.valorVenda) > 0.05)
         faltas.push(g + ": soma R$ " + moedaBR(soma) + " e não fecha com o valor de venda R$ " + moedaBR(fl.valorVenda));
     }
 
     /* comissão (item 5): o percentual sai do nº de parcelas pós-chaves; a da linha tem de bater com a regra */
     var va = valoresCondominio(co);
-    if (va.pctRegra === null) faltas.push("Comissão: " + fl.posN + " parcelas pós-chaves não estão na tabela (0, 12 ou 24)");
+    if (va.pctRegra === null) faltas.push("Comissão: prazo da entrada " + (fl.prazoEntrada || "vazio") + " fora da tabela (24, 36 ou 48 meses)");
     else if (positivo(co.comissao) && va.preco !== null) {
       var pelaRegra = so2(va.preco * va.pctRegra);
       if (Math.abs(co.comissao - pelaRegra) > 0.05)
         faltas.push("Comissão: R$ " + moedaBR(co.comissao) + " na venda, mas a regra (" +
-          (positivo(fl.posN) ? fl.posN + " parcelas pós-chaves" : "sem parcelas pós-chaves") + " = " + pctBR(va.pctRegra) +
+          "prazo da entrada de " + prazoOpcao(fl.prazoEntrada, fl.posN) + " meses = " + pctBR(va.pctRegra) +
           "%) dá R$ " + moedaBR(pelaRegra));
     }
 
@@ -701,8 +723,8 @@ var ContratoVenda = (function () {
       var gf = "Fiador " + (i + 1);
       if (vazio(fi.cpf)) faltas.push(gf + ": CPF");
       else if (!R().cpfValido(fi.cpf)) faltas.push(gf + ": CPF inválido");
-      exige(!vazio(fi.rg), gf, "RG");
-      exige(!vazio(fi.endereco), gf, "endereço");
+      /* 28/10 (dono com a diretoria): dos fiadores só nome e CPF (e o e-mail para assinar os termos de
+         confissão) — o contrato final só os cita; RG e endereço deixaram de ser exigidos */
     });
   }
 
@@ -912,7 +934,7 @@ var ContratoVenda = (function () {
     m.ENTRADA_TOTAL = moedaOuVazio(va.entrada);
     m.ENTRADA_PCT = va.entrada === null ? "" : pct2(va.entrada, va.preco);
     m.ENTRADA_SALDO = moedaOuVazio(va.saldoEntrada);
-    m.PARCELAS_PRE_CHAVES = parcelasPreChaves(fl);
+    m.PARCELAS_PRE_CHAVES = parcelasPreChaves(fl, excedenteSinal(co));
     m.PARCELAS_POS_CHAVES = parcelasPosChaves(fl);
     m.MEIO_PAGAMENTO = d.meioPagamento || MEIO_PAGAMENTO_PADRAO;
     m.FINANCIAMENTO_VALOR = moedaBR(va.financiamento);
@@ -1176,8 +1198,9 @@ var ContratoVenda = (function () {
     montarDadosContrato: montarDadosContrato, faltasContrato: faltasContrato,
     marcadores: marcadores, blocos: blocos, avisosContrato: avisosContrato,
     formaPagamentoCondominio: formaPagamentoCondominio, qualificacaoFiadores: qualificacaoFiadores,
-    comissaoPctPelaRegra: comissaoPctPelaRegra, qualificacaoQuadro: qualificacaoQuadro, valorExtenso: valorExtenso, meioPagamentoCondominio: meioPagamentoCondominio,
+    comissaoPctPelaRegra: comissaoPctPelaRegra, qualificacaoQuadro: qualificacaoQuadro, valorExtenso: valorExtenso, meioPagamentoCondominio: meioPagamentoCondominio, excedenteSinal: excedenteSinal,
     somaFluxo: function (fl) { return somaFluxo(fluxoCondominio(fl)); }, negritoDaLinha: negritoDaLinha,
+    parcelasPreChaves: parcelasPreChaves, parcelasPosChaves: parcelasPosChaves,   /* 28/10: termos de confissão */
     /* o traço do campo em branco (o pré-contrato grifa em vermelho claro) */
     EM_BRANCO: EM_BRANCO,
     /* marcadores cujo valor tem várias linhas: no Docs, o parágrafo que só tem o marcador vira um parágrafo por linha */
