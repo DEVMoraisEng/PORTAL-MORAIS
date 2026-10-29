@@ -30,10 +30,10 @@ test("venda lançada, envelope aberto ou assinado: botão desabilitado com o mot
   }
 });
 
-test("alterado: diz quem alterou e avisa que o contrato com fluxo alterado chega na próxima versão", () => {
+test("alterado: diz quem alterou e pede conferir o 6.1 no pré-contrato", () => {
   const h = D.htmlContrato(estado({ ...fechado, alterado: true, por: "ana.teste", em: "2026-10-29T15:00:00Z", alteracoes: 1 }), {});
   assert.match(h, /alterado no portal.*ana\.teste/);
-  assert.match(h, /Voltar ao fluxo da proposta/);
+  assert.match(h, /confira o item 6\.1 e o quadro-resumo no pré-contrato/);
 });
 
 test("sem a coluna no Notion: aviso e nada de botão", () => {

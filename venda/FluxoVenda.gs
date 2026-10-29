@@ -4,8 +4,8 @@
  * Regras do dono: qualquer pessoa com acesso a Vendas altera; só salva com a soma batendo AO CENTAVO com o valor da casa;
  * motivo obrigatório (e um segundo motivo quando o valor da casa muda). Quem, quando, motivo e o fluxo de antes ficam no
  * histórico (Propriedade FLUXO_HIST_<página>).
- * Etapa 1 (este arquivo): tela, gravação e histórico. Até a etapa 2 o contrato NÃO lê a lista — por isso, com fluxo
- * alterado, gerar contrato para com a falta (ctrDadosAtuais_), e o robô do Mais Controle também para (etapa 3). */
+ * Etapa 1 (este arquivo): tela, gravação e histórico. Etapa 2: o contrato lê a lista (ContratoVenda.gruposFluxo).
+ * Até a etapa 3 o robô do Mais Controle para quando a venda tem fluxo alterado. */
 var FLUXO_COL = "FLUXO PERSONALIZADO", FLUXO_HIST = "FLUXO_HIST_", FLUXO_HIST_MAX = 8500;
 /* dono 29/10: mudar o VALOR DA CASA só Julio Cesar e João Vitor — os logins do portal ficam na Propriedade
    FLUXO_PRECO_USUARIOS (separados por vírgula). Vazia = ninguém muda o valor da casa. */
@@ -13,8 +13,6 @@ function fluxoPodePreco_(sess) {
   var u = String((sess && sess.u) || "").trim().toLowerCase();
   return !!u && String(prop_("FLUXO_PRECO_USUARIOS") || "").toLowerCase().split(/[\s,;]+/).indexOf(u) >= 0;
 }
-var FLUXO_FALTA_CONTRATO = "Fluxo de pagamento alterado no portal: o contrato com fluxo alterado ainda não está disponível — " +
-  "use \"Voltar ao fluxo da proposta\" para gerar agora";
 
 function fluxoColunaReal_(pg) {
   var k = RegrasVenda.chave(FLUXO_COL);
