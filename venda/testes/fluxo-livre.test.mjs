@@ -99,6 +99,40 @@ test("expandir: parcela por parcela, a cada X meses, dia 31 cai no fim do mês",
   assert.equal(p[1].reajuste, "INCC-M");
 });
 
+/* regras da proposta (dono 29/10) — fluxo da proposta com 24 pós-chaves */
+const comPos = Object.assign({}, gavetas, { posN: 24, posValor: 700, posData: "2029-01-10", credito: 248720 - 16800 });
+
+test("fluxo da proposta passa nas regras dela mesma", () => {
+  const p = F.doPadrao(comPos);
+  assert.deepEqual(F.validar(p, p).erros, []);
+});
+
+test("financiamento e FGTS não mudam: trocar valor entre eles e as parcelas é recusado", () => {
+  const p = F.doPadrao(comPos), f = F.normalizar(p);
+  f.linhas.find((l) => l.t === "fin").v -= 1000;
+  f.linhas.find((l) => l.t === "pre").v += 1000 / 12;
+  assert.match(F.validar(f, p).erros.join(";"), /Financiamento, FGTS e subsídio não mudam/);
+  const sem = F.normalizar(p);
+  sem.linhas = sem.linhas.filter((l) => l.t !== "fgts");
+  assert.match(F.validar(sem, p).erros.join(";"), /não mudam/);
+});
+
+test("pós-chaves: mesma quantidade da proposta, até o teto de R$ 788,33 e sem começar antes", () => {
+  const p = F.doPadrao(comPos);
+  const menos = F.normalizar(p); menos.linhas.find((l) => l.t === "pos").n = 12;
+  assert.match(F.validar(menos, p).erros.join(";"), /tem de continuar com 24 parcelas/);
+  const dividido = F.normalizar(p), k = dividido.linhas.findIndex((l) => l.t === "pos");
+  dividido.linhas.splice(k, 1, { t: "pos", v: 700, n: 12, d: "2029-01-10", i: 1 }, { t: "pos", v: 700, n: 12, d: "2030-01-10", i: 1 });
+  assert.deepEqual(F.validar(dividido, p).erros, [], "pode dividir em mais linhas se a quantidade for a mesma");
+  const caro = F.normalizar(p); caro.linhas.find((l) => l.t === "pos").v = 800;
+  assert.match(F.validar(caro, p).erros.join(";"), /acima do teto de R\$ 788,33/);
+  const cedo = F.normalizar(p); cedo.linhas.find((l) => l.t === "pos").d = "2028-12-10";
+  assert.match(F.validar(cedo, p).erros.join(";"), /não pode começar antes de 10\/01\/2029/);
+  const semPos = F.doPadrao(gavetas), comNovo = F.normalizar(semPos);
+  comNovo.linhas.push({ t: "pos", v: 100, n: 1, d: "2029-01-10", i: 1 });
+  assert.match(F.validar(comNovo, semPos).erros.join(";"), /não tem pós-chaves/);
+});
+
 test("serializar e ler voltam o mesmo fluxo e descartam campos estranhos", () => {
   const f = F.doPadrao(gavetas);
   f.linhas[0].lixo = "<script>";

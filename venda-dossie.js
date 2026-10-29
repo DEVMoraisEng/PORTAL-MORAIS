@@ -392,7 +392,8 @@
     FLUXO_VENDA_LANCADA: "A venda já foi lançada no Mais Controle — o fluxo não muda mais por aqui.",
     FLUXO_CONTRATO_ASSINADO: "O contrato já foi assinado — mudar o fluxo agora exige aditivo.",
     FLUXO_ASSINATURA_ABERTA: "O contrato está na Clicksign esperando assinatura — cancele o envelope antes de alterar o fluxo.",
-    FLUXO_JA_E_O_DA_PROPOSTA: "O fluxo desta venda já é o da proposta."
+    FLUXO_JA_E_O_DA_PROPOSTA: "O fluxo desta venda já é o da proposta.",
+    FLUXO_PRECO_SEM_PERMISSAO: "Só Julio Cesar ou João Vitor podem mudar o valor da casa."
   };
   /* Nunca inclui nomes de marcador do modelo (resposta.marcadores): esses vão só para o console.
      CAMPOS_INVALIDOS: os motivos (só nomes de campo) vão junto. */
@@ -650,13 +651,22 @@
       if (f.alterado) h += '<div class="dz-aviso">O contrato com fluxo alterado chega na próxima versão do portal. Para gerar o contrato antes disso, abra o fluxo e use "Voltar ao fluxo da proposta".</div>';
       return h;
     }
-    var F = FL(), ops = F.ORDEM.map(function (t) { return [t, F.TIPOS[t].nome]; });
-    h += '<div class="dz-linha vb-fx"><label class="dz-campo">Valor da casa (R$) <input type="text" inputmode="decimal" data-fx="valor" value="' + esc(numBR(ed.valor)) + '"' + dis + ' style="width:9em;text-align:right"></label>' +
+    /* financiamento, FGTS e subsídio (fixo) só aparecem; o valor da casa só para quem pode (Julio Cesar e João Vitor) */
+    var F = FL(), ops = F.ORDEM.filter(function (t) { return !F.TIPOS[t].fixo; }).map(function (t) { return [t, F.TIPOS[t].nome]; });
+    h += '<div class="dz-linha vb-fx"><label class="dz-campo">Valor da casa (R$) <input type="text" inputmode="decimal" data-fx="valor" value="' + esc(numBR(ed.valor)) + '"' +
+      (dis || (ed.podePreco ? "" : " disabled")) + ' style="width:9em;text-align:right"></label>' +
+      (ed.podePreco ? "" : ' <span class="dz-nota">só Julio Cesar ou João Vitor mudam o valor da casa</span>') +
       (ed.entrega ? ' <span class="dz-nota">entrega das chaves: ' + esc(F.dataBR(ed.entrega)) + "</span>" : "") + "</div>";
     h += '<div class="vb-fx-tab" style="overflow-x:auto"><table class="tbl-fx" style="border-collapse:collapse;width:100%;font-size:.9em">' +
       "<thead><tr><th>Tipo</th><th>Valor de cada (R$)</th><th>Qtde</th><th>1ª data</th><th>A cada (meses)</th><th>Descrição</th><th>Total</th><th></th></tr></thead><tbody>";
     ed.linhas.forEach(function (l, k) {
       var tp = F.TIPOS[l.t] || { reajuste: "" };
+      if (tp.fixo) {
+        h += '<tr data-fx-linha="' + k + '"><td><b>' + esc(tp.nome) + '</b><div class="dz-nota">não muda (da proposta)</div></td>' +
+          '<td style="text-align:right">' + esc(numBR(l.v)) + "</td><td>" + esc(l.n) + "</td><td>" + esc(l.d ? F.dataBR(l.d) : "—") + "</td><td></td><td></td>" +
+          '<td class="vb-fx-tot" data-k="' + k + '" style="white-space:nowrap;text-align:right">' + esc(F.moeda(F.totalLinha(l))) + "</td><td></td></tr>";
+        return;
+      }
       h += '<tr data-fx-linha="' + k + '"><td><select data-fx="t" data-k="' + k + '"' + dis + ">" +
         ops.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === l.t ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") +
         '</select><div class="dz-nota">' + (tp.reajuste ? "reajuste " + esc(tp.reajuste) : "sem correção") + "</div></td>" +
@@ -678,7 +688,7 @@
     var mudouPreco = Math.round(ed.valor * 100) !== Math.round(ed.valorOriginal * 100);
     h += '<div class="dz-linha"><label class="dz-campo" style="display:block">Motivo da alteração (obrigatório) <input type="text" maxlength="300" data-fx="motivo" value="' + esc(ed.motivo || "") + '"' + dis +
       ' placeholder="ex.: cliente pediu mais um balão e parcelas menores" style="width:100%;box-sizing:border-box"></label></div>';
-    h += '<div class="dz-linha vb-fx-mp"' + (mudouPreco ? "" : " hidden") + '><label class="dz-campo" style="display:block">Motivo da mudança no valor da casa (obrigatório) ' +
+    h += '<div class="dz-linha vb-fx-mp" style="display:' + (mudouPreco ? "block" : "none") + '"><label class="dz-campo" style="display:block">Motivo da mudança no valor da casa (obrigatório) ' +
       '<input type="text" maxlength="300" data-fx="motivoPreco" value="' + esc(ed.motivoPreco || "") + '"' + dis + ' style="width:100%;box-sizing:border-box"></label></div>';
     h += '<div class="dz-linha"><button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-fechar"' + dis + ">Fechar sem salvar</button>" +
       (ed.alterado ? ' <button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-voltar"' + dis + ">Voltar ao fluxo da proposta</button>" : "") + "</div>";
@@ -693,7 +703,7 @@
   }
   /* placar + o que falta + Salvar: redesenhado a cada tecla sem mexer na tabela (não perde o foco) */
   function htmlFluxoVivo(ed, dis) {
-    var F = FL(), r = F.validar({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }), soma = F.soma(ed.linhas), dif = r.diferenca;
+    var F = FL(), r = F.validar({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, ed.padrao), soma = F.soma(ed.linhas), dif = r.diferenca;
     var mudouPreco = Math.round(ed.valor * 100) !== Math.round(ed.valorOriginal * 100);
     var motivoOk = !!String(ed.motivo || "").trim() && (!mudouPreco || !!String(ed.motivoPreco || "").trim());
     var bate = Math.round(dif * 100) === 0, ok = r.ok && motivoOk;
@@ -1794,6 +1804,7 @@
         uiC.ocupadoContrato = null;
         if (r.ok) uiC.fluxoEd = { valor: r.atual.valor, valorOriginal: r.padrao.valor, entrega: r.atual.entrega || r.padrao.entrega,
                                   linhas: copiaLinhas(r.atual.linhas), padrao: r.padrao, historico: r.historico || [], alterado: !!r.alterado,
+                                  podePreco: !!r.podePreco,
                                   motivo: "", motivoPreco: "" };
         else uiC.msg = mensagemContrato(r);
         pintar();
@@ -1802,9 +1813,10 @@
       if (!ed) return;
       if (acao === "c-fluxo-fechar") { uiC.fluxoEd = null; pintar(); return; }
       if (acao === "c-fluxo-add") { ed.linhas.push({ t: "balao", v: 0, n: 1, d: "", i: 1, x: "" }); pintar(); return; }
-      if (acao === "c-fluxo-del") { ed.linhas.splice(k, 1); pintar(); return; }
+      if (acao === "c-fluxo-del") { if (!(FL().TIPOS[(ed.linhas[k] || {}).t] || {}).fixo) ed.linhas.splice(k, 1); pintar(); return; }
       if (acao === "c-fluxo-padrao") { ed.linhas = copiaLinhas(ed.padrao.linhas); ed.valor = ed.padrao.valor; pintar(); return; }
       if (acao === "c-fluxo-red") {
+        if ((FL().TIPOS[(ed.linhas[k] || {}).t] || {}).fixo) return;
         var rd = FL().redistribuir({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, k);
         if (rd.erro) uiC.msg = rd.erro; else { ed.linhas = rd.linhas; uiC.msg = ""; }
         pintar();
@@ -1848,7 +1860,7 @@
       }
       var viva = dentro(".vb-fx-viva"), mp = dentro(".vb-fx-mp");
       if (viva) viva.innerHTML = htmlFluxoVivo(ed, "");
-      if (mp) mp.hidden = Math.round(ed.valor * 100) === Math.round(ed.valorOriginal * 100);
+      if (mp) mp.style.display = Math.round(ed.valor * 100) === Math.round(ed.valorOriginal * 100) ? "none" : "block";
     }
     /* resposta de gerarPreContrato / aprovarPreContrato / salvarCamposContrato */
     function tratarGeracao(r, aprovar) {

@@ -571,15 +571,32 @@ test("29/10 fluxo: salva só com a conta fechando e com motivo; grava a lista, o
   assert.equal(c.acao("fluxoEditar").historico.length, 2);
 });
 
-test("29/10 fluxo: valor da casa mudou pede o segundo motivo", () => {
-  const c = cenarioFluxo();
+test("29/10 fluxo: valor da casa só muda com quem está em FLUXO_PRECO_USUARIOS, e pede o segundo motivo", () => {
+  const sem = cenarioFluxo();
+  const b0 = sem.acao("fluxoEditar");
+  assert.equal(b0.podePreco, false);
+  const desconto = (atual) => ({ valor: 300000, linhas: atual.linhas.map((l) => (l.t === "balao" && l.v > 8000 ? { ...l, v: l.v - 5000 } : l)) });
+  assert.equal(sem.acao("salvarFluxo", { fluxo: desconto(b0.atual), motivo: "desconto", motivoPreco: "x" }).erro, "FLUXO_PRECO_SEM_PERMISSAO");
+  const c = cenarioFluxo({ props: { FLUXO_PRECO_USUARIOS: "julio.cesar, Ana.Teste" } });
   const base = c.acao("fluxoEditar").atual;
-  const f = { valor: 300000, linhas: base.linhas.map((l) => (l.t === "fin" ? { ...l, v: l.v - 5000 } : l)) };
+  assert.equal(c.acao("fluxoEditar").podePreco, true);
+  const f = desconto(base);
   const r = c.acao("salvarFluxo", { fluxo: f, motivo: "desconto" });
   assert.equal(r.erro, "CAMPOS_INVALIDOS");
   assert.match(r.erros[0], /R\$ 305\.000,00 → R\$ 300\.000,00/);
   assert.equal(c.acao("salvarFluxo", { fluxo: f, motivo: "desconto", motivoPreco: "aprovado pelo diretor" }).ok, true);
   assert.equal(JSON.parse(c.txt("FLUXO PERSONALIZADO")).valor, 300000);
+});
+
+test("29/10 fluxo: o servidor recusa mexer no financiamento e na quantidade de pós-chaves", () => {
+  const c = cenarioFluxo();
+  const base = c.acao("fluxoEditar").atual;
+  const fin = { valor: base.valor, linhas: base.linhas.map((l) => (l.t === "fin" ? { ...l, v: l.v - 1000 } : l.t === "sinal" && l.v === 1000 ? { ...l, v: 2000 } : l)) };
+  const r1 = c.acao("salvarFluxo", { fluxo: fin, motivo: "x" });
+  assert.equal(r1.erro, "CAMPOS_INVALIDOS");
+  assert.match(r1.erros.join(";"), /não mudam/);
+  const pos = { valor: base.valor, linhas: base.linhas.map((l) => (l.t === "pos" ? { ...l, n: 12, v: l.v * 2 } : l)) };
+  assert.match(c.acao("salvarFluxo", { fluxo: pos, motivo: "x" }).erros.join(";"), /24 parcelas/);
 });
 
 test("29/10 fluxo: venda lançada no MC, envelope aberto ou contrato assinado não deixam alterar; envelope cancelado deixa", () => {
