@@ -76,3 +76,12 @@ test("interpretarResposta: erro 429 insufficient_quota (code) e 401 sem code (us
   assert.deepEqual(L.interpretarResposta(500, "<html>erro</html>"), { ok: false, erro: "API_HTTP_500" });
   assert.deepEqual(L.interpretarResposta(200, resposta({ output: [msg("não é json")] })), { ok: false, erro: "RESPOSTA_ILEGIVEL" });
 });
+
+test("29/10 clausulasInexistentes: acha o número no modelo e ignora 'cláusula'/'item'", async () => {
+  const { createRequire } = await import("node:module");
+  const O = createRequire(import.meta.url)("../OpenAILeitor.js");
+  const modelo = "7.3.2. Realizada a vistoria...\n9.2. Em caso de...\nCLÁUSULA NONA";
+  assert.deepEqual(O.clausulasInexistentes(["7.3.2", "cláusula 9.2", "item 9.7"], modelo), ["9.7"]);
+  assert.deepEqual(O.clausulasInexistentes([], modelo), []);
+  assert.equal(O.montarPedidoClausula("", modelo, "", "k").erro, "PEDIDO_VAZIO");
+});

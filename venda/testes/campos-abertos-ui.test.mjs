@@ -77,3 +77,24 @@ test("estadoContrato guarda a conta; mensagens novas", () => {
   assert.match(D.mensagemContrato({ erro: "VENDEDOR_SEM_CADASTRO" }), /cadastro de vendedores/);
   assert.match(D.mensagemContrato({ erro: "CONTRATO_FALHOU", salvos: ["vendedor"] }), /^Dados salvos \(vendedor\), mas: Não consegui gerar/);
 });
+
+test("29/10 condições especiais na tela: campo + Redigir com IA + Salvar; aviso quando tem texto; sem coluna avisa", () => {
+  const est = D.estadoContrato({ ok: true, gerado: false, etapa: "NENHUM", pre: null,
+    condicoes: { coluna: true, texto: "Na cláusula 9.2, leia-se 45 dias.", por: "ana.teste", em: "2026-10-29T10:00:00.000Z", max: 1900 } });
+  assert.equal(est.condicoes.texto, "Na cláusula 9.2, leia-se 45 dias.");
+  const h = D.htmlContrato(est, uic());
+  assert.match(h, /Condições especiais desta venda/);
+  assert.match(h, /data-acao="c-condesp-ia"/);
+  assert.match(h, /data-acao="c-condesp-salvar"/);
+  assert.match(h, /<textarea class="vb-condesp"[^>]*>Na cláusula 9\.2, leia-se 45 dias\.<\/textarea>/);
+  assert.match(h, /última gravação: ana\.teste/);
+  assert.match(h, /confira o item 16 no pré-contrato/);
+  const vazio = D.htmlContrato(D.estadoContrato({ ok: true, condicoes: { coluna: true, texto: "" } }), uic());
+  assert.doesNotMatch(vazio, /confira o item 16/);
+  const t = D.htmlContrato(D.estadoContrato({ ok: true, condicoes: { coluna: true, texto: "" } }), uic({ testes: true }));
+  assert.match(t, /data-acao="c-condesp-salvar" disabled/);
+  const sem = D.htmlContrato(D.estadoContrato({ ok: true, condicoes: { coluna: false, texto: "" } }), uic());
+  assert.match(sem, /Falta a coluna CONTRATO - CONDIÇÕES ESPECIAIS/);
+  const rua = D.htmlContrato(D.estadoContrato({ ok: true }), uic());
+  assert.doesNotMatch(rua, /Condições especiais desta venda/);
+});

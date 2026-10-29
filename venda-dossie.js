@@ -35,7 +35,14 @@
     SEM_COMPROVANTE_1: "O comprador 1 ainda não tem comprovante de endereço.",
     COMPROVANTE_1_NAO_LIDO: "Leia o comprovante do comprador 1 antes (o endereço dele ainda está vazio).",
     GRAVACAO_FALHOU: "Não consegui gravar no Notion — tente de novo.",
-    LEITURA_FALHOU: "Não consegui ler agora — tente de novo."
+    LEITURA_FALHOU: "Não consegui ler agora — tente de novo.",
+    /* 29/10: condições especiais e "Redigir com IA" */
+    COLUNA_FALTANDO: "Falta a coluna CONTRATO - CONDIÇÕES ESPECIAIS na base de vendas — avise o administrador.",
+    CHAVE_IA_FALTANDO: "A IA ainda não foi ligada neste ambiente (falta a chave da OpenAI).",
+    IA_SO_OPENAI: "O Redigir com IA só funciona com a OpenAI ligada.",
+    MODELO_NAO_CONFIGURADO: "O modelo do contrato do condomínio não está configurado.",
+    MODELO_ILEGIVEL: "Não consegui abrir o modelo do contrato para a IA ler.",
+    LEITURA_RECUSADA: "A IA não quis redigir esse pedido — reescreva com mais detalhe."
   };
 
   function esc(s) {
@@ -409,6 +416,10 @@
     if (c) o.conta = c;
     /* 28/10: termos de confissão de dívida gerados com o contrato (condomínio) */
     if (r && Array.isArray(r.confissao)) o.confissao = r.confissao.map(function (x) { return { tipo: x.tipo === "POS" ? "POS" : "PRE", nome: String(x.nome || "") }; });
+    /* 29/10: condições especiais desta venda (item 16 do quadro-resumo do condomínio) */
+    if (r && r.condicoes && typeof r.condicoes === "object")
+      o.condicoes = { coluna: !!r.condicoes.coluna, texto: String(r.condicoes.texto || ""), por: String(r.condicoes.por || ""),
+                      em: String(r.condicoes.em || ""), max: Number(r.condicoes.max) || 1900 };
     return o;
   }
   /* entrega 12: "Conta de recebimento" — lista (id e título), a escolha desta venda e a conta da obra */
@@ -570,12 +581,40 @@
     }
     h += htmlConta(e.conta, u, dis);
     h += htmlTestemunhas(e.testemunhas, dis);
+    h += htmlCondicoes(e.condicoes, u, dis);
     if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
     if (u.link && /^https:\/\//.test(u.link)) {
       h += '<div class="dz-msg">O navegador bloqueou a janela — clique em Abrir contrato. ' +
         '<a href="' + esc(u.link) + '" target="_blank" rel="noopener">Abrir contrato</a></div>';
     }
     return h;
+  }
+
+  /* 29/10: "Condições especiais desta venda" (item 16). O texto vai para o contrato só desta casa; vazio = "Não há.".
+     "Redigir com IA" só sugere: põe a redação na caixa, e a pessoa lê e clica em Salvar. */
+  function htmlCondicoes(c, u, dis) {
+    if (!c) return "";
+    var rasc = u.condRasc !== undefined && u.condRasc !== null ? u.condRasc : c.texto;
+    var h = '<div class="dz-grupo"><b>Condições especiais desta venda</b> <span class="dz-nota">(item 16 do quadro-resumo — só este contrato; vazio sai "Não há.")</span></div>';
+    if (!c.coluna) return h + '<div class="dz-aviso">Falta a coluna CONTRATO - CONDIÇÕES ESPECIAIS na base de vendas.</div>';
+    if (u.ocupadoContrato === "condesp-ia") h += '<div class="dz-linha"><b>a IA está redigindo… (até 1 minuto)</b></div>';
+    if (u.ocupadoContrato === "condesp") h += '<div class="dz-linha"><b>salvando…</b></div>';
+    h += '<div class="dz-linha"><input type="text" class="vb-condesp-pedido" maxlength="1000" style="width:100%;box-sizing:border-box" ' +
+      'placeholder="O que mudar, em português comum (ex.: cliente quer 45 dias em vez de 30 para a vistoria)" value="' + esc(u.condPedido || "") + '"' + dis + '>' +
+      '<div style="margin-top:6px"><button type="button" class="bt ghost bt-mini" data-acao="c-condesp-ia"' + dis + '>Redigir com IA</button></div></div>';
+    if (u.condIA) h += '<div class="dz-msg">' + esc(u.condIA) + "</div>";
+    h += '<div class="dz-linha"><textarea class="vb-condesp" rows="4" maxlength="' + c.max + '" style="width:100%;box-sizing:border-box;font:inherit"' + dis +
+      ' placeholder="Ex.: Na cláusula 9.2, onde se lê 30 dias, leia-se 45 dias.">' + esc(rasc) + "</textarea>" +
+      '<div style="margin-top:6px"><button type="button" class="bt bt-mini" data-acao="c-condesp-salvar"' + dis + ">Salvar condições especiais</button>" +
+      (c.por ? ' <span class="ass-data">última gravação: ' + esc(c.por) + (c.em ? " em " + esc(dataHoraBR(c.em)) : "") + "</span>" : "") + "</div></div>";
+    if (c.texto) h += '<div class="dz-aviso">Este contrato tem condições especiais — confira o item 16 no pré-contrato antes de aprovar.</div>';
+    return h;
+  }
+  function dataHoraBR(iso) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(iso || ""));
+    if (!m) return "";
+    try { return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); }
+    catch (e) { return m[3] + "/" + m[2] + " " + m[4] + ":" + m[5]; }
   }
 
   var MSG_MC = {
@@ -1600,11 +1639,49 @@
         if (r.ok) uiC.rascunho = {};
         return tratarGeracao(r, false);
       }
+      if (acao === "c-condesp-ia" || acao === "c-condesp-salvar") return aoClicarCondEsp(acao);
       if (acao === "c-salvar-conta") {
         var conta = contaDigitadaNaTela();
         if (!conta) { uiC.msg = "Digite banco, agência e conta."; pintar(); return; }
         return salvarConta(conta);
       }
+    }
+    /* 29/10: condições especiais — Redigir com IA (só sugere) e Salvar (grava na venda) */
+    async function aoClicarCondEsp(acao) {
+      var caixa = dentro(".vb-condesp"), ped = dentro(".vb-condesp-pedido");
+      if (caixa) uiC.condRasc = caixa.value;
+      if (ped) uiC.condPedido = ped.value;
+      var c = estadoC && estadoC.condicoes;
+      if (!c) return;
+      if (acao === "c-condesp-ia") {
+        if (!String(uiC.condPedido || "").trim()) { uiC.condIA = "Escreva primeiro o que quer mudar."; pintar(); return; }
+        uiC.ocupadoContrato = "condesp-ia"; uiC.condIA = ""; pintar();
+        var r = await chamarVenda({ action: "redigirCondicoesEspeciais", pageId: pageId, pedido: uiC.condPedido, atual: uiC.condRasc || "" }, 120000);
+        if (!vivo()) return;
+        uiC.ocupadoContrato = null;
+        if (r.ok) {
+          if (r.redacao) uiC.condRasc = r.redacao;
+          uiC.condIA = (r.redacao ? "Sugestão da IA colocada na caixa abaixo — leia, ajuste se precisar e clique em Salvar. " : "A IA não redigiu: ") +
+            (r.observacao || "") + (r.inexistentes && r.inexistentes.length ? " Atenção: a IA citou cláusula que não está no modelo (" + r.inexistentes.join(", ") + ") — corrija antes de salvar." : "");
+        } else uiC.condIA = mensagemContrato(r);
+        pintar();
+        return;
+      }
+      var texto = String(uiC.condRasc || "");
+      if (texto.trim() === c.texto.trim()) { uiC.msg = "Nada mudou nas condições especiais."; pintar(); return; }
+      if (!window.confirm(texto.trim() ? "Salvar estas condições especiais no contrato desta venda? O pré-contrato precisa ser gerado de novo." :
+                                         "Apagar as condições especiais desta venda? O contrato volta a sair com \"Não há.\".")) return;
+      uiC.ocupadoContrato = "condesp"; pintar();
+      var rs = await chamarVenda({ action: "salvarCondicoesEspeciais", pageId: pageId, texto: texto });
+      if (!vivo()) return;
+      uiC.ocupadoContrato = null;
+      if (rs.ok) {
+        estadoC.condicoes = { coluna: true, texto: rs.condicoes.texto, por: rs.condicoes.por, em: rs.condicoes.em, max: rs.condicoes.max || c.max };
+        uiC.condRasc = null; uiC.condIA = ""; uiC.condPedido = "";
+        if (estadoC.pre) estadoC.pre.desatualizado = true;
+        uiC.msg = "Condições especiais salvas — gere o pré-contrato de novo.";
+      } else uiC.msg = mensagemContrato(rs);
+      pintar();
     }
     /* resposta de gerarPreContrato / aprovarPreContrato / salvarCamposContrato */
     function tratarGeracao(r, aprovar) {
@@ -1700,6 +1777,12 @@
       if (!el.__vbLigado) {
         el.__vbLigado = true;
         el.addEventListener("click", function (ev) { if (raiz === el) aoClicar(ev); });
+        /* 29/10: o que se digita nas condições especiais sobrevive a um redesenho do bloco */
+        el.addEventListener("input", function (ev) {
+          if (raiz !== el || !ev.target.classList) return;
+          if (ev.target.classList.contains("vb-condesp")) uiC.condRasc = ev.target.value;
+          else if (ev.target.classList.contains("vb-condesp-pedido")) uiC.condPedido = ev.target.value;
+        });
         el.addEventListener("change", function (ev) {
           if (raiz !== el) return;
           if (ev.target.getAttribute("data-pr-c") === "forma") { guardarContaPR(); pintarP(); return; }

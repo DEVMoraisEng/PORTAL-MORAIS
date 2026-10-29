@@ -846,7 +846,8 @@ var ContratoVenda = (function () {
       REPRESENTANTE_NOME: ehPF ? (txt(v.nome) || d.nomeProprietario) : txt(v.representanteNome),
       REPRESENTANTE_CPF: ehPF ? txt(v.cpfCnpj) : txt(v.representanteCpf),
       PRAZO_CONCLUSAO: dataBR(im.prazoConclusao),
-      CONDICOES_ESPECIAIS: im.condicoesEspeciais || "Não há.",
+      /* 29/10: uma linha só (o Google Docs não troca marcador por texto com quebra de linha) */
+      CONDICOES_ESPECIAIS: txt(im.condicoesEspeciais).replace(/\s*\n+\s*/g, " ").trim() || "Não há.",
       ASSINATURA_COMPRADORES_NOMES: c2 ? c1.nome + " / " + c2.nome : c1.nome,
       ASSINATURA_COMPRADORES_CPFS: c2 ? c1.cpf + " / " + c2.cpf : c1.cpf,
       CORRETOR_DOC: txt(k.cpfCnpj),

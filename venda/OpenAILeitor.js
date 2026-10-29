@@ -128,6 +128,54 @@ var OpenAILeitor = (function () {
     return { ok: true, leitura: leitura, uso: { entrada: u.input_tokens || 0, saida: u.output_tokens || 0 } };
   }
 
-  return { MODELO_PADRAO: MODELO_PADRAO, ESQUEMAS: ESQUEMAS, montarPedido: montarPedido, interpretarResposta: interpretarResposta };
+  /* 29/10/2026: redigir as CONDIÇÕES ESPECIAIS de uma venda (item 16 do quadro-resumo do condomínio).
+     A IA só sugere o texto; quem grava é a pessoa, depois de ler (salvarCondicoesEspeciais). */
+  var ESQUEMA_CLAUSULA = objeto({
+    redacao: S,
+    clausulas_citadas: { type: "array", items: S },
+    observacao: S
+  });
+  var INSTRUCAO_CLAUSULA =
+    "Você redige o item 'CONDIÇÕES ESPECIAIS DESTA VENDA' de um contrato de promessa de compra e venda de imóvel " +
+    "(Brasil). O contrato modelo inteiro vem abaixo. O pedido vem em linguagem comum. Escreva a redação jurídica " +
+    "curta, em português formal, que altera só o que foi pedido, citando o número exato da cláusula ou item do " +
+    "contrato modelo (ex.: 'Na cláusula 7.3.2, onde se lê \"...\", leia-se \"...\"' ou 'Não se aplica a este " +
+    "contrato a cláusula X'). Não invente cláusulas que não estão no modelo, não mude preço, prazo de pagamento, " +
+    "nomes ou dados das partes (isso vem dos dados da venda), não dê conselho jurídico. Se já houver texto atual, " +
+    "mantenha o que nele não conflita e acrescente o novo. Em clausulas_citadas, liste os números citados. Em " +
+    "observacao, diga em uma frase o que mudou ou por que não deu para redigir (pedido vago, cláusula inexistente, " +
+    "mudança que precisa de advogado); se não deu, redacao vazia. Escreva no MESMO estilo do contrato modelo: " +
+    "partes sempre como COMPRADOR, VENDEDORA, INTERMEDIADOR e FIADORES em caixa alta, números por extenso entre " +
+    "parênteses como no modelo (ex.: 45 (quarenta e cinco) dias), mesmo vocabulário e mesma forma de citar itens.";
+  function montarPedidoClausula(pedido, textoContrato, atual, chaveApi, modelo) {
+    var p = String(pedido || "").trim();
+    if (!p) return { erro: "PEDIDO_VAZIO" };
+    var contrato = String(textoContrato || "").slice(0, 150000);
+    var texto = INSTRUCAO_CLAUSULA + "\n\nPEDIDO: " + p + "\n\nTEXTO ATUAL DO ITEM (pode estar vazio): " + String(atual || "") +
+      "\n\nCONTRATO MODELO:\n" + contrato;
+    return {
+      url: URL,
+      headers: { "Authorization": "Bearer " + chaveApi },
+      corpo: {
+        model: modelo || MODELO_PADRAO,
+        max_output_tokens: 4000,
+        input: [{ role: "user", content: [{ type: "input_text", text: texto }] }],
+        text: { format: { type: "json_schema", name: "condicoes_especiais", schema: ESQUEMA_CLAUSULA, strict: true } }
+      }
+    };
+  }
+  /* números citados que não aparecem no modelo (ex.: "9.7" quando o contrato vai até 9.4) */
+  function clausulasInexistentes(citadas, textoContrato) {
+    var t = String(textoContrato || "");
+    return (citadas || []).map(function (c) { return String(c).replace(/^(cl[áa]usula|item)\s+/i, "").trim(); })
+      .filter(function (c) {
+        if (!c) return false;
+        var esc = c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        return !new RegExp("(^|[^0-9.])" + esc + "\\.?([^0-9]|$)").test(t);
+      });
+  }
+
+  return { MODELO_PADRAO: MODELO_PADRAO, ESQUEMAS: ESQUEMAS, montarPedido: montarPedido, interpretarResposta: interpretarResposta,
+           montarPedidoClausula: montarPedidoClausula, clausulasInexistentes: clausulasInexistentes };
 })();
 if (typeof module !== "undefined" && module.exports) module.exports = OpenAILeitor;

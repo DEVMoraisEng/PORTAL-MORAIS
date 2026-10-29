@@ -414,3 +414,10 @@ test("pré-contrato do condomínio: cada linha do 6.1 e da qualificação do fia
   assert.deepEqual(c.salvo().grifos, []);
   assert.deepEqual(c.salvo().pars, s.pars);
 });
+
+test("29/10 marcador CONDICOES_ESPECIAIS: vazio = 'Não há.'; texto com quebra de linha vira uma linha só", () => {
+  const vazio = C.marcadores(C.montarDadosContrato(fontes({ venda: { CONDICOES_ESPECIAIS: "" } })));
+  assert.equal(vazio.CONDICOES_ESPECIAIS, "Não há.");
+  const com = C.marcadores(C.montarDadosContrato(fontes({ venda: { CONDICOES_ESPECIAIS: "Na cláusula 9.2,\n  leia-se 45 dias." } })));
+  assert.equal(com.CONDICOES_ESPECIAIS, "Na cláusula 9.2, leia-se 45 dias.");
+});
