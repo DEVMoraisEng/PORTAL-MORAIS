@@ -210,6 +210,13 @@ var RegrasVenda = (function () {
     }
     return true;
   }
+  /* 28/10: coluna de NÚMERO no Notion perde o zero da frente (035… vira 35…) — só dígitos e curto = completa 11 */
+  function cpfDoNotion(v) {
+    var s = texto(v).trim(), d = soDigitos(s);
+    if (d && d.length < 11 && /^[0-9]+$/.test(s)) d = ("00000000000" + d).slice(-11);
+    else return s;
+    return d;
+  }
   function mascararCpf(cpf) { var d = soDigitos(cpf); return d ? "***-" + d.slice(-2) : "sem CPF"; }
   function formatarCpf(cpf) {
     var d = soDigitos(cpf);
@@ -508,7 +515,7 @@ var RegrasVenda = (function () {
     ordenarEspacos: ordenarEspacos, marcarPendente: marcarPendente, pendentesValidos: pendentesValidos,
     contextoUnidade: contextoUnidade, mesmaPessoa: mesmaPessoa, tokensNome: tokensNome, decidirEspaco: decidirEspaco, espacoDaPessoa: espacoDaPessoa,
     estadoImovelAposLeitura: estadoImovelAposLeitura, dataValida: dataValida, areaM2: areaM2, isoParaBR: isoParaBR,
-    chave: chave, soDigitos: soDigitos, cpfValido: cpfValido, mascararCpf: mascararCpf,
+    chave: chave, soDigitos: soDigitos, cpfValido: cpfValido, cpfDoNotion: cpfDoNotion, mascararCpf: mascararCpf,
     formatarCpf: formatarCpf, contemNome: contemNome, dataDoc: dataDoc, diasEntre: diasEntre,
     valorBR: valorBR, vazio: vazio, iguais: iguais, resolverColunas: resolverColunas,
     resolverOpcao: resolverOpcao, manterArquivo: manterArquivo, mimeDoArquivo: mimeDoArquivo,

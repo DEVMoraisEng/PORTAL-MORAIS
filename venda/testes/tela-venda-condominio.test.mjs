@@ -371,6 +371,13 @@ test("28/10: contrato final gera os dois termos com o mesmo carimbo, nas colunas
   assert.equal(c.acao("verConfissao", { tipo: "POS" }).ok, true);
 });
 
+test("28/10: CPF do fiador em coluna de NÚMERO perde o zero da frente — o contrato completa os 11 dígitos", () => {
+  const c = cenarioCfd({ linha: { "CPF FIADOR 1": num(1234567890) } });   /* 012.345.678-90 (fictício) */
+  const r = c.acao("gerarPreContrato");
+  assert.notEqual(r.erro, "FALTAM_DADOS", JSON.stringify(r.faltas));
+  assert.equal(r.ok, true, JSON.stringify(r));
+});
+
 test("28/10: sem os fiadores, o contrato com os termos ligados não sai (falta nome e CPF)", () => {
   const c = cenarioCfd({ linha: { "FIADOR 2": rt(""), "CPF FIADOR 2": rt("") } });
   const r = c.acao("gerarPreContrato");
