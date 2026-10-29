@@ -151,6 +151,100 @@ def ultima_medicao(meds):
     }
 
 
+# 29/10/26 — STATUS DA OBRA no Mais Controle (o Mapa de Obras filtra por ele).
+# A lista de contratos não traz o status da obra: o robô abre "Minhas Obras"
+# (#/work), pega a chamada de API que a própria tela faz para listar as obras e
+# lê todas as páginas. Só nome, id e status da obra vão para o arquivo.
+ROTULO_OBRA = {"IN_BUDGET": "Em orçamento", "BUDGET": "Em orçamento", "BUDGETING": "Em orçamento", "QUOTATION": "Em orçamento",
+               "TO_START": "A iniciar", "NOT_STARTED": "A iniciar", "IN_PROGRESS": "Em andamento", "STARTED": "Em andamento",
+               "PARALYZED": "Paralisada", "PAUSED": "Paralisada", "STOPPED": "Paralisada", "FINISHED": "Finalizada",
+               "CONCLUDED": "Finalizada", "DONE": "Finalizada", "CANCELED": "Cancelada", "CANCELLED": "Cancelada"}
+_NOMES = ("workname", "name", "nome", "title", "description")
+
+
+def _campo(d, preds):
+    for k, v in (d or {}).items():
+        if any(p(k.lower()) for p in preds) and isinstance(v, (str, int, float)) and str(v).strip():
+            return k, v
+    return None, None
+
+
+def _itens(j):
+    if isinstance(j, list):
+        return j
+    if isinstance(j, dict):
+        for k in ("items", "data", "content", "results"):
+            if isinstance(j.get(k), list):
+                return j[k]
+    return None
+
+
+def status_das_obras(page, erp):
+    """{workId: {"nome", "status", "status_txt"}} lendo a tela Minhas Obras."""
+    resp = []
+
+    def ouvir(r):
+        if "prod-erp-api." in r.url and r.request.method == "GET":
+            resp.append(r)
+    page.on("response", ouvir)
+    try:
+        page.evaluate("() => { location.hash = '#/home' }")
+        page.wait_for_timeout(1500)
+        page.evaluate("() => { location.hash = '#/work' }")
+        page.wait_for_timeout(9000)
+    finally:
+        page.remove_listener("response", ouvir)
+    caminhos, alvo = [], None
+    for r in resp:
+        u = urlparse(r.url)
+        caminhos.append(u.path + ("?" + re.sub(r"=[^&]*", "=…", u.query) if u.query else ""))
+        if alvo:
+            continue
+        try:
+            itens = _itens(r.json())
+        except Exception:
+            continue
+        if not itens or not isinstance(itens[0], dict):
+            continue
+        k_st, _ = _campo(itens[0], [lambda k: k == "status" or k.endswith("status")])
+        k_nm, _ = _campo(itens[0], [lambda k: k in _NOMES])
+        if k_st and k_nm and "contract" not in u.path:
+            alvo = (u, k_st, k_nm)
+    RESUMO["obras_chamadas_api"] = sorted(set(caminhos))[:40]
+    if not alvo:
+        log("  ! não achei a lista de obras na tela Minhas Obras (status da obra fica de fora)")
+        return {}
+    u, k_st, k_nm = alvo
+    base = u.path.split("/", 1)[1] if u.path.startswith("/") else u.path
+    q = dict(x.split("=", 1) for x in u.query.split("&") if "=" in x)
+    obras, vistos = {}, set()
+    for pagina in range(1, 100):
+        if "pageIndex" in q:
+            q["pageIndex"] = str(pagina)
+        if "pageSize" in q:
+            q["pageSize"] = "100"
+        j = erp.get(base + ("?" + "&".join(f"{k}={v}" for k, v in q.items()) if q else ""))
+        itens = _itens(j) or []
+        novos = 0
+        for o in itens:
+            oid = o.get("id") or o.get("workId")
+            if not oid or oid in vistos:
+                continue
+            vistos.add(oid)
+            novos += 1
+            st = limpo(o.get(k_st)).upper()
+            obras[oid] = {"nome": limpo(o.get(k_nm)), "status": st,
+                          "status_txt": ROTULO_OBRA.get(st, limpo(o.get(k_st)).replace("_", " ").title())}
+        if "pageIndex" not in q or not itens or not novos or (isinstance(j, dict) and j.get("hasNextPage") is False):
+            break
+    cont = {}
+    for o in obras.values():
+        cont[o["status"]] = cont.get(o["status"], 0) + 1
+    log(f"Obras no MC: {len(obras)} · status: {cont}")
+    RESUMO["obras_por_status"] = cont
+    return obras
+
+
 def registro(c, ult, n_meds):
     w = c.get("workResponse") or {}
     pt = c.get("participantResponse") or {}
@@ -172,6 +266,7 @@ def registro(c, ult, n_meds):
 
 
 def main():
+    obras_mc = {}
     with sync_playwright() as p:
         b, page = mc.abrir(p)
         try:
@@ -204,6 +299,14 @@ def main():
                 st_med["com medição" if n else "sem medição"] = st_med.get("com medição" if n else "sem medição", 0) + 1
                 saida.append(registro(c, ult, n))
             log(f"Medições: {st_med}")
+            try:
+                obras_mc = status_das_obras(page, erp)
+            except Exception as e:
+                log(f"  ! status das obras: {str(e)[:150]}")
+                obras_mc = {}
+            for x in saida:
+                o = obras_mc.get(x.get("obra_id")) or {}
+                x["obra_status"], x["obra_status_txt"] = o.get("status"), o.get("status_txt")
             RESUMO.update({"contratos_por_status": st, "medicoes_por_status": st_med, "em_aberto": len(abertos)})
             if DESCOBRIR and lista:
                 RESUMO["campos_contrato"] = estrutura(lista[0])
@@ -221,6 +324,7 @@ def main():
         "total": len(saida),
         "resumo": RESUMO,          # só contagens (e, com DESCOBRIR=1, nomes de campos)
         "contratos": saida,
+        "obras": {k: v for k, v in obras_mc.items()},   # 29/10: id -> nome e status da obra no MC
     }, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     obras = len({x["obra"] for x in saida})
     log(f"Gravado {SAIDA}: {len(saida)} contratos (todos os status, menos cancelados) em {obras} obras.")
