@@ -72,7 +72,7 @@
     var m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/.exec(String(iso || ""));
     return m ? m[3] + "/" + m[2] + "/" + m[1] + (m[4] ? " " + m[4] + ":" + m[5] : "") : "";
   }
-  var ROTULO_SIG = { assinou: ["ass-ok", "✓ assinou"], recusou: ["ass-rec", "✗ recusou"], pendente: ["ass-pend", "pendente"] };
+  var ROTULO_SIG = { assinou: ["ass-ok", "✓ assinou"], recusou: ["ass-rec", "✗ recusou"], pendente: ["ass-pend", "⏳ pendente"] };
 
   function mensagemAssinatura(r) {
     r = r || {};

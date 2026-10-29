@@ -31,7 +31,7 @@ test("envelope aberto: Enviar desabilitado, situação, quem assinou e Atualizar
   assert.match(h, />Atualizar situação</);
   assert.match(h, /Enviado — aguardando assinaturas/);
   assert.match(h, /Comprador 1[^<]*<\/span>\s*<b class="ass-ok">✓ assinou<\/b>/);
-  assert.match(h, /Testemunha 1[^<]*<\/span>\s*<b class="ass-pend">pendente<\/b>/);
+  assert.match(h, /Testemunha 1[^<]*<\/span>\s*<b class="ass-pend">⏳ pendente<\/b>/);
 });
 
 test("lista nova: nome mascarado, ✓ com data, recusou, pendente; Reenviar link só com pendente e ENVIADO", () => {
@@ -41,7 +41,7 @@ test("lista nova: nome mascarado, ✓ com data, recusou, pendente; Reenviar link
   const h = A.montarBlocoAssinatura(ctx({ estado: { situacao: "ENVIADO", envelope: true, signatarios: sigs } }));
   assert.match(h, /<li><span>Comprador 1 \(Maria S\.\)<\/span> <b class="ass-ok">✓ assinou<\/b> <span class="ass-data">em 07\/10\/2026 10:20<\/span><\/li>/);
   assert.match(h, /Vendedor \(Joao P\.\)<\/span> <b class="ass-rec">✗ recusou<\/b> <span class="ass-data">em 07\/10\/2026 11:05/);
-  assert.match(h, /Testemunha 1 \(Ana C\.\)<\/span> <b class="ass-pend">pendente<\/b><\/li>/);
+  assert.match(h, /Testemunha 1 \(Ana C\.\)<\/span> <b class="ass-pend">⏳ pendente<\/b><\/li>/);
   assert.doesNotMatch(botao(h, "a-reenviar")[0], /disabled/);
   assert.match(h, />Reenviar link de assinatura</);
   const todos = A.montarBlocoAssinatura(ctx({ estado: { situacao: "ENVIADO", envelope: true, signatarios: [sigs[0]] } }));

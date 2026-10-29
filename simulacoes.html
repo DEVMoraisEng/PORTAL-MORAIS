@@ -699,7 +699,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
   </div>
 
 <script src="app.js?v=45"></script>
-<script src="venda-dossie.js?v=11" defer></script><!-- 28/10: termo de pré-reserva pela proposta (VendaBlocos.montarPreReserva) -->
+<script src="venda-dossie.js?v=12" defer></script><!-- 28/10: termo de pré-reserva pela proposta (VendaBlocos.montarPreReserva) -->
 <script>
 
 /* =====================================================================
@@ -4185,10 +4185,26 @@ async function propStatusInterno(id, nome){
     if(r.avisoUnidade) h+="<br><span style='font-size:12px;color:var(--vermelho)'>Unidade: "+esc(r.avisoUnidade)+"</span>";
     av.className="sim-aviso ok"; av.innerHTML=h;
     if(k==="PAGOU PREFERENCIA" && r.venda && r.venda.linha &&
-       confirm("Preferência paga. Gerar o termo de pré-reserva agora?\n\n(Se não, ele fica no cartão da unidade, na Planilha Casas Condomínio.)"))
+       await propSimNao("Preferência paga. Gerar o termo de pré-reserva agora?"))
       propAbrirPreReserva(String(r.venda.linha));
   }
   propSincronizarTudo();
+}
+/* 28/10 (dono): pergunta com "Sim" e "Não" iguais, nenhum destacado (o confirm do navegador realça o OK). */
+function propSimNao(msg){
+  return new Promise(res=>{
+    const f=document.createElement("div");
+    f.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9500;display:flex;align-items:center;justify-content:center;padding:16px";
+    const bt="min-width:96px;padding:9px 18px;border-radius:8px;border:1px solid var(--borda,#c9d3da);background:var(--card,#fff);color:var(--text,#1f2328);font:inherit;font-weight:600;cursor:pointer";
+    f.innerHTML='<div role="dialog" aria-modal="true" style="background:var(--card,#fff);color:var(--text,#1f2328);border-radius:12px;max-width:420px;width:100%;padding:20px 22px;box-shadow:0 10px 30px rgba(0,0,0,.25)">'+
+      '<div style="font-size:15px;margin-bottom:18px">'+esc(msg)+'</div>'+
+      '<div style="display:flex;gap:10px;justify-content:flex-end"><button type="button" data-r="1" style="'+bt+'">Sim</button><button type="button" data-r="0" style="'+bt+'">Não</button></div></div>';
+    const fim=v=>{ document.removeEventListener("keydown",tecla); f.remove(); res(v); };
+    const tecla=e=>{ if(e.key==="Escape") fim(false); };
+    f.addEventListener("click",e=>{ const b=e.target.closest("button[data-r]"); if(b) fim(b.dataset.r==="1"); else if(e.target===f) fim(false); });
+    document.addEventListener("keydown",tecla);
+    document.body.appendChild(f);
+  });
 }
 /* 28/10 (dono): proposta que JÁ pagou a preferência também gera o termo — acha a linha da venda pela unidade
    no BANCO DE DADOS VENDAS CONDOMÍNIO (simsVendasCond, o mesmo da Planilha Casas Condomínio). */

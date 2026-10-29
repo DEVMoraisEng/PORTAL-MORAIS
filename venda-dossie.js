@@ -740,8 +740,9 @@
     emCada(">.dz-msg") + "{margin:8px 22px 0}" + emCada(">pre") + "{margin:4px 22px}" +
     emCada(">ul") + "{margin:4px 22px;padding-left:18px}" +
     ".vb-mc .mc-sub{list-style:circle;margin-left:14px;color:var(--text3,#555)}" +
-    ".vb-ass .ass-ok{color:var(--verde,#2a9d5c);font-weight:700}.vb-ass .ass-pend{color:#B45309;font-weight:700}" +
-    ".vb-ass .ass-rec{color:#C0392B;font-weight:700}.vb-ass .ass-data{color:var(--text3,#555);font-size:12px}" +
+    /* 28/10 (dono): assinou em verde, pendente em amarelo com ⏳ — também na assinatura do termo de pré-reserva */
+    ".vb-ass .ass-ok,.vb-pr-ass .ass-ok{color:#1E8E4E;font-weight:700}.vb-ass .ass-pend,.vb-pr-ass .ass-pend{color:#B7791F;font-weight:700}" +
+    ".vb-ass .ass-rec,.vb-pr-ass .ass-rec{color:#C0392B;font-weight:700}.vb-ass .ass-data,.vb-pr-ass .ass-data{color:var(--text3,#555);font-size:12px}" +
     ".vb-mc a.mc-abrir{color:var(--azul,#1d4f63);font-weight:700}" +
     /* entrega 14: Recebimentos */
     ".vb-rec .rec-ok{color:var(--verde,#2a9d5c);font-weight:700}.vb-rec .rec-pend{color:#B45309;font-weight:700}" +
@@ -1099,8 +1100,7 @@
     u = u || {};
     var h = '<div class="grp">Termo de pré-reserva</div>';
     if (!e) return h + '<div class="vazio">' + esc(u.msg || "carregando…") + "</div>";
-    h += '<div class="dz-linha"><span class="dz-rot">Pré-reserva de R$ ' + esc(brl(e.valor) || "—") + " até " + esc(dataBRpr(e.dataLimite) || "—") +
-      " (Propriedades PRE_RESERVA_VALOR e PRE_RESERVA_DATA_LIMITE)</span></div>";
+    h += '<div class="dz-linha"><span class="dz-rot">Pré-reserva de R$ ' + esc(brl(e.valor) || "—") + " até " + esc(dataBRpr(e.dataLimite) || "—") + "</span></div>";
     var trava = u.testes || !!u.ocupado, dis = trava ? " disabled" : "";
     /* 27/10 (dono): PIX (chave + banco) ou dados bancários (banco com busca, agência, conta e tipo) */
     var c = u.contaDigitada || contaDaTela(e), sel = function (v) { return c.forma === v ? " selected" : ""; };
@@ -1820,7 +1820,7 @@
     var st = document.createElement("style"); st.textContent = CSS; document.head.appendChild(st);
     /* o bloco de assinatura mora em arquivo próprio; vendas.html continua com uma linha só.
        Carrega mesmo sem o painel da casa: o cartão do condomínio também usa. */
-    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=8";
+    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=9";
     sa.onload = function () { [blocosCasa, blocosCond, blocosPR].forEach(function (b) { if (b) b.pintarAssinatura(); }); };
     document.head.appendChild(sa);
     var body = document.getElementById("pn-body"); if (!body) return;

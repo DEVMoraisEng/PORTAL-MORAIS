@@ -249,7 +249,7 @@ function ctrDadosCondominio_(c) {
   function n(nome) { return ctrNum_(k(nome)); }
   function t(nome) { var x = k(nome); return x === null || x === undefined ? "" : ctrTxt_(x).trim(); }
   function fiador(i) {
-    return { nome: t("FIADOR " + i), cpf: t("CPF FIADOR " + i), rg: t("RG FIADOR " + i), nacionalidade: t("NACIONALIDADE FIADOR " + i),
+    return { nome: t("FIADOR " + i), cpf: RegrasVenda.cpfDoNotion(t("CPF FIADOR " + i)), rg: t("RG FIADOR " + i), nacionalidade: t("NACIONALIDADE FIADOR " + i),
              endereco: t("ENDERECO FIADOR " + i), numero: t("NUMERO FIADOR " + i), setor: t("SETOR FIADOR " + i),
              cidade: t("CIDADE FIADOR " + i), cep: t("CEP FIADOR " + i), email: t("EMAIL FIADOR " + i) };
   }
@@ -317,11 +317,11 @@ function ctrFontes_(col, pageId) {
     return canon;
   }
   var venda = {
-    CLIENTES: dos(C.CLIENTES), CPF: dos(C.CPF1), ENDERECO: ctrTitulo_(pg.properties),
+    CLIENTES: dos(C.CLIENTES), CPF: RegrasVenda.cpfDoNotion(dos(C.CPF1)), ENDERECO: ctrTitulo_(pg.properties),
     COMPRADOR1: { nacionalidade: dos(C.C1_NAC), estadoCivil: dos(C.C1_ESTCIV), profissao: dos(C.C1_PROF),
                   documento: dos(C.C1_DOC), endereco: dos(C.C1_END), email: ctrTxt_(cv("Email")),
                   telefone: ctrTxt_(cv("Nº Whatsapp")) /* só o contrato do condomínio usa */ },
-    COMPRADOR2: { nome: dos(C.C2_NOME), cpf: dos(C.C2_CPF), nacionalidade: dos(C.C2_NAC), estadoCivil: dos(C.C2_ESTCIV),
+    COMPRADOR2: { nome: dos(C.C2_NOME), cpf: RegrasVenda.cpfDoNotion(dos(C.C2_CPF)), nacionalidade: dos(C.C2_NAC), estadoCivil: dos(C.C2_ESTCIV),
                   profissao: dos(C.C2_PROF), documento: dos(C.C2_DOC), endereco: dos(C.C2_END), email: dos(C.C2_EMAIL),
                   telefone: ctrTxt_(cv(C.C2_TEL)) },
     ALVARA_NUMERO: cv(CV.ALVARA_NUMERO), ALVARA_DATA: cv(CV.ALVARA_DATA), HABITESE_NUMERO: cv(CV.HABITESE_NUMERO),
