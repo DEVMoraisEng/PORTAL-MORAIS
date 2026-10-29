@@ -73,11 +73,68 @@ def test_faltas_do_fluxo():
     assert any("diferente da UNIDADE" in x for x in f)
 
 
-def test_fluxo_alterado_no_portal_trava_o_robo_ate_a_etapa_3():
+def _livre(linhas, valor=228900):
+    import json
+    return {"FLUXO PERSONALIZADO": {"type": "rich_text", "rich_text": [{"plain_text": json.dumps({"v": 1, "valor": valor, "entrega": "2028-12-15", "linhas": linhas})}]}}
+
+
+# mesmo total da linha de teste (228.900): sinal em 2x, um balão a mais, permuta, pós-chaves com a última diferente
+LIVRE = [{"t": "sinal", "v": 3500, "n": 2, "d": "2026-10-10", "i": 1},
+         {"t": "pre", "v": 500, "n": 3, "d": "2026-11-30", "i": 1},
+         {"t": "balao", "v": 1500, "n": 2, "d": "2027-06-30", "i": 6},
+         {"t": "balao", "v": 4000, "n": 1, "d": "2028-11-30", "i": 1},
+         {"t": "permuta", "v": 1000, "n": 1, "d": "2026-11-15", "i": 1, "x": "veículo marca/modelo/ano/placa"},
+         {"t": "pos", "v": 790, "n": 3, "d": "2029-01-31", "i": 1, "u": 820},
+         {"t": "fin", "v": 200000, "n": 1, "d": "", "i": 1}, {"t": "fgts", "v": 10000, "n": 1, "d": "", "i": 1}]
+
+
+def test_fluxo_ilegivel_recusa_e_lista_que_nao_fecha_recusa():
     sem = C.fluxo(fluxo_props())
-    assert sem["personalizado"] is False and not any("FLUXO PERSONALIZADO" in x for x in C.faltas_do_fluxo(sem, sem["unidade"]))
+    assert sem["personalizado"] is False and sem["livre"] is None and C.faltas_do_fluxo(sem, sem["unidade"]) == []
     com = C.fluxo(fluxo_props(**{"FLUXO PERSONALIZADO": {"type": "rich_text", "rich_text": [{"plain_text": '{"v":1}'}]}}))
-    assert any("FLUXO PERSONALIZADO" in x for x in C.faltas_do_fluxo(com, com["unidade"]))
+    assert any("ilegível" in x for x in C.faltas_do_fluxo(com, com["unidade"]))
+    torto = C.fluxo(fluxo_props(**_livre(LIVRE, valor=230000)))
+    assert any("não fecha" in x for x in C.faltas_do_fluxo(torto, torto["unidade"]))
+
+
+def test_parcelas_do_fluxo_alterado_linha_a_linha():
+    fx = C.fluxo(fluxo_props(**_livre(LIVRE)))
+    assert C.faltas_do_fluxo(fx, fx["unidade"]) == []
+    ps = C.parcelas(fx, {"data_venda": "2026-09-01"}, 30)
+    assert round(sum(p["valor"] for p in ps), 2) == 228900
+    por = {p["rotulo"]: p for p in ps}
+    assert por["Sinal 1/2"]["tipo"] == R.TIPO_SINAL and por["Sinal 2/2"]["data"] == "2026-11-10"
+    assert por["Balão 2/2"]["data"] == "2027-12-30" and por["Balão 2/2"]["tipo"] == R.TIPO_INTERMEDIARIA
+    assert por["Balão"]["tipo"] == R.TIPO_CHAVES, "o balão na data do balão da entrega continua CHAVES"
+    assert por["Permuta - veículo marca/modelo/ano/placa"]["tipo"] == R.TIPO_ENTRADA
+    assert por["Permuta - veículo marca/modelo/ano/placa"]["tabela"] is None
+    assert (por["Pós-chaves 3/3"]["valor"], por["Pós-chaves 3/3"]["tabela"]) == (820, C.TABELA_POS)
+    assert por["Pós-chaves 2/3"]["data"] == "2029-02-28"
+    assert (por["Financiamento"]["data"], por["FGTS"]["valor"]) == ("2026-11-09", 10000)
+    assert [p["data"] for p in ps] == sorted(p["data"] for p in ps)
+
+
+def test_previa_do_fluxo_alterado_leva_a_permuta_no_comentario(monkeypatch):
+    monkeypatch.setenv("DB_VENDAS_COND", DB_COND)
+    n, e = NotionLinha(linha_cond(**_livre(LIVRE))), ErpLinha()
+    r = L.processar(LINHA_ID, n, e)
+    assert r["situacao"] == "PREVIA", r
+    inst = r["corpo_venda"]["tradeReceivable"]["installments"]
+    assert len(inst) == 14 and round(sum(i["plannedValue"] for i in inst), 2) == 228900
+    assert any(i["comment"] == "Permuta - veículo marca/modelo/ano/placa" for i in inst)
+
+
+def test_valor_da_casa_mudado_no_fluxo_alterado_vira_o_total_e_a_comissao_pela_regra():
+    linhas = [dict(l) for l in LIVRE]
+    linhas[4]["v"] = 6000                                    # permuta 5 mil maior: casa de 233.900
+    fx = C.fluxo(fluxo_props(**{"PRAZO ENTRADA": num(48)}, **_livre(linhas, valor=233900)))
+    d = {"total": 228900, "aquisicao": 228900, "comissao": 10000}
+    C.ajustar_dados_livre(fx, d)
+    assert (d["total"], d["aquisicao"]) == (233900, 233900)
+    assert d["comissao"] == 10525.5   # 4,5% (48 meses) de 233.900
+    igual = {"total": 228900, "aquisicao": 228900, "comissao": 10000}
+    C.ajustar_dados_livre(C.fluxo(fluxo_props(**_livre(LIVRE))), igual)
+    assert igual["comissao"] == 10000, "sem mudar o valor da casa a comissão da linha fica"
 
 
 def test_escolher_obra_e_sempre_o_condominio_inteiro():

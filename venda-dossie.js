@@ -648,7 +648,7 @@
                                                    : "Fluxo da proposta (simulador).") + "</div>";
       if (f.trava && TRAVA_FLUXO[f.trava]) h += '<div class="dz-msg">' + esc(MSG_CONTRATO[f.trava]) + "</div>";
       h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-fluxo-abrir"' + (dis || (f.trava ? " disabled" : "")) + ">Alterar fluxo</button></div>";
-      if (f.alterado) h += '<div class="dz-aviso">O contrato sai com este fluxo — confira o item 6.1 e o quadro-resumo no pré-contrato. O lançamento no Mais Controle de venda com fluxo alterado chega na próxima versão.</div>';
+      if (f.alterado) h += '<div class="dz-aviso">O contrato sai com este fluxo — confira o item 6.1 e o quadro-resumo no pré-contrato. A prévia do Mais Controle também segue este fluxo.</div>';
       return h;
     }
     /* financiamento, FGTS e subsídio (fixo) só aparecem; o valor da casa só para quem pode (Julio Cesar e João Vitor) */

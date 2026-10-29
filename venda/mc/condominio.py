@@ -13,6 +13,7 @@ As datas seguem o simulador: parcela mensal no DIA PAGAMENTO PARCELAS; dia 29/30
 num mês mais curto cai no último dia do mês."""
 import calendar
 import datetime as _dt
+import json
 
 from . import regras as R
 
@@ -49,9 +50,69 @@ def fluxo(props: dict) -> dict:
             out[k] = R._casa(v)
         else:
             out[k] = R._num(v)
-    # 29/10/2026: "Alterar fluxo" no portal grava a lista em FLUXO PERSONALIZADO; o robô passa a ler na etapa 3
-    out["personalizado"] = bool(str(R._valor(por_chave.get(R.chave("FLUXO PERSONALIZADO"))) or "").strip())
+    # 29/10/2026: "Alterar fluxo" no portal grava a lista em FLUXO PERSONALIZADO (venda/FluxoLivre.js serializar);
+    # com ela, as parcelas saem da lista — as mesmas linhas que o contrato usa (etapa 3)
+    texto = str(R._valor(por_chave.get(R.chave("FLUXO PERSONALIZADO"))) or "").strip()
+    out["personalizado"] = bool(texto)
+    out["livre"] = ler_livre(texto)
+    out["prazo"] = R._num(R._valor(por_chave.get(R.chave("PRAZO ENTRADA"))))
     return out
+
+
+def ler_livre(texto: str) -> dict | None:
+    """{valor, entrega, linhas: [{t, v, n, d, i, x, u?}]} ou None (vazio ou ilegível)."""
+    if not texto:
+        return None
+    try:
+        o = json.loads(texto)
+    except ValueError:
+        return None
+    if not isinstance(o, dict) or not isinstance(o.get("linhas"), list):
+        return None
+    linhas = []
+    for l in o["linhas"]:
+        if not isinstance(l, dict):
+            continue
+        linhas.append({"t": str(l.get("t") or ""), "v": R._num(l.get("v")) or 0, "n": int(l.get("n") or 0),
+                       "d": str(l.get("d") or "")[:10], "i": int(l.get("i") or 1) or 1, "x": str(l.get("x") or "").strip(),
+                       "u": R._num(l.get("u")) or None})
+    return {"valor": R._num(o.get("valor")) or 0, "entrega": str(o.get("entrega") or "")[:10], "linhas": linhas}
+
+
+def _total_linha(l: dict) -> float:
+    n = max(0, l["n"])
+    if n <= 0:
+        return 0.0
+    u = l["u"] if (n > 1 and l.get("u")) else l["v"]
+    return round(l["v"] * (n - 1) + u, 2)
+
+
+# comissão (ContratoVenda.comissaoPctPelaRegra): prazo da entrada 24/36/48 = 5% / 4,75% / 4,5%; sem prazo, pelas pós-chaves
+_PCT_POR_PRAZO = {24: 0.05, 36: 0.0475, 48: 0.045}
+_PRAZO_POR_POS = {0: 24, 12: 36, 24: 48}
+
+
+def comissao_pela_regra(fx: dict, valor: float) -> float | None:
+    p = fx.get("prazo")
+    if p:
+        op = 24 if p <= 24 else 36 if p <= 36 else 48 if p <= 48 else None
+    else:
+        n = sum(l["n"] for l in (fx.get("livre") or {}).get("linhas", []) if l["t"] == "pos") if fx.get("livre") else int(fx.get("nP") or 0)
+        op = _PRAZO_POR_POS.get(n)
+    return round(valor * _PCT_POR_PRAZO[op], 2) if op else None
+
+
+def ajustar_dados_livre(fx: dict, dados: dict) -> None:
+    """Fluxo alterado com o valor da casa mudado (só JC/JV, dono 29/10): a venda no ERP é o valor novo e a comissão
+    da observação sai da regra sobre ele — igual ao contrato (ContratoVenda.valoresCondominio)."""
+    livre = fx.get("livre")
+    if not livre or not livre["valor"]:
+        return
+    if dados.get("total") is None or round(livre["valor"], 2) != round(dados["total"], 2):
+        dados["total"] = dados["aquisicao"] = livre["valor"]
+        c = comissao_pela_regra(fx, livre["valor"])
+        if c is not None:
+            dados["comissao"] = c
 
 
 def contato_corretor(props: dict) -> dict:
@@ -163,6 +224,8 @@ def data_no_dia(iso: str, meses: int, dia: int | None) -> str:
 def parcelas(fx: dict, dados: dict, dias_financiamento: int = R.DIAS_FINANCIAMENTO) -> list[dict]:
     """[{tipo, rotulo, valor, data, tabela}] — `tabela` = nome da tabela de reajuste ou None.
     `dados` = dados_da_pagina da VENDAS (FGTS, financiado, subsídio e data da venda)."""
+    if fx.get("livre"):
+        return parcelas_livres(fx, dados, dias_financiamento)
     out = []
     dia = int(fx["dia"]) if fx.get("dia") else None
 
@@ -195,10 +258,52 @@ def parcelas(fx: dict, dados: dict, dias_financiamento: int = R.DIAS_FINANCIAMEN
     return out
 
 
+# tipo da linha livre -> (tipo no MC, tabela de reajuste); balão na data do balão da entrega vira CHAVES, como nas gavetas
+_TIPO_LIVRE = {"sinal": (R.TIPO_SINAL, None, "Sinal"), "entrada": (R.TIPO_ENTRADA, None, "Entrada à vista"),
+               "pre": (R.TIPO_PARCELA, TABELA_PRE, "Pré-chaves"), "balao": (R.TIPO_INTERMEDIARIA, TABELA_PRE, "Balão"),
+               "pos": (R.TIPO_PARCELA, TABELA_POS, "Pós-chaves"), "permuta": (R.TIPO_ENTRADA, None, "Permuta")}
+
+
+def parcelas_livres(fx: dict, dados: dict, dias_financiamento: int = R.DIAS_FINANCIAMENTO) -> list[dict]:
+    """29/10/2026 (etapa 3): parcelas do FLUXO PERSONALIZADO — linha a linha, como o contrato. Financiamento, FGTS e
+    subsídio continuam com o vencimento previsto (assinatura + dias), como nas gavetas. Permuta = Entrada com o bem no
+    comentário da parcela (o dono lança assim e dá baixa com o dinheiro do repasse do carro)."""
+    out, fin, fgts = [], 0.0, 0.0
+    for l in fx["livre"]["linhas"]:
+        n = l["n"]
+        if l["t"] in ("fin", "subsidio"):
+            fin += _total_linha(l)
+            continue
+        if l["t"] == "fgts":
+            fgts += _total_linha(l)
+            continue
+        tipo, tabela, nome = _TIPO_LIVRE.get(l["t"], (None, None, ""))
+        if not tipo or n <= 0 or l["v"] <= 0:
+            continue
+        for j in range(n):
+            data = data_no_dia(l["d"], j * l["i"], None) if R._RE_ISO.match(l["d"] or "") else None
+            v = l["u"] if (j == n - 1 and n > 1 and l.get("u")) else l["v"]
+            t = R.TIPO_CHAVES if (l["t"] == "balao" and data and data == fx.get("dB2")) else tipo
+            rot = ("Permuta - " + l["x"])[:120] if l["t"] == "permuta" else (nome if n == 1 else "%s %d/%d" % (nome, j + 1, n))
+            out.append({"tipo": t, "rotulo": rot, "valor": round(float(v), 2), "data": data, "tabela": tabela})
+    dv = fx.get("assinatura") or dados.get("data_venda")
+    prev = R._mais_dias(dv, dias_financiamento) if dv and R._RE_ISO.match(dv) else None
+    if fgts > 0:
+        out.append({"tipo": R.TIPO_FGTS, "rotulo": "FGTS", "valor": round(fgts, 2), "data": prev, "tabela": None})
+    if fin > 0:
+        out.append({"tipo": R.TIPO_FINANCIAMENTO, "rotulo": "Financiamento", "valor": round(fin, 2), "data": prev, "tabela": None})
+    return sorted(out, key=lambda p: p["data"] or "9999")
+
+
 def faltas_do_fluxo(fx: dict, casa: int | None) -> list[str]:
     f = []
-    if fx.get("personalizado"):
-        f.append("O fluxo desta venda foi alterado no portal (FLUXO PERSONALIZADO) e o robô ainda não lança fluxo alterado")
+    if fx.get("personalizado") and not fx.get("livre"):
+        f.append("FLUXO PERSONALIZADO ilegível — abra o Alterar fluxo no portal e salve de novo")
+    livre = fx.get("livre")
+    if livre:
+        soma = round(sum(_total_linha(l) for l in livre["linhas"]), 2)
+        if not livre["valor"] or abs(soma - livre["valor"]) > 0.005:
+            f.append("Fluxo alterado não fecha: soma R$ %.2f × valor da casa R$ %.2f" % (soma, livre["valor"] or 0))
     if not fx.get("assinatura"):
         f.append("Falta a DATA DE ASSINATURA DO CONTRATO na venda do condomínio")
     if not fx.get("dia"):
