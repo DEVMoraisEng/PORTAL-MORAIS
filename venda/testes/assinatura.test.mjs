@@ -807,3 +807,27 @@ test("entrega 14: temAssinado no estado e Ver contrato assinado pelo portal (bas
   assert.ok(!JSON.stringify(v).includes("https://"), "a resposta não leva link");
   assert.ok(!c.g.logs.join("\n").includes("s3."), "log sem URL");
 });
+
+/* ---- 29/10: assinaturaCancelar ---- */
+test("cancelar: PATCH status canceled, grava CANCELADO na casa e libera o Enviar de novo", () => {
+  const c = cenario();
+  assert.equal(c.enviar().ok, true);
+  const r = c.acao("assinaturaCancelar");
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.cancelou, true);
+  assert.equal(r.situacao, "CANCELADO");
+  const corpo = c.c.chamadas.filter((x) => x.metodo === "PATCH" && x.caminho === "/envelopes/env-1").pop().corpo;
+  assert.deepEqual(corpo, { data: { id: "env-1", type: "envelopes", attributes: { status: "canceled" } } });
+  assert.equal(c.c.estado.status, "canceled");
+  assert.match(c.g.logs.join("\n"), /cancelar 01234567 por ana\.teste: ok/);
+  const de_novo = c.acao("assinaturaCancelar");
+  assert.equal(de_novo.erro, "ENVELOPE_NAO_ATIVO");
+});
+
+test("cancelar: sem envelope não chama a Clicksign; perfil TESTES não pode", () => {
+  const c = cenario();
+  c.c.chamadas.length = 0;
+  assert.equal(c.acao("assinaturaCancelar").erro, "SEM_ENVELOPE");
+  assert.equal(c.c.chamadas.length, 0);
+  assert.equal(c.acao("assinaturaCancelar", tokenDe("TESTES", [])).erro, "SEM_PERMISSAO_TESTES");
+});

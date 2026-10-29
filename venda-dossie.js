@@ -1820,7 +1820,7 @@
     var st = document.createElement("style"); st.textContent = CSS; document.head.appendChild(st);
     /* o bloco de assinatura mora em arquivo próprio; vendas.html continua com uma linha só.
        Carrega mesmo sem o painel da casa: o cartão do condomínio também usa. */
-    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=9";
+    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=10";
     sa.onload = function () { [blocosCasa, blocosCond, blocosPR].forEach(function (b) { if (b) b.pintarAssinatura(); }); };
     document.head.appendChild(sa);
     var body = document.getElementById("pn-body"); if (!body) return;

@@ -1,6 +1,6 @@
 /* assinatura-ui.js — bloco "Assinatura" do painel da casa (entrega 3).
  * JS puro do navegador, no estilo do venda-dossie.js. Fala só com o Apps Script
- * PORTAL-VENDA (ações assinaturaEnviar, assinaturaEstado e assinaturaReenviar). A integração no
+ * PORTAL-VENDA (ações assinaturaEnviar, assinaturaEstado, assinaturaReenviar e assinaturaCancelar). A integração no
  * vendas.html / venda-dossie.js fica com quem coordena: este arquivo só desenha
  * o bloco e executa as ações, recebendo de fora como chamar o servidor.
  * Nunca mostra e-mail: o servidor devolve só papel, nome mascarado ("Maria S."), situação e data. */
@@ -19,7 +19,7 @@
   var MSG = {
     NAO_AUTORIZADO: "Sua sessão expirou — entre de novo no portal.",
     SEM_PERMISSAO: "Seu login não tem acesso a Vendas.",
-    SEM_PERMISSAO_TESTES: "O perfil TESTES não envia, não reenvia nem atualiza a assinatura.",
+    SEM_PERMISSAO_TESTES: "O perfil TESTES não envia, não reenvia, não cancela nem atualiza a assinatura.",
     ASSINATURA_OCUPADA: "Há outro envio para assinatura em andamento — espere um minuto e tente de novo.",
     CONTRATO_DESATUALIZADO: "Os dados mudaram depois de gerar o contrato — gere de novo e depois envie.",
     CONFISSAO_DESATUALIZADA: "Os termos de confissão não são deste contrato — gere o contrato de novo (os termos saem junto) e envie.",
@@ -66,6 +66,10 @@
   /* Reenviar link: envelope aguardando assinaturas e alguém pendente. Não grava na casa, mas o TESTES não dispara e-mail. */
   function podeReenviar(c) {
     return !!(c.estado && c.estado.envelope && situacaoDe(c.estado) === "ENVIADO" && pendentes(c.estado) && !c.ocupado && !c.testes);
+  }
+  /* 29/10: cancelar o envelope que ainda aguarda assinaturas (dá para enviar de novo depois) */
+  function podeCancelar(c) {
+    return !!(c.estado && c.estado.envelope && situacaoDe(c.estado) === "ENVIADO" && !c.ocupado && !c.testes);
   }
   /* "2026-10-07T10:20:30.000-03:00" → "07/10/2026 10:20" (hora como a Clicksign mandou) */
   function dataCurta(iso) {
@@ -118,12 +122,13 @@
   function montarBlocoAssinatura(c) {
     var termo = ehTermo(c), x = pre(c);
     var h = '<div class="grp">' + (termo ? "Enviar termo de pré-reserva via Clicksign" : "Enviar contrato via Clicksign") + "</div>";
-    if (c.testes) h += '<div class="dz-aviso">Perfil TESTES não envia, não reenvia nem atualiza a assinatura.</div>';
+    if (c.testes) h += '<div class="dz-aviso">Perfil TESTES não envia, não reenvia, não cancela nem atualiza a assinatura.</div>';
     if (!c.estado) return h + '<div class="vazio">' + esc(c.msg || "carregando…") + "</div>";
     var e = c.estado, sit = situacaoDe(e);
     if (c.ocupado === "enviar") h += '<div class="dz-linha"><b>enviando… (até 1 minuto)</b></div>';
     if (c.ocupado === "atualizar") h += '<div class="dz-linha"><b>consultando…</b></div>';
     if (c.ocupado === "reenviar") h += '<div class="dz-linha"><b>reenviando…</b></div>';
+    if (c.ocupado === "cancelar") h += '<div class="dz-linha"><b>cancelando o envelope na Clicksign…</b></div>';
     if (c.ocupado === "ver") h += '<div class="dz-linha"><b>abrindo o ' + (termo ? "termo" : "contrato") + ' assinado…</b></div>';
     if (!c.contratoGerado) h += '<div class="dz-aviso">Gere o ' + (termo ? "termo" : "contrato") + ' antes de enviar para assinatura.</div>';
     if (e.envelope) {
@@ -154,6 +159,8 @@
     if (e.envelope) h += ' <button type="button" class="bt ghost bt-mini" data-acao="' + x + 'atualizar"' + (podeAtualizar(c) ? "" : " disabled") + ">Atualizar situação</button>";
     if (e.envelope && situacaoDe(e) === "ENVIADO" && pendentes(e))
       h += ' <button type="button" class="bt ghost bt-mini" data-acao="' + x + 'reenviar"' + (podeReenviar(c) ? "" : " disabled") + ">Reenviar link de assinatura</button>";
+    if (e.envelope && situacaoDe(e) === "ENVIADO")
+      h += ' <button type="button" class="bt ghost bt-mini" data-acao="' + x + 'cancelar"' + (podeCancelar(c) ? "" : " disabled") + ">Cancelar envelope</button>";
     /* só leitura: o perfil TESTES também vê */
     if (podeVerAssinado(c)) h += ' <button type="button" class="bt bt-mini" data-acao="' + x + 'ver-assinado"' + (c.ocupado ? " disabled" : "") + ">Ver " + (termo ? "termo" : "contrato") + " assinado</button>";
     h += "</div>";
@@ -175,6 +182,7 @@
   async function executarAcaoAssinatura(acao, c, deps) {
     acao = String(acao || "").replace(/^p-/, "a-");   /* termo: mesmos cliques com prefixo p- */
     if (acao === "a-reenviar") return reenviarLink(c, deps);
+    if (acao === "a-cancelar") return cancelarEnvelope(c, deps);
     var enviar = acao === "a-enviar";
     if (enviar ? !podeEnviar(c) : (acao !== "a-atualizar" || !podeAtualizar(c))) return c;
     if (enviar && !deps.confirmar("Enviar o " + (ehTermo(c) ? "termo de pré-reserva" : "contrato") + " para assinatura? Cada signatário recebe um e-mail da Clicksign para assinar.")) return c;
@@ -223,8 +231,25 @@
                       msg: "Link reenviado — " + (p === 1 ? "1 pessoa que ainda não assinou recebe" : p + " pessoas que ainda não assinaram recebem") + " o e-mail de novo." });
   }
 
+  /* 29/10: cancela o envelope na Clicksign (ação assinaturaCancelar) e mostra a situação nova (CANCELADO). */
+  async function cancelarEnvelope(c, deps) {
+    if (!podeCancelar(c)) return c;
+    var oque = ehTermo(c) ? "termo de pré-reserva" : "contrato";
+    if (!deps.confirmar("Cancelar o envelope do " + oque + " na Clicksign? Ninguém mais consegue assinar este envelope " +
+                        "e as assinaturas já feitas nele deixam de valer. Depois dá para enviar de novo.")) return c;
+    if (typeof deps.pintar === "function") deps.pintar(copia(c, { ocupado: "cancelar", msg: "" }));
+    var r;
+    try { r = await deps.chamar(comDoc(c, { action: "assinaturaCancelar", pageId: deps.pageId })); }
+    catch (err) { r = { ok: false, erro: "SEM_RESPOSTA" }; }
+    r = r || { ok: false, erro: "SEM_RESPOSTA" };
+    if (!r.ok) return copia(c, { ocupado: null, msg: mensagemAssinatura(r) });
+    var estado = { situacao: r.situacao || "CANCELADO", envelope: true, signatarios: r.signatarios || [], temAssinado: !!r.temAssinado };
+    return copia(c, { estado: estado, ocupado: null, faltas: null, corrigir: null,
+                      msg: "Envelope cancelado na Clicksign — ninguém mais recebe pedido de assinatura dele." });
+  }
+
   var exportar = { montarBlocoAssinatura: montarBlocoAssinatura, mensagemAssinatura: mensagemAssinatura,
-                   executarAcaoAssinatura: executarAcaoAssinatura, podeEnviar: podeEnviar, podeReenviar: podeReenviar,
+                   executarAcaoAssinatura: executarAcaoAssinatura, podeEnviar: podeEnviar, podeReenviar: podeReenviar, podeCancelar: podeCancelar,
                    podeVerAssinado: podeVerAssinado };
   if (typeof module !== "undefined" && module.exports) { module.exports = exportar; return; }
   window.VendaAssinatura = exportar; /* o coordenador liga no painel (venda-dossie.js / vendas.html) */
