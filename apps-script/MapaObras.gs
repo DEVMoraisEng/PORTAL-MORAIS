@@ -67,7 +67,7 @@
  * fazer a conferência da conclusão, além do ADM).
  *************************************************************************/
 
-var MO_VERSAO = "2026-10-16 mo10";
+var MO_VERSAO = "2026-10-29 mo11";   // mo11: estagiários lançam a medição da semana
 var MO_EVENTO = "obras_notion_update";            // TEM que bater com o types: do fetch_notion.yml
 var MO_JANELA_MS = 2 * 60 * 1000;                  // no máximo 1 build a cada 2 min
 var MO_CAMPOS = {
@@ -137,7 +137,21 @@ function moRotear_(action, sess, p) {
   }
 }
 
-function moPodeMedir_(sess) { return !ehTestes_(sess) && (temAcesso_(sess, "OBRAS") || temAcesso_(sess, "DOCUMENTOS")); }
+function moPodeMedir_(sess) { return !ehTestes_(sess) && (temAcesso_(sess, "OBRAS") || temAcesso_(sess, "DOCUMENTOS") || moEhEstagiario_(sess)); }
+/* 29/10/26 — estagiários de obra também lançam a MEDIÇÃO DA SEMANA (só ela:
+   continuam sem editar DOCUMENTOS/VENDAS). Vale quem tiver, no banco LOGINS:
+   TIPO com "ESTAGIÁRIO", ou na coluna ACESSOS uma opção com "ESTAGIÁRIO" ou
+   "MEDIÇÕES"; ou estiver na propriedade do script MO_MEDIDORES (primeiro nome
+   ou login, separados por vírgula — padrão: os estagiários das equipes de
+   obra, ALEFE, IAN e ICARO). */
+function moEhEstagiario_(sess) {
+  if (!sess) return false;
+  if (normDist_(sess.t || "").indexOf("ESTAGI") >= 0) return true;
+  if ((sess.a || []).some(function (a) { var n = normDist_(a); return n.indexOf("ESTAGI") >= 0 || n.indexOf("MEDIC") >= 0; })) return true;
+  var lista = String(prop_("MO_MEDIDORES") || "ALEFE,IAN,ICARO").split(",").map(function (x) { return normDist_(x); }).filter(Boolean);
+  var prim = normDist_(sess.n || "").split(" ")[0], login = normDist_(sess.u || "");
+  return lista.some(function (c) { return c === prim || c === login || login.split(/[ ._@-]/)[0] === c; });
+}
 function moPodeEditar_(sess) { return !ehTestes_(sess) && temAcesso_(sess, "DOCUMENTOS"); }
 function moPodeVendas_(sess) { return !ehTestes_(sess) && (temAcesso_(sess, "VENDAS") || temAcesso_(sess, "OBRAS")); }
 /* Conferência da conclusão: Caio (ou quem estiver em MO_CONFERENTES) + ADM */
