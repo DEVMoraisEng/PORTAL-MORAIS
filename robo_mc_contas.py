@@ -346,14 +346,22 @@ class LoginRecusado(Exception):
     """403 do WAF, ou erro de rede — motivo para recuar para o Playwright."""
 
 
+def _via_porteiro():
+    return os.environ.get("MC_VIA", "").strip().lower() == "porteiro"
+
+
 def decidir_credenciais():
-    """MC_ROBO_USUARIO/SENHA é quem enxerga todas as contas — é o único login
+    """30/10/26: no servidor (MC_VIA=porteiro) não há senha nenhuma — a aba do porteiro já está logada
+    com o usuário do robô, então pode gravar se APLICAR estiver ligado.
+    MC_ROBO_USUARIO/SENHA é quem enxerga todas as contas — é o único login
     com que este robô pode GRAVAR. Sem ela, usa MC_USUARIO/SENHA só para
     simular (e desliga APLICAR mesmo que a variável de ambiente esteja
     ligada). Devolve (usuario, senha, aplicar_permitido, aviso|None)."""
     robo_usuario = os.environ.get("MC_ROBO_USUARIO", "").strip()
     robo_senha = os.environ.get("MC_ROBO_SENHA", "")
     aplicar_env = os.environ.get("APLICAR", "").strip().lower() in ("1", "true", "sim")
+    if _via_porteiro():
+        return "", "", aplicar_env, None
     if robo_usuario and robo_senha:
         return robo_usuario, robo_senha, aplicar_env, None
 
@@ -561,9 +569,10 @@ def _contas_via_playwright(usuario, senha):
     # muda o que ele já guardou em MC_USUARIO/MC_SENHA. Este robô pode logar
     # com outra credencial (MC_ROBO_*), então sobrescrevemos os ATRIBUTOS do
     # módulo diretamente, que é o que `comum.login` de fato lê.
-    if not comum.MC_URL:
-        raise SystemExit("recuo por Playwright: falta o secret MC_URL (robo_mc_comum.login exige).")
-    comum.MC_USUARIO, comum.MC_SENHA = usuario, senha
+    if not getattr(comum, "VIA_PORTEIRO", False):
+        if not comum.MC_URL:
+            raise SystemExit("recuo por Playwright: falta o secret MC_URL (robo_mc_comum.login exige).")
+        comum.MC_USUARIO, comum.MC_SENHA = usuario, senha
 
     capturado = {}
 
@@ -609,7 +618,12 @@ def _contas_via_playwright(usuario, senha):
 
 def contas_ativas_do_erp(usuario, senha):
     """Login por API; recua para Playwright em 403/erro de rede. Sempre
-    filtra isActive (mesmo a API já pedindo só ativas — defesa em dobro)."""
+    filtra isActive (mesmo a API já pedindo só ativas — defesa em dobro).
+    30/10/26: no servidor (MC_VIA=porteiro) vai direto pela aba do porteiro, sem login."""
+    if _via_porteiro():
+        itens = _contas_via_playwright("", "")
+        print("  ERP: pela aba do porteiro (sem login)", flush=True)
+        return [conta_do_erp(i) for i in itens if i.get("isActive", True)]
     try:
         jwt_token, company_id = login_api(usuario, senha)
         itens = listar_contas_api(jwt_token, company_id)
@@ -1025,7 +1039,7 @@ def main():
     usuario, senha, aplicar, aviso = decidir_credenciais()
     if aviso:
         print(f"  ! {aviso}", flush=True)
-    if not (usuario and senha):
+    if not (usuario and senha) and not _via_porteiro():
         print("Sem credencial nenhuma do ERP — nada a fazer.", flush=True)
         return 1
 

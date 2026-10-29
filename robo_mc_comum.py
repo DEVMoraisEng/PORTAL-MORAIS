@@ -109,7 +109,76 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
 
 
+# 30/10/26 — NO SERVIDOR, PELO PORTEIRO (regra do dono: o ERP é acessado sempre pelo Chrome do app).
+# Com MC_VIA=porteiro (o robô do servidor põe sozinho), abrir() abre uma ABA no Chrome do porteiro
+# (CDP em 127.0.0.1, porta MC_PORTEIRO_PORTA, padrão 9230), que já está logado com o aparelho confiável,
+# e login() não loga: só confere que a aba está dentro do Mais Controle. Nada de senha, nada de código
+# de e-mail, e ninguém é derrubado (o ERP aceita uma sessão por usuário: quem derruba é o LOGIN).
+# Sem MC_VIA=porteiro, tudo como antes (GitHub Actions).
+VIA_PORTEIRO = os.environ.get("MC_VIA", "").strip().lower() == "porteiro"
+APP_MC = "https://acessar.maiscontroleerp.com.br"
+
+
+class _AbaDoPorteiro:
+    """O que abrir() devolve no lugar do navegador: close() fecha SÓ a aba do robô (o Chrome do porteiro fica)."""
+
+    def __init__(self, page):
+        self._page = page
+
+    def close(self):
+        try:
+            self._page.close()
+        except Exception:
+            pass
+
+
+def _ligar_registro(page):
+    # registro de rede: o que a tela chamou e o que voltou (aparece no diagnóstico de falha)
+    page._rede = []
+    def _resp(r):
+        try:
+            if r.request.resource_type in ("xhr", "fetch", "document"):
+                page._rede.append(f"{r.request.method} {r.status} {r.url.split('?')[0][:110]}")
+        except Exception:
+            pass
+    def _falhou(rq):
+        try:
+            page._rede.append(f"FALHOU {rq.method} {rq.url.split('?')[0][:110]} — {rq.failure}")
+        except Exception:
+            pass
+    page.on("response", _resp)
+    page.on("requestfailed", _falhou)
+    page.on("console", lambda m: page._rede.append(f"console.{m.type}: {m.text[:150]}") if m.type in ("error", "warning") else None)
+
+
+def abrir_no_porteiro(p, porta=None):
+    porta = int(porta or os.environ.get("MC_PORTEIRO_PORTA") or 9230)
+    try:
+        nav = p.chromium.connect_over_cdp("http://127.0.0.1:%d" % porta, timeout=15000)
+    except Exception as e:
+        raise SystemExit("MC: o Chrome do porteiro não responde na porta %d (%s) — o porteiro está ligado?"
+                         % (porta, type(e).__name__))
+    ctx = nav.contexts[0] if nav.contexts else nav.new_context()
+    page = ctx.new_page()
+    page.set_default_timeout(20000)
+    _ligar_registro(page)
+    return _AbaDoPorteiro(page), page
+
+
+def login_no_porteiro(page):
+    page.goto(APP_MC + "/#/home", wait_until="domcontentloaded")
+    esperar(page)
+    page.wait_for_timeout(1500)
+    url = page.url or ""
+    if "#/login" in url or "#/mfa" in url or "/login" in url:
+        raise SystemExit("MC: o Chrome do porteiro não está logado no Mais Controle (%s) — o porteiro precisa "
+                         "entrar (no servidor: python -m erp.porteiro estado). O robô não faz login." % url)
+    print(f"MC: pela aba do porteiro, sem login ({url})", flush=True)
+
+
 def abrir(p):
+    if VIA_PORTEIRO:
+        return abrir_no_porteiro(p)
     # Navegador com cara de navegador comum: sem isto o Chromium do robô se
     # identifica como "HeadlessChrome", e há sistemas que recusam o login calados.
     b = p.chromium.launch(headless=True, args=["--disable-blink-features=AutomationControlled"])
@@ -369,6 +438,8 @@ def _digitar_e_confirmar(page, campos, codigo):
 
 
 def login(page):
+    if VIA_PORTEIRO:
+        return login_no_porteiro(page)
     if not (MC_URL and MC_USUARIO and MC_SENHA):
         raise SystemExit("Faltam os secrets MC_URL, MC_USUARIO e/ou MC_SENHA.")
     page.goto(MC_URL, wait_until="domcontentloaded")

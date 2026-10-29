@@ -156,3 +156,66 @@ roda a cada minuto e atende todas as filas). Na fila a linha vira FEITO e o cart
 prévia certa, o dono cria o VENDA_APLICAR.txt e clica "Lançar no Mais Controle".
 
 Plano B: apagar a Propriedade DB_FILA_ROBO volta tudo para o GitHub (que hoje esbarra no código de aparelho).
+
+---
+
+# ROBÔS QUE RODAVAM NO GITHUB (30/10/2026) — contas, bases, medições e índices pelo porteiro
+
+Por quê: no GitHub cada robô faz login no Mais Controle — derruba quem estiver no ERP com o mesmo usuário e
+esbarra no código de verificação (Bases falhou em 28/10). Os Índices falham todo dia desde 21/10 porque o Banco
+Central responde 502 para os endereços do GitHub (do Brasil responde normal). No servidor, os mesmos scripts
+entram pela aba do porteiro (`MC_VIA=porteiro`): `robo_mc_comum.abrir/login` viram "aba nova no Chrome do porteiro,
+sem login"; o robô de contas pega o acesso da aba. A Auditoria Financeira NÃO muda: usa a API de exportação
+(Senha da API), que não abre sessão.
+
+## 1. (servidor) Atualizar o clone e testar
+```powershell
+cd "C:\AUTOMAÇÕES MAIS CONTROLE\_portal"
+git pull https://github.com/DEVMoraisEng/PORTAL-MORAIS.git main
+python -m pytest -q tests venda/mc/testes
+```
+Esperado: tudo passando, menos 6 testes antigos de `tests/test_robo_mc_obras.py` que já falhavam antes.
+
+## 2. (dono) Token do GitHub só para as Medições
+O robô de Medições publica `dist/mc_medicoes/contratos.json` (o Mapa de Obras lê do site). No GitHub da conta
+DEVMoraisEng: Settings › Developer settings › Fine-grained tokens › Generate: repositório **só PORTAL-MORAIS**,
+permissão **Contents: Read and write**, validade 1 ano. Salve no servidor em
+`C:\AUTOMAÇÕES MAIS CONTROLE\_chaves\github-portal.txt`. O Claude não abre esse arquivo.
+
+## 3. (servidor) Chave "robos" no `_central\robos-portal.json`
+Ao lado de "filas":
+```json
+"robos": {"notion_token_arquivo": "C:\AUTOMAÇÕES MAIS CONTROLE\_chaves\notion-producao-leitura.txt",
+          "github_token_arquivo": "C:\AUTOMAÇÕES MAIS CONTROLE\_chaves\github-portal.txt",
+          "vars": {"CONTAS_DB_ID": "3e4c5ab532d380afbd3bf9f7af31d2a7", "MC_CRED": "robo"}}
+```
+
+## 4. (servidor) Rodada de prova, SEM gravar
+Sem o arquivo `_central\ROBOS_APLICAR.txt` os robôs só simulam (como o GitHub sem APLICAR):
+```powershell
+python servidor\robo_fila.py --robo bases
+python servidor\robo_fila.py --robo contas
+python servidor\robo_fila.py --robo medicoes
+python servidor\robo_fila.py --indices
+python servidor\robo_fila.py --verificar
+```
+Cada um escreve no log de hoje (`_central\logs\robos-portal-AAAA-MM-DD.log`) a linha "código 0" e o fim da saída.
+O `--verificar` no fim tem que continuar dizendo "porteiro: logado" (ninguém derrubado).
+
+## 5. (dono) Ligar a gravação
+Com a prova certa: criar `_central\ROBOS_APLICAR.txt` (vazio) — é o mesmo "APLICAR" que o GitHub usava.
+Índices gravam com `_central\INDICES_APLICAR.txt` (também do dono).
+
+## 6. (servidor, com o ok do dono) Tarefas agendadas
+Mesmo Python (`pythonw.exe`, caminho completo), mesma conta e "só com o usuário conectado" da tarefa da fila:
+| Tarefa | Quando | Comando |
+|---|---|---|
+| MoraisEng - Robo contas | todo dia 06:23 | `robo_fila.py --robo contas` |
+| MoraisEng - Robo bases | todo dia 07:17 | `robo_fila.py --robo bases` |
+| MoraisEng - Robo medicoes | seg a sáb, 07:20 a 19:20 de 2 em 2 h | `robo_fila.py --robo medicoes` |
+| MoraisEng - Robo indices | todo dia 09:00 | `robo_fila.py --indices` |
+Rodar cada uma uma vez (`schtasks /Run`) e mostrar o `Last Result`.
+
+## 7. (dono, depois de 1 dia certo no servidor) Desligar o horário no GitHub
+No GitHub, Actions › cada workflow (Robôs Mais Controle, Robô MC - Bases no Notion, Robô MC - Medições, Índices
+de reajuste) › "…" › **Disable workflow**. O botão de rodar à mão volta quando reabilitar (plano B).
