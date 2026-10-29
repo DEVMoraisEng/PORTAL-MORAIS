@@ -119,6 +119,7 @@ def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DI
         d["comissao_paga_por"] = "VENDEDOR"
         d["aquisicao"] = d.get("total")
         d["corretor_contato"] = C.contato_corretor(cpg.get("properties") or {})
+        C.ajustar_dados_livre(fx, d)   # 29/10: fluxo alterado com valor da casa novo (só JC/JV)
         d["parcelas_prontas"] = C.parcelas(fx, d, dias)
 
     f = (C.faltas_do_fluxo(fx, d.get("casa")) if fx is not None else []) + R.faltas(d, dias)
