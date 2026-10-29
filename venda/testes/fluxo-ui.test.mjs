@@ -30,10 +30,10 @@ test("venda lançada, envelope aberto ou assinado: botão desabilitado com o mot
   }
 });
 
-test("alterado: diz quem alterou e avisa que o contrato com fluxo alterado chega na próxima versão", () => {
+test("alterado: diz quem alterou e pede conferir o 6.1 no pré-contrato", () => {
   const h = D.htmlContrato(estado({ ...fechado, alterado: true, por: "ana.teste", em: "2026-10-29T15:00:00Z", alteracoes: 1 }), {});
   assert.match(h, /alterado no portal.*ana\.teste/);
-  assert.match(h, /Voltar ao fluxo da proposta/);
+  assert.match(h, /confira o item 6\.1 e o quadro-resumo no pré-contrato/);
 });
 
 test("sem a coluna no Notion: aviso e nada de botão", () => {
@@ -64,12 +64,26 @@ test("editor: conta sem fechar mostra Sobram no placar e no botão; com motivo e
   assert.match(botao(ok, "c-fluxo-salvar"), /Salvar fluxo/);
 });
 
-test("editor: valor da casa mudou mostra o campo do segundo motivo e pede ele", () => {
-  const ed = editor({ valor: 95000, motivo: "desconto" });
-  ed.linhas[2].v = 65000;
-  assert.match(D.htmlFluxo(fechado, { fluxoEd: ed }, ""), /class="dz-linha vb-fx-mp">/);
+test("editor: valor da casa mudou mostra o campo do segundo motivo e pede ele (quem pode mudar o preço)", () => {
+  const ed = editor({ valor: 95000, motivo: "desconto", podePreco: true });
+  ed.linhas[1].v = 750;                                       // 20 × 750 = 15.000: fecha com 95.000
+  assert.match(D.htmlFluxo(fechado, { fluxoEd: ed }, ""), /class="dz-linha vb-fx-mp" style="display:block"/);
+  assert.match(D.htmlFluxo(fechado, { fluxoEd: editor() }, ""), /class="dz-linha vb-fx-mp" style="display:none"/, "sem mudar o preço o campo fica escondido");
   assert.match(D.htmlFluxoVivo(ed, ""), /motivo da mudança no valor da casa/);
   assert.doesNotMatch(botao(D.htmlFluxoVivo({ ...ed, motivoPreco: "aprovado" }, ""), "c-fluxo-salvar"), /disabled/);
+});
+
+test("financiamento e FGTS só aparecem (sem campos nem botões); o tipo não oferece eles para linha nova", () => {
+  const h = D.htmlFluxo(fechado, { fluxoEd: editor() }, "");
+  const linhaFin = h.match(/<tr data-fx-linha="2">.*?<\/tr>/s)[0];
+  assert.match(linhaFin, /Financiamento.*não muda/s);
+  assert.doesNotMatch(linhaFin, /<input|<select|data-acao/);
+  assert.doesNotMatch(h, /<option value="fin">/);
+});
+
+test("valor da casa travado para quem não é Julio Cesar ou João Vitor", () => {
+  assert.match(D.htmlFluxo(fechado, { fluxoEd: editor() }, ""), /data-fx="valor"[^>]*disabled[^>]*>.*só Julio Cesar ou João Vitor/s);
+  assert.doesNotMatch(D.htmlFluxo(fechado, { fluxoEd: editor({ podePreco: true }) }, "").match(/<input[^>]*data-fx="valor"[^>]*>/)[0], /disabled/);
 });
 
 test("lerNumBR entende 1.234,56 e 1234.56", () => {

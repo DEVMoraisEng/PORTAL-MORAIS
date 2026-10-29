@@ -71,7 +71,7 @@ function tratar_(p) {
       case "assinaturaCancelar": return assinaturaCancelar_(col, sess, p);   /* 29/10: botão Cancelar envelope */
       case "salvarCondicoesEspeciais": return salvarCondicoesEspeciais_(col, sess, p);   /* 29/10: item 16 do quadro-resumo */
       case "redigirCondicoesEspeciais": return redigirCondicoesEspeciais_(col, sess, p);   /* 29/10: só sugere, não grava */
-      case "fluxoEditar":  return fluxoEditar_(col, p);              /* 29/10: Alterar fluxo (FluxoVenda.gs) */
+      case "fluxoEditar":  return fluxoEditar_(col, sess, p);              /* 29/10: Alterar fluxo (FluxoVenda.gs) */
       case "salvarFluxo":  return salvarFluxo_(col, sess, p);
       case "gerarVendaCondominio": return gerarVendaCondominio_(col, sess, p);
       /* entrega 14: contrato assinado pelo portal e recebimentos (RecebimentoVenda.gs) */

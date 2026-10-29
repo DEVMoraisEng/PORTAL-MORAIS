@@ -4,11 +4,15 @@
  * Regras do dono: qualquer pessoa com acesso a Vendas altera; só salva com a soma batendo AO CENTAVO com o valor da casa;
  * motivo obrigatório (e um segundo motivo quando o valor da casa muda). Quem, quando, motivo e o fluxo de antes ficam no
  * histórico (Propriedade FLUXO_HIST_<página>).
- * Etapa 1 (este arquivo): tela, gravação e histórico. Até a etapa 2 o contrato NÃO lê a lista — por isso, com fluxo
- * alterado, gerar contrato para com a falta (ctrDadosAtuais_), e o robô do Mais Controle também para (etapa 3). */
+ * Etapa 1 (este arquivo): tela, gravação e histórico. Etapa 2: o contrato lê a lista (ContratoVenda.gruposFluxo).
+ * Até a etapa 3 o robô do Mais Controle para quando a venda tem fluxo alterado. */
 var FLUXO_COL = "FLUXO PERSONALIZADO", FLUXO_HIST = "FLUXO_HIST_", FLUXO_HIST_MAX = 8500;
-var FLUXO_FALTA_CONTRATO = "Fluxo de pagamento alterado no portal: o contrato com fluxo alterado ainda não está disponível — " +
-  "use \"Voltar ao fluxo da proposta\" para gerar agora";
+/* dono 29/10: mudar o VALOR DA CASA só Julio Cesar e João Vitor — os logins do portal ficam na Propriedade
+   FLUXO_PRECO_USUARIOS (separados por vírgula). Vazia = ninguém muda o valor da casa. */
+function fluxoPodePreco_(sess) {
+  var u = String((sess && sess.u) || "").trim().toLowerCase();
+  return !!u && String(prop_("FLUXO_PRECO_USUARIOS") || "").toLowerCase().split(/[\s,;]+/).indexOf(u) >= 0;
+}
 
 function fluxoColunaReal_(pg) {
   var k = RegrasVenda.chave(FLUXO_COL);
@@ -43,13 +47,13 @@ function fluxoEstado_(pageId, pg) {
 
 /* Ação "fluxoEditar": abre o editor — o fluxo atual (personalizado ou o do simulador), o da proposta, a entrega
    e o histórico (sem os fluxos antigos inteiros). */
-function fluxoEditar_(col, p) {
+function fluxoEditar_(col, sess, p) {
   var info = {}, pg = ctrLerPaginaVenda_(p.pageId, info);
   if (info.base !== "CONDOMINIO") return { ok: false, erro: "SO_CONDOMINIO" };
   if (!fluxoColunaReal_(pg)) return { ok: false, erro: "COLUNA_FALTANDO", coluna: FLUXO_COL };
   var padrao = fluxoPadrao_(pg), pers = FluxoLivre.ler(fluxoTextoDaLinha_(pg));
   var atual = pers ? { valor: pers.valor, entrega: padrao.entrega, linhas: pers.linhas } : padrao;
-  return { ok: true, atual: atual, padrao: padrao, alterado: !!pers, trava: fluxoTrava_(pg),
+  return { ok: true, atual: atual, padrao: padrao, alterado: !!pers, trava: fluxoTrava_(pg), podePreco: fluxoPodePreco_(sess),
            historico: fluxoHist_(p.pageId).map(function (h) {
              return { por: ctrTxt_(h.por), em: ctrTxt_(h.em), motivo: ctrTxt_(h.motivo), motivoPreco: ctrTxt_(h.motivoPreco),
                       valor: h.valor, voltou: !!h.voltou };
@@ -80,9 +84,11 @@ function salvarFluxo_(col, sess, p) {
   if (!p.voltar) {
     var f = FluxoLivre.normalizar(p.fluxo);
     f.entrega = padrao.entrega;                       /* a entrega das chaves é a da linha, não a da tela */
-    var r = FluxoLivre.validar(f);
+    var r = FluxoLivre.validar(f, padrao);
     if (!r.ok) return { ok: false, erro: "CAMPOS_INVALIDOS", erros: r.erros.slice(0, 6) };
-    if (Math.round(f.valor * 100) !== Math.round(padrao.valor * 100) && !motivoPreco)
+    var mudouPreco = Math.round(f.valor * 100) !== Math.round(padrao.valor * 100);
+    if (mudouPreco && !fluxoPodePreco_(sess)) return { ok: false, erro: "FLUXO_PRECO_SEM_PERMISSAO" };
+    if (mudouPreco && !motivoPreco)
       return { ok: false, erro: "CAMPOS_INVALIDOS", erros: ["Motivo da mudança no valor da casa (" + FluxoLivre.moeda(padrao.valor) + " → " + FluxoLivre.moeda(f.valor) + ")"] };
     texto = FluxoLivre.serializar(f);
     valor = f.valor;

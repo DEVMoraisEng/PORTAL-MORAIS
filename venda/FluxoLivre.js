@@ -13,14 +13,18 @@ var FluxoLivre = (function () {
     entrada:  { nome: "Entrada à vista", inciso: 2, reajuste: "",              terceiro: false },
     pre:      { nome: "Pré-chaves",     inciso: 2, reajuste: "INCC-M",         terceiro: false },
     balao:    { nome: "Balão",          inciso: 3, reajuste: "INCC-M",         terceiro: false },
-    fin:      { nome: "Financiamento",  inciso: 4, reajuste: "",               terceiro: true },
-    fgts:     { nome: "FGTS",           inciso: 4, reajuste: "",               terceiro: true },
-    subsidio: { nome: "Subsídio",       inciso: 4, reajuste: "",               terceiro: true },
+    /* fixo (dono 29/10): financiamento, FGTS e subsídio só aparecem — não mudam no Alterar fluxo */
+    fin:      { nome: "Financiamento",  inciso: 4, reajuste: "",               terceiro: true, fixo: true },
+    fgts:     { nome: "FGTS",           inciso: 4, reajuste: "",               terceiro: true, fixo: true },
+    subsidio: { nome: "Subsídio",       inciso: 4, reajuste: "",               terceiro: true, fixo: true },
     pos:      { nome: "Pós-chaves",     inciso: 5, reajuste: "IPCA + 1% a.m.", terceiro: false },
     permuta:  { nome: "Permuta",        inciso: 6, reajuste: "",               terceiro: false }
   };
   var ORDEM = ["sinal", "entrada", "pre", "balao", "pos", "permuta", "fin", "fgts", "subsidio"];
   var MAX_LINHAS = 40, MAX_N = 600, MAX_INTERVALO = 24, MAX_DESC = 120, MAX_MOTIVO = 300;
+  /* pós-chaves (regras do simulador, proposta.html): só 0, 12 ou 24 parcelas — é o prazo da entrada (24, 36 ou 48
+     meses), e a comissão do corretor sai dele; a parcela base é 24 × R$ 788,33 e nunca sobe acima disso. */
+  var POS_TETO = 788.33;
   var RE_ISO = /^\d{4}-\d{2}-\d{2}$/;
 
   function c(v) { return Math.round((Number(v) || 0) * 100); }
@@ -67,7 +71,7 @@ var FluxoLivre = (function () {
 
   /* { ok, diferenca, erros: [texto], porLinha: { índice: [texto] }, avisos: [texto] } — diferenca = valor − soma
      (positivo = falta). Regra do dono: só a CONTA trava (e linha sem valor/data/tipo); data fora da entrega é AVISO. */
-  function validar(f) {
+  function validar(f, padrao) {
     f = normalizar(f);
     var erros = [], porLinha = {}, avisos = [];
     function erroLinha(k, msg) { (porLinha[k] = porLinha[k] || []).push(msg); erros.push("Linha " + (k + 1) + ": " + msg); }
@@ -89,6 +93,31 @@ var FluxoLivre = (function () {
         avisos.push("Linha " + (k + 1) + ": " + tp.nome.toLowerCase() + " vence depois da entrega das chaves (" + dataBR(ultima) + ")");
       if (entrega && l.t === "pos" && l.d <= entrega) avisos.push("Linha " + (k + 1) + ": pós-chaves vence antes da entrega das chaves");
     });
+    /* regras que dependem da proposta (dono 29/10): financiamento/FGTS/subsídio iguais aos da proposta; pós-chaves com
+       a MESMA quantidade (o prazo e a comissão não mudam), parcela até o teto e sem começar antes da proposta */
+    if (padrao) {
+      padrao = normalizar(padrao);
+      var fixos = function (ls) {
+        return ls.filter(function (l) { return TIPOS[l.t] && TIPOS[l.t].fixo; })
+          .map(function (l) { return l.t + ":" + totalLinhaC(l); }).sort().join("|");
+      };
+      if (fixos(f.linhas) !== fixos(padrao.linhas)) erros.push("Financiamento, FGTS e subsídio não mudam — ficam como na proposta");
+      var qtd = function (ls) { return ls.reduce(function (s, l) { return s + (l.t === "pos" ? Math.max(0, l.n) : 0); }, 0); };
+      var qP = qtd(padrao.linhas), q = qtd(f.linhas);
+      if (q !== qP) erros.push(qP ? "Pós-chaves: tem de continuar com " + qP + " parcelas (o prazo da proposta; a comissão sai dele)"
+                                  : "Esta venda não tem pós-chaves (prazo da proposta de 24 meses)");
+      var tetoPos = POS_TETO, iniPos = "";
+      padrao.linhas.forEach(function (l) {
+        if (l.t !== "pos") return;
+        tetoPos = Math.max(tetoPos, l.v, l.u || 0);
+        if (isoValida(l.d) && (!iniPos || l.d < iniPos)) iniPos = l.d;
+      });
+      f.linhas.slice(0, MAX_LINHAS).forEach(function (l, k) {
+        if (l.t !== "pos") return;
+        if (c(l.v) > c(tetoPos) || c(l.u || 0) > c(tetoPos)) erroLinha(k, "parcela pós-chaves acima do teto de " + moeda(tetoPos));
+        if (iniPos && isoValida(l.d) && l.d < iniPos) erroLinha(k, "pós-chaves não pode começar antes de " + dataBR(iniPos));
+      });
+    }
     var dif = c(f.valor) - somaC(f.linhas);
     if (dif !== 0) erros.unshift((dif > 0 ? "Faltam " : "Sobram ") + moeda(Math.abs(dif) / 100) + " para fechar com o valor da casa");
     return { ok: !erros.length, diferenca: dif / 100, erros: erros, porLinha: porLinha, avisos: avisos };
@@ -166,7 +195,7 @@ var FluxoLivre = (function () {
     });
   }
 
-  return { TIPOS: TIPOS, ORDEM: ORDEM, MAX_LINHAS: MAX_LINHAS, MAX_MOTIVO: MAX_MOTIVO,
+  return { TIPOS: TIPOS, ORDEM: ORDEM, MAX_LINHAS: MAX_LINHAS, MAX_MOTIVO: MAX_MOTIVO, POS_TETO: POS_TETO,
            normalizar: normalizar, validar: validar, redistribuir: redistribuir, doPadrao: doPadrao, expandir: expandir,
            serializar: serializar, ler: ler, ordenar: ordenar, totalLinha: function (l) { return totalLinhaC(normalizar({ linhas: [l] }).linhas[0] || {}) / 100; },
            soma: function (linhas) { return somaC(normalizar({ linhas: linhas }).linhas) / 100; }, maisMeses: maisMeses, moeda: moeda, dataBR: dataBR };
