@@ -4104,6 +4104,7 @@ function propSIBloco(p){
           <button class="bt" onclick="document.getElementById('prop-siDist').classList.add('hide')">Cancelar</button>
         </div>
       </div>
+      ${at==="PAGOU PREFERENCIA"?`<div style="margin-top:8px"><button class="bt" style="background:#7B4FA0;color:#fff" onclick="propPreReservaDaUnidade('${p.id}')">Termo de pré-reserva</button></div>`:""}
       <div id="prop-siAviso" class="sim-aviso" style="margin-top:8px"></div>
       <div style="font-size:12px;color:var(--text3);margin-top:6px">
         <b>Pagou preferência</b> já cria a linha no BANCO DE DADOS VENDAS CONDOMÍNIO (a unidade fica roxa no mapa interno).
@@ -4188,6 +4189,24 @@ async function propStatusInterno(id, nome){
       propAbrirPreReserva(String(r.venda.linha));
   }
   propSincronizarTudo();
+}
+/* 28/10 (dono): proposta que JÁ pagou a preferência também gera o termo — acha a linha da venda pela unidade
+   no BANCO DE DADOS VENDAS CONDOMÍNIO (simsVendasCond, o mesmo da Planilha Casas Condomínio). */
+async function propPreReservaDaUnidade(id){
+  const p=PROPS.find(x=>x.id===id)||{}, av=document.getElementById("prop-siAviso");
+  const so=v=>String(v==null?"":v).replace(/\D/g,"").replace(/^0+/,"");
+  const un=so(p.unidade);
+  if(av){ av.className="sim-aviso ok"; av.textContent="Procurando a venda da unidade "+(p.unidade||"")+"…"; }
+  let r=null;
+  try{ r=await chamar({action:"simsVendasCond"},70000); }catch(e){ r=null; }
+  if(!r||!r.ok){ if(av){ av.className="sim-aviso err"; av.textContent="Não consegui ler o banco de vendas: "+((r&&(r.mensagem||r.erro))||"sem resposta do servidor"); } return; }
+  const val=(l,nome)=>{ const v=(l&&l.v)||{}; if(v[nome]!==undefined) return v[nome];
+    const k=Object.keys(v).find(x=>PROP_NORM(x)===PROP_NORM(nome)); return k===undefined?null:v[k]; };
+  const achadas=(r.linhas||[]).filter(l=>un && so(val(l,"UNIDADE"))===un);
+  if(!achadas.length){ if(av){ av.className="sim-aviso err"; av.textContent="A unidade "+(p.unidade||"")+" não tem linha no BANCO DE DADOS VENDAS CONDOMÍNIO. Marque PAGOU PREFERÊNCIA de novo para criar."; } return; }
+  if(achadas.length>1){ if(av){ av.className="sim-aviso err"; av.textContent="A unidade "+(p.unidade||"")+" tem "+achadas.length+" linhas no banco de vendas — abra pela Planilha Casas Condomínio."; } return; }
+  if(av){ av.className="sim-aviso"; av.textContent=""; }
+  propAbrirPreReserva(String(achadas[0].id));
 }
 /* 28/10/2026 — TERMO DE PRÉ-RESERVA pela proposta: abre por cima a mesma tela do cartão da unidade
    (conta para devolução, gerar, ver e enviar à Clicksign), desenhada pelo venda-dossie.js na linha da venda. */
