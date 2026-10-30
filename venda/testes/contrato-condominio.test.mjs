@@ -67,7 +67,8 @@ test("negrito: começo do 6.1 até o extenso, cabeçalhos dos incisos inteiros, 
 });
 
 const FIADOR = { nome: "FIADOR UM TESTE", cpf: "12345678909", rg: "RG 1112223 SSP/GO", nacionalidade: "brasileiro",
-  endereco: "Rua das Acácias", numero: "100", setor: "Setor Teste", cidade: "Cidade Teste/GO", cep: "74000-000", email: "fiador1@teste.invalid" };
+  endereco: "Rua das Acácias", numero: "100", setor: "Setor Teste", cidade: "Cidade Teste/GO", cep: "74000-000", email: "fiador1@teste.invalid",
+  estadoCivil: "SOLTEIRO" };   /* 30/10: com pós-chaves o estado civil do fiador é exigido */
 
 test("qualificação dos fiadores: FIADOR 1/2 na ordem dos preenchidos, CPF formatado, sem estado civil/profissão", () => {
   const q = C.qualificacaoFiadores([{ nome: "" }, FIADOR, { ...FIADOR, nome: "FIADORA DOIS TESTE", cpf: "987.654.321-00", rg: "4445556", numero: "", email: "" }]);
@@ -171,7 +172,7 @@ test("comprador: CPF inválido trava no condomínio", () => {
 
 test("fiador com nome exige CPF válido (28/10: RG e endereço não mais — só nome e CPF); CPF repetido (comprador ou entre fiadores) é só aviso", () => {
   const d = C.montarDadosContrato(fontes({ fiadores: [{ ...FIADOR, cpf: "123.456.789-00", rg: "", endereco: "" }, { nome: "FIADORA DOIS TESTE" }] }));
-  assert.deepEqual(C.faltasContrato(d), ["Fiador 1: CPF inválido", "Fiador 2: CPF"]);
+  assert.deepEqual(C.faltasContrato(d), ["Fiador 1: CPF inválido", "Fiador 2: CPF", "Fiador 2: estado civil"]);
   const rep = C.montarDadosContrato(fontes({ fiadores: [{ ...FIADOR, cpf: "529.982.247-25" }, { ...FIADOR, nome: "FIADORA DOIS TESTE", cpf: "52998224725" }] }));
   assert.deepEqual(C.faltasContrato(rep), []);
   assert.deepEqual(C.avisosContrato(rep), ["Em branco no contrato: tipo e áreas da casa (casa fora da tabela do condomínio)", "Fiador 1: CPF igual ao de um comprador", "Fiador 2: CPF igual ao de um comprador", "Fiadores: os dois têm o mesmo CPF"]);
@@ -240,7 +241,7 @@ const LINHA_COND = {
   "FIADOR 1": rt("Fiador Um Teste"), "CPF FIADOR 1": rt("12345678909"), "RG FIADOR 1": rt("1112223 SSP/GO"),
   "NACIONALIDADE  FIADOR 1": rt("brasileiro"), "ENDERECO FIADOR 1": rt("Rua das Acácias"), "NUMERO FIADOR 1": rt("100"),
   "SETOR FIADOR 1": rt("Setor Teste"), "CIDADE FIADOR 1": rt("Cidade Teste/GO"), "CEP FIADOR 1": rt("74000-000"),
-  "EMAIL FIADOR 1": { email: "fiador1@teste.invalid" }, "FIADOR 2": rt(""),
+  "EMAIL FIADOR 1": { email: "fiador1@teste.invalid" }, "ESTADO CIVIL FIADOR 1": rt("SOLTEIRO"), "FIADOR 2": rt(""),
   CORRETOR: rt("Corretor Teste"), CRECI: num(40167), "CPF CORRETOR": rt("246.813.579-28"), "EMAIL CORRETOR": { email: "corretor@teste.invalid" },
 };
 const OBRA_PG = { "PROPRIETARIO DOCUMENTO": rt("Construtora Teste Ltda"), "CPF/CNPJ ": sel("00.000.000/0001-00"), "OBRA FINALIZADA?": sel("SIM") };

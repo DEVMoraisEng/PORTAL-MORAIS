@@ -346,6 +346,7 @@ test("28/10: condomínio sem linha na DOCUMENTOS usa a vendedora da Propriedade 
 const COLS_CFD = {
   "FIADOR 1": rt("Fiador Um Teste"), "CPF FIADOR 1": rt("111.444.777-35"), "EMAIL FIADOR 1": eml("f1@teste.example"),
   "FIADOR 2": rt("Fiador Dois Teste"), "CPF FIADOR 2": rt("246.813.579-28"), "EMAIL FIADOR 2": eml("f2@teste.example"),
+  "ESTADO CIVIL FIADOR 1": rt("SOLTEIRO"), "ESTADO CIVIL FIADOR 2": rt("VIUVO"),   /* 30/10: exigido com pós-chaves */
   "CONFISSÃO PRÉ-CHAVES - GERADA": { files: [] }, "CONFISSÃO PRÉ-CHAVES - ASSINADA": { files: [] },
   "CONFISSÃO PÓS-CHAVES - GERADA": { files: [] }, "CONFISSÃO PÓS-CHAVES - ASSINADA": { files: [] },
 };
@@ -383,6 +384,20 @@ test("28/10: sem os fiadores, o contrato com os termos ligados não sai (falta n
   const r = c.acao("gerarPreContrato");
   assert.equal(r.erro, "FALTAM_DADOS");
   assert.ok(r.faltas.includes("Fiador 2 (termo de confissão): nome"), r.faltas.join(" | "));
+});
+
+test("30/10: fiador casado — o GerarContrato lê ESTADO CIVIL / CONJUGE / CPF / EMAIL CONJUGE FIADOR n e cobra o cônjuge", () => {
+  /* casado com alguém de fora: sem o e-mail do cônjuge o contrato não sai */
+  const c = cenarioCfd({ linha: { "ESTADO CIVIL FIADOR 1": rt("CASADO"), "CONJUGE FIADOR 1": rt("Conjuge Um Teste"),
+    "CPF CONJUGE FIADOR 1": rt("529.982.247-25") } });
+  const r = c.acao("gerarPreContrato");
+  assert.equal(r.erro, "FALTAM_DADOS");
+  assert.deepEqual(r.faltas.filter((f) => /cônjuge/.test(f)), ["Fiador 1: e-mail do cônjuge (para assinar)"]);
+  /* o casal como os 2 fiadores (o preferido): o cônjuge é o outro fiador, nada a mais */
+  const casal = cenarioCfd({ linha: { "ESTADO CIVIL FIADOR 1": rt("CASADO"), "ESTADO CIVIL FIADOR 2": rt("CASADO"),
+    "CPF CONJUGE FIADOR 1": rt("24681357928"), "CPF CONJUGE FIADOR 2": num(11144477735) } });
+  const r2 = casal.acao("gerarPreContrato");
+  assert.equal(r2.ok, true, JSON.stringify(r2));
 });
 
 test("28/10: Clicksign — contrato e termos no MESMO envelope; fiadores assinam só os termos; termos assinados nas colunas deles", () => {
