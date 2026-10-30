@@ -93,7 +93,10 @@ def ler_livre(texto: str) -> dict | None:
         linhas.append({"t": str(l.get("t") or ""), "v": R._num(l.get("v")) or 0, "n": int(l.get("n") or 0),
                        "d": str(l.get("d") or "")[:10], "i": int(l.get("i") or 1) or 1, "x": str(l.get("x") or "").strip(),
                        "u": R._num(l.get("u")) or None})
-    return {"valor": R._num(o.get("valor")) or 0, "entrega": str(o.get("entrega") or "")[:10], "linhas": linhas}
+    out = {"valor": R._num(o.get("valor")) or 0, "entrega": str(o.get("entrega") or "")[:10], "linhas": linhas}
+    if o.get("semComissao") is True:   # 30/10: desconto "isentar a comissão" no Alterar fluxo = venda direta
+        out["semComissao"] = True
+    return out
 
 
 def _total_linha(l: dict) -> float:
@@ -124,6 +127,12 @@ def ajustar_dados_livre(fx: dict, dados: dict) -> None:
     da observação sai da regra sobre ele — igual ao contrato (ContratoVenda.valoresCondominio)."""
     livre = fx.get("livre")
     if not livre or not livre["valor"]:
+        return
+    if livre.get("semComissao"):
+        # 30/10: venda direta (isenção da comissão, só JC/JV) — comissão zero, como o contrato (valoresCondominio)
+        dados["total"] = dados["aquisicao"] = livre["valor"]
+        dados["comissao"] = 0
+        dados["sem_comissao"] = True
         return
     if dados.get("total") is None or round(livre["valor"], 2) != round(dados["total"], 2):
         dados["total"] = dados["aquisicao"] = livre["valor"]

@@ -481,7 +481,9 @@ def observacao(dados: dict) -> str:
         partes.append("Corretor: %s" % dados["corretor"])
     if dados.get("imobiliaria"):
         partes.append("Imobiliária: %s" % dados["imobiliaria"])
-    if dados.get("comissao"):
+    if dados.get("sem_comissao"):
+        partes.append("Sem comissão (venda direta)")   # 30/10: isenção da comissão no Alterar fluxo
+    elif dados.get("comissao"):
         pp = {"COMPRADOR": "pelo comprador", "VENDEDOR": "pelo vendedor"}.get(dados.get("comissao_paga_por") or "", "")
         partes.append("Comissão: %s%s" % (reais(dados["comissao"]), " (paga %s)" % pp if pp else ""))
     return " | ".join(partes)

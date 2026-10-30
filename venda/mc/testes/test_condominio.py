@@ -74,9 +74,9 @@ def test_faltas_do_fluxo():
     assert any("diferente da UNIDADE" in x for x in f)
 
 
-def _livre(linhas, valor=228900):
+def _livre(linhas, valor=228900, **extra):
     import json
-    return {"FLUXO PERSONALIZADO": {"type": "rich_text", "rich_text": [{"plain_text": json.dumps({"v": 1, "valor": valor, "entrega": "2028-12-15", "linhas": linhas})}]}}
+    return {"FLUXO PERSONALIZADO": {"type": "rich_text", "rich_text": [{"plain_text": json.dumps({"v": 1, "valor": valor, "entrega": "2028-12-15", "linhas": linhas, **extra})}]}}
 
 
 # mesmo total da linha de teste (228.900): sinal em 2x, um balão a mais, permuta, pós-chaves com a última diferente
@@ -459,3 +459,30 @@ def test_proposta_ilegivel_fica_sem_excedente_e_a_soma_recusa(monkeypatch):
     n = NotionComProposta(linha_com_entrada(), 50000, legivel=False)
     r = L.processar(LINHA_ID, n, ErpLinha())
     assert r["codigo"] == "FALTAS" and "Soma das parcelas" in n.gravado["MC - SITUAÇÃO"]
+
+
+def test_isencao_da_comissao_zera_a_comissao_e_a_observacao_diz_venda_direta():
+    """30/10: desconto "isentar a comissão" no Alterar fluxo grava semComissao; o robô não cobra comissão nenhuma."""
+    linhas = [dict(l) for l in LIVRE]
+    linhas[4]["v"] = 500                                     # permuta 500 menor: casa de 228.400
+    fx = C.fluxo(fluxo_props(**{"PRAZO ENTRADA": num(24)}, **_livre(linhas, valor=228400, semComissao=True)))
+    assert fx["livre"]["semComissao"] is True
+    d = {"total": 228900, "aquisicao": 228900, "comissao": 11445}
+    C.ajustar_dados_livre(fx, d)
+    assert (d["total"], d["aquisicao"], d["comissao"], d["sem_comissao"]) == (228400, 228400, 0, True)
+    assert "Sem comissão (venda direta)" in R.observacao({**d, "corretor": ""})
+    assert "Comissão:" not in R.observacao(d)
+    sem = C.fluxo(fluxo_props(**_livre(LIVRE, semComissao="sim")))
+    assert "semComissao" not in sem["livre"], "só true vale (igual ao FluxoLivre.ler)"
+
+
+def test_previa_da_venda_direta_fecha_com_o_valor_novo_e_sem_comissao(monkeypatch):
+    monkeypatch.setenv("DB_VENDAS_COND", DB_COND)
+    linhas = [dict(l) for l in LIVRE]
+    linhas[4]["v"] = 500
+    n, e = NotionLinha(linha_cond(**_livre(linhas, valor=228400, semComissao=True))), ErpLinha()
+    r = L.processar(LINHA_ID, n, e)
+    assert r["situacao"] == "PREVIA", r
+    inst = r["corpo_venda"]["tradeReceivable"]["installments"]
+    assert round(sum(i["plannedValue"] for i in inst), 2) == 228400
+    assert "Comissão:" not in json.dumps(r["corpo_venda"], ensure_ascii=False)
