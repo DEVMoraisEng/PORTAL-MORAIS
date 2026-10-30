@@ -49,12 +49,17 @@ var ConfissaoVenda = (function () {
   }
   function totalPos(G) { G = comoGrupos(G); return so2(G.pos.reduce(function (t, s) { return t + serieTotal(s); }, 0)); }
 
-  /* O que falta para gerar os termos (só nomes de campo). Os dois fiadores são obrigatórios (8.1 do termo). */
+  /* 30/10/2026 (dono): entrada em 24x, sem parcelas pós-chaves = fiador NÃO é necessário. */
+  function fiadorDispensado(d) { return quais(d).indexOf("POS") < 0; }
+
+  /* O que falta para gerar os termos (só nomes de campo). Os dois fiadores são obrigatórios (8.1 do termo),
+     menos em 24x sem pós-chaves (30/10/2026): aí só se confere o fiador que tiver sido informado. */
   function faltas(d) {
     if (!quais(d).length) return [];
-    var f = [], fis = fiadores(d);
+    var f = [], fis = fiadores(d), disp = fiadorDispensado(d);
     [0, 1].forEach(function (i) {
       var fi = fis[i] || {}, rot = "Fiador " + (i + 1) + " (termo de confissão)";
+      if (disp && !txt(fi.nome) && !txt(fi.cpf)) return;
       if (!txt(fi.nome)) f.push(rot + ": nome");
       if (!txt(fi.cpf)) f.push(rot + ": CPF");
       else if (!R().cpfValido(fi.cpf)) f.push(rot + ": CPF inválido");
@@ -96,7 +101,7 @@ var ConfissaoVenda = (function () {
     return "";
   }
 
-  var api = { COL: COL, TIPOS: TIPOS, PREFIXO: PREFIXO, MODELO: MODELO, quais: quais, faltas: faltas,
+  var api = { COL: COL, TIPOS: TIPOS, PREFIXO: PREFIXO, MODELO: MODELO, quais: quais, faltas: faltas, fiadorDispensado: fiadorDispensado,
               marcadores: marcadores, totalPre: totalPre, totalPos: totalPos, colunaAssinadaDoNome: colunaAssinadaDoNome };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   return api;

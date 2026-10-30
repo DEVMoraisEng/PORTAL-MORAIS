@@ -48,6 +48,15 @@ test("faltas: os dois fiadores com nome e CPF válido (dono 28/10: só nome e CP
   assert.deepEqual(T.faltas(dados({ fiadores: [{ ...FIADORES[0], cpf: "111.444.777-36" }, FIADORES[1]] })), ["Fiador 1 (termo de confissão): CPF inválido"]);
 });
 
+test("faltas: entrada em 24x sem pós-chaves não exige fiador (30/10/2026)", () => {
+  const sem = { posN: 0, posValor: 0, prazoEntrada: 24 };
+  assert.equal(T.fiadorDispensado(dados({ fluxo: sem })), true);
+  assert.equal(T.fiadorDispensado(dados()), false);
+  assert.deepEqual(T.faltas(dados({ fluxo: sem, fiadores: [] })), []);
+  assert.deepEqual(T.faltas(dados({ fluxo: sem, fiadores: [{ nome: "FIADOR UM TESTE", cpf: "" }] })), ["Fiador 1 (termo de confissão): CPF"]);
+  assert.equal(T.faltas(dados({ fiadores: [] })).length, 4);   // com pós-chaves: os dois continuam obrigatórios
+});
+
 test("marcadores do termo PRÉ: comprador do contrato, fiadores só nome e CPF, 4.1 com o resumo do contrato e o total", () => {
   const m = T.marcadores(dados(), "PRE");
   assert.equal(m.FIADOR1_QUADRO, "FIADOR UM TESTE, CPF nº 111.444.777-35");
