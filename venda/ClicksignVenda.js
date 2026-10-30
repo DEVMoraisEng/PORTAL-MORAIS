@@ -189,16 +189,23 @@ var ClicksignVenda = (function () {
     var t = testemunhas(dados, config);
     return t ? [sig("Testemunha 1", PAPEIS.TESTEMUNHA, t[0], "testemunha"), sig("Testemunha 2", PAPEIS.TESTEMUNHA, t[1], "testemunha")] : [];
   }
+  /* 30/10: venda direta (isenção da comissão no Alterar fluxo) não tem corretor no contrato nem no envelope */
+  function vendaDireta(dados) { return !!(dados.condominio && dados.condominio.livre && dados.condominio.livre.semComissao); }
   function sigCorretor(dados, config) {
-    if (!config.incluirCorretor || !dados.corretor) return [];
+    if (!config.incluirCorretor || !dados.corretor || vendaDireta(dados)) return [];
     return [sig("Corretor", PAPEIS.CORRETOR, { nome: dados.corretor.nome, email: dados.corretor.email, cpf: dados.corretor.cpfCnpj }, "corretor")];
   }
-  /* 28/10: termos de confissão de dívida no mesmo envelope — os dois fiadores assinam SÓ os termos */
+  /* 28/10: termos de confissão de dívida no mesmo envelope — os dois fiadores assinam SÓ os termos.
+     30/10 (Súmula 332 do STJ): fiador casado cujo cônjuge não é o outro fiador leva o cônjuge junto, também só nos
+     termos (outorga conjugal); fi.conjuge vem de ContratoVenda (null quando não precisa). */
   function sigFiadores(dados, config) {
     if (!config.comFiadores || !dados.condominio) return [];
-    return (dados.condominio.fiadores || []).slice(0, 2).map(function (fi, i) {
-      return sig("Fiador " + (i + 1), PAPEIS.FIADOR, { nome: fi.nome, email: fi.email, cpf: fi.cpf }, "fiador" + (i + 1), { soTermos: true });
+    var l = [];
+    (dados.condominio.fiadores || []).slice(0, 2).forEach(function (fi, i) {
+      l.push(sig("Fiador " + (i + 1), PAPEIS.FIADOR, { nome: fi.nome, email: fi.email, cpf: fi.cpf }, "fiador" + (i + 1), { soTermos: true }));
+      if (fi.conjuge) l.push(sig("Cônjuge do fiador " + (i + 1), PAPEIS.FIADOR, fi.conjuge, "conjugeFiador" + (i + 1), { soTermos: true }));
     });
+    return l;
   }
   function signatarios(dados, config) {
     return [].concat(sigCompradores(dados), sigVendedor(dados, config), sigTestemunhas(dados, config),
@@ -211,6 +218,7 @@ var ClicksignVenda = (function () {
     vendedor: "coluna E-MAIL em VENDEDORES – CONTRATO",
     corretor: "coluna E-MAIL em CORRETORES – CONTRATO",
     fiador1: "coluna EMAIL FIADOR 1", fiador2: "coluna EMAIL FIADOR 2",
+    conjugeFiador1: "coluna EMAIL CONJUGE FIADOR 1", conjugeFiador2: "coluna EMAIL CONJUGE FIADOR 2",
     testemunha: ""
   };
 
@@ -220,7 +228,7 @@ var ClicksignVenda = (function () {
     config = config || montarConfig({});
     if (!dados.vendedor) faltas.push("Vendedor: cadastro em VENDEDORES – CONTRATO");
     if (!testemunhas(dados, config)) faltas.push("Testemunhas: Propriedade " + nomeDoPar(dados) + " não configurada (precisa de 2)");
-    if (config.incluirCorretor && !dados.corretor) faltas.push("Corretor: cadastro em CORRETORES – CONTRATO");
+    if (config.incluirCorretor && !dados.corretor && !vendaDireta(dados)) faltas.push("Corretor: cadastro em CORRETORES – CONTRATO");
     var vistos = {}, porPessoa = [];
     signatarios(dados, config).forEach(function (s) {
       var f = [];
