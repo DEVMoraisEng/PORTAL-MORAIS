@@ -179,17 +179,27 @@ def e_linha_do_condominio(pg: dict, db_cond: str | None) -> bool:
     return False
 
 
-# 30/10/2026 (dono): no cadastro do CLIENTE no Mais Controle, o endereço é a unidade que ele está comprando
-CIDADE_DO_CONDOMINIO = {"RESERVA DOS IPES": "SENADOR CANEDO"}
+# 30/10/2026 (dono): no cadastro do CLIENTE no Mais Controle, o endereço é a unidade que ele está comprando.
+# Campos separados (CEP, bairro, cidade/UF): o boleto do Cobrança Fácil exige o endereço completo do pagador.
+# CEP geral da cidade (decisão do dono, 30/10); cidade e estado pelos ids da tabela de cidades do ERP.
+_GO = {"id": "4802f081-039d-43c9-a803-7141386fc93b", "abbreviation": "GO", "name": "Goiás"}
+CIDADE_DO_CONDOMINIO = {"RESERVA DOS IPES": {"cep": "75250000", "cidade": {
+    "id": "df17a44f-2193-462c-aad6-3496dd0082ce", "name": "Senador Canedo", "state": _GO}}}
 
 
-def endereco_do_cliente(nome_condominio, casa) -> str:
-    """"CONDOMÍNIO RESERVA DOS IPÊS - SENADOR CANEDO, UNIDADE 31" ("" sem condomínio ou sem unidade)."""
+def endereco_do_cliente(nome_condominio, casa) -> dict:
+    """O `address` do cadastro do cliente: rua = o condomínio, complemento = "UNIDADE 31", bairro = o
+    condomínio, CEP e cidade do condomínio. {} sem condomínio ou sem unidade."""
     cond = endereco_do_condominio(nome_condominio)
     if not cond or casa in (None, ""):
-        return ""
-    cidade = next((c for k, c in CIDADE_DO_CONDOMINIO.items() if k in R.chave(cond)), "")
-    return "%s%s, UNIDADE %02d" % (cond.upper(), " - " + cidade if cidade else "", int(casa))
+        return {}
+    cond = cond.upper()
+    end = {"address": cond, "addressNumber": "S/N", "complement": "UNIDADE %02d" % int(casa), "neighborhood": cond}
+    lugar = next((c for k, c in CIDADE_DO_CONDOMINIO.items() if k in R.chave(cond)), None)
+    if lugar:
+        end["zipCode"] = lugar["cep"]
+        end["city"] = lugar["cidade"]
+    return end
 
 
 def endereco_do_condominio(nome) -> str:
