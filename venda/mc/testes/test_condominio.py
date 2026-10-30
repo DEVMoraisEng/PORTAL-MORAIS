@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Venda do condomínio: parcelas a partir do fluxo do simulador. Dados inventados (repositório público)."""
+import json
 import os
 import sys
 
@@ -370,3 +371,91 @@ def test_corpo_cliente_do_condominio_leva_o_endereco_da_unidade():
     assert corpo["address"]["address"].startswith("CONDOMÍNIO RESERVA TESTE, UNIDADE ")
     rua = R.corpo_cliente(R.dados_da_pagina(pagina()))
     assert "address" not in rua             # casa de rua: como antes
+
+
+# 30/10/2026: VALOR PARA ENTRADA da proposta acima do sinal = "pagamento único na assinatura" (ContratoVenda.excedenteSinal)
+PROPOSTA_ID = "f" * 32
+
+
+class NotionComProposta(NotionLinha):
+    """A linha do condomínio e a proposta (ID PROPOSTA) com o VALOR PARA ENTRADA."""
+    def __init__(self, props, valor_para_entrada, legivel=True):
+        super().__init__(props)
+        self.proposta = {"VALOR PARA ENTRADA": num(valor_para_entrada)}
+        self.legivel = legivel
+
+    def pagina(self, pid):
+        if pid == PROPOSTA_ID:
+            self.lidas.append(pid)
+            if not self.legivel:
+                raise RuntimeError("Notion GET página -> HTTP 404")
+            return {"properties": self.proposta}
+        return super().pagina(pid)
+
+
+def linha_com_entrada(**mudar):
+    """Sinal de 10 mil no ato e 50 mil para a entrada na proposta: 40 mil à vista na assinatura (228.900 + 3.000 + 40.000)."""
+    base = {"VALOR SINAL ATO": num(10000), "VALOR SINAL 30 DIAS": num(None), "VALOR DE VENDA": num(271900),
+            "ID PROPOSTA": txt("ffffffff-ffff-ffff-ffff-" + "f" * 12)}
+    base.update(mudar)
+    return linha_cond(**base)
+
+
+def test_excedente_do_valor_para_entrada_passa_do_sinal_e_nao_conta_no_fluxo_alterado():
+    fx = C.fluxo(linha_com_entrada())
+    assert fx["id_proposta"] == PROPOSTA_ID
+    assert C.excedente_sinal(fx, 50000) == 40000
+    assert C.excedente_sinal(fx, 9000) == 0 and C.excedente_sinal(fx, None) == 0
+    fx["livre"] = {"valor": 1, "entrega": "", "linhas": []}
+    assert C.excedente_sinal(fx, 50000) == 0, "no fluxo alterado o excedente já é linha da lista"
+
+
+def test_parcelas_com_excedente_tem_entrada_a_vista_na_assinatura():
+    fx = C.fluxo(linha_com_entrada())
+    fx["excedente"] = 40000
+    ps = C.parcelas(fx, {"data_venda": "2026-09-01", "fgts": 10000, "financiado": 200000})
+    assert [p["rotulo"] for p in ps][:2] == ["Sinal ato", "Entrada à vista"]
+    ent = ps[1]
+    assert (ent["tipo"], ent["valor"], ent["data"], ent["tabela"]) == (R.TIPO_ENTRADA, 40000, "2026-10-10", None)
+    assert round(sum(p["valor"] for p in ps), 2) == 271900
+
+
+def test_venda_com_entrada_de_50_mil_sem_fluxo_alterado_fecha_a_soma(monkeypatch):
+    monkeypatch.setenv("DB_VENDAS_COND", DB_COND)
+    n = NotionComProposta(linha_com_entrada(), 50000)
+    r = L.processar(LINHA_ID, n, ErpLinha())
+    assert r["situacao"] == "PREVIA", r
+    assert n.lidas == [LINHA_ID, PROPOSTA_ID]
+    inst = r["corpo_venda"]["tradeReceivable"]["installments"]
+    ent = [i for i in inst if i["comment"] == "Entrada à vista"]
+    assert len(ent) == 1 and ent[0]["plannedValue"] == 40000 and ent[0]["plannedDate"].startswith("2026-10-10")
+    assert ent[0]["readjustmentDetail"]["table"] is None
+    assert round(sum(i["plannedValue"] for i in inst), 2) == 271900
+    assert "Soma das parcelas" not in n.gravado["MC - SITUAÇÃO"]
+
+
+def test_fluxo_alterado_nao_soma_o_excedente_de_novo(monkeypatch):
+    monkeypatch.setenv("DB_VENDAS_COND", DB_COND)
+    lista = {"valor": 271900, "entrega": "2028-12-15", "linhas": [
+        {"t": "sinal", "v": 10000, "n": 1, "d": "2026-10-10", "i": 1, "x": ""},
+        {"t": "entrada", "v": 40000, "n": 1, "d": "2026-10-10", "i": 1, "x": ""},
+        {"t": "pre", "v": 1000, "n": 2, "d": "2026-11-30", "i": 1, "x": ""},
+        {"t": "pre", "v": 500, "n": 1, "d": "2027-01-31", "i": 1, "x": ""},
+        {"t": "balao", "v": 3000, "n": 1, "d": "2027-12-31", "i": 1, "x": ""},
+        {"t": "balao", "v": 4000, "n": 1, "d": "2028-11-30", "i": 1, "x": ""},
+        {"t": "pos", "v": 800, "n": 3, "d": "2029-01-31", "i": 1, "x": ""},
+        {"t": "fin", "v": 200000, "n": 1, "d": "", "i": 1, "x": ""},
+        {"t": "fgts", "v": 10000, "n": 1, "d": "", "i": 1, "x": ""}]}
+    n = NotionComProposta(linha_com_entrada(**{"FLUXO PERSONALIZADO": txt(json.dumps(lista))}), 50000)
+    r = L.processar(LINHA_ID, n, ErpLinha())
+    assert r["situacao"] == "PREVIA", r
+    assert PROPOSTA_ID not in n.lidas, "com a lista a proposta nem é lida"
+    inst = r["corpo_venda"]["tradeReceivable"]["installments"]
+    assert [i["plannedValue"] for i in inst if i["comment"] == "Entrada à vista"] == [40000]
+
+
+def test_proposta_ilegivel_fica_sem_excedente_e_a_soma_recusa(monkeypatch):
+    monkeypatch.setenv("DB_VENDAS_COND", DB_COND)
+    n = NotionComProposta(linha_com_entrada(), 50000, legivel=False)
+    r = L.processar(LINHA_ID, n, ErpLinha())
+    assert r["codigo"] == "FALTAS" and "Soma das parcelas" in n.gravado["MC - SITUAÇÃO"]

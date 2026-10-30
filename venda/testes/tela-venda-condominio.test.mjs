@@ -739,3 +739,42 @@ test("30/10: memorial ou projeto que não abrem barram o envio antes de criar o 
   assert.equal(sobra.acao("assinaturaEnviar", rub(sobra)).erro, "MODELO_COM_MARCADOR_SOBRANDO");
   for (const x of [sem, proj, sobra]) assert.equal(x.c.chamadas.length, 0);
 });
+
+/* ---- 30/10: desconto no Alterar fluxo (arquivo 17, item 1) ---- */
+test("30/10 desconto: fluxoEditar traz a comissão só para quem muda o preço; R$ dos balões salva e o contrato recalcula", () => {
+  assert.equal(cenarioFluxo().acao("fluxoEditar").desconto, null, "quem não muda o valor da casa não vê desconto");
+  const c = cenarioFluxo({ props: { FLUXO_PRECO_USUARIOS: "ana.teste" } });
+  const e = c.acao("fluxoEditar");
+  assert.equal(e.desconto.isencaoLiberada, false);
+  assert.ok(e.desconto.comissao.valor > 0, JSON.stringify(e.desconto));
+  const r = FluxoLivre.aplicarDesconto(e.atual, 5000, "baloes");
+  const ok = c.acao("salvarFluxo", { fluxo: r, motivo: "desconto à vista", motivoPreco: "aprovado", desconto: "R$ 5.000,00 dos balões" });
+  assert.equal(ok.ok, true, JSON.stringify(ok));
+  const g = JSON.parse(c.txt("FLUXO PERSONALIZADO"));
+  assert.equal(g.valor, 300000);
+  assert.equal(g.semComissao, undefined);
+  assert.equal(c.acao("fluxoEditar").historico.at(-1).desconto, "R$ 5.000,00 dos balões");
+  const pre = c.acao("gerarPreContrato");
+  assert.equal(pre.ok, true, JSON.stringify(pre));
+});
+
+test("30/10 isenção da comissão: travada até FLUXO_ISENCAO_LIBERADA; liberada, salva semComissao e o contrato só sai com o bloco no modelo", () => {
+  const c = cenarioFluxo({ props: { FLUXO_PRECO_USUARIOS: "ana.teste" } });
+  const e = c.acao("fluxoEditar");
+  const com = e.desconto.comissao.valor;
+  const r = FluxoLivre.aplicarDesconto(e.atual, com, "entrada");
+  const isento = { ...r, semComissao: true };
+  const p = { fluxo: isento, motivo: "venda direta a fornecedor", motivoPreco: "isenção da comissão" };
+  assert.equal(c.acao("salvarFluxo", p).erro, "FLUXO_ISENCAO_AGUARDANDO_MODELO");
+  assert.equal(c.txt("FLUXO PERSONALIZADO"), "", "nada gravado");
+  const sem = cenarioFluxo({ props: { FLUXO_ISENCAO_LIBERADA: "1" } });
+  assert.equal(sem.acao("salvarFluxo", p).erro, "FLUXO_PRECO_SEM_PERMISSAO", "isenção só para quem muda o preço");
+  const lib = cenarioFluxo({ props: { FLUXO_PRECO_USUARIOS: "ana.teste", FLUXO_ISENCAO_LIBERADA: "1" } });
+  const ok = lib.acao("salvarFluxo", p);
+  assert.equal(ok.ok, true, JSON.stringify(ok));
+  assert.equal(JSON.parse(lib.txt("FLUXO PERSONALIZADO")).semComissao, true);
+  assert.equal(lib.acao("fluxoEditar").atual.semComissao, true);
+  assert.equal(lib.acao("fluxoEditar").desconto.comissao.valor, 0);
+  /* o modelo de hoje não tem {{#SEM_COMISSAO}}: o contrato não sai com a comissão errada */
+  assert.equal(lib.acao("gerarPreContrato").erro, "MODELO_SEM_BLOCO_SEM_COMISSAO");
+});

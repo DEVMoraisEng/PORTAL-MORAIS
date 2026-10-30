@@ -751,6 +751,13 @@ function ctrGerarPdf_(prep, pid, rot, grifar) {
   try {
     copia = prep.modelo.makeCopy("contrato-provisorio-" + pid + "-" + Date.now(), prep.pasta);
     var doc = DocumentApp.openById(copia.getId());
+    /* 30/10: venda direta (desconto "isentar a comissão" no Alterar fluxo) só sai com o modelo que já tem o bloco
+       {{#SEM_COMISSAO}} — sem ele o contrato sairia com o item 5 do corretor e a comissão na conta */
+    if (prep.blocos && prep.blocos.SEM_COMISSAO && doc.getBody().getText().indexOf("{{#SEM_COMISSAO}}") < 0) {
+      ctrLog_(rot + " " + pid + " venda sem comissão e o modelo não tem o bloco SEM_COMISSAO");
+      doc.saveAndClose();
+      return { resp: { ok: false, erro: "MODELO_SEM_BLOCO_SEM_COMISSAO" } };
+    }
     aplicarBlocos_(doc.getBody(), prep.blocos);
     ctrParagrafosVazios_(doc.getBody(), prep.marcadores);
     ctrExpandirParagrafos_(doc.getBody(), prep.marcadores, grifar);

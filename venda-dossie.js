@@ -393,6 +393,9 @@
     FLUXO_CONTRATO_ASSINADO: "O contrato já foi assinado — mudar o fluxo agora exige aditivo.",
     FLUXO_ASSINATURA_ABERTA: "O contrato está na Clicksign esperando assinatura — cancele o envelope antes de alterar o fluxo.",
     FLUXO_JA_E_O_DA_PROPOSTA: "O fluxo desta venda já é o da proposta.",
+    /* 30/10: desconto "isentar a comissão" (venda direta) */
+    FLUXO_ISENCAO_AGUARDANDO_MODELO: "Isentar a comissão ainda não está liberado: o contrato do advogado não tem o texto de venda sem corretor. Use desconto em R$ ou %.",
+    MODELO_SEM_BLOCO_SEM_COMISSAO: "Esta venda é sem comissão (venda direta), mas o modelo do contrato ainda não tem esse texto — o contrato não foi gerado. Avise o desenvolvedor.",
     FLUXO_PRECO_SEM_PERMISSAO: "Só Julio Cesar ou João Vitor podem mudar o valor da casa."
   };
   /* Nunca inclui nomes de marcador do modelo (resposta.marcadores): esses vão só para o console.
@@ -657,12 +660,13 @@
       (dis || (ed.podePreco ? "" : " disabled")) + ' style="width:9em;text-align:right"></label>' +
       (ed.podePreco ? "" : ' <span class="dz-nota">só Julio Cesar ou João Vitor mudam o valor da casa</span>') +
       (ed.entrega ? ' <span class="dz-nota">entrega das chaves: ' + esc(F.dataBR(ed.entrega)) + "</span>" : "") + "</div>";
+    h += htmlFluxoDesconto(ed, dis);
     h += '<div class="vb-fx-tab" style="overflow-x:auto"><table class="tbl-fx" style="border-collapse:collapse;width:100%;font-size:.9em">' +
-      "<thead><tr><th>Tipo</th><th>Valor de cada (R$)</th><th>Qtde</th><th>1ª data</th><th>A cada (meses)</th><th>Descrição</th><th>Total</th><th></th></tr></thead><tbody>";
+      "<thead><tr><th>Tipo</th><th>↻</th><th>Valor de cada (R$)</th><th>Qtde</th><th>1ª data</th><th>A cada (meses)</th><th>Descrição</th><th>Total</th><th></th></tr></thead><tbody>";
     ed.linhas.forEach(function (l, k) {
       var tp = F.TIPOS[l.t] || { reajuste: "" };
       if (tp.fixo) {
-        h += '<tr data-fx-linha="' + k + '"><td><b>' + esc(tp.nome) + '</b><div class="dz-nota">não muda (da proposta)</div></td>' +
+        h += '<tr data-fx-linha="' + k + '"><td><b>' + esc(tp.nome) + '</b><div class="dz-nota">não muda (da proposta)</div></td><td></td>' +
           '<td style="text-align:right">' + esc(numBR(l.v)) + "</td><td>" + esc(l.n) + "</td><td>" + esc(l.d ? F.dataBR(l.d) : "—") + "</td><td></td><td></td>" +
           '<td class="vb-fx-tot" data-k="' + k + '" style="white-space:nowrap;text-align:right">' + esc(F.moeda(F.totalLinha(l))) + "</td><td></td></tr>";
         return;
@@ -670,6 +674,9 @@
       h += '<tr data-fx-linha="' + k + '"><td><select data-fx="t" data-k="' + k + '"' + dis + ">" +
         ops.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === l.t ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") +
         '</select><div class="dz-nota">' + (tp.reajuste ? "reajuste " + esc(tp.reajuste) : "sem correção") + "</div></td>" +
+        /* 30/10 (arquivo 17, item 2): o Redistribuir virou ícone, entre o tipo e o valor */
+        '<td><button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-red" data-k="' + k + '"' + dis +
+        ' title="Redistribuir: joga a diferença inteira nesta linha" aria-label="Redistribuir a diferença nesta linha">↻</button></td>' +
         '<td><input type="text" inputmode="decimal" data-fx="v" data-k="' + k + '" value="' + esc(numBR(l.v)) + '"' + dis + ' style="width:7.5em;text-align:right">' +
         (l.u && l.n > 1 ? '<div class="dz-nota">última: ' + esc(numBR(l.u)) + "</div>" : "") + "</td>" +
         '<td><input type="number" min="1" data-fx="n" data-k="' + k + '" value="' + esc(l.n) + '"' + dis + ' style="width:4.5em"></td>' +
@@ -678,7 +685,7 @@
         '<td><input type="text" maxlength="120" data-fx="x" data-k="' + k + '" value="' + esc(l.x || "") + '"' + dis +
         ' placeholder="' + (l.t === "permuta" ? "veículo marca/modelo/ano/placa" : "opcional") + '" style="min-width:10em"></td>' +
         '<td class="vb-fx-tot" data-k="' + k + '" style="white-space:nowrap;text-align:right">' + esc(F.moeda(F.totalLinha(l))) + "</td>" +
-        '<td style="white-space:nowrap"><button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-red" data-k="' + k + '"' + dis + ' title="Joga a diferença inteira nesta linha">Redistribuir</button> ' +
+        '<td style="white-space:nowrap">' +
         '<button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-del" data-k="' + k + '"' + dis + ' aria-label="Apagar linha">✕</button></td></tr>';
     });
     h += "</tbody></table></div>";
@@ -696,10 +703,39 @@
       h += '<details class="dz-linha"><summary>Alterações do fluxo (' + ed.historico.length + ")</summary><ul>" +
         ed.historico.slice().reverse().map(function (x) {
           return "<li>" + esc(dataHoraBR(x.em) || "") + " — " + esc(x.por || "?") + ": " + esc(x.voltou ? "voltou ao fluxo da proposta. " : "") + esc(x.motivo || "") +
-            (x.motivoPreco ? " (valor da casa: " + esc(x.motivoPreco) + ")" : "") + "</li>";
+            (x.motivoPreco ? " (valor da casa: " + esc(x.motivoPreco) + ")" : "") + (x.desconto ? " — desconto: " + esc(x.desconto) : "") + "</li>";
         }).join("") + "</ul></details>";
     }
     return h;
+  }
+  /* 30/10 (arquivo 17, item 1): desconto — só quem muda o valor da casa (ed.desconto vem do servidor só para eles).
+     ed.dsc = { modo: rs | pct | isentar, valor (texto digitado), de: entrada | baloes | pre } */
+  var DSC_DE = [["entrada", "proporcional na entrada"], ["baloes", "dos balões primeiro (do último para o primeiro), depois as pré-chaves"],
+                ["pre", "das parcelas pré-chaves"]];
+  function htmlFluxoDesconto(ed, dis) {
+    if (!ed.podePreco || !ed.desconto) return "";
+    var F = FL(), d = ed.dsc || {}, modo = d.modo || "rs", lib = !!ed.desconto.isencaoLiberada, com = ed.desconto.comissao || {};
+    var h = '<div class="dz-linha vb-fx-dsc" style="display:flex;flex-wrap:wrap;gap:6px 10px;align-items:flex-end;padding:6px 8px;border:1px dashed rgba(127,127,127,.5);border-radius:6px">' +
+      '<b style="align-self:center">Desconto</b><label class="dz-campo">Como <select data-fx="dmodo" style="width:auto;max-width:100%"' + dis + ">" +
+      [["rs", "em R$"], ["pct", "em %"], ["isentar", "isentar a comissão" + (lib ? "" : " (aguardando o contrato)")]].map(function (o) {
+        return '<option value="' + o[0] + '"' + (o[0] === modo ? " selected" : "") + ">" + esc(o[1]) + "</option>";
+      }).join("") + "</select></label>";
+    if (modo !== "isentar")
+      h += '<label class="dz-campo">' + (modo === "pct" ? "Percentual (%)" : "Valor (R$)") + ' <input type="text" inputmode="decimal" data-fx="dvalor" value="' +
+        esc(d.valor || "") + '"' + dis + ' style="width:7em;text-align:right"></label>';
+    else h += '<span class="dz-nota" style="align-self:center">desconto = a comissão de hoje (' + esc(F.moeda(com.valor || 0)) + "); venda direta, sem corretor</span>";
+    h += '<label class="dz-campo">De onde sai <select data-fx="dde" style="width:auto;max-width:100%"' + dis + ">" +
+      DSC_DE.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === (d.de || "entrada") ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") +
+      '</select></label><button type="button" class="bt bt-mini" data-acao="c-fluxo-desconto"' + dis + ">Aplicar desconto</button>";
+    if (modo === "isentar" && !lib) h += '<div class="dz-msg" style="flex-basis:100%">' + esc(MSG_CONTRATO.FLUXO_ISENCAO_AGUARDANDO_MODELO) + "</div>";
+    h += '<div class="dz-nota" style="flex-basis:100%">Sinal, financiamento e FGTS não mudam. ' +
+      (ed.semComissao ? "<b>Venda direta: sem comissão.</b>" : "Em R$ ou %, a comissão é recalculada pela regra do prazo sobre o valor novo.") + "</div>";
+    return h + "</div>";
+  }
+  /* o desconto da tela em R$: { valor } ou { erro } */
+  function descontoDaTela(ed) {
+    var d = ed.dsc || {};
+    return FL().valorDoDesconto(ed.valor, { modo: d.modo || "rs", valor: lerNumBR(d.valor), comissao: ((ed.desconto || {}).comissao || {}).valor });
   }
   /* placar + o que falta + Salvar: redesenhado a cada tecla sem mexer na tabela (não perde o foco) */
   function htmlFluxoVivo(ed, dis) {
@@ -710,7 +746,11 @@
     var h = '<div class="vb-fx-placar" style="display:flex;flex-wrap:wrap;gap:4px 18px;margin:6px 0;padding:6px 10px;border-radius:6px;' +
       (bate ? "background:rgba(29,107,67,.14)" : "background:rgba(163,39,31,.14)") + '">' +
       "<span>Valor da casa: <b>" + esc(F.moeda(ed.valor)) + "</b></span><span>Soma do fluxo: <b>" + esc(F.moeda(soma)) + "</b></span>" +
-      "<span>" + (bate ? "Diferença: <b>R$ 0,00 ✓</b>" : (dif > 0 ? "Faltam" : "Sobram") + ": <b>" + esc(F.moeda(Math.abs(dif))) + "</b>") + "</span></div>";
+      "<span>" + (bate ? "Diferença: <b>R$ 0,00 ✓</b>" : (dif > 0 ? "Faltam" : "Sobram") + ": <b>" + esc(F.moeda(Math.abs(dif))) + "</b>") + "</span>" +
+      /* 30/10: a comissão que vai sair (sem comissão na isenção; pela regra do prazo sobre o valor novo no desconto) */
+      (ed.semComissao ? "<span>Comissão: <b>sem comissão (venda direta)</b></span>"
+        : mudouPreco && ed.desconto && ed.desconto.comissao && ed.desconto.comissao.pct
+          ? "<span>Comissão pela regra: <b>" + esc(F.moeda(Math.round(ed.valor * ed.desconto.comissao.pct * 100) / 100)) + "</b></span>" : "") + "</div>";
     var faltas = r.erros.filter(function (x) { return !/^(Faltam|Sobram) /.test(x); });
     if (!motivoOk) faltas.push("Falta o motivo" + (mudouPreco ? " (e o motivo da mudança no valor da casa)" : ""));
     if (faltas.length) h += '<ul class="dz-msg">' + faltas.slice(0, 6).map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>";
@@ -858,7 +898,7 @@
                    resumo: resumo, escala: escala, tipoAceito: tipoAceito, painelCarregando: painelCarregando,
                    htmlContrato: htmlContrato, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, mensagemMC: mensagemMC,
                    topicosMC: topicosMC, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas,
-                   htmlCampos: htmlCampos, htmlConta: htmlConta, htmlFluxo: htmlFluxo, htmlFluxoVivo: htmlFluxoVivo, lerNumBR: lerNumBR, contaDoEstado: contaDoEstado, pedidoCampos: pedidoCampos,
+                   htmlCampos: htmlCampos, htmlConta: htmlConta, htmlFluxo: htmlFluxo, htmlFluxoVivo: htmlFluxoVivo, htmlFluxoDesconto: htmlFluxoDesconto, lerNumBR: lerNumBR, contaDoEstado: contaDoEstado, pedidoCampos: pedidoCampos,
                    contaDasEntradas: contaDasEntradas, faltasDaResposta: faltasDaResposta };
   if (typeof module !== "undefined" && module.exports) { module.exports = exportar; return; }
 
@@ -1795,6 +1835,23 @@
     }
     /* 29/10: Alterar fluxo — abrir (lê do servidor), editar na tela, salvar ou voltar ao fluxo da proposta */
     function copiaLinhas(ls) { return (ls || []).map(function (l) { var x = { t: l.t, v: l.v, n: l.n, d: l.d, i: l.i || 1, x: l.x || "" }; if (l.u) x.u = l.u; return x; }); }
+    /* 30/10: o desconto sai das linhas escolhidas e o valor da casa cai o mesmo tanto (a soma continua fechando) */
+    function aplicarDescontoTela(ed) {
+      var dsc = ed.dsc || {}, isentar = dsc.modo === "isentar";
+      if (isentar && !(ed.desconto && ed.desconto.isencaoLiberada)) { uiC.msg = MSG_CONTRATO.FLUXO_ISENCAO_AGUARDANDO_MODELO; return; }
+      if (isentar && ed.semComissao) { uiC.msg = "A comissão desta venda já foi isentada."; return; }
+      var vd = descontoDaTela(ed);
+      var ap = vd.erro ? vd : FL().aplicarDesconto({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, vd.valor, dsc.de || "entrada");
+      if (ap.erro) { uiC.msg = ap.erro; return; }
+      ed.linhas = ap.linhas; ed.valor = ap.valor;
+      if (isentar) ed.semComissao = true;
+      var de = { entrada: "proporcional na entrada", baloes: "dos balões", pre: "das pré-chaves" }[dsc.de || "entrada"];
+      var resumo = (isentar ? "isenção da comissão, " : dsc.modo === "pct" ? String(lerNumBR(dsc.valor)).replace(".", ",") + "% = " : "") + FL().moeda(vd.valor) + " " + de;
+      ed.descontos = (ed.descontos || []).concat([resumo]);
+      if (!String(ed.motivoPreco || "").trim()) ed.motivoPreco = "Desconto: " + resumo;
+      ed.dsc = { modo: "rs", valor: "", de: dsc.de || "entrada" };
+      uiC.msg = "Desconto aplicado: " + resumo + ". Confira as linhas e salve.";
+    }
     async function aoClicarFluxo(acao, b) {
       var ed = uiC.fluxoEd, k = Number(b.getAttribute("data-k"));
       if (acao === "c-fluxo-abrir") {
@@ -1804,7 +1861,8 @@
         uiC.ocupadoContrato = null;
         if (r.ok) uiC.fluxoEd = { valor: r.atual.valor, valorOriginal: r.padrao.valor, entrega: r.atual.entrega || r.padrao.entrega,
                                   linhas: copiaLinhas(r.atual.linhas), padrao: r.padrao, historico: r.historico || [], alterado: !!r.alterado,
-                                  podePreco: !!r.podePreco,
+                                  podePreco: !!r.podePreco, desconto: r.desconto || null, semComissao: !!r.atual.semComissao,
+                                  dsc: { modo: "rs", valor: "", de: "entrada" }, descontos: [],
                                   motivo: "", motivoPreco: "" };
         else uiC.msg = mensagemContrato(r);
         pintar();
@@ -1814,7 +1872,8 @@
       if (acao === "c-fluxo-fechar") { uiC.fluxoEd = null; pintar(); return; }
       if (acao === "c-fluxo-add") { ed.linhas.push({ t: "balao", v: 0, n: 1, d: "", i: 1, x: "" }); pintar(); return; }
       if (acao === "c-fluxo-del") { if (!(FL().TIPOS[(ed.linhas[k] || {}).t] || {}).fixo) ed.linhas.splice(k, 1); pintar(); return; }
-      if (acao === "c-fluxo-padrao") { ed.linhas = copiaLinhas(ed.padrao.linhas); ed.valor = ed.padrao.valor; pintar(); return; }
+      if (acao === "c-fluxo-padrao") { ed.linhas = copiaLinhas(ed.padrao.linhas); ed.valor = ed.padrao.valor; ed.semComissao = false; ed.descontos = []; pintar(); return; }
+      if (acao === "c-fluxo-desconto") { aplicarDescontoTela(ed); pintar(); return; }
       if (acao === "c-fluxo-red") {
         if ((FL().TIPOS[(ed.linhas[k] || {}).t] || {}).fixo) return;
         var rd = FL().redistribuir({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, k);
@@ -1829,7 +1888,8 @@
                                  : "Salvar este fluxo? O pré-contrato precisa ser gerado de novo e fica registrado quem alterou e o motivo.")) return;
       uiC.ocupadoContrato = "fluxo-salvar"; pintar();
       var rs = await chamarVenda(voltar ? { action: "salvarFluxo", pageId: pageId, voltar: true, motivo: ed.motivo }
-        : { action: "salvarFluxo", pageId: pageId, fluxo: { valor: ed.valor, linhas: ed.linhas }, motivo: ed.motivo, motivoPreco: ed.motivoPreco || "" });
+        : { action: "salvarFluxo", pageId: pageId, fluxo: ed.semComissao ? { valor: ed.valor, linhas: ed.linhas, semComissao: true } : { valor: ed.valor, linhas: ed.linhas },
+            motivo: ed.motivo, motivoPreco: ed.motivoPreco || "", desconto: (ed.descontos || []).join("; ") });
       if (!vivo()) return;
       uiC.ocupadoContrato = null;
       if (rs.ok) {
@@ -1846,6 +1906,7 @@
       if (!ed || !campo) return;
       if (campo === "valor") ed.valor = lerNumBR(alvo.value);
       else if (campo === "motivo" || campo === "motivoPreco") ed[campo] = alvo.value;
+      else if (campo === "dmodo" || campo === "dvalor" || campo === "dde") { ed.dsc = ed.dsc || {}; ed.dsc[{ dmodo: "modo", dvalor: "valor", dde: "de" }[campo]] = alvo.value; return; }
       else {
         var l = ed.linhas[Number(alvo.getAttribute("data-k"))];
         if (!l) return;
@@ -1969,7 +2030,8 @@
           if (raiz !== el) return;
           if (ev.target.getAttribute("data-pr-c") === "forma") { guardarContaPR(); pintarP(); return; }
           var fx = ev.target.getAttribute("data-fx");
-          if (fx === "t") { aoDigitarFluxo(ev.target); if (uiC.fluxoEd) pintar(); return; }   /* o tipo muda o reajuste mostrado */
+          if (fx === "t" || fx === "dmodo") { aoDigitarFluxo(ev.target); if (uiC.fluxoEd) pintar(); return; }   /* o tipo muda o reajuste mostrado; o modo do desconto, os campos */
+          if (fx === "dde") { aoDigitarFluxo(ev.target); return; }
           if (fx === "v" || fx === "valor") {
             /* sai formatado ao sair do campo — sem repintar: repintar no blur engoliria o clique num botão */
             aoDigitarFluxo(ev.target);
