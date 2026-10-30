@@ -14,6 +14,23 @@ function fluxoPodePreco_(sess) {
   return !!u && String(prop_("FLUXO_PRECO_USUARIOS") || "").toLowerCase().split(/[\s,;]+/).indexOf(u) >= 0;
 }
 
+/* 30/10 (arquivo 17, item 1): desconto "isentar a comissão" = venda direta, comissão zero. O modelo do advogado ainda
+   não tem o texto "sem comissão" (4.1.2 e item 5) — até ele ter, a Propriedade FLUXO_ISENCAO_LIBERADA fica vazia e a
+   isenção não salva. Ligar ("1") só depois do modelo com os blocos {{#SEM_COMISSAO}}/{{#COM_COMISSAO}} e do robô do
+   Mais Controle lendo "semComissao" (a geração do contrato também confere o bloco no modelo, GerarContrato.gs). */
+function fluxoIsencaoLiberada_() { return String(prop_("FLUXO_ISENCAO_LIBERADA") || "").trim() === "1"; }
+/* a comissão de hoje (a da linha, ou pela regra do prazo; com o fluxo alterado, sobre o valor dele) e o % da regra */
+function fluxoComissao_(pg, pers) {
+  try {
+    var cond = ctrDadosCondominio_(ctrPorChave_(pg.properties)).condominio;
+    cond.valorParaEntrada = ctrValorParaEntrada_(cond.idProposta);
+    var co = ContratoVenda.montarCondominio(cond);
+    if (pers) co.livre = pers;
+    var va = ContratoVenda.valoresCondominio(co);
+    return { valor: pers && pers.semComissao ? 0 : (va.comissao || 0), pct: va.pctRegra };
+  } catch (e) { ctrErro_("fluxoComissao", e); return { valor: 0, pct: null }; }
+}
+
 function fluxoColunaReal_(pg) {
   var k = RegrasVenda.chave(FLUXO_COL);
   for (var n in pg.properties) if (RegrasVenda.chave(n) === k) return n;
@@ -53,10 +70,14 @@ function fluxoEditar_(col, sess, p) {
   if (!fluxoColunaReal_(pg)) return { ok: false, erro: "COLUNA_FALTANDO", coluna: FLUXO_COL };
   var padrao = fluxoPadrao_(pg), pers = FluxoLivre.ler(fluxoTextoDaLinha_(pg));
   var atual = pers ? { valor: pers.valor, entrega: padrao.entrega, linhas: pers.linhas } : padrao;
-  return { ok: true, atual: atual, padrao: padrao, alterado: !!pers, trava: fluxoTrava_(pg), podePreco: fluxoPodePreco_(sess),
+  if (pers && pers.semComissao) atual.semComissao = true;
+  var pode = fluxoPodePreco_(sess);
+  return { ok: true, atual: atual, padrao: padrao, alterado: !!pers, trava: fluxoTrava_(pg), podePreco: pode,
+           /* 30/10: desconto (só quem muda o valor da casa) — a comissão de hoje e se a isenção já vale */
+           desconto: pode ? { comissao: fluxoComissao_(pg, pers), isencaoLiberada: fluxoIsencaoLiberada_() } : null,
            historico: fluxoHist_(p.pageId).map(function (h) {
              return { por: ctrTxt_(h.por), em: ctrTxt_(h.em), motivo: ctrTxt_(h.motivo), motivoPreco: ctrTxt_(h.motivoPreco),
-                      valor: h.valor, voltou: !!h.voltou };
+                      valor: h.valor, voltou: !!h.voltou, desconto: ctrTxt_(h.desconto) };
            }) };
 }
 /* O fluxo do simulador como lista (com o excedente do VALOR PARA ENTRADA, como o contrato faz). */
@@ -90,6 +111,9 @@ function salvarFluxo_(col, sess, p) {
     if (mudouPreco && !fluxoPodePreco_(sess)) return { ok: false, erro: "FLUXO_PRECO_SEM_PERMISSAO" };
     if (mudouPreco && !motivoPreco)
       return { ok: false, erro: "CAMPOS_INVALIDOS", erros: ["Motivo da mudança no valor da casa (" + FluxoLivre.moeda(padrao.valor) + " → " + FluxoLivre.moeda(f.valor) + ")"] };
+    /* 30/10: isenção da comissão — só quem muda o valor da casa, e só depois do modelo do contrato pronto */
+    if (f.semComissao && !fluxoPodePreco_(sess)) return { ok: false, erro: "FLUXO_PRECO_SEM_PERMISSAO" };
+    if (f.semComissao && !(antes && antes.semComissao) && !fluxoIsencaoLiberada_()) return { ok: false, erro: "FLUXO_ISENCAO_AGUARDANDO_MODELO" };
     texto = FluxoLivre.serializar(f);
     valor = f.valor;
   } else if (!antes) {
@@ -102,6 +126,9 @@ function salvarFluxo_(col, sess, p) {
   var hist = fluxoHist_(p.pageId), item = { por: ctrTxt_(sess && sess.u), em: new Date().toISOString(), motivo: motivo, valor: valor,
                                              antes: antes ? FluxoLivre.serializar(antes) : "" };
   if (motivoPreco && !p.voltar) item.motivoPreco = motivoPreco;
+  var desc = String(p.desconto || "").replace(/\s+/g, " ").trim().slice(0, 200);   /* 30/10: resumo do desconto dado na tela */
+  if (desc && !p.voltar) item.desconto = desc;
+  if (texto && FluxoLivre.ler(texto).semComissao) item.semComissao = true;
   if (p.voltar) item.voltou = true;
   hist.push(item);
   while (hist.length > 2 && JSON.stringify(hist).length > FLUXO_HIST_MAX) hist.splice(1, 1);
