@@ -142,7 +142,8 @@
     if (!c.contratoGerado) h += '<div class="dz-aviso">Gere o ' + (termo ? "termo" : "contrato") + ' antes de enviar para assinatura.</div>';
     if (e.envelope) {
       h += '<div class="dz-linha"><span class="dz-rot">Situação: ' + esc(SITUACAO[sit] || sit || "sem situação gravada") + "</span></div>";
-      var sigs = e.signatarios || [];
+      /* 30/10 (dono): envelope cancelado ou vencido não mostra mais quem está "pendente" — ninguém vai assinar */
+      var sigs = (sit === "CANCELADO" || sit === "EXPIRADO") ? [] : (e.signatarios || []);
       if (sigs.length) {
         h += '<ul class="ass-lista">' + sigs.map(function (s) {
           var st = sitSignatario(s), rot = ROTULO_SIG[st] || ROTULO_SIG.pendente, d = dataCurta(s.data);

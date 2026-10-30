@@ -310,3 +310,12 @@ test("29/10 Cancelar envelope: só com ENVIADO; confirma, chama assinaturaCancel
     chamar: async (x) => { chamadas.push(x); return { ok: false, erro: "ENVELOPE_NAO_ATIVO" }; } });
   assert.match(termo.msg, /não está mais aguardando/);
 });
+
+test("30/10: envelope cancelado ou vencido não lista mais os signatários pendentes", () => {
+  const sig = [{ papel: "Comprador 1", nome: "Fulano Teste", situacao: "pendente" }];
+  for (const situacao of ["CANCELADO", "EXPIRADO"]) {
+    const h = A.montarBlocoAssinatura(ctx({ estado: { situacao, envelope: true, signatarios: sig } }));
+    assert.doesNotMatch(h, /ass-lista/, situacao);
+  }
+  assert.match(A.montarBlocoAssinatura(ctx({ estado: { situacao: "ENVIADO", envelope: true, signatarios: sig } })), /ass-lista/);
+});
