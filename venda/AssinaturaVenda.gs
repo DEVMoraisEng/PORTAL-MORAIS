@@ -511,7 +511,7 @@ function assinaturaEstado_(col, p) {
     assLog_("estado " + pid + " falhou no passo " + e.passo + " http " + e.http);
     return { ok: false, erro: "CLICKSIGN_FALHOU", passo: e.passo, http: e.http, detalhe: e.detalhe };
   }
-  try { sit = ClicksignVenda.situacao(env.status, eventos); }
+  try { sit = ClicksignVenda.situacao(ClicksignVenda.statusEfetivo(env.status, docs), eventos); }
   catch (e) { assLog_("estado " + pid + " status desconhecido"); return { ok: false, erro: String(e.message) }; }
 
   var semArquivo = !(ctrValor_(pg.properties[cols.ASSINADO]) || []).length;
@@ -636,9 +636,14 @@ function assinaturaCancelar_(col, sess, p) {
       var base = "/envelopes/" + encodeURIComponent(envId);
       try {
         var env = csPasso_("consultar envelope", "get", base);
-        if (env.status !== "running")
-          r = { ok: false, erro: "ENVELOPE_NAO_ATIVO", situacao: env.status === "draft" ? S.RASCUNHO : (env.status === "closed" ? S.ASSINADO : S.CANCELADO) };
-        else csPasso_("cancelar", "patch", base, ClicksignVenda.corpoCancelar(envId));
+        var docsEnv = env.status === "running" ? (csPasso_("consultar documento", "get", base + "/documents").data || []) : [];
+        var st = ClicksignVenda.statusEfetivo(env.status, docsEnv);
+        if (st !== "running")
+          r = { ok: false, erro: "ENVELOPE_NAO_ATIVO", situacao: st === "draft" ? S.RASCUNHO : (st === "closed" ? S.ASSINADO : S.CANCELADO) };
+        else docsEnv.forEach(function (dc) {
+          if (dc && dc.attributes && dc.attributes.status === "running")
+            csPasso_("cancelar", "patch", base + "/documents/" + encodeURIComponent(dc.id), ClicksignVenda.corpoCancelarDocumento(dc.id));
+        });
       } catch (e) {
         if (e.message !== "CLICKSIGN_FALHOU") throw e;
         r = { ok: false, erro: "CLICKSIGN_FALHOU", passo: e.passo, http: e.http, detalhe: e.detalhe };

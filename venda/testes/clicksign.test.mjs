@@ -348,3 +348,12 @@ test("30/10: cônjuge de fiador de outra família assina só os termos; venda di
   assert.ok(!CS.signatarios(direta, cfg).some((s) => s.origem === "corretor"));
   assert.ok(!CS.faltasAssinatura(Object.assign(direta, { corretor: null }), cfg).some((f) => /^Corretor/.test(f)));
 });
+
+test("30/10: cancelar é por documento; envelope running com tudo cancelado conta como canceled", () => {
+  assert.deepEqual(CS.corpoCancelarDocumento("doc-9"), { data: { id: "doc-9", type: "documents", attributes: { status: "canceled" } } });
+  const d = (s) => ({ attributes: { status: s } });
+  assert.equal(CS.statusEfetivo("running", [d("canceled"), d("canceled")]), "canceled");
+  assert.equal(CS.statusEfetivo("running", [d("canceled"), d("running")]), "running");
+  assert.equal(CS.statusEfetivo("running", []), "running");
+  assert.equal(CS.statusEfetivo("closed", [d("closed")]), "closed");
+});

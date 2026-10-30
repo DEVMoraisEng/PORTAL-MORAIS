@@ -253,7 +253,18 @@ export function clicksignFalso({ base = "https://sandbox.clicksign.com", falhar 
       return ok(201, s);
     }
     if (metodo === "POST" && resto === "/requirements") return ok(201, { id: "req-" + (++seq), type: "requirements", attributes: corpo.data.attributes });
-    if (metodo === "PATCH" && resto === "") { estado.status = corpo.data.attributes.status; return ok(200, { id: "env-1", type: "envelopes", attributes: { status: estado.status } }); }
+    /* como a API v3 de verdade (30/10): o PATCH do envelope só aceita draft/running; cancelar é por documento */
+    if (metodo === "PATCH" && resto === "") {
+      if (["draft", "running"].indexOf(corpo.data.attributes.status) < 0) return erro(400, "status deve estar em: draft, running");
+      estado.status = corpo.data.attributes.status; return ok(200, { id: "env-1", type: "envelopes", attributes: { status: estado.status } });
+    }
+    if (metodo === "PATCH" && /^\/documents\/doc-\d+$/.test(resto)) {
+      const id = resto.slice("/documents/".length);
+      estado.cancelados = estado.cancelados || {};
+      if (estado.status !== "running" || estado.cancelados[id]) return erro(422, "status - documento não pode ser cancelado");
+      estado.cancelados[id] = true;
+      return ok(200, { id: id, type: "documents", attributes: { status: "canceled" } });
+    }
     if (metodo === "POST" && resto === "/notifications") return ok(201, { id: "not-1", type: "notifications", attributes: { summary: [] } });
     if (metodo === "GET" && resto === "") return ok(200, { id: "env-1", type: "envelopes", attributes: { status: estado.status } });
     if (metodo === "GET" && resto === "/documents") {
@@ -261,7 +272,7 @@ export function clicksignFalso({ base = "https://sandbox.clicksign.com", falhar 
       return ok(200, docs.map((d, i) => ({ id: d.id, type: "documents",
         links: { files: i === 0 ? (arquivos || { original: "https://s3.clicksign.falso/original.pdf" })
                                 : (arquivos && arquivos.signed ? { signed: arquivos.signed.replace(/\.pdf$/, "-" + d.id + ".pdf") } : { original: "https://s3.clicksign.falso/original.pdf" }) },
-        attributes: { status: estado.status, filename: d.filename } })));
+        attributes: { status: (estado.cancelados && estado.cancelados[d.id]) ? "canceled" : estado.status, filename: d.filename } })));
     }
     if (metodo === "GET" && /^\/documents\/doc-\d+\/events$/.test(resto)) return ok(200, resto === "/documents/doc-1/events" ? eventos : []);
     if (metodo === "GET" && resto === "/signers") return ok(200, estado.signers);
