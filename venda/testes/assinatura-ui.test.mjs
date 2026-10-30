@@ -178,7 +178,8 @@ test("Enviar confirmado: chama assinaturaEnviar uma vez e mostra a situação no
   const novo = await A.executarAcaoAssinatura("a-enviar", ctx(), {
     pageId: "p1", confirmar: (t) => { perguntas.push(t); return true; },
     chamar: async (x) => { chamadas.push(x); return { ok: true, situacao: "ENVIADO", signatarios: [{ papel: "Comprador 1", assinou: false }] }; } });
-  assert.deepEqual(chamadas, [{ action: "assinaturaEnviar", pageId: "p1" }]);
+  /* 30/10: antes, a tela pede o PDF do contrato para achar as rubricas (aqui a resposta não traz PDF: envia sem) */
+  assert.deepEqual(chamadas, [{ action: "assinaturaPdf", pageId: "p1" }, { action: "assinaturaEnviar", pageId: "p1" }]);
   assert.match(perguntas[0], /Enviar o contrato para assinatura\?/);
   assert.deepEqual(novo.estado, { situacao: "ENVIADO", envelope: true, signatarios: [{ papel: "Comprador 1", assinou: false }], temAssinado: false });
   assert.equal(novo.ocupado, null);

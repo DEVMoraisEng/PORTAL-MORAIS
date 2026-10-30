@@ -331,3 +331,20 @@ test("27/10: falta de e-mail traz o atalho para a tela do portal (repetido apont
   assert.deepEqual(CS.linksCorrigirEmail(["Comprador 2: e-mail (coluna COMPRADOR 2 - E-MAIL)"]).map((l) => l.quem), ["comprador"]);
   assert.deepEqual(CS.linksCorrigirEmail(["Comprador 1: CPF inválido", "Corretor: CRECI"]), []);
 });
+
+test("30/10: cônjuge de fiador de outra família assina só os termos; venda direta sai sem corretor", () => {
+  const cfg = Object.assign(CS.montarConfig(Object.assign({ ASSINATURA_INCLUIR_CORRETOR: "SIM" }, PROPS)), { comFiadores: true });
+  const fiadores = [
+    { nome: "Fiador Um Teste", cpf: "000.000.011-63", email: "f1@teste.example",
+      conjuge: { nome: "Conjuge Um Teste", cpf: "000.000.012-44", email: "c1@teste.example" } },
+    { nome: "Fiador Dois Teste", cpf: "000.000.013-25", email: "f2@teste.example", conjuge: null }];
+  const l = CS.signatarios(dadosPJ({ condominio: { fiadores } }), cfg);
+  const c = l.find((s) => s.origem === "conjugeFiador1");
+  assert.equal(c.papel, "Cônjuge do fiador 1");
+  assert.equal(c.soTermos, true);
+  assert.equal(l.filter((s) => /^conjugeFiador/.test(s.origem)).length, 1);
+  assert.ok(l.some((s) => s.origem === "corretor"));
+  const direta = dadosPJ({ condominio: { fiadores: [], livre: { semComissao: true } } });
+  assert.ok(!CS.signatarios(direta, cfg).some((s) => s.origem === "corretor"));
+  assert.ok(!CS.faltasAssinatura(Object.assign(direta, { corretor: null }), cfg).some((f) => /^Corretor/.test(f)));
+});
