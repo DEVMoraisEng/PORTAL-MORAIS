@@ -78,6 +78,11 @@ html[data-tema="escuro"] .kpi .val{color:var(--teal)}
 .kpi .sub{font-size:11.5px;margin-top:6px;color:var(--text3);line-height:1.35}
 .kpi .sub.meta-ok{color:var(--verde-esc);font-weight:800}
 .kpi .sub.meta-ruim{color:var(--vermelho);font-weight:800}
+/* 30/10 — cortes da aba Propostas: 5 cartões clicáveis que filtram a tabela */
+.kpis.k5{grid-template-columns:repeat(5,1fr);margin-bottom:14px}
+@media(max-width:900px){.kpis.k5{grid-template-columns:repeat(2,1fr)}}
+.kpis.k5 .kpi{cursor:pointer;border-top:4px solid var(--cor,var(--border2))}
+.kpis.k5 .kpi.on{outline:2px solid var(--cor,var(--azul));outline-offset:-2px}
 .carga-portal{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:var(--text3)}
 .carga-portal i{width:14px;height:14px;border:2.5px solid var(--border2);border-top-color:var(--azul);
   border-radius:50%;display:inline-block;animation:girar-p .9s linear infinite}
@@ -625,7 +630,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
           <span style="flex:1"></span>
           <div class="seg" id="seg-prop">
             <button class="seg-bt on" data-ps="" onclick="propSeg('')">Todas</button>
-            <button class="seg-bt" data-ps="RECEBIDA" onclick="propSeg('RECEBIDA')">Recebidas</button>
+            <button class="seg-bt" data-ps="EM ANALISE" onclick="propSeg('EM ANALISE')">Em análise</button>
             <button class="seg-bt" data-ps="RESERVADA" onclick="propSeg('RESERVADA')">Reservadas</button>
             <button class="seg-bt" data-ps="NEGADA" onclick="propSeg('NEGADA')">Negadas</button>
             <button class="seg-bt" data-ps="VENDIDA" onclick="propSeg('VENDIDA')">Vendidas</button>
@@ -636,6 +641,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
             <button class="seg-bt" data-pc="NAO" onclick="propSegCredito('NAO')">Sem carta</button>
           </div>
         </div>
+        <div class="kpis k5" id="prop-cortes"></div>
         <div class="card">
           <div class="filtros">
             <div class="fcampo"><label>Buscar</label>
@@ -2436,13 +2442,14 @@ function propSeloInterno(unidade, p){
   return ' <span title="status interno da unidade'+(p&&!dono?' — marque na proposta certa pelo Status interno':'')+'" style="font-size:10px;font-weight:800;color:'+est[1]+';background:'+est[2]+';border:1px solid '+est[3]+';border-radius:8px;padding:1px 6px">'+est[0]+' (interno)</span>';
 }
 function propRender(){
+  try{ propCortes(); }catch(e){}   // 30/10 — cortes acima da tabela
   const termo=(document.getElementById("prop-busca").value||"").toLowerCase();
   const vis=PROPS.filter(p=>{
     const alvo=`${p.cliente||""} ${p.cpf||""} ${p.unidade||""} ${p.vendedor||""} ${p.imobiliaria||""}`.toLowerCase();
     if(!alvo.includes(termo)) return false;
     if(propFiltroCredito==="SIM" && !p.comCredito) return false;
     if(propFiltroCredito==="NAO" && p.comCredito) return false;
-    return !propFiltro || PROP_NORM(p.status)===propFiltro;
+    return !propFiltro || propNoCorte(p, propFiltro);
   });
   /* r47 (item 4) — ordem pela data de chegada; padrão: mais antiga no topo */
   const tempo = p => new Date(p.criadoEm||0).getTime() || 0;
@@ -2483,6 +2490,45 @@ function propRender(){
       <td>${propTag(p.status)}${venc?' <span style="color:#C0392B;font-weight:700">+24h</span>':''}</td></tr>`;
   }).join("");
   document.getElementById("prop-tab").innerHTML=cab+"<tbody>"+corpo+"</tbody>";
+}
+
+/* ---------- 30/10 — cortes acima da tabela ----------
+ * EM ANÁLISE = proposta ainda sem decisão (RECEBIDA, EM ANÁLISE ou sem status);
+ *              a Decisão só tem Reservar / Negar / Vendida.
+ * PAGOU RESERVA = status interno PAGOU PREFERÊNCIA (pagamento da reserva),
+ *              na própria proposta ou na proposta dona da unidade; sai daqui
+ *              quando vira VENDIDA, NEGADA ou DISTRATO.
+ * Os números contam TODAS as propostas (não dependem da busca nem do crédito);
+ * clicar no cartão filtra a tabela. */
+function propNoCorte(p, f){
+  const st=PROP_NORM(p.status);
+  if(f==="EM ANALISE") return st==="" || st==="RECEBIDA" || st==="EM ANALISE";
+  if(f==="PREF"){
+    if(["VENDIDA","NEGADA","DISTRATO"].includes(st)) return false;
+    if(propSIAtual(p)==="PAGOU PREFERENCIA") return true;
+    try{
+      const u=(UNS||[]).find(x=>String(x.unidade)===String(p.unidade));
+      if(u && PROP_NORM(u.statusInterno||"")==="PAGOU PREFERENCIA"){ const d=propDonoUnidade(p.unidade); return !!d && d.id===p.id; }
+    }catch(e){}
+    return false;
+  }
+  return st===f;
+}
+function propCortes(){
+  const el=document.getElementById("prop-cortes"); if(!el) return;
+  const L=PROPS||[], n=f=>L.filter(p=>propNoCorte(p,f)).length;
+  const cortes=[
+    ["",          "Propostas recebidas", L.length,        "var(--azul)",  "total"],
+    ["EM ANALISE","Em análise",          n("EM ANALISE"), "#B7791F",      "aguardando decisão"],
+    ["NEGADA",    "Negadas",             n("NEGADA"),     "#C0392B",      ""],
+    ["PREF",      "Pagaram a reserva",   n("PREF"),       "#7B4FA0",      "pagou preferência"],
+    ["VENDIDA",   "Vendidas",            n("VENDIDA"),    "#1D7A45",      ""]
+  ];
+  const pct=v=>L.length ? Math.round(v*100/L.length)+"% do total" : "";
+  el.innerHTML=cortes.map(([f,lab,v,cor,sub])=>
+    `<div class="kpi${propFiltro===f?" on":""}" style="--cor:${cor}" title="Clique para filtrar a tabela" onclick="propSeg('${f}')">`+
+    `<div class="lab">${lab}</div><div class="val" style="color:${cor}">${v}</div>`+
+    `<div class="sub">${f?pct(v)+(sub?" · "+sub:""):sub}</div></div>`).join("");
 }
 
 /* ---------- indicadores no painel (item 6) ---------- */
