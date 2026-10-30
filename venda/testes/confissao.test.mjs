@@ -31,9 +31,9 @@ function dados({ fluxo = {}, fiadores = FIADORES } = {}) {
   });
 }
 
-test("quais termos: PRÉ e PÓS com pós-chaves; só PRÉ na entrada em 24x (sem pós-chaves)", () => {
+test("quais termos: PRÉ e PÓS com pós-chaves; nenhum na entrada em 24x — a confissão vai no 4.2.1 (dono, 30/10)", () => {
   assert.deepEqual(T.quais(dados()), ["PRE", "POS"]);
-  assert.deepEqual(T.quais(dados({ fluxo: { posN: 0, posValor: 0 } })), ["PRE"]);
+  assert.deepEqual(T.quais(dados({ fluxo: { posN: 0, posValor: 0 } })), []);
 });
 
 test("totais: pré = séries + balões; pós = parcelas", () => {
@@ -53,7 +53,8 @@ test("faltas: entrada em 24x sem pós-chaves não exige fiador (30/10/2026)", ()
   assert.equal(T.fiadorDispensado(dados({ fluxo: sem })), true);
   assert.equal(T.fiadorDispensado(dados()), false);
   assert.deepEqual(T.faltas(dados({ fluxo: sem, fiadores: [] })), []);
-  assert.deepEqual(T.faltas(dados({ fluxo: sem, fiadores: [{ nome: "FIADOR UM TESTE", cpf: "" }] })), ["Fiador 1 (termo de confissão): CPF"]);
+  // 30/10 à tarde: no 24x não há termo, então nem o fiador informado é conferido
+  assert.deepEqual(T.faltas(dados({ fluxo: sem, fiadores: [{ nome: "FIADOR UM TESTE", cpf: "" }] })), []);
   assert.equal(T.faltas(dados({ fiadores: [] })).length, 4);   // com pós-chaves: os dois continuam obrigatórios
 });
 

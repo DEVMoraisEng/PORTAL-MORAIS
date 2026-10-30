@@ -33,8 +33,11 @@ var ConfissaoVenda = (function () {
   function grupos(d) { return C().gruposFluxo((d && d.condominio) || {}); }
   /* aceita os grupos ou o fluxo das gavetas (os testes antigos passam o fluxo) */
   function comoGrupos(x) { return x && Array.isArray(x.pre) ? x : C().gruposFluxo({ fluxo: x || {} }, 0); }
+  /* 30/10 (dono, parecer do 24x): sem parcela depois das chaves não há termo nenhum — a confissão vai no item 4.2.1 do
+     contrato e o envelope sai sem fiador. Com pós-chaves (36x/48x ou 24x alterado), os dois termos, como antes. */
   function quais(d) {
     var G = grupos(d), out = [];
+    if (totalPos(G) <= 0) return out;
     if (totalPre(G) > 0) out.push("PRE");
     if (totalPos(G) > 0) out.push("POS");
     return out;

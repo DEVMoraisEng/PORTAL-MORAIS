@@ -803,7 +803,8 @@ var ContratoVenda = (function () {
           "%) dá R$ " + moedaBR(pelaRegra));
     }
 
-    co.fiadores.forEach(function (fi, i) {
+    /* 30/10 (dono, parecer do 24x): sem parcela depois das chaves não há fiador — os dados de fiador nem são lidos */
+    if (comPosChaves(co)) co.fiadores.forEach(function (fi, i) {
       var gf = "Fiador " + (i + 1);
       if (vazio(fi.cpf)) faltas.push(gf + ": CPF");
       else if (!R().cpfValido(fi.cpf)) faltas.push(gf + ": CPF inválido");
@@ -1029,10 +1030,17 @@ var ContratoVenda = (function () {
     return m;
   }
 
+  /* 30/10 (dono, parecer do 24x): o plano é "com pós-chaves" quando o fluxo (gavetas ou Alterar fluxo) tem parcela depois das
+     chaves — 36x/48x, ou um 24x alterado. Só com pós-chaves há fiador e Termos de Confissão; sem, a confissão vai no 4.2.1. */
+  function comPosChaves(co) {
+    return !!co && gruposFluxo(co).pos.some(function (s) { return s.n > 0 && positivo(s.v); });
+  }
+
   function blocos(d) {
-    var v = d.vendedor || {}, n = d.negociacao, fis = d.condominio ? d.condominio.fiadores : [];
+    var v = d.vendedor || {}, n = d.negociacao, pos = d.condominio ? comPosChaves(d.condominio) : false;
+    var fis = pos ? d.condominio.fiadores : [];
     var temInterm = n.intermediariaValor !== null && n.intermediariaValor > 0;
-    return {
+    var b = {
       SE_VENDEDOR_PJ: v.tipo === "PJ",
       SE_VENDEDOR_PF: v.tipo === "PF",
       SE_INTERMEDIARIA: temInterm,
@@ -1042,6 +1050,8 @@ var ContratoVenda = (function () {
       TEM_FIADOR1: fis.length > 0,
       TEM_FIADOR2: fis.length > 1
     };
+    if (d.condominio) { b.COM_POS = pos; b.SEM_POS = !pos; }
+    return b;
   }
 
   /* ---- entrega 12: campos abertos na tela do contrato ----
@@ -1281,7 +1291,7 @@ var ContratoVenda = (function () {
     dataBR: dataBR, dataPorExtenso: dataPorExtenso, loteQuadra: loteQuadra,
     escolherModelo: escolherModelo, qualificacao: qualificacao, nomeComprador1: nomeComprador1,
     montarDadosContrato: montarDadosContrato, faltasContrato: faltasContrato,
-    marcadores: marcadores, blocos: blocos, avisosContrato: avisosContrato,
+    marcadores: marcadores, blocos: blocos, comPosChaves: comPosChaves, avisosContrato: avisosContrato,
     formaPagamentoCondominio: formaPagamentoCondominio, qualificacaoFiadores: qualificacaoFiadores,
     comissaoPctPelaRegra: comissaoPctPelaRegra, qualificacaoQuadro: qualificacaoQuadro, valorExtenso: valorExtenso, meioPagamentoCondominio: meioPagamentoCondominio, excedenteSinal: excedenteSinal,
     somaFluxo: function (fl) { return somaFluxo(fluxoCondominio(fl)); }, negritoDaLinha: negritoDaLinha,

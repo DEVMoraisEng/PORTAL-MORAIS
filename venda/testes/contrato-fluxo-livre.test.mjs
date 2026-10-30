@@ -69,3 +69,14 @@ test("termo de confissão: pré sem a entrada à vista nem a permuta; totais pel
   assert.doesNotMatch(C.textoPreChaves(G, true), /pagamento único|permuta/);
   assert.deepEqual(T.quais(d), ["PRE", "POS"]);
 });
+
+test("30/10 (24x sem fiador): sem parcela depois das chaves o plano é SEM_POS; o Alterar fluxo que cria pós-chaves volta a COM_POS", () => {
+  const sem = { ...co, livre: { ...livre, linhas: livre.linhas.map((l) => (l.t === "pos" ? { ...l, t: "pre", d: "2028-01-10", n: 1, v: 16800 } : l)) } };
+  assert.equal(C.comPosChaves(co), true);
+  assert.equal(C.comPosChaves(sem), false);
+  const d = (c) => ({ vendedor: { tipo: "PJ" }, negociacao: { intermediariaValor: null }, comissao: {}, condominio: { ...c, fiadores: [{ nome: "FIADOR TESTE" }] } });
+  assert.deepEqual([C.blocos(d(sem)).SEM_POS, C.blocos(d(sem)).COM_POS, C.blocos(d(sem)).TEM_FIADORES], [true, false, false]);
+  assert.deepEqual([C.blocos(d(co)).SEM_POS, C.blocos(d(co)).COM_POS, C.blocos(d(co)).TEM_FIADORES], [false, true, true]);
+  assert.deepEqual(T.quais({ condominio: sem }), []);
+  assert.deepEqual(T.quais({ condominio: co }), ["PRE", "POS"]);
+});
