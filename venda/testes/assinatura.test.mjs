@@ -809,17 +809,19 @@ test("entrega 14: temAssinado no estado e Ver contrato assinado pelo portal (bas
 });
 
 /* ---- 29/10: assinaturaCancelar ---- */
-test("cancelar: PATCH status canceled, grava CANCELADO na casa e libera o Enviar de novo", () => {
+test("cancelar: cada documento em andamento vira canceled (a API não cancela o envelope), grava CANCELADO e libera o Enviar", () => {
   const c = cenario();
   assert.equal(c.enviar().ok, true);
   const r = c.acao("assinaturaCancelar");
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.equal(r.cancelou, true);
   assert.equal(r.situacao, "CANCELADO");
-  const corpo = c.c.chamadas.filter((x) => x.metodo === "PATCH" && x.caminho === "/envelopes/env-1").pop().corpo;
-  assert.deepEqual(corpo, { data: { id: "env-1", type: "envelopes", attributes: { status: "canceled" } } });
-  assert.equal(c.c.estado.status, "canceled");
+  const pd = c.c.chamadas.filter((x) => x.metodo === "PATCH" && /^\/envelopes\/env-1\/documents\//.test(x.caminho));
+  assert.ok(pd.length >= 1);
+  assert.deepEqual(pd[0].corpo, { data: { id: "doc-1", type: "documents", attributes: { status: "canceled" } } });
+  assert.ok(!c.c.chamadas.some((x) => x.metodo === "PATCH" && x.caminho === "/envelopes/env-1" && x.corpo.data.attributes.status === "canceled"));
   assert.match(c.g.logs.join("\n"), /cancelar 01234567 por ana\.teste: ok/);
+  /* o envelope continua running na Clicksign, mas com todos os documentos cancelados conta como cancelado */
   const de_novo = c.acao("assinaturaCancelar");
   assert.equal(de_novo.erro, "ENVELOPE_NAO_ATIVO");
 });

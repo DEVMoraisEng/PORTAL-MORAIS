@@ -306,9 +306,18 @@ var ClicksignVenda = (function () {
   function corpoAtivar(envelopeId) {
     return { data: { id: envelopeId, type: "envelopes", attributes: { status: "running" } } };
   }
-  /* 29/10: cancelar o envelope ativo (o mesmo PATCH da ativação, com status canceled) */
-  function corpoCancelar(envelopeId) {
-    return { data: { id: envelopeId, type: "envelopes", attributes: { status: "canceled" } } };
+  /* 30/10: a API v3 não cancela o envelope (o PATCH do envelope só aceita draft/running — 400 na casa 15).
+     Cancela-se cada DOCUMENTO em andamento: PATCH /envelopes/{id}/documents/{doc} com status canceled
+     (doc "Editar Documento": só documentos running mudam de status). */
+  function corpoCancelarDocumento(documentoId) {
+    return { data: { id: documentoId, type: "documents", attributes: { status: "canceled" } } };
+  }
+  /* status efetivo do envelope: running com todos os documentos cancelados conta como canceled */
+  function statusEfetivo(statusEnvelope, docs) {
+    var l = docs || [];
+    if (statusEnvelope === "running" && l.length &&
+        l.every(function (d) { return txt(d && d.attributes && d.attributes.status) === "canceled"; })) return "canceled";
+    return statusEnvelope;
   }
   function corpoNotificacao() { return { data: { type: "notifications", attributes: {} } }; }
 
@@ -528,7 +537,7 @@ var ClicksignVenda = (function () {
     PAPEIS: PAPEIS, SITUACOES: SITUACOES, montarConfig: montarConfig, conferirConfig: conferirConfig, signatarios: signatarios,
     faltasAssinatura: faltasAssinatura, linksCorrigirEmail: linksCorrigirEmail, nomeEnvelope: nomeEnvelope, nomeArquivo: nomeArquivo, nomePadrao: nomePadrao,
     corpoEnvelope: corpoEnvelope, corpoDocumento: corpoDocumento, corpoSignatario: corpoSignatario,
-    corpoQualificacao: corpoQualificacao, corpoAutenticacao: corpoAutenticacao, corpoAtivar: corpoAtivar, corpoCancelar: corpoCancelar,
+    corpoQualificacao: corpoQualificacao, corpoAutenticacao: corpoAutenticacao, corpoAtivar: corpoAtivar, corpoCancelarDocumento: corpoCancelarDocumento, statusEfetivo: statusEfetivo,
     corpoNotificacao: corpoNotificacao, interpretar: interpretar, situacao: situacao, assinaram: assinaram,
     podeEnviar: podeEnviar, linkAssinado: linkAssinado, mascararEmails: mascararEmails, FINAIS: FINAIS,
     situacaoDosSignatarios: situacaoDosSignatarios, nomeMascarado: nomeMascarado,
