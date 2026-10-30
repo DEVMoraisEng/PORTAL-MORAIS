@@ -46,6 +46,14 @@ def _ler(page_id: str, notion) -> tuple[dict, dict, bool]:
     return props, R.dados_da_pagina(props), False
 
 
+def _valor_para_entrada(notion, id_proposta: str):
+    """VALOR PARA ENTRADA da proposta; ilegível = None, como o contrato (a soma das parcelas acusa a diferença)."""
+    try:
+        return C.valor_para_entrada((notion.pagina(id_proposta) or {}).get("properties") or {})
+    except Exception:   # noqa: BLE001
+        return None
+
+
 def sondar(page_id: str, notion, erp) -> dict:
     """Só CONSULTA: a casa (ENDEREÇO + CASA) tem obra no Mais Controle? Há venda/recebimento dela ou da obra?
     Não cria nada no ERP; anota o resultado em MC - SITUAÇÃO."""
@@ -114,6 +122,8 @@ def processar(page_id: str, notion, erp, aplicar: bool = False, dias: int = R.DI
                 res["motivos"] = ["CONDOMÍNIO - VENDA ID não é uma página da BANCO DE DADOS VENDAS CONDOMÍNIO"]
                 return fim("RECUSADA", "RECUSADA: " + res["motivos"][0], codigo="CONDOMINIO_OUTRA_BASE")
         fx = C.fluxo(cpg.get("properties") or {})
+        if not fx.get("livre") and fx.get("id_proposta"):
+            fx["excedente"] = C.excedente_sinal(fx, _valor_para_entrada(notion, fx["id_proposta"]))
         # regra do dono (07/10/2026): no condomínio a comissão é paga pela incorporadora —
         # a venda no ERP é o VALOR DE VENDA inteiro, não o "valor na mão"
         d["comissao_paga_por"] = "VENDEDOR"
