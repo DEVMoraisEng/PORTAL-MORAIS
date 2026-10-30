@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#295778">
+<script>(function(){try{var t=localStorage.getItem("morais_tema");
+  if(t!=="claro"&&t!=="escuro") t="claro";
+  document.documentElement.dataset.tema=t;}catch(e){}})();</script>
+<title>Entretenimento · Morais Engenharia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --azul:#295778;--azul-esc:#1e3f58;--teal:#8FDCD2;--verde:#2a9d5c;--verde-btn:#4cd964;--verde-esc:#1a6b40;
+  --bg:#EAF1F3;--bg2:#F5F9FA;--bg3:#dceaef;--border:#b8d0da;--border2:#d0e4ec;
+  --text:#1a3347;--text3:#5a8099;--text4:#8aacbb;--sup:#fff;--vermelho:#c0392b;--laranja:#e2a03a;
+  --sombra:rgba(20,40,55,.18);
+}
+html[data-tema="escuro"]{
+  color-scheme:dark;
+  --azul:#2f6e93;--azul-esc:#122430;--teal:#79c8bf;--verde:#2f9e63;--verde-btn:#3cbf5d;--verde-esc:#17603a;
+  --bg:#0e1920;--bg2:#15222c;--bg3:#1a2c38;--border:#2d4757;--border2:#243a4a;
+  --text:#e7eff5;--text3:#9db4c4;--text4:#7794a6;--sup:#15222c;--vermelho:#e0604f;--sombra:rgba(0,0,0,.5);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;min-height:100vh}
+header{background:linear-gradient(120deg,var(--azul-esc),var(--azul))}
+header::after{content:"";display:block;height:4px;background:linear-gradient(90deg,var(--verde-btn),var(--teal))}
+.hbar{display:flex;align-items:center;gap:13px;padding:10px 16px;flex-wrap:wrap}
+.logo{background:#fff;border-radius:9px;padding:4px 9px;display:inline-flex}.logo img{height:32px;display:block}
+.htitle{font-family:'Barlow Condensed';font-weight:800;font-size:22px;color:#fff;text-transform:uppercase;letter-spacing:.5px;line-height:1}
+.hsub{color:var(--teal);font-size:11px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;margin-top:2px}
+.hspace{flex:1}
+.hbtn{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;
+  padding:7px 12px;font:inherit;font-weight:700;font-size:12.5px;cursor:pointer;text-decoration:none}
+.hbtn:hover{background:rgba(255,255,255,.22)}
+main{max-width:1060px;margin:0 auto;padding:20px 16px 40px;display:flex;flex-direction:column;gap:18px}
+
+/* cartão do jogo */
+.jogo{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);background:var(--sup);border:1px solid var(--border2);border-radius:14px;overflow:hidden;box-shadow:0 10px 30px var(--sombra)}
+@media (max-width:780px){.jogo{grid-template-columns:minmax(0,1fr)}}
+.capa{position:relative;min-height:280px;background:#141a22;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;padding:22px}
+.capa::before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(-45deg,rgba(226,160,58,.16) 0 18px,transparent 18px 36px)}
+.capa::after{content:"";position:absolute;left:0;right:0;bottom:0;height:70%;background:linear-gradient(transparent,rgba(10,14,19,.85))}
+.capa svg{position:absolute;right:-10px;top:10px;width:62%;max-width:340px;opacity:.95}
+.capa .tit{position:relative;z-index:1;font-family:'Barlow Condensed';font-weight:800;font-size:clamp(44px,7vw,64px);line-height:.85;color:#ece6da;letter-spacing:.04em;text-shadow:3px 3px 0 #8a5a14}
+.capa .sub{position:relative;z-index:1;font-family:'Barlow Condensed';font-weight:700;font-size:18px;letter-spacing:.5em;color:var(--laranja);margin-top:8px}
+.info{padding:20px 22px;display:flex;flex-direction:column;gap:12px}
+.info p{margin:0;color:var(--text3);line-height:1.55}
+.status{display:flex;align-items:center;gap:9px;font-weight:700;font-size:13px}
+.status i{width:10px;height:10px;border-radius:50%;background:var(--text4);flex:none}
+.status.on i{background:#2ecc71;box-shadow:0 0 10px #2ecc71}
+.status.off i{background:var(--vermelho)}
+.salas{display:flex;flex-direction:column;gap:6px}
+.sala{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--bg2);font-size:13px}
+.sala small{color:var(--text3)}
+.jogar{display:flex;align-items:center;justify-content:center;gap:10px;border:0;border-radius:10px;padding:15px 18px;
+  font-family:'Barlow Condensed';font-weight:800;font-size:24px;letter-spacing:.06em;text-transform:uppercase;
+  background:linear-gradient(90deg,var(--laranja),#f0b84e);color:#1b1206;cursor:pointer;box-shadow:0 6px 18px rgba(226,160,58,.35)}
+.jogar:hover{filter:brightness(1.05)}
+.jogar:disabled{opacity:.55;cursor:not-allowed}
+.aviso{padding:10px 12px;border-left:4px solid var(--vermelho);background:rgba(192,57,43,.08);border-radius:6px;font-size:13px;line-height:1.5}
+.dica{font-size:12.5px;color:var(--text4);line-height:1.5}
+
+/* seções */
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+@media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}}
+.box{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:16px 18px}
+.box h3{margin:0 0 10px;font-family:'Barlow Condensed';font-weight:800;font-size:17px;text-transform:uppercase;letter-spacing:.5px;color:var(--azul-esc)}
+html[data-tema="escuro"] .box h3{color:var(--teal)}
+.box ul{margin:0;padding-left:18px;color:var(--text3);line-height:1.6}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:13px;color:var(--text3)}
+.keys b{font-family:'Barlow Condensed';font-weight:700;font-size:13px;color:var(--text);background:var(--bg2);border:1px solid var(--border);border-radius:5px;padding:1px 7px;justify-self:start}
+</style>
+</head>
+<body>
+<header>
+  <div class="hbar">
+    <span class="logo"><img src="img/logo.png" alt="Morais" onerror="this.parentNode.style.display='none'"></span>
+    <div style="min-width:0">
+      <div class="htitle">Entretenimento</div>
+      <div class="hsub">Morais Engenharia · jogos da equipe</div>
+    </div>
+    <div class="hspace"></div>
+    <a class="hbtn" href="index.html" title="Voltar para o portal">← Portal</a>
+    <button class="hbtn" onclick="(function(){var e=document.documentElement,t=e.dataset.tema==='escuro'?'claro':'escuro';e.dataset.tema=t;try{localStorage.setItem('morais_tema',t)}catch(x){}})()" title="Alternar claro/escuro">◐</button>
+  </div>
+</header>
+
+<main>
+  <section class="jogo">
+    <div class="capa">
+      <svg viewBox="0 0 200 120" aria-hidden="true">
+        <!-- carrinho de mão (arte original) -->
+        <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M28 52 L150 52 L172 30 L46 30 Z" fill="#3f8f3a" stroke="#1f4d1c" stroke-width="3"/>
+          <path d="M46 30 L60 52" stroke="#2a6a26" stroke-width="2"/>
+          <path d="M150 52 L176 74" stroke="#2a2d31" stroke-width="5"/>
+          <circle cx="178" cy="80" r="13" fill="#1b1b1b" stroke="#444" stroke-width="3"/>
+          <circle cx="178" cy="80" r="4" fill="#9aa"/>
+          <path d="M30 52 L4 66" stroke="#b0814f" stroke-width="6"/>
+          <path d="M60 52 L52 80 M110 52 L104 80" stroke="#2a2d31" stroke-width="4"/>
+          <path d="M28 40 L6 40" stroke="#ffa23a" stroke-width="7" opacity=".9"/>
+          <path d="M26 34 L12 34 M26 46 L14 46" stroke="#ffd166" stroke-width="3" opacity=".8"/>
+        </g>
+      </svg>
+      <div class="tit">MORAIS<br>ROYALE</div>
+      <div class="sub">PEDREIROS × ENGENHEIROS</div>
+    </div>
+    <div class="info">
+      <p>O jogo de tiro da obra: <b>Bomba</b> (Pedreiros contra Engenheiros, com loja e rodadas), <b>Mata-mata</b> e <b>Battle Royale</b> pulando do carrinho de mão voador no Bairro Morais. Joga no computador ou no celular deitado.</p>
+      <div class="status" id="st"><i></i><span>Procurando o servidor do jogo…</span></div>
+      <div class="salas" id="salas"></div>
+      <div id="aviso"></div>
+      <button class="jogar" id="b-jogar" type="button">▶ Jogar agora</button>
+      <div class="dica">Você entra já logado com o seu usuário do portal. Dentro do jogo dá para escolher o apelido (botão <b>Apelido</b>), ver o nível e liberar skins. No celular: entre no portal pelo celular, abra esta aba e toque em Jogar.</div>
+    </div>
+  </section>
+
+  <section class="grid">
+    <div class="box">
+      <h3>Como jogar</h3>
+      <ul>
+        <li>Uma pessoa cria a sala; a galera entra na mesma sala e alguém clica em <b>Iniciar partida</b>.</li>
+        <li>Faltou gente? Os bots completam (escolha Fácil, Normal ou Difícil).</li>
+        <li>No Battle Royale todo mundo sai no carrinho voador: <b>Espaço</b> pula, <b>WASD</b> escolhe onde cair.</li>
+        <li>Prédios do bairro têm escada: chegue na porta e aperte <b>E</b> para subir na laje.</li>
+      </ul>
+    </div>
+    <div class="box">
+      <h3>Controles principais</h3>
+      <div class="keys">
+        <b>WASD</b><span>andar · Shift devagar</span>
+        <b>Mouse</b><span>mirar e atirar</span>
+        <b>R</b><span>recarregar</span>
+        <b>E</b><span>pegar item · carro · escada</span>
+        <b>I</b><span>inventário (mochila)</span>
+        <b>H · J</b><span>curar · vestir colete</span>
+        <b>M · Tab</b><span>mapa · placar</span>
+        <b>Esc</b><span>menu (lista completa lá)</span>
+      </div>
+    </div>
+    <div class="box">
+      <h3>Nível e skins</h3>
+      <ul>
+        <li>Abates, assistências, bombas e vitórias dão XP e sobem o seu nível.</li>
+        <li>Skins de obra para personagem e armas — inclusive o <b>Véio da Lancha</b> no nível 10.</li>
+        <li>O progresso fica salvo no servidor da empresa, ligado ao seu login do portal.</li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<script src="app.js?v=45"></script>
+<script>
+/* ===== MORAIS ROYALE NO PORTAL (29/10/26) ===================================
+ * O servidor do jogo roda no servidor da empresa (MoraisRoyale.exe) e fica
+ * público pelo Tailscale Funnel, num endereço https fixo — cole-o abaixo.
+ * O botão Jogar abre o jogo numa aba própria levando a sessão do portal no
+ * "#portal=" do endereço (o # não vai para log de servidor nenhum); o jogo
+ * confere essa sessão com o Apps Script e entra direto, sem pedir senha.
+ * ========================================================================== */
+const JOGO_URL = "https://COLE-AQUI-O-ENDERECO-DO-FUNNEL.ts.net";
+
+const S = exigirSessao();
+const $ = id => document.getElementById(id);
+const configurado = !/COLE-AQUI/.test(JOGO_URL);
+
+function jogar() {
+  if (!configurado) return;
+  const s = sessao(); if (!s || !s.token) { irParaLogin(); return; }
+  const url = JOGO_URL.replace(/\/+$/, "") + "/#portal=" + encodeURIComponent(s.token);
+  const w = window.open(url, "morais-royale");
+  if (!w) location.href = url; // bloqueador de pop-up: abre na mesma aba
+}
+$("b-jogar").addEventListener("click", jogar);
+
+async function status() {
+  const st = $("st"), sp = st.querySelector("span");
+  if (!configurado) {
+    st.className = "status off"; sp.textContent = "Servidor do jogo ainda não configurado";
+    $("aviso").innerHTML = '<div class="aviso">Falta colar o endereço do servidor do jogo (Tailscale Funnel) em <b>JOGO_URL</b>, no começo do script desta página (entretenimento.html).</div>';
+    $("b-jogar").disabled = true; return;
+  }
+  const ctrl = new AbortController(); const tm = setTimeout(() => ctrl.abort(), 6000);
+  try {
+    const r = await fetch(JOGO_URL.replace(/\/+$/, "") + "/status", { cache: "no-store", signal: ctrl.signal });
+    const d = await r.json();
+    st.className = "status on";
+    sp.textContent = d.jogando ? `Servidor no ar · ${d.jogando} ${d.jogando === 1 ? "pessoa jogando" : "pessoas jogando"}` : "Servidor no ar · ninguém jogando agora";
+    $("salas").innerHTML = (d.salas || []).filter(x => x.n > 0).map(x => `<div class="sala"><span><b>${esc(x.nome)}</b> <small>· ${esc(x.modo)} · ${esc(x.mapa)}</small></span><small>${x.n} ${x.n === 1 ? "pessoa" : "pessoas"} · ${x.fase === "lobby" ? "esperando" : "em partida"}</small></div>`).join("");
+  } catch (e) {
+    st.className = "status off"; sp.textContent = "Servidor do jogo fora do ar (o servidor da empresa pode estar desligado)";
+    $("salas").innerHTML = "";
+  } finally { clearTimeout(tm); }
+}
+status(); setInterval(status, 20000);
+</script>
+</body>
+</html>
