@@ -405,6 +405,9 @@ var ContratoVenda = (function () {
     /* 29/10: valor da casa mudado no Alterar fluxo (só JC/JV) — a comissão sai da regra sobre o valor novo */
     var precoMudou = !!co.livre && preco !== null && Math.round(preco * 100) !== Math.round((fl.valorVenda || 0) * 100);
     var comissao = positivo(co.comissao) && !precoMudou ? co.comissao : (pctRegra !== null && preco !== null ? so2(preco * pctRegra) : null);
+    /* 30/10: desconto "isentar a comissão" (venda direta, sem corretor) — comissão zero; imóvel = o preço inteiro */
+    var semComissao = !!(co.livre && co.livre.semComissao);
+    if (semComissao) comissao = 0;
     /* dono 22/10: a comissão está DENTRO do VALOR DE VENDA (305 mil a 5% = 15.250 do corretor); o cliente paga à
        Morais e a Morais repassa ao corretor depois que o sinal inteiro é pago. Operação = VALOR DE VENDA;
        imóvel = venda − comissão. Sinal = ato + 30/60/90; entrada (4.2.1 a) = tudo que não é CAIXA/FGTS/subsídio,
@@ -413,7 +416,7 @@ var ContratoVenda = (function () {
     var entrada = preco === null ? null : so2(preco - financiamento);
     return {
       preco: preco, financiamento: financiamento, temFgtsSubsidio: G.fgts + G.subsidio > 0,
-      pctRegra: pctRegra, comissao: comissao, operacao: preco, precoMudou: precoMudou,
+      pctRegra: pctRegra, comissao: comissao, operacao: preco, precoMudou: precoMudou, semComissao: semComissao,
       imovel: preco !== null && comissao !== null ? so2(preco - comissao) : null,
       sinal: sinal, entrada: entrada, saldoEntrada: entrada === null ? null : so2(entrada - sinal)
     };
@@ -740,7 +743,8 @@ var ContratoVenda = (function () {
     else faltasCasaDeRua(d, faltas, pronto);
 
     var k = d.corretor;
-    if (!k) {
+    if (d.condominio && d.condominio.livre && d.condominio.livre.semComissao) { /* 30/10: venda direta, sem corretor */ }
+    else if (!k) {
       faltas.push(vazio(d.corretorNaVenda) ? "Corretor: corretor na venda" : "Corretor: cadastro em CORRETORES – CONTRATO");
     } else {
       exige(!vazio(k.nome), "Corretor", "nome");
@@ -1013,7 +1017,7 @@ var ContratoVenda = (function () {
     m.FRACAO_IDEAL_PCT = tb ? tb.fracaoPct : "";
     m.VALOR_OPERACAO_EXTENSO = ext(va.operacao);
     m.VALOR_IMOVEL_EXTENSO = ext(va.imovel);
-    m.COMISSAO_EXTENSO = ext(va.comissao);
+    m.COMISSAO_EXTENSO = va.semComissao ? "" : ext(va.comissao);
     m.SINAL_EXTENSO = positivo(va.sinal) ? valorExtenso(va.sinal) : "";
     m.SINAL_VENCIMENTO = vencimentosSinal(G) + (co.preReserva ? ", sendo " + valorExtenso(co.preReserva.valor) +
       " já pagos a título de pré-reserva (Termo de Pré-Reserva), abatidos do sinal" : "");
@@ -1026,7 +1030,7 @@ var ContratoVenda = (function () {
     m.FINANCIAMENTO_VALOR = moedaBR(va.financiamento);
     m.FINANCIAMENTO_PCT = pct2(va.financiamento, va.preco);
     m.FINANCIAMENTO_FRASE = va.temFgtsSubsidio ? ", incluídos os recursos do FGTS e/ou subsídio, quando houver" : "";
-    m.COMISSAO_PCT = va.pctRegra === null ? "" : pctBR(va.pctRegra);
+    m.COMISSAO_PCT = va.pctRegra === null || va.semComissao ? "" : pctBR(va.pctRegra);
     return m;
   }
 
@@ -1040,7 +1044,15 @@ var ContratoVenda = (function () {
     var v = d.vendedor || {}, n = d.negociacao, pos = d.condominio ? comPosChaves(d.condominio) : false;
     var fis = pos ? d.condominio.fiadores : [];
     var temInterm = n.intermediariaValor !== null && n.intermediariaValor > 0;
+    /* 30/10: venda direta (Alterar fluxo → isentar a comissão). O modelo do advogado ainda NÃO tem estes blocos; a
+       geração recusa a venda sem comissão enquanto o modelo não tiver {{#SEM_COMISSAO}} (GerarContrato.ctrGerarPdf_).
+       No modelo: o texto de hoje do 4.1.2 e do item 5 dentro de {{#COM_COMISSAO}}…{{/COM_COMISSAO}}; o novo dentro de
+       {{#SEM_COMISSAO}}…{{/SEM_COMISSAO}} ("Comissão de corretagem: não há (venda direta)" e "Não há intermediação de
+       corretor nesta venda"). Fora do condomínio COM_COMISSAO é sempre verdadeiro (nada muda nos outros modelos). */
+    var semCom = !!(d.condominio && d.condominio.livre && d.condominio.livre.semComissao);
     var b = {
+      SEM_COMISSAO: semCom,
+      COM_COMISSAO: !semCom,
       SE_VENDEDOR_PJ: v.tipo === "PJ",
       SE_VENDEDOR_PF: v.tipo === "PF",
       SE_INTERMEDIARIA: temInterm,
@@ -1290,7 +1302,7 @@ var ContratoVenda = (function () {
     COL: COL, TIPOS: TIPOS, moedaBR: moedaBR, valorPorExtenso: valorPorExtenso,
     dataBR: dataBR, dataPorExtenso: dataPorExtenso, loteQuadra: loteQuadra,
     escolherModelo: escolherModelo, qualificacao: qualificacao, nomeComprador1: nomeComprador1,
-    montarDadosContrato: montarDadosContrato, faltasContrato: faltasContrato,
+    montarDadosContrato: montarDadosContrato, faltasContrato: faltasContrato, montarCondominio: montarCondominio,
     marcadores: marcadores, blocos: blocos, comPosChaves: comPosChaves, avisosContrato: avisosContrato,
     formaPagamentoCondominio: formaPagamentoCondominio, qualificacaoFiadores: qualificacaoFiadores,
     comissaoPctPelaRegra: comissaoPctPelaRegra, qualificacaoQuadro: qualificacaoQuadro, valorExtenso: valorExtenso, meioPagamentoCondominio: meioPagamentoCondominio, excedenteSinal: excedenteSinal,

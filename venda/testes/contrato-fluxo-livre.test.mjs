@@ -80,3 +80,13 @@ test("30/10 (24x sem fiador): sem parcela depois das chaves o plano é SEM_POS; 
   assert.deepEqual(T.quais({ condominio: sem }), []);
   assert.deepEqual(T.quais({ condominio: co }), ["PRE", "POS"]);
 });
+
+test("30/10 isenção da comissão (venda direta): comissão zero, imóvel = preço inteiro, blocos SEM_COMISSAO/COM_COMISSAO", () => {
+  const isento = { ...co, livre: { ...livre, valor: 291275, semComissao: true } };  // só a comissão importa aqui
+  const v = C.valoresCondominio(isento);
+  assert.deepEqual([v.semComissao, v.comissao, v.imovel], [true, 0, 291275]);
+  assert.equal(C.valoresCondominio(co).semComissao, false);
+  const b = (c) => C.blocos({ vendedor: {}, negociacao: { intermediariaValor: null }, comissao: {}, condominio: { fiadores: [], ...c } });
+  assert.deepEqual([b(isento).SEM_COMISSAO, b(isento).COM_COMISSAO], [true, false]);
+  assert.deepEqual([b(co).SEM_COMISSAO, b(co).COM_COMISSAO], [false, true]);
+});
