@@ -345,3 +345,17 @@ Só com o envelope `running`; depois o portal roda o mesmo "Atualizar situação
 `CANCELADO` na casa e apaga as Propriedades do envelope — o "Enviar de novo" fica liberado.
 Erros: `SEM_ENVELOPE`, `ENVELOPE_NAO_ATIVO` (com a situação), `CLICKSIGN_FALHOU` (`passo: "cancelar"`),
 `ASSINATURA_OCUPADA`. Perfil TESTES não cancela.
+
+## Rubricas do comprador (30/10/2026) — `rubricate` posicionado
+
+Doc lida: developers.clicksign.com/reference/criar-requisito-de-rubrica e /recipes/rubrica-posicionada.
+Mesmo `POST /envelopes/{id}/requirements`, corpo `ClicksignVenda.corpoRubrica`:
+`{"data":{"type":"requirements","attributes":{"action":"rubricate","kind":"initials"|"manuscript","positions":[{"page":"3","position":[x,y]}]},"relationships":{document,signer}}}`.
+`page` é texto; `position` = [x, y] em proporção da página (0–1). `positions`, `pages` e `rubric_field` são
+exclusivos num requisito; a receita manda dois `rubricate` (initials + manuscript) para o mesmo signatário e
+documento — é o que fazemos no contrato (assinatura nos campos "ASSINATURA: ____" + visto na coluna de valores).
+
+**Dúvidas (não documentadas):** se [x, y] é o canto de cima à esquerda ou o centro da caixa, e o tamanho da
+caixa. O código supõe o canto e sobe a assinatura um pouco (`AJUSTE_PADRAO`); conferir no primeiro envelope
+do sandbox e corrigir sem código pela Propriedade `RUBRICAS_AJUSTE` (contrato), `MEMORIAL_POSICAO` e
+`PROJETO_POSICOES`. Também não está documentado se `rubricate` dispensa o `agree` — mandamos os dois.

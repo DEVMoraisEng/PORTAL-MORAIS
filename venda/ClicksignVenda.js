@@ -62,7 +62,13 @@ var ClicksignVenda = (function () {
     var esc = null;
     try { esc = JSON.parse(txt(props.TESTEMUNHAS_ESCOLHIDAS) || "null"); } catch (e) { esc = null; }
     var inc = txt(props.ASSINATURA_INCLUIR_CORRETOR).toUpperCase();
-    return { testemunhasSPE: spe, testemunhasPF: pf, representante: rep, testemunhasOpcoes: opc,
+    /* 30/10: rubricas e documentos do comprador (memorial, projeto) — ajustes opcionais; JSON ruim barra o envio */
+    var ajuste = lerJson(props, "RUBRICAS_AJUSTE", invalidas);
+    var memPos = lerJson(props, "MEMORIAL_POSICAO", invalidas);
+    var projPos = lerJson(props, "PROJETO_POSICOES", invalidas);
+    var semRub = txt(props.ASSINATURA_SEM_RUBRICAS).toUpperCase();
+    return { rubricasAjuste: ajusteRubricas(ajuste), memorialPosicao: memPos, projetoPosicoes: projPos,
+             semRubricas: semRub === "SIM" || semRub === "TRUE" || semRub === "1", testemunhasSPE: spe, testemunhasPF: pf, representante: rep, testemunhasOpcoes: opc,
              testemunhasEscolhidas: Array.isArray(esc) ? esc.map(txt) : null,
              incluirCorretor: inc === "SIM" || inc === "TRUE" || inc === "1", invalidas: invalidas };
   }
@@ -159,29 +165,44 @@ var ClicksignVenda = (function () {
     return { nome: txt(v.representanteNome), email: "", cpf: txt(v.representanteCpf) };
   }
 
-  /* Lista ordenada de quem assina. Cada item: { papel (rótulo legível), role, nome, email, cpf, origem }. */
-  function signatarios(dados, config) {
-    var l = [];
-    function add(papel, role, p, origem) {
-      l.push({ papel: papel, role: role, nome: txt(p && p.nome), email: email(p && p.email), cpf: txt(p && p.cpf), origem: origem });
-    }
-    add("Comprador 1", PAPEIS.COMPRADOR, dados.comprador1, "comprador1");
-    if (dados.comprador2) add("Comprador 2", PAPEIS.COMPRADOR, dados.comprador2, "comprador2");
-    var v = dados.vendedor;
-    if (v) {
-      if (ehPJ(dados)) add("Vendedor (representante)", PAPEIS.VENDEDOR, representante(v, config), "representante");
-      else add("Vendedor", PAPEIS.VENDEDOR, { nome: v.nome, email: v.email, cpf: v.cpfCnpj }, "vendedor");
-    }
-    var t = testemunhas(dados, config);
-    if (t) { add("Testemunha 1", PAPEIS.TESTEMUNHA, t[0], "testemunha"); add("Testemunha 2", PAPEIS.TESTEMUNHA, t[1], "testemunha"); }
-    if (config.incluirCorretor && dados.corretor)
-      add("Corretor", PAPEIS.CORRETOR, { nome: dados.corretor.nome, email: dados.corretor.email, cpf: dados.corretor.cpfCnpj }, "corretor");
-    /* 28/10: termos de confissão de dívida no mesmo envelope — os dois fiadores assinam SÓ os termos */
-    if (config.comFiadores && dados.condominio) (dados.condominio.fiadores || []).slice(0, 2).forEach(function (fi, i) {
-      add("Fiador " + (i + 1), PAPEIS.FIADOR, { nome: fi.nome, email: fi.email, cpf: fi.cpf }, "fiador" + (i + 1));
-      l[l.length - 1].soTermos = true;
-    });
+  /* Lista ordenada de quem assina. Cada item: { papel (rótulo legível), role, nome, email, cpf, origem } e,
+   * conforme o papel, soTermos (assina só os termos de confissão) ou rubrica (comprador: rubrica o contrato e
+   * assina o memorial e o projeto aprovado — ver documentosDoSignatario). 30/10: um grupo por função, para
+   * quem precisar incluir um papel novo (ex.: cônjuge do fiador) mexer só no grupo dele. */
+  function sig(papel, role, p, origem, extra) {
+    var s = { papel: papel, role: role, nome: txt(p && p.nome), email: email(p && p.email), cpf: txt(p && p.cpf), origem: origem };
+    for (var k in (extra || {})) s[k] = extra[k];
+    return s;
+  }
+  function sigCompradores(dados) {
+    var l = [sig("Comprador 1", PAPEIS.COMPRADOR, dados.comprador1, "comprador1", { rubrica: true })];
+    if (dados.comprador2) l.push(sig("Comprador 2", PAPEIS.COMPRADOR, dados.comprador2, "comprador2", { rubrica: true }));
     return l;
+  }
+  function sigVendedor(dados, config) {
+    var v = dados.vendedor;
+    if (!v) return [];
+    if (ehPJ(dados)) return [sig("Vendedor (representante)", PAPEIS.VENDEDOR, representante(v, config), "representante")];
+    return [sig("Vendedor", PAPEIS.VENDEDOR, { nome: v.nome, email: v.email, cpf: v.cpfCnpj }, "vendedor")];
+  }
+  function sigTestemunhas(dados, config) {
+    var t = testemunhas(dados, config);
+    return t ? [sig("Testemunha 1", PAPEIS.TESTEMUNHA, t[0], "testemunha"), sig("Testemunha 2", PAPEIS.TESTEMUNHA, t[1], "testemunha")] : [];
+  }
+  function sigCorretor(dados, config) {
+    if (!config.incluirCorretor || !dados.corretor) return [];
+    return [sig("Corretor", PAPEIS.CORRETOR, { nome: dados.corretor.nome, email: dados.corretor.email, cpf: dados.corretor.cpfCnpj }, "corretor")];
+  }
+  /* 28/10: termos de confissão de dívida no mesmo envelope — os dois fiadores assinam SÓ os termos */
+  function sigFiadores(dados, config) {
+    if (!config.comFiadores || !dados.condominio) return [];
+    return (dados.condominio.fiadores || []).slice(0, 2).map(function (fi, i) {
+      return sig("Fiador " + (i + 1), PAPEIS.FIADOR, { nome: fi.nome, email: fi.email, cpf: fi.cpf }, "fiador" + (i + 1), { soTermos: true });
+    });
+  }
+  function signatarios(dados, config) {
+    return [].concat(sigCompradores(dados), sigVendedor(dados, config), sigTestemunhas(dados, config),
+                     sigCorretor(dados, config), sigFiadores(dados, config));
   }
 
   var ONDE_EMAIL = {
@@ -267,6 +288,12 @@ var ClicksignVenda = (function () {
   }
   function corpoAutenticacao(docId, signerId) {
     return { data: { type: "requirements", attributes: { action: "provide_evidence", auth: "email" }, relationships: relacoes(docId, signerId) } };
+  }
+  /* 30/10: rubrica posicionada — kind "initials" (visto) ou "manuscript" (assinatura); positions [{ page: "n", position: [x, y] }]
+   * em proporção da página (0–1, x da esquerda, y do topo). positions, pages e rubric_field são exclusivos. */
+  function corpoRubrica(docId, signerId, kind, positions) {
+    return { data: { type: "requirements", attributes: { action: "rubricate", kind: kind, positions: positions },
+                     relationships: relacoes(docId, signerId) } };
   }
   function corpoAtivar(envelopeId) {
     return { data: { id: envelopeId, type: "envelopes", attributes: { status: "running" } } };
@@ -375,6 +402,120 @@ var ClicksignVenda = (function () {
     throw new Error("CLICKSIGN_SEM_LINK_ASSINADO: " + (chaves.length ? chaves.join(", ") : "(nenhum)"));
   }
 
+  /* ---- 30/10: rubricas do comprador e documentos só dele (memorial descritivo, projeto aprovado) ----
+   * Quem acha as posições no contrato é a tela (RubricasVenda.js, pdf.js no navegador, no PDF final que vai
+   * para a Clicksign); aqui só se confere o que veio e se montam os requisitos. Memorial e projeto têm layout
+   * fixo: posição fixa, com ajuste opcional pelas Propriedades MEMORIAL_POSICAO e PROJETO_POSICOES. */
+  var DOC = { CONTRATO: "contrato", TERMO: "termo", MEMORIAL: "memorial", PROJETO: "projeto" };
+  var PREFIXO_DOC = { memorial: "MEMORIAL DESCRITIVO - ", projeto: "PROJETO APROVADO - " };
+  function nomeDocumentoAdicional(tipo, nomeEnvelope) { return nomeArquivo(PREFIXO_DOC[tipo] + txt(nomeEnvelope)); }
+  /* tipo do documento pelo nome do arquivo na Clicksign (ehTermo vem do ConfissaoVenda, que conhece os nomes dos termos) */
+  function tipoDoDocumento(filename, ehTermo) {
+    var n = txt(filename).toUpperCase();
+    if (ehTermo) return DOC.TERMO;
+    if (n.indexOf(PREFIXO_DOC.memorial) === 0) return DOC.MEMORIAL;
+    if (n.indexOf(PREFIXO_DOC.projeto) === 0) return DOC.PROJETO;
+    return DOC.CONTRATO;
+  }
+  /* docs: [{ id, tipo }] → ids que este signatário assina. Fiador: só os termos; comprador (rubrica): todos;
+   * os demais: o contrato e os termos (memorial e projeto são só do comprador). */
+  function documentosDoSignatario(s, docs) {
+    return (docs || []).filter(function (d) {
+      if (s.soTermos) return d.tipo === DOC.TERMO;
+      if (s.rubrica) return true;
+      return d.tipo === DOC.CONTRATO || d.tipo === DOC.TERMO;
+    }).map(function (d) { return d.id; });
+  }
+
+  /* Ajuste somado às posições achadas no contrato (proporção da página). A Clicksign não documenta se [x, y]
+   * é o canto de cima à esquerda ou o centro da caixa: o padrão supõe o canto e sobe a assinatura para ficar
+   * em cima da linha "ASSINATURA: ____". Conferir no sandbox e, se precisar, corrigir pela Propriedade
+   * RUBRICAS_AJUSTE, ex.: {"campo":{"dx":0,"dy":-0.015},"valores":{"dx":0,"dy":0}}. */
+  var AJUSTE_PADRAO = { campo: { dx: 0, dy: -0.01 }, valores: { dx: 0, dy: -0.004 } };
+  function numOu(v, padrao) { return typeof v === "number" && isFinite(v) && Math.abs(v) <= 0.5 ? v : padrao; }
+  function ajusteRubricas(j) {
+    j = j && typeof j === "object" ? j : {};
+    var r = {};
+    ["campo", "valores"].forEach(function (k) {
+      var a = j[k] && typeof j[k] === "object" ? j[k] : {};
+      r[k] = { dx: numOu(a.dx, AJUSTE_PADRAO[k].dx), dy: numOu(a.dy, AJUSTE_PADRAO[k].dy) };
+    });
+    return r;
+  }
+
+  var MAX_CAMPOS = 30;
+  function arred(v) { return Math.round(v * 10000) / 10000; }
+  /* { page, position: [x, y] } conferido → { page: "n", position: [x, y] } ou null */
+  function posicaoValida(p) {
+    if (!p || typeof p !== "object" || !Array.isArray(p.position) || p.position.length !== 2) return null;
+    var pg = Number(p.page), x = Number(p.position[0]), y = Number(p.position[1]);
+    if (!(pg >= 1 && pg <= 999 && Math.floor(pg) === pg)) return null;
+    if (!isFinite(x) || !isFinite(y) || x < 0 || x > 1 || y < 0 || y > 1) return null;
+    return { page: String(pg), position: [arred(x), arred(y)] };
+  }
+  /* O que a tela mandou junto com "Enviar": { nome (do PDF lido), campos: [pos], valores: pos | null }.
+   * nomeGerado = nome do PDF que o servidor vai mandar; diferente = a tela leu outro PDF. */
+  function validarRubricas(r, nomeGerado) {
+    if (!r || typeof r !== "object") return { ok: false, erro: "RUBRICAS_FALTANDO" };
+    if (txt(r.nome) !== txt(nomeGerado)) return { ok: false, erro: "RUBRICAS_DE_OUTRO_PDF" };
+    var campos = Array.isArray(r.campos) ? r.campos : [];
+    if (!campos.length || campos.length > MAX_CAMPOS) return { ok: false, erro: "RUBRICAS_INVALIDAS" };
+    var ok = campos.map(posicaoValida);
+    if (ok.some(function (p) { return !p; })) return { ok: false, erro: "RUBRICAS_INVALIDAS" };
+    var val = null;
+    if (r.valores) { val = posicaoValida(r.valores); if (!val) return { ok: false, erro: "RUBRICAS_INVALIDAS" }; }
+    return { ok: true, campos: ok, valores: val };
+  }
+
+  /* Projeto aprovado (12 páginas, 1–2 em A1 deitado, 3–11 em A2 deitado, 12 A4 sem carimbo): o visto fica no
+   * espaço vazio logo abaixo de "Senador Canedo, <data>" do carimbo DEFERIMENTO. Medido no PDF de 30/10/2026
+   * (canto de cima à esquerda da caixa = começo da linha da data, um pouco abaixo dela). Página 12: sem visto. */
+  var POSICOES_PROJETO = [
+    [1, 0.934, 0.948], [2, 0.936, 0.966], [3, 0.902, 0.953], [4, 0.893, 0.953], [5, 0.901, 0.960], [6, 0.900, 0.955],
+    [7, 0.897, 0.961], [8, 0.905, 0.957], [9, 0.895, 0.963], [10, 0.782, 0.932], [11, 0.890, 0.960]
+  ].map(function (a) { return { page: String(a[0]), position: [a[1], a[2]] }; });
+  /* lista da Propriedade PROJETO_POSICOES (quando válida e não vazia) ou a medida acima */
+  function posicoesProjeto(cfg) {
+    if (Array.isArray(cfg) && cfg.length) {
+      var l = cfg.map(posicaoValida);
+      if (l.every(function (p) { return p; })) return l;
+    }
+    return POSICOES_PROJETO.map(function (p) { return { page: p.page, position: p.position.slice() }; });
+  }
+  /* Memorial descritivo: assinatura do comprador na linha "______" acima de "Comprador(es)", na última página.
+   * cfg (Propriedade MEMORIAL_POSICAO) = { position: [x, y], pagina?: n }; sem pagina, vale a última. */
+  var MEMORIAL_PADRAO = [0.53, 0.70];
+  function posicaoMemorial(nPaginas, cfg) {
+    cfg = cfg && typeof cfg === "object" ? cfg : {};
+    var pos = Array.isArray(cfg.position) ? cfg.position : MEMORIAL_PADRAO;
+    var pg = Number(cfg.pagina) || Number(nPaginas) || 0;
+    return posicaoValida({ page: pg, position: pos }) || (Number(nPaginas) ? posicaoValida({ page: Number(nPaginas), position: MEMORIAL_PADRAO }) : null);
+  }
+  /* Número de páginas de um PDF (bytes como texto latin-1): conta os objetos /Type /Page. O PDF do Google Docs
+   * não usa object streams, então a contagem é direta; 0 = não deu para contar. */
+  function contarPaginasPdf(bin) {
+    var m = String(bin || "").match(/\/Type\s*\/Page(?![a-zA-Z])/g);
+    return m ? m.length : 0;
+  }
+
+  /* Requisitos de rubrica de um signatário: [{ docId, kind, positions }]. Só quem tem rubrica (comprador).
+   * docs: [{ id, tipo }]; rub: { campos, valores } (já validado), memorial: pos | null, projeto: [pos]. */
+  function requisitosRubrica(s, docs, rub) {
+    if (!s.rubrica || !rub) return [];
+    var l = [];
+    (docs || []).forEach(function (d) {
+      if (d.tipo === DOC.CONTRATO) {
+        if (rub.campos && rub.campos.length) l.push({ docId: d.id, kind: "manuscript", positions: rub.campos });
+        if (rub.valores) l.push({ docId: d.id, kind: "initials", positions: [rub.valores] });
+      } else if (d.tipo === DOC.MEMORIAL && rub.memorial) {
+        l.push({ docId: d.id, kind: "manuscript", positions: [rub.memorial] });
+      } else if (d.tipo === DOC.PROJETO && rub.projeto && rub.projeto.length) {
+        l.push({ docId: d.id, kind: "initials", positions: rub.projeto });
+      }
+    });
+    return l;
+  }
+
   var api = {
     PAPEIS: PAPEIS, SITUACOES: SITUACOES, montarConfig: montarConfig, conferirConfig: conferirConfig, signatarios: signatarios,
     faltasAssinatura: faltasAssinatura, linksCorrigirEmail: linksCorrigirEmail, nomeEnvelope: nomeEnvelope, nomeArquivo: nomeArquivo, nomePadrao: nomePadrao,
@@ -384,7 +525,11 @@ var ClicksignVenda = (function () {
     podeEnviar: podeEnviar, linkAssinado: linkAssinado, mascararEmails: mascararEmails, FINAIS: FINAIS,
     situacaoDosSignatarios: situacaoDosSignatarios, nomeMascarado: nomeMascarado,
     minutosParaReenviar: minutosParaReenviar, REENVIO_MIN: REENVIO_MIN,
-    opcoesTestemunhas: opcoesTestemunhas, escolhidas: escolhidas, testemunhasParaTela: testemunhasParaTela
+    opcoesTestemunhas: opcoesTestemunhas, escolhidas: escolhidas, testemunhasParaTela: testemunhasParaTela,
+    sigCompradores: sigCompradores, sigFiadores: sigFiadores, corpoRubrica: corpoRubrica, DOC: DOC, tipoDoDocumento: tipoDoDocumento,
+    nomeDocumentoAdicional: nomeDocumentoAdicional, documentosDoSignatario: documentosDoSignatario, requisitosRubrica: requisitosRubrica,
+    validarRubricas: validarRubricas, ajusteRubricas: ajusteRubricas, AJUSTE_PADRAO: AJUSTE_PADRAO, POSICOES_PROJETO: POSICOES_PROJETO,
+    posicoesProjeto: posicoesProjeto, posicaoMemorial: posicaoMemorial, contarPaginasPdf: contarPaginasPdf
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   return api;
