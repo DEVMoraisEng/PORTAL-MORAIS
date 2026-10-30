@@ -676,6 +676,13 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
           </div>
           <div class="tbl-wrap alta"><table id="prop-tab"></table></div>
         </div>
+        <!-- 30/10 — rankings de corretores logo abaixo da tabela -->
+        <div class="sim-2col" style="margin-top:16px">
+          <div class="card"><h3>Corretores com mais propostas em análise</h3>
+            <div class="tbl-wrap" style="max-height:360px"><table id="prop-rkAnalise"></table></div></div>
+          <div class="card"><h3>Corretores com mais vendas</h3>
+            <div class="tbl-wrap" style="max-height:360px"><table id="prop-rkVendidas"></table></div></div>
+        </div>
       </section>
 
       <!-- ==================== UNIDADES ==================== -->
@@ -2451,6 +2458,7 @@ function propSeloInterno(unidade, p){
 }
 function propRender(){
   try{ propCortes(); }catch(e){}   // 30/10 — cortes acima da tabela
+  try{ propRankAba(); }catch(e){}  // 30/10 — rankings abaixo da tabela
   const termo=(document.getElementById("prop-busca").value||"").toLowerCase();
   const vis=PROPS.filter(p=>{
     const alvo=`${p.cliente||""} ${p.cpf||""} ${p.unidade||""} ${p.vendedor||""} ${p.imobiliaria||""}`.toLowerCase();
@@ -2545,6 +2553,48 @@ function propCortes(){
     `<div class="kpi${propFiltro===f && (f!=="EM ANALISE" || !propFiltroCredito)?" on":""}" style="--cor:${cor}" title="Clique para filtrar a tabela" onclick="propSeg('${f}');propSegCredito('')">`+
     `<div class="lab">${lab}</div><div class="val" style="color:${cor}">${v}</div>`+
     `<div class="sub">${f?pct(v)+(sub?" · "+sub:""):sub}</div></div>`).join("") + cred;
+}
+
+/* ---------- 30/10 — rankings de corretores abaixo da tabela ----------
+ * Em análise: mesma regra do cartão (RECEBIDA / EM ANÁLISE / sem status),
+ * com quantas têm crédito aprovado e quantas estão sem carta.
+ * Vendidas: status VENDIDA, com o VGV somado (preço da unidade na proposta).
+ * Contam todas as propostas; clicar no corretor filtra a tabela por ele. */
+function propRankAba(){
+  const med=i=>i===0?"🥇":(i===1?"🥈":(i===2?"🥉":(i+1)+"º"));
+  const agrupa=f=>{ const m={}; (PROPS||[]).filter(f).forEach(p=>{
+      const nome=String(p.vendedor||"").trim()||"—";
+      const r=m[nome]||(m[nome]={qtd:0,com:0,sem:0,vgv:0,imob:{}});
+      r.qtd++; if(p.comCredito) r.com++; else r.sem++;
+      r.vgv+=Number(p.preco)||0;
+      const im=String(p.imobiliaria||"").trim(); if(im) r.imob[im]=(r.imob[im]||0)+1;
+    });
+    return Object.entries(m).sort((a,b)=>b[1].qtd-a[1].qtd || b[1].vgv-a[1].vgv || a[0].localeCompare(b[0]));
+  };
+  const imobDe=r=>{ const e=Object.entries(r.imob).sort((a,b)=>b[1]-a[1]); return e.length ? esc(e[0][0])+(e.length>1?' <span style="color:var(--text4)">+'+(e.length-1)+'</span>':'') : '<span style="color:var(--text4)">—</span>'; };
+  const clique=(nome,f)=>nome==="—" ? "" : ` class="clicavel" title="Filtrar a tabela por este corretor" onclick="propFiltrarCorretor(${esc(JSON.stringify(nome)).replace(/"/g,"&quot;")},'${f}')"`;
+  const vazio=n=>`<tr><td colspan="${n}" style="text-align:center;color:var(--text3);padding:16px">Nenhuma proposta.</td></tr>`;
+
+  const a=document.getElementById("prop-rkAnalise");
+  if(a){
+    const L=agrupa(p=>propNoCorte(p,"EM ANALISE"));
+    a.innerHTML='<thead><tr><th></th><th>Corretor</th><th>Imobiliária</th><th class="col-num">Em análise</th>'+
+      '<th class="col-num">Aprovado</th><th class="col-num">Sem carta</th></tr></thead><tbody>'+
+      (L.length ? L.map(([nome,r],i)=>`<tr${clique(nome,"EM ANALISE")}><td>${med(i)}</td><td><b>${esc(nome)}</b></td><td>${imobDe(r)}</td>`+
+        `<td class="num"><b>${r.qtd}</b></td><td class="num" style="color:#1D7A45">${r.com}</td><td class="num" style="color:#C0392B">${r.sem}</td></tr>`).join("") : vazio(6))+'</tbody>';
+  }
+  const v=document.getElementById("prop-rkVendidas");
+  if(v){
+    const L=agrupa(p=>PROP_NORM(p.status)==="VENDIDA");
+    v.innerHTML='<thead><tr><th></th><th>Corretor</th><th>Imobiliária</th><th class="col-num">Vendidas</th><th class="col-num">VGV</th></tr></thead><tbody>'+
+      (L.length ? L.map(([nome,r],i)=>`<tr${clique(nome,"VENDIDA")}><td>${med(i)}</td><td><b>${esc(nome)}</b></td><td>${imobDe(r)}</td>`+
+        `<td class="num"><b>${r.qtd}</b></td><td class="num">${r.vgv?simBRL(r.vgv):"—"}</td></tr>`).join("") : vazio(5))+'</tbody>';
+  }
+}
+function propFiltrarCorretor(nome, f){
+  const b=document.getElementById("prop-busca"); if(b) b.value=nome;
+  propSegCredito(""); propSeg(f);
+  const t=document.getElementById("prop-tab"); if(t) t.scrollIntoView({behavior:"smooth",block:"start"});
 }
 
 /* ---------- indicadores no painel (item 6) ---------- */
