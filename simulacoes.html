@@ -79,7 +79,15 @@ html[data-tema="escuro"] .kpi .val{color:var(--teal)}
 .kpi .sub.meta-ok{color:var(--verde-esc);font-weight:800}
 .kpi .sub.meta-ruim{color:var(--vermelho);font-weight:800}
 /* 30/10 — cortes da aba Propostas: 5 cartões clicáveis que filtram a tabela */
-.kpis.k5{grid-template-columns:repeat(5,1fr);margin-bottom:14px}
+.kpis.k5{grid-template-columns:repeat(6,1fr);margin-bottom:14px}
+.kpis.k5 .kpi.cred{cursor:default}
+.kpis.k5 .cred-lin{display:flex;gap:8px;margin-top:8px}
+.kpis.k5 .cred-lin>div{flex:1;cursor:pointer;border-radius:8px;padding:4px 6px;text-align:center}
+.kpis.k5 .cred-lin>div:hover{background:var(--border2)}
+.kpis.k5 .cred-lin>div.on{outline:2px solid currentColor;outline-offset:-2px}
+.kpis.k5 .cred-lin b{display:block;font-family:'Barlow Condensed';font-size:26px;font-weight:800;line-height:1}
+.kpis.k5 .cred-lin span{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+@media(max-width:1200px){.kpis.k5{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:900px){.kpis.k5{grid-template-columns:repeat(2,1fr)}}
 .kpis.k5 .kpi{cursor:pointer;border-top:4px solid var(--cor,var(--border2))}
 .kpis.k5 .kpi.on{outline:2px solid var(--cor,var(--azul));outline-offset:-2px}
@@ -2525,10 +2533,18 @@ function propCortes(){
     ["VENDIDA",   "Vendidas",            n("VENDIDA"),    "#1D7A45",      ""]
   ];
   const pct=v=>L.length ? Math.round(v*100/L.length)+"% do total" : "";
+  /* 30/10 — 6º cartão: das EM ANÁLISE, quantas têm crédito aprovado (carta) e quantas não */
+  const ea=L.filter(p=>propNoCorte(p,"EM ANALISE")), com=ea.filter(p=>p.comCredito).length, sem=ea.length-com;
+  const ativo=c=>propFiltro==="EM ANALISE" && propFiltroCredito===c ? " on" : "";
+  const cred=`<div class="kpi cred" style="--cor:#B7791F"><div class="lab">Em análise · crédito</div>`+
+    `<div class="cred-lin">`+
+      `<div class="${ativo("SIM")}" style="color:#1D7A45" title="Em análise com crédito aprovado — clique para filtrar" onclick="propSeg('EM ANALISE');propSegCredito('SIM')"><b>${com}</b><span>aprovado</span></div>`+
+      `<div class="${ativo("NAO")}" style="color:#C0392B" title="Em análise sem carta de crédito — clique para filtrar" onclick="propSeg('EM ANALISE');propSegCredito('NAO')"><b>${sem}</b><span>sem carta</span></div>`+
+    `</div></div>`;
   el.innerHTML=cortes.map(([f,lab,v,cor,sub])=>
-    `<div class="kpi${propFiltro===f?" on":""}" style="--cor:${cor}" title="Clique para filtrar a tabela" onclick="propSeg('${f}')">`+
+    `<div class="kpi${propFiltro===f && (f!=="EM ANALISE" || !propFiltroCredito)?" on":""}" style="--cor:${cor}" title="Clique para filtrar a tabela" onclick="propSeg('${f}');propSegCredito('')">`+
     `<div class="lab">${lab}</div><div class="val" style="color:${cor}">${v}</div>`+
-    `<div class="sub">${f?pct(v)+(sub?" · "+sub:""):sub}</div></div>`).join("");
+    `<div class="sub">${f?pct(v)+(sub?" · "+sub:""):sub}</div></div>`).join("") + cred;
 }
 
 /* ---------- indicadores no painel (item 6) ---------- */
