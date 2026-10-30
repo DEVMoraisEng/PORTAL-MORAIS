@@ -196,7 +196,16 @@ function htmlCampo(c){
   var v=c.valor;
   if(c.tipo==='cpf') v=fmtCpf(v); else if(c.tipo==='cep') v=fmtCep(v); else if(c.tipo==='tel') v=fmtTel(v);
   var full = (c.id==='endereco') ? ' style="grid-column:1/-1"' : '';
-  return '<div class="campo'+(vazio&&c.obrig?' falta':'')+'"'+full+' data-obrig="'+(c.obrig?1:0)+'">'+
+  var cab = '<div class="campo'+(vazio&&c.obrig?' falta':'')+'"'+full+' id="cx-'+c.id+'" data-obrig="'+(c.obrig?1:0)+'">';
+  /* 30/10/2026 — estado civil do fiador: lista fechada (os mesmos valores da proposta) */
+  if(c.tipo==='estadoCivil'){
+    var opc=['','SOLTEIRO','CASADO','DIVORCIADO','VIUVO','UNIAO ESTAVEL'];
+    if(v && opc.indexOf(String(v))<0) opc.push(String(v));
+    return cab+'<label>'+esc(c.rotulo)+'<span class="marca opc">opcional</span></label><select id="f-'+c.id+'" data-tipo="estadoCivil" onchange="verConjugesFiadores()">'+
+      opc.map(function(o){ return '<option value="'+esc(o)+'"'+(o===String(v||'')?' selected':'')+'>'+(o?esc(o):'Escolha…')+'</option>'; }).join('')+
+      '</select></div>';
+  }
+  return cab+
     '<label>'+esc(c.rotulo)+(c.obrig ? (vazio?'<span class="marca">falta</span>':'<span class="marca ok-marca">ok</span>')
                                      : '<span class="marca opc">opcional</span>')+'</label>'+
     '<input id="f-'+c.id+'" type="'+t+'" value="'+esc(v)+'" data-tipo="'+c.tipo+'"'+extra+maxl+'></div>';
@@ -257,14 +266,47 @@ function pintar(){
     if(g==='endereco' && DADOS.enderecoProposta)
       html+='<p class="dica">Endereço informado na proposta: <b>'+esc(DADOS.enderecoProposta)+'</b></p>';
     html+=(docsGrupo[g]||[]).map(htmlDoc).join('');
-    html+='<div class="grade" style="margin-top:10px">'+porGrupo[g].map(htmlCampo).join('')+'</div></div>';
+    html+='<div class="grade" style="margin-top:10px">'+porGrupo[g].map(htmlCampo).join('')+'</div>';
+    if(/^fiador[12]$/.test(g)) html+='<p class="dica" id="conjOutro-'+g+'" style="display:none;margin-top:8px">'+
+      'Casado ou em união estável: o cônjuge também assina. Se o cônjuge for o outro fiador (o preferido), '+
+      '<button type="button" onclick="conjugeEhOutroFiador(\''+g+'\')">usar o '+(g==='fiador1'?'fiador 2':'fiador 1')+' como cônjuge</button></p>';
+    html+='</div>';
   });
   document.getElementById('grupos').innerHTML=html;
   document.getElementById('docsOutros').innerHTML=outros.map(htmlDoc).join('');
   document.querySelectorAll('#conteudo input[type=text],#conteudo input[type=email],#conteudo input[type=date]').forEach(function(el){
     el.addEventListener('input', function(){ mascarar(el); atualizarTrava(); });
   });
+  verConjugesFiadores();
   resumoAnexos();
+}
+
+/* 30/10/2026 (dono, Súmula 332 do STJ) — fiador casado ou em união estável: o cônjuge também assina.
+   Só com parcelas depois das chaves (36x/48x); em 24x o fiador é dispensado e nada disto aparece.
+   Se o cônjuge é o outro fiador, os dados dele vão como cônjuge (o contrato reconhece pelo CPF). */
+function casadoFiador(v){ return /^(CASADO|UNIAO ESTAVEL)$/.test(String(v||'').toUpperCase()); }
+function verConjugesFiadores(){
+  if(!DADOS) return;
+  var disp=!!DADOS.fiadorDispensado;
+  [1,2].forEach(function(n){
+    var ec=document.getElementById('f-estadoCivilFiador'+n);
+    var cas=!disp && !!ec && casadoFiador(ec.value);
+    var cx=document.getElementById('cx-estadoCivilFiador'+n); if(cx) cx.style.display=disp?'none':'';
+    ['conjugeFiador','cpfConjugeFiador','emailConjugeFiador'].forEach(function(k){
+      var c=document.getElementById('cx-'+k+n); if(c) c.style.display=cas?'':'none';
+    });
+    var d=document.getElementById('conjOutro-fiador'+n); if(d) d.style.display=cas?'':'none';
+  });
+}
+function conjugeEhOutroFiador(g){
+  var n=g==='fiador1'?1:2, o=3-n;
+  function val(id){ var e=document.getElementById('f-'+id); return e?e.value:''; }
+  function por(id,v){ var e=document.getElementById('f-'+id); if(e) e.value=v; }
+  por('conjugeFiador'+n, val('fiador'+o)); por('cpfConjugeFiador'+n, val('cpfFiador'+o)); por('emailConjugeFiador'+n, val('emailFiador'+o));
+  /* e o outro fiador, casado com este */
+  por('estadoCivilFiador'+o, val('estadoCivilFiador'+n));
+  por('conjugeFiador'+o, val('fiador'+n)); por('cpfConjugeFiador'+o, val('cpfFiador'+n)); por('emailConjugeFiador'+o, val('emailFiador'+n));
+  verConjugesFiadores(); atualizarTrava();
 }
 function mascarar(el){
   var t=el.dataset.tipo;
@@ -380,8 +422,9 @@ function enviar(){
   var campos={}, problema=null;
   DADOS.campos.forEach(function(c){
     var el=document.getElementById('f-'+c.id); if(!el) return;
+    var cx=document.getElementById('cx-'+c.id); if(cx && cx.style.display==='none') return;   /* 30/10: escondido não vai */
     var v=String(el.value||'').trim(); if(!v) return;
-    if(!problema && /^(proponente|conjuge|comprador1|comprador2|fiador1|fiador2)$/.test(c.id) && !nomeCompleto(v))
+    if(!problema && /^(proponente|conjuge|comprador1|comprador2|fiador1|fiador2|conjugeFiador1|conjugeFiador2)$/.test(c.id) && !nomeCompleto(v))
       problema=['Informe o <b>nome completo</b> (nome e sobrenome): '+esc(c.rotulo)+'.', el];
     if(!problema && c.tipo==='cpf' && !cpfValido(v)) problema=['<b>CPF inválido</b>: '+esc(c.rotulo)+'. Confira os números.', el];
     campos[c.id]=v;
