@@ -1027,3 +1027,27 @@ qualquer momento, sem trocar código: nas propriedades do script, ponha
 (`OPENAI_API_KEY`/`MODELO_IA` ficam sem efeito nesse modo). A versão do
 código anterior a esta troca de provedor também está marcada na tag git
 `anthropic-plano-b`.
+
+## Rubricas do comprador, memorial e projeto aprovado (30/10/2026)
+
+No contrato do **condomínio**, o comprador (e o comprador 2) assina cada quadro "CIÊNCIA EXPRESSA …
+ASSINATURA: ____" e dá um visto na coluna cinza do quadro-resumo, na altura do 4.2.1. As posições saem do
+PDF final: ao clicar "Enviar para assinatura", a tela pede o PDF (ação nova `assinaturaPdf`), lê com o
+pdf.js (cdnjs, `venda/RubricasVenda.js`) e manda as posições; o servidor confere (mesmo PDF, valores de
+0 a 1) e cria os requisitos `rubricate` (ver `CLICKSIGN-API.md`). Casa de rua não muda nada.
+Memorial descritivo e projeto aprovado entram no MESMO envelope, só para o comprador, quando as
+Propriedades existem (vazias = desligados).
+
+1. **Drive:** subir `MODELO MEMORIAL DESCRITIVO - portal.docx` como Google Doc (marcadores
+   `{{ASSINATURA_COMPRADORES_NOMES}}` e `{{ASSINATURA_COMPRADORES_CPFS}}`, nenhum outro) e o PDF do
+   projeto aprovado; a conta que roda o PORTAL-VENDA precisa abrir os dois.
+2. **Propriedades do PORTAL-VENDA:** `MODELO_MEMORIAL_ID` (id do Google Doc) e `PROJETO_APROVADO_ID`
+   (id do PDF). Opcionais: `RUBRICAS_AJUSTE`, `MEMORIAL_POSICAO` (`{"position":[0.53,0.70]}`, página = a
+   última), `PROJETO_POSICOES` (lista `[{"page":"1","position":[x,y]}, …]`), `ASSINATURA_SEM_RUBRICAS`
+   = `SIM` (desliga as rubricas em emergência; o envio volta a ser como antes).
+3. **Código:** colar `ClicksignVenda`, `AssinaturaVenda` e `PortalVenda`; nova versão. Site: publicar
+   `venda/RubricasVenda.js` (novo), `venda/assinatura-ui.js` (v11), `venda-dossie.js` (v18) e `vendas.html`.
+4. **Teste no sandbox:** enviar um contrato do condomínio e abrir o envelope na Clicksign — conferir se a
+   caixa da assinatura cai em cima da linha "ASSINATURA: ____", o visto na coluna cinza, a assinatura na
+   linha do comprador na última página do memorial e o visto debaixo da data do carimbo DEFERIMENTO nas
+   páginas 1–11 do projeto. Fora do lugar: ajustar pelas Propriedades do passo 2, sem mexer no código.

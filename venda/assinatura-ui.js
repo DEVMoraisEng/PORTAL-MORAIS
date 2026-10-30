@@ -41,7 +41,16 @@
     /* entrega 14: Ver contrato assinado */
     SEM_ASSINADO: "O PDF assinado ainda não está na casa — use Atualizar situação.",
     ASSINADO_ILEGIVEL: "Não consegui abrir o PDF assinado guardado na casa — use Atualizar situação ou avise o desenvolvedor.",
-    ASSINADO_GRANDE: "O PDF assinado ficou grande demais para abrir pelo portal — abra pelo Notion."
+    ASSINADO_GRANDE: "O PDF assinado ficou grande demais para abrir pelo portal — abra pelo Notion.",
+    /* 30/10: rubricas do comprador e documentos só dele (memorial, projeto aprovado) */
+    RUBRICAS_FALTANDO: "A tela está desatualizada — recarregue a página (Ctrl+F5) e envie de novo.",
+    RUBRICAS_DE_OUTRO_PDF: "O contrato mudou enquanto a tela lia o PDF — envie de novo.",
+    RUBRICAS_INVALIDAS: "As posições das rubricas saíram erradas — gere o contrato de novo ou avise o desenvolvedor.",
+    RUBRICAS_NAO_ACHADAS: "Não achei no contrato os campos “ASSINATURA: ____” que o comprador rubrica — gere o contrato de novo ou avise o desenvolvedor.",
+    RUBRICAS_SEM_LEITOR: "Não consegui abrir o leitor de PDF do navegador — confira a internet e tente de novo.",
+    MEMORIAL_NAO_CONFIGURADO: "O modelo do memorial descritivo não abre — avise o administrador.",
+    MEMORIAL_FALHOU: "Não consegui gerar o memorial descritivo — tente de novo ou avise o desenvolvedor.",
+    PROJETO_NAO_CONFIGURADO: "O PDF do projeto aprovado não abre — avise o administrador."
   };
 
   function esc(s) {
@@ -176,6 +185,24 @@
     return n;
   }
 
+  /* 30/10: antes de enviar o CONTRATO, a tela lê o PDF gerado (ação assinaturaPdf) e acha onde o comprador
+   * rubrica (RubricasVenda + pdf.js). Devolve { ok, rubricas? } ou { ok: false, erro }. Sem PDF na resposta
+   * (casa de rua, rubricas desligadas, erro, servidor antigo) volta { ok: true } sem nada: o envio segue e quem
+   * decide é o servidor, que exige as rubricas no contrato do condomínio. Só barra aqui o que só a tela sabe:
+   * leitor de PDF que não abriu ou PDF sem os campos. deps.rubricas: troca o leitor (testes). */
+  async function prepararRubricas(deps) {
+    var r;
+    try { r = await deps.chamar({ action: "assinaturaPdf", pageId: deps.pageId }); }
+    catch (err) { r = null; }
+    if (!r || !r.ok || r.semRubricas || typeof r.base64 !== "string" || !r.base64) return { ok: true };
+    var R = deps.rubricas || (typeof window !== "undefined" ? window.RubricasVenda : null), ach;
+    if (!R) return { ok: false, erro: "RUBRICAS_SEM_LEITOR" };
+    try { ach = R.acharNoContrato(await R.paginasDoPdf(r.base64), r.ajuste); }
+    catch (err) { return { ok: false, erro: "RUBRICAS_SEM_LEITOR" }; }
+    if (!ach.campos.length) return { ok: false, erro: "RUBRICAS_NAO_ACHADAS" };
+    return { ok: true, rubricas: { nome: r.nome, campos: ach.campos, valores: ach.valores } };
+  }
+
   /* Executa um clique. deps: { pageId, confirmar(texto) -> bool, chamar(payload) -> Promise<resposta>,
    * pintar(ctx) opcional — chamado com o bloco ocupado antes de ir ao servidor }.
    * Devolve o contexto novo (não muda o recebido). */
@@ -187,9 +214,14 @@
     if (enviar ? !podeEnviar(c) : (acao !== "a-atualizar" || !podeAtualizar(c))) return c;
     if (enviar && !deps.confirmar("Enviar o " + (ehTermo(c) ? "termo de pré-reserva" : "contrato") + " para assinatura? Cada signatário recebe um e-mail da Clicksign para assinar.")) return c;
     if (typeof deps.pintar === "function") deps.pintar(copia(c, { ocupado: enviar ? "enviar" : "atualizar", msg: "", faltas: null, corrigir: null }));
-    var r;
+    var r, pedido = comDoc(c, { action: enviar ? "assinaturaEnviar" : "assinaturaEstado", pageId: deps.pageId });
+    if (enviar && !ehTermo(c)) {
+      var rb = await prepararRubricas(deps);
+      if (!rb.ok) return copia(c, { ocupado: null, faltas: null, corrigir: null, msg: mensagemAssinatura(rb) });
+      if (rb.rubricas) pedido.rubricas = rb.rubricas;
+    }
     try {
-      r = await deps.chamar(comDoc(c, { action: enviar ? "assinaturaEnviar" : "assinaturaEstado", pageId: deps.pageId }));
+      r = await deps.chamar(pedido);
     } catch (err) {
       r = { ok: false, erro: "SEM_RESPOSTA" };
     }
@@ -249,7 +281,7 @@
   }
 
   var exportar = { montarBlocoAssinatura: montarBlocoAssinatura, mensagemAssinatura: mensagemAssinatura,
-                   executarAcaoAssinatura: executarAcaoAssinatura, podeEnviar: podeEnviar, podeReenviar: podeReenviar, podeCancelar: podeCancelar,
+                   executarAcaoAssinatura: executarAcaoAssinatura, prepararRubricas: prepararRubricas, podeEnviar: podeEnviar, podeReenviar: podeReenviar, podeCancelar: podeCancelar,
                    podeVerAssinado: podeVerAssinado };
   if (typeof module !== "undefined" && module.exports) { module.exports = exportar; return; }
   window.VendaAssinatura = exportar; /* o coordenador liga no painel (venda-dossie.js / vendas.html) */
