@@ -66,7 +66,9 @@ var FluxoLivre = (function () {
       if (u > 0 && x.n > 1) x.u = u;
       return x;
     });
-    return { valor: Math.round((Number(o.valor) || 0) * 100) / 100, entrega: String(o.entrega || "").slice(0, 10), linhas: linhas };
+    var out = { valor: Math.round((Number(o.valor) || 0) * 100) / 100, entrega: String(o.entrega || "").slice(0, 10), linhas: linhas };
+    if (o.semComissao === true) out.semComissao = true;   /* 30/10: desconto "isentar a comissão" = venda direta */
+    return out;
   }
 
   /* { ok, diferenca, erros: [texto], porLinha: { índice: [texto] }, avisos: [texto] } — diferenca = valor − soma
@@ -129,15 +131,87 @@ var FluxoLivre = (function () {
     f = normalizar(f);
     var l = f.linhas[k];
     if (!l) return { erro: "Linha inexistente" };
-    var n = Math.max(1, l.n), alvo = c(f.valor) - (somaC(f.linhas) - totalLinhaC(l));
-    if (alvo < n) return { erro: "Essa linha ficaria zerada ou negativa — ajuste outra linha" };
-    var cada = Math.floor(alvo / n), resto = alvo - cada * n;
+    var alvo = c(f.valor) - (somaC(f.linhas) - totalLinhaC(l));
+    if (alvo < Math.max(1, l.n)) return { erro: "Essa linha ficaria zerada ou negativa — ajuste outra linha" };
+    var linhas = f.linhas.slice();
+    linhas[k] = comTotal(l, alvo);
+    return { linhas: linhas };
+  }
+
+  /* ---- 30/10: desconto no "Alterar fluxo" (decisões do dono, arquivo 17 item 1) ----
+   * Quem dá o desconto (FLUXO_PRECO_USUARIOS) escolhe de onde ele sai:
+   *   "entrada": proporcional nas linhas da entrada (Entrada à vista, pré-chaves, balões e pós-chaves);
+   *   "baloes":  dos balões primeiro, do último para o primeiro; o que sobrar sai das pré-chaves (também da última);
+   *   "pre":     proporcional nas pré-chaves.
+   * Sinal, financiamento, FGTS, subsídio e permuta não mudam. O valor da casa cai o mesmo tanto, então a soma continua
+   * batendo ao centavo. Uma linha que o desconto zera inteira sai da lista (um balão que some, por exemplo).
+   * { valor, linhas } ou { erro }. */
+  var DESCONTO_DE = { entrada: ["entrada", "pre", "balao", "pos"], baloes: ["balao", "pre"], pre: ["pre"] };
+  /* a linha com outro total (centavos): a cada parcela igual, o resto vai na última (como o Redistribuir) */
+  function comTotal(l, alvo) {
+    var n = Math.max(1, l.n), cada = Math.floor(alvo / n), resto = alvo - cada * n;
     var nova = { t: l.t, v: cada / 100, n: n, d: l.d, i: l.i, x: l.x };
     if (resto && n > 1) nova.u = (cada + resto) / 100;
     else if (resto) nova.v = (cada + resto) / 100;
-    var linhas = f.linhas.slice();
-    linhas[k] = nova;
-    return { linhas: linhas };
+    return nova;
+  }
+  function aplicarDesconto(f, valorDesconto, de) {
+    f = normalizar(f);
+    var D = c(valorDesconto), tipos = DESCONTO_DE[de];
+    if (!tipos) return { erro: "Escolha de onde sai o desconto" };
+    if (D <= 0) return { erro: "Informe o desconto (maior que zero)" };
+    if (D >= c(f.valor)) return { erro: "O desconto não pode ser maior que o valor da casa" };
+    var alvos = [];
+    f.linhas.forEach(function (l, k) { if (tipos.indexOf(l.t) >= 0 && totalLinhaC(l) > 0) alvos.push(k); });
+    var cabe = alvos.reduce(function (s, k) { return s + totalLinhaC(f.linhas[k]); }, 0);
+    var nomes = { entrada: "nas parcelas da entrada", baloes: "nos balões e nas pré-chaves", pre: "nas pré-chaves" }[de];
+    if (D > cabe) return { erro: "O desconto (" + moeda(D / 100) + ") passa do que existe " + nomes + " (" + moeda(cabe / 100) + ")" };
+    var corte = {};                                   /* índice da linha → centavos que saem dela */
+    if (de === "baloes") {
+      /* do último para o primeiro: balões por data (mais tarde primeiro), depois as pré-chaves também de trás para frente */
+      var ult = function (k) { var l = f.linhas[k]; return isoValida(l.d) ? maisMeses(l.d, (Math.max(1, l.n) - 1) * l.i) : ""; };
+      var ordem = alvos.slice().sort(function (a, b) {
+        var ta = f.linhas[a].t === "balao" ? 0 : 1, tb = f.linhas[b].t === "balao" ? 0 : 1;
+        return ta - tb || ult(b).localeCompare(ult(a)) || b - a;
+      });
+      var falta = D;
+      ordem.forEach(function (k) { var s = Math.min(falta, totalLinhaC(f.linhas[k])); if (s) corte[k] = s; falta -= s; });
+    } else {
+      /* proporcional ao total de cada linha; os centavos do arredondamento saem da maior */
+      var dado = 0, maior = alvos[0];
+      alvos.forEach(function (k) {
+        var t = totalLinhaC(f.linhas[k]);
+        if (t > totalLinhaC(f.linhas[maior])) maior = k;
+        corte[k] = Math.floor(D * t / cabe); dado += corte[k];
+      });
+      corte[maior] += D - dado;
+    }
+    var linhas = [];
+    f.linhas.forEach(function (l, k) {
+      if (!corte[k]) { linhas.push(l); return; }
+      var alvo = totalLinhaC(l) - corte[k];
+      if (alvo <= 0) return;                          /* zerou: a linha sai */
+      if (alvo < Math.max(1, l.n)) { linhas.push({ t: l.t, v: alvo / 100, n: 1, d: l.d, i: l.i, x: l.x }); return; }
+      linhas.push(comTotal(l, alvo));
+    });
+    return { valor: (c(f.valor) - D) / 100, linhas: linhas };
+  }
+  /* quanto é o desconto em R$: { modo: "rs" | "pct" | "isentar", valor (R$ ou %), comissao (R$, para isentar) } sobre o
+     valor da casa. { valor } ou { erro }. */
+  function valorDoDesconto(valorCasa, o) {
+    o = o || {};
+    if (o.modo === "isentar") {
+      if (!positivo(o.comissao)) return { erro: "Esta venda não tem comissão para isentar" };
+      return { valor: c(o.comissao) / 100 };
+    }
+    var n = Number(o.valor) || 0;
+    if (!(n > 0)) return { erro: "Informe o desconto (maior que zero)" };
+    if (o.modo === "pct") {
+      if (n >= 100) return { erro: "Percentual de desconto tem de ser menor que 100%" };
+      return { valor: Math.round(c(valorCasa) * n / 100) / 100 };
+    }
+    if (o.modo === "rs") return { valor: c(n) / 100 };
+    return { erro: "Escolha R$, % ou isentar a comissão" };
   }
 
   /* Gavetas do simulador (fluxo como o GerarContrato lê) → lista. excedente = parte do VALOR PARA ENTRADA da
@@ -181,7 +255,9 @@ var FluxoLivre = (function () {
   /* Texto curto e estável para gravar no Notion (e comparar): só valor, entrega e linhas, chaves curtas. */
   function serializar(f) {
     f = normalizar(f);
-    return JSON.stringify({ v: 1, valor: f.valor, entrega: f.entrega, linhas: f.linhas });
+    var o = { v: 1, valor: f.valor, entrega: f.entrega, linhas: f.linhas };
+    if (f.semComissao) o.semComissao = true;
+    return JSON.stringify(o);
   }
   function ler(s) {
     if (!s || typeof s !== "string") return null;
@@ -196,7 +272,7 @@ var FluxoLivre = (function () {
   }
 
   return { TIPOS: TIPOS, ORDEM: ORDEM, MAX_LINHAS: MAX_LINHAS, MAX_MOTIVO: MAX_MOTIVO, POS_TETO: POS_TETO,
-           normalizar: normalizar, validar: validar, redistribuir: redistribuir, doPadrao: doPadrao, expandir: expandir,
+           normalizar: normalizar, validar: validar, redistribuir: redistribuir, aplicarDesconto: aplicarDesconto, valorDoDesconto: valorDoDesconto, doPadrao: doPadrao, expandir: expandir,
            serializar: serializar, ler: ler, ordenar: ordenar, totalLinha: function (l) { return totalLinhaC(normalizar({ linhas: [l] }).linhas[0] || {}) / 100; },
            soma: function (linhas) { return somaC(normalizar({ linhas: linhas }).linhas) / 100; }, maisMeses: maisMeses, moeda: moeda, dataBR: dataBR };
 })();

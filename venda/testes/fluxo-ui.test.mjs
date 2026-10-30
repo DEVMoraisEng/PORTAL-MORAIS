@@ -98,3 +98,41 @@ test("texto digitado é escapado (descrição da permuta)", () => {
   ed.linhas.push({ t: "permuta", v: 1, n: 1, d: "2026-11-01", i: 1, x: '"><script>x</script>' });
   assert.doesNotMatch(D.htmlFluxo(fechado, { fluxoEd: ed }, ""), /<script>/);
 });
+
+/* ---- 30/10: ícone ↻ e desconto (arquivo 17, itens 1 e 2) ---- */
+test("↻ fica na coluna entre Tipo e Valor de cada, por linha; o botão Redistribuir saiu da última coluna", () => {
+  const h = D.htmlFluxo(fechado, { fluxoEd: editor() }, "");
+  assert.match(h, /<th>Tipo<\/th><th>↻<\/th><th>Valor de cada \(R\$\)<\/th>/);
+  const linhaPre = h.match(/<tr data-fx-linha="1">.*?<\/tr>/s)[0];
+  assert.match(linhaPre, /<\/select>.*?<\/td><td><button[^>]*data-acao="c-fluxo-red"[^>]*>↻<\/button><\/td><td><input[^>]*data-fx="v"/s);
+  assert.doesNotMatch(h, />Redistribuir<\/button>/);
+  const linhaFin = h.match(/<tr data-fx-linha="2">.*?<\/tr>/s)[0];
+  assert.equal((linhaFin.match(/<td/g) || []).length, (linhaPre.match(/<td/g) || []).length, "linha fixa com o mesmo nº de colunas");
+});
+
+const dsc = (o = {}) => ({ comissao: { valor: 5000, pct: 0.05 }, isencaoLiberada: false, ...o });
+test("desconto: só aparece para quem muda o valor da casa; R$, % ou isentar; três origens", () => {
+  assert.doesNotMatch(D.htmlFluxo(fechado, { fluxoEd: editor() }, ""), /Aplicar desconto/);
+  assert.doesNotMatch(D.htmlFluxo(fechado, { fluxoEd: editor({ desconto: dsc() }) }, ""), /Aplicar desconto/, "sem podePreco nada");
+  const h = D.htmlFluxo(fechado, { fluxoEd: editor({ podePreco: true, desconto: dsc() }) }, "");
+  assert.match(h, /Aplicar desconto/);
+  assert.match(h, /<option value="rs" selected>em R\$<\/option><option value="pct">em %<\/option><option value="isentar">isentar a comissão \(aguardando o contrato\)<\/option>/);
+  assert.match(h, /proporcional na entrada.*dos balões primeiro \(do último para o primeiro\), depois as pré-chaves.*das parcelas pré-chaves/s);
+  assert.match(h, /Sinal, financiamento e FGTS não mudam/);
+});
+
+test("isentar sem o contrato pronto: mensagem clara na barra; liberada mostra a comissão que vira desconto", () => {
+  const trav = D.htmlFluxoDesconto(editor({ podePreco: true, desconto: dsc(), dsc: { modo: "isentar" } }), "");
+  assert.match(trav, /ainda não está liberado: o contrato do advogado não tem o texto/);
+  assert.doesNotMatch(trav, /data-fx="dvalor"/);
+  const lib = D.htmlFluxoDesconto(editor({ podePreco: true, desconto: dsc({ isencaoLiberada: true }), dsc: { modo: "isentar" } }), "");
+  assert.doesNotMatch(lib, /ainda não está liberado/);
+  assert.match(lib, /desconto = a comissão de hoje \(R\$ 5\.000,00\); venda direta/);
+});
+
+test("placar: com desconto mostra a comissão pela regra sobre o valor novo; isento diz sem comissão", () => {
+  const ed = editor({ podePreco: true, desconto: dsc(), valor: 95000, motivo: "x", motivoPreco: "y" });
+  ed.linhas[1].v = 750;
+  assert.match(D.htmlFluxoVivo(ed, ""), /Comissão pela regra: <b>R\$ 4\.750,00/);
+  assert.match(D.htmlFluxoVivo({ ...ed, semComissao: true }, ""), /sem comissão \(venda direta\)/);
+});

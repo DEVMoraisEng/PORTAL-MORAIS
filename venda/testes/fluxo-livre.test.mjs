@@ -142,3 +142,62 @@ test("serializar e ler voltam o mesmo fluxo e descartam campos estranhos", () =>
   assert.equal(F.ler("não é json"), null);
   assert.ok(s.length < 1900 * 2);
 });
+
+/* ---- 30/10: desconto no Alterar fluxo (arquivo 17, item 1) ---- */
+const fixos = (ls) => ls.filter((l) => ["sinal", "fin", "fgts", "subsidio", "permuta"].includes(l.t));
+
+test("desconto proporcional na entrada: sinal, financiamento e FGTS não mudam; soma fecha ao centavo", () => {
+  const f = F.doPadrao(gavetas), p = F.doPadrao(gavetas);
+  const r = F.aplicarDesconto(f, 1000.01, "entrada");
+  assert.equal(r.erro, undefined);
+  assert.equal(r.valor, 303999.99);
+  assert.deepEqual(fixos(r.linhas), fixos(f.linhas));
+  assert.equal(F.validar({ valor: r.valor, entrega: f.entrega, linhas: r.linhas }, p).ok, true);
+  const antes = F.soma(f.linhas.filter((l) => ["pre", "balao"].includes(l.t)));
+  assert.equal(Math.round((antes - F.soma(r.linhas.filter((l) => ["pre", "balao"].includes(l.t)))) * 100), 100001);
+  // cada linha perde na proporção do total dela (balão de 10 mil perde mais que o de 7 mil)
+  const b = r.linhas.filter((l) => l.t === "balao").map((l) => l.v);
+  assert.ok(10000 - b[0] > 7000 - b[1]);
+});
+
+test("desconto dos balões primeiro: do último para o primeiro, depois as pré-chaves (também da última)", () => {
+  const f = F.doPadrao(gavetas);
+  let r = F.aplicarDesconto(f, 3000, "baloes");
+  assert.deepEqual(r.linhas.filter((l) => l.t === "balao").map((l) => [l.d, l.v]), [["2027-12-10", 10000], ["2028-06-10", 4000]]);
+  r = F.aplicarDesconto(f, 18000, "baloes");                       // os dois balões (17 mil) somem; 1.000 sai da 2ª etapa
+  assert.equal(r.linhas.filter((l) => l.t === "balao").length, 0);
+  const pre = r.linhas.filter((l) => l.t === "pre");
+  assert.equal(F.totalLinha(pre[0]), 12 * 860, "a 1ª etapa não muda");
+  assert.equal(F.totalLinha(pre[1]), 12 * 330 - 1000);
+  assert.equal(F.validar({ valor: r.valor, entrega: f.entrega, linhas: r.linhas }).ok, true);
+});
+
+test("desconto das pré-chaves: proporcional nas etapas, balões intactos, centavos na última parcela", () => {
+  const f = F.doPadrao(gavetas);
+  const r = F.aplicarDesconto(f, 100, "pre");
+  assert.deepEqual(r.linhas.filter((l) => l.t === "balao").map((l) => l.v), [10000, 7000]);
+  assert.equal(F.validar({ valor: r.valor, entrega: f.entrega, linhas: r.linhas }).ok, true);
+  assert.equal(r.valor, 304900);
+});
+
+test("desconto: erros claros (sem origem, zero, maior que o que existe)", () => {
+  const f = F.doPadrao(gavetas);
+  assert.match(F.aplicarDesconto(f, 100, "x").erro, /de onde sai/);
+  assert.match(F.aplicarDesconto(f, 0, "pre").erro, /maior que zero/);
+  assert.match(F.aplicarDesconto(f, 15000, "pre").erro, /passa do que existe nas pré-chaves \(R\$ 14\.280,00\)/);
+});
+
+test("valor do desconto: R$, % sobre o valor da casa e isenção = a comissão", () => {
+  assert.equal(F.valorDoDesconto(305000, { modo: "rs", valor: 1500.5 }).valor, 1500.5);
+  assert.equal(F.valorDoDesconto(305000, { modo: "pct", valor: 1.5 }).valor, 4575);
+  assert.equal(F.valorDoDesconto(305000, { modo: "isentar", comissao: 15250 }).valor, 15250);
+  assert.match(F.valorDoDesconto(305000, { modo: "isentar", comissao: 0 }).erro, /não tem comissão/);
+  assert.match(F.valorDoDesconto(305000, { modo: "pct", valor: 100 }).erro, /menor que 100/);
+});
+
+test("semComissao vai e volta na serialização; ausente quando falso (o robô lê o resto igual)", () => {
+  const f = { ...F.doPadrao(gavetas), semComissao: true };
+  assert.equal(F.ler(F.serializar(f)).semComissao, true);
+  assert.equal(JSON.parse(F.serializar(F.doPadrao(gavetas))).semComissao, undefined);
+  assert.equal(F.ler(F.serializar({ ...F.doPadrao(gavetas), semComissao: "sim" })).semComissao, undefined, "só true vale");
+});
