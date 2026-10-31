@@ -39,9 +39,9 @@ test("lista nova: nome mascarado, ✓ com data, recusou, pendente; Reenviar link
                 { papel: "Vendedor", nome: "Joao P.", assinou: false, situacao: "recusou", data: "2026-10-07T11:05:00Z" },
                 { papel: "Testemunha 1", nome: "Ana C.", assinou: false, situacao: "pendente", data: "" }];
   const h = A.montarBlocoAssinatura(ctx({ estado: { situacao: "ENVIADO", envelope: true, signatarios: sigs } }));
-  assert.match(h, /<li><span>Comprador 1 \(Maria S\.\)<\/span> <b class="ass-ok">✓ assinou<\/b> <span class="ass-data">em 07\/10\/2026 10:20<\/span><\/li>/);
-  assert.match(h, /Vendedor \(Joao P\.\)<\/span> <b class="ass-rec">✗ recusou<\/b> <span class="ass-data">em 07\/10\/2026 11:05/);
-  assert.match(h, /Testemunha 1 \(Ana C\.\)<\/span> <b class="ass-pend">⏳ pendente<\/b><\/li>/);
+  assert.match(h, /<li><span><b>Maria S\.<\/b> \(Comprador 1\)<\/span> <b class="ass-ok">✓ assinou<\/b> <span class="ass-data">em 07\/10\/2026 10:20<\/span><\/li>/);
+  assert.match(h, /<b>Joao P\.<\/b> \(Vendedor\)<\/span> <b class="ass-rec">✗ recusou<\/b> <span class="ass-data">em 07\/10\/2026 11:05/);
+  assert.match(h, /<b>Ana C\.<\/b> \(Testemunha 1\)<\/span> <b class="ass-pend">⏳ pendente<\/b><\/li>/);
   assert.doesNotMatch(botao(h, "a-reenviar")[0], /disabled/);
   assert.match(h, />Reenviar link de assinatura</);
   const todos = A.montarBlocoAssinatura(ctx({ estado: { situacao: "ENVIADO", envelope: true, signatarios: [sigs[0]] } }));
@@ -282,7 +282,7 @@ test("27/10: cada signatário mostra o e-mail para onde a Clicksign mandou (esca
   const h = A.montarBlocoAssinatura(ctx({ estado: { situacao: "ENVIADO", envelope: true,
     signatarios: [{ papel: "Comprador 1", nome: "Fulano T.", email: "fulano@teste.example", assinou: false, situacao: "pendente" },
                   { papel: "Testemunha 1", nome: "X", email: "<b>@x", assinou: false, situacao: "pendente" }] } }));
-  assert.match(h, /Comprador 1 \(Fulano T\.\)<\/span> <span class="ass-data">&lt;fulano@teste\.example&gt;<\/span>/);
+  assert.match(h, /<b>Fulano T\.<\/b> \(Comprador 1\)<\/span> <span class="ass-data">- fulano@teste\.example<\/span>/);
   assert.doesNotMatch(h, /<b>@x/);
 });
 

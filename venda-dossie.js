@@ -1433,7 +1433,10 @@
       if (soPR) { raiz.innerHTML = '<div class="vb-pr">' + htmlPreReserva(estadoP, uiP) + '</div><div class="vb-pr-ass">' + htmlAssPR() + "</div>"; return; }
       raiz.innerHTML = (comPR ? '<div class="vb-pr">' + htmlPreReserva(estadoP, uiP) + '</div><div class="vb-pr-ass">' + htmlAssPR() + "</div>" +
                                  '<div class="vb-conf">' + htmlConferencia(estadoD, uiD) + "</div>" : "") +
-        htmlContrato(estadoC, uiC) + '<div class="vb-ass">' + htmlAss() + "</div>" +
+        /* 31/10/2026: no cartão do condomínio o contrato ganha a própria caixa (.vb-ct) para ir à aba Contrato;
+         * no painel da casa (sem pré-reserva) continua solto, com as margens do painel */
+        (comPR ? '<div class="vb-ct">' + htmlContrato(estadoC, uiC) + "</div>" : htmlContrato(estadoC, uiC)) +
+        '<div class="vb-ass">' + htmlAss() + "</div>" +
         (comRec ? '<div class="vb-rec">' + htmlRecebimentos(estadoR, uiR) + "</div>" : "") +
         '<div class="vb-mc">' + htmlMC(estadoM, uiM) + "</div>";
     }
@@ -2222,7 +2225,7 @@
        Carrega mesmo sem o painel da casa: o cartão do condomínio também usa. */
     /* 30/10: leitor das rubricas do comprador (pdf.js só carrega na hora de enviar) */
     var sr = document.createElement("script"); sr.src = "venda/RubricasVenda.js?v=1"; document.head.appendChild(sr);
-    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=12";
+    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=13";
     sa.onload = function () { [blocosCasa, blocosCond, blocosPR].forEach(function (b) { if (b) b.pintarAssinatura(); }); };
     document.head.appendChild(sa);
     var body = document.getElementById("pn-body"); if (!body) return;
