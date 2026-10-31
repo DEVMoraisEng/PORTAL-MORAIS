@@ -168,6 +168,9 @@ test("paginaVirtual: título vira ENDEREÇO = CONDOMÍNIO …, UNIDADE vira text
 test("gerarContrato na linha do condomínio: modelo do condomínio, PDF em CONTRATO GERADO da própria linha; contratoEstado vê", () => {
   const c = cenario();
   const est0 = c.acao("contratoEstado"); delete est0.testemunhas; delete est0.conta; delete est0.condicoes; delete est0.fluxo;   /* testemunhas, conta de recebimento e condições especiais têm testes próprios */
+  /* 31/10/2026: faltas do cliente (só compradores/cônjuges/fiadores) — a linha de teste está completa */
+  assert.ok(Array.isArray(est0.faltasCliente) && est0.faltasCliente.every((t) => /^(Comprador|Fiador|C[ôo]njuge)/i.test(t)), JSON.stringify(est0.faltasCliente));
+  delete est0.faltasCliente;
   assert.deepEqual(est0, { ok: true, gerado: false, etapa: "NENHUM", pre: null });
   const r = c.gerarFinal();
   assert.equal(r.ok, true, JSON.stringify(r));
@@ -833,4 +836,14 @@ test("30/10 histórico do contrato: ação que grava deixa linha com quem fez; c
   const h = c.acao("contratoEstado").historico;
   assert.equal(h.length, 1);
   assert.match(h[0], /^\S+ \S+ — .+ — condições especiais \(item 16\): Na cláusula 9\.2/);
+});
+
+/* 31/10/2026 (dono): o quadro "Link para completar" do Resumo só aparece com falta obrigatória do cliente — o estado do
+   contrato traz as mesmas faltas do gerador, só as dos compradores, cônjuges e fiadores */
+test("31/10: contratoEstado traz faltasCliente (fiador sem nome/CPF) e nada interno (vendedor, fluxo)", () => {
+  const sem = cenarioCfd({ linha: { "FIADOR 2": rt(""), "CPF FIADOR 2": rt("") } }).acao("contratoEstado");
+  assert.ok(sem.faltasCliente.length > 0, JSON.stringify(sem.faltasCliente));
+  assert.ok(sem.faltasCliente.every((t) => /^Fiador 2/.test(t)), JSON.stringify(sem.faltasCliente));
+  const completo = cenarioCfd().acao("contratoEstado");
+  assert.deepEqual(completo.faltasCliente, []);
 });
