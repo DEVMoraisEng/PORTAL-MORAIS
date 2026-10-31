@@ -237,3 +237,12 @@ test("31/10: pré-reserva paga no 6.1 (inciso I), no meio de pagamento e quando 
   assert.equal(C.preReservaPaga({ preReserva: { valor: 3000, dataPagamento: "" } }), null);
   assert.deepEqual(C.preReservaPaga({ preReserva: { valor: 3000, assinado: true } }), { valor: 3000, data: "" });
 });
+
+test("31/10/2026 (dono): balão ou pré-chaves do simulador depois de 30/11/2028 vira falta do contrato", () => {
+  assert.ok(!C.faltasContrato(dados()).some((f) => /30\/11\/2028/.test(f)), "balão em 10/11/2028 passa");
+  const tarde = dados({ condominio: { fluxo: { ...FLUXO, balao2Data: "2028-12-10" } } });
+  assert.ok(C.faltasContrato(tarde).some((f) => /balão vence em 10\/12\/2028 — pré-chaves e balões terminam até 30\/11\/2028/.test(f)),
+    C.faltasContrato(tarde).join(" | "));
+  const pre = dados({ condominio: { fluxo: { ...FLUXO, pre2Data: "2028-01-10" } } });
+  assert.ok(C.faltasContrato(pre).some((f) => /pré-chaves vence em 10\/12\/2028/.test(f)));
+});
