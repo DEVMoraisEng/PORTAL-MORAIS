@@ -3,6 +3,8 @@
 O portal faz a conta em cima deste retrato (venda/Antecipacao.js)."""
 from . import regras as R
 from . import distrato as D
+from . import erp as E
+from .notion import Notion
 
 OBRA = "CONDOMÍNIO RESERVA DOS IPÊS"
 TABELA_PRE, TABELA_POS = "INCC-M", "IPCA + 1% a.m."
@@ -46,3 +48,39 @@ def normalizar(venda: dict, lido_em: str) -> dict:
                          "parcial": D.recebida_em_parte(p)})
     parcelas.sort(key=lambda x: (x["data"], x["id"] or ""))
     return {"v": 1, "venda": venda.get("id"), "obra": obra, "lido": lido_em[:10], "parcelas": parcelas}
+
+
+def _id_do_erp(valor) -> str:
+    """O id da venda no ERP é um UUID COM hífens (o GET /sales/{id} usa assim). Vem da coluna como texto."""
+    h = R.so_hex(valor)
+    return "%s-%s-%s-%s-%s" % (h[:8], h[8:12], h[12:16], h[16:20], h[20:]) if h else ""
+
+
+def main(argv=None) -> int:
+    """python -m venda.mc.retrato --page <pageId da VENDAS CONDOMÍNIO>. Só LÊ o ERP; grava no Notion
+    MC - RETRATO (JSON, ou 'ERRO: motivo') e MC - RETRATO EM. Ambiente: NOTION_TOKEN (+ ERP como o lancar.py)."""
+    import argparse, datetime as dt, json, os
+    a = argparse.ArgumentParser()
+    a.add_argument("--page", required=True)
+    args = a.parse_args(argv)
+    n = Notion(os.environ["NOTION_TOKEN"])
+    props = (n.pagina(args.page) or {}).get("properties") or {}
+    agora = dt.datetime.now().strftime("%Y-%m-%d %H:%M")
+    try:
+        vid = _id_do_erp(R._valor({R.chave(k): v for k, v in props.items()}.get(R.chave("MC - VENDA ID"))))
+        if not vid:
+            raise ValueError("venda sem MC - VENDA ID")
+        r = normalizar(D.ler_venda(E.do_ambiente(), vid), agora)
+        texto = json.dumps(r, ensure_ascii=False, separators=(",", ":"))
+    except Exception as e:   # o portal mostra o motivo; o log do servidor fica curto
+        texto = "ERRO: " + (str(e) or type(e).__name__)[:180]
+    if not n.gravar_texto_longo(args.page, props, "MC - RETRATO", texto):
+        print("coluna MC - RETRATO não existe na página")
+        return 2
+    n.gravar_textos(args.page, props, {"MC - RETRATO EM": agora})
+    print("retrato:", "ERRO" if texto.startswith("ERRO") else "gravado")
+    return 1 if texto.startswith("ERRO") else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

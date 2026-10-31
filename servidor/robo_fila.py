@@ -90,6 +90,9 @@ def rt(s: str) -> dict:
 # ---------------------------------------------------------------- pedidos
 def argumentos(tipo: str, p: dict, pode_gravar: bool) -> tuple[list, dict] | None:
     """Pedido da fila -> (argv do robô, env extra). None = pedido inválido. Mesmas regras do mc-venda.yml."""
+    if tipo == "mc-retrato":   # só LÊ o ERP e grava o retrato no Notion: nunca leva --aplicar
+        pagina = str(p.get("pageId") or "")
+        return (["-m", "venda.mc.retrato", "--page", pagina], {}) if RE_ID.match(pagina) else None
     if tipo != "mc-venda":
         return None
     pagina = str(p.get("pageId") or "")
