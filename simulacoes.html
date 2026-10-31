@@ -1608,6 +1608,7 @@ function simVerAbaixo(id){
   cx.innerHTML=`
     <div class="sec" style="margin-top:0"><span class="cond">Simulação de ${esc(s.cliente||"—")}</span>
       <span style="flex:1"></span>
+      <button class="bt" style="background:#2a9d5c;color:#fff;border-color:#2a9d5c;margin-right:8px" onclick="simParaProposta('${s.id}')">📄 Transformar em proposta</button>
       <button class="bt ghost" onclick="document.getElementById('sim-detBaixo').style.display='none'">Fechar</button></div>
     <div class="modal-sub" style="margin-bottom:10px">CPF ${esc(s.cpf||"—")} · ${simData(s.criadoEm)} · ${simTagSt(s.status)}</div>
     <div class="sim-grade">
@@ -1669,11 +1670,40 @@ function simVerDet(id){
     <div style="display:flex;gap:9px;margin-top:16px;flex-wrap:wrap">
       ${simSt(s)==="ERRO" && !ehSomenteLeitura(S)
         ? `<button class="bt az" onclick="simRefazer('${s.id}')">↻ Tentar de novo</button>` : ""}
+      <button class="bt" style="background:#2a9d5c;color:#fff;border-color:#2a9d5c" onclick="simParaProposta('${s.id}')">📄 Transformar em proposta</button>
       <button class="bt" onclick="simFecharDet()">Fechar</button>
     </div>
     <div id="sim-detAviso" class="sim-aviso" style="margin-top:10px"></div>
     <div id="sim-detAviso" class="sim-aviso" style="margin-top:10px"></div>`;
   document.getElementById("sim-modal").classList.remove("hide");
+}
+/* 31/10/2026 — TRANSFORMAR EM PROPOSTA: a proposta.html do simulador (mesmo domínio
+   devmoraiseng.github.io, então o localStorage é o mesmo) lê 'simParaProposta' e abre
+   com os dados desta simulação já preenchidos; lá só se completa o resto. */
+function simParaProposta(id){
+  const s=SIMS.find(x=>x.id===id); if(!s) return;
+  const p=s.perfil||{}, n=v=>Number(v)||0;
+  const br=v=>n(v)>0 ? n(v).toFixed(2).replace(".",",").replace(/\B(?=(\d{3})+(?!\d))/g,".") : "";
+  const pe=n(s.prazoEntrada), prazo=!pe ? "" : (pe<=24 ? "24" : (pe<=36 ? "36" : "48"));
+  const nSinal=propParseEsquema(s.esquema).filter(f=>f.grupo==="sinal").length;
+  const d={ v:1, ts:Date.now(), origem:"portal", simId:s.id,
+    tipo:String(s.tipo||""), unidade:String(s.unidade||""),
+    possuiImovelCidade:!!p.possuiImovel, fgts3anos:!!p.fgts3anos, maisDeUmComprador:!!p.maisDeUmComprador,
+    jaBeneficiado:!!p.jaBeneficiado, relacionamentoCaixa:!!p.relacionamentoCaixa,
+    servidorPublico:!!p.servidorPublico, creditoSalarioCaixa:!!p.creditoSalario,
+    dataNascimento:String(p.dataNascimento||"").slice(0,10), renda:br(s.renda),
+    prazoMeses:p.prazoMeses?String(p.prazoMeses):"", sistemaAmortizacao:String(p.sistema||"").toUpperCase(),
+    seguradora:String(s.seguradora||""), fgts:br(s.fgts),
+    credito:false, desejado:false,
+    valorEntrada:br(s.entradaInformada), prazoEntrada:prazo,
+    sinalParcelas:(nSinal>=1 && nSinal<=4) ? String(nSinal) : "",
+    corretor:String(s.corretor||""), imobiliaria:String(s.imobiliaria||""), celularCorretor:String(s.celularCorretor||""),
+    cpfCorretor:String(s.cpfCorretor||""),
+    nomeCliente:String(s.cliente||""), cpfCliente:String(s.cpf||""), emailCorretor:String(s.email||"") };
+  try{ localStorage.setItem("simParaProposta", JSON.stringify(d)); }
+  catch(e){ alert("Não consegui guardar os dados da simulação neste navegador."); return; }
+  window.open("https://devmoraiseng.github.io/SIMULADOR-RESERVA-DO-IP-S/proposta.html?tipo="+encodeURIComponent(d.tipo)+
+    "&unidade="+encodeURIComponent(d.unidade)+"&daSimulacao=1", "_blank");
 }
 function simFecharDet(){ document.getElementById("sim-modal").classList.add("hide"); }
 
