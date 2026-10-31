@@ -1,9 +1,10 @@
 /* PreReserva — Termo de Pré-Reserva da unidade do condomínio (27/10/2026).
  * Arquivo do projeto PORTAL-VENDA (depois de PreReservaVenda, ContratoVenda, PortalVenda e GerarContrato).
- * Ações (PortalVenda.tratar_): preReservaEstado, salvarContaPreReserva, gerarTermoPreReserva, verTermoPreReserva;
+ * Ações (PortalVenda.tratar_): preReservaEstado, salvarContaPreReserva, salvarPagamentoPreReserva (31/10), gerarTermoPreReserva, verTermoPreReserva;
  * a assinatura usa as mesmas ações do contrato com doc = "PRE_RESERVA" (AssinaturaVenda.gs).
- * Propriedades do script: MODELO_PRE_RESERVA_ID (Google Docs do termo), PRE_RESERVA_VALOR (ex.: 3000),
- * PRE_RESERVA_DATA_LIMITE (ex.: 2026-10-31), PASTA_PROVISORIA_ID e CIDADE_ASSINATURA (as do contrato).
+ * Propriedades do script: MODELO_PRE_RESERVA_ID (Google Docs do termo), PASTA_PROVISORIA_ID e CIDADE_ASSINATURA (as do contrato).
+ * 31/10/2026 (dono): valor e data do pagamento são da venda (colunas PRÉ-RESERVA - VALOR / DATA PAGAMENTO);
+ * PRE_RESERVA_VALOR e PRE_RESERVA_DATA_LIMITE não são mais lidas. Prazo = pagamento + 7 dias corridos.
  * O termo sai direto (sem pré-termo grifado): PDF com carimbo [#hash] na coluna PRÉ-RESERVA - TERMO GERADO.
  * Log só com ação, pageId abreviado e resultado — nunca nome, CPF ou conta. */
 
@@ -15,6 +16,10 @@ function prCol_(pg, nome) {
   throw new Error("COLUNA_FALTANDO: " + nome);
 }
 function prTexto_(pg, nome) { return ctrTxt_(ctrValor_(pg.properties[prCol_(pg, nome)])).trim(); }
+function prPagamento_(pg) {
+  return { valor: PreReservaVenda.valorDe(ctrValor_(pg.properties[prCol_(pg, PreReservaVenda.COL.VALOR)])),
+           data: PreReservaVenda.dataIso(ctrValor_(pg.properties[prCol_(pg, PreReservaVenda.COL.DATA_PAGAMENTO)])) };
+}
 function prArquivoGerado_(pg) {
   var lista = ctrValor_(pg.properties[prCol_(pg, PreReservaVenda.COL.GERADO)]) || [];
   if (!lista.length) return null;
@@ -39,17 +44,38 @@ function prDados_(col, p, pid, rot) {
   var d = ContratoVenda.montarDadosContrato(f.fontes);
   if (!d.condominio) return { resp: { ok: false, erro: "SO_CONDOMINIO" } };
   var pg = ctrLerPaginaVenda_(p.pageId);
-  var t = PreReservaVenda.montar(d, { conta: prTexto_(pg, PreReservaVenda.COL.CONTA), valor: prop_("PRE_RESERVA_VALOR"),
-                                      dataLimite: prop_("PRE_RESERVA_DATA_LIMITE"), hojeISO: hoje_("yyyy-MM-dd"),
+  var pag = prPagamento_(pg);
+  var t = PreReservaVenda.montar(d, { conta: prTexto_(pg, PreReservaVenda.COL.CONTA), valor: pag.valor,
+                                      dataPagamento: pag.data, hojeISO: hoje_("yyyy-MM-dd"),
                                       cidade: prop_("CIDADE_ASSINATURA") || "Goiânia" });
   return { f: f, d: d, t: t, pg: pg };
 }
 
 function preReservaEstado_(col, p) {
   var pg = ctrLerPaginaVenda_(p.pageId), g = prArquivoGerado_(pg);
-  var conta = prTexto_(pg, PreReservaVenda.COL.CONTA);
+  var conta = prTexto_(pg, PreReservaVenda.COL.CONTA), pag = prPagamento_(pg);
   return { ok: true, conta: conta, contaCampos: PreReservaVenda.lerConta(conta), gerado: !!g, nome: g ? g.nome : "",
-           valor: PreReservaVenda.valorDe(prop_("PRE_RESERVA_VALOR")), dataLimite: PreReservaVenda.dataIso(prop_("PRE_RESERVA_DATA_LIMITE")) };
+           valor: pag.valor, dataPagamento: pag.data, dataLimite: PreReservaVenda.prazoDe(pag.data),
+           historico: prTexto_(pg, PreReservaVenda.COL.HISTORICO) };
+}
+
+/* 31/10: valor e data do pagamento da venda; mudar grava uma linha no histórico com o usuário do portal. */
+function salvarPagamentoPreReserva_(col, sess, p) {
+  var pid = String(p.pageId).slice(0, 8), v = PreReservaVenda.validarPagamento({ valor: p.valor, data: p.data });
+  if (!v.ok) return { ok: false, erro: v.erro };
+  var pg = ctrLerPaginaVenda_(p.pageId), antes = prPagamento_(pg), C = PreReservaVenda.COL;
+  var historico = prTexto_(pg, C.HISTORICO);
+  var linha = PreReservaVenda.linhaHistorico(antes, v, ctrTxt_(sess && sess.u), hoje_("dd/MM/yyyy HH:mm"));
+  if (linha) {
+    var props = {};
+    props[prCol_(pg, C.VALOR)] = propNotion_("number", v.valor);
+    props[prCol_(pg, C.DATA_PAGAMENTO)] = propNotion_("date", v.data);
+    historico = PreReservaVenda.juntarHistorico(historico, linha);
+    props[prCol_(pg, C.HISTORICO)] = propNotion_("rich_text", historico);
+    notion_("PATCH", "/pages/" + p.pageId, { properties: props });
+  }
+  ctrLog_("salvarPagamentoPreReserva " + pid + (linha ? " ok" : " sem mudança") + " por " + ctrTxt_(sess && sess.u));
+  return { ok: true, valor: v.valor, dataPagamento: v.data, dataLimite: PreReservaVenda.prazoDe(v.data), historico: historico, mudou: !!linha };
 }
 
 function salvarContaPreReserva_(col, sess, p) {

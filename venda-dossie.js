@@ -1306,8 +1306,19 @@
     u = u || {};
     var h = '<div class="grp">Termo de pré-reserva</div>';
     if (!e) return h + '<div class="vazio">' + esc(u.msg || "carregando…") + "</div>";
-    h += '<div class="dz-linha"><span class="dz-rot">Pré-reserva de R$ ' + esc(brl(e.valor) || "—") + " até " + esc(dataBRpr(e.dataLimite) || "—") + "</span></div>";
     var trava = u.testes || !!u.ocupado, dis = trava ? " disabled" : "";
+    /* 31/10 (dono): valor e data do pagamento de cada venda; prazo para decidir = pagamento + 7 dias corridos */
+    var pg = u.pagDigitado || { valor: brl(e.valor), data: e.dataPagamento || "" };
+    h += '<div class="dz-linha">' +
+      '<label style="display:inline-block;margin:4px 12px 4px 0"><span class="dz-rot" style="display:block">Valor da pré-reserva (R$)</span>' +
+      '<input type="text" data-pr-p="valor" inputmode="decimal" maxlength="15" style="width:120px" placeholder="0,00" value="' + esc(pg.valor || "") + '"' + dis + "></label>" +
+      '<label style="display:inline-block;margin:4px 12px 4px 0"><span class="dz-rot" style="display:block">Data do pagamento</span>' +
+      '<input type="date" data-pr-p="data" value="' + esc(pg.data || "") + '"' + dis + "></label>" +
+      '<button type="button" class="bt ghost bt-mini" data-acao="pr-salvar-pag"' + dis + ">Salvar valor e data</button></div>";
+    h += '<div class="dz-linha"><span class="dz-rot">' + (e.dataLimite ? "Prazo para decidir a compra: " + esc(dataBRpr(e.dataLimite)) + " (pagamento + 7 dias corridos)"
+      : "Informe a data do pagamento para calcular o prazo (pagamento + 7 dias corridos).") + "</span></div>";
+    if (u.ocupado === "pag") h += '<div class="dz-linha"><b>salvando valor e data…</b></div>';
+    if (e.historico) h += '<details class="dz-linha"><summary class="dz-rot">Histórico de alterações</summary><pre style="white-space:pre-wrap;margin:4px 0">' + esc(e.historico) + "</pre></details>";
     /* 27/10 (dono): PIX (chave + banco) ou dados bancários (banco com busca, agência, conta e tipo) */
     var c = u.contaDigitada || contaDaTela(e), sel = function (v) { return c.forma === v ? " selected" : ""; };
     var caixa = function (rot, inner) {
@@ -1352,6 +1363,7 @@
               TIPO_CONTA_INVALIDO: "Escolha o tipo de conta.", CONTA_LONGA: "A chave ou o banco ficou longo demais.",
               MODELO_NAO_CONFIGURADO: "O modelo do termo (MODELO_PRE_RESERVA_ID) não está configurado — avise o desenvolvedor.",
               SEM_TERMO_GERADO: "Ainda não há termo gerado.", SO_CONDOMINIO: "O termo de pré-reserva é só do condomínio.",
+              PR_VALOR_INVALIDO: "Valor da pré-reserva inválido.", PR_DATA_INVALIDA: "Informe a data do pagamento.",
               SEM_PERMISSAO_TESTES: "Perfil TESTES não gera nem grava.", SEM_RESPOSTA: "O servidor não respondeu — tente de novo." };
     if (e.indexOf("COLUNA_FALTANDO: ") === 0) return "A base não tem a coluna " + e.slice(17) + " — avise o desenvolvedor.";
     return M[e] || (e ? mensagemContrato(r) : "");
@@ -1501,6 +1513,13 @@
       var c = uiP.contaDigitada || contaDaTela(estadoP);
       Array.prototype.forEach.call(w.querySelectorAll("[data-pr-c]"), function (x) { c[x.getAttribute("data-pr-c")] = x.value; });
       uiP.contaDigitada = c;
+      guardarPagPR();
+    }
+    function guardarPagPR() {
+      var w = dentro(".vb-pr"); if (!w || !w.querySelector("[data-pr-p]")) return;
+      var g = {};
+      Array.prototype.forEach.call(w.querySelectorAll("[data-pr-p]"), function (x) { g[x.getAttribute("data-pr-p")] = x.value; });
+      uiP.pagDigitado = g;
     }
     function pintarP() {
       var w = dentro(".vb-pr"); if (w) { guardarContaPR(); w.innerHTML = htmlPreReserva(estadoP, uiP); }
@@ -1558,7 +1577,8 @@
     async function carregarPR() {
       var r = await chamarVenda({ action: "preReservaEstado", pageId: pageId });
       if (!vivo()) return;
-      if (r.ok) { estadoP = { conta: r.conta || "", contaCampos: r.contaCampos || null, gerado: !!r.gerado, nome: r.nome || "", valor: r.valor, dataLimite: r.dataLimite || "" }; uiP.msg = ""; }
+      if (r.ok) { estadoP = { conta: r.conta || "", contaCampos: r.contaCampos || null, gerado: !!r.gerado, nome: r.nome || "", valor: r.valor,
+                              dataPagamento: r.dataPagamento || "", dataLimite: r.dataLimite || "", historico: r.historico || "" }; uiP.msg = ""; }
       else uiP.msg = mensagemPR(r);
       pintarP();
     }
@@ -1589,6 +1609,21 @@
         var rv = await chamarVenda({ action: "verTermoPreReserva", pageId: pageId }, 90000);
         if (!vivo()) { if (w) { try { w.close(); } catch (e) {} } return; }
         uiP.ocupado = null; abrirPdf(w, rv, uiP, mensagemPR); pintarP();
+        return;
+      }
+      if (acao === "pr-salvar-pag") {
+        guardarPagPR();
+        var pd = uiP.pagDigitado || {};
+        uiP.ocupado = "pag"; uiP.msg = ""; pintarP();
+        var rp = await chamarVenda({ action: "salvarPagamentoPreReserva", pageId: pageId, valor: lerNumBR(pd.valor), data: pd.data || "" });
+        if (!vivo()) return;
+        uiP.ocupado = null;
+        if (rp.ok) {
+          estadoP.valor = rp.valor; estadoP.dataPagamento = rp.dataPagamento; estadoP.dataLimite = rp.dataLimite; estadoP.historico = rp.historico || "";
+          uiP.pagDigitado = undefined;
+          uiP.msg = !rp.mudou ? "Nada mudou." : "Valor e data salvos." + (estadoP.gerado ? " Gere o termo de novo para valer." : "");
+        } else uiP.msg = mensagemPR(rp);
+        pintarP();
         return;
       }
       if (acao === "pr-salvar-conta") {
