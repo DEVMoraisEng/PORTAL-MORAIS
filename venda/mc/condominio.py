@@ -157,6 +157,7 @@ def contato_corretor(props: dict) -> dict:
 #: tela de venda do condomínio (entrega 7): o robô lê direto a linha da BANCO DE DADOS VENDAS CONDOMÍNIO
 COL_LINHA = {
     "condominio": "CONDOMÍNIO", "unidade": "UNIDADE", "data_venda": "DATA DA VENDA",
+    "assinatura": "DATA DE ASSINATURA DO CONTRATO",
     "proponente": "PROPONENTE", "cpf": "CPF PROPONENTE", "email": "Email", "telefone": "Nº Whatsapp",
     "total": "VALOR DE VENDA", "comissao": "COMISSÃO", "fgts": "VALOR DO FGTS", "financiado": "VALOR DO CRÉDITO",
     "subsidio": "SUBISÍDIO", "corretor": "CORRETOR", "imobiliaria": "IMOBILIÁRIA",
@@ -179,17 +180,27 @@ def e_linha_do_condominio(pg: dict, db_cond: str | None) -> bool:
     return False
 
 
-# 30/10/2026 (dono): no cadastro do CLIENTE no Mais Controle, o endereço é a unidade que ele está comprando
-CIDADE_DO_CONDOMINIO = {"RESERVA DOS IPES": "SENADOR CANEDO"}
+# 30/10/2026 (dono): no cadastro do CLIENTE no Mais Controle, o endereço é a unidade que ele está comprando.
+# Campos separados (CEP, bairro, cidade/UF): o boleto do Cobrança Fácil exige o endereço completo do pagador.
+# CEP geral da cidade (decisão do dono, 30/10); cidade e estado pelos ids da tabela de cidades do ERP.
+_GO = {"id": "4802f081-039d-43c9-a803-7141386fc93b", "abbreviation": "GO", "name": "Goiás"}
+CIDADE_DO_CONDOMINIO = {"RESERVA DOS IPES": {"cep": "75250000", "cidade": {
+    "id": "df17a44f-2193-462c-aad6-3496dd0082ce", "name": "Senador Canedo", "state": _GO}}}
 
 
-def endereco_do_cliente(nome_condominio, casa) -> str:
-    """"CONDOMÍNIO RESERVA DOS IPÊS - SENADOR CANEDO, UNIDADE 31" ("" sem condomínio ou sem unidade)."""
+def endereco_do_cliente(nome_condominio, casa) -> dict:
+    """O `address` do cadastro do cliente: rua = o condomínio, complemento = "UNIDADE 31", bairro = o
+    condomínio, CEP e cidade do condomínio. {} sem condomínio ou sem unidade."""
     cond = endereco_do_condominio(nome_condominio)
     if not cond or casa in (None, ""):
-        return ""
-    cidade = next((c for k, c in CIDADE_DO_CONDOMINIO.items() if k in R.chave(cond)), "")
-    return "%s%s, UNIDADE %02d" % (cond.upper(), " - " + cidade if cidade else "", int(casa))
+        return {}
+    cond = cond.upper()
+    end = {"address": cond, "addressNumber": "S/N", "complement": "UNIDADE %02d" % int(casa), "neighborhood": cond}
+    lugar = next((c for k, c in CIDADE_DO_CONDOMINIO.items() if k in R.chave(cond)), None)
+    if lugar:
+        end["zipCode"] = lugar["cep"]
+        end["city"] = lugar["cidade"]
+    return end
 
 
 def endereco_do_condominio(nome) -> str:
@@ -218,7 +229,9 @@ def dados_da_linha(props: dict, page_id: str) -> dict:
         "casa": R._casa(unidade),
         "endereco_cliente": endereco_do_cliente(campo("condominio"), R._casa(unidade)),
         "casa_ambigua": unidade not in (None, "") and R._casa(unidade) is None,
-        "data_venda": R._data(campo("data_venda")),
+        # 31/10/2026 (dono): no condomínio a data da venda é SEMPRE a data de assinatura do contrato;
+        # a coluna DATA DA VENDA só vale quando a assinatura ainda não foi preenchida
+        "data_venda": R._data(campo("assinatura")) or R._data(campo("data_venda")),
         "comprador": {"nome": " ".join(str(campo("proponente") or "").split()), "cpf": R.so_digitos(campo("cpf")),
                       "email": campo("email") or ler("EMAIL"), "telefone": R.so_digitos(campo("telefone"))},
         "aquisicao": total,
