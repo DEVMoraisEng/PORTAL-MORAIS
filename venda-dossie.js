@@ -367,6 +367,13 @@
     if (r && r.gravados && typeof r.gravados === "object" && Object.keys(r.gravados).length) d.gravados = r.gravados;
     return d;
   }
+  /* 31/10 (dono): salvar ou voltar o fluxo avisa a tela com a coluna FLUXO PERSONALIZADO como ficou gravada — o cartão
+     do condomínio redesenha o quadro do pro soluto sem reler a base. Mesma conta do servidor (FluxoLivre.serializar). */
+  function detalheFluxoGravado(pageId, ed, voltar) {
+    var f = { valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas };
+    if (ed.semComissao) f.semComissao = true;
+    return { pageId: pageId, gravados: { "FLUXO PERSONALIZADO": voltar ? "" : FL().serializar(f) } };
+  }
   /* espaço IMOVEL_* = seção do imóvel (a mensagem aparece lá) */
   function grupoDoEspaco(id) { return /^IMOVEL_/.test(String(id || "")) ? "imovel" : "comprador"; }
 
@@ -910,7 +917,7 @@
                    htmlContrato: htmlContrato, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, mensagemMC: mensagemMC,
                    topicosMC: topicosMC, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas,
                    htmlCampos: htmlCampos, htmlConta: htmlConta, htmlFluxo: htmlFluxo, htmlFluxoVivo: htmlFluxoVivo, htmlFluxoDesconto: htmlFluxoDesconto, lerNumBR: lerNumBR, contaDoEstado: contaDoEstado, pedidoCampos: pedidoCampos,
-                   contaDasEntradas: contaDasEntradas, faltasDaResposta: faltasDaResposta };
+                   contaDasEntradas: contaDasEntradas, faltasDaResposta: faltasDaResposta, detalheFluxoGravado: detalheFluxoGravado };
   if (typeof module !== "undefined" && module.exports) { module.exports = exportar; return; }
 
   /* ---------------- navegador ---------------- */
@@ -1908,6 +1915,8 @@
         uiC.fluxoEd = null;
         if (estadoC.pre) estadoC.pre.desatualizado = true;
         uiC.msg = voltar ? "Fluxo da proposta restaurado — gere o pré-contrato de novo." : "Fluxo salvo.";
+        try { window.dispatchEvent(new CustomEvent(EVENTO_GRAVADO, { detail: detalheFluxoGravado(pageId, ed, voltar) })); }
+        catch (e) { /* sem CustomEvent: o quadro do cartão só atualiza ao reabrir a unidade */ }
       } else uiC.msg = mensagemContrato(rs);
       pintar();
     }
