@@ -201,3 +201,16 @@ test("semComissao vai e volta na serialização; ausente quando falso (o robô l
   assert.equal(JSON.parse(F.serializar(F.doPadrao(gavetas))).semComissao, undefined);
   assert.equal(F.ler(F.serializar({ ...F.doPadrao(gavetas), semComissao: "sim" })).semComissao, undefined, "só true vale");
 });
+
+test("31/10/2026 (dono): pré-chaves e balões não passam de 30/11/2028 (trava, não aviso)", () => {
+  const f = F.doPadrao(gavetas);
+  const k = f.linhas.findIndex((l) => l.t === "pre" && l.d === "2027-12-10");
+  const tarde = Object.assign({}, f, { linhas: f.linhas.map((l, i) => i === k ? Object.assign({}, l, { d: "2028-01-10" }) : l) });
+  const r = F.validar(tarde);
+  assert.equal(r.ok, false);
+  assert.match(r.erros.join(";"), /pré-chaves vence em 10\/12\/2028: pré-chaves e balões terminam até 30\/11\/2028/);
+  const balao = Object.assign({}, f, { linhas: f.linhas.map((l) => l.t === "balao" && l.d === "2028-06-10" ? Object.assign({}, l, { d: "2028-12-01" }) : l) });
+  assert.match(F.validar(balao).erros.join(";"), /balão vence em 01\/12\/2028/);
+  const noLimite = Object.assign({}, f, { linhas: f.linhas.map((l) => l.t === "balao" && l.d === "2028-06-10" ? Object.assign({}, l, { d: "2028-11-30" }) : l) });
+  assert.deepEqual(F.validar(noLimite).erros, []);
+});

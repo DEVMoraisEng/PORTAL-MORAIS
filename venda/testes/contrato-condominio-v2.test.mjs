@@ -222,3 +222,12 @@ test("28/10: valor para entrada acima do sinal — o excedente fecha a soma e va
     /^pagamento único de R\$ 1\.000,00 \(mil reais\), na assinatura deste contrato \(parte do valor para entrada informado na proposta que excede o sinal\); 10 parcelas/);
   assert.equal(C.excedenteSinal({ fluxo: FLUXO, valorParaEntrada: 9000 }), 0, "abaixo do sinal não há excedente");
 });
+
+test("31/10/2026 (dono): balão ou pré-chaves do simulador depois de 30/11/2028 vira falta do contrato", () => {
+  assert.ok(!C.faltasContrato(dados()).some((f) => /30\/11\/2028/.test(f)), "balão em 10/11/2028 passa");
+  const tarde = dados({ condominio: { fluxo: { ...FLUXO, balao2Data: "2028-12-10" } } });
+  assert.ok(C.faltasContrato(tarde).some((f) => /balão vence em 10\/12\/2028 — pré-chaves e balões terminam até 30\/11\/2028/.test(f)),
+    C.faltasContrato(tarde).join(" | "));
+  const pre = dados({ condominio: { fluxo: { ...FLUXO, pre2Data: "2028-01-10" } } });
+  assert.ok(C.faltasContrato(pre).some((f) => /pré-chaves vence em 10\/12\/2028/.test(f)));
+});
