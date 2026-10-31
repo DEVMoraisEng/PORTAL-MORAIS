@@ -73,7 +73,9 @@ const MODELO_PR = [
   "{{PRE_RESERVANTE_NOME}} — CPF {{PRE_RESERVANTE_CPF}}",
 ];
 const COLS_PR = { "PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO": texto(""), "PRÉ-RESERVA - TERMO GERADO": { files: [] }, "PRÉ-RESERVA - TERMO ASSINADO": { files: [] },
-  "PRÉ-RESERVA - ENVELOPE ID": texto(""), "PRÉ-RESERVA - SITUAÇÃO": texto(""), "CONDOMÍNIO": sel("RESERVA DOS IPÊS") };
+  "PRÉ-RESERVA - ENVELOPE ID": texto(""), "PRÉ-RESERVA - SITUAÇÃO": texto(""), "CONDOMÍNIO": sel("RESERVA DOS IPÊS"),
+  /* 31/10: valor e data do pagamento são da venda; prazo = pagamento + 7 dias (24/10 -> 31/10) */
+  "PRÉ-RESERVA - VALOR": num(3000), "PRÉ-RESERVA - DATA PAGAMENTO": { date: { start: "2026-10-24" } }, "PRÉ-RESERVA - HISTÓRICO": texto("") };
 
 const MODELO_COND = [
   "CONTRATO — CONDOMÍNIO {{CONDOMINIO_NOME}} — UNIDADE {{UNIDADE}}",
@@ -112,7 +114,7 @@ function cenario({ linha = {}, sem = [], dbPagina = DB_COND, props = {}, gh = 20
     NOTION_TOKEN: "ntn-teste", SESSION_SECRET: "segredo-de-teste", DB_VENDAS: DB_ID_PADRAO, DB_VENDAS_COND: DB_COND,
     DB_VENDEDORES: "db-vend", DB_LOTEAMENTOS: "db-lote", DB_CORRETORES: "db-corr", DB_DOCUMENTOS: "db-doc",
     MODELO_PRONTO_ID: "modelo-pronto", MODELO_CONSTRUCAO_ID: "modelo-obra", MODELO_CONDOMINIO_ID: "modelo-cond", PASTA_PROVISORIA_ID: "pasta-prov",
-    MODELO_PRE_RESERVA_ID: "modelo-pr", PRE_RESERVA_VALOR: "3000", PRE_RESERVA_DATA_LIMITE: "2026-10-31",
+    MODELO_PRE_RESERVA_ID: "modelo-pr",
     CLICKSIGN_TOKEN: "token-clicksign-de-teste",
     ASSINATURA_TESTEMUNHAS_SPE: JSON.stringify(TEST_SPE), ASSINATURA_TESTEMUNHAS_PF: JSON.stringify(TEST_PF),
     GITHUB_TOKEN: "gh-teste", GH_REPO_MC: "Org-Teste/REPO-TESTE",
@@ -273,7 +275,7 @@ const cenarioPR = (o = {}) => cenario({ docEnd: "CONDOMÍNIO RESERVA DOS IPÊS",
 
 test("termo: estado, falta a conta, salva a conta, gera o PDF com o carimbo na coluna própria", () => {
   const c = cenarioPR();
-  assert.deepEqual(c.acao("preReservaEstado"), { ok: true, conta: "", contaCampos: { forma: "", livre: "" }, gerado: false, nome: "", valor: 3000, dataLimite: "2026-10-31" });
+  assert.deepEqual(c.acao("preReservaEstado"), { ok: true, conta: "", contaCampos: { forma: "", livre: "" }, gerado: false, nome: "", valor: 3000, dataPagamento: "2026-10-24", dataLimite: "2026-10-31", historico: "" });
   const sem = c.acao("gerarTermoPreReserva");
   assert.equal(sem.erro, "FALTAM_DADOS");
   assert.deepEqual(sem.faltas, ["Conta para devolução (preencha no cartão)"]);
@@ -318,9 +320,38 @@ test("termo: conta mudada depois de gerar = CONTRATO_DESATUALIZADO; perfil TESTE
   assert.equal(c.acao("gerarTermoPreReserva").ok, true);
   c.n.pagina.properties["PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO"] = { type: "rich_text", rich_text: [{ plain_text: "PIX, chave outra-chave, no banco 001 - BB" }] };
   assert.equal(c.acao("assinaturaEnviar", { doc: "PRE_RESERVA" }).erro, "CONTRATO_DESATUALIZADO");
-  for (const action of ["gerarTermoPreReserva", "salvarContaPreReserva"])
+  for (const action of ["gerarTermoPreReserva", "salvarContaPreReserva", "salvarPagamentoPreReserva"])
     assert.equal(c.acao(action, { conta: "conta de teste" }, token("TESTES")).erro, "SEM_PERMISSAO_TESTES", action);
   assert.equal(c.acao("preReservaEstado", {}, token("TESTES")).ok, true);
+});
+
+test("31/10: valor e data por venda — salvar grava o histórico com o usuário; o termo usa o prazo de 7 dias", () => {
+  const c = cenarioPR({ linha: { "PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO": texto("PIX, chave 529.982.247-25, no banco 756 - SICOOB"),
+                                 "PRÉ-RESERVA - VALOR": num(null), "PRÉ-RESERVA - DATA PAGAMENTO": { date: null } } });
+  const e0 = c.acao("preReservaEstado");
+  assert.equal(e0.valor, null);
+  assert.equal(e0.dataLimite, "");
+  assert.deepEqual(c.acao("gerarTermoPreReserva").faltas,
+    ["Valor da pré-reserva (preencha no cartão)", "Data do pagamento da pré-reserva (preencha no cartão)"]);
+  assert.equal(c.acao("salvarPagamentoPreReserva", { valor: 0, data: "2026-11-02" }).erro, "PR_VALOR_INVALIDO");
+  assert.equal(c.acao("salvarPagamentoPreReserva", { valor: 2500, data: "" }).erro, "PR_DATA_INVALIDA");
+  const r = c.acao("salvarPagamentoPreReserva", { valor: 2500, data: "2026-11-02" });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.dataLimite, "2026-11-09");
+  assert.equal(c.n.pagina.properties["PRÉ-RESERVA - VALOR"].number, 2500);
+  assert.equal(c.n.pagina.properties["PRÉ-RESERVA - DATA PAGAMENTO"].date.start, "2026-11-02");
+  assert.match(c.txt("PRÉ-RESERVA - HISTÓRICO"), /^\d{2}\/\d{2}\/\d{4} \S+ ana\.teste: valor — → R\$ 2\.500,00; pagamento — → 02\/11\/2026$/);
+  const r2 = c.acao("salvarPagamentoPreReserva", { valor: 2500, data: "2026-11-03" });
+  assert.equal(r2.mudou, true);
+  const linhas = c.txt("PRÉ-RESERVA - HISTÓRICO").split("\n");
+  assert.equal(linhas.length, 2);
+  assert.match(linhas[1], /ana\.teste: pagamento 02\/11\/2026 → 03\/11\/2026$/);
+  assert.equal(c.acao("salvarPagamentoPreReserva", { valor: "2.500,00", data: "03/11/2026" }).mudou, false, "igual não grava histórico");
+  assert.equal(c.txt("PRÉ-RESERVA - HISTÓRICO").split("\n").length, 2);
+  assert.equal(c.acao("gerarTermoPreReserva").ok, true);
+  const pars = c.d.estado.salvos[c.d.estado.copias[0].id].pars;
+  assert.equal(pars[1], "Casa 13 Tipo 02 até 10/11/2026 por R$ 2.500,00 (dois mil e quinhentos reais) (2.500,00)");
+  assert.ok(c.g.logs.some((l) => l.includes("salvarPagamentoPreReserva") && l.includes("ana.teste")));
 });
 
 test("termo: coluna faltando e logs sem dado pessoal", () => {

@@ -1,7 +1,8 @@
 /* PreReservaVenda — regras puras do Termo de Pré-Reserva do condomínio (27/10/2026).
- * O termo garante a prioridade da unidade até a data da assinatura do contrato (Propriedade
- * PRE_RESERVA_DATA_LIMITE) mediante um valor fixo (PRE_RESERVA_VALOR), abatido do preço se o contrato
- * for assinado e devolvido integralmente se não for. Vem ANTES do contrato, no mesmo cartão da unidade.
+ * O termo garante a prioridade da unidade até o prazo para decidir a compra mediante um valor, abatido do
+ * preço se o contrato for assinado e devolvido integralmente se não for. 31/10/2026 (dono): valor e data do
+ * pagamento são de cada venda (colunas da linha, no cartão); o prazo é o pagamento + 7 dias corridos. A data
+ * pode ser alterada e a coluna PRÉ-RESERVA - HISTÓRICO guarda quem alterou. Vem ANTES do contrato, no mesmo cartão da unidade.
  * Arquivo do projeto PORTAL-VENDA (cola como PreReservaVenda.gs) e testado no node
  * (venda/testes/pre-reserva.test.mjs). Sem rede, sem Notion, sem Drive. Repositório público: nenhum dado real. */
 var PreReservaVenda = (function () {
@@ -13,14 +14,22 @@ var PreReservaVenda = (function () {
     GERADO: "PRÉ-RESERVA - TERMO GERADO",
     ASSINADO: "PRÉ-RESERVA - TERMO ASSINADO",
     ENVELOPE: "PRÉ-RESERVA - ENVELOPE ID",
-    SITUACAO: "PRÉ-RESERVA - SITUAÇÃO"
+    SITUACAO: "PRÉ-RESERVA - SITUAÇÃO",
+    VALOR: "PRÉ-RESERVA - VALOR",                     /* 31/10 */
+    DATA_PAGAMENTO: "PRÉ-RESERVA - DATA PAGAMENTO",
+    HISTORICO: "PRÉ-RESERVA - HISTÓRICO"
   };
+  var PRAZO_DIAS = 7;
+  var HISTORICO_MAX = 1900;
   var TIPOS = {};
   TIPOS[COL.CONTA] = "rich_text";
   TIPOS[COL.GERADO] = "files";
   TIPOS[COL.ASSINADO] = "files";
   TIPOS[COL.ENVELOPE] = "rich_text";
   TIPOS[COL.SITUACAO] = "rich_text";
+  TIPOS[COL.VALOR] = "number";
+  TIPOS[COL.DATA_PAGAMENTO] = "date";
+  TIPOS[COL.HISTORICO] = "rich_text";
 
   function C() { return typeof ContratoVenda !== "undefined" ? ContratoVenda : require("./ContratoVenda.js"); }
   function R() { return typeof RegrasVenda !== "undefined" ? RegrasVenda : require("./RegrasVenda.js"); }
@@ -44,7 +53,43 @@ var PreReservaVenda = (function () {
     return "";
   }
 
-  /* d = ContratoVenda.montarDadosContrato(fontes) da linha do condomínio; x = { conta, valor, dataLimite, hojeISO, cidade } */
+  /* "2026-10-31" -> "2026-11-07" (pagamento + 7 dias corridos); inválido -> "" */
+  function prazoDe(v) {
+    var iso = dataIso(v);
+    if (!iso) return "";
+    var d = new Date(Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10) + PRAZO_DIAS));
+    return d.toISOString().slice(0, 10);
+  }
+
+  /* Entrada do cartão { valor, data } -> { ok, valor, data } ou { ok:false, erro } */
+  function validarPagamento(p) {
+    p = p || {};
+    var valor = valorDe(p.valor), data = dataIso(p.data);
+    if (valor === null) return { ok: false, erro: "PR_VALOR_INVALIDO" };
+    if (valor > 1000000) return { ok: false, erro: "PR_VALOR_INVALIDO" };
+    if (!data) return { ok: false, erro: "PR_DATA_INVALIDA" };
+    return { ok: true, valor: valor, data: data };
+  }
+
+  /* Linha do histórico (nenhum dado pessoal além do usuário do portal); "" se nada mudou.
+   * antes/depois = { valor, data }; quando = "31/10/2026 14:30". */
+  function linhaHistorico(antes, depois, quem, quando) {
+    antes = antes || {}; depois = depois || {};
+    var partes = [], va = valorDe(antes.valor), vd = valorDe(depois.valor), da = dataIso(antes.data), dd = dataIso(depois.data);
+    if (va !== vd) partes.push("valor " + (va === null ? "—" : "R$ " + C().moedaBR(va)) + " → " + (vd === null ? "—" : "R$ " + C().moedaBR(vd)));
+    if (da !== dd) partes.push("pagamento " + (da ? dataBR(da) : "—") + " → " + (dd ? dataBR(dd) : "—"));
+    if (!partes.length) return "";
+    return txt(quando) + " " + (txt(quem) || "?") + ": " + partes.join("; ");
+  }
+  /* acrescenta a linha no fim; passando do limite da coluna, saem as linhas mais antigas */
+  function juntarHistorico(antigo, linha) {
+    var linhas = txt(antigo) ? txt(antigo).split("\n") : [];
+    if (txt(linha)) linhas.push(txt(linha));
+    while (linhas.length > 1 && linhas.join("\n").length > HISTORICO_MAX) linhas.shift();
+    return linhas.join("\n").slice(-HISTORICO_MAX);
+  }
+
+  /* d = ContratoVenda.montarDadosContrato(fontes) da linha do condomínio; x = { conta, valor, dataPagamento, hojeISO, cidade } */
   function montar(d, x) {
     d = d || {}; x = x || {};
     var c1 = d.comprador1 || {}, co = d.condominio || {};
@@ -53,7 +98,7 @@ var PreReservaVenda = (function () {
                        profissao: txt(c1.profissao), documento: txt(c1.documento), endereco: txt(c1.endereco),
                        email: txt(c1.email), telefone: txt(c1.telefone) },
       unidade: txt(co.unidade), tabela: co.tabela || null,
-      conta: txt(x.conta), valor: valorDe(x.valor), dataLimite: dataIso(x.dataLimite),
+      conta: txt(x.conta), valor: valorDe(x.valor), dataPagamento: dataIso(x.dataPagamento), dataLimite: prazoDe(x.dataPagamento),
       hojeISO: txt(x.hojeISO), cidade: txt(x.cidade) || "Goiânia"
     };
   }
@@ -73,8 +118,8 @@ var PreReservaVenda = (function () {
     if (!vazio(t.unidade)) exige(!!t.tabela, "Unidade: fora da tabela do condomínio (tipo da casa)");
     if (vazio(t.conta)) f.push("Conta para devolução (preencha no cartão)");
     else if (!lerConta(t.conta).forma) f.push("Conta para devolução: escolha PIX ou dados bancários e salve de novo");
-    exige(t.valor !== null, "Propriedade PRE_RESERVA_VALOR (valor da pré-reserva)");
-    exige(!vazio(t.dataLimite), "Propriedade PRE_RESERVA_DATA_LIMITE (dia da assinatura do contrato)");
+    exige(t.valor !== null, "Valor da pré-reserva (preencha no cartão)");
+    exige(!vazio(t.dataPagamento), "Data do pagamento da pré-reserva (preencha no cartão)");
     return f;
   }
 
@@ -91,6 +136,7 @@ var PreReservaVenda = (function () {
       PRE_RESERVA_VALOR: t.valor === null ? "" : C().moedaBR(t.valor),
       PRE_RESERVA_VALOR_EXTENSO: t.valor === null ? "" : C().valorExtenso(t.valor),
       PRE_RESERVA_DATA_LIMITE: dataBR(t.dataLimite),
+      PRE_RESERVA_DATA_PAGAMENTO: dataBR(t.dataPagamento),
       PRE_RESERVANTE_CONTA: t.conta,
       CIDADE_DATA: t.cidade + ", " + C().dataPorExtenso(t.hojeISO)
     };
@@ -99,7 +145,7 @@ var PreReservaVenda = (function () {
   /* O que entra no carimbo do PDF: quem assina e o que o termo diz (fora: a data de hoje e a cidade). */
   function baseCarimbo(t) {
     return { termo: "PRE_RESERVA", preReservante: t.preReservante, unidade: t.unidade, tipo: t.tabela ? t.tabela.tipo : "",
-             conta: t.conta, valor: t.valor, dataLimite: t.dataLimite };
+             conta: t.conta, valor: t.valor, dataPagamento: t.dataPagamento, dataLimite: t.dataLimite };
   }
 
   /* 27/10 (dono): a conta deixou de ser texto livre. O cartão escolhe PIX (chave + banco) ou dados
@@ -149,7 +195,8 @@ var PreReservaVenda = (function () {
 
   var api = { COL: COL, TIPOS: TIPOS, montar: montar, faltas: faltas, marcadores: marcadores, baseCarimbo: baseCarimbo,
               validarConta: validarConta, montarConta: montarConta, lerConta: lerConta, TIPOS_CONTA: TIPOS_CONTA,
-              valorDe: valorDe, dataIso: dataIso };
+              valorDe: valorDe, dataIso: dataIso, prazoDe: prazoDe, PRAZO_DIAS: PRAZO_DIAS, validarPagamento: validarPagamento,
+              linhaHistorico: linhaHistorico, juntarHistorico: juntarHistorico };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   return api;
 })();
