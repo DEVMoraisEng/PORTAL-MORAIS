@@ -72,12 +72,6 @@ test("28/10 (dono): comissão pelo PRAZO DA ENTRADA — 24x 5%, 36x 4,75%, 48x 4
   assert.equal(C.comissaoPctPelaRegra(null, 6), null);
 });
 
-test("28/10: unidade 17 — 36x com 24 pós-chaves no fluxo: a comissão de 4,75% vale (o prazo manda, não as parcelas)", () => {
-  const d = dados({ condominio: { comissao: 14487.5, fluxo: { ...FLUXO, prazoEntrada: 36 } } });
-  assert.ok(!C.faltasContrato(d).some((f) => /^Comissão/.test(f)), C.faltasContrato(d).join(" | "));
-  assert.equal(C.marcadores(d).COMISSAO_PCT, "4,75");
-});
-
 test("condomínio completo: sem faltas; comissão do COMPRADOR DENTRO do valor de venda (dono 22/10); marcadores do quadro-resumo", () => {
   const d = dados();
   assert.equal(d.modelo, "CONDOMINIO");
@@ -160,25 +154,15 @@ test("Casa 01: frase da Casa Modelo; sem FGTS/subsídio a frase do financiamento
   assert.equal(m.FINANCIAMENTO_FRASE, "");
 });
 
-test("comissão: vazia na linha sai pela regra; diferente da regra trava; nº de pós-chaves fora da tabela trava", () => {
-  const vazia = dados({ condominio: { comissao: null } });
-  assert.deepEqual(C.faltasContrato(vazia), []);
-  assert.equal(C.marcadores(vazia).COMISSAO_VALOR, "13.725,00");
-  assert.deepEqual(C.faltasContrato(dados({ condominio: { comissao: 15250 } })),
-    ["Comissão: R$ 15.250,00 na venda, mas a regra (prazo da entrada de 48 meses = 4,5%) dá R$ 13.725,00"]);
-  assert.deepEqual(C.faltasContrato(dados({ condominio: { comissao: 13725.04 } })), [], "até 5 centavos passa");
-  const fora = dados({ condominio: { fluxo: { ...FLUXO, posN: 6, posValor: 705.89 * 4 } } });
-  assert.deepEqual(C.faltasContrato(fora), ["Comissão: prazo da entrada vazio fora da tabela (24, 36 ou 48 meses)"]);
-});
-
-test("prazo da entrada tem de bater com as parcelas pós-chaves do fluxo (31/10)", () => {
-  /* fluxo com 24 pós-chaves = 48x; venda ainda marcada 24x com comissão de 5% */
-  const errado = dados({ condominio: { comissao: 15250, fluxo: { ...FLUXO, prazoEntrada: 24 } } });
-  assert.ok(C.faltasContrato(errado).includes(
-    "Prazo da entrada: 24x na venda, mas o fluxo tem 24 parcelas pós-chaves = plano de 48x (comissão 4,5%) — corrija o PRAZO ENTRADA e a comissão"),
-    C.faltasContrato(errado).join(" | "));
-  assert.deepEqual(C.faltasContrato(dados({ condominio: { comissao: 13725, fluxo: { ...FLUXO, prazoEntrada: 48 } } })), []);
-  assert.deepEqual(C.faltasContrato(dados({ condominio: { comissao: 13725, fluxo: { ...FLUXO, prazoEntrada: 47 } } })), [], "47 (mês passado) ainda é 48x");
+test("31/10: comissão sai do fluxo sozinha — sem pós 24x 5%; pré + pós até 36 = 4,75%; acima 4,5%; a da linha não manda", () => {
+  const pct = (f) => C.marcadores(dados({ condominio: { fluxo: { ...FLUXO, ...f } } })).COMISSAO_PCT;
+  assert.equal(pct({ posN: 0, posValor: 0 }), "5");
+  assert.equal(pct({ pre1N: 12, pre2N: 12, posN: 12 }), "4,75");
+  assert.equal(pct({ pre1N: 12, pre2N: 12, posN: 24 }), "4,5");
+  /* comissão gravada errada e PRAZO ENTRADA antigo não travam nem mandam */
+  const d = dados({ condominio: { comissao: 15250, fluxo: { ...FLUXO, prazoEntrada: 24 } } });
+  assert.ok(!C.faltasContrato(d).some((f) => /Comiss|Prazo da entrada/.test(f)), C.faltasContrato(d).join(" | "));
+  assert.equal(C.marcadores(d).COMISSAO_VALOR, "13.725,00");
 });
 
 test("casa fora da tabela: tipo e áreas em branco viram aviso, não travam", () => {

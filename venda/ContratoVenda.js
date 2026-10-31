@@ -394,6 +394,14 @@ var ContratoVenda = (function () {
     var op = prazoOpcao(prazo, posN);
     return op === null ? null : COMISSAO_POR_PRAZO[op];
   }
+  /* 31/10/2026 (dono): a comissão sai do FLUXO, sozinha — sem parcela pós-chaves = 24x (5%); com pós-chaves, o total
+     de parcelas da entrada (pré + pós) até 36 = 36x (4,75%), acima = 48x (4,5%). Vale também depois do Alterar fluxo;
+     o PRAZO ENTRADA e a COMISSÃO gravados na venda não mandam mais. */
+  function planoDoFluxo(G) {
+    if (!(G.posN > 0)) return 24;
+    var total = G.posN + G.pre.reduce(function (s, x) { return s + (x.n || 0); }, 0);
+    return total <= 36 ? 36 : 48;
+  }
   /* 0,045 -> "4,5"; 0,05 -> "5" */
   function pctBR(frac) { return String(Number((frac * 100).toFixed(4))).replace(".", ","); }
   function pct2(parte, todo) { return positivo(todo) ? (parte / todo * 100).toFixed(2).replace(".", ",") : ""; }
@@ -401,10 +409,10 @@ var ContratoVenda = (function () {
   function valoresCondominio(co) {
     var fl = co.fluxo, G = gruposFluxo(co), preco = positivo(G.valor) ? G.valor : null;
     var financiamento = so2(G.credito + G.fgts + G.subsidio);
-    var pctRegra = comissaoPctPelaRegra(fl.prazoEntrada, G.posN);
+    var plano = planoDoFluxo(G), pctRegra = COMISSAO_POR_PRAZO[plano];
     /* 29/10: valor da casa mudado no Alterar fluxo (só JC/JV) — a comissão sai da regra sobre o valor novo */
     var precoMudou = !!co.livre && preco !== null && Math.round(preco * 100) !== Math.round((fl.valorVenda || 0) * 100);
-    var comissao = positivo(co.comissao) && !precoMudou ? co.comissao : (pctRegra !== null && preco !== null ? so2(preco * pctRegra) : null);
+    var comissao = preco !== null ? so2(preco * pctRegra) : null;
     /* 30/10: desconto "isentar a comissão" (venda direta, sem corretor) — comissão zero; imóvel = o preço inteiro */
     var semComissao = !!(co.livre && co.livre.semComissao);
     if (semComissao) comissao = 0;
@@ -416,7 +424,7 @@ var ContratoVenda = (function () {
     var entrada = preco === null ? null : so2(preco - financiamento);
     return {
       preco: preco, financiamento: financiamento, temFgtsSubsidio: G.fgts + G.subsidio > 0,
-      pctRegra: pctRegra, comissao: comissao, operacao: preco, precoMudou: precoMudou, semComissao: semComissao,
+      plano: plano, pctRegra: pctRegra, comissao: comissao, operacao: preco, precoMudou: precoMudou, semComissao: semComissao,
       imovel: preco !== null && comissao !== null ? so2(preco - comissao) : null,
       sinal: sinal, entrada: entrada, saldoEntrada: entrada === null ? null : so2(entrada - sinal)
     };
@@ -851,22 +859,7 @@ var ContratoVenda = (function () {
         faltas.push(g + ": soma R$ " + moedaBR(soma) + " e não fecha com o valor de venda R$ " + moedaBR(fl.valorVenda));
     }
 
-    /* comissão (item 5): o percentual sai do nº de parcelas pós-chaves; a da linha tem de bater com a regra */
-    var va = valoresCondominio(co);
-    /* 31/10/2026 (dono, unidade 18): o plano é o do FLUXO — 0 pós-chaves = 24x, 12 = 36x, 24 = 48x. Se o fluxo mudou
-       (Alterar fluxo, renegociação) e o PRAZO ENTRADA ficou o antigo, a comissão sairia do plano errado. */
-    var posFluxo = gruposFluxo(co).posN || 0, planoFluxo = Object.prototype.hasOwnProperty.call(PRAZO_POR_POS, posFluxo) ? PRAZO_POR_POS[posFluxo] : null;
-    if (planoFluxo !== null && positivo(fl.prazoEntrada) && prazoOpcao(fl.prazoEntrada, posFluxo) !== planoFluxo)
-      faltas.push("Prazo da entrada: " + prazoOpcao(fl.prazoEntrada, posFluxo) + "x na venda, mas o fluxo tem " + posFluxo +
-        " parcelas pós-chaves = plano de " + planoFluxo + "x (comissão " + pctBR(COMISSAO_POR_PRAZO[planoFluxo]) + "%) — corrija o PRAZO ENTRADA e a comissão");
-    if (va.pctRegra === null) faltas.push("Comissão: prazo da entrada " + (fl.prazoEntrada || "vazio") + " fora da tabela (24, 36 ou 48 meses)");
-    else if (positivo(co.comissao) && va.preco !== null && !va.precoMudou) {
-      var pelaRegra = so2(va.preco * va.pctRegra);
-      if (Math.abs(co.comissao - pelaRegra) > 0.05)
-        faltas.push("Comissão: R$ " + moedaBR(co.comissao) + " na venda, mas a regra (" +
-          "prazo da entrada de " + prazoOpcao(fl.prazoEntrada, gruposFluxo(co).posN) + " meses = " + pctBR(va.pctRegra) +
-          "%) dá R$ " + moedaBR(pelaRegra));
-    }
+    /* comissão (item 5): sai do fluxo sozinha (planoDoFluxo, 31/10) — não trava mais o contrato */
 
     /* 30/10 (dono, parecer do 24x): sem parcela depois das chaves não há fiador — os dados de fiador nem são lidos */
     if (comPosChaves(co)) co.fiadores.forEach(function (fi, i) {
