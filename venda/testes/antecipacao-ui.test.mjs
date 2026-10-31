@@ -309,3 +309,17 @@ test("várias parcelas vencidas: contagem, soma e a mais antiga", () => {
   const h = tudo(D.htmlAntecipacao(est({ retrato: r }), ui({ valor: "1.000,00" })));
   assert.match(h, /Há 2 parcelas vencidas, somando R\$ 663,68 \(a mais antiga de 02\/10\)\. Elas ficam fora da antecipação; cobre primeiro\./);
 });
+
+test("portal sem as ações da antecipação (ACAO_DESCONHECIDA): só o aviso, nenhum botão do painel", () => {
+  const frase = "A antecipação ainda não está ligada neste portal.";
+  assert.equal(D.mensagemAnt({ ok: false, erro: "ACAO_DESCONHECIDA" }), frase);
+  assert.equal(D.mensagemAnt({ ok: false, erro: "ACAO_DESCONHECIDA: antecipacaoEstado" }), frase);
+  const h = D.htmlAntecipacao(null, ui({ semBackend: true, msg: frase }));
+  assert.match(tudo(h), /A antecipação ainda não está ligada neste portal\./);
+  assert.doesNotMatch(h, /<button/); assert.doesNotMatch(h, /data-acao=/);
+  assert.doesNotMatch(h, /Tentar de novo|an-modo|ant-valor|ant-data|an-ler/);
+  /* a marca vence qualquer estado que sobrou na tela */
+  assert.doesNotMatch(D.htmlAntecipacao(est(), ui({ semBackend: true })), /<button|an-modo|ant-valor/);
+  /* sem a marca, o bloco continua como antes */
+  assert.match(D.htmlAntecipacao(null, ui({ aberto: false })), /data-acao="an-abrir"/);
+});

@@ -1618,12 +1618,17 @@
   function htmlAntecipacao(e, u) {
     u = u || {};
     if (!u.vendaId) return "";
+    /* 31/10: o portal no ar ainda não tem as ações da antecipação (ACAO_DESCONHECIDA): só o aviso, nenhum botão */
+    if (u.semBackend) return '<div class="grp">Antecipação de parcelas</div><div class="dz-aviso">' + esc(antSemBackendMsg()) + "</div>";
     var h = '<div class="grp">Antecipação de parcelas</div><div class="dz-linha"><button type="button" class="bt bt-mini' + (u.aberto ? " ghost" : "") + '" data-acao="an-abrir"' +
       (u.ocupado === "estado" ? " disabled" : "") + ">" + (u.aberto ? "Fechar a simulação" : "Antecipar parcelas") + "</button>" +
       (u.ocupado === "estado" ? " <b>abrindo…</b>" : "") + "</div>";
     return u.aberto ? h + htmlAntPainel(e, u) : h;
   }
+  function antSemBackendMsg() { return "A antecipação ainda não está ligada neste portal."; }
+  function antSemBackend(r) { return !!(r && r.ok === false && /ACAO_DESCONHECIDA/.test(String(r.erro || ""))); }
   function mensagemAnt(r) {
+    if (antSemBackend(r)) return antSemBackendMsg();
     var M = { RETRATO_VELHO: "A leitura da venda é de outro mês. Clique em Ler de novo do ERP.",
               DATA_FORA_DO_MES: "A data do pagamento tem de ficar entre hoje e o fim deste mês.",
               NAO_FECHA: "Esse valor não fecha ao centavo nas parcelas que ficam. Mude o valor e tente de novo.",
@@ -1880,7 +1885,7 @@
       var r = await chamarVenda({ action: "antecipacaoEstado", pageId: pageId }, 60000);
       if (!vivo()) return null;
       if (uiA.ocupado === "estado") uiA.ocupado = null;   /* o polling não pode reabilitar o botão no meio do PDF */
-      if (r.ok) { estadoA = r; uiA.msg = ""; } else uiA.msg = mensagemAnt(r);
+      if (r.ok) { estadoA = r; uiA.msg = ""; } else { uiA.msg = mensagemAnt(r); if (antSemBackend(r)) uiA.semBackend = true; }
       pintarAnt();
       return r;
     }
