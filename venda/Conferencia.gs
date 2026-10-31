@@ -110,3 +110,56 @@ function confAviso_(pageId, hash) {
   var r = ConferenciaDocs.resumo(o.linhas, o.confirmados);
   return r ? "Conferência dos documentos: " + r : "";
 }
+
+/* 31/10/2026 (dono): "Corrigir aqui" na conferência — abre o campo da linha do condomínio que alimenta o
+   campo conferido (ConferenciaDocs.camposParaCorrigir) e grava ali mesmo. Só a linha do condomínio; só as
+   colunas que a regra devolve para aquele item/campo (a tela não escolhe coluna). */
+function confAlvos_(p) {
+  var pg = notion_("GET", "/pages/" + p.pageId, null);
+  if (vendaBaseDaPagina_(pg) !== "CONDOMINIO") return { erro: "SO_CONDOMINIO" };
+  var props = pg.properties || {}, real = {};
+  Object.keys(props).forEach(function (n) { real[RegrasVenda.chave(n)] = n; });
+  function v(nome) { var n = real[RegrasVenda.chave(nome)]; return n ? ctrTxt_(ctrValor_(props[n])).trim() : ""; }
+  var alvos = ConferenciaDocs.camposParaCorrigir(String(p.item || ""), String(p.campo || ""), CondominioVenda.temSegundo(props), v);
+  if (!alvos.length) return { erro: "NAO_CORRIGE_AQUI" };
+  var faltam = alvos.filter(function (a) { return !real[RegrasVenda.chave(a.coluna)]; }).map(function (a) { return a.coluna; });
+  if (faltam.length) return { erro: "COLUNA_FALTANDO", faltas: faltam };
+  return { pg: pg, alvos: alvos.map(function (a) {
+    var n = real[RegrasVenda.chave(a.coluna)];
+    return { coluna: n, rotulo: a.rotulo, tipo: props[n].type, valor: v(n), opcoes: a.opcoes || null };
+  }) };
+}
+function corrigirConferenciaCampos_(col, p) {
+  var a = confAlvos_(p);
+  if (a.erro) return { ok: false, erro: a.erro, faltas: a.faltas };
+  var opcoes = {};
+  if (a.alvos.some(function (x) { return x.tipo === "select"; })) {
+    var db = notion_("GET", "/databases/" + a.pg.parent.database_id, null), sch = (db && db.properties) || {};
+    a.alvos.forEach(function (x) {
+      if (x.tipo === "select" && sch[x.coluna]) opcoes[x.coluna] = ((sch[x.coluna].select || {}).options || []).map(function (o) { return o.name; });
+    });
+  }
+  /* select da base: as opções dela; coluna de texto com lista da regra (estado civil): a lista da regra */
+  return { ok: true, campos: a.alvos.map(function (x) { return { coluna: x.coluna, rotulo: x.rotulo, valor: x.valor, opcoes: opcoes[x.coluna] || x.opcoes || null }; }) };
+}
+function corrigirConferencia_(col, sess, p) {
+  var pid = String(p.pageId).slice(0, 8), a = confAlvos_(p);
+  if (a.erro) return { ok: false, erro: a.erro, faltas: a.faltas };
+  var valores = p.valores || {}, props = {}, mudou = [];
+  for (var i = 0; i < a.alvos.length; i++) {
+    var x = a.alvos[i];
+    if (!Object.prototype.hasOwnProperty.call(valores, x.coluna)) continue;
+    var nv = ctrTxt_(valores[x.coluna]).trim().slice(0, 300);
+    if (p.campo === "cpf" && nv) {
+      if (!RegrasVenda.cpfValido(nv)) return { ok: false, erro: "CPF_INVALIDO" };
+      nv = RegrasVenda.formatarCpf(nv);
+    }
+    if (nv === x.valor) continue;
+    if (x.tipo === "title") props[x.coluna] = { title: nv ? [{ type: "text", text: { content: nv } }] : [] };
+    else props[x.coluna] = propNotion_(x.tipo, x.tipo === "number" ? (nv ? Number(nv.replace(/[^0-9]/g, "")) : null) : nv);
+    mudou.push(x.coluna);
+  }
+  if (mudou.length) notion_("PATCH", "/pages/" + p.pageId, { properties: props });
+  ctrLog_("corrigirConferencia " + pid + " " + p.item + "/" + p.campo + " " + (mudou.join(", ") || "sem mudança") + " por " + ctrTxt_(sess && sess.u));
+  return { ok: true, mudou: mudou };
+}

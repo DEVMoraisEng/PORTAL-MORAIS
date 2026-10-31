@@ -875,6 +875,13 @@ var ContratoVenda = (function () {
     comData(fl.balao1Valor, fl.balao1Data, "1º balão");
     comData(fl.balao2Valor, fl.balao2Data, "balão da entrega das chaves");
     serie(fl.posN, fl.posValor, fl.posData, "pós-chaves");
+    /* 31/10/2026 (dono): pré-chaves e balões do simulador também não passam de 30/11/2028 */
+    FLV().doPadrao(fl, 0).linhas.forEach(function (l) {
+      if ((l.t !== "pre" && l.t !== "balao") || !l.d) return;
+      var ult = FLV().maisMeses(l.d, (Math.max(1, l.n) - 1) * (l.i || 1));
+      if (ult > FLV().LIMITE_PRE_CHAVES)
+        faltas.push(g + ": " + FLV().TIPOS[l.t].nome.toLowerCase() + " vence em " + FLV().dataBR(ult) + " — pré-chaves e balões terminam até 30/11/2028 (refaça o fluxo na Planilha Casas)");
+    });
     }
     if (positivo(fl.valorVenda) && !co.livre) {
       var soma = so2(somaFluxo(fl) + excedenteSinal(co));

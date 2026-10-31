@@ -210,7 +210,7 @@ test("contrato: faltas viram lista escapada com o título", () => {
 
 test("contrato (c) final gerado: nome (escapado), Visualizar e Gerar de novo (que volta ao pré-contrato)", () => {
   const h = D.htmlContrato({ gerado: true, etapa: "FINAL", nome: "<b>C</b>.pdf" }, uic());
-  assert.match(h, /Contrato gerado: &lt;b&gt;C&lt;\/b&gt;\.pdf/);
+  assert.match(h, /Contrato gerado<span class="dz-arq-nome">: &lt;b&gt;C&lt;\/b&gt;\.pdf<\/span>/);
   assert.doesNotMatch(botao(h, "c-ver"), /disabled/);
   assert.match(h, />Gerar de novo</);
   assert.doesNotMatch(botao(h, "c-pre"), /disabled/);
@@ -270,4 +270,25 @@ test("contrato: listas de testemunhas (entrega 10) — só com 2+ opções, marc
   assert.equal(D.htmlTestemunhas({ opcoes: [{ id: "a", nome: "Só Uma" }], escolhidas: [] }, ""), "");
   assert.equal(D.htmlTestemunhas(null, ""), "");
   assert.match(D.htmlTestemunhas(t, " disabled"), /<select data-testemunha="0" disabled>/);
+});
+
+/* 31/10/2026: Corrigir aqui na conferência */
+test("conferência: linha que diverge tem 'Corrigir aqui'; com o campo aberto, mostra entrada, aviso e Usar o do documento", () => {
+  const e = { feito: true, atual: true, em: "", confirmados: {}, linhas: [
+    { item: "c1-id", campo: "nome", pessoa: "Comprador 1", documento: "RG/CNH", rotulo: "Nome", esperado: "FULANA TESTE", lido: "FULANA DE TESTE", situacao: "diverge" },
+    { item: "c1-id", campo: "cpf", pessoa: "Comprador 1", documento: "RG/CNH", rotulo: "CPF", esperado: "111.444.777-35", lido: "111.444.777-35", situacao: "ok" }] };
+  let h = D.htmlConferencia(e, {});
+  assert.match(h, /data-acao="d-corr-0"[^>]*>Corrigir aqui</);
+  assert.doesNotMatch(h, /data-acao="d-corr-1"/);
+  h = D.htmlConferencia(e, { corr: { i: 0, campos: [{ coluna: "PROPONENTE", rotulo: "Nome", valor: "FULANA <TESTE>" }] } });
+  assert.match(h, /<tr class="dz-corr">/);
+  assert.match(h, /data-corr-col="PROPONENTE"[^>]*value="FULANA &lt;TESTE&gt;"/);
+  assert.match(h, /Grava em PROPONENTE na venda/);
+  assert.match(h, /data-acao="d-corr-usar"/);
+  assert.match(D.htmlCorrigir(e.linhas[0], { carregando: true }, ""), /abrindo o campo/);
+  /* estado civil: lista; o valor de hoje fora da lista continua como opção escolhida */
+  const civ = D.htmlCorrigir(e.linhas[0], { campos: [{ coluna: "ESTADO CIVIL", rotulo: "Estado civil", valor: "SEPARADO", opcoes: ["SOLTEIRO", "CASADO"] }] }, "");
+  assert.match(civ, /<select data-corr-col="ESTADO CIVIL"><option value="">—<\/option><option value="SEPARADO" selected>SEPARADO<\/option><option value="SOLTEIRO">/);
+  assert.doesNotMatch(civ, /d-corr-usar/);
+  assert.match(D.htmlCorrigir(e.linhas[0], { erro: "x" }, ""), /data-acao="d-corr-cancelar"/);
 });
