@@ -1370,6 +1370,14 @@
   function avisarDadosGravados(pageId) {
     try { window.dispatchEvent(new CustomEvent("venda:dados-gravados", { detail: { pageId: pageId } })); } catch (e) {}
   }
+  /* 31/10/2026 (dono): contrato enviado para assinatura (ou já assinado) = unidade vendida. Avisa a página
+   * (vendas.html marca VENDIDA = SIM na base UNIDADES do condomínio). Vale ao abrir o cartão também: pega as
+   * vendas que saíram sem o botão Vendida na proposta. */
+  function avisarContratoEnviado(pageId, estado) {
+    var s = String((estado && estado.situacao) || "").toUpperCase();
+    if (s !== "ENVIADO" && s !== "ASSINADO") return;
+    try { window.dispatchEvent(new CustomEvent("venda:contrato-enviado", { detail: { pageId: pageId, situacao: s } })); } catch (e) {}
+  }
 
   /* opts.recebimentos: o bloco Recebimentos (só a casa da VENDAS; o cartão do condomínio não tem) */
   function criarBlocosVenda(pageId, ativo, opts) {
@@ -1643,6 +1651,7 @@
       if (r.ok) { ctxA.estado = { situacao: r.situacao || "", envelope: !!r.envelope, signatarios: r.signatarios || [], temAssinado: !!r.temAssinado }; ctxA.msg = ""; }
       else ctxA.msg = window.VendaAssinatura ? window.VendaAssinatura.mensagemAssinatura(r) : "";
       pintarA();
+      if (r.ok) avisarContratoEnviado(pageId, ctxA.estado);
     }
     async function aoClicarAss(acao) {
       if (!window.VendaAssinatura || ctxA.ocupado) return;
@@ -1656,6 +1665,7 @@
       });
       if (!vivo()) return;
       ctxA = novo; pintarA();
+      avisarContratoEnviado(pageId, ctxA.estado);
     }
 
     /* Mais Controle */

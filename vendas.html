@@ -1130,7 +1130,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 <script src="venda/painel-casa.js?v=1"></script>
 <script src="venda/FluxoLivre.js?v=3"></script><!-- 29/10: Alterar fluxo -->
 <script src="venda/quadro-fluxo.js?v=1"></script><!-- 31/10: quadro do pro soluto segue o fluxo alterado -->
-<script src="venda-dossie.js?v=21"></script>
+<script src="venda-dossie.js?v=22"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele.
    Mesma chave (morais_tema) das outras páginas do portal. */
@@ -3462,6 +3462,58 @@ async function recarregarCamposCasa(pageId){
   cabecalhoObra(V); renderPainel(V,pageId,false);
   if(body) body.scrollTop=topo;
 }
+/* 31/10/2026 (dono): contrato do condomínio gerado e ENVIADO para assinatura (ou já ASSINADO) = unidade vendida.
+   Algumas vendas saíram sem o botão "Vendida" na proposta e a unidade ficou RESERVADA/DISPONÍVEL no mapa e nas
+   propostas. O dossiê (venda-dossie.js) dispara "venda:contrato-enviado" ao enviar e ao abrir o cartão; aqui a
+   unidade da base UNIDADES (a do simulador/propostas — só o Reserva dos Ipês tem) passa para VENDIDA = SIM e
+   STATUS INTERNO = VENDIDA, pela mesma ação da aba Simulações (simsUnidadeUpdate, que republica o mapa).
+   Só mexe se ainda não estiver SIM; uma vez por linha por sessão. Não mexe na proposta nem no banco de vendas. */
+const CD_UN_BASE="RESERVA DOS IPES";
+const CD_UN_FEITAS=new Set();
+const cdNumUn=t=>{ const m=/\d+/.exec(String(t==null?"":t)); return m?Number(m[0]):null; };
+function cdAvisoUnidade(id,tipo,txt){
+  if(COND_ABERTA!==id) return;
+  const alvo=document.getElementById("cd-venda"); if(!alvo||!alvo.parentNode) return;
+  let d=document.getElementById("cd-un-aviso");
+  if(!d){ d=document.createElement("div"); d.id="cd-un-aviso"; alvo.parentNode.insertBefore(d,alvo); }
+  d.className=tipo==="ok"?"cd-aviso":"cd-falta"; d.style.margin="6px 0"; d.innerHTML=txt;
+}
+async function condMarcarUnidadeVendida(id){
+  if(!COND||!id||CD_UN_FEITAS.has(id)) return;
+  const semTraco=x=>String(x||"").replace(/-/g,"");
+  const l=COND.linhas.find(x=>semTraco(x.id)===semTraco(id)); if(!l) return;   // não é linha do condomínio
+  const cond=cdNorm(cdVal(l,"CONDOMÍNIO")).replace(/^CONDOMINIO\s+(RESIDENCIAL\s+)?/,"");
+  if(cond.indexOf(CD_UN_BASE)<0) return;                                       // condomínio sem base UNIDADES
+  const n=cdNumUn(cdVal(l,"UNIDADE")||cdVal(l,COND.titulo)); if(n==null) return;
+  CD_UN_FEITAS.add(id);
+  let r=null;
+  try{ r=await chamar({action:"simsUnidades"},60000); }catch(e){ r=null; }
+  if(!r||!r.ok||!Array.isArray(r.unidades)){
+    CD_UN_FEITAS.delete(id);
+    cdAvisoUnidade(id,"err","<b>Contrato enviado, mas não consegui conferir a unidade "+n+" na base UNIDADES</b> ("+esc((r&&r.erro)||"sem resposta")+"). Feche e abra o cartão para tentar de novo.");
+    return;
+  }
+  const achadas=r.unidades.filter(u=>cdNumUn(u.unidade)===n);
+  if(achadas.length!==1){
+    cdAvisoUnidade(id,"err","<b>Contrato enviado, mas "+(achadas.length?"há mais de uma":"não achei a")+" unidade "+n+" na base UNIDADES</b> — marque VENDIDA = SIM na aba Simulações.");
+    return;
+  }
+  const u=achadas[0];
+  if(cdNorm(u.vendidaCru)==="SIM") return;                                     // já está vendida
+  let w=null;
+  try{ w=await chamar({action:"simsUnidadeUpdate",pageId:u.id,campos:{"VENDIDA":"SIM","STATUS INTERNO":"VENDIDA"}},60000,true); }catch(e){ w=null; }
+  if(w&&w.ok){
+    try{ localStorage.removeItem(STORE_PRE+"sims_unidades"); }catch(e){}
+    cdAvisoUnidade(id,"ok","<b>Contrato enviado: unidade "+esc(u.unidade||n)+" marcada como VENDIDA = SIM</b> (estava "+esc(u.vendidaCru||"em branco")+"). Mapa e propostas já atualizam.");
+  }else{
+    CD_UN_FEITAS.delete(id);
+    cdAvisoUnidade(id,"err","<b>Contrato enviado, mas a unidade "+n+" não foi marcada como vendida</b> ("+esc((w&&w.erro)||"sem resposta")+"). Feche e abra o cartão para tentar de novo, ou marque VENDIDA = SIM na aba Simulações.");
+  }
+}
+window.addEventListener("venda:contrato-enviado", ev=>{
+  const id=ev && ev.detail && ev.detail.pageId;
+  if(id) condMarcarUnidadeVendida(String(id));
+});
 window.addEventListener("venda:dados-gravados", ev=>{
   const id=ev && ev.detail && ev.detail.pageId;
   if(id) recarregarCamposCasa(String(id));

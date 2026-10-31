@@ -211,3 +211,20 @@ def test_data_com_ano_absurdo_e_falta_antes_do_erp():
     d = R.dados_da_pagina(pagina())
     d["parcelas_prontas"] = [{"tipo": R.TIPO_SINAL, "rotulo": "Sinal ato", "valor": 1000.0, "data": "0026-11-30"}]
     assert "Data da parcela Sinal ato com ano 0026 — corrija na planilha" in R.faltas(d)
+
+
+def test_email_valido_limpa_o_que_o_erp_recusa():
+    assert R.email_valido(" Maria@Gmail.com ") == "maria@gmail.com"
+    assert R.email_valido("joao@gmail.com / maria@hotmail.com") == "joao@gmail.com"
+    assert R.email_valido("mailto:ana@uol.com.br") == "ana@uol.com.br"
+    assert R.email_valido("ana@gmail") is None
+    assert R.email_valido("não tem") is None
+    assert R.email_valido(None) is None
+
+
+def test_corpo_cliente_sem_email_valido_nao_manda_email():
+    d = R.dados_da_pagina(pagina())
+    d["comprador"]["email"] = "fulano gmail.com"
+    assert "email" not in R.corpo_cliente(d)
+    d["comprador"]["email"] = "Fulano@Gmail.com;"
+    assert R.corpo_cliente(d)["email"] == "fulano@gmail.com"

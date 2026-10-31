@@ -420,14 +420,25 @@ def faltas(dados: dict, dias_financiamento: int = DIAS_FINANCIAMENTO) -> list[st
 
 # ---------------------------------------------------------------- corpos
 
+_EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}")
+
+
+def email_valido(texto) -> str | None:
+    """31/10/2026: o POST /participants volta 400 ("Email.participant.email") com e-mail fora do formato —
+    espaço, dois e-mails na mesma célula, "mailto:", nome junto. Fica o PRIMEIRO e-mail válido do texto,
+    em minúsculas; sem nenhum válido o campo não vai (no ERP o e-mail não é obrigatório)."""
+    m = _EMAIL.search(str(texto or "").replace("mailto:", " "))
+    return m.group(0).lower() if m else None
+
+
 def corpo_cliente(dados: dict) -> dict:
     """POST {legado}/participants — o mesmo objeto que a tela "Clientes > Novo" grava."""
     c = dados["comprador"]
     corpo = {"status": "ACTIVE", "type": "PERSON", "role": "CUSTOMER",
              "name": " ".join(str(c["nome"]).upper().split()), "cpf": so_digitos(c["cpf"]),
              "contacts": [], "phones": []}
-    if c.get("email"):
-        corpo["email"] = c["email"]
+    if email_valido(c.get("email")):
+        corpo["email"] = email_valido(c.get("email"))
     if c.get("telefone"):
         corpo["phones"] = [{"number": c["telefone"]}]
     # 30/10/2026 (dono): condomínio — o endereço do cliente é a unidade comprada
@@ -476,8 +487,8 @@ def corpo_corretor(dados: dict) -> dict:
     for k, v in (dados.get("corretor_cadastro") or {}).items():   # o cadastro do corretor vale mais que a pasta
         if v and k in ("email", "creci"):
             c[k] = v
-    if c.get("email"):
-        corpo["email"] = c["email"]
+    if email_valido(c.get("email")):
+        corpo["email"] = email_valido(c.get("email"))
     if c.get("telefone"):
         corpo["phones"] = [{"number": c["telefone"]}]
     if c.get("creci"):
