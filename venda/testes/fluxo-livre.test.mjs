@@ -296,3 +296,28 @@ test("Distribuir espalha a diferença nas pré-chaves e balões e fecha ao centa
   const so = { valor: 1000, linhas: [{ t: "sinal", v: 500, n: 1, d: "2026-10-31", i: 1 }] };
   assert.match(F.distribuir(so).erro, /Não há pré-chaves/);
 });
+
+/* 31/10/2026 (teste de tela na unidade 61): 36x → 24x → 36x mudava a 1ª pós-chaves (de 15/01/2029 para 15/12/2028,
+   o mês da entrega) porque a data saía das linhas de agora. Agora sai da proposta (ou do mês seguinte à entrega):
+   qualquer ordem de cliques, qualquer número de vezes, dá o mesmo fluxo. */
+test("prazo em qualquer ordem dá sempre o mesmo fluxo (36→24→36, 48→36, 36→48→24→36), com proposta 24x e 36x", () => {
+  const resumo = (ls) => ls.map((l) => [l.t, l.v, l.n, l.d]);
+  const seq = (f, padrao, ps) => ps.reduce((a, p) => ({ ...a, linhas: F.mudarPrazo(a, p, padrao).linhas }), f);
+  /* proposta 24x (sem pós-chaves) — a casa 17 */
+  const p24 = F.normalizar(casa24);
+  for (const ps of [[36, 24, 36], [48, 36], [36, 48, 24, 36], [36, 36, 36]]) {
+    const fim = seq(p24, p24, ps);
+    assert.deepEqual(resumo(fim.linhas), resumo(F.mudarPrazo(p24, ps[ps.length - 1], p24).linhas), ps.join("→"));
+  }
+  assert.deepEqual(resumo(seq(p24, p24, [36, 48, 24]).linhas), resumo(p24.linhas), "voltar a 24x devolve a proposta");
+  /* proposta 36x, entrega 15/12/2028, dia 15 — a unidade 61: a 1ª pós fica em 15/01/2029, sempre */
+  const base61 = { valor: casa24.valor, entrega: "2028-12-15", linhas: casa24.linhas.map((l) => (l.d ? { ...l, d: l.d.slice(0, 8) + "15" } : l)) };
+  const p36 = { ...base61, linhas: F.mudarPrazo(base61, 36, null).linhas };
+  assert.equal(p36.linhas.find((l) => l.t === "pos").d, "2029-01-15");
+  for (const ps of [[36, 24, 36], [48, 36], [36, 48, 24, 36]]) {
+    const fim = seq(p36, p36, ps);
+    assert.deepEqual(resumo(fim.linhas), resumo(ps[ps.length - 1] === 36 ? p36.linhas : F.mudarPrazo(p36, ps[ps.length - 1], p36).linhas), ps.join("→"));
+    if (ps[ps.length - 1] !== 24) assert.equal(fim.linhas.find((l) => l.t === "pos").d, "2029-01-15", ps.join("→"));
+    assert.deepEqual(F.validar(fim, p36).erros, [], ps.join("→") + ": " + F.validar(fim, p36).erros.join(" | "));
+  }
+});

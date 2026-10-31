@@ -2134,7 +2134,7 @@
       if (acao === "c-fluxo-padrao") { ed.linhas = copiaLinhas(ed.padrao.linhas); ed.valor = ed.padrao.valor; ed.semComissao = false; ed.descontos = []; pintar(); return; }
       if (acao === "c-fluxo-desconto") { aplicarDescontoTela(ed); pintar(); return; }
       if (acao === "c-fluxo-prazo") {
-        var pz = Number(b.getAttribute("data-p")), mp = FL().mudarPrazo({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, pz);
+        var pz = Number(b.getAttribute("data-p")), mp = FL().mudarPrazo({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, pz, ed.padrao);   /* a data dos pós-chaves vem da proposta */
         if (mp.erro) uiC.msg = mp.erro;
         else {
           ed.linhas = mp.linhas;

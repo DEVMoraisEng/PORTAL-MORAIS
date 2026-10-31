@@ -183,7 +183,22 @@ var FluxoLivre = (function () {
   }
   function porData(a, b) { return String(a.d || "9999").localeCompare(String(b.d || "9999")); }
   /* { linhas } ou { erro } */
-  function mudarPrazo(f, prazo) {
+  /* 1ª parcela pós-chaves (31/10/2026, teste na unidade 61: 36x → 24x → 36x mudava a data): NUNCA sai das linhas de
+     agora. Se a proposta tem pós-chaves, a data da proposta; senão, o mês seguinte à entrega no dia de pagamento das
+     parcelas (o da 1ª pré-chaves); e nunca antes do mês seguinte ao último balão. */
+  function inicioPos(f, padrao, pres, ultBal) {
+    var ini = "";
+    (padrao && padrao.linhas || []).forEach(function (l) { if (l.t === "pos" && isoValida(l.d) && (!ini || l.d < ini)) ini = l.d; });
+    if (ini) return ini;
+    var dia = pres[0] && isoValida(pres[0].d) ? Number(pres[0].d.slice(8, 10)) : (isoValida(ultBal) ? Number(ultBal.slice(8, 10)) : 0);
+    var cand = "";
+    if (isoValida(f.entrega) && dia) cand = maisMeses(f.entrega.slice(0, 8) + ("0" + Math.min(dia, 28)).slice(-2), 1).slice(0, 8) + ("0" + dia).slice(-2);
+    if (cand && !isoValida(cand)) cand = maisMeses(f.entrega.slice(0, 8) + "28", 1);   /* dia 29/30/31 num mês curto */
+    var depoisBal = isoValida(ultBal) ? maisMeses(ultBal, 1) : "";
+    if (!cand) return depoisBal;
+    return depoisBal && depoisBal > cand ? depoisBal : cand;
+  }
+  function mudarPrazo(f, prazo, padrao) {
     f = normalizar(f);
     prazo = Number(prazo);
     if (!PRAZOS.hasOwnProperty(prazo)) return { erro: "Prazo da entrada só 24, 36 ou 48 meses" };
@@ -207,7 +222,7 @@ var FluxoLivre = (function () {
     ];
     if (nPos) {
       var ultBal = novas[3].d || novas[2].d;
-      novas.push({ t: "pos", v: r2(tpos / nPos), n: nPos, d: poss[0] ? poss[0].d : (isoValida(ultBal) ? maisMeses(ultBal, 1) : ""), i: 1, x: "" });
+      novas.push({ t: "pos", v: r2(tpos / nPos), n: nPos, d: inicioPos(f, padrao ? normalizar(padrao) : null, pres, ultBal), i: 1, x: "" });
     }
     /* os centavos fecham no último balão, como no simulador */
     var dif = c(f.valor) - somaC(ficam.concat(novas));
