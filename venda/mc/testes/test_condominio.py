@@ -508,3 +508,34 @@ def test_comissao_sai_do_fluxo_31_10():
     assert C.plano_do_fluxo({**base, "nP": 12}) == 36
     assert C.plano_do_fluxo({**base, "nP": 24}) == 48
     assert C.comissao_pela_regra({**base, "nP": 0, "prazo": 48}, 305000) == 15250   # PRAZO ENTRADA não manda
+
+
+# ---- 31/10/2026 (dono): a pré-reserva paga é a 1ª parcela do sinal, já recebida ----
+def test_pre_reserva_paga_abate_o_sinal_e_vira_parcela_do_sinal():
+    fx = C.fluxo(fluxo_props(**{"PRÉ-RESERVA - VALOR": num(6000), "PRÉ-RESERVA - DATA PAGAMENTO": data("2026-10-03")}))
+    assert fx["pre_reserva"] == {"valor": 6000, "data": "2026-10-03"}
+    ps = C.parcelas(fx, {"data_venda": "2026-10-10"})
+    sinais = [(p["rotulo"], p["valor"], p["data"], p["tipo"]) for p in ps if p["tipo"] == R.TIPO_SINAL]
+    assert sinais == [("Pré-reserva (já recebida em 03/10/2026)", 6000, "2026-10-03", R.TIPO_SINAL),
+                      ("Sinal 30 dias", 1000, "2026-11-09", R.TIPO_SINAL)]
+    sem = C.parcelas(C.fluxo(fluxo_props()), {"data_venda": "2026-10-10"})
+    assert round(sum(p["valor"] for p in ps), 2) == round(sum(p["valor"] for p in sem), 2), "o total da venda não muda"
+    assert C.faltas_do_fluxo(fx, 12) == []
+
+
+def test_pre_reserva_sem_pagamento_nao_entra_e_maior_que_o_sinal_vira_falta():
+    assert C.fluxo(fluxo_props(**{"PRÉ-RESERVA - VALOR": num(3000)}))["pre_reserva"] is None
+    antigo = C.fluxo(fluxo_props(**{"PRÉ-RESERVA - VALOR": num(3000), "PRÉ-RESERVA - SITUAÇÃO": txt("ASSINADO")}))
+    assert antigo["pre_reserva"] == {"valor": 3000, "data": None}
+    assert C.parcelas(antigo, {"data_venda": "2026-10-10"})[0]["rotulo"] == "Pré-reserva (já recebida)"
+    grande = C.fluxo(fluxo_props(**{"PRÉ-RESERVA - VALOR": num(8000), "PRÉ-RESERVA - DATA PAGAMENTO": data("2026-10-03")}))
+    assert any("passa do sinal" in f for f in C.faltas_do_fluxo(grande, 12))
+
+
+def test_pre_reserva_no_fluxo_alterado():
+    linhas = [{"t": "prereserva", "v": 2000, "n": 1, "d": "2026-10-03", "i": 1, "x": ""}] + [dict(l) for l in LIVRE]
+    linhas[1]["v"] -= 2000 if linhas[1]["t"] == "sinal" and linhas[1]["n"] == 1 else 0
+    fx = C.fluxo(fluxo_props(**_livre(linhas)))
+    ps = C.parcelas(fx, {"data_venda": "2026-09-01"}, 30)
+    pr = [p for p in ps if p["rotulo"].startswith("Pré-reserva")]
+    assert [(p["rotulo"], p["valor"], p["tipo"]) for p in pr] == [("Pré-reserva (já recebida em 03/10/2026)", 2000, R.TIPO_SINAL)]
