@@ -106,6 +106,9 @@ def gravar_pagina(notion, obter_erp, page_id: str, props: dict, agora: str) -> s
             return "erro"
         texto = "ERRO: " + motivo
         em = " | ERRO %s: %s" % (agora, motivo)   # sem leitura boa não há hora de leitura: a coluna só diz que falhou
+    # Limite de leitura: o Notion devolve, ao ler a página, no máximo 25 itens de rich_text por coluna. Cada item grava até 1900
+    # caracteres, então cabem cerca de 47 mil caracteres. Hoje o retrato tem cerca de 190 caracteres por parcela (56 parcelas
+    # = 10,6 mil), o que dá folga para umas 250 parcelas. Venda com bem mais que isso seria lida cortada pelo portal.
     if not notion.gravar_texto_longo(page_id, props, COL_RETRATO, texto):
         return "sem_coluna"
     notion.gravar_textos(page_id, props, {COL_RETRATO_EM: em})
