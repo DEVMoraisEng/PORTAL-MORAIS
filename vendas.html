@@ -396,6 +396,25 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 .cd-cardbox[data-aba="documentos"] #cd-venda>.vb-conf,
 .cd-cardbox[data-aba="contrato"] #cd-venda>.vb-ct,.cd-cardbox[data-aba="contrato"] #cd-venda>.vb-ass,
 .cd-cardbox[data-aba="contrato"] #cd-venda>.vb-mc{display:block}
+/* 31/10/2026 (dono quer o cartão bom no celular): abaixo de 600 px as 6 abas ficam em 3 x 2 (nenhuma escondida) e as
+   tabelas da conferência e das parcelas viram blocos empilhados — cada célula com o nome do campo (data-rot), os
+   botões embaixo na largura toda. Pré-reserva, Contrato e Andamento já cabem e não mudam. */
+@media (max-width:600px){
+  .cd-abas .tabs{display:grid;grid-template-columns:repeat(3,1fr);width:100%}
+  .cd-abas .tab{padding:8px 4px;font-size:12.5px;letter-spacing:.03em;text-align:center}
+  .cd-cardbox .vb-conf table,.cd-cardbox .vb-conf tbody,.cd-cardbox .vb-conf tr,.cd-cardbox .vb-conf td,
+  .cd-cardbox .vb-fin table,.cd-cardbox .vb-fin tbody,.cd-cardbox .vb-fin tr,.cd-cardbox .vb-fin td{display:block;width:100%}
+  .cd-cardbox .vb-conf tr:has(th),.cd-cardbox .vb-fin thead{display:none}
+  .cd-cardbox .vb-conf tr,.cd-cardbox .vb-fin tbody tr{border:1.5px solid var(--border2);border-radius:10px;padding:8px 10px;margin:0 0 8px;background:var(--sup)}
+  .cd-cardbox .vb-conf td,.cd-cardbox .vb-fin td{border:0!important;padding:3px 0!important;text-align:left!important;white-space:normal!important;overflow-wrap:anywhere}
+  .cd-cardbox .vb-conf td[data-rot]::before,.cd-cardbox .vb-fin td[data-rot]::before{content:attr(data-rot);display:block;font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em}
+  .cd-cardbox .vb-conf tr.dz-corr{background:var(--bg2)}
+  .cd-cardbox .vb-conf td .bt{width:100%;margin:4px 0 0}
+  .cd-cardbox .vb-conf .dz-corr .dz-linha{flex-direction:column;align-items:stretch}
+  .cd-cardbox .vb-conf .dz-corr .dz-rot{flex:0 0 auto!important}
+  .cd-cardbox .vb-conf .dz-corr input,.cd-cardbox .vb-conf .dz-corr select{width:100%;flex:1 1 auto!important}
+  .cd-cardbox .vb-conf div[style*="overflow-x"],.cd-cardbox .vb-fin div[style*="overflow-x"]{overflow-x:visible!important}
+}
 details.cd-dobra{border:1.5px solid var(--border2);border-radius:10px;background:var(--bg2);margin:0 0 14px}
 details.cd-dobra>summary{cursor:pointer;padding:9px 12px;font-weight:700;font-size:13px;color:var(--azul)}
 details.cd-dobra>div{padding:0 12px 12px}
