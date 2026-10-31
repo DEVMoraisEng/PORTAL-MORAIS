@@ -1359,9 +1359,11 @@
                 '<button type="button" class="bt ghost bt-mini" data-acao="d-abrir-' + i + '"' + dis + ">Abrir documento</button> " +
                 '<button type="button" class="bt bt-mini" data-acao="d-ok-' + i + '"' + dis + ">Conferi, está certo</button></div>";
           }
-          return "<tr><td>" + esc(l.pessoa) + " · " + esc(l.documento) + "</td><td>" + esc(l.rotulo) + "</td><td>" + esc(l.esperado) +
-            "</td><td>" + (l.lido ? esc(l.lido) : '<span class="ass-data">' + esc(l.motivo || "não lido") + "</span>") +
-            '</td><td><b class="' + s[0] + '">' + s[1] + "</b>" + acao + "</td></tr>" +
+          /* data-rot: no celular (vendas.html, < 600 px) cada linha vira um bloco com o nome de cada campo */
+          return '<tr><td data-rot="Pessoa · documento">' + esc(l.pessoa) + " · " + esc(l.documento) + '</td><td data-rot="Campo">' + esc(l.rotulo) +
+            '</td><td data-rot="No contrato">' + esc(l.esperado) +
+            '</td><td data-rot="No documento">' + (l.lido ? esc(l.lido) : '<span class="ass-data">' + esc(l.motivo || "não lido") + "</span>") +
+            '</td><td data-rot="Situação"><b class="' + s[0] + '">' + s[1] + "</b>" + acao + "</td></tr>" +
             (u.corr && u.corr.i === i ? '<tr class="dz-corr"><td colspan="5">' + htmlCorrigir(l, u.corr, dis) + "</td></tr>" : "");
         }).join("") + "</table></div>";
     }
