@@ -147,8 +147,9 @@
       if (sigs.length) {
         h += '<ul class="ass-lista">' + sigs.map(function (s) {
           var st = sitSignatario(s), rot = ROTULO_SIG[st] || ROTULO_SIG.pendente, d = dataCurta(s.data);
-          return "<li><span>" + esc(s.papel) + (s.nome ? " (" + esc(s.nome) + ")" : "") + "</span>" +
-            (s.email ? ' <span class="ass-data">&lt;' + esc(s.email) + "&gt;</span>" : "") + " " +
+          /* 31/10 (dono): o nome vem primeiro e o papel entre parênteses — "Julio Cesar (Representante) - e-mail" */
+          return "<li><span>" + (s.nome ? "<b>" + esc(s.nome) + "</b> (" + esc(s.papel) + ")" : esc(s.papel)) + "</span>" +
+            (s.email ? ' <span class="ass-data">- ' + esc(s.email) + "</span>" : "") + " " +
             '<b class="' + rot[0] + '">' + rot[1] + "</b>" + (d && st !== "pendente" ? ' <span class="ass-data">em ' + esc(d) + "</span>" : "") + "</li>";
         }).join("") + "</ul>";
       }

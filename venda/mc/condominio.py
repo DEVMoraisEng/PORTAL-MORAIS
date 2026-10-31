@@ -58,7 +58,39 @@ def fluxo(props: dict) -> dict:
     out["prazo"] = R._num(R._valor(por_chave.get(R.chave("PRAZO ENTRADA"))))
     # 30/10/2026: a proposta guarda o VALOR PARA ENTRADA; o que passa do sinal é pago na assinatura (excedente_sinal)
     out["id_proposta"] = R.so_hex(R._valor(por_chave.get(R.chave("ID PROPOSTA"))))
+    # 31/10/2026 (dono): a pré-reserva paga (valor + data do pagamento da venda, ou termo assinado das vendas de antes)
+    # é a 1ª parcela do sinal, já recebida — igual ao ContratoVenda.preReservaPaga
+    out["pre_reserva"] = pre_reserva_paga(por_chave)
     return out
+
+
+def pre_reserva_paga(por_chave: dict) -> dict | None:
+    """{valor, data} ou None. `data` vazia = termo assinado sem data do pagamento (vale a assinatura)."""
+    valor = R._num(R._valor(por_chave.get(R.chave("PRÉ-RESERVA - VALOR"))))
+    if not valor or valor <= 0:
+        return None
+    data = R._data(R._valor(por_chave.get(R.chave("PRÉ-RESERVA - DATA PAGAMENTO"))))
+    assinado = str(R._valor(por_chave.get(R.chave("PRÉ-RESERVA - SITUAÇÃO"))) or "").strip().upper() == "ASSINADO"
+    if not data and not assinado:
+        return None
+    return {"valor": round(float(valor), 2), "data": data}
+
+
+def abater_sinal(valores: list, pr: float) -> tuple[list, float]:
+    """A pré-reserva sai do ato, depois do 30, 60 e 90 dias (FluxoLivre.abaterSinal). -> (valores, abatido)."""
+    falta = round(pr * 100)
+    out = []
+    for v in valores:
+        x = round(v * 100) if v and v > 0 else 0
+        s = min(falta, x)
+        falta -= s
+        out.append((x - s) / 100 if x - s > 0 else None)
+    return out, (round(pr * 100) - falta) / 100
+
+
+def rotulo_pre_reserva(data: str | None) -> str:
+    """Comentário da parcela no Mais Controle: quem dá a baixa vê que o dinheiro já entrou e quando."""
+    return "Pré-reserva (já recebida%s)" % (" em %s/%s/%s" % (data[8:10], data[5:7], data[:4]) if data else "")
 
 
 def valor_para_entrada(props: dict) -> float | None:
@@ -287,10 +319,16 @@ def parcelas(fx: dict, dados: dict, dias_financiamento: int = R.DIAS_FINANCIAMEN
             data = data_no_dia(primeira, i, dia) if primeira and R._RE_ISO.match(primeira) else None
             add(tipo, "%s %d/%d" % (nome, i + 1, n), valor, data, tabela)
 
-    add(R.TIPO_SINAL, "Sinal ato", fx.get("vAto"), fx.get("assinatura") or dados.get("data_venda"))
-    add(R.TIPO_SINAL, "Sinal 30 dias", fx.get("vS30"), fx.get("dS30"))
-    add(R.TIPO_SINAL, "Sinal 60 dias", fx.get("vS60"), fx.get("dS60"))
-    add(R.TIPO_SINAL, "Sinal 90 dias", fx.get("vS90"), fx.get("dS90"))
+    sv = [fx.get("vAto"), fx.get("vS30"), fx.get("vS60"), fx.get("vS90")]
+    pr = fx.get("pre_reserva")
+    if pr:
+        sv, abatido = abater_sinal(sv, pr["valor"])
+        add(R.TIPO_SINAL, rotulo_pre_reserva(pr["data"]), abatido or None,
+            pr["data"] or fx.get("assinatura") or dados.get("data_venda"))
+    add(R.TIPO_SINAL, "Sinal ato", sv[0], fx.get("assinatura") or dados.get("data_venda"))
+    add(R.TIPO_SINAL, "Sinal 30 dias", sv[1], fx.get("dS30"))
+    add(R.TIPO_SINAL, "Sinal 60 dias", sv[2], fx.get("dS60"))
+    add(R.TIPO_SINAL, "Sinal 90 dias", sv[3], fx.get("dS90"))
     add(R.TIPO_ENTRADA, "Entrada à vista", fx.get("excedente"), fx.get("assinatura") or dados.get("data_venda"))
     serie(R.TIPO_PARCELA, "Pré-chaves 1ª parte", fx.get("n1"), fx.get("v1"), fx.get("d1"), TABELA_PRE)
     serie(R.TIPO_PARCELA, "Pré-chaves 2ª parte", fx.get("n2"), fx.get("v2"), fx.get("d2"), TABELA_PRE)
@@ -306,7 +344,7 @@ def parcelas(fx: dict, dados: dict, dias_financiamento: int = R.DIAS_FINANCIAMEN
 
 
 # tipo da linha livre -> (tipo no MC, tabela de reajuste); balão na data do balão da entrega vira CHAVES, como nas gavetas
-_TIPO_LIVRE = {"sinal": (R.TIPO_SINAL, None, "Sinal"), "entrada": (R.TIPO_ENTRADA, None, "Entrada à vista"),
+_TIPO_LIVRE = {"prereserva": (R.TIPO_SINAL, None, "Pré-reserva"), "sinal": (R.TIPO_SINAL, None, "Sinal"), "entrada": (R.TIPO_ENTRADA, None, "Entrada à vista"),
                "pre": (R.TIPO_PARCELA, TABELA_PRE, "Pré-chaves"), "balao": (R.TIPO_INTERMEDIARIA, TABELA_PRE, "Balão"),
                "pos": (R.TIPO_PARCELA, TABELA_POS, "Pós-chaves"), "permuta": (R.TIPO_ENTRADA, None, "Permuta")}
 
@@ -332,6 +370,8 @@ def parcelas_livres(fx: dict, dados: dict, dias_financiamento: int = R.DIAS_FINA
             v = l["u"] if (j == n - 1 and n > 1 and l.get("u")) else l["v"]
             t = R.TIPO_CHAVES if (l["t"] == "balao" and data and data == fx.get("dB2")) else tipo
             rot = ("Permuta - " + l["x"])[:120] if l["t"] == "permuta" else (nome if n == 1 else "%s %d/%d" % (nome, j + 1, n))
+            if l["t"] == "prereserva":
+                rot = rotulo_pre_reserva(data)
             out.append({"tipo": t, "rotulo": rot, "valor": round(float(v), 2), "data": data, "tabela": tabela})
     dv = fx.get("assinatura") or dados.get("data_venda")
     prev = R._mais_dias(dv, dias_financiamento) if dv and R._RE_ISO.match(dv) else None
@@ -351,6 +391,11 @@ def faltas_do_fluxo(fx: dict, casa: int | None) -> list[str]:
         soma = round(sum(_total_linha(l) for l in livre["linhas"]), 2)
         if not livre["valor"] or abs(soma - livre["valor"]) > 0.005:
             f.append("Fluxo alterado não fecha: soma R$ %.2f × valor da casa R$ %.2f" % (soma, livre["valor"] or 0))
+    pr = fx.get("pre_reserva")
+    if pr and not livre:
+        _, abatido = abater_sinal([fx.get("vAto"), fx.get("vS30"), fx.get("vS60"), fx.get("vS90")], pr["valor"])
+        if abatido + 0.005 < pr["valor"]:
+            f.append("A pré-reserva paga (R$ %.2f) passa do sinal — confira o valor da pré-reserva" % pr["valor"])
     if not fx.get("assinatura"):
         f.append("Falta a DATA DE ASSINATURA DO CONTRATO na venda do condomínio")
     if not fx.get("dia"):

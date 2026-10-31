@@ -18,7 +18,7 @@ function dados(c1 = {}, cond = {}) {
     hojeISO: "2026-10-27",
   });
 }
-const X = { conta: "PIX, chave 529.982.247-25, no banco 756 - SICOOB", valor: "3000", dataLimite: "2026-10-31", hojeISO: "2026-10-27" };
+const X = { conta: "PIX, chave 529.982.247-25, no banco 756 - SICOOB", valor: "3000", dataPagamento: "2026-10-24", hojeISO: "2026-10-27" };
 
 test("termo completo: sem faltas e todos os marcadores preenchidos", () => {
   const t = P.montar(dados(), X);
@@ -39,11 +39,11 @@ test("termo completo: sem faltas e todos os marcadores preenchidos", () => {
 });
 
 test("faltas: conta, propriedades, CPF inválido, e-mail, casa fora da tabela", () => {
-  const t = P.montar(dados({ email: "" }, { nome: "CONDOMÍNIO OUTRO TESTE" }), { hojeISO: "2026-10-27", valor: "x", dataLimite: "amanhã" });
+  const t = P.montar(dados({ email: "" }, { nome: "CONDOMÍNIO OUTRO TESTE" }), { hojeISO: "2026-10-27", valor: "x", dataPagamento: "amanhã" });
   assert.deepEqual(P.faltas(t), [
     "Pré-reservante: e-mail (coluna Email)", "Unidade: fora da tabela do condomínio (tipo da casa)",
-    "Conta para devolução (preencha no cartão)", "Propriedade PRE_RESERVA_VALOR (valor da pré-reserva)",
-    "Propriedade PRE_RESERVA_DATA_LIMITE (dia da assinatura do contrato)"]);
+    "Conta para devolução (preencha no cartão)", "Valor da pré-reserva (preencha no cartão)",
+    "Data do pagamento da pré-reserva (preencha no cartão)"]);
   const cpf = C.montarDadosContrato({ venda: { CLIENTES: "X TESTE", CPF: "529.982.247-24", COMPRADOR1: {}, COMPRADOR2: { nome: "" } },
     obra: {}, condominio: { nome: "RESERVA DOS IPÊS", unidade: "1", fluxo: {}, fiadores: [] } });
   assert.ok(P.faltas(P.montar(cpf, X)).includes("Pré-reservante: CPF inválido"));
@@ -88,4 +88,29 @@ test("conta: a frase gravada volta para a tela; texto antigo pede para escolher 
   assert.deepEqual(P.lerConta("64993060877"), { forma: "", livre: "64993060877" });
   assert.ok(P.faltas(P.montar(dados(), { ...X, conta: "64993060877" }))
     .includes("Conta para devolução: escolha PIX ou dados bancários e salve de novo"));
+});
+
+test("31/10: prazo = pagamento + 7 dias corridos (vira mês e ano)", () => {
+  assert.equal(P.PRAZO_DIAS, 7);
+  assert.equal(P.prazoDe("2026-10-24"), "2026-10-31");
+  assert.equal(P.prazoDe("28/11/2026"), "2026-12-05");
+  assert.equal(P.prazoDe("2026-12-27"), "2027-01-03");
+  assert.equal(P.prazoDe(""), "");
+  const m = P.marcadores(P.montar(dados(), X));
+  assert.equal(m.PRE_RESERVA_DATA_PAGAMENTO, "24/10/2026");
+});
+
+test("31/10: validarPagamento e histórico (só muda o que mudou; corta as linhas mais antigas)", () => {
+  assert.deepEqual(P.validarPagamento({ valor: "3.000,00", data: "02/11/2026" }), { ok: true, valor: 3000, data: "2026-11-02" });
+  assert.equal(P.validarPagamento({ valor: "", data: "2026-11-02" }).erro, "PR_VALOR_INVALIDO");
+  assert.equal(P.validarPagamento({ valor: 2000000, data: "2026-11-02" }).erro, "PR_VALOR_INVALIDO");
+  assert.equal(P.validarPagamento({ valor: 1000, data: "amanhã" }).erro, "PR_DATA_INVALIDA");
+  assert.equal(P.linhaHistorico({ valor: 1000, data: "2026-11-02" }, { valor: 1000, data: "2026-11-02" }, "ana", "x"), "");
+  assert.equal(P.linhaHistorico({ valor: 1000, data: "2026-11-02" }, { valor: 1000, data: "2026-11-04" }, "ana", "31/10/2026 10:00"),
+    "31/10/2026 10:00 ana: pagamento 02/11/2026 → 04/11/2026");
+  const muitas = Array.from({ length: 80 }, (_, i) => "linha " + i + " " + "x".repeat(30)).join("\n");
+  const j = P.juntarHistorico(muitas, "nova");
+  assert.ok(j.length <= 1900);
+  assert.ok(j.endsWith("\nnova"));
+  assert.ok(!j.startsWith("linha 0 "));
 });

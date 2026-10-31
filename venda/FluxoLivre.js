@@ -9,6 +9,8 @@
  * Puro (sem Notion, sem DOM): roda no Apps Script, no navegador (venda-dossie.js) e no node (testes). */
 var FluxoLivre = (function () {
   var TIPOS = {
+    /* 31/10/2026 (dono): a pré-reserva paga é a 1ª parcela do sinal, já recebida — fixa no Alterar fluxo */
+    prereserva: { nome: "Pré-reserva (paga)", inciso: 1, reajuste: "",           terceiro: false, fixo: true },
     sinal:    { nome: "Sinal",          inciso: 1, reajuste: "",               terceiro: false },
     entrada:  { nome: "Entrada à vista", inciso: 2, reajuste: "",              terceiro: false },
     pre:      { nome: "Pré-chaves",     inciso: 2, reajuste: "INCC-M",         terceiro: false },
@@ -20,7 +22,7 @@ var FluxoLivre = (function () {
     pos:      { nome: "Pós-chaves",     inciso: 5, reajuste: "IPCA + 1% a.m.", terceiro: false },
     permuta:  { nome: "Permuta",        inciso: 6, reajuste: "",               terceiro: false }
   };
-  var ORDEM = ["sinal", "entrada", "pre", "balao", "pos", "permuta", "fin", "fgts", "subsidio"];
+  var ORDEM = ["prereserva", "sinal", "entrada", "pre", "balao", "pos", "permuta", "fin", "fgts", "subsidio"];
   var MAX_LINHAS = 40, MAX_N = 600, MAX_INTERVALO = 24, MAX_DESC = 120, MAX_MOTIVO = 300;
   /* pós-chaves (regras do simulador, proposta.html): só 0, 12 ou 24 parcelas — é o prazo da entrada (24, 36 ou 48
      meses), e a comissão do corretor sai dele; a parcela base é 24 × R$ 788,33 e nunca sobe acima disso. */
@@ -68,6 +70,7 @@ var FluxoLivre = (function () {
       return x;
     });
     var out = { valor: Math.round((Number(o.valor) || 0) * 100) / 100, entrega: String(o.entrega || "").slice(0, 10), linhas: linhas };
+    if (isoValida(o.assinatura)) out.assinatura = o.assinatura;   /* 31/10: início dos prazos do sinal (não é gravado) */
     if (o.semComissao === true) out.semComissao = true;   /* 30/10: desconto "isentar a comissão" = venda direta */
     return out;
   }
@@ -107,7 +110,26 @@ var FluxoLivre = (function () {
         return ls.filter(function (l) { return TIPOS[l.t] && TIPOS[l.t].fixo; })
           .map(function (l) { return l.t + ":" + totalLinhaC(l); }).sort().join("|");
       };
-      if (fixos(f.linhas) !== fixos(padrao.linhas)) erros.push("Financiamento, FGTS e subsídio não mudam — ficam como na proposta");
+      if (fixos(f.linhas) !== fixos(padrao.linhas)) erros.push("Pré-reserva paga, financiamento, FGTS e subsídio não mudam — ficam como na proposta");
+      /* 31/10 (dono): com pré-reserva, o restante do sinal se divide livre, mas só nos prazos do sinal (ato/30/60/90,
+         no máximo 4 parcelas até 3 meses da assinatura) e sem baixar o sinal da proposta (o mínimo de hoje) */
+      var temPR = padrao.linhas.some(function (l) { return l.t === "prereserva"; });
+      if (temPR) {
+        var sinaisP = padrao.linhas.filter(function (l) { return l.t === "sinal" && isoValida(l.d); }).map(function (l) { return l.d; }).sort();
+        var ass = padrao.assinatura || sinaisP[0] || "", limite = ass ? maisMeses(ass, 3) : "";
+        var totSinal = function (ls) { return ls.reduce(function (s, l) { return s + (l.t === "sinal" || l.t === "prereserva" ? totalLinhaC(l) : 0); }, 0); };
+        var nSinal = 0;
+        f.linhas.slice(0, MAX_LINHAS).forEach(function (l, k) {
+          if (l.t !== "sinal") return;
+          nSinal += Math.max(0, l.n);
+          var ult = isoValida(l.d) ? maisMeses(l.d, (Math.max(1, l.n) - 1) * l.i) : "";
+          if (ass && isoValida(l.d) && (l.d < ass || ult > limite))
+            erroLinha(k, "sinal só nos prazos do sinal: de " + dataBR(ass) + " a " + dataBR(limite) + " (ato, 30, 60 e 90 dias)");
+        });
+        if (nSinal > 4) erros.push("O restante do sinal vai em no máximo 4 parcelas (ato, 30, 60 e 90 dias)");
+        if (totSinal(f.linhas) < totSinal(padrao.linhas))
+          erros.push("O sinal (com a pré-reserva) não pode ficar abaixo do da proposta: " + moeda(totSinal(padrao.linhas) / 100));
+      }
       var qtd = function (ls) { return ls.reduce(function (s, l) { return s + (l.t === "pos" ? Math.max(0, l.n) : 0); }, 0); };
       var qP = qtd(padrao.linhas), q = qtd(f.linhas);
       if (q !== qP) erros.push(qP ? "Pós-chaves: tem de continuar com " + qP + " parcelas (o prazo da proposta; a comissão sai dele)"
@@ -218,17 +240,35 @@ var FluxoLivre = (function () {
     return { erro: "Escolha R$, % ou isentar a comissão" };
   }
 
+  /* 31/10 (dono): a pré-reserva paga abate o sinal — sai do ato, depois do 30, 60 e 90 dias (parcela zerada some).
+     valores = [ato, 30, 60, 90] → { valores, abatido }; abatido < pr = a pré-reserva passou do sinal. */
+  function abaterSinal(valores, pr) {
+    var falta = c(pr), out = (valores || []).map(function (v) {
+      var x = positivo(v) ? c(v) : 0, s = Math.min(falta, x);
+      falta -= s;
+      return x - s > 0 ? (x - s) / 100 : 0;
+    });
+    return { valores: out, abatido: (c(pr) - falta) / 100 };
+  }
+
   /* Gavetas do simulador (fluxo como o GerarContrato lê) → lista. excedente = parte do VALOR PARA ENTRADA da
-     proposta que passa do sinal (paga na assinatura, sem correção — ContratoVenda.parcelasPreChaves). */
-  function doPadrao(fl, excedente) {
+     proposta que passa do sinal (paga na assinatura, sem correção — ContratoVenda.parcelasPreChaves).
+     pr = { valor, data } da pré-reserva paga (ContratoVenda.preReservaPaga) ou null. */
+  function doPadrao(fl, excedente, pr) {
     fl = fl || {};
     var L = [], ass = isoValida(fl.assinatura) ? fl.assinatura : "";
+    var sv = [fl.sinalAto, fl.sinal30, fl.sinal60, fl.sinal90];
+    if (pr && positivo(pr.valor)) {
+      var ab = abaterSinal(sv, pr.valor);
+      sv = ab.valores;
+      if (ab.abatido > 0) L.push({ t: "prereserva", v: ab.abatido, n: 1, d: isoValida(pr.data) ? pr.data : ass, i: 1, x: "" });
+    }
     function um(t, v, d) { if (positivo(v)) L.push({ t: t, v: v, n: 1, d: isoValida(d) ? d : "", i: 1, x: "" }); }
     function serie(t, n, v, d) { if (positivo(n) && positivo(v)) L.push({ t: t, v: v, n: n | 0, d: isoValida(d) ? d : "", i: 1, x: "" }); }
-    um("sinal", fl.sinalAto, ass);
-    um("sinal", fl.sinal30, fl.data30);
-    um("sinal", fl.sinal60, fl.data60);
-    um("sinal", fl.sinal90, fl.data90);
+    um("sinal", sv[0], ass);
+    um("sinal", sv[1], fl.data30);
+    um("sinal", sv[2], fl.data60);
+    um("sinal", sv[3], fl.data90);
     um("entrada", excedente, ass);
     serie("pre", fl.pre1N, fl.pre1Valor, fl.pre1Data);
     serie("pre", fl.pre2N, fl.pre2Valor, fl.pre2Data);
@@ -238,7 +278,9 @@ var FluxoLivre = (function () {
     um("fin", fl.credito, "");
     um("fgts", fl.fgts, "");
     um("subsidio", fl.subsidio, "");
-    return { valor: positivo(fl.valorVenda) ? fl.valorVenda : 0, entrega: isoValida(fl.entrega) ? fl.entrega : "", linhas: L };
+    var out = { valor: positivo(fl.valorVenda) ? fl.valorVenda : 0, entrega: isoValida(fl.entrega) ? fl.entrega : "", linhas: L };
+    if (ass) out.assinatura = ass;
+    return out;
   }
 
   /* Cada parcela, em ordem de vencimento: [{ tipo, rotulo, valor, data, reajuste, descricao }] (prévia e robô). */
@@ -276,7 +318,7 @@ var FluxoLivre = (function () {
   }
 
   return { TIPOS: TIPOS, ORDEM: ORDEM, MAX_LINHAS: MAX_LINHAS, MAX_MOTIVO: MAX_MOTIVO, POS_TETO: POS_TETO, LIMITE_PRE_CHAVES: LIMITE_PRE_CHAVES,
-           normalizar: normalizar, validar: validar, redistribuir: redistribuir, aplicarDesconto: aplicarDesconto, valorDoDesconto: valorDoDesconto, doPadrao: doPadrao, expandir: expandir,
+           normalizar: normalizar, validar: validar, redistribuir: redistribuir, aplicarDesconto: aplicarDesconto, valorDoDesconto: valorDoDesconto, doPadrao: doPadrao, abaterSinal: abaterSinal, expandir: expandir,
            serializar: serializar, ler: ler, ordenar: ordenar, totalLinha: function (l) { return totalLinhaC(normalizar({ linhas: [l] }).linhas[0] || {}) / 100; },
            soma: function (linhas) { return somaC(normalizar({ linhas: linhas }).linhas) / 100; }, maisMeses: maisMeses, moeda: moeda, dataBR: dataBR };
 })();

@@ -267,13 +267,29 @@ var ContratoVenda = (function () {
   function FLV() { return typeof FluxoLivre !== "undefined" ? FluxoLivre : require("./FluxoLivre.js"); }
   function diaDe(iso) { var m = /^\d{4}-\d{2}-(\d{2})/.exec(txt(iso)); return m ? Number(m[1]) : null; }
   function porData(a, b) { return txt(a.d).localeCompare(txt(b.d)); }
+  /* 31/10/2026 (dono): pré-reserva paga = valor da venda + data do pagamento (ou termo assinado, das vendas de antes;
+     aí a data é a da assinatura). Ela é a 1ª parcela do sinal, já recebida. c = dados do condomínio (GerarContrato). */
+  function preReservaPaga(c) {
+    var p = c && c.preReserva;
+    if (!p || !positivo(num(p.valor))) return null;
+    var d = txt(p.dataPagamento).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) d = "";
+    if (!d && !p.assinado) return null;
+    return { valor: num(p.valor), data: d };
+  }
   function gruposFluxo(co, excedente) {
     var fl = co.fluxo || {}, livre = co.livre || null;
     function val(v) { return positivo(v) ? v : 0; }
     var G = { valor: fl.valorVenda, assinatura: fl.assinatura, sinais: [], avista: [], pre: [], baloes: [], pos: [], permutas: [],
               credito: val(fl.credito), fgts: val(fl.fgts), subsidio: val(fl.subsidio), posN: 0, livre: !!livre };
     if (!livre) {
-      [[fl.sinalAto, fl.assinatura, true], [fl.sinal30, fl.data30], [fl.sinal60, fl.data60], [fl.sinal90, fl.data90]].forEach(function (p) {
+      var sv = [fl.sinalAto, fl.sinal30, fl.sinal60, fl.sinal90];
+      if (co.preReserva) {
+        var ab = FLV().abaterSinal(sv, co.preReserva.valor);
+        sv = ab.valores;
+        if (ab.abatido > 0) G.sinais.push({ v: ab.abatido, d: co.preReserva.data || fl.assinatura, pr: true });
+      }
+      [[sv[0], fl.assinatura, true], [sv[1], fl.data30], [sv[2], fl.data60], [sv[3], fl.data90]].forEach(function (p) {
         if (positivo(p[0])) G.sinais.push({ v: p[0], d: p[1], ato: !!p[2] });
       });
       var exc = excedente === undefined ? excedenteSinal(co) : excedente;
@@ -294,6 +310,7 @@ var ContratoVenda = (function () {
       if (n <= 0 || !positivo(l.v)) return;
       function cada(f) { for (var j = 0; j < n; j++) f(j === n - 1 && n > 1 && positivo(l.u) ? l.u : l.v, l.d ? F.maisMeses(l.d, j * i) : ""); }
       if (l.t === "sinal") cada(function (v, d) { G.sinais.push({ v: v, d: d }); });
+      else if (l.t === "prereserva") cada(function (v, d) { G.sinais.push({ v: v, d: d, pr: true }); });
       else if (l.t === "entrada") cada(function (v, d) { G.avista.push({ v: v, d: d }); });
       else if (l.t === "balao") cada(function (v, d) { G.baloes.push({ v: v, d: d, chaves: !!d && d === fl.balao2Data }); });
       else if (l.t === "permuta") cada(function (v, d) { G.permutas.push({ v: v, d: d, x: l.x || "" }); });
@@ -306,7 +323,8 @@ var ContratoVenda = (function () {
       else if (l.t === "subsidio") G.subsidio = so2(G.subsidio + F.totalLinha(l));
     });
     ["sinais", "avista", "pre", "baloes", "pos", "permutas"].forEach(function (k) { G[k].sort(porData); });
-    if (G.sinais.length && G.sinais[0].d === fl.assinatura) G.sinais[0].ato = true;
+    var sAto = G.sinais.filter(function (s) { return !s.pr; })[0];
+    if (sAto && sAto.d === fl.assinatura) sAto.ato = true;
     return G;
   }
   /* série do 6.1 ("N parcelas mensais e sucessivas de …, vencendo-se a primeira em … e as demais no dia D …");
@@ -334,8 +352,8 @@ var ContratoVenda = (function () {
   }
 
   /* 6.1: das gavetas (fluxo) ou da lista livre (29/10: livre = FluxoLivre.ler(FLUXO PERSONALIZADO)) */
-  function formaPagamentoCondominio(fluxo, livre) {
-    var G = gruposFluxo({ fluxo: fluxoCondominio(fluxo), livre: livre || null }, 0);
+  function formaPagamentoCondominio(fluxo, livre, preReserva) {
+    var G = gruposFluxo({ fluxo: fluxoCondominio(fluxo), livre: livre || null, preReserva: preReserva || null }, 0);
     var linhas = [];
     linhas.push("6.1. Preço total: " + (G.valor === null ? "R$ " : valorExtenso(G.valor)) + ", a ser pago da seguinte forma:");
     var LETRAS = "abcdefghij";
@@ -349,6 +367,7 @@ var ContratoVenda = (function () {
       if (depois) linhas.push(depois);
     }
     var sinal = G.sinais.map(function (s) {
+      if (s.pr) return valorExtenso(s.v) + ", já pago em " + dataBR(s.d) + " a título de pré-reserva (Termo de Pré-Reserva)";
       return valorExtenso(s.v) + (s.ato ? ", no ato da assinatura deste instrumento, em " + dataBR(G.assinatura) : ", com vencimento em " + dataBR(s.d));
     });
     inciso("I — SINAL (arras confirmatórias, art. 417 do Código Civil), sem correção monetária", sinal, true);
@@ -448,7 +467,8 @@ var ContratoVenda = (function () {
     return so2(Math.max(0, vpe - s));
   }
   function meioPagamentoCondominio(co) {
-    var s = so2(gruposFluxo(co).sinais.reduce(function (t, x) { return t + x.v; }, 0));
+    /* 31/10: a pré-reserva já foi paga — o meio de pagamento é só do restante do sinal */
+    var s = so2(gruposFluxo(co).sinais.reduce(function (t, x) { return t + (x.pr ? 0 : x.v); }, 0));
     var ab = so2(Math.min(s, positivo(co.valorParaEntrada) ? co.valorParaEntrada : 0)), pix = so2(s - ab);
     /* dono 27/10: mesmo quitado com o valor para entrada, continua sendo sinal (retido em caso de desistência) */
     var nat = ", mantida sua natureza de sinal e princípio de pagamento";
@@ -467,9 +487,9 @@ var ContratoVenda = (function () {
   }
   /* 4.1.3: vencimentos do sinal (ato + 30/60/90). Só o ato: a data; mais de um: "dd/mm/aaaa (R$ x), … e …" */
   function vencimentosSinal(G) {
-    var ps = G.sinais.map(function (s) { return [s.v, s.ato ? G.assinatura : s.d]; });
+    var ps = G.sinais.map(function (s) { return [s.v, s.ato ? G.assinatura : s.d, s.pr]; });
     if (ps.length < 2) return ps.length ? dataBR(ps[0][1]) : dataBR(G.assinatura);
-    var t = ps.map(function (p) { return dataBR(p[1]) + " (R$ " + moedaBR(p[0]) + ")"; });
+    var t = ps.map(function (p) { return dataBR(p[1]) + " (R$ " + moedaBR(p[0]) + (p[2] ? ", já paga a título de pré-reserva — Termo de Pré-Reserva" : "") + ")"; });
     return t.slice(0, -1).join(", ") + " e " + t[t.length - 1];
   }
   /* 4.2.1 c): a entrada começa depois do sinal — 1ª e 2ª parte e balões (os sinais ficam no 4.1.3) */
@@ -628,7 +648,7 @@ var ContratoVenda = (function () {
       /* quadro-resumo (21/10): casa pela tabela do memorial; comissão da linha (vazia = pela regra) */
       tabela: U().unidade(c.nome, c.unidade),
       comissao: num(c.comissao),
-      preReserva: c.preReserva && c.preReserva.assinado && positivo(c.preReserva.valor) ? { valor: c.preReserva.valor } : null,
+      preReserva: preReservaPaga(c),
       valorParaEntrada: num(c.valorParaEntrada)
     };
     /* 29/10: fluxo alterado no portal (só quando existe: o carimbo das vendas sem alteração não muda) */
@@ -845,6 +865,8 @@ var ContratoVenda = (function () {
       /* 29/10: fluxo alterado no portal — as regras da lista (a soma fecha com o valor da casa da própria lista) */
       FLV().validar({ valor: co.livre.valor, entrega: fl.entrega, linhas: co.livre.linhas }).erros.forEach(function (e) { faltas.push(g + " (alterado): " + e); });
     } else {
+    if (co.preReserva && FLV().abaterSinal([fl.sinalAto, fl.sinal30, fl.sinal60, fl.sinal90], co.preReserva.valor).abatido < co.preReserva.valor)
+      faltas.push(g + ": a pré-reserva paga (R$ " + moedaBR(co.preReserva.valor) + ") passa do sinal — confira o valor da pré-reserva");
     comData(fl.sinal30, fl.data30, "sinal 30 dias");
     comData(fl.sinal60, fl.data60, "sinal 60 dias");
     comData(fl.sinal90, fl.data90, "sinal 90 dias");
@@ -981,7 +1003,7 @@ var ContratoVenda = (function () {
       UNIDADE: co ? co.unidade : "",
       AREA_PRIVATIVA: co ? (co.tabela ? moedaBR(co.tabela.areaPrivativaConstruida) : areaTxt(co.areaPrivativa)) : "",
       FRACAO_IDEAL: co ? (co.tabela ? moedaBR(co.tabela.fracaoM2) + " m² (" + co.tabela.fracaoPct + "%)" : co.fracaoIdeal) : "",
-      FORMA_PAGAMENTO_CONDOMINIO: co ? formaPagamentoCondominio(co.fluxo, co.livre) : "",
+      FORMA_PAGAMENTO_CONDOMINIO: co ? formaPagamentoCondominio(co.fluxo, co.livre, co.preReserva) : "",
       FIADORES_QUALIFICACAO: qualificacaoFiadores(fis),
       FIADOR1_NOME: fis[0] ? fis[0].nome : "",
       FIADOR1_CPF: fis[0] ? fis[0].cpf : "",
@@ -1083,8 +1105,8 @@ var ContratoVenda = (function () {
     m.VALOR_IMOVEL_EXTENSO = ext(va.imovel);
     m.COMISSAO_EXTENSO = va.semComissao ? "" : ext(va.comissao);
     m.SINAL_EXTENSO = positivo(va.sinal) ? valorExtenso(va.sinal) : "";
-    m.SINAL_VENCIMENTO = vencimentosSinal(G) + (co.preReserva ? ", sendo " + valorExtenso(co.preReserva.valor) +
-      " já pagos a título de pré-reserva (Termo de Pré-Reserva), abatidos do sinal" : "");
+    /* 31/10: a pré-reserva paga é a 1ª parcela da lista (vencimentosSinal), já abatida do sinal */
+    m.SINAL_VENCIMENTO = vencimentosSinal(G);
     m.ENTRADA_TOTAL = moedaOuVazio(va.entrada);
     m.ENTRADA_PCT = va.entrada === null ? "" : pct2(va.entrada, va.preco);
     m.ENTRADA_SALDO = moedaOuVazio(va.saldoEntrada);
@@ -1370,7 +1392,7 @@ var ContratoVenda = (function () {
     marcadores: marcadores, blocos: blocos, comPosChaves: comPosChaves, avisosContrato: avisosContrato,
     formaPagamentoCondominio: formaPagamentoCondominio, qualificacaoFiadores: qualificacaoFiadores,
     fiadorCasado: fiadorCasado, faltasConjugeFiadores: faltasConjugeFiadores,   /* 30/10: fiador casado (Súmula 332) */
-    comissaoPctPelaRegra: comissaoPctPelaRegra, qualificacaoQuadro: qualificacaoQuadro, valorExtenso: valorExtenso, meioPagamentoCondominio: meioPagamentoCondominio, excedenteSinal: excedenteSinal,
+    comissaoPctPelaRegra: comissaoPctPelaRegra, qualificacaoQuadro: qualificacaoQuadro, valorExtenso: valorExtenso, meioPagamentoCondominio: meioPagamentoCondominio, excedenteSinal: excedenteSinal, preReservaPaga: preReservaPaga,
     somaFluxo: function (fl) { return somaFluxo(fluxoCondominio(fl)); }, negritoDaLinha: negritoDaLinha,
     parcelasPreChaves: parcelasPreChaves, parcelasPosChaves: parcelasPosChaves,
     gruposFluxo: gruposFluxo, valoresCondominio: valoresCondominio, textoPreChaves: textoPreChaves, textoPosChaves: textoPosChaves, somaGrupos: somaGrupos,   /* 29/10: Alterar fluxo */   /* 28/10: termos de confissão */

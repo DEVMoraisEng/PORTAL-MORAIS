@@ -84,7 +84,8 @@ function fluxoEditar_(col, sess, p) {
 function fluxoPadrao_(pg) {
   var cond = ctrDadosCondominio_(ctrPorChave_(pg.properties)).condominio;
   cond.valorParaEntrada = ctrValorParaEntrada_(cond.idProposta);
-  return FluxoLivre.doPadrao(cond.fluxo, ContratoVenda.excedenteSinal(cond));
+  /* 31/10: a pré-reserva paga entra como 1ª parcela do sinal (abatida dele), como no contrato */
+  return FluxoLivre.doPadrao(cond.fluxo, ContratoVenda.excedenteSinal(cond), ContratoVenda.preReservaPaga(cond));
 }
 
 /* Ação "salvarFluxo": p.fluxo = { valor, linhas } | p.voltar = true (volta ao fluxo do simulador); p.motivo;
