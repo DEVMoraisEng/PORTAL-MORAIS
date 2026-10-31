@@ -103,7 +103,7 @@ class NotionFalso:
         return []
 
 
-def _cli(monkeypatch, sem_venda_id=False, venda=None, valor_id=None):
+def _cli(monkeypatch, sem_venda_id=False, venda=None, valor_id=None, anteriores=None):
     visto = {}
     monkeypatch.setenv("NOTION_TOKEN", "t")
     from venda.mc import erp as erpmod
@@ -112,14 +112,19 @@ def _cli(monkeypatch, sem_venda_id=False, venda=None, valor_id=None):
 
     def ler_venda(erp, vid):
         visto["erp"], visto["vid"] = erp, vid
+        if isinstance(venda, Exception):
+            raise venda
         return venda if venda is not None else carregar("base")
     monkeypatch.setattr(RT.D, "ler_venda", ler_venda)
-    if sem_venda_id or valor_id is not None:
+    if sem_venda_id or valor_id is not None or anteriores:
         orig = NotionFalso.__init__
 
         def init(self, *a, **k):
             orig(self, *a, **k)
-            self.props["MC - VENDA ID"]["rich_text"] = [{"plain_text": valor_id}] if valor_id else []
+            if sem_venda_id or valor_id is not None:
+                self.props["MC - VENDA ID"]["rich_text"] = [{"plain_text": valor_id}] if valor_id else []
+            for col, txt in (anteriores or {}).items():
+                self.props[col]["rich_text"] = [{"plain_text": txt}]
         monkeypatch.setattr(NotionFalso, "__init__", init)
     codigo = RT.main(["--page", "a" * 32])
     return codigo, NotionFalso.ultimo.gravado, visto
@@ -170,6 +175,15 @@ def test_texto_longo_grande_demais_levanta():
     with pytest.raises(ValueError, match="texto grande demais para o Notion"):
         n.gravar_texto_longo("p", props, "MC - RETRATO", "a" * (100 * 1900 + 1))
     assert len(s.patches) == 1
+
+
+def test_pago_em_so_quando_pago():
+    v = carregar("base")
+    inst = v["tradeReceivable"]["installments"]
+    ab = [i for i in inst if not i["received"]][0]
+    ab["dateOfReceipt"] = "2026-10-30T00:00:00"; ab["receipts"] = [{"value": 1.0, "interestValue": 0, "discountValue": 0}]
+    r = {p["id"]: p for p in RT.normalizar(v, "2026-11-03")["parcelas"]}
+    assert r[ab["id"]]["parcial"] is True and r[ab["id"]]["pagoEm"] == ""
 
 
 def test_pago_em_vem_do_dateOfReceipt():
@@ -256,3 +270,68 @@ def test_robo_retratos_existe_na_fila():
     scripts = robo_fila.ROBOS["retratos"]
     assert scripts == ["robo_mc_retratos.py"]
     assert (pathlib.Path(__file__).resolve().parents[3] / scripts[0]).is_file()
+
+
+# ---------------------------------------------------------------- nunca jogar fora um retrato bom
+BOM = json.dumps({"v": 1, "venda": VENDA_ID, "parcelas": []})
+
+
+def test_erro_com_retrato_bom_nao_mexe_no_retrato(monkeypatch):
+    codigo, g, _ = _cli(monkeypatch, venda=RuntimeError("o ERP caiu"),
+                        anteriores={"MC - RETRATO": BOM, "MC - RETRATO EM": "2026-11-02 05:00"})
+    assert codigo == 1
+    assert "MC - RETRATO" not in g
+    import re
+    assert re.match(r"^2026-11-02 05:00 \| ERRO \d{4}-\d{2}-\d{2} \d{2}:\d{2}: o ERP caiu$", g["MC - RETRATO EM"])
+
+
+def test_erro_repetido_guarda_so_a_hora_do_ultimo_bom(monkeypatch):
+    antigo = "2026-11-02 05:00 | ERRO 2026-11-03 05:00: o ERP caiu"
+    _, g, _ = _cli(monkeypatch, venda=RuntimeError("de novo"), anteriores={"MC - RETRATO": BOM, "MC - RETRATO EM": antigo})
+    assert g["MC - RETRATO EM"].startswith("2026-11-02 05:00 | ERRO ") and g["MC - RETRATO EM"].endswith(": de novo")
+    assert "o ERP caiu" not in g["MC - RETRATO EM"] and "MC - RETRATO" not in g
+
+
+def test_erro_com_retrato_que_nao_e_json_grava_erro_como_antes(monkeypatch):
+    for ruim in ("ERRO: antigo", "{quebrado"):
+        _, g, _ = _cli(monkeypatch, venda=RuntimeError("o ERP caiu"),
+                       anteriores={"MC - RETRATO": ruim, "MC - RETRATO EM": "2026-11-02 05:00"})
+        assert g["MC - RETRATO"] == "ERRO: o ERP caiu"
+        assert g["MC - RETRATO EM"][:2] == "20" and "|" not in g["MC - RETRATO EM"]
+
+
+def test_sucesso_troca_o_retrato_bom_pelo_novo(monkeypatch):
+    _, g, _ = _cli(monkeypatch, anteriores={"MC - RETRATO": BOM, "MC - RETRATO EM": "2026-11-02 05:00"})
+    assert json.loads(g["MC - RETRATO"])["parcelas"] and "|" not in g["MC - RETRATO EM"]
+
+
+# ---------------------------------------------------------------- falhas no meio da leitura diária
+class NotionQueCai(NotionDeTres):
+    def linhas(self, db_id):
+        return [_linha("p-sem-id", None), _linha("p-cai", VENDA_ID), _linha("p-segue", VENDA_ID)]
+
+    def gravar_texto_longo(self, page_id, props, nome, texto):
+        if page_id == "p-cai":
+            raise RuntimeError("Notion PATCH -> HTTP 502")
+        return super().gravar_texto_longo(page_id, props, nome, texto)
+
+
+def test_notion_cai_ao_gravar_uma_linha_e_as_outras_seguem(monkeypatch):
+    monkeypatch.setattr(RT.D, "ler_venda", lambda erp, vid: carregar("base"))
+    n = NotionQueCai()
+    assert RT.atualizar_todas(n, ErpFalso(), "db1", "2026-11-03 08:00") == (1, 1)
+    assert "p-cai" not in n.gravado and json.loads(n.gravado["p-segue"]["MC - RETRATO"])["v"] == 1
+
+
+def test_todas_sem_senha_do_erp_vira_erro_contado(monkeypatch, capsys):
+    from venda.mc import erp as erpmod
+    monkeypatch.setenv("NOTION_TOKEN", "t"); monkeypatch.setenv("DB_VENDAS_COND", "db1")
+    n = NotionDeTres()
+    monkeypatch.setattr(N, "Notion", lambda token, sessao=None: n)
+
+    def sem_senha():
+        raise KeyError("MC_ROBO_EMAIL")
+    monkeypatch.setattr(erpmod, "do_ambiente", sem_senha)
+    assert RT.main(["--todas"]) == 1
+    assert capsys.readouterr().out.strip().splitlines()[-1] == "retratos: 0 ok, 2 erro"
+    assert n.gravado["p-ok"]["MC - RETRATO"].startswith("ERRO: ")

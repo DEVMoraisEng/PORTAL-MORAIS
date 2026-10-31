@@ -44,9 +44,12 @@ def normalizar(venda: dict, lido_em: str) -> dict:
                          "tabela": ((rd.get("table") or {}).get("name") or None),
                          "raw": round(raw, 2), "valor": round(valor, 2),
                          "fator": 1 + float(rd.get("accumulatedReadjustmentValue") or 0) / 100 if rd.get("table") else 1.0,
-                         "pagoEm": str(p.get("dateOfReceipt") or "")[:10],
+                         "pagoEm": "",   # abaixo, só quando paga por inteiro
                          "pago": D.tem_recebimento(p) and not D.recebida_em_parte(p),
                          "parcial": D.recebida_em_parte(p)})
+    for q, p in zip(parcelas, (venda.get("tradeReceivable") or {}).get("installments") or []):
+        if q["pago"]:
+            q["pagoEm"] = str(p.get("dateOfReceipt") or "")[:10]
     parcelas.sort(key=lambda x: (x["data"], x["id"] or ""))
     return {"v": 1, "venda": venda.get("id"), "obra": obra, "lido": lido_em[:10], "parcelas": parcelas}
 
@@ -68,9 +71,23 @@ def _valor_da_coluna(props: dict, nome: str):
     return R._valor({R.chave(k): v for k, v in (props or {}).items()}.get(R.chave(nome)))
 
 
+def _json_valido(texto) -> bool:
+    import json
+    t = str(texto or "").strip()
+    if not t.startswith("{"):
+        return False
+    try:
+        return isinstance(json.loads(t), dict)
+    except ValueError:
+        return False
+
+
 def gravar_pagina(notion, obter_erp, page_id: str, props: dict, agora: str) -> str:
-    """Lê a venda da página e grava o retrato (JSON, ou 'ERRO: motivo') + a hora. Só LÊ o ERP.
-    `obter_erp` é chamado só se houver id (a falta de senha vira ERRO na página, não queda do robô).
+    """Lê a venda da página e grava o retrato. Só LÊ o ERP.
+    `obter_erp` é chamado só se houver id (falta de senha vira erro da página, não queda do robô).
+    Nunca joga fora um retrato bom: se a leitura falha e MC - RETRATO já tem um JSON válido, ele fica como está
+    e só MC - RETRATO EM ganha '<hora do último bom> | ERRO <agora>: <motivo>'. Sem JSON válido, grava
+    'ERRO: motivo' em MC - RETRATO e a hora em MC - RETRATO EM.
     Devolve 'ok', 'erro' (o motivo foi gravado) ou 'sem_coluna' (a página não tem MC - RETRATO)."""
     import json
     try:
@@ -78,7 +95,12 @@ def gravar_pagina(notion, obter_erp, page_id: str, props: dict, agora: str) -> s
         r = normalizar(D.ler_venda(obter_erp(), vid), agora)
         texto = json.dumps(r, ensure_ascii=False, separators=(",", ":"))
     except Exception as e:   # o portal mostra o motivo; o log do servidor fica curto
-        texto = "ERRO: " + (str(e) or type(e).__name__)[:180]
+        motivo = (str(e) or type(e).__name__)[:180]
+        if _json_valido(_valor_da_coluna(props, COL_RETRATO)):
+            ultimo_bom = str(_valor_da_coluna(props, COL_RETRATO_EM) or "")[:16]
+            notion.gravar_textos(page_id, props, {COL_RETRATO_EM: "%s | ERRO %s: %s" % (ultimo_bom, agora, motivo)})
+            return "erro"
+        texto = "ERRO: " + motivo
     if not notion.gravar_texto_longo(page_id, props, COL_RETRATO, texto):
         return "sem_coluna"
     notion.gravar_textos(page_id, props, {COL_RETRATO_EM: agora})
@@ -86,15 +108,22 @@ def gravar_pagina(notion, obter_erp, page_id: str, props: dict, agora: str) -> s
 
 
 def atualizar_todas(notion, erp, db_id: str, agora: str) -> tuple[int, int]:
-    """Leitura diária: um retrato por linha da base de vendas do condomínio que já tem MC - VENDA ID.
+    """`erp`: o cliente do ERP ou uma função que o cria (chamada só quando há venda para ler).
+    Leitura diária: um retrato por linha da base de vendas do condomínio que já tem MC - VENDA ID.
     Linha sem id é pulada sem gravar nada; erro numa venda não para as outras. Devolve (ok, erro)."""
+    cache = []
+
+    def obter():   # aceita o cliente do ERP ou quem o cria; cria uma vez só, e só se houver venda para ler
+        if not cache:
+            cache.append(erp() if callable(erp) else erp)
+        return cache[0]
     ok = erro = 0
     for linha in notion.linhas(db_id):
         props = linha.get("properties") or {}
         if not str(_valor_da_coluna(props, COL_VENDA_ID) or "").strip():
             continue
         try:
-            res = gravar_pagina(notion, lambda: erp, linha["id"], props, agora)
+            res = gravar_pagina(notion, obter, linha["id"], props, agora)
         except Exception:   # falha ao gravar no Notion: conta e segue para a próxima
             res = "erro"
         if res == "ok":
@@ -123,7 +152,7 @@ def main(argv=None) -> int:
         if not db_id:
             print("falta a variável DB_VENDAS_COND (base BANCO DE DADOS VENDAS CONDOMÍNIO)")
             return 2
-        ok, erro = atualizar_todas(Notion(os.environ["NOTION_TOKEN"]), E.do_ambiente(), db_id, agora)
+        ok, erro = atualizar_todas(Notion(os.environ["NOTION_TOKEN"]), E.do_ambiente, db_id, agora)
         print("retratos: %d ok, %d erro" % (ok, erro))
         return 0 if erro == 0 else 1
     n = Notion(os.environ["NOTION_TOKEN"])

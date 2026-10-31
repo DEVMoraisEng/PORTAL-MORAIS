@@ -190,12 +190,22 @@ Ao lado de "filas":
           "vars": {"CONTAS_DB_ID": "3e4c5ab532d380afbd3bf9f7af31d2a7", "MC_CRED": "robo"}}
 ```
 
+### Robô `retratos` (31/10/2026, antecipação e aba Financeiro)
+Lê, no Mais Controle, cada venda da base BANCO DE DADOS VENDAS CONDOMÍNIO que já tem "MC - VENDA ID" e grava o
+"retrato" (parcelas, valores, fatores, pagas) em "MC - RETRATO" e a hora em "MC - RETRATO EM". **Só lê o ERP**
+(nunca grava nele; `ROBOS_APLICAR.txt` não muda nada aqui). Se a leitura falha e já existe um retrato bom, ele é
+mantido e só "MC - RETRATO EM" ganha `<hora do último bom> | ERRO <agora>: <motivo>`. Log: "retratos: N ok, M erro".
+Script: `robo_mc_retratos.py` (chama `python -m venda.mc.retrato --todas`). Tarefa agendada sugerida: todo dia às
+05:00, `python servidor\robo_fila.py --robo retratos`. **A chave "robos" de `robos-portal.json` precisa de
+`DB_VENDAS_COND` em "vars"** (id da base de vendas do condomínio), senão o robô sai com código 2 e avisa o motivo.
+
 ## 4. (servidor) Rodada de prova, SEM gravar
 Sem o arquivo `_central\ROBOS_APLICAR.txt` os robôs só simulam (como o GitHub sem APLICAR):
 ```powershell
 python servidor\robo_fila.py --robo bases
 python servidor\robo_fila.py --robo contas
 python servidor\robo_fila.py --robo medicoes
+python servidor\robo_fila.py --robo retratos
 python servidor\robo_fila.py --indices
 python servidor\robo_fila.py --verificar
 ```
@@ -213,6 +223,7 @@ Mesmo Python (`pythonw.exe`, caminho completo), mesma conta e "só com o usuári
 | MoraisEng - Robo contas | todo dia 06:23 | `robo_fila.py --robo contas` |
 | MoraisEng - Robo bases | todo dia 07:17 | `robo_fila.py --robo bases` |
 | MoraisEng - Robo medicoes | seg a sáb, 07:20 a 19:20 de 2 em 2 h | `robo_fila.py --robo medicoes` |
+| MoraisEng - Robo retratos | todo dia 05:00 | `robo_fila.py --robo retratos` |
 | MoraisEng - Robo indices | todo dia 09:00 | `robo_fila.py --indices` |
 Rodar cada uma uma vez (`schtasks /Run`) e mostrar o `Last Result`.
 
