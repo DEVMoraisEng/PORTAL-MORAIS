@@ -14,7 +14,8 @@
 (function () {
   "use strict";
 
-  var BASE = "RESERVA DOS IPES";
+  /* o nome aparece como "Reserva dos Ipês", "RESERVA DO IPÊS", "Condomínio Reserva dos Ipês"… */
+  var BASE = /RESERVA DOS? IPE/;
   var feitas = {};
   var fila = Promise.resolve();
 
@@ -39,7 +40,8 @@
   function unidadeDa(l, titulo) { return numUn(val(l, "UNIDADE") || (titulo ? val(l, titulo) : null)); }
   function elegivel(l, titulo) {
     var cond = norm(val(l, "CONDOMÍNIO")).replace(/^CONDOMINIO\s+(RESIDENCIAL\s+)?/, "");
-    return cond.indexOf(BASE) >= 0 && unidadeDa(l, titulo) !== null;
+    /* vazio conta como Ipês: hoje é o único condomínio com propostas e base UNIDADES */
+    return (!cond || BASE.test(cond)) && unidadeDa(l, titulo) !== null;
   }
   function contratoEnviado(l) {
     var s = norm(val(l, "ASSINATURA - SITUAÇÃO"));
@@ -133,7 +135,7 @@
       var total = 0;
       for (var i = 0; i < alvo.length; i++) { try { total += await marcar(alvo[i], titulo, cache, o); } catch (e) { delete feitas[semTraco(alvo[i].id)]; } }
       if (total) { try { if (typeof storeInvalidar === "function") storeInvalidar("sims_propostas", "sims_unidades"); } catch (e) {} }
-      if (o.aoTerminar) { try { o.aoTerminar(total); } catch (e) {} }
+      if (o.aoTerminar) { try { await o.aoTerminar(total); } catch (e) {} }
     });
     return fila;
   }

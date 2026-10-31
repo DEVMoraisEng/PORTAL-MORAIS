@@ -722,7 +722,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
 <script src="app.js?v=45"></script>
 <script src="venda/FluxoLivre.js?v=3" defer></script><!-- 29/10: Alterar fluxo -->
 <script src="venda-dossie.js?v=22" defer></script><!-- 28/10: termo de pré-reserva pela proposta (VendaBlocos.montarPreReserva) -->
-<script src="venda/contrato-vendida.js?v=1" defer></script><!-- 31/10: contrato enviado → proposta e unidade VENDIDA -->
+<script src="venda/contrato-vendida.js?v=2" defer></script><!-- 31/10: contrato enviado → proposta e unidade VENDIDA -->
 <script>
 
 /* =====================================================================
@@ -2289,18 +2289,29 @@ async function propCarregar(forcar, bt){
    venda/contrato-vendida.js, a mesma da Planilha Casas Condomínio. Uma vez por abertura da página. */
 let PROP_VARREU=false;
 async function propVarrerContratosEnviados(){
-  if(PROP_VARREU||!window.ContratoVendida) return;
+  if(PROP_VARREU) return;
+  if(!window.ContratoVendida){ setTimeout(propVarrerContratosEnviados, 1500); return; }   // o módulo é defer
   PROP_VARREU=true;
   let r=null;
   try{ r=await chamar({action:"simsVendasCond"},70000); }catch(e){ r=null; }
-  if(!r||!r.ok||!Array.isArray(r.linhas)){ PROP_VARREU=false; return; }
+  if(!r||!r.ok||!Array.isArray(r.linhas)){
+    PROP_VARREU=false;
+    propAviso("err","Não consegui conferir as vendas com contrato enviado (banco de vendas do condomínio): "+esc((r&&(r.mensagem||r.erro))||"sem resposta")+".");
+    return;
+  }
+  const enviados=r.linhas.filter(l=>ContratoVendida.contratoEnviado(l)).length;
   const ids=ContratoVendida.pendentes(r.linhas, r.titulo);
+  console.log("[contrato enviado → vendida] linhas "+r.linhas.length+", contrato enviado/assinado "+enviados+", a conferir "+ids.length);
   if(!ids.length) return;
-  propAviso("ok","Conferindo "+ids.length+" venda(s) com contrato enviado para assinatura…");
-  await ContratoVendida.rodar(r.linhas, r.titulo, ids, { chamar: chamar, aoTerminar: n=>{
-    if(n){ propAviso("ok","<b>✓ Contrato enviado = vendida:</b> "+n+" proposta(s)/unidade(s) marcadas como VENDIDA."); propCarregar(true); try{ UNS=[]; simCarregarUnidades(true); }catch(e){} }
-    else propAviso("ok","");
-  }});
+  propAviso("ok","Conferindo "+ids.length+" venda(s) com contrato enviado para assinatura… (cada uma leva alguns segundos)");
+  const msgs=[];
+  await ContratoVendida.rodar(r.linhas, r.titulo, ids, { chamar: chamar,
+    aviso: (id,t,h)=>{ const l=r.linhas.find(x=>x.id===id); msgs.push((t==="ok"?"✓ ":"⚠ ")+"Un. "+esc(String((l&&l.v&&(l.v["UNIDADE"]||l.v[r.titulo]))||""))+" — "+h); },
+    aoTerminar: async n=>{
+      const mostrar=()=>{ if(msgs.length) propAviso(msgs.some(m=>m.indexOf("⚠")===0)?"err":"ok","<b>Contrato enviado = vendida</b><br>"+msgs.join("<br>")); else propAviso("ok",""); };
+      mostrar();
+      if(n){ await propCarregar(true); mostrar(); try{ UNS=[]; simCarregarUnidades(true); }catch(e){} }
+    }});
 }
 function propAviso(t,m){
   const a=document.getElementById("prop-aviso");
