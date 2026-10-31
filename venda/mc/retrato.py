@@ -40,7 +40,11 @@ def normalizar(venda: dict, lido_em: str) -> dict:
         rd = p.get("readjustmentDetail") or {}
         raw = float(rd.get("rawValue") or 0)
         valor = float(p.get("plannedValue") or 0)
+        t_id = ((rd.get("type") or {}).get("id"))
         parcelas.append({"id": p.get("id"), "data": str(p.get("plannedDate") or "")[:10], "tipo": _tipo(p),
+                         # 31/10/2026: qual terceiro (a aba Financeiro escreve "FGTS" / "Financiamento"); a antecipação
+                         # continua lendo só "tipo"
+                         "sub": "fgts" if t_id == R.TIPO_FGTS else "financiamento" if t_id == R.TIPO_FINANCIAMENTO else "",
                          "tabela": ((rd.get("table") or {}).get("name") or None),
                          "raw": round(raw, 2), "valor": round(valor, 2),
                          "fator": 1 + float(rd.get("accumulatedReadjustmentValue") or 0) / 100 if rd.get("table") else 1.0,

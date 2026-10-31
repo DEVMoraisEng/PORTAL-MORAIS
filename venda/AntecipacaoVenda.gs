@@ -305,11 +305,17 @@ function antecipacaoPdf_(col, sess, p) {
 
 /* ---------- aba Financeiro (FinanceiroVenda.gs) ---------- */
 var ANT_GRUPOS = { sinal: "Sinal", entrada: "Entrada", pre: "Pré-chaves", balao: "Balão", pos: "Pós-chaves", terceiros: "FGTS/Financiamento" };
-var ANT_ORDEM_GRUPOS = ["Sinal", "Entrada", "Pré-chaves", "Balão", "Pós-chaves", "FGTS/Financiamento", "Outros"];
+var ANT_ORDEM_GRUPOS = ["Sinal", "Entrada", "Pré-chaves", "Balão", "Pós-chaves", "FGTS", "Financiamento", "FGTS/Financiamento", "Outros"];
+/* 31/10/2026 (dono): a aba Financeiro escreve "FGTS" ou "Financiamento" — o retrato diz qual pelo campo sub */
+function antGrupo_(p) {
+  if (p.tipo === "terceiros" && p.sub === "fgts") return "FGTS";
+  if (p.tipo === "terceiros" && p.sub === "financiamento") return "Financiamento";
+  return ANT_GRUPOS[p.tipo] || "Outros";
+}
 
 function antParcelasFinanceiro_(parcelas, hoje) {
   var grupos = {};
-  parcelas.forEach(function (p) { var g = ANT_GRUPOS[p.tipo] || "Outros"; (grupos[g] = grupos[g] || []).push(p); });
+  parcelas.forEach(function (p) { var g = antGrupo_(p); (grupos[g] = grupos[g] || []).push(p); });
   var out = [];
   ANT_ORDEM_GRUPOS.forEach(function (g) {
     var l = (grupos[g] || []).slice().sort(function (x, y) {

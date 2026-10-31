@@ -15,6 +15,9 @@ def test_tipos_e_obra():
     assert {"pre", "balao", "pos"} <= tipos
     assert r["obra"] == "CONDOMÍNIO RESERVA DOS IPÊS"
     assert all(p["raw"] > 0 for p in r["parcelas"] if p["tipo"] in ("pre", "balao", "pos"))
+    # 31/10/2026: terceiros dizem qual é (FGTS ou financiamento); os outros tipos vêm com sub vazio
+    assert all(p["sub"] in ("fgts", "financiamento") for p in r["parcelas"] if p["tipo"] == "terceiros")
+    assert all(p["sub"] == "" for p in r["parcelas"] if p["tipo"] != "terceiros")
 
 
 def test_fator_vem_do_acumulado_do_erp_e_reproduz_o_valor():
