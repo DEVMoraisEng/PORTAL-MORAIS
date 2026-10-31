@@ -21,16 +21,32 @@ test("financeiro: atraso em destaque, totais, filtros e situação de cada parce
   assert.match(h, /venceu em 15\/02\/2027 \(12 dias\)/);
   assert.match(h, /data-acao="f-filtro-atrasada"/);
   assert.match(h, /✓ paga<\/b> <span class="ass-data">em 14\/01\/2027/);
-  assert.match(h, /lido do Mais Controle em 2027-04-27 05:30/);
+  assert.match(h, /lido do Mais Controle em 27\/04\/2027 05:30/);   // 31/10: data no formato brasileiro
   const so = D.htmlFinanceiro(e, { filtro: "paga" });
-  assert.equal((so.match(/<tr><td data-rot="Parcela">/g) || []).length, 1);
+  assert.equal((so.match(/<tr><td data-rot="Situação">/g) || []).length, 1);
 });
 
 test("financeiro: mais de 12 parcelas mostra 12 e o botão Mostrar todas; texto escapado", () => {
   const ps = Array.from({ length: 20 }, (_, i) => P("aberta", i + 1, i === 0 ? { grupo: "<b>x</b>" } : {}));
   const h = D.htmlFinanceiro({ lancada: true, parcelas: ps }, {});
-  assert.equal((h.match(/<tr><td data-rot="Parcela">/g) || []).length, 12);
+  assert.equal((h.match(/<tr><td data-rot="Situação">/g) || []).length, 12);
   assert.match(h, /data-acao="f-todas">Mostrar as 20 parcelas/);
   assert.match(h, /&lt;b&gt;x/);
-  assert.equal((D.htmlFinanceiro({ lancada: true, parcelas: ps }, { todas: true }).match(/<tr><td data-rot="Parcela">/g) || []).length, 20);
+  assert.equal((D.htmlFinanceiro({ lancada: true, parcelas: ps }, { todas: true }).match(/<tr><td data-rot="Situação">/g) || []).length, 20);
+});
+
+/* 31/10/2026 (dono): colunas Situação | Parcela | Tipo | Vencimento | Valor Original | Valor Corrigido; FGTS e Financiamento "Única" */
+test("financeiro: colunas na ordem do dono, Parcela só o número, FGTS/Financiamento 'Única'", () => {
+  const e = { lancada: true, lidoEm: "2026-10-31 17:14", parcelas: [
+    P("paga", 1, { grupo: "Sinal", de: 3 }), P("aberta", 2),
+    { grupo: "FGTS", numero: 1, de: 1, vencimento: "2027-06-15", valor: 8688.73, valorCorrigido: 8688.73, situacao: "aberta", pagoEm: "", diasAtraso: 0 },
+    { grupo: "Financiamento", numero: 1, de: 1, vencimento: "2027-06-15", valor: 244800, valorCorrigido: 244800, situacao: "aberta", pagoEm: "", diasAtraso: 0 },
+    { grupo: "FGTS/Financiamento", numero: 2, de: 2, vencimento: "2027-06-15", valor: 1, valorCorrigido: 1, situacao: "aberta", pagoEm: "", diasAtraso: 0 }] };
+  const h = D.htmlFinanceiro(e, { todas: true });
+  assert.match(h, /<th>Situação<\/th><th>Parcela<\/th><th>Tipo<\/th><th>Vencimento<\/th><th[^>]*>Valor Original<\/th><th[^>]*>Valor Corrigido<\/th>/);
+  assert.match(h, /<td data-rot="Parcela">1\/3<\/td><td data-rot="Tipo">Sinal<\/td>/);
+  assert.match(h, /<td data-rot="Parcela">Única<\/td><td data-rot="Tipo">FGTS<\/td>/);
+  assert.match(h, /<td data-rot="Parcela">Única<\/td><td data-rot="Tipo">Financiamento<\/td>/);
+  assert.match(h, /<td data-rot="Parcela">Única<\/td><td data-rot="Tipo">FGTS\/Financiamento<\/td>/, "retrato antigo, sem o sub");
+  assert.match(h, /lido do Mais Controle em 31\/10\/2026 17:14/);
 });

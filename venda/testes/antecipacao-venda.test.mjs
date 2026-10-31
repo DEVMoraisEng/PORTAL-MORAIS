@@ -295,7 +295,8 @@ test("antecipacaoRetrato_: grupos, numeração, situação e dias de atraso", ()
   assert.equal(r.parcelas.length, RET.parcelas.length);
   const porGrupo = {};
   r.parcelas.forEach((p) => { porGrupo[p.grupo] = (porGrupo[p.grupo] || 0) + 1; });
-  assert.deepEqual(porGrupo, { "Sinal": 4, "Pré-chaves": 24, "FGTS/Financiamento": 2, "Balão": 2, "Pós-chaves": 24 });
+  /* 31/10/2026: o retrato diz qual terceiro (sub) — FGTS e Financiamento em grupos próprios na aba Financeiro */
+  assert.deepEqual(porGrupo, { "Sinal": 4, "Pré-chaves": 24, "FGTS": 1, "Financiamento": 1, "Balão": 2, "Pós-chaves": 24 });
   const pos = r.parcelas.filter((p) => p.grupo === "Pós-chaves");
   assert.deepEqual(pos.map((p) => p.numero), Array.from({ length: 24 }, (_, i) => i + 1));
   assert.ok(pos.every((p) => p.de === 24));
@@ -472,4 +473,11 @@ test("nunca leu e o robô falhou: ' | ERRO ...' sem hora na frente é 'sem leitu
     assert.equal(chamar(m, "antecipacaoLer").ok, true);                     // e o Ler de novo está liberado
     assert.match(campo(m, "MC - RETRATO EM"), /^PROCESSANDO \[t=\d+\]$/);
   }
+});
+
+test("31/10/2026: retrato antigo (sem o sub) continua agrupando FGTS e financiamento juntos", () => {
+  const m = montar({ valores: VALORES({ "MC - RETRATO": texto(JSON.stringify(retratoCom((r) => { r.parcelas.forEach((p) => { delete p.sub; }); }))) }) });
+  const r = JSON.parse(JSON.stringify(m.g.ctx.antecipacaoRetrato_(PAGE_ID_PADRAO)));
+  assert.equal(r.parcelas.filter((p) => p.grupo === "FGTS/Financiamento").length, 2);
+  assert.equal(r.parcelas.filter((p) => p.grupo === "FGTS" || p.grupo === "Financiamento").length, 0);
 });
