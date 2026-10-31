@@ -1,0 +1,67 @@
+/* 31/10/2026 — decisão do dono: comprador (proponente) casado ou em união estável → o cônjuge também assina, no termo
+ * de pré-reserva e no contrato, mesmo sem compor renda. Os dados vêm das colunas da proposta (ESTADO CIVIL, CONJUGE,
+ * CPF CONJUGE, EMAIL CONJUGE). Só a assinatura: a qualificação do cônjuge no texto do contrato fica para depois.
+ * Só dados inventados — o repositório é público. */
+import test from "node:test";
+import assert from "node:assert/strict";
+import { createRequire } from "node:module";
+
+const req = createRequire(import.meta.url);
+const C = req("../ContratoVenda.js");
+const CS = req("../ClicksignVenda.js");
+
+const FLUXO = {
+  assinatura: "2026-10-30", diaPagamento: 10, entrega: "2028-12-01", valorVenda: 300000,
+  sinalAto: 1000, sinal30: 3000, data30: "2026-11-30", sinal60: 3000, data60: "2026-12-30", sinal90: 3000, data90: "2027-01-30",
+  pre1N: 20, pre1Valor: 1000, pre1Data: "2026-11-10", credito: 270000, fgts: 0, subsidio: 0, prazoEntrada: 24,
+};
+const CONJ = { estadoCivil: "CASADO", nome: "CONJUGE TESTE DA SILVA", cpf: "52998224725", email: "Conjuge@Teste.Example" };
+
+function dados(conjugeComprador, c2 = { nome: "" }) {
+  return C.montarDadosContrato({
+    venda: { CLIENTES: "COMPRADOR TESTE", CPF: "935.411.347-80", COMPRADOR1: { email: "comprador@teste.example" }, COMPRADOR2: c2,
+             VALOR_CONTRATO: 300000 },
+    obra: {}, vendedor: { tipo: "PJ", nome: "SPE TESTE LTDA" }, loteamento: {}, corretor: {},
+    condominio: { nome: "CONDOMÍNIO RESERVA TESTE", unidade: "4", fluxo: FLUXO, fiadores: [], conjugeComprador },
+    hojeISO: "2026-10-31",
+  });
+}
+const conjuges = (d) => CS.signatarios(d, CS.montarConfig({})).filter((s) => /Cônjuge do comprador/.test(s.papel));
+
+test("casado: o cônjuge do comprador assina (CPF formatado, e-mail minúsculo), sem rubrica", () => {
+  const d = dados(CONJ);
+  assert.deepEqual(d.condominio.conjugeComprador, { nome: "CONJUGE TESTE DA SILVA", cpf: "529.982.247-25", email: "conjuge@teste.example" });
+  const l = conjuges(d);
+  assert.equal(l.length, 1);
+  assert.deepEqual([l[0].papel, l[0].role, l[0].email, l[0].origem, !!l[0].rubrica], ["Cônjuge do comprador 1", "buyer", "conjuge@teste.example", "conjugeComprador1", false]);
+  const todos = CS.signatarios(d, CS.montarConfig({})).map((s) => s.papel);
+  assert.equal(todos.indexOf("Cônjuge do comprador 1"), todos.indexOf("Comprador 1") + 1, "logo depois do comprador");
+});
+
+test("união estável também; solteiro, divorciado ou sem estado civil não leva ninguém", () => {
+  assert.equal(conjuges(dados({ ...CONJ, estadoCivil: "UNIÃO ESTÁVEL" })).length, 1);
+  for (const e of ["SOLTEIRO", "DIVORCIADO", ""]) {
+    const d = dados({ ...CONJ, estadoCivil: e });
+    assert.equal(d.condominio.conjugeComprador, undefined, e);
+    assert.equal(conjuges(d).length, 0, e);
+  }
+  assert.equal(dados(undefined).condominio.conjugeComprador, undefined, "sem as colunas o carimbo não muda");
+});
+
+test("casado sem o nome do cônjuge: não inventa signatário; sem e-mail vira falta apontando a coluna", () => {
+  assert.equal(conjuges(dados({ ...CONJ, nome: "" })).length, 0);
+  const f = CS.faltasAssinatura(dados({ ...CONJ, email: "" }), CS.montarConfig({}));
+  assert.ok(f.some((x) => /Cônjuge do comprador 1: e-mail \(coluna EMAIL CONJUGE\)/.test(x)), f.join(" | "));
+});
+
+test("cônjuge que já é o comprador 2 não assina duas vezes", () => {
+  const d = dados(CONJ, { nome: "CONJUGE TESTE DA SILVA", cpf: "529.982.247-25", email: "conjuge@teste.example" });
+  assert.equal(conjuges(d).length, 0);
+});
+
+test("termo de pré-reserva (sem comprador 2): o cônjuge assina junto com o pré-reservante", () => {
+  const d = dados(CONJ);
+  d.comprador2 = null; d.corretor = null;
+  const papeis = CS.signatarios(d, CS.montarConfig({})).map((s) => s.papel);
+  assert.ok(papeis.includes("Comprador 1") && papeis.includes("Cônjuge do comprador 1"), papeis.join(", "));
+});

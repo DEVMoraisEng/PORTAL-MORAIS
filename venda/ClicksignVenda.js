@@ -176,6 +176,11 @@ var ClicksignVenda = (function () {
   }
   function sigCompradores(dados) {
     var l = [sig("Comprador 1", PAPEIS.COMPRADOR, dados.comprador1, "comprador1", { rubrica: true })];
+    /* 31/10/2026 (dono): comprador casado → o cônjuge assina logo depois dele (contrato e termos; sem rubrica, sem
+       memorial). Se o cônjuge já é o comprador 2 (mesmo CPF ou nome), não assina duas vezes. */
+    var cj = dados.condominio && dados.condominio.conjugeComprador, c2 = dados.comprador2;
+    if (cj && !(c2 && ((soDigitos(cj.cpf) && soDigitos(cj.cpf) === soDigitos(c2.cpf)) || txt(cj.nome).toUpperCase() === txt(c2.nome).toUpperCase())))
+      l.push(sig("Cônjuge do comprador 1", PAPEIS.COMPRADOR, cj, "conjugeComprador1"));
     if (dados.comprador2) l.push(sig("Comprador 2", PAPEIS.COMPRADOR, dados.comprador2, "comprador2", { rubrica: true }));
     return l;
   }
@@ -215,6 +220,7 @@ var ClicksignVenda = (function () {
   var ONDE_EMAIL = {
     comprador1: "coluna Email",
     comprador2: "coluna COMPRADOR 2 - E-MAIL",
+    conjugeComprador1: "coluna EMAIL CONJUGE",
     vendedor: "coluna E-MAIL em VENDEDORES – CONTRATO",
     corretor: "coluna E-MAIL em CORRETORES – CONTRATO",
     fiador1: "coluna EMAIL FIADOR 1", fiador2: "coluna EMAIL FIADOR 2",

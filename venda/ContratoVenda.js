@@ -547,6 +547,12 @@ var ContratoVenda = (function () {
     return /CASAD|UNI[AÃ]O/.test(txt(estadoCivil).toUpperCase());
   }
   function soDigitos(v) { return txt(v).replace(/\D/g, ""); }
+  /* cônjuge do comprador 1 (colunas ESTADO CIVIL, CONJUGE, CPF CONJUGE e EMAIL CONJUGE da proposta): {nome, cpf, email} ou null */
+  function conjugeDoComprador(x) {
+    x = x || {};
+    if (!fiadorCasado(x.estadoCivil) || !txt(x.nome)) return null;
+    return { nome: txt(x.nome), cpf: R().cpfValido(x.cpf) ? R().formatarCpf(x.cpf) : txt(x.cpf), email: txt(x.email).toLowerCase() };
+  }
   function ligarConjugesFiadores(fis) {
     fis.forEach(function (fi, i) {
       var lido = fi.conjugeLido, outro = fis[1 - i];
@@ -619,6 +625,10 @@ var ContratoVenda = (function () {
     /* 29/10: fluxo alterado no portal (só quando existe: o carimbo das vendas sem alteração não muda) */
     var livre = txt(c.fluxoPersonalizado) ? FLV().ler(txt(c.fluxoPersonalizado)) : null;
     if (livre) out.livre = livre;
+    /* 31/10/2026 (dono): comprador casado ou em união estável → o cônjuge assina o termo e o contrato, mesmo sem compor
+       renda. Só quando existe (o carimbo das vendas de solteiros não muda). */
+    var cj = conjugeDoComprador(c.conjugeComprador);
+    if (cj) out.conjugeComprador = cj;
     return out;
   }
 
