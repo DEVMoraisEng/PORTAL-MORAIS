@@ -360,3 +360,21 @@ def test_nunca_leu_e_falhou_nao_grava_hora_de_leitura(monkeypatch):
     # uma leitura boa depois grava a hora de volta
     _, g, _ = _cli(monkeypatch, anteriores={"MC - RETRATO": "ERRO: o ERP caiu", "MC - RETRATO EM": " | ERRO 2026-11-02 05:00: o ERP caiu"})
     assert g["MC - RETRATO EM"][:2] == "20" and "|" not in g["MC - RETRATO EM"]
+
+
+# ---------------------------------------------------------------- amarra o Python ao JS
+GABARITO_JS = pathlib.Path(__file__).resolve().parents[2] / "testes" / "dados" / "antecipacao-retratos.json"
+
+
+def test_gabarito_dos_testes_js_e_o_que_o_python_gera():
+    """Os testes do JS (Antecipacao.js, o dossiê e o AntecipacaoVenda.gs) leem venda/testes/dados/antecipacao-retratos.json.
+    Se `normalizar` mudar e esse arquivo não, a conta do JS passa a ser provada contra um retrato que o robô não gera mais."""
+    gerado = {"base": RT.normalizar(carregar("base"), "2026-10-21")}
+    atual = json.loads(GABARITO_JS.read_text(encoding="utf-8"))
+    comando = ('python -c "import json,pathlib; from venda.mc import retrato as RT; '
+               "b=json.loads(pathlib.Path('venda/mc/testes/dados/antecipacao/base.json').read_text(encoding='utf-8')); "
+               "pathlib.Path('venda/testes/dados/antecipacao-retratos.json').write_text("
+               "json.dumps({'base': RT.normalizar(b, '2026-10-21')}, ensure_ascii=False), encoding='utf-8')\"")
+    assert atual == gerado, (
+        "venda/testes/dados/antecipacao-retratos.json divergiu do retrato que o robô gera (normalizar do retrato.py com base.json, "
+        "lido em 2026-10-21). Regenere na raiz do repositório e rode as suítes de novo:\n" + comando)
