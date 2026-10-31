@@ -171,6 +171,16 @@ test("comissão: vazia na linha sai pela regra; diferente da regra trava; nº de
   assert.deepEqual(C.faltasContrato(fora), ["Comissão: prazo da entrada vazio fora da tabela (24, 36 ou 48 meses)"]);
 });
 
+test("prazo da entrada tem de bater com as parcelas pós-chaves do fluxo (31/10)", () => {
+  /* fluxo com 24 pós-chaves = 48x; venda ainda marcada 24x com comissão de 5% */
+  const errado = dados({ condominio: { comissao: 15250, fluxo: { ...FLUXO, prazoEntrada: 24 } } });
+  assert.ok(C.faltasContrato(errado).includes(
+    "Prazo da entrada: 24x na venda, mas o fluxo tem 24 parcelas pós-chaves = plano de 48x (comissão 4,5%) — corrija o PRAZO ENTRADA e a comissão"),
+    C.faltasContrato(errado).join(" | "));
+  assert.deepEqual(C.faltasContrato(dados({ condominio: { comissao: 13725, fluxo: { ...FLUXO, prazoEntrada: 48 } } })), []);
+  assert.deepEqual(C.faltasContrato(dados({ condominio: { comissao: 13725, fluxo: { ...FLUXO, prazoEntrada: 47 } } })), [], "47 (mês passado) ainda é 48x");
+});
+
 test("casa fora da tabela: tipo e áreas em branco viram aviso, não travam", () => {
   const d = dados({ condominio: { nome: "CONDOMÍNIO OUTRO TESTE" } });
   assert.deepEqual(C.faltasContrato(d), []);
