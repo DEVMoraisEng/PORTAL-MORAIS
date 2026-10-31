@@ -167,12 +167,17 @@ var ContratoVenda = (function () {
     return up(obraFinalizada) === "SIM" ? "PRONTO" : "CONSTRUCAO";
   }
 
+  /* 31/10/2026: "0", "-", "S/N", "NÃO TEM"… no lugar do número (identidade nova sem RG) = sem documento */
+  function semNumero(n) {
+    var t = txt(n).toUpperCase().replace(/[.\s]/g, "");
+    return t === "" || /^[0\-_]+$/.test(t) || /^(S\/?N|SEM(RG)?|N[AÃ]O(TEM|POSSUI)?|NT|NA|N\/?A)$/.test(t);
+  }
   function documentoComRotulo(doc) {
     var d = txt(doc);
     if (!d) return "";
     var m = /^(RG|CNH)(?![A-Za-z]):?\s*(?:n[ºo°]\.?\s*)?(.*)$/i.exec(d);
-    if (m) return m[1].toUpperCase() + " nº " + m[2];
-    return d;
+    if (m) return semNumero(m[2]) ? "" : m[1].toUpperCase() + " nº " + m[2];
+    return semNumero(d) ? "" : d;
   }
 
   function qualificacao(c) {
@@ -601,7 +606,7 @@ var ContratoVenda = (function () {
   }
   function rgFiador(rg) {
     var r = txt(rg).replace(/^RG(?![A-Za-z]):?\s*(?:n[ºo°]\.?\s*)?/i, "");
-    return r ? "RG nº " + r : "";
+    return r && !semNumero(r) ? "RG nº " + r : "";
   }
   /* "FIADOR 1: nome, nacionalidade, RG nº …, CPF nº …, residente e domiciliado à …, e-mail …." (estado civil e profissão não existem na base: ficam de fora) */
   function qualificacaoFiadores(lista) {
@@ -744,7 +749,7 @@ var ContratoVenda = (function () {
     function comprador(c, grupo) {
       exige(!vazio(c.nome), grupo, "nome");
       exige(!vazio(c.nacionalidade), grupo, "nacionalidade");
-      exige(!vazio(c.documento), grupo, "RG");
+      /* 31/10/2026 (dono): RG do comprador é opcional — a identidade nova não tem RG; vazio, sai da qualificação */
       exige(!vazio(c.cpf), grupo, "CPF");
       exige(!vazio(c.endereco), grupo, "endereço");
     }

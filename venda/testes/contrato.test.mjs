@@ -265,3 +265,13 @@ test("e-mails para a assinatura (entrega 3): compradores, vendedor PF e represen
   assert.equal(sem.vendedor.representanteEmail, "");
   assert.deepEqual(C.faltasContrato(sem), []);
 });
+
+test("RG do comprador é opcional (31/10/2026: identidade nova sem RG) e '0'/'S/N' não vira 'RG nº 0'", () => {
+  const f = fontes();
+  f.venda.COMPRADOR1 = Object.assign({}, f.venda.COMPRADOR1, { documento: "" });
+  assert.deepEqual(C.faltasContrato(C.montarDadosContrato(f)), []);
+  for (const doc of ["RG 0", "0", "RG nº 0", "-", "S/N", "RG: NÃO TEM", "000"])
+    assert.doesNotMatch(C.qualificacao({ nome: "ANA", documento: doc, cpf: "529.982.247-25" }), /RG|nº 0|S\/N|-,/, doc);
+  assert.equal(C.qualificacao({ nome: "ANA", documento: "RG 0", cpf: "529.982.247-25" }), "ANA, CPF nº 529.982.247-25");
+  assert.equal(C.qualificacao({ documento: "RG 1023456" }), "RG nº 1023456");
+});
