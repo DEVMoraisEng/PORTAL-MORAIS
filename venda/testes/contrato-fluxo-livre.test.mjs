@@ -50,7 +50,7 @@ test("quadro-resumo: sinal pela lista, entrada à vista e permuta antes das parc
   assert.match(pre, /todas corrigidas pelo INCC-M/);
   assert.match(C.textoPosChaves(G), /^24 parcelas mensais e sucessivas de R\$ 700,00 .* corrigidas pelo IPCA/);
   const v = C.valoresCondominio(co);
-  assert.deepEqual([v.sinal, v.financiamento, v.comissao, v.precoMudou], [10000, 245000, 13725, false]);
+  assert.deepEqual([v.sinal, v.financiamento, v.comissao, v.precoMudou], [10000, 245000, 14487.5, false]);
 });
 
 test("valor da casa mudado (JC/JV): comissão pela regra sobre o valor novo", () => {
@@ -58,7 +58,7 @@ test("valor da casa mudado (JC/JV): comissão pela regra sobre o valor novo", ()
                  fluxo: { ...fluxo, prazoEntrada: 48 } };
   const v = C.valoresCondominio(caro);
   assert.equal(v.precoMudou, true);
-  assert.equal(v.comissao, 13950);   // 4,5% de 310 mil (48 meses)
+  assert.equal(v.comissao, 14725);   // 31/10: 12 pré + 24 pós = 36x, 4,75% de 310 mil
 });
 
 test("termo de confissão: pré sem a entrada à vista nem a permuta; totais pela lista", () => {

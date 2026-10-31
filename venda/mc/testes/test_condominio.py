@@ -132,7 +132,7 @@ def test_valor_da_casa_mudado_no_fluxo_alterado_vira_o_total_e_a_comissao_pela_r
     d = {"total": 228900, "aquisicao": 228900, "comissao": 10000}
     C.ajustar_dados_livre(fx, d)
     assert (d["total"], d["aquisicao"]) == (233900, 233900)
-    assert d["comissao"] == 10525.5   # 4,5% (48 meses) de 233.900
+    assert d["comissao"] == 11110.25   # 31/10: 3 pré + 3 pós = até 36 → 4,75% de 233.900
     igual = {"total": 228900, "aquisicao": 228900, "comissao": 10000}
     C.ajustar_dados_livre(C.fluxo(fluxo_props(**_livre(LIVRE))), igual)
     assert igual["comissao"] == 10000, "sem mudar o valor da casa a comissão da linha fica"
@@ -500,3 +500,11 @@ def test_data_da_venda_do_condominio_e_a_data_de_assinatura():
     assert C.dados_da_linha(linha_cond(**{"DATA DA VENDA": data(None)}), LINHA_ID)["data_venda"] == "2026-10-10"
     sem = linha_cond(**{"DATA DE ASSINATURA DO CONTRATO": data(None)})
     assert C.dados_da_linha(sem, LINHA_ID)["data_venda"] == "2026-09-01"
+
+
+def test_comissao_sai_do_fluxo_31_10():
+    base = {"n1": 12, "v1": 900, "n2": 12, "v2": 300, "vP": 700}
+    assert C.plano_do_fluxo({**base, "nP": 0}) == 24
+    assert C.plano_do_fluxo({**base, "nP": 12}) == 36
+    assert C.plano_do_fluxo({**base, "nP": 24}) == 48
+    assert C.comissao_pela_regra({**base, "nP": 0, "prazo": 48}, 305000) == 15250   # PRAZO ENTRADA não manda

@@ -194,9 +194,8 @@ test("gerarContrato do condomínio: fluxo que não fecha trava com a falta (nada
   const c = cenario({ linha: { "VALOR DE VENDA": num(310000) } });
   const r = c.acao("gerarContrato");
   assert.equal(r.erro, "FALTAM_DADOS");
-  /* preço mudou sem mexer na comissão: a regra (21/10) também acusa */
-  assert.deepEqual(r.faltas, ["Fluxo de pagamento: soma R$ 305.000,00 e não fecha com o valor de venda R$ 310.000,00",
-    "Comissão: R$ 13.725,00 na venda, mas a regra (prazo da entrada de 48 meses = 4,5%) dá R$ 13.950,00"]);
+  /* 31/10: a comissão sai do fluxo sozinha — só a soma acusa */
+  assert.deepEqual(r.faltas, ["Fluxo de pagamento: soma R$ 305.000,00 e não fecha com o valor de venda R$ 310.000,00"]);
   assert.equal(c.d.estado.copias.length, 0);
 });
 

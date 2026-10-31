@@ -107,19 +107,26 @@ def _total_linha(l: dict) -> float:
     return round(l["v"] * (n - 1) + u, 2)
 
 
-# comissão (ContratoVenda.comissaoPctPelaRegra): prazo da entrada 24/36/48 = 5% / 4,75% / 4,5%; sem prazo, pelas pós-chaves
+# comissão (ContratoVenda.planoDoFluxo, dono 31/10/2026): sai do FLUXO — sem pós-chaves = 24x (5%); com pós-chaves,
+# total de parcelas da entrada (pré + pós) até 36 = 36x (4,75%), acima = 48x (4,5%). O PRAZO ENTRADA não manda mais.
 _PCT_POR_PRAZO = {24: 0.05, 36: 0.0475, 48: 0.045}
-_PRAZO_POR_POS = {0: 24, 12: 36, 24: 48}
+
+
+def plano_do_fluxo(fx: dict) -> int:
+    livre = fx.get("livre")
+    if livre:
+        pre = sum(l["n"] for l in livre.get("linhas", []) if l["t"] == "pre" and l["n"] > 0 and l.get("v"))
+        pos = sum(l["n"] for l in livre.get("linhas", []) if l["t"] == "pos" and l["n"] > 0 and l.get("v"))
+    else:
+        pre = sum(int(fx.get(n) or 0) for n, v in (("n1", "v1"), ("n2", "v2")) if fx.get(v))
+        pos = int(fx.get("nP") or 0) if fx.get("vP") else 0
+    if pos <= 0:
+        return 24
+    return 36 if pre + pos <= 36 else 48
 
 
 def comissao_pela_regra(fx: dict, valor: float) -> float | None:
-    p = fx.get("prazo")
-    if p:
-        op = 24 if p <= 24 else 36 if p <= 36 else 48 if p <= 48 else None
-    else:
-        n = sum(l["n"] for l in (fx.get("livre") or {}).get("linhas", []) if l["t"] == "pos") if fx.get("livre") else int(fx.get("nP") or 0)
-        op = _PRAZO_POR_POS.get(n)
-    return round(valor * _PCT_POR_PRAZO[op], 2) if op else None
+    return round(valor * _PCT_POR_PRAZO[plano_do_fluxo(fx)], 2) if valor else None
 
 
 def ajustar_dados_livre(fx: dict, dados: dict) -> None:
