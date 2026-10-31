@@ -28,6 +28,7 @@ var FluxoLivre = (function () {
      meses), e a comissão do corretor sai dele; a parcela base é 24 × R$ 788,33 e nunca sobe acima disso. */
   var POS_TETO = 788.33;
   var RE_ISO = /^\d{4}-\d{2}-\d{2}$/;
+  var LIMITE_PRE_CHAVES = "2028-11-30";   /* 31/10/2026 (dono): fim das pré-chaves e balões do Reserva dos Ipês */
 
   function c(v) { return Math.round((Number(v) || 0) * 100); }
   function positivo(v) { return typeof v === "number" && isFinite(v) && v > 0; }
@@ -94,6 +95,9 @@ var FluxoLivre = (function () {
       if (l.t === "permuta" && !l.x) erroLinha(k, "descreva o bem da permuta");
       if (!isoValida(l.d)) { if (!tp.terceiro) erroLinha(k, "falta a 1ª data"); return; }
       var ultima = maisMeses(l.d, (Math.max(1, l.n) - 1) * l.i);
+      /* 31/10/2026 (dono): pré-chaves e balões terminam SEMPRE até 30/11/2028 — passar disso trava */
+      if ((l.t === "pre" || l.t === "balao") && ultima > LIMITE_PRE_CHAVES)
+        erroLinha(k, tp.nome.toLowerCase() + " vence em " + dataBR(ultima) + ": pré-chaves e balões terminam até " + dataBR(LIMITE_PRE_CHAVES));
       if (entrega && (l.t === "pre" || l.t === "balao") && ultima > entrega)
         avisos.push("Linha " + (k + 1) + ": " + tp.nome.toLowerCase() + " vence depois da entrega das chaves (" + dataBR(ultima) + ")");
       if (entrega && l.t === "pos" && l.d <= entrega) avisos.push("Linha " + (k + 1) + ": pós-chaves vence antes da entrega das chaves");
@@ -313,7 +317,7 @@ var FluxoLivre = (function () {
     });
   }
 
-  return { TIPOS: TIPOS, ORDEM: ORDEM, MAX_LINHAS: MAX_LINHAS, MAX_MOTIVO: MAX_MOTIVO, POS_TETO: POS_TETO,
+  return { TIPOS: TIPOS, ORDEM: ORDEM, MAX_LINHAS: MAX_LINHAS, MAX_MOTIVO: MAX_MOTIVO, POS_TETO: POS_TETO, LIMITE_PRE_CHAVES: LIMITE_PRE_CHAVES,
            normalizar: normalizar, validar: validar, redistribuir: redistribuir, aplicarDesconto: aplicarDesconto, valorDoDesconto: valorDoDesconto, doPadrao: doPadrao, abaterSinal: abaterSinal, expandir: expandir,
            serializar: serializar, ler: ler, ordenar: ordenar, totalLinha: function (l) { return totalLinhaC(normalizar({ linhas: [l] }).linhas[0] || {}) / 100; },
            soma: function (linhas) { return somaC(normalizar({ linhas: linhas }).linhas) / 100; }, maisMeses: maisMeses, moeda: moeda, dataBR: dataBR };
