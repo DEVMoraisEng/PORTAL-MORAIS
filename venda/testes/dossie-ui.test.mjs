@@ -286,5 +286,9 @@ test("conferência: linha que diverge tem 'Corrigir aqui'; com o campo aberto, m
   assert.match(h, /Grava em PROPONENTE na venda/);
   assert.match(h, /data-acao="d-corr-usar"/);
   assert.match(D.htmlCorrigir(e.linhas[0], { carregando: true }, ""), /abrindo o campo/);
+  /* estado civil: lista; o valor de hoje fora da lista continua como opção escolhida */
+  const civ = D.htmlCorrigir(e.linhas[0], { campos: [{ coluna: "ESTADO CIVIL", rotulo: "Estado civil", valor: "SEPARADO", opcoes: ["SOLTEIRO", "CASADO"] }] }, "");
+  assert.match(civ, /<select data-corr-col="ESTADO CIVIL"><option value="">—<\/option><option value="SEPARADO" selected>SEPARADO<\/option><option value="SOLTEIRO">/);
+  assert.doesNotMatch(civ, /d-corr-usar/);
   assert.match(D.htmlCorrigir(e.linhas[0], { erro: "x" }, ""), /data-acao="d-corr-cancelar"/);
 });

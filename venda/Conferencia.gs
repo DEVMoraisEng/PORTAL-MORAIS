@@ -126,7 +126,7 @@ function confAlvos_(p) {
   if (faltam.length) return { erro: "COLUNA_FALTANDO", faltas: faltam };
   return { pg: pg, alvos: alvos.map(function (a) {
     var n = real[RegrasVenda.chave(a.coluna)];
-    return { coluna: n, rotulo: a.rotulo, tipo: props[n].type, valor: v(n) };
+    return { coluna: n, rotulo: a.rotulo, tipo: props[n].type, valor: v(n), opcoes: a.opcoes || null };
   }) };
 }
 function corrigirConferenciaCampos_(col, p) {
@@ -139,7 +139,8 @@ function corrigirConferenciaCampos_(col, p) {
       if (x.tipo === "select" && sch[x.coluna]) opcoes[x.coluna] = ((sch[x.coluna].select || {}).options || []).map(function (o) { return o.name; });
     });
   }
-  return { ok: true, campos: a.alvos.map(function (x) { return { coluna: x.coluna, rotulo: x.rotulo, valor: x.valor, opcoes: opcoes[x.coluna] || null }; }) };
+  /* select da base: as opções dela; coluna de texto com lista da regra (estado civil): a lista da regra */
+  return { ok: true, campos: a.alvos.map(function (x) { return { coluna: x.coluna, rotulo: x.rotulo, valor: x.valor, opcoes: opcoes[x.coluna] || x.opcoes || null }; }) };
 }
 function corrigirConferencia_(col, sess, p) {
   var pid = String(p.pageId).slice(0, 8), a = confAlvos_(p);

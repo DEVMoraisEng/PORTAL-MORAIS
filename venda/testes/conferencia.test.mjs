@@ -59,7 +59,8 @@ test("camposParaCorrigir: comprador 1 é o PROPONENTE; o bloco COMPRADOR 1 só q
   assert.deepEqual(K.camposParaCorrigir("c1-id", "cpf", false, v({ "CPF COMPRADOR 1": "11144477735" })), [{ coluna: "CPF COMPRADOR 1", rotulo: "CPF" }]);
   assert.deepEqual(K.camposParaCorrigir("c1-id", "cpf", true, v({ "CPF COMPRADOR 1": "11144477735" })), [{ coluna: "CPF PROPONENTE", rotulo: "CPF" }]);
   assert.deepEqual(K.camposParaCorrigir("c1-id", "rg", false, v({})), [{ coluna: "RG PROPONENTE", rotulo: "RG" }]);
-  assert.deepEqual(K.camposParaCorrigir("c1-civil", "estado_civil", false, v({})), [{ coluna: "ESTADO CIVIL", rotulo: "Estado civil" }]);
+  assert.deepEqual(K.camposParaCorrigir("c1-civil", "estado_civil", false, v({})),
+    [{ coluna: "ESTADO CIVIL", rotulo: "Estado civil", opcoes: ["SOLTEIRO", "CASADO", "DIVORCIADO", "VIUVO", "UNIAO ESTAVEL"] }]);
 });
 test("camposParaCorrigir: endereço são cinco colunas; comprador 2 e fiadores; o resto não se corrige aqui", () => {
   const v = (m) => (n) => m[n] || "";

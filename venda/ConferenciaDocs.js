@@ -46,6 +46,7 @@ var ConferenciaDocs = (function () {
    * é o comprador 2 quando é outra pessoa, ou a reserva do proponente). `seg` = CondominioVenda.temSegundo;
    * `v(nome)` = valor atual da coluna. Devolve [{ coluna, rotulo }] (o endereço são cinco colunas) ou [] quando
    * o campo não se corrige aqui. */
+  var OPCOES_CIVIL = ["SOLTEIRO", "CASADO", "DIVORCIADO", "VIUVO", "UNIAO ESTAVEL"];   /* completar-venda.html */
   var END_PROPONENTE = [["ENDEREÇO", "Rua"], ["NÚMERO", "Número"], ["SETOR", "Setor"], ["CIDADE", "Cidade"], ["CEP", "CEP"]];
   var END_BLOCO1 = [["ENDERECO COMPRADOR 1", "Rua"], ["NUMERO COMPRADOR 1", "Número"], ["SETOR COMPRADOR 1", "Setor"],
                     ["CIDADE COMPRADOR 1", "Cidade"], ["CEP COMPRADOR 1", "CEP"]];
@@ -67,7 +68,8 @@ var ConferenciaDocs = (function () {
       var lista = seg || temProp || !END_BLOCO1.some(function (x) { return txt(v(x[0])); }) ? END_PROPONENTE : END_BLOCO1;
       return lista.map(function (x) { return { coluna: x[0], rotulo: x[1] }; });
     } else if (item === "c1-civil" && campo === "estado_civil") {
-      return um("ESTADO CIVIL", "Estado civil");
+      /* a coluna é texto: as mesmas opções que o "completar venda" grava (teste de tela de 31/10 abriu texto livre) */
+      return [{ coluna: "ESTADO CIVIL", rotulo: "Estado civil", opcoes: OPCOES_CIVIL.slice() }];
     } else if (item === "c2-id" && seg) {
       if (campo === "nome") return um("COMPRADOR 1", "Nome");
       if (campo === "cpf") return um("CPF COMPRADOR 1", "CPF");
