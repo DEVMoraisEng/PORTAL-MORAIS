@@ -23,14 +23,14 @@ test("financeiro: atraso em destaque, totais, filtros e situação de cada parce
   assert.match(h, /✓ paga<\/b> <span class="ass-data">em 14\/01\/2027/);
   assert.match(h, /lido do Mais Controle em 2027-04-27 05:30/);
   const so = D.htmlFinanceiro(e, { filtro: "paga" });
-  assert.equal((so.match(/<tr><td>/g) || []).length, 1);
+  assert.equal((so.match(/<tr><td data-rot="Parcela">/g) || []).length, 1);
 });
 
 test("financeiro: mais de 12 parcelas mostra 12 e o botão Mostrar todas; texto escapado", () => {
   const ps = Array.from({ length: 20 }, (_, i) => P("aberta", i + 1, i === 0 ? { grupo: "<b>x</b>" } : {}));
   const h = D.htmlFinanceiro({ lancada: true, parcelas: ps }, {});
-  assert.equal((h.match(/<tr><td>/g) || []).length, 12);
+  assert.equal((h.match(/<tr><td data-rot="Parcela">/g) || []).length, 12);
   assert.match(h, /data-acao="f-todas">Mostrar as 20 parcelas/);
   assert.match(h, /&lt;b&gt;x/);
-  assert.equal((D.htmlFinanceiro({ lancada: true, parcelas: ps }, { todas: true }).match(/<tr><td>/g) || []).length, 20);
+  assert.equal((D.htmlFinanceiro({ lancada: true, parcelas: ps }, { todas: true }).match(/<tr><td data-rot="Parcela">/g) || []).length, 20);
 });

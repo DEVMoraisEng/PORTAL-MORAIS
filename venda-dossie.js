@@ -1302,8 +1302,10 @@
     var SIT = { paga: '<b class="ass-ok">✓ paga</b>', aberta: '<span class="ass-data">a vencer</span>', atrasada: '<b class="ass-rec">⚠ em atraso</b>' };
     h += '<div style="overflow-x:auto"><table class="cd-fl"><thead><tr><th>Parcela</th><th>Vencimento</th><th style="text-align:right">Valor</th><th style="text-align:right">Corrigido</th><th>Situação</th></tr></thead><tbody>' +
       lista.slice(0, corte).map(function (x) {
-        return "<tr><td>" + esc(x.grupo) + " " + x.numero + "/" + x.de + "</td><td>" + dt(x.vencimento) + '</td><td class="r">' + brl(x.valor) + '</td><td class="r">' + brl(x.valorCorrigido || x.valor) +
-          "</td><td>" + (SIT[x.situacao] || esc(x.situacao)) + (x.situacao === "paga" && x.pagoEm ? ' <span class="ass-data">em ' + dt(x.pagoEm) + "</span>" : "") +
+        /* data-rot: no celular (vendas.html, < 600 px) cada parcela vira um bloco com o nome de cada campo */
+        return '<tr><td data-rot="Parcela">' + esc(x.grupo) + " " + x.numero + "/" + x.de + '</td><td data-rot="Vencimento">' + dt(x.vencimento) +
+          '</td><td class="r" data-rot="Valor">' + brl(x.valor) + '</td><td class="r" data-rot="Corrigido">' + brl(x.valorCorrigido || x.valor) +
+          '</td><td data-rot="Situação">' + (SIT[x.situacao] || esc(x.situacao)) + (x.situacao === "paga" && x.pagoEm ? ' <span class="ass-data">em ' + dt(x.pagoEm) + "</span>" : "") +
           (x.situacao === "atrasada" ? ' <span class="ass-data">' + Number(x.diasAtraso || 0) + " dias</span>" : "") + "</td></tr>";
       }).join("") + "</tbody></table></div>";
     if (corte < lista.length) h += '<div class="dz-linha"><button type="button" class="bt ghost bt-mini" data-acao="f-todas">Mostrar as ' + lista.length + " parcelas</button></div>";
