@@ -1278,7 +1278,9 @@
     var h = (c.campos || []).map(function (x) {
       var attr = ' data-corr-col="' + esc(x.coluna) + '"' + dis, inp;
       if (x.opcoes && x.opcoes.length) {
-        inp = "<select" + attr + '><option value="">—</option>' + x.opcoes.map(function (o) {
+        /* o valor de hoje fica na lista mesmo fora das opções (não some ao abrir) */
+        var ops = x.valor && x.opcoes.indexOf(x.valor) < 0 ? [x.valor].concat(x.opcoes) : x.opcoes;
+        inp = "<select" + attr + '><option value="">—</option>' + ops.map(function (o) {
           return '<option value="' + esc(o) + '"' + (o === x.valor ? " selected" : "") + ">" + esc(o) + "</option>";
         }).join("") + "</select>";
       } else inp = '<input type="text" maxlength="300" style="flex:1 1 240px"' + attr + ' value="' + esc(x.valor || "") + '">';
