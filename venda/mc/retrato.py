@@ -89,7 +89,7 @@ def gravar_pagina(notion, obter_erp, page_id: str, props: dict, agora: str) -> s
     e só MC - RETRATO EM ganha '<hora do último bom> | ERRO <agora>: <motivo>'. Sem JSON válido, grava
     'ERRO: motivo' em MC - RETRATO e a hora em MC - RETRATO EM.
     Devolve 'ok', 'erro' (o motivo foi gravado) ou 'sem_coluna' (a página não tem MC - RETRATO)."""
-    import json
+    import json, re
     try:
         vid = _id_do_erp(_valor_da_coluna(props, COL_VENDA_ID))
         r = normalizar(D.ler_venda(obter_erp(), vid), agora)
@@ -98,6 +98,8 @@ def gravar_pagina(notion, obter_erp, page_id: str, props: dict, agora: str) -> s
         motivo = (str(e) or type(e).__name__)[:180]
         if _json_valido(_valor_da_coluna(props, COL_RETRATO)):
             ultimo_bom = str(_valor_da_coluna(props, COL_RETRATO_EM) or "")[:16]
+            if not re.match(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}", ultimo_bom):   # texto solto na coluna não vira "último bom"
+                ultimo_bom = ""
             notion.gravar_textos(page_id, props, {COL_RETRATO_EM: "%s | ERRO %s: %s" % (ultimo_bom, agora, motivo)})
             return "erro"
         texto = "ERRO: " + motivo

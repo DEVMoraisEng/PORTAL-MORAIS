@@ -335,3 +335,15 @@ def test_todas_sem_senha_do_erp_vira_erro_contado(monkeypatch, capsys):
     assert RT.main(["--todas"]) == 1
     assert capsys.readouterr().out.strip().splitlines()[-1] == "retratos: 0 ok, 2 erro"
     assert n.gravado["p-ok"]["MC - RETRATO"].startswith("ERRO: ")
+
+
+def test_ultimo_bom_so_vale_se_for_uma_data_e_hora(monkeypatch):
+    import re
+    for estranho in ("ERRO: antigo", "PROCESSANDO [t=1]", "sem data nenhuma", "2026-11-02", ""):
+        _, g, _ = _cli(monkeypatch, venda=RuntimeError("o ERP caiu"),
+                       anteriores={"MC - RETRATO": BOM, "MC - RETRATO EM": estranho})
+        assert "MC - RETRATO" not in g, estranho
+        assert re.match(r"^ \| ERRO \d{4}-\d{2}-\d{2} \d{2}:\d{2}: o ERP caiu$", g["MC - RETRATO EM"]), (estranho, g["MC - RETRATO EM"])
+    _, g, _ = _cli(monkeypatch, venda=RuntimeError("o ERP caiu"),
+                   anteriores={"MC - RETRATO": BOM, "MC - RETRATO EM": "2026-11-02 05:00 | PROCESSANDO [t=1]"})
+    assert g["MC - RETRATO EM"].startswith("2026-11-02 05:00 | ERRO ")
