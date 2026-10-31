@@ -30,8 +30,10 @@ test("cartão do condomínio (entrega 7): condAbrir monta a tela de venda na lin
   /* 31/10/2026: em abas — o Andamento tem a própria aba e a tela de venda vem logo depois */
   assert.match(abrir, /'<div data-sec="andamento">'\+condAndamentoHtml\(l\)\+'<\/div>'\+\s*condTelaVendaHtml\(\)\+/);
   assert.match(abrir, /VendaBlocos\.montar\(document\.getElementById\("cd-venda"\),id\)/);
+  /* 31/10/2026: depois de montar, avisa a aba aberta (o Financeiro só lê quando abre) */
+  assert.match(abrir, /VendaBlocos\.aba\(COND_ABA\)/);
   assert.match(vendas, /function condTelaVendaHtml\(\)\{[^}]*id="cd-venda"/);
   assert.match(vendas, /function condFechar\(\)\{[^\n]*VendaBlocos\.soltar\(\)/);
   const dossie = fs.readFileSync(path.join(RAIZ, "venda-dossie.js"), "utf8");
-  assert.match(dossie, /window\.VendaBlocos = \{ montar: montarCondominio, soltar: soltarCondominio, montarPreReserva: montarPreReserva, soltarPreReserva: soltarPreReserva \}/);
+  assert.match(dossie, /window\.VendaBlocos = \{ montar: montarCondominio, soltar: soltarCondominio, montarPreReserva: montarPreReserva, soltarPreReserva: soltarPreReserva, aba: abaCondominio \}/);
 });

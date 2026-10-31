@@ -395,7 +395,33 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 .cd-cardbox[data-aba="prereserva"] #cd-venda>.vb-pr,.cd-cardbox[data-aba="prereserva"] #cd-venda>.vb-pr-ass,
 .cd-cardbox[data-aba="documentos"] #cd-venda>.vb-conf,
 .cd-cardbox[data-aba="contrato"] #cd-venda>.vb-ct,.cd-cardbox[data-aba="contrato"] #cd-venda>.vb-ass,
-.cd-cardbox[data-aba="contrato"] #cd-venda>.vb-mc{display:block}
+.cd-cardbox[data-aba="contrato"] #cd-venda>.vb-mc,
+.cd-cardbox[data-aba="financeiro"] #cd-venda>.vb-fin,.cd-cardbox[data-aba="financeiro"] #cd-venda>.vb-antec{display:block}
+/* 31/10/2026 (dono quer o cartão bom no celular): abaixo de 600 px as 6 abas ficam em 3 x 2 (nenhuma escondida) e as
+   tabelas da conferência e das parcelas viram blocos empilhados — cada célula com o nome do campo (data-rot), os
+   botões embaixo na largura toda. Pré-reserva, Contrato e Andamento já cabem e não mudam. */
+@media (max-width:600px){
+  .cd-abas .tabs{display:grid;grid-template-columns:repeat(3,1fr);width:100%}
+  .cd-abas .tab{padding:8px 2px;font-size:11px;letter-spacing:0;text-align:center;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .cd-cardbox .vb-conf table,.cd-cardbox .vb-conf tbody,.cd-cardbox .vb-conf tr,.cd-cardbox .vb-conf td,
+  .cd-cardbox .vb-fin table,.cd-cardbox .vb-fin tbody,.cd-cardbox .vb-fin tr,.cd-cardbox .vb-fin td{display:block;width:100%}
+  .cd-cardbox .vb-conf tr:has(th),.cd-cardbox .vb-fin thead{display:none}
+  .cd-cardbox .vb-conf tr,.cd-cardbox .vb-fin tbody tr{border:1.5px solid var(--border2);border-radius:10px;padding:8px 10px;margin:0 0 8px;background:var(--sup)}
+  .cd-cardbox .vb-conf td,.cd-cardbox .vb-fin td{border:0!important;padding:3px 0!important;text-align:left!important;white-space:normal!important;overflow-wrap:anywhere;background:transparent!important}
+  /* parcela em duas colunas: parcela | situação, vencimento | corrigido, valor */
+  .cd-cardbox .vb-fin tbody tr{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+  .cd-cardbox .vb-fin tbody td{width:auto}
+  .cd-cardbox .vb-fin td[data-rot="Situação"]{grid-column:2;grid-row:1}
+  .cd-cardbox .vb-conf td[data-rot]::before,.cd-cardbox .vb-fin td[data-rot]::before{content:attr(data-rot);display:block;font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em}
+  .cd-cardbox .vb-conf tr.dz-corr{background:var(--bg2)}
+  .cd-cardbox .vb-conf td .bt{width:100%;margin:4px 0 0}
+  .cd-cardbox .vb-conf .dz-corr .dz-linha{flex-direction:column;align-items:stretch}
+  .cd-cardbox .vb-conf .dz-corr .dz-rot{flex:0 0 auto!important}
+  .cd-cardbox .vb-conf .dz-corr input,.cd-cardbox .vb-conf .dz-corr select{width:100%;flex:1 1 auto!important}
+  .cd-cardbox .vb-conf div[style*="overflow-x"],.cd-cardbox .vb-fin div[style*="overflow-x"]{overflow-x:visible!important}
+}
+/* 31/10/2026 (dono): no cartão do condomínio o contrato aparece só como "Contrato gerado", sem o nome do arquivo */
+.cd-cardbox .vb-ct .dz-arq-nome{display:none}
 details.cd-dobra{border:1.5px solid var(--border2);border-radius:10px;background:var(--bg2);margin:0 0 14px}
 details.cd-dobra>summary{cursor:pointer;padding:9px 12px;font-weight:700;font-size:13px;color:var(--azul)}
 details.cd-dobra>div{padding:0 12px 12px}
@@ -1146,7 +1172,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 <script src="venda/painel-casa.js?v=1"></script>
 <script src="venda/FluxoLivre.js?v=3"></script><!-- 29/10: Alterar fluxo -->
 <script src="venda/quadro-fluxo.js?v=1"></script><!-- 31/10: quadro do pro soluto segue o fluxo alterado -->
-<script src="venda-dossie.js?v=23"></script>
+<script src="venda-dossie.js?v=29"></script>
 <script src="venda/contrato-vendida.js?v=2"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele.
@@ -1683,7 +1709,7 @@ function abaSetor(t){
 let COND=null, COND_ABERTA=null, COND_CARREGANDO=false;
 /* 31/10/2026: aba aberta no cartão do condomínio — fica a mesma ao redesenhar e ao abrir outra unidade */
 let COND_ABA="resumo";
-const CD_ABAS=[["resumo","Resumo"],["prereserva","Pré-reserva"],["documentos","Documentos"],["contrato","Contrato"],["andamento","Andamento"]];
+const CD_ABAS=[["resumo","Resumo"],["prereserva","Pré-reserva"],["documentos","Documentos"],["contrato","Contrato"],["financeiro","Financeiro"],["andamento","Andamento"]];
 const CD_PADRAO=["UNIDADE","CONDOMÍNIO","PROPONENTE","CORRETOR","CPF CORRETOR","STATUS DO CADASTRO","DATA DA VENDA","VALOR DE VENDA","COMISSÃO",
   "VALOR DO CRÉDITO","VALOR DA PARCELA","DATA DE ASSINATURA DO CONTRATO","DIA PAGAMENTO PARCELAS","DATA DA ENTREGA",
   "DATA SINAL 30 DIAS","DATA SINAL 60 DIAS","DATA SINAL 90 DIAS",
@@ -1987,7 +2013,7 @@ function condIrEtapa(sel){
   el.scrollIntoView({behavior:"smooth",block:"start"});
 }
 /* 31/10/2026: em que aba do cartão mora um bloco (data-sec do vendas.html ou classe do venda-dossie.js) */
-const CD_ABA_DO_BLOCO={"vb-pr":"prereserva","vb-pr-ass":"prereserva","vb-conf":"documentos","vb-ct":"contrato","vb-ass":"contrato","vb-mc":"contrato"};
+const CD_ABA_DO_BLOCO={"vb-pr":"prereserva","vb-pr-ass":"prereserva","vb-conf":"documentos","vb-ct":"contrato","vb-ass":"contrato","vb-mc":"contrato","vb-fin":"financeiro","vb-antec":"financeiro"};
 function condAbaDoBloco(el){
   const sec=el.closest&&el.closest("[data-sec]"); if(sec) return sec.getAttribute("data-sec");
   let n=el; while(n&&n.parentElement&&n.parentElement.id!=="cd-venda") n=n.parentElement;
@@ -2004,6 +2030,7 @@ function condTrocarAba(aba){
   const box=document.querySelector("#cd-card .cd-cardbox"); if(!box) return;
   box.setAttribute("data-aba",aba);
   box.querySelectorAll(".cd-abas .tab").forEach(b=>{ const on=b.getAttribute("data-aba")===aba; b.classList.toggle("on",on); b.setAttribute("aria-selected",on); });
+  if(window.VendaBlocos&&VendaBlocos.aba) VendaBlocos.aba(aba);   /* o Financeiro só lê as parcelas quando abre */
 }
 /* 31/10/2026: valor de venda e comissão do topo do cartão. Com o fluxo alterado o valor é o da lista; a comissão
    continua a da proposta, avisando quando o contrato a refaz (valor da casa ou prazo das pós-chaves mudou) */
@@ -2085,16 +2112,38 @@ function condAbrir(id){
       '<button class="cd-bt pri" id="cd-calc" onclick="condCalcular(\''+esc(id)+'\')">Salvar e recalcular o fluxo</button>'+
       '<div class="cd-prog" id="cd-prog" style="display:none;flex-basis:100%"></div>'+
     '</div>'+
-    '<details class="cd-dobra"><summary>Quadro do pro soluto (sinal, pré-chaves, balões, pós-chaves)</summary><div id="cd-quadro">'+condQuadroHtml(l,fx)+'</div></details>'+
+    '<details class="cd-dobra"><summary>Quadro do pro soluto (sinal, pré-chaves, balões, pós-chaves)</summary><div id="cd-quadro">'+condQuadroHtml(l,fx)+'</div>'+
+      '<div style="margin-top:10px"><button type="button" class="cd-bt" onclick="condPdfFluxo(COND_ABERTA)">📄 PDF do fluxo para o cliente</button></div></details>'+
     '</div>'+
     '<div data-sec="andamento">'+condAndamentoHtml(l)+'</div>'+
     condTelaVendaHtml()+
     '</div>';
   document.getElementById("cd-card").style.display="block";
-  if(window.VendaBlocos) VendaBlocos.montar(document.getElementById("cd-venda"),id);   /* entrega 7: contrato, assinatura e Mais Controle da linha */
+  if(window.VendaBlocos){ VendaBlocos.montar(document.getElementById("cd-venda"),id); if(VendaBlocos.aba) VendaBlocos.aba(COND_ABA); }   /* entrega 7: contrato, assinatura e Mais Controle da linha */
 }
 /* 07/10 (entrega 7) — TELA DE VENDA do condomínio: os blocos CONTRATO / ASSINATURA / MAIS CONTROLE
    da tela de venda das casas, para a própria linha (venda-dossie.js desenha em #cd-venda). */
+/* 31/10/2026 (dono): PDF do fluxo para mandar ao cliente — o mesmo quadro do pro soluto numa página limpa,
+   com a impressão do navegador aberta ("Salvar como PDF"). Sem servidor: sai do que está na tela. */
+function condPdfFluxo(id){
+  const l=COND&&COND.linhas.find(x=>x.id===id); if(!l) return;
+  const g=n=>cdVal(l,n), fx=condFluxo(l);
+  const corpo=document.createElement("div"); corpo.innerHTML=condQuadroHtml(l,fx);
+  corpo.querySelectorAll(".cd-falta,.cd-aviso,.cd-abat").forEach(x=>x.remove());
+  const w=window.open("","_blank"); if(!w){ alert("O navegador bloqueou a janela — libere pop-ups para o portal e clique de novo."); return; }
+  const tit="Fluxo de pagamento - Unidade "+(g(COND.titulo)||"")+" - "+(g("CONDOMÍNIO")||"");
+  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(tit)+'</title><style>'+
+    'body{font-family:Inter,Arial,sans-serif;color:#1a3347;margin:28px}h1{font-size:20px;margin:0 0 4px;color:#295778}'+
+    '.sub{color:#5a8099;font-size:13px;margin-bottom:16px}table{width:100%;border-collapse:collapse;font-size:13px}'+
+    'th{background:#295778;color:#fff;padding:7px 10px;text-align:left}td{padding:7px 10px;border-bottom:1px solid #d0e4ec}'+
+    'td.r{text-align:right;white-space:nowrap}tr.gr td{background:#dceaef;font-weight:800;font-size:11.5px;color:#295778}'+
+    'tr.tot td{background:#FBEEC8;font-weight:800;color:#7A4A16}.cd-etapa{display:none}small{color:#5a8099}'+
+    '.rod{margin-top:18px;font-size:11.5px;color:#5a8099}@media print{body{margin:12mm}}</style></head><body>'+
+    '<h1>'+esc(tit)+'</h1><div class="sub">'+esc(g("PROPONENTE")||"")+' · valores sujeitos a reajuste conforme o contrato</div>'+
+    corpo.innerHTML+'<div class="rod">Morais Engenharia · gerado em '+new Date().toLocaleDateString("pt-BR")+'</div>'+
+    '<script>setTimeout(function(){window.print()},300)<\/script></body></html>');
+  w.document.close();
+}
 function condTelaVendaHtml(){
   if(!window.VendaBlocos) return "";
   return '<div id="cd-venda"></div>';   /* 31/10/2026: sem a caixa "TELA DE VENDA" — cada bloco aparece na sua aba */

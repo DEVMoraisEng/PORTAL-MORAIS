@@ -41,6 +41,46 @@ var ConferenciaDocs = (function () {
     return out;
   }
 
+  /* 31/10/2026 (dono): "Corrigir aqui" na conferência — em que coluna(s) da linha do condomínio mora o campo
+   * conferido, pela mesma regra do CondominioVenda.mapear (PROPONENTE é o comprador 1; o bloco "… COMPRADOR 1"
+   * é o comprador 2 quando é outra pessoa, ou a reserva do proponente). `seg` = CondominioVenda.temSegundo;
+   * `v(nome)` = valor atual da coluna. Devolve [{ coluna, rotulo }] (o endereço são cinco colunas) ou [] quando
+   * o campo não se corrige aqui. */
+  var OPCOES_CIVIL = ["SOLTEIRO", "CASADO", "DIVORCIADO", "VIUVO", "UNIAO ESTAVEL"];   /* completar-venda.html */
+  var END_PROPONENTE = [["ENDEREÇO", "Rua"], ["NÚMERO", "Número"], ["SETOR", "Setor"], ["CIDADE", "Cidade"], ["CEP", "CEP"]];
+  var END_BLOCO1 = [["ENDERECO COMPRADOR 1", "Rua"], ["NUMERO COMPRADOR 1", "Número"], ["SETOR COMPRADOR 1", "Setor"],
+                    ["CIDADE COMPRADOR 1", "Cidade"], ["CEP COMPRADOR 1", "CEP"]];
+  function camposParaCorrigir(item, campo, seg, v) {
+    v = v || function () { return ""; };
+    function um(coluna, rotulo) { return [{ coluna: coluna, rotulo: rotulo }]; }
+    /* comprador 1: o campo do proponente, ou o do bloco "… COMPRADOR 1" quando é ele que está preenchido (reserva) */
+    function doC1(doProp, doBloco, rotulo) {
+      if (seg || txt(v(doProp)) || !txt(v(doBloco))) return um(doProp, rotulo);
+      return um(doBloco, rotulo);
+    }
+    var f = /^f([12])-id$/.exec(item);
+    if (item === "c1-id") {
+      if (campo === "nome") return doC1("PROPONENTE", "COMPRADOR 1", "Nome");
+      if (campo === "cpf") return doC1("CPF PROPONENTE", "CPF COMPRADOR 1", "CPF");
+      if (campo === "rg") return doC1("RG PROPONENTE", "RG COMPRADOR 1", "RG");
+    } else if (item === "c1-end" && campo === "endereco") {
+      var temProp = END_PROPONENTE.some(function (x) { return txt(v(x[0])); });
+      var lista = seg || temProp || !END_BLOCO1.some(function (x) { return txt(v(x[0])); }) ? END_PROPONENTE : END_BLOCO1;
+      return lista.map(function (x) { return { coluna: x[0], rotulo: x[1] }; });
+    } else if (item === "c1-civil" && campo === "estado_civil") {
+      /* a coluna é texto: as mesmas opções que o "completar venda" grava (teste de tela de 31/10 abriu texto livre) */
+      return [{ coluna: "ESTADO CIVIL", rotulo: "Estado civil", opcoes: OPCOES_CIVIL.slice() }];
+    } else if (item === "c2-id" && seg) {
+      if (campo === "nome") return um("COMPRADOR 1", "Nome");
+      if (campo === "cpf") return um("CPF COMPRADOR 1", "CPF");
+      if (campo === "rg") return um("RG COMPRADOR 1", "RG");
+    } else if (f) {
+      if (campo === "nome") return um("FIADOR " + f[1], "Nome");
+      if (campo === "cpf") return um("CPF FIADOR " + f[1], "CPF");
+    }
+    return [];
+  }
+
   /* ---- comparações (o lido vem da IA; "" = ilegível/ausente) ---- */
   function palavras(s) { return chave(s).split(/[^A-Z0-9]+/).filter(function (w) { return w.length >= 2; }); }
   function nomeConfere(esp, lido) {
@@ -133,7 +173,8 @@ var ConferenciaDocs = (function () {
   }
 
   var api = { COL: COL, COLUNAS: COLUNAS, plano: plano, comparar: comparar, lidoDe: lidoDe, resultado: resultado, resumo: resumo,
-              nomeConfere: nomeConfere, enderecoConfere: enderecoConfere, civilConfere: civilConfere };
+              nomeConfere: nomeConfere, enderecoConfere: enderecoConfere, civilConfere: civilConfere,
+              camposParaCorrigir: camposParaCorrigir };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   return api;
 })();
