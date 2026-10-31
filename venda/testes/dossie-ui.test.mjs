@@ -292,3 +292,18 @@ test("conferência: linha que diverge tem 'Corrigir aqui'; com o campo aberto, m
   assert.doesNotMatch(civ, /d-corr-usar/);
   assert.match(D.htmlCorrigir(e.linhas[0], { erro: "x" }, ""), /data-acao="d-corr-cancelar"/);
 });
+
+/* 31/10/2026 (dono): cartão enxuto — sem o nome do arquivo do termo e sem o texto explicativo da conferência */
+test("conferência ainda não feita mostra só 'Ainda não conferido.'", () => {
+  const h = D.htmlConferencia({ feito: false, linhas: [] }, {});
+  assert.match(h, /<div class="dz-linha">Ainda não conferido\.<\/div>/);
+  assert.doesNotMatch(h, /A IA lê os documentos/);
+});
+
+/* htmlPreReserva usa listas que só existem no navegador (não roda no node): confere no código */
+test("pré-reserva com termo gerado mostra só 'Termo gerado', sem o nome do arquivo", async () => {
+  const fs = await import("node:fs");
+  const src = fs.readFileSync(new URL("../../venda-dossie.js", import.meta.url), "utf8");
+  assert.match(src, /if \(e\.gerado\) h \+= '<div class="dz-linha">Termo gerado<\/div>';/);
+  assert.doesNotMatch(src, /Termo gerado: /);
+});
