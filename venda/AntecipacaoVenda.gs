@@ -137,6 +137,9 @@ function antAlvoDe_(res, parcelaId) {
   return (res.depois || []).filter(function (x) { return x.id === parcelaId; })[0] || null;
 }
 
+/* decisão 5 do dono: a simulação vale até o fim do mês OU até sair o novo índice de correção, o que vier primeiro */
+function antValidade_() { return "válida até " + antDataBR_(antFimDoMes_()) + " ou até a publicação do novo índice, o que vier primeiro"; }
+
 /* soma das parcelas vencidas que ficam fora da conta (0 quando não há) */
 function antVencidas_(sit) { return antSoma_((sit && sit.vencidas) || [], "valor"); }
 
@@ -167,7 +170,7 @@ function antExplicar_(e, res, parcelaId, sit) {
 
 function antHtmlCliente_(e, res, unidade, parcelaId, sit) {
   var ex = antExplicar_(e, res, parcelaId, sit), saldo = sit.saldo, resta = antArred_(saldo - res.valor);
-  var validade = antFimDoMes_(), r = res.resumo || {};
+  var r = res.resumo || {};
   /* o saldo é só o que a conta alcança: parcela vencida fica fora dela e o cliente precisa saber disso */
   var linhas = [["Saldo que pode ser antecipado (corrigido)", antBRL_(saldo)], ["Valor da antecipação", antBRL_(res.valor)], ["Fica a pagar depois", antBRL_(resta)]];
   var fora = antVencidas_(sit);
@@ -180,7 +183,7 @@ function antHtmlCliente_(e, res, unidade, parcelaId, sit) {
           ".rodape{margin-top:28px;font-size:11px;color:#555;border-top:1px solid #ccc;padding-top:8px}</style></head><body>" +
           "<h1>RESERVA DOS IPÊS · Simulação de antecipação</h1>" +
           "<p class=\"sub\">" + (unidade ? "Unidade: <b>" + antEsc_(unidade) + "</b> · " : "") + "Emitida em " + antEsc_(antDataBR_(hoje_("yyyy-MM-dd"))) +
-          " · válida até " + antEsc_(antDataBR_(validade)) + "</p><table>";
+          " · " + antEsc_(antValidade_()) + "</p><table>";
   linhas.forEach(function (l, i) { h += "<tr" + (i === 1 ? " class=\"dest\"" : "") + "><td>" + antEsc_(l[0]) + "</td><td class=\"v\">" + antEsc_(l[1]) + "</td></tr>"; });
   h += "<tr><td>Pagamento em</td><td class=\"v\">" + antEsc_(antDataBR_(res.dataPg)) + "</td></tr></table>";
   h += "<h2>Jeito escolhido: " + antEsc_(ANT_JEITOS[res.modo] || res.modo) + "</h2>";
@@ -194,7 +197,7 @@ function antHtmlCliente_(e, res, unidade, parcelaId, sit) {
   if (r.proximo) h += "<tr><td>Próximo pagamento</td><td class=\"v\">" + antEsc_(antDataBR_(r.proximo.data)) + " · " + antBRL_(r.proximo.valor) + "</td></tr>";
   if (r.ultimo) h += "<tr><td>Última parcela</td><td class=\"v\">" + antEsc_(antDataBR_(r.ultimo.data)) + " · " + antBRL_(r.ultimo.valor) + "</td></tr>";
   if (!r.proximo) h += "<tr><td colspan=\"2\">Nenhuma parcela fica a pagar nessas condições.</td></tr>";
-  h += "</table><p class=\"rodape\">Valores de hoje. As parcelas que ficam continuam corrigidas conforme o item 7.1 do contrato.</p></body></html>";
+  h += "</table><p class=\"rodape\">Valores de hoje; simulação " + antEsc_(antValidade_()) + ". As parcelas que ficam continuam corrigidas conforme o item 7.1 do contrato.</p></body></html>";
   return h;
 }
 
@@ -224,7 +227,7 @@ function antTextoWhatsApp_(e, res, parcelaId, sit) {
   }
   var fora = antVencidas_(sit);
   if (fora) l.push("Fora desta conta: parcelas vencidas " + antBRL_(fora) + ".");
-  l.push("Valores de hoje; simulação válida até " + antDataBR_(antFimDoMes_()) + ".");
+  l.push("Valores de hoje; simulação " + antValidade_() + ".");
   return l.join("\n");
 }
 
@@ -258,7 +261,7 @@ function antecipacaoPdf_(col, sess, p) {
   var valor = typeof p.valor === "number" ? p.valor : (p.valor == null ? NaN : (Antecipacao.lerValor(p.valor) || NaN));
   var quantas = p.quantas == null || p.quantas === "" ? null : Number(p.quantas);
   var dataPg = String(p.dataPg || "").slice(0, 10), parcelaId = p.parcelaId == null ? undefined : String(p.parcelaId);
-  /* o fator é o de hoje e o PDF diz "valores de hoje, válida até o fim do mês": data de outro mês ou já passada não vale.
+  /* o fator é o de hoje e o PDF diz "valores de hoje, válida até o fim do mês ou até o novo índice": data de outro mês ou já passada não vale.
      Data fora do formato fica para a conta (DATA_INVALIDA). */
   if (/^\d{4}-\d{2}-\d{2}$/.test(dataPg) && (dataPg.slice(0, 7) !== hoje_("yyyy-MM") || dataPg < hoje_("yyyy-MM-dd")))
     return { ok: false, erro: "DATA_FORA_DO_MES" };

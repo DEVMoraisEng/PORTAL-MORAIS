@@ -446,3 +446,15 @@ test("PDF e WhatsApp: sem parcela vencida não há a linha 'Fora desta conta'", 
   assert.match(m.ant.html[0], /Saldo que pode ser antecipado/);
   assert.doesNotMatch(m.ant.html[0], /Fora desta conta/); assert.doesNotMatch(r.texto, /Fora desta conta/);
 });
+
+test("validade (decisão 5): fim do mês OU publicação do novo índice, o que vier primeiro — no cabeçalho e no rodapé do PDF e no WhatsApp", () => {
+  const m = montar();
+  const r = chamar(m, "antecipacaoPdf", { modo: "B", valor: 30000, dataPg: "2026-10-25" });
+  assert.equal(r.ok, true);
+  const frase = "válida até 31/10/2026 ou até a publicação do novo índice, o que vier primeiro";
+  const html = m.ant.html[0];
+  assert.equal(html.split(frase).length - 1, 2, "cabeçalho e rodapé");
+  assert.ok(r.texto.includes("simulação " + frase + "."), r.texto);
+  assert.doesNotMatch(html.replace(new RegExp(frase, "g"), ""), /válida até/);
+  assert.doesNotMatch(r.texto.replace(frase, ""), /válida até/);
+});
