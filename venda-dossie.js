@@ -907,7 +907,7 @@
 
   var exportar = { URL_PORTAL_VENDA: URL_PORTAL_VENDA, DOCS: DOCS, html: html, mensagemDeErro: mensagemDeErro,
                    htmlRecebimentos: htmlRecebimentos, mensagemRec: mensagemRec,
-                   htmlConferencia: htmlConferencia, htmlCorrigir: htmlCorrigir,
+                   htmlConferencia: htmlConferencia, htmlCorrigir: htmlCorrigir, htmlFinanceiro: htmlFinanceiro,
                    DOCS_IMOVEL: DOCS_IMOVEL, htmlImovel: htmlImovel, dadosImovel: dadosImovel, htmlLoteamento: htmlLoteamento,
                    grupoDoEspaco: grupoDoEspaco,
                    linhaDoc: linhaDoc, htmlLerTodos: htmlLerTodos, resultadosLote: resultadosLote, resumoLote: resumoLote,
@@ -1270,6 +1270,46 @@
   /* ---- 28/10/2026: Conferência dos documentos (Conferencia.gs) ----
    * e = { feito, linhas, confirmados, em, por, atual } (conferenciaEstado); u = { ocupado, msg, testes }.
    * Comandos: d-conferir, d-abrir-<i> (o documento pelo portal), d-ok-<i> ("Conferi, está certo"). */
+  /* 31/10/2026 (dono, etapa 4): aba Financeiro do cartão do condomínio — as parcelas da venda lidas do Mais Controle
+   * (financeiroEstado no PORTAL-VENDA) para o coordenador comercial ver o que está pago, a vencer e em atraso.
+   * e = { lancada, lidoEm, semLeitura, parcelas: [{ grupo, numero, de, vencimento, valor, valorCorrigido, situacao
+   * ("paga" | "aberta" | "atrasada"), pagoEm, diasAtraso }] }; u = { filtro, todas, msg, carregando }. */
+  function htmlFinanceiro(e, u) {
+    u = u || {};
+    var h = '<div class="grp">Financeiro · parcelas no Mais Controle</div>';
+    if (u.carregando || !e) return h + '<div class="vazio">' + esc(u.msg || "lendo as parcelas…") + "</div>";
+    if (!e.lancada) return h + '<div class="vazio">A venda ainda não foi lançada no Mais Controle — as parcelas aparecem aqui depois do lançamento (aba Contrato).</div>';
+    if (e.semLeitura || !(e.parcelas || []).length)
+      return h + '<div class="vazio">Venda lançada no Mais Controle. A leitura diária das parcelas ainda não chegou para esta venda.</div>';
+    function brl(v) { return "R$ " + Number(v || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+    function dt(s) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || "")); return m ? m[3] + "/" + m[2] + "/" + m[1] : esc(s || "—"); }
+    var P = e.parcelas;
+    function soma(k) { return P.filter(function (x) { return x.situacao === k; }).reduce(function (a, x) { return a + Number(x.valorCorrigido || x.valor || 0); }, 0); }
+    function qt(k) { return P.filter(function (x) { return x.situacao === k; }).length; }
+    var atr = P.filter(function (x) { return x.situacao === "atrasada"; });
+    if (atr.length) h += '<div class="cd-falta"><b>' + atr.length + (atr.length > 1 ? " parcelas em atraso" : " parcela em atraso") + "</b> — a mais antiga: " +
+      esc(atr[0].grupo) + " " + atr[0].numero + "/" + atr[0].de + ", venceu em " + dt(atr[0].vencimento) + " (" + Number(atr[0].diasAtraso || 0) + " dias).</div>";
+    h += '<div class="cd-kpis" style="margin-top:10px">' +
+      '<div class="cd-kpi"><small>Pago</small><b>' + brl(soma("paga")) + "</b><span>" + qt("paga") + " parcelas</span></div>" +
+      '<div class="cd-kpi"><small>Em atraso</small><b>' + brl(soma("atrasada")) + "</b><span>" + qt("atrasada") + " parcelas</span></div>" +
+      '<div class="cd-kpi"><small>A vencer (corrigido)</small><b>' + brl(soma("aberta")) + "</b><span>" + qt("aberta") + " parcelas</span></div></div>";
+    var f = u.filtro || "todas", FILTROS = [["todas", "Todas"], ["atrasada", "Em atraso"], ["aberta", "A vencer"], ["paga", "Pagas"]];
+    h += '<div class="dz-linha">' + FILTROS.map(function (x) {
+      return '<button type="button" class="bt bt-mini' + (x[0] === f ? "" : " ghost") + '" data-acao="f-filtro-' + x[0] + '">' + x[1] + "</button>";
+    }).join(" ") + ' <span class="ass-data">lido do Mais Controle em ' + esc(String(e.lidoEm || "").replace("T", " ").slice(0, 16)) + "</span></div>";
+    var lista = P.filter(function (x) { return f === "todas" || x.situacao === f; });
+    var corte = !u.todas && f === "todas" && lista.length > 12 ? 12 : lista.length;
+    var SIT = { paga: '<b class="ass-ok">✓ paga</b>', aberta: '<span class="ass-data">a vencer</span>', atrasada: '<b class="ass-rec">⚠ em atraso</b>' };
+    h += '<div style="overflow-x:auto"><table class="cd-fl"><thead><tr><th>Parcela</th><th>Vencimento</th><th style="text-align:right">Valor</th><th style="text-align:right">Corrigido</th><th>Situação</th></tr></thead><tbody>' +
+      lista.slice(0, corte).map(function (x) {
+        return "<tr><td>" + esc(x.grupo) + " " + x.numero + "/" + x.de + "</td><td>" + dt(x.vencimento) + '</td><td class="r">' + brl(x.valor) + '</td><td class="r">' + brl(x.valorCorrigido || x.valor) +
+          "</td><td>" + (SIT[x.situacao] || esc(x.situacao)) + (x.situacao === "paga" && x.pagoEm ? ' <span class="ass-data">em ' + dt(x.pagoEm) + "</span>" : "") +
+          (x.situacao === "atrasada" ? ' <span class="ass-data">' + Number(x.diasAtraso || 0) + " dias</span>" : "") + "</td></tr>";
+      }).join("") + "</tbody></table></div>";
+    if (corte < lista.length) h += '<div class="dz-linha"><button type="button" class="bt ghost bt-mini" data-acao="f-todas">Mostrar as ' + lista.length + " parcelas</button></div>";
+    if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
+    return h;
+  }
   /* 31/10/2026 (dono): "Corrigir aqui" — o campo da venda que alimenta a linha, aberto na própria conferência.
    * c = { i, carregando, erro, campos: [{ coluna, rotulo, valor, opcoes }] } (corrigirConferenciaCampos). */
   function htmlCorrigir(l, c, dis) {
@@ -1423,6 +1463,7 @@
     var raiz = null, seqC = 0, carregandoC = false, estadoC = null, uiC = novoUiC();
     var estadoM = null, uiM = novoUiM(), esperaM = null, ctxA = novoCtxA();
     var estadoR = null, uiR = novoUiR();
+    var estadoF = null, uiF = { filtro: "todas", todas: false, msg: "", carregando: false };   /* 31/10: aba Financeiro */
     /* 27/10/2026: termo de pré-reserva (condomínio) */
     /* 28/10: soPR = só os blocos da pré-reserva (a janela do "Pagou preferência" na tela de propostas) */
     var soPR = !!(opts && opts.soPreReserva);
@@ -1464,7 +1505,23 @@
         (comPR ? '<div class="vb-ct">' + htmlContrato(estadoC, uiC) + "</div>" : htmlContrato(estadoC, uiC)) +
         '<div class="vb-ass">' + htmlAss() + "</div>" +
         (comRec ? '<div class="vb-rec">' + htmlRecebimentos(estadoR, uiR) + "</div>" : "") +
-        '<div class="vb-mc">' + htmlMC(estadoM, uiM) + "</div>";
+        '<div class="vb-mc">' + htmlMC(estadoM, uiM) + "</div>" +
+        (comPR ? '<div class="vb-fin">' + htmlFinanceiro(estadoF, uiF) + "</div>" : "");   /* 31/10: aba Financeiro (só condomínio) */
+    }
+    function pintarF() { var w = dentro(".vb-fin"); if (w) w.innerHTML = htmlFinanceiro(estadoF, uiF); }
+    /* lida só quando a aba Financeiro abre (VendaBlocos.aba) — não pesa a abertura do cartão */
+    async function carregarF() {
+      if (uiF.carregando) return;
+      uiF.carregando = true; uiF.msg = ""; pintarF();
+      var r = await chamarVenda({ action: "financeiroEstado", pageId: pageId }, 90000);
+      if (!vivo()) return;
+      if (r.ok) { estadoF = r; uiF.carregando = false; pintarF(); return; }
+      uiF.msg = mensagemContrato(r); pintarF(); uiF.carregando = false;
+    }
+    function aoClicarFin(acao) {
+      var m = /^f-filtro-(\w+)$/.exec(acao);
+      if (m) { uiF.filtro = m[1]; uiF.todas = false; pintarF(); return; }
+      if (acao === "f-todas") { uiF.todas = true; pintarF(); }
     }
     /* entrega 14: Recebimentos — a data digitada sobrevive ao redesenho; o arquivo escolhido fica em uiR.arquivos */
     function guardarRascunhoR() {
@@ -1822,6 +1879,7 @@
       var acao = b.getAttribute("data-acao"), r, seq;
       if (/^mc-/.test(acao)) return aoClicarMC(acao);
       if (/^pr-/.test(acao)) return aoClicarPR(acao);
+      if (/^f-/.test(acao)) return aoClicarFin(acao);
       if (/^d-/.test(acao)) return aoClicarConf(acao);
       if (acao === "p-ver-assinado") return verAssinadoPR();
       if (/^p-/.test(acao)) return aoClicarAssPR(acao);
@@ -2197,6 +2255,7 @@
     eu.raiz = function () { return raiz; };
     eu.pintarAssinatura = function () { pintarA(); if (comPR) { var a = dentro(".vb-pr-ass"); if (a) a.innerHTML = htmlAssPR(); } };
     eu.parar = function () { if (esperaM) clearTimeout(esperaM); esperaM = null; };
+    eu.abrirAba = function (aba) { if (aba === "financeiro" && comPR && !soPR && !estadoF) carregarF(); };
     return eu;
   }
 
@@ -2251,7 +2310,9 @@
     blocosPR.anexar(el);
   }
   function soltarPreReserva() { if (blocosPR) blocosPR.parar(); blocosPR = null; }
-  window.VendaBlocos = { montar: montarCondominio, soltar: soltarCondominio, montarPreReserva: montarPreReserva, soltarPreReserva: soltarPreReserva };
+  /* 31/10/2026: o cartão avisa a aba aberta — o Financeiro só lê quando abre */
+  function abaCondominio(aba) { if (blocosCond) blocosCond.abrirAba(aba); }
+  window.VendaBlocos = { montar: montarCondominio, soltar: soltarCondominio, montarPreReserva: montarPreReserva, soltarPreReserva: soltarPreReserva, aba: abaCondominio };
 
   function garantirBloco(body) {
     var id = obraAberta();

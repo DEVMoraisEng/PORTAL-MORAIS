@@ -395,7 +395,8 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 .cd-cardbox[data-aba="prereserva"] #cd-venda>.vb-pr,.cd-cardbox[data-aba="prereserva"] #cd-venda>.vb-pr-ass,
 .cd-cardbox[data-aba="documentos"] #cd-venda>.vb-conf,
 .cd-cardbox[data-aba="contrato"] #cd-venda>.vb-ct,.cd-cardbox[data-aba="contrato"] #cd-venda>.vb-ass,
-.cd-cardbox[data-aba="contrato"] #cd-venda>.vb-mc{display:block}
+.cd-cardbox[data-aba="contrato"] #cd-venda>.vb-mc,
+.cd-cardbox[data-aba="financeiro"] #cd-venda>.vb-fin,.cd-cardbox[data-aba="financeiro"] #cd-venda>.vb-antec{display:block}
 details.cd-dobra{border:1.5px solid var(--border2);border-radius:10px;background:var(--bg2);margin:0 0 14px}
 details.cd-dobra>summary{cursor:pointer;padding:9px 12px;font-weight:700;font-size:13px;color:var(--azul)}
 details.cd-dobra>div{padding:0 12px 12px}
@@ -1146,7 +1147,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 <script src="venda/painel-casa.js?v=1"></script>
 <script src="venda/FluxoLivre.js?v=3"></script><!-- 29/10: Alterar fluxo -->
 <script src="venda/quadro-fluxo.js?v=1"></script><!-- 31/10: quadro do pro soluto segue o fluxo alterado -->
-<script src="venda-dossie.js?v=24"></script>
+<script src="venda-dossie.js?v=25"></script>
 <script src="venda/contrato-vendida.js?v=2"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele.
@@ -1683,7 +1684,7 @@ function abaSetor(t){
 let COND=null, COND_ABERTA=null, COND_CARREGANDO=false;
 /* 31/10/2026: aba aberta no cartão do condomínio — fica a mesma ao redesenhar e ao abrir outra unidade */
 let COND_ABA="resumo";
-const CD_ABAS=[["resumo","Resumo"],["prereserva","Pré-reserva"],["documentos","Documentos"],["contrato","Contrato"],["andamento","Andamento"]];
+const CD_ABAS=[["resumo","Resumo"],["prereserva","Pré-reserva"],["documentos","Documentos"],["contrato","Contrato"],["financeiro","Financeiro"],["andamento","Andamento"]];
 const CD_PADRAO=["UNIDADE","CONDOMÍNIO","PROPONENTE","CORRETOR","CPF CORRETOR","STATUS DO CADASTRO","DATA DA VENDA","VALOR DE VENDA","COMISSÃO",
   "VALOR DO CRÉDITO","VALOR DA PARCELA","DATA DE ASSINATURA DO CONTRATO","DIA PAGAMENTO PARCELAS","DATA DA ENTREGA",
   "DATA SINAL 30 DIAS","DATA SINAL 60 DIAS","DATA SINAL 90 DIAS",
@@ -1987,7 +1988,7 @@ function condIrEtapa(sel){
   el.scrollIntoView({behavior:"smooth",block:"start"});
 }
 /* 31/10/2026: em que aba do cartão mora um bloco (data-sec do vendas.html ou classe do venda-dossie.js) */
-const CD_ABA_DO_BLOCO={"vb-pr":"prereserva","vb-pr-ass":"prereserva","vb-conf":"documentos","vb-ct":"contrato","vb-ass":"contrato","vb-mc":"contrato"};
+const CD_ABA_DO_BLOCO={"vb-pr":"prereserva","vb-pr-ass":"prereserva","vb-conf":"documentos","vb-ct":"contrato","vb-ass":"contrato","vb-mc":"contrato","vb-fin":"financeiro","vb-antec":"financeiro"};
 function condAbaDoBloco(el){
   const sec=el.closest&&el.closest("[data-sec]"); if(sec) return sec.getAttribute("data-sec");
   let n=el; while(n&&n.parentElement&&n.parentElement.id!=="cd-venda") n=n.parentElement;
@@ -2004,6 +2005,7 @@ function condTrocarAba(aba){
   const box=document.querySelector("#cd-card .cd-cardbox"); if(!box) return;
   box.setAttribute("data-aba",aba);
   box.querySelectorAll(".cd-abas .tab").forEach(b=>{ const on=b.getAttribute("data-aba")===aba; b.classList.toggle("on",on); b.setAttribute("aria-selected",on); });
+  if(window.VendaBlocos&&VendaBlocos.aba) VendaBlocos.aba(aba);   /* o Financeiro só lê as parcelas quando abre */
 }
 /* 31/10/2026: valor de venda e comissão do topo do cartão. Com o fluxo alterado o valor é o da lista; a comissão
    continua a da proposta, avisando quando o contrato a refaz (valor da casa ou prazo das pós-chaves mudou) */
@@ -2094,7 +2096,7 @@ function condAbrir(id){
     condTelaVendaHtml()+
     '</div>';
   document.getElementById("cd-card").style.display="block";
-  if(window.VendaBlocos) VendaBlocos.montar(document.getElementById("cd-venda"),id);   /* entrega 7: contrato, assinatura e Mais Controle da linha */
+  if(window.VendaBlocos){ VendaBlocos.montar(document.getElementById("cd-venda"),id); if(VendaBlocos.aba) VendaBlocos.aba(COND_ABA); }   /* entrega 7: contrato, assinatura e Mais Controle da linha */
 }
 /* 07/10 (entrega 7) — TELA DE VENDA do condomínio: os blocos CONTRATO / ASSINATURA / MAIS CONTROLE
    da tela de venda das casas, para a própria linha (venda-dossie.js desenha em #cd-venda). */

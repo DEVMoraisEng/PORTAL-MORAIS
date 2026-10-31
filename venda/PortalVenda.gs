@@ -9,7 +9,7 @@
  * OPENAI_API_KEY (provedor openai), MODELO_IA (opcional, só openai),
  * ANTHROPIC_API_KEY (provedor anthropic, plano B).
  * Nenhum log com nome, CPF, endereço ou conteúdo de documento. */
-var VERSAO_VENDA = "venda-v11";   // v11: vigia de assinaturas (AssinaturaVigia.gs, 31/10/2026); v10: Corrigir aqui na conferência (31/10/2026); v9: contrato final do condomínio, termo de pré-reserva e etapas da venda (27/10/2026); v8: leitura em lote, certidão mãe e data do habite-se (entrega 13); v7: campos abertos e conta de recebimento no contrato (entrega 12); v6: documentos do imóvel lidos pela IA (entrega 11); v5: pré-contrato grifado (entrega 9)
+var VERSAO_VENDA = "venda-v12";   // v12: aba Financeiro, financeiroEstado (31/10/2026); v11: vigia de assinaturas (AssinaturaVigia.gs, 31/10/2026); v10: Corrigir aqui na conferência (31/10/2026); v9: contrato final do condomínio, termo de pré-reserva e etapas da venda (27/10/2026); v8: leitura em lote, certidão mãe e data do habite-se (entrega 13); v7: campos abertos e conta de recebimento no contrato (entrega 12); v6: documentos do imóvel lidos pela IA (entrega 11); v5: pré-contrato grifado (entrega 9)
 var NOTION_VERSION = "2022-06-28";
 var ERROS_CONHECIDOS = /^(COLUNA_FALTANDO|TIPO_DE_COLUNA_ERRADO|BACKEND_SEM_CONFIG|PAGINA_DE_OUTRA_BASE)/;
 var REGEX_PAGE_ID = /^[0-9a-f]{32}$|^[0-9a-f-]{36}$/i;
@@ -103,6 +103,7 @@ function executar_(col, sess, p) {
       case "verDocumentoConferencia": return verDocumentoConferencia_(col, p);
       case "corrigirConferenciaCampos": return corrigirConferenciaCampos_(col, p);   /* 31/10: Corrigir aqui */
       case "corrigirConferencia": return corrigirConferencia_(col, sess, p);
+      case "financeiroEstado": return financeiroEstado_(col, p);   /* 31/10: aba Financeiro (FinanceiroVenda.gs), só leitura */
       case "recebimentoEstado": return recebimentoEstado_(col, p);
       case "recebimentoConfirmar": return recebimentoConfirmar_(col, sess, p);
       default: return { ok: false, erro: "ACAO_DESCONHECIDA" };
