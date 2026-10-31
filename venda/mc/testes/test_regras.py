@@ -197,3 +197,17 @@ def test_corretor_vai_na_observacao():
     assert c["comment"] == "Corretor: Corretor Exemplo | Imobiliária: Imob Exemplo | Comissão: R$ 10.000,00 (paga pelo comprador)"
     d = R.dados_da_pagina(pagina(**{"COMISSÃO": num(None), "CORRETOR": {"type": "select", "select": None}}))
     assert "comment" not in R.corpo_venda(d, {"id": "o"}, "c", {"id": "k"})
+
+
+def test_data_com_ano_absurdo_e_falta_antes_do_erp():
+    """31/10/2026: a casa 15 foi ao ERP com DATA DA VENDA 0002-10-31 (ano digitado errado) e voltou HTTP 400
+    (IsAfter.sale.tradeReceivable.referenceDate). Ano fora de 2000-2100 é falta, na venda e nas parcelas."""
+    d = R.dados_da_pagina(pagina(**{"DATA DA VENDA": data("0002-10-31")}))
+    assert "DATA DA VENDA com ano 0002 — corrija na planilha" in R.faltas(d)
+    d = R.dados_da_pagina(pagina(**{"DATA DA VENDA": data("2206-10-31")}))
+    assert "DATA DA VENDA com ano 2206 — corrija na planilha" in R.faltas(d)
+    d = R.dados_da_pagina(pagina(**{"DATA DA VENDA": data("2026-10-31")}))
+    assert R.faltas(d) == []
+    d = R.dados_da_pagina(pagina())
+    d["parcelas_prontas"] = [{"tipo": R.TIPO_SINAL, "rotulo": "Sinal ato", "valor": 1000.0, "data": "0026-11-30"}]
+    assert "Data da parcela Sinal ato com ano 0026 — corrija na planilha" in R.faltas(d)

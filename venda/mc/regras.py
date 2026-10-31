@@ -140,6 +140,17 @@ def _num(x):
 
 _RE_ISO = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _RE_BR = re.compile(r"^(\d{2})/(\d{2})/(\d{4})$")
+#: 31/10/2026: a casa 15 foi ao ERP com DATA DA VENDA 0002-10-31 e voltou HTTP 400 (IsAfter...referenceDate)
+ANO_MIN, ANO_MAX = 2000, 2100
+
+
+def _falta_de_data(nome: str, d) -> str | None:
+    """Texto da falta de uma data já convertida (None = data boa); o ano fora de ANO_MIN..ANO_MAX é digitação."""
+    if not _RE_ISO.match(d):
+        return "%s em formato que não entendi" % nome
+    if not ANO_MIN <= int(d[:4]) <= ANO_MAX:
+        return "%s com ano %s — corrija na planilha" % (nome, d[:4])
+    return None
 
 
 def _data(x):
@@ -373,8 +384,8 @@ def faltas(dados: dict, dias_financiamento: int = DIAS_FINANCIAMENTO) -> list[st
         f.append("Venda sem número da CASA")
     if not dados.get("data_venda"):
         f.append("Falta a DATA DA VENDA")
-    elif not _RE_ISO.match(dados["data_venda"]):
-        f.append("DATA DA VENDA em formato que não entendi")
+    elif erro := _falta_de_data("DATA DA VENDA", dados["data_venda"]):
+        f.append(erro)
     pp = dados.get("comissao_paga_por")
     if pp not in ("COMPRADOR", "VENDEDOR"):
         f.append("Falta COMISSÃO PAGA POR (comprador ou vendedor)")
@@ -394,8 +405,8 @@ def faltas(dados: dict, dias_financiamento: int = DIAS_FINANCIAMENTO) -> list[st
     for p in ps:
         if not p["data"]:
             f.append("Parcela %s sem data" % p["rotulo"])
-        elif not _RE_ISO.match(p["data"]):
-            f.append("Data da parcela %s em formato que não entendi" % p["rotulo"])
+        elif erro := _falta_de_data("Data da parcela %s" % p["rotulo"], p["data"]):
+            f.append(erro)
     if not ps:
         f.append("Nenhuma parcela com valor (sinal, entrada, FGTS, financiamento)")
     elif dados.get("aquisicao"):
