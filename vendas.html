@@ -1935,7 +1935,10 @@ function condEtapas(l){
   ];
   it[1].sub=it[1].feito?"preenchidas":"faltam datas"; it[2].sub=it[2].sub||(it[2].feito?"gerado":"");
   if(it[3].feito) it[3].sub="assinado"; if(it[4].feito) it[4].sub="lançada";
-  let atual=it.findIndex(x=>!x.feito);
+  /* 31/10/2026 (dono): contrato gerado, assinando ou assinado sobrepõe a pré-reserva — a etapa da linha passa a ser
+     a do contrato em diante, mesmo com o termo de pré-reserva pendente */
+  const ini=it[2].feito?2:0;
+  let atual=it.findIndex((x,i)=>i>=ini&&!x.feito);
   return {itens:it, atual:atual};   /* atual = -1: tudo feito */
 }
 function condEtapaTag(l){
