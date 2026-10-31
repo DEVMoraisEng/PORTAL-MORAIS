@@ -46,15 +46,17 @@ function antInterpretar_(a, agora) {
   else if (/^\{/.test(txt)) {
     try { o.retrato = JSON.parse(txt); } catch (err) { o.erroRobo = o.erroRobo || "RETRATO_ILEGIVEL"; }
     if (o.retrato && !Array.isArray(o.retrato.parcelas)) { o.retrato = null; o.erroRobo = o.erroRobo || "RETRATO_ILEGIVEL"; }
-  } else if (/^PROCESSANDO/.test(txt) && mcProcessandoVivo_(txt, agora)) o.processando = true;   // formato antigo
+  }
   return o;
 }
 
 function antEstadoDe_(a, agora) {
   var base = { ok: true, temFiador: a.temFiador };
-  if (a.base !== "CONDOMINIO") return Object.assign(base, { pode: false, motivo: "Só venda do " + ANT_OBRA });
-  if (!a.vendaId) return Object.assign(base, { pode: false, motivo: "A venda ainda não foi lançada no Mais Controle" });
-  if (!a.temColunas) return Object.assign(base, { pode: false, motivo: "Faltam as colunas " + ANT_COL_RETRATO + " e " + ANT_COL_EM + " (texto) na base das vendas do condomínio" });
+  /* pode:false leva os mesmos campos de estado, para a tela nunca receber undefined */
+  var nao = { pode: false, velho: true, processando: false, lido: "" };
+  if (a.base !== "CONDOMINIO") return Object.assign(base, nao, { motivo: "Só venda do " + ANT_OBRA });
+  if (!a.vendaId) return Object.assign(base, nao, { motivo: "A venda ainda não foi lançada no Mais Controle" });
+  if (!a.temColunas) return Object.assign(base, nao, { motivo: "Faltam as colunas " + ANT_COL_RETRATO + " e " + ANT_COL_EM + " (texto) na base das vendas do condomínio" });
   var i = antInterpretar_(a, agora);
   base.pode = true; base.lido = i.lido; base.processando = i.processando;
   base.velho = !i.retrato || !i.lido || i.lido.slice(0, 7) !== hoje_("yyyy-MM");
@@ -105,11 +107,11 @@ function antBRL_(n) {
 function antNum_(n) { return antBRL_(n).slice(3); }
 function antDataBR_(iso) {
   var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ""));
-  return m ? m[3] + "/" + m[2] + "/" + m[1] : String(iso || "");
+  return m ? m[3] + "/" + m[2] + "/" + m[1] : "";   // data fora do formato nunca vai para o PDF nem para o texto
 }
 function antMesAno_(iso) {
   var m = /^(\d{4})-(\d{2})/.exec(String(iso || ""));
-  return m ? ANT_MESES[Number(m[2]) - 1] + "/" + m[1] : String(iso || "");
+  return m && ANT_MESES[Number(m[2]) - 1] ? ANT_MESES[Number(m[2]) - 1] + "/" + m[1] : "";
 }
 function antEsc_(s) {
   return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -171,10 +173,10 @@ function antHtmlCliente_(e, res, unidade, parcelaId, sit) {
           "td.v{text-align:right;font-weight:bold;white-space:nowrap}.dest td{background:#eef5ee;font-size:15px}" +
           ".rodape{margin-top:28px;font-size:11px;color:#555;border-top:1px solid #ccc;padding-top:8px}</style></head><body>" +
           "<h1>RESERVA DOS IPÊS · Simulação de antecipação</h1>" +
-          "<p class=\"sub\">" + (unidade ? "Unidade: <b>" + antEsc_(unidade) + "</b> · " : "") + "Emitida em " + antDataBR_(hoje_("yyyy-MM-dd")) +
-          " · válida até " + antDataBR_(validade) + "</p><table>";
+          "<p class=\"sub\">" + (unidade ? "Unidade: <b>" + antEsc_(unidade) + "</b> · " : "") + "Emitida em " + antEsc_(antDataBR_(hoje_("yyyy-MM-dd"))) +
+          " · válida até " + antEsc_(antDataBR_(validade)) + "</p><table>";
   linhas.forEach(function (l, i) { h += "<tr" + (i === 1 ? " class=\"dest\"" : "") + "><td>" + antEsc_(l[0]) + "</td><td class=\"v\">" + antEsc_(l[1]) + "</td></tr>"; });
-  h += "<tr><td>Pagamento em</td><td class=\"v\">" + antDataBR_(res.dataPg) + "</td></tr></table>";
+  h += "<tr><td>Pagamento em</td><td class=\"v\">" + antEsc_(antDataBR_(res.dataPg)) + "</td></tr></table>";
   h += "<h2>Jeito escolhido: " + antEsc_(ANT_JEITOS[res.modo] || res.modo) + "</h2>";
   ex.frases.forEach(function (f) { h += "<p>" + antEsc_(f) + "</p>"; });
   if (ex.contrato) {
@@ -183,8 +185,8 @@ function antHtmlCliente_(e, res, unidade, parcelaId, sit) {
          "<tr class=\"dest\"><td>Para quitar hoje</td><td class=\"v\">" + antBRL_(ex.contrato.hoje) + "</td></tr></table>";
   }
   h += "<h2>Como fica o pagamento</h2><table>";
-  if (r.proximo) h += "<tr><td>Próximo pagamento</td><td class=\"v\">" + antDataBR_(r.proximo.data) + " · " + antBRL_(r.proximo.valor) + "</td></tr>";
-  if (r.ultimo) h += "<tr><td>Última parcela</td><td class=\"v\">" + antDataBR_(r.ultimo.data) + " · " + antBRL_(r.ultimo.valor) + "</td></tr>";
+  if (r.proximo) h += "<tr><td>Próximo pagamento</td><td class=\"v\">" + antEsc_(antDataBR_(r.proximo.data)) + " · " + antBRL_(r.proximo.valor) + "</td></tr>";
+  if (r.ultimo) h += "<tr><td>Última parcela</td><td class=\"v\">" + antEsc_(antDataBR_(r.ultimo.data)) + " · " + antBRL_(r.ultimo.valor) + "</td></tr>";
   if (!r.proximo) h += "<tr><td colspan=\"2\">Nenhuma parcela fica a pagar nessas condições.</td></tr>";
   h += "</table><p class=\"rodape\">Valores de hoje. As parcelas que ficam continuam corrigidas conforme o item 7.1 do contrato.</p></body></html>";
   return h;
@@ -248,6 +250,10 @@ function antecipacaoPdf_(col, sess, p) {
   var valor = typeof p.valor === "number" ? p.valor : (p.valor == null ? NaN : (Antecipacao.lerValor(p.valor) || NaN));
   var quantas = p.quantas == null || p.quantas === "" ? null : Number(p.quantas);
   var dataPg = String(p.dataPg || "").slice(0, 10), parcelaId = p.parcelaId == null ? undefined : String(p.parcelaId);
+  /* o fator é o de hoje e o PDF diz "valores de hoje, válida até o fim do mês": data de outro mês ou já passada não vale.
+     Data fora do formato fica para a conta (DATA_INVALIDA). */
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dataPg) && (dataPg.slice(0, 7) !== hoje_("yyyy-MM") || dataPg < hoje_("yyyy-MM-dd")))
+    return { ok: false, erro: "DATA_FORA_DO_MES" };
   var res = Antecipacao.simular(e.retrato, { modo: String(p.modo || ""), valor: valor, dataPg: dataPg, parcelaId: parcelaId, quantas: quantas });
   if (!res.ok) {
     var rec = { ok: false, erro: res.erro };
@@ -272,6 +278,7 @@ function antecipacaoPdf_(col, sess, p) {
     anexarArquivo_(linha.id, ANT_COL_PDF, { nome: nome, mime: "application/pdf", base64: Utilities.base64Encode(pdf.getBytes()) }, true);
   } catch (err2) {
     console.error("PORTAL-VENDA antecipacaoPdf anexo falhou: " + String((err2 && err2.message) || err2).slice(0, 120));
+    try { notion_("PATCH", "/pages/" + linha.id, { properties: { "SITUAÇÃO": { select: { name: "Erro" } } } }); } catch (err4) {}   // melhor esforço
     return { ok: false, erro: "ANEXO_FALHOU", linhaId: linha.id };
   }
   /* o Notion hospeda o arquivo com endereço temporário (cerca de 1 hora): a tela abre na hora */
@@ -297,9 +304,9 @@ function antParcelasFinanceiro_(parcelas, hoje) {
       return x.data !== y.data ? (x.data < y.data ? -1 : 1) : (String(x.id) < String(y.id) ? -1 : 1);
     });
     l.forEach(function (p, i) {
-      var atrasada = !p.pago && p.data < hoje;
+      var paga = !!p.pago && !p.parcial, atrasada = !paga && p.data < hoje;   // paga em parte ainda deve o resto
       out.push({ grupo: g, numero: i + 1, de: l.length, vencimento: p.data, valor: p.raw, valorCorrigido: p.valor,
-                 situacao: p.pago ? "paga" : (atrasada ? "atrasada" : "aberta"), pagoEm: p.pago ? (p.pagoEm || "") : "",
+                 situacao: paga ? "paga" : (atrasada ? "atrasada" : "aberta"), pagoEm: paga ? (p.pagoEm || "") : "",
                  diasAtraso: atrasada ? antDiasEntre_(p.data, hoje) : 0 });
     });
   });

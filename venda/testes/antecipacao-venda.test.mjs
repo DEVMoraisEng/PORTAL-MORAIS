@@ -13,14 +13,14 @@ const PROPS = { NOTION_TOKEN: "ntn-teste", SESSION_SECRET: "segredo-de-teste", D
                 DB_FILA_ROBO: "db-fila", DB_ANTECIPACOES: "db-ant" };
 const COLS = Object.assign({}, COLUNAS_REAIS, { "MC - SITUAÇÃO": "rich_text", "MC - VENDA ID": "rich_text", "MC - RETRATO": "rich_text",
                                               "MC - RETRATO EM": "rich_text", "FIADOR 1": "rich_text", "PDF ENVIADO": "files" });
-const VALORES = (x = {}) => Object.assign({ "MC - VENDA ID": texto("0172019e-d36c-4fb7-81de-19c227cdae7a"),
+const VALORES = (x = {}) => Object.assign({ "MC - VENDA ID": texto("00000000-0000-0000-0000-0000000000b2"),
                                             "MC - RETRATO": texto(JSON.stringify(RET)), "MC - RETRATO EM": texto("2026-10-21 10:00") }, x);
 const SEM_RETRATO = (v) => { const { "MC - RETRATO": a, "MC - RETRATO EM": b, ...resto } = v; return resto; };
 const brl = (n) => "R$ " + n.toFixed(2).replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 const soma = (l) => Math.round(l.reduce((s, p) => s + p.valor, 0) * 100) / 100;
 
 /* filaStatus: 200 = a fila aceita; outro valor = a fila do Notion falha (500) */
-function montar({ valores = VALORES(), dbId = COND, hoje = "2026-10-25T12:00:00Z", colunas = COLS, props = PROPS, filaStatus = 200 } = {}) {
+function montar({ valores = VALORES(), dbId = COND, hoje = "2026-10-25T12:00:00Z", colunas = COLS, props = PROPS, filaStatus = 200, uploadFalha = false, patchLinhaFalha = false } = {}) {
   const n = notionFalso({ colunas, valores, dbId });
   const fila = [], ant = { linhas: [], patches: [], html: [] };
   const DataFixa = class extends Date { constructor(...a) { super(...(a.length ? a : [hoje])); } static now() { return new Date(hoje).getTime(); } };
@@ -33,6 +33,8 @@ function montar({ valores = VALORES(), dbId = COND, hoje = "2026-10-25T12:00:00Z
     }
     if (m === "POST" && u === "/pages" && corpo.parent.database_id === "db-ant") { ant.linhas.push(corpo.properties); return { json: { id: LINHA_ID } }; }
     /* a linha da base DB_ANTECIPACOES: o anexo entra por PATCH e a tela lê o endereço do arquivo de volta */
+    if (u === "/pages/" + LINHA_ID && m === "PATCH" && patchLinhaFalha) return { status: 500, json: { message: "falha" } };
+    if (url.startsWith("https://upload.notion.falso/") && uploadFalha) return { status: 500, texto: "" };
     if (u === "/pages/" + LINHA_ID && m === "PATCH") { ant.patches.push(corpo.properties); return { json: { id: LINHA_ID } }; }
     if (u === "/pages/" + LINHA_ID && m === "GET") {
       const f = ((ant.patches[ant.patches.length - 1] || {})["PDF ENVIADO"] || {}).files || [];
@@ -178,9 +180,9 @@ test("venda que não pode antecipar não vai para a fila", () => {
 /* ---------- PDF ---------- */
 test("PDF refaz a conta no servidor: no jeito E o valor da tela é ignorado", () => {
   const m = montar();
-  const r = chamar(m, "antecipacaoPdf", { modo: "E", valor: 1, dataPg: "2026-10-21" });
+  const r = chamar(m, "antecipacaoPdf", { modo: "E", valor: 1, dataPg: "2026-10-25" });
   assert.equal(r.ok, true);
-  const pos = RET.parcelas.filter((p) => p.tipo === "pos" && !p.pago && p.data >= "2026-10-21");
+  const pos = RET.parcelas.filter((p) => p.tipo === "pos" && !p.pago && p.data >= "2026-10-25");
   const total = soma(pos);
   assert.ok(r.texto.includes(brl(total).slice(3)), r.texto);   // "19.025,04" sem o "R$ "
   assert.equal(m.ant.linhas.length, 1);
@@ -188,7 +190,7 @@ test("PDF refaz a conta no servidor: no jeito E o valor da tela é ignorado", ()
   assert.equal(linha["VALOR"].number, total);
   assert.equal(linha["JEITO"].select.name, "E");
   assert.equal(linha["SITUAÇÃO"].select.name, "Simulada");
-  assert.equal(linha["DATA"].date.start, "2026-10-21");
+  assert.equal(linha["DATA"].date.start, "2026-10-25");
   assert.equal(linha["VENDA"].relation[0].id, PAGE_ID_PADRAO);
   assert.equal(linha["RESPONSÁVEL"].rich_text[0].text.content, "ana.teste");
   assert.ok(JSON.parse(linha["SIMULAÇÃO"].rich_text.map((t) => t.text.content).join("")).modo === "E");
@@ -196,7 +198,7 @@ test("PDF refaz a conta no servidor: no jeito E o valor da tela é ignorado", ()
 
 test("PDF vai anexado na linha da base e a tela recebe o endereço do arquivo", () => {
   const m = montar();
-  const r = chamar(m, "antecipacaoPdf", { modo: "B", valor: 30000, dataPg: "2026-10-21" });
+  const r = chamar(m, "antecipacaoPdf", { modo: "B", valor: 30000, dataPg: "2026-10-25" });
   assert.equal(r.ok, true);
   const anexo = m.ant.patches.map((p) => p["PDF ENVIADO"]).filter(Boolean);
   assert.equal(anexo.length, 1);
@@ -210,7 +212,7 @@ test("PDF vai anexado na linha da base e a tela recebe o endereço do arquivo", 
 
 test("o PDF do cliente não leva comissão, id do ERP nem nome de corretor, e traz as datas do mês", () => {
   const m = montar({ valores: VALORES({ "ENDEREÇO": { title: [{ type: "text", plain_text: "Unidade 13", text: { content: "Unidade 13" } }] } }) });
-  chamar(m, "antecipacaoPdf", { modo: "B", valor: 30000, dataPg: "2026-10-21" });
+  chamar(m, "antecipacaoPdf", { modo: "B", valor: 30000, dataPg: "2026-10-25" });
   const html = m.ant.html[0];
   assert.match(html, /RESERVA DOS IPÊS/); assert.match(html, /Simulação de antecipação/);
   assert.match(html, /Unidade 13/);
@@ -218,13 +220,13 @@ test("o PDF do cliente não leva comissão, id do ERP nem nome de corretor, e tr
   assert.match(html, /31\/10\/2026/);   // válida até o fim do mês
   assert.match(html, /item 7\.1 do contrato/);
   assert.match(html, /R\$ 30\.000,00/);
-  assert.doesNotMatch(html, /comiss|corretor|0172019e|ana\.teste|00000000-0000/i);
+  assert.doesNotMatch(html, /comiss|corretor|0000000000b2|ana\.teste|00000000-0000/i);
 });
 
 test("jeito D: quitar a parcela inteira explica valor do contrato + correção; texto de WhatsApp pronto", () => {
   const m = montar();
   const balao = RET.parcelas.find((p) => p.tipo === "balao" && !p.pago);
-  const r = chamar(m, "antecipacaoPdf", { modo: "D", valor: balao.valor, parcelaId: balao.id, dataPg: "2026-10-21" });
+  const r = chamar(m, "antecipacaoPdf", { modo: "D", valor: balao.valor, parcelaId: balao.id, dataPg: "2026-10-25" });
   assert.equal(r.ok, true, JSON.stringify(r));
   const corr = Math.round((balao.valor - balao.raw) * 100) / 100;
   for (const t of [m.ant.html[0], r.texto]) {
@@ -237,45 +239,45 @@ test("jeito D: quitar a parcela inteira explica valor do contrato + correção; 
 
 test("jeito D com parcela inexistente e valor acima do saldo: o erro volta, nada é criado", () => {
   const m = montar();
-  assert.equal(chamar(m, "antecipacaoPdf", { modo: "D", valor: 100, parcelaId: "nao-existe", dataPg: "2026-10-21" }).erro, "PARCELA_INVALIDA");
-  assert.equal(chamar(m, "antecipacaoPdf", { modo: "B", valor: 99999999, dataPg: "2026-10-21" }).erro, "VALOR_ACIMA_DO_SALDO");
+  assert.equal(chamar(m, "antecipacaoPdf", { modo: "D", valor: 100, parcelaId: "nao-existe", dataPg: "2026-10-25" }).erro, "PARCELA_INVALIDA");
+  assert.equal(chamar(m, "antecipacaoPdf", { modo: "B", valor: 99999999, dataPg: "2026-10-25" }).erro, "VALOR_ACIMA_DO_SALDO");
   assert.equal(chamar(m, "antecipacaoPdf", { modo: "B", valor: 30000, dataPg: "21/10/2026" }).erro, "DATA_INVALIDA");
-  assert.equal(chamar(m, "antecipacaoPdf", { modo: "Z", valor: 30000, dataPg: "2026-10-21" }).erro, "MODO_INVALIDO");
+  assert.equal(chamar(m, "antecipacaoPdf", { modo: "Z", valor: 30000, dataPg: "2026-10-25" }).erro, "MODO_INVALIDO");
   assert.equal(m.ant.linhas.length, 0); assert.equal(m.ant.html.length, 0);
 });
 
 test("valor digitado como texto brasileiro vale; 'quantas' chega como número inteiro ou erro", () => {
   const m = montar();
-  assert.equal(chamar(m, "antecipacaoPdf", { modo: "B", valor: "30.000,00", dataPg: "2026-10-21" }).ok, true);
+  assert.equal(chamar(m, "antecipacaoPdf", { modo: "B", valor: "30.000,00", dataPg: "2026-10-25" }).ok, true);
   assert.equal(m.ant.linhas[0]["VALOR"].number, 30000);
-  assert.equal(chamar(m, "antecipacaoPdf", { modo: "B", valor: "abc", dataPg: "2026-10-21" }).erro, "VALOR_INVALIDO");
-  assert.equal(chamar(m, "antecipacaoPdf", { modo: "E", dataPg: "2026-10-21", quantas: "2" }).ok, true);
-  const dois = RET.parcelas.filter((p) => p.tipo === "pos" && !p.pago && p.data >= "2026-10-21").slice(-2);
+  assert.equal(chamar(m, "antecipacaoPdf", { modo: "B", valor: "abc", dataPg: "2026-10-25" }).erro, "VALOR_INVALIDO");
+  assert.equal(chamar(m, "antecipacaoPdf", { modo: "E", dataPg: "2026-10-25", quantas: "2" }).ok, true);
+  const dois = RET.parcelas.filter((p) => p.tipo === "pos" && !p.pago && p.data >= "2026-10-25").slice(-2);
   assert.equal(m.ant.linhas[1]["VALOR"].number, soma(dois));
-  assert.equal(chamar(m, "antecipacaoPdf", { modo: "E", dataPg: "2026-10-21", quantas: 1.5 }).erro, "QUANTAS_INVALIDA");
-  assert.equal(chamar(m, "antecipacaoPdf", { modo: "E", dataPg: "2026-10-21", quantas: 999 }).erro, "QUANTAS_INVALIDA");
+  assert.equal(chamar(m, "antecipacaoPdf", { modo: "E", dataPg: "2026-10-25", quantas: 1.5 }).erro, "QUANTAS_INVALIDA");
+  assert.equal(chamar(m, "antecipacaoPdf", { modo: "E", dataPg: "2026-10-25", quantas: 999 }).erro, "QUANTAS_INVALIDA");
   assert.equal(m.ant.linhas.length, 2);
 });
 
 test("PDF sem retrato ou sem a base de registro: erro claro", () => {
   assert.equal(chamar(montar({ valores: VALORES({ "MC - RETRATO": texto(""), "MC - RETRATO EM": texto("") }) }), "antecipacaoPdf",
-                      { modo: "B", valor: 1000, dataPg: "2026-10-21" }).erro, "SEM_RETRATO");
+                      { modo: "B", valor: 1000, dataPg: "2026-10-25" }).erro, "SEM_RETRATO");
   const semBase = Object.assign({}, PROPS); delete semBase.DB_ANTECIPACOES;
   const m = montar({ props: semBase });
-  assert.equal(chamar(m, "antecipacaoPdf", { modo: "B", valor: 1000, dataPg: "2026-10-21" }).erro, "BASE_ANTECIPACOES_NAO_CONFIGURADA");
+  assert.equal(chamar(m, "antecipacaoPdf", { modo: "B", valor: 1000, dataPg: "2026-10-25" }).erro, "BASE_ANTECIPACOES_NAO_CONFIGURADA");
   assert.equal(m.ant.html.length, 0);
 });
 
 test("falha ao registrar a linha: devolve REGISTRO_FALHOU, sem PDF solto", () => {
   const m = montar({ props: Object.assign({}, PROPS, { DB_ANTECIPACOES: "db-que-quebra" }) });
-  const r = chamar(m, "antecipacaoPdf", { modo: "B", valor: 1000, dataPg: "2026-10-21" });
+  const r = chamar(m, "antecipacaoPdf", { modo: "B", valor: 1000, dataPg: "2026-10-25" });
   assert.equal(r.ok, false); assert.equal(r.erro, "REGISTRO_FALHOU");
 });
 
 test("perfil TESTES não pede leitura nem PDF", () => {
   const m = montar();
   assert.equal(chamar(m, "antecipacaoLer", {}, "TESTES").erro, "SEM_PERMISSAO_TESTES");
-  assert.equal(chamar(m, "antecipacaoPdf", { modo: "B", valor: 30000, dataPg: "2026-10-21" }, "TESTES").erro, "SEM_PERMISSAO_TESTES");
+  assert.equal(chamar(m, "antecipacaoPdf", { modo: "B", valor: 30000, dataPg: "2026-10-25" }, "TESTES").erro, "SEM_PERMISSAO_TESTES");
   assert.equal(m.fila.length, 0); assert.equal(m.ant.linhas.length, 0);
   assert.equal(chamar(m, "antecipacaoEstado", {}, "TESTES").ok, true);   // só lê
 });
@@ -347,4 +349,76 @@ test("aba Financeiro: financeiroEstado devolve as parcelas do retrato, e 'sem le
   vm.runInContext(FINANCEIRO, m.g.ctx);
   const v = chamar(m, "financeiroEstado");
   assert.equal(v.lancada, true); assert.equal(v.semLeitura, true); assert.deepEqual(v.parcelas, []);
+});
+
+/* ---------- conserto 1 (revisão da Task 4) ---------- */
+test("PDF só vale para hoje até o fim do mês: outro mês e data passada são recusados, hoje e fim do mês passam", () => {
+  const m = montar();
+  for (const d of ["2026-11-02", "2026-10-24", "2025-10-30"]) {
+    const r = chamar(m, "antecipacaoPdf", { modo: "B", valor: 30000, dataPg: d });
+    assert.equal(r.ok, false, d); assert.equal(r.erro, "DATA_FORA_DO_MES", d);
+  }
+  assert.equal(m.ant.linhas.length, 0); assert.equal(m.ant.html.length, 0);
+  assert.equal(chamar(m, "antecipacaoPdf", { modo: "B", valor: 30000, dataPg: "2026-10-25" }).ok, true);
+  assert.equal(chamar(m, "antecipacaoPdf", { modo: "B", valor: 30000, dataPg: "2026-10-31" }).ok, true);
+  assert.equal(m.ant.linhas.length, 2);
+});
+
+test("data fora do formato continua DATA_INVALIDA (a conta é quem responde)", () => {
+  assert.equal(chamar(montar(), "antecipacaoPdf", { modo: "B", valor: 30000, dataPg: "<img onerror=x>" }).erro, "DATA_INVALIDA");
+});
+
+test("o HTML do cliente escapa a unidade e nenhuma data hostil vira marcação", () => {
+  const hostil = "<img onerror=x>";
+  const m = montar({ valores: VALORES({
+    "ENDEREÇO": { title: [{ type: "text", plain_text: hostil, text: { content: hostil } }] },
+    "MC - RETRATO": texto(JSON.stringify(retratoCom((r) => {   // a última parcela em aberto vem com data hostil
+      const pos = r.parcelas.filter((p) => p.tipo === "pos" && !p.pago); pos[pos.length - 1].data = hostil;
+    }))) }) });
+  const r = chamar(m, "antecipacaoPdf", { modo: "B", valor: 30000, dataPg: "2026-10-25" });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.doesNotMatch(m.ant.html[0], /<img/i);
+  assert.match(m.ant.html[0], /&lt;img/);
+  assert.doesNotMatch(r.texto, /<img/i);
+});
+
+test("PROCESSANDO escrito na coluna do retrato (formato antigo) não trava o botão", () => {
+  const agora = new Date("2026-10-25T12:00:00Z").getTime();
+  const m = montar({ valores: VALORES({ "MC - RETRATO": texto("PROCESSANDO [t=" + (agora - 60000) + "]"), "MC - RETRATO EM": texto("") }) });
+  const e = chamar(m, "antecipacaoEstado");
+  assert.equal(e.processando, false);
+  assert.equal(chamar(m, "antecipacaoLer").ok, true);
+});
+
+test("parcela paga em parte (pago e parcial) não conta como paga na aba Financeiro", () => {
+  const m = montar({ valores: VALORES({ "MC - RETRATO": texto(JSON.stringify(retratoCom((r) => {
+    const p = r.parcelas.find((x) => x.tipo === "pre" && x.pago);
+    p.parcial = true; p.data = "2026-10-20"; p.pagoEm = "2026-10-20";
+  }))) }) });
+  const r = JSON.parse(JSON.stringify(m.g.ctx.antecipacaoRetrato_(PAGE_ID_PADRAO)));
+  const ps = r.parcelas.filter((p) => p.vencimento === "2026-10-20");
+  assert.equal(ps.length, 1);
+  assert.deepEqual([ps[0].situacao, ps[0].diasAtraso, ps[0].pagoEm], ["atrasada", 5, ""]);
+  assert.equal(r.parcelas.filter((p) => p.situacao === "paga").length, RET.parcelas.filter((p) => p.pago).length - 1);
+});
+
+test("pode:false também traz velho, processando e lido, para a tela não receber undefined", () => {
+  for (const m of [montar({ dbId: "db-vendas" }), montar({ valores: VALORES({ "MC - VENDA ID": texto("") }) })]) {
+    const r = chamar(m, "antecipacaoEstado");
+    assert.equal(r.pode, false);
+    assert.equal(r.velho, true); assert.equal(r.processando, false); assert.equal(r.lido, "");
+  }
+});
+
+test("anexo do PDF falhou: a linha da base vai para SITUAÇÃO Erro e a resposta continua ANEXO_FALHOU com linhaId", () => {
+  const m = montar({ uploadFalha: true });
+  const r = chamar(m, "antecipacaoPdf", { modo: "B", valor: 30000, dataPg: "2026-10-25" });
+  assert.equal(r.ok, false); assert.equal(r.erro, "ANEXO_FALHOU"); assert.equal(r.linhaId, LINHA_ID);
+  assert.deepEqual(m.ant.patches.map((p) => p["SITUAÇÃO"]).filter(Boolean), [{ select: { name: "Erro" } }]);
+});
+
+test("se nem a marca Erro grava, a resposta continua ANEXO_FALHOU (melhor esforço, sem lançar)", () => {
+  const m = montar({ uploadFalha: true, patchLinhaFalha: true });
+  const r = chamar(m, "antecipacaoPdf", { modo: "B", valor: 30000, dataPg: "2026-10-25" });
+  assert.equal(r.erro, "ANEXO_FALHOU"); assert.equal(r.linhaId, LINHA_ID);
 });
