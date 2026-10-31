@@ -422,3 +422,27 @@ test("se nem a marca Erro grava, a resposta continua ANEXO_FALHOU (melhor esfor�
   const r = chamar(m, "antecipacaoPdf", { modo: "B", valor: 30000, dataPg: "2026-10-25" });
   assert.equal(r.erro, "ANEXO_FALHOU"); assert.equal(r.linhaId, LINHA_ID);
 });
+
+test("PDF e WhatsApp: o saldo é 'que pode ser antecipado' e as parcelas vencidas aparecem como fora da conta", () => {
+  const venc = [];
+  const m = montar({ valores: VALORES({ "MC - RETRATO": texto(JSON.stringify(retratoCom((r) => {
+    const abertas = r.parcelas.filter((p) => p.tipo === "pre" && !p.pago).sort((a, b) => (a.data < b.data ? -1 : 1));
+    abertas[0].data = "2026-10-20"; abertas[1].data = "2026-10-01";   // hoje = 25/10: duas vencidas
+    venc.push(abertas[0].valor, abertas[1].valor);
+  }))) }) });
+  const r = chamar(m, "antecipacaoPdf", { modo: "B", valor: 30000, dataPg: "2026-10-25" });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const html = m.ant.html[0], fora = brl(soma(venc.map((valor) => ({ valor }))));
+  assert.match(html, /Saldo que pode ser antecipado \(corrigido\)/);
+  assert.doesNotMatch(html, /Você deve hoje/);
+  assert.ok(html.includes("Fora desta conta: parcelas vencidas</td><td class=\"v\">" + fora + "<"), fora);
+  assert.ok(r.texto.includes("Fora desta conta: parcelas vencidas " + fora + "."), r.texto);
+});
+
+test("PDF e WhatsApp: sem parcela vencida não há a linha 'Fora desta conta'", () => {
+  const m = montar();
+  const r = chamar(m, "antecipacaoPdf", { modo: "B", valor: 30000, dataPg: "2026-10-25" });
+  assert.equal(r.ok, true);
+  assert.match(m.ant.html[0], /Saldo que pode ser antecipado/);
+  assert.doesNotMatch(m.ant.html[0], /Fora desta conta/); assert.doesNotMatch(r.texto, /Fora desta conta/);
+});

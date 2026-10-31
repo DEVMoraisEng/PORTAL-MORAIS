@@ -137,6 +137,9 @@ function antAlvoDe_(res, parcelaId) {
   return (res.depois || []).filter(function (x) { return x.id === parcelaId; })[0] || null;
 }
 
+/* soma das parcelas vencidas que ficam fora da conta (0 quando não há) */
+function antVencidas_(sit) { return antSoma_((sit && sit.vencidas) || [], "valor"); }
+
 /* O que mudou, em palavras para o cliente: { frases: [...], contrato: {contrato, correcao, hoje} ou null } */
 function antExplicar_(e, res, parcelaId, sit) {
   var quitadas = res.depois.filter(function (x) { return x.acao === "quita"; });
@@ -165,7 +168,10 @@ function antExplicar_(e, res, parcelaId, sit) {
 function antHtmlCliente_(e, res, unidade, parcelaId, sit) {
   var ex = antExplicar_(e, res, parcelaId, sit), saldo = sit.saldo, resta = antArred_(saldo - res.valor);
   var validade = antFimDoMes_(), r = res.resumo || {};
-  var linhas = [["Você deve hoje (corrigido)", antBRL_(saldo)], ["Valor da antecipação", antBRL_(res.valor)], ["Fica a pagar depois", antBRL_(resta)]];
+  /* o saldo é só o que a conta alcança: parcela vencida fica fora dela e o cliente precisa saber disso */
+  var linhas = [["Saldo que pode ser antecipado (corrigido)", antBRL_(saldo)], ["Valor da antecipação", antBRL_(res.valor)], ["Fica a pagar depois", antBRL_(resta)]];
+  var fora = antVencidas_(sit);
+  if (fora) linhas.push(["Fora desta conta: parcelas vencidas", antBRL_(fora)]);
   var h = "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Simulação de antecipação</title><style>" +
           "body{font-family:Arial,Helvetica,sans-serif;color:#1f2d1f;margin:36px 44px;font-size:13px;line-height:1.5}" +
           "h1{font-size:20px;margin:0 0 4px;color:#2e5a2e}h2{font-size:14px;margin:22px 0 6px;color:#2e5a2e}" +
@@ -216,6 +222,8 @@ function antTextoWhatsApp_(e, res, parcelaId, sit) {
     if (r.proximo) l.push("Próximo pagamento: " + antDataBR_(r.proximo.data) + ", " + antBRL_(r.proximo.valor) + (r.ultimo ? ". Última parcela: " + antDataBR_(r.ultimo.data) + ", " + antBRL_(r.ultimo.valor) + "." : "."));
     else l.push("Não fica nenhuma parcela a pagar.");
   }
+  var fora = antVencidas_(sit);
+  if (fora) l.push("Fora desta conta: parcelas vencidas " + antBRL_(fora) + ".");
   l.push("Valores de hoje; simulação válida até " + antDataBR_(antFimDoMes_()) + ".");
   return l.join("\n");
 }
