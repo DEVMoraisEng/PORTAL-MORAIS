@@ -500,3 +500,15 @@ def test_data_da_venda_do_condominio_e_a_data_de_assinatura():
     assert C.dados_da_linha(linha_cond(**{"DATA DA VENDA": data(None)}), LINHA_ID)["data_venda"] == "2026-10-10"
     sem = linha_cond(**{"DATA DE ASSINATURA DO CONTRATO": data(None)})
     assert C.dados_da_linha(sem, LINHA_ID)["data_venda"] == "2026-09-01"
+
+
+def test_prazo_trocado_no_fluxo_alterado_comissao_pela_regra_do_prazo_novo():
+    """31/10/2026 (dono): proposta em 24x e a lista com 12 pós-chaves (36x) — comissão 4,75% sobre o valor da casa."""
+    linhas = [dict(l) for l in LIVRE if l["t"] != "pos"] + [{"t": "pos", "v": 100, "n": 12, "d": "2029-01-10", "i": 1, "x": ""}]
+    fx = C.fluxo(fluxo_props(**{"PRAZO ENTRADA": num(24)}, **_livre(linhas, valor=228900)))
+    d = {"total": 228900, "aquisicao": 228900, "comissao": 11445}
+    C.ajustar_dados_livre(fx, d)
+    assert d["comissao"] == round(228900 * 0.0475, 2)
+    mesmo = {"total": 228900, "aquisicao": 228900, "comissao": 11445}
+    C.ajustar_dados_livre(C.fluxo(fluxo_props(**{"PRAZO ENTRADA": num(36)}, **_livre(linhas, valor=228900))), mesmo)
+    assert mesmo["comissao"] == 11445, "prazo igual ao da proposta: a comissão da linha fica"

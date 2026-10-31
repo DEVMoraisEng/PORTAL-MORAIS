@@ -105,9 +105,12 @@ var FluxoLivre = (function () {
       };
       if (fixos(f.linhas) !== fixos(padrao.linhas)) erros.push("Financiamento, FGTS e subsídio não mudam — ficam como na proposta");
       var qtd = function (ls) { return ls.reduce(function (s, l) { return s + (l.t === "pos" ? Math.max(0, l.n) : 0); }, 0); };
-      var qP = qtd(padrao.linhas), q = qtd(f.linhas);
-      if (q !== qP) erros.push(qP ? "Pós-chaves: tem de continuar com " + qP + " parcelas (o prazo da proposta; a comissão sai dele)"
-                                  : "Esta venda não tem pós-chaves (prazo da proposta de 24 meses)");
+      /* 31/10/2026 (dono): o prazo pode mudar no Alterar fluxo (cliente de 24x para 36x) — pós-chaves só 0, 12 ou 24
+         parcelas; a comissão e o fiador seguem o prazo novo (ContratoVenda.valoresCondominio / comPosChaves) */
+      var qP = qtd(padrao.linhas), q = qtd(f.linhas), pN = prazoDasLinhas(f.linhas), pP = prazoDasLinhas(padrao.linhas);
+      if (pN === null) erros.push("Pós-chaves: só 0, 12 ou 24 parcelas no total (prazo de 24, 36 ou 48 meses) — hoje " + q);
+      else if (pN !== pP && pP !== null)
+        avisos.push("prazo da entrada muda de " + pP + "x para " + pN + "x — a comissão segue o prazo novo" + (!qP && q ? " e a venda passa a ter fiador" : ""));
       var tetoPos = POS_TETO, iniPos = "";
       padrao.linhas.forEach(function (l) {
         if (l.t !== "pos") return;
@@ -136,6 +139,86 @@ var FluxoLivre = (function () {
     var linhas = f.linhas.slice();
     linhas[k] = comTotal(l, alvo);
     return { linhas: linhas };
+  }
+
+  /* ---- 31/10/2026 (dono): trocar o prazo da entrada (24x/36x/48x) e sugerir valores enquanto monta ----
+   * A conta é a do SIMULADOR (fpcGerar, Código.js): o fluxo padrão de R$ 60.200 (sinal 10.000; 12 × 860; 12 × 330;
+   * balões 10.000 e 7.000; 24 × 788,33 de pós-chaves) é a régua. Com pós-chaves, a parte do meio (pré-chaves + balões)
+   * encolhe para caber o pós; o que passa da régua aumenta só o meio (a parcela pós-chaves nunca sobe do teto).
+   * Sinal, entrada à vista, permuta, financiamento, FGTS e subsídio ficam; pré-chaves, balões e pós-chaves são refeitos. */
+  var PRAZOS = { 24: 0, 36: 12, 48: 24 };                       /* prazo da entrada → parcelas pós-chaves */
+  var SIM_POS_UNIT = 788.3332806666667, SIM_M1 = 12 * 860, SIM_M13 = 12 * 330, SIM_B1 = 10000, SIM_B2 = 7000;
+  var SIM_MEIO = SIM_B1 + SIM_B2 + SIM_M1 + SIM_M13, SIM_CHEIA = 10000 + SIM_MEIO + 24 * SIM_POS_UNIT;   /* 31.280 e 60.200 */
+  /* prazo pela quantidade de pós-chaves das linhas (0/12/24 → 24/36/48); null fora disso */
+  function prazoDasLinhas(linhas) {
+    var n = (linhas || []).reduce(function (s, l) { return s + (l.t === "pos" ? Math.max(0, l.n | 0) : 0); }, 0);
+    for (var p in PRAZOS) if (PRAZOS[p] === n) return Number(p);
+    return null;
+  }
+  function porData(a, b) { return String(a.d || "9999").localeCompare(String(b.d || "9999")); }
+  /* { linhas } ou { erro } */
+  function mudarPrazo(f, prazo) {
+    f = normalizar(f);
+    prazo = Number(prazo);
+    if (!PRAZOS.hasOwnProperty(prazo)) return { erro: "Prazo da entrada só 24, 36 ou 48 meses" };
+    var refaz = { pre: 1, balao: 1, pos: 1 }, ficam = f.linhas.filter(function (l) { return !refaz[l.t]; });
+    var R = c(f.valor) - somaC(ficam);
+    if (R <= 0) return { erro: "Sinal e financiamento já cobrem o valor da casa — não sobra entrada para parcelar" };
+    var pres = f.linhas.filter(function (l) { return l.t === "pre"; }).sort(porData);
+    var bals = f.linhas.filter(function (l) { return l.t === "balao"; }).sort(porData);
+    var poss = f.linhas.filter(function (l) { return l.t === "pos"; }).sort(porData);
+    var nPos = PRAZOS[prazo], basePos = nPos * SIM_POS_UNIT, baseMeio = SIM_CHEIA - 10000 - basePos, k = baseMeio / SIM_MEIO;
+    var r = R / 100, g, tpos;
+    if (r <= baseMeio + basePos + 0.01) { g = r / (baseMeio + basePos); tpos = basePos * g; }
+    else { g = (r - basePos) / baseMeio; tpos = basePos; }
+    var n1 = pres[0] && pres[0].n > 0 ? pres[0].n : 12, n2 = pres[1] && pres[1].n > 0 ? pres[1].n : 12;
+    function r2(v) { return Math.round(v * 100) / 100; }
+    var novas = [
+      { t: "pre", v: r2(SIM_M1 * k * g / n1), n: n1, d: pres[0] ? pres[0].d : "", i: pres[0] ? pres[0].i : 1, x: pres[0] ? pres[0].x : "" },
+      { t: "pre", v: r2(SIM_M13 * k * g / n2), n: n2, d: pres[1] ? pres[1].d : "", i: pres[1] ? pres[1].i : 1, x: pres[1] ? pres[1].x : "" },
+      { t: "balao", v: r2(SIM_B1 * k * g), n: 1, d: bals[0] ? bals[0].d : "", i: 1, x: bals[0] ? bals[0].x : "" },
+      { t: "balao", v: r2(SIM_B2 * k * g), n: 1, d: bals[1] ? bals[1].d : "", i: 1, x: bals[1] ? bals[1].x : "" }
+    ];
+    if (nPos) {
+      var ultBal = novas[3].d || novas[2].d;
+      novas.push({ t: "pos", v: r2(tpos / nPos), n: nPos, d: poss[0] ? poss[0].d : (isoValida(ultBal) ? maisMeses(ultBal, 1) : ""), i: 1, x: "" });
+    }
+    /* os centavos fecham no último balão, como no simulador */
+    var dif = c(f.valor) - somaC(ficam.concat(novas));
+    novas[3].v = (c(novas[3].v) + dif) / 100;
+    if (novas[3].v <= 0) return { erro: "Não coube o fluxo de " + prazo + "x — ajuste as linhas à mão" };
+    /* a ordem da tela: o que fica, na posição de antes; pré-chaves, balões e pós-chaves no lugar do primeiro refeito */
+    var linhas = [], pos = -1;
+    f.linhas.forEach(function (l) { if (refaz[l.t]) { if (pos < 0) pos = linhas.length; } else linhas.push(l); });
+    if (pos < 0) pos = linhas.length;
+    linhas.splice.apply(linhas, [pos, 0].concat(novas));
+    return { linhas: linhas };
+  }
+  /* Sugestão "Distribuir": a diferença (falta ou sobra) vai proporcional ao total de cada pré-chaves e balão; os centavos
+     no maior. Sinal, pós-chaves e o resto não mudam. { linhas } ou { erro }. */
+  function distribuir(f) {
+    f = normalizar(f);
+    var D = c(f.valor) - somaC(f.linhas);
+    if (!D) return { linhas: f.linhas };
+    var alvos = [];
+    f.linhas.forEach(function (l, k) { if ((l.t === "pre" || l.t === "balao") && totalLinhaC(l) > 0) alvos.push(k); });
+    var base = alvos.reduce(function (s, k) { return s + totalLinhaC(f.linhas[k]); }, 0);
+    if (!base) return { erro: "Não há pré-chaves nem balões para distribuir — use o ↻ de uma linha" };
+    if (base + D <= 0) return { erro: "A sobra é maior que as pré-chaves e os balões juntos" };
+    var add = {}, dado = 0, maior = alvos[0];
+    alvos.forEach(function (k) {
+      var t = totalLinhaC(f.linhas[k]);
+      if (t > totalLinhaC(f.linhas[maior])) maior = k;
+      add[k] = Math.trunc(D * t / base); dado += add[k];
+    });
+    add[maior] += D - dado;
+    var linhas = f.linhas.slice(), erro = "";
+    alvos.forEach(function (k) {
+      var alvo = totalLinhaC(linhas[k]) + add[k];
+      if (alvo < Math.max(1, linhas[k].n)) erro = "Uma linha ficaria zerada — ajuste à mão";
+      else linhas[k] = comTotal(linhas[k], alvo);
+    });
+    return erro ? { erro: erro } : { linhas: linhas };
   }
 
   /* ---- 30/10: desconto no "Alterar fluxo" (decisões do dono, arquivo 17 item 1) ----
@@ -272,6 +355,7 @@ var FluxoLivre = (function () {
   }
 
   return { TIPOS: TIPOS, ORDEM: ORDEM, MAX_LINHAS: MAX_LINHAS, MAX_MOTIVO: MAX_MOTIVO, POS_TETO: POS_TETO,
+           PRAZOS: PRAZOS, prazoDasLinhas: prazoDasLinhas, mudarPrazo: mudarPrazo, distribuir: distribuir,
            normalizar: normalizar, validar: validar, redistribuir: redistribuir, aplicarDesconto: aplicarDesconto, valorDoDesconto: valorDoDesconto, doPadrao: doPadrao, expandir: expandir,
            serializar: serializar, ler: ler, ordenar: ordenar, totalLinha: function (l) { return totalLinhaC(normalizar({ linhas: [l] }).linhas[0] || {}) / 100; },
            soma: function (linhas) { return somaC(normalizar({ linhas: linhas }).linhas) / 100; }, maisMeses: maisMeses, moeda: moeda, dataBR: dataBR };
