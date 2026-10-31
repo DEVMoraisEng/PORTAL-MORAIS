@@ -17,23 +17,35 @@ const botao = (h, acao) => (h.match(new RegExp('<button[^>]*data-acao="' + acao 
 test("fechado: mostra o fluxo da proposta e o botão Alterar fluxo", () => {
   const h = D.htmlContrato(estado(fechado), {});
   assert.match(h, /Fluxo de pagamento/);
-  assert.match(h, /Fluxo da proposta \(simulador\)/);
+  /* 31/10/2026 (dono): uma linha só, dizendo qual fluxo vale e onde vê-lo; título sem a nota de exceção */
+  assert.match(h, /Fluxo em uso: o da proposta \(simulador\)\./);
+  assert.doesNotMatch(h, /exceção desta venda/);
+  assert.match(botao(h, "c-fluxo-ver"), />Ver fluxo/);
   assert.doesNotMatch(botao(h, "c-fluxo-abrir"), /disabled/);
+  assert.doesNotMatch(h, /dz-aviso/);
 });
 
-test("venda lançada, envelope aberto ou assinado: botão desabilitado com o motivo", () => {
-  for (const [trava, txt] of [["FLUXO_VENDA_LANCADA", /lançada no Mais Controle/], ["FLUXO_ASSINATURA_ABERTA", /cancele o envelope/],
-                              ["FLUXO_CONTRATO_ASSINADO", /aditivo/]]) {
+test("venda lançada: o botão Alterar fluxo some e a linha diz que já foi lançado; envelope aberto ou assinado: desabilitado com o motivo", () => {
+  const l = D.htmlContrato(estado({ ...fechado, trava: "FLUXO_VENDA_LANCADA" }), {});
+  assert.match(l, /Já lançado no Mais Controle com este fluxo; não muda mais por aqui\./);
+  assert.equal(botao(l, "c-fluxo-abrir"), "");
+  assert.match(botao(l, "c-fluxo-ver"), />Ver fluxo/);
+  for (const [trava, txt] of [["FLUXO_ASSINATURA_ABERTA", /cancele o envelope/], ["FLUXO_CONTRATO_ASSINADO", /aditivo/]]) {
     const h = D.htmlContrato(estado({ ...fechado, trava }), {});
     assert.match(h, txt);
     assert.match(botao(h, "c-fluxo-abrir"), /disabled/);
   }
 });
 
-test("alterado: diz quem alterou e pede conferir o 6.1 no pré-contrato", () => {
-  const h = D.htmlContrato(estado({ ...fechado, alterado: true, por: "ana.teste", em: "2026-10-29T15:00:00Z", alteracoes: 1 }), {});
-  assert.match(h, /alterado no portal.*ana\.teste/);
-  assert.match(h, /confira o item 6\.1 e o quadro-resumo no pré-contrato/);
+test("alterado: diz quem alterou; o aviso laranja só quando o fluxo mudou DEPOIS do último contrato gerado", () => {
+  const alt = { ...fechado, alterado: true, por: "ana.teste", em: "2026-10-29T15:00:00Z", alteracoes: 1 };
+  const h = D.htmlContrato(estado(alt), {});
+  assert.match(h, /Fluxo em uso: alterado no portal por ana\.teste em /);
+  assert.doesNotMatch(h, /gere o contrato de novo/, "sem contrato ainda, sem aviso");
+  const depois = D.htmlContrato({ ...estado(alt), gerado: true, pre: { nome: "P.pdf", url: "u", em: "2026-10-29T14:00:00Z", conferido: true, desatualizado: false } }, {});
+  assert.match(depois, /<div class="dz-aviso">Fluxo alterado depois do contrato: gere o contrato de novo\.<\/div>/);
+  const regerado = D.htmlContrato({ ...estado(alt), gerado: true, pre: { nome: "P.pdf", url: "u", em: "2026-10-29T16:00:00Z", conferido: true, desatualizado: false } }, {});
+  assert.doesNotMatch(regerado, /gere o contrato de novo/);
 });
 
 test("sem a coluna no Notion: aviso e nada de botão", () => {
@@ -135,4 +147,27 @@ test("placar: com desconto mostra a comissão pela regra sobre o valor novo; ise
   ed.linhas[1].v = 750;
   assert.match(D.htmlFluxoVivo(ed, ""), /Comissão pela regra: <b>R\$ 4\.750,00/);
   assert.match(D.htmlFluxoVivo({ ...ed, semComissao: true }, ""), /sem comissão \(venda direta\)/);
+});
+
+test("31/10: prazo da entrada no topo do editor — 24x, 36x e 48x, o atual marcado", () => {
+  const h = D.htmlContrato(estado(fechado), { fluxoEd: editor() });
+  for (const p of [24, 36, 48]) assert.match(h, new RegExp('data-acao="c-fluxo-prazo"[^>]*data-p="' + p + '"'));
+  assert.match(h, /data-p="24"[^>]*aria-pressed="true"/, "sem pós-chaves = 24x");
+  assert.match(h, /refaz pré-chaves, balões e pós-chaves pela conta do simulador/);
+});
+
+test("31/10: placar com diferença oferece Distribuir; fechado não oferece", () => {
+  const ed = editor();
+  ed.linhas[0].v = 9000;                                   // sinal menor: faltam R$ 1.000
+  const h = D.htmlFluxoVivo(ed, "");
+  assert.match(h, /Faltam: <b>R\$ 1\.000,00/);
+  assert.match(botao(h, "c-fluxo-dist"), /Distribuir/);
+  assert.equal(botao(D.htmlFluxoVivo(editor(), ""), "c-fluxo-dist"), "");
+});
+
+test("31/10: prazo diferente da proposta mostra o prazo novo e a comissão pela regra", () => {
+  const ed = editor();
+  ed.linhas.splice(2, 0, { t: "pos", v: 0, n: 12, d: "2029-01-10", i: 1, x: "" });
+  const h = D.htmlFluxoVivo(ed, "");
+  assert.match(h, /Prazo: <b>36x<\/b> \(proposta 24x\) · comissão pela regra: <b>4,75% = R\$ 4\.750,00<\/b>/);
 });

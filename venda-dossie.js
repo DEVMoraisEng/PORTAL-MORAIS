@@ -434,6 +434,8 @@
     if (r && Array.isArray(r.confissao)) o.confissao = r.confissao.map(function (x) { return { tipo: x.tipo === "POS" ? "POS" : "PRE", nome: String(x.nome || "") }; });
     /* 29/10: Alterar fluxo (FluxoVenda.gs) */
     if (r && r.fluxo && typeof r.fluxo === "object") o.fluxo = fluxoDoEstado(r.fluxo);
+    /* 31/10/2026: o que falta de obrigatório que o cliente/corretor completa pelo link (null = o servidor não disse) */
+    if (r && Array.isArray(r.faltasCliente)) o.faltasCliente = r.faltasCliente.map(String);
     /* 29/10: condições especiais desta venda (item 16 do quadro-resumo do condomínio) */
     if (r && r.condicoes && typeof r.condicoes === "object")
       o.condicoes = { coluna: !!r.condicoes.coluna, texto: String(r.condicoes.texto || ""), por: String(r.condicoes.por || ""),
@@ -601,7 +603,7 @@
     }
     h += htmlConta(e.conta, u, dis);
     h += htmlTestemunhas(e.testemunhas, dis);
-    h += htmlFluxo(e.fluxo, u, dis);
+    h += htmlFluxo(e.fluxo, u, dis, e);
     h += htmlCondicoes(e.condicoes, u, dis);
     h += htmlHistorico(e.historico);
     if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
@@ -651,6 +653,14 @@
              em: String(f.em || ""), alteracoes: Number(f.alteracoes) || 0 };
   }
   var TRAVA_FLUXO = { FLUXO_VENDA_LANCADA: 1, FLUXO_CONTRATO_ASSINADO: 1, FLUXO_ASSINATURA_ABERTA: 1 };
+  /* fluxo alterado DEPOIS do último (pré-)contrato gerado: o PDF não tem o fluxo de agora. Sem contrato ainda, sem aviso. */
+  function fluxoDepoisDoContrato(f, ec) {
+    if (!f || !f.alterado || !f.em || !ec) return false;
+    var pre = ec.pre || null;
+    if (!ec.gerado && !pre) return false;
+    var em = pre && pre.em ? String(pre.em) : "";
+    return !em || em < String(f.em);
+  }
   function numBR(v) { return (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   function lerNumBR(s) {
     s = String(s || "").replace(/[^\d,.-]/g, "");
@@ -659,19 +669,23 @@
     return isNaN(n) ? 0 : Math.round(n * 100) / 100;
   }
   /* editor aberto: u.fluxoEd = { valor, valorOriginal, entrega, linhas, padrao, historico, alterado, motivo, motivoPreco } */
-  function htmlFluxo(f, u, dis) {
+  function htmlFluxo(f, u, dis, ec) {
     if (!f) return "";
-    var h = '<div class="dz-grupo"><b>Fluxo de pagamento</b> <span class="dz-nota">(exceção desta venda: muda o contrato e o Mais Controle juntos)</span></div>';
+    var h = '<div class="dz-grupo"><b>Fluxo de pagamento</b></div>';
     if (!f.coluna) return h + '<div class="dz-aviso">Falta a coluna FLUXO PERSONALIZADO na base de vendas do condomínio.</div>';
     var ed = u.fluxoEd;
     if (u.ocupadoContrato === "fluxo") h += '<div class="dz-linha"><b>carregando o fluxo…</b></div>';
     if (u.ocupadoContrato === "fluxo-salvar") h += '<div class="dz-linha"><b>salvando o fluxo…</b></div>';
     if (!ed) {
-      h += '<div class="dz-linha">' + (f.alterado ? "Fluxo <b>alterado no portal</b>" + (f.por ? " — última alteração por " + esc(f.por) + (f.em ? " em " + esc(dataHoraBR(f.em)) : "") : "") + "."
-                                                   : "Fluxo da proposta (simulador).") + "</div>";
-      if (f.trava && TRAVA_FLUXO[f.trava]) h += '<div class="dz-msg">' + esc(MSG_CONTRATO[f.trava]) + "</div>";
-      h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-fluxo-abrir"' + (dis || (f.trava ? " disabled" : "")) + ">Alterar fluxo</button></div>";
-      if (f.alterado) h += '<div class="dz-aviso">O contrato sai com este fluxo — confira o item 6.1 e o quadro-resumo no pré-contrato. A prévia do Mais Controle também segue este fluxo.</div>';
+      /* 31/10/2026 (dono: "com qual fluxo? confuso"): UMA linha dizendo qual fluxo vale e onde vê-lo */
+      var lancada = f.trava === "FLUXO_VENDA_LANCADA";
+      h += '<div class="dz-linha"><span class="dz-rot">Fluxo em uso: ' + (f.alterado
+        ? "alterado no portal" + (f.por ? " por " + esc(f.por) : "") + (f.em ? " em " + esc(dataHoraBR(f.em)) : "") + "."
+        : "o da proposta (simulador).") + (lancada ? " Já lançado no Mais Controle com este fluxo; não muda mais por aqui." : "") + "</span>" +
+        '<button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-ver">Ver fluxo</button>' +
+        (lancada ? "" : ' <button type="button" class="bt bt-mini" data-acao="c-fluxo-abrir"' + (dis || (f.trava ? " disabled" : "")) + ">Alterar fluxo</button>") + "</div>";
+      if (f.trava && TRAVA_FLUXO[f.trava] && !lancada) h += '<div class="dz-msg">' + esc(MSG_CONTRATO[f.trava]) + "</div>";
+      if (fluxoDepoisDoContrato(f, ec)) h += '<div class="dz-aviso">Fluxo alterado depois do contrato: gere o contrato de novo.</div>';
       return h;
     }
     /* financiamento, FGTS e subsídio (fixo) só aparecem; o valor da casa só para quem pode (Julio Cesar e João Vitor) */
@@ -681,6 +695,12 @@
       (ed.podePreco ? "" : ' <span class="dz-nota">só Julio Cesar ou João Vitor mudam o valor da casa</span>') +
       (ed.entrega ? ' <span class="dz-nota">entrega das chaves: ' + esc(F.dataBR(ed.entrega)) + "</span>" : "") + "</div>";
     h += htmlFluxoDesconto(ed, dis);
+    /* 31/10/2026 (dono): trocar o prazo da entrada na mesa (cliente de 24x para 36x) — a tela refaz os valores */
+    var prazoAgora = F.prazoDasLinhas(ed.linhas);
+    h += '<div class="dz-linha vb-fx-prazo"><b>Prazo da entrada:</b> ' + [24, 36, 48].map(function (p) {
+      return '<button type="button" class="bt bt-mini' + (p === prazoAgora ? "" : " ghost") + '" data-acao="c-fluxo-prazo" data-p="' + p + '" aria-pressed="' +
+        (p === prazoAgora) + '"' + dis + ">" + p + "x</button>";
+    }).join(" ") + ' <span class="dz-nota">refaz pré-chaves, balões e pós-chaves pela conta do simulador; sinal, financiamento e FGTS ficam</span></div>';
     h += '<div class="vb-fx-tab" style="overflow-x:auto"><table class="tbl-fx" style="border-collapse:collapse;width:100%;font-size:.9em">' +
       "<thead><tr><th>Tipo</th><th>↻</th><th>Valor de cada (R$)</th><th>Qtde</th><th>1ª data</th><th>A cada (meses)</th><th>Descrição</th><th>Total</th><th></th></tr></thead><tbody>";
     ed.linhas.forEach(function (l, k) {
@@ -770,7 +790,12 @@
       /* 30/10: a comissão que vai sair (sem comissão na isenção; pela regra do prazo sobre o valor novo no desconto) */
       (ed.semComissao ? "<span>Comissão: <b>sem comissão (venda direta)</b></span>"
         : mudouPreco && ed.desconto && ed.desconto.comissao && ed.desconto.comissao.pct
-          ? "<span>Comissão pela regra: <b>" + esc(F.moeda(Math.round(ed.valor * ed.desconto.comissao.pct * 100) / 100)) + "</b></span>" : "") + "</div>";
+          ? "<span>Comissão pela regra: <b>" + esc(F.moeda(Math.round(ed.valor * ed.desconto.comissao.pct * 100) / 100)) + "</b></span>" : "") +
+      htmlPrazoPlacar(ed) + "</div>";
+    /* 31/10: sugestão para fechar a conta sem fazer na mão */
+    if (!bate) h += '<div class="dz-linha"><button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-dist"' + dis +
+      ' title="Espalha a diferença nas pré-chaves e balões, proporcional ao total de cada">Distribuir ' + esc(F.moeda(Math.abs(dif))) +
+      " nas pré-chaves e balões</button></div>";
     var faltas = r.erros.filter(function (x) { return !/^(Faltam|Sobram) /.test(x); });
     if (!motivoOk) faltas.push("Falta o motivo" + (mudouPreco ? " (e o motivo da mudança no valor da casa)" : ""));
     if (faltas.length) h += '<ul class="dz-msg">' + faltas.slice(0, 6).map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>";
@@ -778,6 +803,14 @@
     h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-fluxo-salvar"' + ((dis || !ok) ? " disabled" : "") + ">" +
       (bate ? "Salvar fluxo" : (dif > 0 ? "Faltam " : "Sobram ") + esc(F.moeda(Math.abs(dif)))) + "</button></div>";
     return h;
+  }
+  /* 31/10: prazo diferente da proposta — o prazo novo e a comissão pela regra (5% / 4,75% / 4,5%) */
+  var PCT_PRAZO = { 24: 0.05, 36: 0.0475, 48: 0.045 };
+  function htmlPrazoPlacar(ed) {
+    var F = FL(), p = F.prazoDasLinhas(ed.linhas), pp = ed.padrao ? F.prazoDasLinhas(ed.padrao.linhas || []) : null;
+    if (p === null || pp === null || p === pp || ed.semComissao) return "";
+    return "<span>Prazo: <b>" + p + "x</b> (proposta " + pp + "x) · comissão pela regra: <b>" + String(PCT_PRAZO[p] * 100).replace(".", ",") + "% = " +
+      esc(F.moeda(Math.round(ed.valor * PCT_PRAZO[p] * 100) / 100)) + "</b></span>";
   }
   function dataHoraBR(iso) {
     var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(iso || ""));
@@ -964,7 +997,25 @@
     ".cd-cardbox .vb-blocos .bt{border:1.5px solid var(--verde-btn,#4cd964);background:var(--verde-btn,#4cd964);color:#1a3347;" +
     "border-radius:8px;padding:8px 12px;font-size:13px}" +
     ".cd-cardbox .vb-blocos .bt.ghost{border-color:var(--border,#d6dee3);background:var(--sup,#fff);color:var(--azul,#295778)}" +
-    ".cd-cardbox .vb-blocos .bt.ghost:hover{background:var(--bg3,#eef3f5)}";
+    ".cd-cardbox .vb-blocos .bt.ghost:hover{background:var(--bg3,#eef3f5)}" +
+    /* 31/10/2026: linha valor / data / Salvar da pré-reserva alinhada pela base; no celular, na largura toda */
+    /* 31/10/2026 (dono, ~1100 px): a conferência cabe no cartão — colunas fixas, texto quebra, botões quebram na célula */
+    ".vb-blocos .vb-conf table.dz-tab{table-layout:fixed;width:100%}" +
+    ".vb-blocos .vb-conf table.dz-tab th,.vb-blocos .vb-conf table.dz-tab td{white-space:normal;overflow-wrap:anywhere;vertical-align:top;padding:6px;line-height:1.35}" +
+    ".vb-blocos .vb-conf table.dz-tab th:nth-child(1){width:20%}.vb-blocos .vb-conf table.dz-tab th:nth-child(2){width:12%}" +
+    ".vb-blocos .vb-conf table.dz-tab th:nth-child(3),.vb-blocos .vb-conf table.dz-tab th:nth-child(4){width:20%}" +
+    ".vb-blocos .vb-conf table.dz-tab th:nth-child(5){width:28%}" +
+    ".vb-blocos .vb-conf table.dz-tab td>div{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}" +
+    ".vb-blocos .vb-conf table.dz-tab td>div.ass-data{display:block}" +
+    ".vb-blocos .vb-conf table.dz-tab .bt{white-space:normal;max-width:100%;margin:0}" +
+    ".vb-blocos .vb-conf>div[style*=\"overflow-x\"]{overflow-x:visible!important}" +
+    ".vb-blocos .dz-pr-pag{align-items:flex-end;gap:12px}" +
+    ".vb-blocos .dz-pr-pag label{display:flex;flex-direction:column;gap:3px;flex:0 0 auto;margin:0}" +
+    ".vb-blocos .dz-pr-pag label span{font-size:11.5px;font-weight:700;color:var(--text3,#5a8099)}" +
+    ".vb-blocos .dz-pr-pag input{height:36px;box-sizing:border-box;padding:6px 9px;border:1.5px solid var(--border,#d6dee3);border-radius:7px;font:inherit;margin:0}" +
+    ".vb-blocos .dz-pr-pag .bt{height:36px;margin:0}" +
+    "@media (max-width:600px){.vb-blocos .dz-pr-pag{flex-direction:column;align-items:stretch}" +
+    ".vb-blocos .dz-pr-pag label,.vb-blocos .dz-pr-pag input,.vb-blocos .dz-pr-pag .bt{width:100%!important}}";
   var estado = null, ui = { dois: false, ocupado: null, msg: "", testes: false }, paginaDoBloco = null;
 
   function obraAberta() { try { return OBRA_ABERTA; } catch (e) { return null; } }
@@ -1640,7 +1691,7 @@
           var acao = "";
           if (l.situacao !== "ok") {
             acao = conf ? '<div class="ass-data">conferido' + (conf.por ? " por " + esc(conf.por) : "") + "</div>"
-              : '<div style="margin-top:4px"><button type="button" class="bt bt-mini" data-acao="d-corr-' + i + '"' + dis + ">Corrigir aqui</button> " +
+              : '<div><button type="button" class="bt bt-mini" data-acao="d-corr-' + i + '"' + dis + ">Corrigir aqui</button> " +
                 '<button type="button" class="bt ghost bt-mini" data-acao="d-abrir-' + i + '"' + dis + ">Abrir documento</button> " +
                 '<button type="button" class="bt bt-mini" data-acao="d-ok-' + i + '"' + dis + ">Conferi, está certo</button></div>";
           }
@@ -1664,10 +1715,12 @@
     var trava = u.testes || !!u.ocupado, dis = trava ? " disabled" : "";
     /* 31/10 (dono): valor e data do pagamento de cada venda; prazo para decidir = pagamento + 7 dias corridos */
     var pg = u.pagDigitado || { valor: brl(e.valor), data: e.dataPagamento || "" };
-    h += '<div class="dz-linha">' +
-      '<label style="display:inline-block;margin:4px 12px 4px 0"><span class="dz-rot" style="display:block">Valor da pré-reserva (R$)</span>' +
-      '<input type="text" data-pr-p="valor" inputmode="decimal" maxlength="15" style="width:120px" placeholder="0,00" value="' + esc(pg.valor || "") + '"' + dis + "></label>" +
-      '<label style="display:inline-block;margin:4px 12px 4px 0"><span class="dz-rot" style="display:block">Data do pagamento</span>' +
+    /* 31/10/2026 (dono): valor, data e botão numa linha só, campos na mesma altura e o botão pela base (.dz-pr-pag, CSS
+       abaixo — vale no cartão do condomínio e na janela da pré-reserva das Propostas); no celular empilha */
+    h += '<div class="dz-linha dz-pr-pag">' +
+      '<label><span>Valor da pré-reserva (R$)</span>' +
+      '<input type="text" data-pr-p="valor" inputmode="decimal" maxlength="15" style="width:130px" placeholder="0,00" value="' + esc(pg.valor || "") + '"' + dis + "></label>" +
+      '<label><span>Data do pagamento</span>' +
       '<input type="date" data-pr-p="data" value="' + esc(pg.data || "") + '"' + dis + "></label>" +
       '<button type="button" class="bt ghost bt-mini" data-acao="pr-salvar-pag"' + dis + ">Salvar valor e data</button></div>";
     h += '<div class="dz-linha"><span class="dz-rot">' + (e.dataLimite ? "Prazo para decidir a compra: " + esc(dataBRpr(e.dataLimite)) + " (pagamento + 7 dias corridos)"
@@ -2297,12 +2350,20 @@
       if (r.ok) { estadoC = estadoContrato(r); uiC.msg = ""; }
       else uiC.msg = mensagemContrato(r);
       pintar();
+      /* 31/10/2026: o cartão do condomínio mostra o quadro do link só quando falta algo (vendas.html escuta) */
+      if (r.ok) try { window.dispatchEvent(new CustomEvent("venda:faltas-cliente", { detail: { pageId: pageId, faltas: estadoC.faltasCliente || null } })); } catch (e) {}
     }
     async function aoClicar(ev) {
       var b = ev.target.closest("[data-acao]"); if (!b || b.disabled || !vivo()) return;
       var acao = b.getAttribute("data-acao"), r, seq;
       if (/^mc-/.test(acao)) return aoClicarMC(acao);
       if (/^pr-/.test(acao)) return aoClicarPR(acao);
+      if (acao === "c-fluxo-ver") {
+        /* 31/10/2026: abre o Quadro do pro soluto do cartão (aba Contrato) */
+        var box = raiz && raiz.closest ? raiz.closest(".cd-cardbox") : null, dd = box && box.querySelector("details.cd-dobra");
+        if (dd) { dd.open = true; dd.scrollIntoView({ behavior: "smooth", block: "start" }); }
+        return;
+      }
       if (/^f-/.test(acao)) return aoClicarFin(acao);
       if (/^an-/.test(acao)) return aoClicarAnt(b, acao);
       if (/^d-/.test(acao)) return aoClicarConf(acao);
@@ -2489,6 +2550,23 @@
       if (acao === "c-fluxo-del") { if (!(FL().TIPOS[(ed.linhas[k] || {}).t] || {}).fixo) ed.linhas.splice(k, 1); pintar(); return; }
       if (acao === "c-fluxo-padrao") { ed.linhas = copiaLinhas(ed.padrao.linhas); ed.valor = ed.padrao.valor; ed.semComissao = false; ed.descontos = []; pintar(); return; }
       if (acao === "c-fluxo-desconto") { aplicarDescontoTela(ed); pintar(); return; }
+      if (acao === "c-fluxo-prazo") {
+        var pz = Number(b.getAttribute("data-p")), mp = FL().mudarPrazo({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, pz, ed.padrao);   /* a data dos pós-chaves vem da proposta */
+        if (mp.erro) uiC.msg = mp.erro;
+        else {
+          ed.linhas = mp.linhas;
+          if (!String(ed.motivo || "").trim()) ed.motivo = "Cliente mudou o prazo da entrada para " + pz + "x";
+          uiC.msg = "Fluxo refeito para " + pz + "x — confira as datas e salve.";
+        }
+        pintar();
+        return;
+      }
+      if (acao === "c-fluxo-dist") {
+        var ds = FL().distribuir({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas });
+        if (ds.erro) uiC.msg = ds.erro; else { ed.linhas = ds.linhas; uiC.msg = ""; }
+        pintar();
+        return;
+      }
       if (acao === "c-fluxo-red") {
         if ((FL().TIPOS[(ed.linhas[k] || {}).t] || {}).fixo) return;
         var rd = FL().redistribuir({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, k);
