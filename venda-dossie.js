@@ -1347,7 +1347,7 @@
     var trava = u.testes || !!u.ocupado, dis = trava ? " disabled" : "";
     if (u.ocupado === "conferir") h += '<div class="dz-linha"><b>lendo os documentos pela IA… (até 1 minuto)</b></div>';
     if (!e.feito) {
-      h += '<div class="dz-linha">Ainda não conferido. A IA lê os documentos anexados (identidade, comprovante de endereço, certidão, fiadores) e compara com o que vai no contrato.</div>';
+      h += '<div class="dz-linha">Ainda não conferido.</div>';   /* 31/10/2026 (dono): sem texto explicativo */
     } else {
       var dq = new Date(e.em || ""), quando = isNaN(dq) ? "" : dq.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });   /* hora local, não UTC */
       h += '<div class="dz-linha"><span class="dz-rot">Conferido em ' + esc(quando) + (e.por ? " por " + esc(e.por) : "") + "</span></div>";
@@ -1420,7 +1420,7 @@
     if (u.ocupado === "gerar") h += '<div class="dz-linha"><b>gerando o termo… (até 1 minuto)</b></div>';
     if (u.ocupado === "ver") h += '<div class="dz-linha"><b>abrindo o termo…</b></div>';
     if (u.ocupado === "conta") h += '<div class="dz-linha"><b>salvando a conta…</b></div>';
-    if (e.gerado) h += '<div class="dz-linha">Termo gerado: ' + esc(e.nome || "") + "</div>";
+    if (e.gerado) h += '<div class="dz-linha">Termo gerado</div>';   /* 31/10/2026 (dono): sem o nome do arquivo, como no contrato */
     if (u.faltas && u.faltas.length)
       h += '<div class="dz-aviso">Para gerar o termo, falta:</div><ul>' + u.faltas.map(function (f) { return "<li>" + esc(f) + "</li>"; }).join("") + "</ul>";
     h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="pr-gerar"' + (trava ? " disabled" : "") + ">" +
