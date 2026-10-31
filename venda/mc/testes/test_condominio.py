@@ -539,3 +539,17 @@ def test_pre_reserva_no_fluxo_alterado():
     ps = C.parcelas(fx, {"data_venda": "2026-09-01"}, 30)
     pr = [p for p in ps if p["rotulo"].startswith("Pré-reserva")]
     assert [(p["rotulo"], p["valor"], p["tipo"]) for p in pr] == [("Pré-reserva (já recebida em 03/10/2026)", 2000, R.TIPO_SINAL)]
+
+
+def test_alterar_fluxo_casa17_24x_para_36x_comissao_do_prazo_novo():
+    # 31/10/2026: casa 17 — o Alterar fluxo refaz para 36x (FluxoLivre.mudarPrazo, números do simulador); o robô
+    # tira a comissão das linhas novas (plano_do_fluxo), sem olhar o prazo da proposta
+    linhas36 = [{"t": "sinal", "v": 1000, "n": 1}, {"t": "sinal", "v": 29000, "n": 1},
+                {"t": "pre", "v": 1568.55, "n": 12}, {"t": "pre", "v": 601.88, "n": 12},
+                {"t": "balao", "v": 18238.9, "n": 1}, {"t": "balao", "v": 12767.25, "n": 1},
+                {"t": "pos", "v": 788.33, "n": 12}, {"t": "fin", "v": 244800, "n": 1}, {"t": "fgts", "v": 8688.73, "n": 1}]
+    fx = {"prazo": 24, "nP": 0, "livre": {"valor": 350000, "linhas": linhas36}}
+    assert C.plano_do_fluxo(fx) == 36
+    assert C.comissao_pela_regra(fx, 350000) == 16625.0          # 4,75%
+    volta = [l for l in linhas36 if l["t"] != "pos"]
+    assert C.plano_do_fluxo({**fx, "livre": {"valor": 350000, "linhas": volta}}) == 24

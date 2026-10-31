@@ -675,6 +675,15 @@ function contratoEstado_(col, p) {
     try { var cf = cfdEstado_(pgE); if (cf) r.confissao = cf; } catch (e) { ctrErro_("contratoEstado confissao", e); }
     try { r.condicoes = condEspEstado_(p.pageId, pgE); } catch (e) { ctrErro_("contratoEstado condicoes", e); }
     try { r.fluxo = fluxoEstado_(p.pageId, pgE); } catch (e) { ctrErro_("contratoEstado fluxo", e); }
+    /* 31/10/2026 (dono): o quadro "Link para completar" só aparece quando falta algo obrigatório que o cliente/corretor
+       completa — as mesmas faltas do gerador (ctrDadosAtuais_), só dos compradores, cônjuges e fiadores. Com o
+       contrato final gerado não falta nada (não relê os cadastros). */
+    if (etapa !== "FINAL") {
+      try {
+        var xf = ctrDadosAtuais_(col, p, String(p.pageId).slice(0, 8), "contratoEstado faltas");
+        r.faltasCliente = ((xf.resp && xf.resp.faltas) || []).filter(function (t) { return /^(Comprador|Fiador|C[ôo]njuge)/i.test(String(t)); });
+      } catch (e) { ctrErro_("contratoEstado faltas", e); }
+    } else r.faltasCliente = [];
   }
   else try { r.conta = contaRecebEstado_(p.pageId); } catch (e) { ctrErro_("contratoEstado conta", e); }
   /* 30/10: histórico do contrato (quem fez o quê) — LogContrato.gs */
