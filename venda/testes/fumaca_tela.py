@@ -26,7 +26,10 @@ HTML = """<!doctype html><html><head><meta charset="utf-8"><style>/*CSS_DO_VENDA
     assinaturaEstado: { ok: true, situacao: "", envelope: false, signatarios: [] },
     assinaturaEnviar: { ok: true, situacao: "ENVIADO" },
     mcEstado: { ok: true, situacao: "", vendaId: "" },
-    mcLancar: { ok: true, aplicar: false }
+    mcLancar: { ok: true, aplicar: false },
+    financeiroEstado: { ok: true, lancada: true, semLeitura: true, parcelas: [] },
+    conferenciaEstado: { ok: true, feito: false, linhas: [], confirmados: {}, atual: false },
+    preReservaEstado: { ok: true, gerado: false, nome: "", valor: 0, dataLimite: "" }
   };
   window.fetch = async function (url, opt) {
     var p = JSON.parse(opt.body); window.pedidos.push(p.action); (window.pedidosId = window.pedidosId || []).push(p.action + ":" + p.pageId);
@@ -35,6 +38,7 @@ HTML = """<!doctype html><html><head><meta charset="utf-8"><style>/*CSS_DO_VENDA
   };
   window.confirm = function () { return true; };
 </script>
+<script src="venda/Antecipacao.js"></script>
 <script src="venda-dossie.js"></script>
 </body></html>"""
 
@@ -155,6 +159,92 @@ def main() -> int:
             conf(ass.count() == 1 and ass.is_enabled(), "cartão: assinatura liberada com o contrato final")
             conf(not any(a.startswith("gerarContrato") for a in pg.evaluate("() => window.pedidosId")), "a tela nunca chama o gerarContrato antigo")
             conf(pg.locator('#contrato-wrap').count() == 1, "o painel da casa segue com um bloco só")
+            pg.evaluate("() => { VendaBlocos.soltar(); document.getElementById('cd-card').innerHTML = ''; }")
+            # 31/10: Antecipação de parcelas na aba Financeiro do cartão do condomínio, a 375 px (celular), sem janela e sem rede
+            retrato = json.loads((RAIZ / "venda" / "testes" / "dados" / "antecipacao-retratos.json").read_text(encoding="utf-8"))["base"]
+            hoje = pg.evaluate("() => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())")
+            pg.set_viewport_size({"width": 375, "height": 800})
+            pg.evaluate("() => { document.getElementById('pn-body').style.display = 'none'; }")   # o painel de 560 px é só do cenário anterior
+            pg.evaluate("""(r) => {
+                window.respostas.mcEstado = { ok: true, situacao: 'LANÇADA', vendaId: 'venda-1' };
+                window.respostas.antecipacaoEstado = { ok: true, pode: true, velho: false, processando: false, retrato: r, lido: '2026-10-21 10:00', temFiador: true };
+                window.respostas.antecipacaoPdf = { ok: true, linhaId: 'l-1', pdfUrl: 'https://exemplo.invalid/p.pdf', texto: 'Texto pronto para o WhatsApp' };
+                window.abriu = [];
+                window.open = function () { return { location: { set href(v) { window.abriu.push(v); } }, close: function () {}, opener: null }; };
+            }""", retrato)
+            pg.evaluate("""(id) => { var c = document.getElementById('cd-card');
+                c.innerHTML = '<div class="cd-cardbox" data-aba="financeiro"><h3>Unidade 13</h3><div id="cd-venda"></div></div>';
+                VendaBlocos.montar(document.getElementById('cd-venda'), id); VendaBlocos.aba('financeiro'); }""", COND)
+            pg.wait_for_timeout(800)
+            ab = pg.locator('#cd-card .vb-antec [data-acao="an-abrir"]')
+            conf(ab.count() == 1 and ab.is_visible(), "Financeiro: botão Antecipar parcelas aparece com a venda lançada")
+            conf(pg.locator('#cd-card .vb-fin').is_visible(), "Financeiro: a aba mostra o bloco das parcelas junto")
+            conf(pg.locator('#cd-card .vb-mc').is_hidden(), "Financeiro: o bloco do Mais Controle fica na aba Contrato")
+            largura = []
+
+            def medir(rotulo):
+                w = pg.evaluate("() => Math.max(document.body.scrollWidth, document.documentElement.scrollWidth)")
+                largura.append(w)
+                conf(w <= 375, "375 px (%s): sem rolagem horizontal da página (scrollWidth %s)" % (rotulo, w))
+            n0 = len(pg.evaluate("() => window.pedidos"))
+            ab.click()
+            pg.wait_for_selector('#cd-card [data-modo="B"]', timeout=5000)
+            ped = pg.evaluate("() => window.pedidos")
+            conf(ped.count("antecipacaoEstado") == 1 and len(ped) == n0 + 1, "Antecipar abre o painel com UMA chamada (antecipacaoEstado)")
+            txt = pg.inner_text("#cd-card .vb-antec")
+            conf("Com fiador: travas ligadas" in txt and "esticar prazo" in txt, "painel: travas ligadas e a nota do que não dá por aqui")
+            conf(pg.locator('#cd-card [data-modo]').count() == 5, "painel: cinco cartões A a E")
+            conf(pg.input_value("#ant-data") == hoje, "painel: data de hoje já preenchida (%s)" % hoje)
+            medir("painel aberto")
+            antes_b = pg.inner_text('#cd-card [data-an-card="B"]')
+            n1 = len(pg.evaluate("() => window.pedidos"))
+            pg.click("#ant-valor")
+            pg.keyboard.type("30.000,00", delay=15)
+            pg.wait_for_timeout(200)
+            depois_b = pg.inner_text('#cd-card [data-an-card="B"]')
+            conf(depois_b != antes_b and "Próximo pagamento" in depois_b, "digitar 30.000,00 muda o cartão B (%s)" % depois_b.split("\n")[-1][:70])
+            conf(len(pg.evaluate("() => window.pedidos")) == n1, "digitar não chama o servidor (a conta é no navegador)")
+            conf(pg.evaluate("() => document.activeElement && document.activeElement.id") == "ant-valor" and pg.input_value("#ant-valor") == "30.000,00",
+                 "o foco e o texto digitado ficam no campo")
+            medir("valor digitado")
+            for m in ("A", "C", "E"):
+                pg.click('#cd-card [data-modo="%s"]' % m)
+                pg.wait_for_timeout(100)
+                medir("jeito " + m)
+            pg.click('#cd-card [data-modo="D"]')
+            pg.wait_for_timeout(100)
+            conf(pg.locator('#cd-card input[name="an-par"]').count() >= 1, "jeito D: lista de balões em aberto")
+            medir("jeito D")
+            pg.click('#cd-card [data-modo="B"]')
+            pg.wait_for_timeout(100)
+            pg.click('#cd-card [data-acao="an-tabela"]')
+            pg.wait_for_timeout(100)
+            conf(pg.locator('#cd-card .vb-antec table.cd-fl').count() == 1, "parcela por parcela: a tabela aparece")
+            cx = pg.evaluate("() => { var t = document.querySelector('#cd-card .vb-antec table.cd-fl'), c = t.parentElement;"
+                             " return [c.clientWidth, c.scrollWidth, getComputedStyle(c).overflowX]; }")
+            conf(cx[2] == "auto", "a tabela rola dentro do contêiner (overflow-x %s; %s px visíveis de %s)" % (cx[2], cx[0], cx[1]))
+            medir("tabela aberta")
+            n2 = len(pg.evaluate("() => window.pedidos"))
+            pg.click('#cd-card [data-acao="an-pdf"]')
+            pg.wait_for_selector('#ant-texto', timeout=5000)
+            ped = pg.evaluate("() => window.pedidos")
+            conf(ped.count("antecipacaoPdf") == 1 and len(ped) == n2 + 1, "Gerar PDF chama antecipacaoPdf uma vez")
+            conf(pg.evaluate("() => window.abriu").count("https://exemplo.invalid/p.pdf") == 1, "o PDF abre na janela aberta dentro do clique")
+            conf("Texto pronto para o WhatsApp" in pg.input_value('#ant-texto'), "texto do WhatsApp aparece")
+            medir("PDF gerado")
+            if os.environ.get("FUMACA_PRINT_ANT"):
+                pg.screenshot(path=os.environ["FUMACA_PRINT_ANT"], full_page=True)
+            # retrato de outro mês: nenhum número, só a mensagem e o botão de ler
+            pg.evaluate("() => { window.respostas.antecipacaoEstado = { ok: true, pode: true, velho: true, processando: false, retrato: null, lido: '2026-09-30 10:00', temFiador: true }; }")
+            pg.click('#cd-card [data-acao="an-abrir"]')
+            pg.wait_for_timeout(100)
+            pg.click('#cd-card [data-acao="an-abrir"]')
+            pg.wait_for_selector('#cd-card [data-acao="an-ler"]', timeout=5000)
+            conf(pg.locator('#cd-card [data-modo]').count() == 0 and "R$" not in pg.inner_text("#cd-card .vb-antec"),
+                 "retrato velho: sem número e sem cartões, só ler de novo")
+            medir("retrato velho")
+            print("largura máxima da página a 375 px:", max(largura))
+            pg.set_viewport_size({"width": 1280, "height": 800})
             pg.evaluate("() => { VendaBlocos.soltar(); document.getElementById('cd-card').innerHTML = ''; }")
             b.close()
     finally:
