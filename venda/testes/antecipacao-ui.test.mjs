@@ -93,7 +93,7 @@ test("os cinco jeitos, o campo de valor e a data de hoje com min e max", () => {
 });
 
 test("todo data-acao do bloco começa com an-, e nenhum elemento usa o atributo hidden", () => {
-  const h = D.htmlAntecipacao(est(), ui({ valor: "30000", tabela: true, pdf: { texto: "oi", url: "" } }));
+  const h = D.htmlAntecipacao(est(), ui({ valor: "30000", tabela: true, texto: "oi", copia: "ok" }));
   const acoes = [...h.matchAll(/data-acao="([^"]+)"/g)].map((m) => m[1]);
   assert.ok(acoes.length > 8);
   for (const a of acoes) assert.match(a, /^an-/, a);
@@ -205,24 +205,55 @@ test("C: a divisa é a escolhida e o centavo vizinho leva o rótulo", () => {
   assert.match(h, /<td>10\/11\/2028<\/td><td>Pós-chaves<\/td><td class="r">R\$ 792,71<\/td><td class="r">R\$ 792,70<\/td><td>ajuste de centavo<\/td>/);
 });
 
-test("PDF: botão só com o jeito escolhido calculado; travado em TESTES e enquanto gera", () => {
+test("Copiar mensagem: botão só com o jeito escolhido calculado; travado enquanto monta; TESTES pode (o servidor não grava)", () => {
   const livre = D.htmlAntecipacao(est(), ui({ valor: "30.000,00" }));
-  assert.match(livre, /data-acao="an-pdf"(?![^>]*disabled)[^>]*>Gerar PDF para o cliente/);
-  assert.match(D.htmlAntecipacao(est(), ui()), /data-acao="an-pdf"[^>]*disabled/);
-  assert.match(D.htmlAntecipacao(est(), ui({ valor: "30.000,00", testes: true })), /data-acao="an-pdf"[^>]*disabled/);
-  assert.match(D.htmlAntecipacao(est(), ui({ valor: "30.000,00", testes: true })), /data-acao="an-ler"[^>]*disabled/);
-  const gerando = D.htmlAntecipacao(est(), ui({ valor: "30.000,00", ocupado: "pdf" }));
-  assert.match(gerando, /data-acao="an-pdf"[^>]*disabled/); assert.match(gerando, /gerando o PDF…/);
+  assert.match(livre, /data-acao="an-msg"(?![^>]*disabled)[^>]*>Copiar mensagem/);
+  assert.match(D.htmlAntecipacao(est(), ui()), /data-acao="an-msg"[^>]*disabled/);
+  assert.match(D.htmlAntecipacao(est(), ui({ valor: "30.000,00", testes: true })), /data-acao="an-msg"(?![^>]*disabled)/);
+  assert.match(D.htmlAntecipacao(est(), ui({ valor: "30.000,00", testes: true })), /data-acao="an-ler"[^>]*disabled/);   // ler de novo segue travado
+  const montando = D.htmlAntecipacao(est(), ui({ valor: "30.000,00", ocupado: "msg" }));
+  assert.match(montando, /data-acao="an-msg"[^>]*disabled/); assert.match(montando, /montando a mensagem…/);
 });
 
-test("depois do PDF: texto do WhatsApp com Copiar e o link Abrir o PDF sempre que o endereço veio (https)", () => {
+test("a antecipação não fala mais em PDF: nem botão Gerar PDF, nem an-pdf, nem link, nem a palavra PDF", () => {
+  const texto = "Simulação x";
+  for (const u of [ui(), ui({ valor: "30.000,00" }), ui({ valor: "30.000,00", tabela: true, texto, copia: "ok" }), ui({ valor: "30.000,00", ocupado: "msg" }),
+                   ui({ valor: "30.000,00", pdf: { texto, url: "https://exemplo.invalid/p.pdf" } })]) {
+    const h = D.htmlAntecipacao(est(), u);
+    assert.doesNotMatch(h, /Gerar PDF|an-pdf|Abrir o PDF|PDF|<a /);
+    assert.match(h, /data-acao="an-msg"[^>]*>Copiar mensagem</);
+  }
+  /* e o código da tela (do bloco do resultado até o fim do bloco da antecipação) não chama o PDF nem abre janela */
+  const fonte = fs.readFileSync(new URL("../../venda-dossie.js", import.meta.url), "utf8");
+  const bloco = fonte.slice(fonte.indexOf("function htmlAntResultado"), fonte.indexOf("function aoDigitarAnt"));
+  assert.ok(bloco.length > 5000, "bloco achado");
+  assert.doesNotMatch(bloco, /an-pdf|Gerar PDF|window\.open|antecipacaoPdf|pdfUrl/);
+  assert.match(bloco, /action: "antecipacaoTexto"/);
+});
+
+test("depois de copiar: o texto do WhatsApp (escapado) em área só de leitura, Copiar de novo e o aviso Mensagem copiada", () => {
   const texto = "Simulação <b>x</b>\nlinha 2";
-  const h = D.htmlAntecipacao(est(), ui({ valor: "30.000,00", pdf: { texto, url: "" } }));
+  const h = D.htmlAntecipacao(est(), ui({ valor: "30.000,00", texto, copia: "ok" }));
   assert.match(h, /<textarea id="ant-texto" readonly[^>]*>Simulação &lt;b&gt;x&lt;\/b&gt;\nlinha 2<\/textarea>/);
-  assert.match(h, /data-acao="an-copiar"/); assert.doesNotMatch(h, /Abrir o PDF/);   // sem endereço, sem link
-  const bloq = D.htmlAntecipacao(est(), ui({ valor: "30.000,00", pdf: { texto, url: "https://exemplo.invalid/p.pdf?x=1&y=2" } }));
-  assert.match(bloq, /<a href="https:\/\/exemplo\.invalid\/p\.pdf\?x=1&amp;y=2" target="_blank" rel="noopener noreferrer">Abrir o PDF/);
-  assert.doesNotMatch(D.htmlAntecipacao(est(), ui({ valor: "30.000,00", pdf: { texto, url: "javascript:alert(1)" } })), /Abrir o PDF/);
+  assert.doesNotMatch(h, /<b>x<\/b>/);
+  assert.match(h, /data-acao="an-copiar"[^>]*>Copiar de novo</);
+  assert.match(h, /role="status">Mensagem copiada</); assert.doesNotMatch(h, /Selecione e copie/);
+});
+
+test("sem permissão para copiar: o texto fica à mostra e o aviso manda selecionar e copiar (Ctrl+C)", () => {
+  const h = D.htmlAntecipacao(est(), ui({ valor: "30.000,00", texto: "Simulação x", copia: "manual" }));
+  assert.match(h, /<textarea id="ant-texto" readonly/);
+  assert.match(h, /role="status">Selecione e copie \(Ctrl\+C\)</); assert.doesNotMatch(h, /Mensagem copiada/);
+  assert.match(h, /data-acao="an-copiar"/);
+  /* antes de qualquer cópia não há texto nem aviso */
+  const antes = D.htmlAntecipacao(est(), ui({ valor: "30.000,00" }));
+  assert.doesNotMatch(antes, /ant-texto|Mensagem copiada|Selecione e copie/);
+});
+
+test("o erro do servidor aparece escapado, em frase, sem texto copiado", () => {
+  const h = D.htmlAntecipacao(est(), ui({ valor: "30.000,00", msg: D.mensagemAnt({ erro: "RETRATO_VELHO" }) }));
+  assert.match(h, /A leitura da venda é de outro mês/); assert.doesNotMatch(h, /RETRATO_VELHO|ant-texto/);
+  assert.match(D.htmlAntecipacao(est(), ui({ valor: "30.000,00", msg: "<img src=x>" })), /&lt;img src=x&gt;/);
 });
 
 test("a parte de baixo (htmlAntResultado) não traz os campos de valor e data", () => {

@@ -168,9 +168,13 @@ def main() -> int:
             pg.evaluate("""(r) => {
                 window.respostas.mcEstado = { ok: true, situacao: 'LANÇADA', vendaId: 'venda-1' };
                 window.respostas.antecipacaoEstado = { ok: true, pode: true, velho: false, processando: false, retrato: r, lido: '2026-10-21 10:00', temFiador: true };
-                window.respostas.antecipacaoPdf = { ok: true, linhaId: 'l-1', pdfUrl: 'https://exemplo.invalid/p.pdf', texto: 'Texto pronto para o WhatsApp' };
+                window.respostas.antecipacaoTexto = { ok: true, texto: 'Texto pronto para o WhatsApp' };
                 window.abriu = [];
-                window.open = function () { return { location: { set href(v) { window.abriu.push(v); } }, close: function () {}, opener: null }; };
+                window.open = function () { window.abriu.push('open'); return null; };   // a antecipação não abre janela nenhuma
+                // área de transferência falsa: guarda o que foi copiado (modo 'ok') ou recusa (modo 'nega', como sem permissão)
+                window.copiados = []; window.modoClip = 'ok';
+                Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
+                    writeText: function (t) { if (window.modoClip !== 'ok') return Promise.reject(new Error('NotAllowedError')); window.copiados.push(t); return Promise.resolve(); } } });
             }""", retrato)
             pg.evaluate("""(id) => { var c = document.getElementById('cd-card');
                 c.innerHTML = '<div class="cd-cardbox" data-aba="financeiro"><h3>Unidade 13</h3><div id="cd-venda"></div></div>';
@@ -236,16 +240,33 @@ def main() -> int:
             conf(cx[2] == "auto", "a tabela rola dentro do contêiner (overflow-x %s; %s px visíveis de %s)" % (cx[2], cx[0], cx[1]))
             medir("tabela aberta")
             n2 = len(pg.evaluate("() => window.pedidos"))
-            pg.click('#cd-card [data-acao="an-pdf"]')
+            conf(pg.locator('#cd-card [data-acao="an-pdf"]').count() == 0 and "PDF" not in pg.inner_text("#cd-card .vb-antec"),
+                 "a antecipação não tem mais botão nem palavra PDF")
+            conf(pg.locator('#cd-card [data-acao="an-msg"]').inner_text() == "Copiar mensagem", "botão Copiar mensagem")
+            pg.click('#cd-card [data-acao="an-msg"]')
             pg.wait_for_selector('#ant-texto', timeout=5000)
+            pg.wait_for_selector('#cd-card .vb-antec [role="status"]', timeout=5000)
             ped = pg.evaluate("() => window.pedidos")
-            conf(ped.count("antecipacaoPdf") == 1 and len(ped) == n2 + 1, "Gerar PDF chama antecipacaoPdf uma vez")
-            conf(pg.evaluate("() => window.abriu").count("https://exemplo.invalid/p.pdf") == 1, "o PDF abre na janela aberta dentro do clique")
+            conf(ped.count("antecipacaoTexto") == 1 and ped.count("antecipacaoPdf") == 0 and len(ped) == n2 + 1,
+                 "Copiar mensagem chama antecipacaoTexto uma vez e nunca o PDF")
+            conf(pg.evaluate("() => window.abriu").__len__() == 0, "nenhuma janela é aberta")
+            conf(pg.evaluate("() => window.copiados") == ["Texto pronto para o WhatsApp"], "o texto foi para a área de transferência")
             conf("Texto pronto para o WhatsApp" in pg.input_value('#ant-texto'), "texto do WhatsApp aparece")
-            medir("PDF gerado")
-            lk = pg.locator('#cd-card a[href="https://exemplo.invalid/p.pdf"]')
-            conf(lk.count() == 1 and lk.get_attribute("target") == "_blank" and "noopener" in lk.get_attribute("rel"),
-                 "depois do PDF o link Abrir o PDF fica, mesmo com a janela aberta")
+            conf("Mensagem copiada" in pg.inner_text('#cd-card .vb-antec [role="status"]'), "aviso: Mensagem copiada")
+            conf(pg.locator('#cd-card .vb-antec a').count() == 0, "sem link de PDF")
+            medir("mensagem copiada")
+            # sem permissão para copiar: o texto fica selecionado e o aviso manda copiar com Ctrl+C
+            pg.evaluate("() => { window.modoClip = 'nega'; }")
+            pg.click('#cd-card [data-acao="an-copiar"]')
+            pg.wait_for_function("() => /Selecione e copie/.test(document.querySelector('#cd-card .vb-antec [role=status]').textContent)", timeout=5000)
+            sel = pg.evaluate("() => { var t = document.getElementById('ant-texto'); return [document.activeElement === t, t.selectionStart, t.selectionEnd, t.value.length]; }")
+            conf(sel[0] and sel[1] == 0 and sel[2] == sel[3] > 0, "sem clipboard: o texto fica selecionado (%s)" % (sel,))
+            conf("Mensagem copiada" not in pg.inner_text('#cd-card .vb-antec'), "sem clipboard: o aviso de copiado some")
+            pg.evaluate("() => { window.modoClip = 'nega'; }")
+            pg.click('#cd-card [data-acao="an-msg"]')
+            pg.wait_for_function("() => /Selecione e copie/.test(document.querySelector('#cd-card .vb-antec [role=status]').textContent) && document.getElementById('ant-texto')", timeout=5000)
+            conf(pg.evaluate("() => window.pedidos").count("antecipacaoTexto") == 2, "Copiar mensagem de novo, agora sem permissão, também mostra o texto")
+            medir("selecione e copie")
             if os.environ.get("FUMACA_PRINT_ANT"):
                 pg.screenshot(path=os.environ["FUMACA_PRINT_ANT"], full_page=True)
             # retrato de outro mês: nenhum número, só a mensagem e o botão de ler

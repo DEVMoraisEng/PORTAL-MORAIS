@@ -1373,10 +1373,10 @@
   }
   /* ---- 31/10/2026: Antecipação de parcelas (spec v2, etapa "simular") — aba Financeiro do cartão do condomínio ----
    * e = resposta do antecipacaoEstado ({ pode, motivo, retrato, lido, velho, processando, erroRobo, temFiador });
-   * u = { vendaId, aberto, modo, valor, dataPg, hoje, parcelaId, quantas, tabela, ocupado, lendo, msg, pdf, testes }.
+   * u = { vendaId, aberto, modo, valor, dataPg, hoje, parcelaId, quantas, tabela, ocupado, lendo, msg, texto, copia, testes }.
    * A conta roda AQUI, no navegador (venda/Antecipacao.js, a mesma do servidor): digitar valor, data ou jeito não chama o
-   * servidor. O servidor refaz a conta antes de gerar o PDF. Comandos (data-acao): an-abrir, an-ler, an-modo, an-usar,
-   * an-todas, an-ultimas, an-tabela, an-pdf, an-copiar. Campos (data-an): valor, data, parcela, quantas. */
+   * servidor. O servidor refaz a conta antes de devolver o texto (antecipacaoTexto). Comandos (data-acao): an-abrir, an-ler, an-modo, an-usar,
+   * an-todas, an-ultimas, an-tabela, an-msg, an-copiar. Campos (data-an): valor, data, parcela, quantas. */
   function ANT() { return typeof Antecipacao !== "undefined" ? Antecipacao : require("./venda/Antecipacao.js"); }
   function antR(n) { return "R$ " + Number(n || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   function antNumBR(n) { return Number(n || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
@@ -1408,7 +1408,7 @@
   function novoUiA() {
     var h = antHojeSP();
     return { vendaId: "", aberto: false, modo: "B", valor: "", hoje: h, dataPg: h, parcelaId: "", quantas: "", tabela: false,
-             ocupado: null, lendo: false, msg: "", pdf: null, testes: perfilTestes() };
+             ocupado: null, lendo: false, msg: "", texto: null, copia: "", testes: perfilTestes() };
   }
   /* campos que faltam viram o padrão (hoje, jeito B); data vazia continua vazia (a tela avisa) */
   function antNorm(u) {
@@ -1578,14 +1578,16 @@
     var sel = c.res[u.modo], ok = !!(sel && sel.ok);
     h += '<div class="dz-linha"><button type="button" class="bt bt-mini ghost" data-acao="an-tabela"' + (ok ? "" : " disabled") + ">" +
       (u.tabela ? "Esconder a tabela" : "Ver parcela por parcela") + "</button> " +
-      '<button type="button" class="bt bt-mini" data-acao="an-pdf"' + (ok && !u.testes && !u.ocupado ? "" : " disabled") + ">Gerar PDF para o cliente</button>" +
-      (u.ocupado === "pdf" ? " <b>gerando o PDF…</b>" : "") + "</div>";
+      '<button type="button" class="bt bt-mini" data-acao="an-msg"' + (ok && !u.ocupado ? "" : " disabled") + ">Copiar mensagem</button>" +
+      (u.ocupado === "msg" ? " <b>montando a mensagem…</b>" : "") + "</div>";
     if (ok && u.tabela) h += antTabela(sel, c);
-    if (u.pdf) {
-      h += '<div class="dz-linha"><span><b>PDF gerado.</b> Texto pronto para o WhatsApp:</span></div>' +
-        '<div class="dz-linha"><textarea id="ant-texto" readonly rows="6" style="width:100%;box-sizing:border-box;font:inherit">' + esc(u.pdf.texto) + "</textarea></div>" +
-        '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="an-copiar">Copiar texto</button>' +
-        (/^https:\/\//.test(u.pdf.url || "") ? ' <a href="' + esc(u.pdf.url) + '" target="_blank" rel="noopener noreferrer">Abrir o PDF</a>' : "") + "</div>";
+    /* 31/10/2026 (dono): a antecipação não gera PDF; a mensagem do WhatsApp é copiada e fica à mostra para copiar de novo */
+    if (u.texto) {
+      h += '<div class="dz-linha"><span><b>Mensagem para o WhatsApp:</b></span></div>' +
+        '<div class="dz-linha"><textarea id="ant-texto" readonly rows="6" style="width:100%;box-sizing:border-box;font:inherit">' + esc(u.texto) + "</textarea></div>" +
+        '<div class="dz-linha"><button type="button" class="bt bt-mini ghost" data-acao="an-copiar">Copiar de novo</button></div>' +
+        (u.copia === "ok" ? '<div class="dz-msg" role="status">Mensagem copiada</div>'
+          : u.copia === "manual" ? '<div class="dz-msg" role="status">Selecione e copie (Ctrl+C)</div>' : "");
     }
     return h + antMsg(u);
   }
@@ -1889,7 +1891,7 @@
     async function carregarAnt() {
       var r = await chamarVenda({ action: "antecipacaoEstado", pageId: pageId }, 60000);
       if (!vivo()) return null;
-      if (uiA.ocupado === "estado") uiA.ocupado = null;   /* o polling não pode reabilitar o botão no meio do PDF */
+      if (uiA.ocupado === "estado") uiA.ocupado = null;   /* o polling não pode reabilitar o botão no meio da cópia */
       if (r.ok) { estadoA = r; uiA.msg = ""; } else { uiA.msg = mensagemAnt(r); if (antSemBackend(r)) uiA.semBackend = true; }
       pintarAnt();
       return r;
@@ -1918,46 +1920,47 @@
         pintarAnt();
       }, 10000);
     }
-    async function gerarPdfAnt() {
+    /* 31/10/2026 (dono): "Copiar mensagem" — o servidor refaz a conta e devolve só o texto do WhatsApp (antecipacaoTexto): nada de PDF, Drive ou Notion */
+    async function copiarTextoAnt(t) {
+      try { await navigator.clipboard.writeText(t); return true; } catch (e) { return false; }
+    }
+    function selecionarTextoAnt() {
+      var ta = dentro("#ant-texto");
+      if (ta) { try { ta.focus(); ta.select(); if (ta.setSelectionRange) ta.setSelectionRange(0, ta.value.length); } catch (e) {} }
+    }
+    async function copiarMensagemAnt() {
       if (uiA.ocupado || !estadoA || !estadoA.retrato) return;
       var u = antNorm(uiA), c = antCalcular(estadoA.retrato, u), r0 = c.res[u.modo];
       if (!r0 || !r0.ok) return;
-      var p = { action: "antecipacaoPdf", pageId: pageId, modo: u.modo, dataPg: u.dataPg };
+      var p = { action: "antecipacaoTexto", pageId: pageId, modo: u.modo, dataPg: u.dataPg };
       if (u.modo !== "E") p.valor = r0.valor;
       if (u.modo === "D") p.parcelaId = c.parcelaId;
       if (u.modo === "E") p.quantas = c.quantas;
-      /* a janela abre AGORA, dentro do clique (senão o navegador bloqueia); o endereço do PDF vale cerca de 1 hora */
-      var w = window.open("about:blank", "_blank");
-      uiA.ocupado = "pdf"; uiA.msg = ""; uiA.pdf = null; pintarAntRes();
-      var r = await chamarVenda(p, 120000);
-      if (!vivo()) { if (w) { try { w.close(); } catch (e) {} } return; }
+      uiA.ocupado = "msg"; uiA.msg = ""; uiA.texto = null; uiA.copia = ""; pintarAntRes();
+      var r = await chamarVenda(p, 60000);
+      if (!vivo()) return;
       uiA.ocupado = null;
-      if (r.ok) {
-        var https = /^https:\/\//.test(r.pdfUrl || "");
-        uiA.pdf = { texto: String(r.texto || ""), url: https ? r.pdfUrl : "" };   /* o link fica, mesmo com a janela aberta */
-        if (https) {
-          if (w) { try { w.opener = null; } catch (e2) {} w.location.href = r.pdfUrl; }
-        } else {
-          if (w) { try { w.close(); } catch (e3) {} }
-          uiA.msg = "O PDF foi guardado, mas o endereço dele não veio. Gere de novo em instantes.";
-        }
-      } else {
-        if (w) { try { w.close(); } catch (e4) {} }
-        uiA.msg = mensagemAnt(r);
+      if (r.ok && String(r.texto || "")) {
+        uiA.texto = String(r.texto);
+        /* depois da espera o navegador pode ter perdido o gesto do clique: se não copiar, o texto fica selecionado */
+        uiA.copia = (await copiarTextoAnt(uiA.texto)) ? "ok" : "manual";
+        if (!vivo()) return;
+        pintarAnt();
+        if (uiA.copia === "manual") selecionarTextoAnt();
+        return;
       }
+      uiA.msg = r.ok ? "Não recebi a mensagem. Tente de novo." : mensagemAnt(r);
       pintarAnt();
     }
     async function copiarAnt() {
-      var t = uiA.pdf && uiA.pdf.texto;
+      var t = uiA.texto;
       if (!t) return;
-      var ok = false;
-      try { await navigator.clipboard.writeText(t); ok = true; }
-      catch (e) { try { var ta = dentro("#ant-texto"); if (ta) { ta.select(); ok = document.execCommand("copy"); } } catch (e2) {} }
-      uiA.msg = ok ? "Texto copiado." : "Não consegui copiar — selecione o texto e copie.";
+      uiA.copia = (await copiarTextoAnt(t)) ? "ok" : "manual";
       pintarAntRes();
+      if (uiA.copia === "manual") selecionarTextoAnt();
     }
     async function aoClicarAnt(b, acao) {
-      var mudou = function () { uiA.pdf = null; uiA.msg = ""; };
+      var mudou = function () { uiA.texto = null; uiA.copia = ""; uiA.msg = ""; };
       if (acao === "an-abrir") {
         if (uiA.aberto && !b.hasAttribute("data-tentar")) { uiA.aberto = false; pintarAnt(); return; }
         uiA.aberto = true; uiA.msg = ""; uiA.hoje = antHojeSP();
@@ -1988,7 +1991,7 @@
       if (acao === "an-todas") { uiA.quantas = ""; mudou(); pintarAntRes(); return; }
       if (acao === "an-ultimas") { if (!String(uiA.quantas).trim()) uiA.quantas = "1"; mudou(); pintarAntRes(); return; }
       if (acao === "an-tabela") { uiA.tabela = !uiA.tabela; pintarAntRes(); return; }
-      if (acao === "an-pdf") return gerarPdfAnt();
+      if (acao === "an-msg") return copiarMensagemAnt();
       if (acao === "an-copiar") return copiarAnt();
     }
     /* o que se digita (valor, data, balão escolhido, quantas) recalcula aqui mesmo, sem chamar o servidor */
@@ -1999,7 +2002,7 @@
       else if (k === "quantas") uiA.quantas = el.value;
       else if (k === "parcela") uiA.parcelaId = el.value;
       else return;
-      uiA.pdf = null; uiA.msg = "";
+      uiA.texto = null; uiA.copia = ""; uiA.msg = "";
       pintarAntRes();
     }
     function aoClicarFin(acao) {
