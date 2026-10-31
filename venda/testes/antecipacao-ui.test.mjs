@@ -157,7 +157,7 @@ test("valor que não fecha ao centavo: frase simples e um botão por valor suger
   const r0 = A.simular(RET, { modo: "D", valor: 1334.17, dataPg: HOJE, parcelaId: BAL[0].id });
   assert.equal(r0.erro, "NAO_FECHA");   // 11% dos valores do jeito D são assim
   const d = cartao(D.htmlAntecipacao(est(), ui({ modo: "D", valor: "1.334,17" })), "D");
-  assert.match(tudo(d), /Esse valor não fecha ao centavo; use R\$ 1\.334,18 ou R\$ 1\.334,16/);
+  assert.match(tudo(d), /Esse valor não fecha ao centavo nas parcelas que ficam\. Use R\$ 1\.334,18 ou R\$ 1\.334,16/);
   assert.match(d, /data-acao="an-usar" data-valor="1334.18"/);
   assert.match(d, /data-acao="an-usar" data-valor="1334.16"/);
   /* usar a sugestão fecha */
@@ -215,11 +215,11 @@ test("PDF: botão só com o jeito escolhido calculado; travado em TESTES e enqua
   assert.match(gerando, /data-acao="an-pdf"[^>]*disabled/); assert.match(gerando, /gerando o PDF…/);
 });
 
-test("depois do PDF: texto do WhatsApp com Copiar; o link só aparece se o navegador bloqueou a janela", () => {
+test("depois do PDF: texto do WhatsApp com Copiar e o link Abrir o PDF sempre que o endereço veio (https)", () => {
   const texto = "Simulação <b>x</b>\nlinha 2";
   const h = D.htmlAntecipacao(est(), ui({ valor: "30.000,00", pdf: { texto, url: "" } }));
   assert.match(h, /<textarea id="ant-texto" readonly[^>]*>Simulação &lt;b&gt;x&lt;\/b&gt;\nlinha 2<\/textarea>/);
-  assert.match(h, /data-acao="an-copiar"/); assert.doesNotMatch(h, /Abrir o PDF/);
+  assert.match(h, /data-acao="an-copiar"/); assert.doesNotMatch(h, /Abrir o PDF/);   // sem endereço, sem link
   const bloq = D.htmlAntecipacao(est(), ui({ valor: "30.000,00", pdf: { texto, url: "https://exemplo.invalid/p.pdf?x=1&y=2" } }));
   assert.match(bloq, /<a href="https:\/\/exemplo\.invalid\/p\.pdf\?x=1&amp;y=2" target="_blank" rel="noopener noreferrer">Abrir o PDF/);
   assert.doesNotMatch(D.htmlAntecipacao(est(), ui({ valor: "30.000,00", pdf: { texto, url: "javascript:alert(1)" } })), /Abrir o PDF/);
@@ -235,8 +235,77 @@ test("mensagens dos erros do servidor", () => {
   const m = D.mensagemAnt;
   assert.match(m({ erro: "DATA_FORA_DO_MES" }), /entre hoje e o fim deste mês/);
   assert.match(m({ erro: "RETRATO_VELHO" }), /outro mês/);
-  assert.match(m({ erro: "NAO_FECHA", sugestoes: [1] }), /não fecha ao centavo/);
+  assert.match(m({ erro: "NAO_FECHA", sugestoes: [1] }), /não fecha ao centavo nas parcelas que ficam/);
   assert.match(m({ erro: "NAO_PODE", motivo: "Só venda do X" }), /Só venda do X/);
   assert.match(m({ erro: "RETRATO_PROCESSANDO" }), /já está em andamento/);
   assert.match(m({ erro: "SEM_RESPOSTA" }), /não respondeu/);
+});
+
+test("D e E: os rádios e os rótulos não herdam o estilo dos campos do .cd-and (largura total, maiúsculas)", () => {
+  for (const modo of ["D", "E"]) {
+    const c = cartao(D.htmlAntecipacao(est(), ui({ modo, valor: "1.000,00" })), modo);
+    const radios = c.match(/<input type="radio"[^>]*>/g) || [];
+    assert.ok(radios.length >= 2, modo);
+    for (const r of radios) assert.match(r, /style="width:auto"/, r);
+    const rotulos = c.match(/<label[^>]*>/g) || [];
+    assert.ok(rotulos.length >= 2, modo);
+    for (const l of rotulos) assert.match(l, /style="display:inline;text-transform:none;font-size:inherit;font-weight:400;margin-right:12px"/, l);
+  }
+});
+
+test("mensagemAnt: nenhuma frase mostra o código do servidor em maiúsculas", () => {
+  const codigos = ["DATA_INVALIDA", "MODO_INVALIDO", "RETRATO_INCOERENTE", "VALOR_INVALIDO", "VALOR_ACIMA_DO_SALDO", "PARCELA_INVALIDA",
+    "SEM_POS_CHAVES", "QUANTAS_INVALIDA", "NAO_FECHA", "TRAVA", "NAO_PODE", "SEM_RETRATO", "RETRATO_VELHO", "BASE_ANTECIPACOES_NAO_CONFIGURADA",
+    "DATA_FORA_DO_MES", "REGISTRO_FALHOU", "ANEXO_FALHOU", "RETRATO_PROCESSANDO", "FILA_NAO_CONFIGURADA", "NAO_AUTORIZADO", "SEM_PERMISSAO",
+    "SEM_PERMISSAO_TESTES", "SEM_RESPOSTA", "PORTAL_VENDA_NAO_CONFIGURADO"];
+  for (const erro of codigos) {
+    const t = D.mensagemAnt({ erro, motivo: "Motivo do servidor", sugestoes: [1] });
+    assert.ok(t && t.length > 10, erro);
+    assert.ok(!t.includes(erro), erro + " → " + t);
+    assert.doesNotMatch(t, /[A-Z]{3,}_[A-Z_]+/, erro + " → " + t);
+  }
+});
+
+test("ajuste de centavo em A e C: toda reduz de até 5 centavos com outra reduz de queda maior, não importa a ordem", () => {
+  let rotulados = 0;
+  for (const modo of ["A", "C"]) {
+    for (let v = 100; v < 37000; v += 211.17) {
+      const valor = Math.round(v * 100) / 100;
+      const r = A.simular(RET, { modo, valor, dataPg: HOJE });
+      if (!r.ok) continue;
+      const reduz = r.depois.filter((x) => x.acao === "reduz");
+      const queda = (x) => x.valorAntes - x.valor;
+      const esperado = reduz.filter((x) => queda(x) <= 0.05 + 1e-9 && reduz.some((o) => o !== x && queda(o) > queda(x) + 1e-9)).length;
+      const h = D.htmlAntecipacao(est(), ui({ modo, valor: String(valor).replace(".", ","), tabela: true }));
+      const na_tela = (h.match(/ajuste de centavo/g) || []).length;
+      assert.equal(na_tela, esperado, modo + " " + valor);
+      rotulados += na_tela;
+    }
+  }
+  assert.ok(rotulados >= 5);
+});
+
+test("sem abrir o estado (erro na 1ª chamada): mensagem e botão Tentar de novo; abrindo não mostra o botão", () => {
+  const h = D.htmlAntecipacao(null, ui({ msg: "O servidor não respondeu — confira a internet e tente de novo." }));
+  assert.match(h, /O servidor não respondeu/);
+  assert.match(h, /data-acao="an-abrir" data-tentar="1">Tentar de novo</);
+  assert.doesNotMatch(D.htmlAntecipacao(null, ui({ msg: "x", ocupado: "estado" })), /Tentar de novo/);
+  assert.doesNotMatch(D.htmlAntecipacao(null, ui()), /Tentar de novo/);
+});
+
+test("texto do servidor (motivo) e mensagem da tela saem escapados", () => {
+  const motivo = D.htmlAntecipacao({ ok: true, pode: false, velho: true, lido: "", motivo: "<img src=x onerror=x>", temFiador: false }, ui());
+  assert.doesNotMatch(motivo, /<img/); assert.match(motivo, /&lt;img src=x onerror=x&gt;/);
+  const msg = D.htmlAntecipacao(est(), ui({ valor: "30.000,00", msg: "<img src=x onerror=x>" }));
+  assert.doesNotMatch(msg, /<img/); assert.match(msg, /&lt;img src=x onerror=x&gt;/);
+  const msgSemRetrato = D.htmlAntecipacao(est({ velho: true }), ui({ msg: "<img onerror=x>" }));
+  assert.doesNotMatch(msgSemRetrato, /<img/);
+});
+
+test("várias parcelas vencidas: contagem, soma e a mais antiga", () => {
+  const r = structuredClone(RET);
+  const abertas = r.parcelas.filter((x) => !x.pago && x.tipo === "pre");
+  abertas[0].data = "2026-10-05"; abertas[1].data = "2026-10-02";
+  const h = tudo(D.htmlAntecipacao(est({ retrato: r }), ui({ valor: "1.000,00" })));
+  assert.match(h, /Há 2 parcelas vencidas, somando R\$ 663,68 \(a mais antiga de 02\/10\)\. Elas ficam fora da antecipação; cobre primeiro\./);
 });

@@ -215,6 +215,17 @@ def main() -> int:
             pg.wait_for_timeout(100)
             conf(pg.locator('#cd-card input[name="an-par"]').count() >= 1, "jeito D: lista de balões em aberto")
             medir("jeito D")
+            rad = pg.evaluate("() => Array.from(document.querySelectorAll('#cd-card input[name=an-par]')).map(function (i) {"
+                              " var l = i.closest('label'); return [i.getBoundingClientRect().width, getComputedStyle(l).textTransform]; })")
+            conf(len(rad) >= 1 and all(r[0] < 40 for r in rad) and all(r[1] == "none" for r in rad),
+                 "jeito D: rádios estreitos (%s px) e rótulo sem maiúsculas (%s)" % (rad[0][0] if rad else "?", rad[0][1] if rad else "?"))
+            pg.click('#cd-card [data-modo="E"]')
+            pg.wait_for_timeout(100)
+            rade = pg.evaluate("() => Array.from(document.querySelectorAll('#cd-card input[name=an-e]')).map(function (i) {"
+                               " var l = i.closest('label'); return [i.getBoundingClientRect().width, getComputedStyle(l).textTransform]; })")
+            conf(len(rade) == 2 and all(r[0] < 40 for r in rade) and all(r[1] == "none" for r in rade), "jeito E: rádios estreitos e rótulo sem maiúsculas")
+            pg.click('#cd-card [data-modo="D"]')
+            pg.wait_for_timeout(100)
             pg.click('#cd-card [data-modo="B"]')
             pg.wait_for_timeout(100)
             pg.click('#cd-card [data-acao="an-tabela"]')
@@ -232,6 +243,9 @@ def main() -> int:
             conf(pg.evaluate("() => window.abriu").count("https://exemplo.invalid/p.pdf") == 1, "o PDF abre na janela aberta dentro do clique")
             conf("Texto pronto para o WhatsApp" in pg.input_value('#ant-texto'), "texto do WhatsApp aparece")
             medir("PDF gerado")
+            lk = pg.locator('#cd-card a[href="https://exemplo.invalid/p.pdf"]')
+            conf(lk.count() == 1 and lk.get_attribute("target") == "_blank" and "noopener" in lk.get_attribute("rel"),
+                 "depois do PDF o link Abrir o PDF fica, mesmo com a janela aberta")
             if os.environ.get("FUMACA_PRINT_ANT"):
                 pg.screenshot(path=os.environ["FUMACA_PRINT_ANT"], full_page=True)
             # retrato de outro mês: nenhum número, só a mensagem e o botão de ler
@@ -243,6 +257,34 @@ def main() -> int:
             conf(pg.locator('#cd-card [data-modo]').count() == 0 and "R$" not in pg.inner_text("#cd-card .vb-antec"),
                  "retrato velho: sem número e sem cartões, só ler de novo")
             medir("retrato velho")
+            # leitura em andamento ao abrir: a tela passa a conferir sozinha (o relógio de 10 s é encurtado só aqui)
+            pg.evaluate("""(r) => {
+                var orig = window.setTimeout; window.setTimeout = function (f, ms) { return orig(f, ms === 10000 ? 150 : ms); };
+                window.respostas.antecipacaoEstado = { ok: true, pode: true, velho: false, processando: true, retrato: r, lido: '2026-10-21 10:00', temFiador: true };
+                window.pedidos.length = 0;
+            }""", retrato)
+            pg.click('#cd-card [data-acao="an-abrir"]')   # fecha
+            pg.wait_for_timeout(100)
+            pg.click('#cd-card [data-acao="an-abrir"]')   # abre: o estado volta processando
+            pg.wait_for_function("() => window.pedidos.filter(function (a) { return a === 'antecipacaoEstado'; }).length >= 3", timeout=5000)
+            conf("Lendo a venda no ERP" in pg.inner_text("#cd-card .vb-antec") and pg.locator('#cd-card [data-modo]').count() == 0,
+                 "estado processando ao abrir: sem número, e a tela volta a perguntar sozinha")
+            pg.evaluate("(r) => { window.respostas.antecipacaoEstado = { ok: true, pode: true, velho: false, processando: false, retrato: r, lido: '2026-10-21 10:05', temFiador: true }; }", retrato)
+            pg.wait_for_selector('#cd-card [data-modo="B"]', timeout=5000)
+            conf(pg.locator('#cd-card [data-modo]').count() == 5, "a leitura terminou: os cinco cartões voltam sozinhos")
+            # erro no primeiro pedido (cartão novo, sem estado): mensagem e Tentar de novo
+            pg.evaluate("() => { window.respostas.antecipacaoEstado = { ok: false, erro: 'SEM_RESPOSTA' }; VendaBlocos.soltar(); }")
+            pg.evaluate("""(id) => { var c = document.getElementById('cd-card');
+                c.innerHTML = '<div class="cd-cardbox" data-aba="financeiro"><h3>Unidade 13</h3><div id="cd-venda"></div></div>';
+                VendaBlocos.montar(document.getElementById('cd-venda'), id); VendaBlocos.aba('financeiro'); }""", COND)
+            pg.wait_for_selector('#cd-card .vb-antec [data-acao="an-abrir"]', timeout=5000)
+            pg.click('#cd-card .vb-antec [data-acao="an-abrir"]')
+            pg.wait_for_selector('#cd-card [data-tentar]', timeout=5000)
+            conf("não respondeu" in pg.inner_text("#cd-card .vb-antec"), "erro ao abrir: mensagem em português e botão Tentar de novo")
+            pg.evaluate("(r) => { window.respostas.antecipacaoEstado = { ok: true, pode: true, velho: false, processando: false, retrato: r, lido: '2026-10-21 10:05', temFiador: true }; }", retrato)
+            pg.click('#cd-card [data-tentar]')
+            pg.wait_for_selector('#cd-card [data-modo="B"]', timeout=5000)
+            conf(pg.locator('#cd-card [data-modo]').count() == 5, "Tentar de novo abre o painel")
             print("largura máxima da página a 375 px:", max(largura))
             pg.set_viewport_size({"width": 1280, "height": 800})
             pg.evaluate("() => { VendaBlocos.soltar(); document.getElementById('cd-card').innerHTML = ''; }")

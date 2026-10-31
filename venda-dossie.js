@@ -1413,12 +1413,12 @@
       var s = (r.sugestoes || []).map(function (v) {
         return '<button type="button" class="bt bt-mini" data-acao="an-usar" data-valor="' + Number(v).toFixed(2) + '">Usar ' + antR(v) + "</button>";
       }).join(" ");
-      return s ? "Esse valor não fecha ao centavo; use " + (r.sugestoes || []).map(antR).join(" ou ") + ". " + s
-               : "Esse valor não fecha ao centavo; mude um pouco o valor.";
+      return s ? "Esse valor não fecha ao centavo nas parcelas que ficam. Use " + (r.sugestoes || []).map(antR).join(" ou ") + ". " + s
+               : "Esse valor não fecha ao centavo nas parcelas que ficam. Mude um pouco o valor.";
     }
     if (e === "TRAVA") return "Esse jeito não passa nas travas do fiador: " + esc((r.travas || []).join("; ")) + ".";
     if (e === "RETRATO_INCOERENTE") return "O retrato lido do ERP não fecha na conta. Clique em Ler de novo do ERP.";
-    return "Não consegui calcular esse jeito (" + esc(e) + ").";
+    return "Não consegui calcular esse jeito. Clique em Ler de novo do ERP e tente de novo.";
   }
   /* a frase "para o cliente" de cada cartão */
   function antFrase(m, r, c) {
@@ -1445,11 +1445,12 @@
   }
   /* o que só aparece no cartão escolhido: o balão (D) e quantas pós-chaves (E) */
   function antControles(m, c, u) {
-    var h = "";
+    /* o .cd-and do vendas.html põe input{width:100%} e label em maiúsculas: rádios e rótulos voltam ao normal */
+    var h = "", ROT = "display:inline;text-transform:none;font-size:inherit;font-weight:400;margin-right:12px";
     if (m === "D") {
       h += '<div class="dz-linha"><b>Qual balão?</b></div>' + c.sit.balaoes.map(function (b) {
-        return '<label class="dz-linha"><input type="radio" name="an-par" data-an="parcela" value="' + esc(b.id) + '"' + (b.id === c.parcelaId ? " checked" : "") +
-          "> Balão de " + antData(b.data) + " · " + antR(b.valor) + " hoje</label>";
+        return '<div class="dz-linha"><label style="' + ROT + '"><input type="radio" style="width:auto" name="an-par" data-an="parcela" value="' + esc(b.id) + '"' +
+          (b.id === c.parcelaId ? " checked" : "") + "> Balão de " + antData(b.data) + " · " + antR(b.valor) + " hoje</label></div>";
       }).join("");
       var al = c.sit.balaoes.filter(function (b) { return b.id === c.parcelaId; })[0];
       if (al) h += '<div class="dz-linha"><button type="button" class="bt bt-mini ghost" data-acao="an-usar" data-valor="' + Number(al.valor).toFixed(2) +
@@ -1457,8 +1458,9 @@
     }
     if (m === "E") {
       var todas = !String(u.quantas).trim();
-      h += '<label class="dz-linha"><input type="radio" name="an-e" data-acao="an-todas"' + (todas ? " checked" : "") + "> Todas as " + c.sit.posAbertas + " parcelas depois das chaves</label>" +
-        '<div class="dz-linha"><label><input type="radio" name="an-e" data-acao="an-ultimas"' + (todas ? "" : " checked") + "> Só as últimas</label> " +
+      h += '<div class="dz-linha"><label style="' + ROT + '"><input type="radio" style="width:auto" name="an-e" data-acao="an-todas"' + (todas ? " checked" : "") +
+        "> Todas as " + c.sit.posAbertas + " parcelas depois das chaves</label></div>" +
+        '<div class="dz-linha"><label style="' + ROT + '"><input type="radio" style="width:auto" name="an-e" data-acao="an-ultimas"' + (todas ? "" : " checked") + "> Só as últimas</label> " +
         '<input type="text" id="ant-quantas" data-an="quantas" inputmode="numeric" maxlength="3" size="3" style="max-width:70px" value="' + esc(u.quantas) + '"> parcelas</div>';
     }
     return h;
@@ -1480,15 +1482,13 @@
    * só para a soma fechar ao centavo (a divisa de A e C é a escolhida; B e D só têm parcelas escolhidas) */
   function antTabela(r, c) {
     var TIPO = { pre: "Pré-chaves", balao: "Balão", pos: "Pós-chaves" };
-    var ids = {}, divisa = null;
+    var ids = {}, reduz = r.depois.filter(function (x) { return x.acao === "reduz"; });
     c.sit.elegiveis.forEach(function (x) { ids[x.id] = true; });
-    if (r.modo === "A" || r.modo === "C") {
-      var desc = r.modo === "C";
-      divisa = r.depois.filter(function (x) { return x.acao === "reduz"; }).sort(function (a, b) {
-        if (a.data !== b.data) return desc ? (a.data < b.data ? 1 : -1) : (a.data < b.data ? -1 : 1);
-        if (a.tipo !== b.tipo) return a.tipo < b.tipo ? -1 : 1;
-        return String(a.id) < String(b.id) ? -1 : 1;
-      })[0] || null;
+    function queda(x) { return x.valorAntes - x.valor; }
+    /* A e C: a parcela escolhida (a divisa) cai o que sobra; as outras "reduz" de até 5 centavos são só o ajuste da soma */
+    function ajuste(x) {
+      return (r.modo === "A" || r.modo === "C") && queda(x) <= 0.05 + 1e-9 &&
+        reduz.some(function (o) { return o !== x && queda(o) > queda(x) + 1e-9; });
     }
     var linhas = r.depois.filter(function (x) { return x.acao !== "igual"; }).sort(function (a, b) {
       if (a.data !== b.data) return a.data < b.data ? -1 : 1;
@@ -1498,8 +1498,7 @@
     var h = '<div style="overflow-x:auto"><table class="cd-fl"><thead><tr><th>Vencimento</th><th>Parcela</th><th style="text-align:right">Antes</th>' +
       '<th style="text-align:right">Depois</th><th>O que muda</th></tr></thead><tbody>';
     linhas.forEach(function (x) {
-      var obs = x.acao === "quita" ? "paga agora"
-        : (divisa !== x && x.valorAntes - x.valor <= 0.05 + 1e-9 && (r.modo === "A" || r.modo === "C") ? "ajuste de centavo" : "diminui");
+      var obs = x.acao === "quita" ? "paga agora" : (ajuste(x) ? "ajuste de centavo" : "diminui");
       h += "<tr><td>" + antData(x.data) + "</td><td>" + (TIPO[x.tipo] || esc(x.tipo)) + '</td><td class="r">' + antR(x.valorAntes) + '</td><td class="r">' +
         (x.acao === "quita" ? "quitada" : antR(x.valor)) + "</td><td>" + obs + "</td></tr>";
     });
@@ -1536,7 +1535,10 @@
   }
   function htmlAntPainel(e, u0) {
     var u = antNorm(u0), h = "";
-    if (!e) return '<div class="vazio">' + esc(u.msg || "abrindo a simulação…") + "</div>";
+    if (!e) {
+      return '<div class="vazio">' + esc(u.msg || "abrindo a simulação…") + "</div>" +
+        (u.msg && u.ocupado !== "estado" ? '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="an-abrir" data-tentar="1">Tentar de novo</button></div>' : "");
+    }
     h += '<div class="dz-linha"><b>' + (e.temFiador ? "Com fiador: travas ligadas" : "Sem fiador (24x): travas ligadas") + "</b></div>" +
       '<div class="dz-linha dz-nota">Não dá por aqui: mudar data de balão, dividir balão nas mensais, esticar prazo. ' +
       "Isso é renegociação e precisa de aditivo assinado por todos, inclusive os fiadores.</div>";
@@ -1573,7 +1575,14 @@
   function mensagemAnt(r) {
     var M = { RETRATO_VELHO: "A leitura da venda é de outro mês. Clique em Ler de novo do ERP.",
               DATA_FORA_DO_MES: "A data do pagamento tem de ficar entre hoje e o fim deste mês.",
-              NAO_FECHA: "Esse valor não fecha ao centavo; mude o valor e tente de novo.",
+              NAO_FECHA: "Esse valor não fecha ao centavo nas parcelas que ficam. Mude o valor e tente de novo.",
+              QUANTAS_INVALIDA: "Digite quantas parcelas quitar: um número inteiro, de 1 até o total em aberto.",
+              VALOR_ACIMA_DO_SALDO: "O valor é maior do que pode ser antecipado nesse jeito.",
+              VALOR_INVALIDO: "Valor inválido. Digite assim: 30.000,00.",
+              PARCELA_INVALIDA: "Essa parcela não está em aberto. Escolha o balão de novo.",
+              SEM_POS_CHAVES: "Esta venda não tem parcelas depois das chaves em aberto.",
+              DATA_INVALIDA: "Data do pagamento inválida. Escolha uma data de hoje até o fim do mês.",
+              MODO_INVALIDO: "Jeito de antecipar inválido. Escolha um dos cinco jeitos.",
               RETRATO_PROCESSANDO: "A leitura da venda já está em andamento.",
               SEM_RETRATO: "A venda ainda não foi lida do ERP. Clique em Ler de novo do ERP.",
               FILA_NAO_CONFIGURADA: "A fila de leitura do robô ainda não está ligada neste ambiente — avise o desenvolvedor.",
@@ -1817,9 +1826,19 @@
     async function carregarAnt() {
       var r = await chamarVenda({ action: "antecipacaoEstado", pageId: pageId }, 60000);
       if (!vivo()) return null;
-      uiA.ocupado = null;
+      if (uiA.ocupado === "estado") uiA.ocupado = null;   /* o polling não pode reabilitar o botão no meio do PDF */
       if (r.ok) { estadoA = r; uiA.msg = ""; } else uiA.msg = mensagemAnt(r);
       pintarAnt();
+      return r;
+    }
+    /* o estado voltou com a leitura em andamento (pedida por outra pessoa ou antes): passa a conferir sozinho */
+    function iniciarAcompanhamentoAnt() {
+      if (uiA.acompanhando) return;
+      uiA.acompanhando = true; uiA.lendo = true; acompanharAnt(18);
+    }
+    async function conferirAnt() {
+      var r = await carregarAnt();
+      if (r && r.ok && r.processando) { pintarAnt(); iniciarAcompanhamentoAnt(); }
       return r;
     }
     /* depois de pedir a leitura: confere o estado a cada 10 s, até 18 vezes (como o Mais Controle) */
@@ -1831,7 +1850,7 @@
         var r = await carregarAnt();
         if (!vivo()) return;
         if (voltas > 1 && (!r || !r.ok || r.processando)) { acompanharAnt(voltas - 1); return; }
-        uiA.lendo = false;
+        uiA.lendo = false; uiA.acompanhando = false;
         if (r && r.ok && r.processando) uiA.msg = "A leitura está demorando. Confira de novo em alguns minutos.";
         pintarAnt();
       }, 10000);
@@ -1851,10 +1870,10 @@
       if (!vivo()) { if (w) { try { w.close(); } catch (e) {} } return; }
       uiA.ocupado = null;
       if (r.ok) {
-        uiA.pdf = { texto: String(r.texto || ""), url: "" };
-        if (/^https:\/\//.test(r.pdfUrl || "")) {
+        var https = /^https:\/\//.test(r.pdfUrl || "");
+        uiA.pdf = { texto: String(r.texto || ""), url: https ? r.pdfUrl : "" };   /* o link fica, mesmo com a janela aberta */
+        if (https) {
           if (w) { try { w.opener = null; } catch (e2) {} w.location.href = r.pdfUrl; }
-          else uiA.pdf.url = r.pdfUrl;
         } else {
           if (w) { try { w.close(); } catch (e3) {} }
           uiA.msg = "O PDF foi guardado, mas o endereço dele não veio. Gere de novo em instantes.";
@@ -1877,11 +1896,11 @@
     async function aoClicarAnt(b, acao) {
       var mudou = function () { uiA.pdf = null; uiA.msg = ""; };
       if (acao === "an-abrir") {
-        if (uiA.aberto) { uiA.aberto = false; pintarAnt(); return; }
+        if (uiA.aberto && !b.hasAttribute("data-tentar")) { uiA.aberto = false; pintarAnt(); return; }
         uiA.aberto = true; uiA.msg = ""; uiA.hoje = antHojeSP();
         if (!uiA.dataPg || uiA.dataPg < uiA.hoje) uiA.dataPg = uiA.hoje;
         uiA.ocupado = "estado"; pintarAnt();
-        await carregarAnt();
+        await conferirAnt();
         return;
       }
       if (acao === "an-ler") {
@@ -1889,7 +1908,7 @@
         uiA.lendo = true; uiA.msg = ""; pintarAnt();
         var r = await chamarVenda({ action: "antecipacaoLer", pageId: pageId }, 60000);
         if (!vivo()) return;
-        if (r.ok || r.erro === "RETRATO_PROCESSANDO") { if (estadoA) estadoA.processando = true; pintarAnt(); acompanharAnt(18); return; }
+        if (r.ok || r.erro === "RETRATO_PROCESSANDO") { if (estadoA) estadoA.processando = true; pintarAnt(); iniciarAcompanhamentoAnt(); return; }
         uiA.lendo = false; uiA.msg = mensagemAnt(r); pintarAnt();
         return;
       }
@@ -2661,13 +2680,13 @@
     };
     eu.raiz = function () { return raiz; };
     eu.pintarAssinatura = function () { pintarA(); if (comPR) { var a = dentro(".vb-pr-ass"); if (a) a.innerHTML = htmlAssPR(); } };
-    eu.parar = function () { if (esperaM) clearTimeout(esperaM); esperaM = null; if (esperaA) clearTimeout(esperaA); esperaA = null; };
+    eu.parar = function () { if (esperaM) clearTimeout(esperaM); esperaM = null; if (esperaA) clearTimeout(esperaA); esperaA = null; uiA.acompanhando = false; };
     /* 31/10: o Financeiro lê as parcelas só ao abrir; o Antecipar confere a data e, se a simulação já estava aberta, o estado */
     eu.abrirAba = function (aba) {
       if (aba !== "financeiro" || !comPR || soPR) return;
       if (!estadoF) carregarF();
       uiA.hoje = antHojeSP(); if (!uiA.dataPg || uiA.dataPg < uiA.hoje) uiA.dataPg = uiA.hoje;
-      if (uiA.aberto && !estadoA && uiA.ocupado !== "estado") { uiA.ocupado = "estado"; carregarAnt(); }
+      if (uiA.aberto && !uiA.acompanhando && uiA.ocupado !== "estado" && (!estadoA || estadoA.processando)) { uiA.ocupado = "estado"; conferirAnt(); }
       pintarAnt();
     };
     return eu;
