@@ -907,6 +907,7 @@
 
   var exportar = { URL_PORTAL_VENDA: URL_PORTAL_VENDA, DOCS: DOCS, html: html, mensagemDeErro: mensagemDeErro,
                    htmlRecebimentos: htmlRecebimentos, mensagemRec: mensagemRec,
+                   htmlConferencia: htmlConferencia, htmlCorrigir: htmlCorrigir,
                    DOCS_IMOVEL: DOCS_IMOVEL, htmlImovel: htmlImovel, dadosImovel: dadosImovel, htmlLoteamento: htmlLoteamento,
                    grupoDoEspaco: grupoDoEspaco,
                    linhaDoc: linhaDoc, htmlLerTodos: htmlLerTodos, resultadosLote: resultadosLote, resumoLote: resumoLote,
@@ -1269,8 +1270,31 @@
   /* ---- 28/10/2026: Conferência dos documentos (Conferencia.gs) ----
    * e = { feito, linhas, confirmados, em, por, atual } (conferenciaEstado); u = { ocupado, msg, testes }.
    * Comandos: d-conferir, d-abrir-<i> (o documento pelo portal), d-ok-<i> ("Conferi, está certo"). */
-  var SIT_CONF = { ok: ["ass-ok", "✓ confere"], diverge: ["ass-recusou", "⚠ diverge"], ilegivel: ["ass-pend", "? ilegível"] };
+  /* 31/10/2026 (dono): "Corrigir aqui" — o campo da venda que alimenta a linha, aberto na própria conferência.
+   * c = { i, carregando, erro, campos: [{ coluna, rotulo, valor, opcoes }] } (corrigirConferenciaCampos). */
+  function htmlCorrigir(l, c, dis) {
+    if (c.carregando) return '<div class="dz-linha"><b>abrindo o campo…</b></div>';
+    if (c.erro) return '<div class="dz-aviso">' + esc(c.erro) + '</div><div class="dz-linha"><button type="button" class="bt ghost bt-mini" data-acao="d-corr-cancelar">Fechar</button></div>';
+    var h = (c.campos || []).map(function (x) {
+      var attr = ' data-corr-col="' + esc(x.coluna) + '"' + dis, inp;
+      if (x.opcoes && x.opcoes.length) {
+        inp = "<select" + attr + '><option value="">—</option>' + x.opcoes.map(function (o) {
+          return '<option value="' + esc(o) + '"' + (o === x.valor ? " selected" : "") + ">" + esc(o) + "</option>";
+        }).join("") + "</select>";
+      } else inp = '<input type="text" maxlength="300" style="flex:1 1 240px"' + attr + ' value="' + esc(x.valor || "") + '">';
+      return '<div class="dz-linha"><label class="dz-rot" style="flex:0 0 90px">' + esc(x.rotulo) + "</label>" + inp + "</div>";
+    }).join("");
+    var cols = (c.campos || []).map(function (x) { return x.coluna; }).join(", ");
+    h += '<div class="dz-aviso">Grava em ' + esc(cols) + " na venda. Depois, gere o contrato de novo; se ele já foi para a Clicksign, cancele o envelope e envie de novo.</div>";
+    h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="d-corr-salvar"' + dis + ">Salvar correção</button> " +
+      ((c.campos || []).length === 1 && l.lido && !(c.campos[0].opcoes && c.campos[0].opcoes.length)
+        ? '<button type="button" class="bt ghost bt-mini" data-acao="d-corr-usar"' + dis + ">Usar o do documento</button> " : "") +
+      '<button type="button" class="bt ghost bt-mini" data-acao="d-corr-cancelar">Cancelar</button></div>';
+    return h;
+  }
   function htmlConferencia(e, u) {
+    /* dentro da função: o node (testes) não roda as atribuições desta parte do arquivo */
+    var SIT_CONF = { ok: ["ass-ok", "✓ confere"], diverge: ["ass-recusou", "⚠ diverge"], ilegivel: ["ass-pend", "? ilegível"] };
     u = u || {};
     var h = '<div class="grp">Conferência dos documentos</div>';
     if (!e) return h + '<div class="vazio">' + esc(u.msg || "carregando…") + "</div>";
@@ -1289,12 +1313,14 @@
           var acao = "";
           if (l.situacao !== "ok") {
             acao = conf ? '<div class="ass-data">conferido' + (conf.por ? " por " + esc(conf.por) : "") + "</div>"
-              : '<div style="margin-top:4px"><button type="button" class="bt ghost bt-mini" data-acao="d-abrir-' + i + '"' + dis + ">Abrir documento</button> " +
+              : '<div style="margin-top:4px"><button type="button" class="bt bt-mini" data-acao="d-corr-' + i + '"' + dis + ">Corrigir aqui</button> " +
+                '<button type="button" class="bt ghost bt-mini" data-acao="d-abrir-' + i + '"' + dis + ">Abrir documento</button> " +
                 '<button type="button" class="bt bt-mini" data-acao="d-ok-' + i + '"' + dis + ">Conferi, está certo</button></div>";
           }
           return "<tr><td>" + esc(l.pessoa) + " · " + esc(l.documento) + "</td><td>" + esc(l.rotulo) + "</td><td>" + esc(l.esperado) +
             "</td><td>" + (l.lido ? esc(l.lido) : '<span class="ass-data">' + esc(l.motivo || "não lido") + "</span>") +
-            '</td><td><b class="' + s[0] + '">' + s[1] + "</b>" + acao + "</td></tr>";
+            '</td><td><b class="' + s[0] + '">' + s[1] + "</b>" + acao + "</td></tr>" +
+            (u.corr && u.corr.i === i ? '<tr class="dz-corr"><td colspan="5">' + htmlCorrigir(l, u.corr, dis) + "</td></tr>" : "");
         }).join("") + "</table></div>";
     }
     h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="d-conferir"' + dis + ">" +
@@ -1547,6 +1573,7 @@
         pintarD();
         return;
       }
+      if (/^d-corr-/.test(acao)) return aoCorrigir(acao);
       var m = /^d-(abrir|ok)-(\d+)$/.exec(acao), i = m ? Number(m[2]) : -1, l = estadoD && estadoD.linhas && estadoD.linhas[i];
       if (!l) return;
       if (m[1] === "abrir") {
@@ -1575,6 +1602,45 @@
       if (!vivo()) return;
       uiD.ocupado = null;
       if (ro.ok) estadoD.confirmados = ro.confirmados; else uiD.msg = mensagemContrato(ro);
+      pintarD();
+    }
+    /* 31/10/2026: Corrigir aqui — abre (lê as colunas da venda), usa o valor lido, salva ou cancela */
+    async function aoCorrigir(acao) {
+      var c = uiD.corr, l;
+      if (acao === "d-corr-cancelar") { uiD.corr = null; pintarD(); return; }
+      if (acao === "d-corr-usar") {
+        l = c && estadoD.linhas[c.i];
+        var inp = dentro(".vb-conf [data-corr-col]");
+        if (l && inp) { inp.value = l.lido; inp.focus(); }
+        return;
+      }
+      if (acao === "d-corr-salvar") {
+        if (!c || !c.campos) return;
+        l = estadoD.linhas[c.i]; var valores = {};
+        raiz.querySelectorAll(".vb-conf [data-corr-col]").forEach(function (x) { valores[x.getAttribute("data-corr-col")] = x.value; });
+        c.campos.forEach(function (x) { if (x.coluna in valores) x.valor = valores[x.coluna]; });
+        uiD.ocupado = "corrigir"; pintarD();
+        var rs = await chamarVenda({ action: "corrigirConferencia", pageId: pageId, item: l.item, campo: l.campo, valores: valores });
+        if (!vivo()) return;
+        uiD.ocupado = null;
+        if (!rs.ok) { uiD.msg = rs.erro === "CPF_INVALIDO" ? "CPF inválido — confira os números." : mensagemContrato(rs); pintarD(); return; }
+        uiD.corr = null;
+        uiD.msg = rs.mudou && rs.mudou.length ? "Corrigido (" + rs.mudou.join(", ") + "). Gere o contrato de novo para sair com o dado certo." : "Nada mudou.";
+        if (rs.mudou && rs.mudou.length) {
+          try { window.dispatchEvent(new CustomEvent("venda:dados-gravados", { detail: { pageId: pageId } })); } catch (e) {}
+          await carregarConf();
+        } else pintarD();
+        return;
+      }
+      var m = /^d-corr-(\d+)$/.exec(acao), i = m ? Number(m[1]) : -1;
+      l = estadoD && estadoD.linhas && estadoD.linhas[i];
+      if (!l) return;
+      uiD.corr = { i: i, carregando: true }; pintarD();
+      var r = await chamarVenda({ action: "corrigirConferenciaCampos", pageId: pageId, item: l.item, campo: l.campo });
+      if (!vivo() || !uiD.corr || uiD.corr.i !== i) return;
+      if (r.ok) uiD.corr = { i: i, campos: r.campos };
+      else uiD.corr = { i: i, erro: r.erro === "NAO_CORRIGE_AQUI" ? "Este campo não se corrige aqui — use o link para completar a venda." :
+                                    r.erro === "COLUNA_FALTANDO" ? "A venda não tem a coluna " + (r.faltas || []).join(", ") + "." : mensagemContrato(r) };
       pintarD();
     }
     async function carregarPR() {

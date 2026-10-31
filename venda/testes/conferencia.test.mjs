@@ -51,3 +51,26 @@ test("resultado: leitura OK, documento errado, sem arquivo; resumo conta diverg�
   const confirmados = {}; l.forEach((x, i) => { if (x.situacao !== "ok") confirmados[i] = { por: "ana" }; });
   assert.equal(K.resumo(l, confirmados), "");
 });
+
+/* 31/10/2026: "Corrigir aqui" — a coluna da linha do condomínio de cada campo conferido */
+test("camposParaCorrigir: comprador 1 é o PROPONENTE; o bloco COMPRADOR 1 só quando é ele que está preenchido", () => {
+  const v = (m) => (n) => m[n] || "";
+  assert.deepEqual(K.camposParaCorrigir("c1-id", "nome", false, v({ PROPONENTE: "Fulana Teste" })), [{ coluna: "PROPONENTE", rotulo: "Nome" }]);
+  assert.deepEqual(K.camposParaCorrigir("c1-id", "cpf", false, v({ "CPF COMPRADOR 1": "11144477735" })), [{ coluna: "CPF COMPRADOR 1", rotulo: "CPF" }]);
+  assert.deepEqual(K.camposParaCorrigir("c1-id", "cpf", true, v({ "CPF COMPRADOR 1": "11144477735" })), [{ coluna: "CPF PROPONENTE", rotulo: "CPF" }]);
+  assert.deepEqual(K.camposParaCorrigir("c1-id", "rg", false, v({})), [{ coluna: "RG PROPONENTE", rotulo: "RG" }]);
+  assert.deepEqual(K.camposParaCorrigir("c1-civil", "estado_civil", false, v({})), [{ coluna: "ESTADO CIVIL", rotulo: "Estado civil" }]);
+});
+test("camposParaCorrigir: endereço são cinco colunas; comprador 2 e fiadores; o resto não se corrige aqui", () => {
+  const v = (m) => (n) => m[n] || "";
+  const end = K.camposParaCorrigir("c1-end", "endereco", false, v({ "ENDEREÇO": "Rua Teste" }));
+  assert.deepEqual(end.map((x) => x.coluna), ["ENDEREÇO", "NÚMERO", "SETOR", "CIDADE", "CEP"]);
+  const bloco = K.camposParaCorrigir("c1-end", "endereco", false, v({ "ENDERECO COMPRADOR 1": "Rua Teste" }));
+  assert.equal(bloco[0].coluna, "ENDERECO COMPRADOR 1");
+  assert.equal(K.camposParaCorrigir("c1-end", "endereco", true, v({ "ENDERECO COMPRADOR 1": "Rua Teste" }))[0].coluna, "ENDEREÇO");
+  assert.deepEqual(K.camposParaCorrigir("c2-id", "nome", true, v({})), [{ coluna: "COMPRADOR 1", rotulo: "Nome" }]);
+  assert.deepEqual(K.camposParaCorrigir("c2-id", "nome", false, v({})), []);
+  assert.deepEqual(K.camposParaCorrigir("f2-id", "cpf", false, v({})), [{ coluna: "CPF FIADOR 2", rotulo: "CPF" }]);
+  assert.deepEqual(K.camposParaCorrigir("f1-id", "rg", false, v({})), []);
+  assert.deepEqual(K.camposParaCorrigir("xx", "nome", false, v({})), []);
+});

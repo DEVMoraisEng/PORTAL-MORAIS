@@ -1146,7 +1146,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 <script src="venda/painel-casa.js?v=1"></script>
 <script src="venda/FluxoLivre.js?v=3"></script><!-- 29/10: Alterar fluxo -->
 <script src="venda/quadro-fluxo.js?v=1"></script><!-- 31/10: quadro do pro soluto segue o fluxo alterado -->
-<script src="venda-dossie.js?v=23"></script>
+<script src="venda-dossie.js?v=24"></script>
 <script src="venda/contrato-vendida.js?v=2"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele.
@@ -2085,7 +2085,8 @@ function condAbrir(id){
       '<button class="cd-bt pri" id="cd-calc" onclick="condCalcular(\''+esc(id)+'\')">Salvar e recalcular o fluxo</button>'+
       '<div class="cd-prog" id="cd-prog" style="display:none;flex-basis:100%"></div>'+
     '</div>'+
-    '<details class="cd-dobra"><summary>Quadro do pro soluto (sinal, pré-chaves, balões, pós-chaves)</summary><div id="cd-quadro">'+condQuadroHtml(l,fx)+'</div></details>'+
+    '<details class="cd-dobra"><summary>Quadro do pro soluto (sinal, pré-chaves, balões, pós-chaves)</summary><div id="cd-quadro">'+condQuadroHtml(l,fx)+'</div>'+
+      '<div style="margin-top:10px"><button type="button" class="cd-bt" onclick="condPdfFluxo(COND_ABERTA)">📄 PDF do fluxo para o cliente</button></div></details>'+
     '</div>'+
     '<div data-sec="andamento">'+condAndamentoHtml(l)+'</div>'+
     condTelaVendaHtml()+
@@ -2095,6 +2096,27 @@ function condAbrir(id){
 }
 /* 07/10 (entrega 7) — TELA DE VENDA do condomínio: os blocos CONTRATO / ASSINATURA / MAIS CONTROLE
    da tela de venda das casas, para a própria linha (venda-dossie.js desenha em #cd-venda). */
+/* 31/10/2026 (dono): PDF do fluxo para mandar ao cliente — o mesmo quadro do pro soluto numa página limpa,
+   com a impressão do navegador aberta ("Salvar como PDF"). Sem servidor: sai do que está na tela. */
+function condPdfFluxo(id){
+  const l=COND&&COND.linhas.find(x=>x.id===id); if(!l) return;
+  const g=n=>cdVal(l,n), fx=condFluxo(l);
+  const corpo=document.createElement("div"); corpo.innerHTML=condQuadroHtml(l,fx);
+  corpo.querySelectorAll(".cd-falta,.cd-aviso,.cd-abat").forEach(x=>x.remove());
+  const w=window.open("","_blank"); if(!w){ alert("O navegador bloqueou a janela — libere pop-ups para o portal e clique de novo."); return; }
+  const tit="Fluxo de pagamento - Unidade "+(g(COND.titulo)||"")+" - "+(g("CONDOMÍNIO")||"");
+  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(tit)+'</title><style>'+
+    'body{font-family:Inter,Arial,sans-serif;color:#1a3347;margin:28px}h1{font-size:20px;margin:0 0 4px;color:#295778}'+
+    '.sub{color:#5a8099;font-size:13px;margin-bottom:16px}table{width:100%;border-collapse:collapse;font-size:13px}'+
+    'th{background:#295778;color:#fff;padding:7px 10px;text-align:left}td{padding:7px 10px;border-bottom:1px solid #d0e4ec}'+
+    'td.r{text-align:right;white-space:nowrap}tr.gr td{background:#dceaef;font-weight:800;font-size:11.5px;color:#295778}'+
+    'tr.tot td{background:#FBEEC8;font-weight:800;color:#7A4A16}.cd-etapa{display:none}small{color:#5a8099}'+
+    '.rod{margin-top:18px;font-size:11.5px;color:#5a8099}@media print{body{margin:12mm}}</style></head><body>'+
+    '<h1>'+esc(tit)+'</h1><div class="sub">'+esc(g("PROPONENTE")||"")+' · valores sujeitos a reajuste conforme o contrato</div>'+
+    corpo.innerHTML+'<div class="rod">Morais Engenharia · gerado em '+new Date().toLocaleDateString("pt-BR")+'</div>'+
+    '<script>setTimeout(function(){window.print()},300)<\/script></body></html>');
+  w.document.close();
+}
 function condTelaVendaHtml(){
   if(!window.VendaBlocos) return "";
   return '<div id="cd-venda"></div>';   /* 31/10/2026: sem a caixa "TELA DE VENDA" — cada bloco aparece na sua aba */

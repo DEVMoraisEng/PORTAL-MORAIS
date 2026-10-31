@@ -271,3 +271,20 @@ test("contrato: listas de testemunhas (entrega 10) — só com 2+ opções, marc
   assert.equal(D.htmlTestemunhas(null, ""), "");
   assert.match(D.htmlTestemunhas(t, " disabled"), /<select data-testemunha="0" disabled>/);
 });
+
+/* 31/10/2026: Corrigir aqui na conferência */
+test("conferência: linha que diverge tem 'Corrigir aqui'; com o campo aberto, mostra entrada, aviso e Usar o do documento", () => {
+  const e = { feito: true, atual: true, em: "", confirmados: {}, linhas: [
+    { item: "c1-id", campo: "nome", pessoa: "Comprador 1", documento: "RG/CNH", rotulo: "Nome", esperado: "FULANA TESTE", lido: "FULANA DE TESTE", situacao: "diverge" },
+    { item: "c1-id", campo: "cpf", pessoa: "Comprador 1", documento: "RG/CNH", rotulo: "CPF", esperado: "111.444.777-35", lido: "111.444.777-35", situacao: "ok" }] };
+  let h = D.htmlConferencia(e, {});
+  assert.match(h, /data-acao="d-corr-0"[^>]*>Corrigir aqui</);
+  assert.doesNotMatch(h, /data-acao="d-corr-1"/);
+  h = D.htmlConferencia(e, { corr: { i: 0, campos: [{ coluna: "PROPONENTE", rotulo: "Nome", valor: "FULANA <TESTE>" }] } });
+  assert.match(h, /<tr class="dz-corr">/);
+  assert.match(h, /data-corr-col="PROPONENTE"[^>]*value="FULANA &lt;TESTE&gt;"/);
+  assert.match(h, /Grava em PROPONENTE na venda/);
+  assert.match(h, /data-acao="d-corr-usar"/);
+  assert.match(D.htmlCorrigir(e.linhas[0], { carregando: true }, ""), /abrindo o campo/);
+  assert.match(D.htmlCorrigir(e.linhas[0], { erro: "x" }, ""), /data-acao="d-corr-cancelar"/);
+});

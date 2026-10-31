@@ -9,7 +9,7 @@
  * OPENAI_API_KEY (provedor openai), MODELO_IA (opcional, só openai),
  * ANTHROPIC_API_KEY (provedor anthropic, plano B).
  * Nenhum log com nome, CPF, endereço ou conteúdo de documento. */
-var VERSAO_VENDA = "venda-v9";   // v9: contrato final do condomínio, termo de pré-reserva e etapas da venda (27/10/2026); v8: leitura em lote, certidão mãe e data do habite-se (entrega 13); v7: campos abertos e conta de recebimento no contrato (entrega 12); v6: documentos do imóvel lidos pela IA (entrega 11); v5: pré-contrato grifado (entrega 9)
+var VERSAO_VENDA = "venda-v10";   // v10: Corrigir aqui na conferência (31/10/2026); v9: contrato final do condomínio, termo de pré-reserva e etapas da venda (27/10/2026); v8: leitura em lote, certidão mãe e data do habite-se (entrega 13); v7: campos abertos e conta de recebimento no contrato (entrega 12); v6: documentos do imóvel lidos pela IA (entrega 11); v5: pré-contrato grifado (entrega 9)
 var NOTION_VERSION = "2022-06-28";
 var ERROS_CONHECIDOS = /^(COLUNA_FALTANDO|TIPO_DE_COLUNA_ERRADO|BACKEND_SEM_CONFIG|PAGINA_DE_OUTRA_BASE)/;
 var REGEX_PAGE_ID = /^[0-9a-f]{32}$|^[0-9a-f-]{36}$/i;
@@ -38,7 +38,7 @@ function tratar_(p) {
     var grava = ["tipoCasa", "lerDocumento", "anexarDocumento", "soltarDocumento", "lerDocumentos", "copiarComprovante", "conferir", "devolver", "gerarContrato", "gerarPreContrato", "aprovarPreContrato", "escolherTestemunhas",
                  "salvarCamposContrato", "escolherContaRecebimento", "mcLancar", "assinaturaEnviar", "assinaturaEstado",
                  "gerarVendaCondominio", "assinaturaReenviar", "assinaturaCancelar" /* 29/10 */, "salvarCondicoesEspeciais" /* 29/10 */, "redigirCondicoesEspeciais", "salvarFluxo" /* 29/10 */, "salvarContaPreReserva", "salvarPagamentoPreReserva" /* 31/10 */, "gerarTermoPreReserva",
-                 "conferirDocumentos", "confirmarConferencia" /* 28/10 */,
+                 "conferirDocumentos", "confirmarConferencia" /* 28/10 */, "corrigirConferencia" /* 31/10 */,
                  "recebimentoConfirmar" /* entrega 14 */].indexOf(p.action) >= 0;
     if (grava && String(sess.t || "").toUpperCase() === "TESTES") return { ok: false, erro: "SEM_PERMISSAO_TESTES" };
     if (p.action !== "ping" && !REGEX_PAGE_ID.test(String(p.pageId || ""))) return { ok: false, erro: "PAGINA_INVALIDA" };
@@ -101,6 +101,8 @@ function executar_(col, sess, p) {
       case "conferenciaEstado": return conferenciaEstado_(col, p);
       case "confirmarConferencia": return confirmarConferencia_(col, sess, p);
       case "verDocumentoConferencia": return verDocumentoConferencia_(col, p);
+      case "corrigirConferenciaCampos": return corrigirConferenciaCampos_(col, p);   /* 31/10: Corrigir aqui */
+      case "corrigirConferencia": return corrigirConferencia_(col, sess, p);
       case "recebimentoEstado": return recebimentoEstado_(col, p);
       case "recebimentoConfirmar": return recebimentoConfirmar_(col, sess, p);
       default: return { ok: false, erro: "ACAO_DESCONHECIDA" };
