@@ -309,7 +309,7 @@ def test_dados_da_linha_comprador_valores_corretor_e_colunas_de_retorno():
     assert d["comprador"] == {"nome": "Fulana De Teste", "cpf": "52998224725", "email": "fulana@exemplo.test", "telefone": "62900000000"}
     assert (d["total"], d["aquisicao"], d["comissao_paga_por"]) == (228900, 228900, "VENDEDOR")
     assert (d["financiado"], d["fgts"], d["subsidio"]) == (200000, 10000, None)
-    assert (d["corretor"], d["imobiliaria"], d["data_venda"]) == ("Corretor Exemplo", "Imobiliária Exemplo", "2026-09-01")
+    assert (d["corretor"], d["imobiliaria"], d["data_venda"]) == ("Corretor Exemplo", "Imobiliária Exemplo", "2026-10-10")   # 31/10: = assinatura
     assert d["condominio_id"] == LINHA_ID and d["situacao_atual"].startswith("PRÉVIA OK")
     assert d["contrato_arquivos"] == [{"nome": "assinado.pdf", "url": "https://s3.falso/assinado"}]
     assert C.dados_da_linha(linha_cond(**{"CONDOMÍNIO": sel("Condomínio Reserva Teste")}), LINHA_ID)["endereco"] == "Condomínio Reserva Teste"
@@ -492,3 +492,11 @@ def test_previa_da_venda_direta_fecha_com_o_valor_novo_e_sem_comissao(monkeypatc
     inst = r["corpo_venda"]["tradeReceivable"]["installments"]
     assert round(sum(i["plannedValue"] for i in inst), 2) == 228400
     assert "Comissão:" not in json.dumps(r["corpo_venda"], ensure_ascii=False)
+
+
+def test_data_da_venda_do_condominio_e_a_data_de_assinatura():
+    """31/10/2026 (dono): DATA DA VENDA = DATA DE ASSINATURA DO CONTRATO; a coluna só vale sem assinatura."""
+    assert C.dados_da_linha(linha_cond(), LINHA_ID)["data_venda"] == "2026-10-10"
+    assert C.dados_da_linha(linha_cond(**{"DATA DA VENDA": data(None)}), LINHA_ID)["data_venda"] == "2026-10-10"
+    sem = linha_cond(**{"DATA DE ASSINATURA DO CONTRATO": data(None)})
+    assert C.dados_da_linha(sem, LINHA_ID)["data_venda"] == "2026-09-01"

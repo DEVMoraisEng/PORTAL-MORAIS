@@ -2109,6 +2109,9 @@ async function condCalcular(id){
   const mudou={};
   novos.forEach(([prop,val])=>{ const atual=cdVal(l,prop), a=atual==null?"":String(atual).slice(0,10);
     if(String(val)===a) return; mudou[prop]=val; });
+  /* 31/10/2026 (dono): no condomínio a DATA DA VENDA é sempre a data de assinatura do contrato */
+  const assNova=document.getElementById("cd-ass").value, dvAtual=String(cdVal(l,"DATA DA VENDA")||"").slice(0,10);
+  if(assNova!==dvAtual) mudou["DATA DA VENDA"]=assNova;
   if(!Object.keys(mudou).length){ fimProg(true); toast("Nada mudou."); bt.disabled=false; bt.textContent="Salvar e recalcular o fluxo"; return; }
   let r=null;
   try{ r=await chamar({action:"simsVendaSalvarVarios",pageId:id,valores:mudou},90000); }catch(e){ r=null; }

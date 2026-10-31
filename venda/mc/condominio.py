@@ -157,6 +157,7 @@ def contato_corretor(props: dict) -> dict:
 #: tela de venda do condomínio (entrega 7): o robô lê direto a linha da BANCO DE DADOS VENDAS CONDOMÍNIO
 COL_LINHA = {
     "condominio": "CONDOMÍNIO", "unidade": "UNIDADE", "data_venda": "DATA DA VENDA",
+    "assinatura": "DATA DE ASSINATURA DO CONTRATO",
     "proponente": "PROPONENTE", "cpf": "CPF PROPONENTE", "email": "Email", "telefone": "Nº Whatsapp",
     "total": "VALOR DE VENDA", "comissao": "COMISSÃO", "fgts": "VALOR DO FGTS", "financiado": "VALOR DO CRÉDITO",
     "subsidio": "SUBISÍDIO", "corretor": "CORRETOR", "imobiliaria": "IMOBILIÁRIA",
@@ -228,7 +229,9 @@ def dados_da_linha(props: dict, page_id: str) -> dict:
         "casa": R._casa(unidade),
         "endereco_cliente": endereco_do_cliente(campo("condominio"), R._casa(unidade)),
         "casa_ambigua": unidade not in (None, "") and R._casa(unidade) is None,
-        "data_venda": R._data(campo("data_venda")),
+        # 31/10/2026 (dono): no condomínio a data da venda é SEMPRE a data de assinatura do contrato;
+        # a coluna DATA DA VENDA só vale quando a assinatura ainda não foi preenchida
+        "data_venda": R._data(campo("assinatura")) or R._data(campo("data_venda")),
         "comprador": {"nome": " ".join(str(campo("proponente") or "").split()), "cpf": R.so_digitos(campo("cpf")),
                       "email": campo("email") or ler("EMAIL"), "telefone": R.so_digitos(campo("telefone"))},
         "aquisicao": total,
