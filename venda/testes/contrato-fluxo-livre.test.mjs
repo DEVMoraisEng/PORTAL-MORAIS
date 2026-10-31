@@ -90,3 +90,15 @@ test("30/10 isenção da comissão (venda direta): comissão zero, imóvel = pre
   assert.deepEqual([b(isento).SEM_COMISSAO, b(isento).COM_COMISSAO], [true, false]);
   assert.deepEqual([b(co).SEM_COMISSAO, b(co).COM_COMISSAO], [false, true]);
 });
+
+test("31/10: prazo trocado no Alterar fluxo (pós-chaves da lista) — comissão pela regra do prazo novo", () => {
+  /* proposta em 48x (24 pós-chaves); a lista fica com 12 pós-chaves = 36x → 4,75% sobre o valor da casa */
+  const doze = { ...co, livre: { ...livre, linhas: livre.linhas.map((l) => (l.t === "pos" ? { ...l, n: 12, v: 1400 } : l)) },
+                 fluxo: { ...fluxo, prazoEntrada: 48 } };
+  const v = C.valoresCondominio(doze);
+  assert.equal(v.prazoMudou, true);
+  assert.equal(v.pctRegra, 0.0475);
+  assert.equal(v.comissao, Math.round(v.preco * 0.0475 * 100) / 100);
+  const igual = C.valoresCondominio({ ...co, fluxo: { ...fluxo, prazoEntrada: 48 } });
+  assert.deepEqual([igual.prazoMudou, igual.comissao], [false, 13725], "mesmo prazo: a comissão da proposta fica");
+});

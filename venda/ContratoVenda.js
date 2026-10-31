@@ -401,10 +401,15 @@ var ContratoVenda = (function () {
   function valoresCondominio(co) {
     var fl = co.fluxo, G = gruposFluxo(co), preco = positivo(G.valor) ? G.valor : null;
     var financiamento = so2(G.credito + G.fgts + G.subsidio);
-    var pctRegra = comissaoPctPelaRegra(fl.prazoEntrada, G.posN);
+    /* 31/10/2026 (dono): o Alterar fluxo pode trocar o prazo (24x → 36x): a quantidade de pós-chaves da lista manda e a
+       comissão sai da regra do prazo novo, não da proposta */
+    var prazoProp = prazoOpcao(fl.prazoEntrada, positivo(fl.posN) && positivo(fl.posValor) ? fl.posN : 0);
+    var prazoLivre = co.livre ? prazoOpcao(null, G.posN) : null;
+    var prazoMudou = prazoLivre !== null && prazoProp !== null && prazoLivre !== prazoProp;
+    var pctRegra = prazoMudou ? COMISSAO_POR_PRAZO[prazoLivre] : comissaoPctPelaRegra(fl.prazoEntrada, G.posN);
     /* 29/10: valor da casa mudado no Alterar fluxo (só JC/JV) — a comissão sai da regra sobre o valor novo */
     var precoMudou = !!co.livre && preco !== null && Math.round(preco * 100) !== Math.round((fl.valorVenda || 0) * 100);
-    var comissao = positivo(co.comissao) && !precoMudou ? co.comissao : (pctRegra !== null && preco !== null ? so2(preco * pctRegra) : null);
+    var comissao = positivo(co.comissao) && !precoMudou && !prazoMudou ? co.comissao : (pctRegra !== null && preco !== null ? so2(preco * pctRegra) : null);
     /* 30/10: desconto "isentar a comissão" (venda direta, sem corretor) — comissão zero; imóvel = o preço inteiro */
     var semComissao = !!(co.livre && co.livre.semComissao);
     if (semComissao) comissao = 0;
@@ -416,7 +421,7 @@ var ContratoVenda = (function () {
     var entrada = preco === null ? null : so2(preco - financiamento);
     return {
       preco: preco, financiamento: financiamento, temFgtsSubsidio: G.fgts + G.subsidio > 0,
-      pctRegra: pctRegra, comissao: comissao, operacao: preco, precoMudou: precoMudou, semComissao: semComissao,
+      pctRegra: pctRegra, comissao: comissao, operacao: preco, precoMudou: precoMudou, prazoMudou: prazoMudou, semComissao: semComissao,
       imovel: preco !== null && comissao !== null ? so2(preco - comissao) : null,
       sinal: sinal, entrada: entrada, saldoEntrada: entrada === null ? null : so2(entrada - sinal)
     };

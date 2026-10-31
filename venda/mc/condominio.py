@@ -134,9 +134,17 @@ def ajustar_dados_livre(fx: dict, dados: dict) -> None:
         dados["comissao"] = 0
         dados["sem_comissao"] = True
         return
-    if dados.get("total") is None or round(livre["valor"], 2) != round(dados["total"], 2):
+    # 31/10/2026 (dono): o Alterar fluxo pode trocar o prazo (24x -> 36x); a quantidade de pós-chaves da lista manda
+    n_pos = sum(l["n"] for l in livre.get("linhas", []) if l["t"] == "pos")
+    prazo_livre = _PRAZO_POR_POS.get(n_pos)
+    p = fx.get("prazo")
+    prazo_prop = (24 if p <= 24 else 36 if p <= 36 else 48 if p <= 48 else None) if p else _PRAZO_POR_POS.get(int(fx.get("nP") or 0))
+    prazo_mudou = prazo_livre is not None and prazo_prop is not None and prazo_livre != prazo_prop
+    preco_mudou = dados.get("total") is None or round(livre["valor"], 2) != round(dados["total"], 2)
+    if preco_mudou or prazo_mudou:
         dados["total"] = dados["aquisicao"] = livre["valor"]
-        c = comissao_pela_regra(fx, livre["valor"])
+        c = (round(livre["valor"] * _PCT_POR_PRAZO[prazo_livre], 2) if prazo_mudou
+             else comissao_pela_regra(fx, livre["valor"]))
         if c is not None:
             dados["comissao"] = c
 
