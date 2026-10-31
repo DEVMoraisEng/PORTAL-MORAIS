@@ -210,7 +210,7 @@ test("contrato: faltas viram lista escapada com o título", () => {
 
 test("contrato (c) final gerado: nome (escapado), Visualizar e Gerar de novo (que volta ao pré-contrato)", () => {
   const h = D.htmlContrato({ gerado: true, etapa: "FINAL", nome: "<b>C</b>.pdf" }, uic());
-  assert.match(h, /Contrato gerado: &lt;b&gt;C&lt;\/b&gt;\.pdf/);
+  assert.match(h, /Contrato gerado<span class="dz-arq-nome">: &lt;b&gt;C&lt;\/b&gt;\.pdf<\/span>/);
   assert.doesNotMatch(botao(h, "c-ver"), /disabled/);
   assert.match(h, />Gerar de novo</);
   assert.doesNotMatch(botao(h, "c-pre"), /disabled/);

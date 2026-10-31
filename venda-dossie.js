@@ -463,7 +463,9 @@
   function htmlConta(conta, u, dis) {
     if (!conta) return "";   // servidor antigo
     /* 27/10 (dono): condomínio tem conta fixa (item 4.5 do contrato) — só mostra, não deixa trocar */
-    if (conta.fixa) return '<div class="dz-linha"><span class="dz-rot">Conta de recebimento (fixa do condomínio, item 4.5 do contrato):</span> ' + esc_(conta.fixa) + "</div>";
+    /* 31/10/2026 (dono: o cartão só com o que a pessoa usa): a conta fixa do condomínio não aparece mais na tela —
+       o contrato continua levando a conta no item 4.5, o gerador não muda */
+    if (conta.fixa) return "";
     u = u || {};
     var rasc = u.rascunho || {}, digitar = contaDigitando(conta, u), esc = conta.escolhida || {};
     var ids = conta.opcoes.map(function (o) { return o.id; });
@@ -587,7 +589,7 @@
         '<button type="button" class="bt ghost bt-mini" data-acao="c-pre"' + dis + ">Gerar pré-contrato de novo</button></div>";
       if (e.gerado) h += '<div class="dz-msg">Contrato anterior: ' + esc(e.nome) + " (será substituído ao conferir).</div>";
     } else if (etapa === "FINAL") {
-      h += '<div class="dz-linha"><span class="dz-rot">Contrato gerado: ' + esc(e.nome) + "</span>" +
+      h += '<div class="dz-linha"><span class="dz-rot">Contrato gerado<span class="dz-arq-nome">: ' + esc(e.nome) + "</span></span>" +
         '<button type="button" class="bt bt-mini" data-acao="c-ver"' + dis + ">Visualizar</button> " +
         '<button type="button" class="bt ghost bt-mini" data-acao="c-pre"' + dis + ">Gerar de novo</button></div>";
       (e.confissao || []).forEach(function (x) {
