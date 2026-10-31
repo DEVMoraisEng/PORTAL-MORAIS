@@ -187,20 +187,27 @@ Ao lado de "filas":
 ```json
 "robos": {"notion_token_arquivo": "C:\AUTOMAÇÕES MAIS CONTROLE\_chaves\notion-producao-leitura.txt",
           "github_token_arquivo": "C:\AUTOMAÇÕES MAIS CONTROLE\_chaves\github-portal.txt",
-          "vars": {"CONTAS_DB_ID": "3e4c5ab532d380afbd3bf9f7af31d2a7", "MC_CRED": "robo"}}
+          "vars": {"CONTAS_DB_ID": "3e4c5ab532d380afbd3bf9f7af31d2a7", "MC_CRED": "robo",
+                   "DB_VENDAS_COND": "<id da VENDAS CONDOMÍNIO>"}}
 ```
 
 ### Robô `retratos` (31/10/2026, antecipação e aba Financeiro)
 Lê, no Mais Controle, cada venda da base BANCO DE DADOS VENDAS CONDOMÍNIO que já tem "MC - VENDA ID" e grava o
 "retrato" (parcelas, valores, fatores, pagas) em "MC - RETRATO" e a hora em "MC - RETRATO EM". **Só lê o ERP**
 (nunca grava nele; `ROBOS_APLICAR.txt` não muda nada aqui). Se a leitura falha e já existe um retrato bom, ele é
-mantido e só "MC - RETRATO EM" ganha `<hora do último bom> | ERRO <agora>: <motivo>`. Log: "retratos: N ok, M erro".
+mantido e só "MC - RETRATO EM" ganha `<hora do último bom> | ERRO <agora>: <motivo>`. Se nunca houve retrato bom, "MC - RETRATO"
+fica com `ERRO: <motivo>` e "MC - RETRATO EM" com ` | ERRO <agora>: <motivo>` (sem hora de leitura na frente). Log: "retratos: N ok, M erro".
+**Premissa do fuso:** a hora gravada é a hora local do servidor (`datetime.now()`), e o portal compara o mês dela com o mês de hoje
+em America/Sao_Paulo. O servidor precisa estar no fuso de Brasília/Goiânia (UTC-3); em outro fuso a leitura da virada do mês
+(e a das 05:00) cairia no mês errado e a tela pediria "Ler de novo" sem necessidade.
 Script: `robo_mc_retratos.py` (chama `python -m venda.mc.retrato --todas`). Tarefa agendada sugerida: todo dia às
 05:00, `python servidor\robo_fila.py --robo retratos`. **A chave "robos" de `robos-portal.json` precisa de
 `DB_VENDAS_COND` em "vars"** (id da base de vendas do condomínio), senão o robô sai com código 2 e avisa o motivo.
 
 ## 4. (servidor) Rodada de prova, SEM gravar
-Sem o arquivo `_central\ROBOS_APLICAR.txt` os robôs só simulam (como o GitHub sem APLICAR):
+Sem o arquivo `_central\ROBOS_APLICAR.txt` os robôs só simulam (como o GitHub sem APLICAR).
+**Exceção: `--robo retratos` GRAVA no Notion** (as colunas "MC - RETRATO" e "MC - RETRATO EM" das vendas do condomínio), com ou sem
+`ROBOS_APLICAR.txt`; ele só não grava no ERP (nunca grava). Rode esse com a certeza de que pode mexer nessas duas colunas:
 ```powershell
 python servidor\robo_fila.py --robo bases
 python servidor\robo_fila.py --robo contas
