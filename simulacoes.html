@@ -721,7 +721,8 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
 
 <script src="app.js?v=45"></script>
 <script src="venda/FluxoLivre.js?v=3" defer></script><!-- 29/10: Alterar fluxo -->
-<script src="venda-dossie.js?v=18" defer></script><!-- 28/10: termo de pré-reserva pela proposta (VendaBlocos.montarPreReserva) -->
+<script src="venda-dossie.js?v=22" defer></script><!-- 28/10: termo de pré-reserva pela proposta (VendaBlocos.montarPreReserva) -->
+<script src="venda/contrato-vendida.js?v=1" defer></script><!-- 31/10: contrato enviado → proposta e unidade VENDIDA -->
 <script>
 
 /* =====================================================================
@@ -2279,8 +2280,27 @@ async function propCarregar(forcar, bt){
   simBotao(bt, false);
   if(r && r.propostas){ propPintar(r);
     if(r.velho) propAviso("err", "<b>⚠ Propostas não atualizaram — mostrando a última cópia boa.</b><br>" + propErro(r.erroAoVivo));
-    else propAviso("ok",""); }
+    else propAviso("ok","");
+    propVarrerContratosEnviados(); }
   else { propAviso("err", propErro(r && r.erro)); }
+}
+/* 31/10/2026 (dono): venda do condomínio com contrato ENVIADO/ASSINADO na Clicksign e proposta ainda fora de
+   "Vendidas" (saiu sem o botão Vendida): marca a proposta VENDIDA e a unidade VENDIDA = SIM — regra em
+   venda/contrato-vendida.js, a mesma da Planilha Casas Condomínio. Uma vez por abertura da página. */
+let PROP_VARREU=false;
+async function propVarrerContratosEnviados(){
+  if(PROP_VARREU||!window.ContratoVendida) return;
+  PROP_VARREU=true;
+  let r=null;
+  try{ r=await chamar({action:"simsVendasCond"},70000); }catch(e){ r=null; }
+  if(!r||!r.ok||!Array.isArray(r.linhas)){ PROP_VARREU=false; return; }
+  const ids=ContratoVendida.pendentes(r.linhas, r.titulo);
+  if(!ids.length) return;
+  propAviso("ok","Conferindo "+ids.length+" venda(s) com contrato enviado para assinatura…");
+  await ContratoVendida.rodar(r.linhas, r.titulo, ids, { chamar: chamar, aoTerminar: n=>{
+    if(n){ propAviso("ok","<b>✓ Contrato enviado = vendida:</b> "+n+" proposta(s)/unidade(s) marcadas como VENDIDA."); propCarregar(true); try{ UNS=[]; simCarregarUnidades(true); }catch(e){} }
+    else propAviso("ok","");
+  }});
 }
 function propAviso(t,m){
   const a=document.getElementById("prop-aviso");
