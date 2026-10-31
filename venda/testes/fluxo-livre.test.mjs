@@ -111,7 +111,7 @@ test("financiamento e FGTS não mudam: trocar valor entre eles e as parcelas é 
   const p = F.doPadrao(comPos), f = F.normalizar(p);
   f.linhas.find((l) => l.t === "fin").v -= 1000;
   f.linhas.find((l) => l.t === "pre").v += 1000 / 12;
-  assert.match(F.validar(f, p).erros.join(";"), /Financiamento, FGTS e subsídio não mudam/);
+  assert.match(F.validar(f, p).erros.join(";"), /financiamento, FGTS e subsídio não mudam/);
   const sem = F.normalizar(p);
   sem.linhas = sem.linhas.filter((l) => l.t !== "fgts");
   assert.match(F.validar(sem, p).erros.join(";"), /não mudam/);
@@ -200,4 +200,39 @@ test("semComissao vai e volta na serialização; ausente quando falso (o robô l
   assert.equal(F.ler(F.serializar(f)).semComissao, true);
   assert.equal(JSON.parse(F.serializar(F.doPadrao(gavetas))).semComissao, undefined);
   assert.equal(F.ler(F.serializar({ ...F.doPadrao(gavetas), semComissao: "sim" })).semComissao, undefined, "só true vale");
+});
+
+/* ---- 31/10/2026 (dono): a pré-reserva paga abate o sinal ---- */
+test("pré-reserva abate o sinal: sai do ato, depois do 30, 60 e 90 dias; soma continua fechando", () => {
+  assert.deepEqual(F.abaterSinal([1000, 3000, 3000, 3000], 3000), { valores: [0, 1000, 3000, 3000], abatido: 3000 });
+  assert.deepEqual(F.abaterSinal([1000, 3000, 3000, 3000], 500.5), { valores: [499.5, 3000, 3000, 3000], abatido: 500.5 });
+  assert.deepEqual(F.abaterSinal([1000, 3000, 3000, 3000], 12000), { valores: [0, 0, 0, 0], abatido: 10000 });
+  const f = F.doPadrao(gavetas, 0, { valor: 3000, data: "2026-10-28" });
+  assert.deepEqual(f.linhas.slice(0, 4).map((l) => [l.t, l.v, l.d]),
+    [["prereserva", 3000, "2026-10-28"], ["sinal", 1000, "2026-11-30"], ["sinal", 3000, "2026-12-30"], ["sinal", 3000, "2027-01-30"]]);
+  assert.deepEqual(F.validar(f).erros, []);
+  assert.deepEqual(F.doPadrao(gavetas, 0, null).linhas.map((l) => l.t), F.doPadrao(gavetas).linhas.map((l) => l.t), "sem pré-reserva não muda");
+});
+
+test("com pré-reserva o restante do sinal se divide livre, só nos prazos do sinal e sem baixar o sinal", () => {
+  const p = F.doPadrao(gavetas, 0, { valor: 3000, data: "2026-10-28" });
+  const troca = (linhas) => Object.assign({}, p, { linhas });
+  const fixos = p.linhas.filter((l) => l.t !== "sinal");
+  /* restante (7.000) em 2 parcelas: ato e 90 dias */
+  const ok = troca([fixos[0], { t: "sinal", v: 2000, n: 1, d: "2026-10-30", i: 1, x: "" }, { t: "sinal", v: 5000, n: 1, d: "2027-01-30", i: 1, x: "" }, ...fixos.slice(1)]);
+  assert.deepEqual(F.validar(ok, p).erros, []);
+  /* depois de 90 dias = recusado */
+  const tarde = troca([fixos[0], { t: "sinal", v: 7000, n: 1, d: "2027-02-28", i: 1, x: "" }, ...fixos.slice(1)]);
+  assert.match(F.validar(tarde, p).erros.join(";"), /só nos prazos do sinal: de 30\/10\/2026 a 30\/01\/2027/);
+  /* 5 parcelas = recusado */
+  const muitas = troca([fixos[0], { t: "sinal", v: 1400, n: 4, d: "2026-10-30", i: 1, x: "" }, { t: "sinal", v: 1400, n: 1, d: "2026-10-30", i: 1, x: "" }, ...fixos.slice(1)]);
+  assert.match(F.validar(muitas, p).erros.join(";"), /no máximo 4 parcelas/);
+  /* sinal menor (passa 1.000 para a pré-chaves) = recusado */
+  const pre = fixos.find((l) => l.t === "pre");
+  const menor = troca([fixos[0], { t: "sinal", v: 6000, n: 1, d: "2026-10-30", i: 1, x: "" },
+    ...fixos.slice(1).map((l) => l === pre ? Object.assign({}, l, { u: l.v + 1000 }) : l)]);
+  assert.match(F.validar(menor, p).erros.join(";"), /não pode ficar abaixo do da proposta: R\$ 10\.000,00/);
+  /* pré-reserva não muda */
+  const mexeu = troca([Object.assign({}, fixos[0], { v: 2000 }), { t: "sinal", v: 8000, n: 1, d: "2026-10-30", i: 1, x: "" }, ...fixos.slice(1)]);
+  assert.match(F.validar(mexeu, p).erros.join(";"), /Pré-reserva paga, financiamento, FGTS e subsídio não mudam/);
 });

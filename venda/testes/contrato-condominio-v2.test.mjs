@@ -195,10 +195,15 @@ test("fora do condomínio os marcadores novos saem vazios e o carimbo dos contra
   assert.equal("telefone" in rua.comprador1, false, "telefone só entra nos dados do condomínio");
 });
 
-test("pré-reserva assinada (27/10): o valor já pago é abatido do sinal no 4.1.3; sem termo assinado, nada muda", () => {
+test("pré-reserva paga (31/10): 1ª parcela do sinal, abatida do ato e depois do 30 dias; sem pagamento, nada muda", () => {
   const m = C.marcadores(dados({ condominio: { preReserva: { assinado: true, valor: 3000 } } }));
-  assert.equal(m.SINAL_VENCIMENTO, "07/10/2026 (R$ 1.000,00), 07/11/2026 (R$ 3.000,00), 07/12/2026 (R$ 3.000,00) e 07/01/2027 (R$ 3.000,00), " +
-    "sendo R$ 3.000,00 (três mil reais) já pagos a título de pré-reserva (Termo de Pré-Reserva), abatidos do sinal");
+  assert.equal(m.SINAL_VENCIMENTO, "07/10/2026 (R$ 3.000,00, já paga a título de pré-reserva — Termo de Pré-Reserva), " +
+    "07/11/2026 (R$ 1.000,00), 07/12/2026 (R$ 3.000,00) e 07/01/2027 (R$ 3.000,00)");
+  const pago = C.marcadores(dados({ condominio: { preReserva: { valor: 2500, dataPagamento: "2026-10-02" } } }));
+  assert.equal(pago.SINAL_VENCIMENTO, "02/10/2026 (R$ 2.500,00, já paga a título de pré-reserva — Termo de Pré-Reserva), " +
+    "07/11/2026 (R$ 1.500,00), 07/12/2026 (R$ 3.000,00) e 07/01/2027 (R$ 3.000,00)");
+  assert.equal(C.marcadores(dados({ condominio: { preReserva: { valor: 2500, dataPagamento: "" } } })).SINAL_VENCIMENTO,
+    "07/10/2026 (R$ 1.000,00), 07/11/2026 (R$ 3.000,00), 07/12/2026 (R$ 3.000,00) e 07/01/2027 (R$ 3.000,00)", "sem data e sem termo assinado = não paga");
   assert.equal(C.marcadores(dados({ condominio: { preReserva: { assinado: false, valor: 3000 } } })).SINAL_VENCIMENTO,
     "07/10/2026 (R$ 1.000,00), 07/11/2026 (R$ 3.000,00), 07/12/2026 (R$ 3.000,00) e 07/01/2027 (R$ 3.000,00)");
 });
@@ -221,4 +226,14 @@ test("28/10: valor para entrada acima do sinal — o excedente fecha a soma e va
   assert.match(C.marcadores(d).PARCELAS_PRE_CHAVES,
     /^pagamento único de R\$ 1\.000,00 \(mil reais\), na assinatura deste contrato \(parte do valor para entrada informado na proposta que excede o sinal\); 10 parcelas/);
   assert.equal(C.excedenteSinal({ fluxo: FLUXO, valorParaEntrada: 9000 }), 0, "abaixo do sinal não há excedente");
+});
+
+test("31/10: pré-reserva paga no 6.1 (inciso I), no meio de pagamento e quando passa do sinal", () => {
+  const d = dados({ condominio: { preReserva: { valor: 3000, dataPagamento: "2026-10-02" } } });
+  assert.match(C.marcadores(d).FORMA_PAGAMENTO_CONDOMINIO, /a\) R\$ 3\.000,00 \(três mil reais\), já pago em 02\/10\/2026 a título de pré-reserva \(Termo de Pré-Reserva\);\nb\) R\$ 1\.000,00/);
+  const co = (pr) => ({ fluxo: { sinalAto: 1000, sinal30: 3000, sinal60: 3000, sinal90: 3000 }, preReserva: pr, valorParaEntrada: null });
+  assert.equal(C.meioPagamentoCondominio(co({ valor: 3000, data: "2026-10-02" })), "sinal (item 4.1.3) por PIX; parcelas da entrada por boleto bancário");
+  assert.deepEqual(C.preReservaPaga({ preReserva: { valor: 3000, dataPagamento: "2026-10-02" } }), { valor: 3000, data: "2026-10-02" });
+  assert.equal(C.preReservaPaga({ preReserva: { valor: 3000, dataPagamento: "" } }), null);
+  assert.deepEqual(C.preReservaPaga({ preReserva: { valor: 3000, assinado: true } }), { valor: 3000, data: "" });
 });
