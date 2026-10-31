@@ -1831,6 +1831,9 @@ function condEditar(td){
   campo.addEventListener("change",()=>{ if(campo.tagName==="SELECT"||campo.type==="date") fim(true); });
 }
 async function condSalvar(id,prop,valor){
+  if(/E-?MAIL/i.test(prop) && String(valor||"").trim() && !emailOk(valor)){
+    toast("E-mail inválido — confira o @ e o ponto (ex.: nome@gmail.com), sem vírgula nem espaço. Não salvei."); condRender(); return false;
+  }
   toast("Salvando "+prop+"…");
   let r=null;
   try{ r=await chamar({action:"simsVendaSalvar",pageId:id,prop:prop,valor:valor},70000); }catch(e){ r=null; }
@@ -3926,7 +3929,13 @@ function aplicarLocal(pageId,prop,valor){
     }
   });
 }
+/* 31/10/2026 (dono): bloquear e-mail inválido ("fulano@gmail,com") antes de gravar no Notion */
+function emailOk(v){ return /^[^@\s,;]+@[^@\s,;]+\.[A-Za-z]{2,}$/.test(String(v||"").trim()); }
 async function editar(pageId,prop,tipo,valor,el){
+  if((tipo==="email"||/E-?MAIL/i.test(prop)) && String(valor||"").trim() && !emailOk(valor)){
+    if(el) el.style.borderColor="#C0392B";
+    toast("E-mail inválido — confira o @ e o ponto (ex.: nome@gmail.com), sem vírgula nem espaço. Não salvei."); return;
+  }
   if(el)el.style.borderColor="#F0C36D";
   aplicarLocal(pageId,prop,valor);
   const r=await escrever({action:"updateVenda",pageId:pageId,prop:prop,tipo:tipo,valor:valor},"Editar "+prop);

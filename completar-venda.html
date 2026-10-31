@@ -311,6 +311,28 @@ function conjugeEhOutroFiador(g){
 function mascarar(el){
   var t=el.dataset.tipo;
   if(t==='cpf') el.value=fmtCpf(el.value); else if(t==='cep') el.value=fmtCep(el.value); else if(t==='tel') el.value=fmtTel(el.value);
+  if(t==='cep' && dig(el.value).length===8) buscarCep(el);
+}
+function emailOk(v){ return /^[^@\s,;]+@[^@\s,;]+\.[A-Za-z]{2,}$/.test(String(v||'').trim()); }
+/* 31/10/2026 (dono) — CEP preenche rua, setor e cidade sozinho (ViaCEP), igual à proposta do site do Reserva.
+   "cep" → endereco/setor/cidade; "cepFiador1" → logradouroFiador1 (ou enderecoFiador1)/setorFiador1/cidadeFiador1 */
+var CEP_ULTIMO={};
+function buscarCep(el){
+  var id=el.id.replace(/^f-/,''), c=dig(el.value), suf=id.replace(/^cep/i,'');
+  if(CEP_ULTIMO[id]===c) return; CEP_ULTIMO[id]=c;
+  function campo(nomes){ for(var i=0;i<nomes.length;i++){ var e=document.getElementById('f-'+nomes[i]); if(e) return e; } return null; }
+  var alvos=[campo(['endereco'+suf,'logradouro'+suf]), campo(['setor'+suf,'bairro'+suf]), campo(['cidade'+suf])];
+  el.style.opacity='.6';
+  fetch('https://viacep.com.br/ws/'+c+'/json/').then(function(r){ return r.json(); }).then(function(j){
+    el.style.opacity='';
+    var av=document.getElementById('avisoEnvio');
+    if(!j || j.erro){ CEP_ULTIMO[id]=''; if(av){ av.style.display='block'; av.className='aviso erro'; av.innerHTML='CEP <b>'+fmtCep(c)+'</b> não encontrado. Confira o número ou preencha o endereço à mão.'; } return; }
+    var vals=[j.logradouro, j.bairro, j.localidade];
+    alvos.forEach(function(a,i){ if(a && vals[i]) a.value=String(vals[i]).toUpperCase(); });
+    if(!j.logradouro && av){ av.style.display='block'; av.className='aviso info'; av.innerHTML='CEP <b>'+fmtCep(c)+'</b> é geral da cidade: preencha a rua à mão.'; }
+    var num=campo(['numero'+suf]); if(num && !num.value) try{ num.focus(); }catch(e){}
+    atualizarTrava();
+  }).catch(function(){ el.style.opacity=''; CEP_ULTIMO[id]=''; });
 }
 
 /* ---------------- leitura de documentos ---------------- */
@@ -426,6 +448,9 @@ function enviar(){
     var v=String(el.value||'').trim(); if(!v) return;
     if(!problema && /^(proponente|conjuge|comprador1|comprador2|fiador1|fiador2|conjugeFiador1|conjugeFiador2)$/.test(c.id) && !nomeCompleto(v))
       problema=['Informe o <b>nome completo</b> (nome e sobrenome): '+esc(c.rotulo)+'.', el];
+    /* 31/10/2026 (dono): "fulano@gmail,com" passou daqui e o Mais Controle recusou o cliente */
+    if(!problema && (c.tipo==='email' || /^email/i.test(c.id)) && !emailOk(v))
+      problema=['<b>E-mail inválido</b>: '+esc(c.rotulo)+'. Confira o @ e o ponto (ex.: nome@gmail.com), sem vírgula nem espaço.', el];
     if(!problema && c.tipo==='cpf' && !cpfValido(v)) problema=['<b>CPF inválido</b>: '+esc(c.rotulo)+'. Confira os números.', el];
     campos[c.id]=v;
   });
