@@ -853,6 +853,12 @@ var ContratoVenda = (function () {
 
     /* comissão (item 5): o percentual sai do nº de parcelas pós-chaves; a da linha tem de bater com a regra */
     var va = valoresCondominio(co);
+    /* 31/10/2026 (dono, unidade 18): o plano é o do FLUXO — 0 pós-chaves = 24x, 12 = 36x, 24 = 48x. Se o fluxo mudou
+       (Alterar fluxo, renegociação) e o PRAZO ENTRADA ficou o antigo, a comissão sairia do plano errado. */
+    var posFluxo = gruposFluxo(co).posN || 0, planoFluxo = Object.prototype.hasOwnProperty.call(PRAZO_POR_POS, posFluxo) ? PRAZO_POR_POS[posFluxo] : null;
+    if (planoFluxo !== null && positivo(fl.prazoEntrada) && prazoOpcao(fl.prazoEntrada, posFluxo) !== planoFluxo)
+      faltas.push("Prazo da entrada: " + prazoOpcao(fl.prazoEntrada, posFluxo) + "x na venda, mas o fluxo tem " + posFluxo +
+        " parcelas pós-chaves = plano de " + planoFluxo + "x (comissão " + pctBR(COMISSAO_POR_PRAZO[planoFluxo]) + "%) — corrija o PRAZO ENTRADA e a comissão");
     if (va.pctRegra === null) faltas.push("Comissão: prazo da entrada " + (fl.prazoEntrada || "vazio") + " fora da tabela (24, 36 ou 48 meses)");
     else if (positivo(co.comissao) && va.preco !== null && !va.precoMudou) {
       var pelaRegra = so2(va.preco * va.pctRegra);
