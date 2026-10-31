@@ -1,0 +1,1275 @@
+{
+ "id": "00000000-0000-0000-0000-0000000000a1",
+ "work": {
+  "name": "CONDOMÍNIO RESERVA DOS IPÊS"
+ },
+ "tradeReceivable": {
+  "referenceDate": "2025-02-10",
+  "installments": [
+   {
+    "id": "00000000-0000-0000-0000-000000000001",
+    "plannedDate": "2025-02-10T00:00:00",
+    "plannedValue": 1000.0,
+    "received": true,
+    "sumOfReceivedValues": 1000.0,
+    "pendingValue": 0.0,
+    "receipts": [
+     {
+      "value": 1000.0,
+      "interestValue": 0.0,
+      "discountValue": 0.0
+     }
+    ],
+    "readjustmentDetail": {
+     "type": {
+      "id": "00e30a7a-7a49-422e-b8b1-3ba4f927e250"
+     },
+     "table": null,
+     "rawValue": 1000.0,
+     "reference": 0,
+     "accumulatedReadjustmentValue": 0.0
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000002",
+    "plannedDate": "2025-03-12T00:00:00",
+    "plannedValue": 3000.0,
+    "received": true,
+    "sumOfReceivedValues": 3000.0,
+    "pendingValue": 0.0,
+    "receipts": [
+     {
+      "value": 3000.0,
+      "interestValue": 0.0,
+      "discountValue": 0.0
+     }
+    ],
+    "readjustmentDetail": {
+     "type": {
+      "id": "00e30a7a-7a49-422e-b8b1-3ba4f927e250"
+     },
+     "table": null,
+     "rawValue": 3000.0,
+     "reference": 0,
+     "accumulatedReadjustmentValue": 0.0
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000003",
+    "plannedDate": "2025-04-11T00:00:00",
+    "plannedValue": 3000.0,
+    "received": true,
+    "sumOfReceivedValues": 3000.0,
+    "pendingValue": 0.0,
+    "receipts": [
+     {
+      "value": 3000.0,
+      "interestValue": 0.0,
+      "discountValue": 0.0
+     }
+    ],
+    "readjustmentDetail": {
+     "type": {
+      "id": "00e30a7a-7a49-422e-b8b1-3ba4f927e250"
+     },
+     "table": null,
+     "rawValue": 3000.0,
+     "reference": 0,
+     "accumulatedReadjustmentValue": 0.0
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000004",
+    "plannedDate": "2025-05-11T00:00:00",
+    "plannedValue": 3000.0,
+    "received": true,
+    "sumOfReceivedValues": 3000.0,
+    "pendingValue": 0.0,
+    "receipts": [
+     {
+      "value": 3000.0,
+      "interestValue": 0.0,
+      "discountValue": 0.0
+     }
+    ],
+    "readjustmentDetail": {
+     "type": {
+      "id": "00e30a7a-7a49-422e-b8b1-3ba4f927e250"
+     },
+     "table": null,
+     "rawValue": 3000.0,
+     "reference": 0,
+     "accumulatedReadjustmentValue": 0.0
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000005",
+    "plannedDate": "2025-03-12T00:00:00",
+    "plannedValue": 15000.0,
+    "received": true,
+    "sumOfReceivedValues": 15000.0,
+    "pendingValue": 0.0,
+    "receipts": [
+     {
+      "value": 15000.0,
+      "interestValue": 0.0,
+      "discountValue": 0.0
+     }
+    ],
+    "readjustmentDetail": {
+     "type": {
+      "id": "88da2643-8f30-4a17-9946-9039a9f1e1ce"
+     },
+     "table": null,
+     "rawValue": 15000.0,
+     "reference": 0,
+     "accumulatedReadjustmentValue": 0.0
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000006",
+    "plannedDate": "2025-03-12T00:00:00",
+    "plannedValue": 214000.0,
+    "received": true,
+    "sumOfReceivedValues": 214000.0,
+    "pendingValue": 0.0,
+    "receipts": [
+     {
+      "value": 214000.0,
+      "interestValue": 0.0,
+      "discountValue": 0.0
+     }
+    ],
+    "readjustmentDetail": {
+     "type": {
+      "id": "994f6f20-cebf-4499-839c-f61afda9b174"
+     },
+     "table": null,
+     "rawValue": 214000.0,
+     "reference": 0,
+     "accumulatedReadjustmentValue": 0.0
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000007",
+    "plannedDate": "2025-03-10T00:00:00",
+    "plannedValue": 296.97,
+    "received": true,
+    "sumOfReceivedValues": 296.97,
+    "pendingValue": 0.0,
+    "receipts": [
+     {
+      "value": 296.97,
+      "interestValue": 0.0,
+      "discountValue": 0.0
+     }
+    ],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "INCC-M"
+     },
+     "rawValue": 295.49,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 0.5
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000008",
+    "plannedDate": "2025-04-10T00:00:00",
+    "plannedValue": 298.44,
+    "received": true,
+    "sumOfReceivedValues": 298.44,
+    "pendingValue": 0.0,
+    "receipts": [
+     {
+      "value": 298.44,
+      "interestValue": 0.0,
+      "discountValue": 0.0
+     }
+    ],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "INCC-M"
+     },
+     "rawValue": 295.49,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 1.0
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000009",
+    "plannedDate": "2025-05-10T00:00:00",
+    "plannedValue": 299.92,
+    "received": true,
+    "sumOfReceivedValues": 299.92,
+    "pendingValue": 0.0,
+    "receipts": [
+     {
+      "value": 299.92,
+      "interestValue": 0.0,
+      "discountValue": 0.0
+     }
+    ],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "INCC-M"
+     },
+     "rawValue": 295.49,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 1.5
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-00000000000a",
+    "plannedDate": "2025-06-10T00:00:00",
+    "plannedValue": 301.4,
+    "received": true,
+    "sumOfReceivedValues": 301.4,
+    "pendingValue": 0.0,
+    "receipts": [
+     {
+      "value": 301.4,
+      "interestValue": 0.0,
+      "discountValue": 0.0
+     }
+    ],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "INCC-M"
+     },
+     "rawValue": 295.49,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 2.0
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-00000000000b",
+    "plannedDate": "2025-07-10T00:00:00",
+    "plannedValue": 302.88,
+    "received": true,
+    "sumOfReceivedValues": 302.88,
+    "pendingValue": 0.0,
+    "receipts": [
+     {
+      "value": 302.88,
+      "interestValue": 0.0,
+      "discountValue": 0.0
+     }
+    ],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "INCC-M"
+     },
+     "rawValue": 295.49,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 2.5
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-00000000000c",
+    "plannedDate": "2025-08-10T00:00:00",
+    "plannedValue": 304.35,
+    "received": true,
+    "sumOfReceivedValues": 304.35,
+    "pendingValue": 0.0,
+    "receipts": [
+     {
+      "value": 304.35,
+      "interestValue": 0.0,
+      "discountValue": 0.0
+     }
+    ],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "INCC-M"
+     },
+     "rawValue": 295.49,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 3.0
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-00000000000d",
+    "plannedDate": "2025-09-10T00:00:00",
+    "plannedValue": 305.83,
+    "received": true,
+    "sumOfReceivedValues": 305.83,
+    "pendingValue": 0.0,
+    "receipts": [
+     {
+      "value": 305.83,
+      "interestValue": 0.0,
+      "discountValue": 0.0
+     }
+    ],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "INCC-M"
+     },
+     "rawValue": 295.49,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 3.5
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-00000000000e",
+    "plannedDate": "2025-10-10T00:00:00",
+    "plannedValue": 307.31,
+    "received": true,
+    "sumOfReceivedValues": 307.31,
+    "pendingValue": 0.0,
+    "receipts": [
+     {
+      "value": 307.31,
+      "interestValue": 0.0,
+      "discountValue": 0.0
+     }
+    ],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "INCC-M"
+     },
+     "rawValue": 295.49,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 4.0
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-00000000000f",
+    "plannedDate": "2025-11-10T00:00:00",
+    "plannedValue": 308.79,
+    "received": true,
+    "sumOfReceivedValues": 308.79,
+    "pendingValue": 0.0,
+    "receipts": [
+     {
+      "value": 308.79,
+      "interestValue": 0.0,
+      "discountValue": 0.0
+     }
+    ],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "INCC-M"
+     },
+     "rawValue": 295.49,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 4.5
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000010",
+    "plannedDate": "2025-12-10T00:00:00",
+    "plannedValue": 310.26,
+    "received": true,
+    "sumOfReceivedValues": 310.26,
+    "pendingValue": 0.0,
+    "receipts": [
+     {
+      "value": 310.26,
+      "interestValue": 0.0,
+      "discountValue": 0.0
+     }
+    ],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "INCC-M"
+     },
+     "rawValue": 295.49,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 5.0
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000011",
+    "plannedDate": "2026-01-10T00:00:00",
+    "plannedValue": 311.74,
+    "received": true,
+    "sumOfReceivedValues": 311.74,
+    "pendingValue": 0.0,
+    "receipts": [
+     {
+      "value": 311.74,
+      "interestValue": 0.0,
+      "discountValue": 0.0
+     }
+    ],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "INCC-M"
+     },
+     "rawValue": 295.49,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 5.5
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000012",
+    "plannedDate": "2026-02-10T00:00:00",
+    "plannedValue": 313.22,
+    "received": true,
+    "sumOfReceivedValues": 313.22,
+    "pendingValue": 0.0,
+    "receipts": [
+     {
+      "value": 313.22,
+      "interestValue": 0.0,
+      "discountValue": 0.0
+     }
+    ],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "INCC-M"
+     },
+     "rawValue": 295.49,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 6.0
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000013",
+    "plannedDate": "2026-03-10T00:00:00",
+    "plannedValue": 314.7,
+    "received": true,
+    "sumOfReceivedValues": 314.7,
+    "pendingValue": 0.0,
+    "receipts": [
+     {
+      "value": 314.7,
+      "interestValue": 0.0,
+      "discountValue": 0.0
+     }
+    ],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "INCC-M"
+     },
+     "rawValue": 295.49,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 6.5
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000014",
+    "plannedDate": "2026-04-10T00:00:00",
+    "plannedValue": 316.17,
+    "received": true,
+    "sumOfReceivedValues": 316.17,
+    "pendingValue": 0.0,
+    "receipts": [
+     {
+      "value": 316.17,
+      "interestValue": 0.0,
+      "discountValue": 0.0
+     }
+    ],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "INCC-M"
+     },
+     "rawValue": 295.49,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 7.0
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000015",
+    "plannedDate": "2026-05-10T00:00:00",
+    "plannedValue": 317.65,
+    "received": true,
+    "sumOfReceivedValues": 317.65,
+    "pendingValue": 0.0,
+    "receipts": [
+     {
+      "value": 317.65,
+      "interestValue": 0.0,
+      "discountValue": 0.0
+     }
+    ],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "INCC-M"
+     },
+     "rawValue": 295.49,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 7.5
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000016",
+    "plannedDate": "2026-06-10T00:00:00",
+    "plannedValue": 319.13,
+    "received": true,
+    "sumOfReceivedValues": 319.13,
+    "pendingValue": 0.0,
+    "receipts": [
+     {
+      "value": 319.13,
+      "interestValue": 0.0,
+      "discountValue": 0.0
+     }
+    ],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "INCC-M"
+     },
+     "rawValue": 295.49,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 8.0
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000017",
+    "plannedDate": "2026-07-10T00:00:00",
+    "plannedValue": 320.61,
+    "received": true,
+    "sumOfReceivedValues": 320.61,
+    "pendingValue": 0.0,
+    "receipts": [
+     {
+      "value": 320.61,
+      "interestValue": 0.0,
+      "discountValue": 0.0
+     }
+    ],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "INCC-M"
+     },
+     "rawValue": 295.49,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 8.5
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000018",
+    "plannedDate": "2026-08-10T00:00:00",
+    "plannedValue": 322.08,
+    "received": true,
+    "sumOfReceivedValues": 322.08,
+    "pendingValue": 0.0,
+    "receipts": [
+     {
+      "value": 322.08,
+      "interestValue": 0.0,
+      "discountValue": 0.0
+     }
+    ],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "INCC-M"
+     },
+     "rawValue": 295.49,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 9.0
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000019",
+    "plannedDate": "2026-09-10T00:00:00",
+    "plannedValue": 323.56,
+    "received": true,
+    "sumOfReceivedValues": 323.56,
+    "pendingValue": 0.0,
+    "receipts": [
+     {
+      "value": 323.56,
+      "interestValue": 0.0,
+      "discountValue": 0.0
+     }
+    ],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "INCC-M"
+     },
+     "rawValue": 295.49,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 9.5
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-00000000001a",
+    "plannedDate": "2026-10-10T00:00:00",
+    "plannedValue": 325.04,
+    "received": true,
+    "sumOfReceivedValues": 325.04,
+    "pendingValue": 0.0,
+    "receipts": [
+     {
+      "value": 325.04,
+      "interestValue": 0.0,
+      "discountValue": 0.0
+     }
+    ],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "INCC-M"
+     },
+     "rawValue": 295.49,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 10.0
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-00000000001b",
+    "plannedDate": "2026-11-10T00:00:00",
+    "plannedValue": 331.84,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 331.84,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "INCC-M"
+     },
+     "rawValue": 295.49,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-00000000001c",
+    "plannedDate": "2026-12-10T00:00:00",
+    "plannedValue": 331.84,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 331.84,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "INCC-M"
+     },
+     "rawValue": 295.49,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-00000000001d",
+    "plannedDate": "2027-01-10T00:00:00",
+    "plannedValue": 331.84,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 331.84,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "INCC-M"
+     },
+     "rawValue": 295.49,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-00000000001e",
+    "plannedDate": "2027-02-10T00:00:00",
+    "plannedValue": 331.84,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 331.84,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "INCC-M"
+     },
+     "rawValue": 295.49,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-00000000001f",
+    "plannedDate": "2026-12-10T00:00:00",
+    "plannedValue": 10055.54,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 10055.54,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "3a1c631a-e0db-4962-b4b5-32beee649806"
+     },
+     "table": {
+      "name": "INCC-M"
+     },
+     "rawValue": 8954.18,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000020",
+    "plannedDate": "2027-02-10T00:00:00",
+    "plannedValue": 7038.8,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 7038.8,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aa7ff517-46d6-4b46-8856-129448181fec"
+     },
+     "table": {
+      "name": "INCC-M"
+     },
+     "rawValue": 6267.85,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000021",
+    "plannedDate": "2027-03-10T00:00:00",
+    "plannedValue": 792.71,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 792.71,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "IPCA + 1% a.m."
+     },
+     "rawValue": 705.89,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000022",
+    "plannedDate": "2027-04-10T00:00:00",
+    "plannedValue": 792.71,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 792.71,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "IPCA + 1% a.m."
+     },
+     "rawValue": 705.89,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000023",
+    "plannedDate": "2027-05-10T00:00:00",
+    "plannedValue": 792.71,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 792.71,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "IPCA + 1% a.m."
+     },
+     "rawValue": 705.89,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000024",
+    "plannedDate": "2027-06-10T00:00:00",
+    "plannedValue": 792.71,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 792.71,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "IPCA + 1% a.m."
+     },
+     "rawValue": 705.89,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000025",
+    "plannedDate": "2027-07-10T00:00:00",
+    "plannedValue": 792.71,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 792.71,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "IPCA + 1% a.m."
+     },
+     "rawValue": 705.89,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000026",
+    "plannedDate": "2027-08-10T00:00:00",
+    "plannedValue": 792.71,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 792.71,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "IPCA + 1% a.m."
+     },
+     "rawValue": 705.89,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000027",
+    "plannedDate": "2027-09-10T00:00:00",
+    "plannedValue": 792.71,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 792.71,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "IPCA + 1% a.m."
+     },
+     "rawValue": 705.89,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000028",
+    "plannedDate": "2027-10-10T00:00:00",
+    "plannedValue": 792.71,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 792.71,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "IPCA + 1% a.m."
+     },
+     "rawValue": 705.89,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000029",
+    "plannedDate": "2027-11-10T00:00:00",
+    "plannedValue": 792.71,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 792.71,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "IPCA + 1% a.m."
+     },
+     "rawValue": 705.89,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-00000000002a",
+    "plannedDate": "2027-12-10T00:00:00",
+    "plannedValue": 792.71,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 792.71,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "IPCA + 1% a.m."
+     },
+     "rawValue": 705.89,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-00000000002b",
+    "plannedDate": "2028-01-10T00:00:00",
+    "plannedValue": 792.71,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 792.71,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "IPCA + 1% a.m."
+     },
+     "rawValue": 705.89,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-00000000002c",
+    "plannedDate": "2028-02-10T00:00:00",
+    "plannedValue": 792.71,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 792.71,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "IPCA + 1% a.m."
+     },
+     "rawValue": 705.89,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-00000000002d",
+    "plannedDate": "2028-03-10T00:00:00",
+    "plannedValue": 792.71,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 792.71,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "IPCA + 1% a.m."
+     },
+     "rawValue": 705.89,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-00000000002e",
+    "plannedDate": "2028-04-10T00:00:00",
+    "plannedValue": 792.71,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 792.71,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "IPCA + 1% a.m."
+     },
+     "rawValue": 705.89,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-00000000002f",
+    "plannedDate": "2028-05-10T00:00:00",
+    "plannedValue": 792.71,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 792.71,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "IPCA + 1% a.m."
+     },
+     "rawValue": 705.89,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000030",
+    "plannedDate": "2028-06-10T00:00:00",
+    "plannedValue": 792.71,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 792.71,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "IPCA + 1% a.m."
+     },
+     "rawValue": 705.89,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000031",
+    "plannedDate": "2028-07-10T00:00:00",
+    "plannedValue": 792.71,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 792.71,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "IPCA + 1% a.m."
+     },
+     "rawValue": 705.89,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000032",
+    "plannedDate": "2028-08-10T00:00:00",
+    "plannedValue": 792.71,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 792.71,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "IPCA + 1% a.m."
+     },
+     "rawValue": 705.89,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000033",
+    "plannedDate": "2028-09-10T00:00:00",
+    "plannedValue": 792.71,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 792.71,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "IPCA + 1% a.m."
+     },
+     "rawValue": 705.89,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000034",
+    "plannedDate": "2028-10-10T00:00:00",
+    "plannedValue": 792.71,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 792.71,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "IPCA + 1% a.m."
+     },
+     "rawValue": 705.89,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000035",
+    "plannedDate": "2028-11-10T00:00:00",
+    "plannedValue": 792.71,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 792.71,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "IPCA + 1% a.m."
+     },
+     "rawValue": 705.89,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000036",
+    "plannedDate": "2028-12-10T00:00:00",
+    "plannedValue": 792.71,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 792.71,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "IPCA + 1% a.m."
+     },
+     "rawValue": 705.89,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000037",
+    "plannedDate": "2029-01-10T00:00:00",
+    "plannedValue": 792.71,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 792.71,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "IPCA + 1% a.m."
+     },
+     "rawValue": 705.89,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   },
+   {
+    "id": "00000000-0000-0000-0000-000000000038",
+    "plannedDate": "2029-02-10T00:00:00",
+    "plannedValue": 792.71,
+    "received": false,
+    "sumOfReceivedValues": 0.0,
+    "pendingValue": 792.71,
+    "receipts": [],
+    "readjustmentDetail": {
+     "type": {
+      "id": "aff8eac2-40c6-4b59-a837-f09eb4c5b60b"
+     },
+     "table": {
+      "name": "IPCA + 1% a.m."
+     },
+     "rawValue": 705.89,
+     "reference": 2,
+     "accumulatedReadjustmentValue": 12.3
+    }
+   }
+  ]
+ }
+}
