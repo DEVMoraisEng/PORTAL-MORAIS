@@ -203,6 +203,9 @@ em America/Sao_Paulo. O servidor precisa estar no fuso de Brasília/Goiânia (UT
 Script: `robo_mc_retratos.py` (chama `python -m venda.mc.retrato --todas`). Tarefa agendada sugerida: todo dia às
 05:00, `python servidor\robo_fila.py --robo retratos`. **A chave "robos" de `robos-portal.json` precisa de
 `DB_VENDAS_COND` em "vars"** (id da base de vendas do condomínio), senão o robô sai com código 2 e avisa o motivo.
+A fila também precisa de `DB_VENDAS_COND` em "vars" para o retrato depois do Lançar: depois de gravar uma venda
+(lançar ou distrato com `--aplicar`, código 0), o robô da fila roda `venda.mc.retrato --todas` com o mesmo ambiente. Sem a chave o retrato
+sai com código 2 (só vai para o log) e o pedido continua FEITO. Prévia, bloqueado e `mc-retrato` não disparam essa leitura.
 
 ## 4. (servidor) Rodada de prova, SEM gravar
 Sem o arquivo `_central\ROBOS_APLICAR.txt` os robôs só simulam (como o GitHub sem APLICAR).

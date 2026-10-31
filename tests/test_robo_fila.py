@@ -148,3 +148,82 @@ def test_mc_retrato_pagina_invalida():
 def test_retrato_nao_tem_marcar_erro():
     assert R.marcar_erro_argv(["-m", "venda.mc.retrato", "--page", PG]) is None
     assert R.marcar_erro_argv(["-m", "venda.mc.lancar", "--page", PG])[-2] == "--marcar-erro"
+
+
+# ---- 31/10/2026: depois de gravar uma venda pela fila, lê o retrato de TODAS as vendas ----
+def test_apos_gravar_so_depois_de_gravar_de_verdade():
+    todas = ["-m", "venda.mc.retrato", "--todas"]
+    assert R.apos_gravar(["-m", "venda.mc.lancar", "--page", PG, "--aplicar"]) == todas
+    assert R.apos_gravar(["-m", "venda.mc.lancar", "--page", PG, "--aplicar", "--anexar"]) == todas
+    assert R.apos_gravar(["-m", "venda.mc.distrato", "--page", PG, "--recebeu", "sim", "--aplicar"]) == todas
+    assert R.apos_gravar(["-m", "venda.mc.lancar", "--page", PG]) is None             # prévia
+    assert R.apos_gravar(["-m", "venda.mc.lancar", "--page", PG, "--bloqueado"]) is None
+    assert R.apos_gravar(["-m", "venda.mc.retrato", "--page", PG]) is None
+    assert R.apos_gravar(["-m", "venda.mc.retrato", "--todas", "--aplicar"]) is None
+
+
+def _atender_lancar_aplicando(tmp_path, monkeypatch, codigos):
+    """Roda Fila.atender de um lançar --aplicar com subprocess.run trocado; codigos = código de cada chamada."""
+    monkeypatch.setattr(R, "LOGS", tmp_path / "logs")
+    chamadas, marcas = [], []
+
+    class Res:
+        def __init__(self, c):
+            self.returncode, self.stdout, self.stderr = c, '{"situacao": "ok"}\n', ""
+
+    def falso(argv, **k):
+        chamadas.append((argv, k))
+        c = codigos[min(len(chamadas) - 1, len(codigos) - 1)]
+        if c == "excecao":
+            raise OSError("quebrou")
+        if c == "prazo":
+            raise R.subprocess.TimeoutExpired(argv, 1)
+        return Res(c)
+
+    monkeypatch.setattr(R.subprocess, "run", falso)
+    f = fila([], nome="producao")
+    f.pode_gravar, f.vars = True, {"DB_VENDAS_COND": "d" * 32}
+    monkeypatch.setattr(f, "marcar", lambda pid, sit, res="": marcas.append(sit))
+    ln = linha("PENDENTE")
+    ln["properties"]["PAYLOAD"]["rich_text"][0]["plain_text"] = json.dumps({"pageId": PG, "aplicar": True})
+    return f.atender(ln), chamadas, marcas
+
+
+def test_atender_gravou_com_sucesso_roda_o_retrato_de_todas_com_o_mesmo_env(tmp_path, monkeypatch):
+    res, chamadas, marcas = _atender_lancar_aplicando(tmp_path, monkeypatch, [0, 0])
+    assert res == "FEITO" and marcas == ["PEGO", "FEITO"]
+    assert len(chamadas) == 2
+    (a1, k1), (a2, k2) = chamadas
+    assert a1[1:3] == ["-m", "venda.mc.lancar"] and "--aplicar" in a1
+    assert a2[1:] == ["-m", "venda.mc.retrato", "--todas"]
+    assert k2["env"] == k1["env"] and k2["env"]["DB_VENDAS_COND"] == "d" * 32
+    assert k2["cwd"] == R.RAIZ and k2["timeout"] == R.PRAZO_ROBO_S
+
+
+def test_atender_com_erro_nao_roda_o_retrato(tmp_path, monkeypatch):
+    res, chamadas, marcas = _atender_lancar_aplicando(tmp_path, monkeypatch, [1, 0])
+    assert res == "ERRO" and marcas == ["PEGO", "ERRO"]
+    assert all("--todas" not in a for a, _ in chamadas)
+
+
+def test_atender_previa_nao_roda_o_retrato(tmp_path, monkeypatch):
+    monkeypatch.setattr(R, "LOGS", tmp_path / "logs")
+    chamadas = []
+
+    class Res:
+        returncode, stdout, stderr = 0, "ok\n", ""
+
+    monkeypatch.setattr(R.subprocess, "run", lambda argv, **k: chamadas.append(argv) or Res())
+    f = fila([], nome="producao")
+    monkeypatch.setattr(f, "marcar", lambda *a, **k: None)
+    assert f.atender(linha("PENDENTE")) == "FEITO"      # payload só com pageId: prévia
+    assert len(chamadas) == 1
+
+
+def test_atender_retrato_que_falha_nao_muda_o_feito(tmp_path, monkeypatch):
+    for falha in (2, "excecao", "prazo"):
+        res, chamadas, marcas = _atender_lancar_aplicando(tmp_path, monkeypatch, [0, falha])
+        assert res == "FEITO" and marcas == ["PEGO", "FEITO"], falha
+        assert len(chamadas) == 2, falha
+        log_do_dia = next((tmp_path / "logs").glob("*.log")).read_text(encoding="utf-8")
+        assert "retratos depois de gravar" in log_do_dia, falha
