@@ -136,3 +136,26 @@ test("placar: com desconto mostra a comissão pela regra sobre o valor novo; ise
   assert.match(D.htmlFluxoVivo(ed, ""), /Comissão pela regra: <b>R\$ 4\.750,00/);
   assert.match(D.htmlFluxoVivo({ ...ed, semComissao: true }, ""), /sem comissão \(venda direta\)/);
 });
+
+test("31/10: prazo da entrada no topo do editor — 24x, 36x e 48x, o atual marcado", () => {
+  const h = D.htmlContrato(estado(fechado), { fluxoEd: editor() });
+  for (const p of [24, 36, 48]) assert.match(h, new RegExp('data-acao="c-fluxo-prazo"[^>]*data-p="' + p + '"'));
+  assert.match(h, /data-p="24"[^>]*aria-pressed="true"/, "sem pós-chaves = 24x");
+  assert.match(h, /refaz pré-chaves, balões e pós-chaves pela conta do simulador/);
+});
+
+test("31/10: placar com diferença oferece Distribuir; fechado não oferece", () => {
+  const ed = editor();
+  ed.linhas[0].v = 9000;                                   // sinal menor: faltam R$ 1.000
+  const h = D.htmlFluxoVivo(ed, "");
+  assert.match(h, /Faltam: <b>R\$ 1\.000,00/);
+  assert.match(botao(h, "c-fluxo-dist"), /Distribuir/);
+  assert.equal(botao(D.htmlFluxoVivo(editor(), ""), "c-fluxo-dist"), "");
+});
+
+test("31/10: prazo diferente da proposta mostra o prazo novo e a comissão pela regra", () => {
+  const ed = editor();
+  ed.linhas.splice(2, 0, { t: "pos", v: 0, n: 12, d: "2029-01-10", i: 1, x: "" });
+  const h = D.htmlFluxoVivo(ed, "");
+  assert.match(h, /Prazo: <b>36x<\/b> \(proposta 24x\) · comissão pela regra: <b>4,75% = R\$ 4\.750,00<\/b>/);
+});

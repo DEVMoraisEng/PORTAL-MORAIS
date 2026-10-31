@@ -681,6 +681,12 @@
       (ed.podePreco ? "" : ' <span class="dz-nota">só Julio Cesar ou João Vitor mudam o valor da casa</span>') +
       (ed.entrega ? ' <span class="dz-nota">entrega das chaves: ' + esc(F.dataBR(ed.entrega)) + "</span>" : "") + "</div>";
     h += htmlFluxoDesconto(ed, dis);
+    /* 31/10/2026 (dono): trocar o prazo da entrada na mesa (cliente de 24x para 36x) — a tela refaz os valores */
+    var prazoAgora = F.prazoDasLinhas(ed.linhas);
+    h += '<div class="dz-linha vb-fx-prazo"><b>Prazo da entrada:</b> ' + [24, 36, 48].map(function (p) {
+      return '<button type="button" class="bt bt-mini' + (p === prazoAgora ? "" : " ghost") + '" data-acao="c-fluxo-prazo" data-p="' + p + '" aria-pressed="' +
+        (p === prazoAgora) + '"' + dis + ">" + p + "x</button>";
+    }).join(" ") + ' <span class="dz-nota">refaz pré-chaves, balões e pós-chaves pela conta do simulador; sinal, financiamento e FGTS ficam</span></div>';
     h += '<div class="vb-fx-tab" style="overflow-x:auto"><table class="tbl-fx" style="border-collapse:collapse;width:100%;font-size:.9em">' +
       "<thead><tr><th>Tipo</th><th>↻</th><th>Valor de cada (R$)</th><th>Qtde</th><th>1ª data</th><th>A cada (meses)</th><th>Descrição</th><th>Total</th><th></th></tr></thead><tbody>";
     ed.linhas.forEach(function (l, k) {
@@ -770,7 +776,12 @@
       /* 30/10: a comissão que vai sair (sem comissão na isenção; pela regra do prazo sobre o valor novo no desconto) */
       (ed.semComissao ? "<span>Comissão: <b>sem comissão (venda direta)</b></span>"
         : mudouPreco && ed.desconto && ed.desconto.comissao && ed.desconto.comissao.pct
-          ? "<span>Comissão pela regra: <b>" + esc(F.moeda(Math.round(ed.valor * ed.desconto.comissao.pct * 100) / 100)) + "</b></span>" : "") + "</div>";
+          ? "<span>Comissão pela regra: <b>" + esc(F.moeda(Math.round(ed.valor * ed.desconto.comissao.pct * 100) / 100)) + "</b></span>" : "") +
+      htmlPrazoPlacar(ed) + "</div>";
+    /* 31/10: sugestão para fechar a conta sem fazer na mão */
+    if (!bate) h += '<div class="dz-linha"><button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-dist"' + dis +
+      ' title="Espalha a diferença nas pré-chaves e balões, proporcional ao total de cada">Distribuir ' + esc(F.moeda(Math.abs(dif))) +
+      " nas pré-chaves e balões</button></div>";
     var faltas = r.erros.filter(function (x) { return !/^(Faltam|Sobram) /.test(x); });
     if (!motivoOk) faltas.push("Falta o motivo" + (mudouPreco ? " (e o motivo da mudança no valor da casa)" : ""));
     if (faltas.length) h += '<ul class="dz-msg">' + faltas.slice(0, 6).map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>";
@@ -778,6 +789,14 @@
     h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-fluxo-salvar"' + ((dis || !ok) ? " disabled" : "") + ">" +
       (bate ? "Salvar fluxo" : (dif > 0 ? "Faltam " : "Sobram ") + esc(F.moeda(Math.abs(dif)))) + "</button></div>";
     return h;
+  }
+  /* 31/10: prazo diferente da proposta — o prazo novo e a comissão pela regra (5% / 4,75% / 4,5%) */
+  var PCT_PRAZO = { 24: 0.05, 36: 0.0475, 48: 0.045 };
+  function htmlPrazoPlacar(ed) {
+    var F = FL(), p = F.prazoDasLinhas(ed.linhas), pp = ed.padrao ? F.prazoDasLinhas(ed.padrao.linhas || []) : null;
+    if (p === null || pp === null || p === pp || ed.semComissao) return "";
+    return "<span>Prazo: <b>" + p + "x</b> (proposta " + pp + "x) · comissão pela regra: <b>" + String(PCT_PRAZO[p] * 100).replace(".", ",") + "% = " +
+      esc(F.moeda(Math.round(ed.valor * PCT_PRAZO[p] * 100) / 100)) + "</b></span>";
   }
   function dataHoraBR(iso) {
     var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(iso || ""));
@@ -2072,6 +2091,23 @@
       if (acao === "c-fluxo-del") { if (!(FL().TIPOS[(ed.linhas[k] || {}).t] || {}).fixo) ed.linhas.splice(k, 1); pintar(); return; }
       if (acao === "c-fluxo-padrao") { ed.linhas = copiaLinhas(ed.padrao.linhas); ed.valor = ed.padrao.valor; ed.semComissao = false; ed.descontos = []; pintar(); return; }
       if (acao === "c-fluxo-desconto") { aplicarDescontoTela(ed); pintar(); return; }
+      if (acao === "c-fluxo-prazo") {
+        var pz = Number(b.getAttribute("data-p")), mp = FL().mudarPrazo({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, pz);
+        if (mp.erro) uiC.msg = mp.erro;
+        else {
+          ed.linhas = mp.linhas;
+          if (!String(ed.motivo || "").trim()) ed.motivo = "Cliente mudou o prazo da entrada para " + pz + "x";
+          uiC.msg = "Fluxo refeito para " + pz + "x — confira as datas e salve.";
+        }
+        pintar();
+        return;
+      }
+      if (acao === "c-fluxo-dist") {
+        var ds = FL().distribuir({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas });
+        if (ds.erro) uiC.msg = ds.erro; else { ed.linhas = ds.linhas; uiC.msg = ""; }
+        pintar();
+        return;
+      }
       if (acao === "c-fluxo-red") {
         if ((FL().TIPOS[(ed.linhas[k] || {}).t] || {}).fixo) return;
         var rd = FL().redistribuir({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, k);

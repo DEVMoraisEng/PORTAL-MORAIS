@@ -117,10 +117,13 @@ test("financiamento e FGTS não mudam: trocar valor entre eles e as parcelas é 
   assert.match(F.validar(sem, p).erros.join(";"), /não mudam/);
 });
 
-test("pós-chaves: mesma quantidade da proposta, até o teto de R$ 788,33 e sem começar antes", () => {
+test("pós-chaves: 0, 12 ou 24 parcelas (o prazo), até o teto de R$ 788,33 e sem começar antes", () => {
   const p = F.doPadrao(comPos);
   const menos = F.normalizar(p); menos.linhas.find((l) => l.t === "pos").n = 12;
-  assert.match(F.validar(menos, p).erros.join(";"), /tem de continuar com 24 parcelas/);
+  assert.doesNotMatch(F.validar(menos, p).erros.join(";"), /Pós-chaves/, "31/10: 48x → 36x pode (o prazo muda)");
+  assert.match(F.validar(menos, p).avisos.join(";"), /prazo da entrada muda de 48x para 36x/);
+  const torto = F.normalizar(p); torto.linhas.find((l) => l.t === "pos").n = 13;
+  assert.match(F.validar(torto, p).erros.join(";"), /só 0, 12 ou 24 parcelas no total .* hoje 13/);
   const dividido = F.normalizar(p), k = dividido.linhas.findIndex((l) => l.t === "pos");
   dividido.linhas.splice(k, 1, { t: "pos", v: 700, n: 12, d: "2029-01-10", i: 1 }, { t: "pos", v: 700, n: 12, d: "2030-01-10", i: 1 });
   assert.deepEqual(F.validar(dividido, p).erros, [], "pode dividir em mais linhas se a quantidade for a mesma");
@@ -130,7 +133,9 @@ test("pós-chaves: mesma quantidade da proposta, até o teto de R$ 788,33 e sem 
   assert.match(F.validar(cedo, p).erros.join(";"), /não pode começar antes de 10\/01\/2029/);
   const semPos = F.doPadrao(gavetas), comNovo = F.normalizar(semPos);
   comNovo.linhas.push({ t: "pos", v: 100, n: 1, d: "2029-01-10", i: 1 });
-  assert.match(F.validar(comNovo, semPos).erros.join(";"), /não tem pós-chaves/);
+  assert.match(F.validar(comNovo, semPos).erros.join(";"), /só 0, 12 ou 24 parcelas/);
+  comNovo.linhas[comNovo.linhas.length - 1].n = 12;
+  assert.match(F.validar(comNovo, semPos).avisos.join(";"), /de 24x para 36x .* passa a ter fiador/);
 });
 
 test("serializar e ler voltam o mesmo fluxo e descartam campos estranhos", () => {
@@ -248,4 +253,46 @@ test("31/10/2026 (dono): pré-chaves e balões não passam de 30/11/2028 (trava,
   assert.match(F.validar(balao).erros.join(";"), /balão vence em 01\/12\/2028/);
   const noLimite = Object.assign({}, f, { linhas: f.linhas.map((l) => l.t === "balao" && l.d === "2028-06-10" ? Object.assign({}, l, { d: "2028-11-30" }) : l) });
   assert.deepEqual(F.validar(noLimite).erros, []);
+});
+
+/* 31/10/2026: casa 17 — cliente de 24x para 36x. Números do simulador (fpcGerar) com sinal de R$ 30.000 */
+const casa24 = { valor: 96511.27 + 244800 + 8688.73, entrega: "2028-11-30", linhas: [
+  { t: "sinal", v: 1000, n: 1, d: "2026-10-31", i: 1 }, { t: "sinal", v: 29000, n: 1, d: "2026-11-10", i: 1 },
+  { t: "pre", v: 1828.63, n: 12, d: "2026-11-10", i: 1 }, { t: "pre", v: 701.69, n: 12, d: "2027-11-10", i: 1 },
+  { t: "balao", v: 21263.19, n: 1, d: "2027-12-10", i: 1 }, { t: "balao", v: 14884.24, n: 1, d: "2028-11-10", i: 1 },
+  { t: "fin", v: 244800, n: 1, d: "", i: 1 }, { t: "fgts", v: 8688.73, n: 1, d: "", i: 1 }] };
+
+test("mudar o prazo refaz pré-chaves, balões e pós-chaves igual ao simulador", () => {
+  assert.equal(F.prazoDasLinhas(casa24.linhas), 24);
+  const r36 = F.mudarPrazo(casa24, 36);
+  const resumo = (ls) => ls.map((l) => [l.t, l.v, l.n, l.d]);
+  assert.deepEqual(resumo(r36.linhas), [
+    ["sinal", 1000, 1, "2026-10-31"], ["sinal", 29000, 1, "2026-11-10"],
+    ["pre", 1568.55, 12, "2026-11-10"], ["pre", 601.88, 12, "2027-11-10"],
+    ["balao", 18238.9, 1, "2027-12-10"], ["balao", 12767.25, 1, "2028-11-10"], ["pos", 788.33, 12, "2028-12-10"],
+    ["fin", 244800, 1, ""], ["fgts", 8688.73, 1, ""]]);
+  const f36 = Object.assign({}, casa24, { linhas: r36.linhas });
+  assert.equal(F.validar(f36).diferenca, 0);
+  assert.equal(F.prazoDasLinhas(r36.linhas), 36);
+  /* volta para 24x e chega aos mesmos valores da proposta */
+  assert.deepEqual(resumo(F.mudarPrazo(f36, 24).linhas), resumo(F.normalizar(casa24).linhas));
+  const r48 = F.mudarPrazo(casa24, 48);
+  assert.equal(F.validar(Object.assign({}, casa24, { linhas: r48.linhas })).diferenca, 0);
+  assert.deepEqual(r48.linhas.filter((l) => l.t === "pos").map((l) => [l.v, l.n]), [[788.33, 24]]);
+  assert.match(F.mudarPrazo(casa24, 30).erro, /24, 36 ou 48/);
+});
+
+test("Distribuir espalha a diferença nas pré-chaves e balões e fecha ao centavo", () => {
+  const f = F.normalizar(casa24);
+  f.linhas[1].v = 25000;                                   // sinal menor: faltam R$ 4.000
+  assert.equal(F.validar(f).diferenca, 4000);
+  const r = F.distribuir(f);
+  assert.equal(F.validar(Object.assign({}, f, { linhas: r.linhas })).diferenca, 0);
+  assert.deepEqual(r.linhas.slice(0, 2).map((l) => l.v), [1000, 25000], "sinais não mudam");
+  assert.ok(r.linhas[2].v > 1828.63 && r.linhas[4].v > 21263.19);
+  const sobra = F.normalizar(casa24); sobra.linhas[1].v = 33000;   // sobram 4.000
+  const r2 = F.distribuir(sobra);
+  assert.equal(F.validar(Object.assign({}, sobra, { linhas: r2.linhas })).diferenca, 0);
+  const so = { valor: 1000, linhas: [{ t: "sinal", v: 500, n: 1, d: "2026-10-31", i: 1 }] };
+  assert.match(F.distribuir(so).erro, /Não há pré-chaves/);
 });

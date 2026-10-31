@@ -419,6 +419,23 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
   .cd-cardbox .vb-conf .dz-corr .dz-rot{flex:0 0 auto!important}
   .cd-cardbox .vb-conf .dz-corr input,.cd-cardbox .vb-conf .dz-corr select{width:100%;flex:1 1 auto!important}
   .cd-cardbox .vb-conf div[style*="overflow-x"],.cd-cardbox .vb-fin div[style*="overflow-x"]{overflow-x:visible!important}
+  /* 31/10/2026 (PR do prazo 24/36/48): o editor do Alterar fluxo também vira blocos — cada linha em duas colunas, o
+     nome do campo em cima (pela posição da coluna: tipo, ↻, valor, qtde, 1ª data, a cada, descrição, total, ✕) */
+  .cd-cardbox .vb-fx-tab{overflow-x:visible!important}
+  .cd-cardbox .tbl-fx thead{display:none}
+  .cd-cardbox .tbl-fx,.cd-cardbox .tbl-fx tbody{display:block;width:100%}
+  .cd-cardbox .tbl-fx tr{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;border:1.5px solid var(--border2);border-radius:10px;padding:8px 10px;margin:0 0 8px;background:var(--sup)}
+  .cd-cardbox .tbl-fx td{display:block;padding:0!important;border:0!important;text-align:left!important;min-width:0;background:transparent!important}
+  .cd-cardbox .tbl-fx td:empty{display:none}
+  .cd-cardbox .tbl-fx td:nth-child(1),.cd-cardbox .tbl-fx td:nth-child(7){grid-column:1/-1}
+  .cd-cardbox .tbl-fx td:nth-child(n+3):nth-child(-n+8)::before{display:block;font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em}
+  .cd-cardbox .tbl-fx td:nth-child(3)::before{content:"Valor de cada (R$)"}
+  .cd-cardbox .tbl-fx td:nth-child(4)::before{content:"Qtde"}
+  .cd-cardbox .tbl-fx td:nth-child(5)::before{content:"1ª data"}
+  .cd-cardbox .tbl-fx td:nth-child(6)::before{content:"A cada (meses)"}
+  .cd-cardbox .tbl-fx td:nth-child(7)::before{content:"Descrição"}
+  .cd-cardbox .tbl-fx td:nth-child(8)::before{content:"Total"}
+  .cd-cardbox .tbl-fx td input,.cd-cardbox .tbl-fx td select{width:100%!important;min-width:0!important;box-sizing:border-box}
 }
 /* 31/10/2026 (dono): no cartão do condomínio o contrato aparece só como "Contrato gerado", sem o nome do arquivo */
 .cd-cardbox .vb-ct .dz-arq-nome{display:none}
@@ -1170,9 +1187,9 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 
 <script src="app.js?v=45"></script>
 <script src="venda/painel-casa.js?v=1"></script>
-<script src="venda/FluxoLivre.js?v=3"></script><!-- 29/10: Alterar fluxo -->
+<script src="venda/FluxoLivre.js?v=5"></script><!-- 29/10: Alterar fluxo -->
 <script src="venda/quadro-fluxo.js?v=1"></script><!-- 31/10: quadro do pro soluto segue o fluxo alterado -->
-<script src="venda-dossie.js?v=29"></script>
+<script src="venda-dossie.js?v=30"></script>
 <script src="venda/contrato-vendida.js?v=2"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele.
