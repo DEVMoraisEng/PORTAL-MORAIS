@@ -62,3 +62,19 @@ class Notion:
             if r.status_code >= 300:
                 raise RuntimeError("Notion PATCH -> HTTP %s: %s" % (r.status_code, r.text[:300]))
         return faltou
+
+    def gravar_texto_longo(self, page_id: str, props_atuais: dict, nome: str, texto: str) -> bool:
+        """Texto grande numa coluna rich_text, em pedaços de 1900 (o Notion aceita até 100). False = coluna não existe."""
+        reais = {R.chave(k): (k, v.get("type")) for k, v in (props_atuais or {}).items()}
+        achou = reais.get(R.chave(nome))
+        if not achou or achou[1] != "rich_text":
+            return False
+        s = str(texto or "")
+        if len(s) > 100 * 1900:
+            raise ValueError("texto grande demais para o Notion")
+        pedacos = [{"text": {"content": s[i:i + 1900]}} for i in range(0, len(s), 1900)]
+        r = self.http.patch(API + "/pages/" + page_id, json={"properties": {achou[0]: {"rich_text": pedacos}}},
+                            headers=self._cab(), timeout=60)
+        if r.status_code >= 300:
+            raise RuntimeError("Notion PATCH -> HTTP %s: %s" % (r.status_code, r.text[:300]))
+        return True

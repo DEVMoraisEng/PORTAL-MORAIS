@@ -135,3 +135,16 @@ def test_medicoes_sem_token_do_github_nao_publica(tmp_path, monkeypatch):
     (tmp_path / R.ARQ_MEDICOES).write_text("{}", encoding="utf-8")
     monkeypatch.setattr(R.subprocess, "run", lambda *a, **k: None)
     assert "não publiquei" in R.publicar_medicoes(cfg)
+
+
+def test_mc_retrato_vira_robo_sem_aplicar():
+    assert R.argumentos("mc-retrato", {"pageId": PG, "aplicar": True}, True) == (["-m", "venda.mc.retrato", "--page", PG], {})
+
+
+def test_mc_retrato_pagina_invalida():
+    assert R.argumentos("mc-retrato", {"pageId": "x"}, True) is None
+
+
+def test_retrato_nao_tem_marcar_erro():
+    assert R.marcar_erro_argv(["-m", "venda.mc.retrato", "--page", PG]) is None
+    assert R.marcar_erro_argv(["-m", "venda.mc.lancar", "--page", PG])[-2] == "--marcar-erro"

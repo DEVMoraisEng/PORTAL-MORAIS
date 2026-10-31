@@ -76,7 +76,8 @@ export function criarGas({ props, rotas, extras = {} }) {
   for (const f of ["RegrasVenda.js", "ClaudeLeitor.js", "OpenAILeitor.js", "UnidadesCondominio.js", "ContratoVenda.js", "PreReservaVenda.js", "ClicksignVenda.js",
                    "PortalVenda.gs", "GerarContrato.gs", "AssinaturaVenda.gs", "MaisControleVenda.gs",
                    "CondominioVenda.js", "GerarVendaCondominio.gs", "RecebimentoVenda.gs", "ConfissaoVenda.js", "Confissao.gs", "PreReserva.gs", "ConferenciaDocs.js", "Conferencia.gs", "FilaRobo.gs",
-                   "FluxoLivre.js", "FluxoVenda.gs", "LogContratoVenda.js", "LogContrato.gs"])
+                   "FluxoLivre.js", "FluxoVenda.gs", "LogContratoVenda.js", "LogContrato.gs",
+                   "Antecipacao.js", "AntecipacaoVenda.gs"])
     vm.runInContext(fs.readFileSync(path.join(VENDA, f), "utf8"), ctx, { filename: f });
   const chamar = (payload) => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(payload) } }).texto);
   return { ctx, chamar, chamadas, logs, cache };

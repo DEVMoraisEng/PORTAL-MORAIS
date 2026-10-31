@@ -6,7 +6,7 @@ Uso (Agendador de Tarefas do Windows, a cada 1 minuto):
     python servidor\\robo_fila.py                # dá sinal e atende os pedidos pendentes de todas as filas
     python servidor\\robo_fila.py --indices      # índices de reajuste (tarefa das 9h)
     python servidor\\robo_fila.py --verificar    # só confere a configuração e o porteiro; não roda nada
-    python servidor\\robo_fila.py --robo contas  # 30/10: robôs que rodavam no GitHub (contas, bases, medicoes)
+    python servidor\\robo_fila.py --robo contas  # 30/10: robôs que rodavam no GitHub (contas, bases, medicoes, retratos)
 
 Configuração (FORA do repositório, só no servidor): C:\\AUTOMAÇÕES MAIS CONTROLE\\_central\\robos-portal.json
     {"filas": [{"nome": "teste", "db_fila": "<id da base FILA DO ROBÔ>", "notion_token_arquivo": "<arquivo>",
@@ -90,6 +90,9 @@ def rt(s: str) -> dict:
 # ---------------------------------------------------------------- pedidos
 def argumentos(tipo: str, p: dict, pode_gravar: bool) -> tuple[list, dict] | None:
     """Pedido da fila -> (argv do robô, env extra). None = pedido inválido. Mesmas regras do mc-venda.yml."""
+    if tipo == "mc-retrato":   # só LÊ o ERP e grava o retrato no Notion: nunca leva --aplicar
+        pagina = str(p.get("pageId") or "")
+        return (["-m", "venda.mc.retrato", "--page", pagina], {}) if RE_ID.match(pagina) else None
     if tipo != "mc-venda":
         return None
     pagina = str(p.get("pageId") or "")
@@ -117,7 +120,7 @@ def argumentos(tipo: str, p: dict, pode_gravar: bool) -> tuple[list, dict] | Non
 
 def marcar_erro_argv(argv: list) -> list | None:
     """O 'Avisar no Notion que falhou' do workflow: anota ERRO na página da venda."""
-    if len(argv) >= 4 and argv[2] == "--page":
+    if len(argv) >= 4 and argv[2] == "--page" and argv[1] != "venda.mc.retrato":   # o retrato não tem --marcar-erro
         return argv[:4] + ["--marcar-erro", "o robô do servidor falhou — veja o log do servidor"]
     return None
 
@@ -278,6 +281,8 @@ ROBOS = {
     "contas": ["robo_mc_contas.py", "robo_mc_clientes.py", "robo_mc_obras.py"],   # robos-mc.yml (06:23)
     "bases": ["robo_mc_bases.py"],                                                # robos-mc-bases.yml (07:17)
     "medicoes": ["robo_mc_medicoes.py"],                                          # robos-mc-medicoes.yml (2/2 h)
+    # 31/10: retrato diário das vendas do condomínio (aba Financeiro + antecipação); só lê o ERP
+    "retratos": ["robo_mc_retratos.py"],
 }
 REPO_GH = "DEVMoraisEng/PORTAL-MORAIS"
 ARQ_MEDICOES = "dist/mc_medicoes/contratos.json"

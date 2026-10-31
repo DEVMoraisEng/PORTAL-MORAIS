@@ -943,6 +943,7 @@
   var exportar = { URL_PORTAL_VENDA: URL_PORTAL_VENDA, DOCS: DOCS, html: html, mensagemDeErro: mensagemDeErro,
                    htmlRecebimentos: htmlRecebimentos, mensagemRec: mensagemRec,
                    htmlConferencia: htmlConferencia, htmlCorrigir: htmlCorrigir, htmlFinanceiro: htmlFinanceiro,
+                   htmlAntecipacao: htmlAntecipacao, htmlAntResultado: htmlAntResultado, mensagemAnt: mensagemAnt, antCalcular: antCalcular,
                    DOCS_IMOVEL: DOCS_IMOVEL, htmlImovel: htmlImovel, dadosImovel: dadosImovel, htmlLoteamento: htmlLoteamento,
                    grupoDoEspaco: grupoDoEspaco,
                    linhaDoc: linhaDoc, htmlLerTodos: htmlLerTodos, resultadosLote: resultadosLote, resumoLote: resumoLote,
@@ -1365,6 +1366,291 @@
     if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
     return h;
   }
+  /* ---- 31/10/2026: Antecipação de parcelas (spec v2, etapa "simular") — aba Financeiro do cartão do condomínio ----
+   * e = resposta do antecipacaoEstado ({ pode, motivo, retrato, lido, velho, processando, erroRobo, temFiador });
+   * u = { vendaId, aberto, modo, valor, dataPg, hoje, parcelaId, quantas, tabela, ocupado, lendo, msg, pdf, testes }.
+   * A conta roda AQUI, no navegador (venda/Antecipacao.js, a mesma do servidor): digitar valor, data ou jeito não chama o
+   * servidor. O servidor refaz a conta antes de gerar o PDF. Comandos (data-acao): an-abrir, an-ler, an-modo, an-usar,
+   * an-todas, an-ultimas, an-tabela, an-pdf, an-copiar. Campos (data-an): valor, data, parcela, quantas. */
+  function ANT() { return typeof Antecipacao !== "undefined" ? Antecipacao : require("./venda/Antecipacao.js"); }
+  function antR(n) { return "R$ " + Number(n || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function antNumBR(n) { return Number(n || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function antData(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || "")); return m ? m[3] + "/" + m[2] + "/" + m[1] : ""; }
+  function antDiaMes(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || "")); return m ? m[3] + "/" + m[2] : ""; }
+  function antMesAno(iso) {
+    var M = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"], m = /^(\d{4})-(\d{2})/.exec(String(iso || ""));
+    return m && M[Number(m[2]) - 1] ? M[Number(m[2]) - 1] + "/" + m[1] : "";
+  }
+  function antLido(s) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}:\d{2})/.exec(String(s || ""));
+    return m ? m[3] + "/" + m[2] + "/" + m[1] + " " + m[4] : antData(s);
+  }
+  /* hoje em São Paulo, "aaaa-mm-dd" */
+  function antHojeSP() {
+    var s = "";
+    try { s = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()); } catch (e) { s = ""; }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    var d = new Date(), p = function (n) { return (n < 10 ? "0" : "") + n; };
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+  }
+  /* último dia do mês de `hoje`, "aaaa-mm-dd" */
+  function antFimDoMes(hoje) {
+    var m = /^(\d{4})-(\d{2})-\d{2}$/.exec(String(hoje || ""));
+    if (!m) return "";
+    var d = new Date(Date.UTC(Number(m[1]), Number(m[2]), 0)).getUTCDate();
+    return m[1] + "-" + m[2] + "-" + (d < 10 ? "0" : "") + d;
+  }
+  function novoUiA() {
+    var h = antHojeSP();
+    return { vendaId: "", aberto: false, modo: "B", valor: "", hoje: h, dataPg: h, parcelaId: "", quantas: "", tabela: false,
+             ocupado: null, lendo: false, msg: "", pdf: null, testes: perfilTestes() };
+  }
+  /* campos que faltam viram o padrão (hoje, jeito B); data vazia continua vazia (a tela avisa) */
+  function antNorm(u) {
+    var o = {}, k;
+    for (k in (u || {})) o[k] = u[k];
+    o.hoje = o.hoje || antHojeSP();
+    o.dataPg = o.dataPg == null ? o.hoje : o.dataPg;
+    o.modo = /^[ABCDE]$/.test(String(o.modo)) ? o.modo : "B";
+    o.valor = o.valor == null ? "" : o.valor;
+    o.quantas = o.quantas == null ? "" : String(o.quantas);
+    return o;
+  }
+  /* "as últimas N": vazio = todas; texto → inteiro de 1 até o máximo, senão erro */
+  function antQuantas(t, max) {
+    var s = String(t == null ? "" : t).trim();
+    if (!s) return { n: null };
+    if (!/^\d{1,3}$/.test(s)) return { erro: true };
+    var n = Number(s);
+    return n >= 1 && n <= max ? { n: n } : { erro: true };
+  }
+  /* Os cinco jeitos para o valor, a data e as escolhas da tela. Tudo local: nenhuma chamada ao servidor. */
+  function antCalcular(retrato, u) {
+    var A = ANT(), d = u.dataPg, fim = antFimDoMes(u.hoje);
+    var o = { erroData: "", sit: null, res: {}, parcelaId: "", quantas: null };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(d || "")) || d < u.hoje || d > fim) {
+      o.erroData = "Escolha a data do pagamento: de hoje (" + antData(u.hoje) + ") até o fim do mês (" + antData(fim) + ").";
+      return o;
+    }
+    var sit, valor, bal;
+    try { sit = A.situacao(retrato, d); valor = A.lerValor(u.valor); } catch (e) { o.erroData = "O retrato da venda não está legível. Clique em Ler de novo do ERP."; return o; }
+    o.sit = sit; bal = sit.balaoes;
+    o.parcelaId = bal.some(function (x) { return x.id === u.parcelaId; }) ? u.parcelaId : (bal.length ? bal[0].id : "");
+    var q = antQuantas(u.quantas, sit.posAbertas);
+    o.quantas = q.n == null ? null : q.n;
+    ["A", "B", "C", "D", "E"].forEach(function (m) {
+      var r;
+      if (m === "D" && !bal.length) r = { ok: false, erro: "SEM_BALAO" };
+      else if (m === "E" && !sit.temPos) r = { ok: false, erro: "SEM_POS_CHAVES" };
+      else if (m === "E" && q.erro) r = { ok: false, erro: "QUANTAS_INVALIDA" };
+      else if (m !== "E" && valor == null) r = { ok: false, erro: String(u.valor || "").trim() ? "VALOR_INVALIDO" : "SEM_VALOR" };
+      else {
+        try { r = A.simular(retrato, { modo: m, valor: valor, dataPg: d, parcelaId: m === "D" ? o.parcelaId : undefined, quantas: m === "E" ? o.quantas : null }); }
+        catch (e2) { r = { ok: false, erro: "RETRATO_INCOERENTE" }; }
+      }
+      o.res[m] = r;
+    });
+    return o;
+  }
+  function antErroCartao(m, r, c) {
+    var e = r.erro;
+    if (e === "SEM_VALOR") return "Digite o valor para ver como fica.";
+    if (e === "VALOR_INVALIDO") return "Valor inválido. Digite assim: 30.000,00.";
+    if (e === "VALOR_ACIMA_DO_SALDO") return m === "D" ? "O valor é maior do que o balão escolhido." : "O valor é maior do que o saldo em aberto (" + antR(c.sit.saldo) + ").";
+    if (e === "SEM_BALAO") return "Não há balão em aberto depois dessa data.";
+    if (e === "SEM_POS_CHAVES") return "Esta venda não tem parcelas depois das chaves em aberto.";
+    if (e === "QUANTAS_INVALIDA") return "Digite quantas parcelas quitar, de 1 a " + c.sit.posAbertas + ".";
+    if (e === "NAO_FECHA") {
+      var s = (r.sugestoes || []).map(function (v) {
+        return '<button type="button" class="bt bt-mini" data-acao="an-usar" data-valor="' + Number(v).toFixed(2) + '">Usar ' + antR(v) + "</button>";
+      }).join(" ");
+      return s ? "Esse valor não fecha ao centavo nas parcelas que ficam. Use " + (r.sugestoes || []).map(antR).join(" ou ") + ". " + s
+               : "Esse valor não fecha ao centavo nas parcelas que ficam. Mude um pouco o valor.";
+    }
+    if (e === "TRAVA") return "Esse jeito não passa nas travas do fiador: " + esc((r.travas || []).join("; ")) + ".";
+    if (e === "RETRATO_INCOERENTE") return "O retrato lido do ERP não fecha na conta. Clique em Ler de novo do ERP.";
+    return "Não consegui calcular esse jeito. Clique em Ler de novo do ERP e tente de novo.";
+  }
+  /* a frase "para o cliente" de cada cartão */
+  function antFrase(m, r, c) {
+    if (!r.ok) return antErroCartao(m, r, c);
+    var rs = r.resumo || {}, sit = c.sit;
+    var fim = rs.proximo ? "Próximo pagamento: " + antData(rs.proximo.data) + ", " + antR(rs.proximo.valor) +
+      (rs.ultimo ? ". Última parcela: " + antData(rs.ultimo.data) + ", " + antR(rs.ultimo.valor) + "." : ".") : "Não fica nenhuma parcela a pagar.";
+    if (m === "A") return "Paga as próximas parcelas, na ordem do vencimento. " + fim;
+    if (m === "B") return "Todas as parcelas que faltam diminuem na mesma proporção, nas mesmas datas. " + fim;
+    if (m === "C") return "Paga de trás para frente: o pagamento termina antes. " + fim;
+    if (m === "D") {
+      var al = r.depois.filter(function (x) { return x.id === c.parcelaId; })[0];
+      if (!al) return fim;
+      if (al.acao === "quita")
+        return "O balão de " + antData(al.data) + " era " + antR(al.rawAntes) + " no contrato. Com a correção da obra até hoje ele está em " +
+               antR(al.valorAntes) + ". Pagando agora, ele para de corrigir.";
+      return "Pagando " + antR(r.valor) + ", o balão de " + antData(al.data) + " continua em " + antMesAno(al.data) + " e fica em " +
+             antR(al.valor) + " hoje (segue corrigido daqui para frente).";
+    }
+    var n = r.depois.filter(function (x) { return x.acao === "quita"; }).length, todas = n === sit.posAbertas;
+    return "Quitando " + (todas ? "as " + n + " parcelas" : (n === 1 ? "a última parcela" : "as últimas " + n + " parcelas")) +
+           " depois das chaves hoje, você paga " + antR(r.valor) + " e não paga mais os juros de 1% ao mês " + (n === 1 ? "dela" : "delas") + ". " +
+           (todas ? "Depois das chaves não fica nada a pagar." : "As primeiras continuam nas datas de sempre.");
+  }
+  /* o que só aparece no cartão escolhido: o balão (D) e quantas pós-chaves (E) */
+  function antControles(m, c, u) {
+    /* o .cd-and do vendas.html põe input{width:100%} e label em maiúsculas: rádios e rótulos voltam ao normal */
+    var h = "", ROT = "display:inline;text-transform:none;font-size:inherit;font-weight:400;margin-right:12px";
+    if (m === "D") {
+      h += '<div class="dz-linha"><b>Qual balão?</b></div>' + c.sit.balaoes.map(function (b) {
+        return '<div class="dz-linha"><label style="' + ROT + '"><input type="radio" style="width:auto" name="an-par" data-an="parcela" value="' + esc(b.id) + '"' +
+          (b.id === c.parcelaId ? " checked" : "") + "> Balão de " + antData(b.data) + " · " + antR(b.valor) + " hoje</label></div>";
+      }).join("");
+      var al = c.sit.balaoes.filter(function (b) { return b.id === c.parcelaId; })[0];
+      if (al) h += '<div class="dz-linha"><button type="button" class="bt bt-mini ghost" data-acao="an-usar" data-valor="' + Number(al.valor).toFixed(2) +
+        '">Quitar o balão inteiro (' + antR(al.valor) + ")</button></div>";
+    }
+    if (m === "E") {
+      var todas = !String(u.quantas).trim();
+      h += '<div class="dz-linha"><label style="' + ROT + '"><input type="radio" style="width:auto" name="an-e" data-acao="an-todas"' + (todas ? " checked" : "") +
+        "> Todas as " + c.sit.posAbertas + " parcelas depois das chaves</label></div>" +
+        '<div class="dz-linha"><label style="' + ROT + '"><input type="radio" style="width:auto" name="an-e" data-acao="an-ultimas"' + (todas ? "" : " checked") + "> Só as últimas</label> " +
+        '<input type="text" id="ant-quantas" data-an="quantas" inputmode="numeric" maxlength="3" size="3" style="max-width:70px" value="' + esc(u.quantas) + '"> parcelas</div>';
+    }
+    return h;
+  }
+  function antCartao(m, c, u) {
+    var NOME = { A: "Pagar as próximas", B: "Diminuir todas", C: "Terminar antes", D: "Quitar um balão", E: "Quitar as pós-chaves" };
+    var DESC = { A: "Quita na ordem do vencimento. As do fim ficam iguais.", B: "Todas as que faltam caem na mesma proporção. Datas iguais.",
+                 C: "Quita de trás para frente. As do começo ficam iguais.", D: "O cliente escolhe o balão e paga tudo ou parte dele.",
+                 E: "Paga todas as pós-chaves de uma vez, ou só as últimas." };
+    var r = c.res[m], sel = u.modo === m, off = r.erro === "SEM_BALAO" || r.erro === "SEM_POS_CHAVES";
+    var h = '<div class="cd-and an-card" data-an-card="' + m + '"' + (sel ? ' style="border-width:3px"' : "") + ">" +
+      '<div class="dz-linha"><button type="button" class="bt bt-mini' + (sel ? "" : " ghost") + '" data-acao="an-modo" data-modo="' + m + '"' + (off ? " disabled" : "") + ">" +
+      (sel ? "✓ " : "") + m + " · " + NOME[m] + "</button></div>" +
+      '<div class="dz-nota">' + DESC[m] + "</div>";
+    if (sel && !off) h += antControles(m, c, u);
+    return h + '<div class="an-frase" style="margin-top:6px">' + antFrase(m, r, c) + "</div></div>";
+  }
+  /* parcela por parcela (só o que muda). "ajuste de centavo": parcela que o cliente não escolheu e que caiu até 5 centavos
+   * só para a soma fechar ao centavo (a divisa de A e C é a escolhida; B e D só têm parcelas escolhidas) */
+  function antTabela(r, c) {
+    var TIPO = { pre: "Pré-chaves", balao: "Balão", pos: "Pós-chaves" };
+    var ids = {}, reduz = r.depois.filter(function (x) { return x.acao === "reduz"; });
+    c.sit.elegiveis.forEach(function (x) { ids[x.id] = true; });
+    function queda(x) { return x.valorAntes - x.valor; }
+    /* A e C: a parcela escolhida (a divisa) cai o que sobra; as outras "reduz" de até 5 centavos são só o ajuste da soma */
+    function ajuste(x) {
+      return (r.modo === "A" || r.modo === "C") && queda(x) <= 0.05 + 1e-9 &&
+        reduz.some(function (o) { return o !== x && queda(o) > queda(x) + 1e-9; });
+    }
+    var linhas = r.depois.filter(function (x) { return x.acao !== "igual"; }).sort(function (a, b) {
+      if (a.data !== b.data) return a.data < b.data ? -1 : 1;
+      return a.tipo !== b.tipo ? (a.tipo < b.tipo ? -1 : 1) : (String(a.id) < String(b.id) ? -1 : 1);
+    });
+    var iguais = Object.keys(ids).length - linhas.filter(function (x) { return ids[x.id]; }).length;
+    var h = '<div style="overflow-x:auto"><table class="cd-fl"><thead><tr><th>Vencimento</th><th>Parcela</th><th style="text-align:right">Antes</th>' +
+      '<th style="text-align:right">Depois</th><th>O que muda</th></tr></thead><tbody>';
+    linhas.forEach(function (x) {
+      var obs = x.acao === "quita" ? "paga agora" : (ajuste(x) ? "ajuste de centavo" : "diminui");
+      h += "<tr><td>" + antData(x.data) + "</td><td>" + (TIPO[x.tipo] || esc(x.tipo)) + '</td><td class="r">' + antR(x.valorAntes) + '</td><td class="r">' +
+        (x.acao === "quita" ? "quitada" : antR(x.valor)) + "</td><td>" + obs + "</td></tr>";
+    });
+    return h + "</tbody></table></div>" +
+      '<div class="dz-linha dz-nota">' + (iguais === 1 ? "1 parcela continua como está." : iguais + " parcelas continuam como estão.") + "</div>";
+  }
+  function antMsg(u) { return u.msg ? '<div class="dz-msg">' + esc(u.msg) + "</div>" : ""; }
+  /* a parte que muda ao digitar (tudo menos os campos de valor e data) */
+  function htmlAntResultado(e, u0) {
+    var u = antNorm(u0), c = antCalcular(e.retrato, u), h = "";
+    if (c.erroData) return '<div class="dz-aviso">' + esc(c.erroData) + "</div>" + antMsg(u);
+    h += '<div class="dz-linha"><span>Saldo corrigido em aberto: <b>' + antR(c.sit.saldo) + "</b> em " + c.sit.elegiveis.length + " parcelas</span></div>";
+    var v = c.sit.vencidas;
+    if (v.length) {
+      var tot = v.reduce(function (s, x) { return s + Number(x.valor || 0); }, 0), velha = v.map(function (x) { return x.data; }).sort()[0];
+      h += '<div class="cd-falta">' + (v.length === 1
+        ? "Há parcela vencida de " + antR(tot) + " (" + antDiaMes(velha) + "). Ela fica fora da antecipação; cobre primeiro."
+        : "Há " + v.length + " parcelas vencidas, somando " + antR(tot) + " (a mais antiga de " + antDiaMes(velha) + "). Elas ficam fora da antecipação; cobre primeiro.") + "</div>";
+    }
+    ["A", "B", "C", "D", "E"].forEach(function (m) { h += antCartao(m, c, u); });
+    var sel = c.res[u.modo], ok = !!(sel && sel.ok);
+    h += '<div class="dz-linha"><button type="button" class="bt bt-mini ghost" data-acao="an-tabela"' + (ok ? "" : " disabled") + ">" +
+      (u.tabela ? "Esconder a tabela" : "Ver parcela por parcela") + "</button> " +
+      '<button type="button" class="bt bt-mini" data-acao="an-pdf"' + (ok && !u.testes && !u.ocupado ? "" : " disabled") + ">Gerar PDF para o cliente</button>" +
+      (u.ocupado === "pdf" ? " <b>gerando o PDF…</b>" : "") + "</div>";
+    if (ok && u.tabela) h += antTabela(sel, c);
+    if (u.pdf) {
+      h += '<div class="dz-linha"><span><b>PDF gerado.</b> Texto pronto para o WhatsApp:</span></div>' +
+        '<div class="dz-linha"><textarea id="ant-texto" readonly rows="6" style="width:100%;box-sizing:border-box;font:inherit">' + esc(u.pdf.texto) + "</textarea></div>" +
+        '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="an-copiar">Copiar texto</button>' +
+        (/^https:\/\//.test(u.pdf.url || "") ? ' <a href="' + esc(u.pdf.url) + '" target="_blank" rel="noopener noreferrer">Abrir o PDF</a>' : "") + "</div>";
+    }
+    return h + antMsg(u);
+  }
+  function htmlAntPainel(e, u0) {
+    var u = antNorm(u0), h = "";
+    if (!e) {
+      return '<div class="vazio">' + esc(u.msg || "abrindo a simulação…") + "</div>" +
+        (u.msg && u.ocupado !== "estado" ? '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="an-abrir" data-tentar="1">Tentar de novo</button></div>' : "");
+    }
+    h += '<div class="dz-linha"><b>' + (e.temFiador ? "Com fiador: travas ligadas" : "Sem fiador (24x): travas ligadas") + "</b></div>" +
+      '<div class="dz-linha dz-nota">Não dá por aqui: mudar data de balão, dividir balão nas mensais, esticar prazo. ' +
+      "Isso é renegociação e precisa de aditivo assinado por todos, inclusive os fiadores.</div>";
+    if (!e.pode) return h + '<div class="dz-aviso">' + esc(e.motivo || "Esta venda ainda não pode antecipar.") + "</div>";
+    var bom = !!(e.retrato && !e.velho && !e.processando);
+    h += '<div class="dz-linha"><span class="dz-rot">' + (e.lido ? "Lido do ERP em " + antLido(e.lido) : "Ainda não lido do ERP") + "</span>" +
+      '<button type="button" class="bt bt-mini ghost" data-acao="an-ler"' + (u.lendo || e.processando || u.testes ? " disabled" : "") + ">Ler de novo do ERP</button></div>";
+    if (!bom) {
+      var t;
+      if (e.processando || u.lendo) t = "Lendo a venda no ERP… leva cerca de 1 minuto. A tela confere sozinha a cada 10 segundos.";
+      else if (e.erroRobo && !e.retrato) t = "A leitura da venda no ERP falhou (" + e.erroRobo + "). Clique em Ler de novo do ERP.";
+      else if (e.lido) t = "A última leitura é de " + antData(e.lido) + ", de outro mês. Clique em Ler de novo do ERP (cerca de 1 minuto) para simular com os valores de hoje.";
+      else t = "A venda ainda não foi lida do ERP neste mês. Clique em Ler de novo do ERP (cerca de 1 minuto).";
+      h += '<div class="dz-aviso">' + esc(t) + "</div>";
+      if (e.retrato && e.erroRobo && !e.processando && !u.lendo) h += '<div class="dz-linha dz-nota">A última tentativa de ler de novo falhou: ' + esc(e.erroRobo) + "</div>";
+      return h + antMsg(u);
+    }
+    if (e.erroRobo) h += '<div class="dz-linha dz-nota">Aviso: a última tentativa de ler de novo falhou (' + esc(e.erroRobo) + "). Os valores abaixo são da leitura de " + esc(antLido(e.lido)) + ".</div>";
+    h += '<div class="cd-and"><div class="grid">' +
+      (u.modo !== "E" ? '<div><label for="ant-valor">Valor a antecipar (R$)</label><input type="text" id="ant-valor" data-an="valor" inputmode="decimal" autocomplete="off" placeholder="30.000,00" value="' + esc(u.valor) + '"></div>' : "") +
+      '<div><label for="ant-data">Data do pagamento</label><input type="date" id="ant-data" data-an="data" min="' + esc(u.hoje) + '" max="' + esc(antFimDoMes(u.hoje)) + '" value="' + esc(u.dataPg) + '"></div>' +
+      "</div></div>";
+    return h + '<div class="an-res">' + htmlAntResultado(e, u) + "</div>";
+  }
+  /* o bloco da aba Financeiro: sem vendaId (venda não lançada no Mais Controle) não desenha nada */
+  function htmlAntecipacao(e, u) {
+    u = u || {};
+    if (!u.vendaId) return "";
+    /* 31/10: o portal no ar ainda não tem as ações da antecipação (ACAO_DESCONHECIDA): só o aviso, nenhum botão */
+    if (u.semBackend) return '<div class="grp">Antecipação de parcelas</div><div class="dz-aviso">' + esc(antSemBackendMsg()) + "</div>";
+    var h = '<div class="grp">Antecipação de parcelas</div><div class="dz-linha"><button type="button" class="bt bt-mini' + (u.aberto ? " ghost" : "") + '" data-acao="an-abrir"' +
+      (u.ocupado === "estado" ? " disabled" : "") + ">" + (u.aberto ? "Fechar a simulação" : "Antecipar parcelas") + "</button>" +
+      (u.ocupado === "estado" ? " <b>abrindo…</b>" : "") + "</div>";
+    return u.aberto ? h + htmlAntPainel(e, u) : h;
+  }
+  function antSemBackendMsg() { return "A antecipação ainda não está ligada neste portal."; }
+  function antSemBackend(r) { return !!(r && r.ok === false && /ACAO_DESCONHECIDA/.test(String(r.erro || ""))); }
+  function mensagemAnt(r) {
+    if (antSemBackend(r)) return antSemBackendMsg();
+    var M = { RETRATO_VELHO: "A leitura da venda é de outro mês. Clique em Ler de novo do ERP.",
+              DATA_FORA_DO_MES: "A data do pagamento tem de ficar entre hoje e o fim deste mês.",
+              NAO_FECHA: "Esse valor não fecha ao centavo nas parcelas que ficam. Mude o valor e tente de novo.",
+              QUANTAS_INVALIDA: "Digite quantas parcelas quitar: um número inteiro, de 1 até o total em aberto.",
+              VALOR_ACIMA_DO_SALDO: "O valor é maior do que pode ser antecipado nesse jeito.",
+              VALOR_INVALIDO: "Valor inválido. Digite assim: 30.000,00.",
+              PARCELA_INVALIDA: "Essa parcela não está em aberto. Escolha o balão de novo.",
+              SEM_POS_CHAVES: "Esta venda não tem parcelas depois das chaves em aberto.",
+              DATA_INVALIDA: "Data do pagamento inválida. Escolha uma data de hoje até o fim do mês.",
+              MODO_INVALIDO: "Jeito de antecipar inválido. Escolha um dos cinco jeitos.",
+              RETRATO_PROCESSANDO: "A leitura da venda já está em andamento.",
+              SEM_RETRATO: "A venda ainda não foi lida do ERP. Clique em Ler de novo do ERP.",
+              FILA_NAO_CONFIGURADA: "A fila de leitura do robô ainda não está ligada neste ambiente — avise o desenvolvedor.",
+              BASE_ANTECIPACOES_NAO_CONFIGURADA: "A base ANTECIPAÇÕES ainda não está ligada neste ambiente — avise o desenvolvedor.",
+              REGISTRO_FALHOU: "Não consegui registrar a simulação no Notion — tente de novo.",
+              ANEXO_FALHOU: "Não consegui guardar o PDF — tente de novo.",
+              TRAVA: "Esse jeito não passa nas travas do fiador.",
+              RETRATO_INCOERENTE: "O retrato lido do ERP não fecha na conta. Clique em Ler de novo do ERP." };
+    var e = String((r && r.erro) || "");
+    if (e === "NAO_PODE") return String((r && r.motivo) || "Esta venda ainda não pode antecipar.");
+    return M[e] || mensagemContrato(r);
+  }
   /* 31/10/2026 (dono): "Corrigir aqui" — o campo da venda que alimenta a linha, aberto na própria conferência.
    * c = { i, carregando, erro, campos: [{ coluna, rotulo, valor, opcoes }] } (corrigirConferenciaCampos). */
   function htmlCorrigir(l, c, dis) {
@@ -1525,6 +1811,7 @@
     var estadoM = null, uiM = novoUiM(), esperaM = null, ctxA = novoCtxA();
     var estadoR = null, uiR = novoUiR();
     var estadoF = null, uiF = { filtro: "todas", todas: false, msg: "", carregando: false };   /* 31/10: aba Financeiro */
+    var estadoA = null, uiA = novoUiA(), esperaA = null;   /* 31/10: Antecipação de parcelas (aba Financeiro) */
     /* 27/10/2026: termo de pré-reserva (condomínio) */
     /* 28/10: soPR = só os blocos da pré-reserva (a janela do "Pagou preferência" na tela de propostas) */
     var soPR = !!(opts && opts.soPreReserva);
@@ -1567,7 +1854,7 @@
         '<div class="vb-ass">' + htmlAss() + "</div>" +
         (comRec ? '<div class="vb-rec">' + htmlRecebimentos(estadoR, uiR) + "</div>" : "") +
         '<div class="vb-mc">' + htmlMC(estadoM, uiM) + "</div>" +
-        (comPR ? '<div class="vb-fin">' + htmlFinanceiro(estadoF, uiF) + "</div>" : "");   /* 31/10: aba Financeiro (só condomínio) */
+        (comPR ? '<div class="vb-fin">' + htmlFinanceiro(estadoF, uiF) + '</div><div class="vb-antec">' + htmlAnt() + "</div>" : "");   /* 31/10: aba Financeiro (só condomínio) */
     }
     function pintarF() { var w = dentro(".vb-fin"); if (w) w.innerHTML = htmlFinanceiro(estadoF, uiF); }
     /* lida só quando a aba Financeiro abre (VendaBlocos.aba) — não pesa a abertura do cartão */
@@ -1578,6 +1865,137 @@
       if (!vivo()) return;
       if (r.ok) { estadoF = r; uiF.carregando = false; pintarF(); return; }
       uiF.msg = mensagemContrato(r); pintarF(); uiF.carregando = false;
+    }
+    /* ---- 31/10/2026: Antecipação de parcelas. O bloco só aparece com a venda lançada no Mais Controle (vendaId). ---- */
+    function htmlAnt() { uiA.vendaId = (estadoM && estadoM.vendaId) || ""; return htmlAntecipacao(estadoA, uiA); }
+    function pintarAnt() { var w = dentro(".vb-antec"); if (w) w.innerHTML = htmlAnt(); }
+    /* digitar só refaz a parte de baixo (cartões e tabela), nunca os campos de valor e data: o foco não se perde */
+    function pintarAntRes() {
+      var w = dentro(".vb-antec .an-res");
+      if (!w || !estadoA || !estadoA.retrato) { pintarAnt(); return; }
+      var foco = document.activeElement, chave = foco && w.contains(foco) && foco.getAttribute ? foco.getAttribute("data-an") : "";
+      var ini = chave && typeof foco.selectionStart === "number" ? foco.selectionStart : null;
+      w.innerHTML = htmlAntResultado(estadoA, uiA);
+      if (chave) {
+        var novo = w.querySelector('[data-an="' + chave + '"]');
+        if (novo) { novo.focus(); if (ini != null) { try { novo.setSelectionRange(ini, ini); } catch (e) {} } }
+      }
+    }
+    async function carregarAnt() {
+      var r = await chamarVenda({ action: "antecipacaoEstado", pageId: pageId }, 60000);
+      if (!vivo()) return null;
+      if (uiA.ocupado === "estado") uiA.ocupado = null;   /* o polling não pode reabilitar o botão no meio do PDF */
+      if (r.ok) { estadoA = r; uiA.msg = ""; } else { uiA.msg = mensagemAnt(r); if (antSemBackend(r)) uiA.semBackend = true; }
+      pintarAnt();
+      return r;
+    }
+    /* o estado voltou com a leitura em andamento (pedida por outra pessoa ou antes): passa a conferir sozinho */
+    function iniciarAcompanhamentoAnt() {
+      if (uiA.acompanhando) return;
+      uiA.acompanhando = true; uiA.lendo = true; acompanharAnt(18);
+    }
+    async function conferirAnt() {
+      var r = await carregarAnt();
+      if (r && r.ok && r.processando) { pintarAnt(); iniciarAcompanhamentoAnt(); }
+      return r;
+    }
+    /* depois de pedir a leitura: confere o estado a cada 10 s, até 18 vezes (como o Mais Controle) */
+    function acompanharAnt(voltas) {
+      if (esperaA) clearTimeout(esperaA);
+      esperaA = setTimeout(async function () {
+        esperaA = null;
+        if (!vivo()) return;
+        var r = await carregarAnt();
+        if (!vivo()) return;
+        if (voltas > 1 && (!r || !r.ok || r.processando)) { acompanharAnt(voltas - 1); return; }
+        uiA.lendo = false; uiA.acompanhando = false;
+        if (r && r.ok && r.processando) uiA.msg = "A leitura está demorando. Confira de novo em alguns minutos.";
+        pintarAnt();
+      }, 10000);
+    }
+    async function gerarPdfAnt() {
+      if (uiA.ocupado || !estadoA || !estadoA.retrato) return;
+      var u = antNorm(uiA), c = antCalcular(estadoA.retrato, u), r0 = c.res[u.modo];
+      if (!r0 || !r0.ok) return;
+      var p = { action: "antecipacaoPdf", pageId: pageId, modo: u.modo, dataPg: u.dataPg };
+      if (u.modo !== "E") p.valor = r0.valor;
+      if (u.modo === "D") p.parcelaId = c.parcelaId;
+      if (u.modo === "E") p.quantas = c.quantas;
+      /* a janela abre AGORA, dentro do clique (senão o navegador bloqueia); o endereço do PDF vale cerca de 1 hora */
+      var w = window.open("about:blank", "_blank");
+      uiA.ocupado = "pdf"; uiA.msg = ""; uiA.pdf = null; pintarAntRes();
+      var r = await chamarVenda(p, 120000);
+      if (!vivo()) { if (w) { try { w.close(); } catch (e) {} } return; }
+      uiA.ocupado = null;
+      if (r.ok) {
+        var https = /^https:\/\//.test(r.pdfUrl || "");
+        uiA.pdf = { texto: String(r.texto || ""), url: https ? r.pdfUrl : "" };   /* o link fica, mesmo com a janela aberta */
+        if (https) {
+          if (w) { try { w.opener = null; } catch (e2) {} w.location.href = r.pdfUrl; }
+        } else {
+          if (w) { try { w.close(); } catch (e3) {} }
+          uiA.msg = "O PDF foi guardado, mas o endereço dele não veio. Gere de novo em instantes.";
+        }
+      } else {
+        if (w) { try { w.close(); } catch (e4) {} }
+        uiA.msg = mensagemAnt(r);
+      }
+      pintarAnt();
+    }
+    async function copiarAnt() {
+      var t = uiA.pdf && uiA.pdf.texto;
+      if (!t) return;
+      var ok = false;
+      try { await navigator.clipboard.writeText(t); ok = true; }
+      catch (e) { try { var ta = dentro("#ant-texto"); if (ta) { ta.select(); ok = document.execCommand("copy"); } } catch (e2) {} }
+      uiA.msg = ok ? "Texto copiado." : "Não consegui copiar — selecione o texto e copie.";
+      pintarAntRes();
+    }
+    async function aoClicarAnt(b, acao) {
+      var mudou = function () { uiA.pdf = null; uiA.msg = ""; };
+      if (acao === "an-abrir") {
+        if (uiA.aberto && !b.hasAttribute("data-tentar")) { uiA.aberto = false; pintarAnt(); return; }
+        uiA.aberto = true; uiA.msg = ""; uiA.hoje = antHojeSP();
+        if (!uiA.dataPg || uiA.dataPg < uiA.hoje) uiA.dataPg = uiA.hoje;
+        uiA.ocupado = "estado"; pintarAnt();
+        await conferirAnt();
+        return;
+      }
+      if (acao === "an-ler") {
+        if (uiA.lendo || uiA.testes) return;
+        uiA.lendo = true; uiA.msg = ""; pintarAnt();
+        var r = await chamarVenda({ action: "antecipacaoLer", pageId: pageId }, 60000);
+        if (!vivo()) return;
+        if (r.ok || r.erro === "RETRATO_PROCESSANDO") { if (estadoA) estadoA.processando = true; pintarAnt(); iniciarAcompanhamentoAnt(); return; }
+        uiA.lendo = false; uiA.msg = mensagemAnt(r); pintarAnt();
+        return;
+      }
+      if (acao === "an-modo") {
+        var m = b.getAttribute("data-modo");
+        if (/^[ABCDE]$/.test(String(m))) { uiA.modo = m; mudou(); pintarAnt(); }
+        return;
+      }
+      if (acao === "an-usar") {
+        var v = Number(b.getAttribute("data-valor"));
+        if (isFinite(v) && v > 0) { uiA.valor = antNumBR(v); mudou(); pintarAnt(); }
+        return;
+      }
+      if (acao === "an-todas") { uiA.quantas = ""; mudou(); pintarAntRes(); return; }
+      if (acao === "an-ultimas") { if (!String(uiA.quantas).trim()) uiA.quantas = "1"; mudou(); pintarAntRes(); return; }
+      if (acao === "an-tabela") { uiA.tabela = !uiA.tabela; pintarAntRes(); return; }
+      if (acao === "an-pdf") return gerarPdfAnt();
+      if (acao === "an-copiar") return copiarAnt();
+    }
+    /* o que se digita (valor, data, balão escolhido, quantas) recalcula aqui mesmo, sem chamar o servidor */
+    function aoDigitarAnt(el) {
+      var k = el.getAttribute("data-an");
+      if (k === "valor") uiA.valor = el.value;
+      else if (k === "data") uiA.dataPg = el.value;
+      else if (k === "quantas") uiA.quantas = el.value;
+      else if (k === "parcela") uiA.parcelaId = el.value;
+      else return;
+      uiA.pdf = null; uiA.msg = "";
+      pintarAntRes();
     }
     function aoClicarFin(acao) {
       var m = /^f-filtro-(\w+)$/.exec(acao);
@@ -1865,7 +2283,10 @@
       abrirPdf(w, r, ctxP, function (x) { return window.VendaAssinatura ? window.VendaAssinatura.mensagemAssinatura(x) : mensagemDeErro(x.erro); });
       pintarP();
     }
-    function pintarM() { var w = dentro(".vb-mc"); if (w) w.innerHTML = htmlMC(estadoM, uiM); }
+    function pintarM() {
+      var w = dentro(".vb-mc"); if (w) w.innerHTML = htmlMC(estadoM, uiM);
+      if (comPR && !soPR && uiA.vendaId !== ((estadoM && estadoM.vendaId) || "")) pintarAnt();   /* a venda foi lançada: o botão Antecipar aparece */
+    }
 
     async function carregarAss() {
       var r = await chamarVenda({ action: "assinaturaEstado", pageId: pageId }, 90000);
@@ -1949,6 +2370,7 @@
         return;
       }
       if (/^f-/.test(acao)) return aoClicarFin(acao);
+      if (/^an-/.test(acao)) return aoClicarAnt(b, acao);
       if (/^d-/.test(acao)) return aoClicarConf(acao);
       if (acao === "p-ver-assinado") return verAssinadoPR();
       if (/^p-/.test(acao)) return aoClicarAssPR(acao);
@@ -2300,6 +2722,7 @@
         /* 29/10: o que se digita nas condições especiais sobrevive a um redesenho do bloco */
         el.addEventListener("input", function (ev) {
           if (raiz !== el || !ev.target.classList) return;
+          if (ev.target.hasAttribute("data-an")) { aoDigitarAnt(ev.target); return; }
           if (ev.target.hasAttribute("data-fx")) { aoDigitarFluxo(ev.target); return; }
           if (ev.target.classList.contains("vb-condesp")) uiC.condRasc = ev.target.value;
           else if (ev.target.classList.contains("vb-condesp-pedido")) uiC.condPedido = ev.target.value;
@@ -2340,8 +2763,15 @@
     };
     eu.raiz = function () { return raiz; };
     eu.pintarAssinatura = function () { pintarA(); if (comPR) { var a = dentro(".vb-pr-ass"); if (a) a.innerHTML = htmlAssPR(); } };
-    eu.parar = function () { if (esperaM) clearTimeout(esperaM); esperaM = null; };
-    eu.abrirAba = function (aba) { if (aba === "financeiro" && comPR && !soPR && !estadoF) carregarF(); };
+    eu.parar = function () { if (esperaM) clearTimeout(esperaM); esperaM = null; if (esperaA) clearTimeout(esperaA); esperaA = null; uiA.acompanhando = false; };
+    /* 31/10: o Financeiro lê as parcelas só ao abrir; o Antecipar confere a data e, se a simulação já estava aberta, o estado */
+    eu.abrirAba = function (aba) {
+      if (aba !== "financeiro" || !comPR || soPR) return;
+      if (!estadoF) carregarF();
+      uiA.hoje = antHojeSP(); if (!uiA.dataPg || uiA.dataPg < uiA.hoje) uiA.dataPg = uiA.hoje;
+      if (uiA.aberto && !uiA.acompanhando && uiA.ocupado !== "estado" && (!estadoA || estadoA.processando)) { uiA.ocupado = "estado"; conferirAnt(); }
+      pintarAnt();
+    };
     return eu;
   }
 
