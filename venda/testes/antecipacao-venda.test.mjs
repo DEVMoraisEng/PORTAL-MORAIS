@@ -458,3 +458,18 @@ test("validade (decisão 5): fim do mês OU publicação do novo índice, o que 
   assert.doesNotMatch(html.replace(new RegExp(frase, "g"), ""), /válida até/);
   assert.doesNotMatch(r.texto.replace(frase, ""), /válida até/);
 });
+
+test("nunca leu e o robô falhou: ' | ERRO ...' sem hora na frente é 'sem leitura' (lido vazio, retrato velho, motivo)", () => {
+  for (const em of [" | ERRO 2026-10-25 08:00: ERP fora do ar", "| ERRO 2026-10-25 08:00: ERP fora do ar"]) {   // com e sem o espaço da frente
+    const m = montar({ valores: VALORES({ "MC - RETRATO": texto("ERRO: ERP fora do ar"), "MC - RETRATO EM": texto(em) }) });
+    const r = chamar(m, "antecipacaoEstado");
+    assert.equal(r.ok, true); assert.equal(r.pode, true);
+    assert.equal(r.lido, "", em); assert.equal(r.velho, true); assert.equal(r.processando, false);
+    assert.equal(r.retrato, undefined); assert.match(r.erroRobo, /ERP fora do ar/);
+    assert.equal(chamar(m, "antecipacaoPdf", { modo: "B", valor: 30000, dataPg: "2026-10-25" }).erro, "SEM_RETRATO");
+    assert.equal(m.ant.linhas.length, 0);
+    assert.equal(m.g.ctx.antecipacaoRetrato_(PAGE_ID_PADRAO).lidoEm, "");   // a aba Financeiro também diz 'sem leitura'
+    assert.equal(chamar(m, "antecipacaoLer").ok, true);                     // e o Ler de novo está liberado
+    assert.match(campo(m, "MC - RETRATO EM"), /^PROCESSANDO \[t=\d+\]$/);
+  }
+});

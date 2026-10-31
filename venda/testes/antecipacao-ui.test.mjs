@@ -323,3 +323,12 @@ test("portal sem as ações da antecipação (ACAO_DESCONHECIDA): só o aviso, n
   /* sem a marca, o bloco continua como antes */
   assert.match(D.htmlAntecipacao(null, ui({ aberto: false })), /data-acao="an-abrir"/);
 });
+
+test("erro do robô sem nunca ter lido (lido vazio): nenhum 'Lido do ERP em', Ler de novo liberado, nenhum número", () => {
+  const e = { ok: true, pode: true, velho: true, lido: "", processando: false, erroRobo: "2026-10-25 08:00: ERP fora do ar", temFiador: false };
+  const h = D.htmlAntecipacao(e, ui());
+  assert.doesNotMatch(h, /Lido do ERP em/); assert.match(h, /Ainda não lido do ERP/);
+  assert.match(h, /data-acao="an-ler"(?![^>]*disabled)/);
+  assert.match(tudo(h), /A leitura da venda no ERP falhou \(2026-10-25 08:00: ERP fora do ar\)/);
+  assert.doesNotMatch(h, /\d+,\d{2}/); assert.doesNotMatch(h, /an-modo|ant-valor|ant-data/);
+});

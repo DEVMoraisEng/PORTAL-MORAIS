@@ -5,7 +5,8 @@
    Colunas na linha da VENDAS CONDOMÍNIO (o robô escreve; o portal só lê, e só mexe em MC - RETRATO EM ao pedir leitura):
      MC - RETRATO     JSON do retrato (ou "ERRO: motivo" só quando nunca houve retrato bom). O retrato bom nunca é apagado.
      MC - RETRATO EM  "aaaa-mm-dd hh:mm" da última leitura boa, opcionalmente seguido de
-                      " | ERRO aaaa-mm-dd hh:mm: motivo" ou " | PROCESSANDO [t=ms]".
+                      " | ERRO aaaa-mm-dd hh:mm: motivo" ou " | PROCESSANDO [t=ms]". Sem nunca ter lido, é só
+                      " | ERRO aaaa-mm-dd hh:mm: motivo" (sem data na frente): lido = "" e a tela diz "sem leitura".
    lido = os 16 primeiros caracteres de MC - RETRATO EM; velho = o mês de lido ≠ o mês de hoje (America/Sao_Paulo).
    Base DB_ANTECIPACOES (Propriedade do script): uma linha por PDF gerado, Situação "Simulada". */
 var ANT_OBRA = "CONDOMÍNIO RESERVA DOS IPÊS";

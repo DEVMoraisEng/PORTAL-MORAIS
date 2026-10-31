@@ -87,9 +87,11 @@ def gravar_pagina(notion, obter_erp, page_id: str, props: dict, agora: str) -> s
     `obter_erp` é chamado só se houver id (falta de senha vira erro da página, não queda do robô).
     Nunca joga fora um retrato bom: se a leitura falha e MC - RETRATO já tem um JSON válido, ele fica como está
     e só MC - RETRATO EM ganha '<hora do último bom> | ERRO <agora>: <motivo>'. Sem JSON válido, grava
-    'ERRO: motivo' em MC - RETRATO e a hora em MC - RETRATO EM.
+    'ERRO: motivo' em MC - RETRATO e ' | ERRO <agora>: <motivo>' (sem hora na frente) em MC - RETRATO EM: a hora da falha
+    nunca ocupa o lugar da hora de uma leitura boa, então a tela não diz 'Lido do ERP em <hora da falha>'.
     Devolve 'ok', 'erro' (o motivo foi gravado) ou 'sem_coluna' (a página não tem MC - RETRATO)."""
     import json, re
+    em = agora   # MC - RETRATO EM: a hora de uma leitura BOA (só muda no erro)
     try:
         vid = _id_do_erp(_valor_da_coluna(props, COL_VENDA_ID))
         r = normalizar(D.ler_venda(obter_erp(), vid), agora)
@@ -103,9 +105,10 @@ def gravar_pagina(notion, obter_erp, page_id: str, props: dict, agora: str) -> s
             notion.gravar_textos(page_id, props, {COL_RETRATO_EM: "%s | ERRO %s: %s" % (ultimo_bom, agora, motivo)})
             return "erro"
         texto = "ERRO: " + motivo
+        em = " | ERRO %s: %s" % (agora, motivo)   # sem leitura boa não há hora de leitura: a coluna só diz que falhou
     if not notion.gravar_texto_longo(page_id, props, COL_RETRATO, texto):
         return "sem_coluna"
-    notion.gravar_textos(page_id, props, {COL_RETRATO_EM: agora})
+    notion.gravar_textos(page_id, props, {COL_RETRATO_EM: em})
     return "erro" if texto.startswith("ERRO") else "ok"
 
 
@@ -138,7 +141,7 @@ def atualizar_todas(notion, erp, db_id: str, agora: str) -> tuple[int, int]:
 def main(argv=None) -> int:
     """python -m venda.mc.retrato --page <pageId da VENDAS CONDOMÍNIO>   (uma venda)
        python -m venda.mc.retrato --todas                                (todas; lê DB_VENDAS_COND)
-    Só LÊ o ERP; grava no Notion MC - RETRATO (JSON, ou 'ERRO: motivo') e MC - RETRATO EM.
+    Só LÊ o ERP; grava no Notion MC - RETRATO (JSON, ou 'ERRO: motivo') e MC - RETRATO EM (a hora, ou ' | ERRO <hora>: motivo').
     Ambiente: NOTION_TOKEN (+ ERP como o lancar.py). O stdout não leva nome nem valor."""
     import argparse, datetime as dt, os
     from . import erp as E

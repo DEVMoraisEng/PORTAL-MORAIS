@@ -297,7 +297,8 @@ def test_erro_com_retrato_que_nao_e_json_grava_erro_como_antes(monkeypatch):
         _, g, _ = _cli(monkeypatch, venda=RuntimeError("o ERP caiu"),
                        anteriores={"MC - RETRATO": ruim, "MC - RETRATO EM": "2026-11-02 05:00"})
         assert g["MC - RETRATO"] == "ERRO: o ERP caiu"
-        assert g["MC - RETRATO EM"][:2] == "20" and "|" not in g["MC - RETRATO EM"]
+        import re
+        assert re.match(r"^ \| ERRO \d{4}-\d{2}-\d{2} \d{2}:\d{2}: o ERP caiu$", g["MC - RETRATO EM"]), g["MC - RETRATO EM"]
 
 
 def test_sucesso_troca_o_retrato_bom_pelo_novo(monkeypatch):
@@ -347,3 +348,15 @@ def test_ultimo_bom_so_vale_se_for_uma_data_e_hora(monkeypatch):
     _, g, _ = _cli(monkeypatch, venda=RuntimeError("o ERP caiu"),
                    anteriores={"MC - RETRATO": BOM, "MC - RETRATO EM": "2026-11-02 05:00 | PROCESSANDO [t=1]"})
     assert g["MC - RETRATO EM"].startswith("2026-11-02 05:00 | ERRO ")
+
+
+def test_nunca_leu_e_falhou_nao_grava_hora_de_leitura(monkeypatch):
+    """Sem retrato bom, MC - RETRATO EM não começa com data: a tela nunca diz 'Lido do ERP em <hora da falha>'."""
+    for anteriores in (None, {"MC - RETRATO": "", "MC - RETRATO EM": ""}):
+        codigo, g, _ = _cli(monkeypatch, venda=RuntimeError("o ERP caiu"), anteriores=anteriores)
+        assert codigo == 1 and g["MC - RETRATO"] == "ERRO: o ERP caiu"
+        assert g["MC - RETRATO EM"].startswith(" | ERRO 20") and g["MC - RETRATO EM"].endswith(": o ERP caiu")
+        assert not g["MC - RETRATO EM"][:4].isdigit()
+    # uma leitura boa depois grava a hora de volta
+    _, g, _ = _cli(monkeypatch, anteriores={"MC - RETRATO": "ERRO: o ERP caiu", "MC - RETRATO EM": " | ERRO 2026-11-02 05:00: o ERP caiu"})
+    assert g["MC - RETRATO EM"][:2] == "20" and "|" not in g["MC - RETRATO EM"]
