@@ -70,7 +70,9 @@ class Notion:
         if not achou or achou[1] != "rich_text":
             return False
         s = str(texto or "")
-        pedacos = [{"text": {"content": s[i:i + 1900]}} for i in range(0, len(s), 1900)][:100]
+        if len(s) > 100 * 1900:
+            raise ValueError("texto grande demais para o Notion")
+        pedacos = [{"text": {"content": s[i:i + 1900]}} for i in range(0, len(s), 1900)]
         r = self.http.patch(API + "/pages/" + page_id, json={"properties": {achou[0]: {"rich_text": pedacos}}},
                             headers=self._cab(), timeout=60)
         if r.status_code >= 300:

@@ -12,6 +12,7 @@ def r2(x): return float(Decimal(str(x)).quantize(Decimal("0.01"), ROUND_HALF_UP)
 def parcela(data, tipo, raw, tabela=None, acc=0.0, pago=False):
     pv = r2(Decimal(str(raw)) * (1 + Decimal(str(acc)) / 100)) if tabela else raw
     return {"id": pid(), "plannedDate": data + "T00:00:00", "plannedValue": pv, "received": pago,
+            "dateOfReceipt": data + "T00:00:00" if pago else None,
             "sumOfReceivedValues": pv if pago else 0.0, "pendingValue": 0.0 if pago else pv,
             "receipts": [{"value": pv, "interestValue": 0.0, "discountValue": 0.0}] if pago else [],
             "readjustmentDetail": {"type": {"id": tipo}, "table": {"name": tabela} if tabela else None, "rawValue": raw,

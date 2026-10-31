@@ -143,3 +143,8 @@ def test_mc_retrato_vira_robo_sem_aplicar():
 
 def test_mc_retrato_pagina_invalida():
     assert R.argumentos("mc-retrato", {"pageId": "x"}, True) is None
+
+
+def test_retrato_nao_tem_marcar_erro():
+    assert R.marcar_erro_argv(["-m", "venda.mc.retrato", "--page", PG]) is None
+    assert R.marcar_erro_argv(["-m", "venda.mc.lancar", "--page", PG])[-2] == "--marcar-erro"

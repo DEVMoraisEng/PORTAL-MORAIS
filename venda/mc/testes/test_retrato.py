@@ -103,21 +103,23 @@ class NotionFalso:
         return []
 
 
-def _cli(monkeypatch, sem_venda_id=False, venda=None):
+def _cli(monkeypatch, sem_venda_id=False, venda=None, valor_id=None):
     visto = {}
     monkeypatch.setenv("NOTION_TOKEN", "t")
-    monkeypatch.setattr(RT, "Notion", NotionFalso)
-    monkeypatch.setattr(RT.E, "do_ambiente", lambda: "erp-falso")
+    from venda.mc import erp as erpmod
+    monkeypatch.setattr(N, "Notion", NotionFalso)
+    monkeypatch.setattr(erpmod, "do_ambiente", lambda: "erp-falso")
 
     def ler_venda(erp, vid):
         visto["erp"], visto["vid"] = erp, vid
         return venda if venda is not None else carregar("base")
     monkeypatch.setattr(RT.D, "ler_venda", ler_venda)
-    if sem_venda_id:
+    if sem_venda_id or valor_id is not None:
         orig = NotionFalso.__init__
 
         def init(self, *a, **k):
-            orig(self, *a, **k); self.props["MC - VENDA ID"]["rich_text"] = []
+            orig(self, *a, **k)
+            self.props["MC - VENDA ID"]["rich_text"] = [{"plain_text": valor_id}] if valor_id else []
         monkeypatch.setattr(NotionFalso, "__init__", init)
     codigo = RT.main(["--page", "a" * 32])
     return codigo, NotionFalso.ultimo.gravado, visto
@@ -136,10 +138,121 @@ def test_cli_grava_retrato_e_hora(monkeypatch):
 
 def test_cli_pagina_sem_venda_id_grava_erro(monkeypatch):
     codigo, g, visto = _cli(monkeypatch, sem_venda_id=True)
-    assert codigo == 1 and g["MC - RETRATO"].startswith("ERRO: ") and visto == {}
+    assert codigo == 1 and g["MC - RETRATO"] == "ERRO: venda sem MC - VENDA ID" and visto == {}
+
+
+def test_cli_id_que_nao_e_uuid_grava_erro_proprio(monkeypatch):
+    codigo, g, visto = _cli(monkeypatch, valor_id="isto nao e id")
+    assert codigo == 1 and g["MC - RETRATO"] == "ERRO: MC - VENDA ID inválido" and visto == {}
 
 
 def test_cli_venda_de_outra_obra_grava_erro(monkeypatch):
     v = carregar("base"); v["work"]["name"] = "OUTRA OBRA"
     codigo, g, _ = _cli(monkeypatch, venda=v)
     assert codigo == 1 and g["MC - RETRATO"].startswith("ERRO: ")
+
+
+def test_outra_obra_diz_qual_e():
+    v = carregar("base"); v["work"]["name"] = "OUTRA OBRA"
+    try:
+        RT.normalizar(v, "2026-11-03")
+    except RT.ForaDoCondominio as e:
+        assert str(e) == "venda de outra obra: OUTRA OBRA"
+        return
+    raise AssertionError("devia recusar")
+
+
+def test_texto_longo_grande_demais_levanta():
+    import pytest
+    s = SessaoFalsa(); n = N.Notion("x", sessao=s)
+    props = {"MC - RETRATO": {"type": "rich_text"}}
+    assert n.gravar_texto_longo("p", props, "MC - RETRATO", "a" * (100 * 1900)) is True
+    with pytest.raises(ValueError, match="texto grande demais para o Notion"):
+        n.gravar_texto_longo("p", props, "MC - RETRATO", "a" * (100 * 1900 + 1))
+    assert len(s.patches) == 1
+
+
+def test_pago_em_vem_do_dateOfReceipt():
+    r = RT.normalizar(carregar("base"), "2026-11-03")
+    pagas = [p for p in r["parcelas"] if p["pago"]]
+    abertas = [p for p in r["parcelas"] if not p["pago"]]
+    assert pagas and abertas
+    assert all(p["pagoEm"] == p["data"] for p in pagas)
+    assert all(p["pagoEm"] == "" for p in abertas)
+
+
+# ---------------------------------------------------------------- todas as vendas (leitura diária)
+def _linha(idp, venda_id):
+    rt = [{"plain_text": venda_id}] if venda_id else []
+    return {"id": idp, "properties": {
+        "MC - VENDA ID": {"type": "rich_text", "rich_text": rt},
+        "MC - RETRATO": {"type": "rich_text", "rich_text": []},
+        "MC - RETRATO EM": {"type": "rich_text", "rich_text": []}}}
+
+
+class NotionDeTres:
+    def __init__(self):
+        self.gravado = {}
+        self.consultas = []
+
+    def linhas(self, db_id):
+        self.consultas.append(db_id)
+        return [_linha("p-sem-id", None), _linha("p-ok", VENDA_ID),
+                _linha("p-erp-cai", "00000000-0000-0000-0000-0000000000b2")]
+
+    def gravar_texto_longo(self, page_id, props, nome, texto):
+        self.gravado.setdefault(page_id, {})[nome] = texto
+        return True
+
+    def gravar_textos(self, page_id, props, valores):
+        self.gravado.setdefault(page_id, {}).update(valores)
+        return []
+
+
+class ErpFalso:
+    pass
+
+
+def test_atualizar_todas_pula_sem_id_e_nao_para_no_erro(monkeypatch):
+    chamadas = []
+
+    def ler_venda(erp, vid):
+        chamadas.append(vid)
+        if vid.endswith("b2"):
+            raise RuntimeError("o ERP caiu")
+        return carregar("base")
+    monkeypatch.setattr(RT.D, "ler_venda", ler_venda)
+    n = NotionDeTres()
+    assert RT.atualizar_todas(n, ErpFalso(), "db1", "2026-11-03 08:00") == (1, 1)
+    assert n.consultas == ["db1"]
+    assert "p-sem-id" not in n.gravado and len(n.gravado) == 2
+    assert json.loads(n.gravado["p-ok"]["MC - RETRATO"])["v"] == 1
+    assert n.gravado["p-ok"]["MC - RETRATO EM"] == "2026-11-03 08:00"
+    assert n.gravado["p-erp-cai"]["MC - RETRATO"] == "ERRO: o ERP caiu"
+    assert chamadas == [VENDA_ID, "00000000-0000-0000-0000-0000000000b2"]
+
+
+def test_cli_todas_sem_variavel_sai_com_2(monkeypatch, capsys):
+    monkeypatch.setenv("NOTION_TOKEN", "t")
+    monkeypatch.delenv("DB_VENDAS_COND", raising=False)
+    assert RT.main(["--todas"]) == 2
+    assert "DB_VENDAS_COND" in capsys.readouterr().out
+
+
+def test_cli_todas_resume_sem_dados(monkeypatch, capsys):
+    from venda.mc import erp as erpmod
+    monkeypatch.setenv("NOTION_TOKEN", "t"); monkeypatch.setenv("DB_VENDAS_COND", "db1")
+    monkeypatch.setattr(N, "Notion", lambda token, sessao=None: NotionDeTres())
+    monkeypatch.setattr(erpmod, "do_ambiente", lambda: ErpFalso())
+    monkeypatch.setattr(RT.D, "ler_venda", lambda erp, vid: (_ for _ in ()).throw(RuntimeError("x")) if vid.endswith("b2") else carregar("base"))
+    assert RT.main(["--todas"]) == 1
+    assert capsys.readouterr().out.strip().splitlines()[-1] == "retratos: 1 ok, 1 erro"
+
+
+def test_robo_retratos_existe_na_fila():
+    import sys as _s
+    _s.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3] / "servidor"))
+    import robo_fila
+    scripts = robo_fila.ROBOS["retratos"]
+    assert scripts == ["robo_mc_retratos.py"]
+    assert (pathlib.Path(__file__).resolve().parents[3] / scripts[0]).is_file()
