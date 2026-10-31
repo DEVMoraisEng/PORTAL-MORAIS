@@ -268,7 +268,7 @@ function pintar(){
     html+=(docsGrupo[g]||[]).map(htmlDoc).join('');
     html+='<div class="grade" style="margin-top:10px">'+porGrupo[g].map(htmlCampo).join('')+'</div>';
     if(/^fiador[12]$/.test(g)) html+='<p class="dica" id="conjOutro-'+g+'" style="display:none;margin-top:8px">'+
-      'Casado ou em união estável: o cônjuge também assina. Se o cônjuge for o outro fiador (o preferido), '+
+      'Casado ou em união estável: o cônjuge tem de ser o outro fiador (cônjuge de fora não é aceito). '+
       '<button type="button" onclick="conjugeEhOutroFiador(\''+g+'\')">usar o '+(g==='fiador1'?'fiador 2':'fiador 1')+' como cônjuge</button></p>';
     html+='</div>';
   });

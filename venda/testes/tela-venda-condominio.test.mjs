@@ -395,13 +395,13 @@ test("28/10: sem os fiadores, o contrato com os termos ligados não sai (falta n
   assert.ok(r.faltas.includes("Fiador 2 (termo de confissão): nome"), r.faltas.join(" | "));
 });
 
-test("30/10: fiador casado — o GerarContrato lê ESTADO CIVIL / CONJUGE / CPF / EMAIL CONJUGE FIADOR n e cobra o cônjuge", () => {
-  /* casado com alguém de fora: sem o e-mail do cônjuge o contrato não sai */
+test("30/10: fiador casado — o GerarContrato lê ESTADO CIVIL / CONJUGE / CPF / EMAIL CONJUGE FIADOR n e exige o casal", () => {
+  /* 31/10: casado com alguém de fora não passa — o outro fiador tem de ser o cônjuge */
   const c = cenarioCfd({ linha: { "ESTADO CIVIL FIADOR 1": rt("CASADO"), "CONJUGE FIADOR 1": rt("Conjuge Um Teste"),
     "CPF CONJUGE FIADOR 1": rt("529.982.247-25") } });
   const r = c.acao("gerarPreContrato");
   assert.equal(r.erro, "FALTAM_DADOS");
-  assert.deepEqual(r.faltas.filter((f) => /cônjuge/.test(f)), ["Fiador 1: e-mail do cônjuge (para assinar)"]);
+  assert.deepEqual(r.faltas.filter((f) => /cônjuge/.test(f)), ["Fiador 1: casado — o outro fiador tem de ser o cônjuge (CPF do cônjuge igual ao do outro fiador)"]);
   /* o casal como os 2 fiadores (o preferido): o cônjuge é o outro fiador, nada a mais */
   const casal = cenarioCfd({ linha: { "ESTADO CIVIL FIADOR 1": rt("CASADO"), "ESTADO CIVIL FIADOR 2": rt("CASADO"),
     "CPF CONJUGE FIADOR 1": rt("24681357928"), "CPF CONJUGE FIADOR 2": num(11144477735) } });

@@ -540,9 +540,8 @@ var ContratoVenda = (function () {
     return ligarConjugesFiadores((lista || []).map(fiadorNormal).filter(function (fi) { return fi.nome !== ""; }));
   }
   /* 30/10/2026 (dono, Súmula 332 do STJ: fiança de casado sem o cônjuge é ineficaz) — casado ou em união estável,
-     o cônjuge do fiador também assina. O preferido é o CASAL ser os 2 fiadores: o CPF do cônjuge é o do outro
-     fiador (conjugeEhOutroFiador, ninguém a mais assina). De famílias diferentes, fi.conjuge = {nome, cpf, email}
-     é quem a Clicksign tem de incluir. Solteiro, divorciado, viúvo ou sem estado civil: fi.conjuge = null. */
+     o cônjuge do fiador também assina. 31/10/2026: só como o OUTRO FIADOR — o CPF do cônjuge é o do outro fiador
+     (conjugeEhOutroFiador). Fiador casado com o cônjuge de fora não passa (faltasConjugeFiadores); fi.conjuge é sempre null. */
   function fiadorCasado(estadoCivil) {
     return /CASAD|UNI[AÃ]O/.test(txt(estadoCivil).toUpperCase());
   }
@@ -559,7 +558,8 @@ var ContratoVenda = (function () {
       delete fi.conjugeLido;
       fi.conjugeEhOutroFiador = !!(outro && fiadorCasado(fi.estadoCivil) && soDigitos(lido.cpf) !== "" &&
                                    soDigitos(lido.cpf) === soDigitos(outro.cpf));
-      fi.conjuge = fiadorCasado(fi.estadoCivil) && !fi.conjugeEhOutroFiador ? lido : null;
+      /* 31/10/2026 (dono): fiador casado só com o casal como os 2 fiadores — ninguém assina à parte */
+      fi.conjuge = null;
     });
     return fis;
   }
@@ -575,14 +575,10 @@ var ContratoVenda = (function () {
     (co.fiadores || []).forEach(function (fi, i) {
       var gf = "Fiador " + (i + 1);
       if (vazio(fi.estadoCivil)) { f.push(gf + ": estado civil"); return; }
-      if (!fi.conjuge) return;
-      var c = fi.conjuge;
-      if (vazio(c.nome)) f.push(gf + ": nome do cônjuge (ou o cônjuge como o outro fiador)");
-      if (vazio(c.cpf)) f.push(gf + ": CPF do cônjuge");
-      else if (!R().cpfValido(c.cpf)) f.push(gf + ": CPF do cônjuge inválido");
-      else if (soDigitos(c.cpf) === soDigitos(fi.cpf)) f.push(gf + ": CPF do cônjuge igual ao do fiador");
-      if (vazio(c.email)) f.push(gf + ": e-mail do cônjuge (para assinar)");
-      else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c.email)) f.push(gf + ": e-mail do cônjuge inválido");
+      /* 31/10/2026 (dono): casado ou em união estável, o outro fiador tem de ser o cônjuge (o casal é fiador).
+         Assinando como fiador, o cônjuge também dá a outorga (CC 1.647, III; Súmula 332 do STJ). */
+      if (fiadorCasado(fi.estadoCivil) && !fi.conjugeEhOutroFiador)
+        f.push(gf + ": casado — o outro fiador tem de ser o cônjuge (CPF do cônjuge igual ao do outro fiador)");
     });
     return f;
   }

@@ -1,7 +1,7 @@
 /* 30/10/2026 — fiador casado (Súmula 332 do STJ: fiança de casado sem o cônjuge é ineficaz).
  * Decisão do dono: em 36x/48x cada fiador tem estado civil; casado ou em união estável, o cônjuge também assina.
- * O preferido é o CASAL ser os 2 fiadores (o cônjuge é o outro fiador, reconhecido pelo CPF); de famílias
- * diferentes, nome + CPF + e-mail do cônjuge ficam em condominio.fiadores[i].conjuge para a Clicksign.
+ * 31/10: só o CASAL como os 2 fiadores (o cônjuge é o outro fiador, reconhecido pelo CPF); fiador casado
+ * com o cônjuge de fora não passa.
  * Em 24x (sem pós-chaves) nada disto é cobrado. Só dados inventados — o repositório é público. */
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -57,32 +57,21 @@ test("o CASAL como os 2 fiadores (o preferido): o cônjuge é o outro fiador, ni
   assert.deepEqual(C.faltasConjugeFiadores(co), []);
 });
 
-test("famílias diferentes: o cônjuge do casado fica pronto para a Clicksign (CPF formatado, e-mail minúsculo)", () => {
+test("31/10: fiador casado com o cônjuge de fora não passa — o outro fiador tem de ser o cônjuge", () => {
   const co = condominio([{ ...F1, estadoCivil: "UNIAO ESTAVEL", ...CONJ_FORA }, { ...F2, estadoCivil: "SOLTEIRO" }]);
-  assert.deepEqual(co.fiadores[0].conjuge, { nome: "CONJUGE DE FORA TESTE", cpf: "529.982.247-25", email: "conj@teste.example" });
-  assert.equal(co.fiadores[0].conjugeEhOutroFiador, false);
-  assert.equal(co.fiadores[1].conjuge, null);
-  assert.deepEqual(C.faltasConjugeFiadores(co), []);
+  assert.deepEqual(co.fiadores.map((f) => [f.conjugeEhOutroFiador, f.conjuge]), [[false, null], [false, null]]);
+  assert.deepEqual(C.faltasConjugeFiadores(co), ["Fiador 1: casado — o outro fiador tem de ser o cônjuge (CPF do cônjuge igual ao do outro fiador)"]);
 });
 
-test("casado sem os dados do cônjuge (e sem o casal como fiadores): nome, CPF e e-mail entram nas faltas", () => {
-  assert.deepEqual(faltas([{ ...F1, estadoCivil: "CASADO" }, { ...F2, estadoCivil: "SOLTEIRO" }]), [
-    "Fiador 1: nome do cônjuge (ou o cônjuge como o outro fiador)", "Fiador 1: CPF do cônjuge", "Fiador 1: e-mail do cônjuge (para assinar)"]);
+test("casado sem dados do cônjuge: a mesma falta (pede o casal)", () => {
+  assert.deepEqual(faltas([{ ...F1, estadoCivil: "CASADO" }, { ...F2, estadoCivil: "SOLTEIRO" }]), ["Fiador 1: casado — o outro fiador tem de ser o cônjuge (CPF do cônjuge igual ao do outro fiador)"]);
 });
 
-test("cônjuge com CPF inválido, igual ao do próprio fiador ou e-mail torto não passa", () => {
-  const base = { ...F1, estadoCivil: "CASADO", ...CONJ_FORA };
-  const so = (x) => faltas([x, { ...F2, estadoCivil: "SOLTEIRO" }]);
-  assert.deepEqual(so({ ...base, conjugeCpf: "529.982.247-00" }), ["Fiador 1: CPF do cônjuge inválido"]);
-  assert.deepEqual(so({ ...base, conjugeCpf: F1.cpf }), ["Fiador 1: CPF do cônjuge igual ao do fiador"]);
-  assert.deepEqual(so({ ...base, conjugeEmail: "conj-sem-arroba" }), ["Fiador 1: e-mail do cônjuge inválido"]);
-});
-
-test("o cônjuge informado com o CPF de um terceiro não é confundido com o outro fiador", () => {
+test("dois casados com cônjuges de fora: os dois fiadores entram nas faltas", () => {
   const co = condominio([{ ...F1, estadoCivil: "CASADO", ...CONJ_FORA }, { ...F2, estadoCivil: "CASADO", conjugeNome: "OUTRO CONJUGE TESTE",
     conjugeCpf: "935.411.347-80", conjugeEmail: "outro@teste.example" }]);
   assert.deepEqual(co.fiadores.map((f) => f.conjugeEhOutroFiador), [false, false]);
-  assert.deepEqual(co.fiadores.map((f) => f.conjuge.cpf), ["529.982.247-25", "935.411.347-80"]);
+  assert.equal(C.faltasConjugeFiadores(co).length, 2);
 });
 
 test("as faltas novas chegam ao faltasContrato (o contrato não sai sem o cônjuge)", () => {
@@ -92,5 +81,5 @@ test("as faltas novas chegam ao faltasContrato (o contrato não sai sem o cônju
     condominio: { nome: "CONDOMÍNIO RESERVA TESTE", unidade: "13", fluxo: FLUXO, fiadores: [{ ...F1, estadoCivil: "CASADO" }] },
     hojeISO: "2026-10-30",
   });
-  assert.ok(C.faltasContrato(d).includes("Fiador 1: CPF do cônjuge"), C.faltasContrato(d).join(" | "));
+  assert.ok(C.faltasContrato(d).includes("Fiador 1: casado — o outro fiador tem de ser o cônjuge (CPF do cônjuge igual ao do outro fiador)"), C.faltasContrato(d).join(" | "));
 });
