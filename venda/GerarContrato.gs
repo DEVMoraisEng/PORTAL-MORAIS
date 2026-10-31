@@ -674,6 +674,8 @@ function contratoEstado_(col, p) {
     try { r.fluxo = fluxoEstado_(p.pageId, pgE); } catch (e) { ctrErro_("contratoEstado fluxo", e); }
   }
   else try { r.conta = contaRecebEstado_(p.pageId); } catch (e) { ctrErro_("contratoEstado conta", e); }
+  /* 30/10: histórico do contrato (quem fez o quê) — LogContrato.gs */
+  try { var hist = logContratoLer_(pgE); if (hist) r.historico = hist.slice(0, 300); } catch (e) { ctrErro_("contratoEstado historico", e); }
   if (pre) {
     r.pre = { nome: ctrTxt_(pre.nome), url: ctrTxt_(pre.url), em: ctrTxt_(pre.em), conferido: !!pre.conferidoEm };
     if (etapa === "PRE") r.pre.desatualizado = ctrPreDesatualizado_(col, p, pre);

@@ -43,6 +43,17 @@ function tratar_(p) {
     if (grava && String(sess.t || "").toUpperCase() === "TESTES") return { ok: false, erro: "SEM_PERMISSAO_TESTES" };
     if (p.action !== "ping" && !REGEX_PAGE_ID.test(String(p.pageId || ""))) return { ok: false, erro: "PAGINA_INVALIDA" };
     var col = colunas_();
+    var r = executar_(col, sess, p);
+    if (grava && r && r.ok === true) logContrato_(sess, p, r);   /* 30/10: histórico do contrato (LogContrato.gs) */
+    return r;
+  } catch (err) {
+    var m = String((err && err.message) || err);
+    console.error("PORTAL-VENDA " + String(p.action || "") + " falhou: " + m.slice(0, 160));
+    return { ok: false, erro: ERROS_CONHECIDOS.test(m) ? m : "ERRO_INTERNO" };
+  }
+}
+
+function executar_(col, sess, p) {
     switch (p.action) {
       case "estado":       return estado_(col, p, sess);
       case "tipoCasa":     return tipoCasa_(col, p);
@@ -93,11 +104,6 @@ function tratar_(p) {
       case "recebimentoConfirmar": return recebimentoConfirmar_(col, sess, p);
       default: return { ok: false, erro: "ACAO_DESCONHECIDA" };
     }
-  } catch (err) {
-    var m = String((err && err.message) || err);
-    console.error("PORTAL-VENDA " + String(p.action || "") + " falhou: " + m.slice(0, 160));
-    return { ok: false, erro: ERROS_CONHECIDOS.test(m) ? m : "ERRO_INTERNO" };
-  }
 }
 
 /* ---- sessão: MESMO algoritmo do assinar_/verificar_ do Code.gs do portal ---- */

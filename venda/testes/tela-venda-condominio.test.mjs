@@ -170,9 +170,9 @@ test("gerarContrato na linha do condomínio: modelo do condomínio, PDF em CONTR
   const r = c.gerarFinal();
   assert.equal(r.ok, true, JSON.stringify(r));
   /* a linha é lida uma vez para montar o contrato e outra para o link do PDF — sem o GET extra
-     que a casa da VENDAS faz para chegar à linha do condomínio */
+     que a casa da VENDAS faz para chegar à linha do condomínio; 30/10: + 1 do histórico do contrato */
   const gets = c.g.chamadas.filter((x) => x.url === "https://api.notion.com/v1/pages/" + COND && x.opt.method === "GET");
-  assert.equal(gets.length, 2);
+  assert.equal(gets.length, 3);
   assert.match(r.nome, /^CONTRATO - CONDOMÍNIO RESERVA TESTE - CASA 13 - .* \[#[0-9a-f]{8}\]\.pdf$/);
   const pars = c.d.estado.salvos[c.d.estado.copias[0].id].pars;
   assert.equal(pars[0], "CONTRATO — CONDOMÍNIO RESERVA TESTE — UNIDADE 13");
@@ -792,4 +792,13 @@ test("30/10 isenção da comissão: travada até FLUXO_ISENCAO_LIBERADA; liberad
   assert.equal(lib.acao("fluxoEditar").desconto.comissao.valor, 0);
   /* o modelo de hoje não tem {{#SEM_COMISSAO}}: o contrato não sai com a comissão errada */
   assert.equal(lib.acao("gerarPreContrato").erro, "MODELO_SEM_BLOCO_SEM_COMISSAO");
+});
+
+test("30/10 histórico do contrato: ação que grava deixa linha com quem fez; contratoEstado devolve", () => {
+  const c = cenario({ linha: { "HISTÓRICO DO CONTRATO": rt(""), "CONTRATO - CONDIÇÕES ESPECIAIS": rt("") } });
+  const r = c.acao("salvarCondicoesEspeciais", { texto: "Na cláusula 9.2, onde se lê 30 dias, leia-se 45 dias." });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const h = c.acao("contratoEstado").historico;
+  assert.equal(h.length, 1);
+  assert.match(h[0], /^\S+ \S+ — .+ — condições especiais \(item 16\): Na cláusula 9\.2/);
 });
