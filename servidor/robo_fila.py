@@ -125,6 +125,14 @@ def marcar_erro_argv(argv: list) -> list | None:
     return None
 
 
+def apos_gravar(argv: list) -> list | None:
+    """31/10: depois de GRAVAR uma venda no ERP pela fila (lançar/distrato com --aplicar), lê o retrato de TODAS as
+    vendas, para a aba Financeiro mostrar a unidade nova e as outras ficarem em dia. Prévia, bloqueado e mc-retrato: None."""
+    if len(argv) > 1 and argv[1] in ("venda.mc.lancar", "venda.mc.distrato") and "--aplicar" in argv:
+        return ["-m", "venda.mc.retrato", "--todas"]
+    return None
+
+
 class Fila:
     def __init__(self, cfg: dict):
         self.nome = cfg["nome"]
@@ -211,6 +219,17 @@ class Fila:
                 subprocess.run([sys.executable] + m, cwd=RAIZ, env=env, capture_output=True, timeout=120)
         self.marcar(linha["id"], "FEITO" if codigo == 0 else "ERRO", ultima)
         log("[%s] %s %s: código %s %s" % (self.nome, tipo, alvo, codigo, ultima[:200]))
+        depois = apos_gravar(argv) if codigo == 0 else None
+        if depois:     # best-effort: o pedido já está FEITO e assim fica, aconteça o que acontecer aqui
+            try:
+                r2 = subprocess.run([sys.executable] + depois, cwd=RAIZ, env=env, capture_output=True, text=True,
+                                    encoding="utf-8", errors="replace", timeout=PRAZO_ROBO_S)
+                saida2 = (r2.stdout or "").strip().splitlines()
+                log("[%s] retratos depois de gravar: código %s %s" % (self.nome, r2.returncode, (saida2[-1] if saida2 else "")[:200]))
+            except subprocess.TimeoutExpired:
+                log("[%s] retratos depois de gravar: prazo esgotado" % self.nome)
+            except Exception as e:
+                log("[%s] retratos depois de gravar: falhou (%s)" % (self.nome, type(e).__name__))
         return "FEITO" if codigo == 0 else "ERRO"
 
 
