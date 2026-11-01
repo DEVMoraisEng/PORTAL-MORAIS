@@ -1091,6 +1091,45 @@ só na página da Clicksign até o modelo ter uma linha por pessoa.
 - Sandbox: conferir no envelope se a caixa cai em cima de cada linha (vendedora, corretor, testemunhas; fiadores nos
   termos). Fora do lugar: `RUBRICAS_AJUSTE.linha`.
 
+## Uma linha de assinatura por pessoa nos modelos (01/11/2026, plano 23 B — troca dos blocos)
+
+O dono autorizou mexer nos BLOCOS de assinatura dos modelos (não no texto jurídico): "essas alterações estéticas pode
+fazer". Os dois blocos do contrato (quadro-resumo e ASSINATURAS no fim) e o dos termos continuam; cada um passa a ser
+um parágrafo só com um marcador, e o código escreve uma linha por pessoa: traço, `Nome:`, `CPF:` (CNPJ de empresa) e o
+papel em negrito, na ordem vendedora, comprador 1, cônjuge do comprador 1, comprador 2, fiador 1, cônjuge do fiador 1,
+fiador 2, cônjuge do fiador 2, corretor e testemunhas 1 e 2 (com nome e CPF).
+
+- Só aparece quem assina aquele documento: no contrato, sem fiadores (eles assinam só os termos) e com o corretor só
+  quando há comissão; nos termos de confissão, com fiadores e cônjuges deles e sem corretor; na pré-reserva, vendedora,
+  pré-reservante e testemunhas, e o cônjuge só com a caixa "Incluir o cônjuge na pré-reserva" ligada.
+- Marcadores: `{{ASSINATURAS_QUADRO}}` e `{{ASSINATURAS_FINAL}}` (contrato do condomínio, casa pronta e em construção) e
+  `{{ASSINATURAS_TERMO}}` (confissão PRÉ e PÓS e termo de pré-reserva).
+- **Modelo não migrado continua saindo como hoje.** Nada muda até rodar a migração abaixo.
+- As testemunhas saem com o nome escolhido na hora de gerar. Se trocar as testemunhas (ou a caixa do cônjuge da
+  pré-reserva) depois de gerar, gere o contrato/termo de novo antes de enviar.
+- Com `ASSINATURA_LINHAS` = `1`, cada pessoa ganha a assinatura em cima da própria linha (cônjuge e comprador 2
+  também). O bloco do quadro-resumo que vira a página continua sendo lido na página seguinte.
+
+**Passo a passo do dono (uma vez, primeiro no TESTE):**
+1. Colar no Apps Script `PORTAL-VENDA-TESTE` os arquivos `ClicksignVenda`, `ContratoVenda`, `GerarContrato`,
+   `Confissao`, `PreReserva` e o novo `MigrarModelos` (e subir o site: `venda/RubricasVenda.js` v4, `venda-dossie.js`
+   v51, `vendas.html`, `simulacoes.html`, `sw.js` v253).
+2. No editor, escolher a função `migrarModelosAssinaturasPrevia` e clicar em Executar. Ela só lê: o Registro de
+   execução diz, para cada modelo (`MODELO_CONDOMINIO_ID`, `MODELO_PRONTO_ID`, `MODELO_CONSTRUCAO_ID`,
+   `MODELO_CONFISSAO_PRE_ID`, `MODELO_CONFISSAO_POS_ID`, `MODELO_PRE_RESERVA_ID`), quantos blocos trocaria e de onde até
+   onde. Esperado: 2 blocos nos contratos e 1 nos termos. "NÃO MEXI — …" = aquele modelo fica como está (o motivo vem
+   escrito); os outros seguem.
+3. Conferindo a prévia, executar `migrarModelosAssinaturasAplicar`. Para cada modelo ele faz PRIMEIRO uma cópia na
+   mesma pasta ("<nome> - BACKUP antes assinaturas 01-11", o id aparece no registro) e depois troca os blocos. Rodar de
+   novo não faz nada ("já migrado").
+4. Abrir os modelos no Google Docs e olhar os blocos: no lugar de cada um, uma linha `{{ASSINATURAS_...}}` centralizada.
+5. Gerar um pré-contrato e um contrato de teste (condomínio com cônjuge e fiadores, e uma casa de rua), os termos de
+   confissão e um termo de pré-reserva. Conferir as linhas, nomes, CPFs e o papel em negrito.
+6. Tudo certo: repetir 1 a 5 no `PORTAL-VENDA` de produção.
+
+**Voltar atrás:** pôr na Propriedade do modelo o id da cópia "BACKUP antes assinaturas 01-11" (o código antigo e o
+novo funcionam com o modelo antigo).
+
 ## Selfie com documento para comprador, cônjuge e fiadores (01/11/2026, plano 23 C)
 
 Desligada até o dono conferir. Com a Propriedade `CLICKSIGN_SELFIE` = `1`, o comprador 1 e 2, o cônjuge do comprador,
