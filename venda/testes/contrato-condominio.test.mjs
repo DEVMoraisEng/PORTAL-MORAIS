@@ -155,8 +155,11 @@ test("dados do imóvel em branco NÃO travam: viram aviso e '____' no contrato (
 test("faltas que travam: assinatura, dia, entrega, valor de venda, fluxo que não fecha (tolerância 0,05), datas das séries", () => {
   const f = (fl) => C.faltasContrato(C.montarDadosContrato(fontes({ condominio: { fluxo: { ...FLUXO, ...fl } } })));
   assert.deepEqual(f({ assinatura: "", diaPagamento: null, entrega: "" }), [
-    "Fluxo de pagamento: data de assinatura do contrato", "Fluxo de pagamento: dia de pagamento das parcelas", "Fluxo de pagamento: data da entrega"]);
-  assert.deepEqual(f({ diaPagamento: 32 }), ["Fluxo de pagamento: dia de pagamento das parcelas"]);
+    "Fluxo de pagamento: data de assinatura do contrato", "Fluxo de pagamento: dia de pagamento (de 5 a 31)", "Fluxo de pagamento: data da entrega"]);
+  assert.deepEqual(f({ diaPagamento: 32 }), ["Fluxo de pagamento: dia de pagamento (de 5 a 31)"]);
+  assert.deepEqual(f({ diaPagamento: 4 }), ["Fluxo de pagamento: dia de pagamento (de 5 a 31)"]);
+  assert.deepEqual(f({ diaPagamento: 5 }), []);
+  assert.deepEqual(f({ diaPagamento: 31 }), []);
   assert.deepEqual(f({ valorVenda: null }), ["Fluxo de pagamento: valor de venda"]);
   assert.deepEqual(f({ valorVenda: 305000.05 }), [], "0,05 de diferença passa");
   assert.deepEqual(f({ valorVenda: 305000.06 }), ["Fluxo de pagamento: soma R$ 305.000,00 e não fecha com o valor de venda R$ 305.000,06"]);

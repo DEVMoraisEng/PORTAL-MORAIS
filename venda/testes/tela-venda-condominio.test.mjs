@@ -337,24 +337,27 @@ test("31/10: valor e data por venda — salvar grava o histórico com o usuário
   assert.equal(e0.dataLimite, "");
   assert.deepEqual(c.acao("gerarTermoPreReserva").faltas,
     ["Valor da pré-reserva (preencha no cartão)", "Data do pagamento da pré-reserva (preencha no cartão)"]);
-  assert.equal(c.acao("salvarPagamentoPreReserva", { valor: 0, data: "2026-11-02" }).erro, "PR_VALOR_INVALIDO");
+  assert.equal(c.acao("salvarPagamentoPreReserva", { valor: 0, data: "2026-10-26" }).erro, "PR_VALOR_INVALIDO");
   assert.equal(c.acao("salvarPagamentoPreReserva", { valor: 2500, data: "" }).erro, "PR_DATA_INVALIDA");
-  const r = c.acao("salvarPagamentoPreReserva", { valor: 2500, data: "2026-11-02" });
+  /* 01/11: hoje vem do servidor (São Paulo); sinal da linha = ato + 30 + 60 + 90 */
+  assert.equal(c.acao("salvarPagamentoPreReserva", { valor: 2500, data: "2099-01-10" }).erro, "PR_DATA_FUTURA");
+  assert.equal(c.acao("salvarPagamentoPreReserva", { valor: 50000, data: "2026-10-26" }).erro, "PR_VALOR_MAIOR_QUE_SINAL");
+  const r = c.acao("salvarPagamentoPreReserva", { valor: 2500, data: "2026-10-26" });
   assert.equal(r.ok, true, JSON.stringify(r));
-  assert.equal(r.dataLimite, "2026-11-09");
+  assert.equal(r.dataLimite, "2026-11-02");
   assert.equal(c.n.pagina.properties["PRÉ-RESERVA - VALOR"].number, 2500);
-  assert.equal(c.n.pagina.properties["PRÉ-RESERVA - DATA PAGAMENTO"].date.start, "2026-11-02");
-  assert.match(c.txt("PRÉ-RESERVA - HISTÓRICO"), /^\d{2}\/\d{2}\/\d{4} \S+ ana\.teste: valor — → R\$ 2\.500,00; pagamento — → 02\/11\/2026$/);
-  const r2 = c.acao("salvarPagamentoPreReserva", { valor: 2500, data: "2026-11-03" });
+  assert.equal(c.n.pagina.properties["PRÉ-RESERVA - DATA PAGAMENTO"].date.start, "2026-10-26");
+  assert.match(c.txt("PRÉ-RESERVA - HISTÓRICO"), /^\d{2}\/\d{2}\/\d{4} \S+ ana\.teste: valor — → R\$ 2\.500,00; pagamento — → 26\/10\/2026$/);
+  const r2 = c.acao("salvarPagamentoPreReserva", { valor: 2500, data: "2026-10-27" });
   assert.equal(r2.mudou, true);
   const linhas = c.txt("PRÉ-RESERVA - HISTÓRICO").split("\n");
   assert.equal(linhas.length, 2);
-  assert.match(linhas[1], /ana\.teste: pagamento 02\/11\/2026 → 03\/11\/2026$/);
-  assert.equal(c.acao("salvarPagamentoPreReserva", { valor: "2.500,00", data: "03/11/2026" }).mudou, false, "igual não grava histórico");
+  assert.match(linhas[1], /ana\.teste: pagamento 26\/10\/2026 → 27\/10\/2026$/);
+  assert.equal(c.acao("salvarPagamentoPreReserva", { valor: "2.500,00", data: "27/10/2026" }).mudou, false, "igual não grava histórico");
   assert.equal(c.txt("PRÉ-RESERVA - HISTÓRICO").split("\n").length, 2);
   assert.equal(c.acao("gerarTermoPreReserva").ok, true);
   const pars = c.d.estado.salvos[c.d.estado.copias[0].id].pars;
-  assert.equal(pars[1], "Casa 13 Tipo 02 até 10/11/2026 por R$ 2.500,00 (dois mil e quinhentos reais) (2.500,00)");
+  assert.equal(pars[1], "Casa 13 Tipo 02 até 03/11/2026 por R$ 2.500,00 (dois mil e quinhentos reais) (2.500,00)");
   assert.ok(c.g.logs.some((l) => l.includes("salvarPagamentoPreReserva") && l.includes("ana.teste")));
 });
 

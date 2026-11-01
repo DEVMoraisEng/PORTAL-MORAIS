@@ -879,7 +879,7 @@ var ContratoVenda = (function () {
 
     var g = "Fluxo de pagamento";
     exige(!vazio(fl.assinatura), g, "data de assinatura do contrato");
-    exige(fl.diaPagamento !== null && fl.diaPagamento >= 1 && fl.diaPagamento <= 31, g, "dia de pagamento das parcelas");
+    exige(fl.diaPagamento !== null && fl.diaPagamento >= 5 && fl.diaPagamento <= 31, g, "dia de pagamento (de 5 a 31)");
     exige(!vazio(fl.entrega), g, "data da entrega");
     exige(positivo(fl.valorVenda), g, "valor de venda");
     function comData(valor, data, nome) { if (positivo(valor)) exige(!vazio(data), g, nome + " (data)"); }

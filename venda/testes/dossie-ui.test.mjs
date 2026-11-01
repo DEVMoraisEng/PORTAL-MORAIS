@@ -313,3 +313,12 @@ test("pré-reserva com termo gerado mostra só 'Termo gerado', sem o nome do arq
   assert.match(src, /if \(e\.gerado\) h \+= '<div class="dz-linha">Termo gerado<\/div>';/);
   assert.doesNotMatch(src, /Termo gerado: /);
 });
+
+test("01/11: pré-reserva — mensagens de data futura e valor acima do sinal; campo da data com max = hoje (conveniência)", async () => {
+  const fs = await import("node:fs");
+  const src = fs.readFileSync(new URL("../../venda-dossie.js", import.meta.url), "utf8");
+  assert.match(src, /PR_DATA_FUTURA: "[^"]*depois de hoje[^"]*"/);
+  assert.match(src, /PR_VALOR_MAIOR_QUE_SINAL: "[^"]*sinal[^"]*"/);
+  assert.match(src, /data-pr-p="data"' \+ maxHojePR\(\)/);
+  assert.match(src, /America\/Sao_Paulo/);
+});

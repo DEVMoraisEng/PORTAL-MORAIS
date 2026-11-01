@@ -59,11 +59,29 @@ function preReservaEstado_(col, p) {
            historico: prTexto_(pg, PreReservaVenda.COL.HISTORICO) };
 }
 
+/* 01/11/2026: sinal da venda (ato + 30 + 60 + 90 da própria linha, sem ler cadastros); 0 = desconhecido — fluxo
+   alterado no portal (FLUXO PERSONALIZADO) ou coluna ilegível não barra o valor. */
+function prSinal_(pg) {
+  try {
+    var v = ctrPorChave_(pg.properties);
+    var pers = ctrCampo_(v, "FLUXO PERSONALIZADO");
+    if (pers !== null && pers !== undefined && ctrTxt_(pers).trim()) return 0;
+    function n(nome) { return ctrNum_(ctrCampo_(v, nome)); }
+    return PreReservaVenda.sinalDoFluxo({ sinalAto: n("VALOR SINAL ATO"), sinal30: n("VALOR SINAL 30 DIAS"),
+                                          sinal60: n("VALOR SINAL 60 DIAS"), sinal90: n("VALOR SINAL 90 DIAS") });
+  } catch (e) { return 0; }
+}
+
 /* 31/10: valor e data do pagamento da venda; mudar grava uma linha no histórico com o usuário do portal. */
 function salvarPagamentoPreReserva_(col, sess, p) {
-  var pid = String(p.pageId).slice(0, 8), v = PreReservaVenda.validarPagamento({ valor: p.valor, data: p.data });
+  var pid = String(p.pageId).slice(0, 8);
+  var basico = PreReservaVenda.validarPagamento({ valor: p.valor, data: p.data });   /* barato: sem ler a página */
+  if (!basico.ok) return { ok: false, erro: basico.erro };
+  var pg = ctrLerPaginaVenda_(p.pageId);
+  /* 01/11: "hoje" é o do servidor (São Paulo), nunca o do navegador */
+  var v = PreReservaVenda.validarPagamento({ valor: p.valor, data: p.data, hojeISO: hoje_("yyyy-MM-dd"), sinal: prSinal_(pg) });
   if (!v.ok) return { ok: false, erro: v.erro };
-  var pg = ctrLerPaginaVenda_(p.pageId), antes = prPagamento_(pg), C = PreReservaVenda.COL;
+  var antes = prPagamento_(pg), C = PreReservaVenda.COL;
   var historico = prTexto_(pg, C.HISTORICO);
   var linha = PreReservaVenda.linhaHistorico(antes, v, ctrTxt_(sess && sess.u), hoje_("dd/MM/yyyy HH:mm"));
   if (linha) {

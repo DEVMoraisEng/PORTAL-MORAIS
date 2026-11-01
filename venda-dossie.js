@@ -1867,6 +1867,13 @@
     if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
     return h;
   }
+  /* 01/11/2026: max = hoje no campo da data — só conveniência; quem barra de verdade é o servidor (hora de São Paulo) */
+  function maxHojePR() {
+    try {
+      var p = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+      return /^\d{4}-\d{2}-\d{2}$/.test(p) ? ' max="' + p + '"' : "";
+    } catch (e) { return ""; }
+  }
   function htmlPreReserva(e, u) {
     u = u || {};
     var h = '<div class="grp">Termo de pré-reserva</div>';
@@ -1880,7 +1887,7 @@
       '<label><span>Valor da pré-reserva (R$)</span>' +
       '<input type="text" data-pr-p="valor" inputmode="decimal" maxlength="15" style="width:130px" placeholder="0,00" value="' + esc(pg.valor || "") + '"' + dis + "></label>" +
       '<label><span>Data do pagamento</span>' +
-      '<input type="date" data-pr-p="data" value="' + esc(pg.data || "") + '"' + dis + "></label>" +
+      '<input type="date" data-pr-p="data"' + maxHojePR() + ' value="' + esc(pg.data || "") + '"' + dis + "></label>" +
       '<button type="button" class="bt ghost bt-mini" data-acao="pr-salvar-pag"' + dis + ">Salvar valor e data</button></div>";
     h += '<div class="dz-linha"><span class="dz-rot">' + (e.dataLimite ? "Prazo para decidir a compra: " + esc(dataBRpr(e.dataLimite)) + " (pagamento + 7 dias corridos)"
       : "Informe a data do pagamento para calcular o prazo (pagamento + 7 dias corridos).") + "</span></div>";
@@ -1931,6 +1938,8 @@
               MODELO_NAO_CONFIGURADO: "O modelo do termo (MODELO_PRE_RESERVA_ID) não está configurado — avise o desenvolvedor.",
               SEM_TERMO_GERADO: "Ainda não há termo gerado.", SO_CONDOMINIO: "O termo de pré-reserva é só do condomínio.",
               PR_VALOR_INVALIDO: "Valor da pré-reserva inválido.", PR_DATA_INVALIDA: "Informe a data do pagamento.",
+              PR_DATA_FUTURA: "A data do pagamento não pode ser depois de hoje. Informe o dia em que o cliente pagou.",
+              PR_VALOR_MAIOR_QUE_SINAL: "O valor da pré-reserva não pode passar do sinal da venda. Confira o valor.",
               SEM_PERMISSAO_TESTES: "Perfil TESTES não gera nem grava.", SEM_RESPOSTA: "O servidor não respondeu — tente de novo." };
     if (e.indexOf("COLUNA_FALTANDO: ") === 0) return "A base não tem a coluna " + e.slice(17) + " — avise o desenvolvedor.";
     return M[e] || (e ? mensagemContrato(r) : "");
