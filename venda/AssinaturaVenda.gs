@@ -351,13 +351,22 @@ function cfdGerado_(pg, tipo) {
 }
 
 /* Termo de pré-reserva: assinam o pré-reservante (comprador 1), a vendedora e as 2 testemunhas — sem
- * comprador 2 nem corretor. Faltas do termo + da assinatura; o carimbo do PDF tem de bater com o de agora. */
+ * comprador 2 nem corretor. 01/11/2026 (dono): "na pré-reserva não precisa do cônjuge, pode deixar a opção de incluir,
+ * mas a pré-reserva a gente gosta de ser rápido e simples, só pra segurar a unidade" — o cônjuge só assina o termo se o
+ * corretor ligou "Incluir o cônjuge na pré-reserva" nesta venda (PR_CONJUGE_<pageId>, PreReserva.gs); desligado, ele
+ * não entra no envelope nem tem o e-mail cobrado. Isto muda só o termo: no contrato o cônjuge continua assinando
+ * (decisão de 31/10). Faltas do termo + da assinatura; o carimbo do PDF tem de bater com o de agora. */
 function assEnviarTermo_(col, p, pid, cols, doc, gerado) {
   var x = prDados_(col, p, pid, "assinatura termo");
   if (x.resp) return x.resp;
   var dAss = {}, k;
   for (k in x.d) dAss[k] = x.d[k];
   dAss.comprador2 = null; dAss.corretor = null;
+  if (dAss.condominio && dAss.condominio.conjugeComprador && !prConjugeIncluido_(p.pageId)) {
+    var cond = {};
+    for (k in dAss.condominio) if (k !== "conjugeComprador") cond[k] = dAss.condominio[k];
+    dAss.condominio = cond;
+  }
   var config = assConfig_(p.pageId), cfg = {};
   for (k in config) cfg[k] = config[k];
   cfg.incluirCorretor = false;

@@ -279,7 +279,7 @@ const cenarioPR = (o = {}) => cenario({ docEnd: "CONDOMÍNIO RESERVA DOS IPÊS",
 
 test("termo: estado, falta a conta, salva a conta, gera o PDF com o carimbo na coluna própria", () => {
   const c = cenarioPR();
-  assert.deepEqual(c.acao("preReservaEstado"), { ok: true, conta: "", contaCampos: { forma: "", livre: "" }, gerado: false, nome: "", valor: 3000, dataPagamento: "2026-10-24", dataLimite: "2026-10-31", historico: "" });
+  assert.deepEqual(c.acao("preReservaEstado"), { ok: true, conta: "", contaCampos: { forma: "", livre: "" }, gerado: false, nome: "", valor: 3000, dataPagamento: "2026-10-24", dataLimite: "2026-10-31", historico: "", temConjuge: false, incluirConjuge: false });
   /* 01/11 (dono): a conta é opcional — o termo sai com ela em branco */
   const sem = c.acao("gerarTermoPreReserva");
   assert.equal(sem.ok, true, JSON.stringify(sem));
@@ -318,6 +318,66 @@ test("termo na Clicksign: envia com doc PRE_RESERVA (pré-reservante, vendedora,
   assert.equal(est.ok, true);
   assert.equal(est.envelope, true);
   assert.deepEqual(c.acao("assinaturaEstado"), { ok: true, situacao: "", envelope: false, signatarios: [] });
+});
+
+/* 01/11/2026 (dono): "na pré-reserva não precisa do cônjuge, pode deixar a opção de incluir" — por padrão só o
+   pré-reservante assina o termo (e o e-mail do cônjuge não é cobrado); com a opção ligada na venda
+   (salvarConjugePreReserva, propriedade PR_CONJUGE_<pageId>) o cônjuge entra e o e-mail dele passa a ser exigido.
+   O contrato continua com o cônjuge. */
+const CASADO_PR = { "ESTADO CIVIL": rt("CASADO"), CONJUGE: rt("Conjuge Teste da Silva"), "CPF CONJUGE": rt("935.411.347-80"),
+  "EMAIL CONJUGE": eml("conjuge@teste.example"), REGIME: rt("COMUNHÃO PARCIAL DE BENS") };
+const CONTA_PR = { "PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO": texto("PIX, chave 529.982.247-25, no banco 756 - SICOOB") };
+test("termo casado, opção desligada (padrão): cônjuge fora do envelope e sem cobrar o e-mail dele; o contrato leva o cônjuge", () => {
+  const c = cenarioPR({ linha: { ...CONTA_PR, ...CASADO_PR } });
+  assert.equal(c.acao("gerarTermoPreReserva").ok, true);
+  const r = c.acao("assinaturaEnviar", { doc: "PRE_RESERVA" });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual(r.signatarios.map((s) => s.papel), ["Comprador 1", "Vendedor (representante)", "Testemunha 1", "Testemunha 2"]);
+  assert.ok(!c.c.estado.signers.some((s) => s.attributes.email === "conjuge@teste.example"), "o cônjuge não recebe o termo");
+  const sem = cenarioPR({ linha: { ...CONTA_PR, ...CASADO_PR, "EMAIL CONJUGE": eml(null) } });
+  assert.equal(sem.acao("gerarTermoPreReserva").ok, true);
+  const r2 = sem.acao("assinaturaEnviar", { doc: "PRE_RESERVA" });
+  assert.equal(r2.ok, true, JSON.stringify(r2.faltas || r2));
+  const k = cenario({ linha: CASADO_PR });
+  assert.equal(k.gerarFinal().ok, true);
+  const e = k.acao("assinaturaEnviar", rub(k));
+  assert.equal(e.ok, true, JSON.stringify(e.faltas || e));
+  const papeis = e.signatarios.map((s) => s.papel);
+  assert.equal(papeis.indexOf("Cônjuge do comprador 1"), papeis.indexOf("Comprador 1") + 1, papeis.join(", "));
+});
+
+test("termo casado, opção ligada: o cônjuge assina logo depois do comprador; sem o e-mail dele o envio é barrado", () => {
+  const c = cenarioPR({ linha: { ...CONTA_PR, ...CASADO_PR } });
+  assert.deepEqual(c.acao("salvarConjugePreReserva", { incluir: true }), { ok: true, incluirConjuge: true });
+  assert.equal(c.acao("gerarTermoPreReserva").ok, true);
+  const r = c.acao("assinaturaEnviar", { doc: "PRE_RESERVA" });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual(r.signatarios.map((s) => s.papel), ["Comprador 1", "Cônjuge do comprador 1", "Vendedor (representante)", "Testemunha 1", "Testemunha 2"]);
+  const sem = cenarioPR({ linha: { ...CONTA_PR, ...CASADO_PR, "EMAIL CONJUGE": eml(null) } });
+  sem.acao("salvarConjugePreReserva", { incluir: true });
+  assert.equal(sem.acao("gerarTermoPreReserva").ok, true);
+  const r2 = sem.acao("assinaturaEnviar", { doc: "PRE_RESERVA" });
+  assert.equal(r2.erro, "FALTAM_DADOS");
+  assert.ok(r2.faltas.some((f) => /Cônjuge do comprador 1: e-mail/.test(f)), r2.faltas.join(" | "));
+  /* desligar de novo volta ao padrão */
+  assert.deepEqual(sem.acao("salvarConjugePreReserva", { incluir: false }), { ok: true, incluirConjuge: false });
+  assert.equal(sem.acao("assinaturaEnviar", { doc: "PRE_RESERVA" }).ok, true);
+});
+
+test("preReservaEstado traz incluirConjuge e temConjuge; salvarConjugePreReserva recusa TESTES e página de outra base", () => {
+  const solteiro = cenarioPR();
+  const e0 = solteiro.acao("preReservaEstado");
+  assert.equal(e0.temConjuge, false);
+  assert.equal(e0.incluirConjuge, false);
+  const c = cenarioPR({ linha: { ...CONTA_PR, ...CASADO_PR } });
+  assert.deepEqual([c.acao("preReservaEstado").temConjuge, c.acao("preReservaEstado").incluirConjuge], [true, false]);
+  c.acao("salvarConjugePreReserva", { incluir: true });
+  assert.equal(c.acao("preReservaEstado").incluirConjuge, true);
+  assert.equal(c.acao("salvarConjugePreReserva", { incluir: true }, token("TESTES")).erro, "SEM_PERMISSAO_TESTES");
+  const outra = cenarioPR({ dbPagina: "db-de-outra-base", linha: CASADO_PR });
+  assert.equal(outra.acao("salvarConjugePreReserva", { incluir: true }).erro, "PAGINA_DE_OUTRA_BASE");
+  assert.equal(outra.n.patches.length, 0);
+  assert.ok(!c.g.logs.join(" ").includes("Conjuge Teste"), "sem nome no log");
 });
 
 test("termo: conta mudada depois de gerar = TERMO_DESATUALIZADO; perfil TESTES não grava", () => {

@@ -1074,7 +1074,7 @@
                    destinosDoEnvio: destinosDoEnvio, resultadoPorEspaco: resultadoPorEspaco,
                    resumo: resumo, escala: escala, tipoAceito: tipoAceito, painelCarregando: painelCarregando,
                    htmlContrato: htmlContrato, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, mensagemMC: mensagemMC,
-                   topicosMC: topicosMC, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas,
+                   topicosMC: topicosMC, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas, htmlConjugePR: htmlConjugePR,
                    htmlCampos: htmlCampos, htmlConta: htmlConta, htmlFluxo: htmlFluxo, htmlFluxoVivo: htmlFluxoVivo, htmlFluxoDesconto: htmlFluxoDesconto, lerNumBR: lerNumBR, contaDoEstado: contaDoEstado, pedidoCampos: pedidoCampos,
                    contaDasEntradas: contaDasEntradas, faltasDaResposta: faltasDaResposta, detalheFluxoGravado: detalheFluxoGravado,
                    htmlFiadores: htmlFiadores, fiadoresDoEstado: fiadoresDoEstado, valoresFiadores: valoresFiadores,
@@ -1893,6 +1893,14 @@
       return /^\d{4}-\d{2}-\d{2}$/.test(p) ? ' max="' + p + '"' : "";
     } catch (e) { return ""; }
   }
+  /* 01/11/2026 (dono): "na pré-reserva não precisa do cônjuge, pode deixar a opção de incluir" — caixa desmarcada por
+     padrão, só quando o comprador é casado/união estável (e.temConjuge). Sem largura fixa: cabe em 375 px. */
+  function htmlConjugePR(e, dis) {
+    if (!e || !e.temConjuge) return "";
+    return '<div class="dz-linha"><label class="dz-pr-conj" style="display:flex;align-items:flex-start;gap:8px;margin:0;font-weight:600">' +
+      '<input type="checkbox" data-pr-conj="1"' + (e.incluirConjuge ? " checked" : "") + (dis || "") + ' style="margin:3px 0 0;flex:0 0 auto">' +
+      '<span>Incluir o cônjuge na pré-reserva (opcional)<br><span class="dz-rot" style="font-weight:400">Por padrão só o comprador assina.</span></span></label></div>';
+  }
   function htmlPreReserva(e, u) {
     u = u || {};
     var h = '<div class="grp">Termo de pré-reserva</div>';
@@ -1939,6 +1947,7 @@
     if (u.ocupado === "gerar") h += '<div class="dz-linha"><b>gerando o termo… (até 1 minuto)</b></div>';
     if (u.ocupado === "ver") h += '<div class="dz-linha"><b>abrindo o termo…</b></div>';
     if (u.ocupado === "conta") h += '<div class="dz-linha"><b>salvando a conta…</b></div>';
+    h += htmlConjugePR(e, dis);
     if (e.gerado) h += '<div class="dz-linha">Termo gerado</div>';   /* 31/10/2026 (dono): sem o nome do arquivo, como no contrato */
     if (u.faltas && u.faltas.length)
       h += '<div class="dz-aviso">Para gerar o termo, falta:</div><ul>' + u.faltas.map(function (f) { return "<li>" + esc(f) + "</li>"; }).join("") + "</ul>";
@@ -2387,7 +2396,8 @@
       var r = await chamarVenda({ action: "preReservaEstado", pageId: pageId });
       if (!vivo()) return;
       if (r.ok) { estadoP = { conta: r.conta || "", contaCampos: r.contaCampos || null, gerado: !!r.gerado, nome: r.nome || "", valor: r.valor,
-                              dataPagamento: r.dataPagamento || "", dataLimite: r.dataLimite || "", historico: r.historico || "" }; uiP.msg = ""; }
+                              dataPagamento: r.dataPagamento || "", dataLimite: r.dataLimite || "", historico: r.historico || "",
+                              incluirConjuge: !!r.incluirConjuge, temConjuge: !!r.temConjuge }; uiP.msg = ""; }
       else uiP.msg = mensagemPR(r);
       pintarP();
     }
@@ -2409,6 +2419,19 @@
         if (w) { try { w.close(); } catch (e) {} }
         uiAlvo.msg = msgErro(r);
       }
+    }
+    /* 01/11/2026: liga/desliga o cônjuge no termo; grava na hora e, se o servidor recusar, a caixa volta ao que estava */
+    async function aoMarcarConjugePR(marcado) {
+      if (uiP.ocupado || !estadoP) return;
+      uiP.ocupado = "conj"; uiP.msg = ""; pintarP();
+      var rj = await chamarVenda({ action: "salvarConjugePreReserva", pageId: pageId, incluir: !!marcado });
+      if (!vivo()) return;
+      uiP.ocupado = null;
+      if (rj.ok) {
+        estadoP.incluirConjuge = !!rj.incluirConjuge;
+        uiP.msg = rj.incluirConjuge ? "O cônjuge vai assinar o termo." + (estadoP.gerado ? " Envie para assinatura de novo." : "") : "Só o comprador assina o termo.";
+      } else uiP.msg = mensagemPR(rj);
+      pintarP();
     }
     async function aoClicarPR(acao) {
       if (uiP.ocupado || !estadoP) return;
@@ -2977,6 +3000,7 @@
         el.addEventListener("change", function (ev) {
           if (raiz !== el) return;
           if (ev.target.getAttribute("data-pr-c") === "forma") { guardarContaPR(); pintarP(); return; }
+          if (ev.target.hasAttribute("data-pr-conj")) { aoMarcarConjugePR(ev.target.checked); return; }
           var fx = ev.target.getAttribute("data-fx");
           if (fx === "t" || fx === "dmodo") { aoDigitarFluxo(ev.target); if (uiC.fluxoEd) pintar(); return; }   /* o tipo muda o reajuste mostrado; o modo do desconto, os campos */
           if (fx === "dde") { aoDigitarFluxo(ev.target); return; }

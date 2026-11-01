@@ -55,6 +55,7 @@ var LogContratoVenda = (function () {
     gerarVendaCondominio: function () { return "gerou a venda do condomínio"; },
     salvarContaPreReserva: function () { return "gravou a conta de devolução da pré-reserva"; },
     salvarPagamentoPreReserva: function () { return "gravou o valor e a data do pagamento da pré-reserva"; },
+    salvarConjugePreReserva: function (p) { return p && p.incluir === true ? "incluiu o cônjuge no termo de pré-reserva" : "tirou o cônjuge do termo de pré-reserva"; },
     gerarTermoPreReserva: function () { return "gerou o termo de pré-reserva"; },
     conferirDocumentos: function () { return "pediu a conferência dos documentos pela IA"; },
     confirmarConferencia: function () { return "confirmou um item da conferência dos documentos"; },

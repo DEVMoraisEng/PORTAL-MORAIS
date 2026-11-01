@@ -674,8 +674,9 @@ var ContratoVenda = (function () {
     /* 29/10: fluxo alterado no portal (só quando existe: o carimbo das vendas sem alteração não muda) */
     var livre = txt(c.fluxoPersonalizado) ? FLV().ler(txt(c.fluxoPersonalizado)) : null;
     if (livre) out.livre = livre;
-    /* 31/10/2026 (dono): comprador casado ou em união estável → o cônjuge assina o termo e o contrato, mesmo sem compor
-       renda. Só quando existe (o carimbo das vendas de solteiros não muda). */
+    /* 31/10/2026 (dono): comprador casado ou em união estável → o cônjuge assina o contrato, mesmo sem compor renda.
+       01/11/2026 (dono): no termo de pré-reserva ele só assina se o corretor ligou a opção na venda (PR_CONJUGE_<pageId>).
+       Só quando existe (o carimbo das vendas de solteiros não muda). */
     var cj = conjugeDoComprador(c.conjugeComprador);
     if (cj) out.conjugeComprador = cj;
     else if (c.conjugeComprador && fiadorCasado(c.conjugeComprador.estadoCivil)) out.conjugeCompradorSemNome = true;
@@ -1424,7 +1425,7 @@ var ContratoVenda = (function () {
     montarDadosContrato: montarDadosContrato, faltasContrato: faltasContrato, montarCondominio: montarCondominio,
     marcadores: marcadores, blocos: blocos, comPosChaves: comPosChaves, avisosContrato: avisosContrato,
     formaPagamentoCondominio: formaPagamentoCondominio, qualificacaoFiadores: qualificacaoFiadores,
-    fiadorCasado: fiadorCasado, faltasConjugeFiadores: faltasConjugeFiadores,   /* 30/10: fiador casado (Súmula 332) */
+    fiadorCasado: fiadorCasado, conjugeDoComprador: conjugeDoComprador, faltasConjugeFiadores: faltasConjugeFiadores,   /* 30/10: fiador casado (Súmula 332) */
     comissaoPctPelaRegra: comissaoPctPelaRegra, qualificacaoQuadro: qualificacaoQuadro, valorExtenso: valorExtenso, meioPagamentoCondominio: meioPagamentoCondominio, excedenteSinal: excedenteSinal, preReservaPaga: preReservaPaga,
     somaFluxo: function (fl) { return somaFluxo(fluxoCondominio(fl)); }, negritoDaLinha: negritoDaLinha,
     parcelasPreChaves: parcelasPreChaves, parcelasPosChaves: parcelasPosChaves,

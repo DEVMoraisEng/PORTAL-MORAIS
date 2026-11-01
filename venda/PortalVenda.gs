@@ -38,7 +38,7 @@ function tratar_(p) {
     if (!temAcessoVendas_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
     var grava = ["tipoCasa", "lerDocumento", "anexarDocumento", "soltarDocumento", "lerDocumentos", "copiarComprovante", "conferir", "devolver", "gerarContrato", "gerarPreContrato", "aprovarPreContrato", "escolherTestemunhas",
                  "salvarCamposContrato", "escolherContaRecebimento", "mcLancar", "assinaturaEnviar", "assinaturaEstado",
-                 "gerarVendaCondominio", "assinaturaReenviar", "assinaturaCancelar" /* 29/10 */, "salvarCondicoesEspeciais" /* 29/10 */, "redigirCondicoesEspeciais", "salvarFluxo" /* 29/10 */, "salvarContaPreReserva", "salvarPagamentoPreReserva" /* 31/10 */, "gerarTermoPreReserva",
+                 "gerarVendaCondominio", "assinaturaReenviar", "assinaturaCancelar" /* 29/10 */, "salvarCondicoesEspeciais" /* 29/10 */, "redigirCondicoesEspeciais", "salvarFluxo" /* 29/10 */, "salvarContaPreReserva", "salvarPagamentoPreReserva" /* 31/10 */, "salvarConjugePreReserva" /* 01/11 */, "gerarTermoPreReserva",
                  "conferirDocumentos", "confirmarConferencia" /* 28/10 */, "corrigirConferencia" /* 31/10 */, "salvarFiadores", "conjugeEhFiador2" /* 01/11: bloco Fiadores */,
                  "recebimentoConfirmar" /* entrega 14 */, "antecipacaoLer", "antecipacaoPdf" /* 31/10: AntecipacaoVenda.gs */].indexOf(p.action) >= 0;
     if (grava && String(sess.t || "").toUpperCase() === "TESTES") return { ok: false, erro: "SEM_PERMISSAO_TESTES" };
@@ -93,6 +93,7 @@ function executar_(col, sess, p) {
       case "preReservaEstado": return preReservaEstado_(col, p);
       case "salvarContaPreReserva": return salvarContaPreReserva_(col, sess, p);
       case "salvarPagamentoPreReserva": return salvarPagamentoPreReserva_(col, sess, p);
+      case "salvarConjugePreReserva": return salvarConjugePreReserva_(col, sess, p);   /* 01/11: opção de incluir o cônjuge no termo */
       case "gerarTermoPreReserva": return gerarTermoPreReserva_(col, sess, p);
       case "verTermoPreReserva": return verTermoPreReserva_(col, p);
       /* 28/10: termos de confissão de dívida (Confissao.gs) */

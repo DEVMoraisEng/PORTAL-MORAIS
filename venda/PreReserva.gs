@@ -1,6 +1,6 @@
 /* PreReserva — Termo de Pré-Reserva da unidade do condomínio (27/10/2026).
  * Arquivo do projeto PORTAL-VENDA (depois de PreReservaVenda, ContratoVenda, PortalVenda e GerarContrato).
- * Ações (PortalVenda.tratar_): preReservaEstado, salvarContaPreReserva, salvarPagamentoPreReserva (31/10), gerarTermoPreReserva, verTermoPreReserva;
+ * Ações (PortalVenda.tratar_): preReservaEstado, salvarContaPreReserva, salvarPagamentoPreReserva (31/10), salvarConjugePreReserva (01/11), gerarTermoPreReserva, verTermoPreReserva;
  * a assinatura usa as mesmas ações do contrato com doc = "PRE_RESERVA" (AssinaturaVenda.gs).
  * Propriedades do script: MODELO_PRE_RESERVA_ID (Google Docs do termo), PASTA_PROVISORIA_ID e CIDADE_ASSINATURA (as do contrato).
  * 31/10/2026 (dono): valor e data do pagamento são da venda (colunas PRÉ-RESERVA - VALOR / DATA PAGAMENTO);
@@ -51,12 +51,34 @@ function prDados_(col, p, pid, rot) {
   return { f: f, d: d, t: t, pg: pg };
 }
 
+/* 01/11/2026 (dono): o cônjuge do comprador só assina o TERMO se o corretor ligou a opção nesta venda. A escolha fica
+   numa propriedade do script (como TESTEMUNHAS_<pageId>), sem coluna nova no Notion: PR_CONJUGE_<pageId> = "1". */
+var PR_CONJUGE = "PR_CONJUGE_";
+function prConjugeIncluido_(pageId) { return prop_(PR_CONJUGE + pageId) === "1"; }
+/* comprador 1 casado ou em união estável com o cônjuge nomeado (as colunas ESTADO CIVIL e CONJUGE da venda) */
+function prTemConjuge_(pg) {
+  try {
+    var v = ctrPorChave_(pg.properties);
+    return !!ContratoVenda.conjugeDoComprador({ estadoCivil: ctrTxt_(ctrCampo_(v, "ESTADO CIVIL")), nome: ctrTxt_(ctrCampo_(v, "CONJUGE")) });
+  } catch (e) { return false; }
+}
+function salvarConjugePreReserva_(col, sess, p) {
+  var pid = String(p.pageId).slice(0, 8);
+  ctrLerPaginaVenda_(p.pageId);   /* só páginas da base de vendas (outra base lança PAGINA_DE_OUTRA_BASE) */
+  var incluir = p.incluir === true || p.incluir === "true" || p.incluir === 1 || p.incluir === "1";
+  if (incluir) PropertiesService.getScriptProperties().setProperty(PR_CONJUGE + p.pageId, "1");
+  else { try { PropertiesService.getScriptProperties().deleteProperty(PR_CONJUGE + p.pageId); } catch (e) { ctrLog_("salvarConjugePreReserva " + pid + " propriedade nao apagada"); } }
+  ctrLog_("salvarConjugePreReserva " + pid + (incluir ? " ligado" : " desligado") + " por " + ctrTxt_(sess && sess.u));
+  return { ok: true, incluirConjuge: incluir };
+}
+
 function preReservaEstado_(col, p) {
   var pg = ctrLerPaginaVenda_(p.pageId), g = prArquivoGerado_(pg);
   var conta = prTexto_(pg, PreReservaVenda.COL.CONTA), pag = prPagamento_(pg);
   return { ok: true, conta: conta, contaCampos: PreReservaVenda.lerConta(conta), gerado: !!g, nome: g ? g.nome : "",
            valor: pag.valor, dataPagamento: pag.data, dataLimite: PreReservaVenda.prazoDe(pag.data),
-           historico: prTexto_(pg, PreReservaVenda.COL.HISTORICO) };
+           historico: prTexto_(pg, PreReservaVenda.COL.HISTORICO),
+           temConjuge: prTemConjuge_(pg), incluirConjuge: prConjugeIncluido_(p.pageId) };
 }
 
 /* 01/11/2026: sinal da venda (ato + 30 + 60 + 90 da própria linha, sem ler cadastros); 0 = desconhecido — fluxo

@@ -348,3 +348,25 @@ test("01/11 (H5): testemunhas sem escolha mostram 'padrão: <nome 1> e <nome 2>'
   assert.match(D.htmlTestemunhas({ ...t, padrao: ["x", "a"] }, ""), /padrão: definido no envio/);
   assert.doesNotMatch(D.htmlTestemunhas({ ...t, escolhidas: ["a", "b"], padrao: [] }, ""), /padrão: /);
 });
+
+/* 01/11/2026 (dono): pré-reserva rápida e simples — a opção de incluir o cônjuge só aparece quando há cônjuge */
+test("pré-reserva: caixa 'Incluir o cônjuge' só com cônjuge, desmarcada por padrão, com a dica; desabilita no perfil TESTES", () => {
+  assert.equal(D.htmlConjugePR({ temConjuge: false, incluirConjuge: false }, ""), "");
+  assert.equal(D.htmlConjugePR({}, ""), "");
+  const h = D.htmlConjugePR({ temConjuge: true, incluirConjuge: false }, "");
+  assert.match(h, /<input type="checkbox" data-pr-conj="1"(?![^>]*checked)[^>]*>/);
+  assert.match(h, /Incluir o cônjuge na pré-reserva \(opcional\)/);
+  assert.match(h, /Por padrão só o comprador assina\./);
+  assert.match(D.htmlConjugePR({ temConjuge: true, incluirConjuge: true }, ""), /data-pr-conj="1" checked/);
+  assert.match(D.htmlConjugePR({ temConjuge: true, incluirConjuge: false }, " disabled"), /disabled/);
+});
+
+test("pré-reserva: a caixa do cônjuge está no bloco, o clique chama a ação e cabe em 375 px (sem largura fixa)", async () => {
+  const fs = await import("node:fs");
+  const src = fs.readFileSync(new URL("../../venda-dossie.js", import.meta.url), "utf8");
+  assert.match(src, /h \+= htmlConjugePR\(e, dis\);/);
+  assert.match(src, /action: "salvarConjugePreReserva", pageId: pageId, incluir:/);
+  assert.match(src, /incluirConjuge: !!r\.incluirConjuge, temConjuge: !!r\.temConjuge/);
+  const m = src.match(/function htmlConjugePR[^]*?\r?\n  }\r?\n/)[0];
+  assert.doesNotMatch(m, /width:\s*\d{3,}px/);
+});

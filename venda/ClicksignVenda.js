@@ -183,8 +183,10 @@ var ClicksignVenda = (function () {
   }
   function sigCompradores(dados) {
     var l = [sig("Comprador 1", PAPEIS.COMPRADOR, dados.comprador1, "comprador1", { rubrica: true })];
-    /* 31/10/2026 (dono): comprador casado → o cônjuge assina logo depois dele (contrato e termos; sem rubrica, sem
-       memorial). Se o cônjuge já é o comprador 2 (mesmo CPF ou nome), não assina duas vezes. */
+    /* 31/10/2026 (dono): comprador casado → o cônjuge assina logo depois dele (contrato e termos de confissão; sem rubrica,
+       sem memorial). 01/11/2026 (dono): no TERMO DE PRÉ-RESERVA o cônjuge só entra se o corretor ligou a opção na venda
+       (AssinaturaVenda.assEnviarTermo_ tira o conjugeComprador antes). Se o cônjuge já é o comprador 2 (mesmo CPF ou nome),
+       não assina duas vezes. */
     var cj = dados.condominio && dados.condominio.conjugeComprador, c2 = dados.comprador2;
     if (cj && !(c2 && ((soDigitos(cj.cpf) && soDigitos(cj.cpf) === soDigitos(c2.cpf)) || txt(cj.nome).toUpperCase() === txt(c2.nome).toUpperCase())))
       l.push(sig("Cônjuge do comprador 1", PAPEIS.COMPRADOR, cj, "conjugeComprador1"));

@@ -59,7 +59,9 @@ test("cônjuge que já é o comprador 2 não assina duas vezes", () => {
   assert.equal(conjuges(d).length, 0);
 });
 
-test("termo de pré-reserva (sem comprador 2): o cônjuge assina junto com o pré-reservante", () => {
+/* 01/11/2026 (dono): quem decide se o cônjuge entra no TERMO é AssinaturaVenda.assEnviarTermo_ (opção PR_CONJUGE_<pageId>, testes
+   em tela-venda-condominio.test.mjs); aqui, com o conjugeComprador presente, a lista de signatários o traz. */
+test("com conjugeComprador presente (termo com a opção ligada): o cônjuge assina junto com o pré-reservante", () => {
   const d = dados(CONJ);
   d.comprador2 = null; d.corretor = null;
   const papeis = CS.signatarios(d, CS.montarConfig({})).map((s) => s.papel);
