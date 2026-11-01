@@ -314,7 +314,7 @@ var ClicksignVenda = (function () {
    * esse nome como título, e a Clicksign o mantém. prefixo ("CONTRATO - ", "TERMO DE PRÉ-RESERVA - ", ...) + nome padrão. */
   function tituloDocumento(prefixo, endereco, casa, comprador) {
     var n = nomePadrao(endereco, casa, comprador);
-    return txt(prefixo) + " " + (n === "Contrato de compra e venda" ? "" : n);
+    return (txt(prefixo).replace(/\s+$/, "") + " " + (n === "Contrato de compra e venda" ? "" : n)).replace(/\s{2,}/g, " ").trim();
   }
   /* compatível com a chamada antiga (só o endereço) */
   function nomeEnvelope(endereco, casa, comprador) { return nomePadrao(endereco, casa, comprador); }
