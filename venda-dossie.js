@@ -1327,7 +1327,7 @@
   /* 31/10/2026 (dono, etapa 4): aba Financeiro do cartão do condomínio — as parcelas da venda lidas do Mais Controle
    * (financeiroEstado no PORTAL-VENDA) para o coordenador comercial ver o que está pago, a vencer e em atraso.
    * e = { lancada, lidoEm, semLeitura, parcelas: [{ grupo, numero, de, vencimento, valor, valorCorrigido, situacao
-   * ("paga" | "aberta" | "atrasada"), pagoEm, diasAtraso }] }; u = { filtro, todas, msg, carregando }. */
+   * ("paga" | "aberta" | "atrasada"), pagoEm, diasAtraso }] }; u = { filtro, msg, carregando, hoje }. */
   function htmlFinanceiro(e, u) {
     u = u || {};
     var h = '<div class="grp">Financeiro · parcelas no Mais Controle</div>';
@@ -1350,24 +1350,55 @@
       '<div class="cd-kpi"><small>Pago</small><b>' + brl(soma("paga")) + "</b><span>" + qt("paga") + " parcelas</span></div>" +
       '<div class="cd-kpi"><small>Em atraso</small><b>' + brl(soma("atrasada")) + "</b><span>" + qt("atrasada") + " parcelas</span></div>" +
       '<div class="cd-kpi"><small>A vencer (corrigido)</small><b>' + brl(soma("aberta")) + "</b><span>" + qt("aberta") + " parcelas</span></div></div>";
-    var f = u.filtro || "todas", FILTROS = [["todas", "Todas"], ["atrasada", "Em atraso"], ["aberta", "A vencer"], ["paga", "Pagas"]];
-    h += '<div class="dz-linha">' + FILTROS.map(function (x) {
-      return '<button type="button" class="bt bt-mini' + (x[0] === f ? "" : " ghost") + '" data-acao="f-filtro-' + x[0] + '">' + x[1] + "</button>";
-    }).join(" ") + ' <span class="ass-data">lido do Mais Controle em ' + esc(dataHora(e.lidoEm)) + "</span></div>";
-    var lista = P.filter(function (x) { return f === "todas" || x.situacao === f; });
-    var corte = !u.todas && f === "todas" && lista.length > 12 ? 12 : lista.length;
+    /* 31/10/2026 (dono, melhorias a–e): "Atualizado hoje às 17:14"; filtros com contagem (Em atraso em vermelho e só quando
+     * houver); em Todas, um bloco recolhível por Tipo no lugar do "Mostrar as N"; a próxima parcela a vencer em destaque */
+    var hoje = u.hoje || antHojeSP();
+    function atualizado(s) {
+      var m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(String(s || ""));
+      if (!m) return "";
+      var dia = m[1] + "-" + m[2] + "-" + m[3], hora = m[4] + ":" + m[5];
+      var d = new Date(Date.UTC(Number(hoje.slice(0, 4)), Number(hoje.slice(5, 7)) - 1, Number(hoje.slice(8, 10)) - 1));
+      var ontem = d.getUTCFullYear() + "-" + ("0" + (d.getUTCMonth() + 1)).slice(-2) + "-" + ("0" + d.getUTCDate()).slice(-2);
+      return dia === hoje ? "hoje às " + hora : dia === ontem ? "ontem às " + hora : "em " + m[3] + "/" + m[2] + "/" + m[1] + " às " + hora;
+    }
+    var prox = P.filter(function (x) { return x.situacao === "aberta"; })
+      .sort(function (a, b) { return String(a.vencimento).localeCompare(String(b.vencimento)); })[0] || null;
+    if (prox) h += '<div class="fin-prox-linha">Próxima: <b>' + esc(prox.grupo) + " " + esc(numero(prox)) + "</b> vence em <b>" + dt(prox.vencimento) +
+      "</b> — " + brl(prox.valorCorrigido || prox.valor) + "</div>";
+    var f = u.filtro || "todas", FILTROS = [["todas", "Todas", P.length], ["atrasada", "Em atraso", qt("atrasada")], ["aberta", "A vencer", qt("aberta")], ["paga", "Pagas", qt("paga")]];
+    var quando = atualizado(e.lidoEm);
+    h += '<div class="dz-linha">' + FILTROS.filter(function (x) { return x[2] || x[0] === "todas" || x[0] === f; }).map(function (x) {
+      return '<button type="button" class="bt bt-mini' + (x[0] === f ? "" : " ghost") + (x[0] === "atrasada" ? " fin-atraso" : "") + '" data-acao="f-filtro-' + x[0] + '">' +
+        x[1] + " (" + x[2] + ")</button>";
+    }).join(" ") + (quando ? ' <span class="ass-data" title="lido do Mais Controle em ' + esc(dataHora(e.lidoEm)) + '">Atualizado ' + esc(quando) + "</span>" : "") + "</div>";
     var SIT = { paga: '<b class="ass-ok">✓ paga</b>', aberta: '<span class="ass-data">a vencer</span>', atrasada: '<b class="ass-rec">⚠ em atraso</b>' };
     /* 31/10/2026 (dono): Situação | Parcela | Tipo | Vencimento | Valor Original | Valor Corrigido */
-    h += '<div style="overflow-x:auto"><table class="cd-fl vb-fin-tab"><thead><tr><th>Situação</th><th>Parcela</th><th>Tipo</th><th>Vencimento</th>' +
-      '<th style="text-align:right">Valor Original</th><th style="text-align:right">Valor Corrigido</th></tr></thead><tbody>' +
-      lista.slice(0, corte).map(function (x) {
-        /* data-rot: no celular (vendas.html, < 600 px) cada parcela vira um bloco com o nome de cada campo */
-        return '<tr><td data-rot="Situação">' + (SIT[x.situacao] || esc(x.situacao)) + (x.situacao === "paga" && x.pagoEm ? ' <span class="ass-data">em ' + dt(x.pagoEm) + "</span>" : "") +
-          (x.situacao === "atrasada" ? ' <span class="ass-data">' + Number(x.diasAtraso || 0) + " dias</span>" : "") +
-          '</td><td data-rot="Parcela">' + esc(numero(x)) + '</td><td data-rot="Tipo">' + esc(x.grupo) + '</td><td data-rot="Vencimento">' + dt(x.vencimento) +
-          '</td><td class="r" data-rot="Valor Original">' + brl(x.valor) + '</td><td class="r" data-rot="Valor Corrigido">' + brl(x.valorCorrigido || x.valor) + "</td></tr>";
-      }).join("") + "</tbody></table></div>";
-    if (corte < lista.length) h += '<div class="dz-linha"><button type="button" class="bt ghost bt-mini" data-acao="f-todas">Mostrar as ' + lista.length + " parcelas</button></div>";
+    function tabela(lista) {
+      return '<div style="overflow-x:auto"><table class="cd-fl vb-fin-tab"><thead><tr><th>Situação</th><th>Parcela</th><th>Tipo</th><th>Vencimento</th>' +
+        '<th style="text-align:right">Valor Original</th><th style="text-align:right">Valor Corrigido</th></tr></thead><tbody>' +
+        lista.map(function (x) {
+          /* data-rot: no celular (vendas.html, < 600 px) cada parcela vira um bloco com o nome de cada campo */
+          return "<tr" + (x === prox ? ' class="fin-prox"' : "") + '><td data-rot="Situação">' + (SIT[x.situacao] || esc(x.situacao)) +
+            (x === prox ? ' <span class="fin-selo">próxima</span>' : "") +
+            (x.situacao === "paga" && x.pagoEm ? ' <span class="ass-data">em ' + dt(x.pagoEm) + "</span>" : "") +
+            (x.situacao === "atrasada" ? ' <span class="ass-data">' + Number(x.diasAtraso || 0) + " dias</span>" : "") +
+            '</td><td data-rot="Parcela">' + esc(numero(x)) + '</td><td data-rot="Tipo">' + esc(x.grupo) + '</td><td data-rot="Vencimento">' + dt(x.vencimento) +
+            '</td><td class="r" data-rot="Valor Original">' + brl(x.valor) + '</td><td class="r" data-rot="Valor Corrigido">' + brl(x.valorCorrigido || x.valor) + "</td></tr>";
+        }).join("") + "</tbody></table></div>";
+    }
+    if (f !== "todas") h += tabela(P.filter(function (x) { return x.situacao === f; }));
+    else {
+      var ordem = [], grupos = {};
+      P.forEach(function (x) { var g = String(x.grupo); if (!grupos[g]) { grupos[g] = []; ordem.push(g); } grupos[g].push(x); });
+      h += ordem.map(function (g) {
+        var ps = grupos[g], pagas = ps.filter(function (x) { return x.situacao === "paga"; }).length;
+        var atrasos = ps.filter(function (x) { return x.situacao === "atrasada"; }).length;
+        var total = ps.reduce(function (a, x) { return a + Number(x.valorCorrigido || x.valor || 0); }, 0);
+        var aberto = atrasos || ps.indexOf(prox) >= 0;
+        return '<details class="cd-dobra fin-grupo"' + (aberto ? " open" : "") + "><summary>" + esc(g) + ' <span class="ass-data">' + pagas + " de " + ps.length +
+          (ps.length > 1 ? " pagas" : " paga") + (atrasos ? ' · <b class="ass-rec">' + atrasos + " em atraso</b>" : "") + " · " + brl(total) + "</span></summary><div>" + tabela(ps) + "</div></details>";
+      }).join("");
+    }
     if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
     return h;
   }
