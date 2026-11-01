@@ -110,9 +110,9 @@ test("(h) tela: o bloco aparece na aba Contrato com rótulos data-rot, lista de 
   assert.match(h, /<b>Fiador 1<\/b>/);
   assert.match(h, /<b>Fiador 2<\/b>/);
   assert.match(h, /<label data-rot="CPF"><span>CPF<\/span><input type="text"[^>]*data-fia-col="CPF FIADOR 1"/);
-  assert.match(h, /data-fia-col="FIADOR 1" value="FIADOR &lt;TESTE&gt;"/, "valor escapado");
+  assert.match(h, /data-fia-col="FIADOR 1" data-fia-orig="FIADOR &lt;TESTE&gt;" value="FIADOR &lt;TESTE&gt;"/, "valor escapado");
   assert.match(h, /<input type="email"[^>]*data-fia-col="EMAIL FIADOR 1"/);
-  assert.match(h, /<select data-fia-col="ESTADO CIVIL FIADOR 1"><option value="">—<\/option><option value="SOLTEIRO">SOLTEIRO<\/option>/);
+  assert.match(h, /<select data-fia-col="ESTADO CIVIL FIADOR 1" data-fia-orig=""><option value="">—<\/option><option value="SOLTEIRO">SOLTEIRO<\/option>/);
   assert.match(h, /<li>Fiador 1: CPF<\/li>/, "a falta aparece dentro do bloco");
   assert.match(h, /data-acao="c-fia-salvar">Salvar fiadores<\/button>/);
   assert.doesNotMatch(h, /c-fia-conjuge/);
@@ -127,12 +127,12 @@ test("tela: a falta coberta pelo bloco sai da lista geral; TESTES desabilita; se
   assert.equal((h.match(/<li>Fiador 1: CPF<\/li>/g) || []).length, 1);
   assert.match(h, /<li>Imóvel: CRI da matrícula<\/li>/);
   const t = D.htmlContrato(e, uic({ testes: true }));
-  assert.match(t, /data-fia-col="FIADOR 1" value="" disabled/);
+  assert.match(t, /data-fia-col="FIADOR 1" data-fia-orig="" value="" disabled/);
   assert.match(t, /data-acao="c-fia-salvar" disabled/);
   assert.doesNotMatch(D.htmlContrato(estado(F.camposFiadores({}, [], 24)), uic()), /dz-fia/);
   assert.doesNotMatch(D.htmlContrato(D.estadoContrato({ ok: true, gerado: false }), uic()), /dz-fia/, "servidor antigo");
   /* o rascunho digitado volta ao repintar */
-  assert.match(D.htmlContrato(e, uic({ rascunho: { "fia|CPF FIADOR 1": "111" } })), /data-fia-col="CPF FIADOR 1" value="111"/);
+  assert.match(D.htmlContrato(e, uic({ rascunho: { "fia|CPF FIADOR 1": "111" } })), /data-fia-col="CPF FIADOR 1" data-fia-orig="" value="111"/);
 });
 
 test("tela: título 'Fiadores e cônjuge' / 'Cônjuge do comprador', regime e o botão do #74", () => {
@@ -143,7 +143,7 @@ test("tela: título 'Fiadores e cônjuge' / 'Cônjuge do comprador', regime e o 
   const so = D.htmlContrato(estado(F.camposFiadores({ "REGIME": "REGIME ANTIGO TESTE" }, ["Cônjuge do comprador 1: CPF"], 24)), uic());
   assert.match(so, /<b>Cônjuge do comprador<\/b>/);
   assert.doesNotMatch(so, /<b>Fiador 1<\/b>/);
-  assert.match(so, /<select data-fia-col="REGIME"><option value="">—<\/option><option value="REGIME ANTIGO TESTE" selected>/, "o valor de hoje fica na lista");
+  assert.match(so, /<select data-fia-col="REGIME" data-fia-orig="REGIME ANTIGO TESTE"><option value="">—<\/option><option value="REGIME ANTIGO TESTE" selected>/, "o valor de hoje fica na lista");
   assert.match(so, /data-acao="c-fia-salvar">Salvar cônjuge<\/button>/);
   const falta = "Fiador 1: casado — o outro fiador tem de ser o cônjuge (CPF do cônjuge igual ao do outro fiador)";
   const c74 = D.htmlContrato(estado(F.camposFiadores({ "ESTADO CIVIL FIADOR 1": "CASADO", "CONJUGE FIADOR 1": "CONJUGE TESTE", "CPF CONJUGE FIADOR 1": "529.982.247-25" }, [falta], 36)), uic());
@@ -171,4 +171,49 @@ test("mensagens do bloco em português simples", () => {
     const m = D.mensagemContrato({ ok: false, erro: e });
     assert.ok(m && !/[A-Z]{3,}_[A-Z]/.test(m), e + " → " + m);
   }
+});
+
+/* ---- rodada de conserto 1 (revisão 01/11): depois de salvar, a tela mostra o que o SERVIDOR tem; só vai o que a
+   pessoa mexeu (campo intocado nunca apaga o que o servidor acabou de gravar) ---- */
+const ANTES = F.camposFiadores({ "FIADOR 1": "FIADOR TESTE", "ESTADO CIVIL FIADOR 1": "CASADO", "CONJUGE FIADOR 1": "FIADORA TESTE",
+  "CPF CONJUGE FIADOR 1": "529.982.247-25" }, ["Fiador 2 (termo de confissão): nome", "Fiador 1: e-mail teste"], 36);
+const DEPOIS = F.camposFiadores({ "FIADOR 1": "FIADOR TESTE", "ESTADO CIVIL FIADOR 1": "CASADO", "CONJUGE FIADOR 1": "FIADORA TESTE",
+  "CPF CONJUGE FIADOR 1": "529.982.247-25", "FIADOR 2": "FIADORA TESTE", "CPF FIADOR 2": "529.982.247-25", "ESTADO CIVIL FIADOR 2": "CASADO",
+  "CONJUGE FIADOR 2": "FIADOR TESTE" }, ["Fiador 1: e-mail teste"], 36);
+/* o que a tela antiga tinha nas caixas: [{coluna, valor (digitado), orig (o do servidor quando desenhou)}] */
+const caixas = (b, mexidas = {}) => [].concat(...b.fiadores.map((f) => f.campos)).map((c) =>
+  ({ coluna: c.coluna, orig: c.valor, valor: c.coluna in mexidas ? mexidas[c.coluna] : c.valor }));
+
+test("conserto 1: cada caixa leva o valor do servidor (data-fia-orig) para saber o que foi mexido", () => {
+  const h = D.htmlContrato(estado(DEPOIS), uic());
+  assert.match(h, /data-fia-col="FIADOR 2" data-fia-orig="FIADORA TESTE" value="FIADORA TESTE"/);
+  assert.match(h, /<select data-fia-col="ESTADO CIVIL FIADOR 2" data-fia-orig="CASADO">/);
+});
+
+test("conserto 1: o rascunho guarda só o que foi mexido — a tela velha não volta por cima do que o servidor gravou", () => {
+  const rasc = { "fia|FIADOR 1": "velho", "vendedor|RG": "fica" };
+  D.rascunhoFia(rasc, caixas(ANTES, { "EMAIL FIADOR 1": "f1@teste.example" }));
+  assert.deepEqual(rasc, { "vendedor|RG": "fica", "fia|EMAIL FIADOR 1": "f1@teste.example" });
+  /* "O cônjuge do Fiador 1 é o Fiador 2": a tela de antes tinha o Fiador 2 vazio e intocado */
+  const r2 = {};
+  D.rascunhoFia(r2, caixas(ANTES));
+  assert.deepEqual(r2, {});
+  const h = D.htmlContrato(estado(DEPOIS), uic({ rascunho: r2 }));
+  assert.match(h, /data-fia-col="FIADOR 2" data-fia-orig="FIADORA TESTE" value="FIADORA TESTE"/, "Fiador 2 aparece preenchido");
+  assert.match(h, /data-fia-col="CPF FIADOR 2" data-fia-orig="529.982.247-25" value="529.982.247-25"/);
+});
+
+test("conserto 1: Salvar sem mexer não manda nada; mexendo num campo só, só ele vai — nunca '' no Fiador 2", () => {
+  const e = estado(DEPOIS);
+  assert.equal(D.valoresFiadores(caixas(DEPOIS), e.fiadores), null);
+  assert.deepEqual(D.valoresFiadores(caixas(DEPOIS, { "EMAIL FIADOR 1": " f1@teste.example " }), e.fiadores), { "EMAIL FIADOR 1": "f1@teste.example" });
+  /* tela velha (Fiador 2 vazio, intocado) contra o estado novo: o vazio não vai */
+  assert.equal(D.valoresFiadores(caixas(ANTES), e.fiadores), null);
+  /* apagar de propósito continua valendo */
+  assert.deepEqual(D.valoresFiadores(caixas(DEPOIS, { "CONJUGE FIADOR 2": "" }), e.fiadores), { "CONJUGE FIADOR 2": "" });
+});
+
+test("conserto 1: a pergunta do botão diz o nome do Fiador 2 que vai ser trocado", () => {
+  assert.equal(D.perguntaConjugeFiador2(estado(DEPOIS).fiadores), "O Fiador 2 hoje é FIADORA TESTE. Trocar pelo cônjuge do Fiador 1? O Fiador 1 vira o cônjuge dele.");
+  assert.match(D.perguntaConjugeFiador2(estado(ANTES).fiadores), /^Copiar o cônjuge do Fiador 1 para o Fiador 2\?/);
 });

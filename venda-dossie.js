@@ -597,7 +597,9 @@
     if (!b) return "";
     var rasc = (u && u.rascunho) || {};
     function campo(c) {
-      var k = "fia|" + c.coluna, v = k in rasc ? String(rasc[k]) : c.valor, attr = ' data-fia-col="' + esc(c.coluna) + '"', inp;
+      /* data-fia-orig: o valor do servidor quando a tela foi desenhada — só o que difere dele foi mexido (conserto 1) */
+      var k = "fia|" + c.coluna, v = k in rasc ? String(rasc[k]) : c.valor, inp,
+          attr = ' data-fia-col="' + esc(c.coluna) + '" data-fia-orig="' + esc(c.valor) + '"';
       if (c.opcoes && c.opcoes.length) {
         /* o valor de hoje fica na lista mesmo fora das opções (não some ao abrir) */
         var ops = v && c.opcoes.indexOf(v) < 0 ? [v].concat(c.opcoes) : c.opcoes;
@@ -624,7 +626,26 @@
     h += '<div class="dz-msg dz-nota">Grava na linha desta venda. Depois, gere o pré-contrato de novo.</div></div>';
     return h;
   }
-  /* entradas da tela [{coluna, valor}] → {coluna: valor} só do que mudou (apagar também conta); nada mudou = null */
+  /* rodada de conserto 1 (revisão 01/11): o rascunho do bloco guarda SÓ o que a pessoa mexeu (valor ≠ data-fia-orig).
+     Caixa intocada da tela velha não volta por cima do que o servidor acabou de gravar. */
+  function mexido(x) {
+    var v = String(x.valor === null || x.valor === undefined ? "" : x.valor).trim();
+    return x.orig === undefined || x.orig === null ? true : v !== String(x.orig).trim();
+  }
+  function rascunhoFia(rasc, entradas) {
+    Object.keys(rasc).forEach(function (k) { if (/^fia\|/.test(k)) delete rasc[k]; });
+    (entradas || []).forEach(function (x) { if (x && x.coluna && mexido(x)) rasc["fia|" + x.coluna] = x.valor; });
+    return rasc;
+  }
+  /* a pergunta do botão "O cônjuge do Fiador 1 é o Fiador 2": diz quem sai, quando já há um Fiador 2 */
+  function perguntaConjugeFiador2(b) {
+    var f2 = (b && b.fiadores && b.fiadores[1]) || { campos: [] }, nome = "";
+    f2.campos.forEach(function (c) { if (c.coluna === "FIADOR 2") nome = String(c.valor || "").trim(); });
+    return nome ? "O Fiador 2 hoje é " + nome + ". Trocar pelo cônjuge do Fiador 1? O Fiador 1 vira o cônjuge dele."
+                : "Copiar o cônjuge do Fiador 1 para o Fiador 2? O Fiador 1 vira o cônjuge dele.";
+  }
+  /* entradas da tela [{coluna, valor, orig}] → {coluna: valor} só do que a pessoa mexeu e difere da base (apagar
+     também conta); nada mudou = null. Sem orig (chamada antiga), compara só com a base. */
   function valoresFiadores(entradas, b) {
     var atual = {}, out = {}, n = 0;
     if (b) {
@@ -633,7 +654,7 @@
     }
     (entradas || []).forEach(function (x) {
       var col = String((x && x.coluna) || "");
-      if (!Object.prototype.hasOwnProperty.call(atual, col)) return;
+      if (!Object.prototype.hasOwnProperty.call(atual, col) || !mexido(x)) return;
       var v = String(x.valor === null || x.valor === undefined ? "" : x.valor).trim();
       if (v === atual[col]) return;
       out[col] = v; n++;
@@ -1039,7 +1060,8 @@
                    topicosMC: topicosMC, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas,
                    htmlCampos: htmlCampos, htmlConta: htmlConta, htmlFluxo: htmlFluxo, htmlFluxoVivo: htmlFluxoVivo, htmlFluxoDesconto: htmlFluxoDesconto, lerNumBR: lerNumBR, contaDoEstado: contaDoEstado, pedidoCampos: pedidoCampos,
                    contaDasEntradas: contaDasEntradas, faltasDaResposta: faltasDaResposta, detalheFluxoGravado: detalheFluxoGravado,
-                   htmlFiadores: htmlFiadores, fiadoresDoEstado: fiadoresDoEstado, valoresFiadores: valoresFiadores };
+                   htmlFiadores: htmlFiadores, fiadoresDoEstado: fiadoresDoEstado, valoresFiadores: valoresFiadores,
+                   rascunhoFia: rascunhoFia, perguntaConjugeFiador2: perguntaConjugeFiador2 };
   if (typeof module !== "undefined" && module.exports) { module.exports = exportar; return; }
 
   /* ---------------- navegador ---------------- */
@@ -1962,7 +1984,14 @@
       if (!raiz || !raiz.querySelectorAll) return;
       raiz.querySelectorAll("[data-campo]").forEach(function (x) { uiC.rascunho[x.getAttribute("data-campo")] = x.value; });
       raiz.querySelectorAll("[data-conta-campo]").forEach(function (x) { uiC.rascunho["conta|" + x.getAttribute("data-conta-campo")] = x.value; });
-      raiz.querySelectorAll("[data-fia-col]").forEach(function (x) { uiC.rascunho["fia|" + x.getAttribute("data-fia-col")] = x.value; });   /* 01/11: bloco Fiadores */
+      rascunhoFia(uiC.rascunho, caixasFia());   /* 01/11: bloco Fiadores — só o que foi mexido */
+    }
+    function caixasFia() {
+      var l = [];
+      if (raiz && raiz.querySelectorAll) raiz.querySelectorAll("[data-fia-col]").forEach(function (x) {
+        l.push({ coluna: x.getAttribute("data-fia-col"), orig: x.getAttribute("data-fia-orig"), valor: x.value });
+      });
+      return l;
     }
     function limparRascunhoFia() { Object.keys(uiC.rascunho).forEach(function (k) { if (/^fia\|/.test(k)) delete uiC.rascunho[k]; }); }
     function contaDigitadaNaTela() {
@@ -2630,13 +2659,11 @@
       guardarRascunho();
       var pedido;
       if (acao === "c-fia-salvar") {
-        var entradas = [];
-        raiz.querySelectorAll("[data-fia-col]").forEach(function (x) { entradas.push({ coluna: x.getAttribute("data-fia-col"), valor: x.value }); });
-        var valores = valoresFiadores(entradas, b);
+        var valores = valoresFiadores(caixasFia(), b);
         if (!valores) { uiC.msg = "Nada mudou — preencha ou corrija um campo antes de salvar."; pintar(); return; }
         pedido = { action: "salvarFiadores", pageId: pageId, valores: valores };
       } else {
-        if (!window.confirm("Copiar o cônjuge do Fiador 1 para o Fiador 2? O Fiador 2 de hoje é substituído e o Fiador 1 vira o cônjuge dele.")) return;
+        if (!window.confirm(perguntaConjugeFiador2(b))) return;
         pedido = { action: "conjugeEhFiador2", pageId: pageId };
       }
       uiC.ocupadoContrato = "fia"; uiC.msg = ""; pintar();
@@ -2644,6 +2671,9 @@
       if (!vivo()) return;
       uiC.ocupadoContrato = null;
       if (r.ok) {
+        /* conserto 1: some com as caixas velhas ANTES de reler — o pintar() do carregarContrato não pode recapturá-las;
+           a tela nova mostra o que o servidor gravou (CPF formatado, Fiador 2 copiado) */
+        if (raiz && raiz.querySelectorAll) raiz.querySelectorAll("[data-fia-col]").forEach(function (x) { if (x.parentNode) x.parentNode.removeChild(x); });
         limparRascunhoFia();
         uiC.faltas = null; uiC.campos = null;
         var feito = (r.gravou && r.gravou.length) ? "Salvo na venda. Gere o pré-contrato de novo." : "Nada mudou.";
