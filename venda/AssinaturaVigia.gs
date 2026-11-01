@@ -8,8 +8,8 @@
  * Para poupar a cota de UrlFetch: de cada envelope aberto a vigia só faz o GET do envelope; documentos, eventos e
  * signatários só são lidos quando o status mudou desde a última vez (guardado em VIGIA_STATUS_<envelope>).
  * Nunca envia, reenvia nem cancela envelope. */
-var VIGIA_ANDAMENTO = "ASSINOU E ARMAZENOU CONTRATO";
 var VIGIA_STATUS = "VIGIA_STATUS_";
+var VIGIA_AGUARDA_MAX_MS = 24 * 3600000;
 var VIGIA_HORA_INICIO = 7, VIGIA_HORA_FIM = 21;   /* roda das 7h às 20h59 (São Paulo) */
 
 function vigiaNoHorario_() {
@@ -21,27 +21,35 @@ function vigiaAssinaturas() {
   if (!vigiaNoHorario_()) return;   /* antes de qualquer chamada de rede */
   var db = String(prop_("DB_VENDAS_COND") || "").trim();
   if (!db) { ctrLog_("vigia sem DB_VENDAS_COND"); return; }
-  var abertos = vigiaAbertos_(db), col = colunas_(), assinados = 0;
+  var abertos = vigiaAbertos_(db), col = colunas_(), assinados = 0, vistos = {};
   abertos.forEach(function (pg) {
+    vistos[pg.id] = true;
     try { if (vigiaUma_(col, pg)) assinados++; }
     catch (e) { ctrErro_("vigia " + String(pg.id).slice(0, 8), e); }
+  });
+  /* 01/11 (correção 3): ASSINADO esperando o arquivo da Clicksign (ASS_AGUARDANDO_<pageId>) — só estes, por até 24 h.
+     Linha antiga ASSINADO sem arquivo nunca é tocada. */
+  var props = assProps_(), chaves = props.getKeys ? props.getKeys() : [];
+  chaves.filter(function (k) { return k.indexOf(ASS_AGUARDANDO) === 0; }).forEach(function (k) {
+    var id = k.slice(ASS_AGUARDANDO.length), desde = Number(props.getProperty(k)) || 0;
+    if (!desde || Date.now() - desde > VIGIA_AGUARDA_MAX_MS) {
+      assApagarProp_(k);
+      ctrLog_("vigia " + id.slice(0, 8) + " desistiu: o arquivo assinado não veio em 24 h — use Atualizar situação");
+      return;
+    }
+    if (vistos[id]) return;
+    try { if (vigiaUma_(col, ctrLerPaginaVenda_(id))) assinados++; }
+    catch (e) { ctrErro_("vigia " + id.slice(0, 8) + " aguardando arquivo", e); }
   });
   ctrLog_("vigia " + abertos.length + " envelope(s) aberto(s), " + assinados + " assinado(s) agora");
 }
 
 /* linhas do condomínio com o contrato ENVIADO (nome real da coluna pelo esquema da base: pode ter espaço sobrando) */
 function vigiaAbertos_(db) {
-  var sch = (notion_("GET", "/databases/" + db, null) || {}).properties || {}, nome = null, arq = null;
-  Object.keys(sch).forEach(function (n) {
-    if (RegrasVenda.chave(n) === RegrasVenda.chave(ASS_COL.SITUACAO)) nome = n;
-    if (RegrasVenda.chave(n) === RegrasVenda.chave(ASS_COL.ASSINADO)) arq = n;
-  });
+  var sch = (notion_("GET", "/databases/" + db, null) || {}).properties || {}, nome = null;
+  Object.keys(sch).forEach(function (n) { if (RegrasVenda.chave(n) === RegrasVenda.chave(ASS_COL.SITUACAO)) nome = n; });
   if (!nome || sch[nome].type !== "rich_text") return [];
-  var S = ClicksignVenda.SITUACOES || { ENVIADO: "ENVIADO", ASSINADO: "ASSINADO" };
-  var filtro = { property: nome, rich_text: { equals: S.ENVIADO } };
-  /* 01/11 (sandbox): ASSINADO antes de a Clicksign gerar o arquivo — também relido até o PDF entrar */
-  if (arq && sch[arq].type === "files")
-    filtro = { or: [filtro, { and: [{ property: nome, rich_text: { equals: S.ASSINADO } }, { property: arq, files: { is_empty: true } }] }] };
+  var filtro = { property: nome, rich_text: { equals: ClicksignVenda.SITUACOES ? ClicksignVenda.SITUACOES.ENVIADO : "ENVIADO" } };
   var out = [], cursor = null;
   do {
     var corpo = { filter: filtro, page_size: 100 };
@@ -69,30 +77,9 @@ function vigiaUma_(col, pg) {
   }
   if (!r || !r.ok || r.situacao !== "ASSINADO") return false;
   if (r.aguardandoArquivo && !r.temAssinado) return false;   /* o PDF assinado ainda não entrou: a próxima volta da vigia conclui */
+  /* Andamento e Mais Controle: assPosAssinatura_, chamado pelo assinaturaEstado_ na hora em que o PDF entra */
   ctrLog_("vigia " + String(pg.id).slice(0, 8) + " contrato assinado");
-  vigiaMarcarAndamento_(pg);
-  if (String(prop_("MC_LANCAR_AO_ASSINAR") || "").trim().toUpperCase() === "SIM") vigiaLancarMC_(col, pg.id);
   return true;
-}
-
-function vigiaMarcarAndamento_(pg) {
-  var props = pg.properties || {}, nome = null;
-  Object.keys(props).forEach(function (n) { if (RegrasVenda.chave(n) === RegrasVenda.chave(VIGIA_ANDAMENTO)) nome = n; });
-  if (!nome) return;
-  var pr = props[nome], novo = {};
-  if (pr.type === "checkbox") { if (pr.checkbox) return; novo[nome] = { checkbox: true }; }
-  else if (pr.type === "select") { if (pr.select && RegrasVenda.chave(pr.select.name) === "SIM") return; novo[nome] = { select: { name: "SIM" } }; }
-  else return;
-  notion_("PATCH", "/pages/" + pg.id, { properties: novo });
-  ctrLog_("vigia " + String(pg.id).slice(0, 8) + " Andamento: " + VIGIA_ANDAMENTO + " = SIM");
-}
-
-function vigiaLancarMC_(col, pageId) {
-  var c = mcLerColunas_(pageId);
-  if (c.vendaId) return;
-  if (!/^PR[ÉE]VIA OK/i.test(c.situacao || "")) { ctrLog_("vigia " + String(pageId).slice(0, 8) + " MC: sem prévia OK, espera o botão"); return; }
-  var r = mcLancar_(col, { u: "vigia de assinaturas", t: "ADM" }, { pageId: pageId, aplicar: true });
-  ctrLog_("vigia " + String(pageId).slice(0, 8) + " MC: " + (r && r.ok ? "lançamento pedido" : "não lançou (" + (r && r.erro) + ")"));
 }
 
 /* rodar UMA vez no editor (ou de novo para reinstalar): troca o gatilho antigo, se houver */

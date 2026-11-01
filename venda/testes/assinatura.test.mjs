@@ -1253,20 +1253,39 @@ test("correção 1 (M-7): contrato ASSINADO também trava o que a tela esconde d
   assert.notEqual(c.acao("salvarPagamentoPreReserva").erro, "CONTRATO_ASSINADO");
 });
 
-test("vigia: contrato ASSINADO ainda sem o arquivo também é relido; aguardandoArquivo não marca o Andamento", () => {
+test("correção 3 (3): vigia só relê quem ficou ASSINADO esperando o arquivo (ASS_AGUARDANDO_<pageId>); desiste em 24 h; linhas antigas nunca", () => {
   const c = vigiaCenario(12);
-  const corpos = [];
+  const props = () => c.g.ctx.PropertiesService.getScriptProperties();
+  /* a consulta ao Notion voltou a ser só ENVIADO */
+  const corpos = [], notionReal = c.g.ctx.notion_;
   c.g.ctx.notion_ = (m, cam, corpo) => {
     if (m === "GET") return { properties: { "ASSINATURA - SITUAÇÃO ": { type: "rich_text" }, "CONTRATO ASSINADO": { type: "files" } } };
     corpos.push(corpo); return { results: [] };
   };
   c.g.ctx.vigiaAbertos_("db-cond");
-  assert.deepEqual(JSON.parse(JSON.stringify(corpos[0].filter)), { or: [
-    { property: "ASSINATURA - SITUAÇÃO ", rich_text: { equals: "ENVIADO" } },
-    { and: [{ property: "ASSINATURA - SITUAÇÃO ", rich_text: { equals: "ASSINADO" } }, { property: "CONTRATO ASSINADO", files: { is_empty: true } }] }] });
-  /* resposta aguardando o arquivo: não conta como assinado (nem Andamento nem Mais Controle) */
-  vm.runInContext("assinaturaEstado_ = function () { return { ok: true, situacao: 'ASSINADO', aguardandoArquivo: true, temAssinado: false }; };" +
-                  "vigiaMarcarAndamento_ = function () { __marcou = true; };", c.g.ctx);
-  assert.equal(c.g.ctx.vigiaUma_({}, { id: PAGE, properties: {} }), false);
-  assert.equal(c.g.ctx.__marcou, undefined);
+  assert.deepEqual(JSON.parse(JSON.stringify(corpos[0].filter)), { property: "ASSINATURA - SITUAÇÃO ", rich_text: { equals: "ENVIADO" } });
+  c.g.ctx.notion_ = notionReal;
+  /* vigiaAssinaturas: abertos vazio; um aguardando novo (relê) e um de 25 h atrás (desiste, apaga, registra) */
+  vm.runInContext("vigiaAbertos_ = function () { return []; }; __vistos = []; vigiaUma_ = function (col, pg) { __vistos.push(pg.id); return false; };", c.g.ctx);
+  const agora = c.g.ctx.Date.now(), OUTRA = "fedcba98765432100123456789abcdef";
+  props().setProperty("ASS_AGUARDANDO_" + PAGE, String(agora - 60000));
+  props().setProperty("ASS_AGUARDANDO_" + OUTRA, String(agora - 25 * 3600000));
+  c.g.ctx.vigiaAssinaturas();
+  assert.deepEqual([...c.g.ctx.__vistos], [PAGE]);
+  assert.equal(props().getProperty("ASS_AGUARDANDO_" + OUTRA), null);
+  assert.ok(c.g.logs.some((l) => /desistiu.*24 h/.test(l)), c.g.logs.join(" | "));
+  assert.ok(props().getProperty("ASS_AGUARDANDO_" + PAGE), "o novo continua esperando");
+});
+
+test("correção 3 (3): Atualizar situação grava ASS_AGUARDANDO_<pageId> enquanto espera o arquivo e apaga quando ele entra", () => {
+  const arq = { original: "https://s3.clicksign.falso/original.pdf" };
+  const c = cenario({ cs: { eventos: TODOS_ASSINARAM, arquivos: arq } });
+  const props = () => c.g.ctx.PropertiesService.getScriptProperties();
+  assert.equal(c.enviar().ok, true);
+  c.c.estado.status = "closed";
+  assert.equal(c.estado().aguardandoArquivo, true);
+  assert.match(String(props().getProperty("ASS_AGUARDANDO_" + PAGE)), /^\d{13}$/);
+  arq.signed = "https://s3.clicksign.falso/assinado.pdf";
+  assert.equal(c.estado().temAssinado, true);
+  assert.equal(props().getProperty("ASS_AGUARDANDO_" + PAGE), null);
 });

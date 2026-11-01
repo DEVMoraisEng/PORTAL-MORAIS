@@ -68,3 +68,37 @@ test("sandbox: a página da vendedora sozinha (sem a 17 de comprador) continua d
   assert.deepEqual(R.acharLinhas([PAG16], ZERO), []);
   assert.deepEqual(R.acharLinhas([PAG17], ZERO), []);
 });
+
+/* ---- correção 3 ---- */
+test("correção 3 (1): o corretor assina SÓ o contrato — nem os termos de confissão (nem a linha dele no termo)", () => {
+  const corretor = { papel: "Corretor", role: "real_estate_broker", nome: "Corretor Sandbox Teste", origem: "corretor" };
+  const docs = [{ id: "c", tipo: "contrato" }, { id: "t", tipo: "termo" }, { id: "m", tipo: "memorial" }];
+  assert.deepEqual(CS.documentosDoSignatario(corretor, docs), ["c"]);
+  assert.deepEqual(CS.documentosDoSignatario(LISTA[1], docs), ["c", "t"], "a vendedora continua nos dois");
+  const l = [{ page: "3", position: [0.1, 0.5], texto: "Nome: Corretor Sandbox Teste\nINTERMEDIADOR/CORRETOR" }];
+  assert.deepEqual(CS.atribuirLinhas(LISTA.concat([corretor]), l, "termo")[4], []);
+  assert.equal(CS.atribuirLinhas(LISTA.concat([corretor]), l, "contrato")[4].length, 1);
+});
+
+/* exemplo da revisão: vendedora PJ assina pelo representante (nome dele não está impresso); o nome do comprador está na
+   coluna do lado, na mesma altura, e a linha da vendedora é a única traçada naquela altura (lê a linha de baixo inteira) */
+test("correção 3 (5): leitura da linha inteira nunca dá a linha a outra pessoa — dois papéis ou vendedora com nome de comprador = ninguém", () => {
+  const pg = pag(16, [
+    it("Goiânia, 01 de novembro de 2026.", 78, 40),
+    traco(40, 330, 88),
+    traco(40, 78, 100),
+    it("EMPRESA SANDBOX SPE", 78, 112), it("Nome: TESTE CTO CASO UM SILVA", 330, 112),
+    it("VENDEDORA", 78, 124), it("COMPRADOR", 330, 124)]);
+  const l = R.acharLinhas([pg], ZERO);
+  assert.ok(l.length >= 1, JSON.stringify(l));
+  const r = CS.atribuirLinhas(LISTA, l, "contrato");
+  assert.deepEqual(r[0], [], "o comprador não fica com a linha da vendedora");
+  assert.deepEqual(r[1], [], "dois papéis na mesma leitura: ninguém (melhor sem assinatura do que na errada)");
+  /* papel VENDEDORA com o nome de um comprador: nunca vai para o comprador */
+  const so = [{ page: "1", position: [0.1, 0.1], texto: "EMPRESA SANDBOX SPE Nome: TESTE CTO CASO UM SILVA\nVENDEDORA" }];
+  assert.deepEqual(CS.atribuirLinhas(LISTA, so, "contrato").map((x) => x.length), [0, 0, 0, 0]);
+  /* o bloco novo (um papel por linha, cônjuge incluído) continua indo para cada um */
+  const cj = { papel: "Cônjuge do comprador 1", role: "buyer", nome: "CONJUGE SANDBOX TESTE", origem: "conjugeComprador1" };
+  const novo = [{ page: "1", position: [0.1, 0.2], texto: "Nome: CONJUGE SANDBOX TESTE\nCPF: 1\nCÔNJUGE DO COMPRADOR" }];
+  assert.equal(CS.atribuirLinhas(LISTA.concat([cj]), novo, "contrato")[4].length, 1);
+});

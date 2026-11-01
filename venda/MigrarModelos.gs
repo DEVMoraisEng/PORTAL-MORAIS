@@ -63,7 +63,11 @@ function migUmModelo_(id, m, aplicar) {
   var pasta = pais.hasNext() ? pais.next() : DriveApp.getRootFolder(), nome = arq.getName() + MIG_SUFIXO_COPIA;
   var ja = pasta.getFilesByName(nome);
   if (ja.hasNext()) {
-    var jaId = ja.next().getId();
+    var jaId = ja.next().getId(), tj = "";
+    try { tj = String(DocumentApp.openById(jaId).getBody().getText()); } catch (e) { tj = ""; }
+    /* correção 3: só recomenda a cópia de antes se ela estiver pronta — todos os marcadores e nenhum bloco antigo */
+    var pronta = marcadores.every(function (k) { return tj.indexOf("{{" + k + "}}") >= 0; }) && !MIG_TESTEMUNHA2.test(tj);
+    if (!pronta) return "CÓPIA EXISTENTE INCOMPLETA " + jaId + " — apague-a e rode Aplicar de novo";
     return "a cópia \"" + nome + "\" já existe (" + jaId + "), nada a fazer — Propriedade " + m.prop + ": trocar " + id + " por " + jaId;
   }
   var copia = arq.makeCopy(nome, pasta), cid = copia.getId(), blC;

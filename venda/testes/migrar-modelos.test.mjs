@@ -23,7 +23,7 @@ const clonar = (x) => JSON.parse(JSON.stringify(x));
 /* opc.copiaDiferente: a cópia sai com um parágrafo a menos; opc.copiaQuebra: a cópia lança ao inserir parágrafo */
 function docFalso(modelos, opc = {}) {
   const docs = {}, estado = { copias: [], abertos: [], salvos: [] };
-  for (const [id, m] of Object.entries(modelos)) docs[id] = { nome: m.nome, filhos: clonar(m.filhos), salvo: clonar(m.filhos), pasta: "pasta-" + id };
+  for (const [id, m] of Object.entries(modelos)) docs[id] = { nome: m.nome, filhos: clonar(m.filhos), salvo: clonar(m.filhos), pasta: m.pasta || "pasta-" + id };
   function caixa(d, filhos, ehCorpo) {
     const el = (n) => {
       const e = {
@@ -288,4 +288,22 @@ test("pré-reserva: o papel vale com qualquer grafia do É (PRÉ-RESERVANTE / PR
   so.filhos[5].linhas[0][1][1].texto = "PR�-RESERVANTE";
   const g2 = carregar({ MODELO_PRE_RESERVA_ID: "m-pr" }, { "m-pr": so });
   assert.match(g2.ctx.migrarModelosAssinaturasPrevia().join("\n"), /trocaria 1 bloco/);
+});
+
+test("correção 3 (2): cópia que já existe só é recomendada se tiver TODOS os marcadores e nenhum bloco antigo", () => {
+  const nome = "MODELO CONDOMINIO TESTE - assinaturas 01-11", pasta = "pasta-m-cond";
+  const casos = {
+    "só um marcador": [P("{{CIDADE_DATA}}"), P("{{ASSINATURAS_QUADRO}}"), P("")],
+    "marcadores mas o bloco antigo ainda lá": [P("{{ASSINATURAS_QUADRO}}"), P("{{ASSINATURAS_FINAL}}"), ...clonar(CONDOMINIO.filhos)],
+  };
+  for (const [caso, filhos] of Object.entries(casos)) {
+    const g = carregar({ MODELO_CONDOMINIO_ID: "m-cond" }, { "m-cond": CONDOMINIO, velha: { nome, pasta, filhos } });
+    const rel = g.ctx.migrarModelosAssinaturasAplicar().join("\n");
+    assert.match(rel, /MODELO_CONDOMINIO_ID: CÓPIA EXISTENTE INCOMPLETA velha — apague-a e rode Aplicar de novo/, caso + ": " + rel);
+    assert.ok(!/trocar m-cond por/.test(rel), caso + ": não recomenda");
+    assert.equal(g.estado.copias.length, 0, caso + ": não faz outra");
+  }
+  const boa = [P("{{CIDADE_DATA}}"), P("{{ASSINATURAS_QUADRO}}"), P("meio"), P("{{ASSINATURAS_FINAL}}"), P("")];
+  const g = carregar({ MODELO_CONDOMINIO_ID: "m-cond" }, { "m-cond": CONDOMINIO, velha: { nome, pasta, filhos: boa } });
+  assert.match(g.ctx.migrarModelosAssinaturasAplicar().join("\n"), /já existe \(velha\), nada a fazer — Propriedade MODELO_CONDOMINIO_ID: trocar m-cond por velha/);
 });

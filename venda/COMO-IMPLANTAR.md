@@ -1152,7 +1152,14 @@ apagadas.
   lidas; o papel escrito à direita, na altura do nome, conta.
 - Logo depois da última assinatura a Clicksign leva ~1 minuto para gerar o arquivo assinado. Nesse tempo o Atualizar
   situação mostra "Assinado por todos — o arquivo assinado fica pronto em instantes, clique em Atualizar situação" (antes
-  era erro). A vigia de assinaturas também relê os contratos ASSINADO ainda sem o arquivo, até ele entrar.
+  era erro). A vigia relê só esses contratos (Propriedade `ASS_AGUARDANDO_<pageId>`, apagada quando o PDF entra) por
+  até 24 h; depois desiste e registra. Contratos ASSINADO antigos nunca são relidos.
+- Quando o PDF assinado do contrato do condomínio entra — pelo Atualizar situação ou pela vigia — acontece uma vez só o
+  que antes só a vigia fazia: Andamento "ASSINOU E ARMAZENOU CONTRATO" = SIM e, com `MC_LANCAR_AO_ASSINAR` = SIM e a
+  prévia OK, o lançamento no Mais Controle.
+- Decisão do dono (01/11): o corretor assina SÓ o contrato — não entra nos termos de confissão (nem na pré-reserva).
+- Linha de assinatura cujo texto mostra dois papéis (blocos lado a lado lidos juntos), ou papel VENDEDORA com o nome
+  de um comprador, não vai para ninguém: melhor a pessoa assinar só na página da Clicksign do que na linha errada.
 
 ## Selfie com documento para comprador, cônjuge e fiadores (01/11/2026, plano 23 C)
 

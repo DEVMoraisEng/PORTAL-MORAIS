@@ -566,6 +566,7 @@ var ClicksignVenda = (function () {
   function documentosDoSignatario(s, docs) {
     return (docs || []).filter(function (d) {
       if (s.soTermos) return d.tipo === DOC.TERMO;
+      if (s.origem === "corretor") return d.tipo === DOC.CONTRATO;   /* 01/11 (dono): o corretor só assina o contrato */
       if (s.rubrica) return true;
       return d.tipo === DOC.CONTRATO || d.tipo === DOC.TERMO;
     }).map(function (d) { return d.id; });
@@ -641,7 +642,22 @@ var ClicksignVenda = (function () {
    * única "Nome: A / B" do modelo de hoje) → ninguém (a pessoa assina só na página da Clicksign, como antes).
    * Sem nome: pelo papel escrito — TESTEMUNHA n, FIADOR n, CORRETOR/INTERMEDIADOR, VENDEDORA/CREDORA, e COMPRADOR/DEVEDOR
    * só quando uma única pessoa assina como parte compradora. */
-  function assinaOTipo(s, tipo) { return tipo === DOC.TERMO ? true : tipo === DOC.CONTRATO ? !s.soTermos : false; }
+  /* 01/11 (dono): o corretor assina SÓ o contrato — nunca os termos de confissão (nem a pré-reserva) */
+  function assinaOTipo(s, tipo) { return tipo === DOC.TERMO ? s.origem !== "corretor" : tipo === DOC.CONTRATO ? !s.soTermos : false; }
+  /* correção 3 (5): papéis escritos no texto de uma linha, já normalizados (um por pessoa). Dois papéis diferentes = a
+     leitura pegou o bloco do lado: a linha não vai para ninguém (melhor sem assinatura posicionada do que na errada). */
+  var RE_PAPEIS = /\b(CONJUGE DO (?:COMPRADOR|PRE-RESERVANTE|FIADOR [12])|CREDORA\/VENDEDORA|DEVEDOR\/COMPRADOR|INTERMEDIADOR\/CORRETOR|VENDEDORA?|COMPRADOR|FIADOR [12]|TESTEMUNHA [12]|PRE-RESERVANTE|CORRETOR|INTERMEDIADOR)\b/g;
+  var PAPEL_NORMAL = { "CREDORA/VENDEDORA": "VENDEDOR", "VENDEDORA": "VENDEDOR", "DEVEDOR/COMPRADOR": "COMPRADOR",
+                       "INTERMEDIADOR/CORRETOR": "CORRETOR", "INTERMEDIADOR": "CORRETOR" };
+  function papeisNoTexto(t) {
+    var vistos = [], m;
+    RE_PAPEIS.lastIndex = 0;
+    while ((m = RE_PAPEIS.exec(t))) {
+      var p = PAPEL_NORMAL[m[1]] || m[1];
+      if (vistos.indexOf(p) < 0) vistos.push(p);
+    }
+    return vistos;
+  }
   function atribuirLinhas(lista, linhas, tipo) {
     lista = lista || [];
     var r = lista.map(function () { return []; });
@@ -649,9 +665,11 @@ var ClicksignVenda = (function () {
     lista.forEach(function (s, i) { if (assinaOTipo(s, tipo)) cands.push(i); if (s.origem === "testemunha") test.push(i); });
     function daOrigem(re) { var l = cands.filter(function (i) { return re.test(lista[i].origem || ""); }); return l.length === 1 ? l[0] : -1; }
     (linhas || []).forEach(function (l) {
-      var t = chave(l && l.texto), alvo = -1, m;
+      var t = chave(l && l.texto), alvo = -1, m, papeis = papeisNoTexto(t);
+      if (papeis.length > 1) return;
       var porNome = cands.filter(function (i) { var n = chave(lista[i].nome); return n.length >= 5 && t.indexOf(n) >= 0; });
-      if (porNome.length === 1) alvo = porNome[0];
+      /* linha da VENDEDORA com o nome de um comprador (coluna do lado): ninguém */
+      if (porNome.length === 1) alvo = papeis[0] === "VENDEDOR" && lista[porNome[0]].role !== PAPEIS.VENDEDOR ? -1 : porNome[0];
       /* correção 1 (I-3): linha de CÔNJUGE ("CÔNJUGE DO FIADOR 1", "CÔNJUGE") só pelo nome — o papel apontaria o fiador/comprador */
       else if (!porNome.length && !/CONJUGE/.test(t)) {
         if ((m = /TESTEMUNHA\s*([12])/.exec(t))) { var it = test[Number(m[1]) - 1]; alvo = it !== undefined && cands.indexOf(it) >= 0 ? it : -1; }

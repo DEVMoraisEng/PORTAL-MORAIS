@@ -4,6 +4,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
+import vm from "node:vm";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { criarGas, driveFalso, notionFalso, clicksignFalso, assinar, texto, COLUNAS_REAIS, DB_ID_PADRAO } from "./fakes.mjs";
 
 const req = createRequire(import.meta.url);
@@ -1467,4 +1471,43 @@ test("correção 1 (M5): erro ao montar o bloco não derruba o modelo antigo; no
   const cfd = cenarioCfd();
   quebrar(cfd);
   assert.equal(cfd.gerarFinal().ok, true, "contrato e termos com os modelos antigos");
+});
+
+/* ---- correção 3 (4): o que acontece quando o PDF assinado entra (Andamento e Mais Controle) — uma função só ---- */
+const ARQ_OK = { original: "https://s3.clicksign.falso/original.pdf", signed: "https://s3.clicksign.falso/assinado.pdf" };
+const VIGIA_SRC = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "AssinaturaVigia.gs"), "utf8");
+function contarPos(c) { c.g.ctx.__pos = []; vm.runInContext("assPosAssinatura_ = function (col, pageId) { __pos.push(pageId); };", c.g.ctx); }
+
+test("correção 3 (4): Atualizar situação que guarda o PDF assinado faz o pós-assinatura uma vez; de novo, não repete", () => {
+  const c = cenario({ cs: { arquivos: ARQ_OK }, linha: { "ASSINOU E ARMAZENOU CONTRATO": { checkbox: false } } });
+  assert.equal(c.gerarFinal().ok, true);
+  assert.equal(c.acao("assinaturaEnviar", rub(c)).ok, true);
+  c.c.estado.status = "closed";
+  assert.equal(c.acao("assinaturaEstado").situacao, "ASSINADO");
+  assert.equal(c.n.pagina.properties["ASSINOU E ARMAZENOU CONTRATO"].checkbox, true, "Andamento marcado pelo botão " + c.g.logs.filter((l) => /pos-assinatura|anexado|ASSINOU/.test(l)).join(" | "));
+  contarPos(c);
+  assert.equal(c.acao("assinaturaEstado").situacao, "ASSINADO");
+  assert.deepEqual([...c.g.ctx.__pos], [], "PDF já guardado: não repete");
+});
+
+test("correção 3 (4): pela vigia também uma vez só (a mesma função, chamada de dentro do assinaturaEstado_)", () => {
+  const c = cenario({ cs: { arquivos: ARQ_OK } });
+  vm.runInContext(VIGIA_SRC, c.g.ctx, { filename: "AssinaturaVigia.gs" });
+  assert.equal(c.gerarFinal().ok, true);
+  assert.equal(c.acao("assinaturaEnviar", rub(c)).ok, true);
+  c.c.estado.status = "closed";
+  contarPos(c);
+  assert.equal(c.g.ctx.vigiaUma_(c.g.ctx.colunas_(), c.g.ctx.ctrLerPaginaVenda_(COND)), true);
+  assert.deepEqual([...c.g.ctx.__pos], [COND]);
+});
+
+test("correção 3 (1): no envelope com termos, o corretor (ASSINATURA_INCLUIR_CORRETOR=SIM) assina só o contrato", () => {
+  const c = cenarioCfd({ cs: { arquivos: ARQ_OK }, props: { ASSINATURA_INCLUIR_CORRETOR: "SIM" } });
+  assert.equal(c.gerarFinal().ok, true);
+  const r = c.acao("assinaturaEnviar", rub(c));
+  assert.equal(r.ok, true, JSON.stringify(r.faltas || r));
+  const corr = c.c.estado.signers.find((s) => s.attributes.email === "corretor@teste.example");
+  const reqs = c.c.chamadas.filter((x) => x.metodo === "POST" && x.caminho === "/envelopes/env-1/requirements");
+  const docs = [...new Set(reqs.filter((q) => q.corpo.data.relationships.signer.data.id === corr.id).map((q) => q.corpo.data.relationships.document.data.id))];
+  assert.deepEqual(docs, ["doc-1"]);
 });

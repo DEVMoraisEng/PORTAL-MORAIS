@@ -22,6 +22,10 @@ ASS_TIPOS[ASS_COL.SITUACAO] = "rich_text";
 ASS_TIPOS[ASS_COL.ASSINADO] = "files";
 var CS_JSONAPI = "application/vnd.api+json";
 var ASS_PENDENTE = "ASSINATURA_PENDENTE_";
+/* 01/11 (correção 3): contrato ASSINADO esperando a Clicksign gerar o arquivo — hora (ms) em que começou a esperar.
+   A vigia relê só estes (até 24 h) e a própria leitura que guarda o PDF apaga a Propriedade. */
+var ASS_AGUARDANDO = "ASS_AGUARDANDO_";
+var VIGIA_ANDAMENTO = "ASSINOU E ARMAZENOU CONTRATO";   /* coluna do Andamento marcada por assPosAssinatura_ */
 var ASS_PAPEIS = "ASSINATURA_PAPEIS_";
 var ASS_VIGIA_STATUS = "VIGIA_STATUS_";   /* + id do envelope = último status visto pela vigia (AssinaturaVigia.gs); apagado quando o envelope termina ou é descartado */
 var ASS_REENVIO = "ASSINATURA_REENVIO_";   /* + id do envelope = hora (ms) do último reenvio do aviso */
@@ -642,8 +646,15 @@ function assinaturaEstado_(col, p) {
     } catch (e) { ctrErro_("assinatura estado " + pid + " anexo falhou", e); return { ok: false, erro: "UPLOAD_FALHOU" }; }
     assLog_("estado " + pid + " envelope " + envId + " assinado anexado");
     semArquivo = false;
+    var anexouContrato = true;
   }
   if (!gravar(sit)) return { ok: false, erro: "GRAVACAO_FALHOU" };
+  if (sit === S.ASSINADO && !doc.pre) {
+    if (aguardando) { if (!prop_(ASS_AGUARDANDO + p.pageId)) assProps_().setProperty(ASS_AGUARDANDO + p.pageId, String(Date.now())); }
+    else if (prop_(ASS_AGUARDANDO + p.pageId)) assApagarProp_(ASS_AGUARDANDO + p.pageId);
+  }
+  /* correção 3 (4): o PDF do contrato acabou de entrar (pelo botão ou pela vigia) — Andamento e Mais Controle, uma vez */
+  if (anexouContrato && !doc.pre) assPosAssinatura_(col, p.pageId);
 
   var feitos = ClicksignVenda.assinaram(signers, eventos);
   var lista = assListaSignatarios_(envId, signers, eventos);
@@ -657,6 +668,41 @@ function assinaturaEstado_(col, p) {
   }
   return resp;
 }
+
+/* 01/11 (correção 3, item 4): o que acontece quando o PDF assinado do contrato do condomínio entra na casa — pelo
+ * "Atualizar situação" ou pela vigia (os dois passam por assinaturaEstado_, que chama isto só na hora em que anexa):
+ *  - marca "ASSINOU E ARMAZENOU CONTRATO" = SIM no Andamento (se a coluna existir e ainda não estiver SIM);
+ *  - só com a Propriedade MC_LANCAR_AO_ASSINAR = SIM e a prévia do Mais Controle OK, pede o lançamento (mcLancar_, com
+ *    a trava e o vendaId que impedem lançar duas vezes). Erro aqui nunca derruba a situação já gravada. */
+function assPosAssinatura_(col, pageId) {
+  var id8 = String(pageId).slice(0, 8), pg;
+  try { pg = notion_("GET", "/pages/" + pageId, null); } catch (e) { ctrErro_("pos-assinatura " + id8 + " leitura", e); return; }
+  if (!pg || vendaBaseDaPagina_(pg) !== "CONDOMINIO") return;
+  try { vigiaMarcarAndamento_(pg); } catch (e) { ctrErro_("pos-assinatura " + id8 + " andamento", e); }
+  if (String(prop_("MC_LANCAR_AO_ASSINAR") || "").trim().toUpperCase() === "SIM") {
+    try { vigiaLancarMC_(col, pageId); } catch (e) { ctrErro_("pos-assinatura " + id8 + " mais controle", e); }
+  }
+}
+function vigiaMarcarAndamento_(pg) {
+  var props = pg.properties || {}, nome = null;
+  Object.keys(props).forEach(function (n) { if (RegrasVenda.chave(n) === RegrasVenda.chave(VIGIA_ANDAMENTO)) nome = n; });
+  if (!nome) return;
+  var pr = props[nome], novo = {};
+  if (pr.type === "checkbox") { if (pr.checkbox) return; novo[nome] = { checkbox: true }; }
+  else if (pr.type === "select") { if (pr.select && RegrasVenda.chave(pr.select.name) === "SIM") return; novo[nome] = { select: { name: "SIM" } }; }
+  else return;
+  notion_("PATCH", "/pages/" + pg.id, { properties: novo });
+  ctrLog_("vigia " + String(pg.id).slice(0, 8) + " Andamento: " + VIGIA_ANDAMENTO + " = SIM");
+}
+
+function vigiaLancarMC_(col, pageId) {
+  var c = mcLerColunas_(pageId);
+  if (c.vendaId) return;
+  if (!/^PR[ÉE]VIA OK/i.test(c.situacao || "")) { ctrLog_("vigia " + String(pageId).slice(0, 8) + " MC: sem prévia OK, espera o botão"); return; }
+  var r = mcLancar_(col, { u: "vigia de assinaturas", t: "ADM" }, { pageId: pageId, aplicar: true });
+  ctrLog_("vigia " + String(pageId).slice(0, 8) + " MC: " + (r && r.ok ? "lançamento pedido" : "não lançou (" + (r && r.erro) + ")"));
+}
+
 
 /* ---- reenviar o aviso de assinatura aos pendentes ----
  * Só com envelope ativo (running, sem recusa) e com alguém pendente. Um por vez (LockService) e no máximo
