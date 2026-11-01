@@ -681,7 +681,10 @@ function contratoEstado_(col, p) {
     if (etapa !== "FINAL") {
       try {
         var xf = ctrDadosAtuais_(col, p, String(p.pageId).slice(0, 8), "contratoEstado faltas");
-        r.faltasCliente = ((xf.resp && xf.resp.faltas) || []).filter(function (t) { return /^(Comprador|Fiador|C[ôo]njuge)/i.test(String(t)); });
+        var todasFaltas = (xf.resp && xf.resp.faltas) || [];
+        r.faltasCliente = todasFaltas.filter(function (t) { return /^(Comprador|Fiador|C[ôo]njuge)/i.test(String(t)); });
+        /* 01/11/2026 (teste e2e): bloco Fiadores / cônjuge do comprador para corrigir na hora (Conferencia.gs fiaEstado_) */
+        try { var fb = fiaEstado_(pgE, todasFaltas); if (fb) r.fiadores = fb; } catch (e2) { ctrErro_("contratoEstado fiadores", e2); }
       } catch (e) { ctrErro_("contratoEstado faltas", e); }
     } else r.faltasCliente = [];
   }

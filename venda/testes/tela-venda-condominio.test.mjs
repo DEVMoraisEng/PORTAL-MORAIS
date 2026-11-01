@@ -442,6 +442,25 @@ test("30/10: fiador casado — o GerarContrato lê ESTADO CIVIL / CONJUGE / CPF 
   assert.equal(r2.ok, true, JSON.stringify(r2));
 });
 
+test("01/11: bloco Fiadores — o contratoEstado traz o bloco com o aviso do #74; 'o cônjuge é o Fiador 2' destrava o pré-contrato", () => {
+  const c = cenarioCfd({ linha: { "ESTADO CIVIL FIADOR 1": rt("CASADO"), "CONJUGE FIADOR 1": rt("Fiadora Dois Teste"),
+    "CPF CONJUGE FIADOR 1": rt("246.813.579-28"), "EMAIL CONJUGE FIADOR 1": eml("f2@teste.example"),
+    "FIADOR 2": rt(""), "CPF FIADOR 2": rt(""), "EMAIL FIADOR 2": eml(null),
+    "CONJUGE FIADOR 2": rt(""), "CPF CONJUGE FIADOR 2": rt(""), "EMAIL CONJUGE FIADOR 2": eml(null) } });
+  const e = c.acao("contratoEstado");
+  assert.equal(e.ok, true, JSON.stringify(e));
+  assert.equal(e.fiadores.titulo, "Fiadores");
+  assert.ok(e.fiadores.faltas.includes("Fiador 2 (termo de confissão): nome"), e.fiadores.faltas.join(" | "));
+  assert.equal(e.fiadores.botaoConjuge, true);
+  assert.equal(e.fiadores.fiadores[0].campos[0].valor, "Fiador Um Teste");
+  const r = c.acao("conjugeEhFiador2");
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(c.txt("FIADOR 2"), "Fiadora Dois Teste");
+  const pre = c.acao("gerarPreContrato");
+  assert.equal(pre.ok, true, JSON.stringify(pre.faltas || pre));
+  assert.equal(c.acao("contratoEstado").fiadores, undefined, "sem falta, o bloco some");
+});
+
 test("28/10: Clicksign — contrato e termos no MESMO envelope; fiadores assinam só os termos; termos assinados nas colunas deles", () => {
   const c = cenarioCfd({ cs: { arquivos: { original: "https://s3.clicksign.falso/original.pdf", signed: "https://s3.clicksign.falso/assinado.pdf" } } });
   assert.equal(c.gerarFinal().ok, true);

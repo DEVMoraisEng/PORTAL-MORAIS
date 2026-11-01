@@ -378,6 +378,16 @@
   function grupoDoEspaco(id) { return /^IMOVEL_/.test(String(id || "")) ? "imovel" : "comprador"; }
 
   var MSG_CONTRATO = {
+    /* 01/11/2026: bloco Fiadores (e cônjuge do comprador) */
+    COLUNA_NAO_PERMITIDA: "Esse campo não pode ser gravado por aqui — recarregue a página e tente de novo.",
+    CPF_INVALIDO: "CPF inválido — confira os números e salve de novo. Nada foi gravado.",
+    EMAIL_INVALIDO: "E-mail inválido — confira e salve de novo. Nada foi gravado.",
+    OPCAO_INVALIDA: "Escolha uma das opções da lista e salve de novo. Nada foi gravado.",
+    NADA_PARA_GRAVAR: "Nada mudou — preencha ou corrija um campo antes de salvar.",
+    FIADOR_1_NAO_CASADO: "O Fiador 1 não está como casado — escolha o estado civil dele, salve e tente de novo.",
+    FIADOR_1_INCOMPLETO: "Preencha o nome e o CPF do Fiador 1, salve e tente de novo.",
+    CONJUGE_FIADOR_1_INCOMPLETO: "Preencha o nome e o CPF do cônjuge do Fiador 1, salve e tente de novo.",
+    SO_CONDOMINIO: "Isso só vale para as vendas do condomínio.",
     MODELO_NAO_CONFIGURADO: "O modelo do contrato não está configurado neste ambiente.",
     TESTEMUNHAS_INVALIDAS: "Essas testemunhas não estão mais na lista — recarregue e escolha de novo.",
     ENVELOPE_ABERTO: "A assinatura já foi enviada — as testemunhas não mudam mais.",
@@ -436,6 +446,9 @@
     if (r && r.fluxo && typeof r.fluxo === "object") o.fluxo = fluxoDoEstado(r.fluxo);
     /* 31/10/2026: o que falta de obrigatório que o cliente/corretor completa pelo link (null = o servidor não disse) */
     if (r && Array.isArray(r.faltasCliente)) o.faltasCliente = r.faltasCliente.map(String);
+    /* 01/11/2026: bloco Fiadores / cônjuge do comprador (só vem no condomínio e quando falta algo) */
+    var fb = fiadoresDoEstado(r && r.fiadores);
+    if (fb) o.fiadores = fb;
     /* 29/10: condições especiais desta venda (item 16 do quadro-resumo do condomínio) */
     if (r && r.condicoes && typeof r.condicoes === "object")
       o.condicoes = { coluna: !!r.condicoes.coluna, texto: String(r.condicoes.texto || ""), por: String(r.condicoes.por || ""),
@@ -560,6 +573,73 @@
     }
     return '<div class="dz-linha"><span class="dz-rot">Testemunhas da assinatura:</span>' + sel(0) + " " + sel(1) + "</div>";
   }
+  /* 01/11/2026 (teste e2e): bloco "Fiadores" (e cônjuge do comprador) na aba Contrato do condomínio — o servidor
+     (contratoEstado → fiadores, FiadoresVenda.camposFiadores) diz os campos; aqui só desenha e junta o que mudou. */
+  var RE_FALTA_FIA = /^(Fiador [12]\b|C[ôo]njuge do comprador)/;
+  function fiadoresDoEstado(b) {
+    if (!b || typeof b !== "object" || !b.mostrar) return null;
+    function campos(l) {
+      return (Array.isArray(l) ? l : []).map(function (c) {
+        c = c || {};
+        return { coluna: String(c.coluna || ""), rotulo: String(c.rotulo || c.coluna || ""),
+                 valor: c.valor === null || c.valor === undefined ? "" : String(c.valor), tipo: String(c.tipo || "texto"),
+                 opcoes: Array.isArray(c.opcoes) ? c.opcoes.map(String) : null };
+      }).filter(function (c) { return c.coluna; });
+    }
+    return { titulo: String(b.titulo || "Fiadores"), precisa: !!b.precisa,
+             fiadores: (Array.isArray(b.fiadores) ? b.fiadores : []).map(function (f) { return { n: Number(f && f.n) || 0, campos: campos(f && f.campos) }; }),
+             conjuge: b.conjuge && typeof b.conjuge === "object" ? { campos: campos(b.conjuge.campos) } : null,
+             faltas: Array.isArray(b.faltas) ? b.faltas.map(String) : [], aviso: String(b.aviso || ""), botaoConjuge: !!b.botaoConjuge,
+             semColuna: Array.isArray(b.semColuna) ? b.semColuna.map(String) : [] };
+  }
+  /* cada campo é um rótulo em cima da caixa (data-rot); no celular, um por linha na largura toda (CSS .dz-fia) */
+  function htmlFiadores(b, u, dis) {
+    if (!b) return "";
+    var rasc = (u && u.rascunho) || {};
+    function campo(c) {
+      var k = "fia|" + c.coluna, v = k in rasc ? String(rasc[k]) : c.valor, attr = ' data-fia-col="' + esc(c.coluna) + '"', inp;
+      if (c.opcoes && c.opcoes.length) {
+        /* o valor de hoje fica na lista mesmo fora das opções (não some ao abrir) */
+        var ops = v && c.opcoes.indexOf(v) < 0 ? [v].concat(c.opcoes) : c.opcoes;
+        inp = "<select" + attr + dis + '><option value="">—</option>' + ops.map(function (o) {
+          return '<option value="' + esc(o) + '"' + (o === v ? " selected" : "") + ">" + esc(o) + "</option>";
+        }).join("") + "</select>";
+      } else {
+        inp = '<input type="' + (c.tipo === "email" ? "email" : "text") + '" maxlength="300"' + (c.tipo === "cpf" ? ' inputmode="numeric"' : "") +
+          attr + ' value="' + esc(v) + '"' + dis + ">";
+      }
+      return '<label data-rot="' + esc(c.rotulo) + '"><span>' + esc(c.rotulo) + "</span>" + inp + "</label>";
+    }
+    var h = '<div class="dz-fia-bloco"><div class="dz-linha dz-grupo"><b>' + esc(b.titulo) + "</b></div>";
+    if (b.faltas.length) h += '<div class="dz-aviso">Falta:</div><ul>' + b.faltas.map(function (f) { return "<li>" + esc(f) + "</li>"; }).join("") + "</ul>";
+    if (b.aviso) h += '<div class="dz-aviso">' + esc(b.aviso) + "</div>";
+    b.fiadores.forEach(function (f) {
+      h += '<div class="dz-linha"><b>Fiador ' + f.n + '</b></div><div class="dz-linha dz-fia">' + f.campos.map(campo).join("") + "</div>";
+    });
+    if (b.conjuge) h += '<div class="dz-linha"><b>Cônjuge do comprador 1</b></div><div class="dz-linha dz-fia">' + b.conjuge.campos.map(campo).join("") + "</div>";
+    if (b.semColuna.length) h += '<div class="dz-aviso">A base não tem a coluna ' + esc(b.semColuna.join(", ")) + " — avise o desenvolvedor.</div>";
+    var rot = b.precisa && b.conjuge ? "Salvar fiadores e cônjuge" : b.precisa ? "Salvar fiadores" : "Salvar cônjuge";
+    h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-fia-salvar"' + dis + ">" + rot + "</button>" +
+      (b.botaoConjuge ? ' <button type="button" class="bt ghost bt-mini" data-acao="c-fia-conjuge"' + dis + ">O cônjuge do Fiador 1 é o Fiador 2</button>" : "") + "</div>";
+    h += '<div class="dz-msg dz-nota">Grava na linha desta venda. Depois, gere o pré-contrato de novo.</div></div>';
+    return h;
+  }
+  /* entradas da tela [{coluna, valor}] → {coluna: valor} só do que mudou (apagar também conta); nada mudou = null */
+  function valoresFiadores(entradas, b) {
+    var atual = {}, out = {}, n = 0;
+    if (b) {
+      b.fiadores.forEach(function (f) { f.campos.forEach(function (c) { atual[c.coluna] = c.valor; }); });
+      if (b.conjuge) b.conjuge.campos.forEach(function (c) { atual[c.coluna] = c.valor; });
+    }
+    (entradas || []).forEach(function (x) {
+      var col = String((x && x.coluna) || "");
+      if (!Object.prototype.hasOwnProperty.call(atual, col)) return;
+      var v = String(x.valor === null || x.valor === undefined ? "" : x.valor).trim();
+      if (v === atual[col]) return;
+      out[col] = v; n++;
+    });
+    return n ? out : null;
+  }
   /* a Assinatura só vale para o contrato FINAL (não para o que está sendo conferido) */
   function contratoFinal(e) { return !!(e && e.gerado && etapaContrato(e) === "FINAL"); }
   function htmlContrato(e, u) {
@@ -571,12 +651,16 @@
     if (u.ocupadoContrato === "pre") h += '<div class="dz-linha"><b>gerando o pré-contrato… (até 1 minuto)</b></div>';
     if (u.ocupadoContrato === "aprovar") h += '<div class="dz-linha"><b>gerando o contrato… (até 1 minuto)</b></div>';
     if (u.ocupadoContrato === "salvar") h += '<div class="dz-linha"><b>salvando os dados e gerando o pré-contrato… (até 1 minuto)</b></div>';
-    /* entrega 12: o que o formulário cobre sai da lista (u.faltas = só as outras) */
-    if (u.faltas && u.faltas.length) {
+    if (u.ocupadoContrato === "fia") h += '<div class="dz-linha"><b>salvando na venda…</b></div>';
+    /* entrega 12: o que o formulário cobre sai da lista (u.faltas = só as outras); 01/11: e o que o bloco Fiadores cobre */
+    var faltasLista = u.faltas;
+    if (e.fiadores && faltasLista) faltasLista = faltasLista.filter(function (f) { return !RE_FALTA_FIA.test(String(f)); });
+    if (faltasLista && faltasLista.length) {
       h += '<div class="dz-aviso">Para gerar o contrato, falta:</div><ul>' +
-        u.faltas.map(function (f) { return "<li>" + esc(f) + "</li>"; }).join("") + "</ul>";
+        faltasLista.map(function (f) { return "<li>" + esc(f) + "</li>"; }).join("") + "</ul>";
     }
     h += htmlCampos(u.campos, u, dis);
+    h += htmlFiadores(e.fiadores, u, dis);
     /* entrega 9: (a) nada → Gerar pré-contrato; (b) pré-contrato a conferir → Visualizar pré-contrato,
        "Conferi…" e Gerar pré-contrato de novo; (c) contrato final → Visualizar / Gerar de novo (volta ao pré-contrato) */
     var etapa = etapaContrato(e);
@@ -954,7 +1038,8 @@
                    htmlContrato: htmlContrato, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, mensagemMC: mensagemMC,
                    topicosMC: topicosMC, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas,
                    htmlCampos: htmlCampos, htmlConta: htmlConta, htmlFluxo: htmlFluxo, htmlFluxoVivo: htmlFluxoVivo, htmlFluxoDesconto: htmlFluxoDesconto, lerNumBR: lerNumBR, contaDoEstado: contaDoEstado, pedidoCampos: pedidoCampos,
-                   contaDasEntradas: contaDasEntradas, faltasDaResposta: faltasDaResposta, detalheFluxoGravado: detalheFluxoGravado };
+                   contaDasEntradas: contaDasEntradas, faltasDaResposta: faltasDaResposta, detalheFluxoGravado: detalheFluxoGravado,
+                   htmlFiadores: htmlFiadores, fiadoresDoEstado: fiadoresDoEstado, valoresFiadores: valoresFiadores };
   if (typeof module !== "undefined" && module.exports) { module.exports = exportar; return; }
 
   /* ---------------- navegador ---------------- */
@@ -1015,7 +1100,13 @@
     ".vb-blocos .dz-pr-pag input{height:36px;box-sizing:border-box;padding:6px 9px;border:1.5px solid var(--border,#d6dee3);border-radius:7px;font:inherit;margin:0}" +
     ".vb-blocos .dz-pr-pag .bt{height:36px;margin:0}" +
     "@media (max-width:600px){.vb-blocos .dz-pr-pag{flex-direction:column;align-items:stretch}" +
-    ".vb-blocos .dz-pr-pag label,.vb-blocos .dz-pr-pag input,.vb-blocos .dz-pr-pag .bt{width:100%!important}}";
+    ".vb-blocos .dz-pr-pag label,.vb-blocos .dz-pr-pag input,.vb-blocos .dz-pr-pag .bt{width:100%!important}}" +
+    /* 01/11/2026: bloco Fiadores — rótulo em cima da caixa, várias por linha no computador; no celular uma por linha */
+    ".vb-blocos .dz-fia{align-items:flex-end;gap:10px;flex-wrap:wrap}" +
+    ".vb-blocos .dz-fia label{display:flex;flex-direction:column;gap:3px;flex:1 1 200px;min-width:0;margin:0}" +
+    ".vb-blocos .dz-fia label span{font-size:11.5px;font-weight:700;color:var(--text3,#5a8099)}" +
+    ".vb-blocos .dz-fia input,.vb-blocos .dz-fia select{width:100%;box-sizing:border-box}" +
+    "@media (max-width:600px){.vb-blocos .dz-fia{flex-direction:column;align-items:stretch}.vb-blocos .dz-fia label{flex:0 0 auto;width:100%}}";
   var estado = null, ui = { dois: false, ocupado: null, msg: "", testes: false }, paginaDoBloco = null;
 
   function obraAberta() { try { return OBRA_ABERTA; } catch (e) { return null; } }
@@ -1871,7 +1962,9 @@
       if (!raiz || !raiz.querySelectorAll) return;
       raiz.querySelectorAll("[data-campo]").forEach(function (x) { uiC.rascunho[x.getAttribute("data-campo")] = x.value; });
       raiz.querySelectorAll("[data-conta-campo]").forEach(function (x) { uiC.rascunho["conta|" + x.getAttribute("data-conta-campo")] = x.value; });
+      raiz.querySelectorAll("[data-fia-col]").forEach(function (x) { uiC.rascunho["fia|" + x.getAttribute("data-fia-col")] = x.value; });   /* 01/11: bloco Fiadores */
     }
+    function limparRascunhoFia() { Object.keys(uiC.rascunho).forEach(function (k) { if (/^fia\|/.test(k)) delete uiC.rascunho[k]; }); }
     function contaDigitadaNaTela() {
       if (!raiz) return null;
       var v = {};
@@ -2520,6 +2613,7 @@
         if (r.ok) uiC.rascunho = {};
         return tratarGeracao(r, false);
       }
+      if (acao === "c-fia-salvar" || acao === "c-fia-conjuge") return aoClicarFia(acao);
       if (acao === "c-condesp-ia" || acao === "c-condesp-salvar") return aoClicarCondEsp(acao);
       if (/^c-fluxo-/.test(acao)) return aoClicarFluxo(acao, b);
       if (acao === "c-salvar-conta") {
@@ -2527,6 +2621,40 @@
         if (!conta) { uiC.msg = "Digite banco, agência e conta."; pintar(); return; }
         return salvarConta(conta);
       }
+    }
+    /* 01/11/2026: bloco Fiadores — Salvar (só o que mudou) e "O cônjuge do Fiador 1 é o Fiador 2"; depois relê o
+       contratoEstado (as faltas corrigidas somem e o bloco fecha quando não falta mais nada) */
+    async function aoClicarFia(acao) {
+      var b = estadoC && estadoC.fiadores;
+      if (!b) return;
+      guardarRascunho();
+      var pedido;
+      if (acao === "c-fia-salvar") {
+        var entradas = [];
+        raiz.querySelectorAll("[data-fia-col]").forEach(function (x) { entradas.push({ coluna: x.getAttribute("data-fia-col"), valor: x.value }); });
+        var valores = valoresFiadores(entradas, b);
+        if (!valores) { uiC.msg = "Nada mudou — preencha ou corrija um campo antes de salvar."; pintar(); return; }
+        pedido = { action: "salvarFiadores", pageId: pageId, valores: valores };
+      } else {
+        if (!window.confirm("Copiar o cônjuge do Fiador 1 para o Fiador 2? O Fiador 2 de hoje é substituído e o Fiador 1 vira o cônjuge dele.")) return;
+        pedido = { action: "conjugeEhFiador2", pageId: pageId };
+      }
+      uiC.ocupadoContrato = "fia"; uiC.msg = ""; pintar();
+      var r = await chamarVenda(pedido);
+      if (!vivo()) return;
+      uiC.ocupadoContrato = null;
+      if (r.ok) {
+        limparRascunhoFia();
+        uiC.faltas = null; uiC.campos = null;
+        var feito = (r.gravou && r.gravou.length) ? "Salvo na venda. Gere o pré-contrato de novo." : "Nada mudou.";
+        await carregarContrato();   /* relê as faltas: o que foi corrigido some do bloco */
+        if (!vivo()) return;
+        uiC.msg = feito;
+        pintar();
+        return;
+      }
+      uiC.msg = r.erro === "COLUNA_FALTANDO" && r.faltas ? "A base não tem a coluna " + r.faltas.join(", ") + " — avise o desenvolvedor." : mensagemContrato(r);
+      pintar();
     }
     /* 29/10: condições especiais — Redigir com IA (só sugere) e Salvar (grava na venda) */
     async function aoClicarCondEsp(acao) {

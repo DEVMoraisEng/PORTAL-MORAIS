@@ -3,7 +3,8 @@
  * Code.gs do portal não apaga este, e vice-versa.
  * Arquivos do projeto: RegrasVenda.gs, ClaudeLeitor.gs, OpenAILeitor.gs, ContratoVenda.gs,
  * PortalVenda.gs, GerarContrato.gs, CondominioVenda.gs, GerarVendaCondominio.gs, RecebimentoVenda.gs (entrega 14),
- * UnidadesCondominio.gs, PreReservaVenda.gs e PreReserva.gs (27/10/2026: contrato final e termo de pré-reserva).
+ * UnidadesCondominio.gs, PreReservaVenda.gs e PreReserva.gs (27/10/2026: contrato final e termo de pré-reserva),
+ * FiadoresVenda.gs (01/11/2026: bloco Fiadores da aba Contrato).
  * Propriedades do script: NOTION_TOKEN, SESSION_SECRET (os MESMOS do portal
  * daquele ambiente), DB_VENDAS, DB_VENDAS_COND (base das vendas do condomínio), PROVEDOR_IA (openai padrão | anthropic),
  * OPENAI_API_KEY (provedor openai), MODELO_IA (opcional, só openai),
@@ -38,7 +39,7 @@ function tratar_(p) {
     var grava = ["tipoCasa", "lerDocumento", "anexarDocumento", "soltarDocumento", "lerDocumentos", "copiarComprovante", "conferir", "devolver", "gerarContrato", "gerarPreContrato", "aprovarPreContrato", "escolherTestemunhas",
                  "salvarCamposContrato", "escolherContaRecebimento", "mcLancar", "assinaturaEnviar", "assinaturaEstado",
                  "gerarVendaCondominio", "assinaturaReenviar", "assinaturaCancelar" /* 29/10 */, "salvarCondicoesEspeciais" /* 29/10 */, "redigirCondicoesEspeciais", "salvarFluxo" /* 29/10 */, "salvarContaPreReserva", "salvarPagamentoPreReserva" /* 31/10 */, "gerarTermoPreReserva",
-                 "conferirDocumentos", "confirmarConferencia" /* 28/10 */, "corrigirConferencia" /* 31/10 */,
+                 "conferirDocumentos", "confirmarConferencia" /* 28/10 */, "corrigirConferencia" /* 31/10 */, "salvarFiadores", "conjugeEhFiador2" /* 01/11: bloco Fiadores */,
                  "recebimentoConfirmar" /* entrega 14 */, "antecipacaoLer", "antecipacaoPdf" /* 31/10: AntecipacaoVenda.gs */].indexOf(p.action) >= 0;
     if (grava && String(sess.t || "").toUpperCase() === "TESTES") return { ok: false, erro: "SEM_PERMISSAO_TESTES" };
     if (p.action !== "ping" && !REGEX_PAGE_ID.test(String(p.pageId || ""))) return { ok: false, erro: "PAGINA_INVALIDA" };
@@ -103,6 +104,9 @@ function executar_(col, sess, p) {
       case "verDocumentoConferencia": return verDocumentoConferencia_(col, p);
       case "corrigirConferenciaCampos": return corrigirConferenciaCampos_(col, p);   /* 31/10: Corrigir aqui */
       case "corrigirConferencia": return corrigirConferencia_(col, sess, p);
+      /* 01/11: bloco Fiadores (e cônjuge do comprador) na aba Contrato — Conferencia.gs + FiadoresVenda.js */
+      case "salvarFiadores": return salvarFiadores_(col, sess, p);
+      case "conjugeEhFiador2": return conjugeEhFiador2_(col, sess, p);
       case "financeiroEstado": return financeiroEstado_(col, p);   /* 31/10: aba Financeiro (FinanceiroVenda.gs), só leitura */
       /* 31/10: antecipação de parcelas (AntecipacaoVenda.gs): estado, pedir o retrato ao robô e PDF para o cliente */
       case "antecipacaoEstado": return antecipacaoEstado_(col, p);
