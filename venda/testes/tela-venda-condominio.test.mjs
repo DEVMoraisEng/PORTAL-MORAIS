@@ -1525,7 +1525,13 @@ const soInitials = (sem) => (m, cam, corpo) => (m === "POST" && cam === "/envelo
   ? { status: 201, json: { data: { id: "req-x", type: "requirements", attributes: sem } } } : null);
 
 test("unidade 22 (3): cada rubrica posicionada fica no registro; o que a Clicksign guardar diferente do pedido vira aviso no envio", () => {
-  const c = cenario({ cs: { falhar: soInitials({ action: "rubricate", kind: "initials" }) } });
+  /* resposta sem "positions" não é divergência (pode ser só a resposta que não devolve o campo): fica o registro, sem aviso */
+  const s0 = cenario({ cs: { falhar: soInitials({ action: "rubricate", kind: "initials" }) } });
+  assert.equal(s0.gerarFinal().ok, true);
+  const r0 = s0.acao("assinaturaEnviar", rub(s0));
+  assert.equal(r0.ok, true, JSON.stringify(r0));
+  assert.ok(!(r0.avisos || []).some((a) => /RUBRICA_DIVERGENTE/.test(a)), JSON.stringify(r0.avisos));
+  const c = cenario({ cs: { falhar: soInitials({ action: "rubricate", kind: "initials", positions: [] }) } });
   assert.equal(c.gerarFinal().ok, true);
   const r = c.acao("assinaturaEnviar", rub(c));
   assert.equal(r.ok, true, JSON.stringify(r));

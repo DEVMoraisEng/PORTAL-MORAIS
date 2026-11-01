@@ -521,7 +521,8 @@ function assCriarEnvelope_(p, pid, cols, doc, gerado, lista, nomeCs, extras, adi
         var at = (rr.data && rr.data.attributes) || {}, n = r.positions.length, g = Array.isArray(at.positions) ? at.positions.length : 0;
         assLog_("enviar " + pid + " " + s.papel + " rubrica " + r.kind + " " + r.docId + ": " + n + (n === 1 ? " posição pedida" : " posições pedidas") +
                 " → guardada kind=" + (at.kind || "?") + ", " + g + (g <= 1 ? " posição" : " posições"));
-        if (at.kind !== r.kind || g !== n) avisos.push("RUBRICA_DIVERGENTE: " + s.papel + " — " + r.kind + " no documento " + r.docId + " (pedidas " + n + ", guardadas " + g + ")");
+        /* só compara o que a resposta trouxe: sem kind/positions na resposta, fica só o registro (não é divergência) */
+        if ((at.kind !== undefined && at.kind !== r.kind) || (Array.isArray(at.positions) && g !== n)) avisos.push("RUBRICA_DIVERGENTE: " + s.papel + " — " + r.kind + " no documento " + r.docId + " (pedidas " + n + ", guardadas " + g + ")");
         Utilities.sleep(CS_PAUSA_REQ_MS);
       });
       /* revisão 01/11: quem não coube no ponto (margem de baixo) assina só pela página da Clicksign — fica registrado (sem nome) */
