@@ -280,9 +280,10 @@ const cenarioPR = (o = {}) => cenario({ docEnd: "CONDOMÍNIO RESERVA DOS IPÊS",
 test("termo: estado, falta a conta, salva a conta, gera o PDF com o carimbo na coluna própria", () => {
   const c = cenarioPR();
   assert.deepEqual(c.acao("preReservaEstado"), { ok: true, conta: "", contaCampos: { forma: "", livre: "" }, gerado: false, nome: "", valor: 3000, dataPagamento: "2026-10-24", dataLimite: "2026-10-31", historico: "" });
+  /* 01/11 (dono): a conta é opcional — o termo sai com ela em branco */
   const sem = c.acao("gerarTermoPreReserva");
-  assert.equal(sem.erro, "FALTAM_DADOS");
-  assert.deepEqual(sem.faltas, ["Conta para devolução (preencha no cartão)"]);
+  assert.equal(sem.ok, true, JSON.stringify(sem));
+  assert.equal(c.d.estado.salvos[c.d.estado.copias[0].id].pars[2], "Devolução: ", "marcador vazio, sem undefined");
   assert.equal(c.acao("salvarContaPreReserva", { conta: "abc" }).erro, "FORMA_CONTA");
   assert.deepEqual(c.acao("salvarContaPreReserva", { conta: { forma: "PIX", chave: "529.982.247-25", banco: "756 - SICOOB" } }),
     { ok: true, conta: "PIX, chave 529.982.247-25, no banco 756 - SICOOB", contaCampos: { forma: "PIX", chave: "529.982.247-25", banco: "756 - SICOOB" } });
@@ -290,7 +291,7 @@ test("termo: estado, falta a conta, salva a conta, gera o PDF com o carimbo na c
   const r = c.acao("gerarTermoPreReserva");
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.match(r.nome, /^TERMO DE PRÉ-RESERVA - CONDOMÍNIO RESERVA DOS IPÊS - CASA 13 - .* \[#[0-9a-f]{8}\]\.pdf$/);
-  const pars = c.d.estado.salvos[c.d.estado.copias[0].id].pars;
+  const pars = c.d.estado.salvos[c.d.estado.copias[c.d.estado.copias.length - 1].id].pars;
   assert.ok(pars[0].includes("Compradora de Teste") && pars[0].includes("CPF nº 529.982.247-25") && pars[0].includes("telefone 62 90000-0000"), pars[0]);
   assert.equal(pars[1], "Casa 13 Tipo 02 até 31/10/2026 por R$ 3.000,00 (três mil reais) (3.000,00)");
   assert.equal(pars[2], "Devolução: PIX, chave 529.982.247-25, no banco 756 - SICOOB");

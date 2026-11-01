@@ -38,11 +38,11 @@ test("termo completo: sem faltas e todos os marcadores preenchidos", () => {
   for (const [k, v] of Object.entries(m)) assert.ok(v !== "", k);
 });
 
-test("faltas: conta, propriedades, CPF inválido, e-mail, casa fora da tabela", () => {
+test("faltas: propriedades, CPF inválido, e-mail, casa fora da tabela", () => {
   const t = P.montar(dados({ email: "" }, { nome: "CONDOMÍNIO OUTRO TESTE" }), { hojeISO: "2026-10-27", valor: "x", dataPagamento: "amanhã" });
   assert.deepEqual(P.faltas(t), [
     "Pré-reservante: e-mail (coluna Email)", "Unidade: fora da tabela do condomínio (tipo da casa)",
-    "Conta para devolução (preencha no cartão)", "Valor da pré-reserva (preencha no cartão)",
+    "Valor da pré-reserva (preencha no cartão)",
     "Data do pagamento da pré-reserva (preencha no cartão)"]);
   const cpf = C.montarDadosContrato({ venda: { CLIENTES: "X TESTE", CPF: "529.982.247-24", COMPRADOR1: {}, COMPRADOR2: { nome: "" } },
     obra: {}, condominio: { nome: "RESERVA DOS IPÊS", unidade: "1", fluxo: {}, fiadores: [] } });
@@ -70,6 +70,16 @@ test("01/11: faltas repete a checagem: data futura e valor acima do sinal (só c
   assert.deepEqual(com({ sinalAto: 5000, sinal30: 5000 }, { dataPagamento: "2027-01-10" }), ["Data do pagamento da pré-reserva: não pode ser depois de hoje"]);
   assert.deepEqual(com({ sinalAto: 5000, sinal30: 5000 }, { valor: "50000" }), ["Valor da pré-reserva: maior que o sinal da venda (R$ 10.000,00)"]);
   assert.deepEqual(com({}, { valor: "50000" }), [], "sem sinal conhecido não barra");
+});
+
+test("01/11 (dono): conta para devolução é opcional; em branco o termo sai com o marcador vazio; preenchida, como antes", () => {
+  const sem = P.montar(dados(), { ...X, conta: "" });
+  assert.deepEqual(P.faltas(sem), []);
+  const m = P.marcadores(sem);
+  assert.equal(m.PRE_RESERVANTE_CONTA, "");
+  for (const v of Object.values(m)) assert.ok(!/undefined|null/.test(String(v)), String(v));
+  assert.equal(P.marcadores(P.montar(dados(), X)).PRE_RESERVANTE_CONTA, "PIX, chave 529.982.247-25, no banco 756 - SICOOB");
+  assert.deepEqual(P.faltas(P.montar(dados(), X)), []);
 });
 
 test("valor e data aceitam os formatos que se digitam nas Propriedades", () => {

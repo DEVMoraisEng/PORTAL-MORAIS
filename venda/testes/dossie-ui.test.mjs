@@ -322,3 +322,9 @@ test("01/11: pré-reserva — mensagens de data futura e valor acima do sinal; c
   assert.match(src, /data-pr-p="data"' \+ maxHojePR\(\)/);
   assert.match(src, /America\/Sao_Paulo/);
 });
+
+test("01/11 (dono): pré-reserva — a conta para devolução aparece como opcional na tela", async () => {
+  const fs = await import("node:fs");
+  const src = fs.readFileSync(new URL("../../venda-dossie.js", import.meta.url), "utf8");
+  assert.match(src, /Conta do pré-reservante para devolução \(opcional/);
+});

@@ -129,8 +129,9 @@ var PreReservaVenda = (function () {
     exige(!vazio(p.email), "Pré-reservante: e-mail (coluna Email)");
     exige(!vazio(t.unidade), "Unidade");
     if (!vazio(t.unidade)) exige(!!t.tabela, "Unidade: fora da tabela do condomínio (tipo da casa)");
-    if (vazio(t.conta)) f.push("Conta para devolução (preencha no cartão)");
-    else if (!lerConta(t.conta).forma) f.push("Conta para devolução: escolha PIX ou dados bancários e salve de novo");
+    /* 01/11/2026 (dono): a conta para devolução é OPCIONAL — o pré-contrato é provisório; em branco o termo sai com o marcador vazio.
+       Só avisa o texto antigo (preenchido fora do formato) para ninguém assinar uma frase solta. */
+    if (!vazio(t.conta) && !lerConta(t.conta).forma) f.push("Conta para devolução: escolha PIX ou dados bancários e salve de novo");
     exige(t.valor !== null, "Valor da pré-reserva (preencha no cartão)");
     exige(!vazio(t.dataPagamento), "Data do pagamento da pré-reserva (preencha no cartão)");
     /* 01/11/2026: o mesmo que o cartão barra ao salvar (hoje = o do servidor; sinal 0 = desconhecido) */

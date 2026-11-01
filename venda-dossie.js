@@ -1902,7 +1902,7 @@
       return caixa(rot, '<input type="text" data-pr-c="' + k + '" value="' + esc(c[k] || "") + '" placeholder="' + ph + '"' + (extra || "") + dis + ">");
     };
     var banco = campo("Banco", "banco", "digite para buscar", ' list="pr-bancos" maxlength="120" style="min-width:260px"');
-    h += '<div class="dz-linha"><label class="dz-rot" style="display:block">Conta do pré-reservante para devolução</label>' +
+    h += '<div class="dz-linha"><label class="dz-rot" style="display:block">Conta do pré-reservante para devolução (opcional — em branco, o termo sai sem a conta)</label>' +
       '<select data-pr-c="forma"' + dis + '><option value="">Escolha…</option><option value="PIX"' + sel("PIX") + ">PIX</option>" +
       '<option value="BANCO"' + sel("BANCO") + ">Dados bancários</option></select></div>";
     if (c.livre) h += '<div class="dz-aviso">Conta salva no formato antigo ("' + esc(c.livre) + '"): escolha PIX ou dados bancários e salve de novo.</div>';
