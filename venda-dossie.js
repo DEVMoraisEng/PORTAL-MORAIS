@@ -399,6 +399,9 @@
     PRECONTRATO_FALTANDO: "Gere o pré-contrato e confira antes de gerar o contrato.",
     PRECONTRATO_GRANDE: "O pré-contrato ficou grande demais para abrir pelo portal — avise o desenvolvedor.",
     PRECONTRATO_DESATUALIZADO: "Os dados mudaram depois do pré-contrato — gere o pré-contrato de novo e confira.",
+    PRECONTRATO_REFAZER: "Não consegui gerar o contrato — gere o pré-contrato de novo, confira e tente outra vez.",   /* 01/11 */
+    NOTION_OCUPADO: "O sistema está ocupado — espere 1 minuto e tente de novo.",
+    CONTRATO_EM_ASSINATURA: "Este contrato já foi enviado para assinatura. Para mudar, cancele o envelope primeiro.",
     CAMPOS_INVALIDOS: "Confira os campos.",
     VENDEDOR_SEM_CADASTRO: "O dono da obra não está no cadastro de vendedores — o cadastro do vendedor é feito no Notion, não pelo portal.",
     CORRETOR_NA_VENDA_FALTANDO: "A venda não tem corretor preenchido — preencha o CORRETOR na venda.",
@@ -2849,9 +2852,9 @@
         var feito = aprovar ? "Contrato gerado." : "Pré-contrato gerado — abra, confira o que está grifado e clique em Conferi.";
         /* condomínio: campos que saíram em branco ("____") não travam, mas avisam */
         uiC.msg = r.avisos && r.avisos.length ? feito + " Atenção: " + r.avisos.join("; ") + "." : feito;
-      } else if (r.erro === "PRECONTRATO_DESATUALIZADO" || r.erro === "PRECONTRATO_FALTANDO") {
+      } else if (r.erro === "PRECONTRATO_DESATUALIZADO" || r.erro === "PRECONTRATO_FALTANDO" || r.erro === "PRECONTRATO_REFAZER") {
         /* a etapa mudou no servidor: trava o "Conferi" (desatualizado) ou volta ao começo (faltando) */
-        if (estadoC && r.erro === "PRECONTRATO_DESATUALIZADO" && estadoC.pre) estadoC.pre.desatualizado = true;
+        if (estadoC && (r.erro === "PRECONTRATO_DESATUALIZADO" || r.erro === "PRECONTRATO_REFAZER") && estadoC.pre) estadoC.pre.desatualizado = true;
         if (estadoC && r.erro === "PRECONTRATO_FALTANDO") { estadoC.pre = null; estadoC.etapa = estadoC.gerado ? "FINAL" : "NENHUM"; }
         uiC.msg = mensagemContrato(r);
       } else if (r.erro === "FALTAM_DADOS" && r.faltas && r.faltas.length) {

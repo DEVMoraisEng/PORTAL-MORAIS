@@ -109,7 +109,7 @@ function cenario({ linha = {}, sem = [], dbPagina = DB_COND, props = {}, gh = 20
              "db-doc": [Object.assign({ "ENDEREÇO": tit(docEnd) }, OBRA_PG)] } });
   const d = driveFalso({ modelos: Object.assign({ "modelo-cond": modeloCond, "modelo-obra": ["OBRA"], "modelo-pronto": ["PRONTO"], "modelo-pr": MODELO_PR }, modelosExtra) });
   const c = clicksignFalso(cs);
-  const despachos = [];
+  const despachos = [], falha = { fn: null };
   const p = Object.assign({
     NOTION_TOKEN: "ntn-teste", SESSION_SECRET: "segredo-de-teste", DB_VENDAS: DB_ID_PADRAO, DB_VENDAS_COND: DB_COND,
     DB_VENDEDORES: "db-vend", DB_LOTEAMENTOS: "db-lote", DB_CORRETORES: "db-corr", DB_DOCUMENTOS: "db-doc",
@@ -120,6 +120,7 @@ function cenario({ linha = {}, sem = [], dbPagina = DB_COND, props = {}, gh = 20
     GITHUB_TOKEN: "gh-teste", GH_REPO_MC: "Org-Teste/REPO-TESTE",
   }, props);
   const g = criarGas({ props: p, extras: d.extras, rotas: (url, opt) => {
+    if (falha.fn) { const f = falha.fn(url, opt); if (f) return f; }   /* 01/11: simula Notion 429 etc. */
     if (url.startsWith("https://api.github.com/")) { despachos.push(JSON.parse(opt.payload)); return { status: gh, texto: "" }; }
     if (ia && url.startsWith("https://api.openai.com/")) return ia(url, opt);
     if (url === "https://api.notion.com/v1/databases/" + DB_ID_PADRAO && String(opt.method || "get").toUpperCase() === "GET") return { json: SCHEMA_VENDAS };
@@ -134,7 +135,7 @@ function cenario({ linha = {}, sem = [], dbPagina = DB_COND, props = {}, gh = 20
     d.zerar(); g.chamadas.length = 0;
     return acao("aprovarPreContrato");
   };
-  return { g, n, d, c, despachos, acao, txt, gerarFinal };
+  return { g, n, d, c, despachos, acao, txt, gerarFinal, falha };
 }
 
 /* 30/10: o que a tela manda junto com "Enviar" no contrato do condomínio (posições lidas no PDF pela RubricasVenda) */
@@ -442,11 +443,21 @@ test("01/11: venda que passou a ter só o termo PÓS — o PRÉ antigo sai e o P
   assert.deepEqual(c.acao("contratoEstado").confissao.map((x) => x.tipo), ["POS"]);
 });
 
+/* limpeza dos termos antigos chamada direto (a ação "Conferi" já recusa envelope com signatários — ver CONTRATO_EM_ASSINATURA):
+ * a geração dos termos tem de dar certo (nomes, sem resp) e mesmo assim o termo antigo fica. */
+function gerarTermosDireto(c) {
+  const ctx = c.g.ctx, p = { pageId: COND };
+  const prep = ctx.ctrPreparar_(ctx.colunas_(), p, "00112233", "teste");
+  assert.ok(!prep.resp, JSON.stringify(prep.resp));
+  const tc = ctx.cfdGerarTermos_(prep, p, "00112233", "teste");
+  assert.ok(!tc.resp, JSON.stringify(tc.resp));
+  return tc;
+}
 test("01/11: com o envelope na mão dos signatários (ENVIADO ou qualquer situação não final) nada é limpo", () => {
   for (const sit of ["ENVIADO", "RASCUNHO", "ASSINADO"]) {
     const c = cenarioCfd({ linha: { ...SEM_POS, ...antigos, "ASSINATURA - ENVELOPE ID": rt("env-x"), "ASSINATURA - SITUAÇÃO": rt(sit) } });
-    c.acao("gerarPreContrato");
-    c.acao("aprovarPreContrato");
+    const tc = gerarTermosDireto(c);
+    assert.equal(tc.nomes.length, 0, sit);   /* 24x: nenhum termo novo — a geração deu certo e não limpou */
     assert.equal(c.n.pagina.properties["CONFISSÃO PRÉ-CHAVES - GERADA"].files.length, 1, sit);
     assert.equal(c.n.pagina.properties["CONFISSÃO PÓS-CHAVES - GERADA"].files.length, 1, sit);
   }
@@ -457,8 +468,68 @@ test("01/11: com o envelope na mão dos signatários (ENVIADO ou qualquer situa�
   /* envio pendente (envelope ativado, Notion ainda sem gravar) também segura */
   const p = cenarioCfd({ linha: { ...SEM_POS, ...antigos } });
   p.g.ctx.PropertiesService.getScriptProperties().setProperty("ASSINATURA_PENDENTE_" + COND, "env-y");
-  p.acao("gerarPreContrato"); p.acao("aprovarPreContrato");
+  const tp = gerarTermosDireto(p);
+  assert.equal(tp.nomes.length, 0);
   assert.equal(p.n.pagina.properties["CONFISSÃO PRÉ-CHAVES - GERADA"].files.length, 1);
+});
+
+test("01/11: falha ao limpar o termo antigo não derruba o Conferi (só vai para o console, sem dado pessoal)", () => {
+  const c = cenarioCfd({ linha: { ...SEM_POS, ...antigos } });
+  assert.equal(c.acao("gerarPreContrato").ok, true);
+  c.falha.fn = (url, opt) => (String(opt.method).toUpperCase() === "PATCH" && /"files":\[\]/.test(String(opt.payload || ""))
+    ? { status: 500, json: { message: "falha ao limpar" } } : null);
+  const r = c.acao("aprovarPreContrato");
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const log = c.g.logs.join("\n");
+  assert.match(log, /limpeza do termo antigo falhou/);
+  assert.doesNotMatch(log, /Compradora de Teste|Fiador Um Teste|111\.444|529\.982|compradora@/);
+});
+
+/* 01/11: "Conferi" com o envelope na mão dos signatários não troca contrato nem termos */
+test("01/11: Conferi com envelope ENVIADO/RASCUNHO/ASSINADO ou envio pendente: CONTRATO_EM_ASSINATURA, nada gerado", () => {
+  for (const sit of ["ENVIADO", "RASCUNHO", "ASSINADO", "pendente"]) {
+    const linha = { ...antigos, "CONTRATO GERADO": velho("CONTRATO - ", "bbbbbbbb"), "ASSINATURA - ENVELOPE ID": rt("env-x"), "ASSINATURA - SITUAÇÃO": rt(sit === "pendente" ? "" : sit) };
+    const c = cenarioCfd({ linha });
+    c.acao("gerarPreContrato");
+    if (sit === "pendente") c.g.ctx.PropertiesService.getScriptProperties().setProperty("ASSINATURA_PENDENTE_" + COND, "env-y");
+    d_zerar(c);
+    const r = c.acao("aprovarPreContrato");
+    assert.deepEqual({ ok: r.ok, erro: r.erro }, { ok: false, erro: "CONTRATO_EM_ASSINATURA" }, sit);
+    assert.equal(c.d.estado.copias.length, 0, sit + ": nada copiado no Drive");
+    assert.equal(c.n.patches.length, 0, sit + ": nada gravado no Notion");
+    assert.match(c.n.pagina.properties["CONTRATO GERADO"].files[0].name, /bbbbbbbb/, sit);
+    assert.equal(c.n.pagina.properties["CONFISSÃO PRÉ-CHAVES - GERADA"].files.length, 1, sit);
+    assert.equal(c.acao("gerarContrato").erro, "CONTRATO_EM_ASSINATURA", sit + " (ação antiga)");
+  }
+  /* envelope cancelado já não está com ninguém: o Conferi segue */
+  const c = cenarioCfd({ linha: { "ASSINATURA - ENVELOPE ID": rt("env-x"), "ASSINATURA - SITUAÇÃO": rt("CANCELADO") } });
+  assert.equal(c.gerarFinal().ok, true);
+});
+function d_zerar(c) { c.d.zerar(); c.g.chamadas.length = 0; c.n.patches.length = 0; }
+
+/* 01/11: erros do Conferi viram mensagem com o que fazer (investigação F) */
+const DADOS_NO_LOG = /Compradora de Teste|Fiador (Um|Dois) Teste|111\.444|246\.813|529\.982|compradora@|f1@teste/;
+test("01/11: termo que lança exceção no Conferi: PRECONTRATO_REFAZER (não ERRO_INTERNO), nada trocado, console sem dado pessoal", () => {
+  const c = cenarioCfd();
+  assert.equal(c.acao("gerarPreContrato").ok, true);
+  c.g.ctx.ConfissaoVenda.marcadores = () => { throw new Error("falha de teste"); };
+  const r = c.acao("aprovarPreContrato");
+  assert.deepEqual({ ok: r.ok, erro: r.erro }, { ok: false, erro: "PRECONTRATO_REFAZER" });
+  assert.equal(c.n.pagina.properties["CONTRATO GERADO"].files.length, 0, "contrato final não saiu");
+  const log = c.g.logs.filter((l) => l.includes("aprovarPreContrato falhou:"));
+  assert.equal(log.length, 1, c.g.logs.join("\n"));
+  assert.match(log[0], /^PORTAL-VENDA aprovarPreContrato falhou: 00112233 falha de teste$/);
+  assert.doesNotMatch(c.g.logs.join("\n"), DADOS_NO_LOG);
+});
+
+test("01/11: Notion 429 no Conferi: NOTION_OCUPADO", () => {
+  const c = cenarioCfd();
+  assert.equal(c.acao("gerarPreContrato").ok, true);
+  c.falha.fn = (url) => (url.startsWith("https://api.notion.com/") ? { status: 429, json: { message: "rate_limited" } } : null);
+  const r = c.acao("aprovarPreContrato");
+  assert.deepEqual({ ok: r.ok, erro: r.erro }, { ok: false, erro: "NOTION_OCUPADO" });
+  c.falha.fn = null;
+  assert.equal(c.acao("aprovarPreContrato").ok, true, "passada a fila, o mesmo clique funciona");
 });
 
 test("01/11: a tela só lista o termo com o mesmo carimbo do contrato gerado", () => {

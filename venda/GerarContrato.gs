@@ -444,7 +444,7 @@ function ctrFontes_(col, pageId) {
               hojeISO: hoje_("yyyy-MM-dd"), cidadeAssinatura: prop_("CIDADE_ASSINATURA") || "Goiânia",
               /* condomínio, item 4.2.1 g): vazio = "boleto bancário ou PIX" */
               meioPagamento: prop_("MEIO_PAGAMENTO_CONDOMINIO") || "" },
-    endereco: venda.ENDERECO, casa: ctrTxt_(cv("CASA")), colGerado: nomeReal(CV.CONTRATO_GERADO),
+    pg: pg, endereco: venda.ENDERECO, casa: ctrTxt_(cv("CASA")), colGerado: nomeReal(CV.CONTRATO_GERADO),
     contaErro: contaErro, usouEscolha: usouEscolha,
     /* entrega 12: onde o formulário grava (linhas achadas) e com que nome/chave cria a que falta */
     alvos: { vendedor: lv || null, corretor: lc || null, loteamento: ll || null,
@@ -830,10 +830,27 @@ function gerarPreContrato_(col, sess, p) {
    GERADO) se há pré-contrato e os dados de agora dão o MESMO carimbo dele. A ação antiga
    "gerarContrato" cai aqui também: não existe mais gerar o final direto. */
 function aprovarPreContrato_(col, sess, p) {
-  var t0 = Date.now(), pid = String(p.pageId).slice(0, 8), rot = "aprovarPreContrato";
+  var pid = String(p.pageId).slice(0, 8);
+  try { return aprovarPreContratoMiolo_(col, sess, p, pid); }
+  catch (e) {
+    /* 01/11: nenhuma exceção vira ERRO_INTERNO aqui. Console: só o id abreviado da página e a mensagem (sem dado pessoal) */
+    var m = String((e && e.message) || e);
+    console.error("PORTAL-VENDA aprovarPreContrato falhou: " + pid + " " + m.slice(0, 120));
+    if (/^NOTION_OCUPADO/.test(m)) return { ok: false, erro: "NOTION_OCUPADO" };
+    if (ERROS_CONHECIDOS.test(m)) throw e;
+    return { ok: false, erro: "PRECONTRATO_REFAZER" };
+  }
+}
+function aprovarPreContratoMiolo_(col, sess, p, pid) {
+  var t0 = Date.now(), rot = "aprovarPreContrato";
   /* primeiro os dados (coluna, base, faltas valem como no pré-contrato), depois o pré-contrato */
   var prep = ctrPreparar_(col, p, pid, rot);
   if (prep.resp) return prep.resp;
+  /* 01/11: envelope já com os signatários (ou prestes a ir): trocar o contrato e os termos agora desencontraria o que se assina */
+  if (cfdEnvelopeComSignatarios_(prep.f.pg, p.pageId)) {
+    ctrLog_(rot + " " + pid + " envelope com signatarios");
+    return { ok: false, erro: "CONTRATO_EM_ASSINATURA" };
+  }
   var pre = ctrLerPre_(p.pageId);
   if (!pre) { ctrLog_(rot + " " + pid + " sem pre-contrato"); return { ok: false, erro: "PRECONTRATO_FALTANDO" }; }
   if (prep.hash !== pre.hash) {

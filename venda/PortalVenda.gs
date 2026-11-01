@@ -12,7 +12,7 @@
  * Nenhum log com nome, CPF, endereço ou conteúdo de documento. */
 var VERSAO_VENDA = "venda-v15";   // v15: antecipacaoTexto, a antecipação copia a mensagem em vez de gerar PDF (31/10/2026); v14: FGTS e Financiamento separados na aba Financeiro (31/10/2026); v13: faltasCliente no contratoEstado (31/10/2026); v12: aba Financeiro, financeiroEstado (31/10/2026); v11: vigia de assinaturas (AssinaturaVigia.gs, 31/10/2026); v10: Corrigir aqui na conferência (31/10/2026); v9: contrato final do condomínio, termo de pré-reserva e etapas da venda (27/10/2026); v8: leitura em lote, certidão mãe e data do habite-se (entrega 13); v7: campos abertos e conta de recebimento no contrato (entrega 12); v6: documentos do imóvel lidos pela IA (entrega 11); v5: pré-contrato grifado (entrega 9)
 var NOTION_VERSION = "2022-06-28";
-var ERROS_CONHECIDOS = /^(COLUNA_FALTANDO|TIPO_DE_COLUNA_ERRADO|BACKEND_SEM_CONFIG|PAGINA_DE_OUTRA_BASE)/;
+var ERROS_CONHECIDOS = /^(COLUNA_FALTANDO|TIPO_DE_COLUNA_ERRADO|BACKEND_SEM_CONFIG|PAGINA_DE_OUTRA_BASE|PRECONTRATO_REFAZER|NOTION_OCUPADO|CONTRATO_EM_ASSINATURA)/;
 var REGEX_PAGE_ID = /^[0-9a-f]{32}$|^[0-9a-f-]{36}$/i;
 
 function prop_(n) { return PropertiesService.getScriptProperties().getProperty(n) || ""; }
@@ -50,7 +50,7 @@ function tratar_(p) {
   } catch (err) {
     var m = String((err && err.message) || err);
     console.error("PORTAL-VENDA " + String(p.action || "") + " falhou: " + m.slice(0, 160));
-    return { ok: false, erro: ERROS_CONHECIDOS.test(m) ? m : "ERRO_INTERNO" };
+    return { ok: false, erro: /^NOTION_OCUPADO/.test(m) ? "NOTION_OCUPADO" : ERROS_CONHECIDOS.test(m) ? m : "ERRO_INTERNO" };
   }
 }
 
@@ -148,6 +148,7 @@ function notion_(method, path, body) {
   var r = UrlFetchApp.fetch("https://api.notion.com/v1" + path, opt);
   var code = r.getResponseCode(), data = {};
   try { data = JSON.parse(r.getContentText()); } catch (_) {}
+  if (code === 429) throw new Error("NOTION_OCUPADO: tente de novo em 1 minuto");   /* 01/11: fila do Notion cheia — a tela diz para esperar */
   if (code >= 300) throw new Error("NOTION_" + code + ": " + String((data && data.message) || "").slice(0, 120));
   return data;
 }

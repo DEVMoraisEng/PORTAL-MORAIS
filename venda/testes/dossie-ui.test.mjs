@@ -200,6 +200,12 @@ test("mensagemContrato: pré-contrato faltando ou desatualizado", () => {
   assert.match(D.mensagemContrato({ erro: "PRECONTRATO_DESATUALIZADO" }), /^Os dados mudaram depois do pré-contrato/);
 });
 
+test("mensagemContrato: erros do Conferi dizem o que fazer (01/11)", () => {
+  assert.equal(D.mensagemContrato({ erro: "PRECONTRATO_REFAZER" }), "Não consegui gerar o contrato — gere o pré-contrato de novo, confira e tente outra vez.");
+  assert.equal(D.mensagemContrato({ erro: "NOTION_OCUPADO" }), "O sistema está ocupado — espere 1 minuto e tente de novo.");
+  assert.equal(D.mensagemContrato({ erro: "CONTRATO_EM_ASSINATURA" }), "Este contrato já foi enviado para assinatura. Para mudar, cancele o envelope primeiro.");
+});
+
 test("contrato: faltas viram lista escapada com o título", () => {
   const h = D.htmlContrato({ gerado: false }, uic({ faltas: ["Negociação: sinal (valor)", "<img src=x onerror=alert(1)>"] }));
   assert.match(h, /Para gerar o contrato, falta:/);

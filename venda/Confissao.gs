@@ -46,7 +46,9 @@ function cfdLimparForaDe_(pg, pageId, tipos, pid, rot) {
     if (tipos.indexOf(tipo) >= 0) return;
     var col = cfdCol_(pg, tipo === "POS" ? ConfissaoVenda.COL.POS_GERADO : ConfissaoVenda.COL.PRE_GERADO);
     if (!col || !(ctrValor_(pg.properties[col]) || []).length) return;
-    limparArquivos_(pageId, col);
+    /* 01/11: limpar é arrumação — se falhar, o "Conferi" não pode abortar com os termos novos já anexados */
+    try { limparArquivos_(pageId, col); }
+    catch (e) { ctrErro_(rot + " " + pid + " limpeza do termo antigo falhou", e); return; }
     ctrLog_(rot + " " + pid + " termo " + tipo + " antigo removido");
   });
 }
