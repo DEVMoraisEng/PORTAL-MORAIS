@@ -481,3 +481,73 @@ test("31/10/2026: retrato antigo (sem o sub) continua agrupando FGTS e financiam
   assert.equal(r.parcelas.filter((p) => p.grupo === "FGTS/Financiamento").length, 2);
   assert.equal(r.parcelas.filter((p) => p.grupo === "FGTS" || p.grupo === "Financiamento").length, 0);
 });
+
+/* ---------- 31/10/2026 (dono): a antecipação não gera PDF, só copia a mensagem ---------- */
+/* nada que escreve: nenhuma chamada que não seja leitura (GET ou consulta) e nenhuma menção à base DB_ANTECIPACOES */
+const escritas = (m) => m.g.chamadas.filter((c) => String(c.opt.method || "get").toUpperCase() !== "GET" && !/\/query$/.test(c.url));
+const tocouBaseAnt = (m) => m.g.chamadas.some((c) => /db-ant/.test(c.url + String(c.opt.payload || "")));
+
+test("antecipacaoTexto devolve a mensagem do WhatsApp, refeita no servidor, sem PDF e sem gravar nada", () => {
+  const m = montar();
+  const r = chamar(m, "antecipacaoTexto", { modo: "E", valor: 1, dataPg: "2026-10-25" });   // o valor da tela é ignorado no jeito E
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const total = soma(RET.parcelas.filter((p) => p.tipo === "pos" && !p.pago && p.data >= "2026-10-25"));
+  assert.ok(r.texto.includes(brl(total).slice(3)), r.texto);
+  assert.match(r.texto, /^Simulação de antecipação, pagamento em 25\/10\/2026/);
+  assert.deepEqual(Object.keys(r).sort(), ["ok", "texto"]);   // sem pdfUrl nem linhaId
+  assert.equal(m.ant.linhas.length, 0); assert.equal(m.ant.patches.length, 0); assert.equal(m.ant.html.length, 0);
+  assert.equal(Object.keys(m.n.uploads).length, 0); assert.equal(m.n.escritas.length, 0);
+  assert.equal(escritas(m).length, 0, JSON.stringify(escritas(m).map((c) => c.url)));
+  assert.equal(tocouBaseAnt(m), false);
+  /* o mesmo texto que o PDF devolvia */
+  assert.equal(r.texto, chamar(montar(), "antecipacaoPdf", { modo: "E", valor: 1, dataPg: "2026-10-25" }).texto);
+});
+
+test("antecipacaoTexto não precisa da base DB_ANTECIPACOES", () => {
+  const semBase = Object.assign({}, PROPS); delete semBase.DB_ANTECIPACOES;
+  const r = chamar(montar({ props: semBase }), "antecipacaoTexto", { modo: "B", valor: 30000, dataPg: "2026-10-25" });
+  assert.equal(r.ok, true); assert.match(r.texto, /R\$ 30\.000,00/);
+});
+
+test("antecipacaoTexto no jeito D explica o balão", () => {
+  const balao = RET.parcelas.find((p) => p.tipo === "balao" && !p.pago);
+  const r = chamar(montar(), "antecipacaoTexto", { modo: "D", valor: balao.valor, parcelaId: balao.id, dataPg: "2026-10-25" });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.match(r.texto, /balão/); assert.match(r.texto, /para de corrigir/);
+});
+
+test("antecipacaoTexto recusa retrato velho, data fora do mês e valor que não fecha (com sugestões); nada é gravado", () => {
+  const velho = montar({ hoje: "2026-11-03T12:00:00Z" });
+  assert.equal(chamar(velho, "antecipacaoTexto", { modo: "B", valor: 30000, dataPg: "2026-11-03" }).erro, "RETRATO_VELHO");
+  const m = montar();
+  for (const d of ["2026-11-02", "2026-10-24", "2025-10-30"]) {
+    const r = chamar(m, "antecipacaoTexto", { modo: "B", valor: 30000, dataPg: d });
+    assert.equal(r.ok, false, d); assert.equal(r.erro, "DATA_FORA_DO_MES", d);
+  }
+  const balao = RET.parcelas.find((p) => p.tipo === "balao" && !p.pago);
+  const nf = chamar(m, "antecipacaoTexto", { modo: "D", valor: 0.08, parcelaId: balao.id, dataPg: "2026-10-25" });
+  assert.equal(nf.ok, false); assert.equal(nf.erro, "NAO_FECHA"); assert.ok(Array.isArray(nf.sugestoes) && nf.sugestoes.length > 0);
+  assert.equal(chamar(m, "antecipacaoTexto", { modo: "Z", valor: 1, dataPg: "2026-10-25" }).erro, "MODO_INVALIDO");
+  assert.equal(chamar(m, "antecipacaoTexto", { modo: "B", valor: 1, dataPg: "21/10/2026" }).erro, "DATA_INVALIDA");
+  for (const x of [velho, m]) { assert.equal(escritas(x).length, 0); assert.equal(x.ant.linhas.length, 0); assert.equal(x.ant.html.length, 0); }
+});
+
+test("antecipacaoTexto sem retrato ou em venda que não pode: erro claro", () => {
+  assert.equal(chamar(montar({ valores: VALORES({ "MC - RETRATO": texto(""), "MC - RETRATO EM": texto("") }) }), "antecipacaoTexto",
+                      { modo: "B", valor: 1000, dataPg: "2026-10-25" }).erro, "SEM_RETRATO");
+  assert.equal(chamar(montar({ dbId: "db-vendas" }), "antecipacaoTexto", { modo: "B", valor: 1000, dataPg: "2026-10-25" }).erro, "NAO_PODE");
+});
+
+test("antecipacaoTexto não grava: o perfil TESTES pode usar, o PDF continua travado para ele", () => {
+  const m = montar();
+  const r = chamar(m, "antecipacaoTexto", { modo: "B", valor: 30000, dataPg: "2026-10-25" }, "TESTES");
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(escritas(m).length, 0);
+  assert.equal(chamar(m, "antecipacaoPdf", { modo: "B", valor: 30000, dataPg: "2026-10-25" }, "TESTES").erro, "SEM_PERMISSAO_TESTES");   // o PDF segue travado
+});
+
+test("controle do teste de 'não grava': o PDF, sim, deixa escritas e toca a base (a régua não é vazia)", () => {
+  const m = montar();
+  chamar(m, "antecipacaoPdf", { modo: "B", valor: 30000, dataPg: "2026-10-25" });
+  assert.ok(escritas(m).length > 0); assert.equal(tocouBaseAnt(m), true);
+});

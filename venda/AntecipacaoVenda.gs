@@ -250,31 +250,45 @@ function antPropsLinha_(p, sess, res, unidade, e, sit) {
   return props;
 }
 
-function antecipacaoPdf_(col, sess, p) {
+/* As checagens e a conta que o PDF e o texto compartilham. Devolve { erro: {ok:false,...} } ou { a, e, res, sit, unidade, parcelaId }.
+   comBase: o PDF exige a base DB_ANTECIPACOES; o texto (31/10, decisão do dono) não lê nem grava nada. */
+function antPrepararSimulacao_(p, comBase) {
   var a = antLer_(p.pageId), e = antEstadoDe_(a, Date.now());
-  if (!e.pode) return { ok: false, erro: "NAO_PODE", motivo: e.motivo };
-  if (!e.retrato) return { ok: false, erro: "SEM_RETRATO" };
-  if (e.velho) return { ok: false, erro: "RETRATO_VELHO" };
-  var dbAnt = String(prop_("DB_ANTECIPACOES") || "").trim();
-  if (!dbAnt) return { ok: false, erro: "BASE_ANTECIPACOES_NAO_CONFIGURADA" };
+  if (!e.pode) return { erro: { ok: false, erro: "NAO_PODE", motivo: e.motivo } };
+  if (!e.retrato) return { erro: { ok: false, erro: "SEM_RETRATO" } };
+  if (e.velho) return { erro: { ok: false, erro: "RETRATO_VELHO" } };
+  if (comBase && !String(prop_("DB_ANTECIPACOES") || "").trim()) return { erro: { ok: false, erro: "BASE_ANTECIPACOES_NAO_CONFIGURADA" } };
 
   /* tudo vem da tela como texto solto: o servidor converte e refaz a conta (nunca confia em número calculado lá) */
   var valor = typeof p.valor === "number" ? p.valor : (p.valor == null ? NaN : (Antecipacao.lerValor(p.valor) || NaN));
   var quantas = p.quantas == null || p.quantas === "" ? null : Number(p.quantas);
   var dataPg = String(p.dataPg || "").slice(0, 10), parcelaId = p.parcelaId == null ? undefined : String(p.parcelaId);
-  /* o fator é o de hoje e o PDF diz "valores de hoje, válida até o fim do mês ou até o novo índice": data de outro mês ou já passada não vale.
+  /* o fator é o de hoje e a simulação diz "valores de hoje, válida até o fim do mês ou até o novo índice": data de outro mês ou já passada não vale.
      Data fora do formato fica para a conta (DATA_INVALIDA). */
   if (/^\d{4}-\d{2}-\d{2}$/.test(dataPg) && (dataPg.slice(0, 7) !== hoje_("yyyy-MM") || dataPg < hoje_("yyyy-MM-dd")))
-    return { ok: false, erro: "DATA_FORA_DO_MES" };
+    return { erro: { ok: false, erro: "DATA_FORA_DO_MES" } };
   var res = Antecipacao.simular(e.retrato, { modo: String(p.modo || ""), valor: valor, dataPg: dataPg, parcelaId: parcelaId, quantas: quantas });
   if (!res.ok) {
     var rec = { ok: false, erro: res.erro };
     if (res.sugestoes) rec.sugestoes = res.sugestoes;
     if (res.travas) rec.travas = res.travas;
-    return rec;
+    return { erro: rec };
   }
   res.quantas = quantas;
-  var sit = Antecipacao.situacao(e.retrato, res.dataPg), unidade = antUnidade_(a.props);
+  return { a: a, e: e, res: res, sit: Antecipacao.situacao(e.retrato, res.dataPg), unidade: antUnidade_(a.props), parcelaId: parcelaId };
+}
+
+/* 31/10/2026 (dono): a antecipação NÃO gera PDF. A tela só copia a mensagem do WhatsApp. Não grava nada: o perfil TESTES pode usar. */
+function antecipacaoTexto_(col, sess, p) {
+  var c = antPrepararSimulacao_(p, false);
+  if (c.erro) return c.erro;
+  return { ok: true, texto: antTextoWhatsApp_(c.e, c.res, c.parcelaId, c.sit) };
+}
+
+function antecipacaoPdf_(col, sess, p) {
+  var c = antPrepararSimulacao_(p, true);
+  if (c.erro) return c.erro;
+  var a = c.a, e = c.e, res = c.res, sit = c.sit, unidade = c.unidade, parcelaId = c.parcelaId, dbAnt = String(prop_("DB_ANTECIPACOES") || "").trim();
   var html = antHtmlCliente_(e, res, unidade, parcelaId, sit);
   var pdf = Utilities.newBlob(html, "text/html", "simulacao.html").getAs("application/pdf");
   var nome = "Simulação de antecipação " + hoje_("yyyy-MM-dd") + ".pdf";
