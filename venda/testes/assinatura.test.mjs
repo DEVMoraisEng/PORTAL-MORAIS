@@ -911,7 +911,9 @@ test("Retry-After: 1 com 429 permanente: no máximo 6 tentativas na chamada", ()
   const c = cenario({ cs: { falhar: (m, cam) => (cam === "/envelopes" ? (n++, { status: 429, headers: { "retry-after": "1" }, json: {} }) : null) } });
   assert.equal(c.enviar().http, 429);
   assert.equal(n, 6);
-  assert.ok(c.g.sleeps.filter((x) => x >= 1000).every((x) => x >= 1000));
+  const esperas = c.g.sleeps.filter((x) => x >= 1000);
+  assert.equal(esperas.length, 5, "5 esperas entre 6 tentativas: " + esperas);
+  assert.ok(esperas.every((x) => x >= 1000), "alguma espera menor que o Retry-After: " + esperas);
 });
 test("Retry-After inválido (data, 0, negativo) cai na espera crescente", () => {
   for (const v of ["Wed, 21 Oct 2026 07:28:00 GMT", "0", "-5", "abc"]) {
@@ -931,4 +933,56 @@ test("relógio: cada fetch leva 40 s -> para antes de passar de 180 s no total",
   const total = c.g.sleeps.reduce((x, y) => x + y, 0) + fetches * 40000;
   assert.ok(total <= 180000 + 40000, "gastou " + total);
   assert.ok(fetches < 6, "fetches " + fetches);
+});
+
+test("PATCH de ativar 4xx e a consulta diz draft: apaga o rascunho (1 DELETE) e devolve a falha comum", () => {
+  const c = cenario({ cs: { falhar: (m) => (m === "PATCH" ? { status: 422, json: { errors: [{ title: "x" }] } } : null) } });
+  const r = c.enviar();
+  assert.deepEqual([r.ok, r.erro, r.passo, r.http, r.incerto, r.rascunhoApagado], [false, "CLICKSIGN_FALHOU", "ativar", 422, undefined, true], JSON.stringify(r));
+  assert.deepEqual(csCalls(c).filter((x) => x.startsWith("DELETE")), ["DELETE /envelopes/env-1"]);
+  assert.equal(c.txt("ASSINATURA - ENVELOPE ID"), "");
+});
+
+/* ---- Descartar rascunho (assinaturaCancelar com envelope draft) ---- */
+const comRascunho = (extra = {}) => cenario(Object.assign({ venda: { "ASSINATURA - ENVELOPE ID": rt("env-1"), "ASSINATURA - SITUAÇÃO": rt("RASCUNHO") } }, extra));
+test("descartar: envelope draft -> DELETE, limpa as colunas e devolve descartou:true", () => {
+  const c = comRascunho();
+  const r = c.acao("assinaturaCancelar");
+  assert.deepEqual(r, { ok: true, descartou: true, situacao: "", envelope: false, signatarios: [] }, JSON.stringify(r));
+  assert.deepEqual(csCalls(c), ["GET /envelopes/env-1", "DELETE /envelopes/env-1"]);
+  assert.equal(c.txt("ASSINATURA - ENVELOPE ID"), "");
+  assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), "");
+  assert.match(c.g.logs.join(String.fromCharCode(10)), /cancelar 01234567 por ana\.teste: ok/);
+});
+test("descartar: envelope running segue o caminho de cancelar de sempre (sem DELETE)", () => {
+  const c = cenario();
+  assert.equal(c.enviar().ok, true);
+  const r = c.acao("assinaturaCancelar");
+  assert.equal(r.cancelou, true);
+  assert.ok(!csCalls(c).some((x) => x.startsWith("DELETE")));
+});
+test("descartar: Clicksign não acha o envelope (404) -> limpa as colunas, sem DELETE", () => {
+  const c = comRascunho();
+  c.c.estado.apagado = true;
+  const r = c.acao("assinaturaCancelar");
+  assert.deepEqual([r.ok, r.descartou, r.situacao, r.envelope], [true, true, "", false], JSON.stringify(r));
+  assert.ok(!csCalls(c).some((x) => x.startsWith("DELETE")));
+  assert.equal(c.txt("ASSINATURA - ENVELOPE ID"), "");
+  assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), "");
+});
+test("descartar: consulta sem resposta (rede ou 5xx) NÃO apaga nada e pede nova tentativa", () => {
+  for (const falha of [{ lancar: "Timeout" }, { status: 500, texto: "" }]) {
+    const c = comRascunho({ cs: { falhar: (m) => (m === "GET" ? falha : null) } });
+    const r = c.acao("assinaturaCancelar");
+    assert.equal(r.ok, false);
+    assert.equal(r.erro, "CLICKSIGN_FALHOU", JSON.stringify(r));
+    assert.ok(!csCalls(c).some((x) => x.startsWith("DELETE")), "apagou sem confirmar");
+    assert.equal(c.txt("ASSINATURA - ENVELOPE ID"), "env-1");
+  }
+});
+test("descartar: DELETE que a Clicksign recusa não limpa as colunas", () => {
+  const c = comRascunho({ cs: { falhar: (m) => (m === "DELETE" ? { status: 422, json: { errors: [{ title: "x" }] } } : null) } });
+  const r = c.acao("assinaturaCancelar");
+  assert.equal(r.ok, false);
+  assert.equal(c.txt("ASSINATURA - ENVELOPE ID"), "env-1");
 });

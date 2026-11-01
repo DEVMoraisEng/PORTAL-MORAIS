@@ -676,9 +676,18 @@ function assinaturaCancelar_(col, sess, p) {
       var base = "/envelopes/" + encodeURIComponent(envId);
       try {
         var env = csPasso_("consultar envelope", "get", base);
+        var draft = env.status === "draft";
+        if (draft) {
+          /* Descartar rascunho: o envio parou no meio e o envelope nunca foi ativado — só draft é apagado */
+          if (assApagarRascunho_(base, pid, cols, p.pageId)) {
+            assApagarProp_(ASS_PAPEIS + envId);
+            r = { ok: true, descartou: true, situacao: "", envelope: false, signatarios: [] };
+          } else r = { ok: false, erro: "RASCUNHO_NAO_APAGADO" };
+        }
         var docsEnv = env.status === "running" ? (csPasso_("consultar documento", "get", base + "/documents").data || []) : [];
         var st = ClicksignVenda.statusEfetivo(env.status, docsEnv);
-        if (st !== "running")
+        if (draft) { /* já tratado acima */ }
+        else if (st !== "running")
           r = { ok: false, erro: "ENVELOPE_NAO_ATIVO", situacao: st === "draft" ? S.RASCUNHO : (st === "closed" ? S.ASSINADO : S.CANCELADO) };
         else docsEnv.forEach(function (dc) {
           if (dc && dc.attributes && dc.attributes.status === "running")
@@ -686,11 +695,18 @@ function assinaturaCancelar_(col, sess, p) {
         });
       } catch (e) {
         if (e.message !== "CLICKSIGN_FALHOU") throw e;
-        r = { ok: false, erro: "CLICKSIGN_FALHOU", passo: e.passo, http: e.http, detalhe: e.detalhe };
+        /* rascunho que já não existe na Clicksign (apagado à mão): a casa volta a "sem envelope", como no Atualizar situação */
+        if (e.passo === "consultar envelope" && e.http === 404 && assTexto_(pg, cols.SITUACAO).toUpperCase() === S.RASCUNHO) {
+          try {
+            assGravarTextos_(p.pageId, assColunasEnvelope_(cols, "", ""));
+            assApagarProp_(ASS_PAPEIS + envId);
+            r = { ok: true, descartou: true, situacao: "", envelope: false, signatarios: [] };
+          } catch (e2) { ctrErro_("assinatura cancelar " + pid + " limpeza do rascunho", e2); r = { ok: false, erro: "GRAVACAO_FALHOU" }; }
+        } else r = { ok: false, erro: "CLICKSIGN_FALHOU", passo: e.passo, http: e.http, detalhe: e.detalhe };
       }
     }
   } finally { trava.releaseLock(); }
-  assLog_("cancelar " + pid + " por " + String((sess && sess.u) || "?") + ": " + (r ? r.erro : "ok"));
+  assLog_("cancelar " + pid + " por " + String((sess && sess.u) || "?") + ": " + (r ? (r.erro || "ok") : "ok"));
   if (r) return r;
   var est = assinaturaEstado_(col, p);   /* grava CANCELADO e limpa as Propriedades do envelope */
   est.cancelou = true;
