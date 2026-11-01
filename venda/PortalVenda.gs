@@ -44,7 +44,10 @@ function tratar_(p) {
     if (grava && String(sess.t || "").toUpperCase() === "TESTES") return { ok: false, erro: "SEM_PERMISSAO_TESTES" };
     if (p.action !== "ping" && !REGEX_PAGE_ID.test(String(p.pageId || ""))) return { ok: false, erro: "PAGINA_INVALIDA" };
     var col = colunas_();
-    var r = executar_(col, sess, p);
+    var trava = assTravaAssinado_(p);   /* 01/11 (plano 23 A): envelope ASSINADO = nada do que se assinou muda */
+    if (trava) { ctrPaginaEmprestada_ = null; return trava; }
+    var r;
+    try { r = executar_(col, sess, p); } finally { ctrPaginaEmprestada_ = null; }
     if (grava && r && r.ok === true) logContrato_(sess, p, r);   /* 30/10: histórico do contrato (LogContrato.gs) */
     return r;
   } catch (err) {
@@ -89,6 +92,8 @@ function executar_(col, sess, p) {
       case "gerarVendaCondominio": return gerarVendaCondominio_(col, sess, p);
       /* entrega 14: contrato assinado pelo portal e recebimentos (RecebimentoVenda.gs) */
       case "verContratoAssinado": return verContratoAssinado_(col, p);
+      case "documentosAssinados": return documentosAssinados_(col, p);       /* 01/11 (plano 23 A): só leitura */
+      case "verDocumentoAssinado": return verDocumentoAssinado_(col, p);
       /* 27/10/2026: Termo de Pré-Reserva (PreReserva.gs); a assinatura usa as ações acima com doc = "PRE_RESERVA" */
       case "preReservaEstado": return preReservaEstado_(col, p);
       case "salvarContaPreReserva": return salvarContaPreReserva_(col, sess, p);

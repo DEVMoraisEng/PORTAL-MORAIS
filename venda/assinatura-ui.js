@@ -1,6 +1,7 @@
 /* assinatura-ui.js — bloco "Assinatura" do painel da casa (entrega 3).
  * JS puro do navegador, no estilo do venda-dossie.js. Fala só com o Apps Script
- * PORTAL-VENDA (ações assinaturaEnviar, assinaturaEstado, assinaturaReenviar e assinaturaCancelar). A integração no
+ * PORTAL-VENDA (ações assinaturaEnviar, assinaturaEstado, assinaturaReenviar e assinaturaCancelar; 01/11: documentosAssinados
+ * e verDocumentoAssinado). A integração no
  * vendas.html / venda-dossie.js fica com quem coordena: este arquivo só desenha
  * o bloco e executa as ações, recebendo de fora como chamar o servidor.
  * Nunca mostra e-mail: o servidor devolve só papel, nome mascarado ("Maria S."), situação e data. */
@@ -54,7 +55,12 @@
     RUBRICAS_SEM_LEITOR: "Não consegui abrir o leitor de PDF do navegador — confira a internet e tente de novo.",
     MEMORIAL_NAO_CONFIGURADO: "O modelo do memorial descritivo não abre — avise o administrador.",
     MEMORIAL_FALHOU: "Não consegui gerar o memorial descritivo — tente de novo ou avise o desenvolvedor.",
-    PROJETO_NAO_CONFIGURADO: "O PDF do projeto aprovado não abre — avise o administrador."
+    PROJETO_NAO_CONFIGURADO: "O PDF do projeto aprovado não abre — avise o administrador.",
+    /* 01/11/2026 (plano 23 A): depois de assinado por todos, só visualizar */
+    NAO_ASSINADO: "Ainda não foi assinado por todos — use Atualizar situação.",
+    DOCUMENTO_NAO_ENCONTRADO: "Esse documento não está mais no envelope — recarregue a página.",
+    CONTRATO_ASSINADO: "O contrato já foi assinado por todos — nada mais muda nele. Recarregue a página.",
+    TERMO_ASSINADO: "O termo de pré-reserva já foi assinado por todos — nada mais muda nele. Recarregue a página."
   };
 
   function esc(s) {
@@ -134,6 +140,64 @@
     return MSG[e] || "Algo deu errado (" + e + ") — tente de novo.";
   }
 
+  /* ---- 01/11/2026 (plano 23 A) ----
+   * Dono: "depois do contrato assinado por todos, tem que tirar essas opções e deixar só para visualizar os documentos todos
+   * assinados (inclusive o projeto)". Com ASSINADO o bloco vira "Documentos assinados": Ver e Baixar de cada documento do
+   * envelope (lista da ação documentosAssinados, em c.assinados) e Atualizar situação. O arquivo baixado se chama
+   * "<nome do documento> - ASSINADO.pdf". */
+  function nomeArquivoAssinado(nome) {
+    var n = String(nome || "").trim().replace(/\.pdf$/i, "").replace(/\s*\[#[0-9a-f]{8}\]\s*$/i, "").trim();
+    n = n.replace(/^(CONTRATO|TERMO DE PRÉ-RESERVA) ASSINADO - /, "$1 - ").replace(/^ASSINADO - /, "").replace(/\s*-\s*ASSINADO$/i, "").trim();
+    return (n || "documento") + " - ASSINADO.pdf";
+  }
+  var ROTULO_DOC = { contrato: "Contrato", termo: "Termo de confissão de dívida", memorial: "Memorial descritivo", projeto: "Projeto aprovado" };
+  function assinado(c) { return !!(c && c.estado && situacaoDe(c.estado) === "ASSINADO"); }
+  function precisaCarregarAssinados(c) { return assinado(c) && !Array.isArray(c.assinados) && c.ocupado !== "assinados"; }
+  function montarDocumentosAssinados(c) {
+    var x = pre(c), e = c.estado, h = '<div class="grp">Documentos assinados</div>';
+    h += '<div class="dz-linha"><span class="dz-rot">Situação: ' + esc(SITUACAO.ASSINADO) + "</span></div>";
+    if (c.ocupado === "atualizar") h += '<div class="dz-linha"><b>consultando…</b></div>';
+    if (c.ocupado === "baixar") h += '<div class="dz-linha"><b>abrindo o documento assinado…</b></div>';
+    if (!Array.isArray(c.assinados)) h += '<div class="vazio">carregando os documentos assinados…</div>';
+    else if (!c.assinados.length && !c.msg) h += '<div class="vazio">Nenhum documento no envelope.</div>';
+    else if (c.assinados.length) h += '<ul class="ass-lista ass-docs">' + c.assinados.map(function (d) {
+      var rot = ehTermo(c) && d.tipo === "contrato" ? "Termo de pré-reserva" : (ROTULO_DOC[d.tipo] || "Documento");
+      var dis = c.ocupado ? " disabled" : "";
+      return '<li><span><b>' + esc(rot) + '</b> <span class="ass-data">' + esc(d.nome) + "</span></span> " +
+        '<button type="button" class="bt ghost bt-mini" data-acao="' + x + 'doc-ver" data-doc="' + esc(d.id) + '"' + dis + ">Ver</button> " +
+        '<button type="button" class="bt ghost bt-mini" data-acao="' + x + 'doc-baixar" data-doc="' + esc(d.id) + '"' + dis + ">Baixar</button></li>";
+    }).join("") + "</ul>";
+    var sigs = (e && e.signatarios) || [];
+    if (sigs.length) h += '<details class="dz-linha"><summary class="ass-data">Quem assinou (' + sigs.length + ")</summary><ul class=\"ass-lista\">" +
+      sigs.map(function (s) {
+        var d = dataCurta(s.data);
+        return "<li><span>" + (s.nome ? "<b>" + esc(s.nome) + "</b> (" + esc(s.papel) + ")" : esc(s.papel)) + "</span>" +
+          (d ? ' <span class="ass-data">em ' + esc(d) + "</span>" : "") + "</li>";
+      }).join("") + "</ul></details>";
+    h += '<div class="dz-linha"><button type="button" class="bt ghost bt-mini" data-acao="' + x + 'atualizar"' + (podeAtualizar(c) ? "" : " disabled") + ">Atualizar situação</button></div>";
+    if (c.msg) h += '<div class="dz-msg">' + esc(c.msg) + "</div>";
+    return h;
+  }
+  /* lista do envelope (ação documentosAssinados) → contexto novo com c.assinados (lista vazia + msg se falhar) */
+  async function carregarAssinados(c, deps) {
+    var r;
+    try { r = await deps.chamar(comDoc(c, { action: "documentosAssinados", pageId: deps.pageId })); }
+    catch (err) { r = { ok: false, erro: "SEM_RESPOSTA" }; }
+    r = r || { ok: false, erro: "SEM_RESPOSTA" };
+    if (!r.ok) return copia(c, { ocupado: null, assinados: [], msg: mensagemAssinatura(r) });
+    return copia(c, { ocupado: null, assinados: Array.isArray(r.documentos) ? r.documentos : [] });
+  }
+  /* PDF assinado de um documento (ação verDocumentoAssinado): { ctx, arquivo: { nome, base64 } | null } */
+  async function baixarAssinado(c, docId, deps) {
+    var r;
+    try { r = await deps.chamar({ action: "verDocumentoAssinado", pageId: deps.pageId, docId: String(docId || "") }); }
+    catch (err) { r = { ok: false, erro: "SEM_RESPOSTA" }; }
+    r = r || { ok: false, erro: "SEM_RESPOSTA" };
+    if (!r.ok || typeof r.base64 !== "string" || !r.base64)
+      return { ctx: copia(c, { ocupado: null, msg: mensagemAssinatura(r.ok ? { erro: "DOWNLOAD_ASSINADO_FALHOU" } : r) }), arquivo: null };
+    return { ctx: copia(c, { ocupado: null, msg: "" }), arquivo: { nome: nomeArquivoAssinado(r.nome), base64: r.base64 } };
+  }
+
   function ehTermo(c) { return !!(c && c.doc === "PRE_RESERVA"); }
   function pre(c) { return ehTermo(c) ? "p-" : "a-"; }
   function montarBlocoAssinatura(c) {
@@ -141,6 +205,7 @@
     var h = '<div class="grp">' + (termo ? "Enviar termo de pré-reserva via Clicksign" : "Enviar contrato via Clicksign") + "</div>";
     if (c.testes) h += '<div class="dz-aviso">Perfil TESTES não envia, não reenvia, não cancela nem atualiza a assinatura.</div>';
     if (!c.estado) return h + '<div class="vazio">' + esc(c.msg || "carregando…") + "</div>";
+    if (assinado(c)) return montarDocumentosAssinados(c);   /* 01/11 (plano 23 A): só visualizar */
     var e = c.estado, sit = situacaoDe(e);
     if (c.ocupado === "enviar") h += '<div class="dz-linha"><b>enviando… (até 1 minuto)</b></div>';
     if (c.ocupado === "atualizar") h += '<div class="dz-linha"><b>consultando…</b></div>';
@@ -319,7 +384,8 @@
 
   var exportar = { montarBlocoAssinatura: montarBlocoAssinatura, mensagemAssinatura: mensagemAssinatura,
                    executarAcaoAssinatura: executarAcaoAssinatura, prepararRubricas: prepararRubricas, podeEnviar: podeEnviar, podeReenviar: podeReenviar, podeCancelar: podeCancelar, podeDescartar: podeDescartar,
-                   podeVerAssinado: podeVerAssinado };
+                   podeVerAssinado: podeVerAssinado, nomeArquivoAssinado: nomeArquivoAssinado, precisaCarregarAssinados: precisaCarregarAssinados,
+                   carregarAssinados: carregarAssinados, baixarAssinado: baixarAssinado, assinado: assinado };
   if (typeof module !== "undefined" && module.exports) { module.exports = exportar; return; }
   window.VendaAssinatura = exportar; /* o coordenador liga no painel (venda-dossie.js / vendas.html) */
 })();

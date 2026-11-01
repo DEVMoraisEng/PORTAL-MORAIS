@@ -180,6 +180,8 @@ test("gerarContrato na linha do condomínio: modelo do condomínio, PDF em CONTR
   const gets = c.g.chamadas.filter((x) => x.url === "https://api.notion.com/v1/pages/" + COND && x.opt.method === "GET");
   assert.equal(gets.length, 3);
   assert.match(r.nome, /^CONTRATO - CONDOMÍNIO RESERVA TESTE - CASA 13 - .* \[#[0-9a-f]{8}\]\.pdf$/);
+  /* 01/11 (plano 23 A): cópia do Docs com o nome final (o título do PDF herda), não "contrato-provisorio" */
+  assert.equal(c.d.estado.copias[0].nome, "CONTRATO - CONDOMÍNIO RESERVA TESTE CASA 13 - Compradora de Teste");
   const pars = c.d.estado.salvos[c.d.estado.copias[0].id].pars;
   assert.equal(pars[0], "CONTRATO — CONDOMÍNIO RESERVA TESTE — UNIDADE 13");
   assert.ok(pars[1].includes("Compradora de Teste") && pars[1].includes("529.982.247-25"), pars[1]);
@@ -291,6 +293,7 @@ test("termo: estado, falta a conta, salva a conta, gera o PDF com o carimbo na c
   const r = c.acao("gerarTermoPreReserva");
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.match(r.nome, /^TERMO DE PRÉ-RESERVA - CONDOMÍNIO RESERVA DOS IPÊS - CASA 13 - .* \[#[0-9a-f]{8}\]\.pdf$/);
+  assert.equal(c.d.estado.copias.at(-1).nome, "TERMO DE PRÉ-RESERVA - CONDOMÍNIO RESERVA DOS IPÊS CASA 13 - Compradora de Teste");
   const pars = c.d.estado.salvos[c.d.estado.copias[c.d.estado.copias.length - 1].id].pars;
   assert.ok(pars[0].includes("Compradora de Teste") && pars[0].includes("CPF nº 529.982.247-25") && pars[0].includes("telefone 62 90000-0000"), pars[0]);
   assert.equal(pars[1], "Casa 13 Tipo 02 até 31/10/2026 por R$ 3.000,00 (três mil reais) (3.000,00)");
@@ -572,12 +575,14 @@ test("01/11: Conferi com envelope ENVIADO/RASCUNHO/ASSINADO ou envio pendente: C
     if (sit === "pendente") c.g.ctx.PropertiesService.getScriptProperties().setProperty("ASSINATURA_PENDENTE_" + COND, "env-y");
     d_zerar(c);
     const r = c.acao("aprovarPreContrato");
-    assert.deepEqual({ ok: r.ok, erro: r.erro }, { ok: false, erro: "CONTRATO_EM_ASSINATURA" }, sit);
+    /* 01/11 (plano 23 A): assinado por todos, a trava do servidor responde antes (CONTRATO_ASSINADO) */
+    const esperado = sit === "ASSINADO" ? "CONTRATO_ASSINADO" : "CONTRATO_EM_ASSINATURA";
+    assert.deepEqual({ ok: r.ok, erro: r.erro }, { ok: false, erro: esperado }, sit);
     assert.equal(c.d.estado.copias.length, 0, sit + ": nada copiado no Drive");
     assert.equal(c.n.patches.length, 0, sit + ": nada gravado no Notion");
     assert.match(c.n.pagina.properties["CONTRATO GERADO"].files[0].name, /bbbbbbbb/, sit);
     assert.equal(c.n.pagina.properties["CONFISSÃO PRÉ-CHAVES - GERADA"].files.length, 1, sit);
-    assert.equal(c.acao("gerarContrato").erro, "CONTRATO_EM_ASSINATURA", sit + " (ação antiga)");
+    assert.equal(c.acao("gerarContrato").erro, esperado, sit + " (ação antiga)");
   }
   /* envelope cancelado já não está com ninguém: o Conferi segue */
   const c = cenarioCfd({ linha: { "ASSINATURA - ENVELOPE ID": rt("env-x"), "ASSINATURA - SITUAÇÃO": rt("CANCELADO") } });

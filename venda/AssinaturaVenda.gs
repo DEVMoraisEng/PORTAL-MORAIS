@@ -323,7 +323,7 @@ function assDocsDoComprador_(d, pid, nomeCs) {
     try { modelo = DriveApp.getFileById(memId); pasta = DriveApp.getFolderById(prop_("PASTA_PROVISORIA_ID")); }
     catch (e) { ctrErro_("assinatura memorial " + pid + " modelo inacessivel", e); return { resp: { ok: false, erro: "MEMORIAL_NAO_CONFIGURADO" } }; }
     var mc = ContratoVenda.marcadores(d);
-    var g = ctrGerarPdf_({ modelo: modelo, pasta: pasta, blocos: {},
+    var g = ctrGerarPdf_({ modelo: modelo, pasta: pasta, blocos: {}, titulo: "MEMORIAL DESCRITIVO - " + nomeCs,
                            marcadores: { ASSINATURA_COMPRADORES_NOMES: mc.MEMORIAL_ASSINATURA_NOMES, ASSINATURA_COMPRADORES_CPFS: mc.MEMORIAL_ASSINATURA_CPFS } },
                          pid, "assinatura memorial", false);
     if (g.resp) return { resp: g.resp.erro === "CONTRATO_FALHOU" ? { ok: false, erro: "MEMORIAL_FALHOU" } : g.resp };
@@ -764,6 +764,76 @@ function verContratoAssinado_(col, p) {
   if (b.base64.length * 3 / 4 > ASS_MAX_BYTES) return { ok: false, erro: "ASSINADO_GRANDE" };
   assLog_("ver assinado " + pid + " ok");
   return { ok: true, nome: ctrTxt_(f.name) || "contrato-assinado.pdf", base64: b.base64 };
+}
+
+/* ---- 01/11/2026 (plano 23 A): depois de assinado por todos, só visualizar ----
+ * Dono: "depois do contrato assinado por todos, tem que tirar essas opções e deixar só para visualizar os documentos
+ * todos assinados (inclusive o projeto)". documentosAssinados lista os documentos do envelope (contrato, termos de
+ * confissão, memorial, projeto) e verDocumentoAssinado entrega o PDF assinado de um deles — baixado da Clicksign pelo
+ * link "signed" (o mesmo de assinaturaEstado), em base64 pela sessão do portal. Só com a situação ASSINADO gravada na
+ * casa. Só leitura (o perfil TESTES vê). Log só com pageId abreviado e o resultado. */
+function assEnvelopeAssinado_(p) {
+  var doc = assDoc_(p), pg = ctrLerPaginaVenda_(p.pageId), cols = assColunas_(pg, doc);
+  var envId = prop_(ASS_PENDENTE + doc.chave + p.pageId) || assTexto_(pg, cols.ENVELOPE);
+  if (!envId || assTexto_(pg, cols.SITUACAO).toUpperCase() !== ClicksignVenda.SITUACOES.ASSINADO) return { resp: { ok: false, erro: "NAO_ASSINADO" } };
+  if (!prop_("CLICKSIGN_TOKEN")) return { resp: { ok: false, erro: "CLICKSIGN_SEM_TOKEN" } };
+  if (!csBase_()) return { resp: { ok: false, erro: "CLICKSIGN_URL_INVALIDA" } };
+  var base = "/envelopes/" + encodeURIComponent(envId), docs;
+  try { docs = csPasso_("consultar documento", "get", base + "/documents").data || []; }
+  catch (e) {
+    if (e.message !== "CLICKSIGN_FALHOU") throw e;
+    return { resp: { ok: false, erro: "CLICKSIGN_FALHOU", passo: e.passo, http: e.http, detalhe: e.detalhe } };
+  }
+  return { docs: docs };
+}
+function documentosAssinados_(col, p) {
+  var pid = String(p.pageId).slice(0, 8), x = assEnvelopeAssinado_(p);
+  if (x.resp) { assLog_("assinados " + pid + ": " + x.resp.erro); return x.resp; }
+  var l = ClicksignVenda.listaAssinados(x.docs, function (n) { return !!ConfissaoVenda.colunaAssinadaDoNome(n); });
+  assLog_("assinados " + pid + " ok " + l.length);
+  return { ok: true, documentos: l };
+}
+function verDocumentoAssinado_(col, p) {
+  var pid = String(p.pageId).slice(0, 8), x = assEnvelopeAssinado_(p);
+  if (x.resp) return x.resp;
+  var dc = x.docs.filter(function (d) { return d && String(d.id) === String(p.docId || ""); })[0];
+  if (!dc) return { ok: false, erro: "DOCUMENTO_NAO_ENCONTRADO" };
+  var link, r;
+  try { link = ClicksignVenda.linkAssinado(dc); } catch (e) { assLog_("ver doc assinado " + pid + " sem link"); return { ok: false, erro: String(e.message) }; }
+  try { r = UrlFetchApp.fetch(link, { muteHttpExceptions: true }); }   /* link pré-assinado: sem o token */
+  catch (e) { return { ok: false, erro: "DOWNLOAD_ASSINADO_FALHOU" }; }
+  if (r.getResponseCode() >= 300) { assLog_("ver doc assinado " + pid + " http " + r.getResponseCode()); return { ok: false, erro: "DOWNLOAD_ASSINADO_FALHOU" }; }
+  var bytes = r.getBlob().getBytes();
+  if (bytes.length > ASS_MAX_BYTES) return { ok: false, erro: "ASSINADO_GRANDE" };
+  assLog_("ver doc assinado " + pid + " ok");
+  return { ok: true, nome: ctrTxt_((dc.attributes || {}).filename) || "documento.pdf", base64: Utilities.base64Encode(bytes) };
+}
+
+/* Trava do servidor (plano 23 A): com o envelope ASSINADO nada do que se assinou muda, mesmo que uma tela antiga mande.
+ * Contrato: CONTRATO_ASSINADO; termo de pré-reserva: TERMO_ASSINADO. Lê só as colunas da situação; base sem as colunas
+ * (ou página ilegível) não trava aqui — a própria ação responde. */
+var ASS_TRAVA_CONTRATO = ["gerarPreContrato", "aprovarPreContrato", "gerarContrato", "escolherTestemunhas", "salvarCamposContrato", "escolherContaRecebimento",
+                          "salvarCondicoesEspeciais", "redigirCondicoesEspeciais", "salvarFiadores", "conjugeEhFiador2"];
+/* salvarFluxo fica de fora: já recusa com FLUXO_CONTRATO_ASSINADO ("mudar o fluxo agora exige aditivo") */
+var ASS_TRAVA_TERMO = ["gerarTermoPreReserva", "salvarContaPreReserva", "salvarConjugePreReserva"];
+var ASS_TRAVA_ENVELOPE = ["assinaturaEnviar", "assinaturaReenviar", "assinaturaCancelar"];
+function assTravaAssinado_(p) {
+  var a = String(p.action || ""), termo;
+  if (ASS_TRAVA_CONTRATO.indexOf(a) >= 0) termo = false;
+  else if (ASS_TRAVA_TERMO.indexOf(a) >= 0) termo = true;
+  else if (ASS_TRAVA_ENVELOPE.indexOf(a) >= 0) termo = p.doc === "PRE_RESERVA";
+  else return null;
+  /* sem token a ação de envelope responde CLICKSIGN_SEM_TOKEN sem ler nada — a trava também não lê */
+  if (ASS_TRAVA_ENVELOPE.indexOf(a) >= 0 && !prop_("CLICKSIGN_TOKEN")) return null;
+  var sit = "";
+  try {
+    var doc = assDoc_(termo ? { doc: "PRE_RESERVA" } : {}), info = {}, pg = ctrLerPaginaVenda_(p.pageId, info);
+    ctrPaginaEmprestada_ = { id: p.pageId, pg: pg, base: info.base };
+    sit = assTexto_(pg, assColunas_(pg, doc).SITUACAO).toUpperCase();
+  } catch (e) { return null; }
+  if (sit !== ClicksignVenda.SITUACOES.ASSINADO) return null;
+  assLog_(a + " " + String(p.pageId).slice(0, 8) + " recusado: " + (termo ? "termo" : "contrato") + " assinado");
+  return { ok: false, erro: termo ? "TERMO_ASSINADO" : "CONTRATO_ASSINADO" };
 }
 
 /* Conferência para rodar UMA vez no editor (selecionar conferirAssinatura › Executar › ver o Registro de

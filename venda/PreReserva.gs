@@ -143,7 +143,8 @@ function gerarTermoPreReserva_(col, sess, p) {
   try { modelo = DriveApp.getFileById(modeloId); pasta = DriveApp.getFolderById(pastaId); }
   catch (e) { ctrErro_(rot + " " + pid + " modelo inacessivel", e); return { ok: false, erro: "MODELO_NAO_CONFIGURADO" }; }
   var hash = prCarimbo_(x.t);
-  var g = ctrGerarPdf_({ modelo: modelo, pasta: pasta, marcadores: PreReservaVenda.marcadores(x.t), blocos: {} }, pid, rot, false);
+  var g = ctrGerarPdf_({ modelo: modelo, pasta: pasta, marcadores: PreReservaVenda.marcadores(x.t), blocos: {},
+                         titulo: ClicksignVenda.tituloDocumento("TERMO DE PRÉ-RESERVA - ", x.f.endereco, x.f.casa, x.d.comprador1 && x.d.comprador1.nome) }, pid, rot, false);
   if (g.resp) return g.resp;
   var endereco = String(x.f.endereco).replace(/[\\\/:*?"<>|]/g, "-");
   var nome = "TERMO DE PRÉ-RESERVA - " + endereco + (x.f.casa ? " - CASA " + x.f.casa : "") + " - " + hoje_("dd-MM-yyyy") + " [#" + hash + "].pdf";

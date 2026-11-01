@@ -421,3 +421,23 @@ test("01/11 (H5): testemunhasParaTela diz o par padrão (ids) — SPE para vende
   assert.deepEqual(CS.testemunhasParaTela(CS.montarConfig({ ASSINATURA_TESTEMUNHAS_OPCOES: JSON.stringify(OPCOES) })).padrao, []);
   assert.doesNotMatch(JSON.stringify(CS.testemunhasParaTela(cfgOp())), /@|000\.000/);
 });
+
+/* ---- 01/11/2026 (plano 23, tarefa A): nome final dos documentos e lista dos assinados ---- */
+test("plano 23 A: tituloDocumento = prefixo + nome padrão (OBRA CASA n - COMPRADOR), sem 'provisório'", () => {
+  assert.equal(CS.tituloDocumento("CONTRATO - ", "CONDOMINIO TESTE", "17", "Fulano de Teste"), "CONTRATO - CONDOMINIO TESTE CASA 17 - Fulano de Teste");
+  assert.equal(CS.tituloDocumento("TERMO DE PRÉ-RESERVA - ", "CONDOMINIO TESTE", "", "Fulano de Teste"), "TERMO DE PRÉ-RESERVA - CONDOMINIO TESTE - Fulano de Teste");
+  assert.equal(CS.tituloDocumento("CONFISSÃO PRÉ-CHAVES - ", "RUA/TESTE", "3", ""), "CONFISSÃO PRÉ-CHAVES - RUA-TESTE CASA 3");
+  assert.doesNotMatch(CS.tituloDocumento("CONTRATO - ", "", "", ""), /provis/i);
+});
+
+test("plano 23 A: listaAssinados — contrato primeiro, cada documento com id, nome e tipo; sem link", () => {
+  const docs = [
+    { id: "d2", attributes: { filename: "CONFISSÃO PRÉ-CHAVES - X.pdf" }, links: { files: { signed: "https://s3/a" } } },
+    { id: "d3", attributes: { filename: "MEMORIAL DESCRITIVO - X.pdf" } },
+    { id: "d1", attributes: { filename: "X CASA 1 - Fulano.pdf" } },
+    { id: "d4", attributes: { filename: "PROJETO APROVADO - X.pdf" } }];
+  const l = CS.listaAssinados(docs, (n) => /^CONFISS/.test(n));
+  assert.deepEqual(l, [{ id: "d1", nome: "X CASA 1 - Fulano.pdf", tipo: "contrato" }, { id: "d2", nome: "CONFISSÃO PRÉ-CHAVES - X.pdf", tipo: "termo" },
+                       { id: "d3", nome: "MEMORIAL DESCRITIVO - X.pdf", tipo: "memorial" }, { id: "d4", nome: "PROJETO APROVADO - X.pdf", tipo: "projeto" }]);
+  assert.doesNotMatch(JSON.stringify(l), /https/);
+});

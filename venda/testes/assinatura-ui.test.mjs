@@ -72,23 +72,19 @@ test("Reenviar: confirma, chama assinaturaReenviar e mostra quantos recebem; err
   assert.equal(lim.estado, c0.estado);
 });
 
-test("assinado: mostra Assinado e Enviar continua desabilitado", () => {
+test("assinado: mostra Assinado e, desde o plano 23 (01/11), nenhum Enviar", () => {
   const h = A.montarBlocoAssinatura(ctx({ estado: { situacao: "ASSINADO", envelope: true, signatarios: [] } }));
   assert.match(h, /Assinado por todos/);
-  assert.match(botao(h, "a-enviar")[0], /disabled/);
-  /* entrega 14: sem o PDF assinado na casa, não há o botão */
+  assert.equal(botao(h, "a-enviar").length, 0);
   assert.equal(botao(h, "a-ver-assinado").length, 0);
 });
 
-test("entrega 14: título 'Enviar contrato via Clicksign'; 'Ver contrato assinado' só com ASSINADO + PDF na casa (TESTES vê)", () => {
-  const h = A.montarBlocoAssinatura(ctx({ estado: { situacao: "ASSINADO", envelope: true, signatarios: [], temAssinado: true } }));
+test("entrega 14: título 'Enviar contrato via Clicksign' enquanto não assinou; ASSINADO vira 'Documentos assinados' (plano 23)", () => {
+  const h = A.montarBlocoAssinatura(ctx({ estado: { situacao: "ENVIADO", envelope: true, signatarios: [], temAssinado: true } }));
   assert.match(h, /<div class="grp">Enviar contrato via Clicksign<\/div>/);
-  assert.equal(botao(h, "a-ver-assinado").length, 1);
-  assert.doesNotMatch(botao(h, "a-ver-assinado")[0], /disabled/);
-  const t = A.montarBlocoAssinatura(ctx({ testes: true, estado: { situacao: "ASSINADO", envelope: true, signatarios: [], temAssinado: true } }));
-  assert.doesNotMatch(botao(t, "a-ver-assinado")[0], /disabled/);
-  const enviado = A.montarBlocoAssinatura(ctx({ estado: { situacao: "ENVIADO", envelope: true, signatarios: [], temAssinado: true } }));
-  assert.equal(botao(enviado, "a-ver-assinado").length, 0);
+  assert.equal(botao(h, "a-ver-assinado").length, 0);
+  const a = A.montarBlocoAssinatura(ctx({ estado: { situacao: "ASSINADO", envelope: true, signatarios: [], temAssinado: true } }));
+  assert.match(a, /<div class="grp">Documentos assinados<\/div>/);
   assert.match(A.mensagemAssinatura({ ok: false, erro: "SEM_ASSINADO" }), /ainda não está na casa/);
 });
 
@@ -385,4 +381,57 @@ test("I3: a tela espera 240 s nas ações da assinatura (contrato e termo), mais
   assert.match(src, /var ESPERA_ASSINATURA = 240000;/);
   assert.equal((src.match(/chamar: function \(p\) \{ return chamarVenda\(p, ESPERA_ASSINATURA\); \}/g) || []).length, 2);
   assert.doesNotMatch(src, /chamar: function \(p\) \{ return chamarVenda\(p, 150000\); \}/);
+});
+
+/* ---- 01/11/2026 (plano 23, tarefa A): depois de assinado por todos, só os documentos assinados ---- */
+const ASSINADO = { situacao: "ASSINADO", envelope: true, temAssinado: true, signatarios: [{ papel: "Comprador 1", nome: "Maria S.", situacao: "assinou", data: "" }] };
+const DOCS = [{ id: "doc-1", nome: "CONDOMINIO TESTE CASA 1 - Maria.pdf", tipo: "contrato" }, { id: "doc-2", nome: "MEMORIAL DESCRITIVO - CONDOMINIO TESTE CASA 1 - Maria.pdf", tipo: "memorial" }];
+
+test("plano 23 A: nomeArquivoAssinado põe ' - ASSINADO.pdf' e tira carimbo e prefixo antigo", () => {
+  assert.equal(A.nomeArquivoAssinado("CONDOMINIO TESTE CASA 1 - Maria.pdf"), "CONDOMINIO TESTE CASA 1 - Maria - ASSINADO.pdf");
+  assert.equal(A.nomeArquivoAssinado("CONTRATO ASSINADO - RUA TESTE - 01-10-2026.pdf"), "CONTRATO - RUA TESTE - 01-10-2026 - ASSINADO.pdf");
+  assert.equal(A.nomeArquivoAssinado("CONTRATO - RUA [#0123abcd].pdf"), "CONTRATO - RUA - ASSINADO.pdf");
+  assert.equal(A.nomeArquivoAssinado("X - ASSINADO.pdf"), "X - ASSINADO.pdf");
+  assert.equal(A.nomeArquivoAssinado(""), "documento - ASSINADO.pdf");
+});
+
+test("plano 23 A: ASSINADO mostra só 'Documentos assinados' (Ver e Baixar de cada um) e Atualizar situação", () => {
+  const h = A.montarBlocoAssinatura(ctx({ estado: ASSINADO, assinados: DOCS }));
+  assert.match(h, /Documentos assinados/);
+  assert.equal(botao(h, "a-enviar").length, 0, "sem Enviar");
+  assert.equal(botao(h, "a-cancelar").length + botao(h, "a-descartar").length + botao(h, "a-reenviar").length, 0);
+  assert.equal(botao(h, "a-ver-assinado").length, 0, "o Ver antigo vira a lista");
+  assert.equal(botao(h, "a-doc-ver").length, 2);
+  assert.equal(botao(h, "a-doc-baixar").length, 2);
+  assert.match(botao(h, "a-doc-ver")[0], /data-doc="doc-1"/);
+  assert.match(h, /Memorial descritivo/);
+  assert.doesNotMatch(botao(h, "a-atualizar")[0], /disabled/);
+  /* o perfil TESTES vê e baixa (só leitura) */
+  const t = A.montarBlocoAssinatura(ctx({ testes: true, estado: ASSINADO, assinados: DOCS }));
+  assert.doesNotMatch(botao(t, "a-doc-baixar")[0], /disabled/);
+  /* termo: mesmo bloco com o prefixo p- */
+  const p = A.montarBlocoAssinatura(ctx({ doc: "PRE_RESERVA", estado: ASSINADO, assinados: DOCS.slice(0, 1) }));
+  assert.equal(botao(p, "p-doc-ver").length, 1);
+  /* lista ainda não carregada / erro */
+  assert.match(A.montarBlocoAssinatura(ctx({ estado: ASSINADO })), /carregando os documentos assinados/);
+  assert.match(A.montarBlocoAssinatura(ctx({ estado: ASSINADO, assinados: [], msg: "falhou" })), /falhou/);
+  assert.ok(A.precisaCarregarAssinados(ctx({ estado: ASSINADO })));
+  assert.ok(!A.precisaCarregarAssinados(ctx({ estado: ASSINADO, assinados: DOCS })));
+  assert.ok(!A.precisaCarregarAssinados(ctx({ estado: ENVIADO })));
+});
+
+test("plano 23 A: carregarAssinados e baixarAssinado falam com o servidor (doc do termo junto) e devolvem o nome final", async () => {
+  const chamadas = [];
+  const chamar = async (x) => { chamadas.push(x); return x.action === "documentosAssinados" ? { ok: true, documentos: DOCS } : { ok: true, nome: DOCS[1].nome, base64: "QUJD" }; };
+  const c1 = await A.carregarAssinados(ctx({ doc: "PRE_RESERVA", estado: ASSINADO }), { pageId: "p", chamar });
+  assert.deepEqual(c1.assinados, DOCS);
+  const r = await A.baixarAssinado(ctx({ estado: ASSINADO, assinados: DOCS }), "doc-2", { pageId: "p", chamar });
+  assert.deepEqual(chamadas, [{ action: "documentosAssinados", pageId: "p", doc: "PRE_RESERVA" }, { action: "verDocumentoAssinado", pageId: "p", docId: "doc-2" }]);
+  assert.deepEqual(r.arquivo, { nome: "MEMORIAL DESCRITIVO - CONDOMINIO TESTE CASA 1 - Maria - ASSINADO.pdf", base64: "QUJD" });
+  const ruim = await A.baixarAssinado(ctx({ estado: ASSINADO, assinados: DOCS }), "doc-2", { pageId: "p", chamar: async () => ({ ok: false, erro: "DOWNLOAD_ASSINADO_FALHOU" }) });
+  assert.equal(ruim.arquivo, null);
+  assert.match(ruim.ctx.msg, /Não consegui baixar o PDF assinado/);
+  const sem = await A.carregarAssinados(ctx({ estado: ASSINADO }), { pageId: "p", chamar: async () => { throw new Error("x"); } });
+  assert.deepEqual(sem.assinados, []);
+  assert.match(sem.msg, /não respondeu/);
 });

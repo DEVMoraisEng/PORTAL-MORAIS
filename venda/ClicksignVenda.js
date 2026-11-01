@@ -307,6 +307,12 @@ var ClicksignVenda = (function () {
     var partes = [obra, limpo(comprador)].filter(function (x) { return x; });
     return partes.length ? partes.join(" - ").slice(0, 200) : "Contrato de compra e venda";
   }
+  /* 01/11/2026 (plano 23 A, dono: "pq veio com nome de provisorio"): nome da cópia do Google Docs — o PDF exportado herda
+   * esse nome como título, e a Clicksign o mantém. prefixo ("CONTRATO - ", "TERMO DE PRÉ-RESERVA - ", ...) + nome padrão. */
+  function tituloDocumento(prefixo, endereco, casa, comprador) {
+    var n = nomePadrao(endereco, casa, comprador);
+    return txt(prefixo) + " " + (n === "Contrato de compra e venda" ? "" : n);
+  }
   /* compatível com a chamada antiga (só o endereço) */
   function nomeEnvelope(endereco, casa, comprador) { return nomePadrao(endereco, casa, comprador); }
   function nomeArquivo(nome) {
@@ -474,6 +480,16 @@ var ClicksignVenda = (function () {
     if (n.indexOf(PREFIXO_DOC.projeto) === 0) return DOC.PROJETO;
     return DOC.CONTRATO;
   }
+  /* 01/11/2026 (plano 23 A): documentos de um envelope assinado para a tela — [{ id, nome, tipo }], o contrato primeiro,
+   * sem link (o PDF vem pela sessão do portal, ação verDocumentoAssinado). ehTermo(filename) vem do ConfissaoVenda. */
+  function listaAssinados(docs, ehTermo) {
+    var ordem = {}; ordem[DOC.CONTRATO] = 0; ordem[DOC.TERMO] = 1; ordem[DOC.MEMORIAL] = 2; ordem[DOC.PROJETO] = 3;
+    return (docs || []).map(function (d, i) {
+      var n = txt(d && d.attributes && d.attributes.filename);
+      return { id: txt(d && d.id), nome: n, tipo: tipoDoDocumento(n, typeof ehTermo === "function" && !!ehTermo(n)), i: i };
+    }).filter(function (x) { return x.id; }).sort(function (a, b) { return (ordem[a.tipo] - ordem[b.tipo]) || (a.i - b.i); })
+      .map(function (x) { return { id: x.id, nome: x.nome, tipo: x.tipo }; });
+  }
   /* docs: [{ id, tipo }] → ids que este signatário assina. Fiador: só os termos; comprador (rubrica): todos;
    * os demais: o contrato e os termos (memorial e projeto são só do comprador). */
   function documentosDoSignatario(s, docs) {
@@ -575,7 +591,7 @@ var ClicksignVenda = (function () {
 
   var api = {
     PAPEIS: PAPEIS, SITUACOES: SITUACOES, montarConfig: montarConfig, conferirConfig: conferirConfig, signatarios: signatarios,
-    faltasAssinatura: faltasAssinatura, faltasDeNomeEEmail: faltasDeNomeEEmail, linksCorrigirEmail: linksCorrigirEmail, nomeEnvelope: nomeEnvelope, nomeArquivo: nomeArquivo, nomePadrao: nomePadrao,
+    faltasAssinatura: faltasAssinatura, faltasDeNomeEEmail: faltasDeNomeEEmail, linksCorrigirEmail: linksCorrigirEmail, nomeEnvelope: nomeEnvelope, nomeArquivo: nomeArquivo, nomePadrao: nomePadrao, tituloDocumento: tituloDocumento, listaAssinados: listaAssinados,
     corpoEnvelope: corpoEnvelope, corpoDocumento: corpoDocumento, corpoSignatario: corpoSignatario,
     corpoQualificacao: corpoQualificacao, corpoAutenticacao: corpoAutenticacao, corpoAtivar: corpoAtivar, corpoCancelarDocumento: corpoCancelarDocumento, statusEfetivo: statusEfetivo,
     corpoNotificacao: corpoNotificacao, interpretar: interpretar, situacao: situacao, assinaram: assinaram,

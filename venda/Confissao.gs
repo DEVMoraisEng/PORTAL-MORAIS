@@ -16,7 +16,8 @@ function cfdGerarTermos_(prep, p, pid, rot) {
     catch (e) { ctrErro_(rot + " " + pid + " modelo do termo " + tipo, e); return { resp: { ok: false, erro: "MODELO_NAO_CONFIGURADO" } }; }
     var nomeCol = tipo === "POS" ? ConfissaoVenda.COL.POS_GERADO : ConfissaoVenda.COL.PRE_GERADO, col = cfdCol_(pg, nomeCol);
     if (!col) return { resp: { ok: false, erro: "COLUNA_FALTANDO: " + nomeCol } };
-    var g = ctrGerarPdf_({ modelo: modelo, pasta: prep.pasta, marcadores: ConfissaoVenda.marcadores(prep.d, tipo), blocos: {} },
+    var g = ctrGerarPdf_({ modelo: modelo, pasta: prep.pasta, marcadores: ConfissaoVenda.marcadores(prep.d, tipo), blocos: {},
+                           titulo: ClicksignVenda.tituloDocumento(ConfissaoVenda.PREFIXO[tipo], prep.f.endereco, prep.f.casa, prep.d.comprador1 && prep.d.comprador1.nome) },
                          pid, rot + " termo " + tipo, false);
     if (g.resp) return g;
     var nome = ConfissaoVenda.PREFIXO[tipo] + prep.resto;
