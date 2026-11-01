@@ -54,7 +54,7 @@ function migUmModelo_(id, m, aplicar) {
   if (tem.length === marcadores.length) return "já migrado (tem " + migLista_(tem) + "), nada a fazer";
   if (tem.length) return "PARCIAL, não mexi — tem " + migLista_(tem) + ", falta " +
     migLista_(marcadores.filter(function (k) { return tem.indexOf(k) < 0; })) + " (confira o modelo à mão)";
-  var bl = migBlocosConferidos_(body, marcadores.length);
+  var bl = migBlocosConferidos_(body, marcadores.length, id);
   if (typeof bl === "string") return "NÃO MEXI — " + bl;
   var desc = bl.map(function (b, i) { return migDescrever_(b, i, marcadores[i]); }).join("\n");
   if (!aplicar) return "PRÉVIA — trocaria " + bl.length + " bloco(s):\n" + desc;
@@ -74,7 +74,7 @@ function migUmModelo_(id, m, aplicar) {
   try {
     var docC = DocumentApp.openById(cid), bodyC = docC.getBody();
     if (String(bodyC.getText()) !== texto) throw new Error("a cópia não ficou igual ao original");
-    blC = migBlocosConferidos_(bodyC, marcadores.length);
+    blC = migBlocosConferidos_(bodyC, marcadores.length, cid);
     if (typeof blC === "string") throw new Error(blC);
     /* de trás para a frente: trocar um bloco não muda a posição dos anteriores no mesmo lugar */
     for (var i = blC.length - 1; i >= 0; i--) migTrocar_(blC[i], "{{" + marcadores[i] + "}}");
@@ -86,8 +86,8 @@ function migUmModelo_(id, m, aplicar) {
 }
 function migLista_(l) { return l.map(function (k) { return "{{" + k + "}}"; }).join(", "); }
 /* blocos achados e conferidos, ou a frase do problema */
-function migBlocosConferidos_(body, esperados) {
-  var achou = migAcharBlocos_(body);
+function migBlocosConferidos_(body, esperados, docId) {
+  var achou = migAcharBlocos_(body, { corpo: true, secoes: migSecoes_(docId, body) });
   if (achou.problema) return achou.problema;
   if (achou.blocos.length !== esperados) return "achei " + achou.blocos.length + " bloco(s) de assinatura, esperava " + esperados;
   return achou.blocos;
@@ -104,8 +104,13 @@ function migDescrever_(b, i, marcador) {
   }
   if (vend === "(não achei)")   /* sem linha de CNPJ (pré-reserva): o nome logo acima do papel VENDEDORA */
     for (var v = 1; v < linhas.length; v++) if (/^(CREDORA\/)?VENDEDORA?$/.test(linhas[v]) && !/^_+$/.test(linhas[v - 1])) { vend = linhas[v - 1]; break; }
-  var out =["  [" + (i + 1) + "] {{" + marcador + "}} no lugar de " + els.length + " elemento(s); vendedor no bloco antigo: " + vend];
+  var plano = migPlano_(b), q = plano.quebras;
+  var out = ["  [" + (i + 1) + "] {{" + marcador + "}} no lugar de " + plano.remover.length + " elemento(s)" +
+             (q ? ", " + q + (q === 1 ? " quebra mantida" : " quebras mantidas") : "") + "; vendedor no bloco antigo: " + vend];
   els.forEach(function (e) {
+    if (plano.novosVazios.indexOf(e) >= 0) out.push("    + [linha vazia nova antes da quebra de seção]");
+    if (e.quebra) { out.push("    = [" + e.rotulo + "]"); return; }
+    if (e.manter) { out.push("    = [linha vazia mantida antes da quebra de seção]"); return; }
     var t = e.tabela ? "[tabela] " + migLinhasDe_(e.texto).join(" | ") : (String(e.texto).trim() || "(vazio)");
     out.push("    - " + (t.length > 80 ? t.slice(0, 80) + "…" : t));
   });
@@ -116,8 +121,41 @@ function migResumo_(t) { t = String(t).replace(/\s+/g, " ").trim(); return t.len
 
 /* ---- leitura: elementos de um "lugar" (corpo ou célula de tabela) ---- */
 var MIG_TRACO = /^_{10,}$/;
-function migElementos_(caixa) {
+/* 01/11 (rodada no TESTE: "UNSUPPORTED"): os modelos de contrato têm QUEBRAS DE SEÇÃO perto dos blocos (a de próxima página
+   antes do quadro-resumo e a de 2 colunas que põe vendedora | comprador lado a lado). O DocumentApp chama a quebra de seção de
+   UNSUPPORTED; quem confirma que é quebra (e não outra coisa) é o serviço avançado Docs. Quebra de seção e parágrafo só com
+   quebra de página FICAM no lugar; qualquer outro elemento desconhecido barra o modelo (NÃO MEXI). */
+function migSecoes_(docId, body) {
+  var T = DocumentApp.ElementType, n = body.getNumChildren(), tem = false;
+  for (var i = 0; i < n; i++) if (body.getChild(i).getType() === T.UNSUPPORTED) { tem = true; break; }
+  if (!tem) return { lista: [] };
+  if (typeof Docs === "undefined" || !Docs || !Docs.Documents)
+    return { lista: null, motivo: "o modelo tem elementos que o DocumentApp não lê (quebras de seção?) perto do bloco — ligue o serviço " +
+                                  "avançado \"Google Docs API\" (editor do Apps Script › Serviços › +) e rode de novo" };
+  var c;
+  try { c = ((Docs.Documents.get(docId) || {}).body || {}).content || []; }
+  catch (e) { return { lista: null, motivo: "o serviço Docs não leu o modelo (" + migErro_(e) + ")" }; }
+  /* content[0] é a quebra de seção do começo do documento; depois, um item por elemento do corpo, na mesma ordem */
+  if (c.length !== n + 1) return { lista: null, motivo: "não deu para casar o modelo com o serviço Docs (" + (c.length - 1) + " × " + n + " elementos)" };
+  var lista = [];
+  for (i = 0; i < n; i++) {
+    var t = body.getChild(i).getType(), x = c[i + 1] || {};
+    var esperado = t === T.TABLE ? "table" : (t === T.PARAGRAPH || t === T.LIST_ITEM) ? "paragraph" : t === T.TABLE_OF_CONTENTS ? "tableOfContents" : "";
+    if (esperado && !x[esperado]) return { lista: null, motivo: "não deu para casar o modelo com o serviço Docs (elemento " + (i + 1) + ")" };
+    lista.push(t === T.UNSUPPORTED && x.sectionBreak ? migRotuloSecao_(x.sectionBreak) : "");
+  }
+  return { lista: lista };
+}
+function migRotuloSecao_(sb) {
+  var st = (sb && sb.sectionStyle) || {}, cols = (st.columnProperties || []).length, d = [];
+  if (cols > 1) d.push(cols + " colunas");
+  if (st.sectionType === "CONTINUOUS") d.push("contínua");
+  else if (st.sectionType === "NEXT_PAGE") d.push("próxima página");
+  return "quebra de seção mantida" + (d.length ? " (" + d.join(", ") + ")" : "");
+}
+function migElementos_(caixa, ctx) {
   var T = DocumentApp.ElementType, out = [];
+  ctx = ctx || { corpo: false };
   for (var i = 0; i < caixa.getNumChildren(); i++) {
     /* getChild devolve um Element genérico: o tipo concreto (asParagraph/asListItem/asTable) tem getText e removeFromParent */
     var cru = caixa.getChild(i), tipo = cru.getType();
@@ -125,8 +163,19 @@ function migElementos_(caixa) {
       var tb = cru.asTable();
       out.push({ el: tb, tabela: tb, texto: String(tb.getText()), assinatura: migTabelaDeAssinatura_(tb) });
     } else if (tipo === T.PARAGRAPH || tipo === T.LIST_ITEM) {
-      var p = tipo === T.PARAGRAPH ? cru.asParagraph() : cru.asListItem();
-      out.push({ el: p, texto: String(p.getText()), paragrafo: true, ehParagrafo: tipo === T.PARAGRAPH });
+      var p = tipo === T.PARAGRAPH ? cru.asParagraph() : cru.asListItem(), tx = String(p.getText()), e = { el: p, texto: tx, paragrafo: true, ehParagrafo: tipo === T.PARAGRAPH };
+      if (migTem_(p, T.PAGE_BREAK)) {
+        if (tx.trim()) e.problema = "quebra de página no meio do texto do bloco: \"" + migResumo_(tx) + "\"";
+        else { e.quebra = true; e.rotulo = "quebra de página mantida"; }
+      } else if (migTem_(p, T.UNSUPPORTED)) e.problema = "parágrafo com elemento que o DocumentApp não lê: \"" + migResumo_(tx || "(vazio)") + "\"";
+      out.push(e);
+    } else if (tipo === T.UNSUPPORTED) {
+      var u = { el: cru, texto: "", quebra: true, secao: true };
+      if (!ctx.corpo) u.problema = "elemento especial dentro de célula de tabela";
+      else if (!ctx.secoes || ctx.secoes.lista === null) u.problema = (ctx.secoes && ctx.secoes.motivo) || "elemento que o DocumentApp não lê";
+      else if (!ctx.secoes.lista[i]) u.problema = "elemento que o DocumentApp não lê e que não é quebra de seção (posição " + (i + 1) + ")";
+      else u.rotulo = ctx.secoes.lista[i];
+      out.push(u);
     } else {
       out.push({ el: cru, texto: "", outro: String(tipo) });   /* sumário etc.: não pode estar dentro de um bloco */
     }
@@ -134,6 +183,7 @@ function migElementos_(caixa) {
   return out;
 }
 /* tabela pequena (até 3 linhas) com alguma célula começando por traço = pedaço do bloco (lado a lado); a do quadro-resumo não */
+function migTem_(p, tipo) { try { return !!(p.findElement && tipo && p.findElement(tipo)); } catch (e) { return false; } }
 function migTabelaDeAssinatura_(tb) {
   if (tb.getNumRows() > 3) return false;
   for (var r = 0; r < tb.getNumRows(); r++) {
@@ -149,8 +199,8 @@ function migComecaBloco_(e) { return e.tabela ? e.assinatura : (e.paragrafo && M
 var MIG_TESTEMUNHA2 = /TESTEMUNHA\s*2|\b2\.\s*Nome:/i;
 
 /* Blocos na ordem do documento: { caixa, els, ini, fim } ou { problema }. Tabela grande (quadro-resumo) é lida por dentro. */
-function migAcharBlocos_(caixa) {
-  var els = migElementos_(caixa), blocos = [], depois = 0, porIndice = {};
+function migAcharBlocos_(caixa, ctx) {
+  var els = migElementos_(caixa, ctx), blocos = [], depois = 0, porIndice = {};
   for (var i = 0; i < els.length; i++) {
     var e = els[i];
     if (e.tabela && !e.assinatura) continue;
@@ -167,9 +217,12 @@ function migAcharBlocos_(caixa) {
     for (var s = ancora + 1; s <= fim; s++) if (migComecaBloco_(els[s])) { ini = s; break; }
     if (ini < 0) return { problema: "não achei o primeiro traço \"____\" do bloco depois de {{CIDADE_DATA}}" };
     /* entre a data e o começo do bloco só linhas vazias (ou o título ASSINATURAS dos termos) */
-    for (var q = ancora + 1; q < ini; q++)
+    for (var q = ancora + 1; q < ini; q++) {
+      if (els[q].problema) return { problema: els[q].problema };
+      if (els[q].quebra) continue;   /* quebra de seção/página entre a data e o bloco fica onde está */
       if (!els[q].paragrafo || !/^(ASSINATURAS)?$/i.test(els[q].texto.trim()))
         return { problema: "texto entre {{CIDADE_DATA}} e o bloco de assinatura: \"" + migResumo_(els[q].texto || els[q].outro || "tabela") + "\"" };
+    }
     var p = migConferir_(els, ini, fim);
     if (p) return { problema: p };
     porIndice[ini] = { caixa: caixa, els: els, ini: ini, fim: fim };
@@ -184,7 +237,7 @@ function migAcharBlocos_(caixa) {
     for (var r = 0; r < tb.getNumRows(); r++) {
       var linha = tb.getRow(r);
       for (var c = 0; c < linha.getNumCells(); c++) {
-        var dentro = migAcharBlocos_(linha.getCell(c));
+        var dentro = migAcharBlocos_(linha.getCell(c), { corpo: false });
         if (dentro.problema) return dentro;
         blocos = blocos.concat(dentro.blocos);
       }
@@ -197,6 +250,8 @@ function migAcharBlocos_(caixa) {
 function migConferir_(els, ini, fim) {
   if (fim - ini + 1 > MIG_MAX_ELEMENTOS) return "bloco grande demais (" + (fim - ini + 1) + " elementos) — confira o modelo";
   for (var q = ini; q <= fim; q++) {
+    if (els[q].problema) return els[q].problema;
+    if (els[q].quebra) continue;
     if (els[q].outro) return "elemento do tipo " + els[q].outro + " dentro do bloco de assinatura";
     if (els[q].tabela && !els[q].assinatura) return "tabela que não é de assinatura dentro do bloco";
     var ls = migLinhasDe_(els[q].texto);
@@ -214,15 +269,33 @@ function migConferir_(els, ini, fim) {
   return "";
 }
 
-/* Troca: um parágrafo novo com o marcador no lugar do primeiro elemento (centralizado como ele, ou centralizado se era
-   tabela); depois sai o bloco antigo. Inserir antes de apagar: o lugar nunca fica sem parágrafo. */
+/* Plano da troca de um bloco: as quebras (de seção, de página) ficam; antes de cada quebra de seção fica um parágrafo (a
+   seção não pode ficar vazia: aproveita a linha vazia que já está lá ou ganha uma nova); o resto sai. */
+function migPlano_(b) {
+  var els = b.els.slice(b.ini, b.fim + 1), novosVazios = [];
+  els.forEach(function (e) { e.manter = false; });
+  els.forEach(function (e, k) {
+    if (!e.secao || !k || els[k - 1].quebra) return;
+    var ant = els[k - 1];
+    if (ant.paragrafo && !String(ant.texto).trim()) ant.manter = true;
+    else novosVazios.push(e);
+  });
+  var quebras = els.filter(function (e) { return e.quebra; });
+  return { els: els, quebras: quebras.length, ultimaQuebra: quebras.length ? quebras[quebras.length - 1] : null, novosVazios: novosVazios,
+           remover: els.filter(function (e) { return !e.quebra && !e.manter; }) };
+}
+/* Troca: o marcador num parágrafo novo — no lugar do primeiro elemento ou, com quebras no bloco, logo depois da ÚLTIMA quebra
+   (fora da seção de 2 colunas: o bloco novo é uma pessoa por linha numa coluna só). Centralizado como o primeiro elemento
+   (ou centralizado, se era tabela). Inserir antes de apagar: o lugar nunca fica sem parágrafo. */
 function migTrocar_(b, marcador) {
-  var caixa = b.caixa, primeiro = b.els[b.ini], pos = caixa.getChildIndex(primeiro.el);
+  var caixa = b.caixa, plano = migPlano_(b), primeiro = plano.els[0];
+  plano.novosVazios.forEach(function (q) { caixa.insertParagraph(caixa.getChildIndex(q.el), ""); });
+  var pos = plano.ultimaQuebra ? caixa.getChildIndex(plano.ultimaQuebra.el) + 1 : caixa.getChildIndex(primeiro.el);
   var novo = caixa.insertParagraph(pos, marcador);
   try { novo.setAlignment(primeiro.ehParagrafo ? primeiro.el.getAlignment() : DocumentApp.HorizontalAlignment.CENTER); }
   catch (e) { novo.setAlignment(DocumentApp.HorizontalAlignment.CENTER); }
   try { novo.editAsText().setBold(false); } catch (e) { /* sem texto para formatar */ }
   /* o Docs não deixa apagar o último parágrafo do corpo: bloco que termina no fim do documento ganha um vazio depois */
   if (caixa.getChildIndex(b.els[b.fim].el) === caixa.getNumChildren() - 1) caixa.insertParagraph(caixa.getNumChildren(), "");
-  for (var i = b.fim; i >= b.ini; i--) b.els[i].el.removeFromParent();
+  for (var i = plano.remover.length - 1; i >= 0; i--) plano.remover[i].el.removeFromParent();
 }

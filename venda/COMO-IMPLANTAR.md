@@ -1127,7 +1127,15 @@ passa a usar a cópia quando o dono troca a Propriedade dele. O código antigo d
    `GerarContrato`, `AssinaturaVenda`, `AssinaturaVigia`, `Confissao`, `PreReserva` e o novo `MigrarModelos`; e
    subir o site (`venda/RubricasVenda.js` v4, `venda/assinatura-ui.js` v20, `venda-dossie.js` v51, `vendas.html`,
    `simulacoes.html`, `sw.js` v253). Com os modelos de hoje nada muda.
-2. Num dos projetos (no TESTE), escolher a função `migrarModelosAssinaturasPrevia` e clicar em Executar. Ela só lê:
+2. No projeto onde vai rodar a migração (o TESTE), ligar o serviço avançado **Google Docs API**: editor do Apps Script ›
+   Serviços (+) › Google Docs API › Adicionar (identificador `Docs`). Os modelos de contrato têm quebras de seção perto dos
+   blocos (a de próxima página antes do quadro-resumo e a de 2 colunas que põe vendedora | comprador lado a lado); o
+   DocumentApp as chama de "UNSUPPORTED" e só o serviço Docs confirma que são quebras. Sem ele, os três contratos saem
+   "NÃO MEXI" (os termos não têm quebras e migram mesmo assim).
+   As quebras FICAM onde estão: sai só o texto e as tabelas de assinatura, e o marcador entra depois da última quebra do
+   bloco (fora da seção de 2 colunas — o bloco novo é uma pessoa por linha, numa coluna só). Fica uma linha vazia antes de
+   cada quebra de seção. Elemento desconhecido que não seja quebra de seção ou de página continua barrando o modelo.
+   Depois, escolher a função `migrarModelosAssinaturasPrevia` e clicar em Executar. Ela só lê:
    o Registro de execução diz, para cada modelo (`MODELO_CONDOMINIO_ID`, `MODELO_PRONTO_ID`, `MODELO_CONSTRUCAO_ID`,
    `MODELO_CONFISSAO_PRE_ID`, `MODELO_CONFISSAO_POS_ID`, `MODELO_PRE_RESERVA_ID`), quantos blocos trocaria, o vendedor
    escrito no bloco antigo e CADA linha que sairia. Esperado: 2 blocos nos contratos e 1 nos termos. "NÃO MEXI — …" =
