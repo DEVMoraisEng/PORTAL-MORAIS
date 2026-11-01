@@ -373,6 +373,7 @@ test("faltasDeNomeEEmail: fiador com o e-mail do comprador (e cônjuge com o do 
       conjuge: { nome: "Conjuge Um 2", cpf: "000.000.012-44", email: "f2@teste.example" } },
     { nome: "Fiador Dois Teste", cpf: "000.000.013-25", email: "f2@teste.example", conjuge: null }];
   const f = CS.faltasDeNomeEEmail(dadosPJ({ condominio: { fiadores } }), cfg);
+  assert.deepEqual(CS.faltasDeNomeEEmail(dadosPJ({ condominio: { fiadores } }), CS.montarConfig(PROPS)), [], "sem comFiadores o fiador não entra (como no envio)");
   assert.deepEqual(f, [
     "Fiador 1: e-mail igual ao do Comprador 1 (cada pessoa precisa de um e-mail)",
     "Cônjuge do fiador 1: nome sem números",
@@ -384,16 +385,17 @@ test("faltasDeNomeEEmail: fiador com o e-mail do comprador (e cônjuge com o do 
   assert.deepEqual(CS.faltasDeNomeEEmail(d, c2), ["Comprador 1: e-mail igual ao do Vendedor (representante) (cada pessoa precisa de um e-mail)"]);
 });
 
-test("01/11 (H5): testemunhasParaTela diz o par padrão (ids) — SPE por padrão, PF quando o vendedor é PF; a escolha não muda o padrão", () => {
+test("01/11 (H5): testemunhasParaTela diz o par padrão (ids) — SPE para vendedor PJ, PF para vendedor PF, vazio se o tipo é desconhecido; a escolha não muda o padrão", () => {
   const nomes = (cfg, dados) => {
     const t = CS.testemunhasParaTela(cfg, dados);
     return t.padrao.map((id) => t.opcoes.filter((o) => o.id === id)[0].nome);
   };
-  assert.deepEqual(nomes(cfgOp()), ["Testemunha Um Spe", "Testemunha Dois Spe"]);
+  assert.deepEqual(CS.testemunhasParaTela(cfgOp()).padrao, [], "tipo do vendedor desconhecido: sem par");
+  assert.deepEqual(CS.testemunhasParaTela(cfgOp(), { vendedor: null }).padrao, []);
   assert.deepEqual(nomes(cfgOp(), dadosPJ()), ["Testemunha Um Spe", "Testemunha Dois Spe"]);
   assert.deepEqual(nomes(cfgOp(), dadosPJ({ vendedor: vendedorPF })), ["Testemunha Um Pf", "Testemunha Dois Pf"]);
   const ids = CS.opcoesTestemunhas(cfgOp()).map((o) => o.id);
-  assert.deepEqual(nomes(cfgOp([ids[1], ids[0]])), ["Testemunha Um Spe", "Testemunha Dois Spe"]);
+  assert.deepEqual(nomes(cfgOp([ids[1], ids[0]]), dadosPJ()), ["Testemunha Um Spe", "Testemunha Dois Spe"]);
   /* sem par padrão configurado: lista vazia (a tela fica só com "— padrão —") */
   assert.deepEqual(CS.testemunhasParaTela(CS.montarConfig({ ASSINATURA_TESTEMUNHAS_OPCOES: JSON.stringify(OPCOES) })).padrao, []);
   assert.doesNotMatch(JSON.stringify(CS.testemunhasParaTela(cfgOp())), /@|000\.000/);

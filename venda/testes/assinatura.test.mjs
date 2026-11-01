@@ -1126,3 +1126,12 @@ test("chave da vigia: apagada ao descartar, ao ficar closed e ao cancelar pelo b
   assert.equal(c.acao("assinaturaCancelar").cancelou, true);
   assert.ok(!(CH in c.p), "cancelar deixou a chave");
 });
+
+test("rodada 1 (H5): contratoEstado manda o par padrão pelo tipo do vendedor — PJ usa o par SPE, PF usa o par PF (casa de rua)", () => {
+  const nomes = (t) => t.padrao.map((id) => t.opcoes.filter((o) => o.id === id)[0].nome);
+  const pj = cenario().acao("contratoEstado").testemunhas;
+  const pf = cenario({ vendedor: { TIPO: sel("PF") } }).acao("contratoEstado").testemunhas;
+  assert.equal(pj.padrao.length, 2);
+  assert.equal(pf.padrao.length, 2);
+  assert.notDeepEqual(nomes(pj), nomes(pf));
+});

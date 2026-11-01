@@ -237,8 +237,9 @@ function assEnviarTravado_(col, p, pid) {
   if (f.obraNaoEncontrada) return { ok: false, erro: "FALTAM_DADOS", faltas: ["Vendedor: obra da casa não encontrada em DOCUMENTOS (endereço)"] };
   var d = ContratoVenda.montarDadosContrato(f.fontes), config = assConfig_(p.pageId);
   /* 28/10: com os termos de confissão ligados, eles vão no MESMO envelope e os fiadores assinam só eles */
-  var termos = cfdLigado_() && d.condominio ? ConfissaoVenda.quais(d) : [];
-  if (termos.length) config.comFiadores = true;
+  var fiadoresAssinam = ConfissaoVenda.fiadoresAssinam(d, cfdLigado_());
+  var termos = fiadoresAssinam ? ConfissaoVenda.quais(d) : [];
+  if (fiadoresAssinam) config.comFiadores = true;
   var faltas = config.invalidas.map(function (n) { return "Propriedade " + n + ": JSON inválido"; })
     .concat(ContratoVenda.faltasContrato(d), termos.length ? ConfissaoVenda.faltas(d) : [], ClicksignVenda.faltasAssinatura(d, config));
   if (faltas.length) {

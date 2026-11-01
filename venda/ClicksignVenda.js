@@ -100,10 +100,11 @@ var ClicksignVenda = (function () {
     return pr[0] && pr[1] ? pr : null;
   }
   /* o que a tela recebe: só id e nome. 01/11/2026 (H5): padrao = os ids do par padrão (o que vale sem escolha) — SPE,
-   * ou PF quando `dados` mostra vendedor PF; [] quando o par não fecha com as opções. */
+   * ou PF, conforme o tipo do vendedor em `dados` (a mesma regra do envio); [] quando o tipo é desconhecido (sem `dados`)
+   * ou o par não fecha com as opções — a tela então não chuta nomes. */
   function testemunhasParaTela(config, dados) {
-    var e = escolhidas(config), ops = opcoesTestemunhas(config);
-    var pr = par(dados && !ehPJ(dados) && dados.vendedor ? config.testemunhasPF : config.testemunhasSPE), padrao = [];
+    var e = escolhidas(config), ops = opcoesTestemunhas(config), padrao = [];
+    var pr = dados && dados.vendedor ? par(ehPJ(dados) ? config.testemunhasSPE : config.testemunhasPF) : null;
     if (pr) {
       var ids = pr.map(function (p) { return chave(p.nome); });
       if (ids.every(function (id) { return ops.some(function (o) { return o.id === id; }); })) padrao = ids;
@@ -262,7 +263,7 @@ var ClicksignVenda = (function () {
    * Os textos começam por "Comprador", "Fiador" ou "Cônjuge" — assim o link do cliente também os mostra. */
   function doCliente(s) { return /^(Comprador|Fiador|C[ôo]njuge)/.test(s.papel); }
   function faltasDeNomeEEmail(dados, config) {
-    config = Object.assign({}, config || montarConfig({}), { comFiadores: true });
+    config = config || montarConfig({});   /* config.comFiadores: quem chama decide (ConfissaoVenda.fiadoresAssinam), como no envio */
     var lista = signatarios(dados, config), vistos = {}, por = lista.map(function () { return []; });
     lista.forEach(function (s, i) {
       if (doCliente(s) && txt(s.nome) && !nomeValido(s.nome))

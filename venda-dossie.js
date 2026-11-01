@@ -581,8 +581,10 @@
       return o ? o.nome : "";
     });
     var semEscolha = !t.escolhidas[0] && !t.escolhidas[1];
-    var notaPadrao = semEscolha && nomesPadrao.length === 2 && nomesPadrao[0] && nomesPadrao[1]
-      ? ' <span class="dz-nota">padrão: ' + esc(nomesPadrao[0]) + " e " + esc(nomesPadrao[1]) + "</span>" : "";
+    /* par desconhecido (tipo do vendedor não lido): não chuta nomes — o envio define */
+    var notaPadrao = !semEscolha ? "" : nomesPadrao.length === 2 && nomesPadrao[0] && nomesPadrao[1]
+      ? ' <span class="dz-nota">padrão: ' + esc(nomesPadrao[0]) + " e " + esc(nomesPadrao[1]) + "</span>"
+      : ' <span class="dz-nota">padrão: definido no envio</span>';
     return '<div class="dz-linha"><span class="dz-rot">Testemunhas da assinatura:</span>' + sel(0) + " " + sel(1) + notaPadrao + "</div>";
   }
   /* 01/11/2026 (teste e2e): bloco "Fiadores" (e cônjuge do comprador) na aba Contrato do condomínio — o servidor
@@ -2929,7 +2931,14 @@
       var r = await chamarVenda({ action: "escolherTestemunhas", pageId: pageId, ids: ids[0] ? ids : [] });
       if (seq !== seqC || !vivo()) return;
       uiC.ocupadoContrato = null;
-      if (r.ok) { if (estadoC) estadoC.testemunhas = testemunhasDoEstado(r.testemunhas); uiC.msg = "Testemunhas salvas."; }
+      if (r.ok) {
+        if (estadoC) {
+          var padraoAntes = estadoC.testemunhas && estadoC.testemunhas.padrao;   /* a resposta do salvar não traz o tipo do vendedor: mantém o padrão de antes */
+          estadoC.testemunhas = testemunhasDoEstado(r.testemunhas);
+          if (estadoC.testemunhas && !estadoC.testemunhas.padrao.length && padraoAntes) estadoC.testemunhas.padrao = padraoAntes;
+        }
+        uiC.msg = "Testemunhas salvas.";
+      }
       else uiC.msg = mensagemContrato(r);
       pintar();
     }

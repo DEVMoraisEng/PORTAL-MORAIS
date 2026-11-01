@@ -101,7 +101,8 @@ test("valor da casa travado para quem não está na lista do servidor: mensagem 
   assert.match(D.htmlFluxo(fechado, { fluxoEd: editor({ quemMudaPreco: ["Ana Teste"] }) }, ""), /Só Ana Teste muda o valor da casa\./);
   assert.match(D.htmlFluxo(fechado, { fluxoEd: editor({ quemMudaPreco: [] }) }, ""), /ninguém muda o valor da casa por aqui/i);
   assert.doesNotMatch(D.htmlFluxo(fechado, { fluxoEd: editor({ podePreco: true, quemMudaPreco: ["Ana Teste"] }) }, ""), /mudam? o valor da casa/);
-  assert.doesNotMatch(require("fs").readFileSync(new URL("../../venda-dossie.js", import.meta.url), "utf8"), /Julio Cesar|João Vitor/);
+  /* a mensagem de erro de permissão também não escreve nome nenhum: os nomes vêm só do servidor */
+  assert.doesNotMatch(D.mensagemContrato({ erro: "FLUXO_PRECO_SEM_PERMISSAO" }), /[A-Z][a-z]+ [A-Z][a-z]+/);
   assert.doesNotMatch(D.htmlFluxo(fechado, { fluxoEd: editor({ podePreco: true }) }, "").match(/<input[^>]*data-fx="valor"[^>]*>/)[0], /disabled/);
 });
 

@@ -340,10 +340,11 @@ test("01/11 (H2): conferência — documento não anexado aparece como '✗ não
   assert.match(l2, /\? ilegível/);
 });
 
-test("01/11 (H5): testemunhas sem escolha mostram 'padrão: <nome 1> e <nome 2>'; com escolha ou sem par válido, não", () => {
+test("01/11 (H5): testemunhas sem escolha mostram 'padrão: <nome 1> e <nome 2>'; sem par conhecido diz 'definido no envio'; com escolha, nada", () => {
   const t = { opcoes: [{ id: "a", nome: "Pessoa A" }, { id: "b", nome: "Pessoa B" }, { id: "c", nome: "Pessoa C" }], escolhidas: [], padrao: ["c", "a"] };
   assert.match(D.htmlTestemunhas(t, ""), /padrão: Pessoa C e Pessoa A/);
   assert.doesNotMatch(D.htmlTestemunhas({ ...t, escolhidas: ["a", "b"] }, ""), /padrão: Pessoa/);
-  assert.doesNotMatch(D.htmlTestemunhas({ ...t, padrao: [] }, ""), /padrão: /);
-  assert.doesNotMatch(D.htmlTestemunhas({ ...t, padrao: ["x", "a"] }, ""), /padrão: /);
+  assert.match(D.htmlTestemunhas({ ...t, padrao: [] }, ""), /padrão: definido no envio/);
+  assert.match(D.htmlTestemunhas({ ...t, padrao: ["x", "a"] }, ""), /padrão: definido no envio/);
+  assert.doesNotMatch(D.htmlTestemunhas({ ...t, escolhidas: ["a", "b"], padrao: [] }, ""), /padrão: /);
 });

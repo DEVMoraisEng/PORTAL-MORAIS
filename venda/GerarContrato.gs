@@ -664,10 +664,7 @@ function contratoEstado_(col, p) {
   var etapa = pre && !pre.conferidoEm ? "PRE" : a ? "FINAL" : "NENHUM";
   var r = { ok: true, gerado: !!a, etapa: etapa, pre: null };
   /* entrega 10: lista de testemunhas (só id e nome) e a escolha desta venda */
-  if (typeof assConfig_ === "function") {
-    try { var t = ClicksignVenda.testemunhasParaTela(assConfig_(p.pageId)); if (t.opcoes.length >= 2) r.testemunhas = t; }
-    catch (e) { ctrErro_("contratoEstado testemunhas", e); }
-  }
+  var dTest = null;   /* dados do contrato, quando já lidos: o tipo do vendedor decide o par padrão das testemunhas */
   if (a) { r.nome = a.nome; r.url = a.url; }
   /* entrega 12: lista de contas (só id e título), a escolha desta venda e a da obra */
   if (info.base === "CONDOMINIO") {
@@ -684,13 +681,25 @@ function contratoEstado_(col, p) {
         var todasFaltas = (xf.resp && xf.resp.faltas) || [];
         r.faltasCliente = todasFaltas.filter(function (t) { return /^(Comprador|Fiador|C[ôo]njuge)/i.test(String(t)); });
         /* 01/11/2026 (H5): com os dados fechando, o par padrão das testemunhas segue o tipo do vendedor (SPE ou PF) */
-        if (xf.d && r.testemunhas && typeof assConfig_ === "function") r.testemunhas = ClicksignVenda.testemunhasParaTela(assConfig_(p.pageId), xf.d);
+        if (xf.d) dTest = xf.d;
         /* 01/11/2026 (teste e2e): bloco Fiadores / cônjuge do comprador para corrigir na hora (Conferencia.gs fiaEstado_) */
         try { var fb = fiaEstado_(pgE, todasFaltas); if (fb) r.fiadores = fb; } catch (e2) { ctrErro_("contratoEstado fiadores", e2); }
       } catch (e) { ctrErro_("contratoEstado faltas", e); }
     } else r.faltasCliente = [];
   }
   else try { r.conta = contaRecebEstado_(p.pageId); } catch (e) { ctrErro_("contratoEstado conta", e); }
+  /* entrega 10 + rodada 1 (H5): lista de testemunhas (só id e nome), a escolha desta venda e o par padrão pelo tipo do vendedor
+     (casa de rua e contrato final também: lê os cadastros só aqui, e só quando há lista para mostrar) */
+  if (typeof assConfig_ === "function") {
+    try {
+      var cfgT = assConfig_(p.pageId), tel = ClicksignVenda.testemunhasParaTela(cfgT);
+      if (tel.opcoes.length >= 2) {
+        if (!dTest) dTest = ctrDadosDoVendedor_(col, p);
+        if (dTest) tel = ClicksignVenda.testemunhasParaTela(cfgT, dTest);
+        r.testemunhas = tel;
+      }
+    } catch (e) { ctrErro_("contratoEstado testemunhas", e); }
+  }
   /* 30/10: histórico do contrato (quem fez o quê) — LogContrato.gs */
   try { var hist = logContratoLer_(pgE); if (hist) r.historico = hist.slice(0, 300); } catch (e) { ctrErro_("contratoEstado historico", e); }
   if (pre) {
@@ -698,6 +707,15 @@ function contratoEstado_(col, p) {
     if (etapa === "PRE") r.pre.desatualizado = ctrPreDesatualizado_(col, p, pre);
   }
   return r;
+}
+/* Os dados do contrato só para saber o tipo do vendedor (testemunhas da tela); null se os cadastros não fecham. */
+function ctrDadosDoVendedor_(col, p) {
+  try {
+    if (!prop_("DB_VENDEDORES") || !prop_("DB_LOTEAMENTOS") || !prop_("DB_CORRETORES") || !prop_("DB_DOCUMENTOS")) return null;
+    var f = ctrFontes_(col, p.pageId);
+    if (f.obraAmbigua || f.duplicados || f.condominioErro || f.obraNaoEncontrada) return null;
+    return ContratoVenda.montarDadosContrato(f.fontes);
+  } catch (e) { return null; }
 }
 /* true quando os dados de agora não dão o mesmo carimbo do pré-contrato (ou nem fecham mais). */
 function ctrPreDesatualizado_(col, p, pre) {
@@ -736,12 +754,14 @@ function ctrDadosAtuais_(col, p, pid, rot) {
   /* 28/10: termos de confissão ligados = os fiadores (nome e CPF) entram nas faltas do contrato do condomínio */
   if (d.condominio && cfdLigado_()) faltas = faltas.concat(ConfissaoVenda.faltas(d));
   /* 01/11: nome com número e e-mail repetido (comprador, cônjuge, fiador) aparecem já aqui, não só no envio da assinatura */
-  faltas = faltas.concat(ClicksignVenda.faltasDeNomeEEmail(d, assConfig_(p.pageId)));
+  var cfgNomes = assConfig_(p.pageId);
+  cfgNomes.comFiadores = ConfissaoVenda.fiadoresAssinam(d, cfdLigado_());   /* a mesma regra do envio */
+  faltas = faltas.concat(ClicksignVenda.faltasDeNomeEEmail(d, cfgNomes));
   if (faltas.length) {
     ctrLog_(rot + " " + pid + " faltas " + faltas.length);
     /* entrega 12: o formulário da tela (só nomes de campo) */
     var campos = ContratoVenda.camposAbertos(faltas, { modelo: d.modelo, chaveLoteamento: f.alvos ? f.alvos.chaveLoteamento : "" });
-    return { resp: { ok: false, erro: "FALTAM_DADOS", faltas: faltas, campos: campos } };
+    return { resp: { ok: false, erro: "FALTAM_DADOS", faltas: faltas, campos: campos }, d: d };   /* d: o tipo do vendedor serve às testemunhas da tela */
   }
   return { f: f, d: d };
 }
