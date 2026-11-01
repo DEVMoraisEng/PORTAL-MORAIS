@@ -1051,3 +1051,20 @@ Propriedades existem (vazias = desligados).
    caixa da assinatura cai em cima da linha "ASSINATURA: ____", o visto na coluna cinza, a assinatura na
    linha do comprador na última página do memorial e o visto debaixo da data do carimbo DEFERIMENTO nas
    páginas 1–11 do projeto. Fora do lugar: ajustar pelas Propriedades do passo 2, sem mexer no código.
+
+## Assinatura em cima da linha de cada pessoa (01/11/2026, plano 23 B)
+
+Ao "Enviar para assinatura" do contrato do condomínio, a tela também acha no PDF final (e nos PDFs dos termos de
+confissão, que a ação `assinaturaPdf` passa a entregar) cada linha de assinatura `______` dos blocos — quadro-resumo,
+final do contrato e página de assinaturas dos termos — com o texto logo abaixo (nome, CPF, papel). O servidor casa a
+linha com a pessoa (pelo nome; sem nome, pelo papel: VENDEDORA, TESTEMUNHA 1/2, CORRETOR, FIADOR 1/2, COMPRADOR quando
+só uma pessoa assina como compradora) e pede a assinatura posicionada (`rubricate` `manuscript`) um pouco ACIMA da linha.
+Linha com duas pessoas ("Nome: A / B", como no modelo de hoje) não vai para ninguém: essas pessoas continuam assinando
+só na página da Clicksign até o modelo ter uma linha por pessoa.
+
+- Opcionais no PORTAL-VENDA: `RUBRICAS_AJUSTE` ganha a chave `linha` (padrão `{"dx":0,"dy":-0.03}`, sobe 3% da página);
+  `ASSINATURA_SEM_LINHAS` = `1` desliga só isto (os campos de ciência do comprador continuam).
+- Código: `ClicksignVenda`, `AssinaturaVenda`. Site: `venda/RubricasVenda.js` (v2), `venda/assinatura-ui.js` (v18),
+  `venda-dossie.js` (v49), `vendas.html`, `simulacoes.html`, `sw.js`.
+- Sandbox: conferir no envelope se a caixa cai em cima de cada linha (vendedora, corretor, testemunhas; fiadores nos
+  termos). Fora do lugar: `RUBRICAS_AJUSTE.linha`.

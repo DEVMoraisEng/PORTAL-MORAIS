@@ -1289,3 +1289,50 @@ test("H7: o texto de status quebra palavra longa (375 px)", () => {
   const src = fsH7.readFileSync(pathH7.join(raiz, "vendas.html"), "utf8");
   assert.match(src, /\.cd-and \.st\{[^}]*overflow-wrap:anywhere/);
 });
+
+
+/* ---- 01/11/2026 (plano 23 B): assinatura em cima da linha de cada pessoa ---- */
+const LINHA_VEND = { page: "18", position: [0.096, 0.05], texto: "EMPRESA TESTE\nVENDEDORA" };
+const LINHA_COMP = { page: "18", position: [0.096, 0.2], texto: "Nome: Compradora de Teste\nCPF: 000\nCOMPRADOR" };
+const LINHA_T1 = { page: "18", position: [0.096, 0.5], texto: "TESTEMUNHA 1\nNome:\nCPF:" };
+const posDe = (l) => ({ page: l.page, position: l.position });
+const rubricaDe = (c, email, doc = "doc-1", kind = "manuscript") => {
+  const s = c.c.estado.signers.find((x) => x.attributes.email === email);
+  return reqsDe(c).filter((q) => q.attributes.action === "rubricate" && q.attributes.kind === kind && q.relationships.signer.data.id === s.id &&
+                                 q.relationships.document.data.id === doc).map((q) => q.attributes.positions);
+};
+
+test("plano 23 B: linhas lidas na tela viram assinatura posicionada — comprador junto dos campos, vendedora e testemunha na delas", () => {
+  const c = cenario();
+  assert.equal(c.gerarFinal().ok, true);
+  const r = c.acao("assinaturaEnviar", rub(c, { linhas: [LINHA_VEND, LINHA_COMP, LINHA_T1] }));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual(rubricaDe(c, "compradora@teste.example"), [RUB_CAMPOS.concat([posDe(LINHA_COMP)])]);
+  assert.deepEqual(rubricaDe(c, "beltrano@teste.example"), [[posDe(LINHA_VEND)]]);
+  assert.deepEqual(rubricaDe(c, TEST_SPE[0].email), [[posDe(LINHA_T1)]]);
+  assert.deepEqual(rubricaDe(c, TEST_SPE[1].email), []);
+  assert.ok(!c.g.logs.join("\n").includes("Compradora"), "log sem nome");
+});
+
+test("plano 23 B: ASSINATURA_SEM_LINHAS=1 desliga só as linhas (os campos do comprador continuam)", () => {
+  const c = cenario({ props: { ASSINATURA_SEM_LINHAS: "1" } });
+  assert.equal(c.gerarFinal().ok, true);
+  assert.equal(c.acao("assinaturaEnviar", rub(c, { linhas: [LINHA_VEND, LINHA_COMP] })).ok, true);
+  assert.deepEqual(rubricaDe(c, "compradora@teste.example"), [RUB_CAMPOS]);
+  assert.deepEqual(rubricaDe(c, "beltrano@teste.example"), []);
+});
+
+test("plano 23 B: termos de confissão — a tela recebe os PDFs dos termos; a linha do fiador vira a assinatura dele no termo", () => {
+  const c = cenarioCfd();
+  assert.equal(c.gerarFinal().ok, true);
+  const pdf = c.acao("assinaturaPdf");
+  assert.equal(pdf.ok, true, JSON.stringify(pdf).slice(0, 200));
+  assert.equal(pdf.termos.length, 2);
+  assert.ok(pdf.termos.every((t) => /^CONFISSÃO (PRÉ|PÓS)-CHAVES - /.test(t.nome) && !/\[#/.test(t.nome) && t.base64.length > 4), JSON.stringify(pdf.termos.map((t) => t.nome)));
+  assert.ok(!JSON.stringify(pdf).includes("https://"));
+  const linhaF1 = { page: "2", position: [0.1, 0.6], texto: "FIADOR 1\nFiador Um Teste\nCPF nº 000" };
+  const r = c.acao("assinaturaEnviar", rub(c, { termos: [{ nome: pdf.termos[0].nome, linhas: [linhaF1] }] }));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual(rubricaDe(c, "f1@teste.example", "doc-2"), [[posDe(linhaF1)]]);
+  assert.deepEqual(rubricaDe(c, "f1@teste.example", "doc-3"), [], "o outro termo não tem linha lida");
+});

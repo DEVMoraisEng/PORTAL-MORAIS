@@ -12,6 +12,9 @@ var RubricasVenda = (function () {
   var PDFJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
   var PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
   var CAMPO = /ASSINATURA\s*:\s*_{3,}/gi;
+  /* 01/11 (plano 23 B): linha de assinatura = traços sozinhos na linha; o texto logo abaixo diz de quem é */
+  var TEM_TRACO = /_{3,}/;
+  var AJUSTE_LINHA = { dx: 0, dy: -0.03 };
   var ITEM_421 = /^\s*4\.2\.1\.?(\s|$)/;
 
   function limitar(v) { return Math.max(0, Math.min(1, Math.round(v * 10000) / 10000)); }
@@ -84,6 +87,59 @@ var RubricasVenda = (function () {
     return { campos: campos, valores: valores, avisos: avisos };
   }
 
+  /* 01/11/2026 (plano 23 B, dono: "a assinatura ficou embaixo da linha de assinatura, não em cima"): cada linha de
+   * assinatura dos blocos (quadro-resumo, final do contrato, página de assinaturas dos termos) → { page, position, texto }.
+   * position = começo dos traços, subido pelo ajuste.linha (padrão 3% da página) para a assinatura ficar EM CIMA da linha;
+   * texto = até 4 linhas logo abaixo (nome, CPF, papel), até o próximo traço ou um vão grande. Quem casa o texto com a
+   * pessoa é o servidor (ClicksignVenda.atribuirLinhas). */
+  function acharLinhas(paginas, ajuste) {
+    var a = (ajuste && ajuste.linha) || AJUSTE_LINHA, out = [];
+    (paginas || []).forEach(function (pg) {
+      var ls = linhas(pg), W = pg.largura, H = pg.altura;
+      ls.forEach(function (l, i) {
+        /* cada trecho de traços da linha é uma linha de assinatura (blocos lado a lado no PDF: VENDEDORA | COMPRADOR,
+           TESTEMUNHA 1 | TESTEMUNHA 2); traço com texto antes ("ASSINATURA: ____") é campo de ciência, não conta */
+        var re = /_{10,}/g, m, fimAnt = 0;
+        while ((m = re.exec(l.texto))) {
+          var antes = l.texto.slice(fimAnt, m.index);
+          fimAnt = m.index + m[0].length;
+          if (/\S/.test(antes)) continue;
+          var x0 = l.xs[m.index], x1 = l.xs[fimAnt - 1] + Math.max(1, (l.xs[fimAnt - 1] - x0) / Math.max(1, m[0].length - 1));
+          out.push({ page: String(pg.numero), position: [limitar(x0 / W + (Number(a.dx) || 0)), limitar(l.y / H + (Number(a.dy) || 0))],
+                     texto: textoDaColuna(ls, i, x0, x1) });
+        }
+      });
+    });
+    return out;
+  }
+  /* trechos de texto de uma linha separados por vão grande (blocos lado a lado): [[início, fim)] */
+  function trechos(l) {
+    var d = [];
+    for (var c = 1; c < l.xs.length; c++) if (l.xs[c] > l.xs[c - 1]) d.push(l.xs[c] - l.xs[c - 1]);
+    d.sort(function (a, b) { return a - b; });
+    var vao = Math.max(15, 3 * (d.length ? d[Math.floor(d.length / 2)] : 5)), out = [], ini = 0;
+    for (var k = 1; k <= l.texto.length; k++)
+      if (k === l.texto.length || l.xs[k] - l.xs[k - 1] > vao) { out.push([ini, k]); ini = k; }
+    return out;
+  }
+  /* até 4 linhas logo abaixo da linha i, só os trechos que encostam na coluna [x0, x1] (nome centralizado mais largo que
+     o traço entra inteiro; o bloco do lado, não); para no próximo traço ou num vão grande */
+  function textoDaColuna(ls, i, x0, x1) {
+    var txt = [], ant = ls[i], tol = 6;
+    for (var k = i + 1; k < ls.length && txt.length < 4; k++) {
+      var m = ls[k], col = "";
+      trechos(m).forEach(function (t) {
+        if (m.xs[t[1] - 1] >= x0 - tol && m.xs[t[0]] <= x1 + tol) col += (col ? " " : "") + m.texto.slice(t[0], t[1]);
+      });
+      if (!/\S/.test(col)) continue;
+      if (TEM_TRACO.test(col)) break;
+      if (m.y - (ant.y + ant.h) > Math.max(ant.h, m.h) * 2.5) break;
+      txt.push(col.replace(/\s+/g, " ").trim());
+      ant = m;
+    }
+    return txt.join("\n");
+  }
+
   /* ---- navegador: pdf.js da cdnjs, carregado só na hora de enviar ---- */
   var pdfjsPromessa = null;
   function carregarPdfjs() {
@@ -115,7 +171,7 @@ var RubricasVenda = (function () {
     return out;
   }
 
-  var api = { acharNoContrato: acharNoContrato, paginaDoPdfjs: paginaDoPdfjs, linhas: linhas, paginasDoPdf: paginasDoPdf,
+  var api = { acharNoContrato: acharNoContrato, acharLinhas: acharLinhas, paginaDoPdfjs: paginaDoPdfjs, linhas: linhas, paginasDoPdf: paginasDoPdf,
               PDFJS_URL: PDFJS_URL };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else if (typeof window !== "undefined") window.RubricasVenda = api;

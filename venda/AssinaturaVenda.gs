@@ -78,7 +78,7 @@ function assConfig_(pageId) {
     ASSINATURA_REPRESENTANTE: prop_("ASSINATURA_REPRESENTANTE"), ASSINATURA_INCLUIR_CORRETOR: prop_("ASSINATURA_INCLUIR_CORRETOR"),
     /* 30/10: rubricas e documentos do comprador */
     RUBRICAS_AJUSTE: prop_("RUBRICAS_AJUSTE"), MEMORIAL_POSICAO: prop_("MEMORIAL_POSICAO"), PROJETO_POSICOES: prop_("PROJETO_POSICOES"),
-    ASSINATURA_SEM_RUBRICAS: prop_("ASSINATURA_SEM_RUBRICAS")
+    ASSINATURA_SEM_RUBRICAS: prop_("ASSINATURA_SEM_RUBRICAS"), ASSINATURA_SEM_LINHAS: prop_("ASSINATURA_SEM_LINHAS")
   });
 }
 
@@ -279,7 +279,9 @@ function assEnviarTravado_(col, p, pid) {
   if (d.condominio && !config.semRubricas) {
     var vr = ClicksignVenda.validarRubricas(p.rubricas, gerado.nome);
     if (!vr.ok) { assLog_("enviar " + pid + " rubricas: " + vr.erro); return { ok: false, erro: vr.erro }; }
-    rub = { campos: vr.campos, valores: vr.valores, memorial: null, projeto: [] };
+    rub = { campos: vr.campos, valores: vr.valores, memorial: null, projeto: [],
+            /* 01/11 (plano 23 B): assinatura em cima da linha de cada pessoa (ASSINATURA_SEM_LINHAS desliga) */
+            linhas: config.semLinhas ? [] : vr.linhas, termos: config.semLinhas ? {} : vr.termos };
   }
   /* memorial descritivo e projeto aprovado do condomínio (só do comprador), ligados pelas Propriedades */
   var ad = d.condominio ? assDocsDoComprador_(d, pid, nomeCs) : { docs: [] };
@@ -307,8 +309,23 @@ function assinaturaPdf_(col, p) {
   try { b = baixarArquivo_({ name: gerado.nome, type: "file", file: { url: gerado.url } }); } catch (e) { b = null; }
   if (!b || b.mime !== "application/pdf") { assLog_("pdf rubricas " + pid + " ilegivel"); return { ok: false, erro: "CONTRATO_ILEGIVEL" }; }
   if (b.base64.length * 3 / 4 > ASS_MAX_BYTES) return { ok: false, erro: "CONTRATO_ILEGIVEL" };
-  assLog_("pdf rubricas " + pid + " ok");
-  return { ok: true, nome: gerado.nome, base64: b.base64, ajuste: config.rubricasAjuste };
+  var r = { ok: true, nome: gerado.nome, base64: b.base64, ajuste: config.rubricasAjuste };
+  /* 01/11 (plano 23 B): os termos de confissão do envelope também, para a tela achar as linhas de assinatura deles.
+     nome = o do documento na Clicksign (sem o carimbo). Termo que falta ou não abre fica de fora (o envio é que barra). */
+  if (!config.semLinhas) {
+    var d = ContratoVenda.montarDadosContrato(f.fontes);
+    var tipos = ConfissaoVenda.fiadoresAssinam(d, cfdLigado_()) ? ConfissaoVenda.quais(d) : [];
+    r.termos = [];
+    tipos.forEach(function (tipo) {
+      var tg = cfdGerado_(pg, tipo), bt = null;
+      if (!tg || !tg.url) return;
+      try { bt = baixarArquivo_({ name: tg.nome, type: "file", file: { url: tg.url } }); } catch (e) { bt = null; }
+      if (!bt || bt.mime !== "application/pdf" || bt.base64.length * 3 / 4 > ASS_MAX_BYTES) return;
+      r.termos.push({ nome: cfdNomeNaClicksign_(tg.nome), base64: bt.base64 });
+    });
+  }
+  assLog_("pdf rubricas " + pid + " ok" + (r.termos ? " termos " + r.termos.length : ""));
+  return r;
 }
 
 /* 30/10: documentos que só o comprador assina, no mesmo envelope do contrato: { docs: [{ tipo, nome, base64,
@@ -341,6 +358,8 @@ function assDocsDoComprador_(d, pid, nomeCs) {
   return { docs: docs };
 }
 
+/* nome do termo na Clicksign: o do PDF gerado sem o carimbo " [#xxxxxxxx]" */
+function cfdNomeNaClicksign_(nome) { return String(nome || "").replace(/ \[#[0-9a-f]{8}\](\.pdf)$/i, "$1"); }
 /* 28/10: termos de confissão de dívida (ConfissaoVenda) — ligados quando o modelo do termo PRÉ existe. */
 function cfdLigado_() { return !!String(prop_("MODELO_CONFISSAO_PRE_ID") || "").trim(); }
 /* nome real da coluna do termo na linha ("" quando a base ainda não tem) */
@@ -414,7 +433,7 @@ function assCriarEnvelope_(p, pid, cols, doc, gerado, lista, nomeCs, extras, adi
     var bx = null;
     try { bx = baixarArquivo_({ name: extras[x].nome, type: "file", file: { url: extras[x].url } }); } catch (e) { bx = null; }
     if (!bx || bx.mime !== "application/pdf") { assLog_("enviar " + pid + " termo de confissao ilegivel"); return { ok: false, erro: "CONTRATO_ILEGIVEL" }; }
-    pdfsExtras.push({ nome: String(extras[x].nome).replace(/ \[#[0-9a-f]{8}\](\.pdf)$/i, "$1"), base64: bx.base64 });
+    pdfsExtras.push({ nome: cfdNomeNaClicksign_(extras[x].nome), base64: bx.base64 });
   }
 
   var envId = "", base = "", papeis = {};
@@ -429,7 +448,7 @@ function assCriarEnvelope_(p, pid, cols, doc, gerado, lista, nomeCs, extras, adi
                          ClicksignVenda.corpoDocumento(ClicksignVenda.nomeArquivo(nomeCs), pdf.base64), true).id;
     var D = ClicksignVenda.DOC, docs = [{ id: docId, tipo: D.CONTRATO }];
     pdfsExtras.forEach(function (e) {
-      docs.push({ id: csPasso_("documento", "post", base + "/documents", ClicksignVenda.corpoDocumento(e.nome, e.base64), true).id, tipo: D.TERMO });
+      docs.push({ id: csPasso_("documento", "post", base + "/documents", ClicksignVenda.corpoDocumento(e.nome, e.base64), true).id, tipo: D.TERMO, nome: e.nome });
     });
     /* 30/10: memorial e projeto aprovado (só do comprador) */
     (adicionais || []).forEach(function (e) {
@@ -448,8 +467,9 @@ function assCriarEnvelope_(p, pid, cols, doc, gerado, lista, nomeCs, extras, adi
         csPasso_("requisitos", "post", base + "/requirements", ClicksignVenda.corpoAutenticacao(dId, ids[i]));
         Utilities.sleep(CS_PAUSA_REQ_MS);
       });
-      /* 30/10: rubricas posicionadas do comprador (campos de ciência, coluna de valores, memorial, projeto) */
-      ClicksignVenda.requisitosRubrica(s, docs, rub).forEach(function (r) {
+      /* 30/10: rubricas posicionadas do comprador (campos de ciência, coluna de valores, memorial, projeto);
+         01/11 (plano 23 B): e a assinatura de cada pessoa em cima da própria linha (contrato e termos) */
+      ClicksignVenda.requisitosRubrica(s, docs, rub, i, lista).forEach(function (r) {
         csPasso_("rubricas", "post", base + "/requirements", ClicksignVenda.corpoRubrica(r.docId, ids[i], r.kind, r.positions));
         Utilities.sleep(CS_PAUSA_REQ_MS);
       });

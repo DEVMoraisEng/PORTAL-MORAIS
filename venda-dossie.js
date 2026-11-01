@@ -3206,8 +3206,8 @@
     /* o bloco de assinatura mora em arquivo próprio; vendas.html continua com uma linha só.
        Carrega mesmo sem o painel da casa: o cartão do condomínio também usa. */
     /* 30/10: leitor das rubricas do comprador (pdf.js só carrega na hora de enviar) */
-    var sr = document.createElement("script"); sr.src = "venda/RubricasVenda.js?v=1"; document.head.appendChild(sr);
-    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=17";
+    var sr = document.createElement("script"); sr.src = "venda/RubricasVenda.js?v=2"; document.head.appendChild(sr);
+    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=18";
     sa.onload = function () { [blocosCasa, blocosCond, blocosPR].forEach(function (b) { if (b) b.pintarAssinatura(); }); };
     document.head.appendChild(sa);
     var body = document.getElementById("pn-body"); if (!body) return;

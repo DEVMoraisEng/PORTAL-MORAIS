@@ -272,12 +272,22 @@
     try { r = await deps.chamar({ action: "assinaturaPdf", pageId: deps.pageId }); }
     catch (err) { r = null; }
     if (!r || !r.ok || r.semRubricas || typeof r.base64 !== "string" || !r.base64) return { ok: true };
-    var R = deps.rubricas || (typeof window !== "undefined" ? window.RubricasVenda : null), ach;
+    var R = deps.rubricas || (typeof window !== "undefined" ? window.RubricasVenda : null), ach, pags;
     if (!R) return { ok: false, erro: "RUBRICAS_SEM_LEITOR" };
-    try { ach = R.acharNoContrato(await R.paginasDoPdf(r.base64), r.ajuste); }
+    try { pags = await R.paginasDoPdf(r.base64); ach = R.acharNoContrato(pags, r.ajuste); }
     catch (err) { return { ok: false, erro: "RUBRICAS_SEM_LEITOR" }; }
     if (!ach.campos.length) return { ok: false, erro: "RUBRICAS_NAO_ACHADAS" };
-    return { ok: true, rubricas: { nome: r.nome, campos: ach.campos, valores: ach.valores } };
+    /* 01/11 (plano 23 B): linhas de assinatura do contrato e dos termos (o servidor casa cada uma com a pessoa) */
+    var linhas = [], termos = [];
+    if (typeof R.acharLinhas === "function") {
+      try {
+        linhas = R.acharLinhas(pags, r.ajuste);
+        var ts = Array.isArray(r.termos) ? r.termos : [];
+        for (var i = 0; i < ts.length; i++)
+          if (ts[i] && ts[i].nome && ts[i].base64) termos.push({ nome: ts[i].nome, linhas: R.acharLinhas(await R.paginasDoPdf(ts[i].base64), r.ajuste) });
+      } catch (err) { return { ok: false, erro: "RUBRICAS_SEM_LEITOR" }; }
+    }
+    return { ok: true, rubricas: { nome: r.nome, campos: ach.campos, valores: ach.valores, linhas: linhas, termos: termos } };
   }
 
   /* Executa um clique. deps: { pageId, confirmar(texto) -> bool, chamar(payload) -> Promise<resposta>,
