@@ -244,6 +244,9 @@
     }
     var rotulo = e.envelope && REENVIAVEL.indexOf(sit) >= 0 ? "Enviar de novo para assinatura" : "Enviar para assinatura";
     h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="' + x + 'enviar"' + (podeEnviar(c) ? "" : " disabled") + ">" + rotulo + "</button>";
+    /* 01/11 (dono: "não dá para ver o documento antes de mandar assinar?") */
+    if (c.contratoGerado && !ehTermo(c))
+      h += ' <button type="button" class="bt ghost bt-mini" data-acao="' + x + 'previa"' + (c.ocupado ? " disabled" : "") + ">Prévia das assinaturas</button>";
     if (e.envelope) h += ' <button type="button" class="bt ghost bt-mini" data-acao="' + x + 'atualizar"' + (podeAtualizar(c) ? "" : " disabled") + ">Atualizar situação</button>";
     if (e.envelope && situacaoDe(e) === "ENVIADO" && pendentes(e))
       h += ' <button type="button" class="bt ghost bt-mini" data-acao="' + x + 'reenviar"' + (podeReenviar(c) ? "" : " disabled") + ">Reenviar link de assinatura</button>";
@@ -281,23 +284,32 @@
     try { pags = await R.paginasDoPdf(r.base64); ach = R.acharNoContrato(pags, r.ajuste); }
     catch (err) { return { ok: false, erro: "RUBRICAS_SEM_LEITOR" }; }
     if (!ach.campos.length) return { ok: false, erro: "RUBRICAS_NAO_ACHADAS" };
+    var pdfs = [{ doc: "contrato", base64: r.base64 }];   /* 01/11 (dono): a prévia desenha as marcas nestes PDFs */
     /* 01/11 (plano 23 B): linhas de assinatura do contrato e dos termos (o servidor casa cada uma com a pessoa) */
     var rubricas = { nome: r.nome, campos: ach.campos, valores: ach.valores };
     /* unidade 22 (01/11): o aviso do leitor (ex.: "item 4.2.1 do quadro-resumo não achado" = sem visto nos valores) vai junto */
     if (Array.isArray(ach.avisos) && ach.avisos.length) rubricas.avisos = ach.avisos.slice(0, 5);
     /* correção 1 (C-1): só com as linhas ligadas no servidor (ASSINATURA_LINHAS=1 → assinaturaPdf diz linhas: true) */
-    if (r.linhas !== true || typeof R.acharLinhas !== "function") return { ok: true, rubricas: rubricas };
+    if (r.linhas !== true || typeof R.acharLinhas !== "function") return { ok: true, rubricas: rubricas, pdfs: pdfs };
     var linhas = [], termos = [];
     try {
       linhas = R.acharLinhas(pags, r.ajuste);
       var ts = Array.isArray(r.termos) ? r.termos : [];
       for (var i = 0; i < ts.length; i++)
-        if (ts[i] && ts[i].nome && ts[i].base64) termos.push({ nome: ts[i].nome, linhas: R.acharLinhas(await R.paginasDoPdf(ts[i].base64), r.ajuste) });
+        if (ts[i] && ts[i].nome && ts[i].base64) {
+          termos.push({ nome: ts[i].nome, linhas: R.acharLinhas(await R.paginasDoPdf(ts[i].base64), r.ajuste) });
+          pdfs.push({ doc: ts[i].nome, base64: ts[i].base64 });
+        }
       /* dono 01/11/2026: memorial com uma linha por pessoa — as linhas dele também */
-      if (r.memorial && r.memorial.base64) rubricas.memorial = { linhas: R.acharLinhas(await R.paginasDoPdf(r.memorial.base64), r.ajuste) };
+      if (r.memorial && r.memorial.base64) {
+        var pm = await R.paginasDoPdf(r.memorial.base64);
+        rubricas.memorial = { linhas: R.acharLinhas(pm, r.ajuste) };
+        rubricas.memorialPaginas = pm.length;
+        pdfs.push({ doc: "memorial", base64: r.memorial.base64 });
+      }
     } catch (err) { return { ok: false, erro: "RUBRICAS_SEM_LEITOR" }; }
     rubricas.linhas = linhas; rubricas.termos = termos;
-    return { ok: true, rubricas: rubricas };
+    return { ok: true, rubricas: rubricas, pdfs: pdfs };
   }
 
   /* Executa um clique. deps: { pageId, confirmar(texto) -> bool, chamar(payload) -> Promise<resposta>,
@@ -306,6 +318,7 @@
   async function executarAcaoAssinatura(acao, c, deps) {
     acao = String(acao || "").replace(/^p-/, "a-");   /* termo: mesmos cliques com prefixo p- */
     if (acao === "a-reenviar") return reenviarLink(c, deps);
+    if (acao === "a-previa") return previaAssinaturas(c, deps);
     if (acao === "a-cancelar") return cancelarEnvelope(c, deps);
     if (acao === "a-descartar") return descartarRascunho(c, deps);
     var enviar = acao === "a-enviar";
@@ -345,6 +358,34 @@
     /* unidade 22 (01/11): avisos do envio (rubrica que a Clicksign guardou diferente, pessoa sem posição, aviso do leitor) */
     if (enviar && Array.isArray(r.avisos) && r.avisos.length) msg += " Atenção: " + r.avisos.join("; ") + ".";
     return copia(c, { estado: estado, ocupado: null, faltas: null, corrigir: null, msg: msg });
+  }
+
+  /* ---- 01/11/2026 (dono): prévia das assinaturas — onde a TINTA de cada marca vai cair, antes de enviar ----
+   * Calibração pelos PDFs assinados da unidade 22 (pt, a partir do ponto mandado): assinatura (imagem 100×50) +2…+99 de
+   * largura e +18…+29 de altura; visto (iniciais 22 pt) +0…+27 e +9…+27. */
+  var TINTA = { manuscript: [2, 18, 99, 29], initials: [0, 9, 27, 27] };
+  function caixasDaPrevia(marcas) {
+    return (marcas || []).map(function (m) {
+      return { doc: m.doc, page: String(m.page), papel: m.papel, kind: m.kind, position: m.position.slice(), tinta: (TINTA[m.kind] || TINTA.manuscript).slice() };
+    });
+  }
+  async function previaAssinaturas(c, deps) {
+    if (typeof deps.pintar === "function") deps.pintar(copia(c, { ocupado: "previa", msg: "" }));
+    var rb = await prepararRubricas(deps);
+    if (!rb.ok) return copia(c, { ocupado: null, msg: mensagemAssinatura(rb) });
+    if (!rb.rubricas) return copia(c, { ocupado: null, msg: "Este contrato não tem assinatura posicionada (casa de rua ou rubricas desligadas)." });
+    var r;
+    try { r = await deps.chamar({ action: "assinaturaPrevia", pageId: deps.pageId, rubricas: rb.rubricas }); }
+    catch (err) { r = { ok: false, erro: "SEM_RESPOSTA" }; }
+    r = r || { ok: false, erro: "SEM_RESPOSTA" };
+    if (!r.ok) return copia(c, { ocupado: null, msg: mensagemAssinatura(r) });
+    var caixas = caixasDaPrevia(r.marcas), docs = {};
+    caixas.forEach(function (x) { docs[x.doc] = true; });
+    if (typeof deps.mostrarPrevia === "function") await deps.mostrarPrevia({ pdfs: rb.pdfs || [], caixas: caixas, avisos: r.avisos || [] });
+    var msg = "Prévia aberta: " + caixas.length + " marca(s) em " + Object.keys(docs).length + " documento(s)" +
+      (docs.projeto ? " (o projeto não abre aqui — peça a prévia em imagem)" : "") + "." +
+      (Array.isArray(r.avisos) && r.avisos.length ? " Atenção: " + r.avisos.join("; ") + "." : "");
+    return copia(c, { ocupado: null, msg: msg });
   }
 
   /* Reenvia o e-mail da Clicksign a quem ainda não assinou (ação assinaturaReenviar). */
@@ -407,7 +448,7 @@
   }
 
   var exportar = { montarBlocoAssinatura: montarBlocoAssinatura, mensagemAssinatura: mensagemAssinatura,
-                   executarAcaoAssinatura: executarAcaoAssinatura, prepararRubricas: prepararRubricas, podeEnviar: podeEnviar, podeReenviar: podeReenviar, podeCancelar: podeCancelar, podeDescartar: podeDescartar,
+                   executarAcaoAssinatura: executarAcaoAssinatura, prepararRubricas: prepararRubricas, caixasDaPrevia: caixasDaPrevia, TINTA: TINTA, podeEnviar: podeEnviar, podeReenviar: podeReenviar, podeCancelar: podeCancelar, podeDescartar: podeDescartar,
                    podeVerAssinado: podeVerAssinado, nomeArquivoAssinado: nomeArquivoAssinado, precisaCarregarAssinados: precisaCarregarAssinados,
                    carregarAssinados: carregarAssinados, baixarAssinado: baixarAssinado, assinado: assinado };
   if (typeof module !== "undefined" && module.exports) { module.exports = exportar; return; }

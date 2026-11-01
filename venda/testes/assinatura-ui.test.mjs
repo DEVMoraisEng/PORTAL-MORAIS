@@ -453,3 +453,28 @@ test("unidade 22 (3): a tela manda os avisos do leitor (ex.: 4.2.1 não achado) 
   const r = await A.prepararRubricas({ pageId: "p", rubricas: leitor, chamar: async () => ({ ok: true, nome: "C.pdf", base64: "QUJD" }) });
   assert.deepEqual(r.rubricas.avisos, ["item 4.2.1 do quadro-resumo não achado"]);
 });
+
+/* ---- dono 01/11: prévia das assinaturas na aba Contrato ---- */
+test("prévia: caixas onde a TINTA vai cair (calibração u22): assinatura +2…+99 × +18…+29 pt; visto +0…+27 × +9…+27 pt", () => {
+  const cx = A.caixasDaPrevia([{ doc: "contrato", papel: "Comprador 1", kind: "initials", page: "3", position: [0.1, 0.4] },
+                               { doc: "contrato", papel: "Vendedor (representante)", kind: "manuscript", page: "18", position: [0.3, 0.5] }]);
+  assert.deepEqual(cx[0], { doc: "contrato", page: "3", papel: "Comprador 1", kind: "initials", position: [0.1, 0.4], tinta: [0, 9, 27, 27] });
+  assert.deepEqual(cx[1].tinta, [2, 18, 99, 29]);
+});
+test("prévia: o botão aparece com o contrato gerado e sem envelope; o clique lê o PDF, pede a prévia e mostra as caixas", async () => {
+  const h = A.montarBlocoAssinatura(ctx());
+  assert.equal(botao(h, "a-previa").length, 1);
+  assert.equal(botao(A.montarBlocoAssinatura(ctx({ contratoGerado: false })), "a-previa").length, 0);
+  const chamadas = [], mostrado = [];
+  const leitor = { paginasDoPdf: async () => [], acharNoContrato: () => ({ campos: [{ page: "3", position: [0.4, 0.5] }], valores: null, avisos: [] }), acharLinhas: () => [] };
+  const novo = await A.executarAcaoAssinatura("a-previa", ctx(), { pageId: "p1", rubricas: leitor, confirmar: () => true,
+    chamar: async (x) => { chamadas.push(x.action);
+      return x.action === "assinaturaPdf" ? { ok: true, nome: "C.pdf", base64: "QUJD", linhas: true, termos: [{ nome: "T.pdf", base64: "VFQ=" }] }
+        : { ok: true, marcas: [{ doc: "contrato", papel: "Comprador 1", kind: "initials", page: "3", position: [0.4, 0.5] }], avisos: [] }; },
+    mostrarPrevia: async (p) => { mostrado.push(p); } });
+  assert.deepEqual(chamadas, ["assinaturaPdf", "assinaturaPrevia"]);
+  assert.equal(mostrado.length, 1);
+  assert.deepEqual(mostrado[0].pdfs.map((p) => p.doc), ["contrato", "T.pdf"]);
+  assert.equal(mostrado[0].caixas.length, 1);
+  assert.match(novo.msg, /Prévia/);
+});

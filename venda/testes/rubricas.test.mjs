@@ -36,8 +36,14 @@ test("acha cada \"ASSINATURA: ____\" (item partido ou inteiro, com texto antes) 
   /* calibração 01/11: topo da assinatura 46 pt acima da linha de base (item de 11 pt: y + 11 − 46) */
   /* calibração u22 (01/11): campo = ponto do visto 25 pt acima da linha de base (item de 11 pt: y + 11 − 25) */
   assert.deepEqual(r.campos[0].position, [+(243 / W).toFixed(4), +((437 + 11 - 25) / H).toFixed(4)]);
-  assert.deepEqual(r.campos[1].position, [+((183 + 12 * 255 / 44) / W).toFixed(4), +((556 + 11 - 25) / H).toFixed(4)]);
-  assert.equal(r.campos[2].position[0], +((183 + 22 * 319 / 53) / W).toFixed(4));
+  /* unidade 22: a largura do item é repartida pela largura típica de cada letra (maiúscula 0,72 em, "_" 0,5, ":" e espaço
+     0,25, "]" e "–" …) — o começo dos traços cai nos traços, não em cima do "ASSINATURA:" */
+  const peso = (c) => (c === "_" ? 0.5 : c === " " ? 0.25 : /[.,:;'!|]/.test(c) ? 0.25 : /[—–]/.test(c) ? 1 : /[-()\[\]\/]/.test(c) ? 0.33 : /[A-ZÀ-ÖØ-Þ]/.test(c) ? 0.72 : 0.5);
+  const inicio = (str, x, w) => { const ws = [...str].map(peso), tot = ws.reduce((a, b) => a + b, 0), k = str.indexOf("_");
+                                  return x + w * ws.slice(0, k).reduce((a, b) => a + b, 0) / tot; };
+  assert.deepEqual(r.campos[1].position, [+(inicio("ASSINATURA: _______________________________]", 183, 255) / W).toFixed(4), +((556 + 11 - 25) / H).toFixed(4)]);
+  assert.equal(r.campos[2].position[0], +(inicio("LIMITES – ASSINATURA: _______________________________", 183, 319) / W).toFixed(4));
+  assert.ok(r.campos[1].position[0] > (183 + 12 * 255 / 44) / W, "à direita da divisão igual de antes");
   /* visto na coluna cinza (margem + 4 pt), na altura do 4.2.1 */
   assert.deepEqual(r.valores, { page: "3", position: [+(61 / W).toFixed(4), +((140 + 11 - 22) / H).toFixed(4)] });   /* 22 pt acima da base */
   assert.deepEqual(r.avisos, []);

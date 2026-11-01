@@ -1125,8 +1125,8 @@ passa a usar a cópia quando o dono troca a Propriedade dele. O código antigo d
 **Passo a passo do dono (uma vez):**
 1. Colar o código novo nos DOIS projetos, `PORTAL-VENDA-TESTE` e `PORTAL-VENDA`: `ClicksignVenda`, `ContratoVenda`,
    `GerarContrato`, `AssinaturaVenda`, `AssinaturaVigia`, `Confissao`, `PreReserva` e o novo `MigrarModelos`; e
-   subir o site (`venda/RubricasVenda.js` v7, `venda/assinatura-ui.js` v22, `venda-dossie.js` v55, `vendas.html`,
-   `simulacoes.html`, `sw.js` v257). Com os modelos de hoje nada muda.
+   subir o site (`venda/RubricasVenda.js` v8, `venda/assinatura-ui.js` v23, `venda-dossie.js` v56, `vendas.html`,
+   `simulacoes.html`, `sw.js` v258). Com os modelos de hoje nada muda.
 2. No projeto onde vai rodar a migração (o TESTE), ligar o serviço avançado **Google Docs API**: editor do Apps Script ›
    Serviços (+) › Google Docs API › Adicionar (identificador `Docs`). Os modelos de contrato têm quebras de seção perto dos
    blocos (a de próxima página antes do quadro-resumo e a de 2 colunas que põe vendedora | comprador lado a lado); o
@@ -1236,6 +1236,20 @@ CPF/CNPJ, papel), uma embaixo da outra — os nomes não invadem mais a coluna d
 o "Enviar para assinatura" gera o memorial também para a tela, que acha as linhas (como nos termos), e cada pessoa
 assina na dela. Memorial migrado sem as linhas lidas: assinam só pela página da Clicksign (o ponto fixo antigo não
 serve mais). Memorial não migrado: como antes.
+
+**Prévia das assinaturas (dono, 01/11/2026: "não dá para ver o documento antes de mandar assinar?"):**
+- Botão **"Prévia das assinaturas"** na aba Contrato (contrato gerado): lê o PDF como o envio, pede ao servidor a ação
+  `assinaturaPrevia` — a MESMA conta do envio, sem chamar a Clicksign e sem gravar nada, só com o papel de cada pessoa
+  (nada de nome ou e-mail) — e abre uma janela com as páginas do contrato, dos termos e do memorial, com uma caixa onde a
+  **tinta** de cada marca vai cair (azul: assinatura; laranja: visto, com a sigla C1, Cj, C2, V…). O projeto (PDF grande)
+  não abre na tela: use o script abaixo. O perfil TESTES também vê.
+- Script local `venda/ferramentas/previa_assinaturas.py` (pymupdf): recebe o JSON da `assinaturaPrevia` e os PDFs e grava
+  um PNG de cada página com marca — para mostrar ao dono antes de qualquer envelope:
+  `py -3.14 venda/ferramentas/previa_assinaturas.py --marcas previa.json --pdf contrato=C.pdf --pdf projeto=P.pdf --saida pasta`.
+  PDFs e imagens têm dado pessoal: ficam fora do repositório.
+- O começo dos traços de "ASSINATURA: ____" agora sai da largura típica de cada letra (antes a largura do trecho era
+  repartida igual e o ponto caía ~14 pt antes, em cima do "ASSINATURA:"); na unidade 22 ficou 1–5 pt depois do
+  começo verdadeiro, já sobre os traços.
 
 ## Selfie com documento para comprador, cônjuge e fiadores (01/11/2026, plano 23 C)
 

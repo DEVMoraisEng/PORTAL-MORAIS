@@ -2594,8 +2594,11 @@
     async function aoClicarAss(acao) {
       if (!window.VendaAssinatura || ctxA.ocupado) return;
       ctxA.contratoGerado = contratoFinal(estadoC);
+      /* 01/11 (dono): prévia das assinaturas — a janela abre no clique (senão o navegador bloqueia) */
+      var janelaPrevia = acao === "a-previa" ? window.open("about:blank", "_blank") : null;
       var novo = await window.VendaAssinatura.executarAcaoAssinatura(acao, ctxA, {
         pageId: pageId,
+        mostrarPrevia: function (prev) { return window.RubricasVenda ? window.RubricasVenda.mostrarPrevia(prev, janelaPrevia) : null; },
         confirmar: function (t) { return window.confirm(t); },
         chamar: function (p) { return chamarVenda(p, ESPERA_ASSINATURA); },
         pintar: function (c) { ctxA = c; pintarA(); },
@@ -3207,8 +3210,8 @@
     /* o bloco de assinatura mora em arquivo próprio; vendas.html continua com uma linha só.
        Carrega mesmo sem o painel da casa: o cartão do condomínio também usa. */
     /* 30/10: leitor das rubricas do comprador (pdf.js só carrega na hora de enviar) */
-    var sr = document.createElement("script"); sr.src = "venda/RubricasVenda.js?v=7"; document.head.appendChild(sr);
-    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=22";
+    var sr = document.createElement("script"); sr.src = "venda/RubricasVenda.js?v=8"; document.head.appendChild(sr);
+    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=23";
     sa.onload = function () { [blocosCasa, blocosCond, blocosPR].forEach(function (b) { if (b) b.pintarAssinatura(); }); };
     document.head.appendChild(sa);
     var body = document.getElementById("pn-body"); if (!body) return;

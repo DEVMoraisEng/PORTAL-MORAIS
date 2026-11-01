@@ -243,12 +243,21 @@ function assEnviarTravado_(col, p, pid) {
   if (!prop_("DB_VENDEDORES") || !prop_("DB_LOTEAMENTOS") || !prop_("DB_CORRETORES") || !prop_("DB_DOCUMENTOS")) return { ok: false, erro: "CADASTRO_NAO_CONFIGURADO" };
 
   if (doc.pre) return assEnviarTermo_(col, p, pid, cols, doc, gerado);
+  var prep = assPrepararContrato_(col, p, pid, gerado, false, pg);
+  if (prep.resp) return prep.resp;
+  return assCriarEnvelope_(p, pid, cols, doc, gerado, prep.lista, prep.nomeCs, prep.extras, prep.ad.docs, prep.rub, prep.d);
+}
+
+/* Tudo o que o envio do contrato confere e monta antes de falar com a Clicksign: { d, config, lista, nomeCs, extras, ad, rub }
+ * ou { resp }. 01/11 (dono: "não dá para ver o documento antes de mandar assinar?"): a prévia (assinaturaPrevia) usa a mesma
+ * conta, com previa = true — sem gerar o memorial (as linhas dele já vieram da tela) e sem nada na Clicksign. */
+function assPrepararContrato_(col, p, pid, gerado, previa, pg) {
   /* mesmos dados do contrato (GerarContrato): o que foi gerado é o que se confere */
   var f = ctrFontes_(col, p.pageId);
-  if (f.condominioErro) return { ok: false, erro: "FALTAM_DADOS", faltas: [f.condominioErro] };
-  if (f.obraAmbigua) return { ok: false, erro: "FALTAM_DADOS", faltas: ["Vendedor: obra ambígua em DOCUMENTOS (endereço repetido)"] };
-  if (f.duplicados) return { ok: false, erro: "FALTAM_DADOS", faltas: f.duplicados };
-  if (f.obraNaoEncontrada) return { ok: false, erro: "FALTAM_DADOS", faltas: ["Vendedor: obra da casa não encontrada em DOCUMENTOS (endereço)"] };
+  if (f.condominioErro) return { resp: { ok: false, erro: "FALTAM_DADOS", faltas: [f.condominioErro] } };
+  if (f.obraAmbigua) return { resp: { ok: false, erro: "FALTAM_DADOS", faltas: ["Vendedor: obra ambígua em DOCUMENTOS (endereço repetido)"] } };
+  if (f.duplicados) return { resp: { ok: false, erro: "FALTAM_DADOS", faltas: f.duplicados } };
+  if (f.obraNaoEncontrada) return { resp: { ok: false, erro: "FALTAM_DADOS", faltas: ["Vendedor: obra da casa não encontrada em DOCUMENTOS (endereço)"] } };
   var d = ContratoVenda.montarDadosContrato(f.fontes), config = assConfig_(p.pageId);
   /* 28/10: com os termos de confissão ligados, eles vão no MESMO envelope e os fiadores assinam só eles */
   var fiadoresAssinam = ConfissaoVenda.fiadoresAssinam(d, cfdLigado_());
@@ -258,13 +267,13 @@ function assEnviarTravado_(col, p, pid) {
     .concat(ContratoVenda.faltasContrato(d), termos.length ? ConfissaoVenda.faltas(d) : [], ClicksignVenda.faltasAssinatura(d, config));
   if (faltas.length) {
     assLog_("enviar " + pid + " faltas " + faltas.length);
-    return { ok: false, erro: "FALTAM_DADOS", faltas: faltas, corrigir: assCorrigir_(faltas) };
+    return { resp: { ok: false, erro: "FALTAM_DADOS", faltas: faltas, corrigir: assCorrigir_(faltas) } };
   }
   /* o PDF tem de ser destes dados: carimbo no nome (GerarContrato) igual ao recalculado agora */
   var carimbo = ctrCarimboDoNome_(gerado.nome);
   if (!ctrCarimboConfere_(carimbo, d, p.pageId)) {   /* 01/11 (plano 23 B): modelo migrado leva as testemunhas no carimbo */
     assLog_("enviar " + pid + (carimbo ? " carimbo diferente" : " pdf sem carimbo"));
-    return { ok: false, erro: "CONTRATO_DESATUALIZADO" };
+    return { resp: { ok: false, erro: "CONTRATO_DESATUALIZADO" } };
   }
 
   /* os termos têm de ter saído junto com ESTE contrato (mesmo carimbo no nome) */
@@ -273,7 +282,7 @@ function assEnviarTravado_(col, p, pid) {
     var tg = cfdGerado_(pg, termos[i]);
     if (!tg || ctrCarimboDoNome_(tg.nome) !== carimbo) {
       assLog_("enviar " + pid + " termo de confissao " + termos[i] + (tg ? " de outro carimbo" : " nao gerado"));
-      return { ok: false, erro: "CONFISSAO_DESATUALIZADA" };
+      return { resp: { ok: false, erro: "CONFISSAO_DESATUALIZADA" } };
     }
     extras.push(tg);
   }
@@ -284,14 +293,14 @@ function assEnviarTravado_(col, p, pid) {
   var rub = null;
   if (d.condominio && !config.semRubricas) {
     var vr = ClicksignVenda.validarRubricas(p.rubricas, gerado.nome, { linhas: config.linhas });
-    if (!vr.ok) { assLog_("enviar " + pid + " rubricas: " + vr.erro); return { ok: false, erro: vr.erro }; }
+    if (!vr.ok) { assLog_("enviar " + pid + " rubricas: " + vr.erro); return { resp: { ok: false, erro: vr.erro } }; }
     rub = { campos: vr.campos, valores: vr.valores, memorial: null, projeto: [], tamanhos: {}, avisos: assAvisosDaTela_(p.rubricas),
             /* 01/11 (plano 23 B): assinatura em cima da linha de cada pessoa — só com ASSINATURA_LINHAS=1 (correção 1) */
             linhas: config.linhas ? vr.linhas : [], termos: config.linhas ? vr.termos : {} };
   }
   /* memorial descritivo e projeto aprovado do condomínio (só do comprador), ligados pelas Propriedades */
-  var ad = d.condominio ? assDocsDoComprador_(d, pid, nomeCs) : { docs: [] };
-  if (ad.resp) return ad.resp;
+  var ad = d.condominio ? (previa ? assDocsLeves_(p) : assDocsDoComprador_(d, pid, nomeCs)) : { docs: [] };
+  if (ad.resp) return { resp: ad.resp };
   if (rub) ad.docs.forEach(function (x) {
     if (x.tipo === ClicksignVenda.DOC.MEMORIAL) {
       rub.memorial = ClicksignVenda.posicaoMemorial(x.paginas, config.memorialPosicao);
@@ -303,7 +312,41 @@ function assEnviarTravado_(col, p, pid) {
     /* revisão 01/11: tamanho real das páginas (MediaBox) — sem ele, o padrão (memorial Carta, projeto A1/A2) */
     if (x.tamanhos) rub.tamanhos[x.tipo] = x.tamanhos;
   });
-  return assCriarEnvelope_(p, pid, cols, doc, gerado, ClicksignVenda.signatarios(d, config), nomeCs, extras, ad.docs, rub, d);
+  return { d: d, config: config, lista: ClicksignVenda.signatarios(d, config), nomeCs: nomeCs, extras: extras, ad: ad, rub: rub };
+}
+
+/* Prévia: memorial (migrado ou não, páginas da tela) e projeto, sem gerar nem baixar nada */
+function assDocsLeves_(p) {
+  var docs = [], memId = String(prop_("MODELO_MEMORIAL_ID") || "").trim(), projId = String(prop_("PROJETO_APROVADO_ID") || "").trim();
+  if (memId) docs.push({ tipo: ClicksignVenda.DOC.MEMORIAL, migrado: ctrLerModelo_(memId).migrado,
+                         paginas: Math.max(0, Math.floor(Number(p.rubricas && p.rubricas.memorialPaginas) || 0)) });
+  if (projId) docs.push({ tipo: ClicksignVenda.DOC.PROJETO });
+  return { docs: docs };
+}
+
+/* 01/11/2026 (dono): prévia das assinaturas — as marcas que o envio criaria (todos os documentos, todas as pessoas), sem
+ * chamar a Clicksign e sem gravar nada. Só o papel (nada de nome ou e-mail): [{ doc, papel, kind, page, position }].
+ * doc: "contrato", o nome do termo na Clicksign, "memorial" ou "projeto". Só leitura (o perfil TESTES vê). */
+function assinaturaPrevia_(col, p) {
+  var pid = String(p.pageId).slice(0, 8), doc = assDoc_(p);
+  if (doc.pre) return { ok: true, marcas: [], avisos: [] };   /* o termo de pré-reserva não tem assinatura posicionada */
+  var pg = ctrLerPaginaVenda_(p.pageId), gerado = doc.gerado(pg);
+  if (!gerado || !gerado.url) return { ok: false, erro: doc.semGerado };
+  if (!prop_("DB_VENDEDORES") || !prop_("DB_LOTEAMENTOS") || !prop_("DB_CORRETORES") || !prop_("DB_DOCUMENTOS")) return { ok: false, erro: "CADASTRO_NAO_CONFIGURADO" };
+  var prep = assPrepararContrato_(col, p, pid, gerado, true, pg);
+  if (prep.resp) return prep.resp;
+  var D = ClicksignVenda.DOC, docs = [{ id: "contrato", tipo: D.CONTRATO }], marcas = [], avisos = [];
+  prep.extras.forEach(function (e) { var n = cfdNomeNaClicksign_(e.nome); docs.push({ id: n, tipo: D.TERMO, nome: n }); });
+  prep.ad.docs.forEach(function (x) { docs.push({ id: x.tipo, tipo: x.tipo }); });
+  if (prep.rub) prep.lista.forEach(function (s, i) {
+    var semLugar = [];
+    assJuntarVistos_(ClicksignVenda.requisitosRubrica(s, docs, prep.rub, i, prep.lista, semLugar), prep.config.vistoComoAssinatura).forEach(function (r) {
+      r.positions.forEach(function (q) { marcas.push({ doc: r.docId, papel: s.papel, kind: r.kind, page: q.page, position: q.position.slice() }); });
+    });
+    semLugar.forEach(function (a) { avisos.push("SEM_POSICAO: " + a); });
+  });
+  assLog_("previa " + pid + " marcas " + marcas.length);
+  return { ok: true, marcas: marcas, avisos: avisos };
 }
 
 /* 30/10: PDF do contrato gerado para a tela achar as rubricas (RubricasVenda + pdf.js). Só leitura. O link do

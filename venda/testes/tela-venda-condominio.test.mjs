@@ -1593,3 +1593,26 @@ test("dono 01/11: memorial migrado — bloco gerado, PDF do memorial para a tela
   assert.deepEqual(rubricaDe(c, "conjuge@teste.example", "doc-2"), [[posDe(LM[2])]]);
   assert.deepEqual(rubricaDe(c, "beltrano@teste.example", "doc-2"), [[posDe(LM[0])]]);
 });
+
+/* ---- dono 01/11: "não dá para ver o documento antes de mandar assinar?" — prévia das assinaturas ---- */
+test("prévia (assinaturaPrevia): as mesmas posições que o envio criaria, sem Clicksign, sem gravar e sem nome/e-mail", () => {
+  const LT = [{ page: "18", position: [0.096, 0.05], texto: "EMPRESA TESTE\nVENDEDORA" }, { page: "18", position: [0.096, 0.2], texto: "Nome: Compradora de Teste\nCPF: 000\nCOMPRADOR" }];
+  const c = cenarioCfd({ props: { ASSINATURA_LINHAS: "1" }, cs: { arquivos: { original: "https://s3.clicksign.falso/original.pdf", signed: "https://s3.clicksign.falso/assinado.pdf" } } });
+  assert.equal(c.gerarFinal().ok, true);
+  c.c.chamadas.length = 0; const patches = c.n.patches.length;
+  const pv = c.acao("assinaturaPrevia", rub(c, { linhas: LT }), token("TESTES"));
+  assert.equal(pv.ok, true, JSON.stringify(pv));
+  assert.equal(c.c.chamadas.length, 0, "nenhuma chamada à Clicksign");
+  assert.equal(c.n.patches.length, patches, "nada gravado no Notion");
+  assert.ok(!/Compradora de Teste|@teste/.test(JSON.stringify(pv)), "sem nome nem e-mail");
+  assert.ok(pv.marcas.every((m) => ["doc", "papel", "kind", "page", "position"].every((k) => k in m)));
+  /* o envio de verdade cria exatamente estas marcas no contrato */
+  const r = c.acao("assinaturaEnviar", rub(c, { linhas: LT }));
+  assert.equal(r.ok, true, JSON.stringify(r.faltas || r));
+  const papelDe = Object.fromEntries(c.c.estado.signers.map((s) => [s.id, r.signatarios.find((x) => x.email === s.attributes.email).papel]));
+  const doEnvio = reqsDe(c).filter((q) => q.attributes.action === "rubricate" && q.relationships.document.data.id === "doc-1")
+    .flatMap((q) => q.attributes.positions.map((p) => [papelDe[q.relationships.signer.data.id], q.attributes.kind, p.page, p.position.join(",")].join("|"))).sort();
+  const daPrevia = pv.marcas.filter((m) => m.doc === "contrato").map((m) => [m.papel, m.kind, m.page, m.position.join(",")].join("|")).sort();
+  assert.deepEqual(daPrevia, doEnvio);
+  assert.ok(doEnvio.length >= 3, doEnvio.join(" ; "));
+});
