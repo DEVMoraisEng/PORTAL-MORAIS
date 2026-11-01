@@ -1438,7 +1438,7 @@ var ContratoVenda = (function () {
     /* marcadores cujo valor tem várias linhas: no Docs, o parágrafo que só tem o marcador vira um parágrafo por linha */
     MARCADORES_PARAGRAFOS: ["FORMA_PAGAMENTO_CONDOMINIO", "FIADORES_QUALIFICACAO",
       /* 01/11 (plano 23 B): blocos de assinatura, uma linha por pessoa (ClicksignVenda.blocoAssinaturas) */
-      "ASSINATURAS_QUADRO", "ASSINATURAS_FINAL", "ASSINATURAS_TERMO"],
+      "ASSINATURAS_QUADRO", "ASSINATURAS_FINAL", "ASSINATURAS_TERMO", "ASSINATURAS_MEMORIAL"],
     /* marcador VAZIO cujo rótulo sai junto: no modelo a linha é
        "Banco: {{BANCO}} – Agência: {{AGENCIA}} – Operação: {{OPERACAO}} – Conta {{CONTA}} – PIX: {{PIX}} - Titularidade…";
        sem Pix (ou sem operação, que a conta da obra não tem) o "– PIX: " / "– Operação: " some, em vez de ficar em branco.

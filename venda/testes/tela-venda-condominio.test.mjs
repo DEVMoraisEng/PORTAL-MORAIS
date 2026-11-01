@@ -1570,3 +1570,26 @@ test("unidade 22 (3): RUBRICAS_VISTO_COMO_ASSINATURA=1 — os vistos vão como a
   const chaves = rq.map((q) => q.relationships.signer.data.id + "|" + q.relationships.document.data.id + "|" + q.attributes.kind);
   assert.equal(new Set(chaves).size, chaves.length, "um requisito por pessoa, documento e tipo");
 });
+
+/* ---- dono 01/11: memorial migrado ({{ASSINATURAS_MEMORIAL}}) — uma linha por pessoa, lida no PDF do memorial ---- */
+test("dono 01/11: memorial migrado — bloco gerado, PDF do memorial para a tela e cada pessoa assina na própria linha", () => {
+  const MEM_NOVO = ["MEMORIAL DESCRITIVO", "/Type /Page", "{{ASSINATURAS_MEMORIAL}}"];
+  const c = cenario({ modelosExtra: { "modelo-memorial": MEM_NOVO }, linha: CASADO_PR,
+                      props: { MODELO_MEMORIAL_ID: "modelo-memorial", ASSINATURA_LINHAS: "1" } });
+  assert.equal(c.gerarFinal().ok, true);
+  const pdf = c.acao("assinaturaPdf");
+  assert.equal(pdf.ok, true, JSON.stringify(pdf).slice(0, 200));
+  assert.ok(pdf.memorial && pdf.memorial.base64.length > 4, "o memorial vai para a tela achar as linhas");
+  const txtMem = Buffer.from(pdf.memorial.base64, "base64").toString("utf8");
+  for (const papel of ["VENDEDORA", "COMPRADOR", "CÔNJUGE DO COMPRADOR"]) assert.ok(txtMem.includes(papel), papel);
+  assert.ok(txtMem.includes("Nome: Conjuge Teste da Silva"));
+  const LM = [{ page: "2", position: [0.12, 0.30], texto: "Nome: Construtora Teste Ltda\nCNPJ: 00.000.000/0001-00\nVENDEDORA" },
+              { page: "2", position: [0.12, 0.40], texto: "Nome: Compradora de Teste\nCPF: 1\nCOMPRADOR" },
+              { page: "2", position: [0.12, 0.50], texto: "Nome: Conjuge Teste da Silva\nCPF: 2\nCÔNJUGE DO COMPRADOR" }];
+  c.d.zerar();
+  const r = c.acao("assinaturaEnviar", rub(c, { memorial: { linhas: LM } }));
+  assert.equal(r.ok, true, JSON.stringify(r.faltas || r));
+  assert.deepEqual(rubricaDe(c, "compradora@teste.example", "doc-2"), [[posDe(LM[1])]]);
+  assert.deepEqual(rubricaDe(c, "conjuge@teste.example", "doc-2"), [[posDe(LM[2])]]);
+  assert.deepEqual(rubricaDe(c, "beltrano@teste.example", "doc-2"), [[posDe(LM[0])]]);
+});

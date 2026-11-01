@@ -293,6 +293,8 @@
       var ts = Array.isArray(r.termos) ? r.termos : [];
       for (var i = 0; i < ts.length; i++)
         if (ts[i] && ts[i].nome && ts[i].base64) termos.push({ nome: ts[i].nome, linhas: R.acharLinhas(await R.paginasDoPdf(ts[i].base64), r.ajuste) });
+      /* dono 01/11/2026: memorial com uma linha por pessoa — as linhas dele também */
+      if (r.memorial && r.memorial.base64) rubricas.memorial = { linhas: R.acharLinhas(await R.paginasDoPdf(r.memorial.base64), r.ajuste) };
     } catch (err) { return { ok: false, erro: "RUBRICAS_SEM_LEITOR" }; }
     rubricas.linhas = linhas; rubricas.termos = termos;
     return { ok: true, rubricas: rubricas };

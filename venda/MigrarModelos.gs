@@ -20,7 +20,9 @@ var MIG_MODELOS = [
   { prop: "MODELO_CONSTRUCAO_ID", marcadores: ["ASSINATURAS_QUADRO", "ASSINATURAS_FINAL"] },
   { prop: "MODELO_CONFISSAO_PRE_ID", marcadores: ["ASSINATURAS_TERMO"] },
   { prop: "MODELO_CONFISSAO_POS_ID", marcadores: ["ASSINATURAS_TERMO"] },
-  { prop: "MODELO_PRE_RESERVA_ID", marcadores: ["ASSINATURAS_TERMO"] }
+  { prop: "MODELO_PRE_RESERVA_ID", marcadores: ["ASSINATURAS_TERMO"] },
+  /* dono 01/11/2026: memorial com uma linha por pessoa — o bloco de duas colunas (Vendedora | Comprador(es)) */
+  { prop: "MODELO_MEMORIAL_ID", marcadores: ["ASSINATURAS_MEMORIAL"], memorial: true }
 ];
 /* marcadores que podem estar dentro de um bloco antigo (todo o resto barra a troca) */
 var MIG_PERMITIDOS = ["VENDEDOR_NOME", "VENDEDOR_DOC", "VENDEDOR_DOC_ROTULO", "REPRESENTANTE_NOME", "REPRESENTANTE_CPF",
@@ -54,7 +56,7 @@ function migUmModelo_(id, m, aplicar) {
   if (tem.length === marcadores.length) return "já migrado (tem " + migLista_(tem) + "), nada a fazer";
   if (tem.length) return "PARCIAL, não mexi — tem " + migLista_(tem) + ", falta " +
     migLista_(marcadores.filter(function (k) { return tem.indexOf(k) < 0; })) + " (confira o modelo à mão)";
-  var bl = migBlocosConferidos_(body, marcadores.length, id);
+  var bl = migBlocosConferidos_(body, marcadores.length, id, m.memorial);
   if (typeof bl === "string") return "NÃO MEXI — " + bl;
   var desc = bl.map(function (b, i) { return migDescrever_(b, i, marcadores[i]); }).join("\n");
   if (!aplicar) return "PRÉVIA — trocaria " + bl.length + " bloco(s):\n" + desc;
@@ -74,7 +76,7 @@ function migUmModelo_(id, m, aplicar) {
   try {
     var docC = DocumentApp.openById(cid), bodyC = docC.getBody();
     if (String(bodyC.getText()) !== texto) throw new Error("a cópia não ficou igual ao original");
-    blC = migBlocosConferidos_(bodyC, marcadores.length, cid);
+    blC = migBlocosConferidos_(bodyC, marcadores.length, cid, m.memorial);
     if (typeof blC === "string") throw new Error(blC);
     /* de trás para a frente: trocar um bloco não muda a posição dos anteriores no mesmo lugar */
     for (var i = blC.length - 1; i >= 0; i--) migTrocar_(blC[i], "{{" + marcadores[i] + "}}");
@@ -86,8 +88,9 @@ function migUmModelo_(id, m, aplicar) {
 }
 function migLista_(l) { return l.map(function (k) { return "{{" + k + "}}"; }).join(", "); }
 /* blocos achados e conferidos, ou a frase do problema */
-function migBlocosConferidos_(body, esperados, docId) {
-  var achou = migAcharBlocos_(body, { corpo: true, secoes: migSecoes_(docId, body) });
+function migBlocosConferidos_(body, esperados, docId, memorial) {
+  var ctx = { corpo: true, secoes: migSecoes_(docId, body) };
+  var achou = memorial ? migAcharBlocoMemorial_(body, ctx) : migAcharBlocos_(body, ctx);
   if (achou.problema) return achou.problema;
   if (achou.blocos.length !== esperados) return "achei " + achou.blocos.length + " bloco(s) de assinatura, esperava " + esperados;
   return achou.blocos;
@@ -263,6 +266,22 @@ function migAcharBlocos_(caixa, ctx) {
   return { blocos: blocos };
 }
 
+/* Memorial (dono, 01/11/2026): o bloco é a linha dos traços, a dos nomes ({{ASSINATURA_COMPRADORES_NOMES}}), a dos CPFs
+   e a dos rótulos "Vendedora / Comprador(es)" — duas colunas separadas por tabulação. Não tem {{CIDADE_DATA}} antes. */
+function migAcharBlocoMemorial_(body, ctx) {
+  var els = migElementos_(body, ctx), achados = [];
+  els.forEach(function (e, i) { if (e.paragrafo && /\{\{ASSINATURA_COMPRADORES_NOMES\}\}/.test(e.texto)) achados.push(i); });
+  if (achados.length !== 1) return { problema: "esperava uma linha com {{ASSINATURA_COMPRADORES_NOMES}} no memorial, achei " + achados.length };
+  var i = achados[0], ini = i - 1;
+  if (ini < 0 || !els[ini].paragrafo || !/^[\s_]*_{10,}[\s_]*$/.test(els[ini].texto))
+    return { problema: "a linha dos traços \"____\" não está logo antes dos nomes no memorial" };
+  var fim = -1;
+  for (var j = i + 1; j < els.length && j <= i + 3; j++) if (els[j].paragrafo && /Comprador\(es\)/i.test(els[j].texto)) { fim = j; break; }
+  if (fim < 0) return { problema: "não achei o rótulo \"Comprador(es)\" logo depois dos nomes no memorial" };
+  var p = migConferir_(els, ini, fim);
+  if (p) return { problema: p };
+  return { blocos: [{ caixa: body, els: els, ini: ini, fim: fim }] };
+}
 /* Confere o trecho [ini, fim]: tamanho, só marcadores de assinatura, {{#X}}/{{/X}} fechados, cara de bloco de assinatura. */
 function migConferir_(els, ini, fim) {
   if (fim - ini + 1 > MIG_MAX_ELEMENTOS) return "bloco grande demais (" + (fim - ini + 1) + " elementos) — confira o modelo";

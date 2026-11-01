@@ -252,7 +252,7 @@ var ClicksignVenda = (function () {
   function pessoasDoBloco(dados, config, tipo, opc) {
     config = config || montarConfig({});
     opc = opc || {};
-    var termo = tipo === "TERMO", pre = tipo === "PRE_RESERVA", cond = !!dados.condominio, out = [];
+    var termo = tipo === "TERMO", pre = tipo === "PRE_RESERVA", memorial = tipo === "MEMORIAL", cond = !!dados.condominio, out = [];
     function add(rotulo, nome, doc, extra) { out.push({ rotulo: rotulo, nome: txt(nome), doc: txt(doc), extra: txt(extra) }); }
     /* correção 1 (I5): o nome como no {{VENDEDOR_NOME}} — cadastro ou, sem ele, o proprietário da obra */
     var v = dados.vendedor, nomeV = txt(v && v.nome) || txt(dados.nomeProprietario);
@@ -266,6 +266,8 @@ var ClicksignVenda = (function () {
     }
     var rotC = termo ? "DEVEDOR/COMPRADOR" : pre ? "PRÉ-RESERVANTE" : "COMPRADOR", rotCj = pre ? "CÔNJUGE DO PRÉ-RESERVANTE" : "CÔNJUGE DO COMPRADOR";
     sigCompradores(dc).forEach(function (s) { add(s.origem === "conjugeComprador1" ? rotCj : rotC, s.nome, s.cpf); });
+    /* dono 01/11/2026: memorial com uma linha por pessoa — a vendedora e quem compra (cônjuge incluído); mais ninguém */
+    if (memorial) return out;
     if (termo) sigFiadores(dados, { comFiadores: true }).forEach(function (s) {
       if (!s.nome) return;
       var n = /([12])$/.exec(s.origem)[1];
@@ -631,7 +633,10 @@ var ClicksignVenda = (function () {
     if (r.valores) { val = posicaoValida(r.valores); if (!val) return { ok: false, erro: "RUBRICAS_INVALIDAS" }; }
     /* 01/11 (plano 23 B): linhas de assinatura do contrato e de cada termo de confissão (nome do PDF na Clicksign) */
     var linhas = [], termos = {};
-    if (opc && opc.linhas === false) return { ok: true, campos: ok, valores: val, linhas: linhas, termos: termos };
+    if (opc && opc.linhas === false) return { ok: true, campos: ok, valores: val, linhas: linhas, termos: termos, memorial: [] };
+    /* dono 01/11: linhas do memorial (uma por pessoa) lidas na tela no PDF do memorial */
+    var memorial = [];
+    if (r.memorial !== undefined) { memorial = linhasValidas(r.memorial && r.memorial.linhas); if (!memorial) return { ok: false, erro: "RUBRICAS_INVALIDAS" }; }
     if (r.linhas !== undefined) { linhas = linhasValidas(r.linhas); if (!linhas) return { ok: false, erro: "RUBRICAS_INVALIDAS" }; }
     if (r.termos !== undefined) {
       if (!Array.isArray(r.termos) || r.termos.length > 4) return { ok: false, erro: "RUBRICAS_INVALIDAS" };
@@ -641,7 +646,7 @@ var ClicksignVenda = (function () {
         termos[txt(t.nome)] = lt;
       }
     }
-    return { ok: true, campos: ok, valores: val, linhas: linhas, termos: termos };
+    return { ok: true, campos: ok, valores: val, linhas: linhas, termos: termos, memorial: memorial };
   }
   var MAX_LINHAS = 60;
   function linhasValidas(a) {
@@ -662,7 +667,12 @@ var ClicksignVenda = (function () {
    * Sem nome: pelo papel escrito — TESTEMUNHA n, FIADOR n, CORRETOR/INTERMEDIADOR, VENDEDORA/CREDORA, e COMPRADOR/DEVEDOR
    * só quando uma única pessoa assina como parte compradora. */
   /* 01/11 (dono): o corretor assina SÓ o contrato — nunca os termos de confissão (nem a pré-reserva) */
-  function assinaOTipo(s, tipo) { return tipo === DOC.TERMO ? s.origem !== "corretor" : tipo === DOC.CONTRATO ? !s.soTermos : false; }
+  function assinaOTipo(s, tipo) {
+    if (tipo === DOC.TERMO) return s.origem !== "corretor";
+    if (tipo === DOC.CONTRATO) return !s.soTermos;
+    if (tipo === DOC.MEMORIAL) return !!s.rubrica || s.origem === "vendedor" || s.origem === "representante";   /* dono 01/11 */
+    return false;
+  }
   /* correção 3 (5): papéis escritos no texto de uma linha, já normalizados (um por pessoa). Dois papéis diferentes = a
      leitura pegou o bloco do lado: a linha não vai para ninguém (melhor sem assinatura posicionada do que na errada). */
   var RE_PAPEIS = /\b(CONJUGE DO (?:COMPRADOR|PRE-RESERVANTE|FIADOR [12])|CREDORA\/VENDEDORA|DEVEDOR\/COMPRADOR|INTERMEDIADOR\/CORRETOR|VENDEDORA?|COMPRADOR|FIADOR [12]|TESTEMUNHA [12]|PRE-RESERVANTE|CORRETOR|INTERMEDIADOR)\b/g;
@@ -890,6 +900,10 @@ var ClicksignVenda = (function () {
       } else if (d.tipo === DOC.TERMO) {
         var lt = comLinhas && rub.termos && d.nome && rub.termos[d.nome] ? atribuirLinhas(lista, rub.termos[d.nome], DOC.TERMO)[i] : [];
         if (lt.length) l.push({ docId: d.id, kind: "manuscript", positions: lt });
+      } else if (d.tipo === DOC.MEMORIAL && Array.isArray(rub.memorialLinhas) && (s.rubrica || ehVendedorSig(s))) {
+        /* dono 01/11/2026: memorial migrado — cada pessoa na PRÓPRIA linha, lida no PDF (sem linhas lidas: sem posição) */
+        var lmem = comLinhas && rub.memorialLinhas.length ? atribuirLinhas(lista, rub.memorialLinhas, DOC.MEMORIAL)[i] : [];
+        if (lmem.length) l.push({ docId: d.id, kind: "manuscript", positions: lmem });
       } else if (d.tipo === DOC.MEMORIAL && rub.memorial && (s.rubrica || ehVendedorSig(s))) {
         var pm = ehVendedorSig(s)
           ? [rub.memorialVendedor ? { page: rub.memorialVendedor.page, position: rub.memorialVendedor.position.slice() }

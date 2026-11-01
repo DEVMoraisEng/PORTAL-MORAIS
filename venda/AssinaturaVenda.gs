@@ -296,6 +296,8 @@ function assEnviarTravado_(col, p, pid) {
     if (x.tipo === ClicksignVenda.DOC.MEMORIAL) {
       rub.memorial = ClicksignVenda.posicaoMemorial(x.paginas, config.memorialPosicao);
       rub.memorialVendedor = ClicksignVenda.posicaoMemorialVendedor(rub.memorial, config.memorialPosicao);
+      /* dono 01/11/2026: memorial migrado — uma linha por pessoa, lida na tela (o ponto antigo não serve mais) */
+      if (x.migrado) rub.memorialLinhas = config.linhas ? (vr.memorial || []) : [];
     }
     if (x.tipo === ClicksignVenda.DOC.PROJETO) rub.projeto = ClicksignVenda.posicoesProjeto(config.projetoPosicoes);
     /* revisão 01/11: tamanho real das páginas (MediaBox) — sem ele, o padrão (memorial Carta, projeto A1/A2) */
@@ -336,7 +338,15 @@ function assinaturaPdf_(col, p) {
       r.termos.push({ nome: cfdNomeNaClicksign_(tg.nome), base64: bt.base64 });
     });
   }
-  assLog_("pdf rubricas " + pid + " ok" + (r.termos ? " termos " + r.termos.length : ""));
+  /* dono 01/11/2026: memorial migrado (uma linha por pessoa) — o PDF vai para a tela achar as linhas, como os termos */
+  var memId = String(prop_("MODELO_MEMORIAL_ID") || "").trim();
+  if (config.linhas && memId && ctrLerModelo_(memId).migrado) {
+    var dm = ContratoVenda.montarDadosContrato(f.fontes);
+    var gm = assGerarMemorial_(dm, pid, ClicksignVenda.nomePadrao(f.endereco, f.casa, dm.comprador1 && dm.comprador1.nome), memId);
+    if (gm.doc && gm.doc.base64.length * 3 / 4 <= ASS_MAX_BYTES) r.memorial = { nome: gm.doc.nome, base64: gm.doc.base64 };
+    else assLog_("pdf rubricas " + pid + " memorial nao gerado");
+  }
+  assLog_("pdf rubricas " + pid + " ok" + (r.termos ? " termos " + r.termos.length : "") + (r.memorial ? " memorial" : ""));
   return r;
 }
 
@@ -345,23 +355,32 @@ function assinaturaPdf_(col, p) {
  * {{ASSINATURA_COMPRADORES_NOMES}} e {{ASSINATURA_COMPRADORES_CPFS}}), cópia apagada sempre. Projeto: o PDF
  * fixo PROJETO_APROVADO_ID. Propriedade vazia = documento desligado. */
 function assLatin1_(bytes) { return Utilities.newBlob(bytes).getDataAsString("ISO-8859-1"); }
+/* Memorial gerado agora do Google Doc MODELO_MEMORIAL_ID: { doc } ou { resp }. Modelo migrado (dono, 01/11/2026) tem
+   {{ASSINATURAS_MEMORIAL}}: uma linha por pessoa (vendedora e quem compra) — doc.migrado diz isso ao envio. */
+function assGerarMemorial_(d, pid, nomeCs, memId) {
+  if (typeof Drive === "undefined" || !Drive || !Drive.Files || !Drive.Files.remove) return { resp: { ok: false, erro: "DRIVE_API_DESLIGADA" } };
+  var modelo, pasta;
+  try { modelo = DriveApp.getFileById(memId); pasta = DriveApp.getFolderById(prop_("PASTA_PROVISORIA_ID")); }
+  catch (e) { ctrErro_("assinatura memorial " + pid + " modelo inacessivel", e); return { resp: { ok: false, erro: "MEMORIAL_NAO_CONFIGURADO" } }; }
+  var mc = ContratoVenda.marcadores(d), migrado = ctrLerModelo_(memId).migrado;
+  var marc = { ASSINATURA_COMPRADORES_NOMES: mc.MEMORIAL_ASSINATURA_NOMES, ASSINATURA_COMPRADORES_CPFS: mc.MEMORIAL_ASSINATURA_CPFS };
+  try { marc.ASSINATURAS_MEMORIAL = ClicksignVenda.blocoAssinaturas(d, assConfig_(), "MEMORIAL"); }
+  catch (e) { ctrErro_("assinatura memorial " + pid + " bloco de assinaturas", e); }   /* modelo antigo segue; o migrado para no marcador sobrando */
+  var g = ctrGerarPdf_({ modelo: modelo, pasta: pasta, blocos: {}, titulo: "MEMORIAL DESCRITIVO - " + nomeCs, marcadores: marc },
+                       pid, "assinatura memorial", false);
+  if (g.resp) return { resp: g.resp.erro === "CONTRATO_FALHOU" ? { ok: false, erro: "MEMORIAL_FALHOU" } : g.resp };
+  var bytes = g.pdf.getBytes();
+  var lat = assLatin1_(bytes), tm = null;
+  try { tm = ClicksignVenda.tamanhosPaginasPdf(lat); } catch (e) { tm = null; }
+  return { doc: { tipo: ClicksignVenda.DOC.MEMORIAL, nome: ClicksignVenda.nomeDocumentoAdicional("memorial", nomeCs), base64: Utilities.base64Encode(bytes),
+                  paginas: ClicksignVenda.contarPaginasPdf(lat), tamanhos: tm, migrado: migrado } };
+}
 function assDocsDoComprador_(d, pid, nomeCs) {
   var docs = [], memId = String(prop_("MODELO_MEMORIAL_ID") || "").trim(), projId = String(prop_("PROJETO_APROVADO_ID") || "").trim();
   if (memId) {
-    if (typeof Drive === "undefined" || !Drive || !Drive.Files || !Drive.Files.remove) return { resp: { ok: false, erro: "DRIVE_API_DESLIGADA" } };
-    var modelo, pasta;
-    try { modelo = DriveApp.getFileById(memId); pasta = DriveApp.getFolderById(prop_("PASTA_PROVISORIA_ID")); }
-    catch (e) { ctrErro_("assinatura memorial " + pid + " modelo inacessivel", e); return { resp: { ok: false, erro: "MEMORIAL_NAO_CONFIGURADO" } }; }
-    var mc = ContratoVenda.marcadores(d);
-    var g = ctrGerarPdf_({ modelo: modelo, pasta: pasta, blocos: {}, titulo: "MEMORIAL DESCRITIVO - " + nomeCs,
-                           marcadores: { ASSINATURA_COMPRADORES_NOMES: mc.MEMORIAL_ASSINATURA_NOMES, ASSINATURA_COMPRADORES_CPFS: mc.MEMORIAL_ASSINATURA_CPFS } },
-                         pid, "assinatura memorial", false);
-    if (g.resp) return { resp: g.resp.erro === "CONTRATO_FALHOU" ? { ok: false, erro: "MEMORIAL_FALHOU" } : g.resp };
-    var bytes = g.pdf.getBytes();
-    var lat = assLatin1_(bytes), tm = null;
-    try { tm = ClicksignVenda.tamanhosPaginasPdf(lat); } catch (e) { tm = null; }
-    docs.push({ tipo: ClicksignVenda.DOC.MEMORIAL, nome: ClicksignVenda.nomeDocumentoAdicional("memorial", nomeCs), base64: Utilities.base64Encode(bytes),
-                paginas: ClicksignVenda.contarPaginasPdf(lat), tamanhos: tm });
+    var gm = assGerarMemorial_(d, pid, nomeCs, memId);
+    if (gm.resp) return gm;
+    docs.push(gm.doc);
   }
   if (projId) {
     var blob;

@@ -158,3 +158,12 @@ test("correção 1 (I5/I6c): vendedor sem cadastro usa o nome do proprietário; 
   d3.vendedor = null; d3.nomeProprietario = "";
   assert.equal(CS.blocoAssinaturas(d3, CONFIG, "CONTRATO").split("\n")[3], "COMPRADOR", "sem nome nenhum, sem a linha da vendedora");
 });
+
+/* ---- dono 01/11: memorial com UMA linha por pessoa ({{ASSINATURAS_MEMORIAL}}) ---- */
+test("memorial: vendedora e cada comprador (cônjuge incluído) com a própria linha; sem testemunhas, corretor nem fiadores", () => {
+  const l = CS.blocoAssinaturas(dados(), CONFIG, "MEMORIAL").split("\n");
+  const papeis = l.filter((x, i) => l[i + 1] === "" || i === l.length - 1);
+  assert.deepEqual(papeis, ["VENDEDORA", "COMPRADOR", "CÔNJUGE DO COMPRADOR", "COMPRADOR"]);
+  assert.ok(l.includes("Nome: CONJUGE UM TESTE") && l.includes("Nome: COMPRADOR DOIS TESTE"));
+  assert.ok(C.MARCADORES_PARAGRAFOS.includes("ASSINATURAS_MEMORIAL"));
+});

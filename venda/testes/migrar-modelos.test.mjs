@@ -417,3 +417,27 @@ test("revisão: duas quebras de seção seguidas no bloco ganham uma linha vazia
   g.ctx.migrarModelosAssinaturasAplicar();
   assert.deepEqual(marcas(g.docs["copia-1"].salvo).slice(6, 12), ["[seção 1]", "", "[seção 2]", "", "[seção 1]", "{{ASSINATURAS_QUADRO}}"]);
 });
+
+/* ---- dono 01/11: memorial — o bloco de duas colunas (Vendedora | Comprador(es)) vira {{ASSINATURAS_MEMORIAL}} ---- */
+const MEMORIAL = { nome: "MODELO MEMORIAL TESTE", filhos: [
+  P("MEMORIAL DESCRITIVO"), T([[P("Item")], [P("Padrão")]], [[P("Piso")], [P("Cerâmico")]], [[P("Pintura")], [P("Acrílica")]], [[P("Louças")], [P("Brancas")]]),
+  P(""), P(""),
+  P("\t______________________________________\t______________________________________"),
+  P("\tSPE TESTE LTDA\t{{ASSINATURA_COMPRADORES_NOMES}}"),
+  P("\t00.000.000/0001-00\tCPF {{ASSINATURA_COMPRADORES_CPFS}}"),
+  P("\tVendedora\tComprador(es)")] };
+test("memorial: prévia e cópia trocam as 4 linhas do bloco de assinatura por {{ASSINATURAS_MEMORIAL}}; o resto fica", () => {
+  const g = carregar({ MODELO_MEMORIAL_ID: "m-mem" }, { "m-mem": MEMORIAL });
+  const prev = g.ctx.migrarModelosAssinaturasPrevia().join("\n");
+  assert.match(prev, /MODELO_MEMORIAL_ID: PRÉVIA — trocaria 1 bloco\(s\)/, prev);
+  assert.match(prev, /\{\{ASSINATURAS_MEMORIAL\}\} no lugar de 4 elemento\(s\)/);
+  const rel = g.ctx.migrarModelosAssinaturasAplicar().join("\n");
+  assert.match(rel, /MODELO_MEMORIAL_ID: cópia migrada \(1 bloco\(s\)\) — Propriedade MODELO_MEMORIAL_ID: trocar m-mem por copia-1/, rel);
+  intactos(g, { "m-mem": MEMORIAL });
+  assert.deepEqual(textos(g.docs["copia-1"].salvo).slice(-3), ["", "{{ASSINATURAS_MEMORIAL}}", ""]);
+  assert.equal(textos(g.docs["copia-1"].salvo)[0], "MEMORIAL DESCRITIVO");
+  /* sem o rótulo Comprador(es) logo depois: não mexe */
+  const ruim = clonar(MEMORIAL); ruim.filhos.pop();
+  const g2 = carregar({ MODELO_MEMORIAL_ID: "m-mem" }, { "m-mem": ruim });
+  assert.match(g2.ctx.migrarModelosAssinaturasPrevia().join("\n"), /MODELO_MEMORIAL_ID: NÃO MEXI — /);
+});

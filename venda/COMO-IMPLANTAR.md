@@ -1125,8 +1125,8 @@ passa a usar a cópia quando o dono troca a Propriedade dele. O código antigo d
 **Passo a passo do dono (uma vez):**
 1. Colar o código novo nos DOIS projetos, `PORTAL-VENDA-TESTE` e `PORTAL-VENDA`: `ClicksignVenda`, `ContratoVenda`,
    `GerarContrato`, `AssinaturaVenda`, `AssinaturaVigia`, `Confissao`, `PreReserva` e o novo `MigrarModelos`; e
-   subir o site (`venda/RubricasVenda.js` v7, `venda/assinatura-ui.js` v21, `venda-dossie.js` v54, `vendas.html`,
-   `simulacoes.html`, `sw.js` v256). Com os modelos de hoje nada muda.
+   subir o site (`venda/RubricasVenda.js` v7, `venda/assinatura-ui.js` v22, `venda-dossie.js` v55, `vendas.html`,
+   `simulacoes.html`, `sw.js` v257). Com os modelos de hoje nada muda.
 2. No projeto onde vai rodar a migração (o TESTE), ligar o serviço avançado **Google Docs API**: editor do Apps Script ›
    Serviços (+) › Google Docs API › Adicionar (identificador `Docs`). Os modelos de contrato têm quebras de seção perto dos
    blocos (a de próxima página antes do quadro-resumo e a de 2 colunas que põe vendedora | comprador lado a lado); o
@@ -1137,7 +1137,7 @@ passa a usar a cópia quando o dono troca a Propriedade dele. O código antigo d
    cada quebra de seção. Elemento desconhecido que não seja quebra de seção ou de página continua barrando o modelo.
    Depois, escolher a função `migrarModelosAssinaturasPrevia` e clicar em Executar. Ela só lê:
    o Registro de execução diz, para cada modelo (`MODELO_CONDOMINIO_ID`, `MODELO_PRONTO_ID`, `MODELO_CONSTRUCAO_ID`,
-   `MODELO_CONFISSAO_PRE_ID`, `MODELO_CONFISSAO_POS_ID`, `MODELO_PRE_RESERVA_ID`), quantos blocos trocaria, o vendedor
+   `MODELO_CONFISSAO_PRE_ID`, `MODELO_CONFISSAO_POS_ID`, `MODELO_PRE_RESERVA_ID` e `MODELO_MEMORIAL_ID`), quantos blocos trocaria, o vendedor
    escrito no bloco antigo e CADA linha que sairia. Esperado: 2 blocos nos contratos e 1 nos termos. "NÃO MEXI — …" =
    aquele modelo fica como está (o motivo vem escrito).
 3. Conferida a prévia, executar `migrarModelosAssinaturasAplicar`. Para cada modelo ele cria, na mesma pasta, a cópia
@@ -1228,6 +1228,14 @@ alfa de cada imagem), comparando com o ponto que o código mandou (recalculado d
   pessoas). O visto do 4.2.1 (uma posição) apareceu. Se no próximo envelope os vistos da ciência também saírem só na
   primeira página, a Clicksign desenha só a primeira posição de cada visto — aí é preciso decidir: um requisito por
   página (se a Clicksign aceitar) ou `RUBRICAS_VISTO_COMO_ASSINATURA` = `1`.
+
+**Memorial com uma linha por pessoa (dono, 01/11/2026):** a migração também troca o bloco de duas colunas do memorial
+(linha dos traços, nomes `{{ASSINATURA_COMPRADORES_NOMES}}`, CPFs e "Vendedora / Comprador(es)") por
+`{{ASSINATURAS_MEMORIAL}}`: a vendedora e cada pessoa que compra (cônjuge incluído) com a própria linha (traço, Nome,
+CPF/CNPJ, papel), uma embaixo da outra — os nomes não invadem mais a coluna da vendedora. Com `ASSINATURA_LINHAS` = `1`,
+o "Enviar para assinatura" gera o memorial também para a tela, que acha as linhas (como nos termos), e cada pessoa
+assina na dela. Memorial migrado sem as linhas lidas: assinam só pela página da Clicksign (o ponto fixo antigo não
+serve mais). Memorial não migrado: como antes.
 
 ## Selfie com documento para comprador, cônjuge e fiadores (01/11/2026, plano 23 C)
 

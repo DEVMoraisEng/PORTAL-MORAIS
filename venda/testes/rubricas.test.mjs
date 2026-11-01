@@ -66,7 +66,7 @@ test("paginaDoPdfjs: y do pdf.js (de baixo) vira topo da linha (de cima); item v
 test("validarRubricas: confere o PDF, o formato e os limites", () => {
   const ok = { nome: "CASA [#abcd1234].pdf", campos: [{ page: 3, position: [0.42345, 0.5] }], valores: { page: "3", position: [0.1, 0.16] } };
   assert.deepEqual(CS.validarRubricas(ok, "CASA [#abcd1234].pdf"),
-                   { ok: true, campos: [{ page: "3", position: [0.4235, 0.5] }], valores: { page: "3", position: [0.1, 0.16] }, linhas: [], termos: {} });
+                   { ok: true, campos: [{ page: "3", position: [0.4235, 0.5] }], valores: { page: "3", position: [0.1, 0.16] }, linhas: [], termos: {}, memorial: [] });
   assert.equal(CS.validarRubricas(null, "x").erro, "RUBRICAS_FALTANDO");
   assert.equal(CS.validarRubricas(ok, "CASA [#ffff0000].pdf").erro, "RUBRICAS_DE_OUTRO_PDF");
   for (const ruim of [{ campos: [] }, { campos: [{ page: 0, position: [0.1, 0.1] }] }, { campos: [{ page: 1, position: [1.2, 0.1] }] },
@@ -291,7 +291,7 @@ test("plano 23 B: validarRubricas confere linhas e termos; ASSINATURA_LINHAS=1 l
   assert.equal(CS.montarConfig({ ASSINATURA_LINHAS: "SIM" }).linhas, false, "só o 1 liga");
   /* desligado: linhas e termos da tela são ignorados SEM conferir (tela antiga ou lixo não barra o envio) */
   const off = CS.validarRubricas(Object.assign({ linhas: "lixo", termos: 7 }, base), "a.pdf", { linhas: false });
-  assert.deepEqual(off, { ok: true, campos: [{ page: "1", position: [0.1, 0.1] }], valores: null, linhas: [], termos: {} });
+  assert.deepEqual(off, { ok: true, campos: [{ page: "1", position: [0.1, 0.1] }], valores: null, linhas: [], termos: {}, memorial: [] });
 });
 
 test("plano 23 B: tela — lê as linhas do contrato e dos termos e manda junto com as rubricas", async () => {

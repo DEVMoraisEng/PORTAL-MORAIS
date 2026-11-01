@@ -309,3 +309,19 @@ test("dono 01/11: projeto — vistos compactos DENTRO do quadro DEFERIMENTO (A0 
     assert.ok(ys.every((v) => Math.abs(v - ys[0]) < 0.5), "mesma altura");
   }
 });
+
+test("dono 01/11: memorial com linhas lidas — cada pessoa (comprador, cônjuge, comprador 2, vendedor) na própria linha", () => {
+  const lm = [{ page: "16", position: [0.12, 0.70], texto: "Nome: SPE TESTE LTDA\nCNPJ: 00.000.000/0001-91\nVENDEDORA" },
+              { page: "16", position: [0.12, 0.76], texto: "Nome: COMPRADOR UM TESTE\nCPF: 1\nCOMPRADOR" },
+              { page: "16", position: [0.12, 0.82], texto: "Nome: CONJUGE TESTE\nCPF: 2\nCÔNJUGE DO COMPRADOR" },
+              { page: "17", position: [0.12, 0.10], texto: "Nome: COMPRADOR DOIS TESTE\nCPF: 3\nCOMPRADOR" }];
+  const rub = { campos: [], valores: null, memorial: { page: "16", position: [0.53, 0.7] }, memorialLinhas: lm, projeto: [], linhas: [], termos: {} };
+  const mem = (s) => (CS.requisitosRubrica(s, DOCS, rub, LISTA2.indexOf(s), LISTA2).find((r) => r.docId === "m") || {}).positions;
+  assert.deepEqual(mem(C1), [{ page: "16", position: [0.12, 0.76] }]);
+  assert.deepEqual(mem(CJ), [{ page: "16", position: [0.12, 0.82] }]);
+  assert.deepEqual(mem(C2), [{ page: "17", position: [0.12, 0.10] }]);
+  assert.deepEqual(mem(VEND), [{ page: "16", position: [0.12, 0.70] }], "o vendedor pela linha VENDEDORA");
+  /* modelo migrado sem linhas lidas (ASSINATURA_LINHAS desligada): ninguém posicionado no memorial (o ponto antigo não serve mais) */
+  const sem = Object.assign({}, rub, { memorialLinhas: [] });
+  assert.equal(CS.requisitosRubrica(C1, DOCS, sem, 0, LISTA2).find((r) => r.docId === "m"), undefined);
+});
