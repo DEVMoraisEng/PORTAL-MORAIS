@@ -1362,3 +1362,57 @@ test("plano 23 C: condomínio com CLICKSIGN_SELFIE=1 — fiadores com selfie e d
   assert.ok(auths("compradora@teste.example").includes("doc-1:selfie"));
   assert.deepEqual(auths("beltrano@teste.example"), ["doc-1:email", "doc-2:email", "doc-3:email"]);
 });
+
+/* ---- 01/11/2026 (plano 23 B, dono: "essas alterações estéticas pode fazer"): blocos de assinatura gerados ----
+   Modelo migrado = o bloco fixo virou um parágrafo só com {{ASSINATURAS_QUADRO}} / {{ASSINATURAS_FINAL}} / {{ASSINATURAS_TERMO}};
+   cada pessoa sai com traço, Nome, CPF e o papel em negrito. Modelo antigo (sem os marcadores) sai como sempre. */
+const MODELO_COND_NOVO = [...MODELO_COND, "{{CIDADE_DATA}}", "{{ASSINATURAS_QUADRO}}", "CLÁUSULAS GERAIS", "ASSINATURAS", "{{ASSINATURAS_FINAL}}", "fim"];
+const papeisDo = (pars, ini, fim) => pars.slice(ini, fim).filter((l, i, a) => a[i + 1] === "" || i === a.length - 1);
+const salvoUltimo = (c, filtro = () => true) => c.d.estado.salvos[c.d.estado.copias.filter(filtro).at(-1).id];
+
+test("plano 23 B: contrato com o modelo migrado — os dois blocos com uma linha por pessoa, testemunhas com nome e CPF, papel em negrito", () => {
+  const c = cenarioCfd({ modeloCond: MODELO_COND_NOVO, linha: CASADO_PR });
+  const r = c.gerarFinal();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const s = salvoUltimo(c, (x) => x.nome.startsWith("CONTRATO - ")), pars = s.pars;
+  assert.ok(!pars.join("\n").includes("{{"), "sem marcador sobrando");
+  const q = pars.indexOf("CLÁUSULAS GERAIS"), f = pars.indexOf("ASSINATURAS");
+  const esperado = ["VENDEDORA", "COMPRADOR", "CÔNJUGE DO COMPRADOR", "INTERMEDIADOR/CORRETOR", "TESTEMUNHA 1", "TESTEMUNHA 2"];
+  const ini = pars.indexOf("________________________________");
+  assert.deepEqual(papeisDo(pars, ini, q), esperado, "quadro");
+  assert.deepEqual(papeisDo(pars, f + 1, pars.indexOf("fim")), esperado, "final (fiador não assina o contrato)");
+  assert.ok(pars.includes("Nome: Testemunha Um Spe") && pars.includes("Nome: Conjuge Teste da Silva"), pars.join(" | "));
+  assert.ok(pars.includes("Representante: Beltrano Representante – CPF: 111.444.777-35"));
+  const neg = s.negritos.filter((x) => x.texto === "TESTEMUNHA 2");
+  assert.equal(neg.length, 2);
+  assert.deepEqual(neg[0].negrito, [[0, 11, true]]);
+});
+
+test("plano 23 B: termo de confissão migrado leva fiadores e testemunhas; modelo antigo (sem o marcador) sai igual a antes", () => {
+  /* o cenarioCfd fixa os modelos dos termos; aqui o mesmo cenário com o PRÉ migrado */
+  const c = cenario({ linha: COLS_CFD, modelosExtra: { ...MODELOS_CFD, "modelo-cfd-pre": [...MODELOS_CFD["modelo-cfd-pre"], "ASSINATURAS", "{{ASSINATURAS_TERMO}}"] },
+                      props: { MODELO_CONFISSAO_PRE_ID: "modelo-cfd-pre", MODELO_CONFISSAO_POS_ID: "modelo-cfd-pos" } });
+  const r = c.gerarFinal();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const pre = salvoUltimo(c, (x) => x.nome.startsWith("CONFISSÃO PRÉ-CHAVES")).pars;
+  assert.deepEqual(papeisDo(pre, pre.indexOf("ASSINATURAS") + 1, pre.length),
+    ["CREDORA/VENDEDORA", "DEVEDOR/COMPRADOR", "FIADOR 1", "FIADOR 2", "TESTEMUNHA 1", "TESTEMUNHA 2"]);
+  assert.ok(pre.includes("Nome: Fiador Dois Teste") && pre.includes("CPF: 246.813.579-28"), pre.join(" | "));
+  const pos = salvoUltimo(c, (x) => x.nome.startsWith("CONFISSÃO PÓS-CHAVES")).pars;
+  assert.equal(pos.length, MODELOS_CFD["modelo-cfd-pos"].length, "modelo sem o marcador: nenhum parágrafo a mais");
+  const ct = salvoUltimo(c, (x) => x.nome.startsWith("CONTRATO - ")).pars;
+  assert.ok(!ct.some((l) => /^_{10,}$/.test(l)), "contrato com o modelo antigo não ganha bloco");
+});
+
+test("plano 23 B: termo de pré-reserva migrado — sem o cônjuge por padrão, com ele quando a opção está ligada", () => {
+  const modelo = { "modelo-pr": [...MODELO_PR, "{{ASSINATURAS_TERMO}}"] };
+  const c = cenarioPR({ modelosExtra: modelo, linha: { ...CONTA_PR, ...CASADO_PR } });
+  assert.equal(c.acao("gerarTermoPreReserva").ok, true);
+  const p1 = salvoUltimo(c).pars;
+  assert.deepEqual(papeisDo(p1, MODELO_PR.length, p1.length), ["VENDEDORA", "PRÉ-RESERVANTE", "TESTEMUNHA 1", "TESTEMUNHA 2"]);
+  c.acao("salvarConjugePreReserva", { incluir: true });
+  assert.equal(c.acao("gerarTermoPreReserva").ok, true);
+  const p2 = salvoUltimo(c).pars;
+  assert.deepEqual(papeisDo(p2, MODELO_PR.length, p2.length), ["VENDEDORA", "PRÉ-RESERVANTE", "CÔNJUGE DO PRÉ-RESERVANTE", "TESTEMUNHA 1", "TESTEMUNHA 2"]);
+  assert.ok(p2.includes("Nome: Conjuge Teste da Silva"));
+});

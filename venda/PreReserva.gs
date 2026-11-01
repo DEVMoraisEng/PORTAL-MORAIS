@@ -143,7 +143,10 @@ function gerarTermoPreReserva_(col, sess, p) {
   try { modelo = DriveApp.getFileById(modeloId); pasta = DriveApp.getFolderById(pastaId); }
   catch (e) { ctrErro_(rot + " " + pid + " modelo inacessivel", e); return { ok: false, erro: "MODELO_NAO_CONFIGURADO" }; }
   var hash = prCarimbo_(x.t);
-  var g = ctrGerarPdf_({ modelo: modelo, pasta: pasta, marcadores: PreReservaVenda.marcadores(x.t), blocos: {},
+  var marc = PreReservaVenda.marcadores(x.t);
+  /* 01/11 (plano 23 B): bloco de assinaturas do termo (modelo migrado); o cônjuge só com a opção da venda ligada */
+  marc.ASSINATURAS_TERMO = ClicksignVenda.blocoAssinaturas(x.d, assConfig_(p.pageId), "PRE_RESERVA", { incluirConjuge: prConjugeIncluido_(p.pageId) });
+  var g = ctrGerarPdf_({ modelo: modelo, pasta: pasta, marcadores: marc, blocos: {},
                          titulo: ClicksignVenda.tituloDocumento("TERMO DE PRÉ-RESERVA - ", x.f.endereco, x.f.casa, x.d.comprador1 && x.d.comprador1.nome) }, pid, rot, false);
   if (g.resp) return g.resp;
   var endereco = String(x.f.endereco).replace(/[\\\/:*?"<>|]/g, "-");

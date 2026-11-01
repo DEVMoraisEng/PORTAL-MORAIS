@@ -789,7 +789,12 @@ function ctrPreparar_(col, p, pid, rot) {
   var modelo, pasta, marcadores, blocos;
   try { modelo = DriveApp.getFileById(modeloId); pasta = DriveApp.getFolderById(pastaId); }
   catch (e) { ctrErro_(rot + " " + pid + " modelo inacessivel", e); return { resp: { ok: false, erro: "MODELO_NAO_CONFIGURADO" } }; }
-  try { marcadores = ContratoVenda.marcadores(d); blocos = ContratoVenda.blocos(d); }
+  try {
+    marcadores = ContratoVenda.marcadores(d); blocos = ContratoVenda.blocos(d);
+    /* 01/11 (plano 23 B): blocos de assinatura com uma linha por pessoa — só aparecem no modelo migrado
+       (migrarModelosAssinaturasAplicar); o modelo antigo não tem os marcadores e sai como sempre */
+    marcadores.ASSINATURAS_QUADRO = marcadores.ASSINATURAS_FINAL = ClicksignVenda.blocoAssinaturas(d, assConfig_(p.pageId), "CONTRATO");
+  }
   catch (e) { ctrErro_(rot + " " + pid + " montagem falhou", e); return { resp: { ok: false, erro: "CONTRATO_FALHOU" } }; }
   var hash = ctrCarimbo_(d);
   var endereco = String(f.endereco).replace(/[\\\/:*?"<>|]/g, "-");

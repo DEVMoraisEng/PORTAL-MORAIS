@@ -94,23 +94,28 @@ var RubricasVenda = (function () {
    * pessoa é o servidor (ClicksignVenda.atribuirLinhas). */
   /* correção 1 (M-3): só páginas de assinatura — a que tem o título ASSINATURAS (e a seguinte, se o bloco virar a página)
      ou a do quadro-resumo, com os rótulos VENDEDORA e COMPRADOR sozinhos num trecho. Traço solto em outra página não conta. */
+  /* 01/11 (plano 23 B, uma linha por pessoa): papel sozinho num trecho — a página logo depois de uma página de
+     assinatura que só traz estes rótulos é a continuação do bloco (o quadro-resumo com 11 pessoas vira a página) */
+  var PAPEL_SOZINHO = /^((CREDORA\/)?VENDEDORA?|(DEVEDOR\/)?COMPRADOR|PRÉ-RESERVANTE|CÔNJUGE DO .+|FIADOR [12]|INTERMEDIADOR\/CORRETOR|TESTEMUNHA [12])$/;
   function paginaDeAssinatura(ls) {
-    var titulo = false, vend = false, comp = false;
+    var titulo = false, vend = false, comp = false, papel = false;
     ls.forEach(function (l) {
       if (/^\s*ASSINATURAS\s*$/i.test(l.texto)) titulo = true;
       trechos(l).forEach(function (t) {
         var s = l.texto.slice(t[0], t[1]).trim().toUpperCase();
         if (/^(CREDORA\/)?VENDEDORA$/.test(s)) vend = true;
         if (/^(DEVEDOR\/)?COMPRADOR$/.test(s)) comp = true;
+        if (PAPEL_SOZINHO.test(s)) papel = true;
       });
     });
-    return titulo ? 2 : (vend && comp ? 1 : 0);
+    return titulo ? 2 : (vend && comp ? 1 : (papel ? -1 : 0));
   }
   function acharLinhas(paginas, ajuste) {
-    var a = (ajuste && ajuste.linha) || AJUSTE_LINHA, out = [], antTitulo = false;
+    var a = (ajuste && ajuste.linha) || AJUSTE_LINHA, out = [], antTitulo = false, antVale = false;
     (paginas || []).forEach(function (pg) {
-      var ls = linhas(pg), W = pg.largura, H = pg.altura, tipo = paginaDeAssinatura(ls), vale = tipo > 0 || antTitulo;
+      var ls = linhas(pg), W = pg.largura, H = pg.altura, tipo = paginaDeAssinatura(ls), vale = tipo > 0 || antTitulo || (tipo === -1 && antVale);
       antTitulo = tipo === 2;
+      antVale = vale;
       if (!vale) return;
       ls.forEach(function (l, i) {
         /* cada trecho de traços da linha é uma linha de assinatura (blocos lado a lado no PDF: VENDEDORA | COMPRADOR,

@@ -553,8 +553,11 @@ var ContratoVenda = (function () {
     if (/^VI — /.test(t)) return t.length;
     if ((m = /^6\.1\. Preço total: [^)]*\),?/.exec(t))) return m[0].length;
     if ((m = /^FIADOR \d:/.exec(t))) return m[0].length;
+    /* 01/11 (plano 23 B): o papel de cada pessoa no bloco de assinaturas ({{ASSINATURAS_*}}) */
+    if (ROTULO_ASSINATURA.test(t)) return t.length;
     return 0;
   }
+  var ROTULO_ASSINATURA = /^(?:(?:CREDORA\/)?VENDEDORA?|(?:DEVEDOR\/)?COMPRADOR|PRÉ-RESERVANTE|CÔNJUGE DO (?:COMPRADOR|PRÉ-RESERVANTE|FIADOR [12])|FIADOR [12]|INTERMEDIADOR\/CORRETOR|TESTEMUNHA [12])$/;
 
   function fiadorNormal(x) {
     x = x || {};
@@ -1433,7 +1436,9 @@ var ContratoVenda = (function () {
     /* o traço do campo em branco (o pré-contrato grifa em vermelho claro) */
     EM_BRANCO: EM_BRANCO,
     /* marcadores cujo valor tem várias linhas: no Docs, o parágrafo que só tem o marcador vira um parágrafo por linha */
-    MARCADORES_PARAGRAFOS: ["FORMA_PAGAMENTO_CONDOMINIO", "FIADORES_QUALIFICACAO"],
+    MARCADORES_PARAGRAFOS: ["FORMA_PAGAMENTO_CONDOMINIO", "FIADORES_QUALIFICACAO",
+      /* 01/11 (plano 23 B): blocos de assinatura, uma linha por pessoa (ClicksignVenda.blocoAssinaturas) */
+      "ASSINATURAS_QUADRO", "ASSINATURAS_FINAL", "ASSINATURAS_TERMO"],
     /* marcador VAZIO cujo rótulo sai junto: no modelo a linha é
        "Banco: {{BANCO}} – Agência: {{AGENCIA}} – Operação: {{OPERACAO}} – Conta {{CONTA}} – PIX: {{PIX}} - Titularidade…";
        sem Pix (ou sem operação, que a conta da obra não tem) o "– PIX: " / "– Operação: " some, em vez de ficar em branco.
