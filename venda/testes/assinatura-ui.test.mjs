@@ -362,3 +362,27 @@ test("Descartar rascunho: se o servidor não descartou (já enviado), a tela mos
     chamar: async () => ({ ok: true, descartou: false, situacao: "ENVIADO", envelope: true, signatarios: [], aviso: "texto qualquer com espaço" }) });
   assert.equal(r3.msg, "Situação atualizada.");
 });
+
+/* 01/11/2026 (revisão final, I3): o servidor pode repetir a Clicksign por até 180 s; a tela espera 240 s no envio e,
+   se ainda assim não houver resposta, não manda "tentar de novo" (o envio pode ter dado certo). */
+const DEMORA = "A Clicksign está demorando. O envio pode ter dado certo — espere 1 minuto e clique em Atualizar situação antes de tentar de novo.";
+test("I3: envio sem resposta (contrato e termo, resposta SEM_RESPOSTA ou exceção) mostra a mensagem da demora da Clicksign", async () => {
+  const deps = (chamar) => ({ pageId: "p", confirmar: () => true, chamar });
+  const semResp = async (x) => (x.action === "assinaturaEnviar" ? { ok: false, erro: "SEM_RESPOSTA" } : { ok: true, semRubricas: true });
+  assert.equal((await A.executarAcaoAssinatura("a-enviar", ctx(), deps(semResp))).msg, DEMORA);
+  assert.equal((await A.executarAcaoAssinatura("p-enviar", ctx({ doc: "PRE_RESERVA" }), deps(semResp))).msg, DEMORA);
+  const explode = async (x) => { if (x.action === "assinaturaEnviar") throw new Error("abortou"); return { ok: true, semRubricas: true }; };
+  assert.equal((await A.executarAcaoAssinatura("a-enviar", ctx(), deps(explode))).msg, DEMORA);
+  /* Atualizar situação sem resposta continua com a mensagem de sempre */
+  const at = await A.executarAcaoAssinatura("a-atualizar", ctx({ estado: ENVIADO }), deps(async () => ({ ok: false, erro: "SEM_RESPOSTA" })));
+  assert.match(at.msg, /não respondeu/);
+  assert.equal(A.mensagemAssinatura({ ok: false, erro: "SEM_RESPOSTA_ENVIO" }), DEMORA);
+});
+
+test("I3: a tela espera 240 s nas ações da assinatura (contrato e termo), mais que os 180 s de repetição do servidor", async () => {
+  const fs = await import("node:fs");
+  const src = fs.readFileSync(new URL("../../venda-dossie.js", import.meta.url), "utf8");
+  assert.match(src, /var ESPERA_ASSINATURA = 240000;/);
+  assert.equal((src.match(/chamar: function \(p\) \{ return chamarVenda\(p, ESPERA_ASSINATURA\); \}/g) || []).length, 2);
+  assert.doesNotMatch(src, /chamar: function \(p\) \{ return chamarVenda\(p, 150000\); \}/);
+});

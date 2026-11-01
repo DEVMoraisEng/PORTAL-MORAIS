@@ -1160,6 +1160,9 @@
     w.innerHTML = estado ? html(estado, ui)
       : '<div class="grp">Dossiê do comprador</div><div class="vazio">' + esc(ui.msg || "carregando…") + "</div>";
   }
+  /* 01/11/2026 (revisão final, I3): o envio da assinatura repete a Clicksign por até 180 s no servidor (Tarefa 1) — a tela
+     espera mais que isso nas ações da assinatura (enviar, atualizar, reenviar, cancelar, descartar). */
+  var ESPERA_ASSINATURA = 240000;
   async function chamarVenda(payload, ms) {
     if (!/^https:\/\/script\.google\.com\//.test(URL_PORTAL_VENDA)) return { ok: false, erro: "PORTAL_VENDA_NAO_CONFIGURADO" };
     var s = (typeof sessao === "function") ? sessao() : null;
@@ -2467,7 +2470,7 @@
       var novo = await window.VendaAssinatura.executarAcaoAssinatura(acao, ctxP, {
         pageId: pageId,
         confirmar: function (t) { return window.confirm(t); },
-        chamar: function (p) { return chamarVenda(p, 150000); },
+        chamar: function (p) { return chamarVenda(p, ESPERA_ASSINATURA); },
         pintar: function (c) { ctxP = c; pintarP(); },
         linkCorrigir: linkCorrigir
       });
@@ -2503,7 +2506,7 @@
       var novo = await window.VendaAssinatura.executarAcaoAssinatura(acao, ctxA, {
         pageId: pageId,
         confirmar: function (t) { return window.confirm(t); },
-        chamar: function (p) { return chamarVenda(p, 150000); },
+        chamar: function (p) { return chamarVenda(p, ESPERA_ASSINATURA); },
         pintar: function (c) { ctxA = c; pintarA(); },
         linkCorrigir: linkCorrigir
       });
@@ -3112,7 +3115,7 @@
        Carrega mesmo sem o painel da casa: o cartão do condomínio também usa. */
     /* 30/10: leitor das rubricas do comprador (pdf.js só carrega na hora de enviar) */
     var sr = document.createElement("script"); sr.src = "venda/RubricasVenda.js?v=1"; document.head.appendChild(sr);
-    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=15";
+    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=16";
     sa.onload = function () { [blocosCasa, blocosCond, blocosPR].forEach(function (b) { if (b) b.pintarAssinatura(); }); };
     document.head.appendChild(sa);
     var body = document.getElementById("pn-body"); if (!body) return;

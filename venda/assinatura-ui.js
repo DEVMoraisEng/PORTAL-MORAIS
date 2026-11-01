@@ -25,6 +25,8 @@
     TERMO_DESATUALIZADO: "Os dados mudaram depois de gerar o termo de pré-reserva — gere o termo de novo e depois envie.",
     CONFISSAO_DESATUALIZADA: "Os termos de confissão não são deste contrato — gere o contrato de novo (os termos saem junto) e envie.",
     SEM_RESPOSTA: "O servidor não respondeu — confira a internet e tente de novo.",
+    /* 01/11/2026 (revisão final, I3): o envio sem resposta pode ter dado certo (o servidor repete a Clicksign por até 180 s) */
+    SEM_RESPOSTA_ENVIO: "A Clicksign está demorando. O envio pode ter dado certo — espere 1 minuto e clique em Atualizar situação antes de tentar de novo.",
     PORTAL_VENDA_NAO_CONFIGURADO: "A assinatura ainda não foi ligada neste ambiente.",
     CLICKSIGN_SEM_TOKEN: "A assinatura ainda não foi ligada neste ambiente (falta o token da Clicksign) — avise o administrador.",
     CLICKSIGN_URL_INVALIDA: "O endereço da Clicksign está errado nas configurações — avise o administrador.",
@@ -237,6 +239,7 @@
       r = { ok: false, erro: "SEM_RESPOSTA" };
     }
     r = r || { ok: false, erro: "SEM_RESPOSTA" };
+    if (enviar && r.erro === "SEM_RESPOSTA") r = { ok: false, erro: "SEM_RESPOSTA_ENVIO" };
     if (!r.ok) {
       var falhou = { ocupado: null, faltas: r.faltas || null, msg: mensagemAssinatura(r),
                      corrigir: (r.corrigir || []).map(function (x) {
