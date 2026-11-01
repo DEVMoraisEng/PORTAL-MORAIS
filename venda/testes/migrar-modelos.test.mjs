@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 
 const VENDA = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const TIPO = { PARAGRAPH: "PARAGRAPH", TABLE: "TABLE", LIST_ITEM: "LIST_ITEM", UNSUPPORTED: "UNSUPPORTED", PAGE_BREAK: "PAGE_BREAK",
-               TABLE_OF_CONTENTS: "TABLE_OF_CONTENTS" };
+               TABLE_OF_CONTENTS: "TABLE_OF_CONTENTS", TEXT: "TEXT", INLINE_IMAGE: "INLINE_IMAGE" };
 
 /* ---- documento falso: nós { tipo: "P", texto, al } e { tipo: "T", linhas: [[[nós da célula]]] } ---- */
 const P = (texto, al = "LEFT") => ({ tipo: "P", texto, al });
@@ -46,7 +46,10 @@ function docFalso(modelos, opc = {}) {
       if (n.tipo === "P") {
         e.getAlignment = () => n.al; e.setAlignment = (a) => { n.al = a; return e; };
         e.editAsText = () => ({ setBold: (b) => { n.negrito = b; } });
-        e.findElement = (t) => ((t === TIPO.PAGE_BREAK && n.quebraPagina) || (t === TIPO.UNSUPPORTED && n.especial) ? { getElement: () => ({}) } : null);
+        /* filhos do parágrafo: TEXT (com texto), PAGE_BREAK (quebraPagina) e os de n.especiais (INLINE_IMAGE…); n.ilegivel lança */
+        const filhosP = () => (n.texto ? ["TEXT"] : []).concat(n.quebraPagina ? ["PAGE_BREAK"] : [], n.especiais || []);
+        e.getNumChildren = () => { if (n.ilegivel) throw new Error("Service error"); return filhosP().length; };
+        e.getChild = (k) => ({ getType: () => filhosP()[k] });
       } else if (n.tipo === "T") {
         e.getNumRows = () => n.linhas.length;
         e.getRow = (r) => ({ getNumCells: () => n.linhas[r].length, getCell: (c) => caixa(d, n.linhas[r][c], false) });
@@ -71,7 +74,7 @@ function docFalso(modelos, opc = {}) {
   const extras = {
     ...(opc.semDocs ? {} : { Docs: { Documents: { get: (id) => {
       if (!docs[id]) throw new Error("Document not found");
-      return { body: { content: [{ sectionBreak: {} }].concat(docs[id].filhos.map(conteudo)) } };
+      return { body: { content: [{ sectionBreak: {} }].concat(docs[id].filhos.map(conteudo), opc.docsExtra ? [{ paragraph: {} }] : []) } };
     } } } }),
     DocumentApp: {
       ElementType: TIPO, HorizontalAlignment: { CENTER: "CENTER" },
@@ -385,4 +388,32 @@ test("quebra de página: parágrafo só com a quebra fica ([quebra de página ma
   ruim.filhos[ruim.filhos.findIndex((n) => n.texto === "COMPRADOR")] = PB("COMPRADOR");
   const g2 = carregar({ MODELO_CONDOMINIO_ID: "c" }, { c: ruim });
   assert.match(g2.ctx.migrarModelosAssinaturasPrevia().join("\n"), /NÃO MEXI — quebra de página no meio do texto do bloco/);
+});
+
+test("revisão: parágrafo do bloco com qualquer elemento que não é texto (imagem etc.) ou ilegível = NÃO MEXI com o tipo no registro", () => {
+  for (const [caso, par, re] of [["imagem", { ...P(""), especiais: ["INLINE_IMAGE"] }, /NÃO MEXI — .*INLINE_IMAGE/],
+                                 ["ilegível", { ...P(""), ilegivel: true }, /NÃO MEXI — não deu para ler os elementos/]]) {
+    const m = clonar(CONDOMINIO);
+    m.filhos.splice(m.filhos.findIndex((n) => n.texto === "VENDEDORA"), 0, par);
+    const g = carregar({ MODELO_CONDOMINIO_ID: "c" }, { c: m });
+    const rel = g.ctx.migrarModelosAssinaturasAplicar().join("\n");
+    assert.match(rel, re, caso + ": " + rel);
+    assert.equal(g.estado.copias.length, 0, caso);
+  }
+});
+
+test("revisão: o serviço Docs com número de elementos diferente do corpo = NÃO MEXI", () => {
+  const g = carregar({ MODELO_CONDOMINIO_ID: "c" }, { c: COND_SECOES }, { docsExtra: true });
+  assert.match(g.ctx.migrarModelosAssinaturasPrevia().join("\n"), /NÃO MEXI — não deu para casar o modelo com o serviço Docs/);
+});
+
+test("revisão: duas quebras de seção seguidas no bloco ganham uma linha vazia entre elas", () => {
+  const m = clonar(COND_SECOES);
+  const i = m.filhos.findIndex((n) => n.tipo === "U" && n.docs.sectionBreak.sectionStyle.columnProperties.length === 2);
+  m.filhos.splice(i + 1, 0, U(1, "CONTINUOUS"));
+  const g = carregar({ MODELO_CONDOMINIO_ID: "c" }, { c: m });
+  const prev = g.ctx.migrarModelosAssinaturasPrevia().join("\n");
+  assert.match(prev, /= \[quebra de seção mantida \(2 colunas, contínua\)\]\n {4}\+ \[linha vazia nova antes da quebra de seção\]\n {4}= \[quebra de seção mantida \(contínua\)\]/, prev);
+  g.ctx.migrarModelosAssinaturasAplicar();
+  assert.deepEqual(marcas(g.docs["copia-1"].salvo).slice(6, 12), ["[seção 1]", "", "[seção 2]", "", "[seção 1]", "{{ASSINATURAS_QUADRO}}"]);
 });

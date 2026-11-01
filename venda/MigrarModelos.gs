@@ -164,10 +164,15 @@ function migElementos_(caixa, ctx) {
       out.push({ el: tb, tabela: tb, texto: String(tb.getText()), assinatura: migTabelaDeAssinatura_(tb) });
     } else if (tipo === T.PARAGRAPH || tipo === T.LIST_ITEM) {
       var p = tipo === T.PARAGRAPH ? cru.asParagraph() : cru.asListItem(), tx = String(p.getText()), e = { el: p, texto: tx, paragrafo: true, ehParagrafo: tipo === T.PARAGRAPH };
-      if (migTem_(p, T.PAGE_BREAK)) {
+      /* revisão: dentro do bloco só vale texto; quebra de página só num parágrafo sem texto (fica). Qualquer outro filho
+         (imagem, linha horizontal, nota de rodapé, …) ou erro ao ler = problema (o modelo não é mexido) */
+      var f = migFilhos_(p, T);
+      if (f.erro) e.problema = "não deu para ler os elementos do parágrafo \"" + migResumo_(tx || "(vazio)") + "\" (" + f.erro + ")";
+      else if (f.outros.length) e.problema = "elemento " + f.outros.join(", ") + " num parágrafo do bloco: \"" + migResumo_(tx || "(vazio)") + "\"";
+      else if (f.pagina) {
         if (tx.trim()) e.problema = "quebra de página no meio do texto do bloco: \"" + migResumo_(tx) + "\"";
         else { e.quebra = true; e.rotulo = "quebra de página mantida"; }
-      } else if (migTem_(p, T.UNSUPPORTED)) e.problema = "parágrafo com elemento que o DocumentApp não lê: \"" + migResumo_(tx || "(vazio)") + "\"";
+      }
       out.push(e);
     } else if (tipo === T.UNSUPPORTED) {
       var u = { el: cru, texto: "", quebra: true, secao: true };
@@ -183,7 +188,19 @@ function migElementos_(caixa, ctx) {
   return out;
 }
 /* tabela pequena (até 3 linhas) com alguma célula começando por traço = pedaço do bloco (lado a lado); a do quadro-resumo não */
-function migTem_(p, tipo) { try { return !!(p.findElement && tipo && p.findElement(tipo)); } catch (e) { return false; } }
+/* filhos do parágrafo: { pagina, outros: [tipos que não são texto nem quebra de página], erro } — erro = barra (nunca "passa") */
+function migFilhos_(p, T) {
+  var r = { pagina: false, outros: [], erro: "" };
+  try {
+    for (var k = 0; k < p.getNumChildren(); k++) {
+      var t = p.getChild(k).getType();
+      if (t === T.TEXT) continue;
+      if (t === T.PAGE_BREAK) { r.pagina = true; continue; }
+      if (r.outros.indexOf(String(t)) < 0) r.outros.push(String(t));
+    }
+  } catch (e) { r.erro = migErro_(e); }
+  return r;
+}
 function migTabelaDeAssinatura_(tb) {
   if (tb.getNumRows() > 3) return false;
   for (var r = 0; r < tb.getNumRows(); r++) {
@@ -275,8 +292,10 @@ function migPlano_(b) {
   var els = b.els.slice(b.ini, b.fim + 1), novosVazios = [];
   els.forEach(function (e) { e.manter = false; });
   els.forEach(function (e, k) {
-    if (!e.secao || !k || els[k - 1].quebra) return;
+    if (!e.secao || !k) return;
     var ant = els[k - 1];
+    if (ant.secao) { novosVazios.push(e); return; }   /* duas quebras de seção seguidas: uma linha vazia entre elas */
+    if (ant.quebra) return;                           /* parágrafo de quebra de página já é conteúdo da seção */
     if (ant.paragrafo && !String(ant.texto).trim()) ant.manter = true;
     else novosVazios.push(e);
   });
