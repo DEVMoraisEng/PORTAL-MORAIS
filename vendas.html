@@ -395,7 +395,8 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 .cd-cardbox[data-aba="prereserva"] #cd-venda>.vb-pr,.cd-cardbox[data-aba="prereserva"] #cd-venda>.vb-pr-ass,
 .cd-cardbox[data-aba="documentos"] #cd-venda>.vb-conf,
 .cd-cardbox[data-aba="contrato"] #cd-venda>.vb-ct,.cd-cardbox[data-aba="contrato"] #cd-venda>.vb-ass,
-.cd-cardbox[data-aba="contrato"] #cd-venda>.vb-mc,
+.cd-cardbox[data-aba="contrato"] #cd-venda>.vb-mc{display:block}
+/* 01/11/2026: a lista acima tinha perdido o {display:block} quando entraram as regras da aba Financeiro (#50) — as abas ficavam vazias */
 /* 31/10/2026 (dono, melhorias da aba Financeiro): colunas iguais em todos os blocos por Tipo, próxima parcela em destaque,
    filtro Em atraso em vermelho */
 .cd-cardbox .vb-fin-tab{table-layout:fixed;width:100%}
