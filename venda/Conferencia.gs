@@ -236,10 +236,10 @@ function conjugeEhFiador2_(col, sess, p) {
   return r;
 }
 /* para o contratoEstado: o bloco da tela (ou null), com as opções da base nos selects e sem as colunas que a base não tem */
-function fiaEstado_(pgE, faltas) {
+function fiaEstado_(pgE, faltas, opts) {
   var props = pgE.propsCondominio || pgE.properties || {}, a = fiaLinha_(pgE, props);
   var nPrazo = a.real[RegrasVenda.chave("PRAZO ENTRADA")], prazo = nPrazo ? Number(ctrValor_(props[nPrazo])) : null;
-  var b = FiadoresVenda.camposFiadores(a.linha, faltas, prazo);
+  var b = FiadoresVenda.camposFiadores(a.linha, faltas, prazo, opts);
   if (!b.mostrar) return null;
   var todos = [];
   b.fiadores.forEach(function (f) { todos = todos.concat(f.campos); });
@@ -257,4 +257,13 @@ function fiaEstado_(pgE, faltas) {
   b.fiadores.forEach(function (f) { f.campos = ajustar(f.campos); });
   if (b.conjuge) b.conjuge.campos = ajustar(b.conjuge.campos);
   return b;
+}
+/* 01/11/2026 (revisão final, I1): contrato FINAL e o envio barraria por e-mail de fiador ou de cônjuge — o bloco abre só
+   com as caixas de e-mail. Os cadastros só são relidos quando a própria linha mostra alguém sem e-mail válido. */
+function fiaEstadoFinal_(col, p, pgE) {
+  var props = pgE.propsCondominio || pgE.properties || {};
+  if (!FiadoresVenda.emailTalvezFaltando(fiaLinha_(pgE, props).linha)) return null;
+  var xf = ctrDadosAtuais_(col, p, String(p.pageId).slice(0, 8), "contratoEstado e-mail");
+  var faltas = ((xf.resp && xf.resp.faltas) || []).filter(function (t) { return /^(Fiador [12]|C[ôo]njuge)[^:]*: e-mail/i.test(String(t)); });
+  return faltas.length ? fiaEstado_(pgE, faltas, { soEmail: true }) : null;
 }

@@ -656,15 +656,55 @@ test("28/10: termos de outro carimbo (dado mudou e só o contrato foi refeito) =
 });
 
 test("28/10: sem fiador com e-mail a assinatura não sai; sem os modelos dos termos tudo segue como antes", () => {
+  /* 01/11 (revisão final, I1): a falta aparece já no Gerar pré-contrato, e o bloco da tela tem a caixa do e-mail */
   const c = cenarioCfd({ linha: { "EMAIL FIADOR 2": eml("") } });
-  assert.equal(c.gerarFinal().ok, true);
-  const r = c.acao("assinaturaEnviar");
+  const r = c.acao("gerarPreContrato");
   assert.equal(r.erro, "FALTAM_DADOS");
-  assert.ok(r.faltas.some((f) => /^Fiador 2: e-mail/.test(f)), r.faltas.join(" | "));
+  assert.ok(r.faltas.includes("Fiador 2: e-mail (coluna EMAIL FIADOR 2)"), r.faltas.join(" | "));
+  const e = c.acao("contratoEstado");
+  assert.ok(e.fiadores.faltas.includes("Fiador 2: e-mail (coluna EMAIL FIADOR 2)"), JSON.stringify(e.fiadores));
+  assert.ok(e.fiadores.fiadores[1].campos.some((x) => x.coluna === "EMAIL FIADOR 2" && x.tipo === "email"));
+  assert.equal(c.acao("salvarFiadores", { valores: { "EMAIL FIADOR 2": "f2@teste.example" } }).ok, true);
+  assert.equal(c.acao("contratoEstado").fiadores, undefined, "salvo o e-mail, a falta some");
+  assert.equal(c.gerarFinal().ok, true);
   const semModelo = cenario({ linha: COLS_CFD });
   const g = semModelo.gerarFinal();
   assert.equal(g.ok, true);
   assert.equal(g.termos, undefined);
+});
+
+/* 01/11/2026 (revisão final, I1): contrato FINAL (gerado antes) e o e-mail some depois — o envio barra, e a aba Contrato
+   abre o bloco só com o e-mail que falta; salvar tira a falta. Cônjuge do comprador sem e-mail barra o Gerar. */
+test("I1: contrato final sem o e-mail do fiador — o contratoEstado traz o bloco só com o e-mail; salvar limpa a falta", () => {
+  const c = cenarioCfd();
+  assert.equal(c.gerarFinal().ok, true);
+  c.n.pagina.properties["EMAIL FIADOR 2"] = { type: "email", email: null };
+  assert.ok(c.acao("assinaturaEnviar", rub(c)).faltas.includes("Fiador 2: e-mail (coluna EMAIL FIADOR 2)"));
+  const e = c.acao("contratoEstado");
+  assert.equal(e.etapa, "FINAL");
+  assert.deepEqual(e.fiadores.faltas, ["Fiador 2: e-mail (coluna EMAIL FIADOR 2)"]);
+  /* só a caixa do e-mail (a base de teste não tem EMAIL CONJUGE FIADOR 2 — sai do bloco) */
+  assert.deepEqual(e.fiadores.fiadores.map((f) => [f.n, f.campos.map((x) => x.coluna)]), [[2, ["EMAIL FIADOR 2"]]]);
+  const s = c.acao("salvarFiadores", { valores: { "EMAIL FIADOR 2": "F2@teste.example" } });
+  assert.deepEqual(s, { ok: true, gravou: ["EMAIL FIADOR 2"] });
+  assert.equal(c.acao("contratoEstado").fiadores, undefined, "a falta some e o bloco fecha");
+  /* com tudo certo, o contrato final não ganha bloco */
+  const ok = cenarioCfd();
+  assert.equal(ok.gerarFinal().ok, true);
+  assert.equal(ok.acao("contratoEstado").fiadores, undefined);
+});
+
+test("I1: comprador casado sem o e-mail do cônjuge — falta no Gerar e o bloco do cônjuge com a caixa do e-mail", () => {
+  const c = cenario({ linha: { "ESTADO CIVIL": rt("CASADO"), CONJUGE: rt("Conjuge Teste da Silva"), "CPF CONJUGE": rt("935.411.347-80"),
+    "EMAIL CONJUGE": eml(null), REGIME: rt("COMUNHÃO PARCIAL DE BENS") } });
+  const r = c.acao("gerarPreContrato");
+  assert.equal(r.erro, "FALTAM_DADOS");
+  assert.ok(r.faltas.includes("Cônjuge do comprador 1: e-mail (coluna EMAIL CONJUGE)"), r.faltas.join(" | "));
+  const e = c.acao("contratoEstado");
+  assert.ok(e.fiadores.conjuge.campos.some((x) => x.coluna === "EMAIL CONJUGE" && x.tipo === "email"), JSON.stringify(e.fiadores));
+  assert.equal(c.acao("salvarFiadores", { valores: { "EMAIL CONJUGE": "conjuge@teste.example" } }).ok, true);
+  assert.equal(c.acao("contratoEstado").fiadores, undefined);
+  assert.equal(c.acao("gerarPreContrato").ok, true);
 });
 
 /* ---- 28/10/2026: conferência dos documentos pela IA (Conferencia.gs) ---- */

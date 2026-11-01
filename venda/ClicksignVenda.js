@@ -262,12 +262,17 @@ var ClicksignVenda = (function () {
    * cadastro da casa); o e-mail repetido é apontado em quem é do cliente, mesmo quando a outra ponta é o vendedor.
    * Os textos começam por "Comprador", "Fiador" ou "Cônjuge" — assim o link do cliente também os mostra. */
   function doCliente(s) { return /^(Comprador|Fiador|C[ôo]njuge)/.test(s.papel); }
+  /* 01/11/2026 (revisão final, I1): e-mail que falta (ou inválido) de fiador e de cônjuge também aparece no Gerar, com o
+     mesmo texto do envio — a tela abre o bloco Fiadores/Cônjuge para corrigir. O comprador fica de fora (tem link próprio). */
+  var EMAIL_NO_GERAR = { conjugeComprador1: 1, fiador1: 1, fiador2: 1, conjugeFiador1: 1, conjugeFiador2: 1 };
   function faltasDeNomeEEmail(dados, config) {
     config = config || montarConfig({});   /* config.comFiadores: quem chama decide (ConfissaoVenda.fiadoresAssinam), como no envio */
     var lista = signatarios(dados, config), vistos = {}, por = lista.map(function () { return []; });
     lista.forEach(function (s, i) {
       if (doCliente(s) && txt(s.nome) && !nomeValido(s.nome))
         por[i].push(s.papel + (/\d/.test(s.nome) ? ": nome sem números" : ": nome e sobrenome"));
+      if (EMAIL_NO_GERAR[s.origem] && !s.email) por[i].push(s.papel + ": e-mail (" + ONDE_EMAIL[s.origem] + ")");
+      else if (EMAIL_NO_GERAR[s.origem] && !emailValido(s.email)) por[i].push(s.papel + ": e-mail inválido");
       if (!s.email || !emailValido(s.email)) return;
       if (vistos[s.email] === undefined) { vistos[s.email] = i; return; }
       var ate = vistos[s.email], antes = lista[ate];

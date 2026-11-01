@@ -385,6 +385,27 @@ test("faltasDeNomeEEmail: fiador com o e-mail do comprador (e cônjuge com o do 
   assert.deepEqual(CS.faltasDeNomeEEmail(d, c2), ["Comprador 1: e-mail igual ao do Vendedor (representante) (cada pessoa precisa de um e-mail)"]);
 });
 
+/* 01/11/2026 (revisão final, I1): e-mail que falta de fiador (quando assina) e do cônjuge do comprador aparece já no
+   Gerar pré-contrato — com o mesmo texto do envio, que abre o bloco Fiadores/Cônjuge da tela. */
+test("I1: faltasDeNomeEEmail pede o e-mail que falta do fiador que assina e do cônjuge do comprador", () => {
+  const fiadores = [{ nome: "Fiador Um Teste", cpf: "000.000.011-63", email: "", conjuge: { nome: "Conjuge Um Teste", cpf: "000.000.012-44", email: "" } },
+                    { nome: "Fiador Dois Teste", cpf: "000.000.013-25", email: "f2@teste.example", conjuge: null }];
+  const conjugeComprador = { nome: "Conjuge Do Comprador Teste", cpf: "222.333.444-05", email: "" };
+  const d = dadosPJ({ condominio: { fiadores, conjugeComprador } });
+  const com = Object.assign(CS.montarConfig(PROPS), { comFiadores: true });
+  assert.deepEqual(CS.faltasDeNomeEEmail(d, com), [
+    "Cônjuge do comprador 1: e-mail (coluna EMAIL CONJUGE)",
+    "Fiador 1: e-mail (coluna EMAIL FIADOR 1)",
+    "Cônjuge do fiador 1: e-mail (coluna EMAIL CONJUGE FIADOR 1)"]);
+  /* fiador que não assina (sem os termos) não é cobrado; o cônjuge do comprador sempre assina o contrato */
+  assert.deepEqual(CS.faltasDeNomeEEmail(d, CS.montarConfig(PROPS)), ["Cônjuge do comprador 1: e-mail (coluna EMAIL CONJUGE)"]);
+  /* o mesmo texto do envio (faltasAssinatura) */
+  const envio = CS.faltasAssinatura(d, com);
+  for (const f of CS.faltasDeNomeEEmail(d, com)) assert.ok(envio.includes(f), f);
+  /* comprador sem e-mail continua só no envio (o comprador tem link próprio) */
+  assert.deepEqual(CS.faltasDeNomeEEmail(dadosPJ({ comprador1: { nome: "Fulano de Teste", cpf: "111.444.777-35", email: "" } }), com), []);
+});
+
 test("01/11 (H5): testemunhasParaTela diz o par padrão (ids) — SPE para vendedor PJ, PF para vendedor PF, vazio se o tipo é desconhecido; a escolha não muda o padrão", () => {
   const nomes = (cfg, dados) => {
     const t = CS.testemunhasParaTela(cfg, dados);

@@ -218,6 +218,34 @@ test("conserto 1: a pergunta do botão diz o nome do Fiador 2 que vai ser trocad
   assert.match(D.perguntaConjugeFiador2(estado(ANTES).fiadores), /^Copiar o cônjuge do Fiador 1 para o Fiador 2\?/);
 });
 
+/* 01/11/2026 (revisão final, I1): contrato FINAL com e-mail faltando — o bloco abre só com os campos de e-mail */
+test("I1: soEmail (contrato final) — só os e-mails de quem falta; sem a regra dos 36x; sem o botão do #74", () => {
+  const linha = { "FIADOR 1": "Fiador Teste", "CPF FIADOR 1": "111.444.777-35", "EMAIL FIADOR 1": "f1@teste.example",
+                  "FIADOR 2": "Outro Teste", "CPF FIADOR 2": "000.000.013-25", "ESTADO CIVIL FIADOR 1": "CASADO",
+                  "CONJUGE FIADOR 1": "Outro Teste", "CPF CONJUGE FIADOR 1": "000.000.013-25", "CONJUGE": "Conjuge Teste" };
+  const b = F.camposFiadores(linha, ["Fiador 2: e-mail (coluna EMAIL FIADOR 2)"], 36, { soEmail: true });
+  assert.equal(b.mostrar, true);
+  assert.deepEqual(b.fiadores.map((f) => [f.n, f.campos.map((c) => c.coluna)]), [[2, ["EMAIL FIADOR 2", "EMAIL CONJUGE FIADOR 2"]]]);
+  assert.equal(b.botaoConjuge, false);
+  assert.equal(b.conjuge, null);
+  const cj = F.camposFiadores(linha, ["Cônjuge do comprador 1: e-mail (coluna EMAIL CONJUGE)"], 36, { soEmail: true });
+  assert.equal(cj.precisa, false);
+  assert.deepEqual(cj.conjuge.campos.map((c) => c.coluna), ["EMAIL CONJUGE"]);
+  assert.equal(cj.titulo, "Cônjuge do comprador");
+  assert.equal(F.camposFiadores({}, [], 36, { soEmail: true }).mostrar, false, "36x sem fiador não abre no final");
+  /* tela: etapa FINAL desenha o bloco com a caixa de e-mail e o Salvar */
+  const e = D.estadoContrato({ ok: true, gerado: true, etapa: "FINAL", nome: "CONTRATO.pdf", fiadores: b });
+  const h = D.htmlContrato(e, uic());
+  assert.match(h, /<input type="email"[^>]*data-fia-col="EMAIL FIADOR 2"/);
+  assert.match(h, /<li>Fiador 2: e-mail \(coluna EMAIL FIADOR 2\)<\/li>/);
+  assert.match(h, /data-acao="c-fia-salvar">Salvar fiadores<\/button>/);
+  assert.match(h, /Contrato gerado/);
+  assert.doesNotMatch(h, /data-fia-col="FIADOR 2"/);
+  /* a lista FECHADA já permite as colunas de e-mail */
+  for (const col of ["EMAIL FIADOR 1", "EMAIL FIADOR 2", "EMAIL CONJUGE FIADOR 1", "EMAIL CONJUGE FIADOR 2", "EMAIL CONJUGE"])
+    assert.equal(F.permitida(col), col);
+});
+
 test("01/11: falta nova de nome/e-mail (Fiador n, Cônjuge do fiador n) abre o bloco para corrigir", () => {
   const b = F.camposFiadores({ "FIADOR 1": "Fiador Teste", "CPF FIADOR 1": "111.444.777-35", "FIADOR 2": "Outro Teste", "CPF FIADOR 2": "000.000.013-25" },
     ["Fiador 1: e-mail igual ao do Comprador 1 (cada pessoa precisa de um e-mail)", "Cônjuge do fiador 2: nome sem números", "Comprador 1: nome sem números"], 24);

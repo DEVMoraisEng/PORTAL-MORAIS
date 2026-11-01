@@ -685,7 +685,11 @@ function contratoEstado_(col, p) {
         /* 01/11/2026 (teste e2e): bloco Fiadores / cônjuge do comprador para corrigir na hora (Conferencia.gs fiaEstado_) */
         try { var fb = fiaEstado_(pgE, todasFaltas); if (fb) r.fiadores = fb; } catch (e2) { ctrErro_("contratoEstado fiadores", e2); }
       } catch (e) { ctrErro_("contratoEstado faltas", e); }
-    } else r.faltasCliente = [];
+    } else {
+      r.faltasCliente = [];
+      /* 01/11/2026 (revisão final, I1): e-mail de fiador/cônjuge que o envio barraria — o bloco abre também no FINAL */
+      try { var fbF = fiaEstadoFinal_(col, p, pgE); if (fbF) r.fiadores = fbF; } catch (e3) { ctrErro_("contratoEstado fiadores final", e3); }
+    }
   }
   else try { r.conta = contaRecebEstado_(p.pageId); } catch (e) { ctrErro_("contratoEstado conta", e); }
   /* entrega 10 + rodada 1 (H5): lista de testemunhas (só id e nome), a escolha desta venda e o par padrão pelo tipo do vendedor
