@@ -17,8 +17,10 @@ var REGEX_PAGE_ID = /^[0-9a-f]{32}$|^[0-9a-f-]{36}$/i;
 
 function prop_(n) { return PropertiesService.getScriptProperties().getProperty(n) || ""; }
 
-function doGet(e) { return responder_(tratar_(lerPedido_(e))); }
-function doPost(e) { return responder_(tratar_(lerPedido_(e))); }
+function doGet(e) { cotaTalvez_(); return responder_(tratar_(lerPedido_(e))); }
+function doPost(e) { cotaTalvez_(); return responder_(tratar_(lerPedido_(e))); }
+/* 01/11/2026: total de UrlFetch do dia na planilha COTA GOOGLE, no máximo a cada 15 min (CotaVenda.gs) */
+function cotaTalvez_() { try { if (typeof cvCotaCiclo_ === "function") cvCotaCiclo_(); } catch (_) {} }
 
 function lerPedido_(e) {
   var p = {};
