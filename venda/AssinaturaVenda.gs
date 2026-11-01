@@ -315,7 +315,7 @@ function assDocsDoComprador_(d, pid, nomeCs) {
     catch (e) { ctrErro_("assinatura memorial " + pid + " modelo inacessivel", e); return { resp: { ok: false, erro: "MEMORIAL_NAO_CONFIGURADO" } }; }
     var mc = ContratoVenda.marcadores(d);
     var g = ctrGerarPdf_({ modelo: modelo, pasta: pasta, blocos: {},
-                           marcadores: { ASSINATURA_COMPRADORES_NOMES: mc.ASSINATURA_COMPRADORES_NOMES, ASSINATURA_COMPRADORES_CPFS: mc.ASSINATURA_COMPRADORES_CPFS } },
+                           marcadores: { ASSINATURA_COMPRADORES_NOMES: mc.MEMORIAL_ASSINATURA_NOMES, ASSINATURA_COMPRADORES_CPFS: mc.MEMORIAL_ASSINATURA_CPFS } },
                          pid, "assinatura memorial", false);
     if (g.resp) return { resp: g.resp.erro === "CONTRATO_FALHOU" ? { ok: false, erro: "MEMORIAL_FALHOU" } : g.resp };
     var bytes = g.pdf.getBytes();

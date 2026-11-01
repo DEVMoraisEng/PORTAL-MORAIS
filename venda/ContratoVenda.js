@@ -578,6 +578,7 @@ var ContratoVenda = (function () {
   function fiadorCasado(estadoCivil) {
     return /CASAD|UNI[AÃ]O/.test(txt(estadoCivil).toUpperCase());
   }
+  function semAcento(v) { return txt(v).normalize("NFD").replace(/[̀-ͯ]/g, ""); }
   function soDigitos(v) { return txt(v).replace(/\D/g, ""); }
   /* cônjuge do comprador 1 (colunas ESTADO CIVIL, CONJUGE, CPF CONJUGE, EMAIL CONJUGE e REGIME da proposta):
      {nome, cpf, email, regime} ou null. regime em minúsculas ("comunhão parcial de bens"); uniao:true só na união estável. */
@@ -802,7 +803,7 @@ var ContratoVenda = (function () {
     if (cjc) {
       exige(!vazio(cjc.cpf), "Cônjuge do comprador 1", "CPF");
       if (!cjc.uniao) exige(!vazio(cjc.regime), "Cônjuge do comprador 1", "regime de bens");
-    } else if (d.condominio && d.condominio.conjugeCompradorSemNome && !d.comprador2)
+    } else if (d.condominio && d.condominio.conjugeCompradorSemNome && !(d.comprador2 && fiadorCasado(semAcento(d.comprador2.estadoCivil))))
       faltas.push("Cônjuge do comprador 1: nome");
 
     var v = d.vendedor;
@@ -1052,6 +1053,9 @@ var ContratoVenda = (function () {
       CONDICOES_ESPECIAIS: txt(im.condicoesEspeciais).replace(/\s*\n+\s*/g, " ").trim() || "Não há.",
       ASSINATURA_COMPRADORES_NOMES: [c1.nome].concat(cjq ? [cjq.nome] : [], c2 ? [c2.nome] : []).join(" / "),
       ASSINATURA_COMPRADORES_CPFS: [c1.cpf].concat(cjq ? [cjq.cpf] : [], c2 ? [c2.cpf] : []).join(" / "),
+      /* o memorial só tem compradores (o cônjuge não o assina) — AssinaturaVenda.assDocsDoComprador_ */
+      MEMORIAL_ASSINATURA_NOMES: c2 ? c1.nome + " / " + c2.nome : c1.nome,
+      MEMORIAL_ASSINATURA_CPFS: c2 ? c1.cpf + " / " + c2.cpf : c1.cpf,
       CORRETOR_DOC: txt(k.cpfCnpj),
       LOTEAMENTO: txt(l.denominacao),
       MUNICIPIO_UF: txt(l.municipioUf),

@@ -101,3 +101,20 @@ test("solteiro: o quadro e a assinatura ficam como sempre; cônjuge que é o com
   assert.ok(!/casado\(a\)/.test(m.COMPRADORES_QUADRO));
   assert.ok(!faltas(d).some((x) => /Cônjuge do comprador/.test(x)));
 });
+
+/* fix round 1 (01/11) */
+test("casado sem nome do cônjuge: o comprador 2 só desculpa se for casado/união estável", () => {
+  const f = (ec) => faltas(dados({ ...CONJ, nome: "" }, { nome: "COMPRADOR DOIS TESTE", cpf: "222.333.444-05", estadoCivil: ec }));
+  assert.ok(f("SOLTEIRO").includes("Cônjuge do comprador 1: nome"));
+  assert.ok(!f("CASADO").includes("Cônjuge do comprador 1: nome"));
+  assert.ok(!f("União Estável").includes("Cônjuge do comprador 1: nome"));
+});
+
+test("memorial: o cônjuge não assina — nomes e CPFs só dos compradores; o contrato mantém o cônjuge", () => {
+  const m = C.marcadores(dados(CASADO));
+  assert.equal(m.MEMORIAL_ASSINATURA_NOMES, "COMPRADOR TESTE");
+  assert.equal(m.MEMORIAL_ASSINATURA_CPFS, "935.411.347-80");
+  assert.match(m.ASSINATURA_COMPRADORES_NOMES, /CONJUGE TESTE/);
+  const m2 = C.marcadores(dados(CASADO, { nome: "COMPRADOR DOIS TESTE", cpf: "222.333.444-05" }));
+  assert.equal(m2.MEMORIAL_ASSINATURA_NOMES, "COMPRADOR TESTE / COMPRADOR DOIS TESTE");
+});
