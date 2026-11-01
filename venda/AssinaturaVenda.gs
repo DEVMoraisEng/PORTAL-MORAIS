@@ -357,9 +357,10 @@ function assDocsDoComprador_(d, pid, nomeCs) {
                          pid, "assinatura memorial", false);
     if (g.resp) return { resp: g.resp.erro === "CONTRATO_FALHOU" ? { ok: false, erro: "MEMORIAL_FALHOU" } : g.resp };
     var bytes = g.pdf.getBytes();
-    var lat = assLatin1_(bytes);
+    var lat = assLatin1_(bytes), tm = null;
+    try { tm = ClicksignVenda.tamanhosPaginasPdf(lat); } catch (e) { tm = null; }
     docs.push({ tipo: ClicksignVenda.DOC.MEMORIAL, nome: ClicksignVenda.nomeDocumentoAdicional("memorial", nomeCs), base64: Utilities.base64Encode(bytes),
-                paginas: ClicksignVenda.contarPaginasPdf(lat), tamanhos: ClicksignVenda.tamanhosPaginasPdf(lat) });
+                paginas: ClicksignVenda.contarPaginasPdf(lat), tamanhos: tm });
   }
   if (projId) {
     var blob;
