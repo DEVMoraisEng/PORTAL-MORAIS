@@ -1175,8 +1175,18 @@ apagadas.
   sem cobrir o "Nome:". Se o texto de cima estiver a menos de 46 pt, a imagem encosta nele (preferimos a linha).
   O ajuste padrão de `campo` e `linha` passou a 0; um `RUBRICAS_AJUSTE` gravado antes com `dy` negativo agora sobe a
   assinatura demais — apague a chave `linha`/`campo` dele.
-- Quem divide o mesmo ponto (campos de ciência, vistos dos valores, memorial, projeto) fica lado a lado, 105 pt um do
-  outro; sem espaço até a margem, vai uma fileira 52 pt abaixo e a de cima sobe.
+- Quem divide o mesmo ponto (campos de ciência, vistos dos valores, memorial) fica lado a lado, 105 pt um do outro; sem
+  espaço até a margem, nova fileira 52 pt — subindo, ou descendo quando subir passaria do topo. Nada é cortado na borda:
+  quem não cabe (passaria da margem de baixo) fica sem posição naquela página, assina só pela Clicksign, e o registro de
+  execução diz o papel e a página.
+- Projeto: as outras pessoas ficam à ESQUERDA do ponto medido, na mesma altura (nunca acima — ali está o carimbo
+  DEFERIMENTO da prefeitura); só sem espaço à esquerda, uma fileira abaixo.
+- Memorial: o modelo já tem a linha da Vendedora (à esquerda, com o nome e o CNPJ da SPE escritos no modelo) e a dos
+  compradores (à direita). O vendedor assina na linha dele (x 0,116, medido no modelo; a Propriedade `MEMORIAL_POSICAO`
+  aceita `"vendedor": [x, y]`); compradores e cônjuge, lado a lado na linha "Comprador(es)".
+- Tamanho das páginas: lido do próprio PDF no servidor (contrato, memorial e projeto, pelo MediaBox). Quando o PDF não
+  deixa ler (objetos comprimidos), vale o padrão: contrato A4, memorial Carta (o modelo é Carta), projeto págs. 1–2 A1
+  deitado e as demais A2 deitado.
 - Dono: "o comprador 1 e o 2/3 (quando tiver) têm que assinar os mesmos documentos, exatamente os mesmos, tem que ter a
   assinatura dos 2 ou 3 nos mesmos (junto com vendedor tb)" — compradores e vendedor assinam contrato, termos, memorial e
   projeto (o vendedor ao lado dos compradores no memorial e no projeto).

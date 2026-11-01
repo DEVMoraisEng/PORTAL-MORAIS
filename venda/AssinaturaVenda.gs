@@ -284,7 +284,7 @@ function assEnviarTravado_(col, p, pid) {
   if (d.condominio && !config.semRubricas) {
     var vr = ClicksignVenda.validarRubricas(p.rubricas, gerado.nome, { linhas: config.linhas });
     if (!vr.ok) { assLog_("enviar " + pid + " rubricas: " + vr.erro); return { ok: false, erro: vr.erro }; }
-    rub = { campos: vr.campos, valores: vr.valores, memorial: null, projeto: [],
+    rub = { campos: vr.campos, valores: vr.valores, memorial: null, projeto: [], tamanhos: {},
             /* 01/11 (plano 23 B): assinatura em cima da linha de cada pessoa — só com ASSINATURA_LINHAS=1 (correção 1) */
             linhas: config.linhas ? vr.linhas : [], termos: config.linhas ? vr.termos : {} };
   }
@@ -292,8 +292,13 @@ function assEnviarTravado_(col, p, pid) {
   var ad = d.condominio ? assDocsDoComprador_(d, pid, nomeCs) : { docs: [] };
   if (ad.resp) return ad.resp;
   if (rub) ad.docs.forEach(function (x) {
-    if (x.tipo === ClicksignVenda.DOC.MEMORIAL) rub.memorial = ClicksignVenda.posicaoMemorial(x.paginas, config.memorialPosicao);
+    if (x.tipo === ClicksignVenda.DOC.MEMORIAL) {
+      rub.memorial = ClicksignVenda.posicaoMemorial(x.paginas, config.memorialPosicao);
+      rub.memorialVendedor = ClicksignVenda.posicaoMemorialVendedor(rub.memorial, config.memorialPosicao);
+    }
     if (x.tipo === ClicksignVenda.DOC.PROJETO) rub.projeto = ClicksignVenda.posicoesProjeto(config.projetoPosicoes);
+    /* revisão 01/11: tamanho real das páginas (MediaBox) — sem ele, o padrão (memorial Carta, projeto A1/A2) */
+    if (x.tamanhos) rub.tamanhos[x.tipo] = x.tamanhos;
   });
   return assCriarEnvelope_(p, pid, cols, doc, gerado, ClicksignVenda.signatarios(d, config), nomeCs, extras, ad.docs, rub);
 }
@@ -338,6 +343,7 @@ function assinaturaPdf_(col, p) {
  * paginas }] } ou { resp }. Memorial: gerado agora do Google Doc MODELO_MEMORIAL_ID (marcadores
  * {{ASSINATURA_COMPRADORES_NOMES}} e {{ASSINATURA_COMPRADORES_CPFS}}), cópia apagada sempre. Projeto: o PDF
  * fixo PROJETO_APROVADO_ID. Propriedade vazia = documento desligado. */
+function assLatin1_(bytes) { return Utilities.newBlob(bytes).getDataAsString("ISO-8859-1"); }
 function assDocsDoComprador_(d, pid, nomeCs) {
   var docs = [], memId = String(prop_("MODELO_MEMORIAL_ID") || "").trim(), projId = String(prop_("PROJETO_APROVADO_ID") || "").trim();
   if (memId) {
@@ -351,15 +357,18 @@ function assDocsDoComprador_(d, pid, nomeCs) {
                          pid, "assinatura memorial", false);
     if (g.resp) return { resp: g.resp.erro === "CONTRATO_FALHOU" ? { ok: false, erro: "MEMORIAL_FALHOU" } : g.resp };
     var bytes = g.pdf.getBytes();
+    var lat = assLatin1_(bytes);
     docs.push({ tipo: ClicksignVenda.DOC.MEMORIAL, nome: ClicksignVenda.nomeDocumentoAdicional("memorial", nomeCs), base64: Utilities.base64Encode(bytes),
-                paginas: ClicksignVenda.contarPaginasPdf(Utilities.newBlob(bytes).getDataAsString("ISO-8859-1")) });
+                paginas: ClicksignVenda.contarPaginasPdf(lat), tamanhos: ClicksignVenda.tamanhosPaginasPdf(lat) });
   }
   if (projId) {
     var blob;
     try { blob = DriveApp.getFileById(projId).getBlob(); }
     catch (e) { ctrErro_("assinatura projeto " + pid + " inacessivel", e); return { resp: { ok: false, erro: "PROJETO_NAO_CONFIGURADO" } }; }
     if (blob.getContentType() !== "application/pdf") return { resp: { ok: false, erro: "PROJETO_NAO_CONFIGURADO" } };
-    docs.push({ tipo: ClicksignVenda.DOC.PROJETO, nome: ClicksignVenda.nomeDocumentoAdicional("projeto", nomeCs), base64: Utilities.base64Encode(blob.getBytes()), paginas: 0 });
+    var bp = blob.getBytes(), tp = null;
+    try { tp = ClicksignVenda.tamanhosPaginasPdf(assLatin1_(bp)); } catch (e) { tp = null; }
+    docs.push({ tipo: ClicksignVenda.DOC.PROJETO, nome: ClicksignVenda.nomeDocumentoAdicional("projeto", nomeCs), base64: Utilities.base64Encode(bp), paginas: 0, tamanhos: tp });
   }
   return { docs: docs };
 }
@@ -434,6 +443,7 @@ function assCriarEnvelope_(p, pid, cols, doc, gerado, lista, nomeCs, extras, adi
   try { pdf = baixarArquivo_({ name: gerado.nome, type: "file", file: { url: gerado.url } }); }
   catch (e) { assLog_("enviar " + pid + " contrato gerado sem resposta"); pdf = null; }
   if (!pdf || pdf.mime !== "application/pdf") { assLog_("enviar " + pid + " contrato gerado ilegivel"); return { ok: false, erro: "CONTRATO_ILEGIVEL" }; }
+  if (rub) { try { rub.tamanhos = rub.tamanhos || {}; rub.tamanhos.contrato = ClicksignVenda.tamanhosPaginasPdf(assLatin1_(Utilities.base64Decode(pdf.base64))); } catch (e) { /* fica o A4 */ } }
   /* 28/10: termos de confissão (mesmo envelope); na Clicksign o documento leva o nome do PDF gerado, sem o carimbo */
   var pdfsExtras = [];
   for (var x = 0; x < (extras || []).length; x++) {
@@ -479,10 +489,13 @@ function assCriarEnvelope_(p, pid, cols, doc, gerado, lista, nomeCs, extras, adi
       });
       /* 30/10: rubricas posicionadas do comprador (campos de ciência, coluna de valores, memorial, projeto);
          01/11 (plano 23 B): e a assinatura de cada pessoa em cima da própria linha (contrato e termos) */
-      ClicksignVenda.requisitosRubrica(s, docs, rub, i, lista).forEach(function (r) {
+      var semLugar = [];
+      ClicksignVenda.requisitosRubrica(s, docs, rub, i, lista, semLugar).forEach(function (r) {
         csPasso_("rubricas", "post", base + "/requirements", ClicksignVenda.corpoRubrica(r.docId, ids[i], r.kind, r.positions));
         Utilities.sleep(CS_PAUSA_REQ_MS);
       });
+      /* revisão 01/11: quem não coube no ponto (margem de baixo) assina só pela página da Clicksign — fica registrado (sem nome) */
+      semLugar.forEach(function (a) { assLog_("enviar " + pid + " " + a); });   /* só o papel, sem nome */
     });
     assProps_().setProperty(ASS_PAPEIS + envId, JSON.stringify(papeis));
     assAtivar_(base, envId);

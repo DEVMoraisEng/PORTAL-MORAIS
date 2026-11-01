@@ -1043,19 +1043,14 @@ test("30/10: memorial e projeto aprovado no mesmo envelope, assinados pelo compr
   assert.deepEqual(docsDo(vendedor.id), ["doc-1", "doc-2", "doc-3"]);
   for (const s of sigs.filter((x) => x !== comprador && x !== vendedor)) assert.deepEqual(docsDo(s.id), ["doc-1"], s.attributes.email);
   const rubr = rq.filter((q) => q.attributes.action === "rubricate").map((q) => [q.relationships.document.data.id, q.attributes.kind, q.attributes.positions]);
-  /* calibração 01/11: comprador e vendedor dividem o ponto — no memorial lado a lado (105 pt); no projeto (perto da margem)
-     um em cima do outro, o comprador 52 pt acima */
-  /* projeto: págs. 1–2 A1 deitado, as demais A2 deitado; cabe ao lado (x + 105 + 100 ≤ largura − 36)? senão o comprador sobe 52 pt */
-  const pg = (p) => (Number(p.page) <= 2 ? [2384, 1684] : [1684, 1191]), r4 = (v) => +v.toFixed(4);
-  const cabe = (p) => p.position[0] * pg(p)[0] + 105 + 100 <= pg(p)[0] - 36;
-  const projC = CS.POSICOES_PROJETO.map((p) => (cabe(p) ? p : { page: p.page, position: [p.position[0], r4((p.position[1] * pg(p)[1] - 52) / pg(p)[1])] }));
-  const projV = CS.POSICOES_PROJETO.map((p) => (cabe(p) ? { page: p.page, position: [r4((p.position[0] * pg(p)[0] + 105) / pg(p)[0]), p.position[1]] } : p));
-  assert.ok(projC.some((p, i) => p !== CS.POSICOES_PROJETO[i]) && projV.some((p, i) => p !== CS.POSICOES_PROJETO[i]), "os dois casos aparecem");
+  /* revisão 01/11: no memorial o vendedor assina na linha dele (x 0,116); no projeto o vendedor fica à ESQUERDA do
+     comprador, na mesma altura (nunca acima do carimbo da prefeitura) */
+  const larg = (p) => (Number(p.page) <= 2 ? 2384 : 1684), r4 = (v) => +v.toFixed(4);
   assert.deepEqual(rubr.slice(2), [
     ["doc-2", "manuscript", [{ page: "3", position: [0.53, 0.7] }]],   /* última página do memorial (3 aqui) */
-    ["doc-3", "initials", projC],
-    ["doc-2", "manuscript", [{ page: "3", position: [r4((0.53 * 595 + 105) / 595), 0.7] }]],
-    ["doc-3", "initials", projV]]);
+    ["doc-3", "initials", CS.POSICOES_PROJETO],
+    ["doc-2", "manuscript", [{ page: "3", position: [0.116, 0.7] }]],
+    ["doc-3", "initials", CS.POSICOES_PROJETO.map((p) => ({ page: p.page, position: [r4((p.position[0] * larg(p) - 105) / larg(p)), p.position[1]] }))]]);
   /* tudo assinado: só o contrato vai para CONTRATO ASSINADO (o principal continua sendo o contrato) */
   c.c.estado.status = "closed";
   const e = c.acao("assinaturaEstado");

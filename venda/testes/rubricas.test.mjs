@@ -104,13 +104,13 @@ test("signatários: compradores rubricam; fiador só termos; grupos expostos par
 
 const DOCS = [{ id: "c", tipo: "contrato" }, { id: "t", tipo: "termo" }, { id: "m", tipo: "memorial" }, { id: "p", tipo: "projeto" }];
 
-test("quem assina cada documento: memorial e projeto só o comprador; fiador só os termos", () => {
+test("quem assina cada documento: compradores (cônjuge incluído) e vendedor tudo; testemunha contrato e termos; fiador só os termos (dono, 01/11)", () => {
   assert.deepEqual(CS.documentosDoSignatario({ rubrica: true }, DOCS), ["c", "t", "m", "p"]);
   assert.deepEqual(CS.documentosDoSignatario({ soTermos: true }, DOCS), ["t"]);
   assert.deepEqual(CS.documentosDoSignatario({ origem: "testemunha" }, DOCS), ["c", "t"]);
 });
 
-test("requisitos de rubrica: contrato (assinatura nos campos + visto nos valores), memorial, projeto; só do comprador", () => {
+test("requisitos de rubrica: comprador — campos, valores, memorial, projeto; vendedor — memorial (na linha dele) e projeto", () => {
   const rub = { campos: [{ page: "3", position: [0.4, 0.5] }], valores: { page: "3", position: [0.1, 0.16] },
                 memorial: { page: "13", position: [0.53, 0.7] }, projeto: CS.posicoesProjeto(null) };
   assert.deepEqual(CS.requisitosRubrica({ rubrica: true }, DOCS, rub), [
@@ -120,7 +120,7 @@ test("requisitos de rubrica: contrato (assinatura nos campos + visto nos valores
     { docId: "p", kind: "initials", positions: rub.projeto }]);
   /* 01/11/2026 (dono): o vendedor assina o memorial e o projeto junto com os compradores (sem campos de ciência nem valores) */
   assert.deepEqual(CS.requisitosRubrica({ origem: "vendedor" }, DOCS, rub), [
-    { docId: "m", kind: "manuscript", positions: [rub.memorial] },
+    { docId: "m", kind: "manuscript", positions: [{ page: "13", position: [0.116, 0.7] }] },   /* linha da Vendedora do memorial */
     { docId: "p", kind: "initials", positions: rub.projeto }]);
   assert.deepEqual(CS.requisitosRubrica({ origem: "testemunha" }, DOCS, rub), []);
   assert.deepEqual(CS.requisitosRubrica({ rubrica: true }, DOCS, null), []);
@@ -266,15 +266,15 @@ test("plano 23 B: requisitosRubrica — linhas somadas à assinatura do comprado
   assert.deepEqual(CS.requisitosRubrica(l[0], docs, rub, 0, l), [
     { docId: "c", kind: "manuscript", positions: rub.campos.concat(sem([LINHAS_CT[4]])) },
     { docId: "c", kind: "initials", positions: [rub.valores] },
-    /* memorial: 2 compradores + vendedor dividem o ponto (calibração 01/11): 2 por fileira, os compradores sobem 52 pt */
-    { docId: "m", kind: "manuscript", positions: [{ page: "13", position: [0.53, +((0.7 * 842 - 52) / 842).toFixed(4)] }] }]);
+    /* memorial (Carta): os 2 compradores cabem lado a lado na linha deles — o comprador 1 no ponto medido */
+    { docId: "m", kind: "manuscript", positions: [rub.memorial] }]);
   assert.deepEqual(CS.requisitosRubrica(l[2], docs, rub, 2, l), [
     { docId: "c", kind: "manuscript", positions: sem([LINHAS_CT[0]]) }, { docId: "t", kind: "manuscript", positions: sem([LINHAS_TERMO[0]]) },
-    { docId: "m", kind: "manuscript", positions: [rub.memorial] }]);
+    { docId: "m", kind: "manuscript", positions: [{ page: "13", position: [0.116, 0.7] }] }]);   /* vendedor: a linha dele no memorial */
   assert.deepEqual(CS.requisitosRubrica(l[5], docs, rub, 5, l), [{ docId: "t", kind: "manuscript", positions: sem([LINHAS_TERMO[2]]) }]);
   assert.deepEqual(CS.requisitosRubrica(l[1], docs, rub, 1, l).map((r) => r.positions.length), [1, 1, 1], "comprador 2: só os campos (linha dividida)");
   /* chamada antiga (sem a lista): sem as linhas; o vendedor só com o memorial (dono, 01/11/2026), sem deslocar */
-  assert.deepEqual(CS.requisitosRubrica(l[2], docs, rub), [{ docId: "m", kind: "manuscript", positions: [rub.memorial] }]);
+  assert.deepEqual(CS.requisitosRubrica(l[2], docs, rub), [{ docId: "m", kind: "manuscript", positions: [{ page: "13", position: [0.116, 0.7] }] }]);
 });
 
 test("plano 23 B: validarRubricas confere linhas e termos; ASSINATURA_LINHAS=1 liga (correção 1: desligado por padrão)", () => {
