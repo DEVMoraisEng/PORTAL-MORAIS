@@ -2232,16 +2232,16 @@ function cdRotuloTela(n){ return String(n||"").replace(/CORESSPONDENTE/g,"CORRES
 function condAndamentoHtml(l){
   const cols=condAndamentoCols(); if(!cols.length) return "";
   const campos=cols.map((c,k)=>{
-    const v=cdVal(l,c.nome), idc="cd-and-"+k;
+    const v=cdVal(l,c.nome), idc="cd-and-"+k, ak=' data-and-key="'+esc(l.id+"|"+c.nome)+'"';
     let ctl;
-    if(c.tipo==="date") ctl='<input type="date" id="'+idc+'" value="'+esc(v?String(v).slice(0,10):"")+'">';
-    else if(c.tipo==="url") ctl='<input type="url" id="'+idc+'" placeholder="https://…" value="'+esc(v||"")+'">';
-    else if(c.tipo==="checkbox") ctl='<select id="'+idc+'"><option value="NÃO"'+(!v?" selected":"")+'>NÃO</option><option value="SIM"'+(v?" selected":"")+'>SIM</option></select>';
+    if(c.tipo==="date") ctl='<input type="date" id="'+idc+'"'+ak+' value="'+esc(v?String(v).slice(0,10):"")+'">';
+    else if(c.tipo==="url") ctl='<input type="url" id="'+idc+'"'+ak+' placeholder="https://…" value="'+esc(v||"")+'">';
+    else if(c.tipo==="checkbox") ctl='<select id="'+idc+'"'+ak+'><option value="NÃO"'+(!v?" selected":"")+'>NÃO</option><option value="SIM"'+(v?" selected":"")+'>SIM</option></select>';
     else {
       let ops=(c.opcoes&&c.opcoes.length)?c.opcoes.slice():["SIM","NÃO"];
-      ctl='<select id="'+idc+'"><option value="">—</option>'+ops.map(o=>'<option'+(o===v?" selected":"")+'>'+esc(o)+'</option>').join("")+'</select>';
+      ctl='<select id="'+idc+'"'+ak+'><option value="">—</option>'+ops.map(o=>'<option'+(o===v?" selected":"")+'>'+esc(o)+'</option>').join("")+'</select>';
     }
-    return '<div><label title="'+esc(c.nome)+'">'+esc(cdRotuloTela(c.nome))+'</label>'+ctl+'<div class="st" id="'+idc+'-st"></div></div>';
+    return '<div><label title="'+esc(c.nome)+'">'+esc(cdRotuloTela(c.nome))+'</label>'+ctl+'<div class="st" id="'+idc+'-st" data-and-st="'+esc(l.id+"|"+c.nome)+'"></div></div>';
   });
   setTimeout(()=>{
     cols.forEach((c,k)=>{
@@ -2272,10 +2272,13 @@ function cdAndAntesDeSair(ev){
   return m;
 }
 if(typeof window!=="undefined"&&window.addEventListener) window.addEventListener("beforeunload",cdAndAntesDeSair);
+/* acha o campo/status pela própria venda (id da página + coluna), não pela posição: se o cartão mudou, devolve null */
+function cdAndAcha(attr,chave){
+  return Array.from(document.querySelectorAll("["+attr+"]")).find(e=>e.getAttribute(attr)===chave)||null;
+}
 async function cdAndEnviar(id,prop,cel){
   for(;;){
     const col=((COND&&COND.colunas)||[]).find(x=>x.nome===prop);
-    const st=document.getElementById(cel.stId), el=document.getElementById(String(cel.stId).replace(/-st$/,""));
     const enviado=cel.quer;
     let r=null;
     try{ r=await chamar({action:"simsVendaSalvar",pageId:id,prop:prop,valor:enviado},70000); }catch(e){ r=null; }
@@ -2284,7 +2287,7 @@ async function cdAndEnviar(id,prop,cel){
     if(ok) cel.conf=enviado;
     if(cel.quer!==enviado) continue; /* veio mudança nova durante o envio: manda a mais nova */
     cel.voando=false;
-    const stF=document.getElementById(cel.stId);
+    const el=cdAndAcha("data-and-key",id+"|"+prop), stF=cdAndAcha("data-and-st",id+"|"+prop);
     if(!ok){
       const conf=cel.conf;
       if(l&&l.v) l.v[prop]=cdAndValLocal(col,conf);

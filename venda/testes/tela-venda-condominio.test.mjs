@@ -1011,14 +1011,22 @@ function montarAndamento() {
   assert.ok(ini > 0 && fim > ini, "condAndSalvar não encontrada");
   const corpo = src.slice(ini, fim);
   const els = {};
-  const el = (id, value) => (els[id] = { id, value, style: {}, textContent: "" });
+  /* el(): campo (ou status, id terminado em -st) da venda "L1" por padrão; o atributo data-and-* leva a chave id|coluna */
+  const PROPS = ["ITBI PAGO", "ENTREGOU"];
+  const el = (id, value, venda = "L1") => {
+    const m = /^cd-and-(\d+)(-st)?$/.exec(id);
+    const attr = m[2] ? "data-and-st" : "data-and-key";
+    const attrs = { [attr]: venda + "|" + PROPS[Number(m[1])] };
+    return (els[id] = { id, value, style: {}, textContent: "", attrs, getAttribute: (a) => (a in attrs ? attrs[a] : null) });
+  };
   const estado = { renders: 0, chamadas: [], pend: [] };
   const COND = { colunas: [{ nome: "ITBI PAGO", tipo: "select" }, { nome: "ENTREGOU", tipo: "checkbox" }],
     linhas: [{ id: "L1", v: { "ITBI PAGO": "NÃO", ENTREGOU: false } }] };
   const chamar = (p) => new Promise((res) => { estado.chamadas.push(p); estado.pend.push(res); });
   const f = new Function("document", "chamar", "COND", "condRender", "cdVal", "window",
     corpo + "; return condAndSalvar;")(
-    { getElementById: (i) => els[i] || null }, chamar, COND, () => { estado.renders++; },
+    { getElementById: (i) => els[i] || null,
+      querySelectorAll: (sel) => Object.values(els).filter((e) => e.attrs && sel.slice(1, -1) in e.attrs) }, chamar, COND, () => { estado.renders++; },
     (l, n) => (l && l.v && n in l.v ? l.v[n] : null),
     { addEventListener: (ev, fn) => { if (ev === "beforeunload") estado.antesDeSair = fn; } });
   return { f, els, el, estado, COND };
@@ -1137,6 +1145,24 @@ test("H7: beforeunload só avisa enquanto há envio pendente", async () => {
   const ev2 = { preventDefault() { this.parado = true; } };
   estado.antesDeSair(ev2);
   assert.ok(!ev2.parado && !ev2.returnValue, "depois de salvar, não pergunta");
+});
+
+test("H7: troca de cartão com envio no ar: resposta (ok ou erro) não toca o campo da outra venda; ao reabrir o estado é o certo", async () => {
+  for (const ok of [true, false]) {
+    const { f, el, els, estado, COND } = montarAndamento();
+    COND.linhas.push({ id: "L2", v: { "ITBI PAGO": "TALVEZ", ENTREGOU: true } });
+    el("cd-and-0", "SIM"); el("cd-and-0-st", "");
+    const p = f("L1", "ITBI PAGO", "SIM", "cd-and-0-st");
+    /* o usuário abre a venda L2: os mesmos ids posicionais agora são dela */
+    delete els["cd-and-0"]; delete els["cd-and-0-st"];
+    const c2 = el("cd-and-0", "TALVEZ", "L2"); const st2 = el("cd-and-0-st", "", "L2");
+    estado.pend[0](ok ? { ok: true, linha: { id: "L1", v: { "ITBI PAGO": "SIM" } } } : { ok: false, erro: "falhou" });
+    await p;
+    assert.equal(c2.value, "TALVEZ", "campo da outra venda intocado");
+    assert.equal(st2.textContent, "", "status da outra venda intocado");
+    assert.equal(COND.linhas[1].v["ITBI PAGO"], "TALVEZ");
+    assert.equal(COND.linhas[0].v["ITBI PAGO"], ok ? "SIM" : "NÃO", "estado local da L1 certo para quando reabrir");
+  }
 });
 
 test("H7: o texto de status quebra palavra longa (375 px)", () => {
