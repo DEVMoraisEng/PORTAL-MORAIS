@@ -18,7 +18,8 @@ function cfdGerarTermos_(prep, p, pid, rot) {
     if (!col) return { resp: { ok: false, erro: "COLUNA_FALTANDO: " + nomeCol } };
     var marc = ConfissaoVenda.marcadores(prep.d, tipo);
     /* 01/11 (plano 23 B): bloco de assinaturas do termo (modelo migrado), com os fiadores e os cônjuges deles */
-    marc.ASSINATURAS_TERMO = ClicksignVenda.blocoAssinaturas(prep.d, assConfig_(p.pageId), "TERMO");
+    try { marc.ASSINATURAS_TERMO = ClicksignVenda.blocoAssinaturas(prep.d, assConfig_(p.pageId), "TERMO"); }
+    catch (e) { ctrErro_(rot + " " + pid + " bloco de assinaturas do termo " + tipo, e); }   /* modelo antigo segue; o migrado para no marcador sobrando */
     var g = ctrGerarPdf_({ modelo: modelo, pasta: prep.pasta, marcadores: marc, blocos: {},
                            titulo: ClicksignVenda.tituloDocumento(ConfissaoVenda.PREFIXO[tipo], prep.f.endereco, prep.f.casa, prep.d.comprador1 && prep.d.comprador1.nome) },
                          pid, rot + " termo " + tipo, false);

@@ -415,6 +415,7 @@
     FLUXO_JA_E_O_DA_PROPOSTA: "O fluxo desta venda já é o da proposta.",
     /* 30/10: desconto "isentar a comissão" (venda direta) */
     FLUXO_ISENCAO_AGUARDANDO_MODELO: "Isentar a comissão ainda não está liberado: o contrato do advogado não tem o texto de venda sem corretor. Use desconto em R$ ou %.",
+    MODELO_CNPJ_VENDEDOR_DIFERENTE: "O CNPJ do vendedor no cadastro (VENDEDORES – CONTRATO) não é o que está escrito no modelo do contrato — o contrato não foi gerado. Confira o cadastro ou avise o suporte.",
     MODELO_SEM_BLOCO_SEM_COMISSAO: "Esta venda é sem comissão (venda direta), mas o modelo do contrato ainda não tem esse texto — o contrato não foi gerado. Avise o desenvolvedor.",
     FLUXO_PRECO_SEM_PERMISSAO: "Seu login não pode mudar o valor da casa — os nomes de quem pode aparecem no campo Valor da casa."
   };

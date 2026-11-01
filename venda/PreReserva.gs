@@ -26,8 +26,10 @@ function prArquivoGerado_(pg) {
   var f = lista[lista.length - 1];
   return { nome: ctrTxt_(f.name), url: f.type === "external" ? ((f.external || {}).url || "") : ((f.file || {}).url || "") };
 }
-function prCarimbo_(t) {
-  var b = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, JSON.stringify(PreReservaVenda.baseCarimbo(t)), Utilities.Charset.UTF_8);
+function prCarimbo_(t, assinaturas) {
+  var base = PreReservaVenda.baseCarimbo(t);
+  if (assinaturas) base.assinaturas = assinaturas;   /* 01/11 (plano 23 B, correção 1): só com o modelo migrado */
+  var b = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, JSON.stringify(base), Utilities.Charset.UTF_8);
   var h = "";
   for (var i = 0; i < 4; i++) h += ("0" + (b[i] & 255).toString(16)).slice(-2);
   return h;
@@ -54,6 +56,12 @@ function prDados_(col, p, pid, rot) {
 /* 01/11/2026 (dono): o cônjuge do comprador só assina o TERMO se o corretor ligou a opção nesta venda. A escolha fica
    numa propriedade do script (como TESTEMUNHAS_<pageId>), sem coluna nova no Notion: PR_CONJUGE_<pageId> = "1". */
 var PR_CONJUGE = "PR_CONJUGE_";
+/* 01/11 (plano 23 B, correção 1): com o modelo migrado o termo escreve as testemunhas e o cônjuge — entram no carimbo */
+function prAssinCarimbo_(d, pageId) {
+  var a = ctrAssinCarimbo_(d, pageId);
+  a.conjuge = prConjugeIncluido_(pageId);
+  return a;
+}
 function prConjugeIncluido_(pageId) { return prop_(PR_CONJUGE + pageId) === "1"; }
 /* comprador 1 casado ou em união estável com o cônjuge nomeado (as colunas ESTADO CIVIL e CONJUGE da venda) */
 function prTemConjuge_(pg) {
@@ -142,10 +150,12 @@ function gerarTermoPreReserva_(col, sess, p) {
   if (!modeloId || !pastaId) return { ok: false, erro: "MODELO_NAO_CONFIGURADO" };
   try { modelo = DriveApp.getFileById(modeloId); pasta = DriveApp.getFolderById(pastaId); }
   catch (e) { ctrErro_(rot + " " + pid + " modelo inacessivel", e); return { ok: false, erro: "MODELO_NAO_CONFIGURADO" }; }
-  var hash = prCarimbo_(x.t);
+  var hash = prCarimbo_(x.t, ctrLerModelo_(modeloId).migrado ? prAssinCarimbo_(x.d, p.pageId) : null);
   var marc = PreReservaVenda.marcadores(x.t);
-  /* 01/11 (plano 23 B): bloco de assinaturas do termo (modelo migrado); o cônjuge só com a opção da venda ligada */
-  marc.ASSINATURAS_TERMO = ClicksignVenda.blocoAssinaturas(x.d, assConfig_(p.pageId), "PRE_RESERVA", { incluirConjuge: prConjugeIncluido_(p.pageId) });
+  /* 01/11 (plano 23 B): bloco de assinaturas do termo (modelo migrado); o cônjuge só com a opção da venda ligada.
+     Erro aqui não derruba o modelo antigo; no migrado o marcador sobra e o termo não sai. */
+  try { marc.ASSINATURAS_TERMO = ClicksignVenda.blocoAssinaturas(x.d, assConfig_(p.pageId), "PRE_RESERVA", { incluirConjuge: prConjugeIncluido_(p.pageId) }); }
+  catch (e) { ctrErro_(rot + " " + pid + " bloco de assinaturas", e); }
   var g = ctrGerarPdf_({ modelo: modelo, pasta: pasta, marcadores: marc, blocos: {},
                          titulo: ClicksignVenda.tituloDocumento("TERMO DE PRÉ-RESERVA - ", x.f.endereco, x.f.casa, x.d.comprador1 && x.d.comprador1.nome) }, pid, rot, false);
   if (g.resp) return g.resp;

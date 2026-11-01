@@ -242,6 +242,7 @@ var ClicksignVenda = (function () {
   function docAssinatura(doc) {
     var d = soDigitos(doc);
     if (!txt(doc)) return "CPF:";
+    if (d.length === 14) return "CNPJ: " + d.slice(0, 2) + "." + d.slice(2, 5) + "." + d.slice(5, 8) + "/" + d.slice(8, 12) + "-" + d.slice(12);
     return (d.length > 11 ? "CNPJ: " : "CPF: ") + (d.length === 11 && cpfValido(d) ? cpfFormatado(d) : txt(doc));
   }
   function pessoasDoBloco(dados, config, tipo, opc) {
@@ -249,10 +250,11 @@ var ClicksignVenda = (function () {
     opc = opc || {};
     var termo = tipo === "TERMO", pre = tipo === "PRE_RESERVA", cond = !!dados.condominio, out = [];
     function add(rotulo, nome, doc, extra) { out.push({ rotulo: rotulo, nome: txt(nome), doc: txt(doc), extra: txt(extra) }); }
-    var v = dados.vendedor;
-    if (v) {
-      var rotV = termo ? "CREDORA/VENDEDORA" : (cond ? "VENDEDORA" : "VENDEDOR"), rep = ehPJ(dados) ? representante(v, config) : null;
-      add(rotV, v.nome, v.cpfCnpj, rep && rep.nome ? "Representante: " + rep.nome + (rep.cpf ? " – CPF: " + rep.cpf : "") : "");
+    /* correção 1 (I5): o nome como no {{VENDEDOR_NOME}} — cadastro ou, sem ele, o proprietário da obra */
+    var v = dados.vendedor, nomeV = txt(v && v.nome) || txt(dados.nomeProprietario);
+    if (nomeV) {
+      var rotV = termo ? "CREDORA/VENDEDORA" : (cond ? "VENDEDORA" : "VENDEDOR"), rep = v && ehPJ(dados) ? representante(v, config) : null;
+      add(rotV, nomeV, v && v.cpfCnpj, rep && rep.nome ? "Representante: " + rep.nome + (rep.cpf ? " – CPF: " + rep.cpf : "") : "");
     }
     var dc = dados;
     if (pre) {   /* pré-reserva: o comprador 1 (e o cônjuge só com a opção ligada) */
@@ -734,7 +736,7 @@ var ClicksignVenda = (function () {
     situacaoDosSignatarios: situacaoDosSignatarios, nomeMascarado: nomeMascarado,
     minutosParaReenviar: minutosParaReenviar, REENVIO_MIN: REENVIO_MIN,
     opcoesTestemunhas: opcoesTestemunhas, escolhidas: escolhidas, testemunhasParaTela: testemunhasParaTela,
-    sigCompradores: sigCompradores, sigFiadores: sigFiadores, pessoasDoBloco: pessoasDoBloco, blocoAssinaturas: blocoAssinaturas, corpoRubrica: corpoRubrica, DOC: DOC, tipoDoDocumento: tipoDoDocumento,
+    sigCompradores: sigCompradores, sigFiadores: sigFiadores, pessoasDoBloco: pessoasDoBloco, blocoAssinaturas: blocoAssinaturas, testemunhasDaVenda: testemunhas, corpoRubrica: corpoRubrica, DOC: DOC, tipoDoDocumento: tipoDoDocumento,
     nomeDocumentoAdicional: nomeDocumentoAdicional, documentosDoSignatario: documentosDoSignatario, requisitosRubrica: requisitosRubrica, atribuirLinhas: atribuirLinhas,
     validarRubricas: validarRubricas, ajusteRubricas: ajusteRubricas, AJUSTE_PADRAO: AJUSTE_PADRAO, POSICOES_PROJETO: POSICOES_PROJETO,
     posicoesProjeto: posicoesProjeto, posicaoMemorial: posicaoMemorial, contarPaginasPdf: contarPaginasPdf

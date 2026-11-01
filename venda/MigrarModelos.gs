@@ -1,16 +1,18 @@
-/* MigrarModelos.gs — troca, UMA VEZ, os blocos fixos de assinatura dos modelos (Google Docs) por um parágrafo com o
- * marcador do bloco gerado no código (01/11/2026, plano 23 B; dono: "essas alterações estéticas pode fazer").
- * Arquivo do projeto PORTAL-VENDA. O dono roda no editor do Apps Script (sem argumentos):
- *   migrarModelosAssinaturasPrevia()  — só lê e escreve no registro de execução o que trocaria (padrão seguro);
- *   migrarModelosAssinaturasAplicar() — para cada modelo: PRIMEIRO uma cópia de segurança na mesma pasta
- *     ("<nome> - BACKUP antes assinaturas 01-11"; o id vai para o registro), DEPOIS a troca.
- * Bloco = do primeiro traço "____" depois da linha {{CIDADE_DATA}} até o último "CPF:" da TESTEMUNHA 2 (o texto visto
- * nos PDFs gerados). Tudo o mais do modelo (texto jurídico, data, títulos) fica como está. Quando o bloco não é achado
- * sem dúvida (número de blocos diferente do esperado, marcador estranho no meio, {{#COM_COMISSAO}} cortado, sem a data
- * antes), o modelo NÃO é tocado e o motivo vai para o registro. Modelo já migrado (tem {{ASSINATURAS_...}}) é pulado.
- * Desfazer: abrir a cópia de segurança e pôr o id dela na Propriedade do modelo (ou copiar o texto de volta). */
+/* MigrarModelos.gs — prepara, UMA VEZ, os modelos (Google Docs) para os blocos de assinatura gerados no código
+ * (01/11/2026, plano 23 B; dono: "essas alterações estéticas pode fazer"). Arquivo do projeto PORTAL-VENDA.
+ * Correção 1: o PORTAL-VENDA-TESTE e a produção usam os MESMOS modelos — o original NUNCA é editado. O dono roda no
+ * editor do Apps Script (sem argumentos):
+ *   migrarModelosAssinaturasPrevia()  — só lê; o registro de execução diz, por modelo, cada elemento que sairia;
+ *   migrarModelosAssinaturasAplicar() — para cada modelo, faz uma CÓPIA "<nome> - assinaturas 01-11" na mesma pasta,
+ *     confere que a cópia é igual ao original, troca os blocos NA CÓPIA e escreve "Propriedade X: trocar <id antigo> por
+ *     <id novo>". Quem decide quando cada projeto passa a usar a cópia é o dono, trocando a Propriedade.
+ * Bloco = do primeiro traço "____" depois da linha {{CIDADE_DATA}} (entre as duas, só linhas vazias ou o título
+ * ASSINATURAS) até o último "CPF:" da TESTEMUNHA 2 (o texto visto nos PDFs gerados). Quando o bloco não é achado sem
+ * dúvida (número de blocos diferente do esperado, marcador estranho, {{#COM_COMISSAO}} cortado, sem a data antes, texto
+ * corrido ou tabela que não é de assinatura dentro do bloco), nada é copiado e o motivo vai para o registro.
+ * Voltar atrás: pôr de novo na Propriedade o id antigo (o original ficou como estava). */
 
-var MIG_SUFIXO_BACKUP = " - BACKUP antes assinaturas 01-11";
+var MIG_SUFIXO_COPIA = " - assinaturas 01-11";
 /* Propriedade do modelo → marcadores, na ordem em que os blocos aparecem no documento */
 var MIG_MODELOS = [
   { prop: "MODELO_CONDOMINIO_ID", marcadores: ["ASSINATURAS_QUADRO", "ASSINATURAS_FINAL"] },
@@ -24,7 +26,7 @@ var MIG_MODELOS = [
 var MIG_PERMITIDOS = ["VENDEDOR_NOME", "VENDEDOR_DOC", "VENDEDOR_DOC_ROTULO", "REPRESENTANTE_NOME", "REPRESENTANTE_CPF",
   "ASSINATURA_COMPRADORES_NOMES", "ASSINATURA_COMPRADORES_CPFS", "CORRETOR_NOME", "CORRETOR_DOC", "CORRETOR_CRECI",
   "FIADOR1_NOME", "FIADOR1_CPF", "FIADOR2_NOME", "FIADOR2_CPF", "PRE_RESERVANTE_NOME", "PRE_RESERVANTE_CPF", "COM_COMISSAO"];
-var MIG_MAX_ELEMENTOS = 40;
+var MIG_MAX_ELEMENTOS = 40, MIG_MAX_LINHA = 120;
 
 function migrarModelosAssinaturasPrevia() { return migModelos_(false); }
 function migrarModelosAssinaturasAplicar() { return migModelos_(true); }
@@ -32,41 +34,80 @@ function migrarModelosAssinaturasAplicar() { return migModelos_(true); }
 function migModelos_(aplicar) {
   var props = PropertiesService.getScriptProperties(), rel = [];
   function reg(t) { rel.push(t); console.log(t); }
-  reg((aplicar ? "APLICAR" : "PRÉVIA") + " — blocos de assinatura dos modelos (uma linha por pessoa)");
+  reg((aplicar ? "APLICAR (só nas cópias)" : "PRÉVIA") + " — blocos de assinatura dos modelos (uma linha por pessoa)");
   MIG_MODELOS.forEach(function (m) {
     var id = String(props.getProperty(m.prop) || "").trim();
     if (!id) { reg(m.prop + ": sem a propriedade, nada a fazer"); return; }
     var r;
-    try { r = migUmModelo_(id, m.marcadores, aplicar); }
-    catch (e) { r = "NÃO MEXI — erro: " + String((e && e.message) || e).slice(0, 200); }
+    try { r = migUmModelo_(id, m, aplicar); }
+    catch (e) { r = "NÃO MEXI — erro: " + migErro_(e); }
     reg(m.prop + ": " + r);
   });
   return rel;
 }
+function migErro_(e) { return String((e && e.message) || e).slice(0, 200); }
 
-/* Um modelo: devolve a frase do registro. */
-function migUmModelo_(id, marcadores, aplicar) {
-  var doc = DocumentApp.openById(id), body = doc.getBody();
-  if (/\{\{ASSINATURAS_[A-Z]+\}\}/.test(String(body.getText()))) return "já migrado (tem {{ASSINATURAS_...}}), nada a fazer";
-  var achou = migAcharBlocos_(body);
-  if (achou.problema) return "NÃO MEXI — " + achou.problema;
-  var bl = achou.blocos;
-  if (bl.length !== marcadores.length)
-    return "NÃO MEXI — achei " + bl.length + " bloco(s) de assinatura, esperava " + marcadores.length;
-  var desc = bl.map(function (b, i) {
-    return "[" + (i + 1) + "] {{" + marcadores[i] + "}} no lugar de " + (b.fim - b.ini + 1) + " elemento(s), de \"" +
-      migResumo_(b.els[b.ini].texto) + "\" até \"" + migResumo_(b.els[b.fim].texto) + "\"";
-  }).join("; ");
-  if (!aplicar) return "PRÉVIA — trocaria " + bl.length + " bloco(s): " + desc;
-  /* cópia de segurança ANTES de qualquer mudança (o documento ainda não foi alterado) */
+/* Um modelo: devolve a frase do registro. O original só é lido. */
+function migUmModelo_(id, m, aplicar) {
+  var marcadores = m.marcadores, body = DocumentApp.openById(id).getBody(), texto = String(body.getText());
+  var tem = marcadores.filter(function (k) { return texto.indexOf("{{" + k + "}}") >= 0; });
+  if (tem.length === marcadores.length) return "já migrado (tem " + migLista_(tem) + "), nada a fazer";
+  if (tem.length) return "PARCIAL, não mexi — tem " + migLista_(tem) + ", falta " +
+    migLista_(marcadores.filter(function (k) { return tem.indexOf(k) < 0; })) + " (confira o modelo à mão)";
+  var bl = migBlocosConferidos_(body, marcadores.length);
+  if (typeof bl === "string") return "NÃO MEXI — " + bl;
+  var desc = bl.map(function (b, i) { return migDescrever_(b, i, marcadores[i]); }).join("\n");
+  if (!aplicar) return "PRÉVIA — trocaria " + bl.length + " bloco(s):\n" + desc;
+
   var arq = DriveApp.getFileById(id), pais = arq.getParents();
-  var pasta = pais.hasNext() ? pais.next() : DriveApp.getRootFolder();
-  var copia = arq.makeCopy(arq.getName() + MIG_SUFIXO_BACKUP, pasta);
-  /* de trás para a frente: trocar um bloco não muda a posição dos anteriores no mesmo lugar */
-  for (var i = bl.length - 1; i >= 0; i--) migTrocar_(bl[i], "{{" + marcadores[i] + "}}");
-  doc.saveAndClose();
-  return "trocado " + bl.length + " bloco(s); cópia de segurança " + copia.getId() + " — " + desc;
+  var pasta = pais.hasNext() ? pais.next() : DriveApp.getRootFolder(), nome = arq.getName() + MIG_SUFIXO_COPIA;
+  var ja = pasta.getFilesByName(nome);
+  if (ja.hasNext()) {
+    var jaId = ja.next().getId();
+    return "a cópia \"" + nome + "\" já existe (" + jaId + "), nada a fazer — Propriedade " + m.prop + ": trocar " + id + " por " + jaId;
+  }
+  var copia = arq.makeCopy(nome, pasta), cid = copia.getId(), blC;
+  try {
+    var docC = DocumentApp.openById(cid), bodyC = docC.getBody();
+    if (String(bodyC.getText()) !== texto) throw new Error("a cópia não ficou igual ao original");
+    blC = migBlocosConferidos_(bodyC, marcadores.length);
+    if (typeof blC === "string") throw new Error(blC);
+    /* de trás para a frente: trocar um bloco não muda a posição dos anteriores no mesmo lugar */
+    for (var i = blC.length - 1; i >= 0; i--) migTrocar_(blC[i], "{{" + marcadores[i] + "}}");
+    docC.saveAndClose();
+  } catch (e) {
+    return "ERRO NA CÓPIA " + cid + " — apague a cópia (" + migErro_(e) + "); o original não foi mexido";
+  }
+  return "cópia migrada (" + blC.length + " bloco(s)) — Propriedade " + m.prop + ": trocar " + id + " por " + cid + "\n" + desc;
 }
+function migLista_(l) { return l.map(function (k) { return "{{" + k + "}}"; }).join(", "); }
+/* blocos achados e conferidos, ou a frase do problema */
+function migBlocosConferidos_(body, esperados) {
+  var achou = migAcharBlocos_(body);
+  if (achou.problema) return achou.problema;
+  if (achou.blocos.length !== esperados) return "achei " + achou.blocos.length + " bloco(s) de assinatura, esperava " + esperados;
+  return achou.blocos;
+}
+/* Prévia: o bloco, o vendedor escrito nele e CADA elemento que sairia (até 80 caracteres) */
+function migDescrever_(b, i, marcador) {
+  var linhas = [], els = b.els.slice(b.ini, b.fim + 1);
+  els.forEach(function (e) { migLinhasDe_(e.texto).forEach(function (l) { linhas.push(l); }); });
+  var vend = "(não achei)";
+  for (var k = 0; k < linhas.length; k++) {
+    if (!/CNPJ|VENDEDOR_DOC/.test(linhas[k])) continue;
+    for (var j = k - 1; j >= 0; j--) if (!/^_+$/.test(linhas[j]) && !/^(CREDORA\/)?VENDEDORA?$/.test(linhas[j])) { vend = linhas[j] + " — " + linhas[k]; break; }
+    break;
+  }
+  if (vend === "(não achei)")   /* sem linha de CNPJ (pré-reserva): o nome logo acima do papel VENDEDORA */
+    for (var v = 1; v < linhas.length; v++) if (/^(CREDORA\/)?VENDEDORA?$/.test(linhas[v]) && !/^_+$/.test(linhas[v - 1])) { vend = linhas[v - 1]; break; }
+  var out =["  [" + (i + 1) + "] {{" + marcador + "}} no lugar de " + els.length + " elemento(s); vendedor no bloco antigo: " + vend];
+  els.forEach(function (e) {
+    var t = e.tabela ? "[tabela] " + migLinhasDe_(e.texto).join(" | ") : (String(e.texto).trim() || "(vazio)");
+    out.push("    - " + (t.length > 80 ? t.slice(0, 80) + "…" : t));
+  });
+  return out.join("\n");
+}
+function migLinhasDe_(t) { return String(t).split("\n").map(function (l) { return l.replace(/\s+/g, " ").trim(); }).filter(function (l) { return l; }); }
 function migResumo_(t) { t = String(t).replace(/\s+/g, " ").trim(); return t.length > 40 ? t.slice(0, 40) + "…" : t; }
 
 /* ---- leitura: elementos de um "lugar" (corpo ou célula de tabela) ---- */
@@ -121,6 +162,10 @@ function migAcharBlocos_(caixa) {
     var ini = -1;
     for (var s = ancora + 1; s <= fim; s++) if (migComecaBloco_(els[s])) { ini = s; break; }
     if (ini < 0) return { problema: "não achei o primeiro traço \"____\" do bloco depois de {{CIDADE_DATA}}" };
+    /* entre a data e o começo do bloco só linhas vazias (ou o título ASSINATURAS dos termos) */
+    for (var q = ancora + 1; q < ini; q++)
+      if (!els[q].paragrafo || !/^(ASSINATURAS)?$/i.test(els[q].texto.trim()))
+        return { problema: "texto entre {{CIDADE_DATA}} e o bloco de assinatura: \"" + migResumo_(els[q].texto || els[q].outro || "tabela") + "\"" };
     var p = migConferir_(els, ini, fim);
     if (p) return { problema: p };
     porIndice[ini] = { caixa: caixa, els: els, ini: ini, fim: fim };
@@ -147,7 +192,13 @@ function migAcharBlocos_(caixa) {
 /* Confere o trecho [ini, fim]: tamanho, só marcadores de assinatura, {{#X}}/{{/X}} fechados, cara de bloco de assinatura. */
 function migConferir_(els, ini, fim) {
   if (fim - ini + 1 > MIG_MAX_ELEMENTOS) return "bloco grande demais (" + (fim - ini + 1) + " elementos) — confira o modelo";
-  for (var q = ini; q <= fim; q++) if (els[q].outro) return "elemento do tipo " + els[q].outro + " dentro do bloco de assinatura";
+  for (var q = ini; q <= fim; q++) {
+    if (els[q].outro) return "elemento do tipo " + els[q].outro + " dentro do bloco de assinatura";
+    if (els[q].tabela && !els[q].assinatura) return "tabela que não é de assinatura dentro do bloco";
+    var ls = migLinhasDe_(els[q].texto);
+    for (var l = 0; l < ls.length; l++)
+      if (ls[l].length > MIG_MAX_LINHA || /[a-zà-ÿ]\.$/.test(ls[l])) return "texto corrido dentro do bloco: \"" + migResumo_(ls[l]) + "\"";
+  }
   var t = els.slice(ini, fim + 1).map(function (e) { return e.texto; }).join("\n"), re = /\{\{([#\/]?)([A-Za-z0-9_]+)\}\}/g, m, abertos = {};
   while ((m = re.exec(t)) !== null) {
     if (MIG_PERMITIDOS.indexOf(m[2]) < 0) return "marcador {{" + m[1] + m[2] + "}} dentro do bloco de assinatura";

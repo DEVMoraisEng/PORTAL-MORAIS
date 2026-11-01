@@ -146,3 +146,15 @@ test("quadro-resumo que vira a página: a continuação (só rótulos de assinat
                  { numero: 5, largura: W, altura: H, itens: [it(TRACO, 57, 60, 160), it("TESTEMUNHA 1", 57, 75)] }];
   assert.deepEqual(R.acharLinhas(solta), []);
 });
+
+test("correção 1 (I5/I6c): vendedor sem cadastro usa o nome do proprietário; CNPJ sai formatado", () => {
+  const d = dados({ conjuge: false, c2: false });
+  d.vendedor = null; d.nomeProprietario = "PROPRIETARIO TESTE LTDA";
+  assert.deepEqual(CS.blocoAssinaturas(d, CONFIG, "CONTRATO").split("\n").slice(0, 4), [TRACO, "Nome: PROPRIETARIO TESTE LTDA", "CPF:", "VENDEDORA"]);
+  const d2 = dados({ conjuge: false, c2: false });
+  d2.vendedor = { tipo: "PJ", nome: "", cpfCnpj: "00000000000191" }; d2.nomeProprietario = "PROPRIETARIO TESTE LTDA";
+  assert.deepEqual(CS.blocoAssinaturas(d2, CONFIG, "CONTRATO").split("\n").slice(0, 3), [TRACO, "Nome: PROPRIETARIO TESTE LTDA", "CNPJ: 00.000.000/0001-91"]);
+  const d3 = dados({ conjuge: false, c2: false });
+  d3.vendedor = null; d3.nomeProprietario = "";
+  assert.equal(CS.blocoAssinaturas(d3, CONFIG, "CONTRATO").split("\n")[3], "COMPRADOR", "sem nome nenhum, sem a linha da vendedora");
+});

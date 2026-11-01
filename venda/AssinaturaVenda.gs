@@ -257,7 +257,7 @@ function assEnviarTravado_(col, p, pid) {
   }
   /* o PDF tem de ser destes dados: carimbo no nome (GerarContrato) igual ao recalculado agora */
   var carimbo = ctrCarimboDoNome_(gerado.nome);
-  if (!carimbo || carimbo !== ctrCarimbo_(d)) {
+  if (!ctrCarimboConfere_(carimbo, d, p.pageId)) {   /* 01/11 (plano 23 B): modelo migrado leva as testemunhas no carimbo */
     assLog_("enviar " + pid + (carimbo ? " carimbo diferente" : " pdf sem carimbo"));
     return { ok: false, erro: "CONTRATO_DESATUALIZADO" };
   }
@@ -406,7 +406,7 @@ function assEnviarTermo_(col, p, pid, cols, doc, gerado) {
     return { ok: false, erro: "FALTAM_DADOS", faltas: faltas, corrigir: assCorrigir_(faltas) };
   }
   var carimbo = ctrCarimboDoNome_(gerado.nome);
-  if (!carimbo || carimbo !== prCarimbo_(x.t)) { assLog_("enviar termo " + pid + " carimbo diferente"); return { ok: false, erro: "TERMO_DESATUALIZADO" }; }
+  if (!carimbo || (carimbo !== prCarimbo_(x.t) && carimbo !== prCarimbo_(x.t, prAssinCarimbo_(x.d, p.pageId)))) { assLog_("enviar termo " + pid + " carimbo diferente"); return { ok: false, erro: "TERMO_DESATUALIZADO" }; }
   var nomeCs = "PRÉ-RESERVA - " + ClicksignVenda.nomePadrao(x.f.endereco, x.f.casa, dAss.comprador1 && dAss.comprador1.nome);
   return assCriarEnvelope_(p, pid, cols, doc, gerado, ClicksignVenda.signatarios(dAss, cfg), nomeCs);
 }

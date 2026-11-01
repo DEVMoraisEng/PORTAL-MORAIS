@@ -1110,25 +1110,41 @@ fiador 2, cônjuge do fiador 2, corretor e testemunhas 1 e 2 (com nome e CPF).
 - Com `ASSINATURA_LINHAS` = `1`, cada pessoa ganha a assinatura em cima da própria linha (cônjuge e comprador 2
   também). O bloco do quadro-resumo que vira a página continua sendo lido na página seguinte.
 
-**Passo a passo do dono (uma vez, primeiro no TESTE):**
-1. Colar no Apps Script `PORTAL-VENDA-TESTE` os arquivos `ClicksignVenda`, `ContratoVenda`, `GerarContrato`,
-   `Confissao`, `PreReserva` e o novo `MigrarModelos` (e subir o site: `venda/RubricasVenda.js` v4, `venda-dossie.js`
-   v51, `vendas.html`, `simulacoes.html`, `sw.js` v253).
-2. No editor, escolher a função `migrarModelosAssinaturasPrevia` e clicar em Executar. Ela só lê: o Registro de
-   execução diz, para cada modelo (`MODELO_CONDOMINIO_ID`, `MODELO_PRONTO_ID`, `MODELO_CONSTRUCAO_ID`,
-   `MODELO_CONFISSAO_PRE_ID`, `MODELO_CONFISSAO_POS_ID`, `MODELO_PRE_RESERVA_ID`), quantos blocos trocaria e de onde até
-   onde. Esperado: 2 blocos nos contratos e 1 nos termos. "NÃO MEXI — …" = aquele modelo fica como está (o motivo vem
-   escrito); os outros seguem.
-3. Conferindo a prévia, executar `migrarModelosAssinaturasAplicar`. Para cada modelo ele faz PRIMEIRO uma cópia na
-   mesma pasta ("<nome> - BACKUP antes assinaturas 01-11", o id aparece no registro) e depois troca os blocos. Rodar de
-   novo não faz nada ("já migrado").
-4. Abrir os modelos no Google Docs e olhar os blocos: no lugar de cada um, uma linha `{{ASSINATURAS_...}}` centralizada.
-5. Gerar um pré-contrato e um contrato de teste (condomínio com cônjuge e fiadores, e uma casa de rua), os termos de
-   confissão e um termo de pré-reserva. Conferir as linhas, nomes, CPFs e o papel em negrito.
-6. Tudo certo: repetir 1 a 5 no `PORTAL-VENDA` de produção.
+**Atenção: o PORTAL-VENDA-TESTE e a produção usam os MESMOS modelos** (as mesmas Propriedades `MODELO_..._ID`). Por
+isso a migração NUNCA mexe no modelo original: ela faz uma CÓPIA de cada modelo, já com os blocos novos, e cada projeto
+passa a usar a cópia quando o dono troca a Propriedade dele. O código antigo da produção recusaria o modelo migrado
+(`MODELO_COM_MARCADOR_SOBRANDO`); por isso a produção só troca a Propriedade depois de ter o código novo.
 
-**Voltar atrás:** pôr na Propriedade do modelo o id da cópia "BACKUP antes assinaturas 01-11" (o código antigo e o
-novo funcionam com o modelo antigo).
+- Com o modelo migrado, as testemunhas escolhidas (e, na pré-reserva, a caixa do cônjuge) entram no carimbo do PDF:
+  trocar depois de gerar deixa o contrato/termo desatualizado e o envio pede para gerar de novo. Com o modelo antigo
+  o carimbo é o de hoje.
+- Contrato do condomínio com o modelo migrado: se o CNPJ do vendedor no cadastro não estiver escrito no texto do
+  modelo, o contrato não sai (`MODELO_CNPJ_VENDEDOR_DIFERENTE`) — o bloco novo escreve o vendedor pelo cadastro e a
+  qualificação do modelo tem de ser a mesma empresa.
+
+**Passo a passo do dono (uma vez):**
+1. Colar o código novo nos DOIS projetos, `PORTAL-VENDA-TESTE` e `PORTAL-VENDA`: `ClicksignVenda`, `ContratoVenda`,
+   `GerarContrato`, `AssinaturaVenda`, `Confissao`, `PreReserva` e o novo `MigrarModelos`; e subir o site
+   (`venda/RubricasVenda.js` v4, `venda-dossie.js` v51, `vendas.html`, `simulacoes.html`, `sw.js` v253). Com os
+   modelos de hoje nada muda.
+2. Num dos projetos (no TESTE), escolher a função `migrarModelosAssinaturasPrevia` e clicar em Executar. Ela só lê:
+   o Registro de execução diz, para cada modelo (`MODELO_CONDOMINIO_ID`, `MODELO_PRONTO_ID`, `MODELO_CONSTRUCAO_ID`,
+   `MODELO_CONFISSAO_PRE_ID`, `MODELO_CONFISSAO_POS_ID`, `MODELO_PRE_RESERVA_ID`), quantos blocos trocaria, o vendedor
+   escrito no bloco antigo e CADA linha que sairia. Esperado: 2 blocos nos contratos e 1 nos termos. "NÃO MEXI — …" =
+   aquele modelo fica como está (o motivo vem escrito).
+3. Conferida a prévia, executar `migrarModelosAssinaturasAplicar`. Para cada modelo ele cria, na mesma pasta, a cópia
+   "<nome> - assinaturas 01-11", confere que ela saiu igual ao original e troca os blocos SÓ NA CÓPIA. O registro diz
+   "Propriedade X: trocar <id antigo> por <id novo>". Os originais não mudam. "ERRO NA CÓPIA <id> — apague a cópia":
+   apagar aquela cópia no Drive e avisar. Rodar de novo não cria outra cópia (repete qual Propriedade trocar).
+4. Abrir as cópias no Google Docs: no lugar de cada bloco, uma linha `{{ASSINATURAS_...}}` centralizada.
+5. No `PORTAL-VENDA-TESTE` (Configurações do projeto → Propriedades do script), trocar cada `MODELO_..._ID` pelo id
+   novo do registro.
+6. Testar no TESTE: pré-contrato e contrato do condomínio (com cônjuge e fiadores) e de uma casa de rua, os termos de
+   confissão e um termo de pré-reserva. Conferir as linhas, nomes, CPFs e o papel em negrito.
+7. Tudo certo: trocar as mesmas Propriedades no `PORTAL-VENDA` de produção (que já tem o código novo do passo 1).
+
+**Voltar atrás:** pôr de novo na Propriedade o id antigo (o original não foi mexido). As cópias podem ficar ou ser
+apagadas.
 
 ## Selfie com documento para comprador, cônjuge e fiadores (01/11/2026, plano 23 C)
 

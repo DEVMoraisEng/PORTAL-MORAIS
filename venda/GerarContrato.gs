@@ -554,7 +554,8 @@ function ctrExpandirParagrafos_(body, marcadores, grifar) {
   var pars = body.getParagraphs();
   for (var i = 0; i < pars.length; i++) {
     var m = /^\{\{([A-Z0-9_]+)\}\}$/.exec(String(pars[i].getText()).trim());
-    if (!m || nomes.indexOf(m[1]) < 0) continue;
+    /* sem o valor (ex.: bloco de assinaturas que falhou ao montar) o marcador fica e a geração para no "marcador sobrando" */
+    if (!m || nomes.indexOf(m[1]) < 0 || !(m[1] in marcadores)) continue;
     var re = "\\{\\{" + m[1] + "\\}\\}";
     var linhas = ctrTxt_(marcadores[m[1]]).split("\n");
     var p = pars[i], pai = p.getParent(), pos = pai.getChildIndex(p), molde = p.copy();
@@ -611,16 +612,40 @@ function apagarCopia_(id) {
  * corretor, loteamento, imóvel, valores). Vai no nome do PDF ("… [#abcd1234].pdf"); o envio para
  * assinatura recalcula e recusa (CONTRATO_DESATUALIZADO) se os dados mudaram depois de gerar.
  * Fica fora o que muda sozinho (data de hoje, cidade da assinatura). */
-function ctrCarimbo_(d) {
+function ctrCarimbo_(d, assinaturas) {
   var base = { modelo: d.modelo, comprador1: d.comprador1, comprador2: d.comprador2, vendedor: d.vendedor,
                nomeProprietario: d.nomeProprietario, corretor: d.corretor, corretorNaVenda: d.corretorNaVenda,
                loteamento: d.loteamento, imovel: d.imovel, negociacao: d.negociacao, comissao: d.comissao };
   if (d.condominio) base.condominio = d.condominio; /* fluxo, fiadores, unidade (só no condomínio: os carimbos antigos não mudam) */
   if (d.tipoCasa) base.tipoCasa = d.tipoCasa;       /* entrega 14: só com CASA PRONTA/EM CONSTRUÇÃO (os carimbos antigos não mudam) */
+  if (assinaturas) base.assinaturas = assinaturas;  /* 01/11 (plano 23 B, correção 1): só com o modelo migrado */
   var b = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, JSON.stringify(base), Utilities.Charset.UTF_8);
   var h = "";
   for (var i = 0; i < 4; i++) h += ("0" + (b[i] & 255).toString(16)).slice(-2);
   return h;
+}
+/* 01/11 (plano 23 B, correção 1): o que o bloco de assinaturas escreve e o carimbo de hoje não cobre — as testemunhas */
+function ctrAssinCarimbo_(d, pageId) {
+  var t = ClicksignVenda.testemunhasDaVenda(d, assConfig_(pageId)) || [];
+  return { testemunhas: t.map(function (x) { return [ctrTxt_(x && x.nome), ctrTxt_(x && x.cpf)]; }) };
+}
+/* Carimbo do nome do PDF confere com os dados de agora: o do modelo antigo ou o do migrado (com as testemunhas). */
+function ctrCarimboConfere_(h, d, pageId) {
+  return !!h && (h === ctrCarimbo_(d) || h === ctrCarimbo_(d, ctrAssinCarimbo_(d, pageId)));
+}
+/* Modelo do Google Docs: { migrado (tem {{ASSINATURAS_...}}), texto }; ilegível = não migrado (a geração diz o resto). */
+function ctrLerModelo_(id) {
+  if (!id) return { migrado: false, texto: "" };
+  try {
+    var t = String(DocumentApp.openById(id).getBody().getText());
+    return { migrado: /\{\{ASSINATURAS_[A-Z]+\}\}/.test(t), texto: t };
+  } catch (e) { return { migrado: false, texto: "" }; }
+}
+/* CNPJ (14 dígitos) escrito no texto, com ou sem pontuação; vendedor sem CNPJ não é conferido. */
+function ctrCnpjNoTexto_(doc, texto) {
+  var dg = ctrTxt_(doc).replace(/\D/g, "");
+  if (dg.length !== 14) return true;
+  return new RegExp(dg.split("").join("[^0-9]{0,2}")).test(String(texto));
 }
 /* Carimbo do nome do PDF; "" quando não tem (PDF gerado antes do carimbo existir). */
 function ctrCarimboDoNome_(nome) {
@@ -730,7 +755,7 @@ function ctrDadosDoVendedor_(col, p) {
 function ctrPreDesatualizado_(col, p, pre) {
   try {
     var x = ctrDadosAtuais_(col, p, String(p.pageId).slice(0, 8), "contratoEstado");
-    return x.resp ? true : ctrCarimbo_(x.d) !== pre.hash;
+    return x.resp ? true : !ctrCarimboConfere_(pre.hash, x.d, p.pageId);
   } catch (e) {
     ctrErro_("contratoEstado " + String(p.pageId).slice(0, 8) + " carimbo", e);
     return true;
@@ -789,14 +814,23 @@ function ctrPreparar_(col, p, pid, rot) {
   var modelo, pasta, marcadores, blocos;
   try { modelo = DriveApp.getFileById(modeloId); pasta = DriveApp.getFolderById(pastaId); }
   catch (e) { ctrErro_(rot + " " + pid + " modelo inacessivel", e); return { resp: { ok: false, erro: "MODELO_NAO_CONFIGURADO" } }; }
-  try {
-    marcadores = ContratoVenda.marcadores(d); blocos = ContratoVenda.blocos(d);
-    /* 01/11 (plano 23 B): blocos de assinatura com uma linha por pessoa — só aparecem no modelo migrado
-       (migrarModelosAssinaturasAplicar); o modelo antigo não tem os marcadores e sai como sempre */
-    marcadores.ASSINATURAS_QUADRO = marcadores.ASSINATURAS_FINAL = ClicksignVenda.blocoAssinaturas(d, assConfig_(p.pageId), "CONTRATO");
-  }
+  try { marcadores = ContratoVenda.marcadores(d); blocos = ContratoVenda.blocos(d); }
   catch (e) { ctrErro_(rot + " " + pid + " montagem falhou", e); return { resp: { ok: false, erro: "CONTRATO_FALHOU" } }; }
-  var hash = ctrCarimbo_(d);
+  /* 01/11 (plano 23 B): blocos de assinatura com uma linha por pessoa — só aparecem no modelo migrado (cópia feita por
+     migrarModelosAssinaturasAplicar); o modelo antigo não tem os marcadores e sai como sempre. Erro aqui não derruba o
+     modelo antigo; no migrado o marcador sobra e a geração para (MODELO_COM_MARCADOR_SOBRANDO). */
+  try { marcadores.ASSINATURAS_QUADRO = marcadores.ASSINATURAS_FINAL = ClicksignVenda.blocoAssinaturas(d, assConfig_(p.pageId), "CONTRATO"); }
+  catch (e) { ctrErro_(rot + " " + pid + " bloco de assinaturas", e); }
+  /* correção 1: modelo migrado (o do contrato ou um dos termos desta venda) — as testemunhas entram no carimbo, porque
+     saem escritas no PDF; e o CNPJ do vendedor do cadastro tem de estar no texto do modelo do condomínio */
+  var info = ctrLerModelo_(modeloId), migrado = info.migrado;
+  if (info.migrado && d.condominio && !ctrCnpjNoTexto_(d.vendedor && d.vendedor.cpfCnpj, info.texto)) {
+    ctrLog_(rot + " " + pid + " CNPJ do vendedor fora do modelo");
+    return { resp: { ok: false, erro: "MODELO_CNPJ_VENDEDOR_DIFERENTE" } };
+  }
+  if (!migrado && d.condominio && cfdLigado_())
+    migrado = ConfissaoVenda.quais(d).some(function (t) { return ctrLerModelo_(prop_(ConfissaoVenda.MODELO[t])).migrado; });
+  var hash = ctrCarimbo_(d, migrado ? ctrAssinCarimbo_(d, p.pageId) : null);
   var endereco = String(f.endereco).replace(/[\\\/:*?"<>|]/g, "-");
   var resto = endereco + (f.casa ? " - CASA " + f.casa : "") + " - " + hoje_("dd-MM-yyyy") + " [#" + hash + "].pdf";
   /* 01/11 (plano 23 A): a cópia do Docs leva o nome final — o título do PDF vem dela */
@@ -860,7 +894,7 @@ function gerarPreContrato_(col, sess, p) {
   if (antigo && antigo.arquivoId && antigo.arquivoId !== arq.getId()) apagarCopia_(antigo.arquivoId);
   var avisos = ContratoVenda.avisosContrato(prep.d);
   /* 28/10: conferência dos documentos — só avisa (não trava) */
-  if (prep.d.condominio) { var av = confAviso_(p.pageId, prep.hash); if (av) avisos.push(av); }
+  if (prep.d.condominio) { var av = confAviso_(p.pageId, ctrCarimbo_(prep.d)); if (av) avisos.push(av); }   /* a conferência guarda o carimbo dos dados */
   /* 29/10: condições especiais desta venda — quem aprova vê antes de gerar o final */
   if (prep.d.condominio && prep.d.imovel && ctrTxt_(prep.d.imovel.condicoesEspeciais).trim())
     avisos.push("Condições especiais: este contrato tem texto próprio no item 16 do quadro-resumo — confira antes de aprovar");
