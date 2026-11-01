@@ -236,3 +236,36 @@ test("revisão C: tamanho real das páginas lido do PDF (MediaBox, árvore /Kids
   const p = CS.requisitosRubrica(CJ, DOCS, rub, 1, LISTA2).find((r) => r.docId === "p").positions[0];
   assert.ok(Math.abs(p.position[0] * 595 - (0.9 * 595 - 105)) < 1, String(p.position[0] * 595));
 });
+
+/* ---- envelope da unidade 22 (sandbox, 01/11) ---- */
+test("unidade 22 (1): nome contido no outro — 'COMPRADOR VINTE E DOIS TESTE' × 'OUTRO COMPRADOR VINTE E DOIS TESTE': cada um com a sua linha", () => {
+  const a = { papel: "Comprador 1", role: "buyer", nome: "COMPRADOR VINTE E DOIS TESTE", origem: "comprador1", rubrica: true };
+  const b = { papel: "Comprador 2", role: "buyer", nome: "OUTRO COMPRADOR VINTE E DOIS TESTE", origem: "comprador2", rubrica: true };
+  const linhas = [{ page: "1", position: [0.1, 0.1], texto: "Nome: COMPRADOR VINTE E DOIS TESTE\nCPF: 1\nCOMPRADOR" },
+                  { page: "1", position: [0.1, 0.2], texto: "Nome: OUTRO COMPRADOR VINTE E DOIS TESTE\nCPF: 2\nCOMPRADOR" }];
+  for (const tipo of ["contrato", "termo"]) {
+    const r = CS.atribuirLinhas([a, b, VEND], linhas, tipo);
+    assert.deepEqual(r.map((x) => x.map((p) => p.position[1])), [[0.1], [0.2], []], tipo);
+  }
+  /* caso da vida: "JOSE SILVA" × "MARIA JOSE SILVA" */
+  const j = { papel: "Comprador 1", role: "buyer", nome: "JOSE SILVA", origem: "comprador1", rubrica: true };
+  const m = { papel: "Cônjuge do comprador 1", role: "buyer", nome: "MARIA JOSE SILVA", origem: "conjugeComprador1", rubrica: true };
+  const lj = [{ page: "2", position: [0.1, 0.3], texto: "Nome: MARIA JOSE SILVA\nCÔNJUGE DO COMPRADOR" }, { page: "2", position: [0.1, 0.4], texto: "Nome: JOSE SILVA\nCOMPRADOR" }];
+  assert.deepEqual(CS.atribuirLinhas([j, m], lj, "contrato").map((x) => x.map((p) => p.position[1])), [[0.4], [0.3]]);
+  /* linha antiga com os dois nomes (nenhum contido no outro): ninguém, como antes */
+  assert.deepEqual(CS.atribuirLinhas([j, b], [{ page: "1", position: [0.1, 0.1], texto: "Nome: JOSE SILVA / OUTRO COMPRADOR VINTE E DOIS TESTE" }], "contrato"), [[], []]);
+});
+
+test("unidade 22 (2): traço no pé da página e o 'Nome:' no topo da seguinte — o texto vem da próxima página, a posição fica na do traço", () => {
+  const H2 = 792, pg = (n, itens) => ({ numero: n, largura: 612, altura: H2, itens });
+  const p3 = pg(3, [it("ASSINATURAS", 250, 60), traco(32, 200, 640), it("Nome: COMPRADOR VINTE E DOIS TESTE", 200, 652), it("COMPRADOR", 250, 680),
+                    traco(32, 200, 718)]);
+  const p4 = pg(4, [it("Nome: CONJUGE VINTE E DOIS TESTE", 200, 40), it("CPF: 000.000.000-00", 200, 54), it("CÔNJUGE DO COMPRADOR", 230, 68),
+                    traco(32, 200, 120), it("Nome: TESTEMUNHA UM", 200, 132), it("TESTEMUNHA 1", 240, 146)]);
+  const l = R.acharLinhas([p3, p4], ZERO);
+  const fim = l.find((x) => x.page === "3" && Math.round(x.position[1] * H2 + 46 - 11) === 718);
+  assert.ok(fim, JSON.stringify(l));
+  assert.equal(fim.texto, "Nome: CONJUGE VINTE E DOIS TESTE\nCPF: 000.000.000-00\nCÔNJUGE DO COMPRADOR");
+  const cj = { papel: "Cônjuge do comprador 1", role: "buyer", nome: "CONJUGE VINTE E DOIS TESTE", origem: "conjugeComprador1", rubrica: true };
+  assert.equal(CS.atribuirLinhas([cj], [fim], "termo")[0].length, 1);
+});

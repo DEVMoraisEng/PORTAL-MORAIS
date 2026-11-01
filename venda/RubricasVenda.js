@@ -154,12 +154,32 @@ var RubricasVenda = (function () {
         });
         validos.forEach(function (c) {
           var x0 = l.xs[c[0]], x1 = l.xs[c[1] - 1] + Math.max(1, (l.xs[c[1] - 1] - x0) / Math.max(1, c[1] - c[0] - 1));
+          var tx = textoDaColuna(ls, i, x0, x1, validos.length === 1);
+          /* unidade 22 (01/11): traço no pé da página e o "Nome:" no topo da seguinte — o texto vem de lá (a posição fica aqui) */
+          if (!tx && !temTextoAbaixo(ls, i) && pgs[ip + 1]) tx = textoNoTopo(pgs[ip + 1].ls, x0, x1, validos.length === 1);
           out.push({ page: String(pg.numero), position: [limitar(x0 / W + (Number(a.dx) || 0)), limitar(topoAcima(l, H) + (Number(a.dy) || 0))],
-                     texto: textoDaColuna(ls, i, x0, x1, validos.length === 1) });
+                     texto: tx });
         });
       });
     });
     return out;
+  }
+  function temTextoAbaixo(ls, i) { for (var k = i + 1; k < ls.length; k++) if (/\S/.test(ls[k].texto)) return true; return false; }
+  /* primeiras linhas da página (até 45 pt abaixo da primeira), na coluna [x0, x1] (ou inteiras); para no próximo traço */
+  function textoNoTopo(ls, x0, x1, inteira) {
+    var txt = [], tol = 6;
+    if (!ls || !ls.length) return "";
+    for (var k = 0; k < ls.length && txt.length < 4; k++) {
+      var m = ls[k], col = "";
+      if (m.y - ls[0].y > 45) break;
+      trechos(m).forEach(function (t) {
+        if (inteira || (m.xs[t[1] - 1] >= x0 - tol && m.xs[t[0]] <= x1 + tol)) col += (col ? " " : "") + m.texto.slice(t[0], t[1]);
+      });
+      if (!/\S/.test(col)) continue;
+      if (TEM_TRACO.test(col)) break;
+      txt.push(col.replace(/\s+/g, " ").trim());
+    }
+    return txt.join("\n");
   }
   /* trechos de texto de uma linha separados por vão grande (blocos lado a lado): [[início, fim)] */
   function trechos(l) {

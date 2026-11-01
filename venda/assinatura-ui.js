@@ -283,6 +283,8 @@
     if (!ach.campos.length) return { ok: false, erro: "RUBRICAS_NAO_ACHADAS" };
     /* 01/11 (plano 23 B): linhas de assinatura do contrato e dos termos (o servidor casa cada uma com a pessoa) */
     var rubricas = { nome: r.nome, campos: ach.campos, valores: ach.valores };
+    /* unidade 22 (01/11): o aviso do leitor (ex.: "item 4.2.1 do quadro-resumo não achado" = sem visto nos valores) vai junto */
+    if (Array.isArray(ach.avisos) && ach.avisos.length) rubricas.avisos = ach.avisos.slice(0, 5);
     /* correção 1 (C-1): só com as linhas ligadas no servidor (ASSINATURA_LINHAS=1 → assinaturaPdf diz linhas: true) */
     if (r.linhas !== true || typeof R.acharLinhas !== "function") return { ok: true, rubricas: rubricas };
     var linhas = [], termos = [];
@@ -338,6 +340,8 @@
     if (r.aguardandoArquivo) estado.aguardandoArquivo = true;
     var msg = r.aguardandoArquivo ? AGUARDANDO_ARQUIVO
       : (mensagemAssinatura(r) || (enviar ? "Enviado — cada signatário recebe o e-mail da Clicksign." : "Situação atualizada."));
+    /* unidade 22 (01/11): avisos do envio (rubrica que a Clicksign guardou diferente, pessoa sem posição, aviso do leitor) */
+    if (enviar && Array.isArray(r.avisos) && r.avisos.length) msg += " Atenção: " + r.avisos.join("; ") + ".";
     return copia(c, { estado: estado, ocupado: null, faltas: null, corrigir: null, msg: msg });
   }
 

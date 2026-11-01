@@ -447,3 +447,9 @@ test("01/11 (sandbox): assinado por todos com o arquivo ainda não pronto — a 
   assert.equal(A.mensagemAssinatura({ ok: false, erro: "ASSINADO_AGUARDANDO_ARQUIVO" }),
     "O arquivo assinado ainda está sendo preparado pela Clicksign — espere um instante e clique em Atualizar situação.");
 });
+
+test("unidade 22 (3): a tela manda os avisos do leitor (ex.: 4.2.1 não achado) junto com as rubricas", async () => {
+  const leitor = { paginasDoPdf: async () => [], acharNoContrato: () => ({ campos: [{ page: "3", position: [0.1, 0.1] }], valores: null, avisos: ["item 4.2.1 do quadro-resumo não achado"] }) };
+  const r = await A.prepararRubricas({ pageId: "p", rubricas: leitor, chamar: async () => ({ ok: true, nome: "C.pdf", base64: "QUJD" }) });
+  assert.deepEqual(r.rubricas.avisos, ["item 4.2.1 do quadro-resumo não achado"]);
+});

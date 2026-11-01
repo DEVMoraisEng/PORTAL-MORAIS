@@ -1125,8 +1125,8 @@ passa a usar a cópia quando o dono troca a Propriedade dele. O código antigo d
 **Passo a passo do dono (uma vez):**
 1. Colar o código novo nos DOIS projetos, `PORTAL-VENDA-TESTE` e `PORTAL-VENDA`: `ClicksignVenda`, `ContratoVenda`,
    `GerarContrato`, `AssinaturaVenda`, `AssinaturaVigia`, `Confissao`, `PreReserva` e o novo `MigrarModelos`; e
-   subir o site (`venda/RubricasVenda.js` v5, `venda/assinatura-ui.js` v20, `venda-dossie.js` v52, `vendas.html`,
-   `simulacoes.html`, `sw.js` v254). Com os modelos de hoje nada muda.
+   subir o site (`venda/RubricasVenda.js` v6, `venda/assinatura-ui.js` v21, `venda-dossie.js` v53, `vendas.html`,
+   `simulacoes.html`, `sw.js` v255). Com os modelos de hoje nada muda.
 2. No projeto onde vai rodar a migração (o TESTE), ligar o serviço avançado **Google Docs API**: editor do Apps Script ›
    Serviços (+) › Google Docs API › Adicionar (identificador `Docs`). Os modelos de contrato têm quebras de seção perto dos
    blocos (a de próxima página antes do quadro-resumo e a de 2 colunas que põe vendedora | comprador lado a lado); o
@@ -1194,6 +1194,18 @@ apagadas.
   mesmos documentos e campos do comprador 1, e entra no bloco de assinatura do memorial. Exceção: termo de pré-reserva
   (só com a caixa "Incluir o cônjuge na pré-reserva").
 - Sem mudança: fiadores só os termos; testemunhas contrato e termos; corretor só o contrato.
+
+**Envelope da unidade 22 (sandbox, 01/11):**
+- Nome contido no outro ("JOSE SILVA" × "MARIA JOSE SILVA"): a linha vai para o nome mais longo que aparece nela.
+- Traço no pé da página com o "Nome:" no topo da seguinte: o texto vem da página seguinte (a assinatura fica no traço).
+- Os vistos ("initials" — coluna de valores do contrato e projeto) não apareceram em nenhum PDF assinado, embora a
+  Clicksign tenha aceitado os pedidos (um pedido recusado para o envio inteiro). No próximo envio, o registro de execução
+  mostra para cada rubrica: "… rubrica initials <documento>: N posições pedidas → guardada kind=…, M posições". Se a
+  Clicksign guardar o visto sem as posições ou com outro tipo, o envio volta com o aviso RUBRICA_DIVERGENTE (a tela
+  mostra em "Atenção:"). Para mandar os vistos como assinatura (o tipo que aparece), ponha a Propriedade
+  `RUBRICAS_VISTO_COMO_ASSINATURA` = `1`.
+- Se a tela não achar o item 4.2.1 do quadro-resumo, não há visto nos valores — agora isso volta como aviso
+  "tela: item 4.2.1 do quadro-resumo não achado" no envio e no registro.
 
 ## Selfie com documento para comprador, cônjuge e fiadores (01/11/2026, plano 23 C)
 

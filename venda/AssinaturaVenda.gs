@@ -83,6 +83,7 @@ function assConfig_(pageId) {
     /* 30/10: rubricas e documentos do comprador */
     RUBRICAS_AJUSTE: prop_("RUBRICAS_AJUSTE"), MEMORIAL_POSICAO: prop_("MEMORIAL_POSICAO"), PROJETO_POSICOES: prop_("PROJETO_POSICOES"),
     ASSINATURA_SEM_RUBRICAS: prop_("ASSINATURA_SEM_RUBRICAS"), ASSINATURA_LINHAS: prop_("ASSINATURA_LINHAS"),
+    RUBRICAS_VISTO_COMO_ASSINATURA: prop_("RUBRICAS_VISTO_COMO_ASSINATURA"),   /* unidade 22 (01/11) */
     CLICKSIGN_SELFIE: prop_("CLICKSIGN_SELFIE")   /* 01/11 (plano 23 C) */
   });
 }
@@ -284,7 +285,7 @@ function assEnviarTravado_(col, p, pid) {
   if (d.condominio && !config.semRubricas) {
     var vr = ClicksignVenda.validarRubricas(p.rubricas, gerado.nome, { linhas: config.linhas });
     if (!vr.ok) { assLog_("enviar " + pid + " rubricas: " + vr.erro); return { ok: false, erro: vr.erro }; }
-    rub = { campos: vr.campos, valores: vr.valores, memorial: null, projeto: [], tamanhos: {},
+    rub = { campos: vr.campos, valores: vr.valores, memorial: null, projeto: [], tamanhos: {}, avisos: assAvisosDaTela_(p.rubricas),
             /* 01/11 (plano 23 B): assinatura em cima da linha de cada pessoa — só com ASSINATURA_LINHAS=1 (correção 1) */
             linhas: config.linhas ? vr.linhas : [], termos: config.linhas ? vr.termos : {} };
   }
@@ -437,9 +438,30 @@ function cfdDoNome_(dc) { return ConfissaoVenda.colunaAssinadaDoNome((dc && dc.a
 function assCorrigir_(faltas) { return ClicksignVenda.linksCorrigirEmail(faltas); }
 
 /* Cria envelope → documento → signatários → requisitos → ativa → grava → notifica (contrato e termo). */
+/* unidade 22 (01/11): avisos do leitor da tela (RubricasVenda: "item 4.2.1 do quadro-resumo não achado" etc.) — só textos
+   curtos, sem dado pessoal; no máximo 5 */
+function assAvisosDaTela_(rb) {
+  var l = rb && Array.isArray(rb.avisos) ? rb.avisos : [];
+  return l.filter(function (a) { return typeof a === "string" && /^[\w\s.,:"()çãõáéíóúâêôà-]{1,120}$/i.test(a) && !/@|\d{3}\.\d{3}/.test(a); }).slice(0, 5);
+}
+/* RUBRICAS_VISTO_COMO_ASSINATURA=1: os vistos ("initials") vão como assinatura ("manuscript"), somados ao requisito manuscript do
+   mesmo documento — a Clicksign não aceita dois do mesmo tipo para a mesma pessoa no mesmo documento */
+function assJuntarVistos_(reqs, ligado) {
+  if (!ligado) return reqs;
+  var out = [], por = {};
+  reqs.forEach(function (r) {
+    var kind = r.kind === "initials" ? "manuscript" : r.kind, k = r.docId + "|" + kind;
+    if (por[k]) { por[k].positions = por[k].positions.concat(r.positions); return; }
+    por[k] = { docId: r.docId, kind: kind, positions: r.positions.slice() };
+    out.push(por[k]);
+  });
+  return out;
+}
 /* dados: os da venda (ContratoVenda) — a selfie depende de o vendedor ser empresa (ClicksignVenda.autenticacoes) */
 function assCriarEnvelope_(p, pid, cols, doc, gerado, lista, nomeCs, extras, adicionais, rub, dados) {
   var cfgAuth = assConfig_(p.pageId);   /* 01/11 (plano 23 C): CLICKSIGN_SELFIE — vale para o contrato e o termo, rua e condomínio */
+  /* unidade 22 (01/11): avisos que voltam no resultado do envio (o da tela, rubrica guardada diferente, sem posição) */
+  var avisos = (rub && rub.avisos || []).map(function (a) { assLog_("enviar " + pid + " tela: " + a); return "tela: " + a; });
   var S = ClicksignVenda.SITUACOES;
   var pdf = null;
   try { pdf = baixarArquivo_({ name: gerado.nome, type: "file", file: { url: gerado.url } }); }
@@ -492,12 +514,18 @@ function assCriarEnvelope_(p, pid, cols, doc, gerado, lista, nomeCs, extras, adi
       /* 30/10: rubricas posicionadas do comprador (campos de ciência, coluna de valores, memorial, projeto);
          01/11 (plano 23 B): e a assinatura de cada pessoa em cima da própria linha (contrato e termos) */
       var semLugar = [];
-      ClicksignVenda.requisitosRubrica(s, docs, rub, i, lista, semLugar).forEach(function (r) {
-        csPasso_("rubricas", "post", base + "/requirements", ClicksignVenda.corpoRubrica(r.docId, ids[i], r.kind, r.positions));
+      assJuntarVistos_(ClicksignVenda.requisitosRubrica(s, docs, rub, i, lista, semLugar), cfgAuth.vistoComoAssinatura).forEach(function (r) {
+        var rr = csPasso_("rubricas", "post", base + "/requirements", ClicksignVenda.corpoRubrica(r.docId, ids[i], r.kind, r.positions));
+        /* unidade 22 (01/11): os vistos não apareceram nos PDFs assinados — o registro diz o que a Clicksign guardou (sem dado
+           pessoal: tipo, documento, quantas posições) e diferença vira aviso no resultado do envio */
+        var at = (rr.data && rr.data.attributes) || {}, n = r.positions.length, g = Array.isArray(at.positions) ? at.positions.length : 0;
+        assLog_("enviar " + pid + " " + s.papel + " rubrica " + r.kind + " " + r.docId + ": " + n + (n === 1 ? " posição pedida" : " posições pedidas") +
+                " → guardada kind=" + (at.kind || "?") + ", " + g + (g <= 1 ? " posição" : " posições"));
+        if (at.kind !== r.kind || g !== n) avisos.push("RUBRICA_DIVERGENTE: " + s.papel + " — " + r.kind + " no documento " + r.docId + " (pedidas " + n + ", guardadas " + g + ")");
         Utilities.sleep(CS_PAUSA_REQ_MS);
       });
       /* revisão 01/11: quem não coube no ponto (margem de baixo) assina só pela página da Clicksign — fica registrado (sem nome) */
-      semLugar.forEach(function (a) { assLog_("enviar " + pid + " " + a); });   /* só o papel, sem nome */
+      semLugar.forEach(function (a) { assLog_("enviar " + pid + " " + a); avisos.push("SEM_POSICAO: " + a); });   /* só o papel, sem nome */
     });
     assProps_().setProperty(ASS_PAPEIS + envId, JSON.stringify(papeis));
     assAtivar_(base, envId);
@@ -537,7 +565,8 @@ function assCriarEnvelope_(p, pid, cols, doc, gerado, lista, nomeCs, extras, adi
               return { papel: s.papel, nome: ClicksignVenda.nomeMascarado(s.nome), email: String(s.email || ""), assinou: false, situacao: "pendente", data: "" };
             }) };
   if (!n.ok) r.aviso = "NOTIFICACAO_FALHOU";
-  assLog_("enviar " + pid + " ok envelope " + envId + " signatarios " + lista.length);
+  if (avisos.length) r.avisos = avisos;
+  assLog_("enviar " + pid + " ok envelope " + envId + " signatarios " + lista.length + (avisos.length ? " avisos " + avisos.length : ""));
   return r;
 }
 

@@ -1519,3 +1519,41 @@ test("correção 3 (1): no envelope com termos, o corretor (ASSINATURA_INCLUIR_C
   const docs = [...new Set(reqs.filter((q) => q.corpo.data.relationships.signer.data.id === corr.id).map((q) => q.corpo.data.relationships.document.data.id))];
   assert.deepEqual(docs, ["doc-1"]);
 });
+
+/* ---- envelope da unidade 22 (3): os vistos ("initials") não apareceram em nenhum PDF assinado ---- */
+const soInitials = (sem) => (m, cam, corpo) => (m === "POST" && cam === "/envelopes/env-1/requirements" && corpo.data.attributes.kind === "initials"
+  ? { status: 201, json: { data: { id: "req-x", type: "requirements", attributes: sem } } } : null);
+
+test("unidade 22 (3): cada rubrica posicionada fica no registro; o que a Clicksign guardar diferente do pedido vira aviso no envio", () => {
+  const c = cenario({ cs: { falhar: soInitials({ action: "rubricate", kind: "initials" }) } });
+  assert.equal(c.gerarFinal().ok, true);
+  const r = c.acao("assinaturaEnviar", rub(c));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.ok((r.avisos || []).some((a) => /RUBRICA_DIVERGENTE/.test(a)), JSON.stringify(r.avisos));
+  const log = c.g.logs.join("\n");
+  assert.match(log, /rubrica initials doc-1: 1 posição pedida → guardada kind=initials, 0 posição/);
+  assert.match(log, /rubrica manuscript doc-1: \d+ posições? pedidas? → guardada kind=manuscript/);
+  assert.ok(!/compradora@|Compradora de Teste/.test(log), "registro sem dado pessoal");
+});
+
+test("unidade 22 (3): aviso da tela (4.2.1 não achado = sem visto nos valores) chega ao envio e ao registro", () => {
+  const c = cenario();
+  assert.equal(c.gerarFinal().ok, true);
+  const r = c.acao("assinaturaEnviar", rub(c, { valores: null, avisos: ["item 4.2.1 do quadro-resumo não achado"] }));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.ok(r.avisos.includes("tela: item 4.2.1 do quadro-resumo não achado"), JSON.stringify(r.avisos));
+  assert.match(c.g.logs.join("\n"), /tela: item 4\.2\.1 do quadro-resumo não achado/);
+});
+
+test("unidade 22 (3): RUBRICAS_VISTO_COMO_ASSINATURA=1 — os vistos vão como assinatura (manuscript), juntos no mesmo requisito", () => {
+  const c = cenario({ props: { RUBRICAS_VISTO_COMO_ASSINATURA: "1" } });
+  assert.equal(c.gerarFinal().ok, true);
+  assert.equal(c.acao("assinaturaEnviar", rub(c)).ok, true);
+  const rq = c.c.chamadas.filter((x) => x.metodo === "POST" && x.caminho === "/envelopes/env-1/requirements" && x.corpo.data.attributes.action === "rubricate").map((x) => x.corpo.data);
+  assert.ok(!rq.some((q) => q.attributes.kind === "initials"));
+  const doComprador = rq.filter((q) => q.relationships.document.data.id === "doc-1" && q.attributes.positions.some((p) => p.page === RUB_VALORES.page && p.position[0] === RUB_VALORES.position[0]));
+  assert.equal(doComprador.length, 1);
+  assert.equal(doComprador[0].attributes.kind, "manuscript");
+  const chaves = rq.map((q) => q.relationships.signer.data.id + "|" + q.relationships.document.data.id + "|" + q.attributes.kind);
+  assert.equal(new Set(chaves).size, chaves.length, "um requisito por pessoa, documento e tipo");
+});

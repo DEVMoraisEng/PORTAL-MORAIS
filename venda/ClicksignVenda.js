@@ -69,9 +69,11 @@ var ClicksignVenda = (function () {
     var semRub = txt(props.ASSINATURA_SEM_RUBRICAS).toUpperCase();
     /* 01/11 (plano 23, correção 1): assinatura em cima da linha (B) e selfie (C) só ligam com a Propriedade = "1" exato */
     var linhasLig = txt(props.ASSINATURA_LINHAS) === "1", selfie = txt(props.CLICKSIGN_SELFIE) === "1";
+    /* unidade 22 (01/11): os vistos ("initials") não apareceram nos PDFs assinados; com "1" vão como assinatura (manuscript) */
+    var vistoAss = txt(props.RUBRICAS_VISTO_COMO_ASSINATURA) === "1";
     return { rubricasAjuste: ajusteRubricas(ajuste), memorialPosicao: memPos, projetoPosicoes: projPos,
              semRubricas: semRub === "SIM" || semRub === "TRUE" || semRub === "1", linhas: linhasLig,
-             selfie: selfie, testemunhasSPE: spe, testemunhasPF: pf, representante: rep, testemunhasOpcoes: opc,
+             selfie: selfie, vistoComoAssinatura: vistoAss, testemunhasSPE: spe, testemunhasPF: pf, representante: rep, testemunhasOpcoes: opc,
              testemunhasEscolhidas: Array.isArray(esc) ? esc.map(txt) : null,
              incluirCorretor: inc === "SIM" || inc === "TRUE" || inc === "1", invalidas: invalidas };
   }
@@ -685,6 +687,11 @@ var ClicksignVenda = (function () {
       var t = chave(l && l.texto), alvo = -1, m, papeis = papeisNoTexto(t);
       if (papeis.length > 1) return;
       var porNome = cands.filter(function (i) { var n = chave(lista[i].nome); return n.length >= 5 && t.indexOf(n) >= 0; });
+      /* unidade 22 (01/11): um nome contido no outro ("JOSE SILVA" × "MARIA JOSE SILVA") — fica o mais longo */
+      if (porNome.length > 1) porNome = porNome.filter(function (i) {
+        var n = chave(lista[i].nome);
+        return !porNome.some(function (j) { var o = chave(lista[j].nome); return j !== i && o.length > n.length && o.indexOf(n) >= 0; });
+      });
       /* linha da VENDEDORA com o nome de um comprador (coluna do lado): ninguém */
       if (porNome.length === 1) alvo = papeis[0] === "VENDEDOR" && lista[porNome[0]].role !== PAPEIS.VENDEDOR ? -1 : porNome[0];
       /* correção 1 (I-3): linha de CÔNJUGE ("CÔNJUGE DO FIADOR 1", "CÔNJUGE") só pelo nome — o papel apontaria o fiador/comprador */
