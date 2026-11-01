@@ -357,3 +357,29 @@ test("30/10: cancelar é por documento; envelope running com tudo cancelado cont
   assert.equal(CS.statusEfetivo("running", []), "running");
   assert.equal(CS.statusEfetivo("closed", [d("closed")]), "closed");
 });
+
+/* 01/11/2026 (teste e2e): nome com número e e-mail repetido aparecem já no pré-contrato (Gerar), não só no envio. */
+test("faltasDeNomeEEmail: comprador com número no nome pede nome sem números", () => {
+  const cfg = CS.montarConfig(PROPS);
+  const f = CS.faltasDeNomeEEmail(dadosPJ({ comprador1: { nome: "COMPRADOR 01", cpf: "111.444.777-35", email: "fulano@teste.example" } }), cfg);
+  assert.deepEqual(f, ["Comprador 1: nome sem números"]);
+  assert.deepEqual(CS.faltasDeNomeEEmail(dadosPJ(), cfg), []);
+});
+
+test("faltasDeNomeEEmail: fiador com o e-mail do comprador (e cônjuge com o do fiador) é apontado; testemunhas e representante ficam de fora", () => {
+  const cfg = Object.assign(CS.montarConfig(PROPS), { comFiadores: true });
+  const fiadores = [
+    { nome: "Fiador Um Teste", cpf: "000.000.011-63", email: "FULANO@teste.example",
+      conjuge: { nome: "Conjuge Um 2", cpf: "000.000.012-44", email: "f2@teste.example" } },
+    { nome: "Fiador Dois Teste", cpf: "000.000.013-25", email: "f2@teste.example", conjuge: null }];
+  const f = CS.faltasDeNomeEEmail(dadosPJ({ condominio: { fiadores } }), cfg);
+  assert.deepEqual(f, [
+    "Fiador 1: e-mail igual ao do Comprador 1 (cada pessoa precisa de um e-mail)",
+    "Cônjuge do fiador 1: nome sem números",
+    "Fiador 2: e-mail igual ao do Cônjuge do fiador 1 (cada pessoa precisa de um e-mail)"]);
+  /* testemunha com número no nome, representante com o mesmo e-mail de um comprador: não entram */
+  const d = dadosPJ({ comprador1: { nome: "Fulano de Teste", cpf: "111.444.777-35", email: "beltrano@teste.example" } });
+  const c2 = CS.montarConfig({ ASSINATURA_TESTEMUNHAS_SPE: JSON.stringify([{ nome: "Teste 01", email: "t@teste.example" }, TEST_SPE[1]]), ASSINATURA_TESTEMUNHAS_PF: PROPS.ASSINATURA_TESTEMUNHAS_PF });
+  assert.ok(!CS.faltasDeNomeEEmail(d, c2).some((x) => /^(Testemunha|Vendedor)/.test(x)));
+  assert.deepEqual(CS.faltasDeNomeEEmail(d, c2), ["Comprador 1: e-mail igual ao do Vendedor (representante) (cada pessoa precisa de um e-mail)"]);
+});

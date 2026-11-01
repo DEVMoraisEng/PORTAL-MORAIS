@@ -217,3 +217,10 @@ test("conserto 1: a pergunta do botão diz o nome do Fiador 2 que vai ser trocad
   assert.equal(D.perguntaConjugeFiador2(estado(DEPOIS).fiadores), "O Fiador 2 hoje é FIADORA TESTE. Trocar pelo cônjuge do Fiador 1? O Fiador 1 vira o cônjuge dele.");
   assert.match(D.perguntaConjugeFiador2(estado(ANTES).fiadores), /^Copiar o cônjuge do Fiador 1 para o Fiador 2\?/);
 });
+
+test("01/11: falta nova de nome/e-mail (Fiador n, Cônjuge do fiador n) abre o bloco para corrigir", () => {
+  const b = F.camposFiadores({ "FIADOR 1": "Fiador Teste", "CPF FIADOR 1": "111.444.777-35", "FIADOR 2": "Outro Teste", "CPF FIADOR 2": "000.000.013-25" },
+    ["Fiador 1: e-mail igual ao do Comprador 1 (cada pessoa precisa de um e-mail)", "Cônjuge do fiador 2: nome sem números", "Comprador 1: nome sem números"], 24);
+  assert.equal(b.precisa, true);
+  assert.deepEqual(b.faltas, ["Fiador 1: e-mail igual ao do Comprador 1 (cada pessoa precisa de um e-mail)", "Cônjuge do fiador 2: nome sem números"]);
+});

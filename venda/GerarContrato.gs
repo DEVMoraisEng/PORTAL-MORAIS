@@ -733,6 +733,8 @@ function ctrDadosAtuais_(col, p, pid, rot) {
   if (f.contaErro) faltas.push(f.contaErro);
   /* 28/10: termos de confissão ligados = os fiadores (nome e CPF) entram nas faltas do contrato do condomínio */
   if (d.condominio && cfdLigado_()) faltas = faltas.concat(ConfissaoVenda.faltas(d));
+  /* 01/11: nome com número e e-mail repetido (comprador, cônjuge, fiador) aparecem já aqui, não só no envio da assinatura */
+  faltas = faltas.concat(ClicksignVenda.faltasDeNomeEEmail(d, assConfig_(p.pageId)));
   if (faltas.length) {
     ctrLog_(rot + " " + pid + " faltas " + faltas.length);
     /* entrega 12: o formulário da tela (só nomes de campo) */

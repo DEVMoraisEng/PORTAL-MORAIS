@@ -70,7 +70,7 @@ var FiadoresVenda = (function () {
   function camposFiadores(linha, faltas, prazo) {
     linha = linha || {};
     var fl = (faltas || []).map(txt);
-    var deFiador = fl.filter(function (f) { return /^Fiador [12]\b/.test(f); });
+    var deFiador = fl.filter(function (f) { return /^(Fiador [12]\b|C[ôo]njuge do fiador [12])/i.test(f); });
     var deConjuge = fl.filter(function (f) { return /^C[ôo]njuge do comprador/i.test(f); });
     /* 36x/48x: os dois fiadores são obrigatórios (8.1 do termo); sem nome e CPF dos dois, o bloco abre */
     var incompletos = [1, 2].some(function (n) { return !valorDe(linha, "FIADOR " + n) || !valorDe(linha, "CPF FIADOR " + n); });

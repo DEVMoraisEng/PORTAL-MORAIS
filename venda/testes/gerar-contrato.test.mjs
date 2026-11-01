@@ -106,6 +106,14 @@ test("faltas: FALTAM_DADOS com a lista e nenhuma cópia criada nem PDF gravado",
   assert.equal(c.n.patches.length, 0);
 });
 
+test("01/11: nome do comprador com número vira falta no pré-contrato (antes só aparecia no envio), sem cópia", () => {
+  const c = cenario({ venda: { "CLIENTES ": rt("COMPRADOR 01") } });
+  const r = c.gerar();
+  assert.equal(r.erro, "FALTAM_DADOS");
+  assert.ok(r.faltas.includes("Comprador 1: nome sem números"), JSON.stringify(r.faltas));
+  assert.equal(c.d.estado.copias.length, 0);
+});
+
 test("vendedor não cadastrado vira falta legível, sem cópia", () => {
   const c = cenario({ obra: { "PROPRIETARIO DOCUMENTO": rt("Outra Empresa Teste") } });
   const r = c.gerar();

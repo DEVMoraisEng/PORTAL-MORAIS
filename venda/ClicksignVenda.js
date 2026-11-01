@@ -250,6 +250,26 @@ var ClicksignVenda = (function () {
     return faltas.concat(porPessoa);
   }
 
+  /* 01/11/2026 (teste e2e): o que o envio barraria por NOME ou E-MAIL de quem é do cliente (comprador, cônjuge, fiador)
+   * já aparece no Gerar pré-contrato. Só estes papéis entram (testemunhas, vendedor/representante e corretor são
+   * cadastro da casa); o e-mail repetido é apontado em quem é do cliente, mesmo quando a outra ponta é o vendedor.
+   * Os textos começam por "Comprador", "Fiador" ou "Cônjuge" — assim o link do cliente também os mostra. */
+  function doCliente(s) { return /^(Comprador|Fiador|C[ôo]njuge)/.test(s.papel); }
+  function faltasDeNomeEEmail(dados, config) {
+    config = Object.assign({}, config || montarConfig({}), { comFiadores: true });
+    var lista = signatarios(dados, config), vistos = {}, por = lista.map(function () { return []; });
+    lista.forEach(function (s, i) {
+      if (doCliente(s) && txt(s.nome) && !nomeValido(s.nome))
+        por[i].push(s.papel + (/\d/.test(s.nome) ? ": nome sem números" : ": nome e sobrenome"));
+      if (!s.email || !emailValido(s.email)) return;
+      if (vistos[s.email] === undefined) { vistos[s.email] = i; return; }
+      var ate = vistos[s.email], antes = lista[ate];
+      if (doCliente(s)) por[i].push(s.papel + ": e-mail igual ao do " + antes.papel + " (cada pessoa precisa de um e-mail)");
+      else if (doCliente(antes)) por[ate].push(antes.papel + ": e-mail igual ao do " + s.papel + " (cada pessoa precisa de um e-mail)");
+    });
+    return [].concat.apply([], por);
+  }
+
   /* 27/10 (dono): falta de e-mail vem com o atalho para corrigir numa aba nova, na tela do PORTAL onde o
    * e-mail mora (não no Notion). Devolve [{ quem, rotulo }] — quem: comprador | vendedor | corretor; a
    * tela monta o endereço. E-mail repetido aponta as duas pontas. */
@@ -541,7 +561,7 @@ var ClicksignVenda = (function () {
 
   var api = {
     PAPEIS: PAPEIS, SITUACOES: SITUACOES, montarConfig: montarConfig, conferirConfig: conferirConfig, signatarios: signatarios,
-    faltasAssinatura: faltasAssinatura, linksCorrigirEmail: linksCorrigirEmail, nomeEnvelope: nomeEnvelope, nomeArquivo: nomeArquivo, nomePadrao: nomePadrao,
+    faltasAssinatura: faltasAssinatura, faltasDeNomeEEmail: faltasDeNomeEEmail, linksCorrigirEmail: linksCorrigirEmail, nomeEnvelope: nomeEnvelope, nomeArquivo: nomeArquivo, nomePadrao: nomePadrao,
     corpoEnvelope: corpoEnvelope, corpoDocumento: corpoDocumento, corpoSignatario: corpoSignatario,
     corpoQualificacao: corpoQualificacao, corpoAutenticacao: corpoAutenticacao, corpoAtivar: corpoAtivar, corpoCancelarDocumento: corpoCancelarDocumento, statusEfetivo: statusEfetivo,
     corpoNotificacao: corpoNotificacao, interpretar: interpretar, situacao: situacao, assinaram: assinaram,
