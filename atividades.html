@@ -524,8 +524,27 @@ main.wrap{padding-bottom:90px}
 <script src="conteudo-atv.js?v=2"></script>
 <script src="alertas-docs.js?v=1"></script>
 <script src="editor-blocos.js?v=13"></script>
-<script src="atv-alertas.js?v=8"></script>
+<script src="atv-alertas.js?v=9"></script>
 <script>
+/*POLL-INI*/
+/* 01/11 (cota do Google): consulta periódica só com a aba visível; ao voltar a ficar visível,
+   atualiza uma vez se a última consulta for mais velha que o intervalo. 'slot' guarda o
+   temporizador e o ouvinte para refazer sem acumular. */
+function pollSoVisivel(fn, ms, slot){
+  slot = slot || {};
+  if(slot.id) clearInterval(slot.id);
+  if(slot.on) document.removeEventListener('visibilitychange', slot.on);
+  let ultimo = Date.now();
+  const rodar = () => { if(document.hidden) return; ultimo = Date.now(); fn(); };
+  slot.id = setInterval(rodar, ms);
+  slot.on = () => { if(!document.hidden && Date.now() - ultimo >= ms) rodar(); };
+  document.addEventListener('visibilitychange', slot.on);
+  return slot;
+}
+function pollParar(slot){ if(!slot) return; if(slot.id) clearInterval(slot.id); if(slot.on) document.removeEventListener('visibilitychange', slot.on); slot.id = null; slot.on = null; }
+/*POLL-FIM*/
+const POLL_COMS_MS=90000;     // 01/11: era 30/45 s
+const _pollSlot={};
 /* ---------- tema ---------- */
 const TEMA_KEY="morais_tema";
 function temaAtual(){ return document.documentElement.dataset.tema==="escuro"?"escuro":"claro"; }
@@ -1072,7 +1091,7 @@ async function abrirAtv(id){
   /* 29/09: os comentários vêm JÁ, pela faixa do chat, sem esperar o conteúdo;
      e são relidos a cada 45 s — 30/09: era 15 s (o que é escrito direto no Notion não avisa) */
   lerComentarios(false);
-  clearInterval(_poll); _poll=setInterval(()=>{ if(!document.hidden&&ABERTA&&!ocioso()) lerComentarios(false); },window._aoVivo?45000:30000);
+  pollSoVisivel(()=>{ if(ABERTA&&!ocioso()) lerComentarios(false); },POLL_COMS_MS,_pollSlot);   // 01/11: a cada 90 s, só com a aba visível
   /* 29/09 (tarde): o CHECKLIST também se atualiza sozinho — a cada 30 s o
      servidor confere no Notion se a página mudou (baixa dada no Notion ou no
      Mural aparece aqui). A primeira conferência sai logo ao abrir. */
@@ -1113,7 +1132,7 @@ let _pollCont=null;
 function atualizarConteudo(){ if(document.hidden||!ABERTA||ocioso()) return; const c=document.getElementById("pa-cont"); if(c&&c._eb) EditorBlocos.atualizar(c); }
 document.addEventListener("visibilitychange",()=>{ if(!document.hidden&&ABERTA) atualizarConteudo(); });
 function fecharAtv(){
-  ABERTA=null; clearInterval(_poll); clearInterval(_pollCont); clearTimeout(_comsRetry);
+  ABERTA=null; pollParar(_pollSlot); clearInterval(_pollCont); clearTimeout(_comsRetry);
   document.getElementById("ov1").classList.remove("on"); document.getElementById("p1").classList.remove("on");
   history.replaceState(null,"",location.pathname);
 }

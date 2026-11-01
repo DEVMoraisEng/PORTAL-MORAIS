@@ -3,7 +3,7 @@
  * e as que vencem hoje — de todas as abas (Atividades, Obras, Vendas,
  * Documentos). Clicar abre a lista; clicar num item leva até ele.
  * Fonte: ação atvAlertas (RetaFinal.gs). Mostra a cópia salva na hora e
- * atualiza por trás; relê a cada 5 minutos e quando o ao vivo avisa.
+ * atualiza por trás; relê a cada 10 minutos (só com a aba visível, 01/11) e quando o ao vivo avisa.
  * v2: a mesma chamada traz as atividades da pessoa (comDados) e guarda no
  * navegador — a aba Atividades já abre pronta. ADM/MASTER também deixam a
  * visão da Equipe pré-carregada.
@@ -113,12 +113,31 @@
       }
     }catch(err){}
   }
+  /*POLL-INI*/
+  /* 01/11 (cota do Google): consulta periódica só com a aba visível; ao voltar a ficar visível,
+     atualiza uma vez se a última consulta for mais velha que o intervalo. 'slot' guarda o
+     temporizador e o ouvinte para refazer sem acumular. */
+  function pollSoVisivel(fn, ms, slot){
+    slot = slot || {};
+    if(slot.id) clearInterval(slot.id);
+    if(slot.on) document.removeEventListener('visibilitychange', slot.on);
+    let ultimo = Date.now();
+    const rodar = () => { if(document.hidden) return; ultimo = Date.now(); fn(); };
+    slot.id = setInterval(rodar, ms);
+    slot.on = () => { if(!document.hidden && Date.now() - ultimo >= ms) rodar(); };
+    document.addEventListener('visibilitychange', slot.on);
+    return slot;
+  }
+  function pollParar(slot){ if(!slot) return; if(slot.id) clearInterval(slot.id); if(slot.on) document.removeEventListener('visibilitychange', slot.on); slot.id = null; slot.on = null; }
+  /*POLL-FIM*/
+  const POLL_SINO_MS=10*60*1000;   // 01/11: era 5 min
+  const _pollSino={};
   function iniciar(){
     vistaPeloHash();
     try{ const c=cacheGet("atv_alertas"); if(c&&c.v) pintar(c.v); }catch(err){}
     /* na própria aba Atividades a tela já pede tudo; o sino espera para não disputar a fila */
     setTimeout(()=>atualizar(false),/atividades\.html/.test(location.pathname)?20000:1200);
-    setInterval(()=>atualizar(false),5*60*1000);
+    pollSoVisivel(()=>atualizar(false),POLL_SINO_MS,_pollSino);   // 01/11: só com a aba visível, a cada 10 min
   }
   /* v7: abriu a atividade pela própria aba Atividades -> mensagens dela somem */
   function vistaPeloHash(){ if(/atividades\.html/.test(location.pathname)){ const h=location.hash.slice(1); if(h) window.AA_atvVista(h.replace(/-/g,"")); } }

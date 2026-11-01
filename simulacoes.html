@@ -724,6 +724,26 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
 <script src="venda-dossie.js?v=36" defer></script><!-- 28/10: termo de pré-reserva pela proposta (VendaBlocos.montarPreReserva) -->
 <script src="venda/contrato-vendida.js?v=2" defer></script><!-- 31/10: contrato enviado → proposta e unidade VENDIDA -->
 <script>
+/*POLL-INI*/
+/* 01/11 (cota do Google): consulta periódica só com a aba visível; ao voltar a ficar visível,
+   atualiza uma vez se a última consulta for mais velha que o intervalo. 'slot' guarda o
+   temporizador e o ouvinte para refazer sem acumular. */
+function pollSoVisivel(fn, ms, slot){
+  slot = slot || {};
+  if(slot.id) clearInterval(slot.id);
+  if(slot.on) document.removeEventListener('visibilitychange', slot.on);
+  let ultimo = Date.now();
+  const rodar = () => { if(document.hidden) return; ultimo = Date.now(); fn(); };
+  slot.id = setInterval(rodar, ms);
+  slot.on = () => { if(!document.hidden && Date.now() - ultimo >= ms) rodar(); };
+  document.addEventListener('visibilitychange', slot.on);
+  return slot;
+}
+function pollParar(slot){ if(!slot) return; if(slot.id) clearInterval(slot.id); if(slot.on) document.removeEventListener('visibilitychange', slot.on); slot.id = null; slot.on = null; }
+/*POLL-FIM*/
+const POLL_SIM_MS=180000;     // 01/11: era 60 s
+const POLL_EMAIL_MS=180000;
+const _pollSim={}, _pollEmail={};
 
 /* =====================================================================
  * SIMULAÇÕES — RESERVA DO IPÊS
@@ -816,8 +836,7 @@ function iniciar(){
                     tarefas.filter(function(_,i){ return i>=prontas; }).map(function(x){return x[0];}).join(", "));
       });
     });
-    setInterval(function(){
-      if(document.hidden) return;
+    pollSoVisivel(function(){
       if(!document.getElementById("sim-modal").classList.contains("hide")) return;  // detalhe aberto
       /* set/26 — se a rodada anterior ainda não voltou, não pede outra.
          Antes, com o servidor lento, entravam 3 pedidos novos por minuto na
@@ -826,7 +845,7 @@ function iniciar(){
       window._simRodando = true;
       Promise.all([simCarregar(true), propCarregar(true), simCarregarUnidades(true)].map(p=>Promise.resolve(p).catch(()=>{})))
         .then(()=>{ window._simRodando = false; });
-    }, 60000);
+    }, POLL_SIM_MS, _pollSim);
   }catch(e){
     /* Sem isto, qualquer erro deixaria a tela em branco sem explicação —
        que foi como o problema do "brl" apareceu para o usuário. */
@@ -3801,9 +3820,8 @@ async function propEmailsCarregar(forcar){
 }
 function propEmailsIniciar(){
   if(EMAILS_TIMER) return;
-  /* confere mesmo com a aba em segundo plano — é aí que a notificação mais ajuda */
-  EMAILS_TIMER=setInterval(()=>{ propEmailsCarregar(); }, 180000);
-  document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) propEmailsCarregar(); });
+  /* 01/11 (cota do Google): só confere com a aba visível (e uma vez ao voltar a ela); antes conferia também em segundo plano */
+  EMAILS_TIMER=pollSoVisivel(()=>{ propEmailsCarregar(); }, POLL_EMAIL_MS, _pollEmail);
   setTimeout(()=>propEmailsCarregar(), 1500);
   try{ if(window.Notification && Notification.permission==="default") document.addEventListener("click", function pedir(){ document.removeEventListener("click", pedir); try{ Notification.requestPermission(); }catch(e){} }); }catch(e){}
 }
