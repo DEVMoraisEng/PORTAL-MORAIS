@@ -52,9 +52,9 @@ export function criarGas({ props, rotas, extras = {} }) {
       sleep: (ms) => { sleeps.push(ms); },
       newBlob: (x, mime, nome) => blob(paraBuf(x), mime, nome),
       formatDate: (d, tz, fmt) => {
-        const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" })
+        const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23" })
           .formatToParts(d).map((x) => [x.type, x.value]));
-        return fmt.replace("yyyy", p.year).replace("MM", p.month).replace("dd", p.day);
+        return fmt.replace("yyyy", p.year).replace("MM", p.month).replace("dd", p.day).replace("HH", p.hour).replace(/^H$/, String(Number(p.hour)));
       },
     },
     UrlFetchApp: {

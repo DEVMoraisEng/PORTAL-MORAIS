@@ -986,3 +986,79 @@ test("descartar: DELETE que a Clicksign recusa não limpa as colunas", () => {
   assert.equal(r.ok, false);
   assert.equal(c.txt("ASSINATURA - ENVELOPE ID"), "env-1");
 });
+
+/* ---- vigia de assinaturas (AssinaturaVigia.gs): horário, gatilho e só o GET quando nada mudou ---- */
+import fs from "node:fs";
+import vm from "node:vm";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+const VIGIA_SRC = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "AssinaturaVigia.gs"), "utf8");
+function relogioSP(hora) {   /* hora de São Paulo (UTC-3) em 2026-11-02 */
+  const FIX = Date.UTC(2026, 10, 2, hora + 3, 0, 0);
+  return class Fixo extends Date { constructor(...a) { if (a.length) super(...a); else super(FIX); } static now() { return FIX; } };
+}
+const TOK_LONGO = assinar({ u: "ana.teste", t: "GERAL", a: ["VENDAS"], exp: Date.now() + 30 * DIA });
+function vigiaCenario(hora) {
+  const c = cenario({ extras: { Date: relogioSP(hora) }, props: { DB_VENDAS_COND: "db-cond" } });
+  vm.runInContext(VIGIA_SRC, c.g.ctx, { filename: "AssinaturaVigia.gs" });
+  return c;
+}
+const abrir = (c, pg) => { c.g.ctx.__abertos = [pg]; vm.runInContext("vigiaAbertos_ = function () { __chamouAbertos = (typeof __chamouAbertos === 'number' ? __chamouAbertos : 0) + 1; return __abertos; };", c.g.ctx); };
+test("vigia fora de 7h-21h (São Paulo): nenhuma chamada de rede, nem ao Notion", () => {
+  for (const h of [22, 23, 0, 3, 6, 21]) {
+    const c = vigiaCenario(h);
+    abrir(c, { id: PAGE, properties: {} });
+    c.g.chamadas.length = 0;
+    c.g.ctx.vigiaAssinaturas();
+    assert.equal(c.g.chamadas.length, 0, "hora " + h);
+    assert.equal(c.g.ctx.__chamouAbertos, undefined, "hora " + h);
+  }
+});
+test("vigia dentro do horário (7h, 12h, 20h) roda", () => {
+  for (const h of [7, 12, 20]) {
+    const c = vigiaCenario(h);
+    abrir(c, { id: PAGE, properties: {} });
+    c.g.ctx.vigiaAssinaturas();
+    assert.equal(c.g.ctx.__chamouAbertos, 1, "hora " + h + " " + c.g.logs.join(" | ") + " H=" + c.g.ctx.Utilities.formatDate(new c.g.ctx.Date(), "America/Sao_Paulo", "H"));
+  }
+});
+test("vigia: gatilho de 30 em 30 minutos", () => {
+  const c = vigiaCenario(12);
+  const regs = [];
+  c.g.ctx.ScriptApp = { getProjectTriggers: () => [], deleteTrigger() {},
+    newTrigger: (fn) => ({ timeBased: () => ({ everyMinutes: (n) => ({ create: () => regs.push([fn, n]) }) }) }) };
+  c.g.ctx.instalarVigiaAssinaturas();
+  assert.deepEqual(regs, [["vigiaAssinaturas", 30]]);
+});
+test("vigia: envelope sem mudança = 1 chamada (só o GET); mudou = caminho completo; falha do GET = caminho completo", () => {
+  const c = vigiaCenario(12);
+  const e0 = c.enviar(TOK_LONGO);
+  assert.equal(e0.ok, true, JSON.stringify(e0));
+  const pg = () => c.g.ctx.ctrLerPaginaVenda_(PAGE);
+  /* 1ª vez: sem status guardado, caminho completo */
+  c.c.chamadas.length = 0;
+  c.g.ctx.vigiaUma_(c.g.ctx.colunas_(), pg());
+  assert.ok(csCalls(c).includes("GET /envelopes/env-1/documents"), csCalls(c).join(" | "));
+  /* nada mudou: só o GET do envelope */
+  c.c.chamadas.length = 0;
+  assert.equal(c.g.ctx.vigiaUma_(c.g.ctx.colunas_(), pg()), false);
+  assert.deepEqual(csCalls(c), ["GET /envelopes/env-1"]);
+  /* mudou: caminho completo de hoje */
+  c.c.estado.status = "canceled";
+  c.c.chamadas.length = 0;
+  c.g.ctx.vigiaUma_(c.g.ctx.colunas_(), pg());
+  assert.ok(csCalls(c).includes("GET /envelopes/env-1/documents") && csCalls(c).includes("GET /envelopes/env-1/signers"), csCalls(c).join(" | "));
+});
+test("vigia: GET do envelope sem resposta não conta como 'sem mudança' (segue o caminho completo)", () => {
+  let negar = false;
+  const c = (() => { const x = cenario({ extras: { Date: relogioSP(12) }, props: { DB_VENDAS_COND: "db-cond" },
+    cs: { falhar: (m, cam) => (negar && m === "GET" && cam === "/envelopes/env-1" ? { status: 500, texto: "" } : null) } });
+    vm.runInContext(VIGIA_SRC, x.g.ctx, { filename: "AssinaturaVigia.gs" }); return x; })();
+  assert.equal(c.enviar(TOK_LONGO).ok, true);
+  const pg = () => c.g.ctx.ctrLerPaginaVenda_(PAGE);
+  c.g.ctx.vigiaUma_(c.g.ctx.colunas_(), pg());
+  negar = true;
+  c.c.chamadas.length = 0;
+  c.g.ctx.vigiaUma_(c.g.ctx.colunas_(), pg());
+  assert.ok(csCalls(c).length > 1, csCalls(c).join(" | "));
+});
