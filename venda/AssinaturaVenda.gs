@@ -103,27 +103,35 @@ function csBase_() {
   var u = String(prop_("CLICKSIGN_URL") || "https://sandbox.clicksign.com").trim().replace(/\/+$/, "");
   return /^https:\/\/[^\/\s]+$/.test(u) ? u + "/api/v3" : "";
 }
-/* 429 (limite) e 503 (não processou): nova tentativa com espera crescente. Nunca repete outro código.
- * Teto de 180 s de espera por chamada E somado numa execução (o Apps Script morre aos 6 min);
- * o total é zerado no começo de assinaturaEnviar_. */
+/* 429 (limite): repete em qualquer método. 503 (não processou): repete só em GET/PATCH/DELETE; POST nunca,
+ * para não duplicar documento/signatário. Outros códigos e exceção de rede não repetem.
+ * Limites: 6 tentativas por chamada; tempo decorrido (relógio) + próxima espera <= 180 s; e o mesmo teto
+ * de 180 s somado numa execução (o Apps Script morre aos 6 min; csGastoTotal_ é zerado em assinaturaEnviar_). */
 var CS_ESPERA_MAX_MS = 180000;
 var CS_PAUSA_REQ_MS = 250;
+var CS_TENTATIVAS_MAX = 6;
 var csGastoTotal_ = 0;
 function csRetryAfterMs_(r) {
   try {
     var h = (typeof r.getAllHeaders === "function") ? r.getAllHeaders() : null;
     if (!h) return 0;
-    var v = h["Retry-After"] !== undefined ? h["Retry-After"] : h["retry-after"];
-    var n = Number(String(v === undefined ? "" : v).trim());
-    return (isFinite(n) && n > 0) ? Math.round(n * 1000) : 0;
-  } catch (e) { return 0; }
+    for (var k in h) {
+      if (String(k).toLowerCase() !== "retry-after") continue;
+      var t = String(h[k]).trim();
+      if (!/^\d+(\.\d+)?$/.test(t)) return 0;
+      var n = Number(t);
+      return n > 0 ? Math.round(n * 1000) : 0;
+    }
+  } catch (e) { /* sem cabeçalho legível: espera crescente */ }
+  return 0;
 }
 /* Uma chamada; devolve ClicksignVenda.interpretar(...) com o código HTTP. Exceção de rede vira {ok:false, http:0}. */
 function cs_(metodo, caminho, corpo) {
   var opt = { method: metodo, muteHttpExceptions: true, headers: { Authorization: prop_("CLICKSIGN_TOKEN"), Accept: CS_JSONAPI } };
   opt.contentType = CS_JSONAPI;
   if (corpo) opt.payload = JSON.stringify(corpo);
-  var gasto = 0, n = 0;
+  var idempotente = /^(get|patch|delete)$/i.test(String(metodo));
+  var inicio = Date.now(), tentativa = 0;
   while (true) {
     var r;
     try {
@@ -131,11 +139,12 @@ function cs_(metodo, caminho, corpo) {
     } catch (e) {
       return { ok: false, http: 0, detalhe: "sem resposta da Clicksign" };
     }
+    tentativa++;
     var code = r.getResponseCode();
-    if (code === 429 || code === 503) {
-      var espera = csRetryAfterMs_(r) || Math.min(2000 * Math.pow(2, n), 60000);
-      if (gasto + espera <= CS_ESPERA_MAX_MS && csGastoTotal_ + espera <= CS_ESPERA_MAX_MS) {
-        Utilities.sleep(espera); gasto += espera; csGastoTotal_ += espera; n++;
+    if ((code === 429 || (code === 503 && idempotente)) && tentativa < CS_TENTATIVAS_MAX) {
+      var espera = Math.max(csRetryAfterMs_(r), Math.min(2000 * Math.pow(2, tentativa - 1), 60000));
+      if ((Date.now() - inicio) + espera <= CS_ESPERA_MAX_MS && csGastoTotal_ + espera <= CS_ESPERA_MAX_MS) {
+        Utilities.sleep(espera); csGastoTotal_ += espera;
         continue;
       }
     }
@@ -156,16 +165,16 @@ function csPasso_(passo, metodo, caminho, corpo, precisaId) {
   if (!r.ok) throw assFalha_(passo, r);
   return r;
 }
-/* Ativa. Sem resposta ou 5xx: consulta o envelope — running segue; draft é falha antes de ativar;
+/* Ativa. Se o PATCH não for ok: consulta o envelope — running segue; draft é falha antes de ativar;
  * consulta que também falha deixa a dúvida (e.incerto: não apagar, pode ter ativado). */
 function assAtivar_(base, envId) {
   var r = cs_("patch", base, ClicksignVenda.corpoAtivar(envId));
   if (r.ok) return;
-  if (r.http === 0 || r.http >= 500) {
-    var c = cs_("get", base);
-    if (c.ok && c.status === "running") return;
-    if (!(c.ok && c.status === "draft")) { var e = assFalha_("ativar", r); e.incerto = true; throw e; }
-  }
+  /* qualquer falha do PATCH final (inclusive 4xx depois de um 503 repetido) pode vir de um envelope que ativou:
+   * consulta; running = ok; draft = falha comum; sem confirmar = incerto (nunca apaga) */
+  var c = cs_("get", base);
+  if (c.ok && c.status === "running") return;
+  if (!(c.ok && c.status === "draft")) { var e = assFalha_("ativar", r); e.incerto = true; throw e; }
   throw assFalha_("ativar", r);
 }
 /* Apaga o rascunho e limpa as duas colunas. true = apagou (pode enviar de novo). */

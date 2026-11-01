@@ -877,3 +877,58 @@ test("pausa de 250 ms entre um POST de requisito e outro", () => {
   assert.ok(reqs > 1);
   assert.ok(c.g.sleeps.filter((x) => x === 250).length >= reqs - 1, "pausas: " + c.g.sleeps.filter((x) => x === 250).length);
 });
+
+/* ---- rodada de conserto 1 ---- */
+test("PATCH de ativar: 503 e depois 4xx com o envelope de fato ativo = envio ok, sem DELETE", () => {
+  let n = 0, c;
+  c = cenario({ cs: { falhar: (m) => {
+    if (m !== "PATCH") return null;
+    if (++n === 1) { c.c.estado.status = "running"; return { status: 503, texto: "" }; }
+    return { status: 422, json: { errors: [{ title: "Envelope já em andamento" }] } };
+  } } });
+  const r = c.enviar();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.ok(!csCalls(c).some((x) => x.startsWith("DELETE")), "apagou envelope ativo");
+});
+test("PATCH de ativar falha (4xx) e a consulta também: incerto, nada apagado", () => {
+  const c = cenario({ cs: { falhar: (m, cam) => (m === "PATCH" ? { status: 422, json: { errors: [{ title: "x" }] } }
+    : (m === "GET" && cam === "/envelopes/env-1" ? { lancar: "Timeout" } : null)) } });
+  const r = c.enviar();
+  assert.equal(r.incerto, true, JSON.stringify(r));
+  assert.ok(!csCalls(c).some((x) => x.startsWith("DELETE")));
+});
+test("503 em POST não é repetido (só o 429); 429 em POST é", () => {
+  const a = cenario({ cs: { falhar: (m, cam) => (m === "POST" && cam.endsWith("/signers") ? { status: 503, texto: "" } : null) } });
+  const r = a.enviar();
+  assert.equal(r.erro, "CLICKSIGN_FALHOU");
+  assert.equal(csCalls(a).filter((x) => x === "POST /envelopes/env-1/signers").length, 1);
+  let n = 0;
+  const b = cenario({ cs: { falhar: (m, cam) => (m === "POST" && cam.endsWith("/signers") && ++n === 1 ? { status: 429, json: {} } : null) } });
+  assert.equal(b.enviar().ok, true);
+});
+test("Retry-After: 1 com 429 permanente: no máximo 6 tentativas na chamada", () => {
+  let n = 0;
+  const c = cenario({ cs: { falhar: (m, cam) => (cam === "/envelopes" ? (n++, { status: 429, headers: { "retry-after": "1" }, json: {} }) : null) } });
+  assert.equal(c.enviar().http, 429);
+  assert.equal(n, 6);
+  assert.ok(c.g.sleeps.filter((x) => x >= 1000).every((x) => x >= 1000));
+});
+test("Retry-After inválido (data, 0, negativo) cai na espera crescente", () => {
+  for (const v of ["Wed, 21 Oct 2026 07:28:00 GMT", "0", "-5", "abc"]) {
+    let n = 0;
+    const c = cenario({ cs: { falhar: (m) => (m === "PATCH" && ++n === 1 ? { status: 429, headers: { "RETRY-after": v }, json: {} } : null) } });
+    assert.equal(c.enviar().ok, true, v);
+    assert.equal(c.g.sleeps.filter((x) => x >= 1000)[0], 2000, v);
+  }
+});
+test("relógio: cada fetch leva 40 s -> para antes de passar de 180 s no total", () => {
+  const base = Date.now();
+  let c, fetches = 0;
+  class Rel extends Date { static now() { return base + (c ? c.g.sleeps.reduce((x, y) => x + y, 0) : 0) + fetches * 40000; } }
+  c = cenario({ extras: { Date: Rel }, cs: { falhar: (m, cam) => (cam === "/envelopes" ? (fetches++, { status: 429, json: {} }) : null) } });
+  const r = c.enviar();
+  assert.equal(r.http, 429);
+  const total = c.g.sleeps.reduce((x, y) => x + y, 0) + fetches * 40000;
+  assert.ok(total <= 180000 + 40000, "gastou " + total);
+  assert.ok(fetches < 6, "fetches " + fetches);
+});
