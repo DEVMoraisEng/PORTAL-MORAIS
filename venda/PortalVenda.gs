@@ -82,6 +82,7 @@ function executar_(col, sess, p) {
       case "mcLancar":     return mcLancar_(col, sess, p);
       case "assinaturaEnviar": return assinaturaEnviar_(col, sess, p);
       case "assinaturaEstado": return assinaturaEstado_(col, p);
+      case "assinaturaPrevia": return assinaturaPrevia_(col, p);   /* 01/11 (dono): prévia das assinaturas, só leitura */
       case "assinaturaPdf": return assinaturaPdf_(col, p);   /* 30/10: PDF do contrato para a tela achar as rubricas */
       case "assinaturaReenviar": return assinaturaReenviar_(col, sess, p);
       case "assinaturaCancelar": return assinaturaCancelar_(col, sess, p);   /* 29/10: botão Cancelar envelope */

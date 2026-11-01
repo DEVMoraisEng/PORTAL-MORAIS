@@ -69,9 +69,11 @@ var ClicksignVenda = (function () {
     var semRub = txt(props.ASSINATURA_SEM_RUBRICAS).toUpperCase();
     /* 01/11 (plano 23, correção 1): assinatura em cima da linha (B) e selfie (C) só ligam com a Propriedade = "1" exato */
     var linhasLig = txt(props.ASSINATURA_LINHAS) === "1", selfie = txt(props.CLICKSIGN_SELFIE) === "1";
+    /* unidade 22 (01/11): os vistos ("initials") não apareceram nos PDFs assinados; com "1" vão como assinatura (manuscript) */
+    var vistoAss = txt(props.RUBRICAS_VISTO_COMO_ASSINATURA) === "1";
     return { rubricasAjuste: ajusteRubricas(ajuste), memorialPosicao: memPos, projetoPosicoes: projPos,
              semRubricas: semRub === "SIM" || semRub === "TRUE" || semRub === "1", linhas: linhasLig,
-             selfie: selfie, testemunhasSPE: spe, testemunhasPF: pf, representante: rep, testemunhasOpcoes: opc,
+             selfie: selfie, vistoComoAssinatura: vistoAss, testemunhasSPE: spe, testemunhasPF: pf, representante: rep, testemunhasOpcoes: opc,
              testemunhasEscolhidas: Array.isArray(esc) ? esc.map(txt) : null,
              incluirCorretor: inc === "SIM" || inc === "TRUE" || inc === "1", invalidas: invalidas };
   }
@@ -186,13 +188,15 @@ var ClicksignVenda = (function () {
   }
   function sigCompradores(dados) {
     var l = [sig("Comprador 1", PAPEIS.COMPRADOR, dados.comprador1, "comprador1", { rubrica: true })];
-    /* 31/10/2026 (dono): comprador casado → o cônjuge assina logo depois dele (contrato e termos de confissão; sem rubrica,
-       sem memorial). 01/11/2026 (dono): no TERMO DE PRÉ-RESERVA o cônjuge só entra se o corretor ligou a opção na venda
+    /* 31/10/2026 (dono): comprador casado → o cônjuge assina logo depois dele. 01/11/2026 (dono): "cônjuge (geralmente vai
+       como comprador 2) tem que assinar tudo que o comprador 1 assina" — os mesmos documentos (contrato, termos, memorial,
+       projeto) e os mesmos campos de ciência e vistos dos valores, ao lado dos outros compradores (rubrica: true).
+       01/11/2026 (dono): no TERMO DE PRÉ-RESERVA o cônjuge só entra se o corretor ligou a opção na venda
        (AssinaturaVenda.assEnviarTermo_ tira o conjugeComprador antes). Se o cônjuge já é o comprador 2 (mesmo CPF ou nome),
        não assina duas vezes. */
     var cj = dados.condominio && dados.condominio.conjugeComprador, c2 = dados.comprador2;
     if (cj && !(c2 && ((soDigitos(cj.cpf) && soDigitos(cj.cpf) === soDigitos(c2.cpf)) || txt(cj.nome).toUpperCase() === txt(c2.nome).toUpperCase())))
-      l.push(sig("Cônjuge do comprador 1", PAPEIS.COMPRADOR, cj, "conjugeComprador1"));
+      l.push(sig("Cônjuge do comprador 1", PAPEIS.COMPRADOR, cj, "conjugeComprador1", { rubrica: true }));
     if (dados.comprador2) l.push(sig("Comprador 2", PAPEIS.COMPRADOR, dados.comprador2, "comprador2", { rubrica: true }));
     return l;
   }
@@ -227,6 +231,63 @@ var ClicksignVenda = (function () {
   function signatarios(dados, config) {
     return [].concat(sigCompradores(dados), sigVendedor(dados, config), sigTestemunhas(dados, config),
                      sigCorretor(dados, config), sigFiadores(dados, config));
+  }
+
+  /* 01/11/2026 (plano 23 B, dono: "essas alterações estéticas pode fazer"): bloco de assinaturas com UMA linha por pessoa,
+   * no lugar dos blocos fixos do modelo ({{ASSINATURAS_QUADRO}}, {{ASSINATURAS_FINAL}} e {{ASSINATURAS_TERMO}}).
+   * tipo: "CONTRATO" | "TERMO" (confissão PRÉ/PÓS) | "PRE_RESERVA". Só entra quem assina aquele documento, pelas mesmas
+   * regras do envio: no contrato, sem fiadores (assinam só os termos) e com o corretor quando há comissão (como o antigo
+   * {{#COM_COMISSAO}}); nos termos de confissão, com os fiadores e os cônjuges deles e sem corretor (não é parte do termo);
+   * na pré-reserva, só o comprador 1 e o cônjuge apenas com opc.incluirConjuge (PR_CONJUGE_<pageId>).
+   * Ordem: vendedora, comprador 1, cônjuge do comprador 1, comprador 2, fiador 1, cônjuge do fiador 1, fiador 2, cônjuge do
+   * fiador 2, corretor, testemunha 1, testemunha 2. Cada pessoa: traço, "Nome: …", "CPF: …" (CNPJ de empresa) e o papel —
+   * o nome logo abaixo do traço é o que RubricasVenda.acharLinhas lê e atribuirLinhas casa com o signatário. */
+  var TRACO_ASSINATURA = "________________________________";
+  function docAssinatura(doc) {
+    var d = soDigitos(doc);
+    if (!txt(doc)) return "CPF:";
+    if (d.length === 14) return "CNPJ: " + d.slice(0, 2) + "." + d.slice(2, 5) + "." + d.slice(5, 8) + "/" + d.slice(8, 12) + "-" + d.slice(12);
+    return (d.length > 11 ? "CNPJ: " : "CPF: ") + (d.length === 11 && cpfValido(d) ? cpfFormatado(d) : txt(doc));
+  }
+  function pessoasDoBloco(dados, config, tipo, opc) {
+    config = config || montarConfig({});
+    opc = opc || {};
+    var termo = tipo === "TERMO", pre = tipo === "PRE_RESERVA", memorial = tipo === "MEMORIAL", cond = !!dados.condominio, out = [];
+    function add(rotulo, nome, doc, extra) { out.push({ rotulo: rotulo, nome: txt(nome), doc: txt(doc), extra: txt(extra) }); }
+    /* correção 1 (I5): o nome como no {{VENDEDOR_NOME}} — cadastro ou, sem ele, o proprietário da obra */
+    var v = dados.vendedor, nomeV = txt(v && v.nome) || txt(dados.nomeProprietario);
+    if (nomeV) {
+      var rotV = termo ? "CREDORA/VENDEDORA" : (cond ? "VENDEDORA" : "VENDEDOR"), rep = v && ehPJ(dados) ? representante(v, config) : null;
+      add(rotV, nomeV, v && v.cpfCnpj, rep && rep.nome ? "Representante: " + rep.nome + (rep.cpf ? " – CPF: " + rep.cpf : "") : "");
+    }
+    var dc = dados;
+    if (pre) {   /* pré-reserva: o comprador 1 (e o cônjuge só com a opção ligada) */
+      dc = { comprador1: dados.comprador1, comprador2: null, condominio: opc.incluirConjuge ? dados.condominio : null };
+    }
+    var rotC = termo ? "DEVEDOR/COMPRADOR" : pre ? "PRÉ-RESERVANTE" : "COMPRADOR", rotCj = pre ? "CÔNJUGE DO PRÉ-RESERVANTE" : "CÔNJUGE DO COMPRADOR";
+    sigCompradores(dc).forEach(function (s) { add(s.origem === "conjugeComprador1" ? rotCj : rotC, s.nome, s.cpf); });
+    /* dono 01/11/2026: memorial com uma linha por pessoa — a vendedora e quem compra (cônjuge incluído); mais ninguém */
+    if (memorial) return out;
+    if (termo) sigFiadores(dados, { comFiadores: true }).forEach(function (s) {
+      if (!s.nome) return;
+      var n = /([12])$/.exec(s.origem)[1];
+      add(/^conjuge/.test(s.origem) ? "CÔNJUGE DO FIADOR " + n : "FIADOR " + n, s.nome, s.cpf);
+    });
+    if (tipo === "CONTRATO" && dados.corretor && txt(dados.corretor.nome) && !vendaDireta(dados))
+      add("INTERMEDIADOR/CORRETOR", dados.corretor.nome, dados.corretor.cpfCnpj);
+    var t = testemunhas(dados, config) || [null, null];
+    [0, 1].forEach(function (i) { add("TESTEMUNHA " + (i + 1), t[i] && t[i].nome, t[i] && t[i].cpf); });
+    return out;
+  }
+  function blocoAssinaturas(dados, config, tipo, opc) {
+    var l = [];
+    pessoasDoBloco(dados, config, tipo, opc).forEach(function (p, i) {
+      if (i) l.push("");
+      l.push(TRACO_ASSINATURA, p.nome ? "Nome: " + p.nome : "Nome:", docAssinatura(p.doc));
+      if (p.extra) l.push(p.extra);
+      l.push(p.rotulo);
+    });
+    return l.join("\n");
   }
 
   var ONDE_EMAIL = {
@@ -353,11 +414,23 @@ var ClicksignVenda = (function () {
    * signatário pela câmera; "official_document" = foto (frente e verso) do documento oficial. A doc não traz um valor
    * único "selfie com documento" nem diz com todas as letras que somam com o token por e-mail (só proíbe combiná-los com
    * biometric/facial_biometrics/identity_biometrics) — conferir no 1º envelope do sandbox. Vendedora, corretor e
-   * testemunhas continuam só com o token. Só com a Propriedade CLICKSIGN_SELFIE=1. */
-  var AUTH_SELFIE = ["selfie", "official_document"];
+   * testemunhas continuam só com o token. Só com a Propriedade CLICKSIGN_SELFIE=1.
+   * 01/11/2026 (contrato assinado mostrado pelo dono): o log da Clicksign traz UMA autenticação "Foto de face & documento"
+   * (selfie_*.png) — é o requisito "selfie" sozinho; o "official_document" separado saiu.
+   * 01/11/2026 (dono): selfie quando o VENDEDOR é empresa (venda PJ → PF): condomínio (SPE) sempre; casa de rua só com
+   * vendedor de CNPJ. Vendedor pessoa física (PF → PF) não pede selfie. Sem os dados da venda, não liga. */
+  var AUTH_SELFIE = ["selfie"];
+  function vendedorEmpresa(dados) {
+    if (!dados) return false;
+    if (dados.condominio) return true;
+    var v = dados.vendedor;
+    if (!v) return false;
+    if (soDigitos(v.cpfCnpj).length === 14) return true;
+    return txt(v.tipo).toUpperCase() === "PJ";
+  }
   var COM_SELFIE = /^(comprador[12]|conjugeComprador1|fiador[12]|conjugeFiador[12])$/;
-  function autenticacoes(s, config) {
-    return config && config.selfie && COM_SELFIE.test(txt(s && s.origem)) ? ["email"].concat(AUTH_SELFIE) : ["email"];
+  function autenticacoes(s, config, dados) {
+    return config && config.selfie && vendedorEmpresa(dados) && COM_SELFIE.test(txt(s && s.origem)) ? ["email"].concat(AUTH_SELFIE) : ["email"];
   }
   /* 30/10: rubrica posicionada — kind "initials" (visto) ou "manuscript" (assinatura); positions [{ page: "n", position: [x, y] }]
    * em proporção da página (0–1, x da esquerda, y do topo). positions, pages e rubric_field são exclusivos. */
@@ -511,7 +584,10 @@ var ClicksignVenda = (function () {
   function documentosDoSignatario(s, docs) {
     return (docs || []).filter(function (d) {
       if (s.soTermos) return d.tipo === DOC.TERMO;
-      if (s.rubrica) return true;
+      if (s.origem === "corretor") return d.tipo === DOC.CONTRATO;   /* 01/11 (dono): o corretor só assina o contrato */
+      /* 01/11/2026 (dono): "o comprador 1 e o 2/3 (quando tiver) têm que assinar os mesmos documentos, exatamente os mesmos,
+         tem que ter a assinatura dos 2 ou 3 nos mesmos (junto com vendedor tb)" — compradores e vendedor: todos os documentos */
+      if (s.rubrica || ehVendedorSig(s)) return true;
       return d.tipo === DOC.CONTRATO || d.tipo === DOC.TERMO;
     }).map(function (d) { return d.id; });
   }
@@ -520,7 +596,8 @@ var ClicksignVenda = (function () {
    * é o canto de cima à esquerda ou o centro da caixa: o padrão supõe o canto e sobe a assinatura para ficar
    * em cima da linha "ASSINATURA: ____". Conferir no sandbox e, se precisar, corrigir pela Propriedade
    * RUBRICAS_AJUSTE, ex.: {"campo":{"dx":0,"dy":-0.015},"valores":{"dx":0,"dy":0}}. */
-  var AJUSTE_PADRAO = { campo: { dx: 0, dy: -0.01 }, valores: { dx: 0, dy: -0.004 }, linha: { dx: 0, dy: -0.03 } };
+  /* calibração 01/11: campos e linhas já saem com o topo 46 pt acima da linha de base (RubricasVenda) — ajuste padrão 0 */
+  var AJUSTE_PADRAO = { campo: { dx: 0, dy: 0 }, valores: { dx: 0, dy: 0 }, linha: { dx: 0, dy: 0 } };
   function numOu(v, padrao) { return typeof v === "number" && isFinite(v) && Math.abs(v) <= 0.5 ? v : padrao; }
   function ajusteRubricas(j) {
     j = j && typeof j === "object" ? j : {};
@@ -556,7 +633,10 @@ var ClicksignVenda = (function () {
     if (r.valores) { val = posicaoValida(r.valores); if (!val) return { ok: false, erro: "RUBRICAS_INVALIDAS" }; }
     /* 01/11 (plano 23 B): linhas de assinatura do contrato e de cada termo de confissão (nome do PDF na Clicksign) */
     var linhas = [], termos = {};
-    if (opc && opc.linhas === false) return { ok: true, campos: ok, valores: val, linhas: linhas, termos: termos };
+    if (opc && opc.linhas === false) return { ok: true, campos: ok, valores: val, linhas: linhas, termos: termos, memorial: [] };
+    /* dono 01/11: linhas do memorial (uma por pessoa) lidas na tela no PDF do memorial */
+    var memorial = [];
+    if (r.memorial !== undefined) { memorial = linhasValidas(r.memorial && r.memorial.linhas); if (!memorial) return { ok: false, erro: "RUBRICAS_INVALIDAS" }; }
     if (r.linhas !== undefined) { linhas = linhasValidas(r.linhas); if (!linhas) return { ok: false, erro: "RUBRICAS_INVALIDAS" }; }
     if (r.termos !== undefined) {
       if (!Array.isArray(r.termos) || r.termos.length > 4) return { ok: false, erro: "RUBRICAS_INVALIDAS" };
@@ -566,7 +646,7 @@ var ClicksignVenda = (function () {
         termos[txt(t.nome)] = lt;
       }
     }
-    return { ok: true, campos: ok, valores: val, linhas: linhas, termos: termos };
+    return { ok: true, campos: ok, valores: val, linhas: linhas, termos: termos, memorial: memorial };
   }
   var MAX_LINHAS = 60;
   function linhasValidas(a) {
@@ -586,7 +666,27 @@ var ClicksignVenda = (function () {
    * única "Nome: A / B" do modelo de hoje) → ninguém (a pessoa assina só na página da Clicksign, como antes).
    * Sem nome: pelo papel escrito — TESTEMUNHA n, FIADOR n, CORRETOR/INTERMEDIADOR, VENDEDORA/CREDORA, e COMPRADOR/DEVEDOR
    * só quando uma única pessoa assina como parte compradora. */
-  function assinaOTipo(s, tipo) { return tipo === DOC.TERMO ? true : tipo === DOC.CONTRATO ? !s.soTermos : false; }
+  /* 01/11 (dono): o corretor assina SÓ o contrato — nunca os termos de confissão (nem a pré-reserva) */
+  function assinaOTipo(s, tipo) {
+    if (tipo === DOC.TERMO) return s.origem !== "corretor";
+    if (tipo === DOC.CONTRATO) return !s.soTermos;
+    if (tipo === DOC.MEMORIAL) return !!s.rubrica || s.origem === "vendedor" || s.origem === "representante";   /* dono 01/11 */
+    return false;
+  }
+  /* correção 3 (5): papéis escritos no texto de uma linha, já normalizados (um por pessoa). Dois papéis diferentes = a
+     leitura pegou o bloco do lado: a linha não vai para ninguém (melhor sem assinatura posicionada do que na errada). */
+  var RE_PAPEIS = /\b(CONJUGE DO (?:COMPRADOR|PRE-RESERVANTE|FIADOR [12])|CREDORA\/VENDEDORA|DEVEDOR\/COMPRADOR|INTERMEDIADOR\/CORRETOR|VENDEDORA?|COMPRADOR|FIADOR [12]|TESTEMUNHA [12]|PRE-RESERVANTE|CORRETOR|INTERMEDIADOR)\b/g;
+  var PAPEL_NORMAL = { "CREDORA/VENDEDORA": "VENDEDOR", "VENDEDORA": "VENDEDOR", "DEVEDOR/COMPRADOR": "COMPRADOR",
+                       "INTERMEDIADOR/CORRETOR": "CORRETOR", "INTERMEDIADOR": "CORRETOR" };
+  function papeisNoTexto(t) {
+    var vistos = [], m;
+    RE_PAPEIS.lastIndex = 0;
+    while ((m = RE_PAPEIS.exec(t))) {
+      var p = PAPEL_NORMAL[m[1]] || m[1];
+      if (vistos.indexOf(p) < 0) vistos.push(p);
+    }
+    return vistos;
+  }
   function atribuirLinhas(lista, linhas, tipo) {
     lista = lista || [];
     var r = lista.map(function () { return []; });
@@ -594,9 +694,16 @@ var ClicksignVenda = (function () {
     lista.forEach(function (s, i) { if (assinaOTipo(s, tipo)) cands.push(i); if (s.origem === "testemunha") test.push(i); });
     function daOrigem(re) { var l = cands.filter(function (i) { return re.test(lista[i].origem || ""); }); return l.length === 1 ? l[0] : -1; }
     (linhas || []).forEach(function (l) {
-      var t = chave(l && l.texto), alvo = -1, m;
+      var t = chave(l && l.texto), alvo = -1, m, papeis = papeisNoTexto(t);
+      if (papeis.length > 1) return;
       var porNome = cands.filter(function (i) { var n = chave(lista[i].nome); return n.length >= 5 && t.indexOf(n) >= 0; });
-      if (porNome.length === 1) alvo = porNome[0];
+      /* unidade 22 (01/11): um nome contido no outro ("JOSE SILVA" × "MARIA JOSE SILVA") — fica o mais longo */
+      if (porNome.length > 1) porNome = porNome.filter(function (i) {
+        var n = chave(lista[i].nome);
+        return !porNome.some(function (j) { var o = chave(lista[j].nome); return j !== i && o.length > n.length && o.indexOf(n) >= 0; });
+      });
+      /* linha da VENDEDORA com o nome de um comprador (coluna do lado): ninguém */
+      if (porNome.length === 1) alvo = papeis[0] === "VENDEDOR" && lista[porNome[0]].role !== PAPEIS.VENDEDOR ? -1 : porNome[0];
       /* correção 1 (I-3): linha de CÔNJUGE ("CÔNJUGE DO FIADOR 1", "CÔNJUGE") só pelo nome — o papel apontaria o fiador/comprador */
       else if (!porNome.length && !/CONJUGE/.test(t)) {
         if ((m = /TESTEMUNHA\s*([12])/.exec(t))) { var it = test[Number(m[1]) - 1]; alvo = it !== undefined && cands.indexOf(it) >= 0 ? it : -1; }
@@ -650,22 +757,163 @@ var ClicksignVenda = (function () {
    * Comprador (s.rubrica): campos de ciência + a linha dele numa só "manuscript" do contrato (a Clicksign não aceita
    * duas do mesmo tipo para a mesma pessoa), visto nos valores, memorial e projeto. Os outros: só a assinatura na
    * própria linha (contrato e termos). i e lista (o signatário na lista do envelope) ligam as linhas; sem eles, como antes. */
-  function requisitosRubrica(s, docs, rub, i, lista) {
+  function ehVendedorSig(s) { return s.origem === "vendedor" || s.origem === "representante"; }
+  /* calibração 01/11 (sandbox) e revisão: quem divide o MESMO ponto (campo de ciência, valores, memorial, projeto) fica
+   * lado a lado, 105 pt um do outro (imagem de 100 pt). Nada é "espremido" para dentro da página (nada de cortar em 0):
+   *  - contrato e memorial ("direita"): a 1ª pessoa no ponto medido, as seguintes à direita até a margem (36 pt); sem
+   *    espaço, novas fileiras 52 pt — subindo (a última fica no ponto) ou, se subir passaria do topo, descendo;
+   *  - projeto ("esquerda"): à ESQUERDA na mesma altura (x−105, x−210…) até 36 pt da borda; depois fileiras ABAIXO.
+   *    Nunca acima — em cima está o carimbo DEFERIMENTO da prefeitura.
+   * Quem não cabe (passaria da margem de baixo) fica sem posição naquela página — assina pela Clicksign — e vai aviso.
+   * Tamanho da página: o lido do PDF (rub.tamanhos, tamanhosPaginasPdf); sem ele, o padrão — contrato A4, memorial Carta
+   * (o modelo é 612×792), projeto págs. 1–2 A1 deitado e as demais A2 deitado. */
+  var PADRAO_PAGINA = { contrato: { W: 595, H: 842 }, memorial: { W: 612, H: 792 } };
+  function paginaPadrao(tipo, p) {
+    /* projeto assinado da unidade 22: págs. 1–2 A0 deitado (3370×2384), as demais A1 deitado (2384×1684) */
+    if (tipo === "projeto") return Number(p.page) <= 2 ? { W: 3370, H: 2384 } : { W: 2384, H: 1684 };
+    return PADRAO_PAGINA[tipo] || PADRAO_PAGINA.contrato;
+  }
+  function tamanhoDa(rub, tipo, p) {
+    var l = rub && rub.tamanhos && rub.tamanhos[tipo], t = Array.isArray(l) ? l[Number(p.page) - 1] : null;
+    return t && t.W > 0 && t.H > 0 ? t : paginaPadrao(tipo, p);
+  }
+  var MARGEM = 36, CAIXA_L = 100, CAIXA_A = 50, PASSO_X = 105, PASSO_Y = 52;
+  /* p: { page, position }; k: a vez desta pessoa (0 = no ponto medido), n: quantas dividem; null = não cabe */
+  function aoLado(p, k, n, pg, modo) {
+    if (!p) return null;
+    var cp = { page: p.page, position: p.position.slice() };
+    if (!(n > 1) || !(k >= 0)) return cp;
+    var x0 = p.position[0] * pg.W, y0 = p.position[1] * pg.H, x, y, fil;
+    if (modo === "esquerda") {
+      var porF = Math.max(1, 1 + Math.floor((x0 - MARGEM) / PASSO_X));
+      fil = Math.floor(k / porF);
+      x = x0 - PASSO_X * (k % porF); y = y0 + PASSO_Y * fil;
+    } else {
+      var porFileira = Math.max(1, 1 + Math.floor((pg.W - MARGEM - CAIXA_L - x0) / PASSO_X));
+      var fileiras = Math.ceil(n / porFileira);
+      fil = Math.floor(k / porFileira);
+      x = x0 + PASSO_X * (k % porFileira);
+      var sobe = y0 - PASSO_Y * (fileiras - 1) >= 0 && y0 >= 46;
+      y = sobe ? y0 - PASSO_Y * (fileiras - 1 - fil) : y0 + PASSO_Y * fil;
+    }
+    if (y < 0 || x < 0 || x + CAIXA_L > pg.W || (fil > 0 && y + CAIXA_A > pg.H - MARGEM)) return null;
+    return { page: p.page, position: [arred(x / pg.W), arred(y / pg.H)] };
+  }
+  /* Tamanho de cada página do PDF (bytes como texto latin-1), na ordem das páginas: [{ W, H }] (deitada com /Rotate 90/270
+     troca W e H) ou null quando não dá para ler sem dúvida (objetos comprimidos, árvore quebrada). */
+  function tamanhosPaginasPdf(bin) {
+    var t = String(bin || ""), objs = {}, re = /(\d+)\s+0\s+obj([\s\S]*?)endobj/g, m;
+    while ((m = re.exec(t))) objs[m[1]] = m[2];
+    var raiz = null;
+    for (var id in objs) { var c = /\/Type\s*\/Catalog[\s\S]*?\/Pages\s+(\d+)\s+0\s+R/.exec(objs[id]); if (c) { raiz = c[1]; break; } }
+    if (!raiz || /\/ObjStm/.test(t)) return null;
+    function caixa(corpo) {
+      var mb = /\/MediaBox\s*\[\s*(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s*\]/.exec(corpo);
+      return mb ? { W: +mb[3] - +mb[1], H: +mb[4] - +mb[2] } : null;
+    }
+    function rot(corpo, herdada) { var r = /\/Rotate\s+(-?\d+)/.exec(corpo); return r ? Number(r[1]) : herdada; }
+    var out = [], ok = true, vistos = {};
+    (function andar(id, herdada, rotH) {
+      if (!ok) return;
+      var corpo = objs[id];
+      if (corpo === undefined || vistos[id]) { ok = false; return; }
+      vistos[id] = true;
+      var cx = caixa(corpo) || herdada, r = rot(corpo, rotH);
+      if (/\/Type\s*\/Pages\b/.test(corpo)) {
+        var k = /\/Kids\s*\[([^\]]*)\]/.exec(corpo);
+        if (!k) { ok = false; return; }
+        k[1].replace(/(\d+)\s+0\s+R/g, function (_, f) { andar(f, cx, r); return ""; });
+      } else if (/\/Type\s*\/Page(?![a-zA-Z])/.test(corpo)) {
+        if (!cx || !(cx.W > 0) || !(cx.H > 0)) { ok = false; return; }
+        var deitada = Math.abs(r || 0) % 180 === 90;
+        out.push(deitada ? { W: cx.H, H: cx.W } : { W: cx.W, H: cx.H });
+      } else ok = false;
+    })(raiz, null, 0);
+    return ok && out.length ? out : null;
+  }
+  /* 01/11 (revisão): o memorial tem a linha da VENDEDORA à esquerda (modelo: margem 540 + recuo 878 twips em página Carta
+     = 0,116) e a dos compradores à direita (0,53, medida). O vendedor assina na dele; propriedade MEMORIAL_POSICAO.vendedor muda. */
+  /* ---- vistos (initials) — regras do dono (01/11/2026) e calibração da unidade 22 ----
+     Tinta do visto: de +9 a +27 pt abaixo do ponto, até 27 pt de largura a partir do x. Fila compacta: passo 32 pt (tinta +
+     folga), fila de baixo a +22 pt; nunca para cima. Campo de ciência: a partir do começo dos traços, até a margem direita;
+     4.2.1: na coluna cinza (até 110 pt do começo). Projeto: dentro do quadro DEFERIMENTO — mesmo tamanho em A0 e A1:
+     de (L−496, A−241) a (L−28, A−29) pt —, do ponto medido para a ESQUERDA, depois a fila de baixo; ponto fora do quadro
+     é trazido para dentro. Quem não cabe fica sem posição (assina pela Clicksign) e vai aviso. */
+  var VISTO_PASSO = 32, VISTO_L = 27, VISTO_FILA = 22, VISTO_TOPO = 9, VISTO_PE = 27, COLUNA_VALORES = 110;
+  function vistoEmFila(p, k, n, pg, tipo) {
+    if (!p) return null;
+    var x0 = p.position[0] * pg.W, y0 = p.position[1] * pg.H;
+    var limite = tipo === "valores" ? x0 + COLUNA_VALORES : pg.W - MARGEM;
+    var porFila = Math.max(1, 1 + Math.floor((limite - x0 - VISTO_L) / VISTO_PASSO)), kk = k > 0 ? k : 0;
+    var x = x0 + VISTO_PASSO * (kk % porFila), y = y0 + VISTO_FILA * Math.floor(kk / porFila);
+    if (y + VISTO_PE > pg.H - MARGEM) return null;
+    return { page: p.page, position: [arred(x / pg.W), arred(y / pg.H)] };
+  }
+  function vistoNaCaixa(p, k, n, pg) {
+    if (!p) return null;
+    var bx0 = pg.W - 496 + 4, bx1 = pg.W - 28 - 4, by0 = pg.H - 241 + 2, by1 = pg.H - 29 - 2;
+    var xs = Math.max(bx0, Math.min(bx1 - VISTO_L, p.position[0] * pg.W));
+    /* sem espaço para todos à esquerda (ponto perto da borda do quadro): o começo anda para a direita, dentro do quadro */
+    if (n > 1 && xs - VISTO_PASSO * (n - 1) < bx0) xs = Math.min(bx1 - VISTO_L, bx0 + VISTO_PASSO * (n - 1));
+    var ys = Math.max(by0 - VISTO_TOPO, Math.min(by1 - VISTO_PE, p.position[1] * pg.H));
+    var porFila = Math.max(1, 1 + Math.floor((xs - bx0) / VISTO_PASSO)), kk = k > 0 ? k : 0;
+    var x = xs - VISTO_PASSO * (kk % porFila), y = ys + VISTO_FILA * Math.floor(kk / porFila);
+    if (y + VISTO_PE > by1) return null;
+    return { page: p.page, position: [arred(x / pg.W), arred(y / pg.H)] };
+  }
+  var MEMORIAL_VENDEDOR_X = 0.116;
+  /* posição do vendedor no memorial: a da Propriedade (MEMORIAL_POSICAO.vendedor = [x, y]) ou x 0,116 na altura dos compradores */
+  function posicaoMemorialVendedor(mem, cfg) {
+    if (!mem) return null;
+    var v = cfg && typeof cfg === "object" && Array.isArray(cfg.vendedor) ? posicaoValida({ page: Number(mem.page), position: cfg.vendedor }) : null;
+    return v || { page: mem.page, position: [MEMORIAL_VENDEDOR_X, mem.position[1]] };
+  }
+  function requisitosRubrica(s, docs, rub, i, lista, avisos) {
     if (!rub) return [];
     var comLinhas = Array.isArray(lista) && typeof i === "number", l = [];
+    /* quem divide os pontos: campos e valores — os compradores (rubrica, cônjuge incluído); memorial — os compradores (o
+       vendedor tem a linha dele); projeto — compradores e vendedor */
+    var grupoC = comLinhas ? lista.filter(function (x) { return x.rubrica; }) : [s];
+    var grupoD = comLinhas ? grupoC.concat(lista.filter(ehVendedorSig)) : [s];
+    var kC = grupoC.indexOf(s), nC = grupoC.length, kD = grupoD.indexOf(s), nD = grupoD.length;
+    function avisar(doc, p) { if (Array.isArray(avisos)) avisos.push(s.papel + ": sem lugar para a assinatura posicionada no " + doc + ", pág. " + p.page); }
+    function posicoes(lista0, k, n, tipo, modo) {
+      var out = [];
+      (lista0 || []).forEach(function (p) {
+        var q = aoLado(p, k, n, tamanhoDa(rub, tipo, p), modo);
+        if (q) out.push(q); else avisar(tipo, p);
+      });
+      return out;
+    }
     (docs || []).forEach(function (d) {
       if (d.tipo === DOC.CONTRATO) {
+        /* dono 01/11/2026: assinatura (manuscrita) só na linha da própria pessoa; no meio do texto — campos de ciência e
+           o 4.2.1 — só VISTOS dos compradores, numa fila compacta; um requisito de visto por pessoa com todas as posições */
         var lin = comLinhas && rub.linhas && rub.linhas.length ? atribuirLinhas(lista, rub.linhas, DOC.CONTRATO)[i] : [];
-        var man = (s.rubrica && rub.campos ? rub.campos : []).concat(lin);
-        if (man.length) l.push({ docId: d.id, kind: "manuscript", positions: man });
-        if (s.rubrica && rub.valores) l.push({ docId: d.id, kind: "initials", positions: [rub.valores] });
+        if (lin.length) l.push({ docId: d.id, kind: "manuscript", positions: lin });
+        var vis = [];
+        if (s.rubrica) {
+          (rub.campos || []).forEach(function (p) { var q = vistoEmFila(p, kC, nC, tamanhoDa(rub, "contrato", p), "campo"); if (q) vis.push(q); else avisar("contrato", p); });
+          if (rub.valores) { var q = vistoEmFila(rub.valores, kC, nC, tamanhoDa(rub, "contrato", rub.valores), "valores"); if (q) vis.push(q); else avisar("contrato", rub.valores); }
+        }
+        if (vis.length) l.push({ docId: d.id, kind: "initials", positions: vis });
       } else if (d.tipo === DOC.TERMO) {
         var lt = comLinhas && rub.termos && d.nome && rub.termos[d.nome] ? atribuirLinhas(lista, rub.termos[d.nome], DOC.TERMO)[i] : [];
         if (lt.length) l.push({ docId: d.id, kind: "manuscript", positions: lt });
-      } else if (d.tipo === DOC.MEMORIAL && s.rubrica && rub.memorial) {
-        l.push({ docId: d.id, kind: "manuscript", positions: [rub.memorial] });
-      } else if (d.tipo === DOC.PROJETO && s.rubrica && rub.projeto && rub.projeto.length) {
-        l.push({ docId: d.id, kind: "initials", positions: rub.projeto });
+      } else if (d.tipo === DOC.MEMORIAL && Array.isArray(rub.memorialLinhas) && (s.rubrica || ehVendedorSig(s))) {
+        /* dono 01/11/2026: memorial migrado — cada pessoa na PRÓPRIA linha, lida no PDF (sem linhas lidas: sem posição) */
+        var lmem = comLinhas && rub.memorialLinhas.length ? atribuirLinhas(lista, rub.memorialLinhas, DOC.MEMORIAL)[i] : [];
+        if (lmem.length) l.push({ docId: d.id, kind: "manuscript", positions: lmem });
+      } else if (d.tipo === DOC.MEMORIAL && rub.memorial && (s.rubrica || ehVendedorSig(s))) {
+        var pm = ehVendedorSig(s)
+          ? [rub.memorialVendedor ? { page: rub.memorialVendedor.page, position: rub.memorialVendedor.position.slice() }
+                                  : { page: rub.memorial.page, position: [MEMORIAL_VENDEDOR_X, rub.memorial.position[1]] }]
+          : posicoes([rub.memorial], kC, nC, "memorial");
+        if (pm.length) l.push({ docId: d.id, kind: "manuscript", positions: pm });
+      } else if (d.tipo === DOC.PROJETO && (s.rubrica || ehVendedorSig(s)) && rub.projeto && rub.projeto.length) {
+        var pp = [];
+        rub.projeto.forEach(function (p) { var q = vistoNaCaixa(p, kD, nD, tamanhoDa(rub, "projeto", p)); if (q) pp.push(q); else avisar("projeto", p); });
+        if (pp.length) l.push({ docId: d.id, kind: "initials", positions: pp });
       }
     });
     return l;
@@ -681,10 +929,10 @@ var ClicksignVenda = (function () {
     situacaoDosSignatarios: situacaoDosSignatarios, nomeMascarado: nomeMascarado,
     minutosParaReenviar: minutosParaReenviar, REENVIO_MIN: REENVIO_MIN,
     opcoesTestemunhas: opcoesTestemunhas, escolhidas: escolhidas, testemunhasParaTela: testemunhasParaTela,
-    sigCompradores: sigCompradores, sigFiadores: sigFiadores, corpoRubrica: corpoRubrica, DOC: DOC, tipoDoDocumento: tipoDoDocumento,
+    sigCompradores: sigCompradores, sigFiadores: sigFiadores, pessoasDoBloco: pessoasDoBloco, blocoAssinaturas: blocoAssinaturas, testemunhasDaVenda: testemunhas, corpoRubrica: corpoRubrica, DOC: DOC, tipoDoDocumento: tipoDoDocumento,
     nomeDocumentoAdicional: nomeDocumentoAdicional, documentosDoSignatario: documentosDoSignatario, requisitosRubrica: requisitosRubrica, atribuirLinhas: atribuirLinhas,
     validarRubricas: validarRubricas, ajusteRubricas: ajusteRubricas, AJUSTE_PADRAO: AJUSTE_PADRAO, POSICOES_PROJETO: POSICOES_PROJETO,
-    posicoesProjeto: posicoesProjeto, posicaoMemorial: posicaoMemorial, contarPaginasPdf: contarPaginasPdf
+    posicoesProjeto: posicoesProjeto, posicaoMemorial: posicaoMemorial, contarPaginasPdf: contarPaginasPdf, tamanhosPaginasPdf: tamanhosPaginasPdf, posicaoMemorialVendedor: posicaoMemorialVendedor
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   return api;

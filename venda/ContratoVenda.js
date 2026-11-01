@@ -553,8 +553,11 @@ var ContratoVenda = (function () {
     if (/^VI — /.test(t)) return t.length;
     if ((m = /^6\.1\. Preço total: [^)]*\),?/.exec(t))) return m[0].length;
     if ((m = /^FIADOR \d:/.exec(t))) return m[0].length;
+    /* 01/11 (plano 23 B): o papel de cada pessoa no bloco de assinaturas ({{ASSINATURAS_*}}) */
+    if (ROTULO_ASSINATURA.test(t)) return t.length;
     return 0;
   }
+  var ROTULO_ASSINATURA = /^(?:(?:CREDORA\/)?VENDEDORA?|(?:DEVEDOR\/)?COMPRADOR|PRÉ-RESERVANTE|CÔNJUGE DO (?:COMPRADOR|PRÉ-RESERVANTE|FIADOR [12])|FIADOR [12]|INTERMEDIADOR\/CORRETOR|TESTEMUNHA [12])$/;
 
   function fiadorNormal(x) {
     x = x || {};
@@ -1056,9 +1059,9 @@ var ContratoVenda = (function () {
       CONDICOES_ESPECIAIS: txt(im.condicoesEspeciais).replace(/\s*\n+\s*/g, " ").trim() || "Não há.",
       ASSINATURA_COMPRADORES_NOMES: [c1.nome].concat(cjq ? [cjq.nome] : [], c2 ? [c2.nome] : []).join(" / "),
       ASSINATURA_COMPRADORES_CPFS: [c1.cpf].concat(cjq ? [cjq.cpf] : [], c2 ? [c2.cpf] : []).join(" / "),
-      /* o memorial só tem compradores (o cônjuge não o assina) — AssinaturaVenda.assDocsDoComprador_ */
-      MEMORIAL_ASSINATURA_NOMES: c2 ? c1.nome + " / " + c2.nome : c1.nome,
-      MEMORIAL_ASSINATURA_CPFS: c2 ? c1.cpf + " / " + c2.cpf : c1.cpf,
+      /* 01/11/2026 (dono): o cônjuge assina tudo que o comprador 1 assina — também o memorial (AssinaturaVenda.assDocsDoComprador_) */
+      MEMORIAL_ASSINATURA_NOMES: [c1.nome].concat(cjq ? [cjq.nome] : [], c2 ? [c2.nome] : []).join(" / "),
+      MEMORIAL_ASSINATURA_CPFS: [c1.cpf].concat(cjq ? [cjq.cpf] : [], c2 ? [c2.cpf] : []).join(" / "),
       CORRETOR_DOC: txt(k.cpfCnpj),
       LOTEAMENTO: txt(l.denominacao),
       MUNICIPIO_UF: txt(l.municipioUf),
@@ -1433,7 +1436,9 @@ var ContratoVenda = (function () {
     /* o traço do campo em branco (o pré-contrato grifa em vermelho claro) */
     EM_BRANCO: EM_BRANCO,
     /* marcadores cujo valor tem várias linhas: no Docs, o parágrafo que só tem o marcador vira um parágrafo por linha */
-    MARCADORES_PARAGRAFOS: ["FORMA_PAGAMENTO_CONDOMINIO", "FIADORES_QUALIFICACAO"],
+    MARCADORES_PARAGRAFOS: ["FORMA_PAGAMENTO_CONDOMINIO", "FIADORES_QUALIFICACAO",
+      /* 01/11 (plano 23 B): blocos de assinatura, uma linha por pessoa (ClicksignVenda.blocoAssinaturas) */
+      "ASSINATURAS_QUADRO", "ASSINATURAS_FINAL", "ASSINATURAS_TERMO", "ASSINATURAS_MEMORIAL"],
     /* marcador VAZIO cujo rótulo sai junto: no modelo a linha é
        "Banco: {{BANCO}} – Agência: {{AGENCIA}} – Operação: {{OPERACAO}} – Conta {{CONTA}} – PIX: {{PIX}} - Titularidade…";
        sem Pix (ou sem operação, que a conta da obra não tem) o "– PIX: " / "– Operação: " some, em vez de ficar em branco.

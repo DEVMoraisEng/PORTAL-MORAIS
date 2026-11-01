@@ -4,6 +4,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
+import vm from "node:vm";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { criarGas, driveFalso, notionFalso, clicksignFalso, assinar, texto, COLUNAS_REAIS, DB_ID_PADRAO } from "./fakes.mjs";
 
 const req = createRequire(import.meta.url);
@@ -684,7 +688,8 @@ test("28/10: Clicksign — contrato e termos no MESMO envelope; fiadores assinam
   const docsDo = (id) => [...new Set(reqs.filter((q) => q.corpo.data.relationships.signer.data.id === id).map((q) => q.corpo.data.relationships.document.data.id))].sort();
   /* 30/10: rubricas só do comprador e só no contrato (os termos não têm campos de ciência) */
   const rubricam = reqs.filter((q) => q.corpo.data.attributes.action === "rubricate");
-  assert.deepEqual(rubricam.map((q) => [q.corpo.data.relationships.document.data.id, q.corpo.data.attributes.kind]), [["doc-1", "manuscript"], ["doc-1", "initials"]]);
+  /* dono 01/11: no contrato, ciência e valores viram um requisito de visto; a manuscrita só na linha da pessoa (linhas desligadas aqui) */
+  assert.deepEqual(rubricam.map((q) => [q.corpo.data.relationships.document.data.id, q.corpo.data.attributes.kind]), [["doc-1", "initials"]]);
   assert.deepEqual(docsDo(fiador.id), ["doc-2", "doc-3"], "fiador: só os termos");
   const comprador = sigs.find((s) => s.attributes.email === "compradora@teste.example");
   assert.deepEqual(docsDo(comprador.id), ["doc-1", "doc-2", "doc-3"]);
@@ -977,10 +982,9 @@ test("30/10: rubricas do comprador no contrato — assinatura nos campos de ciê
   assert.equal(r.ok, true, JSON.stringify(r));
   const rq = reqsDe(c).filter((q) => q.attributes.action === "rubricate");
   const comprador = c.c.estado.signers.find((s) => s.attributes.email === "compradora@teste.example");
+  /* dono 01/11: ciência e coluna de valores = VISTOS do comprador, num requisito só com todas as posições */
   assert.deepEqual(rq, [
-    { type: "requirements", attributes: { action: "rubricate", kind: "manuscript", positions: RUB_CAMPOS },
-      relationships: { document: { data: { type: "documents", id: "doc-1" } }, signer: { data: { type: "signers", id: comprador.id } } } },
-    { type: "requirements", attributes: { action: "rubricate", kind: "initials", positions: [RUB_VALORES] },
+    { type: "requirements", attributes: { action: "rubricate", kind: "initials", positions: RUB_CAMPOS.concat([RUB_VALORES]) },
       relationships: { document: { data: { type: "documents", id: "doc-1" } }, signer: { data: { type: "signers", id: comprador.id } } } }]);
   assert.equal(docsPostados(c).length, 1, "sem as Propriedades: nem memorial nem projeto");
 });
@@ -1012,7 +1016,7 @@ test("30/10: assinaturaPdf entrega à tela o PDF gerado (conteúdo, nunca o link
   assert.deepEqual(c2.acao("assinaturaPdf").ajuste.campo, { dx: 0, dy: -0.02 });
 });
 
-test("30/10: memorial e projeto aprovado no mesmo envelope, assinados só pelo comprador, com as posições fixas", () => {
+test("30/10: memorial e projeto aprovado no mesmo envelope, assinados pelo comprador e pelo vendedor (dono, 01/11), lado a lado", () => {
   const c = cenario({ modelosExtra: { "modelo-memorial": MODELO_MEMORIAL }, cs: { arquivos: { original: "https://s3.clicksign.falso/original.pdf", signed: "https://s3.clicksign.falso/assinado.pdf" } },
                       props: { MODELO_MEMORIAL_ID: "modelo-memorial", PROJETO_APROVADO_ID: "proj-1" } });
   c.d.soltos["proj-1"] = { nome: "projeto.pdf", url: "https://drive.falso/proj-1", buf: Buffer.from("%PDF-1.7 projeto aprovado de teste") };
@@ -1033,12 +1037,26 @@ test("30/10: memorial e projeto aprovado no mesmo envelope, assinados só pelo c
   const sigs = c.c.estado.signers, rq = reqsDe(c);
   const docsDo = (id) => [...new Set(rq.filter((q) => q.relationships.signer.data.id === id).map((q) => q.relationships.document.data.id))].sort();
   const comprador = sigs.find((s) => s.attributes.email === "compradora@teste.example");
+  const vendedor = sigs.find((s) => s.attributes.email === "beltrano@teste.example");
   assert.deepEqual(docsDo(comprador.id), ["doc-1", "doc-2", "doc-3"]);
-  for (const s of sigs.filter((x) => x !== comprador)) assert.deepEqual(docsDo(s.id), ["doc-1"], s.attributes.email);
+  /* 01/11/2026 (dono): o vendedor assina os mesmos documentos dos compradores */
+  assert.deepEqual(docsDo(vendedor.id), ["doc-1", "doc-2", "doc-3"]);
+  for (const s of sigs.filter((x) => x !== comprador && x !== vendedor)) assert.deepEqual(docsDo(s.id), ["doc-1"], s.attributes.email);
   const rubr = rq.filter((q) => q.attributes.action === "rubricate").map((q) => [q.relationships.document.data.id, q.attributes.kind, q.attributes.positions]);
-  assert.deepEqual(rubr.slice(2), [
-    ["doc-2", "manuscript", [{ page: "3", position: [0.53, 0.7] }]],   /* última página do memorial (3 aqui) */
-    ["doc-3", "initials", CS.POSICOES_PROJETO]]);
+  /* revisão 01/11: no memorial o vendedor assina na linha dele (x 0,116); no projeto o vendedor fica à ESQUERDA do
+     comprador, na mesma altura (nunca acima do carimbo da prefeitura) */
+  /* dono 01/11: projeto — vistos dentro do quadro DEFERIMENTO (págs. 1–2 A0, as demais A1), o vendedor 32 pt à esquerda */
+  const pg = (p) => (Number(p.page) <= 2 ? [3370, 2384] : [2384, 1684]);
+  assert.deepEqual(rubr.slice(1).map((x) => x[0] + ":" + x[1]), ["doc-2:manuscript", "doc-3:initials", "doc-2:manuscript", "doc-3:initials"]);
+  assert.deepEqual(rubr[1][2], [{ page: "3", position: [0.53, 0.7] }]);   /* última página do memorial (3 aqui) */
+  assert.deepEqual(rubr[3][2], [{ page: "3", position: [0.116, 0.7] }]);
+  const pc = rubr[2][2], pv = rubr[4][2];
+  assert.equal(pc.length, 11);
+  pc.forEach((p, i) => {
+    const [W, H] = pg(p), x = p.position[0] * W, y = p.position[1] * H;
+    assert.ok(x >= W - 492 - 0.5 && x + 27 <= W - 32 + 0.5 && y + 9 >= H - 239 - 0.5 && y + 27 <= H - 31 + 0.5, "pág " + p.page + " dentro do quadro");
+    assert.ok(Math.abs(pv[i].position[0] * W - (x - 32)) < 0.5 && pv[i].position[1] === p.position[1], "vendedor 32 pt à esquerda, mesma altura");
+  });
   /* tudo assinado: só o contrato vai para CONTRATO ASSINADO (o principal continua sendo o contrato) */
   c.c.estado.status = "closed";
   const e = c.acao("assinaturaEstado");
@@ -1307,7 +1325,8 @@ test("plano 23 B: linhas lidas na tela viram assinatura posicionada — comprado
   assert.equal(c.gerarFinal().ok, true);
   const r = c.acao("assinaturaEnviar", rub(c, { linhas: [LINHA_VEND, LINHA_COMP, LINHA_T1] }));
   assert.equal(r.ok, true, JSON.stringify(r));
-  assert.deepEqual(rubricaDe(c, "compradora@teste.example"), [RUB_CAMPOS.concat([posDe(LINHA_COMP)])]);
+  assert.deepEqual(rubricaDe(c, "compradora@teste.example"), [[posDe(LINHA_COMP)]]);   /* dono 01/11: manuscrita só na linha dela */
+  assert.deepEqual(rubricaDe(c, "compradora@teste.example", "doc-1", "initials"), [RUB_CAMPOS.concat([RUB_VALORES])]);
   assert.deepEqual(rubricaDe(c, "beltrano@teste.example"), [[posDe(LINHA_VEND)]]);
   assert.deepEqual(rubricaDe(c, TEST_SPE[0].email), [[posDe(LINHA_T1)]]);
   assert.deepEqual(rubricaDe(c, TEST_SPE[1].email), []);
@@ -1327,7 +1346,8 @@ test("correção 1 (C-1): desligado, as linhas mandadas não viram assinatura (o
   const c = cenario();
   assert.equal(c.gerarFinal().ok, true);
   assert.equal(c.acao("assinaturaEnviar", rub(c, { linhas: [LINHA_VEND, LINHA_COMP] })).ok, true);
-  assert.deepEqual(rubricaDe(c, "compradora@teste.example"), [RUB_CAMPOS]);
+  assert.deepEqual(rubricaDe(c, "compradora@teste.example"), []);
+  assert.deepEqual(rubricaDe(c, "compradora@teste.example", "doc-1", "initials"), [RUB_CAMPOS.concat([RUB_VALORES])], "os vistos continuam");
   assert.deepEqual(rubricaDe(c, "beltrano@teste.example"), []);
 });
 
@@ -1358,7 +1378,241 @@ test("plano 23 C: condomínio com CLICKSIGN_SELFIE=1 — fiadores com selfie e d
     return reqs.filter((q) => q.attributes.action === "provide_evidence" && q.relationships.signer.data.id === s.id)
       .map((q) => q.relationships.document.data.id + ":" + q.attributes.auth);
   };
-  assert.deepEqual(auths("f1@teste.example"), ["doc-2:email", "doc-2:selfie", "doc-2:official_document", "doc-3:email", "doc-3:selfie", "doc-3:official_document"]);
+  assert.deepEqual(auths("f1@teste.example"), ["doc-2:email", "doc-2:selfie", "doc-3:email", "doc-3:selfie"]);
   assert.ok(auths("compradora@teste.example").includes("doc-1:selfie"));
   assert.deepEqual(auths("beltrano@teste.example"), ["doc-1:email", "doc-2:email", "doc-3:email"]);
+});
+
+/* ---- 01/11/2026 (plano 23 B, dono: "essas alterações estéticas pode fazer"): blocos de assinatura gerados ----
+   Modelo migrado = o bloco fixo virou um parágrafo só com {{ASSINATURAS_QUADRO}} / {{ASSINATURAS_FINAL}} / {{ASSINATURAS_TERMO}};
+   cada pessoa sai com traço, Nome, CPF e o papel em negrito. Modelo antigo (sem os marcadores) sai como sempre. */
+const MODELO_COND_NOVO = [...MODELO_COND, "VENDEDORA: Construtora Teste Ltda, inscrita no CNPJ sob o nº 00.000.000/0001-00", "{{CIDADE_DATA}}", "{{ASSINATURAS_QUADRO}}", "CLÁUSULAS GERAIS", "ASSINATURAS", "{{ASSINATURAS_FINAL}}", "fim"];
+const papeisDo = (pars, ini, fim) => pars.slice(ini, fim).filter((l, i, a) => a[i + 1] === "" || i === a.length - 1);
+const salvoUltimo = (c, filtro = () => true) => c.d.estado.salvos[c.d.estado.copias.filter(filtro).at(-1).id];
+
+test("plano 23 B: contrato com o modelo migrado — os dois blocos com uma linha por pessoa, testemunhas com nome e CPF, papel em negrito", () => {
+  const c = cenarioCfd({ modeloCond: MODELO_COND_NOVO, linha: CASADO_PR });
+  const r = c.gerarFinal();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const s = salvoUltimo(c, (x) => x.nome.startsWith("CONTRATO - ")), pars = s.pars;
+  assert.ok(!pars.join("\n").includes("{{"), "sem marcador sobrando");
+  const q = pars.indexOf("CLÁUSULAS GERAIS"), f = pars.indexOf("ASSINATURAS");
+  const esperado = ["VENDEDORA", "COMPRADOR", "CÔNJUGE DO COMPRADOR", "INTERMEDIADOR/CORRETOR", "TESTEMUNHA 1", "TESTEMUNHA 2"];
+  const ini = pars.indexOf("________________________________");
+  assert.deepEqual(papeisDo(pars, ini, q), esperado, "quadro");
+  assert.deepEqual(papeisDo(pars, f + 1, pars.indexOf("fim")), esperado, "final (fiador não assina o contrato)");
+  assert.ok(pars.includes("Nome: Testemunha Um Spe") && pars.includes("Nome: Conjuge Teste da Silva"), pars.join(" | "));
+  assert.ok(pars.includes("Representante: Beltrano Representante – CPF: 111.444.777-35"));
+  const neg = s.negritos.filter((x) => x.texto === "TESTEMUNHA 2");
+  assert.equal(neg.length, 2);
+  assert.deepEqual(neg[0].negrito, [[0, 11, true]]);
+});
+
+test("plano 23 B: termo de confissão migrado leva fiadores e testemunhas; modelo antigo (sem o marcador) sai igual a antes", () => {
+  /* o cenarioCfd fixa os modelos dos termos; aqui o mesmo cenário com o PRÉ migrado */
+  const c = cenario({ linha: COLS_CFD, modelosExtra: { ...MODELOS_CFD, "modelo-cfd-pre": [...MODELOS_CFD["modelo-cfd-pre"], "ASSINATURAS", "{{ASSINATURAS_TERMO}}"] },
+                      props: { MODELO_CONFISSAO_PRE_ID: "modelo-cfd-pre", MODELO_CONFISSAO_POS_ID: "modelo-cfd-pos" } });
+  const r = c.gerarFinal();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const pre = salvoUltimo(c, (x) => x.nome.startsWith("CONFISSÃO PRÉ-CHAVES")).pars;
+  assert.deepEqual(papeisDo(pre, pre.indexOf("ASSINATURAS") + 1, pre.length),
+    ["CREDORA/VENDEDORA", "DEVEDOR/COMPRADOR", "FIADOR 1", "FIADOR 2", "TESTEMUNHA 1", "TESTEMUNHA 2"]);
+  assert.ok(pre.includes("Nome: Fiador Dois Teste") && pre.includes("CPF: 246.813.579-28"), pre.join(" | "));
+  const pos = salvoUltimo(c, (x) => x.nome.startsWith("CONFISSÃO PÓS-CHAVES")).pars;
+  assert.equal(pos.length, MODELOS_CFD["modelo-cfd-pos"].length, "modelo sem o marcador: nenhum parágrafo a mais");
+  const ct = salvoUltimo(c, (x) => x.nome.startsWith("CONTRATO - ")).pars;
+  assert.ok(!ct.some((l) => /^_{10,}$/.test(l)), "contrato com o modelo antigo não ganha bloco");
+});
+
+test("plano 23 B: termo de pré-reserva migrado — sem o cônjuge por padrão, com ele quando a opção está ligada", () => {
+  const modelo = { "modelo-pr": [...MODELO_PR, "{{ASSINATURAS_TERMO}}"] };
+  const c = cenarioPR({ modelosExtra: modelo, linha: { ...CONTA_PR, ...CASADO_PR } });
+  assert.equal(c.acao("gerarTermoPreReserva").ok, true);
+  const p1 = salvoUltimo(c).pars;
+  assert.deepEqual(papeisDo(p1, MODELO_PR.length, p1.length), ["VENDEDORA", "PRÉ-RESERVANTE", "TESTEMUNHA 1", "TESTEMUNHA 2"]);
+  c.acao("salvarConjugePreReserva", { incluir: true });
+  assert.equal(c.acao("gerarTermoPreReserva").ok, true);
+  const p2 = salvoUltimo(c).pars;
+  assert.deepEqual(papeisDo(p2, MODELO_PR.length, p2.length), ["VENDEDORA", "PRÉ-RESERVANTE", "CÔNJUGE DO PRÉ-RESERVANTE", "TESTEMUNHA 1", "TESTEMUNHA 2"]);
+  assert.ok(p2.includes("Nome: Conjuge Teste da Silva"));
+});
+
+/* ---- correção 1 do plano 23 B ---- */
+const outrasTestemunhas = (c) => assert.equal(c.acao("escolherTestemunhas", { ids: ["TESTEMUNHA UM PF", "TESTEMUNHA DOIS PF"] }).ok, true);
+
+test("correção 1 (I4): modelo migrado — trocar as testemunhas depois de gerar deixa o contrato desatualizado; modelo antigo segue como hoje", () => {
+  const novo = cenario({ modeloCond: MODELO_COND_NOVO });
+  assert.equal(novo.acao("gerarPreContrato").ok, true);
+  assert.equal(novo.acao("contratoEstado").pre.desatualizado, false, "o pré-contrato do modelo migrado não aparece desatualizado à toa");
+  assert.equal(novo.gerarFinal().ok, true);
+  outrasTestemunhas(novo);
+  assert.equal(novo.acao("assinaturaEnviar", rub(novo)).erro, "CONTRATO_DESATUALIZADO");
+  const igual = cenario({ modeloCond: MODELO_COND_NOVO });
+  assert.equal(igual.gerarFinal().ok, true);
+  const e = igual.acao("assinaturaEnviar", rub(igual));
+  assert.equal(e.ok, true, JSON.stringify(e.faltas || e));
+  const antigo = cenario();
+  assert.equal(antigo.gerarFinal().ok, true);
+  outrasTestemunhas(antigo);
+  const r = antigo.acao("assinaturaEnviar", rub(antigo));
+  assert.equal(r.ok, true, JSON.stringify(r.faltas || r));
+});
+
+test("correção 1 (I4): pré-reserva migrada — ligar o cônjuge depois de gerar deixa o termo desatualizado", () => {
+  const novo = cenarioPR({ modelosExtra: { "modelo-pr": [...MODELO_PR, "{{ASSINATURAS_TERMO}}"] }, linha: { ...CONTA_PR, ...CASADO_PR } });
+  assert.equal(novo.acao("gerarTermoPreReserva").ok, true);
+  novo.acao("salvarConjugePreReserva", { incluir: true });
+  assert.equal(novo.acao("assinaturaEnviar", { doc: "PRE_RESERVA" }).erro, "TERMO_DESATUALIZADO");
+  assert.equal(novo.acao("gerarTermoPreReserva").ok, true);
+  assert.equal(novo.acao("assinaturaEnviar", { doc: "PRE_RESERVA" }).ok, true, "gerado de novo, envia");
+});
+
+test("correção 1 (I6b): contrato do condomínio migrado sem o CNPJ do vendedor no texto do modelo não sai (qualificação diferente)", () => {
+  const sem = cenario({ modeloCond: MODELO_COND_NOVO.filter((l) => !l.includes("CNPJ")) });
+  const r = sem.acao("gerarPreContrato");
+  assert.equal(r.erro, "MODELO_CNPJ_VENDEDOR_DIFERENTE", JSON.stringify(r));
+  assert.equal(sem.d.estado.copias.length, 0, "nem copia o modelo");
+  /* modelo antigo (sem os marcadores novos) não é conferido */
+  assert.equal(cenario().acao("gerarPreContrato").ok, true);
+});
+
+test("correção 1 (M5): erro ao montar o bloco não derruba o modelo antigo; no migrado o marcador sobra e o documento não sai", () => {
+  const quebrar = (c) => { c.g.ctx.ClicksignVenda.blocoAssinaturas = () => { throw new Error("teste"); }; };
+  const antigo = cenarioPR({ linha: CONTA_PR });
+  quebrar(antigo);
+  assert.equal(antigo.acao("gerarTermoPreReserva").ok, true);
+  const novo = cenarioPR({ modelosExtra: { "modelo-pr": [...MODELO_PR, "{{ASSINATURAS_TERMO}}"] }, linha: CONTA_PR });
+  quebrar(novo);
+  assert.equal(novo.acao("gerarTermoPreReserva").erro, "MODELO_COM_MARCADOR_SOBRANDO");
+  const cfd = cenarioCfd();
+  quebrar(cfd);
+  assert.equal(cfd.gerarFinal().ok, true, "contrato e termos com os modelos antigos");
+});
+
+/* ---- correção 3 (4): o que acontece quando o PDF assinado entra (Andamento e Mais Controle) — uma função só ---- */
+const ARQ_OK = { original: "https://s3.clicksign.falso/original.pdf", signed: "https://s3.clicksign.falso/assinado.pdf" };
+const VIGIA_SRC = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "AssinaturaVigia.gs"), "utf8");
+function contarPos(c) { c.g.ctx.__pos = []; vm.runInContext("assPosAssinatura_ = function (col, pageId) { __pos.push(pageId); };", c.g.ctx); }
+
+test("correção 3 (4): Atualizar situação que guarda o PDF assinado faz o pós-assinatura uma vez; de novo, não repete", () => {
+  const c = cenario({ cs: { arquivos: ARQ_OK }, linha: { "ASSINOU E ARMAZENOU CONTRATO": { checkbox: false } } });
+  assert.equal(c.gerarFinal().ok, true);
+  assert.equal(c.acao("assinaturaEnviar", rub(c)).ok, true);
+  c.c.estado.status = "closed";
+  assert.equal(c.acao("assinaturaEstado").situacao, "ASSINADO");
+  assert.equal(c.n.pagina.properties["ASSINOU E ARMAZENOU CONTRATO"].checkbox, true, "Andamento marcado pelo botão " + c.g.logs.filter((l) => /pos-assinatura|anexado|ASSINOU/.test(l)).join(" | "));
+  contarPos(c);
+  assert.equal(c.acao("assinaturaEstado").situacao, "ASSINADO");
+  assert.deepEqual([...c.g.ctx.__pos], [], "PDF já guardado: não repete");
+});
+
+test("correção 3 (4): pela vigia também uma vez só (a mesma função, chamada de dentro do assinaturaEstado_)", () => {
+  const c = cenario({ cs: { arquivos: ARQ_OK } });
+  vm.runInContext(VIGIA_SRC, c.g.ctx, { filename: "AssinaturaVigia.gs" });
+  assert.equal(c.gerarFinal().ok, true);
+  assert.equal(c.acao("assinaturaEnviar", rub(c)).ok, true);
+  c.c.estado.status = "closed";
+  contarPos(c);
+  assert.equal(c.g.ctx.vigiaUma_(c.g.ctx.colunas_(), c.g.ctx.ctrLerPaginaVenda_(COND)), true);
+  assert.deepEqual([...c.g.ctx.__pos], [COND]);
+});
+
+test("correção 3 (1): no envelope com termos, o corretor (ASSINATURA_INCLUIR_CORRETOR=SIM) assina só o contrato", () => {
+  const c = cenarioCfd({ cs: { arquivos: ARQ_OK }, props: { ASSINATURA_INCLUIR_CORRETOR: "SIM" } });
+  assert.equal(c.gerarFinal().ok, true);
+  const r = c.acao("assinaturaEnviar", rub(c));
+  assert.equal(r.ok, true, JSON.stringify(r.faltas || r));
+  const corr = c.c.estado.signers.find((s) => s.attributes.email === "corretor@teste.example");
+  const reqs = c.c.chamadas.filter((x) => x.metodo === "POST" && x.caminho === "/envelopes/env-1/requirements");
+  const docs = [...new Set(reqs.filter((q) => q.corpo.data.relationships.signer.data.id === corr.id).map((q) => q.corpo.data.relationships.document.data.id))];
+  assert.deepEqual(docs, ["doc-1"]);
+});
+
+/* ---- envelope da unidade 22 (3): os vistos ("initials") não apareceram em nenhum PDF assinado ---- */
+const soInitials = (sem) => (m, cam, corpo) => (m === "POST" && cam === "/envelopes/env-1/requirements" && corpo.data.attributes.kind === "initials"
+  ? { status: 201, json: { data: { id: "req-x", type: "requirements", attributes: sem } } } : null);
+
+test("unidade 22 (3): cada rubrica posicionada fica no registro; o que a Clicksign guardar diferente do pedido vira aviso no envio", () => {
+  /* resposta sem "positions" não é divergência (pode ser só a resposta que não devolve o campo): fica o registro, sem aviso */
+  const s0 = cenario({ cs: { falhar: soInitials({ action: "rubricate", kind: "initials" }) } });
+  assert.equal(s0.gerarFinal().ok, true);
+  const r0 = s0.acao("assinaturaEnviar", rub(s0));
+  assert.equal(r0.ok, true, JSON.stringify(r0));
+  assert.ok(!(r0.avisos || []).some((a) => /RUBRICA_DIVERGENTE/.test(a)), JSON.stringify(r0.avisos));
+  const c = cenario({ cs: { falhar: soInitials({ action: "rubricate", kind: "initials", positions: [] }) } });
+  assert.equal(c.gerarFinal().ok, true);
+  const r = c.acao("assinaturaEnviar", rub(c));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.ok((r.avisos || []).some((a) => /RUBRICA_DIVERGENTE/.test(a)), JSON.stringify(r.avisos));
+  const log = c.g.logs.join("\n");
+  assert.match(log, /rubrica initials doc-1: 3 posições pedidas → guardada kind=initials, 0 posição/);
+  assert.ok(!/compradora@|Compradora de Teste/.test(log), "registro sem dado pessoal");
+});
+
+test("unidade 22 (3): aviso da tela (4.2.1 não achado = sem visto nos valores) chega ao envio e ao registro", () => {
+  const c = cenario();
+  assert.equal(c.gerarFinal().ok, true);
+  const r = c.acao("assinaturaEnviar", rub(c, { valores: null, avisos: ["item 4.2.1 do quadro-resumo não achado"] }));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.ok(r.avisos.includes("tela: item 4.2.1 do quadro-resumo não achado"), JSON.stringify(r.avisos));
+  assert.match(c.g.logs.join("\n"), /tela: item 4\.2\.1 do quadro-resumo não achado/);
+});
+
+test("unidade 22 (3): RUBRICAS_VISTO_COMO_ASSINATURA=1 — os vistos vão como assinatura (manuscript), juntos no mesmo requisito", () => {
+  const c = cenario({ props: { RUBRICAS_VISTO_COMO_ASSINATURA: "1" } });
+  assert.equal(c.gerarFinal().ok, true);
+  assert.equal(c.acao("assinaturaEnviar", rub(c)).ok, true);
+  const rq = c.c.chamadas.filter((x) => x.metodo === "POST" && x.caminho === "/envelopes/env-1/requirements" && x.corpo.data.attributes.action === "rubricate").map((x) => x.corpo.data);
+  assert.ok(!rq.some((q) => q.attributes.kind === "initials"));
+  const doComprador = rq.filter((q) => q.relationships.document.data.id === "doc-1" && q.attributes.positions.some((p) => p.page === RUB_VALORES.page && p.position[0] === RUB_VALORES.position[0]));
+  assert.equal(doComprador.length, 1);
+  assert.equal(doComprador[0].attributes.kind, "manuscript");
+  const chaves = rq.map((q) => q.relationships.signer.data.id + "|" + q.relationships.document.data.id + "|" + q.attributes.kind);
+  assert.equal(new Set(chaves).size, chaves.length, "um requisito por pessoa, documento e tipo");
+});
+
+/* ---- dono 01/11: memorial migrado ({{ASSINATURAS_MEMORIAL}}) — uma linha por pessoa, lida no PDF do memorial ---- */
+test("dono 01/11: memorial migrado — bloco gerado, PDF do memorial para a tela e cada pessoa assina na própria linha", () => {
+  const MEM_NOVO = ["MEMORIAL DESCRITIVO", "/Type /Page", "{{ASSINATURAS_MEMORIAL}}"];
+  const c = cenario({ modelosExtra: { "modelo-memorial": MEM_NOVO }, linha: CASADO_PR,
+                      props: { MODELO_MEMORIAL_ID: "modelo-memorial", ASSINATURA_LINHAS: "1" } });
+  assert.equal(c.gerarFinal().ok, true);
+  const pdf = c.acao("assinaturaPdf");
+  assert.equal(pdf.ok, true, JSON.stringify(pdf).slice(0, 200));
+  assert.ok(pdf.memorial && pdf.memorial.base64.length > 4, "o memorial vai para a tela achar as linhas");
+  const txtMem = Buffer.from(pdf.memorial.base64, "base64").toString("utf8");
+  for (const papel of ["VENDEDORA", "COMPRADOR", "CÔNJUGE DO COMPRADOR"]) assert.ok(txtMem.includes(papel), papel);
+  assert.ok(txtMem.includes("Nome: Conjuge Teste da Silva"));
+  const LM = [{ page: "2", position: [0.12, 0.30], texto: "Nome: Construtora Teste Ltda\nCNPJ: 00.000.000/0001-00\nVENDEDORA" },
+              { page: "2", position: [0.12, 0.40], texto: "Nome: Compradora de Teste\nCPF: 1\nCOMPRADOR" },
+              { page: "2", position: [0.12, 0.50], texto: "Nome: Conjuge Teste da Silva\nCPF: 2\nCÔNJUGE DO COMPRADOR" }];
+  c.d.zerar();
+  const r = c.acao("assinaturaEnviar", rub(c, { memorial: { linhas: LM } }));
+  assert.equal(r.ok, true, JSON.stringify(r.faltas || r));
+  assert.deepEqual(rubricaDe(c, "compradora@teste.example", "doc-2"), [[posDe(LM[1])]]);
+  assert.deepEqual(rubricaDe(c, "conjuge@teste.example", "doc-2"), [[posDe(LM[2])]]);
+  assert.deepEqual(rubricaDe(c, "beltrano@teste.example", "doc-2"), [[posDe(LM[0])]]);
+});
+
+/* ---- dono 01/11: "não dá para ver o documento antes de mandar assinar?" — prévia das assinaturas ---- */
+test("prévia (assinaturaPrevia): as mesmas posições que o envio criaria, sem Clicksign, sem gravar e sem nome/e-mail", () => {
+  const LT = [{ page: "18", position: [0.096, 0.05], texto: "EMPRESA TESTE\nVENDEDORA" }, { page: "18", position: [0.096, 0.2], texto: "Nome: Compradora de Teste\nCPF: 000\nCOMPRADOR" }];
+  const c = cenarioCfd({ props: { ASSINATURA_LINHAS: "1" }, cs: { arquivos: { original: "https://s3.clicksign.falso/original.pdf", signed: "https://s3.clicksign.falso/assinado.pdf" } } });
+  assert.equal(c.gerarFinal().ok, true);
+  c.c.chamadas.length = 0; const patches = c.n.patches.length;
+  const pv = c.acao("assinaturaPrevia", rub(c, { linhas: LT }), token("TESTES"));
+  assert.equal(pv.ok, true, JSON.stringify(pv));
+  assert.equal(c.c.chamadas.length, 0, "nenhuma chamada à Clicksign");
+  assert.equal(c.n.patches.length, patches, "nada gravado no Notion");
+  assert.ok(!/Compradora de Teste|@teste/.test(JSON.stringify(pv)), "sem nome nem e-mail");
+  assert.ok(pv.marcas.every((m) => ["doc", "papel", "kind", "page", "position"].every((k) => k in m)));
+  /* o envio de verdade cria exatamente estas marcas no contrato */
+  const r = c.acao("assinaturaEnviar", rub(c, { linhas: LT }));
+  assert.equal(r.ok, true, JSON.stringify(r.faltas || r));
+  const papelDe = Object.fromEntries(c.c.estado.signers.map((s) => [s.id, r.signatarios.find((x) => x.email === s.attributes.email).papel]));
+  const doEnvio = reqsDe(c).filter((q) => q.attributes.action === "rubricate" && q.relationships.document.data.id === "doc-1")
+    .flatMap((q) => q.attributes.positions.map((p) => [papelDe[q.relationships.signer.data.id], q.attributes.kind, p.page, p.position.join(",")].join("|"))).sort();
+  const daPrevia = pv.marcas.filter((m) => m.doc === "contrato").map((m) => [m.papel, m.kind, m.page, m.position.join(",")].join("|")).sort();
+  assert.deepEqual(daPrevia, doEnvio);
+  assert.ok(doEnvio.length >= 3, doEnvio.join(" ; "));
 });

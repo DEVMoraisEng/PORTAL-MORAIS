@@ -33,18 +33,26 @@ test("acha cada \"ASSINATURA: ____\" (item partido ou inteiro, com texto antes) 
   const r = R.acharNoContrato(CONTRATO, { campo: { dx: 0, dy: 0 }, valores: { dx: 0, dy: 0 } });
   assert.deepEqual(r.campos.map((c) => c.page), ["3", "3", "8"]);
   /* x = começo dos traços; y = topo da linha (proporção da página) */
-  assert.deepEqual(r.campos[0].position, [+(243 / W).toFixed(4), +(437 / H).toFixed(4)]);
-  assert.deepEqual(r.campos[1].position, [+((183 + 12 * 255 / 44) / W).toFixed(4), +(556 / H).toFixed(4)]);
-  assert.equal(r.campos[2].position[0], +((183 + 22 * 319 / 53) / W).toFixed(4));
+  /* calibração 01/11: topo da assinatura 46 pt acima da linha de base (item de 11 pt: y + 11 − 46) */
+  /* calibração u22 (01/11): campo = ponto do visto 25 pt acima da linha de base (item de 11 pt: y + 11 − 25) */
+  assert.deepEqual(r.campos[0].position, [+(243 / W).toFixed(4), +((437 + 11 - 25) / H).toFixed(4)]);
+  /* unidade 22: a largura do item é repartida pela largura típica de cada letra (maiúscula 0,72 em, "_" 0,5, ":" e espaço
+     0,25, "]" e "–" …) — o começo dos traços cai nos traços, não em cima do "ASSINATURA:" */
+  const peso = (c) => (c === "_" ? 0.5 : c === " " ? 0.25 : /[.,:;'!|]/.test(c) ? 0.25 : /[—–]/.test(c) ? 1 : /[-()\[\]\/]/.test(c) ? 0.33 : /[A-ZÀ-ÖØ-Þ]/.test(c) ? 0.72 : 0.5);
+  const inicio = (str, x, w) => { const ws = [...str].map(peso), tot = ws.reduce((a, b) => a + b, 0), k = str.indexOf("_");
+                                  return x + w * ws.slice(0, k).reduce((a, b) => a + b, 0) / tot; };
+  assert.deepEqual(r.campos[1].position, [+(inicio("ASSINATURA: _______________________________]", 183, 255) / W).toFixed(4), +((556 + 11 - 25) / H).toFixed(4)]);
+  assert.equal(r.campos[2].position[0], +(inicio("LIMITES – ASSINATURA: _______________________________", 183, 319) / W).toFixed(4));
+  assert.ok(r.campos[1].position[0] > (183 + 12 * 255 / 44) / W, "à direita da divisão igual de antes");
   /* visto na coluna cinza (margem + 4 pt), na altura do 4.2.1 */
-  assert.deepEqual(r.valores, { page: "3", position: [+(61 / W).toFixed(4), +(140 / H).toFixed(4)] });
+  assert.deepEqual(r.valores, { page: "3", position: [+(61 / W).toFixed(4), +((140 + 11 - 22) / H).toFixed(4)] });   /* 22 pt acima da base */
   assert.deepEqual(r.avisos, []);
 });
 
 test("ajuste do servidor soma nas posições e nada sai de 0–1", () => {
   const r = R.acharNoContrato(CONTRATO, { campo: { dx: 0.01, dy: -0.01 }, valores: { dx: 0, dy: -0.5 } });
   assert.equal(r.campos[0].position[0], +(243 / W + 0.01).toFixed(4));
-  assert.equal(r.campos[0].position[1], +(437 / H - 0.01).toFixed(4));
+  assert.equal(r.campos[0].position[1], +((437 + 11 - 25) / H - 0.01).toFixed(4));
   assert.equal(r.valores.position[1], 0);
 });
 
@@ -64,7 +72,7 @@ test("paginaDoPdfjs: y do pdf.js (de baixo) vira topo da linha (de cima); item v
 test("validarRubricas: confere o PDF, o formato e os limites", () => {
   const ok = { nome: "CASA [#abcd1234].pdf", campos: [{ page: 3, position: [0.42345, 0.5] }], valores: { page: "3", position: [0.1, 0.16] } };
   assert.deepEqual(CS.validarRubricas(ok, "CASA [#abcd1234].pdf"),
-                   { ok: true, campos: [{ page: "3", position: [0.4235, 0.5] }], valores: { page: "3", position: [0.1, 0.16] }, linhas: [], termos: {} });
+                   { ok: true, campos: [{ page: "3", position: [0.4235, 0.5] }], valores: { page: "3", position: [0.1, 0.16] }, linhas: [], termos: {}, memorial: [] });
   assert.equal(CS.validarRubricas(null, "x").erro, "RUBRICAS_FALTANDO");
   assert.equal(CS.validarRubricas(ok, "CASA [#ffff0000].pdf").erro, "RUBRICAS_DE_OUTRO_PDF");
   for (const ruim of [{ campos: [] }, { campos: [{ page: 0, position: [0.1, 0.1] }] }, { campos: [{ page: 1, position: [1.2, 0.1] }] },
@@ -103,21 +111,22 @@ test("signatários: compradores rubricam; fiador só termos; grupos expostos par
 
 const DOCS = [{ id: "c", tipo: "contrato" }, { id: "t", tipo: "termo" }, { id: "m", tipo: "memorial" }, { id: "p", tipo: "projeto" }];
 
-test("quem assina cada documento: memorial e projeto só o comprador; fiador só os termos", () => {
+test("quem assina cada documento: compradores (cônjuge incluído) e vendedor tudo; testemunha contrato e termos; fiador só os termos (dono, 01/11)", () => {
   assert.deepEqual(CS.documentosDoSignatario({ rubrica: true }, DOCS), ["c", "t", "m", "p"]);
   assert.deepEqual(CS.documentosDoSignatario({ soTermos: true }, DOCS), ["t"]);
   assert.deepEqual(CS.documentosDoSignatario({ origem: "testemunha" }, DOCS), ["c", "t"]);
 });
 
-test("requisitos de rubrica: contrato (assinatura nos campos + visto nos valores), memorial, projeto; só do comprador", () => {
+test("requisitos de rubrica (dono, 01/11): comprador — vistos (ciência + valores), memorial, vistos no projeto; vendedor — memorial e projeto", () => {
   const rub = { campos: [{ page: "3", position: [0.4, 0.5] }], valores: { page: "3", position: [0.1, 0.16] },
                 memorial: { page: "13", position: [0.53, 0.7] }, projeto: CS.posicoesProjeto(null) };
-  assert.deepEqual(CS.requisitosRubrica({ rubrica: true }, DOCS, rub), [
-    { docId: "c", kind: "manuscript", positions: rub.campos },
-    { docId: "c", kind: "initials", positions: [rub.valores] },
-    { docId: "m", kind: "manuscript", positions: [rub.memorial] },
-    { docId: "p", kind: "initials", positions: rub.projeto }]);
-  assert.deepEqual(CS.requisitosRubrica({ origem: "vendedor" }, DOCS, rub), []);
+  const forma = (l) => l.map((r) => r.docId + ":" + r.kind + ":" + r.positions.length);
+  const c = CS.requisitosRubrica({ rubrica: true }, DOCS, rub);
+  assert.deepEqual(forma(c), ["c:initials:2", "m:manuscript:1", "p:initials:11"]);
+  assert.deepEqual(c[0].positions, [rub.campos[0], rub.valores], "um só: a pessoa sozinha fica no ponto lido");
+  assert.deepEqual(forma(CS.requisitosRubrica({ origem: "vendedor" }, DOCS, rub)), ["m:manuscript:1", "p:initials:11"]);
+  assert.deepEqual(CS.requisitosRubrica({ origem: "vendedor" }, DOCS, rub)[0].positions, [{ page: "13", position: [0.116, 0.7] }]);
+  assert.deepEqual(CS.requisitosRubrica({ origem: "testemunha" }, DOCS, rub), []);
   assert.deepEqual(CS.requisitosRubrica({ rubrica: true }, DOCS, null), []);
   /* termo de pré-reserva / rubricas desligadas: só o contrato, sem rubrica */
   assert.deepEqual(CS.requisitosRubrica({ rubrica: true }, [DOCS[0]], { campos: [], valores: null }), []);
@@ -214,11 +223,11 @@ const BLOCO = [pag(18, [
 test("plano 23 B: acharLinhas — traço sozinho na linha + o texto logo abaixo; 'ASSINATURA: ___' e texto solto ficam de fora", () => {
   const l = R.acharLinhas(BLOCO, { linha: { dx: 0, dy: 0 } });
   assert.equal(l.length, 3);
-  assert.deepEqual(l[0], { page: "18", position: [+(57 / W).toFixed(4), +(60 / H).toFixed(4)], texto: "VENDEDORA EMPRESA TESTE LTDA\nVENDEDORA" });
+  assert.deepEqual(l[0], { page: "18", position: [+(57 / W).toFixed(4), +((60 + 11 - 27) / H).toFixed(4)], texto: "VENDEDORA EMPRESA TESTE LTDA\nVENDEDORA" });
   assert.equal(l[1].texto, "Nome: Compradora Um Teste /\nComprador Dois Teste\nCOMPRADOR");
   assert.equal(l[2].texto, "TESTEMUNHA 1\nNome:");
   /* o ajuste sobe a assinatura para ficar em cima da linha */
-  assert.equal(R.acharLinhas(BLOCO, { linha: { dx: 0, dy: -0.03 } })[0].position[1], +(60 / H - 0.03).toFixed(4));
+  assert.equal(R.acharLinhas(BLOCO, { linha: { dx: 0, dy: -0.02 } })[0].position[1], +((60 + 11 - 27) / H - 0.02).toFixed(4));
   assert.ok(R.acharLinhas(BLOCO)[0].position[1] < +(60 / H).toFixed(4), "sem ajuste da tela vale o padrão (acima da linha)");
   assert.deepEqual(R.acharLinhas([pag(1, [it("texto", 57, 60)])]), []);
 });
@@ -258,16 +267,19 @@ test("plano 23 B: requisitosRubrica — linhas somadas à assinatura do comprado
   const docs = [{ id: "c", tipo: "contrato" }, { id: "t", tipo: "termo", nome: nomeT }, { id: "m", tipo: "memorial" }];
   const rub = { campos: [{ page: "3", position: [0.4, 0.5] }], valores: { page: "3", position: [0.1, 0.16] }, memorial: { page: "13", position: [0.53, 0.7] },
                 projeto: [], linhas: LINHAS_CT, termos: { [nomeT]: LINHAS_TERMO } };
+  /* dono 01/11: a manuscrita só na linha da pessoa; ciência e valores viram um requisito de visto */
   assert.deepEqual(CS.requisitosRubrica(l[0], docs, rub, 0, l), [
-    { docId: "c", kind: "manuscript", positions: rub.campos.concat(sem([LINHAS_CT[4]])) },
-    { docId: "c", kind: "initials", positions: [rub.valores] },
+    { docId: "c", kind: "manuscript", positions: sem([LINHAS_CT[4]]) },
+    { docId: "c", kind: "initials", positions: rub.campos.concat([rub.valores]) },
+    /* memorial (Carta): os 2 compradores cabem lado a lado na linha deles — o comprador 1 no ponto medido */
     { docId: "m", kind: "manuscript", positions: [rub.memorial] }]);
   assert.deepEqual(CS.requisitosRubrica(l[2], docs, rub, 2, l), [
-    { docId: "c", kind: "manuscript", positions: sem([LINHAS_CT[0]]) }, { docId: "t", kind: "manuscript", positions: sem([LINHAS_TERMO[0]]) }]);
+    { docId: "c", kind: "manuscript", positions: sem([LINHAS_CT[0]]) }, { docId: "t", kind: "manuscript", positions: sem([LINHAS_TERMO[0]]) },
+    { docId: "m", kind: "manuscript", positions: [{ page: "13", position: [0.116, 0.7] }] }]);   /* vendedor: a linha dele no memorial */
   assert.deepEqual(CS.requisitosRubrica(l[5], docs, rub, 5, l), [{ docId: "t", kind: "manuscript", positions: sem([LINHAS_TERMO[2]]) }]);
-  assert.deepEqual(CS.requisitosRubrica(l[1], docs, rub, 1, l).map((r) => r.positions.length), [1, 1, 1], "comprador 2: só os campos (linha dividida)");
-  /* chamada antiga (sem a lista): como antes */
-  assert.deepEqual(CS.requisitosRubrica(l[2], docs, rub), []);
+  assert.deepEqual(CS.requisitosRubrica(l[1], docs, rub, 1, l).map((r) => r.kind + ":" + r.positions.length), ["initials:2", "manuscript:1"], "comprador 2: só os vistos (linha dividida) e o memorial");
+  /* chamada antiga (sem a lista): sem as linhas; o vendedor só com o memorial (dono, 01/11/2026), sem deslocar */
+  assert.deepEqual(CS.requisitosRubrica(l[2], docs, rub), [{ docId: "m", kind: "manuscript", positions: [{ page: "13", position: [0.116, 0.7] }] }]);
 });
 
 test("plano 23 B: validarRubricas confere linhas e termos; ASSINATURA_LINHAS=1 liga (correção 1: desligado por padrão)", () => {
@@ -285,7 +297,7 @@ test("plano 23 B: validarRubricas confere linhas e termos; ASSINATURA_LINHAS=1 l
   assert.equal(CS.montarConfig({ ASSINATURA_LINHAS: "SIM" }).linhas, false, "só o 1 liga");
   /* desligado: linhas e termos da tela são ignorados SEM conferir (tela antiga ou lixo não barra o envio) */
   const off = CS.validarRubricas(Object.assign({ linhas: "lixo", termos: 7 }, base), "a.pdf", { linhas: false });
-  assert.deepEqual(off, { ok: true, campos: [{ page: "1", position: [0.1, 0.1] }], valores: null, linhas: [], termos: {} });
+  assert.deepEqual(off, { ok: true, campos: [{ page: "1", position: [0.1, 0.1] }], valores: null, linhas: [], termos: {}, memorial: [] });
 });
 
 test("plano 23 B: tela — lê as linhas do contrato e dos termos e manda junto com as rubricas", async () => {

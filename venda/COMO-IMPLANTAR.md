@@ -1091,12 +1091,174 @@ só na página da Clicksign até o modelo ter uma linha por pessoa.
 - Sandbox: conferir no envelope se a caixa cai em cima de cada linha (vendedora, corretor, testemunhas; fiadores nos
   termos). Fora do lugar: `RUBRICAS_AJUSTE.linha`.
 
+## Uma linha de assinatura por pessoa nos modelos (01/11/2026, plano 23 B — troca dos blocos)
+
+O dono autorizou mexer nos BLOCOS de assinatura dos modelos (não no texto jurídico): "essas alterações estéticas pode
+fazer". Os dois blocos do contrato (quadro-resumo e ASSINATURAS no fim) e o dos termos continuam; cada um passa a ser
+um parágrafo só com um marcador, e o código escreve uma linha por pessoa: traço, `Nome:`, `CPF:` (CNPJ de empresa) e o
+papel em negrito, na ordem vendedora, comprador 1, cônjuge do comprador 1, comprador 2, fiador 1, cônjuge do fiador 1,
+fiador 2, cônjuge do fiador 2, corretor e testemunhas 1 e 2 (com nome e CPF).
+
+- Só aparece quem assina aquele documento: no contrato, sem fiadores (eles assinam só os termos) e com o corretor só
+  quando há comissão; nos termos de confissão, com fiadores e cônjuges deles e sem corretor; na pré-reserva, vendedora,
+  pré-reservante e testemunhas, e o cônjuge só com a caixa "Incluir o cônjuge na pré-reserva" ligada.
+- Marcadores: `{{ASSINATURAS_QUADRO}}` e `{{ASSINATURAS_FINAL}}` (contrato do condomínio, casa pronta e em construção) e
+  `{{ASSINATURAS_TERMO}}` (confissão PRÉ e PÓS e termo de pré-reserva).
+- **Modelo não migrado continua saindo como hoje.** Nada muda até rodar a migração abaixo.
+- As testemunhas saem com o nome escolhido na hora de gerar. Se trocar as testemunhas (ou a caixa do cônjuge da
+  pré-reserva) depois de gerar, gere o contrato/termo de novo antes de enviar.
+- Com `ASSINATURA_LINHAS` = `1`, cada pessoa ganha a assinatura em cima da própria linha (cônjuge e comprador 2
+  também). O bloco do quadro-resumo que vira a página continua sendo lido na página seguinte.
+
+**Atenção: o PORTAL-VENDA-TESTE e a produção usam os MESMOS modelos** (as mesmas Propriedades `MODELO_..._ID`). Por
+isso a migração NUNCA mexe no modelo original: ela faz uma CÓPIA de cada modelo, já com os blocos novos, e cada projeto
+passa a usar a cópia quando o dono troca a Propriedade dele. O código antigo da produção recusaria o modelo migrado
+(`MODELO_COM_MARCADOR_SOBRANDO`); por isso a produção só troca a Propriedade depois de ter o código novo.
+
+- Com o modelo migrado, as testemunhas escolhidas (e, na pré-reserva, a caixa do cônjuge) entram no carimbo do PDF:
+  trocar depois de gerar deixa o contrato/termo desatualizado e o envio pede para gerar de novo. Com o modelo antigo
+  o carimbo é o de hoje.
+- Contrato do condomínio com o modelo migrado: se o CNPJ do vendedor no cadastro não estiver escrito no texto do
+  modelo, o contrato não sai (`MODELO_CNPJ_VENDEDOR_DIFERENTE`) — o bloco novo escreve o vendedor pelo cadastro e a
+  qualificação do modelo tem de ser a mesma empresa.
+
+**Passo a passo do dono (uma vez):**
+1. Colar o código novo nos DOIS projetos, `PORTAL-VENDA-TESTE` e `PORTAL-VENDA`: `ClicksignVenda`, `ContratoVenda`,
+   `GerarContrato`, `AssinaturaVenda`, `AssinaturaVigia`, `Confissao`, `PreReserva` e o novo `MigrarModelos`; e
+   subir o site (`venda/RubricasVenda.js` v8, `venda/assinatura-ui.js` v23, `venda-dossie.js` v56, `vendas.html`,
+   `simulacoes.html`, `sw.js` v258). Com os modelos de hoje nada muda.
+2. No projeto onde vai rodar a migração (o TESTE), ligar o serviço avançado **Google Docs API**: editor do Apps Script ›
+   Serviços (+) › Google Docs API › Adicionar (identificador `Docs`). Os modelos de contrato têm quebras de seção perto dos
+   blocos (a de próxima página antes do quadro-resumo e a de 2 colunas que põe vendedora | comprador lado a lado); o
+   DocumentApp as chama de "UNSUPPORTED" e só o serviço Docs confirma que são quebras. Sem ele, os três contratos saem
+   "NÃO MEXI" (os termos não têm quebras e migram mesmo assim).
+   As quebras FICAM onde estão: sai só o texto e as tabelas de assinatura, e o marcador entra depois da última quebra do
+   bloco (fora da seção de 2 colunas — o bloco novo é uma pessoa por linha, numa coluna só). Fica uma linha vazia antes de
+   cada quebra de seção. Elemento desconhecido que não seja quebra de seção ou de página continua barrando o modelo.
+   Depois, escolher a função `migrarModelosAssinaturasPrevia` e clicar em Executar. Ela só lê:
+   o Registro de execução diz, para cada modelo (`MODELO_CONDOMINIO_ID`, `MODELO_PRONTO_ID`, `MODELO_CONSTRUCAO_ID`,
+   `MODELO_CONFISSAO_PRE_ID`, `MODELO_CONFISSAO_POS_ID`, `MODELO_PRE_RESERVA_ID` e `MODELO_MEMORIAL_ID`), quantos blocos trocaria, o vendedor
+   escrito no bloco antigo e CADA linha que sairia. Esperado: 2 blocos nos contratos e 1 nos termos. "NÃO MEXI — …" =
+   aquele modelo fica como está (o motivo vem escrito).
+3. Conferida a prévia, executar `migrarModelosAssinaturasAplicar`. Para cada modelo ele cria, na mesma pasta, a cópia
+   "<nome> - assinaturas 01-11", confere que ela saiu igual ao original e troca os blocos SÓ NA CÓPIA. O registro diz
+   "Propriedade X: trocar <id antigo> por <id novo>". Os originais não mudam. "ERRO NA CÓPIA <id> — apague a cópia":
+   apagar aquela cópia no Drive e avisar. Rodar de novo não cria outra cópia (repete qual Propriedade trocar).
+4. Abrir as cópias no Google Docs: no lugar de cada bloco, uma linha `{{ASSINATURAS_...}}` centralizada.
+5. No `PORTAL-VENDA-TESTE` (Configurações do projeto → Propriedades do script), trocar cada `MODELO_..._ID` pelo id
+   novo do registro.
+6. Testar no TESTE: pré-contrato e contrato do condomínio (com cônjuge e fiadores) e de uma casa de rua, os termos de
+   confissão e um termo de pré-reserva. Conferir as linhas, nomes, CPFs e o papel em negrito.
+7. Tudo certo: trocar as mesmas Propriedades no `PORTAL-VENDA` de produção (que já tem o código novo do passo 1).
+
+**Voltar atrás:** pôr de novo na Propriedade o id antigo (o original não foi mexido). As cópias podem ficar ou ser
+apagadas.
+
+**Ajustes do teste no sandbox (01/11):** valem também com os modelos de hoje.
+- As duas testemunhas lado a lado viram duas linhas (antes a TESTEMUNHA 2 ficava sem a assinatura posicionada).
+- Quadro-resumo que vira a página (vendedora no pé de uma página, comprador e o resto na seguinte): as duas páginas são
+  lidas; o papel escrito à direita, na altura do nome, conta.
+- Logo depois da última assinatura a Clicksign leva ~1 minuto para gerar o arquivo assinado. Nesse tempo o Atualizar
+  situação mostra "Assinado por todos — o arquivo assinado fica pronto em instantes, clique em Atualizar situação" (antes
+  era erro). A vigia relê só esses contratos (Propriedade `ASS_AGUARDANDO_<pageId>`, apagada quando o PDF entra) por
+  até 24 h; depois desiste e registra. Contratos ASSINADO antigos nunca são relidos.
+- Quando o PDF assinado do contrato do condomínio entra — pelo Atualizar situação ou pela vigia — acontece uma vez só o
+  que antes só a vigia fazia: Andamento "ASSINOU E ARMAZENOU CONTRATO" = SIM e, com `MC_LANCAR_AO_ASSINAR` = SIM e a
+  prévia OK, o lançamento no Mais Controle.
+- Decisão do dono (01/11): o corretor assina SÓ o contrato — não entra nos termos de confissão (nem na pré-reserva).
+- Linha de assinatura cujo texto mostra dois papéis (blocos lado a lado lidos juntos), ou papel VENDEDORA com o nome
+  de um comprador, não vai para ninguém: melhor a pessoa assinar só na página da Clicksign do que na linha errada.
+
+**Calibração e decisões do dono (01/11/2026):**
+- (Substituído pela calibração da unidade 22, abaixo: o ponto da assinatura passou de 46 para 27 pt acima da linha.)
+  O ajuste padrão de `campo` e `linha` passou a 0; um `RUBRICAS_AJUSTE` gravado antes com `dy` negativo agora sobe a
+  assinatura demais — apague a chave `linha`/`campo` dele.
+- Quem divide o mesmo ponto (campos de ciência, vistos dos valores, memorial) fica lado a lado, 105 pt um do outro; sem
+  espaço até a margem, nova fileira 52 pt — subindo, ou descendo quando subir passaria do topo. Nada é cortado na borda:
+  quem não cabe (passaria da margem de baixo) fica sem posição naquela página, assina só pela Clicksign, e o registro de
+  execução diz o papel e a página.
+- Projeto: as outras pessoas ficam à ESQUERDA do ponto medido, na mesma altura (nunca acima — ali está o carimbo
+  DEFERIMENTO da prefeitura); só sem espaço à esquerda, uma fileira abaixo.
+- Memorial: o modelo já tem a linha da Vendedora (à esquerda, com o nome e o CNPJ da SPE escritos no modelo) e a dos
+  compradores (à direita). O vendedor assina na linha dele (x 0,116, medido no modelo; a Propriedade `MEMORIAL_POSICAO`
+  aceita `"vendedor": [x, y]`); compradores e cônjuge, lado a lado na linha "Comprador(es)".
+- Tamanho das páginas: lido do próprio PDF no servidor (contrato, memorial e projeto, pelo MediaBox). Quando o PDF não
+  deixa ler (objetos comprimidos), vale o padrão: contrato A4, memorial Carta (o modelo é Carta), projeto págs. 1–2 A1
+  deitado e as demais A2 deitado.
+- Dono: "o comprador 1 e o 2/3 (quando tiver) têm que assinar os mesmos documentos, exatamente os mesmos, tem que ter a
+  assinatura dos 2 ou 3 nos mesmos (junto com vendedor tb)" — compradores e vendedor assinam contrato, termos, memorial e
+  projeto (o vendedor ao lado dos compradores no memorial e no projeto).
+- Dono: "cônjuge (geralmente vai como comprador 2) tem que assinar tudo que o comprador 1 assina" — o cônjuge assina os
+  mesmos documentos e campos do comprador 1, e entra no bloco de assinatura do memorial. Exceção: termo de pré-reserva
+  (só com a caixa "Incluir o cônjuge na pré-reserva").
+- Sem mudança: fiadores só os termos; testemunhas contrato e termos; corretor só o contrato.
+
+**Envelope da unidade 22 (sandbox, 01/11):**
+- Nome contido no outro ("JOSE SILVA" × "MARIA JOSE SILVA"): a linha vai para o nome mais longo que aparece nela.
+- Traço no pé da página com o "Nome:" no topo da seguinte: o texto vem da página seguinte (a assinatura fica no traço).
+- Os vistos ("initials" — coluna de valores do contrato e projeto) não apareceram em nenhum PDF assinado, embora a
+  Clicksign tenha aceitado os pedidos (um pedido recusado para o envio inteiro). No próximo envio, o registro de execução
+  mostra para cada rubrica: "… rubrica initials <documento>: N posições pedidas → guardada kind=…, M posições". Se a
+  Clicksign guardar o visto sem as posições ou com outro tipo, o envio volta com o aviso RUBRICA_DIVERGENTE (a tela
+  mostra em "Atenção:"). Para mandar os vistos como assinatura (o tipo que aparece), ponha a Propriedade
+  `RUBRICAS_VISTO_COMO_ASSINATURA` = `1`.
+- Se a tela não achar o item 4.2.1 do quadro-resumo, não há visto nos valores — agora isso volta como aviso
+  "tela: item 4.2.1 do quadro-resumo não achado" no envio e no registro.
+
+**Calibração pelos PDFs assinados da unidade 22 (01/11/2026) e regras do dono:**
+Medido com pymupdf nos PDFs assinados (tinta de cada marca: página renderizada com e sem a camada da Clicksign, e o
+alfa de cada imagem), comparando com o ponto que o código mandou (recalculado do texto do próprio PDF):
+- Assinatura ("manuscript"): a Clicksign põe uma imagem 100×50 pt com o canto de cima à esquerda no ponto pedido; a
+  tinta fica de +18 a +29 pt abaixo do ponto e de +2 a +99 pt à direita (nome comprido: só ~5 pt de altura, no meio).
+  Por isso o ponto agora é **27 pt acima da linha de base** do traço: a tinta fica em cima da linha (com os 46 de antes
+  ela flutuava ~20 pt acima, sobre o texto).
+- Visto ("initials"): a Clicksign escreve as iniciais (fonte OvertheRainbow 22 pt) começando no x pedido; a tinta fica
+  de **+9 a +27 pt** abaixo do ponto e tem **22–27 pt** de largura (2 letras).
+- Campos de ciência ("ASSINATURA: ____") e coluna de valores do 4.2.1: só **vistos** dos compradores (comprador 1,
+  cônjuge, comprador 2/3), um requisito de visto por pessoa por documento, numa fila **compacta: passo 32 pt**, na
+  mesma altura; o que não cabe vai para a fila **de baixo (+22 pt)**, nunca para cima. Ciência: começa no início dos
+  traços, ponto 25 pt acima da base (o pé do visto na linha). 4.2.1: na coluna cinza (até 110 pt do começo), ponto
+  22 pt acima da base (no meio da linha). A assinatura (manuscript) ficou só na linha de cada pessoa.
+- Projeto: o quadro DEFERIMENTO tem o mesmo tamanho nas folhas A0 (págs. 1–2, 3370×2384) e A1 (págs. 3–11,
+  2384×1684): de (largura−496, altura−241) a (largura−28, altura−29) pt. Os vistos ficam dentro dele: do ponto medido
+  para a esquerda (passo 32 pt), depois a fila de baixo; ponto fora do quadro (o da pág. 10 estava) é trazido para
+  dentro. O tamanho padrão das páginas do projeto passou a A0/A1 (era A1/A2: por isso o passo saiu 148 pt na pág. 1).
+- **Atenção — a confirmar no próximo envelope:** no projeto da unidade 22 cada pessoa tinha UM requisito de visto com
+  11 posições (págs. 1–11), e a Clicksign desenhou só a da pág. 1 (as págs. 2–11 ficaram sem nenhum visto, das quatro
+  pessoas). O visto do 4.2.1 (uma posição) apareceu. Se no próximo envelope os vistos da ciência também saírem só na
+  primeira página, a Clicksign desenha só a primeira posição de cada visto — aí é preciso decidir: um requisito por
+  página (se a Clicksign aceitar) ou `RUBRICAS_VISTO_COMO_ASSINATURA` = `1`.
+
+**Memorial com uma linha por pessoa (dono, 01/11/2026):** a migração também troca o bloco de duas colunas do memorial
+(linha dos traços, nomes `{{ASSINATURA_COMPRADORES_NOMES}}`, CPFs e "Vendedora / Comprador(es)") por
+`{{ASSINATURAS_MEMORIAL}}`: a vendedora e cada pessoa que compra (cônjuge incluído) com a própria linha (traço, Nome,
+CPF/CNPJ, papel), uma embaixo da outra — os nomes não invadem mais a coluna da vendedora. Com `ASSINATURA_LINHAS` = `1`,
+o "Enviar para assinatura" gera o memorial também para a tela, que acha as linhas (como nos termos), e cada pessoa
+assina na dela. Memorial migrado sem as linhas lidas: assinam só pela página da Clicksign (o ponto fixo antigo não
+serve mais). Memorial não migrado: como antes.
+
+**Prévia das assinaturas (dono, 01/11/2026: "não dá para ver o documento antes de mandar assinar?"):**
+- Botão **"Prévia das assinaturas"** na aba Contrato (contrato gerado): lê o PDF como o envio, pede ao servidor a ação
+  `assinaturaPrevia` — a MESMA conta do envio, sem chamar a Clicksign e sem gravar nada, só com o papel de cada pessoa
+  (nada de nome ou e-mail) — e abre uma janela com as páginas do contrato, dos termos e do memorial, com uma caixa onde a
+  **tinta** de cada marca vai cair (azul: assinatura; laranja: visto, com a sigla C1, Cj, C2, V…). O projeto (PDF grande)
+  não abre na tela: use o script abaixo. O perfil TESTES também vê.
+- Script local `venda/ferramentas/previa_assinaturas.py` (pymupdf): recebe o JSON da `assinaturaPrevia` e os PDFs e grava
+  um PNG de cada página com marca — para mostrar ao dono antes de qualquer envelope:
+  `py -3.14 venda/ferramentas/previa_assinaturas.py --marcas previa.json --pdf contrato=C.pdf --pdf projeto=P.pdf --saida pasta`.
+  PDFs e imagens têm dado pessoal: ficam fora do repositório.
+- O começo dos traços de "ASSINATURA: ____" agora sai da largura típica de cada letra (antes a largura do trecho era
+  repartida igual e o ponto caía ~14 pt antes, em cima do "ASSINATURA:"); na unidade 22 ficou 1–5 pt depois do
+  começo verdadeiro, já sobre os traços.
+
 ## Selfie com documento para comprador, cônjuge e fiadores (01/11/2026, plano 23 C)
 
-Desligada até o dono conferir. Com a Propriedade `CLICKSIGN_SELFIE` = `1`, o comprador 1 e 2, o cônjuge do comprador,
-os fiadores e os cônjuges dos fiadores ganham, em cada documento que assinam, mais dois requisitos `provide_evidence`
-além do token por e-mail: `selfie` (foto da pessoa pela câmera) e `official_document` (foto do documento, frente e
-verso). Liga só com o valor `1` exato. Vendedora, corretor e testemunhas continuam só com o e-mail. Vale para contrato e termos, rua e condomínio.
-Valores lidos em developers.clicksign.com/reference/criar-requisito-de-autenticacao (01/11/2026). A doc não diz com
-todas as letras que eles somam com o token por e-mail: conferir no 1º envelope do sandbox (e se o Plano Plus libera e
-quanto custa). Sem a Propriedade (ou com `0`), nada muda.
+Desligada até o dono ligar: só com a Propriedade `CLICKSIGN_SELFIE` = `1` (exatamente). Ligada, vale a regra do dono
+(01/11/2026): **selfie quando o vendedor é empresa** (venda PJ → PF) — no condomínio (SPE) sempre; na casa de rua só com
+vendedor de CNPJ. Vendedor pessoa física (PF → PF): sem selfie.
+- Quem faz: comprador 1 e 2, cônjuge do comprador, fiadores e cônjuges dos fiadores, em cada documento que assinam.
+  Vendedor, corretor e testemunhas: só o token por e-mail.
+- O que é: um requisito `provide_evidence` com `auth: "selfie"` além do token por e-mail. No contrato assinado que o dono
+  mostrou, a Clicksign registra isso como UMA autenticação "Foto de face & documento" (selfie com o documento na mão) —
+  por isso o requisito `official_document` separado saiu.
+- Sem a Propriedade (ou com `0`), nada muda.

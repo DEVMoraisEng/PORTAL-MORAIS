@@ -29,7 +29,7 @@ export function criarGas({ props, rotas, extras = {} }) {
   const cache = new Map(), chamadas = [], logs = [], sleeps = [];
   const ctx = {
     console: { log: (...a) => logs.push(a.join(" ")), error: (...a) => logs.push(a.join(" ")) },
-    PropertiesService: { getScriptProperties: () => ({ getProperty: (n) => (n in props ? props[n] : null),
+    PropertiesService: { getScriptProperties: () => ({ getProperty: (n) => (n in props ? props[n] : null), getKeys: () => Object.keys(props),
                                                        setProperty: (n, v) => { props[n] = String(v); },
                                                        deleteProperty: (n) => { delete props[n]; } }) },
     CacheService: { getScriptCache: () => ({ get: (k) => (cache.has(k) ? cache.get(k) : null),

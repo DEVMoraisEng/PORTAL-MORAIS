@@ -450,14 +450,23 @@ test("plano 23 C: autenticações — token por e-mail sempre; selfie + document
   assert.equal(CS.montarConfig({ CLICKSIGN_SELFIE: "0" }).selfie, false);
   /* correção 1 (M-4): só o "1" liga */
   for (const v of ["SIM", "true", "TRUE", " 1x"]) assert.equal(CS.montarConfig({ CLICKSIGN_SELFIE: v }).selfie, false, v);
-  assert.deepEqual(CS.AUTH_SELFIE, ["selfie", "official_document"]);
+  /* 01/11 (contrato assinado mostrado pelo dono): a Clicksign registra UMA autenticação "Foto de face & documento" — é o
+     requisito "selfie" sozinho */
+  assert.deepEqual(CS.AUTH_SELFIE, ["selfie"]);
   const liga = CS.montarConfig({ CLICKSIGN_SELFIE: "1" }), desl = CS.montarConfig({});
+  /* regra do dono: selfie quando o VENDEDOR é empresa (PJ → PF); vendedor pessoa física (PF → PF), não */
+  const PJ = { vendedor: { tipo: "PJ", cpfCnpj: "00.000.000/0001-91" } }, PF = { vendedor: { tipo: "PF", cpfCnpj: "529.982.247-25" } };
+  const COND = { condominio: { nome: "X" }, vendedor: { tipo: "PJ" } }, CNPJ_SEM_TIPO = { vendedor: { cpfCnpj: "00000000000191" } };
   for (const origem of ["comprador1", "comprador2", "conjugeComprador1", "fiador1", "fiador2", "conjugeFiador1", "conjugeFiador2"]) {
-    assert.deepEqual(CS.autenticacoes({ origem }, liga), ["email", "selfie", "official_document"], origem);
-    assert.deepEqual(CS.autenticacoes({ origem }, desl), ["email"], origem);
+    assert.deepEqual(CS.autenticacoes({ origem }, liga, PJ), ["email", "selfie"], origem);
+    assert.deepEqual(CS.autenticacoes({ origem }, liga, COND), ["email", "selfie"], origem + " (condomínio)");
+    assert.deepEqual(CS.autenticacoes({ origem }, liga, CNPJ_SEM_TIPO), ["email", "selfie"], origem + " (CNPJ)");
+    assert.deepEqual(CS.autenticacoes({ origem }, liga, PF), ["email"], origem + " (vendedor PF)");
+    assert.deepEqual(CS.autenticacoes({ origem }, liga), ["email"], origem + " (sem os dados: não liga)");
+    assert.deepEqual(CS.autenticacoes({ origem }, desl, PJ), ["email"], origem + " (desligado)");
   }
   for (const origem of ["vendedor", "representante", "testemunha", "corretor"])
-    assert.deepEqual(CS.autenticacoes({ origem }, liga), ["email"], origem);
+    assert.deepEqual(CS.autenticacoes({ origem }, liga, PJ), ["email"], origem);
   assert.deepEqual(CS.corpoAutenticacao("d", "s").data.attributes, { action: "provide_evidence", auth: "email" });
   assert.deepEqual(CS.corpoAutenticacao("d", "s", "selfie").data.attributes, { action: "provide_evidence", auth: "selfie" });
 });

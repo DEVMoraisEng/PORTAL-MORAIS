@@ -28,12 +28,12 @@ function dados(conjugeComprador, c2 = { nome: "" }) {
 }
 const conjuges = (d) => CS.signatarios(d, CS.montarConfig({})).filter((s) => /Cônjuge do comprador/.test(s.papel));
 
-test("casado: o cônjuge do comprador assina (CPF formatado, e-mail minúsculo), sem rubrica", () => {
+test("casado: o cônjuge do comprador assina (CPF formatado, e-mail minúsculo) e, como o comprador 1, rubrica (dono, 01/11)", () => {
   const d = dados(CONJ);
   assert.deepEqual(d.condominio.conjugeComprador, { nome: "CONJUGE TESTE DA SILVA", cpf: "529.982.247-25", email: "conjuge@teste.example", regime: "" });
   const l = conjuges(d);
   assert.equal(l.length, 1);
-  assert.deepEqual([l[0].papel, l[0].role, l[0].email, l[0].origem, !!l[0].rubrica], ["Cônjuge do comprador 1", "buyer", "conjuge@teste.example", "conjugeComprador1", false]);
+  assert.deepEqual([l[0].papel, l[0].role, l[0].email, l[0].origem, !!l[0].rubrica], ["Cônjuge do comprador 1", "buyer", "conjuge@teste.example", "conjugeComprador1", true]);
   const todos = CS.signatarios(d, CS.montarConfig({})).map((s) => s.papel);
   assert.equal(todos.indexOf("Cônjuge do comprador 1"), todos.indexOf("Comprador 1") + 1, "logo depois do comprador");
 });
@@ -112,11 +112,12 @@ test("casado sem nome do cônjuge: o comprador 2 só desculpa se for casado/uni�
   assert.ok(!f("União Estável").includes("Cônjuge do comprador 1: nome"));
 });
 
-test("memorial: o cônjuge não assina — nomes e CPFs só dos compradores; o contrato mantém o cônjuge", () => {
+/* 01/11/2026 (dono): "cônjuge (geralmente vai como comprador 2) tem que assinar tudo que o comprador 1 assina" */
+test("memorial: o cônjuge assina como o comprador 1 — nome e CPF dele no bloco do memorial, entre os compradores", () => {
   const m = C.marcadores(dados(CASADO));
-  assert.equal(m.MEMORIAL_ASSINATURA_NOMES, "COMPRADOR TESTE");
-  assert.equal(m.MEMORIAL_ASSINATURA_CPFS, "935.411.347-80");
-  assert.match(m.ASSINATURA_COMPRADORES_NOMES, /CONJUGE TESTE/);
+  assert.match(m.MEMORIAL_ASSINATURA_NOMES, /^COMPRADOR TESTE \/ CONJUGE TESTE/);
+  assert.match(m.MEMORIAL_ASSINATURA_CPFS, /^935\.411\.347-80 \/ 529\.982\.247-25/);
+  assert.equal(m.MEMORIAL_ASSINATURA_NOMES, m.ASSINATURA_COMPRADORES_NOMES);
   const m2 = C.marcadores(dados(CASADO, { nome: "COMPRADOR DOIS TESTE", cpf: "222.333.444-05" }));
-  assert.equal(m2.MEMORIAL_ASSINATURA_NOMES, "COMPRADOR TESTE / COMPRADOR DOIS TESTE");
+  assert.match(m2.MEMORIAL_ASSINATURA_NOMES, / \/ COMPRADOR DOIS TESTE$/);
 });

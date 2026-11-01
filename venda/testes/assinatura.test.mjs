@@ -557,14 +557,26 @@ test("download do PDF assinado sem resposta: DOWNLOAD_ASSINADO_FALHOU, log só c
   assert.ok(!c.g.logs.join("\n").includes("clicksign.falso"), c.g.logs.join(" | "));
 });
 
-test("estado concluído sem link do assinado: erro visível, situação não vira ASSINADO", () => {
-  const c = cenario();
+/* 01/11/2026 (teste no sandbox): logo depois da última assinatura a Clicksign fecha o envelope antes de gerar o arquivo
+   "signed" (~1 minuto). Isso não é erro: ASSINADO com aguardandoArquivo; o PDF entra no próximo Atualizar (ou na vigia). */
+test("envelope concluído e o arquivo assinado ainda não pronto: ASSINADO com aguardandoArquivo, sem erro; depois anexa", () => {
+  const arq = { original: "https://s3.clicksign.falso/original.pdf" };
+  const c = cenario({ cs: { eventos: TODOS_ASSINARAM, arquivos: arq } });
   assert.equal(c.enviar().ok, true);
   c.c.estado.status = "closed";
   const r = c.estado();
-  assert.deepEqual([r.ok, r.erro], [false, "CLICKSIGN_SEM_LINK_ASSINADO: original"]);
-  assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), "ENVIADO");
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual([r.situacao, r.aguardandoArquivo, r.temAssinado], ["ASSINADO", true, false]);
+  assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), "ASSINADO");
   assert.deepEqual(c.n.pagina.properties["CONTRATO ASSINADO"].files, []);
+  /* nesse meio-tempo: a lista sai; abrir um documento pede para esperar */
+  assert.equal(c.acao("documentosAssinados").ok, true);
+  assert.deepEqual(chamarCom(c, "verDocumentoAssinado", { docId: "doc-1" }), { ok: false, erro: "ASSINADO_AGUARDANDO_ARQUIVO" });
+  /* um minuto depois a Clicksign entrega o "signed" */
+  arq.signed = "https://s3.clicksign.falso/assinado.pdf";
+  const r2 = c.estado();
+  assert.deepEqual([r2.ok, r2.situacao, !!r2.aguardandoArquivo, r2.temAssinado], [true, "ASSINADO", false, true]);
+  assert.equal(c.n.pagina.properties["CONTRATO ASSINADO"].files.length, 1);
 });
 
 test("estado: cancelado, recusado e expirado gravam a situação", () => {
@@ -1206,12 +1218,19 @@ const authsDe = (c, email) => {
                                     x.corpo.data.attributes.action === "provide_evidence" && x.corpo.data.relationships.signer.data.id === s.id)
     .map((x) => x.corpo.data.attributes.auth);
 };
-test("plano 23 C: CLICKSIGN_SELFIE=1 — comprador autentica com e-mail, selfie e documento; vendedor e testemunhas só e-mail", () => {
+test("plano 23 C: CLICKSIGN_SELFIE=1 e vendedor empresa — comprador com e-mail e selfie (com documento); vendedor e testemunhas só e-mail", () => {
   const c = cenario({ props: { CLICKSIGN_SELFIE: "1" } });
   assert.equal(c.enviar().ok, true);
-  assert.deepEqual(authsDe(c, "fulano@teste.example"), ["email", "selfie", "official_document"]);
+  assert.deepEqual(authsDe(c, "fulano@teste.example"), ["email", "selfie"]);
   assert.deepEqual(authsDe(c, "beltrano@teste.example"), ["email"]);
   assert.deepEqual(authsDe(c, "t1.spe@teste.example"), ["email"]);
+});
+test("dono 01/11: vendedor pessoa física (PF → PF) — sem selfie mesmo com CLICKSIGN_SELFIE=1", () => {
+  const c = cenario({ props: { CLICKSIGN_SELFIE: "1" }, vendedor: { TIPO: sel("PF"), "CPF/CNPJ": rt("529.982.247-25"), "E-MAIL": rt("vendedor.pf@teste.example"),
+    NACIONALIDADE: rt("brasileiro"), "ESTADO CIVIL": rt("casado"), "PROFISSÃO": rt("empresário"), RG: rt("RG 9") } });
+  const r = c.enviar();
+  assert.equal(r.ok, true, JSON.stringify(r.faltas || r));
+  assert.deepEqual(authsDe(c, "fulano@teste.example"), ["email"]);
 });
 test("plano 23 C: sem CLICKSIGN_SELFIE nada muda (só o token por e-mail)", () => {
   const c = cenario();
@@ -1239,4 +1258,41 @@ test("correção 1 (M-7): contrato ASSINADO também trava o que a tela esconde d
   for (const a of ["salvarContaPreReserva", "salvarConjugePreReserva", "gerarTermoPreReserva"])
     assert.deepEqual(c.acao(a), { ok: false, erro: "CONTRATO_ASSINADO" }, a);
   assert.notEqual(c.acao("salvarPagamentoPreReserva").erro, "CONTRATO_ASSINADO");
+});
+
+test("correção 3 (3): vigia só relê quem ficou ASSINADO esperando o arquivo (ASS_AGUARDANDO_<pageId>); desiste em 24 h; linhas antigas nunca", () => {
+  const c = vigiaCenario(12);
+  const props = () => c.g.ctx.PropertiesService.getScriptProperties();
+  /* a consulta ao Notion voltou a ser só ENVIADO */
+  const corpos = [], notionReal = c.g.ctx.notion_;
+  c.g.ctx.notion_ = (m, cam, corpo) => {
+    if (m === "GET") return { properties: { "ASSINATURA - SITUAÇÃO ": { type: "rich_text" }, "CONTRATO ASSINADO": { type: "files" } } };
+    corpos.push(corpo); return { results: [] };
+  };
+  c.g.ctx.vigiaAbertos_("db-cond");
+  assert.deepEqual(JSON.parse(JSON.stringify(corpos[0].filter)), { property: "ASSINATURA - SITUAÇÃO ", rich_text: { equals: "ENVIADO" } });
+  c.g.ctx.notion_ = notionReal;
+  /* vigiaAssinaturas: abertos vazio; um aguardando novo (relê) e um de 25 h atrás (desiste, apaga, registra) */
+  vm.runInContext("vigiaAbertos_ = function () { return []; }; __vistos = []; vigiaUma_ = function (col, pg) { __vistos.push(pg.id); return false; };", c.g.ctx);
+  const agora = c.g.ctx.Date.now(), OUTRA = "fedcba98765432100123456789abcdef";
+  props().setProperty("ASS_AGUARDANDO_" + PAGE, String(agora - 60000));
+  props().setProperty("ASS_AGUARDANDO_" + OUTRA, String(agora - 25 * 3600000));
+  c.g.ctx.vigiaAssinaturas();
+  assert.deepEqual([...c.g.ctx.__vistos], [PAGE]);
+  assert.equal(props().getProperty("ASS_AGUARDANDO_" + OUTRA), null);
+  assert.ok(c.g.logs.some((l) => /desistiu.*24 h/.test(l)), c.g.logs.join(" | "));
+  assert.ok(props().getProperty("ASS_AGUARDANDO_" + PAGE), "o novo continua esperando");
+});
+
+test("correção 3 (3): Atualizar situação grava ASS_AGUARDANDO_<pageId> enquanto espera o arquivo e apaga quando ele entra", () => {
+  const arq = { original: "https://s3.clicksign.falso/original.pdf" };
+  const c = cenario({ cs: { eventos: TODOS_ASSINARAM, arquivos: arq } });
+  const props = () => c.g.ctx.PropertiesService.getScriptProperties();
+  assert.equal(c.enviar().ok, true);
+  c.c.estado.status = "closed";
+  assert.equal(c.estado().aguardandoArquivo, true);
+  assert.match(String(props().getProperty("ASS_AGUARDANDO_" + PAGE)), /^\d{13}$/);
+  arq.signed = "https://s3.clicksign.falso/assinado.pdf";
+  assert.equal(c.estado().temAssinado, true);
+  assert.equal(props().getProperty("ASS_AGUARDANDO_" + PAGE), null);
 });
