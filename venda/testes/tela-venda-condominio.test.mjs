@@ -320,11 +320,11 @@ test("termo na Clicksign: envia com doc PRE_RESERVA (pré-reservante, vendedora,
   assert.deepEqual(c.acao("assinaturaEstado"), { ok: true, situacao: "", envelope: false, signatarios: [] });
 });
 
-test("termo: conta mudada depois de gerar = CONTRATO_DESATUALIZADO; perfil TESTES não grava", () => {
+test("termo: conta mudada depois de gerar = TERMO_DESATUALIZADO; perfil TESTES não grava", () => {
   const c = cenarioPR({ linha: { "PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO": texto("PIX, chave 529.982.247-25, no banco 756 - SICOOB") } });
   assert.equal(c.acao("gerarTermoPreReserva").ok, true);
   c.n.pagina.properties["PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO"] = { type: "rich_text", rich_text: [{ plain_text: "PIX, chave outra-chave, no banco 001 - BB" }] };
-  assert.equal(c.acao("assinaturaEnviar", { doc: "PRE_RESERVA" }).erro, "CONTRATO_DESATUALIZADO");
+  assert.equal(c.acao("assinaturaEnviar", { doc: "PRE_RESERVA" }).erro, "TERMO_DESATUALIZADO");
   for (const action of ["gerarTermoPreReserva", "salvarContaPreReserva", "salvarPagamentoPreReserva"])
     assert.equal(c.acao(action, { conta: "conta de teste" }, token("TESTES")).erro, "SEM_PERMISSAO_TESTES", action);
   assert.equal(c.acao("preReservaEstado", {}, token("TESTES")).ok, true);
@@ -668,7 +668,7 @@ test("28/10: conferir documentos — lê pela IA, compara, guarda; ilegível con
   /* o pré-contrato sai, com o aviso */
   const pre = c.acao("gerarPreContrato");
   assert.equal(pre.ok, true, JSON.stringify(pre));
-  assert.ok(pre.avisos.some((a) => /^Conferência dos documentos: 1 divergência e 1 item sem conferir/.test(a)), pre.avisos.join(" | "));
+  assert.ok(pre.avisos.some((a) => /^Conferência dos documentos: 1 divergência e 1 item não anexado/.test(a)), pre.avisos.join(" | "));
   /* abrir o documento e confirmar visualmente */
   const doc = c.acao("verDocumentoConferencia", { coluna: "DOC. PROPONENTE" });
   assert.equal(doc.ok, true); assert.equal(doc.total, 1);
@@ -792,11 +792,13 @@ test("29/10 fluxo: valor da casa só muda com quem está em FLUXO_PRECO_USUARIOS
   const sem = cenarioFluxo();
   const b0 = sem.acao("fluxoEditar");
   assert.equal(b0.podePreco, false);
+  assert.deepEqual(b0.quemMudaPreco, []);
   const desconto = (atual) => ({ valor: 300000, linhas: atual.linhas.map((l) => (l.t === "balao" && l.v > 8000 ? { ...l, v: l.v - 5000 } : l)) });
   assert.equal(sem.acao("salvarFluxo", { fluxo: desconto(b0.atual), motivo: "desconto", motivoPreco: "x" }).erro, "FLUXO_PRECO_SEM_PERMISSAO");
   const c = cenarioFluxo({ props: { FLUXO_PRECO_USUARIOS: "julio.cesar, Ana.Teste" } });
   const base = c.acao("fluxoEditar").atual;
   assert.equal(c.acao("fluxoEditar").podePreco, true);
+  assert.deepEqual(c.acao("fluxoEditar").quemMudaPreco, ["Julio Cesar", "Ana Teste"]);
   const f = desconto(base);
   const r = c.acao("salvarFluxo", { fluxo: f, motivo: "desconto" });
   assert.equal(r.erro, "CAMPOS_INVALIDOS");

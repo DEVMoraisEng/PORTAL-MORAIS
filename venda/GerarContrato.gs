@@ -683,6 +683,8 @@ function contratoEstado_(col, p) {
         var xf = ctrDadosAtuais_(col, p, String(p.pageId).slice(0, 8), "contratoEstado faltas");
         var todasFaltas = (xf.resp && xf.resp.faltas) || [];
         r.faltasCliente = todasFaltas.filter(function (t) { return /^(Comprador|Fiador|C[ôo]njuge)/i.test(String(t)); });
+        /* 01/11/2026 (H5): com os dados fechando, o par padrão das testemunhas segue o tipo do vendedor (SPE ou PF) */
+        if (xf.d && r.testemunhas && typeof assConfig_ === "function") r.testemunhas = ClicksignVenda.testemunhasParaTela(assConfig_(p.pageId), xf.d);
         /* 01/11/2026 (teste e2e): bloco Fiadores / cônjuge do comprador para corrigir na hora (Conferencia.gs fiaEstado_) */
         try { var fb = fiaEstado_(pgE, todasFaltas); if (fb) r.fiadores = fb; } catch (e2) { ctrErro_("contratoEstado fiadores", e2); }
       } catch (e) { ctrErro_("contratoEstado faltas", e); }

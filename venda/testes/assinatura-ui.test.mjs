@@ -152,6 +152,7 @@ test("mensagens amigáveis por código", () => {
   assert.match(m({ erro: "GRAVACAO_FALHOU", rascunhoApagado: true }), /Nada foi enviado.*tente de novo/);
   assert.match(m({ erro: "ASSINATURA_OCUPADA" }), /outro envio.*em andamento/);
   assert.match(m({ erro: "CONTRATO_DESATUALIZADO" }), /Os dados mudaram depois de gerar o contrato — gere de novo/);
+  assert.equal(m({ erro: "TERMO_DESATUALIZADO" }), "Os dados mudaram depois de gerar o termo de pré-reserva — gere o termo de novo e depois envie.");
   assert.match(m({ erro: "CLICKSIGN_FALHOU", passo: "documento", http: 422, rascunhoApagado: true }), /Nada foi enviado aos signatários/);
   assert.match(m({ erro: "CLICKSIGN_FALHOU", passo: "documento", http: 422, envelopeId: "env-1", rascunhoApagado: false }),
                /Clique em Descartar rascunho e envie de novo/);

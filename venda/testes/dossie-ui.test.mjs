@@ -328,3 +328,22 @@ test("01/11 (dono): pré-reserva — a conta para devolução aparece como opcio
   const src = fs.readFileSync(new URL("../../venda-dossie.js", import.meta.url), "utf8");
   assert.match(src, /Conta do pré-reservante para devolução \(opcional/);
 });
+
+test("01/11 (H2): conferência — documento não anexado aparece como '✗ não anexado', e ilegível continua '? ilegível'", () => {
+  const e = { feito: true, atual: true, em: "", confirmados: {}, linhas: [
+    { item: "f1-id", campo: "nome", pessoa: "Fiador 1", documento: "RG/CNH", rotulo: "Nome", esperado: "FIADOR TESTE", lido: "", situacao: "ilegivel", motivo: "documento não anexado" },
+    { item: "c1-end", campo: "endereco", pessoa: "Comprador 1", documento: "comprovante", rotulo: "Endereço", esperado: "RUA TESTE", lido: "", situacao: "ilegivel", motivo: "não deu para ler" }] };
+  const h = D.htmlConferencia(e, {});
+  const [l1, l2] = h.match(/<tr><td data-rot="Pessoa[^]*?<\/tr>/g);
+  assert.match(l1, /✗ não anexado/);
+  assert.doesNotMatch(l1, /\? ilegível/);
+  assert.match(l2, /\? ilegível/);
+});
+
+test("01/11 (H5): testemunhas sem escolha mostram 'padrão: <nome 1> e <nome 2>'; com escolha ou sem par válido, não", () => {
+  const t = { opcoes: [{ id: "a", nome: "Pessoa A" }, { id: "b", nome: "Pessoa B" }, { id: "c", nome: "Pessoa C" }], escolhidas: [], padrao: ["c", "a"] };
+  assert.match(D.htmlTestemunhas(t, ""), /padrão: Pessoa C e Pessoa A/);
+  assert.doesNotMatch(D.htmlTestemunhas({ ...t, escolhidas: ["a", "b"] }, ""), /padrão: Pessoa/);
+  assert.doesNotMatch(D.htmlTestemunhas({ ...t, padrao: [] }, ""), /padrão: /);
+  assert.doesNotMatch(D.htmlTestemunhas({ ...t, padrao: ["x", "a"] }, ""), /padrão: /);
+});

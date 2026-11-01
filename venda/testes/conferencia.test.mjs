@@ -47,7 +47,11 @@ test("resultado: leitura OK, documento errado, sem arquivo; resumo conta diverg�
                           "c1-civil:estado_civil": "diverge", "f1-id:nome": "ilegivel", "f1-id:cpf": "ilegivel" });
   assert.equal(l.find((x) => x.item === "c1-end").motivo, "o arquivo não parece ser comprovante de endereço");
   assert.equal(l.find((x) => x.item === "f1-id").motivo, "documento não anexado");
-  assert.equal(K.resumo(l, {}), "1 divergência e 3 itens sem conferir (ilegível ou sem documento)");
+  assert.equal(K.resumo(l, {}), "1 divergência, 1 item ilegível e 2 itens não anexados");
+  assert.deepEqual(l.filter((x) => x.item === "f1-id").map((x) => x.semArquivo), [true, true]);
+  assert.ok(!l.find((x) => x.item === "c1-end").semArquivo);
+  assert.equal(K.resumo(l.filter((x) => x.item === "f1-id"), {}), "2 itens não anexados");
+  assert.equal(K.resumo(l.filter((x) => x.item === "c1-end"), {}), "1 item ilegível");
   const confirmados = {}; l.forEach((x, i) => { if (x.situacao !== "ok") confirmados[i] = { por: "ana" }; });
   assert.equal(K.resumo(l, confirmados), "");
 });

@@ -99,11 +99,17 @@ var ClicksignVenda = (function () {
     var pr = ids.map(function (id) { return ops.filter(function (o) { return o.id === txt(id); })[0] || null; });
     return pr[0] && pr[1] ? pr : null;
   }
-  /* o que a tela recebe: só id e nome */
-  function testemunhasParaTela(config) {
-    var e = escolhidas(config);
-    return { opcoes: opcoesTestemunhas(config).map(function (o) { return { id: o.id, nome: o.nome }; }),
-             escolhidas: e ? [e[0].id, e[1].id] : [] };
+  /* o que a tela recebe: só id e nome. 01/11/2026 (H5): padrao = os ids do par padrão (o que vale sem escolha) — SPE,
+   * ou PF quando `dados` mostra vendedor PF; [] quando o par não fecha com as opções. */
+  function testemunhasParaTela(config, dados) {
+    var e = escolhidas(config), ops = opcoesTestemunhas(config);
+    var pr = par(dados && !ehPJ(dados) && dados.vendedor ? config.testemunhasPF : config.testemunhasSPE), padrao = [];
+    if (pr) {
+      var ids = pr.map(function (p) { return chave(p.nome); });
+      if (ids.every(function (id) { return ops.some(function (o) { return o.id === id; }); })) padrao = ids;
+    }
+    return { opcoes: ops.map(function (o) { return { id: o.id, nome: o.nome }; }),
+             escolhidas: e ? [e[0].id, e[1].id] : [], padrao: padrao };
   }
 
   /* Conferência das Propriedades (conferirAssinatura, no editor): só o nome da Propriedade e a posição

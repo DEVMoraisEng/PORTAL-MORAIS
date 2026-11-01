@@ -383,3 +383,18 @@ test("faltasDeNomeEEmail: fiador com o e-mail do comprador (e cônjuge com o do 
   assert.ok(!CS.faltasDeNomeEEmail(d, c2).some((x) => /^(Testemunha|Vendedor)/.test(x)));
   assert.deepEqual(CS.faltasDeNomeEEmail(d, c2), ["Comprador 1: e-mail igual ao do Vendedor (representante) (cada pessoa precisa de um e-mail)"]);
 });
+
+test("01/11 (H5): testemunhasParaTela diz o par padrão (ids) — SPE por padrão, PF quando o vendedor é PF; a escolha não muda o padrão", () => {
+  const nomes = (cfg, dados) => {
+    const t = CS.testemunhasParaTela(cfg, dados);
+    return t.padrao.map((id) => t.opcoes.filter((o) => o.id === id)[0].nome);
+  };
+  assert.deepEqual(nomes(cfgOp()), ["Testemunha Um Spe", "Testemunha Dois Spe"]);
+  assert.deepEqual(nomes(cfgOp(), dadosPJ()), ["Testemunha Um Spe", "Testemunha Dois Spe"]);
+  assert.deepEqual(nomes(cfgOp(), dadosPJ({ vendedor: vendedorPF })), ["Testemunha Um Pf", "Testemunha Dois Pf"]);
+  const ids = CS.opcoesTestemunhas(cfgOp()).map((o) => o.id);
+  assert.deepEqual(nomes(cfgOp([ids[1], ids[0]])), ["Testemunha Um Spe", "Testemunha Dois Spe"]);
+  /* sem par padrão configurado: lista vazia (a tela fica só com "— padrão —") */
+  assert.deepEqual(CS.testemunhasParaTela(CS.montarConfig({ ASSINATURA_TESTEMUNHAS_OPCOES: JSON.stringify(OPCOES) })).padrao, []);
+  assert.doesNotMatch(JSON.stringify(CS.testemunhasParaTela(cfgOp())), /@|000\.000/);
+});

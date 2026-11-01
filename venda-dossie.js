@@ -416,7 +416,7 @@
     /* 30/10: desconto "isentar a comissão" (venda direta) */
     FLUXO_ISENCAO_AGUARDANDO_MODELO: "Isentar a comissão ainda não está liberado: o contrato do advogado não tem o texto de venda sem corretor. Use desconto em R$ ou %.",
     MODELO_SEM_BLOCO_SEM_COMISSAO: "Esta venda é sem comissão (venda direta), mas o modelo do contrato ainda não tem esse texto — o contrato não foi gerado. Avise o desenvolvedor.",
-    FLUXO_PRECO_SEM_PERMISSAO: "Só Julio Cesar ou João Vitor podem mudar o valor da casa."
+    FLUXO_PRECO_SEM_PERMISSAO: "Seu login não pode mudar o valor da casa — os nomes de quem pode aparecem no campo Valor da casa."
   };
   /* Nunca inclui nomes de marcador do modelo (resposta.marcadores): esses vão só para o console.
      CAMPOS_INVALIDOS: os motivos (só nomes de campo) vão junto. */
@@ -562,7 +562,8 @@
   function testemunhasDoEstado(t) {
     if (!t || !Array.isArray(t.opcoes)) return null;
     return { opcoes: t.opcoes.map(function (o) { return { id: String(o.id || ""), nome: String(o.nome || "") }; }),
-             escolhidas: Array.isArray(t.escolhidas) ? t.escolhidas.map(String) : [] };
+             escolhidas: Array.isArray(t.escolhidas) ? t.escolhidas.map(String) : [],
+             padrao: Array.isArray(t.padrao) ? t.padrao.map(String) : [] };
   }
   /* entrega 10: duas listas "Testemunha 1/2"; vazio = o par padrão das Propriedades (SPE ou PF) */
   function htmlTestemunhas(t, dis) {
@@ -574,11 +575,19 @@
           return '<option value="' + esc(o.id) + '"' + (o.id === atual ? " selected" : "") + ">" + esc(o.nome) + "</option>";
         }).join("") + "</select>";
     }
-    return '<div class="dz-linha"><span class="dz-rot">Testemunhas da assinatura:</span>' + sel(0) + " " + sel(1) + "</div>";
+    /* 01/11/2026 (H5): sem escolha vale o par padrão — a tela diz quem é */
+    var nomesPadrao = (t.padrao || []).map(function (id) {
+      var o = t.opcoes.filter(function (x) { return x.id === id; })[0];
+      return o ? o.nome : "";
+    });
+    var semEscolha = !t.escolhidas[0] && !t.escolhidas[1];
+    var notaPadrao = semEscolha && nomesPadrao.length === 2 && nomesPadrao[0] && nomesPadrao[1]
+      ? ' <span class="dz-nota">padrão: ' + esc(nomesPadrao[0]) + " e " + esc(nomesPadrao[1]) + "</span>" : "";
+    return '<div class="dz-linha"><span class="dz-rot">Testemunhas da assinatura:</span>' + sel(0) + " " + sel(1) + notaPadrao + "</div>";
   }
   /* 01/11/2026 (teste e2e): bloco "Fiadores" (e cônjuge do comprador) na aba Contrato do condomínio — o servidor
      (contratoEstado → fiadores, FiadoresVenda.camposFiadores) diz os campos; aqui só desenha e junta o que mudou. */
-  var RE_FALTA_FIA = /^(Fiador [12]\b|C[ôo]njuge do comprador)/;
+  var RE_FALTA_FIA = /^(Fiador [12]\b|C[ôo]njuge do comprador|C[ôo]njuge do fiador [12])/i;
   function fiadoresDoEstado(b) {
     if (!b || typeof b !== "object" || !b.mostrar) return null;
     function campos(l) {
@@ -796,12 +805,15 @@
       if (fluxoDepoisDoContrato(f, ec)) h += '<div class="dz-aviso">Fluxo alterado depois do contrato: gere o contrato de novo.</div>';
       return h;
     }
-    /* financiamento, FGTS e subsídio (fixo) só aparecem; o valor da casa só para quem pode (Julio Cesar e João Vitor) */
+    /* financiamento, FGTS e subsídio (fixo) só aparecem; o valor da casa só para quem está na lista do servidor (quemMudaPreco) */
+    var quem = Array.isArray(ed.quemMudaPreco) ? ed.quemMudaPreco : [];
+    var msgPreco = quem.length ? "Só " + (quem.length > 1 ? quem.slice(0, -1).join(", ") + " e " + quem[quem.length - 1] : quem[0]) + (quem.length > 1 ? " mudam" : " muda") + " o valor da casa"
+      : "Ninguém muda o valor da casa por aqui";
     var F = FL(), ops = F.ORDEM.filter(function (t) { return !F.TIPOS[t].fixo; }).map(function (t) { return [t, F.TIPOS[t].nome]; });
     h += '<div class="dz-linha vb-fx"><label class="dz-campo">Valor da casa (R$) <input type="text" inputmode="decimal" data-fx="valor" value="' + esc(numBR(ed.valor)) + '"' +
-      (dis || (ed.podePreco ? "" : " disabled")) + ' style="width:9em;text-align:right"></label>' +
-      (ed.podePreco ? "" : ' <span class="dz-nota">só Julio Cesar ou João Vitor mudam o valor da casa</span>') +
+      (dis || (ed.podePreco ? "" : " disabled")) + (ed.podePreco ? "" : ' title="' + esc(msgPreco) + '"') + ' style="width:9em;text-align:right"></label>' +
       (ed.entrega ? ' <span class="dz-nota">entrega das chaves: ' + esc(F.dataBR(ed.entrega)) + "</span>" : "") + "</div>";
+    if (!ed.podePreco) h += '<div class="dz-msg">' + esc(msgPreco) + ".</div>";
     h += htmlFluxoDesconto(ed, dis);
     /* 31/10/2026 (dono): trocar o prazo da entrada na mesa (cliente de 24x para 36x) — a tela refaz os valores */
     var prazoAgora = F.prazoDasLinhas(ed.linhas);
@@ -814,7 +826,7 @@
     ed.linhas.forEach(function (l, k) {
       var tp = F.TIPOS[l.t] || { reajuste: "" };
       if (tp.fixo) {
-        h += '<tr data-fx-linha="' + k + '"><td><b>' + esc(tp.nome) + '</b><div class="dz-nota">' + (l.t === "prereserva" ? "já recebida — abate o sinal" : "não muda (da proposta)") + '</div></td><td></td>' +
+        h += '<tr data-fx-linha="' + k + '"><td><b>' + esc(tp.nome) + '</b><div class="dz-nota">' + (l.t === "prereserva" ? "já recebida — abate o sinal" : "fixo — vem da proposta") + '</div></td><td></td>' +
           '<td style="text-align:right">' + esc(numBR(l.v)) + "</td><td>" + esc(l.n) + "</td><td>" + esc(l.d ? F.dataBR(l.d) : "—") + "</td><td></td><td></td>" +
           '<td class="vb-fx-tot" data-k="' + k + '" style="white-space:nowrap;text-align:right">' + esc(F.moeda(F.totalLinha(l))) + "</td><td></td></tr>";
         return;
@@ -1832,6 +1844,7 @@
   function htmlConferencia(e, u) {
     /* dentro da função: o node (testes) não roda as atribuições desta parte do arquivo */
     var SIT_CONF = { ok: ["ass-ok", "✓ confere"], diverge: ["ass-recusou", "⚠ diverge"], ilegivel: ["ass-pend", "? ilegível"] };
+    var SIT_SEM_ARQUIVO = ["ass-pend", "✗ não anexado"];   /* 01/11/2026 (H2): sem documento não é ilegível */
     u = u || {};
     var h = '<div class="grp">Conferência dos documentos</div>';
     if (!e) return h + '<div class="vazio">' + esc(u.msg || "carregando…") + "</div>";
@@ -1846,7 +1859,8 @@
       h += '<div style="overflow-x:auto"><table class="dz-tab" style="width:100%;border-collapse:collapse;font-size:13px">' +
         "<tr><th>Pessoa · documento</th><th>Campo</th><th>No contrato</th><th>No documento</th><th>Situação</th></tr>" +
         (e.linhas || []).map(function (l, i) {
-          var s = SIT_CONF[l.situacao] || SIT_CONF.ilegivel, conf = (e.confirmados || {})[i];
+          var semDoc = l.situacao === "ilegivel" && (l.semArquivo || l.motivo === "documento não anexado");
+          var s = semDoc ? SIT_SEM_ARQUIVO : (SIT_CONF[l.situacao] || SIT_CONF.ilegivel), conf = (e.confirmados || {})[i];
           var acao = "";
           if (l.situacao !== "ok") {
             acao = conf ? '<div class="ass-data">conferido' + (conf.por ? " por " + esc(conf.por) : "") + "</div>"
@@ -2763,7 +2777,7 @@
         uiC.ocupadoContrato = null;
         if (r.ok) uiC.fluxoEd = { valor: r.atual.valor, valorOriginal: r.padrao.valor, entrega: r.atual.entrega || r.padrao.entrega,
                                   linhas: copiaLinhas(r.atual.linhas), padrao: r.padrao, historico: r.historico || [], alterado: !!r.alterado,
-                                  podePreco: !!r.podePreco, desconto: r.desconto || null, semComissao: !!r.atual.semComissao,
+                                  podePreco: !!r.podePreco, quemMudaPreco: Array.isArray(r.quemMudaPreco) ? r.quemMudaPreco.map(String) : [], desconto: r.desconto || null, semComissao: !!r.atual.semComissao,
                                   dsc: { modo: "rs", valor: "", de: "entrada" }, descontos: [],
                                   motivo: "", motivoPreco: "" };
         else uiC.msg = mensagemContrato(r);
@@ -3089,7 +3103,7 @@
        Carrega mesmo sem o painel da casa: o cartão do condomínio também usa. */
     /* 30/10: leitor das rubricas do comprador (pdf.js só carrega na hora de enviar) */
     var sr = document.createElement("script"); sr.src = "venda/RubricasVenda.js?v=1"; document.head.appendChild(sr);
-    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=14";
+    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=15";
     sa.onload = function () { [blocosCasa, blocosCond, blocosPR].forEach(function (b) { if (b) b.pintarAssinatura(); }); };
     document.head.appendChild(sa);
     var body = document.getElementById("pn-body"); if (!body) return;

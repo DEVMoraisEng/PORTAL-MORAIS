@@ -14,6 +14,14 @@ function fluxoPodePreco_(sess) {
   return !!u && String(prop_("FLUXO_PRECO_USUARIOS") || "").toLowerCase().split(/[\s,;]+/).indexOf(u) >= 0;
 }
 
+/* 01/11/2026 (H6): os nomes de quem muda o valor da casa saem da MESMA Propriedade (login "ana.teste" -> "Ana Teste"),
+   para a tela dizer quem procurar sem ter nome nenhum escrito no código. */
+function fluxoNomesPreco_() {
+  return String(prop_("FLUXO_PRECO_USUARIOS") || "").split(/[\s,;]+/).filter(function (u) { return u; }).map(function (u) {
+    return u.split(/[._-]+/).filter(function (x) { return x; }).map(function (x) { return x.charAt(0).toUpperCase() + x.slice(1).toLowerCase(); }).join(" ");
+  });
+}
+
 /* 30/10 (arquivo 17, item 1): desconto "isentar a comissão" = venda direta, comissão zero. O modelo do advogado ainda
    não tem o texto "sem comissão" (4.1.2 e item 5) — até ele ter, a Propriedade FLUXO_ISENCAO_LIBERADA fica vazia e a
    isenção não salva. Ligar ("1") só depois do modelo com os blocos {{#SEM_COMISSAO}}/{{#COM_COMISSAO}} e do robô do
@@ -72,7 +80,7 @@ function fluxoEditar_(col, sess, p) {
   var atual = pers ? { valor: pers.valor, entrega: padrao.entrega, linhas: pers.linhas } : padrao;
   if (pers && pers.semComissao) atual.semComissao = true;
   var pode = fluxoPodePreco_(sess);
-  return { ok: true, atual: atual, padrao: padrao, alterado: !!pers, trava: fluxoTrava_(pg), podePreco: pode,
+  return { ok: true, atual: atual, padrao: padrao, alterado: !!pers, trava: fluxoTrava_(pg), podePreco: pode, quemMudaPreco: fluxoNomesPreco_(),
            /* 30/10: desconto (só quem muda o valor da casa) — a comissão de hoje e se a isenção já vale */
            desconto: pode ? { comissao: fluxoComissao_(pg, pers), isencaoLiberada: fluxoIsencaoLiberada_() } : null,
            historico: fluxoHist_(p.pageId).map(function (h) {

@@ -155,7 +155,7 @@ test("dados do imóvel em branco NÃO travam: viram aviso e '____' no contrato (
 test("faltas que travam: assinatura, dia, entrega, valor de venda, fluxo que não fecha (tolerância 0,05), datas das séries", () => {
   const f = (fl) => C.faltasContrato(C.montarDadosContrato(fontes({ condominio: { fluxo: { ...FLUXO, ...fl } } })));
   assert.deepEqual(f({ assinatura: "", diaPagamento: null, entrega: "" }), [
-    "Fluxo de pagamento: data de assinatura do contrato", "Fluxo de pagamento: dia de pagamento (de 5 a 31)", "Fluxo de pagamento: data da entrega"]);
+    "Fluxo de pagamento: data de assinatura do contrato (as datas das parcelas saem dela)", "Fluxo de pagamento: dia de pagamento (de 5 a 31)", "Fluxo de pagamento: data da entrega"]);
   assert.deepEqual(f({ diaPagamento: 32 }), ["Fluxo de pagamento: dia de pagamento (de 5 a 31)"]);
   assert.deepEqual(f({ diaPagamento: 4 }), ["Fluxo de pagamento: dia de pagamento (de 5 a 31)"]);
   assert.deepEqual(f({ diaPagamento: 5 }), []);
@@ -424,4 +424,13 @@ test("29/10 marcador CONDICOES_ESPECIAIS: vazio = 'Não há.'; texto com quebra 
   assert.equal(vazio.CONDICOES_ESPECIAIS, "Não há.");
   const com = C.marcadores(C.montarDadosContrato(fontes({ venda: { CONDICOES_ESPECIAIS: "Na cláusula 9.2,\n  leia-se 45 dias." } })));
   assert.equal(com.CONDICOES_ESPECIAIS, "Na cláusula 9.2, leia-se 45 dias.");
+});
+
+test("01/11 (H1): sem data de assinatura é UMA falta só — as datas das parcelas saem dela e não viram falta uma por uma", () => {
+  const vazias = { assinatura: "", data30: "", data60: "", data90: "", pre1Data: "", pre2Data: "", balao1Data: "", balao2Data: "", posData: "" };
+  const f = C.faltasContrato(C.montarDadosContrato(fontes({ condominio: { fluxo: { ...FLUXO, ...vazias } } })));
+  assert.deepEqual(f, ["Fluxo de pagamento: data de assinatura do contrato (as datas das parcelas saem dela)"]);
+  /* com a assinatura, data faltando numa parcela continua sendo falta daquela parcela */
+  const g = C.faltasContrato(C.montarDadosContrato(fontes({ condominio: { fluxo: { ...FLUXO, data60: "" } } })));
+  assert.deepEqual(g, ["Fluxo de pagamento: sinal 60 dias (data)"]);
 });

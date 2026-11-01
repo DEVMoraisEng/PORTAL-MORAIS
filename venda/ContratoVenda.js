@@ -878,16 +878,18 @@ var ContratoVenda = (function () {
     });
 
     var g = "Fluxo de pagamento";
-    exige(!vazio(fl.assinatura), g, "data de assinatura do contrato");
+    /* 01/11/2026 (H1): sem a data de assinatura as datas das parcelas saem vazias — é UMA falta só, não uma por parcela */
+    var semAss = vazio(fl.assinatura);
+    exige(!semAss, g, "data de assinatura do contrato (as datas das parcelas saem dela)");
     exige(fl.diaPagamento !== null && fl.diaPagamento >= 5 && fl.diaPagamento <= 31, g, "dia de pagamento (de 5 a 31)");
     exige(!vazio(fl.entrega), g, "data da entrega");
     exige(positivo(fl.valorVenda), g, "valor de venda");
-    function comData(valor, data, nome) { if (positivo(valor)) exige(!vazio(data), g, nome + " (data)"); }
+    function comData(valor, data, nome) { if (positivo(valor) && !semAss) exige(!vazio(data), g, nome + " (data)"); }
     function serie(n, valor, data, nome) {
       if (!positivo(n) && !positivo(valor)) return;
       exige(positivo(n), g, nome + " (nº de parcelas)");
       exige(positivo(valor), g, nome + " (valor)");
-      exige(!vazio(data), g, nome + " (data da 1ª)");
+      if (!semAss) exige(!vazio(data), g, nome + " (data da 1ª)");
     }
     if (co.livre) {
       /* 29/10: fluxo alterado no portal — as regras da lista (a soma fecha com o valor da casa da própria lista) */
