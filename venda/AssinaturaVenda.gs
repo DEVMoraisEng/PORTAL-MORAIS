@@ -23,6 +23,7 @@ ASS_TIPOS[ASS_COL.ASSINADO] = "files";
 var CS_JSONAPI = "application/vnd.api+json";
 var ASS_PENDENTE = "ASSINATURA_PENDENTE_";
 var ASS_PAPEIS = "ASSINATURA_PAPEIS_";
+var ASS_VIGIA_STATUS = "VIGIA_STATUS_";   /* + id do envelope = último status visto pela vigia (AssinaturaVigia.gs); apagado quando o envelope termina ou é descartado */
 var ASS_REENVIO = "ASSINATURA_REENVIO_";   /* + id do envelope = hora (ms) do último reenvio do aviso */
 
 /* 27/10/2026: o mesmo fluxo assina o CONTRATO (padrão) e o TERMO DE PRÉ-RESERVA (p.doc = "PRE_RESERVA").
@@ -553,6 +554,7 @@ function assinaturaEstado_(col, p) {
   }
   try { sit = ClicksignVenda.situacao(ClicksignVenda.statusEfetivo(env.status, docs), eventos); }
   catch (e) { assLog_("estado " + pid + " status desconhecido"); return { ok: false, erro: String(e.message) }; }
+  if (sit !== S.ENVIADO) assApagarProp_(ASS_VIGIA_STATUS + envId);   /* terminou (assinado/cancelado/...): a vigia não precisa mais do status */
 
   var semArquivo = !(ctrValor_(pg.properties[cols.ASSINADO]) || []).length;
   var termosAssinar = docs.slice(1).map(function (dc) { return { doc: dc, col: cfdCol_(pg, cfdDoNome_(dc)) }; })
@@ -667,10 +669,11 @@ function assinaturaCancelar_(col, sess, p) {
   if (!csBase_()) return { ok: false, erro: "CLICKSIGN_URL_INVALIDA" };
   var trava = LockService.getScriptLock();
   if (!trava.tryLock(10000)) { assLog_("cancelar " + pid + " ocupado"); return { ok: false, erro: "ASSINATURA_OCUPADA" }; }
-  var r = null;
+  var r = null, soAtualizar = false;
   try {
     var doc = assDoc_(p), pg = ctrLerPaginaVenda_(p.pageId), cols = assColunas_(pg, doc);
-    var envId = prop_(ASS_PENDENTE + doc.chave + p.pageId) || assTexto_(pg, cols.ENVELOPE);
+    var pendente = prop_(ASS_PENDENTE + doc.chave + p.pageId);
+    var envId = pendente || assTexto_(pg, cols.ENVELOPE);
     if (!envId) r = { ok: false, erro: "SEM_ENVELOPE" };
     else {
       var base = "/envelopes/" + encodeURIComponent(envId);
@@ -681,12 +684,17 @@ function assinaturaCancelar_(col, sess, p) {
           /* Descartar rascunho: o envio parou no meio e o envelope nunca foi ativado — só draft é apagado */
           if (assApagarRascunho_(base, pid, cols, p.pageId)) {
             assApagarProp_(ASS_PAPEIS + envId);
+            assApagarProp_(ASS_VIGIA_STATUS + envId);
             r = { ok: true, descartou: true, situacao: "", envelope: false, signatarios: [] };
           } else r = { ok: false, erro: "RASCUNHO_NAO_APAGADO" };
+        } else if (p.descartar === true) {
+          /* Descartar rascunho NUNCA cancela: se o envelope já não é rascunho (a ativação pode ter passado e os
+             signatários já têm o e-mail), só atualiza a situação gravada, como o Atualizar situação */
+          soAtualizar = true;
         }
-        var docsEnv = env.status === "running" ? (csPasso_("consultar documento", "get", base + "/documents").data || []) : [];
+        var docsEnv = (!draft && !soAtualizar && env.status === "running") ? (csPasso_("consultar documento", "get", base + "/documents").data || []) : [];
         var st = ClicksignVenda.statusEfetivo(env.status, docsEnv);
-        if (draft) { /* já tratado acima */ }
+        if (draft || soAtualizar) { /* já tratado acima */ }
         else if (st !== "running")
           r = { ok: false, erro: "ENVELOPE_NAO_ATIVO", situacao: st === "draft" ? S.RASCUNHO : (st === "closed" ? S.ASSINADO : S.CANCELADO) };
         else docsEnv.forEach(function (dc) {
@@ -696,10 +704,11 @@ function assinaturaCancelar_(col, sess, p) {
       } catch (e) {
         if (e.message !== "CLICKSIGN_FALHOU") throw e;
         /* rascunho que já não existe na Clicksign (apagado à mão): a casa volta a "sem envelope", como no Atualizar situação */
-        if (e.passo === "consultar envelope" && e.http === 404 && assTexto_(pg, cols.SITUACAO).toUpperCase() === S.RASCUNHO) {
+        if (e.passo === "consultar envelope" && e.http === 404 && !pendente && assTexto_(pg, cols.SITUACAO).toUpperCase() === S.RASCUNHO) {
           try {
             assGravarTextos_(p.pageId, assColunasEnvelope_(cols, "", ""));
             assApagarProp_(ASS_PAPEIS + envId);
+            assApagarProp_(ASS_VIGIA_STATUS + envId);
             r = { ok: true, descartou: true, situacao: "", envelope: false, signatarios: [] };
           } catch (e2) { ctrErro_("assinatura cancelar " + pid + " limpeza do rascunho", e2); r = { ok: false, erro: "GRAVACAO_FALHOU" }; }
         } else r = { ok: false, erro: "CLICKSIGN_FALHOU", passo: e.passo, http: e.http, detalhe: e.detalhe };
@@ -709,6 +718,12 @@ function assinaturaCancelar_(col, sess, p) {
   assLog_("cancelar " + pid + " por " + String((sess && sess.u) || "?") + ": " + (r ? (r.erro || "ok") : "ok"));
   if (r) return r;
   var est = assinaturaEstado_(col, p);   /* grava CANCELADO e limpa as Propriedades do envelope */
+  if (soAtualizar) {
+    if (!est || !est.ok) return est;
+    est.descartou = false;
+    if (!est.aviso) est.aviso = "O contrato já tinha sido enviado aos signatários. Nada foi descartado — a situação foi atualizada.";
+    return est;
+  }
   est.cancelou = true;
   return est;
 }

@@ -297,7 +297,7 @@
     if (!deps.confirmar("Descartar o rascunho do " + (ehTermo(c) ? "termo de pré-reserva" : "contrato") + " na Clicksign? Nada foi enviado aos signatários; depois é só enviar de novo.")) return c;
     if (typeof deps.pintar === "function") deps.pintar(copia(c, { ocupado: "cancelar", msg: "" }));
     var r;
-    try { r = await deps.chamar(comDoc(c, { action: "assinaturaCancelar", pageId: deps.pageId })); }
+    try { r = await deps.chamar(comDoc(c, { action: "assinaturaCancelar", pageId: deps.pageId, descartar: true })); }
     catch (err) { r = { ok: false, erro: "SEM_RESPOSTA" }; }
     r = r || { ok: false, erro: "SEM_RESPOSTA" };
     if (!r.ok) {
@@ -307,8 +307,10 @@
     if (r.descartou)
       return copia(c, { estado: { situacao: "", envelope: false, signatarios: [], temAssinado: false }, ocupado: null, faltas: null, corrigir: null,
                         msg: "Rascunho descartado — agora é só enviar de novo." });
+    /* o servidor não descartou: o envelope já não era rascunho; ele só atualizou a situação e explica no aviso */
     return copia(c, { estado: { situacao: r.situacao || "", envelope: !!r.envelope, signatarios: r.signatarios || [], temAssinado: !!r.temAssinado },
-                      ocupado: null, faltas: null, corrigir: null, msg: "Situação atualizada." });
+                      ocupado: null, faltas: null, corrigir: null,
+                      msg: /\s/.test(String(r.aviso || "")) ? r.aviso : (mensagemAssinatura(r) || "Situação atualizada.") });
   }
 
   var exportar = { montarBlocoAssinatura: montarBlocoAssinatura, mensagemAssinatura: mensagemAssinatura,

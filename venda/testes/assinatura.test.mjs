@@ -1062,3 +1062,55 @@ test("vigia: GET do envelope sem resposta não conta como 'sem mudança' (segue 
   c.g.ctx.vigiaUma_(c.g.ctx.colunas_(), pg());
   assert.ok(csCalls(c).length > 1, csCalls(c).join(" | "));
 });
+
+/* ---- rodada de conserto 1: Descartar nunca cancela envelope já enviado; limpeza da chave da vigia ---- */
+const AVISO_JA_ENVIADO = "O contrato já tinha sido enviado aos signatários. Nada foi descartado — a situação foi atualizada.";
+test("descartar + envelope running (ativação incerta): nenhum PATCH/DELETE, situação vira ENVIADO e vem o aviso", () => {
+  const c = comRascunho();
+  c.c.estado.status = "running";
+  const r = c.g.chamar({ action: "assinaturaCancelar", token: tokenDe(), pageId: PAGE, descartar: true });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.descartou, false);
+  assert.equal(r.situacao, "ENVIADO");
+  assert.equal(r.aviso, AVISO_JA_ENVIADO);
+  assert.ok(!csCalls(c).some((x) => x.startsWith("PATCH") || x.startsWith("DELETE")), csCalls(c).join(" | "));
+  assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), "ENVIADO");
+  assert.equal(c.txt("ASSINATURA - ENVELOPE ID"), "env-1");
+});
+test("descartar + envelope closed: nenhum PATCH/DELETE, situação atualizada e aviso", () => {
+  const c = comRascunho({ cs: { eventos: TODOS_ASSINARAM, arquivos: { signed: "https://s3.clicksign.falso/assinado.pdf" } } });
+  c.c.estado.status = "closed";
+  const r = c.g.chamar({ action: "assinaturaCancelar", token: tokenDe(), pageId: PAGE, descartar: true });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.descartou, false);
+  assert.equal(r.aviso, AVISO_JA_ENVIADO);
+  assert.ok(!csCalls(c).some((x) => x.startsWith("PATCH") || x.startsWith("DELETE")), csCalls(c).join(" | "));
+  assert.notEqual(c.txt("ASSINATURA - SITUAÇÃO"), "RASCUNHO");
+});
+test("descartar + draft apaga como antes; Cancelar comum (sem descartar) com running continua cancelando", () => {
+  const c = comRascunho();
+  const r = c.g.chamar({ action: "assinaturaCancelar", token: tokenDe(), pageId: PAGE, descartar: true });
+  assert.equal(r.descartou, true);
+  assert.deepEqual(csCalls(c).filter((x) => x.startsWith("DELETE")), ["DELETE /envelopes/env-1"]);
+  const d = comRascunho();
+  d.c.estado.status = "running";
+  assert.equal(d.acao("assinaturaCancelar").cancelou, true);
+});
+test("chave da vigia: apagada ao descartar, ao ficar closed e ao cancelar pelo botão", () => {
+  const CH = "VIGIA_STATUS_env-1";
+  let c = comRascunho();
+  c.p[CH] = "draft";
+  c.g.chamar({ action: "assinaturaCancelar", token: tokenDe(), pageId: PAGE, descartar: true });
+  assert.ok(!(CH in c.p), "descartar deixou a chave");
+  c = cenario({ cs: { eventos: TODOS_ASSINARAM, arquivos: { signed: "https://s3.clicksign.falso/assinado.pdf" } } });
+  assert.equal(c.enviar().ok, true);
+  c.p[CH] = "running";
+  c.c.estado.status = "closed";
+  assert.equal(c.estado().situacao, "ASSINADO");
+  assert.ok(!(CH in c.p), "closed deixou a chave");
+  c = cenario();
+  assert.equal(c.enviar().ok, true);
+  c.p[CH] = "running";
+  assert.equal(c.acao("assinaturaCancelar").cancelou, true);
+  assert.ok(!(CH in c.p), "cancelar deixou a chave");
+});

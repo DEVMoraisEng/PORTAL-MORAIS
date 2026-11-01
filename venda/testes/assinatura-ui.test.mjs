@@ -334,7 +334,7 @@ test("Descartar rascunho: botão com RASCUNHO (TESTES e ocupado não), texto sem
   const chamadas = [];
   const r = await A.executarAcaoAssinatura("a-descartar", c0, { pageId: "p", confirmar: () => true,
     chamar: async (x) => { chamadas.push(x); return { ok: true, descartou: true, situacao: "", envelope: false, signatarios: [] }; } });
-  assert.deepEqual(chamadas, [{ action: "assinaturaCancelar", pageId: "p" }]);
+  assert.deepEqual(chamadas, [{ action: "assinaturaCancelar", pageId: "p", descartar: true }]);
   assert.equal(r.estado.envelope, false);
   assert.match(r.msg, /Rascunho descartado/);
   assert.equal(A.podeEnviar(r), true);
@@ -343,4 +343,13 @@ test("Descartar rascunho: botão com RASCUNHO (TESTES e ocupado não), texto sem
   assert.equal(falha.estado, c0.estado);
   const nao = await A.executarAcaoAssinatura("a-descartar", c0, { pageId: "p", confirmar: () => false, chamar: async () => { throw new Error("nao"); } });
   assert.equal(nao, c0);
+});
+
+test("Descartar rascunho: se o servidor não descartou (já enviado), a tela mostra o aviso dele", async () => {
+  const c0 = ctx({ estado: { situacao: "RASCUNHO", envelope: true, signatarios: [] } });
+  const aviso = "O contrato já tinha sido enviado aos signatários. Nada foi descartado — a situação foi atualizada.";
+  const r = await A.executarAcaoAssinatura("a-descartar", c0, { pageId: "p", confirmar: () => true,
+    chamar: async () => ({ ok: true, descartou: false, situacao: "ENVIADO", envelope: true, signatarios: [], aviso }) });
+  assert.equal(r.msg, aviso);
+  assert.equal(r.estado.situacao, "ENVIADO");
 });
