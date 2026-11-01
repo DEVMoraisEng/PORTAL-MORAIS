@@ -320,6 +320,34 @@ test("termo na Clicksign: envia com doc PRE_RESERVA (pré-reservante, vendedora,
   assert.deepEqual(c.acao("assinaturaEstado"), { ok: true, situacao: "", envelope: false, signatarios: [] });
 });
 
+/* 01/11/2026 (revisão final, I2): o termo de pré-reserva só imprime o pré-reservante — assinam ele, a vendedora e as 2
+   testemunhas. O cônjuge do comprador casado assina o CONTRATO (Tarefa 3), não o termo: fora do envelope do termo e sem
+   falta de e-mail dele no envio do termo. */
+const CASADO_PR = { "ESTADO CIVIL": rt("CASADO"), CONJUGE: rt("Conjuge Teste da Silva"), "CPF CONJUGE": rt("935.411.347-80"),
+  "EMAIL CONJUGE": eml("conjuge@teste.example"), REGIME: rt("COMUNHÃO PARCIAL DE BENS") };
+test("I2: pré-reservante casado — o cônjuge não entra no envelope do termo (nem a falta do e-mail dele); no contrato entra", () => {
+  const conta = { "PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO": texto("PIX, chave 529.982.247-25, no banco 756 - SICOOB") };
+  const c = cenarioPR({ linha: { ...conta, ...CASADO_PR } });
+  assert.equal(c.acao("gerarTermoPreReserva").ok, true);
+  const r = c.acao("assinaturaEnviar", { doc: "PRE_RESERVA" });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual(r.signatarios.map((s) => s.papel), ["Comprador 1", "Vendedor (representante)", "Testemunha 1", "Testemunha 2"]);
+  assert.ok(!c.c.estado.signers.some((s) => s.attributes.email === "conjuge@teste.example"), "o cônjuge não recebe o termo");
+  /* sem o e-mail do cônjuge o termo sai do mesmo jeito */
+  const sem = cenarioPR({ linha: { ...conta, ...CASADO_PR, "EMAIL CONJUGE": eml(null) } });
+  assert.equal(sem.acao("gerarTermoPreReserva").ok, true);
+  const r2 = sem.acao("assinaturaEnviar", { doc: "PRE_RESERVA" });
+  assert.equal(r2.ok, true, JSON.stringify(r2.faltas || r2));
+  /* o contrato da mesma venda continua com o cônjuge logo depois do comprador */
+  const k = cenario({ linha: CASADO_PR });
+  const g = k.gerarFinal();
+  assert.equal(g.ok, true, JSON.stringify(g.faltas || g));
+  const e = k.acao("assinaturaEnviar", rub(k));
+  assert.equal(e.ok, true, JSON.stringify(e.faltas || e));
+  const papeis = e.signatarios.map((s) => s.papel);
+  assert.equal(papeis.indexOf("Cônjuge do comprador 1"), papeis.indexOf("Comprador 1") + 1, papeis.join(", "));
+});
+
 test("termo: conta mudada depois de gerar = TERMO_DESATUALIZADO; perfil TESTES não grava", () => {
   const c = cenarioPR({ linha: { "PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO": texto("PIX, chave 529.982.247-25, no banco 756 - SICOOB") } });
   assert.equal(c.acao("gerarTermoPreReserva").ok, true);

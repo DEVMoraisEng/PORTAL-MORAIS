@@ -1,5 +1,5 @@
 /* 31/10/2026 — decisão do dono: comprador (proponente) casado ou em união estável → o cônjuge também assina, no termo
- * de pré-reserva e no contrato, mesmo sem compor renda. Colunas da proposta: ESTADO CIVIL, CONJUGE, CPF CONJUGE,
+ * de pré-reserva e no contrato, mesmo sem compor renda. 01/11 (revisão final, I2): no termo de pré-reserva NÃO — só no contrato. Colunas da proposta: ESTADO CIVIL, CONJUGE, CPF CONJUGE,
  * EMAIL CONJUGE e REGIME. 01/11: a qualificação do cônjuge também entra no texto (COMPRADORES_QUADRO).
  * Só dados inventados — o repositório é público. */
 import test from "node:test";
@@ -59,11 +59,15 @@ test("cônjuge que já é o comprador 2 não assina duas vezes", () => {
   assert.equal(conjuges(d).length, 0);
 });
 
-test("termo de pré-reserva (sem comprador 2): o cônjuge assina junto com o pré-reservante", () => {
+/* 01/11/2026 (revisão final, I2): o termo de pré-reserva voltou à regra original — só o pré-reservante, a vendedora e as
+   2 testemunhas. O AssinaturaVenda.gs (assEnviarTermo_) tira o conjugeComprador antes de montar o envelope do termo;
+   o caminho inteiro está em tela-venda-condominio.test.mjs ("I2: pré-reservante casado …"). */
+test("sem comprador 2 e sem conjugeComprador (como o termo manda): só o comprador 1 assina", () => {
   const d = dados(CONJ);
   d.comprador2 = null; d.corretor = null;
+  d.condominio = Object.assign({}, d.condominio); delete d.condominio.conjugeComprador;
   const papeis = CS.signatarios(d, CS.montarConfig({})).map((s) => s.papel);
-  assert.ok(papeis.includes("Comprador 1") && papeis.includes("Cônjuge do comprador 1"), papeis.join(", "));
+  assert.ok(papeis.includes("Comprador 1") && !papeis.includes("Cônjuge do comprador 1"), papeis.join(", "));
 });
 
 /* 01/11/2026 — cônjuge do comprador qualificado no contrato (dentro do COMPRADORES_QUADRO, sem marcador novo) */

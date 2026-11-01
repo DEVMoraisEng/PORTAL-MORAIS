@@ -358,6 +358,13 @@ function assEnviarTermo_(col, p, pid, cols, doc, gerado) {
   var dAss = {}, k;
   for (k in x.d) dAss[k] = x.d[k];
   dAss.comprador2 = null; dAss.corretor = null;
+  /* 01/11/2026 (revisão final, I2): o cônjuge do comprador casado assina o contrato, não o termo — o termo só imprime
+     o pré-reservante. Sem conjugeComprador o envelope do termo não o leva (nem cobra o e-mail dele). */
+  if (dAss.condominio && dAss.condominio.conjugeComprador) {
+    var cond = {};
+    for (k in dAss.condominio) if (k !== "conjugeComprador") cond[k] = dAss.condominio[k];
+    dAss.condominio = cond;
+  }
   var config = assConfig_(p.pageId), cfg = {};
   for (k in config) cfg[k] = config[k];
   cfg.incluirCorretor = false;
