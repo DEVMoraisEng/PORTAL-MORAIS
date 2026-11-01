@@ -6,13 +6,14 @@
  * LIGAR: rode cvContadorLigar (grava a Propriedade RF_CONTADOR=1).
  * VER:   rode cvCotaHoje — total do dia DESTE projeto, por hora e quem mais gasta.
  * PLANILHA: com a Propriedade COTA_PLANILHA_ID, no máximo a cada 15 min
- *   (doGet/doPost do PortalVenda.gs, a cada pedido da tela) grava o total do dia numa linha da aba "COTA GOOGLE"
+ *   (gatilho próprio cvCotaGatilho, a cada 15 min — instale com cvCotaInstalar; pedido da tela
+ *   NUNCA abre a planilha) grava o total do dia numa linha da aba "COTA GOOGLE"
  *   (DIA | PROJETO | CHAMADAS | ATUALIZADO). O nome da linha é PORTAL-VENDA ou a
  *   Propriedade COTA_PROJETO (nos projetos de TESTE, use outro nome). Sem
  *   COTA_PLANILHA_ID nada acontece. SpreadsheetApp não gasta UrlFetch.
  *   Quem soma, avisa por e-mail (70%) e pausa os aquecimentos (85%) é o
  *   PORTAL-LEITURA; este projeto não pausa nada.
- * Depois de subir: rode cvCotaAutorizar UMA vez no editor (libera a planilha).
+ * Depois de subir: rode cvCotaAutorizar e cvCotaInstalar UMA vez no editor.
  *
  * Como conta: troca UrlFetchApp.fetch/fetchAll por uma versão que anota e chama
  * a original. Se o Apps Script não deixar trocar, nada muda. A contagem fica no
@@ -136,4 +137,12 @@ function cvCotaAutorizar() {
   cvCotaAba_(id);
   Logger.log("Planilha OK. Contador deste projeto: " + (CV_UF_.ligado ? "ligado" : "DESLIGADO — rode cvContadorLigar") +
              ". Nome da linha: " + cvCotaProjeto_() + ".");
+}
+/* Gatilho de 15 min: só ele grava a linha do dia. Pedido da tela não abre a planilha. */
+function cvCotaGatilho() { cvCotaCiclo_(); }
+/* Rodar UMA vez no editor (pode repetir: apaga o gatilho antigo antes de criar). */
+function cvCotaInstalar() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === "cvCotaGatilho") ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger("cvCotaGatilho").timeBased().everyMinutes(15).create();
+  Logger.log("Gatilho da cota instalado: cvCotaGatilho a cada 15 min grava o total do dia na planilha COTA GOOGLE.");
 }

@@ -63,6 +63,15 @@ function criar({ props: extra = {}, contador = true } = {}) {
                    fetchAll(l) { estado.fetches += l.length; return l.map(() => ({ getContentText: () => "{}" })); } },
     SpreadsheetApp: { openById: (id) => { estado.aberturas++; if (id !== PLANILHA) throw new Error("planilha nao existe"); return estado.planilha; } },
     MailApp: { sendEmail: () => { estado.emails++; } },
+    ScriptApp: (() => {
+      const gat = (estado.gatilhos = []);
+      return {
+        getProjectTriggers: () => gat.slice(),
+        deleteTrigger: (t) => { const i = gat.indexOf(t); if (i >= 0) gat.splice(i, 1); },
+        newTrigger: (fn) => ({ timeBased: () => ({ everyMinutes: (m) => ({ create: () => {
+          const t = { fn, m, getHandlerFunction: () => fn }; gat.push(t); return t; } }) }) }),
+      };
+    })(),
     Date: DataFalsa, JSON, Math, Object, Array, String, Number, RegExp, parseInt, parseFloat, isNaN, isFinite, Error, Map, Set, TypeError,
   };
   ctx.globalThis = ctx;
@@ -142,10 +151,32 @@ test("COTA_PROJETO troca o nome da linha (projeto de TESTE)", () => {
   assert.deepEqual(linhas(estado), [["2026-11-01", "PORTAL-VENDA-TESTE", 2]]);
 });
 
-test("doGet (piggyback no pedido da tela) grava na planilha", () => {
+/* rodada 1: pedido da tela nunca abre a planilha; quem grava e o gatilho proprio de 15 min */
+test("doGet e doPost nunca abrem a planilha, nem com 15 min passados", () => {
   const { ctx, estado } = criar();
   buscar(ctx, 4);
   ctx.doGet({ parameter: { action: "ping" } });
-  ctx.doPost({ parameter: { action: "ping" } });   // 2o pedido em menos de 15 min: nao duplica
+  estado.agora += 16 * 60000;
+  ctx.doPost({ parameter: { action: "ping" } });
+  ctx.doGet({ parameter: { action: "ping" } });
+  assert.equal(estado.aberturas, 0);
+  assert.deepEqual(linhas(estado), []);
+});
+
+test("o gatilho cvCotaGatilho grava na planilha", () => {
+  const { ctx, estado } = criar();
+  buscar(ctx, 4);
+  ctx.cvCotaGatilho();
   assert.deepEqual(linhas(estado), [["2026-11-01", "PORTAL-VENDA", 4]]);
+});
+
+test("cvCotaInstalar cria um gatilho de 15 min e, rodado de novo, nao duplica", () => {
+  const { ctx, estado } = criar();
+  estado.gatilhos.push({ getHandlerFunction: () => "vigiaAssinaturas" });   // outro gatilho do projeto fica
+  ctx.cvCotaInstalar();
+  ctx.cvCotaInstalar();
+  const meus = estado.gatilhos.filter((t) => t.getHandlerFunction() === "cvCotaGatilho");
+  assert.equal(meus.length, 1);
+  assert.equal(meus[0].m, 15);
+  assert.equal(estado.gatilhos.length, 2);
 });
