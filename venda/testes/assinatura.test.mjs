@@ -1218,12 +1218,19 @@ const authsDe = (c, email) => {
                                     x.corpo.data.attributes.action === "provide_evidence" && x.corpo.data.relationships.signer.data.id === s.id)
     .map((x) => x.corpo.data.attributes.auth);
 };
-test("plano 23 C: CLICKSIGN_SELFIE=1 — comprador autentica com e-mail, selfie e documento; vendedor e testemunhas só e-mail", () => {
+test("plano 23 C: CLICKSIGN_SELFIE=1 e vendedor empresa — comprador com e-mail e selfie (com documento); vendedor e testemunhas só e-mail", () => {
   const c = cenario({ props: { CLICKSIGN_SELFIE: "1" } });
   assert.equal(c.enviar().ok, true);
-  assert.deepEqual(authsDe(c, "fulano@teste.example"), ["email", "selfie", "official_document"]);
+  assert.deepEqual(authsDe(c, "fulano@teste.example"), ["email", "selfie"]);
   assert.deepEqual(authsDe(c, "beltrano@teste.example"), ["email"]);
   assert.deepEqual(authsDe(c, "t1.spe@teste.example"), ["email"]);
+});
+test("dono 01/11: vendedor pessoa física (PF → PF) — sem selfie mesmo com CLICKSIGN_SELFIE=1", () => {
+  const c = cenario({ props: { CLICKSIGN_SELFIE: "1" }, vendedor: { TIPO: sel("PF"), "CPF/CNPJ": rt("529.982.247-25"), "E-MAIL": rt("vendedor.pf@teste.example"),
+    NACIONALIDADE: rt("brasileiro"), "ESTADO CIVIL": rt("casado"), "PROFISSÃO": rt("empresário"), RG: rt("RG 9") } });
+  const r = c.enviar();
+  assert.equal(r.ok, true, JSON.stringify(r.faltas || r));
+  assert.deepEqual(authsDe(c, "fulano@teste.example"), ["email"]);
 });
 test("plano 23 C: sem CLICKSIGN_SELFIE nada muda (só o token por e-mail)", () => {
   const c = cenario();

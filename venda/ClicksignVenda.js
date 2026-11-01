@@ -410,11 +410,23 @@ var ClicksignVenda = (function () {
    * signatário pela câmera; "official_document" = foto (frente e verso) do documento oficial. A doc não traz um valor
    * único "selfie com documento" nem diz com todas as letras que somam com o token por e-mail (só proíbe combiná-los com
    * biometric/facial_biometrics/identity_biometrics) — conferir no 1º envelope do sandbox. Vendedora, corretor e
-   * testemunhas continuam só com o token. Só com a Propriedade CLICKSIGN_SELFIE=1. */
-  var AUTH_SELFIE = ["selfie", "official_document"];
+   * testemunhas continuam só com o token. Só com a Propriedade CLICKSIGN_SELFIE=1.
+   * 01/11/2026 (contrato assinado mostrado pelo dono): o log da Clicksign traz UMA autenticação "Foto de face & documento"
+   * (selfie_*.png) — é o requisito "selfie" sozinho; o "official_document" separado saiu.
+   * 01/11/2026 (dono): selfie quando o VENDEDOR é empresa (venda PJ → PF): condomínio (SPE) sempre; casa de rua só com
+   * vendedor de CNPJ. Vendedor pessoa física (PF → PF) não pede selfie. Sem os dados da venda, não liga. */
+  var AUTH_SELFIE = ["selfie"];
+  function vendedorEmpresa(dados) {
+    if (!dados) return false;
+    if (dados.condominio) return true;
+    var v = dados.vendedor;
+    if (!v) return false;
+    if (soDigitos(v.cpfCnpj).length === 14) return true;
+    return txt(v.tipo).toUpperCase() === "PJ";
+  }
   var COM_SELFIE = /^(comprador[12]|conjugeComprador1|fiador[12]|conjugeFiador[12])$/;
-  function autenticacoes(s, config) {
-    return config && config.selfie && COM_SELFIE.test(txt(s && s.origem)) ? ["email"].concat(AUTH_SELFIE) : ["email"];
+  function autenticacoes(s, config, dados) {
+    return config && config.selfie && vendedorEmpresa(dados) && COM_SELFIE.test(txt(s && s.origem)) ? ["email"].concat(AUTH_SELFIE) : ["email"];
   }
   /* 30/10: rubrica posicionada — kind "initials" (visto) ou "manuscript" (assinatura); positions [{ page: "n", position: [x, y] }]
    * em proporção da página (0–1, x da esquerda, y do topo). positions, pages e rubric_field são exclusivos. */
