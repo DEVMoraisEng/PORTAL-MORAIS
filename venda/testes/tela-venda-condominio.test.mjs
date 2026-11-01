@@ -688,7 +688,8 @@ test("28/10: Clicksign — contrato e termos no MESMO envelope; fiadores assinam
   const docsDo = (id) => [...new Set(reqs.filter((q) => q.corpo.data.relationships.signer.data.id === id).map((q) => q.corpo.data.relationships.document.data.id))].sort();
   /* 30/10: rubricas só do comprador e só no contrato (os termos não têm campos de ciência) */
   const rubricam = reqs.filter((q) => q.corpo.data.attributes.action === "rubricate");
-  assert.deepEqual(rubricam.map((q) => [q.corpo.data.relationships.document.data.id, q.corpo.data.attributes.kind]), [["doc-1", "manuscript"], ["doc-1", "initials"]]);
+  /* dono 01/11: no contrato, ciência e valores viram um requisito de visto; a manuscrita só na linha da pessoa (linhas desligadas aqui) */
+  assert.deepEqual(rubricam.map((q) => [q.corpo.data.relationships.document.data.id, q.corpo.data.attributes.kind]), [["doc-1", "initials"]]);
   assert.deepEqual(docsDo(fiador.id), ["doc-2", "doc-3"], "fiador: só os termos");
   const comprador = sigs.find((s) => s.attributes.email === "compradora@teste.example");
   assert.deepEqual(docsDo(comprador.id), ["doc-1", "doc-2", "doc-3"]);
@@ -981,10 +982,9 @@ test("30/10: rubricas do comprador no contrato — assinatura nos campos de ciê
   assert.equal(r.ok, true, JSON.stringify(r));
   const rq = reqsDe(c).filter((q) => q.attributes.action === "rubricate");
   const comprador = c.c.estado.signers.find((s) => s.attributes.email === "compradora@teste.example");
+  /* dono 01/11: ciência e coluna de valores = VISTOS do comprador, num requisito só com todas as posições */
   assert.deepEqual(rq, [
-    { type: "requirements", attributes: { action: "rubricate", kind: "manuscript", positions: RUB_CAMPOS },
-      relationships: { document: { data: { type: "documents", id: "doc-1" } }, signer: { data: { type: "signers", id: comprador.id } } } },
-    { type: "requirements", attributes: { action: "rubricate", kind: "initials", positions: [RUB_VALORES] },
+    { type: "requirements", attributes: { action: "rubricate", kind: "initials", positions: RUB_CAMPOS.concat([RUB_VALORES]) },
       relationships: { document: { data: { type: "documents", id: "doc-1" } }, signer: { data: { type: "signers", id: comprador.id } } } }]);
   assert.equal(docsPostados(c).length, 1, "sem as Propriedades: nem memorial nem projeto");
 });
@@ -1045,12 +1045,18 @@ test("30/10: memorial e projeto aprovado no mesmo envelope, assinados pelo compr
   const rubr = rq.filter((q) => q.attributes.action === "rubricate").map((q) => [q.relationships.document.data.id, q.attributes.kind, q.attributes.positions]);
   /* revisão 01/11: no memorial o vendedor assina na linha dele (x 0,116); no projeto o vendedor fica à ESQUERDA do
      comprador, na mesma altura (nunca acima do carimbo da prefeitura) */
-  const larg = (p) => (Number(p.page) <= 2 ? 2384 : 1684), r4 = (v) => +v.toFixed(4);
-  assert.deepEqual(rubr.slice(2), [
-    ["doc-2", "manuscript", [{ page: "3", position: [0.53, 0.7] }]],   /* última página do memorial (3 aqui) */
-    ["doc-3", "initials", CS.POSICOES_PROJETO],
-    ["doc-2", "manuscript", [{ page: "3", position: [0.116, 0.7] }]],
-    ["doc-3", "initials", CS.POSICOES_PROJETO.map((p) => ({ page: p.page, position: [r4((p.position[0] * larg(p) - 105) / larg(p)), p.position[1]] }))]]);
+  /* dono 01/11: projeto — vistos dentro do quadro DEFERIMENTO (págs. 1–2 A0, as demais A1), o vendedor 32 pt à esquerda */
+  const pg = (p) => (Number(p.page) <= 2 ? [3370, 2384] : [2384, 1684]);
+  assert.deepEqual(rubr.slice(1).map((x) => x[0] + ":" + x[1]), ["doc-2:manuscript", "doc-3:initials", "doc-2:manuscript", "doc-3:initials"]);
+  assert.deepEqual(rubr[1][2], [{ page: "3", position: [0.53, 0.7] }]);   /* última página do memorial (3 aqui) */
+  assert.deepEqual(rubr[3][2], [{ page: "3", position: [0.116, 0.7] }]);
+  const pc = rubr[2][2], pv = rubr[4][2];
+  assert.equal(pc.length, 11);
+  pc.forEach((p, i) => {
+    const [W, H] = pg(p), x = p.position[0] * W, y = p.position[1] * H;
+    assert.ok(x >= W - 492 - 0.5 && x + 27 <= W - 32 + 0.5 && y + 9 >= H - 239 - 0.5 && y + 27 <= H - 31 + 0.5, "pág " + p.page + " dentro do quadro");
+    assert.ok(Math.abs(pv[i].position[0] * W - (x - 32)) < 0.5 && pv[i].position[1] === p.position[1], "vendedor 32 pt à esquerda, mesma altura");
+  });
   /* tudo assinado: só o contrato vai para CONTRATO ASSINADO (o principal continua sendo o contrato) */
   c.c.estado.status = "closed";
   const e = c.acao("assinaturaEstado");
@@ -1319,7 +1325,8 @@ test("plano 23 B: linhas lidas na tela viram assinatura posicionada — comprado
   assert.equal(c.gerarFinal().ok, true);
   const r = c.acao("assinaturaEnviar", rub(c, { linhas: [LINHA_VEND, LINHA_COMP, LINHA_T1] }));
   assert.equal(r.ok, true, JSON.stringify(r));
-  assert.deepEqual(rubricaDe(c, "compradora@teste.example"), [RUB_CAMPOS.concat([posDe(LINHA_COMP)])]);
+  assert.deepEqual(rubricaDe(c, "compradora@teste.example"), [[posDe(LINHA_COMP)]]);   /* dono 01/11: manuscrita só na linha dela */
+  assert.deepEqual(rubricaDe(c, "compradora@teste.example", "doc-1", "initials"), [RUB_CAMPOS.concat([RUB_VALORES])]);
   assert.deepEqual(rubricaDe(c, "beltrano@teste.example"), [[posDe(LINHA_VEND)]]);
   assert.deepEqual(rubricaDe(c, TEST_SPE[0].email), [[posDe(LINHA_T1)]]);
   assert.deepEqual(rubricaDe(c, TEST_SPE[1].email), []);
@@ -1339,7 +1346,8 @@ test("correção 1 (C-1): desligado, as linhas mandadas não viram assinatura (o
   const c = cenario();
   assert.equal(c.gerarFinal().ok, true);
   assert.equal(c.acao("assinaturaEnviar", rub(c, { linhas: [LINHA_VEND, LINHA_COMP] })).ok, true);
-  assert.deepEqual(rubricaDe(c, "compradora@teste.example"), [RUB_CAMPOS]);
+  assert.deepEqual(rubricaDe(c, "compradora@teste.example"), []);
+  assert.deepEqual(rubricaDe(c, "compradora@teste.example", "doc-1", "initials"), [RUB_CAMPOS.concat([RUB_VALORES])], "os vistos continuam");
   assert.deepEqual(rubricaDe(c, "beltrano@teste.example"), []);
 });
 
@@ -1537,8 +1545,7 @@ test("unidade 22 (3): cada rubrica posicionada fica no registro; o que a Clicksi
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.ok((r.avisos || []).some((a) => /RUBRICA_DIVERGENTE/.test(a)), JSON.stringify(r.avisos));
   const log = c.g.logs.join("\n");
-  assert.match(log, /rubrica initials doc-1: 1 posição pedida → guardada kind=initials, 0 posição/);
-  assert.match(log, /rubrica manuscript doc-1: \d+ posições? pedidas? → guardada kind=manuscript/);
+  assert.match(log, /rubrica initials doc-1: 3 posições pedidas → guardada kind=initials, 0 posição/);
   assert.ok(!/compradora@|Compradora de Teste/.test(log), "registro sem dado pessoal");
 });
 

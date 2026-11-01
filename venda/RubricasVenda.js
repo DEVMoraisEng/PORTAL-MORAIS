@@ -19,8 +19,14 @@ var RubricasVenda = (function () {
      46 pt acima da linha de base do traço, o pé da imagem fica ~4 pt abaixo da linha — a assinatura cruza a linha e não
      cobre o "Nome:" de baixo. Vale para as linhas de assinatura e para os campos "ASSINATURA: ____". Se o texto de cima
      estiver a menos de 46 pt, a imagem encosta nele: preferimos a linha (não se mexe aqui; RUBRICAS_AJUSTE ainda soma). */
-  var ACIMA_DA_BASE = 46;
-  function topoAcima(l, H) { return (l.y + l.h - ACIMA_DA_BASE) / H; }
+  /* calibração pelos PDFs assinados da unidade 22 (01/11, pymupdf: tinta × ponto enviado). A caixa é bem maior que a tinta:
+     - assinatura (manuscrita, imagem 100×50): tinta de +18 a +29 pt abaixo do ponto → ponto 27 pt acima da linha de base,
+       a tinta fica em cima da linha (antes, com 46, flutuava ~20 pt acima);
+     - visto (initials, texto 22 pt): tinta de +9 a +27 pt abaixo do ponto, 22–27 pt de largura → no campo "ASSINATURA:
+       ____" ponto 25 pt acima da base (o pé do visto na linha); no 4.2.1, 22 pt acima da base (no meio da linha, na
+       coluna cinza). (l.y + l.h = linha de base no pdf.js.) */
+  var MANUSCRITO_ACIMA = 27, VISTO_CAMPO_ACIMA = 25, VISTO_VALORES_ACIMA = 22;
+  function topoAcima(l, H, acima) { return (l.y + l.h - (acima === undefined ? MANUSCRITO_ACIMA : acima)) / H; }
   var ITEM_421 = /^\s*4\.2\.1\.?(\s|$)/;
 
   function limitar(v) { return Math.max(0, Math.min(1, Math.round(v * 10000) / 10000)); }
@@ -80,11 +86,11 @@ var RubricasVenda = (function () {
         var m;
         while ((m = CAMPO.exec(l.texto))) {
           var iTraco = l.texto.indexOf("_", m.index);
-          campos.push({ page: String(pg.numero), position: [limitar(l.xs[iTraco] / W + aC.dx), limitar(topoAcima(l, H) + aC.dy)] });
+          campos.push({ page: String(pg.numero), position: [limitar(l.xs[iTraco] / W + aC.dx), limitar(topoAcima(l, H, VISTO_CAMPO_ACIMA) + aC.dy)] });
         }
         /* o primeiro "4.2.1." que está numa tabela (texto bem à direita da margem): é o quadro-resumo */
         if (!valores && ITEM_421.test(l.texto) && l.x - margem > W * 0.08) {
-          valores = { page: String(pg.numero), position: [limitar((margem + 4) / W + aV.dx), limitar(l.y / H + aV.dy)] };
+          valores = { page: String(pg.numero), position: [limitar((margem + 4) / W + aV.dx), limitar(topoAcima(l, H, VISTO_VALORES_ACIMA) + aV.dy)] };
         }
       });
     });

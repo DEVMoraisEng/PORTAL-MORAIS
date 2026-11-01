@@ -23,7 +23,7 @@ const LISTA = [
   { papel: "Testemunha 2", role: "witness", nome: "Testemunha Dois Teste", origem: "testemunha" }];
 const ZERO = { linha: { dx: 0, dy: 0 } };
 /* calibração 01/11: o topo pedido fica 46 pt acima da linha de base; nos itens de 11 pt daqui: y do traço = topo + 46 − 11 */
-const xy = (l) => [Math.round(l.position[0] * W), Math.round(l.position[1] * H + 46 - 11)];
+const xy = (l) => [Math.round(l.position[0] * W), Math.round(l.position[1] * H + 27 - 11)];   /* calibração u22: 27 pt acima da base */
 
 const PAG31 = pag(31, [
   it("ASSINATURAS", 250, 300), it("E, por estarem assim justos e contratados, assinam com 2 (duas) testemunhas.", 57, 320),
@@ -109,19 +109,19 @@ test("correção 3 (5): leitura da linha inteira nunca dá a linha a outra pesso
    Agora: o pé da imagem 4 pt abaixo da linha (topo = linha − 46), e quem divide o mesmo ponto fica lado a lado. ---- */
 const base = (str, x, linhaBase) => it(str, x, linhaBase - 11);   /* item cuja linha de base (baseline) é a medida */
 const topo = (pos) => Math.round(pos.position[1] * H);
-test("calibração: linha de assinatura com base em 80 → topo pedido em 34 (imagem de 34 a 84: pé 4 pt abaixo da linha)", () => {
+test("calibração (substituída pela u22): linha com base em 80 → ponto em 53 (27 pt acima)", () => {
   const pg = pag(18, [base("VENDEDORA", 250, 20), base("COMPRADOR", 250, 30), traco(47, 226, 69), base("Nome: EMPRESA", 226, 94), base("VENDEDORA", 226, 108)]);
   for (const aj of [undefined, CS.AJUSTE_PADRAO]) {
     const l = R.acharLinhas([pg], aj);
     assert.equal(l.length, 1);
-    assert.equal(topo(l[0]), 80 - 46, JSON.stringify(aj));
+    assert.equal(topo(l[0]), 80 - 27, JSON.stringify(aj));
     assert.equal(Math.round(l[0].position[0] * W), 226);
   }
 });
-test("calibração: campo de ciência com base em 416 → topo 370 (antes 396, cobria as linhas de baixo)", () => {
+test("calibração (substituída pela u22): campo de ciência com base em 416 → ponto do visto em 391 (25 pt acima)", () => {
   const pg = pag(5, [base("CIÊNCIA EXPRESSA DO COMPRADOR", 183, 380), base("ASSINATURA: _______________________________]", 183, 416)]);
   const r = R.acharNoContrato([pg], CS.AJUSTE_PADRAO);
-  assert.equal(topo(r.campos[0]), 416 - 46);
+  assert.equal(topo(r.campos[0]), 416 - 25);
 });
 
 const C1 = { papel: "Comprador 1", role: "buyer", nome: "COMPRADOR UM TESTE", origem: "comprador1", rubrica: true };
@@ -146,19 +146,10 @@ test("dono 01/11: compradores e vendedor assinam EXATAMENTE os mesmos documentos
   assert.deepEqual(de(FI), ["t"]);
 });
 
-test("calibração: dois compradores no mesmo campo de ciência e nos valores ficam lado a lado (105 pt), sem sobrepor", () => {
-  const rub = { campos: [{ page: "5", position: [251 / W, 370 / H] }], valores: { page: "3", position: [61 / W, 140 / H] },
-                memorial: { page: "13", position: [0.53, 0.7] }, projeto: CS.posicoesProjeto(), linhas: [], termos: {} };
-  const req = (s) => CS.requisitosRubrica(s, DOCS, rub, LISTA2.indexOf(s), LISTA2);
-  const campo = (s) => req(s).find((r) => r.docId === "c" && r.kind === "manuscript").positions[0];
-  const visto = (s) => req(s).find((r) => r.docId === "c" && r.kind === "initials").positions[0];
-  /* comprador 1, cônjuge e comprador 2 no campo em x=251: dois cabem lado a lado; o terceiro vai à fileira de baixo */
-  assert.deepEqual([C1, CJ, C2].map((s) => [pt(campo(s)), topo(campo(s))]), [[251, 370 - 52], [356, 370 - 52], [251, 370]]);
-  assert.ok(Math.abs(pt(visto(C2)) - pt(visto(C1))) >= 100, "valores também lado a lado");
-  /* campo perto da margem direita: o 2º não cabe ao lado — vai uma fileira abaixo e a 1ª sobe 52 pt */
-  const perto = Object.assign({}, rub, { campos: [{ page: "5", position: [420 / W, 370 / H] }] });
-  const cp = (s) => CS.requisitosRubrica(s, DOCS, perto, LISTA2.indexOf(s), LISTA2)[0].positions[0];
-  assert.deepEqual([C1, CJ, C2].map((s) => [pt(cp(s)), topo(cp(s))]), [[420, 370 - 104], [420, 370 - 52], [420, 370]]);
+test("dono 01/11: campo perto da margem direita — os vistos que não cabem vão para a fila de BAIXO (+22 pt), nunca para cima", () => {
+  const rub = { campos: [{ page: "5", position: [520 / W, 370 / H] }], valores: null, memorial: null, projeto: [], linhas: [], termos: {} };
+  const ps = [C1, CJ, C2].map((s) => CS.requisitosRubrica(s, DOCS, rub, LISTA2.indexOf(s), LISTA2)[0].positions[0]);
+  assert.deepEqual(ps.map((p) => [Math.round(p.position[0] * W), topo(p)]), [[520, 370], [520, 392], [520, 414]]);
 });
 
 test("calibração: memorial e projeto — compradores e vendedor em pontos diferentes (nada empilhado)", () => {
@@ -196,30 +187,18 @@ test("revisão A: memorial — o vendedor assina na PRÓPRIA linha (coluna da Ve
   assert.deepEqual(CS.requisitosRubrica(VEND, DOCS, r2, 3, LISTA2).find((r) => r.docId === "m").positions[0], { page: "13", position: [0.2, 0.71] });
 });
 
-test("revisão B: perto do topo as fileiras extras vão PARA BAIXO (nunca y<0, nada sobreposto); sem lugar = sem posição e aviso", () => {
-  const avisos = [];
-  const campo = (y) => ({ campos: [{ page: "5", position: [420 / W, y / H] }], valores: null, memorial: null, projeto: [], linhas: [], termos: {} });
-  const ps = [C1, CJ, C2].map((s) => CS.requisitosRubrica(s, DOCS, campo(30), LISTA2.indexOf(s), LISTA2, avisos)[0].positions[0]);
-  assert.deepEqual(ps.map(topo), [30, 82, 134], "a 1ª no ponto, as outras abaixo");
-  assert.ok(ps.every((p) => p.position[1] >= 0));
-  naoSobrepoe(ps, { W, H });
-  /* 3 fileiras subindo dariam y<0 (ponto em 80): também para baixo */
-  assert.deepEqual([C1, CJ, C2].map((s) => topo(CS.requisitosRubrica(s, DOCS, campo(80), LISTA2.indexOf(s), LISTA2)[0].positions[0])), [80, 132, 184]);
-  assert.deepEqual(avisos, []);
+test("revisão B (com as regras do dono): fila de baixo que passaria da margem de baixo = sem posição e aviso", () => {
+  const avisos = [], rub = { campos: [{ page: "5", position: [520 / W, 760 / H] }], valores: null, memorial: null, projeto: [], linhas: [], termos: {} };
+  const r1 = CS.requisitosRubrica(C1, DOCS, rub, 0, LISTA2, avisos), r2 = CS.requisitosRubrica(CJ, DOCS, rub, 1, LISTA2, avisos);
+  assert.equal(topo(r1[0].positions[0]), 760, "o 1º no ponto");
+  assert.deepEqual(r2, []);
+  assert.match(avisos.join(" | "), /Cônjuge do comprador 1: sem lugar para a assinatura posicionada no contrato, pág\. 5/);
 });
 
-test("revisão D: projeto em A2 (x≈0,9) — 4 pessoas preenchem para a ESQUERDA na mesma altura, nunca para cima do carimbo", () => {
-  const P = { page: "5", position: [0.9, 0.95] }, rub = { campos: [], valores: null, memorial: null, projeto: [P], linhas: [], termos: {} };
-  const proj = [C1, CJ, C2, VEND].map((s) => CS.requisitosRubrica(s, DOCS, rub, LISTA2.indexOf(s), LISTA2).find((r) => r.docId === "p").positions[0]);
-  const x0 = 0.9 * A2.W;
-  assert.deepEqual(proj.map((p) => Math.round(p.position[0] * A2.W)), [x0, x0 - 105, x0 - 210, x0 - 315].map(Math.round));
-  assert.ok(proj.every((p) => p.position[1] === 0.95), "mesma altura");
-  /* sem lugar à esquerda e sem lugar abaixo (pé da página): fica sem posição para quem não cabe, com aviso */
-  const avisos = [], canto = { campos: [], valores: null, memorial: null, projeto: [{ page: "5", position: [0.03, 0.97] }], linhas: [], termos: {} };
-  const p2 = CS.requisitosRubrica(CJ, DOCS, canto, LISTA2.indexOf(CJ), LISTA2, avisos).find((r) => r.docId === "p");
-  assert.equal(p2, undefined, "sem posição no projeto para o 2º");
-  assert.match(avisos.join(" | "), /Cônjuge do comprador 1: sem lugar para a assinatura posicionada no projeto, pág\. 5/);
-  assert.ok(CS.requisitosRubrica(C1, DOCS, canto, 0, LISTA2).find((r) => r.docId === "p"), "o 1º fica no ponto medido");
+test("revisão D (com as regras do dono): projeto — ponto perto da borda esquerda do quadro: a fila começa mais à direita, dentro dele", () => {
+  const P = { page: "5", position: [0.80, 0.95] }, rub = { campos: [], valores: null, memorial: null, projeto: [P], linhas: [], termos: {} };
+  const xs = [C1, CJ, C2, VEND].map((s) => CS.requisitosRubrica(s, DOCS, rub, LISTA2.indexOf(s), LISTA2).find((r) => r.docId === "p").positions[0].position[0] * 2384);
+  assert.deepEqual(xs.map(Math.round), [1988, 1956, 1924, 1892]);
 });
 
 test("revisão C: tamanho real das páginas lido do PDF (MediaBox, árvore /Kids, /Rotate); sem dá para ler = padrão", () => {
@@ -234,7 +213,7 @@ test("revisão C: tamanho real das páginas lido do PDF (MediaBox, árvore /Kids
   const P = { page: "1", position: [0.9, 0.95] };
   const rub = { campos: [], valores: null, memorial: null, projeto: [P], linhas: [], termos: {}, tamanhos: { projeto: [{ W: 595, H: 842 }] } };
   const p = CS.requisitosRubrica(CJ, DOCS, rub, 1, LISTA2).find((r) => r.docId === "p").positions[0];
-  assert.ok(Math.abs(p.position[0] * 595 - (0.9 * 595 - 105)) < 1, String(p.position[0] * 595));
+  assert.ok(Math.abs(p.position[0] * 595 - (0.9 * 595 - 32)) < 1, String(p.position[0] * 595));   /* passo do visto: 32 pt */
 });
 
 /* ---- envelope da unidade 22 (sandbox, 01/11) ---- */
@@ -263,9 +242,70 @@ test("unidade 22 (2): traço no pé da página e o 'Nome:' no topo da seguinte �
   const p4 = pg(4, [it("Nome: CONJUGE VINTE E DOIS TESTE", 200, 40), it("CPF: 000.000.000-00", 200, 54), it("CÔNJUGE DO COMPRADOR", 230, 68),
                     traco(32, 200, 120), it("Nome: TESTEMUNHA UM", 200, 132), it("TESTEMUNHA 1", 240, 146)]);
   const l = R.acharLinhas([p3, p4], ZERO);
-  const fim = l.find((x) => x.page === "3" && Math.round(x.position[1] * H2 + 46 - 11) === 718);
+  const fim = l.find((x) => x.page === "3" && Math.round(x.position[1] * H2 + 27 - 11) === 718);
   assert.ok(fim, JSON.stringify(l));
   assert.equal(fim.texto, "Nome: CONJUGE VINTE E DOIS TESTE\nCPF: 000.000.000-00\nCÔNJUGE DO COMPRADOR");
   const cj = { papel: "Cônjuge do comprador 1", role: "buyer", nome: "CONJUGE VINTE E DOIS TESTE", origem: "conjugeComprador1", rubrica: true };
   assert.equal(CS.atribuirLinhas([cj], [fim], "termo")[0].length, 1);
+});
+
+/* ---- calibração pelos PDFs assinados da unidade 22 (pymupdf: tinta de cada marca × ponto enviado) ----
+   manuscrita (imagem 100×50): tinta de +18 a +29 pt abaixo do ponto, de +2 a +99 pt à direita;
+   visto (texto "OvertheRainbow" 22 pt): tinta de +9 a +27 pt abaixo do ponto, 22–27 pt de largura a partir do x.
+   Regras do dono (01/11): no meio do texto (ciência e 4.2.1) só VISTOS dos compradores, numa fila compacta, nunca para
+   cima; projeto: vistos compactos DENTRO do quadro DEFERIMENTO, para a esquerda e depois abaixo. */
+test("calibração u22: linha de assinatura — ponto 27 pt acima da linha de base (tinta da manuscrita em cima da linha)", () => {
+  const pg = pag(18, [base("VENDEDORA", 250, 20), base("COMPRADOR", 250, 30), traco(47, 226, 223), base("Nome: EMPRESA", 226, 248), base("VENDEDORA", 226, 262)]);
+  const l = R.acharLinhas([pg], CS.AJUSTE_PADRAO);
+  assert.equal(topo(l[0]), 234 - 27);
+});
+test("calibração u22: campo de ciência → ponto do visto 25 pt acima da base; 4.2.1 → 22 pt acima da base, na coluna cinza", () => {
+  const p9 = pag(9, [base("LIMITES — ASSINATURA: _______________________________", 182.7, 356.4)]);
+  const r = R.acharNoContrato([p9], CS.AJUSTE_PADRAO);
+  assert.equal(topo(r.campos[0]), Math.round(356.4 - 25));
+  const p3 = pag(3, [base("texto da margem", 57, 100), base("4.2.1. ENTRADA: parcelamento direto com a VENDEDORA.", 182.7, 341.5)]);
+  const v = R.acharNoContrato([p3], CS.AJUSTE_PADRAO).valores;
+  assert.equal(topo(v), Math.round(341.5 - 22));
+  assert.equal(Math.round(v.position[0] * W), 61);
+});
+
+const CAMPO9 = { page: "9", position: [313.3 / 596, 331.4 / 842] }, VALORES3 = { page: "3", position: [60.7 / 596, 319.5 / 842] };
+const RUB_U22 = { campos: [CAMPO9], valores: VALORES3, memorial: null, projeto: [], linhas: [], termos: {}, tamanhos: { contrato: Array(41).fill({ W: 596, H: 842 }) } };
+const reqDe = (s, rub = RUB_U22, l = LISTA2) => CS.requisitosRubrica(s, DOCS, rub, l.indexOf(s), l);
+test("dono 01/11: no contrato, ciência e 4.2.1 viram VISTOS (initials) dos compradores — um requisito por pessoa com todas as posições", () => {
+  const r = reqDe(C1);
+  assert.deepEqual(r.map((x) => x.docId + ":" + x.kind), ["c:initials"], "manuscrita só na linha da própria pessoa");
+  assert.deepEqual(r[0].positions.map((p) => p.page), ["9", "3"]);
+  assert.deepEqual(reqDe(VEND).filter((x) => x.docId === "c"), [], "vendedor não tem visto no meio do texto");
+});
+test("dono 01/11: vistos lado a lado numa fila compacta (passo 32 pt), mesma altura, nunca para cima", () => {
+  const x = (s, i) => Math.round(reqDe(s)[0].positions[i].position[0] * 596 * 10) / 10;
+  const y = (s, i) => Math.round(reqDe(s)[0].positions[i].position[1] * 842 * 10) / 10;
+  assert.deepEqual([C1, CJ, C2].map((s) => x(s, 0)), [313.3, 345.3, 377.3]);
+  assert.deepEqual([C1, CJ, C2].map((s) => y(s, 0)), [331.4, 331.4, 331.4]);
+  assert.deepEqual([C1, CJ, C2].map((s) => x(s, 1)), [60.7, 92.7, 124.7], "4.2.1 na coluna cinza");
+  /* quarto comprador: não cabe na coluna cinza (até 110 pt do começo) — vai para a fila de BAIXO */
+  const C3 = { papel: "Comprador 3", role: "buyer", nome: "TERCEIRO TESTE", origem: "comprador3", rubrica: true };
+  const L4 = [C1, CJ, C2, C3, VEND];
+  const v4 = CS.requisitosRubrica(C3, DOCS, RUB_U22, 3, L4)[0].positions[1];
+  assert.deepEqual([Math.round(v4.position[0] * 596 * 10) / 10, Math.round(v4.position[1] * 842 * 10) / 10], [60.7, 341.5]);
+});
+
+test("dono 01/11: projeto — vistos compactos DENTRO do quadro DEFERIMENTO (A0 e A1), para a esquerda; ponto fora do quadro entra nele", () => {
+  const caixa = (W, H) => [W - 496, H - 241, W - 28, H - 29];
+  const proj = [{ page: "1", position: [0.934, 0.948] }, { page: "10", position: [0.782, 0.932] }];
+  const rub = { campos: [], valores: null, memorial: null, projeto: proj, linhas: [], termos: {} };
+  const todos = [C1, CJ, C2, VEND].map((s) => reqDe(s, rub).find((r) => r.docId === "p"));
+  assert.ok(todos.every((r) => r.kind === "initials" && r.positions.length === 2));
+  for (const [i, W, H] of [[0, 3370, 2384], [1, 2384, 1684]]) {
+    const [bx0, by0, bx1, by1] = caixa(W, H);
+    const xs = todos.map((r) => r.positions[i].position[0] * W), ys = todos.map((r) => r.positions[i].position[1] * H);
+    xs.forEach((x, k) => {
+      /* proporções com 4 casas: até 0,5 pt de arredondamento */
+      assert.ok(x >= bx0 + 4 - 0.5 && x + 27 <= bx1 - 4 + 0.5, "pág " + proj[i].page + " x " + x);
+      assert.ok(ys[k] + 9 >= by0 - 0.5 && ys[k] + 27 <= by1 - 2 + 0.5, "pág " + proj[i].page + " y " + ys[k]);
+      if (k) assert.ok(Math.abs(xs[k - 1] - x - 32) < 0.5, "passo 32 para a esquerda");
+    });
+    assert.ok(ys.every((v) => Math.abs(v - ys[0]) < 0.5), "mesma altura");
+  }
 });

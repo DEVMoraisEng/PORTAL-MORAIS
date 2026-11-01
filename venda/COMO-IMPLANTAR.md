@@ -1125,8 +1125,8 @@ passa a usar a cópia quando o dono troca a Propriedade dele. O código antigo d
 **Passo a passo do dono (uma vez):**
 1. Colar o código novo nos DOIS projetos, `PORTAL-VENDA-TESTE` e `PORTAL-VENDA`: `ClicksignVenda`, `ContratoVenda`,
    `GerarContrato`, `AssinaturaVenda`, `AssinaturaVigia`, `Confissao`, `PreReserva` e o novo `MigrarModelos`; e
-   subir o site (`venda/RubricasVenda.js` v6, `venda/assinatura-ui.js` v21, `venda-dossie.js` v53, `vendas.html`,
-   `simulacoes.html`, `sw.js` v255). Com os modelos de hoje nada muda.
+   subir o site (`venda/RubricasVenda.js` v7, `venda/assinatura-ui.js` v21, `venda-dossie.js` v54, `vendas.html`,
+   `simulacoes.html`, `sw.js` v256). Com os modelos de hoje nada muda.
 2. No projeto onde vai rodar a migração (o TESTE), ligar o serviço avançado **Google Docs API**: editor do Apps Script ›
    Serviços (+) › Google Docs API › Adicionar (identificador `Docs`). Os modelos de contrato têm quebras de seção perto dos
    blocos (a de próxima página antes do quadro-resumo e a de 2 colunas que põe vendedora | comprador lado a lado); o
@@ -1170,9 +1170,7 @@ apagadas.
   de um comprador, não vai para ninguém: melhor a pessoa assinar só na página da Clicksign do que na linha errada.
 
 **Calibração e decisões do dono (01/11/2026):**
-- A Clicksign põe o topo da imagem da assinatura (100×50 pt) no ponto pedido. O ponto agora fica 46 pt acima da linha de
-  base do traço (linhas de assinatura e campos "ASSINATURA: ____"): a assinatura cruza a linha e o pé fica ~4 pt abaixo,
-  sem cobrir o "Nome:". Se o texto de cima estiver a menos de 46 pt, a imagem encosta nele (preferimos a linha).
+- (Substituído pela calibração da unidade 22, abaixo: o ponto da assinatura passou de 46 para 27 pt acima da linha.)
   O ajuste padrão de `campo` e `linha` passou a 0; um `RUBRICAS_AJUSTE` gravado antes com `dy` negativo agora sobe a
   assinatura demais — apague a chave `linha`/`campo` dele.
 - Quem divide o mesmo ponto (campos de ciência, vistos dos valores, memorial) fica lado a lado, 105 pt um do outro; sem
@@ -1206,6 +1204,30 @@ apagadas.
   `RUBRICAS_VISTO_COMO_ASSINATURA` = `1`.
 - Se a tela não achar o item 4.2.1 do quadro-resumo, não há visto nos valores — agora isso volta como aviso
   "tela: item 4.2.1 do quadro-resumo não achado" no envio e no registro.
+
+**Calibração pelos PDFs assinados da unidade 22 (01/11/2026) e regras do dono:**
+Medido com pymupdf nos PDFs assinados (tinta de cada marca: página renderizada com e sem a camada da Clicksign, e o
+alfa de cada imagem), comparando com o ponto que o código mandou (recalculado do texto do próprio PDF):
+- Assinatura ("manuscript"): a Clicksign põe uma imagem 100×50 pt com o canto de cima à esquerda no ponto pedido; a
+  tinta fica de +18 a +29 pt abaixo do ponto e de +2 a +99 pt à direita (nome comprido: só ~5 pt de altura, no meio).
+  Por isso o ponto agora é **27 pt acima da linha de base** do traço: a tinta fica em cima da linha (com os 46 de antes
+  ela flutuava ~20 pt acima, sobre o texto).
+- Visto ("initials"): a Clicksign escreve as iniciais (fonte OvertheRainbow 22 pt) começando no x pedido; a tinta fica
+  de **+9 a +27 pt** abaixo do ponto e tem **22–27 pt** de largura (2 letras).
+- Campos de ciência ("ASSINATURA: ____") e coluna de valores do 4.2.1: só **vistos** dos compradores (comprador 1,
+  cônjuge, comprador 2/3), um requisito de visto por pessoa por documento, numa fila **compacta: passo 32 pt**, na
+  mesma altura; o que não cabe vai para a fila **de baixo (+22 pt)**, nunca para cima. Ciência: começa no início dos
+  traços, ponto 25 pt acima da base (o pé do visto na linha). 4.2.1: na coluna cinza (até 110 pt do começo), ponto
+  22 pt acima da base (no meio da linha). A assinatura (manuscript) ficou só na linha de cada pessoa.
+- Projeto: o quadro DEFERIMENTO tem o mesmo tamanho nas folhas A0 (págs. 1–2, 3370×2384) e A1 (págs. 3–11,
+  2384×1684): de (largura−496, altura−241) a (largura−28, altura−29) pt. Os vistos ficam dentro dele: do ponto medido
+  para a esquerda (passo 32 pt), depois a fila de baixo; ponto fora do quadro (o da pág. 10 estava) é trazido para
+  dentro. O tamanho padrão das páginas do projeto passou a A0/A1 (era A1/A2: por isso o passo saiu 148 pt na pág. 1).
+- **Atenção — a confirmar no próximo envelope:** no projeto da unidade 22 cada pessoa tinha UM requisito de visto com
+  11 posições (págs. 1–11), e a Clicksign desenhou só a da pág. 1 (as págs. 2–11 ficaram sem nenhum visto, das quatro
+  pessoas). O visto do 4.2.1 (uma posição) apareceu. Se no próximo envelope os vistos da ciência também saírem só na
+  primeira página, a Clicksign desenha só a primeira posição de cada visto — aí é preciso decidir: um requisito por
+  página (se a Clicksign aceitar) ou `RUBRICAS_VISTO_COMO_ASSINATURA` = `1`.
 
 ## Selfie com documento para comprador, cônjuge e fiadores (01/11/2026, plano 23 C)
 
