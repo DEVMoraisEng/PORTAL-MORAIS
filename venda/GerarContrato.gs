@@ -275,7 +275,7 @@ function ctrDadosCondominio_(c) {
       },
       fiadores: [fiador(1), fiador(2)],
       /* 31/10/2026 (dono): cônjuge do comprador assina (colunas da proposta) — ContratoVenda.conjugeDoComprador */
-      conjugeComprador: { estadoCivil: t("ESTADO CIVIL"), nome: t("CONJUGE"), cpf: RegrasVenda.cpfDoNotion(t("CPF CONJUGE")), email: t("EMAIL CONJUGE") },
+      conjugeComprador: { estadoCivil: t("ESTADO CIVIL"), nome: t("CONJUGE"), cpf: RegrasVenda.cpfDoNotion(t("CPF CONJUGE")), email: t("EMAIL CONJUGE"), regime: t("REGIME") || t("REGIME DE BENS") },
       /* 29/10: "Alterar fluxo" (FluxoVenda.gs) — a lista livre; vazia = fluxo do simulador */
       fluxoPersonalizado: t("FLUXO PERSONALIZADO"),
       /* quadro-resumo (21/10): a comissão gravada pelo simulador; vazia, o contrato calcula pela regra */
