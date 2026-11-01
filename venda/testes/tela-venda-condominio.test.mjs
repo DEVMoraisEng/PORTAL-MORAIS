@@ -364,6 +364,20 @@ test("termo casado, opção ligada: o cônjuge assina logo depois do comprador; 
   assert.equal(sem.acao("assinaturaEnviar", { doc: "PRE_RESERVA" }).ok, true);
 });
 
+test("salvarConjugePreReserva com o envelope do termo aberto: ENVELOPE_ABERTO com a mensagem; envelope do contrato aberto não trava", () => {
+  const c = cenarioPR({ linha: { ...CONTA_PR, ...CASADO_PR } });
+  assert.equal(c.acao("gerarTermoPreReserva").ok, true);
+  assert.equal(c.acao("assinaturaEnviar", { doc: "PRE_RESERVA" }).ok, true);
+  const r = c.acao("salvarConjugePreReserva", { incluir: true });
+  assert.equal(r.ok, false);
+  assert.equal(r.erro, "ENVELOPE_ABERTO");
+  assert.equal(r.mensagem, "O termo já foi enviado para assinatura. Para mudar quem assina, cancele o envelope do termo primeiro.");
+  assert.equal(c.acao("preReservaEstado").incluirConjuge, false, "nada gravado");
+  /* envelope do CONTRATO aberto não trava o termo (são envelopes separados) */
+  const k = cenarioPR({ linha: { ...CONTA_PR, ...CASADO_PR, "ASSINATURA - ENVELOPE ID": rt("env-contrato"), "ASSINATURA - SITUAÇÃO": rt("ENVIADO") } });
+  assert.equal(k.acao("salvarConjugePreReserva", { incluir: true }).ok, true);
+});
+
 test("preReservaEstado traz incluirConjuge e temConjuge; salvarConjugePreReserva recusa TESTES e página de outra base", () => {
   const solteiro = cenarioPR();
   const e0 = solteiro.acao("preReservaEstado");

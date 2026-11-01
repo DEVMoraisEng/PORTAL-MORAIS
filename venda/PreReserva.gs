@@ -64,7 +64,10 @@ function prTemConjuge_(pg) {
 }
 function salvarConjugePreReserva_(col, sess, p) {
   var pid = String(p.pageId).slice(0, 8);
-  ctrLerPaginaVenda_(p.pageId);   /* só páginas da base de vendas (outra base lança PAGINA_DE_OUTRA_BASE) */
+  var pg = ctrLerPaginaVenda_(p.pageId);   /* só páginas da base de vendas (outra base lança PAGINA_DE_OUTRA_BASE) */
+  /* com o envelope do termo aberto quem assina não muda: mesma regra das testemunhas (AssinaturaVenda.assEnvelopeAberto_) */
+  if (assEnvelopeAberto_(pg, p.pageId, assDoc_({ doc: "PRE_RESERVA" })))
+    return { ok: false, erro: "ENVELOPE_ABERTO", mensagem: "O termo já foi enviado para assinatura. Para mudar quem assina, cancele o envelope do termo primeiro." };
   var incluir = p.incluir === true || p.incluir === "true" || p.incluir === 1 || p.incluir === "1";
   if (incluir) PropertiesService.getScriptProperties().setProperty(PR_CONJUGE + p.pageId, "1");
   else { try { PropertiesService.getScriptProperties().deleteProperty(PR_CONJUGE + p.pageId); } catch (e) { ctrLog_("salvarConjugePreReserva " + pid + " propriedade nao apagada"); } }

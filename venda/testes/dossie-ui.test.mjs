@@ -365,6 +365,7 @@ test("pré-reserva: a caixa do cônjuge está no bloco, o clique chama a ação 
   const fs = await import("node:fs");
   const src = fs.readFileSync(new URL("../../venda-dossie.js", import.meta.url), "utf8");
   assert.match(src, /h \+= htmlConjugePR\(e, dis\);/);
+  assert.match(src, /ENVELOPE_ABERTO_TERMO|rj\.mensagem/);
   assert.match(src, /action: "salvarConjugePreReserva", pageId: pageId, incluir:/);
   assert.match(src, /incluirConjuge: !!r\.incluirConjuge, temConjuge: !!r\.temConjuge/);
   const m = src.match(/function htmlConjugePR[^]*?\r?\n  }\r?\n/)[0];

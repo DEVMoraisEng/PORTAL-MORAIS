@@ -2430,7 +2430,7 @@
       if (rj.ok) {
         estadoP.incluirConjuge = !!rj.incluirConjuge;
         uiP.msg = rj.incluirConjuge ? "O cônjuge vai assinar o termo." + (estadoP.gerado ? " Envie para assinatura de novo." : "") : "Só o comprador assina o termo.";
-      } else uiP.msg = mensagemPR(rj);
+      } else uiP.msg = rj.mensagem || mensagemPR(rj);   /* a caixa volta ao que estava: pintarP redesenha de estadoP */
       pintarP();
     }
     async function aoClicarPR(acao) {

@@ -82,12 +82,20 @@ function assConfig_(pageId) {
   });
 }
 
+/* Envelope já aberto (ou envio em andamento) do contrato (doc omitido) ou do termo (doc = assDoc_({doc:"PRE_RESERVA"})):
+ * a partir daí quem assina não muda mais. Usado por escolherTestemunhas_ e salvarConjugePreReserva_. */
+function assEnvelopeAberto_(pg, pageId, doc) {
+  doc = doc || assDoc_();
+  var cols = assColunas_(pg, doc);
+  return !!prop_(ASS_PENDENTE + doc.chave + pageId) ||
+    !ClicksignVenda.podeEnviar(assTexto_(pg, cols.ENVELOPE), assTexto_(pg, cols.SITUACAO));
+}
+
 /* Entrega 10: grava as 2 testemunhas desta venda (ids da lista da tela). ids vazio = volta ao par padrão.
  * Com a assinatura já enviada (envelope aberto) não muda mais. */
 function escolherTestemunhas_(col, sess, p) {
-  var pg = ctrLerPaginaVenda_(p.pageId), cols = assColunas_(pg);
-  if (prop_(ASS_PENDENTE + p.pageId) || !ClicksignVenda.podeEnviar(assTexto_(pg, cols.ENVELOPE), assTexto_(pg, cols.SITUACAO)))
-    return { ok: false, erro: "ENVELOPE_ABERTO" };
+  var pg = ctrLerPaginaVenda_(p.pageId);
+  if (assEnvelopeAberto_(pg, p.pageId)) return { ok: false, erro: "ENVELOPE_ABERTO" };
   var ids = Array.isArray(p.ids) ? p.ids.map(function (x) { return String(x || "").trim(); }) : [];
   if (!ids.length || (!ids[0] && !ids[1])) {
     assApagarProp_(ASS_TESTEMUNHAS + p.pageId);
