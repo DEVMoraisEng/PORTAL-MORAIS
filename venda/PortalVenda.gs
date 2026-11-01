@@ -10,7 +10,7 @@
  * OPENAI_API_KEY (provedor openai), MODELO_IA (opcional, só openai),
  * ANTHROPIC_API_KEY (provedor anthropic, plano B).
  * Nenhum log com nome, CPF, endereço ou conteúdo de documento. */
-var VERSAO_VENDA = "venda-v15";   // v15: antecipacaoTexto, a antecipação copia a mensagem em vez de gerar PDF (31/10/2026); v14: FGTS e Financiamento separados na aba Financeiro (31/10/2026); v13: faltasCliente no contratoEstado (31/10/2026); v12: aba Financeiro, financeiroEstado (31/10/2026); v11: vigia de assinaturas (AssinaturaVigia.gs, 31/10/2026); v10: Corrigir aqui na conferência (31/10/2026); v9: contrato final do condomínio, termo de pré-reserva e etapas da venda (27/10/2026); v8: leitura em lote, certidão mãe e data do habite-se (entrega 13); v7: campos abertos e conta de recebimento no contrato (entrega 12); v6: documentos do imóvel lidos pela IA (entrega 11); v5: pré-contrato grifado (entrega 9)
+var VERSAO_VENDA = "venda-v16";   // v16: plano 23 — contrato/termo assinado só para ver (documentosAssinados, verDocumentoAssinado, trava CONTRATO_ASSINADO/TERMO_ASSINADO), assinatura na linha (ASSINATURA_LINHAS=1) e selfie (CLICKSIGN_SELFIE=1) (01/11/2026); v15: antecipacaoTexto, a antecipação copia a mensagem em vez de gerar PDF (31/10/2026); v14: FGTS e Financiamento separados na aba Financeiro (31/10/2026); v13: faltasCliente no contratoEstado (31/10/2026); v12: aba Financeiro, financeiroEstado (31/10/2026); v11: vigia de assinaturas (AssinaturaVigia.gs, 31/10/2026); v10: Corrigir aqui na conferência (31/10/2026); v9: contrato final do condomínio, termo de pré-reserva e etapas da venda (27/10/2026); v8: leitura em lote, certidão mãe e data do habite-se (entrega 13); v7: campos abertos e conta de recebimento no contrato (entrega 12); v6: documentos do imóvel lidos pela IA (entrega 11); v5: pré-contrato grifado (entrega 9)
 var NOTION_VERSION = "2022-06-28";
 var ERROS_CONHECIDOS = /^(COLUNA_FALTANDO|TIPO_DE_COLUNA_ERRADO|BACKEND_SEM_CONFIG|PAGINA_DE_OUTRA_BASE|PRECONTRATO_REFAZER|NOTION_OCUPADO|CONTRATO_EM_ASSINATURA)/;
 var REGEX_PAGE_ID = /^[0-9a-f]{32}$|^[0-9a-f-]{36}$/i;
@@ -44,7 +44,10 @@ function tratar_(p) {
     if (grava && String(sess.t || "").toUpperCase() === "TESTES") return { ok: false, erro: "SEM_PERMISSAO_TESTES" };
     if (p.action !== "ping" && !REGEX_PAGE_ID.test(String(p.pageId || ""))) return { ok: false, erro: "PAGINA_INVALIDA" };
     var col = colunas_();
-    var r = executar_(col, sess, p);
+    var trava = assTravaAssinado_(p);   /* 01/11 (plano 23 A): envelope ASSINADO = nada do que se assinou muda */
+    if (trava) { ctrPaginaEmprestada_ = null; return trava; }
+    var r;
+    try { r = executar_(col, sess, p); } finally { ctrPaginaEmprestada_ = null; }
     if (grava && r && r.ok === true) logContrato_(sess, p, r);   /* 30/10: histórico do contrato (LogContrato.gs) */
     return r;
   } catch (err) {
@@ -89,6 +92,8 @@ function executar_(col, sess, p) {
       case "gerarVendaCondominio": return gerarVendaCondominio_(col, sess, p);
       /* entrega 14: contrato assinado pelo portal e recebimentos (RecebimentoVenda.gs) */
       case "verContratoAssinado": return verContratoAssinado_(col, p);
+      case "documentosAssinados": return documentosAssinados_(col, p);       /* 01/11 (plano 23 A): só leitura */
+      case "verDocumentoAssinado": return verDocumentoAssinado_(col, p);
       /* 27/10/2026: Termo de Pré-Reserva (PreReserva.gs); a assinatura usa as ações acima com doc = "PRE_RESERVA" */
       case "preReservaEstado": return preReservaEstado_(col, p);
       case "salvarContaPreReserva": return salvarContaPreReserva_(col, sess, p);

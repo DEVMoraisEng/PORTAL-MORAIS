@@ -180,6 +180,8 @@ test("gerarContrato na linha do condomínio: modelo do condomínio, PDF em CONTR
   const gets = c.g.chamadas.filter((x) => x.url === "https://api.notion.com/v1/pages/" + COND && x.opt.method === "GET");
   assert.equal(gets.length, 3);
   assert.match(r.nome, /^CONTRATO - CONDOMÍNIO RESERVA TESTE - CASA 13 - .* \[#[0-9a-f]{8}\]\.pdf$/);
+  /* 01/11 (plano 23 A): cópia do Docs com o nome final (o título do PDF herda), não "contrato-provisorio" */
+  assert.equal(c.d.estado.copias[0].nome, "CONTRATO - CONDOMÍNIO RESERVA TESTE CASA 13 - Compradora de Teste");
   const pars = c.d.estado.salvos[c.d.estado.copias[0].id].pars;
   assert.equal(pars[0], "CONTRATO — CONDOMÍNIO RESERVA TESTE — UNIDADE 13");
   assert.ok(pars[1].includes("Compradora de Teste") && pars[1].includes("529.982.247-25"), pars[1]);
@@ -291,6 +293,7 @@ test("termo: estado, falta a conta, salva a conta, gera o PDF com o carimbo na c
   const r = c.acao("gerarTermoPreReserva");
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.match(r.nome, /^TERMO DE PRÉ-RESERVA - CONDOMÍNIO RESERVA DOS IPÊS - CASA 13 - .* \[#[0-9a-f]{8}\]\.pdf$/);
+  assert.equal(c.d.estado.copias.at(-1).nome, "TERMO DE PRÉ-RESERVA - CONDOMÍNIO RESERVA DOS IPÊS CASA 13 - Compradora de Teste");
   const pars = c.d.estado.salvos[c.d.estado.copias[c.d.estado.copias.length - 1].id].pars;
   assert.ok(pars[0].includes("Compradora de Teste") && pars[0].includes("CPF nº 529.982.247-25") && pars[0].includes("telefone 62 90000-0000"), pars[0]);
   assert.equal(pars[1], "Casa 13 Tipo 02 até 31/10/2026 por R$ 3.000,00 (três mil reais) (3.000,00)");
@@ -572,12 +575,14 @@ test("01/11: Conferi com envelope ENVIADO/RASCUNHO/ASSINADO ou envio pendente: C
     if (sit === "pendente") c.g.ctx.PropertiesService.getScriptProperties().setProperty("ASSINATURA_PENDENTE_" + COND, "env-y");
     d_zerar(c);
     const r = c.acao("aprovarPreContrato");
-    assert.deepEqual({ ok: r.ok, erro: r.erro }, { ok: false, erro: "CONTRATO_EM_ASSINATURA" }, sit);
+    /* 01/11 (plano 23 A): assinado por todos, a trava do servidor responde antes (CONTRATO_ASSINADO) */
+    const esperado = sit === "ASSINADO" ? "CONTRATO_ASSINADO" : "CONTRATO_EM_ASSINATURA";
+    assert.deepEqual({ ok: r.ok, erro: r.erro }, { ok: false, erro: esperado }, sit);
     assert.equal(c.d.estado.copias.length, 0, sit + ": nada copiado no Drive");
     assert.equal(c.n.patches.length, 0, sit + ": nada gravado no Notion");
     assert.match(c.n.pagina.properties["CONTRATO GERADO"].files[0].name, /bbbbbbbb/, sit);
     assert.equal(c.n.pagina.properties["CONFISSÃO PRÉ-CHAVES - GERADA"].files.length, 1, sit);
-    assert.equal(c.acao("gerarContrato").erro, "CONTRATO_EM_ASSINATURA", sit + " (ação antiga)");
+    assert.equal(c.acao("gerarContrato").erro, esperado, sit + " (ação antiga)");
   }
   /* envelope cancelado já não está com ninguém: o Conferi segue */
   const c = cenarioCfd({ linha: { "ASSINATURA - ENVELOPE ID": rt("env-x"), "ASSINATURA - SITUAÇÃO": rt("CANCELADO") } });
@@ -1283,4 +1288,77 @@ test("H7: o texto de status quebra palavra longa (375 px)", () => {
   const raiz = pathH7.join(pathH7.dirname(fuH7(import.meta.url)), "..", "..");
   const src = fsH7.readFileSync(pathH7.join(raiz, "vendas.html"), "utf8");
   assert.match(src, /\.cd-and \.st\{[^}]*overflow-wrap:anywhere/);
+});
+
+
+/* ---- 01/11/2026 (plano 23 B): assinatura em cima da linha de cada pessoa ---- */
+const LINHA_VEND = { page: "18", position: [0.096, 0.05], texto: "EMPRESA TESTE\nVENDEDORA" };
+const LINHA_COMP = { page: "18", position: [0.096, 0.2], texto: "Nome: Compradora de Teste\nCPF: 000\nCOMPRADOR" };
+const LINHA_T1 = { page: "18", position: [0.096, 0.5], texto: "TESTEMUNHA 1\nNome:\nCPF:" };
+const posDe = (l) => ({ page: l.page, position: l.position });
+const rubricaDe = (c, email, doc = "doc-1", kind = "manuscript") => {
+  const s = c.c.estado.signers.find((x) => x.attributes.email === email);
+  return reqsDe(c).filter((q) => q.attributes.action === "rubricate" && q.attributes.kind === kind && q.relationships.signer.data.id === s.id &&
+                                 q.relationships.document.data.id === doc).map((q) => q.attributes.positions);
+};
+
+test("plano 23 B: linhas lidas na tela viram assinatura posicionada — comprador junto dos campos, vendedora e testemunha na delas", () => {
+  const c = cenario({ props: { ASSINATURA_LINHAS: "1" } });
+  assert.equal(c.gerarFinal().ok, true);
+  const r = c.acao("assinaturaEnviar", rub(c, { linhas: [LINHA_VEND, LINHA_COMP, LINHA_T1] }));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual(rubricaDe(c, "compradora@teste.example"), [RUB_CAMPOS.concat([posDe(LINHA_COMP)])]);
+  assert.deepEqual(rubricaDe(c, "beltrano@teste.example"), [[posDe(LINHA_VEND)]]);
+  assert.deepEqual(rubricaDe(c, TEST_SPE[0].email), [[posDe(LINHA_T1)]]);
+  assert.deepEqual(rubricaDe(c, TEST_SPE[1].email), []);
+  assert.ok(!c.g.logs.join("\n").includes("Compradora"), "log sem nome");
+});
+
+test("correção 1 (C-1): sem ASSINATURA_LINHAS=1 as linhas ficam desligadas — assinaturaPdf diz linhas:false e o envio ignora o que vier", () => {
+  const c = cenario();
+  assert.equal(c.gerarFinal().ok, true);
+  const pdf = c.acao("assinaturaPdf");
+  assert.equal(pdf.linhas, false);
+  assert.equal(pdf.termos, undefined);
+  assert.equal(c.acao("assinaturaEnviar", rub(c, { linhas: "lixo de tela antiga", termos: [{ nome: "" }] })).ok, true, "não confere o que está desligado");
+});
+
+test("correção 1 (C-1): desligado, as linhas mandadas não viram assinatura (os campos do comprador continuam)", () => {
+  const c = cenario();
+  assert.equal(c.gerarFinal().ok, true);
+  assert.equal(c.acao("assinaturaEnviar", rub(c, { linhas: [LINHA_VEND, LINHA_COMP] })).ok, true);
+  assert.deepEqual(rubricaDe(c, "compradora@teste.example"), [RUB_CAMPOS]);
+  assert.deepEqual(rubricaDe(c, "beltrano@teste.example"), []);
+});
+
+test("plano 23 B: termos de confissão — a tela recebe os PDFs dos termos; a linha do fiador vira a assinatura dele no termo", () => {
+  const c = cenarioCfd({ props: { ASSINATURA_LINHAS: "1" } });
+  assert.equal(c.gerarFinal().ok, true);
+  const pdf = c.acao("assinaturaPdf");
+  assert.equal(pdf.ok, true, JSON.stringify(pdf).slice(0, 200));
+  assert.equal(pdf.termos.length, 2);
+  assert.ok(pdf.termos.every((t) => /^CONFISSÃO (PRÉ|PÓS)-CHAVES - /.test(t.nome) && !/\[#/.test(t.nome) && t.base64.length > 4), JSON.stringify(pdf.termos.map((t) => t.nome)));
+  assert.ok(!JSON.stringify(pdf).includes("https://"));
+  const linhaF1 = { page: "2", position: [0.1, 0.6], texto: "FIADOR 1\nFiador Um Teste\nCPF nº 000" };
+  const r = c.acao("assinaturaEnviar", rub(c, { termos: [{ nome: pdf.termos[0].nome, linhas: [linhaF1] }] }));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual(rubricaDe(c, "f1@teste.example", "doc-2"), [[posDe(linhaF1)]]);
+  assert.deepEqual(rubricaDe(c, "f1@teste.example", "doc-3"), [], "o outro termo não tem linha lida");
+});
+
+
+/* ---- 01/11/2026 (plano 23 C): selfie também no condomínio, para cônjuge e fiadores ---- */
+test("plano 23 C: condomínio com CLICKSIGN_SELFIE=1 — fiadores com selfie e documento nos termos; representante só e-mail", () => {
+  const c = cenarioCfd({ props: { CLICKSIGN_SELFIE: "1" } });
+  assert.equal(c.gerarFinal().ok, true);
+  assert.equal(c.acao("assinaturaEnviar", rub(c)).ok, true);
+  const reqs = c.c.chamadas.filter((x) => x.metodo === "POST" && x.caminho === "/envelopes/env-1/requirements").map((x) => x.corpo.data);
+  const auths = (email) => {
+    const s = c.c.estado.signers.find((x) => x.attributes.email === email);
+    return reqs.filter((q) => q.attributes.action === "provide_evidence" && q.relationships.signer.data.id === s.id)
+      .map((q) => q.relationships.document.data.id + ":" + q.attributes.auth);
+  };
+  assert.deepEqual(auths("f1@teste.example"), ["doc-2:email", "doc-2:selfie", "doc-2:official_document", "doc-3:email", "doc-3:selfie", "doc-3:official_document"]);
+  assert.ok(auths("compradora@teste.example").includes("doc-1:selfie"));
+  assert.deepEqual(auths("beltrano@teste.example"), ["doc-1:email", "doc-2:email", "doc-3:email"]);
 });

@@ -61,7 +61,12 @@ function ctrTitulo_(props) {
 /* Página da casa na VENDAS ou, desde a entrega 7, a própria linha da BANCO DE DADOS VENDAS
  * CONDOMÍNIO (DB_VENDAS_COND) — essa vira a "página de venda virtual" do CondominioVenda:
  * mesmas colunas que a VENDAS teria, e o retorno gravado nas colunas da própria linha. */
+/* 01/11 (plano 23 A): a trava do envelope assinado (assTravaAssinado_) lê a página antes da ação; a ação reaproveita essa
+   leitura UMA vez (nada grava entre as duas). O PortalVenda zera a sobra ao fim de cada pedido. */
+var ctrPaginaEmprestada_ = null;
 function ctrLerPaginaVenda_(pageId, info) {
+  var em = ctrPaginaEmprestada_;
+  if (em && em.id === pageId) { ctrPaginaEmprestada_ = null; if (info) info.base = em.base; return em.pg; }
   var pg = notion_("GET", "/pages/" + pageId, null);
   var dbAtual = vendaBaseDaPagina_(pg);
   if (info) info.base = dbAtual;
@@ -789,15 +794,18 @@ function ctrPreparar_(col, p, pid, rot) {
   var hash = ctrCarimbo_(d);
   var endereco = String(f.endereco).replace(/[\\\/:*?"<>|]/g, "-");
   var resto = endereco + (f.casa ? " - CASA " + f.casa : "") + " - " + hoje_("dd-MM-yyyy") + " [#" + hash + "].pdf";
-  return { f: f, d: d, modelo: modelo, pasta: pasta, marcadores: marcadores, blocos: blocos, hash: hash, resto: resto };
+  /* 01/11 (plano 23 A): a cópia do Docs leva o nome final — o título do PDF vem dela */
+  var titulo = ClicksignVenda.tituloDocumento("CONTRATO - ", f.endereco, f.casa, d.comprador1 && d.comprador1.nome);
+  return { f: f, d: d, modelo: modelo, pasta: pasta, marcadores: marcadores, blocos: blocos, hash: hash, resto: resto, titulo: titulo };
 }
 
 /* Copia o modelo, preenche (grifar = pré-contrato), confere e exporta o PDF: { pdf } ou { resp }.
-   A cópia com dado pessoal é apagada sempre (finally). */
+   A cópia com dado pessoal é apagada sempre (finally). 01/11/2026 (plano 23 A, dono: "pq veio com nome de provisorio"):
+   a cópia se chama prep.titulo (ClicksignVenda.tituloDocumento) — o PDF exportado herda esse nome como título. */
 function ctrGerarPdf_(prep, pid, rot, grifar) {
   var copia = null;
   try {
-    copia = prep.modelo.makeCopy("contrato-provisorio-" + pid + "-" + Date.now(), prep.pasta);
+    copia = prep.modelo.makeCopy(ctrTxt_(prep.titulo).trim() || ("documento " + pid), prep.pasta);
     var doc = DocumentApp.openById(copia.getId());
     /* 30/10: venda direta (desconto "isentar a comissão" no Alterar fluxo) só sai com o modelo que já tem o bloco
        {{#SEM_COMISSAO}} — sem ele o contrato sairia com o item 5 do corretor e a comissão na conta */
@@ -835,6 +843,7 @@ function gerarPreContrato_(col, sess, p) {
   var t0 = Date.now(), pid = String(p.pageId).slice(0, 8), rot = "gerarPreContrato";
   var prep = ctrPreparar_(col, p, pid, rot);
   if (prep.resp) return prep.resp;
+  prep.titulo = ClicksignVenda.tituloDocumento("PRÉ-CONTRATO - ", prep.f.endereco, prep.f.casa, prep.d.comprador1 && prep.d.comprador1.nome);
   var g = ctrGerarPdf_(prep, pid, rot, true);
   if (g.resp) return g.resp;
   var nome = "PRÉ-CONTRATO - " + prep.resto, arq;

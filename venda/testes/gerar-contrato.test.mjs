@@ -42,7 +42,8 @@ test("sucesso: PDF em CONTRATO GERADO substitui o anterior, sem marcadores, cóp
   /* cópia criada na pasta provisória, exportada e apagada de vez */
   assert.equal(c.d.estado.copias.length, 1);
   assert.equal(c.d.estado.copias[0].pasta, "pasta-prov");
-  assert.match(c.d.estado.copias[0].nome, /^contrato-provisorio-01234567-\d+$/);
+  /* 01/11 (plano 23 A): a cópia do Docs (e o título do PDF) leva o nome final, nunca "contrato-provisorio" */
+  assert.equal(c.d.estado.copias[0].nome, "CONTRATO - RESIDENCIAL TESTE QD 07 LT 12 CASA 3 - Fulano de Teste");
   assert.deepEqual(c.d.estado.removidas, [c.d.estado.copias[0].id]);
   assert.deepEqual(c.d.estado.lixeira, []);
   assert.deepEqual(c.d.docs["modelo-obra"].salvo, MODELO_OBRA);

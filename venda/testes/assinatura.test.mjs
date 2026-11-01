@@ -262,11 +262,15 @@ test("sem contrato gerado: SEM_CONTRATO_GERADO e nenhuma chamada à Clicksign", 
 });
 
 test("envelope já aberto: ENVELOPE_ABERTO; cancelado, recusado ou expirado deixam enviar de novo", () => {
-  for (const sit of ["ENVIADO", "ASSINADO", "RASCUNHO", ""]) {
+  for (const sit of ["ENVIADO", "RASCUNHO", ""]) {
     const c = cenario({ venda: { "ASSINATURA - ENVELOPE ID": rt("env-velho"), "ASSINATURA - SITUAÇÃO": rt(sit) } });
     assert.deepEqual(c.enviar(), { ok: false, erro: "ENVELOPE_ABERTO", situacao: sit }, sit);
     assert.equal(c.c.chamadas.length, 0, sit);
   }
+  /* 01/11 (plano 23 A): assinado por todos — a trava do servidor responde antes, sem falar com a Clicksign */
+  const a = cenario({ venda: { "ASSINATURA - ENVELOPE ID": rt("env-velho"), "ASSINATURA - SITUAÇÃO": rt("ASSINADO") } });
+  assert.deepEqual(a.enviar(), { ok: false, erro: "CONTRATO_ASSINADO" });
+  assert.equal(a.c.chamadas.length, 0);
   for (const sit of ["CANCELADO", "RECUSADO", "EXPIRADO"]) {
     const c = cenario({ venda: { "ASSINATURA - ENVELOPE ID": rt("env-velho"), "ASSINATURA - SITUAÇÃO": rt(sit) } });
     assert.equal(c.enviar().ok, true, sit);
@@ -1134,4 +1138,105 @@ test("rodada 1 (H5): contratoEstado manda o par padrão pelo tipo do vendedor �
   assert.equal(pj.padrao.length, 2);
   assert.equal(pf.padrao.length, 2);
   assert.notDeepEqual(nomes(pj), nomes(pf));
+});
+
+/* ---- 01/11/2026 (plano 23, tarefa A): documentos assinados e nada mais muda depois de assinado ---- */
+const ARQ_ASSINADO = { original: "https://s3.clicksign.falso/original.pdf", signed: "https://s3.clicksign.falso/assinado.pdf" };
+const assinadoPorTodos = () => {
+  const c = cenario({ cs: { eventos: TODOS_ASSINARAM, arquivos: ARQ_ASSINADO } });
+  assert.equal(c.enviar().ok, true);
+  c.c.estado.status = "closed";
+  assert.equal(c.estado().situacao, "ASSINADO");
+  return c;
+};
+const chamarCom = (c, action, extra = {}, tok = tokenDe()) => c.g.chamar(Object.assign({ action, token: tok, pageId: PAGE }, extra));
+
+test("plano 23 A: documentosAssinados lista o envelope assinado; verDocumentoAssinado entrega o PDF pela sessão (TESTES vê)", () => {
+  const c = cenario({ cs: { eventos: TODOS_ASSINARAM, arquivos: ARQ_ASSINADO } });
+  assert.deepEqual(c.acao("documentosAssinados"), { ok: false, erro: "NAO_ASSINADO" });
+  assert.equal(c.enviar().ok, true);
+  assert.equal(c.acao("documentosAssinados").erro, "NAO_ASSINADO", "enviado ainda não tem assinado");
+  c.c.estado.status = "closed";
+  c.estado();
+  const l = c.acao("documentosAssinados", tokenDe("TESTES"));
+  assert.equal(l.ok, true, JSON.stringify(l));
+  assert.deepEqual(l.documentos, [{ id: "doc-1", nome: "RESIDENCIAL TESTE QD 07 LT 12 CASA 3 - Fulano de Teste.pdf", tipo: "contrato" }]);
+  const v = chamarCom(c, "verDocumentoAssinado", { docId: "doc-1" }, tokenDe("TESTES"));
+  assert.equal(v.ok, true, JSON.stringify(v).slice(0, 200));
+  assert.equal(Buffer.from(v.base64, "base64").toString("utf8"), PDF_ASSINADO);
+  assert.equal(v.nome, "RESIDENCIAL TESTE QD 07 LT 12 CASA 3 - Fulano de Teste.pdf");
+  assert.ok(!JSON.stringify(v).includes("https://") && !JSON.stringify(l).includes("https://"), "sem link na resposta");
+  assert.deepEqual(chamarCom(c, "verDocumentoAssinado", { docId: "doc-9" }), { ok: false, erro: "DOCUMENTO_NAO_ENCONTRADO" });
+  assert.ok(!c.g.logs.join("\n").includes("s3."), "log sem URL");
+});
+
+test("plano 23 A: contrato ASSINADO — o servidor recusa as ações de gravar do contrato (CONTRATO_ASSINADO); Atualizar situação segue", () => {
+  const c = assinadoPorTodos();
+  for (const a of ["gerarPreContrato", "aprovarPreContrato", "gerarContrato", "escolherTestemunhas", "salvarCamposContrato", "escolherContaRecebimento",
+                   "salvarCondicoesEspeciais", "redigirCondicoesEspeciais", "salvarFiadores", "conjugeEhFiador2",
+                   "assinaturaEnviar", "assinaturaReenviar", "assinaturaCancelar"])
+    assert.deepEqual(c.acao(a), { ok: false, erro: "CONTRATO_ASSINADO" }, a);
+  assert.equal(c.estado().ok, true);
+  assert.equal(c.acao("contratoEstado").erro, undefined, "leitura segue");
+});
+
+test("plano 23 A: com o contrato ainda em assinatura, a trava CONTRATO_ASSINADO não aparece", () => {
+  const c = cenario();
+  assert.equal(c.enviar().ok, true);
+  assert.notEqual(c.acao("assinaturaCancelar").erro, "CONTRATO_ASSINADO");
+  assert.notEqual(c.acao("escolherTestemunhas").erro, "CONTRATO_ASSINADO");
+});
+
+test("plano 23 A: termo de pré-reserva ASSINADO — recusa gerar, conta, cônjuge e assinatura do termo (TERMO_ASSINADO); o contrato não é afetado", () => {
+  const PR = { "PRÉ-RESERVA - ENVELOPE ID": "rich_text", "PRÉ-RESERVA - SITUAÇÃO": "rich_text", "PRÉ-RESERVA - TERMO ASSINADO": "files" };
+  const c = cenario({ colunas: Object.assign(colunasVenda(), PR),
+                      venda: { "PRÉ-RESERVA - ENVELOPE ID": rt("env-pr"), "PRÉ-RESERVA - SITUAÇÃO": rt("ASSINADO") } });
+  for (const a of ["gerarTermoPreReserva", "salvarContaPreReserva", "salvarConjugePreReserva"])
+    assert.deepEqual(c.acao(a), { ok: false, erro: "TERMO_ASSINADO" }, a);
+  for (const a of ["assinaturaEnviar", "assinaturaCancelar", "assinaturaReenviar"])
+    assert.deepEqual(chamarCom(c, a, { doc: "PRE_RESERVA" }), { ok: false, erro: "TERMO_ASSINADO" }, a);
+  assert.notEqual(c.enviar().erro, "TERMO_ASSINADO", "o contrato segue o caminho dele");
+});
+
+
+/* ---- 01/11/2026 (plano 23 C): selfie ---- */
+const authsDe = (c, email) => {
+  const s = c.c.estado.signers.find((x) => x.attributes.email === email);
+  return c.c.chamadas.filter((x) => x.metodo === "POST" && x.caminho === "/envelopes/env-1/requirements" &&
+                                    x.corpo.data.attributes.action === "provide_evidence" && x.corpo.data.relationships.signer.data.id === s.id)
+    .map((x) => x.corpo.data.attributes.auth);
+};
+test("plano 23 C: CLICKSIGN_SELFIE=1 — comprador autentica com e-mail, selfie e documento; vendedor e testemunhas só e-mail", () => {
+  const c = cenario({ props: { CLICKSIGN_SELFIE: "1" } });
+  assert.equal(c.enviar().ok, true);
+  assert.deepEqual(authsDe(c, "fulano@teste.example"), ["email", "selfie", "official_document"]);
+  assert.deepEqual(authsDe(c, "beltrano@teste.example"), ["email"]);
+  assert.deepEqual(authsDe(c, "t1.spe@teste.example"), ["email"]);
+});
+test("plano 23 C: sem CLICKSIGN_SELFIE nada muda (só o token por e-mail)", () => {
+  const c = cenario();
+  assert.equal(c.enviar().ok, true);
+  assert.deepEqual(authsDe(c, "fulano@teste.example"), ["email"]);
+});
+
+
+/* ---- plano 23, correção 1 ---- */
+test("correção 1 (I-1): Enviar relê a casa DENTRO da trava — outro envio que terminou enquanto este esperava não duplica o envelope", () => {
+  const c = cenario();
+  const pg = c.n.pagina.properties;
+  c.g.ctx.LockService = { getScriptLock: () => ({ tryLock: () => {
+    /* o outro envio terminou enquanto este esperava a trava */
+    Object.assign(pg["ASSINATURA - ENVELOPE ID"], rt("env-outro"));
+    Object.assign(pg["ASSINATURA - SITUAÇÃO"], rt("ENVIADO"));
+    return true; }, releaseLock: () => {} }) };
+  const r = c.enviar();
+  assert.deepEqual(r, { ok: false, erro: "ENVELOPE_ABERTO", situacao: "ENVIADO" });
+  assert.equal(c.c.chamadas.length, 0, "nenhum envelope novo na Clicksign");
+});
+
+test("correção 1 (M-7): contrato ASSINADO também trava o que a tela esconde da pré-reserva; o pagamento da pré-reserva segue aberto", () => {
+  const c = assinadoPorTodos();
+  for (const a of ["salvarContaPreReserva", "salvarConjugePreReserva", "gerarTermoPreReserva"])
+    assert.deepEqual(c.acao(a), { ok: false, erro: "CONTRATO_ASSINADO" }, a);
+  assert.notEqual(c.acao("salvarPagamentoPreReserva").erro, "CONTRATO_ASSINADO");
 });

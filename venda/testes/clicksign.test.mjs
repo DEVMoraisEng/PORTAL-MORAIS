@@ -421,3 +421,43 @@ test("01/11 (H5): testemunhasParaTela diz o par padrão (ids) — SPE para vende
   assert.deepEqual(CS.testemunhasParaTela(CS.montarConfig({ ASSINATURA_TESTEMUNHAS_OPCOES: JSON.stringify(OPCOES) })).padrao, []);
   assert.doesNotMatch(JSON.stringify(CS.testemunhasParaTela(cfgOp())), /@|000\.000/);
 });
+
+/* ---- 01/11/2026 (plano 23, tarefa A): nome final dos documentos e lista dos assinados ---- */
+test("plano 23 A: tituloDocumento = prefixo + nome padrão (OBRA CASA n - COMPRADOR), sem 'provisório'", () => {
+  assert.equal(CS.tituloDocumento("CONTRATO - ", "CONDOMINIO TESTE", "17", "Fulano de Teste"), "CONTRATO - CONDOMINIO TESTE CASA 17 - Fulano de Teste");
+  assert.equal(CS.tituloDocumento("TERMO DE PRÉ-RESERVA - ", "CONDOMINIO TESTE", "", "Fulano de Teste"), "TERMO DE PRÉ-RESERVA - CONDOMINIO TESTE - Fulano de Teste");
+  assert.equal(CS.tituloDocumento("CONFISSÃO PRÉ-CHAVES - ", "RUA/TESTE", "3", ""), "CONFISSÃO PRÉ-CHAVES - RUA-TESTE CASA 3");
+  assert.doesNotMatch(CS.tituloDocumento("CONTRATO - ", "", "", ""), /provis/i);
+});
+
+test("plano 23 A: listaAssinados — contrato primeiro, cada documento com id, nome e tipo; sem link", () => {
+  const docs = [
+    { id: "d2", attributes: { filename: "CONFISSÃO PRÉ-CHAVES - X.pdf" }, links: { files: { signed: "https://s3/a" } } },
+    { id: "d3", attributes: { filename: "MEMORIAL DESCRITIVO - X.pdf" } },
+    { id: "d1", attributes: { filename: "X CASA 1 - Fulano.pdf" } },
+    { id: "d4", attributes: { filename: "PROJETO APROVADO - X.pdf" } }];
+  const l = CS.listaAssinados(docs, (n) => /^CONFISS/.test(n));
+  assert.deepEqual(l, [{ id: "d1", nome: "X CASA 1 - Fulano.pdf", tipo: "contrato" }, { id: "d2", nome: "CONFISSÃO PRÉ-CHAVES - X.pdf", tipo: "termo" },
+                       { id: "d3", nome: "MEMORIAL DESCRITIVO - X.pdf", tipo: "memorial" }, { id: "d4", nome: "PROJETO APROVADO - X.pdf", tipo: "projeto" }]);
+  assert.doesNotMatch(JSON.stringify(l), /https/);
+});
+
+
+/* ---- 01/11/2026 (plano 23 C): selfie com documento para comprador, cônjuge e fiadores, só com CLICKSIGN_SELFIE=1 ---- */
+test("plano 23 C: autenticações — token por e-mail sempre; selfie + documento oficial só para quem é do cliente e só ligado", () => {
+  assert.equal(CS.montarConfig({}).selfie, false);
+  assert.equal(CS.montarConfig({ CLICKSIGN_SELFIE: "1" }).selfie, true);
+  assert.equal(CS.montarConfig({ CLICKSIGN_SELFIE: "0" }).selfie, false);
+  /* correção 1 (M-4): só o "1" liga */
+  for (const v of ["SIM", "true", "TRUE", " 1x"]) assert.equal(CS.montarConfig({ CLICKSIGN_SELFIE: v }).selfie, false, v);
+  assert.deepEqual(CS.AUTH_SELFIE, ["selfie", "official_document"]);
+  const liga = CS.montarConfig({ CLICKSIGN_SELFIE: "1" }), desl = CS.montarConfig({});
+  for (const origem of ["comprador1", "comprador2", "conjugeComprador1", "fiador1", "fiador2", "conjugeFiador1", "conjugeFiador2"]) {
+    assert.deepEqual(CS.autenticacoes({ origem }, liga), ["email", "selfie", "official_document"], origem);
+    assert.deepEqual(CS.autenticacoes({ origem }, desl), ["email"], origem);
+  }
+  for (const origem of ["vendedor", "representante", "testemunha", "corretor"])
+    assert.deepEqual(CS.autenticacoes({ origem }, liga), ["email"], origem);
+  assert.deepEqual(CS.corpoAutenticacao("d", "s").data.attributes, { action: "provide_evidence", auth: "email" });
+  assert.deepEqual(CS.corpoAutenticacao("d", "s", "selfie").data.attributes, { action: "provide_evidence", auth: "selfie" });
+});

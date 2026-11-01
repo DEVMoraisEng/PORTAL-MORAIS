@@ -1111,6 +1111,10 @@
     ".vb-ass .ass-ok,.vb-pr-ass .ass-ok{color:#1E8E4E;font-weight:700}.vb-ass .ass-pend,.vb-pr-ass .ass-pend{color:#B7791F;font-weight:700}" +
     ".vb-ass .ass-rec,.vb-pr-ass .ass-rec{color:#C0392B;font-weight:700}.vb-ass .ass-data,.vb-pr-ass .ass-data{color:var(--text3,#555);font-size:12px}" +
     ".vb-mc a.mc-abrir{color:var(--azul,#1d4f63);font-weight:700}" +
+    /* 01/11 (plano 23 A): Documentos assinados — nome e botões quebram de linha no celular */
+    ".vb-ass .ass-docs,.vb-pr-ass .ass-docs{list-style:none;padding-left:0}" +
+    ".vb-ass .ass-docs li,.vb-pr-ass .ass-docs li{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0}" +
+    ".vb-ass .ass-docs li>span,.vb-pr-ass .ass-docs li>span{flex:1 1 220px;min-width:0;overflow-wrap:anywhere}" +
     /* entrega 14: Recebimentos */
     ".vb-rec .rec-ok{color:var(--verde,#2a9d5c);font-weight:700}.vb-rec .rec-pend{color:#B45309;font-weight:700}" +
     ".vb-rec .rec-item{margin-top:12px}.vb-rec .rec-arq{color:var(--text3,#555)}" +
@@ -2019,6 +2023,32 @@
       ctxA.contratoGerado = contratoFinal(estadoC);
       return window.VendaAssinatura.montarBlocoAssinatura(ctxA);
     }
+    /* 01/11/2026 (plano 23 A, dono): "depois do contrato assinado por todos, tem que tirar essas opções e deixar só para
+     * visualizar os documentos todos assinados (inclusive o projeto)". Contrato ASSINADO: a aba Contrato fica só com o
+     * bloco Documentos assinados (e o histórico); termo ASSINADO (ou contrato assinado): a aba Pré-reserva também. */
+    function assinadoA() { return !!(window.VendaAssinatura && window.VendaAssinatura.assinado(ctxA)); }
+    function assinadoP() { return !!(window.VendaAssinatura && window.VendaAssinatura.assinado(ctxP)); }
+    var vistoA = false, vistoP = false;
+    function htmlCt() { return assinadoA() ? htmlHistorico(estadoC && estadoC.historico) : htmlContrato(estadoC, uiC); }
+    function htmlPR() {
+      if (assinadoP()) return "";
+      if (assinadoA()) return '<div class="grp">Pré-reserva</div><div class="vazio">O contrato já foi assinado por todos — a pré-reserva não muda mais.</div>';
+      return htmlPreReserva(estadoP, uiP);
+    }
+    function htmlAssPRVisivel() { return assinadoA() && !assinadoP() ? "" : htmlAssPR(); }
+    function garantirAssinados() {
+      var VA = window.VendaAssinatura;
+      if (!VA || !vivo()) return;
+      var deps = { pageId: pageId, chamar: function (p) { return chamarVenda(p, 90000); } };
+      if (VA.precisaCarregarAssinados(ctxA)) {
+        ctxA.ocupado = "assinados";
+        VA.carregarAssinados(ctxA, deps).then(function (n) { if (!vivo()) return; ctxA = n; pintarA(); });
+      }
+      if (comPR && VA.precisaCarregarAssinados(ctxP)) {
+        ctxP.ocupado = "assinados";
+        VA.carregarAssinados(ctxP, deps).then(function (n) { if (!vivo()) return; ctxP = n; pintarP(); });
+      }
+    }
     /* entrega 12: o que já foi digitado no formulário e nas caixas da conta sobrevive ao redesenho */
     function guardarRascunho() {
       if (!raiz || !raiz.querySelectorAll) return;
@@ -2045,12 +2075,14 @@
       if (!raiz) return;
       guardarRascunho();
       guardarRascunhoR();
-      if (soPR) { raiz.innerHTML = '<div class="vb-pr">' + htmlPreReserva(estadoP, uiP) + '</div><div class="vb-pr-ass">' + htmlAssPR() + "</div>"; return; }
-      raiz.innerHTML = (comPR ? '<div class="vb-pr">' + htmlPreReserva(estadoP, uiP) + '</div><div class="vb-pr-ass">' + htmlAssPR() + "</div>" +
+      vistoA = assinadoA(); vistoP = assinadoP();
+      setTimeout(garantirAssinados, 0);
+      if (soPR) { raiz.innerHTML = '<div class="vb-pr">' + htmlPR() + '</div><div class="vb-pr-ass">' + htmlAssPRVisivel() + "</div>"; return; }
+      raiz.innerHTML = (comPR ? '<div class="vb-pr">' + htmlPR() + '</div><div class="vb-pr-ass">' + htmlAssPRVisivel() + "</div>" +
                                  '<div class="vb-conf">' + htmlConferencia(estadoD, uiD) + "</div>" : "") +
         /* 31/10/2026: no cartão do condomínio o contrato ganha a própria caixa (.vb-ct) para ir à aba Contrato;
          * no painel da casa (sem pré-reserva) continua solto, com as margens do painel */
-        (comPR ? '<div class="vb-ct">' + htmlContrato(estadoC, uiC) + "</div>" : htmlContrato(estadoC, uiC)) +
+        (comPR ? '<div class="vb-ct">' + htmlCt() + "</div>" : htmlCt()) +
         '<div class="vb-ass">' + htmlAss() + "</div>" +
         (comRec ? '<div class="vb-rec">' + htmlRecebimentos(estadoR, uiR) + "</div>" : "") +
         '<div class="vb-mc">' + htmlMC(estadoM, uiM) + "</div>" +
@@ -2273,7 +2305,11 @@
       }
       pintarA();
     }
-    function pintarA() { var w = dentro(".vb-ass"); if (w) w.innerHTML = htmlAss(); }
+    function pintarA() {
+      if (assinadoA() !== vistoA) return pintar();   /* 01/11 (plano 23 A): assinou agora — a aba inteira muda */
+      var w = dentro(".vb-ass"); if (w) w.innerHTML = htmlAss();
+      garantirAssinados();
+    }
     /* termo de pré-reserva */
     function htmlAssPR() {
       if (!window.VendaAssinatura) return '<div class="grp">Enviar termo de pré-reserva via Clicksign</div><div class="vazio">carregando…</div>';
@@ -2300,8 +2336,10 @@
       uiP.pagDigitado = g;
     }
     function pintarP() {
-      var w = dentro(".vb-pr"); if (w) { guardarContaPR(); w.innerHTML = htmlPreReserva(estadoP, uiP); }
-      var a = dentro(".vb-pr-ass"); if (a) a.innerHTML = htmlAssPR();
+      if (assinadoP() !== vistoP) return pintar();
+      var w = dentro(".vb-pr"); if (w) { guardarContaPR(); w.innerHTML = htmlPR(); }
+      var a = dentro(".vb-pr-ass"); if (a) a.innerHTML = htmlAssPRVisivel();
+      garantirAssinados();
     }
     function pintarD() { var w = dentro(".vb-conf"); if (w) w.innerHTML = htmlConferencia(estadoD, uiD); }
     async function carregarConf() {
@@ -2510,6 +2548,35 @@
       abrirPdf(w, r, ctxP, function (x) { return window.VendaAssinatura ? window.VendaAssinatura.mensagemAssinatura(x) : mensagemDeErro(x.erro); });
       pintarP();
     }
+    /* Ver (janela nova) e Baixar (link com download = "<nome> - ASSINADO.pdf") de um documento assinado */
+    async function abrirDocAssinado(b, acao) {
+      var VA = window.VendaAssinatura;
+      if (!VA) return;
+      var termo = acao.charAt(0) === "p", c = termo ? ctxP : ctxA;
+      if (c.ocupado) return;
+      var ver = /-ver$/.test(acao), w = ver ? window.open("about:blank", "_blank") : null;
+      c.ocupado = "baixar"; c.msg = "";
+      if (termo) pintarP(); else pintarA();
+      var res = await VA.baixarAssinado(c, b.getAttribute("data-doc"), { pageId: pageId, chamar: function (p) { return chamarVenda(p, 90000); } });
+      if (!vivo()) { if (w) { try { w.close(); } catch (e) {} } return; }
+      var n = res.ctx;
+      if (res.arquivo) {
+        var bin = atob(res.arquivo.base64), bytes = new Uint8Array(bin.length);
+        for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        var arq = typeof File === "function" ? new File([bytes], res.arquivo.nome, { type: "application/pdf" }) : new Blob([bytes], { type: "application/pdf" });
+        var url = URL.createObjectURL(arq);
+        if (ver) {
+          if (w) { try { w.opener = null; } catch (e) {} w.location.href = url; }
+          else n.msg = "O navegador bloqueou a janela — libere pop-ups para o portal e clique de novo.";
+        } else {
+          var a = document.createElement("a");
+          a.href = url; a.download = res.arquivo.nome; a.rel = "noopener"; a.style.display = "none";
+          document.body.appendChild(a); a.click(); a.remove();
+        }
+        setTimeout(function () { try { URL.revokeObjectURL(url); } catch (e) {} }, 120000);
+      } else if (w) { try { w.close(); } catch (e) {} }
+      if (termo) { ctxP = n; pintarP(); } else { ctxA = n; pintarA(); }
+    }
     function pintarM() {
       var w = dentro(".vb-mc"); if (w) w.innerHTML = htmlMC(estadoM, uiM);
       if (comPR && !soPR && uiA.vendaId !== ((estadoM && estadoM.vendaId) || "")) pintarAnt();   /* a venda foi lançada: o botão Antecipar aparece */
@@ -2599,6 +2666,7 @@
       if (/^f-/.test(acao)) return aoClicarFin(acao);
       if (/^an-/.test(acao)) return aoClicarAnt(b, acao);
       if (/^d-/.test(acao)) return aoClicarConf(acao);
+      if (/^[ap]-doc-(ver|baixar)$/.test(acao)) return abrirDocAssinado(b, acao);   /* 01/11 (plano 23 A) */
       if (acao === "p-ver-assinado") return verAssinadoPR();
       if (/^p-/.test(acao)) return aoClicarAssPR(acao);
       if (acao === "a-ver-assinado") return verAssinado();
@@ -3138,8 +3206,8 @@
     /* o bloco de assinatura mora em arquivo próprio; vendas.html continua com uma linha só.
        Carrega mesmo sem o painel da casa: o cartão do condomínio também usa. */
     /* 30/10: leitor das rubricas do comprador (pdf.js só carrega na hora de enviar) */
-    var sr = document.createElement("script"); sr.src = "venda/RubricasVenda.js?v=1"; document.head.appendChild(sr);
-    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=16";
+    var sr = document.createElement("script"); sr.src = "venda/RubricasVenda.js?v=3"; document.head.appendChild(sr);
+    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=19";
     sa.onload = function () { [blocosCasa, blocosCond, blocosPR].forEach(function (b) { if (b) b.pintarAssinatura(); }); };
     document.head.appendChild(sa);
     var body = document.getElementById("pn-body"); if (!body) return;

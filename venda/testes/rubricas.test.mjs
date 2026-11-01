@@ -64,7 +64,7 @@ test("paginaDoPdfjs: y do pdf.js (de baixo) vira topo da linha (de cima); item v
 test("validarRubricas: confere o PDF, o formato e os limites", () => {
   const ok = { nome: "CASA [#abcd1234].pdf", campos: [{ page: 3, position: [0.42345, 0.5] }], valores: { page: "3", position: [0.1, 0.16] } };
   assert.deepEqual(CS.validarRubricas(ok, "CASA [#abcd1234].pdf"),
-                   { ok: true, campos: [{ page: "3", position: [0.4235, 0.5] }], valores: { page: "3", position: [0.1, 0.16] } });
+                   { ok: true, campos: [{ page: "3", position: [0.4235, 0.5] }], valores: { page: "3", position: [0.1, 0.16] }, linhas: [], termos: {} });
   assert.equal(CS.validarRubricas(null, "x").erro, "RUBRICAS_FALTANDO");
   assert.equal(CS.validarRubricas(ok, "CASA [#ffff0000].pdf").erro, "RUBRICAS_DE_OUTRO_PDF");
   for (const ruim of [{ campos: [] }, { campos: [{ page: 0, position: [0.1, 0.1] }] }, { campos: [{ page: 1, position: [1.2, 0.1] }] },
@@ -148,7 +148,7 @@ test("tipo do documento pelo nome na Clicksign; config lê ajustes e o desligame
   assert.equal(CS.tipoDoDocumento("RUA A CASA 1 - FULANO.pdf"), "contrato");
   assert.equal(CS.tipoDoDocumento("qualquer.pdf", true), "termo");
   const c = CS.montarConfig({ RUBRICAS_AJUSTE: '{"campo":{"dy":-0.02},"valores":{"dx":9}}', ASSINATURA_SEM_RUBRICAS: "sim" });
-  assert.deepEqual(c.rubricasAjuste, { campo: { dx: 0, dy: -0.02 }, valores: CS.AJUSTE_PADRAO.valores });
+  assert.deepEqual(c.rubricasAjuste, { campo: { dx: 0, dy: -0.02 }, valores: CS.AJUSTE_PADRAO.valores, linha: CS.AJUSTE_PADRAO.linha });
   assert.equal(c.semRubricas, true);
   assert.deepEqual(CS.montarConfig({ MEMORIAL_POSICAO: "{ruim" }).invalidas, ["MEMORIAL_POSICAO"]);
   assert.equal(CS.montarConfig({}).semRubricas, false);
@@ -199,4 +199,138 @@ test("tela: sem campos no PDF ou leitor quebrado não envia e explica", async ()
   const c3 = await A.executarAcaoAssinatura("a-enviar", ctx(), d3);
   assert.deepEqual(d3.chamadas.map((x) => [x.action, x.rubricas]), [["assinaturaPdf", undefined], ["assinaturaEnviar", undefined]]);
   assert.match(c3.msg, /recarregue a página/);
+});
+
+
+/* ---- 01/11/2026 (plano 23 B): assinatura de cada pessoa em cima da própria linha ---- */
+const BLOCO = [pag(18, [
+  it("________________________________________", 57, 60, 220),
+  it("VENDEDORA EMPRESA TESTE LTDA", 57, 75), it("VENDEDORA", 57, 90),
+  it("_______________________________________________", 57, 130, 250),
+  it("Nome: Compradora Um Teste /", 57, 145), it("Comprador Dois Teste", 57, 160), it("COMPRADOR", 57, 175),
+  it("_______________________________", 57, 220, 170), it("TESTEMUNHA 1", 57, 235), it("Nome:", 57, 250),
+  it("ASSINATURA: _______________________________", 183, 400, 255)])];
+
+test("plano 23 B: acharLinhas — traço sozinho na linha + o texto logo abaixo; 'ASSINATURA: ___' e texto solto ficam de fora", () => {
+  const l = R.acharLinhas(BLOCO, { linha: { dx: 0, dy: 0 } });
+  assert.equal(l.length, 3);
+  assert.deepEqual(l[0], { page: "18", position: [+(57 / W).toFixed(4), +(60 / H).toFixed(4)], texto: "VENDEDORA EMPRESA TESTE LTDA\nVENDEDORA" });
+  assert.equal(l[1].texto, "Nome: Compradora Um Teste /\nComprador Dois Teste\nCOMPRADOR");
+  assert.equal(l[2].texto, "TESTEMUNHA 1\nNome:");
+  /* o ajuste sobe a assinatura para ficar em cima da linha */
+  assert.equal(R.acharLinhas(BLOCO, { linha: { dx: 0, dy: -0.03 } })[0].position[1], +(60 / H - 0.03).toFixed(4));
+  assert.ok(R.acharLinhas(BLOCO)[0].position[1] < +(60 / H).toFixed(4), "sem ajuste da tela vale o padrão (acima da linha)");
+  assert.deepEqual(R.acharLinhas([pag(1, [it("texto", 57, 60)])]), []);
+});
+
+const LINHAS_CT = [
+  { page: "18", position: [0.1, 0.07], texto: "MORAIS TESTE LTDA\nVENDEDORA" },
+  { page: "18", position: [0.1, 0.15], texto: "Nome: Compradora Um Teste / Comprador Dois Teste\nCOMPRADOR" },
+  { page: "18", position: [0.1, 0.25], texto: "TESTEMUNHA 1\nNome:\nCPF:" },
+  { page: "18", position: [0.1, 0.30], texto: "TESTEMUNHA 2\nNome: Testemunha Dois Pf" },
+  { page: "33", position: [0.1, 0.40], texto: "Nome: COMPRADORA UM TESTE\nCPF: 000\nCOMPRADOR" }];
+const LINHAS_TERMO = [
+  { page: "3", position: [0.1, 0.2], texto: "CREDORA/VENDEDORA\nMORAIS TESTE LTDA" },
+  { page: "3", position: [0.1, 0.3], texto: "DEVEDOR/COMPRADOR\nCompradora Um Teste / Comprador Dois Teste" },
+  { page: "3", position: [0.1, 0.4], texto: "FIADOR 1\nFiador Um Teste\nCPF nº 000" }];
+const sem = (l) => l.map(({ texto, ...p }) => p);
+const listaB = () => { const cfg = CS.montarConfig({ ASSINATURA_TESTEMUNHAS_PF: JSON.stringify(TEST_PF) }); cfg.comFiadores = true; return CS.signatarios(DADOS, cfg); };
+
+test("plano 23 B: atribuirLinhas — pelo nome (um só) ou pelo papel; linha de dois compradores não vai para ninguém", () => {
+  const l = listaB();   /* comprador1, comprador2, vendedor, testemunha, testemunha, fiador1 */
+  assert.deepEqual(CS.atribuirLinhas(l, LINHAS_CT, "contrato"),
+    [sem([LINHAS_CT[4]]), [], sem([LINHAS_CT[0]]), sem([LINHAS_CT[2]]), sem([LINHAS_CT[3]]), []]);
+  assert.deepEqual(CS.atribuirLinhas(l, LINHAS_TERMO, "termo"), [[], [], sem([LINHAS_TERMO[0]]), [], [], sem([LINHAS_TERMO[2]])]);
+  /* um comprador só: "COMPRADOR" sem nome legível vai para ele; com o cônjuge (também parte compradora), não */
+  const um = CS.signatarios({ comprador1: DADOS.comprador1, vendedor: DADOS.vendedor }, CS.montarConfig({}));
+  assert.deepEqual(CS.atribuirLinhas(um, [{ page: "2", position: [0.1, 0.1], texto: "Nome:\nCOMPRADOR" }], "contrato")[0], [{ page: "2", position: [0.1, 0.1] }]);
+  const casado = CS.signatarios({ comprador1: DADOS.comprador1, vendedor: DADOS.vendedor,
+                                  condominio: { conjugeComprador: { nome: "Conjuge Teste Silva", email: "cj@teste.example" } } }, CS.montarConfig({}));
+  assert.deepEqual(CS.atribuirLinhas(casado, [{ page: "2", position: [0.1, 0.1], texto: "Nome:\nCOMPRADOR" }], "contrato"), [[], [], []]);
+  /* com uma linha por pessoa (modelo novo) o cônjuge acha a dele pelo nome */
+  assert.deepEqual(CS.atribuirLinhas(casado, [{ page: "2", position: [0.1, 0.2], texto: "Nome: Conjuge Teste Silva\nCOMPRADOR" }], "contrato")[1], [{ page: "2", position: [0.1, 0.2] }]);
+  /* fiador não assina o contrato: linha de fiador no contrato não vale */
+  assert.deepEqual(CS.atribuirLinhas(l, [{ page: "1", position: [0.1, 0.1], texto: "FIADOR 1\nFiador Um Teste" }], "contrato")[5], []);
+});
+
+test("plano 23 B: requisitosRubrica — linhas somadas à assinatura do comprador; vendedora, testemunhas e fiador ganham a própria", () => {
+  const l = listaB(), nomeT = "CONFISSÃO PRÉ-CHAVES - X.pdf";
+  const docs = [{ id: "c", tipo: "contrato" }, { id: "t", tipo: "termo", nome: nomeT }, { id: "m", tipo: "memorial" }];
+  const rub = { campos: [{ page: "3", position: [0.4, 0.5] }], valores: { page: "3", position: [0.1, 0.16] }, memorial: { page: "13", position: [0.53, 0.7] },
+                projeto: [], linhas: LINHAS_CT, termos: { [nomeT]: LINHAS_TERMO } };
+  assert.deepEqual(CS.requisitosRubrica(l[0], docs, rub, 0, l), [
+    { docId: "c", kind: "manuscript", positions: rub.campos.concat(sem([LINHAS_CT[4]])) },
+    { docId: "c", kind: "initials", positions: [rub.valores] },
+    { docId: "m", kind: "manuscript", positions: [rub.memorial] }]);
+  assert.deepEqual(CS.requisitosRubrica(l[2], docs, rub, 2, l), [
+    { docId: "c", kind: "manuscript", positions: sem([LINHAS_CT[0]]) }, { docId: "t", kind: "manuscript", positions: sem([LINHAS_TERMO[0]]) }]);
+  assert.deepEqual(CS.requisitosRubrica(l[5], docs, rub, 5, l), [{ docId: "t", kind: "manuscript", positions: sem([LINHAS_TERMO[2]]) }]);
+  assert.deepEqual(CS.requisitosRubrica(l[1], docs, rub, 1, l).map((r) => r.positions.length), [1, 1, 1], "comprador 2: só os campos (linha dividida)");
+  /* chamada antiga (sem a lista): como antes */
+  assert.deepEqual(CS.requisitosRubrica(l[2], docs, rub), []);
+});
+
+test("plano 23 B: validarRubricas confere linhas e termos; ASSINATURA_LINHAS=1 liga (correção 1: desligado por padrão)", () => {
+  const base = { nome: "a.pdf", campos: [{ page: 1, position: [0.1, 0.1] }] };
+  const v = CS.validarRubricas(Object.assign({ linhas: [{ page: 18, position: [0.1, 0.07], texto: " VENDEDORA " }],
+                                               termos: [{ nome: "T.pdf", linhas: [{ page: "3", position: [0.1, 0.2], texto: "FIADOR 1" }] }] }, base), "a.pdf");
+  assert.equal(v.ok, true, JSON.stringify(v));
+  assert.deepEqual(v.linhas, [{ page: "18", position: [0.1, 0.07], texto: "VENDEDORA" }]);
+  assert.deepEqual(v.termos, { "T.pdf": [{ page: "3", position: [0.1, 0.2], texto: "FIADOR 1" }] });
+  for (const ruim of [{ linhas: "x" }, { linhas: [{ page: 1, position: [2, 0], texto: "" }] }, { linhas: [{ page: 1, position: [0.1, 0.1], texto: 5 }] },
+                      { termos: [{ nome: "", linhas: [] }] }, { linhas: Array.from({ length: 61 }, () => ({ page: 1, position: [0.1, 0.1], texto: "" })) }])
+    assert.equal(CS.validarRubricas(Object.assign({}, base, ruim), "a.pdf").erro, "RUBRICAS_INVALIDAS", JSON.stringify(ruim).slice(0, 80));
+  assert.equal(CS.montarConfig({ ASSINATURA_LINHAS: "1" }).linhas, true);
+  assert.equal(CS.montarConfig({}).linhas, false);
+  assert.equal(CS.montarConfig({ ASSINATURA_LINHAS: "SIM" }).linhas, false, "só o 1 liga");
+  /* desligado: linhas e termos da tela são ignorados SEM conferir (tela antiga ou lixo não barra o envio) */
+  const off = CS.validarRubricas(Object.assign({ linhas: "lixo", termos: 7 }, base), "a.pdf", { linhas: false });
+  assert.deepEqual(off, { ok: true, campos: [{ page: "1", position: [0.1, 0.1] }], valores: null, linhas: [], termos: {} });
+});
+
+test("plano 23 B: tela — lê as linhas do contrato e dos termos e manda junto com as rubricas", async () => {
+  const leitor = { paginasDoPdf: async (b64) => (b64 === "QUJD" ? CONTRATO.concat(BLOCO) : BLOCO), acharNoContrato: R.acharNoContrato, acharLinhas: R.acharLinhas };
+  const d = deps({ assinaturaPdf: { ok: true, nome: "C [#abcd1234].pdf", base64: "QUJD", ajuste: CS.AJUSTE_PADRAO, linhas: true, termos: [{ nome: "T.pdf", base64: "VFQ=" }] },
+                   assinaturaEnviar: { ok: true, situacao: "ENVIADO", signatarios: [] } }, leitor);
+  await A.executarAcaoAssinatura("a-enviar", ctx(), d);
+  const rb = d.chamadas[1].rubricas;
+  assert.equal(rb.linhas.length, 3);
+  assert.deepEqual(rb.termos.map((t) => [t.nome, t.linhas.length]), [["T.pdf", 3]]);
+});
+
+
+/* ---- plano 23, correção 1 ---- */
+test("correção 1 (C-1): com as linhas desligadas no servidor a tela nem procura as linhas", async () => {
+  const leitor = { paginasDoPdf: async () => CONTRATO, acharNoContrato: R.acharNoContrato, acharLinhas: () => { throw new Error("não devia ler as linhas"); } };
+  for (const resp of [{ linhas: false }, {}]) {
+    const d = deps({ assinaturaPdf: Object.assign({ ok: true, nome: "C [#abcd1234].pdf", base64: "QUJD", ajuste: CS.AJUSTE_PADRAO }, resp),
+                     assinaturaEnviar: { ok: true, situacao: "ENVIADO", signatarios: [] } }, leitor);
+    const c = await A.executarAcaoAssinatura("a-enviar", ctx(), d);
+    assert.equal(c.estado.situacao, "ENVIADO", c.msg);
+    const rb = d.chamadas[1].rubricas;
+    assert.ok(!("linhas" in rb) && !("termos" in rb), JSON.stringify(Object.keys(rb)));
+  }
+});
+
+test("correção 1 (M-3): traço solto fora das páginas de assinatura não vira linha", () => {
+  const solto = pag(5, [it("Texto do contrato com um campo ________________ no meio", 57, 100), it("____________________", 57, 140, 100), it("Fulano", 57, 155)]);
+  assert.deepEqual(R.acharLinhas([solto]), []);
+  /* página com o título ASSINATURAS (fim do contrato, termos) vale, mesmo sem os rótulos; e a seguinte também (bloco que vira a página) */
+  const fim = pag(9, [it("ASSINATURAS", 250, 60), it("______________________________", 57, 140, 150), it("CREDORA/VENDEDORA", 57, 155)]);
+  const vira = pag(10, [it("______________________________", 57, 60, 150), it("FIADOR 2", 57, 75)]);
+  assert.deepEqual(R.acharLinhas([solto, fim, vira]).map((l) => [l.page, l.texto]), [["9", "CREDORA/VENDEDORA"], ["10", "FIADOR 2"]]);
+  /* quadro-resumo: rótulos VENDEDORA e COMPRADOR sozinhos na página */
+  assert.equal(R.acharLinhas(BLOCO).length, 3);
+});
+
+test("correção 1 (I-3): linha de CÔNJUGE só vai para alguém pelo nome exato — nunca para o fiador ou o comprador pelo papel", () => {
+  const l = listaB();
+  const cj = [{ page: "3", position: [0.1, 0.5], texto: "CÔNJUGE DO FIADOR 1\nNome:\nCPF:" }, { page: "3", position: [0.1, 0.6], texto: "CÔNJUGE\nCOMPRADOR" }];
+  assert.deepEqual(CS.atribuirLinhas(l, cj, "termo"), [[], [], [], [], [], []]);
+  const um = CS.signatarios({ comprador1: DADOS.comprador1, vendedor: DADOS.vendedor }, CS.montarConfig({}));
+  assert.deepEqual(CS.atribuirLinhas(um, [cj[1]], "contrato"), [[], []]);
+  const casado = CS.signatarios({ comprador1: DADOS.comprador1, vendedor: DADOS.vendedor,
+                                  condominio: { conjugeComprador: { nome: "Conjuge Teste Silva", email: "cj@teste.example" } } }, CS.montarConfig({}));
+  assert.deepEqual(CS.atribuirLinhas(casado, [{ page: "2", position: [0.1, 0.2], texto: "Nome: Conjuge Teste Silva\nCÔNJUGE DO COMPRADOR" }], "contrato"),
+                   [[], [{ page: "2", position: [0.1, 0.2] }], []]);
 });

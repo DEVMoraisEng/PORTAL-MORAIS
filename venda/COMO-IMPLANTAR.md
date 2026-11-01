@@ -1051,3 +1051,52 @@ Propriedades existem (vazias = desligados).
    caixa da assinatura cai em cima da linha "ASSINATURA: ____", o visto na coluna cinza, a assinatura na
    linha do comprador na última página do memorial e o visto debaixo da data do carimbo DEFERIMENTO nas
    páginas 1–11 do projeto. Fora do lugar: ajustar pelas Propriedades do passo 2, sem mexer no código.
+
+## Contrato assinado: só visualizar (01/11/2026, plano 23 A)
+
+Quando a casa fica com `ASSINATURA - SITUAÇÃO` = `ASSINADO` (todos assinaram), o cartão mostra só o bloco
+"Documentos assinados" (Ver e Baixar "… - ASSINADO.pdf" de cada documento do envelope: contrato, termos de confissão,
+memorial, projeto) e Atualizar situação. O mesmo vale para o termo de pré-reserva (`PRÉ-RESERVA - SITUAÇÃO`).
+
+- **Trava no servidor** (vale mesmo para uma tela antiga aberta): com o contrato ASSINADO, gerar/aprovar pré-contrato,
+  testemunhas, campos e conta do contrato, condições especiais, fiadores/cônjuge e Enviar/Reenviar/Cancelar respondem
+  `CONTRATO_ASSINADO`; conta, cônjuge e geração do termo de pré-reserva também. Com o termo ASSINADO, as ações do termo
+  respondem `TERMO_ASSINADO`. O pagamento da pré-reserva (`salvarPagamentoPreReserva`) e o Alterar fluxo (que já tem a
+  trava própria, "exige aditivo") ficam de fora. O "Atualizar situação" continua.
+- **Ações novas, só leitura:** `documentosAssinados` (lista do envelope, via Clicksign) e `verDocumentoAssinado`
+  (`docId`; o PDF assinado em base64, nunca o link). Exigem a situação ASSINADO gravada.
+- **Destravar à mão** (distrato, aditivo, situação gravada errada): no Notion, apagar o texto da coluna
+  `ASSINATURA - SITUAÇÃO` da venda (ou `PRÉ-RESERVA - SITUAÇÃO`, para o termo). O cartão volta a mostrar as opções; o
+  "Atualizar situação" regrava ASSINADO se o envelope continuar assinado na Clicksign — então, para refazer o contrato,
+  apague também `ASSINATURA - ENVELOPE ID`. O PDF em `CONTRATO ASSINADO` fica guardado.
+- Código: `ClicksignVenda`, `AssinaturaVenda`, `GerarContrato`, `PortalVenda`, `Confissao`, `PreReserva`.
+
+## Assinatura em cima da linha de cada pessoa (01/11/2026, plano 23 B)
+
+Ao "Enviar para assinatura" do contrato do condomínio, a tela também acha no PDF final (e nos PDFs dos termos de
+confissão, que a ação `assinaturaPdf` passa a entregar) cada linha de assinatura `______` dos blocos — quadro-resumo,
+final do contrato e página de assinaturas dos termos — com o texto logo abaixo (nome, CPF, papel). O servidor casa a
+linha com a pessoa (pelo nome; sem nome, pelo papel: VENDEDORA, TESTEMUNHA 1/2, CORRETOR, FIADOR 1/2, COMPRADOR quando
+só uma pessoa assina como compradora) e pede a assinatura posicionada (`rubricate` `manuscript`) um pouco ACIMA da linha.
+Linha com duas pessoas ("Nome: A / B", como no modelo de hoje) não vai para ninguém: essas pessoas continuam assinando
+só na página da Clicksign até o modelo ter uma linha por pessoa.
+
+- **Desligado por padrão.** Liga só com a Propriedade `ASSINATURA_LINHAS` = `1` (exatamente). Desligado, o
+  `assinaturaPdf` responde `linhas: false`, a tela não procura as linhas e o servidor ignora o que vier delas.
+- Só contam traços nas páginas de assinatura: a do título ASSINATURAS (e a seguinte) e a do quadro-resumo (rótulos
+  VENDEDORA e COMPRADOR). Linha de CÔNJUGE só vai para alguém pelo nome exato.
+- Opcional: `RUBRICAS_AJUSTE` ganha a chave `linha` (padrão `{"dx":0,"dy":-0.03}`, sobe 3% da página).
+- Código: `ClicksignVenda`, `AssinaturaVenda`. Site: `venda/RubricasVenda.js` (v2), `venda/assinatura-ui.js` (v18),
+  `venda-dossie.js` (v49), `vendas.html`, `simulacoes.html`, `sw.js`.
+- Sandbox: conferir no envelope se a caixa cai em cima de cada linha (vendedora, corretor, testemunhas; fiadores nos
+  termos). Fora do lugar: `RUBRICAS_AJUSTE.linha`.
+
+## Selfie com documento para comprador, cônjuge e fiadores (01/11/2026, plano 23 C)
+
+Desligada até o dono conferir. Com a Propriedade `CLICKSIGN_SELFIE` = `1`, o comprador 1 e 2, o cônjuge do comprador,
+os fiadores e os cônjuges dos fiadores ganham, em cada documento que assinam, mais dois requisitos `provide_evidence`
+além do token por e-mail: `selfie` (foto da pessoa pela câmera) e `official_document` (foto do documento, frente e
+verso). Liga só com o valor `1` exato. Vendedora, corretor e testemunhas continuam só com o e-mail. Vale para contrato e termos, rua e condomínio.
+Valores lidos em developers.clicksign.com/reference/criar-requisito-de-autenticacao (01/11/2026). A doc não diz com
+todas as letras que eles somam com o token por e-mail: conferir no 1º envelope do sandbox (e se o Plano Plus libera e
+quanto custa). Sem a Propriedade (ou com `0`), nada muda.
