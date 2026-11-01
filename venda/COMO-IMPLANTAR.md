@@ -1068,3 +1068,13 @@ só na página da Clicksign até o modelo ter uma linha por pessoa.
   `venda-dossie.js` (v49), `vendas.html`, `simulacoes.html`, `sw.js`.
 - Sandbox: conferir no envelope se a caixa cai em cima de cada linha (vendedora, corretor, testemunhas; fiadores nos
   termos). Fora do lugar: `RUBRICAS_AJUSTE.linha`.
+
+## Selfie com documento para comprador, cônjuge e fiadores (01/11/2026, plano 23 C)
+
+Desligada até o dono conferir. Com a Propriedade `CLICKSIGN_SELFIE` = `1`, o comprador 1 e 2, o cônjuge do comprador,
+os fiadores e os cônjuges dos fiadores ganham, em cada documento que assinam, mais dois requisitos `provide_evidence`
+além do token por e-mail: `selfie` (foto da pessoa pela câmera) e `official_document` (foto do documento, frente e
+verso). Vendedora, corretor e testemunhas continuam só com o e-mail. Vale para contrato e termos, rua e condomínio.
+Valores lidos em developers.clicksign.com/reference/criar-requisito-de-autenticacao (01/11/2026). A doc não diz com
+todas as letras que eles somam com o token por e-mail: conferir no 1º envelope do sandbox (e se o Plano Plus libera e
+quanto custa). Sem a Propriedade (ou com `0`), nada muda.

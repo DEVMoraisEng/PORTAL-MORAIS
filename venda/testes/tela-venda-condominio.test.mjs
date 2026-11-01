@@ -1336,3 +1336,20 @@ test("plano 23 B: termos de confissão — a tela recebe os PDFs dos termos; a l
   assert.deepEqual(rubricaDe(c, "f1@teste.example", "doc-2"), [[posDe(linhaF1)]]);
   assert.deepEqual(rubricaDe(c, "f1@teste.example", "doc-3"), [], "o outro termo não tem linha lida");
 });
+
+
+/* ---- 01/11/2026 (plano 23 C): selfie também no condomínio, para cônjuge e fiadores ---- */
+test("plano 23 C: condomínio com CLICKSIGN_SELFIE=1 — fiadores com selfie e documento nos termos; representante só e-mail", () => {
+  const c = cenarioCfd({ props: { CLICKSIGN_SELFIE: "1" } });
+  assert.equal(c.gerarFinal().ok, true);
+  assert.equal(c.acao("assinaturaEnviar", rub(c)).ok, true);
+  const reqs = c.c.chamadas.filter((x) => x.metodo === "POST" && x.caminho === "/envelopes/env-1/requirements").map((x) => x.corpo.data);
+  const auths = (email) => {
+    const s = c.c.estado.signers.find((x) => x.attributes.email === email);
+    return reqs.filter((q) => q.attributes.action === "provide_evidence" && q.relationships.signer.data.id === s.id)
+      .map((q) => q.relationships.document.data.id + ":" + q.attributes.auth);
+  };
+  assert.deepEqual(auths("f1@teste.example"), ["doc-2:email", "doc-2:selfie", "doc-2:official_document", "doc-3:email", "doc-3:selfie", "doc-3:official_document"]);
+  assert.ok(auths("compradora@teste.example").includes("doc-1:selfie"));
+  assert.deepEqual(auths("beltrano@teste.example"), ["doc-1:email", "doc-2:email", "doc-3:email"]);
+});

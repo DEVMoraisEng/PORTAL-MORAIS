@@ -441,3 +441,21 @@ test("plano 23 A: listaAssinados — contrato primeiro, cada documento com id, n
                        { id: "d3", nome: "MEMORIAL DESCRITIVO - X.pdf", tipo: "memorial" }, { id: "d4", nome: "PROJETO APROVADO - X.pdf", tipo: "projeto" }]);
   assert.doesNotMatch(JSON.stringify(l), /https/);
 });
+
+
+/* ---- 01/11/2026 (plano 23 C): selfie com documento para comprador, cônjuge e fiadores, só com CLICKSIGN_SELFIE=1 ---- */
+test("plano 23 C: autenticações — token por e-mail sempre; selfie + documento oficial só para quem é do cliente e só ligado", () => {
+  assert.equal(CS.montarConfig({}).selfie, false);
+  assert.equal(CS.montarConfig({ CLICKSIGN_SELFIE: "1" }).selfie, true);
+  assert.equal(CS.montarConfig({ CLICKSIGN_SELFIE: "0" }).selfie, false);
+  assert.deepEqual(CS.AUTH_SELFIE, ["selfie", "official_document"]);
+  const liga = CS.montarConfig({ CLICKSIGN_SELFIE: "1" }), desl = CS.montarConfig({});
+  for (const origem of ["comprador1", "comprador2", "conjugeComprador1", "fiador1", "fiador2", "conjugeFiador1", "conjugeFiador2"]) {
+    assert.deepEqual(CS.autenticacoes({ origem }, liga), ["email", "selfie", "official_document"], origem);
+    assert.deepEqual(CS.autenticacoes({ origem }, desl), ["email"], origem);
+  }
+  for (const origem of ["vendedor", "representante", "testemunha", "corretor"])
+    assert.deepEqual(CS.autenticacoes({ origem }, liga), ["email"], origem);
+  assert.deepEqual(CS.corpoAutenticacao("d", "s").data.attributes, { action: "provide_evidence", auth: "email" });
+  assert.deepEqual(CS.corpoAutenticacao("d", "s", "selfie").data.attributes, { action: "provide_evidence", auth: "selfie" });
+});

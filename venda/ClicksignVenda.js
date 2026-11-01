@@ -68,8 +68,10 @@ var ClicksignVenda = (function () {
     var projPos = lerJson(props, "PROJETO_POSICOES", invalidas);
     var semRub = txt(props.ASSINATURA_SEM_RUBRICAS).toUpperCase();
     var semLin = txt(props.ASSINATURA_SEM_LINHAS).toUpperCase();   /* 01/11 (plano 23 B): desliga só a assinatura em cima da linha */
+    var selfie = txt(props.CLICKSIGN_SELFIE).toUpperCase();   /* 01/11 (plano 23 C): selfie + documento, desligada sem a Propriedade */
     return { rubricasAjuste: ajusteRubricas(ajuste), memorialPosicao: memPos, projetoPosicoes: projPos,
-             semRubricas: semRub === "SIM" || semRub === "TRUE" || semRub === "1", semLinhas: semLin === "SIM" || semLin === "TRUE" || semLin === "1", testemunhasSPE: spe, testemunhasPF: pf, representante: rep, testemunhasOpcoes: opc,
+             semRubricas: semRub === "SIM" || semRub === "TRUE" || semRub === "1", semLinhas: semLin === "SIM" || semLin === "TRUE" || semLin === "1",
+             selfie: selfie === "1" || selfie === "SIM" || selfie === "TRUE", testemunhasSPE: spe, testemunhasPF: pf, representante: rep, testemunhasOpcoes: opc,
              testemunhasEscolhidas: Array.isArray(esc) ? esc.map(txt) : null,
              incluirCorretor: inc === "SIM" || inc === "TRUE" || inc === "1", invalidas: invalidas };
   }
@@ -341,8 +343,21 @@ var ClicksignVenda = (function () {
   function corpoQualificacao(docId, signerId, role) {
     return { data: { type: "requirements", attributes: { action: "agree", role: role }, relationships: relacoes(docId, signerId) } };
   }
-  function corpoAutenticacao(docId, signerId) {
-    return { data: { type: "requirements", attributes: { action: "provide_evidence", auth: "email" }, relationships: relacoes(docId, signerId) } };
+  /* auth: "email" (padrão) ou um dos AUTH_SELFIE — um requisito provide_evidence por autenticação (doc "Criar requisito
+   * de autenticação": cada requisito leva um valor de auth; para pedir vários, vários requisitos). */
+  function corpoAutenticacao(docId, signerId, auth) {
+    return { data: { type: "requirements", attributes: { action: "provide_evidence", auth: auth || "email" }, relationships: relacoes(docId, signerId) } };
+  }
+  /* 01/11/2026 (plano 23 C, dono: selfie "sim" para comprador, cônjuge e fiadores). Valores da lista "auth" da API v3
+   * (developers.clicksign.com/reference/criar-requisito-de-autenticacao, lida em 01/11/2026): "selfie" = foto do
+   * signatário pela câmera; "official_document" = foto (frente e verso) do documento oficial. A doc não traz um valor
+   * único "selfie com documento" nem diz com todas as letras que somam com o token por e-mail (só proíbe combiná-los com
+   * biometric/facial_biometrics/identity_biometrics) — conferir no 1º envelope do sandbox. Vendedora, corretor e
+   * testemunhas continuam só com o token. Só com a Propriedade CLICKSIGN_SELFIE=1. */
+  var AUTH_SELFIE = ["selfie", "official_document"];
+  var COM_SELFIE = /^(comprador[12]|conjugeComprador1|fiador[12]|conjugeFiador[12])$/;
+  function autenticacoes(s, config) {
+    return config && config.selfie && COM_SELFIE.test(txt(s && s.origem)) ? ["email"].concat(AUTH_SELFIE) : ["email"];
   }
   /* 30/10: rubrica posicionada — kind "initials" (visto) ou "manuscript" (assinatura); positions [{ page: "n", position: [x, y] }]
    * em proporção da página (0–1, x da esquerda, y do topo). positions, pages e rubric_field são exclusivos. */
@@ -657,7 +672,7 @@ var ClicksignVenda = (function () {
     PAPEIS: PAPEIS, SITUACOES: SITUACOES, montarConfig: montarConfig, conferirConfig: conferirConfig, signatarios: signatarios,
     faltasAssinatura: faltasAssinatura, faltasDeNomeEEmail: faltasDeNomeEEmail, linksCorrigirEmail: linksCorrigirEmail, nomeEnvelope: nomeEnvelope, nomeArquivo: nomeArquivo, nomePadrao: nomePadrao, tituloDocumento: tituloDocumento, listaAssinados: listaAssinados,
     corpoEnvelope: corpoEnvelope, corpoDocumento: corpoDocumento, corpoSignatario: corpoSignatario,
-    corpoQualificacao: corpoQualificacao, corpoAutenticacao: corpoAutenticacao, corpoAtivar: corpoAtivar, corpoCancelarDocumento: corpoCancelarDocumento, statusEfetivo: statusEfetivo,
+    corpoQualificacao: corpoQualificacao, corpoAutenticacao: corpoAutenticacao, autenticacoes: autenticacoes, AUTH_SELFIE: AUTH_SELFIE, corpoAtivar: corpoAtivar, corpoCancelarDocumento: corpoCancelarDocumento, statusEfetivo: statusEfetivo,
     corpoNotificacao: corpoNotificacao, interpretar: interpretar, situacao: situacao, assinaram: assinaram,
     podeEnviar: podeEnviar, linkAssinado: linkAssinado, mascararEmails: mascararEmails, FINAIS: FINAIS,
     situacaoDosSignatarios: situacaoDosSignatarios, nomeMascarado: nomeMascarado,

@@ -78,7 +78,8 @@ function assConfig_(pageId) {
     ASSINATURA_REPRESENTANTE: prop_("ASSINATURA_REPRESENTANTE"), ASSINATURA_INCLUIR_CORRETOR: prop_("ASSINATURA_INCLUIR_CORRETOR"),
     /* 30/10: rubricas e documentos do comprador */
     RUBRICAS_AJUSTE: prop_("RUBRICAS_AJUSTE"), MEMORIAL_POSICAO: prop_("MEMORIAL_POSICAO"), PROJETO_POSICOES: prop_("PROJETO_POSICOES"),
-    ASSINATURA_SEM_RUBRICAS: prop_("ASSINATURA_SEM_RUBRICAS"), ASSINATURA_SEM_LINHAS: prop_("ASSINATURA_SEM_LINHAS")
+    ASSINATURA_SEM_RUBRICAS: prop_("ASSINATURA_SEM_RUBRICAS"), ASSINATURA_SEM_LINHAS: prop_("ASSINATURA_SEM_LINHAS"),
+    CLICKSIGN_SELFIE: prop_("CLICKSIGN_SELFIE")   /* 01/11 (plano 23 C) */
   });
 }
 
@@ -422,6 +423,7 @@ function assCorrigir_(faltas) { return ClicksignVenda.linksCorrigirEmail(faltas)
 
 /* Cria envelope → documento → signatários → requisitos → ativa → grava → notifica (contrato e termo). */
 function assCriarEnvelope_(p, pid, cols, doc, gerado, lista, nomeCs, extras, adicionais, rub) {
+  var cfgAuth = assConfig_(p.pageId);   /* 01/11 (plano 23 C): CLICKSIGN_SELFIE — vale para o contrato e o termo, rua e condomínio */
   var S = ClicksignVenda.SITUACOES;
   var pdf = null;
   try { pdf = baixarArquivo_({ name: gerado.nome, type: "file", file: { url: gerado.url } }); }
@@ -464,8 +466,10 @@ function assCriarEnvelope_(p, pid, cols, doc, gerado, lista, nomeCs, extras, adi
       ClicksignVenda.documentosDoSignatario(s, docs).forEach(function (dId) {
         csPasso_("requisitos", "post", base + "/requirements", ClicksignVenda.corpoQualificacao(dId, ids[i], s.role));
         Utilities.sleep(CS_PAUSA_REQ_MS);
-        csPasso_("requisitos", "post", base + "/requirements", ClicksignVenda.corpoAutenticacao(dId, ids[i]));
-        Utilities.sleep(CS_PAUSA_REQ_MS);
+        ClicksignVenda.autenticacoes(s, cfgAuth).forEach(function (auth) {
+          csPasso_("requisitos", "post", base + "/requirements", ClicksignVenda.corpoAutenticacao(dId, ids[i], auth));
+          Utilities.sleep(CS_PAUSA_REQ_MS);
+        });
       });
       /* 30/10: rubricas posicionadas do comprador (campos de ciência, coluna de valores, memorial, projeto);
          01/11 (plano 23 B): e a assinatura de cada pessoa em cima da própria linha (contrato e termos) */

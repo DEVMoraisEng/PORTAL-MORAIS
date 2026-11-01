@@ -1197,3 +1197,24 @@ test("plano 23 A: termo de pré-reserva ASSINADO — recusa gerar, conta, cônju
     assert.deepEqual(chamarCom(c, a, { doc: "PRE_RESERVA" }), { ok: false, erro: "TERMO_ASSINADO" }, a);
   assert.notEqual(c.enviar().erro, "TERMO_ASSINADO", "o contrato segue o caminho dele");
 });
+
+
+/* ---- 01/11/2026 (plano 23 C): selfie ---- */
+const authsDe = (c, email) => {
+  const s = c.c.estado.signers.find((x) => x.attributes.email === email);
+  return c.c.chamadas.filter((x) => x.metodo === "POST" && x.caminho === "/envelopes/env-1/requirements" &&
+                                    x.corpo.data.attributes.action === "provide_evidence" && x.corpo.data.relationships.signer.data.id === s.id)
+    .map((x) => x.corpo.data.attributes.auth);
+};
+test("plano 23 C: CLICKSIGN_SELFIE=1 — comprador autentica com e-mail, selfie e documento; vendedor e testemunhas só e-mail", () => {
+  const c = cenario({ props: { CLICKSIGN_SELFIE: "1" } });
+  assert.equal(c.enviar().ok, true);
+  assert.deepEqual(authsDe(c, "fulano@teste.example"), ["email", "selfie", "official_document"]);
+  assert.deepEqual(authsDe(c, "beltrano@teste.example"), ["email"]);
+  assert.deepEqual(authsDe(c, "t1.spe@teste.example"), ["email"]);
+});
+test("plano 23 C: sem CLICKSIGN_SELFIE nada muda (só o token por e-mail)", () => {
+  const c = cenario();
+  assert.equal(c.enviar().ok, true);
+  assert.deepEqual(authsDe(c, "fulano@teste.example"), ["email"]);
+});
