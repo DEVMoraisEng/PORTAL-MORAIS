@@ -435,3 +435,15 @@ test("plano 23 A: carregarAssinados e baixarAssinado falam com o servidor (doc d
   assert.deepEqual(sem.assinados, []);
   assert.match(sem.msg, /não respondeu/);
 });
+
+test("01/11 (sandbox): assinado por todos com o arquivo ainda não pronto — a tela diz para clicar em Atualizar situação", async () => {
+  const novo = await A.executarAcaoAssinatura("a-atualizar", ctx({ estado: ENVIADO }), { pageId: "p1", confirmar: () => true,
+    chamar: async () => ({ ok: true, situacao: "ASSINADO", envelope: true, signatarios: [], temAssinado: false, aguardandoArquivo: true }) });
+  assert.equal(novo.estado.aguardandoArquivo, true);
+  assert.equal(novo.msg, "Assinado por todos — o arquivo assinado fica pronto em instantes, clique em Atualizar situação.");
+  const h = A.montarBlocoAssinatura(Object.assign({}, novo, { assinados: [] }));
+  assert.match(h, /o arquivo assinado fica pronto em instantes/);
+  assert.doesNotMatch(botao(h, "a-atualizar")[0], /disabled/);
+  assert.equal(A.mensagemAssinatura({ ok: false, erro: "ASSINADO_AGUARDANDO_ARQUIVO" }),
+    "O arquivo assinado ainda está sendo preparado pela Clicksign — espere um instante e clique em Atualizar situação.");
+});

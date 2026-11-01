@@ -98,37 +98,59 @@ var RubricasVenda = (function () {
      assinatura que só traz estes rótulos é a continuação do bloco (o quadro-resumo com 11 pessoas vira a página) */
   var PAPEL_SOZINHO = /^((CREDORA\/)?VENDEDORA?|(DEVEDOR\/)?COMPRADOR|PRÉ-RESERVANTE|CÔNJUGE DO .+|FIADOR [12]|INTERMEDIADOR\/CORRETOR|TESTEMUNHA [12])$/;
   function paginaDeAssinatura(ls) {
-    var titulo = false, vend = false, comp = false, papel = false;
+    var r = { titulo: false, vend: false, comp: false, papel: false };
     ls.forEach(function (l) {
-      if (/^\s*ASSINATURAS\s*$/i.test(l.texto)) titulo = true;
+      if (/^\s*ASSINATURAS\s*$/i.test(l.texto)) r.titulo = true;
       trechos(l).forEach(function (t) {
         var s = l.texto.slice(t[0], t[1]).trim().toUpperCase();
-        if (/^(CREDORA\/)?VENDEDORA$/.test(s)) vend = true;
-        if (/^(DEVEDOR\/)?COMPRADOR$/.test(s)) comp = true;
-        if (PAPEL_SOZINHO.test(s)) papel = true;
+        if (/^(CREDORA\/)?VENDEDORA$/.test(s)) r.vend = true;
+        if (/^(DEVEDOR\/)?COMPRADOR$/.test(s)) r.comp = true;
+        if (PAPEL_SOZINHO.test(s)) r.papel = true;
       });
     });
-    return titulo ? 2 : (vend && comp ? 1 : (papel ? -1 : 0));
+    return r;
+  }
+  /* Quais páginas valem: título ASSINATURAS (e a seguinte); VENDEDORA e COMPRADOR na mesma página; 01/11 (sandbox) duas
+     páginas seguidas com papéis que, juntas, têm VENDEDORA e COMPRADOR (quadro-resumo que vira a página com a vendedora no
+     pé); e a página com papéis logo depois de uma que vale (bloco com muitas pessoas). */
+  function paginasQueValem(info) {
+    var v = info.map(function (x, i) { return x.titulo || (x.vend && x.comp) || (i > 0 && info[i - 1].titulo); });
+    for (var i = 0; i + 1 < info.length; i++) {
+      var a = info[i], b = info[i + 1];
+      if (a.papel && b.papel && (a.vend || b.vend) && (a.comp || b.comp)) { v[i] = true; v[i + 1] = true; }
+    }
+    for (var k = 1; k < info.length; k++) if (!v[k] && info[k].papel && v[k - 1]) v[k] = true;
+    return v;
   }
   function acharLinhas(paginas, ajuste) {
-    var a = (ajuste && ajuste.linha) || AJUSTE_LINHA, out = [], antTitulo = false, antVale = false;
-    (paginas || []).forEach(function (pg) {
-      var ls = linhas(pg), W = pg.largura, H = pg.altura, tipo = paginaDeAssinatura(ls), vale = tipo > 0 || antTitulo || (tipo === -1 && antVale);
-      antTitulo = tipo === 2;
-      antVale = vale;
-      if (!vale) return;
+    var a = (ajuste && ajuste.linha) || AJUSTE_LINHA, out = [];
+    var pgs = (paginas || []).map(function (pg) { return { pg: pg, ls: linhas(pg) }; });
+    var vale = paginasQueValem(pgs.map(function (x) { return paginaDeAssinatura(x.ls); }));
+    pgs.forEach(function (x, ip) {
+      if (!vale[ip]) return;
+      var pg = x.pg, ls = x.ls, W = pg.largura, H = pg.altura;
       ls.forEach(function (l, i) {
-        /* cada trecho de traços da linha é uma linha de assinatura (blocos lado a lado no PDF: VENDEDORA | COMPRADOR,
-           TESTEMUNHA 1 | TESTEMUNHA 2); traço com texto antes ("ASSINATURA: ____") é campo de ciência, não conta */
-        var re = /_{10,}/g, m, fimAnt = 0;
+        /* cada trecho de traços da linha é uma linha de assinatura. 01/11 (sandbox): dois traços lado a lado (TESTEMUNHA 1 |
+           TESTEMUNHA 2) chegam colados no texto da linha — o vão entre eles (trechos) separa as colunas. Traço com texto
+           antes ("ASSINATURA: ____") é campo de ciência, não conta */
+        var re = /_{10,}/g, m, fimAnt = 0, achados = [], tr = trechos(l);
         while ((m = re.exec(l.texto))) {
-          var antes = l.texto.slice(fimAnt, m.index);
-          fimAnt = m.index + m[0].length;
-          if (/\S/.test(antes)) continue;
-          var x0 = l.xs[m.index], x1 = l.xs[fimAnt - 1] + Math.max(1, (l.xs[fimAnt - 1] - x0) / Math.max(1, m[0].length - 1));
-          out.push({ page: String(pg.numero), position: [limitar(x0 / W + (Number(a.dx) || 0)), limitar(l.y / H + (Number(a.dy) || 0))],
-                     texto: textoDaColuna(ls, i, x0, x1) });
+          var mi = m.index, mf = m.index + m[0].length;
+          tr.forEach(function (t) {
+            var s0 = Math.max(mi, t[0]), s1 = Math.min(mf, t[1]);
+            if (s1 - s0 >= 10) achados.push([s0, s1]);
+          });
         }
+        var validos = achados.filter(function (c) {
+          var antes = l.texto.slice(fimAnt, c[0]);
+          fimAnt = c[1];
+          return !/\S/.test(antes);
+        });
+        validos.forEach(function (c) {
+          var x0 = l.xs[c[0]], x1 = l.xs[c[1] - 1] + Math.max(1, (l.xs[c[1] - 1] - x0) / Math.max(1, c[1] - c[0] - 1));
+          out.push({ page: String(pg.numero), position: [limitar(x0 / W + (Number(a.dx) || 0)), limitar(l.y / H + (Number(a.dy) || 0))],
+                     texto: textoDaColuna(ls, i, x0, x1, validos.length === 1) });
+        });
       });
     });
     return out;
@@ -144,13 +166,14 @@ var RubricasVenda = (function () {
     return out;
   }
   /* até 4 linhas logo abaixo da linha i, só os trechos que encostam na coluna [x0, x1] (nome centralizado mais largo que
-     o traço entra inteiro; o bloco do lado, não); para no próximo traço ou num vão grande */
-  function textoDaColuna(ls, i, x0, x1) {
+     o traço entra inteiro; o bloco do lado, não); para no próximo traço ou num vão grande. 01/11 (sandbox): traço SOZINHO na
+     linha (sem coluna ao lado) lê a linha de baixo inteira — o papel pode vir na mesma altura do nome, à direita */
+  function textoDaColuna(ls, i, x0, x1, inteira) {
     var txt = [], ant = ls[i], tol = 6;
     for (var k = i + 1; k < ls.length && txt.length < 4; k++) {
       var m = ls[k], col = "";
       trechos(m).forEach(function (t) {
-        if (m.xs[t[1] - 1] >= x0 - tol && m.xs[t[0]] <= x1 + tol) col += (col ? " " : "") + m.texto.slice(t[0], t[1]);
+        if (inteira || (m.xs[t[1] - 1] >= x0 - tol && m.xs[t[0]] <= x1 + tol)) col += (col ? " " : "") + m.texto.slice(t[0], t[1]);
       });
       if (!/\S/.test(col)) continue;
       if (TEM_TRACO.test(col)) break;

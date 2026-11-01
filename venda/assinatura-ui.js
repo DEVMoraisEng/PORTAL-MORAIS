@@ -26,6 +26,7 @@
     TERMO_DESATUALIZADO: "Os dados mudaram depois de gerar o termo de pré-reserva — gere o termo de novo e depois envie.",
     CONFISSAO_DESATUALIZADA: "Os termos de confissão não são deste contrato — gere o contrato de novo (os termos saem junto) e envie.",
     SEM_RESPOSTA: "O servidor não respondeu — confira a internet e tente de novo.",
+    ASSINADO_AGUARDANDO_ARQUIVO: "O arquivo assinado ainda está sendo preparado pela Clicksign — espere um instante e clique em Atualizar situação.",
     /* 01/11/2026 (revisão final, I3): o envio sem resposta pode ter dado certo (o servidor repete a Clicksign por até 180 s) */
     SEM_RESPOSTA_ENVIO: "A Clicksign está demorando. O envio pode ter dado certo — espere 1 minuto e clique em Atualizar situação antes de tentar de novo.",
     PORTAL_VENDA_NAO_CONFIGURADO: "A assinatura ainda não foi ligada neste ambiente.",
@@ -153,9 +154,12 @@
   var ROTULO_DOC = { contrato: "Contrato", termo: "Termo de confissão de dívida", memorial: "Memorial descritivo", projeto: "Projeto aprovado" };
   function assinado(c) { return !!(c && c.estado && situacaoDe(c.estado) === "ASSINADO"); }
   function precisaCarregarAssinados(c) { return assinado(c) && !Array.isArray(c.assinados) && c.ocupado !== "assinados"; }
+  /* 01/11 (sandbox): a Clicksign fecha o envelope ~1 minuto antes de gerar o arquivo assinado */
+  var AGUARDANDO_ARQUIVO = "Assinado por todos — o arquivo assinado fica pronto em instantes, clique em Atualizar situação.";
   function montarDocumentosAssinados(c) {
     var x = pre(c), e = c.estado, h = '<div class="grp">Documentos assinados</div>';
     h += '<div class="dz-linha"><span class="dz-rot">Situação: ' + esc(SITUACAO.ASSINADO) + "</span></div>";
+    if (e && e.aguardandoArquivo && c.msg !== AGUARDANDO_ARQUIVO) h += '<div class="dz-linha">' + esc(AGUARDANDO_ARQUIVO) + "</div>";
     if (c.ocupado === "atualizar") h += '<div class="dz-linha"><b>consultando…</b></div>';
     if (c.ocupado === "baixar") h += '<div class="dz-linha"><b>abrindo o documento assinado…</b></div>';
     if (!Array.isArray(c.assinados)) h += '<div class="vazio">carregando os documentos assinados…</div>';
@@ -331,7 +335,9 @@
       return copia(c, falhou);
     }
     var estado = { situacao: r.situacao || "", envelope: enviar ? true : !!r.envelope, signatarios: r.signatarios || [], temAssinado: !!r.temAssinado };
-    var msg = mensagemAssinatura(r) || (enviar ? "Enviado — cada signatário recebe o e-mail da Clicksign." : "Situação atualizada.");
+    if (r.aguardandoArquivo) estado.aguardandoArquivo = true;
+    var msg = r.aguardandoArquivo ? AGUARDANDO_ARQUIVO
+      : (mensagemAssinatura(r) || (enviar ? "Enviado — cada signatário recebe o e-mail da Clicksign." : "Situação atualizada."));
     return copia(c, { estado: estado, ocupado: null, faltas: null, corrigir: null, msg: msg });
   }
 

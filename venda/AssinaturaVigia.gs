@@ -31,12 +31,20 @@ function vigiaAssinaturas() {
 
 /* linhas do condomínio com o contrato ENVIADO (nome real da coluna pelo esquema da base: pode ter espaço sobrando) */
 function vigiaAbertos_(db) {
-  var sch = (notion_("GET", "/databases/" + db, null) || {}).properties || {}, nome = null;
-  Object.keys(sch).forEach(function (n) { if (RegrasVenda.chave(n) === RegrasVenda.chave(ASS_COL.SITUACAO)) nome = n; });
+  var sch = (notion_("GET", "/databases/" + db, null) || {}).properties || {}, nome = null, arq = null;
+  Object.keys(sch).forEach(function (n) {
+    if (RegrasVenda.chave(n) === RegrasVenda.chave(ASS_COL.SITUACAO)) nome = n;
+    if (RegrasVenda.chave(n) === RegrasVenda.chave(ASS_COL.ASSINADO)) arq = n;
+  });
   if (!nome || sch[nome].type !== "rich_text") return [];
+  var S = ClicksignVenda.SITUACOES || { ENVIADO: "ENVIADO", ASSINADO: "ASSINADO" };
+  var filtro = { property: nome, rich_text: { equals: S.ENVIADO } };
+  /* 01/11 (sandbox): ASSINADO antes de a Clicksign gerar o arquivo — também relido até o PDF entrar */
+  if (arq && sch[arq].type === "files")
+    filtro = { or: [filtro, { and: [{ property: nome, rich_text: { equals: S.ASSINADO } }, { property: arq, files: { is_empty: true } }] }] };
   var out = [], cursor = null;
   do {
-    var corpo = { filter: { property: nome, rich_text: { equals: ClicksignVenda.SITUACOES ? ClicksignVenda.SITUACOES.ENVIADO : "ENVIADO" } }, page_size: 100 };
+    var corpo = { filter: filtro, page_size: 100 };
     if (cursor) corpo.start_cursor = cursor;
     var r = notion_("POST", "/databases/" + db + "/query", corpo) || {};
     out = out.concat(r.results || []);
@@ -60,6 +68,7 @@ function vigiaUma_(col, pg) {
     else assApagarProp_(VIGIA_STATUS + envId);   /* final (assinado/cancelado...) ou limpo: não guarda lixo */
   }
   if (!r || !r.ok || r.situacao !== "ASSINADO") return false;
+  if (r.aguardandoArquivo && !r.temAssinado) return false;   /* o PDF assinado ainda não entrou: a próxima volta da vigia conclui */
   ctrLog_("vigia " + String(pg.id).slice(0, 8) + " contrato assinado");
   vigiaMarcarAndamento_(pg);
   if (String(prop_("MC_LANCAR_AO_ASSINAR") || "").trim().toUpperCase() === "SIM") vigiaLancarMC_(col, pg.id);

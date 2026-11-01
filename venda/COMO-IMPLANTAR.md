@@ -1124,9 +1124,9 @@ passa a usar a cópia quando o dono troca a Propriedade dele. O código antigo d
 
 **Passo a passo do dono (uma vez):**
 1. Colar o código novo nos DOIS projetos, `PORTAL-VENDA-TESTE` e `PORTAL-VENDA`: `ClicksignVenda`, `ContratoVenda`,
-   `GerarContrato`, `AssinaturaVenda`, `Confissao`, `PreReserva` e o novo `MigrarModelos`; e subir o site
-   (`venda/RubricasVenda.js` v4, `venda-dossie.js` v51, `vendas.html`, `simulacoes.html`, `sw.js` v253). Com os
-   modelos de hoje nada muda.
+   `GerarContrato`, `AssinaturaVenda`, `AssinaturaVigia`, `Confissao`, `PreReserva` e o novo `MigrarModelos`; e
+   subir o site (`venda/RubricasVenda.js` v4, `venda/assinatura-ui.js` v20, `venda-dossie.js` v51, `vendas.html`,
+   `simulacoes.html`, `sw.js` v253). Com os modelos de hoje nada muda.
 2. Num dos projetos (no TESTE), escolher a função `migrarModelosAssinaturasPrevia` e clicar em Executar. Ela só lê:
    o Registro de execução diz, para cada modelo (`MODELO_CONDOMINIO_ID`, `MODELO_PRONTO_ID`, `MODELO_CONSTRUCAO_ID`,
    `MODELO_CONFISSAO_PRE_ID`, `MODELO_CONFISSAO_POS_ID`, `MODELO_PRE_RESERVA_ID`), quantos blocos trocaria, o vendedor
@@ -1145,6 +1145,14 @@ passa a usar a cópia quando o dono troca a Propriedade dele. O código antigo d
 
 **Voltar atrás:** pôr de novo na Propriedade o id antigo (o original não foi mexido). As cópias podem ficar ou ser
 apagadas.
+
+**Ajustes do teste no sandbox (01/11):** valem também com os modelos de hoje.
+- As duas testemunhas lado a lado viram duas linhas (antes a TESTEMUNHA 2 ficava sem a assinatura posicionada).
+- Quadro-resumo que vira a página (vendedora no pé de uma página, comprador e o resto na seguinte): as duas páginas são
+  lidas; o papel escrito à direita, na altura do nome, conta.
+- Logo depois da última assinatura a Clicksign leva ~1 minuto para gerar o arquivo assinado. Nesse tempo o Atualizar
+  situação mostra "Assinado por todos — o arquivo assinado fica pronto em instantes, clique em Atualizar situação" (antes
+  era erro). A vigia de assinaturas também relê os contratos ASSINADO ainda sem o arquivo, até ele entrar.
 
 ## Selfie com documento para comprador, cônjuge e fiadores (01/11/2026, plano 23 C)
 

@@ -600,12 +600,18 @@ function assinaturaEstado_(col, p) {
   if (sit !== S.ENVIADO) assApagarProp_(ASS_VIGIA_STATUS + envId);   /* terminou (assinado/cancelado/...): a vigia não precisa mais do status */
 
   var semArquivo = !(ctrValor_(pg.properties[cols.ASSINADO]) || []).length;
+  /* 01/11/2026 (teste no sandbox): a Clicksign fecha o envelope ~1 minuto antes de gerar o arquivo "signed". Sem o link
+     ainda, não é erro: a situação é ASSINADO com aguardandoArquivo; o PDF entra no próximo Atualizar (ou na vigia). */
+  var aguardando = false;
+  function semLink(e) { return String((e && e.message) || "").indexOf("CLICKSIGN_SEM_LINK_ASSINADO") === 0; }
   var termosAssinar = docs.slice(1).map(function (dc) { return { doc: dc, col: cfdCol_(pg, cfdDoNome_(dc)) }; })
     .filter(function (y) { return y.col && !(ctrValor_(pg.properties[y.col]) || []).length; });
   if (sit === S.ASSINADO && termosAssinar.length) {
     for (var k = 0; k < termosAssinar.length; k++) {
       var tl, tr;
-      try { tl = ClicksignVenda.linkAssinado(termosAssinar[k].doc); tr = UrlFetchApp.fetch(tl, { muteHttpExceptions: true }); }
+      try { tl = ClicksignVenda.linkAssinado(termosAssinar[k].doc); }
+      catch (e) { if (!semLink(e)) throw e; aguardando = true; continue; }
+      try { tr = UrlFetchApp.fetch(tl, { muteHttpExceptions: true }); }
       catch (e) { assLog_("estado " + pid + " termo assinado sem link/resposta"); return { ok: false, erro: "DOWNLOAD_ASSINADO_FALHOU" }; }
       if (tr.getResponseCode() >= 300) { assLog_("estado " + pid + " termo assinado http " + tr.getResponseCode()); return { ok: false, erro: "DOWNLOAD_ASSINADO_FALHOU" }; }
       try {
@@ -615,10 +621,16 @@ function assinaturaEstado_(col, p) {
     }
     assLog_("estado " + pid + " envelope " + envId + " termos assinados anexados " + termosAssinar.length);
   }
+  var link = null;
   if (sit === S.ASSINADO && (sitAtual !== sit || semArquivo)) {
-    var link;
     try { link = ClicksignVenda.linkAssinado(docs[0]); }
-    catch (e) { assLog_("estado " + pid + " envelope " + envId + " sem link do assinado"); return { ok: false, erro: String(e.message) }; }
+    catch (e) {
+      if (!semLink(e)) { assLog_("estado " + pid + " envelope " + envId + " sem link do assinado"); return { ok: false, erro: String(e.message) }; }
+      assLog_("estado " + pid + " envelope " + envId + " assinado, arquivo ainda sendo preparado");
+      aguardando = true;
+    }
+  }
+  if (link) {
     var r;
     try { r = UrlFetchApp.fetch(link, { muteHttpExceptions: true }); } /* link pré-assinado: sem o token */
     catch (e) { assLog_("estado " + pid + " download do assinado sem resposta"); return { ok: false, erro: "DOWNLOAD_ASSINADO_FALHOU" }; }
@@ -637,6 +649,7 @@ function assinaturaEstado_(col, p) {
   var lista = assListaSignatarios_(envId, signers, eventos);
   if (ClicksignVenda.FINAIS.indexOf(sit) >= 0) { assApagarProp_(ASS_PAPEIS + envId); assApagarProp_(ASS_REENVIO + envId); }
   var resp = { ok: true, situacao: sit, envelope: true, signatarios: lista, temAssinado: !semArquivo };
+  if (aguardando) resp.aguardandoArquivo = true;
   /* closed sem o "sign" de alguém: não inventa assinatura; o PDF é o que a Clicksign entregou */
   if (env.status === "closed" && signers.some(function (s) { return !feitos[s.id]; })) {
     assLog_("estado " + pid + " envelope " + envId + " assinaturas incompletas");
@@ -824,7 +837,13 @@ function verDocumentoAssinado_(col, p) {
   var dc = x.docs.filter(function (d) { return d && String(d.id) === String(p.docId || ""); })[0];
   if (!dc) return { ok: false, erro: "DOCUMENTO_NAO_ENCONTRADO" };
   var link, r;
-  try { link = ClicksignVenda.linkAssinado(dc); } catch (e) { assLog_("ver doc assinado " + pid + " sem link"); return { ok: false, erro: String(e.message) }; }
+  try { link = ClicksignVenda.linkAssinado(dc); }
+  catch (e) {
+    assLog_("ver doc assinado " + pid + " sem link");
+    /* 01/11 (sandbox): logo depois da última assinatura o "signed" ainda não existe — pedir para esperar, não é defeito */
+    if (String(e.message).indexOf("CLICKSIGN_SEM_LINK_ASSINADO") === 0) return { ok: false, erro: "ASSINADO_AGUARDANDO_ARQUIVO" };
+    return { ok: false, erro: String(e.message) };
+  }
   try { r = UrlFetchApp.fetch(link, { muteHttpExceptions: true }); }   /* link pré-assinado: sem o token */
   catch (e) { return { ok: false, erro: "DOWNLOAD_ASSINADO_FALHOU" }; }
   if (r.getResponseCode() >= 300) { assLog_("ver doc assinado " + pid + " http " + r.getResponseCode()); return { ok: false, erro: "DOWNLOAD_ASSINADO_FALHOU" }; }

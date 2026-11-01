@@ -557,14 +557,26 @@ test("download do PDF assinado sem resposta: DOWNLOAD_ASSINADO_FALHOU, log só c
   assert.ok(!c.g.logs.join("\n").includes("clicksign.falso"), c.g.logs.join(" | "));
 });
 
-test("estado concluído sem link do assinado: erro visível, situação não vira ASSINADO", () => {
-  const c = cenario();
+/* 01/11/2026 (teste no sandbox): logo depois da última assinatura a Clicksign fecha o envelope antes de gerar o arquivo
+   "signed" (~1 minuto). Isso não é erro: ASSINADO com aguardandoArquivo; o PDF entra no próximo Atualizar (ou na vigia). */
+test("envelope concluído e o arquivo assinado ainda não pronto: ASSINADO com aguardandoArquivo, sem erro; depois anexa", () => {
+  const arq = { original: "https://s3.clicksign.falso/original.pdf" };
+  const c = cenario({ cs: { eventos: TODOS_ASSINARAM, arquivos: arq } });
   assert.equal(c.enviar().ok, true);
   c.c.estado.status = "closed";
   const r = c.estado();
-  assert.deepEqual([r.ok, r.erro], [false, "CLICKSIGN_SEM_LINK_ASSINADO: original"]);
-  assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), "ENVIADO");
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual([r.situacao, r.aguardandoArquivo, r.temAssinado], ["ASSINADO", true, false]);
+  assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), "ASSINADO");
   assert.deepEqual(c.n.pagina.properties["CONTRATO ASSINADO"].files, []);
+  /* nesse meio-tempo: a lista sai; abrir um documento pede para esperar */
+  assert.equal(c.acao("documentosAssinados").ok, true);
+  assert.deepEqual(chamarCom(c, "verDocumentoAssinado", { docId: "doc-1" }), { ok: false, erro: "ASSINADO_AGUARDANDO_ARQUIVO" });
+  /* um minuto depois a Clicksign entrega o "signed" */
+  arq.signed = "https://s3.clicksign.falso/assinado.pdf";
+  const r2 = c.estado();
+  assert.deepEqual([r2.ok, r2.situacao, !!r2.aguardandoArquivo, r2.temAssinado], [true, "ASSINADO", false, true]);
+  assert.equal(c.n.pagina.properties["CONTRATO ASSINADO"].files.length, 1);
 });
 
 test("estado: cancelado, recusado e expirado gravam a situação", () => {
@@ -1239,4 +1251,22 @@ test("correção 1 (M-7): contrato ASSINADO também trava o que a tela esconde d
   for (const a of ["salvarContaPreReserva", "salvarConjugePreReserva", "gerarTermoPreReserva"])
     assert.deepEqual(c.acao(a), { ok: false, erro: "CONTRATO_ASSINADO" }, a);
   assert.notEqual(c.acao("salvarPagamentoPreReserva").erro, "CONTRATO_ASSINADO");
+});
+
+test("vigia: contrato ASSINADO ainda sem o arquivo também é relido; aguardandoArquivo não marca o Andamento", () => {
+  const c = vigiaCenario(12);
+  const corpos = [];
+  c.g.ctx.notion_ = (m, cam, corpo) => {
+    if (m === "GET") return { properties: { "ASSINATURA - SITUAÇÃO ": { type: "rich_text" }, "CONTRATO ASSINADO": { type: "files" } } };
+    corpos.push(corpo); return { results: [] };
+  };
+  c.g.ctx.vigiaAbertos_("db-cond");
+  assert.deepEqual(JSON.parse(JSON.stringify(corpos[0].filter)), { or: [
+    { property: "ASSINATURA - SITUAÇÃO ", rich_text: { equals: "ENVIADO" } },
+    { and: [{ property: "ASSINATURA - SITUAÇÃO ", rich_text: { equals: "ASSINADO" } }, { property: "CONTRATO ASSINADO", files: { is_empty: true } }] }] });
+  /* resposta aguardando o arquivo: não conta como assinado (nem Andamento nem Mais Controle) */
+  vm.runInContext("assinaturaEstado_ = function () { return { ok: true, situacao: 'ASSINADO', aguardandoArquivo: true, temAssinado: false }; };" +
+                  "vigiaMarcarAndamento_ = function () { __marcou = true; };", c.g.ctx);
+  assert.equal(c.g.ctx.vigiaUma_({}, { id: PAGE, properties: {} }), false);
+  assert.equal(c.g.ctx.__marcou, undefined);
 });
