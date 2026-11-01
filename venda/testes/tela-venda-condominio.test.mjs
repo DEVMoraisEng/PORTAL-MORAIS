@@ -795,10 +795,10 @@ test("29/10 fluxo: valor da casa só muda com quem está em FLUXO_PRECO_USUARIOS
   assert.deepEqual(b0.quemMudaPreco, []);
   const desconto = (atual) => ({ valor: 300000, linhas: atual.linhas.map((l) => (l.t === "balao" && l.v > 8000 ? { ...l, v: l.v - 5000 } : l)) });
   assert.equal(sem.acao("salvarFluxo", { fluxo: desconto(b0.atual), motivo: "desconto", motivoPreco: "x" }).erro, "FLUXO_PRECO_SEM_PERMISSAO");
-  const c = cenarioFluxo({ props: { FLUXO_PRECO_USUARIOS: "julio.cesar, Ana.Teste" } });
+  const c = cenarioFluxo({ props: { FLUXO_PRECO_USUARIOS: "beto.teste, Ana.Teste" } });
   const base = c.acao("fluxoEditar").atual;
   assert.equal(c.acao("fluxoEditar").podePreco, true);
-  assert.deepEqual(c.acao("fluxoEditar").quemMudaPreco, ["Julio Cesar", "Ana Teste"]);
+  assert.deepEqual(c.acao("fluxoEditar").quemMudaPreco, ["Beto Teste", "Ana Teste"]);
   const f = desconto(base);
   const r = c.acao("salvarFluxo", { fluxo: f, motivo: "desconto" });
   assert.equal(r.erro, "CAMPOS_INVALIDOS");
@@ -1016,10 +1016,11 @@ function montarAndamento() {
   const COND = { colunas: [{ nome: "ITBI PAGO", tipo: "select" }, { nome: "ENTREGOU", tipo: "checkbox" }],
     linhas: [{ id: "L1", v: { "ITBI PAGO": "NÃO", ENTREGOU: false } }] };
   const chamar = (p) => new Promise((res) => { estado.chamadas.push(p); estado.pend.push(res); });
-  const f = new Function("document", "chamar", "COND", "condRender", "cdVal",
+  const f = new Function("document", "chamar", "COND", "condRender", "cdVal", "window",
     corpo + "; return condAndSalvar;")(
     { getElementById: (i) => els[i] || null }, chamar, COND, () => { estado.renders++; },
-    (l, n) => (l && l.v && n in l.v ? l.v[n] : null));
+    (l, n) => (l && l.v && n in l.v ? l.v[n] : null),
+    { addEventListener: (ev, fn) => { if (ev === "beforeunload") estado.antesDeSair = fn; } });
   return { f, els, el, estado, COND };
 }
 const espera = () => new Promise((r) => setImmediate(r));
@@ -1053,37 +1054,93 @@ test("H7: com erro, volta só aquela célula ao valor antigo e avisa 'Não salvo
   }
 });
 
-test("H7: duas mudanças seguidas na mesma célula: vale a última; resposta velha atrasada não sobrescreve", async () => {
+test("H7: um envio por célula: A->B voando, B->C só sai depois que B volta; vale o último", async () => {
   const { f, el, estado, COND } = montarAndamento();
   const c = el("cd-and-0", "SIM"); const st = el("cd-and-0-st", "");
   const p1 = f("L1", "ITBI PAGO", "SIM", "cd-and-0-st");
   c.value = "NÃO";
   const p2 = f("L1", "ITBI PAGO", "NÃO", "cd-and-0-st");
-  c.value = "SIM";
-  const p3 = f("L1", "ITBI PAGO", "SIM", "cd-and-0-st");
-  estado.pend[2]({ ok: true, linha: { id: "L1", v: { "ITBI PAGO": "SIM" } } }); await p3;
-  estado.pend[0]({ ok: true, linha: { id: "L1", v: { "ITBI PAGO": "SIM" } } }); await p1;
-  estado.pend[1]({ ok: true, linha: { id: "L1", v: { "ITBI PAGO": "NÃO" } } }); await p2;
-  assert.equal(COND.linhas[0].v["ITBI PAGO"], "SIM");
-  assert.equal(c.value, "SIM");
+  c.value = "TALVEZ";
+  const p3 = f("L1", "ITBI PAGO", "TALVEZ", "cd-and-0-st");
+  assert.equal(estado.chamadas.length, 1, "só um envio no ar");
+  assert.equal(COND.linhas[0].v["ITBI PAGO"], "TALVEZ");
+  estado.pend[0]({ ok: true, linha: { id: "L1", v: { "ITBI PAGO": "SIM" } } });
+  await espera();
+  assert.equal(estado.chamadas.length, 2, "agora vai o mais novo (os intermediários se juntam)");
+  assert.equal(estado.chamadas[1].valor, "TALVEZ");
+  assert.match(st.textContent, /salvando/);
+  estado.pend[1]({ ok: true, linha: { id: "L1", v: { "ITBI PAGO": "TALVEZ" } } });
+  await Promise.all([p1, p2, p3]);
+  assert.equal(COND.linhas[0].v["ITBI PAGO"], "TALVEZ");
+  assert.equal(c.value, "TALVEZ");
   assert.match(st.textContent, /salvo/);
 });
 
-test("H7: erro de uma mudança velha não desfaz a mais nova; células diferentes salvam em paralelo", async () => {
+test("H7: A->B voando e B->C: se B falha, segue com C sem desfazer; se C falha, volta ao último confirmado (B)", async () => {
   const { f, el, estado, COND } = montarAndamento();
-  const c = el("cd-and-0", "SIM"); el("cd-and-0-st", "");
+  const c = el("cd-and-0", "SIM"); const st = el("cd-and-0-st", "");
+  const p = f("L1", "ITBI PAGO", "SIM", "cd-and-0-st");
+  c.value = "TALVEZ"; f("L1", "ITBI PAGO", "TALVEZ", "cd-and-0-st");
+  estado.pend[0]({ ok: false, erro: "falhou" });
+  await espera();
+  assert.equal(c.value, "TALVEZ", "B falhou mas há C esperando: nada desfeito");
+  assert.equal(estado.chamadas.length, 2);
+  estado.pend[1]({ ok: false, mensagem: "Sem permissão" });
+  await p;
+  assert.equal(c.value, "NÃO", "voltou ao último confirmado (o original)");
+  assert.equal(COND.linhas[0].v["ITBI PAGO"], "NÃO");
+  assert.equal(st.textContent, "Não salvou: Sem permissão");
+});
+
+test("H7: B confirmado e C falha: a célula volta a B, não a A", async () => {
+  const { f, el, estado, COND } = montarAndamento();
+  const c = el("cd-and-0", "SIM"); const st = el("cd-and-0-st", "");
+  const p = f("L1", "ITBI PAGO", "SIM", "cd-and-0-st");
+  c.value = "TALVEZ"; f("L1", "ITBI PAGO", "TALVEZ", "cd-and-0-st");
+  estado.pend[0]({ ok: true, linha: { id: "L1", v: { "ITBI PAGO": "SIM" } } });
+  await espera();
+  estado.pend[1]({ ok: false, erro: "NOTION_429" });
+  await p;
+  assert.equal(c.value, "SIM");
+  assert.equal(COND.linhas[0].v["ITBI PAGO"], "SIM");
+  assert.equal(st.textContent, "Não salvou: NOTION_429");
+});
+
+test("H7: células diferentes salvam em paralelo; erro de uma não mexe na outra", async () => {
+  const { f, el, estado, COND } = montarAndamento();
+  el("cd-and-0", "SIM"); el("cd-and-0-st", "");
   const c2 = el("cd-and-1", "SIM"); const st2 = el("cd-and-1-st", "");
   const p1 = f("L1", "ITBI PAGO", "SIM", "cd-and-0-st");
   const q = f("L1", "ENTREGOU", "SIM", "cd-and-1-st");
-  assert.equal(estado.chamadas.length, 2, "paralelo, sem esperar a primeira");
-  c.value = "NÃO";
-  const p2 = f("L1", "ITBI PAGO", "NÃO", "cd-and-0-st");
-  estado.pend[0]({ ok: false, erro: "falhou" }); await p1;
-  assert.equal(c.value, "NÃO", "erro da velha ignorado");
-  estado.pend[2]({ ok: true, linha: { id: "L1", v: { "ITBI PAGO": "NÃO" } } }); await p2;
+  assert.equal(estado.chamadas.length, 2, "paralelo");
+  estado.pend[0]({ ok: true, linha: { id: "L1", v: { "ITBI PAGO": "SIM" } } }); await p1;
   estado.pend[1]({ ok: false, mensagem: "Sem permissão" }); await q;
-  assert.equal(c2.value, "NÃO", "checkbox voltou");
+  assert.equal(c2.value, "NÃO");
   assert.equal(COND.linhas[0].v.ENTREGOU, false);
+  assert.equal(COND.linhas[0].v["ITBI PAGO"], "SIM");
   assert.equal(st2.textContent, "Não salvou: Sem permissão");
-  assert.equal(COND.linhas[0].v["ITBI PAGO"], "NÃO");
+});
+
+test("H7: beforeunload só avisa enquanto há envio pendente", async () => {
+  const { f, el, estado } = montarAndamento();
+  el("cd-and-0", "SIM"); el("cd-and-0-st", "");
+  assert.equal(typeof estado.antesDeSair, "function", "handler registrado");
+  const ev0 = { preventDefault() { this.parado = true; } };
+  estado.antesDeSair(ev0);
+  assert.ok(!ev0.parado && !ev0.returnValue, "sem pendência não pergunta");
+  const p = f("L1", "ITBI PAGO", "SIM", "cd-and-0-st");
+  const ev1 = { preventDefault() { this.parado = true; } };
+  estado.antesDeSair(ev1);
+  assert.ok(ev1.parado);
+  assert.equal(ev1.returnValue, "Ainda está salvando. Sair mesmo assim?");
+  estado.pend[0]({ ok: true }); await p;
+  const ev2 = { preventDefault() { this.parado = true; } };
+  estado.antesDeSair(ev2);
+  assert.ok(!ev2.parado && !ev2.returnValue, "depois de salvar, não pergunta");
+});
+
+test("H7: o texto de status quebra palavra longa (375 px)", () => {
+  const raiz = pathH7.join(pathH7.dirname(fuH7(import.meta.url)), "..", "..");
+  const src = fsH7.readFileSync(pathH7.join(raiz, "vendas.html"), "utf8");
+  assert.match(src, /\.cd-and \.st\{[^}]*overflow-wrap:anywhere/);
 });
