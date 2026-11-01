@@ -1,6 +1,6 @@
 /* 31/10/2026 — decisão do dono: comprador (proponente) casado ou em união estável → o cônjuge também assina, no termo
- * de pré-reserva e no contrato, mesmo sem compor renda. Os dados vêm das colunas da proposta (ESTADO CIVIL, CONJUGE,
- * CPF CONJUGE, EMAIL CONJUGE). Só a assinatura: a qualificação do cônjuge no texto do contrato fica para depois.
+ * de pré-reserva e no contrato, mesmo sem compor renda. Colunas da proposta: ESTADO CIVIL, CONJUGE, CPF CONJUGE,
+ * EMAIL CONJUGE e REGIME. 01/11: a qualificação do cônjuge também entra no texto (COMPRADORES_QUADRO).
  * Só dados inventados — o repositório é público. */
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -30,7 +30,7 @@ const conjuges = (d) => CS.signatarios(d, CS.montarConfig({})).filter((s) => /C�
 
 test("casado: o cônjuge do comprador assina (CPF formatado, e-mail minúsculo), sem rubrica", () => {
   const d = dados(CONJ);
-  assert.deepEqual(d.condominio.conjugeComprador, { nome: "CONJUGE TESTE DA SILVA", cpf: "529.982.247-25", email: "conjuge@teste.example" });
+  assert.deepEqual(d.condominio.conjugeComprador, { nome: "CONJUGE TESTE DA SILVA", cpf: "529.982.247-25", email: "conjuge@teste.example", regime: "" });
   const l = conjuges(d);
   assert.equal(l.length, 1);
   assert.deepEqual([l[0].papel, l[0].role, l[0].email, l[0].origem, !!l[0].rubrica], ["Cônjuge do comprador 1", "buyer", "conjuge@teste.example", "conjugeComprador1", false]);
@@ -59,9 +59,64 @@ test("cônjuge que já é o comprador 2 não assina duas vezes", () => {
   assert.equal(conjuges(d).length, 0);
 });
 
-test("termo de pré-reserva (sem comprador 2): o cônjuge assina junto com o pré-reservante", () => {
+/* 01/11/2026 (dono): quem decide se o cônjuge entra no TERMO é AssinaturaVenda.assEnviarTermo_ (opção PR_CONJUGE_<pageId>, testes
+   em tela-venda-condominio.test.mjs); aqui, com o conjugeComprador presente, a lista de signatários o traz. */
+test("com conjugeComprador presente (termo com a opção ligada): o cônjuge assina junto com o pré-reservante", () => {
   const d = dados(CONJ);
   d.comprador2 = null; d.corretor = null;
   const papeis = CS.signatarios(d, CS.montarConfig({})).map((s) => s.papel);
   assert.ok(papeis.includes("Comprador 1") && papeis.includes("Cônjuge do comprador 1"), papeis.join(", "));
+});
+
+/* 01/11/2026 — cônjuge do comprador qualificado no contrato (dentro do COMPRADORES_QUADRO, sem marcador novo) */
+const CASADO = { ...CONJ, regime: "COMUNHÃO PARCIAL DE BENS" };
+const faltas = (d) => C.faltasContrato(d);
+
+test("casado: o quadro traz o cônjuge qualificado (regime em minúsculas) e a assinatura traz o nome e o CPF dele", () => {
+  const d = dados({ ...CASADO, nome: "CONJUGE TESTE" });
+  assert.equal(d.condominio.conjugeComprador.regime, "comunhão parcial de bens");
+  const m = C.marcadores(d);
+  assert.match(m.COMPRADORES_QUADRO, /casado\(a\) sob o regime de comunhão parcial de bens com CONJUGE TESTE, CPF nº 529\.982\.247-25/);
+  assert.match(m.ASSINATURA_COMPRADORES_NOMES, /COMPRADOR TESTE \/ CONJUGE TESTE/);
+  assert.match(m.ASSINATURA_COMPRADORES_CPFS, /935\.411\.347-80 \/ 529\.982\.247-25/);
+  assert.ok(!faltas(d).some((x) => /Cônjuge do comprador/.test(x)), faltas(d).join(" | "));
+});
+
+test("casado sem o nome do cônjuge: falta 'nome'; sem regime: falta 'regime de bens'", () => {
+  assert.ok(faltas(dados({ ...CASADO, nome: "" })).includes("Cônjuge do comprador 1: nome"));
+  assert.ok(faltas(dados({ ...CONJ })).includes("Cônjuge do comprador 1: regime de bens"));
+});
+
+test("união estável: 'convivente em união estável com …', sem regime obrigatório", () => {
+  const d = dados({ ...CONJ, estadoCivil: "UNIÃO ESTÁVEL" });
+  assert.match(C.marcadores(d).COMPRADORES_QUADRO, /convivente em união estável com CONJUGE TESTE DA SILVA, CPF nº 529\.982\.247-25/);
+  assert.ok(!faltas(d).some((x) => /regime/.test(x)));
+});
+
+test("solteiro: o quadro e a assinatura ficam como sempre; cônjuge que é o comprador 2 não se repete", () => {
+  const s = C.marcadores(dados({ ...CONJ, estadoCivil: "SOLTEIRO" }));
+  assert.ok(!/casado|convivente/i.test(s.COMPRADORES_QUADRO));
+  assert.equal(s.ASSINATURA_COMPRADORES_NOMES, "COMPRADOR TESTE");
+  const d = dados(CASADO, { nome: "CONJUGE TESTE DA SILVA", cpf: "529.982.247-25", email: "conjuge@teste.example" });
+  const m = C.marcadores(d);
+  assert.equal(m.ASSINATURA_COMPRADORES_NOMES, "COMPRADOR TESTE / CONJUGE TESTE DA SILVA");
+  assert.ok(!/casado\(a\)/.test(m.COMPRADORES_QUADRO));
+  assert.ok(!faltas(d).some((x) => /Cônjuge do comprador/.test(x)));
+});
+
+/* fix round 1 (01/11) */
+test("casado sem nome do cônjuge: o comprador 2 só desculpa se for casado/união estável", () => {
+  const f = (ec) => faltas(dados({ ...CONJ, nome: "" }, { nome: "COMPRADOR DOIS TESTE", cpf: "222.333.444-05", estadoCivil: ec }));
+  assert.ok(f("SOLTEIRO").includes("Cônjuge do comprador 1: nome"));
+  assert.ok(!f("CASADO").includes("Cônjuge do comprador 1: nome"));
+  assert.ok(!f("União Estável").includes("Cônjuge do comprador 1: nome"));
+});
+
+test("memorial: o cônjuge não assina — nomes e CPFs só dos compradores; o contrato mantém o cônjuge", () => {
+  const m = C.marcadores(dados(CASADO));
+  assert.equal(m.MEMORIAL_ASSINATURA_NOMES, "COMPRADOR TESTE");
+  assert.equal(m.MEMORIAL_ASSINATURA_CPFS, "935.411.347-80");
+  assert.match(m.ASSINATURA_COMPRADORES_NOMES, /CONJUGE TESTE/);
+  const m2 = C.marcadores(dados(CASADO, { nome: "COMPRADOR DOIS TESTE", cpf: "222.333.444-05" }));
+  assert.equal(m2.MEMORIAL_ASSINATURA_NOMES, "COMPRADOR TESTE / COMPRADOR DOIS TESTE");
 });

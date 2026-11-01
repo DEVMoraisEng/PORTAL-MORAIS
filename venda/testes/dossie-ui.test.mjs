@@ -200,6 +200,12 @@ test("mensagemContrato: pré-contrato faltando ou desatualizado", () => {
   assert.match(D.mensagemContrato({ erro: "PRECONTRATO_DESATUALIZADO" }), /^Os dados mudaram depois do pré-contrato/);
 });
 
+test("mensagemContrato: erros do Conferi dizem o que fazer (01/11)", () => {
+  assert.equal(D.mensagemContrato({ erro: "PRECONTRATO_REFAZER" }), "Não consegui gerar o contrato — gere o pré-contrato de novo, confira e tente outra vez.");
+  assert.equal(D.mensagemContrato({ erro: "NOTION_OCUPADO" }), "O sistema está ocupado — espere 1 minuto e tente de novo.");
+  assert.equal(D.mensagemContrato({ erro: "CONTRATO_EM_ASSINATURA" }), "Este contrato já foi enviado para assinatura. Para mudar, cancele o envelope primeiro.");
+});
+
 test("contrato: faltas viram lista escapada com o título", () => {
   const h = D.htmlContrato({ gerado: false }, uic({ faltas: ["Negociação: sinal (valor)", "<img src=x onerror=alert(1)>"] }));
   assert.match(h, /Para gerar o contrato, falta:/);
@@ -306,4 +312,62 @@ test("pré-reserva com termo gerado mostra só 'Termo gerado', sem o nome do arq
   const src = fs.readFileSync(new URL("../../venda-dossie.js", import.meta.url), "utf8");
   assert.match(src, /if \(e\.gerado\) h \+= '<div class="dz-linha">Termo gerado<\/div>';/);
   assert.doesNotMatch(src, /Termo gerado: /);
+});
+
+test("01/11: pré-reserva — mensagens de data futura e valor acima do sinal; campo da data com max = hoje (conveniência)", async () => {
+  const fs = await import("node:fs");
+  const src = fs.readFileSync(new URL("../../venda-dossie.js", import.meta.url), "utf8");
+  assert.match(src, /PR_DATA_FUTURA: "[^"]*depois de hoje[^"]*"/);
+  assert.match(src, /PR_VALOR_MAIOR_QUE_SINAL: "[^"]*sinal[^"]*"/);
+  assert.match(src, /data-pr-p="data"' \+ maxHojePR\(\)/);
+  assert.match(src, /America\/Sao_Paulo/);
+});
+
+test("01/11 (dono): pré-reserva — a conta para devolução aparece como opcional na tela", async () => {
+  const fs = await import("node:fs");
+  const src = fs.readFileSync(new URL("../../venda-dossie.js", import.meta.url), "utf8");
+  assert.match(src, /Conta do pré-reservante para devolução \(opcional/);
+});
+
+test("01/11 (H2): conferência — documento não anexado aparece como '✗ não anexado', e ilegível continua '? ilegível'", () => {
+  const e = { feito: true, atual: true, em: "", confirmados: {}, linhas: [
+    { item: "f1-id", campo: "nome", pessoa: "Fiador 1", documento: "RG/CNH", rotulo: "Nome", esperado: "FIADOR TESTE", lido: "", situacao: "ilegivel", motivo: "documento não anexado" },
+    { item: "c1-end", campo: "endereco", pessoa: "Comprador 1", documento: "comprovante", rotulo: "Endereço", esperado: "RUA TESTE", lido: "", situacao: "ilegivel", motivo: "não deu para ler" }] };
+  const h = D.htmlConferencia(e, {});
+  const [l1, l2] = h.match(/<tr><td data-rot="Pessoa[^]*?<\/tr>/g);
+  assert.match(l1, /✗ não anexado/);
+  assert.doesNotMatch(l1, /\? ilegível/);
+  assert.match(l2, /\? ilegível/);
+});
+
+test("01/11 (H5): testemunhas sem escolha mostram 'padrão: <nome 1> e <nome 2>'; sem par conhecido diz 'definido no envio'; com escolha, nada", () => {
+  const t = { opcoes: [{ id: "a", nome: "Pessoa A" }, { id: "b", nome: "Pessoa B" }, { id: "c", nome: "Pessoa C" }], escolhidas: [], padrao: ["c", "a"] };
+  assert.match(D.htmlTestemunhas(t, ""), /padrão: Pessoa C e Pessoa A/);
+  assert.doesNotMatch(D.htmlTestemunhas({ ...t, escolhidas: ["a", "b"] }, ""), /padrão: Pessoa/);
+  assert.match(D.htmlTestemunhas({ ...t, padrao: [] }, ""), /padrão: definido no envio/);
+  assert.match(D.htmlTestemunhas({ ...t, padrao: ["x", "a"] }, ""), /padrão: definido no envio/);
+  assert.doesNotMatch(D.htmlTestemunhas({ ...t, escolhidas: ["a", "b"], padrao: [] }, ""), /padrão: /);
+});
+
+/* 01/11/2026 (dono): pré-reserva rápida e simples — a opção de incluir o cônjuge só aparece quando há cônjuge */
+test("pré-reserva: caixa 'Incluir o cônjuge' só com cônjuge, desmarcada por padrão, com a dica; desabilita no perfil TESTES", () => {
+  assert.equal(D.htmlConjugePR({ temConjuge: false, incluirConjuge: false }, ""), "");
+  assert.equal(D.htmlConjugePR({}, ""), "");
+  const h = D.htmlConjugePR({ temConjuge: true, incluirConjuge: false }, "");
+  assert.match(h, /<input type="checkbox" data-pr-conj="1"(?![^>]*checked)[^>]*>/);
+  assert.match(h, /Incluir o cônjuge na pré-reserva \(opcional\)/);
+  assert.match(h, /Por padrão só o comprador assina\./);
+  assert.match(D.htmlConjugePR({ temConjuge: true, incluirConjuge: true }, ""), /data-pr-conj="1" checked/);
+  assert.match(D.htmlConjugePR({ temConjuge: true, incluirConjuge: false }, " disabled"), /disabled/);
+});
+
+test("pré-reserva: a caixa do cônjuge está no bloco, o clique chama a ação e cabe em 375 px (sem largura fixa)", async () => {
+  const fs = await import("node:fs");
+  const src = fs.readFileSync(new URL("../../venda-dossie.js", import.meta.url), "utf8");
+  assert.match(src, /h \+= htmlConjugePR\(e, dis\);/);
+  assert.match(src, /ENVELOPE_ABERTO_TERMO|rj\.mensagem/);
+  assert.match(src, /action: "salvarConjugePreReserva", pageId: pageId, incluir:/);
+  assert.match(src, /incluirConjuge: !!r\.incluirConjuge, temConjuge: !!r\.temConjuge/);
+  const m = src.match(/function htmlConjugePR[^]*?\r?\n  }\r?\n/)[0];
+  assert.doesNotMatch(m, /width:\s*\d{3,}px/);
 });

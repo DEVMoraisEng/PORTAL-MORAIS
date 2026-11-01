@@ -833,3 +833,305 @@ test("cancelar: sem envelope não chama a Clicksign; perfil TESTES não pode", (
   assert.equal(c.c.chamadas.length, 0);
   assert.equal(c.acao("assinaturaCancelar", tokenDe("TESTES", [])).erro, "SEM_PERMISSAO_TESTES");
 });
+
+/* ---- 429/503 da Clicksign: nova tentativa com espera crescente (teto de 180 s) ---- */
+const soma = (a) => a.reduce((x, y) => x + y, 0);
+test("429 nas 2 primeiras vezes do PATCH de ativar: tenta de novo e envia (2 esperas crescentes)", () => {
+  let n = 0;
+  const c = cenario({ cs: { falhar: (m) => (m === "PATCH" && ++n <= 2 ? { status: 429, json: { errors: [{ title: "Too many" }] } } : null) } });
+  const r = c.enviar();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const esperas = c.g.sleeps.filter((x) => x >= 1000);
+  assert.deepEqual(esperas, [2000, 4000]);
+  assert.equal(csCalls(c).filter((x) => x.startsWith("PATCH")).length, 3);
+});
+test("503 também tenta de novo; 500 e 422 não", () => {
+  let n = 0;
+  const a = cenario({ cs: { falhar: (m) => (m === "PATCH" && ++n === 1 ? { status: 503, texto: "" } : null) } });
+  assert.equal(a.enviar().ok, true);
+  assert.deepEqual(a.g.sleeps.filter((x) => x >= 1000), [2000]);
+  const b = cenario({ cs: { falhar: (m, cam) => (cam.endsWith("/signers") ? { status: 422, json: { errors: [{ title: "x" }] } } : null) } });
+  b.enviar();
+  assert.equal(csCalls(b).filter((x) => x === "POST /envelopes/env-1/signers").length, 1);
+  assert.deepEqual(b.g.sleeps.filter((x) => x >= 1000), []);
+});
+test("429 sempre: desiste dentro de 180 s no total e devolve CLICKSIGN_FALHOU", () => {
+  const c = cenario({ cs: { falhar: (m, cam) => (cam === "/envelopes" ? { status: 429, json: { errors: [{ title: "Too many" }] } } : null) } });
+  const r = c.enviar();
+  assert.equal(r.erro, "CLICKSIGN_FALHOU");
+  assert.equal(r.http, 429);
+  const t = soma(c.g.sleeps);
+  assert.ok(t > 0 && t <= 180000, "esperou " + t);
+  assert.ok(c.g.sleeps.slice(0, 3).every((x, i, a) => i === 0 || x > a[i - 1]), "espera não cresceu");
+});
+test("Retry-After: 7 → a 1ª espera é de 7000 ms", () => {
+  let n = 0;
+  const c = cenario({ cs: { falhar: (m) => (m === "PATCH" && ++n === 1 ? { status: 429, headers: { "Retry-After": "7" }, json: { errors: [{ title: "x" }] } } : null) } });
+  assert.equal(c.enviar().ok, true);
+  assert.equal(c.g.sleeps.filter((x) => x >= 1000)[0], 7000);
+});
+test("pausa de 250 ms entre um POST de requisito e outro", () => {
+  const c = cenario();
+  assert.equal(c.enviar().ok, true);
+  const reqs = csCalls(c).filter((x) => x.endsWith("/requirements")).length;
+  assert.ok(reqs > 1);
+  assert.ok(c.g.sleeps.filter((x) => x === 250).length >= reqs - 1, "pausas: " + c.g.sleeps.filter((x) => x === 250).length);
+});
+
+/* ---- rodada de conserto 1 ---- */
+test("PATCH de ativar: 503 e depois 4xx com o envelope de fato ativo = envio ok, sem DELETE", () => {
+  let n = 0, c;
+  c = cenario({ cs: { falhar: (m) => {
+    if (m !== "PATCH") return null;
+    if (++n === 1) { c.c.estado.status = "running"; return { status: 503, texto: "" }; }
+    return { status: 422, json: { errors: [{ title: "Envelope já em andamento" }] } };
+  } } });
+  const r = c.enviar();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.ok(!csCalls(c).some((x) => x.startsWith("DELETE")), "apagou envelope ativo");
+});
+test("PATCH de ativar falha (4xx) e a consulta também: incerto, nada apagado", () => {
+  const c = cenario({ cs: { falhar: (m, cam) => (m === "PATCH" ? { status: 422, json: { errors: [{ title: "x" }] } }
+    : (m === "GET" && cam === "/envelopes/env-1" ? { lancar: "Timeout" } : null)) } });
+  const r = c.enviar();
+  assert.equal(r.incerto, true, JSON.stringify(r));
+  assert.ok(!csCalls(c).some((x) => x.startsWith("DELETE")));
+});
+test("503 em POST não é repetido (só o 429); 429 em POST é", () => {
+  const a = cenario({ cs: { falhar: (m, cam) => (m === "POST" && cam.endsWith("/signers") ? { status: 503, texto: "" } : null) } });
+  const r = a.enviar();
+  assert.equal(r.erro, "CLICKSIGN_FALHOU");
+  assert.equal(csCalls(a).filter((x) => x === "POST /envelopes/env-1/signers").length, 1);
+  let n = 0;
+  const b = cenario({ cs: { falhar: (m, cam) => (m === "POST" && cam.endsWith("/signers") && ++n === 1 ? { status: 429, json: {} } : null) } });
+  assert.equal(b.enviar().ok, true);
+});
+test("Retry-After: 1 com 429 permanente: no máximo 6 tentativas na chamada", () => {
+  let n = 0;
+  const c = cenario({ cs: { falhar: (m, cam) => (cam === "/envelopes" ? (n++, { status: 429, headers: { "retry-after": "1" }, json: {} }) : null) } });
+  assert.equal(c.enviar().http, 429);
+  assert.equal(n, 6);
+  const esperas = c.g.sleeps.filter((x) => x >= 1000);
+  assert.equal(esperas.length, 5, "5 esperas entre 6 tentativas: " + esperas);
+  assert.ok(esperas.every((x) => x >= 1000), "alguma espera menor que o Retry-After: " + esperas);
+});
+test("Retry-After inválido (data, 0, negativo) cai na espera crescente", () => {
+  for (const v of ["Wed, 21 Oct 2026 07:28:00 GMT", "0", "-5", "abc"]) {
+    let n = 0;
+    const c = cenario({ cs: { falhar: (m) => (m === "PATCH" && ++n === 1 ? { status: 429, headers: { "RETRY-after": v }, json: {} } : null) } });
+    assert.equal(c.enviar().ok, true, v);
+    assert.equal(c.g.sleeps.filter((x) => x >= 1000)[0], 2000, v);
+  }
+});
+test("relógio: cada fetch leva 40 s -> para antes de passar de 180 s no total", () => {
+  const base = Date.now();
+  let c, fetches = 0;
+  class Rel extends Date { static now() { return base + (c ? c.g.sleeps.reduce((x, y) => x + y, 0) : 0) + fetches * 40000; } }
+  c = cenario({ extras: { Date: Rel }, cs: { falhar: (m, cam) => (cam === "/envelopes" ? (fetches++, { status: 429, json: {} }) : null) } });
+  const r = c.enviar();
+  assert.equal(r.http, 429);
+  const total = c.g.sleeps.reduce((x, y) => x + y, 0) + fetches * 40000;
+  assert.ok(total <= 180000 + 40000, "gastou " + total);
+  assert.ok(fetches < 6, "fetches " + fetches);
+});
+
+test("PATCH de ativar 4xx e a consulta diz draft: apaga o rascunho (1 DELETE) e devolve a falha comum", () => {
+  const c = cenario({ cs: { falhar: (m) => (m === "PATCH" ? { status: 422, json: { errors: [{ title: "x" }] } } : null) } });
+  const r = c.enviar();
+  assert.deepEqual([r.ok, r.erro, r.passo, r.http, r.incerto, r.rascunhoApagado], [false, "CLICKSIGN_FALHOU", "ativar", 422, undefined, true], JSON.stringify(r));
+  assert.deepEqual(csCalls(c).filter((x) => x.startsWith("DELETE")), ["DELETE /envelopes/env-1"]);
+  assert.equal(c.txt("ASSINATURA - ENVELOPE ID"), "");
+});
+
+/* ---- Descartar rascunho (assinaturaCancelar com envelope draft) ---- */
+const comRascunho = (extra = {}) => cenario(Object.assign({ venda: { "ASSINATURA - ENVELOPE ID": rt("env-1"), "ASSINATURA - SITUAÇÃO": rt("RASCUNHO") } }, extra));
+test("descartar: envelope draft -> DELETE, limpa as colunas e devolve descartou:true", () => {
+  const c = comRascunho();
+  const r = c.acao("assinaturaCancelar");
+  assert.deepEqual(r, { ok: true, descartou: true, situacao: "", envelope: false, signatarios: [] }, JSON.stringify(r));
+  assert.deepEqual(csCalls(c), ["GET /envelopes/env-1", "DELETE /envelopes/env-1"]);
+  assert.equal(c.txt("ASSINATURA - ENVELOPE ID"), "");
+  assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), "");
+  assert.match(c.g.logs.join(String.fromCharCode(10)), /cancelar 01234567 por ana\.teste: ok/);
+});
+test("descartar: envelope running segue o caminho de cancelar de sempre (sem DELETE)", () => {
+  const c = cenario();
+  assert.equal(c.enviar().ok, true);
+  const r = c.acao("assinaturaCancelar");
+  assert.equal(r.cancelou, true);
+  assert.ok(!csCalls(c).some((x) => x.startsWith("DELETE")));
+});
+test("descartar: Clicksign não acha o envelope (404) -> limpa as colunas, sem DELETE", () => {
+  const c = comRascunho();
+  c.c.estado.apagado = true;
+  const r = c.acao("assinaturaCancelar");
+  assert.deepEqual([r.ok, r.descartou, r.situacao, r.envelope], [true, true, "", false], JSON.stringify(r));
+  assert.ok(!csCalls(c).some((x) => x.startsWith("DELETE")));
+  assert.equal(c.txt("ASSINATURA - ENVELOPE ID"), "");
+  assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), "");
+});
+test("descartar: consulta sem resposta (rede ou 5xx) NÃO apaga nada e pede nova tentativa", () => {
+  for (const falha of [{ lancar: "Timeout" }, { status: 500, texto: "" }]) {
+    const c = comRascunho({ cs: { falhar: (m) => (m === "GET" ? falha : null) } });
+    const r = c.acao("assinaturaCancelar");
+    assert.equal(r.ok, false);
+    assert.equal(r.erro, "CLICKSIGN_FALHOU", JSON.stringify(r));
+    assert.ok(!csCalls(c).some((x) => x.startsWith("DELETE")), "apagou sem confirmar");
+    assert.equal(c.txt("ASSINATURA - ENVELOPE ID"), "env-1");
+  }
+});
+test("descartar: DELETE que a Clicksign recusa não limpa as colunas", () => {
+  const c = comRascunho({ cs: { falhar: (m) => (m === "DELETE" ? { status: 422, json: { errors: [{ title: "x" }] } } : null) } });
+  const r = c.acao("assinaturaCancelar");
+  assert.equal(r.ok, false);
+  assert.equal(c.txt("ASSINATURA - ENVELOPE ID"), "env-1");
+});
+
+/* ---- vigia de assinaturas (AssinaturaVigia.gs): horário, gatilho e só o GET quando nada mudou ---- */
+import fs from "node:fs";
+import vm from "node:vm";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+const VIGIA_SRC = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "AssinaturaVigia.gs"), "utf8");
+function relogioSP(hora) {   /* hora de São Paulo (UTC-3) em 2026-11-02 */
+  const FIX = Date.UTC(2026, 10, 2, hora + 3, 0, 0);
+  return class Fixo extends Date { constructor(...a) { if (a.length) super(...a); else super(FIX); } static now() { return FIX; } };
+}
+const TOK_LONGO = assinar({ u: "ana.teste", t: "GERAL", a: ["VENDAS"], exp: Date.now() + 30 * DIA });
+function vigiaCenario(hora) {
+  const c = cenario({ extras: { Date: relogioSP(hora) }, props: { DB_VENDAS_COND: "db-cond" } });
+  vm.runInContext(VIGIA_SRC, c.g.ctx, { filename: "AssinaturaVigia.gs" });
+  return c;
+}
+const abrir = (c, pg) => { c.g.ctx.__abertos = [pg]; vm.runInContext("vigiaAbertos_ = function () { __chamouAbertos = (typeof __chamouAbertos === 'number' ? __chamouAbertos : 0) + 1; return __abertos; };", c.g.ctx); };
+test("vigia fora de 7h-21h (São Paulo): nenhuma chamada de rede, nem ao Notion", () => {
+  for (const h of [22, 23, 0, 3, 6, 21]) {
+    const c = vigiaCenario(h);
+    abrir(c, { id: PAGE, properties: {} });
+    c.g.chamadas.length = 0;
+    c.g.ctx.vigiaAssinaturas();
+    assert.equal(c.g.chamadas.length, 0, "hora " + h);
+    assert.equal(c.g.ctx.__chamouAbertos, undefined, "hora " + h);
+  }
+});
+test("vigia dentro do horário (7h, 12h, 20h) roda", () => {
+  for (const h of [7, 12, 20]) {
+    const c = vigiaCenario(h);
+    abrir(c, { id: PAGE, properties: {} });
+    c.g.ctx.vigiaAssinaturas();
+    assert.equal(c.g.ctx.__chamouAbertos, 1, "hora " + h + " " + c.g.logs.join(" | ") + " H=" + c.g.ctx.Utilities.formatDate(new c.g.ctx.Date(), "America/Sao_Paulo", "H"));
+  }
+});
+test("vigia: gatilho de 30 em 30 minutos", () => {
+  const c = vigiaCenario(12);
+  const regs = [];
+  c.g.ctx.ScriptApp = { getProjectTriggers: () => [], deleteTrigger() {},
+    newTrigger: (fn) => ({ timeBased: () => ({ everyMinutes: (n) => ({ create: () => regs.push([fn, n]) }) }) }) };
+  c.g.ctx.instalarVigiaAssinaturas();
+  assert.deepEqual(regs, [["vigiaAssinaturas", 30]]);
+});
+test("vigia: envelope sem mudança = 1 chamada (só o GET); mudou = caminho completo; falha do GET = caminho completo", () => {
+  const c = vigiaCenario(12);
+  const e0 = c.enviar(TOK_LONGO);
+  assert.equal(e0.ok, true, JSON.stringify(e0));
+  const pg = () => c.g.ctx.ctrLerPaginaVenda_(PAGE);
+  /* 1ª vez: sem status guardado, caminho completo */
+  c.c.chamadas.length = 0;
+  c.g.ctx.vigiaUma_(c.g.ctx.colunas_(), pg());
+  assert.ok(csCalls(c).includes("GET /envelopes/env-1/documents"), csCalls(c).join(" | "));
+  /* nada mudou: só o GET do envelope */
+  c.c.chamadas.length = 0;
+  assert.equal(c.g.ctx.vigiaUma_(c.g.ctx.colunas_(), pg()), false);
+  assert.deepEqual(csCalls(c), ["GET /envelopes/env-1"]);
+  /* mudou: caminho completo de hoje */
+  c.c.estado.status = "canceled";
+  c.c.chamadas.length = 0;
+  c.g.ctx.vigiaUma_(c.g.ctx.colunas_(), pg());
+  assert.ok(csCalls(c).includes("GET /envelopes/env-1/documents") && csCalls(c).includes("GET /envelopes/env-1/signers"), csCalls(c).join(" | "));
+});
+test("vigia: GET do envelope sem resposta não conta como 'sem mudança' (segue o caminho completo)", () => {
+  let negar = false;
+  const c = (() => { const x = cenario({ extras: { Date: relogioSP(12) }, props: { DB_VENDAS_COND: "db-cond" },
+    cs: { falhar: (m, cam) => (negar && m === "GET" && cam === "/envelopes/env-1" ? { status: 500, texto: "" } : null) } });
+    vm.runInContext(VIGIA_SRC, x.g.ctx, { filename: "AssinaturaVigia.gs" }); return x; })();
+  assert.equal(c.enviar(TOK_LONGO).ok, true);
+  const pg = () => c.g.ctx.ctrLerPaginaVenda_(PAGE);
+  c.g.ctx.vigiaUma_(c.g.ctx.colunas_(), pg());
+  negar = true;
+  c.c.chamadas.length = 0;
+  c.g.ctx.vigiaUma_(c.g.ctx.colunas_(), pg());
+  assert.ok(csCalls(c).length > 1, csCalls(c).join(" | "));
+});
+
+/* ---- rodada de conserto 1: Descartar nunca cancela envelope já enviado; limpeza da chave da vigia ---- */
+const AVISO_JA_ENVIADO = "O contrato já tinha sido enviado aos signatários. Nada foi descartado — a situação foi atualizada.";
+test("descartar + envelope running (ativação incerta): nenhum PATCH/DELETE, situação vira ENVIADO e vem o aviso", () => {
+  const c = comRascunho();
+  c.c.estado.status = "running";
+  const r = c.g.chamar({ action: "assinaturaCancelar", token: tokenDe(), pageId: PAGE, descartar: true });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.descartou, false);
+  assert.equal(r.situacao, "ENVIADO");
+  assert.equal(r.avisoTexto, AVISO_JA_ENVIADO);   /* 01/11: campo próprio; aviso é só código */
+  assert.equal(r.aviso, undefined);
+  assert.ok(!csCalls(c).some((x) => x.startsWith("PATCH") || x.startsWith("DELETE")), csCalls(c).join(" | "));
+  assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), "ENVIADO");
+  assert.equal(c.txt("ASSINATURA - ENVELOPE ID"), "env-1");
+});
+test("descartar + envelope closed: nenhum PATCH/DELETE, situação atualizada e aviso", () => {
+  const c = comRascunho({ cs: { eventos: TODOS_ASSINARAM, arquivos: { signed: "https://s3.clicksign.falso/assinado.pdf" } } });
+  c.c.estado.status = "closed";
+  const r = c.g.chamar({ action: "assinaturaCancelar", token: tokenDe(), pageId: PAGE, descartar: true });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.descartou, false);
+  assert.equal(r.avisoTexto, AVISO_JA_ENVIADO);
+  assert.ok(!csCalls(c).some((x) => x.startsWith("PATCH") || x.startsWith("DELETE")), csCalls(c).join(" | "));
+  assert.notEqual(c.txt("ASSINATURA - SITUAÇÃO"), "RASCUNHO");
+});
+test("descartar + closed com assinaturas incompletas: o aviso de código fica e o 'Nada foi descartado' vem junto, em campo próprio", () => {
+  const c = cenario({ cs: { eventos: TODOS_ASSINARAM.slice(0, 3),
+                            arquivos: { original: "https://s3.clicksign.falso/original.pdf", signed: "https://s3.clicksign.falso/assinado.pdf" } } });
+  assert.equal(c.enviar().ok, true);
+  c.c.estado.status = "closed";
+  const r = c.g.chamar({ action: "assinaturaCancelar", token: tokenDe(), pageId: PAGE, descartar: true });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.descartou, false);
+  assert.equal(r.aviso, "ASSINATURAS_INCOMPLETAS");
+  assert.equal(r.avisoTexto, AVISO_JA_ENVIADO);
+});
+test("descartar + draft apaga como antes; Cancelar comum (sem descartar) com running continua cancelando", () => {
+  const c = comRascunho();
+  const r = c.g.chamar({ action: "assinaturaCancelar", token: tokenDe(), pageId: PAGE, descartar: true });
+  assert.equal(r.descartou, true);
+  assert.deepEqual(csCalls(c).filter((x) => x.startsWith("DELETE")), ["DELETE /envelopes/env-1"]);
+  const d = comRascunho();
+  d.c.estado.status = "running";
+  assert.equal(d.acao("assinaturaCancelar").cancelou, true);
+});
+test("chave da vigia: apagada ao descartar, ao ficar closed e ao cancelar pelo botão", () => {
+  const CH = "VIGIA_STATUS_env-1";
+  let c = comRascunho();
+  c.p[CH] = "draft";
+  c.g.chamar({ action: "assinaturaCancelar", token: tokenDe(), pageId: PAGE, descartar: true });
+  assert.ok(!(CH in c.p), "descartar deixou a chave");
+  c = cenario({ cs: { eventos: TODOS_ASSINARAM, arquivos: { signed: "https://s3.clicksign.falso/assinado.pdf" } } });
+  assert.equal(c.enviar().ok, true);
+  c.p[CH] = "running";
+  c.c.estado.status = "closed";
+  assert.equal(c.estado().situacao, "ASSINADO");
+  assert.ok(!(CH in c.p), "closed deixou a chave");
+  c = cenario();
+  assert.equal(c.enviar().ok, true);
+  c.p[CH] = "running";
+  assert.equal(c.acao("assinaturaCancelar").cancelou, true);
+  assert.ok(!(CH in c.p), "cancelar deixou a chave");
+});
+
+test("rodada 1 (H5): contratoEstado manda o par padrão pelo tipo do vendedor — PJ usa o par SPE, PF usa o par PF (casa de rua)", () => {
+  const nomes = (t) => t.padrao.map((id) => t.opcoes.filter((o) => o.id === id)[0].nome);
+  const pj = cenario().acao("contratoEstado").testemunhas;
+  const pf = cenario({ vendedor: { TIPO: sel("PF") } }).acao("contratoEstado").testemunhas;
+  assert.equal(pj.padrao.length, 2);
+  assert.equal(pf.padrao.length, 2);
+  assert.notDeepEqual(nomes(pj), nomes(pf));
+});

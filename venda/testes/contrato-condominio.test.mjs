@@ -7,6 +7,7 @@ import { createRequire } from "node:module";
 import { criarGas, driveFalso, notionFalso, assinar, texto, COLUNAS_REAIS, PAGE_ID_PADRAO, DB_ID_PADRAO } from "./fakes.mjs";
 
 const C = createRequire(import.meta.url)("../ContratoVenda.js");
+const CF = createRequire(import.meta.url)("../ConfissaoVenda.js");
 
 /* o exemplo do rascunho jurídico: sinal 1.000 + 3×3.000, 10×924,07, 12×295,49, balões 8.954,18 e
    6.267,88, crédito 244.800, FGTS 5.250, 24×705,89 = 305.000,00 */
@@ -155,8 +156,11 @@ test("dados do imóvel em branco NÃO travam: viram aviso e '____' no contrato (
 test("faltas que travam: assinatura, dia, entrega, valor de venda, fluxo que não fecha (tolerância 0,05), datas das séries", () => {
   const f = (fl) => C.faltasContrato(C.montarDadosContrato(fontes({ condominio: { fluxo: { ...FLUXO, ...fl } } })));
   assert.deepEqual(f({ assinatura: "", diaPagamento: null, entrega: "" }), [
-    "Fluxo de pagamento: data de assinatura do contrato", "Fluxo de pagamento: dia de pagamento das parcelas", "Fluxo de pagamento: data da entrega"]);
-  assert.deepEqual(f({ diaPagamento: 32 }), ["Fluxo de pagamento: dia de pagamento das parcelas"]);
+    "Fluxo de pagamento: data de assinatura do contrato (as datas das parcelas saem dela)", "Fluxo de pagamento: dia de pagamento (de 5 a 31)", "Fluxo de pagamento: data da entrega"]);
+  assert.deepEqual(f({ diaPagamento: 32 }), ["Fluxo de pagamento: dia de pagamento (de 5 a 31)"]);
+  assert.deepEqual(f({ diaPagamento: 4 }), ["Fluxo de pagamento: dia de pagamento (de 5 a 31)"]);
+  assert.deepEqual(f({ diaPagamento: 5 }), []);
+  assert.deepEqual(f({ diaPagamento: 31 }), []);
   assert.deepEqual(f({ valorVenda: null }), ["Fluxo de pagamento: valor de venda"]);
   assert.deepEqual(f({ valorVenda: 305000.05 }), [], "0,05 de diferença passa");
   assert.deepEqual(f({ valorVenda: 305000.06 }), ["Fluxo de pagamento: soma R$ 305.000,00 e não fecha com o valor de venda R$ 305.000,06"]);
@@ -421,4 +425,31 @@ test("29/10 marcador CONDICOES_ESPECIAIS: vazio = 'Não há.'; texto com quebra 
   assert.equal(vazio.CONDICOES_ESPECIAIS, "Não há.");
   const com = C.marcadores(C.montarDadosContrato(fontes({ venda: { CONDICOES_ESPECIAIS: "Na cláusula 9.2,\n  leia-se 45 dias." } })));
   assert.equal(com.CONDICOES_ESPECIAIS, "Na cláusula 9.2, leia-se 45 dias.");
+});
+
+test("01/11 (H1): sem data de assinatura é UMA falta só — as datas das parcelas saem dela e não viram falta uma por uma", () => {
+  const vazias = { assinatura: "", data30: "", data60: "", data90: "", pre1Data: "", pre2Data: "", balao1Data: "", balao2Data: "", posData: "" };
+  const f = C.faltasContrato(C.montarDadosContrato(fontes({ condominio: { fluxo: { ...FLUXO, ...vazias } } })));
+  assert.deepEqual(f, ["Fluxo de pagamento: data de assinatura do contrato (as datas das parcelas saem dela)"]);
+  /* com a assinatura, data faltando numa parcela continua sendo falta daquela parcela */
+  const g = C.faltasContrato(C.montarDadosContrato(fontes({ condominio: { fluxo: { ...FLUXO, data60: "" } } })));
+  assert.deepEqual(g, ["Fluxo de pagamento: sinal 60 dias (data)"]);
+});
+
+test("rodada 1: fiador só assina (e só é conferido) com os termos ligados E existentes — uma regra para o envio e o Gerar", () => {
+  const d36 = C.montarDadosContrato(fontes());
+  assert.equal(CF.fiadoresAssinam(d36, true), true, "36x com termos");
+  assert.equal(CF.fiadoresAssinam(d36, false), false, "termos desligados");
+  const d24 = C.montarDadosContrato(fontes({ condominio: { fluxo: { ...FLUXO, posN: null, posValor: null, valorVenda: 288058.64 } } }));
+  assert.equal(CF.fiadoresAssinam(d24, true), false, "24x sem pós-chaves, ainda com fiador na linha");
+  assert.equal(CF.fiadoresAssinam({ condominio: null }, true), false, "fora do condomínio");
+});
+
+test("rodada 1: nome de fiador com número só barra o Gerar quando o fiador assinaria (termos ligados)", () => {
+  const ruim = { "FIADOR 1": rt("Fiador 01") };
+  const sem = cenario({ linha: ruim }).gerar();
+  assert.ok(!(sem.faltas || []).some((f) => /^Fiador 1: nome/.test(f)), JSON.stringify(sem.faltas));
+  const com = cenario({ linha: ruim, props: { MODELO_CONFISSAO_PRE_ID: "modelo-cfd-pre", MODELO_CONFISSAO_POS_ID: "modelo-cfd-pos" } }).gerar();
+  assert.equal(com.erro, "FALTAM_DADOS");
+  assert.ok(com.faltas.includes("Fiador 1: nome sem números"), JSON.stringify(com.faltas));
 });

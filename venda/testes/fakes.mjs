@@ -26,7 +26,7 @@ function blob(buf, mime, nome) {
 }
 
 export function criarGas({ props, rotas, extras = {} }) {
-  const cache = new Map(), chamadas = [], logs = [];
+  const cache = new Map(), chamadas = [], logs = [], sleeps = [];
   const ctx = {
     console: { log: (...a) => logs.push(a.join(" ")), error: (...a) => logs.push(a.join(" ")) },
     PropertiesService: { getScriptProperties: () => ({ getProperty: (n) => (n in props ? props[n] : null),
@@ -49,12 +49,12 @@ export function criarGas({ props, rotas, extras = {} }) {
         if (alg !== "SHA_256" || charset !== "UTF_8") throw new Error("computeDigest: algoritmo/charset não previsto");
         return comSinal(crypto.createHash("sha256").update(String(valor), "utf8").digest());
       },
-      sleep: () => {},
+      sleep: (ms) => { sleeps.push(ms); },
       newBlob: (x, mime, nome) => blob(paraBuf(x), mime, nome),
       formatDate: (d, tz, fmt) => {
-        const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" })
+        const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23" })
           .formatToParts(d).map((x) => [x.type, x.value]));
-        return fmt.replace("yyyy", p.year).replace("MM", p.month).replace("dd", p.day);
+        return fmt.replace("yyyy", p.year).replace("MM", p.month).replace("dd", p.day).replace("HH", p.hour).replace(/^H$/, String(Number(p.hour)));
       },
     },
     UrlFetchApp: {
@@ -65,6 +65,7 @@ export function criarGas({ props, rotas, extras = {} }) {
         if (r.lancar) throw new Error(r.lancar);
         const buf = r.buf || Buffer.from(r.texto !== undefined ? r.texto : JSON.stringify(r.json || {}), "utf8");
         return { getResponseCode: () => r.status || 200, getContentText: () => buf.toString("utf8"),
+                 getAllHeaders: () => Object.assign({}, r.headers),
                  getBlob: () => blob(buf, r.mime || "application/octet-stream", "arquivo") };
       },
       /* como o Apps Script: um pedido que lança derruba o lote inteiro (o servidor tem plano B) */
@@ -77,10 +78,10 @@ export function criarGas({ props, rotas, extras = {} }) {
                    "PortalVenda.gs", "GerarContrato.gs", "AssinaturaVenda.gs", "MaisControleVenda.gs",
                    "CondominioVenda.js", "GerarVendaCondominio.gs", "RecebimentoVenda.gs", "ConfissaoVenda.js", "Confissao.gs", "PreReserva.gs", "ConferenciaDocs.js", "Conferencia.gs", "FilaRobo.gs",
                    "FluxoLivre.js", "FluxoVenda.gs", "LogContratoVenda.js", "LogContrato.gs",
-                   "Antecipacao.js", "AntecipacaoVenda.gs"])
+                   "Antecipacao.js", "AntecipacaoVenda.gs", "FiadoresVenda.js"])
     vm.runInContext(fs.readFileSync(path.join(VENDA, f), "utf8"), ctx, { filename: f });
   const chamar = (payload) => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(payload) } }).texto);
-  return { ctx, chamar, chamadas, logs, cache };
+  return { ctx, chamar, chamadas, logs, cache, sleeps };
 }
 
 /* Colunas como estão no Notion (CLIENTES e CPF com o espaço do fim, como na base real). */

@@ -155,11 +155,115 @@ function corrigirConferencia_(col, sess, p) {
       nv = RegrasVenda.formatarCpf(nv);
     }
     if (nv === x.valor) continue;
-    if (x.tipo === "title") props[x.coluna] = { title: nv ? [{ type: "text", text: { content: nv } }] : [] };
-    else props[x.coluna] = propNotion_(x.tipo, x.tipo === "number" ? (nv ? Number(nv.replace(/[^0-9]/g, "")) : null) : nv);
+    props[x.coluna] = confPropNotion_(x.tipo, nv);
     mudou.push(x.coluna);
   }
   if (mudou.length) notion_("PATCH", "/pages/" + p.pageId, { properties: props });
   ctrLog_("corrigirConferencia " + pid + " " + p.item + "/" + p.campo + " " + (mudou.join(", ") || "sem mudança") + " por " + ctrTxt_(sess && sess.u));
   return { ok: true, mudou: mudou };
+}
+
+/* 01/11/2026 (teste e2e): bloco "Fiadores" (e cônjuge do comprador) na aba Contrato do condomínio — as faltas
+   "Fiador N: …" e "Cônjuge do comprador 1: …" ganham onde ser corrigidas. Regras puras em FiadoresVenda.js; grava só
+   na LISTA FECHADA de colunas da linha do condomínio, com o tipo de cada propriedade (como o Corrigir aqui). */
+function fiaLinha_(pg, props) {
+  var real = {}, linha = {};
+  Object.keys(props || {}).forEach(function (n) { real[RegrasVenda.chave(n)] = n; });
+  FiadoresVenda.PERMITIDAS.forEach(function (c) {
+    var n = real[RegrasVenda.chave(c)];
+    if (!n) return;
+    var v = ctrTxt_(ctrValor_(props[n])).trim();
+    linha[c] = FiadoresVenda.tipoDa(c) === "cpf" ? RegrasVenda.cpfDoNotion(v) : v;   /* CPF em coluna de número perde o zero */
+  });
+  return { pg: pg, props: props || {}, real: real, linha: linha };
+}
+function fiaPagina_(pageId) {
+  var pg = notion_("GET", "/pages/" + pageId, null), base = vendaBaseDaPagina_(pg);
+  if (!base) throw new Error("PAGINA_DE_OUTRA_BASE");
+  if (base !== "CONDOMINIO") return { erro: "SO_CONDOMINIO" };
+  return fiaLinha_(pg, pg.properties);
+}
+/* {nome real: [opções da base]} só das colunas select (uma leitura da base, e só quando há select) */
+function fiaOpcoes_(pg, props, nomes) {
+  var sel = nomes.filter(function (n) { return props[n] && props[n].type === "select"; }), out = {};
+  if (!sel.length) return out;
+  var db = notion_("GET", "/databases/" + pg.parent.database_id, null), sch = (db && db.properties) || {};
+  sel.forEach(function (n) { if (sch[n]) out[n] = ((sch[n].select || {}).options || []).map(function (o) { return o.name; }); });
+  return out;
+}
+/* a gravação do Corrigir aqui: title, número (só dígitos) ou o tipo da propriedade (propNotion_) */
+function confPropNotion_(tipo, nv) {
+  if (tipo === "title") return { title: nv ? [{ type: "text", text: { content: nv } }] : [] };
+  return propNotion_(tipo, tipo === "number" ? (nv ? Number(nv.replace(/[^0-9]/g, "")) : null) : nv);
+}
+/* valores {coluna da lista: valor já conferido} → { ok, gravou } — nada é gravado se uma coluna faltar ou um select não casar */
+function fiaGravar_(a, valores) {
+  var cols = Object.keys(valores), faltam = cols.filter(function (c) { return !a.real[RegrasVenda.chave(c)]; });
+  if (faltam.length) return { ok: false, erro: "COLUNA_FALTANDO", faltas: faltam };
+  var reais = cols.map(function (c) { return a.real[RegrasVenda.chave(c)]; }), opcoes = fiaOpcoes_(a.pg, a.props, reais);
+  var props = {}, gravou = [];
+  for (var i = 0; i < cols.length; i++) {
+    var c = cols[i], n = reais[i], tipo = a.props[n].type, nv = ctrTxt_(valores[c]).trim();
+    if (tipo === "select" && nv) {
+      var ops = opcoes[n] || [];
+      nv = RegrasVenda.resolverOpcao(ops, nv);
+      if (ops.indexOf(nv) < 0) return { ok: false, erro: "OPCAO_INVALIDA", coluna: n };
+    }
+    if (nv === (a.linha[c] || "")) continue;
+    props[n] = confPropNotion_(tipo, nv);
+    gravou.push(c);
+  }
+  if (gravou.length) notion_("PATCH", "/pages/" + a.pg.id, { properties: props });
+  return { ok: true, gravou: gravou };
+}
+function salvarFiadores_(col, sess, p) {
+  var v = FiadoresVenda.validarValores(p.valores);
+  if (!v.ok) return v.coluna ? { ok: false, erro: v.erro, coluna: v.coluna } : { ok: false, erro: v.erro };
+  var a = fiaPagina_(p.pageId);
+  if (a.erro) return { ok: false, erro: a.erro };
+  var r = fiaGravar_(a, v.valores);
+  ctrLog_("salvarFiadores " + String(p.pageId).slice(0, 8) + " " + (r.ok ? (r.gravou.join(", ") || "sem mudança") : r.erro) + " por " + ctrTxt_(sess && sess.u));
+  return r;
+}
+/* "O cônjuge do Fiador 1 é o Fiador 2": o casal vira os dois fiadores (#74) */
+function conjugeEhFiador2_(col, sess, p) {
+  var a = fiaPagina_(p.pageId);
+  if (a.erro) return { ok: false, erro: a.erro };
+  var c = FiadoresVenda.conjugeComoFiador2(a.linha);
+  if (c.erro) return { ok: false, erro: c.erro };
+  var r = fiaGravar_(a, c.valores);
+  ctrLog_("conjugeEhFiador2 " + String(p.pageId).slice(0, 8) + " " + (r.ok ? r.gravou.length + " colunas" : r.erro) + " por " + ctrTxt_(sess && sess.u));
+  return r;
+}
+/* para o contratoEstado: o bloco da tela (ou null), com as opções da base nos selects e sem as colunas que a base não tem */
+function fiaEstado_(pgE, faltas, opts) {
+  var props = pgE.propsCondominio || pgE.properties || {}, a = fiaLinha_(pgE, props);
+  var nPrazo = a.real[RegrasVenda.chave("PRAZO ENTRADA")], prazo = nPrazo ? Number(ctrValor_(props[nPrazo])) : null;
+  var b = FiadoresVenda.camposFiadores(a.linha, faltas, prazo, opts);
+  if (!b.mostrar) return null;
+  var todos = [];
+  b.fiadores.forEach(function (f) { todos = todos.concat(f.campos); });
+  if (b.conjuge) todos = todos.concat(b.conjuge.campos);
+  var opcoes = fiaOpcoes_(pgE, props, todos.map(function (c) { return a.real[RegrasVenda.chave(c.coluna)]; }).filter(Boolean));
+  b.semColuna = [];
+  function ajustar(lista) {
+    return lista.filter(function (c) {
+      var n = a.real[RegrasVenda.chave(c.coluna)];
+      if (!n) { b.semColuna.push(c.coluna); return false; }
+      if (opcoes[n]) c.opcoes = opcoes[n];
+      return true;
+    });
+  }
+  b.fiadores.forEach(function (f) { f.campos = ajustar(f.campos); });
+  if (b.conjuge) b.conjuge.campos = ajustar(b.conjuge.campos);
+  return b;
+}
+/* 01/11/2026 (revisão final, I1): contrato FINAL e o envio barraria por e-mail de fiador ou de cônjuge — o bloco abre só
+   com as caixas de e-mail. Os cadastros só são relidos quando a própria linha mostra alguém sem e-mail válido. */
+function fiaEstadoFinal_(col, p, pgE) {
+  var props = pgE.propsCondominio || pgE.properties || {};
+  if (!FiadoresVenda.emailTalvezFaltando(fiaLinha_(pgE, props).linha)) return null;
+  var xf = ctrDadosAtuais_(col, p, String(p.pageId).slice(0, 8), "contratoEstado e-mail");
+  var faltas = ((xf.resp && xf.resp.faltas) || []).filter(function (t) { return /^(Fiador [12]|C[ôo]njuge)[^:]*: e-mail/i.test(String(t)); });
+  return faltas.length ? fiaEstado_(pgE, faltas, { soEmail: true }) : null;
 }

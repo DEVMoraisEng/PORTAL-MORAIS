@@ -99,11 +99,18 @@ var ClicksignVenda = (function () {
     var pr = ids.map(function (id) { return ops.filter(function (o) { return o.id === txt(id); })[0] || null; });
     return pr[0] && pr[1] ? pr : null;
   }
-  /* o que a tela recebe: só id e nome */
-  function testemunhasParaTela(config) {
-    var e = escolhidas(config);
-    return { opcoes: opcoesTestemunhas(config).map(function (o) { return { id: o.id, nome: o.nome }; }),
-             escolhidas: e ? [e[0].id, e[1].id] : [] };
+  /* o que a tela recebe: só id e nome. 01/11/2026 (H5): padrao = os ids do par padrão (o que vale sem escolha) — SPE,
+   * ou PF, conforme o tipo do vendedor em `dados` (a mesma regra do envio); [] quando o tipo é desconhecido (sem `dados`)
+   * ou o par não fecha com as opções — a tela então não chuta nomes. */
+  function testemunhasParaTela(config, dados) {
+    var e = escolhidas(config), ops = opcoesTestemunhas(config), padrao = [];
+    var pr = dados && dados.vendedor ? par(ehPJ(dados) ? config.testemunhasSPE : config.testemunhasPF) : null;
+    if (pr) {
+      var ids = pr.map(function (p) { return chave(p.nome); });
+      if (ids.every(function (id) { return ops.some(function (o) { return o.id === id; }); })) padrao = ids;
+    }
+    return { opcoes: ops.map(function (o) { return { id: o.id, nome: o.nome }; }),
+             escolhidas: e ? [e[0].id, e[1].id] : [], padrao: padrao };
   }
 
   /* Conferência das Propriedades (conferirAssinatura, no editor): só o nome da Propriedade e a posição
@@ -176,8 +183,10 @@ var ClicksignVenda = (function () {
   }
   function sigCompradores(dados) {
     var l = [sig("Comprador 1", PAPEIS.COMPRADOR, dados.comprador1, "comprador1", { rubrica: true })];
-    /* 31/10/2026 (dono): comprador casado → o cônjuge assina logo depois dele (contrato e termos; sem rubrica, sem
-       memorial). Se o cônjuge já é o comprador 2 (mesmo CPF ou nome), não assina duas vezes. */
+    /* 31/10/2026 (dono): comprador casado → o cônjuge assina logo depois dele (contrato e termos de confissão; sem rubrica,
+       sem memorial). 01/11/2026 (dono): no TERMO DE PRÉ-RESERVA o cônjuge só entra se o corretor ligou a opção na venda
+       (AssinaturaVenda.assEnviarTermo_ tira o conjugeComprador antes). Se o cônjuge já é o comprador 2 (mesmo CPF ou nome),
+       não assina duas vezes. */
     var cj = dados.condominio && dados.condominio.conjugeComprador, c2 = dados.comprador2;
     if (cj && !(c2 && ((soDigitos(cj.cpf) && soDigitos(cj.cpf) === soDigitos(c2.cpf)) || txt(cj.nome).toUpperCase() === txt(c2.nome).toUpperCase())))
       l.push(sig("Cônjuge do comprador 1", PAPEIS.COMPRADOR, cj, "conjugeComprador1"));
@@ -248,6 +257,31 @@ var ClicksignVenda = (function () {
       porPessoa = porPessoa.concat(f);
     });
     return faltas.concat(porPessoa);
+  }
+
+  /* 01/11/2026 (teste e2e): o que o envio barraria por NOME ou E-MAIL de quem é do cliente (comprador, cônjuge, fiador)
+   * já aparece no Gerar pré-contrato. Só estes papéis entram (testemunhas, vendedor/representante e corretor são
+   * cadastro da casa); o e-mail repetido é apontado em quem é do cliente, mesmo quando a outra ponta é o vendedor.
+   * Os textos começam por "Comprador", "Fiador" ou "Cônjuge" — assim o link do cliente também os mostra. */
+  function doCliente(s) { return /^(Comprador|Fiador|C[ôo]njuge)/.test(s.papel); }
+  /* 01/11/2026 (revisão final, I1): e-mail que falta (ou inválido) de fiador e de cônjuge também aparece no Gerar, com o
+     mesmo texto do envio — a tela abre o bloco Fiadores/Cônjuge para corrigir. O comprador fica de fora (tem link próprio). */
+  var EMAIL_NO_GERAR = { conjugeComprador1: 1, fiador1: 1, fiador2: 1, conjugeFiador1: 1, conjugeFiador2: 1 };
+  function faltasDeNomeEEmail(dados, config) {
+    config = config || montarConfig({});   /* config.comFiadores: quem chama decide (ConfissaoVenda.fiadoresAssinam), como no envio */
+    var lista = signatarios(dados, config), vistos = {}, por = lista.map(function () { return []; });
+    lista.forEach(function (s, i) {
+      if (doCliente(s) && txt(s.nome) && !nomeValido(s.nome))
+        por[i].push(s.papel + (/\d/.test(s.nome) ? ": nome sem números" : ": nome e sobrenome"));
+      if (EMAIL_NO_GERAR[s.origem] && !s.email) por[i].push(s.papel + ": e-mail (" + ONDE_EMAIL[s.origem] + ")");
+      else if (EMAIL_NO_GERAR[s.origem] && !emailValido(s.email)) por[i].push(s.papel + ": e-mail inválido");
+      if (!s.email || !emailValido(s.email)) return;
+      if (vistos[s.email] === undefined) { vistos[s.email] = i; return; }
+      var ate = vistos[s.email], antes = lista[ate];
+      if (doCliente(s)) por[i].push(s.papel + ": e-mail igual ao do " + antes.papel + " (cada pessoa precisa de um e-mail)");
+      else if (doCliente(antes)) por[ate].push(antes.papel + ": e-mail igual ao do " + s.papel + " (cada pessoa precisa de um e-mail)");
+    });
+    return [].concat.apply([], por);
   }
 
   /* 27/10 (dono): falta de e-mail vem com o atalho para corrigir numa aba nova, na tela do PORTAL onde o
@@ -541,7 +575,7 @@ var ClicksignVenda = (function () {
 
   var api = {
     PAPEIS: PAPEIS, SITUACOES: SITUACOES, montarConfig: montarConfig, conferirConfig: conferirConfig, signatarios: signatarios,
-    faltasAssinatura: faltasAssinatura, linksCorrigirEmail: linksCorrigirEmail, nomeEnvelope: nomeEnvelope, nomeArquivo: nomeArquivo, nomePadrao: nomePadrao,
+    faltasAssinatura: faltasAssinatura, faltasDeNomeEEmail: faltasDeNomeEEmail, linksCorrigirEmail: linksCorrigirEmail, nomeEnvelope: nomeEnvelope, nomeArquivo: nomeArquivo, nomePadrao: nomePadrao,
     corpoEnvelope: corpoEnvelope, corpoDocumento: corpoDocumento, corpoSignatario: corpoSignatario,
     corpoQualificacao: corpoQualificacao, corpoAutenticacao: corpoAutenticacao, corpoAtivar: corpoAtivar, corpoCancelarDocumento: corpoCancelarDocumento, statusEfetivo: statusEfetivo,
     corpoNotificacao: corpoNotificacao, interpretar: interpretar, situacao: situacao, assinaram: assinaram,

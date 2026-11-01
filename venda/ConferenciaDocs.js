@@ -148,7 +148,11 @@ var ConferenciaDocs = (function () {
       it.campos.forEach(function (c) {
         var base = { item: it.id, pessoa: it.pessoa, documento: it.documento, coluna: it.coluna, campo: c.campo, rotulo: c.rotulo };
         var cmp;
-        if (!l.ok) cmp = { situacao: "ilegivel", esperado: c.esperado, lido: "", motivo: l.erro === "SEM_ARQUIVO" ? "documento não anexado" : "não deu para ler" };
+        if (!l.ok) {
+          /* 01/11/2026 (H2): sem arquivo não é "ilegível" — semArquivo deixa a tela e o resumo dizerem "não anexado" */
+          cmp = { situacao: "ilegivel", esperado: c.esperado, lido: "", motivo: l.erro === "SEM_ARQUIVO" ? "documento não anexado" : "não deu para ler" };
+          if (l.erro === "SEM_ARQUIVO") cmp.semArquivo = true;
+        }
         else if (docErrado) cmp = { situacao: "ilegivel", esperado: c.esperado, lido: "", motivo: "o arquivo não parece ser " + it.documento };
         else cmp = comparar(c.campo, c.esperado, lidoDe(it.tipo, c.campo, l.leitura));
         for (var k in cmp) base[k] = cmp[k];
@@ -158,18 +162,22 @@ var ConferenciaDocs = (function () {
     return linhas;
   }
 
+  /* linhas guardadas antes do semArquivo existir só têm o motivo escrito */
+  function naoAnexado(l) { return !!(l && (l.semArquivo || l.motivo === "documento não anexado")); }
+
   /* Resumo para o aviso do pré-contrato: "" quando está tudo conferido. */
   function resumo(linhas, confirmados) {
     confirmados = confirmados || {};
-    var div = 0, pend = 0;
+    var div = 0, pend = 0, sem = 0;
     (linhas || []).forEach(function (l, i) {
       if (l.situacao === "diverge" && !confirmados[i]) div++;
-      if (l.situacao === "ilegivel" && !confirmados[i]) pend++;
+      if (l.situacao === "ilegivel" && !confirmados[i]) { if (naoAnexado(l)) sem++; else pend++; }
     });
     var p = [];
     if (div) p.push(div + " divergência" + (div > 1 ? "s" : ""));
-    if (pend) p.push(pend + (pend > 1 ? " itens" : " item") + " sem conferir (ilegível ou sem documento)");
-    return p.join(" e ");
+    if (pend) p.push(pend + (pend > 1 ? " itens ilegíveis" : " item ilegível"));
+    if (sem) p.push(sem + (sem > 1 ? " itens não anexados" : " item não anexado"));
+    return p.length > 1 ? p.slice(0, -1).join(", ") + " e " + p[p.length - 1] : p.join("");
   }
 
   var api = { COL: COL, COLUNAS: COLUNAS, plano: plano, comparar: comparar, lidoDe: lidoDe, resultado: resultado, resumo: resumo,

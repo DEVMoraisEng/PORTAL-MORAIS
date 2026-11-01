@@ -527,9 +527,9 @@ var ContratoVenda = (function () {
   }
   function semVazios(partes) { return partes.filter(function (p) { return p !== ""; }).join(", "); }
   /* item 1 do quadro: "[Nome], [nacionalidade], [estado civil], [profissão], RG nº, CPF nº, residente …, e-mail, telefone" */
-  function qualificacaoQuadro(c) {
+  function qualificacaoQuadro(c, conj) {
     c = c || {};
-    return semVazios([txt(c.nome), txt(c.nacionalidade), txt(c.estadoCivil), txt(c.profissao), documentoComRotulo(c.documento),
+    return semVazios([txt(c.nome), txt(c.nacionalidade), conj ? fraseConjuge(conj) : txt(c.estadoCivil), txt(c.profissao), documentoComRotulo(c.documento),
       txt(c.cpf) ? "CPF nº " + txt(c.cpf) : "", txt(c.endereco) ? "residente e domiciliado(a) à " + txt(c.endereco) : ""].concat(contato(c)));
   }
   function docRotulo(doc) {
@@ -578,12 +578,32 @@ var ContratoVenda = (function () {
   function fiadorCasado(estadoCivil) {
     return /CASAD|UNI[AÃ]O/.test(txt(estadoCivil).toUpperCase());
   }
+  function semAcento(v) { return txt(v).normalize("NFD").replace(/[̀-ͯ]/g, ""); }
   function soDigitos(v) { return txt(v).replace(/\D/g, ""); }
-  /* cônjuge do comprador 1 (colunas ESTADO CIVIL, CONJUGE, CPF CONJUGE e EMAIL CONJUGE da proposta): {nome, cpf, email} ou null */
+  /* cônjuge do comprador 1 (colunas ESTADO CIVIL, CONJUGE, CPF CONJUGE, EMAIL CONJUGE e REGIME da proposta):
+     {nome, cpf, email, regime} ou null. regime em minúsculas ("comunhão parcial de bens"); uniao:true só na união estável. */
   function conjugeDoComprador(x) {
     x = x || {};
     if (!fiadorCasado(x.estadoCivil) || !txt(x.nome)) return null;
-    return { nome: txt(x.nome), cpf: R().cpfValido(x.cpf) ? R().formatarCpf(x.cpf) : txt(x.cpf), email: txt(x.email).toLowerCase() };
+    var out = { nome: txt(x.nome), cpf: R().cpfValido(x.cpf) ? R().formatarCpf(x.cpf) : txt(x.cpf), email: txt(x.email).toLowerCase(),
+                regime: txt(x.regime).toLowerCase() };
+    if (!/CASAD/.test(txt(x.estadoCivil).toUpperCase())) out.uniao = true;
+    return out;
+  }
+  /* 01/11/2026 (dono): o cônjuge do comprador 1 entra qualificado DENTRO do COMPRADORES_QUADRO (sem marcador novo no
+     .docx) no lugar do estado civil. Já sendo o comprador 2 (mesmo CPF ou nome), não se repete. */
+  function conjugeEhComprador2(cj, c2) {
+    return !!(cj && c2 && ((soDigitos(cj.cpf) !== "" && soDigitos(cj.cpf) === soDigitos(c2.cpf)) ||
+                           txt(cj.nome).toUpperCase() === txt(c2.nome).toUpperCase()));
+  }
+  function conjugeExtra(d) {
+    var cj = d && d.condominio && d.condominio.conjugeComprador;
+    return cj && !conjugeEhComprador2(cj, d.comprador2) ? cj : null;
+  }
+  function fraseConjuge(cj) {
+    var doc = txt(cj.cpf) ? ", CPF nº " + txt(cj.cpf) : "";
+    if (cj.uniao) return "convivente em união estável com " + txt(cj.nome) + doc;
+    return "casado(a) " + (txt(cj.regime) ? "sob o regime de " + txt(cj.regime) + " " : "") + "com " + txt(cj.nome) + doc;
   }
   function ligarConjugesFiadores(fis) {
     fis.forEach(function (fi, i) {
@@ -654,10 +674,12 @@ var ContratoVenda = (function () {
     /* 29/10: fluxo alterado no portal (só quando existe: o carimbo das vendas sem alteração não muda) */
     var livre = txt(c.fluxoPersonalizado) ? FLV().ler(txt(c.fluxoPersonalizado)) : null;
     if (livre) out.livre = livre;
-    /* 31/10/2026 (dono): comprador casado ou em união estável → o cônjuge assina o termo e o contrato, mesmo sem compor
-       renda. Só quando existe (o carimbo das vendas de solteiros não muda). */
+    /* 31/10/2026 (dono): comprador casado ou em união estável → o cônjuge assina o contrato, mesmo sem compor renda.
+       01/11/2026 (dono): no termo de pré-reserva ele só assina se o corretor ligou a opção na venda (PR_CONJUGE_<pageId>).
+       Só quando existe (o carimbo das vendas de solteiros não muda). */
     var cj = conjugeDoComprador(c.conjugeComprador);
     if (cj) out.conjugeComprador = cj;
+    else if (c.conjugeComprador && fiadorCasado(c.conjugeComprador.estadoCivil)) out.conjugeCompradorSemNome = true;
     return out;
   }
 
@@ -777,6 +799,13 @@ var ContratoVenda = (function () {
 
     comprador(d.comprador1, "Comprador 1");
     if (d.comprador2) comprador(d.comprador2, "Comprador 2");
+    /* 01/11/2026 (dono): comprador casado ou em união estável — o cônjuge entra qualificado no contrato */
+    var cjc = conjugeExtra(d);
+    if (cjc) {
+      exige(!vazio(cjc.cpf), "Cônjuge do comprador 1", "CPF");
+      if (!cjc.uniao) exige(!vazio(cjc.regime), "Cônjuge do comprador 1", "regime de bens");
+    } else if (d.condominio && d.condominio.conjugeCompradorSemNome && !(d.comprador2 && fiadorCasado(semAcento(d.comprador2.estadoCivil))))
+      faltas.push("Cônjuge do comprador 1: nome");
 
     var v = d.vendedor;
     if (!v) faltas.push("Vendedor: cadastro em VENDEDORES – CONTRATO");
@@ -850,16 +879,18 @@ var ContratoVenda = (function () {
     });
 
     var g = "Fluxo de pagamento";
-    exige(!vazio(fl.assinatura), g, "data de assinatura do contrato");
-    exige(fl.diaPagamento !== null && fl.diaPagamento >= 1 && fl.diaPagamento <= 31, g, "dia de pagamento das parcelas");
+    /* 01/11/2026 (H1): sem a data de assinatura as datas das parcelas saem vazias — é UMA falta só, não uma por parcela */
+    var semAss = vazio(fl.assinatura);
+    exige(!semAss, g, "data de assinatura do contrato (as datas das parcelas saem dela)");
+    exige(fl.diaPagamento !== null && fl.diaPagamento >= 5 && fl.diaPagamento <= 31, g, "dia de pagamento (de 5 a 31)");
     exige(!vazio(fl.entrega), g, "data da entrega");
     exige(positivo(fl.valorVenda), g, "valor de venda");
-    function comData(valor, data, nome) { if (positivo(valor)) exige(!vazio(data), g, nome + " (data)"); }
+    function comData(valor, data, nome) { if (positivo(valor) && !semAss) exige(!vazio(data), g, nome + " (data)"); }
     function serie(n, valor, data, nome) {
       if (!positivo(n) && !positivo(valor)) return;
       exige(positivo(n), g, nome + " (nº de parcelas)");
       exige(positivo(valor), g, nome + " (valor)");
-      exige(!vazio(data), g, nome + " (data da 1ª)");
+      if (!semAss) exige(!vazio(data), g, nome + " (data da 1ª)");
     }
     if (co.livre) {
       /* 29/10: fluxo alterado no portal — as regras da lista (a soma fecha com o valor da casa da própria lista) */
@@ -987,7 +1018,7 @@ var ContratoVenda = (function () {
   }
 
   function marcadores(d) {
-    var c1 = d.comprador1, c2 = d.comprador2, v = d.vendedor || {}, l = d.loteamento || {};
+    var c1 = d.comprador1, c2 = d.comprador2, cjq = conjugeExtra(d), v = d.vendedor || {}, l = d.loteamento || {};
     var im = d.imovel, n = d.negociacao, c = d.comissao, k = d.corretor || {};
     var ehPJ = v.tipo === "PJ";
     var compradores = qualificacao(c1) + (c2 ? "; e " + qualificacao(c2) : "");
@@ -1023,8 +1054,11 @@ var ContratoVenda = (function () {
       PRAZO_CONCLUSAO: dataBR(im.prazoConclusao),
       /* 29/10: uma linha só (o Google Docs não troca marcador por texto com quebra de linha) */
       CONDICOES_ESPECIAIS: txt(im.condicoesEspeciais).replace(/\s*\n+\s*/g, " ").trim() || "Não há.",
-      ASSINATURA_COMPRADORES_NOMES: c2 ? c1.nome + " / " + c2.nome : c1.nome,
-      ASSINATURA_COMPRADORES_CPFS: c2 ? c1.cpf + " / " + c2.cpf : c1.cpf,
+      ASSINATURA_COMPRADORES_NOMES: [c1.nome].concat(cjq ? [cjq.nome] : [], c2 ? [c2.nome] : []).join(" / "),
+      ASSINATURA_COMPRADORES_CPFS: [c1.cpf].concat(cjq ? [cjq.cpf] : [], c2 ? [c2.cpf] : []).join(" / "),
+      /* o memorial só tem compradores (o cônjuge não o assina) — AssinaturaVenda.assDocsDoComprador_ */
+      MEMORIAL_ASSINATURA_NOMES: c2 ? c1.nome + " / " + c2.nome : c1.nome,
+      MEMORIAL_ASSINATURA_CPFS: c2 ? c1.cpf + " / " + c2.cpf : c1.cpf,
       CORRETOR_DOC: txt(k.cpfCnpj),
       LOTEAMENTO: txt(l.denominacao),
       MUNICIPIO_UF: txt(l.municipioUf),
@@ -1090,7 +1124,7 @@ var ContratoVenda = (function () {
     var G = gruposFluxo(co), va = valoresCondominio(co), tb = co.tabela, k = d.corretor || {};
     function ext(n) { return n === null ? "" : valorExtenso(n); }
     var num2 = /\d+/.exec(co.unidade);
-    m.COMPRADORES_QUADRO = qualificacaoQuadro(d.comprador1) + (d.comprador2 ? "; e " + qualificacaoQuadro(d.comprador2) : "");
+    m.COMPRADORES_QUADRO = qualificacaoQuadro(d.comprador1, conjugeExtra(d)) + (d.comprador2 ? "; e " + qualificacaoQuadro(d.comprador2) : "");
     m.CORRETOR_QUADRO = qualificacaoCorretor(k);
     m.CORRETOR_DOC_ROTULO = docRotulo(k.cpfCnpj);
     m.CASA_NUMERO = num2 ? (num2[0].length < 2 ? "0" + num2[0] : num2[0]) : "";
@@ -1391,7 +1425,7 @@ var ContratoVenda = (function () {
     montarDadosContrato: montarDadosContrato, faltasContrato: faltasContrato, montarCondominio: montarCondominio,
     marcadores: marcadores, blocos: blocos, comPosChaves: comPosChaves, avisosContrato: avisosContrato,
     formaPagamentoCondominio: formaPagamentoCondominio, qualificacaoFiadores: qualificacaoFiadores,
-    fiadorCasado: fiadorCasado, faltasConjugeFiadores: faltasConjugeFiadores,   /* 30/10: fiador casado (Súmula 332) */
+    fiadorCasado: fiadorCasado, conjugeDoComprador: conjugeDoComprador, faltasConjugeFiadores: faltasConjugeFiadores,   /* 30/10: fiador casado (Súmula 332) */
     comissaoPctPelaRegra: comissaoPctPelaRegra, qualificacaoQuadro: qualificacaoQuadro, valorExtenso: valorExtenso, meioPagamentoCondominio: meioPagamentoCondominio, excedenteSinal: excedenteSinal, preReservaPaga: preReservaPaga,
     somaFluxo: function (fl) { return somaFluxo(fluxoCondominio(fl)); }, negritoDaLinha: negritoDaLinha,
     parcelasPreChaves: parcelasPreChaves, parcelasPosChaves: parcelasPosChaves,

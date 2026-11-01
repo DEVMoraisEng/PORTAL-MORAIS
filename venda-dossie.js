@@ -378,6 +378,16 @@
   function grupoDoEspaco(id) { return /^IMOVEL_/.test(String(id || "")) ? "imovel" : "comprador"; }
 
   var MSG_CONTRATO = {
+    /* 01/11/2026: bloco Fiadores (e cônjuge do comprador) */
+    COLUNA_NAO_PERMITIDA: "Esse campo não pode ser gravado por aqui — recarregue a página e tente de novo.",
+    CPF_INVALIDO: "CPF inválido — confira os números e salve de novo. Nada foi gravado.",
+    EMAIL_INVALIDO: "E-mail inválido — confira e salve de novo. Nada foi gravado.",
+    OPCAO_INVALIDA: "Escolha uma das opções da lista e salve de novo. Nada foi gravado.",
+    NADA_PARA_GRAVAR: "Nada mudou — preencha ou corrija um campo antes de salvar.",
+    FIADOR_1_NAO_CASADO: "O Fiador 1 não está como casado — escolha o estado civil dele, salve e tente de novo.",
+    FIADOR_1_INCOMPLETO: "Preencha o nome e o CPF do Fiador 1, salve e tente de novo.",
+    CONJUGE_FIADOR_1_INCOMPLETO: "Preencha o nome e o CPF do cônjuge do Fiador 1, salve e tente de novo.",
+    SO_CONDOMINIO: "Isso só vale para as vendas do condomínio.",
     MODELO_NAO_CONFIGURADO: "O modelo do contrato não está configurado neste ambiente.",
     TESTEMUNHAS_INVALIDAS: "Essas testemunhas não estão mais na lista — recarregue e escolha de novo.",
     ENVELOPE_ABERTO: "A assinatura já foi enviada — as testemunhas não mudam mais.",
@@ -389,6 +399,9 @@
     PRECONTRATO_FALTANDO: "Gere o pré-contrato e confira antes de gerar o contrato.",
     PRECONTRATO_GRANDE: "O pré-contrato ficou grande demais para abrir pelo portal — avise o desenvolvedor.",
     PRECONTRATO_DESATUALIZADO: "Os dados mudaram depois do pré-contrato — gere o pré-contrato de novo e confira.",
+    PRECONTRATO_REFAZER: "Não consegui gerar o contrato — gere o pré-contrato de novo, confira e tente outra vez.",   /* 01/11 */
+    NOTION_OCUPADO: "O sistema está ocupado — espere 1 minuto e tente de novo.",
+    CONTRATO_EM_ASSINATURA: "Este contrato já foi enviado para assinatura. Para mudar, cancele o envelope primeiro.",
     CAMPOS_INVALIDOS: "Confira os campos.",
     VENDEDOR_SEM_CADASTRO: "O dono da obra não está no cadastro de vendedores — o cadastro do vendedor é feito no Notion, não pelo portal.",
     CORRETOR_NA_VENDA_FALTANDO: "A venda não tem corretor preenchido — preencha o CORRETOR na venda.",
@@ -403,7 +416,7 @@
     /* 30/10: desconto "isentar a comissão" (venda direta) */
     FLUXO_ISENCAO_AGUARDANDO_MODELO: "Isentar a comissão ainda não está liberado: o contrato do advogado não tem o texto de venda sem corretor. Use desconto em R$ ou %.",
     MODELO_SEM_BLOCO_SEM_COMISSAO: "Esta venda é sem comissão (venda direta), mas o modelo do contrato ainda não tem esse texto — o contrato não foi gerado. Avise o desenvolvedor.",
-    FLUXO_PRECO_SEM_PERMISSAO: "Só Julio Cesar ou João Vitor podem mudar o valor da casa."
+    FLUXO_PRECO_SEM_PERMISSAO: "Seu login não pode mudar o valor da casa — os nomes de quem pode aparecem no campo Valor da casa."
   };
   /* Nunca inclui nomes de marcador do modelo (resposta.marcadores): esses vão só para o console.
      CAMPOS_INVALIDOS: os motivos (só nomes de campo) vão junto. */
@@ -436,6 +449,9 @@
     if (r && r.fluxo && typeof r.fluxo === "object") o.fluxo = fluxoDoEstado(r.fluxo);
     /* 31/10/2026: o que falta de obrigatório que o cliente/corretor completa pelo link (null = o servidor não disse) */
     if (r && Array.isArray(r.faltasCliente)) o.faltasCliente = r.faltasCliente.map(String);
+    /* 01/11/2026: bloco Fiadores / cônjuge do comprador (só vem no condomínio e quando falta algo) */
+    var fb = fiadoresDoEstado(r && r.fiadores);
+    if (fb) o.fiadores = fb;
     /* 29/10: condições especiais desta venda (item 16 do quadro-resumo do condomínio) */
     if (r && r.condicoes && typeof r.condicoes === "object")
       o.condicoes = { coluna: !!r.condicoes.coluna, texto: String(r.condicoes.texto || ""), por: String(r.condicoes.por || ""),
@@ -546,7 +562,8 @@
   function testemunhasDoEstado(t) {
     if (!t || !Array.isArray(t.opcoes)) return null;
     return { opcoes: t.opcoes.map(function (o) { return { id: String(o.id || ""), nome: String(o.nome || "") }; }),
-             escolhidas: Array.isArray(t.escolhidas) ? t.escolhidas.map(String) : [] };
+             escolhidas: Array.isArray(t.escolhidas) ? t.escolhidas.map(String) : [],
+             padrao: Array.isArray(t.padrao) ? t.padrao.map(String) : [] };
   }
   /* entrega 10: duas listas "Testemunha 1/2"; vazio = o par padrão das Propriedades (SPE ou PF) */
   function htmlTestemunhas(t, dis) {
@@ -558,7 +575,105 @@
           return '<option value="' + esc(o.id) + '"' + (o.id === atual ? " selected" : "") + ">" + esc(o.nome) + "</option>";
         }).join("") + "</select>";
     }
-    return '<div class="dz-linha"><span class="dz-rot">Testemunhas da assinatura:</span>' + sel(0) + " " + sel(1) + "</div>";
+    /* 01/11/2026 (H5): sem escolha vale o par padrão — a tela diz quem é */
+    var nomesPadrao = (t.padrao || []).map(function (id) {
+      var o = t.opcoes.filter(function (x) { return x.id === id; })[0];
+      return o ? o.nome : "";
+    });
+    var semEscolha = !t.escolhidas[0] && !t.escolhidas[1];
+    /* par desconhecido (tipo do vendedor não lido): não chuta nomes — o envio define */
+    var notaPadrao = !semEscolha ? "" : nomesPadrao.length === 2 && nomesPadrao[0] && nomesPadrao[1]
+      ? ' <span class="dz-nota">padrão: ' + esc(nomesPadrao[0]) + " e " + esc(nomesPadrao[1]) + "</span>"
+      : ' <span class="dz-nota">padrão: definido no envio</span>';
+    return '<div class="dz-linha"><span class="dz-rot">Testemunhas da assinatura:</span>' + sel(0) + " " + sel(1) + notaPadrao + "</div>";
+  }
+  /* 01/11/2026 (teste e2e): bloco "Fiadores" (e cônjuge do comprador) na aba Contrato do condomínio — o servidor
+     (contratoEstado → fiadores, FiadoresVenda.camposFiadores) diz os campos; aqui só desenha e junta o que mudou. */
+  var RE_FALTA_FIA = /^(Fiador [12]\b|C[ôo]njuge do comprador|C[ôo]njuge do fiador [12])/i;
+  function fiadoresDoEstado(b) {
+    if (!b || typeof b !== "object" || !b.mostrar) return null;
+    function campos(l) {
+      return (Array.isArray(l) ? l : []).map(function (c) {
+        c = c || {};
+        return { coluna: String(c.coluna || ""), rotulo: String(c.rotulo || c.coluna || ""),
+                 valor: c.valor === null || c.valor === undefined ? "" : String(c.valor), tipo: String(c.tipo || "texto"),
+                 opcoes: Array.isArray(c.opcoes) ? c.opcoes.map(String) : null };
+      }).filter(function (c) { return c.coluna; });
+    }
+    return { titulo: String(b.titulo || "Fiadores"), precisa: !!b.precisa,
+             fiadores: (Array.isArray(b.fiadores) ? b.fiadores : []).map(function (f) { return { n: Number(f && f.n) || 0, campos: campos(f && f.campos) }; }),
+             conjuge: b.conjuge && typeof b.conjuge === "object" ? { campos: campos(b.conjuge.campos) } : null,
+             faltas: Array.isArray(b.faltas) ? b.faltas.map(String) : [], aviso: String(b.aviso || ""), botaoConjuge: !!b.botaoConjuge,
+             semColuna: Array.isArray(b.semColuna) ? b.semColuna.map(String) : [] };
+  }
+  /* cada campo é um rótulo em cima da caixa (data-rot); no celular, um por linha na largura toda (CSS .dz-fia) */
+  function htmlFiadores(b, u, dis) {
+    if (!b) return "";
+    var rasc = (u && u.rascunho) || {};
+    function campo(c) {
+      /* data-fia-orig: o valor do servidor quando a tela foi desenhada — só o que difere dele foi mexido (conserto 1) */
+      var k = "fia|" + c.coluna, v = k in rasc ? String(rasc[k]) : c.valor, inp,
+          attr = ' data-fia-col="' + esc(c.coluna) + '" data-fia-orig="' + esc(c.valor) + '"';
+      if (c.opcoes && c.opcoes.length) {
+        /* o valor de hoje fica na lista mesmo fora das opções (não some ao abrir) */
+        var ops = v && c.opcoes.indexOf(v) < 0 ? [v].concat(c.opcoes) : c.opcoes;
+        inp = "<select" + attr + dis + '><option value="">—</option>' + ops.map(function (o) {
+          return '<option value="' + esc(o) + '"' + (o === v ? " selected" : "") + ">" + esc(o) + "</option>";
+        }).join("") + "</select>";
+      } else {
+        inp = '<input type="' + (c.tipo === "email" ? "email" : "text") + '" maxlength="300"' + (c.tipo === "cpf" ? ' inputmode="numeric"' : "") +
+          attr + ' value="' + esc(v) + '"' + dis + ">";
+      }
+      return '<label data-rot="' + esc(c.rotulo) + '"><span>' + esc(c.rotulo) + "</span>" + inp + "</label>";
+    }
+    var h = '<div class="dz-fia-bloco"><div class="dz-linha dz-grupo"><b>' + esc(b.titulo) + "</b></div>";
+    if (b.faltas.length) h += '<div class="dz-aviso">Falta:</div><ul>' + b.faltas.map(function (f) { return "<li>" + esc(f) + "</li>"; }).join("") + "</ul>";
+    if (b.aviso) h += '<div class="dz-aviso">' + esc(b.aviso) + "</div>";
+    b.fiadores.forEach(function (f) {
+      h += '<div class="dz-linha"><b>Fiador ' + f.n + '</b></div><div class="dz-linha dz-fia">' + f.campos.map(campo).join("") + "</div>";
+    });
+    if (b.conjuge) h += '<div class="dz-linha"><b>Cônjuge do comprador 1</b></div><div class="dz-linha dz-fia">' + b.conjuge.campos.map(campo).join("") + "</div>";
+    if (b.semColuna.length) h += '<div class="dz-aviso">A base não tem a coluna ' + esc(b.semColuna.join(", ")) + " — avise o desenvolvedor.</div>";
+    var rot = b.precisa && b.conjuge ? "Salvar fiadores e cônjuge" : b.precisa ? "Salvar fiadores" : "Salvar cônjuge";
+    h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-fia-salvar"' + dis + ">" + rot + "</button>" +
+      (b.botaoConjuge ? ' <button type="button" class="bt ghost bt-mini" data-acao="c-fia-conjuge"' + dis + ">O cônjuge do Fiador 1 é o Fiador 2</button>" : "") + "</div>";
+    h += '<div class="dz-msg dz-nota">Grava na linha desta venda. Depois, gere o pré-contrato de novo.</div></div>';
+    return h;
+  }
+  /* rodada de conserto 1 (revisão 01/11): o rascunho do bloco guarda SÓ o que a pessoa mexeu (valor ≠ data-fia-orig).
+     Caixa intocada da tela velha não volta por cima do que o servidor acabou de gravar. */
+  function mexido(x) {
+    var v = String(x.valor === null || x.valor === undefined ? "" : x.valor).trim();
+    return x.orig === undefined || x.orig === null ? true : v !== String(x.orig).trim();
+  }
+  function rascunhoFia(rasc, entradas) {
+    Object.keys(rasc).forEach(function (k) { if (/^fia\|/.test(k)) delete rasc[k]; });
+    (entradas || []).forEach(function (x) { if (x && x.coluna && mexido(x)) rasc["fia|" + x.coluna] = x.valor; });
+    return rasc;
+  }
+  /* a pergunta do botão "O cônjuge do Fiador 1 é o Fiador 2": diz quem sai, quando já há um Fiador 2 */
+  function perguntaConjugeFiador2(b) {
+    var f2 = (b && b.fiadores && b.fiadores[1]) || { campos: [] }, nome = "";
+    f2.campos.forEach(function (c) { if (c.coluna === "FIADOR 2") nome = String(c.valor || "").trim(); });
+    return nome ? "O Fiador 2 hoje é " + nome + ". Trocar pelo cônjuge do Fiador 1? O Fiador 1 vira o cônjuge dele."
+                : "Copiar o cônjuge do Fiador 1 para o Fiador 2? O Fiador 1 vira o cônjuge dele.";
+  }
+  /* entradas da tela [{coluna, valor, orig}] → {coluna: valor} só do que a pessoa mexeu e difere da base (apagar
+     também conta); nada mudou = null. Sem orig (chamada antiga), compara só com a base. */
+  function valoresFiadores(entradas, b) {
+    var atual = {}, out = {}, n = 0;
+    if (b) {
+      b.fiadores.forEach(function (f) { f.campos.forEach(function (c) { atual[c.coluna] = c.valor; }); });
+      if (b.conjuge) b.conjuge.campos.forEach(function (c) { atual[c.coluna] = c.valor; });
+    }
+    (entradas || []).forEach(function (x) {
+      var col = String((x && x.coluna) || "");
+      if (!Object.prototype.hasOwnProperty.call(atual, col) || !mexido(x)) return;
+      var v = String(x.valor === null || x.valor === undefined ? "" : x.valor).trim();
+      if (v === atual[col]) return;
+      out[col] = v; n++;
+    });
+    return n ? out : null;
   }
   /* a Assinatura só vale para o contrato FINAL (não para o que está sendo conferido) */
   function contratoFinal(e) { return !!(e && e.gerado && etapaContrato(e) === "FINAL"); }
@@ -571,12 +686,16 @@
     if (u.ocupadoContrato === "pre") h += '<div class="dz-linha"><b>gerando o pré-contrato… (até 1 minuto)</b></div>';
     if (u.ocupadoContrato === "aprovar") h += '<div class="dz-linha"><b>gerando o contrato… (até 1 minuto)</b></div>';
     if (u.ocupadoContrato === "salvar") h += '<div class="dz-linha"><b>salvando os dados e gerando o pré-contrato… (até 1 minuto)</b></div>';
-    /* entrega 12: o que o formulário cobre sai da lista (u.faltas = só as outras) */
-    if (u.faltas && u.faltas.length) {
+    if (u.ocupadoContrato === "fia") h += '<div class="dz-linha"><b>salvando na venda…</b></div>';
+    /* entrega 12: o que o formulário cobre sai da lista (u.faltas = só as outras); 01/11: e o que o bloco Fiadores cobre */
+    var faltasLista = u.faltas;
+    if (e.fiadores && faltasLista) faltasLista = faltasLista.filter(function (f) { return !RE_FALTA_FIA.test(String(f)); });
+    if (faltasLista && faltasLista.length) {
       h += '<div class="dz-aviso">Para gerar o contrato, falta:</div><ul>' +
-        u.faltas.map(function (f) { return "<li>" + esc(f) + "</li>"; }).join("") + "</ul>";
+        faltasLista.map(function (f) { return "<li>" + esc(f) + "</li>"; }).join("") + "</ul>";
     }
     h += htmlCampos(u.campos, u, dis);
+    h += htmlFiadores(e.fiadores, u, dis);
     /* entrega 9: (a) nada → Gerar pré-contrato; (b) pré-contrato a conferir → Visualizar pré-contrato,
        "Conferi…" e Gerar pré-contrato de novo; (c) contrato final → Visualizar / Gerar de novo (volta ao pré-contrato) */
     var etapa = etapaContrato(e);
@@ -688,12 +807,15 @@
       if (fluxoDepoisDoContrato(f, ec)) h += '<div class="dz-aviso">Fluxo alterado depois do contrato: gere o contrato de novo.</div>';
       return h;
     }
-    /* financiamento, FGTS e subsídio (fixo) só aparecem; o valor da casa só para quem pode (Julio Cesar e João Vitor) */
+    /* financiamento, FGTS e subsídio (fixo) só aparecem; o valor da casa só para quem está na lista do servidor (quemMudaPreco) */
+    var quem = Array.isArray(ed.quemMudaPreco) ? ed.quemMudaPreco : [];
+    var msgPreco = quem.length ? "Só " + (quem.length > 1 ? quem.slice(0, -1).join(", ") + " e " + quem[quem.length - 1] : quem[0]) + (quem.length > 1 ? " mudam" : " muda") + " o valor da casa"
+      : "Ninguém muda o valor da casa por aqui";
     var F = FL(), ops = F.ORDEM.filter(function (t) { return !F.TIPOS[t].fixo; }).map(function (t) { return [t, F.TIPOS[t].nome]; });
     h += '<div class="dz-linha vb-fx"><label class="dz-campo">Valor da casa (R$) <input type="text" inputmode="decimal" data-fx="valor" value="' + esc(numBR(ed.valor)) + '"' +
-      (dis || (ed.podePreco ? "" : " disabled")) + ' style="width:9em;text-align:right"></label>' +
-      (ed.podePreco ? "" : ' <span class="dz-nota">só Julio Cesar ou João Vitor mudam o valor da casa</span>') +
+      (dis || (ed.podePreco ? "" : " disabled")) + (ed.podePreco ? "" : ' title="' + esc(msgPreco) + '"') + ' style="width:9em;text-align:right"></label>' +
       (ed.entrega ? ' <span class="dz-nota">entrega das chaves: ' + esc(F.dataBR(ed.entrega)) + "</span>" : "") + "</div>";
+    if (!ed.podePreco) h += '<div class="dz-msg">' + esc(msgPreco) + ".</div>";
     h += htmlFluxoDesconto(ed, dis);
     /* 31/10/2026 (dono): trocar o prazo da entrada na mesa (cliente de 24x para 36x) — a tela refaz os valores */
     var prazoAgora = F.prazoDasLinhas(ed.linhas);
@@ -706,7 +828,7 @@
     ed.linhas.forEach(function (l, k) {
       var tp = F.TIPOS[l.t] || { reajuste: "" };
       if (tp.fixo) {
-        h += '<tr data-fx-linha="' + k + '"><td><b>' + esc(tp.nome) + '</b><div class="dz-nota">' + (l.t === "prereserva" ? "já recebida — abate o sinal" : "não muda (da proposta)") + '</div></td><td></td>' +
+        h += '<tr data-fx-linha="' + k + '"><td><b>' + esc(tp.nome) + '</b><div class="dz-nota">' + (l.t === "prereserva" ? "já recebida — abate o sinal" : "fixo — vem da proposta") + '</div></td><td></td>' +
           '<td style="text-align:right">' + esc(numBR(l.v)) + "</td><td>" + esc(l.n) + "</td><td>" + esc(l.d ? F.dataBR(l.d) : "—") + "</td><td></td><td></td>" +
           '<td class="vb-fx-tot" data-k="' + k + '" style="white-space:nowrap;text-align:right">' + esc(F.moeda(F.totalLinha(l))) + "</td><td></td></tr>";
         return;
@@ -952,9 +1074,11 @@
                    destinosDoEnvio: destinosDoEnvio, resultadoPorEspaco: resultadoPorEspaco,
                    resumo: resumo, escala: escala, tipoAceito: tipoAceito, painelCarregando: painelCarregando,
                    htmlContrato: htmlContrato, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, mensagemMC: mensagemMC,
-                   topicosMC: topicosMC, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas,
+                   topicosMC: topicosMC, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas, htmlConjugePR: htmlConjugePR,
                    htmlCampos: htmlCampos, htmlConta: htmlConta, htmlFluxo: htmlFluxo, htmlFluxoVivo: htmlFluxoVivo, htmlFluxoDesconto: htmlFluxoDesconto, lerNumBR: lerNumBR, contaDoEstado: contaDoEstado, pedidoCampos: pedidoCampos,
-                   contaDasEntradas: contaDasEntradas, faltasDaResposta: faltasDaResposta, detalheFluxoGravado: detalheFluxoGravado };
+                   contaDasEntradas: contaDasEntradas, faltasDaResposta: faltasDaResposta, detalheFluxoGravado: detalheFluxoGravado,
+                   htmlFiadores: htmlFiadores, fiadoresDoEstado: fiadoresDoEstado, valoresFiadores: valoresFiadores,
+                   rascunhoFia: rascunhoFia, perguntaConjugeFiador2: perguntaConjugeFiador2 };
   if (typeof module !== "undefined" && module.exports) { module.exports = exportar; return; }
 
   /* ---------------- navegador ---------------- */
@@ -1015,7 +1139,13 @@
     ".vb-blocos .dz-pr-pag input{height:36px;box-sizing:border-box;padding:6px 9px;border:1.5px solid var(--border,#d6dee3);border-radius:7px;font:inherit;margin:0}" +
     ".vb-blocos .dz-pr-pag .bt{height:36px;margin:0}" +
     "@media (max-width:600px){.vb-blocos .dz-pr-pag{flex-direction:column;align-items:stretch}" +
-    ".vb-blocos .dz-pr-pag label,.vb-blocos .dz-pr-pag input,.vb-blocos .dz-pr-pag .bt{width:100%!important}}";
+    ".vb-blocos .dz-pr-pag label,.vb-blocos .dz-pr-pag input,.vb-blocos .dz-pr-pag .bt{width:100%!important}}" +
+    /* 01/11/2026: bloco Fiadores — rótulo em cima da caixa, várias por linha no computador; no celular uma por linha */
+    ".vb-blocos .dz-fia{align-items:flex-end;gap:10px;flex-wrap:wrap}" +
+    ".vb-blocos .dz-fia label{display:flex;flex-direction:column;gap:3px;flex:1 1 200px;min-width:0;margin:0}" +
+    ".vb-blocos .dz-fia label span{font-size:11.5px;font-weight:700;color:var(--text3,#5a8099)}" +
+    ".vb-blocos .dz-fia input,.vb-blocos .dz-fia select{width:100%;box-sizing:border-box}" +
+    "@media (max-width:600px){.vb-blocos .dz-fia{flex-direction:column;align-items:stretch}.vb-blocos .dz-fia label{flex:0 0 auto;width:100%}}";
   var estado = null, ui = { dois: false, ocupado: null, msg: "", testes: false }, paginaDoBloco = null;
 
   function obraAberta() { try { return OBRA_ABERTA; } catch (e) { return null; } }
@@ -1030,6 +1160,9 @@
     w.innerHTML = estado ? html(estado, ui)
       : '<div class="grp">Dossiê do comprador</div><div class="vazio">' + esc(ui.msg || "carregando…") + "</div>";
   }
+  /* 01/11/2026 (revisão final, I3): o envio da assinatura repete a Clicksign por até 180 s no servidor (Tarefa 1) — a tela
+     espera mais que isso nas ações da assinatura (enviar, atualizar, reenviar, cancelar, descartar). */
+  var ESPERA_ASSINATURA = 240000;
   async function chamarVenda(payload, ms) {
     if (!/^https:\/\/script\.google\.com\//.test(URL_PORTAL_VENDA)) return { ok: false, erro: "PORTAL_VENDA_NAO_CONFIGURADO" };
     var s = (typeof sessao === "function") ? sessao() : null;
@@ -1716,6 +1849,7 @@
   function htmlConferencia(e, u) {
     /* dentro da função: o node (testes) não roda as atribuições desta parte do arquivo */
     var SIT_CONF = { ok: ["ass-ok", "✓ confere"], diverge: ["ass-recusou", "⚠ diverge"], ilegivel: ["ass-pend", "? ilegível"] };
+    var SIT_SEM_ARQUIVO = ["ass-pend", "✗ não anexado"];   /* 01/11/2026 (H2): sem documento não é ilegível */
     u = u || {};
     var h = '<div class="grp">Conferência dos documentos</div>';
     if (!e) return h + '<div class="vazio">' + esc(u.msg || "carregando…") + "</div>";
@@ -1730,7 +1864,8 @@
       h += '<div style="overflow-x:auto"><table class="dz-tab" style="width:100%;border-collapse:collapse;font-size:13px">' +
         "<tr><th>Pessoa · documento</th><th>Campo</th><th>No contrato</th><th>No documento</th><th>Situação</th></tr>" +
         (e.linhas || []).map(function (l, i) {
-          var s = SIT_CONF[l.situacao] || SIT_CONF.ilegivel, conf = (e.confirmados || {})[i];
+          var semDoc = l.situacao === "ilegivel" && (l.semArquivo || l.motivo === "documento não anexado");
+          var s = semDoc ? SIT_SEM_ARQUIVO : (SIT_CONF[l.situacao] || SIT_CONF.ilegivel), conf = (e.confirmados || {})[i];
           var acao = "";
           if (l.situacao !== "ok") {
             acao = conf ? '<div class="ass-data">conferido' + (conf.por ? " por " + esc(conf.por) : "") + "</div>"
@@ -1751,6 +1886,21 @@
     if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
     return h;
   }
+  /* 01/11/2026: max = hoje no campo da data — só conveniência; quem barra de verdade é o servidor (hora de São Paulo) */
+  function maxHojePR() {
+    try {
+      var p = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+      return /^\d{4}-\d{2}-\d{2}$/.test(p) ? ' max="' + p + '"' : "";
+    } catch (e) { return ""; }
+  }
+  /* 01/11/2026 (dono): "na pré-reserva não precisa do cônjuge, pode deixar a opção de incluir" — caixa desmarcada por
+     padrão, só quando o comprador é casado/união estável (e.temConjuge). Sem largura fixa: cabe em 375 px. */
+  function htmlConjugePR(e, dis) {
+    if (!e || !e.temConjuge) return "";
+    return '<div class="dz-linha"><label class="dz-pr-conj" style="display:flex;align-items:flex-start;gap:8px;margin:0;font-weight:600">' +
+      '<input type="checkbox" data-pr-conj="1"' + (e.incluirConjuge ? " checked" : "") + (dis || "") + ' style="margin:3px 0 0;flex:0 0 auto">' +
+      '<span>Incluir o cônjuge na pré-reserva (opcional)<br><span class="dz-rot" style="font-weight:400">Por padrão só o comprador assina.</span></span></label></div>';
+  }
   function htmlPreReserva(e, u) {
     u = u || {};
     var h = '<div class="grp">Termo de pré-reserva</div>';
@@ -1764,7 +1914,7 @@
       '<label><span>Valor da pré-reserva (R$)</span>' +
       '<input type="text" data-pr-p="valor" inputmode="decimal" maxlength="15" style="width:130px" placeholder="0,00" value="' + esc(pg.valor || "") + '"' + dis + "></label>" +
       '<label><span>Data do pagamento</span>' +
-      '<input type="date" data-pr-p="data" value="' + esc(pg.data || "") + '"' + dis + "></label>" +
+      '<input type="date" data-pr-p="data"' + maxHojePR() + ' value="' + esc(pg.data || "") + '"' + dis + "></label>" +
       '<button type="button" class="bt ghost bt-mini" data-acao="pr-salvar-pag"' + dis + ">Salvar valor e data</button></div>";
     h += '<div class="dz-linha"><span class="dz-rot">' + (e.dataLimite ? "Prazo para decidir a compra: " + esc(dataBRpr(e.dataLimite)) + " (pagamento + 7 dias corridos)"
       : "Informe a data do pagamento para calcular o prazo (pagamento + 7 dias corridos).") + "</span></div>";
@@ -1779,7 +1929,7 @@
       return caixa(rot, '<input type="text" data-pr-c="' + k + '" value="' + esc(c[k] || "") + '" placeholder="' + ph + '"' + (extra || "") + dis + ">");
     };
     var banco = campo("Banco", "banco", "digite para buscar", ' list="pr-bancos" maxlength="120" style="min-width:260px"');
-    h += '<div class="dz-linha"><label class="dz-rot" style="display:block">Conta do pré-reservante para devolução</label>' +
+    h += '<div class="dz-linha"><label class="dz-rot" style="display:block">Conta do pré-reservante para devolução (opcional — em branco, o termo sai sem a conta)</label>' +
       '<select data-pr-c="forma"' + dis + '><option value="">Escolha…</option><option value="PIX"' + sel("PIX") + ">PIX</option>" +
       '<option value="BANCO"' + sel("BANCO") + ">Dados bancários</option></select></div>";
     if (c.livre) h += '<div class="dz-aviso">Conta salva no formato antigo ("' + esc(c.livre) + '"): escolha PIX ou dados bancários e salve de novo.</div>';
@@ -1797,6 +1947,7 @@
     if (u.ocupado === "gerar") h += '<div class="dz-linha"><b>gerando o termo… (até 1 minuto)</b></div>';
     if (u.ocupado === "ver") h += '<div class="dz-linha"><b>abrindo o termo…</b></div>';
     if (u.ocupado === "conta") h += '<div class="dz-linha"><b>salvando a conta…</b></div>';
+    h += htmlConjugePR(e, dis);
     if (e.gerado) h += '<div class="dz-linha">Termo gerado</div>';   /* 31/10/2026 (dono): sem o nome do arquivo, como no contrato */
     if (u.faltas && u.faltas.length)
       h += '<div class="dz-aviso">Para gerar o termo, falta:</div><ul>' + u.faltas.map(function (f) { return "<li>" + esc(f) + "</li>"; }).join("") + "</ul>";
@@ -1815,6 +1966,8 @@
               MODELO_NAO_CONFIGURADO: "O modelo do termo (MODELO_PRE_RESERVA_ID) não está configurado — avise o desenvolvedor.",
               SEM_TERMO_GERADO: "Ainda não há termo gerado.", SO_CONDOMINIO: "O termo de pré-reserva é só do condomínio.",
               PR_VALOR_INVALIDO: "Valor da pré-reserva inválido.", PR_DATA_INVALIDA: "Informe a data do pagamento.",
+              PR_DATA_FUTURA: "A data do pagamento não pode ser depois de hoje. Informe o dia em que o cliente pagou.",
+              PR_VALOR_MAIOR_QUE_SINAL: "O valor da pré-reserva não pode passar do sinal da venda. Confira o valor.",
               SEM_PERMISSAO_TESTES: "Perfil TESTES não gera nem grava.", SEM_RESPOSTA: "O servidor não respondeu — tente de novo." };
     if (e.indexOf("COLUNA_FALTANDO: ") === 0) return "A base não tem a coluna " + e.slice(17) + " — avise o desenvolvedor.";
     return M[e] || (e ? mensagemContrato(r) : "");
@@ -1871,7 +2024,16 @@
       if (!raiz || !raiz.querySelectorAll) return;
       raiz.querySelectorAll("[data-campo]").forEach(function (x) { uiC.rascunho[x.getAttribute("data-campo")] = x.value; });
       raiz.querySelectorAll("[data-conta-campo]").forEach(function (x) { uiC.rascunho["conta|" + x.getAttribute("data-conta-campo")] = x.value; });
+      rascunhoFia(uiC.rascunho, caixasFia());   /* 01/11: bloco Fiadores — só o que foi mexido */
     }
+    function caixasFia() {
+      var l = [];
+      if (raiz && raiz.querySelectorAll) raiz.querySelectorAll("[data-fia-col]").forEach(function (x) {
+        l.push({ coluna: x.getAttribute("data-fia-col"), orig: x.getAttribute("data-fia-orig"), valor: x.value });
+      });
+      return l;
+    }
+    function limparRascunhoFia() { Object.keys(uiC.rascunho).forEach(function (k) { if (/^fia\|/.test(k)) delete uiC.rascunho[k]; }); }
     function contaDigitadaNaTela() {
       if (!raiz) return null;
       var v = {};
@@ -2234,7 +2396,8 @@
       var r = await chamarVenda({ action: "preReservaEstado", pageId: pageId });
       if (!vivo()) return;
       if (r.ok) { estadoP = { conta: r.conta || "", contaCampos: r.contaCampos || null, gerado: !!r.gerado, nome: r.nome || "", valor: r.valor,
-                              dataPagamento: r.dataPagamento || "", dataLimite: r.dataLimite || "", historico: r.historico || "" }; uiP.msg = ""; }
+                              dataPagamento: r.dataPagamento || "", dataLimite: r.dataLimite || "", historico: r.historico || "",
+                              incluirConjuge: !!r.incluirConjuge, temConjuge: !!r.temConjuge }; uiP.msg = ""; }
       else uiP.msg = mensagemPR(r);
       pintarP();
     }
@@ -2256,6 +2419,19 @@
         if (w) { try { w.close(); } catch (e) {} }
         uiAlvo.msg = msgErro(r);
       }
+    }
+    /* 01/11/2026: liga/desliga o cônjuge no termo; grava na hora e, se o servidor recusar, a caixa volta ao que estava */
+    async function aoMarcarConjugePR(marcado) {
+      if (uiP.ocupado || !estadoP) return;
+      uiP.ocupado = "conj"; uiP.msg = ""; pintarP();
+      var rj = await chamarVenda({ action: "salvarConjugePreReserva", pageId: pageId, incluir: !!marcado });
+      if (!vivo()) return;
+      uiP.ocupado = null;
+      if (rj.ok) {
+        estadoP.incluirConjuge = !!rj.incluirConjuge;
+        uiP.msg = rj.incluirConjuge ? "O cônjuge vai assinar o termo." + (estadoP.gerado ? " Envie para assinatura de novo." : "") : "Só o comprador assina o termo.";
+      } else uiP.msg = rj.mensagem || mensagemPR(rj);   /* a caixa volta ao que estava: pintarP redesenha de estadoP */
+      pintarP();
     }
     async function aoClicarPR(acao) {
       if (uiP.ocupado || !estadoP) return;
@@ -2317,7 +2493,7 @@
       var novo = await window.VendaAssinatura.executarAcaoAssinatura(acao, ctxP, {
         pageId: pageId,
         confirmar: function (t) { return window.confirm(t); },
-        chamar: function (p) { return chamarVenda(p, 150000); },
+        chamar: function (p) { return chamarVenda(p, ESPERA_ASSINATURA); },
         pintar: function (c) { ctxP = c; pintarP(); },
         linkCorrigir: linkCorrigir
       });
@@ -2353,7 +2529,7 @@
       var novo = await window.VendaAssinatura.executarAcaoAssinatura(acao, ctxA, {
         pageId: pageId,
         confirmar: function (t) { return window.confirm(t); },
-        chamar: function (p) { return chamarVenda(p, 150000); },
+        chamar: function (p) { return chamarVenda(p, ESPERA_ASSINATURA); },
         pintar: function (c) { ctxA = c; pintarA(); },
         linkCorrigir: linkCorrigir
       });
@@ -2520,6 +2696,7 @@
         if (r.ok) uiC.rascunho = {};
         return tratarGeracao(r, false);
       }
+      if (acao === "c-fia-salvar" || acao === "c-fia-conjuge") return aoClicarFia(acao);
       if (acao === "c-condesp-ia" || acao === "c-condesp-salvar") return aoClicarCondEsp(acao);
       if (/^c-fluxo-/.test(acao)) return aoClicarFluxo(acao, b);
       if (acao === "c-salvar-conta") {
@@ -2527,6 +2704,41 @@
         if (!conta) { uiC.msg = "Digite banco, agência e conta."; pintar(); return; }
         return salvarConta(conta);
       }
+    }
+    /* 01/11/2026: bloco Fiadores — Salvar (só o que mudou) e "O cônjuge do Fiador 1 é o Fiador 2"; depois relê o
+       contratoEstado (as faltas corrigidas somem e o bloco fecha quando não falta mais nada) */
+    async function aoClicarFia(acao) {
+      var b = estadoC && estadoC.fiadores;
+      if (!b) return;
+      guardarRascunho();
+      var pedido;
+      if (acao === "c-fia-salvar") {
+        var valores = valoresFiadores(caixasFia(), b);
+        if (!valores) { uiC.msg = "Nada mudou — preencha ou corrija um campo antes de salvar."; pintar(); return; }
+        pedido = { action: "salvarFiadores", pageId: pageId, valores: valores };
+      } else {
+        if (!window.confirm(perguntaConjugeFiador2(b))) return;
+        pedido = { action: "conjugeEhFiador2", pageId: pageId };
+      }
+      uiC.ocupadoContrato = "fia"; uiC.msg = ""; pintar();
+      var r = await chamarVenda(pedido);
+      if (!vivo()) return;
+      uiC.ocupadoContrato = null;
+      if (r.ok) {
+        /* conserto 1: some com as caixas velhas ANTES de reler — o pintar() do carregarContrato não pode recapturá-las;
+           a tela nova mostra o que o servidor gravou (CPF formatado, Fiador 2 copiado) */
+        if (raiz && raiz.querySelectorAll) raiz.querySelectorAll("[data-fia-col]").forEach(function (x) { if (x.parentNode) x.parentNode.removeChild(x); });
+        limparRascunhoFia();
+        uiC.faltas = null; uiC.campos = null;
+        var feito = (r.gravou && r.gravou.length) ? "Salvo na venda. Gere o pré-contrato de novo." : "Nada mudou.";
+        await carregarContrato();   /* relê as faltas: o que foi corrigido some do bloco */
+        if (!vivo()) return;
+        uiC.msg = feito;
+        pintar();
+        return;
+      }
+      uiC.msg = r.erro === "COLUNA_FALTANDO" && r.faltas ? "A base não tem a coluna " + r.faltas.join(", ") + " — avise o desenvolvedor." : mensagemContrato(r);
+      pintar();
     }
     /* 29/10: condições especiais — Redigir com IA (só sugere) e Salvar (grava na venda) */
     async function aoClicarCondEsp(acao) {
@@ -2593,7 +2805,7 @@
         uiC.ocupadoContrato = null;
         if (r.ok) uiC.fluxoEd = { valor: r.atual.valor, valorOriginal: r.padrao.valor, entrega: r.atual.entrega || r.padrao.entrega,
                                   linhas: copiaLinhas(r.atual.linhas), padrao: r.padrao, historico: r.historico || [], alterado: !!r.alterado,
-                                  podePreco: !!r.podePreco, desconto: r.desconto || null, semComissao: !!r.atual.semComissao,
+                                  podePreco: !!r.podePreco, quemMudaPreco: Array.isArray(r.quemMudaPreco) ? r.quemMudaPreco.map(String) : [], desconto: r.desconto || null, semComissao: !!r.atual.semComissao,
                                   dsc: { modo: "rs", valor: "", de: "entrada" }, descontos: [],
                                   motivo: "", motivoPreco: "" };
         else uiC.msg = mensagemContrato(r);
@@ -2691,9 +2903,9 @@
         var feito = aprovar ? "Contrato gerado." : "Pré-contrato gerado — abra, confira o que está grifado e clique em Conferi.";
         /* condomínio: campos que saíram em branco ("____") não travam, mas avisam */
         uiC.msg = r.avisos && r.avisos.length ? feito + " Atenção: " + r.avisos.join("; ") + "." : feito;
-      } else if (r.erro === "PRECONTRATO_DESATUALIZADO" || r.erro === "PRECONTRATO_FALTANDO") {
+      } else if (r.erro === "PRECONTRATO_DESATUALIZADO" || r.erro === "PRECONTRATO_FALTANDO" || r.erro === "PRECONTRATO_REFAZER") {
         /* a etapa mudou no servidor: trava o "Conferi" (desatualizado) ou volta ao começo (faltando) */
-        if (estadoC && r.erro === "PRECONTRATO_DESATUALIZADO" && estadoC.pre) estadoC.pre.desatualizado = true;
+        if (estadoC && (r.erro === "PRECONTRATO_DESATUALIZADO" || r.erro === "PRECONTRATO_REFAZER") && estadoC.pre) estadoC.pre.desatualizado = true;
         if (estadoC && r.erro === "PRECONTRATO_FALTANDO") { estadoC.pre = null; estadoC.etapa = estadoC.gerado ? "FINAL" : "NENHUM"; }
         uiC.msg = mensagemContrato(r);
       } else if (r.erro === "FALTAM_DADOS" && r.faltas && r.faltas.length) {
@@ -2745,7 +2957,14 @@
       var r = await chamarVenda({ action: "escolherTestemunhas", pageId: pageId, ids: ids[0] ? ids : [] });
       if (seq !== seqC || !vivo()) return;
       uiC.ocupadoContrato = null;
-      if (r.ok) { if (estadoC) estadoC.testemunhas = testemunhasDoEstado(r.testemunhas); uiC.msg = "Testemunhas salvas."; }
+      if (r.ok) {
+        if (estadoC) {
+          var padraoAntes = estadoC.testemunhas && estadoC.testemunhas.padrao;   /* a resposta do salvar não traz o tipo do vendedor: mantém o padrão de antes */
+          estadoC.testemunhas = testemunhasDoEstado(r.testemunhas);
+          if (estadoC.testemunhas && !estadoC.testemunhas.padrao.length && padraoAntes) estadoC.testemunhas.padrao = padraoAntes;
+        }
+        uiC.msg = "Testemunhas salvas.";
+      }
       else uiC.msg = mensagemContrato(r);
       pintar();
     }
@@ -2781,6 +3000,7 @@
         el.addEventListener("change", function (ev) {
           if (raiz !== el) return;
           if (ev.target.getAttribute("data-pr-c") === "forma") { guardarContaPR(); pintarP(); return; }
+          if (ev.target.hasAttribute("data-pr-conj")) { aoMarcarConjugePR(ev.target.checked); return; }
           var fx = ev.target.getAttribute("data-fx");
           if (fx === "t" || fx === "dmodo") { aoDigitarFluxo(ev.target); if (uiC.fluxoEd) pintar(); return; }   /* o tipo muda o reajuste mostrado; o modo do desconto, os campos */
           if (fx === "dde") { aoDigitarFluxo(ev.target); return; }
@@ -2919,7 +3139,7 @@
        Carrega mesmo sem o painel da casa: o cartão do condomínio também usa. */
     /* 30/10: leitor das rubricas do comprador (pdf.js só carrega na hora de enviar) */
     var sr = document.createElement("script"); sr.src = "venda/RubricasVenda.js?v=1"; document.head.appendChild(sr);
-    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=13";
+    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=16";
     sa.onload = function () { [blocosCasa, blocosCond, blocosPR].forEach(function (b) { if (b) b.pintarAssinatura(); }); };
     document.head.appendChild(sa);
     var body = document.getElementById("pn-body"); if (!body) return;

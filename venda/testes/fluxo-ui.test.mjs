@@ -88,13 +88,21 @@ test("editor: valor da casa mudou mostra o campo do segundo motivo e pede ele (q
 test("financiamento e FGTS só aparecem (sem campos nem botões); o tipo não oferece eles para linha nova", () => {
   const h = D.htmlFluxo(fechado, { fluxoEd: editor() }, "");
   const linhaFin = h.match(/<tr data-fx-linha="2">.*?<\/tr>/s)[0];
-  assert.match(linhaFin, /Financiamento.*não muda/s);
+  assert.match(linhaFin, /Financiamento.*fixo — vem da proposta/s);
+  assert.doesNotMatch(linhaFin, /não muda/);
   assert.doesNotMatch(linhaFin, /<input|<select|data-acao/);
   assert.doesNotMatch(h, /<option value="fin">/);
 });
 
-test("valor da casa travado para quem não é Julio Cesar ou João Vitor", () => {
-  assert.match(D.htmlFluxo(fechado, { fluxoEd: editor() }, ""), /data-fx="valor"[^>]*disabled[^>]*>.*só Julio Cesar ou João Vitor/s);
+test("valor da casa travado para quem não está na lista do servidor: mensagem visível com os nomes e title no campo", () => {
+  const h = D.htmlFluxo(fechado, { fluxoEd: editor({ quemMudaPreco: ["Ana Teste", "Bruno Teste"] }) }, "");
+  assert.match(h, /data-fx="valor"[^>]*disabled[^>]*title="Só Ana Teste e Bruno Teste mudam o valor da casa"/);
+  assert.match(h, /<div class="dz-msg[^"]*">Só Ana Teste e Bruno Teste mudam o valor da casa\.<\/div>/);
+  assert.match(D.htmlFluxo(fechado, { fluxoEd: editor({ quemMudaPreco: ["Ana Teste"] }) }, ""), /Só Ana Teste muda o valor da casa\./);
+  assert.match(D.htmlFluxo(fechado, { fluxoEd: editor({ quemMudaPreco: [] }) }, ""), /ninguém muda o valor da casa por aqui/i);
+  assert.doesNotMatch(D.htmlFluxo(fechado, { fluxoEd: editor({ podePreco: true, quemMudaPreco: ["Ana Teste"] }) }, ""), /mudam? o valor da casa/);
+  /* a mensagem de erro de permissão também não escreve nome nenhum: os nomes vêm só do servidor */
+  assert.doesNotMatch(D.mensagemContrato({ erro: "FLUXO_PRECO_SEM_PERMISSAO" }), /[A-Z][a-z]+ [A-Z][a-z]+/);
   assert.doesNotMatch(D.htmlFluxo(fechado, { fluxoEd: editor({ podePreco: true }) }, "").match(/<input[^>]*data-fx="valor"[^>]*>/)[0], /disabled/);
 });
 

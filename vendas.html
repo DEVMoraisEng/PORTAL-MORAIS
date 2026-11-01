@@ -379,7 +379,7 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 .cd-and .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;align-items:end}   /* 31/10: rótulo de 2 linhas não desalinha o campo */
 .cd-and label{display:block;font-size:11px;font-weight:700;color:var(--text3,#5b6b78);margin-bottom:3px;text-transform:uppercase}
 .cd-and select,.cd-and input{width:100%;box-sizing:border-box;height:36px}   /* 31/10: data e select na mesma altura */
-.cd-and .st{font-size:11px;margin-top:2px;min-height:14px}
+.cd-and .st{font-size:11px;margin-top:2px;min-height:14px;overflow-wrap:anywhere}
 .cd-prog{margin-top:8px;font-size:12.5px;color:var(--azul,#2B5A7A)}
 .cd-prog .barra{height:6px;border-radius:4px;background:rgba(43,90,122,.15);overflow:hidden;margin-top:4px}
 .cd-prog .barra i{display:block;height:100%;width:0;background:var(--verde-btn,#4CD964);transition:width .4s}
@@ -1216,7 +1216,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 <script src="venda/FluxoLivre.js?v=6"></script><!-- 29/10: Alterar fluxo -->
 <script src="venda/quadro-fluxo.js?v=1"></script><!-- 31/10: quadro do pro soluto segue o fluxo alterado -->
 <script src="venda/Antecipacao.js?v=1"></script><!-- 31/10: Antecipação — a conta roda no navegador -->
-<script src="venda-dossie.js?v=36"></script>
+<script src="venda-dossie.js?v=47"></script>
 <script src="venda/contrato-vendida.js?v=2"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele.
@@ -2232,16 +2232,16 @@ function cdRotuloTela(n){ return String(n||"").replace(/CORESSPONDENTE/g,"CORRES
 function condAndamentoHtml(l){
   const cols=condAndamentoCols(); if(!cols.length) return "";
   const campos=cols.map((c,k)=>{
-    const v=cdVal(l,c.nome), idc="cd-and-"+k;
+    const v=cdVal(l,c.nome), idc="cd-and-"+k, ak=' data-and-key="'+esc(l.id+"|"+c.nome)+'"';
     let ctl;
-    if(c.tipo==="date") ctl='<input type="date" id="'+idc+'" value="'+esc(v?String(v).slice(0,10):"")+'">';
-    else if(c.tipo==="url") ctl='<input type="url" id="'+idc+'" placeholder="https://…" value="'+esc(v||"")+'">';
-    else if(c.tipo==="checkbox") ctl='<select id="'+idc+'"><option value="NÃO"'+(!v?" selected":"")+'>NÃO</option><option value="SIM"'+(v?" selected":"")+'>SIM</option></select>';
+    if(c.tipo==="date") ctl='<input type="date" id="'+idc+'"'+ak+' value="'+esc(v?String(v).slice(0,10):"")+'">';
+    else if(c.tipo==="url") ctl='<input type="url" id="'+idc+'"'+ak+' placeholder="https://…" value="'+esc(v||"")+'">';
+    else if(c.tipo==="checkbox") ctl='<select id="'+idc+'"'+ak+'><option value="NÃO"'+(!v?" selected":"")+'>NÃO</option><option value="SIM"'+(v?" selected":"")+'>SIM</option></select>';
     else {
       let ops=(c.opcoes&&c.opcoes.length)?c.opcoes.slice():["SIM","NÃO"];
-      ctl='<select id="'+idc+'"><option value="">—</option>'+ops.map(o=>'<option'+(o===v?" selected":"")+'>'+esc(o)+'</option>').join("")+'</select>';
+      ctl='<select id="'+idc+'"'+ak+'><option value="">—</option>'+ops.map(o=>'<option'+(o===v?" selected":"")+'>'+esc(o)+'</option>').join("")+'</select>';
     }
-    return '<div><label title="'+esc(c.nome)+'">'+esc(cdRotuloTela(c.nome))+'</label>'+ctl+'<div class="st" id="'+idc+'-st"></div></div>';
+    return '<div><label title="'+esc(c.nome)+'">'+esc(cdRotuloTela(c.nome))+'</label>'+ctl+'<div class="st" id="'+idc+'-st" data-and-st="'+esc(l.id+"|"+c.nome)+'"></div></div>';
   });
   setTimeout(()=>{
     cols.forEach((c,k)=>{
@@ -2258,14 +2258,62 @@ function condAndamentoHtml(l){
   return '<div class="cd-dica">Cada mudança salva sozinha no Notion.</div>'+grupos.filter(g=>g.itens.length).map(g=>
     '<div class="cd-and"><h4>'+esc(g.nome)+'</h4><div class="grid">'+g.itens.join("")+'</div></div>').join("");
 }
-async function condAndSalvar(id,prop,valor,stId){
+/* 01/11/2026 (H7): o Andamento salva em segundo plano. A célula já mostra o valor novo; o envio não trava a tela e,
+   no sucesso, o cartão NÃO é redesenhado (só o estado local). Por célula só um envio de cada vez: mudanças enquanto ele
+   voa só atualizam o valor "querido" e, quando volta, vai o último (a ordem no servidor nunca se inverte). Erro: volta
+   a célula ao último valor que o servidor confirmou e avisa "Não salvou: motivo". Células diferentes vão em paralelo. */
+const CD_AND_CEL={};
+function cdAndValLocal(c,valor){ return c&&c.tipo==="checkbox"?valor==="SIM":valor; }
+function cdAndValTela(c,v){ return c&&c.tipo==="checkbox"?(v?"SIM":"NÃO"):(v==null?"":String(v)); }
+function cdAndAntesDeSair(ev){
+  if(!Object.keys(CD_AND_CEL).some(k=>CD_AND_CEL[k].voando)) return;
+  const m="Ainda está salvando. Sair mesmo assim?";
+  if(ev){ if(ev.preventDefault) ev.preventDefault(); ev.returnValue=m; }
+  return m;
+}
+if(typeof window!=="undefined"&&window.addEventListener) window.addEventListener("beforeunload",cdAndAntesDeSair);
+/* acha o campo/status pela própria venda (id da página + coluna), não pela posição: se o cartão mudou, devolve null */
+function cdAndAcha(attr,chave){
+  return Array.from(document.querySelectorAll("["+attr+"]")).find(e=>e.getAttribute(attr)===chave)||null;
+}
+async function cdAndEnviar(id,prop,cel){
+  for(;;){
+    const col=((COND&&COND.colunas)||[]).find(x=>x.nome===prop);
+    const enviado=cel.quer;
+    let r=null;
+    try{ r=await chamar({action:"simsVendaSalvar",pageId:id,prop:prop,valor:enviado},70000); }catch(e){ r=null; }
+    const l=COND.linhas.find(x=>x.id===id);
+    const ok=!!(r&&r.ok);
+    if(ok) cel.conf=enviado;
+    if(cel.quer!==enviado) continue; /* veio mudança nova durante o envio: manda a mais nova */
+    cel.voando=false;
+    const el=cdAndAcha("data-and-key",id+"|"+prop), stF=cdAndAcha("data-and-st",id+"|"+prop);
+    if(!ok){
+      const conf=cel.conf;
+      if(l&&l.v) l.v[prop]=cdAndValLocal(col,conf);
+      if(el) el.value=conf==null?"":conf;
+      if(stF){ stF.style.color="#B0431F"; stF.textContent="Não salvou: "+((r&&(r.mensagem||r.erro))||"sem conexão"); }
+      return;
+    }
+    if(r.linha&&r.linha.v&&l&&l.v){
+      Object.keys(r.linha.v).forEach(k=>{ if(k===prop) return; const p=CD_AND_CEL[id+"|"+k]; if(p&&p.voando) return; l.v[k]=r.linha.v[k]; });
+    }
+    if(stF){ stF.style.color="#1D7A46"; stF.textContent="✓ salvo"; }
+    return;
+  }
+}
+function condAndSalvar(id,prop,valor,stId){
+  const chave=id+"|"+prop;
+  const col=((COND&&COND.colunas)||[]).find(x=>x.nome===prop);
+  const l0=COND.linhas.find(x=>x.id===id);
+  let cel=CD_AND_CEL[chave];
+  if(!cel){ cel=CD_AND_CEL[chave]={voando:false,conf:null,quer:null,stId:stId,p:null}; }
+  if(!cel.voando){ const a=l0?cdVal(l0,prop):null; cel.conf=col&&col.tipo==="checkbox"?cdAndValTela(col,a):a; }
+  cel.quer=valor; cel.stId=stId;
+  if(l0&&l0.v) l0.v[prop]=cdAndValLocal(col,valor);
   const st=document.getElementById(stId); if(st){ st.style.color="#7A6A2E"; st.textContent="⏳ salvando…"; }
-  let r=null;
-  try{ r=await chamar({action:"simsVendaSalvar",pageId:id,prop:prop,valor:valor},70000); }catch(e){ r=null; }
-  if(!r||!r.ok){ if(st){ st.style.color="#B0431F"; st.textContent="⚠ não salvou: "+((r&&(r.mensagem||r.erro))||"sem resposta"); } return; }
-  if(r.linha){ const i=COND.linhas.findIndex(x=>x.id===id); if(i>=0) COND.linhas[i]=r.linha; }
-  if(st){ st.style.color="#1D7A46"; st.textContent="✓ salvo"; }
-  condRender();
+  if(!cel.voando){ cel.voando=true; cel.p=cdAndEnviar(id,prop,cel); }
+  return cel.p;
 }
 /* 02/10 (item 20) — link para o cliente/corretor completar as informações da venda */
 /* 31/10/2026 (dono): o quadro grande só quando FALTA algo obrigatório que o cliente/corretor completa (as faltas do

@@ -61,13 +61,25 @@ var PreReservaVenda = (function () {
     return d.toISOString().slice(0, 10);
   }
 
-  /* Entrada do cartão { valor, data } -> { ok, valor, data } ou { ok:false, erro } */
+  /* Sinal da venda = ato + 30 + 60 + 90 dias do fluxo da linha; 0 = desconhecido (não barra por ele). */
+  function sinalDoFluxo(fl) {
+    fl = fl || {};
+    var soma = 0;
+    [fl.sinalAto, fl.sinal30, fl.sinal60, fl.sinal90].forEach(function (v) { var n = Number(v); if (isFinite(n) && n > 0) soma += Math.round(n * 100); });
+    return soma / 100;
+  }
+
+  /* Entrada do cartão { valor, data, hojeISO, sinal } -> { ok, valor, data } ou { ok:false, erro }.
+   * 01/11/2026: hojeISO vem do SERVIDOR (São Paulo) — sem ele a data futura não é checada (chamada antiga);
+   * sinal 0/ausente = desconhecido, não barra pelo valor. */
   function validarPagamento(p) {
     p = p || {};
-    var valor = valorDe(p.valor), data = dataIso(p.data);
+    var valor = valorDe(p.valor), data = dataIso(p.data), hoje = dataIso(p.hojeISO), sinal = valorDe(p.sinal);
     if (valor === null) return { ok: false, erro: "PR_VALOR_INVALIDO" };
     if (valor > 1000000) return { ok: false, erro: "PR_VALOR_INVALIDO" };
     if (!data) return { ok: false, erro: "PR_DATA_INVALIDA" };
+    if (hoje && data > hoje) return { ok: false, erro: "PR_DATA_FUTURA" };
+    if (sinal !== null && valor > sinal) return { ok: false, erro: "PR_VALOR_MAIOR_QUE_SINAL" };
     return { ok: true, valor: valor, data: data };
   }
 
@@ -98,6 +110,7 @@ var PreReservaVenda = (function () {
                        profissao: txt(c1.profissao), documento: txt(c1.documento), endereco: txt(c1.endereco),
                        email: txt(c1.email), telefone: txt(c1.telefone) },
       unidade: txt(co.unidade), tabela: co.tabela || null,
+      sinal: !co.livre ? sinalDoFluxo(co.fluxo) : 0,
       conta: txt(x.conta), valor: valorDe(x.valor), dataPagamento: dataIso(x.dataPagamento), dataLimite: prazoDe(x.dataPagamento),
       hojeISO: txt(x.hojeISO), cidade: txt(x.cidade) || "Goiânia"
     };
@@ -116,10 +129,14 @@ var PreReservaVenda = (function () {
     exige(!vazio(p.email), "Pré-reservante: e-mail (coluna Email)");
     exige(!vazio(t.unidade), "Unidade");
     if (!vazio(t.unidade)) exige(!!t.tabela, "Unidade: fora da tabela do condomínio (tipo da casa)");
-    if (vazio(t.conta)) f.push("Conta para devolução (preencha no cartão)");
-    else if (!lerConta(t.conta).forma) f.push("Conta para devolução: escolha PIX ou dados bancários e salve de novo");
+    /* 01/11/2026 (dono): a conta para devolução é OPCIONAL — o pré-contrato é provisório; em branco o termo sai com o marcador vazio.
+       Só avisa o texto antigo (preenchido fora do formato) para ninguém assinar uma frase solta. */
+    if (!vazio(t.conta) && !lerConta(t.conta).forma) f.push("Conta para devolução: escolha PIX ou dados bancários e salve de novo");
     exige(t.valor !== null, "Valor da pré-reserva (preencha no cartão)");
     exige(!vazio(t.dataPagamento), "Data do pagamento da pré-reserva (preencha no cartão)");
+    /* 01/11/2026: o mesmo que o cartão barra ao salvar (hoje = o do servidor; sinal 0 = desconhecido) */
+    if (!vazio(t.dataPagamento) && !vazio(t.hojeISO) && t.dataPagamento > t.hojeISO) f.push("Data do pagamento da pré-reserva: não pode ser depois de hoje");
+    if (t.valor !== null && t.sinal > 0 && t.valor > t.sinal) f.push("Valor da pré-reserva: maior que o sinal da venda (R$ " + C().moedaBR(t.sinal) + ")");
     return f;
   }
 
@@ -195,7 +212,7 @@ var PreReservaVenda = (function () {
 
   var api = { COL: COL, TIPOS: TIPOS, montar: montar, faltas: faltas, marcadores: marcadores, baseCarimbo: baseCarimbo,
               validarConta: validarConta, montarConta: montarConta, lerConta: lerConta, TIPOS_CONTA: TIPOS_CONTA,
-              valorDe: valorDe, dataIso: dataIso, prazoDe: prazoDe, PRAZO_DIAS: PRAZO_DIAS, validarPagamento: validarPagamento,
+              valorDe: valorDe, dataIso: dataIso, prazoDe: prazoDe, PRAZO_DIAS: PRAZO_DIAS, validarPagamento: validarPagamento, sinalDoFluxo: sinalDoFluxo,
               linhaHistorico: linhaHistorico, juntarHistorico: juntarHistorico };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   return api;

@@ -109,7 +109,7 @@ function cenario({ linha = {}, sem = [], dbPagina = DB_COND, props = {}, gh = 20
              "db-doc": [Object.assign({ "ENDEREÇO": tit(docEnd) }, OBRA_PG)] } });
   const d = driveFalso({ modelos: Object.assign({ "modelo-cond": modeloCond, "modelo-obra": ["OBRA"], "modelo-pronto": ["PRONTO"], "modelo-pr": MODELO_PR }, modelosExtra) });
   const c = clicksignFalso(cs);
-  const despachos = [];
+  const despachos = [], falha = { fn: null };
   const p = Object.assign({
     NOTION_TOKEN: "ntn-teste", SESSION_SECRET: "segredo-de-teste", DB_VENDAS: DB_ID_PADRAO, DB_VENDAS_COND: DB_COND,
     DB_VENDEDORES: "db-vend", DB_LOTEAMENTOS: "db-lote", DB_CORRETORES: "db-corr", DB_DOCUMENTOS: "db-doc",
@@ -120,6 +120,7 @@ function cenario({ linha = {}, sem = [], dbPagina = DB_COND, props = {}, gh = 20
     GITHUB_TOKEN: "gh-teste", GH_REPO_MC: "Org-Teste/REPO-TESTE",
   }, props);
   const g = criarGas({ props: p, extras: d.extras, rotas: (url, opt) => {
+    if (falha.fn) { const f = falha.fn(url, opt); if (f) return f; }   /* 01/11: simula Notion 429 etc. */
     if (url.startsWith("https://api.github.com/")) { despachos.push(JSON.parse(opt.payload)); return { status: gh, texto: "" }; }
     if (ia && url.startsWith("https://api.openai.com/")) return ia(url, opt);
     if (url === "https://api.notion.com/v1/databases/" + DB_ID_PADRAO && String(opt.method || "get").toUpperCase() === "GET") return { json: SCHEMA_VENDAS };
@@ -134,7 +135,7 @@ function cenario({ linha = {}, sem = [], dbPagina = DB_COND, props = {}, gh = 20
     d.zerar(); g.chamadas.length = 0;
     return acao("aprovarPreContrato");
   };
-  return { g, n, d, c, despachos, acao, txt, gerarFinal };
+  return { g, n, d, c, despachos, acao, txt, gerarFinal, falha };
 }
 
 /* 30/10: o que a tela manda junto com "Enviar" no contrato do condomínio (posições lidas no PDF pela RubricasVenda) */
@@ -278,10 +279,11 @@ const cenarioPR = (o = {}) => cenario({ docEnd: "CONDOMÍNIO RESERVA DOS IPÊS",
 
 test("termo: estado, falta a conta, salva a conta, gera o PDF com o carimbo na coluna própria", () => {
   const c = cenarioPR();
-  assert.deepEqual(c.acao("preReservaEstado"), { ok: true, conta: "", contaCampos: { forma: "", livre: "" }, gerado: false, nome: "", valor: 3000, dataPagamento: "2026-10-24", dataLimite: "2026-10-31", historico: "" });
+  assert.deepEqual(c.acao("preReservaEstado"), { ok: true, conta: "", contaCampos: { forma: "", livre: "" }, gerado: false, nome: "", valor: 3000, dataPagamento: "2026-10-24", dataLimite: "2026-10-31", historico: "", temConjuge: false, incluirConjuge: false });
+  /* 01/11 (dono): a conta é opcional — o termo sai com ela em branco */
   const sem = c.acao("gerarTermoPreReserva");
-  assert.equal(sem.erro, "FALTAM_DADOS");
-  assert.deepEqual(sem.faltas, ["Conta para devolução (preencha no cartão)"]);
+  assert.equal(sem.ok, true, JSON.stringify(sem));
+  assert.equal(c.d.estado.salvos[c.d.estado.copias[0].id].pars[2], "Devolução: ", "marcador vazio, sem undefined");
   assert.equal(c.acao("salvarContaPreReserva", { conta: "abc" }).erro, "FORMA_CONTA");
   assert.deepEqual(c.acao("salvarContaPreReserva", { conta: { forma: "PIX", chave: "529.982.247-25", banco: "756 - SICOOB" } }),
     { ok: true, conta: "PIX, chave 529.982.247-25, no banco 756 - SICOOB", contaCampos: { forma: "PIX", chave: "529.982.247-25", banco: "756 - SICOOB" } });
@@ -289,7 +291,7 @@ test("termo: estado, falta a conta, salva a conta, gera o PDF com o carimbo na c
   const r = c.acao("gerarTermoPreReserva");
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.match(r.nome, /^TERMO DE PRÉ-RESERVA - CONDOMÍNIO RESERVA DOS IPÊS - CASA 13 - .* \[#[0-9a-f]{8}\]\.pdf$/);
-  const pars = c.d.estado.salvos[c.d.estado.copias[0].id].pars;
+  const pars = c.d.estado.salvos[c.d.estado.copias[c.d.estado.copias.length - 1].id].pars;
   assert.ok(pars[0].includes("Compradora de Teste") && pars[0].includes("CPF nº 529.982.247-25") && pars[0].includes("telefone 62 90000-0000"), pars[0]);
   assert.equal(pars[1], "Casa 13 Tipo 02 até 31/10/2026 por R$ 3.000,00 (três mil reais) (3.000,00)");
   assert.equal(pars[2], "Devolução: PIX, chave 529.982.247-25, no banco 756 - SICOOB");
@@ -318,11 +320,85 @@ test("termo na Clicksign: envia com doc PRE_RESERVA (pré-reservante, vendedora,
   assert.deepEqual(c.acao("assinaturaEstado"), { ok: true, situacao: "", envelope: false, signatarios: [] });
 });
 
-test("termo: conta mudada depois de gerar = CONTRATO_DESATUALIZADO; perfil TESTES não grava", () => {
+/* 01/11/2026 (dono): "na pré-reserva não precisa do cônjuge, pode deixar a opção de incluir" — por padrão só o
+   pré-reservante assina o termo (e o e-mail do cônjuge não é cobrado); com a opção ligada na venda
+   (salvarConjugePreReserva, propriedade PR_CONJUGE_<pageId>) o cônjuge entra e o e-mail dele passa a ser exigido.
+   O contrato continua com o cônjuge. */
+const CASADO_PR = { "ESTADO CIVIL": rt("CASADO"), CONJUGE: rt("Conjuge Teste da Silva"), "CPF CONJUGE": rt("935.411.347-80"),
+  "EMAIL CONJUGE": eml("conjuge@teste.example"), REGIME: rt("COMUNHÃO PARCIAL DE BENS") };
+const CONTA_PR = { "PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO": texto("PIX, chave 529.982.247-25, no banco 756 - SICOOB") };
+test("termo casado, opção desligada (padrão): cônjuge fora do envelope e sem cobrar o e-mail dele; o contrato leva o cônjuge", () => {
+  const c = cenarioPR({ linha: { ...CONTA_PR, ...CASADO_PR } });
+  assert.equal(c.acao("gerarTermoPreReserva").ok, true);
+  const r = c.acao("assinaturaEnviar", { doc: "PRE_RESERVA" });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual(r.signatarios.map((s) => s.papel), ["Comprador 1", "Vendedor (representante)", "Testemunha 1", "Testemunha 2"]);
+  assert.ok(!c.c.estado.signers.some((s) => s.attributes.email === "conjuge@teste.example"), "o cônjuge não recebe o termo");
+  const sem = cenarioPR({ linha: { ...CONTA_PR, ...CASADO_PR, "EMAIL CONJUGE": eml(null) } });
+  assert.equal(sem.acao("gerarTermoPreReserva").ok, true);
+  const r2 = sem.acao("assinaturaEnviar", { doc: "PRE_RESERVA" });
+  assert.equal(r2.ok, true, JSON.stringify(r2.faltas || r2));
+  const k = cenario({ linha: CASADO_PR });
+  assert.equal(k.gerarFinal().ok, true);
+  const e = k.acao("assinaturaEnviar", rub(k));
+  assert.equal(e.ok, true, JSON.stringify(e.faltas || e));
+  const papeis = e.signatarios.map((s) => s.papel);
+  assert.equal(papeis.indexOf("Cônjuge do comprador 1"), papeis.indexOf("Comprador 1") + 1, papeis.join(", "));
+});
+
+test("termo casado, opção ligada: o cônjuge assina logo depois do comprador; sem o e-mail dele o envio é barrado", () => {
+  const c = cenarioPR({ linha: { ...CONTA_PR, ...CASADO_PR } });
+  assert.deepEqual(c.acao("salvarConjugePreReserva", { incluir: true }), { ok: true, incluirConjuge: true });
+  assert.equal(c.acao("gerarTermoPreReserva").ok, true);
+  const r = c.acao("assinaturaEnviar", { doc: "PRE_RESERVA" });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual(r.signatarios.map((s) => s.papel), ["Comprador 1", "Cônjuge do comprador 1", "Vendedor (representante)", "Testemunha 1", "Testemunha 2"]);
+  const sem = cenarioPR({ linha: { ...CONTA_PR, ...CASADO_PR, "EMAIL CONJUGE": eml(null) } });
+  sem.acao("salvarConjugePreReserva", { incluir: true });
+  assert.equal(sem.acao("gerarTermoPreReserva").ok, true);
+  const r2 = sem.acao("assinaturaEnviar", { doc: "PRE_RESERVA" });
+  assert.equal(r2.erro, "FALTAM_DADOS");
+  assert.ok(r2.faltas.some((f) => /Cônjuge do comprador 1: e-mail/.test(f)), r2.faltas.join(" | "));
+  /* desligar de novo volta ao padrão */
+  assert.deepEqual(sem.acao("salvarConjugePreReserva", { incluir: false }), { ok: true, incluirConjuge: false });
+  assert.equal(sem.acao("assinaturaEnviar", { doc: "PRE_RESERVA" }).ok, true);
+});
+
+test("salvarConjugePreReserva com o envelope do termo aberto: ENVELOPE_ABERTO com a mensagem; envelope do contrato aberto não trava", () => {
+  const c = cenarioPR({ linha: { ...CONTA_PR, ...CASADO_PR } });
+  assert.equal(c.acao("gerarTermoPreReserva").ok, true);
+  assert.equal(c.acao("assinaturaEnviar", { doc: "PRE_RESERVA" }).ok, true);
+  const r = c.acao("salvarConjugePreReserva", { incluir: true });
+  assert.equal(r.ok, false);
+  assert.equal(r.erro, "ENVELOPE_ABERTO");
+  assert.equal(r.mensagem, "O termo já foi enviado para assinatura. Para mudar quem assina, cancele o envelope do termo primeiro.");
+  assert.equal(c.acao("preReservaEstado").incluirConjuge, false, "nada gravado");
+  /* envelope do CONTRATO aberto não trava o termo (são envelopes separados) */
+  const k = cenarioPR({ linha: { ...CONTA_PR, ...CASADO_PR, "ASSINATURA - ENVELOPE ID": rt("env-contrato"), "ASSINATURA - SITUAÇÃO": rt("ENVIADO") } });
+  assert.equal(k.acao("salvarConjugePreReserva", { incluir: true }).ok, true);
+});
+
+test("preReservaEstado traz incluirConjuge e temConjuge; salvarConjugePreReserva recusa TESTES e página de outra base", () => {
+  const solteiro = cenarioPR();
+  const e0 = solteiro.acao("preReservaEstado");
+  assert.equal(e0.temConjuge, false);
+  assert.equal(e0.incluirConjuge, false);
+  const c = cenarioPR({ linha: { ...CONTA_PR, ...CASADO_PR } });
+  assert.deepEqual([c.acao("preReservaEstado").temConjuge, c.acao("preReservaEstado").incluirConjuge], [true, false]);
+  c.acao("salvarConjugePreReserva", { incluir: true });
+  assert.equal(c.acao("preReservaEstado").incluirConjuge, true);
+  assert.equal(c.acao("salvarConjugePreReserva", { incluir: true }, token("TESTES")).erro, "SEM_PERMISSAO_TESTES");
+  const outra = cenarioPR({ dbPagina: "db-de-outra-base", linha: CASADO_PR });
+  assert.equal(outra.acao("salvarConjugePreReserva", { incluir: true }).erro, "PAGINA_DE_OUTRA_BASE");
+  assert.equal(outra.n.patches.length, 0);
+  assert.ok(!c.g.logs.join(" ").includes("Conjuge Teste"), "sem nome no log");
+});
+
+test("termo: conta mudada depois de gerar = TERMO_DESATUALIZADO; perfil TESTES não grava", () => {
   const c = cenarioPR({ linha: { "PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO": texto("PIX, chave 529.982.247-25, no banco 756 - SICOOB") } });
   assert.equal(c.acao("gerarTermoPreReserva").ok, true);
   c.n.pagina.properties["PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO"] = { type: "rich_text", rich_text: [{ plain_text: "PIX, chave outra-chave, no banco 001 - BB" }] };
-  assert.equal(c.acao("assinaturaEnviar", { doc: "PRE_RESERVA" }).erro, "CONTRATO_DESATUALIZADO");
+  assert.equal(c.acao("assinaturaEnviar", { doc: "PRE_RESERVA" }).erro, "TERMO_DESATUALIZADO");
   for (const action of ["gerarTermoPreReserva", "salvarContaPreReserva", "salvarPagamentoPreReserva"])
     assert.equal(c.acao(action, { conta: "conta de teste" }, token("TESTES")).erro, "SEM_PERMISSAO_TESTES", action);
   assert.equal(c.acao("preReservaEstado", {}, token("TESTES")).ok, true);
@@ -336,24 +412,27 @@ test("31/10: valor e data por venda — salvar grava o histórico com o usuário
   assert.equal(e0.dataLimite, "");
   assert.deepEqual(c.acao("gerarTermoPreReserva").faltas,
     ["Valor da pré-reserva (preencha no cartão)", "Data do pagamento da pré-reserva (preencha no cartão)"]);
-  assert.equal(c.acao("salvarPagamentoPreReserva", { valor: 0, data: "2026-11-02" }).erro, "PR_VALOR_INVALIDO");
+  assert.equal(c.acao("salvarPagamentoPreReserva", { valor: 0, data: "2026-10-26" }).erro, "PR_VALOR_INVALIDO");
   assert.equal(c.acao("salvarPagamentoPreReserva", { valor: 2500, data: "" }).erro, "PR_DATA_INVALIDA");
-  const r = c.acao("salvarPagamentoPreReserva", { valor: 2500, data: "2026-11-02" });
+  /* 01/11: hoje vem do servidor (São Paulo); sinal da linha = ato + 30 + 60 + 90 */
+  assert.equal(c.acao("salvarPagamentoPreReserva", { valor: 2500, data: "2099-01-10" }).erro, "PR_DATA_FUTURA");
+  assert.equal(c.acao("salvarPagamentoPreReserva", { valor: 50000, data: "2026-10-26" }).erro, "PR_VALOR_MAIOR_QUE_SINAL");
+  const r = c.acao("salvarPagamentoPreReserva", { valor: 2500, data: "2026-10-26" });
   assert.equal(r.ok, true, JSON.stringify(r));
-  assert.equal(r.dataLimite, "2026-11-09");
+  assert.equal(r.dataLimite, "2026-11-02");
   assert.equal(c.n.pagina.properties["PRÉ-RESERVA - VALOR"].number, 2500);
-  assert.equal(c.n.pagina.properties["PRÉ-RESERVA - DATA PAGAMENTO"].date.start, "2026-11-02");
-  assert.match(c.txt("PRÉ-RESERVA - HISTÓRICO"), /^\d{2}\/\d{2}\/\d{4} \S+ ana\.teste: valor — → R\$ 2\.500,00; pagamento — → 02\/11\/2026$/);
-  const r2 = c.acao("salvarPagamentoPreReserva", { valor: 2500, data: "2026-11-03" });
+  assert.equal(c.n.pagina.properties["PRÉ-RESERVA - DATA PAGAMENTO"].date.start, "2026-10-26");
+  assert.match(c.txt("PRÉ-RESERVA - HISTÓRICO"), /^\d{2}\/\d{2}\/\d{4} \S+ ana\.teste: valor — → R\$ 2\.500,00; pagamento — → 26\/10\/2026$/);
+  const r2 = c.acao("salvarPagamentoPreReserva", { valor: 2500, data: "2026-10-27" });
   assert.equal(r2.mudou, true);
   const linhas = c.txt("PRÉ-RESERVA - HISTÓRICO").split("\n");
   assert.equal(linhas.length, 2);
-  assert.match(linhas[1], /ana\.teste: pagamento 02\/11\/2026 → 03\/11\/2026$/);
-  assert.equal(c.acao("salvarPagamentoPreReserva", { valor: "2.500,00", data: "03/11/2026" }).mudou, false, "igual não grava histórico");
+  assert.match(linhas[1], /ana\.teste: pagamento 26\/10\/2026 → 27\/10\/2026$/);
+  assert.equal(c.acao("salvarPagamentoPreReserva", { valor: "2.500,00", data: "27/10/2026" }).mudou, false, "igual não grava histórico");
   assert.equal(c.txt("PRÉ-RESERVA - HISTÓRICO").split("\n").length, 2);
   assert.equal(c.acao("gerarTermoPreReserva").ok, true);
   const pars = c.d.estado.salvos[c.d.estado.copias[0].id].pars;
-  assert.equal(pars[1], "Casa 13 Tipo 02 até 10/11/2026 por R$ 2.500,00 (dois mil e quinhentos reais) (2.500,00)");
+  assert.equal(pars[1], "Casa 13 Tipo 02 até 03/11/2026 por R$ 2.500,00 (dois mil e quinhentos reais) (2.500,00)");
   assert.ok(c.g.logs.some((l) => l.includes("salvarPagamentoPreReserva") && l.includes("ana.teste")));
 });
 
@@ -414,6 +493,131 @@ test("28/10: contrato final gera os dois termos com o mesmo carimbo, nas colunas
   assert.equal(c.acao("verConfissao", { tipo: "POS" }).ok, true);
 });
 
+/* 01/11: termos de confissão sempre do contrato atual (investigação E) */
+const velho = (pref, carimbo = "aaaaaaaa") => ({ files: [{ name: pref + "CONDOMÍNIO RESERVA TESTE - CASA 13 [#" + carimbo + "].pdf", type: "file", file: { url: "https://s3.falso/velho-" + carimbo } }] });
+const SEM_POS = { "Nº PARCELAS PÓS CHAVES": num(0), "VALOR PÓS CHAVES": num(0), "DATA  PÓS CHAVES ": dat(null), "VALOR 2º PARTE PRÉ CHAVES": num(1707.27),
+                  "ESTADO CIVIL FIADOR 1": rt(""), "ESTADO CIVIL FIADOR 2": rt("") };   /* 24x: a soma fecha e o fiador é dispensado */
+const SO_POS = { "Nº PARCELAS 1º PARTE PRÉ CHAVES": num(0), "VALOR 1º PARTE PRÉ CHAVES": num(0), "Nº PARCELAS 2º PARTE PRÉ CHAVES": num(0), "VALOR 2º PARTE PRÉ CHAVES": num(0),
+                 "VALOR 1º BALÃO": num(0), "VALOR BALÃO ENTREGA DE CHAVES": num(0), "VALOR PÓS CHAVES": num(1872.92), "VALOR DO FGTS": num(5249.92) };   /* sem pré-chaves: só o termo PÓS */
+const antigos = { "CONFISSÃO PRÉ-CHAVES - GERADA": velho("CONFISSÃO PRÉ-CHAVES - "), "CONFISSÃO PÓS-CHAVES - GERADA": velho("CONFISSÃO PÓS-CHAVES - ") };
+
+test("01/11: venda que voltou de 36x para 24x — os termos antigos saem das colunas GERADA depois de gerar o contrato", () => {
+  const c = cenarioCfd({ linha: { ...SEM_POS, ...antigos } });
+  const r = c.gerarFinal();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(c.n.pagina.properties["CONFISSÃO PRÉ-CHAVES - GERADA"].files.length, 0);
+  assert.equal(c.n.pagina.properties["CONFISSÃO PÓS-CHAVES - GERADA"].files.length, 0);
+  assert.deepEqual(c.acao("contratoEstado").confissao, []);
+});
+
+test("01/11: venda que passou a ter só o termo PÓS — o PRÉ antigo sai e o PÓS é o novo", () => {
+  const c = cenarioCfd({ linha: { ...SO_POS, ...antigos } });
+  const r = c.gerarFinal();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(c.n.pagina.properties["CONFISSÃO PRÉ-CHAVES - GERADA"].files.length, 0);
+  const pos = c.n.pagina.properties["CONFISSÃO PÓS-CHAVES - GERADA"].files;
+  assert.equal(pos.length, 1);
+  assert.ok(pos[0].name.endsWith("[#" + /\[#([0-9a-f]{8})\]\.pdf$/.exec(r.nome)[1] + "].pdf"), pos[0].name);
+  assert.deepEqual(c.acao("contratoEstado").confissao.map((x) => x.tipo), ["POS"]);
+});
+
+/* limpeza dos termos antigos chamada direto (a ação "Conferi" já recusa envelope com signatários — ver CONTRATO_EM_ASSINATURA):
+ * a geração dos termos tem de dar certo (nomes, sem resp) e mesmo assim o termo antigo fica. */
+function gerarTermosDireto(c) {
+  const ctx = c.g.ctx, p = { pageId: COND };
+  const prep = ctx.ctrPreparar_(ctx.colunas_(), p, "00112233", "teste");
+  assert.ok(!prep.resp, JSON.stringify(prep.resp));
+  const tc = ctx.cfdGerarTermos_(prep, p, "00112233", "teste");
+  assert.ok(!tc.resp, JSON.stringify(tc.resp));
+  return tc;
+}
+test("01/11: com o envelope na mão dos signatários (ENVIADO ou qualquer situação não final) nada é limpo", () => {
+  for (const sit of ["ENVIADO", "RASCUNHO", "ASSINADO"]) {
+    const c = cenarioCfd({ linha: { ...SEM_POS, ...antigos, "ASSINATURA - ENVELOPE ID": rt("env-x"), "ASSINATURA - SITUAÇÃO": rt(sit) } });
+    const tc = gerarTermosDireto(c);
+    assert.equal(tc.nomes.length, 0, sit);   /* 24x: nenhum termo novo — a geração deu certo e não limpou */
+    assert.equal(c.n.pagina.properties["CONFISSÃO PRÉ-CHAVES - GERADA"].files.length, 1, sit);
+    assert.equal(c.n.pagina.properties["CONFISSÃO PÓS-CHAVES - GERADA"].files.length, 1, sit);
+  }
+  /* envelope cancelado já não está com ninguém: pode limpar */
+  const c = cenarioCfd({ linha: { ...SEM_POS, ...antigos, "ASSINATURA - ENVELOPE ID": rt("env-x"), "ASSINATURA - SITUAÇÃO": rt("CANCELADO") } });
+  assert.equal(c.gerarFinal().ok, true);
+  assert.equal(c.n.pagina.properties["CONFISSÃO PRÉ-CHAVES - GERADA"].files.length, 0);
+  /* envio pendente (envelope ativado, Notion ainda sem gravar) também segura */
+  const p = cenarioCfd({ linha: { ...SEM_POS, ...antigos } });
+  p.g.ctx.PropertiesService.getScriptProperties().setProperty("ASSINATURA_PENDENTE_" + COND, "env-y");
+  const tp = gerarTermosDireto(p);
+  assert.equal(tp.nomes.length, 0);
+  assert.equal(p.n.pagina.properties["CONFISSÃO PRÉ-CHAVES - GERADA"].files.length, 1);
+});
+
+test("01/11: falha ao limpar o termo antigo não derruba o Conferi (só vai para o console, sem dado pessoal)", () => {
+  const c = cenarioCfd({ linha: { ...SEM_POS, ...antigos } });
+  assert.equal(c.acao("gerarPreContrato").ok, true);
+  c.falha.fn = (url, opt) => (String(opt.method).toUpperCase() === "PATCH" && /"files":\[\]/.test(String(opt.payload || ""))
+    ? { status: 500, json: { message: "falha ao limpar" } } : null);
+  const r = c.acao("aprovarPreContrato");
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const log = c.g.logs.join("\n");
+  assert.match(log, /limpeza do termo antigo falhou/);
+  assert.doesNotMatch(log, /Compradora de Teste|Fiador Um Teste|111\.444|529\.982|compradora@/);
+});
+
+/* 01/11: "Conferi" com o envelope na mão dos signatários não troca contrato nem termos */
+test("01/11: Conferi com envelope ENVIADO/RASCUNHO/ASSINADO ou envio pendente: CONTRATO_EM_ASSINATURA, nada gerado", () => {
+  for (const sit of ["ENVIADO", "RASCUNHO", "ASSINADO", "pendente"]) {
+    const linha = { ...antigos, "CONTRATO GERADO": velho("CONTRATO - ", "bbbbbbbb"), "ASSINATURA - ENVELOPE ID": rt("env-x"), "ASSINATURA - SITUAÇÃO": rt(sit === "pendente" ? "" : sit) };
+    const c = cenarioCfd({ linha });
+    c.acao("gerarPreContrato");
+    if (sit === "pendente") c.g.ctx.PropertiesService.getScriptProperties().setProperty("ASSINATURA_PENDENTE_" + COND, "env-y");
+    d_zerar(c);
+    const r = c.acao("aprovarPreContrato");
+    assert.deepEqual({ ok: r.ok, erro: r.erro }, { ok: false, erro: "CONTRATO_EM_ASSINATURA" }, sit);
+    assert.equal(c.d.estado.copias.length, 0, sit + ": nada copiado no Drive");
+    assert.equal(c.n.patches.length, 0, sit + ": nada gravado no Notion");
+    assert.match(c.n.pagina.properties["CONTRATO GERADO"].files[0].name, /bbbbbbbb/, sit);
+    assert.equal(c.n.pagina.properties["CONFISSÃO PRÉ-CHAVES - GERADA"].files.length, 1, sit);
+    assert.equal(c.acao("gerarContrato").erro, "CONTRATO_EM_ASSINATURA", sit + " (ação antiga)");
+  }
+  /* envelope cancelado já não está com ninguém: o Conferi segue */
+  const c = cenarioCfd({ linha: { "ASSINATURA - ENVELOPE ID": rt("env-x"), "ASSINATURA - SITUAÇÃO": rt("CANCELADO") } });
+  assert.equal(c.gerarFinal().ok, true);
+});
+function d_zerar(c) { c.d.zerar(); c.g.chamadas.length = 0; c.n.patches.length = 0; }
+
+/* 01/11: erros do Conferi viram mensagem com o que fazer (investigação F) */
+const DADOS_NO_LOG = /Compradora de Teste|Fiador (Um|Dois) Teste|111\.444|246\.813|529\.982|compradora@|f1@teste/;
+test("01/11: termo que lança exceção no Conferi: PRECONTRATO_REFAZER (não ERRO_INTERNO), nada trocado, console sem dado pessoal", () => {
+  const c = cenarioCfd();
+  assert.equal(c.acao("gerarPreContrato").ok, true);
+  c.g.ctx.ConfissaoVenda.marcadores = () => { throw new Error("falha de teste"); };
+  const r = c.acao("aprovarPreContrato");
+  assert.deepEqual({ ok: r.ok, erro: r.erro }, { ok: false, erro: "PRECONTRATO_REFAZER" });
+  assert.equal(c.n.pagina.properties["CONTRATO GERADO"].files.length, 0, "contrato final não saiu");
+  const log = c.g.logs.filter((l) => l.includes("aprovarPreContrato falhou:"));
+  assert.equal(log.length, 1, c.g.logs.join("\n"));
+  assert.match(log[0], /^PORTAL-VENDA aprovarPreContrato falhou: 00112233 falha de teste$/);
+  assert.doesNotMatch(c.g.logs.join("\n"), DADOS_NO_LOG);
+});
+
+test("01/11: Notion 429 no Conferi: NOTION_OCUPADO", () => {
+  const c = cenarioCfd();
+  assert.equal(c.acao("gerarPreContrato").ok, true);
+  c.falha.fn = (url) => (url.startsWith("https://api.notion.com/") ? { status: 429, json: { message: "rate_limited" } } : null);
+  const r = c.acao("aprovarPreContrato");
+  assert.deepEqual({ ok: r.ok, erro: r.erro }, { ok: false, erro: "NOTION_OCUPADO" });
+  c.falha.fn = null;
+  assert.equal(c.acao("aprovarPreContrato").ok, true, "passada a fila, o mesmo clique funciona");
+});
+
+test("01/11: a tela só lista o termo com o mesmo carimbo do contrato gerado", () => {
+  const c = cenarioCfd({ linha: {
+    "CONTRATO GERADO": velho("CONTRATO - ", "11111111"),
+    "CONFISSÃO PRÉ-CHAVES - GERADA": velho("CONFISSÃO PRÉ-CHAVES - ", "22222222"),
+    "CONFISSÃO PÓS-CHAVES - GERADA": velho("CONFISSÃO PÓS-CHAVES - ", "11111111") } });
+  assert.deepEqual(c.acao("contratoEstado").confissao.map((x) => x.tipo), ["POS"]);
+});
+
 test("28/10: CPF do fiador em coluna de NÚMERO perde o zero da frente — o contrato completa os 11 dígitos", () => {
   const c = cenarioCfd({ linha: { "CPF FIADOR 1": num(1234567890) } });   /* 012.345.678-90 (fictício) */
   const r = c.acao("gerarPreContrato");
@@ -440,6 +644,25 @@ test("30/10: fiador casado — o GerarContrato lê ESTADO CIVIL / CONJUGE / CPF 
     "CPF CONJUGE FIADOR 1": rt("24681357928"), "CPF CONJUGE FIADOR 2": num(11144477735) } });
   const r2 = casal.acao("gerarPreContrato");
   assert.equal(r2.ok, true, JSON.stringify(r2));
+});
+
+test("01/11: bloco Fiadores — o contratoEstado traz o bloco com o aviso do #74; 'o cônjuge é o Fiador 2' destrava o pré-contrato", () => {
+  const c = cenarioCfd({ linha: { "ESTADO CIVIL FIADOR 1": rt("CASADO"), "CONJUGE FIADOR 1": rt("Fiadora Dois Teste"),
+    "CPF CONJUGE FIADOR 1": rt("246.813.579-28"), "EMAIL CONJUGE FIADOR 1": eml("f2@teste.example"),
+    "FIADOR 2": rt(""), "CPF FIADOR 2": rt(""), "EMAIL FIADOR 2": eml(null),
+    "CONJUGE FIADOR 2": rt(""), "CPF CONJUGE FIADOR 2": rt(""), "EMAIL CONJUGE FIADOR 2": eml(null) } });
+  const e = c.acao("contratoEstado");
+  assert.equal(e.ok, true, JSON.stringify(e));
+  assert.equal(e.fiadores.titulo, "Fiadores");
+  assert.ok(e.fiadores.faltas.includes("Fiador 2 (termo de confissão): nome"), e.fiadores.faltas.join(" | "));
+  assert.equal(e.fiadores.botaoConjuge, true);
+  assert.equal(e.fiadores.fiadores[0].campos[0].valor, "Fiador Um Teste");
+  const r = c.acao("conjugeEhFiador2");
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(c.txt("FIADOR 2"), "Fiadora Dois Teste");
+  const pre = c.acao("gerarPreContrato");
+  assert.equal(pre.ok, true, JSON.stringify(pre.faltas || pre));
+  assert.equal(c.acao("contratoEstado").fiadores, undefined, "sem falta, o bloco some");
 });
 
 test("28/10: Clicksign — contrato e termos no MESMO envelope; fiadores assinam só os termos; termos assinados nas colunas deles", () => {
@@ -479,15 +702,55 @@ test("28/10: termos de outro carimbo (dado mudou e só o contrato foi refeito) =
 });
 
 test("28/10: sem fiador com e-mail a assinatura não sai; sem os modelos dos termos tudo segue como antes", () => {
+  /* 01/11 (revisão final, I1): a falta aparece já no Gerar pré-contrato, e o bloco da tela tem a caixa do e-mail */
   const c = cenarioCfd({ linha: { "EMAIL FIADOR 2": eml("") } });
-  assert.equal(c.gerarFinal().ok, true);
-  const r = c.acao("assinaturaEnviar");
+  const r = c.acao("gerarPreContrato");
   assert.equal(r.erro, "FALTAM_DADOS");
-  assert.ok(r.faltas.some((f) => /^Fiador 2: e-mail/.test(f)), r.faltas.join(" | "));
+  assert.ok(r.faltas.includes("Fiador 2: e-mail (coluna EMAIL FIADOR 2)"), r.faltas.join(" | "));
+  const e = c.acao("contratoEstado");
+  assert.ok(e.fiadores.faltas.includes("Fiador 2: e-mail (coluna EMAIL FIADOR 2)"), JSON.stringify(e.fiadores));
+  assert.ok(e.fiadores.fiadores[1].campos.some((x) => x.coluna === "EMAIL FIADOR 2" && x.tipo === "email"));
+  assert.equal(c.acao("salvarFiadores", { valores: { "EMAIL FIADOR 2": "f2@teste.example" } }).ok, true);
+  assert.equal(c.acao("contratoEstado").fiadores, undefined, "salvo o e-mail, a falta some");
+  assert.equal(c.gerarFinal().ok, true);
   const semModelo = cenario({ linha: COLS_CFD });
   const g = semModelo.gerarFinal();
   assert.equal(g.ok, true);
   assert.equal(g.termos, undefined);
+});
+
+/* 01/11/2026 (revisão final, I1): contrato FINAL (gerado antes) e o e-mail some depois — o envio barra, e a aba Contrato
+   abre o bloco só com o e-mail que falta; salvar tira a falta. Cônjuge do comprador sem e-mail barra o Gerar. */
+test("I1: contrato final sem o e-mail do fiador — o contratoEstado traz o bloco só com o e-mail; salvar limpa a falta", () => {
+  const c = cenarioCfd();
+  assert.equal(c.gerarFinal().ok, true);
+  c.n.pagina.properties["EMAIL FIADOR 2"] = { type: "email", email: null };
+  assert.ok(c.acao("assinaturaEnviar", rub(c)).faltas.includes("Fiador 2: e-mail (coluna EMAIL FIADOR 2)"));
+  const e = c.acao("contratoEstado");
+  assert.equal(e.etapa, "FINAL");
+  assert.deepEqual(e.fiadores.faltas, ["Fiador 2: e-mail (coluna EMAIL FIADOR 2)"]);
+  /* só a caixa do e-mail (a base de teste não tem EMAIL CONJUGE FIADOR 2 — sai do bloco) */
+  assert.deepEqual(e.fiadores.fiadores.map((f) => [f.n, f.campos.map((x) => x.coluna)]), [[2, ["EMAIL FIADOR 2"]]]);
+  const s = c.acao("salvarFiadores", { valores: { "EMAIL FIADOR 2": "F2@teste.example" } });
+  assert.deepEqual(s, { ok: true, gravou: ["EMAIL FIADOR 2"] });
+  assert.equal(c.acao("contratoEstado").fiadores, undefined, "a falta some e o bloco fecha");
+  /* com tudo certo, o contrato final não ganha bloco */
+  const ok = cenarioCfd();
+  assert.equal(ok.gerarFinal().ok, true);
+  assert.equal(ok.acao("contratoEstado").fiadores, undefined);
+});
+
+test("I1: comprador casado sem o e-mail do cônjuge — falta no Gerar e o bloco do cônjuge com a caixa do e-mail", () => {
+  const c = cenario({ linha: { "ESTADO CIVIL": rt("CASADO"), CONJUGE: rt("Conjuge Teste da Silva"), "CPF CONJUGE": rt("935.411.347-80"),
+    "EMAIL CONJUGE": eml(null), REGIME: rt("COMUNHÃO PARCIAL DE BENS") } });
+  const r = c.acao("gerarPreContrato");
+  assert.equal(r.erro, "FALTAM_DADOS");
+  assert.ok(r.faltas.includes("Cônjuge do comprador 1: e-mail (coluna EMAIL CONJUGE)"), r.faltas.join(" | "));
+  const e = c.acao("contratoEstado");
+  assert.ok(e.fiadores.conjuge.campos.some((x) => x.coluna === "EMAIL CONJUGE" && x.tipo === "email"), JSON.stringify(e.fiadores));
+  assert.equal(c.acao("salvarFiadores", { valores: { "EMAIL CONJUGE": "conjuge@teste.example" } }).ok, true);
+  assert.equal(c.acao("contratoEstado").fiadores, undefined);
+  assert.equal(c.acao("gerarPreContrato").ok, true);
 });
 
 /* ---- 28/10/2026: conferência dos documentos pela IA (Conferencia.gs) ---- */
@@ -519,7 +782,7 @@ test("28/10: conferir documentos — lê pela IA, compara, guarda; ilegível con
   /* o pré-contrato sai, com o aviso */
   const pre = c.acao("gerarPreContrato");
   assert.equal(pre.ok, true, JSON.stringify(pre));
-  assert.ok(pre.avisos.some((a) => /^Conferência dos documentos: 1 divergência e 1 item sem conferir/.test(a)), pre.avisos.join(" | "));
+  assert.ok(pre.avisos.some((a) => /^Conferência dos documentos: 1 divergência e 1 item não anexado/.test(a)), pre.avisos.join(" | "));
   /* abrir o documento e confirmar visualmente */
   const doc = c.acao("verDocumentoConferencia", { coluna: "DOC. PROPONENTE" });
   assert.equal(doc.ok, true); assert.equal(doc.total, 1);
@@ -643,11 +906,13 @@ test("29/10 fluxo: valor da casa só muda com quem está em FLUXO_PRECO_USUARIOS
   const sem = cenarioFluxo();
   const b0 = sem.acao("fluxoEditar");
   assert.equal(b0.podePreco, false);
+  assert.deepEqual(b0.quemMudaPreco, []);
   const desconto = (atual) => ({ valor: 300000, linhas: atual.linhas.map((l) => (l.t === "balao" && l.v > 8000 ? { ...l, v: l.v - 5000 } : l)) });
   assert.equal(sem.acao("salvarFluxo", { fluxo: desconto(b0.atual), motivo: "desconto", motivoPreco: "x" }).erro, "FLUXO_PRECO_SEM_PERMISSAO");
-  const c = cenarioFluxo({ props: { FLUXO_PRECO_USUARIOS: "julio.cesar, Ana.Teste" } });
+  const c = cenarioFluxo({ props: { FLUXO_PRECO_USUARIOS: "beto.teste, Ana.Teste" } });
   const base = c.acao("fluxoEditar").atual;
   assert.equal(c.acao("fluxoEditar").podePreco, true);
+  assert.deepEqual(c.acao("fluxoEditar").quemMudaPreco, ["Beto Teste", "Ana Teste"]);
   const f = desconto(base);
   const r = c.acao("salvarFluxo", { fluxo: f, motivo: "desconto" });
   assert.equal(r.erro, "CAMPOS_INVALIDOS");
@@ -846,4 +1111,176 @@ test("31/10: contratoEstado traz faltasCliente (fiador sem nome/CPF) e nada inte
   assert.ok(sem.faltasCliente.every((t) => /^Fiador 2/.test(t)), JSON.stringify(sem.faltasCliente));
   const completo = cenarioCfd().acao("contratoEstado");
   assert.deepEqual(completo.faltasCliente, []);
+});
+
+/* ---- 01/11 H7: Andamento salva em segundo plano (vendas.html, condAndSalvar) ---- */
+import fsH7 from "node:fs";
+import pathH7 from "node:path";
+import { fileURLToPath as fuH7 } from "node:url";
+function montarAndamento() {
+  const raiz = pathH7.join(pathH7.dirname(fuH7(import.meta.url)), "..", "..");
+  const src = fsH7.readFileSync(pathH7.join(raiz, "vendas.html"), "utf8");
+  const ini = src.indexOf("const CD_AND_CEL=");
+  const fim = src.indexOf("/* 02/10 (item 20)", ini);
+  assert.ok(ini > 0 && fim > ini, "condAndSalvar não encontrada");
+  const corpo = src.slice(ini, fim);
+  const els = {};
+  /* el(): campo (ou status, id terminado em -st) da venda "L1" por padrão; o atributo data-and-* leva a chave id|coluna */
+  const PROPS = ["ITBI PAGO", "ENTREGOU"];
+  const el = (id, value, venda = "L1") => {
+    const m = /^cd-and-(\d+)(-st)?$/.exec(id);
+    const attr = m[2] ? "data-and-st" : "data-and-key";
+    const attrs = { [attr]: venda + "|" + PROPS[Number(m[1])] };
+    return (els[id] = { id, value, style: {}, textContent: "", attrs, getAttribute: (a) => (a in attrs ? attrs[a] : null) });
+  };
+  const estado = { renders: 0, chamadas: [], pend: [] };
+  const COND = { colunas: [{ nome: "ITBI PAGO", tipo: "select" }, { nome: "ENTREGOU", tipo: "checkbox" }],
+    linhas: [{ id: "L1", v: { "ITBI PAGO": "NÃO", ENTREGOU: false } }] };
+  const chamar = (p) => new Promise((res) => { estado.chamadas.push(p); estado.pend.push(res); });
+  const f = new Function("document", "chamar", "COND", "condRender", "cdVal", "window",
+    corpo + "; return condAndSalvar;")(
+    { getElementById: (i) => els[i] || null,
+      querySelectorAll: (sel) => Object.values(els).filter((e) => e.attrs && sel.slice(1, -1) in e.attrs) }, chamar, COND, () => { estado.renders++; },
+    (l, n) => (l && l.v && n in l.v ? l.v[n] : null),
+    { addEventListener: (ev, fn) => { if (ev === "beforeunload") estado.antesDeSair = fn; } });
+  return { f, els, el, estado, COND };
+}
+const espera = () => new Promise((r) => setImmediate(r));
+
+test("H7: ao mudar o SIM/NÃO a célula e o estado local já mostram o valor novo, antes da resposta; sucesso não redesenha", async () => {
+  const { f, el, estado, COND } = montarAndamento();
+  const c = el("cd-and-0", "SIM"); const st = el("cd-and-0-st", "");
+  const p = f("L1", "ITBI PAGO", "SIM", "cd-and-0-st");
+  assert.equal(COND.linhas[0].v["ITBI PAGO"], "SIM", "estado local já novo");
+  assert.equal(c.value, "SIM");
+  assert.match(st.textContent, /salvando/);
+  assert.equal(estado.chamadas.length, 1);
+  estado.pend[0]({ ok: true, linha: { id: "L1", v: { "ITBI PAGO": "SIM", OUTRA: "x" } } });
+  await p;
+  assert.equal(estado.renders, 0, "não redesenha o cartão inteiro");
+  assert.match(st.textContent, /salvo/);
+  assert.equal(COND.linhas[0].v.OUTRA, "x", "campos recalculados pelo servidor entram no estado local");
+});
+
+test("H7: com erro, volta só aquela célula ao valor antigo e avisa 'Não salvou: <motivo>' (mensagem, erro, sem conexão)", async () => {
+  for (const [resp, motivo] of [[{ ok: false, mensagem: "Faltou a data", erro: "X" }, "Faltou a data"], [{ ok: false, erro: "NOTION_429" }, "NOTION_429"], [null, "sem conexão"]]) {
+    const { f, el, estado, COND } = montarAndamento();
+    const c = el("cd-and-0", "SIM"); const st = el("cd-and-0-st", ""); const outra = el("cd-and-1", "SIM");
+    const p = f("L1", "ITBI PAGO", "SIM", "cd-and-0-st");
+    estado.pend[0](resp); await p;
+    assert.equal(c.value, "NÃO", "voltou o valor antigo");
+    assert.equal(COND.linhas[0].v["ITBI PAGO"], "NÃO");
+    assert.equal(outra.value, "SIM", "outra célula intocada");
+    assert.equal(st.textContent, "Não salvou: " + motivo);
+    assert.equal(estado.renders, 0);
+  }
+});
+
+test("H7: um envio por célula: A->B voando, B->C só sai depois que B volta; vale o último", async () => {
+  const { f, el, estado, COND } = montarAndamento();
+  const c = el("cd-and-0", "SIM"); const st = el("cd-and-0-st", "");
+  const p1 = f("L1", "ITBI PAGO", "SIM", "cd-and-0-st");
+  c.value = "NÃO";
+  const p2 = f("L1", "ITBI PAGO", "NÃO", "cd-and-0-st");
+  c.value = "TALVEZ";
+  const p3 = f("L1", "ITBI PAGO", "TALVEZ", "cd-and-0-st");
+  assert.equal(estado.chamadas.length, 1, "só um envio no ar");
+  assert.equal(COND.linhas[0].v["ITBI PAGO"], "TALVEZ");
+  estado.pend[0]({ ok: true, linha: { id: "L1", v: { "ITBI PAGO": "SIM" } } });
+  await espera();
+  assert.equal(estado.chamadas.length, 2, "agora vai o mais novo (os intermediários se juntam)");
+  assert.equal(estado.chamadas[1].valor, "TALVEZ");
+  assert.match(st.textContent, /salvando/);
+  estado.pend[1]({ ok: true, linha: { id: "L1", v: { "ITBI PAGO": "TALVEZ" } } });
+  await Promise.all([p1, p2, p3]);
+  assert.equal(COND.linhas[0].v["ITBI PAGO"], "TALVEZ");
+  assert.equal(c.value, "TALVEZ");
+  assert.match(st.textContent, /salvo/);
+});
+
+test("H7: A->B voando e B->C: se B falha, segue com C sem desfazer; se C falha, volta ao último confirmado (B)", async () => {
+  const { f, el, estado, COND } = montarAndamento();
+  const c = el("cd-and-0", "SIM"); const st = el("cd-and-0-st", "");
+  const p = f("L1", "ITBI PAGO", "SIM", "cd-and-0-st");
+  c.value = "TALVEZ"; f("L1", "ITBI PAGO", "TALVEZ", "cd-and-0-st");
+  estado.pend[0]({ ok: false, erro: "falhou" });
+  await espera();
+  assert.equal(c.value, "TALVEZ", "B falhou mas há C esperando: nada desfeito");
+  assert.equal(estado.chamadas.length, 2);
+  estado.pend[1]({ ok: false, mensagem: "Sem permissão" });
+  await p;
+  assert.equal(c.value, "NÃO", "voltou ao último confirmado (o original)");
+  assert.equal(COND.linhas[0].v["ITBI PAGO"], "NÃO");
+  assert.equal(st.textContent, "Não salvou: Sem permissão");
+});
+
+test("H7: B confirmado e C falha: a célula volta a B, não a A", async () => {
+  const { f, el, estado, COND } = montarAndamento();
+  const c = el("cd-and-0", "SIM"); const st = el("cd-and-0-st", "");
+  const p = f("L1", "ITBI PAGO", "SIM", "cd-and-0-st");
+  c.value = "TALVEZ"; f("L1", "ITBI PAGO", "TALVEZ", "cd-and-0-st");
+  estado.pend[0]({ ok: true, linha: { id: "L1", v: { "ITBI PAGO": "SIM" } } });
+  await espera();
+  estado.pend[1]({ ok: false, erro: "NOTION_429" });
+  await p;
+  assert.equal(c.value, "SIM");
+  assert.equal(COND.linhas[0].v["ITBI PAGO"], "SIM");
+  assert.equal(st.textContent, "Não salvou: NOTION_429");
+});
+
+test("H7: células diferentes salvam em paralelo; erro de uma não mexe na outra", async () => {
+  const { f, el, estado, COND } = montarAndamento();
+  el("cd-and-0", "SIM"); el("cd-and-0-st", "");
+  const c2 = el("cd-and-1", "SIM"); const st2 = el("cd-and-1-st", "");
+  const p1 = f("L1", "ITBI PAGO", "SIM", "cd-and-0-st");
+  const q = f("L1", "ENTREGOU", "SIM", "cd-and-1-st");
+  assert.equal(estado.chamadas.length, 2, "paralelo");
+  estado.pend[0]({ ok: true, linha: { id: "L1", v: { "ITBI PAGO": "SIM" } } }); await p1;
+  estado.pend[1]({ ok: false, mensagem: "Sem permissão" }); await q;
+  assert.equal(c2.value, "NÃO");
+  assert.equal(COND.linhas[0].v.ENTREGOU, false);
+  assert.equal(COND.linhas[0].v["ITBI PAGO"], "SIM");
+  assert.equal(st2.textContent, "Não salvou: Sem permissão");
+});
+
+test("H7: beforeunload só avisa enquanto há envio pendente", async () => {
+  const { f, el, estado } = montarAndamento();
+  el("cd-and-0", "SIM"); el("cd-and-0-st", "");
+  assert.equal(typeof estado.antesDeSair, "function", "handler registrado");
+  const ev0 = { preventDefault() { this.parado = true; } };
+  estado.antesDeSair(ev0);
+  assert.ok(!ev0.parado && !ev0.returnValue, "sem pendência não pergunta");
+  const p = f("L1", "ITBI PAGO", "SIM", "cd-and-0-st");
+  const ev1 = { preventDefault() { this.parado = true; } };
+  estado.antesDeSair(ev1);
+  assert.ok(ev1.parado);
+  assert.equal(ev1.returnValue, "Ainda está salvando. Sair mesmo assim?");
+  estado.pend[0]({ ok: true }); await p;
+  const ev2 = { preventDefault() { this.parado = true; } };
+  estado.antesDeSair(ev2);
+  assert.ok(!ev2.parado && !ev2.returnValue, "depois de salvar, não pergunta");
+});
+
+test("H7: troca de cartão com envio no ar: resposta (ok ou erro) não toca o campo da outra venda; ao reabrir o estado é o certo", async () => {
+  for (const ok of [true, false]) {
+    const { f, el, els, estado, COND } = montarAndamento();
+    COND.linhas.push({ id: "L2", v: { "ITBI PAGO": "TALVEZ", ENTREGOU: true } });
+    el("cd-and-0", "SIM"); el("cd-and-0-st", "");
+    const p = f("L1", "ITBI PAGO", "SIM", "cd-and-0-st");
+    /* o usuário abre a venda L2: os mesmos ids posicionais agora são dela */
+    delete els["cd-and-0"]; delete els["cd-and-0-st"];
+    const c2 = el("cd-and-0", "TALVEZ", "L2"); const st2 = el("cd-and-0-st", "", "L2");
+    estado.pend[0](ok ? { ok: true, linha: { id: "L1", v: { "ITBI PAGO": "SIM" } } } : { ok: false, erro: "falhou" });
+    await p;
+    assert.equal(c2.value, "TALVEZ", "campo da outra venda intocado");
+    assert.equal(st2.textContent, "", "status da outra venda intocado");
+    assert.equal(COND.linhas[1].v["ITBI PAGO"], "TALVEZ");
+    assert.equal(COND.linhas[0].v["ITBI PAGO"], ok ? "SIM" : "NÃO", "estado local da L1 certo para quando reabrir");
+  }
+});
+
+test("H7: o texto de status quebra palavra longa (375 px)", () => {
+  const raiz = pathH7.join(pathH7.dirname(fuH7(import.meta.url)), "..", "..");
+  const src = fsH7.readFileSync(pathH7.join(raiz, "vendas.html"), "utf8");
+  assert.match(src, /\.cd-and \.st\{[^}]*overflow-wrap:anywhere/);
 });

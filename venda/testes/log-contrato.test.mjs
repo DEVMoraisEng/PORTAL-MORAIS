@@ -22,3 +22,15 @@ test("juntar: a mais nova em cima; passando do limite caem as mais antigas", () 
   assert.ok(t.length <= L.MAX);
   assert.match(L.ler(t)[0], /499$/);
 });
+
+test("assinaturaCancelar: o texto do histórico segue o que o servidor fez (descartou, só atualizou, cancelou)", () => {
+  const l = (p, r) => L.linha("assinaturaCancelar", p, r, "b", "t");
+  assert.match(l({ descartar: true }, { ok: true, descartou: true }), /descartou o rascunho do envelope do contrato na Clicksign/);
+  assert.doesNotMatch(l({ descartar: true }, { ok: true, descartou: true }), /cancelou/);
+  const so = l({ descartar: true }, { ok: true, descartou: false, cancelou: undefined });
+  assert.match(so, /atualizou a situação \(o envelope já estava com os signatários; nada foi descartado\)/);
+  assert.doesNotMatch(so, /cancelou/);
+  assert.match(l({ doc: "PRE_RESERVA", descartar: true }, { ok: true, descartou: true }), /descartou o rascunho do envelope do termo de pré-reserva/);
+  assert.match(l({}, { ok: true, cancelou: true }), /cancelou o envelope do contrato na Clicksign/);
+  assert.match(l({ doc: "PRE_RESERVA" }, { ok: true }), /cancelou o envelope do termo de pré-reserva/);
+});

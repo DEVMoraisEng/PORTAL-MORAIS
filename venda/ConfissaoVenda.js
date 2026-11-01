@@ -53,6 +53,9 @@ var ConfissaoVenda = (function () {
   function totalPos(G) { G = comoGrupos(G); return so2(G.pos.reduce(function (t, s) { return t + serieTotal(s); }, 0)); }
 
   /* 30/10/2026 (dono): entrada em 24x, sem parcelas pós-chaves = fiador NÃO é necessário. */
+  /* 01/11/2026 (rodada 1): UMA regra para "os fiadores assinam e são conferidos": termos ligados E existentes
+     (36x/48x ou 24x alterado). O envio (AssinaturaVenda) e o Gerar (GerarContrato) usam esta mesma função. */
+  function fiadoresAssinam(d, termosLigados) { return !!termosLigados && !!d && !!d.condominio && quais(d).length > 0; }
   function fiadorDispensado(d) { return quais(d).indexOf("POS") < 0; }
 
   /* O que falta para gerar os termos (só nomes de campo). Os dois fiadores são obrigatórios (8.1 do termo),
@@ -104,7 +107,7 @@ var ConfissaoVenda = (function () {
     return "";
   }
 
-  var api = { COL: COL, TIPOS: TIPOS, PREFIXO: PREFIXO, MODELO: MODELO, quais: quais, faltas: faltas, fiadorDispensado: fiadorDispensado,
+  var api = { COL: COL, TIPOS: TIPOS, PREFIXO: PREFIXO, MODELO: MODELO, quais: quais, fiadoresAssinam: fiadoresAssinam, faltas: faltas, fiadorDispensado: fiadorDispensado,
               marcadores: marcadores, totalPre: totalPre, totalPos: totalPos, colunaAssinadaDoNome: colunaAssinadaDoNome };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   return api;

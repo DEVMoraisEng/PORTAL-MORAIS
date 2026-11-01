@@ -33,7 +33,13 @@ var LogContratoVenda = (function () {
     gerarContrato: function () { return "gerou o contrato final"; },
     assinaturaEnviar: function (p) { return "enviou " + doc(p) + " para assinatura na Clicksign"; },
     assinaturaReenviar: function (p) { return "reenviou o link de assinatura " + docDe(p); },
-    assinaturaCancelar: function (p) { return "cancelou o envelope " + docDe(p) + " na Clicksign"; },
+    /* 01/11: o texto segue a resposta — Descartar rascunho que só atualizou a situação não "cancelou" nada */
+    assinaturaCancelar: function (p, r) {
+      if (r && r.descartou) return "descartou o rascunho do envelope " + docDe(p) + " na Clicksign";
+      if (p && p.descartar === true && r && r.descartou === false)
+        return "atualizou a situação (o envelope já estava com os signatários; nada foi descartado)";
+      return "cancelou o envelope " + docDe(p) + " na Clicksign";
+    },
     escolherTestemunhas: function () { return "escolheu as testemunhas"; },
     salvarCamposContrato: function (p) {
       var c = (p && p.campos) || {}, nomes = [];
@@ -49,9 +55,16 @@ var LogContratoVenda = (function () {
     gerarVendaCondominio: function () { return "gerou a venda do condomínio"; },
     salvarContaPreReserva: function () { return "gravou a conta de devolução da pré-reserva"; },
     salvarPagamentoPreReserva: function () { return "gravou o valor e a data do pagamento da pré-reserva"; },
+    salvarConjugePreReserva: function (p) { return p && p.incluir === true ? "incluiu o cônjuge no termo de pré-reserva" : "tirou o cônjuge do termo de pré-reserva"; },
     gerarTermoPreReserva: function () { return "gerou o termo de pré-reserva"; },
     conferirDocumentos: function () { return "pediu a conferência dos documentos pela IA"; },
     confirmarConferencia: function () { return "confirmou um item da conferência dos documentos"; },
+    /* 01/11: bloco Fiadores — só os nomes das colunas, nunca o valor (nome/CPF) */
+    salvarFiadores: function (p, r) {
+      var g = (r && r.gravou) || [];
+      return g.length ? "corrigiu fiadores/cônjuge: " + curto(g.join(", "), DETALHE_MAX) : "";
+    },
+    conjugeEhFiador2: function (p, r) { return (r && r.gravou && r.gravou.length) ? "marcou que o cônjuge do Fiador 1 é o Fiador 2" : ""; },
     conferir: function () { return "marcou o dossiê como conferido"; },
     devolver: function (p) { return "devolveu o dossiê: " + curto(p && p.motivo, DETALHE_MAX); },
     tipoCasa: function (p) { return "mudou o tipo da casa" + (txt(p && p.valor).trim() ? " para " + curto(p.valor, 40) : ""); },

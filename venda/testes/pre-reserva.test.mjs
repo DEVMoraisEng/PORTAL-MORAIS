@@ -38,15 +38,48 @@ test("termo completo: sem faltas e todos os marcadores preenchidos", () => {
   for (const [k, v] of Object.entries(m)) assert.ok(v !== "", k);
 });
 
-test("faltas: conta, propriedades, CPF inválido, e-mail, casa fora da tabela", () => {
+test("faltas: propriedades, CPF inválido, e-mail, casa fora da tabela", () => {
   const t = P.montar(dados({ email: "" }, { nome: "CONDOMÍNIO OUTRO TESTE" }), { hojeISO: "2026-10-27", valor: "x", dataPagamento: "amanhã" });
   assert.deepEqual(P.faltas(t), [
     "Pré-reservante: e-mail (coluna Email)", "Unidade: fora da tabela do condomínio (tipo da casa)",
-    "Conta para devolução (preencha no cartão)", "Valor da pré-reserva (preencha no cartão)",
+    "Valor da pré-reserva (preencha no cartão)",
     "Data do pagamento da pré-reserva (preencha no cartão)"]);
   const cpf = C.montarDadosContrato({ venda: { CLIENTES: "X TESTE", CPF: "529.982.247-24", COMPRADOR1: {}, COMPRADOR2: { nome: "" } },
     obra: {}, condominio: { nome: "RESERVA DOS IPÊS", unidade: "1", fluxo: {}, fiadores: [] } });
   assert.ok(P.faltas(P.montar(cpf, X)).includes("Pré-reservante: CPF inválido"));
+});
+
+test("01/11: validarPagamento barra data futura (hoje vem do servidor) e valor acima do sinal; sinal desconhecido não barra", () => {
+  const ok = (o) => P.validarPagamento({ hojeISO: "2026-11-01", sinal: 10000, ...o });
+  assert.equal(ok({ valor: 1000, data: "2027-01-10" }).erro, "PR_DATA_FUTURA");
+  assert.equal(ok({ valor: 1000, data: "2026-11-02" }).erro, "PR_DATA_FUTURA");
+  assert.equal(ok({ valor: 1000, data: "2026-11-01" }).ok, true, "hoje vale");
+  assert.equal(ok({ valor: 50000, data: "2026-10-30" }).erro, "PR_VALOR_MAIOR_QUE_SINAL");
+  assert.equal(ok({ valor: 10000, data: "2026-10-30" }).ok, true, "igual ao sinal vale");
+  for (const sinal of [0, null, undefined, ""]) assert.equal(ok({ valor: 50000, data: "2026-10-30", sinal }).ok, true, "sinal " + sinal);
+  assert.equal(ok({ valor: 0, data: "2026-10-30" }).erro, "PR_VALOR_INVALIDO");
+  assert.equal(ok({ valor: 1000, data: "amanhã" }).erro, "PR_DATA_INVALIDA");
+  assert.equal(P.validarPagamento({ valor: 1000, data: "2030-01-01" }).ok, true, "sem hojeISO (chamada antiga) não barra data");
+  assert.equal(P.sinalDoFluxo({ sinalAto: 1000, sinal30: 3000, sinal60: null, sinal90: 3000 }), 7000);
+  assert.equal(P.sinalDoFluxo({}), 0);
+});
+
+test("01/11: faltas repete a checagem: data futura e valor acima do sinal (só com sinal conhecido)", () => {
+  const com = (fluxo, x) => P.faltas(P.montar(dados({}, { fluxo }), { ...X, hojeISO: "2026-11-01", ...x }));
+  assert.deepEqual(com({ sinalAto: 5000, sinal30: 5000 }, {}), []);
+  assert.deepEqual(com({ sinalAto: 5000, sinal30: 5000 }, { dataPagamento: "2027-01-10" }), ["Data do pagamento da pré-reserva: não pode ser depois de hoje"]);
+  assert.deepEqual(com({ sinalAto: 5000, sinal30: 5000 }, { valor: "50000" }), ["Valor da pré-reserva: maior que o sinal da venda (R$ 10.000,00)"]);
+  assert.deepEqual(com({}, { valor: "50000" }), [], "sem sinal conhecido não barra");
+});
+
+test("01/11 (dono): conta para devolução é opcional; em branco o termo sai com o marcador vazio; preenchida, como antes", () => {
+  const sem = P.montar(dados(), { ...X, conta: "" });
+  assert.deepEqual(P.faltas(sem), []);
+  const m = P.marcadores(sem);
+  assert.equal(m.PRE_RESERVANTE_CONTA, "");
+  for (const v of Object.values(m)) assert.ok(!/undefined|null/.test(String(v)), String(v));
+  assert.equal(P.marcadores(P.montar(dados(), X)).PRE_RESERVANTE_CONTA, "PIX, chave 529.982.247-25, no banco 756 - SICOOB");
+  assert.deepEqual(P.faltas(P.montar(dados(), X)), []);
 });
 
 test("valor e data aceitam os formatos que se digitam nas Propriedades", () => {

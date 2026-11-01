@@ -14,7 +14,7 @@
     RECUSADO: "Recusado por um signatário — confira o motivo na Clicksign e envie de novo",
     CANCELADO: "Cancelado na Clicksign — pode enviar de novo",
     EXPIRADO: "Prazo vencido sem todas as assinaturas — pode enviar de novo",
-    RASCUNHO: "Rascunho na Clicksign (não foi enviado) — apague o rascunho na Clicksign e use Atualizar situação"
+    RASCUNHO: "Rascunho na Clicksign (não foi enviado). O envio parou no meio. Clique em Descartar rascunho e envie de novo."
   };
   var MSG = {
     NAO_AUTORIZADO: "Sua sessão expirou — entre de novo no portal.",
@@ -22,11 +22,15 @@
     SEM_PERMISSAO_TESTES: "O perfil TESTES não envia, não reenvia, não cancela nem atualiza a assinatura.",
     ASSINATURA_OCUPADA: "Há outro envio para assinatura em andamento — espere um minuto e tente de novo.",
     CONTRATO_DESATUALIZADO: "Os dados mudaram depois de gerar o contrato — gere de novo e depois envie.",
+    TERMO_DESATUALIZADO: "Os dados mudaram depois de gerar o termo de pré-reserva — gere o termo de novo e depois envie.",
     CONFISSAO_DESATUALIZADA: "Os termos de confissão não são deste contrato — gere o contrato de novo (os termos saem junto) e envie.",
     SEM_RESPOSTA: "O servidor não respondeu — confira a internet e tente de novo.",
+    /* 01/11/2026 (revisão final, I3): o envio sem resposta pode ter dado certo (o servidor repete a Clicksign por até 180 s) */
+    SEM_RESPOSTA_ENVIO: "A Clicksign está demorando. O envio pode ter dado certo — espere 1 minuto e clique em Atualizar situação antes de tentar de novo.",
     PORTAL_VENDA_NAO_CONFIGURADO: "A assinatura ainda não foi ligada neste ambiente.",
     CLICKSIGN_SEM_TOKEN: "A assinatura ainda não foi ligada neste ambiente (falta o token da Clicksign) — avise o administrador.",
     CLICKSIGN_URL_INVALIDA: "O endereço da Clicksign está errado nas configurações — avise o administrador.",
+    RASCUNHO_NAO_APAGADO: "A Clicksign não apagou o rascunho — tente Descartar rascunho de novo em 1 minuto.",
     ENVELOPE_ABERTO: "Este contrato já está com a Clicksign — use Atualizar situação.",
     SEM_CONTRATO_GERADO: "Gere o contrato antes de enviar para assinatura.",
     FALTAM_DADOS: "Complete os dados abaixo e envie de novo.",
@@ -80,6 +84,10 @@
   function podeCancelar(c) {
     return !!(c.estado && c.estado.envelope && situacaoDe(c.estado) === "ENVIADO" && !c.ocupado && !c.testes);
   }
+  /* Descartar rascunho: o envio parou no meio e o envelope ficou em rascunho (ninguém recebeu nada) */
+  function podeDescartar(c) {
+    return !!(c.estado && c.estado.envelope && situacaoDe(c.estado) === "RASCUNHO" && !c.ocupado && !c.testes);
+  }
   /* "2026-10-07T10:20:30.000-03:00" → "07/10/2026 10:20" (hora como a Clicksign mandou) */
   function dataCurta(iso) {
     var m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/.exec(String(iso || ""));
@@ -103,7 +111,7 @@
         return "A Clicksign não respondeu ao ativar o envelope " + r.envelopeId + " e não deu para confirmar se ele foi enviado — use Atualizar situação daqui a pouco; não envie de novo.";
       /* rascunho que não foi apagado: barra novo envio até sumir da Clicksign */
       var sobra = r.envelopeId && r.rascunhoApagado === false
-        ? " O envelope ficou como rascunho na Clicksign (nada foi enviado aos signatários): apague o rascunho na Clicksign e use Atualizar situação." : "";
+        ? " O envelope ficou como rascunho na Clicksign (nada foi enviado aos signatários). O envio parou no meio. Clique em Descartar rascunho e envie de novo." : "";
       if (!r.http) return "A Clicksign não respondeu (passo: " + r.passo + ")" +
         (consulta ? " — tente Atualizar situação daqui a pouco." : (sobra ? "." + sobra : ". Nada foi enviado aos signatários — tente de novo em alguns minutos."));
       return "A Clicksign recusou " + (consulta ? "a consulta" : "o envio") + " (passo: " + r.passo + ", código " + r.http +
@@ -172,6 +180,8 @@
       h += ' <button type="button" class="bt ghost bt-mini" data-acao="' + x + 'reenviar"' + (podeReenviar(c) ? "" : " disabled") + ">Reenviar link de assinatura</button>";
     if (e.envelope && situacaoDe(e) === "ENVIADO")
       h += ' <button type="button" class="bt ghost bt-mini" data-acao="' + x + 'cancelar"' + (podeCancelar(c) ? "" : " disabled") + ">Cancelar envelope</button>";
+    if (e.envelope && situacaoDe(e) === "RASCUNHO" && !c.testes)
+      h += ' <button type="button" class="bt ghost bt-mini" data-acao="' + x + 'descartar"' + (podeDescartar(c) ? "" : " disabled") + ">Descartar rascunho</button>";
     /* só leitura: o perfil TESTES também vê */
     if (podeVerAssinado(c)) h += ' <button type="button" class="bt bt-mini" data-acao="' + x + 'ver-assinado"' + (c.ocupado ? " disabled" : "") + ">Ver " + (termo ? "termo" : "contrato") + " assinado</button>";
     h += "</div>";
@@ -212,6 +222,7 @@
     acao = String(acao || "").replace(/^p-/, "a-");   /* termo: mesmos cliques com prefixo p- */
     if (acao === "a-reenviar") return reenviarLink(c, deps);
     if (acao === "a-cancelar") return cancelarEnvelope(c, deps);
+    if (acao === "a-descartar") return descartarRascunho(c, deps);
     var enviar = acao === "a-enviar";
     if (enviar ? !podeEnviar(c) : (acao !== "a-atualizar" || !podeAtualizar(c))) return c;
     if (enviar && !deps.confirmar("Enviar o " + (ehTermo(c) ? "termo de pré-reserva" : "contrato") + " para assinatura? Cada signatário recebe um e-mail da Clicksign para assinar.")) return c;
@@ -228,6 +239,7 @@
       r = { ok: false, erro: "SEM_RESPOSTA" };
     }
     r = r || { ok: false, erro: "SEM_RESPOSTA" };
+    if (enviar && r.erro === "SEM_RESPOSTA") r = { ok: false, erro: "SEM_RESPOSTA_ENVIO" };
     if (!r.ok) {
       var falhou = { ocupado: null, faltas: r.faltas || null, msg: mensagemAssinatura(r),
                      corrigir: (r.corrigir || []).map(function (x) {
@@ -282,8 +294,31 @@
                       msg: "Envelope cancelado na Clicksign — ninguém mais recebe pedido de assinatura dele." });
   }
 
+  /* Descartar rascunho: a mesma ação assinaturaCancelar; com envelope draft o servidor apaga e limpa as colunas.
+   * Se a Clicksign não respondeu, nada foi apagado: pede para tentar de novo. */
+  async function descartarRascunho(c, deps) {
+    if (!podeDescartar(c)) return c;
+    if (!deps.confirmar("Descartar o rascunho do " + (ehTermo(c) ? "termo de pré-reserva" : "contrato") + " na Clicksign? Nada foi enviado aos signatários; depois é só enviar de novo.")) return c;
+    if (typeof deps.pintar === "function") deps.pintar(copia(c, { ocupado: "cancelar", msg: "" }));
+    var r;
+    try { r = await deps.chamar(comDoc(c, { action: "assinaturaCancelar", pageId: deps.pageId, descartar: true })); }
+    catch (err) { r = { ok: false, erro: "SEM_RESPOSTA" }; }
+    r = r || { ok: false, erro: "SEM_RESPOSTA" };
+    if (!r.ok) {
+      var semResposta = r.erro === "CLICKSIGN_FALHOU" && (!r.http || r.http >= 500);
+      return copia(c, { ocupado: null, msg: semResposta ? "A Clicksign não respondeu. Tente de novo em 1 minuto." : mensagemAssinatura(r) });
+    }
+    if (r.descartou)
+      return copia(c, { estado: { situacao: "", envelope: false, signatarios: [], temAssinado: false }, ocupado: null, faltas: null, corrigir: null,
+                        msg: "Rascunho descartado — agora é só enviar de novo." });
+    /* o servidor não descartou: o envelope já não era rascunho; ele só atualizou a situação e explica no aviso */
+    return copia(c, { estado: { situacao: r.situacao || "", envelope: !!r.envelope, signatarios: r.signatarios || [], temAssinado: !!r.temAssinado },
+                      ocupado: null, faltas: null, corrigir: null,
+                      msg: [r.avisoTexto, mensagemAssinatura(r)].filter(Boolean).join(" ") || "Situação atualizada." });
+  }
+
   var exportar = { montarBlocoAssinatura: montarBlocoAssinatura, mensagemAssinatura: mensagemAssinatura,
-                   executarAcaoAssinatura: executarAcaoAssinatura, prepararRubricas: prepararRubricas, podeEnviar: podeEnviar, podeReenviar: podeReenviar, podeCancelar: podeCancelar,
+                   executarAcaoAssinatura: executarAcaoAssinatura, prepararRubricas: prepararRubricas, podeEnviar: podeEnviar, podeReenviar: podeReenviar, podeCancelar: podeCancelar, podeDescartar: podeDescartar,
                    podeVerAssinado: podeVerAssinado };
   if (typeof module !== "undefined" && module.exports) { module.exports = exportar; return; }
   window.VendaAssinatura = exportar; /* o coordenador liga no painel (venda-dossie.js / vendas.html) */
