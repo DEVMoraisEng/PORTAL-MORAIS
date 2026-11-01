@@ -467,7 +467,8 @@ function assCriarEnvelope_(p, pid, cols, doc, gerado, lista, nomeCs, extras, adi
       return id;
     });
     lista.forEach(function (s, i) {
-      /* fiador: só os termos; comprador: tudo; os demais: o contrato e os termos (ClicksignVenda.documentosDoSignatario) */
+      /* fiador: só os termos; comprador e vendedor: tudo (dono, 01/11/2026); corretor: só o contrato; os demais: o contrato e os
+         termos (ClicksignVenda.documentosDoSignatario) */
       ClicksignVenda.documentosDoSignatario(s, docs).forEach(function (dId) {
         csPasso_("requisitos", "post", base + "/requirements", ClicksignVenda.corpoQualificacao(dId, ids[i], s.role));
         Utilities.sleep(CS_PAUSA_REQ_MS);

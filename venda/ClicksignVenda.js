@@ -186,13 +186,15 @@ var ClicksignVenda = (function () {
   }
   function sigCompradores(dados) {
     var l = [sig("Comprador 1", PAPEIS.COMPRADOR, dados.comprador1, "comprador1", { rubrica: true })];
-    /* 31/10/2026 (dono): comprador casado → o cônjuge assina logo depois dele (contrato e termos de confissão; sem rubrica,
-       sem memorial). 01/11/2026 (dono): no TERMO DE PRÉ-RESERVA o cônjuge só entra se o corretor ligou a opção na venda
+    /* 31/10/2026 (dono): comprador casado → o cônjuge assina logo depois dele. 01/11/2026 (dono): "cônjuge (geralmente vai
+       como comprador 2) tem que assinar tudo que o comprador 1 assina" — os mesmos documentos (contrato, termos, memorial,
+       projeto) e os mesmos campos de ciência e vistos dos valores, ao lado dos outros compradores (rubrica: true).
+       01/11/2026 (dono): no TERMO DE PRÉ-RESERVA o cônjuge só entra se o corretor ligou a opção na venda
        (AssinaturaVenda.assEnviarTermo_ tira o conjugeComprador antes). Se o cônjuge já é o comprador 2 (mesmo CPF ou nome),
        não assina duas vezes. */
     var cj = dados.condominio && dados.condominio.conjugeComprador, c2 = dados.comprador2;
     if (cj && !(c2 && ((soDigitos(cj.cpf) && soDigitos(cj.cpf) === soDigitos(c2.cpf)) || txt(cj.nome).toUpperCase() === txt(c2.nome).toUpperCase())))
-      l.push(sig("Cônjuge do comprador 1", PAPEIS.COMPRADOR, cj, "conjugeComprador1"));
+      l.push(sig("Cônjuge do comprador 1", PAPEIS.COMPRADOR, cj, "conjugeComprador1", { rubrica: true }));
     if (dados.comprador2) l.push(sig("Comprador 2", PAPEIS.COMPRADOR, dados.comprador2, "comprador2", { rubrica: true }));
     return l;
   }
@@ -567,7 +569,9 @@ var ClicksignVenda = (function () {
     return (docs || []).filter(function (d) {
       if (s.soTermos) return d.tipo === DOC.TERMO;
       if (s.origem === "corretor") return d.tipo === DOC.CONTRATO;   /* 01/11 (dono): o corretor só assina o contrato */
-      if (s.rubrica) return true;
+      /* 01/11/2026 (dono): "o comprador 1 e o 2/3 (quando tiver) têm que assinar os mesmos documentos, exatamente os mesmos,
+         tem que ter a assinatura dos 2 ou 3 nos mesmos (junto com vendedor tb)" — compradores e vendedor: todos os documentos */
+      if (s.rubrica || ehVendedorSig(s)) return true;
       return d.tipo === DOC.CONTRATO || d.tipo === DOC.TERMO;
     }).map(function (d) { return d.id; });
   }
@@ -576,7 +580,8 @@ var ClicksignVenda = (function () {
    * é o canto de cima à esquerda ou o centro da caixa: o padrão supõe o canto e sobe a assinatura para ficar
    * em cima da linha "ASSINATURA: ____". Conferir no sandbox e, se precisar, corrigir pela Propriedade
    * RUBRICAS_AJUSTE, ex.: {"campo":{"dx":0,"dy":-0.015},"valores":{"dx":0,"dy":0}}. */
-  var AJUSTE_PADRAO = { campo: { dx: 0, dy: -0.01 }, valores: { dx: 0, dy: -0.004 }, linha: { dx: 0, dy: -0.03 } };
+  /* calibração 01/11: campos e linhas já saem com o topo 46 pt acima da linha de base (RubricasVenda) — ajuste padrão 0 */
+  var AJUSTE_PADRAO = { campo: { dx: 0, dy: 0 }, valores: { dx: 0, dy: -0.004 }, linha: { dx: 0, dy: 0 } };
   function numOu(v, padrao) { return typeof v === "number" && isFinite(v) && Math.abs(v) <= 0.5 ? v : padrao; }
   function ajusteRubricas(j) {
     j = j && typeof j === "object" ? j : {};
@@ -723,22 +728,41 @@ var ClicksignVenda = (function () {
    * Comprador (s.rubrica): campos de ciência + a linha dele numa só "manuscript" do contrato (a Clicksign não aceita
    * duas do mesmo tipo para a mesma pessoa), visto nos valores, memorial e projeto. Os outros: só a assinatura na
    * própria linha (contrato e termos). i e lista (o signatário na lista do envelope) ligam as linhas; sem eles, como antes. */
+  function ehVendedorSig(s) { return s.origem === "vendedor" || s.origem === "representante"; }
+  /* calibração 01/11 (sandbox): quem divide o MESMO ponto (campo de ciência, valores, memorial, projeto) fica lado a lado,
+     105 pt um do outro (imagem de 100 pt); sem espaço até a margem direita (36 pt), vai uma fileira 52 pt abaixo e as de
+     cima sobem — a última fileira fica no ponto medido. k = a vez desta pessoa, n = quantas dividem o ponto.
+     Tamanho da página em pontos: A4 (contrato, memorial); projeto: págs. 1–2 A1 deitado, as demais A2 deitado. */
+  var A4 = { W: 595, H: 842 };
+  function paginaProjeto(p) { return Number(p.page) <= 2 ? { W: 2384, H: 1684 } : { W: 1684, H: 1191 }; }
+  function aoLado(p, k, n, pg) {
+    if (!p || !(n > 1) || !(k >= 0)) return p && { page: p.page, position: p.position.slice() };
+    var x0 = p.position[0] * pg.W, porFileira = Math.max(1, 1 + Math.floor((pg.W - 36 - 100 - x0) / 105));
+    var fileiras = Math.ceil(n / porFileira), col = k % porFileira, fil = Math.floor(k / porFileira);
+    var x = (x0 + 105 * col) / pg.W, y = (p.position[1] * pg.H - 52 * (fileiras - 1 - fil)) / pg.H;
+    return { page: p.page, position: [arred(Math.max(0, Math.min(1, x))), arred(Math.max(0, Math.min(1, y)))] };
+  }
   function requisitosRubrica(s, docs, rub, i, lista) {
     if (!rub) return [];
     var comLinhas = Array.isArray(lista) && typeof i === "number", l = [];
+    /* quem divide os pontos: campos e valores — os compradores (rubrica); memorial e projeto — compradores e vendedor */
+    var grupoC = comLinhas ? lista.filter(function (x) { return x.rubrica; }) : [s];
+    var grupoD = comLinhas ? grupoC.concat(lista.filter(ehVendedorSig)) : [s];
+    var kC = grupoC.indexOf(s), nC = grupoC.length, kD = grupoD.indexOf(s), nD = grupoD.length;
+    function noA4(p) { return aoLado(p, kC, nC, A4); }
     (docs || []).forEach(function (d) {
       if (d.tipo === DOC.CONTRATO) {
         var lin = comLinhas && rub.linhas && rub.linhas.length ? atribuirLinhas(lista, rub.linhas, DOC.CONTRATO)[i] : [];
-        var man = (s.rubrica && rub.campos ? rub.campos : []).concat(lin);
+        var man = (s.rubrica && rub.campos ? rub.campos.map(noA4) : []).concat(lin);
         if (man.length) l.push({ docId: d.id, kind: "manuscript", positions: man });
-        if (s.rubrica && rub.valores) l.push({ docId: d.id, kind: "initials", positions: [rub.valores] });
+        if (s.rubrica && rub.valores) l.push({ docId: d.id, kind: "initials", positions: [noA4(rub.valores)] });
       } else if (d.tipo === DOC.TERMO) {
         var lt = comLinhas && rub.termos && d.nome && rub.termos[d.nome] ? atribuirLinhas(lista, rub.termos[d.nome], DOC.TERMO)[i] : [];
         if (lt.length) l.push({ docId: d.id, kind: "manuscript", positions: lt });
-      } else if (d.tipo === DOC.MEMORIAL && s.rubrica && rub.memorial) {
-        l.push({ docId: d.id, kind: "manuscript", positions: [rub.memorial] });
-      } else if (d.tipo === DOC.PROJETO && s.rubrica && rub.projeto && rub.projeto.length) {
-        l.push({ docId: d.id, kind: "initials", positions: rub.projeto });
+      } else if (d.tipo === DOC.MEMORIAL && (s.rubrica || ehVendedorSig(s)) && rub.memorial) {
+        l.push({ docId: d.id, kind: "manuscript", positions: [aoLado(rub.memorial, kD, nD, A4)] });
+      } else if (d.tipo === DOC.PROJETO && (s.rubrica || ehVendedorSig(s)) && rub.projeto && rub.projeto.length) {
+        l.push({ docId: d.id, kind: "initials", positions: rub.projeto.map(function (p) { return aoLado(p, kD, nD, paginaProjeto(p)); }) });
       }
     });
     return l;

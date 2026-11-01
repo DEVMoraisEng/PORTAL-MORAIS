@@ -1059,9 +1059,9 @@ var ContratoVenda = (function () {
       CONDICOES_ESPECIAIS: txt(im.condicoesEspeciais).replace(/\s*\n+\s*/g, " ").trim() || "Não há.",
       ASSINATURA_COMPRADORES_NOMES: [c1.nome].concat(cjq ? [cjq.nome] : [], c2 ? [c2.nome] : []).join(" / "),
       ASSINATURA_COMPRADORES_CPFS: [c1.cpf].concat(cjq ? [cjq.cpf] : [], c2 ? [c2.cpf] : []).join(" / "),
-      /* o memorial só tem compradores (o cônjuge não o assina) — AssinaturaVenda.assDocsDoComprador_ */
-      MEMORIAL_ASSINATURA_NOMES: c2 ? c1.nome + " / " + c2.nome : c1.nome,
-      MEMORIAL_ASSINATURA_CPFS: c2 ? c1.cpf + " / " + c2.cpf : c1.cpf,
+      /* 01/11/2026 (dono): o cônjuge assina tudo que o comprador 1 assina — também o memorial (AssinaturaVenda.assDocsDoComprador_) */
+      MEMORIAL_ASSINATURA_NOMES: [c1.nome].concat(cjq ? [cjq.nome] : [], c2 ? [c2.nome] : []).join(" / "),
+      MEMORIAL_ASSINATURA_CPFS: [c1.cpf].concat(cjq ? [cjq.cpf] : [], c2 ? [c2.cpf] : []).join(" / "),
       CORRETOR_DOC: txt(k.cpfCnpj),
       LOTEAMENTO: txt(l.denominacao),
       MUNICIPIO_UF: txt(l.municipioUf),

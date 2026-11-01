@@ -1125,8 +1125,8 @@ passa a usar a cópia quando o dono troca a Propriedade dele. O código antigo d
 **Passo a passo do dono (uma vez):**
 1. Colar o código novo nos DOIS projetos, `PORTAL-VENDA-TESTE` e `PORTAL-VENDA`: `ClicksignVenda`, `ContratoVenda`,
    `GerarContrato`, `AssinaturaVenda`, `AssinaturaVigia`, `Confissao`, `PreReserva` e o novo `MigrarModelos`; e
-   subir o site (`venda/RubricasVenda.js` v4, `venda/assinatura-ui.js` v20, `venda-dossie.js` v51, `vendas.html`,
-   `simulacoes.html`, `sw.js` v253). Com os modelos de hoje nada muda.
+   subir o site (`venda/RubricasVenda.js` v5, `venda/assinatura-ui.js` v20, `venda-dossie.js` v52, `vendas.html`,
+   `simulacoes.html`, `sw.js` v254). Com os modelos de hoje nada muda.
 2. No projeto onde vai rodar a migração (o TESTE), ligar o serviço avançado **Google Docs API**: editor do Apps Script ›
    Serviços (+) › Google Docs API › Adicionar (identificador `Docs`). Os modelos de contrato têm quebras de seção perto dos
    blocos (a de próxima página antes do quadro-resumo e a de 2 colunas que põe vendedora | comprador lado a lado); o
@@ -1168,6 +1168,22 @@ apagadas.
 - Decisão do dono (01/11): o corretor assina SÓ o contrato — não entra nos termos de confissão (nem na pré-reserva).
 - Linha de assinatura cujo texto mostra dois papéis (blocos lado a lado lidos juntos), ou papel VENDEDORA com o nome
   de um comprador, não vai para ninguém: melhor a pessoa assinar só na página da Clicksign do que na linha errada.
+
+**Calibração e decisões do dono (01/11/2026):**
+- A Clicksign põe o topo da imagem da assinatura (100×50 pt) no ponto pedido. O ponto agora fica 46 pt acima da linha de
+  base do traço (linhas de assinatura e campos "ASSINATURA: ____"): a assinatura cruza a linha e o pé fica ~4 pt abaixo,
+  sem cobrir o "Nome:". Se o texto de cima estiver a menos de 46 pt, a imagem encosta nele (preferimos a linha).
+  O ajuste padrão de `campo` e `linha` passou a 0; um `RUBRICAS_AJUSTE` gravado antes com `dy` negativo agora sobe a
+  assinatura demais — apague a chave `linha`/`campo` dele.
+- Quem divide o mesmo ponto (campos de ciência, vistos dos valores, memorial, projeto) fica lado a lado, 105 pt um do
+  outro; sem espaço até a margem, vai uma fileira 52 pt abaixo e a de cima sobe.
+- Dono: "o comprador 1 e o 2/3 (quando tiver) têm que assinar os mesmos documentos, exatamente os mesmos, tem que ter a
+  assinatura dos 2 ou 3 nos mesmos (junto com vendedor tb)" — compradores e vendedor assinam contrato, termos, memorial e
+  projeto (o vendedor ao lado dos compradores no memorial e no projeto).
+- Dono: "cônjuge (geralmente vai como comprador 2) tem que assinar tudo que o comprador 1 assina" — o cônjuge assina os
+  mesmos documentos e campos do comprador 1, e entra no bloco de assinatura do memorial. Exceção: termo de pré-reserva
+  (só com a caixa "Incluir o cônjuge na pré-reserva").
+- Sem mudança: fiadores só os termos; testemunhas contrato e termos; corretor só o contrato.
 
 ## Selfie com documento para comprador, cônjuge e fiadores (01/11/2026, plano 23 C)
 

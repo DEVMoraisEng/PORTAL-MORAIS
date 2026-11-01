@@ -14,7 +14,13 @@ var RubricasVenda = (function () {
   var CAMPO = /ASSINATURA\s*:\s*_{3,}/gi;
   /* 01/11 (plano 23 B): linha de assinatura = traços sozinhos na linha; o texto logo abaixo diz de quem é */
   var TEM_TRACO = /_{3,}/;
-  var AJUSTE_LINHA = { dx: 0, dy: -0.03 };
+  var AJUSTE_LINHA = { dx: 0, dy: 0 };
+  /* calibração 01/11 (sandbox): a Clicksign põe o TOPO da imagem da assinatura (100×50 pt) no y pedido. Pedindo o topo
+     46 pt acima da linha de base do traço, o pé da imagem fica ~4 pt abaixo da linha — a assinatura cruza a linha e não
+     cobre o "Nome:" de baixo. Vale para as linhas de assinatura e para os campos "ASSINATURA: ____". Se o texto de cima
+     estiver a menos de 46 pt, a imagem encosta nele: preferimos a linha (não se mexe aqui; RUBRICAS_AJUSTE ainda soma). */
+  var ACIMA_DA_BASE = 46;
+  function topoAcima(l, H) { return (l.y + l.h - ACIMA_DA_BASE) / H; }
   var ITEM_421 = /^\s*4\.2\.1\.?(\s|$)/;
 
   function limitar(v) { return Math.max(0, Math.min(1, Math.round(v * 10000) / 10000)); }
@@ -74,7 +80,7 @@ var RubricasVenda = (function () {
         var m;
         while ((m = CAMPO.exec(l.texto))) {
           var iTraco = l.texto.indexOf("_", m.index);
-          campos.push({ page: String(pg.numero), position: [limitar(l.xs[iTraco] / W + aC.dx), limitar(l.y / H + aC.dy)] });
+          campos.push({ page: String(pg.numero), position: [limitar(l.xs[iTraco] / W + aC.dx), limitar(topoAcima(l, H) + aC.dy)] });
         }
         /* o primeiro "4.2.1." que está numa tabela (texto bem à direita da margem): é o quadro-resumo */
         if (!valores && ITEM_421.test(l.texto) && l.x - margem > W * 0.08) {
@@ -148,7 +154,7 @@ var RubricasVenda = (function () {
         });
         validos.forEach(function (c) {
           var x0 = l.xs[c[0]], x1 = l.xs[c[1] - 1] + Math.max(1, (l.xs[c[1] - 1] - x0) / Math.max(1, c[1] - c[0] - 1));
-          out.push({ page: String(pg.numero), position: [limitar(x0 / W + (Number(a.dx) || 0)), limitar(l.y / H + (Number(a.dy) || 0))],
+          out.push({ page: String(pg.numero), position: [limitar(x0 / W + (Number(a.dx) || 0)), limitar(topoAcima(l, H) + (Number(a.dy) || 0))],
                      texto: textoDaColuna(ls, i, x0, x1, validos.length === 1) });
         });
       });

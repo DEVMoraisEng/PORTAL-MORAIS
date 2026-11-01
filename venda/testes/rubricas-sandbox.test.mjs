@@ -22,7 +22,8 @@ const LISTA = [
   { papel: "Testemunha 1", role: "witness", nome: "Testemunha Um Teste", origem: "testemunha" },
   { papel: "Testemunha 2", role: "witness", nome: "Testemunha Dois Teste", origem: "testemunha" }];
 const ZERO = { linha: { dx: 0, dy: 0 } };
-const xy = (l) => [Math.round(l.position[0] * W), Math.round(l.position[1] * H)];
+/* calibração 01/11: o topo pedido fica 46 pt acima da linha de base; nos itens de 11 pt daqui: y do traço = topo + 46 − 11 */
+const xy = (l) => [Math.round(l.position[0] * W), Math.round(l.position[1] * H + 46 - 11)];
 
 const PAG31 = pag(31, [
   it("ASSINATURAS", 250, 300), it("E, por estarem assim justos e contratados, assinam com 2 (duas) testemunhas.", 57, 320),
@@ -74,7 +75,7 @@ test("correção 3 (1): o corretor assina SÓ o contrato — nem os termos de co
   const corretor = { papel: "Corretor", role: "real_estate_broker", nome: "Corretor Sandbox Teste", origem: "corretor" };
   const docs = [{ id: "c", tipo: "contrato" }, { id: "t", tipo: "termo" }, { id: "m", tipo: "memorial" }];
   assert.deepEqual(CS.documentosDoSignatario(corretor, docs), ["c"]);
-  assert.deepEqual(CS.documentosDoSignatario(LISTA[1], docs), ["c", "t"], "a vendedora continua nos dois");
+  assert.deepEqual(CS.documentosDoSignatario(LISTA[1], docs), ["c", "t", "m"], "a vendedora: todos (dono, 01/11/2026)");
   const l = [{ page: "3", position: [0.1, 0.5], texto: "Nome: Corretor Sandbox Teste\nINTERMEDIADOR/CORRETOR" }];
   assert.deepEqual(CS.atribuirLinhas(LISTA.concat([corretor]), l, "termo")[4], []);
   assert.equal(CS.atribuirLinhas(LISTA.concat([corretor]), l, "contrato")[4].length, 1);
@@ -101,4 +102,77 @@ test("correção 3 (5): leitura da linha inteira nunca dá a linha a outra pesso
   const cj = { papel: "Cônjuge do comprador 1", role: "buyer", nome: "CONJUGE SANDBOX TESTE", origem: "conjugeComprador1" };
   const novo = [{ page: "1", position: [0.1, 0.2], texto: "Nome: CONJUGE SANDBOX TESTE\nCPF: 1\nCÔNJUGE DO COMPRADOR" }];
   assert.equal(CS.atribuirLinhas(LISTA.concat([cj]), novo, "contrato")[4].length, 1);
+});
+
+/* ---- calibração 01/11 (sandbox, modelos migrados, 2 compradores + 2 fiadores): a imagem da assinatura (100×50 pt) saía de
+   linha−34 a linha+16, cobrindo o "Nome:" de baixo; nos campos de ciência os dois compradores caíam no MESMO ponto.
+   Agora: o pé da imagem 4 pt abaixo da linha (topo = linha − 46), e quem divide o mesmo ponto fica lado a lado. ---- */
+const base = (str, x, linhaBase) => it(str, x, linhaBase - 11);   /* item cuja linha de base (baseline) é a medida */
+const topo = (pos) => Math.round(pos.position[1] * H);
+test("calibração: linha de assinatura com base em 80 → topo pedido em 34 (imagem de 34 a 84: pé 4 pt abaixo da linha)", () => {
+  const pg = pag(18, [base("VENDEDORA", 250, 20), base("COMPRADOR", 250, 30), traco(47, 226, 69), base("Nome: EMPRESA", 226, 94), base("VENDEDORA", 226, 108)]);
+  for (const aj of [undefined, CS.AJUSTE_PADRAO]) {
+    const l = R.acharLinhas([pg], aj);
+    assert.equal(l.length, 1);
+    assert.equal(topo(l[0]), 80 - 46, JSON.stringify(aj));
+    assert.equal(Math.round(l[0].position[0] * W), 226);
+  }
+});
+test("calibração: campo de ciência com base em 416 → topo 370 (antes 396, cobria as linhas de baixo)", () => {
+  const pg = pag(5, [base("CIÊNCIA EXPRESSA DO COMPRADOR", 183, 380), base("ASSINATURA: _______________________________]", 183, 416)]);
+  const r = R.acharNoContrato([pg], CS.AJUSTE_PADRAO);
+  assert.equal(topo(r.campos[0]), 416 - 46);
+});
+
+const C1 = { papel: "Comprador 1", role: "buyer", nome: "COMPRADOR UM TESTE", origem: "comprador1", rubrica: true };
+const C2 = { papel: "Comprador 2", role: "buyer", nome: "COMPRADOR DOIS TESTE", origem: "comprador2", rubrica: true };
+const VEND = { papel: "Vendedor (representante)", role: "seller", nome: "REPRESENTANTE TESTE", origem: "representante" };
+const CJ = { papel: "Cônjuge do comprador 1", role: "buyer", nome: "CONJUGE TESTE", origem: "conjugeComprador1", rubrica: true };
+const FI = { papel: "Fiador 1", role: "guarantor", nome: "FIADOR TESTE", origem: "fiador1", soTermos: true };
+const TE = { papel: "Testemunha 1", role: "witness", nome: "TESTEMUNHA TESTE", origem: "testemunha" };
+const CO = { papel: "Corretor", role: "real_estate_broker", nome: "CORRETOR TESTE", origem: "corretor" };
+const DOCS = [{ id: "c", tipo: "contrato" }, { id: "t", tipo: "termo", nome: "T.pdf" }, { id: "m", tipo: "memorial" }, { id: "p", tipo: "projeto" }];
+const LISTA2 = [C1, CJ, C2, VEND, TE, CO, FI];
+const pt = (p, Wp = W) => Math.round(p.position[0] * Wp);
+
+test("dono 01/11: compradores e vendedor assinam EXATAMENTE os mesmos documentos (contrato, termos, memorial, projeto); os outros não mudam", () => {
+  const de = (s) => CS.documentosDoSignatario(s, DOCS);
+  assert.deepEqual(de(C1), ["c", "t", "m", "p"]);
+  assert.deepEqual(de(C2), de(C1));
+  assert.deepEqual(de(VEND), de(C1));
+  assert.deepEqual(de(CJ), de(C1), "cônjuge: tudo que o comprador 1 assina (dono, 01/11/2026)");
+  assert.deepEqual(de(TE), ["c", "t"]);
+  assert.deepEqual(de(CO), ["c"]);
+  assert.deepEqual(de(FI), ["t"]);
+});
+
+test("calibração: dois compradores no mesmo campo de ciência e nos valores ficam lado a lado (105 pt), sem sobrepor", () => {
+  const rub = { campos: [{ page: "5", position: [251 / W, 370 / H] }], valores: { page: "3", position: [61 / W, 140 / H] },
+                memorial: { page: "13", position: [0.53, 0.7] }, projeto: CS.posicoesProjeto(), linhas: [], termos: {} };
+  const req = (s) => CS.requisitosRubrica(s, DOCS, rub, LISTA2.indexOf(s), LISTA2);
+  const campo = (s) => req(s).find((r) => r.docId === "c" && r.kind === "manuscript").positions[0];
+  const visto = (s) => req(s).find((r) => r.docId === "c" && r.kind === "initials").positions[0];
+  /* comprador 1, cônjuge e comprador 2 no campo em x=251: dois cabem lado a lado; o terceiro vai à fileira de baixo */
+  assert.deepEqual([C1, CJ, C2].map((s) => [pt(campo(s)), topo(campo(s))]), [[251, 370 - 52], [356, 370 - 52], [251, 370]]);
+  assert.ok(Math.abs(pt(visto(C2)) - pt(visto(C1))) >= 100, "valores também lado a lado");
+  /* campo perto da margem direita: o 2º não cabe ao lado — vai uma fileira abaixo e a 1ª sobe 52 pt */
+  const perto = Object.assign({}, rub, { campos: [{ page: "5", position: [420 / W, 370 / H] }] });
+  const cp = (s) => CS.requisitosRubrica(s, DOCS, perto, LISTA2.indexOf(s), LISTA2)[0].positions[0];
+  assert.deepEqual([C1, CJ, C2].map((s) => [pt(cp(s)), topo(cp(s))]), [[420, 370 - 104], [420, 370 - 52], [420, 370]]);
+});
+
+test("calibração: memorial e projeto — compradores e vendedor em pontos diferentes (nada empilhado)", () => {
+  const rub = { campos: [], valores: null, memorial: { page: "13", position: [0.53, 0.7] }, projeto: CS.posicoesProjeto(), linhas: [], termos: {} };
+  const todos = [C1, CJ, C2, VEND].map((s) => CS.requisitosRubrica(s, DOCS, rub, LISTA2.indexOf(s), LISTA2));
+  const mem = todos.map((l) => l.find((r) => r.docId === "m").positions[0]);
+  assert.equal(new Set(mem.map((p) => p.position.join(","))).size, 4, JSON.stringify(mem));
+  for (let a = 0; a < 4; a++) for (let b = a + 1; b < 4; b++) {
+    const dx = Math.abs(mem[a].position[0] - mem[b].position[0]) * W, dy = Math.abs(mem[a].position[1] - mem[b].position[1]) * H;
+    assert.ok(dx >= 100 || dy >= 50, "memorial " + a + "×" + b + " sobrepõe");
+  }
+  const proj = todos.map((l) => l.find((r) => r.docId === "p").positions);
+  assert.equal(proj[0].length, 11);
+  for (let i = 0; i < 11; i++) assert.equal(new Set(proj.map((ps) => ps[i].position.join(","))).size, 4, "projeto pág. " + (i + 1));
+  /* testemunha, corretor e fiador não entram no memorial/projeto */
+  for (const s of [TE, CO, FI]) assert.ok(!CS.requisitosRubrica(s, DOCS, rub, LISTA2.indexOf(s), LISTA2).some((r) => r.docId === "m" || r.docId === "p"), s.papel);
 });

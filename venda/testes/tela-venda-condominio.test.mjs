@@ -1016,7 +1016,7 @@ test("30/10: assinaturaPdf entrega à tela o PDF gerado (conteúdo, nunca o link
   assert.deepEqual(c2.acao("assinaturaPdf").ajuste.campo, { dx: 0, dy: -0.02 });
 });
 
-test("30/10: memorial e projeto aprovado no mesmo envelope, assinados só pelo comprador, com as posições fixas", () => {
+test("30/10: memorial e projeto aprovado no mesmo envelope, assinados pelo comprador e pelo vendedor (dono, 01/11), lado a lado", () => {
   const c = cenario({ modelosExtra: { "modelo-memorial": MODELO_MEMORIAL }, cs: { arquivos: { original: "https://s3.clicksign.falso/original.pdf", signed: "https://s3.clicksign.falso/assinado.pdf" } },
                       props: { MODELO_MEMORIAL_ID: "modelo-memorial", PROJETO_APROVADO_ID: "proj-1" } });
   c.d.soltos["proj-1"] = { nome: "projeto.pdf", url: "https://drive.falso/proj-1", buf: Buffer.from("%PDF-1.7 projeto aprovado de teste") };
@@ -1037,12 +1037,25 @@ test("30/10: memorial e projeto aprovado no mesmo envelope, assinados só pelo c
   const sigs = c.c.estado.signers, rq = reqsDe(c);
   const docsDo = (id) => [...new Set(rq.filter((q) => q.relationships.signer.data.id === id).map((q) => q.relationships.document.data.id))].sort();
   const comprador = sigs.find((s) => s.attributes.email === "compradora@teste.example");
+  const vendedor = sigs.find((s) => s.attributes.email === "beltrano@teste.example");
   assert.deepEqual(docsDo(comprador.id), ["doc-1", "doc-2", "doc-3"]);
-  for (const s of sigs.filter((x) => x !== comprador)) assert.deepEqual(docsDo(s.id), ["doc-1"], s.attributes.email);
+  /* 01/11/2026 (dono): o vendedor assina os mesmos documentos dos compradores */
+  assert.deepEqual(docsDo(vendedor.id), ["doc-1", "doc-2", "doc-3"]);
+  for (const s of sigs.filter((x) => x !== comprador && x !== vendedor)) assert.deepEqual(docsDo(s.id), ["doc-1"], s.attributes.email);
   const rubr = rq.filter((q) => q.attributes.action === "rubricate").map((q) => [q.relationships.document.data.id, q.attributes.kind, q.attributes.positions]);
+  /* calibração 01/11: comprador e vendedor dividem o ponto — no memorial lado a lado (105 pt); no projeto (perto da margem)
+     um em cima do outro, o comprador 52 pt acima */
+  /* projeto: págs. 1–2 A1 deitado, as demais A2 deitado; cabe ao lado (x + 105 + 100 ≤ largura − 36)? senão o comprador sobe 52 pt */
+  const pg = (p) => (Number(p.page) <= 2 ? [2384, 1684] : [1684, 1191]), r4 = (v) => +v.toFixed(4);
+  const cabe = (p) => p.position[0] * pg(p)[0] + 105 + 100 <= pg(p)[0] - 36;
+  const projC = CS.POSICOES_PROJETO.map((p) => (cabe(p) ? p : { page: p.page, position: [p.position[0], r4((p.position[1] * pg(p)[1] - 52) / pg(p)[1])] }));
+  const projV = CS.POSICOES_PROJETO.map((p) => (cabe(p) ? { page: p.page, position: [r4((p.position[0] * pg(p)[0] + 105) / pg(p)[0]), p.position[1]] } : p));
+  assert.ok(projC.some((p, i) => p !== CS.POSICOES_PROJETO[i]) && projV.some((p, i) => p !== CS.POSICOES_PROJETO[i]), "os dois casos aparecem");
   assert.deepEqual(rubr.slice(2), [
     ["doc-2", "manuscript", [{ page: "3", position: [0.53, 0.7] }]],   /* última página do memorial (3 aqui) */
-    ["doc-3", "initials", CS.POSICOES_PROJETO]]);
+    ["doc-3", "initials", projC],
+    ["doc-2", "manuscript", [{ page: "3", position: [r4((0.53 * 595 + 105) / 595), 0.7] }]],
+    ["doc-3", "initials", projV]]);
   /* tudo assinado: só o contrato vai para CONTRATO ASSINADO (o principal continua sendo o contrato) */
   c.c.estado.status = "closed";
   const e = c.acao("assinaturaEstado");
