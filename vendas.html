@@ -396,6 +396,18 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 .cd-cardbox[data-aba="documentos"] #cd-venda>.vb-conf,
 .cd-cardbox[data-aba="contrato"] #cd-venda>.vb-ct,.cd-cardbox[data-aba="contrato"] #cd-venda>.vb-ass,
 .cd-cardbox[data-aba="contrato"] #cd-venda>.vb-mc,
+/* 31/10/2026 (dono, melhorias da aba Financeiro): colunas iguais em todos os blocos por Tipo, próxima parcela em destaque,
+   filtro Em atraso em vermelho */
+.cd-cardbox .vb-fin-tab{table-layout:fixed;width:100%}
+.cd-cardbox .vb-fin-tab th:nth-child(1){width:24%}.cd-cardbox .vb-fin-tab th:nth-child(2){width:9%}.cd-cardbox .vb-fin-tab th:nth-child(3){width:14%}
+.cd-cardbox .vb-fin-tab th:nth-child(4){width:13%}.cd-cardbox .vb-fin-tab th:nth-child(5),.cd-cardbox .vb-fin-tab th:nth-child(6){width:20%}
+.cd-cardbox .vb-fin details.fin-grupo{margin:0 0 8px}
+.cd-cardbox .vb-fin details.fin-grupo>div{padding:0 6px 6px}
+.cd-cardbox .vb-fin tr.fin-prox td{background:rgba(76,201,107,.14)!important}
+.cd-cardbox .vb-fin .fin-selo{display:inline-block;font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:9px;background:var(--verde,#3fb560);color:#fff;vertical-align:1px}
+.cd-cardbox .vb-fin .fin-prox-linha{margin:10px 0 0;padding:8px 12px;border:1.5px solid var(--border2);border-left:4px solid var(--verde,#3fb560);border-radius:10px;background:var(--sup);font-size:13px}
+.cd-cardbox .vb-fin .bt.bt-mini.fin-atraso{border-color:#c0392b;color:#c0392b}
+.cd-cardbox .vb-fin .bt.bt-mini.fin-atraso:not(.ghost){background:#c0392b;color:#fff}
 .cd-cardbox[data-aba="financeiro"] #cd-venda>.vb-fin,.cd-cardbox[data-aba="financeiro"] #cd-venda>.vb-antec{display:block}
 /* 31/10/2026 (dono quer o cartão bom no celular): abaixo de 600 px as 6 abas ficam em 3 x 2 (nenhuma escondida) e as
    tabelas da conferência e das parcelas viram blocos empilhados — cada célula com o nome do campo (data-rot), os
@@ -411,7 +423,9 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
   /* parcela em duas colunas: parcela | situação, vencimento | corrigido, valor */
   .cd-cardbox .vb-fin tbody tr{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
   .cd-cardbox .vb-fin tbody td{width:auto}
-  .cd-cardbox .vb-fin td[data-rot="Situação"]{grid-column:1/-1}   /* 31/10: Situação abre o bloco */
+  .cd-cardbox .vb-fin td[data-rot="Situação"]{grid-column:1;grid-row:1}   /* 31/10 (e): Situação e Valor Corrigido na 1ª linha do bloco */
+  .cd-cardbox .vb-fin td[data-rot="Valor Corrigido"]{grid-column:2;grid-row:1;text-align:right!important}
+  .cd-cardbox .vb-fin details.fin-grupo>summary{font-size:12.5px}
   .cd-cardbox .vb-conf td[data-rot]::before,.cd-cardbox .vb-fin td[data-rot]::before{content:attr(data-rot);display:block;font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em}
   .cd-cardbox .vb-conf tr.dz-corr{background:var(--bg2)}
   .cd-cardbox .vb-conf td .bt{width:100%;margin:4px 0 0}
@@ -1201,7 +1215,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 <script src="venda/FluxoLivre.js?v=6"></script><!-- 29/10: Alterar fluxo -->
 <script src="venda/quadro-fluxo.js?v=1"></script><!-- 31/10: quadro do pro soluto segue o fluxo alterado -->
 <script src="venda/Antecipacao.js?v=1"></script><!-- 31/10: Antecipação — a conta roda no navegador -->
-<script src="venda-dossie.js?v=35"></script>
+<script src="venda-dossie.js?v=36"></script>
 <script src="venda/contrato-vendida.js?v=2"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele.
