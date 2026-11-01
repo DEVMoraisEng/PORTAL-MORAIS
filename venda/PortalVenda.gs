@@ -341,6 +341,11 @@ function anexarArquivo_(pageId, colReal, arq, trocar) {
   var props = {}; props[colReal] = { files: lista };
   notion_("PATCH", "/pages/" + pageId, { properties: props });
 }
+/* 01/11: esvazia uma coluna de arquivos (anexarArquivo_ só acrescenta ou troca) */
+function limparArquivos_(pageId, colReal) {
+  var props = {}; props[colReal] = { files: [] };
+  notion_("PATCH", "/pages/" + pageId, { properties: props });
+}
 function baixarArquivo_(f) {
   var url = f.type === "external" ? f.external.url : f.file.url;
   var r = UrlFetchApp.fetch(url, { muteHttpExceptions: true });

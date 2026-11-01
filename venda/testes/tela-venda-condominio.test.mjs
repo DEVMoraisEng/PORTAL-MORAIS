@@ -414,6 +414,61 @@ test("28/10: contrato final gera os dois termos com o mesmo carimbo, nas colunas
   assert.equal(c.acao("verConfissao", { tipo: "POS" }).ok, true);
 });
 
+/* 01/11: termos de confissão sempre do contrato atual (investigação E) */
+const velho = (pref, carimbo = "aaaaaaaa") => ({ files: [{ name: pref + "CONDOMÍNIO RESERVA TESTE - CASA 13 [#" + carimbo + "].pdf", type: "file", file: { url: "https://s3.falso/velho-" + carimbo } }] });
+const SEM_POS = { "Nº PARCELAS PÓS CHAVES": num(0), "VALOR PÓS CHAVES": num(0), "DATA  PÓS CHAVES ": dat(null), "VALOR 2º PARTE PRÉ CHAVES": num(1707.27),
+                  "ESTADO CIVIL FIADOR 1": rt(""), "ESTADO CIVIL FIADOR 2": rt("") };   /* 24x: a soma fecha e o fiador é dispensado */
+const SO_POS = { "Nº PARCELAS 1º PARTE PRÉ CHAVES": num(0), "VALOR 1º PARTE PRÉ CHAVES": num(0), "Nº PARCELAS 2º PARTE PRÉ CHAVES": num(0), "VALOR 2º PARTE PRÉ CHAVES": num(0),
+                 "VALOR 1º BALÃO": num(0), "VALOR BALÃO ENTREGA DE CHAVES": num(0), "VALOR PÓS CHAVES": num(1872.92), "VALOR DO FGTS": num(5249.92) };   /* sem pré-chaves: só o termo PÓS */
+const antigos = { "CONFISSÃO PRÉ-CHAVES - GERADA": velho("CONFISSÃO PRÉ-CHAVES - "), "CONFISSÃO PÓS-CHAVES - GERADA": velho("CONFISSÃO PÓS-CHAVES - ") };
+
+test("01/11: venda que voltou de 36x para 24x — os termos antigos saem das colunas GERADA depois de gerar o contrato", () => {
+  const c = cenarioCfd({ linha: { ...SEM_POS, ...antigos } });
+  const r = c.gerarFinal();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(c.n.pagina.properties["CONFISSÃO PRÉ-CHAVES - GERADA"].files.length, 0);
+  assert.equal(c.n.pagina.properties["CONFISSÃO PÓS-CHAVES - GERADA"].files.length, 0);
+  assert.deepEqual(c.acao("contratoEstado").confissao, []);
+});
+
+test("01/11: venda que passou a ter só o termo PÓS — o PRÉ antigo sai e o PÓS é o novo", () => {
+  const c = cenarioCfd({ linha: { ...SO_POS, ...antigos } });
+  const r = c.gerarFinal();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(c.n.pagina.properties["CONFISSÃO PRÉ-CHAVES - GERADA"].files.length, 0);
+  const pos = c.n.pagina.properties["CONFISSÃO PÓS-CHAVES - GERADA"].files;
+  assert.equal(pos.length, 1);
+  assert.ok(pos[0].name.endsWith("[#" + /\[#([0-9a-f]{8})\]\.pdf$/.exec(r.nome)[1] + "].pdf"), pos[0].name);
+  assert.deepEqual(c.acao("contratoEstado").confissao.map((x) => x.tipo), ["POS"]);
+});
+
+test("01/11: com o envelope na mão dos signatários (ENVIADO ou qualquer situação não final) nada é limpo", () => {
+  for (const sit of ["ENVIADO", "RASCUNHO", "ASSINADO"]) {
+    const c = cenarioCfd({ linha: { ...SEM_POS, ...antigos, "ASSINATURA - ENVELOPE ID": rt("env-x"), "ASSINATURA - SITUAÇÃO": rt(sit) } });
+    c.acao("gerarPreContrato");
+    c.acao("aprovarPreContrato");
+    assert.equal(c.n.pagina.properties["CONFISSÃO PRÉ-CHAVES - GERADA"].files.length, 1, sit);
+    assert.equal(c.n.pagina.properties["CONFISSÃO PÓS-CHAVES - GERADA"].files.length, 1, sit);
+  }
+  /* envelope cancelado já não está com ninguém: pode limpar */
+  const c = cenarioCfd({ linha: { ...SEM_POS, ...antigos, "ASSINATURA - ENVELOPE ID": rt("env-x"), "ASSINATURA - SITUAÇÃO": rt("CANCELADO") } });
+  assert.equal(c.gerarFinal().ok, true);
+  assert.equal(c.n.pagina.properties["CONFISSÃO PRÉ-CHAVES - GERADA"].files.length, 0);
+  /* envio pendente (envelope ativado, Notion ainda sem gravar) também segura */
+  const p = cenarioCfd({ linha: { ...SEM_POS, ...antigos } });
+  p.g.ctx.PropertiesService.getScriptProperties().setProperty("ASSINATURA_PENDENTE_" + COND, "env-y");
+  p.acao("gerarPreContrato"); p.acao("aprovarPreContrato");
+  assert.equal(p.n.pagina.properties["CONFISSÃO PRÉ-CHAVES - GERADA"].files.length, 1);
+});
+
+test("01/11: a tela só lista o termo com o mesmo carimbo do contrato gerado", () => {
+  const c = cenarioCfd({ linha: {
+    "CONTRATO GERADO": velho("CONTRATO - ", "11111111"),
+    "CONFISSÃO PRÉ-CHAVES - GERADA": velho("CONFISSÃO PRÉ-CHAVES - ", "22222222"),
+    "CONFISSÃO PÓS-CHAVES - GERADA": velho("CONFISSÃO PÓS-CHAVES - ", "11111111") } });
+  assert.deepEqual(c.acao("contratoEstado").confissao.map((x) => x.tipo), ["POS"]);
+});
+
 test("28/10: CPF do fiador em coluna de NÚMERO perde o zero da frente — o contrato completa os 11 dígitos", () => {
   const c = cenarioCfd({ linha: { "CPF FIADOR 1": num(1234567890) } });   /* 012.345.678-90 (fictício) */
   const r = c.acao("gerarPreContrato");
