@@ -103,18 +103,45 @@ function csBase_() {
   var u = String(prop_("CLICKSIGN_URL") || "https://sandbox.clicksign.com").trim().replace(/\/+$/, "");
   return /^https:\/\/[^\/\s]+$/.test(u) ? u + "/api/v3" : "";
 }
+/* 429 (limite) e 503 (não processou): nova tentativa com espera crescente. Nunca repete outro código.
+ * Teto de 180 s de espera por chamada E somado numa execução (o Apps Script morre aos 6 min);
+ * o total é zerado no começo de assinaturaEnviar_. */
+var CS_ESPERA_MAX_MS = 180000;
+var CS_PAUSA_REQ_MS = 250;
+var csGastoTotal_ = 0;
+function csRetryAfterMs_(r) {
+  try {
+    var h = (typeof r.getAllHeaders === "function") ? r.getAllHeaders() : null;
+    if (!h) return 0;
+    var v = h["Retry-After"] !== undefined ? h["Retry-After"] : h["retry-after"];
+    var n = Number(String(v === undefined ? "" : v).trim());
+    return (isFinite(n) && n > 0) ? Math.round(n * 1000) : 0;
+  } catch (e) { return 0; }
+}
 /* Uma chamada; devolve ClicksignVenda.interpretar(...) com o código HTTP. Exceção de rede vira {ok:false, http:0}. */
 function cs_(metodo, caminho, corpo) {
   var opt = { method: metodo, muteHttpExceptions: true, headers: { Authorization: prop_("CLICKSIGN_TOKEN"), Accept: CS_JSONAPI } };
   opt.contentType = CS_JSONAPI;
   if (corpo) opt.payload = JSON.stringify(corpo);
-  try {
-    var r = UrlFetchApp.fetch(csBase_() + caminho, opt);
-    var i = ClicksignVenda.interpretar(r.getResponseCode(), r.getContentText());
-    i.http = r.getResponseCode();
+  var gasto = 0, n = 0;
+  while (true) {
+    var r;
+    try {
+      r = UrlFetchApp.fetch(csBase_() + caminho, opt);
+    } catch (e) {
+      return { ok: false, http: 0, detalhe: "sem resposta da Clicksign" };
+    }
+    var code = r.getResponseCode();
+    if (code === 429 || code === 503) {
+      var espera = csRetryAfterMs_(r) || Math.min(2000 * Math.pow(2, n), 60000);
+      if (gasto + espera <= CS_ESPERA_MAX_MS && csGastoTotal_ + espera <= CS_ESPERA_MAX_MS) {
+        Utilities.sleep(espera); gasto += espera; csGastoTotal_ += espera; n++;
+        continue;
+      }
+    }
+    var i = ClicksignVenda.interpretar(code, r.getContentText());
+    i.http = code;
     return i;
-  } catch (e) {
-    return { ok: false, http: 0, detalhe: "sem resposta da Clicksign" };
   }
 }
 function assFalha_(passo, r) {
@@ -164,6 +191,7 @@ function assGravarComRetentativa_(pageId, porReal, pid) {
 /* ---- enviar ---- */
 function assinaturaEnviar_(col, sess, p) {
   var pid = String(p.pageId).slice(0, 8);
+  csGastoTotal_ = 0;
   if (!prop_("CLICKSIGN_TOKEN")) return { ok: false, erro: "CLICKSIGN_SEM_TOKEN" };
   if (!csBase_()) return { ok: false, erro: "CLICKSIGN_URL_INVALIDA" };
   /* um envio por vez: ler → conferir → criar → gravar não pode correr em paralelo (dois cliques, duas abas) */
@@ -388,11 +416,14 @@ function assCriarEnvelope_(p, pid, cols, doc, gerado, lista, nomeCs, extras, adi
       /* fiador: só os termos; comprador: tudo; os demais: o contrato e os termos (ClicksignVenda.documentosDoSignatario) */
       ClicksignVenda.documentosDoSignatario(s, docs).forEach(function (dId) {
         csPasso_("requisitos", "post", base + "/requirements", ClicksignVenda.corpoQualificacao(dId, ids[i], s.role));
+        Utilities.sleep(CS_PAUSA_REQ_MS);
         csPasso_("requisitos", "post", base + "/requirements", ClicksignVenda.corpoAutenticacao(dId, ids[i]));
+        Utilities.sleep(CS_PAUSA_REQ_MS);
       });
       /* 30/10: rubricas posicionadas do comprador (campos de ciência, coluna de valores, memorial, projeto) */
       ClicksignVenda.requisitosRubrica(s, docs, rub).forEach(function (r) {
         csPasso_("rubricas", "post", base + "/requirements", ClicksignVenda.corpoRubrica(r.docId, ids[i], r.kind, r.positions));
+        Utilities.sleep(CS_PAUSA_REQ_MS);
       });
     });
     assProps_().setProperty(ASS_PAPEIS + envId, JSON.stringify(papeis));

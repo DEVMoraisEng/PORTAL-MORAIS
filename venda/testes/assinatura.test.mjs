@@ -833,3 +833,47 @@ test("cancelar: sem envelope não chama a Clicksign; perfil TESTES não pode", (
   assert.equal(c.c.chamadas.length, 0);
   assert.equal(c.acao("assinaturaCancelar", tokenDe("TESTES", [])).erro, "SEM_PERMISSAO_TESTES");
 });
+
+/* ---- 429/503 da Clicksign: nova tentativa com espera crescente (teto de 180 s) ---- */
+const soma = (a) => a.reduce((x, y) => x + y, 0);
+test("429 nas 2 primeiras vezes do PATCH de ativar: tenta de novo e envia (2 esperas crescentes)", () => {
+  let n = 0;
+  const c = cenario({ cs: { falhar: (m) => (m === "PATCH" && ++n <= 2 ? { status: 429, json: { errors: [{ title: "Too many" }] } } : null) } });
+  const r = c.enviar();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const esperas = c.g.sleeps.filter((x) => x >= 1000);
+  assert.deepEqual(esperas, [2000, 4000]);
+  assert.equal(csCalls(c).filter((x) => x.startsWith("PATCH")).length, 3);
+});
+test("503 também tenta de novo; 500 e 422 não", () => {
+  let n = 0;
+  const a = cenario({ cs: { falhar: (m) => (m === "PATCH" && ++n === 1 ? { status: 503, texto: "" } : null) } });
+  assert.equal(a.enviar().ok, true);
+  assert.deepEqual(a.g.sleeps.filter((x) => x >= 1000), [2000]);
+  const b = cenario({ cs: { falhar: (m, cam) => (cam.endsWith("/signers") ? { status: 422, json: { errors: [{ title: "x" }] } } : null) } });
+  b.enviar();
+  assert.equal(csCalls(b).filter((x) => x === "POST /envelopes/env-1/signers").length, 1);
+  assert.deepEqual(b.g.sleeps.filter((x) => x >= 1000), []);
+});
+test("429 sempre: desiste dentro de 180 s no total e devolve CLICKSIGN_FALHOU", () => {
+  const c = cenario({ cs: { falhar: (m, cam) => (cam === "/envelopes" ? { status: 429, json: { errors: [{ title: "Too many" }] } } : null) } });
+  const r = c.enviar();
+  assert.equal(r.erro, "CLICKSIGN_FALHOU");
+  assert.equal(r.http, 429);
+  const t = soma(c.g.sleeps);
+  assert.ok(t > 0 && t <= 180000, "esperou " + t);
+  assert.ok(c.g.sleeps.slice(0, 3).every((x, i, a) => i === 0 || x > a[i - 1]), "espera não cresceu");
+});
+test("Retry-After: 7 → a 1ª espera é de 7000 ms", () => {
+  let n = 0;
+  const c = cenario({ cs: { falhar: (m) => (m === "PATCH" && ++n === 1 ? { status: 429, headers: { "Retry-After": "7" }, json: { errors: [{ title: "x" }] } } : null) } });
+  assert.equal(c.enviar().ok, true);
+  assert.equal(c.g.sleeps.filter((x) => x >= 1000)[0], 7000);
+});
+test("pausa de 250 ms entre um POST de requisito e outro", () => {
+  const c = cenario();
+  assert.equal(c.enviar().ok, true);
+  const reqs = csCalls(c).filter((x) => x.endsWith("/requirements")).length;
+  assert.ok(reqs > 1);
+  assert.ok(c.g.sleeps.filter((x) => x === 250).length >= reqs - 1, "pausas: " + c.g.sleeps.filter((x) => x === 250).length);
+});
