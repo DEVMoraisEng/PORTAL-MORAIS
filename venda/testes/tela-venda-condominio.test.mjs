@@ -1303,7 +1303,7 @@ const rubricaDe = (c, email, doc = "doc-1", kind = "manuscript") => {
 };
 
 test("plano 23 B: linhas lidas na tela viram assinatura posicionada — comprador junto dos campos, vendedora e testemunha na delas", () => {
-  const c = cenario();
+  const c = cenario({ props: { ASSINATURA_LINHAS: "1" } });
   assert.equal(c.gerarFinal().ok, true);
   const r = c.acao("assinaturaEnviar", rub(c, { linhas: [LINHA_VEND, LINHA_COMP, LINHA_T1] }));
   assert.equal(r.ok, true, JSON.stringify(r));
@@ -1314,8 +1314,17 @@ test("plano 23 B: linhas lidas na tela viram assinatura posicionada — comprado
   assert.ok(!c.g.logs.join("\n").includes("Compradora"), "log sem nome");
 });
 
-test("plano 23 B: ASSINATURA_SEM_LINHAS=1 desliga só as linhas (os campos do comprador continuam)", () => {
-  const c = cenario({ props: { ASSINATURA_SEM_LINHAS: "1" } });
+test("correção 1 (C-1): sem ASSINATURA_LINHAS=1 as linhas ficam desligadas — assinaturaPdf diz linhas:false e o envio ignora o que vier", () => {
+  const c = cenario();
+  assert.equal(c.gerarFinal().ok, true);
+  const pdf = c.acao("assinaturaPdf");
+  assert.equal(pdf.linhas, false);
+  assert.equal(pdf.termos, undefined);
+  assert.equal(c.acao("assinaturaEnviar", rub(c, { linhas: "lixo de tela antiga", termos: [{ nome: "" }] })).ok, true, "não confere o que está desligado");
+});
+
+test("correção 1 (C-1): desligado, as linhas mandadas não viram assinatura (os campos do comprador continuam)", () => {
+  const c = cenario();
   assert.equal(c.gerarFinal().ok, true);
   assert.equal(c.acao("assinaturaEnviar", rub(c, { linhas: [LINHA_VEND, LINHA_COMP] })).ok, true);
   assert.deepEqual(rubricaDe(c, "compradora@teste.example"), [RUB_CAMPOS]);
@@ -1323,7 +1332,7 @@ test("plano 23 B: ASSINATURA_SEM_LINHAS=1 desliga só as linhas (os campos do co
 });
 
 test("plano 23 B: termos de confissão — a tela recebe os PDFs dos termos; a linha do fiador vira a assinatura dele no termo", () => {
-  const c = cenarioCfd();
+  const c = cenarioCfd({ props: { ASSINATURA_LINHAS: "1" } });
   assert.equal(c.gerarFinal().ok, true);
   const pdf = c.acao("assinaturaPdf");
   assert.equal(pdf.ok, true, JSON.stringify(pdf).slice(0, 200));

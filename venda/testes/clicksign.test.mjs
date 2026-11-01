@@ -448,6 +448,8 @@ test("plano 23 C: autenticações — token por e-mail sempre; selfie + document
   assert.equal(CS.montarConfig({}).selfie, false);
   assert.equal(CS.montarConfig({ CLICKSIGN_SELFIE: "1" }).selfie, true);
   assert.equal(CS.montarConfig({ CLICKSIGN_SELFIE: "0" }).selfie, false);
+  /* correção 1 (M-4): só o "1" liga */
+  for (const v of ["SIM", "true", "TRUE", " 1x"]) assert.equal(CS.montarConfig({ CLICKSIGN_SELFIE: v }).selfie, false, v);
   assert.deepEqual(CS.AUTH_SELFIE, ["selfie", "official_document"]);
   const liga = CS.montarConfig({ CLICKSIGN_SELFIE: "1" }), desl = CS.montarConfig({});
   for (const origem of ["comprador1", "comprador2", "conjugeComprador1", "fiador1", "fiador2", "conjugeFiador1", "conjugeFiador2"]) {

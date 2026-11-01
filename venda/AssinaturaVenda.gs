@@ -78,7 +78,7 @@ function assConfig_(pageId) {
     ASSINATURA_REPRESENTANTE: prop_("ASSINATURA_REPRESENTANTE"), ASSINATURA_INCLUIR_CORRETOR: prop_("ASSINATURA_INCLUIR_CORRETOR"),
     /* 30/10: rubricas e documentos do comprador */
     RUBRICAS_AJUSTE: prop_("RUBRICAS_AJUSTE"), MEMORIAL_POSICAO: prop_("MEMORIAL_POSICAO"), PROJETO_POSICOES: prop_("PROJETO_POSICOES"),
-    ASSINATURA_SEM_RUBRICAS: prop_("ASSINATURA_SEM_RUBRICAS"), ASSINATURA_SEM_LINHAS: prop_("ASSINATURA_SEM_LINHAS"),
+    ASSINATURA_SEM_RUBRICAS: prop_("ASSINATURA_SEM_RUBRICAS"), ASSINATURA_LINHAS: prop_("ASSINATURA_LINHAS"),
     CLICKSIGN_SELFIE: prop_("CLICKSIGN_SELFIE")   /* 01/11 (plano 23 C) */
   });
 }
@@ -278,11 +278,11 @@ function assEnviarTravado_(col, p, pid) {
      Só no contrato do condomínio (os modelos de casa de rua não têm os campos "ASSINATURA: ____"). */
   var rub = null;
   if (d.condominio && !config.semRubricas) {
-    var vr = ClicksignVenda.validarRubricas(p.rubricas, gerado.nome);
+    var vr = ClicksignVenda.validarRubricas(p.rubricas, gerado.nome, { linhas: config.linhas });
     if (!vr.ok) { assLog_("enviar " + pid + " rubricas: " + vr.erro); return { ok: false, erro: vr.erro }; }
     rub = { campos: vr.campos, valores: vr.valores, memorial: null, projeto: [],
-            /* 01/11 (plano 23 B): assinatura em cima da linha de cada pessoa (ASSINATURA_SEM_LINHAS desliga) */
-            linhas: config.semLinhas ? [] : vr.linhas, termos: config.semLinhas ? {} : vr.termos };
+            /* 01/11 (plano 23 B): assinatura em cima da linha de cada pessoa — só com ASSINATURA_LINHAS=1 (correção 1) */
+            linhas: config.linhas ? vr.linhas : [], termos: config.linhas ? vr.termos : {} };
   }
   /* memorial descritivo e projeto aprovado do condomínio (só do comprador), ligados pelas Propriedades */
   var ad = d.condominio ? assDocsDoComprador_(d, pid, nomeCs) : { docs: [] };
@@ -313,7 +313,8 @@ function assinaturaPdf_(col, p) {
   var r = { ok: true, nome: gerado.nome, base64: b.base64, ajuste: config.rubricasAjuste };
   /* 01/11 (plano 23 B): os termos de confissão do envelope também, para a tela achar as linhas de assinatura deles.
      nome = o do documento na Clicksign (sem o carimbo). Termo que falta ou não abre fica de fora (o envio é que barra). */
-  if (!config.semLinhas) {
+  r.linhas = !!config.linhas;   /* correção 1 (C-1): desligadas, a tela nem procura as linhas */
+  if (config.linhas) {
     var d = ContratoVenda.montarDadosContrato(f.fontes);
     var tipos = ConfissaoVenda.fiadoresAssinam(d, cfdLigado_()) ? ConfissaoVenda.quais(d) : [];
     r.termos = [];
@@ -849,15 +850,22 @@ function assTravaAssinado_(p) {
   else return null;
   /* sem token a ação de envelope responde CLICKSIGN_SEM_TOKEN sem ler nada — a trava também não lê */
   if (ASS_TRAVA_ENVELOPE.indexOf(a) >= 0 && !prop_("CLICKSIGN_TOKEN")) return null;
-  var sit = "";
-  try {
-    var doc = assDoc_(termo ? { doc: "PRE_RESERVA" } : {}), info = {}, pg = ctrLerPaginaVenda_(p.pageId, info);
-    ctrPaginaEmprestada_ = { id: p.pageId, pg: pg, base: info.base };
-    sit = assTexto_(pg, assColunas_(pg, doc).SITUACAO).toUpperCase();
-  } catch (e) { return null; }
-  if (sit !== ClicksignVenda.SITUACOES.ASSINADO) return null;
-  assLog_(a + " " + String(p.pageId).slice(0, 8) + " recusado: " + (termo ? "termo" : "contrato") + " assinado");
-  return { ok: false, erro: termo ? "TERMO_ASSINADO" : "CONTRATO_ASSINADO" };
+  var pg, info = {};
+  try { pg = ctrLerPaginaVenda_(p.pageId, info); } catch (e) { return null; }
+  /* correção 1 (I-1): Enviar/Reenviar/Cancelar têm a trava própria (LockService) e relêem a casa DENTRO dela — a leitura
+     daqui não serve para eles (outro envio pode terminar enquanto este espera). Só as ações sem trava própria reaproveitam. */
+  if (ASS_TRAVA_ENVELOPE.indexOf(a) < 0) ctrPaginaEmprestada_ = { id: p.pageId, pg: pg, base: info.base };
+  function assinado(dc) {
+    try { return assTexto_(pg, assColunas_(pg, dc).SITUACAO).toUpperCase() === ClicksignVenda.SITUACOES.ASSINADO; }
+    catch (e) { return false; }   /* base sem as colunas: não trava aqui, a ação responde */
+  }
+  var erro = "";
+  if (assinado(assDoc_(termo ? { doc: "PRE_RESERVA" } : {}))) erro = termo ? "TERMO_ASSINADO" : "CONTRATO_ASSINADO";
+  /* correção 1 (M-7): contrato assinado também trava o que a tela esconde da pré-reserva (o pagamento segue aberto) */
+  else if (ASS_TRAVA_TERMO.indexOf(a) >= 0 && assinado(assDoc_({}))) erro = "CONTRATO_ASSINADO";
+  if (!erro) return null;
+  assLog_(a + " " + String(p.pageId).slice(0, 8) + " recusado: " + erro);
+  return { ok: false, erro: erro };
 }
 
 /* Conferência para rodar UMA vez no editor (selecionar conferirAssinatura › Executar › ver o Registro de

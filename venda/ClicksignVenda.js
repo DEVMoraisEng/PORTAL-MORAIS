@@ -67,11 +67,11 @@ var ClicksignVenda = (function () {
     var memPos = lerJson(props, "MEMORIAL_POSICAO", invalidas);
     var projPos = lerJson(props, "PROJETO_POSICOES", invalidas);
     var semRub = txt(props.ASSINATURA_SEM_RUBRICAS).toUpperCase();
-    var semLin = txt(props.ASSINATURA_SEM_LINHAS).toUpperCase();   /* 01/11 (plano 23 B): desliga só a assinatura em cima da linha */
-    var selfie = txt(props.CLICKSIGN_SELFIE).toUpperCase();   /* 01/11 (plano 23 C): selfie + documento, desligada sem a Propriedade */
+    /* 01/11 (plano 23, correção 1): assinatura em cima da linha (B) e selfie (C) só ligam com a Propriedade = "1" exato */
+    var linhasLig = txt(props.ASSINATURA_LINHAS) === "1", selfie = txt(props.CLICKSIGN_SELFIE) === "1";
     return { rubricasAjuste: ajusteRubricas(ajuste), memorialPosicao: memPos, projetoPosicoes: projPos,
-             semRubricas: semRub === "SIM" || semRub === "TRUE" || semRub === "1", semLinhas: semLin === "SIM" || semLin === "TRUE" || semLin === "1",
-             selfie: selfie === "1" || selfie === "SIM" || selfie === "TRUE", testemunhasSPE: spe, testemunhasPF: pf, representante: rep, testemunhasOpcoes: opc,
+             semRubricas: semRub === "SIM" || semRub === "TRUE" || semRub === "1", linhas: linhasLig,
+             selfie: selfie, testemunhasSPE: spe, testemunhasPF: pf, representante: rep, testemunhasOpcoes: opc,
              testemunhasEscolhidas: Array.isArray(esc) ? esc.map(txt) : null,
              incluirCorretor: inc === "SIM" || inc === "TRUE" || inc === "1", invalidas: invalidas };
   }
@@ -544,7 +544,8 @@ var ClicksignVenda = (function () {
   }
   /* O que a tela mandou junto com "Enviar": { nome (do PDF lido), campos: [pos], valores: pos | null }.
    * nomeGerado = nome do PDF que o servidor vai mandar; diferente = a tela leu outro PDF. */
-  function validarRubricas(r, nomeGerado) {
+  /* opc.linhas === false (ASSINATURA_LINHAS desligada): linhas e termos da tela são ignorados sem conferir */
+  function validarRubricas(r, nomeGerado, opc) {
     if (!r || typeof r !== "object") return { ok: false, erro: "RUBRICAS_FALTANDO" };
     if (txt(r.nome) !== txt(nomeGerado)) return { ok: false, erro: "RUBRICAS_DE_OUTRO_PDF" };
     var campos = Array.isArray(r.campos) ? r.campos : [];
@@ -555,6 +556,7 @@ var ClicksignVenda = (function () {
     if (r.valores) { val = posicaoValida(r.valores); if (!val) return { ok: false, erro: "RUBRICAS_INVALIDAS" }; }
     /* 01/11 (plano 23 B): linhas de assinatura do contrato e de cada termo de confissão (nome do PDF na Clicksign) */
     var linhas = [], termos = {};
+    if (opc && opc.linhas === false) return { ok: true, campos: ok, valores: val, linhas: linhas, termos: termos };
     if (r.linhas !== undefined) { linhas = linhasValidas(r.linhas); if (!linhas) return { ok: false, erro: "RUBRICAS_INVALIDAS" }; }
     if (r.termos !== undefined) {
       if (!Array.isArray(r.termos) || r.termos.length > 4) return { ok: false, erro: "RUBRICAS_INVALIDAS" };
@@ -595,7 +597,8 @@ var ClicksignVenda = (function () {
       var t = chave(l && l.texto), alvo = -1, m;
       var porNome = cands.filter(function (i) { var n = chave(lista[i].nome); return n.length >= 5 && t.indexOf(n) >= 0; });
       if (porNome.length === 1) alvo = porNome[0];
-      else if (!porNome.length) {
+      /* correção 1 (I-3): linha de CÔNJUGE ("CÔNJUGE DO FIADOR 1", "CÔNJUGE") só pelo nome — o papel apontaria o fiador/comprador */
+      else if (!porNome.length && !/CONJUGE/.test(t)) {
         if ((m = /TESTEMUNHA\s*([12])/.exec(t))) { var it = test[Number(m[1]) - 1]; alvo = it !== undefined && cands.indexOf(it) >= 0 ? it : -1; }
         else if ((m = /FIADOR\s*([12])/.exec(t))) alvo = daOrigem(new RegExp("^fiador" + m[1] + "$"));
         else if (/CORRETOR|INTERMEDIADOR/.test(t)) alvo = daOrigem(/^corretor$/);

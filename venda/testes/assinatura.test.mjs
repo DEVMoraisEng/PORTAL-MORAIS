@@ -1218,3 +1218,25 @@ test("plano 23 C: sem CLICKSIGN_SELFIE nada muda (só o token por e-mail)", () =
   assert.equal(c.enviar().ok, true);
   assert.deepEqual(authsDe(c, "fulano@teste.example"), ["email"]);
 });
+
+
+/* ---- plano 23, correção 1 ---- */
+test("correção 1 (I-1): Enviar relê a casa DENTRO da trava — outro envio que terminou enquanto este esperava não duplica o envelope", () => {
+  const c = cenario();
+  const pg = c.n.pagina.properties;
+  c.g.ctx.LockService = { getScriptLock: () => ({ tryLock: () => {
+    /* o outro envio terminou enquanto este esperava a trava */
+    Object.assign(pg["ASSINATURA - ENVELOPE ID"], rt("env-outro"));
+    Object.assign(pg["ASSINATURA - SITUAÇÃO"], rt("ENVIADO"));
+    return true; }, releaseLock: () => {} }) };
+  const r = c.enviar();
+  assert.deepEqual(r, { ok: false, erro: "ENVELOPE_ABERTO", situacao: "ENVIADO" });
+  assert.equal(c.c.chamadas.length, 0, "nenhum envelope novo na Clicksign");
+});
+
+test("correção 1 (M-7): contrato ASSINADO também trava o que a tela esconde da pré-reserva; o pagamento da pré-reserva segue aberto", () => {
+  const c = assinadoPorTodos();
+  for (const a of ["salvarContaPreReserva", "salvarConjugePreReserva", "gerarTermoPreReserva"])
+    assert.deepEqual(c.acao(a), { ok: false, erro: "CONTRATO_ASSINADO" }, a);
+  assert.notEqual(c.acao("salvarPagamentoPreReserva").erro, "CONTRATO_ASSINADO");
+});

@@ -92,10 +92,26 @@ var RubricasVenda = (function () {
    * position = começo dos traços, subido pelo ajuste.linha (padrão 3% da página) para a assinatura ficar EM CIMA da linha;
    * texto = até 4 linhas logo abaixo (nome, CPF, papel), até o próximo traço ou um vão grande. Quem casa o texto com a
    * pessoa é o servidor (ClicksignVenda.atribuirLinhas). */
+  /* correção 1 (M-3): só páginas de assinatura — a que tem o título ASSINATURAS (e a seguinte, se o bloco virar a página)
+     ou a do quadro-resumo, com os rótulos VENDEDORA e COMPRADOR sozinhos num trecho. Traço solto em outra página não conta. */
+  function paginaDeAssinatura(ls) {
+    var titulo = false, vend = false, comp = false;
+    ls.forEach(function (l) {
+      if (/^\s*ASSINATURAS\s*$/i.test(l.texto)) titulo = true;
+      trechos(l).forEach(function (t) {
+        var s = l.texto.slice(t[0], t[1]).trim().toUpperCase();
+        if (/^(CREDORA\/)?VENDEDORA$/.test(s)) vend = true;
+        if (/^(DEVEDOR\/)?COMPRADOR$/.test(s)) comp = true;
+      });
+    });
+    return titulo ? 2 : (vend && comp ? 1 : 0);
+  }
   function acharLinhas(paginas, ajuste) {
-    var a = (ajuste && ajuste.linha) || AJUSTE_LINHA, out = [];
+    var a = (ajuste && ajuste.linha) || AJUSTE_LINHA, out = [], antTitulo = false;
     (paginas || []).forEach(function (pg) {
-      var ls = linhas(pg), W = pg.largura, H = pg.altura;
+      var ls = linhas(pg), W = pg.largura, H = pg.altura, tipo = paginaDeAssinatura(ls), vale = tipo > 0 || antTitulo;
+      antTitulo = tipo === 2;
+      if (!vale) return;
       ls.forEach(function (l, i) {
         /* cada trecho de traços da linha é uma linha de assinatura (blocos lado a lado no PDF: VENDEDORA | COMPRADOR,
            TESTEMUNHA 1 | TESTEMUNHA 2); traço com texto antes ("ASSINATURA: ____") é campo de ciência, não conta */

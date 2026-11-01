@@ -278,16 +278,18 @@
     catch (err) { return { ok: false, erro: "RUBRICAS_SEM_LEITOR" }; }
     if (!ach.campos.length) return { ok: false, erro: "RUBRICAS_NAO_ACHADAS" };
     /* 01/11 (plano 23 B): linhas de assinatura do contrato e dos termos (o servidor casa cada uma com a pessoa) */
+    var rubricas = { nome: r.nome, campos: ach.campos, valores: ach.valores };
+    /* correção 1 (C-1): só com as linhas ligadas no servidor (ASSINATURA_LINHAS=1 → assinaturaPdf diz linhas: true) */
+    if (r.linhas !== true || typeof R.acharLinhas !== "function") return { ok: true, rubricas: rubricas };
     var linhas = [], termos = [];
-    if (typeof R.acharLinhas === "function") {
-      try {
-        linhas = R.acharLinhas(pags, r.ajuste);
-        var ts = Array.isArray(r.termos) ? r.termos : [];
-        for (var i = 0; i < ts.length; i++)
-          if (ts[i] && ts[i].nome && ts[i].base64) termos.push({ nome: ts[i].nome, linhas: R.acharLinhas(await R.paginasDoPdf(ts[i].base64), r.ajuste) });
-      } catch (err) { return { ok: false, erro: "RUBRICAS_SEM_LEITOR" }; }
-    }
-    return { ok: true, rubricas: { nome: r.nome, campos: ach.campos, valores: ach.valores, linhas: linhas, termos: termos } };
+    try {
+      linhas = R.acharLinhas(pags, r.ajuste);
+      var ts = Array.isArray(r.termos) ? r.termos : [];
+      for (var i = 0; i < ts.length; i++)
+        if (ts[i] && ts[i].nome && ts[i].base64) termos.push({ nome: ts[i].nome, linhas: R.acharLinhas(await R.paginasDoPdf(ts[i].base64), r.ajuste) });
+    } catch (err) { return { ok: false, erro: "RUBRICAS_SEM_LEITOR" }; }
+    rubricas.linhas = linhas; rubricas.termos = termos;
+    return { ok: true, rubricas: rubricas };
   }
 
   /* Executa um clique. deps: { pageId, confirmar(texto) -> bool, chamar(payload) -> Promise<resposta>,
