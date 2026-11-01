@@ -721,7 +721,8 @@ function assinaturaCancelar_(col, sess, p) {
   if (soAtualizar) {
     if (!est || !est.ok) return est;
     est.descartou = false;
-    if (!est.aviso) est.aviso = "O contrato já tinha sido enviado aos signatários. Nada foi descartado — a situação foi atualizada.";
+    /* campo próprio (01/11): `aviso` é só código (NOTIFICACAO_FALHOU, ASSINATURAS_INCOMPLETAS) e continua como veio */
+    est.avisoTexto = "O contrato já tinha sido enviado aos signatários. Nada foi descartado — a situação foi atualizada.";
     return est;
   }
   est.cancelou = true;

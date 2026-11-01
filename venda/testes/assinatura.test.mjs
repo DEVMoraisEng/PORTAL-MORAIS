@@ -1072,7 +1072,8 @@ test("descartar + envelope running (ativação incerta): nenhum PATCH/DELETE, si
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.equal(r.descartou, false);
   assert.equal(r.situacao, "ENVIADO");
-  assert.equal(r.aviso, AVISO_JA_ENVIADO);
+  assert.equal(r.avisoTexto, AVISO_JA_ENVIADO);   /* 01/11: campo próprio; aviso é só código */
+  assert.equal(r.aviso, undefined);
   assert.ok(!csCalls(c).some((x) => x.startsWith("PATCH") || x.startsWith("DELETE")), csCalls(c).join(" | "));
   assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), "ENVIADO");
   assert.equal(c.txt("ASSINATURA - ENVELOPE ID"), "env-1");
@@ -1083,9 +1084,20 @@ test("descartar + envelope closed: nenhum PATCH/DELETE, situação atualizada e 
   const r = c.g.chamar({ action: "assinaturaCancelar", token: tokenDe(), pageId: PAGE, descartar: true });
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.equal(r.descartou, false);
-  assert.equal(r.aviso, AVISO_JA_ENVIADO);
+  assert.equal(r.avisoTexto, AVISO_JA_ENVIADO);
   assert.ok(!csCalls(c).some((x) => x.startsWith("PATCH") || x.startsWith("DELETE")), csCalls(c).join(" | "));
   assert.notEqual(c.txt("ASSINATURA - SITUAÇÃO"), "RASCUNHO");
+});
+test("descartar + closed com assinaturas incompletas: o aviso de código fica e o 'Nada foi descartado' vem junto, em campo próprio", () => {
+  const c = cenario({ cs: { eventos: TODOS_ASSINARAM.slice(0, 3),
+                            arquivos: { original: "https://s3.clicksign.falso/original.pdf", signed: "https://s3.clicksign.falso/assinado.pdf" } } });
+  assert.equal(c.enviar().ok, true);
+  c.c.estado.status = "closed";
+  const r = c.g.chamar({ action: "assinaturaCancelar", token: tokenDe(), pageId: PAGE, descartar: true });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.descartou, false);
+  assert.equal(r.aviso, "ASSINATURAS_INCOMPLETAS");
+  assert.equal(r.avisoTexto, AVISO_JA_ENVIADO);
 });
 test("descartar + draft apaga como antes; Cancelar comum (sem descartar) com running continua cancelando", () => {
   const c = comRascunho();

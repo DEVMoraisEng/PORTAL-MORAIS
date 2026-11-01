@@ -345,11 +345,19 @@ test("Descartar rascunho: botão com RASCUNHO (TESTES e ocupado não), texto sem
   assert.equal(nao, c0);
 });
 
-test("Descartar rascunho: se o servidor não descartou (já enviado), a tela mostra o aviso dele", async () => {
+test("Descartar rascunho: se o servidor não descartou (já enviado), a tela mostra o avisoTexto dele", async () => {
   const c0 = ctx({ estado: { situacao: "RASCUNHO", envelope: true, signatarios: [] } });
-  const aviso = "O contrato já tinha sido enviado aos signatários. Nada foi descartado — a situação foi atualizada.";
+  const avisoTexto = "O contrato já tinha sido enviado aos signatários. Nada foi descartado — a situação foi atualizada.";
   const r = await A.executarAcaoAssinatura("a-descartar", c0, { pageId: "p", confirmar: () => true,
-    chamar: async () => ({ ok: true, descartou: false, situacao: "ENVIADO", envelope: true, signatarios: [], aviso }) });
-  assert.equal(r.msg, aviso);
+    chamar: async () => ({ ok: true, descartou: false, situacao: "ENVIADO", envelope: true, signatarios: [], avisoTexto }) });
+  assert.equal(r.msg, avisoTexto);
   assert.equal(r.estado.situacao, "ENVIADO");
+  /* aviso de código (sem espaço) junto: os dois textos aparecem — o "Nada foi descartado" não some */
+  const r2 = await A.executarAcaoAssinatura("a-descartar", c0, { pageId: "p", confirmar: () => true,
+    chamar: async () => ({ ok: true, descartou: false, situacao: "ASSINADO", envelope: true, signatarios: [], aviso: "ASSINATURAS_INCOMPLETAS", avisoTexto }) });
+  assert.ok(r2.msg.startsWith(avisoTexto) && /não registrou a assinatura de todos/.test(r2.msg), r2.msg);
+  /* sem avisoTexto, um aviso com espaço NÃO vira texto da tela por adivinhação */
+  const r3 = await A.executarAcaoAssinatura("a-descartar", c0, { pageId: "p", confirmar: () => true,
+    chamar: async () => ({ ok: true, descartou: false, situacao: "ENVIADO", envelope: true, signatarios: [], aviso: "texto qualquer com espaço" }) });
+  assert.equal(r3.msg, "Situação atualizada.");
 });

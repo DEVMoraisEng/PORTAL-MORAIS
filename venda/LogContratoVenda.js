@@ -33,7 +33,13 @@ var LogContratoVenda = (function () {
     gerarContrato: function () { return "gerou o contrato final"; },
     assinaturaEnviar: function (p) { return "enviou " + doc(p) + " para assinatura na Clicksign"; },
     assinaturaReenviar: function (p) { return "reenviou o link de assinatura " + docDe(p); },
-    assinaturaCancelar: function (p) { return "cancelou o envelope " + docDe(p) + " na Clicksign"; },
+    /* 01/11: o texto segue a resposta — Descartar rascunho que só atualizou a situação não "cancelou" nada */
+    assinaturaCancelar: function (p, r) {
+      if (r && r.descartou) return "descartou o rascunho do envelope " + docDe(p) + " na Clicksign";
+      if (p && p.descartar === true && r && r.descartou === false)
+        return "atualizou a situação (o envelope já estava com os signatários; nada foi descartado)";
+      return "cancelou o envelope " + docDe(p) + " na Clicksign";
+    },
     escolherTestemunhas: function () { return "escolheu as testemunhas"; },
     salvarCamposContrato: function (p) {
       var c = (p && p.campos) || {}, nomes = [];

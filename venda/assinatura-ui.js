@@ -310,7 +310,7 @@
     /* o servidor não descartou: o envelope já não era rascunho; ele só atualizou a situação e explica no aviso */
     return copia(c, { estado: { situacao: r.situacao || "", envelope: !!r.envelope, signatarios: r.signatarios || [], temAssinado: !!r.temAssinado },
                       ocupado: null, faltas: null, corrigir: null,
-                      msg: /\s/.test(String(r.aviso || "")) ? r.aviso : (mensagemAssinatura(r) || "Situação atualizada.") });
+                      msg: [r.avisoTexto, mensagemAssinatura(r)].filter(Boolean).join(" ") || "Situação atualizada." });
   }
 
   var exportar = { montarBlocoAssinatura: montarBlocoAssinatura, mensagemAssinatura: mensagemAssinatura,
