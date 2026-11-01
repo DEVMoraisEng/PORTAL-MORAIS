@@ -2258,14 +2258,40 @@ function condAndamentoHtml(l){
   return '<div class="cd-dica">Cada mudança salva sozinha no Notion.</div>'+grupos.filter(g=>g.itens.length).map(g=>
     '<div class="cd-and"><h4>'+esc(g.nome)+'</h4><div class="grid">'+g.itens.join("")+'</div></div>').join("");
 }
+/* 01/11/2026 (H7): o Andamento salva em segundo plano. A célula já mostra o valor novo; o envio não trava a tela e,
+   no sucesso, o cartão NÃO é redesenhado (só o estado local). Erro: volta só aquela célula e avisa "Não salvou: motivo".
+   Mudanças seguidas na mesma célula: vale a última (número de sequência por célula); células diferentes vão em paralelo. */
+const CD_AND_CEL={};
+function cdAndValLocal(c,valor){ return c&&c.tipo==="checkbox"?valor==="SIM":valor; }
+function cdAndValTela(c,v){ return c&&c.tipo==="checkbox"?(v?"SIM":"NÃO"):(v==null?"":String(v)); }
 async function condAndSalvar(id,prop,valor,stId){
-  const st=document.getElementById(stId); if(st){ st.style.color="#7A6A2E"; st.textContent="⏳ salvando…"; }
+  const st=document.getElementById(stId), el=document.getElementById(String(stId).replace(/-st$/,""));
+  const chave=id+"|"+prop;
+  const col=((COND&&COND.colunas)||[]).find(x=>x.nome===prop);
+  const l0=COND.linhas.find(x=>x.id===id);
+  let cel=CD_AND_CEL[chave];
+  if(!cel||!cel.pend){ cel=CD_AND_CEL[chave]={seq:(cel&&cel.seq)||0,pend:0,base:l0?cdVal(l0,prop):null}; }
+  const seq=++cel.seq; cel.pend++;
+  if(l0&&l0.v) l0.v[prop]=cdAndValLocal(col,valor);
+  if(st){ st.style.color="#7A6A2E"; st.textContent="⏳ salvando…"; }
   let r=null;
   try{ r=await chamar({action:"simsVendaSalvar",pageId:id,prop:prop,valor:valor},70000); }catch(e){ r=null; }
-  if(!r||!r.ok){ if(st){ st.style.color="#B0431F"; st.textContent="⚠ não salvou: "+((r&&(r.mensagem||r.erro))||"sem resposta"); } return; }
-  if(r.linha){ const i=COND.linhas.findIndex(x=>x.id===id); if(i>=0) COND.linhas[i]=r.linha; }
+  cel.pend--;
+  const ultima=(seq===cel.seq);
+  const l=COND.linhas.find(x=>x.id===id);
+  if(!r||!r.ok){
+    if(!ultima) return; /* uma mais nova já saiu: ela decide o que fica */
+    if(l&&l.v) l.v[prop]=cel.base;
+    if(el) el.value=cdAndValTela(col,cel.base);
+    if(st){ st.style.color="#B0431F"; st.textContent="Não salvou: "+((r&&(r.mensagem||r.erro))||"sem conexão"); }
+    return;
+  }
+  cel.base=cdAndValLocal(col,valor);
+  if(!ultima) return; /* resposta velha: não sobrescreve o valor mais novo */
+  if(r.linha&&r.linha.v&&l&&l.v){
+    Object.keys(r.linha.v).forEach(k=>{ if(k===prop) return; const p=CD_AND_CEL[id+"|"+k]; if(p&&p.pend) return; l.v[k]=r.linha.v[k]; });
+  }
   if(st){ st.style.color="#1D7A46"; st.textContent="✓ salvo"; }
-  condRender();
 }
 /* 02/10 (item 20) — link para o cliente/corretor completar as informações da venda */
 /* 31/10/2026 (dono): o quadro grande só quando FALTA algo obrigatório que o cliente/corretor completa (as faltas do
