@@ -1928,18 +1928,30 @@
       var ta = dentro("#ant-texto");
       if (ta) { try { ta.focus(); ta.select(); if (ta.setSelectionRange) ta.setSelectionRange(0, ta.value.length); } catch (e) {} }
     }
-    async function copiarMensagemAnt() {
-      if (uiA.ocupado || !estadoA || !estadoA.retrato) return;
+    /* o que o pedido leva, normalizado pelo mesmo caminho que monta o pedido: se mudar enquanto a resposta não chega, a resposta é velha */
+    function pedidoAnt() {
+      if (!estadoA || !estadoA.retrato) return null;
       var u = antNorm(uiA), c = antCalcular(estadoA.retrato, u), r0 = c.res[u.modo];
-      if (!r0 || !r0.ok) return;
+      if (!r0 || !r0.ok) return null;
       var p = { action: "antecipacaoTexto", pageId: pageId, modo: u.modo, dataPg: u.dataPg };
       if (u.modo !== "E") p.valor = r0.valor;
       if (u.modo === "D") p.parcelaId = c.parcelaId;
       if (u.modo === "E") p.quantas = c.quantas;
+      return { p: p, assinatura: [p.modo, p.valor, p.dataPg, p.parcelaId, p.quantas].join("|") };
+    }
+    async function copiarMensagemAnt() {
+      if (uiA.ocupado) return;
+      var ped = pedidoAnt();
+      if (!ped) return;
       uiA.ocupado = "msg"; uiA.msg = ""; uiA.texto = null; uiA.copia = ""; pintarAntRes();
-      var r = await chamarVenda(p, 60000);
+      var r = await chamarVenda(ped.p, 60000);
       if (!vivo()) return;
       uiA.ocupado = null;
+      var agora = pedidoAnt();
+      if (!agora || agora.assinatura !== ped.assinatura) {   /* valor, data ou jeito mudaram no meio: a resposta velha não é copiada nem mostrada */
+        uiA.msg = "Os dados mudaram. Toque em Copiar mensagem de novo."; pintarAnt();
+        return;
+      }
       if (r.ok && String(r.texto || "")) {
         uiA.texto = String(r.texto);
         /* depois da espera o navegador pode ter perdido o gesto do clique: se não copiar, o texto fica selecionado */

@@ -34,6 +34,7 @@ HTML = """<!doctype html><html><head><meta charset="utf-8"><style>/*CSS_DO_VENDA
   window.fetch = async function (url, opt) {
     var p = JSON.parse(opt.body); window.pedidos.push(p.action); (window.pedidosId = window.pedidosId || []).push(p.action + ":" + p.pageId);
     var r = window.respostas[p.action] || { ok: false, erro: "ACAO_DESCONHECIDA" };
+    if (window.segurar && window.segurar.acao === p.action) await window.segurar.promessa;   // o teste segura a resposta até soltar
     return { json: async function () { return JSON.parse(JSON.stringify(r)); } };
   };
   window.confirm = function () { return true; };
@@ -267,6 +268,24 @@ def main() -> int:
             pg.wait_for_function("() => /Selecione e copie/.test(document.querySelector('#cd-card .vb-antec [role=status]').textContent) && document.getElementById('ant-texto')", timeout=5000)
             conf(pg.evaluate("() => window.pedidos").count("antecipacaoTexto") == 2, "Copiar mensagem de novo, agora sem permissão, também mostra o texto")
             medir("selecione e copie")
+            # a resposta demora e o usuário muda o valor no meio: a resposta velha não é copiada nem mostrada
+            pg.evaluate("""() => { window.modoClip = 'ok'; window.copiados = []; var lib; 
+                window.segurar = { acao: 'antecipacaoTexto', promessa: new Promise(function (f) { lib = f; }) }; window.soltar = lib; }""")
+            n3 = pg.evaluate("() => window.pedidos").count("antecipacaoTexto")
+            pg.click('#cd-card [data-acao="an-msg"]')
+            pg.wait_for_function("(n) => window.pedidos.filter(function (a) { return a === 'antecipacaoTexto'; }).length === n + 1", arg=n3, timeout=5000)
+            pg.fill('#ant-valor', '20.000,00')
+            pg.evaluate("() => { window.soltar(); window.segurar = null; }")
+            pg.wait_for_function("() => /Os dados mudaram/.test(document.querySelector('#cd-card .vb-antec').textContent)", timeout=5000)
+            conf(pg.evaluate("() => window.copiados") == [], "valor mudou no meio do pedido: nada foi copiado")
+            conf(pg.locator('#ant-texto').count() == 0, "valor mudou no meio do pedido: o texto velho não aparece")
+            conf("Os dados mudaram. Toque em Copiar mensagem de novo." in pg.inner_text('#cd-card .vb-antec'), "aviso: Os dados mudaram")
+            conf(pg.locator('#cd-card [data-acao="an-msg"]:not([disabled])').count() == 1, "o botão volta a valer")
+            pg.click('#cd-card [data-acao="an-msg"]')
+            pg.wait_for_selector('#ant-texto', timeout=5000)
+            conf(pg.evaluate("() => window.copiados") == ["Texto pronto para o WhatsApp"] and "Os dados mudaram" not in pg.inner_text('#cd-card .vb-antec'),
+                 "tocar de novo copia normalmente e limpa o aviso")
+            medir("dados mudaram")
             if os.environ.get("FUMACA_PRINT_ANT"):
                 pg.screenshot(path=os.environ["FUMACA_PRINT_ANT"], full_page=True)
             # retrato de outro mês: nenhum número, só a mensagem e o botão de ler
