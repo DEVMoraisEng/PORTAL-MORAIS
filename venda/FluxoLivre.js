@@ -91,7 +91,8 @@ var FluxoLivre = (function () {
     return d;
   }
   /* RENAVAM: 11 dígitos (o antigo, de 9, com zeros à esquerda); dígito = (soma dos 10 primeiros × 3,2,9,8,7,6,5,4,3,2) × 10 mod 11, 10 vira 0 */
-  function renavamNormal(v) { var d = digitos(v); return d.length === 9 || d.length === 10 ? ("00" + d).slice(-11) : d.slice(0, 11); }
+  /* mais de 11 dígitos não é cortado: fica como veio (até 20) e a validação recusa */
+  function renavamNormal(v) { var d = digitos(v); return d.length === 9 || d.length === 10 ? ("00" + d).slice(-11) : d.slice(0, 20); }
   function renavamValido(v) {
     var d = renavamNormal(v);
     if (d.length !== 11) return false;
@@ -99,10 +100,11 @@ var FluxoLivre = (function () {
     for (var i = 0; i < 10; i++) s += Number(d.charAt(i)) * pesos[i];
     return (s * 10) % 11 % 10 === Number(d.charAt(10));
   }
-  function placaNormal(v) { return String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 7); }
+  /* placa e chassi: maiúsculas, sem traço/espaço; o excesso NÃO é cortado (fica até 10/25 e a validação recusa) */
+  function placaNormal(v) { return String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10); }
   function placaValida(v) { return RE_PLACA.test(placaNormal(v)); }
-  function chassiNormal(v) { return String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 17); }
-  function chassiValido(v) { return RE_CHASSI.test(String(v || "").toUpperCase().replace(/[\s.-]/g, "")); }
+  function chassiNormal(v) { return String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 25); }
+  function chassiValido(v) { return RE_CHASSI.test(chassiNormal(v)); }
   function inteiro(v) { var d = digitos(v); return d ? Number(d) : null; }
   /* bem de fora (tela ou Notion) → limpo; só os campos do tipo; null se não veio nada */
   function normalizarBem(b) {
@@ -171,6 +173,15 @@ var FluxoLivre = (function () {
     } else if (b.descricao.length < 20) f.push("descrição detalhada do bem (no mínimo 20 letras)");
     return f;
   }
+  /* o fluxo sem os dados do bem (fica o resumo em x) — para o histórico, que não guarda CPF/RENAVAM/chassi */
+  function semDadosDoBem(f) {
+    f = normalizar(f);
+    f.linhas = f.linhas.map(function (l) {
+      if (!l.b) return l;
+      var x = {}; Object.keys(l).forEach(function (k) { if (k !== "b") x[k] = l[k]; }); return x;
+    });
+    return f;
+  }
   /* resumo curto (até MAX_DESC): "Hyundai HB20 2019/2020 placa ABC1D23" — descrição da linha e comentário do Mais Controle */
   function resumoBem(b) {
     if (!b || !TIPOS_BEM.hasOwnProperty(b.tipo)) return "";
@@ -227,7 +238,8 @@ var FluxoLivre = (function () {
     var erros = [], porLinha = {}, avisos = [], porBem = {}, errosBem = [];
     var antigas = {};
     (anterior ? normalizar(anterior).linhas : []).forEach(function (l) {
-      if (l.t === "permuta" && !l.b && l.x) antigas[[c(l.v), l.n, l.d, l.i, l.x].join("|")] = true;
+      /* multiconjunto: cada permuta gravada libera UMA linha igual (duas cópias de uma antiga = a 2ª pede o bem) */
+      if (l.t === "permuta" && !l.b && l.x) { var ch = [c(l.v), l.n, l.d, l.i, l.x].join("|"); antigas[ch] = (antigas[ch] || 0) + 1; }
     });
     function erroBem(k, faltas, msg) {
       porBem[k] = faltas;
@@ -250,8 +262,8 @@ var FluxoLivre = (function () {
         if (l.b) {
           var fb = faltasBem(l.b);
           if (fb.length) erroBem(k, fb, "dados da permuta incompletos — " + fb.slice(0, 4).join(", ") + (fb.length > 4 ? "…" : ""));
-        } else if (antigas[[c(l.v), l.n, l.d, l.i, l.x].join("|")]) {
-          /* fluxo antigo, linha igual à gravada: segue só com a descrição */
+        } else if (antigas[[c(l.v), l.n, l.d, l.i, l.x].join("|")] > 0) {
+          antigas[[c(l.v), l.n, l.d, l.i, l.x].join("|")]--;   /* fluxo antigo, linha igual à gravada: segue só com a descrição */
         } else erroBem(k, ["tipo do bem e os dados dele"], "faltam os dados do bem da permuta (veículo, imóvel ou outro)");
       }
       if (!isoValida(l.d)) { if (!tp.terceiro) erroLinha(k, "falta a 1ª data"); return; }
@@ -578,7 +590,7 @@ var FluxoLivre = (function () {
   }
 
   return { TIPOS: TIPOS, ORDEM: ORDEM, MAX_LINHAS: MAX_LINHAS, MAX_MOTIVO: MAX_MOTIVO, POS_TETO: POS_TETO, LIMITE_PRE_CHAVES: LIMITE_PRE_CHAVES,
-           PRAZOS: PRAZOS, TIPOS_BEM: TIPOS_BEM, QUITA_PADRAO: QUITA_PADRAO, normalizarBem: normalizarBem, faltasBem: faltasBem, resumoBem: resumoBem,
+           PRAZOS: PRAZOS, TIPOS_BEM: TIPOS_BEM, QUITA_PADRAO: QUITA_PADRAO, normalizarBem: normalizarBem, faltasBem: faltasBem, semDadosDoBem: semDadosDoBem, resumoBem: resumoBem,
            docValido: docValido, docFormatado: docFormatado, renavamValido: renavamValido, placaValida: placaValida, chassiValido: chassiValido, prazoDasLinhas: prazoDasLinhas, mudarPrazo: mudarPrazo, distribuir: distribuir,
            normalizar: normalizar, validar: validar, redistribuir: redistribuir, aplicarDesconto: aplicarDesconto, valorDoDesconto: valorDoDesconto, doPadrao: doPadrao, abaterSinal: abaterSinal, expandir: expandir,
            serializar: serializar, ler: ler, ordenar: ordenar, totalLinha: function (l) { return totalLinhaC(normalizar({ linhas: [l] }).linhas[0] || {}) / 100; },

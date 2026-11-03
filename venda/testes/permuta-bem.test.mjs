@@ -119,3 +119,39 @@ test("bem só fica em linha de permuta; serializar e ler preservam o bem", () =>
   assert.equal(l.linhas[1].b, undefined);
   assert.equal(F.ler(s).linhas[0].x, "Hyundai HB20 2019/2020 placa ABC1D23");
 });
+
+/* revisão de 0f969f6 */
+test("fluxo antigo: cada permuta gravada libera UMA linha igual — a cópia dela pede o bem", () => {
+  const antigo = fluxo(null, "carro do cliente");
+  const duas = { valor: 100000, entrega: "", linhas: [antigo.linhas[0], { ...antigo.linhas[0] }, { t: "fin", v: 20000, n: 1, d: "", i: 1 }] };
+  duas.linhas[1] = { ...duas.linhas[1] };
+  const r = F.validar(duas, null, antigo);
+  assert.deepEqual(Object.keys(r.porBem), ["1"], r.erros.join(" | "));
+  assert.equal(F.validar(antigo, null, antigo).ok, true);
+});
+
+test("RENAVAM com mais de 11 dígitos é inválido (não corta calado)", () => {
+  assert.equal(F.renavamValido("000000000000"), false);
+  assert.equal(F.renavamValido("006398849620"), false);
+  const b = F.normalizarBem({ ...carro(), renavam: "000000000001" });
+  assert.ok(F.faltasBem(b).some((x) => /RENAVAM inválido/.test(x)), F.faltasBem(b).join(" | "));
+});
+
+test("placa e chassi: a validação exportada limpa igual ao normalizarBem e não corta o excesso", () => {
+  assert.equal(F.placaValida("abc-1d23"), true);
+  assert.equal(F.placaValida("ABC12345"), false, "8 caracteres");
+  assert.ok(F.faltasBem(F.normalizarBem({ ...carro(), placa: "ABC12345" })).some((x) => /placa inválida/.test(x)));
+  assert.equal(F.chassiValido("9bwzzz377vt004251"), true);
+  assert.equal(F.chassiValido("9BW ZZZ377-VT004251"), true);
+  assert.equal(F.chassiValido("9BWZZZ377VT0042511"), false, "18 caracteres");
+  assert.ok(F.faltasBem(F.normalizarBem({ ...carro(), chassi: "9BWZZZ377VT0042511" })).some((x) => /chassi com 17/.test(x)));
+});
+
+test("semDadosDoBem: tira o bem das linhas (fica o resumo) — é o que vai para o histórico", () => {
+  const f = F.normalizar(fluxo(carro()));
+  const s = F.semDadosDoBem(f);
+  assert.equal(s.linhas[0].b, undefined);
+  assert.equal(s.linhas[0].x, "Hyundai HB20 2019/2020 placa ABC1D23");
+  assert.ok(f.linhas[0].b, "não mexe no original");
+  assert.doesNotMatch(F.serializar(s), /52998224725|9BWZZZ377VT004251|00000000000/);
+});

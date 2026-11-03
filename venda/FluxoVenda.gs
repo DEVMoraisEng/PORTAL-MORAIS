@@ -133,7 +133,7 @@ function salvarFluxo_(col, sess, p) {
   notion_("PATCH", "/pages/" + p.pageId, { properties: props });
   /* histórico: o fluxo de ANTES (vazio = o do simulador); passou do tamanho, some o mais antigo depois do 1º */
   var hist = fluxoHist_(p.pageId), item = { por: ctrTxt_(sess && sess.u), em: new Date().toISOString(), motivo: motivo, valor: valor,
-                                             antes: antes ? FluxoLivre.serializar(antes) : "" };
+                                             antes: antes ? FluxoLivre.serializar(FluxoLivre.semDadosDoBem(antes)) : "" };   /* 03/11: sem CPF/RENAVAM/chassi */
   if (motivoPreco && !p.voltar) item.motivoPreco = motivoPreco;
   var desc = String(p.desconto || "").replace(/\s+/g, " ").trim().slice(0, 200);   /* 30/10: resumo do desconto dado na tela */
   if (desc && !p.voltar) item.desconto = desc;
@@ -141,6 +141,10 @@ function salvarFluxo_(col, sess, p) {
   if (p.voltar) item.voltou = true;
   hist.push(item);
   while (hist.length > 2 && JSON.stringify(hist).length > FLUXO_HIST_MAX) hist.splice(1, 1);
+  /* 03/11: ainda grande (fluxos com permuta): as entradas perdem o "antes", da mais antiga para a mais nova; em último
+     caso some a mais antiga — setProperty estoura acima de ~9 KB e o fluxo já foi gravado no Notion */
+  for (var ih = 0; ih < hist.length && JSON.stringify(hist).length > FLUXO_HIST_MAX; ih++) if (hist[ih].antes) hist[ih].antes = "";
+  while (hist.length > 1 && JSON.stringify(hist).length > FLUXO_HIST_MAX) hist.shift();
   PropertiesService.getScriptProperties().setProperty(FLUXO_HIST + ctrIdLimpo_(p.pageId), JSON.stringify(hist));
   ctrLog_("salvarFluxo " + pid + " por " + (item.por || "?") + (p.voltar ? ": voltou ao fluxo da proposta" : ": " + FluxoLivre.ler(texto).linhas.length + " linhas"));
   return { ok: true, fluxo: fluxoEstado_(p.pageId, { properties: Object.assign({}, pg.properties, (function () {
