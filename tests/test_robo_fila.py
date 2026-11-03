@@ -33,6 +33,18 @@ def test_pedido_invalido_e_recusado():
     assert R.argumentos("mc-venda", {"acao": "distrato", "pageId": PG, "recebeu": "sim", "valor": "1;2"}, True) is None
 
 
+def test_mc_anexos_03_11_mesmas_duas_chaves_e_sem_marcar_erro_nem_retratos():
+    """Pedido mc-anexos (venda/mc/anexos.py): grava só com aplicar E pode_gravar; o robô já escreve o motivo nas
+    linhas da situação, então o 'marcar erro' (que trocaria a situação inteira) e os retratos não rodam."""
+    assert R.argumentos("mc-anexos", {"pageId": PG, "aplicar": True}, True) == (["-m", "venda.mc.anexos", "--page", PG, "--aplicar"], {})
+    assert R.argumentos("mc-anexos", {"pageId": PG, "aplicar": True}, False)[0][-1] == "--bloqueado"
+    assert R.argumentos("mc-anexos", {"pageId": PG}, True) == (["-m", "venda.mc.anexos", "--page", PG], {})
+    assert R.argumentos("mc-anexos", {"pageId": "x; rm -rf", "aplicar": True}, True) is None
+    argv = R.argumentos("mc-anexos", {"pageId": PG, "aplicar": True}, True)[0]
+    assert R.marcar_erro_argv(argv) is None
+    assert R.apos_gravar(argv) is None
+
+
 def test_marcar_erro_na_pagina_da_venda():
     assert R.marcar_erro_argv(["-m", "venda.mc.lancar", "--page", PG, "--aplicar"]) == \
         ["-m", "venda.mc.lancar", "--page", PG, "--marcar-erro", "o robô do servidor falhou — veja o log do servidor"]

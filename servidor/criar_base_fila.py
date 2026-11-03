@@ -12,7 +12,7 @@ import urllib.request
 
 COLUNAS = {
     "PEDIDO": {"title": {}},
-    "TIPO": {"select": {"options": [{"name": "mc-venda"}, {"name": "SINAL"}]}},
+    "TIPO": {"select": {"options": [{"name": "mc-venda"}, {"name": "mc-retrato"}, {"name": "mc-anexos"}, {"name": "SINAL"}]}},
     "PAYLOAD": {"rich_text": {}},
     "SITUAÇÃO": {"select": {"options": [{"name": "PENDENTE"}, {"name": "PEGO"}, {"name": "FEITO"}, {"name": "ERRO"}]}},
     "PEDIDO EM": {"date": {}},

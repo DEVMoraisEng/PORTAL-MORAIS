@@ -105,12 +105,12 @@ const SCHEMA_VENDAS = { properties: Object.fromEntries(Object.entries(COLUNAS_RE
   return [n, { type: tipo, [tipo]: tipo === "select" ? { options: t.opcoes.map((o) => ({ name: o })) } : {} }];
 })) };
 
-function cenario({ linha = {}, sem = [], dbPagina = DB_COND, props = {}, gh = 204, docEnd = "CONDOMÍNIO RESERVA TESTE", modeloCond = MODELO_COND, modelosExtra = {}, cs = {}, s3 = {}, ia = null } = {}) {
+function cenario({ linha = {}, sem = [], dbPagina = DB_COND, props = {}, gh = 204, docEnd = "CONDOMÍNIO RESERVA TESTE", modeloCond = MODELO_COND, modelosExtra = {}, cs = {}, s3 = {}, ia = null, basesExtra = {}, esquemas = {} } = {}) {
   const valores = Object.assign({}, LINHA, linha);
   for (const s of sem) delete valores[s];
   const n = notionFalso({ colunas: colunasDe(valores), valores, pageId: COND, dbId: dbPagina, s3,
     bases: { "db-vend": [VENDEDOR], "db-lote": [EMPREENDIMENTO], "db-corr": [],
-             "db-doc": [Object.assign({ "ENDEREÇO": tit(docEnd) }, OBRA_PG)] } });
+             "db-doc": [Object.assign({ "ENDEREÇO": tit(docEnd) }, OBRA_PG)], ...basesExtra }, esquemas });
   const d = driveFalso({ modelos: Object.assign({ "modelo-cond": modeloCond, "modelo-obra": ["OBRA"], "modelo-pronto": ["PRONTO"], "modelo-pr": MODELO_PR }, modelosExtra) });
   const c = clicksignFalso(cs);
   const despachos = [], falha = { fn: null };
@@ -1844,4 +1844,179 @@ test("03/11: cartão do condomínio com o envelope ENVIADO — Alterar fluxo, co
   assert.equal(c.acao("fluxoEditar").ok, true, "Ver fluxo segue");
   assert.equal(c.acao("assinaturaCancelar").ok, true);
   assert.equal(c.acao("salvarCondicoesEspeciais", { texto: "Na cláusula 9.2, 45 dias." }).ok, true, "cancelado: destrava");
+});
+
+/* ---- 03/11/2026 (AnexosMC.gs): contrato assinado numa venda já lançada e ZIP de todos os assinados ---- */
+const FILA = "f".repeat(32);
+const ESQ_FILA = { [FILA]: { PEDIDO: "title", TIPO: "select", PAYLOAD: "rich_text", "SITUAÇÃO": "select", "PEDIDO EM": "date" } };
+const COL_ZIP = { "CONTRATOS ASSINADOS (ZIP)": { files: [] } };
+function cenarioAnexos({ linha = {}, props = {}, memorial = false } = {}) {
+  const extra = memorial ? { MODELO_MEMORIAL_ID: "modelo-memorial", PROJETO_APROVADO_ID: "proj-1" } : {};
+  const c = cenario({ cs: { arquivos: ARQ_OK }, linha: { ...COL_ZIP, ...linha }, props: { DB_FILA_ROBO: FILA, ...extra, ...props },
+                      modelosExtra: memorial ? { "modelo-memorial": MODELO_MEMORIAL } : {}, basesExtra: { [FILA]: [] }, esquemas: ESQ_FILA });
+  if (memorial) c.d.soltos["proj-1"] = { nome: "projeto.pdf", url: "https://drive.falso/proj-1", buf: Buffer.from("%PDF-1.7 projeto aprovado de teste") };
+  c.fila = () => c.n.escritas.filter((e) => e.metodo === "POST" && e.base === FILA);
+  c.assinarTudo = () => {
+    assert.equal(c.gerarFinal().ok, true);
+    assert.equal(c.acao("assinaturaEnviar", rub(c)).ok, true);
+    c.c.estado.status = "closed";
+    return c.acao("assinaturaEstado");
+  };
+  c.pendente = () => c.p["MC_ZIP_PENDENTE_" + COND];
+  c.vigiaZip = () => c.g.ctx.mcZipPendentes_();
+  c.baixadosClicksign = () => c.c.estado.baixados;
+  return c;
+}
+const zipDe = (c) => c.n.pagina.properties["CONTRATOS ASSINADOS (ZIP)"].files;
+const conteudoZip = (c) => JSON.parse(c.n.uploads[zipDe(c)[0].file.url.split("/").pop()].buf.toString("utf8"));
+
+test("03/11: nome do ZIP — Un NN, compradores (cônjuge e 2º sem repetir) unidos por ' e ', sem caractere proibido", () => {
+  /* como o Notion manda: cada propriedade com o seu type */
+  const nz = (o) => CondominioVenda.nomeZipContratos(Object.fromEntries(Object.entries(o).map(([k, v]) => [k, { type: Object.keys(v)[0], ...v }])));
+  assert.equal(nz({ UNIDADE: tit("31"), PROPONENTE: rt("Fulana de Teste") }), "Un 31 - FULANA DE TESTE.zip");
+  assert.equal(nz({ UNIDADE: tit("3"), PROPONENTE: rt("Ana  Teste"), "COMPRADOR 1": rt("ana teste"), CONJUGE: rt("Bruno Teste"),
+                    "COMPRADOR 2": rt("Carla / Teste") }), "Un 03 - ANA TESTE e CARLA TESTE e BRUNO TESTE.zip");
+  assert.equal(nz({ UNIDADE: tit("UNIDADE 07"), PROPONENTE: rt("Ana: Teste?"), "COMPRADOR 1": rt("Bruno Teste") }), "Un 07 - ANA TESTE e BRUNO TESTE.zip");
+  assert.equal(nz({ UNIDADE: tit(""), PROPONENTE: rt("Ana") }), null);
+});
+
+test("03/11: mcTrocarLinha_ troca a linha do rótulo (nunca o cabeçalho); situação vazia ganha cabeçalho e não duplica", () => {
+  const t = cenario().g.ctx.mcTrocarLinha_;
+  assert.equal(t("", "Contrato", "x"), "ainda não lançada\nContrato: x");
+  assert.equal(t(t("", "Contrato", "x"), "Contrato", "y"), "ainda não lançada\nContrato: y");
+  assert.equal(t("CRIADA | venda v\nContrato: não anexado (y)\nTotal: 1", "Contrato", "anexado"), "CRIADA | venda v\nContrato: anexado\nTotal: 1");
+  assert.equal(t("PRÉVIA OK [#0a1b2c3d] | X", "Contratos (ZIP)", "ok"), "PRÉVIA OK [#0a1b2c3d] | X\nContratos (ZIP): ok");
+});
+
+test("03/11: venda JÁ lançada: o contrato que entra vira pedido mc-anexos; o ZIP só fica pendente (nada baixado no Atualizar)", () => {
+  const c = cenarioAnexos({ linha: { "MC - VENDA ID": rt("venda-erp-1"), "MC - SITUAÇÃO": rt("CRIADA | venda venda-erp-1\nContrato: não anexado (coluna CONTRATO ASSINADO vazia)") } });
+  const e = c.assinarTudo();
+  assert.equal(e.situacao, "ASSINADO", JSON.stringify(e));
+  assert.equal(c.n.pagina.properties["CONTRATO ASSINADO"].files.length, 1);
+  assert.equal(zipDe(c).length, 0, "o Atualizar não monta o ZIP");
+  assert.equal(c.baixadosClicksign(), 1, "só o contrato foi baixado");
+  assert.ok(c.pendente(), "ZIP marcado para a vigia");
+  const f = c.fila();
+  assert.equal(f.length, 1);
+  assert.equal(f[0].props.TIPO.select.name, "mc-anexos");
+  assert.deepEqual(JSON.parse(f[0].props.PAYLOAD.rich_text[0].text.content), { pageId: COND, aplicar: true });
+  let sit = c.txt("MC - SITUAÇÃO");
+  assert.match(sit, /^CRIADA \| venda venda-erp-1\n/);
+  assert.match(sit, /\nContrato: pedido ao robô em /);
+  assert.match(sit, /\nContratos \(ZIP\): será montado com todos os assinados em até 30 minutos/);
+  /* Atualizar de novo: nada baixado, nenhum pedido, nenhuma escrita */
+  const antes = c.n.patches.length;
+  assert.equal(c.acao("assinaturaEstado").situacao, "ASSINADO");
+  assert.equal(c.fila().length, 1);
+  assert.equal(c.baixadosClicksign(), 1);
+  assert.equal(c.n.patches.length, antes);
+  /* a vigia monta: ZIP guardado, pedido de envio, pendência apagada */
+  c.vigiaZip();
+  assert.deepEqual(zipDe(c).map((x) => x.name), ["Un 13 - COMPRADORA DE TESTE.zip"]);
+  const dentro = conteudoZip(c);
+  assert.deepEqual(dentro.map((x) => x.nome), [c.n.pagina.properties["CONTRATO ASSINADO"].files[0].name]);
+  assert.match(dentro[0].texto, /contrato assinado de teste/);
+  assert.equal(c.fila().length, 2);
+  assert.equal(c.pendente(), undefined);
+  sit = c.txt("MC - SITUAÇÃO");
+  assert.match(sit, /\nContratos \(ZIP\): guardado no Notion \(1 documentos\), envio pedido ao robô em /);
+  assert.equal(sit.split("\n").filter((l) => l.startsWith("Contratos (ZIP):")).length, 1);
+  assert.ok(!c.g.logs.some((l) => /Compradora|COMPRADORA|52998224725/.test(l)), "log sem nome/CPF");
+});
+
+test("03/11: venda NÃO lançada: o ZIP vai pela vigia, o contrato não é pedido; situação vazia ganha cabeçalho", () => {
+  const c = cenarioAnexos();
+  assert.equal(c.assinarTudo().situacao, "ASSINADO");
+  assert.equal(c.fila().length, 0);
+  c.vigiaZip();
+  assert.equal(zipDe(c).length, 1);
+  assert.equal(c.fila().length, 1);
+  const sit = c.txt("MC - SITUAÇÃO");
+  assert.doesNotMatch(sit, /Contrato:/);
+  assert.match(sit, /^ainda não lançada\nContratos \(ZIP\): guardado no Notion/);
+});
+
+test("03/11: envelope com memorial e projeto — o ZIP leva os 3 assinados com o nome final", () => {
+  const c = cenarioAnexos({ memorial: true });
+  assert.equal(c.assinarTudo().situacao, "ASSINADO");
+  c.vigiaZip();
+  const nomes = conteudoZip(c).map((x) => x.nome);
+  assert.equal(nomes.length, 3, JSON.stringify(nomes));
+  assert.match(nomes[0], /^CONTRATO ASSINADO - /);
+  assert.match(nomes[1], /^ASSINADO - MEMORIAL DESCRITIVO - .+\.pdf$/);
+  assert.match(nomes[2], /^ASSINADO - PROJETO APROVADO - .+\.pdf$/);
+});
+
+test("03/11: ZIP grande não é montado nem tentado de novo sozinho; falha passageira tenta no máximo 1 vez por hora", () => {
+  const grande = cenarioAnexos();
+  vm.runInContext("MC_ZIP_TETO = 10;", grande.g.ctx);
+  assert.equal(grande.assinarTudo().situacao, "ASSINADO");
+  grande.vigiaZip();
+  assert.equal(zipDe(grande).length, 0);
+  assert.match(grande.txt("MC - SITUAÇÃO"), /Contratos \(ZIP\): ZIP grande \(mais de 0 MB\): envie à mão/);
+  assert.equal(grande.fila().length, 0);
+  assert.match(grande.pendente(), /"definitivo":true/);
+  const baixados = grande.baixadosClicksign();
+  const g0 = JSON.parse(grande.pendente()); g0.ultima -= 3600001; grande.p["MC_ZIP_PENDENTE_" + COND] = JSON.stringify(g0);
+  grande.vigiaZip();   /* passou a hora: definitivo continua parado */
+  assert.equal(grande.acao("assinaturaEstado").situacao, "ASSINADO");
+  assert.equal(grande.baixadosClicksign(), baixados, "nem a vigia nem o Atualizar baixam de novo");
+  /* falha passageira (Notion recusou o upload): espera 1 hora */
+  const c = cenarioAnexos();
+  assert.equal(c.assinarTudo().situacao, "ASSINADO");
+  c.falha.fn = (url) => (url.startsWith("https://upload.notion.falso/") ? { status: 500, json: {} } : null);
+  c.vigiaZip();
+  assert.equal(zipDe(c).length, 0);
+  assert.match(c.txt("MC - SITUAÇÃO"), /Contratos \(ZIP\): não guardado no Notion .*tento de novo em 1 hora/);
+  const b1 = c.baixadosClicksign();
+  c.falha.fn = null;
+  c.vigiaZip();
+  assert.equal(c.baixadosClicksign(), b1, "dentro da hora não tenta");
+  const st = JSON.parse(c.pendente()); st.ultima -= 3600001; c.p["MC_ZIP_PENDENTE_" + COND] = JSON.stringify(st);
+  c.vigiaZip();
+  assert.equal(zipDe(c).length, 1, "depois da hora tenta e consegue");
+});
+
+test("03/11: sem a coluna do ZIP só o contrato; sem fila a situação diz que não foi pedido", () => {
+  const sem = cenario({ cs: { arquivos: ARQ_OK }, linha: { "MC - VENDA ID": rt("v-1") } });
+  assert.equal(sem.gerarFinal().ok, true); assert.equal(sem.acao("assinaturaEnviar", rub(sem)).ok, true);
+  sem.c.estado.status = "closed";
+  assert.equal(sem.acao("assinaturaEstado").situacao, "ASSINADO");
+  assert.match(sem.txt("MC - SITUAÇÃO"), /Contrato: NÃO pedido ao robô \(o robô do servidor não está configurado/);
+  assert.equal(sem.p["MC_ZIP_PENDENTE_" + COND], undefined);
+  const semFila = cenarioAnexos({ props: { DB_FILA_ROBO: "" } });
+  assert.equal(semFila.assinarTudo().situacao, "ASSINADO");
+  semFila.vigiaZip();
+  assert.match(semFila.txt("MC - SITUAÇÃO"), /Contratos \(ZIP\): guardado no Notion .*NÃO pedido ao robô/);
+});
+
+test("03/11: a vigia chama o ZIP pendente no fim da rodada", () => {
+  const src = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "AssinaturaVigia.gs"), "utf8");
+  assert.match(src, /mcZipPendentes_\(\)/);
+});
+
+test("03/11: botão Anexar contrato / Enviar ZIP (mcAnexar) — exige venda; ZIP monta na hora; TESTES não grava", () => {
+  const c = cenarioAnexos({ linha: { "MC - SITUAÇÃO": rt("CRIADA | venda v-1\nContrato: não anexado (coluna CONTRATO ASSINADO vazia)") } });
+  assert.equal(c.acao("mcAnexar").erro, "MC_SEM_VENDA");
+  assert.equal(c.acao("mcAnexar", { zip: true }).erro, "MC_SEM_ZIP", "sem envelope assinado não há o que zipar");
+  c.n.pagina.properties["MC - VENDA ID"] = Object.assign({ type: "rich_text" }, rt("v-1"));
+  assert.equal(c.acao("mcAnexar", {}, token("TESTES")).erro, "SEM_PERMISSAO_TESTES");
+  const r = c.acao("mcAnexar");
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(c.fila().length, 1);
+  assert.equal(c.fila()[0].props.TIPO.select.name, "mc-anexos");
+  assert.match(c.txt("MC - SITUAÇÃO"), /^CRIADA \| venda v-1\nContrato: pedido ao robô em \d\d\/\d\d .* — o servidor ainda não deu sinal/);
+  const semFila = cenarioAnexos({ props: { DB_FILA_ROBO: "" }, linha: { "MC - VENDA ID": rt("v-1") } });
+  assert.equal(semFila.acao("mcAnexar").erro, "MC_ANEXOS_SEM_FILA");
+  /* Enviar ZIP com a coluna vazia e o contrato assinado: monta agora (mesmo marcado como grande antes) */
+  const z = cenarioAnexos();
+  vm.runInContext("MC_ZIP_TETO = 10;", z.g.ctx);
+  assert.equal(z.assinarTudo().situacao, "ASSINADO");
+  z.vigiaZip();
+  vm.runInContext("MC_ZIP_TETO = 20 * 1024 * 1024;", z.g.ctx);
+  const rz = z.acao("mcAnexar", { zip: true });
+  assert.equal(rz.ok, true, JSON.stringify(rz));
+  assert.equal(zipDe(z).length, 1);
+  assert.equal(z.pendente(), undefined);
+  assert.match(z.txt("MC - SITUAÇÃO"), /Contratos \(ZIP\): guardado no Notion \(1 documentos\), pedido ao robô em /);
 });

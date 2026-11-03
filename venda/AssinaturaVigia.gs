@@ -42,6 +42,9 @@ function vigiaAssinaturas() {
     catch (e) { ctrErro_("vigia " + id.slice(0, 8) + " aguardando arquivo", e); }
   });
   ctrLog_("vigia " + abertos.length + " envelope(s) aberto(s), " + assinados + " assinado(s) agora");
+  /* 03/11 (AnexosMC.gs): ZIP dos assinados é montado aqui, fora do "Atualizar situação" (no máximo 1 tentativa/hora) */
+  try { if (typeof mcZipPendentes_ === "function") mcZipPendentes_(); }
+  catch (e) { ctrErro_("vigia zip dos assinados", e); }
 }
 
 /* linhas do condomínio com o contrato ENVIADO (nome real da coluna pelo esquema da base: pode ter espaço sobrando) */

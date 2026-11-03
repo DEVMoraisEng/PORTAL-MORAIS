@@ -116,6 +116,26 @@ var CondominioVenda = (function () {
     var m = /\d+/.exec(String(unidade || ""));
     return m ? Number(m[0]) : null;
   }
+  /* 03/11 (dono): nome do ZIP com os documentos assinados — "Un NN - COMPRADOR 1 e COMPRADOR 2.zip". Compradores na
+   * ordem PROPONENTE, COMPRADOR 1 (quando é outra pessoa), COMPRADOR 2 e CONJUGE, sem repetir; um só = só o nome.
+   * Sem número na UNIDADE: null (quem chama avisa). Caracteres que o Windows recusa em nome de arquivo viram espaço. */
+  function nomeZipContratos(props) {
+    var L = leitor(props), nomes = [], vistos = {};
+    ["PROPONENTE", "COMPRADOR 1", "COMPRADOR 2", "CONJUGE"].forEach(function (c) {
+      var v = L.v(c);
+      if (vazio(v)) return;
+      var n = String(v).replace(/\s+/g, " ").trim().toUpperCase(), k = chave(n);
+      if (!n || vistos[k]) return;
+      vistos[k] = true;
+      nomes.push(n);
+    });
+    var casa = numeroDaCasa(L.v("UNIDADE"));
+    if (casa === null) return null;
+    var base = "Un " + (casa < 10 ? "0" : "") + casa + (nomes.length ? " - " + nomes.join(" e ") : "");
+    base = base.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim();
+    if (base.length > 150) base = base.slice(0, 150).trim();
+    return base + ".zip";
+  }
   function formatarCpfSeValido(cpf) {
     return R().cpfValido(cpf) ? R().formatarCpf(cpf) : cpf;
   }
@@ -345,7 +365,7 @@ var CondominioVenda = (function () {
 
   return {
     COLUNA_ID: COLUNA_ID, valor: valor, temSegundo: temSegundo, mapear: mapear, avisos: avisos,
-    arquivosParaCopiar: arquivosParaCopiar, propriedadesNotion: propriedadesNotion, numeroDaCasa: numeroDaCasa,
+    arquivosParaCopiar: arquivosParaCopiar, propriedadesNotion: propriedadesNotion, numeroDaCasa: numeroDaCasa, nomeZipContratos: nomeZipContratos,
     paginaVirtual: paginaVirtual
   };
 })();

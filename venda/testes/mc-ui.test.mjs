@@ -92,3 +92,38 @@ test("texto antigo numa linha só também vira tópicos", () => {
   assert.deepEqual(t.itens.map((x) => x.texto), ["Sinal R$ 1.00 em 2026-01-01", "FGTS R$ 2.00 em 2026-02-01"]);
   assert.deepEqual(D.topicosMC("RECUSADA: falta X; falta Y"), { titulo: "RECUSADA: falta X; falta Y", itens: [] });
 });
+
+/* ---- 03/11/2026: contrato não anexado / ZIP não enviado — botão que pede de novo ao robô (ação mcAnexar) ---- */
+test("venda lançada com 'Contrato: não anexado' mostra o botão Anexar contrato; anexado, não", () => {
+  const sit = "CRIADA | venda v-9\nParcelas: 3\nContrato: não anexado (coluna CONTRATO ASSINADO vazia)";
+  const h = D.htmlMC({ situacao: sit, vendaId: "v-9" }, ui());
+  const b = botao(h, "mc-anexar");
+  assert.ok(b, h);
+  assert.doesNotMatch(b, /disabled/);
+  assert.match(h, /data-acao="mc-anexar"[^>]*>Anexar contrato no Mais Controle</);
+  assert.equal(botao(D.htmlMC({ situacao: "CRIADA | venda v-9\nContrato: anexado no recebimento", vendaId: "v-9" }, ui()), "mc-anexar"), null);
+  assert.equal(botao(D.htmlMC({ situacao: "PRÉVIA OK\nContrato: não anexado", vendaId: "" }, ui()), "mc-anexar"), null, "sem venda não há onde anexar");
+  assert.match(botao(D.htmlMC({ situacao: sit, vendaId: "v-9" }, ui({ testes: true })), "mc-anexar"), /disabled/);
+  assert.match(botao(D.htmlMC({ situacao: sit, vendaId: "v-9" }, ui({ ocupado: "mc-anexar" })), "mc-anexar"), /disabled/);
+});
+
+test("ZIP não enviado mostra 'Enviar ZIP ao Mais Controle'; enviado ou só pedido, não", () => {
+  const h = D.htmlMC({ situacao: "CRIADA | venda v-9\nContrato: anexado no recebimento\nContratos (ZIP): não enviado (a pasta Contratos Venda não existe)", vendaId: "v-9" }, ui());
+  assert.match(h, /data-acao="mc-anexar-zip"[^>]*>Enviar ZIP ao Mais Controle</);
+  assert.equal(botao(h, "mc-anexar"), null);
+  assert.equal(botao(D.htmlMC({ situacao: "CRIADA\nContratos (ZIP): enviado para Orçamento > Arquivos > Contratos Venda", vendaId: "v-9" }, ui()), "mc-anexar-zip"), null);
+  assert.equal(botao(D.htmlMC({ situacao: "CRIADA\nContratos (ZIP): guardado no Notion, envio pedido ao robô em 03/11 10:00", vendaId: "v-9" }, ui()), "mc-anexar-zip"), null);
+});
+
+test("mensagens do anexo", () => {
+  assert.match(D.mensagemMC({ erro: "MC_SEM_VENDA" }), /ainda não foi lançada/);
+  assert.match(D.mensagemMC({ erro: "MC_ANEXOS_SEM_FILA" }), /robô do servidor/);
+  assert.match(D.mensagemMC({ erro: "MC_SEM_ZIP" }), /ZIP/);
+});
+
+test("NÃO pedido ao robô também oferece o botão; ZIP grande não (só à mão)", () => {
+  assert.ok(botao(D.htmlMC({ situacao: "CRIADA | venda v-9\nContrato: NÃO pedido ao robô (x) — use o botão", vendaId: "v-9" }, ui()), "mc-anexar"));
+  assert.ok(botao(D.htmlMC({ situacao: "CRIADA\nContratos (ZIP): não gerado em 24 h — use o botão Enviar ZIP", vendaId: "v-9" }, ui()), "mc-anexar-zip"));
+  assert.ok(botao(D.htmlMC({ situacao: "ainda não lançada\nContratos (ZIP): guardado no Notion (2 documentos), NÃO pedido ao robô (y) — use o botão", vendaId: "" }, ui()), "mc-anexar-zip"));
+  assert.equal(botao(D.htmlMC({ situacao: "CRIADA\nContratos (ZIP): ZIP grande (mais de 20 MB): envie à mão para a pasta Contratos Venda", vendaId: "v-9" }, ui()), "mc-anexar-zip"), null);
+});

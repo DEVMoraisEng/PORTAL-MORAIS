@@ -15,6 +15,7 @@ colunas da própria linha. O nome é comparado sem acento, caixa ou espaço sobr
 | `ASSINATURA - SITUAÇÃO` | Texto | PORTAL-VENDA | RASCUNHO / ENVIADO / ASSINADO / RECUSADO / CANCELADO / EXPIRADO |
 | `MC - SITUAÇÃO` | Texto | PORTAL-VENDA (PROCESSANDO…) e o robô do Mais Controle | resultado da prévia/lançamento |
 | `MC - VENDA ID` | Texto | robô do Mais Controle | id da venda criada no ERP (preenchida = já lançada) |
+| `CONTRATOS ASSINADOS (ZIP)` | Arquivos e mídia | PORTAL-VENDA (quando todos assinam, `AnexosMC.gs`) | 03/11/2026: ZIP "Un NN - COMPRADOR 1 e COMPRADOR 2.zip" com todos os PDFs assinados do envelope; o robô (`venda/mc/anexos.py`) manda para Obras > Orçamento > Arquivos > "Contratos Venda". Sem a coluna, o ZIP não é montado (o resto segue igual) |
 
 Coluna ausente (ou de outro tipo) não quebra nada em silêncio: a ação responde
 `COLUNA_FALTANDO: <nome>` (ou `TIPO_DE_COLUNA_ERRADO`) e a tela mostra "A base não

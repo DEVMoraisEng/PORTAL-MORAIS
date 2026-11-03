@@ -51,6 +51,8 @@ export function criarGas({ props, rotas, extras = {} }) {
       },
       sleep: (ms) => { sleeps.push(ms); },
       newBlob: (x, mime, nome) => blob(paraBuf(x), mime, nome),
+      /* 03/11: Utilities.zip falso — o "zip" é um JSON com nome e conteúdo de cada arquivo (o teste confere o que entrou) */
+      zip: (blobs, nome) => blob(Buffer.from(JSON.stringify(blobs.map((b) => ({ nome: b.getName(), texto: b._buf.toString("utf8") }))), "utf8"), "application/zip", nome),
       formatDate: (d, tz, fmt) => {
         const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23" })
           .formatToParts(d).map((x) => [x.type, x.value]));
@@ -76,7 +78,7 @@ export function criarGas({ props, rotas, extras = {} }) {
   vm.createContext(ctx);
   for (const f of ["RegrasVenda.js", "ClaudeLeitor.js", "OpenAILeitor.js", "UnidadesCondominio.js", "ContratoVenda.js", "PreReservaVenda.js", "ClicksignVenda.js",
                    "PortalVenda.gs", "GerarContrato.gs", "AssinaturaVenda.gs", "MaisControleVenda.gs",
-                   "CondominioVenda.js", "GerarVendaCondominio.gs", "RecebimentoVenda.gs", "ConfissaoVenda.js", "Confissao.gs", "PreReserva.gs", "ConferenciaDocs.js", "Conferencia.gs", "FilaRobo.gs",
+                   "CondominioVenda.js", "GerarVendaCondominio.gs", "RecebimentoVenda.gs", "ConfissaoVenda.js", "Confissao.gs", "PreReserva.gs", "ConferenciaDocs.js", "Conferencia.gs", "FilaRobo.gs", "AnexosMC.gs",
                    "FluxoLivre.js", "FluxoVenda.gs", "LogContratoVenda.js", "LogContrato.gs",
                    "Antecipacao.js", "AntecipacaoVenda.gs", "FiadoresVenda.js"])
     vm.runInContext(fs.readFileSync(path.join(VENDA, f), "utf8"), ctx, { filename: f });
@@ -187,14 +189,26 @@ export function notionFalso({ valores = {}, s3 = {}, colunas = COLUNAS_REAIS, pa
       if (m === "PATCH" && u === "/pages/" + pageId) { patches.push(corpo.properties); return aplicar(corpo.properties); }
       if (m === "POST" && u === "/file_uploads") {
         const id = "fu-" + (++seq);
-        uploads[id] = { nome: corpo.filename, mime: corpo.content_type };
+        uploads[id] = { nome: corpo.filename, mime: corpo.content_type, partes: corpo.mode === "multi_part" ? corpo.number_of_parts : 0 };
         return { json: { id, upload_url: "https://upload.notion.falso/" + id } };
+      }
+      /* 03/11: multi_part — /complete só depois de todas as partes, como o Notion */
+      const fc = /^\/file_uploads\/([^/]+)\/complete$/.exec(u);
+      if (m === "POST" && fc && uploads[fc[1]]) {
+        const up = uploads[fc[1]];
+        if (!up.partes || (up.recebidas || []).length !== up.partes) return { status: 400, json: { message: "partes faltando" } };
+        up.completo = true;
+        return { json: { id: fc[1], status: "uploaded" } };
       }
       return { status: 404, json: { message: "rota falsa inexistente" } };
     }
     if (url.startsWith("https://upload.notion.falso/")) {
       const id = url.split("/").pop();
-      uploads[id].buf = opt.payload.file._buf;
+      if (opt.payload.part_number) {   /* 03/11: parte do multi_part, na ordem */
+        const up = uploads[id];
+        up.recebidas = (up.recebidas || []).concat([Number(opt.payload.part_number)]);
+        up.buf = Buffer.concat([up.buf || Buffer.alloc(0), opt.payload.file._buf]);
+      } else uploads[id].buf = opt.payload.file._buf;
       return { json: { status: "uploaded" } };
     }
     if (url.startsWith("https://s3.falso/")) {

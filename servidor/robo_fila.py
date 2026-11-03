@@ -93,7 +93,7 @@ def argumentos(tipo: str, p: dict, pode_gravar: bool) -> tuple[list, dict] | Non
     if tipo == "mc-retrato":   # só LÊ o ERP e grava o retrato no Notion: nunca leva --aplicar
         pagina = str(p.get("pageId") or "")
         return (["-m", "venda.mc.retrato", "--page", pagina], {}) if RE_ID.match(pagina) else None
-    if tipo != "mc-venda":
+    if tipo not in ("mc-venda", "mc-anexos"):
         return None
     pagina = str(p.get("pageId") or "")
     if not RE_ID.match(pagina):
@@ -102,6 +102,8 @@ def argumentos(tipo: str, p: dict, pode_gravar: bool) -> tuple[list, dict] | Non
     flag = []
     if pediu:
         flag = ["--aplicar"] if pode_gravar else ["--bloqueado"]
+    if tipo == "mc-anexos":   # 03/11: contrato no recebimento e ZIP no Orçamento (venda/mc/anexos.py)
+        return (["-m", "venda.mc.anexos", "--page", pagina] + flag, {})
     if str(p.get("acao") or "lancar") == "distrato":
         recebeu, destino = str(p.get("recebeu") or ""), str(p.get("destino") or "")
         valor, data = str(p.get("valor") or ""), str(p.get("data") or "")
@@ -120,7 +122,8 @@ def argumentos(tipo: str, p: dict, pode_gravar: bool) -> tuple[list, dict] | Non
 
 def marcar_erro_argv(argv: list) -> list | None:
     """O 'Avisar no Notion que falhou' do workflow: anota ERRO na página da venda."""
-    if len(argv) >= 4 and argv[2] == "--page" and argv[1] != "venda.mc.retrato":   # o retrato não tem --marcar-erro
+    # o retrato não tem --marcar-erro; o anexos (03/11) já escreve o motivo nas linhas dele, sem apagar o resto
+    if len(argv) >= 4 and argv[2] == "--page" and argv[1] not in ("venda.mc.retrato", "venda.mc.anexos"):
         return argv[:4] + ["--marcar-erro", "o robô do servidor falhou — veja o log do servidor"]
     return None
 
