@@ -655,8 +655,9 @@ function assCriarEnvelope_(p, pid, cols, doc, gerado, lista, nomeCs, extras, adi
     return rg;
   }
   var r = { ok: true, situacao: S.ENVIADO,
-            signatarios: lista.map(function (s) {
-              return { papel: s.papel, nome: ClicksignVenda.nomeMascarado(s.nome), email: String(s.email || ""), assinou: false, situacao: "pendente", data: "" };
+            signatarios: lista.map(function (s, i) {
+              /* 03/11: com o id, o Trocar e-mail aparece já na resposta do envio (sem precisar de Atualizar situação) */
+              return { id: String(ids[i] || ""), papel: s.papel, nome: ClicksignVenda.nomeMascarado(s.nome), email: String(s.email || ""), assinou: false, situacao: "pendente", data: "" };
             }) };
   if (!n.ok) r.aviso = "NOTIFICACAO_FALHOU";
   if (avisos.length) r.avisos = avisos;

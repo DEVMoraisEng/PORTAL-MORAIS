@@ -130,7 +130,8 @@ test("envio feliz: ordem das chamadas, cabeçalhos e corpos; grava envelope e EN
   assert.equal(r.situacao, "ENVIADO");
   const pend = { assinou: false, situacao: "pendente", data: "" };
   assert.ok(r.signatarios.every((s) => /@/.test(s.email)), "27/10: cada um com o e-mail para onde foi");
-  assert.deepEqual(r.signatarios.map(({ email, ...s }) => s), [
+  assert.deepEqual(r.signatarios.map((s) => s.id), ["sig-1", "sig-2", "sig-3", "sig-4"], "03/11: id para o Trocar e-mail");
+  assert.deepEqual(r.signatarios.map(({ email, id, ...s }) => s), [
     Object.assign({ papel: "Comprador 1", nome: "Fulano T." }, pend), Object.assign({ papel: "Vendedor (representante)", nome: "Beltrano R." }, pend),
     Object.assign({ papel: "Testemunha 1", nome: "Testemunha S." }, pend), Object.assign({ papel: "Testemunha 2", nome: "Testemunha S." }, pend)]);
   assert.ok(!JSON.stringify({ ...r, signatarios: r.signatarios.map(({ email, ...s }) => s) }).includes("@"), "e-mail fora do campo email");
