@@ -340,7 +340,24 @@ def parcelas(fx: dict, dados: dict, dias_financiamento: int = R.DIAS_FINANCIAMEN
     add(R.TIPO_FGTS, "FGTS", dados.get("fgts"), prev)
     fin = (dados.get("financiado") or 0) + (dados.get("subsidio") or 0)
     add(R.TIPO_FINANCIAMENTO, "Financiamento", fin or None, prev)
+    fechar_centavos(out, dados.get("aquisicao") or dados.get("total"))
     return out
+
+
+# 03/11/2026 (dono): balão diluído 100% na tela de propostas arredonda a parcela PARA CIMA e o balão some — a soma
+# do fluxo passa do valor de venda por centavos (UN32: R$ 0,09). Ao lançar, a última pré-chaves absorve a diferença.
+CENTAVOS_DILUICAO = 1.00
+
+
+def fechar_centavos(ps: list[dict], total) -> None:
+    if not total or not ps:
+        return
+    dif = round(float(total) - sum(p["valor"] for p in ps), 2)
+    if not dif or dif < -CENTAVOS_DILUICAO or dif > 0.05:   # só a sobra da diluição (soma acima); falta segue barrada
+        return
+    pres = [p for p in ps if p["tipo"] == R.TIPO_PARCELA and p["tabela"] == TABELA_PRE]
+    if pres and pres[-1]["valor"] + dif > 0:
+        pres[-1]["valor"] = round(pres[-1]["valor"] + dif, 2)
 
 
 # tipo da linha livre -> (tipo no MC, tabela de reajuste); balão na data do balão da entrega vira CHAVES, como nas gavetas
