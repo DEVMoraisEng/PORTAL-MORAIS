@@ -243,6 +243,11 @@ function assEnviarTravado_(col, p, pid) {
   if (!prop_("DB_VENDEDORES") || !prop_("DB_LOTEAMENTOS") || !prop_("DB_CORRETORES") || !prop_("DB_DOCUMENTOS")) return { ok: false, erro: "CADASTRO_NAO_CONFIGURADO" };
 
   if (doc.pre) return assEnviarTermo_(col, p, pid, cols, doc, gerado);
+  /* 03/11: fluxo ou condições especiais gravados depois do contrato final — o PDF não é o de agora */
+  if (assContratoDesatualizado_(p.pageId)) {
+    assLog_("enviar " + pid + " recusado: fluxo/condicoes depois do contrato");
+    return { ok: false, erro: "CONTRATO_DESATUALIZADO", mensagem: ASS_MSG_DESATUALIZADO };
+  }
   var prep = assPrepararContrato_(col, p, pid, gerado, false, pg);
   if (prep.resp) return prep.resp;
   return assCriarEnvelope_(p, pid, cols, doc, gerado, prep.lista, prep.nomeCs, prep.extras, prep.ad.docs, prep.rub, prep.d);
@@ -1009,37 +1014,73 @@ function verDocumentoAssinado_(col, p) {
 
 /* Trava do servidor (plano 23 A): com o envelope ASSINADO nada do que se assinou muda, mesmo que uma tela antiga mande.
  * Contrato: CONTRATO_ASSINADO; termo de pré-reserva: TERMO_ASSINADO. Lê só as colunas da situação; base sem as colunas
- * (ou página ilegível) não trava aqui — a própria ação responde. */
+ * (ou página ilegível) não trava aqui — a própria ação responde.
+ * 03/11/2026 (dono: "depois de enviado, trava toda essa parte de contrato igual quando assinado, deixando mexer só se
+ * cancelar o envelope"): com o envelope ABERTO (RASCUNHO, ENVIADO, situação vazia ou envio pendente — assEnvelopeAberto_)
+ * as mesmas ações respondem ENVELOPE_ABERTO com a mensagem; Atualizar situação, Reenviar, Cancelar, Prévia e as leituras
+ * (visualizar contrato/termos/fluxo, documentos assinados) seguem. Cancelado/recusado/expirado destrava tudo. */
 var ASS_TRAVA_CONTRATO = ["gerarPreContrato", "aprovarPreContrato", "gerarContrato", "escolherTestemunhas", "salvarCamposContrato", "escolherContaRecebimento",
                           "salvarCondicoesEspeciais", "redigirCondicoesEspeciais", "salvarFiadores", "conjugeEhFiador2"];
-/* salvarFluxo fica de fora: já recusa com FLUXO_CONTRATO_ASSINADO ("mudar o fluxo agora exige aditivo") */
+/* 03/11: só o envelope ABERTO trava aqui. Assinado, salvarFluxo e lerCrlv já respondem FLUXO_CONTRATO_ASSINADO ("mudar o
+   fluxo agora exige aditivo"); o Corrigir aqui da conferência segue aberto depois de assinado (dado do cadastro). */
+var ASS_TRAVA_SO_ABERTO = ["salvarFluxo", "lerCrlv", "corrigirConferencia"];
 var ASS_TRAVA_TERMO = ["gerarTermoPreReserva", "salvarContaPreReserva", "salvarConjugePreReserva"];
 var ASS_TRAVA_ENVELOPE = ["assinaturaEnviar", "assinaturaReenviar", "assinaturaCancelar"];
+var ASS_MSG_ABERTO = "O contrato já foi enviado para assinatura. Para mudar, cancele o envelope primeiro.";
+var ASS_MSG_ABERTO_TERMO = "O termo já foi enviado para assinatura. Para mudar, cancele o envelope do termo primeiro.";
+var ASS_MSG_ABERTO_CONJUGE = "O termo já foi enviado para assinatura. Para mudar quem assina, cancele o envelope do termo primeiro.";
 function assTravaAssinado_(p) {
-  var a = String(p.action || ""), termo;
-  if (ASS_TRAVA_CONTRATO.indexOf(a) >= 0) termo = false;
+  var a = String(p.action || ""), termo, envelope = ASS_TRAVA_ENVELOPE.indexOf(a) >= 0, soAberto = ASS_TRAVA_SO_ABERTO.indexOf(a) >= 0;
+  if (ASS_TRAVA_CONTRATO.indexOf(a) >= 0 || soAberto) termo = false;
   else if (ASS_TRAVA_TERMO.indexOf(a) >= 0) termo = true;
-  else if (ASS_TRAVA_ENVELOPE.indexOf(a) >= 0) termo = p.doc === "PRE_RESERVA";
+  else if (envelope) termo = p.doc === "PRE_RESERVA";
   else return null;
   /* sem token a ação de envelope responde CLICKSIGN_SEM_TOKEN sem ler nada — a trava também não lê */
-  if (ASS_TRAVA_ENVELOPE.indexOf(a) >= 0 && !prop_("CLICKSIGN_TOKEN")) return null;
+  if (envelope && !prop_("CLICKSIGN_TOKEN")) return null;
   var pg, info = {};
   try { pg = ctrLerPaginaVenda_(p.pageId, info); } catch (e) { return null; }
   /* correção 1 (I-1): Enviar/Reenviar/Cancelar têm a trava própria (LockService) e relêem a casa DENTRO dela — a leitura
      daqui não serve para eles (outro envio pode terminar enquanto este espera). Só as ações sem trava própria reaproveitam. */
-  if (ASS_TRAVA_ENVELOPE.indexOf(a) < 0) ctrPaginaEmprestada_ = { id: p.pageId, pg: pg, base: info.base };
+  if (!envelope) ctrPaginaEmprestada_ = { id: p.pageId, pg: pg, base: info.base };
   function assinado(dc) {
     try { return assTexto_(pg, assColunas_(pg, dc).SITUACAO).toUpperCase() === ClicksignVenda.SITUACOES.ASSINADO; }
     catch (e) { return false; }   /* base sem as colunas: não trava aqui, a ação responde */
   }
-  var erro = "";
-  if (assinado(assDoc_(termo ? { doc: "PRE_RESERVA" } : {}))) erro = termo ? "TERMO_ASSINADO" : "CONTRATO_ASSINADO";
+  function aberto(dc) {
+    try { return assEnvelopeAberto_(pg, p.pageId, dc); }
+    catch (e) { return false; }   /* idem */
+  }
+  var dcAlvo = assDoc_(termo ? { doc: "PRE_RESERVA" } : {}), erro = "", msg = "";
+  if (!soAberto && assinado(dcAlvo)) erro = termo ? "TERMO_ASSINADO" : "CONTRATO_ASSINADO";
   /* correção 1 (M-7): contrato assinado também trava o que a tela esconde da pré-reserva (o pagamento segue aberto) */
   else if (ASS_TRAVA_TERMO.indexOf(a) >= 0 && assinado(assDoc_({}))) erro = "CONTRATO_ASSINADO";
+  /* 03/11: envelope aberto (as ações de envelope têm o caminho delas: Enviar recusa, Reenviar/Cancelar são para ele) */
+  else if (!envelope && !assinado(dcAlvo) && aberto(dcAlvo)) {   /* assinado não é "aberto": as ações respondem a trava delas */
+    erro = "ENVELOPE_ABERTO";
+    msg = !termo ? ASS_MSG_ABERTO : a === "salvarConjugePreReserva" ? ASS_MSG_ABERTO_CONJUGE : ASS_MSG_ABERTO_TERMO;
+  }
   if (!erro) return null;
   assLog_(a + " " + String(p.pageId).slice(0, 8) + " recusado: " + erro);
-  return { ok: false, erro: erro };
+  return msg ? { ok: false, erro: erro, mensagem: msg } : { ok: false, erro: erro };
 }
+
+/* 03/11/2026 (incidente: venda enviada com a tela dizendo "Fluxo alterado depois do contrato: gere o contrato de novo"):
+ * true quando o fluxo (FLUXO_HIST_<página>, último "em" — inclusive o "voltar ao fluxo da proposta") ou as condições
+ * especiais (CONDESP_<página>, "em") foram gravados DEPOIS do contrato final (PRECONTRATO_<página>.conferidoEm, a hora em
+ * que o "Conferi" gerou o final). Sem nenhuma gravação de fluxo/condições: false. Com gravação e sem a hora do final
+ * (contrato antigo, ou pré-contrato novo ainda não conferido): true — o PDF final não é deste fluxo. */
+function assContratoDesatualizado_(pageId) {
+  function ultimoEm(lista) { return lista.length ? String((lista[lista.length - 1] || {}).em || "") : ""; }
+  var fluxoEm = "", condEm = "", geradoEm = "";
+  try { fluxoEm = typeof fluxoHist_ === "function" ? ultimoEm(fluxoHist_(pageId)) : ""; } catch (e) { fluxoEm = ""; }
+  try { condEm = String((JSON.parse(prop_("CONDESP_" + pageId) || prop_("CONDESP_" + ctrIdLimpo_(pageId)) || "{}") || {}).em || ""); }
+  catch (e) { condEm = ""; }
+  var mudou = fluxoEm > condEm ? fluxoEm : condEm;
+  if (!mudou) return false;
+  try { var pre = ctrLerPre_(pageId); geradoEm = pre && pre.conferidoEm ? String(pre.conferidoEm) : ""; } catch (e) { geradoEm = ""; }
+  return !geradoEm || geradoEm < mudou;
+}
+var ASS_MSG_DESATUALIZADO = "O fluxo ou as condições especiais mudaram depois do contrato. Gere o contrato de novo antes de enviar.";
 
 /* Conferência para rodar UMA vez no editor (selecionar conferirAssinatura › Executar › ver o Registro de
  * execução): diz se o token e a URL funcionam (GET de 1 envelope, só o código HTTP) e se o JSON das

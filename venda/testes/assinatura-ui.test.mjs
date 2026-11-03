@@ -478,3 +478,37 @@ test("prévia: o botão aparece com o contrato gerado e sem envelope; o clique l
   assert.equal(mostrado[0].caixas.length, 1);
   assert.match(novo.msg, /Prévia/);
 });
+
+/* ---- 03/11/2026 (dono): envelope aberto trava a aba Contrato; fluxo/condições depois do contrato travam o Enviar ---- */
+test("03/11: envelopeAberto — RASCUNHO, ENVIADO e situação vazia com envelope; não para sem envelope, cancelado, recusado, expirado ou assinado", () => {
+  for (const s of ["RASCUNHO", "ENVIADO", ""]) assert.equal(A.envelopeAberto(ctx({ estado: { situacao: s, envelope: true, signatarios: [] } })), true, s || "vazia");
+  for (const s of ["CANCELADO", "RECUSADO", "EXPIRADO", "ASSINADO"]) assert.equal(A.envelopeAberto(ctx({ estado: { situacao: s, envelope: true, signatarios: [] } })), false, s);
+  assert.equal(A.envelopeAberto(ctx()), false, "sem envelope");
+  assert.equal(A.envelopeAberto(ctx({ estado: null })), false, "carregando");
+});
+test("03/11: contrato desatualizado (fluxo/condições depois do contrato) — Enviar desabilitado com o aviso; o termo não é afetado", () => {
+  const h = A.montarBlocoAssinatura(ctx({ desatualizado: true }));
+  assert.match(botao(h, "a-enviar")[0], /disabled/);
+  assert.match(h, /O fluxo ou as condições especiais mudaram depois do contrato\. Gere o contrato de novo antes de enviar\./);
+  assert.equal(A.podeEnviar(ctx({ desatualizado: true })), false);
+  assert.equal(A.podeEnviar(ctx({ desatualizado: true, doc: "PRE_RESERVA" })), true, "termo segue");
+  /* cancelado: continua travado até gerar de novo */
+  assert.equal(A.podeEnviar(ctx({ desatualizado: true, estado: { situacao: "CANCELADO", envelope: true, signatarios: [] } })), false);
+  assert.doesNotMatch(A.montarBlocoAssinatura(ctx()), /mudaram depois do contrato/);
+});
+test("03/11: clique em Enviar com o contrato desatualizado não chama o servidor; resposta CONTRATO_DESATUALIZADO/ENVELOPE_ABERTO com mensagem mostra o texto", async () => {
+  let chamou = 0;
+  const c = ctx({ desatualizado: true });
+  const n = await A.executarAcaoAssinatura("a-enviar", c, { pageId: "p", confirmar: () => true, chamar: async () => { chamou++; return { ok: true }; } });
+  assert.equal(chamou, 0);
+  assert.equal(n, c);
+  const msg = "O fluxo ou as condições especiais mudaram depois do contrato. Gere o contrato de novo antes de enviar.";
+  assert.equal(A.mensagemAssinatura({ erro: "CONTRATO_DESATUALIZADO", mensagem: msg }), msg);
+  assert.match(A.mensagemAssinatura({ erro: "CONTRATO_DESATUALIZADO" }), /gere de novo/, "carimbo (sem mensagem) segue com o texto de antes");
+  assert.equal(A.mensagemAssinatura({ erro: "ENVELOPE_ABERTO", mensagem: "cancele o envelope" }), "cancele o envelope");
+});
+test("03/11: com o envelope aberto o bloco da Clicksign segue com Atualizar, Reenviar, Cancelar e Prévia", () => {
+  const h = A.montarBlocoAssinatura(ctx({ estado: { situacao: "ENVIADO", envelope: true, signatarios: [{ papel: "Comprador 1", situacao: "pendente" }] } }));
+  for (const a of ["a-atualizar", "a-reenviar", "a-cancelar", "a-previa"]) assert.equal(botao(h, a).length, 1, a);
+  assert.doesNotMatch(botao(h, "a-cancelar")[0], /disabled/);
+});

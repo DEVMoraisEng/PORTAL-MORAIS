@@ -1329,3 +1329,41 @@ Regra do dono: "nesse caso o carro entra como sinal/entrada". No Alterar fluxo d
 sinal da proposta passa a contar sinal + pré-reserva + **permuta** (`FluxoLivre.validar`). A mensagem virou "O sinal (com
 a pré-reserva e a permuta) não pode ficar abaixo do da proposta: R$ X". Prazos e número de parcelas do sinal continuam
 valendo só para as linhas de sinal; a permuta continua no inciso VI do contrato. Nada a configurar (FluxoLivre v11).
+
+## Contrato enviado: só leitura até cancelar o envelope (03/11/2026)
+
+Pedido do dono: "depois de enviado, trava toda essa parte de contrato igual quando assinado, deixando mexer só se
+cancelar o envelope". E o incidente do dia: uma venda foi enviada com a tela dizendo "Fluxo alterado depois do
+contrato: gere o contrato de novo".
+
+- **Trava no servidor** (`assTravaAssinado_`, AssinaturaVenda.gs — um lugar só, vale para tela antiga aberta): com o
+  envelope do CONTRATO aberto (`RASCUNHO`, `ENVIADO`, situação vazia com envelope, ou envio pendente
+  `ASSINATURA_PENDENTE_<página>`), estas ações respondem `{ erro: "ENVELOPE_ABERTO", mensagem: "O contrato já foi enviado
+  para assinatura. Para mudar, cancele o envelope primeiro." }` sem gravar nada: `gerarPreContrato`,
+  `aprovarPreContrato`, `gerarContrato`, `escolherTestemunhas`, `salvarCamposContrato`, `escolherContaRecebimento`,
+  `salvarCondicoesEspeciais`, `redigirCondicoesEspeciais`, `salvarFiadores`, `conjugeEhFiador2`, `salvarFluxo`,
+  `lerCrlv` e `corrigirConferencia` (Corrigir aqui da conferência, que grava dado do comprador que vai no contrato).
+  Seguem liberados: `assinaturaEstado` (Atualizar situação), `assinaturaReenviar`, `assinaturaCancelar`,
+  `assinaturaPrevia`, `assinaturaPdf`, `contratoEstado`, `fluxoEditar` (Ver fluxo), visualizar contrato/termos/
+  pré-contrato, `documentosAssinados`. Cancelado, recusado ou expirado destrava tudo.
+- **Termo de pré-reserva:** com o envelope do TERMO aberto, `gerarTermoPreReserva` e `salvarContaPreReserva` respondem
+  `ENVELOPE_ABERTO` ("O termo já foi enviado para assinatura. Para mudar, cancele o envelope do termo primeiro.");
+  `salvarConjugePreReserva` mantém a mensagem de antes ("…Para mudar quem assina…"). O envelope de um não trava o outro.
+  O pagamento da pré-reserva (`salvarPagamentoPreReserva`) continua aberto, como no ASSINADO.
+- **Contrato desatualizado:** `assinaturaEnviar` (contrato) recusa `{ erro: "CONTRATO_DESATUALIZADO", mensagem: "O fluxo
+  ou as condições especiais mudaram depois do contrato. Gere o contrato de novo antes de enviar." }` quando a hora da
+  última gravação do fluxo (`FLUXO_HIST_<página>`, inclusive "voltar ao fluxo da proposta") ou das condições especiais
+  (`CONDESP_<página>`) é DEPOIS da hora em que o contrato final saiu (`PRECONTRATO_<página>.conferidoEm`, o "Conferi").
+  Com gravação e sem essa hora (contrato antigo ou pré-contrato novo não conferido), também recusa. O `contratoEstado`
+  manda `envioDesatualizado` (true/false) e a tela trava o "Enviar para assinatura" com o mesmo texto. Saída: Gerar de
+  novo → conferir → enviar.
+- **Tela:** com o envelope do contrato aberto, a aba Contrato mostra a faixa "Contrato enviado para assinatura — só
+  leitura. Para mudar algo, cancele o envelope.", Visualizar (contrato e termos de confissão), Ver fluxo e, em texto,
+  conta, testemunhas, condições especiais e fiadores; some Gerar de novo, Alterar fluxo, Redigir com IA, Salvar… e as
+  listas. O bloco da Clicksign fica igual (situação, signatários, Atualizar, Reenviar, Cancelar envelope, Prévia).
+  Ao enviar ou cancelar, a aba troca na hora.
+- **Implantar:** no projeto PORTAL-VENDA, colar `AssinaturaVenda.gs`, `GerarContrato.gs` e `PortalVenda.gs`
+  (`venda-v19`) e publicar a MESMA implantação (Gerenciar implantações → editar → Nova versão). O site vai com
+  `venda-dossie.js?v=61`, `venda/assinatura-ui.js?v=24` e o cache `portal-morais-v264`. Nada a configurar.
+- **Conferir:** abrir uma venda de teste com envelope ENVIADO → aba Contrato só leitura; Cancelar envelope → volta a
+  editar. Alterar o fluxo depois do contrato final → "Enviar para assinatura" desabilitado com o aviso.
