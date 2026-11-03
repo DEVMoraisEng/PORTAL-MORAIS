@@ -8,6 +8,10 @@
  *      completa campos VAZIOS do banco de vendas (nunca sobrescreve);
  *   2) confere a unidade na base UNIDADES e, se ainda não estiver SIM, grava VENDIDA = SIM e STATUS INTERNO =
  *      VENDIDA (simsUnidadeUpdate, a mesma gravação da aba Simulações).
+ * 03/11/2026 (dono): contrato FINAL gerado também já é venda (o e-mail de venda ao corretor sai aí) — o cartão avisa
+ * pelo mesmo evento "venda:contrato-enviado" (venda-dossie.js, avisarContratoGerado) e o vigia do SIMULADOR
+ * (ReservaPrazo.js) cobre quem não abrir a tela. A varredura da lista continua pelo ENVIADO/ASSINADO (a lista não traz
+ * os arquivos de CONTRATO GERADO).
  * Só grava o que falta; uma vez por linha por sessão (de novo se deu erro). Só o Reserva dos Ipês tem propostas e
  * base UNIDADES. Usado pela Planilha Casas Condomínio (vendas.html) e pela aba Propostas (simulacoes.html).
  * Nada de dado pessoal no console além de número de unidade/proposta. */
@@ -113,8 +117,8 @@
       try { console.log("[contrato enviado → vendida] unidade " + n + ": " + feito.concat(erros).join("; ").replace(/<[^>]+>/g, "")); } catch (e) {}
     }
     if (o.aviso) {
-      if (erros.length) o.aviso(l.id, "err", "<b>Contrato enviado, mas:</b> " + erros.join("; ") + "." + (feito.length ? " Feito: " + feito.join("; ") + "." : ""));
-      else if (feito.length) o.aviso(l.id, "ok", "<b>Contrato enviado:</b> " + feito.join("; ") + ". Mapa e propostas já atualizam.");
+      if (erros.length) o.aviso(l.id, "err", "<b>Contrato gerado, mas:</b> " + erros.join("; ") + "." + (feito.length ? " Feito: " + feito.join("; ") + "." : ""));
+      else if (feito.length) o.aviso(l.id, "ok", "<b>Contrato gerado:</b> " + feito.join("; ") + ". Mapa e propostas já atualizam.");
     }
     return feito.length;
   }

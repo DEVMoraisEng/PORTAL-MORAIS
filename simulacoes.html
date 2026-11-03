@@ -663,7 +663,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
               </div></div>
             <span style="font-size:12px;color:var(--text3);align-self:center">
               <span style="display:inline-block;width:10px;height:10px;background:#F6D6D2;border:1px solid #D98A80;border-radius:2px;vertical-align:middle"></span>
-              linha vermelha = reservada há mais de 24 h
+              linha vermelha = reserva vence em menos de 24 h (prazo de 5 dias para gerar o contrato)
               &nbsp;·&nbsp;
               <span class="leg-res"></span>
               linha azul = proposta enviada com a unidade já <b>reservada</b> (só é analisada se houver desistência)
@@ -699,10 +699,9 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
             <span id="sim-alteradas" style="font-size:12px;color:var(--text3);align-self:center"></span>
           </div>
           <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--text3);margin:4px 0 6px">
-            <b style="color:var(--text2)">Status interno (só controle, não vai para o mapa):</b>
+            <b style="color:var(--text2)">Cor da linha = STATUS MAPA:</b>
             <span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#E3F4E8;border:1px solid #9BD3AE;vertical-align:-2px"></i> disponível</span>
             <span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#E1ECF8;border:1px solid #9CC3E4;vertical-align:-2px"></i> reservada</span>
-            <span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#EDE3F6;border:1px solid #B79AD6;vertical-align:-2px"></i> pagou preferência</span>
             <span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#FBE1E1;border:1px solid #E7A3A3;vertical-align:-2px"></i> vendida</span>
           </div>
           <div class="tbl-wrap alta"><table id="sim-tabUn"></table></div>
@@ -722,8 +721,8 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
 
 <script src="app.js?v=45"></script>
 <script src="venda/FluxoLivre.js?v=11" defer></script><!-- 29/10: Alterar fluxo -->
-<script src="venda-dossie.js?v=66" defer></script><!-- 28/10: termo de pré-reserva pela proposta (VendaBlocos.montarPreReserva) -->
-<script src="venda/contrato-vendida.js?v=2" defer></script><!-- 31/10: contrato enviado → proposta e unidade VENDIDA -->
+<script src="venda-dossie.js?v=67" defer></script><!-- 28/10: termo de pré-reserva pela proposta (VendaBlocos.montarPreReserva) -->
+<script src="venda/contrato-vendida.js?v=3" defer></script><!-- 31/10: contrato enviado → proposta e unidade VENDIDA -->
 <script>
 /*POLL-INI*/
 /* 01/11 (cota do Google): consulta periódica só com a aba visível; ao voltar a ficar visível,
@@ -1990,7 +1989,7 @@ function propCopiar(id, bt){
    isso a coluna aqui e um select de tres opcoes e nao um SIM/NAO. */
 const SIM_COLS=[["unidade","UNIDADE","ro"],["tipo","TIPO","num"],["valorVenda","VALOR DE VENDA","num"],
                 ["avaliacao","AVALIACAO","num"],["informacoes","INFORMACOES","txt"],
-                ["decorado","DECORADO","sn"],["disponivel","DISPONIVEL","sn"],["vendidaCru","VENDIDA","v3"],
+                ["decorado","DECORADO","sn"],["disponivel","DISPONIVEL","sn"],["vendidaCru","STATUS MAPA","v3"],
                 ["statusInterno","STATUS INTERNO","si"],   // 02/10 (item 6) — só controle interno
                 ["observacao","OBSERVACAO","obs"]];        // 05/10 (item 1) — abre numa janela, aceita quebra de linha
 /* INFORMACOES ganhou tipo proprio: e texto livre que vai para o popup do mapa,
@@ -2122,7 +2121,9 @@ function simColetarLinha(i){
 function simRenderUnidades(){
   const termo=(document.getElementById("sim-buscaUn").value||"").toLowerCase();
   const vis=UNS.filter(u=>`${u.unidade} tipo ${u.tipo}`.toLowerCase().includes(termo));
-  const cab='<thead><tr>'+SIM_COLS.map(c=>`<th>${c[1]}</th>`).join("")+'<th></th></tr></thead>';
+  /* 03/11/2026 (dono): a coluna STATUS INTERNO sai da vista — fica no DOM, oculta, porque acompanha o STATUS MAPA
+     sozinha (simEspelharStatusInterno) e grava junto */
+  const cab='<thead><tr>'+SIM_COLS.map(c=>`<th${c[2]==="si"?' style="display:none"':''}>${c[1]}</th>`).join("")+'<th></th></tr></thead>';
   const corpo=vis.map(u=>{
     const i=UNS.indexOf(u);
     const alterada = SIM_ALTERADAS.has(i);
@@ -2131,10 +2132,10 @@ function simRenderUnidades(){
       if(tipo==="ro") return `<td><b>${esc(String(v==null?"":v))}</b></td>`;
       if(tipo==="v3"){
         const atual=String(v||"NAO").toUpperCase();
-        return `<td><select class="sim-edit" data-i="${i}" data-c="${campo}" onchange="simEspelharStatusInterno(${i});simAoEditar(${i},true)">
-          <option value="NAO"${atual==="NAO"?" selected":""}>NÃO</option>
+        return `<td><select class="sim-edit" data-i="${i}" data-c="${campo}" style="min-width:132px" onchange="simEspelharStatusInterno(${i});simAoEditar(${i},true)">
+          <option value="NAO"${atual==="NAO"?" selected":""}>NÃO VENDIDA</option>
           <option value="RESERVADA"${atual==="RESERVADA"?" selected":""}>RESERVADA</option>
-          <option value="SIM"${atual==="SIM"?" selected":""}>SIM</option></select></td>`;
+          <option value="SIM"${atual==="SIM"?" selected":""}>VENDIDA</option></select></td>`;
       }
       if(tipo==="area") return `<td><textarea class="sim-edit" rows="2" data-i="${i}" data-c="${campo}" oninput="simAoEditar(${i})" onblur="simSairDoCampo(${i})" style="width:100%;min-width:220px;resize:vertical;font-family:inherit;font-size:13px;line-height:1.4">${esc(String(v==null?"":v))}</textarea></td>`;
       if(tipo==="sn") return `<td><select class="sim-edit" data-i="${i}" data-c="${campo}" onchange="simAoEditar(${i},true)">
@@ -2146,7 +2147,7 @@ function simRenderUnidades(){
         if(!String(vs||"").trim()){ const vc=String((UNS[i]||{}).vendidaCru||(UNS[i]||{}).vendida||"").toUpperCase();
           vs = vc==="SIM" ? "VENDIDA" : (vc.indexOf("RESERV")===0 ? "RESERVADA" : "DISPONÍVEL"); if(UNS[i]) UNS[i].statusInterno=vs; }
         const ops=["DISPONÍVEL","RESERVADA","PAGOU PREFERÊNCIA","VENDIDA"];   // 05/10 (item 2)
-        return `<td><select class="sim-edit" data-i="${i}" data-c="${campo}" onchange="simAoEditar(${i},true);simCorStatusInterno(${i})">`+
+        return `<td style="display:none"><select class="sim-edit" data-i="${i}" data-c="${campo}" onchange="simAoEditar(${i},true);simCorStatusInterno(${i})">`+
           ops.map(o=>`<option value="${o}"${PROP_NORM(o)===PROP_NORM(vs)?" selected":""}>${o||"—"}</option>`).join("")+`</select></td>`;
       }
       if(tipo==="obs"){   // 05/10 (item 1) — OBSERVAÇÃO: prévia na célula, edição numa janela
@@ -2532,7 +2533,28 @@ function propHorasReservada(p){
   if(isNaN(d)) return null;
   return (Date.now()-d.getTime())/36e5;
 }
-function propVencida(p){ const h=propHorasReservada(p); return h!==null && h>24; }
+/* 03/11/2026 (dono): a reserva vale 5 dias corridos; sem contrato gerado, cai sozinha (vigia do SIMULADOR).
+   O vencimento vem do servidor (DADOS.reserva.vence); sem ele, DATA RESERVA + 5 dias, nunca antes de a regra
+   entrar no ar (as reservas que já existiam contam a partir de 03/11/2026). */
+const PROP_RESERVA_DIAS=5, PROP_RESERVA_INICIO="2026-11-03T12:00:00-03:00";
+function propReservaVence(p){
+  if(PROP_NORM(p.status)!=="RESERVADA") return null;
+  const r=((p.dados||{}).reserva)||{};
+  if(r.vence){ const v=new Date(r.vence); if(!isNaN(v)) return v; }
+  if(!p.dataReserva) return null;
+  const d=new Date(p.dataReserva); if(isNaN(d)) return null;
+  const ini=new Date(PROP_RESERVA_INICIO);
+  return new Date(Math.max(d.getTime(), ini.getTime()) + PROP_RESERVA_DIAS*864e5);
+}
+function propReservaFaltaH(p){ const v=propReservaVence(p); return v ? (v.getTime()-Date.now())/36e5 : null; }
+function propReservaPrazoHtml(p){
+  const v=propReservaVence(p); if(!v) return "";
+  const h=(v.getTime()-Date.now())/36e5;
+  const quando=v.toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
+  return '<div style="margin-top:6px;font-weight:700;color:'+(h<24?'#C0392B':'var(--azul)')+'">⏳ Reserva vence em '+esc(quando)+
+    (h<=0 ? ' — prazo esgotado: o robô derruba na próxima rodada se o contrato não tiver sido gerado.' : ' (faltam '+propHorasTxt(h)+').')+'</div>';
+}
+function propVencida(p){ const h=propReservaFaltaH(p); return h!==null && h<24; }
 /* 28/10/2026 — SEM CARTA × CORRESPONDENTE: a lista mostra se a proposta já foi enviada
    ao correspondente e conta 24 h a partir do PRIMEIRO envio (registro "ENVIO
    CORRESPONDENTE", "dd/mm/aaaa hh:mm · NOME (e-mail)", o mais novo no topo — vale
@@ -2586,9 +2608,9 @@ function propAlerta24(){
   const emls=(typeof propEmailsLista==="function") ? propEmailsLista() : [];   // r96q — e-mail novo
   if(!vencidas.length && !corr.length && !emls.length){ el.classList.add("hide"); return; }
   el.classList.remove("hide");
-  el.innerHTML = (vencidas.length ? "<b>"+vencidas.length+" proposta(s) reservada(s) há mais de 24 horas.</b><br>" +
-    vencidas.map(p=>"Un. "+esc(String(p.unidade||"—"))+" · "+esc(p.cliente||"—")+
-      " · "+Math.floor(propHorasReservada(p))+" h").join("<br>") : "") +
+  el.innerHTML = (vencidas.length ? "<b>"+vencidas.length+" reserva(s) vencendo em menos de 24 horas sem contrato gerado.</b><br>" +
+    vencidas.map(p=>{ const h=propReservaFaltaH(p); return "Un. "+esc(String(p.unidade||"—"))+" · "+esc(p.cliente||"—")+
+      " · "+(h<=0?"prazo esgotado":"faltam "+propHorasTxt(h)); }).join("<br>") : "") +
     (corr.length ? (vencidas.length?"<br><br>":"")+"<b>"+corr.length+" proposta(s) SEM CARTA enviada(s) ao correspondente há mais de 24 horas.</b><br>" +
     corr.map(p=>{ const e=propCorrEnvio(p); return "Un. "+esc(String(p.unidade||"—"))+" · "+esc(p.cliente||"—")+" · "+esc(e.nomes.join(" / "))+" · "+propHorasTxt(e.horas); }).join("<br>") : "") +
     (emls.length ? ((vencidas.length||corr.length)?"<br><br>":"")+"<b>✉ "+emls.length+" e-mail(s) novo(s) sem abrir.</b><br>" +
@@ -2691,7 +2713,7 @@ function propRender(){
       <td class="col-un">${esc(p.cpf||"—")}</td><td>${esc(p.imobiliaria||"—")}</td>
       <td class="prop-obs-td" onclick="event.stopPropagation();propObsAbrir('${p.id}')" title="Clique para ver o histórico e escrever">${propObsCelula(p)}</td>
       <td>${simData(p.criadoEm)}</td>
-      <td>${propTag(p.status)}${venc?' <span style="color:#C0392B;font-weight:700">+24h</span>':''}</td></tr>`;
+      <td>${propTag(p.status)}${venc?' <span style="color:#C0392B;font-weight:700">vence &lt;24h</span>':''}</td></tr>`;
   }).join("");
   document.getElementById("prop-tab").innerHTML=cab+"<tbody>"+corpo+"</tbody>";
 }
@@ -3535,16 +3557,18 @@ function propVer(id){
       <div class="prop-dec ${PROP_NORM(p.status)?'tem-status':''}" style="display:flex;gap:9px;margin-top:8px;flex-wrap:wrap">
         <button class="bt az ${PROP_NORM(p.status)==='RESERVADA'?'atual':''}" onclick="propStatus('${p.id}','RESERVADA')">Reservar</button>
         <button class="bt vermelho ${PROP_NORM(p.status)==='NEGADA'?'atual':''}" onclick="propStatus('${p.id}','NEGADA')">Negar</button>
-        <button class="bt ${PROP_NORM(p.status)==='VENDIDA'?'atual':''}" style="background:#5B2A86;color:#fff" onclick="propStatus('${p.id}','VENDIDA')">Vendida</button>
       </div>
       <div id="prop-detAviso" class="sim-aviso" style="margin-top:8px"></div>
       <!-- 02/10 (item 10) -->
       <div style="margin-top:10px"><button class="bt" style="background:#B7791F;color:#fff" onclick="propAlerta('${p.id}')">📣 Enviar alerta de pendências ao corretor</button>
         <div id="prop-alertaInfo" class="sim-aviso" style="margin-top:6px"></div></div>
       <div style="font-size:12px;color:var(--text3);margin-top:6px">
-        <b>Reservar</b> marca a unidade ${esc(String(p.unidade||""))} como RESERVADA no Notion
-        (e ela fica azul no mapa de vendas). <b>Negar</b> devolve a unidade para NÃO.
-        <b>Vendida</b> é o definitivo: muda a unidade para VENDIDA = SIM no mapa e preenche/revalida o BANCO DE DADOS VENDAS CONDOMÍNIO.
+        <b>Reservar</b> marca a unidade ${esc(String(p.unidade||""))} como RESERVADA no mapa, cria a venda no
+        BANCO DE DADOS VENDAS CONDOMÍNIO e manda ao corretor o link para completar os dados e documentos.
+        A reserva vale <b>${PROP_RESERVA_DIAS} dias corridos</b>: sem contrato gerado nesse prazo ela cai sozinha
+        (a unidade volta a disponível e a venda vai para DISTRATOS CONDOMÍNIO). <b>Negar</b> faz o mesmo na hora.
+        A proposta vira <b>VENDIDA</b> sozinha quando o contrato é gerado — e só então o corretor recebe o e-mail de venda.
+        ${propReservaPrazoHtml(p)}
       </div>
     </div>
     ${propSIBloco(p)}
@@ -4401,7 +4425,9 @@ function propSincronizarTudo(){
  *                       DISPONÍVEL.
  * ------------------------------------------------------------------- */
 /* 28/10: VENDIDA é só o definitivo (Decisão) e DISPONÍVEL volta sozinho no distrato */
-const PROP_SI=[["RESERVADA","#1F6FB2"],["PAGOU PREFERÊNCIA","#7B4FA0"],["DISTRATO","#6B5A45"]];
+/* 03/11/2026 (dono): reserva e preferência saíram daqui (o Reservar da Decisão faz a reserva; a pré-reserva foi
+   ocultada) — fica só o DISTRATO, para desfazer uma venda */
+const PROP_SI=[["DISTRATO","#6B5A45"]];
 function propSIAtual(p){
   let k=PROP_NORM(p.statusInterno||((p.dados||{}).statusInterno)||"");
   if(PROP_NORM(p.status)==="DISTRATO") k="DISTRATO";
@@ -4416,7 +4442,7 @@ function propSIBloco(p){
     const clique = k==="DISTRATO" ? `propSIDistratoAbrir('${p.id}')` : `propStatusInterno('${p.id}','${nome}')`;
     return `<button class="bt ${at===k?'atual':''}" data-si="${k}" style="background:${cor};color:#fff" onclick="${clique}">${nome}</button>`;
   }).join("");
-  return `<div style="margin-top:16px"><b style="font-size:13px;color:var(--azul)">Status interno</b>
+  return `<div style="margin-top:16px"><b style="font-size:13px;color:var(--azul)">Distrato</b>
       <span style="font-size:12px;color:var(--text3)"> · unidade ${esc(String(p.unidade||""))}${propSeloInterno(p.unidade, p)}</span>
       <div class="prop-si ${at?'tem-status':''}" style="display:flex;gap:9px;margin-top:8px;flex-wrap:wrap">${bts}</div>
       <div id="prop-siDist" class="hide" style="margin-top:10px;padding:12px;border:1px solid #E7A3A3;background:#FDF1F1;border-radius:10px">
@@ -4429,12 +4455,9 @@ function propSIBloco(p){
           <button class="bt" onclick="document.getElementById('prop-siDist').classList.add('hide')">Cancelar</button>
         </div>
       </div>
-      ${at==="PAGOU PREFERENCIA"?`<div style="margin-top:8px"><button class="bt" style="background:#7B4FA0;color:#fff" onclick="propPreReservaDaUnidade('${p.id}')">Termo de pré-reserva</button></div>`:""}
       <div id="prop-siAviso" class="sim-aviso" style="margin-top:8px"></div>
       <div style="font-size:12px;color:var(--text3);margin-top:6px">
-        <b>Pagou preferência</b> já cria a linha no BANCO DE DADOS VENDAS CONDOMÍNIO (a unidade fica roxa no mapa interno).
         <b>Distrato</b> guarda a venda em DISTRATOS CONDOMÍNIO, tira do banco de vendas e a unidade volta a DISPONÍVEL.
-        O definitivo é o <b>Vendida</b> da Decisão, acima.
       </div>
     </div>`;
 }
@@ -4572,6 +4595,10 @@ function propFecharPreReserva(){
 }
 async function propStatus(id, status){
   if(status==="VENDIDA" && !confirm("Marcar esta proposta como VENDIDA?\n\nA unidade passa para VENDIDA = SIM no mapa e os dados vão para o BANCO DE DADOS VENDAS CONDOMÍNIO.")) return;
+  /* 03/11/2026 (dono): Reservar cria a venda, manda o link ao corretor e abre o prazo de 5 dias */
+  if(status==="RESERVADA" && !confirm("Reservar esta proposta?\n\n• a unidade fica RESERVADA no mapa;\n• a venda é criada no BANCO DE DADOS VENDAS CONDOMÍNIO;\n• o corretor recebe o link para completar dados e documentos;\n• prazo de "+PROP_RESERVA_DIAS+" dias corridos para gerar o contrato — sem contrato, a reserva cai sozinha.")) return;
+  if(status==="NEGADA" && PROP_NORM((PROPS.find(x=>x.id===id)||{}).status)==="RESERVADA" &&
+     !confirm("Negar esta proposta reservada?\n\nA unidade volta a disponível e a venda criada na reserva vai para DISTRATOS CONDOMÍNIO.")) return;
   const av=document.getElementById("prop-detAviso");
   av.className="sim-aviso ok"; av.textContent="Salvando…";
   const pararProg=propProgresso(av, status);
@@ -4613,7 +4640,10 @@ async function propStatus(id, status){
   if(r && r.ok){
     av.className="sim-aviso ok";
     av.innerHTML="<b>✓ Status: "+esc(r.status||status)+".</b> "+esc(r.reflexo||"")+"<br><span style='font-size:12px'>Unidade, mapa e lista de propostas já atualizados."+
-      (r.emailCorretor ? (r.emailCorretor.ok ? " E-mail enviado ao corretor ("+esc(r.emailCorretor.para||"")+")." : " ⚠ E-mail ao corretor não saiu: "+esc(r.emailCorretor.erro||"")) : "")+"</span>";
+      (r.emailCorretor ? (r.emailCorretor.ok ? " E-mail enviado ao corretor ("+esc(r.emailCorretor.para||"")+")." : " ⚠ E-mail ao corretor não saiu: "+esc(r.emailCorretor.erro||"")) : "")+
+      (r.emailCorretor && r.emailCorretor.vence ? " Reserva vence em "+esc(new Date(r.emailCorretor.vence).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}))+"." : "")+
+      (r.emailCorretor && r.emailCorretor.venda ? (r.emailCorretor.venda.ok ? " Venda criada no BANCO DE DADOS VENDAS CONDOMÍNIO." : " ⚠ A venda não foi criada: "+esc(r.emailCorretor.venda.erro||r.emailCorretor.venda.mensagem||"")) : "")+
+      (r.reservaCaiu ? (r.reservaCaiu.ok ? " A venda da reserva foi para DISTRATOS CONDOMÍNIO." : " ⚠ A venda da reserva não saiu do banco de vendas: "+esc(r.reservaCaiu.mensagem||r.reservaCaiu.erro||"")) : "")+"</span>";
     propMarcarAtual(status);
     propSincronizarTudo();
   }else{
