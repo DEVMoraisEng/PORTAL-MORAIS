@@ -429,3 +429,13 @@ test("03/11: a aba Contrato troca para só leitura quando o envelope abre e volt
   assert.match(src, /if \(enviadoA\(\) !== vistoEnvA\) return pintar\(\);/);
   assert.match(src, /ctxA\.desatualizado = !!\(contratoFinal\(estadoC\) && estadoC\.envioDesatualizado\);/);
 });
+
+test("03/11 (dono): conferência feita antes de os documentos chegarem — aviso de que os anexos mudaram, não o de dados", () => {
+  const base = { feito: true, em: "", confirmados: {}, linhas: [] };
+  let h = D.htmlConferencia({ ...base, atual: false, anexosMudaram: true }, {});
+  assert.match(h, /Os documentos anexados mudaram depois desta conferência — confira de novo/);
+  assert.doesNotMatch(h, /Os dados mudaram depois desta conferência/);
+  h = D.htmlConferencia({ ...base, atual: false }, {});
+  assert.match(h, /Os dados mudaram depois desta conferência/);
+  assert.doesNotMatch(D.htmlConferencia({ ...base, atual: true }, {}), /confira de novo/);
+});
