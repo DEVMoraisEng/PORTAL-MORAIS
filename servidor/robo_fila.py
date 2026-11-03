@@ -305,6 +305,9 @@ ROBOS = {
     "medicoes": ["robo_mc_medicoes.py"],                                          # robos-mc-medicoes.yml (2/2 h)
     # 31/10: retrato diário das vendas do condomínio (aba Financeiro + antecipação); só lê o ERP
     "retratos": ["robo_mc_retratos.py"],
+    # 03/11: anexos dos pagamentos (boleto/NF/recibo/comprovante) para a Auditoria Financeira; só lê o ERP.
+    # Precisa de "vars": {"SUPABASE_URL": ...} e "supabase_key_arquivo" (service key, o dono cola no arquivo).
+    "anexos": ["robo_mc_anexos.py"],
 }
 REPO_GH = "DEVMoraisEng/PORTAL-MORAIS"
 ARQ_MEDICOES = "dist/mc_medicoes/contratos.json"
@@ -315,6 +318,9 @@ def env_robos(cfg: dict) -> dict:
     e = dict(os.environ)
     e.update({k: str(v) for k, v in (cfg.get("vars") or {}).items()})
     tok = pathlib.Path(cfg["notion_token_arquivo"]).read_text(encoding="utf-8").strip()
+    chave_sb = cfg.get("supabase_key_arquivo")
+    if chave_sb and pathlib.Path(chave_sb).exists():
+        e["SUPABASE_SERVICE_KEY"] = pathlib.Path(chave_sb).read_text(encoding="utf-8").strip()
     e.update({"NOTION_TOKEN": tok, "MC_VIA": "porteiro", "PYTHONIOENCODING": "utf-8",
               "APLICAR": "1" if (CENTRAL / "ROBOS_APLICAR.txt").exists() else ""})
     for n in ("MC_USUARIO", "MC_SENHA", "MC_ROBO_USUARIO", "MC_ROBO_SENHA", "MC_ROBO_EMAIL", "MC_ROBO_APARELHO",
@@ -368,6 +374,8 @@ def robo_antigo(nome: str) -> int:
         except subprocess.TimeoutExpired:
             codigo, fim = 124, "passou de %d min" % (PRAZO_ROBO_ANTIGO_S // 60)
         log("[%s] %s código %s %s" % (nome, script, codigo, str(fim)[:200]))
+        if env.get("DESCOBRIR") and "r" in locals():          # 03/11: na descoberta, mostra a saída inteira
+            print((r.stdout or "") + (r.stderr or ""))
         pior = pior or codigo
     if nome == "medicoes" and not pior:
         try:

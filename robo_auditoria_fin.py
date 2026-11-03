@@ -892,6 +892,9 @@ def main():
     else:
         if not sb_ok():
             raise SystemExit("Falta SUPABASE_URL / SUPABASE_SERVICE_KEY.")
+        # 03/11: os anexos (📎) vêm do robô do servidor (robo_mc_anexos.py) — preserva a última leitura dele
+        if anterior and isinstance(anterior.get("anexos"), dict) and "anexos" not in conteudo:
+            conteudo["anexos"] = anterior["anexos"]
         tam = storage_gravar(conteudo)
         sb_insert("fin_coletas", {"ok": True, "origem": origem, "linhas": len(p), "resumo": resumo})
         log(f"GRAVADO no Supabase: {BUCKET}/{CAMINHO} ({tam / 1e6:.1f} MB)")

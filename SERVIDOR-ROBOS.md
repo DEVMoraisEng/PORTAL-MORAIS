@@ -240,3 +240,60 @@ Rodar cada uma uma vez (`schtasks /Run`) e mostrar o `Last Result`.
 ## 7. (dono, depois de 1 dia certo no servidor) Desligar o horário no GitHub
 No GitHub, Actions › cada workflow (Robôs Mais Controle, Robô MC - Bases no Notion, Robô MC - Medições, Índices
 de reajuste) › "…" › **Disable workflow**. O botão de rodar à mão volta quando reabilitar (plano B).
+
+---
+
+# ANEXOS DOS PAGAMENTOS (03/11/2026) — 📎 na Auditoria Financeira
+
+O robô `robo_mc_anexos.py` lê, pela aba do porteiro, os arquivos dos pagamentos que a Auditoria Financeira
+mostra com alerta (últimos 90 dias): os do **lançamento** (boleto, NF, recibo) e os da **baixa/pagamento**
+(comprovante). **Só lê o Mais Controle — não grava nada no ERP.** Os links vão para a chave `anexos` do
+`auditoria.json` (bucket privado `analise` do Supabase ORÇADO/REALIZADO); a tela mostra o 📎 na linha.
+
+Ordem: 1 o dono faz; 2–6 o Claude do servidor faz, pedindo o ok antes de agendar.
+
+## 1. (dono, no servidor) Chave do Supabase
+Criar `C:\AUTOMAÇÕES MAIS CONTROLE\_central\supabase-analise.txt` e colar dentro a **service key** do projeto
+ORÇADO/REALIZADO (a mesma do secret `SUPABASE_SERVICE_KEY` do GitHub). O Claude não vê nem copia.
+
+## 2. (servidor) Atualizar o clone e testar
+```powershell
+cd "C:\AUTOMAÇÕES MAIS CONTROLE\_portal"
+git pull https://github.com/DEVMoraisEng/PORTAL-MORAIS.git main
+python -m pytest -q tests/test_robo_mc_anexos.py tests/test_robo_fila.py
+```
+
+## 3. (servidor) Configuração — chave `robos` do `_central\robos-portal.json`
+Acrescentar (sem apagar o que já existe):
+```json
+"supabase_key_arquivo": "C:\\AUTOMAÇÕES MAIS CONTROLE\\_central\\supabase-analise.txt",
+```
+e, dentro de `"vars"`: `"SUPABASE_URL": "https://mgxjmqanrpomvqkzulbe.supabase.co"`.
+
+## 4. (servidor) Descoberta — só formato, não grava nada
+```powershell
+$env:DESCOBRIR="1"; python servidor\robo_fila.py --robo anexos; Remove-Item Env:DESCOBRIR
+```
+Devolver ao dono a saída inteira (só tem chaves, contagens e a validade do link — nenhum nome ou valor).
+O esperado: `rota do lançamento: /trade-payables/%s`, `baixas achadas: 1` ou mais, `arquivos: N`,
+`get-url: link ok`.
+
+## 5. (servidor) Primeira rodada de verdade
+```powershell
+python servidor\robo_fila.py --robo anexos
+```
+A última linha do log diz quantos lançamentos foram lidos, quantos têm arquivo e quantos foram copiados.
+A primeira rodada pode levar até ~20 min (até 700 lançamentos); as seguintes só leem os pagamentos recentes
+e renovam os links.
+
+## 6. (servidor, com o ok do dono) Tarefa agendada — todo dia 05:20 e 12:20
+Depois do robô da auditoria da madrugada (GitHub, 04:23). Mesma conta e "só com o usuário conectado".
+```powershell
+schtasks /Create /TN "MoraisEng - Anexos da auditoria" /SC DAILY /ST 05:20 /F `
+  /TR "\"C:\Users\<usuario>\AppData\Local\Programs\Python\Python312\pythonw.exe\" \"C:\AUTOMAÇÕES MAIS CONTROLE\_portal\servidor\robo_fila.py\" --robo anexos"
+schtasks /Create /TN "MoraisEng - Anexos da auditoria (tarde)" /SC DAILY /ST 12:20 /F `
+  /TR "\"C:\Users\<usuario>\AppData\Local\Programs\Python\Python312\pythonw.exe\" \"C:\AUTOMAÇÕES MAIS CONTROLE\_portal\servidor\robo_fila.py\" --robo anexos"
+```
+Ajustes opcionais em `"vars"`: `ANEXOS_DIAS` (90), `ANEXOS_ESCOPO` (`alertas` ou `todos`),
+`ANEXOS_MAX_ITENS` (700 por rodada), `ANEXOS_MAX_MB` (250 MB copiados por rodada — só quando o link do MC
+for curto e o arquivo precisar ser copiado para o Supabase).
