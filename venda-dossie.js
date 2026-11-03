@@ -1159,7 +1159,11 @@
     MC_JA_LANCADA: "Esta venda já foi lançada no Mais Controle.",
     MC_PROCESSANDO: "O robô ainda está processando — aguarde e clique em Atualizar.",
     MC_SEM_PREVIA: "Veja a prévia primeiro: o lançamento só é liberado com PRÉVIA OK.",
-    MC_DISPARO_FALHOU: "Não consegui acionar o robô do Mais Controle — tente de novo."
+    MC_DISPARO_FALHOU: "Não consegui acionar o robô do Mais Controle — tente de novo.",
+    /* 03/11: Anexar contrato / Enviar ZIP (AnexosMC.gs) */
+    MC_SEM_VENDA: "A venda ainda não foi lançada no Mais Controle — não há onde anexar o contrato.",
+    MC_SEM_ZIP: "Ainda não há ZIP dos documentos assinados nesta venda (ele é montado quando todos assinam).",
+    MC_ANEXOS_SEM_FILA: "O robô do servidor não está configurado neste ambiente — anexe à mão no Mais Controle."
   };
   function mensagemMC(r) {
     var e = String((r && r.erro) || "");
@@ -1212,6 +1216,13 @@
     h += '<div class="dz-linha">';
     if (!e.vendaId) h += '<button type="button" class="bt ghost bt-mini" data-acao="mc-previa"' + d(ocupado) + ">Ver prévia</button> ";
     if (!e.vendaId) h += '<button type="button" class="bt bt-mini" data-acao="mc-lancar"' + d(ocupado || !liberaLancar) + ">Lançar no Mais Controle</button> ";
+    /* 03/11: o contrato não entrou no recebimento (venda criada antes do PDF assinado) ou o ZIP não foi para o Orçamento:
+       o botão pede de novo ao robô do servidor (ele não repete o que já está lá) */
+    var linhasSit = String(e.situacao || "");
+    if (e.vendaId && /(^|\n)Contrato: n[ãa]o anexado/i.test(linhasSit))
+      h += '<button type="button" class="bt bt-mini" data-acao="mc-anexar"' + d(ocupado) + ">Anexar contrato no Mais Controle</button> ";
+    else if (/(^|\n)Contratos \(ZIP\): (n[ãa]o enviado|NÃO pedido)/i.test(linhasSit))
+      h += '<button type="button" class="bt bt-mini" data-acao="mc-anexar-zip"' + d(ocupado) + ">Enviar ZIP ao Mais Controle</button> ";
     h += '<button type="button" class="bt ghost bt-mini" data-acao="mc-atualizar"' + (u.ocupado ? " disabled" : "") + ">Atualizar</button></div>";
     if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
     return h;
@@ -2855,6 +2866,15 @@
     async function aoClicarMC(acao) {
       if (uiM.ocupado) return;
       if (acao === "mc-atualizar") { uiM.msg = ""; await carregarMC(); return; }
+      if (acao === "mc-anexar" || acao === "mc-anexar-zip") {   /* 03/11: AnexosMC.gs */
+        uiM.ocupado = acao; uiM.msg = ""; pintarM();
+        var ra = await chamarVenda({ action: "mcAnexar", pageId: pageId, zip: acao === "mc-anexar-zip" });
+        if (!vivo()) return;
+        uiM.ocupado = null;
+        uiM.msg = ra.ok ? "Pedido ao robô do servidor — em 1 a 3 minutos clique em Atualizar." : mensagemMC(ra);
+        await carregarMC();
+        return;
+      }
       var aplicar = acao === "mc-lancar";
       if (aplicar && !window.confirm("Lançar esta venda no Mais Controle? Será criado o cliente (se não existir) e a venda com as parcelas da prévia.")) return;
       uiM.ocupado = acao; uiM.msg = ""; pintarM();

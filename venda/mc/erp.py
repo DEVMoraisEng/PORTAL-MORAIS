@@ -108,27 +108,73 @@ class Erp:
     def anexar(self, venda_id: str, nome: str, conteudo: bytes, mime: str = "application/pdf") -> str:
         """Anexa um arquivo à pasta do recebimento da venda (a mesma "Arquivos" da tela). Devolve o id do arquivo.
         Passos: configuração (bucket) -> pasta do tradeReceivable -> registra o arquivo -> sobe ao S3 -> confirma."""
+        cfg = self._config_arquivos()
+        pasta = self.pasta_da_venda(venda_id, criar=True)
+        return self.subir_arquivo(pasta["id"], nome, conteudo, mime, cfg)
+
+    # -- pastas e arquivos (lidos no código do site em 03/11/2026; ver venda/mc/ANEXOS-ERP.md) -----------
+    def _config_arquivos(self) -> dict:
         cfg = self.pedir("GET", "/system-configuration") or {}
-        bucket, chave_aws = cfg.get("filesBucketURL"), cfg.get("filesAccessKey")
-        if not bucket or not chave_aws:
+        if not cfg.get("filesBucketURL") or not cfg.get("filesAccessKey"):
             raise ErpErro("configuração de arquivos do ERP sem bucket/chave")
+        return cfg
+
+    def pastas(self, entidade_id: str, origem: str) -> list[dict]:
+        """Pastas da aba "Arquivos" de uma entidade: GET /folder?id=&origin= (FolderService.getAllByRoutine).
+        Cada pasta traz `name` e a lista `files` (cada um com `name` e `extension`)."""
+        return self.pedir("GET", "/folder", params={"id": entidade_id, "origin": origem}) or []
+
+    def pasta_da_venda(self, venda_id: str, criar: bool = False) -> dict | None:
         venda = self.pedir("GET", "/sales/%s" % venda_id) or {}   # GET /readjustment-sales/{id} dá 405
         tr_id = (venda.get("tradeReceivable") or {}).get("id")
         if not tr_id:
             raise ErpErro("venda sem tradeReceivable para anexar")
-        pastas = self.pedir("GET", "/folder", params={"id": tr_id, "origin": "TRADE_RECEIVABLE_READJUSTED"}) or []
-        pasta = pastas[0] if pastas else self.pedir("POST", "/folder", corpo={
+        pastas = self.pastas(tr_id, "TRADE_RECEIVABLE_READJUSTED")
+        if pastas or not criar:
+            return pastas[0] if pastas else None
+        pasta = self.pedir("POST", "/folder", corpo={
             "origin": "TRADE_RECEIVABLE_READJUSTED", "tradeReceivable": {"id": tr_id}}) or {}
         if not pasta.get("id"):
             raise ErpErro("o ERP não devolveu a pasta de arquivos da venda")
+        return pasta
+
+    @staticmethod
+    def tem_arquivo(pasta: dict | None, nome: str) -> bool:
+        """A pasta já tem um arquivo com este nome? O ERP guarda `name` (às vezes sem a extensão) e `extension`."""
+        alvo = R.chave(nome)
+        for f in (pasta or {}).get("files") or []:
+            n, ext = str(f.get("name") or ""), str(f.get("extension") or "")
+            if ext and not ext.startswith("."):
+                ext = "." + ext
+            if alvo in (R.chave(n), R.chave(n + ext)):
+                return True
+        return False
+
+    def pasta_do_orcamento(self, obra_id: str, nome_pasta: str) -> dict | None:
+        """Pasta de Obras > Orçamento > Arquivos: a aba usa origin PLANNING com o id da OBRA (planning.work.id)."""
+        alvo = R.chave(nome_pasta)
+        achadas = [p for p in self.pastas(obra_id, "PLANNING") if R.chave(p.get("name")) == alvo]
+        if len(achadas) > 1:
+            raise ErpErro("há %d pastas \"%s\" no Orçamento" % (len(achadas), nome_pasta))
+        return achadas[0] if achadas else None
+
+    def cabe_na_pasta(self, pasta_id: str, tamanho: int) -> bool:
+        """A tela confere antes de subir: GET /file/{pasta}/check-storage-capacity/{bytes}."""
+        r = self.pedir("GET", "/file/%s/check-storage-capacity/%d" % (pasta_id, tamanho)) or {}
+        return not r.get("exceedStorageCapacity")
+
+    def subir_arquivo(self, pasta_id: str, nome: str, conteudo: bytes, mime: str, cfg: dict | None = None) -> str:
+        """Registra o arquivo na pasta (POST /file?folderId=), sobe ao S3 e confirma (PATCH /file/set-temporary)."""
+        cfg = cfg or self._config_arquivos()
         arq = self.pedir("POST", "/file", corpo={"name": nome, "type": mime, "sizeInBytes": len(conteudo)},
-                         params={"folderId": pasta["id"]}) or {}
+                         params={"folderId": pasta_id}) or {}
         if not arq.get("id"):
             raise ErpErro("o ERP não registrou o arquivo")
         if arq.get("saved") is not False:
-            campos = [("AWSAccessKeyId", chave_aws), ("acl", "private"), ("success_action_status", "201"),
+            campos = [("AWSAccessKeyId", cfg["filesAccessKey"]), ("acl", "private"), ("success_action_status", "201"),
                       ("key", arq.get("key")), ("policy", arq.get("policy")), ("signature", arq.get("signature"))]
-            r = self.http.post(bucket, data=campos, files={"file": (nome, conteudo, mime)}, timeout=self.timeout)
+            r = self.http.post(cfg["filesBucketURL"], data=campos, files={"file": (nome, conteudo, mime)},
+                               timeout=max(self.timeout, 300))
             if r.status_code >= 300:
                 raise ErpErro("upload do arquivo recusado (HTTP %s)" % r.status_code)
         self.pedir("PATCH", "/file/set-temporary", params={"fileId": arq["id"], "temporary": "false"})

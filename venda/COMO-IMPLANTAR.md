@@ -1367,3 +1367,40 @@ contrato: gere o contrato de novo".
   `venda-dossie.js?v=61`, `venda/assinatura-ui.js?v=24` e o cache `portal-morais-v264`. Nada a configurar.
 - **Conferir:** abrir uma venda de teste com envelope ENVIADO → aba Contrato só leitura; Cancelar envelope → volta a
   editar. Alterar o fluxo depois do contrato final → "Enviar para assinatura" desabilitado com o aviso.
+
+## Contrato e ZIP dos assinados no Mais Controle (03/11/2026)
+
+Dois pedidos do dono. (1) A venda da unidade 31 foi criada no Mais Controle antes de o PDF assinado chegar no
+Notion ("Contrato: não anexado (coluna CONTRATO ASSINADO vazia)") e nada tentava de novo. (2) Um ZIP com TODOS os
+documentos assinados da venda em Obras > Orçamento > "CONDOMÍNIO RESERVA DOS IPÊS" > Arquivos > pasta "Contratos Venda".
+
+- **Quando todos assinam** (`assinaturaEstado_` → `mcAnexosPosAssinatura_`, `AnexosMC.gs`; vale para o botão
+  Atualizar situação e para a vigia): se o contrato acabou de entrar e a venda JÁ tem `MC - VENDA ID`, pede o anexo;
+  se a linha tem a coluna `CONTRATOS ASSINADOS (ZIP)` vazia, baixa da Clicksign todos os documentos do envelope
+  (contrato, termos, memorial, projeto), monta `Un NN - COMPRADOR 1 e COMPRADOR 2.zip` (`Utilities.zip`), guarda na
+  coluna (acima de 20 MB sobe em partes, multi_part; acima de 45 MB não monta e a situação diz para enviar à mão) e
+  pede o envio. Um pedido só na fila: `TIPO = mc-anexos`. Nunca lança venda; erro vira linha da situação.
+- **Botões** no bloco Mais Controle (ação `mcAnexar`): "Anexar contrato no Mais Controle" quando a situação diz
+  `Contrato: não anexado` (resolve a unidade 31 e as outras); "Enviar ZIP ao Mais Controle" quando diz
+  `Contratos (ZIP): não enviado`.
+- **Robô** (`venda/mc/anexos.py`, só no servidor, só pelo Chrome do porteiro): anexa o contrato no recebimento (mesmo
+  nome do lançamento) e sobe o ZIP para a pasta "Contratos Venda" do Orçamento da obra do condomínio. Arquivo com o
+  mesmo nome já na pasta = não sobe de novo. A pasta NÃO é criada pelo robô. Escreve só as linhas `Contrato: …` e
+  `Contratos (ZIP): …` de MC - SITUAÇÃO. Rotas e prova do site: `venda/mc/ANEXOS-ERP.md`.
+
+### O que o CTO faz (teste primeiro, depois produção)
+
+1. **Notion:** na BANCO DE DADOS VENDAS CONDOMÍNIO criar a coluna `CONTRATOS ASSINADOS (ZIP)` (Arquivos e mídia).
+   Sem ela, só o anexo do contrato funciona.
+2. **Mais Controle:** conferir que existe a pasta `Contratos Venda` em Obras > Orçamento > CONDOMÍNIO RESERVA DOS IPÊS
+   > Arquivos (criar à mão se não houver).
+3. **PORTAL-VENDA:** colar `AnexosMC.gs` (arquivo NOVO), `AssinaturaVenda.gs`, `PortalVenda.gs` (`venda-v20`) e
+   `CondominioVenda.js`; publicar a MESMA implantação (nova versão). Precisa de `DB_FILA_ROBO` preenchida (sem a fila,
+   a situação diz "NÃO pedido ao robô" — este robô não roda pelo GitHub). Site: `venda-dossie.js?v=63`, cache
+   `portal-morais-v267`.
+4. **Servidor:** atualizar o clone do portal (git pull) — `servidor/robo_fila.py` passa a aceitar `mc-anexos`. Gravar
+   segue as mesmas chaves do lançamento (pedido com aplicar + fila `pode_gravar` + `_central\VENDA_APLICAR.txt`).
+   Opcional nas `vars` da fila em `robos-portal.json`: `MC_OBRA_CONTRATOS_VENDA` (nome da obra do Orçamento, se não
+   for o mesmo `CONDOMÍNIO …` da venda) e `MC_PASTA_CONTRATOS_VENDA` (outro nome de pasta).
+5. **Conferir:** unidade 31 → bloco Mais Controle → "Anexar contrato no Mais Controle" → em 1 a 3 minutos Atualizar:
+   `Contrato: anexado no recebimento` e o PDF na aba Arquivos da venda no ERP.
