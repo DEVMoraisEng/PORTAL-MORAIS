@@ -268,6 +268,9 @@ export function clicksignFalso({ base = "https://sandbox.clicksign.com", falhar 
       estado.signers.push(s);
       return ok(201, s);
     }
+    /* como o sandbox (03/11): com o envelope ativo, requisito avulso é recusado (só em lote) */
+    if (metodo === "POST" && resto === "/requirements" && estado.status === "running")
+      return erro(403, "Verificação: envelope não está com status draft");
     if (metodo === "POST" && resto === "/requirements") return ok(201, { id: "req-" + (++seq), type: "requirements", attributes: corpo.data.attributes });
     /* como a API v3 de verdade (30/10): o PATCH do envelope só aceita draft/running; cancelar é por documento */
     if (metodo === "PATCH" && resto === "") {
@@ -282,6 +285,24 @@ export function clicksignFalso({ base = "https://sandbox.clicksign.com", falhar 
       return ok(200, { id: id, type: "documents", attributes: { status: "canceled" } });
     }
     if (metodo === "POST" && resto === "/notifications") return ok(201, { id: "not-1", type: "notifications", attributes: { summary: [] } });
+    /* 03/11 (troca de e-mail): excluir signatário (403 se já assinou), remoção de requisitos em lote, aviso a um signatário */
+    const sig = /^\/signers\/([^/]+)$/.exec(resto);
+    if (metodo === "DELETE" && sig) {
+      const i = estado.signers.findIndex((x) => x.id === sig[1]);
+      if (i < 0) return erro(404, "Registro não encontrado");
+      if ((eventos || []).some((e) => e.attributes && e.attributes.name === "sign" && e.attributes.data && e.attributes.data.signer &&
+          e.attributes.data.signer.email === estado.signers[i].attributes.email)) return erro(403, "Já assinou um documento. Não pode ser excluído");
+      estado.signers.splice(i, 1);
+      return { status: 204, texto: "" };
+    }
+    if (metodo === "POST" && resto === "/bulk_requirements") {
+      const ops = corpo["atomic:operations"];
+      estado.removidos = (estado.removidos || []).concat(ops.filter((o) => o.op === "remove").map((o) => o.ref.id));
+      estado.adicionados = (estado.adicionados || []).concat(ops.filter((o) => o.op === "add").map((o) => o.data));
+      const res = ops.map((o) => (o.op === "add" ? { data: { id: "req-" + (++seq), type: "requirements", attributes: o.data.attributes } } : {}));
+      return { status: 200, json: ops.some((o) => o.op === "add") ? { "atomic:results": res } : {} };
+    }
+    if (metodo === "POST" && /^\/signers\/[^/]+\/notifications$/.test(resto)) return ok(201, { id: "not-2", type: "notifications", attributes: {} });
     if (metodo === "GET" && resto === "") return ok(200, { id: "env-1", type: "envelopes", attributes: { status: estado.status } });
     if (metodo === "GET" && resto === "/documents") {
       const docs = (estado.docs && estado.docs.length) ? estado.docs : [{ id: "doc-1" }];
