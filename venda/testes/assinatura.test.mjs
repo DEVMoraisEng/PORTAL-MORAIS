@@ -1543,11 +1543,12 @@ test("trocar e-mail: cria o novo com os mesmos requisitos ANTES de tirar o antig
   const r = trocar(c, velho.id, " Fulano.Certo@Teste.example ");
   assert.equal(r.ok, true, JSON.stringify(r));
   const seq = csCalls(c).filter((x) => !/^GET/.test(x));
-  /* signatário novo → requisitos dele em lote (add) → requisitos do antigo em lote (remove) → antigo excluído; nenhum POST /requirements avulso */
-  assert.deepEqual(seq.slice(0, 4), ["POST /envelopes/env-1/signers", "POST /envelopes/env-1/bulk_requirements",
-                                     "POST /envelopes/env-1/bulk_requirements", "DELETE /envelopes/env-1/signers/" + velho.id], seq.join("\n"));
+  /* signatário novo → requisitos dele em lote (add) → antigo excluído (os requisitos vão junto); nenhum POST /requirements avulso
+     nem remove em lote (sandbox 03/11: 403 e 422) */
+  assert.deepEqual(seq.slice(0, 3), ["POST /envelopes/env-1/signers", "POST /envelopes/env-1/bulk_requirements",
+                                     "DELETE /envelopes/env-1/signers/" + velho.id], seq.join("\n"));
   const lotes = c.c.chamadas.filter((x) => x.caminho === "/envelopes/env-1/bulk_requirements").map((x) => x.corpo["atomic:operations"].map((o) => o.op));
-  assert.deepEqual(lotes.slice(0, 2), [["add", "add"], ["remove", "remove"]]);
+  assert.deepEqual(lotes, [["add", "add"]]);
   const novo = sigDe(c, "fulano.certo@teste.example");
   assert.ok(novo && novo.id !== velho.id);
   assert.equal(novo.attributes.name, velho.attributes.name);
@@ -1558,7 +1559,8 @@ test("trocar e-mail: cria o novo com os mesmos requisitos ANTES de tirar o antig
   assert.deepEqual(novosReqs.map((d) => [d.attributes.action, d.relationships.signer.data.id, d.relationships.document.data.id]),
                    [["agree", novo.id, "doc-1"], ["provide_evidence", novo.id, "doc-1"]]);
   assert.equal(novosReqs[0].attributes.role, "buyer");
-  assert.deepEqual(c.c.estado.removidos, reqsVelhos);
+  assert.equal(reqsVelhos.length, 2);
+  assert.deepEqual(c.c.estado.removidos || [], []);
   assert.deepEqual(seq.filter((x) => /notifications/.test(x)), ["POST /envelopes/env-1/signers/" + novo.id + "/notifications"]);
   assert.equal(JSON.parse(c.p["ASSINATURA_PAPEIS_env-1"])[novo.id], "Comprador 1");
   assert.equal(JSON.parse(c.p["ASSINATURA_PAPEIS_env-1"])[velho.id], undefined);
@@ -1596,12 +1598,11 @@ test("trocar e-mail: envelope enviado antes desta versão (sem requisitos guarda
   assert.ok(csCalls(c).every((x) => /^GET/.test(x)));
 });
 
-test("trocar e-mail: falha ao tirar o antigo desfaz o novo (requisitos e signatário); sem desfazer vira TROCA_INCOMPLETA", () => {
+test("trocar e-mail: falha ao tirar o antigo desfaz o novo (excluído); sem conseguir excluir vira TROCA_INCOMPLETA", () => {
   for (const desfazOk of [true, false]) {
-    let bulk = 0;
     const c = cenario({ cs: { falhar: (m, cam) => {
       if (m === "DELETE" && cam === "/envelopes/env-1/signers/sig-2") return { status: 403, json: { errors: [{ title: "Já assinou" }] } };
-      if (m === "POST" && cam === "/envelopes/env-1/bulk_requirements" && ++bulk > 2 && !desfazOk) return { status: 500, json: {} };
+      if (m === "DELETE" && /^\/envelopes\/env-1\/signers\/sig-(1[0-9]|[5-9])$/.test(cam) && !desfazOk) return { status: 500, json: {} };
       return null;
     } } });
     assert.equal(c.enviar().ok, true);
