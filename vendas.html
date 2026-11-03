@@ -2045,7 +2045,25 @@ function condEtapaTag(l){
   const e=condEtapas(l);
   if(e.atual<0) return '<span class="cd-etapa ok">Concluída</span>';
   const x=e.itens[e.atual];
-  return '<span class="cd-etapa'+(x.erro?' erro':'')+'">'+esc(x.nome)+(x.sub?' · '+esc(x.sub):'')+'</span>';
+  return '<span class="cd-etapa'+(x.erro?' erro':'')+'" title="'+esc(x.nome+(x.sub?' · '+x.sub:''))+'">'+esc(condEtapaTexto(x))+'</span>';
+}
+/* 03/11/2026 (dono: "Contrato fica meio avulso"): o selo da coluna ETAPA diz o que falta, com ⚠ quando é pendência
+   ("⚠ Pendente contrato", "⚠ Pendente assinatura · 2 de 4"); recusado/cancelado/expirado sai sem ⚠, em vermelho */
+function condEtapaTexto(x){
+  const sub=String(x.sub||""), prog=(sub.match(/·\s*(.+)$/)||[])[1]||"";
+  const comProg=t=>t+(prog?" · "+prog:"");
+  if(x.erro) return x.nome==="Assinaturas"?"Assinatura "+sub.toLowerCase().replace(/o$/,"a"):x.nome==="Pré-reserva"?"Termo de pré-reserva "+sub.toLowerCase():x.nome+" · "+sub;
+  switch(x.nome){
+    case "Pré-reserva":
+      if(/^assinando/.test(sub)) return comProg("⚠ Pendente assinatura do termo");
+      if(sub==="termo gerado") return "⚠ Pendente envio do termo";
+      return "⚠ Pendente pré-reserva";
+    case "Datas do fluxo": return "⚠ Pendente datas do fluxo";
+    case "Contrato": return "⚠ Pendente contrato";
+    case "Assinaturas": return /^assinando/.test(sub)?comProg("⚠ Pendente assinatura"):"⚠ Pendente envio p/ assinatura";
+    case "Mais Controle": return sub==="processando"?"Lançando no Mais Controle…":"⚠ Pendente lançar no Mais Controle";
+  }
+  return x.nome+(sub?" · "+sub:"");
 }
 function condEtapasHtml(l){
   const e=condEtapas(l);
