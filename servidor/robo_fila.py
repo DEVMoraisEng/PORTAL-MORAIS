@@ -136,6 +136,34 @@ def apos_gravar(argv: list) -> list | None:
     return None
 
 
+# ---------------------------------------------------------------- 03/11: "Rodar de novo" do Escritório de Robôs
+RE_TAREFA = re.compile(r"^MoraisEng - [0-9A-Za-zÀ-ÿ ()._-]{2,80}$")
+SEM_JANELA = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+
+def tarefa_para_rodar(p: dict, nome_fila: str) -> tuple[str | None, str]:
+    """Pedido robo-rodar -> (nome da tarefa agendada, "") ou (None, motivo). Só tarefas "MoraisEng - …" que já
+    existem; nunca o porteiro (derrubaria a sessão de todo mundo) nem a própria fila; nunca pela fila de teste."""
+    nome = str(p.get("tarefa") or "").strip()
+    if nome_fila == "teste":
+        return None, "a fila de teste não dispara robô"
+    if not RE_TAREFA.match(nome):
+        return None, "tarefa inválida"
+    baixo = nome.lower()
+    if "porteiro" in baixo or "(fila)" in baixo:
+        return None, "essa tarefa não se roda pelo portal"
+    return nome, ""
+
+
+def rodar_tarefa(nome: str) -> tuple[bool, str]:
+    """schtasks /Run: roda a MESMA tarefa agendada (rodar_e_relatar.py, e-mail e escritório inclusos). Se ela já
+    está rodando, o Agendador não abre outra (as tarefas são criadas com "não rodar duas ao mesmo tempo")."""
+    r = subprocess.run(["schtasks", "/Run", "/TN", nome], capture_output=True, text=True, errors="replace",
+                       timeout=60, creationflags=SEM_JANELA)
+    msg = " ".join(((r.stdout or "") + " " + (r.stderr or "")).split())[:300]
+    return r.returncode == 0, msg
+
+
 class Fila:
     def __init__(self, cfg: dict):
         self.nome = cfg["nome"]
@@ -199,6 +227,8 @@ class Fila:
         except ValueError:
             payload = {}
         alvo = str(payload.get("pageId") or "")[:8]
+        if tipo == "robo-rodar":
+            return self.rodar_de_novo(linha, payload)
         montado = argumentos(tipo, payload, self.pode_gravar)
         if not montado:
             self.marcar(linha["id"], "ERRO", "pedido inválido (%s)" % tipo)
@@ -234,6 +264,32 @@ class Fila:
             except Exception as e:
                 log("[%s] retratos depois de gravar: falhou (%s)" % (self.nome, type(e).__name__))
         return "FEITO" if codigo == 0 else "ERRO"
+
+
+    def rodar_de_novo(self, linha: dict, payload: dict) -> str:
+        """03/11: botão "Rodar de novo" do Escritório de Robôs. Dispara a tarefa e marca FEITO na hora (o resultado
+        da rodada vem no e-mail e na própria aba); a próxima publicação do escritório sai logo, com a mesa rodando."""
+        nome, motivo = tarefa_para_rodar(payload, self.nome)
+        quem = str(payload.get("quem") or "")[:40]
+        if not nome:
+            self.marcar(linha["id"], "ERRO", motivo)
+            log("[%s] robo-rodar: recusado (%s)" % (self.nome, motivo))
+            return "ERRO"
+        try:
+            ok, msg = rodar_tarefa(nome)
+        except Exception as e:
+            ok, msg = False, "%s: %s" % (type(e).__name__, str(e)[:200])
+        self.marcar(linha["id"], "FEITO" if ok else "ERRO", ("disparada: " if ok else "não disparou: ") + nome + (" — " + msg if not ok else ""))
+        log("[%s] robo-rodar %s%s: %s" % (self.nome, nome, (" (pedido de %s)" % quem) if quem else "", "disparada" if ok else "FALHOU " + msg))
+        if ok:
+            try:
+                time.sleep(3)                       # deixa o Agendador marcar "Running" antes de publicar
+                sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+                import escritorio_robos
+                escritorio_robos.publicar(lambda m: log("[escritorio] " + m))
+            except Exception:
+                pass
+        return "FEITO" if ok else "ERRO"
 
 
 def carregar() -> list:

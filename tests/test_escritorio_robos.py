@@ -89,3 +89,15 @@ def test_publicar_nunca_lanca_erro(monkeypatch, tmp_path):
     pdf.write_bytes(b"%PDF")
     E.depois_da_rodada(_r(ok=True), pdf, None, msgs.append)       # grava o .json mesmo sem conseguir subir
     assert pdf.with_suffix(".json").exists()
+
+
+def test_rodar_de_novo_so_tarefas_morais_e_nunca_porteiro_fila_ou_teste():
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "servidor"))
+    import robo_fila as R
+    assert R.tarefa_para_rodar({"tarefa": "MoraisEng - Robo medicoes"}, "producao") == ("MoraisEng - Robo medicoes", "")
+    assert R.tarefa_para_rodar({"tarefa": "MoraisEng - Anexos da auditoria (tarde)"}, "producao")[0]
+    assert R.tarefa_para_rodar({"tarefa": "MoraisEng - Robo medicoes"}, "teste")[0] is None
+    assert R.tarefa_para_rodar({"tarefa": "MoraisEng - Porteiro do ERP"}, "producao")[0] is None
+    assert R.tarefa_para_rodar({"tarefa": "MoraisEng - Robo do portal (fila)"}, "producao")[0] is None
+    for ruim in ("Outra tarefa", "MoraisEng - x\" & del *", "MoraisEng - a/b", "", None):
+        assert R.tarefa_para_rodar({"tarefa": ruim}, "producao")[0] is None

@@ -15,9 +15,16 @@
  *
  * AÇÕES (roteadas pelo Melhorias.gs — ver a linha do gancho abaixo):
  *   escritorioBoot     link assinado do robos/escritorio.json
+ *   escritorioRodar    "Rodar de novo": põe um pedido robo-rodar na FILA DO
+ *                      ROBÔ (Propriedade DB_FILA_ROBO, a mesma base que o
+ *                      servidor já lê a cada minuto). O servidor roda a
+ *                      tarefa agendada com schtasks /Run — a MESMA rodada do
+ *                      horário (relatório, e-mail e escritório). Só ADM e
+ *                      MASTER; nunca o porteiro nem a fila.
  *   escritorioVersao   diagnóstico
  * Acesso: "ESCRITÓRIO DE ROBÔS" na coluna ACESSOS do LOGINS (ADM, MASTER e
- * TESTES veem sempre). Só leitura: nada grava no Notion nem no ERP.
+ * TESTES veem sempre). Ver não grava nada; o Rodar de novo só cria a linha
+ * do pedido na fila.
  *
  * COMO INSTALAR (projeto PORTAL-LEITURA; no PORTAL-ESCRITA é opcional):
  *   1) Arquivo novo "EscritorioRobos" (script) com este conteúdo.
@@ -25,22 +32,60 @@
  *      gancho do rfRotear_:
  *        if (typeof escRotear_ === "function") { var rEsc = escRotear_(action, sess, p); if (rEsc) return rEsc; }
  *   3) Salvar + Implantar > Gerenciar implantações > lápis > Nova versão.
- *   Teste: na página, o rodapé mostra "Apps Script e1".
+ *   4) Propriedade do Script DB_FILA_ROBO = id da base FILA DO ROBÔ de
+ *      PRODUÇÃO (a mesma "db_fila" da fila "producao" no robos-portal.json
+ *      do servidor). Sem ela o botão Rodar de novo avisa FILA_NAO_CONFIGURADA.
+ *   Teste: na página, o rodapé mostra "Apps Script e2".
  *************************************************************************/
 
-var ESC_VERSAO = "2026-11-03 e1";
+var ESC_VERSAO = "2026-11-03 e2";
 var ESC_BUCKET = "analise";
 var ESC_CAMINHO = "robos/escritorio.json";
 var ESC_ACESSO = "ESCRITÓRIO DE ROBÔS";
 
 function escRotear_(action, sess, p) {
   if (action === "escritorioVersao") return { ok: true, versao: ESC_VERSAO };
-  if (action !== "escritorioBoot") return null;
+  if (action !== "escritorioBoot" && action !== "escritorioRodar") return null;
   if (!temAcesso_(sess, ESC_ACESSO)) {
     console.log("BLOQUEADO por falta de acesso " + ESC_ACESSO + ": " + sess.u + " -> " + action);
     return { ok: false, erro: "SEM_PERMISSAO" };
   }
+  if (action === "escritorioRodar") return escRodar_(sess, p);
   return escBoot_();
+}
+
+/* Nome de tarefa que o servidor aceita (o robo_fila.py confere de novo, do lado de lá). */
+function escTarefaValida_(nome) {
+  nome = String(nome || "");
+  return /^MoraisEng - [0-9A-Za-zÀ-ÿ ()._-]{2,80}$/.test(nome) && !/porteiro|\(fila\)/i.test(nome);
+}
+
+function escRodar_(sess, p) {
+  var tipo = String(sess.t || "").toUpperCase();
+  if (tipo !== "ADM" && tipo !== "MASTER") return { ok: false, erro: "APENAS_ADM" };
+  var tarefa = String((p && p.tarefa) || "");
+  if (!escTarefaValida_(tarefa)) return { ok: false, erro: "TAREFA_INVALIDA" };
+  /* dois cliques seguidos não viram dois pedidos */
+  var cache = CacheService.getScriptCache(), chave = "esc_rodar_" + tarefa.replace(/[^0-9A-Za-z]+/g, "_");
+  if (cache.get(chave)) return { ok: true, repetido: true };
+  var db = String(prop_("DB_FILA_ROBO") || "").trim();
+  if (!db) return { ok: false, erro: "FILA_NAO_CONFIGURADA" };
+  var agora = new Date().toISOString(), payload = JSON.stringify({ tarefa: tarefa, quem: sess.u || "" });
+  var props = {};
+  props["PEDIDO"] = { title: [{ type: "text", text: { content: "robo-rodar " + tarefa.replace(/^MoraisEng - /, "") } }] };
+  props["TIPO"] = { select: { name: "robo-rodar" } };
+  props["PAYLOAD"] = { rich_text: [{ type: "text", text: { content: payload.slice(0, 2000) } }] };
+  props["SITUAÇÃO"] = { select: { name: "PENDENTE" } };
+  props["PEDIDO EM"] = { date: { start: agora } };
+  try {
+    notion_("POST", "/pages", { parent: { database_id: db }, properties: props });
+  } catch (e) {
+    console.error("ESCRITÓRIO: não consegui pôr o pedido na fila — " + String(e).slice(0, 200));
+    return { ok: false, erro: "FILA_FALHOU" };
+  }
+  cache.put(chave, "1", 120);
+  console.log("ESCRITÓRIO: " + (sess.u || "?") + " pediu Rodar de novo: " + tarefa);
+  return { ok: true, pedido: agora };
 }
 
 function escBoot_() {

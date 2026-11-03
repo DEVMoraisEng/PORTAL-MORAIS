@@ -185,6 +185,37 @@ html[data-tema="escuro"] .box h3{color:var(--teal)}
 .vazio{padding:30px;text-align:center;color:var(--text3)}
 .carregando{padding:40px;text-align:center;color:var(--text3)}
 .rodape{font-size:11.5px;color:var(--text4);text-align:center}
+
+/* estado "pedido" (pediram Rodar de novo) na lista */
+.st-pedido{--olho:#f5c542} .st-pedido .monitor{background:linear-gradient(180deg,#3d3210,#241d08)}
+.ped-t{color:#b8860b;font-weight:700}
+
+/* vista: sala 3D × lista */
+.vistas{display:inline-flex;border:1px solid var(--border2);border-radius:999px;overflow:hidden;background:var(--sup)}
+.vistas button{all:unset;cursor:pointer;padding:6px 14px;font-size:12.5px;font-weight:700;color:var(--text3)}
+.vistas button[aria-pressed="true"]{background:var(--azul);color:#fff}
+.vistas button:focus-visible{outline:2px solid var(--teal)}
+.sala3d{position:relative;height:min(74vh,760px);min-height:440px;border-radius:16px;overflow:hidden;border:1px solid var(--border2);background:var(--bg2);touch-action:none}
+.sala3d canvas{display:block;cursor:grab}
+.sala3d canvas:active{cursor:grabbing}
+.dica3d{position:absolute;left:12px;bottom:10px;font-size:11.5px;font-weight:600;color:var(--text3);background:color-mix(in srgb,var(--sup) 85%,transparent);border:1px solid var(--border2);border-radius:999px;padding:4px 10px;pointer-events:none}
+.dica3d-mouse{position:absolute;display:none;pointer-events:none;font-size:12px;font-weight:700;background:var(--azul-esc);color:#fff;padding:4px 9px;border-radius:6px;white-space:nowrap;z-index:3}
+.baloes{position:absolute;inset:0;pointer-events:none;z-index:2}
+.balao{position:absolute;left:0;top:0;pointer-events:auto;width:min(230px,58vw);background:var(--sup);border:2px solid var(--st-erro);border-radius:12px;padding:9px 11px 10px;
+  box-shadow:0 10px 26px rgba(0,0,0,.28);font-size:12px;line-height:1.4;display:flex;flex-direction:column;gap:4px}
+.balao::after{content:"";position:absolute;left:50%;bottom:-9px;margin-left:-8px;border:8px solid transparent;border-top-color:var(--st-erro);border-bottom:0}
+.balao b{color:var(--st-erro);font-size:12.5px}
+.balao span{color:var(--text);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.balao.pedido{border-color:#e0b11f}.balao.pedido::after{border-top-color:#e0b11f}.balao.pedido b{color:#b8860b}
+.bb{display:flex;gap:6px;margin-top:3px;flex-wrap:wrap}
+.bb button,.bt{border:1px solid var(--border);background:var(--bg2);color:var(--text);border-radius:7px;padding:5px 9px;font:inherit;font-weight:700;font-size:11.5px;cursor:pointer}
+.bb button.rodar,.bt.rodar{background:var(--st-erro);border-color:var(--st-erro);color:#fff}
+.bb button:disabled,.bt:disabled{opacity:.6;cursor:wait}
+.causa{border-left:4px solid var(--st-erro);background:color-mix(in srgb,var(--st-erro) 8%,var(--sup))}
+.causa h3{color:var(--st-erro)!important}
+.causa .acoes{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.causa .acoes small{color:var(--text3);font-size:12px;line-height:1.4;flex:1;min-width:200px}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--azul-esc);color:#fff;font-weight:600;font-size:13px;padding:10px 16px;border-radius:10px;box-shadow:0 10px 26px rgba(0,0,0,.3);z-index:60;max-width:calc(100% - 32px)}
 </style>
 </head>
 <body>
@@ -205,10 +236,15 @@ html[data-tema="escuro"] .box h3{color:var(--teal)}
 <main>
   <div id="avisos"></div>
   <div class="kpis" id="kpis"></div>
-  <div class="barra">
+  <div class="barra" style="width:100%">
     <span class="chip" id="chip-gerado"><i></i><span>Buscando o servidor…</span></span>
     <label class="chk"><input type="checkbox" id="so-problema"> Só quem precisa de atenção</label>
+    <span class="hspace"></span>
+    <span class="vistas" role="group" aria-label="Como ver"><button type="button" id="v-3d" aria-pressed="true">Sala 3D</button><button type="button" id="v-lista" aria-pressed="false">Lista</button></span>
   </div>
+  <section class="sala3d hide" id="sala3d" aria-label="Sala 3D do escritório de robôs">
+    <span class="dica3d">Arraste para girar · role ou pince para aproximar · clique num robô</span>
+  </section>
   <div id="carregando" class="carregando">Chamando os robôs para a reunião…</div>
   <section class="sala hide" id="sala-recepcao">
     <h2>Recepção <small>quem abre a porta do Mais Controle e atende o portal</small></h2>
@@ -225,6 +261,9 @@ html[data-tema="escuro"] .box h3{color:var(--teal)}
 <aside class="gaveta hide" id="gaveta" role="dialog" aria-modal="true" aria-labelledby="g-titulo"></aside>
 
 <script src="app.js?v=45"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="escritorio-3d.js?v=1"></script>
 <script>
 /* ===== ESCRITÓRIO DE ROBÔS (03/11/26) =======================================
  * Uma mesa por robô do servidor do escritório. Os dados vêm do próprio
@@ -268,6 +307,9 @@ function catDe(chave, titulo) {
 }
 
 let DADOS = null, ABERTO = null, CARREGANDO = false;
+const PEDIDOS = {};                       // chave -> hora (ms) em que pediram "Rodar de novo" nesta tela
+const PEDIDO_VALE_MS = 12 * 60 * 1000;
+const PODE_RODAR = ["ADM", "MASTER"].includes(String((S && S.tipo) || "").toUpperCase());
 
 /* ---------------- datas ---------------- */
 function dataDe(iso) { if (!iso) return null; const d = new Date(iso); return isNaN(d) ? null : d; }
@@ -338,6 +380,10 @@ function montarRobos(D) {
     else if (ult) { st = ult.ok ? "ok" : "erro"; stTexto = ult.ok ? "deu certo" : "deu errado"; stHora = quando(ult.inicio); }
     else if (res.length) { st = resRuim ? "erro" : "ok"; stTexto = resRuim ? "deu errado" : "deu certo"; stHora = quando(r.tarefas[0].ultima); }
     if (rodando && r.chave !== "porteiro") { st = "trab"; stTexto = "trabalhando"; }
+    const ped = PEDIDOS[r.chave];
+    if (ped && Date.now() - ped < PEDIDO_VALE_MS && st !== "trab" && !(ult && dataDe(ult.inicio) && dataDe(ult.inicio).getTime() > ped - 60000)) {
+      st = "pedido"; stTexto = "na fila para rodar de novo";
+    } else if (ped && (st === "trab" || Date.now() - ped >= PEDIDO_VALE_MS)) delete PEDIDOS[r.chave];
     return Object.assign(r, { cat, ult, st, stTexto, stHora, proxima: proximas[0] || null, ultP: r.chave === "porteiro" ? ultP : null });
   });
   const ordem = ["porteiro", "fila", "contas", "bases", "medicoes", "indices", "retratos", "anexos"];
@@ -374,7 +420,7 @@ function planta() {
 function telaTexto(r) {
   if (r.chave === "porteiro") return r.st === "ok" ? "logado" : r.st === "erro" ? "fora" : r.st === "trab" ? "vigiando" : "—";
   if (r.chave === "fila") return r.st === "ok" ? "atendendo" : r.st === "erro" ? (r.stTexto === "sem sinal" ? "sem sinal" : "erro") : "—";
-  return { ok: "ok", erro: "erro", trab: "rodando", off: "desligado", sem: "—" }[r.st] || "—";
+  return { ok: "ok", erro: "erro", trab: "rodando", off: "desligado", sem: "—", pedido: "na fila" }[r.st] || "—";
 }
 function mesaHtml(r) {
   const c = r.cat;
@@ -386,7 +432,7 @@ function mesaHtml(r) {
       ? (r.ultP ? `<span class="${r.st === "ok" ? "ok-t" : "erro-t"}">${esc(r.stTexto)}</span> · conferido ${esc(r.stHora)}` : "—")
       : r.ult ? `${esc(quando(r.ult.inicio))} · <span class="${r.ult.ok ? "ok-t" : "erro-t"}">${r.ult.ok ? "deu certo" : "deu errado"}</span>`
         : (r.tarefas[0] && r.tarefas[0].ultima ? `${esc(quando(r.tarefas[0].ultima))} · ${esc(r.tarefas[0].resultado_texto || "")}` : "ainda não rodou");
-  const proxTxt = r.st === "trab" ? `<span class="trab-t">trabalhando agora</span>` : r.proxima ? esc(quando(r.proxima)) : (r.tarefas.length ? "—" : "sem tarefa agendada");
+  const proxTxt = r.st === "trab" ? `<span class="trab-t">trabalhando agora</span>` : r.st === "pedido" ? `<span class="ped-t">pedido para rodar de novo</span>` : r.proxima ? esc(quando(r.proxima)) : (r.tarefas.length ? "—" : "sem tarefa agendada");
   return `<button type="button" class="mesa st-${r.st}" data-chave="${esc(r.chave)}" style="--rc:${c.cor}" aria-label="${esc(c.nome)}: ${esc(r.stTexto)}">
     <div class="cena">
       <div class="quadro"></div>${planta()}<span class="zzz">z z</span>
@@ -430,9 +476,12 @@ function pintar() {
   const rec = vis.filter(r => r.cat.recepcao), sal = vis.filter(r => !r.cat.recepcao);
   $("mesas-recepcao").innerHTML = rec.map(mesaHtml).join("");
   $("mesas-salao").innerHTML = sal.map(mesaHtml).join("") || `<div class="vazio">${so ? "Ninguém precisa de atenção agora. 🎉" : "Nenhum robô no salão ainda."}</div>`;
-  $("sala-recepcao").classList.toggle("hide", !rec.length);
-  $("sala-salao").classList.remove("hide");
+  const em3d = VISTA === "3d" && SALA3D;
+  $("sala-recepcao").classList.toggle("hide", em3d || !rec.length);
+  $("sala-salao").classList.toggle("hide", em3d);
+  $("sala3d").classList.toggle("hide", !em3d);
   $("carregando").classList.add("hide");
+  if (em3d) Escritorio3D.atualizar(vis.length ? vis : robos, { abrir, rodar: pedirRodar, podeRodar, causa: causaDe });
   const g = dataDe(D.gerado);
   const chip = $("chip-gerado");
   const velho = g && (Date.now() - g.getTime()) / 60000 > VELHO_MIN;
@@ -443,6 +492,64 @@ function pintar() {
   (D.avisos || []).forEach(a => av.push(`<div class="aviso amarelo">Servidor: ${esc(a)}</div>`));
   $("avisos").innerHTML = av.join("");
   if (ABERTO) abrir(ABERTO, true);
+}
+
+/* ---------------- causa do erro e "Rodar de novo" ---------------- */
+function causaDe(r) {
+  if (r.chave === "porteiro") return "A sessão do Mais Controle no Chrome central caiu. Quem entra é o dono, pela janela do Chrome central no servidor.";
+  if (r.chave === "fila") return r.stTexto === "sem sinal" ? "A fila do portal não dá sinal: o servidor pode estar desligado, sem internet, ou a tarefa da fila parou." : "Algum pedido do portal deu erro — veja a coluna RESULTADO na FILA DO ROBÔ.";
+  const u = r.ult;
+  if (u && !u.ok) {
+    const a = (u.atencao || [])[0];
+    if (a) return a.parte + ": " + a.oque;
+    const f = (u.itens || []).find(i => i.codigo);
+    if (f) return f.parte + ": " + String(f.texto || "falhou").split("\n")[0];
+    if (u.so_pdf) return "Deu errado — o detalhe desta rodada está no PDF do e-mail.";
+    return "Deu errado na última rodada.";
+  }
+  const t = r.tarefas.find(x => x.resultado_texto);
+  return t ? "A tarefa " + t.titulo + " " + t.resultado_texto + "." : "Deu errado na última rodada.";
+}
+function oQueFazer(r) {
+  const a = r.ult && !r.ult.ok && (r.ult.atencao || [])[0];
+  return a && a.fazer ? a.fazer : "";
+}
+function tarefaParaRodar(r) {
+  if (r.chave === "porteiro" || r.chave === "fila") return null;
+  return r.tarefas.find(t => t.estado !== "desligada" && /^MoraisEng - /.test(t.nome) && !/porteiro|\(fila\)/i.test(t.nome)) || null;
+}
+function podeRodar(r) { return PODE_RODAR && r.st !== "trab" && r.st !== "pedido" && !!tarefaParaRodar(r); }
+function aviso(txt) {
+  const d = document.createElement("div"); d.className = "toast"; d.textContent = txt; document.body.appendChild(d);
+  setTimeout(() => d.remove(), 5200);
+}
+const ERROS_RODAR = {
+  APENAS_ADM: "Só ADM e MASTER podem mandar rodar de novo.",
+  TAREFA_INVALIDA: "Essa tarefa não pode ser disparada pelo portal.",
+  FILA_NAO_CONFIGURADA: "Falta a Propriedade DB_FILA_ROBO no Apps Script (PORTAL-LEITURA) — veja o EscritorioRobos.gs.",
+  FILA_FALHOU: "Não consegui pôr o pedido na fila do Notion. Tente de novo em instantes."
+};
+async function pedirRodar(r, botao) {
+  const t = tarefaParaRodar(r); if (!t) return;
+  if (botao && botao.dataset.confirmar !== "1") {           // 1º clique pede confirmação no próprio botão
+    botao.dataset.confirmar = "1"; botao.textContent = "Confirmar: rodar agora?";
+    setTimeout(() => { if (botao.isConnected && botao.dataset.confirmar === "1") { botao.dataset.confirmar = ""; botao.textContent = "▶ Rodar de novo"; } }, 5000);
+    return;
+  }
+  if (botao) { botao.disabled = true; botao.textContent = "Enviando…"; }
+  let res = null;
+  try { res = await chamar({ action: "escritorioRodar", tarefa: t.nome }, 45000); } catch (e) { res = { ok: false, erro: e.message || String(e) }; }
+  if (!res || !res.ok) {
+    const er = String((res && res.erro) || "");
+    if (er === "NAO_AUTORIZADO") { sair(); return; }
+    aviso(/ACAO_DESCONHECIDA/.test(er) ? "Falta atualizar o EscritorioRobos.gs no Apps Script (versão e2)." : (ERROS_RODAR[er] || "Não deu para pedir: " + er));
+    if (botao && botao.isConnected) { botao.disabled = false; botao.dataset.confirmar = ""; botao.textContent = "▶ Rodar de novo"; }
+    return;
+  }
+  PEDIDOS[r.chave] = Date.now();
+  aviso("Pedido enviado: " + r.cat.nome + " roda de novo assim que o servidor pegar (até 1 min). O resultado chega aqui e no e-mail.");
+  pintar();
+  [50, 100, 160, 260].forEach(s => setTimeout(() => carregar(), s * 1000));     // acompanha mais de perto
 }
 
 /* ---------------- gaveta: horário + relatórios ---------------- */
@@ -492,7 +599,7 @@ function abrir(chave, manterAbertas) {
   let tarefas = r.tarefas.map(t => `<div class="tarefa">
       <span class="k">Tarefa</span><span>${esc(t.nome)}</span>
       <span class="k">Horário</span><span>${(t.horario || []).map(esc).join("<br>")}</span>
-      <span class="k">Situação</span><span>${esc(t.estado)}${t.resultado_texto ? " · última vez " + esc(t.resultado_texto) : ""}</span>
+      <span class="k">Situação</span><span>${esc(t.estado)}${t.resultado_texto && t.estado !== "trabalhando" ? " · última vez " + esc(t.resultado_texto) : ""}</span>
       <span class="k">Última</span><span>${esc(quando(t.ultima))}</span>
       <span class="k">Próxima</span><span>${esc(quando(t.proxima))}</span>
     </div>`).join("");
@@ -514,6 +621,10 @@ function abrir(chave, manterAbertas) {
   g.innerHTML = `<div class="g-top"><div class="g-ico">${c.ico}</div><div style="min-width:0"><div class="t" id="g-titulo">${esc(c.nome)}</div><div class="s">${esc(c.cargo)} · ${esc(r.stTexto)}</div></div>
       <button class="hbtn x" type="button" id="g-fechar">✕ Fechar</button></div>
     <div class="g-corpo">
+      ${r.st === "erro" ? `<div class="box causa"><h3>⚠ O que deu errado</h3><p>${esc(causaDe(r))}</p>${oQueFazer(r) ? `<p class="muted" style="margin-top:6px">O que fazer: ${esc(oQueFazer(r))}</p>` : ""}
+        <div class="acoes">${podeRodar(r) ? `<button type="button" class="bt rodar" id="g-rodar">▶ Rodar de novo</button><small>Roda a mesma tarefa do horário agora (relatório e e-mail inclusos). Se já estiver rodando, o servidor não abre outra.</small>`
+          : `<small>${r.chave === "porteiro" ? "O porteiro não se roda pelo portal: quem entra no Mais Controle é o dono, pela janela do Chrome central." : tarefaParaRodar(r) ? (PODE_RODAR ? "" : "Só ADM e MASTER podem mandar rodar de novo.") : "Este robô não tem tarefa que dê para rodar pelo portal."}</small>`}</div></div>`
+      : r.st === "pedido" ? `<div class="box causa" style="border-left-color:#e0b11f"><h3 style="color:#b8860b!important">⏳ Na fila para rodar de novo</h3><p>O servidor pega o pedido em até 1 min e roda a tarefa. A mesa muda para “rodando” e o relatório novo aparece aqui.</p></div>` : ""}
       <div class="box"><h3>O que faz</h3><p>${esc(c.faz)}</p></div>
       <div class="box"><h3>Quando trabalha</h3>${tarefas}</div>
       <div class="box"><h3>Relatórios das rodadas</h3>${r.rodadas.length ? `<p class="muted" style="font-size:12.5px;margin-bottom:6px">O mesmo relatório que chega por e-mail. Clique numa rodada para abrir.</p><div class="rods">${rods}</div>` : `<p class="muted">${r.chave === "porteiro" || r.chave === "fila" ? "Este robô não manda relatório por e-mail — a situação dele aparece acima." : "Nenhuma rodada relatada ainda."}</p>`}</div>
@@ -524,6 +635,7 @@ function abrir(chave, manterAbertas) {
   const abrirIdx = abertas || (r.rodadas[0] && !r.rodadas[0].ok ? ["0"] : []);
   abrirIdx.forEach(i => { const el = g.querySelector(`.rod[data-i="${i}"]`); if (el) { el.classList.add("aberta"); el.querySelector("button").setAttribute("aria-expanded", "true"); } });
   $("g-fechar").addEventListener("click", fechar);
+  const gr = $("g-rodar"); if (gr) gr.addEventListener("click", () => pedirRodar(r, gr));
   if (!manterAbertas) { g.classList.remove("hide"); $("veu").classList.remove("hide"); g.scrollTop = 0; $("g-fechar").focus(); }
 }
 function fechar() {
@@ -535,6 +647,24 @@ $("veu").addEventListener("click", fechar);
 document.addEventListener("keydown", e => { if (e.key === "Escape" && ABERTO) fechar(); });
 document.addEventListener("click", e => { const m = e.target.closest && e.target.closest(".mesa"); if (m) abrir(m.dataset.chave); });
 $("so-problema").addEventListener("change", pintar);
+
+/* ---------------- vista: sala 3D (padrão) ou lista ---------------- */
+let VISTA = "3d", SALA3D = false;
+try { if (localStorage.getItem("morais_escritorio_vista") === "lista") VISTA = "lista"; } catch (e) {}
+function trocarVista(v) {
+  VISTA = v;
+  if (v === "3d" && !SALA3D) {
+    $("sala3d").classList.remove("hide");
+    SALA3D = !!(window.Escritorio3D && Escritorio3D.iniciar($("sala3d")));
+    if (!SALA3D) { VISTA = "lista"; $("sala3d").classList.add("hide"); $("v-3d").disabled = true; $("v-3d").title = "Este aparelho não abre 3D (WebGL)"; }
+  }
+  $("v-3d").setAttribute("aria-pressed", VISTA === "3d"); $("v-lista").setAttribute("aria-pressed", VISTA === "lista");
+  try { localStorage.setItem("morais_escritorio_vista", VISTA); } catch (e) {}
+  pintar();
+}
+$("v-3d").addEventListener("click", () => trocarVista("3d"));
+$("v-lista").addEventListener("click", () => trocarVista("lista"));
+new MutationObserver(() => { if (SALA3D && VISTA === "3d") pintar(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-tema"] });
 
 /* ---------------- carga ---------------- */
 function erroTela(html) {
@@ -568,7 +698,8 @@ async function carregar(manual) {
   } finally { CARREGANDO = false; bt.disabled = false; }
 }
 $("bt-recarregar").addEventListener("click", () => carregar(true));
-try { const c = JSON.parse(localStorage.getItem(CACHE_LOCAL) || "null"); if (c && c.versao) { DADOS = c; pintar(); } } catch (e) {}
+try { const c = JSON.parse(localStorage.getItem(CACHE_LOCAL) || "null"); if (c && c.versao) { DADOS = c; } } catch (e) {}
+trocarVista(VISTA);
 carregar();
 setInterval(() => { if (!document.hidden) carregar(); }, RECARREGAR_MS);
 setInterval(() => { if (DADOS && !document.hidden && !ABERTO) pintar(); }, 60000);   // "há X min" anda sozinho
