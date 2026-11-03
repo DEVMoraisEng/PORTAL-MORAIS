@@ -325,10 +325,13 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 .cd-et b{display:block;font-size:12.5px;color:var(--text)}
 .cd-et small{display:block;color:var(--text3);font-size:11.5px}
 .cd-et.agora small{color:#8a5a12;font-weight:600}
+.cd-et.erro .bol{border:3px solid #C0392B;color:#a12d22;background:#FDECEA}
+.cd-et.erro small{color:#C0392B;font-weight:700}
 .cd-prox{display:flex;gap:10px;align-items:center;justify-content:space-between;background:var(--bg2);border:1px solid var(--border2);border-left:4px solid #B7791F;border-radius:10px;padding:9px 12px;margin-bottom:12px;font-size:13px}
 .cd-prox.ok{border-left-color:var(--verde)}
 .cd-etapa{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;border:1px solid #B7791F;color:#8a5a12;background:#FFF6DD;white-space:nowrap}
 .cd-etapa.ok{border-color:var(--verde);color:var(--verde-esc,#1a6b40);background:transparent}
+.cd-etapa.erro{border-color:#C0392B;color:#a12d22;background:#FDECEA}
 @media (max-width:640px){
   .cd-etapas{grid-template-columns:1fr;gap:6px}
   .cd-et{display:grid;grid-template-columns:32px 1fr;gap:10px;text-align:left;align-items:center}
@@ -1216,7 +1219,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 <script src="venda/FluxoLivre.js?v=11"></script><!-- 29/10: Alterar fluxo -->
 <script src="venda/quadro-fluxo.js?v=1"></script><!-- 31/10: quadro do pro soluto segue o fluxo alterado -->
 <script src="venda/Antecipacao.js?v=1"></script><!-- 31/10: Antecipação — a conta roda no navegador -->
-<script src="venda-dossie.js?v=63"></script>
+<script src="venda-dossie.js?v=64"></script>
 <script src="venda/contrato-vendida.js?v=2"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele.
@@ -2012,16 +2015,21 @@ function cdSit(l,col){ return String(cdVal(l,col)||"").trim().toUpperCase(); }
 function condEtapas(l){
   const g=n=>cdVal(l,n);
   const prSit=cdSit(l,"PRÉ-RESERVA - SITUAÇÃO"), aSit=cdSit(l,"ASSINATURA - SITUAÇÃO"), mcSit=cdSit(l,"MC - SITUAÇÃO");
+  /* 03/11/2026 (dono): progresso "3 de 5" gravado pela vigia; recusado/cancelado/expirado em vermelho; contrato gerado
+     direto com o termo nunca enviado = pré-reserva dispensada (mesma regra do servidor, PreReservaVenda.dispensada) */
+  const prProg=String(cdVal(l,"PRÉ-RESERVA - PROGRESSO")||"").trim(), aProg=String(cdVal(l,"ASSINATURA - PROGRESSO")||"").trim();
+  const ruim=s=>s==="RECUSADO"||s==="CANCELADO"||s==="EXPIRADO";
+  const prDisp=(cdTemArq(g("CONTRATO GERADO"))||!!aSit)&&prSit!=="ENVIADO"&&prSit!=="ASSINADO";
   const it=[
-    {nome:"Pré-reserva", alvo:".vb-pr", feito:prSit==="ASSINADO",
-     sub:prSit==="ASSINADO"?"assinado":prSit==="ENVIADO"?"assinando":cdTemArq(g("PRÉ-RESERVA - TERMO GERADO"))?"termo gerado":"a fazer",
+    {nome:"Pré-reserva", alvo:".vb-pr", feito:prSit==="ASSINADO"||prDisp, erro:!prDisp&&ruim(prSit),
+     sub:prDisp?"dispensada":prSit==="ASSINADO"?"assinado":prSit==="ENVIADO"?"assinando"+(prProg?" · "+prProg:""):ruim(prSit)?prSit.toLowerCase():cdTemArq(g("PRÉ-RESERVA - TERMO GERADO"))?"termo gerado":"a fazer",
      prox:prSit==="ENVIADO"?"esperar a assinatura do termo (ou reenviar o link)":cdTemArq(g("PRÉ-RESERVA - TERMO GERADO"))?"enviar o termo de pré-reserva para assinatura":"preencher a conta para devolução e gerar o termo de pré-reserva"},
     {nome:"Datas do fluxo", alvo:"#cd-ass", feito:!!(g("DATA DE ASSINATURA DO CONTRATO")&&g("DIA PAGAMENTO PARCELAS")&&g("DATA DA ENTREGA")),
      sub:"", prox:"preencher data de assinatura, dia de pagamento e entrega e salvar o fluxo"},
     {nome:"Contrato", alvo:".vb-ct", feito:cdTemArq(g("CONTRATO GERADO"))||!!aSit,
      sub:"", prox:"gerar o pré-contrato, conferir e gerar o contrato"},
-    {nome:"Assinaturas", alvo:".vb-ass", feito:aSit==="ASSINADO",
-     sub:aSit==="ENVIADO"?"assinando":aSit==="ASSINADO"?"assinado":"", prox:aSit==="ENVIADO"?"esperar as assinaturas (ou reenviar o link)":"enviar o contrato para assinatura na Clicksign"},
+    {nome:"Assinaturas", alvo:".vb-ass", feito:aSit==="ASSINADO", erro:ruim(aSit),
+     sub:aSit==="ENVIADO"?"assinando"+(aProg?" · "+aProg:""):aSit==="ASSINADO"?"assinado":ruim(aSit)?aSit.toLowerCase():"", prox:aSit==="ENVIADO"?"esperar as assinaturas (ou reenviar o link)":"enviar o contrato para assinatura na Clicksign"},
     {nome:"Mais Controle", alvo:".vb-mc", feito:!!String(g("MC - VENDA ID")||"").trim(),
      sub:/^PR[ÉE]VIA OK/.test(mcSit)?"prévia ok":/^PROCESSANDO/.test(mcSit)?"processando":"", prox:/^PR[ÉE]VIA OK/.test(mcSit)?"lançar a venda no Mais Controle":"ver a prévia e lançar no Mais Controle"}
   ];
@@ -2037,12 +2045,12 @@ function condEtapaTag(l){
   const e=condEtapas(l);
   if(e.atual<0) return '<span class="cd-etapa ok">Concluída</span>';
   const x=e.itens[e.atual];
-  return '<span class="cd-etapa">'+esc(x.nome)+(x.sub?' · '+esc(x.sub):'')+'</span>';
+  return '<span class="cd-etapa'+(x.erro?' erro':'')+'">'+esc(x.nome)+(x.sub?' · '+esc(x.sub):'')+'</span>';
 }
 function condEtapasHtml(l){
   const e=condEtapas(l);
   const faixa='<div class="cd-etapas">'+e.itens.map((x,i)=>{
-    const cl=x.feito?"feito":(i===e.atual?"agora":"");
+    const cl=x.feito?"feito":(x.erro?"erro":(i===e.atual?"agora":""));
     return '<div class="cd-et '+cl+'" onclick="condIrEtapa(\''+x.alvo+'\')" title="Ir para o bloco"><div class="bol">'+(x.feito?"✓":(i+1))+'</div><b>'+esc(x.nome)+'</b><small>'+esc(x.sub||"—")+'</small></div>';
   }).join("")+'</div>';
   const prox=e.atual<0

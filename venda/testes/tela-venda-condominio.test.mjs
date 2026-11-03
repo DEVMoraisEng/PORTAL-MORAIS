@@ -380,9 +380,10 @@ test("salvarConjugePreReserva com o envelope do termo aberto: ENVELOPE_ABERTO co
   assert.equal(r.erro, "ENVELOPE_ABERTO");
   assert.equal(r.mensagem, "O termo já foi enviado para assinatura. Para mudar quem assina, cancele o envelope do termo primeiro.");
   assert.equal(c.acao("preReservaEstado").incluirConjuge, false, "nada gravado");
-  /* envelope do CONTRATO aberto não trava o termo (são envelopes separados) */
+  /* 03/11 (dono): envelope do CONTRATO aberto com o termo nunca enviado = contrato gerado direto, pré-reserva dispensada
+     (antes: "não trava, são envelopes separados") */
   const k = cenarioPR({ linha: { ...CONTA_PR, ...CASADO_PR, "ASSINATURA - ENVELOPE ID": rt("env-contrato"), "ASSINATURA - SITUAÇÃO": rt("ENVIADO") } });
-  assert.equal(k.acao("salvarConjugePreReserva", { incluir: true }).ok, true);
+  assert.equal(k.acao("salvarConjugePreReserva", { incluir: true }).erro, "PRE_RESERVA_DISPENSADA");
 });
 
 test("preReservaEstado traz incluirConjuge e temConjuge; salvarConjugePreReserva recusa TESTES e página de outra base", () => {

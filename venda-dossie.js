@@ -2265,12 +2265,20 @@
       if (assinadoA()) return htmlHistorico(estadoC && estadoC.historico);
       return enviadoA() ? htmlContratoLeitura(estadoC, uiC) : htmlContrato(estadoC, uiC);
     }
+    /* 03/11 (dono): contrato gerado direto, termo nunca enviado = pré-reserva dispensada (o servidor também recusa).
+       "Gerado" aqui é o PDF em CONTRATO GERADO, como no servidor — não só o contrato final conferido. */
+    function dispensadaP() {
+      var VA = window.VendaAssinatura;
+      return !!(VA && VA.preReservaDispensada &&
+                VA.preReservaDispensada({ contratoGerado: !!(estadoC && estadoC.gerado), estado: ctxA && ctxA.estado }, ctxP));
+    }
     function htmlPR() {
       if (assinadoP()) return "";
       if (assinadoA()) return '<div class="grp">Pré-reserva</div><div class="vazio">O contrato já foi assinado por todos — a pré-reserva não muda mais.</div>';
+      if (dispensadaP()) return '<div class="grp">Pré-reserva</div><div class="vazio">Dispensada — o contrato desta unidade foi gerado direto, sem a pré-reserva.</div>';
       return htmlPreReserva(estadoP, uiP);
     }
-    function htmlAssPRVisivel() { return assinadoA() && !assinadoP() ? "" : htmlAssPR(); }
+    function htmlAssPRVisivel() { return (assinadoA() && !assinadoP()) || dispensadaP() ? "" : htmlAssPR(); }
     function garantirAssinados() {
       var VA = window.VendaAssinatura;
       if (!VA || !vivo()) return;
@@ -3437,7 +3445,7 @@
       if (comPR && !ctxP.estado) carregarAssPR();
     };
     eu.raiz = function () { return raiz; };
-    eu.pintarAssinatura = function () { pintarA(); if (comPR) { var a = dentro(".vb-pr-ass"); if (a) a.innerHTML = htmlAssPR(); } };
+    eu.pintarAssinatura = function () { pintarA(); if (comPR) { var a = dentro(".vb-pr-ass"); if (a) a.innerHTML = htmlAssPRVisivel(); } };
     eu.parar = function () { if (esperaM) clearTimeout(esperaM); esperaM = null; if (esperaA) clearTimeout(esperaA); esperaA = null; uiA.acompanhando = false; };
     /* 31/10: o Financeiro lê as parcelas só ao abrir; o Antecipar confere a data e, se a simulação já estava aberta, o estado */
     eu.abrirAba = function (aba) {
@@ -3543,7 +3551,7 @@
        Carrega mesmo sem o painel da casa: o cartão do condomínio também usa. */
     /* 30/10: leitor das rubricas do comprador (pdf.js só carrega na hora de enviar) */
     var sr = document.createElement("script"); sr.src = "venda/RubricasVenda.js?v=8"; document.head.appendChild(sr);
-    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=25";
+    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=26";
     sa.onload = function () { [blocosCasa, blocosCond, blocosPR].forEach(function (b) { if (b) b.pintarAssinatura(); }); };
     document.head.appendChild(sa);
     var body = document.getElementById("pn-body"); if (!body) return;

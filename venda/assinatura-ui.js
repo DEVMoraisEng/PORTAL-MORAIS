@@ -83,6 +83,14 @@
     var e = c && c.estado, s = situacaoDe(e);
     return !!(e && e.envelope && REENVIAVEL.indexOf(s) < 0 && s !== "ASSINADO");
   }
+  /* 03/11/2026 (dono): contrato gerado direto (PDF ou envelope do contrato) e termo nunca enviado = pré-reserva dispensada.
+   * Termo ENVIADO ou ASSINADO continua valendo. Termo ainda carregando (estado null): não decide. Mesma regra do servidor
+   * (PreReservaVenda.dispensada). */
+  function preReservaDispensada(cA, cP) {
+    if (!cA || !cP || !cP.estado) return false;
+    var temContrato = !!cA.contratoGerado || !!(cA.estado && cA.estado.envelope), s = situacaoDe(cP.estado);
+    return temContrato && s !== "ENVIADO" && s !== "ASSINADO";
+  }
   var MSG_DESATUALIZADO = "O fluxo ou as condições especiais mudaram depois do contrato. Gere o contrato de novo antes de enviar.";
   /* entrega 14: todos assinaram e o PDF assinado já está na casa (CONTRATO ASSINADO) */
   function podeVerAssinado(c) { return !!(c.estado && situacaoDe(c.estado) === "ASSINADO" && c.estado.temAssinado); }
@@ -461,7 +469,7 @@
                    executarAcaoAssinatura: executarAcaoAssinatura, prepararRubricas: prepararRubricas, caixasDaPrevia: caixasDaPrevia, TINTA: TINTA, podeEnviar: podeEnviar, podeReenviar: podeReenviar, podeCancelar: podeCancelar, podeDescartar: podeDescartar,
                    podeVerAssinado: podeVerAssinado, nomeArquivoAssinado: nomeArquivoAssinado, precisaCarregarAssinados: precisaCarregarAssinados,
                    carregarAssinados: carregarAssinados, baixarAssinado: baixarAssinado, assinado: assinado,
-                   envelopeAberto: envelopeAberto, MSG_DESATUALIZADO: MSG_DESATUALIZADO };
+                   envelopeAberto: envelopeAberto, MSG_DESATUALIZADO: MSG_DESATUALIZADO, preReservaDispensada: preReservaDispensada };
   if (typeof module !== "undefined" && module.exports) { module.exports = exportar; return; }
   window.VendaAssinatura = exportar; /* o coordenador liga no painel (venda-dossie.js / vendas.html) */
 })();

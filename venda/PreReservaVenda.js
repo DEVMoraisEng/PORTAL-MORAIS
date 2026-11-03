@@ -210,7 +210,14 @@ var PreReservaVenda = (function () {
     return lerConta(s).forma ? { ok: true, valor: s } : { ok: false, erro: "FORMA_CONTA" };
   }
 
-  var api = { COL: COL, TIPOS: TIPOS, montar: montar, faltas: faltas, marcadores: marcadores, baseCarimbo: baseCarimbo,
+  /* 03/11/2026 (dono): contrato gerado direto, sem o termo ter ido para assinatura (vazio, rascunho, cancelado,
+   * recusado, expirado) = a pré-reserva desta unidade foi dispensada. Termo ENVIADO ou ASSINADO continua valendo. */
+  function dispensada(situacaoTermo, temContrato) {
+    var s = limpa(situacaoTermo).toUpperCase();
+    return !!temContrato && s !== "ENVIADO" && s !== "ASSINADO";
+  }
+
+  var api = { COL: COL, TIPOS: TIPOS, montar: montar, faltas: faltas, marcadores: marcadores, baseCarimbo: baseCarimbo, dispensada: dispensada,
               validarConta: validarConta, montarConta: montarConta, lerConta: lerConta, TIPOS_CONTA: TIPOS_CONTA,
               valorDe: valorDe, dataIso: dataIso, prazoDe: prazoDe, PRAZO_DIAS: PRAZO_DIAS, validarPagamento: validarPagamento, sinalDoFluxo: sinalDoFluxo,
               linhaHistorico: linhaHistorico, juntarHistorico: juntarHistorico };
