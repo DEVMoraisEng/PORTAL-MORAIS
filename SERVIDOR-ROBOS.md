@@ -278,7 +278,10 @@ Devolver ao dono a saída inteira (só tem chaves, contagens e a validade do lin
 O esperado (desde 82f5519 o nº do lançamento é traduzido para o UUID pela lista
 `/payable-installments/paginated-result`): `campo com o nº do lançamento: <caminho>` (não "NÃO ACHADO"),
 `lançamentos do escopo achados` > 0, em cada lançamento `tradePayable: uuid · baixas: N · arquivos: N`,
-`get-url: link ok`, e a última linha `OK: N lançamento(s) lido(s) na descoberta.` Se falhar, a última linha é
+`get-url: link ok`, e a última linha `OK: N lançamento(s) lido(s) na descoberta.` Desde a 2ª descoberta (03/11, tarde) a
+lista exige centro de custo: o robô copia os parâmetros do pedido que a própria tela do porteiro fez
+(linha `pedido da lista feito pela tela do porteiro: {…}` — só nomes e a forma dos valores) e mostra cada forma
+tentada (`forma '…': N página(s), N do escopo`). Se falhar, a última linha é
 `FALHOU: … — <causa>` e o bloco "erros por rota (todos)" mostra o erro de cada rota; o código de saída é 1.
 
 ## 5. (servidor) Primeira rodada de verdade

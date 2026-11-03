@@ -122,3 +122,39 @@ def test_descoberta_sem_lancamento_sai_com_erro():
 def test_validade():
     assert ra.validade_s("https://x/a?X-Amz-Expires=3600") == 3600
     assert ra.validade_s("https://x/a") is None
+
+
+class ErpComCentroDeCusto(ErpFalso):
+    """03/11 (2ª descoberta no servidor): sem costCenterIds o MC recusa a lista; a tela do porteiro pediu com eles."""
+    TELA = ("https://legacy-api.maiscontroleerp.com.br/maiscontrole/services/payable-installments/paginated-result"
+            "?page=0&size=20&dateField=PLANNED&startDate=2026-11-01&endDate=2026-11-30"
+            "&costCenterIds=11111111-0000-4000-8000-000000000000&costCenterIds=22222222-0000-4000-8000-000000000000"
+            "&status=OPEN")
+
+    def pedido_da_tela(self, trecho, espera=20.0):
+        return self.TELA if trecho in self.TELA else None
+
+    def pedir(self, metodo, caminho, corpo=None, params=None):
+        if caminho == "/payable-installments/paginated-result":
+            self.pedidos.append((caminho, params))
+            if not params.get("costCenterIds"):
+                raise RuntimeError('HTTP 400: {"message":"O centro de custo deve ser especificado"}')
+            assert params["costCenterIds"] == ["11111111-0000-4000-8000-000000000000", "22222222-0000-4000-8000-000000000000"]
+            if params.get("status") == ["OPEN"]:            # só as abertas: nenhuma paga — tenta sem a situação
+                return {"content": [], "hasNextPage": False}
+            p = dict(params, page=int(params["page"][0]))
+            return ErpFalso.pedir(self, metodo, caminho, corpo, dict(p, dateField=None))
+        return ErpFalso.pedir(self, metodo, caminho, corpo, params)
+
+
+def test_lista_copia_os_parametros_da_tela_e_troca_janela_e_pagina():
+    erp = ErpComCentroDeCusto()
+    leitor = ra.LeitorMC(erp)
+    assert ra.descobrir(leitor, {101: D(5), 303: D(10)}) == 0
+    assert leitor.params_ok[0] == "da tela, sem filtro de situação"
+    q = [p for c, p in erp.pedidos if c == "/payable-installments/paginated-result"][0]
+    assert q["dateField"] == ["DATE_OF_PAYMENT"] and q["size"] == ["100"] and q["page"] == ["0"]
+    assert q["startDate"] == [(HOJE - dt.timedelta(days=ra.DIAS + 120)).isoformat()]
+    assert q["endDate"] == [(HOJE + dt.timedelta(days=30)).isoformat()]
+    assert leitor.formato_da_tela()["costCenterIds"] == "uuid×2" and leitor.formato_da_tela()["status"] == "OPEN"
+    assert [t[0] for t in leitor.tentativas][:3] == ["da tela, por data de pagamento", "da tela", "da tela, sem filtro de situação"]
