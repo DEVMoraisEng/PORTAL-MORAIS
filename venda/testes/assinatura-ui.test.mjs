@@ -461,9 +461,9 @@ test("prévia: caixas onde a TINTA vai cair (calibração u22): assinatura +2…
   assert.deepEqual(cx[0], { doc: "contrato", page: "3", papel: "Comprador 1", kind: "initials", position: [0.1, 0.4], tinta: [0, 9, 27, 27] });
   assert.deepEqual(cx[1].tinta, [2, 18, 99, 29]);
 });
-test("prévia: o botão aparece com o contrato gerado e sem envelope; o clique lê o PDF, pede a prévia e mostra as caixas", async () => {
+test("prévia: sem botão na tela (dono 03/11); a ação a-previa lê o PDF, pede a prévia e mostra as caixas", async () => {
   const h = A.montarBlocoAssinatura(ctx());
-  assert.equal(botao(h, "a-previa").length, 1);
+  assert.equal(botao(h, "a-previa").length, 0);
   assert.equal(botao(A.montarBlocoAssinatura(ctx({ contratoGerado: false })), "a-previa").length, 0);
   const chamadas = [], mostrado = [];
   const leitor = { paginasDoPdf: async () => [], acharNoContrato: () => ({ campos: [{ page: "3", position: [0.4, 0.5] }], valores: null, avisos: [] }), acharLinhas: () => [] };
@@ -507,8 +507,9 @@ test("03/11: clique em Enviar com o contrato desatualizado não chama o servidor
   assert.match(A.mensagemAssinatura({ erro: "CONTRATO_DESATUALIZADO" }), /gere de novo/, "carimbo (sem mensagem) segue com o texto de antes");
   assert.equal(A.mensagemAssinatura({ erro: "ENVELOPE_ABERTO", mensagem: "cancele o envelope" }), "cancele o envelope");
 });
-test("03/11: com o envelope aberto o bloco da Clicksign segue com Atualizar, Reenviar, Cancelar e Prévia", () => {
+test("03/11: com o envelope aberto o bloco da Clicksign segue com Atualizar, Reenviar e Cancelar (sem Prévia)", () => {
   const h = A.montarBlocoAssinatura(ctx({ estado: { situacao: "ENVIADO", envelope: true, signatarios: [{ papel: "Comprador 1", situacao: "pendente" }] } }));
-  for (const a of ["a-atualizar", "a-reenviar", "a-cancelar", "a-previa"]) assert.equal(botao(h, a).length, 1, a);
+  for (const a of ["a-atualizar", "a-reenviar", "a-cancelar"]) assert.equal(botao(h, a).length, 1, a);
+  assert.equal(botao(h, "a-previa").length, 0);
   assert.doesNotMatch(botao(h, "a-cancelar")[0], /disabled/);
 });
