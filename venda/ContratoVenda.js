@@ -495,7 +495,6 @@ var ContratoVenda = (function () {
     return t.slice(0, -1).join(", ") + " e " + t[t.length - 1];
   }
   /* 03/11 (dono): identificação do bem da permuta no inciso VI (redação a validar com o advogado) */
-  function milhar(n) { return String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, "."); }
   function docBem(d) { var F = FLV(); return (String(d || "").length > 11 ? "CNPJ " : "CPF ") + F.docFormatado(d); }
   function identificacaoBem(b) {
     if (!b || !FLV().TIPOS_BEM.hasOwnProperty(b.tipo)) return "";
@@ -506,7 +505,7 @@ var ContratoVenda = (function () {
         : "quitado e sem alienação";
       return "veículo marca " + txt(b.marca) + ", modelo " + txt(b.modelo) + ", ano de fabricação " + b.anoFab + " e ano do modelo " + b.anoModelo +
         ", cor " + txt(b.cor) + ", placa " + txt(b.placa) + ", RENAVAM " + txt(b.renavam) + ", chassi " + txt(b.chassi) +
-        ", com " + milhar(b.km) + " km rodados, de propriedade de " + txt(b.propNome) + ", " + docBem(b.propDoc) + ", " + sit +
+        ", de propriedade de " + txt(b.propNome) + ", " + docBem(b.propDoc) + ", " + sit +
         (txt(b.obs) ? ", estado de conservação: " + txt(b.obs) : "");
     }
     if (b.tipo === "imovel")

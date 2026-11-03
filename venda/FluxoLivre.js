@@ -52,7 +52,7 @@ var FluxoLivre = (function () {
   /* ---- 03/11/2026 (dono): dados do bem da PERMUTA ----
    * "quando tiver permuta, hora que salvar, pede para quem tiver preenchendo colocar as informações da permuta; se for
    * automóvel, colocar os dados básicos que um contrato de permuta pede". A linha de permuta ganha l.b (o bem):
-   *   veículo: { tipo: "veiculo", marca, modelo, anoFab, anoModelo, cor, placa, renavam, chassi, km, propNome, propDoc,
+   *   veículo: { tipo: "veiculo", marca, modelo, anoFab, anoModelo, cor, placa, renavam, chassi, propNome, propDoc,
    *              situacao: "quitado" | "alienado", credor, saldo, quitaPor, obs }
    *   imóvel:  { tipo: "imovel", endereco, matricula, cartorio, propNome, propDoc, onus }
    *   outro:   { tipo: "outro", descricao }
@@ -116,8 +116,7 @@ var FluxoLivre = (function () {
       o.marca = so(b.marca, 40); o.modelo = so(b.modelo, 60);
       o.anoFab = inteiro(String(b.anoFab || "").slice(0, 4)) || 0; o.anoModelo = inteiro(String(b.anoModelo || "").slice(0, 4)) || 0;
       o.cor = so(b.cor, 30); o.placa = placaNormal(b.placa); o.renavam = renavamNormal(b.renavam); o.chassi = chassiNormal(b.chassi);
-      var km = inteiro(String(b.km === null || b.km === undefined ? "" : b.km).slice(0, 12));
-      if (km !== null) o.km = km;
+      /* dono 03/11: sem quilometragem — o km de um bem gravado antes é ignorado */
       o.propNome = so(b.propNome, 120); o.propDoc = digitos(b.propDoc).slice(0, 14);
       o.situacao = b.situacao === "quitado" || b.situacao === "alienado" ? b.situacao : "";
       if (o.situacao === "alienado") {
@@ -158,7 +157,6 @@ var FluxoLivre = (function () {
       else if (!renavamValido(b.renavam)) f.push("RENAVAM inválido (11 dígitos, confira o último)");
       if (!b.chassi) f.push("chassi");
       else if (!RE_CHASSI.test(b.chassi)) f.push("chassi com 17 letras e números, sem I, O e Q");
-      if (b.km === undefined || b.km === null) f.push("quilometragem");
       prop();
       if (!b.situacao) f.push("situação: quitado ou alienado/financiado");
       if (b.situacao === "alienado") {

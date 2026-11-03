@@ -1271,7 +1271,7 @@ linha de permuta sem os dados completos; só salva depois de "Confirmar dados do
 "Dados do bem" para preencher antes.
 
 - **Veículo:** marca, modelo, ano de fabricação e do modelo, cor, placa (ABC1234 ou ABC1D23), RENAVAM (11 dígitos, dígito
-  conferido), chassi (17, sem I/O/Q), quilometragem, proprietário (nome + CPF/CNPJ conferidos), quitado ou alienado
+  conferido), chassi (17, sem I/O/Q), proprietário (nome + CPF/CNPJ conferidos), quitado ou alienado
   (credor, saldo devedor estimado e quem quita — padrão "o COMPRADOR, antes da entrega"), observações opcionais.
   **Imóvel:** endereço, matrícula, cartório (CRI), proprietário, ônus (em branco = "nenhum"). **Outro:** descrição com
   20 letras ou mais. A data de entrega do bem é a 1ª data da própria linha.
@@ -1283,5 +1283,5 @@ linha de permuta sem os dados completos; só salva depois de "Confirmar dados do
   (livre de ônus, multas e tributos até a entrega, evicção e vícios ocultos, ATPV-e/CRV ou escritura, quitação do
   gravame pelo COMPRADOR, valor definitivo sem correção) — redação a validar com o advogado. Os termos de confissão
   continuam sem a permuta.
-- Nada a configurar: sobe com o site (FluxoLivre v7, venda-dossie v57) e o Apps Script (`FluxoLivre.js`,
+- Nada a configurar: sobe com o site (FluxoLivre v9, venda-dossie v58) e o Apps Script (`FluxoLivre.js`,
   `FluxoVenda.gs`, `ContratoVenda.js`).

@@ -31,11 +31,11 @@ test("documentos: CPF, CNPJ e RENAVAM pelo dígito; placa antiga e Mercosul; cha
   assert.equal(F.chassiValido("9BWZZZ377VT00425O"), false, "com O");
 });
 
-test("normalizarBem limpa: placa sem traço e maiúscula, chassi maiúsculo, km e documento só dígitos, campos de outro tipo somem", () => {
+test("normalizarBem limpa: placa sem traço e maiúscula, chassi maiúsculo, documento só dígitos, km (fora desde 03/11) ignorado, campos de outro tipo somem", () => {
   const b = F.normalizarBem({ ...carro(), endereco: "não é de veículo", lixo: 1 });
   assert.equal(b.placa, "ABC1D23");
   assert.equal(b.chassi, "9BWZZZ377VT004251");
-  assert.equal(b.km, 45000);
+  assert.equal(b.km, undefined, "dono 03/11: sem quilometragem — o km de um bem antigo é ignorado");
   assert.equal(b.propDoc, "52998224725");
   assert.equal(b.endereco, undefined);
   assert.equal(b.lixo, undefined);
@@ -50,8 +50,9 @@ test("veículo completo: valida e vira um resumo curto (vai para a descrição e
 
 test("veículo incompleto: diz o que falta, campo por campo", () => {
   const f = F.faltasBem(F.normalizarBem({ tipo: "veiculo" }));
-  for (const m of [/marca/, /modelo/, /ano de fabricação/, /ano do modelo/, /cor/, /placa/, /RENAVAM/, /chassi/, /quilometragem/, /proprietário/, /CPF ou CNPJ/, /quitado ou alienado/])
+  for (const m of [/marca/, /modelo/, /ano de fabricação/, /ano do modelo/, /cor/, /placa/, /RENAVAM/, /chassi/, /proprietário/, /CPF ou CNPJ/, /quitado ou alienado/])
     assert.ok(f.some((x) => m.test(x)), m + " em " + f.join(" | "));
+  assert.ok(!f.some((x) => /quilometragem/.test(x)), "km não é pedido");
   const ruim = F.faltasBem(F.normalizarBem({ ...carro(), renavam: "00639884961", placa: "AB12345", chassi: "123", propDoc: "529.982.247-24", anoModelo: 2022 }));
   assert.ok(ruim.some((x) => /RENAVAM inválido/.test(x)));
   assert.ok(ruim.some((x) => /placa inválida/.test(x)));

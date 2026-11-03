@@ -104,10 +104,11 @@ test("03/11 permuta de veículo: inciso VI com a identificação inteira e as ob
   const i = t.indexOf("VI — BEM DADO EM PAGAMENTO (permuta), sem correção monetária:");
   assert.ok(i > 0, t.join("\n"));
   assert.equal(t[i + 1], "a) veículo marca Hyundai, modelo HB20, ano de fabricação 2019 e ano do modelo 2020, cor prata, placa ABC1D23, " +
-    "RENAVAM 00000000000, chassi 9BWZZZ377VT004251, com 45.000 km rodados, de propriedade de Fulano de Teste, CPF 529.982.247-25, " +
+    "RENAVAM 00000000000, chassi 9BWZZZ377VT004251, de propriedade de Fulano de Teste, CPF 529.982.247-25, " +
     "alienado fiduciariamente (financiado) a Banco de Teste S.A., com saldo devedor estimado de R$ 8.000,00 (oito mil reais), " +
     "responsável pela quitação: o COMPRADOR, antes da entrega, estado de conservação: bom estado, pneus novos, " +
     "recebido pelo valor de R$ 12.200,00 (doze mil e duzentos reais), com entrega em 15/11/2026.");
+  assert.doesNotMatch(t.join("\n"), /km rodados/, "dono 03/11: sem quilometragem (o km do bem antigo é ignorado)");
   const ob = t[i + 2];
   for (const m of [/livre e desembaraçado de quaisquer ônus/, /multas/, /IPVA e licenciamento/, /até a data da efetiva entrega/, /evicção/,
     /vícios ocultos/, /ATPV-e\/CRV\) em favor da VENDEDORA ou de quem ela indicar/, /documentação e as chaves/,

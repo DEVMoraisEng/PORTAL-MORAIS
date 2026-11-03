@@ -208,8 +208,9 @@ test("formulário do bem: abre no próprio cartão, campos do veículo, cabe no 
   const painel = (h.match(/<div class="vb-fx-bem".*?<!--\/vb-fx-bem-->/s) || [""])[0];
   assert.ok(painel, "painel do bem");
   assert.match(painel, /Dados do bem da permuta — linha 4/);
-  for (const c of ["tipo", "marca", "modelo", "anoFab", "anoModelo", "cor", "placa", "renavam", "chassi", "km", "propNome", "propDoc", "situacao", "d", "obs"])
+  for (const c of ["tipo", "marca", "modelo", "anoFab", "anoModelo", "cor", "placa", "renavam", "chassi", "propNome", "propDoc", "situacao", "d", "obs"])
     assert.match(painel, new RegExp('data-fxb="' + c + '" data-k="3"'), c);
+  assert.doesNotMatch(painel, /data-fxb="km"|Quilometragem/, "dono 03/11: sem quilometragem");
   assert.doesNotMatch(painel, /data-fxb="credor"/, "credor só com alienado");
   assert.match(painel, /grid-template-columns:repeat\(auto-fit,minmax\(min\(100%,13em\),1fr\)\)/);
   assert.match(painel, /value="2026-11-20"/, "data de entrega = a data da linha");

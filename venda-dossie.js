@@ -883,7 +883,7 @@
     veiculo: [["marca", "Marca", { max: 40 }], ["modelo", "Modelo", { max: 60 }], ["anoFab", "Ano de fabricação", { num: 1, max: 4 }],
               ["anoModelo", "Ano do modelo", { num: 1, max: 4 }], ["cor", "Cor", { max: 30 }],
               ["placa", "Placa", { max: 8, maiusc: 1, ph: "ABC1D23" }], ["renavam", "RENAVAM", { num: 1, max: 11, ph: "11 dígitos" }],
-              ["chassi", "Chassi", { max: 17, maiusc: 1, ph: "17 letras e números" }], ["km", "Quilometragem (km)", { num: 1, max: 9 }],
+              ["chassi", "Chassi", { max: 17, maiusc: 1, ph: "17 letras e números" }],
               ["propNome", "Proprietário atual (nome)", { max: 120 }], ["propDoc", "CPF ou CNPJ do proprietário", { num: 1, max: 18 }]],
     imovel: [["endereco", "Endereço completo do imóvel", { max: 300 }], ["matricula", "Matrícula", { max: 40 }],
              ["cartorio", "Cartório de registro de imóveis (CRI)", { max: 120, ph: "ex.: 1º CRI de Cidade" }],
