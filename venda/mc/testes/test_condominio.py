@@ -568,3 +568,28 @@ def test_permuta_com_os_dados_do_bem_vai_com_o_resumo_no_comentario(monkeypatch)
     assert r["situacao"] == "PREVIA", r
     coments = [i["comment"] for i in r["corpo_venda"]["tradeReceivable"]["installments"] if "Permuta" in (i.get("comment") or "")]
     assert coments == ["Permuta - Hyundai HB20 2019/2020 placa ABC1D23"]
+
+
+# 03/11/2026 (dono): balão diluído 100% arredonda a parcela para cima e some; o robô tira os centavos da última pré-chaves
+def _ps(valores):
+    return [{"tipo": t, "rotulo": r, "valor": v, "data": None, "tabela": tb} for t, r, v, tb in valores]
+
+
+def test_fechar_centavos_da_diluicao_na_ultima_pre_chaves():
+    ps = _ps([(R.TIPO_SINAL, "Sinal ato", 1000.00, None),
+              (R.TIPO_PARCELA, "Pré-chaves 1ª parte 1/12", 5040.35, C.TABELA_PRE),
+              (R.TIPO_PARCELA, "Pré-chaves 2ª parte 12/12", 2718.61, C.TABELA_PRE),
+              (R.TIPO_PARCELA, "Pós-chaves 1/12", 800.00, C.TABELA_POS),
+              (R.TIPO_FINANCIAMENTO, "Financiamento", 214200.00, None)])
+    total = round(sum(p["valor"] for p in ps) - 0.09, 2)
+    C.fechar_centavos(ps, total)
+    assert ps[2]["valor"] == 2718.52 and ps[1]["valor"] == 5040.35 and ps[3]["valor"] == 800.00
+    assert round(sum(p["valor"] for p in ps), 2) == total
+
+
+def test_fechar_centavos_nao_mexe_em_diferenca_grande():
+    ps = _ps([(R.TIPO_PARCELA, "Pré-chaves 1ª parte 1/1", 1000.00, C.TABELA_PRE)])
+    C.fechar_centavos(ps, 998.50)   # soma R$ 1,50 acima: não é centavo de diluição
+    assert ps[0]["valor"] == 1000.00
+    C.fechar_centavos(ps, 1000.20)  # soma abaixo do valor: falta, o robô não inventa dinheiro
+    assert ps[0]["valor"] == 1000.00

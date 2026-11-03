@@ -975,7 +975,10 @@ var ContratoVenda = (function () {
     }
     if (positivo(fl.valorVenda) && !co.livre) {
       var soma = so2(somaFluxo(fl) + excedenteSinal(co));
-      if (Math.abs(soma - fl.valorVenda) > 0.05)
+      /* 03/11 (dono): soma ACIMA do valor até R$ 1,00 passa — balão diluído 100% arredonda a parcela para cima; o robô
+         fecha na última pré-chaves. Abaixo, a tolerância segue 0,05. */
+      var sobra = so2(soma - fl.valorVenda);
+      if (sobra > 1.00 || sobra < -0.05)
         faltas.push(g + ": soma R$ " + moedaBR(soma) + " e não fecha com o valor de venda R$ " + moedaBR(fl.valorVenda));
     }
 

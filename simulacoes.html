@@ -2886,14 +2886,18 @@ function propDilOriginal(p){
   const st=PROP_DIL[p.id]||{};
   return p.esquemaOriginal || st.orig || "";
 }
+/* 03/11: o trecho do fluxo original pelo quando + forma, não pela posição — o balão diluído 100% sai do texto
+   e os trechos depois dele mudam de posição */
+function propDilChave(f){ return f.grupo+"|"+f.quando+"|"+f.forma; }
+function propDilPorChave(orig){ const o={}; propParseEsquema(orig).forEach(f=>{ o[propDilChave(f)]=f.valor; }); return o; }
 /* % já diluído de cada balão em relação ao original (0 se nunca foi) */
 function propDilJa(p, fluxo, m){
   const orig=propDilOriginal(p); const out={};
   if(!orig) return out;
-  const porI={}; propParseEsquema(orig).forEach(f=>{ porI[f.i]=f.valor; });
+  const porI=propDilPorChave(orig);
   m.baloes.forEach((bi,b)=>{
-    const f=fluxo[bi], o=propNumBR(porI[f.i]), a=propNumBR(f.valor);
-    if(o>0 && Math.abs(o-a)>0.009) out[b]={pct:Math.round((o-a)/o*100), era:porI[f.i]};
+    const f=fluxo[bi], era=porI[propDilChave(f)], o=propNumBR(era), a=propNumBR(f.valor);
+    if(o>0 && Math.abs(o-a)>0.009) out[b]={pct:Math.round((o-a)/o*100), era:era};
   });
   return out;
 }
@@ -2901,15 +2905,16 @@ function propDilAplicar(p, fluxo){
   const st=PROP_DIL[p.id]; const m=propDilMapa(fluxo);
   const orig=propDilOriginal(p);
   if(orig){                   // já gravado: marca o que mudou em relação ao fluxo original
-    const porI={}; propParseEsquema(orig).forEach(f=>{ porI[f.i]=f.valor; });
+    const porI=propDilPorChave(orig);
     fluxo.forEach((f,ix)=>{
-      if(!(f.grupo==="obra"||f.grupo==="balao") || porI[f.i]==null) return;
-      const o=propNumBR(porI[f.i]), a=propNumBR(f.valor);
+      const era=porI[propDilChave(f)];
+      if(!(f.grupo==="obra"||f.grupo==="balao") || era==null) return;
+      const o=propNumBR(era), a=propNumBR(f.valor);
       if(Math.abs(o-a)<=0.009) return;
       m.mudou.add(ix);
       f.dilTxt = f.grupo==="balao"
-        ? "✓ "+Math.round((o-a)/o*100)+"% deste balão diluído nas parcelas (era "+porI[f.i]+")"
-        : "✓ recebeu balão diluído: + "+propBRL2(a-o)+" por parcela (era "+porI[f.i]+")";
+        ? "✓ "+Math.round((o-a)/o*100)+"% deste balão diluído nas parcelas (era "+era+")"
+        : "✓ recebeu balão diluído: + "+propBRL2(a-o)+" por parcela (era "+era+")";
     });
   }
   if(!st || !st.sel) return m;
@@ -2918,23 +2923,27 @@ function propDilAplicar(p, fluxo){
     const fb=fluxo[bi], fa=fluxo[ai];
     const vb=propNumBR(fb.valor), va=propNumBR(fa.valor);
     const qtd=parseInt(String(fa.quando||"").replace(/\D/g,""),10)||1;
-    const add = pct===100 ? Math.floor(vb/qtd*100+1e-6)/100 : Math.round(vb*pct/100/qtd*100)/100;   // 100%: não deixa o balão negativo
+    /* 03/11 (dono): 100% arredonda a parcela PARA CIMA e o balão some — nada de balão de centavos (UN32 saiu com
+       R$ 0,04 e R$ 0,11). Os centavos a mais o robô tira da última pré-chaves ao lançar (venda/mc/condominio.py). */
+    const add = pct===100 ? Math.ceil(vb/qtd*100-1e-6)/100 : Math.round(vb*pct/100/qtd*100)/100;
     fa.valor=fa.novoValor=propBRL2(va+add);
-    fb.valor=fb.novoValor=propBRL2(vb-add*qtd);
+    fb.valor=fb.novoValor=propBRL2(pct===100 ? 0 : vb-add*qtd);
+    if(pct===100) fb.sai=true;
     fa.dilTxt="PRÉVIA — + "+propBRL2(add)+" por parcela ("+pct+"% do balão)";
-    fb.dilTxt="PRÉVIA — "+pct+"% do valor atual diluído nas parcelas";
+    fb.dilTxt=pct===100 ? "PRÉVIA — balão inteiro diluído nas parcelas; sai do fluxo" : "PRÉVIA — "+pct+"% do valor atual diluído nas parcelas";
     m.mudou.add(ai); m.mudou.add(bi); m.previa=true;
   });
   return m;
 }
-/* troca só o valor (R$) dos trechos alterados — o resto do texto fica igual */
+/* troca só o valor (R$) dos trechos alterados — o resto do texto fica igual; o balão diluído 100% sai */
 function propDilEsquemaNovo(txt, fluxo){
-  const mapa={}; fluxo.forEach(f=>{ if(f.novoValor) mapa[f.i]=f.novoValor; });
+  const mapa={}, sai={}; fluxo.forEach(f=>{ if(f.novoValor) mapa[f.i]=f.novoValor; if(f.sai) sai[f.i]=1; });
   let k=-1;
   return String(txt).split(";").map(seg=>{
     if(!seg.trim()) return seg; k++;
+    if(sai[k]) return null;
     return mapa[k]==null ? seg : seg.replace(/R\$\s?[\d.,]+/, mapa[k]);
-  }).join(";");
+  }).filter(seg=>seg!==null).join(";");
 }
 /* barra de andamento com % (estimado pelo tempo típico) + etapas + segundos */
 function propDilProg(av, etapas, estimSeg){

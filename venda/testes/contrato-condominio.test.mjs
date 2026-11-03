@@ -164,6 +164,9 @@ test("faltas que travam: assinatura, dia, entrega, valor de venda, fluxo que nã
   assert.deepEqual(f({ valorVenda: null }), ["Fluxo de pagamento: valor de venda"]);
   assert.deepEqual(f({ valorVenda: 305000.05 }), [], "0,05 de diferença passa");
   assert.deepEqual(f({ valorVenda: 305000.06 }), ["Fluxo de pagamento: soma R$ 305.000,00 e não fecha com o valor de venda R$ 305.000,06"]);
+  /* 03/11 (dono): balão diluído 100% arredonda a parcela para cima — soma acima do valor até R$ 1,00 passa */
+  assert.deepEqual(f({ valorVenda: 304999.00 }), [], "soma R$ 1,00 acima passa");
+  assert.deepEqual(f({ valorVenda: 304998.99 }), ["Fluxo de pagamento: soma R$ 305.000,00 e não fecha com o valor de venda R$ 304.998,99"]);
   assert.deepEqual(f({ balao2Valor: 6267.78 }), ["Fluxo de pagamento: soma R$ 304.999,90 e não fecha com o valor de venda R$ 305.000,00"]);
   assert.deepEqual(f({ data60: "", pre2Data: "", posN: null, valorVenda: 288058.64 }), [
     "Fluxo de pagamento: sinal 60 dias (data)", "Fluxo de pagamento: 2ª parte pré-chaves (data da 1ª)", "Fluxo de pagamento: pós-chaves (nº de parcelas)"]);
