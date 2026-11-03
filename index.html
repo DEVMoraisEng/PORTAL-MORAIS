@@ -486,6 +486,12 @@ const SISTEMAS=[
      quem não tem "CONFERÊNCIA DE NF" na coluna ACESSOS do LOGINS (ADM,
      MASTER e TESTES passam sempre) — é ele que guarda a chave da OpenAI. */
   {chave:"CONFERÊNCIA DE NF",nome:"Conferência OC × NF",desc:"Ordem de compra × nota fiscal: itens, quantidades e valores",ico:"C",link:"https://devmoraiseng.github.io/CONFER-NCIA-COMPRAS/",externo:true,grupo:"AUTOMAÇÕES",publico:true},
+  /* 03/11/26 — ESCRITÓRIO DE ROBÔS: uma mesa por robô do servidor (horário,
+     o que faz e o relatório de cada rodada, o mesmo do e-mail). Os dados são
+     do bucket privado "analise" (servidor/escritorio_robos.py); o link
+     assinado sai do Apps Script (apps-script/EscritorioRobos.gs), que confere
+     a chave "ESCRITÓRIO DE ROBÔS" na coluna ACESSOS (ADM/MASTER veem sempre). */
+  {chave:"ESCRITÓRIO DE ROBÔS",nome:"Escritório de Robôs",desc:"Cada robô na sua mesa: horário, o que faz e os relatórios",ico:"R",link:"escritorio-robos.html",grupo:"AUTOMAÇÕES"},
 
   /* ---------- ENTRETENIMENTO (29/10/26) ----------
      Morais Royale: o servidor do jogo roda no servidor da empresa; a página
