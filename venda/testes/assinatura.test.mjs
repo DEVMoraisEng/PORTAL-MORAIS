@@ -1543,16 +1543,18 @@ test("trocar e-mail: cria o novo com os mesmos requisitos ANTES de tirar o antig
   const r = trocar(c, velho.id, " Fulano.Certo@Teste.example ");
   assert.equal(r.ok, true, JSON.stringify(r));
   const seq = csCalls(c).filter((x) => !/^GET/.test(x));
-  const iNovo = seq.indexOf("POST /envelopes/env-1/signers"), iBulk = seq.indexOf("POST /envelopes/env-1/bulk_requirements"),
-        iDel = seq.indexOf("DELETE /envelopes/env-1/signers/" + velho.id);
-  assert.ok(iNovo >= 0 && iNovo < iBulk && iBulk < iDel, seq.join("\n"));
+  /* signatário novo → requisitos dele em lote (add) → requisitos do antigo em lote (remove) → antigo excluído; nenhum POST /requirements avulso */
+  assert.deepEqual(seq.slice(0, 4), ["POST /envelopes/env-1/signers", "POST /envelopes/env-1/bulk_requirements",
+                                     "POST /envelopes/env-1/bulk_requirements", "DELETE /envelopes/env-1/signers/" + velho.id], seq.join("\n"));
+  const lotes = c.c.chamadas.filter((x) => x.caminho === "/envelopes/env-1/bulk_requirements").map((x) => x.corpo["atomic:operations"].map((o) => o.op));
+  assert.deepEqual(lotes.slice(0, 2), [["add", "add"], ["remove", "remove"]]);
   const novo = sigDe(c, "fulano.certo@teste.example");
   assert.ok(novo && novo.id !== velho.id);
   assert.equal(novo.attributes.name, velho.attributes.name);
   assert.equal(novo.attributes.documentation, velho.attributes.documentation);
   assert.equal(novo.attributes.refusable, true);
   assert.ok(!sigDe(c, "fulano@teste.example"), "o antigo continua no envelope");
-  const novosReqs = c.c.chamadas.filter((x) => x.caminho === "/envelopes/env-1/requirements").map((x) => x.corpo.data);
+  const novosReqs = c.c.estado.adicionados;
   assert.deepEqual(novosReqs.map((d) => [d.attributes.action, d.relationships.signer.data.id, d.relationships.document.data.id]),
                    [["agree", novo.id, "doc-1"], ["provide_evidence", novo.id, "doc-1"]]);
   assert.equal(novosReqs[0].attributes.role, "buyer");
@@ -1599,7 +1601,7 @@ test("trocar e-mail: falha ao tirar o antigo desfaz o novo (requisitos e signat�
     let bulk = 0;
     const c = cenario({ cs: { falhar: (m, cam) => {
       if (m === "DELETE" && cam === "/envelopes/env-1/signers/sig-2") return { status: 403, json: { errors: [{ title: "Já assinou" }] } };
-      if (m === "POST" && cam === "/envelopes/env-1/bulk_requirements" && ++bulk > 1 && !desfazOk) return { status: 500, json: {} };
+      if (m === "POST" && cam === "/envelopes/env-1/bulk_requirements" && ++bulk > 2 && !desfazOk) return { status: 500, json: {} };
       return null;
     } } });
     assert.equal(c.enviar().ok, true);

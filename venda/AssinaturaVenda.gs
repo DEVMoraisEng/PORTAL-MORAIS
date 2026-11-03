@@ -990,19 +990,19 @@ function assTrocarEmailTravado_(p, pid, antigo) {
   function desfazer() {
     /* tira o que foi criado; se não der, sobram os dois signatários e só cancelar resolve */
     var ok = true;
-    if (criados.length) ok = cs_("post", base + "/bulk_requirements", ClicksignVenda.corpoRemoverRequisitos(criados.map(function (g) { return g[0]; }))).ok;
+    var comId = criados.map(function (g) { return g[0]; }).filter(function (id) { return id; });
+    if (comId.length) ok = cs_("post", base + "/bulk_requirements", ClicksignVenda.corpoRemoverRequisitos(comId)).ok;
     if (novo) ok = cs_("delete", base + "/signers/" + encodeURIComponent(novo)).ok && ok;
     return ok;
   }
   try {
     novo = csPasso_("novo signatario", "post", base + "/signers",
                     ClicksignVenda.corpoSignatarioTrocado(velho && velho.attributes, p.email), true).id;
-    ClicksignVenda.requisitosParaRecriar(guardados).forEach(function (g) {
-      var corpo = ClicksignVenda.corpoRequisitoTrocado(g, novo);
-      var rr = csPasso_("requisitos do novo", "post", base + "/requirements", corpo);
-      criados.push(ClicksignVenda.requisitoGuardado(rr.id, corpo));
-      Utilities.sleep(CS_PAUSA_REQ_MS);
-    });
+    /* envelope ativo: requisitos novos só em lote (POST /requirements dá 403 com running — sandbox 03/11) */
+    var lote = ClicksignVenda.corpoAdicionarRequisitos(guardados, novo), ops = lote["atomic:operations"];
+    var rl = csPasso_("requisitos do novo", "post", base + "/bulk_requirements", lote);
+    var idsNovos = ClicksignVenda.idsDoLote(rl.resultados, ops.length);
+    ops.forEach(function (op, i) { criados.push(ClicksignVenda.requisitoGuardado(idsNovos[i], { data: op.data })); });
     var velhos = guardados.map(function (g) { return g[0]; }).filter(function (id) { return id; });
     if (velhos.length) csPasso_("tirar requisitos do antigo", "post", base + "/bulk_requirements", ClicksignVenda.corpoRemoverRequisitos(velhos));
     csPasso_("tirar signatario antigo", "delete", base + "/signers/" + encodeURIComponent(antigo));

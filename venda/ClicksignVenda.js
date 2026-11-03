@@ -510,6 +510,21 @@ var ClicksignVenda = (function () {
     for (var k in guardado[2]) a[k] = guardado[2][k];
     return { data: { type: "requirements", attributes: a, relationships: relacoes(guardado[1], signerId) } };
   }
+  /* 03/11 (sandbox): com o envelope em running, POST /requirements responde 403 "envelope não está com status draft" —
+   * requisito novo em envelope ativo só pela operação em lote (docs/signatarios: "Envelopes que já estão em processo de
+   * assinatura exigem um procedimento específico para a adição de seus requisitos. Utilize a funcionalidade de operações
+   * em massa"). Um pedido só, na ordem de requisitosParaRecriar. */
+  function corpoAdicionarRequisitos(guardados, signerId) {
+    return { "atomic:operations": requisitosParaRecriar(guardados).map(function (g) {
+      return { op: "add", data: corpoRequisitoTrocado(g, signerId).data };
+    }) };
+  }
+  /* ids dos requisitos criados em lote, na ordem das operações ("" quando a resposta não traz) */
+  function idsDoLote(resultados, n) {
+    var l = Array.isArray(resultados) ? resultados : [], out = [];
+    for (var i = 0; i < n; i++) { var r = l[i] || {}; out.push(txt(r.data && r.data.id)); }
+    return out;
+  }
   function corpoRemoverRequisitos(ids) {
     return { "atomic:operations": (ids || []).filter(function (id) { return txt(id); })
       .map(function (id) { return { op: "remove", ref: { type: "requirements", id: txt(id) } }; }) };
@@ -542,8 +557,11 @@ var ClicksignVenda = (function () {
     if (code >= 200 && code < 300) {
       if (!j || typeof j !== "object") return { ok: true, id: "", status: "", data: null };
       var d = j.data || null;
-      return { ok: true, id: d && !Array.isArray(d) ? txt(d.id) : "",
+      var res = { ok: true, id: d && !Array.isArray(d) ? txt(d.id) : "",
                status: d && !Array.isArray(d) && d.attributes ? txt(d.attributes.status) : "", data: d };
+      /* 03/11: operações em lote (bulk_requirements) respondem em "atomic:results" */
+      if (Array.isArray(j["atomic:results"])) res.resultados = j["atomic:results"];
+      return res;
     }
     var e = j && Array.isArray(j.errors) && j.errors[0] ? j.errors[0] : null;
     var det = e ? [txt(e.title), txt(e.detail)].filter(function (x) { return x; }).join(": ") : "";
@@ -1001,6 +1019,7 @@ var ClicksignVenda = (function () {
     corpoNotificacao: corpoNotificacao, interpretar: interpretar, situacao: situacao, assinaram: assinaram,
     MENSAGEM: MENSAGEM, mensagemEnvelope: mensagemEnvelope, corpoSignatarioTrocado: corpoSignatarioTrocado, requisitoGuardado: requisitoGuardado,
     requisitosParaRecriar: requisitosParaRecriar, corpoRequisitoTrocado: corpoRequisitoTrocado, corpoRemoverRequisitos: corpoRemoverRequisitos,
+    corpoAdicionarRequisitos: corpoAdicionarRequisitos, idsDoLote: idsDoLote,
     conferirEmailNovo: conferirEmailNovo,
     podeEnviar: podeEnviar, linkAssinado: linkAssinado, mascararEmails: mascararEmails, FINAIS: FINAIS,
     situacaoDosSignatarios: situacaoDosSignatarios, nomeMascarado: nomeMascarado,
