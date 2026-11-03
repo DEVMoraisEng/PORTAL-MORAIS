@@ -1292,8 +1292,12 @@ Pedido do dono: "podia ser mais esperto e já adicionar campo para colocar o CRL
 permuta" (tipo Veículo) há o botão **CRLV (foto ou PDF)** — no celular abre a câmera ou a galeria. A IA lê o CRLV
 (impresso ou CRLV-e) e a tela preenche **só os campos vazios**: o que a pessoa já digitou nunca é trocado; se o CRLV
 disser diferente, a mensagem avisa ("O CRLV diz diferente em: placa — não troquei…"). Os campos vindos do CRLV ficam
-marcados "(do CRLV — confira)". Alienação fiduciária no CRLV marca "Alienado / financiado" e o credor; o saldo devedor a
-pessoa informa. Nada é gravado no fluxo pela leitura: a pessoa confere, "Confirmar dados do bem" e salva como sempre.
+com fundo amarelo claro e o título "do CRLV — confira" (o rótulo fica numa linha só, para a grade não desalinhar).
+CPF/CNPJ do proprietário entra formatado (000.000.000-00 ou 00.000.000/0000-00). **Situação** (regra do dono, 03/11): se
+OBSERVAÇÕES DO VEÍCULO for só "SEM RESERVA DE DOMINIO" (sem olhar acento, caixa e espaço), marca Quitado; qualquer outra
+coisa (alienação fiduciária, restrição, gravame, credor) não mexe — a pessoa escolhe; alienado, credor e saldo nunca vêm
+do CRLV. RENAVAM, CPF/CNPJ, placa, chassi e anos são texto do começo ao fim (zero à esquerda não se perde; se a IA
+devolver número, o zero só volta quando o dígito verificador confere). Nada é gravado no fluxo pela leitura: a pessoa confere, "Confirmar dados do bem" e salva como sempre.
 
 - **Servidor:** ação nova `lerCrlv` (`FluxoVenda.gs`; `pageId`, `linha`, `arquivo` {nome, mime, base64}). Mesmos limites
   do upload do dossiê (JPG/PNG/WEBP até 5 MB, PDF até 10 MB; a tela converte foto em JPG de até 1600 px), mesmas travas do
@@ -1315,6 +1319,13 @@ pessoa informa. Nada é gravado no fluxo pela leitura: a pessoa confere, "Confir
    mídia** (files). Nome exato (maiúsculas, espaço-hífen-espaço). Opcional: sem ela só não guarda o arquivo.
 2. No projeto PORTAL-VENDA, colar de novo `FluxoLivre.gs` (de `venda/FluxoLivre.js`), `FluxoVenda.gs`, `PortalVenda.gs`,
    `OpenAILeitor.gs`, `ClaudeLeitor.gs` e `LogContratoVenda.gs` (de `venda/LogContratoVenda.js`) e **Implantar › Gerenciar
-   implantações › Editar › Nova versão** (o `ping` responde `venda-v17`).
+   implantações › Editar › Nova versão** (o `ping` responde `venda-v18`).
 3. Nenhuma Propriedade nova: usa `PROVEDOR_IA` e a chave que já estão lá.
-4. O site sobe com o merge (FluxoLivre v10, venda-dossie v59, cache v262).
+4. O site sobe com o merge (FluxoLivre v11, venda-dossie v60, cache v263).
+
+## Permuta conta no sinal (03/11/2026)
+
+Regra do dono: "nesse caso o carro entra como sinal/entrada". No Alterar fluxo de venda com pré-reserva, o mínimo do
+sinal da proposta passa a contar sinal + pré-reserva + **permuta** (`FluxoLivre.validar`). A mensagem virou "O sinal (com
+a pré-reserva e a permuta) não pode ficar abaixo do da proposta: R$ X". Prazos e número de parcelas do sinal continuam
+valendo só para as linhas de sinal; a permuta continua no inciso VI do contrato. Nada a configurar (FluxoLivre v11).

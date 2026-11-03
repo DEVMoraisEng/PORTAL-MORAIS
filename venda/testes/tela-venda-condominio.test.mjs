@@ -1685,7 +1685,7 @@ test("03/11 histórico do fluxo: entrada antiga enorme perde o 'antes' para cabe
 /* ---- 03/11/2026 (dono): CRLV da permuta lido pela IA (ação lerCrlv). Dados FALSOS. ---- */
 const CRLV_LIDO = { tipo_documento: "CRLV", marca: "HYUNDAI", modelo: "HB20", ano_fabricacao: "2019", ano_modelo: "2020", cor: "PRATA",
   placa: "ABC1D23", renavam: "100000002", chassi: "9BWZZZ377VT004251", proprietario_nome: "FULANO DE TESTE", proprietario_doc: "52998224725",
-  alienacao_credor: "" };
+  observacoes: "SEM RESERVA DE DOMINIO" };
 const iaCrlv = (leitura, conta) => (url, opt) => {
   conta.n++;
   conta.corpo = JSON.parse(opt.payload);
@@ -1706,8 +1706,8 @@ test("03/11 lerCrlv: uma leitura da IA, devolve os campos mapeados e guarda o ar
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.equal(c.conta.n, 1, "uma chamada à IA por clique");
   assert.match(JSON.stringify(c.conta.corpo), /leitura_crlv/);
-  assert.deepEqual(r.crlv, { marca: "HYUNDAI", modelo: "HB20", anoFabricacao: 2019, anoModelo: 2020, cor: "PRATA", placa: "ABC1D23",
-    renavam: "00100000002", chassi: "9BWZZZ377VT004251", proprietarioNome: "FULANO DE TESTE", proprietarioDoc: "52998224725", alienacao: null });
+  assert.deepEqual(r.crlv, { marca: "HYUNDAI", modelo: "HB20", anoFabricacao: "2019", anoModelo: "2020", cor: "PRATA", placa: "ABC1D23",
+    renavam: "00100000002", chassi: "9BWZZZ377VT004251", proprietarioNome: "FULANO DE TESTE", proprietarioDoc: "52998224725", observacoes: "SEM RESERVA DE DOMINIO", situacao: "quitado" });
   assert.equal(r.guardado, true);
   const arqs = c.n.pagina.properties["PERMUTA - CRLV"].files;
   assert.equal(arqs.length, 1);

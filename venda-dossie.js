@@ -941,21 +941,31 @@
     if (k === null || k === undefined || !l || l.t !== "permuta") return "";
     var F = FL(), b = l.b || { tipo: "veiculo" }, tipo = F.TIPOS_BEM.hasOwnProperty(b.tipo) ? b.tipo : "veiculo";
     function val(c) { var v = b[c]; return v === null || v === undefined ? "" : String(v); }
-    /* 03/11: campo que o CRLV preencheu nesta abertura do formulário */
+    /* 03/11: campo que o CRLV preencheu nesta abertura do formulário. Dono (teste com CRLV real): nada no rótulo — ele
+       quebrava em duas linhas e desalinhava a grade; o campo ganha um fundo/borda e o título "do CRLV — confira". */
     var doCrlv = ed.crlv && ed.crlv.k === k ? ed.crlv.campos || [] : [];
-    function marca(c) { return doCrlv.indexOf(c) >= 0 ? ' <span class="dz-nota">(do CRLV — confira)</span>' : ""; }
+    function destaque(c) { return doCrlv.indexOf(c) >= 0 ? ' data-crlv="1" title="do CRLV — confira"' : ""; }
+    function estilo(c, extra) {
+      return ' style="width:100%;box-sizing:border-box' + (extra || "") +
+        (doCrlv.indexOf(c) >= 0 ? ";background:rgba(255,200,0,.14);border:1px solid #c99a00;border-radius:4px" : "") + '"';
+    }
+    /* rótulo numa linha só (corta com reticências; o texto inteiro no title) — os campos da mesma linha ficam alinhados */
+    function rotulo(t) {
+      return '<span class="vb-fx-rot" style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + esc(t) + '">' + esc(t) + "</span>";
+    }
+    var LAB = '<label class="dz-campo" style="display:block;margin:0;min-width:0">';
     function campo(c, rot, o) {
       o = o || {};
-      return '<label class="dz-campo" style="display:block;margin:0">' + esc(rot) + marca(c) + ' <input type="text" data-fxb="' + c + '" data-k="' + k + '"' +
-        (o.num ? ' inputmode="numeric"' : "") + (o.maiusc ? ' autocapitalize="characters" style="width:100%;box-sizing:border-box;text-transform:uppercase"' : ' style="width:100%;box-sizing:border-box"') +
+      return LAB + rotulo(rot) + '<input type="text" data-fxb="' + c + '" data-k="' + k + '"' + destaque(c) +
+        (o.num ? ' inputmode="numeric"' : "") + (o.maiusc ? ' autocapitalize="characters"' + estilo(c, ";text-transform:uppercase") : estilo(c)) +
         ' maxlength="' + (o.max || 120) + '"' + (o.ph ? ' placeholder="' + esc(o.ph) + '"' : "") + ' value="' + esc(val(c)) + '"' + dis + "></label>";
     }
     function texto(c, rot, ph, max) {
-      return '<label class="dz-campo" style="display:block;margin:0;grid-column:1/-1">' + esc(rot) + ' <textarea data-fxb="' + c + '" data-k="' + k + '" rows="2" maxlength="' + max + '"' +
+      return '<label class="dz-campo" style="display:block;margin:0;min-width:0;grid-column:1/-1">' + rotulo(rot) + '<textarea data-fxb="' + c + '" data-k="' + k + '" rows="2" maxlength="' + max + '"' +
         (ph ? ' placeholder="' + esc(ph) + '"' : "") + ' style="width:100%;box-sizing:border-box;font:inherit"' + dis + ">" + esc(val(c)) + "</textarea></label>";
     }
     function sel(c, rot, ops, atual) {
-      return '<label class="dz-campo" style="display:block;margin:0">' + esc(rot) + marca(c) + ' <select data-fxb="' + c + '" data-k="' + k + '" style="width:100%;box-sizing:border-box"' + dis + ">" +
+      return LAB + rotulo(rot) + '<select data-fxb="' + c + '" data-k="' + k + '"' + destaque(c) + estilo(c) + dis + ">" +
         ops.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === atual ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") + "</select></label>";
     }
     var h = '<div class="vb-fx-bem" role="group" aria-label="Dados do bem da permuta" style="margin:8px 0;padding:10px;border:1px solid rgba(127,127,127,.5);border-radius:8px">' +
@@ -967,21 +977,21 @@
         (ed.crlvLendo ? "Lendo o CRLV…" : "CRLV (foto ou PDF)") + "</button>" +
         '<span class="dz-nota">a IA lê o documento e preenche só os campos vazios; o arquivo fica guardado na venda.</span>' +
         (ed.crlv && ed.crlv.k === k && ed.crlv.msg ? '<div class="dz-nota" role="status" style="flex-basis:100%">' + esc(ed.crlv.msg) + "</div>" : "") + "</div>" : "") +
-      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,13em),1fr));gap:8px 12px">' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,13em),1fr));gap:8px 12px;align-items:end">' +
       sel("tipo", "Tipo do bem", [["veiculo", "Veículo"], ["imovel", "Imóvel"], ["outro", "Outro bem"]], tipo);
     CAMPOS_BEM[tipo].forEach(function (x) { h += campo(x[0], x[1], x[2]); });
     if (tipo === "veiculo") {
       h += sel("situacao", "Situação", [["", "escolha…"], ["quitado", "Quitado"], ["alienado", "Alienado / financiado"]], val("situacao"));
       if (b.situacao === "alienado") {
         h += campo("credor", "Instituição credora", { max: 120 }) +
-          '<label class="dz-campo" style="display:block;margin:0">Saldo devedor estimado (R$) <input type="text" inputmode="decimal" data-fxb="saldo" data-k="' + k + '" value="' +
+          LAB + rotulo("Saldo devedor estimado (R$)") + '<input type="text" inputmode="decimal" data-fxb="saldo" data-k="' + k + '" value="' +
           esc(positivoNum(b.saldo) ? numBR(b.saldo) : val("saldo")) + '" style="width:100%;box-sizing:border-box"' + dis + "></label>" +
-          '<label class="dz-campo" style="display:block;margin:0">Quem quita o saldo <input type="text" data-fxb="quitaPor" data-k="' + k + '" maxlength="120" value="' +
+          LAB + rotulo("Quem quita o saldo") + '<input type="text" data-fxb="quitaPor" data-k="' + k + '" maxlength="120" value="' +
           esc(val("quitaPor") || F.QUITA_PADRAO) + '" style="width:100%;box-sizing:border-box"' + dis + "></label>";
       }
     }
     if (tipo === "outro") h += texto("descricao", "Descrição detalhada do bem", "o que é, marca, modelo, ano, número de série, estado…", 600);
-    h += '<label class="dz-campo" style="display:block;margin:0">Data prevista de entrega <input type="date" data-fxb="d" data-k="' + k + '" value="' + esc(l.d || "") +
+    h += LAB + rotulo("Data prevista de entrega") + '<input type="date" data-fxb="d" data-k="' + k + '" value="' + esc(l.d || "") +
       '" style="width:100%;box-sizing:border-box"' + dis + "></label>";
     if (tipo === "veiculo") h += texto("obs", "Estado de conservação / observações (opcional)", "", 300);
     h += "</div>";

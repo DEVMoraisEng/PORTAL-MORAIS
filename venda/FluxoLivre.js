@@ -195,15 +195,34 @@ var FluxoLivre = (function () {
   }
 
   /* ---- 03/11/2026 (dono): "podia ser mais esperto e já adicionar campo para colocar o CRLV" ----
-   * crlvDaLeitura: a resposta da IA (esquema "crlv" dos leitores) → os campos do veículo, já limpos. Valor lido que não
-   * passa na regra (placa, RENAVAM, chassi, CPF/CNPJ, ano) volta VAZIO: a pessoa digita, em vez de entrar um valor errado.
+   * crlvDaLeitura: a resposta da IA (esquema "crlv" dos leitores) → os campos do veículo, já limpos e SEMPRE como texto
+   * (RENAVAM, CPF/CNPJ, placa, chassi e anos nunca viram número: zero à esquerda não se perde). Valor lido que não passa na
+   * regra (placa, RENAVAM, chassi, CPF/CNPJ, ano) volta VAZIO: a pessoa digita, em vez de entrar um valor errado.
+   * Situação (dono, teste com CRLV-e real): OBSERVAÇÕES DO VEÍCULO só "SEM RESERVA DE DOMINIO" = quitado; qualquer outra
+   * coisa (alienação, restrição, gravame, credor) = a pessoa escolhe.
    * Nunca lança: lixo vira { ok: false, erro: NAO_E_CRLV | CRLV_ILEGIVEL }. Roda no servidor (lerCrlv). */
-  function textoLido(v, max) { return typeof v === "string" || typeof v === "number" ? so(v, max) : ""; }
+  function textoLido(v, max) { return typeof v === "string" || (typeof v === "number" && isFinite(v)) ? so(v, max) : ""; }
   function anoLido(v) {
     var d = digitos(textoLido(v, 10));
-    if (d.length !== 4) return null;
+    if (d.length !== 4) return "";
     var n = Number(d), hoje = new Date().getFullYear();
-    return n >= 1950 && n <= hoje + 1 ? n : null;
+    return n >= 1950 && n <= hoje + 1 ? d : "";
+  }
+  /* CPF/CNPJ: como texto, só os dígitos. A IA devolveu NÚMERO (o zero da frente some): completa com zeros até 11 (CPF)
+     ou 14 (CNPJ) se os dígitos verificadores conferirem. Texto curto não é completado (pode ser dígito lido a menos). */
+  function docLido(v) {
+    var d = digitos(textoLido(v, 30));
+    if (docValido(d)) return d;
+    if (typeof v === "number" && d && d.length < 14) {
+      if (d.length < 11 && docValido(("00000000000" + d).slice(-11))) return ("00000000000" + d).slice(-11);
+      if (docValido(("00000000000000" + d).slice(-14))) return ("00000000000000" + d).slice(-14);
+    }
+    return "";
+  }
+  /* "SEM RESERVA DE DOMÍNIO" sem olhar acento, caixa, espaço e pontuação; nada mais junto */
+  function semReserva(t) {
+    var s = String(t || "").normalize ? String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "") : String(t || "");
+    return s.toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim() === "SEM RESERVA DE DOMINIO";
   }
   function crlvDaLeitura(l) {
     if (!l || typeof l !== "object" || Array.isArray(l) || l.tipo_documento !== "CRLV") return { ok: false, erro: "NAO_E_CRLV" };
@@ -211,22 +230,25 @@ var FluxoLivre = (function () {
     if (!marca && /^[^/]{1,30}\/\S/.test(modelo)) {   /* "VW/GOL 1.0": o CRLV imprime MARCA/MODELO num campo só */
       marca = modelo.slice(0, modelo.indexOf("/")).trim(); modelo = modelo.slice(modelo.indexOf("/") + 1).trim();
     }
+    /* RENAVAM de 9/10 dígitos (antigo, ou número sem o zero da frente) ganha zeros — só fica se o dígito conferir */
     var placa = placaNormal(textoLido(l.placa, 20)), renavam = renavamNormal(textoLido(l.renavam, 30)), chassi = chassiNormal(textoLido(l.chassi, 40));
-    var doc = digitos(textoLido(l.proprietario_doc, 30)), credor = textoLido(l.alienacao_credor, 120);
+    var obs = textoLido(l.observacoes, 300);
     var c = {
       marca: marca, modelo: modelo, anoFabricacao: anoLido(l.ano_fabricacao), anoModelo: anoLido(l.ano_modelo), cor: textoLido(l.cor, 30),
       placa: RE_PLACA.test(placa) ? placa : "", renavam: renavamValido(renavam) ? renavam : "", chassi: RE_CHASSI.test(chassi) ? chassi : "",
-      proprietarioNome: textoLido(l.proprietario_nome, 120), proprietarioDoc: docValido(doc) ? doc : "",
-      alienacao: credor ? { credor: credor } : null
+      proprietarioNome: textoLido(l.proprietario_nome, 120), proprietarioDoc: docLido(l.proprietario_doc),
+      observacoes: obs, situacao: semReserva(obs) ? "quitado" : ""
     };
-    var algum = Object.keys(c).some(function (k) { return k !== "alienacao" && c[k] !== "" && c[k] !== null; });
+    var algum = Object.keys(c).some(function (k) { return k !== "observacoes" && k !== "situacao" && c[k] !== ""; });
     return algum ? { ok: true, crlv: c } : { ok: false, erro: "CRLV_ILEGIVEL" };
   }
   /* preencherBemCrlv: põe o que o CRLV leu SÓ nos campos vazios do bem (nunca troca o que a pessoa digitou).
    * Devolve { b: o bem novo (cópia), preenchidos: [campos], diferentes: [campos digitados que o CRLV diz diferente] }.
-   * Sem alienação no CRLV a situação fica para a pessoa (o CRLV não prova quitação); o saldo devedor ela informa. */
+   * CPF/CNPJ vai formatado (000.000.000-00 / 00.000.000/0000-00). Situação: só "quitado" (CRLV sem reserva de domínio);
+   * alienado, credor e saldo nunca vêm do CRLV. */
   var CRLV_PARA_BEM = [["marca", "marca"], ["modelo", "modelo"], ["anoFab", "anoFabricacao"], ["anoModelo", "anoModelo"], ["cor", "cor"],
-                       ["placa", "placa"], ["renavam", "renavam"], ["chassi", "chassi"], ["propNome", "proprietarioNome"], ["propDoc", "proprietarioDoc"]];
+                       ["placa", "placa"], ["renavam", "renavam"], ["chassi", "chassi"], ["propNome", "proprietarioNome"], ["propDoc", "proprietarioDoc"],
+                       ["situacao", "situacao"]];
   function comparavel(campo, v) {
     var s = v === null || v === undefined ? "" : String(v);
     if (campo === "placa") return placaNormal(s);
@@ -243,16 +265,11 @@ var FluxoLivre = (function () {
       var lido = valor === null || valor === undefined ? "" : String(valor);
       if (!lido) return;
       var atual = comparavel(campo, o[campo]);
-      if (!atual || atual === "0") { o[campo] = lido; preenchidos.push(campo); }
+      if (!atual || (atual === "0" && campo !== "propDoc")) { o[campo] = campo === "propDoc" ? docFormatado(lido) : lido; preenchidos.push(campo); }
       else if (atual !== comparavel(campo, lido)) diferentes.push(campo);
     }
     crlv = crlv || {};
-    CRLV_PARA_BEM.forEach(function (x) { por(x[0], crlv[x[1]]); });
-    if (crlv.alienacao && crlv.alienacao.credor) {
-      if (!o.situacao) { o.situacao = "alienado"; preenchidos.push("situacao"); }
-      else if (o.situacao !== "alienado") diferentes.push("situacao");
-      if (o.situacao === "alienado") por("credor", crlv.alienacao.credor);
-    }
+    CRLV_PARA_BEM.forEach(function (x) { por(x[0], x[0] === "situacao" && crlv.situacao !== "quitado" ? "" : crlv[x[1]]); });
     return { b: o, preenchidos: preenchidos, diferentes: diferentes };
   }
 
@@ -350,7 +367,7 @@ var FluxoLivre = (function () {
       if (temPR) {
         var sinaisP = padrao.linhas.filter(function (l) { return l.t === "sinal" && isoValida(l.d); }).map(function (l) { return l.d; }).sort();
         var ass = padrao.assinatura || sinaisP[0] || "", limite = ass ? maisMeses(ass, 3) : "";
-        var totSinal = function (ls) { return ls.reduce(function (s, l) { return s + (l.t === "sinal" || l.t === "prereserva" ? totalLinhaC(l) : 0); }, 0); };
+        var totSinal = function (ls) { return ls.reduce(function (s, l) { return s + (l.t === "sinal" || l.t === "prereserva" || l.t === "permuta" ? totalLinhaC(l) : 0); }, 0); }; /* 03/11 (dono): "o carro entra como sinal/entrada" */
         var nSinal = 0;
         f.linhas.slice(0, MAX_LINHAS).forEach(function (l, k) {
           if (l.t !== "sinal") return;
@@ -361,7 +378,7 @@ var FluxoLivre = (function () {
         });
         if (nSinal > 4) erros.push("O restante do sinal vai em no máximo 4 parcelas (ato, 30, 60 e 90 dias)");
         if (totSinal(f.linhas) < totSinal(padrao.linhas))
-          erros.push("O sinal (com a pré-reserva) não pode ficar abaixo do da proposta: " + moeda(totSinal(padrao.linhas) / 100));
+          erros.push("O sinal (com a pré-reserva e a permuta) não pode ficar abaixo do da proposta: " + moeda(totSinal(padrao.linhas) / 100));
       }
       var qtd = function (ls) { return ls.reduce(function (s, l) { return s + (l.t === "pos" ? Math.max(0, l.n) : 0); }, 0); };
       /* 31/10/2026 (dono): o prazo pode mudar no Alterar fluxo (cliente de 24x para 36x) — pós-chaves só 0, 12 ou 24
