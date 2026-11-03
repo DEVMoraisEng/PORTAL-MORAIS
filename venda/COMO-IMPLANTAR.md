@@ -1262,3 +1262,26 @@ vendedor de CNPJ. Vendedor pessoa física (PF → PF): sem selfie.
   mostrou, a Clicksign registra isso como UMA autenticação "Foto de face & documento" (selfie com o documento na mão) —
   por isso o requisito `official_document` separado saiu.
 - Sem a Propriedade (ou com `0`), nada muda.
+
+## Permuta: dados do bem ao salvar o fluxo (03/11/2026)
+
+Pedido do dono: "quando tiver permuta, hora que salvar, pede para quem tiver preenchendo colocar as informações da
+permuta". No Alterar fluxo, o botão Salvar fluxo abre no próprio cartão o formulário "Dados do bem da permuta" de cada
+linha de permuta sem os dados completos; só salva depois de "Confirmar dados do bem". A linha também tem o botão
+"Dados do bem" para preencher antes.
+
+- **Veículo:** marca, modelo, ano de fabricação e do modelo, cor, placa (ABC1234 ou ABC1D23), RENAVAM (11 dígitos, dígito
+  conferido), chassi (17, sem I/O/Q), proprietário (nome + CPF/CNPJ conferidos), quitado ou alienado
+  (credor, saldo devedor estimado e quem quita — padrão "o COMPRADOR, antes da entrega"), observações opcionais.
+  **Imóvel:** endereço, matrícula, cartório (CRI), proprietário, ônus (em branco = "nenhum"). **Outro:** descrição com
+  20 letras ou mais. A data de entrega do bem é a 1ª data da própria linha.
+- **Gravação:** na linha do JSON de `FLUXO PERSONALIZADO`, campo `b`; a descrição `x` vira o resumo do bem
+  ("Hyundai HB20 2019/2020 placa ABC1D23"), que é o que o robô do Mais Controle põe no comentário "Permuta - …".
+- **Servidor:** `salvarFluxo` recusa permuta nova sem o bem completo (`CAMPOS_INVALIDOS`). Fluxo antigo, com a permuta só
+  na descrição e já gravado, continua salvando enquanto aquela linha não mudar.
+- **Contrato:** o inciso VI do 6.1 traz a identificação inteira do bem e um parágrafo com as obrigações da permuta
+  (livre de ônus, multas e tributos até a entrega, evicção e vícios ocultos, ATPV-e/CRV ou escritura, quitação do
+  gravame pelo COMPRADOR, valor definitivo sem correção) — redação a validar com o advogado. Os termos de confissão
+  continuam sem a permuta.
+- Nada a configurar: sobe com o site (FluxoLivre v9, venda-dossie v58) e o Apps Script (`FluxoLivre.js`,
+  `FluxoVenda.gs`, `ContratoVenda.js`).

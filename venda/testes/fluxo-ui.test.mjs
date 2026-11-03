@@ -179,3 +179,85 @@ test("31/10: prazo diferente da proposta mostra o prazo novo e a comissão pela 
   const h = D.htmlFluxoVivo(ed, "");
   assert.match(h, /Prazo: <b>36x<\/b> \(proposta 24x\) · comissão pela regra: <b>4,75% = R\$ 4\.750,00<\/b>/);
 });
+
+/* ---- 03/11/2026 (dono): permuta pede os dados do bem na hora de salvar. Dados FALSOS (repositório público). ---- */
+const carroUI = { tipo: "veiculo", marca: "Hyundai", modelo: "HB20", anoFab: 2019, anoModelo: 2020, cor: "prata", placa: "ABC1D23",
+  renavam: "00000000000", chassi: "9BWZZZ377VT004251", km: 45000, propNome: "Fulano de Teste", propDoc: "52998224725", situacao: "quitado" };
+/* a linha de pré-chaves (20 × 1.000) vira 19 × 1.000 + permuta de 1.000: a conta continua fechando */
+const comPermutaUI = (b, o = {}) => {
+  const ed = editor({ motivo: "cliente dá o carro", ...o });
+  ed.linhas[1] = { ...ed.linhas[1], n: 19 };
+  ed.linhas.push({ t: "permuta", v: 1000, n: 1, d: "2026-11-20", i: 1, x: "carro do cliente", ...(b ? { b } : {}) });
+  return ed;
+};
+
+test("permuta sem os dados do bem NÃO trava o botão Salvar: a tela avisa que vai pedir os dados ao salvar", () => {
+  const ed = comPermutaUI(null);
+  const h = D.htmlFluxoVivo(ed, "");
+  assert.doesNotMatch(botao(h, "c-fluxo-salvar"), /disabled/);
+  assert.match(h, /Ao salvar, o portal pede os dados do bem da permuta/);
+  assert.doesNotMatch(h, /<li>Linha 4: faltam os dados do bem/, "não vira erro vermelho");
+  assert.equal(D.permutaSemBem(ed), 3);
+  assert.equal(D.permutaSemBem(comPermutaUI(carroUI)), -1);
+  assert.equal(D.permutaSemBem(editor()), -1, "sem permuta");
+});
+
+test("formulário do bem: abre no próprio cartão, campos do veículo, cabe no celular; Confirmar e Cancelar", () => {
+  const ed = comPermutaUI(null, { bemK: 3 });
+  const h = D.htmlFluxo(fechado, { fluxoEd: ed }, "");
+  const painel = (h.match(/<div class="vb-fx-bem".*?<!--\/vb-fx-bem-->/s) || [""])[0];
+  assert.ok(painel, "painel do bem");
+  assert.match(painel, /Dados do bem da permuta — linha 4/);
+  for (const c of ["tipo", "marca", "modelo", "anoFab", "anoModelo", "cor", "placa", "renavam", "chassi", "propNome", "propDoc", "situacao", "d", "obs"])
+    assert.match(painel, new RegExp('data-fxb="' + c + '" data-k="3"'), c);
+  assert.doesNotMatch(painel, /data-fxb="km"|Quilometragem/, "dono 03/11: sem quilometragem");
+  assert.doesNotMatch(painel, /data-fxb="credor"/, "credor só com alienado");
+  assert.match(painel, /grid-template-columns:repeat\(auto-fit,minmax\(min\(100%,13em\),1fr\)\)/);
+  assert.match(painel, /value="2026-11-20"/, "data de entrega = a data da linha");
+  assert.match(botao(painel, "c-fluxo-bem-ok"), /Confirmar dados do bem/);
+  assert.match(botao(painel, "c-fluxo-bem-fechar"), /Cancelar/);
+  const al = D.htmlFluxo(fechado, { fluxoEd: comPermutaUI({ ...carroUI, situacao: "alienado" }, { bemK: 3 }) }, "");
+  for (const c of ["credor", "saldo", "quitaPor"]) assert.match(al, new RegExp('data-fxb="' + c + '"'), c);
+  assert.match(al, /value="o COMPRADOR, antes da entrega"/);
+  const im = D.htmlFluxo(fechado, { fluxoEd: comPermutaUI({ tipo: "imovel" }, { bemK: 3 }) }, "");
+  for (const c of ["endereco", "matricula", "cartorio", "propNome", "propDoc", "onus"]) assert.match(im, new RegExp('data-fxb="' + c + '"'), c);
+  assert.doesNotMatch(im, /data-fxb="placa"/);
+  assert.match(D.htmlFluxo(fechado, { fluxoEd: comPermutaUI({ tipo: "outro" }, { bemK: 3 }) }, ""), /<textarea[^>]*data-fxb="descricao"/);
+  assert.doesNotMatch(D.htmlFluxo(fechado, { fluxoEd: comPermutaUI(null) }, ""), /class="vb-fx-bem"/, "fechado sem bemK");
+});
+
+test("linha de permuta com o bem: a descrição é o resumo (sem campo de texto) e tem o botão Dados do bem", () => {
+  const h = D.htmlFluxo(fechado, { fluxoEd: comPermutaUI(carroUI) }, "");
+  const tr = h.match(/<tr data-fx-linha="3">.*?<\/tr>/s)[0];
+  assert.match(tr, /Hyundai HB20 2019\/2020 placa ABC1D23/);
+  assert.doesNotMatch(tr, /data-fx="x"/);
+  assert.match(botao(tr, "c-fluxo-bem"), /Dados do bem/);
+  const sem = D.htmlFluxo(fechado, { fluxoEd: comPermutaUI(null) }, "").match(/<tr data-fx-linha="3">.*?<\/tr>/s)[0];
+  assert.match(botao(sem, "c-fluxo-bem"), /Dados do bem/);
+});
+
+test("campo do bem: guarda na linha, troca de tipo mantém o proprietário, a data é a da linha, resumo atualizado; confirmar diz o que falta", () => {
+  const l = { t: "permuta", v: 1000, n: 1, d: "2026-11-20", i: 1, x: "" };
+  D.campoBem(l, "marca", "Hyundai");
+  assert.equal(l.b.tipo, "veiculo", "começa como veículo");
+  D.campoBem(l, "propNome", "Fulano de Teste");
+  D.campoBem(l, "d", "2026-12-01");
+  assert.equal(l.d, "2026-12-01");
+  D.campoBem(l, "tipo", "imovel");
+  assert.deepEqual([l.b.tipo, l.b.propNome, l.b.marca], ["imovel", "Fulano de Teste", undefined]);
+  D.campoBem(l, "tipo", "veiculo");
+  Object.entries(carroUI).forEach(([k, v]) => D.campoBem(l, k, String(v)));
+  assert.equal(l.x, "Hyundai HB20 2019/2020 placa ABC1D23");
+  assert.deepEqual(D.faltasDoBem(l), []);
+  D.campoBem(l, "saldo", "12.000,50");
+  assert.equal(l.b.saldo, 12000.5);
+  D.campoBem(l, "placa", "");
+  assert.deepEqual(D.faltasDoBem(l), ["placa"]);
+  D.campoBem(l, "d", "");
+  assert.ok(D.faltasDoBem(l).includes("data prevista de entrega"));
+});
+
+test("valores do bem são escapados no formulário", () => {
+  const h = D.htmlFluxo(fechado, { fluxoEd: comPermutaUI({ ...carroUI, marca: '"><script>x</script>' }, { bemK: 3 }) }, "");
+  assert.doesNotMatch(h, /<script>/);
+});

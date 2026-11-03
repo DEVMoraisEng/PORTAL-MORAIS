@@ -139,7 +139,7 @@ function cenario({ linha = {}, sem = [], dbPagina = DB_COND, props = {}, gh = 20
     d.zerar(); g.chamadas.length = 0;
     return acao("aprovarPreContrato");
   };
-  return { g, n, d, c, despachos, acao, txt, gerarFinal, falha };
+  return { g, n, d, c, despachos, acao, txt, gerarFinal, falha, p };
 }
 
 /* 30/10: o que a tela manda junto com "Enviar" no contrato do condomínio (posições lidas no PDF pela RubricasVenda) */
@@ -1615,4 +1615,69 @@ test("prévia (assinaturaPrevia): as mesmas posições que o envio criaria, sem 
   const daPrevia = pv.marcas.filter((m) => m.doc === "contrato").map((m) => [m.papel, m.kind, m.page, m.position.join(",")].join("|")).sort();
   assert.deepEqual(daPrevia, doEnvio);
   assert.ok(doEnvio.length >= 3, doEnvio.join(" ; "));
+});
+
+/* 03/11/2026 (dono): permuta pede os dados do bem ao salvar — o servidor também recusa permuta nova sem eles.
+   Dados FALSOS (repositório público). */
+const carroTeste = { tipo: "veiculo", marca: "Hyundai", modelo: "HB20", anoFab: 2019, anoModelo: 2020, cor: "prata", placa: "ABC1D23",
+  renavam: "00000000000", chassi: "9BWZZZ377VT004251", km: 45000, propNome: "Fulano de Teste", propDoc: "529.982.247-25", situacao: "quitado" };
+const comPermuta = (f, b) => ({ valor: f.valor, linhas: f.linhas.map((l, k) => (k === f.linhas.map((x) => x.t).lastIndexOf("balao")
+  ? { ...l, t: "permuta", x: "carro do cliente", ...(b ? { b } : {}) } : l)) });
+
+test("03/11 permuta: sem os dados do bem não salva; com o bem completo grava o bem e o resumo; o contrato sai com a identificação", () => {
+  const c = cenarioFluxo();
+  const base = c.acao("fluxoEditar").atual;
+  const sem = c.acao("salvarFluxo", { fluxo: comPermuta(base), motivo: "cliente dá o carro no balão" });
+  assert.equal(sem.erro, "CAMPOS_INVALIDOS");
+  assert.match(sem.erros.join(" | "), /faltam os dados do bem da permuta/);
+  const inc = c.acao("salvarFluxo", { fluxo: comPermuta(base, { ...carroTeste, renavam: "00639884961" }), motivo: "cliente dá o carro no balão" });
+  assert.match(inc.erros.join(" | "), /RENAVAM inválido/);
+  assert.equal(c.txt("FLUXO PERSONALIZADO"), "", "nada gravado");
+  const ok = c.acao("salvarFluxo", { fluxo: comPermuta(base, carroTeste), motivo: "cliente dá o carro no balão" });
+  assert.equal(ok.ok, true, JSON.stringify(ok));
+  const p = JSON.parse(c.txt("FLUXO PERSONALIZADO")).linhas.find((l) => l.t === "permuta");
+  assert.equal(p.x, "Hyundai HB20 2019/2020 placa ABC1D23");
+  assert.equal(p.b.propDoc, "52998224725");
+  c.d.zerar();
+  const pre = c.acao("gerarPreContrato");
+  assert.equal(pre.ok, true, JSON.stringify(pre));
+  const pars = c.d.estado.salvos[c.d.estado.copias.at(-1).id].pars.join("\n");
+  assert.match(pars, /placa ABC1D23, RENAVAM 00000000000, chassi 9BWZZZ377VT004251/);
+  assert.match(pars, /ATPV-e\/CRV/);
+});
+
+test("03/11 permuta antiga (gravada só com a descrição) continua salvando se a linha não mudou", () => {
+  const c0 = cenarioFluxo();
+  const antigo = FluxoLivre.serializar({ ...comPermuta(c0.acao("fluxoEditar").atual), entrega: "2028-12-01" });
+  const c = cenarioFluxo({ linha: { "FLUXO PERSONALIZADO": rt(antigo) } });
+  const atual = c.acao("fluxoEditar").atual;
+  assert.equal(atual.linhas.find((l) => l.t === "permuta").x, "carro do cliente");
+  const r = c.acao("salvarFluxo", { fluxo: { valor: atual.valor, linhas: atual.linhas }, motivo: "só regravar" });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const mexida = { valor: atual.valor, linhas: atual.linhas.map((l) => (l.t === "permuta" ? { ...l, x: "outro carro" } : l)) };
+  assert.equal(c.acao("salvarFluxo", { fluxo: mexida, motivo: "mudou o carro" }).erro, "CAMPOS_INVALIDOS");
+});
+
+test("03/11 histórico do fluxo: sem CPF/RENAVAM/chassi do bem e nunca acima do limite da propriedade", () => {
+  const c = cenarioFluxo();
+  const base = c.acao("fluxoEditar").atual;
+  assert.equal(c.acao("salvarFluxo", { fluxo: comPermuta(base, carroTeste), motivo: "carro no balão" }).ok, true);
+  const atual = c.acao("fluxoEditar").atual;
+  const r = c.acao("salvarFluxo", { fluxo: { valor: atual.valor, linhas: atual.linhas }, motivo: "regravar" });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const h = c.p["FLUXO_HIST_" + COND];
+  assert.match(h, /Hyundai HB20 2019\/2020 placa ABC1D23/, "o resumo fica");
+  assert.doesNotMatch(h, /52998224725|9BWZZZ377VT004251|"renavam"/);
+});
+
+test("03/11 histórico do fluxo: entrada antiga enorme perde o 'antes' para caber (limite da Script Property)", () => {
+  const velho = JSON.stringify([{ por: "ana.teste", em: "2026-10-29T10:00:00Z", motivo: "primeira", valor: 305000, antes: "x".repeat(8400) }]);
+  const c = cenarioFluxo({ props: { ["FLUXO_HIST_" + COND]: velho } });
+  const base = c.acao("fluxoEditar").atual;
+  assert.equal(c.acao("salvarFluxo", { fluxo: comBalao(base), motivo: "mais um balão" }).ok, true);
+  const h = c.p["FLUXO_HIST_" + COND];
+  assert.ok(h.length <= 8500, "tamanho " + h.length);
+  const lista = JSON.parse(h);
+  assert.deepEqual(lista.map((x) => x.motivo), ["primeira", "mais um balão"], "as duas entradas ficam");
+  assert.equal(lista[0].antes, "");
 });

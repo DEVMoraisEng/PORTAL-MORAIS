@@ -553,3 +553,18 @@ def test_alterar_fluxo_casa17_24x_para_36x_comissao_do_prazo_novo():
     assert C.comissao_pela_regra(fx, 350000) == 16625.0          # 4,75%
     volta = [l for l in linhas36 if l["t"] != "pos"]
     assert C.plano_do_fluxo({**fx, "livre": {"valor": 350000, "linhas": volta}}) == 24
+
+
+def test_permuta_com_os_dados_do_bem_vai_com_o_resumo_no_comentario(monkeypatch):
+    """03/11/2026: a linha de permuta ganhou o bem (b) e a descrição virou o resumo dele (FluxoLivre.resumoBem).
+    O robô continua lendo só a descrição: o comentário da parcela é curto, sem RENAVAM/chassi/CPF. Dados FALSOS."""
+    monkeypatch.setenv("DB_VENDAS_COND", DB_COND)
+    linhas = [dict(l) for l in LIVRE]
+    linhas[4] = {**linhas[4], "x": "Hyundai HB20 2019/2020 placa ABC1D23",
+                 "b": {"tipo": "veiculo", "marca": "Hyundai", "modelo": "HB20", "anoFab": 2019, "anoModelo": 2020, "placa": "ABC1D23",
+                       "renavam": "00000000000", "chassi": "9BWZZZ377VT004251", "propDoc": "52998224725"}}
+    n, e = NotionLinha(linha_cond(**_livre(linhas))), ErpLinha()
+    r = L.processar(LINHA_ID, n, e)
+    assert r["situacao"] == "PREVIA", r
+    coments = [i["comment"] for i in r["corpo_venda"]["tradeReceivable"]["installments"] if "Permuta" in (i.get("comment") or "")]
+    assert coments == ["Permuta - Hyundai HB20 2019/2020 placa ABC1D23"]

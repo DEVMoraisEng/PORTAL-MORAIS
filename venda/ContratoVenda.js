@@ -313,7 +313,7 @@ var ContratoVenda = (function () {
       else if (l.t === "prereserva") cada(function (v, d) { G.sinais.push({ v: v, d: d, pr: true }); });
       else if (l.t === "entrada") cada(function (v, d) { G.avista.push({ v: v, d: d }); });
       else if (l.t === "balao") cada(function (v, d) { G.baloes.push({ v: v, d: d, chaves: !!d && d === fl.balao2Data }); });
-      else if (l.t === "permuta") cada(function (v, d) { G.permutas.push({ v: v, d: d, x: l.x || "" }); });
+      else if (l.t === "permuta") cada(function (v, d) { G.permutas.push({ v: v, d: d, x: l.x || "", b: l.b ? F.normalizarBem(l.b) : null }); });
       else if (l.t === "pre" || l.t === "pos") {
         G[l.t].push({ n: n, v: l.v, u: n > 1 && positivo(l.u) ? l.u : null, d: l.d, i: i, dia: diaDe(l.d) });
         if (l.t === "pos") G.posN += n;
@@ -390,11 +390,13 @@ var ContratoVenda = (function () {
 
     var pos = G.pos.map(function (s, i) { return serie61(s, i === 0 ? " (mês seguinte à entrega das chaves)" : ""); });
     inciso("V — PARCELAS APÓS A ENTREGA DAS CHAVES (pós-chaves), corrigidas e acrescidas de juros na forma do item 7.1, \"b\"", pos, pos.length > 1);
-    /* 29/10: permuta (só existe no fluxo alterado) — redação a validar com o advogado */
+    /* 29/10: permuta (só existe no fluxo alterado) — redação a validar com o advogado.
+       03/11 (dono): com os dados do bem (FluxoLivre l.b), a identificação inteira e as obrigações de praxe; a permuta
+       antiga, só com a descrição, sai como antes */
     if (G.permutas.length)
       inciso("VI — BEM DADO EM PAGAMENTO (permuta), sem correção monetária", G.permutas.map(function (p) {
-        return (txt(p.x) || "bem descrito em instrumento próprio") + ", recebido pelo valor de " + valorExtenso(p.v) + ", com entrega em " + dataBR(p.d);
-      }), true);
+        return (identificacaoBem(p.b) || txt(p.x) || "bem descrito em instrumento próprio") + ", recebido pelo valor de " + valorExtenso(p.v) + ", com entrega em " + dataBR(p.d);
+      }), true, obrigacoesPermuta(G.permutas));
     return linhas.join("\n");
   }
 
@@ -492,6 +494,49 @@ var ContratoVenda = (function () {
     var t = ps.map(function (p) { return dataBR(p[1]) + " (R$ " + moedaBR(p[0]) + (p[2] ? ", já paga a título de pré-reserva — Termo de Pré-Reserva" : "") + ")"; });
     return t.slice(0, -1).join(", ") + " e " + t[t.length - 1];
   }
+  /* 03/11 (dono): identificação do bem da permuta no inciso VI (redação a validar com o advogado) */
+  function docBem(d) { var F = FLV(); return (String(d || "").length > 11 ? "CNPJ " : "CPF ") + F.docFormatado(d); }
+  function identificacaoBem(b) {
+    if (!b || !FLV().TIPOS_BEM.hasOwnProperty(b.tipo)) return "";
+    if (b.tipo === "veiculo") {
+      var sit = b.situacao === "alienado"
+        ? "alienado fiduciariamente (financiado) a " + txt(b.credor) + ", com saldo devedor estimado de " + valorExtenso(b.saldo) +
+          ", responsável pela quitação: " + (txt(b.quitaPor) || FLV().QUITA_PADRAO)
+        : "quitado e sem alienação";
+      return "veículo marca " + txt(b.marca) + ", modelo " + txt(b.modelo) + ", ano de fabricação " + b.anoFab + " e ano do modelo " + b.anoModelo +
+        ", cor " + txt(b.cor) + ", placa " + txt(b.placa) + ", RENAVAM " + txt(b.renavam) + ", chassi " + txt(b.chassi) +
+        ", de propriedade de " + txt(b.propNome) + ", " + docBem(b.propDoc) + ", " + sit +
+        (txt(b.obs) ? ", estado de conservação: " + txt(b.obs) : "");
+    }
+    if (b.tipo === "imovel")
+      return "imóvel situado em " + txt(b.endereco) + ", matrícula nº " + txt(b.matricula) + " do " + txt(b.cartorio) +
+        ", de propriedade de " + txt(b.propNome) + ", " + docBem(b.propDoc) + ", ônus: " + (txt(b.onus) || "nenhum");
+    return txt(b.descricao);
+  }
+  /* parágrafo depois das alíneas do inciso VI: só quando alguma permuta tem os dados do bem */
+  function obrigacoesPermuta(permutas) {
+    var tipos = {};
+    permutas.forEach(function (p) { if (p.b && FLV().TIPOS_BEM.hasOwnProperty(p.b.tipo)) tipos[p.b.tipo] = true; });
+    if (!Object.keys(tipos).length) return "";
+    var deb = [], transf = [];
+    if (tipos.veiculo) {
+      deb.push("multas, tributos (inclusive IPVA e licenciamento)");
+      transf.push("assinará a transferência de propriedade do veículo (ATPV-e/CRV) em favor da VENDEDORA ou de quem ela indicar e o entregará com toda a documentação e as chaves");
+    }
+    if (tipos.imovel) {
+      deb.push("tributos (inclusive IPTU), taxas de condomínio");
+      transf.push("outorgará a escritura pública de transferência do imóvel em favor da VENDEDORA ou de quem ela indicar, com as certidões necessárias, e entregará a posse com as chaves");
+    }
+    if (tipos.outro) {
+      if (!deb.length) deb.push("tributos");
+      transf.push("entregará o bem com a documentação que comprove a propriedade e permita a transferência em favor da VENDEDORA ou de quem ela indicar");
+    }
+    var um = permutas.length === 1 ? "o bem" : "cada bem";
+    return "Quanto ao bem dado em pagamento, o COMPRADOR se obriga a entregar " + um + " à VENDEDORA na data prevista, livre e desembaraçado de " +
+      "quaisquer ônus, gravames, " + deb.join(", ") + " e débitos de qualquer natureza até a data da efetiva entrega, que correm por sua conta; " +
+      "responde pela evicção e pelos vícios ocultos do bem; " + transf.join("; ") + "; havendo alienação fiduciária, financiamento ou outro ônus, " +
+      "a quitação e a baixa do gravame são de responsabilidade do COMPRADOR, antes da entrega; o valor atribuído ao bem é definitivo e não sofre correção monetária.";
+  }
   /* 4.2.1 c): a entrada começa depois do sinal — 1ª e 2ª parte e balões (os sinais ficam no 4.1.3) */
   function parcelasPreChaves(fl, excedente) { return textoPreChaves(gruposFluxo({ fluxo: fl }, excedente || 0)); }
   /* semAvista: o termo de confissão de dívida não leva o que é pago na assinatura nem a permuta */
@@ -503,7 +548,8 @@ var ContratoVenda = (function () {
         : a.d && a.d === G.assinatura ? ", na assinatura deste contrato" : ", com vencimento em " + dataBR(a.d)) ;
     });
     var perm = semAvista ? [] : G.permutas.map(function (p) {
-      return "bem dado em pagamento (permuta): " + (txt(p.x) || "bem descrito em instrumento próprio") + ", pelo valor de " + valorExtenso(p.v) + ", com entrega em " + dataBR(p.d);
+      return "bem dado em pagamento (permuta): " + (txt(p.x) || "bem descrito em instrumento próprio") + (p.b && FLV().TIPOS_BEM.hasOwnProperty(p.b.tipo) ? ", identificado no item 6.1, VI" : "") +
+        ", pelo valor de " + valorExtenso(p.v) + ", com entrega em " + dataBR(p.d);
     });
     G.pre.forEach(function (s) { itens.push(serieQuadro(s)); total += s.n; });
     G.baloes.forEach(function (b) {

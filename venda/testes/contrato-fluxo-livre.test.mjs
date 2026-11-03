@@ -90,3 +90,47 @@ test("30/10 isenção da comissão (venda direta): comissão zero, imóvel = pre
   assert.deepEqual([b(isento).SEM_COMISSAO, b(isento).COM_COMISSAO], [true, false]);
   assert.deepEqual([b(co).SEM_COMISSAO, b(co).COM_COMISSAO], [false, true]);
 });
+
+/* 03/11/2026 (dono): a permuta com os dados do bem (FluxoLivre l.b) sai identificada no inciso VI, com as obrigações
+   de praxe; o termo de confissão continua sem ela. Dados FALSOS (repositório público). */
+const F = require("../FluxoLivre.js");
+const carro = { tipo: "veiculo", marca: "Hyundai", modelo: "HB20", anoFab: 2019, anoModelo: 2020, cor: "prata", placa: "ABC1D23",
+  renavam: "00000000000", chassi: "9BWZZZ377VT004251", km: 45000, propNome: "Fulano de Teste", propDoc: "52998224725",
+  situacao: "alienado", credor: "Banco de Teste S.A.", saldo: 8000, obs: "bom estado, pneus novos" };
+const comBem = (b) => F.normalizar({ ...livre, linhas: livre.linhas.map((l) => (l.t === "permuta" ? { ...l, b } : l)) });
+
+test("03/11 permuta de veículo: inciso VI com a identificação inteira e as obrigações; quadro-resumo com o resumo", () => {
+  const t = C.formaPagamentoCondominio(fluxo, comBem(carro)).split("\n");
+  const i = t.indexOf("VI — BEM DADO EM PAGAMENTO (permuta), sem correção monetária:");
+  assert.ok(i > 0, t.join("\n"));
+  assert.equal(t[i + 1], "a) veículo marca Hyundai, modelo HB20, ano de fabricação 2019 e ano do modelo 2020, cor prata, placa ABC1D23, " +
+    "RENAVAM 00000000000, chassi 9BWZZZ377VT004251, de propriedade de Fulano de Teste, CPF 529.982.247-25, " +
+    "alienado fiduciariamente (financiado) a Banco de Teste S.A., com saldo devedor estimado de R$ 8.000,00 (oito mil reais), " +
+    "responsável pela quitação: o COMPRADOR, antes da entrega, estado de conservação: bom estado, pneus novos, " +
+    "recebido pelo valor de R$ 12.200,00 (doze mil e duzentos reais), com entrega em 15/11/2026.");
+  assert.doesNotMatch(t.join("\n"), /km rodados/, "dono 03/11: sem quilometragem (o km do bem antigo é ignorado)");
+  const ob = t[i + 2];
+  for (const m of [/livre e desembaraçado de quaisquer ônus/, /multas/, /IPVA e licenciamento/, /até a data da efetiva entrega/, /evicção/,
+    /vícios ocultos/, /ATPV-e\/CRV\) em favor da VENDEDORA ou de quem ela indicar/, /documentação e as chaves/,
+    /alienação fiduciária.*quitação.*do COMPRADOR, antes da entrega/, /definitivo e não sofre correção monetária/])
+    assert.match(ob, m);
+  assert.equal(C.negritoDaLinha(ob), 0, "o parágrafo das obrigações não é título");
+  const G = C.gruposFluxo({ ...co, livre: comBem(carro) });
+  assert.match(C.textoPreChaves(G), /bem dado em pagamento \(permuta\): Hyundai HB20 2019\/2020 placa ABC1D23, identificado no item 6\.1, VI, pelo valor de R\$ 12\.200,00/);
+  assert.doesNotMatch(C.textoPreChaves(G, true), /permuta/, "termo de confissão sem a permuta");
+});
+
+test("03/11 permuta quitada, imóvel e outro: texto de cada tipo; fluxo antigo (só descrição) sai igual e sem o parágrafo novo", () => {
+  const q = C.formaPagamentoCondominio(fluxo, comBem({ ...carro, situacao: "quitado", obs: "" })).split("\n");
+  assert.ok(q.some((l) => /CPF 529\.982\.247-25, quitado e sem alienação, recebido pelo valor/.test(l)), q.join("\n"));
+  const im = { tipo: "imovel", endereco: "Rua de Teste, 100, Bairro Teste, Cidade Teste", matricula: "12.345", cartorio: "1º CRI de Cidade Teste",
+               propNome: "Fulano de Teste", propDoc: "11222333000181", onus: "" };
+  const ti = C.formaPagamentoCondominio(fluxo, comBem(im)).split("\n");
+  assert.ok(ti.includes("a) imóvel situado em Rua de Teste, 100, Bairro Teste, Cidade Teste, matrícula nº 12.345 do 1º CRI de Cidade Teste, " +
+    "de propriedade de Fulano de Teste, CNPJ 11.222.333/0001-81, ônus: nenhum, recebido pelo valor de R$ 12.200,00 (doze mil e duzentos reais), com entrega em 15/11/2026."), ti.join("\n"));
+  assert.ok(ti.some((l) => /escritura pública.*IPTU|IPTU.*escritura pública/.test(l)), ti.join("\n"));
+  const to = C.formaPagamentoCondominio(fluxo, comBem({ tipo: "outro", descricao: "Trator agrícola de teste, ano 2015, em uso" })).split("\n");
+  assert.ok(to.includes("a) Trator agrícola de teste, ano 2015, em uso, recebido pelo valor de R$ 12.200,00 (doze mil e duzentos reais), com entrega em 15/11/2026."), to.join("\n"));
+  const velho = C.formaPagamentoCondominio(fluxo, livre).split("\n");
+  assert.equal(velho.at(-1), "a) veículo marca/modelo/ano/placa, recebido pelo valor de R$ 12.200,00 (doze mil e duzentos reais), com entrega em 15/11/2026.");
+});
