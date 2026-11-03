@@ -881,9 +881,11 @@ function afAnexoTipo(a){ const n=(a.n||"").toUpperCase(), t=(a.t||"").toLowerCas
   if(a.o==="P") return "Comprovante";
   if(/BOLETO|BLT/.test(n)) return "Boleto"; if(/\bNF|NOTA|DANFE|NFS/.test(n)) return "NF"; if(/RECIBO/.test(n)) return "Recibo"; if(/COMPROV/.test(n)) return "Comprovante";
   return t.includes("pdf")?"PDF":t.includes("image")?"Imagem":"Arquivo"; }
-function afAnexosHtml(i,compacto){
-  const A=((AF_D&&AF_D.anexos)||{}).itens; if(!A) return "";
-  const it=A[String(AF_C.id[i])]; if(!it) return compacto?"":`<div class="small muted" style="margin:0 0 12px">📎 Anexos: este pagamento ainda não foi lido do Mais Controle (o robô lê os pagamentos com alerta dos últimos ${(AF_D.anexos||{}).dias||90} dias).</div>`;
+function afAnexosHtml(i,compacto){ return afAnexosId(AF_C.id[i],compacto); }
+function afAnexosId(id,compacto){
+  const A=((AF_D&&AF_D.anexos)||{}).itens;
+  if(!A) return compacto?"":`<div class="small muted" style="margin:0 0 12px">📎 Anexos do Mais Controle: o robô do servidor ainda não fez a primeira leitura. Assim que rodar, os arquivos (boleto, NF, recibo, comprovante) aparecem aqui e na lista.</div>`;
+  const it=A[String(id)]; if(!it) return compacto?"":`<div class="small muted" style="margin:0 0 12px">📎 Anexos: este pagamento ainda não foi lido do Mais Controle (o robô lê os pagamentos com alerta dos últimos ${(AF_D.anexos||{}).dias||90} dias).</div>`;
   const ls=it.a||[], agora=new Date().toISOString().slice(0,16);
   if(!ls.length) return compacto?`<div class="small anx0">📎 sem anexo no Mais Controle</div>`:`<div class="callout r" style="margin:0 0 12px"><h4>📎 Anexos</h4><p>Nenhum arquivo neste lançamento nem no pagamento, no Mais Controle${it.v?` (lido em ${fD(it.v.slice(0,10))})`:""}.</p></div>`;
   const lk=a=>{ const venc=a.x&&a.x<agora; return venc||!a.u?`<span class="anx venc" title="Link vencido — o robô renova na próxima rodada">📎 ${esc(afAnexoTipo(a))}</span>`:`<a class="anx" href="${esc(a.u)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${esc(a.n||"")}">📎 ${esc(afAnexoTipo(a))}</a>`; };
@@ -1006,7 +1008,7 @@ function afRenderCorr(){
   document.getElementById("c-lista").innerHTML=grupos.map(gr=>`<div class="card"><h3>${esc(gr.nome||"—")}</h3><p class="desc">${fN(gr.itens.length)} lançamento${gr.itens.length>1?"s":""} · ${fR(gr.itens.reduce((a,r)=>a+r.valor,0))}</p>
     <div class="tbl-wrap baixa"><table><thead><tr><th>Pagamento</th><th>Lançamento</th><th>Como está</th><th>O que corrigir</th><th class="num">Valor</th><th>Status</th>${g?"<th></th>":""}</tr></thead><tbody>
     ${gr.itens.map(r=>`<tr${r.i!==null?` class="clk" onclick="afAbrirDrawer(${r.i})"`:""}><td class="small nw">${fD(r.dp)}</td>
-      <td class="desc-c">${esc(r.desc||"—")}<div class="small">${esc(r.forn||"—")} · ID ${esc(r.id||"")}${(AF_G.cc||document.getElementById("c-ag").value==="cc")?"":" · "+esc(r.cc)}</div></td>
+      <td class="desc-c">${esc(r.desc||"—")}<div class="small">${esc(r.forn||"—")} · ID ${esc(r.id||"")}${(AF_G.cc||document.getElementById("c-ag").value==="cc")?"":" · "+esc(r.cc)}</div>${r.id?afAnexosId(r.id,true):""}</td>
       <td>${esc(r.cat)}<div class="pl">${esc(r.tipo)}</div></td>
       <td>${r.v.obs?esc(r.v.obs):r.sug?`<span class="sug">${esc(r.sug)}</span>`:'<span class="muted">ver motivo</span>'}<div class="vquem">${esc(r.v.por||"")} · ${fD((r.v.em||"").slice(0,10))}</div></td>
       <td class="num">${fR(r.valor)}</td><td>${afVlBadge(r.v.status)}${r.v.corrigido_em?`<div class="vquem">${fD(r.v.corrigido_em.slice(0,10))} · ${esc(r.v.corrigido_por||"")}</div>`:""}</td>
@@ -1141,7 +1143,7 @@ function afRenderJuros(){
   const G=AF_BASE.filter(i=>AF_C.dp[i]&&janela.has(AF_C.dp[i].slice(0,7))&&fis.has(afNz(cat(i)))&&(afDias(AF_C.dv[i],AF_C.dp[i])||0)>0)
     .sort((x,y)=>AF_C.jm[y]-AF_C.jm[x]);
   document.getElementById("j-fisc").innerHTML=G.length?`<div class="tbl-wrap baixa"><table><thead><tr><th>Pagamento</th><th>Guia</th><th>Categoria</th><th>Centro de custo</th><th class="num">Dias de atraso</th><th class="num">Valor</th><th class="num">Juros/multa</th></tr></thead><tbody>
-    ${G.slice(0,300).map(i=>`<tr class="clk" onclick="afAbrirDrawer(${i})"><td class="small nw">${fD(AF_C.dp[i])}<div class="muted">venc. ${fD(AF_C.dv[i])}</div></td><td class="desc-c">${esc(AF_C.d[i]||"—")}</td><td>${esc(cat(i))}</td><td class="small">${esc(ccv(i))}</td><td class="num">${afDias(AF_C.dv[i],AF_C.dp[i])}</td><td class="num">${fR(AF_C.v[i])}</td><td class="num">${AF_C.jm[i]?fR(AF_C.jm[i]):"—"}</td></tr>`).join("")}
+    ${G.slice(0,300).map(i=>`<tr class="clk" onclick="afAbrirDrawer(${i})"><td class="small nw">${fD(AF_C.dp[i])}<div class="muted">venc. ${fD(AF_C.dv[i])}</div></td><td class="desc-c">${esc(AF_C.d[i]||"—")}${afAnexosHtml(i,true)}</td><td>${esc(cat(i))}</td><td class="small">${esc(ccv(i))}</td><td class="num">${afDias(AF_C.dv[i],AF_C.dp[i])}</td><td class="num">${fR(AF_C.v[i])}</td><td class="num">${AF_C.jm[i]?fR(AF_C.jm[i]):"—"}</td></tr>`).join("")}
     </tbody></table></div>`:`<div class="vazio">Nenhuma guia fiscal paga em atraso no período.</div>`;
   // contas a pagar
   const jan=document.getElementById("p-jan").value, q=afNz(document.getElementById("p-q").value);
@@ -1199,7 +1201,7 @@ function afRenderFisc(){
   document.getElementById("f-tab").innerHTML=L.length?`<p class="small" style="margin:0 0 8px">${fN(L.length)} alertas · ${fR(L.reduce((a,f)=>a+AF_C.v[f[1]],0))}</p>
     <div class="tbl-wrap"><table><thead><tr><th>Alerta</th><th>Pagamento</th><th>Lançamento</th><th>Categoria</th><th class="num">Valor</th><th>Detalhe</th><th>Validação</th></tr></thead><tbody>
     ${L.slice(0,400).map((f,ix)=>{ const i=f[1], v=AF_VAL.get(f[0]+":"+AF_C.k[i]); return `<tr class="clk" onclick="afAbrirDrawer(${i})"><td><b>${esc((T[f[0]]||{}).t||f[0])}</b></td><td class="small nw">${fD(AF_C.dp[i])}</td>
-      <td class="desc-c">${esc(AF_C.d[i]||"—")}<div class="small">${esc(forn(i)||"—")} · ${esc(ccv(i))} · ID ${AF_C.id[i]}</div></td><td>${esc(cat(i))}</td><td class="num">${fR(AF_C.v[i])}</td><td class="small">${esc(f[2])}</td>
+      <td class="desc-c">${esc(AF_C.d[i]||"—")}<div class="small">${esc(forn(i)||"—")} · ${esc(ccv(i))} · ID ${AF_C.id[i]}</div>${afAnexosHtml(i,true)}</td><td>${esc(cat(i))}</td><td class="num">${fR(AF_C.v[i])}</td><td class="small">${esc(f[2])}</td>
       <td onclick="event.stopPropagation()">${afVlBadge(v?v.status:"PENDENTE")}${v&&v.por?`<div class="vquem">${esc(v.por)} · ${fD((v.em||"").slice(0,10))}</div>`:""}
         ${g?`<div class="vacts"><button class="vbt ok" onclick="afPerguntarVal([${i}],'CONFORME','${f[0]}')">✓ Conforme</button><button class="vbt cx" onclick="afPerguntarVal([${i}],'CORRIGIR','${f[0]}')">✎ Corrigir</button></div>`:""}</td></tr>`; }).join("")}
     </tbody></table></div>${L.length>400?`<p class="small">Mostrando 400 de ${fN(L.length)} — use o Excel (CSV) para ver todos.</p>`:""}`:`<div class="vazio">Nenhum alerta com estes filtros.</div>`;
