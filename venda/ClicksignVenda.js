@@ -428,7 +428,8 @@ var ClicksignVenda = (function () {
     if (soDigitos(v.cpfCnpj).length === 14) return true;
     return txt(v.tipo).toUpperCase() === "PJ";
   }
-  var COM_SELFIE = /^(comprador[12]|conjugeComprador1|fiador[12]|conjugeFiador[12])$/;
+  /* 03/11/2026 (dono): fiadores e cônjuges dos fiadores NÃO pedem selfie — só compradores e o cônjuge do comprador. */
+  var COM_SELFIE = /^(comprador[12]|conjugeComprador1)$/;
   function autenticacoes(s, config, dados) {
     return config && config.selfie && vendedorEmpresa(dados) && COM_SELFIE.test(txt(s && s.origem)) ? ["email"].concat(AUTH_SELFIE) : ["email"];
   }
