@@ -34,6 +34,7 @@
     CLICKSIGN_URL_INVALIDA: "O endereço da Clicksign está errado nas configurações — avise o administrador.",
     RASCUNHO_NAO_APAGADO: "A Clicksign não apagou o rascunho — tente Descartar rascunho de novo em 1 minuto.",
     ENVELOPE_ABERTO: "Este contrato já está com a Clicksign — use Atualizar situação.",
+    PRAZO_INVALIDO: "A data limite para assinar tem de ficar entre amanhã e 89 dias à frente.",
     SEM_CONTRATO_GERADO: "Gere o contrato antes de enviar para assinatura.",
     FALTAM_DADOS: "Complete os dados abaixo e envie de novo.",
     CADASTRO_NAO_CONFIGURADO: "Os cadastros do contrato não estão configurados — avise o administrador.",
@@ -124,6 +125,12 @@
     var m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/.exec(String(iso || ""));
     return m ? m[3] + "/" + m[2] + "/" + m[1] + (m[4] ? " " + m[4] + ":" + m[5] : "") : "";
   }
+  /* 03/11/2026 (dono): data limite para assinar — padrão 30 dias (o que a Clicksign já fazia), de amanhã até 89 dias
+   * (mesma faixa do servidor, ClicksignVenda.prazoAssinatura). Datas "AAAA-MM-DD" no dia local do navegador. */
+  function isoDia(d) { return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
+  function maisDias(agora, n) { var d = new Date(agora.getTime()); d.setDate(d.getDate() + n); return isoDia(d); }
+  function limitesPrazo(agora) { return { min: maisDias(agora, 1), padrao: maisDias(agora, 30), max: maisDias(agora, 89) }; }
+  function dataBr(iso) { return dataCurta(iso); }
   var ROTULO_SIG = { assinou: ["ass-ok", "✓ assinou"], recusou: ["ass-rec", "✗ recusou"], pendente: ["ass-pend", "⏳ pendente"] };
 
   function mensagemAssinatura(r) {
@@ -274,7 +281,14 @@
         }).join(" ") + ' <span class="ass-data">corrija na aba que abrir e clique em Enviar de novo</span></div>';
     }
     var rotulo = e.envelope && REENVIAVEL.indexOf(sit) >= 0 ? "Enviar de novo para assinatura" : "Enviar para assinatura";
-    h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="' + x + 'enviar"' + (podeEnviar(c) ? "" : " disabled") + ">" + rotulo + "</button>";
+    h += '<div class="dz-linha">';
+    /* 03/11 (dono): data limite para assinar, escolhida na hora de enviar (só aparece quando dá para enviar de novo) */
+    if (!e.envelope || REENVIAVEL.indexOf(sit) >= 0) {
+      var lim = limitesPrazo(c.agora || new Date()), valor = c.prazo && c.prazo >= lim.min && c.prazo <= lim.max ? c.prazo : lim.padrao;
+      h += '<label class="ass-data">Assinar até <input type="date" data-prazo="' + x + '" value="' + esc(valor) +
+           '" min="' + lim.min + '" max="' + lim.max + '"' + (podeEnviar(c) ? "" : " disabled") + "></label> ";
+    }
+    h += '<button type="button" class="bt bt-mini" data-acao="' + x + 'enviar"' + (podeEnviar(c) ? "" : " disabled") + ">" + rotulo + "</button>";
     /* 03/11 (dono): botão "Prévia das assinaturas" retirado — "se tudo tiver certo por trás, eu não preciso dela"; a ação
        a-previa e o servidor (assinaturaPrevia) ficam para a prévia em imagem (venda/ferramentas/previa_assinaturas.py) */
     if (e.envelope) h += ' <button type="button" class="bt ghost bt-mini" data-acao="' + x + 'atualizar"' + (podeAtualizar(c) ? "" : " disabled") + ">Atualizar situação</button>";
@@ -354,9 +368,19 @@
     if (acao === "a-descartar") return descartarRascunho(c, deps);
     var enviar = acao === "a-enviar";
     if (enviar ? !podeEnviar(c) : (acao !== "a-atualizar" || !podeAtualizar(c))) return c;
-    if (enviar && !deps.confirmar("Enviar o " + (ehTermo(c) ? "termo de pré-reserva" : "contrato") + " para assinatura? Cada signatário recebe um e-mail da Clicksign para assinar.")) return c;
+    var prazo = "";
+    if (enviar) {
+      var lim = limitesPrazo(c.agora || new Date());
+      prazo = (typeof deps.lerPrazo === "function" && deps.lerPrazo()) || c.prazo || lim.padrao;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(prazo) || prazo < lim.min || prazo > lim.max)
+        return copia(c, { prazo: prazo, msg: "Escolha a data limite para assinar entre " + dataBr(lim.min) + " e " + dataBr(lim.max) + "." });
+      c = copia(c, { prazo: prazo });
+    }
+    if (enviar && !deps.confirmar("Enviar o " + (ehTermo(c) ? "termo de pré-reserva" : "contrato") + " para assinatura até " + dataBr(prazo) +
+                                  "? Cada signatário recebe um e-mail da Clicksign para assinar; depois dessa data o envelope é cancelado.")) return c;
     if (typeof deps.pintar === "function") deps.pintar(copia(c, { ocupado: enviar ? "enviar" : "atualizar", msg: "", faltas: null, corrigir: null }));
     var r, pedido = comDoc(c, { action: enviar ? "assinaturaEnviar" : "assinaturaEstado", pageId: deps.pageId });
+    if (enviar) pedido.prazo = prazo;
     if (enviar && !ehTermo(c)) {
       var rb = await prepararRubricas(deps);
       if (!rb.ok) return copia(c, { ocupado: null, faltas: null, corrigir: null, msg: mensagemAssinatura(rb) });
@@ -511,7 +535,7 @@
   }
 
   var exportar = { montarBlocoAssinatura: montarBlocoAssinatura, mensagemAssinatura: mensagemAssinatura,
-                   executarAcaoAssinatura: executarAcaoAssinatura, prepararRubricas: prepararRubricas, caixasDaPrevia: caixasDaPrevia, TINTA: TINTA, podeEnviar: podeEnviar, podeReenviar: podeReenviar, podeCancelar: podeCancelar, podeDescartar: podeDescartar, podeTrocarEmail: podeTrocarEmail,
+                   executarAcaoAssinatura: executarAcaoAssinatura, limitesPrazo: limitesPrazo, prepararRubricas: prepararRubricas, caixasDaPrevia: caixasDaPrevia, TINTA: TINTA, podeEnviar: podeEnviar, podeReenviar: podeReenviar, podeCancelar: podeCancelar, podeDescartar: podeDescartar, podeTrocarEmail: podeTrocarEmail,
                    podeVerAssinado: podeVerAssinado, nomeArquivoAssinado: nomeArquivoAssinado, precisaCarregarAssinados: precisaCarregarAssinados,
                    carregarAssinados: carregarAssinados, baixarAssinado: baixarAssinado, assinado: assinado,
                    envelopeAberto: envelopeAberto, MSG_DESATUALIZADO: MSG_DESATUALIZADO, preReservaDispensada: preReservaDispensada };

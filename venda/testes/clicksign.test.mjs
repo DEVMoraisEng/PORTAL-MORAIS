@@ -470,3 +470,18 @@ test("plano 23 C: autenticações — token por e-mail sempre; selfie + document
   assert.deepEqual(CS.corpoAutenticacao("d", "s").data.attributes, { action: "provide_evidence", auth: "email" });
   assert.deepEqual(CS.corpoAutenticacao("d", "s", "selfie").data.attributes, { action: "provide_evidence", auth: "selfie" });
 });
+
+/* 03/11/2026 (dono): data limite para assinar — fim do dia em Brasília, de amanhã a 89 dias */
+test("prazoAssinatura: AAAA-MM-DD vira deadline_at no fim do dia; vazio não manda prazo", () => {
+  const agora = new Date("2026-11-03T18:00:00Z");   /* 15:00 em Brasília */
+  assert.deepEqual(CS.prazoAssinatura("", agora), { ok: true, deadline: "" });
+  assert.deepEqual(CS.prazoAssinatura("2026-11-04", agora), { ok: true, deadline: "2026-11-04T23:59:59.000-03:00" });
+  assert.deepEqual(CS.prazoAssinatura("2027-01-31", agora), { ok: true, deadline: "2027-01-31T23:59:59.000-03:00" });
+  for (const ruim of ["2026-11-03", "2027-02-01", "2026-02-30", "03/12/2026", "2026-12-3", "x"])
+    assert.equal(CS.prazoAssinatura(ruim, agora).ok, false, ruim);
+  /* 01:00 UTC de 04/11 ainda é 03/11 em Brasília: amanhã continua sendo 04/11 */
+  assert.equal(CS.prazoAssinatura("2026-11-04", new Date("2026-11-04T01:00:00Z")).ok, true);
+  const corpo = CS.corpoEnvelope("Contrato - X", "", "2026-11-04T23:59:59.000-03:00").data.attributes;
+  assert.equal(corpo.deadline_at, "2026-11-04T23:59:59.000-03:00");
+  assert.equal("deadline_at" in CS.corpoEnvelope("Contrato - X").data.attributes, false);
+});
