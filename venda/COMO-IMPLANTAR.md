@@ -1435,7 +1435,8 @@ redirecionamento (conta como falha e pode desligar o webhook). Tudo passa pela v
   `instalarVigiaAssinaturas` no editor (troca o gatilho para 15 min). Se o MailApp ainda não foi autorizado no projeto,
   o editor pede a permissão nessa hora. O site vai com `venda-dossie.js?v=64`, `venda/assinatura-ui.js?v=26` e o cache
   `portal-morais-v269`.
-- **Configurar:** Propriedade `ASSINATURA_AVISO_EMAILS`; no Notion (base do condomínio) as colunas de Texto
+- **Configurar:** os endereços vão no arquivo `AvisosConfig.gs`, que existe SÓ no Apps Script (fora deste repositório público):
+  `var ASSINATURA_AVISO_EMAILS_PADRAO = "a@empresa, b@empresa";`. A Propriedade `ASSINATURA_AVISO_EMAILS`, se existir, vence. No Notion (base do condomínio) as colunas de Texto
   `ASSINATURA - PROGRESSO` e `PRÉ-RESERVA - PROGRESSO`.
 - **Conferir:** venda de teste com envelope ENVIADO na sandbox → assinar com um signatário → em até 15 min a planilha
   mostra "1 de N"; recusar com outro → linha vermelha "recusado" e o e-mail chega; unidade com contrato gerado e sem

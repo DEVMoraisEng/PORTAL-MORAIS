@@ -137,7 +137,10 @@ function vigiaUma_(col, pg, opc) {
 
 /* 03/11: e-mail para a equipe quando a vigia vê o envelope recusado, cancelado ou expirado. Sem a Propriedade, só o log. */
 function vigiaAvisar_(pg, doc, situacao) {
-  var dest = String(prop_("ASSINATURA_AVISO_EMAILS") || "").split(/[,;\s]+/).filter(function (x) { return /@/.test(x); });
+  /* Propriedade; sem ela, ASSINATURA_AVISO_EMAILS_PADRAO de um arquivo que só existe no Apps Script (AvisosConfig.gs,
+     fora do repositório público: os endereços não entram no GitHub) */
+  var cfg = prop_("ASSINATURA_AVISO_EMAILS") || (typeof ASSINATURA_AVISO_EMAILS_PADRAO !== "undefined" ? ASSINATURA_AVISO_EMAILS_PADRAO : "");
+  var dest = String(cfg || "").split(/[,;\s]+/).filter(function (x) { return /@/.test(x); });
   var id8 = String(pg.id).slice(0, 8);
   if (!dest.length) { ctrLog_("vigia " + id8 + " " + situacao + " sem ASSINATURA_AVISO_EMAILS: ninguém avisado"); return; }
   if (MailApp.getRemainingDailyQuota() < 1) { ctrLog_("vigia " + id8 + " " + situacao + " sem cota de e-mail hoje"); return; }
