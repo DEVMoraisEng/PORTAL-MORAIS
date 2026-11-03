@@ -321,3 +321,20 @@ test("prazo em qualquer ordem dá sempre o mesmo fluxo (36→24→36, 48→36, 3
     assert.deepEqual(F.validar(fim, p36).erros, [], ps.join("→") + ": " + F.validar(fim, p36).erros.join(" | "));
   }
 });
+
+/* 03/11/2026 (dono): "nesse caso o carro entra como sinal/entrada" — a permuta conta no mínimo do sinal. Dados FALSOS. */
+test("permuta conta no sinal mínimo junto com o sinal e a pré-reserva; permuta menor que o necessário continua recusada", () => {
+  const p = F.doPadrao(Object.assign({}, gavetas, { sinalAto: 3280.41, balao1Valor: 7719.59 }), 0, { valor: 1000, data: "2026-10-28" });
+  const troca = (linhas) => Object.assign({}, p, { linhas });
+  const fixos = p.linhas.filter((l) => l.t !== "sinal");
+  const carro = { tipo: "veiculo", marca: "Marca Teste", modelo: "Modelo Teste", anoFab: 2019, anoModelo: 2020, cor: "prata", placa: "ABC1D23",
+    renavam: "00100000002", chassi: "9BWZZZ377VT004251", propNome: "Fulano de Teste", propDoc: "52998224725", situacao: "quitado" };
+  const permuta = (v) => ({ t: "permuta", v, n: 1, d: "2026-11-20", i: 1, x: "", b: carro });
+  /* proposta: sinal 12.280,41 com a pré-reserva de 1.000; o cliente dá um carro de 11.280,41 e não paga mais sinal */
+  assert.equal(p.linhas.filter((l) => l.t === "sinal" || l.t === "prereserva").reduce((s, l) => s + Math.round(l.v * 100) * l.n, 0), 1228041);
+  assert.deepEqual(F.validar(troca([...fixos, permuta(11280.41)]), p).erros, []);
+  /* carro de 10.280,41 e os 1.000 que faltam numa pré-chaves: recusado com o texto novo */
+  const pre = fixos.find((l) => l.t === "pre");
+  const menor = troca([...fixos.map((l) => l === pre ? Object.assign({}, l, { u: l.v + 1000 }) : l), permuta(10280.41)]);
+  assert.match(F.validar(menor, p).erros.join(";"), /O sinal \(com a pré-reserva e a permuta\) não pode ficar abaixo do da proposta: R\$ 12\.280,41/);
+});

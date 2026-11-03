@@ -24,6 +24,8 @@ var LogContratoVenda = (function () {
       if (txt(p && p.motivoPreco).trim()) s += " | valor da casa: " + curto(p.motivoPreco, DETALHE_MAX);
       return s;
     },
+    /* 03/11: só quando o arquivo ficou guardado; nada dos dados do bem */
+    lerCrlv: function (p, r) { return r && r.guardado ? "guardou o CRLV da permuta (linha " + ((Number(r.linha) || 0) + 1) + ")" : ""; },
     salvarCondicoesEspeciais: function (p) {
       var t = curto(p && p.texto, DETALHE_MAX);
       return t ? "condições especiais (item 16): " + t : "apagou as condições especiais (item 16)";

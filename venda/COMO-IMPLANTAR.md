@@ -1285,3 +1285,47 @@ linha de permuta sem os dados completos; só salva depois de "Confirmar dados do
   continuam sem a permuta.
 - Nada a configurar: sobe com o site (FluxoLivre v9, venda-dossie v58) e o Apps Script (`FluxoLivre.js`,
   `FluxoVenda.gs`, `ContratoVenda.js`).
+
+## Permuta: CRLV lido pela IA no formulário do bem (03/11/2026)
+
+Pedido do dono: "podia ser mais esperto e já adicionar campo para colocar o CRLV". No formulário "Dados do bem da
+permuta" (tipo Veículo) há o botão **CRLV (foto ou PDF)** — no celular abre a câmera ou a galeria. A IA lê o CRLV
+(impresso ou CRLV-e) e a tela preenche **só os campos vazios**: o que a pessoa já digitou nunca é trocado; se o CRLV
+disser diferente, a mensagem avisa ("O CRLV diz diferente em: placa — não troquei…"). Os campos vindos do CRLV ficam
+com fundo amarelo claro e o título "do CRLV — confira" (o rótulo fica numa linha só, para a grade não desalinhar).
+CPF/CNPJ do proprietário entra formatado (000.000.000-00 ou 00.000.000/0000-00). **Situação** (regra do dono, 03/11): se
+OBSERVAÇÕES DO VEÍCULO for só "SEM RESERVA DE DOMINIO" (sem olhar acento, caixa e espaço), marca Quitado; qualquer outra
+coisa (alienação fiduciária, restrição, gravame, credor) não mexe — a pessoa escolhe; alienado, credor e saldo nunca vêm
+do CRLV. RENAVAM, CPF/CNPJ, placa, chassi e anos são texto do começo ao fim (zero à esquerda não se perde; se a IA
+devolver número, o zero só volta quando o dígito verificador confere). Nada é gravado no fluxo pela leitura: a pessoa confere, "Confirmar dados do bem" e salva como sempre.
+
+- **Servidor:** ação nova `lerCrlv` (`FluxoVenda.gs`; `pageId`, `linha`, `arquivo` {nome, mime, base64}). Mesmos limites
+  do upload do dossiê (JPG/PNG/WEBP até 5 MB, PDF até 10 MB; a tela converte foto em JPG de até 1600 px), mesmas travas do
+  Salvar fluxo (venda lançada no Mais Controle, envelope aberto, contrato assinado → `FLUXO_*`), login TESTES recusado.
+  **Uma** chamada à IA por clique, pelo provedor de `PROVEDOR_IA` (esquema `crlv` em `OpenAILeitor.js`/`ClaudeLeitor.js`).
+  Valor lido que não passa na conferência (placa, RENAVAM, chassi, CPF/CNPJ, ano) volta vazio para a pessoa digitar.
+  Log só com o começo do id da página e o resultado (nada de placa, RENAVAM, nome ou CPF). O histórico do contrato ganha
+  "guardou o CRLV da permuta (linha N)".
+- **Onde o arquivo fica:** na linha da BANCO DE DADOS VENDAS CONDOMÍNIO, coluna de arquivos `PERMUTA - CRLV`, com o nome
+  "CRLV permuta linha N.jpg/pdf" (acrescenta, não apaga um CRLV anterior). **Sem a coluna o portal lê e preenche do mesmo
+  jeito** e avisa "O arquivo não foi guardado: a venda ainda não tem a coluna PERMUTA - CRLV". Nenhuma coluna existente
+  serve: as de documentos do comprador (DOC. PROPONENTE, CERTIDÕES…) são lidas pela conferência dos documentos.
+- **Contagem de UrlFetch:** o PORTAL-VENDA não tem contador de cota de UrlFetch; cada clique faz 1 chamada à IA + 5 ao
+  Notion (ler a linha; criar o upload, enviar, reler e gravar a coluna) + 2 do histórico do contrato.
+
+### O que o dono faz (teste primeiro, depois produção)
+
+1. No Notion, na base **BANCO DE DADOS VENDAS CONDOMÍNIO**, criar a coluna `PERMUTA - CRLV` do tipo **Arquivos e
+   mídia** (files). Nome exato (maiúsculas, espaço-hífen-espaço). Opcional: sem ela só não guarda o arquivo.
+2. No projeto PORTAL-VENDA, colar de novo `FluxoLivre.gs` (de `venda/FluxoLivre.js`), `FluxoVenda.gs`, `PortalVenda.gs`,
+   `OpenAILeitor.gs`, `ClaudeLeitor.gs` e `LogContratoVenda.gs` (de `venda/LogContratoVenda.js`) e **Implantar › Gerenciar
+   implantações › Editar › Nova versão** (o `ping` responde `venda-v18`).
+3. Nenhuma Propriedade nova: usa `PROVEDOR_IA` e a chave que já estão lá.
+4. O site sobe com o merge (FluxoLivre v11, venda-dossie v60, cache v263).
+
+## Permuta conta no sinal (03/11/2026)
+
+Regra do dono: "nesse caso o carro entra como sinal/entrada". No Alterar fluxo de venda com pré-reserva, o mínimo do
+sinal da proposta passa a contar sinal + pré-reserva + **permuta** (`FluxoLivre.validar`). A mensagem virou "O sinal (com
+a pré-reserva e a permuta) não pode ficar abaixo do da proposta: R$ X". Prazos e número de parcelas do sinal continuam
+valendo só para as linhas de sinal; a permuta continua no inciso VI do contrato. Nada a configurar (FluxoLivre v11).
