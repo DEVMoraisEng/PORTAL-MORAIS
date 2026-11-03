@@ -495,7 +495,9 @@ test("estado em andamento: quem já assinou (evento sign) com a data, nome masca
   const r = c.estado();
   const pend = { assinou: false, situacao: "pendente", data: "" };
   assert.ok(r.signatarios.every((s) => /@/.test(s.email)));
-  assert.deepEqual({ ...r, signatarios: r.signatarios.map(({ email, ...s }) => s) }, { ok: true, situacao: "ENVIADO", envelope: true, temAssinado: false, signatarios: [
+  /* 03/11: cada um traz o id do signatário na Clicksign (o botão Trocar e-mail usa) */
+  assert.deepEqual(r.signatarios.map((s) => s.id), ["sig-1", "sig-2", "sig-3", "sig-4"]);
+  assert.deepEqual({ ...r, signatarios: r.signatarios.map(({ email, id, ...s }) => s) }, { ok: true, situacao: "ENVIADO", envelope: true, temAssinado: false, signatarios: [
     { papel: "Comprador 1", nome: "Fulano T.", assinou: true, situacao: "assinou", data: "2026-10-07T10:20:30.000-03:00" },
     Object.assign({ papel: "Vendedor (representante)", nome: "Beltrano R." }, pend),
     Object.assign({ papel: "Testemunha 1", nome: "Testemunha S." }, pend), Object.assign({ papel: "Testemunha 2", nome: "Testemunha S." }, pend)] });
@@ -1505,4 +1507,121 @@ test("03/11: termo já ENVIADO ou ASSINADO continua valendo com o contrato gerad
   const sit = cenario({ colunas: Object.assign(colunasVenda(), COL_PR),
                         venda: { "CONTRATO GERADO": { files: [] }, "ASSINATURA - ENVELOPE ID": rt("env-1"), "ASSINATURA - SITUAÇÃO": rt("CANCELADO") } });
   assert.equal(sit.acao("gerarTermoPreReserva").erro, "PRE_RESERVA_DISPENSADA");
+});
+
+/* ---- 03/11/2026 (dono): trocar o e-mail de quem ainda não assinou, sem cancelar o envelope ---- */
+const trocar = (c, signerId, email, tok = tokenDe()) => c.g.chamar({ action: "assinaturaTrocarEmail", token: tok, pageId: PAGE, signerId, email });
+const sigDe = (c, email) => c.c.estado.signers.find((s) => s.attributes.email === email);
+
+test("envio: o envelope leva a mensagem padrão com a unidade (default_message) e guarda os requisitos de cada signatário", () => {
+  const c = cenario();
+  assert.equal(c.enviar().ok, true);
+  const env = c.c.chamadas.find((x) => x.metodo === "POST" && x.caminho === "/envelopes").corpo.data.attributes;
+  assert.match(env.default_message, /^Segue o contrato de compra e venda da unidade RESIDENCIAL TESTE QD 07 LT 12 CASA 3 para a sua assinatura eletrônica\./);
+  assert.match(env.default_message, /Morais Engenharia$/);
+  const comp = sigDe(c, "fulano@teste.example");
+  const g = JSON.parse(c.p["ASSINATURA_REQS_env-1_" + comp.id]);
+  assert.deepEqual(g.map((x) => x[2].action), ["agree", "provide_evidence"]);
+  assert.ok(g.every((x) => /^req-\d+$/.test(x[0]) && x[1] === "doc-1"));
+  assert.equal(g[0][2].role, "buyer");
+});
+
+test("mensagem: a Propriedade CLICKSIGN_MENSAGEM_CONTRATO troca o texto ({UNIDADE} vira a obra + casa)", () => {
+  const c = cenario({ props: { CLICKSIGN_MENSAGEM_CONTRATO: "Contrato da {UNIDADE} — assine, por favor." } });
+  assert.equal(c.enviar().ok, true);
+  const env = c.c.chamadas.find((x) => x.metodo === "POST" && x.caminho === "/envelopes").corpo.data.attributes;
+  assert.equal(env.default_message, "Contrato da RESIDENCIAL TESTE QD 07 LT 12 CASA 3 — assine, por favor.");
+});
+
+test("trocar e-mail: cria o novo com os mesmos requisitos ANTES de tirar o antigo, avisa só o novo, mantém o papel", () => {
+  const c = cenario();
+  assert.equal(c.enviar().ok, true);
+  const velho = sigDe(c, "fulano@teste.example");
+  const reqsVelhos = JSON.parse(c.p["ASSINATURA_REQS_env-1_" + velho.id]).map((x) => x[0]);
+  c.c.chamadas.length = 0;
+  const r = trocar(c, velho.id, " Fulano.Certo@Teste.example ");
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const seq = csCalls(c).filter((x) => !/^GET/.test(x));
+  const iNovo = seq.indexOf("POST /envelopes/env-1/signers"), iBulk = seq.indexOf("POST /envelopes/env-1/bulk_requirements"),
+        iDel = seq.indexOf("DELETE /envelopes/env-1/signers/" + velho.id);
+  assert.ok(iNovo >= 0 && iNovo < iBulk && iBulk < iDel, seq.join("\n"));
+  const novo = sigDe(c, "fulano.certo@teste.example");
+  assert.ok(novo && novo.id !== velho.id);
+  assert.equal(novo.attributes.name, velho.attributes.name);
+  assert.equal(novo.attributes.documentation, velho.attributes.documentation);
+  assert.equal(novo.attributes.refusable, true);
+  assert.ok(!sigDe(c, "fulano@teste.example"), "o antigo continua no envelope");
+  const novosReqs = c.c.chamadas.filter((x) => x.caminho === "/envelopes/env-1/requirements").map((x) => x.corpo.data);
+  assert.deepEqual(novosReqs.map((d) => [d.attributes.action, d.relationships.signer.data.id, d.relationships.document.data.id]),
+                   [["agree", novo.id, "doc-1"], ["provide_evidence", novo.id, "doc-1"]]);
+  assert.equal(novosReqs[0].attributes.role, "buyer");
+  assert.deepEqual(c.c.estado.removidos, reqsVelhos);
+  assert.deepEqual(seq.filter((x) => /notifications/.test(x)), ["POST /envelopes/env-1/signers/" + novo.id + "/notifications"]);
+  assert.equal(JSON.parse(c.p["ASSINATURA_PAPEIS_env-1"])[novo.id], "Comprador 1");
+  assert.equal(JSON.parse(c.p["ASSINATURA_PAPEIS_env-1"])[velho.id], undefined);
+  assert.ok(c.p["ASSINATURA_REQS_env-1_" + novo.id] && !c.p["ASSINATURA_REQS_env-1_" + velho.id]);
+  const linha = r.signatarios.find((s) => s.papel === "Comprador 1");
+  assert.deepEqual([linha.id, linha.email, linha.situacao], [novo.id, "fulano.certo@teste.example", "pendente"]);
+  const logs = c.g.logs.join("\n");
+  for (const s of PESSOAIS.concat(["fulano.certo"])) assert.ok(!logs.includes(s), "log vazou: " + s);
+  assert.match(logs, /trocar email 01234567 por ana\.teste: ok/);
+  /* a troca de novo funciona (os requisitos guardados passaram para o novo) */
+  assert.equal(trocar(c, novo.id, "fulano.terceiro@teste.example").ok, true);
+});
+
+test("trocar e-mail: quem já assinou, e-mail inválido/igual/de outro signatário e signatário de fora não mexem em nada", () => {
+  const c = cenario({ cs: { eventos: [SIGN("fulano@teste.example")] } });
+  assert.equal(c.enviar().ok, true);
+  const comp = sigDe(c, "fulano@teste.example"), vend = sigDe(c, "beltrano@teste.example");
+  c.c.chamadas.length = 0;
+  assert.equal(trocar(c, comp.id, "outro@teste.example").erro, "SIGNATARIO_JA_ASSINOU");
+  assert.equal(trocar(c, vend.id, "sem-arroba").erro, "EMAIL_INVALIDO");
+  assert.equal(trocar(c, vend.id, "BELTRANO@teste.example").erro, "EMAIL_IGUAL");
+  assert.equal(trocar(c, vend.id, "t1.spe@teste.example").erro, "EMAIL_REPETIDO");
+  assert.equal(trocar(c, "sig-999", "x@teste.example").erro, "SIGNATARIO_NAO_ACHADO");
+  assert.equal(trocar(c, "../../x", "x@teste.example").erro, "SIGNATARIO_NAO_ACHADO");
+  assert.ok(csCalls(c).every((x) => /^GET/.test(x)), csCalls(c).join("\n"));
+});
+
+test("trocar e-mail: envelope enviado antes desta versão (sem requisitos guardados) → TROCA_SEM_REQUISITOS, nada criado", () => {
+  const c = cenario();
+  assert.equal(c.enviar().ok, true);
+  const vend = sigDe(c, "beltrano@teste.example");
+  delete c.p["ASSINATURA_REQS_env-1_" + vend.id];
+  c.c.chamadas.length = 0;
+  assert.equal(trocar(c, vend.id, "beltrano.certo@teste.example").erro, "TROCA_SEM_REQUISITOS");
+  assert.ok(csCalls(c).every((x) => /^GET/.test(x)));
+});
+
+test("trocar e-mail: falha ao tirar o antigo desfaz o novo (requisitos e signatário); sem desfazer vira TROCA_INCOMPLETA", () => {
+  for (const desfazOk of [true, false]) {
+    let bulk = 0;
+    const c = cenario({ cs: { falhar: (m, cam) => {
+      if (m === "DELETE" && cam === "/envelopes/env-1/signers/sig-2") return { status: 403, json: { errors: [{ title: "Já assinou" }] } };
+      if (m === "POST" && cam === "/envelopes/env-1/bulk_requirements" && ++bulk > 1 && !desfazOk) return { status: 500, json: {} };
+      return null;
+    } } });
+    assert.equal(c.enviar().ok, true);
+    const vend = sigDe(c, "beltrano@teste.example");
+    assert.equal(vend.id, "sig-2");
+    const r = trocar(c, vend.id, "beltrano.certo@teste.example");
+    assert.equal(r.erro, desfazOk ? "CLICKSIGN_FALHOU" : "TROCA_INCOMPLETA", JSON.stringify(r));
+    assert.equal(r.passo, "tirar signatario antigo");
+    const novo = c.c.chamadas.filter((x) => x.metodo === "POST" && x.caminho === "/envelopes/env-1/signers").pop();
+    assert.equal(novo.corpo.data.attributes.email, "beltrano.certo@teste.example");
+    if (desfazOk) assert.ok(!sigDe(c, "beltrano.certo@teste.example"), "o novo ficou no envelope");
+    assert.equal(JSON.parse(c.p["ASSINATURA_PAPEIS_env-1"])["sig-2"], "Vendedor (representante)");
+    assert.ok(!c.c.chamadas.some((x) => /\/signers\/[^/]+\/notifications$/.test(x.caminho)), "avisou numa troca que falhou");
+  }
+});
+
+test("trocar e-mail: perfil TESTES não pode; envelope não ativo não troca; estado final apaga os requisitos guardados", () => {
+  const c = cenario();
+  assert.equal(c.enviar().ok, true);
+  const vend = sigDe(c, "beltrano@teste.example");
+  assert.equal(trocar(c, vend.id, "b@teste.example", tokenDe("TESTES")).erro, "SEM_PERMISSAO_TESTES");
+  c.c.estado.status = "canceled";
+  assert.equal(trocar(c, vend.id, "b@teste.example").erro, "ENVELOPE_NAO_ATIVO");
+  assert.equal(c.estado().situacao, "CANCELADO");
+  assert.ok(!Object.keys(c.p).some((k) => /^ASSINATURA_(REQS|PAPEIS)_env-1/.test(k)), Object.keys(c.p).join(","));
 });

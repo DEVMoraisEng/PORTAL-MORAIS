@@ -2769,11 +2769,13 @@
         if (!rg.ok && rg.erro === "SEM_RESPOSTA") carregarPR();
       }
     }
-    async function aoClicarAssPR(acao) {
+    async function aoClicarAssPR(acao, b) {
       if (!window.VendaAssinatura || ctxP.ocupado) return;
       ctxP.contratoGerado = !!(estadoP && estadoP.gerado);
       var novo = await window.VendaAssinatura.executarAcaoAssinatura(acao, ctxP, {
         pageId: pageId,
+        alvo: b ? b.getAttribute("data-sig") : "",   /* 03/11: Trocar e-mail */
+        perguntar: function (t, v) { return window.prompt(t, v); },
         confirmar: function (t) { return window.confirm(t); },
         chamar: function (p) { return chamarVenda(p, ESPERA_ASSINATURA); },
         pintar: function (c) { ctxP = c; pintarP(); },
@@ -2834,7 +2836,7 @@
       pintarA();
       if (r.ok) avisarContratoEnviado(pageId, ctxA.estado);
     }
-    async function aoClicarAss(acao) {
+    async function aoClicarAss(acao, b) {
       if (!window.VendaAssinatura || ctxA.ocupado) return;
       ctxA.contratoGerado = contratoFinal(estadoC);
       ctxA.desatualizado = !!(contratoFinal(estadoC) && estadoC.envioDesatualizado);   /* 03/11: trava o Enviar */
@@ -2842,6 +2844,8 @@
       var janelaPrevia = acao === "a-previa" ? window.open("about:blank", "_blank") : null;
       var novo = await window.VendaAssinatura.executarAcaoAssinatura(acao, ctxA, {
         pageId: pageId,
+        alvo: b ? b.getAttribute("data-sig") : "",   /* 03/11: Trocar e-mail */
+        perguntar: function (t, v) { return window.prompt(t, v); },
         mostrarPrevia: function (prev) { return window.RubricasVenda ? window.RubricasVenda.mostrarPrevia(prev, janelaPrevia) : null; },
         confirmar: function (t) { return window.confirm(t); },
         chamar: function (p) { return chamarVenda(p, ESPERA_ASSINATURA); },
@@ -2925,9 +2929,9 @@
       if (/^d-/.test(acao)) return aoClicarConf(acao);
       if (/^[ap]-doc-(ver|baixar)$/.test(acao)) return abrirDocAssinado(b, acao);   /* 01/11 (plano 23 A) */
       if (acao === "p-ver-assinado") return verAssinadoPR();
-      if (/^p-/.test(acao)) return aoClicarAssPR(acao);
+      if (/^p-/.test(acao)) return aoClicarAssPR(acao, b);
       if (acao === "a-ver-assinado") return verAssinado();
-      if (/^a-/.test(acao)) return aoClicarAss(acao);
+      if (/^a-/.test(acao)) return aoClicarAss(acao, b);
       if (acao === "r-confirmar") return confirmarRec(b);
       if (uiC.ocupadoContrato) return;
       if (acao === "c-ver") {
@@ -3551,7 +3555,7 @@
        Carrega mesmo sem o painel da casa: o cartão do condomínio também usa. */
     /* 30/10: leitor das rubricas do comprador (pdf.js só carrega na hora de enviar) */
     var sr = document.createElement("script"); sr.src = "venda/RubricasVenda.js?v=8"; document.head.appendChild(sr);
-    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=26";
+    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=27";
     sa.onload = function () { [blocosCasa, blocosCond, blocosPR].forEach(function (b) { if (b) b.pintarAssinatura(); }); };
     document.head.appendChild(sa);
     var body = document.getElementById("pn-body"); if (!body) return;

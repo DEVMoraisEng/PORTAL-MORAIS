@@ -61,7 +61,15 @@
     NAO_ASSINADO: "Ainda não foi assinado por todos — use Atualizar situação.",
     DOCUMENTO_NAO_ENCONTRADO: "Esse documento não está mais no envelope — recarregue a página.",
     CONTRATO_ASSINADO: "O contrato já foi assinado por todos — nada mais muda nele. Recarregue a página.",
-    TERMO_ASSINADO: "O termo de pré-reserva já foi assinado por todos — nada mais muda nele. Recarregue a página."
+    TERMO_ASSINADO: "O termo de pré-reserva já foi assinado por todos — nada mais muda nele. Recarregue a página.",
+    /* 03/11: Trocar e-mail (sem cancelar o envelope) */
+    EMAIL_INVALIDO: "Esse e-mail não parece válido — confira e tente de novo.",
+    EMAIL_IGUAL: "Esse já é o e-mail desta pessoa na Clicksign.",
+    EMAIL_REPETIDO: "Esse e-mail já é de outra pessoa do envelope — cada pessoa precisa de um e-mail.",
+    SIGNATARIO_NAO_ACHADO: "Essa pessoa não está mais no envelope — clique em Atualizar situação.",
+    SIGNATARIO_JA_ASSINOU: "Essa pessoa já assinou — o e-mail dela não muda mais.",
+    TROCA_SEM_REQUISITOS: "Este envelope não tem guardado o que a troca precisa (foi enviado antes desta versão) — para corrigir, cancele o envelope e envie de novo.",
+    TROCA_INCOMPLETA: "A troca parou no meio e não deu para desfazer: a Clicksign ficou com o e-mail antigo e o novo. Cancele o envelope e envie de novo."
   };
 
   function esc(s) {
@@ -233,6 +241,7 @@
     if (c.ocupado === "atualizar") h += '<div class="dz-linha"><b>consultando…</b></div>';
     if (c.ocupado === "reenviar") h += '<div class="dz-linha"><b>reenviando…</b></div>';
     if (c.ocupado === "cancelar") h += '<div class="dz-linha"><b>cancelando o envelope na Clicksign…</b></div>';
+    if (c.ocupado === "trocar-email") h += '<div class="dz-linha"><b>trocando o e-mail na Clicksign…</b></div>';
     if (c.ocupado === "ver") h += '<div class="dz-linha"><b>abrindo o ' + (termo ? "termo" : "contrato") + ' assinado…</b></div>';
     if (!c.contratoGerado) h += '<div class="dz-aviso">Gere o ' + (termo ? "termo" : "contrato") + ' antes de enviar para assinatura.</div>';
     else if (c.desatualizado && !termo && !envelopeAberto(c)) h += '<div class="dz-aviso">' + esc(MSG_DESATUALIZADO) + "</div>";
@@ -246,7 +255,10 @@
           /* 31/10 (dono): o nome vem primeiro e o papel entre parênteses — "Julio Cesar (Representante) - e-mail" */
           return "<li><span>" + (s.nome ? "<b>" + esc(s.nome) + "</b> (" + esc(s.papel) + ")" : esc(s.papel)) + "</span>" +
             (s.email ? ' <span class="ass-data">- ' + esc(s.email) + "</span>" : "") + " " +
-            '<b class="' + rot[0] + '">' + rot[1] + "</b>" + (d && st !== "pendente" ? ' <span class="ass-data">em ' + esc(d) + "</span>" : "") + "</li>";
+            '<b class="' + rot[0] + '">' + rot[1] + "</b>" + (d && st !== "pendente" ? ' <span class="ass-data">em ' + esc(d) + "</span>" : "") +
+            /* 03/11 (dono): e-mail errado se corrige aqui, sem cancelar o envelope */
+            (st === "pendente" && s.id && sit === "ENVIADO" && !c.testes
+              ? ' <button type="button" class="bt ghost bt-mini" data-acao="' + x + 'trocar-email" data-sig="' + esc(s.id) + '"' + (c.ocupado ? " disabled" : "") + ">Trocar e-mail</button>" : "") + "</li>";
         }).join("") + "</ul>";
       }
     }
@@ -338,6 +350,7 @@
     if (acao === "a-reenviar") return reenviarLink(c, deps);
     if (acao === "a-previa") return previaAssinaturas(c, deps);
     if (acao === "a-cancelar") return cancelarEnvelope(c, deps);
+    if (acao === "a-trocar-email") return trocarEmail(c, deps);
     if (acao === "a-descartar") return descartarRascunho(c, deps);
     var enviar = acao === "a-enviar";
     if (enviar ? !podeEnviar(c) : (acao !== "a-atualizar" || !podeAtualizar(c))) return c;
@@ -425,6 +438,38 @@
                       msg: "Link reenviado — " + (p === 1 ? "1 pessoa que ainda não assinou recebe" : p + " pessoas que ainda não assinaram recebem") + " o e-mail de novo." });
   }
 
+  /* 03/11 (dono): troca o e-mail de quem ainda não assinou, sem cancelar o envelope (ação assinaturaTrocarEmail). deps.alvo
+   * = id do signatário (data-sig do botão); deps.perguntar = window.prompt. A Clicksign manda o link para o e-mail novo e o
+   * antigo deixa de valer. O cadastro da venda não muda — a mensagem lembra de corrigir lá também. */
+  function podeTrocarEmail(c) {
+    return !!(c.estado && c.estado.envelope && situacaoDe(c.estado) === "ENVIADO" && !c.ocupado && !c.testes);
+  }
+  var EMAIL_OK = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  async function trocarEmail(c, deps) {
+    if (!podeTrocarEmail(c) || typeof deps.perguntar !== "function") return c;
+    var s = ((c.estado && c.estado.signatarios) || []).filter(function (x) { return x.id && x.id === deps.alvo; })[0];
+    if (!s || sitSignatario(s) !== "pendente") return c;
+    var quem = (s.nome ? s.nome + " (" + s.papel + ")" : s.papel);
+    var novo = deps.perguntar("E-mail certo de " + quem + ":", s.email || "");
+    if (novo === null || novo === undefined) return c;
+    novo = String(novo).trim().toLowerCase();
+    if (!EMAIL_OK.test(novo)) return copia(c, { msg: MSG.EMAIL_INVALIDO });
+    if (novo === String(s.email || "").toLowerCase()) return copia(c, { msg: MSG.EMAIL_IGUAL });
+    if (!deps.confirmar("Trocar o e-mail de " + quem + " para " + novo + "? A Clicksign manda o link de assinatura para o e-mail novo e o antigo deixa de valer. O envelope continua o mesmo (quem já assinou não assina de novo).")) return c;
+    if (typeof deps.pintar === "function") deps.pintar(copia(c, { ocupado: "trocar-email", msg: "" }));
+    var r;
+    try { r = await deps.chamar(comDoc(c, { action: "assinaturaTrocarEmail", pageId: deps.pageId, signerId: s.id, email: novo })); }
+    catch (err) { r = { ok: false, erro: "SEM_RESPOSTA" }; }
+    r = r || { ok: false, erro: "SEM_RESPOSTA" };
+    var estado = c.estado;
+    if (r.signatarios) estado = copia(c.estado, { signatarios: r.signatarios });
+    if (!r.ok) return copia(c, { estado: estado, ocupado: null, msg: mensagemAssinatura(r) });
+    return copia(c, { estado: estado, ocupado: null,
+                      msg: "E-mail trocado — a Clicksign mandou o link para " + novo + "." +
+                           (r.aviso === "NOTIFICACAO_FALHOU" ? " O aviso não saiu: use Reenviar link de assinatura." : "") +
+                           " Corrija também o e-mail no cadastro da venda, para o Mais Controle e os próximos documentos." });
+  }
+
   /* 29/10: cancela o envelope na Clicksign (ação assinaturaCancelar) e mostra a situação nova (CANCELADO). */
   async function cancelarEnvelope(c, deps) {
     if (!podeCancelar(c)) return c;
@@ -466,7 +511,7 @@
   }
 
   var exportar = { montarBlocoAssinatura: montarBlocoAssinatura, mensagemAssinatura: mensagemAssinatura,
-                   executarAcaoAssinatura: executarAcaoAssinatura, prepararRubricas: prepararRubricas, caixasDaPrevia: caixasDaPrevia, TINTA: TINTA, podeEnviar: podeEnviar, podeReenviar: podeReenviar, podeCancelar: podeCancelar, podeDescartar: podeDescartar,
+                   executarAcaoAssinatura: executarAcaoAssinatura, prepararRubricas: prepararRubricas, caixasDaPrevia: caixasDaPrevia, TINTA: TINTA, podeEnviar: podeEnviar, podeReenviar: podeReenviar, podeCancelar: podeCancelar, podeDescartar: podeDescartar, podeTrocarEmail: podeTrocarEmail,
                    podeVerAssinado: podeVerAssinado, nomeArquivoAssinado: nomeArquivoAssinado, precisaCarregarAssinados: precisaCarregarAssinados,
                    carregarAssinados: carregarAssinados, baixarAssinado: baixarAssinado, assinado: assinado,
                    envelopeAberto: envelopeAberto, MSG_DESATUALIZADO: MSG_DESATUALIZADO, preReservaDispensada: preReservaDispensada };

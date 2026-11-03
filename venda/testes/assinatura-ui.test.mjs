@@ -524,3 +524,53 @@ test("03/11 (dono): pré-reserva dispensada = contrato gerado (ou envelope do co
   assert.equal(A.preReservaDispensada(ctx(), { estado: null }), false, "termo ainda carregando: não decide");
   assert.equal(A.preReservaDispensada(null, termo("")), false);
 });
+
+/* 03/11/2026 (dono): Trocar e-mail sem cancelar o envelope */
+const COM_IDS = { situacao: "ENVIADO", envelope: true, signatarios: [
+  { id: "sig-1", papel: "Comprador 1", nome: "Fulano T.", email: "fulano@teste.example", situacao: "assinou" },
+  { id: "sig-2", papel: "Testemunha 1", nome: "Teste U.", email: "errado@teste.example", situacao: "pendente" }] };
+
+test("Trocar e-mail: só em quem está pendente, com o id do signatário; nada para TESTES, cancelado ou resposta sem id", () => {
+  const h = A.montarBlocoAssinatura(ctx({ estado: COM_IDS }));
+  const b = botao(h, "a-trocar-email");
+  assert.equal(b.length, 1);
+  assert.match(b[0], /data-sig="sig-2"/);
+  assert.doesNotMatch(b[0], /disabled/);
+  assert.match(botao(A.montarBlocoAssinatura(ctx({ estado: COM_IDS, ocupado: "atualizar" })), "a-trocar-email")[0], /disabled/);
+  assert.equal(botao(A.montarBlocoAssinatura(ctx({ estado: COM_IDS, testes: true })), "a-trocar-email").length, 0);
+  assert.equal(botao(A.montarBlocoAssinatura(ctx({ estado: Object.assign({}, COM_IDS, { situacao: "RECUSADO" }) })), "a-trocar-email").length, 0);
+  assert.equal(botao(A.montarBlocoAssinatura(ctx({ estado: ENVIADO })), "a-trocar-email").length, 0, "sem id não há botão");
+  /* termo de pré-reserva: mesmo botão com prefixo p- */
+  assert.equal(botao(A.montarBlocoAssinatura(ctx({ doc: "PRE_RESERVA", estado: COM_IDS })), "p-trocar-email").length, 1);
+});
+
+test("Trocar e-mail: pergunta o e-mail, confere, confirma e manda signerId + e-mail; mostra o novo e lembra do cadastro", async () => {
+  const c0 = ctx({ estado: COM_IDS }), chamadas = [];
+  const deps = (x = {}) => Object.assign({ pageId: "p", alvo: "sig-2", perguntar: () => " Certo@Teste.example ", confirmar: () => true,
+    chamar: async (p) => { chamadas.push(p); return { ok: true, situacao: "ENVIADO", envelope: true,
+      signatarios: [COM_IDS.signatarios[0], Object.assign({}, COM_IDS.signatarios[1], { id: "sig-9", email: "certo@teste.example" })] }; } }, x);
+  assert.equal(await A.executarAcaoAssinatura("a-trocar-email", c0, deps({ perguntar: () => null })), c0);
+  assert.match((await A.executarAcaoAssinatura("a-trocar-email", c0, deps({ perguntar: () => "sem-arroba" }))).msg, /não parece válido/);
+  assert.match((await A.executarAcaoAssinatura("a-trocar-email", c0, deps({ perguntar: () => "ERRADO@teste.example" }))).msg, /já é o e-mail/);
+  assert.equal(await A.executarAcaoAssinatura("a-trocar-email", c0, deps({ confirmar: () => false })), c0);
+  assert.equal(await A.executarAcaoAssinatura("a-trocar-email", c0, deps({ alvo: "sig-1" })), c0, "quem já assinou não troca");
+  assert.equal(chamadas.length, 0);
+  const r = await A.executarAcaoAssinatura("a-trocar-email", c0, deps());
+  assert.deepEqual(chamadas, [{ action: "assinaturaTrocarEmail", pageId: "p", signerId: "sig-2", email: "certo@teste.example" }]);
+  assert.equal(r.estado.signatarios[1].email, "certo@teste.example");
+  assert.match(r.msg, /link para certo@teste\.example/);
+  assert.match(r.msg, /cadastro da venda/);
+  const t = await A.executarAcaoAssinatura("p-trocar-email", ctx({ doc: "PRE_RESERVA", estado: COM_IDS }), deps());
+  assert.equal(chamadas.pop().doc, "PRE_RESERVA");
+  assert.ok(t.estado);
+});
+
+test("Trocar e-mail: erros do servidor viram mensagem que diz o que fazer", async () => {
+  for (const [erro, re] of [["TROCA_SEM_REQUISITOS", /cancele o envelope e envie de novo/], ["TROCA_INCOMPLETA", /e-mail antigo e o novo/],
+                            ["EMAIL_REPETIDO", /outra pessoa/], ["SIGNATARIO_JA_ASSINOU", /já assinou/]]) {
+    const r = await A.executarAcaoAssinatura("a-trocar-email", ctx({ estado: COM_IDS }), { pageId: "p", alvo: "sig-2",
+      perguntar: () => "novo@teste.example", confirmar: () => true, chamar: async () => ({ ok: false, erro }) });
+    assert.match(r.msg, re, erro);
+    assert.equal(r.ocupado, null);
+  }
+});
