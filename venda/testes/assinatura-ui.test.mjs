@@ -513,3 +513,14 @@ test("03/11: com o envelope aberto o bloco da Clicksign segue com Atualizar, Ree
   assert.equal(botao(h, "a-previa").length, 0);
   assert.doesNotMatch(botao(h, "a-cancelar")[0], /disabled/);
 });
+
+test("03/11 (dono): pré-reserva dispensada = contrato gerado (ou envelope do contrato) e termo nunca enviado; termo ENVIADO/ASSINADO vale", () => {
+  const termo = (situacao, envelope = !!situacao) => ({ estado: { situacao, envelope, signatarios: [] } });
+  assert.equal(A.preReservaDispensada(ctx(), termo("")), true, "contrato gerado, termo sem envelope");
+  for (const s of ["RASCUNHO", "CANCELADO", "RECUSADO", "EXPIRADO"]) assert.equal(A.preReservaDispensada(ctx(), termo(s)), true, s);
+  for (const s of ["ENVIADO", "ASSINADO"]) assert.equal(A.preReservaDispensada(ctx(), termo(s)), false, s);
+  assert.equal(A.preReservaDispensada(ctx({ contratoGerado: false }), termo("")), false, "sem contrato");
+  assert.equal(A.preReservaDispensada(ctx({ contratoGerado: false, estado: ENVIADO }), termo("")), true, "envelope do contrato sem o PDF gerado na tela");
+  assert.equal(A.preReservaDispensada(ctx(), { estado: null }), false, "termo ainda carregando: não decide");
+  assert.equal(A.preReservaDispensada(null, termo("")), false);
+});

@@ -147,3 +147,10 @@ test("31/10: validarPagamento e histórico (só muda o que mudou; corta as linha
   assert.ok(j.endsWith("\nnova"));
   assert.ok(!j.startsWith("linha 0 "));
 });
+
+test("03/11: dispensada = contrato feito e termo nunca enviado com sucesso (ENVIADO e ASSINADO continuam valendo)", () => {
+  assert.equal(P.dispensada("", true), true);
+  for (const s of ["RASCUNHO", "CANCELADO", "RECUSADO", "EXPIRADO", "rascunho"]) assert.equal(P.dispensada(s, true), true, s);
+  for (const s of ["ENVIADO", "ASSINADO", " enviado "]) assert.equal(P.dispensada(s, true), false, s);
+  for (const s of ["", "ENVIADO", "CANCELADO"]) assert.equal(P.dispensada(s, false), false, "sem contrato: " + s);
+});

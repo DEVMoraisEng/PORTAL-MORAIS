@@ -41,6 +41,22 @@ function assDoc_(p) {
   return { pre: false, chave: "", cols: ASS_COL, gerado: ctrArquivoGerado_, semGerado: "SEM_CONTRATO_GERADO" };
 }
 
+/* 03/11/2026 (dono): "quem já assinou" na planilha — "3 de 5" na coluna de progresso do documento, só se a coluna existir
+ * (ASSINATURA - PROGRESSO / PRÉ-RESERVA - PROGRESSO, texto) e só quando muda. Erro aqui nunca derruba a situação. */
+var ASS_COL_PROGRESSO = { CONTRATO: "ASSINATURA - PROGRESSO", PRE_RESERVA: "PRÉ-RESERVA - PROGRESSO" };
+function assGravarProgresso_(pg, pageId, doc, signers, feitos) {
+  if (!signers || !signers.length) return;
+  var alvo = RegrasVenda.chave(doc.pre ? ASS_COL_PROGRESSO.PRE_RESERVA : ASS_COL_PROGRESSO.CONTRATO), real = null;
+  for (var n in pg.properties) if (RegrasVenda.chave(n) === alvo && pg.properties[n].type === "rich_text") real = n;
+  if (!real) return;
+  var feitosN = signers.filter(function (s) { return feitos[s.id]; }).length;
+  var texto = feitosN + " de " + signers.length;
+  if (assTexto_(pg, real) === texto) return;
+  var g = {}; g[real] = texto;
+  try { assGravarTextos_(pageId, g); }
+  catch (e) { ctrErro_("assinatura progresso " + String(pageId).slice(0, 8), e); }
+}
+
 function assLog_(msg) { console.log("PORTAL-VENDA assinatura " + msg); }
 function assProps_() { return PropertiesService.getScriptProperties(); }
 function assApagarProp_(nome) { try { assProps_().deleteProperty(nome); } catch (e) { assLog_("propriedade nao apagada"); } }
@@ -781,6 +797,7 @@ function assinaturaEstado_(col, p) {
 
   var feitos = ClicksignVenda.assinaram(signers, eventos);
   var lista = assListaSignatarios_(envId, signers, eventos);
+  assGravarProgresso_(pg, p.pageId, doc, signers, feitos);
   if (ClicksignVenda.FINAIS.indexOf(sit) >= 0) { assApagarProp_(ASS_PAPEIS + envId); assApagarProp_(ASS_REENVIO + envId); }
   var resp = { ok: true, situacao: sit, envelope: true, signatarios: lista, temAssinado: !semArquivo };
   if (aguardando) resp.aguardandoArquivo = true;
@@ -1039,6 +1056,17 @@ var ASS_TRAVA_ENVELOPE = ["assinaturaEnviar", "assinaturaReenviar", "assinaturaC
 var ASS_MSG_ABERTO = "O contrato já foi enviado para assinatura. Para mudar, cancele o envelope primeiro.";
 var ASS_MSG_ABERTO_TERMO = "O termo já foi enviado para assinatura. Para mudar, cancele o envelope do termo primeiro.";
 var ASS_MSG_ABERTO_CONJUGE = "O termo já foi enviado para assinatura. Para mudar quem assina, cancele o envelope do termo primeiro.";
+var ASS_MSG_DISPENSADA = "O contrato desta unidade foi gerado sem a pré-reserva: a pré-reserva foi dispensada.";
+/* contrato feito = PDF em CONTRATO GERADO ou envelope do contrato já criado (situação preenchida); base sem as colunas não dispensa;
+ * envio do termo ainda pendente (ASSINATURA_PENDENTE_PR_<página>: envelope criado, situação não gravada) não dispensa */
+function assPreReservaDispensada_(pg, pageId) {
+  if (prop_(ASS_PENDENTE + assDoc_({ doc: "PRE_RESERVA" }).chave + pageId)) return false;
+  var temContrato = false, sitTermo = "";
+  try { temContrato = !!ctrArquivoGerado_(pg); } catch (e) { temContrato = false; }
+  try { if (!temContrato) temContrato = !!assTexto_(pg, assColunas_(pg, assDoc_({})).SITUACAO); } catch (e) { /* sem as colunas do contrato */ }
+  try { sitTermo = assTexto_(pg, assColunas_(pg, assDoc_({ doc: "PRE_RESERVA" })).SITUACAO); } catch (e) { return false; }
+  return PreReservaVenda.dispensada(sitTermo, temContrato);
+}
 function assTravaAssinado_(p) {
   var a = String(p.action || ""), termo, envelope = ASS_TRAVA_ENVELOPE.indexOf(a) >= 0, soAberto = ASS_TRAVA_SO_ABERTO.indexOf(a) >= 0;
   if (ASS_TRAVA_CONTRATO.indexOf(a) >= 0 || soAberto) termo = false;
@@ -1064,6 +1092,10 @@ function assTravaAssinado_(p) {
   if (!soAberto && assinado(dcAlvo)) erro = termo ? "TERMO_ASSINADO" : "CONTRATO_ASSINADO";
   /* correção 1 (M-7): contrato assinado também trava o que a tela esconde da pré-reserva (o pagamento segue aberto) */
   else if (ASS_TRAVA_TERMO.indexOf(a) >= 0 && assinado(assDoc_({}))) erro = "CONTRATO_ASSINADO";
+  /* 03/11 (dono): contrato gerado direto, termo nunca enviado = pré-reserva dispensada (gerar/enviar/mudar o termo param) */
+  else if (termo && (ASS_TRAVA_TERMO.indexOf(a) >= 0 || a === "assinaturaEnviar") && assPreReservaDispensada_(pg, p.pageId)) {
+    erro = "PRE_RESERVA_DISPENSADA"; msg = ASS_MSG_DISPENSADA;
+  }
   /* 03/11: envelope aberto (as ações de envelope têm o caminho delas: Enviar recusa, Reenviar/Cancelar são para ele) */
   else if (!envelope && !assinado(dcAlvo) && aberto(dcAlvo)) {   /* assinado não é "aberto": as ações respondem a trava delas */
     erro = "ENVELOPE_ABERTO";
