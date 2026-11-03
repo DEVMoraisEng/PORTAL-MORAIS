@@ -568,8 +568,18 @@ var ContratoVenda = (function () {
       " pelo IPCA/IBGE, acrescido de juros remuneratórios de 1% (um por cento) ao mês, nos termos do item 6.1.";
   }
 
+  /* 03/11/2026 (dono): "(DDD) xxxxx-xxxx" (fixo "(DDD) xxxx-xxxx"); tira +55 e o 0 da operadora. O que não tem 10 ou 11
+     dígitos sai como veio — nunca some dígito. */
+  function telefoneFormatado(t) {
+    var s = txt(t), d = s.replace(/\D/g, "");
+    if (d.length >= 12 && d.slice(0, 2) === "55") d = d.slice(2);
+    if (d.length >= 11 && d.charAt(0) === "0") d = d.slice(1);
+    if (d.length === 11) return "(" + d.slice(0, 2) + ") " + d.slice(2, 7) + "-" + d.slice(7);
+    if (d.length === 10) return "(" + d.slice(0, 2) + ") " + d.slice(2, 6) + "-" + d.slice(6);
+    return s;
+  }
   function contato(c) {
-    return [txt(c.email) ? "e-mail " + txt(c.email) : "", txt(c.telefone) ? "telefone " + txt(c.telefone) : ""];
+    return [txt(c.email) ? "e-mail " + txt(c.email) : "", txt(c.telefone) ? "telefone " + telefoneFormatado(c.telefone) : ""];
   }
   function semVazios(partes) { return partes.filter(function (p) { return p !== ""; }).join(", "); }
   /* item 1 do quadro: "[Nome], [nacionalidade], [estado civil], [profissão], RG nº, CPF nº, residente …, e-mail, telefone" */
@@ -1467,7 +1477,7 @@ var ContratoVenda = (function () {
   var api = {
     PARAGRAFOS_SE_VAZIO: PARAGRAFOS_SE_VAZIO, planoParagrafosVazios: planoParagrafosVazios,
     CAMPOS_CADASTRO: CAMPOS_CADASTRO, camposAbertos: camposAbertos, validarCampos: validarCampos,
-    validarContaDigitada: validarContaDigitada, cnpjValido: cnpjValido,
+    validarContaDigitada: validarContaDigitada, cnpjValido: cnpjValido, telefoneFormatado: telefoneFormatado,
     COL: COL, TIPOS: TIPOS, moedaBR: moedaBR, valorPorExtenso: valorPorExtenso,
     dataBR: dataBR, dataPorExtenso: dataPorExtenso, loteQuadra: loteQuadra,
     escolherModelo: escolherModelo, qualificacao: qualificacao, nomeComprador1: nomeComprador1,

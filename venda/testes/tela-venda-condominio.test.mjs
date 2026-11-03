@@ -193,8 +193,8 @@ test("gerarContrato na linha do condomínio: modelo do condomínio, PDF em CONTR
   assert.ok(pars.some((l) => l.startsWith("6.1. Preço total: R$ 305.000,00")));
   /* quadro-resumo (21/10): e-mail e telefone do comprador e do corretor, % da comissão pela regra, meio de pagamento padrão */
   const q = pars.find((l) => l.startsWith("QUADRO: "));
-  assert.ok(q.includes("CPF nº 529.982.247-25, residente e domiciliado(a) à ") && q.includes(", e-mail compradora@teste.example, telefone 62 90000-0000 | "), q);
-  assert.ok(q.includes("| Corretor Teste, CRECI nº 40167, CPF nº 246.813.579-28, e-mail corretor@teste.example, telefone 62 91111-1111 | 4,5% | sinal (item 4.1.3) por PIX; parcelas da entrada por boleto bancário | casa 13"), q);
+  assert.ok(q.includes("CPF nº 529.982.247-25, residente e domiciliado(a) à ") && q.includes(", e-mail compradora@teste.example, telefone (62) 90000-0000 | "), q);
+  assert.ok(q.includes("| Corretor Teste, CRECI nº 40167, CPF nº 246.813.579-28, e-mail corretor@teste.example, telefone (62) 91111-1111 | 4,5% | sinal (item 4.1.3) por PIX; parcelas da entrada por boleto bancário | casa 13"), q);
   assert.equal(c.n.pagina.properties["CONTRATO GERADO"].files.length, 1);
   assert.equal(c.n.pagina.properties["CONTRATO GERADO"].files[0].name, r.nome);
   const e = c.acao("contratoEstado");
@@ -299,7 +299,7 @@ test("termo: estado, falta a conta, salva a conta, gera o PDF com o carimbo na c
   assert.match(r.nome, /^TERMO DE PRÉ-RESERVA - CONDOMÍNIO RESERVA DOS IPÊS - CASA 13 - .* \[#[0-9a-f]{8}\]\.pdf$/);
   assert.equal(c.d.estado.copias.at(-1).nome, "TERMO DE PRÉ-RESERVA - CONDOMÍNIO RESERVA DOS IPÊS CASA 13 - Compradora de Teste");
   const pars = c.d.estado.salvos[c.d.estado.copias[c.d.estado.copias.length - 1].id].pars;
-  assert.ok(pars[0].includes("Compradora de Teste") && pars[0].includes("CPF nº 529.982.247-25") && pars[0].includes("telefone 62 90000-0000"), pars[0]);
+  assert.ok(pars[0].includes("Compradora de Teste") && pars[0].includes("CPF nº 529.982.247-25") && pars[0].includes("telefone (62) 90000-0000"), pars[0]);
   assert.equal(pars[1], "Casa 13 Tipo 02 até 31/10/2026 por R$ 3.000,00 (três mil reais) (3.000,00)");
   assert.equal(pars[2], "Devolução: PIX, chave 529.982.247-25, no banco 756 - SICOOB");
   assert.equal(c.n.pagina.properties["PRÉ-RESERVA - TERMO GERADO"].files[0].name, r.nome);
