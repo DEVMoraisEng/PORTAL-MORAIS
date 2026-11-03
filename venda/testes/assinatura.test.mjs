@@ -1441,6 +1441,20 @@ test("vigia 03/11: envelope cancelado ou expirado na Clicksign também avisa; se
   assert.equal(s.emails.length, 0);
 });
 
+test("vigia 03/11: sem a Propriedade, os endereços vêm de ASSINATURA_AVISO_EMAILS_PADRAO (arquivo só do Apps Script, fora do repositório); a Propriedade vence", () => {
+  for (const [props, esperado] of [[{}, "cfg1@teste.example,cfg2@teste.example"], [{ ASSINATURA_AVISO_EMAILS: "prop@teste.example" }, "prop@teste.example"]]) {
+    const ev = [];
+    const c = vigiaCom({ eventos: ev, props });
+    c.g.ctx.ASSINATURA_AVISO_EMAILS_PADRAO = "cfg1@teste.example; cfg2@teste.example";
+    assert.equal(c.enviar(TOK_LONGO).ok, true);
+    c.volta();
+    ev.push(REFUSAL("beltrano@teste.example"));
+    c.volta();
+    assert.equal(c.emails.length, 1, JSON.stringify(props));
+    assert.equal(c.emails[0].to, esperado);
+  }
+});
+
 test("vigia 03/11: Atualizar situação pelo botão grava a recusa mas não manda e-mail (quem clicou já viu)", () => {
   const ev = [];
   const c = vigiaCom({ eventos: ev, props: { ASSINATURA_AVISO_EMAILS: "vendas@teste.example" } });

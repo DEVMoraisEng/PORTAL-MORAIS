@@ -1187,6 +1187,16 @@
     return { titulo: s, itens: [] };
   }
   /* e = {situacao, vendaId}; u = {ocupado, msg, testes} */
+  /* "<rótulo>: pedido ao robô em dd/mm hh:mm" com mais de 10 minutos (o robô já devia ter respondido) */
+  function pedidoParado(situacao, rotulo, agora) {
+    var r = String(rotulo).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");   /* rótulo literal, ex.: "Contratos (ZIP)" */
+    var m = new RegExp("(^|\\n)" + r + ": pedido ao rob[ôo] em (\\d{2})/(\\d{2}) (\\d{2}):(\\d{2})", "i").exec(String(situacao || ""));
+    if (!m) return false;
+    var hoje = agora ? new Date(agora) : new Date();
+    var quando = new Date(hoje.getFullYear(), Number(m[3]) - 1, Number(m[2]), Number(m[4]), Number(m[5]));
+    if (quando > hoje) quando.setFullYear(quando.getFullYear() - 1);   /* virada de ano */
+    return hoje - quando > 10 * 60 * 1000;
+  }
   function htmlMC(e, u) {
     /* PROCESSANDO com mais de 15 min (carimbo [t=ms]) = o robô não respondeu: libera pedir de novo */
     var tProc = e && /\[t=(\d+)\]/.exec(e.situacao || "");
@@ -1219,9 +1229,11 @@
     /* 03/11: o contrato não entrou no recebimento (venda criada antes do PDF assinado) ou o ZIP não foi para o Orçamento:
        o botão pede de novo ao robô do servidor (ele não repete o que já está lá) */
     var linhasSit = String(e.situacao || "");
-    if (e.vendaId && /(^|\n)Contrato: n[ãa]o (anexado|pedido)/i.test(linhasSit))
+    /* 03/11 (casa 31): pedido recusado pelo robô (código antigo) não muda a situação — "pedido ao robô em dd/mm hh:mm"
+       há mais de 10 minutos também libera o botão de novo */
+    if (e.vendaId && (/(^|\n)Contrato: n[ãa]o (anexado|pedido)/i.test(linhasSit) || pedidoParado(linhasSit, "Contrato")))
       h += '<button type="button" class="bt bt-mini" data-acao="mc-anexar"' + d(ocupado) + ">Anexar contrato no Mais Controle</button> ";
-    else if (/(^|\n)Contratos \(ZIP\): (n[ãa]o (enviado|gerado|guardado)|.*N[ÃA]O pedido)/i.test(linhasSit))
+    else if (/(^|\n)Contratos \(ZIP\): (n[ãa]o (enviado|gerado|guardado)|.*N[ÃA]O pedido)/i.test(linhasSit) || pedidoParado(linhasSit, "Contratos (ZIP)"))
       h += '<button type="button" class="bt bt-mini" data-acao="mc-anexar-zip"' + d(ocupado) + ">Enviar ZIP ao Mais Controle</button> ";
     h += '<button type="button" class="bt ghost bt-mini" data-acao="mc-atualizar"' + (u.ocupado ? " disabled" : "") + ">Atualizar</button></div>";
     if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
@@ -1297,7 +1309,7 @@
                    htmlSoltar: htmlSoltar, pessoasDoEnvio: pessoasDoEnvio, conferirEscolhas: conferirEscolhas,
                    destinosDoEnvio: destinosDoEnvio, resultadoPorEspaco: resultadoPorEspaco,
                    resumo: resumo, escala: escala, tipoAceito: tipoAceito, painelCarregando: painelCarregando,
-                   htmlContrato: htmlContrato, htmlContratoLeitura: htmlContratoLeitura, MSG_SO_LEITURA: MSG_SO_LEITURA, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, mensagemMC: mensagemMC,
+                   htmlContrato: htmlContrato, htmlContratoLeitura: htmlContratoLeitura, MSG_SO_LEITURA: MSG_SO_LEITURA, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, pedidoParado: pedidoParado, mensagemMC: mensagemMC,
                    topicosMC: topicosMC, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas, htmlConjugePR: htmlConjugePR,
                    htmlCampos: htmlCampos, htmlConta: htmlConta, htmlFluxo: htmlFluxo, htmlFluxoVivo: htmlFluxoVivo, htmlFluxoDesconto: htmlFluxoDesconto, htmlFluxoBem: htmlFluxoBem, aplicarCrlv: aplicarCrlv, permutaSemBem: permutaSemBem, faltasDoBem: faltasDoBem, campoBem: campoBem, lerNumBR: lerNumBR, contaDoEstado: contaDoEstado, pedidoCampos: pedidoCampos,
                    contaDasEntradas: contaDasEntradas, faltasDaResposta: faltasDaResposta, detalheFluxoGravado: detalheFluxoGravado,

@@ -275,8 +275,11 @@ e, dentro de `"vars"`: `"SUPABASE_URL": "https://mgxjmqanrpomvqkzulbe.supabase.c
 $env:DESCOBRIR="1"; python servidor\robo_fila.py --robo anexos; Remove-Item Env:DESCOBRIR
 ```
 Devolver ao dono a saída inteira (só tem chaves, contagens e a validade do link — nenhum nome ou valor).
-O esperado: `rota do lançamento: /trade-payables/%s`, `baixas achadas: 1` ou mais, `arquivos: N`,
-`get-url: link ok`.
+O esperado (desde 82f5519 o nº do lançamento é traduzido para o UUID pela lista
+`/payable-installments/paginated-result`): `campo com o nº do lançamento: <caminho>` (não "NÃO ACHADO"),
+`lançamentos do escopo achados` > 0, em cada lançamento `tradePayable: uuid · baixas: N · arquivos: N`,
+`get-url: link ok`, e a última linha `OK: N lançamento(s) lido(s) na descoberta.` Se falhar, a última linha é
+`FALHOU: … — <causa>` e o bloco "erros por rota (todos)" mostra o erro de cada rota; o código de saída é 1.
 
 ## 5. (servidor) Primeira rodada de verdade
 ```powershell
