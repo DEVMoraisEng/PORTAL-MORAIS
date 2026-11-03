@@ -344,6 +344,38 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 .cd-bt.pri{background:var(--verde-btn);border-color:var(--verde-btn);color:#1a3347}
 .cd-chk{font-size:12.5px;color:var(--text3);display:flex;align-items:center;gap:5px}
 .cd-dica{font-size:12.5px;color:var(--text3);margin:0 0 10px}
+/* ===== 03/11/2026: VGV do condomínio, abaixo da tabela (mesmos cartões do Início) ===== */
+.vgv .sec{flex-wrap:wrap}
+.vgv-per{display:flex;gap:4px;padding:4px;border:2px solid var(--verde-btn);border-radius:10px;background:rgba(76,217,100,.06);flex-wrap:wrap}
+.vgv-per button{border:2px solid transparent;background:none;color:var(--text3);border-radius:7px;padding:5px 11px;font-family:'Barlow Condensed',sans-serif;font-size:13.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+.vgv-per button:hover{background:rgba(76,217,100,.15)}
+.vgv-per button.on{background:var(--verde-btn);color:#1a3347;border-color:var(--verde-btn)}
+.vgv-filtro{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-left:auto}
+.vgv-regra{font-size:12.5px;color:var(--text3);margin:-6px 0 12px}
+.vgv-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:13px}
+.vgv-kpi{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:15px 16px 14px;min-width:0}
+.vgv-kpi .lab{font-size:10px;letter-spacing:.4px;text-transform:uppercase;color:var(--text3);font-weight:700}
+.vgv-kpi .val{font-family:'Barlow Condensed',sans-serif;font-size:30px;font-weight:800;line-height:1;margin-top:8px;color:var(--azul-esc);font-variant-numeric:tabular-nums}
+.vgv-kpi .sub{font-size:11.5px;color:var(--text4);margin-top:6px}
+.vgv-kpi .ant{margin-top:7px;font-size:12px;color:var(--text3);font-weight:600}
+.vgv-kpi .ant b{font-family:'Barlow Condensed',sans-serif;font-size:15px}
+.vgv-kpi .ant b.sobe{color:var(--verde)}.vgv-kpi .ant b.desce{color:#c0392b}
+.vgv-kpi.hero{background:linear-gradient(135deg,#295778,#1e3f58);border:0}
+.vgv-kpi.hero .lab{color:rgba(255,255,255,.85)}.vgv-kpi.hero .val{color:#fff}.vgv-kpi.hero .sub,.vgv-kpi.hero .ant{color:#8FDCD2}
+.vgv-kpi.hero .ant b.sobe{color:#8ce0a5}.vgv-kpi.hero .ant b.desce{color:#f3a29a}
+.vgv-meses{display:flex;align-items:flex-end;gap:8px;height:170px;margin-top:16px;padding:10px 12px 0;background:var(--sup);border:1px solid var(--border2);border-radius:12px;overflow-x:auto}
+.vgv-mes{flex:1 0 46px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;border:0;background:none;cursor:pointer;padding:0 0 6px;font:inherit}
+.vgv-mes i{display:block;width:70%;min-height:2px;border-radius:4px 4px 0 0;background:var(--border)}
+.vgv-mes.on i{background:var(--verde)}
+.vgv-mes:hover i{opacity:.8}
+.vgv-mes .v{font-size:10.5px;font-weight:700;color:var(--text);margin-bottom:3px;white-space:nowrap}
+.vgv-mes .m{font-size:11px;color:var(--text3);margin-top:4px}
+.vgv-aviso{font-size:12px;color:#B45309;margin-top:8px}
+html[data-tema="escuro"] .vgv-kpi .val{color:var(--teal)}
+html[data-tema="escuro"] .vgv-kpi.hero .val{color:#fff}
+html[data-tema="escuro"] .vgv-aviso{color:#f0c95f}
+@media(max-width:900px){.vgv-kpis{grid-template-columns:repeat(2,1fr)}.vgv-filtro{margin-left:0}}
+@media(max-width:440px){.vgv-kpis{grid-template-columns:1fr}.vgv-kpi .val{font-size:26px}}
 #cd-wrap table{border-collapse:collapse;font-size:12.5px;min-width:100%}
 #cd-wrap th{position:sticky;top:0;background:var(--azul);color:#fff;padding:8px 10px;text-align:left;white-space:nowrap;font-size:11.5px;z-index:2}
 #cd-wrap td{padding:7px 10px;border-bottom:1px solid var(--border2);white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis}
@@ -1052,6 +1084,8 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
         <div class="cd-dica">Clique no número da <b>unidade</b> para abrir o card com o fluxo de pagamento. Clique numa célula com fundo azulado para editar.
           Ao preencher a <b>data de assinatura</b>, o <b>dia de pagamento</b> ou a <b>data da entrega</b>, as datas, o nº de parcelas e os valores do fluxo são recalculados.</div>
         <div class="tabela-wrap" id="cd-wrap"><div class="vazio">Carregando…</div></div>
+        <!-- 03/11/2026 (dono): VGV do condomínio logo abaixo das unidades — só contrato ASSINADO (venda/vgv-condominio.js) -->
+        <div id="cd-vgv" class="vgv"></div>
       </div>
       <div id="cd-card" class="cd-ov" style="display:none" onclick="if(event.target===this)condFechar()"></div>
 
@@ -1221,6 +1255,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 <script src="venda/Antecipacao.js?v=1"></script><!-- 31/10: Antecipação — a conta roda no navegador -->
 <script src="venda-dossie.js?v=65"></script>
 <script src="venda/contrato-vendida.js?v=2"></script>
+<script src="venda/vgv-condominio.js?v=1"></script><!-- 03/11: VGV do condomínio abaixo das unidades -->
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele.
    Mesma chave (morais_tema) das outras páginas do portal. */
@@ -1868,6 +1903,7 @@ function condRender(){
     return cdNorm([cdVal(l,tit),cdVal(l,"PROPONENTE"),cdVal(l,"CORRETOR"),cdVal(l,"IMOBILIÁRIA"),cdVal(l,"PROPOSTA")].join(" ")).indexOf(termo)>=0;
   }).sort((a,b)=>String(cdVal(a,tit)||"").localeCompare(String(cdVal(b,tit)||""),"pt-BR",{numeric:true}));
   document.getElementById("cd-count").textContent=linhas.length+" unidade(s)";
+  vgvRender();
   if(!COND.linhas.length){ document.getElementById("cd-wrap").innerHTML='<div class="vazio">Nenhuma venda no banco ainda. Marque uma proposta como <b>VENDIDA</b> em Simulações → Propostas para ela aparecer aqui.</div>'; return; }
   let h='<table><thead><tr>'+cols.map((c,i)=>'<th>'+esc(c.nome)+'</th>'+(i===0?'<th>Etapa</th>':'')).join("")+'</tr></thead><tbody>';
   linhas.forEach(l=>{
@@ -1886,6 +1922,68 @@ function condRender(){
     }).join("")+'</tr>';
   });
   document.getElementById("cd-wrap").innerHTML=h+'</tbody></table>';
+}
+
+/* ---- 03/11/2026 (dono): VGV do condomínio, logo abaixo das unidades ----
+   Só contrato ASSINADO é venda (regra e contas em venda/vgv-condominio.js). Segue o filtro de condomínio da
+   planilha; a busca e o status do cadastro não mexem no VGV. O período fica guardado no navegador. */
+const VGV={per:"mesat",mes:"",tri:"",ano:"",de:"",ate:""};
+try{ Object.assign(VGV,JSON.parse(localStorage.getItem("cd_vgv")||"{}")); }catch(e){}
+function vgvHoje(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function vgvMi(v){ return "R$ "+(v/1e6).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})+" mi"; }
+function vgvDelta(atual,ant,rot){
+  if(ant==null) return "";
+  if(!ant) return '<div class="ant">'+esc(rot)+': —</div>';
+  const d=(atual-ant)/ant;
+  return '<div class="ant"><b class="'+(d>=0?"sobe":"desce")+'">'+(d>=0?"▲":"▼")+" "+Math.abs(d*100).toLocaleString("pt-BR",{maximumFractionDigits:1})+'%</b> vs '+esc(rot)+'</div>';
+}
+function vgvMudar(campo,valor){
+  VGV[campo]=valor;
+  try{ localStorage.setItem("cd_vgv",JSON.stringify(VGV)); }catch(e){}
+  vgvRender();
+}
+function vgvRender(){
+  const box=document.getElementById("cd-vgv"); if(!box||!COND||typeof VgvCondominio==="undefined") return;
+  const cf=(document.getElementById("cd-cond")||{}).value||"";
+  const linhas=COND.linhas.filter(l=>{
+    const cn=String(cdVal(l,"CONDOMÍNIO")||"").trim();
+    if(cf==="__sem__") return !cn;
+    return !cf||cdNorm(cn)===cdNorm(cf);
+  });
+  const hoje=vgvHoje(), V=VgvCondominio;
+  const it=V.itens(linhas,cdVal);
+  const mesesOp=[...new Set(it.filter(x=>x.data).map(x=>x.data.slice(0,7)).concat([hoje.slice(0,7)]))].sort().reverse();
+  if(!VGV.mes) VGV.mes=hoje.slice(0,7);
+  if(!VGV.ano) VGV.ano=hoje.slice(0,4);
+  if(!VGV.tri) VGV.tri=hoje.slice(0,4)+"-"+Math.ceil(Number(hoje.slice(5,7))/3);
+  if(!VGV.de) VGV.de=mesesOp[mesesOp.length-1]; if(!VGV.ate) VGV.ate=hoje.slice(0,7);
+  const p=V.periodo(VGV.per,{hoje:hoje,mes:VGV.mes,tri:VGV.tri,ano:VGV.ano,de:VGV.de,ate:VGV.ate});
+  const r=V.resumo(it,p);
+  const anos=[...new Set(mesesOp.map(m=>m.slice(0,4)))];
+  const bt=(k,t)=>'<button type="button" class="'+(VGV.per===k?"on":"")+'" onclick="vgvMudar(\'per\',\''+k+'\')">'+t+'</button>';
+  const sel=(campo,ops)=>'<select onchange="vgvMudar(\''+campo+'\',this.value)">'+ops.map(o=>'<option value="'+esc(o[0])+'"'+(String(VGV[campo])===String(o[0])?" selected":"")+'>'+esc(o[1])+'</option>').join("")+'</select>';
+  let extra="";
+  if(VGV.per==="mes") extra=sel("mes",mesesOp.map(m=>[m,V.mesLongo(m)]));
+  if(VGV.per==="tri") extra=sel("tri",anos.flatMap(a=>[4,3,2,1].map(t=>[a+"-"+t,t+"º tri "+a])));
+  if(VGV.per==="ano") extra=sel("ano",anos.map(a=>[a,a]));
+  if(VGV.per==="livre") extra='<span class="count">de</span>'+sel("de",mesesOp.slice().reverse().map(m=>[m,V.mesCurto(m)]))+'<span class="count">até</span>'+sel("ate",mesesOp.map(m=>[m,V.mesCurto(m)]));
+  const maior=Math.max(1,...r.porMes.map(x=>x.vgv));
+  const barras=r.porMes.length?'<div class="vgv-meses" role="list" aria-label="VGV assinado por mês">'+r.porMes.map(x=>
+    '<button type="button" role="listitem" class="vgv-mes'+(x.noPeriodo?" on":"")+'" title="'+esc(V.mesLongo(x.mes))+': '+esc(cdBRL(x.vgv))+' · '+x.n+' casa(s)" onclick="VGV.mes=\''+x.mes+'\';vgvMudar(\'per\',\'mes\')">'+
+    '<span class="v">'+(x.vgv?(x.vgv/1e6).toLocaleString("pt-BR",{maximumFractionDigits:2}):"")+'</span><i style="height:'+Math.round(x.vgv/maior*110)+'px"></i><span class="m">'+esc(x.rotulo)+'</span></button>').join("")+'</div>':"";
+  box.innerHTML=
+    '<div class="sec"><span class="cond">VGV do condomínio</span>'+
+      '<div class="vgv-filtro"><div class="vgv-per" role="group" aria-label="Período do VGV">'+bt("mesat","Este mês")+bt("mes","Mês")+bt("tri","Trimestre")+bt("ano","Ano")+bt("tudo","Tudo")+bt("livre","De… até…")+'</div>'+extra+'</div></div>'+
+    '<div class="vgv-regra">Conta como venda só o <b>contrato assinado por todos</b>, no mês da data de assinatura. Contrato enviado e ainda sem todas as assinaturas fica em "Em assinatura", fora do VGV.</div>'+
+    '<div class="vgv-kpis">'+
+      '<div class="vgv-kpi hero"><div class="lab">VGV assinado · '+esc(p.rotulo)+'</div><div class="val">'+esc(cdBRL(r.vgv))+'</div>'+(r.ant?vgvDelta(r.vgv,r.ant.vgv,r.ant.rotulo):'<div class="sub">'+r.n+' casa(s)</div>')+'</div>'+
+      '<div class="vgv-kpi"><div class="lab">Contratos assinados</div><div class="val">'+r.n+'</div>'+(r.ant?vgvDelta(r.n,r.ant.n,r.ant.rotulo):'<div class="sub">no período</div>')+'</div>'+
+      '<div class="vgv-kpi"><div class="lab">Ticket médio</div><div class="val">'+(r.n?esc(cdBRL(r.ticket)):"—")+'</div><div class="sub">por casa no período</div></div>'+
+      '<div class="vgv-kpi"><div class="lab">Em assinatura · fora do VGV</div><div class="val">'+r.assinando.n+'</div><div class="sub">'+esc(cdBRL(r.assinando.vgv))+' em contratos enviados</div></div>'+
+    '</div>'+
+    '<div class="vgv-regra" style="margin:10px 0 0">VGV assinado acumulado até '+esc(cdDia(p.ate>hoje?hoje:p.ate))+': <b>'+esc(cdBRL(r.acumulado.vgv))+'</b> em '+r.acumulado.n+' casa(s).</div>'+
+    barras+
+    (r.semData?'<div class="vgv-aviso">⚠ '+r.semData+' contrato(s) assinado(s) sem data de assinatura válida — não entram em período nenhum. Corrija a data na planilha.</div>':"");
 }
 
 /* ---- edição de célula ---- */
