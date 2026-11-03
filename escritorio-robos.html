@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#295778">
+<script>(function(){try{var t=localStorage.getItem("morais_tema");
+  if(t!=="claro"&&t!=="escuro") t="claro";
+  document.documentElement.dataset.tema=t;}catch(e){}})();</script>
+<title>Escritório de Robôs · Morais Engenharia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --azul:#295778;--azul-esc:#1e3f58;--teal:#8FDCD2;--verde:#2a9d5c;--verde-btn:#4cd964;--verde-esc:#1a6b40;
+  --bg:#EAF1F3;--bg2:#F5F9FA;--bg3:#dceaef;--border:#b8d0da;--border2:#d0e4ec;
+  --text:#1a3347;--text3:#5a8099;--text4:#8aacbb;--sup:#fff;--vermelho:#c0392b;--laranja:#e2a03a;
+  --sombra:rgba(20,40,55,.16);
+  --piso1:#dfe9ed;--piso2:#d4e1e6;--madeira1:#c99a6b;--madeira2:#a87a4f;--moldura:#24313b;
+  --st-ok:#2a9d5c;--st-erro:#d64534;--st-trab:#2f80c2;--st-off:#8aacbb;
+}
+html[data-tema="escuro"]{
+  color-scheme:dark;
+  --azul:#2f6e93;--azul-esc:#122430;--teal:#79c8bf;--verde:#2f9e63;--verde-btn:#3cbf5d;--verde-esc:#17603a;
+  --bg:#0e1920;--bg2:#15222c;--bg3:#1a2c38;--border:#2d4757;--border2:#243a4a;
+  --text:#e7eff5;--text3:#9db4c4;--text4:#7794a6;--sup:#15222c;--vermelho:#e0604f;--sombra:rgba(0,0,0,.45);
+  --piso1:#16252f;--piso2:#132029;--madeira1:#8a6544;--madeira2:#6d4e33;--moldura:#0a1117;
+  --st-ok:#3cbf5d;--st-erro:#e8604f;--st-trab:#4a9ee0;--st-off:#5d7a8c;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;min-height:100vh}
+header{background:linear-gradient(120deg,var(--azul-esc),var(--azul))}
+header::after{content:"";display:block;height:4px;background:linear-gradient(90deg,var(--verde-btn),var(--teal))}
+.hbar{display:flex;align-items:center;gap:13px;padding:10px 16px;flex-wrap:wrap}
+.logo{background:#fff;border-radius:9px;padding:4px 9px;display:inline-flex}.logo img{height:32px;display:block}
+.htitle{font-family:'Barlow Condensed';font-weight:800;font-size:22px;color:#fff;text-transform:uppercase;letter-spacing:.5px;line-height:1}
+.hsub{color:var(--teal);font-size:11px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;margin-top:2px}
+.hspace{flex:1}
+.hbtn{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;
+  padding:7px 12px;font:inherit;font-weight:700;font-size:12.5px;cursor:pointer;text-decoration:none}
+.hbtn:hover{background:rgba(255,255,255,.22)}
+.hbtn:disabled{opacity:.55;cursor:wait}
+main{max-width:1240px;margin:0 auto;padding:18px 16px 48px;display:flex;flex-direction:column;gap:18px}
+.hide{display:none!important}
+.muted{color:var(--text3)}
+
+/* faixa de resumo */
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+@media (max-width:860px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kpi{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:12px 14px;min-width:0}
+.kpi .lab{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text3)}
+.kpi .val{font-family:'Barlow Condensed';font-weight:800;font-size:28px;line-height:1.1;margin-top:2px;overflow-wrap:anywhere}
+.kpi .sub{font-size:12px;color:var(--text3);margin-top:2px}
+.kpi.ok .val{color:var(--st-ok)} .kpi.erro .val{color:var(--st-erro)}
+.barra{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text3);background:var(--sup);border:1px solid var(--border2);border-radius:999px;padding:5px 11px}
+.chip i{width:8px;height:8px;border-radius:50%;background:var(--st-ok)}
+.chip.velho i{background:var(--laranja)}
+.chk{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--text3);cursor:pointer;user-select:none}
+.aviso{padding:11px 13px;border-left:4px solid var(--vermelho);background:rgba(192,57,43,.08);border-radius:6px;font-size:13px;line-height:1.5}
+.aviso.amarelo{border-left-color:var(--laranja);background:rgba(226,160,58,.1)}
+.aviso b{font-weight:700}
+
+/* salão */
+.sala{background:
+   linear-gradient(90deg,rgba(255,255,255,.0) 0 49.6%,rgba(0,0,0,.035) 49.6% 50.4%,rgba(255,255,255,0) 50.4%) 0 0/72px 72px,
+   linear-gradient(0deg,rgba(255,255,255,.0) 0 49.6%,rgba(0,0,0,.035) 49.6% 50.4%,rgba(255,255,255,0) 50.4%) 0 0/72px 72px,
+   linear-gradient(180deg,var(--piso1),var(--piso2));
+  border:1px solid var(--border2);border-radius:16px;padding:14px 14px 16px;position:relative}
+.sala h2{margin:2px 4px 12px;font-family:'Barlow Condensed';font-weight:800;font-size:18px;letter-spacing:.6px;text-transform:uppercase;color:var(--azul-esc);display:flex;align-items:center;gap:8px}
+html[data-tema="escuro"] .sala h2{color:var(--teal)}
+.sala h2 small{font-family:Inter;font-weight:600;font-size:12px;letter-spacing:0;text-transform:none;color:var(--text3)}
+.mesas{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px}
+@media (max-width:420px){.mesas{grid-template-columns:minmax(0,1fr)}}
+
+.mesa{background:var(--sup);border:1px solid var(--border2);border-radius:14px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;
+  box-shadow:0 6px 18px var(--sombra);transition:transform .15s,box-shadow .15s;text-align:left;font:inherit;color:inherit;padding:0;min-width:0}
+.mesa:hover{transform:translateY(-2px);box-shadow:0 12px 26px var(--sombra)}
+.mesa:focus-visible{outline:3px solid var(--teal);outline-offset:2px}
+.mesa.st-erro{border-color:color-mix(in srgb,var(--st-erro) 55%,var(--border2))}
+
+/* a cena: parede, mesa, monitor e o robô */
+.cena{position:relative;height:150px;overflow:hidden;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--rc) 14%,var(--bg2)) 0 62%,color-mix(in srgb,var(--rc) 6%,var(--bg3)) 62%)}
+.cena .quadro{position:absolute;left:14px;top:12px;width:34px;height:26px;border:3px solid var(--moldura);border-radius:3px;background:linear-gradient(160deg,var(--teal),var(--rc));opacity:.55}
+.cena .planta{position:absolute;right:12px;bottom:28px;width:22px;height:40px}
+.robo{position:absolute;right:16%;bottom:40px;width:78px;height:96px;color:var(--rc)}
+.robo .olho{fill:var(--olho);transition:fill .3s}
+.robo .antena{fill:var(--olho)}
+.robo .braco{transform-origin:12px 62px}
+.tampo{position:absolute;left:5%;right:5%;bottom:28px;height:14px;border-radius:5px;background:linear-gradient(180deg,var(--madeira1),var(--madeira2));box-shadow:0 3px 0 rgba(0,0,0,.18);z-index:3}
+.tampo::before,.tampo::after{content:"";position:absolute;top:14px;width:8px;height:22px;background:var(--madeira2);border-radius:0 0 3px 3px}
+.tampo::before{left:12px}.tampo::after{right:12px}
+.teclado{position:absolute;left:41%;bottom:40px;width:44px;height:7px;border-radius:2px;background:var(--moldura);opacity:.85;z-index:4}
+.caneca{position:absolute;left:9%;bottom:41px;width:12px;height:13px;border-radius:2px 2px 4px 4px;background:var(--rc);z-index:4}
+.caneca::after{content:"";position:absolute;right:-5px;top:3px;width:5px;height:6px;border:2px solid var(--rc);border-left:0;border-radius:0 4px 4px 0}
+.monitor{position:absolute;left:17%;bottom:52px;width:118px;height:76px;border:6px solid var(--moldura);border-radius:8px;z-index:5;
+  background:#0f1d26;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:3px;overflow:hidden}
+.monitor::after{content:"";position:absolute;left:50%;bottom:-18px;width:12px;height:12px;margin-left:-6px;background:var(--moldura)}
+.pe{position:absolute;left:calc(17% + 59px - 22px);bottom:42px;width:44px;height:6px;border-radius:3px;background:var(--moldura);z-index:4}
+.tela-ico{font-size:22px;line-height:1}
+.tela-st{font-family:'Barlow Condensed';font-weight:800;font-size:15px;letter-spacing:.06em;color:#fff;line-height:1;text-transform:uppercase;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;padding:0 4px}
+.tela-hr{font-size:10.5px;font-weight:600;color:rgba(255,255,255,.75)}
+.lamp{position:absolute;right:5px;top:5px;width:8px;height:8px;border-radius:50%;background:var(--olho);box-shadow:0 0 8px var(--olho)}
+.linhas{position:absolute;inset:6px 8px;display:none;flex-direction:column;gap:5px}
+.linhas span{height:4px;border-radius:2px;background:rgba(143,220,210,.75)}
+.st-ok{--olho:var(--verde-btn)} .st-ok .monitor{background:linear-gradient(180deg,#123826,#0f2a1f)}
+.st-erro{--olho:#ff5b4f} .st-erro .monitor{background:linear-gradient(180deg,#4a1712,#2e0f0c)}
+.st-trab{--olho:#8FDCD2} .st-trab .monitor{background:linear-gradient(180deg,#10314a,#0c2234)}
+.st-off{--olho:#5d6d78} .st-off .monitor{background:#121a20} .st-off .tela-st{color:#8aa0ad}
+.st-sem{--olho:#9fb4c0} .st-sem .monitor{background:#1a2731}
+.st-off .olho{transform:scaleY(.18);transform-box:fill-box;transform-origin:center}
+.st-trab .linhas{display:flex}.st-trab .tela-ico,.st-trab .tela-hr{opacity:.0}
+.st-trab .tela-st{position:relative;z-index:1;background:#0c2234;padding:2px 5px;border-radius:3px}
+@media (prefers-reduced-motion:no-preference){
+  .st-erro .lamp{animation:pisca 1s steps(2) infinite}
+  .st-trab .linhas{animation:rola 1.6s linear infinite}
+  .st-trab .braco{animation:digita .35s ease-in-out infinite alternate}
+  .st-ok .robo .cabeca{animation:respira 4s ease-in-out infinite}
+  .st-off .zzz{animation:zzz 2.4s ease-in-out infinite}
+}
+@keyframes pisca{50%{opacity:.15}}
+@keyframes rola{from{transform:translateY(0)}to{transform:translateY(-9px)}}
+@keyframes digita{from{transform:rotate(0)}to{transform:rotate(-9deg)}}
+@keyframes respira{50%{transform:translateY(-1.5px)}}
+@keyframes zzz{0%{opacity:0;transform:translate(0,4px)}40%{opacity:1}100%{opacity:0;transform:translate(6px,-8px)}}
+.zzz{display:none;position:absolute;right:9%;top:16px;font-family:'Barlow Condensed';font-weight:800;font-size:18px;color:var(--text4)}
+.st-off .zzz{display:block}
+
+.corpo{padding:11px 14px 13px;display:flex;flex-direction:column;gap:6px;flex:1}
+.placa{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.placa b{font-family:'Barlow Condensed';font-weight:800;font-size:19px;letter-spacing:.2px;line-height:1.1}
+.cargo{font-size:10.5px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--text4);white-space:nowrap}
+.faz{margin:0;font-size:12.5px;color:var(--text3);line-height:1.45}
+.lin{display:flex;gap:7px;font-size:12.5px;line-height:1.4;align-items:flex-start}
+.lin .k{flex:none;width:62px;color:var(--text4);font-weight:600}
+.lin .v{min-width:0;overflow-wrap:anywhere}
+.ok-t{color:var(--st-ok);font-weight:700}.erro-t{color:var(--st-erro);font-weight:700}.trab-t{color:var(--st-trab);font-weight:700}
+.tira{display:flex;gap:3px;margin-top:4px;align-items:center}
+.tira span{width:13px;height:13px;border-radius:3px;background:var(--st-ok)}
+.tira span.f{background:var(--st-erro)}
+.tira em{font-style:normal;font-size:11px;color:var(--text4);margin-left:4px}
+
+/* gaveta do robô */
+.veu{position:fixed;inset:0;background:rgba(8,16,22,.45);z-index:40}
+.gaveta{position:fixed;top:0;right:0;bottom:0;width:min(640px,100%);background:var(--bg);z-index:41;overflow:auto;box-shadow:-10px 0 30px rgba(0,0,0,.25);display:flex;flex-direction:column}
+.g-top{position:sticky;top:0;z-index:2;background:linear-gradient(120deg,var(--azul-esc),var(--azul));color:#fff;padding:14px 16px;display:flex;gap:12px;align-items:center}
+.g-top .t{font-family:'Barlow Condensed';font-weight:800;font-size:22px;line-height:1}
+.g-top .s{color:var(--teal);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-top:3px}
+.g-top .x{margin-left:auto}
+.g-ico{width:44px;height:44px;border-radius:12px;background:var(--rc);display:grid;place-items:center;font-size:22px;flex:none;border:2px solid rgba(255,255,255,.35)}
+.g-corpo{padding:16px;display:flex;flex-direction:column;gap:14px}
+.box{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:14px 16px}
+.box h3{margin:0 0 9px;font-family:'Barlow Condensed';font-weight:800;font-size:16px;text-transform:uppercase;letter-spacing:.5px;color:var(--azul-esc)}
+html[data-tema="escuro"] .box h3{color:var(--teal)}
+.box p{margin:0;line-height:1.5}
+.tarefa{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13px}
+.tarefa + .tarefa{margin-top:10px;padding-top:10px;border-top:1px dashed var(--border2)}
+.tarefa .k{color:var(--text4);font-weight:600}
+.rods{display:flex;flex-direction:column;gap:6px}
+.dia{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text4);margin:8px 2px 0}
+.rod{border:1px solid var(--border2);border-radius:10px;background:var(--bg2);overflow:hidden}
+.rod > button{all:unset;box-sizing:border-box;width:100%;display:flex;align-items:center;gap:10px;padding:9px 12px;cursor:pointer;font-size:13px}
+.rod > button:focus-visible{outline:2px solid var(--teal)}
+.rod .selo{font-family:'Barlow Condensed';font-weight:800;font-size:13px;letter-spacing:.05em;color:#fff;border-radius:4px;padding:2px 8px;flex:none}
+.selo.ok{background:var(--st-ok)}.selo.erro{background:var(--st-erro)}
+.rod .h{font-weight:700;flex:none}
+.rod .r{color:var(--text3);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.rod .seta{color:var(--text4);flex:none;transition:transform .15s}
+.rod.aberta .seta{transform:rotate(90deg)}
+.rel{display:none;padding:2px 14px 14px;border-top:1px solid var(--border2);background:var(--sup)}
+.rod.aberta .rel{display:block}
+.rel h4{margin:14px 0 6px;font-size:13px}
+.rel .meta{font-size:12.5px;color:var(--text3);margin:10px 0 0;line-height:1.5}
+.rel ul{margin:0;padding-left:18px;line-height:1.5;font-size:13px}
+.rel li{margin-bottom:6px}
+.rel .fazer{color:var(--text3)}
+.tbl{overflow-x:auto}
+.rel table{border-collapse:collapse;width:100%;font-size:12px}
+.rel th,.rel td{border:1px solid var(--border2);padding:5px 7px;text-align:left;vertical-align:top}
+.rel th{background:var(--bg2);font-weight:700}
+.rel td.txt{white-space:pre-wrap;overflow-wrap:anywhere;min-width:180px}
+.rel pre{font-size:11.5px;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--bg2);border:1px solid var(--border2);border-radius:6px;padding:8px;margin:0;max-height:320px;overflow:auto}
+.vazio{padding:30px;text-align:center;color:var(--text3)}
+.carregando{padding:40px;text-align:center;color:var(--text3)}
+.rodape{font-size:11.5px;color:var(--text4);text-align:center}
+</style>
+</head>
+<body>
+<header>
+  <div class="hbar">
+    <span class="logo"><img src="img/logo.png" alt="Morais" onerror="this.parentNode.style.display='none'"></span>
+    <div style="min-width:0">
+      <div class="htitle">Escritório de Robôs</div>
+      <div class="hsub">Morais Engenharia · quem trabalha no servidor</div>
+    </div>
+    <div class="hspace"></div>
+    <button class="hbtn" id="bt-recarregar" type="button" title="Buscar de novo">↻ Atualizar</button>
+    <a class="hbtn" href="index.html" title="Voltar para o portal">← Portal</a>
+    <button class="hbtn" onclick="(function(){var e=document.documentElement,t=e.dataset.tema==='escuro'?'claro':'escuro';e.dataset.tema=t;try{localStorage.setItem('morais_tema',t)}catch(x){}})()" title="Alternar claro/escuro">◐</button>
+  </div>
+</header>
+
+<main>
+  <div id="avisos"></div>
+  <div class="kpis" id="kpis"></div>
+  <div class="barra">
+    <span class="chip" id="chip-gerado"><i></i><span>Buscando o servidor…</span></span>
+    <label class="chk"><input type="checkbox" id="so-problema"> Só quem precisa de atenção</label>
+  </div>
+  <div id="carregando" class="carregando">Chamando os robôs para a reunião…</div>
+  <section class="sala hide" id="sala-recepcao">
+    <h2>Recepção <small>quem abre a porta do Mais Controle e atende o portal</small></h2>
+    <div class="mesas" id="mesas-recepcao"></div>
+  </section>
+  <section class="sala hide" id="sala-salao">
+    <h2>Salão <small>cada robô na sua mesa — clique para ver o horário e os relatórios</small></h2>
+    <div class="mesas" id="mesas-salao"></div>
+  </section>
+  <div class="rodape" id="rodape"></div>
+</main>
+
+<div class="veu hide" id="veu"></div>
+<aside class="gaveta hide" id="gaveta" role="dialog" aria-modal="true" aria-labelledby="g-titulo"></aside>
+
+<script src="app.js?v=45"></script>
+<script>
+/* ===== ESCRITÓRIO DE ROBÔS (03/11/26) =======================================
+ * Uma mesa por robô do servidor do escritório. Os dados vêm do próprio
+ * servidor (_portal\servidor\escritorio_robos.py), que sobe o arquivo
+ * robos/escritorio.json para o bucket PRIVADO "analise" do Supabase depois de
+ * cada rodada e a cada 15 min. Esta página pede ao Apps Script (escritorioBoot,
+ * apps-script/EscritorioRobos.gs) um link assinado de 15 min e baixa o arquivo.
+ * Acesso: "ESCRITÓRIO DE ROBÔS" na coluna ACESSOS do LOGINS (ADM/MASTER veem).
+ * ========================================================================== */
+const S = exigirSessao();
+const $ = id => document.getElementById(id);
+const CACHE_LOCAL = "morais_escritorio_v1";
+const RECARREGAR_MS = 3 * 60 * 1000;
+const VELHO_MIN = 30;                   // dados mais velhos que isto: o servidor pode estar desligado
+
+/* O que cada robô faz (a chave vem do comando da tarefa agendada: --robo X, --indices, --nome "X"). */
+const CATALOGO = {
+  porteiro: { nome: "Porteiro do ERP", cargo: "Portaria", ico: "🔑", cor: "#2A285F", recepcao: true,
+    faz: "Mantém o Chrome central logado no Mais Controle. Todos os outros robôs entram pela sessão dele — ninguém mais faz login." },
+  fila:     { nome: "Atendente da fila", cargo: "Balcão do portal", ico: "🛎️", cor: "#1B5173", recepcao: true,
+    faz: "De minuto em minuto atende os pedidos feitos no portal (lançar venda, distrato, anexar contrato, ZIP) pela aba do porteiro." },
+  contas:   { nome: "Contas, clientes e obras", cargo: "Cadastro", ico: "🏦", cor: "#3f7cac",
+    faz: "Espelha as contas bancárias do Mais Controle no Notion, confere os proprietários (nome e CPF/CNPJ) e cria no MC as obras marcadas “Criar”." },
+  bases:    { nome: "Bases no Notion", cargo: "Arquivo", ico: "🗂️", cor: "#6c5ce7",
+    faz: "Copia do Mais Controle para o Notion as obras ativas e os fornecedores (MC - OBRAS ATIVAS e MC - FORNECEDORES)." },
+  medicoes: { nome: "Medições de contratos", cargo: "Engenharia", ico: "📐", cor: "#d9952b",
+    faz: "Lê no Mais Controle os contratos e a última medição de cada obra e atualiza o Mapa de Obras." },
+  indices:  { nome: "Índices de reajuste", cargo: "Financeiro", ico: "📈", cor: "#2a9d5c",
+    faz: "Busca o INCC-M e o IPCA no Banco Central e lança os meses novos nas tabelas de reajuste do Mais Controle." },
+  retratos: { nome: "Retrato das vendas", cargo: "Vendas", ico: "🧾", cor: "#b5567a",
+    faz: "Lê no Mais Controle cada venda do condomínio e guarda o retrato financeiro (pagas, a vencer, em atraso) para a aba Financeiro." },
+  anexos:   { nome: "Anexos da auditoria", cargo: "Auditoria", ico: "📎", cor: "#3aa79a",
+    faz: "Traz do Mais Controle boleto, NF, recibo e comprovante dos pagamentos com alerta para o 📎 da Auditoria Financeira." },
+  agua:     { nome: "Água e energia", cargo: "Ligações", ico: "💡", cor: "#2d8fd5",
+    faz: "Coleta as contas de água e energia das obras." }
+};
+function catDe(chave, titulo) {
+  if (CATALOGO[chave]) return CATALOGO[chave];
+  if (/agua|energia/.test(chave)) return CATALOGO.agua;
+  return { nome: titulo || chave, cargo: "Automação", ico: "🤖", cor: "#5a8099", faz: "Automação do servidor do escritório." };
+}
+
+let DADOS = null, ABERTO = null, CARREGANDO = false;
+
+/* ---------------- datas ---------------- */
+function dataDe(iso) { if (!iso) return null; const d = new Date(iso); return isNaN(d) ? null : d; }
+function mesmoDia(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
+const DSEM = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+function hhmm(d) { return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); }
+function ddmm(d) { return String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0"); }
+function quando(iso) {
+  const d = dataDe(iso); if (!d) return "—";
+  const hoje = new Date(), ontem = new Date(hoje), amanha = new Date(hoje);
+  ontem.setDate(hoje.getDate() - 1); amanha.setDate(hoje.getDate() + 1);
+  if (mesmoDia(d, hoje)) return "hoje " + hhmm(d);
+  if (mesmoDia(d, ontem)) return "ontem " + hhmm(d);
+  if (mesmoDia(d, amanha)) return "amanhã " + hhmm(d);
+  return DSEM[d.getDay()] + " " + ddmm(d) + " " + hhmm(d);
+}
+function ha(d) {
+  const m = Math.round((Date.now() - d.getTime()) / 60000);
+  if (m < 1) return "agora há pouco";
+  if (m < 60) return "há " + m + " min";
+  const h = Math.floor(m / 60); if (h < 48) return "há " + h + " h" + (m % 60 && h < 6 ? " " + (m % 60) + " min" : "");
+  return "há " + Math.floor(h / 24) + " dias";
+}
+function diaTitulo(d) {
+  const hoje = new Date(), ontem = new Date(); ontem.setDate(hoje.getDate() - 1);
+  if (mesmoDia(d, hoje)) return "Hoje";
+  if (mesmoDia(d, ontem)) return "Ontem";
+  return ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"][d.getDay()] + ", " + ddmm(d);
+}
+
+/* ---------------- junta tarefas e rodadas por robô ---------------- */
+function montarRobos(D) {
+  const mapa = new Map();
+  const pega = ch => { if (!mapa.has(ch)) mapa.set(ch, { chave: ch, tarefas: [], rodadas: [] }); return mapa.get(ch); };
+  (D.tarefas || []).forEach(t => pega(t.chave).tarefas.push(t));
+  Object.entries(D.rodadas || {}).forEach(([ch, lista]) => { pega(ch).rodadas = lista || []; });
+  pega("porteiro"); pega("fila");          // as duas mesas da recepção existem sempre
+  /* porteiro: a linha "porteiro: …" mais nova de qualquer rodada */
+  let ultP = null;
+  for (const lista of Object.values(D.rodadas || {})) for (const r of lista || []) {
+    if (r.porteiro && (!ultP || (r.inicio || "") > (ultP.inicio || ""))) ultP = r;
+  }
+  const robos = [...mapa.values()].map(r => {
+    const cat = catDe(r.chave, (r.tarefas[0] || {}).titulo);
+    const ult = r.rodadas[0] || null;
+    const rodando = r.tarefas.some(t => t.estado === "trabalhando");
+    const desligado = r.tarefas.length && r.tarefas.every(t => t.estado === "desligada");
+    const proximas = r.tarefas.map(t => t.proxima).filter(Boolean).sort();
+    const res = r.tarefas.map(t => t.resultado).filter(x => x != null);
+    const resRuim = res.some(x => ![0, 267009, 267011, 267014].includes(x));
+    let st = "sem", stTexto = "sem notícias", stHora = "";
+    if (r.chave === "porteiro") {
+      const logado = ultP && /^porteiro: logado/.test(ultP.porteiro || "");
+      if (ultP) { st = logado ? "ok" : "erro"; stTexto = logado ? "logado" : "fora"; stHora = quando(ultP.fim || ultP.inicio); }
+      else if (rodando) { st = "trab"; stTexto = "vigiando"; }
+    } else if (r.chave === "fila") {
+      const em = dataDe((D.saude || {}).em);
+      const filas = Object.values((D.saude || {}).filas || {});
+      const erros = filas.reduce((a, f) => a + (Number(f.erros) || 0), 0);
+      if (em) {
+        const min = (Date.now() - em.getTime()) / 60000;
+        st = min > 10 ? "erro" : (erros ? "erro" : "ok");
+        stTexto = min > 10 ? "sem sinal" : (erros ? erros + " erro" + (erros > 1 ? "s" : "") : "atendendo");
+        stHora = hhmm(em);
+      }
+    } else if (rodando) { st = "trab"; stTexto = "trabalhando"; }
+    else if (desligado) { st = "off"; stTexto = "desligado"; }
+    else if (ult) { st = ult.ok ? "ok" : "erro"; stTexto = ult.ok ? "deu certo" : "deu errado"; stHora = quando(ult.inicio); }
+    else if (res.length) { st = resRuim ? "erro" : "ok"; stTexto = resRuim ? "deu errado" : "deu certo"; stHora = quando(r.tarefas[0].ultima); }
+    if (rodando && r.chave !== "porteiro") { st = "trab"; stTexto = "trabalhando"; }
+    return Object.assign(r, { cat, ult, st, stTexto, stHora, proxima: proximas[0] || null, ultP: r.chave === "porteiro" ? ultP : null });
+  });
+  const ordem = ["porteiro", "fila", "contas", "bases", "medicoes", "indices", "retratos", "anexos"];
+  robos.sort((a, b) => {
+    const ia = ordem.indexOf(a.chave), ib = ordem.indexOf(b.chave);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.cat.nome.localeCompare(b.cat.nome);
+  });
+  return robos;
+}
+
+/* ---------------- desenho ---------------- */
+function roboSvg() {
+  return `<svg class="robo" viewBox="0 0 78 96" aria-hidden="true">
+    <g class="cabeca">
+      <line x1="39" y1="5" x2="39" y2="15" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+      <circle class="antena" cx="39" cy="5" r="4.5"/>
+      <rect x="11" y="14" width="56" height="40" rx="13" fill="currentColor"/>
+      <rect x="17" y="22" width="44" height="23" rx="9" fill="#0d1a22"/>
+      <circle class="olho" cx="30" cy="33.5" r="4.6"/>
+      <circle class="olho" cx="48" cy="33.5" r="4.6"/>
+      <rect x="6" y="28" width="6" height="12" rx="3" fill="currentColor" opacity=".75"/>
+      <rect x="66" y="28" width="6" height="12" rx="3" fill="currentColor" opacity=".75"/>
+    </g>
+    <rect x="21" y="56" width="36" height="34" rx="10" fill="currentColor" opacity=".88"/>
+    <rect x="31" y="63" width="16" height="9" rx="3" fill="#fff" opacity=".35"/>
+    <g class="braco"><rect x="6" y="58" width="9" height="26" rx="4.5" fill="currentColor" opacity=".8"/></g>
+    <rect x="63" y="58" width="9" height="24" rx="4.5" fill="currentColor" opacity=".8"/>
+  </svg>`;
+}
+function planta() {
+  return `<svg class="planta" viewBox="0 0 22 40" aria-hidden="true"><path d="M11 22 C4 18 2 9 6 4 C10 9 11 15 11 22 Z" fill="#3f8f5a"/><path d="M11 22 C18 17 20 8 16 3 C12 8 11 15 11 22 Z" fill="#4fae6c"/><rect x="5" y="22" width="12" height="16" rx="2" fill="#b7653f"/></svg>`;
+}
+/* rótulo curto que cabe na tela do monitor */
+function telaTexto(r) {
+  if (r.chave === "porteiro") return r.st === "ok" ? "logado" : r.st === "erro" ? "fora" : r.st === "trab" ? "vigiando" : "—";
+  if (r.chave === "fila") return r.st === "ok" ? "atendendo" : r.st === "erro" ? (r.stTexto === "sem sinal" ? "sem sinal" : "erro") : "—";
+  return { ok: "ok", erro: "erro", trab: "rodando", off: "desligado", sem: "—" }[r.st] || "—";
+}
+function mesaHtml(r) {
+  const c = r.cat;
+  const horario = [...new Set(r.tarefas.flatMap(t => t.horario || []))];
+  const tira = r.rodadas.slice(0, 12).reverse();
+  const ultTxt = r.chave === "fila"
+    ? (r.stHora ? `último sinal ${r.stHora}` : "sem sinal da fila")
+    : r.chave === "porteiro"
+      ? (r.ultP ? `<span class="${r.st === "ok" ? "ok-t" : "erro-t"}">${esc(r.stTexto)}</span> · conferido ${esc(r.stHora)}` : "—")
+      : r.ult ? `${esc(quando(r.ult.inicio))} · <span class="${r.ult.ok ? "ok-t" : "erro-t"}">${r.ult.ok ? "deu certo" : "deu errado"}</span>`
+        : (r.tarefas[0] && r.tarefas[0].ultima ? `${esc(quando(r.tarefas[0].ultima))} · ${esc(r.tarefas[0].resultado_texto || "")}` : "ainda não rodou");
+  const proxTxt = r.st === "trab" ? `<span class="trab-t">trabalhando agora</span>` : r.proxima ? esc(quando(r.proxima)) : (r.tarefas.length ? "—" : "sem tarefa agendada");
+  return `<button type="button" class="mesa st-${r.st}" data-chave="${esc(r.chave)}" style="--rc:${c.cor}" aria-label="${esc(c.nome)}: ${esc(r.stTexto)}">
+    <div class="cena">
+      <div class="quadro"></div>${planta()}<span class="zzz">z z</span>
+      ${roboSvg()}
+      <div class="monitor"><span class="lamp"></span>
+        <div class="linhas"><span style="width:80%"></span><span style="width:55%"></span><span style="width:70%"></span><span style="width:40%"></span><span style="width:65%"></span><span style="width:85%"></span><span style="width:50%"></span></div>
+        <div class="tela-ico">${c.ico}</div><div class="tela-st">${esc(telaTexto(r))}</div><div class="tela-hr">${esc(r.stHora || "")}</div>
+      </div>
+      <div class="pe"></div><div class="teclado"></div><div class="caneca"></div><div class="tampo"></div>
+    </div>
+    <div class="corpo">
+      <div class="placa"><b>${esc(c.nome)}</b><span class="cargo">${esc(c.cargo)}</span></div>
+      <p class="faz">${esc(c.faz)}</p>
+      <div class="lin"><span class="k">Trabalha</span><span class="v">${horario.length ? horario.map(esc).join("<br>") : (r.chave === "fila" ? "a cada minuto" : "sem tarefa agendada")}</span></div>
+      <div class="lin"><span class="k">Última</span><span class="v">${ultTxt}</span></div>
+      <div class="lin"><span class="k">Próxima</span><span class="v">${proxTxt}</span></div>
+      ${tira.length ? `<div class="tira" title="Últimas rodadas (a mais nova à direita)">${tira.map(x => `<span class="${x.ok ? "" : "f"}" title="${esc(quando(x.inicio))} · ${x.ok ? "deu certo" : "deu errado"}"></span>`).join("")}<em>${r.rodadas.filter(x => x.ok).length}/${r.rodadas.length} ok</em></div>` : ""}
+    </div>
+  </button>`;
+}
+
+function kpisHtml(robos, D) {
+  const hoje = new Date();
+  const rodHoje = Object.values(D.rodadas || {}).flat().filter(x => { const d = dataDe(x.inicio); return d && mesmoDia(d, hoje); });
+  const okHoje = rodHoje.filter(x => x.ok).length, errHoje = rodHoje.length - okHoje;
+  const comProblema = robos.filter(r => r.st === "erro").length;
+  const port = robos.find(r => r.chave === "porteiro");
+  const card = (lab, val, sub, cls) => `<div class="kpi ${cls || ""}"><div class="lab">${lab}</div><div class="val">${val}</div><div class="sub">${sub || ""}</div></div>`;
+  return card("Robôs no escritório", robos.length, robos.filter(r => r.st === "trab").length ? robos.filter(r => r.st === "trab").length + " trabalhando agora" : "nenhum trabalhando agora")
+    + card("Rodadas hoje", rodHoje.length, `<span class="ok-t">${okHoje} deram certo</span> · <span class="${errHoje ? "erro-t" : ""}">${errHoje} deram errado</span>`, errHoje ? "erro" : (rodHoje.length ? "ok" : ""))
+    + card("Precisam de atenção", comProblema, comProblema ? robos.filter(r => r.st === "erro").map(r => esc(r.cat.nome)).join(", ") : "todo mundo em dia", comProblema ? "erro" : "ok")
+    + card("Porteiro", port && port.ultP ? (port.st === "ok" ? "Logado" : "Fora") : "—", port && port.ultP ? "conferido " + esc(port.stHora) : "sem conferência ainda", port && port.ultP ? (port.st === "ok" ? "ok" : "erro") : "");
+}
+
+function pintar() {
+  const D = DADOS; if (!D) return;
+  const robos = montarRobos(D);
+  const so = $("so-problema").checked;
+  const vis = robos.filter(r => !so || r.st === "erro");
+  $("kpis").innerHTML = kpisHtml(robos, D);
+  const rec = vis.filter(r => r.cat.recepcao), sal = vis.filter(r => !r.cat.recepcao);
+  $("mesas-recepcao").innerHTML = rec.map(mesaHtml).join("");
+  $("mesas-salao").innerHTML = sal.map(mesaHtml).join("") || `<div class="vazio">${so ? "Ninguém precisa de atenção agora. 🎉" : "Nenhum robô no salão ainda."}</div>`;
+  $("sala-recepcao").classList.toggle("hide", !rec.length);
+  $("sala-salao").classList.remove("hide");
+  $("carregando").classList.add("hide");
+  const g = dataDe(D.gerado);
+  const chip = $("chip-gerado");
+  const velho = g && (Date.now() - g.getTime()) / 60000 > VELHO_MIN;
+  chip.className = "chip" + (velho ? " velho" : "");
+  chip.querySelector("span").textContent = g ? `Notícias do servidor de ${quando(D.gerado)} (${ha(g)})` : "Sem data";
+  const av = [];
+  if (velho) av.push(`<div class="aviso amarelo"><b>O servidor não manda notícias ${esc(ha(g))}.</b> Ele publica depois de cada rodada e a cada 15 min — pode estar desligado, sem internet, ou a tarefa “MoraisEng - Robo do portal (fila)” parou.</div>`);
+  (D.avisos || []).forEach(a => av.push(`<div class="aviso amarelo">Servidor: ${esc(a)}</div>`));
+  $("avisos").innerHTML = av.join("");
+  if (ABERTO) abrir(ABERTO, true);
+}
+
+/* ---------------- gaveta: horário + relatórios ---------------- */
+function relatorioHtml(x) {
+  if (x.so_pdf) return `<p class="meta">Rodada de antes do Escritório existir: o detalhe está só no PDF que foi por e-mail (${esc(x.pdf || "")}).</p>`;
+  const i0 = dataDe(x.inicio), f0 = dataDe(x.fim);
+  const dur = i0 && f0 ? Math.max(0, Math.round((f0 - i0) / 60000)) : null;
+  const grav = x.gravando == null ? "" : " · gravação " + (x.gravando ? "LIGADA" : "desligada (só simulação)");
+  let h = `<p class="meta">Rodada de ${i0 ? ddmm(i0) + "/" + i0.getFullYear() : "?"}, das ${i0 ? hhmm(i0) : "?"} às ${f0 ? hhmm(f0) : "?"}${dur != null ? " (" + dur + " min)" : ""}${grav} · código de saída ${esc(x.codigo)}</p>`;
+  if (x.porteiro) h += `<p class="meta">${esc(x.porteiro)}</p>`;
+  if (x.repeticao) {
+    h += `<h4>Precisou repetir</h4><p class="meta" style="margin-top:0">A 1ª tentativa falhou por um problema passageiro; o robô esperou o porteiro e rodou de novo. <b>O resultado abaixo é o da 2ª tentativa.</b></p>`;
+    const it = x.repeticao.itens || [];
+    h += `<ul>${it.length ? it.map(i => `<li>${esc(i.hora)} ${esc(i.parte)}: ${esc(i.texto)}</li>`).join("") : `<li>${esc(x.repeticao.motivo)}</li>`}</ul>`;
+  }
+  h += `<h4>O que precisa de atenção</h4>`;
+  h += (x.atencao || []).length
+    ? `<ul>${x.atencao.map(a => `<li><b>${esc(a.parte)}:</b> ${esc(a.oque)}${a.fazer ? `<br><span class="fazer">O que fazer: ${esc(a.fazer)}</span>` : ""}</li>`).join("")}</ul>`
+    : `<p class="meta" style="margin-top:0">Nada. Rodada completa.</p>`;
+  h += `<h4>O que rodou</h4><div class="tbl"><table><tr><th>Hora</th><th>Parte</th><th>Resultado</th><th>Fim da saída</th></tr>`;
+  h += (x.itens || []).length
+    ? x.itens.map(i => `<tr><td>${esc(i.hora)}</td><td>${esc(i.parte)}</td><td class="${i.codigo ? "erro-t" : "ok-t"}">${i.codigo ? "FALHOU (código " + esc(i.codigo) + ")" : "OK"}</td><td class="txt">${esc(i.texto)}</td></tr>`).join("")
+    : `<tr><td colspan="4" class="erro-t">Nenhuma linha desta rodada no log — o robô nem começou.</td></tr>`;
+  h += `</table></div>`;
+  if ((x.indices || []).length) {
+    h += `<h4>Índices depois da rodada</h4><div class="tbl"><table><tr><th>Tabela</th><th>Situação</th><th>Meses ainda por lançar</th></tr>`
+      + x.indices.map(t => `<tr><td>${esc(t.tabela)}</td><td>${esc(t.situacao)}</td><td>${esc((t.meses_novos || []).join(", ") || "nenhum")}</td></tr>`).join("") + `</table></div>`;
+  }
+  if (x.evidencias) h += `<p class="meta">${x.evidencias} print${x.evidencias > 1 ? "s" : ""} salvo${x.evidencias > 1 ? "s" : ""} pelo robô no servidor (_portal\\mc_evidencias).</p>`;
+  if ((x.saida || []).length) h += `<h4>Fim da saída (últimas linhas)</h4><pre>${esc(x.saida.join("\n"))}</pre>`;
+  return h;
+}
+function resumoRodada(x) {
+  if (x.so_pdf) return "detalhe só no PDF do e-mail";
+  const f = (x.atencao || [])[0];
+  if (!x.ok && f) return f.parte + ": " + f.oque;
+  const ult = (x.itens || []).filter(i => i.texto).slice(-1)[0];
+  return (x.repeticao ? "na 2ª tentativa · " : "") + (ult ? ult.texto : (x.ok ? "rodada completa" : "falhou"));
+}
+function abrir(chave, manterAbertas) {
+  const robos = montarRobos(DADOS || {});
+  const r = robos.find(x => x.chave === chave); if (!r) return;
+  const abertas = manterAbertas ? [...document.querySelectorAll("#gaveta .rod.aberta")].map(e => e.dataset.i) : null;
+  ABERTO = chave;
+  const c = r.cat, g = $("gaveta");
+  g.style.setProperty("--rc", c.cor);
+  let tarefas = r.tarefas.map(t => `<div class="tarefa">
+      <span class="k">Tarefa</span><span>${esc(t.nome)}</span>
+      <span class="k">Horário</span><span>${(t.horario || []).map(esc).join("<br>")}</span>
+      <span class="k">Situação</span><span>${esc(t.estado)}${t.resultado_texto ? " · última vez " + esc(t.resultado_texto) : ""}</span>
+      <span class="k">Última</span><span>${esc(quando(t.ultima))}</span>
+      <span class="k">Próxima</span><span>${esc(quando(t.proxima))}</span>
+    </div>`).join("");
+  if (!tarefas) tarefas = `<p class="muted">${r.chave === "fila" ? "Roda pela tarefa da fila do portal." : "Sem tarefa agendada no servidor com este robô."}</p>`;
+  if (r.chave === "fila" && DADOS.saude) {
+    const s = DADOS.saude, fl = Object.entries(s.filas || {});
+    tarefas += `<div class="tarefa"><span class="k">Último sinal</span><span>${esc(quando(s.em))}</span>${fl.map(([n, f]) => `<span class="k">Fila ${esc(n)}</span><span>${esc(f.feitos || 0)} atendidos · ${esc(f.erros || 0)} com erro</span>`).join("")}</div>`;
+  }
+  if (r.chave === "porteiro" && r.ultP) tarefas += `<div class="tarefa"><span class="k">Conferido</span><span>${esc(quando(r.ultP.fim || r.ultP.inicio))} — ${esc(r.ultP.porteiro)}</span></div>`;
+  let rods = "", diaAnt = "";
+  r.rodadas.forEach((x, i) => {
+    const d = dataDe(x.inicio); const dt = d ? diaTitulo(d) : "";
+    if (dt !== diaAnt) { rods += `<div class="dia">${esc(dt)}</div>`; diaAnt = dt; }
+    rods += `<div class="rod" data-i="${i}"><button type="button" aria-expanded="false">
+        <span class="selo ${x.ok ? "ok" : "erro"}">${x.ok ? "DEU CERTO" : "DEU ERRADO"}</span>
+        <span class="h">${d ? hhmm(d) : "?"}</span><span class="r">${esc(resumoRodada(x))}</span><span class="seta">›</span>
+      </button><div class="rel">${relatorioHtml(x)}</div></div>`;
+  });
+  g.innerHTML = `<div class="g-top"><div class="g-ico">${c.ico}</div><div style="min-width:0"><div class="t" id="g-titulo">${esc(c.nome)}</div><div class="s">${esc(c.cargo)} · ${esc(r.stTexto)}</div></div>
+      <button class="hbtn x" type="button" id="g-fechar">✕ Fechar</button></div>
+    <div class="g-corpo">
+      <div class="box"><h3>O que faz</h3><p>${esc(c.faz)}</p></div>
+      <div class="box"><h3>Quando trabalha</h3>${tarefas}</div>
+      <div class="box"><h3>Relatórios das rodadas</h3>${r.rodadas.length ? `<p class="muted" style="font-size:12.5px;margin-bottom:6px">O mesmo relatório que chega por e-mail. Clique numa rodada para abrir.</p><div class="rods">${rods}</div>` : `<p class="muted">${r.chave === "porteiro" || r.chave === "fila" ? "Este robô não manda relatório por e-mail — a situação dele aparece acima." : "Nenhuma rodada relatada ainda."}</p>`}</div>
+    </div>`;
+  g.querySelectorAll(".rod > button").forEach(b => b.addEventListener("click", () => {
+    const el = b.parentNode; el.classList.toggle("aberta"); b.setAttribute("aria-expanded", el.classList.contains("aberta"));
+  }));
+  const abrirIdx = abertas || (r.rodadas[0] && !r.rodadas[0].ok ? ["0"] : []);
+  abrirIdx.forEach(i => { const el = g.querySelector(`.rod[data-i="${i}"]`); if (el) { el.classList.add("aberta"); el.querySelector("button").setAttribute("aria-expanded", "true"); } });
+  $("g-fechar").addEventListener("click", fechar);
+  if (!manterAbertas) { g.classList.remove("hide"); $("veu").classList.remove("hide"); g.scrollTop = 0; $("g-fechar").focus(); }
+}
+function fechar() {
+  const ch = ABERTO; ABERTO = null;
+  $("gaveta").classList.add("hide"); $("veu").classList.add("hide");
+  const m = ch && document.querySelector(`.mesa[data-chave="${CSS.escape(ch)}"]`); if (m) m.focus();
+}
+$("veu").addEventListener("click", fechar);
+document.addEventListener("keydown", e => { if (e.key === "Escape" && ABERTO) fechar(); });
+document.addEventListener("click", e => { const m = e.target.closest && e.target.closest(".mesa"); if (m) abrir(m.dataset.chave); });
+$("so-problema").addEventListener("change", pintar);
+
+/* ---------------- carga ---------------- */
+function erroTela(html) {
+  $("carregando").classList.add("hide");
+  $("avisos").innerHTML = `<div class="aviso">${html}</div>` + (DADOS ? `<div class="aviso amarelo">Mostrando a última leitura guardada neste navegador.</div>` : "");
+}
+async function carregar(manual) {
+  if (CARREGANDO) return; CARREGANDO = true;
+  const bt = $("bt-recarregar"); bt.disabled = true;
+  try {
+    let r;
+    try { r = await chamar({ action: "escritorioBoot" }, 45000); }
+    catch (e) { return erroTela(`<b>O Apps Script não respondeu.</b> ${esc(e.message || e)}`); }
+    if (!r || !r.ok) {
+      const er = String((r && r.erro) || "");
+      if (er === "NAO_AUTORIZADO") { sair(); return; }
+      if (er === "SEM_PERMISSAO") return erroTela(`<b>Sem acesso ao Escritório de Robôs.</b> Peça ao ADM a opção <b>ESCRITÓRIO DE ROBÔS</b> na coluna ACESSOS do LOGINS.`);
+      if (/ACAO_DESCONHECIDA/.test(er)) return erroTela(`<b>Falta instalar o EscritorioRobos.gs no Apps Script</b> (projeto PORTAL-LEITURA) e o gancho de uma linha no Melhorias.gs — o passo a passo está no começo do arquivo apps-script/EscritorioRobos.gs.`);
+      return erroTela(`<b>Não consegui ler o escritório.</b> ${esc(er || "sem resposta do servidor")}`);
+    }
+    $("rodape").textContent = "Apps Script " + String(r.versao || "?").split(" ").pop() + " · atualiza sozinho a cada 3 min";
+    if (!r.url) return erroTela(`<b>${esc(r.aviso || "O servidor ainda não publicou o escritório.")}</b> Ele publica depois da próxima rodada de qualquer robô, ou rode no servidor: <code>python servidor\\escritorio_robos.py</code>.`);
+    const resp = await fetch(r.url, { cache: "no-store" });
+    if (!resp.ok) return erroTela(`<b>Supabase respondeu HTTP ${resp.status}</b> ao baixar o arquivo do escritório.`);
+    DADOS = await resp.json();
+    try { localStorage.setItem(CACHE_LOCAL, JSON.stringify(DADOS)); } catch (e) {}
+    pintar();
+    if (manual) { const c = $("chip-gerado"); c.animate && c.animate([{ transform: "scale(1.06)" }, { transform: "none" }], { duration: 300 }); }
+  } catch (e) {
+    erroTela(`<b>Não consegui carregar.</b> ${esc(e.message || e)}`);
+  } finally { CARREGANDO = false; bt.disabled = false; }
+}
+$("bt-recarregar").addEventListener("click", () => carregar(true));
+try { const c = JSON.parse(localStorage.getItem(CACHE_LOCAL) || "null"); if (c && c.versao) { DADOS = c; pintar(); } } catch (e) {}
+carregar();
+setInterval(() => { if (!document.hidden) carregar(); }, RECARREGAR_MS);
+setInterval(() => { if (DADOS && !document.hidden && !ABERTO) pintar(); }, 60000);   // "há X min" anda sozinho
+</script>
+</body>
+</html>

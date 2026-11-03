@@ -420,7 +420,20 @@ def main(argv=None) -> int:
         return com_trava(indices)
     if a.robo:
         return robo_antigo(a.robo)      # sem a trava da fila: os robôs antigos não usam a fila
-    return com_trava(rodada)
+    codigo = com_trava(rodada)
+    publicar_escritorio()
+    return codigo
+
+
+def publicar_escritorio() -> None:
+    """03/11/2026 — aba ESCRITÓRIO DE ROBÔS do portal: a cada 15 min (a fila roda de minuto em minuto) sobe o
+    retrato das tarefas agendadas, rodadas e saúde da fila (servidor/escritorio_robos.py). Nunca atrapalha a fila."""
+    try:
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+        import escritorio_robos
+        escritorio_robos.publicar_se_passou(15, lambda m: log("[escritorio] " + m))
+    except Exception as e:
+        log("[escritorio] FALHOU %s: %s" % (type(e).__name__, str(e)[:150]))
 
 
 if __name__ == "__main__":

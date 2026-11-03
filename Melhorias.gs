@@ -60,6 +60,8 @@ var MEL_ACOES = {
 function melhoriasRotear_(action, sess, p) {
   /* m10 — ações da reta final (Processos, Atividades) moram no RetaFinal.gs */
   if (typeof rfRotear_ === "function") { var rRf = rfRotear_(action, sess, p); if (rRf) return rRf; }
+  /* 03/11/26 — ESCRITÓRIO DE ROBÔS (apps-script/EscritorioRobos.gs): link assinado do robos/escritorio.json */
+  if (typeof escRotear_ === "function") { var rEsc = escRotear_(action, sess, p); if (rEsc) return rEsc; }
   var cfg = MEL_ACOES[action];
   if (!cfg) return null;
   if (cfg.acesso && !temAcesso_(sess, cfg.acesso)) {
