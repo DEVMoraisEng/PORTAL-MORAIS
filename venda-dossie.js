@@ -413,6 +413,9 @@
     FLUXO_CONTRATO_ASSINADO: "O contrato já foi assinado — mudar o fluxo agora exige aditivo.",
     FLUXO_ASSINATURA_ABERTA: "O contrato está na Clicksign esperando assinatura — cancele o envelope antes de alterar o fluxo.",
     FLUXO_JA_E_O_DA_PROPOSTA: "O fluxo desta venda já é o da proposta.",
+    /* 03/11: CRLV da permuta */
+    NAO_E_CRLV: "Esse arquivo não parece ser o CRLV do veículo — envie a foto ou o PDF do CRLV (ou preencha à mão).",
+    CRLV_ILEGIVEL: "Não consegui ler os dados do CRLV — tente uma foto mais nítida, de frente e com boa luz, ou preencha à mão.",
     /* 30/10: desconto "isentar a comissão" (venda direta) */
     FLUXO_ISENCAO_AGUARDANDO_MODELO: "Isentar a comissão ainda não está liberado: o contrato do advogado não tem o texto de venda sem corretor. Use desconto em R$ ou %.",
     MODELO_CNPJ_VENDEDOR_DIFERENTE: "O CNPJ do vendedor no cadastro (VENDEDORES – CONTRATO) não é o que está escrito no modelo do contrato — o contrato não foi gerado. Confira o cadastro ou avise o suporte.",
@@ -913,14 +916,37 @@
     var rs = FL().resumoBem(FL().normalizarBem(l.b));
     if (rs) l.x = rs;
   }
+  /* 03/11: resposta do lerCrlv → só os campos vazios do bem da linha k (FluxoLivre.preencherBemCrlv); guarda em ed.crlv
+     o que veio do CRLV (marcado "confira" no formulário) e devolve a mensagem para a pessoa. */
+  var NOMES_CRLV = { situacao: "situação", credor: "instituição credora" };
+  CAMPOS_BEM.veiculo.forEach(function (x) { NOMES_CRLV[x[0]] = x[1].toLowerCase(); });
+  function aplicarCrlv(ed, k, r) {
+    var l = ed && ed.linhas[k];
+    if (!l || !r || !r.crlv) return "";
+    var p = FL().preencherBemCrlv(l.b, r.crlv);
+    l.b = p.b;
+    var rs = FL().resumoBem(FL().normalizarBem(l.b));
+    if (rs) l.x = rs;
+    function nomes(cs) { return cs.map(function (c) { return NOMES_CRLV[c] || c; }).join(", "); }
+    var m = p.preenchidos.length ? "Preenchido pelo CRLV — confira: " + nomes(p.preenchidos) + "." : "Nenhum campo vazio para preencher — o formulário ficou como estava.";
+    if (p.diferentes.length) m += " O CRLV diz diferente em: " + nomes(p.diferentes) + " — não troquei o que já estava digitado; confira.";
+    if (r.guardado) m += " CRLV guardado na venda.";
+    else m += r.motivo === "SEM_COLUNA" ? " O arquivo não foi guardado: a venda ainda não tem a coluna PERMUTA - CRLV (avise o desenvolvedor)."
+                                       : " O arquivo não foi guardado (falha ao enviar); o que foi lido está no formulário.";
+    ed.crlv = { k: k, campos: p.preenchidos, msg: m };
+    return m;
+  }
   function htmlFluxoBem(ed, dis) {
     var k = ed.bemK, l = ed.linhas[k];
     if (k === null || k === undefined || !l || l.t !== "permuta") return "";
     var F = FL(), b = l.b || { tipo: "veiculo" }, tipo = F.TIPOS_BEM.hasOwnProperty(b.tipo) ? b.tipo : "veiculo";
     function val(c) { var v = b[c]; return v === null || v === undefined ? "" : String(v); }
+    /* 03/11: campo que o CRLV preencheu nesta abertura do formulário */
+    var doCrlv = ed.crlv && ed.crlv.k === k ? ed.crlv.campos || [] : [];
+    function marca(c) { return doCrlv.indexOf(c) >= 0 ? ' <span class="dz-nota">(do CRLV — confira)</span>' : ""; }
     function campo(c, rot, o) {
       o = o || {};
-      return '<label class="dz-campo" style="display:block;margin:0">' + esc(rot) + ' <input type="text" data-fxb="' + c + '" data-k="' + k + '"' +
+      return '<label class="dz-campo" style="display:block;margin:0">' + esc(rot) + marca(c) + ' <input type="text" data-fxb="' + c + '" data-k="' + k + '"' +
         (o.num ? ' inputmode="numeric"' : "") + (o.maiusc ? ' autocapitalize="characters" style="width:100%;box-sizing:border-box;text-transform:uppercase"' : ' style="width:100%;box-sizing:border-box"') +
         ' maxlength="' + (o.max || 120) + '"' + (o.ph ? ' placeholder="' + esc(o.ph) + '"' : "") + ' value="' + esc(val(c)) + '"' + dis + "></label>";
     }
@@ -929,12 +955,18 @@
         (ph ? ' placeholder="' + esc(ph) + '"' : "") + ' style="width:100%;box-sizing:border-box;font:inherit"' + dis + ">" + esc(val(c)) + "</textarea></label>";
     }
     function sel(c, rot, ops, atual) {
-      return '<label class="dz-campo" style="display:block;margin:0">' + esc(rot) + ' <select data-fxb="' + c + '" data-k="' + k + '" style="width:100%;box-sizing:border-box"' + dis + ">" +
+      return '<label class="dz-campo" style="display:block;margin:0">' + esc(rot) + marca(c) + ' <select data-fxb="' + c + '" data-k="' + k + '" style="width:100%;box-sizing:border-box"' + dis + ">" +
         ops.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === atual ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") + "</select></label>";
     }
     var h = '<div class="vb-fx-bem" role="group" aria-label="Dados do bem da permuta" style="margin:8px 0;padding:10px;border:1px solid rgba(127,127,127,.5);border-radius:8px">' +
       '<div class="dz-linha" style="margin-top:0"><b>Dados do bem da permuta — linha ' + (k + 1) + "</b> " +
       '<span class="dz-nota">' + esc(F.moeda(F.totalLinha(l))) + ". Vão para o contrato (item 6.1, VI); sem eles o fluxo não salva.</span></div>" +
+      /* 03/11 (dono): "já adicionar campo para colocar o CRLV" — a IA lê e preenche só o que estiver vazio */
+      (tipo === "veiculo" ? '<div class="dz-linha" style="display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin-top:0">' +
+        '<button type="button" class="bt bt-mini" data-acao="c-fluxo-crlv" data-k="' + k + '"' + (ed.crlvLendo ? " disabled" : dis) + ">" +
+        (ed.crlvLendo ? "Lendo o CRLV…" : "CRLV (foto ou PDF)") + "</button>" +
+        '<span class="dz-nota">a IA lê o documento e preenche só os campos vazios; o arquivo fica guardado na venda.</span>' +
+        (ed.crlv && ed.crlv.k === k && ed.crlv.msg ? '<div class="dz-nota" role="status" style="flex-basis:100%">' + esc(ed.crlv.msg) + "</div>" : "") + "</div>" : "") +
       '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,13em),1fr));gap:8px 12px">' +
       sel("tipo", "Tipo do bem", [["veiculo", "Veículo"], ["imovel", "Imóvel"], ["outro", "Outro bem"]], tipo);
     CAMPOS_BEM[tipo].forEach(function (x) { h += campo(x[0], x[1], x[2]); });
@@ -1169,7 +1201,7 @@
                    resumo: resumo, escala: escala, tipoAceito: tipoAceito, painelCarregando: painelCarregando,
                    htmlContrato: htmlContrato, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, mensagemMC: mensagemMC,
                    topicosMC: topicosMC, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas, htmlConjugePR: htmlConjugePR,
-                   htmlCampos: htmlCampos, htmlConta: htmlConta, htmlFluxo: htmlFluxo, htmlFluxoVivo: htmlFluxoVivo, htmlFluxoDesconto: htmlFluxoDesconto, htmlFluxoBem: htmlFluxoBem, permutaSemBem: permutaSemBem, faltasDoBem: faltasDoBem, campoBem: campoBem, lerNumBR: lerNumBR, contaDoEstado: contaDoEstado, pedidoCampos: pedidoCampos,
+                   htmlCampos: htmlCampos, htmlConta: htmlConta, htmlFluxo: htmlFluxo, htmlFluxoVivo: htmlFluxoVivo, htmlFluxoDesconto: htmlFluxoDesconto, htmlFluxoBem: htmlFluxoBem, aplicarCrlv: aplicarCrlv, permutaSemBem: permutaSemBem, faltasDoBem: faltasDoBem, campoBem: campoBem, lerNumBR: lerNumBR, contaDoEstado: contaDoEstado, pedidoCampos: pedidoCampos,
                    contaDasEntradas: contaDasEntradas, faltasDaResposta: faltasDaResposta, detalheFluxoGravado: detalheFluxoGravado,
                    htmlFiadores: htmlFiadores, fiadoresDoEstado: fiadoresDoEstado, valoresFiadores: valoresFiadores,
                    rascunhoFia: rascunhoFia, perguntaConjugeFiador2: perguntaConjugeFiador2 };
@@ -1291,8 +1323,9 @@
       fr.readAsDataURL(blob);
     });
   }
-  async function prepararArquivo(file) {
-    var tipo = tipoAceito(file.type);
+  /* qualquerImagem (03/11, CRLV pela câmera): outra imagem (ex.: HEIC) que o navegador consiga abrir também vira JPG */
+  async function prepararArquivo(file, qualquerImagem) {
+    var tipo = tipoAceito(file.type) || (qualquerImagem && /^image\//.test(String(file.type || "")) ? "imagem" : "");
     if (!tipo) return { erro: "TIPO_DE_ARQUIVO_NAO_SUPORTADO" };
     if (tipo === "pdf") {
       if (file.size > 10 * 1024 * 1024) return { erro: "ARQUIVO_GRANDE" };
@@ -1310,10 +1343,11 @@
     finally { URL.revokeObjectURL(url); }
   }
   /* multiplo: devolve a lista de arquivos escolhidos (Anexar: frente e verso de uma vez) */
-  function escolherArquivo(multiplo) {
+  /* aceita (opcional): o accept do input — 03/11: o CRLV usa "image/*,application/pdf" (câmera do celular) */
+  function escolherArquivo(multiplo, aceita) {
     return new Promise(function (ok) {
       var inp = document.createElement("input");
-      inp.type = "file"; inp.accept = "image/jpeg,image/png,image/webp,application/pdf";
+      inp.type = "file"; inp.accept = aceita || "image/jpeg,image/png,image/webp,application/pdf";
       if (multiplo) inp.multiple = true;
       var resolvido = false;
       function resolver(f) {
@@ -2998,11 +3032,30 @@
       if (acao === "c-fluxo-fechar") { uiC.fluxoEd = null; pintar(); return; }
       if (acao === "c-fluxo-add") { ed.linhas.push({ t: "balao", v: 0, n: 1, d: "", i: 1, x: "" }); pintar(); return; }
       if (acao === "c-fluxo-del") { if (!(FL().TIPOS[(ed.linhas[k] || {}).t] || {}).fixo) { ed.linhas.splice(k, 1); ed.bemK = null; ed.salvarDepois = false; } pintar(); return; }
+      /* 03/11 (dono): CRLV da permuta — escolhe a foto/PDF, a IA lê no servidor (lerCrlv) e a tela preenche só o vazio */
+      if (acao === "c-fluxo-crlv") {
+        var lv = ed.linhas[k];
+        if (!lv || lv.t !== "permuta" || ed.crlvLendo) return;
+        var fc = await escolherArquivo(false, "image/*,application/pdf");
+        if (!fc || !vivo() || uiC.fluxoEd !== ed) return;
+        var arqC = await prepararArquivo(fc, true);
+        if (!vivo() || uiC.fluxoEd !== ed) return;
+        if (arqC.erro) { ed.crlv = { k: k, campos: [], msg: mensagemDeErro(arqC.erro) }; pintar(); return; }
+        ed.crlvLendo = true; ed.crlv = null; pintar();
+        var rc = await chamarVenda({ action: "lerCrlv", pageId: pageId, linha: k, arquivo: arqC }, 120000);
+        if (!vivo()) return;
+        ed.crlvLendo = false;
+        if (uiC.fluxoEd !== ed || ed.bemK !== k) { pintar(); return; }   /* formulário fechado ou outra linha enquanto lia: não mexe */
+        if (rc.ok) aplicarCrlv(ed, k, rc);
+        else ed.crlv = { k: k, campos: [], msg: "CRLV: " + mensagemContrato(rc) };
+        pintar(); rolarAteBem();
+        return;
+      }
       /* 03/11: formulário do bem da permuta */
       if (acao === "c-fluxo-bem") {
         var lb = ed.linhas[k];
         if (!lb || lb.t !== "permuta") return;
-        ed.bemK = k; ed.bemErros = null; ed.salvarDepois = false;
+        ed.bemK = k; ed.bemErros = null; ed.salvarDepois = false; ed.crlv = null;
         ed.bemAntes = { b: lb.b ? JSON.parse(JSON.stringify(lb.b)) : null, d: lb.d, x: lb.x };
         pintar(); rolarAteBem();
         return;
@@ -3010,7 +3063,7 @@
       if (acao === "c-fluxo-bem-fechar") {
         var lc = ed.linhas[ed.bemK];
         if (lc && ed.bemAntes) { if (ed.bemAntes.b) lc.b = ed.bemAntes.b; else delete lc.b; lc.d = ed.bemAntes.d; lc.x = ed.bemAntes.x; }
-        ed.bemK = null; ed.bemErros = null; ed.salvarDepois = false; ed.bemAntes = null; uiC.msg = "";
+        ed.bemK = null; ed.bemErros = null; ed.salvarDepois = false; ed.bemAntes = null; ed.crlv = null; uiC.msg = "";
         pintar();
         return;
       }
@@ -3021,7 +3074,7 @@
         var fb = faltasDoBem(lo);
         if (fb.length) { ed.bemErros = fb; uiC.msg = ""; pintar(); rolarAteBem(); return; }
         var depois = ed.salvarDepois;
-        ed.bemK = null; ed.bemErros = null; ed.salvarDepois = false; ed.bemAntes = null;
+        ed.bemK = null; ed.bemErros = null; ed.salvarDepois = false; ed.bemAntes = null; ed.crlv = null;
         uiC.msg = "Dados do bem conferidos.";
         pintar();
         if (depois) return aoClicarFluxo("c-fluxo-salvar", b);
@@ -3060,7 +3113,7 @@
       var kb = voltar ? -1 : permutaSemBem(ed);
       if (kb >= 0) {
         var lk = ed.linhas[kb];
-        ed.bemK = kb; ed.bemErros = null; ed.salvarDepois = true;
+        ed.bemK = kb; ed.bemErros = null; ed.salvarDepois = true; ed.crlv = null;
         ed.bemAntes = { b: lk.b ? JSON.parse(JSON.stringify(lk.b)) : null, d: lk.d, x: lk.x };
         if (!lk.b) lk.b = { tipo: "veiculo" };
         uiC.msg = "Esta venda tem permuta: preencha os dados do bem para salvar.";

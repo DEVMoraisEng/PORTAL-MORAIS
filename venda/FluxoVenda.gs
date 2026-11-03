@@ -156,3 +156,50 @@ function fluxoPedacos_(s) {
   for (var i = 0; i < s.length; i += 1900) out.push({ type: "text", text: { content: s.slice(i, i + 1900) } });
   return out;
 }
+
+/* ---- 03/11/2026 (dono): "podia ser mais esperto e já adicionar campo para colocar o CRLV" ----
+ * Ação "lerCrlv": p.arquivo = { nome, mime, base64 } (foto ou PDF), p.linha = índice da linha de permuta na tela.
+ * Uma leitura da IA (PROVEDOR_IA, esquema "crlv"), devolve os campos já limpos (FluxoLivre.crlvDaLeitura) — NÃO grava o
+ * fluxo: a tela preenche só os campos vazios e a pessoa confere e salva como sempre. O arquivo fica com a venda na
+ * coluna de arquivos "PERMUTA - CRLV" da linha do condomínio, se a coluna existir (sem ela: lê e avisa que não guardou).
+ * Mesmas travas do salvarFluxo (o bem só serve para salvar o fluxo). Log só com o começo do id e o resultado. */
+var CRLV_COL = "PERMUTA - CRLV";
+function crlvColunaReal_(pg) {
+  var k = RegrasVenda.chave(CRLV_COL);
+  for (var n in pg.properties) if (RegrasVenda.chave(n) === k && (pg.properties[n] || {}).type === "files") return n;
+  return null;
+}
+function lerCrlv_(col, sess, p) {
+  var pid = String(p.pageId).slice(0, 8);
+  var chk = RegrasVenda.conferirArquivo(p.arquivo);
+  if (!chk.ok) return { ok: false, erro: chk.erro };
+  var info = {}, pg = ctrLerPaginaVenda_(p.pageId, info);
+  if (info.base !== "CONDOMINIO") return { ok: false, erro: "SO_CONDOMINIO" };
+  var trava = fluxoTrava_(pg);
+  if (trava) { ctrLog_("lerCrlv " + pid + " recusado: " + trava); return { ok: false, erro: trava }; }
+  var ia = leitorIA_();
+  if (ia.erro) return { ok: false, erro: ia.erro };
+  var pedido = ia.leitor.montarPedido("crlv", [p.arquivo], ia.chave, ia.modelo, "");
+  if (pedido.erro) return { ok: false, erro: pedido.erro };
+  var res;
+  try {
+    var r = UrlFetchApp.fetch(pedido.url, { method: "post", contentType: "application/json", muteHttpExceptions: true,
+                                           headers: pedido.headers, payload: JSON.stringify(pedido.corpo) });
+    res = ia.leitor.interpretarResposta(r.getResponseCode(), r.getContentText());
+  } catch (e) { res = { ok: false, erro: "LEITURA_FALHOU" }; }
+  if (!res.ok) { ctrLog_("lerCrlv " + pid + " " + ia.nome + " falhou: " + res.erro); return { ok: false, erro: res.erro }; }
+  var m = FluxoLivre.crlvDaLeitura(res.leitura);
+  if (!m.ok) { ctrLog_("lerCrlv " + pid + " " + ia.nome + ": " + m.erro); return { ok: false, erro: m.erro }; }
+  var linha = Math.max(0, Math.min(FluxoLivre.MAX_LINHAS, parseInt(p.linha, 10) || 0));
+  var ext = p.arquivo.mime === "application/pdf" ? "pdf" : p.arquivo.mime === "image/png" ? "png" : p.arquivo.mime === "image/webp" ? "webp" : "jpg";
+  var real = crlvColunaReal_(pg), guardado = false, motivo = "";
+  if (!real) motivo = "SEM_COLUNA";
+  else {
+    try { anexarArquivo_(p.pageId, real, { nome: "CRLV permuta linha " + (linha + 1) + "." + ext, mime: p.arquivo.mime, base64: p.arquivo.base64 }, false); guardado = true; }
+    catch (e) { motivo = "UPLOAD_FALHOU"; ctrLog_("lerCrlv " + pid + " upload falhou: " + String(e.message || e).slice(0, 80)); }
+  }
+  ctrLog_("lerCrlv " + pid + " ok " + ia.nome + " tokens " + res.uso.entrada + "/" + res.uso.saida + (guardado ? " guardado" : " sem guardar (" + motivo + ")"));
+  var resp = { ok: true, crlv: m.crlv, guardado: guardado, linha: linha };
+  if (motivo) resp.motivo = motivo;
+  return resp;
+}

@@ -194,6 +194,68 @@ var FluxoLivre = (function () {
     return s.length > MAX_DESC ? s.slice(0, MAX_DESC - 1).trim() + "…" : s;
   }
 
+  /* ---- 03/11/2026 (dono): "podia ser mais esperto e já adicionar campo para colocar o CRLV" ----
+   * crlvDaLeitura: a resposta da IA (esquema "crlv" dos leitores) → os campos do veículo, já limpos. Valor lido que não
+   * passa na regra (placa, RENAVAM, chassi, CPF/CNPJ, ano) volta VAZIO: a pessoa digita, em vez de entrar um valor errado.
+   * Nunca lança: lixo vira { ok: false, erro: NAO_E_CRLV | CRLV_ILEGIVEL }. Roda no servidor (lerCrlv). */
+  function textoLido(v, max) { return typeof v === "string" || typeof v === "number" ? so(v, max) : ""; }
+  function anoLido(v) {
+    var d = digitos(textoLido(v, 10));
+    if (d.length !== 4) return null;
+    var n = Number(d), hoje = new Date().getFullYear();
+    return n >= 1950 && n <= hoje + 1 ? n : null;
+  }
+  function crlvDaLeitura(l) {
+    if (!l || typeof l !== "object" || Array.isArray(l) || l.tipo_documento !== "CRLV") return { ok: false, erro: "NAO_E_CRLV" };
+    var marca = textoLido(l.marca, 40), modelo = textoLido(l.modelo, 60);
+    if (!marca && /^[^/]{1,30}\/\S/.test(modelo)) {   /* "VW/GOL 1.0": o CRLV imprime MARCA/MODELO num campo só */
+      marca = modelo.slice(0, modelo.indexOf("/")).trim(); modelo = modelo.slice(modelo.indexOf("/") + 1).trim();
+    }
+    var placa = placaNormal(textoLido(l.placa, 20)), renavam = renavamNormal(textoLido(l.renavam, 30)), chassi = chassiNormal(textoLido(l.chassi, 40));
+    var doc = digitos(textoLido(l.proprietario_doc, 30)), credor = textoLido(l.alienacao_credor, 120);
+    var c = {
+      marca: marca, modelo: modelo, anoFabricacao: anoLido(l.ano_fabricacao), anoModelo: anoLido(l.ano_modelo), cor: textoLido(l.cor, 30),
+      placa: RE_PLACA.test(placa) ? placa : "", renavam: renavamValido(renavam) ? renavam : "", chassi: RE_CHASSI.test(chassi) ? chassi : "",
+      proprietarioNome: textoLido(l.proprietario_nome, 120), proprietarioDoc: docValido(doc) ? doc : "",
+      alienacao: credor ? { credor: credor } : null
+    };
+    var algum = Object.keys(c).some(function (k) { return k !== "alienacao" && c[k] !== "" && c[k] !== null; });
+    return algum ? { ok: true, crlv: c } : { ok: false, erro: "CRLV_ILEGIVEL" };
+  }
+  /* preencherBemCrlv: põe o que o CRLV leu SÓ nos campos vazios do bem (nunca troca o que a pessoa digitou).
+   * Devolve { b: o bem novo (cópia), preenchidos: [campos], diferentes: [campos digitados que o CRLV diz diferente] }.
+   * Sem alienação no CRLV a situação fica para a pessoa (o CRLV não prova quitação); o saldo devedor ela informa. */
+  var CRLV_PARA_BEM = [["marca", "marca"], ["modelo", "modelo"], ["anoFab", "anoFabricacao"], ["anoModelo", "anoModelo"], ["cor", "cor"],
+                       ["placa", "placa"], ["renavam", "renavam"], ["chassi", "chassi"], ["propNome", "proprietarioNome"], ["propDoc", "proprietarioDoc"]];
+  function comparavel(campo, v) {
+    var s = v === null || v === undefined ? "" : String(v);
+    if (campo === "placa") return placaNormal(s);
+    if (campo === "renavam") return renavamNormal(s);
+    if (campo === "chassi") return chassiNormal(s);
+    if (campo === "propDoc" || campo === "anoFab" || campo === "anoModelo") return digitos(s);
+    return so(s, 200).toUpperCase();
+  }
+  function preencherBemCrlv(b, crlv) {
+    var o = {}, preenchidos = [], diferentes = [];
+    if (b && typeof b === "object") Object.keys(b).forEach(function (k) { o[k] = b[k]; });
+    if (o.tipo !== "veiculo") o.tipo = "veiculo";
+    function por(campo, valor) {
+      var lido = valor === null || valor === undefined ? "" : String(valor);
+      if (!lido) return;
+      var atual = comparavel(campo, o[campo]);
+      if (!atual || atual === "0") { o[campo] = lido; preenchidos.push(campo); }
+      else if (atual !== comparavel(campo, lido)) diferentes.push(campo);
+    }
+    crlv = crlv || {};
+    CRLV_PARA_BEM.forEach(function (x) { por(x[0], crlv[x[1]]); });
+    if (crlv.alienacao && crlv.alienacao.credor) {
+      if (!o.situacao) { o.situacao = "alienado"; preenchidos.push("situacao"); }
+      else if (o.situacao !== "alienado") diferentes.push("situacao");
+      if (o.situacao === "alienado") por("credor", crlv.alienacao.credor);
+    }
+    return { b: o, preenchidos: preenchidos, diferentes: diferentes };
+  }
+
   /* total de uma linha em centavos: (n-1) × v + última (u, se houver; senão v) */
   function totalLinhaC(l) {
     var n = l.n | 0;
@@ -589,6 +651,7 @@ var FluxoLivre = (function () {
 
   return { TIPOS: TIPOS, ORDEM: ORDEM, MAX_LINHAS: MAX_LINHAS, MAX_MOTIVO: MAX_MOTIVO, POS_TETO: POS_TETO, LIMITE_PRE_CHAVES: LIMITE_PRE_CHAVES,
            PRAZOS: PRAZOS, TIPOS_BEM: TIPOS_BEM, QUITA_PADRAO: QUITA_PADRAO, normalizarBem: normalizarBem, faltasBem: faltasBem, semDadosDoBem: semDadosDoBem, resumoBem: resumoBem,
+           crlvDaLeitura: crlvDaLeitura, preencherBemCrlv: preencherBemCrlv,
            docValido: docValido, docFormatado: docFormatado, renavamValido: renavamValido, placaValida: placaValida, chassiValido: chassiValido, prazoDasLinhas: prazoDasLinhas, mudarPrazo: mudarPrazo, distribuir: distribuir,
            normalizar: normalizar, validar: validar, redistribuir: redistribuir, aplicarDesconto: aplicarDesconto, valorDoDesconto: valorDoDesconto, doPadrao: doPadrao, abaterSinal: abaterSinal, expandir: expandir,
            serializar: serializar, ler: ler, ordenar: ordenar, totalLinha: function (l) { return totalLinhaC(normalizar({ linhas: [l] }).linhas[0] || {}) / 100; },

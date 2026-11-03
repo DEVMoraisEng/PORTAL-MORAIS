@@ -1681,3 +1681,87 @@ test("03/11 histórico do fluxo: entrada antiga enorme perde o 'antes' para cabe
   assert.deepEqual(lista.map((x) => x.motivo), ["primeira", "mais um balão"], "as duas entradas ficam");
   assert.equal(lista[0].antes, "");
 });
+
+/* ---- 03/11/2026 (dono): CRLV da permuta lido pela IA (ação lerCrlv). Dados FALSOS. ---- */
+const CRLV_LIDO = { tipo_documento: "CRLV", marca: "HYUNDAI", modelo: "HB20", ano_fabricacao: "2019", ano_modelo: "2020", cor: "PRATA",
+  placa: "ABC1D23", renavam: "100000002", chassi: "9BWZZZ377VT004251", proprietario_nome: "FULANO DE TESTE", proprietario_doc: "52998224725",
+  alienacao_credor: "" };
+const iaCrlv = (leitura, conta) => (url, opt) => {
+  conta.n++;
+  conta.corpo = JSON.parse(opt.payload);
+  return { json: { status: "completed", usage: { input_tokens: 900, output_tokens: 60 },
+    output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(leitura) }] }] } };
+};
+const ARQ_CRLV = { nome: "foto.jpg", mime: "image/jpeg", base64: Buffer.from("jpeg falso do crlv").toString("base64") };
+const cenarioCrlv = (o = {}) => {
+  const conta = { n: 0 };
+  const c = cenarioFluxo({ props: { OPENAI_API_KEY: "sk-teste" }, ia: iaCrlv(o.leitura || CRLV_LIDO, conta),
+                           linha: Object.assign({ "PERMUTA - CRLV": { files: [] } }, o.linha || {}), sem: o.sem || [] });
+  return Object.assign(c, { conta });
+};
+
+test("03/11 lerCrlv: uma leitura da IA, devolve os campos mapeados e guarda o arquivo como \"CRLV permuta\" na coluna PERMUTA - CRLV", () => {
+  const c = cenarioCrlv();
+  const r = c.acao("lerCrlv", { linha: 3, arquivo: ARQ_CRLV });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(c.conta.n, 1, "uma chamada à IA por clique");
+  assert.match(JSON.stringify(c.conta.corpo), /leitura_crlv/);
+  assert.deepEqual(r.crlv, { marca: "HYUNDAI", modelo: "HB20", anoFabricacao: 2019, anoModelo: 2020, cor: "PRATA", placa: "ABC1D23",
+    renavam: "00100000002", chassi: "9BWZZZ377VT004251", proprietarioNome: "FULANO DE TESTE", proprietarioDoc: "52998224725", alienacao: null });
+  assert.equal(r.guardado, true);
+  const arqs = c.n.pagina.properties["PERMUTA - CRLV"].files;
+  assert.equal(arqs.length, 1);
+  assert.match(arqs[0].name, /^CRLV permuta linha 4\.jpg$/);
+  /* nada do bem vai para o log (só o começo do id da página e o resultado) */
+  const log = c.g.logs.join("\n");
+  assert.doesNotMatch(log, /HYUNDAI|ABC1D23|100000002|9BWZZZ|FULANO|52998224725/);
+  assert.match(log, /lerCrlv 00112233 ok/);
+  /* não grava o fluxo: só o arquivo */
+  assert.equal(c.txt("FLUXO PERSONALIZADO"), "");
+});
+
+test("03/11 lerCrlv: o histórico do contrato diz que o CRLV foi guardado, sem os dados do bem", () => {
+  const c = cenarioCrlv({ linha: { "HISTÓRICO DO CONTRATO": rt("") } });
+  assert.equal(c.acao("lerCrlv", { linha: 3, arquivo: ARQ_CRLV }).ok, true);
+  const h = c.txt("HISTÓRICO DO CONTRATO");
+  assert.match(h, /ana\.teste — guardou o CRLV da permuta \(linha 4\)/);
+  assert.doesNotMatch(h, /HYUNDAI|ABC1D23|FULANO/);
+});
+
+test("03/11 lerCrlv: sem a coluna PERMUTA - CRLV lê do mesmo jeito e diz que não guardou", () => {
+  const c = cenarioCrlv({ sem: ["PERMUTA - CRLV"] });
+  const r = c.acao("lerCrlv", { linha: 3, arquivo: ARQ_CRLV });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.guardado, false);
+  assert.equal(r.motivo, "SEM_COLUNA");
+  assert.equal(r.crlv.placa, "ABC1D23");
+});
+
+test("03/11 lerCrlv: guardas — sem arquivo, grande demais, tipo errado, outro documento, contrato assinado, TESTES, chave da IA", () => {
+  const c = cenarioCrlv();
+  assert.equal(c.acao("lerCrlv", { linha: 3 }).erro, "SEM_ARQUIVO");
+  const grande = Buffer.alloc(5 * 1024 * 1024 + 10).toString("base64");
+  assert.equal(c.acao("lerCrlv", { linha: 3, arquivo: { nome: "f.jpg", mime: "image/jpeg", base64: grande } }).erro, "ARQUIVO_GRANDE");
+  assert.equal(c.acao("lerCrlv", { linha: 3, arquivo: { nome: "f.txt", mime: "text/plain", base64: "QUJD" } }).erro, "TIPO_DE_ARQUIVO_NAO_SUPORTADO");
+  assert.equal(c.acao("lerCrlv", { linha: 3, arquivo: { nome: "f.heic", mime: "image/heic", base64: "QUJD" } }).erro, "TIPO_DE_ARQUIVO_NAO_SUPORTADO");
+  assert.equal(c.conta.n, 0, "nenhuma chamada à IA nas recusas");
+  assert.equal(c.n.pagina.properties["PERMUTA - CRLV"].files.length, 0);
+  /* a IA diz que não é CRLV: não guarda */
+  const outro = cenarioCrlv({ leitura: { ...CRLV_LIDO, tipo_documento: "OUTRO" } });
+  assert.equal(outro.acao("lerCrlv", { linha: 3, arquivo: ARQ_CRLV }).erro, "NAO_E_CRLV");
+  assert.equal(outro.n.pagina.properties["PERMUTA - CRLV"].files.length, 0);
+  /* resposta sem nada aproveitável */
+  assert.equal(cenarioCrlv({ leitura: { tipo_documento: "CRLV" } }).acao("lerCrlv", { linha: 3, arquivo: ARQ_CRLV }).erro, "CRLV_ILEGIVEL");
+  /* as travas do fluxo valem aqui (o bem só serve para salvar o fluxo) */
+  const assinada = cenarioCrlv({ linha: { "ASSINATURA - ENVELOPE ID": rt("env-1"), "ASSINATURA - SITUAÇÃO": rt("ASSINADO") } });
+  assert.equal(assinada.acao("lerCrlv", { linha: 3, arquivo: ARQ_CRLV }).erro, "FLUXO_CONTRATO_ASSINADO");
+  assert.equal(assinada.conta.n, 0);
+  const lancada = cenarioCrlv({ linha: { "MC - VENDA ID": rt("12345") } });
+  assert.equal(lancada.acao("lerCrlv", { linha: 3, arquivo: ARQ_CRLV }).erro, "FLUXO_VENDA_LANCADA");
+  assert.equal(c.acao("lerCrlv", { linha: 3, arquivo: ARQ_CRLV }, token("TESTES")).erro, "SEM_PERMISSAO_TESTES");
+  /* sem a chave da IA */
+  const semChave = cenarioFluxo({ linha: { "PERMUTA - CRLV": { files: [] } } });
+  assert.equal(semChave.acao("lerCrlv", { linha: 3, arquivo: ARQ_CRLV }).erro, "CHAVE_IA_FALTANDO");
+  /* venda da VENDAS (casa de rua) não tem Alterar fluxo */
+  assert.equal(cenarioCrlv().acao("lerCrlv", { linha: 3, arquivo: ARQ_CRLV, pageId: "zz" }).erro, "PAGINA_INVALIDA");
+});

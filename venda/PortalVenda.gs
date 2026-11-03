@@ -10,7 +10,7 @@
  * OPENAI_API_KEY (provedor openai), MODELO_IA (opcional, só openai),
  * ANTHROPIC_API_KEY (provedor anthropic, plano B).
  * Nenhum log com nome, CPF, endereço ou conteúdo de documento. */
-var VERSAO_VENDA = "venda-v16";   // v16: plano 23 — contrato/termo assinado só para ver (documentosAssinados, verDocumentoAssinado, trava CONTRATO_ASSINADO/TERMO_ASSINADO), assinatura na linha (ASSINATURA_LINHAS=1) e selfie (CLICKSIGN_SELFIE=1) (01/11/2026); v15: antecipacaoTexto, a antecipação copia a mensagem em vez de gerar PDF (31/10/2026); v14: FGTS e Financiamento separados na aba Financeiro (31/10/2026); v13: faltasCliente no contratoEstado (31/10/2026); v12: aba Financeiro, financeiroEstado (31/10/2026); v11: vigia de assinaturas (AssinaturaVigia.gs, 31/10/2026); v10: Corrigir aqui na conferência (31/10/2026); v9: contrato final do condomínio, termo de pré-reserva e etapas da venda (27/10/2026); v8: leitura em lote, certidão mãe e data do habite-se (entrega 13); v7: campos abertos e conta de recebimento no contrato (entrega 12); v6: documentos do imóvel lidos pela IA (entrega 11); v5: pré-contrato grifado (entrega 9)
+var VERSAO_VENDA = "venda-v17";   // v17: lerCrlv — CRLV da permuta lido pela IA no formulário do bem, arquivo na coluna PERMUTA - CRLV (03/11/2026); v16: plano 23 — contrato/termo assinado só para ver (documentosAssinados, verDocumentoAssinado, trava CONTRATO_ASSINADO/TERMO_ASSINADO), assinatura na linha (ASSINATURA_LINHAS=1) e selfie (CLICKSIGN_SELFIE=1) (01/11/2026); v15: antecipacaoTexto, a antecipação copia a mensagem em vez de gerar PDF (31/10/2026); v14: FGTS e Financiamento separados na aba Financeiro (31/10/2026); v13: faltasCliente no contratoEstado (31/10/2026); v12: aba Financeiro, financeiroEstado (31/10/2026); v11: vigia de assinaturas (AssinaturaVigia.gs, 31/10/2026); v10: Corrigir aqui na conferência (31/10/2026); v9: contrato final do condomínio, termo de pré-reserva e etapas da venda (27/10/2026); v8: leitura em lote, certidão mãe e data do habite-se (entrega 13); v7: campos abertos e conta de recebimento no contrato (entrega 12); v6: documentos do imóvel lidos pela IA (entrega 11); v5: pré-contrato grifado (entrega 9)
 var NOTION_VERSION = "2022-06-28";
 var ERROS_CONHECIDOS = /^(COLUNA_FALTANDO|TIPO_DE_COLUNA_ERRADO|BACKEND_SEM_CONFIG|PAGINA_DE_OUTRA_BASE|PRECONTRATO_REFAZER|NOTION_OCUPADO|CONTRATO_EM_ASSINATURA)/;
 var REGEX_PAGE_ID = /^[0-9a-f]{32}$|^[0-9a-f-]{36}$/i;
@@ -38,7 +38,7 @@ function tratar_(p) {
     if (!temAcessoVendas_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
     var grava = ["tipoCasa", "lerDocumento", "anexarDocumento", "soltarDocumento", "lerDocumentos", "copiarComprovante", "conferir", "devolver", "gerarContrato", "gerarPreContrato", "aprovarPreContrato", "escolherTestemunhas",
                  "salvarCamposContrato", "escolherContaRecebimento", "mcLancar", "assinaturaEnviar", "assinaturaEstado",
-                 "gerarVendaCondominio", "assinaturaReenviar", "assinaturaCancelar" /* 29/10 */, "salvarCondicoesEspeciais" /* 29/10 */, "redigirCondicoesEspeciais", "salvarFluxo" /* 29/10 */, "salvarContaPreReserva", "salvarPagamentoPreReserva" /* 31/10 */, "salvarConjugePreReserva" /* 01/11 */, "gerarTermoPreReserva",
+                 "gerarVendaCondominio", "assinaturaReenviar", "assinaturaCancelar" /* 29/10 */, "salvarCondicoesEspeciais" /* 29/10 */, "redigirCondicoesEspeciais", "salvarFluxo" /* 29/10 */, "lerCrlv" /* 03/11: CRLV da permuta */, "salvarContaPreReserva", "salvarPagamentoPreReserva" /* 31/10 */, "salvarConjugePreReserva" /* 01/11 */, "gerarTermoPreReserva",
                  "conferirDocumentos", "confirmarConferencia" /* 28/10 */, "corrigirConferencia" /* 31/10 */, "salvarFiadores", "conjugeEhFiador2" /* 01/11: bloco Fiadores */,
                  "recebimentoConfirmar" /* entrega 14 */, "antecipacaoLer", "antecipacaoPdf" /* 31/10: AntecipacaoVenda.gs */].indexOf(p.action) >= 0;
     if (grava && String(sess.t || "").toUpperCase() === "TESTES") return { ok: false, erro: "SEM_PERMISSAO_TESTES" };
@@ -90,6 +90,7 @@ function executar_(col, sess, p) {
       case "redigirCondicoesEspeciais": return redigirCondicoesEspeciais_(col, sess, p);   /* 29/10: só sugere, não grava */
       case "fluxoEditar":  return fluxoEditar_(col, sess, p);              /* 29/10: Alterar fluxo (FluxoVenda.gs) */
       case "salvarFluxo":  return salvarFluxo_(col, sess, p);
+      case "lerCrlv":      return lerCrlv_(col, sess, p);                 /* 03/11: CRLV da permuta lido pela IA (FluxoVenda.gs) */
       case "gerarVendaCondominio": return gerarVendaCondominio_(col, sess, p);
       /* entrega 14: contrato assinado pelo portal e recebimentos (RecebimentoVenda.gs) */
       case "verContratoAssinado": return verContratoAssinado_(col, p);
