@@ -290,6 +290,7 @@ html[data-tema="escuro"] .tag.gen{color:#E3AE4B}html[data-tema="escuro"] .tag.de
 .lista-ed .ln{display:grid;grid-template-columns:1fr 1fr 30px;gap:6px}
 .lista-ed input{padding:6px 9px;border:1px solid var(--border);border-radius:7px;background:var(--sup);font-size:12.5px}
 @media print{header,.crumb,.tabs-outer,.gfil{display:none}}
+.anxs{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}.anx{display:inline-block;font:700 11px 'Barlow',sans-serif;padding:2px 8px;border-radius:12px;border:1px solid rgba(41,87,120,.35);background:rgba(41,87,120,.07);color:var(--azul,#295778);text-decoration:none;white-space:nowrap}a.anx:hover{background:var(--azul,#295778);color:#fff}.anx.venc{opacity:.55;cursor:help}.anx0{color:#b9770e;margin-top:4px}html[data-tema="escuro"] .anx{color:#8fdcd2;border-color:rgba(143,220,210,.4);background:rgba(143,220,210,.08)}
 </style>
 </head>
 <body>
@@ -835,7 +836,7 @@ function afRenderLanc(resetPg){
       <td class="small nw">${fD(AF_C.dp[i])}<div class="muted">comp. ${fM((AF_C.dc[i]||"").slice(0,7))}</div></td>
       <td class="desc-c${AF_C.d[i]?"":" vazio"}">${AF_C.d[i]?afHl(AF_C.d[i],q):"sem descrição"}
         <div class="small">${afHl(forn(i)||"—",q)} · ${afHl(ccv(i)||"—",q)}</div>
-        ${fis?`<div class="small" style="color:var(--vermelho)">⚑ ${fis.map(f=>esc(((AF_D.fiscal_tipos||{})[f[0]]||{}).t||f[0])).join(" · ")}</div>`:""}</td>
+        ${fis?`<div class="small" style="color:var(--vermelho)">⚑ ${fis.map(f=>esc(((AF_D.fiscal_tipos||{})[f[0]]||{}).t||f[0])).join(" · ")}</div>`:""}${afAnexosHtml(i,true)}</td>
       <td>${esc(cat(i))}<div class="pl">${esc(plv(i))}</div></td>
       <td>${sg?`<span class="sug">${esc(sg)}</span><div class="pl">${esc(sugPl(i))}</div>`:'<span class="muted">—</span>'}</td>
       <td class="num">${fR(AF_C.v[i])}</td>
@@ -874,6 +875,22 @@ function afClicarChip(set, val, e){
 }
 
 /* ---------- gaveta de detalhe ---------- */
+
+/* 03/11: anexos do Mais Controle (boleto, NF, recibo, comprovante) — vêm do robô do servidor (robo_mc_anexos.py) */
+function afAnexoTipo(a){ const n=(a.n||"").toUpperCase(), t=(a.t||"").toLowerCase();
+  if(a.o==="P") return "Comprovante";
+  if(/BOLETO|BLT/.test(n)) return "Boleto"; if(/\bNF|NOTA|DANFE|NFS/.test(n)) return "NF"; if(/RECIBO/.test(n)) return "Recibo"; if(/COMPROV/.test(n)) return "Comprovante";
+  return t.includes("pdf")?"PDF":t.includes("image")?"Imagem":"Arquivo"; }
+function afAnexosHtml(i,compacto){
+  const A=((AF_D&&AF_D.anexos)||{}).itens; if(!A) return "";
+  const it=A[String(AF_C.id[i])]; if(!it) return compacto?"":`<div class="small muted" style="margin:0 0 12px">📎 Anexos: este pagamento ainda não foi lido do Mais Controle (o robô lê os pagamentos com alerta dos últimos ${(AF_D.anexos||{}).dias||90} dias).</div>`;
+  const ls=it.a||[], agora=new Date().toISOString().slice(0,16);
+  if(!ls.length) return compacto?`<div class="small anx0">📎 sem anexo no Mais Controle</div>`:`<div class="callout r" style="margin:0 0 12px"><h4>📎 Anexos</h4><p>Nenhum arquivo neste lançamento nem no pagamento, no Mais Controle${it.v?` (lido em ${fD(it.v.slice(0,10))})`:""}.</p></div>`;
+  const lk=a=>{ const venc=a.x&&a.x<agora; return venc||!a.u?`<span class="anx venc" title="Link vencido — o robô renova na próxima rodada">📎 ${esc(afAnexoTipo(a))}</span>`:`<a class="anx" href="${esc(a.u)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${esc(a.n||"")}">📎 ${esc(afAnexoTipo(a))}</a>`; };
+  if(compacto) return `<div class="anxs">${ls.slice(0,4).map(lk).join("")}${ls.length>4?`<span class="small muted">+${ls.length-4}</span>`:""}</div>`;
+  return `<div class="vbox" style="margin:0 0 12px"><h4>📎 Anexos do Mais Controle (${ls.length})</h4>${ls.map(a=>`<div style="display:flex;gap:10px;align-items:center;padding:4px 0;border-bottom:1px solid var(--borda,#e3e9ee)">${lk(a)}<span class="small" style="flex:1">${esc(a.n||"")}</span><span class="small muted">${a.o==="P"?"no pagamento":"no lançamento"}${a.s?" · "+Math.max(1,Math.round(a.s/1024))+" KB":""}</span></div>`).join("")}<div class="small muted" style="margin-top:6px">Lido em ${fD((it.v||"").slice(0,10))}. Os links valem por alguns dias e são renovados pelo robô.</div></div>`;
+}
+
 function afAbrirDrawer(i){
   const s=st(i), sg=sug(i), v=AF_VAL.get(AF_C.k[i]), vs=AF_VST[i];
   const man=afManualCat(cat(i)), manS=sg?afManualCat(sg):null;
@@ -901,6 +918,7 @@ function afAbrirDrawer(i){
         ${fis.map(f=>`<button class="bt ghost sm" onclick="afPerguntarVal([${i}],'CORRIGIR','${f[0]}')">⚑ Corrigir alerta</button>`).join("")}</div>`
         :`<p class="small" style="margin:0">Seu acesso é <b>FINANCEIRO</b>: você vê tudo, mas quem valida é o <b>GFINANCEIRO</b>.</p>`}
     </div>
+    ${afAnexosHtml(i,false)}
     <dl class="kv">
       <dt>ID lançamento</dt><dd>${AF_C.id[i]} · parcela ${esc(AF_C.np[i]||"—")}</dd>
       <dt>Pagamento</dt><dd>${fD(AF_C.dp[i])}</dd>
