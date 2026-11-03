@@ -49,6 +49,142 @@ var FluxoLivre = (function () {
     return (c(v) < 0 ? "-" : "") + "R$ " + i + "," + s[1];
   }
 
+  /* ---- 03/11/2026 (dono): dados do bem da PERMUTA ----
+   * "quando tiver permuta, hora que salvar, pede para quem tiver preenchendo colocar as informações da permuta; se for
+   * automóvel, colocar os dados básicos que um contrato de permuta pede". A linha de permuta ganha l.b (o bem):
+   *   veículo: { tipo: "veiculo", marca, modelo, anoFab, anoModelo, cor, placa, renavam, chassi, km, propNome, propDoc,
+   *              situacao: "quitado" | "alienado", credor, saldo, quitaPor, obs }
+   *   imóvel:  { tipo: "imovel", endereco, matricula, cartorio, propNome, propDoc, onus }
+   *   outro:   { tipo: "outro", descricao }
+   * A data da entrega do bem é a 1ª data da própria linha (l.d) — a mesma do lançamento de entrada no Mais Controle.
+   * l.x continua existindo e passa a ser o RESUMO do bem (gerado aqui): a tela, o quadro do pro soluto e o comentário
+   * "Permuta - …" do Mais Controle (venda/mc/condominio.py) leem l.x como antes.
+   * Fluxo antigo: linha de permuta SEM l.b que já estava gravada igual (valor, quantidade, data e descrição) continua
+   * salvando; permuta nova ou mexida exige o bem completo (validar, 3º argumento = o fluxo gravado antes). */
+  var TIPOS_BEM = { veiculo: "veículo", imovel: "imóvel", outro: "outro" };
+  var QUITA_PADRAO = "o COMPRADOR, antes da entrega";
+  var RE_PLACA = /^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/, RE_CHASSI = /^[A-HJ-NPR-Z0-9]{17}$/;
+  function so(v, max) { return String(v === null || v === undefined ? "" : v).replace(/\s+/g, " ").trim().slice(0, max || 120); }
+  function digitos(v) { return String(v === null || v === undefined ? "" : v).replace(/\D/g, ""); }
+  function todosIguais(d) { return /^(\d)\1*$/.test(d); }
+  function cpfOk(d) {
+    if (d.length !== 11 || todosIguais(d)) return false;
+    for (var t = 9; t < 11; t++) {
+      var s = 0;
+      for (var i = 0; i < t; i++) s += Number(d.charAt(i)) * (t + 1 - i);
+      if ((s * 10 % 11) % 10 !== Number(d.charAt(t))) return false;
+    }
+    return true;
+  }
+  function cnpjOk(d) {
+    if (d.length !== 14 || todosIguais(d)) return false;
+    var p1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2], p2 = [6].concat(p1);
+    function dv(pesos) { var s = 0; pesos.forEach(function (p, i) { s += Number(d.charAt(i)) * p; }); var r = s % 11; return r < 2 ? 0 : 11 - r; }
+    return dv(p1) === Number(d.charAt(12)) && dv(p2) === Number(d.charAt(13));
+  }
+  /* CPF (11) ou CNPJ (14), pelos dígitos verificadores */
+  function docValido(v) { var d = digitos(v); return d.length === 11 ? cpfOk(d) : d.length === 14 ? cnpjOk(d) : false; }
+  function docFormatado(v) {
+    var d = digitos(v);
+    if (d.length === 11) return d.slice(0, 3) + "." + d.slice(3, 6) + "." + d.slice(6, 9) + "-" + d.slice(9);
+    if (d.length === 14) return d.slice(0, 2) + "." + d.slice(2, 5) + "." + d.slice(5, 8) + "/" + d.slice(8, 12) + "-" + d.slice(12);
+    return d;
+  }
+  /* RENAVAM: 11 dígitos (o antigo, de 9, com zeros à esquerda); dígito = (soma dos 10 primeiros × 3,2,9,8,7,6,5,4,3,2) × 10 mod 11, 10 vira 0 */
+  function renavamNormal(v) { var d = digitos(v); return d.length === 9 || d.length === 10 ? ("00" + d).slice(-11) : d.slice(0, 11); }
+  function renavamValido(v) {
+    var d = renavamNormal(v);
+    if (d.length !== 11) return false;
+    var pesos = [3, 2, 9, 8, 7, 6, 5, 4, 3, 2], s = 0;
+    for (var i = 0; i < 10; i++) s += Number(d.charAt(i)) * pesos[i];
+    return (s * 10) % 11 % 10 === Number(d.charAt(10));
+  }
+  function placaNormal(v) { return String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 7); }
+  function placaValida(v) { return RE_PLACA.test(placaNormal(v)); }
+  function chassiNormal(v) { return String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 17); }
+  function chassiValido(v) { return RE_CHASSI.test(String(v || "").toUpperCase().replace(/[\s.-]/g, "")); }
+  function inteiro(v) { var d = digitos(v); return d ? Number(d) : null; }
+  /* bem de fora (tela ou Notion) → limpo; só os campos do tipo; null se não veio nada */
+  function normalizarBem(b) {
+    if (!b || typeof b !== "object") return null;
+    var tipo = String(b.tipo || "");
+    if (!TIPOS_BEM.hasOwnProperty(tipo)) return { tipo: so(tipo, 20) };
+    var o = { tipo: tipo };
+    if (tipo === "veiculo") {
+      o.marca = so(b.marca, 40); o.modelo = so(b.modelo, 60);
+      o.anoFab = inteiro(String(b.anoFab || "").slice(0, 4)) || 0; o.anoModelo = inteiro(String(b.anoModelo || "").slice(0, 4)) || 0;
+      o.cor = so(b.cor, 30); o.placa = placaNormal(b.placa); o.renavam = renavamNormal(b.renavam); o.chassi = chassiNormal(b.chassi);
+      var km = inteiro(String(b.km === null || b.km === undefined ? "" : b.km).slice(0, 12));
+      if (km !== null) o.km = km;
+      o.propNome = so(b.propNome, 120); o.propDoc = digitos(b.propDoc).slice(0, 14);
+      o.situacao = b.situacao === "quitado" || b.situacao === "alienado" ? b.situacao : "";
+      if (o.situacao === "alienado") {
+        o.credor = so(b.credor, 120);
+        o.saldo = Math.round((Number(b.saldo) || 0) * 100) / 100;
+        o.quitaPor = so(b.quitaPor, 120) || QUITA_PADRAO;
+      }
+      o.obs = so(b.obs, 300);
+    } else if (tipo === "imovel") {
+      o.endereco = so(b.endereco, 300); o.matricula = so(b.matricula, 40); o.cartorio = so(b.cartorio, 120);
+      o.propNome = so(b.propNome, 120); o.propDoc = digitos(b.propDoc).slice(0, 14); o.onus = so(b.onus, 300) || "nenhum";
+    } else {
+      o.descricao = so(b.descricao, 600);
+    }
+    return o;
+  }
+  /* o que falta ou está errado no bem (já normalizado): [texto curto] */
+  function faltasBem(b) {
+    if (!b || !TIPOS_BEM.hasOwnProperty(b.tipo)) return ["escolha o tipo do bem (veículo, imóvel ou outro)"];
+    var f = [];
+    function prop() {
+      if (!b.propNome) f.push("nome do proprietário atual");
+      if (!b.propDoc) f.push("CPF ou CNPJ do proprietário");
+      else if (!docValido(b.propDoc)) f.push("CPF ou CNPJ do proprietário inválido");
+    }
+    if (b.tipo === "veiculo") {
+      var hoje = new Date().getFullYear();
+      if (!b.marca) f.push("marca");
+      if (!b.modelo) f.push("modelo");
+      if (!b.anoFab) f.push("ano de fabricação");
+      else if (b.anoFab < 1950 || b.anoFab > hoje + 1) f.push("ano de fabricação inválido");
+      if (!b.anoModelo) f.push("ano do modelo");
+      else if (b.anoFab && (b.anoModelo < b.anoFab || b.anoModelo > b.anoFab + 1)) f.push("ano do modelo: o de fabricação ou o seguinte");
+      if (!b.cor) f.push("cor");
+      if (!b.placa) f.push("placa");
+      else if (!RE_PLACA.test(b.placa)) f.push("placa inválida (ABC1234 ou ABC1D23)");
+      if (!b.renavam) f.push("RENAVAM");
+      else if (!renavamValido(b.renavam)) f.push("RENAVAM inválido (11 dígitos, confira o último)");
+      if (!b.chassi) f.push("chassi");
+      else if (!RE_CHASSI.test(b.chassi)) f.push("chassi com 17 letras e números, sem I, O e Q");
+      if (b.km === undefined || b.km === null) f.push("quilometragem");
+      prop();
+      if (!b.situacao) f.push("situação: quitado ou alienado/financiado");
+      if (b.situacao === "alienado") {
+        if (!b.credor) f.push("instituição credora");
+        if (!positivo(b.saldo)) f.push("saldo devedor estimado");
+      }
+    } else if (b.tipo === "imovel") {
+      if (b.endereco.length < 10) f.push("endereço completo do imóvel");
+      if (!b.matricula) f.push("matrícula");
+      if (!b.cartorio) f.push("cartório de registro de imóveis (CRI)");
+      prop();
+    } else if (b.descricao.length < 20) f.push("descrição detalhada do bem (no mínimo 20 letras)");
+    return f;
+  }
+  /* resumo curto (até MAX_DESC): "Hyundai HB20 2019/2020 placa ABC1D23" — descrição da linha e comentário do Mais Controle */
+  function resumoBem(b) {
+    if (!b || !TIPOS_BEM.hasOwnProperty(b.tipo)) return "";
+    var s = "";
+    if (b.tipo === "veiculo") {
+      var ano = b.anoFab ? (b.anoModelo && b.anoModelo !== b.anoFab ? b.anoFab + "/" + b.anoModelo : String(b.anoFab)) : "";
+      s = [b.marca, b.modelo, ano].filter(function (x) { return x; }).join(" ") + (b.placa ? " placa " + b.placa : "");
+    } else if (b.tipo === "imovel") {
+      s = b.matricula || b.endereco ? "imóvel" + (b.matricula ? " matrícula " + b.matricula : "") + (b.endereco ? " (" + b.endereco + ")" : "") : "";
+    } else s = b.descricao;
+    s = s.replace(/\s+/g, " ").trim();
+    return s.length > MAX_DESC ? s.slice(0, MAX_DESC - 1).trim() + "…" : s;
+  }
+
   /* total de uma linha em centavos: (n-1) × v + última (u, se houver; senão v) */
   function totalLinhaC(l) {
     var n = l.n | 0;
@@ -67,6 +203,12 @@ var FluxoLivre = (function () {
                 d: String(l.d || "").slice(0, 10), i: parseInt(l.i, 10) || 1, x: String(l.x || "").replace(/\s+/g, " ").trim() };
       var u = Math.round((Number(l.u) || 0) * 100) / 100;
       if (u > 0 && x.n > 1) x.u = u;
+      /* 03/11: o bem da permuta (só em linha de permuta); a descrição passa a ser o resumo dele */
+      if (x.t === "permuta" && l.b) {
+        x.b = normalizarBem(l.b);
+        var rs = resumoBem(x.b);
+        if (rs) x.x = rs;
+      }
       return x;
     });
     var out = { valor: Math.round((Number(o.valor) || 0) * 100) / 100, entrega: String(o.entrega || "").slice(0, 10), linhas: linhas };
@@ -77,9 +219,21 @@ var FluxoLivre = (function () {
 
   /* { ok, diferenca, erros: [texto], porLinha: { índice: [texto] }, avisos: [texto] } — diferenca = valor − soma
      (positivo = falta). Regra do dono: só a CONTA trava (e linha sem valor/data/tipo); data fora da entrega é AVISO. */
-  function validar(f, padrao) {
+  /* anterior (03/11) = o fluxo gravado antes (FLUXO PERSONALIZADO): a permuta antiga, só com a descrição, continua
+     valendo se a linha não mudou. porBem: { índice: [o que falta no bem] }; errosBem: os textos desses erros (também em
+     erros) — a tela não trava o botão Salvar por eles: ao salvar, abre o formulário do bem. */
+  function validar(f, padrao, anterior) {
     f = normalizar(f);
-    var erros = [], porLinha = {}, avisos = [];
+    var erros = [], porLinha = {}, avisos = [], porBem = {}, errosBem = [];
+    var antigas = {};
+    (anterior ? normalizar(anterior).linhas : []).forEach(function (l) {
+      if (l.t === "permuta" && !l.b && l.x) antigas[[c(l.v), l.n, l.d, l.i, l.x].join("|")] = true;
+    });
+    function erroBem(k, faltas, msg) {
+      porBem[k] = faltas;
+      var t = "Linha " + (k + 1) + ": " + msg;
+      erros.push(t); errosBem.push(t);
+    }
     function erroLinha(k, msg) { (porLinha[k] = porLinha[k] || []).push(msg); erros.push("Linha " + (k + 1) + ": " + msg); }
     if (!positivo(f.valor)) erros.push("Falta o valor da casa");
     if (!f.linhas.length) erros.push("O fluxo não tem nenhuma linha");
@@ -92,7 +246,14 @@ var FluxoLivre = (function () {
       if (l.n < 1 || l.n > MAX_N) erroLinha(k, "quantidade de 1 a " + MAX_N);
       if (l.i < 1 || l.i > MAX_INTERVALO) erroLinha(k, "intervalo de 1 a " + MAX_INTERVALO + " meses");
       if (l.x.length > MAX_DESC) erroLinha(k, "descrição com até " + MAX_DESC + " caracteres");
-      if (l.t === "permuta" && !l.x) erroLinha(k, "descreva o bem da permuta");
+      if (l.t === "permuta") {
+        if (l.b) {
+          var fb = faltasBem(l.b);
+          if (fb.length) erroBem(k, fb, "dados da permuta incompletos — " + fb.slice(0, 4).join(", ") + (fb.length > 4 ? "…" : ""));
+        } else if (antigas[[c(l.v), l.n, l.d, l.i, l.x].join("|")]) {
+          /* fluxo antigo, linha igual à gravada: segue só com a descrição */
+        } else erroBem(k, ["tipo do bem e os dados dele"], "faltam os dados do bem da permuta (veículo, imóvel ou outro)");
+      }
       if (!isoValida(l.d)) { if (!tp.terceiro) erroLinha(k, "falta a 1ª data"); return; }
       var ultima = maisMeses(l.d, (Math.max(1, l.n) - 1) * l.i);
       /* 31/10/2026 (dono): pré-chaves e balões terminam SEMPRE até 30/11/2028 — passar disso trava */
@@ -151,7 +312,7 @@ var FluxoLivre = (function () {
     }
     var dif = c(f.valor) - somaC(f.linhas);
     if (dif !== 0) erros.unshift((dif > 0 ? "Faltam " : "Sobram ") + moeda(Math.abs(dif) / 100) + " para fechar com o valor da casa");
-    return { ok: !erros.length, diferenca: dif / 100, erros: erros, porLinha: porLinha, avisos: avisos };
+    return { ok: !erros.length, diferenca: dif / 100, erros: erros, porLinha: porLinha, avisos: avisos, porBem: porBem, errosBem: errosBem };
   }
 
   /* Atalho "Redistribuir": a linha k absorve a diferença inteira; os centavos que sobram vão na última parcela dela.
@@ -275,6 +436,7 @@ var FluxoLivre = (function () {
   function comTotal(l, alvo) {
     var n = Math.max(1, l.n), cada = Math.floor(alvo / n), resto = alvo - cada * n;
     var nova = { t: l.t, v: cada / 100, n: n, d: l.d, i: l.i, x: l.x };
+    if (l.b) nova.b = l.b;
     if (resto && n > 1) nova.u = (cada + resto) / 100;
     else if (resto) nova.v = (cada + resto) / 100;
     return nova;
@@ -416,7 +578,8 @@ var FluxoLivre = (function () {
   }
 
   return { TIPOS: TIPOS, ORDEM: ORDEM, MAX_LINHAS: MAX_LINHAS, MAX_MOTIVO: MAX_MOTIVO, POS_TETO: POS_TETO, LIMITE_PRE_CHAVES: LIMITE_PRE_CHAVES,
-           PRAZOS: PRAZOS, prazoDasLinhas: prazoDasLinhas, mudarPrazo: mudarPrazo, distribuir: distribuir,
+           PRAZOS: PRAZOS, TIPOS_BEM: TIPOS_BEM, QUITA_PADRAO: QUITA_PADRAO, normalizarBem: normalizarBem, faltasBem: faltasBem, resumoBem: resumoBem,
+           docValido: docValido, docFormatado: docFormatado, renavamValido: renavamValido, placaValida: placaValida, chassiValido: chassiValido, prazoDasLinhas: prazoDasLinhas, mudarPrazo: mudarPrazo, distribuir: distribuir,
            normalizar: normalizar, validar: validar, redistribuir: redistribuir, aplicarDesconto: aplicarDesconto, valorDoDesconto: valorDoDesconto, doPadrao: doPadrao, abaterSinal: abaterSinal, expandir: expandir,
            serializar: serializar, ler: ler, ordenar: ordenar, totalLinha: function (l) { return totalLinhaC(normalizar({ linhas: [l] }).linhas[0] || {}) / 100; },
            soma: function (linhas) { return somaC(normalizar({ linhas: linhas }).linhas) / 100; }, maisMeses: maisMeses, moeda: moeda, dataBR: dataBR };

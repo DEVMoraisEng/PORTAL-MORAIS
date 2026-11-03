@@ -845,13 +845,17 @@
         '<td><input type="number" min="1" data-fx="n" data-k="' + k + '" value="' + esc(l.n) + '"' + dis + ' style="width:4.5em"></td>' +
         '<td><input type="date" data-fx="d" data-k="' + k + '" value="' + esc(l.d) + '"' + dis + "></td>" +
         '<td><input type="number" min="1" max="24" data-fx="i" data-k="' + k + '" value="' + esc(l.i || 1) + '"' + dis + ' style="width:4em"></td>' +
-        '<td><input type="text" maxlength="120" data-fx="x" data-k="' + k + '" value="' + esc(l.x || "") + '"' + dis +
-        ' placeholder="' + (l.t === "permuta" ? "veículo marca/modelo/ano/placa" : "opcional") + '" style="min-width:10em"></td>' +
+        /* 03/11: na permuta, a descrição é o resumo do bem (formulário "Dados do bem") */
+        (l.t === "permuta" && l.b ? '<td style="min-width:10em">' + esc(F.resumoBem(F.normalizarBem(l.b)) || l.x || "") + "</td>"
+          : '<td><input type="text" maxlength="120" data-fx="x" data-k="' + k + '" value="' + esc(l.x || "") + '"' + dis +
+            ' placeholder="' + (l.t === "permuta" ? "resumo (os dados vão no Dados do bem)" : "opcional") + '" style="min-width:10em"></td>') +
         '<td class="vb-fx-tot" data-k="' + k + '" style="white-space:nowrap;text-align:right">' + esc(F.moeda(F.totalLinha(l))) + "</td>" +
         '<td style="white-space:nowrap">' +
+        (l.t === "permuta" ? '<button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-bem" data-k="' + k + '"' + dis + ">Dados do bem</button> " : "") +
         '<button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-del" data-k="' + k + '"' + dis + ' aria-label="Apagar linha">✕</button></td></tr>';
     });
     h += "</tbody></table></div>";
+    h += htmlFluxoBem(ed, dis);
     h += '<div class="dz-linha"><button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-add"' + dis + ">+ linha</button> " +
       '<button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-padrao"' + dis + ">Recomeçar do fluxo da proposta</button></div>";
     h += '<div class="vb-fx-viva">' + htmlFluxoVivo(ed, dis) + "</div>";
@@ -871,6 +875,92 @@
     }
     return h;
   }
+  /* ---- 03/11/2026 (dono): "quando tiver permuta, hora que salvar, pede para quem tiver preenchendo colocar as
+     informações da permuta". O formulário abre no próprio cartão (ed.bemK = índice da linha), em grade que vira uma
+     coluna no celular. As regras do bem moram em venda/FluxoLivre.js (normalizarBem/faltasBem), as mesmas do servidor.
+     A data de entrega do bem é a 1ª data da linha (l.d). ---- */
+  var CAMPOS_BEM = {
+    veiculo: [["marca", "Marca", { max: 40 }], ["modelo", "Modelo", { max: 60 }], ["anoFab", "Ano de fabricação", { num: 1, max: 4 }],
+              ["anoModelo", "Ano do modelo", { num: 1, max: 4 }], ["cor", "Cor", { max: 30 }],
+              ["placa", "Placa", { max: 8, maiusc: 1, ph: "ABC1D23" }], ["renavam", "RENAVAM", { num: 1, max: 11, ph: "11 dígitos" }],
+              ["chassi", "Chassi", { max: 17, maiusc: 1, ph: "17 letras e números" }], ["km", "Quilometragem (km)", { num: 1, max: 9 }],
+              ["propNome", "Proprietário atual (nome)", { max: 120 }], ["propDoc", "CPF ou CNPJ do proprietário", { num: 1, max: 18 }]],
+    imovel: [["endereco", "Endereço completo do imóvel", { max: 300 }], ["matricula", "Matrícula", { max: 40 }],
+             ["cartorio", "Cartório de registro de imóveis (CRI)", { max: 120, ph: "ex.: 1º CRI de Cidade" }],
+             ["propNome", "Proprietário (nome)", { max: 120 }], ["propDoc", "CPF ou CNPJ do proprietário", { num: 1, max: 18 }],
+             ["onus", "Ônus (hipoteca, penhora…)", { max: 300, ph: "nenhum" }]],
+    outro: []
+  };
+  /* primeira linha de permuta sem os dados do bem completos (o que o Salvar pede), ou -1 */
+  function permutaSemBem(ed) {
+    var r = FL().validar({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, ed.padrao, ed.anterior || null);
+    var ks = Object.keys(r.porBem || {}).map(Number).sort(function (a, b) { return a - b; });
+    return ks.length ? ks[0] : -1;
+  }
+  /* o que falta no bem da linha (os textos do FluxoLivre) + a data de entrega */
+  function faltasDoBem(l) {
+    var f = FL().faltasBem(FL().normalizarBem(l.b || { tipo: "veiculo" }));
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(l.d || ""))) f.push("data prevista de entrega");
+    return f;
+  }
+  /* um campo digitado no formulário do bem → na linha (o resumo vai para a descrição) */
+  function campoBem(l, campo, valor) {
+    if (campo === "d") { l.d = String(valor || ""); return; }
+    var b = l.b || (l.b = { tipo: "veiculo" });
+    if (campo === "tipo") l.b = { tipo: String(valor || "veiculo"), propNome: b.propNome, propDoc: b.propDoc };
+    else if (campo === "saldo") b.saldo = lerNumBR(valor);
+    else b[campo] = String(valor === null || valor === undefined ? "" : valor);
+    var rs = FL().resumoBem(FL().normalizarBem(l.b));
+    if (rs) l.x = rs;
+  }
+  function htmlFluxoBem(ed, dis) {
+    var k = ed.bemK, l = ed.linhas[k];
+    if (k === null || k === undefined || !l || l.t !== "permuta") return "";
+    var F = FL(), b = l.b || { tipo: "veiculo" }, tipo = F.TIPOS_BEM.hasOwnProperty(b.tipo) ? b.tipo : "veiculo";
+    function val(c) { var v = b[c]; return v === null || v === undefined ? "" : String(v); }
+    function campo(c, rot, o) {
+      o = o || {};
+      return '<label class="dz-campo" style="display:block;margin:0">' + esc(rot) + ' <input type="text" data-fxb="' + c + '" data-k="' + k + '"' +
+        (o.num ? ' inputmode="numeric"' : "") + (o.maiusc ? ' autocapitalize="characters" style="width:100%;box-sizing:border-box;text-transform:uppercase"' : ' style="width:100%;box-sizing:border-box"') +
+        ' maxlength="' + (o.max || 120) + '"' + (o.ph ? ' placeholder="' + esc(o.ph) + '"' : "") + ' value="' + esc(val(c)) + '"' + dis + "></label>";
+    }
+    function texto(c, rot, ph, max) {
+      return '<label class="dz-campo" style="display:block;margin:0;grid-column:1/-1">' + esc(rot) + ' <textarea data-fxb="' + c + '" data-k="' + k + '" rows="2" maxlength="' + max + '"' +
+        (ph ? ' placeholder="' + esc(ph) + '"' : "") + ' style="width:100%;box-sizing:border-box;font:inherit"' + dis + ">" + esc(val(c)) + "</textarea></label>";
+    }
+    function sel(c, rot, ops, atual) {
+      return '<label class="dz-campo" style="display:block;margin:0">' + esc(rot) + ' <select data-fxb="' + c + '" data-k="' + k + '" style="width:100%;box-sizing:border-box"' + dis + ">" +
+        ops.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === atual ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") + "</select></label>";
+    }
+    var h = '<div class="vb-fx-bem" role="group" aria-label="Dados do bem da permuta" style="margin:8px 0;padding:10px;border:1px solid rgba(127,127,127,.5);border-radius:8px">' +
+      '<div class="dz-linha" style="margin-top:0"><b>Dados do bem da permuta — linha ' + (k + 1) + "</b> " +
+      '<span class="dz-nota">' + esc(F.moeda(F.totalLinha(l))) + ". Vão para o contrato (item 6.1, VI); sem eles o fluxo não salva.</span></div>" +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,13em),1fr));gap:8px 12px">' +
+      sel("tipo", "Tipo do bem", [["veiculo", "Veículo"], ["imovel", "Imóvel"], ["outro", "Outro bem"]], tipo);
+    CAMPOS_BEM[tipo].forEach(function (x) { h += campo(x[0], x[1], x[2]); });
+    if (tipo === "veiculo") {
+      h += sel("situacao", "Situação", [["", "escolha…"], ["quitado", "Quitado"], ["alienado", "Alienado / financiado"]], val("situacao"));
+      if (b.situacao === "alienado") {
+        h += campo("credor", "Instituição credora", { max: 120 }) +
+          '<label class="dz-campo" style="display:block;margin:0">Saldo devedor estimado (R$) <input type="text" inputmode="decimal" data-fxb="saldo" data-k="' + k + '" value="' +
+          esc(positivoNum(b.saldo) ? numBR(b.saldo) : val("saldo")) + '" style="width:100%;box-sizing:border-box"' + dis + "></label>" +
+          '<label class="dz-campo" style="display:block;margin:0">Quem quita o saldo <input type="text" data-fxb="quitaPor" data-k="' + k + '" maxlength="120" value="' +
+          esc(val("quitaPor") || F.QUITA_PADRAO) + '" style="width:100%;box-sizing:border-box"' + dis + "></label>";
+      }
+    }
+    if (tipo === "outro") h += texto("descricao", "Descrição detalhada do bem", "o que é, marca, modelo, ano, número de série, estado…", 600);
+    h += '<label class="dz-campo" style="display:block;margin:0">Data prevista de entrega <input type="date" data-fxb="d" data-k="' + k + '" value="' + esc(l.d || "") +
+      '" style="width:100%;box-sizing:border-box"' + dis + "></label>";
+    if (tipo === "veiculo") h += texto("obs", "Estado de conservação / observações (opcional)", "", 300);
+    h += "</div>";
+    if (ed.bemErros && ed.bemErros.length)
+      h += '<ul class="dz-msg">' + ed.bemErros.map(function (x) { return "<li>Falta ou está errado: " + esc(x) + "</li>"; }).join("") + "</ul>";
+    h += '<div class="dz-linha" style="display:flex;flex-wrap:wrap;gap:8px"><button type="button" class="bt bt-mini" data-acao="c-fluxo-bem-ok" data-k="' + k + '"' + dis + ">" +
+      (ed.salvarDepois ? "Confirmar dados do bem e salvar" : "Confirmar dados do bem") + "</button>" +
+      '<button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-bem-fechar" data-k="' + k + '"' + dis + ">Cancelar</button></div>";
+    return h + "</div><!--/vb-fx-bem-->";
+  }
+  function positivoNum(v) { return typeof v === "number" && isFinite(v) && v > 0; }
   /* 30/10 (arquivo 17, item 1): desconto — só quem muda o valor da casa (ed.desconto vem do servidor só para eles).
      ed.dsc = { modo: rs | pct | isentar, valor (texto digitado), de: entrada | baloes | pre } */
   var DSC_DE = [["entrada", "proporcional na entrada"], ["baloes", "dos balões primeiro (do último para o primeiro), depois as pré-chaves"],
@@ -902,10 +992,12 @@
   }
   /* placar + o que falta + Salvar: redesenhado a cada tecla sem mexer na tabela (não perde o foco) */
   function htmlFluxoVivo(ed, dis) {
-    var F = FL(), r = F.validar({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, ed.padrao), soma = F.soma(ed.linhas), dif = r.diferenca;
+    var F = FL(), r = F.validar({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, ed.padrao, ed.anterior || null), soma = F.soma(ed.linhas), dif = r.diferenca;
+    /* 03/11: o que falta no bem da permuta não trava o botão — o Salvar abre o formulário do bem */
+    var errosBem = r.errosBem || [];
     var mudouPreco = Math.round(ed.valor * 100) !== Math.round(ed.valorOriginal * 100);
     var motivoOk = !!String(ed.motivo || "").trim() && (!mudouPreco || !!String(ed.motivoPreco || "").trim());
-    var bate = Math.round(dif * 100) === 0, ok = r.ok && motivoOk;
+    var bate = Math.round(dif * 100) === 0, ok = r.erros.length === errosBem.length && motivoOk;
     var h = '<div class="vb-fx-placar" style="display:flex;flex-wrap:wrap;gap:4px 18px;margin:6px 0;padding:6px 10px;border-radius:6px;' +
       (bate ? "background:rgba(29,107,67,.14)" : "background:rgba(163,39,31,.14)") + '">' +
       "<span>Valor da casa: <b>" + esc(F.moeda(ed.valor)) + "</b></span><span>Soma do fluxo: <b>" + esc(F.moeda(soma)) + "</b></span>" +
@@ -919,10 +1011,11 @@
     if (!bate) h += '<div class="dz-linha"><button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-dist"' + dis +
       ' title="Espalha a diferença nas pré-chaves e balões, proporcional ao total de cada">Distribuir ' + esc(F.moeda(Math.abs(dif))) +
       " nas pré-chaves e balões</button></div>";
-    var faltas = r.erros.filter(function (x) { return !/^(Faltam|Sobram) /.test(x); });
+    var faltas = r.erros.filter(function (x) { return !/^(Faltam|Sobram) /.test(x) && errosBem.indexOf(x) < 0; });
     if (!motivoOk) faltas.push("Falta o motivo" + (mudouPreco ? " (e o motivo da mudança no valor da casa)" : ""));
     if (faltas.length) h += '<ul class="dz-msg">' + faltas.slice(0, 6).map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>";
     if (r.avisos.length) h += '<div class="dz-aviso">' + r.avisos.map(esc).join("; ") + ".</div>";
+    if (errosBem.length) h += '<div class="dz-nota">Ao salvar, o portal pede os dados do bem da permuta.</div>';
     h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-fluxo-salvar"' + ((dis || !ok) ? " disabled" : "") + ">" +
       (bate ? "Salvar fluxo" : (dif > 0 ? "Faltam " : "Sobram ") + esc(F.moeda(Math.abs(dif)))) + "</button></div>";
     return h;
@@ -1076,7 +1169,7 @@
                    resumo: resumo, escala: escala, tipoAceito: tipoAceito, painelCarregando: painelCarregando,
                    htmlContrato: htmlContrato, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, mensagemMC: mensagemMC,
                    topicosMC: topicosMC, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas, htmlConjugePR: htmlConjugePR,
-                   htmlCampos: htmlCampos, htmlConta: htmlConta, htmlFluxo: htmlFluxo, htmlFluxoVivo: htmlFluxoVivo, htmlFluxoDesconto: htmlFluxoDesconto, lerNumBR: lerNumBR, contaDoEstado: contaDoEstado, pedidoCampos: pedidoCampos,
+                   htmlCampos: htmlCampos, htmlConta: htmlConta, htmlFluxo: htmlFluxo, htmlFluxoVivo: htmlFluxoVivo, htmlFluxoDesconto: htmlFluxoDesconto, htmlFluxoBem: htmlFluxoBem, permutaSemBem: permutaSemBem, faltasDoBem: faltasDoBem, campoBem: campoBem, lerNumBR: lerNumBR, contaDoEstado: contaDoEstado, pedidoCampos: pedidoCampos,
                    contaDasEntradas: contaDasEntradas, faltasDaResposta: faltasDaResposta, detalheFluxoGravado: detalheFluxoGravado,
                    htmlFiadores: htmlFiadores, fiadoresDoEstado: fiadoresDoEstado, valoresFiadores: valoresFiadores,
                    rascunhoFia: rascunhoFia, perguntaConjugeFiador2: perguntaConjugeFiador2 };
@@ -2850,7 +2943,22 @@
       pintar();
     }
     /* 29/10: Alterar fluxo — abrir (lê do servidor), editar na tela, salvar ou voltar ao fluxo da proposta */
-    function copiaLinhas(ls) { return (ls || []).map(function (l) { var x = { t: l.t, v: l.v, n: l.n, d: l.d, i: l.i || 1, x: l.x || "" }; if (l.u) x.u = l.u; return x; }); }
+    function copiaLinhas(ls) {
+      return (ls || []).map(function (l) {
+        var x = { t: l.t, v: l.v, n: l.n, d: l.d, i: l.i || 1, x: l.x || "" };
+        if (l.u) x.u = l.u;
+        if (l.b) x.b = JSON.parse(JSON.stringify(l.b));   /* 03/11: o bem da permuta */
+        return x;
+      });
+    }
+    /* 03/11: leva a tela até o formulário do bem (no celular ele fica abaixo da tabela) */
+    function rolarAteBem() {
+      var el = dentro(".vb-fx-bem");
+      if (!el) return;
+      try { if (el.scrollIntoView) el.scrollIntoView({ block: "start", behavior: "smooth" }); } catch (e) { /* navegador antigo */ }
+      var c = el.querySelector("input:not([type=date]), select");
+      try { if (c && c.focus) c.focus({ preventScroll: true }); } catch (e) { /* idem */ }
+    }
     /* 30/10: o desconto sai das linhas escolhidas e o valor da casa cai o mesmo tanto (a soma continua fechando) */
     function aplicarDescontoTela(ed) {
       var dsc = ed.dsc || {}, isentar = dsc.modo === "isentar";
@@ -2879,7 +2987,9 @@
                                   linhas: copiaLinhas(r.atual.linhas), padrao: r.padrao, historico: r.historico || [], alterado: !!r.alterado,
                                   podePreco: !!r.podePreco, quemMudaPreco: Array.isArray(r.quemMudaPreco) ? r.quemMudaPreco.map(String) : [], desconto: r.desconto || null, semComissao: !!r.atual.semComissao,
                                   dsc: { modo: "rs", valor: "", de: "entrada" }, descontos: [],
-                                  motivo: "", motivoPreco: "" };
+                                  motivo: "", motivoPreco: "",
+                                  /* 03/11: o fluxo gravado (permuta antiga só com a descrição continua valendo, como no servidor) */
+                                  anterior: r.alterado ? { valor: r.atual.valor, linhas: copiaLinhas(r.atual.linhas) } : null, bemK: null };
         else uiC.msg = mensagemContrato(r);
         pintar();
         return;
@@ -2887,7 +2997,36 @@
       if (!ed) return;
       if (acao === "c-fluxo-fechar") { uiC.fluxoEd = null; pintar(); return; }
       if (acao === "c-fluxo-add") { ed.linhas.push({ t: "balao", v: 0, n: 1, d: "", i: 1, x: "" }); pintar(); return; }
-      if (acao === "c-fluxo-del") { if (!(FL().TIPOS[(ed.linhas[k] || {}).t] || {}).fixo) ed.linhas.splice(k, 1); pintar(); return; }
+      if (acao === "c-fluxo-del") { if (!(FL().TIPOS[(ed.linhas[k] || {}).t] || {}).fixo) { ed.linhas.splice(k, 1); ed.bemK = null; ed.salvarDepois = false; } pintar(); return; }
+      /* 03/11: formulário do bem da permuta */
+      if (acao === "c-fluxo-bem") {
+        var lb = ed.linhas[k];
+        if (!lb || lb.t !== "permuta") return;
+        ed.bemK = k; ed.bemErros = null; ed.salvarDepois = false;
+        ed.bemAntes = { b: lb.b ? JSON.parse(JSON.stringify(lb.b)) : null, d: lb.d, x: lb.x };
+        pintar(); rolarAteBem();
+        return;
+      }
+      if (acao === "c-fluxo-bem-fechar") {
+        var lc = ed.linhas[ed.bemK];
+        if (lc && ed.bemAntes) { if (ed.bemAntes.b) lc.b = ed.bemAntes.b; else delete lc.b; lc.d = ed.bemAntes.d; lc.x = ed.bemAntes.x; }
+        ed.bemK = null; ed.bemErros = null; ed.salvarDepois = false; ed.bemAntes = null; uiC.msg = "";
+        pintar();
+        return;
+      }
+      if (acao === "c-fluxo-bem-ok") {
+        var lo = ed.linhas[ed.bemK];
+        if (!lo) { ed.bemK = null; pintar(); return; }
+        if (!lo.b) lo.b = { tipo: "veiculo" };
+        var fb = faltasDoBem(lo);
+        if (fb.length) { ed.bemErros = fb; uiC.msg = ""; pintar(); rolarAteBem(); return; }
+        var depois = ed.salvarDepois;
+        ed.bemK = null; ed.bemErros = null; ed.salvarDepois = false; ed.bemAntes = null;
+        uiC.msg = "Dados do bem conferidos.";
+        pintar();
+        if (depois) return aoClicarFluxo("c-fluxo-salvar", b);
+        return;
+      }
       if (acao === "c-fluxo-padrao") { ed.linhas = copiaLinhas(ed.padrao.linhas); ed.valor = ed.padrao.valor; ed.semComissao = false; ed.descontos = []; pintar(); return; }
       if (acao === "c-fluxo-desconto") { aplicarDescontoTela(ed); pintar(); return; }
       if (acao === "c-fluxo-prazo") {
@@ -2917,6 +3056,17 @@
       var voltar = acao === "c-fluxo-voltar";
       if (acao !== "c-fluxo-salvar" && !voltar) return;
       if (!String(ed.motivo || "").trim()) { uiC.msg = "Escreva o motivo da alteração."; pintar(); return; }
+      /* 03/11 (dono): permuta sem os dados do bem — abre o formulário no cartão; salva depois de confirmado */
+      var kb = voltar ? -1 : permutaSemBem(ed);
+      if (kb >= 0) {
+        var lk = ed.linhas[kb];
+        ed.bemK = kb; ed.bemErros = null; ed.salvarDepois = true;
+        ed.bemAntes = { b: lk.b ? JSON.parse(JSON.stringify(lk.b)) : null, d: lk.d, x: lk.x };
+        if (!lk.b) lk.b = { tipo: "veiculo" };
+        uiC.msg = "Esta venda tem permuta: preencha os dados do bem para salvar.";
+        pintar(); rolarAteBem();
+        return;
+      }
       if (!window.confirm(voltar ? "Voltar ao fluxo da proposta (simulador)? A alteração fica guardada no histórico."
                                  : "Salvar este fluxo? O pré-contrato precisa ser gerado de novo e fica registrado quem alterou e o motivo.")) return;
       uiC.ocupadoContrato = "fluxo-salvar"; pintar();
@@ -2934,6 +3084,14 @@
         catch (e) { /* sem CustomEvent: o quadro do cartão só atualiza ao reabrir a unidade */ }
       } else uiC.msg = mensagemContrato(rs);
       pintar();
+    }
+    /* 03/11: digitando no formulário do bem: guarda na linha e redesenha só o placar */
+    function aoDigitarBem(alvo) {
+      var ed = uiC.fluxoEd, l = ed && ed.linhas[Number(alvo.getAttribute("data-k"))];
+      if (!l) return;
+      campoBem(l, alvo.getAttribute("data-fxb"), alvo.value);
+      var viva = dentro(".vb-fx-viva");
+      if (viva) viva.innerHTML = htmlFluxoVivo(ed, "");
     }
     /* digitando no editor: guarda no estado e redesenha só o total da linha e o placar (não perde o foco) */
     function aoDigitarFluxo(alvo) {
@@ -3065,6 +3223,7 @@
         el.addEventListener("input", function (ev) {
           if (raiz !== el || !ev.target.classList) return;
           if (ev.target.hasAttribute("data-an")) { aoDigitarAnt(ev.target); return; }
+          if (ev.target.hasAttribute("data-fxb")) { aoDigitarBem(ev.target); return; }   /* 03/11: formulário do bem */
           if (ev.target.hasAttribute("data-fx")) { aoDigitarFluxo(ev.target); return; }
           if (ev.target.classList.contains("vb-condesp")) uiC.condRasc = ev.target.value;
           else if (ev.target.classList.contains("vb-condesp-pedido")) uiC.condPedido = ev.target.value;
@@ -3073,6 +3232,8 @@
           if (raiz !== el) return;
           if (ev.target.getAttribute("data-pr-c") === "forma") { guardarContaPR(); pintarP(); return; }
           if (ev.target.hasAttribute("data-pr-conj")) { aoMarcarConjugePR(ev.target.checked); return; }
+          var fxb = ev.target.getAttribute("data-fxb");
+          if (fxb === "tipo" || fxb === "situacao") { aoDigitarBem(ev.target); if (uiC.fluxoEd) pintar(); return; }   /* 03/11: muda os campos do formulário */
           var fx = ev.target.getAttribute("data-fx");
           if (fx === "t" || fx === "dmodo") { aoDigitarFluxo(ev.target); if (uiC.fluxoEd) pintar(); return; }   /* o tipo muda o reajuste mostrado; o modo do desconto, os campos */
           if (fx === "dde") { aoDigitarFluxo(ev.target); return; }

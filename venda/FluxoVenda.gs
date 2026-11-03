@@ -114,7 +114,7 @@ function salvarFluxo_(col, sess, p) {
   if (!p.voltar) {
     var f = FluxoLivre.normalizar(p.fluxo);
     f.entrega = padrao.entrega;                       /* a entrega das chaves é a da linha, não a da tela */
-    var r = FluxoLivre.validar(f, padrao);
+    var r = FluxoLivre.validar(f, padrao, antes);   /* 03/11: permuta antiga (só descrição) já gravada continua valendo */
     if (!r.ok) return { ok: false, erro: "CAMPOS_INVALIDOS", erros: r.erros.slice(0, 6) };
     var mudouPreco = Math.round(f.valor * 100) !== Math.round(padrao.valor * 100);
     if (mudouPreco && !fluxoPodePreco_(sess)) return { ok: false, erro: "FLUXO_PRECO_SEM_PERMISSAO" };

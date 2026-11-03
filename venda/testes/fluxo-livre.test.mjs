@@ -77,10 +77,10 @@ test("data fora da entrega só avisa (quem trava é a conta)", () => {
   assert.match(r.avisos[1], /^Linha 2: pós-chaves/);
 });
 
-test("permuta exige a descrição do bem; financiamento não exige data", () => {
+test("permuta exige os dados do bem (03/11; detalhes em permuta-bem.test.mjs); financiamento não exige data", () => {
   const f = { valor: 100000, entrega: "", linhas: [{ t: "permuta", v: 40000, n: 1, d: "2026-11-15", i: 1, x: "" }, { t: "fin", v: 60000, n: 1, d: "", i: 1 }] };
-  assert.deepEqual(F.validar(f).erros, ["Linha 1: descreva o bem da permuta"]);
-  f.linhas[0].x = "veículo marca/modelo/ano/placa";
+  assert.deepEqual(F.validar(f).erros, ["Linha 1: faltam os dados do bem da permuta (veículo, imóvel ou outro)"]);
+  f.linhas[0].b = { tipo: "outro", descricao: "Trator agrícola de teste, ano 2015, em uso" };
   assert.equal(F.validar(f).ok, true);
 });
 
