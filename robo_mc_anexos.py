@@ -14,17 +14,21 @@ O que faz, em ordem:
   1. Baixa a auditoria publicada (bucket privado "analise", auditoria/auditoria.json).
   2. Escolhe os lançamentos: pagamentos dos últimos ANEXOS_DIAS dias (padrão 90) com algum alerta
      (classificação diferente de OK ou alerta de fiscalização). ANEXOS_ESCOPO=todos pega todos os do período.
-  3. Para cada lançamento: GET /trade-payables/{id} (lançamento) → pasta do lançamento (origem
-     TRADE_PAYABLE) e as baixas (origem PAID, onde costuma ficar o comprovante) → GET /folder → arquivos
-     → GET /file/{id}/get-url (link assinado do próprio MC). Receita lida no código do site em 03/11.
+  3. O nº do lançamento do relatório (ex. 21001534) não serve nas rotas da tela, que pedem UUID: o robô
+     lista as parcelas a pagar da janela (GET /payable-installments/paginated-result, a lista da tela
+     Financeiro › Pagamentos), acha sozinho em que campo da parcela está esse nº e pega dali o UUID do
+     lançamento (tradePayable.id) e das baixas. Depois: GET /folder (origem TRADE_PAYABLE = boleto/NF/recibo;
+     origem PAID = comprovante da baixa) → arquivos → GET /file/{id}/get-url (link assinado do próprio MC).
+     Receita lida no código do site em 03/11; corrigida no mesmo dia pela 1ª descoberta no servidor.
   4. Link do MC que vale 24 h ou mais: usa ele (renovado toda rodada). Link mais curto: copia o arquivo para
      o bucket privado (auditoria/anexos/<lançamento>/...) e assina por 3 dias.
   5. Grava em auditoria.json a chave "anexos" — a tela lê junto com o resto, sem mudar o Apps Script.
      O robô da madrugada (GitHub) preserva essa chave quando regrava a auditoria.
 
 MODOS:
-  DESCOBRIR=1  só 3 lançamentos; imprime o FORMATO das respostas (chaves, contagens, validade do link) —
-               nunca nome de arquivo, fornecedor ou valor. Não grava nada.
+  DESCOBRIR=1  8 páginas da lista e 3 lançamentos; imprime o FORMATO das respostas (chaves, tipo dos ids,
+               contagens, validade do link) e o erro de CADA rota tentada — nunca nome, fornecedor, valor ou
+               link. Não grava nada. Sai com código 1 (e a causa na última linha) se não ler nenhum lançamento.
   ANEXOS_MAX_ITENS (padrão 700) lançamentos consultados por rodada; os já vistos e sem pagamento recente
                não são consultados de novo (só têm o link renovado, quando é link do MC).
 
@@ -182,36 +186,126 @@ def validade_s(url):
     return None
 
 
+RE_UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I)
+
+
+def _tipo_id(v):
+    s = str(v or "")
+    return "uuid" if RE_UUID.match(s) else ("número" if s.isdigit() else ("vazio" if not s else "texto"))
+
+
+def _escalares(obj, prefixo="", prof=0, out=None):
+    """(caminho, valor) dos campos simples até 3 níveis — para achar onde está o nº do lançamento."""
+    out = [] if out is None else out
+    if prof > 3:
+        return out
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            c = f"{prefixo}.{k}" if prefixo else k
+            if isinstance(v, (dict, list)):
+                _escalares(v, c, prof + 1, out)
+            elif isinstance(v, (int, str)) and not isinstance(v, bool):
+                out.append((c, v))
+    elif isinstance(obj, list):
+        for v in obj[:3]:
+            _escalares(v, prefixo + "[]", prof + 1, out)
+    return out
+
+
+def _pegar(obj, caminho):
+    for parte in caminho.split("."):
+        if parte.endswith("[]"):
+            parte = parte[:-2]
+            obj = (obj or {}).get(parte) if isinstance(obj, dict) else None
+            obj = obj[0] if isinstance(obj, list) and obj else None
+        else:
+            obj = obj.get(parte) if isinstance(obj, dict) else None
+    return obj
+
+
 class LeitorMC:
+    """03/11 (2ª versão): o nº do lançamento do relatório (id_lancamento, ex. 21001534) NÃO é o id das rotas da
+    tela — elas pedem UUID. Por isso o robô lista as parcelas a pagar da janela (a mesma lista da tela
+    Financeiro › Pagamentos, /payable-installments/paginated-result), acha sozinho em qual campo de cada
+    parcela está o nº do lançamento e pega dali os UUIDs do lançamento (tradePayable.id) e das baixas."""
+
+    PARAMS_LISTA = [{"dateField": "PLANNED"}, {"dateField": "DATE_OF_PAYMENT"}, {}]
+
     def __init__(self, erp):
         self.erp = erp
         self.chamadas = 0
-        self.rota_lanc = None          # qual endpoint respondeu o lançamento
+        self.erros_rota = []           # (rota, erro curto) — a descoberta mostra todos
+        self.campo_num = None          # caminho do nº do lançamento dentro da parcela
+        self.params_ok = None
 
     def _get(self, caminho, params=None):
         self.chamadas += 1
         time.sleep(0.12)
         return self.erp.pedir("GET", caminho, params=params)
 
-    def lancamento(self, idl):
-        rotas = [self.rota_lanc] if self.rota_lanc else ["/trade-payables/%s", "/payable-installments/%s/overview"]
-        ult = None
-        for r in rotas:
-            try:
-                j = self._get(r % idl)
-                if j:
-                    self.rota_lanc = r
-                    return j
-            except Exception as e:
-                ult = e
-        if ult:
-            raise ult
-        return None
+    def _erro(self, rota, e):
+        self.erros_rota.append((rota, f"{type(e).__name__}: {str(e)[:170]}"))
 
+    # ---- 1) lista de parcelas a pagar -> {nº do lançamento: {"tp": uuid, "parcelas": [...], "baixas": [...]}}
+    def _pagina(self, base, pagina):
+        q = dict(base, page=pagina, size=100, type="ALL", tradePayableType="ALL",
+                 startDate=(HOJE - dt.timedelta(days=DIAS + 120)).isoformat(),
+                 endDate=(HOJE + dt.timedelta(days=30)).isoformat())
+        r = self._get("/payable-installments/paginated-result", q)
+        itens = _lista(r)
+        mais = bool(isinstance(r, dict) and (r.get("hasNextPage") or (r.get("last") is False)))
+        return itens, mais, r
+
+    def mapear(self, alvo, max_paginas=200):
+        alvo_txt = {str(x) for x in alvo}
+        mapa, primeira = {}, None
+        bases = [self.params_ok] if self.params_ok is not None else self.PARAMS_LISTA
+        for base in bases:
+            try:
+                itens, mais, primeira = self._pagina(base, 0)
+                self.params_ok = base
+                break
+            except Exception as e:
+                self._erro("/payable-installments/paginated-result %s" % (base or "sem dateField"), e)
+        else:
+            return mapa, None
+        pagina = 0
+        while True:
+            for it in itens:
+                if self.campo_num is None:
+                    for c, v in _escalares(it):
+                        if str(v) in alvo_txt:
+                            self.campo_num = c
+                            break
+                if self.campo_num is None:
+                    continue
+                num = str(_pegar(it, self.campo_num) or "")
+                if num not in alvo_txt:
+                    continue
+                tp = it.get("tradePayable") if isinstance(it.get("tradePayable"), dict) else {}
+                reg = mapa.setdefault(int(num), {"tp": tp.get("id"), "parcelas": [], "baixas": []})
+                reg["tp"] = reg["tp"] or tp.get("id")
+                if it.get("id"):
+                    reg["parcelas"].append(it["id"])
+                b = []
+                _baixas(it, b)
+                reg["baixas"] += [x["id"] for x in b if x.get("id") not in reg["baixas"]]
+            pagina += 1
+            if not mais or pagina >= max_paginas:
+                break
+            try:
+                itens, mais, _ = self._pagina(self.params_ok, pagina)
+            except Exception as e:
+                self._erro("/payable-installments/paginated-result página %d" % pagina, e)
+                break
+        return mapa, primeira
+
+    # ---- 2) pastas e arquivos
     def pastas(self, origem, rotina_id):
         try:
             return _lista(self._get("/folder", {"id": rotina_id, "origin": origem}))
-        except Exception:
+        except Exception as e:
+            self._erro("/folder origin=%s" % origem, e)
             return []
 
     def arquivos_da_pasta(self, pasta):
@@ -219,24 +313,33 @@ class LeitorMC:
         if not arqs and isinstance(pasta, dict) and pasta.get("id"):
             try:
                 arqs = _lista((self._get("/folder/%s" % pasta["id"]) or {}).get("files"))
-            except Exception:
+            except Exception as e:
+                self._erro("/folder/{id}", e)
                 arqs = []
         return [a for a in arqs if isinstance(a, dict) and a.get("id") and a.get("temporary") is not True]
 
     def link(self, arq_id):
         return _url_de(self._get("/file/%s/get-url" % arq_id))
 
-    def anexos(self, idl):
-        """[(origem, arquivo)] do lançamento e das baixas dele."""
-        lanc = self.lancamento(idl) or {}
-        rotinas = [("TRADE_PAYABLE", idl)]
-        tp = lanc.get("tradePayable") if isinstance(lanc.get("tradePayable"), dict) else lanc
-        if isinstance(tp, dict) and tp.get("id") and str(tp.get("id")) != str(idl):
-            rotinas.append(("TRADE_PAYABLE", tp["id"]))
-        baixas = []
-        _baixas(lanc, baixas)
-        for b in baixas:
-            rotinas.append(("PAID", b["id"]))
+    def anexos(self, idl, info):
+        """[(origem, arquivo)] do lançamento e das baixas dele. `info` vem de mapear()."""
+        if not info or not (info.get("tp") or info.get("parcelas")):
+            raise RuntimeError("lançamento não achado na lista de pagamentos do MC")
+        baixas = list(info.get("baixas") or [])
+        tp = info.get("tp")
+        if not baixas or not tp:                      # a lista não trouxe: abre a parcela (UUID)
+            for pid in (info.get("parcelas") or [])[:6]:
+                try:
+                    ov = self._get("/payable-installments/%s/overview" % pid) or {}
+                except Exception as e:
+                    self._erro("/payable-installments/{uuid}/overview", e)
+                    continue
+                tpo = ov.get("tradePayableOverview") or ov.get("tradePayable") or {}
+                tp = tp or tpo.get("id")
+                b = []
+                _baixas(ov, b)
+                baixas += [x["id"] for x in b if x.get("id") not in baixas]
+        rotinas = ([("TRADE_PAYABLE", tp)] if tp else []) + [("PAID", b) for b in baixas]
         vistos, out = set(), []
         for origem, rid in rotinas:
             for p in self.pastas(origem, rid):
@@ -245,7 +348,7 @@ class LeitorMC:
                         continue
                     vistos.add(a["id"])
                     out.append((origem, a))
-        return out, lanc, baixas
+        return out, tp, baixas
 
 
 # ----------------------------------------------------------------- descoberta
@@ -253,19 +356,32 @@ def chaves(obj, n=40):
     return sorted(obj.keys())[:n] if isinstance(obj, dict) else type(obj).__name__
 
 
-def descobrir(leitor, ids):
+def descobrir(leitor, alvo):
+    """Só formato. Devolve 0 se leu ao menos um lançamento; 1 com a causa na última linha."""
     log("DESCOBRIR: só formato, nada gravado")
-    for idl in ids[:3]:
+    mapa, primeira = leitor.mapear(alvo, max_paginas=8)
+    if primeira is not None:
+        itens = _lista(primeira)
+        log(f"lista de pagamentos: params {leitor.params_ok or 'sem dateField'} · chaves da resposta: {chaves(primeira)} · itens na 1ª página: {len(itens)}")
+        if itens:
+            it = itens[0]
+            log(f"  chaves da parcela: {chaves(it)}")
+            log(f"  tipo do id da parcela: {_tipo_id(it.get('id'))} · tradePayable: {chaves(it.get('tradePayable'), 30)}")
+            log(f"  tipo do tradePayable.id: {_tipo_id((it.get('tradePayable') or {}).get('id'))}")
+            nums = [c for c, v in _escalares(it) if _tipo_id(v) == "número" and 5 <= len(str(v)) <= 10]
+            log(f"  campos com número de 5 a 10 dígitos: {nums[:15]}")
+    log(f"campo com o nº do lançamento: {leitor.campo_num or 'NÃO ACHADO'} · lançamentos do escopo achados (8 páginas): {len(mapa)}")
+    lidos = 0
+    for idl in sorted(mapa, key=lambda i: alvo.get(i, ""), reverse=True)[:3]:
         log(f"— lançamento …{str(idl)[-4:]}")
         try:
-            arqs, lanc, baixas = leitor.anexos(idl)
+            arqs, tp, baixas = leitor.anexos(idl, mapa[idl])
+            lidos += 1
         except Exception as e:
-            log(f"  lançamento: ERRO {type(e).__name__}: {str(e)[:160]}")
+            log(f"  ERRO {type(e).__name__}: {str(e)[:160]}")
             continue
-        log(f"  rota do lançamento: {leitor.rota_lanc}  chaves: {chaves(lanc)}")
-        log(f"  folderId no lançamento: {'sim' if isinstance(lanc, dict) and lanc.get('folderId') else 'não'} · baixas achadas: {len(baixas)}"
-            + (f" (chaves: {chaves(baixas[0], 25)})" if baixas else ""))
-        log(f"  arquivos: {len(arqs)} · por origem: {dict((o, sum(1 for x, _ in arqs if x == o)) for o in {x for x, _ in arqs})}")
+        log(f"  tradePayable: {_tipo_id(tp)} · baixas: {len(baixas)} · arquivos: {len(arqs)} · por origem: "
+            f"{dict((o, sum(1 for x, _ in arqs if x == o)) for o in {x for x, _ in arqs})}")
         if arqs:
             a = arqs[0][1]
             log(f"  chaves do arquivo: {chaves(a)} · tipo: {a.get('type') or a.get('mimeType')}")
@@ -274,7 +390,20 @@ def descobrir(leitor, ids):
                 log(f"  get-url: {'link ok' if u else 'SEM LINK'} · host: {urlparse(u).netloc if u else '-'} · validade: {validade_s(u) if u else '-'} s")
             except Exception as e:
                 log(f"  get-url: ERRO {type(e).__name__}: {str(e)[:160]}")
+    if leitor.erros_rota:
+        log("erros por rota (todos):")
+        for r, e in leitor.erros_rota:
+            log(f"  {r}: {e}")
     log(f"chamadas ao MC: {leitor.chamadas}")
+    if not lidos:
+        causa = ("a lista de pagamentos do MC não respondeu" if primeira is None else
+                 "não achei em que campo da lista está o nº do lançamento" if not leitor.campo_num else
+                 "nenhum lançamento do escopo apareceu na lista do MC" if not mapa else
+                 "os lançamentos achados deram erro ao abrir as pastas")
+        log(f"FALHOU: nenhum lançamento lido — {causa}.")
+        return 1
+    log(f"OK: {lidos} lançamento(s) lido(s) na descoberta.")
+    return 0
 
 
 # ----------------------------------------------------------------- rodada
@@ -287,9 +416,15 @@ def nome_seguro(s):
 
 def rodada(leitor, aud, alvo):
     ant = (aud.get("anexos") or {}).get("itens") or {}
+    mapa, primeira = leitor.mapear(alvo)
+    if primeira is None:
+        raise RuntimeError("a lista de pagamentos do MC não respondeu")
+    if not leitor.campo_num:
+        raise RuntimeError("não achei em que campo da lista do MC está o nº do lançamento")
     agora = dt.datetime.now(dt.timezone.utc)
     lim_rechecar = (HOJE - dt.timedelta(days=RECHECAR_DIAS)).isoformat()
     itens, mb, consultados, copiados, erros, renovados = {}, 0.0, 0, 0, 0, 0
+    erros_lanc = [0]
     apagar = []
     # lançamentos que saíram da janela: apaga as cópias
     for idl, it in ant.items():
@@ -306,9 +441,12 @@ def rodada(leitor, aud, alvo):
             continue
         consultados += 1
         try:
-            arqs, _, _ = leitor.anexos(idl)
+            if idl not in mapa:
+                raise RuntimeError("fora da lista do MC na janela")
+            arqs, _, _ = leitor.anexos(idl, mapa[idl])
         except Exception as e:
             erros += 1
+            erros_lanc[0] += 1
             if erros <= 5:
                 log(f"  ! lançamento …{str(idl)[-4:]}: {type(e).__name__}: {str(e)[:120]}")
             if it_ant:
@@ -343,8 +481,9 @@ def rodada(leitor, aud, alvo):
             lista.append(reg)
         itens[str(idl)] = {"v": agora.isoformat(timespec="minutes"), "a": lista}
     sb_apagar(apagar)
-    return itens, {"consultados": consultados, "copiados": copiados, "mb": round(mb, 1), "erros": erros,
-                   "renovados": renovados, "apagados": len(apagar), "chamadas": leitor.chamadas}
+    return itens, {"consultados": consultados, "lidos": consultados - erros_lanc[0], "copiados": copiados, "mb": round(mb, 1),
+                   "erros": erros, "renovados": renovados, "apagados": len(apagar), "achados_no_mc": len(mapa),
+                   "chamadas": leitor.chamadas}
 
 
 def renovar(leitor, it, agora):
@@ -381,9 +520,12 @@ def main():
     leitor = LeitorMC(do_ambiente())
     try:
         if DESCOBRIR:
-            descobrir(leitor, sorted(alvo, key=lambda i: alvo[i], reverse=True))
-            return 0
-        itens, est = rodada(leitor, aud, alvo)
+            return descobrir(leitor, alvo)
+        try:
+            itens, est = rodada(leitor, aud, alvo)
+        except RuntimeError as e:
+            log(f"FALHOU: {e}. Nada gravado.")
+            return 1
         # grava em cima da versão MAIS NOVA (o robô da madrugada pode ter regravado no meio)
         atual = sb_baixar_json()
         atual["anexos"] = {"em": dt.datetime.now(dt.timezone.utc).isoformat(timespec="minutes"),
@@ -392,7 +534,11 @@ def main():
         com = sum(1 for x in itens.values() if x.get("a"))
         log(f"anexos: {len(itens)} lançamentos ({com} com arquivo) · " + " · ".join(f"{k} {v}" for k, v in est.items())
             + f" · auditoria.json {tam // 1024} KB")
-        return 1 if est["erros"] and not com else 0
+        if est["consultados"] and not est["lidos"]:
+            log(f"FALHOU: nenhum dos {est['consultados']} lançamentos consultados foi lido no MC — veja os erros acima.")
+            return 1
+        log(f"OK: {est['lidos']} lançamentos lidos no MC, {com} com arquivo.")
+        return 0
     finally:
         try:
             leitor.erp.fechar()

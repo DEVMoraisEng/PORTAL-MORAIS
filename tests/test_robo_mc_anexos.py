@@ -24,14 +24,24 @@ class ErpFalso:
         self.validade = validade
         self.pedidos = []
 
+    UU = "%08d-0000-4000-8000-000000000000"
+
     def pedir(self, metodo, caminho, corpo=None, params=None):
         self.pedidos.append((caminho, params))
-        if caminho.startswith("/trade-payables/"):
-            idl = int(caminho.rsplit("/", 1)[1])
-            return {"id": idl, "folderId": 9, "installments": [{"id": 1, "paids": [{"id": idl * 10, "payingDate": "2026-10-01"}]}]}
+        if caminho.startswith("/trade-payables/") or (caminho.startswith("/payable-installments/") and "paginated" not in caminho):
+            raise AssertionError("o robô não pode mandar o nº do lançamento nas rotas de UUID: " + caminho)
+        if caminho == "/payable-installments/paginated-result":
+            if params.get("dateField") == "PLANNED":
+                raise RuntimeError("HTTP 400")             # 1ª forma recusada: tenta a próxima
+            if params["page"] > 0:
+                return {"content": [], "hasNextPage": False}
+            return {"content": [{"id": self.UU % n, "plannedDate": "2026-10-01", "value": 10,
+                                 "tradePayable": {"id": self.UU % (n + 50), "code": n, "folderId": 9},
+                                 "filteredPaids": [{"id": self.UU % (n + 90), "payingDate": "2026-10-01"}]}
+                                for n in (101, 303, 555)], "hasNextPage": True}
         if caminho == "/folder":
             if params["origin"] == "TRADE_PAYABLE":
-                return [{"id": 5, "files": [{"id": "f%sL" % params["id"], "name": "Boleto 123.pdf", "type": "application/pdf", "sizeInBytes": 10}]}]
+                return [{"id": 5, "files": [{"id": "f%sL" % params["id"][:8], "name": "Boleto 123.pdf", "type": "application/pdf", "sizeInBytes": 10}]}]
             return [{"id": 6}]                         # pasta da baixa sem a lista: o robô abre a pasta
         if caminho == "/folder/6":
             return {"files": [{"id": "fP", "name": "comprovante.jpg", "type": "image/jpeg"},
@@ -95,6 +105,18 @@ def test_ja_visto_antigo_so_renova(monkeypatch):
     assert not any(c.startswith("/trade-payables/") for c, _ in erp.pedidos)
     assert itens["303"]["a"][0]["u"].startswith("https://bucket")      # link vencido renovado
     assert apagados == ["auditoria/anexos/999/q"]                       # saiu da janela: apaga a cópia
+
+
+def test_descoberta_acha_o_campo_e_sai_com_codigo(monkeypatch):
+    leitor = ra.LeitorMC(ErpFalso())
+    assert ra.descobrir(leitor, {101: D(5), 303: D(10)}) == 0
+    assert leitor.campo_num == "tradePayable.code"
+    assert any("PLANNED" in r for r, _ in leitor.erros_rota)          # o erro da 1ª forma aparece
+
+
+def test_descoberta_sem_lancamento_sai_com_erro():
+    leitor = ra.LeitorMC(ErpFalso())
+    assert ra.descobrir(leitor, {999: D(5)}) == 1
 
 
 def test_validade():
