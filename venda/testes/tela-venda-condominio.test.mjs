@@ -571,7 +571,7 @@ test("01/11: falha ao limpar o termo antigo não derruba o Conferi (só vai para
 });
 
 /* 01/11: "Conferi" com o envelope na mão dos signatários não troca contrato nem termos */
-test("01/11: Conferi com envelope ENVIADO/RASCUNHO/ASSINADO ou envio pendente: CONTRATO_EM_ASSINATURA, nada gerado", () => {
+test("01/11: Conferi com envelope ENVIADO/RASCUNHO/ASSINADO ou envio pendente: recusa (03/11: ENVELOPE_ABERTO da trava central), nada gerado", () => {
   for (const sit of ["ENVIADO", "RASCUNHO", "ASSINADO", "pendente"]) {
     const linha = { ...antigos, "CONTRATO GERADO": velho("CONTRATO - ", "bbbbbbbb"), "ASSINATURA - ENVELOPE ID": rt("env-x"), "ASSINATURA - SITUAÇÃO": rt(sit === "pendente" ? "" : sit) };
     const c = cenarioCfd({ linha });
@@ -580,7 +580,8 @@ test("01/11: Conferi com envelope ENVIADO/RASCUNHO/ASSINADO ou envio pendente: C
     d_zerar(c);
     const r = c.acao("aprovarPreContrato");
     /* 01/11 (plano 23 A): assinado por todos, a trava do servidor responde antes (CONTRATO_ASSINADO) */
-    const esperado = sit === "ASSINADO" ? "CONTRATO_ASSINADO" : "CONTRATO_EM_ASSINATURA";
+    /* 03/11 (dono): envelope aberto = a trava central responde antes (ENVELOPE_ABERTO) */
+    const esperado = sit === "ASSINADO" ? "CONTRATO_ASSINADO" : "ENVELOPE_ABERTO";
     assert.deepEqual({ ok: r.ok, erro: r.erro }, { ok: false, erro: esperado }, sit);
     assert.equal(c.d.estado.copias.length, 0, sit + ": nada copiado no Drive");
     assert.equal(c.n.patches.length, 0, sit + ": nada gravado no Notion");
@@ -950,7 +951,9 @@ test("29/10 fluxo: venda lançada no MC, envelope aberto ou contrato assinado n�
   assert.equal(lancada.acao("contratoEstado").fluxo.trava, "FLUXO_VENDA_LANCADA");
   assert.equal(lancada.acao("salvarFluxo", { fluxo: f(lancada), motivo: "x" }).erro, "FLUXO_VENDA_LANCADA");
   const aberta = cenarioFluxo({ linha: { "ASSINATURA - ENVELOPE ID": rt("env-1"), "ASSINATURA - SITUAÇÃO": rt("ENVIADO") } });
-  assert.equal(aberta.acao("salvarFluxo", { fluxo: f(aberta), motivo: "x" }).erro, "FLUXO_ASSINATURA_ABERTA");
+  assert.equal(aberta.acao("contratoEstado").fluxo.trava, "FLUXO_ASSINATURA_ABERTA");
+  /* 03/11 (dono): a trava central responde antes, com a mensagem de cancelar o envelope */
+  assert.equal(aberta.acao("salvarFluxo", { fluxo: f(aberta), motivo: "x" }).erro, "ENVELOPE_ABERTO");
   const assinada = cenarioFluxo({ linha: { "ASSINATURA - ENVELOPE ID": rt("env-1"), "ASSINATURA - SITUAÇÃO": rt("ASSINADO") } });
   assert.equal(assinada.acao("salvarFluxo", { fluxo: f(assinada), motivo: "x" }).erro, "FLUXO_CONTRATO_ASSINADO");
   const cancelada = cenarioFluxo({ linha: { "ASSINATURA - ENVELOPE ID": rt("env-1"), "ASSINATURA - SITUAÇÃO": rt("CANCELADO") } });
@@ -1764,4 +1767,81 @@ test("03/11 lerCrlv: guardas — sem arquivo, grande demais, tipo errado, outro 
   assert.equal(semChave.acao("lerCrlv", { linha: 3, arquivo: ARQ_CRLV }).erro, "CHAVE_IA_FALTANDO");
   /* venda da VENDAS (casa de rua) não tem Alterar fluxo */
   assert.equal(cenarioCrlv().acao("lerCrlv", { linha: 3, arquivo: ARQ_CRLV, pageId: "zz" }).erro, "PAGINA_INVALIDA");
+});
+
+/* ---- 03/11/2026 (incidente): venda enviada com a tela dizendo "Fluxo alterado depois do contrato: gere o contrato de novo".
+   O servidor compara as horas gravadas: FLUXO_HIST_<página> (último "em"), CONDESP_<página> ("em") × PRECONTRATO_<página>.conferidoEm ---- */
+const MSG_DESATUALIZADO = "O fluxo ou as condições especiais mudaram depois do contrato. Gere o contrato de novo antes de enviar.";
+const propsDe = (c) => c.g.ctx.PropertiesService.getScriptProperties();
+const conferidoEm = (c) => JSON.parse(propsDe(c).getProperty("PRECONTRATO_" + COND)).conferidoEm;
+const maisMs = (iso, ms) => new Date(Date.parse(iso) + ms).toISOString();
+function gravarHoraFluxo(c, em) {
+  const h = JSON.parse(propsDe(c).getProperty("FLUXO_HIST_" + COND) || "[]");
+  if (!h.length) h.push({ por: "ana.teste", motivo: "x", valor: 305000, antes: "" });
+  h[h.length - 1].em = em;
+  propsDe(c).setProperty("FLUXO_HIST_" + COND, JSON.stringify(h));
+}
+
+test("03/11: fluxo salvo DEPOIS do contrato final — Enviar recusa CONTRATO_DESATUALIZADO com a mensagem, nada na Clicksign; contratoEstado avisa", () => {
+  const c = cenarioFluxo();
+  assert.equal(c.gerarFinal().ok, true);
+  assert.equal(c.acao("contratoEstado").envioDesatualizado, false, "sem fluxo gravado: em dia");
+  gravarHoraFluxo(c, maisMs(conferidoEm(c), 60000));
+  assert.equal(c.acao("contratoEstado").envioDesatualizado, true);
+  const r = c.acao("assinaturaEnviar", rub(c));
+  assert.deepEqual(r, { ok: false, erro: "CONTRATO_DESATUALIZADO", mensagem: MSG_DESATUALIZADO });
+  assert.equal(c.c.chamadas.length, 0, "nada na Clicksign");
+  assert.equal(c.txt("ASSINATURA - ENVELOPE ID"), "");
+});
+
+test("03/11: condições especiais salvas DEPOIS do contrato final também barram o Enviar; antes do contrato não", () => {
+  const c = cenario({ linha: { "CONTRATO - CONDIÇÕES ESPECIAIS": rt("") } });
+  assert.equal(c.gerarFinal().ok, true);
+  propsDe(c).setProperty("CONDESP_" + COND, JSON.stringify({ por: "ana.teste", em: maisMs(conferidoEm(c), 1000) }));
+  assert.equal(c.acao("contratoEstado").envioDesatualizado, true);
+  assert.equal(c.acao("assinaturaEnviar", rub(c)).erro, "CONTRATO_DESATUALIZADO");
+  propsDe(c).setProperty("CONDESP_" + COND, JSON.stringify({ por: "ana.teste", em: maisMs(conferidoEm(c), -1000) }));
+  assert.equal(c.acao("contratoEstado").envioDesatualizado, false);
+  const r = c.acao("assinaturaEnviar", rub(c));
+  assert.equal(r.ok, true, JSON.stringify(r));
+});
+
+test("03/11: o caminho do incidente — Alterar fluxo depois do contrato barra; gerar o contrato de novo libera o Enviar", () => {
+  const c = cenarioFluxo();
+  assert.equal(c.gerarFinal().ok, true);
+  const s = c.acao("salvarFluxo", { fluxo: comBalao(c.acao("fluxoEditar").atual), motivo: "cliente pediu mais um balão" });
+  assert.equal(s.ok, true, JSON.stringify(s));
+  gravarHoraFluxo(c, maisMs(conferidoEm(c), 5));   /* a mesma ordem de horas, sem depender do relógio do teste */
+  assert.equal(c.acao("assinaturaEnviar", rub(c)).erro, "CONTRATO_DESATUALIZADO");
+  assert.equal(c.gerarFinal().ok, true);
+  gravarHoraFluxo(c, maisMs(conferidoEm(c), -5));
+  assert.equal(c.acao("contratoEstado").envioDesatualizado, false);
+  const r = c.acao("assinaturaEnviar", rub(c));
+  assert.equal(r.ok, true, JSON.stringify(r));
+});
+
+test("03/11: fluxo gravado e contrato final sem a hora do Conferi (contrato antigo) — barra; termo de pré-reserva não é afetado", () => {
+  const c = cenarioFluxo();
+  assert.equal(c.gerarFinal().ok, true);
+  const pre = JSON.parse(propsDe(c).getProperty("PRECONTRATO_" + COND));
+  delete pre.conferidoEm;
+  propsDe(c).setProperty("PRECONTRATO_" + COND, JSON.stringify(pre));
+  gravarHoraFluxo(c, "2026-10-30T12:00:00.000Z");
+  assert.equal(c.acao("assinaturaEnviar", rub(c)).erro, "CONTRATO_DESATUALIZADO");
+});
+
+test("03/11: cartão do condomínio com o envelope ENVIADO — Alterar fluxo, condições, testemunhas, fiadores e Gerar de novo recusam; Cancelar destrava", () => {
+  const c = cenarioFluxo({ linha: { "CONTRATO - CONDIÇÕES ESPECIAIS": rt("") } });
+  assert.equal(c.gerarFinal().ok, true);
+  assert.equal(c.acao("assinaturaEnviar", rub(c)).ok, true);
+  const msg = "O contrato já foi enviado para assinatura. Para mudar, cancele o envelope primeiro.";
+  const f = comBalao(c.acao("fluxoEditar").atual);
+  for (const [a, extra] of [["salvarFluxo", { fluxo: f, motivo: "x" }], ["salvarCondicoesEspeciais", { texto: "Na cláusula 9.2, 45 dias." }],
+                            ["gerarPreContrato", {}], ["aprovarPreContrato", {}], ["escolherTestemunhas", { ids: [] }],
+                            ["salvarFiadores", { valores: { "FIADOR 1": "Fiador Um Teste" } }], ["lerCrlv", { linha: 3 }]])
+    assert.deepEqual(c.acao(a, extra), { ok: false, erro: "ENVELOPE_ABERTO", mensagem: msg }, a);
+  assert.equal(c.txt("CONTRATO - CONDIÇÕES ESPECIAIS"), "", "nada gravado");
+  assert.equal(c.acao("fluxoEditar").ok, true, "Ver fluxo segue");
+  assert.equal(c.acao("assinaturaCancelar").ok, true);
+  assert.equal(c.acao("salvarCondicoesEspeciais", { texto: "Na cláusula 9.2, 45 dias." }).ok, true, "cancelado: destrava");
 });

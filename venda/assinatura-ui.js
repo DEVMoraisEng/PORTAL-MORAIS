@@ -74,8 +74,16 @@
   function podeEnviar(c) {
     var e = c.estado;
     if (!e || !c.contratoGerado || c.ocupado || c.testes) return false;
+    if (c.desatualizado && !ehTermo(c)) return false;   /* 03/11: fluxo/condições depois do contrato — gerar de novo antes */
     return !e.envelope || REENVIAVEL.indexOf(situacaoDe(e)) >= 0;
   }
+  /* 03/11/2026 (dono): envelope do contrato ABERTO — rascunho, enviado ou aguardando (situação vazia). A aba Contrato fica
+   * só leitura (venda-dossie.js htmlContratoLeitura); cancelado/recusado/expirado destrava; assinado tem a tela própria. */
+  function envelopeAberto(c) {
+    var e = c && c.estado, s = situacaoDe(e);
+    return !!(e && e.envelope && REENVIAVEL.indexOf(s) < 0 && s !== "ASSINADO");
+  }
+  var MSG_DESATUALIZADO = "O fluxo ou as condições especiais mudaram depois do contrato. Gere o contrato de novo antes de enviar.";
   /* entrega 14: todos assinaram e o PDF assinado já está na casa (CONTRATO ASSINADO) */
   function podeVerAssinado(c) { return !!(c.estado && situacaoDe(c.estado) === "ASSINADO" && c.estado.temAssinado); }
   /* Atualizar situação grava na casa: o perfil TESTES não usa (o servidor também barra). */
@@ -105,6 +113,8 @@
   function mensagemAssinatura(r) {
     r = r || {};
     var e = String(r.erro || "");
+    /* 03/11: a trava do servidor já manda o texto (envelope aberto; contrato desatualizado pelo fluxo/condições) */
+    if ((e === "CONTRATO_DESATUALIZADO" || e === "ENVELOPE_ABERTO") && typeof r.mensagem === "string" && r.mensagem) return r.mensagem;
     if (!e) {
       if (r.aviso === "NOTIFICACAO_FALHOU")
         return "Enviado, mas o e-mail de aviso falhou — use Atualizar situação; se ninguém receber, avise o desenvolvedor.";
@@ -217,6 +227,7 @@
     if (c.ocupado === "cancelar") h += '<div class="dz-linha"><b>cancelando o envelope na Clicksign…</b></div>';
     if (c.ocupado === "ver") h += '<div class="dz-linha"><b>abrindo o ' + (termo ? "termo" : "contrato") + ' assinado…</b></div>';
     if (!c.contratoGerado) h += '<div class="dz-aviso">Gere o ' + (termo ? "termo" : "contrato") + ' antes de enviar para assinatura.</div>';
+    else if (c.desatualizado && !termo && !envelopeAberto(c)) h += '<div class="dz-aviso">' + esc(MSG_DESATUALIZADO) + "</div>";
     if (e.envelope) {
       h += '<div class="dz-linha"><span class="dz-rot">Situação: ' + esc(SITUACAO[sit] || sit || "sem situação gravada") + "</span></div>";
       /* 30/10 (dono): envelope cancelado ou vencido não mostra mais quem está "pendente" — ninguém vai assinar */
@@ -450,7 +461,8 @@
   var exportar = { montarBlocoAssinatura: montarBlocoAssinatura, mensagemAssinatura: mensagemAssinatura,
                    executarAcaoAssinatura: executarAcaoAssinatura, prepararRubricas: prepararRubricas, caixasDaPrevia: caixasDaPrevia, TINTA: TINTA, podeEnviar: podeEnviar, podeReenviar: podeReenviar, podeCancelar: podeCancelar, podeDescartar: podeDescartar,
                    podeVerAssinado: podeVerAssinado, nomeArquivoAssinado: nomeArquivoAssinado, precisaCarregarAssinados: precisaCarregarAssinados,
-                   carregarAssinados: carregarAssinados, baixarAssinado: baixarAssinado, assinado: assinado };
+                   carregarAssinados: carregarAssinados, baixarAssinado: baixarAssinado, assinado: assinado,
+                   envelopeAberto: envelopeAberto, MSG_DESATUALIZADO: MSG_DESATUALIZADO };
   if (typeof module !== "undefined" && module.exports) { module.exports = exportar; return; }
   window.VendaAssinatura = exportar; /* o coordenador liga no painel (venda-dossie.js / vendas.html) */
 })();

@@ -390,7 +390,8 @@
     SO_CONDOMINIO: "Isso só vale para as vendas do condomínio.",
     MODELO_NAO_CONFIGURADO: "O modelo do contrato não está configurado neste ambiente.",
     TESTEMUNHAS_INVALIDAS: "Essas testemunhas não estão mais na lista — recarregue e escolha de novo.",
-    ENVELOPE_ABERTO: "A assinatura já foi enviada — as testemunhas não mudam mais.",
+    ENVELOPE_ABERTO: "O contrato já foi enviado para assinatura. Para mudar, cancele o envelope primeiro.",   /* 03/11: trava central */
+    CONTRATO_DESATUALIZADO: "O fluxo ou as condições especiais mudaram depois do contrato. Gere o contrato de novo antes de enviar.",
     CADASTRO_NAO_CONFIGURADO: "Os cadastros do contrato não estão configurados neste ambiente.",
     DRIVE_API_DESLIGADA: "Ative o serviço Drive API no PORTAL-VENDA (veja COMO-IMPLANTAR).",
     CONTRATO_FALHOU: "Não consegui gerar o contrato — tente de novo.",
@@ -426,6 +427,8 @@
      CAMPOS_INVALIDOS: os motivos (só nomes de campo) vão junto. */
   function mensagemContrato(r) {
     var e = String((r && r.erro) || "");
+    /* 03/11: a trava central do envelope aberto (contrato ou termo) e o contrato desatualizado já mandam o texto */
+    if ((e === "ENVELOPE_ABERTO" || e === "CONTRATO_DESATUALIZADO") && r && typeof r.mensagem === "string" && r.mensagem) return r.mensagem;
     if (e === "CAMPOS_INVALIDOS" && r && Array.isArray(r.erros) && r.erros.length) return "Confira: " + r.erros.join("; ") + ".";
     var m = MSG_CONTRATO[e] || mensagemDeErro(e);
     if (r && Array.isArray(r.salvos) && r.salvos.length && e !== "FALTAM_DADOS") m = "Dados salvos (" + r.salvos.join(", ") + "), mas: " + m;
@@ -453,6 +456,8 @@
     if (r && r.fluxo && typeof r.fluxo === "object") o.fluxo = fluxoDoEstado(r.fluxo);
     /* 31/10/2026: o que falta de obrigatório que o cliente/corretor completa pelo link (null = o servidor não disse) */
     if (r && Array.isArray(r.faltasCliente)) o.faltasCliente = r.faltasCliente.map(String);
+    /* 03/11/2026 (incidente): fluxo/condições gravados depois do contrato final — o Enviar fica travado (assinatura-ui) */
+    if (r && typeof r.envioDesatualizado === "boolean") o.envioDesatualizado = r.envioDesatualizado;
     /* 01/11/2026: bloco Fiadores / cônjuge do comprador (só vem no condomínio e quando falta algo) */
     var fb = fiadoresDoEstado(r && r.fiadores);
     if (fb) o.fiadores = fb;
@@ -717,6 +722,7 @@
       h += '<div class="dz-linha"><span class="dz-rot">Contrato gerado<span class="dz-arq-nome">: ' + esc(e.nome) + "</span></span>" +
         '<button type="button" class="bt bt-mini" data-acao="c-ver"' + dis + ">Visualizar</button> " +
         '<button type="button" class="bt ghost bt-mini" data-acao="c-pre"' + dis + ">Gerar de novo</button></div>";
+      if (e.envioDesatualizado) h += '<div class="dz-aviso">' + esc(MSG_CONTRATO.CONTRATO_DESATUALIZADO) + "</div>";
       (e.confissao || []).forEach(function (x) {
         h += '<div class="dz-linha"><span class="dz-rot">Termo de confissão ' + (x.tipo === "POS" ? "pós-chaves" : "pré-chaves") + ": " + esc(x.nome) + "</span>" +
           '<button type="button" class="bt ghost bt-mini" data-acao="c-ver-cfd-' + (x.tipo === "POS" ? "pos" : "pre") + '"' + dis + ">Visualizar</button></div>";
@@ -728,6 +734,77 @@
     h += htmlTestemunhas(e.testemunhas, dis);
     h += htmlFluxo(e.fluxo, u, dis, e);
     h += htmlCondicoes(e.condicoes, u, dis);
+    h += htmlHistorico(e.historico);
+    if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
+    if (u.link && /^https:\/\//.test(u.link)) {
+      h += '<div class="dz-msg">O navegador bloqueou a janela — clique em Abrir contrato. ' +
+        '<a href="' + esc(u.link) + '" target="_blank" rel="noopener">Abrir contrato</a></div>';
+    }
+    return h;
+  }
+
+  /* ---- 03/11/2026 (dono): "depois de enviado, trava toda essa parte de contrato igual quando assinado, deixando mexer só
+     se cancelar o envelope". Com o envelope do contrato aberto (RASCUNHO, ENVIADO, aguardando) a aba Contrato fica só
+     leitura: Visualizar (contrato e termos), Ver fluxo e o que vai no contrato como texto; sem Gerar de novo, Alterar
+     fluxo, Redigir com IA, Salvar… nem listas. O bloco da Clicksign (assinatura-ui) segue com Atualizar/Reenviar/Cancelar. */
+  var MSG_SO_LEITURA = "Contrato enviado para assinatura — só leitura. Para mudar algo, cancele o envelope.";
+  function nomesTestemunhas(t) {
+    if (!t || !t.opcoes || t.opcoes.length < 2) return "";
+    function nome(id) { var o = t.opcoes.filter(function (x) { return x.id === id; })[0]; return o ? o.nome : ""; }
+    var escolheu = !!(t.escolhidas[0] || t.escolhidas[1]), ids = escolheu ? t.escolhidas : (t.padrao || []);
+    var n = [nome(ids[0] || ""), nome(ids[1] || "")].filter(function (x) { return x; });
+    return n.length ? n.join(" e ") + (escolheu ? "" : " (padrão)") : "padrão (definidas no envio)";
+  }
+  function textoConta(conta) {
+    if (!conta || conta.fixa || !Array.isArray(conta.opcoes)) return "";
+    var e = conta.escolhida;
+    if (e && e.id) { var o = conta.opcoes.filter(function (x) { return x.id === e.id; })[0]; return o ? o.nome : "conta escolhida"; }
+    if (e && (e.banco || e.conta)) return [e.banco, e.agencia ? "ag. " + e.agencia : "", e.conta ? "conta " + e.conta : "", e.pix ? "PIX " + e.pix : ""]
+      .filter(function (x) { return x; }).join(" · ");
+    var pd = conta.opcoes.filter(function (x) { return x.id === conta.padrao; })[0];
+    return pd ? pd.nome + " (conta da obra)" : "";
+  }
+  function htmlContratoLeitura(e, u) {
+    u = u || {};
+    var dis = (u.ocupadoContrato || u.testes) ? " disabled" : "";
+    var h = '<div class="grp">Contrato</div><div class="dz-aviso dz-so-leitura" role="status"><b>' + esc(MSG_SO_LEITURA) + "</b></div>";
+    if (!e) return h + '<div class="vazio">' + esc(u.msg || "carregando…") + "</div>";
+    if (e.gerado) {
+      h += '<div class="dz-linha"><span class="dz-rot">Contrato enviado<span class="dz-arq-nome">: ' + esc(e.nome) + "</span></span>" +
+        '<button type="button" class="bt bt-mini" data-acao="c-ver"' + dis + ">Visualizar</button></div>";
+      (e.confissao || []).forEach(function (x) {
+        h += '<div class="dz-linha"><span class="dz-rot">Termo de confissão ' + (x.tipo === "POS" ? "pós-chaves" : "pré-chaves") + ": " + esc(x.nome) + "</span>" +
+          '<button type="button" class="bt ghost bt-mini" data-acao="c-ver-cfd-' + (x.tipo === "POS" ? "pos" : "pre") + '"' + dis + ">Visualizar</button></div>";
+      });
+    }
+    var conta = textoConta(e.conta);
+    if (conta) h += '<div class="dz-linha"><span class="dz-rot">Conta de recebimento: ' + esc(conta) + "</span></div>";
+    var test = nomesTestemunhas(e.testemunhas);
+    if (test) h += '<div class="dz-linha"><span class="dz-rot">Testemunhas da assinatura: ' + esc(test) + "</span></div>";
+    var f = e.fluxo;
+    if (f && f.coluna) {
+      h += '<div class="dz-grupo"><b>Fluxo de pagamento</b></div><div class="dz-linha"><span class="dz-rot">Fluxo em uso: ' + (f.alterado
+        ? "alterado no portal" + (f.por ? " por " + esc(f.por) : "") + (f.em ? " em " + esc(dataHoraBR(f.em)) : "") + "."
+        : "o da proposta (simulador).") + "</span>" + '<button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-ver">Ver fluxo</button></div>';
+    }
+    var c = e.condicoes;
+    if (c && c.coluna) h += '<div class="dz-grupo"><b>Condições especiais desta venda</b></div>' +
+      '<div class="dz-linha" style="white-space:pre-wrap;overflow-wrap:anywhere">' + esc(c.texto || "Não há.") + "</div>";
+    var b = e.fiadores;
+    if (b) {
+      var linhas = function (campos) {
+        return campos.filter(function (x) { return x.valor; }).map(function (x) {
+          return "<li><span>" + esc(x.rotulo) + ":</span> " + esc(x.valor) + "</li>";
+        }).join("");
+      };
+      var bloco = function (titulo, campos) {
+        var l = linhas(campos);
+        return '<div class="dz-linha"><b>' + titulo + "</b></div>" + (l ? '<ul class="dz-ler">' + l + "</ul>" : '<div class="dz-linha dz-nota">não preenchido</div>');
+      };
+      h += '<div class="dz-grupo"><b>' + esc(b.titulo) + "</b></div>";
+      b.fiadores.forEach(function (fi) { h += bloco("Fiador " + fi.n, fi.campos); });
+      if (b.conjuge) h += bloco("Cônjuge do comprador 1", b.conjuge.campos);
+    }
     h += htmlHistorico(e.historico);
     if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
     if (u.link && /^https:\/\//.test(u.link)) {
@@ -1209,7 +1286,7 @@
                    htmlSoltar: htmlSoltar, pessoasDoEnvio: pessoasDoEnvio, conferirEscolhas: conferirEscolhas,
                    destinosDoEnvio: destinosDoEnvio, resultadoPorEspaco: resultadoPorEspaco,
                    resumo: resumo, escala: escala, tipoAceito: tipoAceito, painelCarregando: painelCarregando,
-                   htmlContrato: htmlContrato, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, mensagemMC: mensagemMC,
+                   htmlContrato: htmlContrato, htmlContratoLeitura: htmlContratoLeitura, MSG_SO_LEITURA: MSG_SO_LEITURA, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, mensagemMC: mensagemMC,
                    topicosMC: topicosMC, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas, htmlConjugePR: htmlConjugePR,
                    htmlCampos: htmlCampos, htmlConta: htmlConta, htmlFluxo: htmlFluxo, htmlFluxoVivo: htmlFluxoVivo, htmlFluxoDesconto: htmlFluxoDesconto, htmlFluxoBem: htmlFluxoBem, aplicarCrlv: aplicarCrlv, permutaSemBem: permutaSemBem, faltasDoBem: faltasDoBem, campoBem: campoBem, lerNumBR: lerNumBR, contaDoEstado: contaDoEstado, pedidoCampos: pedidoCampos,
                    contaDasEntradas: contaDasEntradas, faltasDaResposta: faltasDaResposta, detalheFluxoGravado: detalheFluxoGravado,
@@ -1229,6 +1306,9 @@
     "#dossie-wrap .dz-msg,.vb-blocos .dz-msg{margin-top:8px;font-weight:600}" +
     "#dossie-wrap pre,.vb-blocos pre{white-space:pre-wrap;font:inherit;margin:4px 0}" +
     ".vb-blocos ul{margin:4px 0 4px 18px}.vb-blocos ul li{margin:2px 0}" +
+    /* 03/11: aba Contrato só leitura (envelope aberto) — faixa e textos quebram no celular */
+    ".vb-blocos .dz-so-leitura{padding:8px 10px;border:1px solid #E67E22;border-radius:8px;overflow-wrap:anywhere}" +
+    ".vb-blocos .dz-ler li{overflow-wrap:anywhere}.vb-blocos .dz-ler li>span{color:var(--text3,#555)}" +
     /* entrega 13: espaço anexado e ainda não lido; resultado da leitura em lote */
     "#dossie-wrap .dz-novo{color:#B45309;font-weight:700}#dossie-wrap .dz-lote{margin-top:10px}" +
     "#dossie-wrap .dz-res li.dz-erro{color:#C0392B}" +
@@ -2159,6 +2239,7 @@
     function htmlAss() {
       if (!window.VendaAssinatura) return '<div class="grp">Enviar contrato via Clicksign</div><div class="vazio">carregando…</div>';
       ctxA.contratoGerado = contratoFinal(estadoC);
+      ctxA.desatualizado = !!(contratoFinal(estadoC) && estadoC.envioDesatualizado);   /* 03/11: trava o Enviar */
       return window.VendaAssinatura.montarBlocoAssinatura(ctxA);
     }
     /* 01/11/2026 (plano 23 A, dono): "depois do contrato assinado por todos, tem que tirar essas opções e deixar só para
@@ -2166,8 +2247,13 @@
      * bloco Documentos assinados (e o histórico); termo ASSINADO (ou contrato assinado): a aba Pré-reserva também. */
     function assinadoA() { return !!(window.VendaAssinatura && window.VendaAssinatura.assinado(ctxA)); }
     function assinadoP() { return !!(window.VendaAssinatura && window.VendaAssinatura.assinado(ctxP)); }
-    var vistoA = false, vistoP = false;
-    function htmlCt() { return assinadoA() ? htmlHistorico(estadoC && estadoC.historico) : htmlContrato(estadoC, uiC); }
+    var vistoA = false, vistoP = false, vistoEnvA = false;
+    /* 03/11 (dono): envelope do contrato aberto = aba Contrato só leitura (cancelar o envelope destrava) */
+    function enviadoA() { var VA = window.VendaAssinatura; return !!(VA && VA.envelopeAberto && VA.envelopeAberto(ctxA)); }
+    function htmlCt() {
+      if (assinadoA()) return htmlHistorico(estadoC && estadoC.historico);
+      return enviadoA() ? htmlContratoLeitura(estadoC, uiC) : htmlContrato(estadoC, uiC);
+    }
     function htmlPR() {
       if (assinadoP()) return "";
       if (assinadoA()) return '<div class="grp">Pré-reserva</div><div class="vazio">O contrato já foi assinado por todos — a pré-reserva não muda mais.</div>';
@@ -2213,7 +2299,7 @@
       if (!raiz) return;
       guardarRascunho();
       guardarRascunhoR();
-      vistoA = assinadoA(); vistoP = assinadoP();
+      vistoA = assinadoA(); vistoP = assinadoP(); vistoEnvA = enviadoA();
       setTimeout(garantirAssinados, 0);
       if (soPR) { raiz.innerHTML = '<div class="vb-pr">' + htmlPR() + '</div><div class="vb-pr-ass">' + htmlAssPRVisivel() + "</div>"; return; }
       raiz.innerHTML = (comPR ? '<div class="vb-pr">' + htmlPR() + '</div><div class="vb-pr-ass">' + htmlAssPRVisivel() + "</div>" +
@@ -2445,6 +2531,7 @@
     }
     function pintarA() {
       if (assinadoA() !== vistoA) return pintar();   /* 01/11 (plano 23 A): assinou agora — a aba inteira muda */
+      if (enviadoA() !== vistoEnvA) return pintar();   /* 03/11: enviou ou cancelou agora — a aba Contrato trava/destrava */
       var w = dentro(".vb-ass"); if (w) w.innerHTML = htmlAss();
       garantirAssinados();
     }
@@ -2731,6 +2818,7 @@
     async function aoClicarAss(acao) {
       if (!window.VendaAssinatura || ctxA.ocupado) return;
       ctxA.contratoGerado = contratoFinal(estadoC);
+      ctxA.desatualizado = !!(contratoFinal(estadoC) && estadoC.envioDesatualizado);   /* 03/11: trava o Enviar */
       /* 01/11 (dono): prévia das assinaturas — a janela abre no clique (senão o navegador bloqueia) */
       var janelaPrevia = acao === "a-previa" ? window.open("about:blank", "_blank") : null;
       var novo = await window.VendaAssinatura.executarAcaoAssinatura(acao, ctxA, {
@@ -3435,7 +3523,7 @@
        Carrega mesmo sem o painel da casa: o cartão do condomínio também usa. */
     /* 30/10: leitor das rubricas do comprador (pdf.js só carrega na hora de enviar) */
     var sr = document.createElement("script"); sr.src = "venda/RubricasVenda.js?v=8"; document.head.appendChild(sr);
-    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=23";
+    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=24";
     sa.onload = function () { [blocosCasa, blocosCond, blocosPR].forEach(function (b) { if (b) b.pintarAssinatura(); }); };
     document.head.appendChild(sa);
     var body = document.getElementById("pn-body"); if (!body) return;

@@ -382,7 +382,7 @@ test("contratoEstado: sem arquivo -> gerado:false; depois de gerar -> nome e url
   const dois = cenario({ venda: { "CONTRATO GERADO": { files: [
     { name: "a.pdf", type: "file", file: { url: "https://s3.falso/a" } }, { name: "b.pdf", type: "file", file: { url: "https://s3.falso/b" } }] } } });
   const estDois = dois.acao("contratoEstado"); delete estDois.conta;
-  assert.deepEqual(estDois, { ok: true, gerado: true, etapa: "FINAL", pre: null, nome: "b.pdf", url: "https://s3.falso/b" });
+  assert.deepEqual(estDois, { ok: true, gerado: true, etapa: "FINAL", pre: null, nome: "b.pdf", url: "https://s3.falso/b", envioDesatualizado: false });
 });
 
 test("nenhum log carrega nome, CPF, Pix ou conta dos dados de teste", () => {

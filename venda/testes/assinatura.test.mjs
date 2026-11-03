@@ -1211,6 +1211,60 @@ test("plano 23 A: termo de pré-reserva ASSINADO — recusa gerar, conta, cônju
 });
 
 
+/* ---- 03/11/2026 (dono): "depois de enviado, trava toda essa parte de contrato igual quando assinado, deixando mexer só se
+   cancelar o envelope" ---- */
+const MSG_ABERTO = "O contrato já foi enviado para assinatura. Para mudar, cancele o envelope primeiro.";
+const TRAVADAS_ABERTO = ["gerarPreContrato", "aprovarPreContrato", "gerarContrato", "escolherTestemunhas", "salvarCamposContrato", "escolherContaRecebimento",
+                         "salvarCondicoesEspeciais", "redigirCondicoesEspeciais", "salvarFiadores", "conjugeEhFiador2",
+                         "salvarFluxo", "lerCrlv", "corrigirConferencia"];
+test("03/11: envelope do contrato ENVIADO — toda ação que muda o contrato responde ENVELOPE_ABERTO com a mensagem; leituras e o envelope seguem", () => {
+  const c = cenario();
+  assert.equal(c.enviar().ok, true);
+  const gravacoes = c.n.patches ? c.n.patches.length : 0;
+  for (const a of TRAVADAS_ABERTO)
+    assert.deepEqual(c.acao(a), { ok: false, erro: "ENVELOPE_ABERTO", mensagem: MSG_ABERTO }, a);
+  if (c.n.patches) assert.equal(c.n.patches.length, gravacoes, "nada gravado no Notion");
+  assert.equal(c.estado().ok, true, "Atualizar situação segue");
+  assert.equal(c.acao("contratoEstado").ok, true, "leitura segue");
+  assert.equal(c.acao("documentosAssinados").erro, "NAO_ASSINADO", "lista dos assinados segue (só não há assinado ainda)");
+  assert.notEqual(c.acao("assinaturaReenviar").erro, "ENVELOPE_ABERTO", "Reenviar segue");
+  assert.equal(c.acao("assinaturaCancelar").ok, true, "Cancelar segue");
+  /* cancelado: tudo destrava */
+  assert.notEqual(c.acao("escolherTestemunhas").erro, "ENVELOPE_ABERTO");
+  assert.notEqual(c.acao("salvarCondicoesEspeciais").erro, "ENVELOPE_ABERTO");
+  assert.notEqual(c.acao("gerarPreContrato").erro, "ENVELOPE_ABERTO");
+});
+test("03/11: RASCUNHO, situação vazia com envelope e envio pendente também travam; recusado/expirado não", () => {
+  for (const [sit, env] of [["RASCUNHO", "env-1"], ["", "env-1"], ["ENVIADO", "env-1"]]) {
+    const c = cenario({ venda: { "ASSINATURA - ENVELOPE ID": rt(env), "ASSINATURA - SITUAÇÃO": rt(sit) } });
+    assert.deepEqual(c.acao("escolherTestemunhas"), { ok: false, erro: "ENVELOPE_ABERTO", mensagem: MSG_ABERTO }, sit || "vazia");
+  }
+  const pend = cenario({ props: { ["ASSINATURA_PENDENTE_" + PAGE]: "env-9" } });
+  assert.equal(pend.acao("salvarCamposContrato").erro, "ENVELOPE_ABERTO", "pendente");
+  for (const sit of ["RECUSADO", "EXPIRADO", "CANCELADO"]) {
+    const c = cenario({ venda: { "ASSINATURA - ENVELOPE ID": rt("env-1"), "ASSINATURA - SITUAÇÃO": rt(sit) } });
+    assert.notEqual(c.acao("escolherTestemunhas").erro, "ENVELOPE_ABERTO", sit);
+  }
+});
+test("03/11: envelope do contrato aberto não trava as ações do termo de pré-reserva nem o pagamento", () => {
+  const PR = { "PRÉ-RESERVA - ENVELOPE ID": "rich_text", "PRÉ-RESERVA - SITUAÇÃO": "rich_text", "PRÉ-RESERVA - TERMO ASSINADO": "files" };
+  const c = cenario({ colunas: Object.assign(colunasVenda(), PR),
+                      venda: { "ASSINATURA - ENVELOPE ID": rt("env-1"), "ASSINATURA - SITUAÇÃO": rt("ENVIADO") } });
+  for (const a of ["gerarTermoPreReserva", "salvarContaPreReserva", "salvarConjugePreReserva", "salvarPagamentoPreReserva"])
+    assert.notEqual(c.acao(a).erro, "ENVELOPE_ABERTO", a);
+});
+test("03/11: envelope do TERMO aberto — as ações do termo respondem ENVELOPE_ABERTO com a mensagem do termo; o contrato não trava", () => {
+  const PR = { "PRÉ-RESERVA - ENVELOPE ID": "rich_text", "PRÉ-RESERVA - SITUAÇÃO": "rich_text", "PRÉ-RESERVA - TERMO ASSINADO": "files" };
+  const c = cenario({ colunas: Object.assign(colunasVenda(), PR),
+                      venda: { "PRÉ-RESERVA - ENVELOPE ID": rt("env-pr"), "PRÉ-RESERVA - SITUAÇÃO": rt("ENVIADO") } });
+  for (const a of ["gerarTermoPreReserva", "salvarContaPreReserva"])
+    assert.deepEqual(c.acao(a), { ok: false, erro: "ENVELOPE_ABERTO",
+      mensagem: "O termo já foi enviado para assinatura. Para mudar, cancele o envelope do termo primeiro." }, a);
+  assert.equal(c.acao("salvarConjugePreReserva").mensagem,
+    "O termo já foi enviado para assinatura. Para mudar quem assina, cancele o envelope do termo primeiro.");
+  assert.notEqual(c.acao("escolherTestemunhas").erro, "ENVELOPE_ABERTO", "envelope do termo não trava o contrato");
+});
+
 /* ---- 01/11/2026 (plano 23 C): selfie ---- */
 const authsDe = (c, email) => {
   const s = c.c.estado.signers.find((x) => x.attributes.email === email);

@@ -371,3 +371,61 @@ test("pré-reserva: a caixa do cônjuge está no bloco, o clique chama a ação 
   const m = src.match(/function htmlConjugePR[^]*?\r?\n  }\r?\n/)[0];
   assert.doesNotMatch(m, /width:\s*\d{3,}px/);
 });
+
+/* ---- 03/11/2026 (dono): "depois de enviado, trava toda essa parte de contrato igual quando assinado" ---- */
+const ESTADO_ENVIADO = {
+  gerado: true, etapa: "FINAL", nome: "CONTRATO - CONDOMÍNIO TESTE - CASA 13 [#abcd1234].pdf", url: "https://s3.falso/x",
+  confissao: [{ tipo: "PRE", nome: "CONFISSÃO PRÉ - CASA 13.pdf" }],
+  testemunhas: { opcoes: [{ id: "a", nome: "Testemunha Um" }, { id: "b", nome: "Testemunha Dois" }, { id: "c", nome: "Testemunha Tres" }], escolhidas: ["c", "a"], padrao: ["a", "b"] },
+  fluxo: { coluna: true, alterado: true, trava: "FLUXO_ASSINATURA_ABERTA", por: "ana.teste", em: "2026-11-03T12:00:00.000Z", alteracoes: 1 },
+  condicoes: { coluna: true, texto: "Na cláusula 9.2, onde se lê 30 dias,\nleia-se 45 dias.", por: "ana.teste", em: "2026-11-03T11:00:00.000Z", max: 1900 },
+  fiadores: { mostrar: true, titulo: "Fiadores", precisa: true,
+              fiadores: [{ n: 1, campos: [{ coluna: "FIADOR 1", rotulo: "Nome", valor: "Fiador Um Teste", tipo: "texto" },
+                                          { coluna: "FIADOR 1 - CPF", rotulo: "CPF", valor: "", tipo: "cpf" }] }],
+              faltas: [], aviso: "", botaoConjuge: true, semColuna: [] },
+  historico: ["03/11 ana.teste enviou para assinatura"]
+};
+test("03/11: aba Contrato com o envelope aberto — só leitura: faixa, Visualizar, Ver fluxo e o que vai no contrato em texto", () => {
+  const h = D.htmlContratoLeitura(D.estadoContrato(ESTADO_ENVIADO), { rascunho: {} });
+  assert.match(h, /Contrato enviado para assinatura — só leitura\. Para mudar algo, cancele o envelope\./);
+  assert.equal((h.match(/data-acao="c-ver"/g) || []).length, 1);
+  assert.match(h, /data-acao="c-ver-cfd-pre"/);
+  assert.match(h, /data-acao="c-fluxo-ver"/);
+  assert.match(h, /Testemunhas da assinatura: Testemunha Tres e Testemunha Um/);
+  assert.match(h, /Na cláusula 9\.2, onde se lê 30 dias,\nleia-se 45 dias\./);
+  assert.match(h, /Fiador Um Teste/);
+  assert.match(h, /alterado no portal por ana\.teste/);
+  assert.match(D.htmlContratoLeitura(Object.assign(D.estadoContrato(ESTADO_ENVIADO), { historico: ["x"] }), {}), /Histórico do contrato/);
+  for (const proibido of ["c-pre", "c-aprovar", "c-fluxo-abrir", "c-condesp-ia", "c-condesp-salvar", "c-fia-salvar", "c-fia-conjuge", "c-salvar-conta", "c-salvar-campos"])
+    assert.doesNotMatch(h, new RegExp('data-acao="' + proibido + '"'), proibido);
+  assert.doesNotMatch(h, /<(select|input|textarea)\b/, "nada para digitar ou escolher");
+  assert.doesNotMatch(h, /Gerar de novo|Alterar fluxo|Redigir com IA|Salvar/);
+  assert.doesNotMatch(h, /width:\s*\d{3,}px/, "cabe no celular");
+  /* sem escolha: o par padrão; sem condições: "Não há." */
+  const e2 = D.estadoContrato(Object.assign({}, ESTADO_ENVIADO, { testemunhas: Object.assign({}, ESTADO_ENVIADO.testemunhas, { escolhidas: [] }),
+                                                                 condicoes: { coluna: true, texto: "", max: 1900 } }));
+  const h2 = D.htmlContratoLeitura(e2, {});
+  assert.match(h2, /Testemunha Um e Testemunha Dois \(padrão\)/);
+  assert.match(h2, /Não há\./);
+  /* TESTES: Visualizar segue a regra de sempre (desabilitado) */
+  assert.match(D.htmlContratoLeitura(D.estadoContrato(ESTADO_ENVIADO), { testes: true }).match(/<button[^>]*data-acao="c-ver"[^>]*>/)[0], /disabled/);
+});
+test("03/11: contrato final desatualizado — estadoContrato guarda o aviso do servidor e a aba diz para gerar de novo", () => {
+  const e = D.estadoContrato(Object.assign({}, ESTADO_ENVIADO, { envioDesatualizado: true }));
+  assert.equal(e.envioDesatualizado, true);
+  assert.match(D.htmlContrato(e, { rascunho: {} }), /O fluxo ou as condições especiais mudaram depois do contrato\. Gere o contrato de novo antes de enviar\./);
+  assert.doesNotMatch(D.htmlContrato(D.estadoContrato(ESTADO_ENVIADO), { rascunho: {} }), /mudaram depois do contrato/);
+  assert.equal(D.estadoContrato(ESTADO_ENVIADO).envioDesatualizado, undefined, "servidor antigo: sem o campo");
+});
+test("03/11: mensagens — ENVELOPE_ABERTO e CONTRATO_DESATUALIZADO usam o texto do servidor; sem ele, o texto de cancelar o envelope", () => {
+  assert.equal(D.mensagemContrato({ erro: "ENVELOPE_ABERTO", mensagem: "O termo já foi enviado para assinatura. Para mudar, cancele o envelope do termo primeiro." }),
+               "O termo já foi enviado para assinatura. Para mudar, cancele o envelope do termo primeiro.");
+  assert.equal(D.mensagemContrato({ erro: "ENVELOPE_ABERTO" }), "O contrato já foi enviado para assinatura. Para mudar, cancele o envelope primeiro.");
+});
+test("03/11: a aba Contrato troca para só leitura quando o envelope abre e volta quando cancela (fonte)", async () => {
+  const fs = await import("node:fs");
+  const src = fs.readFileSync(new URL("../../venda-dossie.js", import.meta.url), "utf8");
+  assert.match(src, /return enviadoA\(\) \? htmlContratoLeitura\(estadoC, uiC\) : htmlContrato\(estadoC, uiC\);/);
+  assert.match(src, /if \(enviadoA\(\) !== vistoEnvA\) return pintar\(\);/);
+  assert.match(src, /ctxA\.desatualizado = !!\(contratoFinal\(estadoC\) && estadoC\.envioDesatualizado\);/);
+});

@@ -696,6 +696,10 @@ function contratoEstado_(col, p) {
   /* entrega 10: lista de testemunhas (só id e nome) e a escolha desta venda */
   var dTest = null;   /* dados do contrato, quando já lidos: o tipo do vendedor decide o par padrão das testemunhas */
   if (a) { r.nome = a.nome; r.url = a.url; }
+  /* 03/11: fluxo ou condições especiais gravados depois do contrato final — a tela trava o Enviar (AssinaturaVenda.gs) */
+  if (a && typeof assContratoDesatualizado_ === "function") {
+    try { r.envioDesatualizado = assContratoDesatualizado_(p.pageId); } catch (e) { ctrErro_("contratoEstado desatualizado", e); }
+  }
   /* entrega 12: lista de contas (só id e título), a escolha desta venda e a da obra */
   if (info.base === "CONDOMINIO") {
     r.conta = { fixa: ctrContaFixaCondominio_() };
