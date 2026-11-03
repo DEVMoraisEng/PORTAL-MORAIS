@@ -32,7 +32,13 @@ em 03/11/2026 sem login e sem cookie). Nada foi chamado no ERP para escrever est
    signature, saved}` — [CERTO];
 4. POST no bucket S3 (`AWSAccessKeyId`, `acl=private`, `success_action_status=201`, `key`, `policy`, `signature`,
    `file`) — [CERTO];
-5. `PATCH /file/set-temporary?fileId=<id>&temporary=false` (`FilesService.toggleIsTemporaryFile`) — [CERTO].
+5. `PATCH /file/set-temporary?fileId=<id>&temporary=false` (`FilesService.toggleIsTemporaryFile`) — [CERTO]. A tela
+   só chama isto no `$dropletSuccess` (depois do S3): o registro nasce temporário no passo 3.
+6. Falhou o 4 ou o 5: o registro já existe com o nome. O robô apaga com `DELETE /file/delete-batch?fileIds=<id>`
+   (`FilesService.removeBatch = one("file").one("delete-batch").customDELETE("",{fileIds})`, o "Remover" da tela) —
+   [CERTO] rota; se não apagar, a situação manda apagar à mão. A lista de pastas não mostra (no código da tela) um
+   campo `temporary`; o robô ignora arquivo com `temporary: true` ou `sizeInBytes` 0 SE vierem — [SUPOSIÇÃO] sobre o
+   que o servidor devolve para um registro temporário.
 
 ## 3. Contrato no recebimento da venda
 
@@ -43,8 +49,7 @@ O pedido de anexo NÃO cria a pasta só para conferir: sem pasta = nada anexado 
 ## O que o robô faz (venda/mc/anexos.py, pedido "mc-anexos" da fila do servidor)
 
 - contrato: nome = `regras.nome_do_contrato` (o mesmo do lançamento). Já na pasta → não sobe;
-- ZIP: obra = `MC_OBRA_CONTRATOS_VENDA` (variável da fila no servidor) ou o ENDEREÇO da venda ("CONDOMÍNIO …",
-  a mesma obra do lançamento); pasta = `MC_PASTA_CONTRATOS_VENDA` ou "Contratos Venda" (nome comparado sem
+- ZIP: obra = sempre o ENDEREÇO da venda ("CONDOMÍNIO …", a mesma obra do lançamento; sem obra fixa por variável); pasta = `MC_PASTA_CONTRATOS_VENDA` ou "Contratos Venda" (nome comparado sem
   acento/caixa). Pasta faltando → a situação pede para criar; nunca cria. Arquivo com o mesmo nome → não sobe;
 - grava só com `--aplicar` (pedido com aplicar E fila `pode_gravar` E `_central\VENDA_APLICAR.txt`);
 - só pelo Chrome do porteiro (`MC_VIA=porteiro`): sem ele, recusa (`SO_PELO_PORTEIRO`).

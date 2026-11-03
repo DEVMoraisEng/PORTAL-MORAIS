@@ -769,12 +769,12 @@ function assinaturaEstado_(col, p) {
   /* correção 3 (4): o PDF do contrato acabou de entrar (pelo botão ou pela vigia) — Andamento e Mais Controle, uma vez */
   if (anexouContrato && !doc.pre) assPosAssinatura_(col, p.pageId);
   /* 03/11 (AnexosMC.gs): tudo assinado e nenhum arquivo faltando — contrato que acabou de entrar numa venda JÁ lançada
-     vai para o recebimento, e o ZIP com todos os assinados (se a coluna existir e estiver vazia) vai para o Orçamento.
-     Só pede ao robô do servidor; erro aqui nunca derruba a situação já gravada. */
+     vai para o recebimento (pedido ao robô do servidor) e o ZIP com todos os assinados (coluna existente e vazia) fica
+     pendente para a vigia montar (nada é baixado aqui). Erro aqui nunca derruba a situação já gravada. */
   if (sit === S.ASSINADO && !doc.pre && !aguardando) {
-    var colZip = cfdCol_(pg, MC_COL_ZIP);
-    if (anexouContrato || (colZip && !(ctrValor_(pg.properties[colZip]) || []).length)) {
-      try { var gz = doc.gerado(pg); mcAnexosPosAssinatura_(p.pageId, docs, assNomeAssinado_(gz && gz.nome), !!anexouContrato); }
+    var colZip = cfdCol_(pg, MC_COL_ZIP), zipFalta = !!colZip && !(ctrValor_(pg.properties[colZip]) || []).length;
+    if (anexouContrato || (zipFalta && !prop_(MC_ZIP_PENDENTE + p.pageId))) {
+      try { mcAnexosPosAssinatura_(p.pageId, !!anexouContrato, zipFalta); }
       catch (e) { ctrErro_("assinatura estado " + pid + " anexos MC", e); }
     }
   }

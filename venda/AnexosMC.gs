@@ -9,28 +9,35 @@
  *  2) ZIP com TODOS os documentos assinados do envelope (contrato, termos, memorial, projeto) — montado aqui
  *     (Apps Script tem a Clicksign e o Utilities.zip), guardado na coluna MC_COL_ZIP da linha do condomínio e
  *     enviado pelo robô para Obras > Orçamento > Arquivos > pasta "Contratos Venda".
+ *     O ZIP NÃO é montado no "Atualizar situação" (baixar ~20 MB ali atrasaria ou derrubaria a resposta): o
+ *     assinaturaEstado_ só marca a Propriedade MC_ZIP_PENDENTE_<página>, e a vigia (gatilho de 30 min) monta,
+ *     no máximo uma tentativa por hora, com prazo de 4 min por rodada. O botão "Enviar ZIP" monta na hora.
+ *     Teto de 20 MB (envio simples do Notion): acima disso a situação diz para enviar à mão.
  * O robô é idempotente pelos NOMES (arquivo com o mesmo nome já na pasta = não sobe de novo) e escreve o
  * resultado nas linhas "Contrato: …" e "Contratos (ZIP): …" de MC - SITUAÇÃO.
  * Tudo aqui é complemento: nada derruba a situação da assinatura nem a venda (erro vira log e linha da situação). */
 var MC_COL_ZIP = "CONTRATOS ASSINADOS (ZIP)";
 var MC_ROTULO_CONTRATO = "Contrato";
 var MC_ROTULO_ZIP = "Contratos (ZIP)";
+var MC_CABECALHO_VAZIO = "ainda não lançada";   /* 1ª linha quando a situação estava vazia (a tela mostra o mesmo) */
 var MC_TIPO_ANEXOS = "mc-anexos";
-var MC_NOTION_SIMPLES = 20 * 1024 * 1024;     // envio simples do /file_uploads do Notion
-var MC_NOTION_PARTE = 10 * 1024 * 1024;       // multi_part: partes de 5 a 20 MB (a última pode ser menor)
-var MC_ZIP_TETO = 45 * 1024 * 1024;           // abaixo dos 50 MB do UrlFetchApp (a parte maior vai num pedido só)
+var MC_ZIP_TETO = 20 * 1024 * 1024;          // envio simples do /file_uploads do Notion
+var MC_ZIP_PRAZO_MS = 4 * 60 * 1000;         // uma rodada da vigia tem 6 min; para antes
+var MC_ZIP_PENDENTE = "MC_ZIP_PENDENTE_";    // + id da página = {desde, ultima} (ms)
+var MC_ZIP_INTERVALO_MS = 3600000;           // no máximo uma tentativa por hora
+var MC_ZIP_DESISTE_MS = 24 * 3600000;        // depois de 24 h sem conseguir, para e pede o botão
 
 /* Troca (ou acrescenta) a linha "Rótulo: …" do texto de MC - SITUAÇÃO, sem mexer nas outras.
-   Pura: testada no node. A 1ª linha (cabeçalho com o carimbo [#hash]) nunca é trocada. */
+   Pura: testada no node. A 1ª linha (cabeçalho com o carimbo [#hash]) nunca é trocada; situação vazia ganha o
+   cabeçalho MC_CABECALHO_VAZIO, para a próxima vez TROCAR a linha em vez de repetir. */
 function mcTrocarLinha_(situacao, rotulo, texto) {
-  var linhas = String(situacao || "").split(/\r?\n/), nova = rotulo + ": " + texto, achou = false;
+  var s = String(situacao || "");
+  if (!s.trim()) s = MC_CABECALHO_VAZIO;
+  var linhas = s.split(/\r?\n/), nova = rotulo + ": " + texto, achou = false;
   for (var i = 1; i < linhas.length; i++) {
     if (linhas[i].indexOf(rotulo + ":") === 0) { linhas[i] = nova; achou = true; }
   }
-  if (!achou) {
-    if (linhas.length === 1 && !linhas[0].trim()) return nova;
-    linhas.push(nova);
-  }
+  if (!achou) linhas.push(nova);
   return linhas.join("\n");
 }
 
@@ -50,46 +57,53 @@ function mcPedirAnexos_(pageId) {
   if (!f.ok) return { ok: false, erro: "MC_DISPARO_FALHOU" };
   return { ok: true, aviso: roboAvisoSinal_(f.sinal, Date.now()) };
 }
+function mcSemPedido_(r) {
+  return "NÃO pedido ao robô (" + (r.erro === "MC_ANEXOS_SEM_FILA" ? "o robô do servidor não está configurado (DB_FILA_ROBO)"
+                                                                   : "não consegui pôr o pedido na fila") + ") — use o botão";
+}
 
 /* Botões "Anexar contrato no Mais Controle" e (p.zip) "Enviar ZIP ao Mais Controle" — ação mcAnexar.
-   Contrato exige venda lançada (MC - VENDA ID); ZIP exige o arquivo na coluna MC_COL_ZIP. O robô faz os dois,
-   sempre sem repetir o que já está no ERP. */
+   Contrato exige venda lançada (MC - VENDA ID). ZIP: se a coluna ainda está vazia, monta agora (a pessoa pediu);
+   depois põe o pedido. O robô faz as duas partes, sempre sem repetir o que já está no ERP. */
 function mcAnexar_(col, sess, p) {
   var zip = p.zip === true || p.zip === "true";
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(10000)) return { ok: false, erro: "MC_PROCESSANDO" };
   try {
-    var c = mcLerColunas_(p.pageId);
+    var c = mcLerColunas_(p.pageId), extra = [];
     if (zip) {
       var cz = cfdCol_({ properties: c.props }, MC_COL_ZIP);
-      if (!cz || !(ctrValor_(c.props[cz]) || []).length) return { ok: false, erro: "MC_SEM_ZIP" };
+      if (!cz) return { ok: false, erro: "MC_SEM_ZIP" };
+      if (!(ctrValor_(c.props[cz]) || []).length) {
+        var z = mcZipMontar_(p.pageId, Date.now());
+        if (!z.feito) {
+          try { mcGravarLinhas_(p.pageId, [[MC_ROTULO_ZIP, z.erro || "não gerado (" + (z.pular || "?") + ")"]]); } catch (e) {}
+          return { ok: false, erro: "MC_SEM_ZIP" };
+        }
+        assApagarProp_(MC_ZIP_PENDENTE + p.pageId);
+        extra.push("guardado no Notion (" + z.arquivos + " documentos), ");
+      }
     } else if (!c.vendaId) return { ok: false, erro: "MC_SEM_VENDA" };
     var r = mcPedirAnexos_(p.pageId);
-    if (!r.ok) return r;
-    try { mcGravarLinhas_(p.pageId, [[zip ? MC_ROTULO_ZIP : MC_ROTULO_CONTRATO, "pedido ao robô em " + hoje_("dd/MM HH:mm") + (r.aviso || "")]]); }
+    if (!r.ok) {
+      if (extra.length) try { mcGravarLinhas_(p.pageId, [[MC_ROTULO_ZIP, extra[0] + mcSemPedido_(r)]]); } catch (e) {}
+      return r;
+    }
+    try { mcGravarLinhas_(p.pageId, [[zip ? MC_ROTULO_ZIP : MC_ROTULO_CONTRATO, (extra[0] || "") + "pedido ao robô em " + hoje_("dd/MM HH:mm") + (r.aviso || "")]]); }
     catch (e) { ctrErro_("mcAnexar " + String(p.pageId).slice(0, 8) + " situação", e); }
-    ctrLog_("mcAnexar " + String(p.pageId).slice(0, 8) + " (fila)");
+    ctrLog_("mcAnexar " + String(p.pageId).slice(0, 8) + (zip ? " zip" : "") + " (fila)");
     return { ok: true, fila: true, semSinal: !!r.aviso };
   } finally {
     lock.releaseLock();
   }
 }
 
-/* Arquivo (blob) numa coluna de arquivos do Notion, trocando o que havia. Até 20 MB: envio simples;
-   acima: multi_part (partes de 10 MB; /send de cada uma e /complete). Devolve o id do file_upload. */
+/* ZIP na coluna de arquivos do Notion (envio simples, o Blob vai direto: nada de getBytes no ZIP). */
 function mcNotionSubir_(pageId, colReal, blob, nome, mime) {
-  var bytes = blob.getBytes(), total = bytes.length, cab = { Authorization: "Bearer " + prop_("NOTION_TOKEN"), "Notion-Version": NOTION_VERSION };
-  var fu, partes = total > MC_NOTION_SIMPLES ? Math.ceil(total / MC_NOTION_PARTE) : 1;
-  fu = partes > 1 ? notion_("POST", "/file_uploads", { mode: "multi_part", number_of_parts: partes, filename: nome, content_type: mime })
-                  : notion_("POST", "/file_uploads", { filename: nome, content_type: mime });
-  for (var i = 0; i < partes; i++) {
-    var pedaco = partes > 1 ? bytes.slice(i * MC_NOTION_PARTE, Math.min(total, (i + 1) * MC_NOTION_PARTE)) : bytes;
-    var carga = { file: Utilities.newBlob(pedaco, mime, nome) };
-    if (partes > 1) carga.part_number = String(i + 1);
-    var r = UrlFetchApp.fetch(fu.upload_url, { method: "post", muteHttpExceptions: true, headers: cab, payload: carga });
-    if (r.getResponseCode() >= 300) throw new Error("UPLOAD_FALHOU: parte " + (i + 1) + " HTTP " + r.getResponseCode());
-  }
-  if (partes > 1) notion_("POST", "/file_uploads/" + fu.id + "/complete", {});
+  var fu = notion_("POST", "/file_uploads", { filename: nome, content_type: mime });
+  var r = UrlFetchApp.fetch(fu.upload_url, { method: "post", muteHttpExceptions: true,
+    headers: { Authorization: "Bearer " + prop_("NOTION_TOKEN"), "Notion-Version": NOTION_VERSION }, payload: { file: blob } });
+  if (r.getResponseCode() >= 300) throw new Error("UPLOAD_FALHOU: HTTP " + r.getResponseCode());
   var props = {};
   props[colReal] = { files: [{ type: "file_upload", name: nome, file_upload: { id: fu.id } }] };
   notion_("PATCH", "/pages/" + pageId, { properties: props });
@@ -111,64 +125,114 @@ function mcNomesNoZip_(docs, nomeContrato) {
   });
 }
 
+/* Tamanho do download sem copiar o conteúdo para um array (Content-Length); sem o cabeçalho, uma cópia só. */
+function mcTamanho_(r) {
+  var h = (r.getAllHeaders && r.getAllHeaders()) || {};
+  for (var k in h) if (String(k).toLowerCase() === "content-length" && Number(h[k]) > 0) return Number(h[k]);
+  return r.getBlob().getBytes().length;
+}
+
 /* Monta e guarda o ZIP (só linha do condomínio com a coluna MC_COL_ZIP vazia). Devolve:
-   { feito: true } | { pular: "motivo curto" } (nada a fazer agora) | { erro: "texto para a situação" }.
+   { feito, arquivos } | { pular: "motivo" } (nada a fazer ou tentar depois) | { erro, definitivo? }.
    docs = documentos do envelope (contrato primeiro); nomeContrato = nome final do contrato assinado. */
-function mcZipContratos_(pageId, pgCru, docs, nomeContrato) {
+function mcZipContratos_(pageId, pgCru, docs, nomeContrato, inicio) {
   var col = cfdCol_(pgCru, MC_COL_ZIP);
-  if (!col) return { pular: "sem coluna" };
-  if ((ctrValor_(pgCru.properties[col]) || []).length) return { pular: "já tem" };
+  if (!col) return { pular: "sem coluna", fim: true };
+  if ((ctrValor_(pgCru.properties[col]) || []).length) return { pular: "já tem", fim: true };
   var nomeZip = CondominioVenda.nomeZipContratos(pgCru.properties);
-  if (!nomeZip) return { erro: "não gerado (a UNIDADE da linha não tem número)" };
+  if (!nomeZip) return { erro: "não gerado (a UNIDADE da linha não tem número)", definitivo: true };
   var links = [];
   for (var i = 0; i < docs.length; i++) {
     try { links.push(ClicksignVenda.linkAssinado(docs[i])); }
-    catch (e) { return { pular: "arquivo assinado ainda sendo preparado" }; }   /* o próximo Atualizar tenta */
+    catch (e) { return { pular: "arquivo assinado ainda sendo preparado" }; }
   }
-  var nomes = mcNomesNoZip_(docs, nomeContrato), blobs = [], soma = 0;
+  var nomes = mcNomesNoZip_(docs, nomeContrato), blobs = [], soma = 0, teto = Math.round(MC_ZIP_TETO / 1048576);
   for (var j = 0; j < links.length; j++) {
+    if (Date.now() - inicio > MC_ZIP_PRAZO_MS) return { erro: "não gerado (tempo esgotado) — tento de novo em 1 hora" };
     var r;
-    try { r = UrlFetchApp.fetch(links[j], { muteHttpExceptions: true }); } catch (e) { return { erro: "não gerado (download da Clicksign sem resposta) — tente Atualizar de novo" }; }
-    if (r.getResponseCode() >= 300) return { erro: "não gerado (download da Clicksign HTTP " + r.getResponseCode() + ") — tente Atualizar de novo" };
-    var b = r.getBlob();
-    soma += b.getBytes().length;
-    if (soma > MC_ZIP_TETO) return { erro: "não gerado (os documentos passam de " + Math.round(MC_ZIP_TETO / 1048576) + " MB) — envie à mão para a pasta Contratos Venda" };
-    blobs.push(b.setName(nomes[j]));
+    try { r = UrlFetchApp.fetch(links[j], { muteHttpExceptions: true }); } catch (e) { return { erro: "não gerado (download da Clicksign sem resposta) — tento de novo em 1 hora" }; }
+    if (r.getResponseCode() >= 300) return { erro: "não gerado (download da Clicksign HTTP " + r.getResponseCode() + ") — tento de novo em 1 hora" };
+    soma += mcTamanho_(r) + 1024;   /* PDF quase não comprime: o ZIP fica do tamanho da soma (+ cabeçalhos) */
+    if (soma > MC_ZIP_TETO) return { erro: "ZIP grande (mais de " + teto + " MB): envie à mão para a pasta Contratos Venda", definitivo: true };
+    blobs.push(r.getBlob().setName(nomes[j]));
   }
   var zip = Utilities.zip(blobs, nomeZip);
-  if (zip.getBytes().length > MC_ZIP_TETO) return { erro: "não gerado (ZIP acima de " + Math.round(MC_ZIP_TETO / 1048576) + " MB) — envie à mão para a pasta Contratos Venda" };
   try { mcNotionSubir_(pageId, col, zip, nomeZip, "application/zip"); }
-  catch (e) { ctrErro_("zip " + String(pageId).slice(0, 8) + " notion", e); return { erro: "não guardado no Notion (" + String(e.message || e).slice(0, 80) + ")" }; }
+  catch (e) { ctrErro_("zip " + String(pageId).slice(0, 8) + " notion", e); return { erro: "não guardado no Notion (" + String(e.message || e).slice(0, 80) + ") — tento de novo em 1 hora" }; }
   return { feito: true, nome: nomeZip, arquivos: blobs.length };
 }
 
-/* Chamada pelo assinaturaEstado_ quando o envelope do contrato do condomínio está ASSINADO e nenhum arquivo
-   falta: (1) contrato que acabou de entrar numa venda já lançada → pede o anexo; (2) ZIP que ainda não existe →
-   monta, guarda e pede o envio. Um pedido só na fila para os dois. Nunca lança. */
-function mcAnexosPosAssinatura_(pageId, docs, nomeContrato, anexouContrato) {
-  var id8 = String(pageId).slice(0, 8), pg;
-  try { pg = notion_("GET", "/pages/" + pageId, null); } catch (e) { ctrErro_("anexos " + id8 + " leitura", e); return; }
-  if (!pg || vendaBaseDaPagina_(pg) !== "CONDOMINIO") return;
-  var vendaId = "";
-  try { vendaId = mcLerColunas_(pageId).vendaId; } catch (e) { return; }   /* sem as colunas MC: nada a pedir */
-  var trocas = [], pedir = false;
-  if (anexouContrato && vendaId) { pedir = true; trocas.push([MC_ROTULO_CONTRATO, "pedido ao robô em " + hoje_("dd/MM HH:mm")]); }
-  var z = mcZipContratos_(pageId, pg, docs, nomeContrato);
-  if (z.feito) {
-    pedir = true;
-    trocas.push([MC_ROTULO_ZIP, "guardado no Notion (" + z.arquivos + " documentos), envio pedido ao robô em " + hoje_("dd/MM HH:mm")]);
-    ctrLog_("anexos " + id8 + " zip guardado (" + z.arquivos + " documentos)");
-  } else if (z.erro) {
-    trocas.push([MC_ROTULO_ZIP, z.erro]);
-    ctrLog_("anexos " + id8 + " zip: " + z.erro.split(" (")[0]);
+/* Lê a linha e o envelope do contrato e monta o ZIP (vigia ou botão). */
+function mcZipMontar_(pageId, inicio) {
+  var pgCru = notion_("GET", "/pages/" + pageId, null);
+  if (!pgCru || vendaBaseDaPagina_(pgCru) !== "CONDOMINIO") return { pular: "outra base", fim: true };
+  var doc = assDoc_({}), pg = ctrLerPaginaVenda_(pageId), cols = assColunas_(pg, doc);
+  if (assTexto_(pg, cols.SITUACAO).toUpperCase() !== ClicksignVenda.SITUACOES.ASSINADO) return { pular: "contrato não assinado", fim: true };
+  var envId = assTexto_(pg, cols.ENVELOPE);
+  if (!envId || !prop_("CLICKSIGN_TOKEN") || !csBase_()) return { pular: "sem envelope ou Clicksign", fim: true };
+  var docs;
+  try { docs = csPasso_("consultar documento", "get", "/envelopes/" + encodeURIComponent(envId) + "/documents").data || []; }
+  catch (e) { return { erro: "não gerado (Clicksign não respondeu) — tento de novo em 1 hora" }; }
+  if (!docs.length) return { pular: "envelope sem documento", fim: true };
+  docs.sort(assOrdemDocs_);
+  var gz = doc.gerado(pg);
+  return mcZipContratos_(pageId, pgCru, docs, assNomeAssinado_(gz && gz.nome), inicio);
+}
+
+/* Vigia: monta os ZIPs pendentes (MC_ZIP_PENDENTE_<página>), uma tentativa por hora cada, até 24 h. A Propriedade
+   fica com definitivo:true quando não adianta tentar sozinho (assim o Atualizar não marca de novo); o botão apaga. */
+function mcZipPendentes_() {
+  var props = PropertiesService.getScriptProperties(), inicio = Date.now(), agora = Date.now();
+  var chaves = (props.getKeys ? props.getKeys() : []).filter(function (k) { return k.indexOf(MC_ZIP_PENDENTE) === 0; });
+  chaves.forEach(function (k) {
+    if (Date.now() - inicio > MC_ZIP_PRAZO_MS) return;
+    var pageId = k.slice(MC_ZIP_PENDENTE.length), id8 = pageId.slice(0, 8), st;
+    try { st = JSON.parse(props.getProperty(k) || "{}") || {}; } catch (e) { st = {}; }
+    if (st.definitivo) return;   /* grande demais / sem número / 24 h: só o botão Enviar ZIP tenta de novo */
+    if (st.ultima && agora - st.ultima < MC_ZIP_INTERVALO_MS) return;
+    if (st.desde && agora - st.desde > MC_ZIP_DESISTE_MS) {
+      props.setProperty(k, JSON.stringify({ desde: st.desde, ultima: agora, definitivo: true }));
+      try { mcGravarLinhas_(pageId, [[MC_ROTULO_ZIP, "não gerado em 24 h — use o botão Enviar ZIP"]]); } catch (e) {}
+      ctrLog_("zip " + id8 + " desistiu depois de 24 h");
+      return;
+    }
+    var z;
+    try { z = mcZipMontar_(pageId, inicio); } catch (e) { z = { erro: "não gerado (" + String(e.message || e).slice(0, 60) + ") — tento de novo em 1 hora" }; }
+    var trocas = [];
+    if (z.feito) {
+      assApagarProp_(k);
+      var r = mcPedirAnexos_(pageId);
+      trocas.push([MC_ROTULO_ZIP, "guardado no Notion (" + z.arquivos + " documentos), " +
+                   (r.ok ? "envio pedido ao robô em " + hoje_("dd/MM HH:mm") + (r.aviso || "") : mcSemPedido_(r))]);
+      ctrLog_("zip " + id8 + " guardado (" + z.arquivos + " documentos)");
+    } else if (z.fim) {
+      assApagarProp_(k);
+    } else {
+      props.setProperty(k, JSON.stringify({ desde: st.desde || agora, ultima: agora, definitivo: !!z.definitivo }));
+      if (z.erro) { trocas.push([MC_ROTULO_ZIP, z.erro]); ctrLog_("zip " + id8 + ": " + z.erro.split(" (")[0]); }
+    }
+    if (trocas.length) { try { mcGravarLinhas_(pageId, trocas); } catch (e) { ctrErro_("zip " + id8 + " situação", e); } }
+  });
+}
+
+/* Chamada pelo assinaturaEstado_ quando o envelope do contrato do condomínio está ASSINADO e nenhum arquivo falta.
+   Rápida: (1) contrato que acabou de entrar numa venda já lançada → pede o anexo; (2) coluna do ZIP vazia → só marca
+   o ZIP como pendente para a vigia (uma vez; a situação diz quando). Nunca baixa nada, nunca lança. */
+function mcAnexosPosAssinatura_(pageId, anexouContrato, zipFalta) {
+  var id8 = String(pageId).slice(0, 8), trocas = [];
+  if (zipFalta && !prop_(MC_ZIP_PENDENTE + pageId)) {
+    PropertiesService.getScriptProperties().setProperty(MC_ZIP_PENDENTE + pageId, JSON.stringify({ desde: Date.now(), ultima: 0 }));
+    trocas.push([MC_ROTULO_ZIP, "será montado com todos os assinados em até 30 minutos"]);
   }
-  if (pedir) {
-    var r = mcPedirAnexos_(pageId);
-    if (!r.ok) {
-      var msg = r.erro === "MC_ANEXOS_SEM_FILA" ? "o robô do servidor não está configurado (DB_FILA_ROBO)" : "não consegui pôr o pedido na fila";
-      trocas = trocas.map(function (t) { return [t[0], t[1].replace(/pedido ao robô em .*$/, "NÃO pedido ao robô (" + msg + ") — use o botão")]; });
-    } else if (r.aviso) {
-      trocas = trocas.map(function (t) { return [t[0], t[1] + r.aviso]; });
+  if (anexouContrato) {
+    var pg, vendaId = "";
+    try { pg = notion_("GET", "/pages/" + pageId, null); } catch (e) { ctrErro_("anexos " + id8 + " leitura", e); pg = null; }
+    if (pg && vendaBaseDaPagina_(pg) === "CONDOMINIO") {
+      try { vendaId = mcLerColunas_(pageId).vendaId; } catch (e) { vendaId = ""; }
+      if (vendaId) {
+        var r = mcPedirAnexos_(pageId);
+        trocas.push([MC_ROTULO_CONTRATO, r.ok ? "pedido ao robô em " + hoje_("dd/MM HH:mm") + (r.aviso || "") : mcSemPedido_(r)]);
+      }
     }
   }
   if (trocas.length) {

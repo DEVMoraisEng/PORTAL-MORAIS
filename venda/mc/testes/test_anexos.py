@@ -84,7 +84,8 @@ def montar(props, monkeypatch, **erp):
 
 
 def test_trocar_linha_igual_ao_apps_script():
-    assert A.trocar_linha("", "Contrato", "x") == "Contrato: x"
+    assert A.trocar_linha("", "Contrato", "x") == "ainda não lançada\nContrato: x"
+    assert A.trocar_linha(A.trocar_linha("", "Contrato", "x"), "Contrato", "y") == "ainda não lançada\nContrato: y"
     assert A.trocar_linha("CRIADA\nContrato: a\nTotal: 1", "Contrato", "b") == "CRIADA\nContrato: b\nTotal: 1"
     assert A.trocar_linha("PRÉVIA OK [#0a1b2c3d]", "Contratos (ZIP)", "ok") == "PRÉVIA OK [#0a1b2c3d]\nContratos (ZIP): ok"
     assert A.trocar_linha("Contrato: cabeçalho", "Contrato", "z") == "Contrato: cabeçalho\nContrato: z"
@@ -139,13 +140,15 @@ def test_zip_sem_pasta_ou_sem_obra_diz_o_que_fazer_e_o_contrato_segue(monkeypatc
     assert "não enviado (obra \"CONDOMÍNIO RESERVA TESTE\" não encontrada" in sit(n)
 
 
-def test_obra_e_pasta_configuraveis(monkeypatch):
+def test_obra_e_sempre_a_do_endereco_da_venda_e_a_pasta_configuravel(monkeypatch):
+    """Revisão 03/11: nada de obra fixa por variável (um 2º condomínio iria para a obra errada)."""
     monkeypatch.setenv("MC_OBRA_CONTRATOS_VENDA", "Condominio Reserva dos Testes")
     monkeypatch.setenv("MC_PASTA_CONTRATOS_VENDA", "Outra Pasta")
     n, e = montar(linha(**{"CONTRATOS ASSINADOS (ZIP)": zip_col()}), monkeypatch,
-                  obras=[{"id": "o2", "name": "CONDOMÍNIO RESERVA DOS TESTES"}])
+                  obras=[{"id": "o2", "name": "CONDOMÍNIO RESERVA DOS TESTES"}, OBRA_COND])
     A.processar(LINHA_ID, n, e, aplicar=True)
-    assert ("orcamento", "o2", "Outra Pasta") in e.feito
+    assert ("orcamento", "obra-cond", "Outra Pasta") in e.feito
+    assert not [x for x in e.feito if x[0] == "orcamento" and x[1] == "o2"]
 
 
 def test_falha_no_anexo_nao_impede_o_zip_e_sem_espaco_nao_sobe(monkeypatch):
@@ -251,3 +254,40 @@ def test_erp_pasta_da_venda_sem_criar_e_tem_arquivo():
     assert Erp.tem_arquivo({"files": [{"name": "Un 01 - Á.zip"}]}, "UN 01 - A.zip")
     assert not Erp.tem_arquivo({"files": [{"name": "outro.pdf"}]}, "contrato x.pdf")
     assert not Erp.tem_arquivo(None, "x")
+    # revisão 03/11: registro que ficou de um envio que falhou não conta como enviado
+    assert not Erp.tem_arquivo({"files": [{"name": "a.zip", "temporary": True, "sizeInBytes": 10}]}, "a.zip")
+    assert not Erp.tem_arquivo({"files": [{"name": "a.zip", "sizeInBytes": 0}]}, "a.zip")
+    assert Erp.tem_arquivo({"files": [{"name": "a.zip", "temporary": False, "sizeInBytes": 10}]}, "a.zip")
+
+
+class HttpFalhaS3(HttpFake):
+    """S3 ou set-temporary recusam; o DELETE do registro órfão responde `apaga`."""
+    def __init__(self, s3=201, confirma=200, apaga=200):
+        super().__init__(s3=s3)
+        self.confirma, self.apaga = confirma, apaga
+
+    def request(self, metodo, url, json=None, params=None, headers=None, timeout=None):
+        rota = url.split("/services")[1]
+        if rota == "/file/delete-batch" and metodo == "DELETE":
+            self.chamadas.append((metodo, rota, json, params))
+            return Resp(self.apaga, None)
+        if rota == "/file/set-temporary" and self.confirma >= 300:
+            self.chamadas.append((metodo, rota, json, params))
+            return Resp(self.confirma, {"x": 1})
+        return super().request(metodo, url, json, params, headers, timeout)
+
+
+def test_envio_que_falha_apaga_o_registro_orfao_ou_diz_que_ficou():
+    for http in (HttpFalhaS3(s3=403), HttpFalhaS3(confirma=500)):
+        try:
+            erp_com(http).subir_arquivo("f2", "a.zip", b"PK", "application/zip")
+            assert False
+        except ErpErro as x:
+            assert "registro apagado" in str(x), str(x)
+        assert ("DELETE", "/file/delete-batch", None, {"fileIds": ["arq1"]}) in http.chamadas
+    http = HttpFalhaS3(s3=403, apaga=500)
+    try:
+        erp_com(http).subir_arquivo("f2", "a.zip", b"PK", "application/zip")
+        assert False
+    except ErpErro as x:
+        assert "ficou na pasta" in str(x) and "apague" in str(x)

@@ -140,9 +140,13 @@ class Erp:
 
     @staticmethod
     def tem_arquivo(pasta: dict | None, nome: str) -> bool:
-        """A pasta já tem um arquivo com este nome? O ERP guarda `name` (às vezes sem a extensão) e `extension`."""
+        """A pasta já tem um arquivo com este nome? O ERP guarda `name` (às vezes sem a extensão) e `extension`.
+        Revisão 03/11: o POST /file registra o nome ANTES do S3 (como temporário; a tela só tira o temporário depois
+        do S3). Registro temporário ou com tamanho zero, se a lista mostrar esses campos, não conta como enviado."""
         alvo = R.chave(nome)
         for f in (pasta or {}).get("files") or []:
+            if f.get("temporary") is True or ("sizeInBytes" in f and not (f.get("sizeInBytes") or 0) > 0):
+                continue
             n, ext = str(f.get("name") or ""), str(f.get("extension") or "")
             if ext and not ext.startswith("."):
                 ext = "." + ext
@@ -170,14 +174,23 @@ class Erp:
                          params={"folderId": pasta_id}) or {}
         if not arq.get("id"):
             raise ErpErro("o ERP não registrou o arquivo")
-        if arq.get("saved") is not False:
-            campos = [("AWSAccessKeyId", cfg["filesAccessKey"]), ("acl", "private"), ("success_action_status", "201"),
-                      ("key", arq.get("key")), ("policy", arq.get("policy")), ("signature", arq.get("signature"))]
-            r = self.http.post(cfg["filesBucketURL"], data=campos, files={"file": (nome, conteudo, mime)},
-                               timeout=max(self.timeout, 300))
-            if r.status_code >= 300:
-                raise ErpErro("upload do arquivo recusado (HTTP %s)" % r.status_code)
-        self.pedir("PATCH", "/file/set-temporary", params={"fileId": arq["id"], "temporary": "false"})
+        try:
+            if arq.get("saved") is not False:
+                campos = [("AWSAccessKeyId", cfg["filesAccessKey"]), ("acl", "private"), ("success_action_status", "201"),
+                          ("key", arq.get("key")), ("policy", arq.get("policy")), ("signature", arq.get("signature"))]
+                r = self.http.post(cfg["filesBucketURL"], data=campos, files={"file": (nome, conteudo, mime)},
+                                   timeout=max(self.timeout, 300))
+                if r.status_code >= 300:
+                    raise ErpErro("upload do arquivo recusado (HTTP %s)" % r.status_code)
+            self.pedir("PATCH", "/file/set-temporary", params={"fileId": arq["id"], "temporary": "false"})
+        except Exception as e:   # noqa: BLE001 — o registro já existe com o nome: sem apagar, o próximo pedido acharia "já enviado"
+            motivo = str(e)[:200]
+            try:   # FilesService.removeBatch = DELETE /file/delete-batch?fileIds=<id> (o "Remover" da tela)
+                self.pedir("DELETE", "/file/delete-batch", params={"fileIds": [arq["id"]]})
+            except Exception:   # noqa: BLE001
+                raise ErpErro("%s — o registro do arquivo \"%s\" ficou na pasta sem conteúdo: apague à mão no Mais "
+                              "Controle antes de pedir de novo" % (motivo, nome)) from None
+            raise ErpErro("%s (registro apagado; pode pedir de novo)" % motivo) from None
         return arq["id"]
 
     # -- leitura -----------------------------------------------------------

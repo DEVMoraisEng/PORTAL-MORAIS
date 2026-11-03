@@ -1219,9 +1219,9 @@
     /* 03/11: o contrato não entrou no recebimento (venda criada antes do PDF assinado) ou o ZIP não foi para o Orçamento:
        o botão pede de novo ao robô do servidor (ele não repete o que já está lá) */
     var linhasSit = String(e.situacao || "");
-    if (e.vendaId && /(^|\n)Contrato: n[ãa]o anexado/i.test(linhasSit))
+    if (e.vendaId && /(^|\n)Contrato: n[ãa]o (anexado|pedido)/i.test(linhasSit))
       h += '<button type="button" class="bt bt-mini" data-acao="mc-anexar"' + d(ocupado) + ">Anexar contrato no Mais Controle</button> ";
-    else if (/(^|\n)Contratos \(ZIP\): (n[ãa]o enviado|NÃO pedido)/i.test(linhasSit))
+    else if (/(^|\n)Contratos \(ZIP\): (n[ãa]o (enviado|gerado|guardado)|.*N[ÃA]O pedido)/i.test(linhasSit))
       h += '<button type="button" class="bt bt-mini" data-acao="mc-anexar-zip"' + d(ocupado) + ">Enviar ZIP ao Mais Controle</button> ";
     h += '<button type="button" class="bt ghost bt-mini" data-acao="mc-atualizar"' + (u.ocupado ? " disabled" : "") + ">Atualizar</button></div>";
     if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";

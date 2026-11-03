@@ -1375,14 +1375,18 @@ Notion ("Contrato: não anexado (coluna CONTRATO ASSINADO vazia)") e nada tentav
 documentos assinados da venda em Obras > Orçamento > "CONDOMÍNIO RESERVA DOS IPÊS" > Arquivos > pasta "Contratos Venda".
 
 - **Quando todos assinam** (`assinaturaEstado_` → `mcAnexosPosAssinatura_`, `AnexosMC.gs`; vale para o botão
-  Atualizar situação e para a vigia): se o contrato acabou de entrar e a venda JÁ tem `MC - VENDA ID`, pede o anexo;
-  se a linha tem a coluna `CONTRATOS ASSINADOS (ZIP)` vazia, baixa da Clicksign todos os documentos do envelope
-  (contrato, termos, memorial, projeto), monta `Un NN - COMPRADOR 1 e COMPRADOR 2.zip` (`Utilities.zip`), guarda na
-  coluna (acima de 20 MB sobe em partes, multi_part; acima de 45 MB não monta e a situação diz para enviar à mão) e
-  pede o envio. Um pedido só na fila: `TIPO = mc-anexos`. Nunca lança venda; erro vira linha da situação.
+  Atualizar situação e para a vigia): se o contrato acabou de entrar e a venda JÁ tem `MC - VENDA ID`, pede o anexo
+  (`TIPO = mc-anexos` na fila). Se a linha tem a coluna `CONTRATOS ASSINADOS (ZIP)` vazia, só marca a Propriedade
+  `MC_ZIP_PENDENTE_<página>` — nada é baixado no Atualizar. A **vigia** (gatilho de 30 min, 7h–21h) monta o ZIP:
+  baixa da Clicksign todos os documentos do envelope (contrato, termos, memorial, projeto), monta
+  `Un NN - COMPRADOR 1 e COMPRADOR 2.zip` (`Utilities.zip`), guarda na coluna (envio simples, teto de 20 MB) e pede o
+  envio. No máximo 1 tentativa por hora, prazo de 4 min por rodada, desiste em 24 h. Acima de 20 MB não monta: a
+  situação diz "ZIP grande … envie à mão" e ninguém tenta de novo sozinho. Nunca lança venda; erro vira linha da situação.
 - **Botões** no bloco Mais Controle (ação `mcAnexar`): "Anexar contrato no Mais Controle" quando a situação diz
-  `Contrato: não anexado` (resolve a unidade 31 e as outras); "Enviar ZIP ao Mais Controle" quando diz
-  `Contratos (ZIP): não enviado`.
+  `Contrato: não anexado` ou `NÃO pedido` (resolve a unidade 31 e as outras); "Enviar ZIP ao Mais Controle" quando diz
+  `Contratos (ZIP): não enviado/não gerado/não guardado` ou `NÃO pedido` — com a coluna vazia, monta o ZIP na hora.
+- **Arquivo pela metade:** se o S3 ou a confirmação falham, o robô apaga o registro do arquivo
+  (`DELETE /file/delete-batch?fileIds=`); se nem isso der, a situação manda apagar à mão antes de pedir de novo.
 - **Robô** (`venda/mc/anexos.py`, só no servidor, só pelo Chrome do porteiro): anexa o contrato no recebimento (mesmo
   nome do lançamento) e sobe o ZIP para a pasta "Contratos Venda" do Orçamento da obra do condomínio. Arquivo com o
   mesmo nome já na pasta = não sobe de novo. A pasta NÃO é criada pelo robô. Escreve só as linhas `Contrato: …` e
@@ -1394,13 +1398,14 @@ documentos assinados da venda em Obras > Orçamento > "CONDOMÍNIO RESERVA DOS I
    Sem ela, só o anexo do contrato funciona.
 2. **Mais Controle:** conferir que existe a pasta `Contratos Venda` em Obras > Orçamento > CONDOMÍNIO RESERVA DOS IPÊS
    > Arquivos (criar à mão se não houver).
-3. **PORTAL-VENDA:** colar `AnexosMC.gs` (arquivo NOVO), `AssinaturaVenda.gs`, `PortalVenda.gs` (`venda-v20`) e
-   `CondominioVenda.js`; publicar a MESMA implantação (nova versão). Precisa de `DB_FILA_ROBO` preenchida (sem a fila,
+3. **PORTAL-VENDA:** colar `AnexosMC.gs` (arquivo NOVO), `AssinaturaVenda.gs`, `AssinaturaVigia.gs`, `PortalVenda.gs`
+   (`venda-v20`) e `CondominioVenda.js` (a vigia `instalarVigiaAssinaturas` tem de estar instalada para o ZIP sair sozinho); publicar a MESMA implantação (nova versão). Precisa de `DB_FILA_ROBO` preenchida (sem a fila,
    a situação diz "NÃO pedido ao robô" — este robô não roda pelo GitHub). Site: `venda-dossie.js?v=63`, cache
    `portal-morais-v267`.
 4. **Servidor:** atualizar o clone do portal (git pull) — `servidor/robo_fila.py` passa a aceitar `mc-anexos`. Gravar
    segue as mesmas chaves do lançamento (pedido com aplicar + fila `pode_gravar` + `_central\VENDA_APLICAR.txt`).
-   Opcional nas `vars` da fila em `robos-portal.json`: `MC_OBRA_CONTRATOS_VENDA` (nome da obra do Orçamento, se não
-   for o mesmo `CONDOMÍNIO …` da venda) e `MC_PASTA_CONTRATOS_VENDA` (outro nome de pasta).
+   A obra do Orçamento é sempre a do ENDEREÇO da venda (`CONDOMÍNIO …`, a mesma do lançamento) — se o nome da obra no
+   ERP for outro, o ZIP volta com "obra não encontrada". Opcional nas `vars` da fila em `robos-portal.json`:
+   `MC_PASTA_CONTRATOS_VENDA` (outro nome de pasta).
 5. **Conferir:** unidade 31 → bloco Mais Controle → "Anexar contrato no Mais Controle" → em 1 a 3 minutos Atualizar:
    `Contrato: anexado no recebimento` e o PDF na aba Arquivos da venda no ERP.

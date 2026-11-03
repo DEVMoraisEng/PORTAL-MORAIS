@@ -120,3 +120,10 @@ test("mensagens do anexo", () => {
   assert.match(D.mensagemMC({ erro: "MC_ANEXOS_SEM_FILA" }), /robô do servidor/);
   assert.match(D.mensagemMC({ erro: "MC_SEM_ZIP" }), /ZIP/);
 });
+
+test("NÃO pedido ao robô também oferece o botão; ZIP grande não (só à mão)", () => {
+  assert.ok(botao(D.htmlMC({ situacao: "CRIADA | venda v-9\nContrato: NÃO pedido ao robô (x) — use o botão", vendaId: "v-9" }, ui()), "mc-anexar"));
+  assert.ok(botao(D.htmlMC({ situacao: "CRIADA\nContratos (ZIP): não gerado em 24 h — use o botão Enviar ZIP", vendaId: "v-9" }, ui()), "mc-anexar-zip"));
+  assert.ok(botao(D.htmlMC({ situacao: "ainda não lançada\nContratos (ZIP): guardado no Notion (2 documentos), NÃO pedido ao robô (y) — use o botão", vendaId: "" }, ui()), "mc-anexar-zip"));
+  assert.equal(botao(D.htmlMC({ situacao: "CRIADA\nContratos (ZIP): ZIP grande (mais de 20 MB): envie à mão para a pasta Contratos Venda", vendaId: "v-9" }, ui()), "mc-anexar-zip"), null);
+});

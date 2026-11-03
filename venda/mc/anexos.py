@@ -30,19 +30,22 @@ COL_ZIP = "CONTRATOS ASSINADOS (ZIP)"
 ROTULO_CONTRATO = "Contrato"
 ROTULO_ZIP = "Contratos (ZIP)"
 PASTA_PADRAO = "Contratos Venda"
+CABECALHO_VAZIO = "ainda não lançada"   # o mesmo que a tela mostra com a situação vazia
 
 
 def trocar_linha(situacao: str, rotulo: str, texto: str) -> str:
-    """Troca (ou acrescenta) a linha "Rótulo: …" sem mexer nas outras. A 1ª linha (cabeçalho) nunca é trocada.
+    """Troca (ou acrescenta) a linha "Rótulo: …" sem mexer nas outras. A 1ª linha (cabeçalho) nunca é trocada;
+    situação vazia ganha o cabeçalho CABECALHO_VAZIO, para a próxima vez trocar em vez de repetir.
     Mesma regra do mcTrocarLinha_ (venda/AnexosMC.gs)."""
-    linhas = str(situacao or "").split("\n")
+    s = str(situacao or "")
+    if not s.strip():
+        s = CABECALHO_VAZIO
+    linhas = s.split("\n")
     nova, achou = "%s: %s" % (rotulo, texto), False
     for i in range(1, len(linhas)):
         if linhas[i].startswith(rotulo + ":"):
             linhas[i], achou = nova, True
     if not achou:
-        if len(linhas) == 1 and not linhas[0].strip():
-            return nova
         linhas.append(nova)
     return "\n".join(linhas)
 
@@ -90,7 +93,9 @@ def _zip(props: dict, d: dict, notion, erp, aplicar: bool, bloqueado: bool, res:
         return None
     nome = arqs[-1]["nome"]
     pasta_nome = os.environ.get("MC_PASTA_CONTRATOS_VENDA", "").strip() or PASTA_PADRAO
-    obra_nome = os.environ.get("MC_OBRA_CONTRATOS_VENDA", "").strip() or d.get("endereco") or ""
+    # a obra é SEMPRE a do ENDEREÇO da venda ("CONDOMÍNIO …", a mesma do lançamento): nada de obra fixa por variável,
+    # que mandaria o ZIP de um 2º condomínio para a obra errada (revisão 03/11)
+    obra_nome = d.get("endereco") or ""
     try:
         obras = C.escolher_obra(erp.obras(), obra_nome, d.get("casa"))
         if len(obras) != 1:
