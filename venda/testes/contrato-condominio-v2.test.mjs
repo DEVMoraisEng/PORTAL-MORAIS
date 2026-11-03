@@ -80,9 +80,9 @@ test("condomínio completo: sem faltas; comissão do COMPRADOR DENTRO do valor d
   assert.equal(d.comissao.pagaPor, "COMPRADOR");
   const m = C.marcadores(d);
   assert.equal(m.COMPRADORES_QUADRO, "COMPRADORA TESTE, brasileira, solteira, professora, RG nº 1234567 SSP/GO, CPF nº 529.982.247-25, " +
-    "residente e domiciliado(a) à RUA TESTE, 10, e-mail compradora@teste.invalid, telefone 62 90000-0000");
+    "residente e domiciliado(a) à RUA TESTE, 10, e-mail compradora@teste.invalid, telefone (62) 90000-0000");
   assert.equal(m.CORRETOR_QUADRO, "Corretor Teste, CRECI nº 40167, CPF nº 246.813.579-28, residente e domiciliado(a) à AV. DO CORRETOR, 5, " +
-    "e-mail corretor@teste.invalid, telefone 62 91111-1111");
+    "e-mail corretor@teste.invalid, telefone (62) 91111-1111");
   assert.equal(m.CASA_NUMERO, "13");
   assert.equal(m.CASA_TIPO, "02");
   assert.equal(m.CASA_PLANTA, "Tipo 2");
