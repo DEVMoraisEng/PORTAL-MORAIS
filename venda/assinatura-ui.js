@@ -255,9 +255,8 @@
     }
     var rotulo = e.envelope && REENVIAVEL.indexOf(sit) >= 0 ? "Enviar de novo para assinatura" : "Enviar para assinatura";
     h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="' + x + 'enviar"' + (podeEnviar(c) ? "" : " disabled") + ">" + rotulo + "</button>";
-    /* 01/11 (dono: "não dá para ver o documento antes de mandar assinar?") */
-    if (c.contratoGerado && !ehTermo(c))
-      h += ' <button type="button" class="bt ghost bt-mini" data-acao="' + x + 'previa"' + (c.ocupado ? " disabled" : "") + ">Prévia das assinaturas</button>";
+    /* 03/11 (dono): botão "Prévia das assinaturas" retirado — "se tudo tiver certo por trás, eu não preciso dela"; a ação
+       a-previa e o servidor (assinaturaPrevia) ficam para a prévia em imagem (venda/ferramentas/previa_assinaturas.py) */
     if (e.envelope) h += ' <button type="button" class="bt ghost bt-mini" data-acao="' + x + 'atualizar"' + (podeAtualizar(c) ? "" : " disabled") + ">Atualizar situação</button>";
     if (e.envelope && situacaoDe(e) === "ENVIADO" && pendentes(e))
       h += ' <button type="button" class="bt ghost bt-mini" data-acao="' + x + 'reenviar"' + (podeReenviar(c) ? "" : " disabled") + ">Reenviar link de assinatura</button>";
