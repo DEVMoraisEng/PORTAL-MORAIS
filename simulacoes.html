@@ -2558,9 +2558,12 @@ async function propCarregar(forcar, bt){
    "Vendidas" (saiu sem o botão Vendida): marca a proposta VENDIDA — regra em venda/contrato-vendida.js, a mesma da
    Planilha Casas Condomínio. 04/11/2026 (dono): e confere o MAPA de todas as vendas: a casa fica RESERVADA enquanto
    está no banco de vendas e só vira VENDIDA com a ETAPA Concluída. Uma vez por abertura da página. */
-let PROP_VARREU=false;
+let PROP_VARREU=false, PROP_VARREU_EM=0;
 async function propVarrerContratosEnviados(){
-  if(PROP_VARREU) return;
+  /* 04/11/2026: de novo a cada 15 min com a página aberta (o propCarregar do polling chama aqui) — pega a venda
+     que concluiu a etapa e o SIM que o servidor grava quando o contrato final é gerado */
+  if(PROP_VARREU && Date.now()-PROP_VARREU_EM < 15*60*1000) return;
+  PROP_VARREU_EM=Date.now();
   if(!window.ContratoVendida){ setTimeout(propVarrerContratosEnviados, 1500); return; }   // o módulo é defer
   PROP_VARREU=true;
   let r=null;
