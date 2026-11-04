@@ -209,6 +209,19 @@ def descobrir() -> int:
             pass
     page.on("request", ouvir)
     page.on("response", ouvir_resp)
+    # 4ª descoberta (04/11): a 3ª não viu a lista chegar por nenhuma API do MC — pode vir de worker/service worker
+    # (só o CONTEXTO vê), de iframe ou de outro host (Firebase, por exemplo). Anota TUDO que não é arquivo estático.
+    todos = []
+    ESTATICO = re.compile(r"\.(js|css|png|svg|jpe?g|gif|woff2?|ico|map|html)(\?|$)|google-analytics|googletagmanager|"
+                          r"doubleclick|clarity\.ms|satismeter|hotjar|facebook|gstatic|/event$|sentry|intercom", re.I)
+
+    def ouvir_tudo(req):
+        try:
+            if not ESTATICO.search(req.url) and len(todos) < 600:
+                todos.append((req.method.upper(), _host(req.url), _caminho(req.url), req.resource_type))
+        except Exception:
+            pass
+    page.context.on("request", ouvir_tudo)
     try:
         for rota in ROTAS_COMPRAS:
             n0 = len(pedidos)
@@ -239,6 +252,15 @@ def descobrir() -> int:
             except Exception as e:
                 log(f"tela {rota}: botões: {type(e).__name__}: {str(e)[:100]}")
             novos = pedidos[n0:]
+            try:
+                log(f"tela {rota}: frames: {[ (f.url or '')[:90] for f in page.frames ][:8]}")
+            except Exception:
+                pass
+            vistos_t = sorted({x for x in todos})
+            log(f"tela {rota}: TUDO que o navegador pediu até aqui (sem estáticos), {len(vistos_t)} rota(s):")
+            for m, h, c, t in vistos_t:
+                log(f"     {m} {h} {c} ({t})")
+            todos.clear()
             log(f"tela {rota} → ficou em {final!r} · título {str(titulo).strip()[:50]!r} · {len(novos)} chamada(s) às APIs")
             vistos = set()
             for metodo, url, corpo in novos:
