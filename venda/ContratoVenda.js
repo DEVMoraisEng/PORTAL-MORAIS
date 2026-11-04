@@ -448,10 +448,14 @@ var ContratoVenda = (function () {
        sinal incluído (como o texto do advogado: o saldo da entrada é a entrada menos o sinal). */
     var sinal = so2(G.sinais.reduce(function (s, x) { return s + x.v; }, 0));
     var entrada = preco === null ? null : so2(preco - financiamento);
+    /* 04/11 (advogado): a entrada se compõe da parte que paga o PREÇO DO IMÓVEL e da comissão (4.1.4); o saldo
+       devedor (CAIXA + FGTS + subsídio) é o preço do imóvel menos essa parte — a comissão não entra no financiamento. */
+    var imovel = preco !== null && comissao !== null ? so2(preco - comissao) : null;
+    var entradaImovel = entrada === null || comissao === null ? null : so2(entrada - comissao);
     return {
       preco: preco, financiamento: financiamento, temFgtsSubsidio: G.fgts + G.subsidio > 0,
       plano: plano, pctRegra: pctRegra, comissao: comissao, operacao: preco, precoMudou: precoMudou, semComissao: semComissao,
-      imovel: preco !== null && comissao !== null ? so2(preco - comissao) : null,
+      imovel: imovel, entradaImovel: entradaImovel,
       sinal: sinal, entrada: entrada, saldoEntrada: entrada === null ? null : so2(entrada - sinal)
     };
   }
@@ -548,8 +552,9 @@ var ContratoVenda = (function () {
         : a.d && a.d === G.assinatura ? ", na assinatura deste contrato" : ", com vencimento em " + dataBR(a.d)) ;
     });
     var perm = semAvista ? [] : G.permutas.map(function (p) {
-      return "bem dado em pagamento (permuta): " + (txt(p.x) || "bem descrito em instrumento próprio") + (p.b && FLV().TIPOS_BEM.hasOwnProperty(p.b.tipo) ? ", identificado no item 6.1, VI" : "") +
-        ", pelo valor de " + valorExtenso(p.v) + ", com entrega em " + dataBR(p.d);
+      /* 04/11: o modelo do advogado não tem o 6.1 com incisos (lá o 6.1 é a correção) — o bem é identificado aqui */
+      return "bem dado em pagamento (permuta): " + (identificacaoBem(p.b) || txt(p.x) || "bem descrito em instrumento próprio") +
+        ", pelo valor de " + valorExtenso(p.v) + ", com entrega em " + dataBR(p.d) + ", sem correção monetária";
     });
     G.pre.forEach(function (s) { itens.push(serieQuadro(s)); total += s.n; });
     G.baloes.forEach(function (b) {
@@ -585,8 +590,16 @@ var ContratoVenda = (function () {
   /* item 1 do quadro: "[Nome], [nacionalidade], [estado civil], [profissão], RG nº, CPF nº, residente …, e-mail, telefone" */
   function qualificacaoQuadro(c, conj) {
     c = c || {};
-    return semVazios([txt(c.nome), txt(c.nacionalidade), conj ? fraseConjuge(conj) : txt(c.estadoCivil), txt(c.profissao), documentoComRotulo(c.documento),
+    return semVazios([txt(c.nome), nacionalidadeQuadro(c.nacionalidade), conj ? fraseConjuge(conj) : txt(c.estadoCivil), txt(c.profissao), documentoComRotulo(c.documento),
       txt(c.cpf) ? "CPF nº " + txt(c.cpf) : "", txt(c.endereco) ? "residente e domiciliado(a) à " + txt(c.endereco) : ""].concat(contato(c)));
+  }
+  /* 04/11 (advogado, contrato do condomínio revisto): a nacionalidade do comprador sai por extenso e em maiúsculas —
+     "BRASILEIRO" (ou "BRASILEIRA", se foi digitada no feminino); "Brasil", "BR" e "brasileiro(a)" viram "BRASILEIRO".
+     Outra nacionalidade sai como foi digitada. */
+  function nacionalidadeQuadro(v) {
+    var t = txt(v), k = semAcento(t).toLowerCase().replace(/\s+/g, "");
+    if (k === "brasileira") return "BRASILEIRA";
+    return /^(br|brasil|brasileiro|brasileiro\(a\)|brasileiro\/a|brasileira\(o\)|brasileiro\(a\)nato\(a\))$/.test(k) ? "BRASILEIRO" : t;
   }
   function docRotulo(doc) {
     var d = txt(doc);
@@ -1179,7 +1192,8 @@ var ContratoVenda = (function () {
     "CASA_MODELO_FRASE", "AREA_PRIVATIVA_CONSTRUIDA", "AREA_TOTAL_CONSTRUIDA", "FRACAO_IDEAL_M2", "FRACAO_IDEAL_PCT",
     "VALOR_OPERACAO_EXTENSO", "VALOR_IMOVEL_EXTENSO", "COMISSAO_EXTENSO", "SINAL_EXTENSO", "SINAL_VENCIMENTO",
     "ENTRADA_TOTAL", "ENTRADA_PCT", "ENTRADA_SALDO", "PARCELAS_PRE_CHAVES", "PARCELAS_POS_CHAVES", "MEIO_PAGAMENTO",
-    "FINANCIAMENTO_VALOR", "FINANCIAMENTO_PCT", "FINANCIAMENTO_FRASE", "COMISSAO_PCT"];
+    "FINANCIAMENTO_VALOR", "FINANCIAMENTO_PCT", "FINANCIAMENTO_FRASE", "COMISSAO_PCT",
+    "ENTRADA_IMOVEL", "ENTRADA_COMISSAO", "PERMUTA_CONDICOES"];
   function marcadoresQuadro(d) {
     var co = d.condominio, m = {};
     if (!co) { CHAVES_QUADRO.forEach(function (k) { m[k] = ""; }); return m; }
@@ -1204,16 +1218,34 @@ var ContratoVenda = (function () {
     /* 31/10: a pré-reserva paga é a 1ª parcela da lista (vencimentosSinal), já abatida do sinal */
     m.SINAL_VENCIMENTO = vencimentosSinal(G);
     m.ENTRADA_TOTAL = moedaOuVazio(va.entrada);
-    m.ENTRADA_PCT = va.entrada === null ? "" : pct2(va.entrada, va.preco);
+    /* 04/11 (advogado): percentuais sobre o PREÇO DO IMÓVEL (4.1.1) — entrada que paga o imóvel + saldo = 100%
+       (exemplo: 24.786,44 + 264.963,56 = 289.750,00 → 8,55% e 91,45%). A comissão não entra no percentual. */
+    var pcts = pctsSobreImovel(va);
+    m.ENTRADA_PCT = pcts.entrada;
+    m.ENTRADA_IMOVEL = moedaOuVazio(va.entradaImovel);
+    m.ENTRADA_COMISSAO = va.semComissao ? "" : moedaOuVazio(va.comissao);
     m.ENTRADA_SALDO = moedaOuVazio(va.saldoEntrada);
     m.PARCELAS_PRE_CHAVES = textoPreChaves(G);
     m.PARCELAS_POS_CHAVES = textoPosChaves(G);
     m.MEIO_PAGAMENTO = d.meioPagamento || MEIO_PAGAMENTO_PADRAO;
     m.FINANCIAMENTO_VALOR = moedaBR(va.financiamento);
-    m.FINANCIAMENTO_PCT = pct2(va.financiamento, va.preco);
+    m.FINANCIAMENTO_PCT = pcts.financiamento;
     m.FINANCIAMENTO_FRASE = va.temFgtsSubsidio ? ", incluídos os recursos do FGTS e/ou subsídio, quando houver" : "";
     m.COMISSAO_PCT = va.pctRegra === null || va.semComissao ? "" : pctBR(va.pctRegra);
+    /* 04/11: condições da permuta no quadro-resumo (parágrafo próprio, bloco COM_PERMUTA) — o modelo do advogado
+       não tem o 6.1 com incisos, então a identificação do bem vai na alínea c) e as obrigações logo abaixo */
+    m.PERMUTA_CONDICOES = obrigacoesPermuta(G.permutas);
     return m;
+  }
+  /* percentuais do 4.2.1 a) e do 4.2.2 a) sobre o preço do imóvel; quando as duas partes fecham o preço ao centavo,
+     o do financiamento é o complemento (100 − entrada), para nunca somar 99,99% ou 100,01% no contrato */
+  function pctsSobreImovel(va) {
+    if (!positivo(va.imovel)) return { entrada: "", financiamento: "" };
+    var e = va.entradaImovel === null ? null : Math.round(va.entradaImovel / va.imovel * 10000);
+    var f = Math.round(va.financiamento / va.imovel * 10000);
+    if (e !== null && Math.round((va.entradaImovel + va.financiamento) * 100) === Math.round(va.imovel * 100)) f = 10000 - e;
+    function br(x) { return (x / 100).toFixed(2).replace(".", ","); }
+    return { entrada: e === null ? "" : br(e), financiamento: br(f) };
   }
 
   /* 30/10 (dono, parecer do 24x): o plano é "com pós-chaves" quando o fluxo (gavetas ou Alterar fluxo) tem parcela depois das
@@ -1244,7 +1276,11 @@ var ContratoVenda = (function () {
       TEM_FIADOR1: fis.length > 0,
       TEM_FIADOR2: fis.length > 1
     };
-    if (d.condominio) { b.COM_POS = pos; b.SEM_POS = !pos; }
+    if (d.condominio) {
+      b.COM_POS = pos; b.SEM_POS = !pos;
+      /* 04/11: parágrafo das obrigações da permuta no quadro-resumo, só quando algum bem tem os dados (FluxoLivre l.b) */
+      b.COM_PERMUTA = obrigacoesPermuta(gruposFluxo(d.condominio).permutas) !== "";
+    }
     return b;
   }
 
@@ -1491,7 +1527,7 @@ var ContratoVenda = (function () {
     comissaoPctPelaRegra: comissaoPctPelaRegra, qualificacaoQuadro: qualificacaoQuadro, valorExtenso: valorExtenso, meioPagamentoCondominio: meioPagamentoCondominio, excedenteSinal: excedenteSinal, preReservaPaga: preReservaPaga,
     somaFluxo: function (fl) { return somaFluxo(fluxoCondominio(fl)); }, negritoDaLinha: negritoDaLinha,
     parcelasPreChaves: parcelasPreChaves, parcelasPosChaves: parcelasPosChaves,
-    gruposFluxo: gruposFluxo, valoresCondominio: valoresCondominio, textoPreChaves: textoPreChaves, textoPosChaves: textoPosChaves, somaGrupos: somaGrupos,   /* 29/10: Alterar fluxo */   /* 28/10: termos de confissão */
+    gruposFluxo: gruposFluxo, valoresCondominio: valoresCondominio, textoPreChaves: textoPreChaves, textoPosChaves: textoPosChaves, somaGrupos: somaGrupos, obrigacoesPermuta: obrigacoesPermuta,   /* 29/10: Alterar fluxo */   /* 28/10: termos de confissão */
     /* o traço do campo em branco (o pré-contrato grifa em vermelho claro) */
     EM_BRANCO: EM_BRANCO,
     /* marcadores cujo valor tem várias linhas: no Docs, o parágrafo que só tem o marcador vira um parágrafo por linha */

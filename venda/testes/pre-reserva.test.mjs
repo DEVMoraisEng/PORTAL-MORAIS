@@ -24,7 +24,7 @@ test("termo completo: sem faltas e todos os marcadores preenchidos", () => {
   const t = P.montar(dados(), X);
   assert.deepEqual(P.faltas(t), []);
   const m = P.marcadores(t);
-  assert.equal(m.PRE_RESERVANTE_QUADRO, "COMPRADORA TESTE, brasileira, solteira, professora, RG nº 1234567 SSP/GO, CPF nº 529.982.247-25, " +
+  assert.equal(m.PRE_RESERVANTE_QUADRO, "COMPRADORA TESTE, BRASILEIRA, solteira, professora, RG nº 1234567 SSP/GO, CPF nº 529.982.247-25, " +
     "residente e domiciliado(a) à RUA TESTE, 10, e-mail compradora@teste.invalid, telefone (62) 90000-0000");
   assert.equal(m.CASA_NUMERO, "13");
   assert.equal(m.CASA_TIPO, "02");
