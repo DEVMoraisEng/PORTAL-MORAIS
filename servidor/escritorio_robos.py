@@ -13,7 +13,7 @@ a service key nunca vai para o navegador e o arquivo não fica no GitHub Pages p
 
 Quem chama:
   - rodar_e_relatar.py, depois de cada rodada:  escritorio_robos.depois_da_rodada(r, pdf, explicar, log)
-  - robo_fila.py, a cada 15 min (a fila roda de minuto em minuto): escritorio_robos.publicar_se_passou(15)
+  - robo_fila.py, a cada 5 min (a fila roda de minuto em minuto): escritorio_robos.publicar_se_passou(5)
   - à mão:  python servidor\\escritorio_robos.py            (monta e sobe)
             python servidor\\escritorio_robos.py --so-montar (só imprime o resumo, não sobe)
 
@@ -33,11 +33,21 @@ import time
 import unicodedata
 import urllib.request
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))      # reorganizar.py mora ao lado
+
 CENTRAL = pathlib.Path(os.environ.get("MC_CENTRAL") or r"C:\AUTOMAÇÕES MAIS CONTROLE\_central")
 CONFIG = CENTRAL / "robos-portal.json"
 SAUDE = CENTRAL / "robos-portal-saude.json"
 RELATORIOS = CENTRAL / "relatorios-robos"
 MARCA = CENTRAL / "escritorio-publicado.txt"      # hora da última publicação (para o robo_fila não subir a cada minuto)
+LOGS = CENTRAL / "logs"
+PORTEIRO_LOG = CENTRAL / "porteiro.log"
+TAREFAS_CACHE = CENTRAL / "escritorio-tarefas.json"   # 04/11: última leitura boa do Agendador (às vezes ele não responde)
+PDFS_ENVIADOS = CENTRAL / "escritorio-pdfs.txt"       # 04/11: PDFs de relatório que já subiram para o bucket
+PASTA_PDF = "robos/pdf"
+MAX_LOG = 80                # linhas do log por robô (últimos DIAS_LOG dias)
+DIAS_LOG = 3
+MAX_PDF_POR_VEZ = 40
 BUCKET, CAMINHO = "analise", "robos/escritorio.json"
 PREFIXO = "MoraisEng - "
 MAX_RODADAS = 30            # por robô, as mais novas
@@ -97,6 +107,57 @@ def salvar_rodada(r: dict, pdf: pathlib.Path, explicar=None) -> pathlib.Path:
     return destino
 
 
+# ------------------------------------------------------------------ 1b. rodada antiga: o motivo lido do próprio PDF (04/11)
+def ler_pdf(caminho: pathlib.Path) -> str:
+    """Texto do PDF do relatório (pypdf, que o servidor já tem pelo app do porteiro). "" se não der."""
+    try:
+        import pypdf
+        r = pypdf.PdfReader(str(caminho))
+        return "\n".join((p.extract_text() or "") for p in r.pages)
+    except Exception:
+        return ""
+
+
+def do_texto_do_pdf(texto: str) -> dict:
+    """Do texto do PDF do rodar_e_relatar.py tira o que a página precisa para dizer o MOTIVO: o bloco
+    "O que precisa de atenção" (parte, o que aconteceu, o que fazer), a linha do porteiro e a da rodada."""
+    t = (texto or "").replace("n\ufffdo", "não").replace("est\ufffd", "está").replace(" \ufffd ", " — ").replace("\ufffd", "-")
+    linhas = [l.strip() for l in t.splitlines() if l.strip()]
+    out = {"pdf_texto": "\n".join(linhas)[:4000]}
+    for l in linhas:
+        if l.startswith("Rodada de "):
+            out["pdf_meta"] = l[:300]
+        if l.startswith("porteiro:"):
+            i = linhas.index(l)
+            junto = l + (" " + linhas[i + 1] if i + 1 < len(linhas) and not linhas[i + 1].startswith(("Precisou", "O que")) else "")
+            out["porteiro"] = junto[:300]
+            break
+    try:
+        ini = linhas.index("O que precisa de atenção") + 1
+    except ValueError:
+        return out
+    fim = next((i for i in range(ini, len(linhas)) if linhas[i].startswith("O que rodou") or linhas[i].startswith("Índices depois")), len(linhas))
+    itens, atual = [], None
+    for l in linhas[ini:fim]:
+        if l.startswith("Nada. Rodada completa"):
+            break
+        if l.startswith("O que fazer:"):
+            if atual is not None:
+                atual["fazer"] = l[len("O que fazer:"):].strip()
+            continue
+        m = re.match(r"^([^:]{2,60}):\s*(.*)$", l)
+        if m and not (atual is not None and atual.get("fazer") is None and not atual["oque"].endswith((".", "!", "?", ")"))):
+            atual = {"parte": m.group(1).strip(), "oque": m.group(2).strip(), "fazer": None}
+            itens.append(atual)
+        elif atual is not None:                    # linha que quebrou: continua o campo de antes
+            if atual["fazer"] is None:
+                atual["oque"] = (atual["oque"] + " " + l).strip()
+            else:
+                atual["fazer"] = (atual["fazer"] + " " + l).strip()
+    out["atencao"] = [{"parte": i["parte"], "oque": i["oque"][:300], "fazer": (i["fazer"] or "")[:300]} for i in itens]
+    return out
+
+
 # ------------------------------------------------------------------ 2. histórico das rodadas
 def rodadas(pasta: pathlib.Path = RELATORIOS, hoje: dt.date | None = None) -> dict:
     """{robô: [rodada mais nova primeiro]}. PDF sem .json (antes de 03/11) entra só com data, hora e ok/falhou."""
@@ -120,6 +181,9 @@ def rodadas(pasta: pathlib.Path = RELATORIOS, hoje: dt.date | None = None) -> di
             d, h = m.group(1), m.group(2)
             reg = {"robo": m.group(3), "inicio": "%sT%s:%s:00" % (d, h[:2], h[2:]), "ok": m.group(4) == "ok",
                    "so_pdf": True, "pdf": pdf.name}
+            texto = ler_pdf(pdf) if not reg["ok"] else ""   # 04/11: o motivo sai do próprio PDF (só das que falharam)
+            if texto.strip():
+                reg.update(do_texto_do_pdf(texto))
         por_robo.setdefault(reg.get("robo") or m.group(3), []).append(reg)
     for k in por_robo:
         por_robo[k].sort(key=lambda x: x.get("inicio") or "", reverse=True)
@@ -257,9 +321,47 @@ def montar_tarefas(cruas: list) -> list:
             "ultima": t.get("ultima"), "proxima": t.get("proxima"), "resultado": res,
             "resultado_texto": (RESULTADOS.get(res) or ("terminou com código %s" % res)) if res is not None else "",
             "horario": [horario_texto(g) for g in gat] or ["sem horário (só à mão)"],
+            # 04/11: os gatilhos crus (para a Agenda de hoje: quais horários caem no dia)
+            "gat": [{k: g.get(k) for k in ("tipo", "inicio", "dias", "cadaDias", "repetir", "duracao")} for g in gat],
         })
     out.sort(key=lambda x: x["nome"])
     return out
+
+
+def horarios_do_dia(gatilhos: list, dia: dt.date, maximo: int = 24) -> list:
+    """Horários ("HH:MM") em que as tarefas caem no `dia`, pelos gatilhos do Agendador. Repetição de menos de
+    30 min (a fila, de minuto em minuto) não entra: vira agenda contínua, não lista de horários."""
+    horas = set()
+    for g in gatilhos or []:
+        tipo, ini = str(g.get("tipo") or ""), str(g.get("inicio") or "")
+        if len(ini) < 16 or not ("Daily" in tipo or "Weekly" in tipo or "Time" in tipo):
+            continue
+        try:
+            d0 = dt.date.fromisoformat(ini[:10])
+            h0 = int(ini[11:13]) * 60 + int(ini[14:16])
+        except ValueError:
+            continue
+        if dia < d0:
+            continue
+        if "Daily" in tipo and (dia - d0).days % max(1, int(g.get("cadaDias") or 1)):
+            continue
+        if "Weekly" in tipo and not (int(g.get("dias") or 0) & (1 << ((dia.weekday() + 1) % 7))):
+            continue
+        rep_ = _duracao_min(g.get("repetir"))
+        if "Time" in tipo and not rep_ and dia != d0:
+            continue
+        if rep_ and rep_ < 30:
+            continue
+        dur = _duracao_min(g.get("duracao")) if rep_ else 0
+        if rep_ and not dur:
+            dur = 1440 - h0 - 1
+        m = h0
+        while m <= h0 + dur and m < 1440 and len(horas) < maximo:
+            horas.add("%02d:%02d" % (m // 60, m % 60))
+            if not rep_:
+                break
+            m += rep_
+    return sorted(horas)
 
 
 def ler_tarefas() -> list:
@@ -269,25 +371,229 @@ def ler_tarefas() -> list:
                        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=90,
                        creationflags=SEM_JANELA)
     texto = (r.stdout or "").strip()
-    if not texto:
-        return []
+    if not texto or texto == "[]":
+        raise RuntimeError("o Agendador não devolveu as tarefas (código %s) %s" % (
+            r.returncode, " ".join((r.stderr or "").split())[:160]))
     dados = json.loads(texto[texto.index("["):] if "[" in texto else texto)
     return montar_tarefas(dados if isinstance(dados, list) else [dados])
 
 
+# ------------------------------------------------------------------ 4. log do servidor (04/11)
+_RE_LOG = re.compile(r"^(\d\d:\d\d:\d\d) \[([\w-]+)\] (.*)$")
+
+
+def linhas_do_log(pasta: pathlib.Path | None = None, hoje: dt.date | None = None, dias: int = DIAS_LOG) -> dict:
+    """{robô: [{"em", "de", "texto"}]} das linhas do _central\\logs dos últimos `dias`. O log é curto de propósito
+    (código, contagens e o motivo do erro — nunca nome, CPF ou valor). [relatorio-X] vai junto do robô X."""
+    pasta, hoje = pasta or LOGS, hoje or dt.date.today()
+    por: dict[str, list] = {}
+    for i in range(dias - 1, -1, -1):
+        d = hoje - dt.timedelta(days=i)
+        arq = pasta / ("robos-portal-%s.log" % d.isoformat())
+        if not arq.exists():
+            continue
+        for linha in arq.read_text(encoding="utf-8", errors="replace").splitlines():
+            m = _RE_LOG.match(linha.strip())
+            if not m or m.group(2) == "escritorio":
+                continue
+            tag = m.group(2)
+            robo = tag[len("relatorio-"):] if tag.startswith("relatorio-") else ("fila" if tag in ("producao", "teste") else tag)
+            por.setdefault(robo, []).append({"em": "%sT%s" % (d.isoformat(), m.group(1)),
+                                             "de": "relatório" if tag.startswith("relatorio-") else tag,
+                                             "texto": m.group(3).replace("\ufffd", "-")[:400]})
+    return {k: v[-MAX_LOG:] for k, v in por.items()}
+
+
+def anexar_log(rods: dict, log: dict) -> None:
+    """Cada rodada ganha as linhas do log entre o começo dela e a rodada seguinte (no máx. 50 min) — é o que
+    explica o erro de uma rodada que só tem PDF (antes do .json) e o que o robô escreveu além do relatório."""
+    for robo, lista in rods.items():
+        linhas = log.get(robo) or []
+        if not linhas:
+            continue
+        ordem = sorted(lista, key=lambda x: x.get("inicio") or "")
+        for i, r in enumerate(ordem):
+            ini = dt.datetime.fromisoformat(str(r.get("inicio"))[:19])
+            fim = ini + dt.timedelta(minutes=50)
+            if i + 1 < len(ordem):
+                fim = min(fim, dt.datetime.fromisoformat(str(ordem[i + 1].get("inicio"))[:19]))
+            r["log"] = [l for l in linhas if ini - dt.timedelta(minutes=1) <= dt.datetime.fromisoformat(l["em"]) < fim][:40]
+
+
+# ------------------------------------------------------------------ 5. porteiro de verdade (04/11)
+PROBLEMAS_PORTEIRO = ("não está logado", "não responde na porta", "porteiro: PROBLEMA", "SEM LOGIN")
+
+
+def porteiro_estado(log: dict, rods: dict, porteiro_log: pathlib.Path | None = None, agora: dt.datetime | None = None) -> dict:
+    """04/11: o porteiro.log dizia "ok" enquanto os robôs davam com a tela de login (o Chrome central reiniciou
+    às 06:31). Vale o que os ROBÔS viram por último (últimas 12 h); sem isso, o porteiro.log."""
+    agora = agora or dt.datetime.now()
+    ev = []
+    for robo, linhas in log.items():
+        if robo == "fila":
+            continue
+        for l in linhas:
+            t = l["texto"]
+            if any(p in t for p in PROBLEMAS_PORTEIRO):
+                ev.append((l["em"], False, t))
+            elif "porteiro: logado" in t:
+                ev.append((l["em"], True, t))
+    for lista in rods.values():
+        for r in lista:
+            if r.get("porteiro"):
+                ev.append((str(r.get("fim") or r.get("inicio"))[:19], r["porteiro"].startswith("porteiro: logado"), r["porteiro"]))
+    limite = (agora - dt.timedelta(hours=12)).isoformat(timespec="seconds")
+    ev = sorted(e for e in ev if e[0] >= limite)
+    ultima_pl = ""
+    try:
+        if (porteiro_log or PORTEIRO_LOG).exists():
+            ultima_pl = [l.strip() for l in (porteiro_log or PORTEIRO_LOG).read_text(encoding="utf-8", errors="replace").splitlines() if l.strip()][-1]
+    except Exception:
+        pass
+    if ev:
+        em, ok, texto = ev[-1]
+        return {"estado": "ok" if ok else "fora", "em": em, "texto": texto[:300], "fonte": "robôs",
+                "porteiro_log": ultima_pl[:200]}
+    if ultima_pl:
+        ok = ultima_pl.endswith(" ok") or ultima_pl.endswith("; ok")
+        em = ultima_pl[:19].replace(" ", "T")
+        return {"estado": "ok" if ok else "fora", "em": em, "texto": ultima_pl[24:][:300], "fonte": "porteiro.log",
+                "porteiro_log": ultima_pl[:200]}
+    return {"estado": "?", "em": None, "texto": "", "fonte": "", "porteiro_log": ""}
+
+
+def conferir_porteiro(espera: float = 45.0) -> tuple[bool | None, str]:
+    """04/11: confere DE VERDADE, como um robô faria: abre uma aba no Chrome central e vê se a tela entra logada
+    (a mesma conferência do robo_fila.py --verificar). Assim a mesa do porteiro fica vermelha em até 5 min, mesmo
+    sem nenhum robô rodando. Só no servidor. (None, motivo) se não deu para conferir."""
+    if os.name != "nt":
+        return None, ""
+    try:
+        raiz = str(pathlib.Path(__file__).resolve().parent.parent)
+        if raiz not in sys.path:
+            sys.path.insert(0, raiz)
+        from venda.mc.porteiro import AbaPorteiro, PorteiroErro
+    except Exception as e:
+        return None, "sem o código do porteiro (%s)" % type(e).__name__
+    try:
+        aba = AbaPorteiro.abrir(espera=espera)
+    except PorteiroErro as e:
+        return False, str(e)[:300]
+    except Exception as e:
+        return None, "%s: %s" % (type(e).__name__, str(e)[:200])
+    try:
+        aba.fechar()
+    except Exception:
+        pass
+    return True, "porteiro: logado no Mais Controle (conferido pelo Escritório)"
+
+
 # ------------------------------------------------------------------ montar e subir
-def montar(hoje: dt.date | None = None) -> dict:
-    erros = []
+def tarefas_com_reserva(erros: list) -> list:
+    """O Agendador às vezes não responde (a página ficava sem os horários): usa a última leitura boa."""
     try:
         tarefas = ler_tarefas()
+        TAREFAS_CACHE.write_text(json.dumps({"em": dt.datetime.now().isoformat(timespec="seconds"), "tarefas": tarefas},
+                                            ensure_ascii=False), encoding="utf-8")
+        return tarefas
     except Exception as e:
-        tarefas, _ = [], erros.append("tarefas: %s %s" % (type(e).__name__, str(e)[:150]))
+        motivo = "%s %s" % (type(e).__name__, str(e)[:150])
+    try:
+        c = json.loads(TAREFAS_CACHE.read_text(encoding="utf-8"))
+        erros.append("horários da leitura de %s (agora: %s)" % (str(c.get("em"))[11:16], motivo))
+        return c.get("tarefas") or []
+    except Exception:
+        erros.append("tarefas: " + motivo)
+        return []
+
+
+def montar(hoje: dt.date | None = None, conferir: bool = True) -> dict:
+    erros = []
+    tarefas = tarefas_com_reserva(erros) if os.name == "nt" else []
+    dia = hoje or dt.date.today()
+    for t in tarefas:
+        t["hoje"] = horarios_do_dia(t.get("gat") or [], dia)
     try:
         saude = json.loads(SAUDE.read_text(encoding="utf-8")) if SAUDE.exists() else {}
     except Exception as e:
         saude, _ = {}, erros.append("saúde: %s" % type(e).__name__)
+    rods = rodadas(hoje=hoje)
+    try:
+        log = linhas_do_log(hoje=hoje)
+    except Exception as e:
+        log, _ = {}, erros.append("log: %s" % type(e).__name__)
+    try:
+        anexar_log(rods, log)
+    except Exception as e:
+        erros.append("log das rodadas: %s" % type(e).__name__)
+    porteiro = porteiro_estado(log, rods)
+    if conferir:
+        ok, texto = conferir_porteiro()
+        if ok is not None:          # a conferência de agora vale mais que qualquer linha antiga
+            porteiro.update({"estado": "ok" if ok else "fora", "em": dt.datetime.now().isoformat(timespec="seconds"),
+                             "texto": texto, "fonte": "conferência"})
+        elif texto:
+            erros.append("porteiro: não deu para conferir agora (%s)" % texto)
+    try:
+        import reorganizar as RZ          # 04/11: o plano do Coordenador da fila, se houver
+        coordenador = RZ.ler()
+    except Exception:
+        coordenador = None
+    try:
+        import sala_agua                  # 04/11: a sala própria do robô de água e energia (só lê os relatórios dele)
+        agua = sala_agua.montar_sala(hoje=hoje)
+    except Exception as e:
+        agua, _ = None, erros.append("sala da água e energia: %s" % type(e).__name__)
     return {"versao": VERSAO, "gerado": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
-            "tarefas": tarefas, "rodadas": rodadas(hoje=hoje), "saude": saude, "avisos": erros}
+            "tarefas": tarefas, "rodadas": rods, "saude": saude, "log": log,
+            "porteiro": porteiro, "coordenador": coordenador, "agua": agua, "avisos": erros}
+
+
+def subir_pdfs(dados: dict, log=print) -> int:
+    """04/11: o PDF de cada rodada (o mesmo do e-mail) sobe uma vez para analise/robos/pdf/AAAA-MM/… e a rodada
+    ganha "pdf_caminho" — a página pede ao Apps Script (escritorioPdf) um link de 15 min e mostra o PDF ali."""
+    try:
+        enviados = set(PDFS_ENVIADOS.read_text(encoding="utf-8").split()) if PDFS_ENVIADOS.exists() else set()
+    except Exception:
+        enviados = set()
+    url = chave = None
+    novos = 0
+    pares = []                                   # (rodada, caminho no bucket, arquivo local)
+    for lista in (dados.get("rodadas") or {}).values():
+        for r in lista:
+            nome = r.get("pdf")
+            m = _RE_PDF.match(str(nome or ""))
+            if m:
+                pares.append((r, "%s/%s/%s" % (PASTA_PDF, m.group(1)[:7], nome), RELATORIOS / m.group(1)[:7] / nome))
+    if dados.get("agua"):                        # 04/11: os PDFs do água e energia, com o nome que o Apps Script aceita
+        import sala_agua
+        for r in dados["agua"].get("rodadas") or []:
+            caminho, local = sala_agua.caminho_do_pdf(r), sala_agua.arquivo_local_do_pdf(r)
+            if caminho and local:
+                pares.append((r, caminho, local))
+    for r, caminho, local in pares:
+        nome = local.name
+        if caminho not in enviados:
+            if novos >= MAX_PDF_POR_VEZ:
+                continue
+            if not local.exists():
+                continue
+            try:
+                if url is None:
+                    url, chave = _cfg_supabase()
+                req = urllib.request.Request("%s/storage/v1/object/%s/%s" % (url, BUCKET, caminho), data=local.read_bytes(),
+                                             method="POST", headers={"apikey": chave, "Authorization": "Bearer " + chave,
+                                                                     "Content-Type": "application/pdf", "x-upsert": "true"})
+                urllib.request.urlopen(req, timeout=60).read()
+                enviados.add(caminho)
+                novos += 1
+            except Exception as e:
+                log("escritório: PDF %s não subiu (%s)" % (nome, type(e).__name__))
+                continue
+        r["pdf_caminho"] = caminho
+    if novos:
+        PDFS_ENVIADOS.write_text("\n".join(sorted(enviados)) + "\n", encoding="utf-8")
+    return novos
 
 
 def _cfg_supabase() -> tuple[str, str]:
@@ -316,9 +622,10 @@ def subir(dados: dict) -> int:
 def publicar(log=print) -> bool:
     try:
         dados = montar()
+        pdfs = subir_pdfs(dados, log)
         n = subir(dados)
-        log("escritório publicado: %d tarefas, %d robôs com rodadas, %d KB" % (
-            len(dados["tarefas"]), len(dados["rodadas"]), n // 1024))
+        log("escritório publicado: %d tarefas, %d robôs com rodadas, %d PDF novo(s), porteiro %s, %d KB" % (
+            len(dados["tarefas"]), len(dados["rodadas"]), pdfs, (dados.get("porteiro") or {}).get("estado"), n // 1024))
         return True
     except Exception as e:
         log("escritório FALHOU %s: %s" % (type(e).__name__, str(e)[:200]))

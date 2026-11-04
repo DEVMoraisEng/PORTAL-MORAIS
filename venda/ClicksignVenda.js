@@ -383,11 +383,31 @@ var ClicksignVenda = (function () {
     var n = txt(nome) || "contrato";
     return /\.pdf$/i.test(n) ? n : n + ".pdf";
   }
-  function corpoEnvelope(nome) {
-    return { data: { type: "envelopes", attributes: {
-      name: nome, locale: "pt-BR", auto_close: true, block_after_refusal: true,
+  /* 03/11/2026 (dono): mensagem que a Clicksign põe no e-mail de cada signatário ("Segue contrato da unidade xx").
+   * Vai em default_message do envelope — vale para o 1º aviso, o Reenviar e a troca de e-mail. tipo: "contrato" | "termo".
+   * modelo (Propriedade CLICKSIGN_MENSAGEM_CONTRATO / _TERMO) troca o texto; {UNIDADE} vira a obra + casa. */
+  var MENSAGEM = {
+    contrato: "Segue o contrato de compra e venda da unidade {UNIDADE} para a sua assinatura eletrônica. " +
+              "Leia com calma antes de assinar e, se tiver qualquer dúvida, fale com a nossa equipe. " +
+              "Obrigado pela confiança! Morais Engenharia",
+    termo: "Segue o termo de pré-reserva da unidade {UNIDADE} para a sua assinatura eletrônica. " +
+           "É ele que garante a sua unidade enquanto preparamos o contrato. Qualquer dúvida, fale com a nossa equipe. " +
+           "Obrigado pela confiança! Morais Engenharia"
+  };
+  function mensagemEnvelope(tipo, endereco, casa, modelo) {
+    var unidade = nomePadrao(endereco, casa, "");
+    if (unidade === "Contrato de compra e venda") unidade = "";
+    var m = txt(modelo) || MENSAGEM[tipo === "termo" ? "termo" : "contrato"];
+    m = m.replace(/\{UNIDADE\}/g, unidade).replace(/\s+/g, " ");
+    /* sem unidade conhecida: "da unidade  para" vira "para" */
+    return m.replace(/ da unidade (?=para |\.)/, " ").replace(/\s+([.,])/g, "$1").trim().slice(0, 1000);
+  }
+  function corpoEnvelope(nome, mensagem) {
+    var a = { name: nome, locale: "pt-BR", auto_close: true, block_after_refusal: true,
       /* prazo vencido com assinatura faltando cancela (o padrão "closed" finalizaria um contrato incompleto) */
-      deadline_partial_signature_action: "canceled" } } };
+      deadline_partial_signature_action: "canceled" };
+    if (txt(mensagem)) a.default_message = txt(mensagem);
+    return { data: { type: "envelopes", attributes: a } };
   }
   function corpoDocumento(filename, base64) {
     return { data: { type: "documents", attributes: { filename: filename, content_base64: "data:application/pdf;base64," + base64 } } };
@@ -428,7 +448,8 @@ var ClicksignVenda = (function () {
     if (soDigitos(v.cpfCnpj).length === 14) return true;
     return txt(v.tipo).toUpperCase() === "PJ";
   }
-  var COM_SELFIE = /^(comprador[12]|conjugeComprador1|fiador[12]|conjugeFiador[12])$/;
+  /* 03/11/2026 (dono): fiadores e cônjuges dos fiadores NÃO pedem selfie — só compradores e o cônjuge do comprador. */
+  var COM_SELFIE = /^(comprador[12]|conjugeComprador1)$/;
   function autenticacoes(s, config, dados) {
     return config && config.selfie && vendedorEmpresa(dados) && COM_SELFIE.test(txt(s && s.origem)) ? ["email"].concat(AUTH_SELFIE) : ["email"];
   }
@@ -456,6 +477,75 @@ var ClicksignVenda = (function () {
   }
   function corpoNotificacao() { return { data: { type: "notifications", attributes: {} } }; }
 
+  /* ---- 03/11/2026 (dono): trocar o e-mail de quem ainda não assinou, sem cancelar o envelope ----
+   * A API v3 não edita signatário (só Listar/Criar/Detalhes/Excluir) e a lista de requisitos não diz de quem é cada um.
+   * Por isso o envio guarda, por signatário, os requisitos que criou (requisitoGuardado) e a troca recria tudo para um
+   * signatário novo com o e-mail certo — antes de tirar o antigo, para o envelope nunca ficar sem essa pessoa. */
+  var CAMPOS_SIGNATARIO = ["name", "has_documentation", "documentation", "birthday", "phone_number", "refusable",
+                           "communicate_events", "location_required_enabled"];
+  function corpoSignatarioTrocado(atributosAntigos, emailNovo) {
+    var a = {}, v = atributosAntigos || {};
+    CAMPOS_SIGNATARIO.forEach(function (k) { if (v[k] !== undefined && v[k] !== null && v[k] !== "") a[k] = v[k]; });
+    a.email = email(emailNovo);
+    return { data: { type: "signers", attributes: a } };
+  }
+  var CAMPOS_REQUISITO = ["action", "role", "auth", "kind", "positions", "pages", "rubric_field"];
+  /* o que o envio guarda de cada requisito: [id, documento, atributos] (só os campos que recriam o requisito) */
+  function requisitoGuardado(id, corpo) {
+    var d = (corpo && corpo.data) || {}, at = d.attributes || {}, a = {};
+    CAMPOS_REQUISITO.forEach(function (k) { if (at[k] !== undefined) a[k] = at[k]; });
+    var doc = d.relationships && d.relationships.document && d.relationships.document.data;
+    return [txt(id), txt(doc && doc.id), a];
+  }
+  /* recria um requisito guardado para o signatário novo: qualificação primeiro, autenticação, rubricas por último */
+  var ORDEM_ACAO = { agree: 0, provide_evidence: 1, rubricate: 2 };
+  function ordem(acao) { return ORDEM_ACAO.hasOwnProperty(acao) ? ORDEM_ACAO[acao] : 9; }
+  function requisitosParaRecriar(guardados) {
+    return (guardados || []).filter(function (g) { return Array.isArray(g) && g[1] && g[2] && g[2].action; })
+      .map(function (g, i) { return { g: g, i: i }; })
+      .sort(function (x, y) { return (ordem(x.g[2].action) - ordem(y.g[2].action)) || (x.i - y.i); })
+      .map(function (x) { return x.g; });
+  }
+  function corpoRequisitoTrocado(guardado, signerId) {
+    var a = {};
+    for (var k in guardado[2]) a[k] = guardado[2][k];
+    return { data: { type: "requirements", attributes: a, relationships: relacoes(guardado[1], signerId) } };
+  }
+  /* 03/11 (sandbox): com o envelope em running, POST /requirements responde 403 "envelope não está com status draft" —
+   * requisito novo em envelope ativo só pela operação em lote (docs/signatarios: "Envelopes que já estão em processo de
+   * assinatura exigem um procedimento específico para a adição de seus requisitos. Utilize a funcionalidade de operações
+   * em massa"). Um pedido só, na ordem de requisitosParaRecriar. */
+  function corpoAdicionarRequisitos(guardados, signerId) {
+    return { "atomic:operations": requisitosParaRecriar(guardados).map(function (g) {
+      return { op: "add", data: corpoRequisitoTrocado(g, signerId).data };
+    }) };
+  }
+  /* ids dos requisitos criados em lote, na ordem das operações ("" quando a resposta não traz) */
+  function idsDoLote(resultados, n) {
+    var l = Array.isArray(resultados) ? resultados : [], out = [];
+    for (var i = 0; i < n; i++) { var r = l[i] || {}; out.push(txt(r.data && r.data.id)); }
+    return out;
+  }
+  function corpoRemoverRequisitos(ids) {
+    return { "atomic:operations": (ids || []).filter(function (id) { return txt(id); })
+      .map(function (id) { return { op: "remove", ref: { type: "requirements", id: txt(id) } }; }) };
+  }
+  /* e-mail novo: válido, diferente do atual e de todos os outros signatários do envelope */
+  function conferirEmailNovo(emailNovo, signerId, signers) {
+    var e = email(emailNovo);
+    if (!emailValido(e)) return "EMAIL_INVALIDO";
+    var alvo = null, repetido = false;
+    (signers || []).forEach(function (s) {
+      var se = email(s && s.attributes && s.attributes.email);
+      if (s && s.id === signerId) alvo = s;
+      else if (se === e) repetido = true;
+    });
+    if (!alvo) return "SIGNATARIO_NAO_ACHADO";
+    if (email(alvo.attributes && alvo.attributes.email) === e) return "EMAIL_IGUAL";
+    if (repetido) return "EMAIL_REPETIDO";
+    return "";
+  }
+
   /* ---- respostas ---- */
   /* "fulano@dominio" → "***@dominio": o detalhe da Clicksign vai para a tela e pode repetir e-mail. */
   function mascararEmails(s) { return txt(s).replace(/[^\s@:;,<>()"']+@([^\s@:;,<>()"']+)/g, "***@$1"); }
@@ -468,8 +558,11 @@ var ClicksignVenda = (function () {
     if (code >= 200 && code < 300) {
       if (!j || typeof j !== "object") return { ok: true, id: "", status: "", data: null };
       var d = j.data || null;
-      return { ok: true, id: d && !Array.isArray(d) ? txt(d.id) : "",
+      var res = { ok: true, id: d && !Array.isArray(d) ? txt(d.id) : "",
                status: d && !Array.isArray(d) && d.attributes ? txt(d.attributes.status) : "", data: d };
+      /* 03/11: operações em lote (bulk_requirements) respondem em "atomic:results" */
+      if (Array.isArray(j["atomic:results"])) res.resultados = j["atomic:results"];
+      return res;
     }
     var e = j && Array.isArray(j.errors) && j.errors[0] ? j.errors[0] : null;
     var det = e ? [txt(e.title), txt(e.detail)].filter(function (x) { return x; }).join(": ") : "";
@@ -925,6 +1018,10 @@ var ClicksignVenda = (function () {
     corpoEnvelope: corpoEnvelope, corpoDocumento: corpoDocumento, corpoSignatario: corpoSignatario,
     corpoQualificacao: corpoQualificacao, corpoAutenticacao: corpoAutenticacao, autenticacoes: autenticacoes, AUTH_SELFIE: AUTH_SELFIE, corpoAtivar: corpoAtivar, corpoCancelarDocumento: corpoCancelarDocumento, statusEfetivo: statusEfetivo,
     corpoNotificacao: corpoNotificacao, interpretar: interpretar, situacao: situacao, assinaram: assinaram,
+    MENSAGEM: MENSAGEM, mensagemEnvelope: mensagemEnvelope, corpoSignatarioTrocado: corpoSignatarioTrocado, requisitoGuardado: requisitoGuardado,
+    requisitosParaRecriar: requisitosParaRecriar, corpoRequisitoTrocado: corpoRequisitoTrocado, corpoRemoverRequisitos: corpoRemoverRequisitos,
+    corpoAdicionarRequisitos: corpoAdicionarRequisitos, idsDoLote: idsDoLote,
+    conferirEmailNovo: conferirEmailNovo,
     podeEnviar: podeEnviar, linkAssinado: linkAssinado, mascararEmails: mascararEmails, FINAIS: FINAIS,
     situacaoDosSignatarios: situacaoDosSignatarios, nomeMascarado: nomeMascarado,
     minutosParaReenviar: minutosParaReenviar, REENVIO_MIN: REENVIO_MIN,

@@ -266,7 +266,7 @@ function assEnviarTravado_(col, p, pid) {
   }
   var prep = assPrepararContrato_(col, p, pid, gerado, false, pg);
   if (prep.resp) return prep.resp;
-  return assCriarEnvelope_(p, pid, cols, doc, gerado, prep.lista, prep.nomeCs, prep.extras, prep.ad.docs, prep.rub, prep.d);
+  return assCriarEnvelope_(p, pid, cols, doc, gerado, prep.lista, prep.nomeCs, prep.extras, prep.ad.docs, prep.rub, prep.d, prep.mensagem);
 }
 
 /* Tudo o que o envio do contrato confere e monta antes de falar com a Clicksign: { d, config, lista, nomeCs, extras, ad, rub }
@@ -333,7 +333,8 @@ function assPrepararContrato_(col, p, pid, gerado, previa, pg) {
     /* revisão 01/11: tamanho real das páginas (MediaBox) — sem ele, o padrão (memorial Carta, projeto A1/A2) */
     if (x.tamanhos) rub.tamanhos[x.tipo] = x.tamanhos;
   });
-  return { d: d, config: config, lista: ClicksignVenda.signatarios(d, config), nomeCs: nomeCs, extras: extras, ad: ad, rub: rub };
+  return { d: d, config: config, lista: ClicksignVenda.signatarios(d, config), nomeCs: nomeCs, extras: extras, ad: ad, rub: rub,
+           mensagem: ClicksignVenda.mensagemEnvelope("contrato", f.endereco, f.casa, prop_("CLICKSIGN_MENSAGEM_CONTRATO")) };
 }
 
 /* Prévia: memorial (migrado ou não, páginas da tela) e projeto, sem gerar nem baixar nada */
@@ -506,7 +507,8 @@ function assEnviarTermo_(col, p, pid, cols, doc, gerado) {
   var carimbo = ctrCarimboDoNome_(gerado.nome);
   if (!carimbo || (carimbo !== prCarimbo_(x.t) && carimbo !== prCarimbo_(x.t, prAssinCarimbo_(x.d, p.pageId)))) { assLog_("enviar termo " + pid + " carimbo diferente"); return { ok: false, erro: "TERMO_DESATUALIZADO" }; }
   var nomeCs = "PRÉ-RESERVA - " + ClicksignVenda.nomePadrao(x.f.endereco, x.f.casa, dAss.comprador1 && dAss.comprador1.nome);
-  return assCriarEnvelope_(p, pid, cols, doc, gerado, ClicksignVenda.signatarios(dAss, cfg), nomeCs, null, null, null, dAss);
+  return assCriarEnvelope_(p, pid, cols, doc, gerado, ClicksignVenda.signatarios(dAss, cfg), nomeCs, null, null, null, dAss,
+                           ClicksignVenda.mensagemEnvelope("termo", x.f.endereco, x.f.casa, prop_("CLICKSIGN_MENSAGEM_TERMO")));
 }
 
 /* 30/10: o contrato primeiro; termos, memorial e projeto depois. */
@@ -541,7 +543,7 @@ function assJuntarVistos_(reqs, ligado) {
   return out;
 }
 /* dados: os da venda (ContratoVenda) — a selfie depende de o vendedor ser empresa (ClicksignVenda.autenticacoes) */
-function assCriarEnvelope_(p, pid, cols, doc, gerado, lista, nomeCs, extras, adicionais, rub, dados) {
+function assCriarEnvelope_(p, pid, cols, doc, gerado, lista, nomeCs, extras, adicionais, rub, dados, mensagem) {
   var cfgAuth = assConfig_(p.pageId);   /* 01/11 (plano 23 C): CLICKSIGN_SELFIE — vale para o contrato e o termo, rua e condomínio */
   /* unidade 22 (01/11): avisos que voltam no resultado do envio (o da tela, rubrica guardada diferente, sem posição) */
   var avisos = (rub && rub.avisos || []).map(function (a) { assLog_("enviar " + pid + " tela: " + a); return "tela: " + a; });
@@ -563,7 +565,7 @@ function assCriarEnvelope_(p, pid, cols, doc, gerado, lista, nomeCs, extras, adi
   var envId = "", base = "", papeis = {};
   /* entrega 14: envelope e documento com o nome padrão "OBRA - COMPRADOR" (termo: "PRÉ-RESERVA - OBRA - COMPRADOR") */
   try {
-    envId = csPasso_("envelope", "post", "/envelopes", ClicksignVenda.corpoEnvelope(nomeCs), true).id;
+    envId = csPasso_("envelope", "post", "/envelopes", ClicksignVenda.corpoEnvelope(nomeCs, mensagem), true).id;
     base = "/envelopes/" + encodeURIComponent(envId);
     /* anota já: qualquer leitura seguinte vê envelope aberto (RASCUNHO conta como aberto) */
     try { assGravarTextos_(p.pageId, assColunasEnvelope_(cols, envId, S.RASCUNHO)); }
@@ -583,14 +585,21 @@ function assCriarEnvelope_(p, pid, cols, doc, gerado, lista, nomeCs, extras, adi
       papeis[id] = s.papel;
       return id;
     });
+    /* 03/11 (troca de e-mail): os requisitos de cada signatário, como foram criados — a Clicksign não diz de quem é cada um */
+    var reqs = ids.map(function () { return []; });
+    function criarReq(passo, i, corpo) {
+      var rr = csPasso_(passo, "post", base + "/requirements", corpo);
+      reqs[i].push(ClicksignVenda.requisitoGuardado(rr.id, corpo));
+      return rr;
+    }
     lista.forEach(function (s, i) {
       /* fiador: só os termos; comprador e vendedor: tudo (dono, 01/11/2026); corretor: só o contrato; os demais: o contrato e os
          termos (ClicksignVenda.documentosDoSignatario) */
       ClicksignVenda.documentosDoSignatario(s, docs).forEach(function (dId) {
-        csPasso_("requisitos", "post", base + "/requirements", ClicksignVenda.corpoQualificacao(dId, ids[i], s.role));
+        criarReq("requisitos", i, ClicksignVenda.corpoQualificacao(dId, ids[i], s.role));
         Utilities.sleep(CS_PAUSA_REQ_MS);
         ClicksignVenda.autenticacoes(s, cfgAuth, dados).forEach(function (auth) {
-          csPasso_("requisitos", "post", base + "/requirements", ClicksignVenda.corpoAutenticacao(dId, ids[i], auth));
+          criarReq("requisitos", i, ClicksignVenda.corpoAutenticacao(dId, ids[i], auth));
           Utilities.sleep(CS_PAUSA_REQ_MS);
         });
       });
@@ -598,7 +607,7 @@ function assCriarEnvelope_(p, pid, cols, doc, gerado, lista, nomeCs, extras, adi
          01/11 (plano 23 B): e a assinatura de cada pessoa em cima da própria linha (contrato e termos) */
       var semLugar = [];
       assJuntarVistos_(ClicksignVenda.requisitosRubrica(s, docs, rub, i, lista, semLugar), cfgAuth.vistoComoAssinatura).forEach(function (r) {
-        var rr = csPasso_("rubricas", "post", base + "/requirements", ClicksignVenda.corpoRubrica(r.docId, ids[i], r.kind, r.positions));
+        var rr = criarReq("rubricas", i, ClicksignVenda.corpoRubrica(r.docId, ids[i], r.kind, r.positions));
         /* unidade 22 (01/11): os vistos não apareceram nos PDFs assinados — o registro diz o que a Clicksign guardou (sem dado
            pessoal: tipo, documento, quantas posições) e diferença vira aviso no resultado do envio */
         var at = (rr.data && rr.data.attributes) || {}, n = r.positions.length, g = Array.isArray(at.positions) ? at.positions.length : 0;
@@ -612,6 +621,7 @@ function assCriarEnvelope_(p, pid, cols, doc, gerado, lista, nomeCs, extras, adi
       semLugar.forEach(function (a) { assLog_("enviar " + pid + " " + a); avisos.push("SEM_POSICAO: " + a); });   /* só o papel, sem nome */
     });
     assProps_().setProperty(ASS_PAPEIS + envId, JSON.stringify(papeis));
+    ids.forEach(function (id, i) { assGuardarReqs_(envId, id, reqs[i], pid); });
     assAtivar_(base, envId);
   } catch (e) {
     if (e.incerto) {
@@ -621,7 +631,7 @@ function assCriarEnvelope_(p, pid, cols, doc, gerado, lista, nomeCs, extras, adi
                rascunhoApagado: false, incerto: true };
     }
     var apagado = envId ? assApagarRascunho_(base, pid, cols, p.pageId) : false;
-    if (envId) assApagarProp_(ASS_PAPEIS + envId);
+    if (envId) assApagarPapeis_(envId);
     if (e.message === "RASCUNHO_NAO_GRAVADO") return { ok: false, erro: "GRAVACAO_FALHOU", rascunhoApagado: apagado };
     if (e.message !== "CLICKSIGN_FALHOU") throw e;
     assLog_("enviar " + pid + " falhou no passo " + e.passo + " http " + e.http +
@@ -645,8 +655,9 @@ function assCriarEnvelope_(p, pid, cols, doc, gerado, lista, nomeCs, extras, adi
     return rg;
   }
   var r = { ok: true, situacao: S.ENVIADO,
-            signatarios: lista.map(function (s) {
-              return { papel: s.papel, nome: ClicksignVenda.nomeMascarado(s.nome), email: String(s.email || ""), assinou: false, situacao: "pendente", data: "" };
+            signatarios: lista.map(function (s, i) {
+              /* 03/11: com o id, o Trocar e-mail aparece já na resposta do envio (sem precisar de Atualizar situação) */
+              return { id: String(ids[i] || ""), papel: s.papel, nome: ClicksignVenda.nomeMascarado(s.nome), email: String(s.email || ""), assinou: false, situacao: "pendente", data: "" };
             }) };
   if (!n.ok) r.aviso = "NOTIFICACAO_FALHOU";
   if (avisos.length) r.avisos = avisos;
@@ -660,6 +671,23 @@ function assNomeAssinado_(nomeGerado) {
   if (/^TERMO DE PRÉ-RESERVA - /.test(n)) return "TERMO DE PRÉ-RESERVA ASSINADO - " + n.slice(23);
   return /^CONTRATO - /.test(n) ? "CONTRATO ASSINADO - " + n.slice(11) : "ASSINADO - " + n;
 }
+/* 03/11: papéis + requisitos guardados por signatário (ASSINATURA_REQS_<envelope>_<signatário>) saem juntos */
+var ASS_REQS = "ASSINATURA_REQS_";
+function assApagarPapeis_(envId) {
+  var papeis = assPapeis_(envId);
+  for (var id in papeis) assApagarProp_(ASS_REQS + envId + "_" + id);
+  assApagarProp_(ASS_PAPEIS + envId);
+}
+/* uma Propriedade por signatário (o limite é 9 KB por valor); sem caber, a troca de e-mail dessa pessoa fica indisponível */
+function assGuardarReqs_(envId, signerId, lista, pid) {
+  try { assProps_().setProperty(ASS_REQS + envId + "_" + signerId, JSON.stringify(lista || [])); }
+  catch (e) { assLog_("enviar " + pid + " requisitos de um signatario nao guardados (" + (lista || []).length + ")"); }
+}
+function assReqsGuardados_(envId, signerId) {
+  var v = prop_(ASS_REQS + envId + "_" + signerId);
+  if (!v) return null;
+  try { var l = JSON.parse(v); return Array.isArray(l) ? l : null; } catch (e) { return null; }
+}
 function assPapeis_(envId) {
   try { return JSON.parse(prop_(ASS_PAPEIS + envId) || "{}") || {}; } catch (e) { return {}; }
 }
@@ -670,7 +698,8 @@ function assListaSignatarios_(envId, signers, eventos) {
   return (signers || []).map(function (s) {
     var st = sits[s.id] || { situacao: "pendente", data: "" };
     /* 27/10 (dono): a tela mostra para qual e-mail a Clicksign mandou (a equipe confere se está certo) */
-    return { papel: papeis[s.id] || "Signatário", nome: ClicksignVenda.nomeMascarado(s.attributes && s.attributes.name),
+    /* 03/11: id do signatário na Clicksign (não é dado pessoal) — o botão "Trocar e-mail" diz de quem é */
+    return { id: String(s.id || ""), papel: papeis[s.id] || "Signatário", nome: ClicksignVenda.nomeMascarado(s.attributes && s.attributes.name),
              email: String((s.attributes && s.attributes.email) || ""),
              assinou: st.situacao === "assinou", situacao: st.situacao, data: st.data };
   });
@@ -721,7 +750,7 @@ function assinaturaEstado_(col, p) {
     if (e.passo === "consultar envelope" && e.http === 404 && !pendente && sitAtual.toUpperCase() === S.RASCUNHO) {
       try { assGravarTextos_(p.pageId, assColunasEnvelope_(cols, "", "")); }
       catch (e2) { ctrErro_("assinatura estado " + pid + " limpeza do rascunho", e2); return { ok: false, erro: "GRAVACAO_FALHOU" }; }
-      assApagarProp_(ASS_PAPEIS + envId);
+      assApagarPapeis_(envId);
       assLog_("estado " + pid + " rascunho " + envId + " nao existe mais: colunas limpas");
       return { ok: true, situacao: "", envelope: false, signatarios: [] };
     }
@@ -798,7 +827,7 @@ function assinaturaEstado_(col, p) {
   var feitos = ClicksignVenda.assinaram(signers, eventos);
   var lista = assListaSignatarios_(envId, signers, eventos);
   assGravarProgresso_(pg, p.pageId, doc, signers, feitos);
-  if (ClicksignVenda.FINAIS.indexOf(sit) >= 0) { assApagarProp_(ASS_PAPEIS + envId); assApagarProp_(ASS_REENVIO + envId); }
+  if (ClicksignVenda.FINAIS.indexOf(sit) >= 0) { assApagarPapeis_(envId); assApagarProp_(ASS_REENVIO + envId); }
   var resp = { ok: true, situacao: sit, envelope: true, signatarios: lista, temAssinado: !semArquivo };
   if (aguardando) resp.aguardandoArquivo = true;
   /* closed sem o "sign" de alguém: não inventa assinatura; o PDF é o que a Clicksign entregou */
@@ -901,6 +930,105 @@ function assReenviarTravado_(p, pid) {
   return { ok: true, situacao: sit, envelope: true, pendentes: pendentes, signatarios: lista };
 }
 
+/* ---- 03/11/2026 (dono): trocar o e-mail de quem ainda não assinou, sem cancelar o envelope ----
+ * "há vezes em que o email de alguém fica errado, e para alterar precisa cancelar". A API v3 não edita signatário: cria um
+ * signatário novo (mesmo nome, CPF, telefone e avisos; e-mail certo), recria os requisitos que o envio guardou daquele
+ * signatário (qualificação, autenticação, rubricas — em lote, que é o que a Clicksign aceita com o envelope ativo), exclui o
+ * antigo (os requisitos dele vão junto) e avisa só o novo. A ordem
+ * (novo antes de tirar o antigo) faz o envelope nunca ficar sem a pessoa — sem ela, o auto_close fecharia o contrato.
+ * Falha no meio desfaz o novo; se nem isso der, a tela manda cancelar o envelope. Só envelope ENVIADO e signatário
+ * pendente. Não muda o cadastro: o e-mail certo também precisa ser corrigido na venda (a tela avisa). */
+function assinaturaTrocarEmail_(col, sess, p) {
+  var pid = String(p.pageId).slice(0, 8);
+  if (!prop_("CLICKSIGN_TOKEN")) return { ok: false, erro: "CLICKSIGN_SEM_TOKEN" };
+  if (!csBase_()) return { ok: false, erro: "CLICKSIGN_URL_INVALIDA" };
+  var signerId = String(p.signerId || "");
+  if (!/^[\w-]{1,80}$/.test(signerId)) return { ok: false, erro: "SIGNATARIO_NAO_ACHADO" };
+  var trava = LockService.getScriptLock();
+  if (!trava.tryLock(10000)) { assLog_("trocar email " + pid + " ocupado"); return { ok: false, erro: "ASSINATURA_OCUPADA" }; }
+  var r;
+  try { r = assTrocarEmailTravado_(p, pid, signerId); }
+  finally { trava.releaseLock(); }
+  assLog_("trocar email " + pid + " por " + String((sess && sess.u) || "?") + ": " + (r.ok ? "ok" : r.erro + (r.passo ? " no passo " + r.passo : "")));
+  return r;
+}
+
+function assTrocarEmailTravado_(p, pid, antigo) {
+  var S = ClicksignVenda.SITUACOES;
+  var doc = assDoc_(p), pg = ctrLerPaginaVenda_(p.pageId), cols = assColunas_(pg, doc);
+  var envId = prop_(ASS_PENDENTE + doc.chave + p.pageId) || assTexto_(pg, cols.ENVELOPE);
+  if (!envId) return { ok: false, erro: "SEM_ENVELOPE" };
+  var base = "/envelopes/" + encodeURIComponent(envId), env, docs, eventos, signers, sit, lista, alvo = null;
+  try {
+    env = csPasso_("consultar envelope", "get", base);
+    if (env.status !== "running") {
+      sit = env.status === "draft" ? S.RASCUNHO : (env.status === "closed" ? S.ASSINADO : S.CANCELADO);
+      return { ok: false, erro: "ENVELOPE_NAO_ATIVO", situacao: sit };
+    }
+    docs = csPasso_("consultar documento", "get", base + "/documents").data || [];
+    eventos = [];
+    docs.forEach(function (dc) {
+      eventos = eventos.concat(csPasso_("consultar eventos", "get", base + "/documents/" + encodeURIComponent(dc.id) + "/events").data || []);
+    });
+    signers = csPasso_("consultar signatarios", "get", base + "/signers").data || [];
+  } catch (e) {
+    if (e.message !== "CLICKSIGN_FALHOU") throw e;
+    return { ok: false, erro: "CLICKSIGN_FALHOU", passo: e.passo, http: e.http, detalhe: e.detalhe };
+  }
+  sit = ClicksignVenda.situacao(env.status, eventos);
+  if (sit !== S.ENVIADO) return { ok: false, erro: "ENVELOPE_NAO_ATIVO", situacao: sit };
+  lista = assListaSignatarios_(envId, signers, eventos);
+  var conf = ClicksignVenda.conferirEmailNovo(p.email, antigo, signers);
+  if (conf) return { ok: false, erro: conf, signatarios: lista };
+  lista.forEach(function (s) { if (s.id === antigo) alvo = s; });
+  if (!alvo || alvo.situacao !== "pendente") return { ok: false, erro: "SIGNATARIO_JA_ASSINOU", signatarios: lista };
+  var guardados = assReqsGuardados_(envId, antigo);
+  if (!guardados || !guardados.length) return { ok: false, erro: "TROCA_SEM_REQUISITOS", signatarios: lista };
+  var velho = null;
+  signers.forEach(function (s) { if (s.id === antigo) velho = s; });
+
+  var novo = "", criados = [], papeis = assPapeis_(envId);
+  function desfazer() {
+    /* tira o que foi criado; se não der, sobram os dois signatários e só cancelar resolve */
+    /* excluir o signatário leva os requisitos dele junto (sandbox 03/11); tirar só os requisitos dá 422 */
+    return novo ? cs_("delete", base + "/signers/" + encodeURIComponent(novo)).ok : true;
+  }
+  try {
+    novo = csPasso_("novo signatario", "post", base + "/signers",
+                    ClicksignVenda.corpoSignatarioTrocado(velho && velho.attributes, p.email), true).id;
+    /* envelope ativo: requisitos novos só em lote (POST /requirements dá 403 com running — sandbox 03/11) */
+    var lote = ClicksignVenda.corpoAdicionarRequisitos(guardados, novo), ops = lote["atomic:operations"];
+    var rl = csPasso_("requisitos do novo", "post", base + "/bulk_requirements", lote);
+    var idsNovos = ClicksignVenda.idsDoLote(rl.resultados, ops.length);
+    ops.forEach(function (op, i) { criados.push(ClicksignVenda.requisitoGuardado(idsNovos[i], { data: op.data })); });
+    /* sandbox 03/11: tirar os requisitos do antigo antes responde 422 ("há signatário(s) sem os requisitos necessários");
+       o DELETE do signatário já leva os requisitos dele */
+    csPasso_("tirar signatario antigo", "delete", base + "/signers/" + encodeURIComponent(antigo));
+  } catch (e) {
+    if (e.message !== "CLICKSIGN_FALHOU") throw e;
+    var desfeito = desfazer();
+    assLog_("trocar email " + pid + " falhou no passo " + e.passo + " http " + e.http + (desfeito ? " desfeito" : " NAO desfeito"));
+    return { ok: false, erro: desfeito ? "CLICKSIGN_FALHOU" : "TROCA_INCOMPLETA", passo: e.passo, http: e.http, detalhe: e.detalhe };
+  }
+  /* daqui em diante a troca está feita: papéis e requisitos guardados passam para o novo */
+  papeis[novo] = papeis[antigo] || alvo.papel;
+  delete papeis[antigo];
+  try { assProps_().setProperty(ASS_PAPEIS + envId, JSON.stringify(papeis)); } catch (e) { assLog_("trocar email " + pid + " papeis nao gravados"); }
+  assGuardarReqs_(envId, novo, criados, pid);
+  assApagarProp_(ASS_REQS + envId + "_" + antigo);
+  var n = cs_("post", base + "/signers/" + encodeURIComponent(novo) + "/notifications", ClicksignVenda.corpoNotificacao());
+  if (!n.ok) assLog_("trocar email " + pid + " aviso ao novo falhou http " + n.http);
+  var depois = lista.map(function (s) {
+    if (s.id !== antigo) return s;
+    var c = {}; for (var k in s) c[k] = s[k];
+    c.id = novo; c.email = String(ClicksignVenda.corpoSignatarioTrocado(null, p.email).data.attributes.email);
+    return c;
+  });
+  var resp = { ok: true, situacao: sit, envelope: true, signatarios: depois, papel: alvo.papel };
+  if (!n.ok) resp.aviso = "NOTIFICACAO_FALHOU";
+  return resp;
+}
+
 /* ---- 29/10/2026: cancelar o envelope (pedido do dono) ----
  * Só com envelope ativo (running). PATCH /envelopes/{id} com status "canceled" (ninguém mais assina; a
  * Clicksign avisa os signatários) e depois o "Atualizar situação" de sempre grava CANCELADO na casa e limpa as
@@ -925,7 +1053,7 @@ function assinaturaCancelar_(col, sess, p) {
         if (draft) {
           /* Descartar rascunho: o envio parou no meio e o envelope nunca foi ativado — só draft é apagado */
           if (assApagarRascunho_(base, pid, cols, p.pageId)) {
-            assApagarProp_(ASS_PAPEIS + envId);
+            assApagarPapeis_(envId);
             assApagarProp_(ASS_VIGIA_STATUS + envId);
             r = { ok: true, descartou: true, situacao: "", envelope: false, signatarios: [] };
           } else r = { ok: false, erro: "RASCUNHO_NAO_APAGADO" };
@@ -949,7 +1077,7 @@ function assinaturaCancelar_(col, sess, p) {
         if (e.passo === "consultar envelope" && e.http === 404 && !pendente && assTexto_(pg, cols.SITUACAO).toUpperCase() === S.RASCUNHO) {
           try {
             assGravarTextos_(p.pageId, assColunasEnvelope_(cols, "", ""));
-            assApagarProp_(ASS_PAPEIS + envId);
+            assApagarPapeis_(envId);
             assApagarProp_(ASS_VIGIA_STATUS + envId);
             r = { ok: true, descartou: true, situacao: "", envelope: false, signatarios: [] };
           } catch (e2) { ctrErro_("assinatura cancelar " + pid + " limpeza do rascunho", e2); r = { ok: false, erro: "GRAVACAO_FALHOU" }; }
@@ -1052,7 +1180,7 @@ var ASS_TRAVA_CONTRATO = ["gerarPreContrato", "aprovarPreContrato", "gerarContra
    fluxo agora exige aditivo"); o Corrigir aqui da conferência segue aberto depois de assinado (dado do cadastro). */
 var ASS_TRAVA_SO_ABERTO = ["salvarFluxo", "lerCrlv", "corrigirConferencia"];
 var ASS_TRAVA_TERMO = ["gerarTermoPreReserva", "salvarContaPreReserva", "salvarConjugePreReserva"];
-var ASS_TRAVA_ENVELOPE = ["assinaturaEnviar", "assinaturaReenviar", "assinaturaCancelar"];
+var ASS_TRAVA_ENVELOPE = ["assinaturaEnviar", "assinaturaReenviar", "assinaturaCancelar", "assinaturaTrocarEmail"];
 var ASS_MSG_ABERTO = "O contrato já foi enviado para assinatura. Para mudar, cancele o envelope primeiro.";
 var ASS_MSG_ABERTO_TERMO = "O termo já foi enviado para assinatura. Para mudar, cancele o envelope do termo primeiro.";
 var ASS_MSG_ABERTO_CONJUGE = "O termo já foi enviado para assinatura. Para mudar quem assina, cancele o envelope do termo primeiro.";

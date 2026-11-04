@@ -93,6 +93,14 @@ jobs:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
         run: python fetch_pos_obra.py
 
+      # 04/11/26 — dist/medidores_mc.json: medidores (padrão de energia e
+      # hidrômetro) já comprados no Mais Controle por obra, lidos do
+      # dist/analise/analise_detalhe.json (Orçado x Realizado). Alimenta o
+      # alerta "MEDIDOR … COMPRADO" das Ligações. Falhar não derruba o site.
+      - name: Medidores comprados no Mais Controle
+        continue-on-error: true
+        run: python medidores_mc.py
+
       # Gera dist/docs.json (base DOCUMENTOS + atividades de documentação).
       # Step SEPARADO pelo mesmo motivo do Pós Obra: se a leitura desta base
       # falhar, o que os steps anteriores já gravaram continua sendo publicado

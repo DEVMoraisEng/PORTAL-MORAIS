@@ -106,6 +106,45 @@
     g.fillStyle = escuro() ? "#9db4c4" : "#5a8099"; g.font = "600 30px " + FONTE;
     g.fillText(corta(g, stTexto, W - 90), 72, H * 0.72);
   }
+  /* 04/11: quadro "Agenda de hoje" — cada robô com os horários do dia e ✓ / ✗ nos que já rodaram */
+  const COR_AG = { ok: ["#1f8f4e", "#e8f6ee", "✓"], erro: ["#d64534", "#fdecea", "✗"], rodando: ["#2f80c2", "#e6f1fb", "●"],
+                   pendente: ["#7f93a0", "#ffffff", "⏳"], sem: ["#9aa7b0", "#f1f4f6", "?"] };
+  function desenharAgenda(c, ag, titulo, legenda) {
+    const g = c.getContext("2d"), W = c.width, H = c.height, d = new Date();
+    g.fillStyle = "#fdfdf8"; g.fillRect(0, 0, W, H);
+    g.fillStyle = "#1e3f58"; g.fillRect(0, 0, W, 92);
+    g.fillStyle = "#fff"; g.font = "800 50px " + FONTE; g.textBaseline = "middle"; g.textAlign = "left";
+    g.fillText(titulo || "AGENDA DE HOJE", 34, 48);
+    g.font = "600 30px " + FONTE; g.textAlign = "right";
+    g.fillText(["dom", "seg", "ter", "qua", "qui", "sex", "sáb"][d.getDay()] + " " + String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0") + " · " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"), W - 30, 48);
+    const linhas = (ag || []).slice(0, 12);
+    const cols = H / W < 0.4 && linhas.length > 3 ? 2 : 1, LW = W / cols;
+    const porCol = Math.ceil(linhas.length / cols) || 1, alt = Math.min(110, (H - 150) / porCol);
+    if (cols > 1) { g.fillStyle = "#dfe7ec"; g.fillRect(LW - 2, 100, 4, H - 150); }
+    linhas.forEach((l, k) => {
+      const col = Math.floor(k / porCol), i = k % porCol, x0 = col * LW;
+      const y = 112 + i * alt + alt / 2;
+      if (i % 2) { g.fillStyle = "#f2f6f8"; g.fillRect(x0, y - alt / 2, LW - 4, alt); }
+      g.textAlign = "left"; g.fillStyle = "#1a3347"; g.font = "700 32px " + FONTE;
+      g.fillText(corta(g, (l.ico || "") + " " + l.nome, 330), x0 + 24, y);
+      let x = x0 + 370;
+      l.itens.forEach(it => {
+        const [cor, fundo, marca] = COR_AG[it.e] || COR_AG.sem;
+        const w = 118, h = Math.min(60, alt - 16);
+        if (x + w > x0 + LW - 10) return;
+        g.fillStyle = fundo; retRed(g, x, y - h / 2, w, h, 12); g.fill();
+        g.lineWidth = it.extra ? 2 : 3; g.strokeStyle = cor;
+        if (it.extra) g.setLineDash([7, 5]);
+        g.stroke(); g.setLineDash([]);
+        g.fillStyle = cor; g.font = "800 27px " + FONTE; g.textAlign = "center";
+        g.fillText(it.h + " " + marca, x + w / 2, y + 1);
+        x += w + 10;
+      });
+    });
+    if (!linhas.length) { g.fillStyle = "#5a8099"; g.font = "600 32px " + FONTE; g.textAlign = "center"; g.fillText("Sem horários para hoje", W / 2, H / 2); }
+    g.fillStyle = "#5a8099"; g.font = "600 22px " + FONTE; g.textAlign = "left";
+    g.fillText(legenda || "✓ rodou e deu certo   ✗ deu errado   ● rodando   ⏳ ainda vai rodar   ? não achei a rodada   tracejado = rodou de novo", 24, H - 22);
+  }
   function spriteTexto(txt, cor, tam) {
     const c = canvas(128, 128), g = c.getContext("2d");
     g.font = "800 " + (tam || 96) + "px " + FONTE; g.textAlign = "center"; g.textBaseline = "middle";
@@ -231,10 +270,11 @@
     const rodape = mat(escuro() ? "#0f1a22" : "#295778");
     const rf = caixa(W, 0.22, 0.24, rodape); rf.position.set(0, 0.11, -D / 2); sala.add(rf);
     const re = caixa(0.24, 0.22, D, rodape); re.position.set(-W / 2, 0.11, 0); sala.add(re);
-    /* janelas na parede da esquerda */
-    const nJan = Math.max(2, Math.floor(D / 4.5));
+    /* 04/11: a parede da esquerda inteira é o quadro da Agenda de hoje (pedido do dono) — sem janelas */
+    const trechoJan = 0;
+    const nJan = 0;
     for (let i = 0; i < nJan; i++) {
-      const z = -D / 2 + (i + 0.5) * (D / nJan);
+      const z = -D / 2 + (i + 0.5) * (trechoJan / nJan);
       const vidro = new T.Mesh(new T.PlaneGeometry(2.2, 1.9), new T.MeshBasicMaterial({ color: escuro() ? "#2b4e6a" : "#bfe6ff", toneMapped: false }));
       vidro.rotation.y = Math.PI / 2; vidro.position.set(-W / 2 + 0.01, 2.3, z); sala.add(vidro);
       const mold = mat("#f4f7f8");
@@ -242,8 +282,17 @@
         const p = caixa(0.06, h, larg, mold); p.position.set(-W / 2 + 0.04, 2.3 + dy, z); p.castShadow = false; sala.add(p);
       });
     }
+    const largAg = D - 1.0, altAg = 3.5;
+    const cAg = canvas(2400, Math.round(2400 * altAg / largAg)); R.agenda = { c: cAg, t: textura(cAg) };
+    const quadroAg = new T.Mesh(new T.PlaneGeometry(largAg, altAg), new T.MeshBasicMaterial({ map: R.agenda.t, toneMapped: false }));
+    quadroAg.rotation.y = Math.PI / 2; quadroAg.position.set(-W / 2 + 0.07, 2.2, 0);
+    quadroAg.userData.chave = "__agenda__"; sala.add(quadroAg);
+    const moldAg = caixa(0.05, altAg + 0.16, largAg + 0.16, mat("#24313b")); moldAg.position.set(-W / 2 + 0.01, 2.25, quadroAg.position.z); moldAg.castShadow = false;
+    moldAg.userData.chave = "__agenda__"; sala.add(moldAg);
+    const p3x = planta(0.9); p3x.position.set(-W / 2 + 0.7, 0, D / 2 - 0.4); sala.add(p3x);
     /* quadro com o nome, relógio e lousa na parede do fundo */
-    const quadro = new T.Mesh(new T.PlaneGeometry(5.2, 1.3), new T.MeshBasicMaterial({ map: texQuadro("ESCRITÓRIO DE ROBÔS", "MORAIS ENGENHARIA · SERVIDOR"), toneMapped: false }));
+    const op = R.op || {};
+    const quadro = new T.Mesh(new T.PlaneGeometry(5.2, 1.3), new T.MeshBasicMaterial({ map: texQuadro(op.titulo || "ESCRITÓRIO DE ROBÔS", op.sub || "MORAIS ENGENHARIA · SERVIDOR"), toneMapped: false }));
     quadro.position.set(-W / 2 + 3.4, 3.0, -D / 2 + 0.01); sala.add(quadro);
     const cRel = canvas(256, 256); desenharRelogio(cRel); R.relogio = { c: cRel, t: textura(cRel) };
     const relogio = new T.Mesh(new T.CircleGeometry(0.55, 40), new T.MeshBasicMaterial({ map: R.relogio.t, toneMapped: false }));
@@ -255,8 +304,7 @@
     /* plantas e bebedouro */
     const p1 = planta(1.2); p1.position.set(-W / 2 + 0.7, 0, -D / 2 + 0.7); sala.add(p1);
     const p2 = planta(1); p2.position.set(W / 2 - 0.7, 0, -D / 2 + 0.7); sala.add(p2);
-    const p3 = planta(0.9); p3.position.set(-W / 2 + 0.7, 0, D / 2 - 0.8); sala.add(p3);
-    const beb = bebedouro(); beb.position.set(-W / 2 + 0.6, 0, -D / 2 + 2.2); sala.add(beb);
+    const beb = bebedouro(); beb.position.set(W / 2 - 0.6, 0, -D / 2 + 2.2); sala.add(beb);
     /* tapete da recepção */
     const tapete = new T.Mesh(new T.PlaneGeometry(Math.min(W - 2, 9.5), 3.2), mat(escuro() ? "#1f4150" : "#8fcfc6", { roughness: 1 }));
     tapete.rotation.x = -Math.PI / 2; tapete.position.set(W / 2 - Math.min(W - 2, 9.5) / 2 - 0.6, 0.012, D / 2 - 2.1); tapete.receiveShadow = true; sala.add(tapete);
@@ -278,7 +326,7 @@
     const ext = Math.max(W, D) * 0.75; Object.assign(s.shadow.camera, { left: -ext, right: ext, top: ext, bottom: -ext });
     s.shadow.camera.updateProjectionMatrix();
     encaixar();
-    R.chaves = robos.map(r => r.chave).join("|") + "#" + (escuro() ? "e" : "c");
+    R.chaves = robos.map(r => r.chave).join("|") + "#" + (escuro() ? "e" : "c") + "#" + ((R.op && R.op.titulo) || "");
   }
 
   /* câmera que mostra a sala inteira (mais longe em tela estreita, como o celular em pé) */
@@ -311,44 +359,66 @@
   }
 
   /* ------------------------------------------------------------ balões (HTML sobre a sala) */
+  /* 04/11: com muita mensagem os balões se cobriam. Agora: em cima de cada robô só um PINO pequeno (⚠ com erro,
+     ⏳ Nº na fila) e um QUADRO DE AVISOS fixo no canto da sala com a lista (causa, Ver relatório, Rodar de novo). */
   function baloesHtml(robos) {
     const op = R.op || {};
     R.baloes.innerHTML = "";
     R.balaoDe = new Map();
+    const erros = robos.filter(r => r.st === "erro"), fila = robos.filter(r => r.st === "pedido");
     robos.filter(r => r.st === "erro" || r.st === "pedido").forEach(r => {
-      const b = document.createElement("div");
-      b.className = "balao" + (r.st === "pedido" ? " pedido" : "");
-      const causa = op.causa ? op.causa(r) : "";
-      const pode = r.st === "erro" && op.podeRodar && op.podeRodar(r);
-      b.innerHTML = r.st === "pedido"
-        ? `<b>⏳ ${esc3(r.cat.nome)}</b><span>Pedido de rodar de novo na fila — o servidor pega em até 1 min.</span>`
-        : `<b>⚠ ${esc3(r.cat.nome)}</b><span>${esc3(causa || "Deu errado na última rodada.")}</span>
-           <div class="bb"><button type="button" data-a="ver">Ver relatório</button>${pode ? `<button type="button" data-a="rodar" class="rodar">▶ Rodar de novo</button>` : ""}</div>`;
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "pino " + (r.st === "erro" ? "erro" : "ped");
+      const n = (/(\d+)º/.exec(r.stTexto || "") || [])[1];
+      b.textContent = r.st === "erro" ? "⚠" : "⏳" + (n ? " " + n + "º" : "");
+      b.title = r.cat.nome + " — " + (r.st === "erro" ? (op.causa ? op.causa(r) : "deu errado") : r.stTexto);
       b.addEventListener("pointerdown", e => e.stopPropagation());
-      b.addEventListener("click", e => {
-        const a = e.target.closest("button") && e.target.closest("button").dataset.a;
-        if (a === "ver" && op.abrir) op.abrir(r.chave);
-        if (a === "rodar" && op.rodar) op.rodar(r, e.target.closest("button"));
-        e.stopPropagation();
-      });
+      b.addEventListener("click", e => { e.stopPropagation(); if (op.abrir) op.abrir(r.chave); });
       R.baloes.appendChild(b); R.balaoDe.set(r.chave, b);
     });
+    /* quadro de avisos */
+    let q = R.caixa.querySelector(".quadro-avisos");
+    if (!erros.length && !fila.length) { if (q) q.remove(); return; }
+    if (!q) { q = document.createElement("div"); q.className = "quadro-avisos"; R.caixa.appendChild(q);
+      q.addEventListener("pointerdown", e => e.stopPropagation()); q.addEventListener("wheel", e => e.stopPropagation()); }
+    const fechado = R.avisosFechado;
+    q.classList.toggle("fechado", !!fechado);
+    q.innerHTML = `<div class="qa-top"><b>${erros.length ? "⚠ " + erros.length + " precisa" + (erros.length > 1 ? "m" : "") + " de atenção" : "⏳ Fila do Coordenador"}</b><button type="button" data-a="abre">${fechado ? "▸ abrir" : "▾ fechar"}</button></div>
+      <div class="qa-corpo">${erros.map(r => {
+        const pode = op.podeRodar && op.podeRodar(r);
+        return `<div class="qa-it" data-ch="${esc3(r.chave)}"><b>${esc3(r.cat.ico)} ${esc3(r.cat.nome)}</b><span>${esc3(op.causa ? op.causa(r) : "Deu errado na última rodada.")}</span>
+          <div class="bb"><button type="button" data-a="ver">Ver relatório</button>${pode ? `<button type="button" data-a="rodar" class="rodar">▶ Rodar de novo</button>` : ""}</div></div>`;
+      }).join("")}${fila.length ? `<div class="qa-fila">⏳ Na fila para rodar de novo: ${fila.map(r => esc3(r.cat.nome) + ((/(\d+)º/.exec(r.stTexto || "") || [])[1] ? " (" + /(\d+)º/.exec(r.stTexto)[1] + "º)" : "")).join(" → ")}</div>` : ""}</div>`;
+    q.onclick = e => {
+      const bt = e.target.closest("button"); if (!bt) return;
+      e.stopPropagation();
+      if (bt.dataset.a === "abre") { R.avisosFechado = !R.avisosFechado; baloesHtml(robos); return; }
+      const ch = bt.closest(".qa-it") && bt.closest(".qa-it").dataset.ch, r = robos.find(x => x.chave === ch);
+      if (bt.dataset.a === "ver" && op.abrir) op.abrir(ch);
+      if (bt.dataset.a === "rodar" && op.rodar && r) op.rodar(r, bt);
+    };
   }
   function esc3(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
   const _v = null;
   function posicionarBaloes() {
     if (!R.balaoDe || !R.balaoDe.size) return;
-    const w = R.caixa.clientWidth, h = R.caixa.clientHeight, v = new T.Vector3();
+    const w = R.caixa.clientWidth, h = R.caixa.clientHeight, v = new T.Vector3(), postos = [];
     R.balaoDe.forEach((b, ch) => {
       const m = R.mesas.get(ch); if (!m) return;
-      v.set(0.35, 3.5, -0.6); m.localToWorld(v); v.project(R.camera);
-      const fora = v.z > 1 || v.x < -1.15 || v.x > 1.15 || v.y < -1.15 || v.y > 1.6;
+      v.set(0.35, 3.0, -0.7); m.localToWorld(v); v.project(R.camera);
+      const fora = v.z > 1 || v.x < -1.1 || v.x > 1.1 || v.y < -1.1 || v.y > 1.2;
       b.style.display = fora ? "none" : "";
       if (fora) return;
-      /* em cima do robô, mas sempre inteiro dentro da sala (no celular o robô pode estar na beirada) */
-      const bw = b.offsetWidth, bh = b.offsetHeight;
-      const x = Math.min(Math.max((v.x + 1) / 2 * w - bw / 2, 6), w - bw - 6);
-      const y = Math.min(Math.max((1 - v.y) / 2 * h - bh - 10, 6), h - bh - 6);
+      const bw = b.offsetWidth || 34, bh = b.offsetHeight || 28;
+      let x = Math.min(Math.max((v.x + 1) / 2 * w - bw / 2, 4), w - bw - 4);
+      let y = Math.min(Math.max((1 - v.y) / 2 * h - bh, 4), h - bh - 4);
+      for (let k = 0; k < 6; k++) {                 // pino em cima de pino: sobe um pouco
+        const bate = postos.find(p => Math.abs(p.x - x) < bw && Math.abs(p.y - y) < bh);
+        if (!bate) break;
+        y = Math.max(4, bate.y - bh - 2);
+      }
+      postos.push({ x, y });
       b.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
     });
   }
@@ -422,7 +492,11 @@
       if (e.pointerType !== "mouse") return;
       const ch = achar(e); R.sobre = ch; el.style.cursor = ch ? "pointer" : "grab";
       const dica = R.dica;
-      if (ch && R.mesas.get(ch) && R.mesas.get(ch).userData.r) {
+      if (ch === "__agenda__") {
+        const rc = R.caixa.getBoundingClientRect();
+        dica.textContent = "Agenda de hoje — clique para ver grande"; dica.style.display = "block";
+        dica.style.left = (e.clientX - rc.left + 14) + "px"; dica.style.top = (e.clientY - rc.top + 14) + "px";
+      } else if (ch && R.mesas.get(ch) && R.mesas.get(ch).userData.r) {
         const r = R.mesas.get(ch).userData.r; const rc = R.caixa.getBoundingClientRect();
         dica.textContent = r.cat.nome + " — clique para ver"; dica.style.display = "block";
         dica.style.left = (e.clientX - rc.left + 14) + "px"; dica.style.top = (e.clientY - rc.top + 14) + "px";
@@ -480,7 +554,7 @@
     const fundo = escuro() ? "#0e1920" : "#eaf1f3";
     R.cena.background = new T.Color(fundo); R.cena.fog = new T.Fog(fundo, 40, 120);
     R.hemi.intensity = escuro() ? 0.45 : 0.75; R.sol.intensity = escuro() ? 0.55 : 0.95;
-    const chaves = robos.map(r => r.chave).join("|") + "#" + (escuro() ? "e" : "c");
+    const chaves = robos.map(r => r.chave).join("|") + "#" + (escuro() ? "e" : "c") + "#" + ((R.op && R.op.titulo) || "");
     if (chaves !== R.chaves) montarSala(robos);
     robos.forEach(aplicarEstado);
     /* lousa: o resumo de hoje */
@@ -492,6 +566,7 @@
       { t: "☾ " + n("off") + " desligados", cor: "#57606a" }
     ]);
     R.lousa.t.needsUpdate = true;
+    if (R.agenda) { desenharAgenda(R.agenda.c, (R.op && R.op.agenda) || [], R.op && R.op.agendaTitulo, R.op && R.op.agendaLegenda); R.agenda.t.needsUpdate = true; }
     baloesHtml(robos);
   }
   function focar(chave) {

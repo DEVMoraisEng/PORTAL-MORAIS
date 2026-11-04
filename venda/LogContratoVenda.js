@@ -35,6 +35,8 @@ var LogContratoVenda = (function () {
     gerarContrato: function () { return "gerou o contrato final"; },
     assinaturaEnviar: function (p) { return "enviou " + doc(p) + " para assinatura na Clicksign"; },
     assinaturaReenviar: function (p) { return "reenviou o link de assinatura " + docDe(p); },
+    /* 03/11: só o papel — nunca o e-mail (o histórico fica no Notion e na tela) */
+    assinaturaTrocarEmail: function (p, r) { return "trocou o e-mail " + (r && r.papel ? "de " + curto(r.papel, 40) + " " : "") + "na Clicksign " + docDe(p) + " (sem cancelar o envelope)"; },
     /* 01/11: o texto segue a resposta — Descartar rascunho que só atualizou a situação não "cancelou" nada */
     assinaturaCancelar: function (p, r) {
       if (r && r.descartou) return "descartou o rascunho do envelope " + docDe(p) + " na Clicksign";

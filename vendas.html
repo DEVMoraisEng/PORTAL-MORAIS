@@ -1219,8 +1219,8 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 <script src="venda/FluxoLivre.js?v=11"></script><!-- 29/10: Alterar fluxo -->
 <script src="venda/quadro-fluxo.js?v=1"></script><!-- 31/10: quadro do pro soluto segue o fluxo alterado -->
 <script src="venda/Antecipacao.js?v=1"></script><!-- 31/10: Antecipação — a conta roda no navegador -->
-<script src="venda-dossie.js?v=65"></script>
-<script src="venda/contrato-vendida.js?v=2"></script>
+<script src="venda-dossie.js?v=67"></script>
+<script src="venda/contrato-vendida.js?v=3"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele.
    Mesma chave (morais_tema) das outras páginas do portal. */
@@ -2037,8 +2037,11 @@ function condEtapas(l){
   if(it[3].feito) it[3].sub="assinado"; if(it[4].feito) it[4].sub="lançada";
   /* 31/10/2026 (dono): contrato gerado, assinando ou assinado sobrepõe a pré-reserva — a etapa da linha passa a ser
      a do contrato em diante, mesmo com o termo de pré-reserva pendente */
+  /* 03/11/2026 (dono): sem pré-reserva em andamento, a etapa some da faixa (conta como feita e sai da lista) */
+  const semPR=!condUsaPreReserva(l); if(semPR) it[0].feito=true;
   const ini=it[2].feito?2:0;
   let atual=it.findIndex((x,i)=>i>=ini&&!x.feito);
+  if(semPR){ it.shift(); if(atual>0) atual--; }
   return {itens:it, atual:atual};   /* atual = -1: tudo feito */
 }
 function condEtapaTag(l){
@@ -2091,8 +2094,15 @@ function condAbaDoBloco(el){
   for(const c of n.classList) if(CD_ABA_DO_BLOCO[c]) return CD_ABA_DO_BLOCO[c];
   return null;
 }
-function condAbasHtml(){
-  return '<div class="cd-abas"><div class="tabs" role="tablist">'+CD_ABAS.map(a=>'<button type="button" role="tab" class="tab'+(a[0]===COND_ABA?" on":"")+'" aria-selected="'+(a[0]===COND_ABA)+'" data-aba="'+a[0]+'" onclick="condTrocarAba(this.dataset.aba)">'+a[1]+'</button>').join("")+'</div></div>';
+/* 03/11/2026 (dono): a pré-reserva sai do fluxo — a reserva agora é o Reservar da proposta, com 5 dias para gerar
+   o contrato. A aba e a etapa só aparecem na venda que já tem termo de pré-reserva gerado ou enviado. */
+function condUsaPreReserva(l){
+  return !!l && (!!cdSit(l,"PRÉ-RESERVA - SITUAÇÃO") || cdTemArq(cdVal(l,"PRÉ-RESERVA - TERMO GERADO")));
+}
+function condAbasHtml(l){
+  const pr=condUsaPreReserva(l);
+  if(!pr && COND_ABA==="prereserva") COND_ABA="resumo";
+  return '<div class="cd-abas"><div class="tabs" role="tablist">'+CD_ABAS.filter(a=>pr||a[0]!=="prereserva").map(a=>'<button type="button" role="tab" class="tab'+(a[0]===COND_ABA?" on":"")+'" aria-selected="'+(a[0]===COND_ABA)+'" data-aba="'+a[0]+'" onclick="condTrocarAba(this.dataset.aba)">'+a[1]+'</button>').join("")+'</div></div>';
 }
 function condTrocarAba(aba){
   if(!CD_ABAS.some(a=>a[0]===aba)) return;
@@ -2165,7 +2175,7 @@ function condAbrir(id){
     '<h3>Unidade '+esc(g(tit)||"")+(g("CONDOMÍNIO")?' · '+esc(g("CONDOMÍNIO")):'')+'</h3><div class="sub">'+esc(g("PROPONENTE")||"—")+' · Proposta '+esc(g("PROPOSTA")||"—")+' · Corretor: '+esc(g("CORRETOR")||"—")+(g("CPF CORRETOR")?' · CPF '+esc(g("CPF CORRETOR")):'')+'</div></div>'+
     '<button class="cd-bt" onclick="condFechar()">✕ Fechar</button></div>'+
     condEtapasHtml(l)+
-    condAbasHtml()+
+    condAbasHtml(l)+
     /* aba Resumo: valores, link para completar a venda e pendências */
     '<div data-sec="resumo">'+
     '<div class="cd-kpis" id="cd-kpis">'+condKpisHtml(l,fx)+'</div>'+
