@@ -109,3 +109,65 @@ def test_pdf_sobe_com_o_nome_que_o_apps_script_aceita(tmp_path):
 
 def test_sem_a_pasta_do_robo_nao_tem_sala(tmp_path):
     assert A.montar_sala(tmp_path / "nao-existe") is None
+
+
+def test_concessionarias_do_resumo():
+    t = ("    por concessionária: {'EQUATORIAL': 3, 'SANEAGO': 2, 'SANESC': 4}\n"
+         "  EQUATORIAL: 1 na fila -> x.json\n  SANESC: 2 na fila -> y.json\n")
+    assert A.concessionarias(t) == {"base": {"EQUATORIAL": 3, "SANEAGO": 2, "SANESC": 4},
+                                    "fila": {"EQUATORIAL": 1, "SANESC": 2}}
+
+
+EMAIL_FALSO = '''
+SO_AVISO = ("cliente",)
+def resumir(texto):
+    return {"problemas": [{"obra": "XX 01 QD 01 LT 01 CS 1", "motivo": "sem matrícula válida"}], "falhas": [{"passo": "Ligações novas", "texto": "Não capturei a autenticação"}],
+            "baixadas": [], "lancamentos": [], "ja_lancadas": 0, "recorrencias": 0, "renovadas": 0, "avista": 0, "sem_fatura": 1}
+def agrupar(r):
+    return [{"chave": "taxa", "titulo": "Taxa", "quem": "Financeiro", "fazer": "pedir boleto", "itens": ["XX 01 QD 01 LT 02 CS 1 — taxa R$ 1,00"]},
+            {"chave": "sem_uc", "titulo": "Sem UC", "quem": "Cadastro", "fazer": "preencher", "itens": ["XX 01 QD 01 LT 01 CS 1"]}]
+def pendencias(g):
+    return 2
+def explicar_falha(t):
+    return ("o Chrome não entrou", "ver o login")
+'''
+PDF_FALSO = '''
+URL_PARCELA = "https://mc/#/payable-installments/{}"
+L = [{"obra": "XX 01 QD 01 LT 02 CS 1", "conc": "EQUATORIAL", "url": "https://notion/e2", "chave": "111"},
+     {"obra": "XX 01 QD 01 LT 02 CS 1", "conc": "SANESC", "url": "https://notion/s2", "chave": "222"},
+     {"obra": "XX 01 QD 01 LT 01 CS 1", "conc": "SANESC", "url": "https://notion/s1", "chave": ""},
+     {"obra": "XX 01 QD 01 LT 01 CS 1", "conc": "SANESC", "url": "https://notion/s1b", "chave": ""}]
+def _norm(t):
+    return t.upper()
+def indice_notion(raiz):
+    po, pc = {}, {}
+    for l in L:
+        po.setdefault(l["obra"], []).append(l)
+        if l["chave"]:
+            pc.setdefault(l["chave"], []).append(l)
+    return po, pc
+def carregar_parcelas(raiz):
+    return {"111": {"id": "uu-e"}, "222": {"id": "uu-s"}}
+def _casa(t, idx):
+    obra = t.split(" — ")[0]
+    return obra, t[len(obra):].strip(" —"), idx[0].get(obra, [])
+'''
+
+
+def test_pendencias_casa_a_casa_pelas_regras_do_robo(tmp_path):
+    pasta = _pasta(tmp_path)
+    (pasta / "coletor").mkdir()
+    (pasta / "coletor" / "email_rodada.py").write_text(EMAIL_FALSO, encoding="utf-8")
+    (pasta / "coletor" / "relatorio_pdf.py").write_text(PDF_FALSO, encoding="utf-8")
+    sala = A.montar_sala(pasta, hoje=dt.date(2026, 11, 4))
+    assert sala["avisos"] == []
+    p = sala["rodadas"][0]["pend"]
+    taxa = p["grupos"][0]["itens"][0]
+    assert taxa["conc"] == "SANESC" and [l["url"] for l in taxa["notion"]] == ["https://notion/s2"]
+    assert taxa["mc"] == ["https://mc/#/payable-installments/uu-s"]            # só a parcela da água
+    sem_uc = p["grupos"][1]["itens"][0]
+    assert sem_uc["conc"] == "SANESC" and sem_uc["mc"] == []
+    assert p["falhas"][0]["causa"] == "o Chrome não entrou"
+    d = sala["duplicadas"]
+    assert len(d) == 1 and d[0]["tipo"] == "casa" and d[0]["obra"] == "XX 01 QD 01 LT 01 CS 1" and len(d[0]["notion"]) == 2
+    assert sala["rodadas"][0]["conc"] == {} or isinstance(sala["rodadas"][0]["conc"], dict)

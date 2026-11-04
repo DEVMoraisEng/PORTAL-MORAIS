@@ -61,6 +61,7 @@ RECHECAR_DIAS = 20                 # pagamento recente: confere de novo (comprov
 VALIDADE_COPIA_S = 3 * 86400
 DESCOBRIR = os.environ.get("DESCOBRIR", "").strip().lower() in ("1", "true", "sim")
 HOJE = dt.date.today()
+PAGINAS_DESCOBERTA = int(os.environ.get("ANEXOS_PAGINAS_DESCOBERTA") or 30)
 
 
 def log(*a):
@@ -225,6 +226,21 @@ def _num(x):
             return 0.0
 
 
+def _data_iso(x):
+    """04/11 (3ª descoberta): a data da lista vem como TEXTO — "AAAA-MM-DD…" ou "DD/MM/AAAA…". Sempre AAAA-MM-DD."""
+    t = str(x or "").strip()
+    m = re.match(r"^(\d{4})-(\d\d)-(\d\d)", t)
+    if m:
+        return t[:10]
+    m = re.match(r"^(\d\d)/(\d\d)/(\d{4})", t)
+    return "%s-%s-%s" % (m.group(3), m.group(2), m.group(1)) if m else ""
+
+
+def _mascara(x):
+    """A FORMA de um valor sem o valor: dígitos viram 9 ("2026-10-01" -> "9999-99-99")."""
+    return re.sub(r"\d", "9", str(x))[:28] if x not in (None, "") else "vazio"
+
+
 def _pegar(obj, caminho):
     for parte in caminho.split("."):
         if parte.endswith("[]"):
@@ -254,6 +270,7 @@ class LeitorMC:
         self.tela = None               # parâmetros que a própria tela usou (dict de listas), se o porteiro viu
         self.tentativas = []           # (forma, páginas, do escopo achados) — a descoberta mostra
         self.casar_idx, self.casar_desc = {}, {}   # 04/11: (data, valor) -> {nº do lançamento}; nº -> {descrição, nº doc}
+        self.janela = None                         # 04/11: (início, fim) das datas do escopo, ±7 dias
         self.casados = self.ambiguos = 0
 
     def _get(self, caminho, params=None):
@@ -280,20 +297,27 @@ class LeitorMC:
                 continue
             if idl not in alvo:
                 continue
-            for data in {str(dv[i] or "")[:10], str(dp[i] or "")[:10]} - {""}:
+            for data in {_data_iso(dv[i]), _data_iso(dp[i])} - {""}:
                 for val in {round(_num(vp[i]), 2), round(_num(v[i]), 2)} - {0.0}:
                     idx.setdefault((data, val), set()).add(idl)
             desc.setdefault(idl, set()).update({N(d[i]), N(nd[i])} - {""})
         self.casar_idx, self.casar_desc = idx, desc
+        # 04/11 (3ª descoberta): a lista vem em ordem de data, e a janela larga (210 dias) gastava as páginas da
+        # descoberta com parcelas mais velhas que o escopo — agora a janela é a das datas do escopo (±7 dias)
+        datas = sorted(d for d, _v in idx)
+        if datas:
+            ini = dt.date.fromisoformat(datas[0]) - dt.timedelta(days=7)
+            fim = dt.date.fromisoformat(datas[-1]) + dt.timedelta(days=7)
+            self.janela = (ini.isoformat(), fim.isoformat())
         return len(idx)
 
     def _casar(self, it):
-        datas = {str(it.get(k) or "")[:10] for k in ("plannedDate", "dateOfPayment")} - {""}
+        datas = {_data_iso(it.get(k)) for k in ("plannedDate", "dateOfPayment")} - {""}
         pago, resto = _num(it.get("sumOfPaidValues")), _num(it.get("remainingValue"))
         vals = {round(pago, 2), round(pago + resto, 2)} - {0.0}
         for b in (it.get("filteredPaids") or it.get("paids") or []):
             if isinstance(b, dict):
-                bd = str(b.get("payingDate") or b.get("dateOfPayment") or "")[:10]
+                bd = _data_iso(b.get("payingDate") or b.get("dateOfPayment") or b.get("date") or b.get("paymentDate"))
                 bv = _num(b.get("paidValue") or b.get("value"))
                 if bd:
                     datas.add(bd)
@@ -328,7 +352,8 @@ class LeitorMC:
     def _da_tela(self, base, pagina, troca=None, sem=()):
         q = {k: list(v) for k, v in base.items() if k not in sem}
         datas = [k for k, v in q.items() if v and _RE_DATA.match(str(v[0]))]
-        ini, fim = (HOJE - dt.timedelta(days=DIAS + 120)).isoformat(), (HOJE + dt.timedelta(days=30)).isoformat()
+        ini, fim = self.janela or ((HOJE - dt.timedelta(days=DIAS + 120)).isoformat(),
+                                                     (HOJE + dt.timedelta(days=30)).isoformat())
         for i, k in enumerate(datas):
             n = k.lower()
             eh_fim = any(x in n for x in ("end", "final", "fim", "until", "to")) and not any(x in n for x in ("start", "begin", "init", "from"))
@@ -501,7 +526,8 @@ def descobrir(leitor, alvo):
     log("DESCOBRIR: só formato, nada gravado")
     leitor.params_da_tela()
     log(f"pedido da lista feito pela tela do porteiro: {leitor.formato_da_tela() or 'NÃO VISTO (a tela não pediu a lista em 20 s)'}")
-    mapa, primeira = leitor.mapear(alvo, max_paginas=8)
+    log(f"janela pedida ao MC: {leitor.janela or 'a larga (sem datas no escopo)'} · chaves data+valor do escopo: {len(leitor.casar_idx or {})}")
+    mapa, primeira = leitor.mapear(alvo, max_paginas=PAGINAS_DESCOBERTA)
     for nome, pags, achados in leitor.tentativas:
         log(f"  forma '{nome}': {pags} página(s) lida(s), {achados} lançamento(s) do escopo")
     if primeira is not None:
@@ -513,10 +539,18 @@ def descobrir(leitor, alvo):
             log(f"  tipo do id da parcela: {_tipo_id(it.get('id'))} · tradePayable: {chaves(it.get('tradePayable'), 30)}")
             log(f"  tipo do tradePayable.id: {_tipo_id((it.get('tradePayable') or {}).get('id'))} · tipo do tradePayableId: {_tipo_id(it.get('tradePayableId'))}")
             log(f"  forma das datas/valores: plannedDate {_tipo_id(it.get('plannedDate'))} · dateOfPayment {_tipo_id(it.get('dateOfPayment'))} · sumOfPaidValues {_tipo_id(it.get('sumOfPaidValues'))} · paids {len(it.get('filteredPaids') or it.get('paids') or [])}")
+            pg = (it.get("filteredPaids") or it.get("paids") or [None])[0]
+            log(f"  máscara (dígito = 9): plannedDate {_mascara(it.get('plannedDate'))} · dateOfPayment {_mascara(it.get('dateOfPayment'))} · "
+                f"sumOfPaidValues {_mascara(it.get('sumOfPaidValues'))} · remainingValue {_mascara(it.get('remainingValue'))}")
+            if isinstance(pg, dict):
+                log(f"  chaves da baixa: {chaves(pg, 30)} · máscaras: " + ", ".join(
+                    f"{k} {_mascara(pg.get(k))}" for k in ("payingDate", "dateOfPayment", "date", "paymentDate", "paidValue", "value") if k in pg))
+            ult = _lista(primeira)[-1]
+            log(f"  1ª página vai de {_data_iso(it.get('plannedDate')) or '?'} a {_data_iso(ult.get('plannedDate')) or '?'} (plannedDate)")
             nums = [c for c, v in _escalares(it) if _tipo_id(v) == "número" and 5 <= len(str(v)) <= 10]
             log(f"  campos com número de 5 a 10 dígitos: {nums[:15]}")
     log(f"campo com o nº do lançamento: {leitor.campo_num or 'não vem na lista — casado por data e valor'} · "
-        f"casados: {leitor.casados} · ambíguos (ficaram de fora): {leitor.ambiguos} · lançamentos do escopo achados (8 páginas): {len(mapa)}")
+        f"casados: {leitor.casados} · ambíguos (ficaram de fora): {leitor.ambiguos} · lançamentos do escopo achados ({PAGINAS_DESCOBERTA} páginas no máx.): {len(mapa)}")
     lidos = 0
     for idl in sorted(mapa, key=lambda i: alvo.get(i, ""), reverse=True)[:3]:
         log(f"— lançamento …{str(idl)[-4:]}")

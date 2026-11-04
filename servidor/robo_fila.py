@@ -33,6 +33,7 @@ RAIZ = pathlib.Path(__file__).resolve().parent.parent          # o clone do port
 CENTRAL = pathlib.Path(os.environ.get("MC_CENTRAL") or r"C:\AUTOMAÇÕES MAIS CONTROLE\_central")
 CONFIG = CENTRAL / "robos-portal.json"
 TRAVA = CENTRAL / "robos-portal.trava"
+TRAVA_INDICES = CENTRAL / "robo-indices.trava"   # 04/11: os índices não esperam a trava da fila
 SAUDE = CENTRAL / "robos-portal-saude.json"
 APLICAR = CENTRAL / "VENDA_APLICAR.txt"
 LOGS = CENTRAL / "logs"
@@ -334,15 +335,22 @@ def carregar() -> list:
     return [Fila(f) for f in cfg.get("filas") or []]
 
 
-def com_trava(funcao):
-    """Uma execução por vez (o Agendador chama a cada minuto; um lançamento pode durar mais)."""
+def com_trava(funcao, trava=None):
+    """Uma execução por vez (o Agendador chama a cada minuto; um lançamento pode durar mais).
+
+    04/11/2026: os índices têm a trava DELES (TRAVA_INDICES). Com a mesma da fila, o "Rodar de novo" e o
+    Coordenador (que soltam a tarefa de dentro da rodada da fila, com a trava pega) faziam os índices saírem na
+    hora com "outra execução ainda está rodando" — código 0, nenhuma linha no log e o relatório "FALHOU"."""
+    trava = trava or TRAVA
     CENTRAL.mkdir(parents=True, exist_ok=True)
     import msvcrt
-    f = open(TRAVA, "a+")
+    f = open(trava, "a+")
     try:
         msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
     except OSError:
         print("outra execução ainda está rodando — saindo")
+        if trava != TRAVA:
+            log("[%s] outra execução ainda está rodando — não abri outra" % pathlib.Path(trava).stem.replace("robo-", ""))
         return 0
     try:
         return funcao()
@@ -511,7 +519,7 @@ def main(argv=None) -> int:
     if a.verificar:
         return verificar()
     if a.indices:
-        return com_trava(indices)
+        return com_trava(indices, TRAVA_INDICES)
     if a.robo:
         return robo_antigo(a.robo)      # sem a trava da fila: os robôs antigos não usam a fila
     codigo = com_trava(rodada)
