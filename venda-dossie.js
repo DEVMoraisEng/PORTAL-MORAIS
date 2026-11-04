@@ -2241,6 +2241,12 @@
     if (s !== "ENVIADO" && s !== "ASSINADO") return;
     try { window.dispatchEvent(new CustomEvent("venda:contrato-enviado", { detail: { pageId: pageId, situacao: s } })); } catch (e) {}
   }
+  /* 03/11/2026 (dono): contrato FINAL gerado já é venda — proposta VENDIDA, mapa VENDIDA = SIM e o e-mail de venda ao
+   * corretor. Usa o mesmo aviso do enviado (vendas.html só age na linha do condomínio). */
+  function avisarContratoGerado(pageId, estado) {
+    if (!estado || !(estado.gerado || estado.etapa === "FINAL")) return;
+    try { window.dispatchEvent(new CustomEvent("venda:contrato-enviado", { detail: { pageId: pageId, situacao: "GERADO" } })); } catch (e) {}
+  }
 
   /* opts.recebimentos: o bloco Recebimentos (só a casa da VENDAS; o cartão do condomínio não tem) */
   function criarBlocosVenda(pageId, ativo, opts) {
@@ -2924,6 +2930,7 @@
       if (r.ok) { estadoC = estadoContrato(r); uiC.msg = ""; }
       else uiC.msg = mensagemContrato(r);
       pintar();
+      if (r.ok) avisarContratoGerado(pageId, estadoC);
       /* 31/10/2026: o cartão do condomínio mostra o quadro do link só quando falta algo (vendas.html escuta) */
       if (r.ok) try { window.dispatchEvent(new CustomEvent("venda:faltas-cliente", { detail: { pageId: pageId, faltas: estadoC.faltasCliente || null } })); } catch (e) {}
     }
@@ -3328,6 +3335,7 @@
         if (antes.condicoes) estadoC.condicoes = antes.condicoes;  /* especiais não somem depois de gerar */
         uiC.faltas = null; uiC.campos = null;
         var feito = aprovar ? "Contrato gerado." : "Pré-contrato gerado — abra, confira o que está grifado e clique em Conferi.";
+        if (aprovar) avisarContratoGerado(pageId, estadoC);
         /* condomínio: campos que saíram em branco ("____") não travam, mas avisam */
         uiC.msg = r.avisos && r.avisos.length ? feito + " Atenção: " + r.avisos.join("; ") + "." : feito;
       } else if (r.erro === "PRECONTRATO_DESATUALIZADO" || r.erro === "PRECONTRATO_FALTANDO" || r.erro === "PRECONTRATO_REFAZER") {

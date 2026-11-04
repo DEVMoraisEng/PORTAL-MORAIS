@@ -61,6 +61,7 @@ RECHECAR_DIAS = 20                 # pagamento recente: confere de novo (comprov
 VALIDADE_COPIA_S = 3 * 86400
 DESCOBRIR = os.environ.get("DESCOBRIR", "").strip().lower() in ("1", "true", "sim")
 HOJE = dt.date.today()
+PAGINAS_DESCOBERTA = int(os.environ.get("ANEXOS_PAGINAS_DESCOBERTA") or 30)
 
 
 def log(*a):
@@ -212,6 +213,34 @@ def _escalares(obj, prefixo="", prof=0, out=None):
     return out
 
 
+_RE_DATA = re.compile(r"^\d{4}-\d\d-\d\d")
+
+
+def _num(x):
+    try:
+        return float(x or 0)
+    except (TypeError, ValueError):
+        try:
+            return float(str(x).replace(".", "").replace(",", "."))
+        except ValueError:
+            return 0.0
+
+
+def _data_iso(x):
+    """04/11 (3ª descoberta): a data da lista vem como TEXTO — "AAAA-MM-DD…" ou "DD/MM/AAAA…". Sempre AAAA-MM-DD."""
+    t = str(x or "").strip()
+    m = re.match(r"^(\d{4})-(\d\d)-(\d\d)", t)
+    if m:
+        return t[:10]
+    m = re.match(r"^(\d\d)/(\d\d)/(\d{4})", t)
+    return "%s-%s-%s" % (m.group(3), m.group(2), m.group(1)) if m else ""
+
+
+def _mascara(x):
+    """A FORMA de um valor sem o valor: dígitos viram 9 ("2026-10-01" -> "9999-99-99")."""
+    return re.sub(r"\d", "9", str(x))[:28] if x not in (None, "") else "vazio"
+
+
 def _pegar(obj, caminho):
     for parte in caminho.split("."):
         if parte.endswith("[]"):
@@ -230,13 +259,19 @@ class LeitorMC:
     parcela está o nº do lançamento e pega dali os UUIDs do lançamento (tradePayable.id) e das baixas."""
 
     PARAMS_LISTA = [{"dateField": "PLANNED"}, {"dateField": "DATE_OF_PAYMENT"}, {}]
+    ROTA_LISTA = "/payable-installments/paginated-result"
 
     def __init__(self, erp):
         self.erp = erp
         self.chamadas = 0
         self.erros_rota = []           # (rota, erro curto) — a descoberta mostra todos
         self.campo_num = None          # caminho do nº do lançamento dentro da parcela
-        self.params_ok = None
+        self.params_ok = None          # (nome, função página -> params) da forma de pedir a lista que funcionou
+        self.tela = None               # parâmetros que a própria tela usou (dict de listas), se o porteiro viu
+        self.tentativas = []           # (forma, páginas, do escopo achados) — a descoberta mostra
+        self.casar_idx, self.casar_desc = {}, {}   # 04/11: (data, valor) -> {nº do lançamento}; nº -> {descrição, nº doc}
+        self.janela = None                         # 04/11: (início, fim) das datas do escopo, ±7 dias
+        self.casados = self.ambiguos = 0
 
     def _get(self, caminho, params=None):
         self.chamadas += 1
@@ -244,31 +279,152 @@ class LeitorMC:
         return self.erp.pedir("GET", caminho, params=params)
 
     def _erro(self, rota, e):
-        self.erros_rota.append((rota, f"{type(e).__name__}: {str(e)[:170]}"))
+        self.erros_rota.append((rota, f"{type(e).__name__}: {str(e)[:320]}"))
+
+    # ---- 0) 04/11 (3ª descoberta): a lista da tela NÃO traz o nº do lançamento (só UUIDs: id, tradePayableId).
+    #         O robô casa cada parcela da lista com o pagamento da auditoria pela DATA (prevista ou de pagamento) e
+    #         pelo VALOR; se der mais de um, desempata pela descrição / nº do documento. Ambíguo fica de fora.
+    def preparar_casamento(self, aud, alvo):
+        c = aud.get("cols") or {}
+        ids = c.get("id") or []
+        col = lambda nome: c.get(nome) or [None] * len(ids)                     # noqa: E731
+        dv, dp, v, vp, d, nd = col("dv"), col("dp"), col("v"), col("vp"), col("d"), col("nd")
+        idx, desc = {}, {}
+        for i, idl in enumerate(ids):
+            try:
+                idl = int(idl)
+            except (TypeError, ValueError):
+                continue
+            if idl not in alvo:
+                continue
+            for data in {_data_iso(dv[i]), _data_iso(dp[i])} - {""}:
+                for val in {round(_num(vp[i]), 2), round(_num(v[i]), 2)} - {0.0}:
+                    idx.setdefault((data, val), set()).add(idl)
+            desc.setdefault(idl, set()).update({N(d[i]), N(nd[i])} - {""})
+        self.casar_idx, self.casar_desc = idx, desc
+        # 04/11 (3ª descoberta): a lista vem em ordem de data, e a janela larga (210 dias) gastava as páginas da
+        # descoberta com parcelas mais velhas que o escopo — agora a janela é a das datas do escopo (±7 dias)
+        datas = sorted(d for d, _v in idx)
+        if datas:
+            ini = dt.date.fromisoformat(datas[0]) - dt.timedelta(days=7)
+            fim = dt.date.fromisoformat(datas[-1]) + dt.timedelta(days=7)
+            self.janela = (ini.isoformat(), fim.isoformat())
+        return len(idx)
+
+    def _casar(self, it):
+        datas = {_data_iso(it.get(k)) for k in ("plannedDate", "dateOfPayment")} - {""}
+        pago, resto = _num(it.get("sumOfPaidValues")), _num(it.get("remainingValue"))
+        vals = {round(pago, 2), round(pago + resto, 2)} - {0.0}
+        for b in (it.get("filteredPaids") or it.get("paids") or []):
+            if isinstance(b, dict):
+                bd = _data_iso(b.get("payingDate") or b.get("dateOfPayment") or b.get("date") or b.get("paymentDate"))
+                bv = _num(b.get("paidValue") or b.get("value"))
+                if bd:
+                    datas.add(bd)
+                if bv:
+                    vals.add(round(bv, 2))
+        cands = set()
+        for data in datas:
+            for val in vals:
+                cands |= self.casar_idx.get((data, val), set())
+        if len(cands) > 1:
+            txt = {N(it.get("description")), N(it.get("documentNumber"))} - {""}
+            so = {x for x in cands if self.casar_desc.get(x, set()) & txt}
+            if len(so) == 1:
+                cands = so
+        return cands
 
     # ---- 1) lista de parcelas a pagar -> {nº do lançamento: {"tp": uuid, "parcelas": [...], "baixas": [...]}}
-    def _pagina(self, base, pagina):
-        q = dict(base, page=pagina, size=100, type="ALL", tradePayableType="ALL",
-                 startDate=(HOJE - dt.timedelta(days=DIAS + 120)).isoformat(),
-                 endDate=(HOJE + dt.timedelta(days=30)).isoformat())
-        r = self._get("/payable-installments/paginated-result", q)
+    def params_da_tela(self):
+        """03/11 (2ª descoberta): sem centro de custo o MC recusa a lista ("O centro de custo deve ser
+        especificado"). A aba do porteiro abre justamente Financeiro › Pagamentos, que pede essa lista com os
+        filtros dela — o robô copia esses parâmetros (centro de custo incluso) e só troca a janela e a página."""
+        if self.tela is None:
+            f = getattr(self.erp, "pedido_da_tela", None)
+            url = None
+            try:
+                url = f("payable-installments/paginated-result") if f else None
+            except Exception as e:
+                self._erro("pedido da tela (porteiro)", e)
+            self.tela = parse_qs(urlparse(url).query, keep_blank_values=True) if url else {}
+        return self.tela
+
+    def _da_tela(self, base, pagina, troca=None, sem=()):
+        q = {k: list(v) for k, v in base.items() if k not in sem}
+        datas = [k for k, v in q.items() if v and _RE_DATA.match(str(v[0]))]
+        ini, fim = self.janela or ((HOJE - dt.timedelta(days=DIAS + 120)).isoformat(),
+                                                     (HOJE + dt.timedelta(days=30)).isoformat())
+        for i, k in enumerate(datas):
+            n = k.lower()
+            eh_fim = any(x in n for x in ("end", "final", "fim", "until", "to")) and not any(x in n for x in ("start", "begin", "init", "from"))
+            eh_fim = eh_fim or (i == 1 and not any(x in n for x in ("start", "begin", "init", "from")))
+            orig = str(q[k][0])
+            q[k] = [(fim if eh_fim else ini) + orig[10:]]          # mesmo formato (com hora, se a tela mandou)
+        chave_pag = next((k for k in q if k.lower() in ("page", "pagenumber", "pagina")), "page")
+        chave_tam = next((k for k in q if k.lower() in ("size", "pagesize", "limit", "tamanho")), "size")
+        q[chave_pag], q[chave_tam] = [str(pagina)], ["100"]
+        for k, v in (troca or {}).items():
+            q[k] = [v]
+        return q
+
+    def formato_da_tela(self):
+        """Nome de cada parâmetro da tela e a FORMA do valor (nunca o valor, menos as palavras-código)."""
+        out = {}
+        for k, v in (self.tela or {}).items():
+            x = str(v[0]) if v else ""
+            forma = ("data" if _RE_DATA.match(x) else "uuid" if re.match(r"^[0-9a-f-]{32,36}$", x, re.I) else
+                     "número" if x.isdigit() else x if re.match(r"^[A-Z_]{1,30}$", x) else
+                     "vazio" if not x else "texto")
+            out[k] = forma + ("×%d" % len(v) if len(v) > 1 else "")
+        return out
+
+    def formas(self):
+        """Formas de pedir a lista, da mais provável para a menos: a da tela (por data de pagamento, como
+        veio, e sem filtro de situação) e, por último, as antigas (sem centro de custo — o MC costuma recusar)."""
+        out, tela = [], self.params_da_tela()
+        if tela:
+            campo_data = next((k for k in tela if k.lower() == "datefield"), None)
+            situacao = tuple(k for k in tela if any(x in k.lower() for x in ("status", "situation", "situacao")))
+            if campo_data and tela[campo_data][:1] != ["DATE_OF_PAYMENT"]:
+                out.append(("da tela, por data de pagamento", lambda pg, t=tela, c=campo_data: self._da_tela(t, pg, {c: "DATE_OF_PAYMENT"})))
+            out.append(("da tela", lambda pg, t=tela: self._da_tela(t, pg)))
+            if situacao:
+                out.append(("da tela, sem filtro de situação", lambda pg, t=tela, s_=situacao: self._da_tela(t, pg, None, s_)))
+        for base in self.PARAMS_LISTA:
+            out.append((str(base or "sem dateField"), lambda pg, b=base: dict(
+                b, page=pg, size=100, type="ALL", tradePayableType="ALL",
+                startDate=(HOJE - dt.timedelta(days=DIAS + 120)).isoformat(),
+                endDate=(HOJE + dt.timedelta(days=30)).isoformat())))
+        return out
+
+    def _pagina(self, forma, pagina):
+        r = self._get(self.ROTA_LISTA, forma[1](pagina))
         itens = _lista(r)
         mais = bool(isinstance(r, dict) and (r.get("hasNextPage") or (r.get("last") is False)))
         return itens, mais, r
 
     def mapear(self, alvo, max_paginas=200):
-        alvo_txt = {str(x) for x in alvo}
-        mapa, primeira = {}, None
-        bases = [self.params_ok] if self.params_ok is not None else self.PARAMS_LISTA
-        for base in bases:
+        """Tenta as formas em ordem; fica com a 1ª que acha lançamentos do escopo (ou, se nenhuma achar, devolve
+        o mapa vazio e a 1ª resposta que veio — a descoberta mostra o formato dela)."""
+        primeira = None
+        formas = [self.params_ok] if self.params_ok is not None else self.formas()
+        for forma in formas:
             try:
-                itens, mais, primeira = self._pagina(base, 0)
-                self.params_ok = base
-                break
+                itens, mais, r0 = self._pagina(forma, 0)
             except Exception as e:
-                self._erro("/payable-installments/paginated-result %s" % (base or "sem dateField"), e)
-        else:
-            return mapa, None
+                self._erro("%s %s" % (self.ROTA_LISTA, forma[0]), e)
+                continue
+            primeira = r0 if primeira is None else primeira
+            mapa, paginas = self._varrer(forma, alvo, itens, mais, max_paginas)
+            self.tentativas.append((forma[0], paginas, len(mapa)))
+            if mapa:
+                self.params_ok = forma
+                return mapa, r0
+        return {}, primeira
+
+    def _varrer(self, forma, alvo, itens, mais, max_paginas):
+        alvo_txt = {str(x) for x in alvo}
+        mapa = {}
         pagina = 0
         while True:
             for it in itens:
@@ -277,14 +433,23 @@ class LeitorMC:
                         if str(v) in alvo_txt:
                             self.campo_num = c
                             break
-                if self.campo_num is None:
-                    continue
-                num = str(_pegar(it, self.campo_num) or "")
-                if num not in alvo_txt:
+                if self.campo_num is not None:
+                    num = str(_pegar(it, self.campo_num) or "")
+                    if num not in alvo_txt:
+                        continue
+                elif self.casar_idx:                      # sem o nº na lista: casa por data e valor
+                    cands = self._casar(it)
+                    if len(cands) != 1:
+                        self.ambiguos += len(cands) > 1
+                        continue
+                    num = str(next(iter(cands)))
+                    self.casados += 1
+                else:
                     continue
                 tp = it.get("tradePayable") if isinstance(it.get("tradePayable"), dict) else {}
-                reg = mapa.setdefault(int(num), {"tp": tp.get("id"), "parcelas": [], "baixas": []})
-                reg["tp"] = reg["tp"] or tp.get("id")
+                tp_id = tp.get("id") or it.get("tradePayableId")
+                reg = mapa.setdefault(int(num), {"tp": tp_id, "parcelas": [], "baixas": []})
+                reg["tp"] = reg["tp"] or tp_id
                 if it.get("id"):
                     reg["parcelas"].append(it["id"])
                 b = []
@@ -294,11 +459,11 @@ class LeitorMC:
             if not mais or pagina >= max_paginas:
                 break
             try:
-                itens, mais, _ = self._pagina(self.params_ok, pagina)
+                itens, mais, _ = self._pagina(forma, pagina)
             except Exception as e:
-                self._erro("/payable-installments/paginated-result página %d" % pagina, e)
+                self._erro("%s %s página %d" % (self.ROTA_LISTA, forma[0], pagina), e)
                 break
-        return mapa, primeira
+        return mapa, pagina
 
     # ---- 2) pastas e arquivos
     def pastas(self, origem, rotina_id):
@@ -359,18 +524,33 @@ def chaves(obj, n=40):
 def descobrir(leitor, alvo):
     """Só formato. Devolve 0 se leu ao menos um lançamento; 1 com a causa na última linha."""
     log("DESCOBRIR: só formato, nada gravado")
-    mapa, primeira = leitor.mapear(alvo, max_paginas=8)
+    leitor.params_da_tela()
+    log(f"pedido da lista feito pela tela do porteiro: {leitor.formato_da_tela() or 'NÃO VISTO (a tela não pediu a lista em 20 s)'}")
+    log(f"janela pedida ao MC: {leitor.janela or 'a larga (sem datas no escopo)'} · chaves data+valor do escopo: {len(leitor.casar_idx or {})}")
+    mapa, primeira = leitor.mapear(alvo, max_paginas=PAGINAS_DESCOBERTA)
+    for nome, pags, achados in leitor.tentativas:
+        log(f"  forma '{nome}': {pags} página(s) lida(s), {achados} lançamento(s) do escopo")
     if primeira is not None:
         itens = _lista(primeira)
-        log(f"lista de pagamentos: params {leitor.params_ok or 'sem dateField'} · chaves da resposta: {chaves(primeira)} · itens na 1ª página: {len(itens)}")
+        log(f"lista de pagamentos: forma {leitor.params_ok[0] if leitor.params_ok else 'nenhuma achou o escopo'} · chaves da resposta: {chaves(primeira)} · itens na 1ª página: {len(itens)}")
         if itens:
             it = itens[0]
             log(f"  chaves da parcela: {chaves(it)}")
             log(f"  tipo do id da parcela: {_tipo_id(it.get('id'))} · tradePayable: {chaves(it.get('tradePayable'), 30)}")
-            log(f"  tipo do tradePayable.id: {_tipo_id((it.get('tradePayable') or {}).get('id'))}")
+            log(f"  tipo do tradePayable.id: {_tipo_id((it.get('tradePayable') or {}).get('id'))} · tipo do tradePayableId: {_tipo_id(it.get('tradePayableId'))}")
+            log(f"  forma das datas/valores: plannedDate {_tipo_id(it.get('plannedDate'))} · dateOfPayment {_tipo_id(it.get('dateOfPayment'))} · sumOfPaidValues {_tipo_id(it.get('sumOfPaidValues'))} · paids {len(it.get('filteredPaids') or it.get('paids') or [])}")
+            pg = (it.get("filteredPaids") or it.get("paids") or [None])[0]
+            log(f"  máscara (dígito = 9): plannedDate {_mascara(it.get('plannedDate'))} · dateOfPayment {_mascara(it.get('dateOfPayment'))} · "
+                f"sumOfPaidValues {_mascara(it.get('sumOfPaidValues'))} · remainingValue {_mascara(it.get('remainingValue'))}")
+            if isinstance(pg, dict):
+                log(f"  chaves da baixa: {chaves(pg, 30)} · máscaras: " + ", ".join(
+                    f"{k} {_mascara(pg.get(k))}" for k in ("payingDate", "dateOfPayment", "date", "paymentDate", "paidValue", "value") if k in pg))
+            ult = _lista(primeira)[-1]
+            log(f"  1ª página vai de {_data_iso(it.get('plannedDate')) or '?'} a {_data_iso(ult.get('plannedDate')) or '?'} (plannedDate)")
             nums = [c for c, v in _escalares(it) if _tipo_id(v) == "número" and 5 <= len(str(v)) <= 10]
             log(f"  campos com número de 5 a 10 dígitos: {nums[:15]}")
-    log(f"campo com o nº do lançamento: {leitor.campo_num or 'NÃO ACHADO'} · lançamentos do escopo achados (8 páginas): {len(mapa)}")
+    log(f"campo com o nº do lançamento: {leitor.campo_num or 'não vem na lista — casado por data e valor'} · "
+        f"casados: {leitor.casados} · ambíguos (ficaram de fora): {leitor.ambiguos} · lançamentos do escopo achados ({PAGINAS_DESCOBERTA} páginas no máx.): {len(mapa)}")
     lidos = 0
     for idl in sorted(mapa, key=lambda i: alvo.get(i, ""), reverse=True)[:3]:
         log(f"— lançamento …{str(idl)[-4:]}")
@@ -397,7 +577,7 @@ def descobrir(leitor, alvo):
     log(f"chamadas ao MC: {leitor.chamadas}")
     if not lidos:
         causa = ("a lista de pagamentos do MC não respondeu" if primeira is None else
-                 "não achei em que campo da lista está o nº do lançamento" if not leitor.campo_num else
+                 "nenhuma parcela da lista casou com os pagamentos da auditoria (nem pelo nº nem por data e valor)" if not leitor.campo_num and not mapa else
                  "nenhum lançamento do escopo apareceu na lista do MC" if not mapa else
                  "os lançamentos achados deram erro ao abrir as pastas")
         log(f"FALHOU: nenhum lançamento lido — {causa}.")
@@ -518,6 +698,7 @@ def main():
     alvo = escolher(aud)
     log(f"lançamentos no escopo ({ESCOPO}, {DIAS} dias): {len(alvo)}")
     leitor = LeitorMC(do_ambiente())
+    leitor.preparar_casamento(aud, alvo)
     try:
         if DESCOBRIR:
             return descobrir(leitor, alvo)

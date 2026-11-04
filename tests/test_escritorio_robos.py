@@ -101,3 +101,74 @@ def test_rodar_de_novo_so_tarefas_morais_e_nunca_porteiro_fila_ou_teste():
     assert R.tarefa_para_rodar({"tarefa": "MoraisEng - Robo do portal (fila)"}, "producao")[0] is None
     for ruim in ("Outra tarefa", "MoraisEng - x\" & del *", "MoraisEng - a/b", "", None):
         assert R.tarefa_para_rodar({"tarefa": ruim}, "producao")[0] is None
+
+
+def test_log_do_servidor_explica_a_rodada_e_o_porteiro_vem_dos_robos(tmp_path):
+    """04/11: o porteiro.log dizia "ok" e os robôs davam com a tela de login — vale o que os robôs viram."""
+    (tmp_path / "robos-portal-2026-11-04.log").write_text(
+        "06:30:44 [contas] robo_mc_contas.py código 1 MC: o Chrome do porteiro não responde na porta 9230\n"
+        "06:40:00 [escritorio] escritório publicado\n"
+        "07:20:14 [medicoes] robo_mc_medicoes.py código 1 MC: o Chrome do porteiro não está logado no Mais Controle\n"
+        "07:26:47 [relatorio-medicoes] antes de repetir: porteiro: PROBLEMA � fora\n"
+        "07:27:18 [relatorio-medicoes] relatório 2026-11-04_0720_medicoes_FALHOU.pdf\n"
+        "07:30:00 [producao] mc-venda abcdef12: código 0\n", encoding="utf-8")
+    pl = tmp_path / "porteiro.log"
+    pl.write_text("2026-11-04 09:29:35,452 principal: ok\n", encoding="utf-8")
+    log = E.linhas_do_log(tmp_path, hoje=dt.date(2026, 11, 4), dias=1)
+    assert set(log) == {"contas", "medicoes", "fila"} and log["medicoes"][1]["de"] == "relatório"
+    rods = {"medicoes": [{"robo": "medicoes", "inicio": "2026-11-04T07:20:00", "ok": False, "so_pdf": True}]}
+    E.anexar_log(rods, log)
+    assert [l["em"][11:] for l in rods["medicoes"][0]["log"]] == ["07:20:14", "07:26:47", "07:27:18"]
+    st = E.porteiro_estado(log, rods, pl, agora=dt.datetime(2026, 11, 4, 9, 30))
+    assert st["estado"] == "fora" and st["fonte"] == "robôs" and "07:26:47" in st["em"]
+    st2 = E.porteiro_estado({}, {}, pl, agora=dt.datetime(2026, 11, 4, 9, 30))
+    assert st2["estado"] == "ok" and st2["fonte"] == "porteiro.log"
+
+
+def test_conferencia_do_porteiro_vale_mais_que_o_log(monkeypatch, tmp_path):
+    monkeypatch.setattr(E, "RELATORIOS", tmp_path)
+    monkeypatch.setattr(E, "SAUDE", tmp_path / "saude.json")
+    monkeypatch.setattr(E, "LOGS", tmp_path)
+    monkeypatch.setattr(E, "PORTEIRO_LOG", tmp_path / "porteiro.log")
+    monkeypatch.setattr(E, "conferir_porteiro", lambda espera=45.0: (False, "o Chrome do porteiro não está logado no Mais Controle"))
+    d = E.montar(hoje=dt.date(2026, 11, 4))
+    assert d["porteiro"]["estado"] == "fora" and d["porteiro"]["fonte"] == "conferência"
+    monkeypatch.setattr(E, "conferir_porteiro", lambda espera=45.0: (None, "sem o código do porteiro"))
+    d = E.montar(hoje=dt.date(2026, 11, 4))
+    assert d["porteiro"]["estado"] == "?" and any("não deu para conferir" in a for a in d["avisos"])
+
+
+def test_motivo_lido_do_texto_do_pdf_antigo():
+    texto = ("Robô do Mais Controle — Medições de contratos\nDEU ERRADO\n"
+             "Rodada de 04/11/2026, das 09:20 às 09:27 (6 min) · gravação LIGADA · código de saída 1\n"
+             "porteiro: PROBLEMA � o Chrome do porteiro n�o est� logado no Mais Controle � o porteiro precisa\n"
+             "entrar (python -m erp.porteiro estado, no servidor)\n"
+             "O que precisa de atenção\n"
+             "robo_mc_medicoes.py: A sessão do Mais Controle no Chrome do porteiro caiu.\n"
+             "O que fazer: Entrar no Mais Controle pela janela do Chrome central (servidor). O robô roda de novo\n"
+             "no próximo horário.\n"
+             "Porteiro: a sessão do Mais Controle está fora.\nO que fazer: entrar pela janela do Chrome central no servidor.\n"
+             "O que rodou\nHora Parte Resultado Fim da saída\n")
+    d = E.do_texto_do_pdf(texto)
+    assert d["pdf_meta"].startswith("Rodada de 04/11/2026")
+    assert d["porteiro"] == ("porteiro: PROBLEMA — o Chrome do porteiro não está logado no Mais Controle — o porteiro precisa "
+                             "entrar (python -m erp.porteiro estado, no servidor)")
+    assert d["atencao"] == [
+        {"parte": "robo_mc_medicoes.py", "oque": "A sessão do Mais Controle no Chrome do porteiro caiu.",
+         "fazer": "Entrar no Mais Controle pela janela do Chrome central (servidor). O robô roda de novo no próximo horário."},
+        {"parte": "Porteiro", "oque": "a sessão do Mais Controle está fora.", "fazer": "entrar pela janela do Chrome central no servidor."}]
+    assert E.do_texto_do_pdf("") == {"pdf_texto": ""}
+
+
+def test_horarios_do_dia_pelos_gatilhos():
+    med = [{"tipo": "MSFT_TaskWeeklyTrigger", "inicio": "2026-10-29T07:20:00-03:00", "dias": 126, "repetir": "PT2H", "duracao": "PT12H"}]
+    assert E.horarios_do_dia(med, dt.date(2026, 11, 4)) == ["07:20", "09:20", "11:20", "13:20", "15:20", "17:20", "19:20"]
+    assert E.horarios_do_dia(med, dt.date(2026, 11, 8)) == []                 # domingo
+    diario = [{"tipo": "MSFT_TaskDailyTrigger", "inicio": "2026-10-29T06:23:00", "cadaDias": 1}]
+    assert E.horarios_do_dia(diario, dt.date(2026, 11, 4)) == ["06:23"]
+    fila = [{"tipo": "MSFT_TaskTimeTrigger", "inicio": "2026-10-27T10:00:00", "repetir": "PT1M"}]
+    assert E.horarios_do_dia(fila, dt.date(2026, 11, 4)) == []
+    dois = [{"tipo": "MSFT_TaskDailyTrigger", "inicio": "2026-11-03T05:20:00"}, {"tipo": "MSFT_TaskDailyTrigger", "inicio": "2026-11-03T12:20:00"}]
+    assert E.horarios_do_dia(dois, dt.date(2026, 11, 4)) == ["05:20", "12:20"]
+    t = E.montar_tarefas([{"nome": "MoraisEng - Robo bases", "acoes": ["--robo bases"], "gatilhos": diario}])[0]
+    assert t["gat"][0]["inicio"] == "2026-10-29T06:23:00"
