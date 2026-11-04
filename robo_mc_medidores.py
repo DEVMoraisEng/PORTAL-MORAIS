@@ -49,8 +49,28 @@ CONFERIR = [x.strip() for x in (os.environ.get("MEDIDORES_CONFERIR") or
             "TB 21 QD 50 LT 34;TB 17 QD 49 LT 11;TB 17 QD 49 LT 14").split(";") if x.strip()]
 
 #: telas de Compras que a descoberta abre (hash do AngularJS/React do MC) — a que não existe volta para outra rota
-ROTAS_COMPRAS = ["#/purchase-requests", "#/purchase-request", "#/purchase-requisitions", "#/requisitions",
-                 "#/purchase-orders", "#/purchase-order", "#/purchases"]
+ROTAS_COMPRAS = ["#/purchase-request", "#/purchase-order"]     # 04/11 (1ª descoberta): as duas que existem
+#: 04/11 (2ª descoberta): rotas da API que o próprio código da tela (bundle) cita e que valem tentar direto
+TENTAR = ["/purchase-request?page=0&size=5", "/purchase-request/paginated-result?page=0&size=5",
+          "/purchase-request/search?page=0&size=5", "/purchase-requests?page=0&size=5",
+          "/purchase-order?page=0&size=5", "/purchase-order/paginated-result?page=0&size=5",
+          "/purchase-order/search?page=0&size=5", "/purchase-orders?page=0&size=5"]
+_JS_BUNDLE = """async () => {
+  const fontes = [...document.scripts].map(s => s.src).filter(Boolean);
+  const achados = {};
+  for (const u of fontes) {
+    try {
+      const t = await (await fetch(u)).text();
+      const re = /["'`]([^"'`\\s]{0,60}(purchase|request|requisi|solicita|quotation|order-item|supply)[^"'`\\s]{0,60})["'`]/gi;
+      let m; while ((m = re.exec(t)) && Object.keys(achados).length < 400) {
+        const v = m[1]; if (v.length < 90 && !/\\s/.test(v)) achados[v] = (achados[v] || 0) + 1;
+      }
+    } catch (e) {}
+  }
+  return {fontes: fontes.map(u => u.split('/').pop().slice(0, 60)), achados};
+}"""
+_JS_BOTOES = """() => [...document.querySelectorAll('button, a.btn, [role=button], th, label')]
+  .map(b => (b.innerText || '').trim().replace(/\\s+/g, ' ')).filter(t => t && t.length < 40).slice(0, 80)"""
 HOSTS = ("legacy-api.maiscontroleerp.com.br", "prod-erp-api.maiscontroleerp.com.br")
 RE_UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I)
 #: na descoberta, valores destes campos nunca aparecem (só o tipo)
@@ -175,6 +195,18 @@ def descobrir() -> int:
             except Exception as e:
                 log(f"tela {rota}: ERRO {type(e).__name__}: {str(e)[:120]}")
                 continue
+            try:                                    # 2ª descoberta: o que a tela mostra e o clique em Pesquisar
+                rotulos = page.evaluate(_JS_BOTOES)
+                log(f"tela {rota}: botões/colunas: {rotulos}")
+                for nome in ("Pesquisar", "Buscar", "Filtrar", "Consultar", "Aplicar"):
+                    b = page.get_by_role("button", name=nome)
+                    if b.count():
+                        b.first.click(timeout=4000)
+                        page.wait_for_timeout(6000)
+                        log(f"tela {rota}: cliquei em {nome}")
+                        break
+            except Exception as e:
+                log(f"tela {rota}: botões: {type(e).__name__}: {str(e)[:100]}")
             novos = pedidos[n0:]
             log(f"tela {rota} → ficou em {final!r} · título {str(titulo).strip()[:50]!r} · {len(novos)} chamada(s) às APIs")
             vistos = set()
@@ -186,6 +218,36 @@ def descobrir() -> int:
                 q = parse_qs(urlparse(url).query, keep_blank_values=True)
                 log(f"   {metodo} {_host(url).split('.')[0]} {_caminho(url)}  parâmetros: "
                     + ", ".join(f"{k}={_forma(v[0]) if v else ''}" for k, v in sorted(q.items())))
+        # 2ª descoberta: as rotas que o código da tela cita (só texto de rota; nenhum dado)
+        try:
+            b = page.evaluate(_JS_BUNDLE)
+            log(f"bundles da tela: {b.get('fontes')}")
+            ach = b.get("achados") or {}
+            rotas = sorted(k for k in ach if re.search(r"^/|^[a-z][\w-]*(/[\w{}:.-]*)*$", k) and len(k) < 80)
+            log(f"rotas/recursos citados no código ({len(rotas)}):")
+            for k in rotas[:250]:
+                log("   " + k)
+        except Exception as e:
+            log(f"bundles: {type(e).__name__}: {str(e)[:120]}")
+        from venda.mc.erp import LEGACY
+        cab = aba.cabecalhos(HOSTS[0])
+        for cam in TENTAR:
+            url = LEGACY + cam
+            st, texto = aba.fetch("GET", url, cab)
+            extra = ""
+            if st < 300:
+                try:
+                    j = json.loads(texto)
+                    its = _lista(j)
+                    extra = f" · chaves {sorted(j.keys())[:20] if isinstance(j, dict) else 'lista'} · itens {len(its)}"
+                    if its and isinstance(its[0], dict):
+                        extra += " · 1º item: " + ", ".join(f"{c}={_forma(v) if not c.endswith('[#]') else v}" for c, v in _achatar(its[0])[:50])
+                    pedidos.append(("GET", url))
+                except ValueError:
+                    extra = " · (não é JSON)"
+            else:
+                extra = " · " + texto[:120].replace("\n", " ")
+            log(f"tentativa GET legacy {cam.split('?')[0]} → HTTP {st}{extra}")
         # as listas das telas de compras: formato da resposta e a solicitação de exemplo
         candidatos, feitos = [], set()
         for metodo, url in pedidos:
