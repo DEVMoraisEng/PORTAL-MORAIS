@@ -539,9 +539,14 @@ def montar(hoje: dt.date | None = None, conferir: bool = True) -> dict:
         coordenador = RZ.ler()
     except Exception:
         coordenador = None
+    try:
+        import sala_agua                  # 04/11: a sala própria do robô de água e energia (só lê os relatórios dele)
+        agua = sala_agua.montar_sala(hoje=hoje)
+    except Exception as e:
+        agua, _ = None, erros.append("sala da água e energia: %s" % type(e).__name__)
     return {"versao": VERSAO, "gerado": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
             "tarefas": tarefas, "rodadas": rods, "saude": saude, "log": log,
-            "porteiro": porteiro, "coordenador": coordenador, "avisos": erros}
+            "porteiro": porteiro, "coordenador": coordenador, "agua": agua, "avisos": erros}
 
 
 def subir_pdfs(dados: dict, log=print) -> int:
@@ -553,32 +558,39 @@ def subir_pdfs(dados: dict, log=print) -> int:
         enviados = set()
     url = chave = None
     novos = 0
+    pares = []                                   # (rodada, caminho no bucket, arquivo local)
     for lista in (dados.get("rodadas") or {}).values():
         for r in lista:
             nome = r.get("pdf")
             m = _RE_PDF.match(str(nome or ""))
-            if not m:
+            if m:
+                pares.append((r, "%s/%s/%s" % (PASTA_PDF, m.group(1)[:7], nome), RELATORIOS / m.group(1)[:7] / nome))
+    if dados.get("agua"):                        # 04/11: os PDFs do água e energia, com o nome que o Apps Script aceita
+        import sala_agua
+        for r in dados["agua"].get("rodadas") or []:
+            caminho, local = sala_agua.caminho_do_pdf(r), sala_agua.arquivo_local_do_pdf(r)
+            if caminho and local:
+                pares.append((r, caminho, local))
+    for r, caminho, local in pares:
+        nome = local.name
+        if caminho not in enviados:
+            if novos >= MAX_PDF_POR_VEZ:
                 continue
-            caminho = "%s/%s/%s" % (PASTA_PDF, m.group(1)[:7], nome)
-            if caminho not in enviados:
-                if novos >= MAX_PDF_POR_VEZ:
-                    continue
-                local = RELATORIOS / m.group(1)[:7] / nome
-                if not local.exists():
-                    continue
-                try:
-                    if url is None:
-                        url, chave = _cfg_supabase()
-                    req = urllib.request.Request("%s/storage/v1/object/%s/%s" % (url, BUCKET, caminho), data=local.read_bytes(),
-                                                 method="POST", headers={"apikey": chave, "Authorization": "Bearer " + chave,
-                                                                         "Content-Type": "application/pdf", "x-upsert": "true"})
-                    urllib.request.urlopen(req, timeout=60).read()
-                    enviados.add(caminho)
-                    novos += 1
-                except Exception as e:
-                    log("escritório: PDF %s não subiu (%s)" % (nome, type(e).__name__))
-                    continue
-            r["pdf_caminho"] = caminho
+            if not local.exists():
+                continue
+            try:
+                if url is None:
+                    url, chave = _cfg_supabase()
+                req = urllib.request.Request("%s/storage/v1/object/%s/%s" % (url, BUCKET, caminho), data=local.read_bytes(),
+                                             method="POST", headers={"apikey": chave, "Authorization": "Bearer " + chave,
+                                                                     "Content-Type": "application/pdf", "x-upsert": "true"})
+                urllib.request.urlopen(req, timeout=60).read()
+                enviados.add(caminho)
+                novos += 1
+            except Exception as e:
+                log("escritório: PDF %s não subiu (%s)" % (nome, type(e).__name__))
+                continue
+        r["pdf_caminho"] = caminho
     if novos:
         PDFS_ENVIADOS.write_text("\n".join(sorted(enviados)) + "\n", encoding="utf-8")
     return novos
