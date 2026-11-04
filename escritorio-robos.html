@@ -506,6 +506,8 @@ function pintar() {
   chip.className = "chip" + (velho ? " velho" : "");
   chip.querySelector("span").textContent = g ? `Notícias do servidor de ${quando(D.gerado)} (${ha(g)})` : "Sem data";
   const av = [];
+  const P = D.porteiro;
+  if (P && P.estado === "fora") av.push(`<div class="aviso"><b>🚨 O porteiro está fora do Mais Controle (visto ${esc(quando(P.em))}).</b> Enquanto isso, nenhum robô consegue entrar no ERP. O que fazer: no servidor, entrar no Mais Controle pela janela do Chrome central (a do porteiro) e deixar aberta. Depois, Rodar de novo nos robôs que falharam.<br><span class="muted">${esc(P.texto || "")}</span></div>`);
   if (velho) av.push(`<div class="aviso amarelo"><b>O servidor não manda notícias ${esc(ha(g))}.</b> Ele publica depois de cada rodada e a cada 15 min — pode estar desligado, sem internet, ou a tarefa “MoraisEng - Robo do portal (fila)” parou.</div>`);
   (D.avisos || []).forEach(a => av.push(`<div class="aviso amarelo">Servidor: ${esc(a)}</div>`));
   $("avisos").innerHTML = av.join("");

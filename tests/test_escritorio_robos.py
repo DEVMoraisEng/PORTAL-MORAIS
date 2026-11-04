@@ -123,3 +123,16 @@ def test_log_do_servidor_explica_a_rodada_e_o_porteiro_vem_dos_robos(tmp_path):
     assert st["estado"] == "fora" and st["fonte"] == "robôs" and "07:26:47" in st["em"]
     st2 = E.porteiro_estado({}, {}, pl, agora=dt.datetime(2026, 11, 4, 9, 30))
     assert st2["estado"] == "ok" and st2["fonte"] == "porteiro.log"
+
+
+def test_conferencia_do_porteiro_vale_mais_que_o_log(monkeypatch, tmp_path):
+    monkeypatch.setattr(E, "RELATORIOS", tmp_path)
+    monkeypatch.setattr(E, "SAUDE", tmp_path / "saude.json")
+    monkeypatch.setattr(E, "LOGS", tmp_path)
+    monkeypatch.setattr(E, "PORTEIRO_LOG", tmp_path / "porteiro.log")
+    monkeypatch.setattr(E, "conferir_porteiro", lambda espera=45.0: (False, "o Chrome do porteiro não está logado no Mais Controle"))
+    d = E.montar(hoje=dt.date(2026, 11, 4))
+    assert d["porteiro"]["estado"] == "fora" and d["porteiro"]["fonte"] == "conferência"
+    monkeypatch.setattr(E, "conferir_porteiro", lambda espera=45.0: (None, "sem o código do porteiro"))
+    d = E.montar(hoje=dt.date(2026, 11, 4))
+    assert d["porteiro"]["estado"] == "?" and any("não deu para conferir" in a for a in d["avisos"])

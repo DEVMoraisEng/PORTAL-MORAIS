@@ -368,6 +368,32 @@ def porteiro_estado(log: dict, rods: dict, porteiro_log: pathlib.Path | None = N
     return {"estado": "?", "em": None, "texto": "", "fonte": "", "porteiro_log": ""}
 
 
+def conferir_porteiro(espera: float = 45.0) -> tuple[bool | None, str]:
+    """04/11: confere DE VERDADE, como um robô faria: abre uma aba no Chrome central e vê se a tela entra logada
+    (a mesma conferência do robo_fila.py --verificar). Assim a mesa do porteiro fica vermelha em até 15 min, mesmo
+    sem nenhum robô rodando. Só no servidor. (None, motivo) se não deu para conferir."""
+    if os.name != "nt":
+        return None, ""
+    try:
+        raiz = str(pathlib.Path(__file__).resolve().parent.parent)
+        if raiz not in sys.path:
+            sys.path.insert(0, raiz)
+        from venda.mc.porteiro import AbaPorteiro, PorteiroErro
+    except Exception as e:
+        return None, "sem o código do porteiro (%s)" % type(e).__name__
+    try:
+        aba = AbaPorteiro.abrir(espera=espera)
+    except PorteiroErro as e:
+        return False, str(e)[:300]
+    except Exception as e:
+        return None, "%s: %s" % (type(e).__name__, str(e)[:200])
+    try:
+        aba.fechar()
+    except Exception:
+        pass
+    return True, "porteiro: logado no Mais Controle (conferido pelo Escritório)"
+
+
 # ------------------------------------------------------------------ montar e subir
 def tarefas_com_reserva(erros: list) -> list:
     """O Agendador às vezes não responde (a página ficava sem os horários): usa a última leitura boa."""
@@ -387,7 +413,7 @@ def tarefas_com_reserva(erros: list) -> list:
         return []
 
 
-def montar(hoje: dt.date | None = None) -> dict:
+def montar(hoje: dt.date | None = None, conferir: bool = True) -> dict:
     erros = []
     tarefas = tarefas_com_reserva(erros) if os.name == "nt" else []
     try:
@@ -403,9 +429,17 @@ def montar(hoje: dt.date | None = None) -> dict:
         anexar_log(rods, log)
     except Exception as e:
         erros.append("log das rodadas: %s" % type(e).__name__)
+    porteiro = porteiro_estado(log, rods)
+    if conferir:
+        ok, texto = conferir_porteiro()
+        if ok is not None:          # a conferência de agora vale mais que qualquer linha antiga
+            porteiro.update({"estado": "ok" if ok else "fora", "em": dt.datetime.now().isoformat(timespec="seconds"),
+                             "texto": texto, "fonte": "conferência"})
+        elif texto:
+            erros.append("porteiro: não deu para conferir agora (%s)" % texto)
     return {"versao": VERSAO, "gerado": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
             "tarefas": tarefas, "rodadas": rods, "saude": saude, "log": log,
-            "porteiro": porteiro_estado(log, rods), "avisos": erros}
+            "porteiro": porteiro, "avisos": erros}
 
 
 def subir_pdfs(dados: dict, log=print) -> int:
