@@ -275,6 +275,8 @@ class Fila:
             self.marcar(linha["id"], "ERRO", motivo)
             log("[%s] robo-rodar: recusado (%s)" % (self.nome, motivo))
             return "ERRO"
+        if nome == "MoraisEng - Reorganizar":          # 04/11: o Coordenador da fila (servidor/reorganizar.py)
+            return self.reorganizar(linha, quem)
         try:
             ok, msg = rodar_tarefa(nome)
         except Exception as e:
@@ -290,6 +292,41 @@ class Fila:
             except Exception:
                 pass
         return "FEITO" if ok else "ERRO"
+
+
+    def reorganizar(self, linha: dict, quem: str) -> str:
+        try:
+            sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+            import escritorio_robos as ER
+            import reorganizar as RZ
+            plano, motivo = RZ.criar_plano(ER.ler_tarefas(), ER.rodadas(), quem)
+        except Exception as e:
+            plano, motivo = None, "%s: %s" % (type(e).__name__, str(e)[:200])
+        if not plano:
+            self.marcar(linha["id"], "ERRO", "reorganizar: " + motivo)
+            log("[coordenador] não reorganizei: %s" % motivo)
+            return "ERRO"
+        ordem = " → ".join(i["chave"] for i in plano["fila"])
+        self.marcar(linha["id"], "FEITO", "fila montada: " + ordem)
+        log("[coordenador] fila montada%s: %s" % ((" (pedido de %s)" % quem) if quem else "", ordem))
+        passo_coordenador()
+        return "FEITO"
+
+
+def passo_coordenador() -> None:
+    """04/11: um passo do Coordenador da fila por minuto (um robô de cada vez, ver servidor/reorganizar.py)."""
+    try:
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+        import reorganizar as RZ
+        if not RZ.ativo(RZ.ler()):
+            return
+        import escritorio_robos as ER
+        msg = RZ.passo(ER.ler_tarefas(), ER.conferir_porteiro)
+        if msg:
+            log("[coordenador] " + msg)
+            ER.publicar(lambda m: log("[escritorio] " + m))
+    except Exception as e:
+        log("[coordenador] FALHOU %s: %s" % (type(e).__name__, str(e)[:150]))
 
 
 def carregar() -> list:
@@ -335,6 +372,7 @@ def rodada() -> int:
             erro = 1
         saude["filas"][fila.nome] = st
     SAUDE.write_text(json.dumps(saude, ensure_ascii=False, indent=1), encoding="utf-8")
+    passo_coordenador()
     return erro
 
 
