@@ -234,3 +234,23 @@ def test_datas_da_lista_em_texto_viram_iso_e_a_janela_e_a_do_escopo():
     assert mapa[101]["tp"] == ErpFalso.UU % 151
     q = erp.pedidos[0][1]
     assert q["startDate"] == [leitor.janela[0]] and q["endDate"] == [leitor.janela[1]]
+
+
+def test_rodada_de_verdade_casada_por_data_e_valor(monkeypatch):
+    """04/11 (1ª rodada de verdade): a lista sem o nº do lançamento parava a rodada ('não achei em que campo…')
+    mesmo com a descoberta casando por data e valor."""
+    monkeypatch.setattr(ra, "sb_subir", lambda *a: None)
+    monkeypatch.setattr(ra, "sb_apagar", lambda c: None)
+
+    class Erp(ErpListaSemNumero):
+        def __init__(self):
+            ErpListaSemNumero.__init__(self, validade=604800)
+
+    aud = {"dict": {"st": ["OK", "DIVERGENTE"]},
+           "cols": {"id": [101], "dp": [D(5)], "dv": [D(5)], "st": [1], "v": [10.0], "vp": [10.0], "d": ["AREIA"], "nd": [""]},
+           "fiscal": []}
+    alvo = ra.escolher(aud)
+    leitor = ra.LeitorMC(Erp())
+    leitor.preparar_casamento(aud, alvo)
+    itens, est = ra.rodada(leitor, aud, alvo)
+    assert leitor.campo_num is None and est["lidos"] == 1 and itens["101"]["a"]
