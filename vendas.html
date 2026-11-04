@@ -1771,7 +1771,8 @@ const cdBRL=v=>(v==null||v===""||isNaN(v))?"—":"R$ "+Number(v).toLocaleString(
 const cdDia=iso=>{ if(!iso) return "—"; const p=String(iso).slice(0,10).split("-"); return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:String(iso); };
 function cdCampoTipo(nome){ const c=(COND&&COND.colunas||[]).find(x=>x.nome===nome); return c?c.tipo:""; }
 function cdEhMoeda(nome,tipo){ return tipo==="number" && /VALOR|COMISS|FGTS|PARCELA|AVALIA|SUBIS|CR[EÉ]DITO/i.test(nome) && !/^N[ºO°]/i.test(nome) && !/PERCENTUAL|DIA /i.test(nome); }
-function cdEditavel(c){ return c && CD_SO_LEITURA.indexOf(c.tipo)<0; }
+/* 04/11/2026 (dono): a entrega do condomínio é 30/11/2028 para todas — "ninguém mexe nessa" */
+function cdEditavel(c){ return c && CD_SO_LEITURA.indexOf(c.tipo)<0 && c.nome!=="DATA DA ENTREGA"; }
 /* 30/09: acha a coluna mesmo com espaço/acento diferente no nome (era por isso
    que "Sinal 60 dias", "Sinal 90 dias" e as datas do pós-chaves saíam em branco
    no card, mesmo gravados no Notion) */
@@ -2188,7 +2189,7 @@ function condAbrir(id){
     '<div class="cd-ent">'+
       '<div><label>Data de assinatura do contrato</label><input type="date" id="cd-ass" value="'+esc(ass?String(ass).slice(0,10):"")+'"></div>'+
       '<div><label>Dia de pagamento (cliente escolhe)</label><select id="cd-dia"><option value="">—</option>'+Array.from({length:27},(_,i)=>'<option value="'+(i+5)+'"'+(String(dia)===String(i+5)?" selected":"")+'>Dia '+(i+5)+'</option>').join("")+'</select></div>'+
-      '<div><label>Data da entrega</label><input type="date" id="cd-ent" value="'+esc(ent?String(ent).slice(0,10):COND_ENTREGA_PADRAO)+'"'+(ent?'':' title="Padrão do contrato (item 8 a); grava ao salvar"')+'></div>'+
+      '<div><label>Data da entrega</label><input type="date" id="cd-ent" value="'+COND_ENTREGA_PADRAO+'" disabled title="Fixa para todo o condomínio (contrato, item 8 a): 30/11/2028"></div>'+
       '<button class="cd-bt pri" id="cd-calc" onclick="condCalcular(\''+esc(id)+'\')">Salvar e recalcular o fluxo</button>'+
       '<div class="cd-prog" id="cd-prog" style="display:none;flex-basis:100%"></div>'+
     '</div>'+
@@ -2416,7 +2417,7 @@ async function condCalcular(id){
   const l=COND.linhas.find(x=>x.id===id);
   const novos=[["DATA DE ASSINATURA DO CONTRATO",document.getElementById("cd-ass").value],
                ["DIA PAGAMENTO PARCELAS",document.getElementById("cd-dia").value],
-               ["DATA DA ENTREGA",document.getElementById("cd-ent").value]];
+               ["DATA DA ENTREGA",COND_ENTREGA_PADRAO]];   /* 04/11 (dono): fixa; salvar corrige a que estiver diferente */
   /* 30/09: as três juntas, um recálculo só (antes: 3 gravações e 3 recálculos) */
   const mudou={};
   novos.forEach(([prop,val])=>{ const atual=cdVal(l,prop), a=atual==null?"":String(atual).slice(0,10);
