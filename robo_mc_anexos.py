@@ -599,8 +599,13 @@ def rodada(leitor, aud, alvo):
     mapa, primeira = leitor.mapear(alvo)
     if primeira is None:
         raise RuntimeError("a lista de pagamentos do MC não respondeu")
-    if not leitor.campo_num:
-        raise RuntimeError("não achei em que campo da lista do MC está o nº do lançamento")
+    # 04/11 (1ª rodada de verdade): a lista não traz o nº do lançamento e o robô casa por data e valor — só para
+    # quando nem o nº nem a data+valor acharam ninguém (antes parava sempre que faltava o nº, depois de 20 min lendo)
+    if not leitor.campo_num and not mapa:
+        raise RuntimeError("nenhuma parcela da lista do MC casou com os pagamentos da auditoria (nem pelo nº nem "
+                           "por data e valor)")
+    log(f"lista do MC: {len(mapa)} lançamento(s) do escopo achado(s) · casados por data e valor: {leitor.casados} · "
+        f"ambíguos (de fora): {leitor.ambiguos}")
     agora = dt.datetime.now(dt.timezone.utc)
     lim_rechecar = (HOJE - dt.timedelta(days=RECHECAR_DIAS)).isoformat()
     itens, mb, consultados, copiados, erros, renovados = {}, 0.0, 0, 0, 0, 0
