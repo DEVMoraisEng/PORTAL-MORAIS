@@ -665,9 +665,14 @@ def subir(dados: dict) -> int:
     return len(corpo)
 
 
+ULTIMO: dict | None = None          # 04/11: o último retrato publicado (o robo_fila tira dele os problemas da água)
+
+
 def publicar(log=print) -> bool:
+    global ULTIMO
     try:
         dados = montar()
+        ULTIMO = dados
         pdfs = subir_pdfs(dados, log)
         n = subir(dados)
         log("escritório publicado: %d tarefas, %d robôs com rodadas, %d PDF novo(s), porteiro %s, %d KB" % (

@@ -276,3 +276,17 @@ def test_na_vez_espera_quem_esta_no_mc_e_desiste_no_prazo(tmp_path, monkeypatch)
     fcntl.flock(outro.fileno(), fcntl.LOCK_UN)
     outro.close()
     assert R.na_vez("indices", lambda: 7) == 7          # solta a trava: entra na hora
+
+
+def test_publicar_arquivo_novo_apaga_a_copia_do_clone(tmp_path, monkeypatch):
+    """04/11: arquivo NOVO largado no clone faria o próximo git pull parar ("untracked working tree file")."""
+    monkeypatch.setattr(R, "RAIZ", tmp_path)
+    (tmp_path / "dist").mkdir()
+    (tmp_path / "dist" / "novo.json").write_text("{}", encoding="utf-8")
+
+    class Res:
+        def __init__(self, c):
+            self.returncode = c
+    monkeypatch.setattr(R.subprocess, "run", lambda cmd, **k: Res(1 if "ls-files" in cmd else 0))
+    assert "não publiquei" in R.publicar_arquivo({}, "dist/novo.json", "x")
+    assert not (tmp_path / "dist" / "novo.json").exists()

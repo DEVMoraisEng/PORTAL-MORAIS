@@ -575,6 +575,14 @@ def publicar_arquivo(cfg: dict, caminho: str, mensagem: str) -> str:
         return "publicado"
     finally:
         subprocess.run(["git", "checkout", "--", caminho], cwd=RAIZ, capture_output=True)
+        # 04/11: arquivo NOVO no repositório (medidores, problemas da água) não tem o que o checkout devolver — e,
+        # largado no clone, faz o próximo git pull parar com "untracked working tree file would be overwritten"
+        r = subprocess.run(["git", "ls-files", "--error-unmatch", caminho], cwd=RAIZ, capture_output=True)
+        if getattr(r, "returncode", 0) != 0:
+            try:
+                arq.unlink()
+            except OSError:
+                pass
 
 
 def robo_antigo(nome: str) -> int:
@@ -667,9 +675,44 @@ def publicar_escritorio() -> None:
     try:
         sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
         import escritorio_robos
-        escritorio_robos.publicar_se_passou(5, lambda m: log("[escritorio] " + m))
+        if escritorio_robos.publicar_se_passou(5, lambda m: log("[escritorio] " + m)):
+            publicar_problemas_agua((escritorio_robos.ULTIMO or {}).get("agua"))
     except Exception as e:
         log("[escritorio] FALHOU %s: %s" % (type(e).__name__, str(e)[:150]))
+
+
+ARQ_PROBLEMAS_AGUA = "dist/agua_problemas.json"
+
+
+def publicar_problemas_agua(sala) -> str | None:
+    """04/11: a aba PROBLEMAS COM AS LIGAÇÕES (ligacoes.html) — pendências e repetidas da rodada da água, sem valores
+    nem CPF. Sobe pela API do GitHub só quando muda (a rodada é uma vez por dia; o resto das vezes "sem mudança")."""
+    try:
+        import sala_agua
+        doc = sala_agua.problemas_publicos(sala)
+        if not doc.get("ok"):
+            return None
+        comparar = dict(doc, updated_at=None)
+        marca = CENTRAL / "agua-problemas-publicado.json"
+        try:
+            if json.loads(marca.read_text(encoding="utf-8")) == comparar:
+                return "sem mudança"
+        except Exception:
+            pass
+        cfg = json.loads(CONFIG.read_text(encoding="utf-8")).get("robos") or {}
+        arq = RAIZ / ARQ_PROBLEMAS_AGUA
+        arq.parent.mkdir(parents=True, exist_ok=True)
+        arq.write_text(json.dumps(doc, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        res = publicar_arquivo(cfg, ARQ_PROBLEMAS_AGUA,
+                               "Problemas das ligações %s (servidor) [skip ci]" % dt.datetime.now().strftime("%Y-%m-%d %H:%M"))
+        if res in ("publicado", "sem mudança"):
+            marca.write_text(json.dumps(comparar, ensure_ascii=False), encoding="utf-8")
+        log("[escritorio] problemas das ligações: %s (%d pendência(s), %d repetida(s))" % (
+            res, len(doc["itens"]), len(doc["duplicadas"])))
+        return res
+    except Exception as e:
+        log("[escritorio] problemas das ligações FALHOU %s: %s" % (type(e).__name__, str(e)[:150]))
+        return None
 
 
 if __name__ == "__main__":
