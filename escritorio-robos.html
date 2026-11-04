@@ -191,6 +191,14 @@ html[data-tema="escuro"] .box h3{color:var(--teal)}
 .ped-t{color:#b8860b;font-weight:700}
 
 /* vista: sala 3D × lista */
+.salas{display:flex;gap:8px;flex-wrap:wrap}
+.salas button{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border-radius:12px;border:1px solid var(--border2);background:var(--sup);font-weight:700;font-size:14px;color:var(--text2,var(--text3))}
+.salas button[aria-pressed="true"]{background:linear-gradient(120deg,var(--azul-esc),var(--azul));color:#fff;border-color:transparent;box-shadow:0 6px 16px rgba(30,63,88,.25)}
+.salas button .n{font-family:'Barlow Condensed';font-weight:800;font-size:13px;background:var(--st-erro);color:#fff;border-radius:999px;padding:0 7px;line-height:18px}
+.salas button:focus-visible{outline:2px solid var(--azul);outline-offset:2px}
+.passos{width:100%;border-collapse:collapse;font-size:13px}.passos td{padding:5px 6px;border-top:1px solid var(--border2);vertical-align:top}
+.passos td:first-child{white-space:nowrap;font-weight:700}
+.lista-cad{margin:6px 0 0;padding-left:18px;font-size:13px;line-height:1.55}
 .vistas{display:inline-flex;border:1px solid var(--border2);border-radius:999px;overflow:hidden;background:var(--sup)}
 .vistas button{all:unset;cursor:pointer;padding:6px 14px;font-size:12.5px;font-weight:700;color:var(--text3)}
 .vistas button[aria-pressed="true"]{background:var(--azul);color:#fff}
@@ -272,6 +280,10 @@ iframe.pdf{display:block;width:100%;height:min(72vh,720px);border:0;background:#
 </header>
 
 <main>
+  <nav class="salas" id="salas" aria-label="Salas">
+    <button type="button" id="s-mc" aria-pressed="true">🏢 Robôs do Mais Controle</button>
+    <button type="button" id="s-agua" aria-pressed="false">💧 Água e Energia <span class="n hide" id="s-agua-n"></span></button>
+  </nav>
   <div id="avisos"></div>
   <div class="kpis" id="kpis"></div>
   <div class="barra" style="width:100%">
@@ -302,7 +314,7 @@ iframe.pdf{display:block;width:100%;height:min(72vh,720px);border:0;background:#
 <script src="app.js?v=45"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-<script src="escritorio-3d.js?v=4"></script>
+<script src="escritorio-3d.js?v=5"></script>
 <script>
 /* ===== ESCRITÓRIO DE ROBÔS (03/11/26) =======================================
  * Uma mesa por robô do servidor do escritório. Os dados vêm do próprio
@@ -341,6 +353,7 @@ const CATALOGO = {
   agua:     { nome: "Água e energia", cargo: "Ligações", ico: "💡", cor: "#2d8fd5",
     faz: "Coleta as contas de água e energia das obras." }
 };
+function ehAgua(chave) { return /agua|energia/.test(String(chave || "")); }
 function catDe(chave, titulo) {
   if (CATALOGO[chave]) return CATALOGO[chave];
   if (/agua|energia/.test(chave)) return CATALOGO.agua;
@@ -396,6 +409,8 @@ function montarRobos(D) {
   for (const lista of Object.values(D.rodadas || {})) for (const r of lista || []) {
     if (r.porteiro && (!ultP || (r.inicio || "") > (ultP.inicio || ""))) ultP = r;
   }
+  /* 04/11: o de água e energia tem sala própria (montarRobosAgua) */
+  [...mapa.keys()].forEach(ch => { if (ehAgua(ch)) mapa.delete(ch); });
   const robos = [...mapa.values()].map(r => {
     const cat = catDe(r.chave, (r.tarefas[0] || {}).titulo);
     const ult = r.rodadas[0] || null;
@@ -454,6 +469,177 @@ function montarRobos(D) {
   return robos;
 }
 
+/* ===== SALA DA ÁGUA E ENERGIA (04/11/26) ====================================
+ * O robô das contas de água e energia é outro programa (pasta agua_energia, tarefa às 07:30 seg–sex) e não roda
+ * pelo rodar_e_relatar: ganha sala própria, uma mesa por PASSO da rodada, com o resumo que ele mesmo grava
+ * (servidor/sala_agua.py → D.agua). Rodar de novo pelo portal fica DESLIGADO para ele: lança contas e cria
+ * recorrências no Mais Controle, e rodar fora de hora pode lançar em dobro.
+ * ========================================================================== */
+const CAT_AGUA = {
+  coletor:      { nome: "Coletor das contas", cargo: "Recepção · a rodada inteira", ico: "💧", cor: "#2d8fd5", recepcao: true,
+    faz: "Todo dia útil às 07:30 roda a rodada inteira: lê a base do Notion, monta as filas do mês, emite as faturas na Equatorial e as guias na Sanesc, lança no Mais Controle, cuida das ligações novas e das recorrências e manda o relatório por e-mail (com o PDF)." },
+  cadastro:     { nome: "Cadastro no Notion", cargo: "Pendências e repetidas", ico: "🗂️", cor: "#6c5ce7", recepcao: true,
+    faz: "Junta o que a rodada achou de errado na base LIGAÇÕES DE ÁGUA E ENERGIA: casa sem UC/matrícula, CPF/CNPJ vazio e linhas REPETIDAS (a mesma casa duas vezes, ou a mesma UC/matrícula em mais de uma casa). UC repetida não lança nem cria recorrência até a equipe corrigir no Notion." },
+  notion:       { nome: "Base do Notion", cargo: "Leitura", ico: "📒", cor: "#3f7cac",
+    faz: "Lê a base LIGAÇÕES DE ÁGUA E ENERGIA do Notion (só leitura — o robô nunca grava no Notion) e regrava a base mestre." },
+  filas:        { nome: "Filas do mês", cargo: "Planejamento", ico: "📋", cor: "#5a8099",
+    faz: "Separa, para cada concessionária, as ligações que precisam de conta no mês." },
+  equatorial:   { nome: "Equatorial (energia)", cargo: "Coleta", ico: "⚡", cor: "#d9952b",
+    faz: "Entra no portal da Equatorial pelo Chrome real e emite as faturas do mês de cada UC. Não resolve CAPTCHA: se o portal não liberar o login, para e tenta no dia seguinte." },
+  sanesc:       { nome: "Sanesc (água)", cargo: "Coleta", ico: "🚰", cor: "#2a9d8f",
+    faz: "Consulta cada matrícula no portal da Sanesc, pega as guias em aberto e a data da leitura. Guia emitida só volta a ser consultada 7 dias depois." },
+  lancar:       { nome: "Lançar no Mais Controle", cargo: "Financeiro", ico: "🧾", cor: "#2a9d5c",
+    faz: "Lança no Mais Controle as faturas coletadas (Equatorial + Sanesc). Fatura do cliente (depois da entrega das chaves) não se paga." },
+  contas:       { nome: "Ligações novas", cargo: "Cadastro no ERP", ico: "🔌", cor: "#b5567a",
+    faz: "Para cada casa recém-ligada: lança os atrasados e cria as 12 recorrências no Mais Controle." },
+  recorrencias: { nome: "Recorrências", cargo: "Renovação", ico: "🔁", cor: "#8e6bbf",
+    faz: "Renova as recorrências que estão acabando, sem duplicar as que já foram renovadas." },
+  email:        { nome: "E-mail do relatório", cargo: "Correio", ico: "✉️", cor: "#c27c0e",
+    faz: "Manda o relatório da rodada (com o PDF) por e-mail. Se a GoDaddy recusar, tenta 3 vezes e as tarefas de reenvio das 10:00 e 14:00 mandam o que faltou." }
+};
+const ORDEM_AGUA = ["coletor", "cadastro", "notion", "filas", "equatorial", "sanesc", "lancar", "contas", "recorrencias", "email"];
+const PASSOS_AGUA = ["notion", "filas", "equatorial", "sanesc", "lancar", "contas", "recorrencias"];
+function estadoEmail(x) { const e = String((x && x.email) || ""); return /NÃO enviado|nao enviado/i.test(e) ? "erro" : /enviado/i.test(e) ? "ok" : "off"; }
+function estadoAgua(k, x) {
+  if (!x) return { st: "off", texto: "" };
+  if (PASSOS_AGUA.includes(k)) return (x.estados || {})[k] || { st: "off", texto: "não rodou nesta rodada" };
+  if (k === "email") return { st: estadoEmail(x), texto: x.email || "a rodada não escreveu nada sobre o e-mail" };
+  if (k === "cadastro") {
+    const d = (x.duplicados || []).length, p = (x.problemas || []).length;
+    return { st: d ? "erro" : "ok", texto: d ? d + " linha(s) repetida(s) no Notion" + (p ? " · " + p + " pendência(s) de cadastro" : "") : p ? p + " pendência(s) de cadastro" : "base sem pendências" };
+  }
+  return { st: x.ok ? "ok" : "erro", texto: x.ok ? "rodada completa" : ((x.alertas || [])[0] || ((x.erros || [])[0] || {}).texto || "deu errado") };
+}
+function montarRobosAgua(D) {
+  const A = D.agua || {}, rods = A.rodadas || [], ult = rods[0] || null;
+  const tarefas = (D.tarefas || []).filter(t => ehAgua(t.chave) || ehAgua(t.nome));
+  const rodando = tarefas.some(t => t.estado === "trabalhando");
+  const proxima = tarefas.map(t => t.proxima).filter(Boolean).sort()[0] || null;
+  const horarioTxt = "seg–sex 07:30 (a rodada inteira)";
+  return ORDEM_AGUA.map(k => {
+    const cat = CAT_AGUA[k], e = estadoAgua(k, ult);
+    const hist = rods.map(x => { const h = estadoAgua(k, x); return { inicio: x.inicio, ok: h.st !== "erro", st: h.st, texto: h.texto, x }; });
+    let st = e.st === "erro" ? "erro" : e.st === "ok" ? "ok" : (ult ? "off" : "sem");
+    let stTexto = !ult ? "sem rodada ainda" : e.st === "erro" ? "deu errado" : e.st === "ok" ? (k === "cadastro" ? e.texto : "deu certo") : "não rodou";
+    if (k === "cadastro" && e.st === "erro") stTexto = e.texto;
+    if (rodando && k === "coletor") { st = "trab"; stTexto = "rodando agora"; }
+    return { chave: "agua:" + k, passo: k, cat, st, stTexto, stHora: ult ? quando(ult.inicio) : "", causa: e.texto,
+             tarefas: k === "coletor" ? tarefas : [], rodadas: hist, ult: hist[0] || null, log: [], proxima, horarioTxt };
+  });
+}
+function oQueFazerAgua(k, texto) {
+  const t = String(texto || "");
+  if (k === "cadastro") return "Corrigir no Notion: cada casa uma vez só, cada UC/matrícula numa casa só, e preencher a UC/matrícula que falta. A próxima rodada já lê o certo.";
+  if (k === "email") return "A GoDaddy recusou a conexão. As tarefas de reenvio (10:00 e 14:00) mandam o que faltou — o PDF está aqui na sala.";
+  if (/BOTAO_NAO_LIBERADO|bloquead|não liberou/i.test(t)) return "O portal da Equatorial não liberou o login (o robô não resolve CAPTCHA). Ele tenta sozinho no próximo dia útil; se passar de 5 dias úteis, emitir à mão no portal.";
+  if (/sem emitir/i.test(t)) return "A Equatorial está há dias sem emitir. Conferir no portal da Equatorial se o login abre; se não abrir, emitir à mão.";
+  if (/autentica|login|Timeout|payable-installments|sessão/i.test(t)) return "O Mais Controle estava fora (o porteiro sem login, como hoje de manhã). Com o porteiro logado, a próxima rodada das 07:30 faz este passo — nada se perde.";
+  return "";
+}
+function kpisAgua(robos, D) {
+  const A = D.agua || {}, ult = (A.rodadas || [])[0], S = A.saude || {}, eq = S.equatorial || {};
+  const card = (lab, val, sub, cls) => `<div class="kpi ${cls || ""}"><div class="lab">${lab}</div><div class="val">${val}</div><div class="sub">${sub || ""}</div></div>`;
+  const ruins = robos.filter(r => r.st === "erro" && PASSOS_AGUA.includes(r.passo));
+  const dup = ult ? (ult.duplicados || []).length : 0, prob = ult ? (ult.problemas || []).length : 0;
+  return card("Última rodada", ult ? esc(quando(ult.inicio)) : "—", ult ? (ult.ok ? `<span class="ok-t">completa</span>` : `<span class="erro-t">com problema</span>`) + (ult.duracao ? " · " + esc(ult.duracao) : "") : "o servidor ainda não mandou", ult ? (ult.ok ? "ok" : "erro") : "")
+    + card("Passos com problema", ruins.length + " de " + PASSOS_AGUA.length, ruins.length ? ruins.map(r => esc(r.cat.nome)).join(", ") : "todos em dia", ruins.length ? "erro" : "ok")
+    + card("Cadastro no Notion", dup ? dup + " repetida" + (dup > 1 ? "s" : "") : prob + " pendência" + (prob === 1 ? "" : "s"), dup ? prob + " pendência(s) de cadastro" : "sem linha repetida", dup ? "erro" : "")
+    + card("Equatorial", eq.pendentes != null ? esc(eq.pendentes) + " UC" : "—", eq.dias_uteis_sem_emissao != null ? esc(eq.dias_uteis_sem_emissao) + " dia(s) útil(eis) sem emitir" + (eq.ultima_emissao ? " · última " + esc(eq.ultima_emissao.split("-").reverse().join("/")) : "") : "", (eq.dias_uteis_sem_emissao || 0) >= 3 ? "erro" : "");
+}
+function agendaAgua(robos) {
+  return robos.filter(r => r.passo !== "coletor").map(r => ({ chave: r.chave, nome: r.cat.nome, ico: r.cat.ico,
+    itens: r.rodadas.slice(0, 7).reverse().map(h => { const d = dataDe(h.inicio); return { h: d ? ddmm(d) : "?", e: h.st === "erro" ? "erro" : h.st === "ok" ? "ok" : "sem" }; }) }));
+}
+const ST_SELO = { ok: ["ok", "DEU CERTO"], erro: ["erro", "DEU ERRADO"], off: ["", "NÃO RODOU"] };
+function seloAgua(st) { const s = ST_SELO[st] || ST_SELO.off; return `<span class="selo ${s[0]}"${s[0] ? "" : ' style="background:#8a9aa5"'}>${s[1]}</span>`; }
+function relatorioAgua(x) {
+  const i0 = dataDe(x.inicio);
+  let h = `<p class="meta">Rodada de ${i0 ? ddmm(i0) + "/" + i0.getFullYear() + " às " + hhmm(i0) : "?"}${x.duracao ? " · durou " + esc(x.duracao) : ""}${x.mes ? " · mês " + esc(x.mes) : ""}</p>`;
+  if (x.email) h += `<p class="meta">${esc(x.email)}</p>`;
+  if ((x.alertas || []).length) h += `<h4>Alertas da rodada</h4><ul>${x.alertas.map(a => `<li>${esc(a)}</li>`).join("")}</ul>`;
+  h += `<h4>Passo a passo</h4><div class="tbl"><table class="passos">${PASSOS_AGUA.map(k => { const e = (x.estados || {})[k] || { st: "off", texto: "" };
+    return `<tr><td>${esc(CAT_AGUA[k].ico)} ${esc(CAT_AGUA[k].nome)}</td><td>${seloAgua(e.st)}</td><td class="txt">${esc(e.texto)}</td></tr>`; }).join("")}
+    <tr><td>${esc(CAT_AGUA.email.ico)} E-mail</td><td>${seloAgua(estadoEmail(x))}</td><td class="txt">${esc(x.email || "")}</td></tr></table></div>`;
+  const dup = x.duplicados || [], prob = x.problemas || [];
+  if (dup.length || prob.length) h += `<h4>Cadastro no Notion</h4><p class="meta" style="margin-top:0">${dup.length} repetida(s) · ${prob.length} pendência(s) — detalhes na mesa “Cadastro no Notion”.</p>`;
+  h += pdfHtml(x);
+  if (x.texto) h += `<details style="margin-top:12px"><summary>Resumo completo da rodada (o mesmo do e-mail)</summary><pre>${esc(x.texto)}</pre></details>`;
+  return h;
+}
+function cadastroHtml(x) {
+  if (!x) return `<p class="muted">Sem rodada ainda.</p>`;
+  const dup = x.duplicados || [], prob = x.problemas || [];
+  let h = `<h4 style="margin-top:0">Repetidas (${dup.length})</h4>` + (dup.length
+    ? `<ul class="lista-cad">${dup.map(d => `<li>${d.casa ? `<b>${esc(d.casa)}</b>${d.conc ? " (" + esc(d.conc) + ")" : ""} — ` : ""}${esc(d.motivo)}</li>`).join("")}</ul>`
+    : `<p class="meta" style="margin-top:0">Nenhuma linha repetida nesta rodada.</p>`);
+  const grupos = {};
+  prob.forEach(p => { (grupos[p.motivo] = grupos[p.motivo] || []).push(p); });
+  h += `<h4>Pendências de cadastro (${prob.length})</h4>` + (prob.length
+    ? Object.entries(grupos).map(([m, l]) => `<details${Object.keys(grupos).length < 3 ? " open" : ""}><summary><b>${esc(m)}</b> — ${l.length} casa(s)</summary><ul class="lista-cad">${l.map(p => `<li>${esc(p.casa)} (${esc(p.conc)})${p.n > 1 ? ` <span class="erro-t">· ${p.n}× na base</span>` : ""}</li>`).join("")}</ul></details>`).join("")
+    : `<p class="meta" style="margin-top:0">Nada pendente.</p>`);
+  return h;
+}
+function abrirAgua(chave, manterAbertas) {
+  const D = DADOS || {}, A = D.agua || {};
+  const robos = montarRobosAgua(D), r = robos.find(x => x.chave === chave); if (!r) return;
+  const abertas = manterAbertas ? [...document.querySelectorAll("#gaveta .rod.aberta")].map(e => e.dataset.i) : null;
+  ABERTO = chave;
+  const c = r.cat, g = $("gaveta"), k = r.passo, ult = (A.rodadas || [])[0];
+  g.style.setProperty("--rc", c.cor);
+  let causa = "";
+  if (r.st === "erro") {
+    const linhas = k === "coletor" && ult ? [...(ult.alertas || []), ...(ult.erros || []).map(e => CAT_AGUA[e.passo] ? CAT_AGUA[e.passo].nome + ": " + e.texto : e.texto)] : [r.causa];
+    const ruins = k === "coletor" ? PASSOS_AGUA.concat("cadastro", "email").map(p => [p, estadoAgua(p, ult)]).filter(([, e]) => e.st === "erro") : [[k, { texto: r.causa }]];
+    const fazer = [...new Set(ruins.map(([p, e]) => oQueFazerAgua(p, e.texto)).filter(Boolean))];
+    causa = `<div class="box causa"><h3>⚠ O que deu errado</h3>${linhas.length > 1 ? `<ul>${[...new Set(linhas)].map(l => `<li>${esc(l)}</li>`).join("")}</ul>` : `<p>${esc(linhas[0] || "")}</p>`}
+      ${fazer.map(f => `<p class="muted" style="margin-top:6px">O que fazer: ${esc(f)}</p>`).join("")}
+      <div class="acoes"><small>Rodar de novo pelo portal fica desligado para este robô: ele lança contas e cria recorrências no Mais Controle, e rodar fora de hora pode lançar em dobro. Ele roda sozinho seg–sex às 07:30.</small></div></div>`;
+  }
+  let quandoTrab = "";
+  if (k === "coletor") {
+    quandoTrab = r.tarefas.map(t => `<div class="tarefa">
+      <span class="k">Tarefa</span><span>${esc(t.nome)}</span>
+      <span class="k">Horário</span><span>${(t.horario || []).map(esc).join("<br>")}</span>
+      <span class="k">Situação</span><span>${esc(t.estado)}${t.resultado_texto && t.estado !== "trabalhando" ? " · última vez " + esc(t.resultado_texto) : ""}</span>
+      <span class="k">Última</span><span>${esc(quando(t.ultima))}</span>
+      <span class="k">Próxima</span><span>${esc(quando(t.proxima))}</span></div>`).join("") || `<p class="muted">Roda pela tarefa “MoraisEng - Coleta Agua e Energia (diaria)”, seg–sex 07:30.</p>`;
+  }
+  let corpo = "";
+  if (k === "cadastro") corpo = `<div class="box"><h3>Na última rodada${ult ? " · " + esc(quando(ult.inicio)) : ""}</h3>${cadastroHtml(ult)}</div>`;
+  else if (k !== "coletor" && k !== "email") {
+    const p = ult && (ult.passos || {})[k];
+    if (p && (p.linhas || []).length) corpo = `<div class="box"><h3>O que escreveu na última rodada · ${esc(quando(ult.inicio))}</h3><pre style="max-height:340px;overflow:auto">${esc(p.linhas.join("\n"))}</pre></div>`;
+  }
+  let rods = "", diaAnt = "";
+  r.rodadas.forEach((h, i) => {
+    const d = dataDe(h.inicio), dt = d ? diaTitulo(d) : "";
+    if (dt !== diaAnt) { rods += `<div class="dia">${esc(dt)}</div>`; diaAnt = dt; }
+    const p = (h.x.passos || {})[k];
+    const rel = k === "coletor" || k === "email" ? relatorioAgua(h.x) : k === "cadastro" ? cadastroHtml(h.x) + pdfHtml(h.x)
+      : `<p class="meta">${esc(h.texto)}</p>${p && (p.linhas || []).length ? `<pre style="max-height:300px;overflow:auto">${esc(p.linhas.join("\n"))}</pre>` : ""}${pdfHtml(h.x)}`;
+    rods += `<div class="rod" data-i="${i}"><button type="button" aria-expanded="false">${seloAgua(h.st)}
+        <span class="h">${d ? hhmm(d) : "?"}</span><span class="r">${esc(h.texto)}</span><span class="seta">›</span>
+      </button><div class="rel">${rel}</div></div>`;
+  });
+  g.innerHTML = `<div class="g-top"><div class="g-ico">${c.ico}</div><div style="min-width:0"><div class="t" id="g-titulo">${esc(c.nome)}</div><div class="s">Água e Energia · ${esc(c.cargo)} · ${esc(r.stTexto)}</div></div>
+      <button class="hbtn x" type="button" id="g-fechar">✕ Fechar</button></div>
+    <div class="g-corpo">${causa}
+      <div class="box"><h3>O que faz</h3><p>${esc(c.faz)}</p></div>
+      ${quandoTrab ? `<div class="box"><h3>Quando trabalha</h3>${quandoTrab}</div>` : ""}
+      ${corpo}
+      <div class="box"><h3>${k === "coletor" ? "Relatórios das rodadas" : "Nas últimas rodadas"}</h3>${r.rodadas.length ? `<p class="muted" style="font-size:12.5px;margin-bottom:6px">${k === "coletor" ? "O mesmo resumo do e-mail, com o PDF. Clique numa rodada para abrir." : "Clique numa rodada para ver o que este passo escreveu."}</p><div class="rods">${rods}</div>` : `<p class="muted">O servidor ainda não mandou as rodadas deste robô (publica a cada 5 min).</p>`}</div>
+      ${(A.avisos || []).length ? `<div class="box"><h3>Avisos do servidor</h3><ul>${A.avisos.map(a => `<li>${esc(a)}</li>`).join("")}</ul></div>` : ""}
+    </div>`;
+  g.querySelectorAll(".rod > button").forEach(b => b.addEventListener("click", () => {
+    const el = b.parentNode; el.classList.toggle("aberta"); b.setAttribute("aria-expanded", el.classList.contains("aberta"));
+  }));
+  g.querySelectorAll('.pdfbox button[data-a="pdf"]').forEach(b => b.addEventListener("click", () => mostrarPdf(b.closest(".pdfbox"))));
+  const abrirIdx = abertas || (k === "coletor" && r.rodadas[0] && r.rodadas[0].st === "erro" ? ["0"] : []);
+  abrirIdx.forEach(i => { const el = g.querySelector(`.rod[data-i="${i}"]`); if (el) { el.classList.add("aberta"); el.querySelector("button").setAttribute("aria-expanded", "true"); } });
+  $("g-fechar").addEventListener("click", fechar);
+  if (!manterAbertas) { g.classList.remove("hide"); $("veu").classList.remove("hide"); g.scrollTop = 0; $("g-fechar").focus(); }
+}
+
 /* ---------------- desenho ---------------- */
 function roboSvg() {
   return `<svg class="robo" viewBox="0 0 78 96" aria-hidden="true">
@@ -506,7 +692,7 @@ function mesaHtml(r) {
     <div class="corpo">
       <div class="placa"><b>${esc(c.nome)}</b><span class="cargo">${esc(c.cargo)}</span></div>
       <p class="faz">${esc(c.faz)}</p>
-      <div class="lin"><span class="k">Trabalha</span><span class="v">${horario.length ? horario.map(esc).join("<br>") : (r.chave === "fila" ? "a cada minuto" : "sem tarefa agendada")}</span></div>
+      <div class="lin"><span class="k">Trabalha</span><span class="v">${horario.length ? horario.map(esc).join("<br>") : r.horarioTxt ? esc(r.horarioTxt) : (r.chave === "fila" ? "a cada minuto" : "sem tarefa agendada")}</span></div>
       <div class="lin"><span class="k">Última</span><span class="v">${ultTxt}</span></div>
       <div class="lin"><span class="k">Próxima</span><span class="v">${proxTxt}</span></div>
       ${tira.length ? `<div class="tira" title="Últimas rodadas (a mais nova à direita)">${tira.map(x => `<span class="${x.ok ? "" : "f"}" title="${esc(quando(x.inicio))} · ${x.ok ? "deu certo" : "deu errado"}"></span>`).join("")}<em>${r.rodadas.filter(x => x.ok).length}/${r.rodadas.length} ok</em></div>` : ""}
@@ -530,10 +716,16 @@ function kpisHtml(robos, D) {
 
 function pintar() {
   const D = DADOS; if (!D) return;
-  const robos = montarRobos(D);
+  const agua = SALA === "agua";
+  const robos = agua ? montarRobosAgua(D) : montarRobos(D);
   const so = $("so-problema").checked;
   const vis = robos.filter(r => !so || r.st === "erro");
-  $("kpis").innerHTML = kpisHtml(robos, D);
+  $("kpis").innerHTML = agua ? kpisAgua(robos, D) : kpisHtml(robos, D);
+  $("bt-agenda").classList.toggle("hide", agua);
+  $("sala-recepcao").querySelector("h2").innerHTML = agua ? "Recepção <small>o coletor das 07:30 e o cadastro do Notion</small>" : "Recepção <small>quem abre a porta do Mais Controle e atende o portal</small>";
+  $("sala-salao").querySelector("h2").innerHTML = agua ? "Passos da rodada <small>uma mesa por passo, na ordem em que o robô roda — clique para ver o relatório</small>" : "Salão <small>cada robô na sua mesa — clique para ver o horário e os relatórios</small>";
+  const nAgua = montarRobosAgua(D).filter(r => r.st === "erro").length;
+  $("s-agua-n").textContent = nAgua; $("s-agua-n").classList.toggle("hide", !nAgua);
   const rec = vis.filter(r => r.cat.recepcao), sal = vis.filter(r => !r.cat.recepcao);
   $("mesas-recepcao").innerHTML = rec.map(mesaHtml).join("");
   $("mesas-salao").innerHTML = sal.map(mesaHtml).join("") || `<div class="vazio">${so ? "Ninguém precisa de atenção agora. 🎉" : "Nenhum robô no salão ainda."}</div>`;
@@ -542,7 +734,11 @@ function pintar() {
   $("sala-salao").classList.toggle("hide", em3d);
   $("sala3d").classList.toggle("hide", !em3d);
   $("carregando").classList.add("hide");
-  if (em3d) Escritorio3D.atualizar(vis.length ? vis : robos, { abrir, rodar: pedirRodar, podeRodar, causa: causaDe, agenda: agendaDoDia(robos) });
+  if (em3d) Escritorio3D.atualizar(vis.length ? vis : robos, agua
+    ? { abrir, rodar: () => {}, podeRodar: () => false, causa: r => r.causa, agenda: agendaAgua(robos),
+        titulo: "ÁGUA E ENERGIA", sub: "SALA DO COLETOR · SEG–SEX 07:30", agendaTitulo: "ÚLTIMAS RODADAS",
+        agendaLegenda: "✓ deu certo   ✗ deu errado   ? não rodou   — um quadrinho por dia de rodada (o mais novo à direita)" }
+    : { abrir, rodar: pedirRodar, podeRodar, causa: causaDe, agenda: agendaDoDia(robos) });
   const g = dataDe(D.gerado);
   const chip = $("chip-gerado");
   const velho = g && (Date.now() - g.getTime()) / 60000 > VELHO_MIN;
@@ -553,6 +749,8 @@ function pintar() {
   if (P && P.estado === "fora") av.push(`<div class="aviso"><b>🚨 O porteiro está fora do Mais Controle (visto ${esc(quando(P.em))}).</b> Enquanto isso, nenhum robô consegue entrar no ERP. O que fazer: no servidor, entrar no Mais Controle pela janela do Chrome central (a do porteiro) e deixar aberta. Depois, Rodar de novo nos robôs que falharam.<br><span class="muted">${esc(P.texto || "")}</span></div>`);
   if (velho) av.push(`<div class="aviso amarelo"><b>O servidor não manda notícias ${esc(ha(g))}.</b> Ele publica depois de cada rodada e a cada 5 min — pode estar desligado, sem internet, ou a tarefa “MoraisEng - Robo do portal (fila)” parou.</div>`);
   (D.avisos || []).forEach(a => av.push(`<div class="aviso amarelo">Servidor: ${esc(a)}</div>`));
+  if (agua && !D.agua) av.push(`<div class="aviso amarelo"><b>O servidor ainda não mandou a sala da Água e Energia.</b> Ela aparece na próxima publicação (a cada 5 min), depois que o servidor receber a versão nova.</div>`);
+  if (!agua && nAgua) av.push(`<div class="aviso amarelo">💧 <b>Água e Energia:</b> ${nAgua} mesa${nAgua > 1 ? "s" : ""} com problema na última rodada. <button type="button" class="bt" onclick="trocarSala('agua')">Ver a sala</button></div>`);
   $("avisos").innerHTML = av.join("");
   if (ABERTO) abrir(ABERTO, true);
 }
@@ -783,7 +981,9 @@ function resumoRodada(x) {
   return (x.repeticao ? "na 2ª tentativa · " : "") + (ult ? ult.texto : (x.ok ? "rodada completa" : "falhou"));
 }
 function abrir(chave, manterAbertas) {
+  if (chave === "__agenda__" && SALA === "agua") return abrirAgua("agua:coletor", manterAbertas);
   if (chave === "__agenda__") return abrirAgenda(manterAbertas);
+  if (String(chave).startsWith("agua:")) return abrirAgua(chave, manterAbertas);
   const robos = montarRobos(DADOS || {});
   const r = robos.find(x => x.chave === chave); if (!r) return;
   const abertas = manterAbertas ? [...document.querySelectorAll("#gaveta .rod.aberta")].map(e => e.dataset.i) : null;
@@ -854,6 +1054,20 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && ABERTO) fe
 document.addEventListener("click", e => { const m = e.target.closest && e.target.closest(".mesa"); if (m) abrir(m.dataset.chave); });
 $("so-problema").addEventListener("change", pintar);
 $("bt-agenda").addEventListener("click", () => abrirAgenda());
+
+/* ---------------- sala: Mais Controle ou Água e Energia (04/11) ---------------- */
+let SALA = "mc";
+try { if (localStorage.getItem("morais_escritorio_sala") === "agua") SALA = "agua"; } catch (e) {}
+function trocarSala(s) {
+  SALA = s === "agua" ? "agua" : "mc";
+  $("s-mc").setAttribute("aria-pressed", SALA === "mc"); $("s-agua").setAttribute("aria-pressed", SALA === "agua");
+  try { localStorage.setItem("morais_escritorio_sala", SALA); } catch (e) {}
+  if (ABERTO) fechar();
+  pintar();
+}
+$("s-mc").addEventListener("click", () => trocarSala("mc"));
+$("s-agua").addEventListener("click", () => trocarSala("agua"));
+$("s-mc").setAttribute("aria-pressed", SALA === "mc"); $("s-agua").setAttribute("aria-pressed", SALA === "agua");
 
 /* ---------------- vista: sala 3D (padrão) ou lista ---------------- */
 let VISTA = "3d", SALA3D = false;

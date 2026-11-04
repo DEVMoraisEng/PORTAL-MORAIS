@@ -109,12 +109,12 @@
   /* 04/11: quadro "Agenda de hoje" — cada robô com os horários do dia e ✓ / ✗ nos que já rodaram */
   const COR_AG = { ok: ["#1f8f4e", "#e8f6ee", "✓"], erro: ["#d64534", "#fdecea", "✗"], rodando: ["#2f80c2", "#e6f1fb", "●"],
                    pendente: ["#7f93a0", "#ffffff", "⏳"], sem: ["#9aa7b0", "#f1f4f6", "?"] };
-  function desenharAgenda(c, ag) {
+  function desenharAgenda(c, ag, titulo, legenda) {
     const g = c.getContext("2d"), W = c.width, H = c.height, d = new Date();
     g.fillStyle = "#fdfdf8"; g.fillRect(0, 0, W, H);
     g.fillStyle = "#1e3f58"; g.fillRect(0, 0, W, 92);
     g.fillStyle = "#fff"; g.font = "800 50px " + FONTE; g.textBaseline = "middle"; g.textAlign = "left";
-    g.fillText("AGENDA DE HOJE", 34, 48);
+    g.fillText(titulo || "AGENDA DE HOJE", 34, 48);
     g.font = "600 30px " + FONTE; g.textAlign = "right";
     g.fillText(["dom", "seg", "ter", "qua", "qui", "sex", "sáb"][d.getDay()] + " " + String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0") + " · " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"), W - 30, 48);
     const linhas = (ag || []).slice(0, 12);
@@ -143,7 +143,7 @@
     });
     if (!linhas.length) { g.fillStyle = "#5a8099"; g.font = "600 32px " + FONTE; g.textAlign = "center"; g.fillText("Sem horários para hoje", W / 2, H / 2); }
     g.fillStyle = "#5a8099"; g.font = "600 22px " + FONTE; g.textAlign = "left";
-    g.fillText("✓ rodou e deu certo   ✗ deu errado   ● rodando   ⏳ ainda vai rodar   ? não achei a rodada   tracejado = rodou de novo", 24, H - 22);
+    g.fillText(legenda || "✓ rodou e deu certo   ✗ deu errado   ● rodando   ⏳ ainda vai rodar   ? não achei a rodada   tracejado = rodou de novo", 24, H - 22);
   }
   function spriteTexto(txt, cor, tam) {
     const c = canvas(128, 128), g = c.getContext("2d");
@@ -291,7 +291,8 @@
     moldAg.userData.chave = "__agenda__"; sala.add(moldAg);
     const p3x = planta(0.9); p3x.position.set(-W / 2 + 0.7, 0, D / 2 - 0.4); sala.add(p3x);
     /* quadro com o nome, relógio e lousa na parede do fundo */
-    const quadro = new T.Mesh(new T.PlaneGeometry(5.2, 1.3), new T.MeshBasicMaterial({ map: texQuadro("ESCRITÓRIO DE ROBÔS", "MORAIS ENGENHARIA · SERVIDOR"), toneMapped: false }));
+    const op = R.op || {};
+    const quadro = new T.Mesh(new T.PlaneGeometry(5.2, 1.3), new T.MeshBasicMaterial({ map: texQuadro(op.titulo || "ESCRITÓRIO DE ROBÔS", op.sub || "MORAIS ENGENHARIA · SERVIDOR"), toneMapped: false }));
     quadro.position.set(-W / 2 + 3.4, 3.0, -D / 2 + 0.01); sala.add(quadro);
     const cRel = canvas(256, 256); desenharRelogio(cRel); R.relogio = { c: cRel, t: textura(cRel) };
     const relogio = new T.Mesh(new T.CircleGeometry(0.55, 40), new T.MeshBasicMaterial({ map: R.relogio.t, toneMapped: false }));
@@ -325,7 +326,7 @@
     const ext = Math.max(W, D) * 0.75; Object.assign(s.shadow.camera, { left: -ext, right: ext, top: ext, bottom: -ext });
     s.shadow.camera.updateProjectionMatrix();
     encaixar();
-    R.chaves = robos.map(r => r.chave).join("|") + "#" + (escuro() ? "e" : "c");
+    R.chaves = robos.map(r => r.chave).join("|") + "#" + (escuro() ? "e" : "c") + "#" + ((R.op && R.op.titulo) || "");
   }
 
   /* câmera que mostra a sala inteira (mais longe em tela estreita, como o celular em pé) */
@@ -553,7 +554,7 @@
     const fundo = escuro() ? "#0e1920" : "#eaf1f3";
     R.cena.background = new T.Color(fundo); R.cena.fog = new T.Fog(fundo, 40, 120);
     R.hemi.intensity = escuro() ? 0.45 : 0.75; R.sol.intensity = escuro() ? 0.55 : 0.95;
-    const chaves = robos.map(r => r.chave).join("|") + "#" + (escuro() ? "e" : "c");
+    const chaves = robos.map(r => r.chave).join("|") + "#" + (escuro() ? "e" : "c") + "#" + ((R.op && R.op.titulo) || "");
     if (chaves !== R.chaves) montarSala(robos);
     robos.forEach(aplicarEstado);
     /* lousa: o resumo de hoje */
@@ -565,7 +566,7 @@
       { t: "☾ " + n("off") + " desligados", cor: "#57606a" }
     ]);
     R.lousa.t.needsUpdate = true;
-    if (R.agenda) { desenharAgenda(R.agenda.c, (R.op && R.op.agenda) || []); R.agenda.t.needsUpdate = true; }
+    if (R.agenda) { desenharAgenda(R.agenda.c, (R.op && R.op.agenda) || [], R.op && R.op.agendaTitulo, R.op && R.op.agendaLegenda); R.agenda.t.needsUpdate = true; }
     baloesHtml(robos);
   }
   function focar(chave) {
