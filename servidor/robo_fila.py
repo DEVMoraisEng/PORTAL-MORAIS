@@ -35,6 +35,13 @@ CENTRAL = pathlib.Path(os.environ.get("MC_CENTRAL") or r"C:\AUTOMAÇÕES MAIS CO
 CONFIG = CENTRAL / "robos-portal.json"
 TRAVA = CENTRAL / "robos-portal.trava"
 TRAVA_INDICES = CENTRAL / "robo-indices.trava"   # 04/11: os índices não esperam a trava da fila
+#: 04/11: a VEZ no Mais Controle — um robô de cada vez na aba do porteiro. Às 17:2x os índices, as medições e os
+#: anexos entraram juntos no mesmo Chrome: medições com Page.goto estourando, índices "código 1" sem mensagem e o
+#: porteiro dando "fora". Quem chega espera a vez (até ESPERA_VEZ_S) em vez de disputar a aba.
+TRAVA_MC = CENTRAL / "robo-mc-vez.trava"
+ESPERA_VEZ_S = 50 * 60
+#: 04/11: quem está rodando agora (rodado pela tarefa OU por um .bat): o Escritório mostra "trabalhando".
+RODANDO = CENTRAL / "rodando"
 SAUDE = CENTRAL / "robos-portal-saude.json"
 APLICAR = CENTRAL / "VENDA_APLICAR.txt"
 LOGS = CENTRAL / "logs"
@@ -363,6 +370,90 @@ def com_trava(funcao, trava=None):
             f.close()
 
 
+def _travar(f) -> bool:
+    """Pega a trava sem esperar (True) ou diz que outro está com ela (False). Windows: msvcrt; resto: fcntl."""
+    try:
+        import msvcrt
+        try:
+            msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+            return True
+        except OSError:
+            return False
+    except ImportError:
+        import fcntl
+        try:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return True
+        except OSError:
+            return False
+
+
+def _soltar(f) -> None:
+    try:
+        import msvcrt
+        f.seek(0)
+        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+    except ImportError:
+        import fcntl
+        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+    except OSError:
+        pass
+
+
+def marcar_rodando(nome: str, fase: str | None) -> None:
+    """Escreve (fase) ou apaga (None) o _central/rodando/<nome>.json que o Escritório lê. Nunca derruba o robô."""
+    try:
+        arq = RODANDO / ("%s.json" % nome)
+        if fase is None:
+            arq.unlink(missing_ok=True)
+            return
+        RODANDO.mkdir(parents=True, exist_ok=True)
+        antes = {}
+        try:
+            antes = json.loads(arq.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+        arq.write_text(json.dumps({"robo": nome, "fase": fase, "pid": os.getpid(),
+                                   "desde": antes.get("desde") or agora_iso(), "fase_em": agora_iso()}),
+                       encoding="utf-8")
+    except Exception:
+        pass
+
+
+def na_vez(nome: str, funcao, espera_s: float = ESPERA_VEZ_S, dormir=time.sleep, relogio=time.monotonic) -> int:
+    """Roda `funcao` quando for a vez dele no Mais Controle (TRAVA_MC). Espera quem estiver lá; desiste depois de
+    `espera_s` com código 1 e uma linha clara no log (o relatório mostra o motivo)."""
+    CENTRAL.mkdir(parents=True, exist_ok=True)
+    f = open(TRAVA_MC, "a+")
+    ini, avisou = relogio(), False
+    try:
+        while not _travar(f):
+            if not avisou:
+                quem = []
+                try:
+                    quem = sorted(x.stem for x in RODANDO.glob("*.json") if x.stem != nome)
+                except Exception:
+                    pass
+                log("[vez] %s esperando a vez no Mais Controle (usando agora: %s)" % (nome, ", ".join(quem) or "outro robô"))
+                marcar_rodando(nome, "esperando a vez")
+                avisou = True
+            if relogio() - ini > espera_s:
+                marcar_rodando(nome, None)
+                log("[%s] FALHOU: esperei %d min a vez no Mais Controle e outro robô não terminou" % (nome, espera_s // 60))
+                return 1
+            dormir(10)
+        if avisou:
+            log("[vez] %s: chegou a vez (esperou %d min)" % (nome, (relogio() - ini) // 60))
+        marcar_rodando(nome, "trabalhando")
+        try:
+            return funcao()
+        finally:
+            marcar_rodando(nome, None)
+            _soltar(f)
+    finally:
+        f.close()
+
+
 def rodada() -> int:
     saude = {"em": agora_iso(), "filas": {}}
     erro = 0
@@ -391,9 +482,21 @@ def indices() -> int:
     for n in ("MC_ROBO_EMAIL", "MC_ROBO_SENHA", "MC_ROBO_APARELHO"):
         env.pop(n, None)
     argv = ["-m", "venda.mc.indices"] + (["--aplicar"] if (CENTRAL / "INDICES_APLICAR.txt").exists() else [])
-    r = subprocess.run([sys.executable] + argv, cwd=RAIZ, env=env, capture_output=True, text=True,
-                       encoding="utf-8", errors="replace", timeout=PRAZO_ROBO_S)
-    log("[indices] código %s %s" % (r.returncode, ((r.stdout or "").strip().splitlines() or [""])[-1][:200]))
+    try:
+        r = subprocess.run([sys.executable] + argv, cwd=RAIZ, env=env, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=PRAZO_ROBO_S)
+    except subprocess.TimeoutExpired:
+        log("[indices] código 124 passou de %d min" % (PRAZO_ROBO_S // 60))
+        return 124
+    fim = ((r.stdout or "").strip().splitlines() or [""])[-1]
+    if r.returncode and not fim.strip():     # 04/11: "código 1" sem nada — o motivo estava no stderr
+        fim = ((r.stderr or "").strip().splitlines() or ["(sem mensagem)"])[-1]
+    log("[indices] código %s %s" % (r.returncode, fim[:200]))
+    try:
+        (LOGS / "saida-indices.txt").write_text("%s código %s\n%s\n%s" % (
+            agora_iso(), r.returncode, (r.stdout or "")[-60000:], (r.stderr or "")[-20000:]), encoding="utf-8")
+    except Exception:
+        pass
     return r.returncode
 
 
@@ -550,9 +653,9 @@ def main(argv=None) -> int:
     if a.verificar:
         return verificar()
     if a.indices:
-        return com_trava(indices, TRAVA_INDICES)
-    if a.robo:
-        return robo_antigo(a.robo)      # sem a trava da fila: os robôs antigos não usam a fila
+        return com_trava(lambda: na_vez("indices", indices), TRAVA_INDICES)
+    if a.robo:                          # sem a trava da fila (não usam a fila), mas um de cada vez no MC
+        return na_vez(a.robo, lambda: robo_antigo(a.robo))
     codigo = com_trava(rodada)
     publicar_escritorio()
     return codigo

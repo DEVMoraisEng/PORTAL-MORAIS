@@ -239,3 +239,40 @@ def test_atender_retrato_que_falha_nao_muda_o_feito(tmp_path, monkeypatch):
         assert len(chamadas) == 2, falha
         log_do_dia = next((tmp_path / "logs").glob("*.log")).read_text(encoding="utf-8")
         assert "retratos depois de gravar" in log_do_dia, falha
+
+
+# ------------------------------------------------- 04/11: a vez no Mais Controle
+def _central(tmp_path, monkeypatch):
+    monkeypatch.setattr(R, "CENTRAL", tmp_path)
+    monkeypatch.setattr(R, "TRAVA_MC", tmp_path / "vez.trava")
+    monkeypatch.setattr(R, "RODANDO", tmp_path / "rodando")
+    monkeypatch.setattr(R, "LOGS", tmp_path / "logs")
+
+
+def test_na_vez_marca_trabalhando_e_apaga_no_fim(tmp_path, monkeypatch):
+    _central(tmp_path, monkeypatch)
+    visto = {}
+    def robo():
+        visto.update(json.loads((tmp_path / "rodando" / "anexos.json").read_text(encoding="utf-8")))
+        return 0
+    assert R.na_vez("anexos", robo) == 0
+    assert visto["fase"] == "trabalhando" and visto["robo"] == "anexos"
+    assert not (tmp_path / "rodando" / "anexos.json").exists()
+
+
+def test_na_vez_espera_quem_esta_no_mc_e_desiste_no_prazo(tmp_path, monkeypatch):
+    _central(tmp_path, monkeypatch)
+    import fcntl
+    outro = open(tmp_path / "vez.trava", "a+")
+    fcntl.flock(outro.fileno(), fcntl.LOCK_EX)
+    R.marcar_rodando("medicoes", "trabalhando")
+    t = [0.0]
+    cod = R.na_vez("indices", lambda: 0, espera_s=60, dormir=lambda s: t.__setitem__(0, t[0] + s), relogio=lambda: t[0])
+    assert cod == 1
+    log = "".join(p.read_text(encoding="utf-8") for p in (tmp_path / "logs").glob("*.log"))
+    assert "[vez] indices esperando a vez no Mais Controle (usando agora: medicoes)" in log
+    assert "[indices] FALHOU: esperei 1 min" in log
+    assert not (tmp_path / "rodando" / "indices.json").exists()
+    fcntl.flock(outro.fileno(), fcntl.LOCK_UN)
+    outro.close()
+    assert R.na_vez("indices", lambda: 7) == 7          # solta a trava: entra na hora

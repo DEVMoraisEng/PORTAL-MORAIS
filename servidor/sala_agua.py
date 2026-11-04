@@ -292,6 +292,16 @@ def montar_sala(pasta: pathlib.Path = PASTA, hoje: dt.date | None = None) -> dic
             if len(arquivos) >= MAX_RODADAS * 2:
                 break
     arquivos.sort(key=lambda f: f.name, reverse=True)
+    #: 04/11: o que o e-mail do robô de fato mandou (a rodada e as tarefas de reenvio das 10:00 e 14:00 anotam aqui).
+    #: Sem isto, a rodada que disse "e-mail NÃO enviado" ficava vermelha mesmo depois de o reenvio mandar.
+    enviados = set()
+    try:
+        enviados = {x.strip() for x in (rel / "emails_enviados.txt").read_text(encoding="utf-8", errors="replace").splitlines()
+                    if x.strip()}
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        avisos.append("emails_enviados.txt: %s" % type(e).__name__)
     rodadas = []
     for i, f in enumerate(arquivos[:MAX_RODADAS]):
         try:
@@ -301,6 +311,7 @@ def montar_sala(pasta: pathlib.Path = PASTA, hoje: dt.date | None = None) -> dic
             continue
         r = ler_rodada(texto, f.name)
         r["conc"] = concessionarias(texto)
+        r["email_enviado"] = f.name in enviados
         pdf = f.with_suffix(".pdf")
         r["pdf"] = pdf.name if pdf.exists() else None
         if i < COM_TEXTO:
