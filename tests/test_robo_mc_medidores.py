@@ -60,3 +60,13 @@ def test_data_no_formato_da_tela():
 def test_chave_da_obra_sem_cs():
     sol = dict(SOL_8192, work={"name": "TB 21 QD 50 LT 34 CS 2"})
     assert set(rm.somar(rm.compras_da_solicitacao(sol))) == {"TB 21 QD 50 LT 34"}
+
+
+def test_so_as_obras_da_aba_apta():
+    dados = {"ok": True, "ligacoes": [
+        {"obra": "TB 17 QD 49 LT 11 CS 1", "v": {"STATUS": "NÃO LIGADO", "FEZ A SOLICITAÇÃO?": "NÃO"}},
+        {"obra": "TB 17 QD 49 LT 11 CS 2", "v": {"STATUS": "NÃO LIGADO", "FEZ A SOLICITAÇÃO?": "NÃO"}},
+        {"obra": "XX 01 QD 01 LT 01 CS 1", "v": {"STATUS": "LIGADO", "FEZ A SOLICITAÇÃO?": "SIM"}},
+        {"obra": "XX 02 QD 01 LT 01 ÚNICA", "v": {"STATUS": "NÃO LIGADO", "FEZ A SOLICITAÇÃO?": "SIM"}}]}
+    assert rm.obras_da_aba(dados) == {"TB17QD49LT11": "TB 17 QD 49 LT 11"}
+    assert rm.chave_lote("TB 17 QD 49 LT 11") in rm.obras_da_aba(dados)

@@ -503,14 +503,73 @@ def documento(obras: dict, hoje: dt.date | None = None) -> dict:
 #: purchaseOrderItem — o item que virou ordem de compra).
 HOST_COMPRAS = "z8brf7qvn1.execute-api.us-east-1.amazonaws.com"
 MESES = int(os.environ.get("MEDIDORES_MESES") or 24)
-POR_PAGINA = 50
+POR_PAGINA = 100
 STATUS_FORA = ("CANCELED", "CANCELLED", "REJECTED", "REFUSED")
-Q_SOLICITACOES = (
+#: 04/11 (pedido do dono): só as obras da aba "Verificar se a obra está apta para a solicitação" (ligacoes.html).
+#: A base é a mesma que a tela lê, o dist/ligacoes.json publicado no site.
+URL_LIGACOES = os.environ.get("MEDIDORES_LIGACOES_URL") or \
+    "https://devmoraiseng.github.io/PORTAL-MORAIS/dist/ligacoes.json"
+#: 1º passo: a lista LEVE (sem itens), só para achar as solicitações das obras da aba.
+Q_LISTA = (
     "query ($first: Int, $after: String, $specification: PurchaseRequestSpecificationInput, "
     "$order: [PurchaseRequestSortInput!]) { purchaseRequest(first: $first after: $after specification: $specification "
-    "order: $order) { pageInfo { endCursor hasNextPage } nodes { id number approvalStatus deliveryStatus "
-    "work { id name } purchaseOrders { id number } costCenters { items { id status requestedAmount deliveredAmount "
-    "purchaseOrderItem { id } originItem { name code } } } } } }")
+    "order: $order) { pageInfo { endCursor hasNextPage } nodes { id number approvalStatus work { name } } } }")
+#: 2º passo: o detalhe (itens por centro de custo) só dessas — o mesmo formato que a tela usa ao abrir uma.
+Q_DETALHE = (
+    "query ($specification: PurchaseRequestSpecificationInput) { purchaseRequest(specification: $specification) "
+    "{ nodes { id number approvalStatus work { id name } costCenters { items { id status requestedAmount "
+    "deliveredAmount purchaseOrderItem { id } originItem { name code } } } } } }")
+
+
+def lote_de(nome) -> str:
+    """O lote da obra, como a tela (loteDe): sem "CS N"/"CASA N"/"ÚNICA" no fim."""
+    t = re.sub(r"\s+(CS|CASA)\s*\d+\s*$", "", str(nome or "").strip(), flags=re.I)
+    t = re.sub(r"\s+[ÚU]NICA\s*$", "", t, flags=re.I)
+    return " ".join(t.split())
+
+
+def chave_lote(nome) -> str:
+    return re.sub(r"[^A-Z0-9]", "", N(lote_de(nome)))
+
+
+def _campo(linha: dict, nome: str):
+    v = linha.get("v") or {}
+    if nome in v:
+        return v[nome]
+    alvo = N(nome)
+    for k, x in v.items():
+        if N(k) == alvo:
+            return x
+    return None
+
+
+def obras_da_aba(dados: dict) -> dict:
+    """{chave do lote: lote} das casas que estão na aba "apta para a solicitação": STATUS = NÃO LIGADO e FEZ A
+    SOLICITAÇÃO? = NÃO (a tela ainda tira as já prontas; aqui fica a mais, o que só custa uma obra a mais lida)."""
+    out = {}
+    for l in (dados or {}).get("ligacoes") or []:
+        if N(_campo(l, "STATUS") or l.get("status")) != "NAO LIGADO":
+            continue
+        if N(_campo(l, "FEZ A SOLICITAÇÃO?")) != "NAO":
+            continue
+        lote = lote_de(l.get("obra") or _campo(l, "OBRA"))
+        if lote:
+            out.setdefault(chave_lote(lote), lote)
+    return out
+
+
+def ler_ligacoes() -> dict:
+    import urllib.request
+    req = urllib.request.Request(URL_LIGACOES + "?v=%d" % int(dt.datetime.now().timestamp() // 60),
+                                 headers={"User-Agent": "Mozilla/5.0 (robo medidores Morais)", "Cache-Control": "no-cache"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            d = json.loads(r.read().decode("utf-8"))
+    except Exception as e:  # noqa: BLE001
+        raise RuntimeError("não consegui ler a base de ligações do site (%s)" % type(e).__name__) from None
+    if not d.get("ok"):
+        raise RuntimeError("a base de ligações do site está vazia (ok=false) — nada a conferir")
+    return d
 
 
 def compras_da_solicitacao(sol: dict) -> list:
@@ -519,7 +578,7 @@ def compras_da_solicitacao(sol: dict) -> list:
     não conta duas vezes: o que vale é o item da solicitação com a OC dele."""
     if str(sol.get("approvalStatus") or "").upper() in STATUS_FORA:
         return []
-    obra = re.sub(r"\s+CS\s*\d+\s*$", "", str(((sol.get("work") or {}).get("name")) or "").strip(), flags=re.I)
+    obra = lote_de(((sol.get("work") or {}).get("name")) or "")
     out = []
     for cc in sol.get("costCenters") or []:
         for it in (cc or {}).get("items") or []:
@@ -538,8 +597,8 @@ def _com_data(orig: str, dia: dt.date) -> str:
     return dia.isoformat() + (orig[10:] if re.match(r"^\d{4}-\d\d-\d\d", orig) else "")
 
 
-def ler_solicitacoes(hoje: dt.date | None = None) -> tuple[list, dict]:
-    """(compras, estatística) lendo as solicitações pela aba do porteiro."""
+def ler_solicitacoes(alvo: dict, hoje: dt.date | None = None) -> tuple[list, dict]:
+    """(compras, estatística) das solicitações das obras `alvo` ({chave: lote}), pela aba do porteiro."""
     from venda.mc.porteiro import AbaPorteiro, PorteiroErro
     hoje = hoje or dt.date.today()
     try:
@@ -551,13 +610,24 @@ def ler_solicitacoes(hoje: dt.date | None = None) -> tuple[list, dict]:
 
     def ouvir(req):
         try:
-            if HOST_COMPRAS in req.url and "/graphql" in req.url and "purchaseRequest(" in (req.post_data or "") \
-                    and "pageInfo" in (req.post_data or "") and "cab" not in visto:
+            corpo = req.post_data or ""
+            if HOST_COMPRAS in req.url and "/graphql" in req.url and "purchaseRequest(" in corpo \
+                    and "pageInfo" in corpo and "cab" not in visto:
                 visto["cab"] = {k: v for k, v in (req.headers or {}).items() if k.lower() in ("authorization", "company-id")}
-                visto["vars"] = (json.loads(req.post_data) or {}).get("variables") or {}
+                visto["vars"] = (json.loads(corpo) or {}).get("variables") or {}
                 visto["url"] = req.url
         except Exception:
             pass
+
+    def pedir(query, variaveis):
+        st, texto = aba.fetch("POST", visto["url"], visto["cab"], {"query": query, "variables": variaveis})
+        if st >= 300:
+            raise RuntimeError("GraphQL de Compras respondeu HTTP %s: %s" % (st, (texto or "")[:200]))
+        j = json.loads(texto or "{}")
+        if j.get("errors"):
+            raise RuntimeError("GraphQL de Compras recusou a consulta: %s" % str(j["errors"])[:300])
+        return ((j.get("data") or {}).get("purchaseRequest")) or {}
+
     page.context.on("request", ouvir)
     try:
         page.evaluate("h => { location.hash = h }", "#/purchase-request")
@@ -575,25 +645,28 @@ def ler_solicitacoes(hoje: dt.date | None = None) -> tuple[list, dict]:
                                     "end": _com_data(faixa.get("end"), hoje + dt.timedelta(days=1))}
         esp.pop("keyword", None)
         v["first"], v["after"] = POR_PAGINA, None
-        compras, est = [], {"solicitacoes": 0, "paginas": 0, "itens_com_oc": 0}
-        for _pag in range(400):
-            st, texto = aba.fetch("POST", visto["url"], visto["cab"], {"query": Q_SOLICITACOES, "variables": v})
+        est = {"solicitacoes": 0, "paginas": 0, "da_aba": 0, "itens_com_oc": 0, "obras_da_aba": len(alvo)}
+        achadas = []
+        for _pag in range(200):
+            pr = pedir(Q_LISTA, v)
             est["paginas"] += 1
-            if st >= 300:
-                raise RuntimeError("GraphQL de Compras respondeu HTTP %s: %s" % (st, texto[:200]))
-            j = json.loads(texto or "{}")
-            if j.get("errors"):
-                raise RuntimeError("GraphQL de Compras recusou a consulta: %s" % str(j["errors"])[:300])
-            pr = ((j.get("data") or {}).get("purchaseRequest")) or {}
             for sol in pr.get("nodes") or []:
                 est["solicitacoes"] += 1
-                c = compras_da_solicitacao(sol)
-                est["itens_com_oc"] += len(c)
-                compras += c
+                if str(sol.get("approvalStatus") or "").upper() in STATUS_FORA:
+                    continue
+                if chave_lote(((sol.get("work") or {}).get("name")) or "") in alvo:
+                    achadas.append(sol["id"])
             info = pr.get("pageInfo") or {}
             if not info.get("hasNextPage") or not info.get("endCursor"):
                 break
             v["after"] = info["endCursor"]
+        est["da_aba"] = len(achadas)
+        compras = []
+        for sid in achadas:
+            for sol in pedir(Q_DETALHE, {"specification": {"id": sid}}).get("nodes") or []:
+                c = compras_da_solicitacao(sol)
+                est["itens_com_oc"] += len(c)
+                compras += c
         return compras, est
     finally:
         aba.fechar()
@@ -603,19 +676,25 @@ def main() -> int:
     if DESCOBRIR:
         return descobrir()
     try:
-        compras, est = ler_solicitacoes()
+        alvo = obras_da_aba(ler_ligacoes())
+        log(f"obras na aba 'apta para a solicitação': {len(alvo)}")
+        if not alvo:
+            log("FALHOU: nenhuma obra na aba — nada gravado.")
+            return 1
+        compras, est = ler_solicitacoes(alvo)
     except RuntimeError as e:
         log(f"FALHOU: {e}")
         return 1
     obras = somar(compras)
     doc = documento(obras)
-    log(f"solicitações lidas: {est['solicitacoes']} ({est['paginas']} página(s), últimos {MESES} meses) · itens com OC: "
-        f"{est['itens_com_oc']} · obras com medidor comprado: {len(obras)}")
+    log(f"solicitações na lista: {est['solicitacoes']} ({est['paginas']} página(s), últimos {MESES} meses) · das obras da "
+        f"aba: {est['da_aba']} (abertas uma a uma) · itens com OC: {est['itens_com_oc']} · obras com medidor comprado: "
+        f"{len(obras)}")
     for nome in CONFERIR:
         o = obras.get(nome)
         log(f"  {nome}: " + (f"energia {(o.get('energia') or {}).get('comprado', 0)} {(o.get('energia') or {}).get('insumos', [])} · "
                              f"água {(o.get('agua') or {}).get('comprado', 0)} {(o.get('agua') or {}).get('insumos', [])}"
-                             if o else "nenhum medidor comprado"))
+                             if o else ("nenhum medidor comprado" if chave_lote(nome) in alvo else "não está na aba")))
     if not est["solicitacoes"]:
         log("FALHOU: nenhuma solicitação lida — nada gravado.")
         return 1
