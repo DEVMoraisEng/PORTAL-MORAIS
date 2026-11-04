@@ -254,3 +254,30 @@ def test_rodada_de_verdade_casada_por_data_e_valor(monkeypatch):
     leitor.preparar_casamento(aud, alvo)
     itens, est = ra.rodada(leitor, aud, alvo)
     assert leitor.campo_num is None and est["lidos"] == 1 and itens["101"]["a"]
+
+
+def test_sessao_que_cai_no_meio_para_para_repetir(monkeypatch):
+    """04/11 (2ª rodada): a sessão do MC caiu no meio e a rodada terminou 'OK' com 1 lançamento lido. Agora para
+    com 'não está logado' (o rodar_e_relatar espera o porteiro e repete)."""
+    monkeypatch.setattr(ra, "sb_subir", lambda *a: None)
+    monkeypatch.setattr(ra, "sb_apagar", lambda c: None)
+
+    class Erp(ErpListaSemNumero):
+        def __init__(self):
+            ErpListaSemNumero.__init__(self, validade=604800)
+
+        def pedir(self, metodo, caminho, corpo=None, params=None):
+            if caminho == "/folder":
+                raise RuntimeError("o Chrome do porteiro não está logado no Mais Controle")
+            return ErpListaSemNumero.pedir(self, metodo, caminho, corpo, params)
+
+    aud = {"dict": {"st": ["OK", "DIVERGENTE"]},
+           "cols": {"id": [101], "dp": [D(5)], "dv": [D(5)], "st": [1], "v": [10.0], "vp": [10.0], "d": ["AREIA"], "nd": [""]},
+           "fiscal": []}
+    alvo = ra.escolher(aud)
+    leitor = ra.LeitorMC(Erp())
+    leitor.preparar_casamento(aud, alvo)
+    import pytest
+    with pytest.raises(RuntimeError, match="não está logado"):
+        ra.rodada(leitor, aud, alvo)
+    assert leitor.lidos_lista >= 1 and leitor.data_bate >= 1

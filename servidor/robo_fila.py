@@ -493,6 +493,13 @@ def robo_antigo(nome: str) -> int:
         except subprocess.TimeoutExpired:
             codigo, fim = 124, "passou de %d min" % (PRAZO_ROBO_ANTIGO_S // 60)
         log("[%s] %s código %s %s" % (nome, script, codigo, str(fim)[:200]))
+        try:                    # 04/11: a saída inteira da última rodada de cada robô (o log só guarda a última linha)
+            if "r" in locals():
+                (LOGS / ("saida-%s.txt" % nome)).write_text(
+                    "%s %s código %s\n%s\n%s" % (agora_iso(), script, codigo, (r.stdout or "")[-60000:], (r.stderr or "")[-20000:]),
+                    encoding="utf-8")
+        except Exception:
+            pass
         if env.get("DESCOBRIR") and "r" in locals():          # 03/11: na descoberta, mostra a saída inteira
             print((r.stdout or "") + (r.stderr or ""))
         pior = pior or codigo
