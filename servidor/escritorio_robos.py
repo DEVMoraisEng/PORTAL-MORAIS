@@ -321,9 +321,47 @@ def montar_tarefas(cruas: list) -> list:
             "ultima": t.get("ultima"), "proxima": t.get("proxima"), "resultado": res,
             "resultado_texto": (RESULTADOS.get(res) or ("terminou com código %s" % res)) if res is not None else "",
             "horario": [horario_texto(g) for g in gat] or ["sem horário (só à mão)"],
+            # 04/11: os gatilhos crus (para a Agenda de hoje: quais horários caem no dia)
+            "gat": [{k: g.get(k) for k in ("tipo", "inicio", "dias", "cadaDias", "repetir", "duracao")} for g in gat],
         })
     out.sort(key=lambda x: x["nome"])
     return out
+
+
+def horarios_do_dia(gatilhos: list, dia: dt.date, maximo: int = 24) -> list:
+    """Horários ("HH:MM") em que as tarefas caem no `dia`, pelos gatilhos do Agendador. Repetição de menos de
+    30 min (a fila, de minuto em minuto) não entra: vira agenda contínua, não lista de horários."""
+    horas = set()
+    for g in gatilhos or []:
+        tipo, ini = str(g.get("tipo") or ""), str(g.get("inicio") or "")
+        if len(ini) < 16 or not ("Daily" in tipo or "Weekly" in tipo or "Time" in tipo):
+            continue
+        try:
+            d0 = dt.date.fromisoformat(ini[:10])
+            h0 = int(ini[11:13]) * 60 + int(ini[14:16])
+        except ValueError:
+            continue
+        if dia < d0:
+            continue
+        if "Daily" in tipo and (dia - d0).days % max(1, int(g.get("cadaDias") or 1)):
+            continue
+        if "Weekly" in tipo and not (int(g.get("dias") or 0) & (1 << ((dia.weekday() + 1) % 7))):
+            continue
+        rep_ = _duracao_min(g.get("repetir"))
+        if "Time" in tipo and not rep_ and dia != d0:
+            continue
+        if rep_ and rep_ < 30:
+            continue
+        dur = _duracao_min(g.get("duracao")) if rep_ else 0
+        if rep_ and not dur:
+            dur = 1440 - h0 - 1
+        m = h0
+        while m <= h0 + dur and m < 1440 and len(horas) < maximo:
+            horas.add("%02d:%02d" % (m // 60, m % 60))
+            if not rep_:
+                break
+            m += rep_
+    return sorted(horas)
 
 
 def ler_tarefas() -> list:
@@ -472,6 +510,9 @@ def tarefas_com_reserva(erros: list) -> list:
 def montar(hoje: dt.date | None = None, conferir: bool = True) -> dict:
     erros = []
     tarefas = tarefas_com_reserva(erros) if os.name == "nt" else []
+    dia = hoje or dt.date.today()
+    for t in tarefas:
+        t["hoje"] = horarios_do_dia(t.get("gat") or [], dia)
     try:
         saude = json.loads(SAUDE.read_text(encoding="utf-8")) if SAUDE.exists() else {}
     except Exception as e:
