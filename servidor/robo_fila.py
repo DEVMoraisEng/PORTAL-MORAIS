@@ -28,6 +28,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+import urllib.error
 
 RAIZ = pathlib.Path(__file__).resolve().parent.parent          # o clone do portal
 CENTRAL = pathlib.Path(os.environ.get("MC_CENTRAL") or r"C:\AUTOMAÇÕES MAIS CONTROLE\_central")
@@ -410,9 +411,13 @@ ROBOS = {
     # 03/11: anexos dos pagamentos (boleto/NF/recibo/comprovante) para a Auditoria Financeira; só lê o ERP.
     # Precisa de "vars": {"SUPABASE_URL": ...} e "supabase_key_arquivo" (service key, o dono cola no arquivo).
     "anexos": ["robo_mc_anexos.py"],
+    # 04/11: medidores comprados por obra (solicitação atendida / OC) para o alerta da aba Ligações; só lê o ERP.
+    # Publica dist/medidores_mc.json no repositório como as medições (github_token_arquivo).
+    "medidores": ["robo_mc_medidores.py"],
 }
 REPO_GH = "DEVMoraisEng/PORTAL-MORAIS"
 ARQ_MEDICOES = "dist/mc_medicoes/contratos.json"
+ARQ_MEDIDORES = "dist/medidores_mc.json"
 PRAZO_ROBO_ANTIGO_S = 40 * 60
 
 
@@ -433,8 +438,14 @@ def env_robos(cfg: dict) -> dict:
 
 def publicar_medicoes(cfg: dict) -> str:
     """Sobe dist/mc_medicoes/contratos.json pela API do GitHub (o Mapa de Obras lê do site) e devolve o clone limpo."""
+    return publicar_arquivo(cfg, ARQ_MEDICOES, "Medições de contratos do MC %s (servidor) [skip ci]" % agora_iso())
+
+
+def publicar_arquivo(cfg: dict, caminho: str, mensagem: str) -> str:
+    """04/11: o mesmo das medições para qualquer arquivo do dist/ (medidores): sobe pela API do GitHub só se mudou
+    e devolve o clone limpo (o servidor só faz git pull)."""
     import base64
-    arq = RAIZ / ARQ_MEDICOES
+    arq = RAIZ / caminho
     if not arq.exists():
         return "sem arquivo"
     tok_arq = cfg.get("github_token_arquivo")
@@ -443,18 +454,24 @@ def publicar_medicoes(cfg: dict) -> str:
             return "sem github_token_arquivo na configuração — não publiquei"
         tok = pathlib.Path(tok_arq).read_text(encoding="utf-8").strip()
         novo = arq.read_bytes()
-        url = "https://api.github.com/repos/%s/contents/%s" % (REPO_GH, ARQ_MEDICOES)
+        url = "https://api.github.com/repos/%s/contents/%s" % (REPO_GH, caminho)
         cab = {"Authorization": "Bearer " + tok, "Accept": "application/vnd.github+json", "User-Agent": "robo-servidor"}
-        atual = json.loads(urllib.request.urlopen(urllib.request.Request(url + "?ref=main", headers=cab), timeout=60).read())
-        if base64.b64decode(atual.get("content") or "") == novo:
+        try:
+            atual = json.loads(urllib.request.urlopen(urllib.request.Request(url + "?ref=main", headers=cab), timeout=60).read())
+        except urllib.error.HTTPError as e:
+            if e.code != 404:
+                raise
+            atual = {}                       # arquivo novo no repositório
+        if atual and base64.b64decode(atual.get("content") or "") == novo:
             return "sem mudança"
-        corpo = {"message": "Medições de contratos do MC %s (servidor) [skip ci]" % agora_iso(), "branch": "main",
-                 "sha": atual["sha"], "content": base64.b64encode(novo).decode()}
+        corpo = {"message": mensagem, "branch": "main", "content": base64.b64encode(novo).decode()}
+        if atual.get("sha"):
+            corpo["sha"] = atual["sha"]
         req = urllib.request.Request(url, method="PUT", data=json.dumps(corpo).encode(), headers=cab)
         urllib.request.urlopen(req, timeout=60).read()
         return "publicado"
     finally:
-        subprocess.run(["git", "checkout", "--", ARQ_MEDICOES], cwd=RAIZ, capture_output=True)
+        subprocess.run(["git", "checkout", "--", caminho], cwd=RAIZ, capture_output=True)
 
 
 def robo_antigo(nome: str) -> int:
@@ -484,6 +501,13 @@ def robo_antigo(nome: str) -> int:
             log("[medicoes] site: %s" % publicar_medicoes(cfg))
         except Exception as e:
             log("[medicoes] publicar FALHOU %s: %s" % (type(e).__name__, str(e)[:200]))
+            pior = 1
+    if nome == "medidores" and not pior and not env.get("DESCOBRIR") and not env.get("SIMULAR"):
+        try:
+            hora = dt.datetime.now().strftime("%Y-%m-%d %H:%M")
+            log("[medidores] site: %s" % publicar_arquivo(cfg, ARQ_MEDIDORES, "Medidores MC %s (servidor) [skip ci]" % hora))
+        except Exception as e:
+            log("[medidores] publicar FALHOU %s: %s" % (type(e).__name__, str(e)[:200]))
             pior = 1
     saude = json.loads(SAUDE.read_text(encoding="utf-8")) if SAUDE.exists() else {}
     saude.setdefault("robos", {})[nome] = {"em": agora_iso(), "codigo": pior}

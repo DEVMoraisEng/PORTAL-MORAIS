@@ -140,3 +140,10 @@ def test_guarda_a_url_do_pedido_que_a_propria_tela_fez():
     aba.capturar(espera=1)
     assert aba.pedido_da_tela("payable-installments/paginated-result", espera=0) == lista   # o 1º, o da tela
     assert aba.pedido_da_tela("nao-existe", espera=0) is None
+
+
+def test_resposta_em_texto_puro_volta_como_texto():
+    """04/11: o get-url do arquivo responde o link em texto puro (a descoberta dos anexos deu JSONDecodeError)."""
+    aba = AbaFalsa([(200, "https://s3.exemplo/arquivo.pdf?X-Amz-Expires=86400\n")])
+    erp = E.ErpPeloPorteiro(aba)
+    assert erp.pedir("GET", "/file/abc/get-url") == "https://s3.exemplo/arquivo.pdf?X-Amz-Expires=86400"

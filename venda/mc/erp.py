@@ -317,7 +317,13 @@ class ErpPeloPorteiro(Erp):
         if st >= 300:
             # mesma mensagem do login por senha: o CORPO da recusa diz o campo que falta
             raise ErpErro("%s %s -> HTTP %s: %s" % (metodo, caminho.split("?")[0], st, texto[:600]))
-        return json.loads(texto) if texto.strip() else None
+        if not texto.strip():
+            return None
+        try:
+            return json.loads(texto)
+        except ValueError:
+            # 04/11 (4ª descoberta dos anexos): GET /file/{id}/get-url responde o LINK em texto puro, não JSON
+            return texto.strip()
 
     def _cab_pagina(self, token: str) -> dict:
         return {"authorization": "Bearer " + token, "company-id": str(self.company_id)}
