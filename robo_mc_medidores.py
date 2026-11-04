@@ -503,7 +503,7 @@ def documento(obras: dict, hoje: dt.date | None = None) -> dict:
 #: purchaseOrderItem — o item que virou ordem de compra).
 HOST_COMPRAS = "z8brf7qvn1.execute-api.us-east-1.amazonaws.com"
 MESES = int(os.environ.get("MEDIDORES_MESES") or 24)
-POR_PAGINA = 100
+POR_PAGINA = 50          # 04/11: com 100 o GraphQL recusou (PAGINATION_MAX_ITEMS); cai pela metade até aceitar
 STATUS_FORA = ("CANCELED", "CANCELLED", "REJECTED", "REFUSED")
 #: 04/11 (pedido do dono): só as obras da aba "Verificar se a obra está apta para a solicitação" (ligacoes.html).
 #: A base é a mesma que a tela lê, o dist/ligacoes.json publicado no site.
@@ -647,8 +647,14 @@ def ler_solicitacoes(alvo: dict, hoje: dt.date | None = None) -> tuple[list, dic
         v["first"], v["after"] = POR_PAGINA, None
         est = {"solicitacoes": 0, "paginas": 0, "da_aba": 0, "itens_com_oc": 0, "obras_da_aba": len(alvo)}
         achadas = []
-        for _pag in range(200):
-            pr = pedir(Q_LISTA, v)
+        for _pag in range(1000):
+            try:
+                pr = pedir(Q_LISTA, v)
+            except RuntimeError as e:
+                if "PAGINATION_MAX_ITEMS" in str(e) and v["first"] > 5:
+                    v["first"] = max(5, v["first"] // 2)
+                    continue
+                raise
             est["paginas"] += 1
             for sol in pr.get("nodes") or []:
                 est["solicitacoes"] += 1
