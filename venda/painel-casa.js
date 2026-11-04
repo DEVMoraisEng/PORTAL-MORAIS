@@ -62,8 +62,46 @@
   ARQUIVOS.forEach(function (c, i) { POS_ARQ[norm(c)] = i; });
   function ordenarArquivos(nomes) { return ordenarPor(nomes, POS_ARQ); }
 
+  /* 04/11/2026 (dono): o painel da casa de rua em abas, igual ao cartão do condomínio — a Juliana não achava onde
+   * gerar o contrato no meio de 118 campos. Só decide ONDE cada campo aparece; nada muda no Notion nem no salvar.
+   *   Resumo · Documentos (dossiê + arquivos) · Compradores · Contrato (dados + gerar + Clicksign + Mais Controle)
+   *   · Recebimentos · Andamento (checklist do processo, por departamento) */
+  var ABAS = [["resumo", "Resumo"], ["documentos", "Documentos"], ["compradores", "Compradores"],
+              ["contrato", "Contrato"], ["recebimentos", "Recebimentos"], ["andamento", "Andamento"]];
+  function abaDoCampo(nome) {
+    var n = norm(nome), g = GRUPO[n] || "";
+    if (/^COMPRADOR [12] - /.test(n)) return "compradores";
+    if (g.indexOf("Contrato") === 0 || /^CONTRATO - /.test(n)) return "contrato";
+    if (/^DOSSIE/.test(n)) return "documentos";
+    return "andamento";
+  }
+  /* grupos do Andamento (mesma régua do cartão do condomínio, CD_AND_GRUPOS do vendas.html, com os reparos na
+   * frente); o primeiro que casar leva o campo, o resto fica em CADASTRO DA CASA */
+  var DEPARTAMENTOS = [
+    ["REPAROS E VISTORIA", /REPARO|ANEXAR AQUIVO|ANEXAR ARQUIVO|TITULARIDADES/],
+    ["BANCO E CORRESPONDENTE", /CORR?ESS?PONDENTE|CONFORMIDADE|CONFORME|BANCO|^RECEBEU\?|ENVIO DOS DOC|RCPM|FGTS|FINANCIADO|SUBSIDIO|AGENCIA|PARCELA/],
+    ["CARTÓRIO E IMPOSTOS", /ITBI|CARTORIO|REGISTRO|GCAP|CADASTRO/],
+    ["ENTREGA DA CASA", /VISTORIA|MANUAL|ENTREGA|ENTEGOU|PESQUISA|CONCLUSAO/],
+    ["ÁGUA E ENERGIA", /AGUA|ENERGIA|CONTAS|TRANSFERENCIA/],
+    ["CONTRATO", /CONTRATO|PREFERENCIA/]
+  ];
+  var DEP_OUTROS = "CADASTRO DA CASA";
+  function departamento(nome) {
+    var n = norm(nome);
+    for (var i = 0; i < DEPARTAMENTOS.length; i++) if (DEPARTAMENTOS[i][1].test(n)) return DEPARTAMENTOS[i][0];
+    return DEP_OUTROS;
+  }
+  /* nomes na ordem dos departamentos (dentro de cada um, a ordem recebida) */
+  function porDepartamento(nomes) {
+    var ordem = DEPARTAMENTOS.map(function (d) { return d[0]; }).concat([DEP_OUTROS]), caixas = {};
+    ordem.forEach(function (d) { caixas[d] = []; });
+    (nomes || []).forEach(function (nome) { caixas[departamento(nome)].push(nome); });
+    return ordem.filter(function (d) { return caixas[d].length; }).map(function (d) { return { titulo: d, campos: caixas[d] }; });
+  }
+
   var api = { OCULTOS: OCULTOS, PREFIXOS_OCULTOS: PREFIXOS_OCULTOS, GRUPOS: GRUPOS, ocultoNoPainel: ocultoNoPainel,
-              grupoDoCampo: grupoDoCampo, ordenar: ordenar, ordenarArquivos: ordenarArquivos };
+              grupoDoCampo: grupoDoCampo, ordenar: ordenar, ordenarArquivos: ordenarArquivos,
+              ABAS: ABAS, abaDoCampo: abaDoCampo, departamento: departamento, porDepartamento: porDepartamento };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else raiz.PainelCasa = api;
 })(typeof window !== "undefined" ? window : this);

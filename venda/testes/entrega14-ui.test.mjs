@@ -102,7 +102,7 @@ test("vendas.html: carrega painel-casa.js antes do venda-dossie.js, esconde no p
   assert.ok(iP > 0 && iD > iP);
   assert.match(vendas, /if\(ondeEstou==="painel" && ocultoNoPainelCasa\(nome\)\) return true;/);
   assert.match(vendas, /window\.PainelCasa\.ordenar\(ord\)/);
-  assert.match(vendas, /const grupo=grupoNoPainelCasa\(nome\)\|\|"Preenchimento";/);
+  assert.match(vendas, /const g=grupoNoPainelCasa\(n\)\|\|padrao;/);   /* 04/11: painel em abas — título por grupo dentro da aba */
   assert.match(vendas, /window\.addEventListener\("venda:dados-gravados", ev=>\{/);
   const rec = vendas.slice(vendas.indexOf("async function recarregarCamposCasa(pageId){"), vendas.indexOf("function cabecalhoObra(V){"));
   assert.match(rec, /ler\(\{action:"obra",pageId:pageId\}\)/, "busca a casa sem chave de cache");

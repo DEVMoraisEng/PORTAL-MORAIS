@@ -413,6 +413,24 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 .cd-cardbox .vb-fin .bt.bt-mini.fin-atraso{border-color:#c0392b;color:#c0392b}
 .cd-cardbox .vb-fin .bt.bt-mini.fin-atraso:not(.ghost){background:#c0392b;color:#fff}
 .cd-cardbox[data-aba="financeiro"] #cd-venda>.vb-fin,.cd-cardbox[data-aba="financeiro"] #cd-venda>.vb-antec{display:block}
+/* 04/11/2026 (dono): o painel da casa de rua em abas, igual ao cartão do condomínio (mesma pílula .cd-abas). As abas
+   ficam paradas entre o cabeçalho e a rolagem; cada parte do painel tem data-sec, e os blocos que o venda-dossie.js
+   põe no painel (#dossie-wrap no topo, #contrato-wrap no fim) vão para a aba pelo id. Só esconde/mostra. */
+.pn-abas{margin:0;padding:10px 12px 8px;background:var(--bg2);border-bottom:1px solid var(--border2)}
+.pn-abas:empty{display:none}
+.pn-abas .tab{padding:7px 11px;font-size:12.5px}
+#painel[data-aba] #pn-body>[data-sec],#painel[data-aba] #dossie-wrap,#painel[data-aba] #contrato-wrap{display:none}
+#painel[data-aba="resumo"] #pn-body>[data-sec="resumo"],#painel[data-aba="documentos"] #pn-body>[data-sec="documentos"],
+#painel[data-aba="compradores"] #pn-body>[data-sec="compradores"],#painel[data-aba="contrato"] #pn-body>[data-sec="contrato"],
+#painel[data-aba="andamento"] #pn-body>[data-sec="andamento"],
+#painel[data-aba="documentos"] #dossie-wrap,#painel[data-aba="contrato"] #contrato-wrap,#painel[data-aba="recebimentos"] #contrato-wrap{display:block}
+#painel[data-aba="contrato"] #contrato-wrap>.vb-rec,#painel[data-aba="recebimentos"] #contrato-wrap>:not(.vb-rec){display:none}
+/* campos em duas colunas dentro das abas (a lista inteira numa coluna só era o que fazia 16 telas de rolagem) */
+.pn-grade{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:end;padding:0 11px}
+.pn-grade>.campo{padding:0 11px}
+.pn-grade>.campo:has(.msgrid),.pn-grade>.campo:has(textarea){grid-column:1/-1}
+.pn-vazio{margin:18px 22px;color:var(--text3);font-size:13px}
+@media (max-width:600px){ .pn-grade{grid-template-columns:1fr} .pn-abas .tab{padding:8px 2px;font-size:11px} }
 /* 31/10/2026 (dono quer o cartão bom no celular): abaixo de 600 px as 6 abas ficam em 3 x 2 (nenhuma escondida) e as
    tabelas da conferência e das parcelas viram blocos empilhados — cada célula com o nome do campo (data-rot), os
    botões embaixo na largura toda. Pré-reserva, Contrato e Andamento já cabem e não mudam. */
@@ -1159,6 +1177,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
   <div class="overlay" id="overlay" onclick="fecharObra()"></div>
   <aside class="painel" id="painel">
     <div class="ph"><div class="end" id="pn-end">Obra</div><div class="loc" id="pn-loc"></div><button class="pfechar" onclick="fecharObra()">×</button></div>
+    <div class="pn-abas cd-abas" id="pn-abas"></div>
     <div class="pbody" id="pn-body"></div>
   </aside>
 
@@ -1215,7 +1234,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
   <div class="toast" id="toast"></div>
 
 <script src="app.js?v=45"></script>
-<script src="venda/painel-casa.js?v=1"></script>
+<script src="venda/painel-casa.js?v=2"></script>
 <script src="venda/FluxoLivre.js?v=11"></script><!-- 29/10: Alterar fluxo -->
 <script src="venda/quadro-fluxo.js?v=1"></script><!-- 31/10: quadro do pro soluto segue o fluxo alterado -->
 <script src="venda/Antecipacao.js?v=1"></script><!-- 31/10: Antecipação — a conta roda no navegador -->
@@ -3977,16 +3996,52 @@ function campoResumoHtml(c,valor,pageId,sensPendente){
   if(c.sensivel && sensPendente) return sensPendenteResumoHtml(c);
   return `<div class="ri"><div class="k">${esc(c.nome.trim())}</div>${inputControl(c,valor,pageId)}</div>`;
 }
+/* 04/11/2026 (dono): o painel da casa de rua em ABAS, igual ao cartão do condomínio. Antes era uma coluna só com
+   118 campos (~16 telas de rolagem) e o Gerar contrato no fim, depois do Distrato. Cada parte vai para a aba dela
+   (venda/painel-casa.js decide onde fica cada campo); nada muda no Notion nem no jeito de salvar. Sem o
+   painel-casa.js o painel volta a ser a coluna de antes (sem data-aba nada é escondido). */
+let PN_ABA="resumo";
+function pnAbas(){ return (window.PainelCasa && window.PainelCasa.ABAS) || null; }
+function pnTemAba(aba){
+  const sec=document.querySelector('#pn-body>[data-sec="'+aba+'"]');
+  if(sec && sec.children.length) return true;
+  /* os blocos do venda-dossie.js (dossiê, contrato, Clicksign, recebimentos, Mais Controle) chegam depois */
+  if(window.VendaBlocos && (aba==="documentos"||aba==="contrato"||aba==="recebimentos")) return true;
+  return false;
+}
+function pnDesenharAbas(){
+  const barra=document.getElementById("pn-abas"), painel=document.getElementById("painel");
+  const abas=pnAbas();
+  if(!barra||!painel) return;
+  if(!abas){ barra.innerHTML=""; painel.removeAttribute("data-aba"); return; }
+  const vis=abas.filter(a=>pnTemAba(a[0]));
+  if(!vis.length){ barra.innerHTML=""; painel.removeAttribute("data-aba"); return; }
+  if(!vis.some(a=>a[0]===PN_ABA)) PN_ABA=vis[0][0];
+  barra.innerHTML='<div class="tabs" role="tablist">'+vis.map(a=>'<button type="button" role="tab" class="tab'+(a[0]===PN_ABA?" on":"")+'" aria-selected="'+(a[0]===PN_ABA)+'" data-aba="'+a[0]+'" onclick="pnTrocarAba(this.dataset.aba)">'+a[1]+'</button>').join("")+'</div>';
+  painel.setAttribute("data-aba",PN_ABA);
+}
+function pnTrocarAba(aba){
+  const abas=pnAbas(); if(!abas||!abas.some(a=>a[0]===aba)) return;
+  PN_ABA=aba;
+  const painel=document.getElementById("painel"); if(painel) painel.setAttribute("data-aba",aba);
+  document.querySelectorAll("#pn-abas .tab").forEach(b=>{ const on=b.getAttribute("data-aba")===aba; b.classList.toggle("on",on); b.setAttribute("aria-selected",on); });
+  const body=document.getElementById("pn-body"); if(body) body.scrollTop=0;
+}
+function pnAbaDoCampo(nome){ try{ return window.PainelCasa&&window.PainelCasa.abaDoCampo ? window.PainelCasa.abaDoCampo(nome) : "andamento"; }catch(e){ return "andamento"; } }
+function pnPorDepartamento(nomes){
+  try{ if(window.PainelCasa&&window.PainelCasa.porDepartamento) return window.PainelCasa.porDepartamento(nomes); }catch(e){}
+  return nomes.length?[{titulo:"Preenchimento",campos:nomes}]:[];
+}
 function renderPainel(V,pageId,sensPendente){
   const body=document.getElementById("pn-body");
-  let html="";
+  const sec={resumo:"",documentos:"",compradores:"",contrato:"",andamento:""};
 
   // identificação — endereço editável (ADM) — corrige bug "sou ADM mas não consigo editar o endereço"
   const cEnd=campoPorNome("ENDEREÇO");
-  if(cEnd){ html+=campoHtml(cEnd,getV(V,"ENDEREÇO"),pageId); }
+  if(cEnd){ sec.resumo+=campoHtml(cEnd,getV(V,"ENDEREÇO"),pageId); }
 
   // resumo venda/cliente — agora editável/selecionável igual ao Notion (item 4)
-  html+='<div class="grp" style="margin-top:14px">Dados da Venda</div><div class="resumo">'+RESUMO.map(n=>{
+  sec.resumo+='<div class="grp" style="margin-top:14px">Dados da Venda</div><div class="resumo">'+RESUMO.map(n=>{
     const c=campoPorNome(n); if(!c)return "";
     if(nomeExcluido(c.nome,"painel")) return "";
     const val=getV(V,n);
@@ -4016,74 +4071,74 @@ function renderPainel(V,pageId,sensPendente){
     const sim=normNome(val)==="SIM";
     chips.push(`<span class="chip${sim?" ok":" alerta"}">${esc(rot)} ${sim?"TRANSFERIDA":"NÃO TRANSFERIDA"}</span>`);
   });
-  if(chips.length) html+=`<div class="chips">${chips.join("")}</div>`;
+  if(chips.length) sec.resumo+=`<div class="chips">${chips.join("")}</div>`;
 
-  // campos editáveis, na ordem pedida — com um subtítulo especial quando entra no bloco de reparos/vistoria
-  // item 2 (rodada 2): o subtítulo "Reparos e Vistoria" não desligava mais depois de ligado — REF, CIDADE,
-  // SETOR e outros campos sem nada a ver ficavam presos ali embaixo dele (bug real, visto no print).
-  // Agora ele liga só nos campos do bloco de reparo e desliga assim que sai desse bloco.
-  /* entrega 14: título por grupo (Comprador 1, Comprador 2, Contrato — …); o resto fica em "Preenchimento" */
-  let entrouReparo=false, grupoAtual=null;
+  /* campos do formulário, cada um na aba dele. Compradores e Contrato mantêm os títulos da entrega 14
+     (Comprador 1, Comprador 2, Contrato — …); o Andamento é separado por departamento (mesma régua do
+     cartão do condomínio). Tudo em duas colunas. */
+  const porAba={compradores:[],contrato:[],documentos:[],andamento:[]};
   ordemFormulario().forEach(nome=>{
     const c=campoPorNome(nome); if(!c) return;
-    const grupo=grupoNoPainelCasa(nome)||"Preenchimento";
-    if(grupo!==grupoAtual){ html+=`<div class="grp">${esc(grupo)}</div>`; grupoAtual=grupo; entrouReparo=false; }
-    if(BLOCO_REPARO.test(normNome(nome))){
-      if(!entrouReparo){ html+=`<div class="grp sub">Reparos e Vistoria</div>`; entrouReparo=true; }
-    } else if(entrouReparo){
-      html+=`<div class="grp">Preenchimento</div>`; entrouReparo=false; // volta ao normal — nada mais herda o subtítulo por engano
-    }
-    html+=campoHtml(c,getV(V,nome),pageId,sensPendente);
+    const aba=pnAbaDoCampo(nome);
+    (porAba[aba]||porAba.andamento).push(nome);
   });
-  if(grupoAtual===null) html+=`<div class="grp">Preenchimento</div>`;
+  const blocoTitulado=(nomes,titulo)=>nomes.length?`<div class="grp">${esc(titulo)}</div><div class="pn-grade">`+nomes.map(n=>campoHtml(campoPorNome(n),getV(V,n),pageId,sensPendente)).join("")+`</div>`:"";
+  const porGrupo=(nomes,padrao)=>{
+    const out=[]; nomes.forEach(n=>{ const g=grupoNoPainelCasa(n)||padrao; let x=out.find(o=>o.titulo===g); if(!x){ x={titulo:g,campos:[]}; out.push(x); } x.campos.push(n); });
+    return out.map(g=>blocoTitulado(g.campos,g.titulo)).join("");
+  };
+  sec.compradores+=porGrupo(porAba.compradores,"Compradores");
+  sec.contrato+=porGrupo(porAba.contrato,"Contrato — outros dados");
+  sec.documentos+=blocoTitulado(porAba.documentos,"Dossiê — observações");
+  sec.andamento+=pnPorDepartamento(porAba.andamento).map(g=>blocoTitulado(g.campos,g.titulo)).join("");
 
-  // arquivos — com opção de visualizar PDFs sem sair da página (item 2 do pedido extra)
   // Ligações de água e energia: leitura, não edição — o cadastro continua
   // sendo feito no Notion. Só na Secretária de Vendas, que foi onde foi pedido.
   if(SETOR_ATUAL==="Secretária de Vendas"){
     const ligs=ligacoesDaObra(pageId, getV(V,"ENDEREÇO"), getV(V,"CASA"));
     if(ligs.length){
-      html+=`<div class="grp">Ligações de água e energia</div><div class="campo"><div class="ligs">`+
+      sec.andamento+=`<div class="grp">Ligações de água e energia</div><div class="campo"><div class="ligs">`+
         ligs.map(l=>`<div class="lig">`+
           `<span class="lig-c">${esc(l.concessionaria||"—")}</span>`+
           `<span class="lig-uc">${(l.uc&&String(l.uc).trim()&&l.uc!=="-")?("UC "+esc(l.uc)):"<i>sem UC</i>"}</span>`+
           (l.status?`<span class="lig-s ${/NAO/.test(normNome(l.status))?"off":""}">${esc(l.status)}</span>`:"")+
         `</div>`).join("")+`</div></div>`;
     } else {
-      html+=`<div class="grp">Ligações de água e energia</div><div class="campo"><div class="arq-vazio">`+
+      sec.andamento+=`<div class="grp">Ligações de água e energia</div><div class="campo"><div class="arq-vazio">`+
         (LIG_OK ? "Nenhuma ligação cadastrada para esta casa."
                 : "Base de ligações ainda não publicada — rode o workflow 'Publicar site'.")+
         `</div></div>`;
     }
   }
 
+  // arquivos — com opção de visualizar PDFs sem sair da página (item 2 do pedido extra)
   // Anexos: as URLs do Notion são links assinados do S3 — não vão pro dist/
   // público. Chegam junto com os outros campos protegidos, ao abrir a obra.
   let files=SCHEMA.filter(c=>c.tipo==="files" && !nomeExcluido(c.nome,"painel"));
   try{ if(window.PainelCasa){ const ord=window.PainelCasa.ordenarArquivos(files.map(c=>c.nome)); files=ord.map(n=>files.find(c=>c.nome===n)); } }catch(e){}
-  if(files.length){ html+=`<div class="grp">Arquivos</div>`;
+  if(files.length){ sec.documentos+=`<div class="grp">Arquivos</div>`;
     files.forEach(c=>{
-      html+=`<div class="campo"><label>${esc(c.nome.trim())}</label>`;
+      sec.documentos+=`<div class="campo"><label>${esc(c.nome.trim())}</label>`;
       if(sensPendente){
-        html+=`<div class="sens-ro">••• carregando anexos…</div>`;
+        sec.documentos+=`<div class="sens-ro">••• carregando anexos…</div>`;
       } else {
         const lista=getV(V,c.nome)||[];
-        if(!lista.length) html+=`<div class="arq-vazio">nenhum arquivo</div>`;
+        if(!lista.length) sec.documentos+=`<div class="arq-vazio">nenhum arquivo</div>`;
         lista.forEach(f=>{
           const nome=f.name||"arquivo", url=f.url||"#";
-          html+=`<div class="arq"><a href="${url}" target="_blank">${esc(nome)}</a>`+
+          sec.documentos+=`<div class="arq"><a href="${url}" target="_blank">${esc(nome)}</a>`+
             (visualizavel(nome,url)?` <button type="button" class="bt ghost bt-mini" onclick='visualizarArquivo(${jsArg(url)},${jsArg(nome)})'>👁 Visualizar</button>`:``)+
             `</div>`;
         });
       }
-      html+=`<input type="file" onchange='enviarArquivo(${jsArg(pageId)},${jsArg(c.nome)},this)'></div>`; });
+      sec.documentos+=`<input type="file" onchange='enviarArquivo(${jsArg(pageId)},${jsArg(c.nome)},this)'></div>`; });
   }
 
   // COMENTÁRIOS (item 3): a mesma caixa de discussão do Notion, lida e
   // escrita direto pelo painel. O conteúdo em si é carregado depois, por
   // carregarComentarios() — aqui só entra a casca (senão travaria o resto
   // do painel esperando a API de comentários responder).
-  html+=`<div class="grp">Comentários</div><div class="campo">`+
+  sec.resumo+=`<div class="grp">Comentários</div><div class="campo">`+
     `<div class="coment-lista" id="coment-lista"><div class="coment-vazio"><span class="load"></span> Carregando…</div></div>`+
     `<div class="coment-novo"><textarea id="coment-texto" placeholder="Escrever um comentário..." rows="2"></textarea>`+
     `<button type="button" class="bt az bt-mini" id="coment-btn" onclick='enviarComentario(${jsArg(pageId)})'>Enviar</button></div>`+
@@ -4097,12 +4152,14 @@ function renderPainel(V,pageId,sensPendente){
      recusaria de qualquer forma (MODO_TESTE), mas mostrar um botão vermelho
      que só dá erro é pedir pra alguém tentar. */
   if(SETOR_ATUAL==="Secretária de Vendas" && podeAcessar(S,"VENDAS") && !ehMaster(S) && !SO_LEITURA){
-    html+=`<div class="grp">Distrato</div><div class="campo">`+
+    sec.resumo+=`<div class="grp">Distrato</div><div class="campo">`+
       `<button class="bt danger" onclick='pedirDistrato(${jsArg(pageId)})'>DISTRATO</button>`+
       `<div class="ajuda">Desistência do cliente: limpa os dados da venda e apaga as atividades desta obra. Pede sua senha.</div></div>`;
   }
-  if(S.tipo==="ADM"){ html+=`<div class="grp">Administração</div><div class="campo"><button class="bt danger" onclick='excluirObra(${jsArg(pageId)})'>Excluir esta obra</button></div>`; }
-  body.innerHTML=html;
+  if(S.tipo==="ADM"){ sec.resumo+=`<div class="grp">Administração</div><div class="campo"><button class="bt danger" onclick='excluirObra(${jsArg(pageId)})'>Excluir esta obra</button></div>`; }
+  /* ordem das partes = ordem das abas; sem abas (painel-casa.js não carregou) fica a coluna de antes */
+  body.innerHTML=["resumo","documentos","compradores","contrato","andamento"].map(k=>`<div data-sec="${k}">${sec[k]}</div>`).join("");
+  pnDesenharAbas();
   ligarMoedas(body);          // máscara de R$ nos campos de valor
   carregarComentarios(pageId);
 }
