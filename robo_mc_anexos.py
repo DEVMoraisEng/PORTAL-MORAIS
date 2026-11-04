@@ -637,6 +637,28 @@ def _procurar_de_novo(it_ant, hoje: dt.date) -> bool:
         return True
 
 
+#: 04/11 (dono: "o que garante fazer tudo durante o dia?"): reabrir TODO pagamento dos últimos 20 dias a cada rodada
+#: seriam ~300 lançamentos por vez, mais que os 25 min. Só volta a abrir quem ainda NÃO tem comprovante e não foi
+#: aberto nas últimas RECHECAR_HORAS; quem nunca foi aberto vem antes de quem só vai ser conferido de novo.
+RECHECAR_HORAS = float(os.environ.get("ANEXOS_RECHECAR_HORAS") or 20)
+
+
+def _rechecar(it_ant, data_pag: str, lim: str, agora: dt.datetime) -> bool:
+    if not it_ant or _pendente(it_ant):
+        return True
+    if data_pag < lim:
+        return False
+    if any(a.get("o") == "P" for a in it_ant.get("a") or []):     # comprovante do pagamento já está: não muda mais
+        return False
+    try:
+        visto = dt.datetime.fromisoformat(it_ant["v"])
+        if visto.tzinfo is None:
+            visto = visto.replace(tzinfo=dt.timezone.utc)
+        return (agora - visto).total_seconds() >= RECHECAR_HORAS * 3600
+    except (KeyError, TypeError, ValueError):
+        return True
+
+
 def rodada(leitor, aud, alvo, relogio=time.monotonic):
     t0 = relogio()
     ant = (aud.get("anexos") or {}).get("itens") or {}
@@ -649,8 +671,10 @@ def rodada(leitor, aud, alvo, relogio=time.monotonic):
     vao = []
     for idl in ordem:
         it_ant = ant.get(str(idl))
-        if (it_ant is None or _pendente(it_ant) or alvo[idl] >= lim_rechecar) and len(vao) < MAX_ITENS:
+        if _rechecar(it_ant, alvo[idl], lim_rechecar, agora) and len(vao) < MAX_ITENS:
             vao.append(idl)
+    # nunca abertos primeiro (mais recentes antes); depois os que só vão ser conferidos de novo
+    vao.sort(key=lambda i: 0 if (ant.get(str(i)) is None or _pendente(ant.get(str(i)))) else 1)   # sort estável
     sem_mc = {i: alvo[i] for i in vao if not _do_mc(ant.get(str(i))) and _procurar_de_novo(ant.get(str(i)), HOJE)}
     mapa, primeira = {}, None
     if sem_mc:
@@ -660,10 +684,14 @@ def rodada(leitor, aud, alvo, relogio=time.monotonic):
             raise RuntimeError("a lista de pagamentos do MC não respondeu")
         # 04/11 (1ª rodada de verdade): sem o nº na lista, casa por data e valor — só para se ninguém casou E não
         # há nenhum lançamento já conhecido para conferir
-        if not leitor.campo_num and not mapa and len(sem_mc) == len(vao):
+        # (04/11: e só enquanto o robô não conhece NENHUM lançamento — depois disso, procurar de novo os que não foram
+        # achados e não achar de novo é normal, não é falha)
+        if not leitor.campo_num and not mapa and len(sem_mc) == len(vao) and not any(_do_mc(x) for x in ant.values()):
             raise RuntimeError("nenhuma parcela da lista do MC casou com os pagamentos da auditoria (nem pelo nº nem "
                                "por data e valor)")
-    log(f"a conferir nesta rodada: {len(vao)} (já conhecidos no MC: {len(vao) - len(sem_mc)}, a procurar na lista: "
+    novos = sum(1 for i in vao if ant.get(str(i)) is None or _pendente(ant.get(str(i))))
+    log(f"a conferir nesta rodada: {len(vao)} (nunca abertos: {novos}, conferir de novo sem comprovante: {len(vao) - novos}; "
+        f"já conhecidos no MC: {len(vao) - len(sem_mc)}, a procurar na lista: "
         f"{len(sem_mc)}) · lista do MC: {len(mapa)} achado(s) · casados por data e valor: {leitor.casados} · "
         f"ambíguos (de fora): {leitor.ambiguos} · parcelas lidas: {leitor.lidos_lista} · com data do escopo: "
         f"{leitor.data_bate} · páginas: {[(f, p) for f, p, _a in leitor.tentativas]}")
@@ -676,7 +704,7 @@ def rodada(leitor, aud, alvo, relogio=time.monotonic):
             apagar += [a["p"] for a in it.get("a", []) if a.get("p")]
     vao_set = set(vao)
     no_tempo = True
-    for idl in ordem:
+    for idl in vao + [i for i in ordem if i not in vao_set]:
         it_ant = ant.get(str(idl))
         if no_tempo and (relogio() - t0) / 60 >= MAX_MIN:
             no_tempo = False

@@ -300,6 +300,9 @@ def test_segunda_rodada_lembra_o_mc_e_nao_le_a_lista_de_novo(monkeypatch):
     erp1 = Erp()
     itens, est = ra.rodada(ra.LeitorMC(erp1), aud, alvo)
     assert itens["101"]["mc"]["tp"] == ErpFalso.UU % 151 and itens["101"]["mc"]["parcelas"]
+    # conferido de novo só porque ainda não tem o comprovante e foi aberto há mais de RECHECAR_HORAS
+    itens["101"]["a"] = [a for a in itens["101"]["a"] if a.get("o") != "P"]
+    itens["101"]["v"] = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=2)).isoformat(timespec="minutes")
     aud["anexos"] = {"itens": itens}
     erp2 = Erp()
     leitor2 = ra.LeitorMC(erp2)
@@ -344,3 +347,16 @@ def test_nao_achado_so_e_procurado_de_novo_depois_de_uns_dias(monkeypatch):
     erp3 = ErpFalso()
     ra.rodada(ra.LeitorMC(erp3), dict(aud_falsa(), anexos={"itens": velho}), alvo)
     assert [x for x in erp3.pedidos if x[0] == "/payable-installments/paginated-result"]
+
+
+def test_nao_reabre_quem_ja_tem_comprovante_nem_quem_foi_aberto_agora():
+    agora = dt.datetime.now(dt.timezone.utc)
+    lim = D(ra.RECHECAR_DIAS)
+    com = {"v": agora.isoformat(timespec="minutes"), "a": [{"o": "P"}], "mc": {"tp": "x"}}
+    sem_agora = {"v": agora.isoformat(timespec="minutes"), "a": [{"o": "L"}], "mc": {"tp": "x"}}
+    sem_ontem = dict(sem_agora, v=(agora - dt.timedelta(days=1)).isoformat(timespec="minutes"))
+    assert not ra._rechecar(com, D(2), lim, agora)
+    assert not ra._rechecar(sem_agora, D(2), lim, agora)
+    assert ra._rechecar(sem_ontem, D(2), lim, agora)
+    assert not ra._rechecar(sem_ontem, D(60), lim, agora)          # pagamento antigo: não confere mais
+    assert ra._rechecar(None, D(60), lim, agora) and ra._rechecar({"mc": {"tp": "x"}}, D(60), lim, agora)
