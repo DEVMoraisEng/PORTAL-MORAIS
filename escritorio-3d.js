@@ -378,9 +378,11 @@
       R.baloes.appendChild(b); R.balaoDe.set(r.chave, b);
     });
     /* quadro de avisos */
-    let q = R.caixa.querySelector(".quadro-avisos");
+    /* 04/11 (dono): fora da sala, no canto (o <aside id="avisos3d"> ao lado); sem ele, dentro da sala como antes */
+    const lugar = document.getElementById("avisos3d") || R.caixa;
+    let q = lugar.querySelector(".quadro-avisos");
     if (!erros.length && !fila.length) { if (q) q.remove(); return; }
-    if (!q) { q = document.createElement("div"); q.className = "quadro-avisos"; R.caixa.appendChild(q);
+    if (!q) { q = document.createElement("div"); q.className = "quadro-avisos"; lugar.appendChild(q);
       q.addEventListener("pointerdown", e => e.stopPropagation()); q.addEventListener("wheel", e => e.stopPropagation()); }
     const fechado = R.avisosFechado;
     q.classList.toggle("fechado", !!fechado);

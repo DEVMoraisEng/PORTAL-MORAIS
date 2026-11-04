@@ -250,6 +250,12 @@ html[data-tema="escuro"] .box h3{color:var(--teal)}
 .pino.erro{background:var(--st-erro)}.pino.ped{background:#d9a514}
 @media (prefers-reduced-motion:no-preference){.pino.erro{animation:pulo 1.4s ease-in-out infinite}}
 @keyframes pulo{50%{margin-top:-4px}}
+.sala3d-linha{display:flex;gap:12px;align-items:flex-start}
+.sala3d-linha>.sala3d{flex:1 1 auto;min-width:0}
+.avisos3d{flex:0 0 300px;position:sticky;top:10px;max-height:min(74vh,760px);display:flex}
+.avisos3d:empty,.sala3d.hide+.avisos3d{display:none}
+.avisos3d .quadro-avisos{position:static;width:100%;max-height:100%}
+@media (max-width:900px){.sala3d-linha{flex-direction:column;align-items:stretch}.avisos3d{flex:none;position:static;max-height:none}}
 .quadro-avisos{position:absolute;right:10px;top:10px;z-index:3;width:min(320px,calc(100% - 20px));max-height:calc(100% - 60px);display:flex;flex-direction:column;
   background:color-mix(in srgb,var(--sup) 96%,transparent);border:1px solid var(--border);border-left:4px solid var(--st-erro);border-radius:10px;box-shadow:0 10px 26px rgba(0,0,0,.22);font-size:12px}
 .qa-top{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border2)}
@@ -319,9 +325,13 @@ iframe.pdf{display:block;width:100%;height:min(72vh,720px);border:0;background:#
     <button type="button" class="bt" id="bt-agenda" title="Horários de hoje e o que já rodou">📅 Agenda de hoje</button>
     <span class="vistas" role="group" aria-label="Como ver"><button type="button" id="v-3d" aria-pressed="true">Sala 3D</button><button type="button" id="v-lista" aria-pressed="false">Lista</button></span>
   </div>
-  <section class="sala3d hide" id="sala3d" aria-label="Sala 3D do escritório de robôs">
-    <span class="dica3d">Arraste para girar · role ou pince para aproximar · clique num robô</span>
-  </section>
+  <div class="sala3d-linha">
+    <section class="sala3d hide" id="sala3d" aria-label="Sala 3D do escritório de robôs">
+      <span class="dica3d">Arraste para girar · role ou pince para aproximar · clique num robô</span>
+    </section>
+    <!-- 04/11 (dono): os avisos ficam FORA da sala, no canto, para não cobrir as mesas -->
+    <aside class="avisos3d" id="avisos3d" aria-label="Quem precisa de atenção"></aside>
+  </div>
   <div id="carregando" class="carregando">Chamando os robôs para a reunião…</div>
   <section class="sala hide" id="sala-recepcao">
     <h2>Recepção <small>quem abre a porta do Mais Controle e atende o portal</small></h2>
@@ -344,7 +354,7 @@ iframe.pdf{display:block;width:100%;height:min(72vh,720px);border:0;background:#
 <script src="app.js?v=45"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-<script src="escritorio-3d.js?v=5"></script>
+<script src="escritorio-3d.js?v=6"></script>
 <script>
 /* ===== ESCRITÓRIO DE ROBÔS (03/11/26) =======================================
  * Uma mesa por robô do servidor do escritório. Os dados vêm do próprio
