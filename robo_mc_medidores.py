@@ -150,6 +150,22 @@ def _achatar(obj, prefixo="", prof=0, out=None):
     return out
 
 
+def _achatar_tudo(obj, prefixo="", out=None, prof=0):
+    """(caminho, valor) de TODOS os campos simples, com o índice das listas (para achar onde está um valor)."""
+    out = [] if out is None else out
+    if prof > 8 or len(out) > 20000:
+        return out
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            _achatar_tudo(v, f"{prefixo}.{k}" if prefixo else str(k), out, prof + 1)
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj[:500]):
+            _achatar_tudo(v, f"{prefixo}[{i}]", out, prof + 1)
+    else:
+        out.append((prefixo, obj))
+    return out
+
+
 def _mostrar(v, caminho: str) -> str:
     """O que a descoberta pode mostrar de um valor: códigos, quantidades, situações, nome de obra (TB/QD/LT) e a
     descrição de insumo de medidor. O resto, só a forma."""
@@ -246,6 +262,24 @@ def descobrir() -> int:
             try:                                    # 2ª descoberta: o que a tela mostra e o clique em Pesquisar
                 rotulos = page.evaluate(_JS_BOTOES)
                 log(f"tela {rota}: botões/colunas: {rotulos}")
+                if rota == "#/purchase-request" and EXEMPLO:
+                    # 5ª descoberta: procura a solicitação de exemplo e ABRE ela (é o detalhe que traz os insumos)
+                    caixa = page.locator("input[type=search], input[placeholder*='usc' i], input[placeholder*='esquis' i], "
+                                         "input[placeholder*='earch' i], input[placeholder*='úmero' i]")
+                    if caixa.count():
+                        caixa.first.fill(EXEMPLO)
+                        caixa.first.press("Enter")
+                        page.wait_for_timeout(6000)
+                        log(f"tela {rota}: busquei {EXEMPLO}")
+                    linha = page.get_by_text(re.compile(r"(^|\D)" + re.escape(EXEMPLO) + r"(\D|$)"))
+                    if linha.count():
+                        linha.first.click(timeout=5000)
+                        page.wait_for_timeout(8000)
+                        log(f"tela {rota}: abri a {EXEMPLO} → {page.evaluate('() => location.hash')!r}")
+                        page.go_back()
+                        page.wait_for_timeout(4000)
+                    else:
+                        log(f"tela {rota}: a {EXEMPLO} não apareceu na tela")
                 for aba_nome in ("Concluída", "Em andamento", "Carregar mais"):
                     t = page.get_by_text(re.compile("^" + aba_nome), exact=False)
                     if t.count():
@@ -327,7 +361,7 @@ def descobrir() -> int:
                 q = re.sub(r"\s+", " ", str(op.get("query") or ""))
                 log(f"— GraphQL {_host(resp.url).split('.')[0]} operação {op.get('operationName')!r} → HTTP {resp.status}")
                 log(f"   cabeçalhos do pedido: {sorted(k for k in (req.headers or {}) if not k.startswith(':'))}")
-                log(f"   consulta: {q[:1800]}")
+                log(f"   consulta: {q[:4000]}")
                 vs = op.get("variables") or {}
                 log("   variáveis: " + ", ".join(f"{c}={_forma(v) if not c.endswith('[#]') else v}" for c, v in _achatar(vs)[:40]))
             try:
@@ -335,10 +369,18 @@ def descobrir() -> int:
             except Exception as e:
                 log(f"   resposta ilegível ({type(e).__name__})")
                 continue
+            txt = json.dumps(j, ensure_ascii=False)
+            if EXEMPLO and re.search(r"(?<!\d)" + re.escape(EXEMPLO) + r"(?!\d)", txt):
+                caminhos = [c for c, x in _achatar_tudo(j) if str(x) == EXEMPLO][:5]
+                log(f"   ★ a {EXEMPLO} aparece nesta resposta em: {caminhos}")
             dados = (j or {}).get("data") if isinstance(j, dict) else None
             if isinstance(j, dict) and j.get("errors"):
                 log(f"   errors: {str(j.get('errors'))[:300]}")
             for nome, v in (dados or {}).items():
+                if isinstance(v, dict) and any(str(x) == EXEMPLO for _c, x in _achatar(v)):
+                    log(f"   ★ data.{nome} é a {EXEMPLO} (detalhe):")
+                    for c, x in _achatar(v):
+                        log(f"      {c} = {x if c.endswith('[#]') else _mostrar(x, c)}")
                 its = _lista(v) if isinstance(v, (dict, list)) else []
                 if isinstance(v, dict) and not its:
                     its = next((x for x in v.values() if isinstance(x, list)), [])
