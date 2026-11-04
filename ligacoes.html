@@ -162,6 +162,23 @@ td.conf-roxo{background:#EDE4FF !important;color:#5B21B6;font-weight:700}
 .aviso-conf{display:flex;gap:10px;align-items:flex-start;background:#F3EEFF;border:1px solid #C4B5FD;color:#5B21B6;border-radius:10px;padding:9px 12px;font-size:12.5px;margin:8px 0}
 .aviso-conf .pt{width:12px;height:12px;border-radius:3px;background:#C4B5FD;border:1px solid #8B5CF6;flex:none;margin-top:3px}
 .aviso-conf.leve{background:var(--sup);border-color:var(--border);color:var(--text2)}
+/* 04/11/26 — medidor comprado no Mais Controle (aba Verificar se a obra está apta) */
+.aviso-med{background:#ECFDF5;border:1px solid #6EE7B7;color:#065F46;border-radius:10px;padding:9px 12px;font-size:12.5px;margin:8px 0}
+.aviso-med .tt{font-weight:800;margin-bottom:4px}
+.aviso-med .it{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:5px 0;border-top:1px dashed #A7F3D0}
+.aviso-med .it:first-of-type{border-top:0}
+.aviso-med .it b{letter-spacing:.2px}
+.aviso-med .it .bt-mini{font-size:11px;padding:3px 9px;border-radius:7px;border:1px solid #34D399;background:#fff;color:#065F46;cursor:pointer;font-weight:700}
+.aviso-med .rod{font-size:11px;opacity:.85;margin-top:5px}
+html[data-tema="escuro"] .aviso-med{background:#11291f;border-color:#2f6b52;color:#a7f3d0}
+html[data-tema="escuro"] .aviso-med .it .bt-mini{background:transparent;color:#a7f3d0;border-color:#2f6b52}
+/* 04/11/26 — ligada há 1 mês ou mais e sem UC: linha vermelha forte */
+tbody tr.lin-semuc td{background:#FCA5A5 !important}
+tbody tr.lin-semuc td.stick{background:#F87171 !important}
+tbody tr.lin-semuc:hover td{filter:brightness(.96)}
+.legenda .pt.lin-semuc{background:#FCA5A5;border-color:#DC2626}
+html[data-tema="escuro"] tbody tr.lin-semuc td{background:#5a1f1f !important}
+html[data-tema="escuro"] tbody tr.lin-semuc td.stick{background:#6e2424 !important}
 .conf-escrever{color:var(--text3);opacity:.75}
 .conf-obs small{font-weight:800;color:var(--text3)}.conf-obs em{color:var(--text3);font-style:normal;font-weight:700}
 .txt-hist{max-height:240px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:6px 10px;margin:6px 0 8px;background:var(--sup)}
@@ -1742,6 +1759,8 @@ function boot(){
   // mora em outro arquivo (schema.json), publicado pelo mesmo fetch.
   lerEstaticoJa("schema.json", "schema_lig", pintarSchemaVendas);
   lerEstaticoJa("vendas.json", "vendas_lig", pintarVendas);
+  // 04/11/26: medidores comprados no Mais Controle (alerta da aba "apta")
+  lerEstaticoJa("medidores_mc.json", "medidores_mc", pintarMedidores);
   // valida a sessão em segundo plano — token velho cai fora
   ler({action:"me"}).then(r=>{ if(r && r.ok===false && r.erro==="NAO_AUTORIZADO") sair(); }).catch(()=>{});
   conferirBackend();
@@ -3083,7 +3102,8 @@ function tabelaHtml(linhas, colunas, extras, fonte, corDe, ctx){
     const ex = extras
       ? `<td>${diasLigacao(l)==null?"—":diasLigacao(l)}</td><td>${diasAprovacao(l)==null?"—":diasAprovacao(l)}</td>`
       : "";
-    const corLinha = corDe ? corDe(l) : "";
+    /* 04/11/26: ligada há 1 mês ou mais e sem UC manda na cor da linha */
+    const corLinha = ((fonte || "ligacoes") === "ligacoes" && ligadaSemUcMes(l)) ? "lin-semuc" : (corDe ? corDe(l) : "");
     return `<tr class="${corLinha}" data-id="${esc(l.id)}" data-fonte="${fonte||"ligacoes"}">${tds}${ex}</tr>`;
   }).join("");
   return `<table class="grade"><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table>`;
@@ -3544,7 +3564,92 @@ const corAlertaPlanilha = corPorAlertas(ALERTA_COLS_TODAS);
 const LEGENDA_ALERTA = `<div class="legenda">
   <span><i class="pt lin-atraso"></i> atrasado</span>
   <span><i class="pt lin-alerta"></i> alerta</span>
+  <span><i class="pt lin-semuc"></i> ligada há 1 mês ou mais sem UC</span>
 </div>`;
+/* 04/11/26 — LIGADA HÁ 1 MÊS SEM UC: STATUS = LIGADO, Data de Ligação de 30
+   dias atrás ou mais e a UC ainda vazia. Linha esgoto não tem UC (fica fora).
+   Vale em toda tabela da base de ligações, com legenda. */
+const DIAS_SEM_UC = 30;
+function ligadaSemUcMes(l){
+  if (!l || normN(sel(l, C.STATUS)) !== "LIGADO") return false;
+  if (ehLinhaEsgoto(l) || normN(sel(l, C.UC_OK)) === "INEXISTE") return false;
+  const uc = String(txt(getL(l, C.UC) || "")).trim();
+  if (uc && uc !== "-" && uc !== "—") return false;
+  const d = dataReal(l, C.DT_LIG);
+  if (!d) return false;
+  return Math.round((Date.parse(hojeISO() + "T00:00:00") - Date.parse(d + "T00:00:00")) / 86400000) >= DIAS_SEM_UC;
+}
+const LEGENDA_SEM_UC = `<div class="legenda"><span><i class="pt lin-semuc"></i> ligada há ${DIAS_SEM_UC} dias ou mais e sem UC preenchida</span></div>`;
+
+/* ===================== 04/11/26 — MEDIDOR COMPRADO NO MAIS CONTROLE =====================
+ * Aba "Verificar se a obra está apta para a solicitação". O dist/medidores_mc.json
+ * (medidores_mc.py, do Orçado x Realizado do MC) diz quantos PADRÃO DE ENERGIA
+ * (medidor de energia → EQUATORIAL) e HIDRÔMETRO (medidor de água → SANEAGO /
+ * SANESC) já foram comprados para o centro de custo de cada obra.
+ * BAIXA PARCIAL: a solicitação de compra não diz de qual casa é o medidor,
+ * então a conta é por QUANTIDADE — comprados no MC x casas da obra com MEDIDOR
+ * COMPRADO = SIM. Comprou 1 de 2: avisa 1; marcou SIM numa casa: o aviso some;
+ * quando a compra da outra casa entrar no MC, o aviso volta sozinho para a
+ * casa que falta. Só entram casas ainda NÃO LIGADAS (obra antiga não acende). */
+let MEDIDORES_MC = null;
+function pintarMedidores(r){
+  if (!r || r.ok === false || !r.obras) return;
+  MEDIDORES_MC = r;
+  if (ABA_ATUAL === "aptas") renderAba();
+}
+function loteDe(nome){
+  return String(nome || "").replace(/\s+(CS|CASA)\s*\d+\s*$/i, "").replace(/\s+[ÚU]NICA\s*$/i, "").replace(/\s+/g, " ").trim();
+}
+function chaveLote(nome){ return normN(loteDe(nome)).replace(/[^A-Z0-9]/g, ""); }
+function tipoMedidor(l){
+  if (ehLinhaEsgoto(l)) return null;
+  const c = normN(sel(l, C.CONC));
+  if (c.indexOf("EQUATORIAL") >= 0) return "energia";
+  if (c.indexOf("SANEAGO") >= 0 || c.indexOf("SANESC") >= 0) return "agua";
+  return null;
+}
+function alertasMedidores(){
+  if (!MEDIDORES_MC || !MEDIDORES_MC.obras) return [];
+  const mc = {};
+  Object.keys(MEDIDORES_MC.obras).forEach(n => { mc[chaveLote(n)] = MEDIDORES_MC.obras[n]; });
+  const visiveis = new Set(LIGF().map(l => l.id));
+  const grupos = {};
+  LIG.forEach(l => {
+    const tp = tipoMedidor(l); if (!tp) return;
+    const k = chaveLote(l.obra), id = k + "|" + tp;
+    const g = grupos[id] || (grupos[id] = { k: k, tp: tp, nome: loteDe(l.obra), linhas: [], visivel: false });
+    g.linhas.push(l);
+    if (visiveis.has(l.id)) g.visivel = true;
+  });
+  const out = [];
+  Object.keys(grupos).forEach(id => {
+    const g = grupos[id], m = mc[g.k] && mc[g.k][g.tp];
+    if (!g.visivel || !m || !(m.comprado > 0)) return;
+    const sim = g.linhas.filter(l => sel(l, C.LIBERADO) === "SIM").length;
+    const pend = g.linhas.filter(l => sel(l, C.LIBERADO) !== "SIM" && normN(sel(l, C.STATUS)) === "NAO LIGADO");
+    const falta = Math.min(Math.min(m.comprado, g.linhas.length) - sim, pend.length);
+    if (falta > 0) out.push({ nome: g.nome, tp: g.tp, comprado: m.comprado, orcado: m.orcado, sim: sim, total: g.linhas.length, falta: falta,
+                              casas: pend.map(l => l.obra) });
+  });
+  return out.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR") || (a.tp < b.tp ? -1 : 1));
+}
+function avisoMedidoresHtml(){
+  const al = alertasMedidores();
+  if (!al.length) return "";
+  const nome = tp => tp === "energia" ? "MEDIDOR DE ENERGIA" : "MEDIDOR DE ÁGUA";
+  const ic = tp => tp === "energia" ? "⚡" : "💧";
+  const quando = MEDIDORES_MC.data_extracao ? " · leitura do Mais Controle de " + fmtData(String(MEDIDORES_MC.data_extracao).slice(0,10)) : "";
+  return `<div class="aviso-med"><div class="tt">🛒 ${al.length} ${al.length === 1 ? "medidor comprado" : "medidores comprados"} no Mais Controle esperando o SIM na planilha</div>
+    ${al.map(a => `<div class="it"><span>${ic(a.tp)} <b>${esc(nome(a.tp))} DA OBRA ${esc(a.nome)} COMPRADO</b> — ${num(a.comprado)} comprado${a.comprado === 1 ? "" : "s"} no MC, ${num(a.sim)} de ${num(a.total)} ${a.total === 1 ? "casa" : "casas"} com SIM · marque <b>SIM</b> em ${num(a.falta)} ${a.falta === 1 ? "casa" : "casas"} na coluna MEDIDOR COMPRADO</span>
+      <button class="bt-mini" onclick="verObraMedidor(${esc(JSON.stringify(a.nome))})">ver as casas</button></div>`).join("")}
+    <div class="rod">Baixa parcial: o aviso de cada obra some quando as casas com SIM alcançam o que foi comprado; se outra compra entrar no MC, ele volta para a casa que falta${esc(quando)}.</div></div>`;
+}
+function verObraMedidor(nome){
+  const b = document.getElementById("set-busca");
+  if (!b) return;
+  b.removeAttribute("readonly"); b.value = nome; renderAba();
+  try { b.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) {}
+}
 
 function renderPlanilha(){
   const filtros = valoresFiltro("filtros-hub");
@@ -3963,6 +4068,10 @@ function renderAba(){
   let html = "";
   if (def.vencimento) html += LEGENDA_VENC;
   else if (def.alertaCor) html += LEGENDA_ALERTA;
+  /* 04/11/26: legenda da linha vermelha (ligada há 1 mês sem UC) onde ela aparece */
+  if (!def.alertaCor && fonte === "ligacoes" && linhas.some(ligadaSemUcMes)) html += LEGENDA_SEM_UC;
+  /* 04/11/26: medidor comprado no Mais Controle */
+  if (ABA_ATUAL === "aptas") html += avisoMedidoresHtml();
   /* 21/10: aviso da conferência semanal (a data fica roxa na tabela) */
   if (confTemSemana(ABA_ATUAL) && linhas.length){
     const atr = linhas.filter(l => confAtrasada(l, ABA_ATUAL));
