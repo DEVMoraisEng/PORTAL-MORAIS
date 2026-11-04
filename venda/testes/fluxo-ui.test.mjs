@@ -261,3 +261,79 @@ test("valores do bem são escapados no formulário", () => {
   const h = D.htmlFluxo(fechado, { fluxoEd: comPermutaUI({ ...carroUI, marca: '"><script>x</script>' }, { bemK: 3 }) }, "");
   assert.doesNotMatch(h, /<script>/);
 });
+
+/* ---- 04/11/2026 (dono): fluxo à mão guiado pelo simulador — a linha mexida trava (🔒), as outras pré-chaves,
+   balões e pós-chaves se ajustam; tudo travado = sugestão por linha + Aplicar sugestão. Números inventados. ---- */
+const reguaUI = () => editor({
+  valor: 199999.92, padrao: { valor: 199999.92, linhas: [] },
+  linhas: [{ t: "sinal", v: 10000, n: 1, d: "2026-11-05", i: 1, x: "" }, { t: "pre", v: 860, n: 12, d: "2026-12-10", i: 1, x: "" },
+           { t: "pre", v: 330, n: 12, d: "2027-12-10", i: 1, x: "" }, { t: "balao", v: 10000, n: 1, d: "2027-12-10", i: 1, x: "" },
+           { t: "balao", v: 7000, n: 1, d: "2028-11-10", i: 1, x: "" }, { t: "pos", v: 788.33, n: 24, d: "2028-12-10", i: 1, x: "" },
+           { t: "fin", v: 139800, n: 1, d: "", i: 1, x: "" }]
+});
+const linhaTr = (h, k) => h.match(new RegExp('<tr data-fx-linha="' + k + '"[^>]*>.*?</tr>', "s"))[0];
+
+test("guiado: mexer numa pré-chaves trava a linha e o simulador ajusta as outras; a tela marca as ajustadas", () => {
+  const ed = reguaUI();
+  ed.linhas[1].v = 760;
+  const mudou = D.guiarEditor(ed, 1);
+  assert.deepEqual(mudou.slice().sort(), [2, 3, 4]);
+  assert.equal(ed.travadas[1], true);
+  assert.equal(F.validar({ valor: ed.valor, linhas: ed.linhas }).diferenca, 0);
+  const h = D.htmlFluxo(fechado, { fluxoEd: ed }, "");
+  assert.match(botao(linhaTr(h, 1), "c-fluxo-trava"), /aria-pressed="true"[^>]*>🔒/);
+  assert.match(botao(linhaTr(h, 2), "c-fluxo-trava"), /aria-pressed="false"[^>]*>🔓/);
+  for (const k of [2, 3, 4]) assert.match(linhaTr(h, k), /ajustado pelo simulador/);
+  assert.doesNotMatch(linhaTr(h, 1), /ajustado pelo simulador/);
+  assert.equal(botao(linhaTr(h, 0), "c-fluxo-trava"), "", "sinal sem cadeado");
+  assert.equal(botao(linhaTr(h, 6), "c-fluxo-trava"), "", "financiamento sem cadeado");
+  assert.match(D.htmlFluxoVivo(ed, ""), /Diferença: <b>R\$ 0,00 ✓/);
+});
+
+test("guiado: o cadeado trava e destrava; destravar recalcula com a linha de volta no jogo", () => {
+  const ed = reguaUI();
+  D.travarLinha(ed, 3);
+  assert.equal(ed.travadas[3], true);
+  ed.linhas[1].v = 760;
+  D.guiarEditor(ed, 1);
+  assert.equal(F.totalLinha(ed.linhas[3]), 10000, "1º balão travado não mudou");
+  D.travarLinha(ed, 3);
+  assert.ok(!ed.travadas[3]);
+  assert.equal(F.validar({ valor: ed.valor, linhas: ed.linhas }).diferenca, 0);
+  D.travarLinha(ed, 0);
+  assert.ok(!ed.travadas[0], "linha fixa não trava");
+});
+
+test("guiado: tudo travado com diferença mostra a sugestão em cada linha e o Aplicar sugestão, que fecha a conta", () => {
+  const ed = reguaUI();
+  [2, 3, 4, 5].forEach((k) => D.travarLinha(ed, k));
+  ed.linhas[1].v = 760;
+  assert.deepEqual(D.guiarEditor(ed, 1), []);
+  assert.ok(ed.sugestao);
+  const h = D.htmlFluxo(fechado, { fluxoEd: ed }, "");
+  for (const k of [1, 2, 3, 4]) assert.match(linhaTr(h, k), /sugestão: R\$ [\d.]+,\d\d/);
+  assert.equal(F.totalLinha(ed.linhas[3]), 10000, "travada não muda sozinha");
+  const v = D.htmlFluxoVivo(ed, "");
+  assert.match(botao(v, "c-fluxo-sug"), /Aplicar sugestão/);
+  assert.match(v, /travad/);
+  D.aplicarSugestao(ed);
+  assert.equal(F.validar({ valor: ed.valor, linhas: ed.linhas }).diferenca, 0);
+  assert.deepEqual(ed.travadas, {});
+  assert.equal(ed.sugestao, null);
+  assert.equal(botao(D.htmlFluxoVivo(ed, ""), "c-fluxo-sug"), "");
+});
+
+test("guiado: apagar uma linha desloca os cadeados; recomeçar limpa", () => {
+  const ed = reguaUI();
+  D.travarLinha(ed, 3); D.travarLinha(ed, 5);
+  D.travasAoApagar(ed, 2);
+  assert.deepEqual(ed.travadas, { 2: true, 4: true });
+  D.limparGuia(ed);
+  assert.deepEqual([ed.travadas, ed.ajustadas, ed.sugestao], [{}, {}, null]);
+});
+
+test("guiado: o editor explica o cadeado; o ↻ continua entre o tipo e o valor", () => {
+  const h = D.htmlFluxo(fechado, { fluxoEd: reguaUI() }, "");
+  assert.match(h, /trava \(🔒\)/);
+  assert.match(linhaTr(h, 1), /<\/select>.*?<\/td><td><button[^>]*data-acao="c-fluxo-red"[^>]*>↻<\/button><\/td><td><input[^>]*data-fx="v"/s);
+});

@@ -1441,3 +1441,23 @@ redirecionamento (conta como falha e pode desligar o webhook). Tudo passa pela v
 - **Conferir:** venda de teste com envelope ENVIADO na sandbox → assinar com um signatário → em até 15 min a planilha
   mostra "1 de N"; recusar com outro → linha vermelha "recusado" e o e-mail chega; unidade com contrato gerado e sem
   termo → aba Pré-reserva mostra "Dispensada" e o Gerar termo some.
+
+## Alterar fluxo guiado pelo simulador (04/11/2026)
+
+Pedido do dono: "os fluxos que nós fazemos à mão devem seguir o princípio do simulador — tirei das primeiras parcelas
+pré-chaves, sobe automaticamente o valor do primeiro balão, ou pelo menos um campo de sugestão". Decisão: ajuste
+automático com cadeado.
+
+- **Na tela:** mexer no valor ou na quantidade de uma pré-chaves, balão ou pós-chaves trava a linha (🔒). Uns 400 ms
+  depois da última tecla, as linhas soltas (🔓) dessas três espécies são refeitas para a Diferença ficar em R$ 0,00 — as
+  que mudaram piscam e ganham "ajustado pelo simulador". O cadeado de cada linha trava/solta à mão. Sinal, entrada à
+  vista, permuta, pré-reserva, financiamento, FGTS e subsídio nunca mudam. Quando as travas não deixam fechar, cada linha
+  mostra "sugestão: R$ X" e o placar oferece **Aplicar sugestão** (a conta sem as travas; os cadeados abrem).
+  Recomeçar do fluxo da proposta e o prazo 24x/36x/48x limpam os cadeados; Distribuir e ↻ continuam como eram.
+- **A conta** (`FluxoLivre.guiar`): a diferença vai proporcional à régua do simulador — 1ª pré-chaves (por data) 860 por
+  parcela, as outras 330; 1º balão 10.000, os outros 7.000; pós-chaves 788,33 por parcela, nunca acima do teto (o da
+  proposta, se maior). Nenhuma linha abaixo de R$ 1,00 por parcela (o que não cabe vai para as outras). Quantidade e
+  datas ficam; os centavos fecham no último balão solto.
+- **Cadeados são só da tela** (não são gravados). Validações e servidor não mudaram.
+- **Implantar:** sobe com o site (FluxoLivre v12, venda-dossie v69, cache v287). No Apps Script nada é obrigatório: o
+  servidor não usa `guiar`; colar `FluxoLivre.gs` de novo só para manter a cópia igual.
