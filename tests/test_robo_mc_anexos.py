@@ -360,3 +360,15 @@ def test_nao_reabre_quem_ja_tem_comprovante_nem_quem_foi_aberto_agora():
     assert ra._rechecar(sem_ontem, D(2), lim, agora)
     assert not ra._rechecar(sem_ontem, D(60), lim, agora)          # pagamento antigo: não confere mais
     assert ra._rechecar(None, D(60), lim, agora) and ra._rechecar({"mc": {"tp": "x"}}, D(60), lim, agora)
+
+
+def test_com_muitos_achados_esperando_nao_le_a_lista(monkeypatch):
+    """04/11 (urgência): com a fila de achados cheia, a rodada só abre — a lista (≈20 min) fica para depois."""
+    monkeypatch.setattr(ra, "sb_subir", lambda *a: None)
+    monkeypatch.setattr(ra, "sb_apagar", lambda c: None)
+    monkeypatch.setattr(ra, "PRONTOS_SEM_LISTA", 1)
+    ant = {"101": {"mc": {"tp": ErpFalso.UU % 151, "parcelas": [ErpFalso.UU % 101]}}}
+    erp = ErpFalso()
+    itens, est = ra.rodada(ra.LeitorMC(erp), dict(aud_falsa(), anexos={"itens": ant}), {101: D(5), 888: D(4)})
+    assert not [x for x in erp.pedidos if x[0] == "/payable-installments/paginated-result"]
+    assert itens["101"]["v"] and "888" not in itens

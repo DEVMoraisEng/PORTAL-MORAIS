@@ -620,6 +620,7 @@ def _do_mc(it_ant):
 #: lista achou fica guardado (item sem "v" = achado e ainda não aberto) e quem NÃO foi achado só é procurado de novo
 #: depois de REPROCURAR_DIAS.
 REPROCURAR_DIAS = int(os.environ.get("ANEXOS_REPROCURAR_DIAS") or 3)
+PRONTOS_SEM_LISTA = int(os.environ.get("ANEXOS_PRONTOS_SEM_LISTA") or 60)
 
 
 def _pendente(it_ant) -> bool:
@@ -676,6 +677,13 @@ def rodada(leitor, aud, alvo, relogio=time.monotonic):
     # nunca abertos primeiro (mais recentes antes); depois os que só vão ser conferidos de novo
     vao.sort(key=lambda i: 0 if (ant.get(str(i)) is None or _pendente(ant.get(str(i)))) else 1)   # sort estável
     sem_mc = {i: alvo[i] for i in vao if not _do_mc(ant.get(str(i))) and _procurar_de_novo(ant.get(str(i)), HOJE)}
+    # 04/11 (urgência do dono): ler a lista do MC leva ~20 min. Com bastante já achado esperando para abrir, esta
+    # rodada só ABRE; a lista fica para quando a fila dos achados estiver acabando.
+    prontos = sum(1 for i in vao if _do_mc(ant.get(str(i))) and _pendente(ant.get(str(i))))
+    adiados = 0
+    if sem_mc and prontos >= PRONTOS_SEM_LISTA:
+        adiados, sem_mc = len(sem_mc), {}
+        log(f"  {prontos} lançamento(s) já achados esperando para abrir: a lista do MC fica para depois ({adiados} a procurar)")
     mapa, primeira = {}, None
     if sem_mc:
         leitor.preparar_casamento(aud, sem_mc)
@@ -712,6 +720,8 @@ def rodada(leitor, aud, alvo, relogio=time.monotonic):
         achado = mapa.get(idl)
         if idl in vao_set and not achado and not _do_mc(it_ant):
             # procurado e não achado na lista (ou ainda esperando os REPROCURAR_DIAS): guarda o dia e segue
+            if it_ant is None and idl not in sem_mc:
+                continue                          # nem foi procurado (lista adiada): nada a guardar
             novo = dict(it_ant or {})
             if idl in sem_mc:
                 novo["nao_achado"] = HOJE.isoformat()
