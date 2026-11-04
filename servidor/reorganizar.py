@@ -56,7 +56,8 @@ def falharam(tarefas: list, rods: dict, ref: dt.datetime | None = None) -> list:
     por_chave: dict[str, dict] = {}
     for t in tarefas or []:
         ch = t.get("chave")
-        if not ch or ch in FORA or t.get("estado") == "desligada" or ch in por_chave:
+        # 04/11: só os robôs que entram pelo porteiro (ORDEM); o de água e energia ainda pode logar sozinho no ERP
+        if not ch or ch in FORA or ch not in ORDEM or t.get("estado") == "desligada" or ch in por_chave:
             continue
         por_chave[ch] = t
     saida = []

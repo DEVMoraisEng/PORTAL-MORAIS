@@ -215,6 +215,16 @@ def _escalares(obj, prefixo="", prof=0, out=None):
 _RE_DATA = re.compile(r"^\d{4}-\d\d-\d\d")
 
 
+def _num(x):
+    try:
+        return float(x or 0)
+    except (TypeError, ValueError):
+        try:
+            return float(str(x).replace(".", "").replace(",", "."))
+        except ValueError:
+            return 0.0
+
+
 def _pegar(obj, caminho):
     for parte in caminho.split("."):
         if parte.endswith("[]"):
@@ -243,6 +253,8 @@ class LeitorMC:
         self.params_ok = None          # (nome, função página -> params) da forma de pedir a lista que funcionou
         self.tela = None               # parâmetros que a própria tela usou (dict de listas), se o porteiro viu
         self.tentativas = []           # (forma, páginas, do escopo achados) — a descoberta mostra
+        self.casar_idx, self.casar_desc = {}, {}   # 04/11: (data, valor) -> {nº do lançamento}; nº -> {descrição, nº doc}
+        self.casados = self.ambiguos = 0
 
     def _get(self, caminho, params=None):
         self.chamadas += 1
@@ -251,6 +263,52 @@ class LeitorMC:
 
     def _erro(self, rota, e):
         self.erros_rota.append((rota, f"{type(e).__name__}: {str(e)[:320]}"))
+
+    # ---- 0) 04/11 (3ª descoberta): a lista da tela NÃO traz o nº do lançamento (só UUIDs: id, tradePayableId).
+    #         O robô casa cada parcela da lista com o pagamento da auditoria pela DATA (prevista ou de pagamento) e
+    #         pelo VALOR; se der mais de um, desempata pela descrição / nº do documento. Ambíguo fica de fora.
+    def preparar_casamento(self, aud, alvo):
+        c = aud.get("cols") or {}
+        ids = c.get("id") or []
+        col = lambda nome: c.get(nome) or [None] * len(ids)                     # noqa: E731
+        dv, dp, v, vp, d, nd = col("dv"), col("dp"), col("v"), col("vp"), col("d"), col("nd")
+        idx, desc = {}, {}
+        for i, idl in enumerate(ids):
+            try:
+                idl = int(idl)
+            except (TypeError, ValueError):
+                continue
+            if idl not in alvo:
+                continue
+            for data in {str(dv[i] or "")[:10], str(dp[i] or "")[:10]} - {""}:
+                for val in {round(_num(vp[i]), 2), round(_num(v[i]), 2)} - {0.0}:
+                    idx.setdefault((data, val), set()).add(idl)
+            desc.setdefault(idl, set()).update({N(d[i]), N(nd[i])} - {""})
+        self.casar_idx, self.casar_desc = idx, desc
+        return len(idx)
+
+    def _casar(self, it):
+        datas = {str(it.get(k) or "")[:10] for k in ("plannedDate", "dateOfPayment")} - {""}
+        pago, resto = _num(it.get("sumOfPaidValues")), _num(it.get("remainingValue"))
+        vals = {round(pago, 2), round(pago + resto, 2)} - {0.0}
+        for b in (it.get("filteredPaids") or it.get("paids") or []):
+            if isinstance(b, dict):
+                bd = str(b.get("payingDate") or b.get("dateOfPayment") or "")[:10]
+                bv = _num(b.get("paidValue") or b.get("value"))
+                if bd:
+                    datas.add(bd)
+                if bv:
+                    vals.add(round(bv, 2))
+        cands = set()
+        for data in datas:
+            for val in vals:
+                cands |= self.casar_idx.get((data, val), set())
+        if len(cands) > 1:
+            txt = {N(it.get("description")), N(it.get("documentNumber"))} - {""}
+            so = {x for x in cands if self.casar_desc.get(x, set()) & txt}
+            if len(so) == 1:
+                cands = so
+        return cands
 
     # ---- 1) lista de parcelas a pagar -> {nº do lançamento: {"tp": uuid, "parcelas": [...], "baixas": [...]}}
     def params_da_tela(self):
@@ -350,14 +408,23 @@ class LeitorMC:
                         if str(v) in alvo_txt:
                             self.campo_num = c
                             break
-                if self.campo_num is None:
-                    continue
-                num = str(_pegar(it, self.campo_num) or "")
-                if num not in alvo_txt:
+                if self.campo_num is not None:
+                    num = str(_pegar(it, self.campo_num) or "")
+                    if num not in alvo_txt:
+                        continue
+                elif self.casar_idx:                      # sem o nº na lista: casa por data e valor
+                    cands = self._casar(it)
+                    if len(cands) != 1:
+                        self.ambiguos += len(cands) > 1
+                        continue
+                    num = str(next(iter(cands)))
+                    self.casados += 1
+                else:
                     continue
                 tp = it.get("tradePayable") if isinstance(it.get("tradePayable"), dict) else {}
-                reg = mapa.setdefault(int(num), {"tp": tp.get("id"), "parcelas": [], "baixas": []})
-                reg["tp"] = reg["tp"] or tp.get("id")
+                tp_id = tp.get("id") or it.get("tradePayableId")
+                reg = mapa.setdefault(int(num), {"tp": tp_id, "parcelas": [], "baixas": []})
+                reg["tp"] = reg["tp"] or tp_id
                 if it.get("id"):
                     reg["parcelas"].append(it["id"])
                 b = []
@@ -444,10 +511,12 @@ def descobrir(leitor, alvo):
             it = itens[0]
             log(f"  chaves da parcela: {chaves(it)}")
             log(f"  tipo do id da parcela: {_tipo_id(it.get('id'))} · tradePayable: {chaves(it.get('tradePayable'), 30)}")
-            log(f"  tipo do tradePayable.id: {_tipo_id((it.get('tradePayable') or {}).get('id'))}")
+            log(f"  tipo do tradePayable.id: {_tipo_id((it.get('tradePayable') or {}).get('id'))} · tipo do tradePayableId: {_tipo_id(it.get('tradePayableId'))}")
+            log(f"  forma das datas/valores: plannedDate {_tipo_id(it.get('plannedDate'))} · dateOfPayment {_tipo_id(it.get('dateOfPayment'))} · sumOfPaidValues {_tipo_id(it.get('sumOfPaidValues'))} · paids {len(it.get('filteredPaids') or it.get('paids') or [])}")
             nums = [c for c, v in _escalares(it) if _tipo_id(v) == "número" and 5 <= len(str(v)) <= 10]
             log(f"  campos com número de 5 a 10 dígitos: {nums[:15]}")
-    log(f"campo com o nº do lançamento: {leitor.campo_num or 'NÃO ACHADO'} · lançamentos do escopo achados (8 páginas): {len(mapa)}")
+    log(f"campo com o nº do lançamento: {leitor.campo_num or 'não vem na lista — casado por data e valor'} · "
+        f"casados: {leitor.casados} · ambíguos (ficaram de fora): {leitor.ambiguos} · lançamentos do escopo achados (8 páginas): {len(mapa)}")
     lidos = 0
     for idl in sorted(mapa, key=lambda i: alvo.get(i, ""), reverse=True)[:3]:
         log(f"— lançamento …{str(idl)[-4:]}")
@@ -474,7 +543,7 @@ def descobrir(leitor, alvo):
     log(f"chamadas ao MC: {leitor.chamadas}")
     if not lidos:
         causa = ("a lista de pagamentos do MC não respondeu" if primeira is None else
-                 "não achei em que campo da lista está o nº do lançamento" if not leitor.campo_num else
+                 "nenhuma parcela da lista casou com os pagamentos da auditoria (nem pelo nº nem por data e valor)" if not leitor.campo_num and not mapa else
                  "nenhum lançamento do escopo apareceu na lista do MC" if not mapa else
                  "os lançamentos achados deram erro ao abrir as pastas")
         log(f"FALHOU: nenhum lançamento lido — {causa}.")
@@ -595,6 +664,7 @@ def main():
     alvo = escolher(aud)
     log(f"lançamentos no escopo ({ESCOPO}, {DIAS} dias): {len(alvo)}")
     leitor = LeitorMC(do_ambiente())
+    leitor.preparar_casamento(aud, alvo)
     try:
         if DESCOBRIR:
             return descobrir(leitor, alvo)

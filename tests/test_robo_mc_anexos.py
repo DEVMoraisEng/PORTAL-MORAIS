@@ -158,3 +158,45 @@ def test_lista_copia_os_parametros_da_tela_e_troca_janela_e_pagina():
     assert q["endDate"] == [(HOJE + dt.timedelta(days=30)).isoformat()]
     assert leitor.formato_da_tela()["costCenterIds"] == "uuid×2" and leitor.formato_da_tela()["status"] == "OPEN"
     assert [t[0] for t in leitor.tentativas][:3] == ["da tela, por data de pagamento", "da tela", "da tela, sem filtro de situação"]
+
+
+class ErpListaSemNumero(ErpFalso):
+    """04/11 (3ª descoberta): a lista da tela não traz o nº do lançamento, só tradePayableId (UUID)."""
+    def pedido_da_tela(self, trecho, espera=20.0):
+        return ("https://legacy-api.maiscontroleerp.com.br/x/payable-installments/paginated-result?page=0&size=20"
+                "&dateField=PLANNED&startDate=2026-11-01&endDate=2026-11-30&costCentreType=ALL")
+
+    def pedir(self, metodo, caminho, corpo=None, params=None):
+        if caminho == "/payable-installments/paginated-result":
+            self.pedidos.append((caminho, params))
+            if params["page"] != ["0"]:
+                return {"content": [], "hasNextPage": False}
+            U = self.UU
+            return {"content": [
+                {"id": U % 1, "tradePayableId": U % 151, "plannedDate": D(5), "dateOfPayment": D(5), "sumOfPaidValues": 10.0,
+                 "remainingValue": 0, "description": "Areia", "filteredPaids": [{"id": U % 191, "payingDate": D(5), "paidValue": 10.0}]},
+                {"id": U % 2, "tradePayableId": U % 353, "plannedDate": D(10), "dateOfPayment": D(10), "sumOfPaidValues": 25.5,
+                 "remainingValue": 0, "description": "Cimento", "filteredPaids": []},
+                {"id": U % 3, "tradePayableId": U % 999, "plannedDate": D(10), "dateOfPayment": D(10), "sumOfPaidValues": 25.5,
+                 "remainingValue": 0, "description": "Outra coisa", "filteredPaids": []},          # mesmo dia e valor: desempata
+                {"id": U % 4, "tradePayableId": U % 888, "plannedDate": D(3), "sumOfPaidValues": 77.0, "remainingValue": 0}],
+                "hasNextPage": False}
+        return ErpFalso.pedir(self, metodo, caminho, corpo, params)
+
+
+def test_casa_pela_data_e_valor_quando_a_lista_nao_tem_o_numero():
+    aud = {"dict": {"st": ["OK", "DIVERGENTE"]},
+           "cols": {"id": [101, 303, 202], "dp": [D(5), D(10), D(10)], "dv": [D(5), D(10), D(10)], "st": [1, 1, 1],
+                    "v": [10.0, 25.5, 25.5], "vp": [10.0, 25.5, 25.5], "d": ["AREIA", "Cimento CP-II", "x"], "nd": ["", "", ""]},
+           "fiscal": []}
+    alvo = ra.escolher(aud)
+    assert set(alvo) == {101, 303, 202}
+    aud["cols"]["d"][2] = "outra coisa"
+    leitor = ra.LeitorMC(ErpListaSemNumero())
+    leitor.preparar_casamento(aud, alvo)
+    assert ra.descobrir(leitor, alvo) == 0
+    mapa, _ = leitor.mapear(alvo, max_paginas=2)
+    assert mapa[101]["tp"] == ErpFalso.UU % 151 and mapa[101]["baixas"] == [ErpFalso.UU % 191]
+    assert mapa[202]["tp"] == ErpFalso.UU % 999            # "outra coisa" desempatou com a descrição
+    assert 303 not in mapa or mapa[303]["tp"] == ErpFalso.UU % 353
+    assert leitor.campo_num is None and leitor.casados >= 2

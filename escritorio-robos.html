@@ -561,8 +561,11 @@ function oQueFazer(r) {
   if (/não responde na porta/.test(txt)) return "O Chrome central estava fechado. Conferir a tarefa “MoraisEng - Porteiro do ERP” no servidor.";
   return "";
 }
+/* 04/11: só os robôs que entram pelo porteiro podem ser disparados pelo portal (o de água e energia ainda pode
+   logar sozinho no ERP e derrubar a sessão de todo mundo) */
+const ROBOS_PELO_PORTEIRO = ["contas", "bases", "medicoes", "indices", "retratos", "anexos"];
 function tarefaParaRodar(r) {
-  if (r.chave === "porteiro" || r.chave === "fila" || r.chave === "coordenador") return null;
+  if (!ROBOS_PELO_PORTEIRO.includes(r.chave)) return null;
   return r.tarefas.find(t => t.estado !== "desligada" && /^MoraisEng - /.test(t.nome) && !/porteiro|\(fila\)/i.test(t.nome)) || null;
 }
 function podeRodar(r) { return PODE_RODAR && r.st !== "trab" && r.st !== "pedido" && !!tarefaParaRodar(r); }
@@ -600,7 +603,7 @@ async function pedirRodar(r, botao) {
 }
 
 /* ---------------- Coordenador da fila (04/11) ---------------- */
-function quemFalhou() { return montarRobos(DADOS || {}).filter(r => r.st === "erro" && !["porteiro", "fila", "coordenador"].includes(r.chave)); }
+function quemFalhou() { return montarRobos(DADOS || {}).filter(r => r.st === "erro" && ROBOS_PELO_PORTEIRO.includes(r.chave)); }
 async function pedirReorganizar(botao) {
   if (botao && botao.dataset.confirmar !== "1") {
     botao.dataset.confirmar = "1"; botao.textContent = "Confirmar: reorganizar agora?";
@@ -624,8 +627,8 @@ async function pedirReorganizar(botao) {
 }
 function planoHtml(PL) {
   if (!PL || !PL.fila) return "";
-  const rot = { esperando: "na fila", rodando: "rodando agora", feito: "deu certo", falhou: "deu errado" };
-  const cls = { esperando: "ped-t", rodando: "trab-t", feito: "ok-t", falhou: "erro-t" };
+  const rot = { esperando: "na fila", rodando: "rodando agora", feito: "deu certo", falhou: "deu errado", pulado: "fora da fila" };
+  const cls = { esperando: "ped-t", rodando: "trab-t", feito: "ok-t", falhou: "erro-t", pulado: "muted" };
   return `<p class="muted" style="font-size:12.5px;margin:0 0 8px">Pedido ${esc(quando(PL.criado))}${PL.quem ? " por " + esc(PL.quem) : ""} · ${esc(PL.status)}${PL.msg ? " — " + esc(PL.msg) : ""}</p>
     <div class="tbl"><table class="plano"><tr><th>#</th><th>Robô</th><th>Situação</th><th>Começou</th><th>Resultado</th></tr>${PL.fila.map((i, n) =>
       `<tr><td>${n + 1}</td><td>${esc(catDe(i.chave).nome)}</td><td class="${cls[i.estado] || ""}">${esc(rot[i.estado] || i.estado)}</td><td>${esc(i.inicio ? quando(i.inicio) : "—")}</td><td>${esc(i.resultado || "")}</td></tr>`).join("")}</table></div>`;
@@ -728,7 +731,7 @@ function abrir(chave, manterAbertas) {
     <div class="g-corpo">
       ${r.st === "erro" ? `<div class="box causa"><h3>⚠ O que deu errado</h3><p>${esc(causaDe(r))}</p>${oQueFazer(r) ? `<p class="muted" style="margin-top:6px">O que fazer: ${esc(oQueFazer(r))}</p>` : ""}
         <div class="acoes">${podeRodar(r) ? `<button type="button" class="bt rodar" id="g-rodar">▶ Rodar de novo</button><small>Roda a mesma tarefa do horário agora (relatório e e-mail inclusos). Se já estiver rodando, o servidor não abre outra.</small>`
-          : `<small>${r.chave === "porteiro" ? "O porteiro não se roda pelo portal: quem entra no Mais Controle é o dono, pela janela do Chrome central." : tarefaParaRodar(r) ? (PODE_RODAR ? "" : "Só ADM e MASTER podem mandar rodar de novo.") : "Este robô não tem tarefa que dê para rodar pelo portal."}</small>`}</div></div>`
+          : `<small>${r.chave === "porteiro" ? "O porteiro não se roda pelo portal: quem entra no Mais Controle é o dono, pela janela do Chrome central." : tarefaParaRodar(r) ? (PODE_RODAR ? "" : "Só ADM e MASTER podem mandar rodar de novo.") : (/agua|energia/.test(r.chave) ? "Esse robô ainda não entra pelo porteiro (pode logar sozinho no Mais Controle e derrubar a sessão dos outros) — por isso não é disparado pelo portal nem pelo Coordenador." : "Este robô não tem tarefa que dê para rodar pelo portal.")}</small>`}</div></div>`
       : r.st === "pedido" ? `<div class="box causa" style="border-left-color:#e0b11f"><h3 style="color:#b8860b!important">⏳ Na fila para rodar de novo</h3><p>O servidor pega o pedido em até 1 min e roda a tarefa. A mesa muda para “rodando” e o relatório novo aparece aqui.</p></div>` : ""}
       <div class="box"><h3>O que faz</h3><p>${esc(c.faz)}</p></div>
       ${r.chave === "coordenador" ? (() => {
