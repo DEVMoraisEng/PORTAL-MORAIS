@@ -23,7 +23,7 @@ def rods_falhas():
 
 
 def test_falharam_na_ordem_e_sem_porteiro_fila_ou_velhos():
-    tarefas = [T("medicoes"), T("contas"), T("bases"), T("indices", res=0), T("retratos", res=1),
+    tarefas = [T("medicoes"), T("contas"), T("bases"), T("indices", res=0), T("retratos", res=1), T("coleta-agua-e-energia-diaria", res=1),
                T("porteiro", res=1), T("fila", res=1), T("anexos", estado="desligada", res=1)]
     assert [c for c, _ in RZ.falharam(tarefas, rods_falhas(), REF)] == ["contas", "medicoes", "retratos"]
 

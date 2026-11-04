@@ -211,6 +211,22 @@ html[data-tema="escuro"] .box h3{color:var(--teal)}
 .bb button,.bt{border:1px solid var(--border);background:var(--bg2);color:var(--text);border-radius:7px;padding:5px 9px;font:inherit;font-weight:700;font-size:11.5px;cursor:pointer}
 .bb button.rodar,.bt.rodar{background:var(--st-erro);border-color:var(--st-erro);color:#fff}
 .bb button:disabled,.bt:disabled{opacity:.6;cursor:wait}
+.pino{position:absolute;left:0;top:0;pointer-events:auto;border:2px solid #fff;border-radius:999px;min-width:30px;height:28px;padding:0 8px;
+  font:800 13px/24px Inter,sans-serif;color:#fff;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.pino.erro{background:var(--st-erro)}.pino.ped{background:#d9a514}
+@media (prefers-reduced-motion:no-preference){.pino.erro{animation:pulo 1.4s ease-in-out infinite}}
+@keyframes pulo{50%{margin-top:-4px}}
+.quadro-avisos{position:absolute;right:10px;top:10px;z-index:3;width:min(320px,calc(100% - 20px));max-height:calc(100% - 60px);display:flex;flex-direction:column;
+  background:color-mix(in srgb,var(--sup) 96%,transparent);border:1px solid var(--border);border-left:4px solid var(--st-erro);border-radius:10px;box-shadow:0 10px 26px rgba(0,0,0,.22);font-size:12px}
+.qa-top{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border2)}
+.qa-top b{color:var(--st-erro);font-size:12.5px}
+.qa-top button{all:unset;cursor:pointer;color:var(--text3);font-weight:700;font-size:11.5px}
+.qa-corpo{overflow:auto;padding:6px 10px 10px;display:flex;flex-direction:column;gap:8px}
+.quadro-avisos.fechado .qa-corpo{display:none}
+.qa-it{display:flex;flex-direction:column;gap:3px;padding-bottom:8px;border-bottom:1px dashed var(--border2)}
+.qa-it span{color:var(--text);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.qa-fila{color:#b8860b;font-weight:600}
+@media (max-width:600px){.quadro-avisos{top:auto;bottom:44px;max-height:45%}}
 .causa{border-left:4px solid var(--st-erro);background:color-mix(in srgb,var(--st-erro) 8%,var(--sup))}
 .causa h3{color:var(--st-erro)!important}
 .causa .acoes{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
@@ -225,6 +241,18 @@ details summary{cursor:pointer;font-size:12.5px;color:var(--text3);font-weight:6
 .pdfbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;font-size:12.5px;flex-wrap:wrap}
 iframe.pdf{display:block;width:100%;height:min(72vh,720px);border:0;background:#fff}
 .pdflink{display:block;padding:7px 10px;font-size:12px;font-weight:600;color:var(--azul)}
+.agenda{display:flex;flex-direction:column;gap:8px}
+.ag-l{display:grid;grid-template-columns:190px 1fr;gap:10px;align-items:center;padding:6px 0;border-bottom:1px dashed var(--border2)}
+.ag-l b{font-size:13px}
+.ag-h{display:flex;flex-wrap:wrap;gap:6px}
+.ag-c{font-size:12.5px;font-weight:700;border:2px solid;border-radius:8px;padding:3px 8px;font-variant-numeric:tabular-nums}
+.ag-ok{color:var(--st-ok);border-color:var(--st-ok);background:color-mix(in srgb,var(--st-ok) 10%,transparent)}
+.ag-erro{color:var(--st-erro);border-color:var(--st-erro);background:color-mix(in srgb,var(--st-erro) 10%,transparent)}
+.ag-rodando{color:var(--st-trab);border-color:var(--st-trab)}
+.ag-pendente{color:var(--text3);border-color:var(--border)}
+.ag-sem{color:var(--text4);border-color:var(--border2);border-style:dotted}
+.ag-x{border-style:dashed}
+@media (max-width:520px){.ag-l{grid-template-columns:1fr}}
 .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--azul-esc);color:#fff;font-weight:600;font-size:13px;padding:10px 16px;border-radius:10px;box-shadow:0 10px 26px rgba(0,0,0,.3);z-index:60;max-width:calc(100% - 32px)}
 </style>
 </head>
@@ -250,6 +278,7 @@ iframe.pdf{display:block;width:100%;height:min(72vh,720px);border:0;background:#
     <span class="chip" id="chip-gerado"><i></i><span>Buscando o servidor…</span></span>
     <label class="chk"><input type="checkbox" id="so-problema"> Só quem precisa de atenção</label>
     <span class="hspace"></span>
+    <button type="button" class="bt" id="bt-agenda" title="Horários de hoje e o que já rodou">📅 Agenda de hoje</button>
     <span class="vistas" role="group" aria-label="Como ver"><button type="button" id="v-3d" aria-pressed="true">Sala 3D</button><button type="button" id="v-lista" aria-pressed="false">Lista</button></span>
   </div>
   <section class="sala3d hide" id="sala3d" aria-label="Sala 3D do escritório de robôs">
@@ -273,13 +302,13 @@ iframe.pdf{display:block;width:100%;height:min(72vh,720px);border:0;background:#
 <script src="app.js?v=45"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-<script src="escritorio-3d.js?v=2"></script>
+<script src="escritorio-3d.js?v=4"></script>
 <script>
 /* ===== ESCRITÓRIO DE ROBÔS (03/11/26) =======================================
  * Uma mesa por robô do servidor do escritório. Os dados vêm do próprio
  * servidor (_portal\servidor\escritorio_robos.py), que sobe o arquivo
  * robos/escritorio.json para o bucket PRIVADO "analise" do Supabase depois de
- * cada rodada e a cada 15 min. Esta página pede ao Apps Script (escritorioBoot,
+ * cada rodada e a cada 5 min. Esta página pede ao Apps Script (escritorioBoot,
  * apps-script/EscritorioRobos.gs) um link assinado de 15 min e baixa o arquivo.
  * Acesso: "ESCRITÓRIO DE ROBÔS" na coluna ACESSOS do LOGINS (ADM/MASTER veem).
  * ========================================================================== */
@@ -380,6 +409,7 @@ function montarRobos(D) {
       const P = D.porteiro;          // 04/11: o servidor diz o que os ROBÔS viram por último (o porteiro.log mentia)
       if (P && P.estado && P.estado !== "?") { st = P.estado === "ok" ? "ok" : "erro"; stTexto = P.estado === "ok" ? "logado" : "fora do Mais Controle"; stHora = quando(P.em); }
       else if (ultP) { const logado = /^porteiro: logado/.test(ultP.porteiro || ""); st = logado ? "ok" : "erro"; stTexto = logado ? "logado" : "fora"; stHora = quando(ultP.fim || ultP.inicio); }
+      else { stTexto = "esperando a conferência do servidor (a cada 5 min)"; }
     } else if (r.chave === "coordenador") {
       if (plAtivo) {
         const feitos = PL.fila.filter(i => i.estado === "feito" || i.estado === "falhou").length;
@@ -512,7 +542,7 @@ function pintar() {
   $("sala-salao").classList.toggle("hide", em3d);
   $("sala3d").classList.toggle("hide", !em3d);
   $("carregando").classList.add("hide");
-  if (em3d) Escritorio3D.atualizar(vis.length ? vis : robos, { abrir, rodar: pedirRodar, podeRodar, causa: causaDe });
+  if (em3d) Escritorio3D.atualizar(vis.length ? vis : robos, { abrir, rodar: pedirRodar, podeRodar, causa: causaDe, agenda: agendaDoDia(robos) });
   const g = dataDe(D.gerado);
   const chip = $("chip-gerado");
   const velho = g && (Date.now() - g.getTime()) / 60000 > VELHO_MIN;
@@ -521,7 +551,7 @@ function pintar() {
   const av = [];
   const P = D.porteiro;
   if (P && P.estado === "fora") av.push(`<div class="aviso"><b>🚨 O porteiro está fora do Mais Controle (visto ${esc(quando(P.em))}).</b> Enquanto isso, nenhum robô consegue entrar no ERP. O que fazer: no servidor, entrar no Mais Controle pela janela do Chrome central (a do porteiro) e deixar aberta. Depois, Rodar de novo nos robôs que falharam.<br><span class="muted">${esc(P.texto || "")}</span></div>`);
-  if (velho) av.push(`<div class="aviso amarelo"><b>O servidor não manda notícias ${esc(ha(g))}.</b> Ele publica depois de cada rodada e a cada 15 min — pode estar desligado, sem internet, ou a tarefa “MoraisEng - Robo do portal (fila)” parou.</div>`);
+  if (velho) av.push(`<div class="aviso amarelo"><b>O servidor não manda notícias ${esc(ha(g))}.</b> Ele publica depois de cada rodada e a cada 5 min — pode estar desligado, sem internet, ou a tarefa “MoraisEng - Robo do portal (fila)” parou.</div>`);
   (D.avisos || []).forEach(a => av.push(`<div class="aviso amarelo">Servidor: ${esc(a)}</div>`));
   $("avisos").innerHTML = av.join("");
   if (ABERTO) abrir(ABERTO, true);
@@ -561,8 +591,11 @@ function oQueFazer(r) {
   if (/não responde na porta/.test(txt)) return "O Chrome central estava fechado. Conferir a tarefa “MoraisEng - Porteiro do ERP” no servidor.";
   return "";
 }
+/* 04/11: só os robôs que entram pelo porteiro podem ser disparados pelo portal (o de água e energia ainda pode
+   logar sozinho no ERP e derrubar a sessão de todo mundo) */
+const ROBOS_PELO_PORTEIRO = ["contas", "bases", "medicoes", "indices", "retratos", "anexos"];
 function tarefaParaRodar(r) {
-  if (r.chave === "porteiro" || r.chave === "fila" || r.chave === "coordenador") return null;
+  if (!ROBOS_PELO_PORTEIRO.includes(r.chave)) return null;
   return r.tarefas.find(t => t.estado !== "desligada" && /^MoraisEng - /.test(t.nome) && !/porteiro|\(fila\)/i.test(t.nome)) || null;
 }
 function podeRodar(r) { return PODE_RODAR && r.st !== "trab" && r.st !== "pedido" && !!tarefaParaRodar(r); }
@@ -599,8 +632,53 @@ async function pedirRodar(r, botao) {
   [50, 100, 160, 260].forEach(s => setTimeout(() => carregar(), s * 1000));     // acompanha mais de perto
 }
 
+/* ---------------- Agenda de hoje (04/11): horários do dia × o que já rodou ---------------- */
+function agendaDoDia(robos) {
+  const hoje = new Date(), agora = Date.now(), lista = [];
+  (robos || montarRobos(DADOS || {})).forEach(r => {
+    if (["porteiro", "fila", "coordenador"].includes(r.chave)) return;
+    const horas = [...new Set(r.tarefas.flatMap(t => t.hoje || []))].sort();
+    const rods = r.rodadas.map(x => ({ d: dataDe(x.inicio), ok: x.ok })).filter(x => x.d && mesmoDia(x.d, hoje));
+    const logs = (r.log || []).filter(l => l.de === r.chave && / código -?\d+/.test(l.texto))
+      .map(l => ({ d: dataDe(l.em), ok: !/ código [1-9]/.test(l.texto) })).filter(x => x.d && mesmoDia(x.d, hoje));
+    const fonte = (rods.length ? rods : logs).sort((a, b) => a.d - b.d);
+    if (!horas.length && !fonte.length) return;
+    const usados = new Set();
+    const itens = horas.map(h => {
+      const t = new Date(hoje); t.setHours(+h.slice(0, 2), +h.slice(3, 5), 0, 0);
+      const i = fonte.findIndex((x, k) => !usados.has(k) && x.d >= t.getTime() - 10 * 60000 && x.d < t.getTime() + 100 * 60000);
+      if (i >= 0) { usados.add(i); return { h, e: fonte[i].ok ? "ok" : "erro" }; }
+      if (r.st === "trab" && agora >= t && agora < t.getTime() + 100 * 60000) return { h, e: "rodando" };
+      if (t.getTime() > agora) return { h, e: "pendente" };
+      const tk = r.tarefas.find(x => x.ultima && dataDe(x.ultima) && dataDe(x.ultima).getTime() >= t.getTime() - 60000);
+      if (tk && !fonte.length) return { h, e: tk.resultado === 0 ? "ok" : "erro" };
+      return { h, e: "sem" };
+    });
+    fonte.forEach((x, k) => { if (!usados.has(k)) itens.push({ h: hhmm(x.d), e: x.ok ? "ok" : "erro", extra: true }); });   // rodou de novo
+    itens.sort((a, b) => a.h.localeCompare(b.h));
+    lista.push({ chave: r.chave, nome: r.cat.nome, ico: r.cat.ico, itens });
+  });
+  return lista;
+}
+const AG_TXT = { ok: ["✓", "deu certo", "ok-t"], erro: ["✗", "deu errado", "erro-t"], rodando: ["●", "rodando", "trab-t"], pendente: ["⏳", "ainda vai rodar", "muted"], sem: ["?", "não achei a rodada", "muted"] };
+function abrirAgenda(manter) {
+  ABERTO = "__agenda__";
+  const ag = agendaDoDia(), g = $("gaveta"), d = new Date();
+  g.style.setProperty("--rc", "#1e3f58");
+  const feitos = ag.reduce((a, l) => a + l.itens.filter(i => i.e === "ok" || i.e === "erro").length, 0);
+  const total = ag.reduce((a, l) => a + l.itens.filter(i => !i.extra).length, 0);
+  g.innerHTML = `<div class="g-top"><div class="g-ico">📅</div><div style="min-width:0"><div class="t" id="g-titulo">Agenda de hoje</div><div class="s">${esc(diaTitulo(d))} · ${feitos} de ${total} já rodaram</div></div>
+      <button class="hbtn x" type="button" id="g-fechar">✕ Fechar</button></div>
+    <div class="g-corpo"><div class="box"><h3>Horários dos robôs</h3>${ag.length ? `<div class="agenda">${ag.map(l => `<div class="ag-l"><b>${esc(l.ico)} ${esc(l.nome)}</b><div class="ag-h">${l.itens.map(i =>
+        `<span class="ag-c ag-${i.e}${i.extra ? " ag-x" : ""}" title="${esc(AG_TXT[i.e][1])}${i.extra ? " (rodou de novo)" : ""}">${esc(i.h)} ${AG_TXT[i.e][0]}</span>`).join("")}</div></div>`).join("")}</div>`
+      : `<p class="muted">Nenhum robô com horário hoje.</p>`}
+      <p class="muted" style="font-size:12px;margin-top:10px">✓ rodou e deu certo · ✗ deu errado · ● rodando · ⏳ ainda vai rodar · ? passou do horário e não achei a rodada · borda tracejada = rodou de novo (Rodar de novo ou Coordenador). Clique no robô na sala para ver o relatório.</p></div></div>`;
+  $("g-fechar").addEventListener("click", fechar);
+  if (!manter) { g.classList.remove("hide"); $("veu").classList.remove("hide"); g.scrollTop = 0; }
+}
+
 /* ---------------- Coordenador da fila (04/11) ---------------- */
-function quemFalhou() { return montarRobos(DADOS || {}).filter(r => r.st === "erro" && !["porteiro", "fila", "coordenador"].includes(r.chave)); }
+function quemFalhou() { return montarRobos(DADOS || {}).filter(r => r.st === "erro" && ROBOS_PELO_PORTEIRO.includes(r.chave)); }
 async function pedirReorganizar(botao) {
   if (botao && botao.dataset.confirmar !== "1") {
     botao.dataset.confirmar = "1"; botao.textContent = "Confirmar: reorganizar agora?";
@@ -624,8 +702,8 @@ async function pedirReorganizar(botao) {
 }
 function planoHtml(PL) {
   if (!PL || !PL.fila) return "";
-  const rot = { esperando: "na fila", rodando: "rodando agora", feito: "deu certo", falhou: "deu errado" };
-  const cls = { esperando: "ped-t", rodando: "trab-t", feito: "ok-t", falhou: "erro-t" };
+  const rot = { esperando: "na fila", rodando: "rodando agora", feito: "deu certo", falhou: "deu errado", pulado: "fora da fila" };
+  const cls = { esperando: "ped-t", rodando: "trab-t", feito: "ok-t", falhou: "erro-t", pulado: "muted" };
   return `<p class="muted" style="font-size:12.5px;margin:0 0 8px">Pedido ${esc(quando(PL.criado))}${PL.quem ? " por " + esc(PL.quem) : ""} · ${esc(PL.status)}${PL.msg ? " — " + esc(PL.msg) : ""}</p>
     <div class="tbl"><table class="plano"><tr><th>#</th><th>Robô</th><th>Situação</th><th>Começou</th><th>Resultado</th></tr>${PL.fila.map((i, n) =>
       `<tr><td>${n + 1}</td><td>${esc(catDe(i.chave).nome)}</td><td class="${cls[i.estado] || ""}">${esc(rot[i.estado] || i.estado)}</td><td>${esc(i.inicio ? quando(i.inicio) : "—")}</td><td>${esc(i.resultado || "")}</td></tr>`).join("")}</table></div>`;
@@ -638,11 +716,19 @@ function logHtml(linhas, titulo) {
     `<div class="lg${RE_ERRO_LOG.test(l.texto) && !/^e-mail enviado|^relatório /.test(l.texto) ? " ruim" : ""}"><span>${esc(String(l.em).slice(11, 19))}</span><i>${esc(l.de)}</i><b>${esc(l.texto)}</b></div>`).join("")}</div>`;
 }
 function pdfHtml(x) {
-  if (!x.pdf_caminho) return x.pdf ? `<p class="meta">PDF: ${esc(x.pdf)} (ainda não subiu para o portal — sobe na próxima publicação do servidor).</p>` : "";
+  if (!x.pdf_caminho) return x.pdf ? `<p class="meta">📄 O PDF desta rodada (${esc(x.pdf)}) entra aqui na próxima atualização do servidor (a cada 5 min).</p>` : "";
   return `<div class="pdfbox" data-pdf="${esc(x.pdf_caminho)}"><div class="pdfbar"><b>📄 Relatório em PDF (o mesmo do e-mail)</b><button type="button" class="bt" data-a="pdf">Mostrar o PDF aqui</button></div></div>`;
 }
 function relatorioHtml(x) {
-  if (x.so_pdf) return `<p class="meta">Rodada de antes do relatório detalhado no portal: abaixo, o log do servidor e o PDF que foi por e-mail.</p>` + logHtml(x.log) + pdfHtml(x);
+  if (x.so_pdf) {
+    let h = x.pdf_meta ? `<p class="meta">${esc(x.pdf_meta)}</p>` : "";
+    if (x.porteiro) h += `<p class="meta">${esc(x.porteiro)}</p>`;
+    if ((x.atencao || []).length) h += `<h4>O que deu errado (do relatório do e-mail)</h4><ul>${x.atencao.map(a => `<li><b>${esc(a.parte)}:</b> ${esc(a.oque)}${a.fazer ? `<br><span class="fazer">O que fazer: ${esc(a.fazer)}</span>` : ""}</li>`).join("")}</ul>`;
+    else if (!x.ok && !(x.log || []).length) h += `<p class="meta">O motivo aparece aqui na próxima atualização do servidor (a cada 5 min), lido do log e do PDF desta rodada.</p>`;
+    h += logHtml(x.log);
+    if (x.pdf_texto) h += `<details style="margin-top:12px"><summary>Texto completo do relatório</summary><pre>${esc(x.pdf_texto)}</pre></details>`;
+    return h + pdfHtml(x);
+  }
   const i0 = dataDe(x.inicio), f0 = dataDe(x.fim);
   const dur = i0 && f0 ? Math.max(0, Math.round((f0 - i0) / 60000)) : null;
   const grav = x.gravando == null ? "" : " · gravação " + (x.gravando ? "LIGADA" : "desligada (só simulação)");
@@ -687,13 +773,17 @@ async function mostrarPdf(box, auto) {
   box.insertAdjacentHTML("beforeend", `<iframe class="pdf" src="${esc(r.url)}#view=FitH" title="Relatório em PDF"></iframe><a class="pdflink" href="${esc(r.url)}" target="_blank" rel="noopener">Abrir o PDF em outra aba ↗</a>`);
 }
 function resumoRodada(x) {
-  if (x.so_pdf) { const l = linhaDoErro(x.log); return l && !x.ok ? l.texto : (x.ok ? "deu certo (detalhe no PDF)" : "deu errado (detalhe no PDF)"); }
+  if (x.so_pdf) {
+    const a = (x.atencao || [])[0]; if (a && !x.ok) return a.parte + ": " + a.oque;
+    const l = linhaDoErro(x.log); return l && !x.ok ? l.texto : (x.ok ? "deu certo" : "deu errado — motivo na próxima atualização do servidor");
+  }
   const f = (x.atencao || [])[0];
   if (!x.ok && f) return f.parte + ": " + f.oque;
   const ult = (x.itens || []).filter(i => i.texto).slice(-1)[0];
   return (x.repeticao ? "na 2ª tentativa · " : "") + (ult ? ult.texto : (x.ok ? "rodada completa" : "falhou"));
 }
 function abrir(chave, manterAbertas) {
+  if (chave === "__agenda__") return abrirAgenda(manterAbertas);
   const robos = montarRobos(DADOS || {});
   const r = robos.find(x => x.chave === chave); if (!r) return;
   const abertas = manterAbertas ? [...document.querySelectorAll("#gaveta .rod.aberta")].map(e => e.dataset.i) : null;
@@ -728,7 +818,7 @@ function abrir(chave, manterAbertas) {
     <div class="g-corpo">
       ${r.st === "erro" ? `<div class="box causa"><h3>⚠ O que deu errado</h3><p>${esc(causaDe(r))}</p>${oQueFazer(r) ? `<p class="muted" style="margin-top:6px">O que fazer: ${esc(oQueFazer(r))}</p>` : ""}
         <div class="acoes">${podeRodar(r) ? `<button type="button" class="bt rodar" id="g-rodar">▶ Rodar de novo</button><small>Roda a mesma tarefa do horário agora (relatório e e-mail inclusos). Se já estiver rodando, o servidor não abre outra.</small>`
-          : `<small>${r.chave === "porteiro" ? "O porteiro não se roda pelo portal: quem entra no Mais Controle é o dono, pela janela do Chrome central." : tarefaParaRodar(r) ? (PODE_RODAR ? "" : "Só ADM e MASTER podem mandar rodar de novo.") : "Este robô não tem tarefa que dê para rodar pelo portal."}</small>`}</div></div>`
+          : `<small>${r.chave === "porteiro" ? "O porteiro não se roda pelo portal: quem entra no Mais Controle é o dono, pela janela do Chrome central." : tarefaParaRodar(r) ? (PODE_RODAR ? "" : "Só ADM e MASTER podem mandar rodar de novo.") : (/agua|energia/.test(r.chave) ? "Esse robô ainda não entra pelo porteiro (pode logar sozinho no Mais Controle e derrubar a sessão dos outros) — por isso não é disparado pelo portal nem pelo Coordenador." : "Este robô não tem tarefa que dê para rodar pelo portal.")}</small>`}</div></div>`
       : r.st === "pedido" ? `<div class="box causa" style="border-left-color:#e0b11f"><h3 style="color:#b8860b!important">⏳ Na fila para rodar de novo</h3><p>O servidor pega o pedido em até 1 min e roda a tarefa. A mesa muda para “rodando” e o relatório novo aparece aqui.</p></div>` : ""}
       <div class="box"><h3>O que faz</h3><p>${esc(c.faz)}</p></div>
       ${r.chave === "coordenador" ? (() => {
@@ -763,6 +853,7 @@ $("veu").addEventListener("click", fechar);
 document.addEventListener("keydown", e => { if (e.key === "Escape" && ABERTO) fechar(); });
 document.addEventListener("click", e => { const m = e.target.closest && e.target.closest(".mesa"); if (m) abrir(m.dataset.chave); });
 $("so-problema").addEventListener("change", pintar);
+$("bt-agenda").addEventListener("click", () => abrirAgenda());
 
 /* ---------------- vista: sala 3D (padrão) ou lista ---------------- */
 let VISTA = "3d", SALA3D = false;
