@@ -99,9 +99,37 @@
     return ordem.filter(function (d) { return caixas[d].length; }).map(function (d) { return { titulo: d, campos: caixas[d] }; });
   }
 
+  /* 04/11/2026 (dono): "na hora de gerar contrato, os campos que tiverem faltando, deixe editar naquele mesmo lugar".
+   * Frase do faltasContrato (venda/ContratoVenda.js, casa de rua) -> colunas da VENDAS que resolvem. As colunas são as
+   * que o GerarContrato.gs lê (RegrasVenda.COL, ContratoVenda.COLUNAS). Vendedor, loteamento e corretor têm o
+   * formulário de cadastro do servidor (entrega 12) e não entram aqui. */
+  var FALTA_COLUNAS = {
+    "comprador 1: nome": ["CLIENTES"], "comprador 1: cpf": ["CPF"], "comprador 1: cpf invalido": ["CPF"],
+    "comprador 1: nacionalidade": ["COMPRADOR 1 - NACIONALIDADE"], "comprador 1: endereco": ["COMPRADOR 1 - ENDEREÇO"],
+    "comprador 2: nome": ["COMPRADOR 2 - NOME"], "comprador 2: cpf": ["COMPRADOR 2 - CPF"], "comprador 2: cpf invalido": ["COMPRADOR 2 - CPF"],
+    "comprador 2: nacionalidade": ["COMPRADOR 2 - NACIONALIDADE"], "comprador 2: endereco": ["COMPRADOR 2 - ENDEREÇO"],
+    "imovel: matricula individual": ["CONTRATO - MATRÍCULA INDIVIDUAL"], "imovel: cri da matricula": ["CONTRATO - CRI DA MATRÍCULA"],
+    "imovel: area do lote": ["CONTRATO - ÁREA DO LOTE (M²)"], "imovel: alvara (numero)": ["CONTRATO - ALVARÁ Nº"],
+    "imovel: alvara (data)": ["CONTRATO - ALVARÁ DATA"], "imovel: prazo previsto de conclusao das obras": ["DATA DA ENTREGA"],
+    "imovel: habite-se (numero)": ["CONTRATO - HABITE-SE Nº"], "imovel: habite-se (data)": ["CONTRATO - HABITE-SE DATA"],
+    "negociacao: valor do imovel": ["VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)"],
+    "negociacao: sinal (valor)": ["CONTRATO - SINAL VALOR"], "negociacao: sinal (data)": ["CONTRATO - SINAL DATA"],
+    "negociacao: entrada (valor)": ["CONTRATO - ENTRADA VALOR"], "negociacao: entrada (vencimento)": ["CONTRATO - ENTRADA VENCIMENTO"],
+    "negociacao: intermediaria (vencimento)": ["CONTRATO - INTERMEDIÁRIA VENCIMENTO"],
+    "negociacao: forma de pagamento": ["CONTRATO - FORMA DE PAGAMENTO"], "negociacao: comissao (valor)": ["COMISSÃO"],
+    "negociacao: comissao (forma)": ["CONTRATO - COMISSÃO FORMA"], "negociacao: comissao paga por": ["CONTRATO - COMISSÃO PAGA POR"],
+    "negociacao: valor na mao + comissao = valor do contrato": ["VALOR NA MÃO", "COMISSÃO", "VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)"],
+    "corretor: corretor na venda": ["CORRETOR"]
+  };
+  function colunasDaFalta(falta) {
+    var k = String(falta || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+    return (FALTA_COLUNAS[k] || []).slice();
+  }
+
   var api = { OCULTOS: OCULTOS, PREFIXOS_OCULTOS: PREFIXOS_OCULTOS, GRUPOS: GRUPOS, ocultoNoPainel: ocultoNoPainel,
               grupoDoCampo: grupoDoCampo, ordenar: ordenar, ordenarArquivos: ordenarArquivos,
-              ABAS: ABAS, abaDoCampo: abaDoCampo, departamento: departamento, porDepartamento: porDepartamento };
+              ABAS: ABAS, abaDoCampo: abaDoCampo, departamento: departamento, porDepartamento: porDepartamento,
+              colunasDaFalta: colunasDaFalta };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else raiz.PainelCasa = api;
 })(typeof window !== "undefined" ? window : this);

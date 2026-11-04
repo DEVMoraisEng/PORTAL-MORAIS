@@ -35,23 +35,25 @@ test("lendo: o espaço ocupado avisa e todos os botões ficam desabilitados", ()
   assert.ok(botoes.every((b) => b.includes("disabled")));
 });
 
-test("Ler de novo só habilita com arquivo no espaço", () => {
+test("Ler de novo só aparece com arquivo no espaço (04/11: sem arquivo, só Anexar)", () => {
   const h = D.html(base, ui());
   assert.doesNotMatch(h.match(/<button[^>]*data-acao="reler"[^>]*data-espaco="C1_IDENTIDADE"[^>]*>/)[0], /disabled/);
-  assert.match(h.match(/<button[^>]*data-acao="reler"[^>]*data-espaco="C1_COMPROVANTE"[^>]*>/)[0], /disabled/);
+  assert.doesNotMatch(h, /data-acao="reler"[^>]*data-espaco="C1_COMPROVANTE"/);
+  assert.match(h, /data-acao="anexar" data-espaco="C1_COMPROVANTE"[^>]*>Anexar</);
+  assert.match(h, /dz-doc-falta/); assert.match(h, /dz-doc-ok/);
 });
 
 test("botão Trocar aparece com arquivo e fica desabilitado sem arquivo no espaço", () => {
   const h = D.html(base, ui());
   assert.match(h, /data-acao="trocar"[^>]*data-espaco="C1_IDENTIDADE"[^>]*>Trocar/);
   assert.doesNotMatch(h.match(/<button[^>]*data-acao="trocar"[^>]*data-espaco="C1_IDENTIDADE"[^>]*>/)[0], /disabled/);
-  assert.match(h.match(/<button[^>]*data-acao="trocar"[^>]*data-espaco="C1_COMPROVANTE"[^>]*>/)[0], /disabled/);
+  assert.doesNotMatch(h, /data-acao="trocar"[^>]*data-espaco="C1_COMPROVANTE"/);   /* 04/11: sem arquivo não aparece */
 });
 
 test("contagem de arquivos vinda do servidor é convertida em número (não vira HTML)", () => {
   const h = D.html(Object.assign({}, base, { arquivos: Object.assign({}, base.arquivos, { C1_IDENTIDADE: "<b>2</b>" }) }), ui());
   assert.doesNotMatch(h, /<b>2<\/b>/);
-  assert.match(h, /nenhum arquivo/);
+  assert.match(h, /dz-doc-falta/);
 });
 
 test("observação é escapada", () => {

@@ -51,3 +51,33 @@ test("vendas.html: barra de abas no painel e cada parte com data-sec", () => {
   assert.match(r, /pedirDistrato/, "distrato continua no painel");
   assert.match(r, /enviarArquivo/, "arquivos continuam no painel");
 });
+
+const D = require("../../venda-dossie.js");
+test("o que falta no contrato da casa aponta para a coluna da venda", () => {
+  assert.deepEqual(P.colunasDaFalta("Comprador 1: nacionalidade"), ["COMPRADOR 1 - NACIONALIDADE"]);
+  assert.deepEqual(P.colunasDaFalta("Comprador 1: nome"), ["CLIENTES"]);
+  assert.deepEqual(P.colunasDaFalta("Imóvel: alvará (número)"), ["CONTRATO - ALVARÁ Nº"]);
+  assert.deepEqual(P.colunasDaFalta("Imóvel: prazo previsto de conclusão das obras"), ["DATA DA ENTREGA"]);
+  assert.deepEqual(P.colunasDaFalta("Negociação: comissão paga por"), ["CONTRATO - COMISSÃO PAGA POR"]);
+  assert.equal(P.colunasDaFalta("Negociação: valor na mão + comissão ≠ valor do contrato").length, 3);
+  assert.deepEqual(P.colunasDaFalta("Vendedor: cadastro em VENDEDORES – CONTRATO"), [], "cadastro tem o formulário do servidor");
+});
+test("htmlContrato: falta da venda vira caixa; o resto continua em lista; sem campoVenda fica como antes", () => {
+  const e = { gerado: false, conta: null };
+  const faltas = ["Comprador 1: nacionalidade", "Vendedor: cadastro em VENDEDORES – CONTRATO", "Comprador 1: nacionalidade"];
+  const comCaixa = D.htmlContrato(e, { faltas, campos: null, rascunho: {}, testes: false,
+    campoVenda: (f) => /nacionalidade/.test(f) ? '<div class="campo">CX</div>' : "" });
+  assert.match(comCaixa, /dz-faltas-venda/);
+  assert.equal((comCaixa.match(/>CX</g) || []).length, 1, "a mesma caixa não se repete");
+  assert.match(comCaixa, /<li>Vendedor: cadastro em VENDEDORES – CONTRATO<\/li>/);
+  assert.doesNotMatch(comCaixa, /<li>Comprador 1: nacionalidade<\/li>/);
+  const antes = D.htmlContrato(e, { faltas, campos: null, rascunho: {}, testes: false });
+  assert.match(antes, /<li>Comprador 1: nacionalidade<\/li>/);
+  assert.doesNotMatch(antes, /dz-faltas-venda/);
+});
+test("vendas.html: PainelFaltaCampo não abre coluna protegida ainda não carregada e só para a casa aberta", () => {
+  const f = vendas.slice(vendas.indexOf("window.PainelFaltaCampo=function"), vendas.indexOf("function renderPainel("));
+  assert.match(f, /!\(c\.sensivel&&PN_SENS\)/);
+  assert.match(f, /semT\(OBRA_ABERTA\)!==semT\(PN_PAGE\)/);
+  assert.match(vendas, /PN_V=V; PN_PAGE=pageId; PN_SENS=!!sensPendente;/);
+});

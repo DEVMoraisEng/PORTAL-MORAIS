@@ -26,7 +26,7 @@ test("anexar sem ler: cada espaço tem Anexar/Trocar/Ler de novo e marca o que �
   const h = D.html(base, ui());
   assert.match(h, /data-acao="anexar" data-espaco="C1_IDENTIDADE"/);
   assert.doesNotMatch(h, /data-acao="enviar"/, "o Enviar e ler saiu da tela");
-  assert.match(h, /identidade \(CNH ou RG\) <small>1 arquivo<\/small> <small class="dz-novo">novo, não lido/);
+  assert.match(h, /identidade \(CNH ou RG\) <small class="dz-st-txt dz-novo">1 arquivo · novo, não lido/);   /* 04/11: situação numa etiqueta só */
   assert.equal((h.match(/data-acao="ler-todos"/g) || []).length, 2, "no topo e no fim do imóvel");
   assert.match(botao(h, "ler-todos"), /data-onde="topo"/);
   assert.match(h, />Ler documentos \(2 novos\)</);

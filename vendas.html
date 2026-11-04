@@ -1234,11 +1234,11 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
   <div class="toast" id="toast"></div>
 
 <script src="app.js?v=45"></script>
-<script src="venda/painel-casa.js?v=2"></script>
+<script src="venda/painel-casa.js?v=3"></script>
 <script src="venda/FluxoLivre.js?v=11"></script><!-- 29/10: Alterar fluxo -->
 <script src="venda/quadro-fluxo.js?v=1"></script><!-- 31/10: quadro do pro soluto segue o fluxo alterado -->
 <script src="venda/Antecipacao.js?v=1"></script><!-- 31/10: Antecipação — a conta roda no navegador -->
-<script src="venda-dossie.js?v=68"></script>
+<script src="venda-dossie.js?v=69"></script>
 <script src="venda/contrato-vendida.js?v=3"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele.
@@ -4032,8 +4032,23 @@ function pnPorDepartamento(nomes){
   try{ if(window.PainelCasa&&window.PainelCasa.porDepartamento) return window.PainelCasa.porDepartamento(nomes); }catch(e){}
   return nomes.length?[{titulo:"Preenchimento",campos:nomes}]:[];
 }
+/* 04/11/2026 (dono): o que falta para gerar o contrato da casa vira a caixa do campo dentro da aba Contrato
+   (venda-dossie.js chama window.PainelFaltaCampo(pageId, frase)). Mesma caixa e mesmo salvar do painel
+   (campoHtml → editar → updateVenda), então grava na coluna certa. Coluna protegida que ainda não chegou do
+   servidor não abre (a caixa vazia apagaria o dado real). */
+let PN_V=null, PN_PAGE=null, PN_SENS=false;
+window.PainelFaltaCampo=function(pageId,falta){
+  const semT=x=>String(x||"").replace(/-/g,"").toLowerCase();
+  if(!PN_V||!PN_PAGE||semT(pageId)!==semT(PN_PAGE)||semT(OBRA_ABERTA)!==semT(PN_PAGE)) return "";
+  if(!window.PainelCasa||!window.PainelCasa.colunasDaFalta) return "";
+  const cols=window.PainelCasa.colunasDaFalta(falta).map(n=>campoPorNome(n)).filter(c=>c&&c.editavel!==false&&!(c.sensivel&&PN_SENS));
+  if(!cols.length) return "";
+  setTimeout(()=>{ const w=document.getElementById("contrato-wrap"); if(w) ligarMoedas(w); },0);   // máscara de R$ depois de o bloco entrar na tela
+  return cols.map(c=>campoHtml(c,getV(PN_V,c.nome),PN_PAGE,false)).join("");
+};
 function renderPainel(V,pageId,sensPendente){
   const body=document.getElementById("pn-body");
+  PN_V=V; PN_PAGE=pageId; PN_SENS=!!sensPendente;
   const sec={resumo:"",documentos:"",compradores:"",contrato:"",andamento:""};
 
   // identificação — endereço editável (ADM) — corrige bug "sou ADM mas não consigo editar o endereço"
@@ -4114,9 +4129,12 @@ function renderPainel(V,pageId,sensPendente){
   // arquivos — com opção de visualizar PDFs sem sair da página (item 2 do pedido extra)
   // Anexos: as URLs do Notion são links assinados do S3 — não vão pro dist/
   // público. Chegam junto com os outros campos protegidos, ao abrir a obra.
-  let files=SCHEMA.filter(c=>c.tipo==="files" && !nomeExcluido(c.nome,"painel"));
+  /* 04/11: com o dossiê no painel, os arquivos que ele já mostra (identidades, comprovantes, aprovação, matrícula,
+     alvará, habite-se, certidão mãe) não se repetem aqui — fica a lista "Outros arquivos" */
+  const NO_DOSSIE=/^(COMPRADOR [12] - (IDENTIDADE|COMPROVANTE DE ENDERECO)|APROVACAO DA CAIXA|IMOVEL - (MATRICULA|ALVARA|HABITE-SE|CERTIDAO MAE))$/;
+  let files=SCHEMA.filter(c=>c.tipo==="files" && !nomeExcluido(c.nome,"painel") && !(window.VendaBlocos && NO_DOSSIE.test(normNome(c.nome))));
   try{ if(window.PainelCasa){ const ord=window.PainelCasa.ordenarArquivos(files.map(c=>c.nome)); files=ord.map(n=>files.find(c=>c.nome===n)); } }catch(e){}
-  if(files.length){ sec.documentos+=`<div class="grp">Arquivos</div>`;
+  if(files.length){ sec.documentos+=`<div class="grp">${window.VendaBlocos?"Outros arquivos":"Arquivos"}</div>`;
     files.forEach(c=>{
       sec.documentos+=`<div class="campo"><label>${esc(c.nome.trim())}</label>`;
       if(sensPendente){

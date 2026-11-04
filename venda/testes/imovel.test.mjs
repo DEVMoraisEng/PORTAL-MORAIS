@@ -316,7 +316,7 @@ test("tela: seção Documentos do imóvel com os três espaços, dados gravados 
   assert.match(h, /data-acao="conferir" data-grupo="imovel"/);
   assert.match(h, /Dossiê do imóvel: <b>FALTA DOCUMENTO/);
   assert.doesNotMatch(h.match(/<button[^>]*data-acao="reler"[^>]*data-espaco="IMOVEL_MATRICULA"[^>]*>/)[0], /disabled/);
-  assert.match(h.match(/<button[^>]*data-acao="reler"[^>]*data-espaco="IMOVEL_ALVARA"[^>]*>/)[0], /disabled/);
+  assert.doesNotMatch(h, /data-acao="reler"[^>]*data-espaco="IMOVEL_ALVARA"/);   /* 04/11: sem arquivo não aparece */
 });
 
 test("tela: casa de condomínio só avisa (o imóvel vem da linha do condomínio); sem tipo trava; TESTES desabilita", () => {

@@ -126,14 +126,20 @@
     var ocupado = !!ui.ocupado, testes = !!ui.testes;
     var dis = function (cond) { return cond ? " disabled" : ""; };
     var novo = n > 0 && pendentesDe(e).indexOf(d.id) >= 0;
-    return '<div class="dz-linha"><span class="dz-rot">' + esc(d.rotulo) + ' <small>' +
-      (n ? n + (n === 1 ? " arquivo" : " arquivos") : "nenhum arquivo") + "</small>" +
-      (novo ? ' <small class="dz-novo">novo, não lido</small>' : "") +
+    /* 04/11/2026 (dono, "não gosto dessa visualização"): cada documento é uma linha com a situação na bolinha
+       (falta · anexado · novo para ler) e SÓ os botões que servem — sem arquivo, só Anexar; com arquivo, Trocar,
+       Ler de novo e "+ Anexar" (frente e verso). Antes eram sempre três botões, dois apagados. */
+    var st = !n ? "falta" : novo ? "novo" : "ok";
+    var txt = !n ? "falta" : (n + (n === 1 ? " arquivo" : " arquivos")) + (novo ? " · novo, não lido" : "");
+    var b = !n
+      ? '<button type="button" class="bt bt-mini" data-acao="anexar" data-espaco="' + d.id + '"' + dis(travado || ocupado || testes) + ">Anexar</button>"
+      : '<button type="button" class="bt ghost bt-mini" data-acao="trocar" data-espaco="' + d.id + '"' + dis(travado || ocupado || testes) + ">Trocar</button> " +
+        '<button type="button" class="bt ghost bt-mini" data-acao="reler" data-espaco="' + d.id + '"' + dis(travado || ocupado || testes) + ">Ler de novo</button> " +
+        '<button type="button" class="bt ghost bt-mini" data-acao="anexar" data-espaco="' + d.id + '" title="Somar outro arquivo (frente e verso)"' + dis(travado || ocupado || testes) + ">+ Anexar</button>";
+    return '<div class="dz-linha dz-doc dz-doc-' + st + '"><span class="dz-rot"><i class="dz-st" aria-hidden="true"></i>' + esc(d.rotulo) +
+      ' <small class="dz-st-txt' + (novo ? " dz-novo" : "") + '">' + txt + "</small>" +
       (ui.ocupado === d.id ? " <b>" + esc(ui.ocupadoTexto || "lendo…") + "</b>" : "") + "</span>" +
-      '<button type="button" class="bt bt-mini" data-acao="anexar" data-espaco="' + d.id + '"' + dis(travado || ocupado || testes) + ">Anexar</button> " +
-      '<button type="button" class="bt ghost bt-mini" data-acao="trocar" data-espaco="' + d.id + '"' + dis(travado || ocupado || testes || !n) + ">Trocar</button> " +
-      '<button type="button" class="bt ghost bt-mini" data-acao="reler" data-espaco="' + d.id + '"' + dis(travado || ocupado || testes || !n) + ">Ler de novo</button>" +
-      (extra || "") + "</div>";
+      '<span class="dz-acoes">' + b + (extra || "") + "</span></div>";
   }
   /* botão único da casa: lê comprador e imóvel juntos (uma chamada, uma escrita). Aparece no topo do
      dossiê e no fim dos documentos do imóvel; a mensagem sai junto do botão clicado (onde). */
@@ -699,6 +705,16 @@
     /* entrega 12: o que o formulário cobre sai da lista (u.faltas = só as outras); 01/11: e o que o bloco Fiadores cobre */
     var faltasLista = u.faltas;
     if (e.fiadores && faltasLista) faltasLista = faltasLista.filter(function (f) { return !RE_FALTA_FIA.test(String(f)); });
+    /* 04/11/2026 (dono): na casa de rua o que falta e é coluna da PRÓPRIA venda (comprador, imóvel, negociação) vira a
+       caixa do campo ali mesmo — mesma caixa e mesmo salvar das abas Compradores/Contrato (vendas.html, u.campoVenda);
+       grava na coluna certa do Notion. O resto continua em lista. */
+    if (faltasLista && faltasLista.length && typeof u.campoVenda === "function") {
+      var caixas = "", resto = [];
+      faltasLista.forEach(function (f) { var c = ""; try { c = u.campoVenda(f) || ""; } catch (x) { c = ""; } if (!c) resto.push(f); else if (caixas.indexOf(c) < 0) caixas += c; });
+      if (caixas) h += '<div class="dz-faltas-venda"><div class="dz-aviso">Preencha aqui o que falta — cada campo grava sozinho na venda. Depois, gere de novo.</div>' +
+        '<div class="pn-grade">' + caixas + "</div></div>";
+      faltasLista = resto;
+    }
     if (faltasLista && faltasLista.length) {
       h += '<div class="dz-aviso">Para gerar o contrato, falta:</div><ul>' +
         faltasLista.map(function (f) { return "<li>" + esc(f) + "</li>"; }).join("") + "</ul>";
@@ -1391,7 +1407,18 @@
     ".vb-blocos .dz-fia label{display:flex;flex-direction:column;gap:3px;flex:1 1 200px;min-width:0;margin:0}" +
     ".vb-blocos .dz-fia label span{font-size:11.5px;font-weight:700;color:var(--text3,#5a8099)}" +
     ".vb-blocos .dz-fia input,.vb-blocos .dz-fia select{width:100%;box-sizing:border-box}" +
-    "@media (max-width:600px){.vb-blocos .dz-fia{flex-direction:column;align-items:stretch}.vb-blocos .dz-fia label{flex:0 0 auto;width:100%}}";
+    "@media (max-width:600px){.vb-blocos .dz-fia{flex-direction:column;align-items:stretch}.vb-blocos .dz-fia label{flex:0 0 auto;width:100%}}" +
+    /* 04/11/2026: documentos do dossiê em linhas com a situação na bolinha e os botões à direita */
+    "#dossie-wrap>.dz-doc{margin:0 22px;padding:9px 2px;border-bottom:1px solid var(--border2,#d0e4ec)}" +
+    "#dossie-wrap .dz-st{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:9px;vertical-align:1px;background:#C0392B}" +
+    "#dossie-wrap .dz-doc-ok .dz-st{background:#2a9d5c}#dossie-wrap .dz-doc-novo .dz-st{background:#E67E22}" +
+    "#dossie-wrap .dz-st-txt{color:var(--text3,#5a8099);font-weight:600}#dossie-wrap .dz-doc-falta .dz-st-txt{color:#C0392B}" +
+    "#dossie-wrap .dz-acoes{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}" +
+    "#dossie-wrap>.grp+.dz-doc{border-top:0}" +
+    /* 04/11: o que falta para gerar o contrato da casa, com a caixa do campo ali mesmo */
+    ".vb-blocos .dz-faltas-venda{margin:8px 22px 4px;padding:10px 0 4px;border:1.5px solid #E67E22;border-radius:10px;background:rgba(230,126,34,.05)}" +
+    ".vb-blocos .dz-faltas-venda>.dz-aviso{margin:0 14px 6px;font-weight:700}" +
+    "@media (max-width:600px){#dossie-wrap>.dz-doc .dz-acoes{width:100%;justify-content:flex-start}}";
   var estado = null, ui = { dois: false, ocupado: null, msg: "", testes: false }, paginaDoBloco = null;
 
   function obraAberta() { try { return OBRA_ABERTA; } catch (e) { return null; } }
@@ -2284,6 +2311,8 @@
     function enviadoA() { var VA = window.VendaAssinatura; return !!(VA && VA.envelopeAberto && VA.envelopeAberto(ctxA)); }
     function htmlCt() {
       if (assinadoA()) return htmlHistorico(estadoC && estadoC.historico);
+      /* 04/11: só a casa de rua (painel com Recebimentos) abre as caixas do que falta; o vendas.html desenha o campo */
+      uiC.campoVenda = comRec && typeof window.PainelFaltaCampo === "function" ? function (f) { return window.PainelFaltaCampo(pageId, f); } : null;
       return enviadoA() ? htmlContratoLeitura(estadoC, uiC) : htmlContrato(estadoC, uiC);
     }
     /* 03/11 (dono): contrato gerado direto, termo nunca enviado = pré-reserva dispensada (o servidor também recusa).
