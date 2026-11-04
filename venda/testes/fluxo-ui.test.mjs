@@ -337,3 +337,38 @@ test("guiado: o editor explica o cadeado; o ↻ continua entre o tipo e o valor"
   assert.match(h, /trava \(🔒\)/);
   assert.match(linhaTr(h, 1), /<\/select>.*?<\/td><td><button[^>]*data-acao="c-fluxo-red"[^>]*>↻<\/button><\/td><td><input[^>]*data-fx="v"/s);
 });
+
+/* ---- 04/11 (revisão): tipo e quantidade também travam; sugestão com a última diferente; cores pelo tema ---- */
+test("guiado: trocar o tipo para pré-chaves/balão/pós-chaves ou mudar a quantidade trava a linha e pede a conta", () => {
+  const ed = reguaUI();
+  ed.linhas.push({ t: "entrada", v: 3000, n: 1, d: "2027-06-10", i: 1, x: "" });   // 7: sobram 3.000
+  ed.linhas[7].t = "balao";
+  assert.equal(D.fxMexeu(ed, 7, "t"), true, "virou balão: trava e refaz");
+  assert.equal(ed.travadas[7], true);
+  D.guiarEditor(ed, null);
+  assert.equal(F.validar({ valor: ed.valor, linhas: ed.linhas }).diferenca, 0);
+  assert.equal(F.totalLinha(ed.linhas[7]), 3000);
+  ed.linhas[7].t = "entrada";
+  assert.equal(D.fxMexeu(ed, 7, "t"), false, "virou tipo fixo: sem conta");
+  assert.ok(!ed.travadas[7], "e o cadeado sai");
+  assert.equal(D.fxMexeu(ed, 2, "n"), true);
+  assert.equal(ed.travadas[2], true);
+  assert.equal(D.fxMexeu(ed, 3, "d"), false, "data não mexe na conta");
+  assert.ok(!ed.travadas[3]);
+});
+
+test("guiado: sugestão mostra a última parcela quando ela é diferente", () => {
+  const ed = reguaUI();
+  ed.sugestao = { 1: 812.33 }; ed.sugestaoU = { 1: 812.4 };
+  assert.match(D.htmlFluxo(fechado, { fluxoEd: ed }, "").match(/<tr data-fx-linha="1"[^>]*>.*?<\/tr>/s)[0], /sugestão: R\$ 812,33 \(última R\$ 812,40\)/);
+  const r = F.guiar({ ...reguaUI(), linhas: reguaUI().linhas.map((l, k) => (k === 1 ? { ...l, v: 760 } : l)) }, [1, 2, 3, 4, 5]);
+  for (const k of Object.keys(r.sugestaoU || {})) assert.ok(r.sugestaoU[k] !== r.sugestao[k]);
+});
+
+test("guiado: cores por classe (tema claro/escuro), sem cor fixa no HTML da linha", () => {
+  const ed = reguaUI(); ed.linhas[1].v = 760; D.guiarEditor(ed, 1);
+  const h = D.htmlFluxo(fechado, { fluxoEd: ed }, "");
+  assert.doesNotMatch(h, /#1d6b43|rgba\(255,200,0/);
+  assert.match(h, /<tr data-fx-linha="2" data-fx-ajustada="1">/);
+  assert.match(h, /class="dz-nota vb-fx-ok"/);
+});

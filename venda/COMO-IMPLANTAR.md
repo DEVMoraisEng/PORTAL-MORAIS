@@ -1459,5 +1459,5 @@ automático com cadeado.
   proposta, se maior). Nenhuma linha abaixo de R$ 1,00 por parcela (o que não cabe vai para as outras). Quantidade e
   datas ficam; os centavos fecham no último balão solto.
 - **Cadeados são só da tela** (não são gravados). Validações e servidor não mudaram.
-- **Implantar:** sobe com o site (FluxoLivre v12, venda-dossie v69, cache v287). No Apps Script nada é obrigatório: o
+- **Implantar:** sobe com o site (FluxoLivre v13, venda-dossie v70, cache v289). No Apps Script nada é obrigatório: o
   servidor não usa `guiar`; colar `FluxoLivre.gs` de novo só para manter a cópia igual.

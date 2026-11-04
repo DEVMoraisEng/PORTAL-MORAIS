@@ -918,7 +918,7 @@
         return;
       }
       var guiada = ajustavelFx(l), trav = guiada && !!(ed.travadas || {})[k];
-      h += '<tr data-fx-linha="' + k + '"' + (guiada && (ed.ajustadas || {})[k] ? ' data-fx-ajustada="1" style="background:rgba(255,200,0,.14)"' : "") +
+      h += '<tr data-fx-linha="' + k + '"' + (guiada && (ed.ajustadas || {})[k] ? ' data-fx-ajustada="1"' : "") +
         '><td><select data-fx="t" data-k="' + k + '"' + dis + ">" +
         ops.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === l.t ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") +
         '</select><div class="dz-nota">' + (tp.reajuste ? "reajuste " + esc(tp.reajuste) : "sem correção") + "</div></td>" +
@@ -977,8 +977,10 @@
   }
   function htmlGuiaLinha(ed, k) {
     var s = ed.sugestao;
-    if (s && Object.prototype.hasOwnProperty.call(s, k)) return '<div class="dz-nota" style="opacity:.75">sugestão: ' + esc(FL().moeda(s[k])) + "</div>";
-    if ((ed.ajustadas || {})[k]) return '<div class="dz-nota" style="color:#1d6b43">ajustado pelo simulador</div>';
+    var su = ed.sugestaoU || {};
+    if (s && Object.prototype.hasOwnProperty.call(s, k))
+      return '<div class="dz-nota vb-fx-sug">sugestão: ' + esc(FL().moeda(s[k])) + (su[k] ? " (última " + esc(FL().moeda(su[k])) + ")" : "") + "</div>";
+    if ((ed.ajustadas || {})[k]) return '<div class="dz-nota vb-fx-ok">ajustado pelo simulador</div>';
     return "";
   }
   /* a linha k foi mexida (valor ou quantidade): trava ela e refaz as soltas. Devolve os índices que mudaram. */
@@ -988,6 +990,7 @@
     var r = FL().guiar({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, ed.travadas, ed.padrao);
     ed.ajustadas = {};
     ed.sugestao = r.sugestao || null;
+    ed.sugestaoU = r.sugestaoUltima || null;
     ed.guiaErro = r.erro || "";
     var mudou = r.mudou || [];
     mudou.forEach(function (j) { ed.linhas[j] = r.linhas[j]; ed.ajustadas[j] = true; });
@@ -1008,7 +1011,17 @@
     r.mudou.forEach(function (j) { ed.linhas[j] = r.linhas[j]; ed.ajustadas[j] = true; });
     return r.mudou;
   }
-  function limparGuia(ed) { ed.travadas = {}; ed.ajustadas = {}; ed.sugestao = null; ed.guiaErro = ""; }
+  function limparGuia(ed) { ed.travadas = {}; ed.ajustadas = {}; ed.sugestao = null; ed.sugestaoU = null; ed.guiaErro = ""; }
+  /* revisão 04/11: a pessoa mexeu no campo `campo` da linha k. Valor, quantidade ou tipo que vira pré-chaves/balão/
+     pós-chaves: trava a linha e pede a conta (true). Tipo que vira fixo: o cadeado sai. O resto não mexe na conta. */
+  function fxMexeu(ed, k, campo) {
+    var l = ed.linhas[k];
+    if (!l || (campo !== "v" && campo !== "n" && campo !== "t")) return false;
+    ed.travadas = ed.travadas || {};
+    if (!ajustavelFx(l)) { delete ed.travadas[k]; return false; }
+    ed.travadas[k] = true;
+    return true;
+  }
   /* linha k apagada: os cadeados de baixo sobem uma posição */
   function travasAoApagar(ed, k) {
     var t = {};
@@ -1377,7 +1390,7 @@
                    resumo: resumo, escala: escala, tipoAceito: tipoAceito, painelCarregando: painelCarregando,
                    htmlContrato: htmlContrato, htmlContratoLeitura: htmlContratoLeitura, MSG_SO_LEITURA: MSG_SO_LEITURA, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, pedidoParado: pedidoParado, mensagemMC: mensagemMC,
                    topicosMC: topicosMC, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas, htmlConjugePR: htmlConjugePR,
-                   htmlCampos: htmlCampos, htmlConta: htmlConta, htmlFluxo: htmlFluxo, htmlFluxoVivo: htmlFluxoVivo, htmlFluxoDesconto: htmlFluxoDesconto, htmlFluxoBem: htmlFluxoBem, aplicarCrlv: aplicarCrlv, permutaSemBem: permutaSemBem, guiarEditor: guiarEditor, travarLinha: travarLinha, aplicarSugestao: aplicarSugestao, limparGuia: limparGuia, travasAoApagar: travasAoApagar, faltasDoBem: faltasDoBem, campoBem: campoBem, lerNumBR: lerNumBR, contaDoEstado: contaDoEstado, pedidoCampos: pedidoCampos,
+                   htmlCampos: htmlCampos, htmlConta: htmlConta, htmlFluxo: htmlFluxo, htmlFluxoVivo: htmlFluxoVivo, htmlFluxoDesconto: htmlFluxoDesconto, htmlFluxoBem: htmlFluxoBem, aplicarCrlv: aplicarCrlv, permutaSemBem: permutaSemBem, guiarEditor: guiarEditor, fxMexeu: fxMexeu, travarLinha: travarLinha, aplicarSugestao: aplicarSugestao, limparGuia: limparGuia, travasAoApagar: travasAoApagar, faltasDoBem: faltasDoBem, campoBem: campoBem, lerNumBR: lerNumBR, contaDoEstado: contaDoEstado, pedidoCampos: pedidoCampos,
                    contaDasEntradas: contaDasEntradas, faltasDaResposta: faltasDaResposta, detalheFluxoGravado: detalheFluxoGravado,
                    htmlFiadores: htmlFiadores, fiadoresDoEstado: fiadoresDoEstado, valoresFiadores: valoresFiadores,
                    rascunhoFia: rascunhoFia, perguntaConjugeFiador2: perguntaConjugeFiador2 };
@@ -1408,6 +1421,9 @@
     "border:1px solid var(--border,#d6dee3);border-radius:6px;font:inherit;max-width:100%;box-sizing:border-box}" +
     ".vb-blocos .dz-linha>input{flex:1 1 220px}.vb-blocos .dz-campo{display:inline-flex;gap:4px;align-items:center;flex-wrap:wrap}" +
     ".vb-blocos .dz-grupo{margin-top:12px}.vb-blocos .dz-nota{font-weight:400;color:var(--text3,#555)}" +
+    /* 04/11: Alterar fluxo guiado — translúcido serve no tema claro e no escuro; o texto usa as cores do tema */
+    ".vb-blocos tr[data-fx-ajustada]{background:rgba(255,193,7,.14);transition:background .8s}.vb-blocos tr.vb-fx-pisca{background:rgba(255,193,7,.34)}" +
+    ".vb-blocos .dz-nota.vb-fx-ok{color:var(--verde,#2a9d5c);font-weight:700}.vb-blocos .dz-nota.vb-fx-sug{font-style:italic}" +
     emCada(">.dz-linha") + "{margin:6px 22px}" + emCada(">.dz-aviso") + "{margin:6px 22px}" +
     emCada(">.dz-msg") + "{margin:8px 22px 0}" + emCada(">pre") + "{margin:4px 22px}" +
     emCada(">ul") + "{margin:4px 22px;padding-left:18px}" +
@@ -3395,9 +3411,8 @@
         if (tot) tot.textContent = FL().moeda(FL().totalLinha(l));
         /* 04/11: valor ou quantidade de pré-chaves/balão/pós-chaves — a linha trava na hora; o simulador refaz as soltas
            depois de uma pausa na digitação */
-        if ((campo === "v" || campo === "n") && ajustavelFx(l)) {
-          var kk = Number(alvo.getAttribute("data-k"));
-          ed.travadas = ed.travadas || {}; ed.travadas[kk] = true;
+        var kk = Number(alvo.getAttribute("data-k"));
+        if (fxMexeu(ed, kk, campo)) {
           var bt = raiz.querySelector('button[data-acao="c-fluxo-trava"][data-k="' + kk + '"]');
           if (bt) bt.outerHTML = htmlTrava(kk, true, "");
           guiarDepois(ed);
@@ -3437,10 +3452,11 @@
         if (bt) bt.outerHTML = htmlTrava(k, !!(ed.travadas || {})[k], "");
         var tr = raiz.querySelector('tr[data-fx-linha="' + k + '"]');
         if (tr) {
-          /* destaque breve nas linhas que o simulador mudou */
-          tr.style.transition = "background .8s";
-          tr.style.background = (ed.ajustadas || {})[k] ? "rgba(255,200,0,.28)" : "";
-          if ((ed.ajustadas || {})[k]) setTimeout(function () { if (tr.isConnected !== false) tr.style.background = "rgba(255,200,0,.10)"; }, 1200);
+          /* destaque breve nas linhas que o simulador mudou (cores no CSS, claro e escuro) */
+          if ((ed.ajustadas || {})[k]) {
+            tr.setAttribute("data-fx-ajustada", "1"); tr.classList.add("vb-fx-pisca");
+            setTimeout(function () { tr.classList.remove("vb-fx-pisca"); }, 1200);
+          } else tr.removeAttribute("data-fx-ajustada");
         }
       });
       var viva = dentro(".vb-fx-viva");
@@ -3559,6 +3575,12 @@
           if (ev.target.classList.contains("vb-condesp")) uiC.condRasc = ev.target.value;
           else if (ev.target.classList.contains("vb-condesp-pedido")) uiC.condPedido = ev.target.value;
         });
+        /* revisão 04/11: o simulador não mexe no campo com foco (o cursor); ao sair dele, mostra o valor da conta */
+        el.addEventListener("focusout", function (ev) {
+          if (raiz !== el || !uiC.fluxoEd || !ev.target.getAttribute || ev.target.getAttribute("data-fx") !== "v") return;
+          var lf = uiC.fluxoEd.linhas[Number(ev.target.getAttribute("data-k"))];
+          if (lf && ajustavelFx(lf)) ev.target.value = numBR(lf.v);
+        });
         el.addEventListener("change", function (ev) {
           if (raiz !== el) return;
           if (ev.target.getAttribute("data-pr-c") === "forma") { guardarContaPR(); pintarP(); return; }
@@ -3566,7 +3588,8 @@
           var fxb = ev.target.getAttribute("data-fxb");
           if (fxb === "tipo" || fxb === "situacao") { aoDigitarBem(ev.target); if (uiC.fluxoEd) pintar(); return; }   /* 03/11: muda os campos do formulário */
           var fx = ev.target.getAttribute("data-fx");
-          if (fx === "t" || fx === "dmodo") { aoDigitarFluxo(ev.target); if (uiC.fluxoEd) pintar(); return; }   /* o tipo muda o reajuste mostrado; o modo do desconto, os campos */
+          if (fx === "t" || fx === "dmodo") { aoDigitarFluxo(ev.target); if (uiC.fluxoEd) pintar(); return; }
+          if (fx === "n") { aoDigitarFluxo(ev.target); return; }   /* revisão 04/11: setas do número também travam e pedem a conta */   /* o tipo muda o reajuste mostrado; o modo do desconto, os campos */
           if (fx === "dde") { aoDigitarFluxo(ev.target); return; }
           if (fx === "v" || fx === "valor") {
             /* sai formatado ao sair do campo — sem repintar: repintar no blur engoliria o clique num botão */

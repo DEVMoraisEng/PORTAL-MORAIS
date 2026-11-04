@@ -521,7 +521,7 @@ var FluxoLivre = (function () {
    * cabe numa linha vai para as outras. Quantidade e datas ficam; só o valor de cada muda. Os centavos fecham no último
    * balão (como o simulador). Sinal, entrada, permuta, financiamento, FGTS, subsídio e pré-reserva nunca mudam.
    * { linhas, mudou: [k], sugestao: null } ou, quando não dá com as travas, { linhas (sem mudança), mudou: [], erro,
-   * sugestao: { k: valor de cada } } = o que cada linha precisaria (guiar sem travas), ou sugestao null se nem assim. */
+   * sugestao: { k: valor de cada }, sugestaoUltima: { k: última, quando diferente } } = o que cada linha precisaria (guiar sem travas), ou sugestao null se nem assim. */
   var GUIA = { pre: 1, balao: 1, pos: 1 };
   function guiar(f, travadas, padrao) {
     f = normalizar(f);
@@ -545,15 +545,16 @@ var FluxoLivre = (function () {
       itens.push({ k: k, w: w, atual: totalLinhaC(l), min: 100 * l.n, max: l.t === "pos" ? c(teto) * l.n : Infinity, pos: l.t === "pos" });
     });
     function semJeito(msg) {
-      var s = null;
+      var s = null, su = null;
       if (Object.keys(trava).length) {
         var g = guiar(f, [], padrao);
         if (g.linhas && !g.erro) {
-          s = {};
-          g.mudou.forEach(function (k) { s[k] = g.linhas[k].v; });
+          s = {}; su = {};
+          g.mudou.forEach(function (k) { s[k] = g.linhas[k].v; if (g.linhas[k].u) su[k] = g.linhas[k].u; });
         }
       }
-      return { linhas: f.linhas, mudou: [], sugestao: s, erro: msg };
+      /* sugestaoUltima { k: última parcela } só quando a última é diferente (os centavos) */
+      return { linhas: f.linhas, mudou: [], sugestao: s, sugestaoUltima: su, erro: msg };
     }
     if (!itens.length) return semJeito(Object.keys(trava).length ? "Todas as pré-chaves, balões e pós-chaves estão travados (🔒) — destrave uma linha ou aplique a sugestão"
                                                                    : "Não há pré-chaves, balões nem pós-chaves para ajustar — ajuste à mão");
