@@ -1597,6 +1597,10 @@ async function boot(){
   _mapaObraId=null; _vendidasPorEnd=null;   // dados novos: refaz os índices derivados
   atualizarBadgesSetores(); // 1ª passada (sem atividades ainda); a promise acima repinta
   abrirCasaDaUrl();
+  /* 04/11/2026 (dono): o mapa do Reserva (RESERVADA até a ETAPA Concluída) não pode depender de alguém abrir a
+     Planilha Casas Condomínio — confere ao abrir a Gestão de Vendas, depois do resto carregar e a cada 15 min */
+  setTimeout(condVarrerSilencioso, 15000);
+  setInterval(()=>{ if(document.visibilityState==="visible") condVarrerSilencioso(); }, CD_VARRER_MS);
 }
 /* vendas.html?abrir=<id da página>: abre direto o painel daquela casa. É o
    caminho do "Gerar venda" da tela do condomínio (a casa acabou de nascer e
@@ -3743,6 +3747,21 @@ function cdAvisoUnidade(id,tipo,txt){
 function condMarcarVendidaFila(ids, extra){
   if(!window.ContratoVendida||!COND) return;
   return ContratoVendida.rodar(COND.linhas, COND.titulo, ids, Object.assign({ chamar: chamar, aviso: cdAvisoUnidade }, extra||{}));
+}
+/* 04/11/2026: mesma varredura sem abrir a aba (sem desenhar nada); quem não tem acesso ao banco do condomínio
+   recebe recusa do servidor e fica por isso mesmo. Linha já conferida na sessão (mesma situação) não vai de novo. */
+const CD_VARRER_MS=15*60*1000;
+let CD_VARRENDO=false;
+async function condVarrerSilencioso(){
+  if(!window.ContratoVendida||CD_VARRENDO) return;
+  CD_VARRENDO=true;
+  try{
+    let r=null;
+    try{ r=await chamar({action:"simsVendasCond"},70000); }catch(e){ r=null; }
+    if(!r||!r.ok||!Array.isArray(r.linhas)) return;
+    const ids=ContratoVendida.pendentes(r.linhas, r.titulo);
+    if(ids.length) await ContratoVendida.rodar(r.linhas, r.titulo, ids, { chamar: chamar, aviso: cdAvisoUnidade });
+  } finally { CD_VARRENDO=false; }
 }
 function condVarrerContratosEnviados(){
   if(!window.ContratoVendida||!COND||!COND.linhas) return;

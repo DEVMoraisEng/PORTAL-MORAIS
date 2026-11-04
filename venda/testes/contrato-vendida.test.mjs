@@ -98,3 +98,9 @@ test("as telas usam a regra nova", () => {
   assert.match(sims, /ContratoVendida\.concluida\(l\)/, "Análise de vendas pinta vendida só com a etapa Concluída");
   assert.doesNotMatch(sims, /if\(ass==="ENVIADO" \|\| ass==="ASSINADO"\) estado="vendida"/);
 });
+
+test("o mapa não depende de abrir a Planilha Casas Condomínio", () => {
+  assert.match(vendas, /setTimeout\(condVarrerSilencioso, 15000\)/, "Gestão de Vendas confere ao abrir");
+  assert.match(vendas, /setInterval\(\(\)=>\{ if\(document\.visibilityState==="visible"\) condVarrerSilencioso\(\); \}, CD_VARRER_MS\)/);
+  assert.match(sims, /Date\.now\(\)-PROP_VARREU_EM < 15\*60\*1000/, "Simulações confere de novo a cada 15 min");
+});
