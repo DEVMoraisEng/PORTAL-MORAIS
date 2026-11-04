@@ -29,3 +29,44 @@ def test_descoberta_nunca_mostra_fornecedor_nem_valor():
     assert rm._mostrar("TB 21 QD 50 LT 34", "costCentre.name") == "TB 21 QD 50 LT 34"
     assert rm._mostrar("ATTENDED", "status") == "ATTENDED"
     assert rm._mostrar(2, "items[].quantity") == "2"
+
+
+SOL_8192 = {"number": 8192, "approvalStatus": "APPROVED", "work": {"name": "TB 21 QD 50 LT 34"},
+            "costCenters": [{"items": [
+                {"status": "AWAITING_DELIVERY", "requestedAmount": 2.0, "purchaseOrderItem": {"id": "o1"}, "originItem": {"code": "656", "name": "HIDROMETRO - 1,5m³/g saída 1/2"}},
+                {"status": "AWAITING_DELIVERY", "requestedAmount": 2.0, "purchaseOrderItem": {"id": "o2"}, "originItem": {"code": "659", "name": "PADRÃO DE ENERGIA MONOFÁSICO - 5 m"}},
+                {"status": "AWAITING_DELIVERY", "requestedAmount": 2.0, "purchaseOrderItem": {"id": "o3"}, "originItem": {"code": "657", "name": "KIT CAVALETE P/ HIDROMETRO"}},
+                {"status": "PENDING", "requestedAmount": 5.0, "purchaseOrderItem": None, "originItem": {"code": "656", "name": "HIDROMETRO - 1,5m³/g saída 1/2"}},
+                {"status": "CANCELED", "requestedAmount": 9.0, "purchaseOrderItem": {"id": "o4"}, "originItem": {"code": "659", "name": "PADRÃO DE ENERGIA MONOFÁSICO - 5 m"}}]}]}
+
+
+def test_solicitacao_8192_conta_so_o_que_virou_ordem_de_compra():
+    obras = rm.somar(rm.compras_da_solicitacao(SOL_8192))
+    o = obras["TB 21 QD 50 LT 34"]
+    assert o["agua"]["comprado"] == 2 and o["energia"]["comprado"] == 2
+    assert o["agua"]["insumos"] == ["656 - HIDROMETRO - 1,5m³/g saída 1/2"]
+
+
+def test_solicitacao_recusada_nao_conta():
+    assert rm.compras_da_solicitacao(dict(SOL_8192, approvalStatus="REJECTED")) == []
+
+
+def test_data_no_formato_da_tela():
+    import datetime as dt
+    assert rm._com_data("2026-09-01T03:00:00.000Z", dt.date(2024, 11, 1)) == "2024-11-01T03:00:00.000Z"
+    assert rm._com_data("2026-09-01", dt.date(2024, 11, 1)) == "2024-11-01"
+
+
+def test_chave_da_obra_sem_cs():
+    sol = dict(SOL_8192, work={"name": "TB 21 QD 50 LT 34 CS 2"})
+    assert set(rm.somar(rm.compras_da_solicitacao(sol))) == {"TB 21 QD 50 LT 34"}
+
+
+def test_so_as_obras_da_aba_apta():
+    dados = {"ok": True, "ligacoes": [
+        {"obra": "TB 17 QD 49 LT 11 CS 1", "v": {"STATUS": "NÃO LIGADO", "FEZ A SOLICITAÇÃO?": "NÃO"}},
+        {"obra": "TB 17 QD 49 LT 11 CS 2", "v": {"STATUS": "NÃO LIGADO", "FEZ A SOLICITAÇÃO?": "NÃO"}},
+        {"obra": "XX 01 QD 01 LT 01 CS 1", "v": {"STATUS": "LIGADO", "FEZ A SOLICITAÇÃO?": "SIM"}},
+        {"obra": "XX 02 QD 01 LT 01 ÚNICA", "v": {"STATUS": "NÃO LIGADO", "FEZ A SOLICITAÇÃO?": "SIM"}}]}
+    assert rm.obras_da_aba(dados) == {"TB17QD49LT11": "TB 17 QD 49 LT 11"}
+    assert rm.chave_lote("TB 17 QD 49 LT 11") in rm.obras_da_aba(dados)

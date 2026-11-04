@@ -495,12 +495,218 @@ def documento(obras: dict, hoje: dt.date | None = None) -> dict:
             "fonte": "Mais Controle · solicitações/OC (servidor)", "obras": obras}
 
 
+# --------------------------------------------------------------------------------------------- leitura
+#: 04/11 (5ª descoberta): as Solicitações de compra vêm do GraphQL do MC no AWS, com o token do Firebase da própria
+#: tela (cabeçalhos authorization + company-id). A tela pede purchaseRequest(first, after, specification, order); o
+#: robô copia o pedido DA TELA (cabeçalhos e o formato das datas) e pede a mesma lista com os itens de cada centro de
+#: custo (no detalhe, a 8192 mostrou costCenters[].items[] com originItem.code/name, requestedAmount e
+#: purchaseOrderItem — o item que virou ordem de compra).
+HOST_COMPRAS = "z8brf7qvn1.execute-api.us-east-1.amazonaws.com"
+MESES = int(os.environ.get("MEDIDORES_MESES") or 24)
+POR_PAGINA = 100
+STATUS_FORA = ("CANCELED", "CANCELLED", "REJECTED", "REFUSED")
+#: 04/11 (pedido do dono): só as obras da aba "Verificar se a obra está apta para a solicitação" (ligacoes.html).
+#: A base é a mesma que a tela lê, o dist/ligacoes.json publicado no site.
+URL_LIGACOES = os.environ.get("MEDIDORES_LIGACOES_URL") or \
+    "https://devmoraiseng.github.io/PORTAL-MORAIS/dist/ligacoes.json"
+#: 1º passo: a lista LEVE (sem itens), só para achar as solicitações das obras da aba.
+Q_LISTA = (
+    "query ($first: Int, $after: String, $specification: PurchaseRequestSpecificationInput, "
+    "$order: [PurchaseRequestSortInput!]) { purchaseRequest(first: $first after: $after specification: $specification "
+    "order: $order) { pageInfo { endCursor hasNextPage } nodes { id number approvalStatus work { name } } } }")
+#: 2º passo: o detalhe (itens por centro de custo) só dessas — o mesmo formato que a tela usa ao abrir uma.
+Q_DETALHE = (
+    "query ($specification: PurchaseRequestSpecificationInput) { purchaseRequest(specification: $specification) "
+    "{ nodes { id number approvalStatus work { id name } costCenters { items { id status requestedAmount "
+    "deliveredAmount purchaseOrderItem { id } originItem { name code } } } } } }")
+
+
+def lote_de(nome) -> str:
+    """O lote da obra, como a tela (loteDe): sem "CS N"/"CASA N"/"ÚNICA" no fim."""
+    t = re.sub(r"\s+(CS|CASA)\s*\d+\s*$", "", str(nome or "").strip(), flags=re.I)
+    t = re.sub(r"\s+[ÚU]NICA\s*$", "", t, flags=re.I)
+    return " ".join(t.split())
+
+
+def chave_lote(nome) -> str:
+    return re.sub(r"[^A-Z0-9]", "", N(lote_de(nome)))
+
+
+def _campo(linha: dict, nome: str):
+    v = linha.get("v") or {}
+    if nome in v:
+        return v[nome]
+    alvo = N(nome)
+    for k, x in v.items():
+        if N(k) == alvo:
+            return x
+    return None
+
+
+def obras_da_aba(dados: dict) -> dict:
+    """{chave do lote: lote} das casas que estão na aba "apta para a solicitação": STATUS = NÃO LIGADO e FEZ A
+    SOLICITAÇÃO? = NÃO (a tela ainda tira as já prontas; aqui fica a mais, o que só custa uma obra a mais lida)."""
+    out = {}
+    for l in (dados or {}).get("ligacoes") or []:
+        if N(_campo(l, "STATUS") or l.get("status")) != "NAO LIGADO":
+            continue
+        if N(_campo(l, "FEZ A SOLICITAÇÃO?")) != "NAO":
+            continue
+        lote = lote_de(l.get("obra") or _campo(l, "OBRA"))
+        if lote:
+            out.setdefault(chave_lote(lote), lote)
+    return out
+
+
+def ler_ligacoes() -> dict:
+    import urllib.request
+    req = urllib.request.Request(URL_LIGACOES + "?v=%d" % int(dt.datetime.now().timestamp() // 60),
+                                 headers={"User-Agent": "Mozilla/5.0 (robo medidores Morais)", "Cache-Control": "no-cache"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            d = json.loads(r.read().decode("utf-8"))
+    except Exception as e:  # noqa: BLE001
+        raise RuntimeError("não consegui ler a base de ligações do site (%s)" % type(e).__name__) from None
+    if not d.get("ok"):
+        raise RuntimeError("a base de ligações do site está vazia (ok=false) — nada a conferir")
+    return d
+
+
+def compras_da_solicitacao(sol: dict) -> list:
+    """[(obra, código, descrição, quantidade)] dos itens desta solicitação que já viraram ORDEM DE COMPRA
+    (purchaseOrderItem) e não foram cancelados/recusados. Solicitação recusada/cancelada não conta. A mesma compra
+    não conta duas vezes: o que vale é o item da solicitação com a OC dele."""
+    if str(sol.get("approvalStatus") or "").upper() in STATUS_FORA:
+        return []
+    obra = lote_de(((sol.get("work") or {}).get("name")) or "")
+    out = []
+    for cc in sol.get("costCenters") or []:
+        for it in (cc or {}).get("items") or []:
+            if not it or not it.get("purchaseOrderItem"):
+                continue
+            if str(it.get("status") or "").upper() in STATUS_FORA:
+                continue
+            item = it.get("originItem") or {}
+            out.append((obra, str(item.get("code") or ""), str(item.get("name") or ""), it.get("requestedAmount") or 0))
+    return out
+
+
+def _com_data(orig: str, dia: dt.date) -> str:
+    """A data no MESMO formato que a tela mandou (só troca o AAAA-MM-DD do começo)."""
+    orig = str(orig or "")
+    return dia.isoformat() + (orig[10:] if re.match(r"^\d{4}-\d\d-\d\d", orig) else "")
+
+
+def ler_solicitacoes(alvo: dict, hoje: dt.date | None = None) -> tuple[list, dict]:
+    """(compras, estatística) das solicitações das obras `alvo` ({chave: lote}), pela aba do porteiro."""
+    from venda.mc.porteiro import AbaPorteiro, PorteiroErro
+    hoje = hoje or dt.date.today()
+    try:
+        aba = AbaPorteiro.abrir()
+    except PorteiroErro as e:
+        raise RuntimeError(str(e)) from None
+    page = aba._page
+    visto = {}
+
+    def ouvir(req):
+        try:
+            corpo = req.post_data or ""
+            if HOST_COMPRAS in req.url and "/graphql" in req.url and "purchaseRequest(" in corpo \
+                    and "pageInfo" in corpo and "cab" not in visto:
+                visto["cab"] = {k: v for k, v in (req.headers or {}).items() if k.lower() in ("authorization", "company-id")}
+                visto["vars"] = (json.loads(corpo) or {}).get("variables") or {}
+                visto["url"] = req.url
+        except Exception:
+            pass
+
+    def pedir(query, variaveis):
+        st, texto = aba.fetch("POST", visto["url"], visto["cab"], {"query": query, "variables": variaveis})
+        if st >= 300:
+            raise RuntimeError("GraphQL de Compras respondeu HTTP %s: %s" % (st, (texto or "")[:200]))
+        j = json.loads(texto or "{}")
+        if j.get("errors"):
+            raise RuntimeError("GraphQL de Compras recusou a consulta: %s" % str(j["errors"])[:300])
+        return ((j.get("data") or {}).get("purchaseRequest")) or {}
+
+    page.context.on("request", ouvir)
+    try:
+        page.evaluate("h => { location.hash = h }", "#/purchase-request")
+        for _ in range(120):
+            if "cab" in visto:
+                break
+            page.wait_for_timeout(250)
+        if "cab" not in visto or not visto["cab"].get("authorization"):
+            raise RuntimeError("a tela Solicitação não pediu a lista ao GraphQL de Compras em 30 s")
+        v = json.loads(json.dumps(visto["vars"]))
+        esp = v.setdefault("specification", {})
+        faixa = esp.get("creationDateRange") or {}
+        ini = (hoje.replace(day=1) - dt.timedelta(days=30 * MESES))
+        esp["creationDateRange"] = {"start": _com_data(faixa.get("start"), ini),
+                                    "end": _com_data(faixa.get("end"), hoje + dt.timedelta(days=1))}
+        esp.pop("keyword", None)
+        v["first"], v["after"] = POR_PAGINA, None
+        est = {"solicitacoes": 0, "paginas": 0, "da_aba": 0, "itens_com_oc": 0, "obras_da_aba": len(alvo)}
+        achadas = []
+        for _pag in range(200):
+            pr = pedir(Q_LISTA, v)
+            est["paginas"] += 1
+            for sol in pr.get("nodes") or []:
+                est["solicitacoes"] += 1
+                if str(sol.get("approvalStatus") or "").upper() in STATUS_FORA:
+                    continue
+                if chave_lote(((sol.get("work") or {}).get("name")) or "") in alvo:
+                    achadas.append(sol["id"])
+            info = pr.get("pageInfo") or {}
+            if not info.get("hasNextPage") or not info.get("endCursor"):
+                break
+            v["after"] = info["endCursor"]
+        est["da_aba"] = len(achadas)
+        compras = []
+        for sid in achadas:
+            for sol in pedir(Q_DETALHE, {"specification": {"id": sid}}).get("nodes") or []:
+                c = compras_da_solicitacao(sol)
+                est["itens_com_oc"] += len(c)
+                compras += c
+        return compras, est
+    finally:
+        aba.fechar()
+
+
 def main() -> int:
     if DESCOBRIR:
         return descobrir()
-    log("FALHOU: a leitura das solicitações/OC ainda não está pronta — rode a descoberta (DESCOBRIR=1) e mande o "
-        "resultado para o chat.")
-    return 1
+    try:
+        alvo = obras_da_aba(ler_ligacoes())
+        log(f"obras na aba 'apta para a solicitação': {len(alvo)}")
+        if not alvo:
+            log("FALHOU: nenhuma obra na aba — nada gravado.")
+            return 1
+        compras, est = ler_solicitacoes(alvo)
+    except RuntimeError as e:
+        log(f"FALHOU: {e}")
+        return 1
+    obras = somar(compras)
+    doc = documento(obras)
+    log(f"solicitações na lista: {est['solicitacoes']} ({est['paginas']} página(s), últimos {MESES} meses) · das obras da "
+        f"aba: {est['da_aba']} (abertas uma a uma) · itens com OC: {est['itens_com_oc']} · obras com medidor comprado: "
+        f"{len(obras)}")
+    for nome in CONFERIR:
+        o = obras.get(nome)
+        log(f"  {nome}: " + (f"energia {(o.get('energia') or {}).get('comprado', 0)} {(o.get('energia') or {}).get('insumos', [])} · "
+                             f"água {(o.get('agua') or {}).get('comprado', 0)} {(o.get('agua') or {}).get('insumos', [])}"
+                             if o else ("nenhum medidor comprado" if chave_lote(nome) in alvo else "não está na aba")))
+    if not est["solicitacoes"]:
+        log("FALHOU: nenhuma solicitação lida — nada gravado.")
+        return 1
+    if SIMULAR:
+        log("SIMULAR: nada gravado. Prévia do arquivo:")
+        log(json.dumps(doc, ensure_ascii=False)[:3000])
+        return 0
+    os.makedirs(os.path.dirname(SAIDA), exist_ok=True)
+    with open(SAIDA, "w", encoding="utf-8") as f:
+        json.dump(doc, f, ensure_ascii=False, separators=(",", ":"))
+    log(f"OK: {SAIDA} gravado — {len(obras)} obra(s) com medidor comprado.")
+    return 0
 
 
 if __name__ == "__main__":
