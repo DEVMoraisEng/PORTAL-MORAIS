@@ -176,14 +176,39 @@ def descobrir() -> int:
         return 1
     page = aba._page
     pedidos = []
+    respostas = []          # 3ª descoberta (04/11): o corpo das respostas JSON que a tela recebe, de QUALQUER host do MC
+
+    def do_mc(url):
+        h = _host(url)
+        return h.endswith("maiscontroleerp.com.br") and not re.search(r"\.(js|css|png|svg|jpe?g|gif|woff2?|ico|map)(\?|$)", url)
 
     def ouvir(req):
         try:
-            if _host(req.url) in HOSTS:
-                pedidos.append((req.method.upper(), req.url))
+            if do_mc(req.url) and _host(req.url) != "acessar.maiscontroleerp.com.br":
+                corpo = ""
+                if req.method.upper() != "GET":
+                    try:
+                        j = json.loads(req.post_data or "")
+                        corpo = (" operationName=" + str(j.get("operationName"))) if isinstance(j, dict) and j.get("operationName") else \
+                                (" corpo: " + ", ".join(f"{k}={_forma(v) if not isinstance(v, (dict, list)) else type(v).__name__}" for k, v in list(j.items())[:20]) if isinstance(j, dict) else "")
+                    except Exception:
+                        corpo = " corpo: (não JSON)" if req.post_data else ""
+                pedidos.append((req.method.upper(), req.url, corpo))
+        except Exception:
+            pass
+
+    def ouvir_resp(resp):
+        try:
+            if not do_mc(resp.url) or _host(resp.url) == "acessar.maiscontroleerp.com.br":
+                return
+            if "json" not in (resp.headers.get("content-type") or ""):
+                return
+            if len(respostas) < 40:          # o corpo é lido DEPOIS (fora do ouvinte do Playwright)
+                respostas.append((resp.request.method.upper(), resp.url, resp.status, resp))
         except Exception:
             pass
     page.on("request", ouvir)
+    page.on("response", ouvir_resp)
     try:
         for rota in ROTAS_COMPRAS:
             n0 = len(pedidos)
@@ -198,6 +223,12 @@ def descobrir() -> int:
             try:                                    # 2ª descoberta: o que a tela mostra e o clique em Pesquisar
                 rotulos = page.evaluate(_JS_BOTOES)
                 log(f"tela {rota}: botões/colunas: {rotulos}")
+                for aba_nome in ("Concluída", "Em andamento", "Carregar mais"):
+                    t = page.get_by_text(re.compile("^" + aba_nome), exact=False)
+                    if t.count():
+                        t.first.click(timeout=4000)
+                        page.wait_for_timeout(5000)
+                        log(f"tela {rota}: cliquei em {aba_nome}")
                 for nome in ("Pesquisar", "Buscar", "Filtrar", "Consultar", "Aplicar"):
                     b = page.get_by_role("button", name=nome)
                     if b.count():
@@ -210,14 +241,14 @@ def descobrir() -> int:
             novos = pedidos[n0:]
             log(f"tela {rota} → ficou em {final!r} · título {str(titulo).strip()[:50]!r} · {len(novos)} chamada(s) às APIs")
             vistos = set()
-            for metodo, url in novos:
+            for metodo, url, corpo in novos:
                 chave = (metodo, _host(url), _caminho(url))
                 if chave in vistos:
                     continue
                 vistos.add(chave)
                 q = parse_qs(urlparse(url).query, keep_blank_values=True)
-                log(f"   {metodo} {_host(url).split('.')[0]} {_caminho(url)}  parâmetros: "
-                    + ", ".join(f"{k}={_forma(v[0]) if v else ''}" for k, v in sorted(q.items())))
+                log(f"   {metodo} {_host(url)} {_caminho(url)}  parâmetros: "
+                    + ", ".join(f"{k}={_forma(v[0]) if v else ''}" for k, v in sorted(q.items())) + corpo)
         # 2ª descoberta: as rotas que o código da tela cita (só texto de rota; nenhum dado)
         try:
             b = page.evaluate(_JS_BUNDLE)
@@ -242,15 +273,34 @@ def descobrir() -> int:
                     extra = f" · chaves {sorted(j.keys())[:20] if isinstance(j, dict) else 'lista'} · itens {len(its)}"
                     if its and isinstance(its[0], dict):
                         extra += " · 1º item: " + ", ".join(f"{c}={_forma(v) if not c.endswith('[#]') else v}" for c, v in _achatar(its[0])[:50])
-                    pedidos.append(("GET", url))
+                    pedidos.append(("GET", url, ""))
                 except ValueError:
                     extra = " · (não é JSON)"
             else:
                 extra = " · " + texto[:120].replace("\n", " ")
             log(f"tentativa GET legacy {cam.split('?')[0]} → HTTP {st}{extra}")
+        # 3ª descoberta: o que as telas RECEBERAM (qualquer host do MC), com a solicitação de exemplo
+        log(f"respostas JSON recebidas pelas telas: {len(respostas)}")
+        for metodo, url, st, resp in respostas:
+            try:
+                j = resp.json()
+            except Exception as e:
+                log(f"— {metodo} {_host(url)} {_caminho(url)} → HTTP {st} · corpo ilegível ({type(e).__name__})")
+                continue
+            itens = _lista(j) if not (isinstance(j, dict) and isinstance(j.get("data"), dict)) else \
+                next((v for v in (j["data"] or {}).values() if isinstance(v, (list, dict))), [])
+            itens = _lista(itens) if isinstance(itens, dict) else itens
+            log(f"— {metodo} {_host(url)} {_caminho(url)} → HTTP {st} · chaves {sorted(j.keys())[:15] if isinstance(j, dict) else 'lista'} · itens {len(itens) if isinstance(itens, list) else '-'}")
+            if isinstance(itens, list) and itens and isinstance(itens[0], dict):
+                log("   campos do 1º item: " + ", ".join(f"{c}={_forma(v) if not c.endswith('[#]') else v}" for c, v in _achatar(itens[0])[:70]))
+                ex = next((it for it in itens if EXEMPLO and any(str(v) == EXEMPLO for _c, v in _achatar(it))), None)
+                if ex is not None:
+                    log(f"   ★ {EXEMPLO} nesta resposta:")
+                    for c, v in _achatar(ex):
+                        log(f"      {c} = {v if c.endswith('[#]') else _mostrar(v, c)}")
         # as listas das telas de compras: formato da resposta e a solicitação de exemplo
         candidatos, feitos = [], set()
-        for metodo, url in pedidos:
+        for metodo, url, _corpo in pedidos:
             c = _caminho(url)
             if metodo != "GET" or not re.search(r"purchase|request|requisi|order|compra|solicit", c, re.I):
                 continue
