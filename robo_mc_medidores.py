@@ -495,12 +495,139 @@ def documento(obras: dict, hoje: dt.date | None = None) -> dict:
             "fonte": "Mais Controle · solicitações/OC (servidor)", "obras": obras}
 
 
+# --------------------------------------------------------------------------------------------- leitura
+#: 04/11 (5ª descoberta): as Solicitações de compra vêm do GraphQL do MC no AWS, com o token do Firebase da própria
+#: tela (cabeçalhos authorization + company-id). A tela pede purchaseRequest(first, after, specification, order); o
+#: robô copia o pedido DA TELA (cabeçalhos e o formato das datas) e pede a mesma lista com os itens de cada centro de
+#: custo (no detalhe, a 8192 mostrou costCenters[].items[] com originItem.code/name, requestedAmount e
+#: purchaseOrderItem — o item que virou ordem de compra).
+HOST_COMPRAS = "z8brf7qvn1.execute-api.us-east-1.amazonaws.com"
+MESES = int(os.environ.get("MEDIDORES_MESES") or 24)
+POR_PAGINA = 50
+STATUS_FORA = ("CANCELED", "CANCELLED", "REJECTED", "REFUSED")
+Q_SOLICITACOES = (
+    "query ($first: Int, $after: String, $specification: PurchaseRequestSpecificationInput, "
+    "$order: [PurchaseRequestSortInput!]) { purchaseRequest(first: $first after: $after specification: $specification "
+    "order: $order) { pageInfo { endCursor hasNextPage } nodes { id number approvalStatus deliveryStatus "
+    "work { id name } purchaseOrders { id number } costCenters { items { id status requestedAmount deliveredAmount "
+    "purchaseOrderItem { id } originItem { name code } } } } } }")
+
+
+def compras_da_solicitacao(sol: dict) -> list:
+    """[(obra, código, descrição, quantidade)] dos itens desta solicitação que já viraram ORDEM DE COMPRA
+    (purchaseOrderItem) e não foram cancelados/recusados. Solicitação recusada/cancelada não conta. A mesma compra
+    não conta duas vezes: o que vale é o item da solicitação com a OC dele."""
+    if str(sol.get("approvalStatus") or "").upper() in STATUS_FORA:
+        return []
+    obra = re.sub(r"\s+CS\s*\d+\s*$", "", str(((sol.get("work") or {}).get("name")) or "").strip(), flags=re.I)
+    out = []
+    for cc in sol.get("costCenters") or []:
+        for it in (cc or {}).get("items") or []:
+            if not it or not it.get("purchaseOrderItem"):
+                continue
+            if str(it.get("status") or "").upper() in STATUS_FORA:
+                continue
+            item = it.get("originItem") or {}
+            out.append((obra, str(item.get("code") or ""), str(item.get("name") or ""), it.get("requestedAmount") or 0))
+    return out
+
+
+def _com_data(orig: str, dia: dt.date) -> str:
+    """A data no MESMO formato que a tela mandou (só troca o AAAA-MM-DD do começo)."""
+    orig = str(orig or "")
+    return dia.isoformat() + (orig[10:] if re.match(r"^\d{4}-\d\d-\d\d", orig) else "")
+
+
+def ler_solicitacoes(hoje: dt.date | None = None) -> tuple[list, dict]:
+    """(compras, estatística) lendo as solicitações pela aba do porteiro."""
+    from venda.mc.porteiro import AbaPorteiro, PorteiroErro
+    hoje = hoje or dt.date.today()
+    try:
+        aba = AbaPorteiro.abrir()
+    except PorteiroErro as e:
+        raise RuntimeError(str(e)) from None
+    page = aba._page
+    visto = {}
+
+    def ouvir(req):
+        try:
+            if HOST_COMPRAS in req.url and "/graphql" in req.url and "purchaseRequest(" in (req.post_data or "") \
+                    and "pageInfo" in (req.post_data or "") and "cab" not in visto:
+                visto["cab"] = {k: v for k, v in (req.headers or {}).items() if k.lower() in ("authorization", "company-id")}
+                visto["vars"] = (json.loads(req.post_data) or {}).get("variables") or {}
+                visto["url"] = req.url
+        except Exception:
+            pass
+    page.context.on("request", ouvir)
+    try:
+        page.evaluate("h => { location.hash = h }", "#/purchase-request")
+        for _ in range(120):
+            if "cab" in visto:
+                break
+            page.wait_for_timeout(250)
+        if "cab" not in visto or not visto["cab"].get("authorization"):
+            raise RuntimeError("a tela Solicitação não pediu a lista ao GraphQL de Compras em 30 s")
+        v = json.loads(json.dumps(visto["vars"]))
+        esp = v.setdefault("specification", {})
+        faixa = esp.get("creationDateRange") or {}
+        ini = (hoje.replace(day=1) - dt.timedelta(days=30 * MESES))
+        esp["creationDateRange"] = {"start": _com_data(faixa.get("start"), ini),
+                                    "end": _com_data(faixa.get("end"), hoje + dt.timedelta(days=1))}
+        esp.pop("keyword", None)
+        v["first"], v["after"] = POR_PAGINA, None
+        compras, est = [], {"solicitacoes": 0, "paginas": 0, "itens_com_oc": 0}
+        for _pag in range(400):
+            st, texto = aba.fetch("POST", visto["url"], visto["cab"], {"query": Q_SOLICITACOES, "variables": v})
+            est["paginas"] += 1
+            if st >= 300:
+                raise RuntimeError("GraphQL de Compras respondeu HTTP %s: %s" % (st, texto[:200]))
+            j = json.loads(texto or "{}")
+            if j.get("errors"):
+                raise RuntimeError("GraphQL de Compras recusou a consulta: %s" % str(j["errors"])[:300])
+            pr = ((j.get("data") or {}).get("purchaseRequest")) or {}
+            for sol in pr.get("nodes") or []:
+                est["solicitacoes"] += 1
+                c = compras_da_solicitacao(sol)
+                est["itens_com_oc"] += len(c)
+                compras += c
+            info = pr.get("pageInfo") or {}
+            if not info.get("hasNextPage") or not info.get("endCursor"):
+                break
+            v["after"] = info["endCursor"]
+        return compras, est
+    finally:
+        aba.fechar()
+
+
 def main() -> int:
     if DESCOBRIR:
         return descobrir()
-    log("FALHOU: a leitura das solicitações/OC ainda não está pronta — rode a descoberta (DESCOBRIR=1) e mande o "
-        "resultado para o chat.")
-    return 1
+    try:
+        compras, est = ler_solicitacoes()
+    except RuntimeError as e:
+        log(f"FALHOU: {e}")
+        return 1
+    obras = somar(compras)
+    doc = documento(obras)
+    log(f"solicitações lidas: {est['solicitacoes']} ({est['paginas']} página(s), últimos {MESES} meses) · itens com OC: "
+        f"{est['itens_com_oc']} · obras com medidor comprado: {len(obras)}")
+    for nome in CONFERIR:
+        o = obras.get(nome)
+        log(f"  {nome}: " + (f"energia {(o.get('energia') or {}).get('comprado', 0)} {(o.get('energia') or {}).get('insumos', [])} · "
+                             f"água {(o.get('agua') or {}).get('comprado', 0)} {(o.get('agua') or {}).get('insumos', [])}"
+                             if o else "nenhum medidor comprado"))
+    if not est["solicitacoes"]:
+        log("FALHOU: nenhuma solicitação lida — nada gravado.")
+        return 1
+    if SIMULAR:
+        log("SIMULAR: nada gravado. Prévia do arquivo:")
+        log(json.dumps(doc, ensure_ascii=False)[:3000])
+        return 0
+    os.makedirs(os.path.dirname(SAIDA), exist_ok=True)
+    with open(SAIDA, "w", encoding="utf-8") as f:
+        json.dump(doc, f, ensure_ascii=False, separators=(",", ":"))
+    log(f"OK: {SAIDA} gravado — {len(obras)} obra(s) com medidor comprado.")
+    return 0
 
 
 if __name__ == "__main__":
