@@ -33,6 +33,8 @@ import time
 import unicodedata
 import urllib.request
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))      # reorganizar.py mora ao lado
+
 CENTRAL = pathlib.Path(os.environ.get("MC_CENTRAL") or r"C:\AUTOMAÇÕES MAIS CONTROLE\_central")
 CONFIG = CENTRAL / "robos-portal.json"
 SAUDE = CENTRAL / "robos-portal-saude.json"
@@ -437,9 +439,14 @@ def montar(hoje: dt.date | None = None, conferir: bool = True) -> dict:
                              "texto": texto, "fonte": "conferência"})
         elif texto:
             erros.append("porteiro: não deu para conferir agora (%s)" % texto)
+    try:
+        import reorganizar as RZ          # 04/11: o plano do Coordenador da fila, se houver
+        coordenador = RZ.ler()
+    except Exception:
+        coordenador = None
     return {"versao": VERSAO, "gerado": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
             "tarefas": tarefas, "rodadas": rods, "saude": saude, "log": log,
-            "porteiro": porteiro, "avisos": erros}
+            "porteiro": porteiro, "coordenador": coordenador, "avisos": erros}
 
 
 def subir_pdfs(dados: dict, log=print) -> int:

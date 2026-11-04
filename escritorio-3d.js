@@ -321,7 +321,7 @@
       const causa = op.causa ? op.causa(r) : "";
       const pode = r.st === "erro" && op.podeRodar && op.podeRodar(r);
       b.innerHTML = r.st === "pedido"
-        ? `<b>⏳ ${esc3(r.cat.nome)}</b><span>Pedido de rodar de novo na fila — o servidor pega em até 1 min.</span>`
+        ? `<b>⏳ ${esc3(r.cat.nome)}</b><span>${esc3(/coordenador/.test(r.stTexto || "") ? "Na fila do Coordenador " + r.stTexto.replace(/^na fila do coordenador\s*/, "") + " — roda quando chegar a vez, sem passar por cima de ninguém." : "Pedido de rodar de novo na fila — o servidor pega em até 1 min.")}</span>`
         : `<b>⚠ ${esc3(r.cat.nome)}</b><span>${esc3(causa || "Deu errado na última rodada.")}</span>
            <div class="bb"><button type="button" data-a="ver">Ver relatório</button>${pode ? `<button type="button" data-a="rodar" class="rodar">▶ Rodar de novo</button>` : ""}</div>`;
       b.addEventListener("pointerdown", e => e.stopPropagation());
