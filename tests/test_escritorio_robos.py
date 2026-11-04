@@ -136,3 +136,25 @@ def test_conferencia_do_porteiro_vale_mais_que_o_log(monkeypatch, tmp_path):
     monkeypatch.setattr(E, "conferir_porteiro", lambda espera=45.0: (None, "sem o código do porteiro"))
     d = E.montar(hoje=dt.date(2026, 11, 4))
     assert d["porteiro"]["estado"] == "?" and any("não deu para conferir" in a for a in d["avisos"])
+
+
+def test_motivo_lido_do_texto_do_pdf_antigo():
+    texto = ("Robô do Mais Controle — Medições de contratos\nDEU ERRADO\n"
+             "Rodada de 04/11/2026, das 09:20 às 09:27 (6 min) · gravação LIGADA · código de saída 1\n"
+             "porteiro: PROBLEMA � o Chrome do porteiro n�o est� logado no Mais Controle � o porteiro precisa\n"
+             "entrar (python -m erp.porteiro estado, no servidor)\n"
+             "O que precisa de atenção\n"
+             "robo_mc_medicoes.py: A sessão do Mais Controle no Chrome do porteiro caiu.\n"
+             "O que fazer: Entrar no Mais Controle pela janela do Chrome central (servidor). O robô roda de novo\n"
+             "no próximo horário.\n"
+             "Porteiro: a sessão do Mais Controle está fora.\nO que fazer: entrar pela janela do Chrome central no servidor.\n"
+             "O que rodou\nHora Parte Resultado Fim da saída\n")
+    d = E.do_texto_do_pdf(texto)
+    assert d["pdf_meta"].startswith("Rodada de 04/11/2026")
+    assert d["porteiro"] == ("porteiro: PROBLEMA — o Chrome do porteiro não está logado no Mais Controle — o porteiro precisa "
+                             "entrar (python -m erp.porteiro estado, no servidor)")
+    assert d["atencao"] == [
+        {"parte": "robo_mc_medicoes.py", "oque": "A sessão do Mais Controle no Chrome do porteiro caiu.",
+         "fazer": "Entrar no Mais Controle pela janela do Chrome central (servidor). O robô roda de novo no próximo horário."},
+        {"parte": "Porteiro", "oque": "a sessão do Mais Controle está fora.", "fazer": "entrar pela janela do Chrome central no servidor."}]
+    assert E.do_texto_do_pdf("") == {"pdf_texto": ""}

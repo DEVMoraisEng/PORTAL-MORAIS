@@ -279,7 +279,7 @@ iframe.pdf{display:block;width:100%;height:min(72vh,720px);border:0;background:#
  * Uma mesa por robô do servidor do escritório. Os dados vêm do próprio
  * servidor (_portal\servidor\escritorio_robos.py), que sobe o arquivo
  * robos/escritorio.json para o bucket PRIVADO "analise" do Supabase depois de
- * cada rodada e a cada 15 min. Esta página pede ao Apps Script (escritorioBoot,
+ * cada rodada e a cada 5 min. Esta página pede ao Apps Script (escritorioBoot,
  * apps-script/EscritorioRobos.gs) um link assinado de 15 min e baixa o arquivo.
  * Acesso: "ESCRITÓRIO DE ROBÔS" na coluna ACESSOS do LOGINS (ADM/MASTER veem).
  * ========================================================================== */
@@ -380,6 +380,7 @@ function montarRobos(D) {
       const P = D.porteiro;          // 04/11: o servidor diz o que os ROBÔS viram por último (o porteiro.log mentia)
       if (P && P.estado && P.estado !== "?") { st = P.estado === "ok" ? "ok" : "erro"; stTexto = P.estado === "ok" ? "logado" : "fora do Mais Controle"; stHora = quando(P.em); }
       else if (ultP) { const logado = /^porteiro: logado/.test(ultP.porteiro || ""); st = logado ? "ok" : "erro"; stTexto = logado ? "logado" : "fora"; stHora = quando(ultP.fim || ultP.inicio); }
+      else { stTexto = "esperando a conferência do servidor (a cada 5 min)"; }
     } else if (r.chave === "coordenador") {
       if (plAtivo) {
         const feitos = PL.fila.filter(i => i.estado === "feito" || i.estado === "falhou").length;
@@ -521,7 +522,7 @@ function pintar() {
   const av = [];
   const P = D.porteiro;
   if (P && P.estado === "fora") av.push(`<div class="aviso"><b>🚨 O porteiro está fora do Mais Controle (visto ${esc(quando(P.em))}).</b> Enquanto isso, nenhum robô consegue entrar no ERP. O que fazer: no servidor, entrar no Mais Controle pela janela do Chrome central (a do porteiro) e deixar aberta. Depois, Rodar de novo nos robôs que falharam.<br><span class="muted">${esc(P.texto || "")}</span></div>`);
-  if (velho) av.push(`<div class="aviso amarelo"><b>O servidor não manda notícias ${esc(ha(g))}.</b> Ele publica depois de cada rodada e a cada 15 min — pode estar desligado, sem internet, ou a tarefa “MoraisEng - Robo do portal (fila)” parou.</div>`);
+  if (velho) av.push(`<div class="aviso amarelo"><b>O servidor não manda notícias ${esc(ha(g))}.</b> Ele publica depois de cada rodada e a cada 5 min — pode estar desligado, sem internet, ou a tarefa “MoraisEng - Robo do portal (fila)” parou.</div>`);
   (D.avisos || []).forEach(a => av.push(`<div class="aviso amarelo">Servidor: ${esc(a)}</div>`));
   $("avisos").innerHTML = av.join("");
   if (ABERTO) abrir(ABERTO, true);
@@ -638,11 +639,19 @@ function logHtml(linhas, titulo) {
     `<div class="lg${RE_ERRO_LOG.test(l.texto) && !/^e-mail enviado|^relatório /.test(l.texto) ? " ruim" : ""}"><span>${esc(String(l.em).slice(11, 19))}</span><i>${esc(l.de)}</i><b>${esc(l.texto)}</b></div>`).join("")}</div>`;
 }
 function pdfHtml(x) {
-  if (!x.pdf_caminho) return x.pdf ? `<p class="meta">PDF: ${esc(x.pdf)} (ainda não subiu para o portal — sobe na próxima publicação do servidor).</p>` : "";
+  if (!x.pdf_caminho) return x.pdf ? `<p class="meta">📄 O PDF desta rodada (${esc(x.pdf)}) entra aqui na próxima atualização do servidor (a cada 5 min).</p>` : "";
   return `<div class="pdfbox" data-pdf="${esc(x.pdf_caminho)}"><div class="pdfbar"><b>📄 Relatório em PDF (o mesmo do e-mail)</b><button type="button" class="bt" data-a="pdf">Mostrar o PDF aqui</button></div></div>`;
 }
 function relatorioHtml(x) {
-  if (x.so_pdf) return `<p class="meta">Rodada de antes do relatório detalhado no portal: abaixo, o log do servidor e o PDF que foi por e-mail.</p>` + logHtml(x.log) + pdfHtml(x);
+  if (x.so_pdf) {
+    let h = x.pdf_meta ? `<p class="meta">${esc(x.pdf_meta)}</p>` : "";
+    if (x.porteiro) h += `<p class="meta">${esc(x.porteiro)}</p>`;
+    if ((x.atencao || []).length) h += `<h4>O que deu errado (do relatório do e-mail)</h4><ul>${x.atencao.map(a => `<li><b>${esc(a.parte)}:</b> ${esc(a.oque)}${a.fazer ? `<br><span class="fazer">O que fazer: ${esc(a.fazer)}</span>` : ""}</li>`).join("")}</ul>`;
+    else if (!x.ok && !(x.log || []).length) h += `<p class="meta">O motivo aparece aqui na próxima atualização do servidor (a cada 5 min), lido do log e do PDF desta rodada.</p>`;
+    h += logHtml(x.log);
+    if (x.pdf_texto) h += `<details style="margin-top:12px"><summary>Texto completo do relatório</summary><pre>${esc(x.pdf_texto)}</pre></details>`;
+    return h + pdfHtml(x);
+  }
   const i0 = dataDe(x.inicio), f0 = dataDe(x.fim);
   const dur = i0 && f0 ? Math.max(0, Math.round((f0 - i0) / 60000)) : null;
   const grav = x.gravando == null ? "" : " · gravação " + (x.gravando ? "LIGADA" : "desligada (só simulação)");
@@ -687,7 +696,10 @@ async function mostrarPdf(box, auto) {
   box.insertAdjacentHTML("beforeend", `<iframe class="pdf" src="${esc(r.url)}#view=FitH" title="Relatório em PDF"></iframe><a class="pdflink" href="${esc(r.url)}" target="_blank" rel="noopener">Abrir o PDF em outra aba ↗</a>`);
 }
 function resumoRodada(x) {
-  if (x.so_pdf) { const l = linhaDoErro(x.log); return l && !x.ok ? l.texto : (x.ok ? "deu certo (detalhe no PDF)" : "deu errado (detalhe no PDF)"); }
+  if (x.so_pdf) {
+    const a = (x.atencao || [])[0]; if (a && !x.ok) return a.parte + ": " + a.oque;
+    const l = linhaDoErro(x.log); return l && !x.ok ? l.texto : (x.ok ? "deu certo" : "deu errado — motivo na próxima atualização do servidor");
+  }
   const f = (x.atencao || [])[0];
   if (!x.ok && f) return f.parte + ": " + f.oque;
   const ult = (x.itens || []).filter(i => i.texto).slice(-1)[0];

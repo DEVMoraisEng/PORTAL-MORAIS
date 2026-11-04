@@ -13,7 +13,7 @@ a service key nunca vai para o navegador e o arquivo não fica no GitHub Pages p
 
 Quem chama:
   - rodar_e_relatar.py, depois de cada rodada:  escritorio_robos.depois_da_rodada(r, pdf, explicar, log)
-  - robo_fila.py, a cada 15 min (a fila roda de minuto em minuto): escritorio_robos.publicar_se_passou(15)
+  - robo_fila.py, a cada 5 min (a fila roda de minuto em minuto): escritorio_robos.publicar_se_passou(5)
   - à mão:  python servidor\\escritorio_robos.py            (monta e sobe)
             python servidor\\escritorio_robos.py --so-montar (só imprime o resumo, não sobe)
 
@@ -107,6 +107,57 @@ def salvar_rodada(r: dict, pdf: pathlib.Path, explicar=None) -> pathlib.Path:
     return destino
 
 
+# ------------------------------------------------------------------ 1b. rodada antiga: o motivo lido do próprio PDF (04/11)
+def ler_pdf(caminho: pathlib.Path) -> str:
+    """Texto do PDF do relatório (pypdf, que o servidor já tem pelo app do porteiro). "" se não der."""
+    try:
+        import pypdf
+        r = pypdf.PdfReader(str(caminho))
+        return "\n".join((p.extract_text() or "") for p in r.pages)
+    except Exception:
+        return ""
+
+
+def do_texto_do_pdf(texto: str) -> dict:
+    """Do texto do PDF do rodar_e_relatar.py tira o que a página precisa para dizer o MOTIVO: o bloco
+    "O que precisa de atenção" (parte, o que aconteceu, o que fazer), a linha do porteiro e a da rodada."""
+    t = (texto or "").replace("n\ufffdo", "não").replace("est\ufffd", "está").replace(" \ufffd ", " — ").replace("\ufffd", "-")
+    linhas = [l.strip() for l in t.splitlines() if l.strip()]
+    out = {"pdf_texto": "\n".join(linhas)[:4000]}
+    for l in linhas:
+        if l.startswith("Rodada de "):
+            out["pdf_meta"] = l[:300]
+        if l.startswith("porteiro:"):
+            i = linhas.index(l)
+            junto = l + (" " + linhas[i + 1] if i + 1 < len(linhas) and not linhas[i + 1].startswith(("Precisou", "O que")) else "")
+            out["porteiro"] = junto[:300]
+            break
+    try:
+        ini = linhas.index("O que precisa de atenção") + 1
+    except ValueError:
+        return out
+    fim = next((i for i in range(ini, len(linhas)) if linhas[i].startswith("O que rodou") or linhas[i].startswith("Índices depois")), len(linhas))
+    itens, atual = [], None
+    for l in linhas[ini:fim]:
+        if l.startswith("Nada. Rodada completa"):
+            break
+        if l.startswith("O que fazer:"):
+            if atual is not None:
+                atual["fazer"] = l[len("O que fazer:"):].strip()
+            continue
+        m = re.match(r"^([^:]{2,60}):\s*(.*)$", l)
+        if m and not (atual is not None and atual.get("fazer") is None and not atual["oque"].endswith((".", "!", "?", ")"))):
+            atual = {"parte": m.group(1).strip(), "oque": m.group(2).strip(), "fazer": None}
+            itens.append(atual)
+        elif atual is not None:                    # linha que quebrou: continua o campo de antes
+            if atual["fazer"] is None:
+                atual["oque"] = (atual["oque"] + " " + l).strip()
+            else:
+                atual["fazer"] = (atual["fazer"] + " " + l).strip()
+    out["atencao"] = [{"parte": i["parte"], "oque": i["oque"][:300], "fazer": (i["fazer"] or "")[:300]} for i in itens]
+    return out
+
+
 # ------------------------------------------------------------------ 2. histórico das rodadas
 def rodadas(pasta: pathlib.Path = RELATORIOS, hoje: dt.date | None = None) -> dict:
     """{robô: [rodada mais nova primeiro]}. PDF sem .json (antes de 03/11) entra só com data, hora e ok/falhou."""
@@ -130,6 +181,9 @@ def rodadas(pasta: pathlib.Path = RELATORIOS, hoje: dt.date | None = None) -> di
             d, h = m.group(1), m.group(2)
             reg = {"robo": m.group(3), "inicio": "%sT%s:%s:00" % (d, h[:2], h[2:]), "ok": m.group(4) == "ok",
                    "so_pdf": True, "pdf": pdf.name}
+            texto = ler_pdf(pdf) if not reg["ok"] else ""   # 04/11: o motivo sai do próprio PDF (só das que falharam)
+            if texto.strip():
+                reg.update(do_texto_do_pdf(texto))
         por_robo.setdefault(reg.get("robo") or m.group(3), []).append(reg)
     for k in por_robo:
         por_robo[k].sort(key=lambda x: x.get("inicio") or "", reverse=True)
@@ -372,7 +426,7 @@ def porteiro_estado(log: dict, rods: dict, porteiro_log: pathlib.Path | None = N
 
 def conferir_porteiro(espera: float = 45.0) -> tuple[bool | None, str]:
     """04/11: confere DE VERDADE, como um robô faria: abre uma aba no Chrome central e vê se a tela entra logada
-    (a mesma conferência do robo_fila.py --verificar). Assim a mesa do porteiro fica vermelha em até 15 min, mesmo
+    (a mesma conferência do robo_fila.py --verificar). Assim a mesa do porteiro fica vermelha em até 5 min, mesmo
     sem nenhum robô rodando. Só no servidor. (None, motivo) se não deu para conferir."""
     if os.name != "nt":
         return None, ""
