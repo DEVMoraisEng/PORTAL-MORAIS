@@ -281,3 +281,28 @@ def test_sessao_que_cai_no_meio_para_para_repetir(monkeypatch):
     with pytest.raises(RuntimeError, match="não está logado"):
         ra.rodada(leitor, aud, alvo)
     assert leitor.lidos_lista >= 1 and leitor.data_bate >= 1
+
+
+def test_segunda_rodada_lembra_o_mc_e_nao_le_a_lista_de_novo(monkeypatch):
+    """04/11 (pedido do dono): quem já foi achado no MC guarda os UUIDs ("mc") e a rodada seguinte não lê a lista
+    de pagamentos (a parte lenta) para ele — só abre as pastas de novo quando o pagamento é recente."""
+    monkeypatch.setattr(ra, "sb_subir", lambda *a: None)
+    monkeypatch.setattr(ra, "sb_apagar", lambda c: None)
+
+    class Erp(ErpListaSemNumero):
+        def __init__(self):
+            ErpListaSemNumero.__init__(self, validade=604800)
+
+    aud = {"dict": {"st": ["OK", "DIVERGENTE"]},
+           "cols": {"id": [101], "dp": [D(5)], "dv": [D(5)], "st": [1], "v": [10.0], "vp": [10.0], "d": ["AREIA"], "nd": [""]},
+           "fiscal": []}
+    alvo = ra.escolher(aud)
+    erp1 = Erp()
+    itens, est = ra.rodada(ra.LeitorMC(erp1), aud, alvo)
+    assert itens["101"]["mc"]["tp"] == ErpFalso.UU % 151 and itens["101"]["mc"]["parcelas"]
+    aud["anexos"] = {"itens": itens}
+    erp2 = Erp()
+    leitor2 = ra.LeitorMC(erp2)
+    itens2, est2 = ra.rodada(leitor2, aud, alvo)
+    assert not [p for p in erp2.pedidos if p[0] == "/payable-installments/paginated-result"]   # a lista não foi lida
+    assert est2["lidos"] == 1 and itens2["101"]["a"] and itens2["101"]["mc"]["tp"] == ErpFalso.UU % 151

@@ -465,7 +465,7 @@ class LeitorMC:
                 _baixas(it, b)
                 reg["baixas"] += [x["id"] for x in b if x.get("id") not in reg["baixas"]]
             pagina += 1
-            if not mais or pagina >= max_paginas:
+            if not mais or pagina >= max_paginas or len(mapa) >= len(alvo_txt):     # 04/11: achou todos, para
                 break
             try:
                 itens, mais, _ = self._pagina(forma, pagina)
@@ -605,21 +605,41 @@ def nome_seguro(s):
     return (s or "arquivo")[-80:]
 
 
+def _do_mc(it_ant):
+    """O que o robô já sabe do lançamento no MC (UUIDs), guardado na rodada anterior — ou None."""
+    m = (it_ant or {}).get("mc") or {}
+    return m if (m.get("tp") or m.get("parcelas")) else None
+
+
 def rodada(leitor, aud, alvo):
     ant = (aud.get("anexos") or {}).get("itens") or {}
-    mapa, primeira = leitor.mapear(alvo)
-    if primeira is None:
-        raise RuntimeError("a lista de pagamentos do MC não respondeu")
-    # 04/11 (1ª rodada de verdade): a lista não traz o nº do lançamento e o robô casa por data e valor — só para
-    # quando nem o nº nem a data+valor acharam ninguém (antes parava sempre que faltava o nº, depois de 20 min lendo)
-    if not leitor.campo_num and not mapa:
-        raise RuntimeError("nenhuma parcela da lista do MC casou com os pagamentos da auditoria (nem pelo nº nem "
-                           "por data e valor)")
-    log(f"lista do MC: {len(mapa)} lançamento(s) do escopo achado(s) · casados por data e valor: {leitor.casados} · "
-        f"ambíguos (de fora): {leitor.ambiguos} · parcelas lidas: {leitor.lidos_lista} · com data do escopo: "
-        f"{leitor.data_bate} · páginas: {[(f, p) for f, p, _a in leitor.tentativas]}")
     agora = dt.datetime.now(dt.timezone.utc)
     lim_rechecar = (HOJE - dt.timedelta(days=RECHECAR_DIAS)).isoformat()
+    # 04/11 (pedido do dono, "se sempre conferir tudo vai demorar demais"): o robô LEMBRA os UUIDs do MC de cada
+    # lançamento que já achou ("mc" no item). A lista de pagamentos (a parte lenta: 200 páginas) só é lida para os
+    # que ainda não tem, e só na janela das datas deles; para de ler quando achou todos.
+    ordem = sorted(alvo, key=lambda i: alvo[i], reverse=True)       # pagamento mais recente primeiro
+    vao = []
+    for idl in ordem:
+        it_ant = ant.get(str(idl))
+        if (it_ant is None or alvo[idl] >= lim_rechecar) and len(vao) < MAX_ITENS:
+            vao.append(idl)
+    sem_mc = {i: alvo[i] for i in vao if not _do_mc(ant.get(str(i)))}
+    mapa, primeira = {}, None
+    if sem_mc:
+        leitor.preparar_casamento(aud, sem_mc)
+        mapa, primeira = leitor.mapear(sem_mc)
+        if primeira is None:
+            raise RuntimeError("a lista de pagamentos do MC não respondeu")
+        # 04/11 (1ª rodada de verdade): sem o nº na lista, casa por data e valor — só para se ninguém casou E não
+        # há nenhum lançamento já conhecido para conferir
+        if not leitor.campo_num and not mapa and len(sem_mc) == len(vao):
+            raise RuntimeError("nenhuma parcela da lista do MC casou com os pagamentos da auditoria (nem pelo nº nem "
+                               "por data e valor)")
+    log(f"a conferir nesta rodada: {len(vao)} (já conhecidos no MC: {len(vao) - len(sem_mc)}, a procurar na lista: "
+        f"{len(sem_mc)}) · lista do MC: {len(mapa)} achado(s) · casados por data e valor: {leitor.casados} · "
+        f"ambíguos (de fora): {leitor.ambiguos} · parcelas lidas: {leitor.lidos_lista} · com data do escopo: "
+        f"{leitor.data_bate} · páginas: {[(f, p) for f, p, _a in leitor.tentativas]}")
     itens, mb, consultados, copiados, erros, renovados = {}, 0.0, 0, 0, 0, 0
     erros_lanc = [0]
     apagar = []
@@ -627,20 +647,23 @@ def rodada(leitor, aud, alvo):
     for idl, it in ant.items():
         if int(idl) not in alvo:
             apagar += [a["p"] for a in it.get("a", []) if a.get("p")]
-    ordem = sorted(alvo, key=lambda i: alvo[i], reverse=True)       # pagamento mais recente primeiro
+    vao_set = set(vao)
     for idl in ordem:
         it_ant = ant.get(str(idl))
-        precisa = it_ant is None or alvo[idl] >= lim_rechecar
-        if not precisa or consultados >= MAX_ITENS or mb >= MAX_MB_RODADA:
+        if idl not in vao_set or mb >= MAX_MB_RODADA:
             if it_ant:
                 itens[str(idl)] = renovar(leitor, it_ant, agora) if it_ant.get("a") else it_ant
                 renovados += 1 if it_ant.get("a") else 0
             continue
         consultados += 1
+        info = mapa.get(idl)
+        if info is None and _do_mc(it_ant):
+            m = _do_mc(it_ant)                    # já conhecido: as baixas são lidas de novo (comprovante novo)
+            info = {"tp": m.get("tp"), "parcelas": list(m.get("parcelas") or []), "baixas": []}
         try:
-            if idl not in mapa:
+            if info is None:
                 raise RuntimeError("fora da lista do MC na janela")
-            arqs, _, _ = leitor.anexos(idl, mapa[idl])
+            arqs, tp_lido, _ = leitor.anexos(idl, info)
         except Exception as e:
             erros += 1
             erros_lanc[0] += 1
@@ -681,7 +704,8 @@ def rodada(leitor, aud, alvo):
                 if erros <= 5:
                     log(f"  ! arquivo de …{str(idl)[-4:]}: {type(e).__name__}: {str(e)[:120]}")
             lista.append(reg)
-        itens[str(idl)] = {"v": agora.isoformat(timespec="minutes"), "a": lista}
+        itens[str(idl)] = {"v": agora.isoformat(timespec="minutes"), "a": lista,
+                           "mc": {"tp": tp_lido or info.get("tp"), "parcelas": list(info.get("parcelas") or [])[:6]}}
     sb_apagar(apagar)
     return itens, {"consultados": consultados, "lidos": consultados - erros_lanc[0], "copiados": copiados, "mb": round(mb, 1),
                    "erros": erros, "renovados": renovados, "apagados": len(apagar), "achados_no_mc": len(mapa),
