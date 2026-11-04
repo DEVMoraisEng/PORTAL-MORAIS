@@ -271,6 +271,7 @@ class LeitorMC:
         self.tentativas = []           # (forma, páginas, do escopo achados) — a descoberta mostra
         self.casar_idx, self.casar_desc = {}, {}   # 04/11: (data, valor) -> {nº do lançamento}; nº -> {descrição, nº doc}
         self.janela = None                         # 04/11: (início, fim) das datas do escopo, ±7 dias
+        self.lidos_lista = self.data_bate = 0      # 04/11 (2ª rodada): parcelas lidas e quantas têm data do escopo
         self.casados = self.ambiguos = 0
 
     def _get(self, caminho, params=None):
@@ -280,6 +281,10 @@ class LeitorMC:
 
     def _erro(self, rota, e):
         self.erros_rota.append((rota, f"{type(e).__name__}: {str(e)[:320]}"))
+        # 04/11 (2ª rodada): sessão do MC que cai no meio não é "pasta vazia" — sobe, e a rodada para para repetir
+        if "não está logado" in str(e) or "HTTP 401" in str(e):
+            raise RuntimeError("o Chrome do porteiro não está logado no Mais Controle — a sessão caiu no meio da "
+                               "rodada") from None
 
     # ---- 0) 04/11 (3ª descoberta): a lista da tela NÃO traz o nº do lançamento (só UUIDs: id, tradePayableId).
     #         O robô casa cada parcela da lista com o pagamento da auditoria pela DATA (prevista ou de pagamento) e
@@ -302,6 +307,7 @@ class LeitorMC:
                     idx.setdefault((data, val), set()).add(idl)
             desc.setdefault(idl, set()).update({N(d[i]), N(nd[i])} - {""})
         self.casar_idx, self.casar_desc = idx, desc
+        self.casar_datas = {d for d, _v in idx}
         # 04/11 (3ª descoberta): a lista vem em ordem de data, e a janela larga (210 dias) gastava as páginas da
         # descoberta com parcelas mais velhas que o escopo — agora a janela é a das datas do escopo (±7 dias)
         datas = sorted(d for d, _v in idx)
@@ -438,6 +444,9 @@ class LeitorMC:
                     if num not in alvo_txt:
                         continue
                 elif self.casar_idx:                      # sem o nº na lista: casa por data e valor
+                    self.lidos_lista += 1
+                    if {_data_iso(it.get(k)) for k in ("plannedDate", "dateOfPayment")} & getattr(self, "casar_datas", set()):
+                        self.data_bate += 1
                     cands = self._casar(it)
                     if len(cands) != 1:
                         self.ambiguos += len(cands) > 1
@@ -549,6 +558,8 @@ def descobrir(leitor, alvo):
             log(f"  1ª página vai de {_data_iso(it.get('plannedDate')) or '?'} a {_data_iso(ult.get('plannedDate')) or '?'} (plannedDate)")
             nums = [c for c, v in _escalares(it) if _tipo_id(v) == "número" and 5 <= len(str(v)) <= 10]
             log(f"  campos com número de 5 a 10 dígitos: {nums[:15]}")
+    log(f"parcelas lidas: {leitor.lidos_lista} · com data do escopo: {leitor.data_bate} (se esta for alta e os casados "
+        "baixos, é o VALOR que não bate)")
     log(f"campo com o nº do lançamento: {leitor.campo_num or 'não vem na lista — casado por data e valor'} · "
         f"casados: {leitor.casados} · ambíguos (ficaram de fora): {leitor.ambiguos} · lançamentos do escopo achados ({PAGINAS_DESCOBERTA} páginas no máx.): {len(mapa)}")
     lidos = 0
@@ -605,7 +616,8 @@ def rodada(leitor, aud, alvo):
         raise RuntimeError("nenhuma parcela da lista do MC casou com os pagamentos da auditoria (nem pelo nº nem "
                            "por data e valor)")
     log(f"lista do MC: {len(mapa)} lançamento(s) do escopo achado(s) · casados por data e valor: {leitor.casados} · "
-        f"ambíguos (de fora): {leitor.ambiguos}")
+        f"ambíguos (de fora): {leitor.ambiguos} · parcelas lidas: {leitor.lidos_lista} · com data do escopo: "
+        f"{leitor.data_bate} · páginas: {[(f, p) for f, p, _a in leitor.tentativas]}")
     agora = dt.datetime.now(dt.timezone.utc)
     lim_rechecar = (HOJE - dt.timedelta(days=RECHECAR_DIAS)).isoformat()
     itens, mb, consultados, copiados, erros, renovados = {}, 0.0, 0, 0, 0, 0
@@ -634,6 +646,11 @@ def rodada(leitor, aud, alvo):
             erros_lanc[0] += 1
             if erros <= 5:
                 log(f"  ! lançamento …{str(idl)[-4:]}: {type(e).__name__}: {str(e)[:120]}")
+            # 04/11 (2ª rodada): a sessão do MC caiu no meio — para com "não está logado" (o rodar_e_relatar espera o
+            # porteiro entrar de novo e repete a rodada uma vez) em vez de terminar "OK" com quase nada lido
+            if "não está logado" in str(e) or "HTTP 401" in str(e):
+                raise RuntimeError("o Chrome do porteiro não está logado no Mais Controle — a sessão caiu no meio "
+                                   "da rodada") from None
             if it_ant:
                 itens[str(idl)] = it_ant
             continue
@@ -706,7 +723,11 @@ def main():
     leitor.preparar_casamento(aud, alvo)
     try:
         if DESCOBRIR:
-            return descobrir(leitor, alvo)
+            try:
+                return descobrir(leitor, alvo)
+            except RuntimeError as e:
+                log(f"FALHOU: {e}.")
+                return 1
         try:
             itens, est = rodada(leitor, aud, alvo)
         except RuntimeError as e:
