@@ -57,6 +57,10 @@ DIAS = int(os.environ.get("ANEXOS_DIAS") or 90)
 ESCOPO = (os.environ.get("ANEXOS_ESCOPO") or "alertas").strip().lower()
 MAX_ITENS = int(os.environ.get("ANEXOS_MAX_ITENS") or 700)
 MAX_MB_RODADA = float(os.environ.get("ANEXOS_MAX_MB") or 250)
+#: 04/11 (3ª rodada de verdade): a 1ª rodada (1445 lançamentos) passou dos 40 min do robo_fila e foi cortada sem
+#: gravar nada. Agora o robô para de abrir lançamentos ao chegar neste tempo e GRAVA o que já leu; o resto fica para a
+#: rodada seguinte (que lembra os já achados e é bem mais rápida).
+MAX_MIN = float(os.environ.get("ANEXOS_MAX_MIN") or 25)
 RECHECAR_DIAS = 20                 # pagamento recente: confere de novo (comprovante costuma entrar depois)
 VALIDADE_COPIA_S = 3 * 86400
 DESCOBRIR = os.environ.get("DESCOBRIR", "").strip().lower() in ("1", "true", "sim")
@@ -611,7 +615,8 @@ def _do_mc(it_ant):
     return m if (m.get("tp") or m.get("parcelas")) else None
 
 
-def rodada(leitor, aud, alvo):
+def rodada(leitor, aud, alvo, relogio=time.monotonic):
+    t0 = relogio()
     ant = (aud.get("anexos") or {}).get("itens") or {}
     agora = dt.datetime.now(dt.timezone.utc)
     lim_rechecar = (HOJE - dt.timedelta(days=RECHECAR_DIAS)).isoformat()
@@ -648,9 +653,13 @@ def rodada(leitor, aud, alvo):
         if int(idl) not in alvo:
             apagar += [a["p"] for a in it.get("a", []) if a.get("p")]
     vao_set = set(vao)
+    no_tempo = True
     for idl in ordem:
         it_ant = ant.get(str(idl))
-        if idl not in vao_set or mb >= MAX_MB_RODADA:
+        if no_tempo and (relogio() - t0) / 60 >= MAX_MIN:
+            no_tempo = False
+            log(f"  tempo da rodada ({MAX_MIN:.0f} min) acabou depois de {consultados} lançamento(s) — o resto fica para a próxima")
+        if idl not in vao_set or mb >= MAX_MB_RODADA or not no_tempo:
             if it_ant:
                 itens[str(idl)] = renovar(leitor, it_ant, agora) if it_ant.get("a") else it_ant
                 renovados += 1 if it_ant.get("a") else 0

@@ -306,3 +306,18 @@ def test_segunda_rodada_lembra_o_mc_e_nao_le_a_lista_de_novo(monkeypatch):
     itens2, est2 = ra.rodada(leitor2, aud, alvo)
     assert not [p for p in erp2.pedidos if p[0] == "/payable-installments/paginated-result"]   # a lista não foi lida
     assert est2["lidos"] == 1 and itens2["101"]["a"] and itens2["101"]["mc"]["tp"] == ErpFalso.UU % 151
+
+
+def test_tempo_da_rodada_acaba_e_grava_o_que_leu(monkeypatch):
+    """04/11: a 1ª rodada passou dos 40 min e foi cortada sem gravar. Com o tempo acabado, para de abrir e devolve o
+    que já leu (o main grava)."""
+    monkeypatch.setattr(ra, "sb_subir", lambda *a: None)
+    monkeypatch.setattr(ra, "sb_apagar", lambda c: None)
+    t = [0.0]
+
+    def relogio():
+        t[0] += 60 * 30                  # cada olhada no relógio = 30 min
+        return t[0]
+    leitor = ra.LeitorMC(ErpFalso(validade=604800))
+    itens, est = ra.rodada(leitor, aud_falsa(), {101: D(5)}, relogio=relogio)
+    assert est["consultados"] == 0 and "101" not in itens
