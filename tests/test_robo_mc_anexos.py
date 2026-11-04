@@ -200,3 +200,37 @@ def test_casa_pela_data_e_valor_quando_a_lista_nao_tem_o_numero():
     assert mapa[202]["tp"] == ErpFalso.UU % 999            # "outra coisa" desempatou com a descrição
     assert 303 not in mapa or mapa[303]["tp"] == ErpFalso.UU % 353
     assert leitor.campo_num is None and leitor.casados >= 2
+
+
+def test_datas_da_lista_em_texto_viram_iso_e_a_janela_e_a_do_escopo():
+    """04/11 (3ª descoberta): 8 páginas lidas e 0 casados — a lista vem como texto e em ordem de data, e a janela
+    larga (210 dias) gastava as páginas com parcelas mais velhas que o escopo."""
+    assert ra._data_iso("2026-10-05T00:00:00") == "2026-10-05"
+    assert ra._data_iso("05/10/2026") == "2026-10-05" and ra._data_iso("") == "" and ra._data_iso(None) == ""
+    assert ra._mascara("1.234,56") == "9.999,99" and ra._mascara(None) == "vazio"
+
+    class ErpTexto(ErpListaSemNumero):
+        def pedir(self, metodo, caminho, corpo=None, params=None):
+            r = ErpListaSemNumero.pedir(self, metodo, caminho, corpo, params)
+            if caminho == "/payable-installments/paginated-result":
+                for it in r.get("content") or []:
+                    for k in ("plannedDate", "dateOfPayment"):
+                        if it.get(k):
+                            y, m, d = it[k][:10].split("-")
+                            it[k] = "%s/%s/%s" % (d, m, y)
+                    it["sumOfPaidValues"] = ("%.2f" % it["sumOfPaidValues"]).replace(".", ",")
+            return r
+
+    aud = {"dict": {"st": ["OK", "DIVERGENTE"]},
+           "cols": {"id": [101, 303], "dp": [D(5), D(10)], "dv": [D(5), D(10)], "st": [1, 1],
+                    "v": [10.0, 25.5], "vp": [10.0, 25.5], "d": ["AREIA", "Cimento CP-II"], "nd": ["", ""]},
+           "fiscal": []}
+    alvo = ra.escolher(aud)
+    erp = ErpTexto()
+    leitor = ra.LeitorMC(erp)
+    leitor.preparar_casamento(aud, alvo)
+    assert leitor.janela[0] < min(D(5), D(10)) and max(D(5), D(10)) < leitor.janela[1]
+    mapa, _ = leitor.mapear(alvo, max_paginas=2)
+    assert mapa[101]["tp"] == ErpFalso.UU % 151
+    q = erp.pedidos[0][1]
+    assert q["startDate"] == [leitor.janela[0]] and q["endDate"] == [leitor.janela[1]]
