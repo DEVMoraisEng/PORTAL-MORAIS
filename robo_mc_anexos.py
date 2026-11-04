@@ -615,6 +615,28 @@ def _do_mc(it_ant):
     return m if (m.get("tp") or m.get("parcelas")) else None
 
 
+#: 04/11 (rodada das 17:12): a lista do MC levou quase os 25 min inteiros e só deu tempo de abrir 23 lançamentos; os
+#: 657 achados na lista eram jogados fora e a próxima rodada lia a lista de novo, sem sair do lugar. Agora o que a
+#: lista achou fica guardado (item sem "v" = achado e ainda não aberto) e quem NÃO foi achado só é procurado de novo
+#: depois de REPROCURAR_DIAS.
+REPROCURAR_DIAS = int(os.environ.get("ANEXOS_REPROCURAR_DIAS") or 3)
+
+
+def _pendente(it_ant) -> bool:
+    """Já está na memória mas ainda não foi aberto (achado na lista, ou procurado e não achado)."""
+    return bool(it_ant) and not it_ant.get("v")
+
+
+def _procurar_de_novo(it_ant, hoje: dt.date) -> bool:
+    na = (it_ant or {}).get("nao_achado")
+    if not na:
+        return True
+    try:
+        return (hoje - dt.date.fromisoformat(na[:10])).days >= REPROCURAR_DIAS
+    except ValueError:
+        return True
+
+
 def rodada(leitor, aud, alvo, relogio=time.monotonic):
     t0 = relogio()
     ant = (aud.get("anexos") or {}).get("itens") or {}
@@ -627,9 +649,9 @@ def rodada(leitor, aud, alvo, relogio=time.monotonic):
     vao = []
     for idl in ordem:
         it_ant = ant.get(str(idl))
-        if (it_ant is None or alvo[idl] >= lim_rechecar) and len(vao) < MAX_ITENS:
+        if (it_ant is None or _pendente(it_ant) or alvo[idl] >= lim_rechecar) and len(vao) < MAX_ITENS:
             vao.append(idl)
-    sem_mc = {i: alvo[i] for i in vao if not _do_mc(ant.get(str(i)))}
+    sem_mc = {i: alvo[i] for i in vao if not _do_mc(ant.get(str(i))) and _procurar_de_novo(ant.get(str(i)), HOJE)}
     mapa, primeira = {}, None
     if sem_mc:
         leitor.preparar_casamento(aud, sem_mc)
@@ -659,7 +681,22 @@ def rodada(leitor, aud, alvo, relogio=time.monotonic):
         if no_tempo and (relogio() - t0) / 60 >= MAX_MIN:
             no_tempo = False
             log(f"  tempo da rodada ({MAX_MIN:.0f} min) acabou depois de {consultados} lançamento(s) — o resto fica para a próxima")
+        achado = mapa.get(idl)
+        if idl in vao_set and not achado and not _do_mc(it_ant):
+            # procurado e não achado na lista (ou ainda esperando os REPROCURAR_DIAS): guarda o dia e segue
+            novo = dict(it_ant or {})
+            if idl in sem_mc:
+                novo["nao_achado"] = HOJE.isoformat()
+            itens[str(idl)] = novo
+            continue
         if idl not in vao_set or mb >= MAX_MB_RODADA or not no_tempo:
+            if achado and _pendente(it_ant) or (achado and it_ant is None):
+                # achado na lista e sem tempo de abrir agora: a próxima rodada abre sem ler a lista de novo
+                novo = dict(it_ant or {})
+                novo.pop("nao_achado", None)
+                novo["mc"] = {"tp": achado.get("tp"), "parcelas": list(achado.get("parcelas") or [])[:6]}
+                itens[str(idl)] = novo
+                continue
             if it_ant:
                 itens[str(idl)] = renovar(leitor, it_ant, agora) if it_ant.get("a") else it_ant
                 renovados += 1 if it_ant.get("a") else 0
@@ -716,7 +753,9 @@ def rodada(leitor, aud, alvo, relogio=time.monotonic):
         itens[str(idl)] = {"v": agora.isoformat(timespec="minutes"), "a": lista,
                            "mc": {"tp": tp_lido or info.get("tp"), "parcelas": list(info.get("parcelas") or [])[:6]}}
     sb_apagar(apagar)
-    return itens, {"consultados": consultados, "lidos": consultados - erros_lanc[0], "copiados": copiados, "mb": round(mb, 1),
+    return itens, {"a_abrir": sum(1 for x in itens.values() if not x.get("v") and x.get("mc")),
+                   "nao_achados": sum(1 for x in itens.values() if not x.get("v") and x.get("nao_achado")),
+                   "consultados": consultados, "lidos": consultados - erros_lanc[0], "copiados": copiados, "mb": round(mb, 1),
                    "erros": erros, "renovados": renovados, "apagados": len(apagar), "achados_no_mc": len(mapa),
                    "chamadas": leitor.chamadas}
 

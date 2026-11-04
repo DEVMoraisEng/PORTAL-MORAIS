@@ -320,4 +320,27 @@ def test_tempo_da_rodada_acaba_e_grava_o_que_leu(monkeypatch):
         return t[0]
     leitor = ra.LeitorMC(ErpFalso(validade=604800))
     itens, est = ra.rodada(leitor, aud_falsa(), {101: D(5)}, relogio=relogio)
-    assert est["consultados"] == 0 and "101" not in itens
+    assert est["consultados"] == 0
+    # 04/11 (17:12): o que a lista achou fica guardado para a próxima abrir sem ler a lista de novo
+    assert not itens["101"].get("v") and itens["101"]["mc"]["parcelas"] and est["a_abrir"] == 1
+    aud = dict(aud_falsa(), anexos={"itens": itens})
+    erp2 = ErpFalso(validade=604800)
+    itens2, est2 = ra.rodada(ra.LeitorMC(erp2), aud, {101: D(5)})
+    assert not [x for x in erp2.pedidos if x[0] == "/payable-installments/paginated-result"]
+    assert itens2["101"]["v"] and itens2["101"]["a"] and est2["a_abrir"] == 0
+
+
+def test_nao_achado_so_e_procurado_de_novo_depois_de_uns_dias(monkeypatch):
+    monkeypatch.setattr(ra, "sb_subir", lambda *a: None)
+    monkeypatch.setattr(ra, "sb_apagar", lambda c: None)
+    alvo = {101: D(5), 777: D(5)}
+    itens, est = ra.rodada(ra.LeitorMC(ErpFalso()), aud_falsa(), alvo)
+    assert itens["777"]["nao_achado"] == ra.HOJE.isoformat() and est["erros"] == 0 and est["nao_achados"] == 1
+    erp2 = ErpFalso()
+    itens2, _ = ra.rodada(ra.LeitorMC(erp2), dict(aud_falsa(), anexos={"itens": itens}), alvo)
+    assert not [x for x in erp2.pedidos if x[0] == "/payable-installments/paginated-result"]
+    assert itens2["777"]["nao_achado"] == ra.HOJE.isoformat()
+    velho = dict(itens2, **{"777": {"nao_achado": (ra.HOJE - dt.timedelta(days=ra.REPROCURAR_DIAS)).isoformat()}})
+    erp3 = ErpFalso()
+    ra.rodada(ra.LeitorMC(erp3), dict(aud_falsa(), anexos={"itens": velho}), alvo)
+    assert [x for x in erp3.pedidos if x[0] == "/payable-installments/paginated-result"]

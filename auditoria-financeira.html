@@ -885,7 +885,7 @@ function afAnexosHtml(i,compacto){ return afAnexosId(AF_C.id[i],compacto); }
 function afAnexosId(id,compacto){
   const A=((AF_D&&AF_D.anexos)||{}).itens;
   if(!A) return compacto?"":`<div class="small muted" style="margin:0 0 12px">📎 Anexos do Mais Controle: o robô do servidor ainda não fez a primeira leitura. Assim que rodar, os arquivos (boleto, NF, recibo, comprovante) aparecem aqui e na lista.</div>`;
-  const it=A[String(id)]; if(!it) return compacto?"":`<div class="small muted" style="margin:0 0 12px">📎 Anexos: este pagamento ainda não foi lido do Mais Controle (o robô lê os pagamentos com alerta dos últimos ${(AF_D.anexos||{}).dias||90} dias).</div>`;
+  const it=A[String(id)]; if(!it||!it.v) return compacto?"":`<div class="small muted" style="margin:0 0 12px">📎 Anexos: este pagamento ainda não foi lido do Mais Controle (o robô lê os pagamentos com alerta dos últimos ${(AF_D.anexos||{}).dias||90} dias).</div>`;
   const ls=it.a||[], agora=new Date().toISOString().slice(0,16);
   if(!ls.length) return compacto?`<div class="small anx0">📎 sem anexo no Mais Controle</div>`:`<div class="callout r" style="margin:0 0 12px"><h4>📎 Anexos</h4><p>Nenhum arquivo neste lançamento nem no pagamento, no Mais Controle${it.v?` (lido em ${fD(it.v.slice(0,10))})`:""}.</p></div>`;
   const lk=a=>{ const venc=a.x&&a.x<agora; return venc||!a.u?`<span class="anx venc" title="Link vencido — o robô renova na próxima rodada">📎 ${esc(afAnexoTipo(a))}</span>`:`<a class="anx" href="${esc(a.u)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${esc(a.n||"")}">📎 ${esc(afAnexoTipo(a))}</a>`; };
