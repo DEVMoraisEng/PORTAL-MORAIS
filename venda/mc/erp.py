@@ -286,6 +286,13 @@ class ErpPeloPorteiro(Erp):
         self.user_id, self.ou_id = str(leg.get("user-id") or ""), str(leg.get("organization-unit-id") or "")
         self.jwt = sem(core.get("authorization"))
 
+    def pedido_da_tela(self, trecho: str, espera: float = 20.0) -> str | None:
+        """03/11: URL do pedido que a própria tela do porteiro fez (ver AbaPorteiro.pedido_da_tela)."""
+        if not self.token:
+            self.logar()
+        f = getattr(self._aba, "pedido_da_tela", None)
+        return f(trecho, espera) if f else None
+
     def fechar(self) -> None:
         """Fecha a aba deste robô (o Chrome do porteiro continua aberto e logado)."""
         if self._aba is not None:
