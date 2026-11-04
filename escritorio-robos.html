@@ -446,7 +446,10 @@ function montarRobos(D) {
   const robos = [...mapa.values()].map(r => {
     const cat = catDe(r.chave, (r.tarefas[0] || {}).titulo);
     const ult = r.rodadas[0] || null;
-    const rodando = r.tarefas.some(t => t.estado === "trabalhando");
+    /* 04/11: o servidor diz quem está no Mais Controle agora — também o que foi rodado por um .bat, que o
+       Agendador não mostra (o anexos das 17:12 aparecia "deu errado" com a rodada nova no meio) */
+    const agoraR = (D.rodando || {})[r.chave];
+    const rodando = r.tarefas.some(t => t.estado === "trabalhando") || !!agoraR;
     const desligado = r.tarefas.length && r.tarefas.every(t => t.estado === "desligada");
     const proximas = r.tarefas.map(t => t.proxima).filter(Boolean).sort();
     const res = r.tarefas.map(t => t.resultado).filter(x => x != null);
@@ -486,7 +489,10 @@ function montarRobos(D) {
     else if (desligado) { st = "off"; stTexto = "desligado"; }
     else if (ult) { st = ult.ok ? "ok" : "erro"; stTexto = ult.ok ? "deu certo" : "deu errado"; stHora = quando(ult.inicio); }
     else if (res.length) { st = resRuim ? "erro" : "ok"; stTexto = resRuim ? "deu errado" : "deu certo"; stHora = quando(r.tarefas[0].ultima); }
-    if (rodando && r.chave !== "porteiro" && r.chave !== "fila") { st = "trab"; stTexto = "trabalhando"; }
+    if (rodando && r.chave !== "porteiro" && r.chave !== "fila") {
+      st = "trab"; stTexto = agoraR && agoraR.fase === "esperando a vez" ? "esperando a vez no Mais Controle" : "trabalhando";
+      if (agoraR && agoraR.desde) stHora = "desde " + hhmm(dataDe(agoraR.desde));
+    }
     if (st === "sem" && !r.tarefas.length && !r.rodadas.length && r.chave !== "porteiro" && r.chave !== "fila") { st = "off"; stTexto = "sem tarefa agendada"; }
     const noPlano = plAtivo && PL.fila.find(i => i.chave === r.chave && (i.estado === "esperando" || i.estado === "rodando"));
     if (noPlano && noPlano.estado === "esperando" && st !== "trab") { st = "pedido"; stTexto = "na fila do coordenador (" + (PL.fila.indexOf(noPlano) + 1) + "º)"; }
@@ -534,11 +540,19 @@ const CAT_AGUA = {
 };
 const ORDEM_AGUA = ["coletor", "cadastro", "notion", "filas", "equatorial", "sanesc", "lancar", "contas", "recorrencias", "email"];
 const PASSOS_AGUA = ["notion", "filas", "equatorial", "sanesc", "lancar", "contas", "recorrencias"];
-function estadoEmail(x) { const e = String((x && x.email) || ""); return /NÃO enviado|nao enviado/i.test(e) ? "erro" : /enviado/i.test(e) ? "ok" : "off"; }
+function estadoEmail(x) {
+  if (x && x.email_enviado) return "ok";        // 04/11: saiu (na rodada ou no reenvio das 10:00/14:00)
+  const e = String((x && x.email) || ""); return /NÃO enviado|nao enviado/i.test(e) ? "erro" : /enviado/i.test(e) ? "ok" : "off";
+}
+function textoEmail(x) {
+  const e = String((x && x.email) || "");
+  if (x && x.email_enviado) return /NÃO enviado|nao enviado/i.test(e) ? "enviado depois, pela tarefa de reenvio (na rodada: " + e + ")" : (e || "e-mail enviado");
+  return e || "a rodada não escreveu nada sobre o e-mail";
+}
 function estadoAgua(k, x) {
   if (!x) return { st: "off", texto: "" };
   if (PASSOS_AGUA.includes(k)) return (x.estados || {})[k] || { st: "off", texto: "não rodou nesta rodada" };
-  if (k === "email") return { st: estadoEmail(x), texto: x.email || "a rodada não escreveu nada sobre o e-mail" };
+  if (k === "email") return { st: estadoEmail(x), texto: textoEmail(x) };
   if (k === "cadastro") {
     const d = (x.duplicados || []).length, p = (x.problemas || []).length;
     return { st: d ? "erro" : "ok", texto: d ? d + " linha(s) repetida(s) no Notion" + (p ? " · " + p + " pendência(s) de cadastro" : "") : p ? p + " pendência(s) de cadastro" : "base sem pendências" };
@@ -685,7 +699,7 @@ function relatorioAgua(x) {
   if ((x.alertas || []).length) h += `<h4>Alertas da rodada</h4><ul>${x.alertas.map(a => `<li>${esc(a)}</li>`).join("")}</ul>`;
   h += `<h4>Passo a passo</h4><div class="tbl"><table class="passos">${PASSOS_AGUA.map(k => { const e = (x.estados || {})[k] || { st: "off", texto: "" };
     return `<tr><td>${esc(CAT_AGUA[k].ico)} ${esc(CAT_AGUA[k].nome)}</td><td>${seloAgua(e.st)}</td><td class="txt">${esc(e.texto)}</td></tr>`; }).join("")}
-    <tr><td>${esc(CAT_AGUA.email.ico)} E-mail</td><td>${seloAgua(estadoEmail(x))}</td><td class="txt">${esc(x.email || "")}</td></tr></table></div>`;
+    <tr><td>${esc(CAT_AGUA.email.ico)} E-mail</td><td>${seloAgua(estadoEmail(x))}</td><td class="txt">${esc(textoEmail(x))}</td></tr></table></div>`;
   const dup = x.duplicados || [], prob = x.problemas || [];
   if (dup.length || prob.length) h += `<h4>Cadastro no Notion</h4><p class="meta" style="margin-top:0">${dup.length} repetida(s) · ${prob.length} pendência(s) — detalhes na mesa “Cadastro no Notion”.</p>`;
   h += pdfHtml(x);

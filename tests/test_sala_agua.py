@@ -171,3 +171,10 @@ def test_pendencias_casa_a_casa_pelas_regras_do_robo(tmp_path):
     d = sala["duplicadas"]
     assert len(d) == 1 and d[0]["tipo"] == "casa" and d[0]["obra"] == "XX 01 QD 01 LT 01 CS 1" and len(d[0]["notion"]) == 2
     assert sala["rodadas"][0]["conc"] == {} or isinstance(sala["rodadas"][0]["conc"], dict)
+
+
+def test_email_reenviado_conta_como_enviado(tmp_path):
+    pasta = _pasta(tmp_path)
+    (pasta / "relatorios" / "emails_enviados.txt").write_text("rodada_2026-11-04_0730.txt\n", encoding="utf-8")
+    sala = A.montar_sala(pasta, hoje=dt.date(2026, 11, 4))
+    assert sala["rodadas"][0]["email_enviado"] is True and sala["rodadas"][1]["email_enviado"] is False

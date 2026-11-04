@@ -172,3 +172,15 @@ def test_horarios_do_dia_pelos_gatilhos():
     assert E.horarios_do_dia(dois, dt.date(2026, 11, 4)) == ["05:20", "12:20"]
     t = E.montar_tarefas([{"nome": "MoraisEng - Robo bases", "acoes": ["--robo bases"], "gatilhos": diario}])[0]
     assert t["gat"][0]["inicio"] == "2026-10-29T06:23:00"
+
+
+def test_rodando_agora_ignora_marca_velha_e_processo_morto(tmp_path):
+    import datetime as _dt
+    import json as _json
+    import escritorio_robos as ER
+    agora = _dt.datetime(2026, 11, 4, 20, 30, tzinfo=_dt.timezone.utc)
+    (tmp_path / "anexos.json").write_text(_json.dumps({"fase": "trabalhando", "pid": 1, "desde": "2026-11-04T20:12:00+00:00"}))
+    (tmp_path / "medicoes.json").write_text(_json.dumps({"fase": "esperando a vez", "pid": 2, "desde": "2026-11-04T20:20:00+00:00"}))
+    (tmp_path / "velho.json").write_text(_json.dumps({"fase": "trabalhando", "pid": 1, "desde": "2026-11-04T10:00:00+00:00"}))
+    r = ER.rodando_agora(tmp_path, agora, vivo=lambda pid: pid == 1)
+    assert set(r) == {"anexos"} and r["anexos"]["fase"] == "trabalhando"
