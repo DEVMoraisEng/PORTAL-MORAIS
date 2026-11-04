@@ -21,6 +21,8 @@
  *                      tarefa agendada com schtasks /Run — a MESMA rodada do
  *                      horário (relatório, e-mail e escritório). Só ADM e
  *                      MASTER; nunca o porteiro nem a fila.
+ *   escritorioPdf      (e3, 04/11) link de 15 min do PDF de uma rodada (o mesmo
+ *                      do e-mail), que o servidor sobe para robos/pdf/AAAA-MM/
  *   escritorioVersao   diagnóstico
  * Acesso: "ESCRITÓRIO DE ROBÔS" na coluna ACESSOS do LOGINS (ADM, MASTER e
  * TESTES veem sempre). Ver não grava nada; o Rodar de novo só cria a linha
@@ -35,23 +37,45 @@
  *   4) Propriedade do Script DB_FILA_ROBO = id da base FILA DO ROBÔ de
  *      PRODUÇÃO (a mesma "db_fila" da fila "producao" no robos-portal.json
  *      do servidor). Sem ela o botão Rodar de novo avisa FILA_NAO_CONFIGURADA.
- *   Teste: na página, o rodapé mostra "Apps Script e2".
+ *   Teste: na página, o rodapé mostra "Apps Script e3".
  *************************************************************************/
 
-var ESC_VERSAO = "2026-11-03 e2";
+var ESC_VERSAO = "2026-11-04 e3";
 var ESC_BUCKET = "analise";
 var ESC_CAMINHO = "robos/escritorio.json";
 var ESC_ACESSO = "ESCRITÓRIO DE ROBÔS";
 
 function escRotear_(action, sess, p) {
   if (action === "escritorioVersao") return { ok: true, versao: ESC_VERSAO };
-  if (action !== "escritorioBoot" && action !== "escritorioRodar") return null;
+  if (action !== "escritorioBoot" && action !== "escritorioRodar" && action !== "escritorioPdf") return null;
   if (!temAcesso_(sess, ESC_ACESSO)) {
     console.log("BLOQUEADO por falta de acesso " + ESC_ACESSO + ": " + sess.u + " -> " + action);
     return { ok: false, erro: "SEM_PERMISSAO" };
   }
   if (action === "escritorioRodar") return escRodar_(sess, p);
+  if (action === "escritorioPdf") return escPdf_(p);
   return escBoot_();
+}
+
+/* PDF de uma rodada: só caminhos robos/pdf/AAAA-MM/AAAA-MM-DD_HHMM_<robô>_ok|FALHOU.pdf */
+function escPdf_(p) {
+  var caminho = String((p && p.caminho) || "");
+  if (!/^robos\/pdf\/\d{4}-\d\d\/\d{4}-\d\d-\d\d_\d{4}_[0-9a-z-]{1,40}_(ok|FALHOU)\.pdf$/.test(caminho)) return { ok: false, erro: "PDF_INVALIDO" };
+  var url = escAssinar_(caminho, 900);
+  return url ? { ok: true, url: url } : { ok: false, erro: "PDF_NAO_ACHADO" };
+}
+
+function escAssinar_(caminho, segundos) {
+  var cfg = supaCfg_();
+  var resp = UrlFetchApp.fetch(cfg.url + "/storage/v1/object/sign/" + ESC_BUCKET + "/" + caminho, {
+    method: "post", muteHttpExceptions: true, contentType: "application/json",
+    headers: { apikey: cfg.key, Authorization: "Bearer " + cfg.key },
+    payload: JSON.stringify({ expiresIn: segundos })
+  });
+  if (resp.getResponseCode() >= 300) return "";
+  var j = JSON.parse(resp.getContentText() || "{}"), rel = j.signedURL || j.signedUrl || "";
+  if (!rel) return "";
+  return /^https?:/.test(rel) ? rel : cfg.url + "/storage/v1" + (rel.charAt(0) === "/" ? "" : "/") + rel;
 }
 
 /* Nome de tarefa que o servidor aceita (o robo_fila.py confere de novo, do lado de lá). */
