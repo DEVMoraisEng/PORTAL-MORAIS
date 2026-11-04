@@ -1220,7 +1220,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 <script src="venda/quadro-fluxo.js?v=1"></script><!-- 31/10: quadro do pro soluto segue o fluxo alterado -->
 <script src="venda/Antecipacao.js?v=1"></script><!-- 31/10: Antecipação — a conta roda no navegador -->
 <script src="venda-dossie.js?v=68"></script>
-<script src="venda/contrato-vendida.js?v=3"></script>
+<script src="venda/contrato-vendida.js?v=4"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele.
    Mesma chave (morais_tema) das outras páginas do portal. */
@@ -3727,9 +3727,11 @@ async function recarregarCamposCasa(pageId){
   cabecalhoObra(V); renderPainel(V,pageId,false);
   if(body) body.scrollTop=topo;
 }
-/* 31/10/2026 (dono): contrato do condomínio ENVIADO/ASSINADO = proposta VENDIDA e unidade VENDIDA = SIM.
+/* 31/10/2026 (dono): contrato do condomínio ENVIADO/ASSINADO = proposta VENDIDA.
+   04/11/2026 (dono): no MAPA a casa fica RESERVADA enquanto está no banco de vendas e só vira VENDIDA quando a
+   ETAPA fica Concluída (assinaturas concluídas e venda lançada no Mais Controle).
    A regra mora em venda/contrato-vendida.js (a aba Propostas usa a mesma). Aqui: ao enviar/abrir o cartão
-   (evento "venda:contrato-enviado" do venda-dossie.js) e numa varredura depois de carregar a planilha. */
+   (evento "venda:contrato-enviado" do venda-dossie.js) e numa varredura de todas as linhas depois de carregar a planilha. */
 function cdAvisoUnidade(id,tipo,txt){
   const semT=x=>String(x||"").replace(/-/g,"").toLowerCase();
   if(semT(COND_ABERTA)!==semT(id)) return;
@@ -3738,9 +3740,9 @@ function cdAvisoUnidade(id,tipo,txt){
   if(!d){ d=document.createElement("div"); d.id="cd-un-aviso"; alvo.parentNode.insertBefore(d,alvo); }
   d.className=tipo==="ok"?"cd-aviso":"cd-falta"; d.style.margin="6px 0"; d.innerHTML=txt;
 }
-function condMarcarVendidaFila(ids){
+function condMarcarVendidaFila(ids, extra){
   if(!window.ContratoVendida||!COND) return;
-  return ContratoVendida.rodar(COND.linhas, COND.titulo, ids, { chamar: chamar, aviso: cdAvisoUnidade });
+  return ContratoVendida.rodar(COND.linhas, COND.titulo, ids, Object.assign({ chamar: chamar, aviso: cdAvisoUnidade }, extra||{}));
 }
 function condVarrerContratosEnviados(){
   if(!window.ContratoVendida||!COND||!COND.linhas) return;
@@ -3749,7 +3751,10 @@ function condVarrerContratosEnviados(){
 }
 window.addEventListener("venda:contrato-enviado", ev=>{
   const id=ev && ev.detail && ev.detail.pageId;
-  if(id) condMarcarVendidaFila([String(id)]);
+  /* contrato final gerado/enviado: proposta VENDIDA; o mapa confere de novo (o servidor põe SIM na unidade) */
+  if(!id) return;
+  const gerado=ev.detail.situacao==="GERADO";   /* só quando o contrato final acabou de ser gerado: de novo, mesmo já conferida */
+  condMarcarVendidaFila([String(id)], gerado ? { proposta: true, forcar: true } : null);
 });
 window.addEventListener("venda:dados-gravados", ev=>{
   const id=ev && ev.detail && ev.detail.pageId;
