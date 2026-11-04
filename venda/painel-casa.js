@@ -13,7 +13,11 @@
   var OCULTOS = ["ASSINATURA - ENVELOPE ID", "ASSINATURA - SITUAÇÃO", "CONDOMÍNIO - VENDA ID", "MC - DISTRATO", "MC - SITUAÇÃO",
                  "MC - VENDA ID", "DOSSIÊ IMÓVEL - OBSERVAÇÃO", "CONTRATO GERADO", "CONTRATO ASSINADO",
                  /* a data da comissão saiu da tela e do contrato (dono, 08/10) */
-                 "CONTRATO - COMISSÃO VENCIMENTO"];
+                 "CONTRATO - COMISSÃO VENCIMENTO",
+                 /* 04/11/2026 (dono): o contrato tira o prazo de conclusão da DATA DA ENTREGA (decisão 08/10); esta coluna não é lida */
+                 "CONTRATO - PRAZO DE CONCLUSÃO DAS OBRAS",
+                 /* 04/11/2026 (dono): situação e observação do dossiê já aparecem no bloco do dossiê (etiqueta + histórico) */
+                 "DOSSIÊ", "DOSSIÊ IMÓVEL", "DOSSIÊ - OBSERVAÇÃO DO COMPRADOR"];
   /* RECEBIMENTO - * (data, comprovante, quem confirmou): moram no bloco Recebimentos */
   var PREFIXOS_OCULTOS = ["RECEBIMENTO - "];
   var OCULTOS_N = OCULTOS.map(norm), PREFIXOS_N = PREFIXOS_OCULTOS.map(norm);

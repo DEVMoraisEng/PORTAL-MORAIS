@@ -111,10 +111,8 @@
       }
       h += linhaDoc(d, n, e, ui, travado, extra);
     });
-    h += '<div class="dz-linha"><span class="dz-rot">Dossiê: <b>' + esc(e.dossie || "—") + "</b></span>" +
-      '<button type="button" class="bt bt-mini" data-acao="conferir"' + dis(travado || ocupado || testes) + ">Marcar conferido</button> " +
-      '<button type="button" class="bt ghost bt-mini" data-acao="devolver"' + dis(travado || ocupado || testes) + ">Devolver</button></div>";
-    if (e.observacao) h += "<pre>" + esc(e.observacao) + "</pre>";
+    h += htmlSituacao("Dossiê do comprador", e.dossie, "", dis(travado || ocupado || testes));
+    h += htmlObservacao(e.observacao);
     if (ui.msg && (ui.msgGrupo || "comprador") === "comprador") h += '<div class="dz-msg">' + esc(ui.msg) + "</div>";
     return h + htmlImovel(e, ui);
   }
@@ -321,6 +319,38 @@
     return Number(n).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " m²";
   }
   /* os dados do contrato já gravados na casa (só os preenchidos) */
+  /* 04/11/2026 (dono, "horrível isso aqui, organize"): a situação do dossiê numa etiqueta colorida com os botões ao
+     lado; o histórico da leitura recolhido (só o que pede atenção fica aberto) e cada linha enxuta. */
+  function classeSituacao(v) {
+    var n = String(v || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
+    if (/CONFERIDO$/.test(n) && !/CONFERIR/.test(n)) return "ok";
+    if (/FALTA|DEVOLVID/.test(n)) return "falta";
+    if (/CONFERIR|LIDO/.test(n)) return "novo";
+    return "nada";
+  }
+  function htmlSituacao(rotulo, valor, grupo, dis) {
+    var g = grupo ? ' data-grupo="' + grupo + '"' : "";
+    return '<div class="dz-linha dz-situacao"><span class="dz-rot">' + esc(rotulo) + ': <b class="dz-selo dz-selo-' + classeSituacao(valor) + '">' +
+      esc(valor || "—") + "</b></span>" +
+      '<span class="dz-acoes"><button type="button" class="bt bt-mini" data-acao="conferir"' + g + dis + ">Marcar conferido</button> " +
+      '<button type="button" class="bt ghost bt-mini" data-acao="devolver"' + g + dis + ">Devolver</button></span></div>";
+  }
+  var RE_ATENCAO = /conferir|n[ãa]o parece|nada foi|falhou|diferente|n[ãa]o bate|ileg[íi]vel|vencid/i;
+  function linhasObservacao(texto) {
+    return String(texto || "").split(/\r?\n/).map(function (l) { return l.trim(); }).filter(Boolean).map(function (l) {
+      var m = /^\[([^\]]+)\]\s*([\s\S]*)$/.exec(l), quem = m ? m[1] : "", txt = m ? m[2] : l;
+      txt = txt.replace(/o campo (CONTRATO - )?(.+?) foi atualizado pelo documento mais recente/i, function (_, a, c) { return c + " atualizado"; });
+      return { quem: quem, texto: txt, atencao: RE_ATENCAO.test(txt) };
+    });
+  }
+  function htmlObservacao(texto) {
+    var ls = linhasObservacao(texto);
+    if (!ls.length) return "";
+    var item = function (x) { return '<li' + (x.atencao ? ' class="dz-atencao"' : "") + ">" + esc(x.texto) + (x.quem ? ' <small>' + esc(x.quem) + "</small>" : "") + "</li>"; };
+    var at = ls.filter(function (x) { return x.atencao; });
+    return (at.length ? '<ul class="dz-obs dz-obs-at">' + at.map(item).join("") + "</ul>" : "") +
+      '<details class="dz-hist"><summary>Histórico da leitura (' + ls.length + ")</summary><ul class=\"dz-obs\">" + ls.map(item).join("") + "</ul></details>";
+  }
   function dadosImovel(d) {
     if (!d) return [];
     var alv = [d.alvaraNumero ? "nº " + d.alvaraNumero : "", d.alvaraData ? "de " + isoBR(d.alvaraData) : ""].filter(Boolean).join(" ");
@@ -355,15 +385,15 @@
       var n = Number((im.arquivos && im.arquivos[d.id]) || 0) || 0;
       h += linhaDoc(d, n, e, ui, travado, "");
     });
+    h += htmlSituacao("Dossiê do imóvel", im.dossie, "imovel", dis(travado || ocupado || testes));
     var dados = dadosImovel(im.dados);
-    if (dados.length) h += "<ul>" + dados.map(function (x) { return "<li>" + esc(x[0]) + ": " + esc(x[1]) + "</li>"; }).join("") + "</ul>";
-    h += '<div class="dz-linha"><span class="dz-rot">Dossiê do imóvel: <b>' + esc(im.dossie || "—") + "</b></span>" +
-      '<button type="button" class="bt bt-mini" data-acao="conferir" data-grupo="imovel"' + dis(travado || ocupado || testes) + ">Marcar conferido</button> " +
-      '<button type="button" class="bt ghost bt-mini" data-acao="devolver" data-grupo="imovel"' + dis(travado || ocupado || testes) + ">Devolver</button></div>";
-    if (im.observacao) h += "<pre>" + esc(im.observacao) + "</pre>";
+    /* 04/11: o que a IA leu numa tabela de duas colunas (rótulo · valor), não numa lista corrida */
+    if (dados.length) h += '<dl class="dz-dados">' + dados.map(function (x) { return "<dt>" + esc(x[0]) + "</dt><dd>" + esc(x[1]) + "</dd>"; }).join("") + "</dl>";
+    h += htmlObservacao(im.observacao);
     h += htmlLoteamento(ui.loteamento);
     if (ui.msg && ui.msgGrupo === "imovel") h += '<div class="dz-msg">' + esc(ui.msg) + "</div>";
-    return h + htmlLerTodos(e, ui, "imovel");
+    /* 04/11: o segundo "Ler documentos" (fim do imóvel) só aparece quando há o que ler; o do topo fica sempre */
+    return h + (pendentesDe(e).length || ui.msgGrupo === "lote-imovel" ? htmlLerTodos(e, ui, "imovel") : "");
   }
   /* entrega 13: depois de gravar no Notion, o painel da casa (vendas.html) recarrega os campos ao ouvir
      window "venda:dados-gravados" com detail { pageId, gravados? } (gravados: { coluna: valor } quando há) */
@@ -1418,7 +1448,16 @@
     /* 04/11: o que falta para gerar o contrato da casa, com a caixa do campo ali mesmo */
     ".vb-blocos .dz-faltas-venda{margin:8px 22px 4px;padding:10px 0 4px;border:1.5px solid #E67E22;border-radius:10px;background:rgba(230,126,34,.05)}" +
     ".vb-blocos .dz-faltas-venda>.dz-aviso{margin:0 14px 6px;font-weight:700}" +
-    "@media (max-width:600px){#dossie-wrap>.dz-doc .dz-acoes{width:100%;justify-content:flex-start}}";
+    "#dossie-wrap .dz-selo{display:inline-block;padding:2px 9px;border-radius:9px;font-size:12px;font-weight:800;letter-spacing:.2px;background:#eef2f4;color:#5a8099}" +
+    "#dossie-wrap .dz-selo-ok{background:#dff5e6;color:#1a6b40}#dossie-wrap .dz-selo-novo{background:#fff1d6;color:#8a5a00}#dossie-wrap .dz-selo-falta{background:#fde2e1;color:#a12a22}" +
+    "#dossie-wrap>.dz-situacao{margin:12px 22px 6px;padding:10px 12px;border:1.5px solid var(--border2,#d0e4ec);border-radius:10px;background:var(--sup,#fff)}" +
+    "#dossie-wrap .dz-dados{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;margin:6px 22px 8px;font-size:13px}" +
+    "#dossie-wrap .dz-dados dt{color:var(--text3,#5a8099);font-weight:700}#dossie-wrap .dz-dados dd{margin:0;overflow-wrap:anywhere}" +
+    "#dossie-wrap .dz-obs{margin:4px 0;padding-left:18px;font-size:12.5px}#dossie-wrap .dz-obs li{margin:2px 0}#dossie-wrap .dz-obs small{color:var(--text4,#8aacbb)}" +
+    "#dossie-wrap>.dz-obs-at{margin:6px 22px;padding:8px 12px 8px 30px;border-left:4px solid #E67E22;background:rgba(230,126,34,.07);border-radius:6px}" +
+    "#dossie-wrap .dz-atencao{color:#8a5a00;font-weight:600}" +
+    "#dossie-wrap>.dz-hist{margin:4px 22px 10px;font-size:12.5px;color:var(--text3,#5a8099)}#dossie-wrap>.dz-hist summary{cursor:pointer;font-weight:700}" +
+    "@media (max-width:600px){#dossie-wrap>.dz-doc .dz-acoes{width:100%;justify-content:flex-start}#dossie-wrap .dz-dados{grid-template-columns:1fr}#dossie-wrap .dz-dados dd{margin-bottom:6px}}";
   var estado = null, ui = { dois: false, ocupado: null, msg: "", testes: false }, paginaDoBloco = null;
 
   function obraAberta() { try { return OBRA_ABERTA; } catch (e) { return null; } }

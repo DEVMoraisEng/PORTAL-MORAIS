@@ -309,12 +309,12 @@ test("tela: seção Documentos do imóvel com os três espaços, dados gravados 
   const h = D.html(base, ui());
   assert.match(h, /Documentos do imóvel/);
   for (const id of ["IMOVEL_MATRICULA", "IMOVEL_ALVARA", "IMOVEL_HABITESE", "IMOVEL_CERTIDAO_MAE"]) assert.match(h, new RegExp('data-acao="anexar" data-espaco="' + id + '"'));
-  assert.match(h, /Matrícula: 98\.765/);
-  assert.match(h, /Área do lote: 360,50 m²/);
-  assert.match(h, /Alvará: nº A-1 de 15\/03\/2026/);
-  assert.doesNotMatch(h, /CRI:/);
+  assert.match(h, /<dt>Matrícula<\/dt><dd>98\.765</);   /* 04/11: tabela dt/dd */
+  assert.match(h, /<dt>Área do lote<\/dt><dd>360,50 m²</);
+  assert.match(h, /<dt>Alvará<\/dt><dd>nº A-1 de 15\/03\/2026</);
+  assert.doesNotMatch(h, /<dt>CRI</);
   assert.match(h, /data-acao="conferir" data-grupo="imovel"/);
-  assert.match(h, /Dossiê do imóvel: <b>FALTA DOCUMENTO/);
+  assert.match(h, /Dossiê do imóvel: <b class="dz-selo dz-selo-falta">FALTA DOCUMENTO/);
   assert.doesNotMatch(h.match(/<button[^>]*data-acao="reler"[^>]*data-espaco="IMOVEL_MATRICULA"[^>]*>/)[0], /disabled/);
   assert.doesNotMatch(h, /data-acao="reler"[^>]*data-espaco="IMOVEL_ALVARA"/);   /* 04/11: sem arquivo não aparece */
 });

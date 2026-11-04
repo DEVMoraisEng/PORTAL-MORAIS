@@ -81,3 +81,26 @@ test("vendas.html: PainelFaltaCampo não abre coluna protegida ainda não carreg
   assert.match(f, /semT\(OBRA_ABERTA\)!==semT\(PN_PAGE\)/);
   assert.match(vendas, /PN_V=V; PN_PAGE=pageId; PN_SENS=!!sensPendente;/);
 });
+
+test("prazo de conclusão das obras não aparece no painel (o contrato usa a DATA DA ENTREGA)", () => {
+  assert.equal(P.ocultoNoPainel("CONTRATO - PRAZO DE CONCLUSÃO DAS OBRAS"), true);
+  assert.equal(P.ocultoNoPainel("DATA DA ENTREGA"), false);
+  assert.deepEqual(P.colunasDaFalta("Imóvel: prazo previsto de conclusão das obras"), ["DATA DA ENTREGA"]);
+});
+
+test("dossiê: situação na etiqueta, dados em tabela e histórico recolhido com o que pede atenção à vista", () => {
+  const D2 = require("../../venda-dossie.js");
+  const h = D2.html({ tipoCasa: "CASA PRONTA", arquivos: {}, pendentes: [], dossie: "LIDO PELA IA – CONFERIR",
+    observacao: "[03/11 ana.teste] Comprovante do comprador 1: o arquivo não parece ser um comprovante de endereço — nada foi preenchido",
+    imovel: { arquivos: {}, dossie: "CONFERIDO", dados: { matricula: "1.234" },
+              observacao: "[04/11 ana.teste] Matrícula do imóvel: o campo CONTRATO - MATRÍCULA INDIVIDUAL foi atualizado pelo documento mais recente" } },
+    { dois: false, ocupado: null, msg: "" });
+  assert.match(h, /dz-selo dz-selo-novo">LIDO PELA IA – CONFERIR/);
+  assert.match(h, /dz-selo dz-selo-ok">CONFERIDO/);
+  assert.match(h, /<dt>Matrícula<\/dt><dd>1\.234<\/dd>/);
+  assert.match(h, /dz-obs-at[\s\S]*não parece ser um comprovante/, "o que pede atenção fica à vista");
+  assert.match(h, /Histórico da leitura \(1\)[\s\S]*MATRÍCULA INDIVIDUAL atualizado/, "linha enxuta");
+  assert.doesNotMatch(h, /<pre>/);
+  assert.equal((h.match(/data-acao="ler-todos"/g) || []).length, 1, "sem nada novo, só o Ler documentos do topo");
+  assert.equal(P.ocultoNoPainel("DOSSIÊ"), true);
+});

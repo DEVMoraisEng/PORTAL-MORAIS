@@ -74,7 +74,7 @@ test("painel da casa: colunas técnicas ocultas (com acento/caixa/espaço difere
                    "MC - VENDA ID", "DOSSIÊ IMÓVEL - OBSERVAÇÃO", "CONTRATO GERADO", "CONTRATO ASSINADO", "CONTRATO - COMISSÃO VENCIMENTO",
                    "RECEBIMENTO - SINAL COMPROVANTE", "RECEBIMENTO - FINANCIAMENTO POR"])
     assert.equal(P.ocultoNoPainel(n), true, n);
-  for (const n of ["CONTRATO - COMISSÃO FORMA", "DOSSIÊ IMÓVEL", "COMPRADOR 1 - DOCUMENTO", "RECEBEU?", "CONTRATO - SINAL VALOR"])
+  for (const n of ["CONTRATO - COMISSÃO FORMA", "COMPRADOR 1 - DOCUMENTO", "RECEBEU?", "CONTRATO - SINAL VALOR"])
     assert.equal(P.ocultoNoPainel(n), false, n);
 });
 
