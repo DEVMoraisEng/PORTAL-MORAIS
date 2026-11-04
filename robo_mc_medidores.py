@@ -222,6 +222,16 @@ def descobrir() -> int:
         except Exception:
             pass
     page.context.on("request", ouvir_tudo)
+    # 5ª descoberta (04/11): as listas de Compras vêm do GraphQL no AWS (…execute-api.us-east-1.amazonaws.com/prod/graphql)
+    gql = []
+
+    def ouvir_gql(resp):
+        try:
+            if "execute-api" in resp.url and "/graphql" in resp.url and len(gql) < 30:
+                gql.append(resp)
+        except Exception:
+            pass
+    page.context.on("response", ouvir_gql)
     try:
         for rota in ROTAS_COMPRAS:
             n0 = len(pedidos)
@@ -301,6 +311,45 @@ def descobrir() -> int:
             else:
                 extra = " · " + texto[:120].replace("\n", " ")
             log(f"tentativa GET legacy {cam.split('?')[0]} → HTTP {st}{extra}")
+        # 5ª descoberta: o GraphQL de Compras — operação, a CONSULTA (é o formato, não dado), variáveis (só a forma),
+        # nome dos cabeçalhos (nunca o valor) e o formato da resposta, com a solicitação de exemplo
+        log(f"GraphQL: {len(gql)} resposta(s)")
+        for resp in gql:
+            try:
+                req = resp.request
+                corpo = json.loads(req.post_data or "{}")
+            except Exception:
+                corpo = {}
+            ops = corpo if isinstance(corpo, list) else [corpo]
+            for op in ops:
+                if not isinstance(op, dict):
+                    continue
+                q = re.sub(r"\s+", " ", str(op.get("query") or ""))
+                log(f"— GraphQL {_host(resp.url).split('.')[0]} operação {op.get('operationName')!r} → HTTP {resp.status}")
+                log(f"   cabeçalhos do pedido: {sorted(k for k in (req.headers or {}) if not k.startswith(':'))}")
+                log(f"   consulta: {q[:1800]}")
+                vs = op.get("variables") or {}
+                log("   variáveis: " + ", ".join(f"{c}={_forma(v) if not c.endswith('[#]') else v}" for c, v in _achatar(vs)[:40]))
+            try:
+                j = resp.json()
+            except Exception as e:
+                log(f"   resposta ilegível ({type(e).__name__})")
+                continue
+            dados = (j or {}).get("data") if isinstance(j, dict) else None
+            if isinstance(j, dict) and j.get("errors"):
+                log(f"   errors: {str(j.get('errors'))[:300]}")
+            for nome, v in (dados or {}).items():
+                its = _lista(v) if isinstance(v, (dict, list)) else []
+                if isinstance(v, dict) and not its:
+                    its = next((x for x in v.values() if isinstance(x, list)), [])
+                log(f"   data.{nome}: {sorted(v.keys())[:20] if isinstance(v, dict) else type(v).__name__} · itens {len(its)}")
+                if its and isinstance(its[0], dict):
+                    log("   campos do 1º item: " + ", ".join(f"{c}={_forma(x) if not c.endswith('[#]') else x}" for c, x in _achatar(its[0])[:80]))
+                    ex = next((it for it in its if EXEMPLO and any(str(x) == EXEMPLO for _c, x in _achatar(it))), None)
+                    if ex is not None:
+                        log(f"   ★ {EXEMPLO} nesta resposta:")
+                        for c, x in _achatar(ex):
+                            log(f"      {c} = {x if c.endswith('[#]') else _mostrar(x, c)}")
         # 3ª descoberta: o que as telas RECEBERAM (qualquer host do MC), com a solicitação de exemplo
         log(f"respostas JSON recebidas pelas telas: {len(respostas)}")
         for metodo, url, st, resp in respostas:
