@@ -133,3 +133,63 @@ test("dossiê: situação na etiqueta, dados em tabela e histórico recolhido co
   assert.equal((h.match(/data-acao="ler-todos"/g) || []).length, 1, "sem nada novo, só o Ler documentos do topo");
   assert.equal(P.ocultoNoPainel("DOSSIÊ"), true);
 });
+
+/* 05/11/2026 (dono): painel da casa de rua — ENDEREÇO fora do Resumo e Comprador 1 com os dados do Resumo */
+const RENDER = vendas.slice(vendas.indexOf("function renderPainel("), vendas.indexOf("/* ---------- COMENTÁRIOS (item 3)"));
+test("ENDEREÇO não é mais caixa do Resumo nem editável por ninguém no painel (ADM inclusive)", () => {
+  assert.doesNotMatch(RENDER, /campoPorNome\("ENDEREÇO"\)/, "o Resumo não monta mais a caixa do endereço");
+  const ch = vendas.slice(vendas.indexOf("function campoHtml("), vendas.indexOf("function campoResumoHtml("));
+  assert.doesNotMatch(ch, /editar\([^)]*"ENDEREÇO"/, "nenhum caminho do painel grava ENDEREÇO");
+  assert.doesNotMatch(ch, /S\.tipo!=="ADM"/, "não há mais exceção para ADM");
+  assert.match(ch, /normNome\(c\.nome\)==="ENDERECO"\) return [^\n]*somente leitura/);
+  /* quem usa o endereço continua: título do painel, filtros, planilha */
+  assert.match(vendas, /getElementById\("pn-end"\)\.textContent=getV\(V,"ENDEREÇO"\)/);
+  assert.match(vendas, /getV\(v\.valores,"ENDEREÇO"\)\|\|""\)\.toLowerCase\(\)\.indexOf\(busca\)/);
+  assert.match(vendas, /function editavelNaCelula\(c\)\{[^\n]*c\.nome!=="ENDEREÇO"/, "na planilha continua sem edição");
+});
+
+test("Comprador 1 espelha nome, CPF, WhatsApp e e-mail do Resumo (mesma coluna)", () => {
+  assert.deepEqual(P.ESPELHO_COMPRADOR1.map(x => x.coluna), ["CLIENTES", "CPF", "Nº Whatsapp", "Email"]);
+  const resumo = (vendas.match(/const RESUMO=\[([^\]]*)\]/) || [])[1] || "";
+  P.ESPELHO_COMPRADOR1.forEach(x => assert.ok(resumo.includes('"' + x.coluna + '"'), x.coluna + " está no RESUMO"));
+  assert.match(RENDER, /pnMarcarEspelho\(campoResumoHtml\(/, "a caixa do Resumo leva a marca do espelho");
+  assert.match(RENDER, /c2&&g\.titulo==="Comprador 1"\?espC1/, "as caixas entram no grupo Comprador 1");
+  assert.match(vendas, /aplicarLocal\(pageId,prop,valor\);\s*try\{ pnEspelhar\(prop,valor,el\); \}/, "editar uma atualiza a outra");
+});
+
+test("COMPRADOR 1 - E-MAIL só aparece se tiver algo diferente do Email (que é o que contrato e Clicksign leem)", () => {
+  assert.equal(P.emailAntigoVisivel("", "a@b.co"), false);
+  assert.equal(P.emailAntigoVisivel(null, ""), false);
+  assert.equal(P.emailAntigoVisivel(" A@B.co ", "a@b.co"), false, "igual (sem caixa/espaço) = duplicado");
+  assert.equal(P.emailAntigoVisivel("x@y.co", "a@b.co"), true, "diferente fica à vista: não some dado");
+  assert.equal(P.emailAntigoVisivel("x@y.co", ""), true);
+  const gc = fs.readFileSync(path.join(RAIZ, "venda", "GerarContrato.gs"), "utf8");
+  assert.match(gc, /email: ctrTxt_\(cv\("Email"\)\)/, "o contrato lê o comprador 1 da coluna Email");
+  const cs = fs.readFileSync(path.join(RAIZ, "venda", "ClicksignVenda.js"), "utf8");
+  assert.match(cs, /comprador1: "coluna Email"/);
+});
+
+test("espelho no navegador: caixas marcadas e o valor novo vai para a outra aba", () => {
+  const vm = require("node:vm");
+  const ini = vendas.indexOf("function pnMarcarEspelho(");
+  const fimEsp = vendas.indexOf("\n}\n", vendas.indexOf("function pnEspelhar(")) + 3;
+  const caixas = [];
+  function caixa(k, dono) { const i = { value: "velho", style: {} }; return { k, i, getAttribute: () => k, contains: (e) => e === dono, querySelectorAll: () => [i] }; }
+  const el = {};
+  caixas.push(caixa("EMAIL", el), caixa("EMAIL"), caixa("CPF"));
+  const ctx = { window: { PainelCasa: P }, String, normNome: (s) => String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim(),
+    esc: (s) => String(s), nomeExcluido: () => false, getV: (V, n) => V[n],
+    campoPorNome: (n) => ({ nome: n, tipo: n === "Email" ? "email" : "rich_text", sensivel: n === "CPF" }),
+    inputControl: (c, v) => `<input value="${v || ""}">`,
+    document: { getElementById: () => ({ querySelectorAll: () => caixas }) } };
+  vm.createContext(ctx);
+  vm.runInContext(vendas.slice(ini, fimEsp), ctx);
+  assert.match(ctx.pnMarcarEspelho('<div class="ri"><div class="k">Email</div></div>', "Email"), /^<div class="ri" data-espelho="EMAIL">/);
+  assert.equal(ctx.pnMarcarEspelho('<div class="ri">x</div>', "BANCO"), '<div class="ri">x</div>', "coluna fora do espelho não muda");
+  const h = ctx.pnEspelhoComprador1({ CLIENTES: "FULANO TESTE", Email: "a@b.co" }, "p1", true);
+  assert.equal((h.match(/data-espelho=/g) || []).length, 4);
+  assert.match(h, /data-espelho="CPF"><label>CPF [^]*?sens-ro/, "CPF protegido ainda não chegou: caixa travada");
+  assert.match(h, /Nome <span[^>]*>\(o mesmo do Resumo\)/);
+  ctx.pnEspelhar("Email", "novo@b.co", el);
+  assert.deepEqual(caixas.map(c => c.i.value), ["velho", "novo@b.co", "velho"], "só a outra caixa da mesma coluna muda");
+});

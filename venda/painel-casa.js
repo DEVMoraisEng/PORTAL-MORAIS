@@ -132,7 +132,23 @@
     return (FALTA_COLUNAS[k] || []).slice();
   }
 
-  var api = { OCULTOS: OCULTOS, PREFIXOS_OCULTOS: PREFIXOS_OCULTOS, GRUPOS: GRUPOS, ocultoNoPainel: ocultoNoPainel,
+  /* 05/11/2026 (dono): na aba Compradores, o grupo "Comprador 1" mostra sozinho o que foi preenchido no Resumo.
+   * É a MESMA coluna do Notion nas duas abas (mesma caixa, mesmo salvar): editar numa grava a coluna e a outra
+   * acompanha (vendas.html, pnEspelhar). Nada de coluna nova nem cópia. */
+  var ESPELHO_COMPRADOR1 = [{ coluna: "CLIENTES", rotulo: "Nome" }, { coluna: "CPF", rotulo: "CPF" },
+                            { coluna: "Nº Whatsapp", rotulo: "Nº WhatsApp" }, { coluna: "Email", rotulo: "E-mail" }];
+  /* COMPRADOR 1 - E-MAIL é coluna antiga: o contrato e a Clicksign leem o e-mail do comprador 1 da coluna "Email"
+   * (GerarContrato.gs: COMPRADOR1.email = cv("Email"); ClicksignVenda ONDE_EMAIL.comprador1 = "coluna Email").
+   * No painel ela só aparece se tiver algo DIFERENTE do Email (para ninguém perder o que digitou ali); vazia ou
+   * igual, some — senão seriam duas caixas de e-mail do mesmo comprador. O dado continua no Notion. */
+  var EMAIL_ANTIGO_C1 = "COMPRADOR 1 - E-MAIL";
+  function emailAntigoVisivel(antigo, email) {
+    var a = String(antigo == null ? "" : antigo).trim().toLowerCase(), e = String(email == null ? "" : email).trim().toLowerCase();
+    return !!a && a !== e;
+  }
+
+  var api = { OCULTOS: OCULTOS, ESPELHO_COMPRADOR1: ESPELHO_COMPRADOR1, EMAIL_ANTIGO_C1: EMAIL_ANTIGO_C1,
+              emailAntigoVisivel: emailAntigoVisivel, PREFIXOS_OCULTOS: PREFIXOS_OCULTOS, GRUPOS: GRUPOS, ocultoNoPainel: ocultoNoPainel,
               grupoDoCampo: grupoDoCampo, ordenar: ordenar, ordenarArquivos: ordenarArquivos,
               ABAS: ABAS, abaDoCampo: abaDoCampo, departamento: departamento, porDepartamento: porDepartamento,
               colunasDaFalta: colunasDaFalta };

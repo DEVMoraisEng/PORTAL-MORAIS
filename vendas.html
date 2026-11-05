@@ -4047,17 +4047,38 @@ function sensPendenteResumoHtml(c){
 function campoHtml(c,valor,pageId,sensPendente){
   if(c.sensivel && sensPendente) return sensPendenteHtml(c);
   if(bloqueadoParaMim(c)) return `<div class="campo"><label>${esc(c.nome.trim())} <span style="color:var(--text4);font-weight:500">(somente leitura)</span></label><div class="ro">${esc(valor||"—")}</div></div>`;
-  // Endereço (nome da obra): só ADM edita — sempre mostrado, independente do campo vir marcado como "editável" no schema
-  if(c.nome==="ENDEREÇO"){
-    if(S.tipo!=="ADM" && !ehMaster(S)) return `<div class="campo"><label>${esc(c.nome.trim())} <span style="color:var(--text4);font-weight:500">(só ADM edita)</span></label><div class="ro">${esc(valor||"—")}</div></div>`;
-    const on=`onchange='editar(${jsArg(pageId)},"ENDEREÇO","text",this.value,this); document.getElementById("pn-end").textContent=this.value||"(sem endereço)";'`;
-    return `<div class="campo"><label>${esc(c.nome.trim())}</label><input type="text" value="${esc(valor||"")}" ${on}></div>`;
-  }
+  /* Endereço (nome da obra): 05/11/2026 (dono) ninguém muda pelo painel, ADM inclusive — saiu do Resumo; se algum
+     caminho ainda pedir a caixa, ela vem só leitura */
+  if(normNome(c.nome)==="ENDERECO") return `<div class="campo"><label>${esc(c.nome.trim())} <span style="color:var(--text4);font-weight:500">(somente leitura)</span></label><div class="ro">${esc(valor||"—")}</div></div>`;
   return `<div class="campo"><label>${esc(c.nome.trim())}</label>${inputControl(c,valor,pageId)}</div>`;
 }
 function campoResumoHtml(c,valor,pageId,sensPendente){
   if(c.sensivel && sensPendente) return sensPendenteResumoHtml(c);
   return `<div class="ri"><div class="k">${esc(c.nome.trim())}</div>${inputControl(c,valor,pageId)}</div>`;
+}
+/* 05/11/2026 (dono): a mesma coluna em duas abas (Resumo e Compradores → Comprador 1). Cada caixa leva
+   data-espelho=<nome normalizado>; ao editar uma, pnEspelhar põe o valor novo nas outras — nunca duas caixas
+   divergindo. Grava uma vez só (o editar de sempre, na coluna de sempre). */
+function pnMarcarEspelho(html,nome){
+  const ehEsp=(window.PainelCasa&&window.PainelCasa.ESPELHO_COMPRADOR1||[]).some(x=>normNome(x.coluna)===normNome(nome));
+  return ehEsp ? String(html).replace(/^<div class="(ri|campo)"/,`<div class="$1" data-espelho="${esc(normNome(nome))}"`) : html;
+}
+function pnEspelhoComprador1(V,pageId,sensPendente){
+  const lista=(window.PainelCasa&&window.PainelCasa.ESPELHO_COMPRADOR1)||[];
+  return lista.map(x=>{
+    const c=campoPorNome(x.coluna); if(!c||nomeExcluido(c.nome,"painel")) return "";
+    const rot=`${esc(x.rotulo)} <span style="color:var(--text4);font-weight:500">(o mesmo do Resumo)</span>`;
+    const corpo=(c.sensivel&&sensPendente)?`<div class="sens-ro">••• carregando…</div>`:inputControl(c,getV(V,c.nome),pageId);
+    return `<div class="campo" data-espelho="${esc(normNome(c.nome))}"><label>${rot}</label>${corpo}</div>`;
+  }).join("");
+}
+function pnEspelhar(prop,valor,el){
+  const body=document.getElementById("pn-body"); if(!body) return;
+  const k=normNome(prop);
+  body.querySelectorAll("[data-espelho]").forEach(box=>{
+    if(box.getAttribute("data-espelho")!==k || (el&&box.contains(el))) return;
+    box.querySelectorAll("input:not([type=checkbox]):not([type=file]),select").forEach(i=>{ i.value=valor==null?"":String(valor); i.style.borderColor=""; });
+  });
 }
 /* 04/11/2026 (dono): o painel da casa de rua em ABAS, igual ao cartão do condomínio. Antes era uma coluna só com
    118 campos (~16 telas de rolagem) e o Gerar contrato no fim, depois do Distrato. Cada parte vai para a aba dela
@@ -4114,16 +4135,16 @@ function renderPainel(V,pageId,sensPendente){
   PN_V=V; PN_PAGE=pageId; PN_SENS=!!sensPendente;
   const sec={resumo:"",documentos:"",compradores:"",contrato:"",andamento:""};
 
-  // identificação — endereço editável (ADM) — corrige bug "sou ADM mas não consigo editar o endereço"
-  const cEnd=campoPorNome("ENDEREÇO");
-  if(cEnd){ sec.resumo+=campoHtml(cEnd,getV(V,"ENDEREÇO"),pageId); }
+  /* 05/11/2026 (dono): o ENDEREÇO saiu do Resumo — "não tem que ter possibilidade de mudar o endereço". Ele já é o
+     título do painel (pn-end, cabecalhoObra) e continua na planilha, nos filtros e no contrato; só não é mais caixa
+     de edição aqui, para ninguém (ADM inclusive). */
 
   // resumo venda/cliente — agora editável/selecionável igual ao Notion (item 4)
   sec.resumo+='<div class="grp" style="margin-top:14px">Dados da Venda</div><div class="resumo">'+RESUMO.map(n=>{
     const c=campoPorNome(n); if(!c)return "";
     if(nomeExcluido(c.nome,"painel")) return "";
     const val=getV(V,n);
-    return campoResumoHtml(c,val,pageId,sensPendente);
+    return pnMarcarEspelho(campoResumoHtml(c,val,pageId,sensPendente),c.nome);
   }).join("")+'</div>';
 
   // alertas / situação
@@ -4160,11 +4181,21 @@ function renderPainel(V,pageId,sensPendente){
     const aba=pnAbaDoCampo(nome);
     (porAba[aba]||porAba.andamento).push(nome);
   });
-  const blocoTitulado=(nomes,titulo)=>nomes.length?`<div class="grp">${esc(titulo)}</div><div class="pn-grade">`+nomes.map(n=>campoHtml(campoPorNome(n),getV(V,n),pageId,sensPendente)).join("")+`</div>`:"";
+  const blocoTitulado=(nomes,titulo,antes)=>(nomes.length||antes)?`<div class="grp">${esc(titulo)}</div><div class="pn-grade">`+(antes||"")+nomes.map(n=>campoHtml(campoPorNome(n),getV(V,n),pageId,sensPendente)).join("")+`</div>`:"";
+  /* 05/11/2026 (dono): Comprador 1 mostra nome, CPF, WhatsApp e e-mail do Resumo — a MESMA coluna (venda/painel-casa.js,
+     ESPELHO_COMPRADOR1); o COMPRADOR 1 - E-MAIL antigo só aparece se tiver algo diferente do Email */
+  const espC1=pnEspelhoComprador1(V,pageId,sensPendente);
+  const antigoC1=(window.PainelCasa&&window.PainelCasa.EMAIL_ANTIGO_C1)||"";
+  if(antigoC1 && window.PainelCasa.emailAntigoVisivel){
+    porAba.compradores=porAba.compradores.filter(n=>normNome(n)!==normNome(antigoC1)||sensPendente||
+      window.PainelCasa.emailAntigoVisivel(getV(V,n),getV(V,"Email")));
+  }
   const porGrupo=(nomes,padrao,c2)=>{
     const out=[]; nomes.forEach(n=>{ const g=grupoNoPainelCasa(n)||padrao; const t=c2&&g===padrao&&/^COMPRADOR 2 - /.test(normNome(n))?"Comprador 2":g; let x=out.find(o=>o.titulo===t); if(!x){ x={titulo:t,campos:[]}; out.push(x); } x.campos.push(n); });
+    if(c2 && espC1 && !out.some(g=>g.titulo==="Comprador 1")) out.unshift({titulo:"Comprador 1",campos:[]});
     /* 05/11: c2 = aba Compradores — o grupo Comprador 2 vai numa caixa data-comprador2 (o seletor do dossiê esconde) */
-    return out.map(g=>c2&&g.titulo==="Comprador 2"?`<div data-comprador2>${blocoTitulado(g.campos,g.titulo)}</div>`:blocoTitulado(g.campos,g.titulo)).join("");
+    return out.map(g=>c2&&g.titulo==="Comprador 2"?`<div data-comprador2>${blocoTitulado(g.campos,g.titulo)}</div>`:
+      blocoTitulado(g.campos,g.titulo,c2&&g.titulo==="Comprador 1"?espC1:"")).join("");
   };
   sec.compradores+=porGrupo(porAba.compradores,"Compradores",true);
   sec.contrato+=porGrupo(porAba.contrato,"Contrato — outros dados");
@@ -4334,6 +4365,7 @@ async function editar(pageId,prop,tipo,valor,el){
   }
   if(el)el.style.borderColor="#F0C36D";
   aplicarLocal(pageId,prop,valor);
+  try{ pnEspelhar(prop,valor,el); }catch(e){}   // 05/11: a outra aba do painel mostra o valor novo (mesma coluna)
   const r=await escrever({action:"updateVenda",pageId:pageId,prop:prop,tipo:tipo,valor:valor},"Editar "+prop);
   if(el)el.style.borderColor=r.ok?(r.enfileirado?"#E67E22":"#4cd964"):"#C0392B";
   toast(r.ok?(r.enfileirado?"Salvo aqui ✓ — sobe quando reconectar":"Salvo ✓"):("Erro: "+r.erro));
