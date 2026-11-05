@@ -523,6 +523,9 @@ ROBOS = {
     # 04/11: medidores comprados por obra (solicitação atendida / OC) para o alerta da aba Ligações; só lê o ERP.
     # Publica dist/medidores_mc.json no repositório como as medições (github_token_arquivo).
     "medidores": ["robo_mc_medidores.py"],
+    # 05/11: documentos do Orçamento (matrícula, certidão mãe, alvará, habite-se) -> dossiê do imóvel das casas de rua
+    # com venda. Só lê o ERP; grava no Notion só com ROBOS_APLICAR.txt. Precisa de "vars": {"DB_VENDAS": ...}.
+    "documentos": ["robo_mc_documentos.py"],
 }
 REPO_GH = "DEVMoraisEng/PORTAL-MORAIS"
 ARQ_MEDICOES = "dist/mc_medicoes/contratos.json"

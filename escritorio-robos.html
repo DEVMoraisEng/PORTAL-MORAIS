@@ -377,7 +377,7 @@ const CATALOGO = {
   fila:     { nome: "Atendente da fila", cargo: "Balcão do portal", ico: "🛎️", cor: "#1B5173", recepcao: true,
     faz: "De minuto em minuto atende os pedidos feitos no portal (lançar venda, distrato, anexar contrato, ZIP) pela aba do porteiro." },
   coordenador: { nome: "Coordenador da fila", cargo: "Gerência", ico: "🧭", cor: "#c27c0e", recepcao: true,
-    faz: "Quando vários robôs falham, põe quem falhou numa fila e roda UM DE CADA VEZ, na ordem certa (contas → bases → medições → índices → retratos → anexos → medidores), esperando o porteiro estar logado e nenhum outro robô rodando — ninguém passa por cima de ninguém." },
+    faz: "Quando vários robôs falham, põe quem falhou numa fila e roda UM DE CADA VEZ, na ordem certa (contas → bases → medições → índices → retratos → anexos → medidores → documentos), esperando o porteiro estar logado e nenhum outro robô rodando — ninguém passa por cima de ninguém." },
   contas:   { nome: "Contas, clientes e obras", cargo: "Cadastro", ico: "🏦", cor: "#3f7cac",
     faz: "Espelha as contas bancárias do Mais Controle no Notion, confere os proprietários (nome e CPF/CNPJ) e cria no MC as obras marcadas “Criar”." },
   bases:    { nome: "Bases no Notion", cargo: "Arquivo", ico: "🗂️", cor: "#6c5ce7",
@@ -392,6 +392,8 @@ const CATALOGO = {
     faz: "Traz do Mais Controle boleto, NF, recibo e comprovante dos pagamentos com alerta para o 📎 da Auditoria Financeira." },
   medidores: { nome: "Medidores", cargo: "Compras", ico: "📟", cor: "#8e6bbf",
     faz: "Conta, obra por obra, quantos medidores já foram comprados no Mais Controle (PADRÃO DE ENERGIA e HIDROMETRO em solicitação atendida ou ordem de compra) e publica para o alerta “MEDIDOR … COMPRADO” da aba Ligações. Só lê o ERP." },
+  documentos: { nome: "Documentos do Orçamento", cargo: "Vendas", ico: "📂", cor: "#a0784a",
+    faz: "Todo dia cedo procura em Obras › Orçamento do Mais Controle a matrícula, a certidão mãe, o alvará e o habite-se de cada casa de rua vendida e anexa no dossiê do imóvel o que for novo (fica como “novo, não lido”). Só lê o ERP." },
   agua:     { nome: "Água e energia", cargo: "Ligações", ico: "💡", cor: "#2d8fd5",
     faz: "Coleta as contas de água e energia das obras." }
 };
@@ -443,7 +445,7 @@ function montarRobos(D) {
   (D.tarefas || []).forEach(t => pega(t.chave).tarefas.push(t));
   Object.entries(D.rodadas || {}).forEach(([ch, lista]) => { pega(ch).rodadas = lista || []; });
   /* 04/11: todo robô conhecido tem mesa, mesmo sem tarefa agendada ainda (ex.: anexos da auditoria) */
-  ["porteiro", "fila", "coordenador", "contas", "bases", "medicoes", "indices", "retratos", "anexos", "medidores"].forEach(pega);
+  ["porteiro", "fila", "coordenador", "contas", "bases", "medicoes", "indices", "retratos", "anexos", "medidores", "documentos"].forEach(pega);
   const PL = D.coordenador, plAtivo = !!(PL && !["terminado", "cancelado"].includes(PL.status));
   mapa.forEach(r => { r.log = ((D.log || {})[r.chave]) || []; });
   /* porteiro: a linha "porteiro: …" mais nova de qualquer rodada */

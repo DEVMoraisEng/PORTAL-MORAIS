@@ -83,6 +83,31 @@ var RegrasVenda = (function () {
   TIPOS_IMOVEL_OPC[COL_IMOVEL_OPC.ARQ_CERTIDAO_MAE] = "files";
   TIPOS_IMOVEL_OPC[COL_IMOVEL_OPC.HABITESE_DATA] = "date";
   TIPOS_IMOVEL_OPC[COL_IMOVEL_OPC.LOTEAMENTO_DENOMINACAO] = "rich_text";
+  /* 05/11/2026 (dono: "o cadastro do vendedor SEMPRE tem que vir preenchido automático"): a qualificação do
+     proprietário ATUAL lida da matrícula da casa. Colunas OPCIONAIS da VENDAS, uma a uma (sem elas a leitura da
+     matrícula segue igual); o contrato (GerarContrato.ctrFontes_) completa o vendedor com elas. */
+  var COL_VENDEDOR_MAT = {
+    NOME: "VENDEDOR - NOME", CPF_CNPJ: "VENDEDOR - CPF/CNPJ", NACIONALIDADE: "VENDEDOR - NACIONALIDADE",
+    ESTADO_CIVIL: "VENDEDOR - ESTADO CIVIL", PROFISSAO: "VENDEDOR - PROFISSÃO", RG: "VENDEDOR - RG",
+    ENDERECO: "VENDEDOR - ENDEREÇO"
+  };
+  var TIPOS_VENDEDOR_MAT = {};
+  Object.keys(COL_VENDEDOR_MAT).forEach(function (k) { TIPOS_VENDEDOR_MAT[COL_VENDEDOR_MAT[k]] = "rich_text"; });
+  /* o proprietário da obra no Mais Controle (cliente da obra), copiado pelo robô diário dos documentos do Orçamento
+     (robo_mc_documentos.py). Também opcionais; o contrato usa só para completar o que faltar. */
+  var COL_VENDEDOR_MC = {
+    NOME: "VENDEDOR MC - NOME", CPF_CNPJ: "VENDEDOR MC - CPF/CNPJ", ENDERECO: "VENDEDOR MC - ENDEREÇO",
+    EMAIL: "VENDEDOR MC - E-MAIL"
+  };
+  /* robô diário dos documentos do Orçamento do MC: o que ele anexou e ninguém leu ainda (ids de espaço separados por
+     vírgula; o portal passa para os "novos para ler" e limpa) e os arquivos do MC já vistos (JSON, para não repetir) */
+  var COL_MC_DOCS = { NOVOS: "DOSSIÊ IMÓVEL - NOVOS DO MAIS CONTROLE", VISTOS: "MC - DOCUMENTOS DO ORÇAMENTO" };
+  /* "IMOVEL_MATRICULA, IMOVEL_ALVARA" -> os ids de espaço do imóvel que valem, sem repetir, na ordem de leitura */
+  function espacosDoTexto(s) {
+    return ordenarEspacos(texto(s).split(/[,;\s]+/).filter(function (id) {
+      return Object.prototype.hasOwnProperty.call(ESPACOS_IMOVEL, id);
+    }));
+  }
   var TIPOS_IMOVEL = {};
   Object.keys(COL_IMOVEL).forEach(function (k) { TIPOS_IMOVEL[COL_IMOVEL[k]] = "rich_text"; });
   [COL_IMOVEL.ARQ_MATRICULA, COL_IMOVEL.ARQ_ALVARA, COL_IMOVEL.ARQ_HABITESE]
@@ -217,6 +242,21 @@ var RegrasVenda = (function () {
     if (d && d.length < 11 && /^[0-9]+$/.test(s)) d = ("00000000000" + d).slice(-11);
     else return s;
     return d;
+  }
+  function cnpjValido(cnpj) {
+    var d = soDigitos(cnpj);
+    if (d.length !== 14 || /^(\d)\1{13}$/.test(d)) return false;
+    function dv(n) {
+      var pesos = n === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2], s = 0;
+      for (var i = 0; i < n; i++) s += Number(d[i]) * pesos[i];
+      var r = s % 11;
+      return r < 2 ? 0 : 11 - r;
+    }
+    return dv(12) === Number(d[12]) && dv(13) === Number(d[13]);
+  }
+  function formatarCnpj(cnpj) {
+    var d = soDigitos(cnpj);
+    return d.length === 14 ? d.slice(0, 2) + "." + d.slice(2, 5) + "." + d.slice(5, 8) + "/" + d.slice(8, 12) + "-" + d.slice(12) : d;
   }
   function mascararCpf(cpf) { var d = soDigitos(cpf); return d ? "***-" + d.slice(-2) : "sem CPF"; }
   function formatarCpf(cpf) {
@@ -456,6 +496,21 @@ var RegrasVenda = (function () {
       propor(CI.LOTEAMENTO_MATRICULA, lot.matricula, "texto");
       propor(CI.LOTEAMENTO_CARTORIO, lot.cartorio, "texto");
       if (lot.denominacao || lot.matricula || lot.cartorio) plano.loteamento = lot;
+      /* 05/11/2026 (dono): qualificação do proprietário ATUAL (último registro de transmissão) — vira o vendedor do
+         contrato quando o cadastro não tem. CPF/CNPJ que não fecha o dígito não é gravado. */
+      var CVM = COL_VENDEDOR_MAT, docDono = soDigitos(leitura.proprietario_cpf_cnpj), docFmt = "";
+      if (docDono) {
+        if (docDono.length === 11 && cpfValido(docDono)) docFmt = formatarCpf(docDono);
+        else if (docDono.length === 14 && cnpjValido(docDono)) docFmt = formatarCnpj(docDono);
+        else obs("o CPF/CNPJ do proprietário lido (" + mascararCpf(docDono) + ") não fecha o dígito verificador — não foi gravado, conferir");
+      }
+      propor(CVM.NOME, limpar(leitura.proprietario_nome), "texto");
+      propor(CVM.CPF_CNPJ, docFmt, "cpf");
+      propor(CVM.NACIONALIDADE, limpar(leitura.nacionalidade), "texto");
+      propor(CVM.ESTADO_CIVIL, limpar(leitura.estado_civil), "texto");
+      propor(CVM.PROFISSAO, limpar(leitura.profissao), "texto");
+      propor(CVM.RG, limpar(leitura.rg), "texto");
+      propor(CVM.ENDERECO, limpar(leitura.endereco), "texto");
     } else if (esp.tipo === "alvara" || esp.tipo === "habitese") {
       var ehAlvara = esp.tipo === "alvara";
       propor(ehAlvara ? COL_IMOVEL.ALVARA_NUMERO : COL_IMOVEL.HABITESE_NUMERO, limpar(leitura.numero), "texto");
@@ -523,6 +578,8 @@ var RegrasVenda = (function () {
     TIPOS_CASA_TELA: TIPOS_CASA_TELA, tipoCasaPrecisaDaObra: tipoCasaPrecisaDaObra, tipoPelaObra: tipoPelaObra,
     COL_IMOVEL: COL_IMOVEL, TIPOS_IMOVEL: TIPOS_IMOVEL, ESPACOS_IMOVEL: ESPACOS_IMOVEL, espaco: espaco,
     COL_IMOVEL_OPC: COL_IMOVEL_OPC, TIPOS_IMOVEL_OPC: TIPOS_IMOVEL_OPC, ORDEM_LEITURA: ORDEM_LEITURA,
+    COL_VENDEDOR_MAT: COL_VENDEDOR_MAT, TIPOS_VENDEDOR_MAT: TIPOS_VENDEDOR_MAT, COL_VENDEDOR_MC: COL_VENDEDOR_MC,
+    COL_MC_DOCS: COL_MC_DOCS, espacosDoTexto: espacosDoTexto, cnpjValido: cnpjValido, formatarCnpj: formatarCnpj,
     ordenarEspacos: ordenarEspacos, marcarPendente: marcarPendente, pendentesValidos: pendentesValidos,
     contextoUnidade: contextoUnidade, mesmaPessoa: mesmaPessoa, tokensNome: tokensNome, decidirEspaco: decidirEspaco, espacoDaPessoa: espacoDaPessoa,
     estadoImovelAposLeitura: estadoImovelAposLeitura, dataValida: dataValida, areaM2: areaM2, isoParaBR: isoParaBR,

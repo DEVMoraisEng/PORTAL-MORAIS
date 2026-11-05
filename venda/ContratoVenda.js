@@ -1448,6 +1448,88 @@ var ContratoVenda = (function () {
     return { grupos: grupos, conta: conta, outras: outras };
   }
 
+  /* ---- 05/11/2026 (dono): o vendedor da casa de rua vem preenchido sozinho ----
+   * "O cadastro do vendedor SEMPRE tem que vir preenchido automático, o único dado manual é os dados bancários."
+   * Campo a campo, vale o primeiro preenchido nesta ordem:
+   *   1. a linha do cadastro (VENDEDORES – CONTRATO; na produção PROPRIETARIOS_PAI);
+   *   2. a qualificação do proprietário ATUAL lida pela IA na matrícula da casa (colunas VENDEDOR - … da VENDAS);
+   *   3. a obra em DOCUMENTOS (PROPRIETARIO DOCUMENTO e CPF/CNPJ);
+   *   4. o cliente da obra no Mais Controle (colunas VENDEDOR MC - …, gravadas pelo robô diário do servidor);
+   *   5. só para PJ sem representante: a Propriedade REPRESENTANTE_PJ_PADRAO (as SPEs têm o mesmo representante).
+   * A matrícula e o MC só entram se forem da MESMA pessoa da obra: CPF/CNPJ igual; sem documento dos dois lados para
+   * comparar, o nome. O banco não sai daqui (vem da conta da obra ou da "Conta de recebimento").
+   * e = { cadastro: {campos do ctrFontes_, nome = título} | null, matricula: {nome, cpfCnpj, nacionalidade, estadoCivil,
+   *       profissao, rg, endereco} | null, obra: {proprietario, cpfCnpj}, mc: {nome, cpfCnpj, endereco, email} | null,
+   *       representantePadrao: {nome, cpf, rg, nacionalidade, estadoCivil, email} | null }
+   * Devolve { vendedor | null (sem nome nem documento em lugar nenhum), origem: {campo: fonte}, descartadas: [fonte],
+   *           completar: {COLUNA do cadastro: valor} } — completar = o que a linha não tem e veio da própria pessoa
+   *           (matrícula, obra, MC); o representante padrão NUNCA vai para o cadastro (a Propriedade continua valendo). */
+  var CAMPOS_VENDEDOR = ["nome", "cpfCnpj", "endereco", "nacionalidade", "estadoCivil", "profissao", "rg",
+    "representanteNome", "representanteCpf", "representanteRg", "representanteNacionalidade", "representanteEstadoCivil",
+    "banco", "agencia", "operacao", "conta", "pix", "email", "representanteEmail"];
+  var COLUNA_DO_VENDEDOR = { cpfCnpj: "CPF/CNPJ", endereco: "ENDEREÇO / SEDE", nacionalidade: "NACIONALIDADE",
+    estadoCivil: "ESTADO CIVIL", profissao: "PROFISSÃO", rg: "RG", email: "E-MAIL" };
+  function digitos(v) { return txt(v).replace(/\D/g, ""); }
+  function mesmoNome(a, b) {
+    if (vazio(a) || vazio(b)) return false;
+    return semAcentoTxt(a) === semAcentoTxt(b) || R().mesmaPessoa(a, b);
+  }
+  function semAcentoTxt(v) { return up(v).normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " "); }
+  function tipoPeloDoc(doc) { var n = digitos(doc).length; return n === 14 ? "PJ" : n === 11 ? "PF" : ""; }
+  /* JSON da Propriedade REPRESENTANTE_PJ_PADRAO -> {nome, cpf, rg, nacionalidade, estadoCivil, email} ou null */
+  function representantePadrao(json) {
+    var o = null;
+    try { o = JSON.parse(txt(json) || "null"); } catch (e) { o = null; }
+    if (!o || typeof o !== "object" || Array.isArray(o)) return null;
+    var r = { nome: txt(o.nome), cpf: txt(o.cpf), rg: txt(o.rg), nacionalidade: txt(o.nacionalidade),
+              estadoCivil: txt(o.estadoCivil || o.estado_civil), email: txt(o.email) };
+    return r.nome ? r : null;
+  }
+  function comporVendedor(e) {
+    e = e || {};
+    var cad = e.cadastro || null, obra = e.obra || {}, origem = {}, descartadas = [], completar = {};
+    var idDoc = digitos((cad && cad.cpfCnpj) || obra.cpfCnpj), idNome = txt((cad && cad.nome) || obra.proprietario);
+    function daPessoa(f) {
+      if (!f) return false;
+      var d = digitos(f.cpfCnpj);
+      if (idDoc && d) return d === idDoc;
+      if (idNome && !vazio(f.nome)) return mesmoNome(f.nome, idNome);
+      return !idDoc && !idNome;                                     /* nada para comparar: a única fonte que há */
+    }
+    var mat = e.matricula && (txt(e.matricula.nome) || txt(e.matricula.cpfCnpj)) ? e.matricula : null;
+    var mc = e.mc && (txt(e.mc.nome) || txt(e.mc.cpfCnpj)) ? e.mc : null;
+    if (mat && !daPessoa(mat)) { descartadas.push("matricula"); mat = null; }
+    if (mc && !daPessoa(mc)) { descartadas.push("mc"); mc = null; }
+    var fontes = [["cadastro", cad], ["matricula", mat], ["documentos", { nome: obra.proprietario, cpfCnpj: obra.cpfCnpj }], ["mc", mc]];
+    var v = {};
+    CAMPOS_VENDEDOR.forEach(function (campo) {
+      v[campo] = "";
+      for (var i = 0; i < fontes.length; i++) {
+        var f = fontes[i][1];
+        if (f && !vazio(f[campo])) { v[campo] = txt(f[campo]); origem[campo] = fontes[i][0]; break; }
+      }
+    });
+    if (!v.nome && !v.cpfCnpj) return { vendedor: null, origem: {}, descartadas: descartadas, completar: {} };
+    v.tipo = up(cad && cad.tipo) || tipoPeloDoc(v.cpfCnpj);
+    var rp = e.representantePadrao;
+    if (v.tipo === "PJ" && rp && rp.nome) {
+      /* o padrão só completa o representante que falta — ou o MESMO representante (pelo nome) com campo vazio */
+      if (vazio(v.representanteNome) || mesmoNome(v.representanteNome, rp.nome)) {
+        if (vazio(v.representanteNome)) origem.representanteNome = "padrao";
+        v.representanteNome = v.representanteNome || rp.nome; v.representanteCpf = v.representanteCpf || rp.cpf;
+        v.representanteRg = v.representanteRg || rp.rg;
+        v.representanteNacionalidade = v.representanteNacionalidade || rp.nacionalidade;
+        v.representanteEstadoCivil = v.representanteEstadoCivil || rp.estadoCivil;
+        v.representanteEmail = v.representanteEmail || rp.email;
+      }
+    }
+    Object.keys(COLUNA_DO_VENDEDOR).forEach(function (campo) {
+      if (v[campo] && origem[campo] && origem[campo] !== "cadastro") completar[COLUNA_DO_VENDEDOR[campo]] = v[campo];
+    });
+    if (v.tipo && !(cad && up(cad.tipo))) completar.TIPO = v.tipo;
+    return { vendedor: v, origem: origem, descartadas: descartadas, completar: completar };
+  }
+
   function cnpjValido(v) {
     var d = txt(v).replace(/\D/g, "");
     if (d.length !== 14 || /^(\d)\1{13}$/.test(d)) return false;
@@ -1569,6 +1651,7 @@ var ContratoVenda = (function () {
   var api = {
     PARAGRAFOS_SE_VAZIO: PARAGRAFOS_SE_VAZIO, planoParagrafosVazios: planoParagrafosVazios,
     CAMPOS_CADASTRO: CAMPOS_CADASTRO, camposAbertos: camposAbertos, validarCampos: validarCampos,
+    comporVendedor: comporVendedor, representantePadrao: representantePadrao,   /* 05/11/2026: vendedor automático */
     CAMPOS_PAGAMENTO_CORRETOR: CAMPOS_PAGAMENTO_CORRETOR, formaComissaoCorretor: formaComissaoCorretor,   /* 05/11/2026 */
     estadoComissaoCorretor: estadoComissaoCorretor, formaPorExtenso: formaPorExtenso,
     validarContaDigitada: validarContaDigitada, cnpjValido: cnpjValido, telefoneFormatado: telefoneFormatado,
