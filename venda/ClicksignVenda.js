@@ -714,12 +714,14 @@ var ClicksignVenda = (function () {
   }
   /* O que a tela mandou junto com "Enviar": { nome (do PDF lido), campos: [pos], valores: pos | null }.
    * nomeGerado = nome do PDF que o servidor vai mandar; diferente = a tela leu outro PDF. */
-  /* opc.linhas === false (ASSINATURA_LINHAS desligada): linhas e termos da tela são ignorados sem conferir */
+  /* opc.linhas === false (ASSINATURA_LINHAS desligada): linhas e termos da tela são ignorados sem conferir;
+     opc.camposOpcionais (casa de rua, 05/11): lista de campos vazia vale */
   function validarRubricas(r, nomeGerado, opc) {
     if (!r || typeof r !== "object") return { ok: false, erro: "RUBRICAS_FALTANDO" };
     if (txt(r.nome) !== txt(nomeGerado)) return { ok: false, erro: "RUBRICAS_DE_OUTRO_PDF" };
     var campos = Array.isArray(r.campos) ? r.campos : [];
-    if (!campos.length || campos.length > MAX_CAMPOS) return { ok: false, erro: "RUBRICAS_INVALIDAS" };
+    /* 05/11/2026 (casa de rua): opc.camposOpcionais — a rua aceita a leitura sem campo de ciência (envia como antes, com aviso) */
+    if ((!campos.length && !(opc && opc.camposOpcionais)) || campos.length > MAX_CAMPOS) return { ok: false, erro: "RUBRICAS_INVALIDAS" };
     var ok = campos.map(posicaoValida);
     if (ok.some(function (p) { return !p; })) return { ok: false, erro: "RUBRICAS_INVALIDAS" };
     var val = null;

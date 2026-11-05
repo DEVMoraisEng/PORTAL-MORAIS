@@ -310,10 +310,12 @@ function assPrepararContrato_(col, p, pid, gerado, previa, pg) {
   var nomeCs = ClicksignVenda.nomePadrao(f.endereco, f.casa, d.comprador1 && d.comprador1.nome);
 
   /* 30/10: rubricas do comprador — as posições vêm da tela (RubricasVenda, lidas NESTE PDF) e são conferidas aqui.
-     Só no contrato do condomínio (os modelos de casa de rua não têm os campos "ASSINATURA: ____"). */
+     Condomínio: obrigatórias. 05/11/2026 (dono, casa de rua): a rua também posiciona quando a tela mandou a leitura (ciência
+     por traço, "6.1. Valor total", uma linha por pessoa no modelo migrado); sem leitura (tela sem o PDF), envia como antes;
+     leitura sem campo de ciência vale (camposOpcionais) — o aviso da tela segue no resultado. */
   var rub = null;
-  if (d.condominio && !config.semRubricas) {
-    var vr = ClicksignVenda.validarRubricas(p.rubricas, gerado.nome, { linhas: config.linhas });
+  if (!config.semRubricas && (d.condominio || (p.rubricas && typeof p.rubricas === "object"))) {
+    var vr = ClicksignVenda.validarRubricas(p.rubricas, gerado.nome, { linhas: config.linhas, camposOpcionais: !d.condominio });
     if (!vr.ok) { assLog_("enviar " + pid + " rubricas: " + vr.erro); return { resp: { ok: false, erro: vr.erro } }; }
     rub = { campos: vr.campos, valores: vr.valores, memorial: null, projeto: [], tamanhos: {}, avisos: assAvisosDaTela_(p.rubricas),
             /* 01/11 (plano 23 B): assinatura em cima da linha de cada pessoa — só com ASSINATURA_LINHAS=1 (correção 1) */
@@ -377,10 +379,11 @@ function assinaturaPdf_(col, p) {
   var pid = String(p.pageId).slice(0, 8);
   var config = assConfig_(p.pageId);
   if (config.semRubricas) return { ok: true, semRubricas: true };
-  /* casa de rua não rubrica; dado com problema: o envio é que diz qual (mesma leitura do assinaturaEnviar) */
+  /* dado com problema: o envio é que diz qual (mesma leitura do assinaturaEnviar). 05/11/2026 (dono): a casa de rua também
+     lê o PDF e posiciona (rua: true — a tela não barra o contrato sem campo de ciência; termos e memorial são só do condomínio) */
   var f = ctrFontes_(col, p.pageId);
-  if (!f.fontes || f.condominioErro || f.obraAmbigua || f.duplicados || f.obraNaoEncontrada ||
-      !ContratoVenda.montarDadosContrato(f.fontes).condominio) return { ok: true, semRubricas: true };
+  if (!f.fontes || f.condominioErro || f.obraAmbigua || f.duplicados || f.obraNaoEncontrada) return { ok: true, semRubricas: true };
+  var dPdf = ContratoVenda.montarDadosContrato(f.fontes), cond = !!dPdf.condominio;
   var pg = ctrLerPaginaVenda_(p.pageId), gerado = assDoc_({}).gerado(pg);
   if (!gerado || !gerado.url) return { ok: false, erro: "SEM_CONTRATO_GERADO" };
   var b = null;
@@ -388,11 +391,12 @@ function assinaturaPdf_(col, p) {
   if (!b || b.mime !== "application/pdf") { assLog_("pdf rubricas " + pid + " ilegivel"); return { ok: false, erro: "CONTRATO_ILEGIVEL" }; }
   if (b.base64.length * 3 / 4 > ASS_MAX_BYTES) return { ok: false, erro: "CONTRATO_ILEGIVEL" };
   var r = { ok: true, nome: gerado.nome, base64: b.base64, ajuste: config.rubricasAjuste };
+  if (!cond) r.rua = true;
   /* 01/11 (plano 23 B): os termos de confissão do envelope também, para a tela achar as linhas de assinatura deles.
      nome = o do documento na Clicksign (sem o carimbo). Termo que falta ou não abre fica de fora (o envio é que barra). */
   r.linhas = !!config.linhas;   /* correção 1 (C-1): desligadas, a tela nem procura as linhas */
-  if (config.linhas) {
-    var d = ContratoVenda.montarDadosContrato(f.fontes);
+  if (config.linhas && cond) {
+    var d = dPdf;
     var tipos = ConfissaoVenda.fiadoresAssinam(d, cfdLigado_()) ? ConfissaoVenda.quais(d) : [];
     r.termos = [];
     tipos.forEach(function (tipo) {
@@ -405,8 +409,8 @@ function assinaturaPdf_(col, p) {
   }
   /* dono 01/11/2026: memorial migrado (uma linha por pessoa) — o PDF vai para a tela achar as linhas, como os termos */
   var memId = String(prop_("MODELO_MEMORIAL_ID") || "").trim();
-  if (config.linhas && memId && ctrLerModelo_(memId).migrado) {
-    var dm = ContratoVenda.montarDadosContrato(f.fontes);
+  if (config.linhas && cond && memId && ctrLerModelo_(memId).migrado) {
+    var dm = dPdf;
     var gm = assGerarMemorial_(dm, pid, ClicksignVenda.nomePadrao(f.endereco, f.casa, dm.comprador1 && dm.comprador1.nome), memId);
     if (gm.doc && gm.doc.base64.length * 3 / 4 <= ASS_MAX_BYTES) r.memorial = { nome: gm.doc.nome, base64: gm.doc.base64 };
     else assLog_("pdf rubricas " + pid + " memorial nao gerado");

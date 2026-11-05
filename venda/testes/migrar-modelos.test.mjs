@@ -441,3 +441,58 @@ test("memorial: prévia e cópia trocam as 4 linhas do bloco de assinatura por {
   const g2 = carregar({ MODELO_MEMORIAL_ID: "m-mem" }, { "m-mem": ruim });
   assert.match(g2.ctx.migrarModelosAssinaturasPrevia().join("\n"), /MODELO_MEMORIAL_ID: NÃO MEXI — /);
 });
+
+/* 05/11/2026 (dono, casa de rua): os modelos de rua como estão no .docx do advogado — o PRONTO com a ciência 6.6 (traço +
+   nomes + COMPRADOR) e a 10.8 ("Assinatura: ____"); o EM CONSTRUÇÃO com a ciência 10.8 só por traço, representante e CRECI no
+   bloco. As ciências ficam (são vistos lidos no PDF); só os dois blocos de assinatura viram uma linha por pessoa. */
+const CIENCIA_TRACO = () => [P("CIÊNCIA EXPRESSA DO COMPRADOR:"), P(""), P(""), P("__________________________________________"),
+                             P("{{ASSINATURA_COMPRADORES_NOMES}}"), P("CPF: {{ASSINATURA_COMPRADORES_CPFS}}"), P("COMPRADOR")];
+const TEST_RUA = () => [P("TESTEMUNHAS:"), P("1.  Nome:                                     2. Nome:"), P("      CPF:                                              CPF:")];
+const VEND_CONSTR = () => [P("________________________________________________________"), P("{{VENDEDOR_NOME}}"), P("{{VENDEDOR_DOC_ROTULO}}"),
+                           P("{{REPRESENTANTE_NOME}}"), P("CPF: {{REPRESENTANTE_CPF}}"), P("VENDEDOR")];
+const COMP_RUA = () => [P("__________________________________________"), P("{{ASSINATURA_COMPRADORES_NOMES}}"), P("CPF: {{ASSINATURA_COMPRADORES_CPFS}}"), P("COMPRADOR")];
+const QUADRO_RUA = (item6, item10, assin) => T([[P("ITEM")], [P("DESCRIÇÃO")]], [[P("6. DO VALOR PAGO")], item6], [[P("10. DA RESCISÃO")], item10],
+                                              [[P("14. ANEXOS")], [P("a) Manual de Uso do Imóvel;")]], [assin]);
+const CONSTRUCAO_RUA = { nome: "MODELO EM CONSTRUCAO TESTE", filhos: [
+  P("INSTRUMENTO PARTICULAR – EM CONSTRUÇÃO"),
+  QUADRO_RUA([P("6.1. Valor total: R$ {{VALOR_TOTAL_NUM}}"), P("a) Sinal/arras: R$ {{SINAL_VALOR}}")],
+             [P("10.8. O COMPRADOR declara ciência expressa das hipóteses de inadimplemento."), ...CIENCIA_TRACO()],
+             [P("{{CIDADE_DATA}}."), P(""), P(""), P(""), ...VEND_CONSTR(), P(""), ...COMP_RUA(), P(""), ...TEST_RUA(), P("")]),
+  P("CLÁUSULA PRIMEIRA"), P("6.1. A transferência da propriedade do IMÓVEL somente se aperfeiçoará com a escritura."), P(""),
+  P("{{CIDADE_DATA}}."), P(""), P(""), P(""), ...VEND_CONSTR(), P(""), P(""), ...COMP_RUA(), P(""), P(""),
+  P("_____________________________________"), P("{{CORRETOR_NOME}}"), P("CRECI: {{CORRETOR_CRECI}} / CPF: {{CORRETOR_DOC}}"), P("INTERMEDIADOR"), P(""),
+  ...TEST_RUA(), P("")] };
+const PRONTO_RUA = { nome: "MODELO PRONTO RUA TESTE", filhos: [
+  P("INSTRUMENTO PARTICULAR – PRONTO"),
+  QUADRO_RUA([P("6.1. Valor total: R$ {{VALOR_TOTAL_NUM}}"), P("6.6. O COMPRADOR declara ciência das deduções."), ...CIENCIA_TRACO()],
+             [P("10.8. O COMPRADOR declara ciência expressa."), P("CIÊNCIA EXPRESSA DO COMPRADOR:"), P("Assinatura: ___________________________")],
+             [P("{{CIDADE_DATA}}."), P(""), P(""), P("_____________________________________"), P("{{VENDEDOR_NOME}}"), P("{{VENDEDOR_DOC_ROTULO}}"), P("VENDEDOR"), P(""),
+              P("_____________________________________"), P("Nome: {{ASSINATURA_COMPRADORES_NOMES}}"), P("CPF: {{ASSINATURA_COMPRADORES_CPFS}}"), P("COMPRADOR"), ...TEST_RUA()]),
+  P("CLÁUSULA PRIMEIRA"), P("{{CIDADE_DATA}}."), P(""), P(""), P(""),
+  P("______________________________________"), P("{{VENDEDOR_NOME}}"), P("{{VENDEDOR_DOC_ROTULO}}"), P("VENDEDOR"), P(""), P(""), P(""),
+  P("     ____________________________________"), P("Nome: {{ASSINATURA_COMPRADORES_NOMES}}"), P("CPF: {{ASSINATURA_COMPRADORES_CPFS}}"), P("COMPRADOR"), P(""), P(""),
+  P("_____________________________________"), P("Nome: {{CORRETOR_NOME}}"), P("CPF: {{CORRETOR_DOC}}"), P("INTERMEDIADOR"), P(""), ...TEST_RUA()] };
+
+test("05/11 casa de rua (PRONTO e EM CONSTRUÇÃO como no .docx): 2 blocos viram {{ASSINATURAS_QUADRO}}/{{ASSINATURAS_FINAL}}; as ciências ficam", () => {
+  const modelos = { "m-pronto": PRONTO_RUA, "m-constr": CONSTRUCAO_RUA };
+  const g = carregar({ MODELO_PRONTO_ID: "m-pronto", MODELO_CONSTRUCAO_ID: "m-constr" }, modelos);
+  const previa = g.ctx.migrarModelosAssinaturasPrevia().join("\n");
+  assert.match(previa, /MODELO_PRONTO_ID: PRÉVIA — trocaria 2 bloco\(s\)/);
+  assert.match(previa, /MODELO_CONSTRUCAO_ID: PRÉVIA — trocaria 2 bloco\(s\)/);
+  const rel = g.ctx.migrarModelosAssinaturasAplicar().join("\n");
+  intactos(g, modelos);
+  assert.match(rel, /MODELO_PRONTO_ID: cópia migrada \(2 bloco\(s\)\) — Propriedade MODELO_PRONTO_ID: trocar m-pronto por copia-1/);
+  assert.match(rel, /MODELO_CONSTRUCAO_ID: cópia migrada \(2 bloco\(s\)\) — Propriedade MODELO_CONSTRUCAO_ID: trocar m-constr por copia-2/);
+  const cel = (doc, r, c) => g.docs[doc].salvo[1].linhas[r][c].map((n) => n.texto);
+  /* PRONTO: ciência 6.6 (traço) e 10.8 (Assinatura:) intactas; o bloco do quadro no fim da célula ganha o vazio do Docs */
+  assert.deepEqual(cel("copia-1", 1, 1).slice(2, 6), ["CIÊNCIA EXPRESSA DO COMPRADOR:", "", "", "__________________________________________"]);
+  assert.deepEqual(cel("copia-1", 2, 1), ["10.8. O COMPRADOR declara ciência expressa.", "CIÊNCIA EXPRESSA DO COMPRADOR:", "Assinatura: ___________________________"]);
+  assert.deepEqual(cel("copia-1", 4, 0), ["{{CIDADE_DATA}}.", "", "", "{{ASSINATURAS_QUADRO}}", ""]);
+  assert.deepEqual(textos(g.docs["copia-1"].salvo.slice(2)), ["CLÁUSULA PRIMEIRA", "{{CIDADE_DATA}}.", "", "", "", "{{ASSINATURAS_FINAL}}", ""]);
+  /* EM CONSTRUÇÃO: ciência 10.8 por traço intacta; representante e CRECI saem com o bloco */
+  assert.deepEqual(cel("copia-2", 2, 1), ["10.8. O COMPRADOR declara ciência expressa das hipóteses de inadimplemento.",
+    "CIÊNCIA EXPRESSA DO COMPRADOR:", "", "", "__________________________________________", "{{ASSINATURA_COMPRADORES_NOMES}}", "CPF: {{ASSINATURA_COMPRADORES_CPFS}}", "COMPRADOR"]);
+  assert.deepEqual(cel("copia-2", 4, 0), ["{{CIDADE_DATA}}.", "", "", "", "{{ASSINATURAS_QUADRO}}", ""]);
+  assert.deepEqual(textos(g.docs["copia-2"].salvo.slice(2)), ["CLÁUSULA PRIMEIRA", "6.1. A transferência da propriedade do IMÓVEL somente se aperfeiçoará com a escritura.", "",
+    "{{CIDADE_DATA}}.", "", "", "", "{{ASSINATURAS_FINAL}}", ""]);
+});
