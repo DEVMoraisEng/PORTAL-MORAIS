@@ -200,6 +200,19 @@ class Erp:
     def obra(self, obra_id: str) -> dict:
         return self.pedir("GET", "/works/" + obra_id) or {}
 
+    def link_do_arquivo(self, arquivo_id: str) -> str:
+        """05/11/2026: link assinado de um arquivo de pasta (GET /file/{id}/get-url — a tela usa para abrir; responde o
+        link em texto puro ou num objeto). "" se a resposta não trouxer link."""
+        r = self.pedir("GET", "/file/%s/get-url" % arquivo_id)
+        if isinstance(r, str):
+            s = r.strip().strip('"')
+            return s if s.startswith("http") else ""
+        if isinstance(r, dict):
+            for k in ("url", "signedUrl", "downloadUrl", "value", "link"):
+                if isinstance(r.get(k), str) and r[k].startswith("http"):
+                    return r[k]
+        return ""
+
     def cliente_por_cpf(self, cpf: str) -> list[dict]:
         d = R.so_digitos(cpf)
         j = self.pedir("GET", "/participants", params={"role": "CUSTOMER", "keyword": d, "page": 0,

@@ -11,7 +11,7 @@ import { criarGas, notionFalso, COLUNAS_REAIS, PAGE_ID_PADRAO, DB_ID_PADRAO } fr
 const R = createRequire(import.meta.url)("../RegrasVenda.js");
 const chamar = (c, payload, tok = tokenDe()) => c.g.chamar(Object.assign({ token: tok, pageId: PAGE }, payload));
 const CPF_DONO = "000.000.004-34";           /* inventado, fecha o dígito */
-const CNPJ_TESTE = "98.765.432/0001-98";     /* inventado, fecha o dígito */
+const CNPJ_TESTE = "12.345.678/0001-95";     /* inventado, fecha o dígito */
 
 /* ---------------- puro: comporVendedor ---------------- */
 test("comporVendedor: o cadastro vale; o vazio vem da matrícula, depois da obra, depois do MC", () => {
@@ -96,7 +96,7 @@ test("matrícula: a qualificação do proprietário atual vai para as colunas VE
   assert.equal(p.props[C.ESTADO_CIVIL], "solteiro");
   assert.equal(p.props[C.RG], "5556667 SSP/GO");
   assert.equal(p.props[C.ENDERECO], "Rua Inventada, 1, Cidade Teste/GO");
-  const pj = R.planejarGravacao("IMOVEL_MATRICULA", Object.assign({}, MAT, { proprietario_cpf_cnpj: "98765432000198" }), {}, "2026-11-05");
+  const pj = R.planejarGravacao("IMOVEL_MATRICULA", Object.assign({}, MAT, { proprietario_cpf_cnpj: "12345678000195" }), {}, "2026-11-05");
   assert.equal(pj.props[C.CPF_CNPJ], CNPJ_TESTE);
   const ruim = R.planejarGravacao("IMOVEL_MATRICULA", Object.assign({}, MAT, { proprietario_cpf_cnpj: "00000000435" }), {}, "2026-11-05");
   assert.ok(!(C.CPF_CNPJ in ruim.props));

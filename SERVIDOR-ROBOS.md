@@ -303,3 +303,61 @@ schtasks /Create /TN "MoraisEng - Anexos da auditoria (tarde)" /SC DAILY /ST 12:
 Ajustes opcionais em `"vars"`: `ANEXOS_DIAS` (90), `ANEXOS_ESCOPO` (`alertas` ou `todos`),
 `ANEXOS_MAX_ITENS` (700 por rodada), `ANEXOS_MAX_MB` (250 MB copiados por rodada — só quando o link do MC
 for curto e o arquivo precisar ser copiado para o Supabase).
+
+---
+
+# DOCUMENTOS DO ORÇAMENTO (05/11/2026) — matrícula, certidão mãe, alvará e habite-se no dossiê do imóvel
+
+Pedido do dono (05/11/2026): em Obras › Orçamento do Mais Controle há matrículas, certidões etc. anexadas; um vigia
+no servidor, todo dia cedo, busca lá e anexa sozinho no dossiê do imóvel da casa de rua quando aparecer.
+Robô `documentos` = `robo_mc_documentos.py` (lógica em `venda/mc/documentos_obra.py`). Só LÊ o ERP, só pelo porteiro.
+
+O que faz, para cada casa de rua da VENDAS com `CLIENTES` preenchido, sem `ASSINATURA - SITUAÇÃO` = ASSINADO e fora
+do condomínio: acha a obra do MC pelo nome = ENDEREÇO; lê as pastas do Orçamento (`GET /folder?id=<obra>&origin=PLANNING`);
+classifica cada arquivo pelo nome do arquivo (sem pista nele, pelo da pasta); baixa pelo link do MC
+(`GET /file/{id}/get-url`) e sobe ao Notion no espaço do imóvel; marca "novo, não lido" e escreve na observação.
+Nome que aponta para dois documentos ("alvará e habite-se") fica **pendente** no relatório (ninguém anexa no chute).
+Na **primeira** olhada de cada casa, espaço que já tem documento não recebe (só anota o arquivo como visto); dali em
+diante todo arquivo novo do MC entra. Nunca apaga nem troca arquivo. PDF até 10 MB e imagem até 5 MB (o que a IA lê).
+
+## 1. (dono) Colunas novas na VENDAS (teste e produção) — todas **texto**
+- `DOSSIÊ IMÓVEL - NOVOS DO MAIS CONTROLE` — o robô escreve os espaços anexados; o portal passa para os "novos" e limpa;
+- `MC - DOCUMENTOS DO ORÇAMENTO` — ids dos arquivos do MC já vistos (JSON). **Sem ela o robô não anexa** (anexaria de
+  novo todo dia) — o relatório mostra `sem_coluna_vistos`;
+- `VENDEDOR MC - NOME`, `VENDEDOR MC - CPF/CNPJ`, `VENDEDOR MC - ENDEREÇO`, `VENDEDOR MC - E-MAIL` — o proprietário da
+  obra no MC (o contrato usa só para completar o vendedor; ver venda/COMO-IMPLANTAR.md "Vendedor automático");
+- as colunas de arquivo do imóvel já existem (`IMÓVEL - MATRÍCULA`, `IMÓVEL - CERTIDÃO MÃE`, `IMÓVEL - ALVARÁ`,
+  `IMÓVEL - HABITE-SE`, `DOSSIÊ IMÓVEL - OBSERVAÇÃO`).
+E colar o `PortalVenda`/`RegrasVenda` novos no PORTAL-VENDA (é ele que transforma a coluna de novos em "novo, não lido").
+
+## 2. (servidor) Atualizar o clone e testar
+```powershell
+cd "C:\AUTOMAÇÕES MAIS CONTROLE\_portal"; git pull
+python -m pytest venda\mc\testes\test_documentos_obra.py -q
+```
+
+## 3. (servidor) Configuração — chave `robos` do `_central\robos-portal.json`
+Em `"vars"`: `"DB_VENDAS": "<id da BANCO DE DADOS VENDAS>"` (o da produção; para provar no teste, o da VENDAS TESTE
+com o token do teste). O token do Notion é o `notion_token_arquivo` que os outros robôs já usam.
+
+## 4. (servidor) Rodada de prova, SEM gravar
+Sem `_central\ROBOS_APLICAR.txt` o robô só simula:
+```powershell
+python servidor\robo_fila.py --robo documentos
+Get-Content "C:\AUTOMAÇÕES MAIS CONTROLE\_central\logs\saida-documentos.txt"
+```
+Esperado: `casas de rua com venda aberta: N · obra achada no MC: M`, `arquivos a anexar: …` e a última linha
+`OK: documentos do orçamento — … (SIMULAÇÃO: …)`. `pendência: <8 letras> sem_obra` = casa sem obra com o mesmo nome no
+MC; `obra_ambigua` = duas obras com o mesmo nome; `… nome ambíguo` = conferir o nome do arquivo no Orçamento.
+
+## 5. (dono) Ligar a gravação
+O mesmo `_central\ROBOS_APLICAR.txt` dos outros robôs (se já existe, a próxima rodada já grava).
+
+## 6. (servidor, com o ok do dono) Tarefa agendada — todo dia 05:50
+Mesma conta e "só com o usuário conectado" (o porteiro precisa do Chrome aberto). Um robô de cada vez no MC: se outro
+estiver lá, este espera a vez (`robo-mc-vez.trava`).
+```powershell
+schtasks /Create /TN "MoraisEng - Documentos do Orçamento" /SC DAILY /ST 05:50 /F `
+  /TR "\"C:\Users\<usuario>\AppData\Local\Programs\Python\Python312\pythonw.exe\" \"C:\AUTOMAÇÕES MAIS CONTROLE\_portal\servidor\robo_fila.py\" --robo documentos"
+```
+O Escritório de Robôs mostra a mesa "Documentos do Orçamento"; o Coordenador o põe por último na fila (`ORDEM`).
