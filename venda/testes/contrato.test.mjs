@@ -277,3 +277,10 @@ test("RG do comprador é opcional (31/10/2026: identidade nova sem RG) e '0'/'S/
   assert.equal(C.qualificacao({ nome: "ANA", documento: "RG 0", cpf: "529.982.247-25" }), "ANA, CPF nº 529.982.247-25");
   assert.equal(C.qualificacao({ documento: "RG 1023456" }), "RG nº 1023456");
 });
+
+test("casa de rua: comissão do corretor opcional (05/11/2026) — sem valor, forma e quem paga não trava", () => {
+  const f = fontes(); f.venda.COMISSAO = null; f.venda.COMISSAO_FORMA = ""; f.venda.COMISSAO_PAGA_POR = "";
+  f.venda.VALOR_NA_MAO = f.venda.VALOR_CONTRATO;
+  const faltas = C.faltasContrato(C.montarDadosContrato(f));
+  assert.ok(!faltas.some((x) => /comiss/i.test(x)), faltas.join(" | "));
+});

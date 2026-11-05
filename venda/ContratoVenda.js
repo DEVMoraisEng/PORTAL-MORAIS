@@ -1081,11 +1081,10 @@ var ContratoVenda = (function () {
       exige(!vazio(n.intermediariaVencimento), "Negociação", "intermediária (vencimento)");
     }
     exige(!vazio(n.formaPagamento), "Negociação", "forma de pagamento");
-    exige(c.valor !== null && c.valor > 0, "Negociação", "comissão (valor)");
-    exige(!vazio(c.forma), "Negociação", "comissão (forma)");
-    /* comissão (vencimento) deixou de ser exigida (dono, 08/10): vazia, a linha "c) Vencimento:" sai do
+    /* 05/11/2026 (dono): comissão do corretor OPCIONAL na casa de rua por enquanto (ele vai acertar com a Juliana).
+       Nos 47 contratos assinados ela sempre existe (R$ 8 a 27 mil), paga pelo comprador, quase sempre fora do preço.
+       comissão (vencimento) deixou de ser exigida (dono, 08/10): vazia, a linha "c) Vencimento:" sai do
        contrato e as letras seguintes sobem (PARAGRAFOS_SE_VAZIO) */
-    exige(c.pagaPor === "COMPRADOR" || c.pagaPor === "VENDEDOR", "Negociação", "comissão paga por");
   }
 
   function moedaOuVazio(n) { return n === null || n === undefined ? "" : moedaBR(n); }
