@@ -44,6 +44,10 @@ ESPERA_VEZ_S = 50 * 60
 RODANDO = CENTRAL / "rodando"
 SAUDE = CENTRAL / "robos-portal-saude.json"
 APLICAR = CENTRAL / "VENDA_APLICAR.txt"
+#: 05/11/2026: baixas e alteração de sinal/financiamento/FGTS da casa de rua (venda/mc/recebimentos.py). Trava PRÓPRIA:
+#: grava só com "pode_gravar_recebimento": true na fila E este arquivo (só o dono cria). Vale também na fila "teste" —
+#: o dono pediu o 1º processo inteiro no portal de teste gravando de verdade no Mais Controle.
+APLICAR_RECEBIMENTO = CENTRAL / "RECEBIMENTO_APLICAR.txt"
 LOGS = CENTRAL / "logs"
 PRAZO_PEGO_S = 15 * 60          # pedido PEGO há mais que isto (robô morreu no meio) volta a ser atendido
 PRAZO_ROBO_S = 600              # mesmo teto do GitHub (timeout-minutes: 10)
@@ -102,6 +106,13 @@ def argumentos(tipo: str, p: dict, pode_gravar: bool) -> tuple[list, dict] | Non
     if tipo == "mc-retrato":   # só LÊ o ERP e grava o retrato no Notion: nunca leva --aplicar
         pagina = str(p.get("pageId") or "")
         return (["-m", "venda.mc.retrato", "--page", pagina], {}) if RE_ID.match(pagina) else None
+    if tipo == "mc-recebimento":   # 05/11: pode_gravar aqui é a trava PRÓPRIA dos recebimentos (Fila.pode_gravar_recebimento)
+        pagina = str(p.get("pageId") or "")
+        if not RE_ID.match(pagina):
+            return None
+        pediu = p.get("aplicar") is True or str(p.get("aplicar")).lower() == "true"
+        return (["-m", "venda.mc.recebimentos", "--page", pagina] +
+                ((["--aplicar"] if pode_gravar else ["--bloqueado"]) if pediu else []), {})
     if tipo not in ("mc-venda", "mc-anexos"):
         return None
     pagina = str(p.get("pageId") or "")
@@ -182,6 +193,7 @@ class Fila:
         self.token = tok
         self.vars = {k: str(v) for k, v in (cfg.get("vars") or {}).items()}
         self.pode_gravar = bool(cfg.get("pode_gravar")) and self.nome != "teste" and APLICAR.exists()
+        self.pode_gravar_recebimento = bool(cfg.get("pode_gravar_recebimento")) and APLICAR_RECEBIMENTO.exists()
 
     def sinal(self) -> None:
         r = self.notion.api("POST", "/databases/%s/query" % self.db,
@@ -238,7 +250,7 @@ class Fila:
         alvo = str(payload.get("pageId") or "")[:8]
         if tipo == "robo-rodar":
             return self.rodar_de_novo(linha, payload)
-        montado = argumentos(tipo, payload, self.pode_gravar)
+        montado = argumentos(tipo, payload, self.pode_gravar_recebimento if tipo == "mc-recebimento" else self.pode_gravar)
         if not montado:
             self.marcar(linha["id"], "ERRO", "pedido inválido (%s)" % tipo)
             log("[%s] %s %s: pedido inválido" % (self.nome, tipo, alvo))

@@ -1492,9 +1492,13 @@
     return h;
   }
 
-  /* ---- entrega 14: bloco "Recebimentos" (Sinal, Entrada, Financiamento) ----
-   * e = { itens: [{ id, rotulo, esperado, data, comprovantes, por, confirmado }], emailConfigurado } (recebimentoEstado);
-   * u = { ocupado: id|null, msg, testes, rascunho: { id: data digitada }, arquivos: { id: File escolhido } }. */
+  /* ---- entrega 14: bloco "Recebimentos" (Sinal, Entrada, Financiamento; 05/11/2026: + FGTS, outros, vários pagamentos,
+   * valor esperado editável, contrato de financiamento e a situação no Mais Controle) ----
+   * e = { itens: [{ id, rotulo, esperado, editavel, modo ("lista"|"antigo"|""), pagamentos: [{id, data, valor, por, arquivo, mc}],
+   *       soma, falta, situacao, data, comprovantes, por, confirmado, erro?, aviso?, mc? }], outros: [mesmo formato],
+   *       outrosColuna, contratoFin: {coluna, arquivos}, vendaLancada, filaLigada, mc: {situacao, texto, em}, emailConfigurado };
+   * u = { ocupado: id|null, msg, testes, rascunho: { id: data }, valores: { id: valor }, esperados: { id: valor }, editando: id,
+   *       novo: { rotulo, valor }, arquivos: { id: File } (FIN = contrato de financiamento), finMsg }. */
   var MSG_REC = {
     COMPROVANTE_OBRIGATORIO: "Escolha o comprovante (foto ou PDF) antes de confirmar.",
     DATA_INVALIDA: "Data do recebimento inválida (não pode ser depois de hoje).",
@@ -1502,25 +1506,105 @@
     SO_CASA: "Recebimentos só existem na casa da VENDAS.",
     RECEBIMENTO_OCUPADO: "Outro recebimento está sendo salvo — tente de novo em instantes.",
     SEM_PERMISSAO_TESTES: "O perfil TESTES só consulta; não confirma recebimento.",
-    ACAO_DESCONHECIDA: "Os recebimentos ainda não foram ligados neste ambiente (falta atualizar o PORTAL-VENDA)."
+    ACAO_DESCONHECIDA: "Os recebimentos ainda não foram ligados neste ambiente (falta atualizar o PORTAL-VENDA).",
+    VALOR_INVALIDO: "Informe o valor recebido (ex.: 3.000,00).",
+    PAGAMENTO_NAO_ENCONTRADO: "Esse pagamento não existe mais — recarregue a página.",
+    JA_BAIXADO_NO_MC: "Esse pagamento já foi baixado no Mais Controle: corrija lá primeiro (o portal não desfaz a baixa).",
+    ROTULO_INVALIDO: "Dê um nome ao recebimento (de 2 a 40 letras).",
+    OUTROS_DEMAIS: "Já são 10 recebimentos extras nesta casa — use um dos que existem.",
+    SO_COM_LISTA: "Este item ainda está no jeito antigo (sem a coluna de pagamentos) — confirme de novo para corrigir.",
+    MC_SEM_VENDA: "A venda ainda não está no Mais Controle: lance a venda antes.",
+    FILA_NAO_CONFIGURADA: "O robô do servidor não está ligado neste ambiente (DB_FILA_ROBO).",
+    MC_DISPARO_FALHOU: "Não consegui pôr o pedido na fila do servidor — tente de novo.",
+    SEM_ARQUIVO: "Escolha o contrato de financiamento (PDF ou foto)."
+  };
+  var MC_PEDIDO = {
+    NA_FILA: " O robô vai conferir no Mais Controle em instantes.",
+    NA_FILA_SEM_SINAL: " O pedido ao Mais Controle está na fila, mas o servidor não está dando sinal.",
+    SEM_VENDA: " A venda ainda não está no Mais Controle: a baixa sai depois do lançamento.",
+    FILA_NAO_CONFIGURADA: "",
+    FILA_FALHOU: " Não consegui pedir a baixa no Mais Controle — use “Conferir no Mais Controle”."
   };
   function dataRec(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || "")); return m ? m[3] + "/" + m[2] + "/" + m[1] : ""; }
   function moedaRec(n) {
     if (typeof n !== "number" || !isFinite(n)) return "";
     return "R$ " + n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
+  function numRec(n) { return typeof n === "number" && isFinite(n) ? n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ""; }
   /* rotulo = o item confirmado (mensagem de sucesso) */
   function mensagemRec(r, rotulo) {
     r = r || {};
     var e = String(r.erro || "");
     if (!e) {
-      var feito = "Recebimento" + (rotulo ? " do " + rotulo : "") + " confirmado";
-      if (r.aviso === "EMAIL_NAO_CONFIGURADO") return feito + ", mas o e-mail de aviso não está configurado (RECEBIMENTO_EMAILS) — avise o administrador.";
-      if (r.aviso === "EMAIL_FALHOU") return feito + ", mas o e-mail de aviso não saiu — avise o administrador.";
-      return feito + (r.emails ? " — e-mail de aviso enviado." : ".");
+      var feito = "Recebimento" + (rotulo ? " do " + rotulo : "") + " confirmado", mc = MC_PEDIDO[r.mcPedido] || "";
+      if (r.aviso === "EMAIL_NAO_CONFIGURADO") return feito + ", mas o e-mail de aviso não está configurado (RECEBIMENTO_EMAILS) — avise o administrador." + mc;
+      if (r.aviso === "EMAIL_FALHOU") return feito + ", mas o e-mail de aviso não saiu — avise o administrador." + mc;
+      return feito + (r.emails ? " — e-mail de aviso enviado." : ".") + mc;
     }
     if (e === "GRAVACAO_FALHOU" && r.arquivoGuardado) return "O comprovante foi guardado, mas a data não — confirme de novo.";
     return MSG_REC[e] || mensagemDeErro(e);
+  }
+  /* situação do robô (por item ou por pagamento): "baixado no Mais Controle", "prévia: …", "recusado: …" */
+  var MC_SIT = { BAIXADO: "baixado no Mais Controle", PREVIA: "prévia", AGUARDANDO: "aguardando", PENDENTE: "aguardando",
+                 RECUSADO: "recusado", ERRO: "erro", ALTERADO: "alterado no Mais Controle", OK: "conferido no Mais Controle",
+                 SEM_PARCELA: "sem parcela no Mais Controle", PROCESSANDO: "robô trabalhando…" };
+  function textoMC(x) {
+    if (!x || !x.situacao) return "";
+    var s = MC_SIT[x.situacao] || String(x.situacao).toLowerCase(), t = String(x.texto || "");
+    if (!t || x.situacao === "OK" || x.situacao === "PENDENTE") return s;
+    return x.situacao === "BAIXADO" || x.situacao === "ALTERADO" ? t : s + ": " + t;
+  }
+  function linhaSituacaoRec(it) {
+    var pags = it.pagamentos || [];
+    if (it.modo !== "lista" || pags.length <= 1) {
+      if (it.confirmado) return '<span class="rec-ok">✓ Recebido em ' + esc(dataRec(it.data)) + "</span>" + (it.por ? " por " + esc(it.por) : "") +
+        " · " + (it.comprovantes ? it.comprovantes + (it.comprovantes === 1 ? " comprovante" : " comprovantes") : "sem comprovante");
+      if (it.situacao === "PARCIAL") return '<span class="rec-parc">Recebido ' + esc(moedaRec(it.soma)) + " — falta " + esc(moedaRec(it.falta)) + "</span>";
+      return '<span class="rec-pend">Aguardando confirmação</span>';
+    }
+    if (it.situacao === "RECEBIDO") return '<span class="rec-ok">✓ Recebido ' + esc(moedaRec(it.soma)) + " em " + pags.length + " pagamentos</span>";
+    if (it.situacao === "SOBRA") return '<span class="rec-sobra">Recebido ' + esc(moedaRec(it.soma)) + " — passa " + esc(moedaRec(-it.falta)) + " do esperado</span>";
+    if (it.situacao === "PARCIAL") return '<span class="rec-parc">Recebido ' + esc(moedaRec(it.soma)) + " em " + pags.length + " pagamentos — falta " + esc(moedaRec(it.falta)) + "</span>";
+    return '<span class="rec-pend">Aguardando confirmação</span>';
+  }
+  function htmlItemRec(it, u, dis) {
+    var id = esc(it.id), esperado = moedaRec(it.esperado), lista = it.modo === "lista", h = "";
+    var rasc = u.rascunho || {}, arqs = u.arquivos || {}, vals = u.valores || {}, esps = u.esperados || {};
+    h += '<div class="dz-linha rec-item"><span class="dz-rot"><b>' + esc(it.rotulo) + "</b> — valor esperado: " +
+      (esperado ? "<b>" + esc(esperado) + "</b>" : "<i>sem valor no contrato</i>") + "</span>" +
+      (it.editavel && lista ? ' <button type="button" class="bt ghost bt-mini" data-acao="r-editar" data-item="' + id + '"' + dis + ">" +
+        (u.editando === it.id ? "Cancelar" : "Mudar valor") + "</button>" : "") + "</div>";
+    if (u.editando === it.id) {
+      var ve = it.id in esps ? esps[it.id] : numRec(it.esperado);
+      h += '<div class="dz-linha"><label class="dz-campo">Novo valor esperado <input type="text" inputmode="decimal" data-rec-esp="' + id + '" value="' + esc(ve) + '"' + dis + "></label> " +
+        '<button type="button" class="bt bt-mini" data-acao="r-valor" data-item="' + id + '"' + dis + ">Salvar valor</button>" +
+        (/^(SINAL|FINANCIAMENTO|FGTS)$/.test(it.id) ? ' <small class="rec-arq">o robô acerta a parcela no Mais Controle</small>' : "") + "</div>";
+    }
+    if (it.erro) return h + '<div class="dz-aviso">' + esc(mensagemDeErro(it.erro)) + " — este item não grava até a coluna existir.</div>";
+    h += '<div class="dz-linha"><span class="dz-rot">' + linhaSituacaoRec(it) + "</span></div>";
+    if (it.mc && textoMC(it.mc)) h += '<div class="dz-linha rec-mc"><span class="dz-rot">Mais Controle: ' + esc(textoMC(it.mc)) + "</span></div>";
+    if (lista && (it.pagamentos || []).length) {
+      h += '<ul class="rec-pags">';
+      it.pagamentos.forEach(function (p) {
+        var mc = textoMC(p.mc);
+        h += "<li><span>" + esc(dataRec(p.data)) + " · " + (typeof p.valor === "number" ? esc(moedaRec(p.valor)) : "valor não informado") +
+          (p.por ? " · por " + esc(p.por) : "") + " · " + (p.arquivo ? "com comprovante" : "sem comprovante") +
+          (mc ? ' · <span class="rec-mc-p">' + esc(mc) + "</span>" : "") + "</span>" +
+          (p.mc && p.mc.situacao === "BAIXADO" ? "" : ' <button type="button" class="bt ghost bt-mini" data-acao="r-remover" data-item="' + id + '" data-pag="' + esc(p.id) + '"' + dis + ">Tirar</button>") + "</li>";
+      });
+      h += "</ul>";
+    }
+    var data = it.id in rasc ? rasc[it.id] : (lista ? "" : (it.data || ""));
+    var escolhido = arqs[it.id] && arqs[it.id].name ? ' <small class="rec-arq">escolhido: ' + esc(arqs[it.id].name) + "</small>" : "";
+    h += '<div class="dz-linha"><label class="dz-campo">Data do recebimento <input type="date" data-rec-data="' + id + '" value="' + esc(data) + '"' + dis + "></label> " +
+      (lista ? '<label class="dz-campo">Valor recebido <input type="text" inputmode="decimal" data-rec-valor="' + id + '" value="' + esc(vals[it.id] || "") +
+        '" placeholder="' + esc(typeof it.falta === "number" && it.falta > 0 ? numRec(it.falta) : "") + '"' + dis + "></label> " : "") +
+      (it.aceitaArquivo !== false ? '<label class="dz-campo">Comprovante <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" data-rec-arq="' + id + '"' + dis + "></label>" + escolhido + " " : "") +
+      '<button type="button" class="bt bt-mini" data-acao="r-confirmar" data-item="' + id + '"' + dis + ">" +
+      (lista ? ((it.pagamentos || []).length ? "Registrar outro pagamento" : "Confirmar recebimento") : (it.confirmado ? "Confirmar de novo (corrigir)" : "Confirmar recebimento")) + "</button>" +
+      (u.ocupado === it.id ? " <b>salvando…</b>" : "") + "</div>";
+    if (it.aviso) h += '<div class="dz-msg dz-nota">Comprovante: ' + esc(mensagemDeErro(it.aviso)) + "</div>";
+    return h;
   }
   function htmlRecebimentos(e, u) {
     u = u || {};
@@ -1528,30 +1612,43 @@
     var h = '<div class="grp">Recebimentos</div>';
     if (testes) h += '<div class="dz-aviso">Perfil TESTES só consulta.</div>';
     if (!e) return h + '<div class="vazio">' + esc(u.msg || "carregando…") + "</div>";
-    var dis = (ocupado || testes) ? " disabled" : "", rasc = u.rascunho || {}, arqs = u.arquivos || {};
-    (e.itens || []).forEach(function (it) {
-      var id = esc(it.id), esperado = moedaRec(it.esperado);
-      h += '<div class="dz-linha rec-item"><span class="dz-rot"><b>' + esc(it.rotulo) + "</b> — valor esperado: " +
-        (esperado ? "<b>" + esc(esperado) + "</b>" : "<i>sem valor no contrato</i>") + "</span></div>";
-      h += '<div class="dz-linha"><span class="dz-rot">' + (it.confirmado
-        ? '<span class="rec-ok">✓ Recebido em ' + esc(dataRec(it.data)) + "</span>" + (it.por ? " por " + esc(it.por) : "") +
-          " · " + (it.comprovantes ? it.comprovantes + (it.comprovantes === 1 ? " comprovante" : " comprovantes") : "sem comprovante")
-        : '<span class="rec-pend">Aguardando confirmação</span>') + "</span></div>";
-      var data = it.id in rasc ? rasc[it.id] : (it.data || "");
-      var escolhido = arqs[it.id] && arqs[it.id].name ? ' <small class="rec-arq">escolhido: ' + esc(arqs[it.id].name) + "</small>" : "";
-      h += '<div class="dz-linha"><label class="dz-campo">Data do recebimento <input type="date" data-rec-data="' + id + '" value="' + esc(data) + '"' + dis + "></label> " +
-        '<label class="dz-campo">Comprovante <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" data-rec-arq="' + id + '"' + dis + "></label>" + escolhido + " " +
-        '<button type="button" class="bt bt-mini" data-acao="r-confirmar" data-item="' + id + '"' + dis + ">" +
-        (it.confirmado ? "Confirmar de novo (corrigir)" : "Confirmar recebimento") + "</button>" +
-        (u.ocupado === it.id ? " <b>salvando…</b>" : "") + "</div>";
-    });
+    var dis = (ocupado || testes) ? " disabled" : "";
+    (e.itens || []).forEach(function (it) { h += htmlItemRec(it, u, dis); });
+    (e.outros || []).forEach(function (it) { h += htmlItemRec(it, u, dis); });
+    if (e.outrosColuna) {
+      var nv = u.novo || {};
+      h += '<div class="dz-linha rec-item"><span class="dz-rot"><b>Outro recebimento</b> (ex.: parcela combinada à parte)</span></div>' +
+        '<div class="dz-linha"><label class="dz-campo">Nome <input type="text" maxlength="40" data-rec-novo="rotulo" value="' + esc(nv.rotulo || "") + '"' + dis + "></label> " +
+        '<label class="dz-campo">Valor esperado <input type="text" inputmode="decimal" data-rec-novo="valor" value="' + esc(nv.valor || "") + '"' + dis + "></label> " +
+        '<button type="button" class="bt ghost bt-mini" data-acao="r-novo"' + dis + ">Acrescentar</button>" + (u.ocupado === "NOVO" ? " <b>salvando…</b>" : "") + "</div>";
+    }
+    if (e.contratoFin && e.contratoFin.coluna) {
+      var af = (u.arquivos || {}).FIN, n = e.contratoFin.arquivos || 0;
+      h += '<div class="dz-linha rec-item"><span class="dz-rot"><b>Contrato de financiamento</b> — ' +
+        (n ? n + (n === 1 ? " arquivo guardado" : " arquivos guardados") : "nenhum arquivo") + "</span></div>" +
+        '<div class="dz-linha"><label class="dz-campo">Arquivo <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" data-rec-arq="FIN"' + dis + "></label>" +
+        (af && af.name ? ' <small class="rec-arq">escolhido: ' + esc(af.name) + "</small>" : "") + " " +
+        '<button type="button" class="bt bt-mini" data-acao="r-fin"' + dis + ">" + (af || !n ? "Ler e atualizar os valores" : "Ler de novo") + "</button>" +
+        (u.ocupado === "FIN" ? " <b>lendo…</b>" : "") + "</div>" +
+        '<div class="dz-msg dz-nota">A leitura troca o VALOR FINANCIADO e, se o contrato mostrar, o FGTS e o subsídio; depois o robô acerta as parcelas no Mais Controle.</div>';
+      if (u.finMsg) h += '<div class="dz-msg">' + esc(u.finMsg) + "</div>";
+    }
+    if (e.vendaLancada) {
+      var mc = e.mc || {};
+      h += '<div class="dz-linha rec-item"><span class="dz-rot"><b>Mais Controle</b> — ' +
+        esc(mc.situacao ? textoMC(mc) + (mc.em && mc.situacao !== "PROCESSANDO" ? " (" + mc.em + ")" : "") : "ainda não conferido pelo robô") + "</span> " +
+        '<button type="button" class="bt ghost bt-mini" data-acao="r-mc"' + ((dis || !e.filaLigada) ? " disabled" : "") + ">Conferir no Mais Controle</button></div>";
+      (mc.avisos || []).forEach(function (a) { h += '<div class="dz-msg dz-nota">' + esc(a) + "</div>"; });
+    } else if (e.vendaLancada === false) {
+      h += '<div class="dz-msg dz-nota">A venda ainda não foi lançada no Mais Controle: as baixas saem depois do lançamento.</div>';
+    }
     if (e.emailConfigurado === false) h += '<div class="dz-msg dz-nota">O e-mail de aviso ainda não está configurado: o recebimento grava, mas ninguém é avisado.</div>';
     if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
     return h;
   }
 
   var exportar = { URL_PORTAL_VENDA: URL_PORTAL_VENDA, DOCS: DOCS, html: html, mensagemDeErro: mensagemDeErro,
-                   htmlRecebimentos: htmlRecebimentos, mensagemRec: mensagemRec,
+                   htmlRecebimentos: htmlRecebimentos, mensagemRec: mensagemRec, textoMC: textoMC,
                    htmlConferencia: htmlConferencia, htmlCorrigir: htmlCorrigir, htmlFinanceiro: htmlFinanceiro,
                    htmlAntecipacao: htmlAntecipacao, htmlAntResultado: htmlAntResultado, mensagemAnt: mensagemAnt, antCalcular: antCalcular,
                    DOCS_IMOVEL: DOCS_IMOVEL, htmlImovel: htmlImovel, dadosImovel: dadosImovel, htmlLoteamento: htmlLoteamento,
@@ -1614,6 +1711,10 @@
     /* entrega 14: Recebimentos */
     ".vb-rec .rec-ok{color:var(--verde,#2a9d5c);font-weight:700}.vb-rec .rec-pend{color:#B45309;font-weight:700}" +
     ".vb-rec .rec-item{margin-top:12px}.vb-rec .rec-arq{color:var(--text3,#555)}" +
+    /* 05/11: vários pagamentos por item e a situação no Mais Controle */
+    ".vb-rec .rec-parc{color:#B45309;font-weight:700}.vb-rec .rec-sobra{color:#C0392B;font-weight:700}" +
+    ".vb-rec .rec-pags{list-style:none;padding-left:0;margin:4px 0}.vb-rec .rec-pags li{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0}" +
+    ".vb-rec .rec-pags li>span{flex:1 1 220px;min-width:0;overflow-wrap:anywhere}.vb-rec .rec-mc,.vb-rec .rec-mc-p{color:var(--text3,#555)}" +
     ".vb-blocos input[type=date]{padding:6px 8px;border:1px solid var(--border,#d6dee3);border-radius:6px;font:inherit}" +
     /* no cartão do condomínio os títulos não têm o recuo do painel da casa */
     ".cd-cardbox .vb-blocos .grp{margin:14px 0 8px}.cd-cardbox .vb-blocos .vazio{padding:10px}" +
@@ -2561,7 +2662,8 @@
 
   function novoCtxA() { return { estado: null, ocupado: null, msg: "", faltas: null, testes: perfilTestes() }; }
 
-  function novoUiR() { return { ocupado: null, msg: "", testes: perfilTestes(), rascunho: {}, arquivos: {} }; }
+  function novoUiR() { return { ocupado: null, msg: "", testes: perfilTestes(), rascunho: {}, arquivos: {}, valores: {}, esperados: {},
+                               editando: null, novo: {}, finMsg: "", voltas: 0 }; }
   /* um PDF em base64 (vindo pela sessão do portal) vira um endereço blob: local para a janela aberta no clique */
   function urlDoPdf(base64) {
     var bin = atob(base64), bytes = new Uint8Array(bin.length);
@@ -2592,7 +2694,7 @@
     var eu = { pageId: pageId }, comRec = !!(opts && opts.recebimentos);
     var raiz = null, seqC = 0, carregandoC = false, estadoC = null, uiC = novoUiC();
     var estadoM = null, uiM = novoUiM(), esperaM = null, ctxA = novoCtxA();
-    var estadoR = null, uiR = novoUiR();
+    var estadoR = null, uiR = novoUiR(), esperaR = null;
     var estadoF = null, uiF = { filtro: "todas", todas: false, msg: "", carregando: false };   /* 31/10: aba Financeiro */
     var estadoA = null, uiA = novoUiA(), esperaA = null;   /* 31/10: Antecipação de parcelas (aba Financeiro) */
     /* 27/10/2026: termo de pré-reserva (condomínio) */
@@ -2852,30 +2954,68 @@
       if (m) { uiF.filtro = m[1]; uiF.todas = false; pintarF(); return; }
       if (acao === "f-todas") { uiF.todas = true; pintarF(); }
     }
-    /* entrega 14: Recebimentos — a data digitada sobrevive ao redesenho; o arquivo escolhido fica em uiR.arquivos */
+    /* entrega 14: Recebimentos — o que se digita sobrevive ao redesenho; o arquivo escolhido fica em uiR.arquivos.
+       05/11: valor por pagamento, valor esperado, outros, contrato de financiamento e o retorno do Mais Controle */
     function guardarRascunhoR() {
       if (!raiz || !raiz.querySelectorAll) return;
       raiz.querySelectorAll("[data-rec-data]").forEach(function (x) { uiR.rascunho[x.getAttribute("data-rec-data")] = x.value; });
+      raiz.querySelectorAll("[data-rec-valor]").forEach(function (x) { uiR.valores[x.getAttribute("data-rec-valor")] = x.value; });
+      raiz.querySelectorAll("[data-rec-esp]").forEach(function (x) { uiR.esperados[x.getAttribute("data-rec-esp")] = x.value; });
+      raiz.querySelectorAll("[data-rec-novo]").forEach(function (x) { uiR.novo[x.getAttribute("data-rec-novo")] = x.value; });
     }
     function pintarR() { var w = dentro(".vb-rec"); if (w) { guardarRascunhoR(); w.innerHTML = htmlRecebimentos(estadoR, uiR); } }
+    function itemR(id) {
+      return [].concat((estadoR && estadoR.itens) || [], (estadoR && estadoR.outros) || []).filter(function (x) { return x.id === id; })[0] || null;
+    }
+    function aplicarR(r) {
+      if (!estadoR || !r) return;
+      if (r.itens) estadoR.itens = r.itens;
+      if (r.outros) estadoR.outros = r.outros;
+      if ("mc" in r) estadoR.mc = r.mc;
+      if (r.contratoFinEstado) estadoR.contratoFin = r.contratoFinEstado;
+    }
+    /* o robô do servidor devolve o resultado em MC - RECEBIMENTOS: a tela relê a cada 20 s enquanto ele trabalha (até 10 min) */
+    function acompanharR(r) {
+      if (r && /^NA_FILA/.test(String(r.mcPedido || ""))) uiR.voltas = 0;
+      if (esperaR || !estadoR || !estadoR.mc || estadoR.mc.situacao !== "PROCESSANDO" || uiR.voltas >= 30) return;
+      esperaR = setTimeout(function () { esperaR = null; uiR.voltas++; if (vivo() && !uiR.ocupado) carregarRec(); }, 20000);
+    }
     async function carregarRec() {
       var r = await chamarVenda({ action: "recebimentoEstado", pageId: pageId });
       if (!vivo()) return;
-      if (r.ok) { estadoR = { itens: r.itens || [], emailConfigurado: !!r.emailConfigurado }; uiR.msg = ""; }
-      else uiR.msg = mensagemRec(r);
+      if (r.ok) {
+        estadoR = { itens: r.itens || [], outros: r.outros || [], outrosColuna: !!r.outrosColuna, contratoFin: r.contratoFin || null,
+                    vendaLancada: r.vendaLancada, filaLigada: !!r.filaLigada, mc: r.mc || null, emailConfigurado: !!r.emailConfigurado };
+        if (!uiR.ocupado && uiR.msg === "carregando…") uiR.msg = "";
+      } else uiR.msg = mensagemRec(r);
       pintarR();
+      acompanharR(null);
+    }
+    /* fim comum das ações que gravam: estado novo, mensagem, acompanha o robô */
+    function depoisR(r, ok) {
+      uiR.ocupado = null;
+      if (r.ok) aplicarR(r);
+      uiR.msg = ok(r);
+      pintarR();
+      if (r.ok) { avisarDadosGravados(pageId); acompanharR(r); }
+      else if (r.erro === "SEM_RESPOSTA") carregarRec();   // o servidor pode ter gravado mesmo assim
     }
     async function confirmarRec(b) {
       if (uiR.ocupado || !estadoR) return;
-      var id = b.getAttribute("data-item"), it = (estadoR.itens || []).filter(function (x) { return x.id === id; })[0];
+      var id = b.getAttribute("data-item"), it = itemR(id);
       if (!it) return;
       guardarRascunhoR();
-      var data = String(uiR.rascunho[id] || "").trim(), f = uiR.arquivos[id] || null;
+      var data = String(uiR.rascunho[id] || "").trim(), f = uiR.arquivos[id] || null, valor = String(uiR.valores[id] || "").trim();
       if (!data) { uiR.msg = "Informe a data do recebimento do " + it.rotulo + "."; pintarR(); return; }
-      if (!window.confirm("Confirmar o recebimento do " + it.rotulo + " em " + dataRec(data) + "?" +
-                          (estadoR.emailConfigurado ? " Um e-mail de aviso será enviado." : ""))) return;
+      var lista = it.modo === "lista";
+      if (lista && !valor && !(typeof it.falta === "number" && it.falta > 0)) { uiR.msg = mensagemRec({ erro: "VALOR_INVALIDO" }); pintarR(); return; }
+      var quanto = lista ? (valor ? "R$ " + valor : moedaRec(it.falta)) + " " : "";
+      if (!window.confirm("Confirmar o recebimento de " + quanto + "do " + it.rotulo + " em " + dataRec(data) + "?" +
+                          (estadoR.emailConfigurado ? " Um e-mail de aviso será enviado." : "") +
+                          (it.baixaMC && estadoR.vendaLancada ? " O robô dá baixa no Mais Controle." : ""))) return;
       uiR.ocupado = id; uiR.msg = ""; pintarR();
       var payload = { action: "recebimentoConfirmar", pageId: pageId, item: id, data: data };
+      if (lista && valor) payload.valor = valor;
       if (f) {
         var arq = await prepararArquivo(f);
         if (arq.erro) { if (vivo()) { uiR.ocupado = null; uiR.msg = mensagemDeErro(arq.erro); pintarR(); } return; }
@@ -2883,15 +3023,77 @@
       }
       var r = await chamarVenda(payload, 150000);
       if (!vivo()) return;
-      uiR.ocupado = null;
-      if (r.ok) {
-        if (r.itens) estadoR.itens = r.itens;
-        delete uiR.arquivos[id]; delete uiR.rascunho[id];
-        uiR.msg = mensagemRec(r, it.rotulo);
-      } else uiR.msg = mensagemRec(r);
+      if (r.ok) { delete uiR.arquivos[id]; delete uiR.rascunho[id]; delete uiR.valores[id]; }
+      depoisR(r, function (x) { return mensagemRec(x, x.ok ? it.rotulo : ""); });
+    }
+    async function removerRec(b) {
+      if (uiR.ocupado || !estadoR) return;
+      var id = b.getAttribute("data-item"), pag = b.getAttribute("data-pag"), it = itemR(id);
+      if (!it || !window.confirm("Tirar este pagamento do " + it.rotulo + "? (só do portal)")) return;
+      uiR.ocupado = id; uiR.msg = ""; pintarR();
+      var r = await chamarVenda({ action: "recebimentoRemover", pageId: pageId, item: id, pagamento: pag });
+      if (!vivo()) return;
+      depoisR(r, function (x) { return x.ok ? "Pagamento tirado do " + it.rotulo + "." : mensagemRec(x); });
+    }
+    function editarRec(b) {
+      var id = b.getAttribute("data-item");
+      guardarRascunhoR();
+      uiR.editando = uiR.editando === id ? null : id;
+      delete uiR.esperados[id];
       pintarR();
-      if (r.ok) avisarDadosGravados(pageId);
-      else if (r.erro === "SEM_RESPOSTA") carregarRec();   // o servidor pode ter gravado mesmo assim
+    }
+    async function valorRec(b) {
+      if (uiR.ocupado || !estadoR) return;
+      guardarRascunhoR();
+      var id = b.getAttribute("data-item"), it = itemR(id), v = String(uiR.esperados[id] || "").trim();
+      if (!it) return;
+      if (!v) { uiR.msg = "Informe o novo valor esperado do " + it.rotulo + " (0 para zerar)."; pintarR(); return; }
+      if (!window.confirm("Mudar o valor esperado do " + it.rotulo + " para R$ " + v + "?" +
+                          (/^(SINAL|FINANCIAMENTO|FGTS)$/.test(id) && estadoR.vendaLancada ? " O robô acerta a parcela no Mais Controle." : ""))) return;
+      uiR.ocupado = id; uiR.msg = ""; pintarR();
+      var r = await chamarVenda({ action: "recebimentoValor", pageId: pageId, item: id, valor: v, rotulo: it.outro ? it.rotulo : undefined });
+      if (!vivo()) return;
+      if (r.ok) { uiR.editando = null; delete uiR.esperados[id]; }
+      depoisR(r, function (x) { return x.ok ? "Valor esperado do " + it.rotulo + " salvo." + (MC_PEDIDO[x.mcPedido] || "") : mensagemRec(x); });
+    }
+    async function novoRec() {
+      if (uiR.ocupado || !estadoR) return;
+      guardarRascunhoR();
+      var rot = String(uiR.novo.rotulo || "").trim(), v = String(uiR.novo.valor || "").trim();
+      if (!rot) { uiR.msg = mensagemRec({ erro: "ROTULO_INVALIDO" }); pintarR(); return; }
+      uiR.ocupado = "NOVO"; uiR.msg = ""; pintarR();
+      var r = await chamarVenda({ action: "recebimentoValor", pageId: pageId, item: "OUTRO", rotulo: rot, valor: v });
+      if (!vivo()) return;
+      if (r.ok) uiR.novo = {};
+      depoisR(r, function (x) { return x.ok ? "Recebimento “" + rot + "” acrescentado." : mensagemRec(x); });
+    }
+    async function finRec() {
+      if (uiR.ocupado || !estadoR) return;
+      var f = uiR.arquivos.FIN || null, n = (estadoR.contratoFin && estadoR.contratoFin.arquivos) || 0;
+      if (!f && !n) { uiR.finMsg = mensagemRec({ erro: "SEM_ARQUIVO" }); pintarR(); return; }
+      if (!window.confirm((f ? "Guardar e ler o contrato de financiamento " + f.name : "Ler de novo o último contrato de financiamento guardado") +
+                          "? O valor financiado (e o FGTS e o subsídio, se o contrato mostrar) será trocado pelo do contrato.")) return;
+      uiR.ocupado = "FIN"; uiR.finMsg = ""; pintarR();
+      var payload = { action: "recebimentoLerContratoFin", pageId: pageId };
+      if (f) {
+        var arq = await prepararArquivo(f);
+        if (arq.erro) { if (vivo()) { uiR.ocupado = null; uiR.finMsg = mensagemDeErro(arq.erro); pintarR(); } return; }
+        payload.arquivo = arq;
+      }
+      var r = await chamarVenda(payload, 150000);
+      if (!vivo()) return;
+      if (r.ok) delete uiR.arquivos.FIN;
+      uiR.finMsg = r.ok ? ((r.preenchidos || []).length ? "Atualizado pelo contrato: " + r.preenchidos.join(", ") + "." : "Nada mudou.") +
+                          ((r.observacoes || []).length ? " " + r.observacoes.join(" · ") : "") + (MC_PEDIDO[r.mcPedido] || "")
+                        : mensagemRec(r);
+      depoisR(r, function () { return ""; });
+    }
+    async function mcRec() {
+      if (uiR.ocupado || !estadoR) return;
+      uiR.ocupado = "MC"; uiR.msg = ""; pintarR();
+      var r = await chamarVenda({ action: "recebimentoMC", pageId: pageId });
+      if (!vivo()) return;
+      depoisR(r, function (x) { return x.ok ? "Pedido ao Mais Controle na fila." + (MC_PEDIDO[x.mcPedido] || "") : mensagemRec(x); });
     }
     /* entrega 14: "Ver contrato assinado" — o PDF vem pela sessão do portal, como o pré-contrato */
     async function verAssinado() {
@@ -3300,6 +3502,12 @@
       if (acao === "a-ver-assinado") return verAssinado();
       if (/^a-/.test(acao)) return aoClicarAss(acao, b);
       if (acao === "r-confirmar") return confirmarRec(b);
+      if (acao === "r-remover") return removerRec(b);       /* 05/11: vários pagamentos, valor esperado, outros, contrato, MC */
+      if (acao === "r-editar") return editarRec(b);
+      if (acao === "r-valor") return valorRec(b);
+      if (acao === "r-novo") return novoRec();
+      if (acao === "r-fin") return finRec();
+      if (acao === "r-mc") return mcRec();
       if (uiC.ocupadoContrato) return;
       if (acao === "c-ver") {
         /* abre a janela AGORA, dentro do clique (antes de qualquer await), senão o
@@ -3886,6 +4094,7 @@
           else if (ev.target.hasAttribute("data-rec-arq")) {
             var fl = ev.target.files && ev.target.files[0], k = ev.target.getAttribute("data-rec-arq");
             if (fl) uiR.arquivos[k] = fl; else delete uiR.arquivos[k];
+            if (k === "FIN") pintarR();   /* o botão passa a "Ler e atualizar" */
           }
         });
       }
@@ -3905,7 +4114,7 @@
     };
     eu.raiz = function () { return raiz; };
     eu.pintarAssinatura = function () { pintarA(); if (comPR) { var a = dentro(".vb-pr-ass"); if (a) a.innerHTML = htmlAssPRVisivel(); } };
-    eu.parar = function () { if (esperaG) clearTimeout(esperaG); esperaG = null; if (esperaM) clearTimeout(esperaM); esperaM = null; if (esperaA) clearTimeout(esperaA); esperaA = null; uiA.acompanhando = false; };
+    eu.parar = function () { if (esperaG) clearTimeout(esperaG); esperaG = null; if (esperaM) clearTimeout(esperaM); esperaM = null; if (esperaA) clearTimeout(esperaA); esperaA = null; uiA.acompanhando = false; if (esperaR) clearTimeout(esperaR); esperaR = null; };
     /* 31/10: o Financeiro lê as parcelas só ao abrir; o Antecipar confere a data e, se a simulação já estava aberta, o estado */
     eu.abrirAba = function (aba) {
       if (aba !== "financeiro" || !comPR || soPR) return;

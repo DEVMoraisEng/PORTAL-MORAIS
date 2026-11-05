@@ -251,6 +251,53 @@ class Erp:
             if pagina >= 30:
                 raise ErpErro("mais de 30 páginas de recebimentos; parei para não decidir com lista incompleta")
 
+    # -- 05/11/2026: recebimentos da casa de rua (venda/mc/recebimentos.py) -------------------------------
+    # As rotas que GRAVAM ficam só aqui. CONFERIR NO 1º TESTE AO VIVO (portal de teste, venda de teste):
+    #  [a] baixa: POST {legado}/receipt-installments/{parcela}/receipts com value, receivedValue, receivingDate,
+    #      account{id}, responsible{id} — é o corpo que o app de aportes usa em produção, mas sempre com a parcela
+    #      INTEIRA. Baixa PARCIAL (valor menor que a parcela) é suposição: conferir que a parcela fica em aberto com o
+    #      saldo certo (pendingValue/sumOfReceivedValues) e que o recebimento aparece em `receipts`.
+    #  [b] alterar a venda: PUT {legado}/readjustment-sales/{id} com o objeto inteiro do GET /sales/{id} (o distrato
+    #      usa). Parcela NOVA (sem id) dentro do PUT é suposição: conferir que o ERP cria a parcela do tipo certo.
+    #  [c] contas: GET {core}/financial/bank-accounts/all (contas_erp.py lê) — o id da conta é o mesmo que a baixa
+    #      do app de aportes manda em account{id}.
+    #  [d] campo da data no recebimento lido de volta: receivingDate (o que se manda) — se vier outro nome,
+    #      recebimentos.data_do_recibo já tenta date e dateOfReceipt.
+    def ler_venda(self, venda_id: str) -> dict:
+        return self.pedir("GET", "/sales/%s" % venda_id) or {}   # GET /readjustment-sales/{id} dá 405
+
+    def contas_bancarias(self) -> list[dict]:
+        """[c] Financeiro > Contas bancárias (API nova): cada uma com id, name, bankCode, agency, account, accountDigit."""
+        r = self.pedir_core("GET", "/financial/bank-accounts/all")
+        if isinstance(r, list):
+            return r
+        if isinstance(r, dict):
+            return r.get("content") or r.get("data") or r.get("items") or []
+        return []
+
+    def receber_parcela(self, parcela_id: str, valor: float, data: str, conta_id: str, responsavel_id: str = ""):
+        """[a] Baixa (inteira ou parcial) de UMA parcela a receber da venda. Quem chama já decidiu gravar."""
+        corpo = {"value": round(float(valor), 2), "receivedValue": round(float(valor), 2), "receivingDate": data[:10],
+                 "account": {"id": conta_id}}
+        if responsavel_id:
+            corpo["responsible"] = {"id": responsavel_id}
+        return self.pedir("POST", "/receipt-installments/%s/receipts" % parcela_id, corpo=corpo)
+
+    def alterar_venda(self, venda_id: str, corpo: dict):
+        """[b] Grava a venda inteira (alteração das parcelas ou o desfazer com o JSON guardado antes)."""
+        return self.pedir("PUT", "/readjustment-sales/%s" % venda_id, corpo=corpo)
+
+    def anexar_se_faltar(self, venda_id: str, nome: str, conteudo: bytes, mime: str) -> str:
+        """Comprovante na pasta "Arquivos" do recebimento da venda (a mesma do contrato, rota já provada).
+        Devolve "JA_EXISTIA" (mesmo nome na pasta) ou "ANEXADO"."""
+        pasta = self.pasta_da_venda(venda_id, criar=True)
+        if self.tem_arquivo(pasta, nome):
+            return "JA_EXISTIA"
+        if not self.cabe_na_pasta(pasta["id"], len(conteudo)):
+            raise ErpErro("a pasta de arquivos da venda está cheia")
+        self.subir_arquivo(pasta["id"], nome, conteudo, mime)
+        return "ANEXADO"
+
     # -- gravação (só com --aplicar) ----------------------------------------
     def criar_cliente(self, corpo: dict) -> dict:
         return self.pedir("POST", "/participants", corpo=corpo)

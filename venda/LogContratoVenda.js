@@ -74,7 +74,12 @@ var LogContratoVenda = (function () {
     tipoCasa: function (p) { return "mudou o tipo da casa" + (txt(p && p.valor).trim() ? " para " + curto(p.valor, 40) : ""); },
     anexarDocumento: function () { return "anexou um documento"; },
     soltarDocumento: function () { return "tirou um documento"; },
-    recebimentoConfirmar: function () { return "confirmou um recebimento"; }
+    recebimentoConfirmar: function () { return "confirmou um recebimento"; },
+    /* 05/11/2026: aba Recebimentos — só o item, nunca o valor */
+    recebimentoRemover: function (p) { return "tirou um pagamento do recebimento" + (txt(p && p.item).trim() && !/^OUTRO:/.test(p.item) ? " (" + curto(p.item, 20) + ")" : ""); },
+    recebimentoValor: function (p) { return "mudou o valor esperado de um recebimento" + (txt(p && p.item).trim() && !/^OUTRO/.test(p.item) ? " (" + curto(p.item, 20) + ")" : ""); },
+    recebimentoLerContratoFin: function () { return "leu o contrato de financiamento"; },
+    recebimentoMC: function () { return "pediu a conferência dos recebimentos no Mais Controle"; }
   };
 
   /* linha do log, ou "" quando a ação não entra no histórico ou não deu certo */
