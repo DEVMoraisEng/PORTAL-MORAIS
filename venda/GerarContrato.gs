@@ -395,7 +395,7 @@ function ctrFontes_(col, pageId) {
   if (lc && lc.duplicado) duplicados.push("Corretor: cadastro duplicado em CORRETORES – CONTRATO");
   if (duplicados.length) return { duplicados: duplicados };
   function t(l, nome) { return ctrTxt_(ctrCampo_(l.c, nome)); }
-  var vendedor = lv ? {
+  var vendedorCad = lv ? {
     /* produção: o vendedor é a linha da PROPRIETARIOS_PAI (sem coluna TIPO): 14 dígitos = PJ, 11 = PF */
     tipo: t(lv, "TIPO") || ({ 14: "PJ", 11: "PF" })[t(lv, "CPF/CNPJ").replace(/\D/g, "").length] || "", nome: lv.titulo, cpfCnpj: t(lv, "CPF/CNPJ"), endereco: t(lv, "ENDEREÇO / SEDE"),
     representanteNome: t(lv, "REPRESENTANTE NOME"), representanteCpf: t(lv, "REPRESENTANTE CPF"),
@@ -405,6 +405,18 @@ function ctrFontes_(col, pageId) {
     banco: t(lv, "BANCO"), agencia: t(lv, "AGÊNCIA"), operacao: t(lv, "OPERAÇÃO"), conta: t(lv, "CONTA"), pix: t(lv, "PIX"),
     email: t(lv, "E-MAIL"), representanteEmail: t(lv, "REPRESENTANTE E-MAIL") /* só a assinatura usa */
   } : null;
+  /* 05/11/2026 (dono): "o cadastro do vendedor SEMPRE tem que vir preenchido automático, o único dado manual é os dados
+     bancários". Casa de rua: o vendedor é a linha do cadastro completada pela matrícula da casa (IA), pela obra em
+     DOCUMENTOS, pelo cliente da obra no Mais Controle e, na PJ sem representante, pela Propriedade
+     REPRESENTANTE_PJ_PADRAO (ContratoVenda.comporVendedor). O condomínio segue só com o cadastro. */
+  var vendedor = vendedorCad, vendAuto = null;
+  if (!cond) {
+    vendAuto = ContratoVenda.comporVendedor({ cadastro: vendedorCad, matricula: ctrVendedorDaVenda_(cv, RegrasVenda.COL_VENDEDOR_MAT),
+      obra: obra, mc: ctrVendedorDaVenda_(cv, RegrasVenda.COL_VENDEDOR_MC),
+      representantePadrao: ContratoVenda.representantePadrao(prop_("REPRESENTANTE_PJ_PADRAO")) });
+    vendedor = vendAuto.vendedor;
+    if (vendAuto.descartadas.length) ctrLog_("contrato: vendedor — " + vendAuto.descartadas.join(", ") + " de outra pessoa, não usado");
+  }
   /* entrega 12: a "Conta de recebimento" escolhida (ou digitada) para ESTA venda vale antes de tudo.
      Conta escolhida que sumiu da CONTAS BANCÁRIAS vira falta — nunca troca sozinha por outra conta. */
   /* 27/10 (dono): no condomínio a conta é sempre a mesma e já está escrita no modelo (item 4.5) — escolha não vale */
@@ -463,10 +475,55 @@ function ctrFontes_(col, pageId) {
               meioPagamento: prop_("MEIO_PAGAMENTO_CONDOMINIO") || "" },
     pg: pg, endereco: venda.ENDERECO, casa: ctrTxt_(cv("CASA")), colGerado: nomeReal(CV.CONTRATO_GERADO),
     contaErro: contaErro, usouEscolha: usouEscolha,
+    /* 05/11/2026: o que o vendedor automático pode gravar no cadastro (só campo vazio; ctrGravarVendedorAuto_) */
+    vendedorAuto: vendAuto ? { completar: vendAuto.completar, linha: lv || null, titulo: obra.proprietario } : null,
     /* entrega 12: onde o formulário grava (linhas achadas) e com que nome/chave cria a que falta */
-    alvos: { vendedor: lv || null, corretor: lc || null, loteamento: ll || null,
+    alvos: { vendedor: lv || null, corretor: lc || null, loteamento: ll || null, nomeVendedor: obra.proprietario,
              nomeCorretor: venda.CORRETOR || (cond ? cond.corretor.nome : ""), chaveLoteamento: cond ? venda.ENDERECO : setor }
   };
+}
+
+/* 05/11/2026: { nome, cpfCnpj, nacionalidade, estadoCivil, profissao, rg, endereco, email } das colunas VENDEDOR - … (lidas da
+   matrícula) ou VENDEDOR MC - … (cliente da obra no Mais Controle) da página da venda; coluna que não existe = vazio. */
+function ctrVendedorDaVenda_(cv, cols) {
+  var o = {}, mapa = { NOME: "nome", CPF_CNPJ: "cpfCnpj", NACIONALIDADE: "nacionalidade", ESTADO_CIVIL: "estadoCivil",
+                       PROFISSAO: "profissao", RG: "rg", ENDERECO: "endereco", EMAIL: "email" };
+  for (var k in cols) if (mapa[k]) o[mapa[k]] = ctrTxt_(cv(cols[k])).trim();
+  return o;
+}
+/* 05/11/2026 (dono): grava no cadastro do vendedor o que o vendedor automático trouxe e a linha não tem — SÓ campo vazio,
+   nunca sobrescreve; sem linha, cria uma com o título = PROPRIETARIO DOCUMENTO da obra (é por ele que o contrato acha).
+   Só colunas que a base tem e que o portal grava. O representante padrão não vai (a Propriedade continua valendo).
+   Erro aqui nunca derruba a geração. Log só com contagens. */
+function ctrGravarVendedorAuto_(va, pid, rot) {
+  if (!va || !va.completar || !Object.keys(va.completar).length) return;
+  try {
+    var linha = va.linha && va.linha.id ? va.linha : null, tipos, titulo = "";
+    var db = String(prop_("DB_VENDEDORES") || "").split(",")[0].trim();
+    if (linha) tipos = ctrTiposDaLinha_(linha.props);
+    else {
+      if (!ctrTxt_(va.titulo).trim() || !db) return;
+      var b = ctrTiposDaBase_(db);
+      tipos = b.tipos; titulo = b.titulo;
+      if (!titulo) return;
+    }
+    var props = {}, n = 0;
+    for (var coluna in va.completar) {
+      var t = tipos[RegrasVenda.chave(coluna)];
+      if (!t || !CTR_TIPOS_GRAVAVEIS[t.tipo]) continue;
+      if (linha && !RegrasVenda.vazio(ctrTxt_(ctrValor_(linha.props[t.real])).trim())) continue;   /* nunca sobrescreve */
+      var pv = ctrValorCadastro_(t.tipo, va.completar[coluna]);
+      if (!pv) continue;
+      props[t.real] = pv; n++;
+    }
+    if (!n) return;
+    if (linha) notion_("PATCH", "/pages/" + linha.id, { properties: props });
+    else {
+      props[titulo] = ctrValorCadastro_("title", ctrTxt_(va.titulo).trim());
+      notion_("POST", "/pages", { parent: { database_id: db }, properties: props });
+    }
+    ctrLog_(rot + " " + pid + " vendedor: cadastro completado com " + n + " campo(s)" + (linha ? "" : " (linha nova)"));
+  } catch (e) { ctrErro_(rot + " " + pid + " vendedor automatico", e); }
 }
 
 /* ---- Docs ---- */
@@ -785,7 +842,8 @@ function ctrPreDesatualizado_(col, p, pre) {
 }
 
 /* Lê as fontes e monta os dados: { f, d } ou { resp } (a resposta de erro pronta). */
-function ctrDadosAtuais_(col, p, pid, rot) {
+/* opts.gravarVendedor (só o pré-contrato): grava no cadastro o que o vendedor automático completou (ctrGravarVendedorAuto_) */
+function ctrDadosAtuais_(col, p, pid, rot, opts) {
   if (!prop_("DB_VENDEDORES") || !prop_("DB_LOTEAMENTOS") || !prop_("DB_CORRETORES") || !prop_("DB_DOCUMENTOS")) return { resp: { ok: false, erro: "CADASTRO_NAO_CONFIGURADO" } };
   var f = ctrFontes_(col, p.pageId);
   if (f.obraAmbigua) {
@@ -804,6 +862,7 @@ function ctrDadosAtuais_(col, p, pid, rot) {
     ctrLog_(rot + " " + pid + " obra nao encontrada");
     return { resp: { ok: false, erro: "FALTAM_DADOS", faltas: ["Vendedor: obra da casa não encontrada em DOCUMENTOS (endereço)"] } };
   }
+  if (opts && opts.gravarVendedor) ctrGravarVendedorAuto_(f.vendedorAuto, pid, rot);
   var d = ContratoVenda.montarDadosContrato(f.fontes);
   var faltas = ContratoVenda.faltasContrato(d);
   if (f.contaErro) faltas.push(f.contaErro);
@@ -823,8 +882,8 @@ function ctrDadosAtuais_(col, p, pid, rot) {
 }
 
 /* Tudo o que vem antes de mexer no Drive: dados, faltas, Drive API, modelo, pasta, marcadores. */
-function ctrPreparar_(col, p, pid, rot) {
-  var x = ctrDadosAtuais_(col, p, pid, rot);
+function ctrPreparar_(col, p, pid, rot, opts) {
+  var x = ctrDadosAtuais_(col, p, pid, rot, opts);
   if (x.resp) return x;
   var f = x.f, d = x.d;
   if (typeof Drive === "undefined" || !Drive || !Drive.Files || !Drive.Files.remove) {
@@ -916,7 +975,7 @@ function ctrGerarPdf_(prep, pid, rot, grifar) {
    (PASTA_PROVISORIA_ID), NÃO em CONTRATO GERADO. O pré-contrato anterior desta página é apagado. */
 function gerarPreContrato_(col, sess, p) {
   var t0 = Date.now(), pid = String(p.pageId).slice(0, 8), rot = "gerarPreContrato";
-  var prep = ctrPreparar_(col, p, pid, rot);
+  var prep = ctrPreparar_(col, p, pid, rot, { gravarVendedor: true });
   if (prep.resp) return prep.resp;
   prep.titulo = ClicksignVenda.tituloDocumento("PRÉ-CONTRATO - ", prep.f.endereco, prep.f.casa, prep.d.comprador1 && prep.d.comprador1.nome);
   var g = ctrGerarPdf_(prep, pid, rot, true);
@@ -1154,7 +1213,8 @@ function escolherContaRecebimento_(col, sess, p) {
 /* ---- entrega 12: formulário dos cadastros ----
  * Grava na linha do cadastro só as colunas enviadas (lista branca do ContratoVenda.CAMPOS_CADASTRO) e só
  * colunas que existem; cria a linha do corretor (título = CORRETOR da venda) ou do loteamento (SETOR ou nome do
- * condomínio) que falta. Nunca cria vendedor. Depois gera o pré-contrato como a ação gerarPreContrato. */
+ * condomínio) que falta. 05/11/2026 (dono): cria também a do vendedor (título = PROPRIETARIO DOCUMENTO da obra) — antes
+ * "nunca cria vendedor". Depois gera o pré-contrato como a ação gerarPreContrato. */
 var CTR_TIPOS_GRAVAVEIS = { rich_text: 1, number: 1, email: 1, select: 1, phone_number: 1 };
 function ctrValorCadastro_(tipo, v) {
   var s = String(v);
@@ -1355,8 +1415,17 @@ function salvarCamposContrato_(col, sess, p) {
     }
     var A = f.alvos, erros = [], V = val.valores;
     if (V.vendedor) {
-      if (!A.vendedor || !A.vendedor.id) return { ok: false, erro: "VENDEDOR_SEM_CADASTRO" };
-      plano.push({ grupo: "vendedor", id: A.vendedor.id, props: ctrPropsCadastro_("vendedor", V.vendedor, ctrTiposDaLinha_(A.vendedor.props), erros) });
+      if (A.vendedor && A.vendedor.id) {
+        plano.push({ grupo: "vendedor", id: A.vendedor.id, props: ctrPropsCadastro_("vendedor", V.vendedor, ctrTiposDaLinha_(A.vendedor.props), erros) });
+      } else {
+        /* 05/11/2026 (dono): o cadastro do vendedor passa a ser criado — título = PROPRIETARIO DOCUMENTO da obra */
+        if (!ctrTxt_(A.nomeVendedor).trim()) return { ok: false, erro: "VENDEDOR_SEM_CADASTRO" };
+        var dbv = String(prop_("DB_VENDEDORES")).split(",")[0].trim(), bv = ctrTiposDaBase_(dbv);
+        var pvv = ctrPropsCadastro_("vendedor", V.vendedor, bv.tipos, erros);
+        if (!bv.titulo) erros.push("Vendedor: a base VENDEDORES não tem coluna de título");
+        else pvv[bv.titulo] = ctrValorCadastro_("title", ctrTxt_(A.nomeVendedor).trim());
+        plano.push({ grupo: "vendedor", criarEm: dbv, props: pvv });
+      }
     }
     if (V.corretor) {
       if (A.corretor && A.corretor.id) {

@@ -163,11 +163,30 @@ test("salvarCamposContrato: loteamento sem cadastro — cria na 1ª base com o S
   assert.equal(t.n.escritas[0].props.NOME.title[0].text.content, "Setor Outro");
 });
 
-test("salvarCamposContrato: vendedor sem cadastro não é criado; nada é gravado", () => {
-  const c = cenario({ obra: { "PROPRIETARIO DOCUMENTO": rt("Outra Empresa Teste") } });
-  assert.equal(c.acao("gerarPreContrato").campos.grupos.some((g) => g.grupo === "vendedor"), false);
-  assert.deepEqual(chamar(c, { action: "salvarCamposContrato", campos: { vendedor: { RG: "RG 1" } } }), { ok: false, erro: "VENDEDOR_SEM_CADASTRO" });
-  assert.equal(c.n.escritas.length, 0);
+/* 05/11/2026 (dono): antes "vendedor sem cadastro não é criado"; agora o vendedor vem da obra e a linha é criada */
+test("salvarCamposContrato: vendedor sem cadastro — o formulário aparece e a linha é criada com o PROPRIETARIO DOCUMENTO no título", () => {
+  const esqVend = { NOME: "title", "CPF/CNPJ": "rich_text", "ENDEREÇO / SEDE": "rich_text", "REPRESENTANTE RG": "rich_text" };
+  const c = cenario({ obra: { "PROPRIETARIO DOCUMENTO": rt("Outra Empresa Teste") }, esquemas: { "db-vend": esqVend } });
+  const r0 = c.acao("gerarPreContrato");
+  assert.equal(r0.erro, "FALTAM_DADOS");
+  assert.ok(r0.campos.grupos.some((g) => g.grupo === "vendedor"), JSON.stringify(r0.campos));
+  assert.ok(!r0.faltas.includes("Vendedor: cadastro em VENDEDORES – CONTRATO"));
+  /* o pré-contrato já criou a linha com o que a obra tem (nome e CNPJ) */
+  assert.deepEqual(c.n.escritas.map((e) => [e.metodo, e.base]), [["POST", "db-vend"]]);
+  assert.equal(c.n.escritas[0].props.NOME.title[0].text.content, "Outra Empresa Teste");
+  /* direto pelo formulário (sem pré-contrato antes): a linha nasce com o título e o campo enviado */
+  const d = cenario({ obra: { "PROPRIETARIO DOCUMENTO": rt("Outra Empresa Teste") }, esquemas: { "db-vend": esqVend } });
+  const r = chamar(d, { action: "salvarCamposContrato", campos: { vendedor: { "ENDEREÇO / SEDE": "Av. Inventada, 1" } } });
+  assert.notEqual(r.erro, "VENDEDOR_SEM_CADASTRO");
+  assert.deepEqual(r.salvos, ["vendedor"]);
+  const e1 = d.n.escritas[0];
+  assert.deepEqual([e1.metodo, e1.base], ["POST", "db-vend"]);
+  assert.deepEqual(Object.keys(e1.props).sort(), ["ENDEREÇO / SEDE", "NOME"]);
+  assert.equal(e1.props.NOME.title[0].text.content, "Outra Empresa Teste");
+  /* obra sem PROPRIETARIO DOCUMENTO: não há título para criar */
+  const s = cenario({ obra: { "PROPRIETARIO DOCUMENTO": rt(""), "CPF/CNPJ ": sel(null) } });
+  assert.deepEqual(chamar(s, { action: "salvarCamposContrato", campos: { vendedor: { RG: "RG 1" } } }), { ok: false, erro: "VENDEDOR_SEM_CADASTRO" });
+  assert.equal(s.n.escritas.length, 0);
 });
 
 test("salvarCamposContrato: campo fora da lista, CPF errado ou coluna inexistente — CAMPOS_INVALIDOS e nada gravado", () => {

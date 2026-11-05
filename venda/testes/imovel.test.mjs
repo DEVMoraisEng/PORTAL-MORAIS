@@ -164,7 +164,8 @@ test("esquemas novos: iguais nos dois provedores, estritos e com o pedido montad
     assert.deepEqual(pc.corpo.output_config.format.schema, s);
   }
   assert.deepEqual(Object.keys(OA.ESQUEMAS.matricula.properties).sort(),
-    ["area_m2", "cartorio", "confrontacoes", "loteamento_cartorio", "loteamento_denominacao", "loteamento_matricula", "matricula_numero", "tipo_documento"]);
+    ["area_m2", "cartorio", "confrontacoes", "endereco", "estado_civil", "loteamento_cartorio", "loteamento_denominacao", "loteamento_matricula",
+     "matricula_numero", "nacionalidade", "profissao", "proprietario_cpf_cnpj", "proprietario_nome", "rg", "tipo_documento"]);
 });
 
 /* ---------------- PortalVenda.gs ---------------- */
