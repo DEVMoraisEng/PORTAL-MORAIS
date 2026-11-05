@@ -891,7 +891,7 @@ function afAnexosId(id,compacto){
   if(!it||!it.v){
     const fora=!it, na=it&&it.nao_achado;
     const curto=fora?"📎 fora da leitura dos anexos":na?"📎 não achado no Mais Controle":"📎 ainda não lido";
-    const longo=fora?`este pagamento não está na leitura do robô (ele lê os pagamentos com alerta dos últimos ${(AF_D.anexos||{}).dias||90} dias).`
+    const longo=fora?`este pagamento não está na leitura do robô (ele lê os alertas da Fiscalização dos últimos ${Math.round(((AF_D.anexos||{}).dias_fiscal||90)/30)} meses e os demais pagamentos com alerta dos últimos ${(AF_D.anexos||{}).dias||90} dias).`
       :na?`o robô procurou na lista de pagamentos do Mais Controle em ${fD(String(na).slice(0,10))} e não achou este lançamento (data/valor diferentes ou parecido com outro). Ele procura de novo em 3 dias.`
       :"o robô já achou o lançamento no Mais Controle e abre os arquivos na próxima rodada.";
     return compacto?`<div class="anxs"><span class="small anx0">${curto}</span>${mcLk}</div>`:`<div class="small muted" style="margin:0 0 12px">📎 Anexos: ${longo} ${mcLk}</div>`;
