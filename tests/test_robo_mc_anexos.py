@@ -54,14 +54,12 @@ class ErpFalso:
         pass
 
 
-def test_escolhe_alertas_e_janela():
+def test_escolhe_alertas_e_janela(monkeypatch):
+    monkeypatch.setattr(ra, "ESCOPO", "alertas")
     alvo = ra.escolher(aud_falsa())
     assert set(alvo) == {101, 303}               # 202 é OK sem alerta; 404 está fora dos 90 dias; 303 tem DUP
-    ra.ESCOPO = "todos"
-    try:
-        assert set(ra.escolher(aud_falsa())) == {101, 202, 303}
-    finally:
-        ra.ESCOPO = "alertas"
+    monkeypatch.setattr(ra, "ESCOPO", "todos")   # 05/11: o padrão — todos da página; com alerta marcados
+    assert set(ra.escolher(aud_falsa())) == {101, 202, 303, 404} and ra.ALERTAS == {101, 303}
 
 
 def test_rodada_com_link_longo_do_mc_nao_copia(monkeypatch):
@@ -391,6 +389,7 @@ def test_alerta_da_fiscalizacao_velho_entra_e_lista_em_pedacos(monkeypatch):
     aud = {"dict": {"st": ["OK", "DIVERGENTE"]},
            "cols": {"id": [101, 202, 303], "dp": [D(5), D(300), D(300)], "st": [1, 0, 1]},
            "fiscal": [["TARDIO", 1, "x"]]}
+    monkeypatch.setattr(ra, "ESCOPO", "alertas")
     alvo = ra.escolher(aud)
     assert set(alvo) == {101, 202}            # 202: alerta da Fiscalização com 300 dias entra; 303 (só situação) não
     monkeypatch.setattr(ra, "sb_subir", lambda *a: None)
@@ -398,3 +397,15 @@ def test_alerta_da_fiscalizacao_velho_entra_e_lista_em_pedacos(monkeypatch):
     leitor = ra.LeitorMC(ErpFalso())
     itens, est = ra.rodada(leitor, aud_falsa(), alvo)
     assert "202" not in itens or not itens["202"].get("nao_achado")   # o pedaço velho fica para a próxima rodada
+
+
+def test_sem_alerta_guarda_o_arquivo_sem_link(monkeypatch):
+    """05/11: lançamento sem alerta só guarda nome/tipo (sem pedir link nem copiar para o Supabase)."""
+    subidos = []
+    monkeypatch.setattr(ra, "sb_subir", lambda *a: subidos.append(a))
+    monkeypatch.setattr(ra, "sb_apagar", lambda c: None)
+    monkeypatch.setattr(ra, "ALERTAS", {999})
+    leitor = ra.LeitorMC(ErpFalso(validade=60))       # link curto: com alerta, copiaria
+    itens, est = ra.rodada(leitor, aud_falsa(), {101: D(5)})
+    a = itens["101"]["a"]
+    assert a and all(x.get("sl") and "u" not in x for x in a) and not subidos and est["copiados"] == 0
