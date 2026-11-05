@@ -379,3 +379,9 @@ def test_cobertura_por_alerta():
     itens = {"101": {"v": "x", "a": [{"o": "P"}]}, "303": {"nao_achado": "2026-11-04"}}
     l = ra.cobertura(aud, itens)
     assert l == ["  DUP: não achado no MC 1"]
+def test_nao_achado_recente_fica_fora_da_rodada():
+    agora = dt.datetime.now(dt.timezone.utc)
+    lim = D(ra.RECHECAR_DIAS)
+    assert not ra._rechecar({"nao_achado": ra.HOJE.isoformat()}, D(2), lim, agora)
+    velho = (ra.HOJE - dt.timedelta(days=ra.REPROCURAR_DIAS)).isoformat()
+    assert ra._rechecar({"nao_achado": velho}, D(2), lim, agora)
