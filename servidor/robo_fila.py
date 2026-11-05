@@ -695,12 +695,15 @@ def atualizar_codigo(agora=time.time, rodar=subprocess.run) -> str | None:
         if MARCA_PULL.exists() and agora() - MARCA_PULL.stat().st_mtime < ATUALIZAR_MIN * 60:
             return None
         CENTRAL.mkdir(parents=True, exist_ok=True)
-        MARCA_PULL.write_text(dt.datetime.now().isoformat(timespec="seconds"), encoding="utf-8")
+        # 05/11: com os anexos rodando o dia inteiro, "nenhum robô rodando" quase nunca acontecia e o código novo não
+        # chegava. Quem já está rodando carregou o código dele; só espera quem COMEÇOU agora (pode estar importando).
         try:
-            if any(RODANDO.glob("*.json")):
-                return "robô rodando — fica para a próxima"
+            for x in RODANDO.glob("*.json"):
+                if agora() - x.stat().st_mtime < 90:
+                    return "robô começando agora — tento no próximo minuto"
         except Exception:
             pass
+        MARCA_PULL.write_text(dt.datetime.now().isoformat(timespec="seconds"), encoding="utf-8")
         st = rodar(["git", "status", "--porcelain", "-uno"], cwd=RAIZ, capture_output=True, text=True, timeout=60)
         if (st.stdout or "").strip():
             log("[atualizar] clone com mudança local, não puxei: %s" % (st.stdout or "").strip().replace("\n", " | ")[:200])

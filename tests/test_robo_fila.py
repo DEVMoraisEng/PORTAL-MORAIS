@@ -308,7 +308,13 @@ def test_atualizar_codigo_so_com_clone_limpo_e_sem_robo(tmp_path, monkeypatch):
     assert R.atualizar_codigo(rodar=rodar) is None                       # dentro dos 15 min: nem tenta
     (tmp_path / "pull.txt").unlink()
     R.marcar_rodando("anexos", "trabalhando")
-    assert R.atualizar_codigo(rodar=lambda *a, **k: (_ for _ in ()).throw(AssertionError("não podia rodar git"))).startswith("robô rodando")
+    assert R.atualizar_codigo(rodar=lambda *a, **k: (_ for _ in ()).throw(AssertionError("não podia rodar git"))).startswith("robô começando")
+    assert not (tmp_path / "pull.txt").exists()                           # não gasta os 15 min: tenta no minuto seguinte
+    import os as _os, time as _time
+    velho = _time.time() - 600
+    _os.utime(tmp_path / "rodando" / "anexos.json", (velho, velho))     # rodando há 10 min: já carregou o código
+    heads2 = iter(["ccc", "ccc"])
+    assert R.atualizar_codigo(rodar=lambda cmd, **k: Res(next(heads2)) if cmd[1] == "rev-parse" else Res()) == "em dia"
     R.marcar_rodando("anexos", None)
     (tmp_path / "pull.txt").unlink()
     assert R.atualizar_codigo(rodar=lambda cmd, **k: Res(" M x.py") if cmd[1] == "status" else Res()) == "clone sujo"
