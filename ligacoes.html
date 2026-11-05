@@ -950,7 +950,7 @@ CALC_DEF[CALC.PROC_SANESC] = { titulo: "Tempo de processo (dias)", valor: diasPr
    os títulos antigos ("Prazo corrido"/"Tempo corrido") ficam só no dica/comentário
    pra quem for procurar no histórico. */
 CALC_DEF[CALC.LIG_CORRIDO] = { titulo: "PRAZO SEM LIGAÇÃO", valor: diasCorridosLigacao,
-  dica: "da DATA DE SOLICITAÇÃO até a Data de Ligação (ou até hoje, se ainda não ligou)" };
+  dica: "da DATA DE SOLICITAÇÃO (na SANESC aprovada, da DATA DA APROVAÇÃO) até a Data de Ligação (ou até hoje, se ainda não ligou)" };
 CALC_DEF[CALC.PRAZO_LIBER] = { titulo: "PRAZO SEM SOLICITAÇÃO", valor: prazoDesdeLiberacao,
   dica: "da DATA DE LIBERAÇÃO até a DATA DE SOLICITAÇÃO (ou até hoje, se ainda não solicitou)" };
 CALC_DEF[CALC.PRAZO_UC] = { titulo: "PRAZO SEM UC", valor: prazoSemUc,
@@ -1643,8 +1643,15 @@ function diasProcessoSanesc(l){
   return diasAte(ini, fim);
 }
 /* Da solicitação até a ligação (qualquer concessionária), também correndo. */
+/* 05/11/26 — SANESC com aprovação: o PRAZO SEM LIGAÇÃO conta da DATA DA
+   APROVAÇÃO (a ligação só pode acontecer depois dela), não da solicitação.
+   Sem a data da aprovação, e nas demais concessionárias: da DATA DE SOLICITAÇÃO. */
+function inicioPrazoLigacao(l){
+  if (normN(sel(l, C.CONC)) === "SANESC" && dataPreenchida(l, C.DT_APROV)) return dataReal(l, C.DT_APROV);
+  return dataReal(l, C.DT_SOL);
+}
 function diasCorridosLigacao(l){
-  return diasAte(dataReal(l, C.DT_SOL), dataReal(l, C.DT_LIG));
+  return diasAte(inicioPrazoLigacao(l), dataReal(l, C.DT_LIG));
 }
 /* Da liberação até a solicitação: é o tempo que a obra está esperando alguém
    solicitar. Enquanto não solicitar, conta até hoje. */
