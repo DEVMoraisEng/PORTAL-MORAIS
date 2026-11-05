@@ -54,6 +54,13 @@ SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "").strip()
 BUCKET, CAMINHO = "analise", "auditoria/auditoria.json"
 PASTA = "auditoria/anexos"
 DIAS = int(os.environ.get("ANEXOS_DIAS") or 90)
+#: 05/11 (dono: "tá tudo sem anexo"): a cobertura mostrou 615 alertas da Fiscalização com pagamento mais velho que
+#: os 90 dias — TARDIO 348, SEM_OC 92, OBRA_FINALIZADA 88… e esses nunca eram lidos. Alerta da Fiscalização entra
+#: com o pagamento dos últimos DIAS_FISCAL; o resto (só a situação do auditor) continua nos DIAS.
+DIAS_FISCAL = int(os.environ.get("ANEXOS_DIAS_FISCAL") or 730)
+#: a lista do MC é lida em pedaços de JANELA_LISTA_DIAS (os mais recentes primeiro): 90 dias eram ~70 páginas e
+#: ~20 min; dois anos de uma vez passariam do tempo da rodada. Cada rodada lê um pedaço e guarda o que achou.
+JANELA_LISTA_DIAS = int(os.environ.get("ANEXOS_JANELA_LISTA_DIAS") or 60)
 ESCOPO = (os.environ.get("ANEXOS_ESCOPO") or "alertas").strip().lower()
 MAX_ITENS = int(os.environ.get("ANEXOS_MAX_ITENS") or 700)
 MAX_MB_RODADA = float(os.environ.get("ANEXOS_MAX_MB") or 250)
@@ -126,11 +133,12 @@ def escolher(aud):
     c, d = aud["cols"], aud["dict"]
     st = d.get("st") or []
     lim = (HOJE - dt.timedelta(days=DIAS)).isoformat()
+    lim_fiscal = (HOJE - dt.timedelta(days=max(DIAS, DIAS_FISCAL))).isoformat()
     com_fiscal = {int(f[1]) for f in (aud.get("fiscal") or []) if isinstance(f, (list, tuple)) and len(f) > 1}
     ultimo_pg = {}
     for i, idl in enumerate(c["id"]):
         dp = c["dp"][i] or ""
-        if not idl or dp < lim:
+        if not idl or dp < (lim_fiscal if i in com_fiscal else lim):
             continue
         rot = st[c["st"][i]] if isinstance(c["st"][i], int) and c["st"][i] < len(st) else str(c["st"][i])
         if ESCOPO != "todos" and rot == "OK" and i not in com_fiscal:
@@ -144,7 +152,7 @@ def cobertura(aud, itens) -> list[str]:
     lidos sem arquivo, não foram achados no MC, esperam a próxima rodada ou estão fora da leitura (mais velhos)."""
     c = aud.get("cols") or {}
     ids, dps = c.get("id") or [], c.get("dp") or []
-    lim = (HOJE - dt.timedelta(days=DIAS)).isoformat()
+    lim = (HOJE - dt.timedelta(days=max(DIAS, DIAS_FISCAL))).isoformat()
     conta = {}
     for f in aud.get("fiscal") or []:
         try:
@@ -160,7 +168,7 @@ def cobertura(aud, itens) -> list[str]:
         elif it:
             k = "esperando abrir"
         else:
-            k = "fora da leitura (> %d dias)" % DIAS if (dps[i] or "") < lim else "fora da leitura"
+            k = "fora da leitura (> %d dias)" % max(DIAS, DIAS_FISCAL) if (dps[i] or "") < lim else "esperando a lista do MC"
         conta.setdefault(tipo, {}).setdefault(k, 0)
         conta[tipo][k] += 1
     return ["  %s: %s" % (t, ", ".join("%s %d" % kv for kv in sorted(v.items(), key=lambda kv: -kv[1])))
@@ -716,6 +724,14 @@ def rodada(leitor, aud, alvo, relogio=time.monotonic):
     if sem_mc and prontos >= PRONTOS_SEM_LISTA:
         adiados, sem_mc = len(sem_mc), {}
         log(f"  {prontos} lançamento(s) já achados esperando para abrir: a lista do MC fica para depois ({adiados} a procurar)")
+    if sem_mc and JANELA_LISTA_DIAS > 0:
+        mais_nova = dt.date.fromisoformat(max(sem_mc.values())[:10])
+        corte = (mais_nova - dt.timedelta(days=JANELA_LISTA_DIAS)).isoformat()
+        depois = {i: d for i, d in sem_mc.items() if d < corte}
+        if depois:
+            sem_mc = {i: d for i, d in sem_mc.items() if d >= corte}
+            log(f"  lista do MC em pedaços: agora de {corte} a {mais_nova.isoformat()} ({len(sem_mc)} a procurar); "
+                f"{len(depois)} mais velhos ficam para as próximas rodadas")
     mapa, primeira = {}, None
     if sem_mc:
         leitor.preparar_casamento(aud, sem_mc)
@@ -887,7 +903,7 @@ def main():
         # grava em cima da versão MAIS NOVA (o robô da madrugada pode ter regravado no meio)
         atual = sb_baixar_json()
         atual["anexos"] = {"em": dt.datetime.now(dt.timezone.utc).isoformat(timespec="minutes"),
-                           "dias": DIAS, "escopo": ESCOPO, "itens": itens}
+                           "dias": DIAS, "dias_fiscal": DIAS_FISCAL, "escopo": ESCOPO, "itens": itens}
         tam = sb_gravar_json(atual)
         com = sum(1 for x in itens.values() if x.get("a"))
         log(f"anexos: {len(itens)} lançamentos ({com} com arquivo) · " + " · ".join(f"{k} {v}" for k, v in est.items())
