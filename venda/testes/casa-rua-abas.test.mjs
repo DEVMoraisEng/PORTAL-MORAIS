@@ -172,7 +172,9 @@ test("COMPRADOR 1 - E-MAIL só aparece se tiver algo diferente do Email (que é 
 test("espelho no navegador: caixas marcadas e o valor novo vai para a outra aba", () => {
   const vm = require("node:vm");
   const ini = vendas.indexOf("function pnMarcarEspelho(");
-  const fimEsp = vendas.indexOf("\n}\n", vendas.indexOf("function pnEspelhar(")) + 3;
+  /* fim da função com \n ou \r\n (o checkout no Windows pode trazer CRLF) */
+  const resto = vendas.slice(vendas.indexOf("function pnEspelhar(")), mFim = /\r?\n\}\r?\n/.exec(resto);
+  const fimEsp = vendas.indexOf("function pnEspelhar(") + mFim.index + mFim[0].length;
   const caixas = [];
   function caixa(k, dono) { const i = { value: "velho", style: {} }; return { k, i, getAttribute: () => k, contains: (e) => e === dono, querySelectorAll: () => [i] }; }
   const el = {};
