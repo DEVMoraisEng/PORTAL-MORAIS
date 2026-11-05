@@ -15,6 +15,10 @@
  * Para poupar a cota de UrlFetch: de cada envelope aberto a vigia faz o GET do envelope e o dos eventos de cada
  * documento (ids guardados junto da marca em VIGIA_STATUS_<envelope>); documentos e signatários só são lidos quando
  * algo mudou desde a última vez.
+ * 05/11/2026 (dono, casa de rua): também os contratos ENVIADO da base VENDAS (Propriedade DB_VENDAS). Quando o PDF
+ * assinado entra, o contrato vai para o Orçamento da obra da casa (mc-anexos) e, com MC_LANCAR_AO_ASSINAR = SIM, a
+ * venda é lançada sem clique: a prévia é pedida na hora (mcAutoIniciar_) e, a cada volta, mcAutoPendentes_ pede o
+ * lançamento quando a prévia volta OK — ou para com aviso (situação + e-mail) se ela voltar com erro.
  * Nunca envia, reenvia nem cancela envelope. */
 var VIGIA_STATUS = "VIGIA_STATUS_";
 var VIGIA_AGUARDA_MAX_MS = 24 * 3600000;
@@ -29,17 +33,23 @@ function vigiaNoHorario_() {
 
 function vigiaAssinaturas() {
   if (!vigiaNoHorario_()) return;   /* antes de qualquer chamada de rede */
-  var db = String(prop_("DB_VENDAS_COND") || "").trim();
-  if (!db) { ctrLog_("vigia sem DB_VENDAS_COND"); return; }
-  var abertos = vigiaAbertos_(db), col = colunas_(), assinados = 0, vistos = {};
+  var db = String(prop_("DB_VENDAS_COND") || "").trim(), dbRua = String(prop_("DB_VENDAS") || "").trim();
+  if (!db && !dbRua) { ctrLog_("vigia sem DB_VENDAS_COND nem DB_VENDAS"); return; }
+  var abertos = db ? vigiaAbertos_(db) : [], col = colunas_(), assinados = 0, vistos = {};
+  /* 05/11/2026 (dono): também os contratos ENVIADO das casas de rua (base VENDAS) — o assinado vai para o Orçamento
+     e, com MC_LANCAR_AO_ASSINAR = SIM, a venda é lançada sozinha (prévia → lançamento, mcAutoPendentes_) */
+  if (dbRua) {
+    try { abertos = abertos.concat(vigiaAbertosRua_(dbRua)); } catch (e) { ctrErro_("vigia casas de rua", e); }
+  }
   abertos.forEach(function (pg) {
+    if (vistos[pg.id]) return;
     vistos[pg.id] = true;
     try { if (vigiaUma_(col, pg)) assinados++; }
     catch (e) { ctrErro_("vigia " + String(pg.id).slice(0, 8), e); }
   });
   /* 03/11: termos de pré-reserva ainda ENVIADO */
   var termos = [];
-  try { termos = vigiaAbertosTermo_(db); } catch (e) { ctrErro_("vigia termos", e); }
+  if (db) { try { termos = vigiaAbertosTermo_(db); } catch (e) { ctrErro_("vigia termos", e); } }
   termos.forEach(function (pg) {
     try { vigiaUma_(col, pg, { doc: "PRE_RESERVA" }); }
     catch (e) { ctrErro_("vigia termo " + String(pg.id).slice(0, 8), e); }
@@ -62,10 +72,15 @@ function vigiaAssinaturas() {
   /* 03/11 (AnexosMC.gs): ZIP dos assinados é montado aqui, fora do "Atualizar situação" (no máximo 1 tentativa/hora) */
   try { if (typeof mcZipPendentes_ === "function") mcZipPendentes_(); }
   catch (e) { ctrErro_("vigia zip dos assinados", e); }
+  /* 05/11 (MaisControleVenda.gs): casas de rua assinadas no lançamento automático — prévia OK vira lançamento */
+  try { if (typeof mcAutoPendentes_ === "function") mcAutoPendentes_(); }
+  catch (e) { ctrErro_("vigia lançamento automático", e); }
 }
 
 /* linhas do condomínio com o contrato ENVIADO (nome real da coluna pelo esquema da base: pode ter espaço sobrando) */
 function vigiaAbertos_(db) { return vigiaAbertosPor_(db, ASS_COL.SITUACAO); }
+/* 05/11: casas de rua (base VENDAS) com o contrato ENVIADO — mesma coluna ASSINATURA - SITUAÇÃO */
+function vigiaAbertosRua_(db) { return vigiaAbertosPor_(db, ASS_COL.SITUACAO); }
 /* 03/11: linhas com o termo de pré-reserva ENVIADO */
 function vigiaAbertosTermo_(db) { return vigiaAbertosPor_(db, PreReservaVenda.COL.SITUACAO); }
 function vigiaAbertosPor_(db, coluna) {
