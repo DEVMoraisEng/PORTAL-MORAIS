@@ -213,6 +213,49 @@ var ContratoVenda = (function () {
     return txt(v);
   }
 
+  /* 05/11/2026 (dono): casa de rua — dados de pagamento da comissão vêm do cadastro do CORRETOR (CORRETORES – CONTRATO),
+     não mais da coluna CONTRATO - COMISSÃO FORMA da venda. Colunas texto do cadastro, todas opcionais. */
+  var CAMPOS_PAGAMENTO_CORRETOR = [
+    { coluna: "CHAVE PIX", rotulo: "Chave PIX", tipo: "texto", chave: "pix" },
+    { coluna: "BANCO", rotulo: "Banco", tipo: "texto", chave: "banco" },
+    { coluna: "AGÊNCIA", rotulo: "Agência", tipo: "texto", chave: "agencia" },
+    { coluna: "CONTA", rotulo: "Conta", tipo: "texto", chave: "conta" },
+    { coluna: "TITULAR DA CONTA", rotulo: "Titular da conta", tipo: "texto", chave: "titular" }
+  ];
+  /* {{COMISSAO_FORMA}} montado dos dados do corretor: "PIX, chave X", "transferência para B, agência A, conta C" ou os dois
+     ("…, ou transferência…"), + ", em nome de <titular ou nome do corretor>". Sem chave nem banco/agência/conta: "". */
+  function formaComissaoCorretor(k) {
+    k = k || {};
+    var pix = txt(k.pix), banco = txt(k.banco), ag = txt(k.agencia), conta = txt(k.conta);
+    var partes = [];
+    if (pix) partes.push("PIX, chave " + pix);
+    if (banco || ag || conta) {
+      var t = banco ? "transferência para " + banco : "transferência";
+      if (ag) t += ", agência " + ag;
+      if (conta) t += ", conta " + conta;
+      partes.push(t);
+    }
+    if (!partes.length) return "";
+    var titular = txt(k.titular) || txt(k.nome);
+    return partes.join(", ou ") + (titular ? ", em nome de " + titular : "");
+  }
+  /* Bloco "Pagamento da comissão" da aba Contrato (casa de rua). linha = { COLUNA: valor } do cadastro do corretor ou null
+     (sem cadastro); colunas = nomes das colunas que a base tem (null = não se sabe). formaAntiga = CONTRATO - COMISSÃO FORMA. */
+  function estadoComissaoCorretor(nomeCorretor, linha, colunas, formaAntiga) {
+    var nome = txt(nomeCorretor), k = { nome: nome }, faltando = [];
+    var campos = CAMPOS_PAGAMENTO_CORRETOR.map(function (c) {
+      var v = linha ? txt(linha[c.coluna]) : "";
+      k[c.chave] = v;
+      var existe = colunas ? colunas.map(function (x) { return R().chave(x); }).indexOf(R().chave(c.coluna)) >= 0 : true;
+      if (!existe) faltando.push(c.coluna);
+      return { coluna: c.coluna, rotulo: c.rotulo, valor: v, existe: existe };
+    });
+    var forma = formaComissaoCorretor(k), legado = false;
+    if (!forma && txt(formaAntiga)) { forma = formaPorExtenso(formaAntiga); legado = true; }
+    return { pagaPor: "COMPRADOR", corretor: nome, temCadastro: !!linha, campos: campos, colunasFaltando: faltando,
+             forma: forma, formaLegada: legado };
+  }
+
   /* ---- condomínio ---- */
   function R() { return typeof RegrasVenda !== "undefined" ? RegrasVenda : require("./RegrasVenda.js"); }
   function so2(n) { return Math.round(n * 100) / 100; }
@@ -766,7 +809,9 @@ var ContratoVenda = (function () {
     var cond = f.condominio ? montarCondominio(f.condominio) : null;
     /* condomínio (contrato do advogado, 21/10/2026): a comissão é paga pelo COMPRADOR, por fora do preço
        do imóvel (valor da operação = VALOR DE VENDA + comissão). Antes (07/10) era paga pela incorporadora. */
-    var pagaPor = cond ? "COMPRADOR" : up(v.COMISSAO_PAGA_POR);
+    /* 05/11/2026 (dono): na CASA DE RUA também é SEMPRE o comprador — a coluna CONTRATO - COMISSÃO PAGA POR não manda mais
+       (saiu da tela). O ERP (venda/mc/regras.py) trata a coluna vazia como COMPRADOR; o condomínio no ERP segue VENDEDOR. */
+    var pagaPor = "COMPRADOR";
     var total = cond && cond.fluxo.valorVenda !== null ? cond.fluxo.valorVenda : num(v.VALOR_CONTRATO);
     var comissao = num(v.COMISSAO), naMao = num(v.VALOR_NA_MAO);
     var aquisicao, intermediacao;
@@ -833,7 +878,9 @@ var ContratoVenda = (function () {
         formaPagamento: txt(v.FORMA_PAGAMENTO)
       },
       comissao: {
-        valor: comissao, forma: txt(v.COMISSAO_FORMA), vencimento: txt(v.COMISSAO_VENCIMENTO), pagaPor: pagaPor
+        /* 05/11/2026: casa de rua — a forma sai do cadastro do corretor (chave PIX / conta); sem dados lá, a coluna antiga */
+        valor: comissao, forma: (!cond && formaComissaoCorretor(f.corretor)) || txt(v.COMISSAO_FORMA),
+        vencimento: txt(v.COMISSAO_VENCIMENTO), pagaPor: pagaPor
       },
       corretor: f.corretor ? {
         nome: txt(f.corretor.nome), creci: txt(f.corretor.creci), cpfCnpj: txt(f.corretor.cpfCnpj),
@@ -1316,7 +1363,10 @@ var ContratoVenda = (function () {
       { coluna: "NACIONALIDADE", rotulo: "Nacionalidade", tipo: "texto" },
       { coluna: "ENDEREÇO PROFISSIONAL", rotulo: "Endereço profissional", tipo: "texto" },
       { coluna: "E-MAIL", rotulo: "E-mail", tipo: "email" }
-    ],
+    ].concat(CAMPOS_PAGAMENTO_CORRETOR.map(function (c) {
+      /* 05/11/2026: pagamento da comissão — opcionais; nunca viram falta (não estão no FALTA_CORRETOR) */
+      return { coluna: c.coluna, rotulo: c.rotulo, tipo: c.tipo };
+    })),
     loteamento: [
       { coluna: "DENOMINAÇÃO", rotulo: "Denominação", tipo: "texto" },
       { coluna: "MUNICÍPIO/UF", rotulo: "Município/UF", tipo: "texto" },
@@ -1518,6 +1568,8 @@ var ContratoVenda = (function () {
   var api = {
     PARAGRAFOS_SE_VAZIO: PARAGRAFOS_SE_VAZIO, planoParagrafosVazios: planoParagrafosVazios,
     CAMPOS_CADASTRO: CAMPOS_CADASTRO, camposAbertos: camposAbertos, validarCampos: validarCampos,
+    CAMPOS_PAGAMENTO_CORRETOR: CAMPOS_PAGAMENTO_CORRETOR, formaComissaoCorretor: formaComissaoCorretor,   /* 05/11/2026 */
+    estadoComissaoCorretor: estadoComissaoCorretor, formaPorExtenso: formaPorExtenso,
     validarContaDigitada: validarContaDigitada, cnpjValido: cnpjValido, telefoneFormatado: telefoneFormatado,
     COL: COL, TIPOS: TIPOS, moedaBR: moedaBR, valorPorExtenso: valorPorExtenso,
     dataBR: dataBR, dataPorExtenso: dataPorExtenso, loteQuadra: loteQuadra,

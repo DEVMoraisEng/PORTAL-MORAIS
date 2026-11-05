@@ -14,6 +14,9 @@
                  "MC - VENDA ID", "DOSSIÊ IMÓVEL - OBSERVAÇÃO", "CONTRATO GERADO", "CONTRATO ASSINADO",
                  /* a data da comissão saiu da tela e do contrato (dono, 08/10) */
                  "CONTRATO - COMISSÃO VENCIMENTO",
+                 /* 05/11/2026 (dono): casa de rua — a comissão é SEMPRE paga pelo comprador (texto fixo no bloco "Pagamento da
+                    comissão" da aba Contrato) e a forma sai do cadastro do corretor (chave PIX / conta), no mesmo bloco */
+                 "CONTRATO - COMISSÃO PAGA POR", "CONTRATO - COMISSÃO FORMA",
                  /* 04/11/2026 (dono): o contrato tira o prazo de conclusão da DATA DA ENTREGA (decisão 08/10); esta coluna não é lida */
                  "CONTRATO - PRAZO DE CONCLUSÃO DAS OBRAS",
                  /* 04/11/2026 (dono): situação e observação do dossiê já aparecem no bloco do dossiê (etiqueta + histórico) */
@@ -37,8 +40,7 @@
     { titulo: "Comprador 2", campos: comprador(2) },
     { titulo: "Contrato — pagamento e comissão", campos: [
       "CONTRATO - SINAL VALOR", "CONTRATO - SINAL DATA", "CONTRATO - ENTRADA VALOR", "CONTRATO - ENTRADA VENCIMENTO",
-      "CONTRATO - INTERMEDIÁRIA VALOR", "CONTRATO - INTERMEDIÁRIA VENCIMENTO", "CONTRATO - FORMA DE PAGAMENTO",
-      "CONTRATO - COMISSÃO FORMA", "CONTRATO - COMISSÃO PAGA POR"] },
+      "CONTRATO - INTERMEDIÁRIA VALOR", "CONTRATO - INTERMEDIÁRIA VENCIMENTO", "CONTRATO - FORMA DE PAGAMENTO"] },
     { titulo: "Contrato — imóvel", campos: [
       "CONTRATO - MATRÍCULA INDIVIDUAL", "CONTRATO - CRI DA MATRÍCULA", "CONTRATO - ÁREA DO LOTE (M²)", "CONTRATO - CONFRONTAÇÕES",
       "CONTRATO - ALVARÁ Nº", "CONTRATO - ALVARÁ DATA", "CONTRATO - HABITE-SE Nº", "CONTRATO - HABITE-SE DATA",
@@ -121,7 +123,7 @@
     "negociacao: entrada (valor)": ["CONTRATO - ENTRADA VALOR"], "negociacao: entrada (vencimento)": ["CONTRATO - ENTRADA VENCIMENTO"],
     "negociacao: intermediaria (vencimento)": ["CONTRATO - INTERMEDIÁRIA VENCIMENTO"],
     "negociacao: forma de pagamento": ["CONTRATO - FORMA DE PAGAMENTO"], "negociacao: comissao (valor)": ["COMISSÃO"],
-    "negociacao: comissao (forma)": ["CONTRATO - COMISSÃO FORMA"], "negociacao: comissao paga por": ["CONTRATO - COMISSÃO PAGA POR"],
+    /* 05/11/2026: comissão (forma) e "paga por" saíram — a forma vem do cadastro do corretor e quem paga é sempre o comprador */
     "negociacao: valor na mao + comissao = valor do contrato": ["VALOR NA MÃO", "COMISSÃO", "VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)"],
     "corretor: corretor na venda": ["CORRETOR"]
   };

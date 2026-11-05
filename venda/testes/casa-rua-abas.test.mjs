@@ -58,7 +58,9 @@ test("o que falta no contrato da casa aponta para a coluna da venda", () => {
   assert.deepEqual(P.colunasDaFalta("Comprador 1: nome"), ["CLIENTES"]);
   assert.deepEqual(P.colunasDaFalta("Imóvel: alvará (número)"), ["CONTRATO - ALVARÁ Nº"]);
   assert.deepEqual(P.colunasDaFalta("Imóvel: prazo previsto de conclusão das obras"), ["DATA DA ENTREGA"]);
-  assert.deepEqual(P.colunasDaFalta("Negociação: comissão paga por"), ["CONTRATO - COMISSÃO PAGA POR"]);
+  /* 05/11/2026: quem paga é sempre o comprador e a forma vem do cadastro do corretor — nenhuma caixa da venda */
+  assert.deepEqual(P.colunasDaFalta("Negociação: comissão paga por"), []);
+  assert.deepEqual(P.colunasDaFalta("Negociação: comissão (forma)"), []);
   assert.equal(P.colunasDaFalta("Negociação: valor na mão + comissão ≠ valor do contrato").length, 3);
   assert.deepEqual(P.colunasDaFalta("Vendedor: cadastro em VENDEDORES – CONTRATO"), [], "cadastro tem o formulário do servidor");
 });
