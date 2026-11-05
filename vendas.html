@@ -988,6 +988,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
           <option value="">Todas as casas</option>
           <option value="vendida">Vendas em Andamento</option>
           <option value="disponivel">Casas Disponíveis (Com avaliação)</option>
+          <option value="reservada">Reservadas (contrato aguardando assinatura)</option>
           <option value="completo">Processo de vendas completo</option>
         </select>
         <select id="hub-ano" onchange="aplicarFiltros('hub')"><option value="">Todos os anos</option></select>
@@ -1041,6 +1042,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
             <option value="">Todas as casas</option>
             <option value="vendida">Vendas em Andamento</option>
             <option value="disponivel">Casas Disponíveis (Com avaliação)</option>
+          <option value="reservada">Reservadas (contrato aguardando assinatura)</option>
             <option value="completo">Processo de vendas completo</option>
           </select>
           <select id="set-ano" onchange="aplicarFiltros('set')"><option value="">Todos os anos</option></select>
@@ -3191,10 +3193,28 @@ function temCliente(rec){
    trocar de "Casas vendidas" pra "Casas disponíveis" mostrava praticamente
    as mesmas linhas (e os dois contadores do informativo somavam a mesma
    obra duas vezes). */
+/* 05/11/2026 (dono), casa de rua: gerar o contrato grava CONTRATO - GERADO EM. Daí em diante quem decide é o
+   contrato: ASSINATURA - SITUAÇÃO = ASSINADO -> vendida; menos de 48 h -> "reservada" (conta à parte, não é
+   vendida nem disponível); 48 h ou mais sem todas as assinaturas -> volta a disponível. Sem a data, a régua de
+   sempre (tem cliente = vendida). Mesma régua do fetch_vendas.py (reserva_contrato) e do RegrasVenda.reservaContrato. */
+const RESERVA_CONTRATO_MS=48*3600*1000;
+function reservaContratoDe(valores){
+  const g=getV(valores||{},"CONTRATO - GERADO EM");
+  const t=g?Date.parse(typeof g==="object"&&g.start?g.start:g):NaN;
+  if(isNaN(t)) return null;
+  if(normNome(getV(valores,"ASSINATURA - SITUAÇÃO")||"")==="ASSINADO") return "VENDIDA";
+  return Date.now()<t+RESERVA_CONTRATO_MS?"RESERVADA":"LIBERADA";
+}
+function vendidaDe(rec){
+  const rc=reservaContratoDe(rec&&rec.valores);
+  return rc ? rc==="VENDIDA" : temCliente(rec);
+}
 function situacoesDe(valores,rec){
   const arr=[];
-  const vendida=temCliente(rec||{valores:valores});
+  const r=rec||{valores:valores}, rc=reservaContratoDe(valores);
+  const vendida=vendidaDe(r);
   if(vendida){ arr.push("vendida"); }
+  else if(rc==="RESERVADA"){ arr.push("reservada"); }
   else {
     const vm=getV(valores,"VALOR NA MÃO");
     if(vm!=null && vm!=="") arr.push("disponivel");
@@ -3561,17 +3581,18 @@ function aplicarFiltros(ctx){
 function infoCard(lab,val){ return `<div class="icard"><div class="ival">${val}</div><div class="ilab">${esc(lab)}</div></div>`; }
 function atualizarInformativo(ctx){
   const box=document.getElementById(ctx+"-info"); if(!box) return;
-  let vendidas=0, disponiveis=0, breve=0, construcao=0;
+  let vendidas=0, disponiveis=0, reservadas=0, breve=0, construcao=0;
   // conta só as linhas visíveis (respeita os filtros aplicados agora) — reaproveita os data-* já marcados no render
   document.querySelectorAll("#"+ctx+"-wrap tbody tr").forEach(tr=>{
     if(tr.style.display==="none") return;
     const sit=","+(tr.dataset.sit||"")+",";
     if(sit.indexOf(",vendida,")>=0) vendidas++;
     if(sit.indexOf(",disponivel,")>=0) disponiveis++;
+    if(sit.indexOf(",reservada,")>=0) reservadas++;   /* 05/11/2026: contrato gerado aguardando assinatura (48 h) */
     if(tr.dataset.breve==="1") breve++;
     if(tr.dataset.obra==="1") construcao++;
   });
-  let html = infoCard("Vendidas",vendidas)+infoCard("Disponíveis",disponiveis)+infoCard("Em breve",DOCS_OK?breve:"—")+infoCard("Em construção",DOCS_OK?construcao:"—");
+  let html = infoCard("Vendidas",vendidas)+infoCard("Disponíveis",disponiveis)+(reservadas?infoCard("Reservadas (contrato)",reservadas):"")+infoCard("Em breve",DOCS_OK?breve:"—")+infoCard("Em construção",DOCS_OK?construcao:"—");
   if(!DOCS_OK) html += `<div class="inote">Contadores de "em breve"/"em construção" precisam do secret DOCUMENTOS_DB_ID configurado no GitHub — sem ele o pipeline não publica documentos.json.</div>`;
   box.innerHTML = html;
 }
@@ -3616,7 +3637,7 @@ function indiceVendidasPorEndereco(){
   _vendidasPorEnd={};
   const base=(DADOS.hub&&DADOS.hub.length)?DADOS.hub:(DADOS.set||[]);
   base.forEach(v=>{
-    if(!temCliente(v)) return;
+    if(!vendidaDe(v)) return;   /* 05/11/2026: com contrato gerado, só assinado conta como vendida */
     const k=normNome(getV(v.valores,"ENDEREÇO"));
     if(k) _vendidasPorEnd[k]=(_vendidasPorEnd[k]||0)+1;
   });

@@ -741,6 +741,8 @@ function contratoEstado_(col, p) {
     try { r.conta = contaRecebEstado_(p.pageId); } catch (e) { ctrErro_("contratoEstado conta", e); }
     /* 05/11/2026 (dono): casa de rua — bloco "Pagamento da comissão" (paga por COMPRADOR + dados do corretor), sempre */
     try { var cc = ctrComissaoCorretorEstado_(pgE); if (cc) r.comissaoCorretor = cc; } catch (e) { ctrErro_("contratoEstado comissao", e); }
+    /* 05/11/2026 (dono): reserva de 48 h para assinar, contada de CONTRATO - GERADO EM */
+    try { var rs = ctrReservaEstado_(pgE); if (rs) r.reserva = rs; } catch (e) { ctrErro_("contratoEstado reserva", e); }
   }
   /* entrega 10 + rodada 1 (H5): lista de testemunhas (só id e nome), a escolha desta venda e o par padrão pelo tipo do vendedor
      (casa de rua e contrato final também: lê os cadastros só aqui, e só quando há lista para mostrar) */
@@ -969,6 +971,8 @@ function aprovarPreContratoMiolo_(col, sess, p, pid) {
     ctrErro_(rot + " " + pid + " falhou", e);
     return { ok: false, erro: "CONTRATO_FALHOU" };
   }
+  /* 05/11/2026 (dono): casa de rua — o contrato final reserva a casa (48 h para assinar; ver RegrasVenda.reservaContrato) */
+  if (!prep.d.condominio) ctrMarcarReservaContrato_(col, prep.f.pg, p.pageId, pid, rot);
   pre.conferidoEm = new Date().toISOString();
   pre.conferidoPor = ctrTxt_(sess && sess.u);
   try { ctrGravarPre_(p.pageId, pre); } catch (e) { ctrErro_(rot + " " + pid + " registro da conferencia", e); }
@@ -980,6 +984,47 @@ function aprovarPreContratoMiolo_(col, sess, p, pid) {
   var r = avisos.length ? { ok: true, nome: nomePdf, url: url, avisos: avisos } : { ok: true, nome: nomePdf, url: url };
   if (termos.length) r.termos = termos;
   return r;
+}
+
+/* ---- 05/11/2026 (dono): reserva da casa de rua ao gerar o contrato final ----
+ * Grava RESERVADA = SIM e DATA DA RESERVA = agora (o vigia MAPA-DE-VENDAS conta as 24 h dele por essa data) e
+ * CONTRATO - GERADO EM = agora (data com hora): é dela que saem as 48 h para assinar (fetch_vendas.py, vendas.html,
+ * bloco do contrato). Coluna que não existe ou tem tipo diferente fica de fora, com aviso no log — nunca derruba a
+ * geração (o PDF já está anexado). Os nomes reais vêm da página (tolerante a acento/caixa/espaço sobrando). */
+var CTR_RESERVA_COLS = { reservada: "RESERVADA", dataReserva: "DATA DA RESERVA", geradoEm: "CONTRATO - GERADO EM" };
+function ctrMarcarReservaContrato_(col, pg, pageId, pid, rot) {
+  try {
+    var props = (pg && pg.properties) || {}, porChave = {}, faltando = [], novo = {}, agora = new Date().toISOString();
+    for (var n in props) porChave[RegrasVenda.chave(n)] = n;
+    function real(nome, tipos) {
+      var r = porChave[RegrasVenda.chave(nome)];
+      if (!r || tipos.indexOf(props[r].type) < 0) { faltando.push(nome); return null; }
+      return r;
+    }
+    var cR = real(CTR_RESERVA_COLS.reservada, ["select", "status"]);
+    if (cR) {
+      var sch = col && col.schema && col.schema[cR], opc = sch && sch.opcoes;
+      var sim = opc && opc.length ? RegrasVenda.resolverOpcao(opc, "SIM") : "SIM";
+      novo[cR] = {}; novo[cR][props[cR].type] = { name: sim || "SIM" };
+    }
+    var cD = real(CTR_RESERVA_COLS.dataReserva, ["date"]);
+    if (cD) novo[cD] = { date: { start: agora } };
+    var cG = real(CTR_RESERVA_COLS.geradoEm, ["date"]);
+    if (cG) novo[cG] = { date: { start: agora } };
+    if (faltando.length) ctrLog_(rot + " " + pid + " reserva: coluna faltando ou de outro tipo: " + faltando.join(", "));
+    if (Object.keys(novo).length) notion_("PATCH", "/pages/" + pageId, { properties: novo });
+    ctrLog_(rot + " " + pid + " reserva gravada (" + Object.keys(novo).length + " coluna(s))");
+  } catch (e) { ctrErro_(rot + " " + pid + " reserva", e); }
+}
+/* Estado da reserva para o bloco do contrato (casa de rua): null sem CONTRATO - GERADO EM. */
+function ctrReservaEstado_(pg) {
+  var props = (pg && pg.properties) || {}, gerado = "", sit = "";
+  for (var n in props) {
+    var k = RegrasVenda.chave(n);
+    if (k === RegrasVenda.chave(CTR_RESERVA_COLS.geradoEm) && props[n].type === "date") gerado = ctrTxt_(props[n].date && props[n].date.start);
+    if (k === RegrasVenda.chave("ASSINATURA - SITUAÇÃO")) sit = ctrTxt_(ctrValor_(props[n]));
+  }
+  return RegrasVenda.reservaContrato(gerado, sit);
 }
 
 /* ---- entrega 12: conta de recebimento por venda ----

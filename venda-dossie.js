@@ -528,6 +528,9 @@
     if (r && r.fluxo && typeof r.fluxo === "object") o.fluxo = fluxoDoEstado(r.fluxo);
     /* 31/10/2026: o que falta de obrigatório que o cliente/corretor completa pelo link (null = o servidor não disse) */
     if (r && Array.isArray(r.faltasCliente)) o.faltasCliente = r.faltasCliente.map(String);
+    /* 05/11/2026 (dono): casa de rua — reserva de 48 h para assinar, contada do contrato gerado */
+    if (r && r.reserva && typeof r.reserva === "object" && /^\d{4}-\d{2}-\d{2}T/.test(String(r.reserva.ate || "")))
+      o.reserva = { estado: String(r.reserva.estado || ""), geradoEm: String(r.reserva.geradoEm || ""), ate: String(r.reserva.ate) };
     /* 03/11/2026 (incidente): fluxo/condições gravados depois do contrato final — o Enviar fica travado (assinatura-ui) */
     if (r && typeof r.envioDesatualizado === "boolean") o.envioDesatualizado = r.envioDesatualizado;
     /* 01/11/2026: bloco Fiadores / cônjuge do comprador (só vem no condomínio e quando falta algo) */
@@ -808,6 +811,21 @@
   }
   /* a Assinatura só vale para o contrato FINAL (não para o que está sendo conferido) */
   function contratoFinal(e) { return !!(e && e.gerado && etapaContrato(e) === "FINAL"); }
+  /* 05/11/2026 (dono): casa de rua — depois de gerado, a casa fica reservada 48 h para todos assinarem; vencido o prazo
+     sem todas as assinaturas, ela volta a disponível no mapa (o envelope continua aberto na Clicksign: cancelar é no
+     bloco Assinatura). O vencimento é refeito aqui pela hora do navegador (a tela pode ficar aberta). */
+  var MSG_RESERVA_VENCIDA = "Prazo de 48 h para assinar venceu — casa liberada no mapa";
+  function htmlReservaContrato(rs, agoraMs) {
+    if (!rs || !rs.ate) return "";
+    if (rs.estado === "VENDIDA") return '<div class="dz-linha dz-reserva"><span class="dz-rot">Assinado por todos — casa vendida.</span></div>';
+    var ate = Date.parse(rs.ate), agora = typeof agoraMs === "number" ? agoraMs : Date.now();
+    if (isNaN(ate)) return "";
+    if (rs.estado === "LIBERADA" || agora >= ate)
+      return '<div class="dz-aviso dz-reserva" role="status"><b>' + esc(MSG_RESERVA_VENCIDA) + "</b>. O envelope continua aberto na Clicksign — " +
+        "se a venda não vai seguir, use <b>Cancelar envelope</b> no bloco Assinatura.</div>";
+    return '<div class="dz-linha dz-reserva"><span class="dz-rot">Reservada até ' + esc(dataHoraBR(rs.ate).replace(",", "")) +
+      " — 48 h para assinar</span></div>";
+  }
   function htmlContrato(e, u) {
     var ocupado = !!u.ocupadoContrato, testes = !!u.testes;
     var dis = (ocupado || testes) ? " disabled" : "";
@@ -854,6 +872,7 @@
       h += '<div class="dz-linha"><span class="dz-rot">Contrato gerado<span class="dz-arq-nome">: ' + esc(e.nome) + "</span></span>" +
         '<button type="button" class="bt bt-mini" data-acao="c-ver"' + dis + ">Visualizar</button> " +
         '<button type="button" class="bt ghost bt-mini" data-acao="c-pre"' + dis + ">Gerar de novo</button></div>";
+      h += htmlReservaContrato(e.reserva);
       if (e.envioDesatualizado) h += '<div class="dz-aviso">' + esc(MSG_CONTRATO.CONTRATO_DESATUALIZADO) + "</div>";
       (e.confissao || []).forEach(function (x) {
         h += '<div class="dz-linha"><span class="dz-rot">Termo de confissão ' + (x.tipo === "POS" ? "pós-chaves" : "pré-chaves") + ": " + esc(x.nome) + "</span>" +
@@ -905,6 +924,7 @@
     if (e.gerado) {
       h += '<div class="dz-linha"><span class="dz-rot">Contrato enviado<span class="dz-arq-nome">: ' + esc(e.nome) + "</span></span>" +
         '<button type="button" class="bt bt-mini" data-acao="c-ver"' + dis + ">Visualizar</button></div>";
+      h += htmlReservaContrato(e.reserva);
       (e.confissao || []).forEach(function (x) {
         h += '<div class="dz-linha"><span class="dz-rot">Termo de confissão ' + (x.tipo === "POS" ? "pós-chaves" : "pré-chaves") + ": " + esc(x.nome) + "</span>" +
           '<button type="button" class="bt ghost bt-mini" data-acao="c-ver-cfd-' + (x.tipo === "POS" ? "pos" : "pre") + '"' + dis + ">Visualizar</button></div>";
@@ -1449,7 +1469,7 @@
                    htmlSoltar: htmlSoltar, pessoasDoEnvio: pessoasDoEnvio, conferirEscolhas: conferirEscolhas,
                    destinosDoEnvio: destinosDoEnvio, resultadoPorEspaco: resultadoPorEspaco,
                    resumo: resumo, escala: escala, tipoAceito: tipoAceito, painelCarregando: painelCarregando,
-                   htmlContrato: htmlContrato, htmlContratoLeitura: htmlContratoLeitura, MSG_SO_LEITURA: MSG_SO_LEITURA, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, pedidoParado: pedidoParado, mensagemMC: mensagemMC,
+                   htmlContrato: htmlContrato, htmlContratoLeitura: htmlContratoLeitura, MSG_SO_LEITURA: MSG_SO_LEITURA, htmlReservaContrato: htmlReservaContrato, MSG_RESERVA_VENCIDA: MSG_RESERVA_VENCIDA, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, pedidoParado: pedidoParado, mensagemMC: mensagemMC,
                    topicosMC: topicosMC, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas, htmlConjugePR: htmlConjugePR,
                    htmlCampos: htmlCampos, htmlConta: htmlConta, htmlFluxo: htmlFluxo, htmlFluxoVivo: htmlFluxoVivo, htmlFluxoDesconto: htmlFluxoDesconto, htmlFluxoBem: htmlFluxoBem, aplicarCrlv: aplicarCrlv, permutaSemBem: permutaSemBem, faltasDoBem: faltasDoBem, campoBem: campoBem, lerNumBR: lerNumBR, contaDoEstado: contaDoEstado, pedidoCampos: pedidoCampos,
                    contaDasEntradas: contaDasEntradas, faltasDaResposta: faltasDaResposta, detalheFluxoGravado: detalheFluxoGravado,

@@ -508,7 +508,24 @@ var RegrasVenda = (function () {
     return plano;
   }
 
+  /* 05/11/2026 (dono), só casa de rua: gerar o contrato final reserva a casa por 48 h para todos assinarem.
+     geradoEm = CONTRATO - GERADO EM (ISO com hora); situacao = ASSINATURA - SITUAÇÃO.
+     Devolve null sem data (venda antiga: a régua de sempre vale) ou
+     { estado: "VENDIDA" | "RESERVADA" | "LIBERADA", geradoEm, ate } (ate = geradoEm + 48 h, ISO).
+     A mesma régua está no fetch_vendas.py (reserva_contrato) e no vendas.html (reservaContratoDe). */
+  var RESERVA_CONTRATO_HORAS = 48;
+  function reservaContrato(geradoEm, situacao, agoraMs) {
+    var g = String(geradoEm || "").trim();
+    var t = g ? Date.parse(g) : NaN;
+    if (!g || isNaN(t)) return null;
+    var ate = new Date(t + RESERVA_CONTRATO_HORAS * 3600 * 1000).toISOString();
+    var agora = typeof agoraMs === "number" ? agoraMs : Date.now();
+    var estado = chave(situacao) === "ASSINADO" ? "VENDIDA" : (agora < t + RESERVA_CONTRATO_HORAS * 3600 * 1000 ? "RESERVADA" : "LIBERADA");
+    return { estado: estado, geradoEm: g, ate: ate };
+  }
+
   return {
+    RESERVA_CONTRATO_HORAS: RESERVA_CONTRATO_HORAS, reservaContrato: reservaContrato,
     COL: COL, TIPOS: TIPOS, ESPACOS: ESPACOS, ESTADOS: ESTADOS, TIPOS_CASA: TIPOS_CASA,
     TIPOS_CASA_TELA: TIPOS_CASA_TELA, tipoCasaPrecisaDaObra: tipoCasaPrecisaDaObra, tipoPelaObra: tipoPelaObra,
     COL_IMOVEL: COL_IMOVEL, TIPOS_IMOVEL: TIPOS_IMOVEL, ESPACOS_IMOVEL: ESPACOS_IMOVEL, espaco: espaco,
