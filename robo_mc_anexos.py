@@ -645,8 +645,12 @@ RECHECAR_HORAS = float(os.environ.get("ANEXOS_RECHECAR_HORAS") or 20)
 
 
 def _rechecar(it_ant, data_pag: str, lim: str, agora: dt.datetime) -> bool:
-    if not it_ant or _pendente(it_ant):
+    if not it_ant:
         return True
+    if _pendente(it_ant):
+        # 05/11: procurado e não achado há menos de REPROCURAR_DIAS fica FORA da rodada (antes contava como "nunca
+        # aberto" e o .bat da noite rodou 4 rodadas vazias esperando esse número zerar)
+        return _do_mc(it_ant) is not None or _procurar_de_novo(it_ant, HOJE)
     if data_pag < lim:
         return False
     if any(a.get("o") == "P" for a in it_ant.get("a") or []):     # comprovante do pagamento já está: não muda mais
