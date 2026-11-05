@@ -90,6 +90,33 @@ test("prazo de conclusão das obras não aparece no painel (o contrato usa a DAT
   assert.deepEqual(P.colunasDaFalta("Imóvel: prazo previsto de conclusão das obras"), ["DATA DA ENTREGA"]);
 });
 
+test("05/11: o painel da casa de rua abre como modal central, igual ao cartão do condomínio", () => {
+  const css = vendas.slice(vendas.indexOf("<style>"), vendas.indexOf("</style>"));
+  const ini = css.indexOf("\n.painel{"), painel = css.slice(ini, css.indexOf("}", ini));
+  assert.ok(ini > 0, "regra .painel existe");
+  assert.ok(painel.includes("left:50%;transform:translateX(-50%)"), "centralizado, não preso à direita");
+  assert.ok(painel.includes("width:min(880px,"), "mesma largura máxima do .cd-cardbox");
+  assert.ok(painel.includes("border-radius:14px"));
+  assert.ok(!painel.includes("right:0"), "não é mais aba lateral");
+  assert.ok(css.includes(".pbody{padding:0 0 24px;overflow:auto;flex:1;min-height:0"), "rolagem só dentro do painel");
+  assert.ok(css.includes(".painel{inset:0;top:0;left:0;transform:none;width:100vw;max-width:100vw;height:100%;border-radius:0}"), "celular: tela inteira");
+  assert.ok(css.includes('#painel[data-compradores="1"] #pn-body [data-comprador2]{display:none}'), "seletor de compradores continua");
+  assert.ok(vendas.includes('<aside class="painel" id="painel" role="dialog" aria-modal="true"'));
+  assert.ok(vendas.includes('<button type="button" class="cd-bt" id="pn-fechar" onclick="fecharObra()">✕ Fechar</button>'));
+  assert.ok(vendas.includes('<div class="overlay" id="overlay" onclick="fecharObra()"></div>'), "clique fora fecha");
+  const js = vendas.slice(vendas.indexOf("function fecharObra("), vendas.indexOf("/* ---------- visualizador de PDF"));
+  assert.ok(js.includes('e.key==="Escape"'), "Esc fecha");
+  assert.ok(js.includes('e.key!=="Tab"'), "foco preso no Tab");
+  assert.ok(js.includes('document.body.style.overflow="hidden"'), "página de trás não rola");
+  assert.ok(js.includes("_pnFocoAntes=document.activeElement"), "foco volta para quem abriu");
+  assert.ok(js.includes(".pdfoverlay.on"), "com distrato/visualizador por cima, o Esc é deles");
+  const abrir = vendas.slice(vendas.indexOf("async function abrirObra("), vendas.indexOf("async function abrirObra(") + 300);
+  assert.ok(abrir.includes("pnModalAbrir();"));
+  /* o cartão do condomínio não muda */
+  assert.ok(css.includes(".cd-ov{position:fixed;inset:0;background:rgba(15,30,45,.55);z-index:60;overflow:auto;padding:24px 12px}"));
+  assert.ok(css.includes(".cd-cardbox{background:var(--sup);border-radius:14px;max-width:880px;margin:0 auto;padding:20px 22px;box-shadow:0 12px 40px rgba(0,0,0,.35)}"));
+});
+
 test("dossiê: situação na etiqueta, dados em tabela e histórico recolhido com o que pede atenção à vista", () => {
   const D2 = require("../../venda-dossie.js");
   const h = D2.html({ tipoCasa: "CASA PRONTA", arquivos: {}, pendentes: [], dossie: "LIDO PELA IA – CONFERIR",
