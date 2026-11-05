@@ -170,6 +170,9 @@ td.conf-roxo{background:#EDE4FF !important;color:#5B21B6;font-weight:700}
 .aviso-med .it b{letter-spacing:.2px}
 .aviso-med .it .bt-mini{font-size:11px;padding:3px 9px;border-radius:7px;border:1px solid #34D399;background:#fff;color:#065F46;cursor:pointer;font-weight:700}
 .aviso-med .rod{font-size:11px;opacity:.85;margin-top:5px}
+.aviso-med .it a.bt-mini{text-decoration:none;display:inline-block}
+.aviso-med .it a.bt-mini.mc{border-color:#60A5FA;color:#1E3A8A;background:#EFF6FF}
+html[data-tema="escuro"] .aviso-med .it a.bt-mini.mc{background:transparent;color:#bfdbfe;border-color:#2c4f80}
 html[data-tema="escuro"] .aviso-med{background:#11291f;border-color:#2f6b52;color:#a7f3d0}
 html[data-tema="escuro"] .aviso-med .it .bt-mini{background:transparent;color:#a7f3d0;border-color:#2f6b52}
 /* 04/11/26: PROBLEMAS COM AS LIGAÇÕES — quadro do Mais Controle e do que o robô viu */
@@ -3742,7 +3745,7 @@ function alertasMedidores(){
     const pend = g.linhas.filter(l => sel(l, C.LIBERADO) !== "SIM" && normN(sel(l, C.STATUS)) === "NAO LIGADO");
     const falta = Math.min(Math.min(m.comprado, g.linhas.length) - sim, pend.length);
     if (falta > 0) out.push({ nome: g.nome, tp: g.tp, comprado: m.comprado, orcado: m.orcado, sim: sim, total: g.linhas.length, falta: falta,
-                              casas: pend.map(l => l.obra) });
+                              casas: pend.map(l => l.obra), sols: m.solicitacoes || [] });
   });
   return out.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR") || (a.tp < b.tp ? -1 : 1));
 }
@@ -3754,8 +3757,13 @@ function avisoMedidoresHtml(){
   const quando = MEDIDORES_MC.data_extracao ? " · leitura do Mais Controle de " + fmtData(String(MEDIDORES_MC.data_extracao).slice(0,10)) : "";
   return `<div class="aviso-med"><div class="tt">🛒 ${al.length} ${al.length === 1 ? "medidor comprado" : "medidores comprados"} no Mais Controle esperando o SIM na planilha</div>
     ${al.map(a => `<div class="it"><span>${ic(a.tp)} <b>${esc(nome(a.tp))} DA OBRA ${esc(a.nome)} COMPRADO</b> — ${num(a.comprado)} comprado${a.comprado === 1 ? "" : "s"} no MC, ${num(a.sim)} de ${num(a.total)} ${a.total === 1 ? "casa" : "casas"} com SIM · marque <b>SIM</b> em ${num(a.falta)} ${a.falta === 1 ? "casa" : "casas"} na coluna MEDIDOR COMPRADO</span>
-      <button class="bt-mini" onclick="verObraMedidor(${esc(JSON.stringify(a.nome))})">ver as casas</button></div>`).join("")}
+      <button class="bt-mini" onclick="verObraMedidor(${esc(JSON.stringify(a.nome))})">ver as casas</button>${linksSolicitacao(a.sols)}</div>`).join("")}
     <div class="rod">Baixa parcial: o aviso de cada obra some quando as casas com SIM alcançam o que foi comprado; se outra compra entrar no MC, ele volta para a casa que falta${esc(quando)}.</div></div>`;
+}
+/* 05/11/26 (dono): a solicitação de compra no Mais Controle, direto (a mesma rota que a tela do MC abre) */
+function linksSolicitacao(sols){
+  return (sols || []).filter(x => /^[0-9a-f-]{36}$/i.test(String(x.id || ""))).slice(0, 4).map(x =>
+    `<a class="bt-mini mc" href="https://acessar.maiscontroleerp.com.br/#/purchase-request/${esc(x.id)}/items" target="_blank" rel="noopener" title="Abrir a solicitação no Mais Controle">↗ Solicitação ${esc(x.n || "")}</a>`).join("");
 }
 function verObraMedidor(nome){
   const b = document.getElementById("set-busca");

@@ -469,7 +469,9 @@ def somar(compras) -> dict:
     """compras = [(obra, insumo_codigo, insumo_descricao, quantidade)] já filtradas (atendidas / OC, sem canceladas
     e sem repetir a mesma compra). Devolve o dicionário "obras" do contrato."""
     saida = {}
-    for obra, cod, desc, qtd in compras:
+    for compra in compras:
+        obra, cod, desc, qtd = compra[:4]
+        sol = compra[4] if len(compra) > 4 else None
         tp = tipo_do_insumo(desc)
         if not tp or not obra:
             continue
@@ -480,6 +482,11 @@ def somar(compras) -> dict:
         except (TypeError, ValueError):
             continue
         t["insumos"].append(("%s - %s" % (cod, desc)) if cod else str(desc))
+        # 05/11 (dono): o link da solicitação no Mais Controle (#/purchase-request/<id>/items, a rota da tela)
+        if sol and sol[0] and re.fullmatch(r"[0-9a-fA-F-]{36}", str(sol[0])):
+            t.setdefault("solicitacoes", [])
+            if not any(x["id"] == sol[0] for x in t["solicitacoes"]):
+                t["solicitacoes"].append({"id": sol[0], "n": sol[1]})
     for o in saida.values():
         for tp in ("energia", "agua"):
             if tp in o:
@@ -587,7 +594,8 @@ def compras_da_solicitacao(sol: dict) -> list:
             if str(it.get("status") or "").upper() in STATUS_FORA:
                 continue
             item = it.get("originItem") or {}
-            out.append((obra, str(item.get("code") or ""), str(item.get("name") or ""), it.get("requestedAmount") or 0))
+            out.append((obra, str(item.get("code") or ""), str(item.get("name") or ""), it.get("requestedAmount") or 0,
+                        (sol.get("id"), sol.get("number"))))
     return out
 
 
