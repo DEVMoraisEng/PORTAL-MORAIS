@@ -241,3 +241,11 @@ test("salvar no cadastro do corretor: sem linha cria com o nome da venda; outros
     "CORRETOR_NA_VENDA_FALTANDO");
   assert.equal(k.n.escritas.length, 0);
 });
+
+/* 05/11/2026 (teste do dono na casa 2): comissão opcional — vazia, sem VALOR NA MÃO, não pode virar "valor de aquisição inválido" */
+test("casa de rua: comissão e valor na mão vazios — aquisição = valor do contrato", () => {
+  const f = fontes(); f.venda.COMISSAO = null; f.venda.VALOR_NA_MAO = null;
+  const d = C.montarDadosContrato(f);
+  assert.equal(d.negociacao.aquisicao, 300000);
+  assert.ok(!C.faltasContrato(d).some((x) => /aquisição/i.test(x)), C.faltasContrato(d).join(" | "));
+});

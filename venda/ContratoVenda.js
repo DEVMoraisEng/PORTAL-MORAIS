@@ -823,8 +823,9 @@ var ContratoVenda = (function () {
       aquisicao = total;
       intermediacao = "paga pelo VENDEDOR";
     } else {
+      /* 05/11/2026: a comissão é opcional na casa de rua — vazia conta como zero (antes dava "valor de aquisição inválido") */
       aquisicao = naMao !== null && naMao > 0 ? naMao
-        : (total !== null && comissao !== null ? total - comissao : null);
+        : (total !== null ? so2(total - (comissao || 0)) : null);
       intermediacao = comissao;
     }
     var vend = f.vendedor || null;
