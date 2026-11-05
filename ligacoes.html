@@ -3654,6 +3654,12 @@ function idxProblemas(){
   ((AGUA_PROB || {}).itens || []).forEach(it => (it.notion || []).forEach(id => {
     (robo[idNotion(id)] = robo[idNotion(id)] || []).push(it);
   }));
+  /* 05/11: as REPETIDAS que o robô viu na base dele (a mesma casa 2x, a mesma UC em casas diferentes) também entram
+     na linha — a conta da tela pode não bater com a do robô (UC escrita diferente, casa com nome diferente) */
+  ((AGUA_PROB || {}).duplicadas || []).forEach(d => (d.notion || []).forEach(id => {
+    (robo[idNotion(id)] = robo[idNotion(id)] || []).push({ grupo: "dup_" + d.tipo,
+      titulo: d.tipo === "uc" ? "UC/matrícula " + (d.uc || "") + " repetida em outra casa" : "Linha repetida na base do Notion" });
+  }));
   PROB_IDX = { n: LIG.length, casa: casa, uc: uc, robo: robo }; PROB_IDX_EM = Date.now();
   return PROB_IDX;
 }
@@ -3672,7 +3678,10 @@ function problemasDaLinha(l){
   const u = ucChaveProb(l);
   if (u && ix.uc[u] && ix.uc[u].size > 1) out.push("UC/matrícula repetida em " + ix.uc[u].size + " casas");
   (ix.robo[idNotion(l.id)] || []).forEach(it => {
-    if (it.grupo === "sem_uc" || it.grupo === "repetida") return;     // esses a tela já calcula sozinha
+    // o que a tela já calculou sozinha não repete; o que ela não viu, o robô completa
+    if (it.grupo === "sem_uc" && out.some(x => /^Ligada sem UC/.test(x))) return;
+    if (it.grupo === "dup_casa" && out.some(x => /^Linha repetida/.test(x))) return;
+    if ((it.grupo === "dup_uc" || it.grupo === "repetida") && out.some(x => /^UC\/matrícula/.test(x))) return;
     out.push(String(it.titulo || it.grupo).replace(/[<>&]/g, "") + (PROB_MC.indexOf(it.grupo) >= 0 ? " (Mais Controle)" : ""));
   });
   return out.filter((x, i) => out.indexOf(x) === i);

@@ -374,6 +374,11 @@ def test_com_muitos_achados_esperando_nao_le_a_lista(monkeypatch):
     assert itens["101"]["v"] and "888" not in itens
 
 
+def test_cobertura_por_alerta():
+    aud = aud_falsa()
+    itens = {"101": {"v": "x", "a": [{"o": "P"}]}, "303": {"nao_achado": "2026-11-04"}}
+    l = ra.cobertura(aud, itens)
+    assert l == ["  DUP: não achado no MC 1"]
 def test_nao_achado_recente_fica_fora_da_rodada():
     agora = dt.datetime.now(dt.timezone.utc)
     lim = D(ra.RECHECAR_DIAS)

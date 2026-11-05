@@ -499,6 +499,14 @@ function montarRobos(D) {
     else if (desligado) { st = "off"; stTexto = "desligado"; }
     else if (ult) { st = ult.ok ? "ok" : "erro"; stTexto = ult.ok ? "deu certo" : "deu errado"; stHora = quando(ult.inicio); }
     else if (res.length) { st = resRuim ? "erro" : "ok"; stTexto = resRuim ? "deu errado" : "deu certo"; stHora = quando(r.tarefas[0].ultima); }
+    /* 05/11: a tarefa que nem começou (0x8007010B às 05:20 e 22:00) não deixa relatório — a mesa ficava "deu certo"
+       pela rodada à mão da véspera. Resultado ruim da tarefa MAIS NOVO que a última rodada manda na mesa. */
+    if (!["porteiro", "fila", "coordenador"].includes(r.chave)) {
+      const ruim = r.tarefas.filter(t => t.resultado != null && ![0, 267009, 267011, 267014].includes(t.resultado) && t.ultima
+                                   && (!ult || !dataDe(ult.inicio) || dataDe(t.ultima) > dataDe(ult.inicio)))
+                            .sort((a, b) => String(b.ultima).localeCompare(String(a.ultima)))[0];
+      if (ruim) { st = "erro"; stTexto = /NÃO COMEÇOU/.test(ruim.resultado_texto || "") ? "a tarefa não começou" : "deu errado"; stHora = quando(ruim.ultima); }
+    }
     if (rodando && r.chave !== "porteiro" && r.chave !== "fila") {
       st = "trab"; stTexto = agoraR && agoraR.fase === "esperando a vez" ? "esperando a vez no Mais Controle" : "trabalhando";
       if (agoraR && agoraR.desde) stHora = "desde " + hhmm(dataDe(agoraR.desde));
@@ -927,6 +935,10 @@ function causaDe(r) {
     return "A sessão do Mais Controle no Chrome central caiu" + (P && P.texto ? " — o último robô viu: “" + P.texto + "”" : "") + ". Quem entra é o dono, pela janela do Chrome central no servidor.";
   }
   if (r.chave === "fila") return r.stTexto === "sem sinal" ? "A fila do portal não dá sinal: o servidor pode estar desligado, sem internet, ou a tarefa da fila parou." : "Algum pedido do portal deu erro — veja a coluna RESULTADO na FILA DO ROBÔ.";
+  if (r.stTexto === "a tarefa não começou") {
+    const t = r.tarefas.filter(t => /NÃO COMEÇOU/.test(t.resultado_texto || "")).sort((a, b) => String(b.ultima).localeCompare(String(a.ultima)))[0];
+    if (t) return t.titulo + " (" + quando(t.ultima) + "): " + t.resultado_texto.replace(/^NÃO COMEÇOU: /, "o Agendador não conseguiu começar — ") + ".";
+  }
   const u = r.ult;
   if (u && !u.ok) {
     const a = (u.atencao || [])[0];

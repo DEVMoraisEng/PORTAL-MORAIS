@@ -290,3 +290,25 @@ def test_publicar_arquivo_novo_apaga_a_copia_do_clone(tmp_path, monkeypatch):
     monkeypatch.setattr(R.subprocess, "run", lambda cmd, **k: Res(1 if "ls-files" in cmd else 0))
     assert "não publiquei" in R.publicar_arquivo({}, "dist/novo.json", "x")
     assert not (tmp_path / "dist" / "novo.json").exists()
+
+
+def test_atualizar_codigo_so_com_clone_limpo_e_sem_robo(tmp_path, monkeypatch):
+    _central(tmp_path, monkeypatch)
+    monkeypatch.setattr(R, "MARCA_PULL", tmp_path / "pull.txt")
+    chamadas = []
+
+    class Res:
+        def __init__(self, out="", code=0):
+            self.stdout, self.stderr, self.returncode = out, "", code
+    heads = iter(["aaa", "bbb"])
+    def rodar(cmd, **k):
+        chamadas.append(cmd[1])
+        return Res(next(heads)) if cmd[1] == "rev-parse" else Res()
+    assert R.atualizar_codigo(rodar=rodar) == "atualizado" and "pull" in chamadas
+    assert R.atualizar_codigo(rodar=rodar) is None                       # dentro dos 15 min: nem tenta
+    (tmp_path / "pull.txt").unlink()
+    R.marcar_rodando("anexos", "trabalhando")
+    assert R.atualizar_codigo(rodar=lambda *a, **k: (_ for _ in ()).throw(AssertionError("não podia rodar git"))).startswith("robô rodando")
+    R.marcar_rodando("anexos", None)
+    (tmp_path / "pull.txt").unlink()
+    assert R.atualizar_codigo(rodar=lambda cmd, **k: Res(" M x.py") if cmd[1] == "status" else Res()) == "clone sujo"

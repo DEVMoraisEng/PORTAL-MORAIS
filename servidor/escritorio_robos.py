@@ -215,6 +215,8 @@ ConvertTo-Json -InputObject @($lista) -Depth 5 -Compress
 """
 
 RESULTADOS = {0: "terminou bem", 267009: "trabalhando agora", 267011: "ainda não rodou",
+              2147942667: "NÃO COMEÇOU: a pasta da tarefa não existe (0x8007010B)",
+              2147942402: "NÃO COMEÇOU: o programa da tarefa não foi achado (0x80070002)",
               267014: "foi interrompida", 2147750687: "já estava rodando (pulou)", 1: "terminou com erro"}
 DIAS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"]
 
