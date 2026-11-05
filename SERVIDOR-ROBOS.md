@@ -1,8 +1,9 @@
 # Robôs do portal no servidor — instalação (fila de TESTE primeiro)
 
 Para o Claude do servidor (desktop-siitjjp). Regras de sempre: nada de senha nem login (o dono faz);
-token o dono cola direto no arquivo; **nada grava no Mais Controle** nesta etapa (a fila de teste nunca
-grava); antes de instalar ou criar tarefa, dizer o que vai fazer e pedir o ok.
+token o dono cola direto no arquivo; **nada grava no Mais Controle** nesta etapa (a fila de teste não
+grava — a exceção explícita de 05/11, `_central\TESTE_PODE_GRAVAR.txt`, está no fim deste arquivo); antes de
+instalar ou criar tarefa, dizer o que vai fazer e pedir o ok.
 
 O que já foi provado aqui (27/10): o catálogo rodou pela aba do porteiro e a sessão continuou aberta.
 
@@ -303,3 +304,44 @@ schtasks /Create /TN "MoraisEng - Anexos da auditoria (tarde)" /SC DAILY /ST 12:
 Ajustes opcionais em `"vars"`: `ANEXOS_DIAS` (90), `ANEXOS_ESCOPO` (`alertas` ou `todos`),
 `ANEXOS_MAX_ITENS` (700 por rodada), `ANEXOS_MAX_MB` (250 MB copiados por rodada — só quando o link do MC
 for curto e o arquivo precisar ser copiado para o Supabase).
+
+---
+
+# FILA DE TESTE GRAVANDO DE VERDADE (05/11/2026) — 1º teste da casa de rua assinada
+
+O dono aprovou: o primeiro processo inteiro da casa de rua (assinou → contrato no Orçamento → prévia → venda
+lançada sozinha) roda pelo portal de TESTE gravando de verdade no Mais Controle; ele exclui depois. Deu certo, sobe
+para produção. Detalhe do processo: `venda/COMO-IMPLANTAR.md`, "Casa de rua: contrato assinado vai ao Orçamento".
+
+## A terceira chave: `_central\TESTE_PODE_GRAVAR.txt`
+A fila "teste" grava no ERP **só** com as três ao mesmo tempo:
+1. `"pode_gravar": true` na fila "teste" do `_central\robos-portal.json`;
+2. o arquivo `C:\AUTOMAÇÕES MAIS CONTROLE\_central\VENDA_APLICAR.txt` (o mesmo da produção);
+3. o arquivo `C:\AUTOMAÇÕES MAIS CONTROLE\_central\TESTE_PODE_GRAVAR.txt` (pode ser vazio) — só o dono cria e apaga.
+Sem o 3º, nada muda: a fila de teste faz prévia e o lançamento volta "BLOQUEADO". A produção não depende dele. O
+"Rodar de novo" do Escritório continua recusado na fila de teste. O `--verificar` mostra "pode gravar: SIM" e um
+"ATENÇÃO" enquanto o arquivo existir.
+
+## Passo a passo do 1º teste ao vivo
+1. (servidor) `git pull` no clone `_portal` e `python -m pytest -q venda/mc/testes tests` (as falhas antigas de
+   `test_robo_mc_obras.py` e o `test_na_vez_espera…`, que pede `fcntl`, já falhavam antes).
+2. (servidor) fila "teste" no `robos-portal.json`: `"pode_gravar": true` e, em `"vars"`, `DB_CORRETORES` da BRAIN
+   TESTE (e `DB_VENDAS_COND` do teste, como já está).
+3. (dono, no servidor) criar `_central\VENDA_APLICAR.txt` (se ainda não existe) e `_central\TESTE_PODE_GRAVAR.txt`.
+4. (servidor) `python servidor\robo_fila.py --verificar` → fila teste "pode gravar: SIM" + "ATENÇÃO".
+5. (dono, no Mais Controle) a obra da casa de teste com o nome IGUAL ao ENDEREÇO da casa, com conta padrão, e no
+   Orçamento dela, Arquivos, a pasta **Contratos Venda**.
+6. (dono, PORTAL-VENDA de teste) colar os 4 arquivos .gs do COMO-IMPLANTAR, Propriedades `MC_LANCAR_AO_ASSINAR` = SIM,
+   `DB_FILA_ROBO` (fila de teste), `DB_VENDAS`, `ASSINATURA_AVISO_EMAILS`; publicar a mesma implantação.
+7. Enviar o contrato de uma casa de rua de teste para a Clicksign (sandbox) e assinar com todos.
+8. Esperar a vigia (15 min, 7h–21h) ou clicar Atualizar situação: a situação mostra `PROCESSANDO (prévia)` e
+   `Contrato no Orçamento: pedido ao robô`; em ~1 min a prévia e `Contrato no Orçamento: enviado …`; na volta seguinte
+   da vigia, `PROCESSANDO (lançamento)` e depois `CRIADA | venda …` com `Contrato: anexado no recebimento`.
+9. Conferir no Mais Controle: venda da casa, contrato no recebimento e na pasta Contratos Venda do Orçamento.
+10. (dono) **apagar `_central\TESTE_PODE_GRAVAR.txt`** e excluir no ERP a venda e o cliente de teste.
+Parou no meio? A situação tem a linha `Lançamento automático: parou …` e chega um e-mail; nada é repetido sozinho.
+
+## Depois, produção
+PORTAL-VENDA de produção: os mesmos 4 .gs e `MC_LANCAR_AO_ASSINAR` = SIM (atenção: a mesma Propriedade já liga o
+lançamento do condomínio com prévia OK). Servidor: nada a mais (a fila "producao" já tem `pode_gravar` e o
+VENDA_APLICAR.txt).

@@ -850,10 +850,14 @@ function assinaturaEstado_(col, p) {
 function assPosAssinatura_(col, pageId) {
   var id8 = String(pageId).slice(0, 8), pg;
   try { pg = notion_("GET", "/pages/" + pageId, null); } catch (e) { ctrErro_("pos-assinatura " + id8 + " leitura", e); return; }
-  if (!pg || vendaBaseDaPagina_(pg) !== "CONDOMINIO") return;
+  var base = pg ? vendaBaseDaPagina_(pg) : "";
+  if (base !== "CONDOMINIO" && base !== "VENDAS") return;
   try { vigiaMarcarAndamento_(pg); } catch (e) { ctrErro_("pos-assinatura " + id8 + " andamento", e); }
   if (String(prop_("MC_LANCAR_AO_ASSINAR") || "").trim().toUpperCase() === "SIM") {
-    try { vigiaLancarMC_(col, pageId); } catch (e) { ctrErro_("pos-assinatura " + id8 + " mais controle", e); }
+    /* 05/11/2026 (dono): casa de rua pede a prévia sozinha e lança quando ela volta OK (mcAutoIniciar_, MaisControleVenda.gs);
+       o condomínio segue esperando a prévia do botão */
+    try { if (base === "VENDAS") mcAutoIniciar_(col, pageId); else vigiaLancarMC_(col, pageId); }
+    catch (e) { ctrErro_("pos-assinatura " + id8 + " mais controle", e); }
   }
 }
 function vigiaMarcarAndamento_(pg) {

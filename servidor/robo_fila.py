@@ -13,7 +13,9 @@ Configuração (FORA do repositório, só no servidor): C:\\AUTOMAÇÕES MAIS CO
                 "pode_gravar": false, "vars": {"DB_VENDAS_COND": "...", "DB_CORRETORES": "...", ...}},
                {"nome": "producao", ..., "pode_gravar": true}]}
 Gravar no ERP exige as DUAS chaves, como no GitHub: o pedido pediu "aplicar" E a fila tem "pode_gravar": true
-E existe o arquivo _central\\VENDA_APLICAR.txt (só o dono cria). A fila "teste" nunca grava.
+E existe o arquivo _central\\VENDA_APLICAR.txt (só o dono cria). A fila "teste" não grava — a não ser com uma
+TERCEIRA chave, separada e só dela: o arquivo _central\\TESTE_PODE_GRAVAR.txt (05/11/2026, para o dono testar o
+processo inteiro da casa de rua gravando de verdade no Mais Controle; ele mesmo cria e apaga). Sem ele, nada muda.
 
 Log PÚBLICO de propósito curto: só tipo, 8 letras do id e o código de saída — nunca nome, CPF ou valores."""
 from __future__ import annotations
@@ -44,6 +46,9 @@ ESPERA_VEZ_S = 50 * 60
 RODANDO = CENTRAL / "rodando"
 SAUDE = CENTRAL / "robos-portal-saude.json"
 APLICAR = CENTRAL / "VENDA_APLICAR.txt"
+#: 05/11/2026: chave EXPLÍCITA e separada para a fila "teste" gravar no ERP (o dono cria para o 1º teste ao vivo e
+#: apaga depois). Vale junto com "pode_gravar": true da fila e o VENDA_APLICAR.txt — nunca sozinha.
+TESTE_PODE_GRAVAR = CENTRAL / "TESTE_PODE_GRAVAR.txt"
 LOGS = CENTRAL / "logs"
 PRAZO_PEGO_S = 15 * 60          # pedido PEGO há mais que isto (robô morreu no meio) volta a ser atendido
 PRAZO_ROBO_S = 600              # mesmo teto do GitHub (timeout-minutes: 10)
@@ -181,7 +186,8 @@ class Fila:
         self.notion = Notion(tok)
         self.token = tok
         self.vars = {k: str(v) for k, v in (cfg.get("vars") or {}).items()}
-        self.pode_gravar = bool(cfg.get("pode_gravar")) and self.nome != "teste" and APLICAR.exists()
+        self.pode_gravar = (bool(cfg.get("pode_gravar")) and APLICAR.exists()
+                            and (self.nome != "teste" or TESTE_PODE_GRAVAR.exists()))
 
     def sinal(self) -> None:
         r = self.notion.api("POST", "/databases/%s/query" % self.db,
@@ -640,6 +646,8 @@ def verificar() -> int:
     if CONFIG.exists():
         for fila in carregar():
             print(" fila %-9s base %s… pode gravar: %s" % (fila.nome, fila.db[:8], "SIM" if fila.pode_gravar else "não"))
+            if fila.nome == "teste" and fila.pode_gravar:   # 05/11: a 3ª chave está ligada — lembrar de apagar
+                print("   ATENÇÃO: a fila de teste GRAVA no Mais Controle (%s existe)" % TESTE_PODE_GRAVAR.name)
     sys.path.insert(0, str(RAIZ))
     from venda.mc.porteiro import AbaPorteiro, PorteiroErro
     try:
