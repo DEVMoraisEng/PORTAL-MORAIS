@@ -593,3 +593,25 @@ def test_fechar_centavos_nao_mexe_em_diferenca_grande():
     assert ps[0]["valor"] == 1000.00
     C.fechar_centavos(ps, 1000.20)  # soma abaixo do valor: falta, o robô não inventa dinheiro
     assert ps[0]["valor"] == 1000.00
+
+
+def test_financiamento_reduzido_no_fluxo_alterado_lanca_o_valor_da_linha(monkeypatch):
+    """05/11/2026 (dono): financiamento menor que a carta (VALOR DO CRÉDITO 200.000) no Alterar fluxo — o robô lança
+    a linha do fluxo (190.000), não a coluna; os 10.000 foram para o balão da entrega."""
+    linhas = [dict(l) for l in LIVRE]
+    fin = next(l for l in linhas if l["t"] == "fin")
+    fin["v"] = 190000
+    next(l for l in linhas if l["t"] == "balao" and l["d"] == "2028-11-30")["v"] += 10000
+    fx = C.fluxo(fluxo_props(**_livre(linhas)))
+    assert C.faltas_do_fluxo(fx, fx["unidade"]) == []
+    d = {"data_venda": "2026-09-01", "total": 228900, "aquisicao": 228900, "financiado": 200000, "subsidio": None}
+    C.ajustar_dados_livre(fx, d)
+    assert d["financiado"] == 190000, "o dado da venda segue a linha do fluxo"
+    ps = C.parcelas(fx, d, 30)
+    assert [p["valor"] for p in ps if p["tipo"] == R.TIPO_FINANCIAMENTO] == [190000]
+    monkeypatch.setenv("DB_VENDAS_COND", DB_COND)
+    r = L.processar(LINHA_ID, NotionLinha(linha_cond(**_livre(linhas))), ErpLinha())
+    assert r["situacao"] == "PREVIA", r
+    inst = r["corpo_venda"]["tradeReceivable"]["installments"]
+    assert [i["plannedValue"] for i in inst if i["readjustmentDetail"]["type"]["id"] == R.TIPO_FINANCIAMENTO] == [190000]
+    assert round(sum(i["plannedValue"] for i in inst), 2) == 228900

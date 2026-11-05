@@ -356,11 +356,25 @@ var FluxoLivre = (function () {
        0, 12 ou 24 no total (o prazo pode mudar — 31/10), parcela até o teto e sem começar antes da proposta */
     if (padrao) {
       padrao = normalizar(padrao);
+      /* 05/11/2026 (dono): "alguns preferem reduzir o valor a financiar (nunca pode ser maior que o valor da carta de
+         aprovação)" — o financiamento pode BAIXAR (> 0 e até o da proposta = VALOR DO CRÉDITO, a carta), na mesma
+         quantidade de linhas; pré-reserva, FGTS e subsídio continuam iguais aos da proposta */
       var fixos = function (ls) {
-        return ls.filter(function (l) { return TIPOS[l.t] && TIPOS[l.t].fixo; })
+        return ls.filter(function (l) { return TIPOS[l.t] && TIPOS[l.t].fixo && l.t !== "fin"; })
           .map(function (l) { return l.t + ":" + totalLinhaC(l); }).sort().join("|");
       };
-      if (fixos(f.linhas) !== fixos(padrao.linhas)) erros.push("Pré-reserva paga, financiamento, FGTS e subsídio não mudam — ficam como na proposta");
+      var nFin = function (ls) { return ls.filter(function (l) { return l.t === "fin"; }).length; };
+      if (fixos(f.linhas) !== fixos(padrao.linhas) || nFin(f.linhas.slice(0, MAX_LINHAS)) !== nFin(padrao.linhas))
+        erros.push("Pré-reserva paga, financiamento, FGTS e subsídio não mudam — ficam como na proposta" +
+          (nFin(padrao.linhas) ? " (o financiamento só pode baixar o valor)" : ""));
+      else {
+        var carta = tetoFinanciamento(padrao), finF = 0, kFin = -1;
+        f.linhas.slice(0, MAX_LINHAS).forEach(function (l, k) { if (l.t === "fin") { finF += totalLinhaC(l); if (kFin < 0) kFin = k; } });
+        if (finF > c(carta)) {
+          var mc = "O financiamento não pode passar do valor aprovado na carta: " + moeda(carta);
+          (porLinha[kFin] = porLinha[kFin] || []).push(mc); erros.push(mc);
+        }
+      }
       /* 31/10 (dono): com pré-reserva, o restante do sinal se divide livre, mas só nos prazos do sinal (ato/30/60/90,
          no máximo 4 parcelas até 3 meses da assinatura) e sem baixar o sinal da proposta (o mínimo de hoje) */
       var temPR = padrao.linhas.some(function (l) { return l.t === "prereserva"; });
@@ -402,6 +416,11 @@ var FluxoLivre = (function () {
     var dif = c(f.valor) - somaC(f.linhas);
     if (dif !== 0) erros.unshift((dif > 0 ? "Faltam " : "Sobram ") + moeda(Math.abs(dif) / 100) + " para fechar com o valor da casa");
     return { ok: !erros.length, diferenca: dif / 100, erros: erros, porLinha: porLinha, avisos: avisos, porBem: porBem, errosBem: errosBem };
+  }
+
+  /* 05/11/2026: o financiamento aprovado na carta = o da proposta (gavetas: VALOR DO CRÉDITO); 0 sem financiamento */
+  function tetoFinanciamento(padrao) {
+    return somaC((padrao && Array.isArray(padrao.linhas) ? normalizar(padrao).linhas : []).filter(function (l) { return l.t === "fin"; })) / 100;
   }
 
   /* Atalho "Redistribuir": a linha k absorve a diferença inteira; os centavos que sobram vão na última parcela dela.
@@ -510,6 +529,95 @@ var FluxoLivre = (function () {
       else linhas[k] = comTotal(linhas[k], alvo);
     });
     return erro ? { erro: erro } : { linhas: linhas };
+  }
+
+  /* ---- 04/11/2026 (dono): "os fluxos que fazemos à mão devem seguir o princípio do simulador — tirei das primeiras
+   * parcelas pré-chaves, sobe automaticamente o valor do primeiro balão, ou pelo menos um campo de sugestão" ----
+   * guiar(f, travadas, padrao): a diferença (valor − soma) vai para as linhas de pré-chaves, balões e pós-chaves que NÃO
+   * estão travadas (travadas = índices que a pessoa mexeu: [k] ou { k: true }), proporcional à régua do simulador:
+   *   1ª pré-chaves (por data) 860 por parcela, as outras 330; 1º balão 10.000, os outros 7.000; pós-chaves 788,33.
+   * Pós-chaves nunca passa do teto (o da proposta, se maior). Nenhuma linha fica abaixo de R$ 1,00 por parcela: o que não
+   * cabe numa linha vai para as outras. Quantidade e datas ficam; só o valor de cada muda. Os centavos fecham no último
+   * balão (como o simulador). Sinal, entrada, permuta, financiamento, FGTS, subsídio e pré-reserva nunca mudam.
+   * { linhas, mudou: [k], sugestao: null } ou, quando não dá com as travas, { linhas (sem mudança), mudou: [], erro,
+   * sugestao: { k: valor de cada }, sugestaoUltima: { k: última, quando diferente } } = o que cada linha precisaria (guiar sem travas), ou sugestao null se nem assim. */
+  var GUIA = { pre: 1, balao: 1, pos: 1 };
+  function guiar(f, travadas, padrao) {
+    f = normalizar(f);
+    var trava = {};
+    if (Array.isArray(travadas)) travadas.forEach(function (k) { trava[Number(k)] = true; });
+    else if (travadas && typeof travadas === "object") Object.keys(travadas).forEach(function (k) { if (travadas[k]) trava[Number(k)] = true; });
+    var D = c(f.valor) - somaC(f.linhas);
+    if (!D) return { linhas: f.linhas, mudou: [], sugestao: null };
+    var teto = POS_TETO;
+    (padrao ? normalizar(padrao).linhas : []).forEach(function (l) { if (l.t === "pos") teto = Math.max(teto, l.v, l.u || 0); });
+    /* o papel de cada linha na régua: ordem por data dentro do tipo (todas, travadas também — o papel não muda ao travar) */
+    var papel = {};
+    ["pre", "balao"].forEach(function (t) {
+      f.linhas.map(function (l, k) { return { l: l, k: k }; }).filter(function (x) { return x.l.t === t; })
+        .sort(function (a, b) { return porData(a.l, b.l) || a.k - b.k; }).forEach(function (x, j) { papel[x.k] = j; });
+    });
+    var itens = [];
+    f.linhas.forEach(function (l, k) {
+      if (!GUIA[l.t] || trava[k] || l.n < 1) return;
+      var w = l.t === "pre" ? (papel[k] === 0 ? 860 : 330) * l.n : l.t === "balao" ? (papel[k] === 0 ? SIM_B1 : SIM_B2) * l.n : SIM_POS_UNIT * l.n;
+      itens.push({ k: k, w: w, atual: totalLinhaC(l), min: 100 * l.n, max: l.t === "pos" ? c(teto) * l.n : Infinity, pos: l.t === "pos" });
+    });
+    function semJeito(msg) {
+      var s = null, su = null;
+      if (Object.keys(trava).length) {
+        var g = guiar(f, [], padrao);
+        if (g.linhas && !g.erro) {
+          s = {}; su = {};
+          g.mudou.forEach(function (k) { s[k] = g.linhas[k].v; if (g.linhas[k].u) su[k] = g.linhas[k].u; });
+        }
+      }
+      /* sugestaoUltima { k: última parcela } só quando a última é diferente (os centavos) */
+      return { linhas: f.linhas, mudou: [], sugestao: s, sugestaoUltima: su, erro: msg };
+    }
+    if (!itens.length) return semJeito(Object.keys(trava).length ? "Todas as pré-chaves, balões e pós-chaves estão travados (🔒) — destrave uma linha ou aplique a sugestão"
+                                                                   : "Não há pré-chaves, balões nem pós-chaves para ajustar — ajuste à mão");
+    /* proporcional ao peso; linha que bate no limite (R$ 1,00 por parcela ou o teto do pós-chaves) para ali e o resto
+       volta para as outras (repete até ninguém passar) */
+    var alvo = {}, ativos = itens.slice(), resto = D;
+    itens.forEach(function (it) { alvo[it.k] = it.atual; });
+    while (ativos.length && Math.abs(resto) > 1e-6) {
+      var W = ativos.reduce(function (s, it) { return s + it.w; }, 0);
+      var passou = ativos.filter(function (it) { var p = alvo[it.k] + resto * it.w / W; return p < it.min || p > it.max; });
+      if (!passou.length) { ativos.forEach(function (it) { alvo[it.k] += resto * it.w / W; }); resto = 0; break; }
+      passou.forEach(function (it) {
+        var lim = alvo[it.k] + resto * it.w / W < it.min ? it.min : it.max;
+        resto -= lim - alvo[it.k]; alvo[it.k] = lim;
+      });
+      ativos = ativos.filter(function (it) { return passou.indexOf(it) < 0; });
+    }
+    if (Math.abs(resto) >= 0.5) return semJeito(D > 0 ? "Não coube: pós-chaves já no teto e o resto travado — destrave uma linha ou aplique a sugestão"
+                                                        : "Não coube: as linhas soltas chegariam a R$ 1,00 por parcela — destrave uma linha ou aplique a sugestão");
+    /* centavos: pós-chaves com parcela igual (múltiplo de n, nunca acima do teto); o resto do arredondamento no último
+       balão solto (senão a última pré-chaves solta) */
+    var fecho = null;
+    itens.forEach(function (it) {
+      var l = f.linhas[it.k];
+      if (it.pos) { alvo[it.k] = Math.max(it.min, Math.floor(Math.round(alvo[it.k]) / l.n) * l.n); return; }
+      alvo[it.k] = Math.round(alvo[it.k]);
+      var rank = (l.t === "balao" ? 2 : 1) * 1e6 + (papel[it.k] || 0);
+      if (!fecho || rank >= fecho.rank) fecho = { k: it.k, rank: rank };
+    });
+    var linhas = f.linhas.slice(), mudou = [];
+    itens.forEach(function (it) { linhas[it.k] = comTotal(f.linhas[it.k], alvo[it.k]); });
+    var dif = c(f.valor) - somaC(linhas);
+    if (dif) {
+      var kf = fecho ? fecho.k : itens[itens.length - 1].k, lf = f.linhas[kf];
+      alvo[kf] += dif;
+      if (alvo[kf] < 100 * lf.n) return semJeito("Não coube nos centavos — ajuste à mão");
+      linhas[kf] = comTotal(lf, alvo[kf]);
+      if (lf.t === "pos" && (c(linhas[kf].v) > c(teto) || c(linhas[kf].u || 0) > c(teto))) return semJeito("Não coube no teto do pós-chaves — ajuste à mão");
+    }
+    itens.forEach(function (it) {
+      var a = f.linhas[it.k], b = linhas[it.k];
+      if (c(a.v) !== c(b.v) || c(a.u || 0) !== c(b.u || 0)) mudou.push(it.k); else linhas[it.k] = a;
+    });
+    return { linhas: linhas, mudou: mudou, sugestao: null };
   }
 
   /* ---- 30/10: desconto no "Alterar fluxo" (decisões do dono, arquivo 17 item 1) ----
@@ -669,7 +777,7 @@ var FluxoLivre = (function () {
   return { TIPOS: TIPOS, ORDEM: ORDEM, MAX_LINHAS: MAX_LINHAS, MAX_MOTIVO: MAX_MOTIVO, POS_TETO: POS_TETO, LIMITE_PRE_CHAVES: LIMITE_PRE_CHAVES,
            PRAZOS: PRAZOS, TIPOS_BEM: TIPOS_BEM, QUITA_PADRAO: QUITA_PADRAO, normalizarBem: normalizarBem, faltasBem: faltasBem, semDadosDoBem: semDadosDoBem, resumoBem: resumoBem,
            crlvDaLeitura: crlvDaLeitura, preencherBemCrlv: preencherBemCrlv,
-           docValido: docValido, docFormatado: docFormatado, renavamValido: renavamValido, placaValida: placaValida, chassiValido: chassiValido, prazoDasLinhas: prazoDasLinhas, mudarPrazo: mudarPrazo, distribuir: distribuir,
+           docValido: docValido, docFormatado: docFormatado, renavamValido: renavamValido, placaValida: placaValida, chassiValido: chassiValido, prazoDasLinhas: prazoDasLinhas, mudarPrazo: mudarPrazo, distribuir: distribuir, guiar: guiar, tetoFinanciamento: tetoFinanciamento,
            normalizar: normalizar, validar: validar, redistribuir: redistribuir, aplicarDesconto: aplicarDesconto, valorDoDesconto: valorDoDesconto, doPadrao: doPadrao, abaterSinal: abaterSinal, expandir: expandir,
            serializar: serializar, ler: ler, ordenar: ordenar, totalLinha: function (l) { return totalLinhaC(normalizar({ linhas: [l] }).linhas[0] || {}) / 100; },
            soma: function (linhas) { return somaC(normalizar({ linhas: linhas }).linhas) / 100; }, maisMeses: maisMeses, moeda: moeda, dataBR: dataBR };

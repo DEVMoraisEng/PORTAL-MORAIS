@@ -1441,3 +1441,43 @@ redirecionamento (conta como falha e pode desligar o webhook). Tudo passa pela v
 - **Conferir:** venda de teste com envelope ENVIADO na sandbox → assinar com um signatário → em até 15 min a planilha
   mostra "1 de N"; recusar com outro → linha vermelha "recusado" e o e-mail chega; unidade com contrato gerado e sem
   termo → aba Pré-reserva mostra "Dispensada" e o Gerar termo some.
+
+## Alterar fluxo guiado pelo simulador (04/11/2026)
+
+Pedido do dono: "os fluxos que nós fazemos à mão devem seguir o princípio do simulador — tirei das primeiras parcelas
+pré-chaves, sobe automaticamente o valor do primeiro balão, ou pelo menos um campo de sugestão". Decisão: ajuste
+automático com cadeado.
+
+- **Na tela:** mexer no valor ou na quantidade de uma pré-chaves, balão ou pós-chaves trava a linha (🔒). Uns 400 ms
+  depois da última tecla, as linhas soltas (🔓) dessas três espécies são refeitas para a Diferença ficar em R$ 0,00 — as
+  que mudaram piscam e ganham "ajustado pelo simulador". O cadeado de cada linha trava/solta à mão. Sinal, entrada à
+  vista, permuta, pré-reserva, financiamento, FGTS e subsídio nunca mudam. Quando as travas não deixam fechar, cada linha
+  mostra "sugestão: R$ X" e o placar oferece **Aplicar sugestão** (a conta sem as travas; os cadeados abrem).
+  Recomeçar do fluxo da proposta e o prazo 24x/36x/48x limpam os cadeados; Distribuir e ↻ continuam como eram.
+- **A conta** (`FluxoLivre.guiar`): a diferença vai proporcional à régua do simulador — 1ª pré-chaves (por data) 860 por
+  parcela, as outras 330; 1º balão 10.000, os outros 7.000; pós-chaves 788,33 por parcela, nunca acima do teto (o da
+  proposta, se maior). Nenhuma linha abaixo de R$ 1,00 por parcela (o que não cabe vai para as outras). Quantidade e
+  datas ficam; os centavos fecham no último balão solto.
+- **Cadeados são só da tela** (não são gravados). Validações e servidor não mudaram.
+- **Implantar:** sobe com o site (FluxoLivre v13, venda-dossie v70, cache v289). No Apps Script nada é obrigatório: o
+  servidor não usa `guiar`; colar `FluxoLivre.gs` de novo só para manter a cópia igual.
+
+## Financiamento menor que a carta no Alterar fluxo (05/11/2026)
+
+Pedido do dono: "alguns preferem reduzir o valor a financiar (nunca pode ser maior que o valor da carta de aprovação)".
+
+- **Na tela:** a linha Financiamento ganha o campo de valor (sem quantidade, data, ↻ nem ✕) e a nota "até R$ X (carta de
+  aprovação)". X = o financiamento da proposta (VALOR DO CRÉDITO). Baixar o valor refaz as pré-chaves, balões e
+  pós-chaves soltos pela régua do simulador (o financiamento não trava nem é mexido pelo simulador). FGTS, subsídio e
+  pré-reserva continuam fixos.
+- **Regra (`FluxoLivre.validar`, a mesma na tela e no servidor):** financiamento > 0 e até o da proposta, na mesma
+  quantidade de linhas; acima = "O financiamento não pode passar do valor aprovado na carta: R$ X". A coluna VALOR DO
+  CRÉDITO não é regravada (continua sendo a carta).
+- **Quem lê o financiamento do fluxo alterado:** contrato (já lia a linha `fin`), robô do Mais Controle
+  (`venda/mc/condominio.py`: parcelas já saíam das linhas; agora o dado `financiado` também), cartão (quadro do pro
+  soluto e "como se chega", com a carta ao lado quando reduzido), Gerar venda (`CondominioVenda.mapear` copia o VALOR
+  FINANCIADO da linha).
+- **Implantar (teste primeiro):** no PORTAL-VENDA colar `FluxoLivre.gs` (de `venda/FluxoLivre.js`), `CondominioVenda.gs`
+  (de `venda/CondominioVenda.js`) e `PortalVenda.gs` (`venda-v24`) e publicar a MESMA implantação — sem o FluxoLivre novo
+  o servidor recusa o fluxo com financiamento reduzido. Robô: `git pull` no servidor (`venda/mc/condominio.py`). Site:
+  FluxoLivre v14, venda-dossie v71, cache v290.
